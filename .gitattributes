@@ -1,0 +1,9 @@
+# Script chạy trên Linux (host Sysbox) — BẮT BUỘC LF, kể cả khi checkout trên Windows.
+# Có CRLF là bash báo '\r': command not found và cả script chết. Khoá về LF để dù
+# edit trên Windows rồi scp sang VM, file vẫn luôn là LF.
+*.sh   text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+
+# Mặc định: để git tự chuẩn hoá text, nhị phân giữ nguyên.
+* text=auto
