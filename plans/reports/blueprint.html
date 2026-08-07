@@ -1,0 +1,383 @@
+<title>DevOps Learning Platform — Blueprint</title>
+<style>
+  :root {
+    /* light palette — picked, not defaulted: slate-blue biased neutrals */
+    --bg: #eef1f6;
+    --surface: #ffffff;
+    --surface-2: #f5f7fb;
+    --border: #d3d9e4;
+    --text: #1a2233;
+    --text-dim: #5a6478;
+    --accent: #2f6feb;      /* kubernetes blue */
+    --term: #0a7d55;        /* phosphor green, darkened for light bg */
+    --term-ink: #0a7d55;
+    --danger: #c02f3c;
+    --safe: #0a7d55;
+    --warn: #a6631b;
+    --shadow: 0 1px 2px rgba(20,30,50,.06), 0 8px 24px rgba(20,30,50,.06);
+    --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", "Consolas", "Menlo", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b0e14;
+      --surface: #12161f;
+      --surface-2: #171c28;
+      --border: #262d3d;
+      --text: #e4e8f1;
+      --text-dim: #8b95ab;
+      --accent: #5b8cff;
+      --term: #3ddc84;
+      --term-ink: #3ddc84;
+      --danger: #ff6b78;
+      --safe: #3ddc84;
+      --warn: #e5a94e;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b0e14;
+    --surface: #12161f;
+    --surface-2: #171c28;
+    --border: #262d3d;
+    --text: #e4e8f1;
+    --text-dim: #8b95ab;
+    --accent: #5b8cff;
+    --term: #3ddc84;
+    --term-ink: #3ddc84;
+    --danger: #ff6b78;
+    --safe: #3ddc84;
+    --warn: #e5a94e;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  a { color: var(--accent); }
+
+  /* ---- hero ---- */
+  header.hero {
+    border-bottom: 1px solid var(--border);
+    background:
+      radial-gradient(1200px 400px at 80% -20%, color-mix(in srgb, var(--accent) 14%, transparent), transparent),
+      var(--surface);
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--term-ink);
+    display: flex; align-items: center; gap: .6em;
+  }
+  .eyebrow::before {
+    content: "▍"; color: var(--term-ink);
+  }
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(2.1rem, 5vw, 3.4rem);
+    line-height: 1.05;
+    letter-spacing: -.02em;
+    margin: .5rem 0 .3rem;
+    text-wrap: balance;
+  }
+  h1 .cursor { color: var(--term-ink); font-weight: 400; animation: blink 1.2s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { h1 .cursor { animation: none; } }
+  .lede { font-size: 1.12rem; color: var(--text-dim); max-width: 60ch; }
+  .hero .wrap { padding-top: 56px; padding-bottom: 48px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+  .chip {
+    font-family: var(--mono); font-size: .78rem;
+    padding: 5px 11px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--text-dim);
+  }
+  .chip.hot { color: var(--term-ink); border-color: color-mix(in srgb, var(--term) 45%, var(--border)); }
+
+  /* ---- sections ---- */
+  section { padding: 48px 0; border-bottom: 1px solid var(--border); }
+  .kicker {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px;
+  }
+  h2 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -.01em; }
+  .sub { color: var(--text-dim); margin: 0 0 26px; max-width: 62ch; }
+  h3 { font-size: 1.02rem; margin: 0 0 4px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; box-shadow: var(--shadow);
+  }
+
+  /* ---- architecture diagram ---- */
+  .engine {
+    border: 1px dashed color-mix(in srgb, var(--term) 55%, var(--border));
+    background: color-mix(in srgb, var(--term) 7%, var(--surface));
+    border-radius: 14px; padding: 18px; text-align: center;
+  }
+  .engine .tag { font-family: var(--mono); font-size: .72rem; letter-spacing:.14em; text-transform: uppercase; color: var(--term-ink); }
+  .engine h3 { font-family: var(--mono); margin-top: 4px; }
+  .engine p { margin: 6px 0 0; color: var(--text-dim); font-size: .92rem; }
+  .connector { display: flex; justify-content: center; color: var(--border); font-size: 1.4rem; line-height: 1; margin: 2px 0; }
+  .pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 6px; }
+  .pillar { position: relative; }
+  .pillar .num { font-family: var(--mono); font-size: .74rem; color: var(--accent); }
+  .pillar h3 { font-family: var(--mono); font-size: .98rem; }
+  .pillar .ref { font-size: .8rem; color: var(--text-dim); }
+  .pillar .desc { font-size: .88rem; color: var(--text-dim); margin-top: 8px; }
+  .badge-mvp {
+    position: absolute; top: -10px; right: 10px;
+    font-family: var(--mono); font-size: .64rem; letter-spacing: .1em;
+    background: var(--term-ink); color: #04150d; padding: 2px 8px; border-radius: 999px; font-weight: 700;
+  }
+  :root[data-theme="dark"] .badge-mvp, :root:not([data-theme="light"]) .badge-mvp { color: #04150d; }
+
+  /* ---- flow strip ---- */
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; font-family: var(--mono); font-size: .82rem; }
+  .flow .node {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 10px 14px; border-radius: 8px; flex: 1 1 140px; min-width: 130px;
+  }
+  .flow .node b { display:block; color: var(--text); font-weight: 600; }
+  .flow .node span { color: var(--text-dim); font-size: .74rem; }
+  .flow .arrow { display: flex; align-items: center; padding: 0 8px; color: var(--accent); font-weight: 700; }
+  .flow .node.go { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+  .flow .node.term { border-color: color-mix(in srgb, var(--term) 50%, var(--border)); }
+
+  /* ---- tables ---- */
+  .scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; min-width: 560px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-family: var(--mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim); background: var(--surface-2); position: sticky; top: 0; }
+  tr:last-child td { border-bottom: none; }
+  td.mono, .mono { font-family: var(--mono); font-size: .82rem; }
+  .pill { font-family: var(--mono); font-size: .7rem; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .pill.star { background: color-mix(in srgb, var(--term) 16%, transparent); color: var(--term-ink); }
+  .pill.ok   { background: color-mix(in srgb, var(--safe) 15%, transparent); color: var(--safe); }
+  .pill.bad  { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+  .pill.mid  { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+
+  /* ---- security grid ---- */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .sec {
+    display: grid; grid-template-columns: 1fr; gap: 8px;
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface);
+  }
+  .sec .bug { padding: 9px 13px; font-size: .82rem; color: var(--danger); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--danger) 6%, transparent); }
+  .sec .fix { padding: 9px 13px; font-size: .86rem; }
+  .sec .bug b, .sec .fix b { font-family: var(--mono); font-weight: 600; }
+
+  /* ---- roadmap ---- */
+  .road { display: grid; gap: 12px; }
+  .phase { display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: start; }
+  .phase .p { font-family: var(--mono); color: var(--accent); font-size: .82rem; padding-top: 2px; }
+  .phase .p .wk { display: block; color: var(--text-dim); font-size: .7rem; }
+  .phase.mvp .p { color: var(--term-ink); }
+  .phase .body h3 { font-size: .98rem; }
+  .phase .body p { margin: 2px 0 0; color: var(--text-dim); font-size: .88rem; }
+
+  footer { padding: 30px 0 60px; color: var(--text-dim); font-size: .82rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .78rem; color: var(--text-dim); font-family: var(--mono); margin-top: 10px; }
+  .legend span::before { content: "●"; margin-right: 5px; }
+
+  @media (max-width: 720px) {
+    .pillars { grid-template-columns: 1fr; }
+    .grid2 { grid-template-columns: 1fr; }
+    .phase { grid-template-columns: 64px 1fr; }
+  }
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">NCKH · System Design Blueprint · 2026-08-07</div>
+    <h1>DevOps Learning Platform<span class="cursor">_</span></h1>
+    <p class="lede">Một nền tảng học–thực hành DevOps tự host, chịu tải cao: bài học tương tác, labs/playground môi trường thật, và games — ba trụ cột ngồi trên <b>một engine sandbox dùng chung</b>.</p>
+    <div class="chips">
+      <span class="chip hot">Next.js 15</span>
+      <span class="chip hot">Go · client-go</span>
+      <span class="chip">TypeScript</span>
+      <span class="chip">xterm.js</span>
+      <span class="chip">Kubernetes + Sysbox</span>
+      <span class="chip">PostgreSQL</span>
+      <span class="chip">Redis</span>
+      <span class="chip">Better Auth</span>
+      <span class="chip">Helm</span>
+      <span class="chip">gRPC / tRPC</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="kicker">01 · Kiến trúc</div>
+    <h2>Ba trụ cột, một engine</h2>
+    <p class="sub">Chìa khóa của cả dự án: đừng build ba lần. Lessons, Labs và Games đều dùng chung Sandbox Session Engine — build MVP Lessons trước buộc phải hoàn thiện engine mà hai trụ cột kia thừa hưởng.</p>
+
+    <div class="engine">
+      <div class="tag">◆ Shared core</div>
+      <h3>Sandbox Session Engine</h3>
+      <p>xterm.js ⇄ WSS ⇄ orchestrator ⇄ pod &nbsp;·&nbsp; warm-pool pre-warm · TTL reaper · validation</p>
+    </div>
+    <div class="connector">╱ &nbsp;│&nbsp; ╲</div>
+    <div class="pillars">
+      <div class="pillar card">
+        <span class="badge-mvp">MVP TRƯỚC</span>
+        <div class="num">① Lessons</div>
+        <h3>Bài học tương tác</h3>
+        <div class="ref">tham chiếu: KillerCoda</div>
+        <div class="desc">Markdown từng bước + terminal nhúng vào container thật. Kế thừa format Katacoda md + index.json.</div>
+      </div>
+      <div class="pillar card">
+        <div class="num">② Labs / Playground</div>
+        <h3>Môi trường thật</h3>
+        <div class="ref">tham chiếu: KodeKloud</div>
+        <div class="desc">K8s/Docker/Linux thật trong pod (kind/vcluster) + engine chấm điểm task. Tái dùng engine lõi.</div>
+      </div>
+      <div class="pillar card">
+        <div class="num">③ Games</div>
+        <h3>Học mà chơi</h3>
+        <div class="ref">tham chiếu: k8sgames</div>
+        <div class="desc">Phần lớn frontend-only (0 backend, scale vô hạn); CTF backed-cluster tái dùng engine ②.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="kicker">02 · Luồng request</div>
+    <h2>Đường đi của một phiên lab</h2>
+    <p class="sub">Go gánh lớp hạ tầng nặng (K8s + hàng nghìn WebSocket long-lived); Next.js/TS gánh lớp sản phẩm (type-safe end-to-end). Contract-first bằng gRPC/OpenAPI giữ hai bên không lệch shape.</p>
+    <div class="flow">
+      <div class="node"><b>Browser</b><span>Next.js + xterm.js</span></div>
+      <div class="arrow">›</div>
+      <div class="node"><b>Ingress</b><span>Traefik · WS affinity</span></div>
+      <div class="arrow">›</div>
+      <div class="node go"><b>Orchestrator</b><span>Go · client-go · pool/reaper</span></div>
+      <div class="arrow">›</div>
+      <div class="node term"><b>Terminal GW</b><span>Go · WS ⇄ pod exec</span></div>
+      <div class="arrow">›</div>
+      <div class="node term"><b>Lab Pod</b><span>Sysbox · PTY · quota</span></div>
+    </div>
+    <p class="sub" style="margin-top:16px">Song song: <b>apps/web</b> (Next.js BFF + tRPC + Better Auth) ⇄ <b>PostgreSQL</b> (users, scenarios, progress, scoring) &amp; <b>Redis</b> (warm-pool, session→pod, TTL, pub/sub reaper).</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="kicker">03 · Tech stack</div>
+    <h2>Best-of-breed từng thành phần</h2>
+    <p class="sub">Không chọn "vì quen" — chọn công cụ thắng rõ ở đúng vai trò của nó. Không Java/Spring Boot.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Layer</th><th>Lựa chọn</th><th>Vì sao</th></tr></thead>
+        <tbody>
+          <tr><td>Monorepo</td><td class="mono">Turborepo + pnpm ⊕ Go workspace</td><td>1 repo, build TS &amp; Go song song, cache</td></tr>
+          <tr><td>Frontend</td><td class="mono">Next.js 15 (App Router, RSC)</td><td>SSR/ISR nội dung, streaming UI</td></tr>
+          <tr><td>Terminal client</td><td class="mono">xterm.js + WebGL + Nerd Font</td><td>truecolor, glyph powerline/icon</td></tr>
+          <tr><td>BFF / API</td><td class="mono">Next.js route handlers + tRPC</td><td>type-safe với frontend, dev nhanh</td></tr>
+          <tr><td>Auth</td><td class="mono">Better Auth (TS)</td><td>JWT có <span class="mono">aud</span> riêng/service, OAuth, 2FA, RBAC</td></tr>
+          <tr><td>Lab Orchestrator</td><td class="mono">Go + client-go (gRPC)</td><td>client-go chính chủ K8s; pool/reaper</td></tr>
+          <tr><td>Terminal Gateway</td><td class="mono">Go (WS ⇄ pod-exec)</td><td>goroutine cho hàng nghìn WS — Go &gt; Node ở đây</td></tr>
+          <tr><td>Contract</td><td class="mono">Protobuf/gRPC + OpenAPI</td><td>codegen TS+Go, contract-first</td></tr>
+          <tr><td>Database</td><td class="mono">PostgreSQL (Drizzle / pgx)</td><td>bỏ Mongo ⇒ <b>diệt gốc NoSQL injection</b></td></tr>
+          <tr><td>Cache / State</td><td class="mono">Redis</td><td>warm-pool, session map, TTL, reaper</td></tr>
+          <tr><td>Sandbox</td><td class="mono">K8s + Sysbox / gVisor / Kata</td><td>xem tầng cô lập §04</td></tr>
+          <tr><td>Đóng gói</td><td class="mono">Helm</td><td>chạy cả k3s self-host &amp; cloud node pool</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub" style="margin-top:16px"><b>Terminal cao cấp (§4b):</b> sandbox-base image bake sẵn <span class="mono">oh-my-posh · fastfetch · terminal-icons · eza · zoxide · fzf · bat</span>; shell mặc định zsh/bash, cho chọn <span class="mono">pwsh + PSReadLine</span>; user nạp dotfiles riêng.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="kicker">04 · Cô lập sandbox</div>
+    <h2>Cho user quyền root — an toàn</h2>
+    <p class="sub">Vấn đề số 1: <b>root-trong-container không được = root-trên-host</b>. Pod K8s thường không đảm bảo điều đó. Chiến lược hai tầng.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Cách</th><th>An toàn (root không tin cậy)</th><th>Overhead</th><th>Docker/kind bên trong</th><th>Vai trò</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">Pod thường / privileged</td><td><span class="pill bad">✗ Nguy hiểm</span></td><td>~0</td><td>Có (privileged)</td><td>không dùng</td></tr>
+          <tr><td class="mono">Sysbox ⭐</td><td><span class="pill star">✓ Tốt</span></td><td>Rất thấp</td><td>Có, native</td><td><b>Tier 1 — mặc định</b></td></tr>
+          <tr><td class="mono">gVisor (runsc)</td><td><span class="pill ok">✓✓ Mạnh</span></td><td>Vừa</td><td>Hạn chế</td><td>Tier 2 — nhẹ</td></tr>
+          <tr><td class="mono">Kata / Firecracker</td><td><span class="pill ok">✓✓✓ Mạnh nhất</span></td><td>Cao</td><td>Có (VM+KVM)</td><td>Tier 2 — CTF thù địch</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub" style="margin-top:14px">Sysbox cần cài runtime lên node ⇒ <b>self-managed node pool</b> (k3s hoặc node pool tự quản) — không dùng GKE Autopilot. Helm đóng gói cho cả hai môi trường.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="kicker">05 · Bảo mật</div>
+    <h2>10 luật rút thẳng từ pentest</h2>
+    <p class="sub">Nền tảng đối thủ (<span class="mono">devops.toiyeuptit.com</span>) đã bị chiếm root shell qua đúng pattern này. Mỗi lỗ hổng tìm được trở thành một yêu cầu bắt buộc — thiết kế để không lặp lại.</p>
+    <div class="grid2">
+      <div class="sec"><div class="bug"><b>IDOR</b> PATCH /users/{id} — student sửa admin</div><div class="fix">Object-level authz <b>mọi</b> resource, kiểm tra server-side</div></div>
+      <div class="sec"><div class="bug"><b>CORS</b> reflect mọi origin + credentials</div><div class="fix">Allowlist origin chính xác, không reflect, không <span class="mono">Allow-Credentials:*</span></div></div>
+      <div class="sec"><div class="bug"><b>NoSQLi</b> username[$ne]=null dump DB</div><div class="fix">PostgreSQL + validate/cast input bằng Zod — diệt gốc</div></div>
+      <div class="sec"><div class="bug"><b>Info leak</b> size=1000000 → 747 users</div><div class="fix">Pagination cap cứng (max 100) server-side</div></div>
+      <div class="sec"><div class="bug"><b>DoS</b> payload 10MB → 502</div><div class="fix">Body-size limit + rate limit tại gateway</div></div>
+      <div class="sec"><div class="bug"><b>JWT</b> token student dùng chéo admin panel</div><div class="fix">JWT có <span class="mono">aud</span>, key ký riêng, TTL ngắn + refresh rotation</div></div>
+      <div class="sec"><div class="bug"><b>Refresh</b> endpoint nhận access token</div><div class="fix">Refresh token riêng, xoay vòng, revocation list</div></div>
+      <div class="sec"><div class="bug"><b>Token in URL</b> /impersonate-callback?accessToken=</div><div class="fix">Token chỉ trong cookie httpOnly / POST body</div></div>
+      <div class="sec"><div class="bug"><b>Headers</b> thiếu HSTS/CSP/X-Frame-Options</div><div class="fix">Bật đủ security headers qua helmet middleware</div></div>
+      <div class="sec"><div class="bug"><b>Escape</b> root thoát ra VM, lộ docker.sock</div><div class="fix">Sysbox + drop caps + seccomp/AppArmor + NetworkPolicy deny-all + chặn metadata + authz per-session trên WS</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="kicker">06 · Chịu tải cao</div>
+    <h2>Sáu cơ chế chịu tải</h2>
+    <div class="pillars" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card"><h3 class="mono">Pre-warmed pool</h3><p class="sub" style="margin:6px 0 0">Giữ N sandbox sẵn, claim sub-second, replenish async.</p></div>
+      <div class="card"><h3 class="mono">TTL + reaper</h3><p class="sub" style="margin:6px 0 0">Tuổi thọ cứng 30–60′ + idle timeout, controller dọn hết hạn.</p></div>
+      <div class="card"><h3 class="mono">Resource quota</h3><p class="sub" style="margin:6px 0 0">CPU/mem/PID/pod + ResourceQuota — chặn fork-bomb.</p></div>
+      <div class="card"><h3 class="mono">Autoscaling</h3><p class="sub" style="margin:6px 0 0">Karpenter/CA, node pool riêng có taint cho lab.</p></div>
+      <div class="card"><h3 class="mono">Cost control</h3><p class="sub" style="margin:6px 0 0">Spot node, scale-to-zero off-peak, đẩy game sang frontend-only.</p></div>
+      <div class="card"><h3 class="mono">WS scale-out</h3><p class="sub" style="margin:6px 0 0">Session-affinity, LB idle-timeout, ping, map ở Redis.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="kicker">07 · Lộ trình</div>
+    <h2>Từ nền móng đến ba trụ cột</h2>
+    <div class="road">
+      <div class="phase"><div class="p">P0<span class="wk">2–3 tuần</span></div><div class="body"><h3>Nền móng</h3><p>Monorepo · Postgres+Redis · Next.js + Better Auth · skeleton Go services · CI/CD · k3s+Sysbox 1 node · proto contract.</p></div></div>
+      <div class="phase mvp"><div class="p">P1<span class="wk">MVP lõi</span></div><div class="body"><h3>Sandbox Engine</h3><p>Orchestrator create/claim/reap pod Sysbox · terminal-gateway WS ⇄ PTY · per-session authz · warm-pool · sandbox-base image cao cấp.</p></div></div>
+      <div class="phase mvp"><div class="p">P2<span class="wk">MVP</span></div><div class="body"><h3>Lessons ①</h3><p>Parser Katacoda md+index.json · UI split-pane (nội dung | terminal) · step nav · validation script.</p></div></div>
+      <div class="phase"><div class="p">P3</div><div class="body"><h3>Hardening &amp; tải</h3><p>10 luật bảo mật · k6 load test · reaper · autoscaling · NetworkPolicy · observability.</p></div></div>
+      <div class="phase"><div class="p">P4</div><div class="body"><h3>Labs ② + Games ③</h3><p>Chấm điểm task, K8s trong pod (kind/vcluster). Song song: nhánh game frontend-only kiểu k8sgames.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>Mã nguồn mở tái dùng (đã verify license 2026-08-07): xterm.js · ttyd (MIT) · Sysbox · gVisor · Kata · vcluster · kind · k3s (Apache-2.0) · Play-with-Docker (MIT) · killercoda scenarios · k8sgames (Apache-2.0). <b>Tránh:</b> gotty (bỏ hoang).</div>
+    <div class="legend">
+      <span style="color:var(--term-ink)">Shared engine</span>
+      <span style="color:var(--accent)">Go infra layer</span>
+      <span style="color:var(--danger)">Lỗ hổng target</span>
+      <span style="color:var(--safe)">Luật của ta</span>
+    </div>
+  </div>
+</footer>
