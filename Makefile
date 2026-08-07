@@ -15,8 +15,14 @@ proto-lint: ## Lint file .proto
 	buf lint
 
 proto-check: proto ## Drift gate — fail nếu generated khác committed
-	@git diff --exit-code -- proto packages/shared-types/gen \
-	  || (echo ""; echo "ERROR: code sinh ra khác bản đã commit. Chạy 'make proto' rồi commit kết quả."; exit 1)
+	@# `git status --porcelain`, KHÔNG phải `git diff`: git diff không thấy file
+	@# untracked, nên thêm một .proto mới sinh ra file mới mà chưa commit sẽ lọt
+	@# qua cổng — đúng cái nó sinh ra để chặn.
+	@out="$$(git status --porcelain -- proto packages/shared-types/gen)"; \
+	if [ -n "$$out" ]; then \
+	  echo ""; echo "ERROR: code sinh ra khác bản đã commit:"; echo "$$out"; \
+	  echo ""; echo "Chạy 'make proto' rồi commit kết quả."; exit 1; \
+	fi
 
 ## ---------- TypeScript ----------
 

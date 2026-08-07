@@ -9,7 +9,17 @@ import (
 
 // Config là toàn bộ cấu hình runtime của terminal-gateway.
 type Config struct {
-	HTTPAddr      string
+	// PublicAddr phục vụ /ws/session/{id} — port NÀY ra tới trình duyệt.
+	PublicAddr string
+
+	// AdminAddr phục vụ /healthz + /metrics, KHÔNG ra internet.
+	//
+	// Tách khỏi PublicAddr vì /metrics không có authz: dlp_build_info lộ chính xác
+	// version (tra CVE) và go_goroutines/process_* cho phép người ngoài đếm số
+	// session đang chạy. Gateway bắt buộc phải mở port công khai cho WS, nên gộp
+	// chung mux là biếu không thông tin đó.
+	AdminAddr string
+
 	LogLevel      string
 	ShutdownGrace time.Duration
 
@@ -27,7 +37,8 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		HTTPAddr:             envx.String("HTTP_ADDR", ":8082"),
+		PublicAddr:           envx.String("PUBLIC_ADDR", ":8082"),
+		AdminAddr:            envx.String("ADMIN_ADDR", "127.0.0.1:8083"),
 		LogLevel:             envx.String("LOG_LEVEL", "info"),
 		ShutdownGrace:        shutdownGrace,
 		OrchestratorGRPCAddr: envx.String("ORCHESTRATOR_GRPC_ADDR", "localhost:9090"),

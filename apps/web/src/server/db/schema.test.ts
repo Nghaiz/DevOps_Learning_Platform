@@ -39,11 +39,51 @@ describe('schema Postgres', () => {
     ]);
   });
 
-  it('sessions_audit KHÔNG có cột trạng thái sống nào ngoài audit', () => {
-    // SSOT của session đang chạy là Redis. Nếu ai đó thêm cột kiểu `is_active`
-    // vào đây, nó thành derived field và sẽ lệch với Redis.
-    const columns = getTableConfig(sessionsAudit).columns.map((c) => c.name);
-    expect(columns).not.toContain('is_active');
-    expect(columns).not.toContain('current_status');
+  // SSOT của session đang chạy là Redis. Bảng này là nhật ký append-only.
+  //
+  // Assert ALLOWLIST ĐẦY ĐỦ chứ không phải "không chứa vài tên tôi tự nghĩ ra":
+  // bản trước kiểm `not.toContain('is_active')` trong khi bảng đang có `status`,
+  // `claimed_at`, `reaped_at` — đúng loại cột nó tưởng đang cấm. Test mãi xanh và
+  // khiến người đọc tin luật no-derived-field đang được gác. Danh sách đóng nghĩa
+  // là THÊM bất kỳ cột nào cũng làm test đỏ, buộc người thêm phải cân nhắc.
+  it('sessions_audit chỉ chứa đúng bộ cột của một nhật ký sự kiện', () => {
+    const columns = getTableConfig(sessionsAudit)
+      .columns.map((c) => c.name)
+      .sort();
+    expect(columns).toEqual(
+      [
+        'id',
+        'session_id',
+        'user_id',
+        'event',
+        'tier',
+        'pod_name',
+        'namespace',
+        'expires_at',
+        'detail',
+        'occurred_at',
+      ].sort(),
+    );
+  });
+
+  // Audit phải sống lâu hơn user: xoá tài khoản không được xoá bằng chứng.
+  it('sessions_audit không có FK cascade tới users', () => {
+    expect(getTableConfig(sessionsAudit).foreignKeys).toHaveLength(0);
+  });
+
+  // tier/status là text trần thì typo "runing" ghi vào được, chỉ lộ khi query lọc
+  // trả rỗng. Enum đẩy lỗi đó về lúc ghi.
+  it('sessions_audit dùng enum cho event và tier, không phải text trần', () => {
+    const byName = Object.fromEntries(
+      getTableConfig(sessionsAudit).columns.map((c) => [c.name, c]),
+    );
+    expect(byName['event']?.enumValues).toEqual([
+      'created',
+      'claimed',
+      'expired',
+      'reaped',
+      'failed',
+    ]);
+    expect(byName['tier']?.enumValues).toEqual(['sysbox', 'gvisor', 'kata']);
   });
 });

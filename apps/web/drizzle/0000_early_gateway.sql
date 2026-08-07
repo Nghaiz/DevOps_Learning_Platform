@@ -1,3 +1,5 @@
+CREATE TYPE "public"."sandbox_tier" AS ENUM('sysbox', 'gvisor', 'kata');--> statement-breakpoint
+CREATE TYPE "public"."session_event" AS ENUM('created', 'claimed', 'expired', 'reaped', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."user_role" AS ENUM('user', 'admin');--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "progress" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -13,15 +15,13 @@ CREATE TABLE IF NOT EXISTS "sessions_audit" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"session_id" text NOT NULL,
 	"user_id" text NOT NULL,
-	"tier" text NOT NULL,
-	"status" text NOT NULL,
+	"event" "session_event" NOT NULL,
+	"tier" "sandbox_tier" NOT NULL,
 	"pod_name" text,
 	"namespace" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"claimed_at" timestamp with time zone,
 	"expires_at" timestamp with time zone,
-	"reaped_at" timestamp with time zone,
-	"reap_reason" text
+	"detail" text,
+	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "users" (
@@ -41,13 +41,7 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "sessions_audit" ADD CONSTRAINT "sessions_audit_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "progress_user_lesson_key" ON "progress" USING btree ("user_id","lesson_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "sessions_audit_user_id_idx" ON "sessions_audit" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "sessions_audit_session_id_idx" ON "sessions_audit" USING btree ("session_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "sessions_audit_session_id_idx" ON "sessions_audit" USING btree ("session_id","occurred_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "sessions_audit_user_id_idx" ON "sessions_audit" USING btree ("user_id","occurred_at");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "users_email_key" ON "users" USING btree ("email");

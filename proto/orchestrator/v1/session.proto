@@ -10,7 +10,11 @@ import "google/protobuf/timestamp.proto";
 option go_package = "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1;orchestratorv1";
 
 // SandboxTier chọn mức cô lập của pod lab (design §5).
-// Tier1 = Sysbox (mặc định, unprivileged user-ns). Tier2 = gVisor/Kata cho lab CTF.
+// Tier1 = Sysbox (unprivileged user-ns). Tier2 = gVisor/Kata cho lab CTF.
+//
+// FAIL-CLOSED: server PHẢI từ chối UNSPECIFIED bằng InvalidArgument, KHÔNG được
+// suy ra tier mặc định. Đây là field chọn mức cô lập — client quên set mà server
+// đoán hộ nghĩa là âm thầm chạy lab ở mức yếu hơn ý định của người gọi.
 enum SandboxTier {
   SANDBOX_TIER_UNSPECIFIED = 0;
   SANDBOX_TIER_SYSBOX = 1;
@@ -44,13 +48,22 @@ message Session {
   // Rỗng cho đến khi session được claim; TTL bắt đầu đếm từ lúc claim.
   google.protobuf.Timestamp expires_at = 6;
   SandboxTier tier = 7;
+  google.protobuf.Timestamp created_at = 8;
 }
 
 message CreateSessionRequest {
   string user_id = 1;
+  // UNSPECIFIED bị từ chối (InvalidArgument) — xem SandboxTier.
   SandboxTier tier = 2;
-  // Thời gian sống mong muốn tính bằng giây. 0 = dùng mặc định của server.
+  // Thời gian sống mong muốn. 0 = dùng mặc định của server. Âm → InvalidArgument.
   int32 ttl_seconds = 3;
+
+  // Khoá chống trùng, do client sinh. BẮT BUỘC.
+  //
+  // Không có nó thì gRPC retry hoặc user bấm F5 sẽ tạo HAI pod cho một ý định —
+  // pod sandbox tốn tiền thật và ăn quota. Server dedupe qua Redis SETNX và trả
+  // lại đúng session cũ khi thấy key đã tồn tại.
+  string idempotency_key = 4;
 }
 
 message CreateSessionResponse {
@@ -82,6 +95,20 @@ message GetSessionResponse {
 message ReapSessionRequest {
   string session_id = 1;
   string reason = 2;
+
+  // Ai yêu cầu reap. BẮT BUỘC — không set thì server trả InvalidArgument.
+  //
+  // session_id KHÔNG phải secret (nó nằm trong URL /ws/session/{id}), nên nếu
+  // thiếu field này thì "biết id = xoá được session của người khác". Các RPC
+  // khác đều mang user_id để kiểm object-level authz (luật 1); reap không được
+  // là ngoại lệ im lặng.
+  oneof actor {
+    // User tự kết thúc session — server kiểm session.user_id khớp.
+    string user_id = 3;
+    // Tiến trình nội bộ (reaper TTL, drain node). Chỉ chấp nhận trên đường
+    // trong cluster, không expose ra ingress.
+    string system_component = 4;
+  }
 }
 
 message ReapSessionResponse {

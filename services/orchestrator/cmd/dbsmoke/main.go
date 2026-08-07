@@ -37,6 +37,11 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("nạp config: %w", err)
 	}
+	// Đây là đường thật sự nối tới data store, nên DSN là bắt buộc ở đây (server
+	// P0 thì chưa — xem config.RequireDataStores).
+	if err := cfg.RequireDataStores(); err != nil {
+		return err
+	}
 
 	log, err := logging.New(os.Stdout, cfg.LogLevel, "dbsmoke", "dev")
 	if err != nil {

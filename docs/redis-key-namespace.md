@@ -2,14 +2,21 @@
 
 Quy ước này có **hai** bản hiện thực. Đây là bản gốc; code phải theo tài liệu, không ngược lại.
 
-| Ngôn ngữ | File | Test vector |
+| Ngôn ngữ | File | Test |
 |---|---|---|
 | TypeScript | `packages/shared-types/src/redis-keys.ts` | `redis-keys.test.ts` |
 | Go | `services/orchestrator/internal/rediskeys/keys.go` | `keys_test.go` |
 
-Hai bộ test vector được viết **giống hệt nhau một cách cố ý**. Sửa một bên mà quên bên kia
-thì test bên đó vẫn xanh nhưng hai service sẽ đọc/ghi hai không gian key khác nhau — dạng
-lỗi câm lặng, chỉ lộ ra khi warm-pool "mất" pod.
+**Cả hai suite test đọc chung đúng một file dữ liệu: [`redis-key-vectors.json`](redis-key-vectors.json).**
+
+Đây là điểm quan trọng. Bản đầu tiên của tài liệu này bảo "hai bộ vector được viết giống hệt
+nhau một cách cố ý" — nhưng hai bản chép tay thì sửa một bên mà quên bên kia sẽ khiến **cả hai
+vẫn xanh**. Đó là guard không gác gì, mà còn tệ hơn không có guard vì nó mua sự tự tin bằng
+không có gì. Giờ vector nằm ở một file JSON duy nhất:
+
+- Sửa một bản hiện thực → suite bên đó đỏ ngay.
+- Thêm key mới → sửa JSON → **cả hai** suite đỏ tới khi cả hai bắt kịp.
+- File nằm cạnh tài liệu này, nên "sửa doc" và "sửa vector" là một thao tác.
 
 > Vì sao không codegen từ proto: đây là quy ước đặt tên chuỗi, không phải shape dữ liệu đi
 > qua dây. Nhét vào proto sẽ bẻ cong mục đích của contract. Đánh đổi được chấp nhận: 3 hàm,
@@ -39,5 +46,6 @@ nó chỉ bắt đầu đếm khi có user thật.
 ## Khi thêm key mới
 
 1. Thêm dòng vào bảng trên.
-2. Hiện thực ở **cả hai** file.
-3. Thêm cùng một test vector vào **cả hai** file test.
+2. Thêm vector vào [`redis-key-vectors.json`](redis-key-vectors.json) — làm bước này TRƯỚC,
+   cả hai suite sẽ đỏ và chỉ đúng chỗ còn thiếu.
+3. Hiện thực ở **cả hai** file (`redis-keys.ts` và `keys.go`) cho tới khi hết đỏ.

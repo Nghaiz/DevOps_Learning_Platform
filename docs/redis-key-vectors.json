@@ -1,0 +1,42 @@
+{
+  "_readme": "SSOT cho test vector của redis key namespace. CẢ HAI bản hiện thực (packages/shared-types/src/redis-keys.ts và services/orchestrator/internal/rediskeys/keys.go) đọc CHÍNH file này trong test. Sửa một bản hiện thực mà quên bản kia -> suite bên đó đỏ ngay. Thêm key mới -> sửa file này -> cả hai suite đỏ tới khi cả hai bắt kịp. Quy ước đầy đủ: docs/redis-key-namespace.md",
+
+  "poolFree": "pool:free",
+
+  "valid": [
+    { "id": "abc123", "session": "session:abc123", "pod": "session:abc123:pod" },
+    { "id": "A", "session": "session:A", "pod": "session:A:pod" },
+    { "id": "0", "session": "session:0", "pod": "session:0:pod" },
+    {
+      "id": "UPPER-lower_9",
+      "session": "session:UPPER-lower_9",
+      "pod": "session:UPPER-lower_9:pod"
+    },
+    { "id": "with-dash", "session": "session:with-dash", "pod": "session:with-dash:pod" },
+    {
+      "id": "with_underscore",
+      "session": "session:with_underscore",
+      "pod": "session:with_underscore:pod"
+    },
+    {
+      "_why": "biên trên: đúng 64 ký tự phải HỢP LỆ",
+      "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "session": "session:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "pod": "session:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:pod"
+    }
+  ],
+
+  "invalid": [
+    { "id": "", "_why": "rỗng" },
+    { "id": "a:b", "_why": "dấu hai chấm bẻ được namespace: session:a:b trùng dạng key :pod" },
+    { "id": "a b", "_why": "khoảng trắng" },
+    { "id": "a/b", "_why": "dấu gạch chéo" },
+    { "id": "a.b", "_why": "dấu chấm" },
+    { "id": "a*", "_why": "wildcard — nguy hiểm với lệnh KEYS/SCAN" },
+    { "id": "a\nb", "_why": "xuống dòng" },
+    {
+      "_why": "biên trên: 65 ký tự phải BỊ TỪ CHỐI",
+      "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  ]
+}

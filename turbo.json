@@ -1,6 +1,16 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "stream",
+
+  "//": "globalDependencies: turbo chỉ hash file TRONG package + lockfile + root package.json. Thiếu mấy dòng dưới thì sửa tsconfig.base.json (bật/tắt strict, đổi target) hay eslint.config.mjs root sẽ cho `turbo run build test` trả CACHED, XANH — không hề typecheck lại. Ở CI đó là cái xanh giả.",
+  "globalDependencies": [
+    "tsconfig.base.json",
+    "eslint.config.mjs",
+    ".prettierrc.json",
+    ".prettierignore",
+    "docs/redis-key-vectors.json"
+  ],
+
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

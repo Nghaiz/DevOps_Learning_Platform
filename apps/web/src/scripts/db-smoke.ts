@@ -15,7 +15,9 @@ const TTL_SECONDS = 30;
 
 async function main(): Promise<void> {
   const { sql } = createDatabase();
-  const redis = createRedis();
+  // Script một-lần: nuốt lỗi kết nối ở listener để nó đi ra qua đường throw bên
+  // dưới, thay vì thành uncaught exception bỏ qua cả main().catch().
+  const redis = createRedis(undefined, () => {});
 
   try {
     const rows = await sql<{ one: number }[]>`SELECT 1 AS one`;
@@ -43,8 +45,14 @@ async function main(): Promise<void> {
     console.warn(`[smoke] redis: namespace pool dùng key "${POOL_FREE}"`);
     console.warn('[smoke] PASS');
   } finally {
-    await sql.end({ timeout: 5 });
-    redis.disconnect();
+    // allSettled, KHÔNG phải await tuần tự: nếu sql.end() reject (Postgres bị kill
+    // giữa chừng) thì redis.disconnect() sẽ không bao giờ chạy, socket ioredis còn
+    // mở giữ event loop sống, và process TREO thay vì thoát với exit code đã set.
+    // Trong CI đó là job chạy tới hết timeout thay vì fail ngay.
+    await Promise.allSettled([
+      sql.end({ timeout: 5 }),
+      Promise.resolve().then(() => redis.disconnect()),
+    ]);
   }
 }
 

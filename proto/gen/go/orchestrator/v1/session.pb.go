@@ -27,7 +27,11 @@ const (
 )
 
 // SandboxTier chọn mức cô lập của pod lab (design §5).
-// Tier1 = Sysbox (mặc định, unprivileged user-ns). Tier2 = gVisor/Kata cho lab CTF.
+// Tier1 = Sysbox (unprivileged user-ns). Tier2 = gVisor/Kata cho lab CTF.
+//
+// FAIL-CLOSED: server PHẢI từ chối UNSPECIFIED bằng InvalidArgument, KHÔNG được
+// suy ra tier mặc định. Đây là field chọn mức cô lập — client quên set mà server
+// đoán hộ nghĩa là âm thầm chạy lab ở mức yếu hơn ý định của người gọi.
 type SandboxTier int32
 
 const (
@@ -160,6 +164,7 @@ type Session struct {
 	// Rỗng cho đến khi session được claim; TTL bắt đầu đếm từ lúc claim.
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	Tier          SandboxTier            `protobuf:"varint,7,opt,name=tier,proto3,enum=orchestrator.v1.SandboxTier" json:"tier,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -243,14 +248,28 @@ func (x *Session) GetTier() SandboxTier {
 	return SandboxTier_SANDBOX_TIER_UNSPECIFIED
 }
 
+func (x *Session) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
 type CreateSessionRequest struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	UserId string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Tier   SandboxTier            `protobuf:"varint,2,opt,name=tier,proto3,enum=orchestrator.v1.SandboxTier" json:"tier,omitempty"`
-	// Thời gian sống mong muốn tính bằng giây. 0 = dùng mặc định của server.
-	TtlSeconds    int32 `protobuf:"varint,3,opt,name=ttl_seconds,json=ttlSeconds,proto3" json:"ttl_seconds,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// UNSPECIFIED bị từ chối (InvalidArgument) — xem SandboxTier.
+	Tier SandboxTier `protobuf:"varint,2,opt,name=tier,proto3,enum=orchestrator.v1.SandboxTier" json:"tier,omitempty"`
+	// Thời gian sống mong muốn. 0 = dùng mặc định của server. Âm → InvalidArgument.
+	TtlSeconds int32 `protobuf:"varint,3,opt,name=ttl_seconds,json=ttlSeconds,proto3" json:"ttl_seconds,omitempty"`
+	// Khoá chống trùng, do client sinh. BẮT BUỘC.
+	//
+	// Không có nó thì gRPC retry hoặc user bấm F5 sẽ tạo HAI pod cho một ý định —
+	// pod sandbox tốn tiền thật và ăn quota. Server dedupe qua Redis SETNX và trả
+	// lại đúng session cũ khi thấy key đã tồn tại.
+	IdempotencyKey string `protobuf:"bytes,4,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CreateSessionRequest) Reset() {
@@ -302,6 +321,13 @@ func (x *CreateSessionRequest) GetTtlSeconds() int32 {
 		return x.TtlSeconds
 	}
 	return 0
+}
+
+func (x *CreateSessionRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
 }
 
 type CreateSessionResponse struct {
@@ -545,9 +571,21 @@ func (x *GetSessionResponse) GetSession() *Session {
 
 // ReapSession phải idempotent — gọi lại trên session đã reap vẫn trả OK.
 type ReapSessionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	SessionId string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Reason    string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	// Ai yêu cầu reap. BẮT BUỘC — không set thì server trả InvalidArgument.
+	//
+	// session_id KHÔNG phải secret (nó nằm trong URL /ws/session/{id}), nên nếu
+	// thiếu field này thì "biết id = xoá được session của người khác". Các RPC
+	// khác đều mang user_id để kiểm object-level authz (luật 1); reap không được
+	// là ngoại lệ im lặng.
+	//
+	// Types that are valid to be assigned to Actor:
+	//
+	//	*ReapSessionRequest_UserId
+	//	*ReapSessionRequest_SystemComponent
+	Actor         isReapSessionRequest_Actor `protobuf_oneof:"actor"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -595,6 +633,50 @@ func (x *ReapSessionRequest) GetReason() string {
 	}
 	return ""
 }
+
+func (x *ReapSessionRequest) GetActor() isReapSessionRequest_Actor {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *ReapSessionRequest) GetUserId() string {
+	if x != nil {
+		if x, ok := x.Actor.(*ReapSessionRequest_UserId); ok {
+			return x.UserId
+		}
+	}
+	return ""
+}
+
+func (x *ReapSessionRequest) GetSystemComponent() string {
+	if x != nil {
+		if x, ok := x.Actor.(*ReapSessionRequest_SystemComponent); ok {
+			return x.SystemComponent
+		}
+	}
+	return ""
+}
+
+type isReapSessionRequest_Actor interface {
+	isReapSessionRequest_Actor()
+}
+
+type ReapSessionRequest_UserId struct {
+	// User tự kết thúc session — server kiểm session.user_id khớp.
+	UserId string `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3,oneof"`
+}
+
+type ReapSessionRequest_SystemComponent struct {
+	// Tiến trình nội bộ (reaper TTL, drain node). Chỉ chấp nhận trên đường
+	// trong cluster, không expose ra ingress.
+	SystemComponent string `protobuf:"bytes,4,opt,name=system_component,json=systemComponent,proto3,oneof"`
+}
+
+func (*ReapSessionRequest_UserId) isReapSessionRequest_Actor() {}
+
+func (*ReapSessionRequest_SystemComponent) isReapSessionRequest_Actor() {}
 
 type ReapSessionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -644,7 +726,7 @@ var File_orchestrator_v1_session_proto protoreflect.FileDescriptor
 
 const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\n" +
-	"\x1dorchestrator/v1/session.proto\x12\x0forchestrator.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x90\x02\n" +
+	"\x1dorchestrator/v1/session.proto\x12\x0forchestrator.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcb\x02\n" +
 	"\aSession\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x126\n" +
@@ -653,12 +735,15 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\tnamespace\x18\x05 \x01(\tR\tnamespace\x129\n" +
 	"\n" +
 	"expires_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x120\n" +
-	"\x04tier\x18\a \x01(\x0e2\x1c.orchestrator.v1.SandboxTierR\x04tier\"\x82\x01\n" +
+	"\x04tier\x18\a \x01(\x0e2\x1c.orchestrator.v1.SandboxTierR\x04tier\x129\n" +
+	"\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xab\x01\n" +
 	"\x14CreateSessionRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x120\n" +
 	"\x04tier\x18\x02 \x01(\x0e2\x1c.orchestrator.v1.SandboxTierR\x04tier\x12\x1f\n" +
 	"\vttl_seconds\x18\x03 \x01(\x05R\n" +
-	"ttlSeconds\"K\n" +
+	"ttlSeconds\x12'\n" +
+	"\x0fidempotency_key\x18\x04 \x01(\tR\x0eidempotencyKey\"K\n" +
 	"\x15CreateSessionResponse\x122\n" +
 	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\"M\n" +
 	"\x13ClaimSessionRequest\x12\x1d\n" +
@@ -672,11 +757,14 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"H\n" +
 	"\x12GetSessionResponse\x122\n" +
-	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\"K\n" +
+	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\"\x9c\x01\n" +
 	"\x12ReapSessionRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"I\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x19\n" +
+	"\auser_id\x18\x03 \x01(\tH\x00R\x06userId\x12+\n" +
+	"\x10system_component\x18\x04 \x01(\tH\x00R\x0fsystemComponentB\a\n" +
+	"\x05actor\"I\n" +
 	"\x13ReapSessionResponse\x122\n" +
 	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession*t\n" +
 	"\vSandboxTier\x12\x1c\n" +
@@ -732,30 +820,35 @@ var file_orchestrator_v1_session_proto_depIdxs = []int32{
 	1,  // 0: orchestrator.v1.Session.status:type_name -> orchestrator.v1.SessionStatus
 	11, // 1: orchestrator.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: orchestrator.v1.Session.tier:type_name -> orchestrator.v1.SandboxTier
-	0,  // 3: orchestrator.v1.CreateSessionRequest.tier:type_name -> orchestrator.v1.SandboxTier
-	2,  // 4: orchestrator.v1.CreateSessionResponse.session:type_name -> orchestrator.v1.Session
-	2,  // 5: orchestrator.v1.ClaimSessionResponse.session:type_name -> orchestrator.v1.Session
-	2,  // 6: orchestrator.v1.GetSessionResponse.session:type_name -> orchestrator.v1.Session
-	2,  // 7: orchestrator.v1.ReapSessionResponse.session:type_name -> orchestrator.v1.Session
-	3,  // 8: orchestrator.v1.SessionService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
-	5,  // 9: orchestrator.v1.SessionService.ClaimSession:input_type -> orchestrator.v1.ClaimSessionRequest
-	7,  // 10: orchestrator.v1.SessionService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
-	9,  // 11: orchestrator.v1.SessionService.ReapSession:input_type -> orchestrator.v1.ReapSessionRequest
-	4,  // 12: orchestrator.v1.SessionService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
-	6,  // 13: orchestrator.v1.SessionService.ClaimSession:output_type -> orchestrator.v1.ClaimSessionResponse
-	8,  // 14: orchestrator.v1.SessionService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
-	10, // 15: orchestrator.v1.SessionService.ReapSession:output_type -> orchestrator.v1.ReapSessionResponse
-	12, // [12:16] is the sub-list for method output_type
-	8,  // [8:12] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	11, // 3: orchestrator.v1.Session.created_at:type_name -> google.protobuf.Timestamp
+	0,  // 4: orchestrator.v1.CreateSessionRequest.tier:type_name -> orchestrator.v1.SandboxTier
+	2,  // 5: orchestrator.v1.CreateSessionResponse.session:type_name -> orchestrator.v1.Session
+	2,  // 6: orchestrator.v1.ClaimSessionResponse.session:type_name -> orchestrator.v1.Session
+	2,  // 7: orchestrator.v1.GetSessionResponse.session:type_name -> orchestrator.v1.Session
+	2,  // 8: orchestrator.v1.ReapSessionResponse.session:type_name -> orchestrator.v1.Session
+	3,  // 9: orchestrator.v1.SessionService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
+	5,  // 10: orchestrator.v1.SessionService.ClaimSession:input_type -> orchestrator.v1.ClaimSessionRequest
+	7,  // 11: orchestrator.v1.SessionService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
+	9,  // 12: orchestrator.v1.SessionService.ReapSession:input_type -> orchestrator.v1.ReapSessionRequest
+	4,  // 13: orchestrator.v1.SessionService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
+	6,  // 14: orchestrator.v1.SessionService.ClaimSession:output_type -> orchestrator.v1.ClaimSessionResponse
+	8,  // 15: orchestrator.v1.SessionService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
+	10, // 16: orchestrator.v1.SessionService.ReapSession:output_type -> orchestrator.v1.ReapSessionResponse
+	13, // [13:17] is the sub-list for method output_type
+	9,  // [9:13] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_orchestrator_v1_session_proto_init() }
 func file_orchestrator_v1_session_proto_init() {
 	if File_orchestrator_v1_session_proto != nil {
 		return
+	}
+	file_orchestrator_v1_session_proto_msgTypes[7].OneofWrappers = []any{
+		(*ReapSessionRequest_UserId)(nil),
+		(*ReapSessionRequest_SystemComponent)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

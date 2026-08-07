@@ -9,6 +9,9 @@ pnpm-lock.yaml
 packages/shared-types/gen
 proto/gen
 
+# Generated bởi drizzle-kit — format tay thì lần regenerate sau lại lệch.
+apps/web/drizzle
+
 # Prettier ở repo này CHỈ lo TS/JS/JSON/YAML (phase-0.md 0.A task 4 ghi rõ "Prettier (TS)").
 # Markdown để nguyên: prettier canh lại bảng và bẻ dòng văn xuôi tiếng Việt, tạo diff
 # ồn ào khắp plans/ và docs/ mà không đổi nội dung gì.

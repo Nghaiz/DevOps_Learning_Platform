@@ -135,15 +135,17 @@ go work sync && make go-build go-vet go-test go-lint
 make proto-check
 
 # Hạ tầng dữ liệu: migrate + SET/GET/EXPIRE qua CẢ hai client
+cp .env.example .env      # compose dùng ${VAR:?} — thiếu mật khẩu là dừng, không chạy bừa
 docker compose up -d
 pnpm --filter @devops-platform/web db:migrate
 make smoke
 
 # Service chạy thật
-curl -s -o /dev/null -w '%{http_code}\n' localhost:8081/healthz          # 200 orchestrator
-curl -s localhost:8081/metrics | grep dlp_build_info                     # có metric
-curl -s -o /dev/null -w '%{http_code}\n' localhost:8082/healthz          # 200 gateway
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8081/healthz           # 200 orchestrator
+curl -s localhost:8081/metrics | grep dlp_build_info                      # có metric
+curl -s -o /dev/null -w '%{http_code}\n' 127.0.0.1:8083/healthz           # 200 gateway (port admin)
 curl -s -o /dev/null -w '%{http_code}\n' localhost:8082/ws/session/abc123 # 401 (chưa có authz — đúng ý đồ)
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8082/metrics           # 404 — metrics không ở port công khai
 
 # Image
 docker build -f services/orchestrator/Dockerfile -t dlp/orchestrator:dev .

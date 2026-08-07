@@ -3,8 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    // Package này thuần logic, không đụng API Node — không kéo @types/node vào.
-    "types": []
+    // Chỉ test cần Node API (đọc vector dùng chung từ docs/); code sản phẩm thì không.
+    "types": ["node"]
   },
   "include": ["src/**/*.ts", "gen/**/*.ts", "eslint.config.mjs"]
 }

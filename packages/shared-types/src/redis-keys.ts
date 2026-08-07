@@ -2,8 +2,8 @@
  * Redis key namespace v0 — SSOT là `docs/redis-key-namespace.md`.
  *
  * Bản Go song sinh: `services/orchestrator/internal/rediskeys/keys.go`.
- * Hai bản dùng CÙNG bộ test vector (xem `redis-keys.test.ts` và `keys_test.go`);
- * sửa một bên mà quên bên kia sẽ làm test vector lệch và đỏ.
+ * Test của cả hai bản đọc chung đúng một file: `docs/redis-key-vectors.json`,
+ * nên sửa một bên mà quên bên kia là suite bên đó đỏ ngay.
  */
 
 /** Sorted set/list chứa id của pod đang WARM, chờ được claim. */

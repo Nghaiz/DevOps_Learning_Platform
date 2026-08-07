@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -43,12 +44,57 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Hai mux, hai port. Admin (/healthz + /metrics) không ra internet; public chỉ
+	// mang WS. Xem config.AdminAddr.
 	obs := httpx.NewObservability(serviceName, version)
-	wsroute.Register(obs.Mux, log)
+	adminSrv := httpx.NewServer(cfg.AdminAddr, obs.Mux)
 
-	srv := httpx.NewServer(cfg.HTTPAddr, obs.Mux)
-	if err := httpx.ListenAndServe(ctx, log, srv, cfg.ShutdownGrace); err != nil {
-		return fmt.Errorf("http server: %w", err)
+	publicMux := http.NewServeMux()
+	wsroute.Register(publicMux, log)
+	// NewStreamingServer, không phải NewServer: phiên terminal sống hàng giờ và im
+	// lặng hàng phút, ReadTimeout/WriteTimeout 30s sẽ cắt ngang từ P1.
+	publicSrv := httpx.NewStreamingServer(cfg.PublicAddr, publicMux)
+
+	adminErr := make(chan error, 1)
+	go func() { adminErr <- httpx.ListenAndServe(ctx, log, adminSrv, cfg.ShutdownGrace) }()
+
+	publicErr := make(chan error, 1)
+	go func() { publicErr <- httpx.ListenAndServe(ctx, log, publicSrv, cfg.ShutdownGrace) }()
+
+	// adminDone/publicDone chặn việc đọc lại một channel buffered đã cạn — đọc lại
+	// sẽ treo vĩnh viễn.
+	var runErr error
+	adminDone, publicDone := false, false
+
+	select {
+	case err := <-adminErr:
+		adminDone = true
+		if err != nil {
+			runErr = fmt.Errorf("admin server: %w", err)
+		}
+	case err := <-publicErr:
+		publicDone = true
+		if err != nil {
+			runErr = fmt.Errorf("public server: %w", err)
+		}
+	case <-ctx.Done():
+		log.Info("nhận tín hiệu dừng, đang shutdown")
+	}
+
+	stop()
+
+	if !adminDone {
+		if err := <-adminErr; err != nil && runErr == nil {
+			runErr = fmt.Errorf("admin shutdown: %w", err)
+		}
+	}
+	if !publicDone {
+		if err := <-publicErr; err != nil && runErr == nil {
+			runErr = fmt.Errorf("public shutdown: %w", err)
+		}
+	}
+	if runErr != nil {
+		return runErr
 	}
 
 	log.Info("đã dừng sạch")

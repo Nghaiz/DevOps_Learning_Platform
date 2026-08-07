@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file orchestrator/v1/session.proto.
  */
 export const file_orchestrator_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxItcBCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXIiaAoUQ3JlYXRlU2Vzc2lvblJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIqCgR0aWVyGAIgASgOMhwub3JjaGVzdHJhdG9yLnYxLlNhbmRib3hUaWVyEhMKC3R0bF9zZWNvbmRzGAMgASgFIkIKFUNyZWF0ZVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOgoTQ2xhaW1TZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkiQQoUQ2xhaW1TZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIjgKEUdldFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSI/ChJHZXRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIjgKElJlYXBTZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg4KBnJlYXNvbhgCIAEoCSJAChNSZWFwU2Vzc2lvblJlc3BvbnNlEikKB3Nlc3Npb24YASABKAsyGC5vcmNoZXN0cmF0b3IudjEuU2Vzc2lvbip0CgtTYW5kYm94VGllchIcChhTQU5EQk9YX1RJRVJfVU5TUEVDSUZJRUQQABIXChNTQU5EQk9YX1RJRVJfU1lTQk9YEAESFwoTU0FOREJPWF9USUVSX0dWSVNPUhACEhUKEVNBTkRCT1hfVElFUl9LQVRBEAMq7gEKDVNlc3Npb25TdGF0dXMSHgoaU0VTU0lPTl9TVEFUVVNfVU5TUEVDSUZJRUQQABIaChZTRVNTSU9OX1NUQVRVU19QRU5ESU5HEAESFwoTU0VTU0lPTl9TVEFUVVNfV0FSTRACEhoKFlNFU1NJT05fU1RBVFVTX0NMQUlNRUQQAxIaChZTRVNTSU9OX1NUQVRVU19SVU5OSU5HEAQSGgoWU0VTU0lPTl9TVEFUVVNfRVhQSVJFRBAFEhkKFVNFU1NJT05fU1RBVFVTX1JFQVBFRBAGEhkKFVNFU1NJT05fU1RBVFVTX0ZBSUxFRBAHMv4CCg5TZXNzaW9uU2VydmljZRJeCg1DcmVhdGVTZXNzaW9uEiUub3JjaGVzdHJhdG9yLnYxLkNyZWF0ZVNlc3Npb25SZXF1ZXN0GiYub3JjaGVzdHJhdG9yLnYxLkNyZWF0ZVNlc3Npb25SZXNwb25zZRJbCgxDbGFpbVNlc3Npb24SJC5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVxdWVzdBolLm9yY2hlc3RyYXRvci52MS5DbGFpbVNlc3Npb25SZXNwb25zZRJVCgpHZXRTZXNzaW9uEiIub3JjaGVzdHJhdG9yLnYxLkdldFNlc3Npb25SZXF1ZXN0GiMub3JjaGVzdHJhdG9yLnYxLkdldFNlc3Npb25SZXNwb25zZRJYCgtSZWFwU2Vzc2lvbhIjLm9yY2hlc3RyYXRvci52MS5SZWFwU2Vzc2lvblJlcXVlc3QaJC5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXNwb25zZUJYWlZnaXRodWIuY29tL05naGFpei9EZXZPcHNfTGVhcm5pbmdfUGxhdGZvcm0vcHJvdG8vZ2VuL2dvL29yY2hlc3RyYXRvci92MTtvcmNoZXN0cmF0b3J2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxIocCCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXISLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAigQEKFENyZWF0ZVNlc3Npb25SZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSKgoEdGllchgCIAEoDjIcLm9yY2hlc3RyYXRvci52MS5TYW5kYm94VGllchITCgt0dGxfc2Vjb25kcxgDIAEoBRIXCg9pZGVtcG90ZW5jeV9rZXkYBCABKAkiQgoVQ3JlYXRlU2Vzc2lvblJlc3BvbnNlEikKB3Nlc3Npb24YASABKAsyGC5vcmNoZXN0cmF0b3IudjEuU2Vzc2lvbiI6ChNDbGFpbVNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSJBChRDbGFpbVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOAoRR2V0U2Vzc2lvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIPCgd1c2VyX2lkGAIgASgJIj8KEkdldFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24icAoSUmVhcFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDgoGcmVhc29uGAIgASgJEhEKB3VzZXJfaWQYAyABKAlIABIaChBzeXN0ZW1fY29tcG9uZW50GAQgASgJSABCBwoFYWN0b3IiQAoTUmVhcFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24qdAoLU2FuZGJveFRpZXISHAoYU0FOREJPWF9USUVSX1VOU1BFQ0lGSUVEEAASFwoTU0FOREJPWF9USUVSX1NZU0JPWBABEhcKE1NBTkRCT1hfVElFUl9HVklTT1IQAhIVChFTQU5EQk9YX1RJRVJfS0FUQRADKu4BCg1TZXNzaW9uU3RhdHVzEh4KGlNFU1NJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWU0VTU0lPTl9TVEFUVVNfUEVORElORxABEhcKE1NFU1NJT05fU1RBVFVTX1dBUk0QAhIaChZTRVNTSU9OX1NUQVRVU19DTEFJTUVEEAMSGgoWU0VTU0lPTl9TVEFUVVNfUlVOTklORxAEEhoKFlNFU1NJT05fU1RBVFVTX0VYUElSRUQQBRIZChVTRVNTSU9OX1NUQVRVU19SRUFQRUQQBhIZChVTRVNTSU9OX1NUQVRVU19GQUlMRUQQBzL+AgoOU2Vzc2lvblNlcnZpY2USXgoNQ3JlYXRlU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVzcG9uc2USWwoMQ2xhaW1TZXNzaW9uEiQub3JjaGVzdHJhdG9yLnYxLkNsYWltU2Vzc2lvblJlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVzcG9uc2USVQoKR2V0U2Vzc2lvbhIiLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVxdWVzdBojLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVzcG9uc2USWAoLUmVhcFNlc3Npb24SIy5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLlJlYXBTZXNzaW9uUmVzcG9uc2VCWFpWZ2l0aHViLmNvbS9OZ2hhaXovRGV2T3BzX0xlYXJuaW5nX1BsYXRmb3JtL3Byb3RvL2dlbi9nby9vcmNoZXN0cmF0b3IvdjE7b3JjaGVzdHJhdG9ydjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * Session là trạng thái quyền uy của một pod lab.
@@ -64,6 +64,11 @@ export type Session = Message<"orchestrator.v1.Session"> & {
    * @generated from field: orchestrator.v1.SandboxTier tier = 7;
    */
   tier: SandboxTier;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 8;
+   */
+  createdAt?: Timestamp | undefined;
 };
 
 /**
@@ -83,16 +88,29 @@ export type CreateSessionRequest = Message<"orchestrator.v1.CreateSessionRequest
   userId: string;
 
   /**
+   * UNSPECIFIED bị từ chối (InvalidArgument) — xem SandboxTier.
+   *
    * @generated from field: orchestrator.v1.SandboxTier tier = 2;
    */
   tier: SandboxTier;
 
   /**
-   * Thời gian sống mong muốn tính bằng giây. 0 = dùng mặc định của server.
+   * Thời gian sống mong muốn. 0 = dùng mặc định của server. Âm → InvalidArgument.
    *
    * @generated from field: int32 ttl_seconds = 3;
    */
   ttlSeconds: number;
+
+  /**
+   * Khoá chống trùng, do client sinh. BẮT BUỘC.
+   *
+   * Không có nó thì gRPC retry hoặc user bấm F5 sẽ tạo HAI pod cho một ý định —
+   * pod sandbox tốn tiền thật và ăn quota. Server dedupe qua Redis SETNX và trả
+   * lại đúng session cũ khi thấy key đã tồn tại.
+   *
+   * @generated from field: string idempotency_key = 4;
+   */
+  idempotencyKey: string;
 };
 
 /**
@@ -217,6 +235,35 @@ export type ReapSessionRequest = Message<"orchestrator.v1.ReapSessionRequest"> &
    * @generated from field: string reason = 2;
    */
   reason: string;
+
+  /**
+   * Ai yêu cầu reap. BẮT BUỘC — không set thì server trả InvalidArgument.
+   *
+   * session_id KHÔNG phải secret (nó nằm trong URL /ws/session/{id}), nên nếu
+   * thiếu field này thì "biết id = xoá được session của người khác". Các RPC
+   * khác đều mang user_id để kiểm object-level authz (luật 1); reap không được
+   * là ngoại lệ im lặng.
+   *
+   * @generated from oneof orchestrator.v1.ReapSessionRequest.actor
+   */
+  actor: {
+    /**
+     * User tự kết thúc session — server kiểm session.user_id khớp.
+     *
+     * @generated from field: string user_id = 3;
+     */
+    value: string;
+    case: "userId";
+  } | {
+    /**
+     * Tiến trình nội bộ (reaper TTL, drain node). Chỉ chấp nhận trên đường
+     * trong cluster, không expose ra ingress.
+     *
+     * @generated from field: string system_component = 4;
+     */
+    value: string;
+    case: "systemComponent";
+  } | { case: undefined; value?: undefined };
 };
 
 /**
@@ -245,7 +292,11 @@ export const ReapSessionResponseSchema: GenMessage<ReapSessionResponse> = /*@__P
 
 /**
  * SandboxTier chọn mức cô lập của pod lab (design §5).
- * Tier1 = Sysbox (mặc định, unprivileged user-ns). Tier2 = gVisor/Kata cho lab CTF.
+ * Tier1 = Sysbox (unprivileged user-ns). Tier2 = gVisor/Kata cho lab CTF.
+ *
+ * FAIL-CLOSED: server PHẢI từ chối UNSPECIFIED bằng InvalidArgument, KHÔNG được
+ * suy ra tier mặc định. Đây là field chọn mức cô lập — client quên set mà server
+ * đoán hộ nghĩa là âm thầm chạy lab ở mức yếu hơn ý định của người gọi.
  *
  * @generated from enum orchestrator.v1.SandboxTier
  */

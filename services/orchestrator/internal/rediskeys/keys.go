@@ -2,7 +2,7 @@
 //
 // SSOT của quy ước: docs/redis-key-namespace.md.
 // Bản song sinh TypeScript: packages/shared-types/src/redis-keys.ts.
-// Hai bản dùng CÙNG bộ test vector (keys_test.go ⇄ redis-keys.test.ts).
+// Test của cả hai bản đọc chung đúng một file: docs/redis-key-vectors.json.
 package rediskeys
 
 import (

@@ -2,18 +2,27 @@
 #
 # Named volume bắt buộc (rules/docker-volume-discipline.md): anonymous volume của
 # image postgres/redis trông y hệt rác prune được, `docker volume prune` là mất data.
+#
+# BIND 127.0.0.1, KHÔNG PHẢI 0.0.0.0. Máy dev thường nằm trên LAN cùng host lab;
+# Redis publish ra 0.0.0.0 nghĩa là bất kỳ ai cùng mạng cũng ghi đè được
+# `session:{id}:pod` — mà đó chính là SSOT ánh xạ session → pod, nên ở P1 nó
+# thành đường nối user A vào pod của user B. Đổi POSTGRES_HOST/REDIS_HOST nếu
+# thật sự cần expose (và lúc đó phải có mật khẩu thật).
 
 services:
   postgres:
     image: postgres:16-alpine
     container_name: dlp-postgres
-    restart: unless-stopped
+    # KHÔNG `unless-stopped`: stack dev không nên tự bật lại mỗi lần boot máy.
+    restart: 'no'
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-dlp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dlp_dev_only}
+      # `:?` chứ không phải `:-`: thiếu env là DỪNG, không im lặng dùng mật khẩu
+      # nằm sẵn trong git. .env ở root (gitignored) giữ giá trị dev.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD chưa đặt — copy .env.example sang .env}
       POSTGRES_DB: ${POSTGRES_DB:-dlp}
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      - '${POSTGRES_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,16 +34,23 @@ services:
   redis:
     image: redis:7-alpine
     container_name: dlp-redis
-    restart: unless-stopped
-    # appendonly: warm-pool và session→pod map sống ở Redis. Mất RAM mà không có AOF
-    # nghĩa là mất toàn bộ session đang chạy.
-    command: ['redis-server', '--appendonly', 'yes']
+    restart: 'no'
+    # appendonly: warm-pool và session→pod map sống ở Redis. Mất RAM mà không có
+    # AOF nghĩa là mất toàn bộ session đang chạy.
+    command:
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--requirepass',
+        '${REDIS_PASSWORD:?REDIS_PASSWORD chưa đặt — copy .env.example sang .env}',
+      ]
     ports:
-      - '${REDIS_PORT:-6379}:6379'
+      - '${REDIS_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379'
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD}', 'ping']
       interval: 5s
       timeout: 5s
       retries: 10

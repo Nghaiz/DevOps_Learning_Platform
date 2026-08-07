@@ -16,7 +16,7 @@
     "format:check": "prettier --check .",
     "proto": "buf generate",
     "proto:lint": "buf lint",
-    "proto:check": "buf generate && git diff --exit-code -- proto packages/shared-types/gen"
+    "proto:check": "buf generate && node -e \"const o=require('child_process').execSync('git status --porcelain -- proto packages/shared-types/gen').toString();if(o){console.error('ERROR: generated khác committed:\\n'+o+'\\nChạy `pnpm proto` rồi commit.');process.exit(1)}\""
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

@@ -28,5 +28,6 @@ WORKDIR /
 COPY --from=build /out/terminal-gateway /terminal-gateway
 
 USER 65532:65532
-EXPOSE 8082
+# 8082 = WS công khai, 8083 = /healthz + /metrics (nội bộ, đừng map ra ingress).
+EXPOSE 8082 8083
 ENTRYPOINT ["/terminal-gateway"]

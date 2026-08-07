@@ -1,5 +1,5 @@
 {
-  "id": "543b9779-0d2f-4db0-8150-2e1a6dad18b2",
+  "id": "00988a96-a423-4166-9769-178ca6783369",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -122,15 +122,17 @@
           "primaryKey": false,
           "notNull": true
         },
-        "tier": {
-          "name": "tier",
-          "type": "text",
+        "event": {
+          "name": "event",
+          "type": "session_event",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
-        "status": {
-          "name": "status",
-          "type": "text",
+        "tier": {
+          "name": "tier",
+          "type": "sandbox_tier",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
@@ -146,54 +148,27 @@
           "primaryKey": false,
           "notNull": false
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "claimed_at": {
-          "name": "claimed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "expires_at": {
           "name": "expires_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
-        "reaped_at": {
-          "name": "reaped_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reap_reason": {
-          "name": "reap_reason",
+        "detail": {
+          "name": "detail",
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
-        "sessions_audit_user_id_idx": {
-          "name": "sessions_audit_user_id_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "sessions_audit_session_id_idx": {
           "name": "sessions_audit_session_id_idx",
           "columns": [
@@ -202,6 +177,33 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "sessions_audit_user_id_idx": {
+          "name": "sessions_audit_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -210,21 +212,7 @@
           "with": {}
         }
       },
-      "foreignKeys": {
-        "sessions_audit_user_id_users_id_fk": {
-          "name": "sessions_audit_user_id_users_id_fk",
-          "tableFrom": "sessions_audit",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -315,6 +303,26 @@
     }
   },
   "enums": {
+    "public.sandbox_tier": {
+      "name": "sandbox_tier",
+      "schema": "public",
+      "values": [
+        "sysbox",
+        "gvisor",
+        "kata"
+      ]
+    },
+    "public.session_event": {
+      "name": "session_event",
+      "schema": "public",
+      "values": [
+        "created",
+        "claimed",
+        "expired",
+        "reaped",
+        "failed"
+      ]
+    },
     "public.user_role": {
       "name": "user_role",
       "schema": "public",
