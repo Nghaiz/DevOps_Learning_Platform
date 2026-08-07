@@ -94,16 +94,38 @@ if ! is_supported_k8s_version; then die ... fi
 
 ## 8. Đã thay đổi
 
-**Script** — [`infra/host/`](../../infra/host/README.md): `00-preflight.sh` (nhận Debian, kiểm AppArmor userns + sudo/curl, gate kernel theo distro) · `01-node-prereqs.sh` (containerd.io từ repo Docker thay gói distro) · `03-sysbox-install.sh` (thêm `SYSBOX_USE_CRIO`, in đường runtime đã chọn) · `cloud-init.yaml` (Debian) · `README.md` · **`VMWARE-DEBIAN-SETUP.md` (mới)**.
+**Script** — [`infra/host/`](../../infra/host/README.md): `00-preflight.sh` (nhận Debian, kiểm AppArmor userns + sudo/curl, gate kernel theo distro) · `01-node-prereqs.sh` (containerd.io từ repo Docker thay gói distro) · `02-kubeadm-init.sh` (POD_CIDR mặc định `10.244.0.0/16` + cổng chặn chồng lấn CIDR — xem §11) · `03-sysbox-install.sh` (thêm `SYSBOX_USE_CRIO`, in đường runtime, **kiểm cả handler CRI chứ không chỉ RuntimeClass** — xem §11) · `cloud-init.yaml` (Debian, `DEFAULT_FORWARD_POLICY=ACCEPT` cho ufw) · `README.md` · **`VMWARE-DEBIAN-SETUP.md` (mới)**.
+
+**Script chẩn đoán/sửa (thêm 2026-08-07 khi chạy thật)** — `fix-containerd-handler.sh` (§11.1) · `fix-cluster-dns.sh` · `diagnose-pod-network.sh` (§11.2) · `bench-sandbox-provision.sh` (đo tốc độ cấp pod).
 
 **Kế hoạch** — design §4 bảng stack + **§5b mới** · [phase-0](../devops-learning-platform/phase-0.md) §0.F + risk table (thêm dòng rủi ro Debian-untested) · [phase-1](../devops-learning-platform/phase-1.md) task 22 (chốt sandbox-base = Ubuntu) · [plan.md](../devops-learning-platform/plan.md) risk table.
 
 ## 9. Kiểm chứng
 
-Đã verify: mã nguồn trình cài đặt đọc trực tiếp · ISO `debian-13.6.0-amd64-netinst.iso` SHA256 `65273bee…4e7` đối chiếu SHA256SUMS chính thức · repo Docker trixie có containerd.io 2.2.5/2.2.6/2.3.3 · mọi URL HTTP 200 · `bash -n` sạch · line-endings LF.
+Đã verify **tĩnh** (trước khi chạy): mã nguồn trình cài đặt đọc trực tiếp · ISO `debian-13.6.0-amd64-netinst.iso` SHA256 `65273bee…4e7` đối chiếu SHA256SUMS chính thức · repo Docker trixie có containerd.io 2.2.5/2.2.6/2.3.3 · mọi URL HTTP 200 · `bash -n` sạch · line-endings LF.
 
-**Chưa verify:** chưa script nào chạy trên host Debian thật. Lần chạy đầu trên VM là lần kiểm thật, và `04-verify-sysbox.sh` chính là phép thử đó.
+**Đã verify ĐỘNG (2026-08-07, chạy thật trên VM Debian 13 / VMware):** cổng P0.F **xanh 8/8** trên `debian-sandbox` — containerd 2.3.3, K8s v1.34.10, không CRI-O. userns thật (root-in-pod → UID host ≠ 0), docker-in-docker chạy trong pod không-privileged. Ba lỗi thật lộ ra trong lần chạy đầu, đã sửa và ghi lại ở **§11**. Không phải "should work" nữa — đã chứng minh.
 
 ## 10. Bước tiếp
 
-Theo [`VMWARE-DEBIAN-SETUP.md`](../../infra/host/VMWARE-DEBIAN-SETUP.md) dựng VM → `setup-all.sh` → cổng P0.F. Xanh thì P0.F đóng, bắt đầu các mục còn lại của P0 (monorepo, proto contract, Better Auth).
+P0.F đã đóng (xanh). Còn lại của P0: monorepo, proto contract, Better Auth. Dựng **Host B (cloud)** theo cùng bộ script — đọc §11 trước để không dẫm lại 3 lỗi đã biết (đặc biệt POD_CIDR trên VPC 10.x và handler containerd).
+
+## 11. Lỗi thật khi chạy + cách đã sửa (2026-08-07)
+
+Ba lỗi này KHÔNG đoán được từ đọc mã nguồn tĩnh — chỉ lộ khi chạy trên host thật. Ghi lại để Host B và người sau không mất thời gian lại.
+
+### 11.1 containerd 2.3.3 không đăng ký handler `sysbox-runc`
+
+Pod kẹt `ContainerCreating`: `the handler "sysbox-runc" is not known`. **RuntimeClass** (object k8s) daemonset tạo đúng, nhưng **runtime handler** (tầng CRI) thì không: `config_containerd_for_sysbox()` ghi section theo plugin ID đời 1.x (`io.containerd.grpc.v1.cri`), còn containerd 2.3.3 dùng config `version = 4` với ID `io.containerd.cri.v1.runtime`. containerd bỏ qua section lạ (chỉ cảnh báo trong log của chính nó, không nổi lên k8s). Sysbox v0.7.0 ra trước khi containerd 2.x đổi schema. **Sửa:** `fix-containerd-handler.sh` suy plugin ID từ entry `runc` trong `containerd config dump` rồi ghi lại section đúng chỗ. `03-sysbox-install.sh` giờ kiểm `containerd config dump | grep sysbox-runc` để bắt lỗi ngay ở P0 thay vì để P0.F chết khó hiểu.
+
+### 11.2 POD_CIDR mặc định của Calico chồng lấn dải NAT
+
+`docker run` trong pod fail `lookup ... server misbehaving`, trông như lỗi DNS nhưng `ping 1.1.1.1` từ pod lại chạy. Gốc: POD_CIDR mặc định Calico `192.168.0.0/16` nuốt trọn dải NAT VMware `192.168.94.0/24`; Calico không SNAT gói tới địa chỉ trong pool của chính nó → pod mất đường về gateway. **Sửa:** đổi mặc định sang `10.244.0.0/16` + cổng chặn tự phát hiện chồng lấn trong `02-kubeadm-init.sh`. **Host B lưu ý:** nhiều VPC cloud dùng dải `10.x` — cổng chặn sẽ báo, chọn `172.20.0.0/16` hoặc `100.64.0.0/16`. Công cụ định vị: `diagnose-pod-network.sh` (ping được internet mà không ping được gateway = dấu hiệu đặc trưng).
+
+### 11.3 Bẫy vận hành Debian minimal
+
+`su -` luôn `Authentication failure` vì root để trống mật khẩu ⇒ tài khoản khoá (dùng `sudo`). `ssh host 'cmd'` không cấp TTY nên `sudo` chết (dùng `ssh -t`). Cả hai đã ghi trong [`VMWARE-DEBIAN-SETUP.md`](../../infra/host/VMWARE-DEBIAN-SETUP.md) § Bẫy Debian.
+
+### 11.4 Tốc độ cấp pod (đo thật, không đoán)
+
+`bench-sandbox-provision.sh` trên Host A (8 vCPU/16 GB, image đã cache): 1 pod Ready **4.6s** / docker dùng được **8.3s**; 10 pod song song xong toàn bộ trong **30.8s**. Con số 300s trong `04-verify` chỉ là TRẦN CHỜ. Cold path ~8s xác nhận **warm-pool (P1) là bắt buộc** để đạt mục tiêu claim <1s của thiết kế — không phải tô điểm.
