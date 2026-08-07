@@ -8,6 +8,24 @@ Dựng bộ khung monorepo build/test/lint được end-to-end, hạ tầng dữ
 
 **Không làm ở P0:** warm-pool, terminal streaming, nội dung lesson. Chỉ khung + chứng minh khả thi.
 
+## Trạng thái (cập nhật 2026-08-07)
+
+| Nhóm | Trạng thái | Ghi chú |
+|---|---|---|
+| 0.A Monorepo & toolchain | ✅ xong | Node **24 LTS + pnpm 11** thay vì Node 20 + pnpm 9 — Node 20 EOL 04/2026 |
+| 0.B Contract-first (proto) | ✅ xong | Go sinh vào **`proto/gen/go`** (module dùng chung) thay vì `services/*/gen` — xem dưới |
+| 0.C Data layer | ✅ xong | Chưa dùng sqlc (task 10 đặt sqlc ở dạng có điều kiện; Go chưa sở hữu bảng nào) |
+| 0.D Web + Better Auth + tRPC | ⬜ chưa làm | `apps/web` hiện là package TS thuần giữ tầng dữ liệu; Next.js dựng lên trên nó |
+| 0.E Skeleton Go services | ✅ xong | Thêm module **`services/shared`** (envx/logging/httpx) không có trong design §8 |
+| 0.F Sandbox node | ✅ xong (trừ task 27) | Cổng `04-verify-sysbox.sh` 8/8 xanh; Helm chart task 27 chưa làm |
+| 0.G CI/CD | ⬜ chưa làm | |
+
+**Ba điểm lệch có chủ ý so với bản plan gốc** (lý do đầy đủ ở `proto/README.md`, `services/shared/README.md`, và acceptance criteria dưới):
+
+1. **Code Go sinh từ proto vào `proto/gen/go`, không phải `services/*/gen`.** Hai service dùng chung đúng một contract; sinh vào từng service tạo hai bản sao byte-identical, vi phạm SSOT và cho phép chúng lệch nhau khi ai đó chỉ regenerate một bên.
+2. **Thêm Go module `services/shared`.** `envx` + `logging` + `httpx` giống hệt nhau ở cả hai service; bản sao thứ hai sẽ lệch ngay lần đầu ai đó sửa một bên.
+3. **`go build ./...` từ root không chạy được** — dùng `make go-build` (lặp qua module).
+
 ## Task list
 
 ### 0.A Monorepo & toolchain
@@ -81,13 +99,14 @@ Dựng bộ khung monorepo build/test/lint được end-to-end, hạ tầng dữ
 ## Acceptance criteria
 
 **Chức năng:**
-- [ ] `turbo run lint build test` và `go build ./... && go test ./...` đều xanh từ clean checkout.
-- [ ] `make proto` sinh lại type Go + TS; chạy lại không tạo diff (drift gate xanh).
-- [ ] Đăng ký + đăng nhập (email/pw) hoạt động; session cookie set; `/dashboard` chỉ vào được khi đã login.
-- [ ] OAuth Google/Microsoft đi tới màn consent (env placeholder OK).
-- [ ] orchestrator + gateway trả `/healthz` 200 và `/metrics` có metric; tRPC `session.*` gọi được orchestrator gRPC (mock).
-- [ ] Postgres migrate được; Redis SET/GET/EXPIRE ok qua cả TS lẫn Go client.
-- [ ] Helm chart deploy 3 service lên cluster kubeadm 1-node; pod Running.
+- [x] `turbo run lint build test` và `make go-build go-vet go-test` đều xanh từ clean checkout. **Lệch so với bản gốc:** `go build ./...` từ root KHÔNG chạy được — root repo không phải Go module, và ở chế độ workspace Go từ chối pattern nằm ngoài mọi module (`directory prefix . does not contain modules listed in go.work`). Makefile lặp qua từng module, danh sách lấy từ `go list -m`.
+- [x] `make proto` sinh lại type Go + TS; chạy lại không tạo diff (drift gate xanh).
+- [ ] Đăng ký + đăng nhập (email/pw) hoạt động; session cookie set; `/dashboard` chỉ vào được khi đã login. *(0.D — chưa làm)*
+- [ ] OAuth Google/Microsoft đi tới màn consent (env placeholder OK). *(0.D — chưa làm)*
+- [x] orchestrator + gateway trả `/healthz` 200 và `/metrics` có metric (`dlp_build_info` + metric runtime Go).
+- [ ] tRPC `session.*` gọi được orchestrator gRPC (mock). *(0.D — chưa làm. RPC phía Go cố ý trả `Unimplemented` thay vì mock, xem 0.E.)*
+- [x] Postgres migrate được (Drizzle Kit); Redis SET/GET/EXPIRE ok qua cả TS lẫn Go client.
+- [ ] Helm chart deploy 3 service lên cluster kubeadm 1-node; pod Running. *(task 27 — chưa làm)*
 - [x] `bash infra/host/04-verify-sysbox.sh` exit 0 (8/8 pass) — **cổng P0.F ĐÃ ĐÓNG XANH 2026-08-07** trên `debian-sandbox` (containerd 2.3.3, K8s v1.34.10). Lưu ý: check 8 (metadata `169.254.169.254`) xanh trên VM local là do NAT không định tuyến địa chỉ đó, KHÔNG phải do NetworkPolicy — trên cloud thật (Host B) check này sẽ WARN cho tới khi P1 task 20 / P3 siết NetworkPolicy. Nên đọc là "7 kiểm soát thật + 1 baseline môi trường".
 
 **Bảo mật (luật §6 — testable):**
@@ -107,11 +126,28 @@ Dựng bộ khung monorepo build/test/lint được end-to-end, hạ tầng dữ
 ```bash
 # Toolchain + build
 pnpm install && pnpm turbo run lint build test
-go work sync && go build ./... && go test ./...
-golangci-lint run ./...
+
+# Go: KHÔNG chạy `go build ./...` từ root — root không phải module nên workspace mode
+# từ chối pattern. Các target dưới lặp qua từng module, lấy danh sách từ `go list -m`.
+go work sync && make go-build go-vet go-test go-lint
 
 # Contract drift gate
-make proto && git diff --exit-code -- proto packages/shared-types/gen services
+make proto-check
+
+# Hạ tầng dữ liệu: migrate + SET/GET/EXPIRE qua CẢ hai client
+docker compose up -d
+pnpm --filter @devops-platform/web db:migrate
+make smoke
+
+# Service chạy thật
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8081/healthz          # 200 orchestrator
+curl -s localhost:8081/metrics | grep dlp_build_info                     # có metric
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8082/healthz          # 200 gateway
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8082/ws/session/abc123 # 401 (chưa có authz — đúng ý đồ)
+
+# Image
+docker build -f services/orchestrator/Dockerfile -t dlp/orchestrator:dev .
+docker build -f services/terminal-gateway/Dockerfile -t dlp/terminal-gateway:dev .
 
 # Security header check (web chạy local)
 curl -sI https://localhost:3000/ | grep -Ei 'strict-transport|content-security|x-frame|x-content-type|referrer-policy|permissions-policy'

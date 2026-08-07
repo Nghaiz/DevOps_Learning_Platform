@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
+# pnpm chặn postinstall script theo mặc định (supply-chain). esbuild cần script đó
+# để nạp binary đúng nền tảng; thiếu nó thì vitest / tsx / drizzle-kit không chạy.
+# Chỉ mở cho đúng package cần, không mở toàn cục.
+allowBuilds:
+  esbuild: true

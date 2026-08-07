@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    // Package này thuần logic, không đụng API Node — không kéo @types/node vào.
+    "types": []
+  },
+  "include": ["src/**/*.ts", "gen/**/*.ts", "eslint.config.mjs"]
+}

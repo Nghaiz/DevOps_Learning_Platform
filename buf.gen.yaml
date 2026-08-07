@@ -1,0 +1,20 @@
+version: v2
+
+# KHÔNG dùng `clean: true` — nó sẽ xoá luôn proto/gen/go/go.mod (file viết tay,
+# không phải sản phẩm codegen).
+plugins:
+  # Go: một module dùng chung cho cả orchestrator lẫn terminal-gateway.
+  # Sinh vào services/*/gen sẽ nhân đôi y hệt code ở 2 nơi (vi phạm SSOT).
+  - remote: buf.build/protocolbuffers/go
+    out: proto/gen/go
+    opt: paths=source_relative
+  - remote: buf.build/grpc/go
+    out: proto/gen/go
+    opt: paths=source_relative
+
+  # TypeScript: consumer là apps/web (BFF tRPC) qua packages/shared-types.
+  - remote: buf.build/bufbuild/es
+    out: packages/shared-types/gen
+    opt:
+      - target=ts
+      - import_extension=js

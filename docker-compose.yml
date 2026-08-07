@@ -1,0 +1,44 @@
+# Hạ tầng dữ liệu cho DEV. Prod dùng Helm chart ở infra/helm/platform.
+#
+# Named volume bắt buộc (rules/docker-volume-discipline.md): anonymous volume của
+# image postgres/redis trông y hệt rác prune được, `docker volume prune` là mất data.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dlp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dlp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dlp_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-dlp}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-dlp} -d ${POSTGRES_DB:-dlp}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: dlp-redis
+    restart: unless-stopped
+    # appendonly: warm-pool và session→pod map sống ở Redis. Mất RAM mà không có AOF
+    # nghĩa là mất toàn bộ session đang chạy.
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:

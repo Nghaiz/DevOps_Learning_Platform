@@ -1,0 +1,20 @@
+node_modules
+.turbo
+dist
+.next
+coverage
+pnpm-lock.yaml
+
+# Generated từ proto/ — SSOT là file .proto, không format tay.
+packages/shared-types/gen
+proto/gen
+
+# Prettier ở repo này CHỈ lo TS/JS/JSON/YAML (phase-0.md 0.A task 4 ghi rõ "Prettier (TS)").
+# Markdown để nguyên: prettier canh lại bảng và bẻ dòng văn xuôi tiếng Việt, tạo diff
+# ồn ào khắp plans/ và docs/ mà không đổi nội dung gì.
+**/*.md
+**/*.html
+
+# Script bootstrap host chạy trên Debian; cloud-init.yaml được cloud-init parse,
+# không phải người đọc. Không để prettier canh lại thứ nó không sở hữu.
+infra/host

@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+// Contract SSOT giữa apps/web (BFF tRPC) và services/orchestrator (Go).
+// Không đầu nào được tự chế shape — sửa ở đây rồi `make proto`.
+// Ranh giới tRPC / gRPC / OpenAPI: xem proto/README.md.
+package orchestrator.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1;orchestratorv1";
+
+// SandboxTier chọn mức cô lập của pod lab (design §5).
+// Tier1 = Sysbox (mặc định, unprivileged user-ns). Tier2 = gVisor/Kata cho lab CTF.
+enum SandboxTier {
+  SANDBOX_TIER_UNSPECIFIED = 0;
+  SANDBOX_TIER_SYSBOX = 1;
+  SANDBOX_TIER_GVISOR = 2;
+  SANDBOX_TIER_KATA = 3;
+}
+
+// SessionStatus là vòng đời của một session lab.
+// PENDING → WARM (pool) → CLAIMED → RUNNING → EXPIRED → REAPED. FAILED là nhánh lỗi.
+enum SessionStatus {
+  SESSION_STATUS_UNSPECIFIED = 0;
+  SESSION_STATUS_PENDING = 1;
+  SESSION_STATUS_WARM = 2;
+  SESSION_STATUS_CLAIMED = 3;
+  SESSION_STATUS_RUNNING = 4;
+  SESSION_STATUS_EXPIRED = 5;
+  SESSION_STATUS_REAPED = 6;
+  SESSION_STATUS_FAILED = 7;
+}
+
+// Session là trạng thái quyền uy của một pod lab.
+// SSOT của session sống ở Redis (`session:{id}`), KHÔNG nhân bản sang Postgres
+// (plan.md §4 "SSOT & no-derived-fields"). Postgres chỉ giữ audit trail.
+message Session {
+  string id = 1;
+  string user_id = 2;
+  SessionStatus status = 3;
+  // Rỗng khi status = PENDING (pod chưa được cấp).
+  string pod_name = 4;
+  string namespace = 5;
+  // Rỗng cho đến khi session được claim; TTL bắt đầu đếm từ lúc claim.
+  google.protobuf.Timestamp expires_at = 6;
+  SandboxTier tier = 7;
+}
+
+message CreateSessionRequest {
+  string user_id = 1;
+  SandboxTier tier = 2;
+  // Thời gian sống mong muốn tính bằng giây. 0 = dùng mặc định của server.
+  int32 ttl_seconds = 3;
+}
+
+message CreateSessionResponse {
+  Session session = 1;
+}
+
+// ClaimSession gắn một session WARM trong pool cho user. Phải atomic —
+// hai request đồng thời không được claim cùng một pod (risk score 16, plan.md §5).
+message ClaimSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message ClaimSessionResponse {
+  Session session = 1;
+}
+
+message GetSessionRequest {
+  string session_id = 1;
+  // Bắt buộc: server kiểm object-level authz (luật 1) chứ không tin client.
+  string user_id = 2;
+}
+
+message GetSessionResponse {
+  Session session = 1;
+}
+
+// ReapSession phải idempotent — gọi lại trên session đã reap vẫn trả OK.
+message ReapSessionRequest {
+  string session_id = 1;
+  string reason = 2;
+}
+
+message ReapSessionResponse {
+  Session session = 1;
+}
+
+service SessionService {
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc ClaimSession(ClaimSessionRequest) returns (ClaimSessionResponse);
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc ReapSession(ReapSessionRequest) returns (ReapSessionResponse);
+}
