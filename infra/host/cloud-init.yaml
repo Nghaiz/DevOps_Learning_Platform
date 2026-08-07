@@ -1,0 +1,104 @@
+#cloud-config
+# cloud-init.yaml — Bootstrap tối thiểu cho CLOUD VM Debian 13 (prod / load-test P3 / demo).
+#
+# Dán nội dung này vào ô "User data" / "Custom data" / "Cloud-init script" khi tạo VM:
+#   AWS EC2      → Advanced details → User data
+#   Azure        → Advanced → Custom data
+#   DigitalOcean → Advanced options → Add Initialization scripts
+#   Hetzner      → Cloud config
+#
+# ⚠️ NHỚ THAY ssh_authorized_keys bằng public key CỦA BẠN (nội dung ~/.ssh/id_ed25519.pub).
+#    Không có key = không SSH vào được.
+#
+# Chọn image Debian 13 (Trixie) x86_64 khi tạo VM — cùng distro với VM local để dev ≡ prod.
+#
+# Nó chỉ dựng nền + siết SSH. Phần k8s/Sysbox vẫn dùng đúng bộ script 00→04 để
+# local và cloud không bao giờ lệch nhau (SSOT). Sau khi VM boot:
+#
+#   scp -r infra/host/ debian@<IP>:~/
+#   ssh -t debian@<IP> 'bash ~/host/setup-all.sh'
+#
+# ⚠️ POD_CIDR trên cloud: mặc định của bộ script là 10.244.0.0/16. Nhiều VPC cloud dùng dải
+#    10.x (AWS 172.31/16 · Azure 10.0.0.0/16 · DO private 10.x) — chồng lấn là pod mất đường
+#    tới gateway, DNS treo timeout. 02-kubeadm-init.sh TỰ PHÁT HIỆN và dừng trước khi init,
+#    kèm gợi ý. Khi bị chặn, chọn dải không đụng VPC, ví dụ:
+#      POD_CIDR=172.20.0.0/16 sudo -E bash ~/host/02-kubeadm-init.sh
+
+package_update: true
+package_upgrade: true
+
+# Debian minimal thiếu nhiều thứ Ubuntu có sẵn — sudo là cái hay quên nhất.
+packages:
+  - sudo
+  - curl
+  - gnupg
+  - jq
+  - git
+  - ca-certificates
+  - apt-transport-https
+  - ufw
+  - unattended-upgrades
+
+users:
+  - name: debian
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAA_THAY_BANG_PUBLIC_KEY_CUA_BAN ban@may-cua-ban
+
+# Cloud image thường bật swap sẵn — kubelet không chịu. Tắt ngay từ boot đầu.
+swap: {}
+mounts:
+  - [swap, null]
+
+write_files:
+  - path: /etc/sysctl.d/99-kubernetes.conf
+    permissions: "0644"
+    content: |
+      net.ipv4.ip_forward         = 1
+      user.max_user_namespaces    = 65536
+      fs.inotify.max_user_watches = 1048576
+
+  - path: /etc/ssh/sshd_config.d/99-hardening.conf
+    permissions: "0644"
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin no
+      KbdInteractiveAuthentication no
+
+runcmd:
+  - swapoff -a
+  - sed -i -E 's|^([^#].*\sswap\s.*)$|# \1|' /etc/fstab
+  - sysctl --system
+
+  # BẮT BUỘC trước khi bật ufw: mặc định ufw đặt DEFAULT_FORWARD_POLICY="DROP", mà Kubernetes
+  # định tuyến traffic pod↔pod và pod↔service qua chuỗi FORWARD. Để DROP thì pod network chết
+  # câm — không lỗi rõ ràng, chỉ timeout khắp nơi, rất khó truy.
+  - sed -i 's|^DEFAULT_FORWARD_POLICY=.*|DEFAULT_FORWARD_POLICY="ACCEPT"|' /etc/default/ufw
+
+  # Firewall: chỉ mở đúng thứ cần. API server KHÔNG mở ra internet —
+  # truy cập qua SSH tunnel: ssh -L 6443:127.0.0.1:6443 debian@<IP>
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 22/tcp comment 'ssh'
+  - ufw allow 80/tcp comment 'http'
+  - ufw allow 443/tcp comment 'https'
+  - ufw --force enable
+
+  - systemctl restart ssh || systemctl restart sshd
+  - |
+    cat > /etc/motd <<'EOF'
+
+      Cloud host (Debian 13) — DevOps Learning Platform
+      Nền đã xong. Bước tiếp (chạy TỪ MÁY BẠN):
+
+        scp -r infra/host/ debian@<IP>:~/
+        ssh -t debian@<IP> 'bash ~/host/setup-all.sh'
+
+      kube-apiserver KHÔNG mở ra internet. Dùng SSH tunnel:
+        ssh -L 6443:127.0.0.1:6443 debian@<IP>
+
+    EOF
+
+final_message: "cloud-init xong sau $UPTIME giây. SSH vào rồi chạy setup-all.sh."
