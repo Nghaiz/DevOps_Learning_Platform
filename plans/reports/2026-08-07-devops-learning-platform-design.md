@@ -13,7 +13,7 @@ Xây nền tảng học–thực hành DevOps tự host, chịu tải cao (hàng
 - **② Labs/Playground** (kiểu KodeKloud): môi trường thật (K8s/Docker/Linux) + chấm điểm task.
 - **③ Games** (kiểu k8sgames): game tương tác trên trình duyệt, phần lớn frontend-only (0 backend) + CTF tái dùng engine ②.
 
-**Ràng buộc:** KHÔNG Java/Spring Boot. Ưu tiên best-of-breed từng thành phần (polyglot Go + Next.js OK). Terminal cao cấp custom được (oh-my-posh, fastfetch, terminal-icons, PSReadLine). Deploy được cả k3s self-host lẫn cloud.
+**Ràng buộc:** KHÔNG Java/Spring Boot. Ưu tiên best-of-breed từng thành phần (polyglot Go + Next.js OK). Terminal cao cấp custom được (oh-my-posh, fastfetch, terminal-icons, PSReadLine). Deploy được cả self-host lẫn cloud. **Node OS = Debian (không Ubuntu) cho cả dev lẫn prod; terminal học tập bên trong sandbox vẫn là Ubuntu.**
 
 ## 2. Kết quả research (đã verify)
 
@@ -54,7 +54,9 @@ Nguyên tắc: **Go cho hạ tầng nặng** (K8s client-go + streaming nhiều 
 | Cache/State | Redis | warm-pool, session→pod, TTL, pub/sub reaper |
 | Content | Katacoda/Killercoda md + index.json parser (TS) | kế thừa kho nội dung OSS |
 | Sandbox | K8s + **Sysbox** (tier1) · **gVisor/Kata** (tier2) | §5 |
-| Đóng gói | **Helm** (k3s self-host + cloud node pool) | chạy cả hai |
+| **Node OS** | **Debian 13 Trixie** (dev VM + prod, kernel 6.12, LTS→30/06/2030) | §5b |
+| **K8s distro** | **kubeadm + containerd 2.3.x**, ghim **v1.34** | §5b |
+| Đóng gói | **Helm** (self-host + cloud node pool) | chạy cả hai |
 | Observability | Prometheus + Grafana + Loki | đo tải, debug session |
 
 ### 4b. Terminal UX cao cấp
@@ -72,7 +74,37 @@ Root-trong-container KHÔNG được = root-trên-host. Pod K8s thường không
 | gVisor tier2 | ✓✓ Mạnh (user-space kernel) | Vừa | Hạn chế | Trung bình |
 | Kata/Firecracker tier2 | ✓✓✓ Mạnh nhất (VM+KVM) | Cao | Có | Cao |
 
-**Khuyến nghị:** Tier1 = K8s+Sysbox cho hầu hết lab; Tier2 = gVisor RuntimeClass (nhẹ) / Kata (mạnh) cho lab CTF "phá hộp". Sysbox cần cài runtime lên node ⇒ self-managed node pool (k3s hoặc node pool tự quản), không dùng GKE Autopilot.
+**Khuyến nghị:** Tier1 = K8s+Sysbox cho hầu hết lab; Tier2 = gVisor RuntimeClass (nhẹ) / Kata (mạnh) cho lab CTF "phá hộp". Sysbox cần cài runtime lên node ⇒ self-managed node pool, không dùng GKE Autopilot.
+
+### 5b. Node OS + K8s distro — chốt 2026-08-07 (thay thế "k3s + Ubuntu")
+
+**Debian 13 Trixie cho cả dev VM lẫn prod. kubeadm + containerd, không k3s, không CRI-O, không Ubuntu.**
+
+Kết luận rút từ **mã nguồn** [`sysbox-deploy-k8s.sh`](https://raw.githubusercontent.com/nestybox/sysbox-pkgr/master/k8s/scripts/sysbox-deploy-k8s.sh), không phải từ docs (docs của Sysbox lạc hậu hơn code của chính nó — vẫn ghi "must be Ubuntu"):
+
+| Điều kiện THẬT trong trình cài đặt | Debian 13 Trixie | |
+|---|---|:--:|
+| `is_supported_distro()` — allowlist có `[[ $distro =~ "debian" ]]` | khớp | ✅ |
+| distro ngoài allowlist → chỉ `echo Warning`, **không `die`** | không phải cổng chặn | ✅ |
+| `is_supported_kernel()` — non-Ubuntu cần **≥ 5.5** | **6.12** | ✅ |
+| `get_artifacts_dir()` → Debian dùng `bin/generic` | **cùng binary với Ubuntu** | ✅ |
+| shiftfs (patch riêng kernel Ubuntu) chỉ cần khi kernel < 5.19 | 6.12 → idmapped mounts | ✅ |
+| `crio-installer.sh` = giải nén tarball, không apt/dpkg | distro-agnostic | ✅ |
+| `is_containerd_with_userns()` ≥ 2.0.0 (trừ dải lỗi 2.0.1–2.0.4) | repo Docker trixie có **2.3.3** ⇒ **CRI-O không được cài** | ✅ |
+
+Ba `die` duy nhất trong `main()`: **kernel · kiến trúc · phiên bản K8s**. Không có `die` theo distro.
+
+**Điểm Debian thắng Ubuntu:** Ubuntu 24.04+ bật `apparmor_restrict_unprivileged_userns=1` mặc định — chặn đúng thứ Sysbox sống nhờ. Debian 13 để mở.
+
+**Vì sao bỏ k3s:** Sysbox chính thức hỗ trợ CRI-O, và tài liệu distro của Sysbox không nhắc k3s. Đường k3s ([blog k3s 27/09/2025](https://docs.k3s.io/blog/2025/09/27/k3s-sysbox)) đòi build `sysbox-runc` từ source. kubeadm là đường daemonset chính chủ.
+
+**Ghim K8s v1.34** — Sysbox hỗ trợ v1.32–v1.35 và đây là `die` thật; `stable` hiện tại đã v1.36.x.
+
+**Rủi ro chấp nhận:** Nestybox không test Debian trên K8s ⇒ không có vendor support. Kiềm chế bằng cổng `04-verify-sysbox.sh` chạy ngay sau cài (8 kiểm chứng), đỏ là biết liền chứ không lòi ra ở P1. Dự phòng: `SYSBOX_USE_CRIO=true` ép CRI-O (tarball, vẫn chạy trên Debian).
+
+**Host OS ≠ image OS:** `images/sandbox-base` giữ nền **Ubuntu** — phần lớn tài liệu DevOps/KillerCoda giả định `apt` trên Ubuntu. Host Debian chạy container Ubuntu là chuyện thường.
+
+Thực thi: [`infra/host/`](../../infra/host/README.md) · hướng dẫn cài: [`VMWARE-DEBIAN-SETUP.md`](../../infra/host/VMWARE-DEBIAN-SETUP.md)
 
 ## 6. Baseline bảo mật — 10 luật rút từ pentest (yêu cầu BẮT BUỘC)
 
@@ -131,7 +163,7 @@ infra/helm · infra/k8s/    Sysbox RuntimeClass, gVisor, NetworkPolicy, quotas
 
 ## 10. Lộ trình
 
-- **P0 Nền móng** (2–3 tuần): monorepo, Postgres+Redis, Next.js + Better Auth, skeleton Go services, CI/CD, k3s + Sysbox 1 node, proto contract.
+- **P0 Nền móng** (2–3 tuần): monorepo, Postgres+Redis, Next.js + Better Auth, skeleton Go services, CI/CD, **kubeadm v1.34 + Sysbox 1 node trên Debian 13**, proto contract.
 - **P1 Sandbox Engine (MVP lõi):** orchestrator create/claim/reap pod Sysbox, terminal-gateway WS ⇄ pod PTY, per-session authz, warm-pool nhỏ, sandbox-base image (§4b).
 - **P2 Lessons:** parser Katacoda md+index.json, UI split-pane (nội dung|terminal), step nav, validation script.
 - **P3 Hardening & tải:** 10 luật §6, k6 load test, reaper, autoscaling, NetworkPolicy, observability.

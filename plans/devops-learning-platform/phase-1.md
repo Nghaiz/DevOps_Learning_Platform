@@ -57,7 +57,7 @@ Reaper (orchestrator): quét session:{id} hết TTL / idle → delete pod + Redi
 21. Pod chạy trên **node pool lab có taint** (tách khỏi control/web); pod có toleration + nodeSelector.
 
 ### 1.E images/sandbox-base — terminal UX cao cấp (design §4b)
-22. Dockerfile base (Ubuntu/Debian slim): cài `oh-my-posh`, `fastfetch`, `terminal-icons`, `eza`, `zoxide`, `fzf`, `bat`. Shell mặc định zsh (và bash sẵn).
+22. Dockerfile base **nền Ubuntu** (chốt 2026-08-07 — KHÔNG Debian, dù host là Debian 13): cài `oh-my-posh`, `fastfetch`, `terminal-icons`, `eza`, `zoxide`, `fzf`, `bat`. Shell mặc định zsh (và bash sẵn). *Lý do tách Ubuntu-image khỏi Debian-host: phần lớn tài liệu DevOps, scenario KillerCoda và bài lab đều giả định `apt` trên Ubuntu; OS của image không liên quan gì tới OS của host.*
 23. Tùy chọn `pwsh` + `PSReadLine` + oh-my-posh (build arg bật/tắt để giữ image nhỏ khi không cần).
 24. Nerd Font cấu hình sẵn cho oh-my-posh theme; cho user nạp **dotfiles riêng** (mount/injection an toàn, không cho ghi ngoài home).
 25. Image tối ưu kích thước + layer cache; build trong CI, push registry; scan vuln (trivy) cơ bản.

@@ -58,7 +58,7 @@ infra/helm/ · infra/k8s/   Helm charts + Sysbox RuntimeClass, gVisor, NetworkPo
 
 | Phase | Tên | Mức chi tiết | Kết quả chính | File |
 |---|---|---|---|---|
-| **P0** | Nền móng | DETAILED | Monorepo build được, Postgres+Redis, Next.js+Better Auth login, skeleton 2 Go service, CI/CD, k3s 1-node + Sysbox, proto contract v0 | `phase-0.md` |
+| **P0** | Nền móng | DETAILED | Monorepo build được, Postgres+Redis, Next.js+Better Auth login, skeleton 2 Go service, CI/CD, **kubeadm 1-node (K8s v1.34) + Sysbox**, proto contract v0 | `phase-0.md` |
 | **P1** | Sandbox Session Engine (MVP lõi) | DETAILED | create/claim/reap pod Sysbox, terminal-gateway WS⇄PTY, per-session authz, warm-pool nhỏ, sandbox-base image | `phase-1.md` |
 | **P2** | Lessons pillar | DETAILED | parser Katacoda, UI split-pane (nội dung\|terminal), step nav, validation script | `phase-2.md` |
 | **P3** | Hardening & tải | SKETCH | 10 luật §6 self-pentest, k6 load test, autoscaling, NetworkPolicy, observability | `phase-3.md` |
@@ -97,7 +97,7 @@ infra/helm/ · infra/k8s/   Helm charts + Sysbox RuntimeClass, gVisor, NetworkPo
 
 | Rủi ro | Likelihood (1-5) | Impact (1-5) | Score | Mitigation |
 |---|---|---|---|---|
-| **Sysbox node setup** phức tạp/không lên được trên node pool tự quản | 4 | 5 | **20** | P0 dựng k3s 1-node + cài sysbox-runc sớm nhất; script IaC lặp lại được; fallback tier chỉ khi node xác nhận chạy. Xem P0/P1 risk table. |
+| **Sysbox node setup** phức tạp/không lên được trên node pool tự quản | 4 | 5 | **20** | **Cập nhật 2026-08-07 — Debian 13 Trixie + kubeadm + containerd 2.3.x** (thay "k3s + Ubuntu"); bằng chứng đọc từ mã nguồn `sysbox-deploy-k8s.sh`, xem design §5b. P0 dựng kubeadm 1-node **ghim K8s v1.34** (Sysbox chỉ hỗ trợ v1.32–v1.35) + daemonset `sysbox-install.yaml` sớm nhất; bộ script `infra/host/` chạy chung cho VM local lẫn cloud, **cùng distro ⇒ dev ≡ prod**; cổng `04-verify-sysbox.sh` 8/8 mới mở P1. Xem P0/P1 risk table. |
 | **WS ⇄ pod-exec streaming (Go)** — SPDY stream, resize, backpressure sai | 4 | 5 | **20** | Spike WS↔exec tối thiểu ở đầu P1 trước khi build warm-pool; dùng client-go `remotecommand`; e2e test 1 session trước khi scale. |
 | **Warm-pool race conditions** — 2 request claim cùng 1 pod | 4 | 4 | **16** | Redis atomic claim (Lua/`SETNX`+state machine); test đồng thời N goroutine claim; reaper idempotent. |
 | Contract drift Next↔Go (polyglot) | 3 | 4 | 12 | Contract-first codegen gate trong CI; integration check sau fan-out. |
@@ -119,6 +119,6 @@ infra/helm/ · infra/k8s/   Helm charts + Sysbox RuntimeClass, gVisor, NetworkPo
 
 ## 7. Quyết định đã chốt (post-validation 2026-08-07)
 
-- **Cloud target / autoscaler (P3): CLOUD-AGNOSTIC — dùng `cluster-autoscaler`** (không Karpenter, không khóa AWS). P3 giữ đa nền tảng: chạy được trên AWS/GCP/Azure self-managed node pool lẫn bare-metal/k3s. Chọn cloud cụ thể hoãn tới khi triển khai P3; Helm chart + IaC phải trung lập nhà cung cấp. Khớp với lựa chọn "thiết kế cho cả hai" của user.
+- **Cloud target / autoscaler (P3): CLOUD-AGNOSTIC — dùng `cluster-autoscaler`** (không Karpenter, không khóa AWS). P3 giữ đa nền tảng: chạy được trên AWS/GCP/Azure self-managed node pool lẫn bare-metal/kubeadm self-host. Chọn cloud cụ thể hoãn tới khi triển khai P3; Helm chart + IaC phải trung lập nhà cung cấp. Khớp với lựa chọn "thiết kế cho cả hai" của user.
 
 _Không còn mục nào genuinely unresolved — mọi quyết định stack/design đã khóa._
