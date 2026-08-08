@@ -30,6 +30,23 @@ export function redisUrl(): string {
   return requireEnv('REDIS_URL');
 }
 
+/**
+ * Origin công khai của app, dùng làm `metadataBase` (canonical + Open Graph).
+ *
+ * `undefined` khi chưa đặt — KHÔNG fallback về 'http://localhost:3000'. Đoán bừa
+ * origin nghĩa là mọi thẻ og:image ở prod trỏ về localhost, hỏng im lặng và chỉ
+ * lộ ra khi có người share link. Chưa đặt thì layout bỏ hẳn metadataBase và Next
+ * tự cảnh báo — ồn ào, đúng ý.
+ *
+ * Vì sao KHÔNG phải `NEXT_PUBLIC_APP_URL`: biến NEXT_PUBLIC_* bị nướng vào bundle
+ * lúc BUILD, nên đặt trong Deployment/Secret của k8s là vô tác dụng. `APP_URL`
+ * đọc lúc chạy ⇒ đổi được bằng `helm upgrade` mà không build lại image.
+ */
+export function appUrl(): string | undefined {
+  const value = process.env['APP_URL'];
+  return value === undefined || value === '' ? undefined : value;
+}
+
 /** Địa chỉ gRPC của services/orchestrator (host:port, không có scheme). */
 export function orchestratorGrpcAddr(): string {
   return process.env['ORCHESTRATOR_GRPC_ADDR'] ?? 'localhost:9090';

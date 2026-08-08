@@ -1,10 +1,18 @@
 import type { ReactNode } from 'react';
+import type { Metadata } from 'next';
 import { headers } from 'next/headers';
+import { appUrl } from '../server/env';
 import './globals.css';
 
-export const metadata = {
+const base = appUrl();
+
+export const metadata: Metadata = {
   title: 'DevOps Learning Platform',
   description: 'Nền tảng học DevOps qua lab sandbox',
+  // Bỏ hẳn key khi APP_URL chưa đặt, thay vì đoán một origin. `new URL()` trên
+  // chuỗi rác ném lỗi ngay lúc build — đúng chỗ để phát hiện, không phải lúc có
+  // người share link và thấy og:image trỏ về localhost.
+  ...(base === undefined ? {} : { metadataBase: new URL(base) }),
 };
 
 /**

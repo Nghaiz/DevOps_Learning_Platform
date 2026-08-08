@@ -1,42 +1,106 @@
-# CI xanh mới merge (0.G, phase-0.md task 28–30). Một file, ba job:
-#   ci          — toolchain TS + drift gate proto + toolchain Go + lint (mọi push/PR)
-#   images      — build & push 4 image lên GHCR (chỉ push main/tag v*)
-#   secret-scan — gitleaks (mọi push/PR)
+# CI xanh mới merge. Sáu cổng chạy SONG SONG, gom về một check duy nhất `ci-ok`:
 #
-# Gộp chung 1 file (thay vì images.yml riêng) để `images: needs: ci` là phụ
-# thuộc job THẬT trong cùng workflow run — không phải đoán qua workflow_run/
-# cross-workflow, vốn phải chạy lại toàn bộ job `ci` một lần nữa mới gate được.
+#   proto ─┐
+#   ts     ├─► ci-ok ─► images (chỉ push main / tag v*)
+#   go     │
+#   infra  │
+#   secret-scan ┘
+#   dependency-review (chỉ PR)
+#
+# VÌ SAO MỘT FILE: `images: needs: ci-ok` là phụ thuộc job THẬT trong cùng
+# workflow run. Tách sang file khác thì phải đi đường workflow_run, vốn phải chạy
+# lại toàn bộ cổng một lần nữa mới gate được.
+#
+# VÌ SAO `ci-ok`: branch protection chỉ nhận tên check cố định. Khai 6 job làm 6
+# required check nghĩa là mỗi lần thêm/đổi tên job phải vào Settings sửa tay và
+# quên là mất cổng trong im lặng. `ci-ok` là một cái tên, không bao giờ đổi.
+#
+# MỌI ACTION GHIM THEO SHA, không phải tag. `@v7` là tag DI ĐỘNG — chủ action trỏ
+# lại vào commit khác lúc nào cũng được, và đó chính xác là đường đi của vụ
+# tj-actions/changed-files (2025). Dependabot nâng SHA giúp (.github/dependabot.yml).
 name: CI
 
 on:
+  # KHÔNG để `push:` trần: với branch nằm trong chính repo này, GitHub bắn CẢ
+  # `push` LẪN `pull_request` ⇒ mọi PR chạy CI hai lần, tốn đôi số phút runner.
+  # Giới hạn push về main + tag (nơi không có PR nào bắn thay).
   push:
+    branches: [main]
+    tags: ['v*']
   pull_request:
 
-# Huỷ run cũ khi có push mới trên cùng branch/PR — khỏi tốn phút chờ 1 run đã lỗi
-# thời. TRỪ main: cancel giữa chừng job `images` đang push là image tag latest
-# nửa vời trên registry; run trên main chạy trọn.
+# Least privilege cấp workflow: mặc định của GITHUB_TOKEN rộng hơn nhiều thứ CI
+# này cần. Job nào cần hơn thì tự khai thêm (images: packages:write, ...).
+permissions:
+  contents: read
+
+# Huỷ run cũ khi có push mới trên cùng branch/PR — khỏi tốn phút chờ một run đã
+# lỗi thời. TRỪ main: cancel giữa chừng job `images` đang push là để lại tag
+# `latest` nửa vời trên registry; run trên main chạy trọn.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  ci:
-    name: CI (TS + proto + Go)
+  # ────────────────────────────────────────────────────────── contract (proto)
+  proto:
+    name: Contract (buf)
     runs-on: ubuntu-latest
-    # Postgres/Redis pinned theo phase-0.md — user/pass/db/port cố định, CHỈ dùng
-    # trong CI (không phải secret thật, không tái sử dụng ở đâu khác).
-    env:
-      DATABASE_URL: postgresql://dlp:ci-only-password@localhost:5432/dlp
-      REDIS_URL: redis://:ci-only-password@localhost:6379
-      BETTER_AUTH_SECRET: ci-only-secret
-      BETTER_AUTH_URL: http://localhost:3000
-      CORS_ALLOWED_ORIGINS: http://localhost:3000
-      GOOGLE_CLIENT_ID: placeholder
-      GOOGLE_CLIENT_SECRET: placeholder
-      MICROSOFT_CLIENT_ID: placeholder
-      MICROSOFT_CLIENT_SECRET: placeholder
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # fetch-depth: 0 cho `make proto-breaking` — baseline của buf là một git
+          # ref (`.git#branch=main` / `.git#ref=HEAD~1`), shallow clone mặc định
+          # (depth 1) không có ref đó nên buf fail bằng lỗi git khó hiểu.
+          fetch-depth: 0
+
+      - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # PIN BẮT BUỘC — không truyền version thì action dùng DEFAULT NƯỚNG
+          # CỨNG trong chính nó (không phải latest). buf 1.50 sinh session_pb.ts
+          # khác byte với buf 1.72 (máy dev + docker) → proto-check đỏ oan
+          # (run 31245094744). Cùng nguyên tắc pin 3 remote plugin trong buf.gen.yaml.
+          version: 1.72.0
+
+      # Job này KHÔNG cần node/pnpm: buf.gen.yaml dùng toàn REMOTE plugin
+      # (buf.build/...), codegen chạy trên hạ tầng buf chứ không phải runner.
+      - name: Lint contract
+        run: make proto-lint
+
+      - name: Drift gate (buf generate + git status)
+        run: make proto-check
+
+      - name: 'Nạp baseline main (chỉ khi KHÔNG ở trên main)'
+        # `fetch-depth: 0` tải đủ lịch sử NHƯNG không tạo local branch `main`:
+        # trên PR, checkout để HEAD detached ở merge commit và refspec của nó chỉ
+        # phủ ref đang checkout. buf resolve `branch=main` bằng cách clone local
+        # .git ⇒ "fatal: couldn't find remote ref main" (đã dính thật, PR #1).
+        # An toàn vì nhánh này chỉ chạy khi KHÔNG ở trên main — fetch vào branch
+        # đang checkout là lỗi cứng của git.
+        if: github.ref != 'refs/heads/main'
+        run: git fetch --no-tags origin '+refs/heads/main:refs/heads/main'
+
+      - name: Breaking gate (buf breaking)
+        # Baseline theo VỊ TRÍ, không theo loại event:
+        #   - đang ở trên main: so với main là tự so với chính mình ⇒ LUÔN xanh,
+        #     cổng giả. Dùng HEAD~1.
+        #   - mọi chỗ khác (PR, nhánh feature): so với main → bắt breaking change
+        #     của CẢ nhánh, không chỉ commit cuối.
+        env:
+          BUF_BREAKING_AGAINST: >-
+            ${{ github.ref == 'refs/heads/main' && '.git#ref=HEAD~1' || '.git#branch=main' }}
+        run: make proto-breaking
+
+  # ──────────────────────────────────────────────────────────────── TypeScript
+  ts:
+    name: TypeScript (lint + build + test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
+        # Giá trị khớp .github/ci.env — credential GIẢ, sống vài phút trong runner.
         image: postgres:16-alpine
         env:
           POSTGRES_USER: dlp
@@ -49,29 +113,37 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # KHÔNG khai redis ở đây: cú pháp `services:` của GitHub Actions chỉ nhận
-      # docker-create flags qua `options` (health-cmd, network, ...), không có
-      # chỗ nào để đè CMD của container — mà `--requirepass` là CMD arg của
-      # redis-server, không phải env đọc được (image redis chính chủ không đọc
-      # env mật khẩu như bitnami/redis). Nên chạy `docker run` thủ công ở bước
-      # dưới để giữ đúng "redis:7-alpine --requirepass" như pin trong brief.
+      # KHÔNG khai redis ở đây: cú pháp `services:` chỉ nhận docker-create flags
+      # qua `options`, không có chỗ đè CMD của container — mà `--requirepass` là
+      # CMD arg của redis-server, không phải env (image redis chính chủ không đọc
+      # env mật khẩu như bitnami/redis). Nên `docker run` thủ công ở bước dưới.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          # fetch-depth: 0 cho `make proto-breaking` — baseline của buf là một
-          # git ref (`.git#branch=main` / `.git#ref=HEAD~1`), shallow clone mặc
-          # định (depth 1) không có ref đó nên buf fail bằng lỗi git khó hiểu.
-          fetch-depth: 0
+          node-version: 24
+
+      # SSOT env của CI. Trước đây 11 dòng này nằm inline trong workflow và phải
+      # tự khớp bằng tay với `services:` ở trên, với lệnh docker run Redis, và
+      # với turbo.json tasks.test.env. Giờ một file, và `env-check` ép nó đủ.
+      - name: 'Nạp .github/ci.env vào môi trường job'
+        run: grep -E '^[A-Z][A-Z0-9_]*=' .github/ci.env >> "$GITHUB_ENV"
+
+      # Chạy TRƯỚC pnpm install: chỉ cần node stdlib, nên fail sớm trong ~5s thay
+      # vì sau 60s cài dependency.
+      - name: Env drift gate
+        run: node scripts/env-check.mjs
 
       - name: 'Start Redis (requirepass — services: không cho đặt CMD)'
         run: |
           docker run -d --name ci-redis -p 6379:6379 redis:7-alpine \
-            redis-server --requirepass ci-only-password
+            redis-server --requirepass "$REDIS_PASSWORD"
           # Loop chờ PHẢI kết thúc bằng fail tường minh — for hết vòng mà rơi
           # xuyên qua im lặng thì lỗi Redis lộ ra sau đó thành test fail khó hiểu.
           ok=""
-          for i in $(seq 1 30); do
-            if docker exec ci-redis redis-cli -a ci-only-password ping 2>/dev/null | grep -q PONG; then
+          for _ in $(seq 1 30); do
+            if docker exec ci-redis redis-cli -a "$REDIS_PASSWORD" ping 2>/dev/null | grep -q PONG; then
               ok=1; break
             fi
             sleep 1
@@ -80,12 +152,13 @@ jobs:
             echo "Redis không PONG sau 30s"; docker logs ci-redis; exit 1
           fi
 
-      # KHÔNG khai `version:` ở đây — root package.json đã có `packageManager:
-      # pnpm@11.10.0` (SSOT); action-setup@v6 coi khai cả hai nơi là LỖI cứng
-      # ("Multiple versions of pnpm specified") chứ không phải cảnh báo.
-      - uses: pnpm/action-setup@v6
+      # KHÔNG khai `version:` — root package.json đã có `packageManager:
+      # pnpm@11.10.0` (SSOT); action-setup coi khai cả hai nơi là LỖI CỨNG
+      # ("Multiple versions of pnpm specified"), không phải cảnh báo.
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
 
-      - uses: actions/setup-node@v7
+      - name: 'Bật cache pnpm (sau action-setup — cần pnpm trên PATH)'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: pnpm
@@ -93,77 +166,220 @@ jobs:
       - name: pnpm install
         run: pnpm install --frozen-lockfile
 
-      - uses: bufbuild/buf-setup-action@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          # PIN bắt buộc — không truyền version thì action dùng DEFAULT NƯỚNG
-          # CỨNG (1.50.0, đời 2025), KHÔNG phải latest. buf 1.50 sinh session_pb.ts
-          # khác byte với buf 1.72 (máy dev + docker) → proto-check đỏ oan
-          # (run 31245094744). Cùng nguyên tắc pin 3 remote plugin trong buf.gen.yaml.
-          version: 1.72.0
-
-      - name: Contract drift gate (buf generate + git status)
-        run: make proto-check
-
-      - name: 'Nạp baseline main (buf breaking — chỉ khi KHÔNG ở trên main)'
-        # `fetch-depth: 0` tải đủ lịch sử NHƯNG không tạo local branch `main`:
-        # trên PR, checkout để HEAD detached ở merge commit và refspec của nó chỉ
-        # phủ ref đang checkout. buf resolve `branch=main` bằng cách clone local
-        # .git ⇒ "fatal: couldn't find remote ref main" (đã dính thật, PR #1).
-        # Tạo hẳn local branch main. An toàn vì nhánh này chỉ chạy khi KHÔNG ở
-        # trên main — fetch vào branch đang checkout là lỗi cứng của git.
-        if: github.ref != 'refs/heads/main'
-        run: git fetch --no-tags origin '+refs/heads/main:refs/heads/main'
-
-      - name: Contract breaking gate (buf breaking)
-        # Baseline theo VỊ TRÍ, không theo loại event:
-        #   - đang ở trên main (push thẳng, hoặc merge commit): so với main là tự
-        #     so với chính mình ⇒ LUÔN xanh, cổng giả. Dùng HEAD~1.
-        #   - mọi chỗ khác (PR, nhánh feature): so với main → bắt breaking change
-        #     của CẢ nhánh, không chỉ commit cuối.
-        env:
-          BUF_BREAKING_AGAINST: >-
-            ${{ github.ref == 'refs/heads/main' && '.git#ref=HEAD~1' || '.git#branch=main' }}
-        run: make proto-breaking
+      # CỐ Ý CHƯA CÓ cổng `pnpm format:check`. Nó hiện đỏ trên main ở 15 file có
+      # từ trước — bật lên bây giờ nghĩa là hoặc CI đỏ ngay, hoặc phải nhét một
+      # diff thuần-format vào giữa code auth/security. Bật sau, ở một commit
+      # riêng chỉ làm đúng việc `pnpm format`.
 
       - name: DB migrate (Drizzle)
         run: pnpm --filter @devops-platform/web db:migrate
 
-      - name: TS — lint + build + test (turbo)
+      - name: lint + build + test (turbo)
         run: pnpm turbo run lint build test
 
-      - uses: actions/setup-go@v7
+  # ──────────────────────────────────────────────────────────────────────── Go
+  go:
+    name: Go (build + vet + test + lint + vuln)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.work
-          # go.work ở root không có go.mod cạnh bên — chỉ cho cache key vào
-          # go.sum của từng module, không thì setup-go warn "go.mod not found".
+          # go.work ở root không có go.mod cạnh bên — chỉ cho cache key vào go.sum
+          # của từng module, không thì setup-go warn "go.mod not found".
           cache-dependency-path: '**/go.sum'
 
-      - name: Go — build + vet + test (mọi module trong go.work)
+      - name: build + vet + test (mọi module trong go.work)
         run: go work sync && make go-build go-vet go-test
 
       - name: Cài golangci-lint v2.x
         # `go install` thay vì install.sh: script trên master mang bảng checksum
         # của bộ version HIỆN TẠI của nó — cài version pin cũ hơn là mismatch
-        # ("hash_sha256_verify did not verify", run 31245533716). go install
-        # build từ source, toàn vẹn do Go checksum DB đảm bảo, không script lạ.
+        # ("hash_sha256_verify did not verify", run 31245533716). go install build
+        # từ source, toàn vẹn do Go checksum DB đảm bảo, không script lạ.
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Go — lint (golangci-lint, mọi module)
+      - name: golangci-lint (mọi module)
         run: make go-lint
 
+      - name: govulncheck (mọi module)
+        # Đối chiếu dependency Go với Go vulnerability DB. Khác Dependabot ở chỗ
+        # nó phân tích REACHABILITY — chỉ báo khi code thật sự gọi tới hàm dính
+        # lỗi, nên gần như không có nhiễu để phải bỏ qua.
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          for dir in $(go list -m -f '{{.Dir}}'); do
+            echo "--- govulncheck $dir"
+            (cd "$dir" && govulncheck ./...) || exit 1
+          done
+
+  # ───────────────────────────────────────────────────── hạ tầng (Helm + shell)
+  infra:
+    name: Infra (helm + kubeconform + shellcheck + actionlint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.20.0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: '**/go.sum'
+
+      - name: helm lint (3 bộ values)
+        # betterAuthSecret là `required` trong chart — không truyền thì template
+        # dừng. Giá trị dưới đây là rác dùng một lần trong runner.
+        run: |
+          for f in values.yaml values-selfhost.yaml values-cloud.yaml; do
+            echo "--- helm lint -f $f"
+            helm lint infra/helm/platform \
+              -f "infra/helm/platform/$f" \
+              --set web.env.betterAuthSecret=ci-only-not-a-real-secret || exit 1
+          done
+
+      - name: 'helm template + kubeconform (manifest có hợp lệ với API k8s không)'
+        run: |
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.8.0
+          for f in values.yaml values-selfhost.yaml values-cloud.yaml; do
+            echo "--- kubeconform -f $f"
+            helm template platform infra/helm/platform \
+              -f "infra/helm/platform/$f" \
+              --set web.env.betterAuthSecret=ci-only-not-a-real-secret \
+            | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
+                -ignore-missing-schemas || exit 1
+          done
+
+      - name: 'helm template — nhánh existingSecret (đường đi của prod)'
+        # Nhánh này KHÔNG được đòi betterAuthSecret và KHÔNG được sinh Secret.
+        # Không test thì logic `if not existingSecret` trong web-secret.yaml chỉ
+        # được chạy lần đầu vào đúng hôm deploy prod.
+        run: |
+          out=$(helm template platform infra/helm/platform \
+            --set web.env.existingSecret=dlp-web-prod)
+          if printf '%s' "$out" | grep -q 'kind: Secret'; then
+            echo "existingSecret đã set mà chart vẫn sinh Secret — sai"; exit 1
+          fi
+          printf '%s' "$out" | grep -q 'name: dlp-web-prod' \
+            || { echo "pod không tham chiếu Secret có sẵn"; exit 1; }
+
+      - name: shellcheck (infra/host/*.sh)
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
+        with:
+          scandir: ./infra/host
+          # `error` là NGƯỠNG KHỞI ĐẦU, không phải đích. Mặc định của action fail
+          # ở cả mức `note`, và 10 script hiện có sinh 16 phát hiện — đưa linter
+          # vào codebase sẵn có ở ngưỡng đó thì hoặc phải viết lại script đang
+          # chạy tốt, hoặc rắc `# shellcheck disable` khắp nơi. Cả hai đều tệ hơn
+          # là bắt đầu ở lớp lỗi thật rồi siết dần.
+          #
+          # NỢ ĐÃ BIẾT, siết `warning` là phải trả (đừng siết mà không sửa trước):
+          #   - SC2034 bench-sandbox-provision.sh:97 — `T_ALL_READY` đo mốc "mọi
+          #     pod Ready" rồi KHÔNG in ra đâu cả (bảng tổng kết chỉ dùng T_ALL).
+          #     Là số đo bị mất, không phải rác vô hại.
+          #   - 15 × SC2015 (`A && B || C` không phải if-then-else) + SC2016,
+          #     đều mức `note`.
+          severity: error
+
+      - name: actionlint (chính các workflow này)
+        # Bắt lỗi cú pháp expression, tên context sai, và (nhờ shellcheck có sẵn
+        # trên runner) cả lỗi shell trong khối `run:` — lớp lỗi mà cách duy nhất
+        # khác để phát hiện là push lên rồi xem nó đỏ.
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)/bin/actionlint" -color
+
+  # ──────────────────────────────────────────────────────────────── secret scan
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # pull-requests: read là BẮT BUỘC — trên event pull_request, gitleaks-action
+    # chạy nhánh ScanPullRequest và gọi GET /repos/.../pulls/{n}/commits để lấy
+    # danh sách commit cần quét. Thiếu quyền ⇒ 403 "Resource not accessible by
+    # integration" và job đỏ TRƯỚC KHI quét được dòng nào (lộ ra ở PR #1).
+    # contents: read khai tường minh: khai `permissions:` là đè TOÀN BỘ mặc định,
+    # bỏ dòng này thì chính actions/checkout mất quyền đọc repo.
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # gitleaks quét lịch sử commit trong run — cần full history, không thì
+          # default depth=1 bỏ lọt mọi commit trừ cái cuối.
+          fetch-depth: 0
+
+      # v3 (không phải v2): v2 chạy trên runtime Node 20, thứ GitHub đã gỡ khỏi
+      # runner từ 2026-09-16 và từ 2026-06-02 đã cần cờ opt-out mới chạy. v3 chỉ
+      # đổi runtime sang Node 24, không đổi input/output/hành vi.
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # KHÔNG có job `dependency-review`. Bản đầu có, và nó đỏ ngay lần chạy đầu:
+  # "Dependency review is not supported on this repository." Action đó cần
+  # GitHub Advanced Security khi repo là PRIVATE (repo này private) — GHAS là
+  # tính năng trả phí. Giữ lại chỉ tạo một job đỏ vĩnh viễn, và một cổng luôn đỏ
+  # là cổng bị bỏ qua. Phần lớn giá trị của nó đã có ở nơi khác: Dependabot
+  # alerts (cảnh báo CVE trong dependency) + govulncheck (Go, có reachability) +
+  # Trivy (image). Khi nào repo thành public thì thêm lại.
+  #
+  # ─────────────────────────────────────────────── cổng tổng hợp (required check)
+  ci-ok:
+    name: ci-ok
+    # `always()` để job vẫn chạy KHI CÓ need thất bại/bị skip — nếu không, nó bị
+    # skip theo và branch protection thấy một check "chưa chạy", treo PR mãi mãi.
+    if: always()
+    needs: [proto, ts, go, infra, secret-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 'Mọi cổng phải success (hoặc skipped hợp lệ)'
+        # BẪY KINH ĐIỂN: `if: always()` mà không kiểm results thì job này LUÔN
+        # xanh và cổng tổng hợp trở thành cổng giả — tệ hơn không có cổng, vì
+        # nhìn thì tưởng có.
+        #
+        # 'skipped' được CHẤP NHẬN vì một job có `if:` không khớp là ý đồ, không
+        # phải lỗi. ĐÁNH ĐỔI đã biết: một job bị skip NGOÀI Ý MUỐN (vd điều kiện
+        # `if` viết sai) sẽ lọt qua cổng này. Đổi lấy việc không phải sửa danh
+        # sách needs mỗi lần thêm một job chạy có điều kiện.
+        # 'failure' và 'cancelled' thì không bao giờ được chấp nhận.
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "kết quả các cổng: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "::error::có cổng không đạt (trạng thái: $r)"; exit 1 ;;
+            esac
+          done
+          echo "tất cả cổng đạt."
+
+  # ──────────────────────────────────────────────────────────── build & push img
   images:
     name: 'Build & push: ${{ matrix.name }}'
-    needs: ci
-    # Chỉ build/push khi CI xanh VÀ đang ở push main hoặc tag v* — PR không cần
-    # tốn phút build 4 image. `needs: ci` tự động skip job này nếu `ci` fail.
+    needs: ci-ok
+    # Chỉ build/push khi mọi cổng xanh VÀ đang ở push main hoặc tag v* — PR không
+    # cần tốn phút build 4 image.
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
+      # build-push-action ký provenance/SBOM bằng OIDC token của run.
+      # KHÔNG có `security-events: write` — Trivy nay in ra log, không nộp SARIF.
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -185,11 +401,11 @@ jobs:
             dockerfile: images/sandbox-base/Dockerfile
             context: images/sandbox-base
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      - uses: docker/login-action@v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -197,7 +413,7 @@ jobs:
 
       - name: 'Metadata (tag sha-<ngắn> + latest trên main)'
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           # Owner GHCR bắt buộc lowercase — khớp infra/helm/platform/values.yaml.
           # `dev` (tag local dùng trong values.yaml) KHÔNG sinh ở đây — CI đóng
@@ -207,35 +423,39 @@ jobs:
             type=sha,prefix=sha-,format=short
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - uses: docker/build-push-action@v7
+      - id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Cache layer giữa các run — không có nó thì mỗi lần push main là build
+          # lại `pnpm install` + `next build` từ số 0.
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+          # SBOM + provenance (SLSA) đính kèm image: trả lời được "image này chứa
+          # package gì, sinh ra từ commit nào, bằng workflow nào" mà không phải
+          # tin vào trí nhớ. Bắt buộc khi tới lúc phải rà một CVE mới công bố.
+          sbom: true
+          provenance: mode=max
 
-  secret-scan:
-    name: Secret scan (gitleaks)
-    runs-on: ubuntu-latest
-    # pull-requests: read là BẮT BUỘC — trên event pull_request, gitleaks-action
-    # chạy nhánh ScanPullRequest và gọi GET /repos/.../pulls/{n}/commits để lấy
-    # danh sách commit cần quét. Thiếu quyền ⇒ 403 "Resource not accessible by
-    # integration" và job đỏ TRƯỚC KHI quét được dòng nào. Lỗi này im lặng suốt
-    # P0 vì repo chưa từng có PR nào, và secret-scan lúc đó chưa phải required
-    # check nên đỏ cũng không chặn gì — lộ ra ngay ở PR đầu tiên (PR #1).
-    # contents: read khai tường minh: khai `permissions:` là đè TOÀN BỘ mặc định,
-    # bỏ dòng này thì chính actions/checkout mất quyền đọc repo.
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@v7
+      - name: 'Trivy — quét CVE image vừa push'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          # gitleaks quét lịch sử commit trong run — cần full history, không
-          # phải chỉ commit đầu (default checkout depth=1 sẽ bỏ lọt).
-          fetch-depth: 0
-
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Quét theo DIGEST, không theo tag: tag `latest` có thể đã bị run khác
+          # đẩy đè trong lúc job này chạy — digest thì trỏ đúng thứ vừa build.
+          image-ref: ghcr.io/nghaiz/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          # `table` ra thẳng log, KHÔNG PHẢI `sarif` + upload-sarif. Nộp SARIF
+          # đòi code scanning, thứ cần GitHub Advanced Security trên repo private
+          # — bản trước dùng SARIF và sẽ đỏ ngay lần merge đầu vào main (job này
+          # bị skip trên PR nên lỗi đó không lộ ra ở PR).
+          format: table
+          # exit-code 0 = BÁO CÁO, KHÔNG CHẶN — có chủ ý, chưa phải nới lỏng vĩnh
+          # viễn. Base image thượng nguồn (node/golang/alpine) gần như luôn có CVE
+          # chưa vá; bật chặn ngay từ đầu là main đỏ vì lỗi người khác và đội ngũ
+          # học cách bỏ qua màu đỏ — tệ hơn nhiều so với không quét. Đổi thành '1'
+          # sau khi đã xem danh sách thật trong log và xử lý xong.
+          exit-code: '0'
+          severity: 'HIGH,CRITICAL'

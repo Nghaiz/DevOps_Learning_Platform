@@ -18,9 +18,22 @@ bin/
 *.out
 
 # Secrets — .env.example được commit, .env thì KHÔNG.
+#
+# `!.env.example` KHÔNG phủ được `.env.<gì đó>.example`: pattern khớp trọn tên
+# file, nên `.env.test.example` vẫn dính `.env.*` và biến mất im lặng khỏi
+# `git status`. Negate riêng cả hai dạng.
 .env
 .env.*
 !.env.example
+!.env.*.example
+#
+# KHÔNG negate thêm `.env.<gì đó>` nào nữa. Hook `secret-guard` chặn cứng mọi tên
+# khớp `.env.*` khi `git add`, nên một file env CÓ CHỦ Ý commit (credential giả của
+# CI) phải sống NGOÀI namespace này — nó nằm ở `.github/ci.env`. Giữ luật "không
+# `.env.*` nào vào git" nguyên vẹn đáng giá hơn là nới nó cho một ngoại lệ.
+#
+# values-secrets.yaml mang secret THẬT lúc deploy Helm; chỉ bản .example được commit.
+values-secrets.yaml
 
 # OS / editor
 .DS_Store

@@ -1,6 +1,6 @@
 module github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator
 
-go 1.25.0
+go 1.26.5
 
 // go.work đủ cho `go build`, nhưng `go mod tidy` bỏ qua workspace và sẽ đi hỏi
 // proxy tìm module chưa publish. replace giữ module này build được độc lập —
@@ -14,7 +14,7 @@ require (
 	github.com/Nghaiz/DevOps_Learning_Platform/services/shared v0.0.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/redis/go-redis/v9 v9.22.0
-	google.golang.org/grpc v1.76.0
+	google.golang.org/grpc v1.83.0
 )
 
 require (
@@ -33,6 +33,6 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )

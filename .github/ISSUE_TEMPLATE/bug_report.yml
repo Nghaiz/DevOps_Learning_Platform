@@ -1,0 +1,73 @@
+name: Báo lỗi
+description: Có thứ chạy sai so với kỳ vọng
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Phần đáng giá nhất của một báo cáo lỗi là **cách tái hiện** và **log
+        thật**. Mô tả không kèm hai thứ đó thường tốn nhiều thời gian hỏi lại
+        hơn là tự đi đọc code.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Vùng
+      options:
+        - apps/web (Next.js, auth, tRPC)
+        - services/orchestrator (Go, warm-pool, k8s)
+        - services/terminal-gateway (Go, WebSocket)
+        - infra (Helm, k8s, Sysbox, script host)
+        - CI/CD (.github)
+        - proto / contract
+        - Chưa rõ
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Đã xảy ra gì
+      description: Kèm thông báo lỗi **nguyên văn**, đừng diễn giải lại.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Kỳ vọng thay vào đó là gì
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Cách tái hiện
+      description: Từng bước, từ trạng thái sạch. Kèm lệnh chính xác.
+      placeholder: |
+        1. cp .env.example .env && cp apps/web/.env.example apps/web/.env
+        2. make up
+        3. pnpm --filter @devops-platform/web dev
+        4. Vào http://localhost:3000/login, bấm ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log / output
+      render: shell
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Môi trường
+      description: |
+        KHÔNG dán giá trị biến môi trường thật — chỉ tên biến và việc nó có được
+        đặt hay không.
+      placeholder: |
+        OS: Windows 11 / Debian 13 trên VM lab
+        Node: v24.13.0, pnpm 11.10.0, Go: (go version)
+        Chạy ở đâu: máy dev local / cluster kubeadm 1-node / CI
+    validations:
+      required: true

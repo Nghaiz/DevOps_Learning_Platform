@@ -1,0 +1,47 @@
+name: Đề xuất tính năng
+description: Đề xuất một thứ nên xây
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Trước khi mở: kiểm xem nó đã nằm trong `plans/devops-learning-platform/`
+        chưa. Phần lớn thứ "còn thiếu" ở P0 là **cố ý hoãn** sang P1–P4, có ghi
+        rõ trong plan.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Vấn đề đang gặp
+      description: |
+        Mô tả VẤN ĐỀ, đừng mô tả giải pháp. "Sinh viên không biết session còn bao
+        lâu thì hết hạn" hữu ích hơn "thêm cái đồng hồ đếm ngược".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Đề xuất
+    validations:
+      required: true
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Thuộc phase nào
+      options:
+        - P0 Nền móng
+        - P1 Sandbox Session Engine
+        - P2 Lessons
+        - P3 Hardening & tải
+        - P4 Labs + Games
+        - Ngoài plan hiện tại
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Đã cân nhắc cách nào khác
+      description: Kể cả "không làm gì cả" — đôi khi đó là câu trả lời đúng.

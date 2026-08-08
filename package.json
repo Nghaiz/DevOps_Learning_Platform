@@ -12,6 +12,8 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
+    "env:check": "node scripts/env-check.mjs",
+    "repo:check": "node scripts/check-repo-settings.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "proto": "buf generate",

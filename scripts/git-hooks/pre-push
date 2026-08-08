@@ -1,0 +1,28 @@
+#!/bin/sh
+# Chặn push thẳng lên main. Cài bằng: make install-hooks
+#
+# VÌ SAO Ở MÁY BẠN, KHÔNG PHẢI TRÊN GITHUB: branch protection của repo đặt
+# `enforce_admins: false` — có chủ ý, để còn đường xử lý khẩn cấp khi CI hỏng.
+# Nhưng "admin bypass được" trên một dự án MỘT NGƯỜI nghĩa là luật không áp cho
+# ai cả. Hook này khôi phục lại hàng rào ở đúng nơi nó nên nằm: chặn thao tác
+# nhầm, không chặn quyết định có ý thức.
+#
+# Cần đẩy thật? `git push --no-verify` — một cờ, đủ để bạn phải cố ý gõ nó.
+
+PROTECTED='main'
+
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  branch=${remote_ref#refs/heads/}
+  [ "$branch" = "$PROTECTED" ] || continue
+
+  printf '\n\033[31mBỊ CHẶN:\033[0m push thẳng lên "%s".\n\n' "$PROTECTED"
+  printf '  Quy trình của repo này: mọi thay đổi đi qua PR và phải xanh cổng ci-ok.\n\n'
+  printf '    git switch -c <ten-nhanh>\n'
+  printf '    git push -u origin <ten-nhanh>\n'
+  printf '    gh pr create --fill\n'
+  printf '    gh pr merge --squash --auto      # tự merge khi CI xanh\n\n'
+  printf '  Thật sự cần đẩy thẳng (CI hỏng, sửa gấp): git push --no-verify\n\n'
+  exit 1
+done
+
+exit 0
