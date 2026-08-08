@@ -76,6 +76,13 @@
       "exitCode": 0,
       "timestamp": "2026-08-08T13:34:26+07:00",
       "summary": "Revision 3 deployed; 3/3 pod Running; env list pod web xác nhận: BETTER_AUTH_SECRET (random), ORCHESTRATOR_GRPC_ADDR (platform-orchestrator:9090), DATABASE_URL/REDIS_URL vắng mặt đúng thiết kế; bắt được + sửa lỗi printf single-quote trong template lúc deploy rev 2."
+    },
+    {
+      "command": "GitHub Actions run 31245735175 (commit 565d65d) — lần chạy thật đầu tiên của toàn pipeline",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T14:20:00+07:00",
+      "summary": "3 job XANH: ci (pnpm+buf drift gate+turbo với Postgres/Redis service+migrate+go build/vet/test+golangci-lint) + secret-scan (gitleaks) + images matrix 4/4 push lên ghcr.io/nghaiz/dlp-{web,orchestrator,terminal-gateway,sandbox-base}. Mất 5 run hotfix: pnpm version-double-declare; buf-setup default 1.50.0 nướng cứng; input .proto CRLF làm protoc-gen-es sinh trailing-whitespace JSDoc (fix *.proto eol=lf — root cause của vụ 85ffccb cũ); golangci install.sh checksum mismatch (chuyển go install). Branch protection check 'CI (TS + proto + Go)' giờ có run xanh làm chuẩn."
     }
   ],
   "beforeAfter": {
