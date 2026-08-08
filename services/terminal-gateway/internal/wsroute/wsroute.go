@@ -16,7 +16,13 @@ import (
 // query string) → upgrade WS → nối pod exec SPDY.
 func Register(mux *http.ServeMux, log *slog.Logger) {
 	mux.HandleFunc("GET /ws/session/{id}", func(w http.ResponseWriter, r *http.Request) {
-		log.Info("từ chối WS: per-session authz chưa hiện thực (P1)",
+		// Debug, KHÔNG phải Info, và KHÔNG ghi RemoteAddr ở mức mặc định:
+		// endpoint này public + unauthenticated, nên một vòng `curl` là log
+		// flood rẻ tiền (DoS vào quota Loki), và RemoteAddr là PII ghi vô điều
+		// kiện cho một request chưa chứng minh được danh tính. Ở P1, khi đã có
+		// authz thật, log fail-auth là ĐÚNG — nhưng lúc đó phải kèm rate-limit
+		// hoặc sampling, không phải một dòng mỗi request.
+		log.Debug("từ chối WS: per-session authz chưa hiện thực (P1)",
 			slog.String("session_id", r.PathValue("id")),
 			slog.String("remote", r.RemoteAddr),
 		)

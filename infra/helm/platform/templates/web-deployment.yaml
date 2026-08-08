@@ -12,6 +12,15 @@ spec:
       {{- include "platform.selectorLabels" (dict "context" . "component" "web") | nindent 6 }}
   template:
     metadata:
+      {{- if not .Values.web.env.existingSecret }}
+      annotations:
+        # Đổi giá trị trong Secret KHÔNG tự rollout pod đang chạy (env đọc một
+        # lần lúc container start). Checksum làm pod template đổi theo nội dung
+        # Secret ⇒ `helm upgrade` xoay pod. Thiếu dòng này thì xoay
+        # BETTER_AUTH_SECRET xong pod cũ vẫn ký bằng khoá cũ, và "đã xoay secret"
+        # là niềm tin sai.
+        checksum/web-secret: {{ include (print $.Template.BasePath "/web-secret.yaml") . | sha256sum }}
+      {{- end }}
       labels:
         {{- include "platform.selectorLabels" (dict "context" . "component" "web") | nindent 8 }}
     spec:
@@ -51,11 +60,15 @@ spec:
             - name: REDIS_URL
               value: {{ . | quote }}
             {{- end }}
+            # 3 credential dưới đây đi qua secretKeyRef, KHÔNG phải env.value:
+            # `kubectl get deploy -o yaml` là quyền đọc phổ thông, và secret ký
+            # session/JWT lộ ra đó nghĩa là giả mạo được session mọi user. Xem
+            # templates/web-secret.yaml.
             - name: BETTER_AUTH_SECRET
-              # required: KHÔNG có default trong values — secret ký session/JWT mà
-              # nằm sẵn trong git là secret đã lộ. Truyền lúc deploy:
-              #   --set web.env.betterAuthSecret="$(openssl rand -hex 32)"
-              value: {{ required "web.env.betterAuthSecret là bắt buộc — truyền qua --set web.env.betterAuthSecret=<random>, KHÔNG commit vào values" .Values.web.env.betterAuthSecret | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "platform.webSecretName" . }}
+                  key: BETTER_AUTH_SECRET
             - name: BETTER_AUTH_URL
               value: {{ .Values.web.env.betterAuthUrl | quote }}
             - name: ORCHESTRATOR_GRPC_ADDR
@@ -69,11 +82,17 @@ spec:
             - name: GOOGLE_CLIENT_ID
               value: {{ .Values.web.env.googleClientId | quote }}
             - name: GOOGLE_CLIENT_SECRET
-              value: {{ .Values.web.env.googleClientSecret | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "platform.webSecretName" . }}
+                  key: GOOGLE_CLIENT_SECRET
             - name: MICROSOFT_CLIENT_ID
               value: {{ .Values.web.env.microsoftClientId | quote }}
             - name: MICROSOFT_CLIENT_SECRET
-              value: {{ .Values.web.env.microsoftClientSecret | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "platform.webSecretName" . }}
+                  key: MICROSOFT_CLIENT_SECRET
             - name: CORS_ALLOWED_ORIGINS
               value: {{ .Values.web.env.corsAllowedOrigins | quote }}
           # /api/health cố ý không đụng DB (xem contract pin trong brief) — an
