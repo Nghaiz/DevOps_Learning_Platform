@@ -275,6 +275,19 @@ jobs:
         uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
         with:
           scandir: ./infra/host
+          # `error` là NGƯỠNG KHỞI ĐẦU, không phải đích. Mặc định của action fail
+          # ở cả mức `note`, và 10 script hiện có sinh 16 phát hiện — đưa linter
+          # vào codebase sẵn có ở ngưỡng đó thì hoặc phải viết lại script đang
+          # chạy tốt, hoặc rắc `# shellcheck disable` khắp nơi. Cả hai đều tệ hơn
+          # là bắt đầu ở lớp lỗi thật rồi siết dần.
+          #
+          # NỢ ĐÃ BIẾT, siết `warning` là phải trả (đừng siết mà không sửa trước):
+          #   - SC2034 bench-sandbox-provision.sh:97 — `T_ALL_READY` đo mốc "mọi
+          #     pod Ready" rồi KHÔNG in ra đâu cả (bảng tổng kết chỉ dùng T_ALL).
+          #     Là số đo bị mất, không phải rác vô hại.
+          #   - 15 × SC2015 (`A && B || C` không phải if-then-else) + SC2016,
+          #     đều mức `note`.
+          severity: error
 
       - name: actionlint (chính các workflow này)
         # Bắt lỗi cú pháp expression, tên context sai, và (nhờ shellcheck có sẵn
