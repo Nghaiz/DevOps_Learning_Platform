@@ -208,6 +208,17 @@ jobs:
   secret-scan:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
+    # pull-requests: read là BẮT BUỘC — trên event pull_request, gitleaks-action
+    # chạy nhánh ScanPullRequest và gọi GET /repos/.../pulls/{n}/commits để lấy
+    # danh sách commit cần quét. Thiếu quyền ⇒ 403 "Resource not accessible by
+    # integration" và job đỏ TRƯỚC KHI quét được dòng nào. Lỗi này im lặng suốt
+    # P0 vì repo chưa từng có PR nào, và secret-scan lúc đó chưa phải required
+    # check nên đỏ cũng không chặn gì — lộ ra ngay ở PR đầu tiên (PR #1).
+    # contents: read khai tường minh: khai `permissions:` là đè TOÀN BỘ mặc định,
+    # bỏ dòng này thì chính actions/checkout mất quyền đọc repo.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v7
         with:
