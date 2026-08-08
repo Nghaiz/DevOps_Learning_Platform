@@ -18,7 +18,7 @@ Dựng bộ khung monorepo build/test/lint được end-to-end, hạ tầng dữ
 | 0.D Web + Better Auth + tRPC | ✅ xong | Next.js 15.5 App Router dựng trên tầng dữ liệu 0.C; Better Auth + tRPC + đủ 9 luật bảo mật; 59 test web xanh |
 | 0.E Skeleton Go services | ✅ xong | Thêm module **`services/shared`** (envx/logging/httpx) không có trong design §8 |
 | 0.F Sandbox node | ✅ xong (cả task 27) | Cổng `04-verify-sysbox.sh` 8/8 xanh; Helm chart đã deploy **thật** 3 revision lên kubeadm v1.34.10 — 3/3 pod `1/1 Running` |
-| 0.G CI/CD | ✅ xong — **run 31245735175 XANH toàn bộ** | 3 job đều xanh trên GitHub: `ci` + `secret-scan` + `images` (4 image đã push lên `ghcr.io/nghaiz/dlp-*`). Mất 5 run hotfix mới xanh — 4 gotcha thật: (1) pnpm/action-setup cấm khai version khi package.json đã có `packageManager`; (2) buf-setup-action không truyền version thì dùng default NƯỚNG CỨNG 1.50.0 chứ không phải latest → pin 1.72.0; (3) **input `.proto` bị smudge CRLF trên Windows làm protoc-gen-es nhả trailing whitespace vào JSDoc** → drift ping-pong dev↔CI, fix `*.proto eol=lf` trong .gitattributes (vụ 85ffccb trước là triệu chứng bệnh này); (4) install.sh master của golangci-lint mang checksum bộ version khác pin → cài qua `go install`. Task 30 branch protection: **ĐÃ BẬT** — main require check "CI (TS + proto + Go)" (strict), `enforce_admins:false` nên owner vẫn push thẳng được |
+| 0.G CI/CD | ✅ xong — **run 31245735175 XANH toàn bộ** | 3 job đều xanh trên GitHub: `ci` + `secret-scan` + `images` (4 image đã push lên `ghcr.io/nghaiz/dlp-*`). Mất 5 run hotfix mới xanh — 4 gotcha thật: (1) pnpm/action-setup cấm khai version khi package.json đã có `packageManager`; (2) buf-setup-action không truyền version thì dùng default NƯỚNG CỨNG 1.50.0 chứ không phải latest → pin 1.72.0; (3) **input `.proto` bị smudge CRLF trên Windows làm protoc-gen-es nhả trailing whitespace vào JSDoc** → drift ping-pong dev↔CI, fix `*.proto eol=lf` trong .gitattributes (vụ 85ffccb trước là triệu chứng bệnh này); (4) install.sh master của golangci-lint mang checksum bộ version khác pin → cài qua `go install`. Task 30 branch protection: **ĐÃ BẬT** — main require **hai** check (strict): "CI (TS + proto + Go)" + "Secret scan (gitleaks)". gitleaks được thêm ở đợt đóng P0 2026-08-08; trước đó nó chạy nhưng đỏ vẫn merge được, tức cổng chống commit secret không gác gì. `enforce_admins:false` nên owner vẫn push thẳng được (R8) |
 
 **Chín điểm lệch có chủ ý so với bản plan gốc** (lý do đầy đủ ở `proto/README.md`, `services/shared/README.md`, và acceptance criteria dưới):
 
@@ -33,6 +33,41 @@ Dựng bộ khung monorepo build/test/lint được end-to-end, hạ tầng dữ
 9. **Cookie refresh đặt `path=/api/auth`** (rộng hơn `/api/auth/refresh`) để `/api/auth/logout` xoá được nó — RFC 6265 path-match: `Set-Cookie` chỉ xoá được cookie khi path khớp.
 
 **Bằng chứng lần cook 2026-08-08:** artifacts harness ở [`reports/harness/2026-08-08-p0-cook/`](reports/harness/2026-08-08-p0-cook/) — `verification`, `review-decision`, `risk-gate`, `adversarial-validation`, `context-snippets`.
+
+## Tầng thực thi cô lập sandbox (dựng 2026-08-08, TRƯỚC khi P1 bắt đầu)
+
+Không nằm trong task list gốc của P0 — thêm sau 2 audit bảo mật độc lập chỉ ra rằng cô lập đang phụ thuộc hoàn toàn vào việc code orchestrator **nhớ** set đúng field: một bug làm rơi `runtimeClassName` là root-in-pod thành root-on-node, và không gì phát hiện được. Đưa ràng buộc xuống **admission** biến task 17–21 của P1 từ "nhớ mà set" thành "pod spec phải tuân thủ policy". Chi tiết + bằng chứng thực nghiệm: [phase-1.md §1.D](phase-1.md).
+
+- `ValidatingAdmissionPolicy` `platform-sandbox-isolation` (8 CEL) ép `runtimeClassName: sysbox-runc` + `hostUsers:false`, cấm `hostNetwork/hostPID/hostIPC`, `privileged`, `hostPath`. Kiểm chứng 5/5 kịch bản, trong đó ca quan trọng nhất là **pod Sysbox đúng chuẩn vẫn được cho qua** (policy không chặn oan P1).
+- PSA `baseline` enforce trên `dlp-sandbox` (KHÔNG `restricted` — `restricted` đòi `runAsNonRoot` nên sẽ giết chính pod Sysbox).
+- NetworkPolicy default-deny egress: pod thật bị chặn cả 4 đường (IMDS, apiserver, internet, LAN).
+- RBAC tối thiểu per-service + `automountServiceAccountToken:false` cho web.
+- `ResourceQuota` + `LimitRange` + `PriorityClass` cho 3 pod nền tảng.
+- Rate limit tRPC **per-user** (khoá theo `ctx.user.id`, không theo IP) — chặn pod-bomb từ tài khoản hợp lệ.
+
+**Ảnh hưởng tới cổng P0.F:** `04-verify-sysbox.sh` có 3 check là *đọc lại manifest* (`kubectl get` chính field vừa apply) — chúng chứng minh API server lưu đúng, không chứng minh runtime thực thi. Nay đã có admission đứng sau nên chúng không còn vô nghĩa, nhưng bằng chứng cô lập THẬT vẫn là `/proc/self/uid_map` (`0 3480748032 65536`) và `docker run` chạy được trong pod không-privileged. Viết lại 3 check đó thành proof runtime: **P3**.
+
+## Đóng P0 (2026-08-08) — dọn tàn dư trước khi mở P1
+
+Rà soát toàn bộ lịch sử P0 + code review 2026-08-07. C1, I1–I12, M1/M3/M4/M5/M8 đã vá ở `a32e27a`. Phần còn lại xử lý ở đợt đóng này:
+
+| Hạng mục | Trạng thái |
+|---|---|
+| Contract pin nốt: RPC `ExtendSession` + `Session.revision` | ✅ — xem dưới |
+| `make proto-breaking` (`buf breaking`) + wire vào CI | ✅ — `buf.yaml` khai `breaking: use: FILE` từ đầu P0 nhưng KHÔNG lệnh nào chạy nó; contract SSOT không có breaking-check là contract chỉ có trên giấy, và P1 chính là phase mở rộng proto |
+| R3 — cookie `access_token` | ✅ **ĐÃ GỠ**. Nó write-only: `trpc/routers/session.ts` đã tự mint token `aud=orchestrator` ngay trước mỗi lần gọi gRPC, nên cookie kia là bearer credential nằm không trên máy user, TTL 15 phút, zero consumer. Token `aud=gateway` mà P1 cần là token KHÁC (buộc theo sessionId, đời bằng đời session) — xem phase-1 task 12 |
+| R5 — `jwks.expiresAt` | ✅ thêm (migration `0002`, cột NULLABLE) + test gác. Thêm lúc bảng còn rỗng thì miễn phí; thêm sau khi rotation đã bật là migration trên khoá đang ký |
+| `BETTER_AUTH_SECRET` + 2 OAuth secret | ✅ chuyển sang `secretKeyRef` (`templates/web-secret.yaml`) + `checksum/web-secret` để xoay secret có rollout thật. `web.env.existingSecret` cho đường prod (giá trị không đi qua `--set`) |
+| gitleaks thành required check | ✅ — trước đó protection chỉ require `"CI (TS + proto + Go)"`, secret-scan đỏ vẫn merge được |
+| M2 — log INFO trên endpoint chưa authz | ✅ hạ `Debug` (log-flood rẻ tiền + PII vô điều kiện) |
+| M7 — `db:generate/migrate/studio` không nạp `.env` | ✅ `node --env-file-if-exists=.env` |
+| `enforce_admins` | ❌ **cố ý để `false`** — owner vẫn push thẳng `main` được, bỏ qua CI. Gate chỉ ràng buộc đường PR |
+
+**Ba điểm lệch mới (nâng "chín điểm lệch" ở trên lên mười hai):**
+
+10. **`Session.revision` (int64).** Mọi cập nhật trên session đang chạy là read-modify-write từ tiến trình KHÁC tiến trình tạo nó (gateway gia hạn TTL trong khi reaper có thể đang reap). Không có revision thì ghi cuối thắng im lặng — gateway hồi sinh được một session vừa bị reap.
+11. **RPC `ExtendSession`.** P1 task 13 yêu cầu gateway cập nhật `lastActive` cho idle-reap. Không có RPC thì việc đó buộc phải chui qua đường WS hoặc ghi thẳng Redis từ gateway — kênh thứ hai giữa gateway và orchestrator mà contract không mô tả, đúng thứ `contract-first-integration.md` cấm. Ngữ nghĩa **hai đồng hồ**: idle deadline gia hạn được, hard cap (từ `created_at`) thì không ⇒ heartbeat bị chiếm quyền cũng không giữ pod sống vĩnh viễn.
+12. **Baseline của `buf breaking` khác nhau theo sự kiện CI.** PR so với `main`; push thẳng `main` so với `HEAD~1` — so với `main` lúc đang Ở TRÊN `main` là tự so với chính mình, tức cổng luôn xanh. Kèm `fetch-depth: 0` vì baseline là git ref, shallow clone không có.
 
 ## Task list
 
@@ -148,6 +183,12 @@ go work sync && make go-build go-vet go-test go-lint
 # Contract drift gate
 make proto-check
 
+# Contract breaking gate — buf.yaml khai `breaking: use: FILE` nhưng tới 2026-08-08
+# mới có lệnh chạy nó. Baseline mặc định là main (đúng cho dev + PR); CI khi push
+# THẲNG main phải đè, không thì nó tự so với chính mình = cổng luôn xanh.
+make proto-breaking
+BUF_BREAKING_AGAINST='.git#ref=HEAD~1' make proto-breaking
+
 # Hạ tầng dữ liệu: migrate + SET/GET/EXPIRE qua CẢ hai client
 cp .env.example .env      # compose dùng ${VAR:?} — thiếu mật khẩu là dừng, không chạy bừa
 docker compose up -d
@@ -193,6 +234,18 @@ helm upgrade --install platform infra/helm/platform -f infra/helm/platform/value
   --set web.env.betterAuthSecret="$(openssl rand -hex 32)"
 kubectl get pods   # web/orchestrator/gateway Running
 
+# Secret KHÔNG được lọt vào Deployment (đợt đóng P0) — phải in ra 0
+helm template platform infra/helm/platform -f infra/helm/platform/values-selfhost.yaml \
+  --set web.env.betterAuthSecret=deadbeefsecret | awk '/^kind: Deployment/,/^---/' | grep -c deadbeefsecret
+
+# Đường prod: Secret tạo ngoài băng, giá trị KHÔNG đi qua --set (nên không nằm lại
+# trong shell history / `helm get values` / log CI). Chart sẽ không tạo Secret nữa.
+kubectl create secret generic dlp-web-prod \
+  --from-literal=BETTER_AUTH_SECRET="$(openssl rand -hex 32)" \
+  --from-literal=GOOGLE_CLIENT_SECRET=... --from-literal=MICROSOFT_CLIENT_SECRET=...
+helm upgrade --install platform infra/helm/platform -f infra/helm/platform/values-selfhost.yaml \
+  --set web.env.existingSecret=dlp-web-prod
+
 # Image build local rồi nạp thẳng vào containerd (chart để pullPolicy: Never, không qua registry)
 docker save dlp/orchestrator:dev | sudo ctr -n k8s.io images import -
 ```
@@ -220,10 +273,12 @@ Không mục nào chặn P0; tất cả đều có chủ nhân ở phase sau.
 |---|---|---|
 | R1 | `middleware.ts` chỉ kiểm **sự tồn tại** cookie, không verify chữ ký ⇒ đây là redirect-guard, KHÔNG phải authz | Authz thật nằm ở tRPC (luật 1). Verify chữ ký ở middleware là ứng viên P1 |
 | R2 | Rate-limit thực tế **OFF** ở P0 (mặc định skip khi không có trusted proxy) | Enforce ở Traefik P3; bật `RATE_LIMIT_TRUST_PROXY=1` khi đã có proxy tin cậy đứng trước |
-| R3 | Cookie `access_token` hiện **write-only** — chưa consumer nào đọc | Consumer dự kiến là gateway WS ở P1. **Nếu P1 đổi hướng ⇒ GỠ cookie này**, đừng để token thừa nằm trên trình duyệt |
-| R4 | Cookie refresh path `/api/auth/*` rộng hơn mức tối thiểu | Đánh đổi có chủ ý (điểm lệch 9) — thu hẹp được nếu logout đổi sang xoá bằng route cùng path |
-| R5 | Bảng `jwks` **thiếu cột `expiresAt`** | **PHẢI thêm TRƯỚC khi bật key rotation** — bật rotation mà thiếu cột này thì khoá cũ không hết hạn được |
-| R6 | Helm chart chưa đặt `securityContext` mức pod | Dời sang P3, làm cùng đợt siết PSS + NetworkPolicy |
+| R3 | Cookie `access_token` **write-only** — chưa consumer nào đọc | ✅ **ĐÓNG 2026-08-08 — đã GỠ.** Không phải "chờ P1 dùng": `trpc/routers/session.ts` đã tự mint token `aud=orchestrator` ngay trước mỗi lần gọi gRPC ⇒ cookie kia zero consumer từ đầu. Token P1 cần là loại khác (`aud=gateway` + `sid`) — phase-1 task 12 |
+| R4 | Cookie refresh path `/api/auth/*` rộng hơn mức tối thiểu | Đánh đổi có chủ ý (điểm lệch 9) — thu hẹp được nếu logout đổi sang xoá bằng route cùng path. **Còn mở** |
+| R5 | Bảng `jwks` **thiếu cột `expiresAt`** | ✅ **ĐÓNG 2026-08-08** — migration `0002`, cột NULLABLE (NULL = khoá chưa có hạn, chế độ trước khi bật rotation), có test gác |
+| R6 | Helm chart chưa đặt `securityContext` mức pod | **Còn mở, P3.** Đã hạ mức nghiêm trọng: pod sandbox nay bị `ValidatingAdmissionPolicy` + PSA baseline ép từ tầng admission (xem mục "Tầng thực thi cô lập"); phần còn thiếu là `securityContext` của 3 Deployment **nền tảng** (web/orchestrator/gateway), không phải của pod lab |
+| R7 | Action CI chưa pin bằng SHA (`@v7`, `@v2`… là tag di động) | **Còn mở, P3.** Supply-chain: tag bị đẩy lại là code lạ chạy trong CI có quyền push GHCR |
+| R8 | `enforce_admins: false` — owner push thẳng `main` bỏ qua CI | **Cố ý.** Gate ràng buộc đường PR; siết khi có người thứ hai vào repo |
 
 ## Timeline (P0)
 
