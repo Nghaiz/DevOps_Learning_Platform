@@ -1,0 +1,20 @@
+# values-cloud.yaml — GIỮ CHỖ cho cluster cloud multi-node (ngoài phạm vi P0,
+# xem plans/devops-learning-platform/phase-0.md task 27). File này cố tình gần
+# như trống: khoá đúng chỗ (đúng tên field) để P2+ điền node-pool/toleration thật
+# mà không phải sửa chart lúc đó — chưa có cluster cloud nào để test giá trị
+# thật nên không đoán số liệu ở đây (YAGNI).
+#
+# Hình dạng dự kiến khi có cluster cloud thật (bỏ comment + điền giá trị thật):
+#
+# web:
+#   nodeSelector:
+#     cloud.google.com/gke-nodepool: web-pool
+#   tolerations: []
+#
+# orchestrator:
+#   nodeSelector:
+#     cloud.google.com/gke-nodepool: control-pool
+#
+# gateway:
+#   nodeSelector:
+#     cloud.google.com/gke-nodepool: gateway-pool

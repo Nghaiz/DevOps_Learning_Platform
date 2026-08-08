@@ -7,3 +7,9 @@ packages:
 # Chỉ mở cho đúng package cần, không mở toàn cục.
 allowBuilds:
   esbuild: true
+  # sharp vào transitively qua next + better-auth (tối ưu ảnh / QR code) — 0.D
+  # không dùng next/image hay 2FA QR nên KHÔNG build binary native của nó.
+  # LƯU Ý: Next 15 KHÔNG còn fallback wasm (squoosh bị gỡ từ 13.5) — dùng
+  # next/image mà thiếu sharp là LỖI runtime, không phải warning. Ngày nào bắt
+  # đầu dùng next/image thì phải lật dòng này thành true.
+  sharp: false

@@ -1,0 +1,68 @@
+{{- if .Values.orchestrator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform.fullname" . }}-orchestrator
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "orchestrator") | nindent 4 }}
+spec:
+  replicas: {{ .Values.orchestrator.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "platform.selectorLabels" (dict "context" . "component" "orchestrator") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "platform.selectorLabels" (dict "context" . "component" "orchestrator") | nindent 8 }}
+    spec:
+      {{- with .Values.orchestrator.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.orchestrator.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: orchestrator
+          image: '{{ .Values.image.registry }}/{{ .Values.orchestrator.image.repository }}:{{ .Values.orchestrator.image.tag | default .Values.image.tag }}'
+          imagePullPolicy: {{ .Values.orchestrator.image.pullPolicy | default .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8081
+            - name: grpc
+              containerPort: 9090
+          env:
+            - name: GRPC_ADDR
+              value: {{ .Values.orchestrator.env.grpcAddr | quote }}
+            - name: HTTP_ADDR
+              value: {{ .Values.orchestrator.env.httpAddr | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.orchestrator.env.logLevel | quote }}
+            - name: GRPC_REFLECTION
+              value: {{ .Values.orchestrator.env.grpcReflection | quote }}
+            - name: DATABASE_URL
+              value: {{ .Values.orchestrator.env.databaseUrl | quote }}
+            - name: REDIS_URL
+              value: {{ .Values.orchestrator.env.redisUrl | quote }}
+            - name: SESSION_TTL
+              value: {{ .Values.orchestrator.env.sessionTtl | quote }}
+            - name: SHUTDOWN_GRACE
+              value: {{ .Values.orchestrator.env.shutdownGrace | quote }}
+            - name: SANDBOX_NAMESPACE
+              value: {{ .Values.orchestrator.env.sandboxNamespace | quote }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.orchestrator.resources | nindent 12 }}
+{{- end }}

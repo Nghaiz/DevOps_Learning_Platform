@@ -1,0 +1,15 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [],
+  "unverifiedClaims": [
+    "OAuth consent redirect Google/Microsoft end-to-end — cần client id thật; P0 chấp nhận placeholder (AC ghi 'env placeholder OK')",
+    "Auth flow đầy đủ TRÊN CLUSTER — cluster P0 không có Postgres/Redis in-cluster (by design, tới P1); auth verify local với compose DB + E2E curl smoke",
+    "Luật 5 vế 429 trong môi trường deploy thật — RATE_LIMIT_TRUST_PROXY tắt ở mọi env P0 (skip + console.warn 1 lần, trade-off có chủ ý thay cho XFF-spoofable / self-DoS bucket); enforce thật khi Traefik đến ở P3 — xem risk-gate.json reasons",
+    "gitleaks + images job trên GitHub Actions — workflow chưa từng chạy trên GitHub (chưa push); actionlint sạch + 10/10 action tag verified qua API, run xanh đầu tiên chỉ có sau push",
+    "4 hạng mục hardening dời P3 theo thỏa thuận reviewer (pod securityContext, jwks.expiresAt trước khi bật rotation, eslint react-hooks/next plugins, tách schema.ts) — danh sách đầy đủ trong risk-gate.json reasons"
+  ],
+  "missingProof": [
+    "Helm template không render được trong môi trường reviewer (không có helm binary) — bằng chứng render là 3 lần deploy thật (rev 1-3) + helm lint + kubectl apply --dry-run=server trên VM, thay cho review tĩnh; lỗi printf single-quote lọt review tay và bị bắt đúng ở tầng deploy"
+  ],
+  "reachableRegressions": []
+}

@@ -1,0 +1,192 @@
+# CI xanh mới merge (0.G, phase-0.md task 28–30). Một file, ba job:
+#   ci          — toolchain TS + drift gate proto + toolchain Go + lint (mọi push/PR)
+#   images      — build & push 4 image lên GHCR (chỉ push main/tag v*)
+#   secret-scan — gitleaks (mọi push/PR)
+#
+# Gộp chung 1 file (thay vì images.yml riêng) để `images: needs: ci` là phụ
+# thuộc job THẬT trong cùng workflow run — không phải đoán qua workflow_run/
+# cross-workflow, vốn phải chạy lại toàn bộ job `ci` một lần nữa mới gate được.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Huỷ run cũ khi có push mới trên cùng branch/PR — khỏi tốn phút chờ 1 run đã lỗi
+# thời. TRỪ main: cancel giữa chừng job `images` đang push là image tag latest
+# nửa vời trên registry; run trên main chạy trọn.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  ci:
+    name: CI (TS + proto + Go)
+    runs-on: ubuntu-latest
+    # Postgres/Redis pinned theo phase-0.md — user/pass/db/port cố định, CHỈ dùng
+    # trong CI (không phải secret thật, không tái sử dụng ở đâu khác).
+    env:
+      DATABASE_URL: postgresql://dlp:ci-only-password@localhost:5432/dlp
+      REDIS_URL: redis://:ci-only-password@localhost:6379
+      BETTER_AUTH_SECRET: ci-only-secret
+      BETTER_AUTH_URL: http://localhost:3000
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      GOOGLE_CLIENT_ID: placeholder
+      GOOGLE_CLIENT_SECRET: placeholder
+      MICROSOFT_CLIENT_ID: placeholder
+      MICROSOFT_CLIENT_SECRET: placeholder
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dlp
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: dlp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dlp -d dlp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      # KHÔNG khai redis ở đây: cú pháp `services:` của GitHub Actions chỉ nhận
+      # docker-create flags qua `options` (health-cmd, network, ...), không có
+      # chỗ nào để đè CMD của container — mà `--requirepass` là CMD arg của
+      # redis-server, không phải env đọc được (image redis chính chủ không đọc
+      # env mật khẩu như bitnami/redis). Nên chạy `docker run` thủ công ở bước
+      # dưới để giữ đúng "redis:7-alpine --requirepass" như pin trong brief.
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 'Start Redis (requirepass — services: không cho đặt CMD)'
+        run: |
+          docker run -d --name ci-redis -p 6379:6379 redis:7-alpine \
+            redis-server --requirepass ci-only-password
+          # Loop chờ PHẢI kết thúc bằng fail tường minh — for hết vòng mà rơi
+          # xuyên qua im lặng thì lỗi Redis lộ ra sau đó thành test fail khó hiểu.
+          ok=""
+          for i in $(seq 1 30); do
+            if docker exec ci-redis redis-cli -a ci-only-password ping 2>/dev/null | grep -q PONG; then
+              ok=1; break
+            fi
+            sleep 1
+          done
+          if [ -z "$ok" ]; then
+            echo "Redis không PONG sau 30s"; docker logs ci-redis; exit 1
+          fi
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Contract drift gate (buf generate + git status)
+        run: make proto-check
+
+      - name: DB migrate (Drizzle)
+        run: pnpm --filter @devops-platform/web db:migrate
+
+      - name: TS — lint + build + test (turbo)
+        run: pnpm turbo run lint build test
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.work
+
+      - name: Go — build + vet + test (mọi module trong go.work)
+        run: go work sync && make go-build go-vet go-test
+
+      - name: Cài golangci-lint v2.x
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin" v2.12.2
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Go — lint (golangci-lint, mọi module)
+        run: make go-lint
+
+  images:
+    name: 'Build & push: ${{ matrix.name }}'
+    needs: ci
+    # Chỉ build/push khi CI xanh VÀ đang ở push main hoặc tag v* — PR không cần
+    # tốn phút build 4 image. `needs: ci` tự động skip job này nếu `ci` fail.
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: web
+            image: dlp-web
+            dockerfile: apps/web/Dockerfile
+            context: .
+          - name: orchestrator
+            image: dlp-orchestrator
+            dockerfile: services/orchestrator/Dockerfile
+            context: .
+          - name: terminal-gateway
+            image: dlp-terminal-gateway
+            dockerfile: services/terminal-gateway/Dockerfile
+            context: .
+          - name: sandbox-base
+            image: dlp-sandbox-base
+            dockerfile: images/sandbox-base/Dockerfile
+            context: images/sandbox-base
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 'Metadata (tag sha-<ngắn> + latest trên main)'
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          # Owner GHCR bắt buộc lowercase — khớp infra/helm/platform/values.yaml.
+          # `dev` (tag local dùng trong values.yaml) KHÔNG sinh ở đây — CI đóng
+          # tag theo sha ngắn + latest trên main, `dev` chỉ để build tay ở máy dev.
+          images: ghcr.io/nghaiz/${{ matrix.image }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # gitleaks quét lịch sử commit trong run — cần full history, không
+          # phải chỉ commit đầu (default checkout depth=1 sẽ bỏ lọt).
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

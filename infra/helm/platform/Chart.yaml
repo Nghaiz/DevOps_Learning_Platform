@@ -1,0 +1,8 @@
+apiVersion: v2
+name: platform
+description: >-
+  DevOps Learning Platform — web (Next.js) + orchestrator (gRPC) +
+  terminal-gateway (WS), deploy lên 1 cluster kubeadm self-host hoặc cloud.
+type: application
+version: 0.1.0
+appVersion: '0.1.0'

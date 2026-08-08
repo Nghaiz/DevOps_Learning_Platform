@@ -14,6 +14,9 @@ export default tseslint.config(
       '**/.turbo/**',
       '**/coverage/**',
       '**/gen/**',
+      // next-env.d.ts do Next TỰ SINH và tự ghi đè mỗi lần dev/build — không
+      // sửa tay được (triple-slash reference là format Next chọn), nên không lint.
+      '**/next-env.d.ts',
     ],
   },
   js.configs.recommended,

@@ -117,3 +117,116 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type SessionAuditEvent = typeof sessionsAudit.$inferSelect;
 export type Progress = typeof progress.$inferSelect;
+
+/**
+ * === Better Auth (0.D) ===
+ *
+ * Better Auth sở hữu 4 bảng dưới đây (session/account/verification/jwks) — quy ước
+ * 1-owner/bảng vẫn giữ: Drizzle/TS là owner DUY NHẤT, Go không đụng vào.
+ *
+ * `sessions`/`accounts`/`verifications` dùng ĐÚNG tên field Better Auth mong đợi
+ * (camelCase ở tầng TS — xem drizzle-adapter docs) để có thể pass thẳng object bảng
+ * vào `drizzleAdapter(db, { schema: { ...schema, user: schema.users } })` mà không
+ * cần `modelName`/`fields` override rườm rà. `users` (bảng đã có từ 0.C) đã khớp sẵn
+ * field lõi Better Auth cần nên KHÔNG tạo bảng `user` thứ hai — xem chú thích ở
+ * `users` phía trên.
+ */
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('sessions_token_key').on(table.token),
+    index('sessions_user_id_idx').on(table.userId),
+  ],
+);
+
+export const accounts = pgTable(
+  'accounts',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    accountId: text('account_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    accessToken: text('access_token'),
+    refreshToken: text('refresh_token'),
+    idToken: text('id_token'),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+    scope: text('scope'),
+    /** Chỉ có giá trị cho provider credential (email/password). NULL với OAuth. */
+    password: text('password'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('accounts_user_id_idx').on(table.userId),
+    uniqueIndex('accounts_provider_account_key').on(table.providerId, table.accountId),
+  ],
+);
+
+export const verifications = pgTable(
+  'verifications',
+  {
+    id: text('id').primaryKey(),
+    identifier: text('identifier').notNull(),
+    value: text('value').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('verifications_identifier_idx').on(table.identifier)],
+);
+
+/** Khoá ký JWT của plugin `jwt()` — luân phiên theo `jwks.rotationInterval`. */
+export const jwks = pgTable('jwks', {
+  id: text('id').primaryKey(),
+  publicKey: text('public_key').notNull(),
+  privateKey: text('private_key').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Refresh token — TÁCH BIỆT khỏi access JWT và khỏi session cookie của Better Auth
+ * (luật 6,7 — phase-0.md 0.D task 15). Access JWT (Better Auth JWT plugin, TTL 15m,
+ * `aud` per-service) không tự refresh được: client PHẢI gọi `/api/auth/refresh`
+ * mang theo cookie `refresh_token` httpOnly này.
+ *
+ * Rotation: mỗi lần refresh thành công, dòng cũ bị đánh `revoked_at` NGAY (không xoá
+ * — giữ audit chain qua `rotated_from`) và một dòng mới được tạo. Dùng lại refresh
+ * token đã revoke (replay sau rotation) → từ chối (luật 7). `token_hash` lưu SHA-256
+ * của token thô — token thô không bao giờ chạm DB ở dạng plaintext.
+ */
+export const authRefreshTokens = pgTable(
+  'auth_refresh_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    rotatedFrom: uuid('rotated_from'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('auth_refresh_tokens_token_hash_key').on(table.tokenHash),
+    index('auth_refresh_tokens_user_id_idx').on(table.userId),
+  ],
+);
+
+export type AuthRefreshToken = typeof authRefreshTokens.$inferSelect;
+export type NewAuthRefreshToken = typeof authRefreshTokens.$inferInsert;

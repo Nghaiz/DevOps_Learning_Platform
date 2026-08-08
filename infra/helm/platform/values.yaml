@@ -1,0 +1,118 @@
+# values.yaml — mặc định "cloud-shaped" (replica ≥2, imagePullPolicy IfNotPresent
+# vì cloud kéo image từ registry thật). Namespace KHÔNG đặt cứng ở đây — chọn bằng
+# `helm -n <namespace> install|upgrade`.
+#
+# Self-host (VM kubeadm 1-node, infra/host/) đè lại qua values-selfhost.yaml.
+# Cloud multi-node đè lại qua values-cloud.yaml (giữ chỗ node-pool, chưa dùng).
+
+global:
+  imagePullPolicy: IfNotPresent
+
+image:
+  # Tên repo GHCR bắt buộc lowercase.
+  registry: ghcr.io/nghaiz
+  tag: dev
+
+web:
+  enabled: true
+  image:
+    repository: dlp-web
+    tag: '' # rỗng = dùng image.tag ở trên
+    pullPolicy: '' # rỗng = dùng global.imagePullPolicy
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    # databaseUrl/redisUrl rỗng = template OMIT hẳn biến (env.ts coi chuỗi rỗng
+    # y như thiếu — comment cũ nói "đọc rỗng vẫn boot" là SAI). P0 chưa có
+    # Postgres/Redis in-cluster: pod Running + /api/health xanh là acceptance
+    # của task 27; route đụng DB 500 cho tới P1 — có chủ ý, không phải bug.
+    databaseUrl: ''
+    redisUrl: ''
+    # KHÔNG có default — secret ký session/JWT commit trong git là secret đã lộ.
+    # Template dùng `required`: thiếu là helm install DỪNG với hướng dẫn --set.
+    betterAuthSecret: ''
+    betterAuthUrl: 'http://localhost:3000'
+    # Rỗng = template tự suy "<release>-orchestrator:<grpcPort>" (DNS in-cluster).
+    orchestratorGrpcAddr: ''
+    # '1' CHỈ khi web đứng sau proxy set x-forwarded-for đúng (Traefik — P3).
+    # Rỗng = biến bị omit, middleware skip rate limit (log 1 lần). Xem
+    # apps/web/src/middleware.ts clientKey().
+    rateLimitTrustProxy: ''
+    googleClientId: 'placeholder'
+    googleClientSecret: 'placeholder'
+    microsoftClientId: 'placeholder'
+    microsoftClientSecret: 'placeholder'
+    corsAllowedOrigins: 'http://localhost:3000'
+
+orchestrator:
+  enabled: true
+  image:
+    repository: dlp-orchestrator
+    tag: ''
+    pullPolicy: ''
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    httpPort: 8081
+    grpcPort: 9090
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  env:
+    grpcAddr: ':9090'
+    httpAddr: ':8081'
+    logLevel: 'info'
+    grpcReflection: 'false'
+    databaseUrl: ''
+    redisUrl: ''
+    sessionTtl: '1h'
+    shutdownGrace: '15s'
+    sandboxNamespace: 'dlp-sandbox'
+
+gateway:
+  enabled: true
+  image:
+    repository: dlp-terminal-gateway
+    tag: ''
+    pullPolicy: ''
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    publicPort: 8082
+    # KHÔNG có adminPort ở đây — /healthz + /metrics (8083) cố ý không lên
+    # Service: /metrics không có authz, lộ version + số goroutine (đếm được
+    # session đang chạy). kubelet probe vẫn chạm được vì probe đánh thẳng pod IP,
+    # không qua Service. Xem services/terminal-gateway/internal/config/config.go.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  env:
+    publicAddr: ':8082'
+    # BẮT BUỘC ":8083" trong k8s — default trong code Go là "127.0.0.1:8083"
+    # (chỉ bind loopback), khiến kubelet probe từ ngoài container fail. Đè lại ở
+    # đây, không phải ở code, vì đây là khác biệt do MÔI TRƯỜNG chạy (container vs
+    # host), không phải default sai. Xem plans/devops-learning-platform/phase-0.md 0.F.
+    adminAddr: ':8083'
+    logLevel: 'info'
+    shutdownGrace: '15s'
+    # Rỗng = template tự suy ra "<release>-orchestrator:<grpcPort>" (xem
+    # templates/gateway-deployment.yaml). Chưa dùng thật ở P0 — gateway chưa gọi
+    # orchestrator (task 22) — nhưng khoá đúng hình dạng DNS trong-cluster từ đây.
+    orchestratorGrpcAddr: ''

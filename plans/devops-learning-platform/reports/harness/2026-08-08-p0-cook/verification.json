@@ -1,0 +1,85 @@
+{
+  "commands": [
+    {
+      "command": "pnpm turbo run lint build test --force",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T12:55:00+07:00",
+      "summary": "9/9 task xanh, 0 cached (chạy thật): lint+build+test cho web, ui, shared-types, scenario, terminal. Bao gồm 9 file test luật 1-9 + schema.test.ts + redis-keys.test.ts."
+    },
+    {
+      "command": "buf generate && git status --porcelain -- proto packages/shared-types/gen",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T12:20:00+07:00",
+      "summary": "Regenerate sạch; diff duy nhất là dòng comment header của session_pb.ts do đổi import_extension=js→none (chủ ý, commit làm trạng thái mới của drift gate)."
+    },
+    {
+      "command": "for m in $(go list -m -f '{{.Dir}}'); do (cd $m && go build ./... && go vet ./... && go test ./...); done",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T12:30:00+07:00",
+      "summary": "4/4 module Go (proto/gen/go, orchestrator, shared, terminal-gateway) build + vet + test xanh: grpcserver, rediskeys, envx, httpx, logging, config, wsroute đều ok."
+    },
+    {
+      "command": "docker build -f apps/web/Dockerfile -t ghcr.io/nghaiz/dlp-web:dev .",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T13:01:00+07:00",
+      "summary": "Image web build OK sau fix lazy-init (getAuth/getDb) — next build trong container KHÔNG có env thật vẫn qua 'Collecting page data'; output standalone bật qua NEXT_OUTPUT=standalone."
+    },
+    {
+      "command": "helm lint + helm template (2 values) + kubectl apply --dry-run=server (trên VM)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T12:35:00+07:00",
+      "summary": "Lint 0 fail (chỉ INFO icon); template render 291 dòng; server-side dry-run apply 6 object (3 Deployment + 3 Service) sạch trên API server kubeadm v1.34.10 thật."
+    },
+    {
+      "command": "helm upgrade --install platform /tmp/helm-chart/platform -f values-selfhost.yaml && kubectl rollout status (3 deploy)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T13:03:48+07:00",
+      "summary": "Task 27 AC: 3/3 deployment rolled out, pods platform-{web,orchestrator,gateway} 1/1 Running trên node debian-sandbox (image import qua ctr, pullPolicy Never)."
+    },
+    {
+      "command": "curl in-cluster: orchestrator :8081/healthz, gateway :8083/healthz (pod IP), web NodePort /api/health, metrics dlp_build_info",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T13:05:00+07:00",
+      "summary": "200/200/200 + dlp_build_info có mặt — xác nhận ADMIN_ADDR=:8083 override đúng (default Go bind loopback), probe contract /api/health đúng."
+    },
+    {
+      "command": "boot smoke local (next start :3210): /api/health, POST /api/auth/sign-up/email, curl -I headers, /dashboard unauth, CORS evil-origin",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T13:02:00+07:00",
+      "summary": "health 200 {status:ok}; sign-up 200 (catch-all [...all] mới — trước fix là 404, tức login/signup chết); đủ 6/6 header luật 9 (CSP nonce+strict-dynamic, HSTS, XFO DENY, nosniff, referrer, permissions); /dashboard unauth 307→/login; CORS không reflect https://evil.example."
+    },
+    {
+      "command": "pnpm turbo run lint build test --force (sau 2 vòng fix theo review: C1 C2 + M1-M9 + N1-N4)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T13:36:00+07:00",
+      "summary": "9/9 task xanh, 0 cache. Web 59 test (thêm 7 regression: trust-proxy 3 case, chuỗi rotation 3 tầng, logout revoke path-aware, access-JWT-vào-refresh 401, header trên 413). Reviewer round 3: PASS_WITH_RISK, 0 critical, contracts ALL HOLD."
+    },
+    {
+      "command": "E2E logout smoke (next start + curl cookie jar): signup → refresh bootstrap → logout → get-session/dashboard/login",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T13:33:00+07:00",
+      "summary": "Logout response mang 5 Set-Cookie (refresh Path=/api/auth cleared, access cleared, better-auth session_token + session_data + dont_remember cleared qua asResponse merge); sau logout: get-session null, /dashboard 307→/login, /login 200 (KHÔNG loop — bug N1 round 2 đã diệt kèm gotcha ResponseCookies-nuốt-raw-append), jar 0 cookie."
+    },
+    {
+      "command": "helm upgrade rev 2-3 trên VM: --set betterAuthSecret=$(openssl rand), env web có ORCHESTRATOR_GRPC_ADDR, omit DATABASE_URL/REDIS_URL rỗng",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-08T13:34:26+07:00",
+      "summary": "Revision 3 deployed; 3/3 pod Running; env list pod web xác nhận: BETTER_AUTH_SECRET (random), ORCHESTRATOR_GRPC_ADDR (platform-orchestrator:9090), DATABASE_URL/REDIS_URL vắng mặt đúng thiết kế; bắt được + sửa lỗi printf single-quote trong template lúc deploy rev 2."
+    }
+  ],
+  "beforeAfter": {
+    "before": "0.D/0.G/task27 chưa làm: apps/web là package TS thuần, không login được; infra/helm + .github trống; web build fail 4 lớp lỗi kế tiếp (module-not-found .js specifier → Database type sai → TS2742 declaration → EPERM symlink standalone trên Windows → createDatabase() ở module scope giết docker build; và thiếu hẳn catch-all /api/auth/[...all] nên sign-in 404).",
+    "after": "turbo 9/9 + go 4/4 xanh; image web build được không cần env; 3 pod Running trên cluster kubeadm với healthz 200 in-cluster; Better Auth HTTP surface sống (sign-up 200); 6/6 security header; drift gate proto sạch với import_extension=none."
+  }
+}

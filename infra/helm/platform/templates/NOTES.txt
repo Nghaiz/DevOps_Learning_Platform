@@ -1,0 +1,15 @@
+Chart "platform" đã cài vào namespace {{ .Release.Namespace }} (release {{ .Release.Name }}).
+
+Kiểm tra pod:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Health (đấm thẳng qua port-forward, chưa có ingress ở P0):
+{{- if .Values.web.enabled }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "platform.fullname" . }}-web {{ .Values.web.service.port }}:{{ .Values.web.service.port }}
+{{- end }}
+{{- if .Values.orchestrator.enabled }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "platform.fullname" . }}-orchestrator {{ .Values.orchestrator.service.httpPort }}:{{ .Values.orchestrator.service.httpPort }}
+{{- end }}
+{{- if .Values.gateway.enabled }}
+  kubectl -n {{ .Release.Namespace }} port-forward pod/<gateway-pod-name> 8083:8083   # admin port không có Service, phải target pod
+{{- end }}

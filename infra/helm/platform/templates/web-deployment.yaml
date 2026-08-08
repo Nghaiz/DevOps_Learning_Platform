@@ -1,0 +1,87 @@
+{{- if .Values.web.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform.fullname" . }}-web
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "web") | nindent 4 }}
+spec:
+  replicas: {{ .Values.web.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "platform.selectorLabels" (dict "context" . "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "platform.selectorLabels" (dict "context" . "component" "web") | nindent 8 }}
+    spec:
+      {{- with .Values.web.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.web.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: web
+          image: '{{ .Values.image.registry }}/{{ .Values.web.image.repository }}:{{ .Values.web.image.tag | default .Values.image.tag }}'
+          imagePullPolicy: {{ .Values.web.image.pullPolicy | default .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.web.service.port }}
+          env:
+            # DATABASE_URL/REDIS_URL: OMIT khi rỗng thay vì set chuỗi rỗng —
+            # env.ts coi '' y như thiếu (throw). P0 chưa có Postgres/Redis
+            # in-cluster nên các route đụng DB sẽ 500 cho tới P1; /api/health cố
+            # ý không đụng DB nên probe vẫn phản ánh đúng "process sống".
+            {{- with .Values.web.env.databaseUrl }}
+            - name: DATABASE_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.web.env.redisUrl }}
+            - name: REDIS_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: BETTER_AUTH_SECRET
+              # required: KHÔNG có default trong values — secret ký session/JWT mà
+              # nằm sẵn trong git là secret đã lộ. Truyền lúc deploy:
+              #   --set web.env.betterAuthSecret="$(openssl rand -hex 32)"
+              value: {{ required "web.env.betterAuthSecret là bắt buộc — truyền qua --set web.env.betterAuthSecret=<random>, KHÔNG commit vào values" .Values.web.env.betterAuthSecret | quote }}
+            - name: BETTER_AUTH_URL
+              value: {{ .Values.web.env.betterAuthUrl | quote }}
+            - name: ORCHESTRATOR_GRPC_ADDR
+              # Web (BFF) là caller gRPC DUY NHẤT ở P0 — thiếu biến này thì
+              # env.ts default localhost:9090 = web pod tự gọi chính nó.
+              value: {{ .Values.web.env.orchestratorGrpcAddr | default (printf "%s-orchestrator:%v" (include "platform.fullname" .) .Values.orchestrator.service.grpcPort) | quote }}
+            {{- with .Values.web.env.rateLimitTrustProxy }}
+            - name: RATE_LIMIT_TRUST_PROXY
+              value: {{ . | quote }}
+            {{- end }}
+            - name: GOOGLE_CLIENT_ID
+              value: {{ .Values.web.env.googleClientId | quote }}
+            - name: GOOGLE_CLIENT_SECRET
+              value: {{ .Values.web.env.googleClientSecret | quote }}
+            - name: MICROSOFT_CLIENT_ID
+              value: {{ .Values.web.env.microsoftClientId | quote }}
+            - name: MICROSOFT_CLIENT_SECRET
+              value: {{ .Values.web.env.microsoftClientSecret | quote }}
+            - name: CORS_ALLOWED_ORIGINS
+              value: {{ .Values.web.env.corsAllowedOrigins | quote }}
+          # /api/health cố ý không đụng DB (xem contract pin trong brief) — an
+          # toàn dùng chung cho cả readiness lẫn liveness.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+{{- end }}

@@ -5,16 +5,25 @@ version: v2
 plugins:
   # Go: một module dùng chung cho cả orchestrator lẫn terminal-gateway.
   # Sinh vào services/*/gen sẽ nhân đôi y hệt code ở 2 nơi (vi phạm SSOT).
-  - remote: buf.build/protocolbuffers/go
+  #
+  # PIN VERSION cả 3 plugin: bản plugin nằm trong header file sinh ra, còn
+  # proto-check fail trên MỌI diff — plugin không pin thì ngày buf phát hành
+  # bản mới, drift gate đỏ trên một PR không liên quan gì tới proto.
+  - remote: buf.build/protocolbuffers/go:v1.36.11
     out: proto/gen/go
     opt: paths=source_relative
-  - remote: buf.build/grpc/go
+  - remote: buf.build/grpc/go:v1.6.2
     out: proto/gen/go
     opt: paths=source_relative
 
   # TypeScript: consumer là apps/web (BFF tRPC) qua packages/shared-types.
-  - remote: buf.build/bufbuild/es
+  # import_extension=none (không phải =js): packages/shared-types là package
+  # source-only được webpack của Next bundle thẳng — specifier ".js" trong file
+  # sinh ra sẽ vỡ webpack resolve ngay khi proto có import chéo file. Hôm nay
+  # session_pb.ts chưa có relative import nào nên đổi option này diff = 0;
+  # đổi TRƯỚC khi có file proto thứ hai để lỗi không bao giờ xuất hiện.
+  - remote: buf.build/bufbuild/es:v2.13.0
     out: packages/shared-types/gen
     opt:
       - target=ts
-      - import_extension=js
+      - import_extension=none

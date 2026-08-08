@@ -1,0 +1,63 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform.fullname" . }}-gateway
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "gateway") | nindent 4 }}
+spec:
+  replicas: {{ .Values.gateway.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "platform.selectorLabels" (dict "context" . "component" "gateway") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "platform.selectorLabels" (dict "context" . "component" "gateway") | nindent 8 }}
+    spec:
+      {{- with .Values.gateway.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: gateway
+          image: '{{ .Values.image.registry }}/{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag | default .Values.image.tag }}'
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy | default .Values.global.imagePullPolicy }}
+          ports:
+            - name: public
+              containerPort: 8082
+            - name: admin
+              containerPort: 8083
+          env:
+            - name: PUBLIC_ADDR
+              value: {{ .Values.gateway.env.publicAddr | quote }}
+            - name: ADMIN_ADDR
+              value: {{ .Values.gateway.env.adminAddr | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.gateway.env.logLevel | quote }}
+            - name: SHUTDOWN_GRACE
+              value: {{ .Values.gateway.env.shutdownGrace | quote }}
+            - name: ORCHESTRATOR_GRPC_ADDR
+              value: {{ .Values.gateway.env.orchestratorGrpcAddr | default (printf "%s-orchestrator:%v" (include "platform.fullname" .) .Values.orchestrator.service.grpcPort) | quote }}
+          # Probe nhắm PORT ADMIN (8083, /healthz + /metrics) — KHÔNG phải port
+          # public (8082, chỉ có /ws/session/{id}). kubelet gọi thẳng pod IP nên
+          # không cần admin lên Service để probe hoạt động.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: admin
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: admin
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+{{- end }}

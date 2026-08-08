@@ -1,0 +1,18 @@
+{
+  "highRisk": false,
+  "autoStopRequired": false,
+  "humanApproved": true,
+  "largeDiff": true,
+  "reasons": [
+    "largeDiff: ~60 file mới/sửa (0.D + Helm + CI) — theo đúng scope plan đã được user chốt qua AskUserQuestion (toàn bộ còn lại + ghcr.io)",
+    "Không high-risk: toàn bộ là scaffolding P0 chưa có user thật, không đụng dữ liệu sống, không đổi proto contract, deploy chỉ lên VM lab tự quản",
+    "humanApproved: scope + registry được user chọn tường minh đầu phiên (AskUserQuestion); không có destructive action nào ngoài scope đó",
+    "RISK REGISTER (reviewer round 3, PASS_WITH_RISK — 6 mục, không mục nào là regression so với trước phase):",
+    "R1 stale-session-cookie-redirect-loop: middleware chỉ kiểm SỰ TỒN TẠI cookie — đường hiếm để lại cookie mồ côi (admin revoke, __Secure- fallback fail, cookie subdomain khác) vẫn kẹt /login↔/dashboard tới khi cookie hết hạn; trigger phổ biến nhất (logout) đã diệt + fallback __Secure- đã set kèm secure:true; ứng viên P1: breaker trong middleware",
+    "R2 rate-limit-off-in-p0: mọi deploy P0 chạy không rate limit (skip + warn 1 lần) — chọn có chủ ý thay cho tin-XFF (né được) hoặc bucket chung (tự-DoS); Traefik P3 enforce thật; knob RATE_LIMIT_TRUST_PROXY đã khai ở .env.example + helm values",
+    "R3 access-token-cookie-write-only: refresh route mint JWT aud=orchestrator vào cookie chưa ai đọc; consumer là terminal-gateway WS ở P1 — nếu P1 trượt thì GỠ, không để credential nằm im",
+    "R4 refresh-cookie-path-widened: path /api/auth (cần cho revocation ở logout) — cookie đi tới mọi /api/auth/* kể cả catch-all Better Auth; httpOnly + SameSite=lax, không route nào khác đọc",
+    "R5 jwks-expiresAt-column-absent: bật jwks.rotationInterval sau này sẽ không rotate key (plugin đọc field không thể có) — phải thêm cột TRƯỚC khi bật rotation",
+    "R6 pod-securityContext-deferred: 3 deployment chưa có runAsNonRoot/readOnlyRootFilesystem/drop-ALL/automountServiceAccountToken:false — P3 hardening theo plan, reviewer đồng ý"
+  ]
+}

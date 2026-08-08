@@ -7,8 +7,8 @@
  * Bản song sinh phía Go: services/orchestrator/cmd/dbsmoke.
  */
 import { sessionKey, POOL_FREE } from '@devops-platform/shared-types';
-import { createDatabase } from '../server/db/client.js';
-import { createRedis } from '../server/redis/client.js';
+import { createDatabase } from '../server/db/client';
+import { createRedis } from '../server/redis/client';
 
 const SMOKE_SESSION_ID = 'smoke-ts';
 const TTL_SECONDS = 30;

@@ -1,9 +1,35 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "noEmit": true,
+    // packages/ui + packages/shared-types là package source-only (exports trỏ .ts)
+    // và import nội bộ bằng specifier ".ts" — thiếu flag này thì tsc của next build
+    // báo TS5097 khi type-check xuyên qua source của chúng.
     "allowImportingTsExtensions": true,
+    // App không publish type — declaration kế thừa từ base gây TS2742 ("type not
+    // portable" trỏ vào .pnpm/zod) khi Better Auth infer type client qua zod v4.
+    "declaration": false,
+    "declarationMap": false,
+    "jsx": "preserve",
+    "incremental": true,
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "plugins": [{ "name": "next" }],
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "drizzle.config.ts", "eslint.config.mjs"]
+  "include": [
+    "next-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "drizzle.config.ts",
+    "eslint.config.mjs",
+    "vitest.config.ts",
+    "vitest.setup.ts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
 }

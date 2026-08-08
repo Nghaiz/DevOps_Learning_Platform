@@ -1,5 +1,5 @@
 import { Redis } from 'ioredis';
-import { redisUrl } from '../env.js';
+import { redisUrl } from '../env';
 
 /**
  * Tạo client Redis.

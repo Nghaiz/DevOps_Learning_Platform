@@ -1,6 +1,6 @@
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
-import { progress, sessionsAudit, users } from './schema.js';
+import { progress, sessionsAudit, users } from './schema';
 
 // Test này không cần DB — nó gác HÌNH DẠNG schema, thứ mà migration sẽ đóng băng.
 describe('schema Postgres', () => {

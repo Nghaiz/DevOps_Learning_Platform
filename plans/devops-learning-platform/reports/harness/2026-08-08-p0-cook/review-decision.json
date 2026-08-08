@@ -1,0 +1,22 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "turbo run lint build test: 9/9 xanh từ clean state (--force, không cache) — tester độc lập xác nhận 72 test TS (nay 59 web + ui + shared-types sau khi thêm 7 test regression) + 4/4 module Go",
+    "Đăng ký + đăng nhập email/pw: sign-up UI + endpoint 200, session cookie set, /dashboard chặn unauth (307), logout E2E sạch cookie không loop — smoke curl thật",
+    "OAuth Google/Microsoft: nút + social provider cấu hình placeholder env (consent redirect chưa exercise end-to-end — cần client id thật, chấp nhận ở P0)",
+    "tRPC session.* → orchestrator gRPC: PASS có bằng chứng — HTTP 501 NOT_IMPLEMENTED có cấu trúc + log Go xác nhận RPC chạm server (tester độc lập chạy)",
+    "Luật 1-9: mỗi luật có test file riêng, tester audit đủ strength (rule-6 dùng JWT thật do Better Auth mint); gap luật 7 vế 1 đã đóng bằng test access-JWT-vào-refresh-endpoint → 401",
+    "Task 27 Helm: 3/3 pod 1/1 Running trên kubeadm v1.34.10 (3 revision deploy), healthz in-cluster 200 cả 3 service, secret bắt buộc qua --set",
+    "0.G CI: workflow 3 job (ci/images/secret-scan), 10/10 action tag tồn tại (verify bằng GitHub API), buf remote plugins pinned, turbo env list khai báo cho CI"
+  ],
+  "regressionProof": [
+    "Tests có sẵn trước phase (schema.test.ts 7/7, redis-keys 17/17) xanh trong cùng run --force — tester xác nhận riêng",
+    "Services Go không bị đụng file nào; go build/vet/test 4/4 module xanh sau toàn bộ thay đổi",
+    "Proto contract không đổi ngữ nghĩa: diff duy nhất trong gen là dòng comment header (import_extension=js→none); buf generate với plugin pinned tái tạo byte-identical",
+    "Reviewer round 3 xác nhận 11 contract ghim ALL HOLD (image names, port map, env names, probe paths, redis keys TS↔Go, one-owner-per-table)"
+  ],
+  "blockingReasons": [],
+  "contractStatus": "OK"
+}

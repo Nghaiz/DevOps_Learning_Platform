@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { POOL_FREE, sessionKey, sessionPodKey } from './redis-keys.js';
+import { POOL_FREE, sessionKey, sessionPodKey } from './redis-keys.ts';
 
 /**
  * Vector nạp từ `docs/redis-key-vectors.json` — CÙNG file mà

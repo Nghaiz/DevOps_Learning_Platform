@@ -2,7 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "ui": "stream",
 
-  "//": "globalDependencies: turbo chỉ hash file TRONG package + lockfile + root package.json. Thiếu mấy dòng dưới thì sửa tsconfig.base.json (bật/tắt strict, đổi target) hay eslint.config.mjs root sẽ cho `turbo run build test` trả CACHED, XANH — không hề typecheck lại. Ở CI đó là cái xanh giả.",
+  "//": "globalDependencies: turbo chỉ hash file TRONG package + lockfile + root package.json. Thiếu mấy dòng dưới thì sửa tsconfig.base.json (bật/tắt strict, đổi target) hay eslint.config.mjs root sẽ cho `turbo run build test` trả CACHED, XANH — không hề typecheck lại. Ở CI đó là cái xanh giả. || tasks.test.env: turbo mặc định envMode STRICT — biến không khai bị LỘT khỏi process con; CI đặt env ở job level, thiếu danh sách đó thì vitest trong CI không thấy DATABASE_URL (local thoát nạn nhờ apps/web/.env nên lỗi chỉ lộ ở CI). turbo cấm key '//' trong task object nên ghi chú nằm ở đây.",
   "globalDependencies": [
     "tsconfig.base.json",
     "eslint.config.mjs",
@@ -14,6 +14,9 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      // NEXT_OUTPUT đổi hình dạng output (standalone hay không) — không khai ở đây
+      // thì turbo trả CACHED của lần build với giá trị env khác.
+      "env": ["NEXT_OUTPUT"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "lint": {
@@ -23,7 +26,18 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "MICROSOFT_CLIENT_ID",
+        "MICROSOFT_CLIENT_SECRET",
+        "CORS_ALLOWED_ORIGINS"
+      ]
     }
   }
 }

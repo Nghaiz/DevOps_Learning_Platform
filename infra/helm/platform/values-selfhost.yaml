@@ -1,0 +1,55 @@
+# values-selfhost.yaml — cluster kubeadm 1-node trên VM Debian lab (infra/host/).
+#
+# Dùng:
+#   helm upgrade --install platform infra/helm/platform -f infra/helm/platform/values-selfhost.yaml
+#
+# imagePullPolicy Never: image import thẳng vào containerd trên node bằng
+#   ctr -n k8s.io images import <tarball đã docker save>
+# — không có registry push/pull ở self-host, kubelet PHẢI thấy image đã có sẵn
+# trên node, `Never` là cách duy nhất buộc nó không thử pull.
+
+global:
+  imagePullPolicy: Never
+
+# LƯU Ý: betterAuthSecret KHÔNG nằm trong file này (file này commit vào git).
+# Deploy self-host truyền secret lúc chạy:
+#   helm upgrade --install platform infra/helm/platform \
+#     -f infra/helm/platform/values-selfhost.yaml \
+#     --set web.env.betterAuthSecret="$(openssl rand -hex 32)"
+
+web:
+  replicaCount: 1
+  service:
+    # NodePort để poke thủ công từ máy dev qua IP node — chưa có ingress controller
+    # (Traefik tới ở P3, xem phase-0.md). Đổi lại ClusterIP + `kubectl port-forward`
+    # nếu không cần truy cập trực tiếp.
+    type: NodePort
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      # 384Mi (không phải 256Mi): Next standalone SSR vài request đồng thời đã
+      # chạm 256Mi — OOMKill lặp làm pod flap trên VM 1-node.
+      memory: 384Mi
+
+orchestrator:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 150m
+      memory: 128Mi
+
+gateway:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 150m
+      memory: 128Mi

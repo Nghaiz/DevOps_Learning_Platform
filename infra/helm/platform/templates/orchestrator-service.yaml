@@ -1,0 +1,19 @@
+{{- if .Values.orchestrator.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "platform.fullname" . }}-orchestrator
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "orchestrator") | nindent 4 }}
+spec:
+  type: {{ .Values.orchestrator.service.type | default "ClusterIP" }}
+  ports:
+    - name: http
+      port: {{ .Values.orchestrator.service.httpPort }}
+      targetPort: http
+    - name: grpc
+      port: {{ .Values.orchestrator.service.grpcPort }}
+      targetPort: grpc
+  selector:
+    {{- include "platform.selectorLabels" (dict "context" . "component" "orchestrator") | nindent 4 }}
+{{- end }}

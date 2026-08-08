@@ -1,0 +1,40 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Phase 0 hoàn tất các nhóm còn lại: 0.D (Next.js 15 + Better Auth + tRPC + 10 luật bảo mật + tests), task 27 (Helm chart infra/helm/platform deploy lên cluster kubeadm 1-node), 0.G (GitHub Actions ci/images/secret-scan, registry ghcr.io). Plan: plans/devops-learning-platform/phase-0.md.",
+  "scoutSummary": "Trước khi chạy: 0.A/B/C/E/F đã xong (commit bd51931, a32e27a); apps/web là package TS thuần giữ data layer Drizzle+Redis; packages/ui chỉ có README; infra/helm chỉ có README; chưa có .github/workflows. Toolchain local: Node 24, pnpm 11, Go 1.26, Docker 29, buf 1.72. VM debian-sandbox (192.168.94.130): kubeadm v1.34.10 Ready, containerd 2.3.3, Sysbox đã proof 8/8 (P0.F). Postgres/Redis dev chạy qua docker compose, healthy.",
+  "acceptanceCriteria": [
+    "turbo run lint build test xanh từ clean checkout (9/9 task)",
+    "Đăng ký + đăng nhập email/password hoạt động; session cookie set; /dashboard chỉ vào được khi đã login",
+    "OAuth Google/Microsoft đi tới consent (env placeholder)",
+    "tRPC session.* gọi được orchestrator gRPC và surface Unimplemented có chủ ý",
+    "Luật bảo mật 1-9 có test: authz object-level 403, CORS không reflect, Zod strict 400, limit cap 100, body 413 + rate 429, JWT aud + TTL ≤15m, refresh rotation + revocation, không token-in-URL, đủ 6 security headers",
+    "Helm chart deploy 3 service lên cluster kubeadm 1-node; pod Running (task 27)",
+    "CI: pnpm + turbo + proto drift gate + go build/test + golangci-lint; images push ghcr.io; gitleaks (0.G)"
+  ],
+  "touchpoints": [
+    "apps/web/** (Next.js app mới trên data layer có sẵn)",
+    "packages/ui/** (package mới)",
+    "packages/shared-types/src/index.ts + gen/** (specifier .ts + import_extension=none)",
+    "buf.gen.yaml",
+    "eslint.config.mjs (ignore next-env.d.ts)",
+    "turbo.json (env NEXT_OUTPUT)",
+    "infra/helm/platform/** (chart mới)",
+    ".github/workflows/ci.yml (mới)",
+    "images/sandbox-base/Dockerfile (placeholder mới)",
+    ".claude/t1k-config-mr.json (excludeAgents workaround — router 403)"
+  ],
+  "publicContracts": [
+    "proto/orchestrator/v1/session.proto KHÔNG đổi — codegen option đổi import_extension=js→none, chỉ diff dòng comment header trong session_pb.ts",
+    "Image names: ghcr.io/nghaiz/dlp-{web,orchestrator,terminal-gateway,sandbox-base} — thống nhất helm values ↔ ci.yml",
+    "Port map: web 3000 + /api/health; orchestrator 8081 healthz/metrics + 9090 gRPC; gateway 8082 public + 8083 admin (ADMIN_ADDR=:8083 trong k8s)",
+    "Env names web: DATABASE_URL, REDIS_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL, GOOGLE/MICROSOFT_CLIENT_ID/SECRET, CORS_ALLOWED_ORIGINS — thống nhất .env.example ↔ ci.yml ↔ helm values"
+  ],
+  "blastRadius": [
+    "apps/web chuyển từ package TS thuần thành app Next.js — script build đổi từ tsc --noEmit sang next build",
+    "Database type (db/client.ts) đổi nghĩa: bundle {db,sql} → instance Drizzle; mọi call site đã đồng bộ",
+    "auth/db khởi tạo LAZY (getAuth/getDb) — không còn side effect ở module scope; ảnh hưởng mọi route import chúng",
+    "eslint ignore thêm next-env.d.ts (toàn repo, vô hại)",
+    "Services Go, proto contract, infra/host KHÔNG bị đụng"
+  ]
+}
