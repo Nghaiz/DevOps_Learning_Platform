@@ -7,7 +7,7 @@
 # Nền Ubuntu, không phải Debian: host chạy Debian 13 (design §5b) nhưng phần lớn
 # tài liệu DevOps/KillerCoda giả định `apt` trên Ubuntu — host Debian chạy
 # container Ubuntu là chuyện bình thường, không phải nghịch lý.
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 LABEL org.opencontainers.image.description="DevOps Learning Platform — sandbox base (placeholder P0, nội dung thật ở P1)"
 

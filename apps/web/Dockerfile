@@ -4,7 +4,7 @@
 # packages/shared-types, cả hai nằm ngoài thư mục này (cùng pattern với
 # services/orchestrator/Dockerfile — copy manifest trước để cache layer).
 
-FROM node:24-alpine AS base
+FROM node:25-alpine AS base
 # corepack đi kèm Node 24; pin đúng pnpm 11 mà root package.json khai báo
 # (packageManager) thay vì để corepack tự chọn bản mới nhất.
 RUN corepack enable
