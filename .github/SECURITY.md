@@ -52,9 +52,14 @@ chưa có bản release nào được đánh dấu là dùng cho production.
 
 ## Việc chúng tôi tự làm
 
-- `gitleaks` quét mọi commit và mọi PR (cổng chặn merge)
-- CodeQL (`security-and-quality`) chạy trên PR và theo lịch tuần
+- `gitleaks` quét mọi commit và mọi PR — **cổng chặn merge**
 - `govulncheck` đối chiếu dependency Go với reachability trên mọi PR — **cổng chặn merge**
+- `helm template` + `kubeconform` + `shellcheck` + `actionlint` trên mọi PR — **cổng chặn merge**
 - Dependabot alerts + PR nâng version hằng tuần (github-actions, npm, gomod, docker)
-- Trivy quét CVE mọi image container (báo cáo lên tab Security)
+- Trivy quét CVE mọi image container (in ra log của job, chưa chặn)
 - SBOM + provenance SLSA đính kèm mọi image đã publish
+
+**Chưa có, và vì sao:** CodeQL và dependency review cần **GitHub Advanced Security**,
+thứ không có trên repo private. Chúng đã được thử và gỡ đi thay vì để lại một
+workflow luôn đỏ. Thêm lại khi repo thành public hoặc khi có GHAS. Lớp phòng thủ
+thực sự chặn được thứ gì thì đều nằm trong danh sách trên và đều chạy được miễn phí.

@@ -68,9 +68,26 @@ Với **mỗi** package (`dlp-web`, `dlp-orchestrator`, `dlp-terminal-gateway`,
 | Dependency graph | ✅ | Điều kiện cần cho Dependabot alerts |
 | Dependabot alerts | ✅ | Cảnh báo CVE trong dependency |
 | Dependabot security updates | ✅ | Tự mở PR vá |
-| Secret scanning | ✅ | Của GitHub, **bổ sung** chứ không thay `gitleaks`: nó quét theo pattern của nhà cung cấp và có push protection |
-| Push protection | ✅ | Chặn secret **trước khi** commit lên server. `gitleaks` chỉ báo *sau* khi đã push |
-| Code scanning (CodeQL) | — | [codeql.yml](../../.github/workflows/codeql.yml) đã cấu hình. **Đừng** bật thêm CodeQL mặc định của GitHub, sẽ chạy trùng hai lần |
+| Secret scanning | nếu có | Của GitHub, **bổ sung** chứ không thay `gitleaks`. Trên repo private cần GHAS |
+| Push protection | nếu có | Chặn secret **trước khi** lên server; `gitleaks` chỉ báo *sau* khi đã push. Cùng điều kiện GHAS |
+| Code scanning / CodeQL | ✗ | **Không dùng được trên repo private nếu không có GHAS.** Xem ghi chú dưới |
+
+### Vì sao không có CodeQL và dependency review
+
+Cả hai đã được thử ở PR #2 và **đỏ ngay**:
+
+```
+Code scanning is not enabled for this repository.
+Dependency review is not supported on this repository.
+```
+
+Cả hai đòi **GitHub Advanced Security**, thứ không có trên repo private của tài
+khoản cá nhân. Chúng đã bị gỡ chứ không để lại — một workflow luôn đỏ là một
+workflow bị phớt lơ, và nó huấn luyện người ta bỏ qua màu đỏ nói chung.
+
+Thêm lại khi repo chuyển sang **public** (lúc đó cả hai miễn phí). Trong lúc đó,
+mọi cổng thật sự chặn được thứ gì đều đang chạy: `gitleaks`, `govulncheck` (có
+phân tích reachability), Dependabot alerts, Trivy (in ra log job).
 
 ## 5. Dependabot
 

@@ -377,9 +377,8 @@ jobs:
     permissions:
       contents: read
       packages: write
-      # Cho phép đẩy kết quả Trivy lên tab Security của repo.
-      security-events: write
       # build-push-action ký provenance/SBOM bằng OIDC token của run.
+      # KHÔNG có `security-events: write` — Trivy nay in ra log, không nộp SARIF.
       id-token: write
     strategy:
       fail-fast: false
@@ -448,24 +447,15 @@ jobs:
           # Quét theo DIGEST, không theo tag: tag `latest` có thể đã bị run khác
           # đẩy đè trong lúc job này chạy — digest thì trỏ đúng thứ vừa build.
           image-ref: ghcr.io/nghaiz/${{ matrix.image }}@${{ steps.build.outputs.digest }}
-          format: sarif
-          output: trivy-${{ matrix.name }}.sarif
+          # `table` ra thẳng log, KHÔNG PHẢI `sarif` + upload-sarif. Nộp SARIF
+          # đòi code scanning, thứ cần GitHub Advanced Security trên repo private
+          # — bản trước dùng SARIF và sẽ đỏ ngay lần merge đầu vào main (job này
+          # bị skip trên PR nên lỗi đó không lộ ra ở PR).
+          format: table
           # exit-code 0 = BÁO CÁO, KHÔNG CHẶN — có chủ ý, chưa phải nới lỏng vĩnh
-          # viễn. Base image thượng nguồn (node/golang/alpine/postgres) gần như
-          # luôn có CVE chưa vá; bật chặn ngay từ đầu là main đỏ vì lỗi người khác
-          # và đội ngũ học cách bỏ qua màu đỏ — tệ hơn nhiều so với không quét.
-          # Đổi thành '1' + severity CRITICAL sau khi đã xem danh sách thật ở tab
-          # Security và vá/đưa vào .trivyignore những gì cần.
+          # viễn. Base image thượng nguồn (node/golang/alpine) gần như luôn có CVE
+          # chưa vá; bật chặn ngay từ đầu là main đỏ vì lỗi người khác và đội ngũ
+          # học cách bỏ qua màu đỏ — tệ hơn nhiều so với không quét. Đổi thành '1'
+          # sau khi đã xem danh sách thật trong log và xử lý xong.
           exit-code: '0'
           severity: 'HIGH,CRITICAL'
-
-      - name: 'Đẩy kết quả Trivy lên tab Security'
-        # `always()`: bước quét ở trên có thể fail vì lý do hạ tầng (kéo image,
-        # DB vuln) — vẫn nộp phần SARIF đã có thay vì mất trắng.
-        if: always()
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
-        with:
-          sarif_file: trivy-${{ matrix.name }}.sarif
-          # category riêng cho từng image — thiếu nó thì 4 job trong matrix ghi
-          # đè kết quả của nhau và tab Security chỉ còn đúng một image.
-          category: trivy-${{ matrix.name }}
