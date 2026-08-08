@@ -190,12 +190,25 @@ export const verifications = pgTable(
   (table) => [index('verifications_identifier_idx').on(table.identifier)],
 );
 
-/** Khoá ký JWT của plugin `jwt()` — luân phiên theo `jwks.rotationInterval`. */
+/**
+ * Khoá ký JWT của plugin `jwt()` — luân phiên theo `jwks.rotationInterval`.
+ *
+ * `expires_at` NULLABLE và có mặt TỪ TRƯỚC khi rotation được bật (rủi ro R5,
+ * phase-0.md): rotation mà thiếu cột này thì khoá cũ không bao giờ hết hiệu lực
+ * — mọi khoá từng ký đều verify được mãi mãi, tức thu hồi một khoá bị lộ là bất
+ * khả. Thêm cột sau khi đã có khoá đang chạy là migration trên dữ liệu sống;
+ * thêm lúc bảng còn rỗng thì miễn phí.
+ *
+ * NULL = khoá chưa có hạn (chế độ hiện tại, rotation chưa bật). Khi bật
+ * rotation, mỗi khoá mới sinh ra PHẢI có expires_at; verifier từ chối khoá có
+ * expires_at trong quá khứ.
+ */
 export const jwks = pgTable('jwks', {
   id: text('id').primaryKey(),
   publicKey: text('public_key').notNull(),
   privateKey: text('private_key').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
 });
 
 /**

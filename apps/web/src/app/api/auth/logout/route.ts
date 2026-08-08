@@ -8,7 +8,12 @@ import { getDb } from '../../../../server/db/client';
 export const runtime = 'nodejs';
 
 const REFRESH_COOKIE = 'refresh_token';
-const ACCESS_COOKIE = 'access_token';
+
+// Cookie `access_token` KHÔNG còn được phát nữa (xem api/auth/refresh/route.ts).
+// Vẫn xoá ở đây vì trình duyệt nào đã login trước lần đổi này còn giữ một bản
+// TTL 15 phút: bỏ dòng xoá đi nghĩa là logout để lại đúng cái credential mà
+// logout tồn tại để thu hồi. Gỡ được sau khi mọi cookie cũ đã hết hạn tự nhiên.
+const LEGACY_ACCESS_COOKIE = 'access_token';
 
 /**
  * Logout đầy đủ: thu hồi refresh token (nếu trình duyệt gửi — cookie path
@@ -38,7 +43,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // delete() phải khớp path lúc set (RFC 6265): refresh cookie sống ở /api/auth,
   // delete mặc định path=/ sẽ KHÔNG trúng nó.
   response.cookies.delete({ name: REFRESH_COOKIE, path: '/api/auth' });
-  response.cookies.delete(ACCESS_COOKIE);
+  response.cookies.delete(LEGACY_ACCESS_COOKIE);
 
   // Chuyển TOÀN BỘ Set-Cookie của Better Auth (xoá session token + cookie phụ)
   // sang response thật. PHẢI append SAU các cookies.delete() ở trên: API

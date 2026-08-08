@@ -6,25 +6,45 @@ JWT ngắn hạn cho gRPC + refresh rotation. Tài liệu này là bản đồ t
 
 ## Luồng cookie/token
 
-Ba loại cookie, KHÔNG loại nào dùng chung tên/path với loại kia (cố ý — xem lý do
-dưới bảng):
+**HAI** loại cookie, KHÔNG loại nào dùng chung tên/path với loại kia (cố ý — xem
+lý do dưới bảng):
 
 | Cookie | Set ở đâu | Path | TTL | Ai đọc lại |
 |---|---|---|---|---|
 | `better-auth.session_token` (`__Secure-...` khi prod) | Better Auth, mọi endpoint `/api/auth/*` (sign-in/sign-up/OAuth) | `/` | 7 ngày (`session.expiresIn`) | middleware (chỉ kiểm **tồn tại**, không verify) + `auth.api.getSession` (tRPC context, bootstrap refresh) |
 | `refresh_token` | `POST /api/auth/refresh` (bootstrap hoặc rotate) | `/api/auth` | 7 ngày | CHỈ `POST /api/auth/refresh` và `POST /api/auth/logout` — path cố ý hẹp hơn `/` |
-| `access_token` | `POST /api/auth/refresh` (set mỗi lần) | `/` | 15 phút | **Chưa ai đọc trong apps/web.** tRPC mint token MỚI mỗi lần gọi orchestrator (`session.ts` → `callHeaders`), không lấy lại từ cookie này. Cookie set sẵn write-only cho consumer Phase 1 (`terminal-gateway`, theo `plans/.../phase-1.md` luật 8: "cookie httpOnly hoặc WS subprotocol") |
+
+### Cookie `access_token` — ĐÃ GỠ 2026-08-08 (đóng P0, rủi ro R3)
+
+Bản trước có cookie thứ ba: `access_token`, path `/`, TTL 15 phút, set lại mỗi lần
+gọi `/api/auth/refresh`, và **không consumer nào đọc**. Nó được để lại với lý do
+"chờ `terminal-gateway` ở P1 dùng". Lý do đó sai ở hai chỗ:
+
+1. **Zero consumer từ đầu, không phải "chưa tới lúc".** `trpc/routers/session.ts`
+   mint token MỚI ngay trước mỗi lần gọi orchestrator (`callHeaders`) — nó chưa
+   bao giờ đọc lại cookie. Access JWT có `aud=orchestrator`: đó là credential
+   **server-to-server** giữa BFF và Go service, không phải thứ trình duyệt cầm.
+2. **Token P1 cần là token KHÁC.** Gateway đòi `aud=gateway` **và** `sid` buộc
+   theo đúng một session, đời bằng đời session, do `session.create` phát. Một
+   cookie ambient TTL-15-phút không mang được ràng buộc đó.
+
+Nên trong lúc chờ, nó chỉ là một bearer credential nằm không trên máy user: cộng
+vào bề mặt XSS/CSRF mà không đổi lại được gì. Đã gỡ khỏi `/api/auth/refresh`;
+`/api/auth/logout` vẫn xoá nó (hằng `LEGACY_ACCESS_COOKIE`) cho tới khi mọi cookie
+cũ hết hạn tự nhiên — bỏ dòng xoá đi nghĩa là logout để lại đúng cái credential mà
+logout tồn tại để thu hồi. Thiết kế token P1: `plans/.../phase-1.md` task 12.
 
 Luồng thực tế:
 
 1. Đăng nhập (password hoặc OAuth) → Better Auth set cookie session.
 2. FE gọi `POST /api/auth/refresh` lần đầu, CHƯA có `refresh_token` → route bootstrap
-   bằng session cookie (`auth.api.getSession`), phát `refresh_token` mới + mint
-   `access_token`.
+   bằng session cookie (`auth.api.getSession`), phát `refresh_token` mới.
 3. Các lần sau, FE mang `refresh_token` gọi lại → route **xoay** (rotate) nó, không
-   cần session cookie còn sống nữa.
-4. Logout: revoke `refresh_token` trong DB, xoá cả 3 cookie, forward nguyên vẹn
-   `Set-Cookie` thật của `auth.api.signOut` (xem "bẫy đã gặp").
+   cần session cookie còn sống nữa. Route KHÔNG trả access token dưới bất kỳ hình
+   thức nào (cookie lẫn body) — xem mục dưới bảng.
+4. Logout: revoke `refresh_token` trong DB, xoá cookie session + refresh (+ cookie
+   `access_token` cũ nếu trình duyệt còn giữ), forward nguyên vẹn `Set-Cookie`
+   thật của `auth.api.signOut` (xem "bẫy đã gặp").
 
 > Vì sao tách refresh token khỏi session cookie: luật 6/7 (RFC 6819) cần một
 > nguồn sự thật DUY NHẤT cho "user còn được cấp access token hay không". Session
