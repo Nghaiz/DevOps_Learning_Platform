@@ -37,9 +37,16 @@ updates:
       # Tách dev/prod: nâng devDependency (eslint, prettier, vitest) rủi ro thấp,
       # gộp một PR merge nhanh được. Dependency runtime (next, better-auth,
       # drizzle) phải xem từng cái — chúng chạm vào đường xác thực và DB.
+      #
+      # `update-types` CHỈ minor+patch — thiếu dòng này là bài học có thật: PR #7
+      # gộp TypeScript 5→7, ESLint 9→10, vitest 3→4, @types/node 24→26 vào MỘT PR
+      # và nó đỏ ngay ("typescript-eslint does not support TS 7.0"). Một PR gộp
+      # nhiều major thì không tách ra được: hoặc merge cả cụm, hoặc bỏ cả cụm.
+      # Major giờ đi riêng từng PR để đánh giá và revert được từng cái.
       dev-dependencies:
         dependency-type: development
         patterns: ['*']
+        update-types: ['minor', 'patch']
     ignore:
       # Next major cần đọc migration guide và chạm nhiều file — nâng có kế hoạch,
       # không phải qua PR tự động lúc 3 giờ sáng.
@@ -85,5 +92,13 @@ updates:
     groups:
       base-images:
         patterns: ['*']
+    ignore:
+      # Node phải BÁM DÒNG LTS. Dependabot đề xuất `node:25-alpine` (PR #5) —
+      # bản lẻ là "Current", chỉ được hỗ trợ ~6 tháng và không bao giờ thành LTS.
+      # Đưa image production sang đó là tự chuốc một lần nâng gấp giữa kỳ. Chờ
+      # Node 26 LTS rồi nâng có kế hoạch (và nâng cùng `engines` trong
+      # package.json + `node-version` trong CI, ba chỗ phải khớp).
+      - dependency-name: 'node'
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: 'chore'
