@@ -3,9 +3,12 @@
 blank_issues_enabled: false
 
 contact_links:
+  # KHÔNG trỏ vào /security/advisories/new: đường báo riêng của GitHub chỉ hoạt
+  # động trên repo PUBLIC, còn repo này đang private ⇒ link đó chết. Trỏ vào
+  # SECURITY.md, nơi ghi kênh đang thật sự dùng được.
   - name: Lỗ hổng bảo mật
-    url: https://github.com/Nghaiz/DevOps_Learning_Platform/security/advisories/new
-    about: ĐỪNG mở issue công khai cho lỗ hổng bảo mật — báo riêng qua đây (xem SECURITY.md).
+    url: https://github.com/Nghaiz/DevOps_Learning_Platform/blob/main/.github/SECURITY.md
+    about: ĐỪNG mở issue công khai cho lỗ hổng bảo mật — đọc SECURITY.md để biết kênh báo riêng.
   - name: Kế hoạch & thiết kế
     url: https://github.com/Nghaiz/DevOps_Learning_Platform/tree/main/plans
     about: Phạm vi từng phase, quyết định đã chốt, và những gì cố ý hoãn.
