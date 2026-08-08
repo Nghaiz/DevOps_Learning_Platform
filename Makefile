@@ -65,7 +65,9 @@ test-ci: ## Test TS với env của CI (tái tạo runner khi "xanh ở local, �
 	@#         private key" ở 5 test luật 6/7. (Đã dính thật lúc dựng target này.)
 	@# Thứ cần tái tạo là DANH SÁCH BIẾN mà turbo (envMode STRICT) cho đi qua —
 	@# không phải giá trị credential.
-	set -a && eval "$$(grep -vE '^(DATABASE_URL|REDIS_URL|POSTGRES_|REDIS_|BETTER_AUTH_SECRET)' .github/ci.env | grep -E '^[A-Z]')" && set +a && pnpm turbo run test --force
+	node scripts/with-env.mjs .github/ci.env \
+	  --except '^(DATABASE_URL|REDIS_URL|POSTGRES_|REDIS_|BETTER_AUTH_SECRET)' \
+	  -- pnpm turbo run test --force
 
 build: ## Build/typecheck TS
 	pnpm turbo run build
@@ -122,31 +124,27 @@ down: ## Dừng Postgres + Redis (GIỮ named volume — data không mất)
 	docker compose down
 
 # Go KHÔNG tự nạp .env — `envx` chỉ đọc os.Getenv, và trong k8s biến đến từ
-# Secret/Deployment chứ không từ file. Nạp file ở TẦNG SHELL (`set -a` = mọi biến
-# gán sau đó tự export) thay vì thêm thư viện godotenv vào code: giữ đúng sự thật
-# "prod không đọc file .env", và không thêm dependency chỉ để tiện lúc dev.
+# Secret/Deployment chứ không từ file. Nạp bằng scripts/with-env.mjs thay vì thêm
+# godotenv vào code: giữ đúng sự thật "prod không đọc file .env", không thêm
+# dependency chỉ để tiện lúc dev.
+#
+# with-env.mjs, KHÔNG PHẢI `set -a; . ./.env`: sourcing đưa nội dung file cho
+# shell THỰC THI, nên `FOO=$(lệnh)` trong file env sẽ chạy thật. Nó cũng hiểu sai
+# giá trị có dấu cách hoặc dấu '#' — mà mật khẩu có ký tự đặc biệt là chuyện thật.
 #
 # Bản trước của target `smoke` gọi thẳng `go run ./cmd/dbsmoke` mà không nạp gì —
 # RequireDataStores() không thấy DATABASE_URL nên nó LUÔN fail, kể cả khi
 # services/orchestrator/.env đã có đủ.
-define load_env
-	@if [ ! -f $(1)/.env ]; then \
-	  echo "Thiếu $(1)/.env — chạy: cp $(1)/.env.example $(1)/.env rồi điền giá trị"; exit 1; \
-	fi
-endef
 
 run-orchestrator: ## Chạy orchestrator local (nạp services/orchestrator/.env)
-	$(call load_env,services/orchestrator)
-	cd services/orchestrator && set -a && . ./.env && set +a && go run ./cmd/orchestrator
+	cd services/orchestrator && node ../../scripts/with-env.mjs .env -- go run ./cmd/orchestrator
 
 run-gateway: ## Chạy terminal-gateway local (nạp services/terminal-gateway/.env)
-	$(call load_env,services/terminal-gateway)
-	cd services/terminal-gateway && set -a && . ./.env && set +a && go run ./cmd/terminal-gateway
+	cd services/terminal-gateway && node ../../scripts/with-env.mjs .env -- go run ./cmd/terminal-gateway
 
 smoke: ## Smoke hạ tầng dữ liệu qua CẢ hai client (TS + Go)
-	$(call load_env,services/orchestrator)
 	pnpm --filter @devops-platform/web db:smoke
-	cd services/orchestrator && set -a && . ./.env && set +a && go run ./cmd/dbsmoke
+	cd services/orchestrator && node ../../scripts/with-env.mjs .env -- go run ./cmd/dbsmoke
 
 clean: ## Xoá artifact build (KHÔNG đụng vào docker volume)
 	rm -rf node_modules .turbo **/.turbo **/dist **/node_modules

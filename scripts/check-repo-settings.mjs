@@ -19,7 +19,9 @@ const REPO = 'Nghaiz/DevOps_Learning_Platform';
 
 function gh(path) {
   try {
-    return JSON.parse(execFileSync('gh', ['api', path], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }));
+    return JSON.parse(
+      execFileSync('gh', ['api', path], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }),
+    );
   } catch {
     return null; // 404 là một câu trả lời hợp lệ (vd: alerts đang tắt)
   }
@@ -62,7 +64,12 @@ if (prot === null) {
     // bao giờ báo cáo, và PR bị chặn vĩnh viễn dù mọi job đều xanh.
     `${FIX_PROT} — tên job KHÁC ci-ok trong danh sách này sẽ chặn PR vĩnh viễn nếu job đó bị đổi tên`,
   );
-  check('require branches up to date', prot.required_status_checks?.strict === true, String(prot.required_status_checks?.strict), FIX_PROT);
+  check(
+    'require branches up to date',
+    prot.required_status_checks?.strict === true,
+    String(prot.required_status_checks?.strict),
+    FIX_PROT,
+  );
   check('bắt buộc có PR', !!prot.required_pull_request_reviews, 'không bắt buộc', FIX_PROT);
   check(
     'số approval = 0 (dự án 1 người)',
@@ -70,19 +77,53 @@ if (prot === null) {
     String(prot.required_pull_request_reviews?.required_approving_review_count),
     `${FIX_PROT} — khác 0 là tự khoá mình: không ai tự duyệt PR của mình được`,
   );
-  check('require conversation resolution', prot.required_conversation_resolution?.enabled === true, String(prot.required_conversation_resolution?.enabled), FIX_PROT);
-  check('require linear history', prot.required_linear_history?.enabled === true, String(prot.required_linear_history?.enabled), FIX_PROT);
-  check('cấm force push', prot.allow_force_pushes?.enabled === false, String(prot.allow_force_pushes?.enabled), FIX_PROT);
-  check('cấm xoá nhánh main', prot.allow_deletions?.enabled === false, String(prot.allow_deletions?.enabled), FIX_PROT);
+  check(
+    'require conversation resolution',
+    prot.required_conversation_resolution?.enabled === true,
+    String(prot.required_conversation_resolution?.enabled),
+    FIX_PROT,
+  );
+  check(
+    'require linear history',
+    prot.required_linear_history?.enabled === true,
+    String(prot.required_linear_history?.enabled),
+    FIX_PROT,
+  );
+  check(
+    'cấm force push',
+    prot.allow_force_pushes?.enabled === false,
+    String(prot.allow_force_pushes?.enabled),
+    FIX_PROT,
+  );
+  check(
+    'cấm xoá nhánh main',
+    prot.allow_deletions?.enabled === false,
+    String(prot.allow_deletions?.enabled),
+    FIX_PROT,
+  );
 }
 
 // ───────────────────────────────────────────────── cách merge
 const repo = gh(`repos/${REPO}`);
-const FIX_MERGE = 'gh api -X PATCH repos/' + REPO + ' -F allow_squash_merge=true -F allow_merge_commit=false -F allow_rebase_merge=false -F delete_branch_on_merge=true -F allow_auto_merge=true';
+const FIX_MERGE =
+  'gh api -X PATCH repos/' +
+  REPO +
+  ' -F allow_squash_merge=true -F allow_merge_commit=false -F allow_rebase_merge=false -F delete_branch_on_merge=true -F allow_auto_merge=true';
 if (repo) {
-  check('chỉ cho squash merge', repo.allow_squash_merge === true && repo.allow_merge_commit === false && repo.allow_rebase_merge === false,
-    `squash=${repo.allow_squash_merge} merge=${repo.allow_merge_commit} rebase=${repo.allow_rebase_merge}`, FIX_MERGE);
-  check('tự xoá nhánh sau merge', repo.delete_branch_on_merge === true, String(repo.delete_branch_on_merge), FIX_MERGE);
+  check(
+    'chỉ cho squash merge',
+    repo.allow_squash_merge === true &&
+      repo.allow_merge_commit === false &&
+      repo.allow_rebase_merge === false,
+    `squash=${repo.allow_squash_merge} merge=${repo.allow_merge_commit} rebase=${repo.allow_rebase_merge}`,
+    FIX_MERGE,
+  );
+  check(
+    'tự xoá nhánh sau merge',
+    repo.delete_branch_on_merge === true,
+    String(repo.delete_branch_on_merge),
+    FIX_MERGE,
+  );
   check('bật auto-merge', repo.allow_auto_merge === true, String(repo.allow_auto_merge), FIX_MERGE);
 }
 
@@ -102,18 +143,34 @@ check(
 // ───────────────────────────────────────────────── quyền Actions
 const wf = gh(`repos/${REPO}/actions/permissions/workflow`);
 if (wf) {
-  check('workflow permissions = read', wf.default_workflow_permissions === 'read', wf.default_workflow_permissions,
-    `gh api -X PUT repos/${REPO}/actions/permissions/workflow -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false`);
-  check('Actions không tự duyệt PR', wf.can_approve_pull_request_reviews === false, String(wf.can_approve_pull_request_reviews),
-    `gh api -X PUT repos/${REPO}/actions/permissions/workflow -F can_approve_pull_request_reviews=false`);
+  check(
+    'workflow permissions = read',
+    wf.default_workflow_permissions === 'read',
+    wf.default_workflow_permissions,
+    `gh api -X PUT repos/${REPO}/actions/permissions/workflow -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false`,
+  );
+  check(
+    'Actions không tự duyệt PR',
+    wf.can_approve_pull_request_reviews === false,
+    String(wf.can_approve_pull_request_reviews),
+    `gh api -X PUT repos/${REPO}/actions/permissions/workflow -F can_approve_pull_request_reviews=false`,
+  );
 }
 
 // ───────────────────────────────────────────────── Dependabot
-check('Dependabot alerts', gh(`repos/${REPO}/vulnerability-alerts`) !== null || alertsEnabled(), 'đang tắt',
-  `gh api -X PUT repos/${REPO}/vulnerability-alerts`);
+check(
+  'Dependabot alerts',
+  gh(`repos/${REPO}/vulnerability-alerts`) !== null || alertsEnabled(),
+  'đang tắt',
+  `gh api -X PUT repos/${REPO}/vulnerability-alerts`,
+);
 const fixes = gh(`repos/${REPO}/automated-security-fixes`);
-check('Dependabot security updates', fixes?.enabled === true, fixes ? String(fixes.enabled) : 'không đọc được',
-  `gh api -X PUT repos/${REPO}/automated-security-fixes`);
+check(
+  'Dependabot security updates',
+  fixes?.enabled === true,
+  fixes ? String(fixes.enabled) : 'không đọc được',
+  `gh api -X PUT repos/${REPO}/automated-security-fixes`,
+);
 
 /** Endpoint trả 204 KHÔNG có body khi bật — JSON.parse('') ném, nên gh() trả null. */
 function alertsEnabled() {
