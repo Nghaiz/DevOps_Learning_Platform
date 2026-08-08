@@ -133,3 +133,9 @@ comment giữ chỗ.
 | Test xanh ở local, đỏ trên CI | thiếu biến trong `turbo.json tasks.test.env` (envMode STRICT lột nó). Tái hiện bằng `make test-ci` |
 | Pod CrashLoop sau `helm upgrade` | Helm cấp một biến `.env.example` không khai, hoặc thiếu biến bắt buộc — `pnpm env:check` bắt cái đầu |
 | `WRONGPASS` từ Redis | `REDIS_PASSWORD` trong `.env` ≠ mật khẩu trong `REDIS_URL` |
+| `BetterAuthError: Failed to decrypt private key` | `BETTER_AUTH_SECRET` đã đổi nhưng bảng `jwks` vẫn giữ private key mã hoá bằng secret **cũ**. Hoặc trả lại secret cũ, hoặc xoá sạch hàng trong `jwks` (`psql -c 'DELETE FROM jwks;'`) để Better Auth sinh lại. Xem thêm chú thích ở target `test-ci` trong Makefile |
+
+> **`BETTER_AUTH_SECRET` không phải một biến bình thường** — nó là khoá mã hoá của
+> một thứ đã nằm trong DB. Đổi nó mà không dọn `jwks` là hỏng, và thông báo lỗi
+> không hề nhắc tới env. Đây là lý do `make test-ci` cố ý **không** nạp secret của
+> CI đè lên secret local.

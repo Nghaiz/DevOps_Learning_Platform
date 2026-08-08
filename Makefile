@@ -50,10 +50,22 @@ lint: ## Lint TS
 test: ## Test TS
 	pnpm turbo run test
 
-test-ci: ## Test TS với ĐÚNG env của CI (tái tạo runner khi "xanh ở local, đỏ ở CI")
+test-ci: ## Test TS với env của CI (tái tạo runner khi "xanh ở local, đỏ ở CI")
 	@# --force: bỏ qua cache turbo. Không có nó thì lần chạy này trả CACHED của
 	@# lần chạy với env khác và chứng minh được đúng con số không.
-	set -a && . ./.github/ci.env && set +a && pnpm turbo run test --force
+	@#
+	@# LOẠI BỎ mọi credential GẮN VỚI TRẠNG THÁI ĐÃ LƯU ở máy bạn. Runner dựng DB
+	@# mới tinh mỗi lần nên credential nào của nó cũng tự nhất quán; máy bạn thì
+	@# không, và đè lên là hỏng theo kiểu đánh lạc hướng:
+	@#   DATABASE_URL / REDIS_URL / POSTGRES_* / REDIS_*
+	@#       → Postgres đã initdb bằng mật khẩu trong .env ⇒ mọi test đụng DB đỏ 28P01.
+	@#   BETTER_AUTH_SECRET
+	@#       → Better Auth mã hoá private key JWKS trong bảng `jwks` bằng secret
+	@#         HIỆN TẠI. Đổi secret mà giữ nguyên hàng jwks cũ ⇒ "Failed to decrypt
+	@#         private key" ở 5 test luật 6/7. (Đã dính thật lúc dựng target này.)
+	@# Thứ cần tái tạo là DANH SÁCH BIẾN mà turbo (envMode STRICT) cho đi qua —
+	@# không phải giá trị credential.
+	set -a && eval "$$(grep -vE '^(DATABASE_URL|REDIS_URL|POSTGRES_|REDIS_|BETTER_AUTH_SECRET)' .github/ci.env | grep -E '^[A-Z]')" && set +a && pnpm turbo run test --force
 
 build: ## Build/typecheck TS
 	pnpm turbo run build
