@@ -1,0 +1,46 @@
+{{- if .Values.sandbox.enabled }}
+# Chặn resource-exhaustion (fork-bomb / mem-bomb / spawn hàng loạt pod) từ 1
+# sinh viên làm sập cả node 1-node (VM lab ~11Gi RAM tổng, platform hiện dùng
+# ~1.4Gi — xem ghi chú capacity trong task brief). Giá trị dưới đây là ước
+# lượng ban đầu cho cluster đích, chỉnh qua --set/values override khi có số
+# capacity thật khác.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ include "platform.fullname" . }}-sandbox-quota
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "sandbox-quota") | nindent 4 }}
+spec:
+  hard:
+    pods: {{ .Values.sandbox.quota.pods | quote }}
+    requests.cpu: {{ .Values.sandbox.quota.requestsCpu | quote }}
+    requests.memory: {{ .Values.sandbox.quota.requestsMemory | quote }}
+    limits.cpu: {{ .Values.sandbox.quota.limitsCpu | quote }}
+    limits.memory: {{ .Values.sandbox.quota.limitsMemory | quote }}
+---
+# Pod sandbox không tự khai resources (sinh viên không viết YAML, orchestrator
+# tạo pod hộ) — LimitRange ép default/defaultRequest để ResourceQuota ở trên
+# THẬT SỰ có hiệu lực: ResourceQuota có requests/limits ở scope namespace bắt
+# MỌI container phải khai resources, container thiếu sẽ bị admission reject
+# nếu không có LimitRange cấp default thay.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ include "platform.fullname" . }}-sandbox-limitrange
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "sandbox-quota") | nindent 4 }}
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: {{ .Values.sandbox.limitRange.defaultRequestCpu | quote }}
+        memory: {{ .Values.sandbox.limitRange.defaultRequestMemory | quote }}
+      default:
+        cpu: {{ .Values.sandbox.limitRange.defaultCpu | quote }}
+        memory: {{ .Values.sandbox.limitRange.defaultMemory | quote }}
+      max:
+        cpu: {{ .Values.sandbox.limitRange.maxCpu | quote }}
+        memory: {{ .Values.sandbox.limitRange.maxMemory | quote }}
+{{- end }}

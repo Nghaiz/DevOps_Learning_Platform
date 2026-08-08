@@ -1,0 +1,18 @@
+{{- if .Values.platform.priorityClassEnabled }}
+# PriorityClass CHỈ gán cho 3 Deployment nền tảng (web/orchestrator/gateway,
+# xem *-deployment.yaml) — pod sandbox sinh viên KHÔNG dùng class này, giữ
+# nguyên priority mặc định (0). Khi node cạn tài nguyên và kube-scheduler cần
+# preempt để chỗ cho pod mới, pod priority thấp hơn (sandbox) bị evict trước,
+# giữ platform sống — đây là lý do tồn tại của resource này trên VM 1-node.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ .Values.platform.priorityClassName }}
+  labels:
+    {{- include "platform.labels" . | nindent 4 }}
+value: {{ .Values.platform.priorityClassValue | int }}
+globalDefault: false
+description: >-
+  Ưu tiên cao cho 3 thành phần nền tảng (web/orchestrator/gateway) — KHÔNG
+  dùng cho pod sandbox sinh viên, pod sandbox giữ nguyên priority mặc định.
+{{- end }}

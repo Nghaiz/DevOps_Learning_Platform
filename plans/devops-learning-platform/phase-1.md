@@ -50,6 +50,20 @@ Reaper (orchestrator): quét session:{id} hết TTL / idle → delete pod + Redi
 16. `/metrics`: số WS active, exec errors, claim latency.
 
 ### 1.D Sandbox pod hardening (luật 10 — core, đầy đủ ở P3)
+
+> **Cập nhật 2026-08-08 — tầng THỰC THI chính sách đã dựng xong TRƯỚC khi P1 bắt đầu**, sau 2 audit bảo mật độc lập (bề mặt auth + hạ tầng). Lý do làm sớm: audit chỉ ra cô lập đang phụ thuộc hoàn toàn vào việc code orchestrator *nhớ* set đúng field — một bug làm rơi `runtimeClassName` là root-in-pod thành root-on-node. Nay ràng buộc nằm ở **admission**, task 17–21 dưới đây trở thành "pod spec phải TUÂN THỦ policy" chứ không còn là "nhớ mà set".
+>
+> Đã deploy thật (helm revision 4, cluster kubeadm v1.34.10) và **chứng minh bằng thực nghiệm**, không phải bằng review YAML:
+> - **`ValidatingAdmissionPolicy` `platform-sandbox-isolation`** (8 validation CEL) ép `runtimeClassName: sysbox-runc` + `hostUsers: false`, cấm `hostNetwork/hostPID/hostIPC`, `privileged`, `hostPath`. Namespace `dlp-sandbox` gắn PSA **`baseline`** enforce (KHÔNG phải `restricted` — `restricted` đòi `runAsNonRoot` nên sẽ giết chính pod Sysbox; `restricted` chỉ đặt ở mức audit/warn).
+> - Kiểm chứng 5/5: pod thiếu `runtimeClassName` → **từ chối**; thiếu `hostUsers:false` → **từ chối**; `privileged:true` → **từ chối**; mount `hostPath: /` → **từ chối**; pod Sysbox đúng chuẩn → **cho qua** (quan trọng nhất — policy không chặn oan P1).
+> - **NetworkPolicy default-deny** trong `dlp-sandbox`: pod thật đã thử và **bị chặn cả 4**: IMDS `169.254.169.254`, apiserver `10.96.0.1:443`, internet `1.1.1.1`, node/LAN `192.168.94.130`. Cờ `sandbox.allowInternetEgress` (mặc định tắt) mở internet cho bài lab cần `apt-get` **mà vẫn giữ `169.254.0.0/16` trong `egressExcept`** — dòng đó không bao giờ được bỏ.
+> - **Bằng chứng cô lập thật từ trong pod:** `id` → `uid=0(root)`, `/proc/self/uid_map` → `0 3480748032 65536`. Root-trong-pod map ra uid 3480748032 trên host. Đây là kiểu bằng chứng mà cổng P0.F còn thiếu — 3/8 check của `04-verify-sysbox.sh` là **tautology** (apply manifest rồi `kubectl get` đọc lại chính manifest đó ⇒ chỉ chứng minh API server lưu đúng, không chứng minh runtime thực thi), và check IMDS xanh chỉ vì lab VMware không có IMDS để trả lời.
+> - **RBAC tối thiểu:** SA riêng cho từng service. `orchestrator` create pod **chỉ trong `dlp-sandbox`** (trong `default` → `no`); `gateway` chỉ `pods/exec` (kiểm bằng `--subresource=exec`, cú pháp `pods/exec` cũ trả sai); `web` không quyền gì và **`automountServiceAccountToken: false`** — đã xác nhận trong pod không có `/var/run/secrets/kubernetes.io/serviceaccount`.
+> - `ResourceQuota` + `LimitRange` trong `dlp-sandbox` (một sinh viên không làm sập node đơn) và `PriorityClass dlp-platform-critical` (priority 1000000) cho 3 pod nền tảng để pod sinh viên không evict được chúng.
+> - **Rate limit tRPC per-user** (`apps/web/src/server/trpc/init.ts`): mutation 20/phút, query 120/phút, khoá theo `ctx.user.id` — chặn pod-bomb từ sinh viên đã đăng nhập hợp lệ spam `session.create`. Khoá theo user chứ không theo IP nên không dính lỗ `x-forwarded-for` giả mạo. **Còn lại:** `auth.session` là `publicProcedure` nên vẫn không có limit (chỉ đọc session, tương đương một lượt vào trang; chặn được khi có Traefik ở P3).
+>
+> **Chưa làm, dời P3 theo thoả thuận với audit:** `securityContext` đầy đủ cho 3 Deployment nền tảng, `BETTER_AUTH_SECRET` chuyển sang `secretKeyRef` (hiện đọc được qua `kubectl get deploy`), pin action CI bằng SHA, thêm gitleaks vào required check, hardening SSH lab cho khớp `cloud-init.yaml`, cột `jwks.expiresAt` (phải thêm TRƯỚC khi bật key rotation).
+
 17. Pod spec: `runtimeClassName: sysbox-runc`, **KHÔNG privileged**, `securityContext`: `allowPrivilegeEscalation:false`, **drop ALL capabilities**, `seccompProfile: RuntimeDefault`, AppArmor annotation.
 18. **KHÔNG mount `docker.sock`** (Sysbox cho docker-in-docker native, không cần host sock).
 19. **Resource limits**: CPU/mem request+limit, **PID limit** (chặn fork-bomb), + `ResourceQuota`/namespace lab.

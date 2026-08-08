@@ -39,7 +39,7 @@ Luồng thực tế:
 | 2 | CORS allowlist — không reflect origin, không credentials+wildcard | `resolveAllowedOrigin` chỉ echo origin nằm trong `CORS_ALLOWED_ORIGINS`; danh sách rỗng = fail-closed | `server/security/cors.ts`, `server/env.ts` | `rule-02-cors.test.ts` |
 | 3 | Zod strict + required, không Mongo | `.strict()` trên mọi input schema — field lạ/sai type → `BAD_REQUEST` | `server/trpc/init.ts`, mỗi router | `rule-03-strict-input.test.ts` |
 | 4 | `limit` bị **ép về** ≤100, không reject | `listInputSchema` dùng chung: `.transform(v => Math.min(v, MAX_LIST_LIMIT))` | `server/trpc/init.ts` | `rule-04-list-limit.test.ts` |
-| 5 | Rate limit + body cap | `checkRateLimit` (bucket in-memory, 120 req/60s) + `exceedsBodyLimit` (`Content-Length`, ~1MB) — chạy TRƯỚC mọi logic khác trong middleware | `middleware.ts`, `server/security/rate-limit.ts`, `body-limit.ts` | `rule-05-rate-limit-body-cap.test.ts` |
+| 5 | Rate limit + body cap | `checkRateLimit` (bucket in-memory, 120 req/60s theo IP) + `exceedsBodyLimit` (`Content-Length`, ~1MB) — chạy TRƯỚC mọi logic khác trong middleware. **P1**: thêm lớp PER-USER trong `protectedProcedure` — khoá `trpc:<type>:<userId>`, mutation 20/phút · query 120/phút, chặn pod-bomb (`session.create` spam) | `middleware.ts`, `server/security/rate-limit.ts`, `body-limit.ts`, `server/trpc/init.ts` | `rule-05-rate-limit-body-cap.test.ts`, `trpc-rate-limit-per-user.test.ts` |
 | 6 | Access JWT: `aud` per-service + TTL ≤15m | `mintAccessTokenFor` → `auth.api.signJWT`, claim `aud=orchestrator`, `exp-iat=900` | `server/auth/jwt.ts`, `server/auth/config.ts` | `rule-06-access-token.test.ts` |
 | 7 | Access token ở endpoint refresh → từ chối; refresh cũ sau rotation → từ chối | `rotateRefreshToken` = UPDATE nguyên tử (claim + revoke một câu) + `revokeDescendants` khi phát hiện replay (RFC 6819 §5.2.2.3) | `server/auth/tokens.ts`, `app/api/auth/refresh/route.ts` | `rule-07-refresh-rotation.test.ts` |
 | 8 | Token không bao giờ qua URL/query | httpOnly cookie only + grep tĩnh toàn repo tìm `searchParams.get('token')` / `?token=` | mọi route set cookie + grep test | `rule-08-no-token-in-url.test.ts` |
@@ -66,6 +66,17 @@ tồn tại trong `apps/web`.
   fallback về bucket chung `'unknown'` vì một client spam sẽ tự khoá toàn bộ user
   khác (self-DoS). Không có nguồn IP tin cậy ⇒ SKIP limit (cảnh báo log 1
   lần/process), giới hạn thật chuyển sang Traefik ở P3.
+- **Rate limit IP (middleware) và rate limit per-user (tRPC) là HAI lớp độc lập.**
+  Middleware IP SKIP hẳn khi `RATE_LIMIT_TRUST_PROXY` tắt (mục trên) — lớp
+  per-user trong `protectedProcedure` (`server/trpc/init.ts`) KHÔNG bị ảnh hưởng
+  bởi việc skip đó vì khoá theo `ctx.user.id` lấy từ session cookie Better Auth
+  thật, không đi qua XFF. Đây là phòng thủ CHÍNH chặn pod-bomb: một user đăng
+  nhập hợp lệ spam `session.create` với `userId` của chính mình (qua được luật 1)
+  vẫn bị chặn ở đây khi orchestrator P1 bắt đầu sinh pod sandbox thật. Giới hạn
+  còn lại: in-memory per-process như luật 5 gốc — nhiều pod web = nhiều bucket
+  riêng, hạn mức thật ở nhiều-instance rộng hơn con số khai báo; hướng chặt hơn là
+  Redis dùng chung (đã có `ioredis` + `packages/shared-types/src/redis-keys.ts`),
+  chưa implement (YAGNI, ngoài phạm vi hiện tại).
 - **`disableSettingJwtHeader: true`.** JWT plugin của Better Auth mặc định tự đính
   access token vào header `set-auth-jwt` của `/get-session` — tức trao token
   thẳng cho JS phía trình duyệt. Access JWT ở đây mang quyền gọi gRPC nội bộ

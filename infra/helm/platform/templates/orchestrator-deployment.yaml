@@ -15,6 +15,10 @@ spec:
       labels:
         {{- include "platform.selectorLabels" (dict "context" . "component" "orchestrator") | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "platform.fullname" . }}-orchestrator
+      {{- if .Values.platform.priorityClassEnabled }}
+      priorityClassName: {{ .Values.platform.priorityClassName }}
+      {{- end }}
       {{- with .Values.orchestrator.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

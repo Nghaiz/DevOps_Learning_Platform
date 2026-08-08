@@ -15,6 +15,14 @@ spec:
       labels:
         {{- include "platform.selectorLabels" (dict "context" . "component" "web") | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "platform.fullname" . }}-web
+      # web đứng trước internet, chỉ gọi orchestrator qua gRPC — không có lý
+      # do gì cầm token API server. Lặp lại false ở đây dù ServiceAccount
+      # (templates/rbac.yaml) đã set — 2 lớp phòng thủ.
+      automountServiceAccountToken: false
+      {{- if .Values.platform.priorityClassEnabled }}
+      priorityClassName: {{ .Values.platform.priorityClassName }}
+      {{- end }}
       {{- with .Values.web.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

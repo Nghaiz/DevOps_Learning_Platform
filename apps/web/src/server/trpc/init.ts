@@ -3,6 +3,7 @@ import type { FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch';
 import { z, ZodError } from 'zod';
 import { getAuth } from '../auth/config';
 import { getDb, type Database } from '../db/client';
+import { checkRateLimit, RATE_LIMIT_WINDOW_MS } from '../security/rate-limit';
 
 export interface AuthedUser {
   id: string;
@@ -54,18 +55,56 @@ export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;
 
 /**
+ * Rate limit PER-USER cho tRPC — chặn pod-bomb: một sinh viên ĐÃ ĐĂNG NHẬP spam
+ * `session.create` với chính `userId` của mình (qua được `assertOwnerOrAdmin` vì
+ * là chủ resource thật) không được phép cạn tài nguyên cluster ở P1 khi
+ * orchestrator bắt đầu sinh pod sandbox thật.
+ *
+ * Khác `middleware.ts` (khoá theo IP qua `x-forwarded-for`, SKIP hẳn khi
+ * `RATE_LIMIT_TRUST_PROXY` tắt vì XFF là header client tự đặt được): ở đây luôn
+ * đứng SAU middleware auth phía trên nên đã có `ctx.user.id` — danh tính thật từ
+ * session cookie Better Auth, không phụ thuộc header có thể giả mạo. Vì vậy limit
+ * này không hề bị vô hiệu bởi cùng lỗ hổng XFF khiến middleware IP phải skip.
+ *
+ * Khoá theo `(type, userId)` — CỐ Ý không thêm tên procedure vào key:
+ * create/claim/reap đều tốn tài nguyên cluster tương đương (đều gọi orchestrator
+ * thao tác pod), tách quota theo procedure sẽ cho phép cộng dồn N×limit thay vì
+ * một hạn mức thật. Mutation quota chặt hơn query — query chỉ đọc, mutation ở P1
+ * tạo pod thật.
+ *
+ * Giới hạn còn lại: in-memory per-process (dùng chung `checkRateLimit` với
+ * `middleware.ts` — SSOT, xem `server/security/rate-limit.ts`), nên nhiều pod web
+ * = mỗi pod một bucket riêng, hạn mức thật ở nhiều-instance sẽ RỘNG HƠN con số
+ * khai báo (N pod × limit). Đủ cho P0/P1 một replica; hướng đi khi cần chặt ở
+ * nhiều instance là bucket dùng chung qua Redis (đã có `ioredis` +
+ * `packages/shared-types/src/redis-keys.ts` làm SSOT namespace key) — CHƯA tự ý
+ * implement ở đây (YAGNI, ngoài phạm vi task này).
+ */
+export const TRPC_QUERY_LIMIT_PER_MIN = 120;
+export const TRPC_MUTATION_LIMIT_PER_MIN = 20;
+
+/**
  * Luật 1 — object-level authz: BẤT KỲ procedure nào thao tác trên resource của một
  * user cụ thể phải đi qua `protectedProcedure`, rồi tự so `input`'s owner field với
  * `ctx.user` (helper `assertOwnerOrAdmin` bên dưới). Middleware này chỉ đảm bảo có
  * user đăng nhập — KHÔNG tự suy ra resource nào thuộc về ai, vì input schema khác
  * nhau giữa các router.
  */
-export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
-  if (ctx.user === null) {
-    throw new TRPCError({ code: 'UNAUTHORIZED' });
-  }
-  return next({ ctx: { ...ctx, user: ctx.user } });
-});
+export const protectedProcedure = t.procedure
+  .use(({ ctx, next }) => {
+    if (ctx.user === null) {
+      throw new TRPCError({ code: 'UNAUTHORIZED' });
+    }
+    return next({ ctx: { ...ctx, user: ctx.user } });
+  })
+  .use(({ ctx, type, next }) => {
+    const maxRequests = type === 'mutation' ? TRPC_MUTATION_LIMIT_PER_MIN : TRPC_QUERY_LIMIT_PER_MIN;
+    const key = `trpc:${type}:${ctx.user.id}`;
+    if (!checkRateLimit(key, Date.now(), RATE_LIMIT_WINDOW_MS, maxRequests)) {
+      throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Quá nhiều request — thử lại sau' });
+    }
+    return next();
+  });
 
 /**
  * Luật 1 helper — gọi ngay đầu mỗi procedure có input mang `userId` của resource.

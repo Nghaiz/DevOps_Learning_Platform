@@ -1,0 +1,30 @@
+{{- if .Values.sandbox.enabled }}
+# Namespace cô lập cho pod sandbox sinh viên (P1) — tác nhân CỐ Ý ĐỐI KHÁNG,
+# có root BÊN TRONG pod. Pod Security Admission (PSA) là admission controller
+# built-in của API server (không cần cài thêm gì) — chỉ cần label namespace.
+#
+# VÌ SAO enforce=baseline CHỨ KHÔNG PHẢI restricted: profile `restricted` bắt
+# buộc `runAsNonRoot: true` ở pod/container. Nhưng root-trong-pod (uid 0 bên
+# trong, map ra uid cao trên host qua Linux user-namespace) CHÍNH LÀ lý do
+# Sysbox runtime tồn tại — set enforce=restricted sẽ khiến API server từ chối
+# MỌI pod sandbox ngay từ admission, hỏng toàn bộ tính năng. `baseline` vẫn
+# chặn phần lớn đường escape phổ biến (privileged container, hostPath,
+# hostNetwork/hostPID/hostIPC, capability nguy hiểm như SYS_ADMIN/SYS_MODULE)
+# mà không đụng tới root-trong-userns.
+#
+# audit/warn = restricted: pod nào lẽ ra restricted-compliant thì được cảnh
+# báo trong log kiểm toán / output kubectl, nhưng KHÔNG bị chặn — chỉ để quan
+# sát, không ảnh hưởng hành vi enforce.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "sandbox-namespace") | nindent 4 }}
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+{{- end }}

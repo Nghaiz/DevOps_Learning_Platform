@@ -1,0 +1,81 @@
+{{- if .Values.sandbox.enabled }}
+# ValidatingAdmissionPolicy (GA từ v1.30, xác nhận GA ở cluster v1.34 đích) —
+# ép các ràng buộc CÔ LẬP RIÊNG của nền tảng này mà PSA `baseline` không biết
+# (vd `runtimeClassName`, `hostUsers`). PSA baseline (namespace label ở
+# sandbox-namespace.yaml) và VAP ở đây CHỒNG NHAU CÓ CHỦ Ý: PSA là lưới an
+# toàn chung theo chuẩn Kubernetes upstream, VAP là hợp đồng riêng của nền
+# tảng — 2 rule hostNetwork/hostPID/hostIPC/privileged/hostPath phía dưới đã
+# bị PSA baseline chặn rồi, lặp lại ở VAP là phòng thủ theo lớp (defence in
+# depth) với message tiếng Việt rõ nghĩa hơn cho người debug.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-sandbox-isolation
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "sandbox-admission") | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  validations:
+    - expression: >-
+        has(object.spec.runtimeClassName) &&
+        object.spec.runtimeClassName == '{{ .Values.sandbox.runtimeClassName }}'
+      message: >-
+        Pod trong namespace sandbox BẮT BUỘC set spec.runtimeClassName =
+        "{{ .Values.sandbox.runtimeClassName }}" — thiếu field này nghĩa là
+        pod sẽ chạy bằng runc thường, KHÔNG có cô lập Sysbox user-namespace.
+    - expression: >-
+        has(object.spec.hostUsers) && object.spec.hostUsers == false
+      message: >-
+        Pod sandbox BẮT BUỘC set spec.hostUsers = false (bật Linux
+        user-namespace) — thiếu field này hoặc set true nghĩa là root bên
+        trong pod ánh xạ THẲNG ra root thật của node.
+    - expression: "!has(object.spec.hostNetwork) || object.spec.hostNetwork == false"
+      message: >-
+        Pod sandbox không được set hostNetwork: true (PSA baseline đã chặn —
+        rule này là lớp phòng thủ thứ hai với thông báo rõ ràng hơn).
+    - expression: "!has(object.spec.hostPID) || object.spec.hostPID == false"
+      message: "Pod sandbox không được set hostPID: true."
+    - expression: "!has(object.spec.hostIPC) || object.spec.hostIPC == false"
+      message: "Pod sandbox không được set hostIPC: true."
+    - expression: >-
+        object.spec.containers.all(c,
+          !has(c.securityContext) || !has(c.securityContext.privileged) ||
+          c.securityContext.privileged == false)
+      message: >-
+        Không container nào trong pod sandbox được set
+        securityContext.privileged: true.
+    - expression: >-
+        !has(object.spec.initContainers) ||
+        object.spec.initContainers.all(c,
+          !has(c.securityContext) || !has(c.securityContext.privileged) ||
+          c.securityContext.privileged == false)
+      message: >-
+        Không initContainer nào trong pod sandbox được set
+        securityContext.privileged: true.
+    - expression: >-
+        !has(object.spec.volumes) ||
+        object.spec.volumes.all(v, !has(v.hostPath))
+      message: >-
+        Pod sandbox không được mount volume kiểu hostPath (đường thoát trực
+        tiếp ra filesystem của node).
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ include "platform.fullname" . }}-sandbox-isolation-binding
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "sandbox-admission") | nindent 4 }}
+spec:
+  policyName: {{ include "platform.fullname" . }}-sandbox-isolation
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ .Values.sandbox.namespace }}
+{{- end }}

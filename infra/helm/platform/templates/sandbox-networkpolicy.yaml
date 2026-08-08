@@ -1,0 +1,106 @@
+{{- if .Values.sandbox.enabled }}
+---
+# 1. Default-deny toàn bộ ingress + egress trong namespace sandbox (Calico đã
+# bật NetworkPolicy enforcement trên cluster đích). Zero-trust: mọi traffic
+# khác PHẢI đi qua 1 policy allow riêng bên dưới, không có allow nào ở đây thì
+# NetworkPolicy rỗng == deny hết (đúng semantics Kubernetes NetworkPolicy).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-sandbox-default-deny
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "sandbox-networkpolicy") | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# 2. Egress DNS tới CoreDNS (kube-system) — thiếu rule này thì pod sandbox
+# không resolve được tên miền nào, kể cả khi allowInternetEgress bật ở dưới.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-sandbox-allow-egress-dns
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "sandbox-networkpolicy") | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# 3. Ingress từ gateway (release "{{ .Release.Name }}", namespace
+# {{ .Release.Namespace }}) vào pod sandbox. LƯU Ý QUAN TRỌNG: kubectl-style
+# pods/exec (dùng cho terminal streaming ở P1, xem RBAC bên dưới) đi qua
+# API server → kubelet, KHÔNG đi qua pod network trực tiếp — rule này KHÔNG
+# phải điều kiện cần để exec hoạt động hôm nay. Giữ lại có chủ đích cho hướng
+# tương lai (gateway nối trực tiếp TCP/WS vào pod sandbox thay vì qua kubelet
+# exec-proxy) — đừng xoá nghĩ là dead code, và đừng hiểu nhầm "thiếu rule này
+# thì exec hỏng" khi debug.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-sandbox-allow-ingress-gateway
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "sandbox-networkpolicy") | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              {{- include "platform.selectorLabels" (dict "context" . "component" "gateway") | nindent 14 }}
+      # Không giới hạn port: chưa có convention cố định cho port pod sandbox
+      # (tuỳ bài lab sinh viên chạy gì) — nguồn đã bị khoá chặt đúng vào pod
+      # gateway của release này, thu hẹp thêm port không tăng cô lập thật sự.
+{{- if .Values.sandbox.allowInternetEgress }}
+---
+# 4. Egress internet CÓ ĐIỀU KIỆN — CHỈ render khi allowInternetEgress=true.
+# Nhiều bài lab (kiểu KillerCoda) cần internet thật (vd apt-get) nên P1 nhiều
+# khả năng phải bật cờ này. Mặc định TẮT để buộc bật có ý thức, không phải vô
+# tình mở toang egress vì quên default-deny.
+#
+# `except` LUÔN LUÔN phải giữ 169.254.0.0/16 (link-local — trên cloud đây là
+# đường IMDS, sinh viên đọc được credential của node/VM nếu không chặn) cộng
+# CIDR pod/service/node của chính cluster này — thiếu 3 dải sau sẽ vô tình mở
+# lại đường egress "internet" này tới toàn bộ workload/API khác trong cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-sandbox-allow-egress-internet
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "sandbox-networkpolicy") | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              {{- toYaml .Values.sandbox.egressExcept | nindent 14 }}
+{{- end }}
+{{- end }}

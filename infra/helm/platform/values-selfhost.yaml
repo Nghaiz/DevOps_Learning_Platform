@@ -53,3 +53,15 @@ gateway:
     limits:
       cpu: 150m
       memory: 128Mi
+
+# VM lab chỉ ~11Gi RAM tổng — quota mặc định ở values.yaml (4Gi request /
+# 8Gi limit) để nguyên thì gần hết dư địa cho pod sandbox trên node này. Thu
+# nhỏ lại cho vừa capacity thật của VM lab; runtimeClassName/egressExcept
+# giữ nguyên default (đã đúng cho cluster này, xem VM-RESIZE-RAM.md).
+sandbox:
+  quota:
+    pods: '10'
+    requestsCpu: '2'
+    requestsMemory: '2Gi'
+    limitsCpu: '4'
+    limitsMemory: '4Gi'

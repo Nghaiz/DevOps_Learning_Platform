@@ -1,0 +1,120 @@
+{{/*
+ServiceAccount riêng cho từng thành phần nền tảng — thay cho "default" SA
+dùng chung namespace (default SA tự động automount token, không có RBAC
+riêng nghĩa là "không quyền gì nhưng vẫn cầm token xác thực được API server").
+SA được tạo Ở NAMESPACE PLATFORM ({{ .Release.Namespace }}), KHÔNG phụ thuộc
+sandbox.enabled — Deployment luôn cần 1 SA hợp lệ để tham chiếu dù namespace
+sandbox có bật hay không. Role/RoleBinding cấp quyền VÀO namespace sandbox thì
+phụ thuộc sandbox.enabled (namespace đích phải tồn tại trước khi RoleBinding
+trỏ vào đó apply được).
+*/}}
+{{- if .Values.web.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "platform.fullname" . }}-web
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "web") | nindent 4 }}
+# web đứng trước internet và chỉ gọi orchestrator qua gRPC — không có lý do
+# gì cầm token API server. automountServiceAccountToken: false ở CẢ đây LẪN
+# pod spec (web-deployment.yaml) — 2 lớp phòng thủ phòng khi 1 trong 2 bị bỏ
+# sót sau này.
+automountServiceAccountToken: false
+{{- end }}
+
+{{- if .Values.orchestrator.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "platform.fullname" . }}-orchestrator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "orchestrator") | nindent 4 }}
+{{- end }}
+
+{{- if .Values.gateway.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "platform.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "gateway") | nindent 4 }}
+{{- end }}
+
+{{- if and .Values.sandbox.enabled .Values.orchestrator.enabled }}
+---
+# Role trong namespace SANDBOX (không phải cluster-wide, không phải namespace
+# platform) — orchestrator chỉ thao tác được pod BÊN TRONG namespace sandbox,
+# không đụng gì tới namespace platform hay bất kỳ namespace nào khác.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "platform.fullname" . }}-orchestrator-sandbox
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "orchestrator") | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "platform.fullname" . }}-orchestrator-sandbox
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "orchestrator") | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "platform.fullname" . }}-orchestrator-sandbox
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "platform.fullname" . }}-orchestrator
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+
+{{- if and .Values.sandbox.enabled .Values.gateway.enabled }}
+---
+# Role cho gateway: chỉ đọc pod + pods/exec (cần cho terminal streaming ở P1,
+# xem services/terminal-gateway). KHÔNG có create/delete — gateway không tạo
+# hay huỷ pod sandbox, đó là việc của orchestrator.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "platform.fullname" . }}-gateway-sandbox
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "gateway") | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "platform.fullname" . }}-gateway-sandbox
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "gateway") | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "platform.fullname" . }}-gateway-sandbox
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "platform.fullname" . }}-gateway
+    namespace: {{ .Release.Namespace }}
+{{- end }}

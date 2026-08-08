@@ -15,6 +15,10 @@ spec:
       labels:
         {{- include "platform.selectorLabels" (dict "context" . "component" "gateway") | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "platform.fullname" . }}-gateway
+      {{- if .Values.platform.priorityClassEnabled }}
+      priorityClassName: {{ .Values.platform.priorityClassName }}
+      {{- end }}
       {{- with .Values.gateway.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

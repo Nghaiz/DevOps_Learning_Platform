@@ -116,3 +116,56 @@ gateway:
     # templates/gateway-deployment.yaml). Chưa dùng thật ở P0 — gateway chưa gọi
     # orchestrator (task 22) — nhưng khoá đúng hình dạng DNS trong-cluster từ đây.
     orchestratorGrpcAddr: ''
+
+platform:
+  # Bảo vệ 3 pod nền tảng khỏi bị kube-scheduler preempt khi node cạn tài
+  # nguyên vì pod sandbox sinh viên tràn ngập — pod sandbox giữ nguyên
+  # priority mặc định (0, không set class), platform luôn thắng khi phải
+  # chọn ai bị evict trước trên VM 1-node.
+  priorityClassEnabled: true
+  priorityClassName: dlp-platform-critical
+  priorityClassValue: 1000000
+
+# Tầng cô lập cho namespace chạy pod sandbox sinh viên (P1) — sinh viên có
+# root BÊN TRONG pod và là tác nhân CỐ Ý ĐỐI KHÁNG. Namespace này KHÁC
+# namespace platform (web/orchestrator/gateway) — orchestrator tạo pod sandbox
+# vào đây qua SANDBOX_NAMESPACE (xem orchestrator.env.sandboxNamespace ở
+# trên — PHẢI khớp giá trị sandbox.namespace dưới đây, đổi 1 chỗ mà quên chỗ
+# kia là vỡ cô lập trong im lặng).
+sandbox:
+  enabled: true
+  namespace: dlp-sandbox
+
+  # RuntimeClass Sysbox — BẮT BUỘC trên mọi pod sandbox, ép qua
+  # ValidatingAdmissionPolicy (xem templates/sandbox-admissionpolicy.yaml).
+  # Đừng bật sandbox.enabled trên cluster chưa cài RuntimeClass này trước.
+  runtimeClassName: sysbox-runc
+
+  # TẮT theo mặc định — bật có ý thức khi bài lab cần internet thật (vd
+  # apt-get). Bật KHÔNG mở IMDS/CIDR nội bộ cluster, xem egressExcept.
+  allowInternetEgress: false
+  egressExcept:
+    - '169.254.0.0/16' # link-local / IMDS cloud — KHÔNG BAO GIỜ bỏ dòng này
+    - '10.96.0.0/12' # service CIDR cluster (mặc định kubeadm)
+    - '10.244.0.0/16' # pod CIDR cluster (mặc định Calico trên cluster đích)
+    - '192.168.0.0/16' # mạng node/VM lab
+
+  # Chặn resource-exhaustion (fork-bomb / spawn hàng loạt pod) từ 1 sinh
+  # viên làm sập node. Ước lượng ban đầu cho VM lab ~11Gi RAM tổng (platform
+  # hiện dùng ~1.4Gi) — chỉnh qua --set khi có capacity thật khác.
+  quota:
+    pods: '20'
+    requestsCpu: '4'
+    requestsMemory: '4Gi'
+    limitsCpu: '8'
+    limitsMemory: '8Gi'
+
+  # Pod sandbox không tự khai resources (orchestrator tạo hộ, sinh viên không
+  # viết YAML) — LimitRange ép default để quota ở trên thật sự có hiệu lực.
+  limitRange:
+    defaultRequestCpu: '500m'
+    defaultRequestMemory: '512Mi'
+    defaultCpu: '1'
+    defaultMemory: '1Gi'
+    maxCpu: '2'
+    maxMemory: '2Gi'
