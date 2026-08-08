@@ -91,6 +91,11 @@ jobs:
       - uses: bufbuild/buf-setup-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # PIN bắt buộc — không truyền version thì action dùng DEFAULT NƯỚNG
+          # CỨNG (1.50.0, đời 2025), KHÔNG phải latest. buf 1.50 sinh session_pb.ts
+          # khác byte với buf 1.72 (máy dev + docker) → proto-check đỏ oan
+          # (run 31245094744). Cùng nguyên tắc pin 3 remote plugin trong buf.gen.yaml.
+          version: 1.72.0
 
       - name: Contract drift gate (buf generate + git status)
         run: make proto-check

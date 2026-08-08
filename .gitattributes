@@ -5,5 +5,12 @@
 *.yaml text eol=lf
 *.yml  text eol=lf
 
+# Code sinh từ proto (buf) — drift gate (make proto-check) so sánh qua git
+# status: buf trên Windows ghi CRLF, trên CI Linux ghi LF; không khoá LF thì
+# cùng một nội dung bị coi là drift chỉ vì EOL (run 31245094744 đỏ đúng vụ này).
+# Với eol=lf, git status so sánh SAU clean-filter nên khác biệt CRLF/LF vô hình.
+proto/gen/** text eol=lf
+packages/shared-types/gen/** text eol=lf
+
 # Mặc định: để git tự chuẩn hoá text, nhị phân giữ nguyên.
 * text=auto
