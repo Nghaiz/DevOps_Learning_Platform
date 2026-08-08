@@ -2,11 +2,21 @@
 
 ## Báo lỗ hổng
 
-**Đừng mở issue công khai.** Dùng
-[Private vulnerability reporting](https://github.com/Nghaiz/DevOps_Learning_Platform/security/advisories/new)
-của GitHub — báo cáo chỉ maintainer thấy cho tới khi có bản vá.
+Repo hiện **private**, nên "Private vulnerability reporting" của GitHub không
+dùng được — tính năng đó chỉ tồn tại trên repo public. Gửi email cho maintainer
+(địa chỉ trên hồ sơ GitHub [@Nghaiz](https://github.com/Nghaiz)) kèm mô tả và
+cách tái hiện.
 
-Nếu tính năng đó chưa bật, gửi email cho maintainer kèm mô tả + cách tái hiện.
+Khi repo chuyển sang public, bật đường báo riêng của GitHub bằng:
+
+```bash
+gh api -X PUT repos/Nghaiz/DevOps_Learning_Platform/private-vulnerability-reporting
+```
+
+rồi đổi mục này sang link
+`https://github.com/Nghaiz/DevOps_Learning_Platform/security/advisories/new`.
+
+Dù báo bằng đường nào: **đừng mở issue công khai** cho lỗ hổng.
 
 Xin kèm: đường đi tấn công, cách tái hiện, và tác động bạn cho là có. Một PoC
 chạy được đáng giá hơn nhiều so với suy đoán.

@@ -96,8 +96,10 @@ PORT=3000
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Cloud Console | khi cần đăng nhập Google thật | [02-google-oauth.md](02-google-oauth.md) |
 | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Azure Portal (Entra ID) | khi cần đăng nhập Microsoft thật | [03-microsoft-entra.md](03-microsoft-entra.md) |
 | Branch protection, merge, Copilot review, Dependabot | GitHub repo Settings | **đã cấu hình sẵn** — kiểm bằng `pnpm repo:check` | [04-github-repo-settings.md](04-github-repo-settings.md) |
-| Private vulnerability reporting | GitHub repo Settings | mục duy nhất còn phải bấm tay | [04-github-repo-settings.md](04-github-repo-settings.md) §5 |
 | Secret lúc deploy Helm | tự tạo trên cluster | khi deploy lên k8s | [05-helm-secrets-deploy.md](05-helm-secrets-deploy.md) |
+
+**Không còn mục nào phải bấm tay trong Settings.** Toàn bộ cấu hình repo đã áp
+dụng qua `gh api` — kiểm bằng `pnpm repo:check` (17 mục).
 
 **Placeholder OAuth chạy được.** App boot và mọi thứ trừ nút "Đăng nhập với
 Google/Microsoft" hoạt động bình thường với giá trị `placeholder-...`. Chỉ lấy

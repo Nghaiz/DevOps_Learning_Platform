@@ -441,7 +441,14 @@ jobs:
           sbom: true
           provenance: mode=max
 
-      - name: 'Trivy — quét CVE image vừa push'
+      # HAI bước Trivy, có chủ ý — một để ĐỌC, một để CHẶN.
+      #
+      # Gộp làm một thì phải chọn: `severity: CRITICAL` là mất hẳn danh sách HIGH
+      # khỏi log, còn `severity: HIGH,CRITICAL` + `exit-code: 1` là chặn cả HIGH.
+      # Mà 3 CVE HIGH còn lại do next@15.5.23 ghim (postcss, sharp) — mình KHÔNG
+      # tự vá được, nên chặn ở HIGH là main đỏ dài hạn vì lỗi thượng nguồn, và
+      # đó là cách nhanh nhất để tập cho người ta phớt lơ màu đỏ.
+      - name: 'Trivy — báo cáo HIGH + CRITICAL (không chặn)'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           # Quét theo DIGEST, không theo tag: tag `latest` có thể đã bị run khác
@@ -452,10 +459,17 @@ jobs:
           # — bản trước dùng SARIF và sẽ đỏ ngay lần merge đầu vào main (job này
           # bị skip trên PR nên lỗi đó không lộ ra ở PR).
           format: table
-          # exit-code 0 = BÁO CÁO, KHÔNG CHẶN — có chủ ý, chưa phải nới lỏng vĩnh
-          # viễn. Base image thượng nguồn (node/golang/alpine) gần như luôn có CVE
-          # chưa vá; bật chặn ngay từ đầu là main đỏ vì lỗi người khác và đội ngũ
-          # học cách bỏ qua màu đỏ — tệ hơn nhiều so với không quét. Đổi thành '1'
-          # sau khi đã xem danh sách thật trong log và xử lý xong.
           exit-code: '0'
           severity: 'HIGH,CRITICAL'
+
+      - name: 'Trivy — CỔNG CHẶN ở CRITICAL'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ghcr.io/nghaiz/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          format: table
+          exit-code: '1'
+          severity: 'CRITICAL'
+          # `ignore-unfixed: false` (mặc định) giữ nguyên: một CRITICAL chưa có
+          # bản vá vẫn là thứ phải BIẾT và quyết định có ship hay không, không
+          # phải thứ tự động bỏ qua. Cần bỏ qua một CVE cụ thể thì thêm vào
+          # .trivyignore kèm lý do và ngày rà lại — không nới cả ngưỡng.

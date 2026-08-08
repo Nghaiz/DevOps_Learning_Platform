@@ -197,13 +197,23 @@ gh api repos/Nghaiz/DevOps_Learning_Platform/actions/permissions/workflow
 | Dependabot alerts | ✅ **vừa bật** | trước đó đang tắt — cảnh báo CVE trong dependency |
 | Dependabot security updates | ✅ **vừa bật** | tự mở PR vá |
 | Dependabot version updates | ✅ | [dependabot.yml](../../.github/dependabot.yml), tự chạy khi file lên `main` |
-| Private vulnerability reporting | ⬜ **bạn cần bật** | [SECURITY.md](../../.github/SECURITY.md) trỏ vào đây; không bật thì link đó chết |
+| Private vulnerability reporting | ✗ | **chỉ có trên repo PUBLIC** — xem dưới |
 | Secret scanning / Push protection | ✗ | cần GitHub Advanced Security trên repo private |
 | Code scanning / CodeQL | ✗ | cùng điều kiện — xem dưới |
 
-Việc duy nhất còn phải bấm tay: **Settings → Advanced Security** (hoặc "Code
-security") → bật **Private vulnerability reporting**. Không có API công khai cho
-nó.
+**Không còn việc nào phải bấm tay.** Bản trước của tài liệu này bảo đi bật
+"Private vulnerability reporting" trong Settings — **sai hai lần**: tính năng đó
+chỉ tồn tại trên repo **public** (nên không có trong menu của bạn), và nó *có*
+API công khai (`PUT /repos/{owner}/{repo}/private-vulnerability-reporting`), chỉ
+là API đó trả 404 trên repo private.
+
+Hệ quả: [SECURITY.md](../../.github/SECURITY.md) không thể dùng đường báo lỗi
+riêng của GitHub khi repo còn private — nó trỏ sang email maintainer. Khi repo
+chuyển sang public thì bật bằng một lệnh:
+
+```bash
+gh api -X PUT repos/Nghaiz/DevOps_Learning_Platform/private-vulnerability-reporting
+```
 
 ### Vì sao không có CodeQL và dependency review
 
