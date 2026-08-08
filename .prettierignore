@@ -21,3 +21,10 @@ apps/web/drizzle
 # Script bootstrap host chạy trên Debian; cloud-init.yaml được cloud-init parse,
 # không phải người đọc. Không để prettier canh lại thứ nó không sở hữu.
 infra/host
+
+# Template Helm KHÔNG phải YAML: `{{- if ... }}` ở đầu file làm parser YAML của
+# prettier ném SyntaxError ("Block collections are not allowed within flow
+# collections"). Đây là lý do `pnpm format:check` đỏ trên main trước khi có dòng
+# này — nó chưa bao giờ là cổng CI nên không ai thấy. Chỉ ignore thư mục
+# templates/; values*.yaml là YAML thật và vẫn được format.
+infra/helm/platform/templates

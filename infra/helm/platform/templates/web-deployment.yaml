@@ -71,6 +71,13 @@ spec:
                   key: BETTER_AUTH_SECRET
             - name: BETTER_AUTH_URL
               value: {{ .Values.web.env.betterAuthUrl | quote }}
+            {{- with .Values.web.env.appUrl }}
+            # Origin công khai (metadataBase — canonical + Open Graph). OMIT khi
+            # rỗng: env.ts trả undefined và layout bỏ hẳn metadataBase, thay vì
+            # nướng một origin đoán bừa vào mọi thẻ og:image.
+            - name: APP_URL
+              value: {{ . | quote }}
+            {{- end }}
             - name: ORCHESTRATOR_GRPC_ADDR
               # Web (BFF) là caller gRPC DUY NHẤT ở P0 — thiếu biến này thì
               # env.ts default localhost:9090 = web pod tự gọi chính nó.

@@ -15,8 +15,9 @@
     "build": {
       "dependsOn": ["^build"],
       // NEXT_OUTPUT đổi hình dạng output (standalone hay không) — không khai ở đây
-      // thì turbo trả CACHED của lần build với giá trị env khác.
-      "env": ["NEXT_OUTPUT"],
+      // thì turbo trả CACHED của lần build với giá trị env khác. APP_URL cùng lý
+      // do: layout.tsx đọc nó ở module scope, tức lúc build sinh metadata tĩnh.
+      "env": ["NEXT_OUTPUT", "APP_URL"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "lint": {

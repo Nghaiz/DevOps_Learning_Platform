@@ -47,6 +47,10 @@ web:
     # `--set` nên không nằm lại trong shell history / `helm get values` / log CI.
     existingSecret: ''
     betterAuthUrl: 'http://localhost:3000'
+    # Origin công khai của app (metadataBase). Rỗng = biến bị omit hẳn. KHÁC
+    # betterAuthUrl về vai trò dù thường trùng giá trị: cái kia là base để dựng
+    # callback OAuth + issuer JWT, cái này chỉ là base URL của metadata trang.
+    appUrl: ''
     # Rỗng = template tự suy "<release>-orchestrator:<grpcPort>" (DNS in-cluster).
     orchestratorGrpcAddr: ''
     # '1' CHỈ khi web đứng sau proxy set x-forwarded-for đúng (Traefik — P3).
