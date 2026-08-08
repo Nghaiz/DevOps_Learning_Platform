@@ -111,18 +111,15 @@ một trong hai → nêu ra.
   `proto/gen/` → thiếu `pnpm proto`. Cổng `pnpm proto:check` bắt việc này.
 - Ngược lại: sửa tay file trong `gen/` → lần `pnpm proto` kế tiếp xoá sạch.
 - Ghim version: mọi GitHub Action ghim theo SHA, mọi plugin buf và base image
-  ghim theo tag cụ thể. `@v4`, `:latest`, `:alpine` không có tag → nêu ra.
+  ghim theo tag cụ thể. `@v4`, `:latest`, `:alpine` **đều là ref hợp lệ** —
+  vấn đề không phải "thiếu tag" mà là tag **trôi**: cùng một chuỗi trỏ sang
+  commit/image khác theo thời gian. Nêu ra khi ref không khoá version cụ thể
+  (Action không ghim SHA; image không ghim tag đầy đủ hoặc digest).
 
 ## Thư viện lỗi đã thật sự xảy ra ở đây
 
 Mấy lớp lỗi này đã lọt vào PR của repo này rồi. Soi lại chúng khi diff chạm vùng
 tương ứng.
-
-**Directive `go` nhận sai patch version.** `go 1.26.5` trong `go.mod`/`go.work`
-không hợp lệ — directive `go` chỉ nhận `1.26` hoặc `1.26.0`; ghim patch phải
-dùng `toolchain go1.26.5`. Kiểm **mọi** file `go.mod` trong diff, không chỉ file
-đầu tiên: repo này có 4 module (`services/orchestrator`, `services/terminal-gateway`,
-`services/shared`, `proto/gen/go`) cộng `go.work`.
 
 **`eval` nạp file env.** `eval "$(cat file)"` hoặc `eval $(grep ... file)` thực
 thi command substitution và backtick nằm trong *giá trị*. File env có thể bị sửa
@@ -144,6 +141,27 @@ runtime. Khi diff thu hẹp bề mặt tấn công, kiểm cả họ công cụ 
 
 **Chèn đoạn văn giữa các hàng bảng Markdown.** Bảng bị tách thành hai bảng, bảng
 sau không có header. Giữ mọi hàng liền nhau, đoạn văn xuống dưới.
+
+## Báo nhầm đã xảy ra — đừng lặp lại
+
+**Directive `go` với patch version là HỢP LỆ.** Đã có comment review báo
+`go 1.26.5` trong `go.mod`/`go.work` là sai cú pháp và bắt đổi sang `go 1.26` +
+`toolchain go1.26.5`. **Đó là báo nhầm.** Từ Go 1.21, directive `go` nhận cả
+dạng `1.N` lẫn `1.N.P`. Bằng chứng trong chính repo này: cả 5 file (`go.work`,
+`services/orchestrator`, `services/shared`, `services/terminal-gateway`,
+`proto/gen/go`) đều dùng `go 1.26.5` không kèm `toolchain`, và `go list -m` +
+`go vet ./...` đều exit 0, job Go trên CI xanh.
+
+Đừng nêu lại. `toolchain` là thứ khác — nó ghim **bản toolchain đi tải về**, chứ
+không phải cách viết patch version cho directive `go`.
+
+Phần duy nhất còn đúng của comment đó: khi diff **thật sự** đổi version Go, kiểm
+**mọi** file `go.mod`, không chỉ file đầu tiên — repo này có 4 module cộng
+`go.work`, và lệch version giữa chúng mới là lỗi thật.
+
+> Bài học tổng quát: trước khi báo một cú pháp là không hợp lệ, kiểm xem repo
+> có đang chạy được với chính cú pháp đó không. CI xanh trên `main` là bằng
+> chứng mạnh hơn trí nhớ về cú pháp.
 
 ## Đừng nêu mấy thứ này
 
