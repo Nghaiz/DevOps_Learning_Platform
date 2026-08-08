@@ -1,6 +1,6 @@
 module github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway
 
-go 1.25.0
+go 1.26.5
 
 // go.work đủ cho `go build`, nhưng `go mod tidy` bỏ qua workspace và sẽ đi hỏi
 // proxy tìm module chưa publish. replace giữ module này build được độc lập —

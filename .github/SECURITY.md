@@ -54,7 +54,7 @@ chưa có bản release nào được đánh dấu là dùng cho production.
 
 - `gitleaks` quét mọi commit và mọi PR (cổng chặn merge)
 - CodeQL (`security-and-quality`) chạy trên PR và theo lịch tuần
-- `govulncheck` đối chiếu dependency Go với reachability trên mọi PR
-- Dependency review chặn PR kéo vào CVE mức cao
+- `govulncheck` đối chiếu dependency Go với reachability trên mọi PR — **cổng chặn merge**
+- Dependabot alerts + PR nâng version hằng tuần (github-actions, npm, gomod, docker)
 - Trivy quét CVE mọi image container (báo cáo lên tab Security)
 - SBOM + provenance SLSA đính kèm mọi image đã publish

@@ -312,31 +312,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ────────────────────────────────────────────────────── dependency review (PR)
-  dependency-review:
-    name: Dependency review
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
-        with:
-          # Chặn ngay tại review khi PR kéo vào dependency dính CVE mức cao —
-          # rẻ hơn nhiều so với phát hiện sau khi đã merge và release.
-          fail-on-severity: high
-          comment-summary-in-pr: on-failure
-
+  # KHÔNG có job `dependency-review`. Bản đầu có, và nó đỏ ngay lần chạy đầu:
+  # "Dependency review is not supported on this repository." Action đó cần
+  # GitHub Advanced Security khi repo là PRIVATE (repo này private) — GHAS là
+  # tính năng trả phí. Giữ lại chỉ tạo một job đỏ vĩnh viễn, và một cổng luôn đỏ
+  # là cổng bị bỏ qua. Phần lớn giá trị của nó đã có ở nơi khác: Dependabot
+  # alerts (cảnh báo CVE trong dependency) + govulncheck (Go, có reachability) +
+  # Trivy (image). Khi nào repo thành public thì thêm lại.
+  #
   # ─────────────────────────────────────────────── cổng tổng hợp (required check)
   ci-ok:
     name: ci-ok
     # `always()` để job vẫn chạy KHI CÓ need thất bại/bị skip — nếu không, nó bị
     # skip theo và branch protection thấy một check "chưa chạy", treo PR mãi mãi.
     if: always()
-    needs: [proto, ts, go, infra, secret-scan, dependency-review]
+    needs: [proto, ts, go, infra, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -345,8 +335,11 @@ jobs:
         # xanh và cổng tổng hợp trở thành cổng giả — tệ hơn không có cổng, vì
         # nhìn thì tưởng có.
         #
-        # 'skipped' được CHẤP NHẬN: dependency-review cố ý không chạy trên push.
-        # 'failure' và 'cancelled' thì không.
+        # 'skipped' được CHẤP NHẬN vì một job có `if:` không khớp là ý đồ, không
+        # phải lỗi. ĐÁNH ĐỔI đã biết: một job bị skip NGOÀI Ý MUỐN (vd điều kiện
+        # `if` viết sai) sẽ lọt qua cổng này. Đổi lấy việc không phải sửa danh
+        # sách needs mỗi lần thêm một job chạy có điều kiện.
+        # 'failure' và 'cancelled' thì không bao giờ được chấp nhận.
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
