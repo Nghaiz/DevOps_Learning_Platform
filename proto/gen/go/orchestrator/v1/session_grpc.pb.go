@@ -26,6 +26,7 @@ const (
 	SessionService_CreateSession_FullMethodName = "/orchestrator.v1.SessionService/CreateSession"
 	SessionService_ClaimSession_FullMethodName  = "/orchestrator.v1.SessionService/ClaimSession"
 	SessionService_GetSession_FullMethodName    = "/orchestrator.v1.SessionService/GetSession"
+	SessionService_ExtendSession_FullMethodName = "/orchestrator.v1.SessionService/ExtendSession"
 	SessionService_ReapSession_FullMethodName   = "/orchestrator.v1.SessionService/ReapSession"
 )
 
@@ -36,6 +37,7 @@ type SessionServiceClient interface {
 	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
 	ClaimSession(ctx context.Context, in *ClaimSessionRequest, opts ...grpc.CallOption) (*ClaimSessionResponse, error)
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
+	ExtendSession(ctx context.Context, in *ExtendSessionRequest, opts ...grpc.CallOption) (*ExtendSessionResponse, error)
 	ReapSession(ctx context.Context, in *ReapSessionRequest, opts ...grpc.CallOption) (*ReapSessionResponse, error)
 }
 
@@ -77,6 +79,16 @@ func (c *sessionServiceClient) GetSession(ctx context.Context, in *GetSessionReq
 	return out, nil
 }
 
+func (c *sessionServiceClient) ExtendSession(ctx context.Context, in *ExtendSessionRequest, opts ...grpc.CallOption) (*ExtendSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExtendSessionResponse)
+	err := c.cc.Invoke(ctx, SessionService_ExtendSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *sessionServiceClient) ReapSession(ctx context.Context, in *ReapSessionRequest, opts ...grpc.CallOption) (*ReapSessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReapSessionResponse)
@@ -94,6 +106,7 @@ type SessionServiceServer interface {
 	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
 	ClaimSession(context.Context, *ClaimSessionRequest) (*ClaimSessionResponse, error)
 	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
+	ExtendSession(context.Context, *ExtendSessionRequest) (*ExtendSessionResponse, error)
 	ReapSession(context.Context, *ReapSessionRequest) (*ReapSessionResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
 }
@@ -113,6 +126,9 @@ func (UnimplementedSessionServiceServer) ClaimSession(context.Context, *ClaimSes
 }
 func (UnimplementedSessionServiceServer) GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSession not implemented")
+}
+func (UnimplementedSessionServiceServer) ExtendSession(context.Context, *ExtendSessionRequest) (*ExtendSessionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExtendSession not implemented")
 }
 func (UnimplementedSessionServiceServer) ReapSession(context.Context, *ReapSessionRequest) (*ReapSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReapSession not implemented")
@@ -192,6 +208,24 @@ func _SessionService_GetSession_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_ExtendSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExtendSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).ExtendSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_ExtendSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).ExtendSession(ctx, req.(*ExtendSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SessionService_ReapSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReapSessionRequest)
 	if err := dec(in); err != nil {
@@ -228,6 +262,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSession",
 			Handler:    _SessionService_GetSession_Handler,
+		},
+		{
+			MethodName: "ExtendSession",
+			Handler:    _SessionService_ExtendSession_Handler,
 		},
 		{
 			MethodName: "ReapSession",

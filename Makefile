@@ -1,7 +1,7 @@
 # Makefile cho Linux/macOS và CI. Trên Windows (không có GNU make) dùng bản
 # tương đương qua pnpm: `pnpm proto`, `pnpm proto:check`, `pnpm lint`, ...
 
-.PHONY: help proto proto-lint proto-check install lint test build go-lint go-vet go-test go-build up down smoke clean
+.PHONY: help proto proto-lint proto-check proto-breaking install lint test build go-lint go-vet go-test go-build up down smoke clean
 
 help: ## Liệt kê target
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -26,6 +26,18 @@ proto-check: proto ## Drift gate — fail nếu generated khác committed
 	  git diff --stat -- proto packages/shared-types/gen; \
 	  echo ""; echo "Chạy 'make proto' rồi commit kết quả."; exit 1; \
 	fi
+
+# Baseline cho breaking-check. Mặc định là nhánh main — đúng cho máy dev và cho
+# PR. CI khi push THẲNG lên main phải đè bằng BUF_BREAKING_AGAINST='.git#ref=HEAD~1'
+# (so với main lúc đang Ở TRÊN main là tự so với chính mình = luôn xanh = cổng giả).
+BUF_BREAKING_AGAINST ?= .git#branch=main
+
+proto-breaking: ## Cổng chống breaking change của contract (so với baseline)
+	@# buf.yaml khai `breaking: use: FILE` từ đầu P0 nhưng KHÔNG lệnh nào chạy nó
+	@# — contract SSOT mà không có breaking-check là contract chỉ có trên giấy.
+	@# P1 là phase mở rộng proto (thêm field pool/tier), nên cổng phải sống TRƯỚC
+	@# lúc đó chứ không phải sau.
+	buf breaking --against '$(BUF_BREAKING_AGAINST)'
 
 ## ---------- TypeScript ----------
 

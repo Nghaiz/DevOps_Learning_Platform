@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file orchestrator/v1/session.proto.
  */
 export const file_orchestrator_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxIocCCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXISLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAigQEKFENyZWF0ZVNlc3Npb25SZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSKgoEdGllchgCIAEoDjIcLm9yY2hlc3RyYXRvci52MS5TYW5kYm94VGllchITCgt0dGxfc2Vjb25kcxgDIAEoBRIXCg9pZGVtcG90ZW5jeV9rZXkYBCABKAkiQgoVQ3JlYXRlU2Vzc2lvblJlc3BvbnNlEikKB3Nlc3Npb24YASABKAsyGC5vcmNoZXN0cmF0b3IudjEuU2Vzc2lvbiI6ChNDbGFpbVNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSJBChRDbGFpbVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOAoRR2V0U2Vzc2lvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIPCgd1c2VyX2lkGAIgASgJIj8KEkdldFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24icAoSUmVhcFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDgoGcmVhc29uGAIgASgJEhEKB3VzZXJfaWQYAyABKAlIABIaChBzeXN0ZW1fY29tcG9uZW50GAQgASgJSABCBwoFYWN0b3IiQAoTUmVhcFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24qdAoLU2FuZGJveFRpZXISHAoYU0FOREJPWF9USUVSX1VOU1BFQ0lGSUVEEAASFwoTU0FOREJPWF9USUVSX1NZU0JPWBABEhcKE1NBTkRCT1hfVElFUl9HVklTT1IQAhIVChFTQU5EQk9YX1RJRVJfS0FUQRADKu4BCg1TZXNzaW9uU3RhdHVzEh4KGlNFU1NJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWU0VTU0lPTl9TVEFUVVNfUEVORElORxABEhcKE1NFU1NJT05fU1RBVFVTX1dBUk0QAhIaChZTRVNTSU9OX1NUQVRVU19DTEFJTUVEEAMSGgoWU0VTU0lPTl9TVEFUVVNfUlVOTklORxAEEhoKFlNFU1NJT05fU1RBVFVTX0VYUElSRUQQBRIZChVTRVNTSU9OX1NUQVRVU19SRUFQRUQQBhIZChVTRVNTSU9OX1NUQVRVU19GQUlMRUQQBzL+AgoOU2Vzc2lvblNlcnZpY2USXgoNQ3JlYXRlU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVzcG9uc2USWwoMQ2xhaW1TZXNzaW9uEiQub3JjaGVzdHJhdG9yLnYxLkNsYWltU2Vzc2lvblJlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVzcG9uc2USVQoKR2V0U2Vzc2lvbhIiLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVxdWVzdBojLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVzcG9uc2USWAoLUmVhcFNlc3Npb24SIy5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLlJlYXBTZXNzaW9uUmVzcG9uc2VCWFpWZ2l0aHViLmNvbS9OZ2hhaXovRGV2T3BzX0xlYXJuaW5nX1BsYXRmb3JtL3Byb3RvL2dlbi9nby9vcmNoZXN0cmF0b3IvdjE7b3JjaGVzdHJhdG9ydjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxIpkCCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXISLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIcmV2aXNpb24YCSABKAMigQEKFENyZWF0ZVNlc3Npb25SZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSKgoEdGllchgCIAEoDjIcLm9yY2hlc3RyYXRvci52MS5TYW5kYm94VGllchITCgt0dGxfc2Vjb25kcxgDIAEoBRIXCg9pZGVtcG90ZW5jeV9rZXkYBCABKAkiQgoVQ3JlYXRlU2Vzc2lvblJlc3BvbnNlEikKB3Nlc3Npb24YASABKAsyGC5vcmNoZXN0cmF0b3IudjEuU2Vzc2lvbiI6ChNDbGFpbVNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSJBChRDbGFpbVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOAoRR2V0U2Vzc2lvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIPCgd1c2VyX2lkGAIgASgJIj8KEkdldFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24icAoSUmVhcFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDgoGcmVhc29uGAIgASgJEhEKB3VzZXJfaWQYAyABKAlIABIaChBzeXN0ZW1fY29tcG9uZW50GAQgASgJSABCBwoFYWN0b3IiQAoTUmVhcFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24ibgoURXh0ZW5kU2Vzc2lvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIPCgd1c2VyX2lkGAIgASgJEhYKDmV4dGVuZF9zZWNvbmRzGAMgASgFEhkKEWV4cGVjdGVkX3JldmlzaW9uGAQgASgDIlwKFUV4dGVuZFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24SGAoQaGFyZF9jYXBfcmVhY2hlZBgCIAEoCCp0CgtTYW5kYm94VGllchIcChhTQU5EQk9YX1RJRVJfVU5TUEVDSUZJRUQQABIXChNTQU5EQk9YX1RJRVJfU1lTQk9YEAESFwoTU0FOREJPWF9USUVSX0dWSVNPUhACEhUKEVNBTkRCT1hfVElFUl9LQVRBEAMq7gEKDVNlc3Npb25TdGF0dXMSHgoaU0VTU0lPTl9TVEFUVVNfVU5TUEVDSUZJRUQQABIaChZTRVNTSU9OX1NUQVRVU19QRU5ESU5HEAESFwoTU0VTU0lPTl9TVEFUVVNfV0FSTRACEhoKFlNFU1NJT05fU1RBVFVTX0NMQUlNRUQQAxIaChZTRVNTSU9OX1NUQVRVU19SVU5OSU5HEAQSGgoWU0VTU0lPTl9TVEFUVVNfRVhQSVJFRBAFEhkKFVNFU1NJT05fU1RBVFVTX1JFQVBFRBAGEhkKFVNFU1NJT05fU1RBVFVTX0ZBSUxFRBAHMt4DCg5TZXNzaW9uU2VydmljZRJeCg1DcmVhdGVTZXNzaW9uEiUub3JjaGVzdHJhdG9yLnYxLkNyZWF0ZVNlc3Npb25SZXF1ZXN0GiYub3JjaGVzdHJhdG9yLnYxLkNyZWF0ZVNlc3Npb25SZXNwb25zZRJbCgxDbGFpbVNlc3Npb24SJC5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVxdWVzdBolLm9yY2hlc3RyYXRvci52MS5DbGFpbVNlc3Npb25SZXNwb25zZRJVCgpHZXRTZXNzaW9uEiIub3JjaGVzdHJhdG9yLnYxLkdldFNlc3Npb25SZXF1ZXN0GiMub3JjaGVzdHJhdG9yLnYxLkdldFNlc3Npb25SZXNwb25zZRJeCg1FeHRlbmRTZXNzaW9uEiUub3JjaGVzdHJhdG9yLnYxLkV4dGVuZFNlc3Npb25SZXF1ZXN0GiYub3JjaGVzdHJhdG9yLnYxLkV4dGVuZFNlc3Npb25SZXNwb25zZRJYCgtSZWFwU2Vzc2lvbhIjLm9yY2hlc3RyYXRvci52MS5SZWFwU2Vzc2lvblJlcXVlc3QaJC5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXNwb25zZUJYWlZnaXRodWIuY29tL05naGFpei9EZXZPcHNfTGVhcm5pbmdfUGxhdGZvcm0vcHJvdG8vZ2VuL2dvL29yY2hlc3RyYXRvci92MTtvcmNoZXN0cmF0b3J2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * Session là trạng thái quyền uy của một pod lab.
@@ -69,6 +69,21 @@ export type Session = Message<"orchestrator.v1.Session"> & {
    * @generated from field: google.protobuf.Timestamp created_at = 8;
    */
   createdAt?: Timestamp | undefined;
+
+  /**
+   * Bộ đếm tăng đơn điệu, +1 mỗi lần server ghi session. Dùng cho optimistic
+   * locking: mọi cập nhật trên một session đang chạy là read-modify-write từ
+   * MỘT tiến trình KHÁC với tiến trình đã tạo nó (gateway gia hạn TTL trong khi
+   * reaper của orchestrator có thể đang reap cùng session). Không có revision
+   * thì cập nhật cuối thắng một cách im lặng — gateway có thể hồi sinh một
+   * session vừa bị reap.
+   *
+   * Server-side là INCR của Redis trên chính hash session, đọc ra cùng lượt với
+   * các field khác nên không phải derived field.
+   *
+   * @generated from field: int64 revision = 9;
+   */
+  revision: bigint;
 };
 
 /**
@@ -291,6 +306,90 @@ export const ReapSessionResponseSchema: GenMessage<ReapSessionResponse> = /*@__P
   messageDesc(file_orchestrator_v1_session, 8);
 
 /**
+ * ExtendSession đẩy idle-deadline của một session đang chạy về phía trước.
+ *
+ * TỒN TẠI ĐỂ GIỮ CONTRACT KÍN. terminal-gateway phải báo "phiên này còn người
+ * dùng" cho reaper, nếu không learner đang gõ lệnh ở phút 59 sẽ bị reap giữa
+ * chừng. Không có RPC này thì việc gia hạn buộc phải chui qua đường WS hoặc ghi
+ * thẳng Redis từ gateway — cả hai đều là kênh thứ hai giữa Next/gateway và
+ * orchestrator mà contract không mô tả, đúng thứ file này tồn tại để chặn.
+ *
+ * HAI ĐỒNG HỒ, KHÔNG PHẢI MỘT:
+ *   - idle deadline — gia hạn được, mỗi lần WS còn traffic.
+ *   - hard cap (tính từ created_at, cấu hình phía server) — KHÔNG gia hạn được.
+ * Server ép `expires_at` mới = min(now + extend_seconds, created_at + hard_cap).
+ * Vì thế RPC này KHÔNG BAO GIỜ là đường giữ pod sống vĩnh viễn: một client bị
+ * chiếm quyền spam heartbeat cũng chỉ giữ được tới trần cứng.
+ *
+ * @generated from message orchestrator.v1.ExtendSessionRequest
+ */
+export type ExtendSessionRequest = Message<"orchestrator.v1.ExtendSessionRequest"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * Bắt buộc — object-level authz (luật 1), y như GetSession/ClaimSession.
+   * Gateway điền từ `sub` của token đã verify, KHÔNG lấy từ input client.
+   *
+   * @generated from field: string user_id = 2;
+   */
+  userId: string;
+
+  /**
+   * Số giây muốn đẩy thêm kể từ NOW. 0 = dùng idle-window mặc định của server.
+   * Âm → InvalidArgument.
+   *
+   * @generated from field: int32 extend_seconds = 3;
+   */
+  extendSeconds: number;
+
+  /**
+   * Revision client tin là mình đang thấy (Session.revision). 0 = bỏ qua kiểm.
+   * Khác revision hiện tại → FailedPrecondition, client đọc lại rồi thử lại.
+   * Đây là thứ chặn gateway hồi sinh một session mà reaper vừa chuyển sang
+   * EXPIRED giữa lúc gateway đang đọc-rồi-ghi.
+   *
+   * @generated from field: int64 expected_revision = 4;
+   */
+  expectedRevision: bigint;
+};
+
+/**
+ * Describes the message orchestrator.v1.ExtendSessionRequest.
+ * Use `create(ExtendSessionRequestSchema)` to create a new message.
+ */
+export const ExtendSessionRequestSchema: GenMessage<ExtendSessionRequest> = /*@__PURE__*/
+  messageDesc(file_orchestrator_v1_session, 9);
+
+/**
+ * @generated from message orchestrator.v1.ExtendSessionResponse
+ */
+export type ExtendSessionResponse = Message<"orchestrator.v1.ExtendSessionResponse"> & {
+  /**
+   * @generated from field: orchestrator.v1.Session session = 1;
+   */
+  session?: Session | undefined;
+
+  /**
+   * true khi expires_at đã bị hard cap cắt, tức lần gia hạn sau sẽ không đẩy
+   * thêm được nữa. Cho FE báo trước "phiên sắp hết hạn" thay vì để terminal
+   * chết đột ngột.
+   *
+   * @generated from field: bool hard_cap_reached = 2;
+   */
+  hardCapReached: boolean;
+};
+
+/**
+ * Describes the message orchestrator.v1.ExtendSessionResponse.
+ * Use `create(ExtendSessionResponseSchema)` to create a new message.
+ */
+export const ExtendSessionResponseSchema: GenMessage<ExtendSessionResponse> = /*@__PURE__*/
+  messageDesc(file_orchestrator_v1_session, 10);
+
+/**
  * SandboxTier chọn mức cô lập của pod lab (design §5).
  * Tier1 = Sysbox (unprivileged user-ns). Tier2 = gVisor/Kata cho lab CTF.
  *
@@ -409,6 +508,14 @@ export const SessionService: GenService<{
     methodKind: "unary";
     input: typeof GetSessionRequestSchema;
     output: typeof GetSessionResponseSchema;
+  },
+  /**
+   * @generated from rpc orchestrator.v1.SessionService.ExtendSession
+   */
+  extendSession: {
+    methodKind: "unary";
+    input: typeof ExtendSessionRequestSchema;
+    output: typeof ExtendSessionResponseSchema;
   },
   /**
    * @generated from rpc orchestrator.v1.SessionService.ReapSession

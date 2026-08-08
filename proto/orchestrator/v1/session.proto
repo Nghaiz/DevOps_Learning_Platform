@@ -49,6 +49,17 @@ message Session {
   google.protobuf.Timestamp expires_at = 6;
   SandboxTier tier = 7;
   google.protobuf.Timestamp created_at = 8;
+
+  // Bộ đếm tăng đơn điệu, +1 mỗi lần server ghi session. Dùng cho optimistic
+  // locking: mọi cập nhật trên một session đang chạy là read-modify-write từ
+  // MỘT tiến trình KHÁC với tiến trình đã tạo nó (gateway gia hạn TTL trong khi
+  // reaper của orchestrator có thể đang reap cùng session). Không có revision
+  // thì cập nhật cuối thắng một cách im lặng — gateway có thể hồi sinh một
+  // session vừa bị reap.
+  //
+  // Server-side là INCR của Redis trên chính hash session, đọc ra cùng lượt với
+  // các field khác nên không phải derived field.
+  int64 revision = 9;
 }
 
 message CreateSessionRequest {
@@ -115,9 +126,47 @@ message ReapSessionResponse {
   Session session = 1;
 }
 
+// ExtendSession đẩy idle-deadline của một session đang chạy về phía trước.
+//
+// TỒN TẠI ĐỂ GIỮ CONTRACT KÍN. terminal-gateway phải báo "phiên này còn người
+// dùng" cho reaper, nếu không learner đang gõ lệnh ở phút 59 sẽ bị reap giữa
+// chừng. Không có RPC này thì việc gia hạn buộc phải chui qua đường WS hoặc ghi
+// thẳng Redis từ gateway — cả hai đều là kênh thứ hai giữa Next/gateway và
+// orchestrator mà contract không mô tả, đúng thứ file này tồn tại để chặn.
+//
+// HAI ĐỒNG HỒ, KHÔNG PHẢI MỘT:
+//   - idle deadline — gia hạn được, mỗi lần WS còn traffic.
+//   - hard cap (tính từ created_at, cấu hình phía server) — KHÔNG gia hạn được.
+// Server ép `expires_at` mới = min(now + extend_seconds, created_at + hard_cap).
+// Vì thế RPC này KHÔNG BAO GIỜ là đường giữ pod sống vĩnh viễn: một client bị
+// chiếm quyền spam heartbeat cũng chỉ giữ được tới trần cứng.
+message ExtendSessionRequest {
+  string session_id = 1;
+  // Bắt buộc — object-level authz (luật 1), y như GetSession/ClaimSession.
+  // Gateway điền từ `sub` của token đã verify, KHÔNG lấy từ input client.
+  string user_id = 2;
+  // Số giây muốn đẩy thêm kể từ NOW. 0 = dùng idle-window mặc định của server.
+  // Âm → InvalidArgument.
+  int32 extend_seconds = 3;
+  // Revision client tin là mình đang thấy (Session.revision). 0 = bỏ qua kiểm.
+  // Khác revision hiện tại → FailedPrecondition, client đọc lại rồi thử lại.
+  // Đây là thứ chặn gateway hồi sinh một session mà reaper vừa chuyển sang
+  // EXPIRED giữa lúc gateway đang đọc-rồi-ghi.
+  int64 expected_revision = 4;
+}
+
+message ExtendSessionResponse {
+  Session session = 1;
+  // true khi expires_at đã bị hard cap cắt, tức lần gia hạn sau sẽ không đẩy
+  // thêm được nữa. Cho FE báo trước "phiên sắp hết hạn" thay vì để terminal
+  // chết đột ngột.
+  bool hard_cap_reached = 2;
+}
+
 service SessionService {
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
   rpc ClaimSession(ClaimSessionRequest) returns (ClaimSessionResponse);
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc ExtendSession(ExtendSessionRequest) returns (ExtendSessionResponse);
   rpc ReapSession(ReapSessionRequest) returns (ReapSessionResponse);
 }

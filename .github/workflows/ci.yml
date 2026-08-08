@@ -57,6 +57,11 @@ jobs:
       # dưới để giữ đúng "redis:7-alpine --requirepass" như pin trong brief.
     steps:
       - uses: actions/checkout@v7
+        with:
+          # fetch-depth: 0 cho `make proto-breaking` — baseline của buf là một
+          # git ref (`.git#branch=main` / `.git#ref=HEAD~1`), shallow clone mặc
+          # định (depth 1) không có ref đó nên buf fail bằng lỗi git khó hiểu.
+          fetch-depth: 0
 
       - name: 'Start Redis (requirepass — services: không cho đặt CMD)'
         run: |
@@ -99,6 +104,17 @@ jobs:
 
       - name: Contract drift gate (buf generate + git status)
         run: make proto-check
+
+      - name: Contract breaking gate (buf breaking)
+        # Baseline khác nhau theo sự kiện, KHÔNG dùng chung một giá trị:
+        #   - pull_request: so với main → bắt mọi breaking change của cả nhánh.
+        #   - push lên main: so với main = tự so với chính mình ⇒ LUÔN xanh, cổng
+        #     giả. Dùng HEAD~1 để vẫn bắt được commit push thẳng (branch
+        #     protection để enforce_admins:false nên owner push thẳng được).
+        env:
+          BUF_BREAKING_AGAINST: >-
+            ${{ github.event_name == 'pull_request' && '.git#branch=main' || '.git#ref=HEAD~1' }}
+        run: make proto-breaking
 
       - name: DB migrate (Drizzle)
         run: pnpm --filter @devops-platform/web db:migrate
