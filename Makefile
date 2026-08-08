@@ -21,6 +21,9 @@ proto-check: proto ## Drift gate — fail nếu generated khác committed
 	@out="$$(git status --porcelain -- proto packages/shared-types/gen)"; \
 	if [ -n "$$out" ]; then \
 	  echo ""; echo "ERROR: code sinh ra khác bản đã commit:"; echo "$$out"; \
+	  echo ""; echo "--- diff (100 dòng đầu — để CI khai đúng CÁI GÌ drift, không phải chỉ file nào):"; \
+	  git diff -- proto packages/shared-types/gen | head -100; \
+	  git diff --stat -- proto packages/shared-types/gen; \
 	  echo ""; echo "Chạy 'make proto' rồi commit kết quả."; exit 1; \
 	fi
 
