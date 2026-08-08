@@ -75,9 +75,10 @@ jobs:
             echo "Redis không PONG sau 30s"; docker logs ci-redis; exit 1
           fi
 
+      # KHÔNG khai `version:` ở đây — root package.json đã có `packageManager:
+      # pnpm@11.10.0` (SSOT); action-setup@v6 coi khai cả hai nơi là LỖI cứng
+      # ("Multiple versions of pnpm specified") chứ không phải cảnh báo.
       - uses: pnpm/action-setup@v6
-        with:
-          version: 11
 
       - uses: actions/setup-node@v7
         with:
