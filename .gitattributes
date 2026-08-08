@@ -12,5 +12,12 @@
 proto/gen/** text eol=lf
 packages/shared-types/gen/** text eol=lf
 
+# .proto là INPUT của codegen — buf đọc byte thô. Windows checkout CRLF thì
+# protoc-gen-es nhả '\r' của dòng comment trống thành trailing whitespace trong
+# JSDoc ⇒ máy dev sinh ' * ' còn CI (LF) sinh ' *' — hai bản "cùng plugin cùng
+# version" vẫn lệch byte, drift gate ping-pong không hội tụ (run 31245335779).
+# Input giống hệt nhau ở mọi nền tảng thì output mới giống hệt nhau.
+*.proto text eol=lf
+
 # Mặc định: để git tự chuẩn hoá text, nhị phân giữ nguyên.
 * text=auto

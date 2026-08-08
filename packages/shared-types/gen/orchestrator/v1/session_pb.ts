@@ -103,7 +103,7 @@ export type CreateSessionRequest = Message<"orchestrator.v1.CreateSessionRequest
 
   /**
    * Khoá chống trùng, do client sinh. BẮT BUỘC.
-   * 
+   *
    * Không có nó thì gRPC retry hoặc user bấm F5 sẽ tạo HAI pod cho một ý định —
    * pod sandbox tốn tiền thật và ăn quota. Server dedupe qua Redis SETNX và trả
    * lại đúng session cũ khi thấy key đã tồn tại.
@@ -238,7 +238,7 @@ export type ReapSessionRequest = Message<"orchestrator.v1.ReapSessionRequest"> &
 
   /**
    * Ai yêu cầu reap. BẮT BUỘC — không set thì server trả InvalidArgument.
-   * 
+   *
    * session_id KHÔNG phải secret (nó nằm trong URL /ws/session/{id}), nên nếu
    * thiếu field này thì "biết id = xoá được session của người khác". Các RPC
    * khác đều mang user_id để kiểm object-level authz (luật 1); reap không được
@@ -293,7 +293,7 @@ export const ReapSessionResponseSchema: GenMessage<ReapSessionResponse> = /*@__P
 /**
  * SandboxTier chọn mức cô lập của pod lab (design §5).
  * Tier1 = Sysbox (unprivileged user-ns). Tier2 = gVisor/Kata cho lab CTF.
- * 
+ *
  * FAIL-CLOSED: server PHẢI từ chối UNSPECIFIED bằng InvalidArgument, KHÔNG được
  * suy ra tier mặc định. Đây là field chọn mức cô lập — client quên set mà server
  * đoán hộ nghĩa là âm thầm chạy lab ở mức yếu hơn ý định của người gọi.
