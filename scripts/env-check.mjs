@@ -156,6 +156,14 @@ function parseEnvFile(file) {
 
   for (const raw of read(file).split(/\r?\n/)) {
     const line = raw.trim();
+
+    // Directive sống ĐÚNG MỘT DÒNG. Đọc rồi tắt ngay đầu vòng lặp — bản trước
+    // `continue` ở dòng trống và dòng comment thường mà KHÔNG tắt cờ, nên chỉ
+    // cần chèn một dòng trống là miễn trừ trôi xuống dính vào biến khác, làm
+    // chính cổng này yếu đi trong im lặng. (Copilot code review chỉ ra, PR #2.)
+    const allowHere = pendingAllow;
+    pendingAllow = false;
+
     if (line === '') continue;
     if (/^#\s*env-check:\s*allow-unused\s*$/.test(line)) {
       pendingAllow = true;
@@ -164,16 +172,14 @@ function parseEnvFile(file) {
     const commented = line.match(/^#\s*([A-Z][A-Z0-9_]*)\s*=/);
     if (commented) {
       optional.add(commented[1]);
-      pendingAllow = false;
       continue;
     }
     if (line.startsWith('#')) continue;
     const declared = line.match(/^([A-Z][A-Z0-9_]*)\s*=/);
     if (declared) {
       active.add(declared[1]);
-      if (pendingAllow) allowUnused.add(declared[1]);
+      if (allowHere) allowUnused.add(declared[1]);
     }
-    pendingAllow = false;
   }
   return { active, optional, allowUnused };
 }
@@ -256,7 +262,10 @@ const required = requiredTsNames(webSources);
 const ci = parseEnvFile('.github/ci.env').active;
 for (const name of required) {
   if (!ci.has(name))
-    fail('CI', `.github/ci.env thiếu ${name} — code gọi requireEnv('${name}'), test sẽ đỏ trên runner`);
+    fail(
+      'CI',
+      `.github/ci.env thiếu ${name} — code gọi requireEnv('${name}'), test sẽ đỏ trên runner`,
+    );
 }
 
 // --- turbo.json: envMode STRICT lột biến không khai --------------------------
