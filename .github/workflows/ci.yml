@@ -105,15 +105,25 @@ jobs:
       - name: Contract drift gate (buf generate + git status)
         run: make proto-check
 
+      - name: 'Nạp baseline main (buf breaking — chỉ khi KHÔNG ở trên main)'
+        # `fetch-depth: 0` tải đủ lịch sử NHƯNG không tạo local branch `main`:
+        # trên PR, checkout để HEAD detached ở merge commit và refspec của nó chỉ
+        # phủ ref đang checkout. buf resolve `branch=main` bằng cách clone local
+        # .git ⇒ "fatal: couldn't find remote ref main" (đã dính thật, PR #1).
+        # Tạo hẳn local branch main. An toàn vì nhánh này chỉ chạy khi KHÔNG ở
+        # trên main — fetch vào branch đang checkout là lỗi cứng của git.
+        if: github.ref != 'refs/heads/main'
+        run: git fetch --no-tags origin '+refs/heads/main:refs/heads/main'
+
       - name: Contract breaking gate (buf breaking)
-        # Baseline khác nhau theo sự kiện, KHÔNG dùng chung một giá trị:
-        #   - pull_request: so với main → bắt mọi breaking change của cả nhánh.
-        #   - push lên main: so với main = tự so với chính mình ⇒ LUÔN xanh, cổng
-        #     giả. Dùng HEAD~1 để vẫn bắt được commit push thẳng (branch
-        #     protection để enforce_admins:false nên owner push thẳng được).
+        # Baseline theo VỊ TRÍ, không theo loại event:
+        #   - đang ở trên main (push thẳng, hoặc merge commit): so với main là tự
+        #     so với chính mình ⇒ LUÔN xanh, cổng giả. Dùng HEAD~1.
+        #   - mọi chỗ khác (PR, nhánh feature): so với main → bắt breaking change
+        #     của CẢ nhánh, không chỉ commit cuối.
         env:
           BUF_BREAKING_AGAINST: >-
-            ${{ github.event_name == 'pull_request' && '.git#branch=main' || '.git#ref=HEAD~1' }}
+            ${{ github.ref == 'refs/heads/main' && '.git#ref=HEAD~1' || '.git#branch=main' }}
         run: make proto-breaking
 
       - name: DB migrate (Drizzle)
