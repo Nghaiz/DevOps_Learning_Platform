@@ -1,0 +1,33 @@
+# CODEOWNERS — ai được tự động gán review cho vùng nào.
+#
+# Chỉ có hiệu lực THẬT khi branch protection bật "Require review from Code
+# Owners" (xem docs/env/04-github-repo-settings.md). Không bật thì đây chỉ là
+# gợi ý reviewer.
+#
+# Dòng SAU ghi đè dòng TRƯỚC — quy tắc cụ thể phải nằm dưới quy tắc chung.
+
+# Mặc định: mọi thứ.
+*                                   @Nghaiz
+
+# ─────────────────────────────── Vùng nhạy cảm: đổi ở đây là đổi ranh giới bảo mật
+# 10 luật bảo mật (design §6) sống trong mấy thư mục này. Tách ra để review ở đây
+# không bao giờ bị lẫn vào một PR "sửa lặt vặt" 40 file.
+/apps/web/src/server/auth/          @Nghaiz
+/apps/web/src/server/security/      @Nghaiz
+/apps/web/src/middleware.ts         @Nghaiz
+/apps/web/src/security/             @Nghaiz
+
+# Cô lập sandbox: NetworkPolicy, quota, RuntimeClass, admission policy. Sinh viên
+# có root BÊN TRONG pod và là tác nhân cố ý đối kháng — mọi thay đổi ở đây phải
+# được đọc kỹ.
+/infra/                             @Nghaiz
+
+# Contract Next↔Go. Sửa proto là sửa cả hai đầu cùng lúc.
+/proto/                             @Nghaiz
+
+# Chính hệ thống CI/CD và cấu hình secret — nơi một dòng sai lặng lẽ tắt mất một
+# cổng bảo vệ.
+/.github/                           @Nghaiz
+/scripts/                           @Nghaiz
+/.gitleaks.toml                     @Nghaiz
+/.github/ci.env                     @Nghaiz

@@ -1,0 +1,11 @@
+# Buộc mọi issue đi qua template. Issue trống thường thiếu đúng những thông tin
+# tốn nhiều lượt hỏi lại nhất (cách tái hiện, log, môi trường).
+blank_issues_enabled: false
+
+contact_links:
+  - name: Lỗ hổng bảo mật
+    url: https://github.com/Nghaiz/DevOps_Learning_Platform/security/advisories/new
+    about: ĐỪNG mở issue công khai cho lỗ hổng bảo mật — báo riêng qua đây (xem SECURITY.md).
+  - name: Kế hoạch & thiết kế
+    url: https://github.com/Nghaiz/DevOps_Learning_Platform/tree/main/plans
+    about: Phạm vi từng phase, quyết định đã chốt, và những gì cố ý hoãn.

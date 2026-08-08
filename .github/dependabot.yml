@@ -1,0 +1,89 @@
+# Dependabot — tự mở PR nâng dependency.
+#
+# `github-actions` là mục QUAN TRỌNG NHẤT ở đây: workflow ghim action theo SHA
+# (xem đầu ci.yml), mà SHA thì con người không tự nhớ nâng được. Dependabot đọc
+# comment `# v7.0.1` cạnh SHA để biết version hiện tại và mở PR đổi sang SHA mới
+# kèm changelog. Không có nó thì "ghim SHA" đồng nghĩa "đóng băng vĩnh viễn ở
+# bản có lỗ bảo mật" — tệ hơn dùng tag di động.
+#
+# `groups` gộp nhiều bản nâng vào MỘT PR. Không gộp thì mỗi thứ Hai có ~15 PR
+# riêng lẻ, và cái giá thật không phải là số PR mà là 15 lần chạy CI đầy đủ.
+version: 2
+
+updates:
+  # ─────────────────────────────────────────────────────── GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: 'ci'
+
+  # ─────────────────────────────────────────────────────────── Node / pnpm
+  # directory `/` là đủ cho cả workspace: Dependabot đọc pnpm-lock.yaml ở root,
+  # vốn phủ apps/web + packages/*.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Tách dev/prod: nâng devDependency (eslint, prettier, vitest) rủi ro thấp,
+      # gộp một PR merge nhanh được. Dependency runtime (next, better-auth,
+      # drizzle) phải xem từng cái — chúng chạm vào đường xác thực và DB.
+      dev-dependencies:
+        dependency-type: development
+        patterns: ['*']
+    ignore:
+      # Next major cần đọc migration guide và chạm nhiều file — nâng có kế hoạch,
+      # không phải qua PR tự động lúc 3 giờ sáng.
+      - dependency-name: 'next'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react-dom'
+        update-types: ['version-update:semver-major']
+    commit-message:
+      prefix: 'chore'
+
+  # ────────────────────────────────────────────────────────────────── Go
+  # Mỗi module trong go.work là một entry riêng — Dependabot không tự đi theo
+  # go.work. THÊM MODULE MỚI VÀO go.work thì phải thêm một khối ở đây.
+  - package-ecosystem: gomod
+    directories:
+      - /services/orchestrator
+      - /services/terminal-gateway
+      - /services/shared
+      - /proto/gen/go
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      go-modules:
+        patterns: ['*']
+    commit-message:
+      prefix: 'chore'
+
+  # ────────────────────────────────────────────────────────────── Docker
+  - package-ecosystem: docker
+    directories:
+      - /apps/web
+      - /services/orchestrator
+      - /services/terminal-gateway
+      - /images/sandbox-base
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 4
+    groups:
+      base-images:
+        patterns: ['*']
+    commit-message:
+      prefix: 'chore'

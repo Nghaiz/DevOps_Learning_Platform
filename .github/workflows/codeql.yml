@@ -1,0 +1,74 @@
+# CodeQL — phân tích tĩnh tìm lỗ bảo mật (SQLi, path traversal, SSRF, xử lý
+# crypto sai, dữ liệu chưa kiểm chảy vào sink nguy hiểm...).
+#
+# Tách khỏi ci.yml có chủ ý: đây KHÔNG phải cổng chặn merge. CodeQL chạy lâu hơn
+# và thỉnh thoảng báo dương tính giả; nhét vào `ci-ok` là biến nó thành thứ bị
+# ép bỏ qua mỗi khi cần merge gấp. Kết quả đổ vào tab Security, xem theo nhịp
+# riêng.
+#
+# Lịch tuần là phần QUAN TRỌNG NHẤT: phần lớn lỗ mới không đến từ code bạn vừa
+# viết mà từ truy vấn CodeQL mới công bố cho code đã nằm đó nhiều tháng.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 03:17 thứ Hai UTC. Phút lẻ có chủ ý — đúng :00 là lúc GitHub xếp hàng dày
+    # nhất và job chờ lâu hơn hẳn.
+    - cron: '17 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: 'Phân tích: ${{ matrix.language }}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            # 'none': CodeQL đọc thẳng source JS/TS, không cần build — nhanh hơn
+            # nhiều và không đụng gì tới pnpm/turbo.
+            build-mode: none
+          - language: go
+            # 'manual' chứ KHÔNG PHẢI 'autobuild': autobuild chạy `go build ./...`
+            # ở root, và root repo này không phải Go module — trong chế độ
+            # workspace, Go từ chối pattern nằm ngoài mọi module ("directory
+            # prefix . does not contain modules listed in go.work"). Phải tự build
+            # bằng đúng vòng lặp qua từng module mà Makefile đã có.
+            build-mode: manual
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: '**/go.sum'
+
+      - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # security-and-quality: rộng hơn bộ 'security-extended' mặc định, thêm
+          # các truy vấn chất lượng code. Dự án NCKH có thời gian đọc chúng.
+          queries: security-and-quality
+
+      - name: 'Build Go (build-mode: manual)'
+        if: matrix.language == 'go'
+        run: go work sync && make go-build
+
+      - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        with:
+          category: '/language:${{ matrix.language }}'

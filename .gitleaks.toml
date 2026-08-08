@@ -1,0 +1,40 @@
+# Cấu hình gitleaks. Kế thừa toàn bộ rule mặc định rồi CHỈ thêm allowlist.
+#
+# Nguyên tắc của file này: allowlist theo ĐƯỜNG DẪN + NỘI DUNG CỤ THỂ, không bao
+# giờ theo rule. Tắt cả một rule (vd `generic-api-key`) để im một dương tính giả
+# là tắt luôn khả năng bắt cái thật cùng loại — đúng cách để một secret thật lọt
+# qua mà không ai biết.
+title = "DevOps Learning Platform"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholder và credential dùng-một-lần-trong-runner"
+
+paths = [
+  # File .env.example chỉ chứa placeholder ("đổi-cái-này", "placeholder-...").
+  # Giá trị THẬT nằm ở .env, vốn bị .gitignore chặn — nếu .env lọt vào git thì
+  # gitleaks vẫn phải quét nó, nên KHÔNG allowlist theo pattern `.env` chung chung.
+  '''(^|/)\.env\.example$''',
+  '''(^|/)\.env\..*\.example$''',
+
+  # Credential GIẢ của runner CI. Xem phần đầu file đó để biết vì sao nó có
+  # trong git. Cả hai mật khẩu chỉ mở khoá container sống vài phút rồi bị xoá.
+  '''^\.github/ci\.env$''',
+
+  # Template secret của Helm — chỉ có tên khoá và hướng dẫn, không có giá trị.
+  '''^infra/helm/platform/values-secrets\.example\.yaml$''',
+
+  # Bộ kịch bản pentest của competitor dùng để đối chiếu ở P3 — chứa credential
+  # mẫu trong tài liệu của họ, không phải của hệ này. Thư mục đã gitignore.
+  '''^secure-test-devops/''',
+]
+
+regexes = [
+  # Chuỗi mà chính CI đặt ra, nhìn giống secret với rule generic. Neo theo giá
+  # trị chính xác, không theo tiền tố lỏng lẻo.
+  '''ci-only-password''',
+  '''ci-only-secret-khong-dung-o-bat-ky-dau-khac''',
+  '''ci-only-not-a-real-secret''',
+]
