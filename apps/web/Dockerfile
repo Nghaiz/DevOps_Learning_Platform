@@ -38,12 +38,32 @@ ENV NEXT_OUTPUT=standalone
 # bỏ qua, không cần copy.
 RUN pnpm turbo run build
 
-FROM base AS runner
+# `node:24-alpine` TRỰC TIẾP, không phải `FROM base`: stage `base` bật corepack,
+# thứ image runtime không cần — nó chỉ chạy `node apps/web/server.js`.
+FROM node:24-alpine AS runner
 WORKDIR /repo
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+
+# Gỡ npm/npx VÀ corepack khỏi image chạy thật.
+#
+# Trivy trên image này đếm 10 CVE (HIGH 9, CRITICAL 1); 7 trong số đó nằm ở
+# /usr/local/lib/node_modules/npm (brace-expansion, tar, undici, ip-address) —
+# npm đóng gói sẵn trong base image, mà runtime KHÔNG BAO GIỜ gọi tới. Đó là bề
+# mặt tấn công thuần tuý: một bộ công cụ tải-và-chạy-code nằm sẵn trong container
+# phơi ra internet, chỉ chờ ai đó có được shell trong pod.
+#
+# corepack đi cùng lý do đó, không phải phụ thêm (Copilot code review chỉ ra ở
+# PR #10): gỡ npm mà chừa corepack là chừa lại đúng khả năng ta muốn cắt — nó
+# TẢI VỀ và kích hoạt package manager tuỳ ý từ registry. Bỏ npm nhưng giữ
+# corepack là hàng rào có cửa sau.
+#
+# 3 CVE còn lại (postcss, sharp) do next@15.5.23 ghim, không tự vá được — hết khi
+# Next lên bản mới (Dependabot sẽ đề xuất).
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001 -G nodejs
 
