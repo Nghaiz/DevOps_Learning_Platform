@@ -1,7 +1,7 @@
 # Makefile cho Linux/macOS và CI. Trên Windows (không có GNU make) dùng bản
 # tương đương qua pnpm: `pnpm proto`, `pnpm proto:check`, `pnpm lint`, ...
 
-.PHONY: help proto proto-lint proto-check proto-breaking install lint test test-ci build env-check go-lint go-vet go-test go-build run-orchestrator run-gateway up down smoke clean
+.PHONY: help proto proto-lint proto-check proto-breaking install lint test test-ci build env-check repo-check install-hooks go-lint go-vet go-test go-build run-orchestrator run-gateway up down smoke clean
 
 help: ## Liệt kê target
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -72,6 +72,16 @@ build: ## Build/typecheck TS
 
 env-check: ## Cổng drift env — code ↔ .env.example ↔ Helm ↔ CI
 	node scripts/env-check.mjs
+
+repo-check: ## Đối chiếu cấu hình repo GitHub với docs/env/04 (cần gh đã đăng nhập)
+	node scripts/check-repo-settings.mjs
+
+install-hooks: ## Cài git hook local (chặn push thẳng lên main)
+	@# core.hooksPath thay vì copy vào .git/hooks: hook nằm trong git, sửa một
+	@# chỗ là mọi bản clone nhận được — copy thì bản sao trôi đi trong im lặng.
+	git config core.hooksPath scripts/git-hooks
+	@chmod +x scripts/git-hooks/* 2>/dev/null || true
+	@echo "Đã cài. Gỡ bằng: git config --unset core.hooksPath"
 
 ## ---------- Go ----------
 

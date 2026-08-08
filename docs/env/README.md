@@ -95,7 +95,8 @@ PORT=3000
 | `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `BETTER_AUTH_SECRET` | tự sinh trên máy bạn | ngay bây giờ | [01-generate-secrets.md](01-generate-secrets.md) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Cloud Console | khi cần đăng nhập Google thật | [02-google-oauth.md](02-google-oauth.md) |
 | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Azure Portal (Entra ID) | khi cần đăng nhập Microsoft thật | [03-microsoft-entra.md](03-microsoft-entra.md) |
-| Branch protection, quyền Actions, hiển thị package GHCR | GitHub repo Settings | trước PR tiếp theo | [04-github-repo-settings.md](04-github-repo-settings.md) |
+| Branch protection, merge, Copilot review, Dependabot | GitHub repo Settings | **đã cấu hình sẵn** — kiểm bằng `pnpm repo:check` | [04-github-repo-settings.md](04-github-repo-settings.md) |
+| Private vulnerability reporting | GitHub repo Settings | mục duy nhất còn phải bấm tay | [04-github-repo-settings.md](04-github-repo-settings.md) §5 |
 | Secret lúc deploy Helm | tự tạo trên cluster | khi deploy lên k8s | [05-helm-secrets-deploy.md](05-helm-secrets-deploy.md) |
 
 **Placeholder OAuth chạy được.** App boot và mọi thứ trừ nút "Đăng nhập với
