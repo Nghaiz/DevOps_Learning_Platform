@@ -50,6 +50,15 @@ func (s *SessionService) GetSession(
 	return nil, errUnimplemented("GetSession")
 }
 
+// ExtendSession đẩy idle-deadline về phía trước (heartbeat từ gateway).
+// Hard cap tính từ created_at KHÔNG gia hạn được — xem contract. Chưa hiện thực ở P0.
+func (s *SessionService) ExtendSession(
+	_ context.Context, req *orchestratorv1.ExtendSessionRequest,
+) (*orchestratorv1.ExtendSessionResponse, error) {
+	s.log.Info("ExtendSession (chưa hiện thực)", slog.String("session_id", req.GetSessionId()))
+	return nil, errUnimplemented("ExtendSession")
+}
+
 // ReapSession dọn session hết hạn. Phải idempotent. Chưa hiện thực ở P0.
 func (s *SessionService) ReapSession(
 	_ context.Context, req *orchestratorv1.ReapSessionRequest,

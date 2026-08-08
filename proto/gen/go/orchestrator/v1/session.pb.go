@@ -162,9 +162,19 @@ type Session struct {
 	PodName   string `protobuf:"bytes,4,opt,name=pod_name,json=podName,proto3" json:"pod_name,omitempty"`
 	Namespace string `protobuf:"bytes,5,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	// Rỗng cho đến khi session được claim; TTL bắt đầu đếm từ lúc claim.
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	Tier          SandboxTier            `protobuf:"varint,7,opt,name=tier,proto3,enum=orchestrator.v1.SandboxTier" json:"tier,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ExpiresAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	Tier      SandboxTier            `protobuf:"varint,7,opt,name=tier,proto3,enum=orchestrator.v1.SandboxTier" json:"tier,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// Bộ đếm tăng đơn điệu, +1 mỗi lần server ghi session. Dùng cho optimistic
+	// locking: mọi cập nhật trên một session đang chạy là read-modify-write từ
+	// MỘT tiến trình KHÁC với tiến trình đã tạo nó (gateway gia hạn TTL trong khi
+	// reaper của orchestrator có thể đang reap cùng session). Không có revision
+	// thì cập nhật cuối thắng một cách im lặng — gateway có thể hồi sinh một
+	// session vừa bị reap.
+	//
+	// Server-side là INCR của Redis trên chính hash session, đọc ra cùng lượt với
+	// các field khác nên không phải derived field.
+	Revision      int64 `protobuf:"varint,9,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -253,6 +263,13 @@ func (x *Session) GetCreatedAt() *timestamppb.Timestamp {
 		return x.CreatedAt
 	}
 	return nil
+}
+
+func (x *Session) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 type CreateSessionRequest struct {
@@ -722,11 +739,157 @@ func (x *ReapSessionResponse) GetSession() *Session {
 	return nil
 }
 
+// ExtendSession đẩy idle-deadline của một session đang chạy về phía trước.
+//
+// TỒN TẠI ĐỂ GIỮ CONTRACT KÍN. terminal-gateway phải báo "phiên này còn người
+// dùng" cho reaper, nếu không learner đang gõ lệnh ở phút 59 sẽ bị reap giữa
+// chừng. Không có RPC này thì việc gia hạn buộc phải chui qua đường WS hoặc ghi
+// thẳng Redis từ gateway — cả hai đều là kênh thứ hai giữa Next/gateway và
+// orchestrator mà contract không mô tả, đúng thứ file này tồn tại để chặn.
+//
+// HAI ĐỒNG HỒ, KHÔNG PHẢI MỘT:
+//   - idle deadline — gia hạn được, mỗi lần WS còn traffic.
+//   - hard cap (tính từ created_at, cấu hình phía server) — KHÔNG gia hạn được.
+//
+// Server ép `expires_at` mới = min(now + extend_seconds, created_at + hard_cap).
+// Vì thế RPC này KHÔNG BAO GIỜ là đường giữ pod sống vĩnh viễn: một client bị
+// chiếm quyền spam heartbeat cũng chỉ giữ được tới trần cứng.
+type ExtendSessionRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	SessionId string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// Bắt buộc — object-level authz (luật 1), y như GetSession/ClaimSession.
+	// Gateway điền từ `sub` của token đã verify, KHÔNG lấy từ input client.
+	UserId string `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Số giây muốn đẩy thêm kể từ NOW. 0 = dùng idle-window mặc định của server.
+	// Âm → InvalidArgument.
+	ExtendSeconds int32 `protobuf:"varint,3,opt,name=extend_seconds,json=extendSeconds,proto3" json:"extend_seconds,omitempty"`
+	// Revision client tin là mình đang thấy (Session.revision). 0 = bỏ qua kiểm.
+	// Khác revision hiện tại → FailedPrecondition, client đọc lại rồi thử lại.
+	// Đây là thứ chặn gateway hồi sinh một session mà reaper vừa chuyển sang
+	// EXPIRED giữa lúc gateway đang đọc-rồi-ghi.
+	ExpectedRevision int64 `protobuf:"varint,4,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ExtendSessionRequest) Reset() {
+	*x = ExtendSessionRequest{}
+	mi := &file_orchestrator_v1_session_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExtendSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExtendSessionRequest) ProtoMessage() {}
+
+func (x *ExtendSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_orchestrator_v1_session_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExtendSessionRequest.ProtoReflect.Descriptor instead.
+func (*ExtendSessionRequest) Descriptor() ([]byte, []int) {
+	return file_orchestrator_v1_session_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ExtendSessionRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *ExtendSessionRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ExtendSessionRequest) GetExtendSeconds() int32 {
+	if x != nil {
+		return x.ExtendSeconds
+	}
+	return 0
+}
+
+func (x *ExtendSessionRequest) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+type ExtendSessionResponse struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Session *Session               `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	// true khi expires_at đã bị hard cap cắt, tức lần gia hạn sau sẽ không đẩy
+	// thêm được nữa. Cho FE báo trước "phiên sắp hết hạn" thay vì để terminal
+	// chết đột ngột.
+	HardCapReached bool `protobuf:"varint,2,opt,name=hard_cap_reached,json=hardCapReached,proto3" json:"hard_cap_reached,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ExtendSessionResponse) Reset() {
+	*x = ExtendSessionResponse{}
+	mi := &file_orchestrator_v1_session_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExtendSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExtendSessionResponse) ProtoMessage() {}
+
+func (x *ExtendSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_orchestrator_v1_session_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExtendSessionResponse.ProtoReflect.Descriptor instead.
+func (*ExtendSessionResponse) Descriptor() ([]byte, []int) {
+	return file_orchestrator_v1_session_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ExtendSessionResponse) GetSession() *Session {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+func (x *ExtendSessionResponse) GetHardCapReached() bool {
+	if x != nil {
+		return x.HardCapReached
+	}
+	return false
+}
+
 var File_orchestrator_v1_session_proto protoreflect.FileDescriptor
 
 const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\n" +
-	"\x1dorchestrator/v1/session.proto\x12\x0forchestrator.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcb\x02\n" +
+	"\x1dorchestrator/v1/session.proto\x12\x0forchestrator.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe7\x02\n" +
 	"\aSession\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x126\n" +
@@ -737,7 +900,8 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"expires_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x120\n" +
 	"\x04tier\x18\a \x01(\x0e2\x1c.orchestrator.v1.SandboxTierR\x04tier\x129\n" +
 	"\n" +
-	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xab\x01\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1a\n" +
+	"\brevision\x18\t \x01(\x03R\brevision\"\xab\x01\n" +
 	"\x14CreateSessionRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x120\n" +
 	"\x04tier\x18\x02 \x01(\x0e2\x1c.orchestrator.v1.SandboxTierR\x04tier\x12\x1f\n" +
@@ -766,7 +930,16 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\x10system_component\x18\x04 \x01(\tH\x00R\x0fsystemComponentB\a\n" +
 	"\x05actor\"I\n" +
 	"\x13ReapSessionResponse\x122\n" +
-	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession*t\n" +
+	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\"\xa2\x01\n" +
+	"\x14ExtendSessionRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12%\n" +
+	"\x0eextend_seconds\x18\x03 \x01(\x05R\rextendSeconds\x12+\n" +
+	"\x11expected_revision\x18\x04 \x01(\x03R\x10expectedRevision\"u\n" +
+	"\x15ExtendSessionResponse\x122\n" +
+	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\x12(\n" +
+	"\x10hard_cap_reached\x18\x02 \x01(\bR\x0ehardCapReached*t\n" +
 	"\vSandboxTier\x12\x1c\n" +
 	"\x18SANDBOX_TIER_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13SANDBOX_TIER_SYSBOX\x10\x01\x12\x17\n" +
@@ -780,12 +953,13 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\x16SESSION_STATUS_RUNNING\x10\x04\x12\x1a\n" +
 	"\x16SESSION_STATUS_EXPIRED\x10\x05\x12\x19\n" +
 	"\x15SESSION_STATUS_REAPED\x10\x06\x12\x19\n" +
-	"\x15SESSION_STATUS_FAILED\x10\a2\xfe\x02\n" +
+	"\x15SESSION_STATUS_FAILED\x10\a2\xde\x03\n" +
 	"\x0eSessionService\x12^\n" +
 	"\rCreateSession\x12%.orchestrator.v1.CreateSessionRequest\x1a&.orchestrator.v1.CreateSessionResponse\x12[\n" +
 	"\fClaimSession\x12$.orchestrator.v1.ClaimSessionRequest\x1a%.orchestrator.v1.ClaimSessionResponse\x12U\n" +
 	"\n" +
-	"GetSession\x12\".orchestrator.v1.GetSessionRequest\x1a#.orchestrator.v1.GetSessionResponse\x12X\n" +
+	"GetSession\x12\".orchestrator.v1.GetSessionRequest\x1a#.orchestrator.v1.GetSessionResponse\x12^\n" +
+	"\rExtendSession\x12%.orchestrator.v1.ExtendSessionRequest\x1a&.orchestrator.v1.ExtendSessionResponse\x12X\n" +
 	"\vReapSession\x12#.orchestrator.v1.ReapSessionRequest\x1a$.orchestrator.v1.ReapSessionResponseBXZVgithub.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1;orchestratorv1b\x06proto3"
 
 var (
@@ -801,7 +975,7 @@ func file_orchestrator_v1_session_proto_rawDescGZIP() []byte {
 }
 
 var file_orchestrator_v1_session_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_orchestrator_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_orchestrator_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_orchestrator_v1_session_proto_goTypes = []any{
 	(SandboxTier)(0),              // 0: orchestrator.v1.SandboxTier
 	(SessionStatus)(0),            // 1: orchestrator.v1.SessionStatus
@@ -814,31 +988,36 @@ var file_orchestrator_v1_session_proto_goTypes = []any{
 	(*GetSessionResponse)(nil),    // 8: orchestrator.v1.GetSessionResponse
 	(*ReapSessionRequest)(nil),    // 9: orchestrator.v1.ReapSessionRequest
 	(*ReapSessionResponse)(nil),   // 10: orchestrator.v1.ReapSessionResponse
-	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
+	(*ExtendSessionRequest)(nil),  // 11: orchestrator.v1.ExtendSessionRequest
+	(*ExtendSessionResponse)(nil), // 12: orchestrator.v1.ExtendSessionResponse
+	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
 }
 var file_orchestrator_v1_session_proto_depIdxs = []int32{
 	1,  // 0: orchestrator.v1.Session.status:type_name -> orchestrator.v1.SessionStatus
-	11, // 1: orchestrator.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	13, // 1: orchestrator.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: orchestrator.v1.Session.tier:type_name -> orchestrator.v1.SandboxTier
-	11, // 3: orchestrator.v1.Session.created_at:type_name -> google.protobuf.Timestamp
+	13, // 3: orchestrator.v1.Session.created_at:type_name -> google.protobuf.Timestamp
 	0,  // 4: orchestrator.v1.CreateSessionRequest.tier:type_name -> orchestrator.v1.SandboxTier
 	2,  // 5: orchestrator.v1.CreateSessionResponse.session:type_name -> orchestrator.v1.Session
 	2,  // 6: orchestrator.v1.ClaimSessionResponse.session:type_name -> orchestrator.v1.Session
 	2,  // 7: orchestrator.v1.GetSessionResponse.session:type_name -> orchestrator.v1.Session
 	2,  // 8: orchestrator.v1.ReapSessionResponse.session:type_name -> orchestrator.v1.Session
-	3,  // 9: orchestrator.v1.SessionService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
-	5,  // 10: orchestrator.v1.SessionService.ClaimSession:input_type -> orchestrator.v1.ClaimSessionRequest
-	7,  // 11: orchestrator.v1.SessionService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
-	9,  // 12: orchestrator.v1.SessionService.ReapSession:input_type -> orchestrator.v1.ReapSessionRequest
-	4,  // 13: orchestrator.v1.SessionService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
-	6,  // 14: orchestrator.v1.SessionService.ClaimSession:output_type -> orchestrator.v1.ClaimSessionResponse
-	8,  // 15: orchestrator.v1.SessionService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
-	10, // 16: orchestrator.v1.SessionService.ReapSession:output_type -> orchestrator.v1.ReapSessionResponse
-	13, // [13:17] is the sub-list for method output_type
-	9,  // [9:13] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	2,  // 9: orchestrator.v1.ExtendSessionResponse.session:type_name -> orchestrator.v1.Session
+	3,  // 10: orchestrator.v1.SessionService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
+	5,  // 11: orchestrator.v1.SessionService.ClaimSession:input_type -> orchestrator.v1.ClaimSessionRequest
+	7,  // 12: orchestrator.v1.SessionService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
+	11, // 13: orchestrator.v1.SessionService.ExtendSession:input_type -> orchestrator.v1.ExtendSessionRequest
+	9,  // 14: orchestrator.v1.SessionService.ReapSession:input_type -> orchestrator.v1.ReapSessionRequest
+	4,  // 15: orchestrator.v1.SessionService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
+	6,  // 16: orchestrator.v1.SessionService.ClaimSession:output_type -> orchestrator.v1.ClaimSessionResponse
+	8,  // 17: orchestrator.v1.SessionService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
+	12, // 18: orchestrator.v1.SessionService.ExtendSession:output_type -> orchestrator.v1.ExtendSessionResponse
+	10, // 19: orchestrator.v1.SessionService.ReapSession:output_type -> orchestrator.v1.ReapSessionResponse
+	15, // [15:20] is the sub-list for method output_type
+	10, // [10:15] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_orchestrator_v1_session_proto_init() }
@@ -856,7 +1035,7 @@ func file_orchestrator_v1_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_orchestrator_v1_session_proto_rawDesc), len(file_orchestrator_v1_session_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
