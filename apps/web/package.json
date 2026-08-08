@@ -10,10 +10,11 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio",
-    "db:smoke": "tsx --env-file=.env src/scripts/db-smoke.ts"
+    "//db": "3 script drizzle-kit chạy qua `node --env-file-if-exists` để NẠP .env giống db:smoke — trước đó chỉ db:smoke đọc .env, ba script kia đòi dev tự export, và drizzle.config.ts throw 'DATABASE_URL chưa được đặt' cho người vừa clone repo dù .env đã có. `-if-exists` (không phải --env-file) vì CI cấp env qua biến môi trường thật, không có file .env — bản không -if-exists sẽ ENOENT.",
+    "db:generate": "node --env-file-if-exists=.env ./node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "node --env-file-if-exists=.env ./node_modules/drizzle-kit/bin.cjs migrate",
+    "db:studio": "node --env-file-if-exists=.env ./node_modules/drizzle-kit/bin.cjs studio",
+    "db:smoke": "tsx --env-file-if-exists=.env src/scripts/db-smoke.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.26",

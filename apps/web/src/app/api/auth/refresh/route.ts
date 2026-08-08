@@ -1,29 +1,32 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { eq } from 'drizzle-orm';
-import { getAuth, ACCESS_TOKEN_TTL_SECONDS } from '../../../../server/auth/config';
-import { mintAccessTokenFor } from '../../../../server/auth/jwt';
+import { getAuth } from '../../../../server/auth/config';
 import { issueRefreshToken, rotateRefreshToken } from '../../../../server/auth/tokens';
 import { getDb } from '../../../../server/db/client';
-import { users } from '../../../../server/db/schema';
 
 /**
- * Refresh access token (luật 6,7 — phase-0.md 0.D task 15).
+ * Xoay refresh token (luật 6,7 — phase-0.md 0.D task 15).
  *
- * Cookie `refresh_token` (httpOnly, path riêng /api/auth/refresh) TÁCH BIỆT khỏi
- * cookie session của Better Auth và khỏi cookie `access_token`. Không có nó (lần
- * gọi đầu sau login) → bootstrap bằng session Better Auth hiện tại. Có nó → xoay
- * (rotate) qua auth/tokens.ts — token cũ dùng lại sau khi xoay bị từ chối 401
- * (revocation, luật 7). CHỈ đọc cookie `refresh_token`; một access JWT gửi kèm
- * (Authorization header hay nhét nhầm vào cookie khác) không được endpoint này
- * chấp nhận dưới bất kỳ hình thức nào — luật 7 "dùng access token ở endpoint
- * refresh → từ chối".
+ * Cookie `refresh_token` (httpOnly, path /api/auth) TÁCH BIỆT khỏi cookie session
+ * của Better Auth. Không có nó (lần gọi đầu sau login) → bootstrap bằng session
+ * Better Auth hiện tại. Có nó → xoay qua auth/tokens.ts; token cũ dùng lại sau
+ * khi xoay bị từ chối 401 và thu hồi cả chuỗi hậu duệ (luật 7). CHỈ đọc cookie
+ * `refresh_token`; một access JWT gửi kèm (Authorization header hay nhét nhầm
+ * vào cookie khác) không được endpoint này chấp nhận dưới bất kỳ hình thức nào.
+ *
+ * KHÔNG phát access token ra trình duyệt — và đây là điểm quan trọng nhất của
+ * file. Access JWT có `aud=orchestrator`: nó là credential server-to-server giữa
+ * BFF và orchestrator, không phải thứ client cầm. `trpc/routers/session.ts` mint
+ * nó tại chỗ, ngay trước mỗi lần gọi gRPC, rồi vứt. Bản trước còn set thêm cookie
+ * `access_token` cho trình duyệt — không consumer nào đọc, nên nó là bearer
+ * credential nằm không trên máy user với TTL 15 phút và zero lợi ích. Token
+ * `aud=gateway` mà P1 cần là token KHÁC: buộc theo một sessionId cụ thể, đời
+ * bằng đời session, do session.create phát — không phải cookie ambient này.
  */
 
 // postgres + node:crypto cần Node thật — nhất quán với logout/ và [...all]/.
 export const runtime = 'nodejs';
 
 const REFRESH_COOKIE = 'refresh_token';
-const ACCESS_COOKIE = 'access_token';
 
 function isProd(): boolean {
   return process.env.NODE_ENV === 'production';
@@ -33,8 +36,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const db = getDb();
   const existingRefresh = request.cookies.get(REFRESH_COOKIE)?.value ?? null;
 
-  let userId: string;
-  let role: string;
   let rawRefresh: string;
   let refreshExpiresAt: Date;
 
@@ -45,9 +46,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (session === null) {
       return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
     }
-    userId = session.user.id;
-    role = (session.user as { role?: string }).role ?? 'user';
-    const issued = await issueRefreshToken(db, userId);
+    const issued = await issueRefreshToken(db, session.user.id);
     rawRefresh = issued.raw;
     refreshExpiresAt = issued.expiresAt;
   } else {
@@ -55,20 +54,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!outcome.ok) {
       return NextResponse.json({ error: `refresh_${outcome.reason}` }, { status: 401 });
     }
-    userId = outcome.userId;
     rawRefresh = outcome.token.raw;
     refreshExpiresAt = outcome.token.expiresAt;
-
-    const [row] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
-    if (!row) {
-      return NextResponse.json({ error: 'user_not_found' }, { status: 401 });
-    }
-    role = row.role;
   }
 
-  const accessToken = await mintAccessTokenFor(userId, role);
-
-  const response = NextResponse.json({ ok: true, accessTokenExpiresIn: ACCESS_TOKEN_TTL_SECONDS });
+  // Chỉ trả hạn của refresh cookie. KHÔNG trả access token dưới bất kỳ hình thức
+  // nào (body cũng như cookie) — xem ghi chú đầu file.
+  const response = NextResponse.json({ ok: true, refreshExpiresAt: refreshExpiresAt.toISOString() });
 
   response.cookies.set(REFRESH_COOKIE, rawRefresh, {
     httpOnly: true,
@@ -80,14 +72,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // giờ rời phạm vi /api/auth/*, không đi kèm request trang thường.
     path: '/api/auth',
     expires: refreshExpiresAt,
-  });
-
-  response.cookies.set(ACCESS_COOKIE, accessToken, {
-    httpOnly: true,
-    secure: isProd(),
-    sameSite: 'lax',
-    path: '/',
-    maxAge: ACCESS_TOKEN_TTL_SECONDS,
   });
 
   return response;

@@ -1,6 +1,6 @@
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
-import { progress, sessionsAudit, users } from './schema';
+import { jwks, progress, sessionsAudit, users } from './schema';
 
 // Test này không cần DB — nó gác HÌNH DẠNG schema, thứ mà migration sẽ đóng băng.
 describe('schema Postgres', () => {
@@ -85,5 +85,17 @@ describe('schema Postgres', () => {
       'failed',
     ]);
     expect(byName['tier']?.enumValues).toEqual(['sysbox', 'gvisor', 'kata']);
+  });
+
+  // R5 (phase-0.md): bật key rotation mà bảng jwks thiếu expires_at thì khoá cũ
+  // verify được vĩnh viễn — thu hồi khoá lộ thành bất khả. Cột phải có mặt
+  // TRƯỚC, nên gác bằng test chứ không bằng lời hứa trong doc.
+  it('jwks có expires_at, và nó NULLABLE', () => {
+    const byName = Object.fromEntries(getTableConfig(jwks).columns.map((c) => [c.name, c]));
+    expect(Object.keys(byName).sort()).toEqual(
+      ['id', 'public_key', 'private_key', 'created_at', 'expires_at'].sort(),
+    );
+    // notNull=false có chủ ý: khoá sinh ra trước khi bật rotation không có hạn.
+    expect(byName['expires_at']?.notNull).toBe(false);
   });
 });
