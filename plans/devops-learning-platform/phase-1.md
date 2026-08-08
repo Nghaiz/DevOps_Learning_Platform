@@ -34,7 +34,7 @@ Reaper (orchestrator): quét session:{id} hết TTL / idle → delete pod + Redi
 
 ### 1.B Orchestrator — session lifecycle + warm-pool (Go, client-go)
 4. Implement `CreateSession`: claim pod từ pool (atomic Redis), gán `session:{id}` với TTL (30–60' hard cap + idle), trả podName/namespace. Nếu pool rỗng → tạo pod on-demand (cold path) + log cảnh báo.
-5. Implement `ClaimSession`/`GetSession`/`ReapSession` gRPC theo proto P0.
+5. Implement `ClaimSession`/`GetSession`/`ExtendSession`/`ReapSession` gRPC theo proto P0. `ExtendSession` ép `expires_at = min(now + extend_seconds, created_at + hard_cap)` và kiểm `expected_revision` (khác → `FailedPrecondition`); mọi lần ghi session **+1 `revision`**. `ReapSession` đọc `oneof actor` — nhánh `user_id` phải khớp `session.user_id`, nhánh `system_component` chỉ chấp nhận trên đường in-cluster.
 6. **Warm-pool manager**: goroutine giữ N pod `pool:free` (config `POOL_TARGET`), tạo pod Sysbox trước (image sandbox-base, `runtimeClassName: sysbox-runc`), replenish async khi claim. Pod pending gắn nhãn `pool=free`, `app=sandbox`.
 7. **Reaper**: controller quét Redis (pub/sub keyspace expiry + sweep định kỳ) → xóa pod + key khi hết TTL/idle. **Idempotent** (xóa 2 lần không lỗi). Reap cả pod mồ côi (pod có mà không có session key).
 8. Pod spec chuẩn (1.D security) apply cho cả warm-pool lẫn on-demand.
@@ -43,8 +43,12 @@ Reaper (orchestrator): quét session:{id} hết TTL / idle → delete pod + Redi
 ### 1.C Terminal-gateway — WS ⇄ pod exec + per-session authz (Go)
 10. Endpoint `WSS /ws/session/{id}`: **verify sandbox token** (JWT `aud=gateway`, ký bằng key riêng — luật 6), **per-session authz** (luật 10 & 1): tra Redis `session:{id}`, so `session.userId == token.sub`; sai/không khớp → 403 đóng WS. **id pod/session đoán được KHÔNG được là IDOR vào shell người khác.**
 11. Nối pod bằng client-go `remotecommand` exec (TTY), stream stdin/stdout/stderr ⇄ WS binary frames; **resize** qua control message → `TerminalSizeQueue`.
-12. **Token transport** (luật 8): nhận token qua **httpOnly cookie** hoặc **WS subprotocol header**, KHÔNG qua query string.
-13. WS keepalive: ping/pong, idle-timeout → báo orchestrator cập nhật `session:{id}` lastActive (cho idle-reap). Đóng WS → không kill pod ngay (cho reconnect trong TTL).
+12. **Sandbox token — token RIÊNG, buộc theo session** (luật 8). Chốt 2026-08-08 khi gỡ cookie `access_token` ở P0 (R3):
+    - **Do `session.create` phát**, không phải `/api/auth/refresh`. Claim: `aud=gateway`, `sub=userId`, **`sid=sessionId`**, `exp` = `expires_at` của session. Ký bằng key riêng của gateway (luật 6).
+    - `sid` là mấu chốt: token gắn với ĐÚNG MỘT session. Không có nó thì một token hợp lệ mở được mọi session của cùng user, và authz ở task 10 phải tra Redis mới biết — tức token không tự mang đủ thẩm quyền. Gateway kiểm **hai vế**: `token.sid == {id} trong URL` **và** `redis session:{id}.userId == token.sub`. Vế đầu chặn dùng lại token chéo session; vế sau chặn token đã cũ hơn trạng thái Redis.
+    - Transport: httpOnly + Secure + SameSite cookie **scope hẹp** (`path=/ws`) hoặc WS subprotocol header. KHÔNG query string.
+    - **KHÔNG tái dùng cookie `access_token` cũ** — nó đã bị gỡ ở P0 vì `aud=orchestrator` là credential server-to-server (BFF mint tại chỗ mỗi lần gọi gRPC), không phải thứ trình duyệt cầm.
+13. WS keepalive: ping/pong, idle-timeout → gọi **`ExtendSession`** (RPC pin ở P0, xem contract) để đẩy idle-deadline; gửi `expected_revision` đọc được từ lần `GetSession` gần nhất. Hard cap tính từ `created_at` KHÔNG gia hạn được ⇒ heartbeat bị chiếm quyền cũng không giữ pod sống vĩnh viễn; `hard_cap_reached` trong response cho FE báo trước thay vì để terminal chết đột ngột. Đóng WS → không kill pod ngay (cho reconnect trong TTL).
 14. **Rate/size limit** (luật 5): giới hạn kích thước frame, giới hạn số WS/user, backpressure khi client chậm.
 15. Scale-ngang ready: gateway stateless, tra session→pod ở Redis (không giữ state local) → cho phép nhiều replica sau session-affinity ở Ingress.
 16. `/metrics`: số WS active, exec errors, claim latency.
@@ -62,7 +66,9 @@ Reaper (orchestrator): quét session:{id} hết TTL / idle → delete pod + Redi
 > - `ResourceQuota` + `LimitRange` trong `dlp-sandbox` (một sinh viên không làm sập node đơn) và `PriorityClass dlp-platform-critical` (priority 1000000) cho 3 pod nền tảng để pod sinh viên không evict được chúng.
 > - **Rate limit tRPC per-user** (`apps/web/src/server/trpc/init.ts`): mutation 20/phút, query 120/phút, khoá theo `ctx.user.id` — chặn pod-bomb từ sinh viên đã đăng nhập hợp lệ spam `session.create`. Khoá theo user chứ không theo IP nên không dính lỗ `x-forwarded-for` giả mạo. **Còn lại:** `auth.session` là `publicProcedure` nên vẫn không có limit (chỉ đọc session, tương đương một lượt vào trang; chặn được khi có Traefik ở P3).
 >
-> **Chưa làm, dời P3 theo thoả thuận với audit:** `securityContext` đầy đủ cho 3 Deployment nền tảng, `BETTER_AUTH_SECRET` chuyển sang `secretKeyRef` (hiện đọc được qua `kubectl get deploy`), pin action CI bằng SHA, thêm gitleaks vào required check, hardening SSH lab cho khớp `cloud-init.yaml`, cột `jwks.expiresAt` (phải thêm TRƯỚC khi bật key rotation).
+> **Đã kéo về trước P1 ở đợt đóng P0 2026-08-08** (xem [phase-0.md § "Đóng P0"](phase-0.md)): `BETTER_AUTH_SECRET` + 2 OAuth secret chuyển sang `secretKeyRef` (trước đó `kubectl get deploy -o yaml` đọc được thẳng), gitleaks thành required check, cột `jwks.expiresAt`, và contract pin nốt (`ExtendSession` + `Session.revision` + cổng `buf breaking`).
+>
+> **Vẫn dời P3 theo thoả thuận với audit:** `securityContext` đầy đủ cho 3 Deployment nền tảng, pin action CI bằng SHA, hardening SSH lab cho khớp `cloud-init.yaml`, viết lại 3 check đọc-lại-manifest của `04-verify-sysbox.sh` thành proof runtime.
 
 17. Pod spec: `runtimeClassName: sysbox-runc`, **KHÔNG privileged**, `securityContext`: `allowPrivilegeEscalation:false`, **drop ALL capabilities**, `seccompProfile: RuntimeDefault`, AppArmor annotation.
 18. **KHÔNG mount `docker.sock`** (Sysbox cho docker-in-docker native, không cần host sock).
