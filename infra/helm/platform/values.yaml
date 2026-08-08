@@ -38,8 +38,14 @@ web:
     databaseUrl: ''
     redisUrl: ''
     # KHÔNG có default — secret ký session/JWT commit trong git là secret đã lộ.
-    # Template dùng `required`: thiếu là helm install DỪNG với hướng dẫn --set.
+    # Đi vào một Secret (templates/web-secret.yaml) rồi tới pod qua secretKeyRef,
+    # KHÔNG phải env.value trên Deployment. Thiếu là helm install DỪNG (`required`).
     betterAuthSecret: ''
+    # Tên một Secret có sẵn mang 3 khoá BETTER_AUTH_SECRET / GOOGLE_CLIENT_SECRET
+    # / MICROSOFT_CLIENT_SECRET. Set giá trị này ⇒ chart KHÔNG tạo Secret và
+    # KHÔNG đòi betterAuthSecret. Đây là đường prod: giá trị thật không đi qua
+    # `--set` nên không nằm lại trong shell history / `helm get values` / log CI.
+    existingSecret: ''
     betterAuthUrl: 'http://localhost:3000'
     # Rỗng = template tự suy "<release>-orchestrator:<grpcPort>" (DNS in-cluster).
     orchestratorGrpcAddr: ''

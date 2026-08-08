@@ -17,6 +17,17 @@ tên resource + DNS dài hơn không cần thiết.
 {{- end -}}
 
 {{/*
+Tên Secret chứa credential của web. Mặc định là Secret do chart tạo
+(templates/web-secret.yaml); `web.env.existingSecret` trỏ sang một Secret tạo
+ngoài băng (sealed-secrets / External Secrets / kubectl create) — đường đi đúng
+cho prod, vì lúc đó giá trị secret KHÔNG bao giờ đi qua `--set` (nằm lại trong
+shell history, trong `helm get values`, và trong log CI).
+*/}}
+{{- define "platform.webSecretName" -}}
+{{- .Values.web.env.existingSecret | default (printf "%s-web" (include "platform.fullname" .)) -}}
+{{- end -}}
+
+{{/*
 Label chung cho MỌI resource của chart này.
 */}}
 {{- define "platform.labels" -}}
