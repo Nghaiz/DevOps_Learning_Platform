@@ -1,0 +1,20 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8.5,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "Alias đúng nguyên văn plan ở cả 4 manifest; version bump đủ/đúng 5 gói (reviewer đối chiếu npm view: 10.0.1 là latest @eslint/js)",
+    "3 lệnh --version trả đúng (7.0.2 / 6.0.3 / 6.0.3); lint 5/5; typecheck 5/5 TS7; test 84/84; next build exit 0",
+    "docker build xanh + bằng chứng musl trực tiếp (tsc 7.0.2 chạy trong container Alpine) — R1 không nổ, D5 không áp",
+    "File ownership sạch: 0 file .ts/.tsx; lockfile giữ đủ 20 optionalDependencies của typescript@7 (CI Linux --frozen-lockfile lấy được binary); không va chạm bin tsc/tsc6",
+    "4 finding Major của reviewer (M1 CI thiếu typecheck, M2 mất tsserver, M3 README sai, M4 Dependabot phá shim) đã sửa trong commit e381dfc và verify lại: turbo lint typecheck build test 12/12"
+  ],
+  "regressionProof": [
+    "Test có sẵn (schema.test.ts, redis-keys, 9 luật bảo mật) xanh nguyên vẹn trong pnpm test 84/84",
+    "next build output không đổi (9 route, middleware 35.8kB) — hành vi Next 15 giữ nguyên dưới alias",
+    "Go không bị đụng file nào (diff main chỉ 10 file TS-toolchain)",
+    "Dockerfile byte-identical với main — image runtime không đổi"
+  ],
+  "blockingReasons": [],
+  "contractStatus": "OK"
+}

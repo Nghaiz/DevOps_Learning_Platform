@@ -1,0 +1,17 @@
+{
+  "highRisk": false,
+  "autoStopRequired": false,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "Plan U1 xếp rủi ro Thấp; ẩn số duy nhất R1 (TS7 binary trên Alpine/musl) đã kiểm bằng docker build thật + chạy tsc 7.0.2 typecheck packages/ui trực tiếp trong builder stage — KHÔNG nổ, Dockerfile không cần đổi (D5 không áp)",
+    "humanApproved: plan được user duyệt (hướng A+ trong report SSOT 2026-08-09) và user tự invoke /t1k-cook với plan path — đó là approval thực thi phase",
+    "Diff nhỏ: 10 file, không file .ts/.tsx nào; phần lớn là pnpm-lock.yaml sinh lại",
+    "DEVIATION cần user thấy ở PR: ci.yml (+1 task typecheck) và dependabot.yml (+1 ignore) nằm NGOÀI file-ownership của plan U1 — sửa theo finding M1/M4 của reviewer, đúng nguyên tắc D5/'không nới cổng' của chính plan; PR description ghi rõ, user duyệt qua PR review trước khi merge",
+    "Không đụng dữ liệu sống, không đổi contract proto/API, revert được bằng cách revert 4 commit của nhánh",
+    "RISK REGISTER (2 claim reviewer BÁC đã sửa xong ở e381dfc — M1 CI-thiếu-typecheck, M3 README-tsserver — verify lại 12/12; còn lại là suy giảm DX chấp nhận có chủ ý):",
+    "DX1 mất Next TS plugin trong editor dùng tsgo (D4 — plan chấp nhận, README ghi)",
+    "DX2 mất node_modules/typescript/lib/tsserver.js — VS Code âm thầm dùng TS bundled (M2 — ghi README; không ảnh hưởng CI/runtime vì mọi cổng đi qua bin tsc/tsc6 + JS API shim)",
+    "DX3 trục version lệch patch: manifest shim ^6.0.2 vs require('typescript').version 6.0.3 — vô hại (peer check dùng runtime version) nhưng cần nhớ khi debug (N1)"
+  ]
+}

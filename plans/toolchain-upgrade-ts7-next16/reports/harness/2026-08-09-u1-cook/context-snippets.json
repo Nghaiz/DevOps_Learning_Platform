@@ -1,0 +1,35 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Phase U1 (PR1) của plans/toolchain-upgrade-ts7-next16/plan.md — alias TS6/TS7 song song (tsc=TS7 native, API=shim TS6 cho typescript-eslint) + gom version lệch (@eslint/js 10.0.1, eslint 10.8.1, @types/node 26.2, tsx 4.23.11, turbo 2.10.9). Không đổi code .ts/.tsx.",
+  "scoutSummary": "Monorepo pnpm 4 package TS (root, apps/web Next 15, packages/ui, packages/shared-types) + 4 module Go (không đụng). Cả 4 manifest đang typescript ^6.0.0; typecheck qua turbo 'tsc --noEmit'. CI (ci.yml) chạy 'turbo run lint build test' — KHÔNG có typecheck (phát hiện bởi reviewer, M1). Dockerfile builder stage node:24-alpine chạy tsc trong 'turbo run build' (rủi ro R1 musl). Drift check: #18 đã đưa eslint 10/vitest 4/TS 6 lên main — plan viết sau đó, không xung đột.",
+  "acceptanceCriteria": [
+    "tsc --version = 7.0.2; tsc6 --version = 6.0.x; require('typescript').version = 6.0.x",
+    "pnpm lint exit 0 (cổng chứng minh shim TS6 hoạt động với typescript-eslint)",
+    "pnpm typecheck exit 0 chạy TS7; pnpm test exit 0 zero failure",
+    "pnpm --filter @devops-platform/web build exit 0 (Next 15 + API TS6)",
+    "docker build -f apps/web/Dockerfile thành công (TS7 binary trên Alpine/musl — R1)",
+    "Không file .ts/.tsx nào bị sửa; diff chỉ manifest/lockfile/tsconfig-comment/README",
+    "6 cổng CI xanh trên PR"
+  ],
+  "touchpoints": [
+    "package.json + apps/web/package.json + packages/ui/package.json + packages/shared-types/package.json (alias + bumps)",
+    "pnpm-lock.yaml (sinh lại từ pnpm install)",
+    "apps/web/tsconfig.json (chỉ thêm comment cạnh plugins — D4)",
+    "README.md (mục Toolchain TypeScript)",
+    ".github/workflows/ci.yml (deviation M1: thêm typecheck vào turbo run)",
+    ".github/dependabot.yml (deviation M4: ignore minor/major cho shim typescript)"
+  ],
+  "publicContracts": [
+    "Bin contract: node_modules/.bin/tsc = TS7, tsc6 = TS6 — script 'typecheck': 'tsc --noEmit' không đổi chữ nào",
+    "JS API contract: require('typescript') = 6.0.3 cho typescript-eslint (peer <6.1.0) và next build",
+    "Dockerfile không đổi — image runtime node:24-alpine giữ nguyên (R1 không nổ, D5 không cần áp)",
+    "Không đụng proto/, services/, tsconfig.base.json, turbo.json"
+  ],
+  "blastRadius": [
+    "Mọi lệnh tsc trong repo (typecheck 4 package + docker builder stage) chuyển sang binary TS7 native",
+    "typescript-eslint + next build chuyển sang đọc shim @typescript/typescript6 thay vì typescript@6 thật",
+    "Editor: mất Next TS plugin (D4) + mất tsserver.js workspace (M2) — ghi ở README, không chặn merge",
+    "Dependabot: shim typescript bị khóa minor/major cho tới khi gỡ alias (~TS 7.1)"
+  ]
+}

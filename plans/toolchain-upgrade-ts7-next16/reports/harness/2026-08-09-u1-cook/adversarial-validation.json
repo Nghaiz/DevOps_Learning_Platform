@@ -1,0 +1,11 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [],
+  "unverifiedClaims": [
+    "6 cổng CI xanh trên PR — mới chứng minh tương đương local (turbo 12/12, docker build, prettier blob); run GitHub Actions thật chỉ có sau khi push/mở PR",
+    "Dependabot tôn trọng ignore cho dependency alias npm: — cấu hình đúng cú pháp nhưng hành vi thật chỉ quan sát được ở lần quét tới",
+    "Hiệu năng '~6× typecheck' của report SSOT — đo được cached 1.9s vs baseline ~6s là nhất quán, nhưng chưa đo lại baseline TS6 trên cùng máy trong phiên này"
+  ],
+  "missingProof": [],
+  "reachableRegressions": []
+}
