@@ -16,6 +16,17 @@ const nextConfig: NextConfig = {
   // phải .pathname thô) để đúng trên Windows — .pathname giữ dấu "/" trước ổ đĩa
   // (vd "/D:/...") mà path.join/fs không hiểu.
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
+  // Next 16.3 mặc định typecheck bằng tsc CLI (useTypeScriptCli: true) và
+  // HARDCODE đường dẫn `typescript/bin/tsc` (lib/verify-typescript-setup.js —
+  // không có knob trỏ binary khác). Repo này alias `typescript` = shim TS6
+  // (chỉ có bin `tsc6`, xem README § Toolchain) nên CLI mode chết cả dev lẫn
+  // build ("trying to use TypeScript but do not have the required package(s)").
+  // `false` = typecheck qua JS API — shim TS6 có đầy đủ API, y hệt đường Next 15
+  // đã chạy ổn. TS7 vẫn là cổng typecheck thật ở CI (`pnpm typecheck`, ci.yml).
+  // Gỡ dòng này cùng lúc gỡ alias TS6/TS7 (khi typescript-eslint hỗ trợ TS >=7.1).
+  experimental: {
+    useTypeScriptCli: false,
+  },
 };
 
 export default nextConfig;
