@@ -56,6 +56,12 @@ updates:
         update-types: ['version-update:semver-major']
       - dependency-name: 'react-dom'
         update-types: ['version-update:semver-major']
+      # `typescript` giờ là alias shim npm:@typescript/typescript6@^6.0.2 (xem
+      # README § Toolchain). Shim PHẢI ở 6.0.x: typescript-eslint khai peer
+      # `typescript <6.1.0`, bump minor lên 6.1.x là phá peer. Gỡ alias (và dòng
+      # ignore này) khi typescript-eslint hỗ trợ TS >=7.1 — không qua Dependabot.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
     commit-message:
       prefix: 'chore'
 

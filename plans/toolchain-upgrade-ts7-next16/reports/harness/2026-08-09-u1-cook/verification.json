@@ -1,0 +1,78 @@
+{
+  "commands": [
+    {
+      "command": "node -p \"require('typescript').version\" && ./node_modules/.bin/tsc --version && ./node_modules/.bin/tsc6 --version",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T10:58:00+07:00",
+      "summary": "API = 6.0.3 (shim @typescript/typescript6), bin tsc = Version 7.0.2 (native), bin tsc6 = 6.0.3. Alias npm: hoạt động đúng trong pnpm workspace (R4 không nổ)."
+    },
+    {
+      "command": "pnpm lint",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T11:00:00+07:00",
+      "summary": "5/5 task xanh — chứng minh typescript-eslint đọc được JS API từ shim TS6 và @eslint/js 10.0.1 không đổi tập rule gây fail (R3 không nổ)."
+    },
+    {
+      "command": "pnpm typecheck",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T11:00:30+07:00",
+      "summary": "5/5 xanh, 1.86s (cache 2/5) — log turbo cho thấy tsc --noEmit chạy TS7. Fresh (xoá .turbo): 4.5s tổng wall gồm overhead turbo."
+    },
+    {
+      "command": "pnpm test",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T11:05:00+07:00",
+      "summary": "84/84 test xanh (web 64, shared-types 17, ui 3). Lần chạy đầu fail 5 ca thuần ECONNREFUSED :5432 — Postgres local chưa bật; docker compose up -d xong thì 100% xanh. Không fail nào liên quan TS7."
+    },
+    {
+      "command": "pnpm --filter @devops-platform/web build",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T11:07:00+07:00",
+      "summary": "next build (Next 15.5) xanh dưới alias — Next chấp nhận shim qua require('typescript') (R2 không nổ). 9 route, middleware 35.8kB, output như trước."
+    },
+    {
+      "command": "docker build -f apps/web/Dockerfile -t dlp/web:ts7 .",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T11:20:00+07:00",
+      "summary": "Image build thành công end-to-end (builder chạy pnpm turbo run build trong đó ui+shared-types build = tsc --noEmit bằng TS7 trên node:24-alpine)."
+    },
+    {
+      "command": "docker run --rm dlp/web:builder-ts7 sh -c 'tsc --version && cd packages/ui && tsc --noEmit'",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T11:25:00+07:00",
+      "summary": "Bằng chứng R1 trực tiếp, không dựa layer cache: trong container Alpine (musl), tsc in 'Version 7.0.2' và typecheck packages/ui exit 0. Binary @typescript/typescript-linux-x64 chạy được trên musl — D5 KHÔNG cần áp, Dockerfile giữ nguyên."
+    },
+    {
+      "command": "pnpm turbo run lint typecheck build test",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T11:40:00+07:00",
+      "summary": "Đúng lệnh CI mới sau fix M1: 12/12 task xanh (26.8s, cache 5/12). Đây là cổng CI sẽ chạy trên PR."
+    },
+    {
+      "command": "git show HEAD:<4 package.json> | npx prettier --stdin-filepath --check",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T11:38:00+07:00",
+      "summary": "Blob đã commit của cả 4 package.json prettier-clean (LF). Warn trên working tree chỉ là CRLF do core.autocrlf=true trên Windows, không vào commit."
+    },
+    {
+      "command": "git diff main --stat",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T11:39:00+07:00",
+      "summary": "10 file: 4 package.json + pnpm-lock.yaml + tsconfig comment + README + ci.yml + dependabot.yml (+0 file .ts/.tsx). Đúng ownership plan + 2 deviation M1/M4 đã khai báo."
+    }
+  ],
+  "beforeAfter": {
+    "before": "typescript ^6.0.0 ở cả 4 manifest — tsc lẫn API đều TS6 (6.0.3); typecheck fresh ~6s; @eslint/js 9 lệch với eslint 10; CI không có task typecheck (trùng hợp vô hại vì mọi đường đều TS6).",
+    "after": "tsc = TS7 native 7.0.2 (typecheck cached 1.9s), API vẫn 6.0.3 cho typescript-eslint/Next; version đồng bộ (@eslint/js 10.0.1, eslint 10.8.1, @types/node 26.2, tsx 4.23.11, turbo 2.10.9); CI chạy lint typecheck build test (cổng TS7 tường minh); Dependabot bị chặn bump shim; image Docker build được, Dockerfile không đổi."
+  }
+}
