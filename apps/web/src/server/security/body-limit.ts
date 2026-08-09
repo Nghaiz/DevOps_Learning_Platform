@@ -3,7 +3,7 @@ export const MAX_JSON_BODY_BYTES = 1_048_576;
 
 /**
  * Kiểm bằng header `Content-Length` — KHÔNG đọc body. Rẻ, chạy được ở Edge
- * middleware, nhưng không bắt được request chunked-encoding thiếu header này;
+ * proxy, nhưng không bắt được request chunked-encoding thiếu header này;
  * giới hạn cứng (đọc stream, đếm byte) chuyển sang Traefik ở P3 cùng rate limit
  * (xem rate-limit.ts).
  */

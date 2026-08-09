@@ -60,11 +60,11 @@ export const publicProcedure = t.procedure;
  * là chủ resource thật) không được phép cạn tài nguyên cluster ở P1 khi
  * orchestrator bắt đầu sinh pod sandbox thật.
  *
- * Khác `middleware.ts` (khoá theo IP qua `x-forwarded-for`, SKIP hẳn khi
+ * Khác `proxy.ts` (khoá theo IP qua `x-forwarded-for`, SKIP hẳn khi
  * `RATE_LIMIT_TRUST_PROXY` tắt vì XFF là header client tự đặt được): ở đây luôn
  * đứng SAU middleware auth phía trên nên đã có `ctx.user.id` — danh tính thật từ
  * session cookie Better Auth, không phụ thuộc header có thể giả mạo. Vì vậy limit
- * này không hề bị vô hiệu bởi cùng lỗ hổng XFF khiến middleware IP phải skip.
+ * này không hề bị vô hiệu bởi cùng lỗ hổng XFF khiến proxy IP phải skip.
  *
  * Khoá theo `(type, userId)` — CỐ Ý không thêm tên procedure vào key:
  * create/claim/reap đều tốn tài nguyên cluster tương đương (đều gọi orchestrator
@@ -73,7 +73,7 @@ export const publicProcedure = t.procedure;
  * tạo pod thật.
  *
  * Giới hạn còn lại: in-memory per-process (dùng chung `checkRateLimit` với
- * `middleware.ts` — SSOT, xem `server/security/rate-limit.ts`), nên nhiều pod web
+ * `proxy.ts` — SSOT, xem `server/security/rate-limit.ts`), nên nhiều pod web
  * = mỗi pod một bucket riêng, hạn mức thật ở nhiều-instance sẽ RỘNG HƠN con số
  * khai báo (N pod × limit). Đủ cho P0/P1 một replica; hướng đi khi cần chặt ở
  * nhiều instance là bucket dùng chung qua Redis (đã có `ioredis` +

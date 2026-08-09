@@ -1,0 +1,37 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Phase U2 (PR2) của plans/toolchain-upgrade-ts7-next16/plan.md — Next.js 15.5→16.3.0, middleware.ts→proxy.ts (git mv, file mang 4/10 luật bảo mật), đánh giá Edge→Node, AGENTS.md managed, build Turbopack + docker image.",
+  "scoutSummary": "Điều kiện vào đạt: U1 merged (33ee9be). middleware.ts thực thi luật 2/5/8/9 với 3 test file import nó. Codemod @next/codemod chỉ dùng được phần bump version (nó tự sinh apps/web/pnpm-workspace.yaml phá workspace — đã xoá); repo không dùng next lint/unstable_*. Next 16.3: useTypeScriptCli mặc định true nhưng CLI mode nhận bin tsc từ package tên 'typescript' (đọc source verify-typescript-setup.js) — xung đột với alias shim TS6 của U1. next dev sinh AGENTS.md/CLAUDE.md managed + .next/dev; next-env.d.ts bị ghi nội dung khác nhau giữa dev và build.",
+  "acceptanceCriteria": [
+    "next = 16.3.0; pnpm --filter web build exit 0 (Turbopack)",
+    "middleware.ts không còn; proxy.ts export hàm proxy; 0 import '../middleware'",
+    "10/10 luật bảo mật xanh, không skip/nới",
+    "pnpm lint && pnpm typecheck && pnpm test exit 0",
+    "docker build thành công (standalone + Turbopack — R7)",
+    "git status sạch sau khi chạy next dev (AGENTS.md + .next/dev xử lý đúng)",
+    "DEVIATION đã ghi plan.md: next build typecheck bằng API TS6 (useTypeScriptCli:false) thay vì CLI TS7 — bất khả thi với alias, issue #20 theo dõi",
+    "6 cổng CI xanh trên PR"
+  ],
+  "touchpoints": [
+    "apps/web/package.json + pnpm-lock.yaml (next 16.3.0, @types/react 19.2.18/19.2.4)",
+    "apps/web/src/middleware.ts → proxy.ts (git mv, rename export, comment XFF mới)",
+    "3 test file luật 2/5/9 (import + tên test)",
+    "apps/web/next.config.ts (useTypeScriptCli:false — deviation có bằng chứng source)",
+    "apps/web/AGENTS.md + CLAUDE.md (managed, commit); .gitignore (next-env.d.ts); turbo.json (typecheck dependsOn build — fix I2)",
+    "plans/devops-learning-platform/phase-3.md (ghi nhận XFF cho Traefik P3); plans/toolchain-upgrade-ts7-next16/plan.md (Deviation log)",
+    "Comment stale ở layout.tsx, dashboard/page.tsx, trpc/init.ts, logout route, headers.ts, body-limit.ts (chỉ prose)"
+  ],
+  "publicContracts": [
+    "4/10 luật bảo mật trong proxy.ts: diff logic = 0 so với middleware.ts (reviewer chứng minh bằng diff lột comment) — config.matcher, clientKey(), RATE_LIMIT_TRUST_PROXY nguyên vẹn (D2)",
+    "server/security/rate-limit.ts không bị đụng (D2)",
+    "Dockerfile không đổi; image runtime node:24-alpine giữ nguyên",
+    "Không đụng services/, packages/, infra/, proto/"
+  ],
+  "blastRadius": [
+    "Runtime proxy đổi Edge→Node: rate-limit Map bền hơn per-process (test 429 xanh); crypto.randomUUID/btoa/getSessionCookie phủ bởi test luật 8/9",
+    "XFF trên Node: Next tự đặt = IP socket khi client không gửi, giữ nguyên khi client gửi (đo cả dev lẫn next start) — vẫn spoof được, TRUST_PROXY giữ nguyên",
+    "next build typecheck chuyển sang API TS6 (deviation) — cổng TS7 thật là pnpm typecheck ở CI",
+    "next-env.d.ts gitignored — turbo typecheck giờ depends on build của chính package"
+  ]
+}

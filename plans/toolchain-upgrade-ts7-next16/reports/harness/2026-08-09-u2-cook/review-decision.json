@@ -1,0 +1,20 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "Reviewer độc lập (t1k-code-reviewer, report plans/reports/2026-08-09-review-u2-next16-proxy.md): diff logic proxy.ts = 0 so với middleware.ts (diff sau khi lột comment/whitespace chỉ còn dòng export) — phần rủi ro cao nhất sạch tuyệt đối",
+    "10/10 luật bảo mật xanh (64/64, 0 skip); config.matcher + clientKey() + rate-limit.ts nguyên vẹn (D2)",
+    "R7 gác bằng docker build exit 0 + container runtime smoke (health 200, CSP/HSTS/XFO)",
+    "Deviation useTypeScriptCli:false được reviewer xác nhận là đường duy nhất không hack: 3 phương án thay thế đã soi tới source và loại (TS7 thiếu lib/typescript.js; patch shim vô nghĩa; native-preview bỏ typecheck lúc build)",
+    "3 finding Important (I1 comment stale, I2 turbo typecheck dependsOn, I3 plan mâu thuẫn deviation) + M4/M5 đã sửa ở commit bc727f5, chạy lại 12/12 --force xanh"
+  ],
+  "regressionProof": [
+    "Toàn bộ test có sẵn xanh nguyên vẹn: 84/84 (web 64 + shared-types 17 + ui 3), 0 skip",
+    "Go/proto/packages/infra không có file nào trong diff",
+    "Dockerfile byte-identical; image runtime không đổi ngoài next 16 trong standalone",
+    "Reviewer xác nhận file ownership: các file ngoài ownership chỉ là comment prose stale do rename + .gitignore/turbo.json có lý do gate-integrity, không scope creep logic"
+  ],
+  "blockingReasons": [],
+  "contractStatus": "OK"
+}

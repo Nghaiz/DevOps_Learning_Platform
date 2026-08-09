@@ -51,7 +51,7 @@ make proto-check                   # drift gate: generated == committed?
 | `typescript` | `@typescript/typescript6@6` | Cấp JS API cho `typescript-eslint`/Next + bin `tsc6` |
 
 - `tsc --version` → 7.x · `tsc6 --version` → 6.x · `node -p "require('typescript').version"` → 6.x
-- **Mặt suy giảm đã chấp nhận:** (1) editor dùng tsgo mất Next TS plugin (`tsconfig.json` giữ key `plugins` để tự hoạt động lại nếu quay về TS6); (2) workspace không còn `node_modules/typescript/lib/tsserver.js` (shim không ship, `@typescript/native` chỉ khai bin `tsc`) — VS Code âm thầm dùng TS đóng gói sẵn của editor thay vì bản workspace.
+- **Mặt suy giảm đã chấp nhận:** (1) editor dùng tsgo mất Next TS plugin (`tsconfig.json` giữ key `plugins` để tự hoạt động lại nếu quay về TS6); (2) workspace không còn `node_modules/typescript/lib/tsserver.js` (shim không ship, `@typescript/native` chỉ khai bin `tsc`) — VS Code âm thầm dùng TS đóng gói sẵn của editor thay vì bản workspace; (3) `next build` typecheck bằng **API TS6** (`experimental.useTypeScriptCli: false` trong `next.config.ts` — CLI mode của Next 16 hardcode `typescript/bin/tsc`, shim không có bin đó); cổng typecheck TS7 thật là `pnpm typecheck` trong CI.
 - **Gỡ alias** (quay về một entry `typescript@7` duy nhất) khi `typescript-eslint` hỗ trợ TS ≥7.1 — theo dõi upstream `typescript-eslint#10940`, mốc rà lại ~10/2026.
 
 ## Bố cục

@@ -1,0 +1,14 @@
+{
+  "highRisk": false,
+  "autoStopRequired": false,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "Hai risk score 15 của plan đều KHÔNG nổ, gác bằng acceptance cứng: R6 (Edge→Node hổng luật) — 10/10 luật xanh 64/64 test 0 skip, và reviewer chứng minh diff logic proxy.ts = 0; R7 (Turbopack vỡ standalone) — docker build exit 0, container boot health 200 + CSP/HSTS/XFO sống, KHÔNG cần fallback --webpack (D3 không áp)",
+    "humanApproved: user tự invoke /t1k-cook lần hai sau khi merge PR #19 — đó là approval thực thi U2 theo plan đã duyệt",
+    "R11 (better-auth chưa hỗ trợ Next 16) không nổ: build + test luật 8 xanh",
+    "DEVIATION cần user thấy ở PR: useTypeScriptCli:false (ngược chỉ dẫn U2.D-11 — plan giả định sai chiều, bằng chứng source Next; issue #20 theo dõi gỡ); gitignore next-env.d.ts + turbo.json typecheck dependsOn build (fix I2 reviewer); đều ghi trong Deviation log của plan.md và PR description",
+    "Diff gọn: ~20 file, phần lớn lockfile + comment prose; revert được theo từng commit (codemod/proxy/config tách riêng)",
+    "RISK REGISTER còn mang theo (không chặn merge): DX-tsserver và Next-TS-plugin từ U1 không đổi; M2 reviewer — chưa có test phủ propagate x-nonce vào request header (gap có từ trước U2, ứng viên P1); M1 — comment CVE postcss/sharp trong Dockerfile có thể đã hết hạn sau khi Next lên 16, Trivy ở CI images sẽ phân xử"
+  ]
+}

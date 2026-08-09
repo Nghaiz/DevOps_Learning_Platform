@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 import { applySecurityHeaders, buildCsp } from '../server/security/headers';
-import { middleware } from '../middleware';
+import { proxy } from '../proxy';
 
 /**
  * Luật 9 — `curl -I` trang chính có đủ HSTS/CSP/X-Frame-Options/
  * X-Content-Type-Options/Referrer-Policy/Permissions-Policy.
  *
- * Mức test: UNIT (headers.ts thuần) + MIDDLEWARE (gọi thẳng `middleware`, tương
+ * Mức test: UNIT (headers.ts thuần) + PROXY (gọi thẳng `proxy`, tương
  * đương `curl -I` trong acceptance criteria vì đây chính là code chạy cho MỌI
  * response, kể cả trang chính `/`).
  */
@@ -32,9 +32,9 @@ describe('luật 9 — security headers', () => {
     expect(headers.get('Permissions-Policy')).toBeTruthy();
   });
 
-  it('middleware: GET / (trang chính) → response có đủ 6 header', () => {
+  it('proxy: GET / (trang chính) → response có đủ 6 header', () => {
     const request = new NextRequest('http://localhost:3000/');
-    const response = middleware(request);
+    const response = proxy(request);
 
     for (const header of [
       'strict-transport-security',

@@ -1,0 +1,11 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [],
+  "unverifiedClaims": [
+    "6 cổng CI xanh trên PR2 — tương đương local đã chứng minh (12/12 --force, docker, security suite); run GitHub Actions thật chỉ có sau khi push/mở PR",
+    "Hành vi Trivy với image next 16 (comment CVE postcss/sharp trong Dockerfile có thể hết hạn — M1) — cổng images trên CI sẽ phân xử",
+    "Độ bền rate-limit Map trên Node runtime dưới tải nhiều tiến trình thật — test unit phủ hành vi, tải thật đo ở P3 (k6)"
+  ],
+  "missingProof": [],
+  "reachableRegressions": []
+}

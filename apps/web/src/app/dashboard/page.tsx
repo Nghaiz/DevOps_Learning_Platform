@@ -6,9 +6,9 @@ import { SignOutButton } from './sign-out-button';
 
 /**
  * Server Component — kiểm session THẬT qua `auth.api.getSession` (đụng DB), khác
- * `middleware.ts` chỉ kiểm sự TỒN TẠI của cookie (Edge, không đụng DB). Hai lớp:
- * middleware redirect sớm cho UX; page này là nguồn sự thật, chặn cả trường hợp
- * cookie còn nhưng session đã bị revoke ở DB.
+ * `proxy.ts` chỉ kiểm sự TỒN TẠI của cookie (không đụng DB). Hai lớp: proxy
+ * redirect sớm cho UX; page này là nguồn sự thật, chặn cả trường hợp cookie còn
+ * nhưng session đã bị revoke ở DB.
  */
 export default async function DashboardPage() {
   const session = await getAuth().api.getSession({ headers: await headers() });

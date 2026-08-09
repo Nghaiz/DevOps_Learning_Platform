@@ -7,6 +7,10 @@ node_modules/
 .turbo/
 dist/
 .next/
+# Next 16 ghi lại next-env.d.ts KHÁC NHAU giữa `next dev` (.next/dev/types) và
+# `next build` (.next/types) — commit bản nào thì lệnh kia cũng làm bẩn cây.
+# tsc --noEmit đã kiểm chứng exit 0 khi file vắng mặt; dev/build tự sinh lại.
+next-env.d.ts
 out/
 coverage/
 *.tsbuildinfo
