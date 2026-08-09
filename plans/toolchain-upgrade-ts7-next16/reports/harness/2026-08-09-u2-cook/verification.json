@@ -1,0 +1,71 @@
+{
+  "commands": [
+    {
+      "command": "pnpm --filter @devops-platform/web build (Next 16.3.0, Turbopack)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T13:05:00+07:00",
+      "summary": "Build xanh; log 'ƒ Proxy (Middleware)' xác nhận proxy.ts được nhận; 'Finished TypeScript in 4.6s' — typecheck qua API TS6 (useTypeScriptCli:false)."
+    },
+    {
+      "command": "docker build -f apps/web/Dockerfile -t dlp/web:next16 .",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T13:15:00+07:00",
+      "summary": "R7 không nổ: Turbopack + output standalone dựng image thành công, KHÔNG cần fallback --webpack (D3 không áp). Dockerfile không đổi."
+    },
+    {
+      "command": "docker run dlp/web:next16 → curl /api/health + /login headers",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T13:18:00+07:00",
+      "summary": "Runtime smoke trên image thật: health 200 {status:ok}; CSP nonce+strict-dynamic, HSTS 63072000, X-Frame-Options DENY — proxy chạy trong container prod; log [rate-limit] SKIP đúng thiết kế warn-một-lần."
+    },
+    {
+      "command": "pnpm --filter @devops-platform/web test -- src/security",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T13:12:00+07:00",
+      "summary": "10 file luật (rule-01..09 + trpc-rate-limit-per-user) trong suite 64/64 pass, 0 skip — R6 gác xong: luật 2/5/8/9 xanh trên Node runtime."
+    },
+    {
+      "command": "pnpm turbo run lint typecheck build test --force (sau fix review I1/I2/M4/M5)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T13:55:00+07:00",
+      "summary": "12/12 task xanh, 0 cache — chạy lại đủ sau khi đổi turbo.json (typecheck dependsOn build)."
+    },
+    {
+      "command": "curl probe XFF: next dev VÀ next start (build tạm có console.log, đã revert)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T13:35:00+07:00",
+      "summary": "U2.C đo thật cả 2 runtime: không gửi XFF → Next tự đặt '::1' (IP socket peer); gửi 'x-forwarded-for: 6.6.6.6' → đi qua nguyên vẹn. Kết luận: vẫn spoof được, D2 giữ nguyên clientKey/TRUST_PROXY; ghi proxy.ts comment + phase-3.md."
+    },
+    {
+      "command": "tsc --noEmit khi .next/ và next-env.d.ts vắng mặt (mô phỏng CI fresh)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T13:40:00+07:00",
+      "summary": "Exit 0 cả hai trạng thái — căn cứ cho quyết định gitignore next-env.d.ts (Next 16 ghi nội dung khác nhau giữa dev/build). Reviewer đo thêm eslint fresh-clone cũng exit 0. turbo.json đã thêm typecheck dependsOn build để program luôn có generated types (I2)."
+    },
+    {
+      "command": "next dev 18s → git status --short",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T13:45:00+07:00",
+      "summary": "Cây sạch sau next dev (chỉ còn edit README đang chờ commit của chính phiên): AGENTS.md/CLAUDE.md committed với khối managed trỏ node_modules/next/dist/docs, .next/dev + next-env.d.ts ignored — D6/R9 đạt."
+    },
+    {
+      "command": "test ! -f middleware.ts && grep -rn \"from '../middleware'\" apps/web/src",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T13:50:00+07:00",
+      "summary": "middleware.ts đã xoá (git mv giữ blame, rename 84% similarity); 0 import cũ; proxy.ts:40 export function proxy. Reviewer: diff logic = 0 sau khi lột comment."
+    }
+  ],
+  "beforeAfter": {
+    "before": "next 15.5.23; middleware.ts (Edge runtime) mang luật 2/5/8/9; comment khẳng định 'Next 15 không cho đọc peer address'; next-env.d.ts commit; CI typecheck không phụ thuộc build; useTypeScriptCli chưa tồn tại.",
+    "after": "next 16.3.0 Turbopack; proxy.ts (Node runtime) — logic 4 luật nguyên vẹn từng dòng, chỉ đổi tên export + comment; hành vi XFF đo thật ghi vào code + phase-3 cho Traefik P3; AGENTS.md/CLAUDE.md managed committed; next-env.d.ts gitignored + turbo typecheck dependsOn build; next build typecheck bằng API TS6 (deviation có issue #20), cổng TS7 = pnpm typecheck ở CI; docker image dựng được, container boot xanh."
+  }
+}
