@@ -22,13 +22,16 @@ func runClient(wsURL string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	c, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+	c, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
 		Subprotocols: []string{subprotocol},
 	})
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
 	if err != nil {
 		return fmt.Errorf("dial %s: %w", wsURL, err)
 	}
-	defer c.CloseNow()
+	defer func() { _ = c.CloseNow() }()
 	c.SetReadLimit(1 << 20)
 
 	stdinFD := int(os.Stdin.Fd())
@@ -39,12 +42,35 @@ func runClient(wsURL string) error {
 	if err != nil {
 		return fmt.Errorf("raw mode: %w", err)
 	}
-	defer term.Restore(stdinFD, oldState)
+	// restore là thao tác BẮT BUỘC chạy được: bỏ qua lỗi ở đây nghĩa là terminal
+	// của người dùng kẹt ở raw mode sau khi lệnh thoát (không echo, không Ctrl-C)
+	// và họ phải `reset` thủ công. Lỗi thì ít nhất phải nói ra.
+	restore := func() {
+		if err := term.Restore(stdinFD, oldState); err != nil {
+			fmt.Fprintf(os.Stderr, "\r\nKHÔNG khôi phục được terminal: %v — chạy `reset`\r\n", err)
+		}
+	}
+	defer restore()
 
 	sendSize := func(typ string) error {
 		w, h, err := term.GetSize(stdinFD)
 		if err != nil {
 			return err
+		}
+		// Clamp trước khi ép kiểu: contract §4 giới hạn 1..1000, và uint16(w)
+		// với w > 65535 quấn vòng thành một số NHỎ — terminal khổng lồ sẽ báo
+		// kích thước tí hon, đúng loại lỗi chỉ lộ trên máy người khác.
+		if w < 1 {
+			w = 1
+		}
+		if h < 1 {
+			h = 1
+		}
+		if w > 1000 {
+			w = 1000
+		}
+		if h > 1000 {
+			h = 1000
 		}
 		payload, _ := json.Marshal(controlIn{Type: typ, Cols: uint16(w), Rows: uint16(h)})
 		return c.Write(ctx, websocket.MessageText, payload)
@@ -88,18 +114,24 @@ func runClient(wsURL string) error {
 	for {
 		typ, data, err := c.Read(ctx)
 		if err != nil {
-			term.Restore(stdinFD, oldState)
+			restore()
 			fmt.Printf("\r\nWS đóng: err=%v close_code=%d\r\n", err, websocket.CloseStatus(err))
 			return nil
 		}
 		switch typ {
 		case websocket.MessageBinary:
-			os.Stdout.Write(data)
+			// Lỗi ghi stdout ở đây nghĩa là đầu ra đã đứt (pipe đóng, terminal
+			// chết) — im lặng tiếp tục là vẽ vào hư không cho tới khi WS đóng.
+			if _, werr := os.Stdout.Write(data); werr != nil {
+				restore()
+				fmt.Fprintf(os.Stderr, "\r\nghi stdout lỗi: %v\r\n", werr)
+				return nil
+			}
 		case websocket.MessageText:
 			var co controlOut
 			_ = json.Unmarshal(data, &co)
 			if co.Type == "exit" || co.Type == "error" {
-				term.Restore(stdinFD, oldState)
+				restore()
 				fmt.Printf("\r\n[control] %s\r\n", data)
 			}
 		}
