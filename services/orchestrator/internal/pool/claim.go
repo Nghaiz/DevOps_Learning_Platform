@@ -55,13 +55,13 @@ const MaxTTLSeconds = int64(24 * 60 * 60)
 // hạ tầng.
 var ErrInvalidClaimParams = errors.New("pool: tham số claim không hợp lệ")
 
-// podPointerGrace là khoảng `session:{id}:pod` sống LÂU HƠN hash session.
+// PodPointerGrace là khoảng `session:{id}:pod` sống LÂU HƠN hash session.
 //
 // Reaper tầng 1 nghe `__keyevent@0__:expired` của `session:{id}`; lúc event
 // tới thì hash ĐÃ biến mất và không còn chỗ nào đọc được podName để xoá pod.
 // Con trỏ sống thêm khoảng này chính là thứ trả lời "session vừa hết hạn đang
 // ở pod nào". Đặt hai TTL bằng nhau là reaper mù.
-const podPointerGrace = 10 * time.Minute
+const PodPointerGrace = 10 * time.Minute
 
 // ClaimParams là đầu vào cho một lượt claim. Mọi field bắt buộc.
 type ClaimParams struct {
@@ -176,7 +176,7 @@ func Claim(ctx context.Context, rdb redis.Scripter, p ClaimParams) (podName stri
 		strconv.FormatInt(p.ExpiresAtUnix, 10),
 		strconv.FormatInt(p.TTLSeconds, 10),
 		rediskeys.PodPrefix,
-		strconv.FormatInt(p.TTLSeconds+int64(podPointerGrace.Seconds()), 10),
+		strconv.FormatInt(p.TTLSeconds+int64(PodPointerGrace.Seconds()), 10),
 	}
 
 	pod, err := claimScript.Run(ctx, rdb, keys, argv...).Text()

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/lifecycle"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -19,14 +20,16 @@ type Lifecycle interface {
 	Create(ctx context.Context, req *orchestratorv1.CreateSessionRequest) (*orchestratorv1.Session, error)
 	Claim(ctx context.Context, req *orchestratorv1.ClaimSessionRequest) (*orchestratorv1.Session, error)
 	Get(ctx context.Context, req *orchestratorv1.GetSessionRequest) (*orchestratorv1.Session, error)
+	Extend(ctx context.Context, req *orchestratorv1.ExtendSessionRequest) (*orchestratorv1.Session, bool, error)
+	Reap(ctx context.Context, sessionID string, actor lifecycle.ReapActor) (*orchestratorv1.Session, error)
 }
 
 // SessionService là adapter gRPC: nó dịch request/response và KHÔNG chứa logic.
 //
-// ExtendSession/ReapSession vẫn trả Unimplemented một cách TƯỜNG MINH (B5/B6
-// chưa làm) thay vì mock ra một Session giả. Mock sẽ khiến gateway code dựa
-// trên hành vi bịa rồi vỡ khi hai RPC đó có thật; Unimplemented làm caller thấy
-// ngay chỗ chưa xong.
+// Từ B5/B6, cả 5 RPC của contract đều có hành vi thật — không còn nhánh
+// Unimplemented nào. Mọi quyết định (mã lỗi, authz, idempotency) sống ở
+// internal/lifecycle; tầng này chỉ định tuyến và đối chiếu `oneof actor` với
+// thứ interceptor CHỨNG MINH được (xem resolveReapActor).
 type SessionService struct {
 	orchestratorv1.UnimplementedSessionServiceServer
 
@@ -84,20 +87,86 @@ func (s *SessionService) GetSession(
 }
 
 // ExtendSession đẩy idle-deadline về phía trước (heartbeat từ gateway).
-// Hard cap tính từ created_at KHÔNG gia hạn được — xem contract. Chưa hiện thực (B5).
+// Hard cap tính từ created_at KHÔNG gia hạn được — xem contract.
 func (s *SessionService) ExtendSession(
-	_ context.Context, req *orchestratorv1.ExtendSessionRequest,
+	ctx context.Context, req *orchestratorv1.ExtendSessionRequest,
 ) (*orchestratorv1.ExtendSessionResponse, error) {
-	s.log.Info("ExtendSession (chưa hiện thực)", slog.String("session_id", req.GetSessionId()))
-	return nil, errUnimplemented("ExtendSession", "B5")
+	if err := s.ready("ExtendSession"); err != nil {
+		return nil, err
+	}
+	sess, hardCapReached, err := s.lifecycle.Extend(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return &orchestratorv1.ExtendSessionResponse{
+		Session:        sess,
+		HardCapReached: hardCapReached,
+	}, nil
 }
 
-// ReapSession dọn session hết hạn. Phải idempotent. Chưa hiện thực (B6).
+// ReapSession dọn session. Idempotent.
+//
+// ⛔ ĐÂY LÀ NƠI `oneof actor` ĐƯỢC ĐỐI CHIẾU VỚI THỰC TẾ. Field trong request
+// nói client TUYÊN BỐ mình là ai; PeerTrust là thứ server CHỨNG MINH được. Tin
+// field thì bất kỳ ai gọi được RPC cũng tự phong mình là `system_component` —
+// và session_id không phải bí mật (nó nằm trong URL /ws/session/{id}), nên
+// "biết id = reap được session của người khác". Chính vì thế proto BẮT BUỘC
+// field này thay vì để nó optional.
 func (s *SessionService) ReapSession(
-	_ context.Context, req *orchestratorv1.ReapSessionRequest,
+	ctx context.Context, req *orchestratorv1.ReapSessionRequest,
 ) (*orchestratorv1.ReapSessionResponse, error) {
-	s.log.Info("ReapSession (chưa hiện thực)", slog.String("session_id", req.GetSessionId()))
-	return nil, errUnimplemented("ReapSession", "B6")
+	if err := s.ready("ReapSession"); err != nil {
+		return nil, err
+	}
+
+	actor, err := s.resolveReapActor(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	sess, err := s.lifecycle.Reap(ctx, req.GetSessionId(), actor)
+	if err != nil {
+		return nil, err
+	}
+	return &orchestratorv1.ReapSessionResponse{Session: sess}, nil
+}
+
+// resolveReapActor dịch `oneof actor` sang thứ lifecycle tin được.
+func (s *SessionService) resolveReapActor(
+	ctx context.Context, req *orchestratorv1.ReapSessionRequest,
+) (lifecycle.ReapActor, error) {
+	switch a := req.GetActor().(type) {
+	case *orchestratorv1.ReapSessionRequest_UserId:
+		if a.UserId == "" {
+			return lifecycle.ReapActor{}, status.Error(codes.InvalidArgument, "actor.user_id rỗng")
+		}
+		return lifecycle.ReapActor{UserID: a.UserId}, nil
+
+	case *orchestratorv1.ReapSessionRequest_SystemComponent:
+		if a.SystemComponent == "" {
+			return lifecycle.ReapActor{}, status.Error(codes.InvalidArgument, "actor.system_component rỗng")
+		}
+		trust := TrustFromContext(ctx)
+		if !trust.InCluster {
+			// Với GRPC_REQUIRE_MTLS=false, server KHÔNG chứng minh được peer là
+			// in-cluster, nên nhánh này bị từ chối thẳng thay vì đoán bằng IP.
+			// Reaper nội bộ KHÔNG đi qua đây — nó gọi thẳng lifecycle.Reap
+			// trong cùng process, nên việc từ chối ở đây không chặn gì đang chạy.
+			s.log.Warn("từ chối actor=system_component từ peer không chứng minh được là in-cluster",
+				slog.String("component", a.SystemComponent),
+				slog.String("peer", trust.Addr))
+			return lifecycle.ReapActor{}, status.Error(codes.PermissionDenied,
+				"actor.system_component chỉ chấp nhận trên kết nối in-cluster đã xác thực (mTLS); "+
+					"xem GRPC_REQUIRE_MTLS")
+		}
+		return lifecycle.ReapActor{System: true, Component: a.SystemComponent}, nil
+
+	default:
+		// Comment trong proto nói rõ: thiếu actor thì server trả InvalidArgument.
+		// Không có nhánh "đoán hộ" — đó là cả điểm của việc field này bắt buộc.
+		return lifecycle.ReapActor{}, status.Error(codes.InvalidArgument,
+			"actor bắt buộc: đặt user_id hoặc system_component")
+	}
 }
 
 // ready chặn sớm khi orchestrator chạy không có datastore.
@@ -111,8 +180,4 @@ func (s *SessionService) ready(rpc string) error {
 			"%s cần Redis: orchestrator đang chạy không có REDIS_URL/DATABASE_URL", rpc)
 	}
 	return nil
-}
-
-func errUnimplemented(rpc, task string) error {
-	return status.Errorf(codes.Unimplemented, "%s sẽ được hiện thực ở task %s của phase 1", rpc, task)
 }

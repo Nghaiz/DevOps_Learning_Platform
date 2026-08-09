@@ -52,6 +52,29 @@ type Config struct {
 	// env khi 1.E merge — KHÔNG phải sửa code.
 	SandboxImage string
 
+	// ExtendDefault là khoảng đẩy thêm khi gateway gửi `extend_seconds = 0`
+	// (D11: 300s).
+	//
+	// ⚠ CON SỐ NÀY THỰC TẾ QUYẾT ĐỊNH HẠN CỦA SESSION, không phải SESSION_TTL:
+	// công thức B5 là `expires_at = min(now + extend, created_at + HARD_CAP)`,
+	// nên ngay từ lần gia hạn ĐẦU TIÊN hạn sẽ bám theo biến này. SESSION_TTL chỉ
+	// là hạn cho tới heartbeat đầu.
+	ExtendDefault time.Duration
+
+	// ReapInterval là nhịp sweep định kỳ của reaper (B7).
+	//
+	// Sweep là ĐƯỜNG CHÍNH, không phải đường dự phòng: keyspace notification là
+	// best-effort và mất event khi reaper offline là mất pod vĩnh viễn.
+	ReapInterval time.Duration
+
+	// RequireMTLS bật xác thực client trên cổng gRPC.
+	//
+	// Mặc định FALSE ở giai đoạn này vì lane gateway (1.C) chưa tồn tại nên chưa
+	// ai trình được cert, và bật cứng sẽ giết cả `grpcurl` trong Verify commands
+	// lẫn đường BFF→orchestrator của G12. Khi tắt, nhánh `system_component` của
+	// ReapSession bị TỪ CHỐI (fail-closed) — xem R25/B0′ trong phase-1.md.
+	RequireMTLS bool
+
 	// SandboxRuntimeClass PHẢI khớp `sandbox.runtimeClassName` trong Helm
 	// values. Lệch một chữ là ValidatingAdmissionPolicy từ chối MỌI pod, và
 	// triệu chứng là "warm-pool không bao giờ đầy" chứ không phải một lỗi trỏ
@@ -81,6 +104,23 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	extendDefault, err := envx.Duration("EXTEND_DEFAULT", 300*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	reapInterval, err := envx.Duration("REAP_INTERVAL", 60*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	if reapInterval <= 0 {
+		// 0 không phải "tắt reaper" — nó là pod sống mãi và ăn hết quota trong
+		// im lặng. Tắt reaper phải là một quyết định có tên, không phải một số 0.
+		return nil, fmt.Errorf("env REAP_INTERVAL: phải > 0 (nhận %s)", reapInterval)
+	}
+	requireMTLS, err := envx.Bool("GRPC_REQUIRE_MTLS", false)
+	if err != nil {
+		return nil, err
+	}
 	if poolTarget < 1 {
 		// 0 KHÔNG phải "tắt warm-pool" — nó là mọi session đi cold path, tức
 		// bỏ hẳn mục tiêu claim < 1s. Muốn tắt thì phải là một quyết định có
@@ -105,6 +145,9 @@ func Load() (*Config, error) {
 
 		HardCap:             hardCap,
 		PoolTarget:          poolTarget,
+		ExtendDefault:       extendDefault,
+		ReapInterval:        reapInterval,
+		RequireMTLS:         requireMTLS,
 		SandboxImage:        envx.String("SANDBOX_IMAGE", "registry.k8s.io/pause:3.10"),
 		SandboxRuntimeClass: envx.String("SANDBOX_RUNTIME_CLASS", "sysbox-runc"),
 	}, nil

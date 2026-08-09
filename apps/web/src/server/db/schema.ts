@@ -30,6 +30,16 @@ export const sandboxTier = pgEnum('sandbox_tier', ['sysbox', 'gvisor', 'kata']);
 export const sessionEvent = pgEnum('session_event', [
   'created',
   'claimed',
+  /**
+   * Gia hạn. CHỈ ghi khi lần gia hạn đó CHẠM TRẦN CỨNG — xem `Service.Extend`
+   * trong services/orchestrator/internal/lifecycle/extend.go.
+   *
+   * Gia hạn thường là heartbeat (gateway gọi theo nhịp traffic), nên ghi mọi
+   * lần sẽ đổ hàng nghìn dòng mỗi phiên và chôn vùi năm sự kiện thật sự đáng
+   * đọc. Câu hỏi "phiên còn sống không" đã có `lastActiveAt` trong Redis trả
+   * lời; câu hỏi bảng này trả lời là "chuyện gì đã xảy ra với phiên đó".
+   */
+  'extended',
   'expired',
   'reaped',
   'failed',

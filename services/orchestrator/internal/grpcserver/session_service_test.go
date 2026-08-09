@@ -9,6 +9,7 @@ import (
 
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/grpcserver"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/lifecycle"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -22,9 +23,29 @@ type fakeLifecycle struct {
 	sess *orchestratorv1.Session
 	err  error
 
+	hardCapReached bool
+
 	gotCreate *orchestratorv1.CreateSessionRequest
 	gotClaim  *orchestratorv1.ClaimSessionRequest
 	gotGet    *orchestratorv1.GetSessionRequest
+	gotExtend *orchestratorv1.ExtendSessionRequest
+	gotReapID string
+	gotActor  lifecycle.ReapActor
+}
+
+func (f *fakeLifecycle) Extend(
+	_ context.Context, req *orchestratorv1.ExtendSessionRequest,
+) (*orchestratorv1.Session, bool, error) {
+	f.gotExtend = req
+	return f.sess, f.hardCapReached, f.err
+}
+
+func (f *fakeLifecycle) Reap(
+	_ context.Context, sessionID string, actor lifecycle.ReapActor,
+) (*orchestratorv1.Session, error) {
+	f.gotReapID = sessionID
+	f.gotActor = actor
+	return f.sess, f.err
 }
 
 func (f *fakeLifecycle) Create(
@@ -48,36 +69,77 @@ func (f *fakeLifecycle) Get(
 	return f.sess, f.err
 }
 
-// TestB5B6ChuaHienThucVanNoiRo — ExtendSession/ReapSession phải trả
-// Unimplemented TƯỜNG MINH, không được mock ra Session giả.
+// TestReapActorPhaiDuocSERVERXacMinh (B0′ / R25).
 //
-// Mock sẽ khiến lane gateway code dựa trên hành vi bịa rồi vỡ khi hai RPC đó có
-// thật; Unimplemented làm caller thấy ngay chỗ chưa xong.
-func TestB5B6ChuaHienThucVanNoiRo(t *testing.T) {
-	svc := grpcserver.NewSessionService(discardLogger(), &fakeLifecycle{})
-	ctx := context.Background()
+// ⛔ `oneof actor` trong proto là thứ client TUYÊN BỐ. Nếu server tin nó, thì
+// bất kỳ ai gọi được RPC cũng tự phong mình là `system_component` — và
+// session_id KHÔNG phải bí mật (nó nằm trong URL /ws/session/{id}), nên
+// "biết id = reap được session của người khác". Đây chính là lý do proto BẮT
+// BUỘC field này thay vì để nó optional.
+func TestReapActorPhaiDuocSERVERXacMinh(t *testing.T) {
+	sess := &orchestratorv1.Session{Id: "s1"}
 
-	calls := map[string]func() error{
-		"ExtendSession": func() error {
-			_, err := svc.ExtendSession(ctx, &orchestratorv1.ExtendSessionRequest{SessionId: "s1"})
-			return err
-		},
-		"ReapSession": func() error {
-			_, err := svc.ReapSession(ctx, &orchestratorv1.ReapSessionRequest{SessionId: "s1"})
-			return err
-		},
-	}
+	t.Run("system_component từ peer không chứng minh được là in-cluster → PermissionDenied", func(t *testing.T) {
+		fake := &fakeLifecycle{sess: sess}
+		svc := grpcserver.NewSessionService(discardLogger(), fake)
 
-	for name, call := range calls {
-		t.Run(name, func(t *testing.T) {
-			err := call()
-			if err == nil {
-				t.Fatalf("%s trả nil error — skeleton không được giả vờ thành công", name)
-			}
-			if got := status.Code(err); got != codes.Unimplemented {
-				t.Fatalf("%s trả code %v, muốn %v", name, got, codes.Unimplemented)
-			}
+		// Không interceptor ⇒ PeerTrust rỗng ⇒ InCluster=false. Đây ĐÚNG là
+		// trạng thái khi GRPC_REQUIRE_MTLS=false, tức mặc định hôm nay.
+		_, err := svc.ReapSession(context.Background(), &orchestratorv1.ReapSessionRequest{
+			SessionId: "s1",
+			Actor:     &orchestratorv1.ReapSessionRequest_SystemComponent{SystemComponent: "reaper"},
 		})
+		if got := status.Code(err); got != codes.PermissionDenied {
+			t.Fatalf("code = %v, cần PermissionDenied — nếu qua được thì ai cũng reap được session của người khác", got)
+		}
+		if fake.gotReapID != "" {
+			t.Fatal("lifecycle.Reap ĐÃ được gọi — việc từ chối phải xảy ra TRƯỚC khi chạm tầng dưới")
+		}
+	})
+
+	t.Run("thiếu actor → InvalidArgument", func(t *testing.T) {
+		fake := &fakeLifecycle{sess: sess}
+		svc := grpcserver.NewSessionService(discardLogger(), fake)
+		_, err := svc.ReapSession(context.Background(), &orchestratorv1.ReapSessionRequest{SessionId: "s1"})
+		if got := status.Code(err); got != codes.InvalidArgument {
+			t.Fatalf("code = %v, cần InvalidArgument", got)
+		}
+		if fake.gotReapID != "" {
+			t.Fatal("lifecycle.Reap được gọi dù không có actor")
+		}
+	})
+
+	t.Run("user_id đi qua nguyên vẹn xuống lifecycle", func(t *testing.T) {
+		fake := &fakeLifecycle{sess: sess}
+		svc := grpcserver.NewSessionService(discardLogger(), fake)
+		_, err := svc.ReapSession(context.Background(), &orchestratorv1.ReapSessionRequest{
+			SessionId: "s1",
+			Actor:     &orchestratorv1.ReapSessionRequest_UserId{UserId: "userA"},
+		})
+		if err != nil {
+			t.Fatalf("ReapSession: %v", err)
+		}
+		if fake.gotActor.UserID != "userA" || fake.gotActor.System {
+			t.Fatalf("actor = %+v, cần {UserID:userA, System:false}", fake.gotActor)
+		}
+	})
+}
+
+// TestExtendBocDungCoHardCap — cờ này là thứ FE dùng để báo trước "phiên sắp
+// hết hạn" thay vì để terminal chết đột ngột. Nuốt nó ở tầng adapter là làm
+// người dùng mất cảnh báo mà không test nào ở tầng dưới thấy được.
+func TestExtendBocDungCoHardCap(t *testing.T) {
+	fake := &fakeLifecycle{sess: &orchestratorv1.Session{Id: "s1"}, hardCapReached: true}
+	svc := grpcserver.NewSessionService(discardLogger(), fake)
+
+	resp, err := svc.ExtendSession(context.Background(), &orchestratorv1.ExtendSessionRequest{
+		SessionId: "s1", UserId: "u1",
+	})
+	if err != nil {
+		t.Fatalf("ExtendSession: %v", err)
+	}
+	if !resp.GetHardCapReached() {
+		t.Fatal("hard_cap_reached bị nuốt ở tầng adapter")
 	}
 }
 

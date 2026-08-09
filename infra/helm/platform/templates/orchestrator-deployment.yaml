@@ -115,6 +115,12 @@ spec:
             */}}
             - name: SANDBOX_RUNTIME_CLASS
               value: {{ .Values.orchestrator.env.sandboxRuntimeClass | default .Values.sandbox.runtimeClassName | quote }}
+            - name: EXTEND_DEFAULT
+              value: {{ .Values.orchestrator.env.extendDefault | quote }}
+            - name: REAP_INTERVAL
+              value: {{ .Values.orchestrator.env.reapInterval | quote }}
+            - name: GRPC_REQUIRE_MTLS
+              value: {{ .Values.orchestrator.env.grpcRequireMtls | quote }}
           readinessProbe:
             httpGet:
               path: /healthz

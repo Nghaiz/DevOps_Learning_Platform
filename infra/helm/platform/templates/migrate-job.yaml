@@ -1,0 +1,74 @@
+{{- if and .Values.migrate.enabled .Values.datastore.postgres.enabled }}
+{{/*
+Job chạy migration Drizzle TRƯỚC khi web/orchestrator khởi động.
+
+VÌ SAO LÀ HOOK `pre-install,pre-upgrade` CHỨ KHÔNG PHẢI initContainer:
+- initContainer nằm trên Deployment nên nó chạy MỖI LẦN pod restart, và với
+  replicaCount > 1 thì nhiều bản chạy song song trên cùng một database. Drizzle
+  có bảng `__drizzle_migrations` nên không hỏng, nhưng đó là may mắn chứ không
+  phải thiết kế — và mỗi lần rollout là thêm một cuộc đua không cần thiết.
+- Hook chạy ĐÚNG MỘT LẦN cho mỗi lần install/upgrade, và Helm CHỜ nó xong trước
+  khi apply phần còn lại. Đó chính là thứ tự ta cần: schema có trước, app sau.
+
+VÌ SAO TỒN TẠI: tới trước bản này migration phải chạy TAY qua `kubectl
+port-forward` sau mỗi lần dựng lại DB (§"Còn để ngỏ" của phase-1). Hệ quả đã
+được cảnh báo trước: dựng lại cluster ⇒ bảng `jwks` chưa có ⇒ `/api/auth/jwks`
+trả 500 ⇒ toàn bộ G2 sập, và không dấu hiệu nào chỉ về nguyên nhân.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "platform.fullname" . }}-migrate
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "migrate") | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    # Sau datastore-secret (weight mặc định 0) để Secret chắc chắn tồn tại khi
+    # Job đọc DATABASE_URL từ nó.
+    helm.sh/hook-weight: '5'
+    # before-hook-creation: xoá Job của lần trước trước khi tạo lần này (Job có
+    # spec bất biến, không xoá thì upgrade thứ hai lỗi "field is immutable").
+    # hook-succeeded: xoá khi xong, để không tích một Job mỗi lần upgrade.
+    # CỐ Ý KHÔNG có hook-failed — Job thất bại phải NẰM LẠI để đọc log; xoá nó
+    # đi là vứt bỏ đúng thứ cần cho việc chẩn đoán.
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  # Migration không tự chữa được bằng cách thử lại vô hạn: lỗi thường là SQL sai
+  # hoặc DB không tới được, và cả hai cần người xem. 2 lần thử đủ để vượt qua
+  # một ca DB chưa sẵn sàng.
+  backoffLimit: 2
+  # Trần cứng để `helm upgrade` không treo vô thời hạn khi DB không tới được.
+  activeDeadlineSeconds: {{ .Values.migrate.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "platform.selectorLabels" (dict "context" . "component" "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- if .Values.platform.priorityClassEnabled }}
+      priorityClassName: {{ .Values.platform.priorityClassName }}
+      {{- end }}
+      # Job này chỉ nói chuyện với Postgres — không có lý do gì cầm token API server.
+      automountServiceAccountToken: false
+      containers:
+        - name: migrate
+          image: '{{ .Values.image.registry }}/{{ .Values.migrate.image.repository }}:{{ .Values.migrate.image.tag | default .Values.image.tag }}'
+          imagePullPolicy: {{ .Values.migrate.image.pullPolicy | default .Values.global.imagePullPolicy }}
+          env:
+            {{- /*
+            DATABASE_URL chứa mật khẩu ⇒ đến từ Secret, không phải env.value.
+            `kubectl get job -o yaml` là quyền phổ thông.
+            */}}
+            {{- if and .Values.datastore.enabled (not .Values.web.env.databaseUrl) }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "platform.datastoreSecretName" . }}
+                  key: DATABASE_URL
+            {{- else }}
+            - name: DATABASE_URL
+              value: {{ .Values.web.env.databaseUrl | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.migrate.resources | nindent 12 }}
+{{- end }}

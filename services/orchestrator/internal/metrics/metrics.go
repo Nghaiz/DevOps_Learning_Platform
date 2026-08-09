@@ -32,6 +32,34 @@ type Metrics struct {
 
 	ReplenishFailuresTotal     prometheus.Counter
 	ReplenishQuotaBlockedTotal prometheus.Counter
+
+	// ExtendTotal tách theo KẾT QUẢ, không phải theo session. `revision_mismatch`
+	// tăng đều là dấu hiệu hai tiến trình đang tranh cùng một session — chính
+	// cái race mà `revision` sinh ra để chặn, nên nó phải nhìn thấy được.
+	ExtendTotal *prometheus.CounterVec
+	// ReapTotal tách theo ai gọi (`user` / `system`) và kết quả.
+	ReapTotal *prometheus.CounterVec
+
+	// ReaperOrphanPodsTotal đếm pod mang label app=sandbox mà không có hash
+	// pod:{name}. > 0 kéo dài = báo động: có nguồn tạo pod ngoài warm-pool,
+	// hoặc một đường dọn dẹp đang hỏng.
+	ReaperOrphanPodsTotal prometheus.Counter
+	// ReaperGhostSessionsTotal đếm session:{id} còn mà pod đã biến mất.
+	ReaperGhostSessionsTotal prometheus.Counter
+	// ReaperQuarantineReapedTotal đếm pod bị cách ly đã được dọn khỏi cluster.
+	ReaperQuarantineReapedTotal prometheus.Counter
+	// ReaperSweepFailuresTotal đếm vòng sweep lỗi. Sweep là ĐƯỜNG CHÍNH của
+	// reaper (keyspace notification chỉ là đường nhanh, best-effort), nên nó
+	// hỏng âm thầm là pod sống mãi và ăn hết quota.
+	ReaperSweepFailuresTotal prometheus.Counter
+	// ReaperKeyspaceEventsTotal đếm event `expired` nhận được. Bằng 0 kéo dài
+	// trong khi session vẫn hết hạn = `notify-keyspace-events` chưa bật, và
+	// SUBSCRIBE vẫn THÀNH CÔNG trong ca đó nên không lỗi nào báo.
+	ReaperKeyspaceEventsTotal prometheus.Counter
+
+	// AuditWriteFailuresTotal — audit KHÔNG được chặn đường claim, nên lỗi ghi
+	// chỉ log + đếm. Counter này là thứ duy nhất cho biết audit trail đang thủng.
+	AuditWriteFailuresTotal prometheus.Counter
 }
 
 // New dựng và ĐĂNG KÝ mọi collector vào registry cho trước.
@@ -79,6 +107,42 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "dlp_pool_replenish_quota_blocked_total",
 			Help: "Số lần replenish bị ResourceQuota chặn. Đây là nền tảng chạy hết công suất, KHÔNG phải lỗi — tách khỏi replenish_failures để cảnh báo không trộn hai chuyện.",
 		}),
+
+		ExtendTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "dlp_extend_total",
+			Help: "Số lần ExtendSession, tách theo kết quả (ok/revision_mismatch/bad_state/hard_cap/not_found/error).",
+		}, []string{"result"}),
+
+		ReapTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "dlp_reap_total",
+			Help: "Số lần ReapSession, tách theo người gọi và kết quả.",
+		}, []string{"actor", "result"}),
+
+		ReaperOrphanPodsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dlp_reaper_orphan_pods_total",
+			Help: "Pod mang label app=sandbox mà không có hash pod:{name}. > 0 kéo dài = báo động.",
+		}),
+		ReaperGhostSessionsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dlp_reaper_ghost_sessions_total",
+			Help: "session:{id} còn trong Redis mà pod đã biến mất — chuyển FAILED.",
+		}),
+		ReaperQuarantineReapedTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dlp_reaper_quarantine_reaped_total",
+			Help: "Pod bị cách ly đã được dọn khỏi cluster. Không có nhánh này thì mỗi lần cách ly là −1 vĩnh viễn trên trần đồng thời (D16).",
+		}),
+		ReaperSweepFailuresTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dlp_reaper_sweep_failures_total",
+			Help: "Vòng sweep định kỳ thất bại. Sweep là ĐƯỜNG CHÍNH của reaper — pub/sub chỉ là đường nhanh.",
+		}),
+		ReaperKeyspaceEventsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dlp_reaper_keyspace_events_total",
+			Help: "Event __keyevent@N__:expired nhận được. Bằng 0 kéo dài trong khi session vẫn hết hạn = notify-keyspace-events chưa bật (và SUBSCRIBE vẫn thành công trong ca đó, nên không lỗi nào báo).",
+		}),
+
+		AuditWriteFailuresTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dlp_audit_write_failures_total",
+			Help: "Lỗi ghi sessions_audit. Audit không được chặn đường claim, nên đây là tín hiệu DUY NHẤT cho biết audit trail đang thủng.",
+		}),
 	}
 
 	reg.MustRegister(
@@ -88,6 +152,14 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.ColdPathTotal,
 		m.ReplenishFailuresTotal,
 		m.ReplenishQuotaBlockedTotal,
+		m.ExtendTotal,
+		m.ReapTotal,
+		m.ReaperOrphanPodsTotal,
+		m.ReaperGhostSessionsTotal,
+		m.ReaperQuarantineReapedTotal,
+		m.ReaperSweepFailuresTotal,
+		m.ReaperKeyspaceEventsTotal,
+		m.AuditWriteFailuresTotal,
 	)
 
 	// Khởi tạo cả hai nhãn về 0 ngay lúc đăng ký. Không có dòng này thì
