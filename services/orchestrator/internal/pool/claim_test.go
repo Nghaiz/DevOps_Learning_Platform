@@ -226,7 +226,7 @@ func TestClaimRejectsDuplicateInPool(t *testing.T) {
 }
 
 // TestClaimSkipsEmptyStringEntry: trong Lua chuỗi rỗng là TRUTHY, nên
-// `if not pod` KHÔNG bắt được ''. Bỏ qua thì sinh ra key rác tên đúng `pod:`
+// `if not pod` KHÔNG bắt được nó. Bỏ qua thì sinh ra key rác tên đúng `pod:`
 // và một session có podName rỗng — Claim trả ("", nil) và caller không có cách
 // nào biết.
 func TestClaimSkipsEmptyStringEntry(t *testing.T) {

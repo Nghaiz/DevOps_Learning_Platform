@@ -16,13 +16,13 @@ import (
 // hiện thực mà quên bản kia thì cả hai vẫn xanh — một "guard" không gác gì.
 // Đọc chung một byte thì lệch là đỏ.
 type vectors struct {
-	PoolFree      string   `json:"poolFree"`
-	PoolClaimed   string   `json:"poolClaimed"`
-	PoolQuarantine string  `json:"poolQuarantine"`
-	PodPrefix     string   `json:"podPrefix"`
-	SessionFields []string `json:"sessionFields"`
-	IdemUserID    string   `json:"idemUserId"`
-	Valid         []struct {
+	PoolFree       string   `json:"poolFree"`
+	PoolClaimed    string   `json:"poolClaimed"`
+	PoolQuarantine string   `json:"poolQuarantine"`
+	PodPrefix      string   `json:"podPrefix"`
+	SessionFields  []string `json:"sessionFields"`
+	IdemUserID     string   `json:"idemUserId"`
+	Valid          []struct {
 		ID         string `json:"id"`
 		Session    string `json:"session"`
 		SessionPod string `json:"sessionPod"`

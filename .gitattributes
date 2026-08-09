@@ -25,5 +25,12 @@ packages/shared-types/gen/** text eol=lf
 # việc đối chiếu `SCRIPT EXISTS <sha>` lúc chẩn đoán trở nên vô nghĩa.
 *.lua text eol=lf
 
+# Go: `gofmt` là một CỔNG CI, nên bản dev đọc phải giống hệt bản CI đọc. Với
+# autocrlf trên Windows, working tree thành CRLF và `gofmt -l` báo MỌI file lệch
+# — nhiễu đến mức không ai đọc nữa, rồi một lỗi format THẬT chìm trong đó và chỉ
+# lộ khi CI đỏ (run 31308110663: căn lề struct tag + gofmt đổi '' thành ” theo
+# quy tắc TeX-quote trong comment). Khoá LF thì `gofmt -l` local nói đúng sự thật.
+*.go text eol=lf
+
 # Mặc định: để git tự chuẩn hoá text, nhị phân giữ nguyên.
 * text=auto
