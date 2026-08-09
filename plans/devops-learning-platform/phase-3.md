@@ -15,6 +15,7 @@
 4. **Autoscaling** — **`cluster-autoscaler` (cloud-agnostic, đã chốt — không Karpenter/không khóa AWS)** trên node pool lab tainted (spot); scale-to-zero off-peak; cap session/user; ResourceQuota/namespace. Helm + IaC trung lập nhà cung cấp, chạy được AWS/GCP/Azure/bare-metal.
 5. **WS scale layer** — session-affinity ở Traefik, WS ping/idle tune, gateway scale ngang (đã stateless từ P1), session→pod ở Redis.
 6. **Rate limit + body-size ở Ingress** (luật 5 đầy đủ) — Traefik middleware, không chỉ ở Next.
+   - **Ghi nhận từ U2 (2026-08-09, Next 16 proxy.ts chạy Node runtime):** server Next TỰ ĐẶT `x-forwarded-for` = IP socket peer khi client không gửi header, nhưng client gửi sẵn XFF thì đi qua NGUYÊN VẸN (đo thật bằng curl). Vậy XFF vẫn giả mạo được nếu Traefik không strip/ghi đè ở biên. Khi làm task này: cấu hình Traefik ghi đè XFF từ socket thật, RỒI mới bật `RATE_LIMIT_TRUST_PROXY=1` cho web — logic `clientKey()` trong `apps/web/src/proxy.ts` giữ nguyên, không cần sửa code.
 7. **Observability** — Prometheus + Grafana dashboard (claim latency, WS active, pod pool, reap rate, error) + Loki log; alert cơ bản.
 8. **Reaper hardening** — orphan sweep, grace period, chống rò tài nguyên khi gateway/orchestrator restart.
 9. **Chi phí** — spot interruption handling, scale-to-zero, đo cost/session.

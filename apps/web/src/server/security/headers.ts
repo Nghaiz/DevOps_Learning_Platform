@@ -1,7 +1,7 @@
 /**
  * Security headers (luật 9 — phase-0.md 0.D task 17).
  *
- * `buildCsp` nhận `nonce` do middleware sinh mỗi request — script-src dùng nonce
+ * `buildCsp` nhận `nonce` do proxy sinh mỗi request — script-src dùng nonce
  * thay vì `unsafe-inline` (Next tự áp nonce vào script nó chèn khi thấy `headers()`
  * đọc `x-nonce` trong root layout — xem apps/web/src/app/layout.tsx).
  */

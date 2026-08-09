@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 import { applySecurityHeaders, buildCsp } from '../server/security/headers';
-import { middleware } from '../middleware';
+import { proxy } from '../proxy';
 
 /**
  * Luật 9 — `curl -I` trang chính có đủ HSTS/CSP/X-Frame-Options/
@@ -34,7 +34,7 @@ describe('luật 9 — security headers', () => {
 
   it('middleware: GET / (trang chính) → response có đủ 6 header', () => {
     const request = new NextRequest('http://localhost:3000/');
-    const response = middleware(request);
+    const response = proxy(request);
 
     for (const header of [
       'strict-transport-security',

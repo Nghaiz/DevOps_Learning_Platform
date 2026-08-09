@@ -22,7 +22,7 @@ const LEGACY_ACCESS_COOKIE = 'access_token';
  *
  * `asResponse: true` là mấu chốt: signOut của Better Auth xoá session cookie
  * bằng header Set-Cookie trên RESPONSE CỦA NÓ — gọi kiểu thường rồi tự dựng
- * NextResponse là vứt header đó đi, cookie session sống tiếp 7 ngày và middleware
+ * NextResponse là vứt header đó đi, cookie session sống tiếp 7 ngày và proxy
  * (chỉ kiểm SỰ TỒN TẠI cookie) sẽ đá /login ↔ /dashboard thành vòng lặp redirect.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (authSetCookies.length === 0) {
     // signOut không trả Set-Cookie (session đã hết hạn từ trước / lỗi vận
     // chuyển) — vẫn phải đảm bảo cookie session biến mất khỏi trình duyệt,
-    // không thì middleware (kiểm SỰ TỒN TẠI cookie) đá /login về /dashboard
+    // không thì proxy (kiểm SỰ TỒN TẠI cookie) đá /login về /dashboard
     // vĩnh viễn. Tên cookie theo convention Better Auth: prefix __Secure- khi
     // chạy https (production). Bản __Secure- PHẢI set kèm secure:true — spec
     // cookie prefix bắt browser VỨT mọi Set-Cookie __Secure-* thiếu Secure,

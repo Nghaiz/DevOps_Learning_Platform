@@ -21,9 +21,12 @@ let warnedNoClientKey = false;
  *   XFF là header client tự đặt được: tin bừa thì attacker xoay giá trị mỗi
  *   request là né limit; còn bucket chung 'unknown' thì NGƯỢC LẠI — một client
  *   spam 120 request khoá TẤT CẢ user còn lại (self-DoS). Cả hai đều tệ hơn skip.
- * - Middleware Next 15 không cho đọc peer address trực tiếp (request.ip đã bị
- *   gỡ) — không có proxy tin cậy thì không có nguồn IP đáng tin nào ở đây; giới
- *   hạn thật cho self-host đến ở tầng Traefik (P3, plan đã ghi).
+ * - Node runtime (proxy.ts, Next 16): server Next TỰ ĐẶT x-forwarded-for = IP
+ *   socket peer khi client KHÔNG gửi header này, nhưng client gửi sẵn XFF thì
+ *   giá trị đó đi qua NGUYÊN VẸN (đo thật 2026-08-09: curl thường → "::1", curl
+ *   -H "x-forwarded-for: 6.6.6.6" → "6.6.6.6"). Tức là vẫn giả mạo được — điều
+ *   kiện TRUST_PROXY giữ nguyên; nguồn IP chỉ đáng tin khi Traefik (P3) strip/
+ *   ghi đè XFF ở biên. Ghi nhận tại plans/devops-learning-platform/phase-3.md.
  */
 function clientKey(request: NextRequest): string | null {
   if (!rateLimitTrustProxy()) {
@@ -34,7 +37,7 @@ function clientKey(request: NextRequest): string | null {
   return nearest !== undefined && nearest !== '' ? nearest : null;
 }
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   const origin = request.headers.get('origin');
 
@@ -91,9 +94,9 @@ export function middleware(request: NextRequest): NextResponse {
     return preflight;
   }
 
-  // Luật 8/session-gate: chỉ kiểm SỰ TỒN TẠI của cookie session ở middleware (Edge,
-  // không đụng DB) — page/layout tự kiểm session thật qua auth.api.getSession làm
-  // phòng thủ lớp hai (xem dashboard/page.tsx).
+  // Luật 8/session-gate: chỉ kiểm SỰ TỒN TẠI của cookie session ở proxy (không
+  // đụng DB — proxy chạy trên MỌI request nên phải rẻ) — page/layout tự kiểm
+  // session thật qua auth.api.getSession làm phòng thủ lớp hai (dashboard/page.tsx).
   const hasSession = getSessionCookie(request) !== null;
   if (hasSession && AUTH_ONLY_PATHS.includes(pathname)) {
     return secured(NextResponse.redirect(new URL('/dashboard', request.url)));

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 import { applyCorsHeaders, resolveAllowedOrigin } from '../server/security/cors';
-import { middleware } from '../middleware';
+import { proxy } from '../proxy';
 
 /**
  * Luật 2 — CORS: allowlist từ env, KHÔNG reflect Origin lạ, KHÔNG credentials đi
@@ -40,7 +40,7 @@ describe('luật 2 — CORS allowlist', () => {
     const request = new NextRequest('http://localhost:3000/api/trpc/me.get', {
       headers: { origin: 'https://evil.example' },
     });
-    const response = middleware(request);
+    const response = proxy(request);
     expect(response.headers.get('access-control-allow-origin')).not.toBe('https://evil.example');
   });
 
@@ -49,7 +49,7 @@ describe('luật 2 — CORS allowlist', () => {
       method: 'OPTIONS',
       headers: { origin: 'https://evil.example' },
     });
-    const response = middleware(request);
+    const response = proxy(request);
     expect(response.status).toBe(204);
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
   });

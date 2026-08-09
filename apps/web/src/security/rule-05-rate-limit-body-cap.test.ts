@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 import { exceedsBodyLimit, MAX_JSON_BODY_BYTES } from '../server/security/body-limit';
 import { checkRateLimit, RATE_LIMIT_MAX_REQUESTS, resetRateLimitState } from '../server/security/rate-limit';
-import { middleware } from '../middleware';
+import { proxy } from '../proxy';
 
 /**
  * Luật 5 — body > cap → 413; > N req/s → 429.
@@ -44,7 +44,7 @@ describe('luật 5 — body cap + rate limit', () => {
       method: 'POST',
       headers: { 'content-length': String(MAX_JSON_BODY_BYTES + 1024) },
     });
-    const response = middleware(request);
+    const response = proxy(request);
     expect(response.status).toBe(413);
   });
 
@@ -80,13 +80,13 @@ describe('luật 5 — body cap + rate limit', () => {
 
     // RATE_LIMIT_MAX_REQUESTS request đầu phải qua được middleware — chỉ assert
     // request áp chót thay vì lặp in cả N lần response để test chạy nhanh.
-    let last = middleware(makeRequest());
+    let last = proxy(makeRequest());
     for (let i = 1; i < RATE_LIMIT_MAX_REQUESTS; i += 1) {
-      last = middleware(makeRequest());
+      last = proxy(makeRequest());
     }
     expect(last.status).not.toBe(429);
 
-    const blocked = middleware(makeRequest());
+    const blocked = proxy(makeRequest());
     expect(blocked.status).toBe(429);
   });
 
@@ -96,7 +96,7 @@ describe('luật 5 — body cap + rate limit', () => {
     // không định danh được thì SKIP limit: cả N+1 request đều qua.
     const makeRequest = () => new NextRequest('http://localhost:3000/');
     for (let i = 0; i < RATE_LIMIT_MAX_REQUESTS + 1; i += 1) {
-      expect(middleware(makeRequest()).status).not.toBe(429);
+      expect(proxy(makeRequest()).status).not.toBe(429);
     }
   });
 
@@ -107,7 +107,7 @@ describe('luật 5 — body cap + rate limit', () => {
     const makeRequest = (fakeIp: string) =>
       new NextRequest('http://localhost:3000/', { headers: { 'x-forwarded-for': fakeIp } });
     for (let i = 0; i < 5; i += 1) {
-      expect(middleware(makeRequest(`198.51.100.${i}`)).status).not.toBe(429);
+      expect(proxy(makeRequest(`198.51.100.${i}`)).status).not.toBe(429);
     }
   });
 
@@ -116,7 +116,7 @@ describe('luật 5 — body cap + rate limit', () => {
       method: 'POST',
       headers: { 'content-length': String(MAX_JSON_BODY_BYTES + 1024) },
     });
-    const response = middleware(request);
+    const response = proxy(request);
     expect(response.status).toBe(413);
     expect(response.headers.get('x-frame-options')).toBe('DENY');
     expect(response.headers.get('strict-transport-security')).not.toBeNull();
