@@ -14,7 +14,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/redis/go-redis/v9"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/k8s"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/metrics"
@@ -126,11 +128,15 @@ func (f *fakePods) addPod(name string, age time.Duration) {
 	f.pods = append(f.pods, p)
 }
 
-func k8sNotFound(name string) error { return &notFoundErr{name} }
-
-type notFoundErr struct{ name string }
-
-func (e *notFoundErr) Error() string { return "pods \"" + e.name + "\" not found" }
+// k8sNotFound trả lỗi apierrors THẬT, không phải một kiểu tự chế.
+//
+// `k8s.IsNotFound` dùng `apierrors.IsNotFound`, thứ đọc `Status().Reason` chứ
+// không đọc chuỗi. Một double trả lỗi tự chế sẽ khiến code sản phẩm rơi vào
+// nhánh "không phân biệt được" — và test khi đó kiểm một đường KHÁC với đường
+// chạy thật.
+func k8sNotFound(name string) error {
+	return apierrors.NewNotFound(schema.GroupResource{Resource: "pods"}, name)
+}
 
 // fakeSessions ghi lại các lời gọi vào lifecycle.
 type fakeSessions struct {
@@ -140,11 +146,17 @@ type fakeSessions struct {
 	failedErr error
 }
 
-func (f *fakeSessions) ReapSystem(_ context.Context, sessionID, _ string) error {
+func (f *fakeSessions) ReapExpired(_ context.Context, sessionID, _ string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.reaped = append(f.reaped, sessionID)
 	return nil
+}
+
+func (f *fakeSessions) reapedIDs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.reaped...)
 }
 
 func (f *fakeSessions) MarkFailed(_ context.Context, sessionID, _ string) error {
@@ -393,7 +405,7 @@ func TestDrainQuarantineDonCaPodLanHash(t *testing.T) {
 // thứ trả lời "session vừa hết hạn đang ở pod nào". Đặt hai TTL bằng nhau là
 // reaper mù, và triệu chứng là pod sống mãi mà không lỗi nào báo.
 func TestTang1DungConTroPodSongLauHon(t *testing.T) {
-	r, pods, _, rdb, _ := newTestReaper(t)
+	r, pods, sessions, rdb, _ := newTestReaper(t)
 	ctx := context.Background()
 
 	const name = "sandbox-hethan001"
@@ -411,12 +423,15 @@ func TestTang1DungConTroPodSongLauHon(t *testing.T) {
 	// Hash session KHÔNG tồn tại — đúng trạng thái lúc event expired tới.
 	r.handleExpiredKey(ctx, "session:sessionhethan000001")
 
-	if got := pods.deletedNames(); len(got) != 1 || got[0] != name {
-		t.Fatalf("xoá %v, cần [%s] — tầng 1 không đọc được podName từ con trỏ", got, name)
+	// Tầng 1 UỶ QUYỀN cho lifecycle.ReapExpired (nó ghi dòng audit `expired`
+	// rồi mới xoá pod) chứ không tự dọn — mọi bất biến ở MỘT hiện thực.
+	if got := sessions.reapedIDs(); len(got) != 1 || got[0] != "sessionhethan000001" {
+		t.Fatalf("ReapExpired nhận %v, cần [sessionhethan000001] — tầng 1 không đọc được podName từ con trỏ", got)
 	}
 	if n, _ := rdb.Exists(ctx, podPtr).Result(); n != 0 {
 		t.Fatal("con trỏ pod còn lại sau khi dọn")
 	}
+	_ = pods
 }
 
 // TestTang1BoQuaKeyKhongPhaiHashSession — `session:{id}:pod` hết hạn KHÔNG được
@@ -484,5 +499,107 @@ func TestRunQuetNgayLucKhoiDong(t *testing.T) {
 
 	if got := pods.deletedNames(); len(got) != 1 {
 		t.Fatalf("xoá %v, cần đúng 1 pod ở vòng quét khởi động", got)
+	}
+}
+
+// seedClaimedPod dựng đúng trạng thái mà `claim.lua` để lại sau một lần claim.
+func seedClaimedPod(t *testing.T, rdb *redis.Client, podName, sessionID string) {
+	t.Helper()
+	ctx := context.Background()
+	key, err := rediskeys.Pod(podName)
+	if err != nil {
+		t.Fatalf("rediskeys.Pod: %v", err)
+	}
+	if err := rdb.HSet(ctx, key,
+		"state", "claimed", "sessionId", sessionID,
+		"userId", "u1", "tier", "SANDBOX_TIER_SYSBOX",
+	).Err(); err != nil {
+		t.Fatalf("HSET pod: %v", err)
+	}
+	if err := rdb.RPush(ctx, rediskeys.PoolClaimed, podName).Err(); err != nil {
+		t.Fatalf("RPUSH claimed: %v", err)
+	}
+}
+
+// TestTang2cDonPodClaimedMaSessionKhongCon — ⛔ ĐIỂM MÙ THỨ TƯ.
+//
+// Khi tầng 1 LỠ event (reaper offline lúc `helm upgrade`, crash, rớt pub/sub),
+// session hết hạn để lại: hash `pod:{name}` state=claimed **TTL = -1**, tên nằm
+// trong `pool:claimed`, Pod vẫn chạy và vẫn ăn quota. Ba tầng kia đều bỏ qua —
+// hash TỒN TẠI nên không phải "mồ côi", không còn `session:*` để SCAN thấy,
+// không nằm trong quarantine. Và `pool:claimed` trước bản này KHÔNG CÓ NHÁNH
+// NÀO ĐỌC. Mỗi lần rollout là −1 VĨNH VIỄN trên trần 4 pod (D16).
+func TestTang2cDonPodClaimedMaSessionKhongCon(t *testing.T) {
+	r, pods, sessions, rdb, met := newTestReaper(t)
+	ctx := context.Background()
+
+	const name = "sandbox-leak0001"
+	// Pod TRẺ (tầng 2a bỏ qua vì chưa tới orphanGrace) và CÓ hash (tầng 2a cũng
+	// bỏ qua vì không phải mồ côi). Session thì không tồn tại.
+	pods.addPod(name, time.Minute)
+	seedClaimedPod(t, rdb, name, "sessiondahethan00001")
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	// Tầng 2c UỶ QUYỀN cho lifecycle.ReapExpired — nó ghi dòng audit `expired`
+	// (đọc userId/tier từ hash pod, thứ duy nhất còn sót) rồi mới xoá pod và
+	// index. Reaper tự `DEL` ở đây là dựng đường ghi thứ hai.
+	if got := sessions.reapedIDs(); len(got) != 1 || got[0] != "sessiondahethan00001" {
+		t.Fatalf("ReapExpired nhận %v, cần [sessiondahethan00001] — pod này rò VĨNH VIỄN nếu tầng 2c không thấy nó", got)
+	}
+	_ = pods
+	if v := testutil.ToFloat64(met.ReaperClaimedOrphanTotal); v != 1 {
+		t.Fatalf("dlp_reaper_claimed_orphan_total = %v, cần 1", v)
+	}
+}
+
+// TestTang2cKhongDungPodCoSessionConSong — vế đối xứng.
+func TestTang2cKhongDungPodCoSessionConSong(t *testing.T) {
+	r, pods, sessions, rdb, _ := newTestReaper(t)
+	ctx := context.Background()
+
+	const name = "sandbox-dangdung2"
+	pods.addPod(name, time.Minute)
+	seedClaimedPod(t, rdb, name, "sessioncondangsong01")
+	seedSession(t, rdb, "sessioncondangsong01", name, "RUNNING")
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	if got := pods.deletedNames(); len(got) != 0 {
+		t.Fatalf("xoá %v — session vẫn còn, pod đang phục vụ nó", got)
+	}
+	if got := sessions.reapedIDs(); len(got) != 0 {
+		t.Fatalf("ReapExpired nhận %v — không được gọi cho session còn sống", got)
+	}
+}
+
+// TestSweepKhongDanhDauFAILEDOanChoSessionVuaClaim (H-1).
+//
+// ⛔ ĐUA THẬT. `livePods` được chụp TRƯỚC vòng SCAN, nên một session được claim
+// SAU mốc đó — trỏ tới pod cũng xuất hiện sau mốc đó (đúng đường cold path:
+// Provision tạo pod rồi mới claim) — sẽ thấy `livePods[podName] == false`.
+// Không xác minh lại thì nó bị đánh dấu FAILED OAN: pod vẫn chạy, session bị
+// giết trong Redis, FE nhận FAILED, và không dấu vết nào giải thích.
+func TestSweepKhongDanhDauFAILEDOanChoSessionVuaClaim(t *testing.T) {
+	r, pods, sessions, rdb, _ := newTestReaper(t)
+	ctx := context.Background()
+
+	// Mô phỏng ảnh chụp CŨ: session + pod đều xuất hiện SAU khi List() đã chạy.
+	// Ở đây ta dựng chúng trước, nhưng cố tình KHÔNG đưa pod vào ảnh chụp bằng
+	// cách gọi thẳng sweepGhostSessions với một livePods rỗng.
+	const name = "sandbox-vuaclaim1"
+	pods.addPod(name, 10*time.Second)
+	seedSession(t, rdb, "sessionvuaclaim00001", name, "RUNNING")
+
+	if err := r.sweepGhostSessions(ctx, map[string]bool{}); err != nil {
+		t.Fatalf("sweepGhostSessions: %v", err)
+	}
+
+	if got := sessions.failedIDs(); len(got) != 0 {
+		t.Fatalf("session %v bị đánh dấu FAILED OAN — pod của nó VẪN CÓ trên cluster, "+
+			"ảnh chụp livePods chỉ đơn giản là cũ", got)
 	}
 }

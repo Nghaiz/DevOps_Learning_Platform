@@ -23,10 +23,11 @@
 local sess = redis.call('HMGET', KEYS[1],
   'userId', 'status', 'createdAt', 'expiresAt', 'revision')
 
-local userId    = sess[1]
-local status    = sess[2]
-local createdAt = tonumber(sess[3])
-local revision  = tonumber(sess[5]) or 0
+local userId       = sess[1]
+local status       = sess[2]
+local createdAt    = tonumber(sess[3])
+local curExpiresAt = tonumber(sess[4])
+local revision     = tonumber(sess[5]) or 0
 
 -- HMGET trên key không tồn tại trả mảng toàn false — KHÔNG phải lỗi, KHÔNG phải
 -- nil reply. Không kiểm ở đây thì "session đã hết hạn" đi tiếp dưới dạng một
@@ -49,6 +50,15 @@ if status ~= 'CLAIMED' and status ~= 'RUNNING' then
   return redis.error_reply('extend: state: trang thai ' .. tostring(status) .. ' khong cho gia han')
 end
 
+-- createdAt thiếu/không parse được (hash ghi tay, hash của bản cũ) là lỗi TRẠNG
+-- THÁI, không phải sự cố hạ tầng. Không kiểm thì số học bên dưới nổ
+-- "attempt to perform arithmetic on a nil value" và mapExtendError rơi vào nhánh
+-- default ⇒ Unavailable ⇒ retry policy của gRPC thử lại VĨNH VIỄN một request
+-- không bao giờ thành công, còn dashboard đọc nó như hạ tầng chết.
+if not createdAt then
+  return redis.error_reply('extend: state: session thieu createdAt, khong tinh duoc tran cung')
+end
+
 local expected = tonumber(ARGV[2]) or 0
 if expected ~= 0 and expected ~= revision then
   return redis.error_reply('extend: revision: client thay ' .. expected .. ', hien tai ' .. revision)
@@ -60,8 +70,8 @@ local hardCap  = tonumber(ARGV[5])
 local podGrace = tonumber(ARGV[6])
 
 -- HAI ĐỒNG HỒ: idle-deadline gia hạn được, hard cap tính từ createdAt thì không.
--- min() ở đây là thứ khiến RPC này KHÔNG BAO GIỜ là đường giữ pod sống vĩnh
--- viễn: một client bị chiếm quyền spam heartbeat cũng chỉ tới được trần cứng.
+-- min() là thứ khiến RPC này KHÔNG BAO GIỜ là đường giữ pod sống vĩnh viễn:
+-- một client bị chiếm quyền spam heartbeat cũng chỉ tới được trần cứng.
 local wanted   = now + extend
 local capAt    = createdAt + hardCap
 local newExpiresAt = wanted
@@ -69,6 +79,24 @@ local hardCapReached = 0
 if wanted >= capAt then
   newExpiresAt = capAt
   hardCapReached = 1
+end
+
+-- ⛔ HẠN CHỈ TIẾN, KHÔNG LÙI.
+--
+-- Công thức trần `min(now + extend, createdAt + hardCap)` một mình CÓ THỂ kéo
+-- hạn về quá khứ, và đo được là nó kéo rất mạnh: session tạo với SESSION_TTL=1h,
+-- heartbeat ĐẦU TIÊN với EXTEND_DEFAULT=300s hạ TTL từ 1h xuống 5m và đẩy
+-- `expires_at` LÙI 55 phút. Ba hậu quả cụ thể:
+--   1. AC "đóng WS → nối lại cùng {id} trong TTL vào đúng pod cũ" gãy — cửa sổ
+--      nối lại thành EXTEND_DEFAULT chứ không phải SESSION_TTL.
+--   2. BFF mint sandbox token với `exp = expires_at`; hạn đi lùi nghĩa là token
+--      ĐÃ CẤP sống lâu hơn session, và FE thấy đồng hồ đếm ngược nhảy giật lùi.
+--   3. `EXPIRE` rút ngắn TTL hash ⇒ reaper tầng 1 bắn sớm 55 phút.
+-- max() với giá trị hiện tại giữ nguyên ngữ nghĩa "đẩy về phía trước" của RPC.
+if curExpiresAt and curExpiresAt > newExpiresAt then
+  newExpiresAt = curExpiresAt
+  -- Giữ nguyên cờ: nếu lần này bị trần cắt thì vẫn phải báo cho FE, dù hạn
+  -- không đổi vì hạn cũ đã xa hơn.
 end
 
 -- Trần cứng đã qua ⇒ không còn gì để gia hạn. Trả về trạng thái hiện tại kèm

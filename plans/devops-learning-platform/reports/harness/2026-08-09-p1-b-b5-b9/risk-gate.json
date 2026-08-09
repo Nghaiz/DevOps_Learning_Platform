@@ -1,0 +1,14 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": true,
+  "reasons": [
+    "highRisk: TRUE — chặng này thêm một thành phần có QUYỀN XOÁ POD (reaper, chạy mỗi 60s) và một Job chặn được `helm install/upgrade`. Khác hẳn B1–B4, nơi thứ tệ nhất là không tạo được pod. Ở đây thứ tệ nhất là XOÁ NHẦM pod đang phục vụ sinh viên — và review đối kháng đã tìm thấy ĐÚNG hai ca đó (sweep giết pod đang sinh ra; sweep đánh dấu FAILED oan session vừa claim).",
+    "autoStopRequired: TRUE — không tự merge. Review đối kháng cho 4 CHẶN + 4 CAO, điểm 5/10, và kết luận 'không merge cho tới khi C-1…C-4 được sửa'. Cả 8 đã vá và có test, nhưng quyết định merge thuộc về người duyệt.",
+    "humanApproved: user chốt 4 quyết định qua AskUserQuestion — phạm vi B5–B9, B0′ có cổng mặc định tắt, tự động hoá migration, và (sau review) công thức Extend chuyển sang hạn-chỉ-tiến.",
+    "largeDiff: TRUE — 19 file, +2900 dòng, gồm 2 package mới và 4 file Lua.",
+    "Hai lỗi Helm CHẶN được review tìm ra chỉ hỏng ở `helm install` MỚI, không hỏng ở upgrade — nghĩa là chúng qua mặt mọi lần thử thông thường và chỉ nổ đúng lúc dựng lại cluster từ đầu, tức đúng kịch bản Job migration sinh ra để phục vụ.",
+    "Chưa xác minh trên cluster K8s thật: reaper chưa từng chạy trên cluster, Job migration chưa từng được `helm install` thật, và AC 'claim p95 < 1s' vẫn chưa có số đo. Xem adversarial-validation.unverifiedClaims."
+  ]
+}

@@ -46,6 +46,10 @@ type Metrics struct {
 	ReaperOrphanPodsTotal prometheus.Counter
 	// ReaperGhostSessionsTotal đếm session:{id} còn mà pod đã biến mất.
 	ReaperGhostSessionsTotal prometheus.Counter
+	// ReaperClaimedOrphanTotal đếm pod nằm trong pool:claimed mà session không
+	// còn — dấu vết của một event keyspace bị LỠ. > 0 sau mỗi lần rollout là
+	// bình thường; > 0 liên tục nghĩa là tầng 1 đã chết.
+	ReaperClaimedOrphanTotal prometheus.Counter
 	// ReaperQuarantineReapedTotal đếm pod bị cách ly đã được dọn khỏi cluster.
 	ReaperQuarantineReapedTotal prometheus.Counter
 	// ReaperSweepFailuresTotal đếm vòng sweep lỗi. Sweep là ĐƯỜNG CHÍNH của
@@ -126,6 +130,10 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "dlp_reaper_ghost_sessions_total",
 			Help: "session:{id} còn trong Redis mà pod đã biến mất — chuyển FAILED.",
 		}),
+		ReaperClaimedOrphanTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dlp_reaper_claimed_orphan_total",
+			Help: "Pod trong pool:claimed mà session không còn — dấu vết một event keyspace bị lỡ. Trước khi có tầng 2c, đây là pod rò VĨNH VIỄN mà không tầng nào chạm được.",
+		}),
 		ReaperQuarantineReapedTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "dlp_reaper_quarantine_reaped_total",
 			Help: "Pod bị cách ly đã được dọn khỏi cluster. Không có nhánh này thì mỗi lần cách ly là −1 vĩnh viễn trên trần đồng thời (D16).",
@@ -156,6 +164,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.ReapTotal,
 		m.ReaperOrphanPodsTotal,
 		m.ReaperGhostSessionsTotal,
+		m.ReaperClaimedOrphanTotal,
 		m.ReaperQuarantineReapedTotal,
 		m.ReaperSweepFailuresTotal,
 		m.ReaperKeyspaceEventsTotal,
@@ -168,6 +177,19 @@ func New(reg prometheus.Registerer) *Metrics {
 	// nào — trông y hệt "mọi thứ đều ổn".
 	m.ClaimDuration.WithLabelValues(PathWarm)
 	m.ClaimDuration.WithLabelValues(PathCold)
+
+	// Cùng lý do cho hai CounterVec mới: một alert kiểu
+	// `rate(dlp_extend_total{result="revision_mismatch"}[5m]) > 0` sẽ trả
+	// NO-DATA thay vì 0 cho tới lần đầu tiên nó xảy ra — và no-data trông y hệt
+	// "mọi thứ đều ổn" trên dashboard.
+	for _, r := range []string{"ok", "not_found", "revision_mismatch", "bad_state", "hard_cap", "error"} {
+		m.ExtendTotal.WithLabelValues(r)
+	}
+	for _, actor := range []string{"user", "system"} {
+		for _, r := range []string{"ok", "already_reaped", "not_found", "error"} {
+			m.ReapTotal.WithLabelValues(actor, r)
+		}
+	}
 
 	return m
 }

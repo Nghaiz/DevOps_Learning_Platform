@@ -68,19 +68,32 @@ func NewAuthInterceptor(log *slog.Logger, requireMTLS bool) grpc.UnaryServerInte
 		handler grpc.UnaryHandler,
 	) (interface{}, error) {
 		trust := PeerTrust{}
-		if p, ok := peer.FromContext(ctx); ok {
+		p, hasPeer := peer.FromContext(ctx)
+		if hasPeer {
 			trust.Addr = p.Addr.String()
-			if requireMTLS {
-				tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
-				if !ok || len(tlsInfo.State.VerifiedChains) == 0 {
-					// Bật mTLS mà peer không trình được cert hợp lệ ⇒ chặn hẳn,
-					// không hạ xuống "external". Nửa vời ở đây là bật một cổng
-					// rồi để nó không gác gì.
-					return nil, status.Error(codes.Unauthenticated,
-						"cổng này yêu cầu mTLS: không có client certificate hợp lệ")
-				}
-				trust.InCluster = true
+		}
+
+		// ⛔ NHÁNH TỪ CHỐI PHẢI NẰM NGOÀI `if hasPeer`.
+		//
+		// Bản đầu đặt nó BÊN TRONG, nên một request KHÔNG có peer trong context
+		// đi thẳng qua handler dù cổng đang bật — fail-OPEN, ngược hẳn với lập
+		// luận ngay phía trên. Đo được: `không có peer, requireMTLS=true →
+		// err=<nil>, handler đã chạy=true`.
+		if requireMTLS {
+			if !hasPeer {
+				return nil, status.Error(codes.Unauthenticated,
+					"cổng này yêu cầu mTLS: không xác định được peer của kết nối")
 			}
+			tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+			if !ok || len(tlsInfo.State.VerifiedChains) == 0 {
+				// Peer không trình được cert do CA của ta ký ⇒ chặn hẳn, không
+				// hạ xuống "external". Nửa vời ở đây là bật một cổng rồi để nó
+				// không gác gì. (Go chỉ điền VerifiedChains SAU khi verify bằng
+				// ClientCAs, nên cert của CA khác cho mảng rỗng.)
+				return nil, status.Error(codes.Unauthenticated,
+					"cổng này yêu cầu mTLS: không có client certificate hợp lệ")
+			}
+			trust.InCluster = true
 		}
 		return handler(context.WithValue(ctx, peerTrustKey{}, trust), req)
 	}

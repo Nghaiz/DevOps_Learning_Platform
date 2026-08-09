@@ -121,6 +121,18 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	if requireMTLS {
+		// ⛔ TỪ CHỐI KHỞI ĐỘNG, KHÔNG LÊN XANH RỒI CHẶN 100% RPC.
+		//
+		// Service này chưa có `grpc.Creds`/`ClientCAs` nào (mTLS thật thuộc D13,
+		// làm cùng lane gateway ở B6/G7), nên bật cờ = mọi RPC trả
+		// Unauthenticated. Để nó khởi động được là dựng một cổng an ninh GIẢ:
+		// health probe xanh, dashboard xanh, và không request nào chạy. Thà chết
+		// lúc khởi động với thông báo nói đúng chuyện gì thiếu.
+		return nil, fmt.Errorf("env GRPC_REQUIRE_MTLS=true nhưng orchestrator chưa cấu hình được TLS " +
+			"(chưa có grpc.Creds/ClientCAs — mTLS thật thuộc D13, làm cùng lane gateway). " +
+			"Bật cờ này bây giờ sẽ khiến MỌI RPC trả Unauthenticated")
+	}
 	if poolTarget < 1 {
 		// 0 KHÔNG phải "tắt warm-pool" — nó là mọi session đi cold path, tức
 		// bỏ hẳn mục tiêu claim < 1s. Muốn tắt thì phải là một quyết định có

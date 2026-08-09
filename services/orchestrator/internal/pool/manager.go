@@ -60,8 +60,8 @@ const (
 // `pod:{name}`, không session nào trỏ tới, và ăn một khe trong trần 4 pod (D16).
 //
 // Cay hơn nữa: đường này chỉ chạy khi pool đã RỖNG, tức đúng lúc quota căng
-// nhất. Và tầng đỡ duy nhất (sweep pod mồ côi của B7) CHƯA TỒN TẠI, nên hôm nay
-// đó là rò vĩnh viễn chứ không phải "rò tới lượt sweep" như log đang nói.
+// nhất. Tầng đỡ (sweep pod mồ côi của B7) nay đã tồn tại, nhưng nó chỉ chạm tới
+// pod SAU orphanGrace (5 phút) — dọn ngay ở đây vẫn rẻ hơn nhiều.
 func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 }
@@ -268,8 +268,8 @@ func (m *Manager) Provision(ctx context.Context) (string, error) {
 
 	if err := m.waitReady(ctx, name); err != nil {
 		// Pod đã tồn tại trên cluster và đang ăn quota. Bỏ nó lại là rò đúng
-		// một khe trong trần 4 (D16), và nó sẽ không có hash pod:{name} nên
-		// reaper (B7 — CHƯA TỒN TẠI) mới là thứ dọn được. Dọn ngay ở đây.
+		// một khe trong trần 4 (D16); reaper (B7) sẽ nhặt nó lên như pod mồ côi
+		// nhưng chỉ sau orphanGrace. Dọn ngay ở đây rẻ hơn nhiều.
 		m.deleteAfterFailure(ctx, name, "chờ-ready thất bại")
 		return "", err
 	}

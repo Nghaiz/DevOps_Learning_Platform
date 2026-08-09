@@ -1,4 +1,15 @@
-{{- if and .Values.migrate.enabled .Values.datastore.postgres.enabled }}
+{{- /*
+⛔ VỊ TỪ PHẢI GIỐNG HỆT NHÁNH env BÊN DƯỚI.
+Bản đầu dùng `.Values.datastore.postgres.enabled` ở đây (mặc định TRUE) nhưng
+`.Values.datastore.enabled` ở nhánh env (mặc định FALSE) ⇒ với values MẶC ĐỊNH,
+Job được render nhưng rơi vào nhánh else và nhận `DATABASE_URL=""`;
+drizzle.config.ts throw, container exit 1, `pre-install` hook fail, `helm install`
+ABORT. Trước bản này install mặc định chạy được — đó là một regression, và nó chỉ
+lộ ở install MỚI nên rất dễ qua mặt mọi lần thử thông thường.
+`hasDatabase` được tính MỘT LẦN và dùng ở cả hai chỗ.
+*/}}
+{{- $hasDatabase := or (and .Values.datastore.enabled .Values.datastore.postgres.enabled) .Values.web.env.databaseUrl }}
+{{- if and .Values.migrate.enabled $hasDatabase }}
 {{/*
 Job chạy migration Drizzle TRƯỚC khi web/orchestrator khởi động.
 
@@ -23,8 +34,11 @@ metadata:
     {{- include "platform.componentLabels" (dict "context" . "component" "migrate") | nindent 4 }}
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
-    # Sau datastore-secret (weight mặc định 0) để Secret chắc chắn tồn tại khi
-    # Job đọc DATABASE_URL từ nó.
+    # ⛔ hook-weight CHỈ sắp thứ tự GIỮA CÁC HOOK. `datastore-secret.yaml` là
+    # resource THƯỜNG, không phải hook, nên nó được apply SAU toàn bộ pha
+    # `pre-install` — Job này không thể đọc nó ở lần install ĐẦU TIÊN.
+    # Đó là lý do Secret cũng được đánh dấu hook với weight nhỏ hơn (xem
+    # templates/datastore-secret.yaml). Weight 5 giữ Job chạy sau nó.
     helm.sh/hook-weight: '5'
     # before-hook-creation: xoá Job của lần trước trước khi tạo lần này (Job có
     # spec bất biến, không xoá thì upgrade thứ hai lỗi "field is immutable").
@@ -59,13 +73,19 @@ spec:
             DATABASE_URL chứa mật khẩu ⇒ đến từ Secret, không phải env.value.
             `kubectl get job -o yaml` là quyền phổ thông.
             */}}
-            {{- if and .Values.datastore.enabled (not .Values.web.env.databaseUrl) }}
+            {{- if and .Values.datastore.enabled .Values.datastore.postgres.enabled (not .Values.web.env.databaseUrl) }}
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ include "platform.datastoreSecretName" . }}
                   key: DATABASE_URL
             {{- else }}
+            {{- /*
+            Đường managed-DB (RDS/Cloud SQL). Giá trị này CHỨA MẬT KHẨU và hiện
+            nguyên trong `kubectl get job -o yaml` — đó là hạn chế đã biết của
+            nhánh này, giống hệt web/orchestrator deployment. Đường prod nên
+            dùng datastore.existingSecret thay vì đặt URL trực tiếp ở values.
+            */}}
             - name: DATABASE_URL
               value: {{ .Values.web.env.databaseUrl | quote }}
             {{- end }}

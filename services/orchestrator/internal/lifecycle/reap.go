@@ -96,8 +96,15 @@ func (s *Service) Reap(
 		return nil, status.Errorf(codes.Unavailable, "reap session: %v", err)
 	}
 
+	// Kiểm len TRƯỚC khi index: một script tương lai trả mảng ngắn hơn sẽ panic
+	// ở đây thay vì trả lỗi. Dòng dưới đã kiểm, dòng này thì chưa — bất đối xứng
+	// không có lý do.
+	if len(res) < 5 {
+		s.met.ReapTotal.WithLabelValues(label, "error").Inc()
+		return nil, status.Errorf(codes.Internal, "reap.lua trả %d phần tử, cần 5", len(res))
+	}
 	podName, _ := res[0].(string)
-	alreadyReaped := len(res) >= 5 && res[4] == int64(1)
+	alreadyReaped := res[4] == int64(1)
 
 	// Xoá pod cả trong ca đã-reap-rồi: lần trước có thể đã đánh dấu xong mà
 	// chết trước khi xoá được pod. Delete idempotent (nuốt IsNotFound), nên
@@ -170,29 +177,60 @@ func (s *Service) cleanupPod(ctx context.Context, podName string) {
 	if err := s.rdb.Del(cleanupCtx, podKey).Err(); err != nil && !errors.Is(err, redis.Nil) {
 		s.log.Warn("không xoá được hash pod", slog.String("pod", podName), slog.String("err", err.Error()))
 	}
-	if err := s.rdb.LRem(cleanupCtx, rediskeys.PoolClaimed, 0, podName).Err(); err != nil {
-		s.log.Warn("không gỡ được pod khỏi pool:claimed",
-			slog.String("pod", podName), slog.String("err", err.Error()))
+	// LREM cả HAI list, đối xứng với reaper.deletePodAndIndex. Pod đã reap không
+	// bao giờ được nằm lại trong pool:free — nếu vì lý do gì nó lọt vào đó, một
+	// claim sẽ phát ra tên của một pod đã bị xoá.
+	for _, list := range []string{rediskeys.PoolClaimed, rediskeys.PoolFree} {
+		if err := s.rdb.LRem(cleanupCtx, list, 0, podName).Err(); err != nil {
+			s.log.Warn("không gỡ được pod khỏi index",
+				slog.String("list", list), slog.String("pod", podName), slog.String("err", err.Error()))
+		}
 	}
 }
 
-// ReapSystem là đường reaper NỘI BỘ gọi vào.
+// ReapExpired dọn một session ĐÃ HẾT HẠN (hash `session:{id}` không còn).
 //
-// Đi qua đúng Reap() mà RPC dùng, không phải một đường ghi riêng: mọi bất biến
-// (idempotency, đánh-dấu-trước-xoá-sau, dọn index, audit) chỉ có MỘT hiện thực.
-// Một đường ghi thứ hai là chỗ để hai bên trôi khỏi nhau trong im lặng.
+// ⛔ HÀM NÀY THAY CHO `ReapSystem` CŨ, VỐN LÀ MÃ CHẾT — không call-site sản
+// phẩm nào, đúng lỗi mà review PR trước đã tìm ra với `ClaimIdempotent`. Và nó
+// đóng một khoảng trống thật: đường đời PHỔ BIẾN NHẤT của session là hết hạn tự
+// nhiên, mà đường đó trước bản này không để lại sự kiện kết thúc nào trong
+// `sessions_audit` — nhật ký dừng ở `created` cho đa số phiên, tức câu hỏi
+// forensic mà B8 sinh ra để trả lời thì không trả lời được.
 //
-// KHÔNG đi qua interceptor gRPC nên không cần mTLS — nó chạy trong cùng process,
-// và đó chính là lý do việc từ chối `system_component` từ ngoài (khi mTLS tắt)
-// không chặn bất cứ thứ gì đang chạy.
-func (s *Service) ReapSystem(ctx context.Context, sessionID, component string) error {
-	_, err := s.Reap(ctx, sessionID, ReapActor{System: true, Component: component})
-	if err != nil && status.Code(err) == codes.NotFound {
-		// Session biến mất giữa lúc reaper quyết định và lúc nó gọi — đúng kết
-		// quả mong muốn, không phải lỗi.
-		return nil
+// Lúc được gọi, hash session ĐÃ biến mất. Chủ sở hữu và tier đọc từ hash
+// `pod:{name}` — `claim.lua` ghi sẵn chúng ở đó chính vì lý do này.
+func (s *Service) ReapExpired(ctx context.Context, sessionID, podName string) error {
+	cleanupCtx, cancel := cleanupContext(ctx)
+	defer cancel()
+
+	var userID, tier string
+	if podKey, err := rediskeys.Pod(podName); err == nil {
+		if vals, err := s.rdb.HMGet(cleanupCtx, podKey, "userId", "tier").Result(); err == nil {
+			userID, _ = vals[0].(string)
+			tier, _ = vals[1].(string)
+		}
 	}
-	return err
+
+	// Audit TRƯỚC khi xoá hash pod — sau đó thì không còn chỗ nào đọc được
+	// userId/tier nữa. Thiếu chúng thì audit() bỏ dòng này (cột NOT NULL) và
+	// tăng counter "audit thủng" vì một lý do khác hẳn thứ nó mô tả.
+	if userID != "" && tier != "" {
+		s.audit(ctx, auditEvent{
+			SessionID: sessionID,
+			UserID:    userID,
+			Event:     auditEventExpired,
+			Tier:      tier,
+			PodName:   podName,
+			Namespace: s.cfg.Namespace,
+			Detail:    "session hết hạn theo TTL",
+		})
+	} else {
+		s.log.Warn("session hết hạn nhưng hash pod thiếu userId/tier — không ghi được dòng audit kết thúc",
+			slog.String("session_id", sessionID), slog.String("pod", podName))
+	}
+
+	s.cleanupPod(ctx, podName)
+	return nil
 }
 
 // MarkFailed chuyển một session ma sang FAILED (pod đã biến mất khỏi cluster).
@@ -204,6 +242,21 @@ func (s *Service) MarkFailed(ctx context.Context, sessionID, reason string) erro
 	if err != nil {
 		return err
 	}
+
+	// ⛔ ĐỌC userId/tier TRƯỚC khi đổi status. Bản đầu gọi audit() với Tier rỗng
+	// ⇒ `protoTierToPG[""]` rỗng ⇒ audit return sớm, log ERROR ĐỔ LỖI SAI CHỖ
+	// ("tier không ánh xạ được") và tăng `dlp_audit_write_failures_total` vì một
+	// lý do khác hẳn thứ counter đó mô tả. Hệ quả kép: sự kiện `failed` KHÔNG
+	// BAO GIỜ tới Postgres, và mỗi session ma là một báo động sai nếu ai đó gắn
+	// alert vào counter kia. (Hai cột đó còn là NOT NULL trong schema.)
+	var userID, tier, podName string
+	if vals, hmErr := s.rdb.HMGet(ctx, sessionKey,
+		rediskeys.FieldUserID, rediskeys.FieldTier, rediskeys.FieldPodName).Result(); hmErr == nil {
+		userID, _ = vals[0].(string)
+		tier, _ = vals[1].(string)
+		podName, _ = vals[2].(string)
+	}
+
 	changed, err := markFailedScript.Run(ctx, s.rdb, []string{sessionKey}, s.now().Unix()).Int64()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return err
@@ -213,7 +266,11 @@ func (s *Service) MarkFailed(ctx context.Context, sessionID, reason string) erro
 			slog.String("session_id", sessionID), slog.String("reason", reason))
 		s.audit(ctx, auditEvent{
 			SessionID: sessionID,
+			UserID:    userID,
 			Event:     auditEventFailed,
+			Tier:      tier,
+			PodName:   podName,
+			Namespace: s.cfg.Namespace,
 			Detail:    reason,
 		})
 	}

@@ -148,35 +148,104 @@ func TestExtendKhongHoiSinhSessionDaReap(t *testing.T) {
 	wantCode(t, err, codes.FailedPrecondition)
 }
 
-// TestExtendCapNhatTTLCuaKey — TTL của key phải đi theo expiresAt, nếu không
-// hash biến mất trước hạn (hoặc sống quá hạn) và reaper tầng 1 nghe nhầm lúc.
-func TestExtendCapNhatTTLCuaKey(t *testing.T) {
+// TestExtendKhongBaoGioKeoLuiHan (H-3).
+//
+// ⛔ CÔNG THỨC `min(now + extend, createdAt + hardCap)` MỘT MÌNH KÉO HẠN VỀ QUÁ
+// KHỨ. Đo được trước khi vá: session tạo với SESSION_TTL=1h, một heartbeat với
+// EXTEND_DEFAULT=300s hạ TTL từ 1h xuống 5m và đẩy `expires_at` LÙI 55 phút.
+// Ba hậu quả: (1) AC "đóng WS → nối lại trong TTL vào đúng pod cũ" gãy vì cửa
+// sổ nối lại thành EXTEND_DEFAULT; (2) BFF mint sandbox token với
+// `exp = expires_at` nên token ĐÃ CẤP sống lâu hơn session, và FE thấy đồng hồ
+// đếm ngược nhảy giật lùi; (3) TTL hash bị rút ngắn ⇒ reaper tầng 1 bắn sớm.
+func TestExtendKhongBaoGioKeoLuiHan(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	sess := startSession(t, h)
 
-	if _, _, err := h.svc.Extend(ctx, extendReq(sess.GetId(), "u1", 600, 0)); err != nil {
-		t.Fatalf("Extend: %v", err)
-	}
-
+	before := sess.GetExpiresAt().AsTime()
 	sessionKey, _ := rediskeys.Session(sess.GetId())
-	ttl, err := h.rdb.TTL(ctx, sessionKey).Result()
+	ttlBefore, err := h.rdb.TTL(ctx, sessionKey).Result()
 	if err != nil {
 		t.Fatalf("TTL: %v", err)
 	}
-	if ttl <= 0 || ttl > 601*time.Second {
-		t.Fatalf("TTL session = %s, cần ~600s — TTL không đi theo expiresAt", ttl)
+
+	// Xin THÊM 600s — ngắn hơn nhiều so với 1h còn lại.
+	got, _, err := h.svc.Extend(ctx, extendReq(sess.GetId(), "u1", 600, 0))
+	if err != nil {
+		t.Fatalf("Extend: %v", err)
 	}
 
+	after := got.GetExpiresAt().AsTime()
+	if after.Before(before) {
+		t.Fatalf("expires_at ĐI LÙI: %s → %s (lùi %s). Token đã cấp sẽ sống lâu hơn session.",
+			before, after, before.Sub(after))
+	}
+	ttlAfter, err := h.rdb.TTL(ctx, sessionKey).Result()
+	if err != nil {
+		t.Fatalf("TTL sau: %v", err)
+	}
+	if ttlAfter < ttlBefore-2*time.Second {
+		t.Fatalf("TTL bị RÚT NGẮN %s → %s — reaper tầng 1 sẽ bắn sớm", ttlBefore, ttlAfter)
+	}
+
+	// Và con trỏ pod vẫn phải sống LÂU HƠN hash.
 	podPtrKey, _ := rediskeys.SessionPod(sess.GetId())
 	ptrTTL, err := h.rdb.TTL(ctx, podPtrKey).Result()
 	if err != nil {
 		t.Fatalf("TTL con trỏ: %v", err)
 	}
-	if ptrTTL <= ttl {
+	if ptrTTL <= ttlAfter {
 		t.Fatalf("TTL con trỏ (%s) phải LỚN HƠN TTL hash (%s) — bằng nhau là reaper tầng 1 mù",
-			ptrTTL, ttl)
+			ptrTTL, ttlAfter)
 	}
+}
+
+// TestExtendVANDayDuocHanVeTuongLai — vế đối xứng của forward-only: khi khoảng
+// xin THẬT SỰ xa hơn hạn hiện tại thì hạn phải nhích lên. Không có ca này thì
+// một hiện thực "không bao giờ đổi expiresAt" cũng qua được test trên.
+func TestExtendVanDayDuocHanVeTuongLai(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	sess := startSession(t, h)
+
+	before := sess.GetExpiresAt().AsTime()
+
+	// 90 phút > 1h còn lại, và vẫn dưới HARD_CAP 2h.
+	got, hardCap, err := h.svc.Extend(ctx, extendReq(sess.GetId(), "u1", int32((90*time.Minute).Seconds()), 0))
+	if err != nil {
+		t.Fatalf("Extend: %v", err)
+	}
+	if hardCap {
+		t.Fatal("hard_cap_reached=true cho một lần gia hạn còn dưới trần")
+	}
+	after := got.GetExpiresAt().AsTime()
+	if !after.After(before) {
+		t.Fatalf("expires_at đứng yên %s → %s — RPC này phải ĐẨY ĐƯỢC hạn về phía trước", before, after)
+	}
+
+	sessionKey, _ := rediskeys.Session(sess.GetId())
+	ttl, _ := h.rdb.TTL(ctx, sessionKey).Result()
+	if ttl < 80*time.Minute {
+		t.Fatalf("TTL = %s, cần ~90ph — TTL không đi theo expiresAt", ttl)
+	}
+}
+
+// TestExtendThieuCreatedAtLaLoiTrangThaiKhongPhaiHaTang (M-2).
+//
+// Gộp nó vào Unavailable làm retry policy của gRPC thử lại VĨNH VIỄN một request
+// không bao giờ thành công, và dashboard đọc nó như hạ tầng chết.
+func TestExtendThieuCreatedAtLaLoiTrangThai(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	sess := startSession(t, h)
+
+	sessionKey, _ := rediskeys.Session(sess.GetId())
+	if err := h.rdb.HDel(ctx, sessionKey, rediskeys.FieldCreatedAt).Err(); err != nil {
+		t.Fatalf("HDEL: %v", err)
+	}
+
+	_, _, err := h.svc.Extend(ctx, extendReq(sess.GetId(), "u1", 0, 0))
+	wantCode(t, err, codes.FailedPrecondition)
 }
 
 // ---------------------------------------------------------------- B6 Reap
@@ -263,24 +332,39 @@ func TestReapXoaPodVaDonIndex(t *testing.T) {
 	}
 }
 
-// TestReapSystemKhongCanChuSoHuu — reaper nội bộ reap được session của bất kỳ
-// ai. Đó là lý do nhánh `system_component` phải được xác thực ở tầng vận chuyển.
-func TestReapSystemKhongCanChuSoHuu(t *testing.T) {
+// TestReapExpiredDonPodDuSessionDaBienMat (H-4).
+//
+// Đây là đường của reaper cho session hết hạn tự nhiên. `ReapSystem` cũ đã bị
+// XOÁ vì nó không có call-site sản phẩm nào — đúng lỗi mà review PR trước tìm
+// ra với `ClaimIdempotent`, và là chỗ khiến `expired` không bao giờ được audit.
+func TestReapExpiredDonPodDuSessionDaBienMat(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	sess := startSession(t, h)
+	podName := sess.GetPodName()
 
-	if err := h.svc.ReapSystem(ctx, sess.GetId(), "reaper-ttl"); err != nil {
-		t.Fatalf("ReapSystem: %v", err)
-	}
-	if got := h.pods.deletedNames(); len(got) != 1 {
-		t.Fatalf("xoá %v, cần 1 pod", got)
+	// Mô phỏng hết hạn: hash session biến mất, hash pod còn (TTL của nó là -1).
+	sessionKey, _ := rediskeys.Session(sess.GetId())
+	if err := h.rdb.Del(ctx, sessionKey).Err(); err != nil {
+		t.Fatalf("DEL: %v", err)
 	}
 
-	// Gọi lại trên session đã biến mất hẳn KHÔNG phải lỗi — đó là kết quả mong
-	// muốn của reaper, và trả lỗi ở đây sẽ làm sweep log ERROR mỗi chu kỳ.
-	if err := h.svc.ReapSystem(ctx, "khongtontai00000000000000000000", "reaper-ttl"); err != nil {
-		t.Fatalf("ReapSystem trên session không tồn tại phải là no-op, nhận: %v", err)
+	if err := h.svc.ReapExpired(ctx, sess.GetId(), podName); err != nil {
+		t.Fatalf("ReapExpired: %v", err)
+	}
+
+	if got := h.pods.deletedNames(); len(got) != 1 || got[0] != podName {
+		t.Fatalf("xoá %v, cần [%s]", got, podName)
+	}
+	podKey, _ := rediskeys.Pod(podName)
+	if n, _ := h.rdb.Exists(ctx, podKey).Result(); n != 0 {
+		t.Fatal("hash pod:{name} còn — TTL của nó là -1, không ai dọn thì nó sống mãi")
+	}
+	claimed, _ := h.rdb.LRange(ctx, rediskeys.PoolClaimed, 0, -1).Result()
+	for _, n := range claimed {
+		if n == podName {
+			t.Fatal("pod vẫn nằm trong pool:claimed")
+		}
 	}
 }
 

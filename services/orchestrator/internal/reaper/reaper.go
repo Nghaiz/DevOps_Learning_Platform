@@ -51,17 +51,32 @@ const (
 	// dài bất thường không biến sweep thành một lượt gọi API kéo dài.
 	quarantineBatch = 50
 
+	// claimedBatch giới hạn số pod đã-claim soi mỗi vòng (tầng 2c). Cùng lý do
+	// với quarantineBatch; danh sách dài hơn sẽ được vét ở các vòng sau.
+	claimedBatch = 100
+
+	// fieldPodSessionID là field mà claim.lua ghi vào hash `pod:{name}`.
+	// Contract giữa Lua và Go — đổi một bên là tầng 2c mù trong im lặng.
+	fieldPodSessionID = "sessionId"
+
 	// sessionScanCount là gợi ý COUNT cho SCAN. SCAN chứ không KEYS: KEYS chặn
 	// Redis đơn luồng cho tới khi duyệt hết không gian khoá, và Redis này đang
 	// phục vụ đường claim của người dùng.
 	sessionScanCount = 200
 )
 
-// SessionReaper là phần lifecycle mà reaper cần. Reaper KHÔNG tự ghi trạng thái
-// session — nó gọi cùng một đường mà RPC dùng, nên mọi bất biến (idempotency,
-// thứ tự đánh dấu-trước-xoá-sau, audit) chỉ có một hiện thực.
+// SessionReaper là phần lifecycle mà reaper cần.
+//
+// Mọi thay đổi TRẠNG THÁI session và mọi dòng audit đi qua đây, không phải qua
+// các lệnh Redis rời rạc trong package này — để idempotency, thứ tự
+// đánh-dấu-trước-xoá-sau và audit chỉ có MỘT hiện thực. (Tầng 2a và tầng 3 dọn
+// pod KHÔNG có session nào trỏ tới, nên chúng gọi thẳng deletePodAndIndex —
+// không có trạng thái session nào để đổi.)
 type SessionReaper interface {
-	ReapSystem(ctx context.Context, sessionID, component string) error
+	// ReapExpired dọn session đã hết hạn: ghi dòng audit kết thúc rồi xoá pod
+	// cùng mọi index. Hash `session:{id}` đã biến mất lúc gọi.
+	ReapExpired(ctx context.Context, sessionID, podName string) error
+	// MarkFailed chuyển session ma sang FAILED (pod biến mất khỏi cluster).
 	MarkFailed(ctx context.Context, sessionID, reason string) error
 }
 
@@ -144,6 +159,13 @@ func (r *Reaper) watchExpired(ctx context.Context) {
 			return
 		case msg, ok := <-ch:
 			if !ok {
+				// Kênh đóng ⇒ tầng 1 CHẾT VĨNH VIỄN cho phần đời còn lại của
+				// process. Thoát im lặng ở đây nghĩa là đường nhanh biến mất mà
+				// không dấu hiệu nào — và với tầng 2c mới thêm thì hệ quả là mỗi
+				// session hết hạn phải chờ tới một chu kỳ sweep.
+				r.met.ReaperSweepFailuresTotal.Inc()
+				r.log.Error("reaper tầng 1 DỪNG: kênh keyspace đóng. Đường nhanh mất, chỉ còn sweep định kỳ.",
+					slog.String("channel", channel))
 				return
 			}
 			r.met.ReaperKeyspaceEventsTotal.Inc()
@@ -188,7 +210,12 @@ func (r *Reaper) handleExpiredKey(ctx context.Context, key string) {
 
 	r.log.Info("tầng 1: session hết hạn, dọn pod",
 		slog.String("session_id", id), slog.String("pod", podName))
-	r.deletePodAndIndex(ctx, podName)
+	// Qua lifecycle chứ không tự dọn: nó ghi dòng audit `expired` (đọc
+	// userId/tier từ hash pod, thứ duy nhất còn sót lại lúc này) rồi mới xoá.
+	if err := r.sessions.ReapExpired(ctx, id, podName); err != nil {
+		r.log.Error("tầng 1: dọn session hết hạn thất bại",
+			slog.String("session_id", id), slog.String("err", err.Error()))
+	}
 	_ = r.rdb.Del(ctx, podKey).Err()
 }
 
@@ -219,13 +246,88 @@ func (r *Reaper) sweep(ctx context.Context) error {
 		live[pods[i].Name] = true
 	}
 
-	if err := r.sweepOrphanPods(ctx, pods); err != nil {
-		return err
+	// ⛔ GOM LỖI, KHÔNG `return` SỚM. Bản đầu để một lỗi Redis ở tầng 2a nuốt
+	// luôn tầng 2b, 2c và 3 của CẢ vòng sweep — đo được: ép `EXISTS` lỗi một lần
+	// thì session ma không được xử lý và `pool:quarantine` không được dọn. Lỗi
+	// tạm thời chỉ tốn 60s, nhưng một lỗi DAI DẲNG ở đúng một tên pod sẽ khiến
+	// ba tầng còn lại KHÔNG BAO GIỜ chạy nữa, im lặng.
+	return errors.Join(
+		r.sweepOrphanPods(ctx, pods),
+		r.sweepGhostSessions(ctx, live),
+		r.sweepClaimedWithoutSession(ctx),
+		r.drainQuarantine(ctx),
+	)
+}
+
+// sweepClaimedWithoutSession — TẦNG 2c: pod đã claim mà session không còn.
+//
+// ⛔ ĐIỂM MÙ THỨ TƯ, VÀ NÓ PHÁ ĐÚNG LỜI HỨA NỀN TẢNG CỦA B7.
+//
+// Khi tầng 1 LỠ event (reaper offline lúc `helm upgrade`, crash, rớt pub/sub),
+// một session hết hạn để lại trạng thái này:
+//
+//	session:{id}   → mất
+//	pod:{name}     → state=claimed, TTL = -1 (KHÔNG BAO GIỜ hết hạn)
+//	pool:claimed   → còn tên pod
+//	Pod trên cluster → vẫn chạy, vẫn ăn quota
+//
+// Ba tầng kia đều bỏ qua nó: hash TỒN TẠI nên không phải "mồ côi" (2a); không
+// còn `session:*` nào để SCAN thấy (2b); không nằm trong quarantine (3). Và
+// `pool:claimed` trước bản này KHÔNG CÓ NHÁNH NÀO ĐỌC — chỉ có `LREM` và ghi.
+//
+// Nghĩa là tầng 2 KHÔNG THỂ bắt được chính chế độ hỏng mà nó tồn tại để đỡ cho
+// tầng 1. Mỗi lần rollout orchestrator, mọi session hết hạn trong cửa sổ restart
+// là −1 VĨNH VIỄN trên trần 4 pod (D16). Bốn lần là nền tảng chết.
+//
+// Thông tin cần thiết đã có sẵn: `claim.lua` ghi `pod:{name}.sessionId` từ đầu —
+// chỉ là chưa ai đọc nó.
+func (r *Reaper) sweepClaimedWithoutSession(ctx context.Context) error {
+	names, err := r.rdb.LRange(ctx, rediskeys.PoolClaimed, 0, claimedBatch-1).Result()
+	if err != nil {
+		return fmt.Errorf("reaper: LRANGE %s: %w", rediskeys.PoolClaimed, err)
 	}
-	if err := r.sweepGhostSessions(ctx, live); err != nil {
-		return err
+
+	var errs []error
+	for _, name := range names {
+		podKey, keyErr := rediskeys.Pod(name)
+		if keyErr != nil {
+			continue
+		}
+		sessionID, getErr := r.rdb.HGet(ctx, podKey, fieldPodSessionID).Result()
+		if errors.Is(getErr, redis.Nil) {
+			// Hash mất mà tên còn trong list: tầng 2a sẽ lo phần Pod (sau
+			// orphanGrace); ở đây chỉ dọn index treo.
+			errs = append(errs, r.rdb.LRem(ctx, rediskeys.PoolClaimed, 0, name).Err())
+			continue
+		}
+		if getErr != nil {
+			errs = append(errs, fmt.Errorf("reaper: HGET %s sessionId: %w", podKey, getErr))
+			continue
+		}
+
+		sessionKey, keyErr := rediskeys.Session(sessionID)
+		if keyErr != nil {
+			continue
+		}
+		exists, existsErr := r.rdb.Exists(ctx, sessionKey).Result()
+		if existsErr != nil {
+			errs = append(errs, fmt.Errorf("reaper: EXISTS %s: %w", sessionKey, existsErr))
+			continue
+		}
+		if exists == 1 {
+			continue // session còn sống — pod đang phục vụ nó
+		}
+
+		r.met.ReaperClaimedOrphanTotal.Inc()
+		r.log.Warn("pod đã claim mà session không còn — tầng 1 đã lỡ event này",
+			slog.String("pod", name), slog.String("session_id", sessionID))
+
+		// Cùng đường với tầng 1: ghi dòng audit kết thúc rồi xoá pod + index.
+		if reapErr := r.sessions.ReapExpired(ctx, sessionID, name); reapErr != nil {
+			errs = append(errs, reapErr)
+		}
 	}
-	return r.drainQuarantine(ctx)
+	return errors.Join(errs...)
 }
 
 // sweepOrphanPods xoá pod mang label sandbox mà không có hash `pod:{name}`.
@@ -272,6 +374,7 @@ func (r *Reaper) sweepOrphanPods(ctx context.Context, pods []corev1.Pod) error {
 
 // sweepGhostSessions tìm session còn trong Redis mà pod đã biến mất.
 func (r *Reaper) sweepGhostSessions(ctx context.Context, livePods map[string]bool) error {
+	var errs []error
 	var cursor uint64
 	for {
 		keys, next, err := r.rdb.Scan(ctx, cursor, "session:*", sessionScanCount).Result()
@@ -304,17 +407,33 @@ func (r *Reaper) sweepGhostSessions(ctx context.Context, livePods map[string]boo
 				continue
 			}
 
+			// ⛔ XÁC MINH LẠI BẰNG MỘT LƯỢT ĐỌC MỚI, KHÔNG TIN ẢNH CHỤP.
+			//
+			// `livePods` được chụp TRƯỚC vòng SCAN. Bất kỳ session nào được
+			// claim.lua ghi sau mốc đó, trỏ tới một pod xuất hiện sau mốc đó
+			// (đúng đường cold path: Provision tạo pod rồi mới claim), sẽ thấy
+			// livePods[podName] == false và bị đánh dấu FAILED OAN. Ca hỏng
+			// hoàn toàn âm thầm: pod vẫn chạy, session bị giết trong Redis, FE
+			// nhận FAILED. Cửa sổ = khoảng giữa List() và HMGET, bị kéo dài bởi
+			// chính tầng 2a chạy trước đó.
+			if _, err := r.pods.Get(ctx, podName); err == nil {
+				continue // pod CÓ thật — ảnh chụp đã cũ
+			} else if !k8s.IsNotFound(err) {
+				// Không phân biệt được ⇒ không đoán. Vòng sau sẽ thử lại.
+				errs = append(errs, fmt.Errorf("reaper: xác minh lại pod %q: %w", podName, err))
+				continue
+			}
+
 			r.met.ReaperGhostSessionsTotal.Inc()
 			r.log.Warn("session ma: pod đã biến mất nhưng session còn sống — chuyển FAILED",
 				slog.String("session_id", id), slog.String("pod", podName))
 			if err := r.sessions.MarkFailed(ctx, id, "pod biến mất khỏi cluster"); err != nil {
-				r.log.Error("không đánh dấu FAILED được",
-					slog.String("session_id", id), slog.String("err", err.Error()))
+				errs = append(errs, fmt.Errorf("reaper: MarkFailed %q: %w", id, err))
 			}
 		}
 
 		if cursor == 0 {
-			return nil
+			return errors.Join(errs...)
 		}
 	}
 }

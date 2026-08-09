@@ -34,7 +34,7 @@ không có gì. Giờ vector nằm ở một file JSON duy nhất:
 | `pool:free` | **list** | tên pod đang **WARM**, chờ claim | không |
 | `pool:claimed` | **list** | tên pod vừa rời pool, chưa gắn xong session | không |
 | `pool:quarantine` | **list** | pod bị `claim.lua` từ chối vì `pod:{name}.state ≠ free` — **không tự quay lại pool** | không |
-| `pod:{name}` | hash | state machine của pod (`state`, `sessionId`, `updatedAt`) | không |
+| `pod:{name}` | hash | state machine của pod (`state`, `sessionId`, `userId`, `tier`, `updatedAt`) | không |
 | `session:{id}` | hash | Trạng thái session đang sống — **SSOT** | `SESSION_TTL`, đặt lúc claim |
 | `session:{id}:pod` | string | con trỏ session → pod, **sống lâu hơn hash** (xem dưới) | `SESSION_TTL` + grace |
 | `session:{id}:ws` | string (counter) | số WS đang mở của session, trần `GATEWAY_MAX_WS_PER_SESSION` | theo `session:{id}` |
@@ -57,11 +57,27 @@ Ba nguồn từng mô tả khác nhau (`redis-key-namespace.md` nói "set/list",
 mọi index và không ai dọn được nó. Nằm trong `pool:claimed` mà không có `session:{id}` tương ứng
 là **dấu hiệu để reaper sweep nhận ra pod mồ côi** (phase-1 B7).
 
-> **Nợ đã biết cho B6/B7:** chưa có ai rút pod khỏi `pool:claimed` lúc release, nên list này
-> phình theo thời gian và `LREM` là O(N). LIST được chọn cho `pool:free` vì FIFO (D6) — lý do
-> đó **không áp** cho `pool:claimed`, vốn chỉ dùng như tập thành viên. Khi B6 (`ReapSession`)
-> làm phần release, cân nhắc đổi `pool:claimed` sang SET. Đổi kiểu là đổi contract ⇒ sửa vector
-> + cả hai bản song sinh cùng lúc.
+> **Nợ đã trả ở B6/B7 (2026-08-09):** `ReapSession` và cả ba tầng của reaper giờ đều `LREM`
+> pod khỏi `pool:claimed`, nên list không còn phình vô hạn. **Và nó có thêm một vai trò mới:**
+> reaper **tầng 2c** đọc `pool:claimed` để tìm pod mà session đã biến mất — đó là chế độ hỏng
+> khi tầng 1 lỡ event keyspace (reaper offline lúc `helm upgrade`/crash), và trước tầng 2c thì
+> **không nhánh nào chạm được nó**: hash `pod:{name}` vẫn tồn tại (nên không phải "pod mồ côi"),
+> không còn `session:*` để sweep thấy, không nằm trong quarantine. Mỗi mục như vậy là −1
+> **vĩnh viễn** trên trần đồng thời (D16).
+>
+> Đề xuất đổi `pool:claimed` sang SET **vẫn treo** — LIST được chọn cho `pool:free` vì FIFO (D6),
+> lý do đó không áp ở đây. Đổi kiểu là đổi contract ⇒ sửa vector + cả hai bản song sinh cùng lúc.
+
+### Vì sao `pod:{name}` mang cả `userId` và `tier`
+
+Hai field này **trùng** với hash `session:{id}` — có chủ ý, và không vi phạm no-derived-fields
+vì chúng trả lời một câu hỏi ở một **thời điểm khác**: khi `session:{id}` hết hạn, hash đó
+**biến mất**, nhưng reaper vẫn phải ghi được dòng audit `expired` ("phiên của ai, tier nào, kết
+thúc lúc nào"). `pod:{name}` là bản ghi duy nhất còn sót lại tại thời điểm đó.
+
+Không có hai field này thì đường đời **phổ biến nhất** của session (hết hạn tự nhiên) không để
+lại sự kiện kết thúc nào trong `sessions_audit` — nhật ký dừng ở `created` cho đa số phiên.
+Cùng lý do với việc `session:{id}:pod` sống lâu hơn hash session.
 
 ### `pool:quarantine` — pod hỏng không được tự quay lại pool
 

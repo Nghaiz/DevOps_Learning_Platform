@@ -106,9 +106,19 @@ local function undo()
   redis.call('LPUSH', KEYS[1], pod)
 end
 
+-- userId/tier ghi CẢ vào hash pod, không chỉ hash session.
+--
+-- KHÔNG phải nhân bản thừa: khi `session:{id}` hết hạn, hash đó BIẾN MẤT, và
+-- reaper cần biết session vừa chết thuộc về ai / tier nào để ghi được dòng audit
+-- `expired`. Không có hai field này thì đường đời phổ biến NHẤT (hết hạn tự
+-- nhiên) không để lại sự kiện kết thúc nào trong `sessions_audit`, và câu hỏi
+-- forensic mà B8 sinh ra để trả lời không trả lời được cho đa số phiên.
+-- Cùng lý do với việc `session:{id}:pod` sống lâu hơn hash.
 w('HSET', podPrefix .. pod,
   'state', 'claimed',
   'sessionId', ARGV[1],
+  'userId', ARGV[2],
+  'tier', ARGV[4],
   'updatedAt', ARGV[5])
 
 -- Field khớp rediskeys.SessionFields — orchestrator ghi, gateway đọc cho authz

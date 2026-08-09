@@ -1,0 +1,43 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Phase 1 §1.B phần B5–B9 + B0′: ExtendSession hai đồng hồ, ReapSession idempotent, interceptor auth gRPC, reaper BA (thực tế BỐN) tầng, audit Postgres + tự động hoá migration, 8 metric mới. Đóng nốt chặng 1.B — cả 5 RPC của contract có hành vi thật.",
+  "scoutSummary": "Vào chặng với B1–B4 đã merge (#26, c697f15). Trạng thái: grpcserver còn 2 Unimplemented (Extend/Reap), không có internal/reaper, không có audit, `pool:claimed` chưa có nhánh nào ĐỌC, migration Postgres phải chạy tay qua port-forward (§'Còn để ngỏ'). R25 (auth gRPC) vừa được ghi nợ ở PR trước với hạn chót là ngày G12 nối session.ts vào. Ba quyết định chốt với user trước khi code: B0′ làm interceptor có cổng mặc định TẮT (không làm mTLS thật vì chưa có đầu bên kia để test), tự động hoá migration bằng Job trong chart, và — sau review — công thức Extend đổi sang hạn-chỉ-tiến.",
+  "acceptanceCriteria": [
+    "ExtendSession với expected_revision cũ → FailedPrecondition; mỗi lần ghi revision tăng đúng 1 (AC §Chức năng).",
+    "Gia hạn liên tục quá HARD_CAP → expires_at đứng yên, hard_cap_reached=true (AC §Chức năng).",
+    "ReapSession gọi 2 lần → cả hai OK; gọi với user_id người khác → từ chối, pod VẪN SỐNG (AC §Chức năng).",
+    "Xoá session:{id} khỏi Redis → sweep dọn pod mồ côi ≤ 1 chu kỳ; xoá pod (key còn) → session chuyển FAILED (AC §Chức năng).",
+    "Quarantine không rò quota: sweep xoá cả Pod lẫn hash ≤ 1 chu kỳ, dlp_pool_quarantine_size về 0 (AC §Chức năng, B7 tầng 3).",
+    "Tắt Postgres → CreateSession VẪN thành công, chỉ log ERROR audit (AC §Chức năng).",
+    "sessions_audit không có cột nào trả lời 'session X đang ở pod nào' (AC §Chức năng).",
+    "B9: metrics còn lại của plan có mặt và tăng đúng chỗ."
+  ],
+  "touchpoints": [
+    "services/orchestrator/internal/lifecycle/: extend.{go,lua}, reap.{go,lua}, mark_failed.lua, audit.go (MỚI)",
+    "services/orchestrator/internal/reaper/** (MỚI): bốn tầng dọn dẹp",
+    "services/orchestrator/internal/grpcserver/: authz.go (MỚI) + session_service.go (Extend/Reap + resolveReapActor)",
+    "services/orchestrator/internal/pool/claim.lua: pod:{name} mang thêm userId/tier; claim.go phơi PodPointerGrace",
+    "services/orchestrator/internal/{config,metrics}: 3 env mới + 9 metric mới",
+    "services/orchestrator/cmd/orchestrator/main.go: gom thành sessionEngine, WaitGroup cho cả warm-pool lẫn reaper",
+    "apps/web/src/server/db/schema.ts + drizzle/0003: enum session_event thêm 'extended'",
+    "apps/web/Dockerfile: stage `migrator` MỚI · .github/workflows/ci.yml: hàng matrix + `target:`",
+    "infra/helm/platform/: migrate-job.yaml (MỚI), datastore-secret.yaml (thành hook), values.yaml, orchestrator-deployment.yaml",
+    "docs/redis-key-namespace.md: field mới của pod:{name} + món nợ pool:claimed đã trả"
+  ],
+  "publicContracts": [
+    "proto/orchestrator/v1/session.proto — KHÔNG sửa. 2 RPC cuối chuyển từ Unimplemented sang hành vi thật; shape giữ nguyên byte-for-byte.",
+    "Hash pod:{name} MỞ RỘNG: thêm `userId` + `tier`. Không bị vector gác (vectors chỉ pin sessionFields), nhưng docs/redis-key-namespace.md đã cập nhật kèm lý do. Đây là bản ghi DUY NHẤT còn sót khi session:{id} hết hạn — không có nó thì không ghi được dòng audit `expired`.",
+    "pg enum session_event MỞ RỘNG: thêm 'extended' (migration 0003). Contract liên ngôn ngữ nay CÓ CỔNG: TestEnumSessionEventKhopVoiSchemaTS đọc schema.ts và đối chiếu với hằng Go.",
+    "⚠ CÔNG THỨC B5 ĐỔI so với bản pin: max(current, min(now+extend, createdAt+hardCap)) thay vì min(...) trần. Plan đã cập nhật kèm bằng chứng đo được.",
+    "3 env mới (EXTEND_DEFAULT, REAP_INTERVAL, GRPC_REQUIRE_MTLS) qua đủ 3 nơi env-check gác.",
+    "datastore-secret CHUYỂN THÀNH Helm hook ⇒ `helm uninstall` không còn xoá nó. Đánh đổi có chủ ý, ghi lý do trong template."
+  ],
+  "blastRadius": [
+    "Reaper TẠO/XOÁ POD THẬT trên cluster mỗi ReapInterval (60s). Đây là thành phần mới có quyền xoá tài nguyên — sai một vị từ là xoá nhầm pod đang phục vụ sinh viên.",
+    "Job migration chạy ở MỌI `helm install/upgrade` (hook pre-*). Nó block cả lệnh upgrade nếu fail.",
+    "datastore-secret thành hook ⇒ không bị xoá lúc uninstall. An toàn hơn (PVC có resource-policy: keep nên mật khẩu phải khớp PGDATA cũ) nhưng là đổi hành vi vận hành.",
+    "`GRPC_REQUIRE_MTLS=true` giờ làm orchestrator TỪ CHỐI KHỞI ĐỘNG. Ai đã đặt biến đó (chưa ai) sẽ thấy pod không lên.",
+    "Test: thêm DB Redis thứ ba (reaper=13). Ba package đều FLUSHDB các DB 13/14/15 trên localhost."
+  ]
+}
