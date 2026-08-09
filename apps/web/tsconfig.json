@@ -18,6 +18,8 @@
     "incremental": true,
     "allowJs": true,
     "resolveJsonModule": true,
+    // TS7 (tsgo) không hỗ trợ language service plugin nên key này bị bỏ qua khi
+    // editor dùng tsgo — giữ lại để plugin Next tự hoạt động lại nếu quay về TS6 (D4).
     "plugins": [{ "name": "next" }],
     "types": ["node"]
   },
