@@ -1,0 +1,179 @@
+{
+  "commands": [
+    {
+      "command": "go test ./internal/pool/... -run TestConcurrentClaim -race -count=20 (REDIS_URL=Redis 7 thật, DB 15)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:05:00+07:00",
+      "summary": "20/20 xanh, 6.7s. Tiêu chí A3 đạt: 200 goroutine dồn xuất phát cùng lúc claim 50 pod → đúng 50 thành công, 150 ErrPoolEmpty, 0 podName trùng, LLEN pool:free=0, pool:claimed=50."
+    },
+    {
+      "command": "go test ./internal/pool/... -race (toàn bộ 6 test)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:03:00+07:00",
+      "summary": "TestClaimWritesFullState (9 field khớp rediskeys + TTL cả 2 key), TestClaimFIFO (D6), TestClaimSurvivesScriptFlush (SCRIPT FLUSH → EVALSHA gặp NOSCRIPT → tự fallback EVAL, không mất claim), TestClaimEmptyPool, TestClaimRejectsBadIDs."
+    },
+    {
+      "command": "REDIS_URL= go test ./internal/pool/... -run TestConcurrentClaim",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:06:00+07:00",
+      "summary": "Tiêu chí A4: skip có log rõ khi REDIS_URL trống ('BẮT BUỘC chạy trên Redis thật … Skip, KHÔNG giả vờ xanh') — không giả vờ xanh."
+    },
+    {
+      "command": "go run ./cmd/spike-exec -pod spike-target -probe negotiate",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:24:00+07:00",
+      "summary": "Bắt tay WS thủ công tới pods/exec: apiserver 1.34.10 chọn v5.channel.k8s.io khi client chào cả v5 lẫn v4 ⇒ trong NewFallbackExecutor, WS luôn thắng và SPDY không bao giờ chạy. AC 'report ghi rõ transport thắng + subprotocol thương lượng' đạt bằng đo, không suy luận."
+    },
+    {
+      "command": "go run ./cmd/spike-exec -transport {ws,spdy,fallback} -oneshot 'echo hello'",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:08:00+07:00",
+      "summary": "ws 405.8ms · spdy 442.1ms · fallback 404.6ms. fallback ≈ ws xác nhận không có lượt thử-rồi-hỏng nào bị trả giá."
+    },
+    {
+      "command": "go run -race ./cmd/spike-exec -script scenario (bridge cũng chạy -race)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:16:00+07:00",
+      "summary": "5/5 PASS: init 120x30 → stty size khớp; resize 132x40 khớp sau 20.2ms (<1s); bão 200 resize không chết + giữ giá trị cuối (lắng sau 902ms); UTF-8 đa byte round-trip; exit → control exit + close 1000."
+    },
+    {
+      "command": "go run -race ./cmd/spike-exec -script tui",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:18:00+07:00",
+      "summary": "6/6 PASS: vim vào/ra alternate screen (1049h/1049l) + tự báo columns=120; htop alt-screen + màu + 8089 byte ANSI; thoát sạch; PTY còn nguyên 30 120 sau cả hai app full-screen. Tiêu chí xanh #2 đạt."
+    },
+    {
+      "command": "python3 drive_tty.py (pty.fork + ioctl TIOCSWINSZ trên Host A)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:26:00+07:00",
+      "summary": "S3 đạt qua đường 'người thật gõ': pty thật → init 100x30 → stty size trong pod trả '30 100'; đổi cửa sổ → SIGWINCH → client gửi resize → '45 160'; exit → close 1000. Không mô phỏng bằng control message."
+    },
+    {
+      "command": "kubectl delete pod spike-target --force giữa phiên WS đang mở",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:19:44+07:00",
+      "summary": "Tiêu chí xanh #5: phát hiện sau 3.2s, exit 137, KHÔNG treo. Kèm phát hiện CHẶN cho G5: 137 không phân biệt được reap với kill -9 hợp lệ ⇒ bridge đóng nhầm bằng 1000 thay vì 4404."
+    },
+    {
+      "command": "go run ./cmd/spike-exec -probe readlimit",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:10:00+07:00",
+      "summary": "Close code THẬT khi vượt SetReadLimit = 1009 (StatusMessageTooBig), reason 'read limited at 1025 bytes'. Contract §6 để ngỏ 4413 vs 1009 nay pin 1009."
+    },
+    {
+      "command": "go run ./cmd/spike-exec -probe {tty-stderr,exitcode,stdin-eof}",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:14:00+07:00",
+      "summary": "tty-stderr: err=nil, stderr buffer RỖNG, byte stderr gộp vào stdout (ngược giả định plan 'apiserver từ chối'). exitcode: exec.CodeExitError, ExitStatus()=7. stdin-eof: half-close hoạt động trên CẢ ws lẫn spdy (wc -c trả 5)."
+    },
+    {
+      "command": "grep -c 'DATA RACE' log bridge chạy -race (6 phiên)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:23:00+07:00",
+      "summary": "0 DATA RACE. Goroutine sau mỗi phiên đều về 2 qua cả 6 phiên liên tiếp — không tích luỹ."
+    },
+    {
+      "command": "go build ./... && go vet ./... (cả 3 module: shared, orchestrator, terminal-gateway)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:30:00+07:00",
+      "summary": "Xanh sau khi thêm client-go v0.34.9 + coder/websocket v1.8.15 + x/term vào gateway. protobuf giữ v1.36.11 khớp orchestrator (v0.34.10 kéo v1.36.12-pre gây lệch)."
+    },
+    {
+      "command": "go test ./... (cả 3 module)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:31:00+07:00",
+      "summary": "Toàn bộ suite xanh: rediskeys, envx, httpx, logging, config×2, grpcserver, wsroute, pool. Không test nào bị skip ngoài ca REDIS_URL trống có chủ ý."
+    },
+    {
+      "command": "node scripts/env-check.mjs",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:33:00+07:00",
+      "summary": "env-check OK — 39 biến, 4 scope, khớp code ↔ .env.example ↔ Helm ↔ CI. Spike không thêm env mới."
+    },
+    {
+      "command": "pnpm turbo run lint typecheck",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T16:34:00+07:00",
+      "summary": "9/9 task xanh. Spike chỉ chạm Go + docs nên không ảnh hưởng TS, nhưng chạy để chứng minh không regression."
+    },
+    {
+      "command": "go test ./internal/pool/... -race -count=20 (11 test, sau khi vá 2 lỗi CHẶN)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T17:12:00+07:00",
+      "summary": "9.6s. Gồm 4 ca MỚI phủ đúng lỗ reviewer chứng minh: TestClaimRejectsDuplicateInPool (double-claim), TestClaimRollsBackOnWriteFailure (Lua không rollback), TestClaimQuarantinesWrongTypePodHash, TestClaimRejectsExistingSession."
+    },
+    {
+      "command": "go test ./internal/pool/... -json | grep -c 'Action:skip' — thử cả hai chiều",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T17:20:00+07:00",
+      "summary": "Có Redis → 0 skip (cổng CI mới xanh). Không Redis → 11 skip (cổng CI mới ĐỎ). Chứng minh cổng gác đúng thay vì tin job-xanh."
+    },
+    {
+      "command": "golangci-lint run ./... (3 module, kiểm ở dạng LF như CI thấy)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T17:05:00+07:00",
+      "summary": "0 issue. 15 lỗi ban đầu trên spike đã sửa — trong đó G706 (log injection qua tên pod từ URL) là lỗ hổng thật, đóng bằng rediskeys.ValidateID + helper logSession."
+    },
+    {
+      "command": "go run -race ./cmd/spike-exec -script scenario|tui (sau khi siết check false-pass)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T17:33:00+07:00",
+      "summary": "11/11 PASS. Số đo đổi sau khi sửa harness: resize 12.5ms (poll 1ms, trước là 20ms = nhịp poll), htop 8050 byte với SGR màu THẬT, UTF-8 qua printf nên chứng minh shell chạy chứ không phải echo tty."
+    },
+    {
+      "command": "pnpm --filter @devops-platform/shared-types test",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T17:28:00+07:00",
+      "summary": "23/23. Bản song sinh TS bắt kịp 2 hằng mới (POOL_QUARANTINE, POD_PREFIX) đọc từ cùng docs/redis-key-vectors.json với bản Go."
+    },
+    {
+      "command": "pnpm turbo run lint typecheck test",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T17:27:00+07:00",
+      "summary": "12/12 task xanh."
+    },
+    {
+      "command": "kubectl -n dlp-sandbox delete pod spike-target + dọn Host A",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T17:36:00+07:00",
+      "summary": "Môi trường về nguyên trạng: dlp-sandbox còn đúng 1 pod (canary CNI của B0), /tmp trên Host A sạch binary + deb."
+    }
+  ],
+  "testsRun": true,
+  "allTestsPass": true,
+  "reviewFindings": {
+    "blocking": 2,
+    "high": 5,
+    "medium": 9,
+    "low": 9,
+    "fixed": "2 CHẶN + 5 CAO + 6/9 TRUNG + 2/9 THẤP",
+    "deferredWithAddress": [
+      "pool:claimed → SET ở B6",
+      "goleak thay đếm goroutine tay ở G4",
+      "chốt tầng nuốt stderr bằng probe WS thủ công (không chặn)"
+    ]
+  }
+}

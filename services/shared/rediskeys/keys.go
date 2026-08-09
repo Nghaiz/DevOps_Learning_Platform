@@ -27,7 +27,22 @@ const (
 	// PoolClaimed chứa pod vừa rời pool nhưng chưa gắn xong session. Pod nằm
 	// đây mà không có session:{id} tương ứng là dấu hiệu pod mồ côi cho reaper.
 	PoolClaimed = "pool:claimed"
+
+	// PoolQuarantine chứa pod bị claim.lua từ chối vì `pod:{name}.state` không
+	// phải "free" — thường là một tên pod lọt vào pool:free hai lần (replenish
+	// retry, reaper trả pod hai lần, hai instance cùng replenish).
+	//
+	// Pod ở đây KHÔNG tự quay lại pool: đẩy lại là vòng lặp vô tận trên cùng
+	// một pod hỏng. Reaper/ops dọn tay hoặc theo chính sách riêng. List dài ra
+	// là tín hiệu có nguồn ghi sai vào pool:free — không phải chuyện bình thường.
+	PoolQuarantine = "pool:quarantine"
 )
+
+// PodPrefix là tiền tố của key hash pod. Phơi ra vì `claim.lua` phải dựng
+// `pod:{name}` ĐỘNG bên trong script (tên pod chỉ biết sau LMOVE) — truyền
+// prefix này qua ARGV giữ SSOT thay vì để chuỗi "pod:" nằm lặp trong file Lua,
+// nơi không vector test nào gác được.
+const PodPrefix = "pod:"
 
 // Field của hash session:{id}. camelCase để khớp bản TS và khớp JSON đi ra FE —
 // KHÔNG phải snake_case của proto.

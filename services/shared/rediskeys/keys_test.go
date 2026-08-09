@@ -18,6 +18,8 @@ import (
 type vectors struct {
 	PoolFree      string   `json:"poolFree"`
 	PoolClaimed   string   `json:"poolClaimed"`
+	PoolQuarantine string  `json:"poolQuarantine"`
+	PodPrefix     string   `json:"podPrefix"`
 	SessionFields []string `json:"sessionFields"`
 	IdemUserID    string   `json:"idemUserId"`
 	Valid         []struct {
@@ -62,6 +64,17 @@ func TestPoolKeys(t *testing.T) {
 	}
 	if rediskeys.PoolClaimed != v.PoolClaimed {
 		t.Errorf("PoolClaimed = %q, muốn %q", rediskeys.PoolClaimed, v.PoolClaimed)
+	}
+	if rediskeys.PoolQuarantine != v.PoolQuarantine {
+		t.Errorf("PoolQuarantine = %q, muốn %q", rediskeys.PoolQuarantine, v.PoolQuarantine)
+	}
+	// PodPrefix là thứ claim.lua nhận qua ARGV. Vector gác nó vì prefix nằm
+	// trong file Lua thì không suite nào thấy được khi nó trôi.
+	if rediskeys.PodPrefix != v.PodPrefix {
+		t.Errorf("PodPrefix = %q, muốn %q", rediskeys.PodPrefix, v.PodPrefix)
+	}
+	if got, _ := rediskeys.Pod("sandbox-1"); got != v.PodPrefix+"sandbox-1" {
+		t.Errorf("Pod() = %q, không khớp PodPrefix %q", got, v.PodPrefix)
 	}
 }
 

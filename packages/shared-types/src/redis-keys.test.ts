@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  POD_PREFIX,
   POOL_CLAIMED,
   POOL_FREE,
+  POOL_QUARANTINE,
   SESSION_FIELDS,
   idemKey,
   podKey,
@@ -22,6 +24,8 @@ import {
 interface Vectors {
   poolFree: string;
   poolClaimed: string;
+  poolQuarantine: string;
+  podPrefix: string;
   sessionFields: string[];
   idemUserId: string;
   valid: {
@@ -48,6 +52,14 @@ describe('redis key namespace v0', () => {
   it('giữ nguyên tên hai index của pool', () => {
     expect(POOL_FREE).toBe(vectors.poolFree);
     expect(POOL_CLAIMED).toBe(vectors.poolClaimed);
+    expect(POOL_QUARANTINE).toBe(vectors.poolQuarantine);
+  });
+
+  // podPrefix là thứ claim.lua nhận qua ARGV. Vector gác nó vì prefix nằm
+  // trong file Lua thì không suite nào thấy được khi nó trôi.
+  it('giữ nguyên tiền tố key hash pod', () => {
+    expect(POD_PREFIX).toBe(vectors.podPrefix);
+    expect(podKey('sandbox-1')).toBe(`${POD_PREFIX}sandbox-1`);
   });
 
   // Thứ tự cũng được so sánh: hai bản song sinh phải khai field theo đúng một

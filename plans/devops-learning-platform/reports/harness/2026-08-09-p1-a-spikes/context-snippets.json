@@ -1,0 +1,18 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Phase 1 §1.A của plans/devops-learning-platform/phase-1.md — hai spike HARD-GATE chặn toàn bộ 1.B/1.C: 1.A-1 (WS ⇄ pods/exec, rủi ro R1 score 20 — cao nhất dự án) và 1.A-2 (claim atomic warm-pool, R2 score 16). Mục tiêu spike là KHỬ RỦI RO + ghi báo cáo gotcha, không phải viết code production.",
+  "scoutSummary": "Điều kiện vào đạt: 1.B0 (5 prerequisite) đã merge (2b1b928, PR #24) — Redis+Postgres in-cluster, rediskeys chuyển sang services/shared/, contract Redis mở rộng, origin gộp qua Caddy, GATEWAY_JWKS_URL. terminal-gateway có 0 dependency k8s trước spike; orchestrator chưa có package pool. Cluster lab debian-sandbox K8s v1.34.10 (kubeadm 1-node) truy cập được từ máy dev qua kubeconfig copy từ Host A; RuntimeClass sysbox-runc sống; image nestybox/ubuntu-noble-systemd-docker đã cache trên node. Redis 7 chạy local qua docker-compose (đã bật notify-keyspace-events xE + appendonly).",
+  "conventions": [
+    "Comment tiếng Việt giải thích VÌ SAO, không phải LÀM GÌ — khớp toàn bộ code Go sẵn có (store.go, keys.go, config.go)",
+    "rules/development-principles.md: errors-over-silent-fallbacks — pool rỗng là sentinel ErrPoolEmpty có chủ ý, không phải nuốt lỗi",
+    "rules/code-conventions.md: SSOT — field hash session:{id} lấy từ services/shared/rediskeys, không nối chuỗi tay",
+    ".gitattributes khoá LF cho mọi file chạy trên Linux (*.sh/*.yaml/*.proto) — thêm *.lua theo cùng chính sách"
+  ],
+  "affectedContracts": [
+    "docs/ws-terminal-protocol.md §6 — close code: spike có nhiệm vụ pin 1009 vs 4413 (bản trước ghi 'chưa chốt cứng, spike S3/S4 phải xác minh')",
+    "services/shared/rediskeys — thêm ValidateID() để caller kiểm định danh trước khi GHI vào hash (không chỉ khi dựng key)",
+    "proto/orchestrator/v1/session.proto — KHÔNG đụng (buf breaking gate)"
+  ],
+  "planReference": "plans/devops-learning-platform/phase-1.md §1.A-1 (S1-S4), §1.A-2 (A1-A5), AC 'Gate 1.A (HARD-GATE)'"
+}

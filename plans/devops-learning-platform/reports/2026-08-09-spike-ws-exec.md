@@ -50,16 +50,20 @@ stderr buffer=""
 
 Lệnh chạy là `sh -c 'echo RA-STDOUT; echo RA-STDERR 1>&2'` với `PodExecOptions{TTY:true, Stderr:true}` và hai buffer Go **tách rời**. Byte của stderr **hiện trong buffer stdout**, buffer stderr **rỗng**, `err == nil`.
 
-**Nguyên nhân, đọc được từ source** (`client-go@v0.34.9/tools/remotecommand/v2.go:80`):
+**Nguyên nhân, đọc được từ source** (`client-go@v0.34.9/tools/remotecommand/v2.go`):
 
 ```go
-// set up stderr stream
+// :80  — set up stderr stream
 if p.Stderr != nil && !p.Tty {
+// :156 — copy stderr
+if p.Stderr == nil || p.Tty { return }
 ```
 
-`streamProtocolV2` là nền của V3→V4→**V5**, nên điều kiện này chi phối **cả** SPDY lẫn WebSocket: khi `Tty == true`, client-go **không tạo stream stderr**, và `StreamOptions.Stderr` bị bỏ ngay trong tiến trình gọi — trước cả khi có request nào rời máy.
+`streamProtocolV2` là nền của V3→V4→**V5**, nên điều kiện này chi phối **cả** SPDY lẫn WebSocket: khi `Tty == true`, client-go **không tạo và không đọc** stream stderr, và `StreamOptions.Stderr` bị bỏ ngay trong tiến trình gọi — trước cả khi có request nào rời máy.
 
-*Không kiểm chứng được từ vị trí này:* kubelet có thêm một lớp bỏ-stderr riêng hay không. Không cần thiết cho quyết định — điều kiện phía client đã đủ để writer không bao giờ nhận byte, bất kể version kubelet.
+**Phép đo này KHÔNG xác định được tầng nào nuốt.** Nó chạy qua `StreamOptions` của client-go, nên `stderr buffer=""` đã được giải thích trọn vẹn bởi thư viện *client*; còn `RA-STDERR` hiện trong stdout là do **PTY gộp fd1/fd2 trong container** — chuyện của kernel. Không có gì trong thí nghiệm phân biệt được "kubelet ép `stderr=false`" với "client-go không đọc kênh stderr". Muốn chốt tầng thì phải bắt tay WS thủ công tới `pods/exec` (như probe `negotiate`) rồi xem kênh 3 có frame nào không — chưa làm, và không cần cho quyết định.
+
+Ba điều **đo được**: (1) không tầng nào trả lỗi; (2) `StreamOptions.Stderr` không nhận byte nào; (3) byte stderr về trên luồng ra duy nhất.
 
 **Vì sao im lặng nguy hiểm hơn một lỗi:** lỗi thì lộ ngay lúc dev; im lặng thì gateway có thể ship với `Stderr: someWriter` và writer đó **không bao giờ nhận byte nào** — không exception, không log, không cách phân biệt với "chương trình không ghi stderr".
 
@@ -137,18 +141,18 @@ Thời gian một lượt `exec` không-TTY (`echo hello`, gồm cả bắt tay 
 | # | Tiêu chí | Kết quả | Bằng chứng |
 |---|---|---|---|
 | 1 | `fallback` attach được vào pod Sysbox trong `dlp-sandbox` | ✅ | `dial exec transport=fallback size=120x30` → shell tương tác; subprotocol `v5.channel.k8s.io` |
-| 2 | `vim` + `htop` vẽ đầy đủ, không rác ANSI | ✅ | vim vào/ra alternate screen (`1049h`/`1049l`) và **tự báo `columns=120`**; htop: alt-screen + màu + **8089 byte** ANSI một màn hình; sau cả hai, `stty size` vẫn `30 120` |
-| 3 | Kéo cửa sổ → `stty size` khớp < 1s | ✅ | resize 132×40 → PTY khớp sau **20.2ms**. SIGWINCH thật (pty trên Host A): 100×30 → 160×45 khớp |
-| 4 | `exit` → WS đóng sạch, thoát 0, `-race` sạch, không leak goroutine | ✅ | control `{"type":"exit","exitCode":0}` + close **1000**; **0** DATA RACE trong toàn bộ log bridge chạy `-race`; goroutine sau mỗi phiên đều về **2** qua 6 phiên liên tiếp |
+| 2 | `vim` + `htop` vẽ đầy đủ, không rác ANSI | ✅ | vim vào/ra alternate screen (`1049h`/`1049l`) và **tự báo `columns=120`**; htop: alt-screen + **SGR màu thật** (`ESC[…m`) + **8852 byte** ANSI một màn hình; sau cả hai, `stty size` vẫn `30 120` |
+| 3 | Kéo cửa sổ → `stty size` khớp < 1s | ✅ | resize 132×40 → PTY khớp sau **13.2ms** (poll 1ms nên đây là số đo, không phải nhịp poll). SIGWINCH thật (pty trên Host A): 100×30 → 160×45 khớp |
+| 4 | `exit` → WS đóng sạch, thoát 0, `-race` sạch, không leak goroutine | ⚠️ **có điều kiện** | control `{"type":"exit","exitCode":0}` + close **1000**; **0** DATA RACE trong toàn bộ log bridge chạy `-race`; goroutine sau mỗi phiên đều về **2** qua 6 phiên. **Nhưng phép đo này có điểm mù** — xem §3.4 |
 | 5 | Xoá pod giữa phiên → báo lỗi rõ, không treo | ⚠️ **có điều kiện** | Phát hiện sau **3.2s**, `exit 137`, không treo. **Nhưng** bridge spike báo nhầm thành "thoát bình thường" — xem §3.1 |
 
 **Kịch bản `-script scenario`** (chạy dưới `-race` cả hai đầu) — 5/5 PASS:
 
 ```
 [PASS] init 120x30 → stty size
-[PASS] resize 132x40 < 1s — độ trễ đo được: 20.1874ms
-[PASS] bão 200 resize không chết, giữ giá trị cuối — sau 902ms
-[PASS] UTF-8 đa byte round-trip ("tiếng Việt ✓ 🚀")
+[PASS] resize 132x40 < 1s — độ trễ 13.1576ms (sàn đo = bước poll 1ms)
+[PASS] bão 200 resize không chết, giữ giá trị cuối — sau 903ms
+[PASS] UTF-8 đa byte round-trip (shell chạy thật, không phải echo tty)
 [PASS] exit → control exit + close 1000
 ```
 
@@ -201,6 +205,16 @@ Mức `E` (error) của klog, nhưng đây chính là lúc **exit 0 thành công
 
 ---
 
+### 3.4 ⚠️ CHẶN G4: `stdinR` không đóng ⇒ `stdinW.Write` chặn vĩnh viễn (phát hiện khi review đối kháng)
+
+Bản spike đầu để `stdinR` (đầu đọc của `io.Pipe`) không bao giờ `Close`. Đọc `client-go@v0.34.9/tools/remotecommand/v2.go`: goroutine `copyStdin` **không** nằm trong `WaitGroup` của executor, nên khi shell thoát nó ghi vào stream đã đóng, lỗi, rồi **chết** — từ lúc đó pipe không còn reader nào. Frame binary tiếp theo làm `stdinW.Write` **chặn vĩnh viễn**, và goroutine đó không nằm trong `c.Read` nên `cancel()` lẫn `CloseNow()` đều không gỡ được.
+
+Kịch bản đời thường: sinh viên gõ thêm phím trong lúc shell đang thoát (gõ `exit` rồi gõ tiếp). Mỗi lần rò một goroutine + một kết nối WS, vĩnh viễn.
+
+**Vì sao phép đo "0 leak" không thấy:** harness gửi `exit\r` rồi **ngừng gõ hẳn**, nên chưa từng chạm đường này. Đó cũng là bài học về giới hạn của `runtime.NumGoroutine()` trước/sau: nó đo **sau** khi handler trả về nhưng **trước** khi các `defer` chạy, đếm toàn process nên vô nghĩa khi có phiên đồng thời, và không thấy fd/pipe/bộ nhớ. Phần mạnh nhất của bằng chứng thực ra là "về 2 qua 6 phiên liên tiếp" — **xu hướng không tăng**, không phải một con số.
+
+**Đã sửa trong spike** (`defer stdinR.Close()`), và **G4 phải giữ**: đóng đầu đọc làm mọi `Write` sau đó trả `io.ErrClosedPipe` ngay. Với gateway thật nên dùng `go.uber.org/goleak` thay vì đếm tay.
+
 ## 4. Chốt cho lane gateway (1.C)
 
 | Quyết định | Giá trị đo được |
@@ -212,6 +226,8 @@ Mức `E` (error) của klog, nhưng đây chính là lúc **exit 0 thành công
 | Read limit | `SetReadLimit` → tự đóng **1009**, không phải `4413` (§1.3) |
 | Close khi pod biến mất | phải tra Redis rồi mới chọn `4404` vs `1000` (§3.1) |
 | `TerminalSizeQueue` | `Next()` block; `nil` chỉ khi ctx đóng (§1.1) |
+| `io.Pipe` cho stdin | `defer stdinR.Close()` — thiếu là rò goroutine vĩnh viễn (§3.4) |
+| Log | không nội suy dữ liệu client chưa validate; tên pod ở gateway đến từ **Redis**, không từ URL |
 
 ## 5. Cách chạy lại
 

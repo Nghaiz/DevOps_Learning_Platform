@@ -186,6 +186,20 @@ jobs:
     name: Go (build + vet + test + lint + vuln)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Redis THẬT cho test warm-pool claim. Không có nó thì `internal/pool` tự
+    # skip (theo thiết kế: miniredis hỗ trợ Lua không đầy đủ nên chạy ở đó là
+    # guard giả) — và một HARD-GATE bị skip mọi lần chạy là một HARD-GATE
+    # không gác gì. Test tự dùng DB 15 + FLUSHDB nên container này dùng xong bỏ.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -197,7 +211,33 @@ jobs:
           cache-dependency-path: '**/go.sum'
 
       - name: build + vet + test (mọi module trong go.work)
+        env:
+          # DB 15: test FLUSHDB, và service container này chỉ phục vụ CI nên
+          # không có gì để mất — nhưng giữ đúng DB mà test dùng ở local để
+          # hành vi hai nơi giống hệt nhau.
+          REDIS_URL: redis://127.0.0.1:6379/15
         run: go work sync && make go-build go-vet go-test
+
+      # Test đua của warm-pool chỉ có nghĩa khi lặp: race hiện theo xác suất,
+      # một lượt xanh không chứng minh gì. -count=20 là tiêu chí xanh của
+      # HARD-GATE 1.A-2 (phase-1.md) — chạy nó ở CI để nó gác được mọi PR chạm
+      # claim.lua, chứ không chỉ gác đúng lần spike.
+      - name: Test đua warm-pool claim (-race -count=20, Redis thật)
+        env:
+          REDIS_URL: redis://127.0.0.1:6379/15
+        working-directory: services/orchestrator
+        # `go test` trả exit 0 khi MỌI test đều SKIP, nên "job xanh" một mình
+        # không chứng minh gì: gỡ Redis service ra thì suite này skip sạch và CI
+        # vẫn xanh — đúng cái bẫy mà comment ở services block cảnh báo. Đọc
+        # -json và ĐỎ nếu thấy bất kỳ action "skip" nào.
+        run: |
+          set -o pipefail
+          go test ./internal/pool/... -race -count=20 -json | tee /tmp/pool-test.json
+          if grep -q '"Action":"skip"' /tmp/pool-test.json; then
+            echo "::error::Test warm-pool bị SKIP — Redis service không tới được. HARD-GATE 1.A-2 không gác gì trong lần chạy này."
+            exit 1
+          fi
+          grep -c '"Action":"pass"' /tmp/pool-test.json
 
       - name: Cài golangci-lint v2.x
         # `go install` thay vì install.sh: script trên master mang bảng checksum

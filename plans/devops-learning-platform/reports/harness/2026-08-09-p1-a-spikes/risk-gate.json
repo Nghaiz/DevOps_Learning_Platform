@@ -1,0 +1,13 @@
+{
+  "highRisk": false,
+  "autoStopRequired": false,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "Hai rủi ro cao nhất của plan được HẠ bằng số đo trên hạ tầng thật, không bằng lập luận: R1 (WS⇄pod-exec) 20→10, R2 (double-claim) 16→4. Còn sáu mục ≥15, không mục nào bị spike này chạm.",
+    "humanApproved: user tự invoke /t1k-cook với đúng đường dẫn phase-1.md — đó là approval thực thi 1.A theo plan đã duyệt.",
+    "Phạm vi chạm: 2 module Go (thêm package pool, thêm deps gateway), contract Redis mở rộng 2 key (pool:quarantine, podPrefix) qua đủ 4 nơi cùng commit, 1 job CI, và tài liệu. KHÔNG chạm proto (buf breaking), KHÔNG chạm apps/web, KHÔNG chạm Helm/infra.",
+    "Không có thay đổi nào chạy trên cluster ở trạng thái vĩnh viễn: pod spike đã xoá, binary + deb trên Host A đã dọn, dlp-sandbox về đúng 1 pod (canary CNI của B0).",
+    "Rủi ro còn lại đều là NỢ CÓ ĐỊA CHỈ trong plan/doc, không phải lỗ hổng đang mở: G5 phải tra Redis trước khi chọn 4404 (đã ghi thành mục CHẶN của G5 + contract §6), pool:claimed nên là SET ở B6, goleak thay đếm tay ở G4."
+  ]
+}

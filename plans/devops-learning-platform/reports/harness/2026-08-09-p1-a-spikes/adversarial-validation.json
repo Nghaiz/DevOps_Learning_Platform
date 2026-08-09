@@ -1,0 +1,21 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [
+    "\"claim.lua atomic trọn gói — hoặc chạy trọn, hoặc chưa chạy\" (bản đầu, lan ra 4 nơi). BÁC BỎ bằng fault-injection trên Redis thật: EXPIRE với ttl vô lý lỗi ở lệnh CUỐI ⇒ session ghi xong mà TTL=-1 (giữ pod vĩnh viễn) trong khi caller nhận error và retry. Redis Lua có isolation, KHÔNG có rollback. Đã sửa code + sửa câu chữ ở cả 4 nơi.",
+    "\"0 podName trùng — chính rủi ro R2\" (README + test comment). BÁC BỎ: tính không-trùng đến từ seedPool sinh tên duy nhất, không từ script. Script khi đó double-claim thật khi pool:free có tên trùng — hai sinh viên vào chung một pod, cả hai qua authz. Đã thêm guard state=='free' + ca chứng minh.",
+    "\"kubelet ÂM THẦM bỏ stderr khi tty=true\" (report §1.2). BÁC BỎ phần quy kết: phép đo chạy qua StreamOptions của client-go, và client-go/v2.go:80+156 đã giải thích trọn vẹn stderr rỗng ở phía CLIENT. Thí nghiệm không có khả năng phân biệt tầng nào nuốt. Đã sửa câu chữ; kết luận hành động (Stderr:nil) không đổi.",
+    "\"0 goroutine leak\" (report §2 hàng 4). BÁC BỎ: stdinR không bao giờ Close ⇒ sau khi copyStdin của client-go chết, frame binary tiếp theo làm stdinW.Write chặn VĨNH VIỄN, và cancel()/CloseNow() không gỡ được. Harness không chạm vì nó ngừng gõ sau exit. Đã sửa (defer stdinR.Close()) + ghi §3.4.",
+    "\"htop vẽ có màu\" (harness). BÁC BỎ: check dùng Contains(\"\\x1b[3\") khớp cả cursor-move (\\x1b[3A = lên 3 dòng) — PASS mà không cần byte màu nào. Đã đổi sang regex SGR thật.",
+    "\"UTF-8 đa byte round-trip\" (harness). BÁC BỎ phần suy diễn: echo 'tiếng Việt' rồi tìm lại chính chuỗi đó khớp từ ECHO CỦA LINE DISCIPLINE — shell treo vẫn PASS. Đã đổi sang printf với escape ASCII (output khác input).",
+    "\"resize khớp sau 20.2ms\" (report). BÁC BỎ: bước poll khi đó là 20ms nên con số ĐÚNG BẰNG một nhịp poll — đó là sàn đo. Poll 1ms cho số thật: 12.5ms."
+  ],
+  "unverifiedClaims": [
+    "Số đo trên cluster (v5.channel.k8s.io, 404.6/405.8/442.1ms, 12.5ms, 8050 byte, 3.2s phát hiện xoá pod, exit 137, S3 pty 30 100→45 160) — reviewer không có kubeconfig nên chỉ xác minh được CÁCH đo, không xác minh giá trị. Session này đo trực tiếp, log còn trong tool output; ai cần tái lập thì §5 của report có đủ lệnh.",
+    "Tầng nào thật sự nuốt stderr khi tty=true — cần bắt tay WS thủ công tới pods/exec rồi xem kênh 3. Không chặn: kết luận thiết kế không phụ thuộc câu trả lời.",
+    "6 cổng CI trên PR — tương đương local đã chạy hết (3 module Go build/vet/test/lint, 12 turbo task, env-check, vector 23 test); riêng cổng skip-guard mới thêm đã thử tay cả hai chiều nhưng chưa chạy trên GitHub Actions."
+  ],
+  "missingProof": [],
+  "reachableRegressions": [
+    "pool:claimed phình vô hạn (chưa ai rút pod lúc release, LREM là O(N)) — nợ có địa chỉ ở B6, đã ghi vào docs/redis-key-namespace.md thay vì để im."
+  ]
+}

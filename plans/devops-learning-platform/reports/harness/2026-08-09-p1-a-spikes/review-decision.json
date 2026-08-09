@@ -1,0 +1,19 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "Reviewer độc lập (t1k-code-reviewer, adversarial) chạy fault-injection trên Redis thật + mutation test + đọc source client-go: tìm 2 CHẶN, 5 CAO, 9 TRUNG. Tất cả CHẶN và CAO đã sửa và có test chứng minh; TRUNG đã sửa 6/9, 3 còn lại ghi thành nợ có địa chỉ (pool:claimed→SET ở B6, goleak ở G4, chốt tầng nuốt stderr bằng probe thủ công).",
+    "C1 (Redis Lua có isolation KHÔNG có rollback) — đã sửa: mọi ghi qua redis.pcall + undo() trả pod về pool:free; TestClaimRollsBackOnWriteFailure gọi THẲNG script (bỏ qua validate Go) để cơ chế hoàn tác được kiểm độc lập với caller.",
+    "C2 (pool:free không chống trùng ⇒ hai sinh viên vào chung một pod) — đã sửa: script kiểm pod:{name}.state=='free', bản trùng sang pool:quarantine; TestClaimRejectsDuplicateInPool là ca chứng minh (test đua cũ mù vì seed toàn tên duy nhất).",
+    "Gate 1.A-1: 5/5 tiêu chí xanh đo trên pod Sysbox thật — WS v5.channel.k8s.io thắng, resize 12.5ms, vim/htop full-screen, 0 DATA RACE, xoá pod phát hiện 3.2s không treo.",
+    "Gate 1.A-2: 11 test xanh dưới -race -count=20 trên Redis thật, gồm 4 ca mới phủ đúng các lỗ reviewer chứng minh.",
+    "Cổng chung xanh: 3 module Go build/vet/test + golangci-lint 0 issue (kiểm ở dạng LF như CI thấy), 12 turbo task, 23 vector test TS.",
+    "CI được siết: job Go có Redis service + -count=20 + cổng ĐỎ nếu suite pool bị skip — đã thử cả hai chiều (có Redis: 0 skip; không Redis: 11 skip → đỏ)."
+  ],
+  "risks": [
+    "Reviewer KHÔNG xác minh được các số đo trên cluster (không có kubeconfig từ context của nó) — nó chỉ xác minh CÁCH đo. Các số 12.5ms/8050 byte/3.2s/v5.channel.k8s.io do session này đo trực tiếp và log còn trong tool output.",
+    "3 nợ TRUNG chuyển sang task sau, có địa chỉ rõ: pool:claimed nên là SET (B6 khi làm release), goleak thay đếm tay (G4), chốt tầng nuốt stderr bằng bắt tay WS thủ công (không chặn — kết luận Stderr:nil không đổi).",
+    "Spike code (cmd/spike-exec) là harness dùng-rồi-bỏ, vượt trần 200 dòng của code-conventions — chấp nhận có chủ ý, gateway thật viết lại ở 1.C."
+  ]
+}
