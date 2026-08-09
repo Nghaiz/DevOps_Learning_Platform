@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * `nonce` đọc từ header `x-nonce` mà `src/middleware.ts` gắn vào mỗi request (luật 9
+ * `nonce` đọc từ header `x-nonce` mà `src/proxy.ts` gắn vào mỗi request (luật 9
  * — CSP `script-src` dùng nonce thay vì `unsafe-inline`). Next tự gắn nonce này vào
  * script inline nó tự chèn khi thấy header CSP có `nonce-...` trên response.
  */

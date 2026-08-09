@@ -7,12 +7,12 @@ import { proxy } from '../proxy';
 /**
  * Luật 5 — body > cap → 413; > N req/s → 429.
  *
- * Mức test: UNIT (hàm thuần) + MIDDLEWARE (gọi thẳng `middleware`, không dựng HTTP
+ * Mức test: UNIT (hàm thuần) + PROXY (gọi thẳng `proxy`, không dựng HTTP
  * server thật). Rate limit hiện tại là in-memory/per-process (ghi rõ trong
  * rate-limit.ts) — test dùng key IP riêng cho mỗi case để không đụng state nhau.
  *
- * XFF chỉ được tin khi RATE_LIMIT_TRUST_PROXY=1 (middleware.ts clientKey) — các
- * test middleware-429 bật flag đó tường minh; test "không tin XFF" giữ flag tắt.
+ * XFF chỉ được tin khi RATE_LIMIT_TRUST_PROXY=1 (proxy.ts clientKey) — các
+ * test proxy-429 bật flag đó tường minh; test "không tin XFF" giữ flag tắt.
  */
 describe('luật 5 — body cap + rate limit', () => {
   beforeEach(() => {
@@ -39,7 +39,7 @@ describe('luật 5 — body cap + rate limit', () => {
     expect(exceedsBodyLimit(null)).toBe(false);
   });
 
-  it('middleware: request có Content-Length > cap → 413', () => {
+  it('proxy: request có Content-Length > cap → 413', () => {
     const request = new NextRequest('http://localhost:3000/api/trpc/session.create', {
       method: 'POST',
       headers: { 'content-length': String(MAX_JSON_BODY_BYTES + 1024) },
@@ -72,13 +72,13 @@ describe('luật 5 — body cap + rate limit', () => {
     expect(checkRateLimit(key, start + windowMs + 1, windowMs, max)).toBe(true);
   });
 
-  it('middleware (sau proxy tin cậy): vượt RATE_LIMIT_MAX_REQUESTS từ cùng IP trong cùng cửa sổ → 429', () => {
+  it('proxy (sau proxy tin cậy): vượt RATE_LIMIT_MAX_REQUESTS từ cùng IP trong cùng cửa sổ → 429', () => {
     process.env['RATE_LIMIT_TRUST_PROXY'] = '1';
     const ip = '203.0.113.1'; // TEST-NET-3 (RFC 5737) — không phải IP thật.
     const makeRequest = () =>
       new NextRequest('http://localhost:3000/', { headers: { 'x-forwarded-for': ip } });
 
-    // RATE_LIMIT_MAX_REQUESTS request đầu phải qua được middleware — chỉ assert
+    // RATE_LIMIT_MAX_REQUESTS request đầu phải qua được proxy — chỉ assert
     // request áp chót thay vì lặp in cả N lần response để test chạy nhanh.
     let last = proxy(makeRequest());
     for (let i = 1; i < RATE_LIMIT_MAX_REQUESTS; i += 1) {
@@ -90,7 +90,7 @@ describe('luật 5 — body cap + rate limit', () => {
     expect(blocked.status).toBe(429);
   });
 
-  it('middleware (KHÔNG có proxy tin cậy): XFF bị BỎ QUA — không bucket chung, không ai bị khoá oan', () => {
+  it('proxy (KHÔNG có proxy tin cậy): XFF bị BỎ QUA — không bucket chung, không ai bị khoá oan', () => {
     // Trước fix: fallback 'unknown' gộp mọi client không XFF vào MỘT bucket —
     // một client spam đủ 120 request là khoá sạch user thật (self-DoS). Giờ
     // không định danh được thì SKIP limit: cả N+1 request đều qua.
@@ -100,7 +100,7 @@ describe('luật 5 — body cap + rate limit', () => {
     }
   });
 
-  it('middleware (KHÔNG có proxy tin cậy): XFF giả cũng không tạo được bucket — né-limit bằng XFF xoay vòng là vô nghĩa', () => {
+  it('proxy (KHÔNG có proxy tin cậy): XFF giả cũng không tạo được bucket — né-limit bằng XFF xoay vòng là vô nghĩa', () => {
     // Attacker gửi XFF ngẫu nhiên mỗi request để "làm mới" bucket: khi không tin
     // proxy, header đó bị lờ hẳn — không skip limit CHO RIÊNG attacker cũng không
     // cho attacker thao túng key của người khác.
@@ -111,7 +111,7 @@ describe('luật 5 — body cap + rate limit', () => {
     }
   });
 
-  it('middleware: response 413 vẫn mang đủ security header (luật 9 trên early-return)', () => {
+  it('proxy: response 413 vẫn mang đủ security header (luật 9 trên early-return)', () => {
     const request = new NextRequest('http://localhost:3000/api/trpc/session.create', {
       method: 'POST',
       headers: { 'content-length': String(MAX_JSON_BODY_BYTES + 1024) },

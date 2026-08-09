@@ -284,6 +284,15 @@ git status --short
 
 ---
 
+## Deviation log (ghi lúc thực thi — bản gốc plan giữ nguyên phía trên)
+
+| Ngày | Task gốc | Deviation + lý do (bằng chứng trong commit/PR) |
+|---|---|---|
+| 2026-08-09 | U1 ownership | Sửa thêm `ci.yml` (+task `typecheck`) và `dependabot.yml` (+ignore shim) theo finding M1/M4 của reviewer — vá đúng nguyên tắc D5/"không nới cổng" của plan (PR #19). |
+| 2026-08-09 | U2.D-11 | **Ngược với chỉ dẫn gốc:** phải khai `experimental.useTypeScriptCli: false`. Giả định "khai false sẽ chết vì TS7 không có JS API" sai chiều — `require('typescript')` là shim TS6 CÓ API; chính CLI mode (mặc định) mới chết vì Next hardcode nhận bin `tsc` từ package tên `typescript`, shim chỉ có `tsc6` (đọc source `verify-typescript-setup.js`). Hệ quả: acceptance "next build typecheck qua tsc CLI (TS7)" KHÔNG đạt được — `next build` typecheck bằng API TS6, cổng TS7 thật là `pnpm typecheck` ở CI. Ba đường thay thế đã soi và loại (reviewer xác nhận). Issue theo dõi: #20. |
+| 2026-08-09 | U2.D-12 | `next-env.d.ts` bị Next 16 ghi nội dung KHÁC NHAU giữa dev (`.next/dev/types`) và build (`.next/types`) → gitignore + `git rm --cached` thay vì commit. Kèm fix `turbo.json`: `typecheck.dependsOn` thêm `"build"` để cổng TS7 chạy trên program có generated types (finding I2 của reviewer). |
+| 2026-08-09 | U2.A-1 | Codemod `@next/codemod upgrade` tự sinh `apps/web/pnpm-workspace.yaml` làm hỏng workspace resolve — xoá file đó, chỉ giữ version bump của codemod, các transform làm tay (repo không dùng `next lint`/`unstable_*`). |
+
 ## 5. Tổng timeline
 
 | Phase | Effort | Ghi chú |

@@ -24,7 +24,12 @@
       "dependsOn": ["^build"]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      // "build" của CHÍNH package phải chạy trước: next build sinh .next/types
+      // (route types) mà next-env.d.ts (Next 16, gitignored) import — thiếu thì
+      // tsc chạy trên program thiếu generated types, xanh/đỏ tuỳ thứ tự task
+      // trong cùng lần `turbo run`. Với ui/shared-types build==typecheck nên
+      // dependency này gần như miễn phí.
+      "dependsOn": ["^build", "build"]
     },
     "test": {
       "dependsOn": ["^build"],

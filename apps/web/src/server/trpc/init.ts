@@ -73,7 +73,7 @@ export const publicProcedure = t.procedure;
  * tạo pod thật.
  *
  * Giới hạn còn lại: in-memory per-process (dùng chung `checkRateLimit` với
- * `middleware.ts` — SSOT, xem `server/security/rate-limit.ts`), nên nhiều pod web
+ * `proxy.ts` — SSOT, xem `server/security/rate-limit.ts`), nên nhiều pod web
  * = mỗi pod một bucket riêng, hạn mức thật ở nhiều-instance sẽ RỘNG HƠN con số
  * khai báo (N pod × limit). Đủ cho P0/P1 một replica; hướng đi khi cần chặt ở
  * nhiều instance là bucket dùng chung qua Redis (đã có `ioredis` +

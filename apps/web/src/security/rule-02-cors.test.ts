@@ -7,7 +7,7 @@ import { proxy } from '../proxy';
  * Luật 2 — CORS: allowlist từ env, KHÔNG reflect Origin lạ, KHÔNG credentials đi
  * cùng wildcard.
  *
- * Mức test: UNIT (hàm cors.ts thuần) + MIDDLEWARE (gọi thẳng hàm `middleware`,
+ * Mức test: UNIT (hàm cors.ts thuần) + PROXY (gọi thẳng hàm `proxy`,
  * không dựng HTTP server thật — tương đương `curl` trong acceptance criteria).
  * Cần `CORS_ALLOWED_ORIGINS=http://localhost:3000` trong .env (đã có trong
  * apps/web/.env.example).
@@ -36,7 +36,7 @@ describe('luật 2 — CORS allowlist', () => {
     expect(headers.get('access-control-allow-credentials')).toBe('true');
   });
 
-  it('middleware: request Origin lạ tới /api/trpc/me.get → response không có ACAO khớp evil', () => {
+  it('proxy: request Origin lạ tới /api/trpc/me.get → response không có ACAO khớp evil', () => {
     const request = new NextRequest('http://localhost:3000/api/trpc/me.get', {
       headers: { origin: 'https://evil.example' },
     });
@@ -44,7 +44,7 @@ describe('luật 2 — CORS allowlist', () => {
     expect(response.headers.get('access-control-allow-origin')).not.toBe('https://evil.example');
   });
 
-  it('middleware: preflight OPTIONS từ origin lạ trên /api/* → không có ACAO', () => {
+  it('proxy: preflight OPTIONS từ origin lạ trên /api/* → không có ACAO', () => {
     const request = new NextRequest('http://localhost:3000/api/trpc/me.get', {
       method: 'OPTIONS',
       headers: { origin: 'https://evil.example' },
