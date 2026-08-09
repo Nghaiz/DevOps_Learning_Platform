@@ -1,0 +1,41 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Phase 1 §1.B, phần B1–B4 của plans/devops-learning-platform/phase-1.md: internal/k8s (pod builder SSOT + client-go), warm-pool manager, CreateSession (dedupe idempotency + cold path), ClaimSession/GetSession. B5–B9 (ExtendSession, ReapSession, reaper ba tầng, audit Postgres, phần metrics còn lại) tách sang PR sau theo lựa chọn của user.",
+  "scoutSummary": "Điều kiện vào đạt: Gate 1.A đã MỞ (hai spike xanh, merged #25 = d66ff34); 1.B0 xong 5/7 AC, hai AC còn treo là thời gian (Calico T+25h/T+37h) và phụ thuộc G1+G12 (cookie cùng origin) — không chặn 1.B. Trạng thái repo trước chặng này: orchestrator có config/store/pool.claim (spike đã qua review đối kháng) nhưng grpcserver còn 10 Unimplemented và KHÔNG có internal/{k8s,lifecycle,reaper,audit}; gateway có config/wsroute/spike-exec, chưa có authz; images/sandbox-base là placeholder thuần; packages/terminal chỉ có README. RBAC orchestrator đã sẵn create/get/list/watch/delete trên pods trong dlp-sandbox — không phải sửa. Ba lệch phát hiện khi soát: (1) pg enum session_event thiếu giá trị 'extended' mà B8 cần; (2) SESSION_TTL chưa pin, ba nguồn nói 1h/600s/im lặng; (3) SANDBOX_IMAGE chưa có chủ vì 1.E chưa lên ghcr. Cả ba đã hỏi user và chốt: enum ghi nợ sang PR B8, TTL=1h, image=pause đổi được bằng env.",
+  "acceptanceCriteria": [
+    "CreateSession 2 lần cùng idempotency_key → cùng session.id, số pod tăng đúng 1 (AC §Chức năng).",
+    "GetSession với user_id sai → NotFound, KHÔNG PermissionDenied (AC §Chức năng + B4).",
+    "Retry mất phản hồi: gọi Claim hai lần cùng sessionID → cùng podName, pod tăng đúng 1, không rẽ cold-path (AC §Chức năng, B3 ⛔).",
+    "Replenish đúng thứ tự: đảo thành RPUSH trước HSET state=free → test phải ĐỎ (AC §Chức năng, B2 ⛔).",
+    "Chạm quota có tín hiệu riêng: dlp_pool_replenish_quota_blocked_total tăng, log WARN không phải ERROR, không backoff vô hạn (AC §Chức năng).",
+    "Pod builder tuân thủ đủ 8 CEL của ValidatingAdmissionPolicy (B1); VAP regression chạy lại mỗi lần đổi builder.",
+    "dlp_claim_duration_seconds tồn tại và tách warm/cold để đo được p95 < 1s (AC §Chức năng + B9).",
+    "TTL bắt đầu đếm lúc claim, không phải lúc create (B4)."
+  ],
+  "touchpoints": [
+    "services/orchestrator/internal/k8s/** (MỚI): client.go, pods.go, podspec.go + test",
+    "services/orchestrator/internal/lifecycle/** (MỚI): service.go, session.go, idem_release.lua + test",
+    "services/orchestrator/internal/metrics/** (MỚI)",
+    "services/orchestrator/internal/pool/: manager.go + claim_idempotent.go (MỚI), claim.go (thêm SANDBOX_TIER_GVISOR vào validTiers), claim_test.go (ép DB 15)",
+    "services/orchestrator/internal/grpcserver/session_service.go: adapter gọi xuống lifecycle; Extend/Reap giữ Unimplemented",
+    "services/orchestrator/internal/config/config.go + .env.example: 4 env mới",
+    "services/orchestrator/cmd/orchestrator/main.go: wiring warm-pool + lifecycle",
+    "infra/helm/platform/values.yaml + templates/orchestrator-deployment.yaml: 4 env mới",
+    "go.mod/go.sum: thêm k8s.io/{client-go,api,apimachinery} v0.34.9"
+  ],
+  "publicContracts": [
+    "proto/orchestrator/v1/session.proto — KHÔNG sửa. 3 trong 5 RPC chuyển từ Unimplemented sang hành vi thật; shape request/response giữ nguyên byte-for-byte, nên buf breaking không có gì để so.",
+    "Hash session:{id} (docs/redis-key-namespace.md + redis-key-vectors.json) — KHÔNG sửa tên/thứ tự field. lifecycle.Load đọc qua rediskeys.SessionFields thay vì nối chuỗi tay.",
+    "Chuỗi status trong Redis giữ dạng NGẮN ('CLAIMED') — đó là contract mà gateway G3 so sánh nguyên văn (ws-terminal-protocol.md). Bất đối xứng với tier (dạng đầy đủ) là có chủ ý, đã ghi comment tại lifecycle/session.go.",
+    "ValidatingAdmissionPolicy 8 CEL (infra/helm/platform/templates/sandbox-admissionpolicy.yaml) — KHÔNG sửa; podspec_test.go là bản sao có chủ ý của nó bằng Go.",
+    "4 biến env mới (HARD_CAP, POOL_TARGET, SANDBOX_IMAGE, SANDBOX_RUNTIME_CLASS) qua đủ 3 nơi mà env-check gác cho service Go."
+  ],
+  "blastRadius": [
+    "Orchestrator: 3 RPC đổi từ Unimplemented sang hành vi thật. Caller duy nhất hôm nay là apps/web (BFF tRPC) và nó chưa gọi — không có consumer nào regress.",
+    "Warm-pool goroutine TẠO POD THẬT trên cluster khi REDIS_URL + kubeconfig/in-cluster config có mặt. Trên lab quota hiệu lực là 4 pod; POOL_TARGET mặc định 1 chiếm 1 khe thường trực.",
+    "Thiếu REDIS_URL: server vẫn lên, health/metrics chạy, 3 RPC trả Unavailable kèm lý do — KHÔNG CrashLoop. Đây là đổi hành vi so với P0 (trước đó trả Unimplemented).",
+    "Test: tách DB Redis theo package (pool=15, lifecycle=14). Ai chạy test với REDIS_URL trỏ DB khác sẽ thấy log 'ép DB N' — có chủ ý, và cả hai package đều FLUSHDB.",
+    "Helm: 4 env mới trên orchestrator Deployment ⇒ pod rollout ở lần upgrade kế. SANDBOX_RUNTIME_CLASS kế thừa sandbox.runtimeClassName nên không thêm hằng số nhân bản."
+  ]
+}

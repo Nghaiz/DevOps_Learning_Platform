@@ -18,10 +18,14 @@ type Config struct {
 	// `grpcurl list` — tiện lúc dev, là do thám miễn phí ở prod.
 	GRPCReflection bool
 
-	// DatabaseURL/RedisURL để RỖNG được ở P0: server chưa chạm tới cả hai (chỉ
-	// cmd/dbsmoke dùng). Bắt buộc chúng ở đây sẽ làm pod CrashLoop với thông báo
-	// gây hiểu nhầm trong khi thật ra nó chạy được. P1 — khi warm-pool và reaper
-	// thực sự đọc Redis — thì chuyển sang bắt buộc qua RequireDataStores().
+	// RedisURL rỗng ⇒ warm-pool và 3 RPC session TẮT (server vẫn phục vụ
+	// /healthz + /metrics, RPC trả Unavailable kèm lý do). Chọn degrade thay vì
+	// CrashLoop có chủ ý: pod restart liên tục làm chính thông báo cần đọc bị
+	// cuộn mất trong log của các lần restart trước.
+	//
+	// DatabaseURL CHƯA được ép ở giai đoạn này: audit Postgres là B8, và chưa
+	// code nào trong đường session đọc nó. Ép một biến không ai dùng chỉ tạo
+	// thói quen bỏ qua thông báo lỗi. B8 sẽ siết.
 	DatabaseURL string
 	RedisURL    string
 
@@ -83,13 +87,10 @@ func Load() (*Config, error) {
 		// tên, không phải một số 0 lọt vào env.
 		return nil, fmt.Errorf("env POOL_TARGET: phải >= 1 (nhận %d)", poolTarget)
 	}
-	if sessionTTL > hardCap {
-		// Bắt ở đây thay vì để CreateSession âm thầm cắt mọi session xuống
-		// HARD_CAP: cấu hình mâu thuẫn thì SESSION_TTL không còn nghĩa gì, và
-		// một mặc định vô nghĩa là thứ không ai phát hiện ra.
-		return nil, fmt.Errorf("env SESSION_TTL (%s) > HARD_CAP (%s): mọi session sẽ bị cắt xuống trần cứng",
-			sessionTTL, hardCap)
-	}
+	// Quan hệ giữa SESSION_TTL, HARD_CAP và trần kỹ thuật 24h của claim được
+	// kiểm ở lifecycle.NewService, KHÔNG ở đây: trần đó là hằng của package
+	// pool (`pool.MaxTTLSeconds`), nơi `EXPIRE` thật sự bị chặn, và nhân bản nó
+	// sang package này là cách nó trôi đi. Một chỗ kiểm, một chỗ sửa.
 
 	return &Config{
 		GRPCAddr:         envx.String("GRPC_ADDR", ":9090"),
@@ -109,12 +110,14 @@ func Load() (*Config, error) {
 	}, nil
 }
 
-// RequireDataStores kiểm DATABASE_URL và REDIS_URL đã được đặt.
+// RequireDataStores kiểm CẢ DATABASE_URL LẪN REDIS_URL.
 //
-// Gọi từ đường thật sự nối tới data store (cmd/dbsmoke hôm nay, orchestrator
-// server từ P1) — thà chết lúc khởi động còn hơn chết ở request đầu tiên. Không
-// có default an toàn cho địa chỉ dữ liệu: đoán bừa localhost trong cluster là nối
-// nhầm chỗ, im lặng.
+// Dùng cho đường thật sự chạm cả hai — hôm nay chỉ có cmd/dbsmoke. Server KHÔNG
+// gọi hàm này: nó chưa đọc Postgres (audit là B8), nên ép DATABASE_URL ở đó là
+// bắt người vận hành cấp một biến không ai dùng.
+//
+// Không có default an toàn cho địa chỉ dữ liệu: đoán bừa localhost trong cluster
+// là nối nhầm chỗ, im lặng.
 func (c *Config) RequireDataStores() error {
 	if c.DatabaseURL == "" {
 		return fmt.Errorf("env DATABASE_URL: bắt buộc nhưng chưa đặt")

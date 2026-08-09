@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -148,12 +149,71 @@ func newHarness(t *testing.T) *harness {
 	rdb := newTestRedis(t)
 	fp := &fakePool{rdb: rdb}
 	met := metrics.New(prometheus.NewRegistry())
-	svc := NewService(rdb, fp, Config{
+	svc, err := NewService(rdb, fp, Config{
 		Namespace:  "dlp-sandbox",
 		SessionTTL: time.Hour,
 		HardCap:    2 * time.Hour,
 	}, slog.New(slog.NewJSONHandler(io.Discard, nil)), met)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
 	return &harness{svc: svc, rdb: rdb, pool: fp, met: met}
+}
+
+// TestNewServiceTuChoiCauHinhMauThuan (M-3).
+//
+// Không có cổng này thì HARD_CAP=48h qua được config, orchestrator lên xanh,
+// mọi probe xanh — và 100% CreateSession chết bằng một lỗi nói về "TTLSeconds",
+// không nói gì về HARD_CAP.
+func TestNewServiceTuChoiCauHinhMauThuan(t *testing.T) {
+	met := metrics.New(prometheus.NewRegistry())
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	tests := []struct {
+		name    string
+		cfg     Config
+		wantErr string
+	}{
+		{
+			name:    "HARD_CAP vượt trần kỹ thuật 24h của claim",
+			cfg:     Config{Namespace: "ns", SessionTTL: 30 * time.Hour, HardCap: 48 * time.Hour},
+			wantErr: "vượt trần kỹ thuật",
+		},
+		{
+			name:    "SESSION_TTL > HARD_CAP",
+			cfg:     Config{Namespace: "ns", SessionTTL: 3 * time.Hour, HardCap: time.Hour},
+			wantErr: "> HARD_CAP",
+		},
+		{
+			name:    "SESSION_TTL = 0",
+			cfg:     Config{Namespace: "ns", SessionTTL: 0, HardCap: time.Hour},
+			wantErr: "SESSION_TTL phải > 0",
+		},
+		{
+			name:    "Namespace rỗng",
+			cfg:     Config{Namespace: "", SessionTTL: time.Hour, HardCap: 2 * time.Hour},
+			wantErr: "Namespace rỗng",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewService(nil, nil, tt.cfg, log, met)
+			if err == nil {
+				t.Fatalf("cần lỗi chứa %q, nhận nil — cấu hình này sẽ làm mọi CreateSession thất bại", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("lỗi = %q, cần chứa %q", err, tt.wantErr)
+			}
+		})
+	}
+
+	// Cấu hình đúng vẫn phải qua.
+	if _, err := NewService(nil, nil, Config{
+		Namespace: "ns", SessionTTL: time.Hour, HardCap: 2 * time.Hour,
+	}, log, met); err != nil {
+		t.Fatalf("cấu hình hợp lệ bị từ chối: %v", err)
+	}
 }
 
 // seedWarmPod đẩy n pod ấm vào pool đúng thứ tự luật định.
@@ -458,6 +518,238 @@ func TestIdemTroToiSessionDaKetThuc(t *testing.T) {
 
 	_, err = h.svc.Create(ctx, createReq("u1", "k1"))
 	wantCode(t, err, codes.FailedPrecondition)
+}
+
+// ------------------------------------------------- mất reply sau khi đã ghi
+
+// lostReplyHook để script chạy TRỌN VẸN trên server rồi mới nuốt reply.
+//
+// Đây là mô phỏng trung thực của ca hỏng mà B3 mô tả: timeout TCP xảy ra SAU
+// khi Redis đã thực thi xong. Mọi cách giả lập khác (trả lỗi trước khi gửi, đóng
+// client) đều mô phỏng ca DỄ, tức ca mà code vốn đã xử lý đúng.
+type lostReplyHook struct {
+	mu sync.Mutex
+	// armFor liệt kê tên lệnh sẽ bị nuốt reply, mỗi tên đúng MỘT lần.
+	armFor map[string]bool
+	fired  int
+}
+
+func newLostReplyHook(cmds ...string) *lostReplyHook {
+	h := &lostReplyHook{armFor: map[string]bool{}}
+	for _, c := range cmds {
+		h.armFor[c] = true
+	}
+	return h
+}
+
+func (h *lostReplyHook) firedCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.fired
+}
+
+func (h *lostReplyHook) DialHook(next redis.DialHook) redis.DialHook { return next }
+
+func (h *lostReplyHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		err := next(ctx, cmd)
+
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		name := cmd.Name()
+		// evalsha và eval là cùng một ý định (go-redis tự fallback), gộp lại.
+		if name == "eval" {
+			name = "evalsha"
+		}
+		if !h.armFor[name] {
+			return err
+		}
+		h.armFor[name] = false
+		h.fired++
+		lost := errors.New("mô phỏng: mất reply sau khi lệnh đã chạy trọn")
+		cmd.SetErr(lost)
+		return lost
+	}
+}
+
+func (h *lostReplyHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
+}
+
+// TestMatReplySauKhiClaimDaGhiKhongTaoPodThuHai (C-1 + C-2).
+//
+// ⛔ ĐÂY LÀ CA HỎNG TỐN KÉM NHẤT CỦA B3, VÀ NÓ HOÀN TOÀN IM LẶNG.
+// `claim.lua` chạy trọn vẹn trên server, reply mất ở tầng mạng. Nếu tầng trên
+// coi đó là thất bại và NHẢ khoá idempotency, thì retry hợp lệ của user (cùng
+// idempotency_key, đúng contract) sẽ sinh sessionID MỚI và claim POD THỨ HAI —
+// còn pod thứ nhất rò tới hết TTL, và vì hash `session:{id}` của nó TỒN TẠI nên
+// heuristic "pod mồ côi" của reaper (B7) không bao giờ thấy. Mỗi lần là −1 trên
+// trần 4 pod (D16).
+func TestMatReplySauKhiClaimDaGhiKhongTaoPodThuHai(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.seedWarmPod(t, "sandbox-warm01", "sandbox-warm02")
+
+	hook := newLostReplyHook("evalsha")
+	h.rdb.AddHook(hook)
+
+	// Lời gọi này PHỤC HỒI được: reply mất, nhưng nhánh đọc-lại của
+	// ClaimIdempotent thấy hash `session:{id}` đã có podName nên coi là thành
+	// công. Đây chính là đường sống của cơ chế mà B3 mô tả.
+	sess, err := h.svc.Create(ctx, createReq("u1", "k1"))
+	if err != nil {
+		t.Fatalf("Create phải phục hồi được từ mất-reply, nhận: %v", err)
+	}
+	if hook.firedCount() != 1 {
+		t.Fatalf("hook bắn %d lần, cần 1 — mô phỏng không trúng lệnh EVALSHA", hook.firedCount())
+	}
+	if sess.GetPodName() == "" {
+		t.Fatal("session trả về không có pod")
+	}
+
+	assertMotSessionMotPod(ctx, t, h, 1)
+
+	// Retry đúng contract vẫn phải trả CHÍNH session đó, không tạo thêm gì.
+	replayed, err := h.svc.Create(ctx, createReq("u1", "k1"))
+	if err != nil {
+		t.Fatalf("retry cùng idempotency_key: %v", err)
+	}
+	if replayed.GetId() != sess.GetId() || replayed.GetPodName() != sess.GetPodName() {
+		t.Fatalf("retry trả session khác: %q/%q vs %q/%q",
+			replayed.GetId(), replayed.GetPodName(), sess.GetId(), sess.GetPodName())
+	}
+	assertMotSessionMotPod(ctx, t, h, 1)
+}
+
+// TestMatCaReplyLanDocLaiThiGIU KhoaIdempotency (C-1).
+//
+// ⛔ ĐÂY LÀ CA HỎNG TỐN KÉM NHẤT CỦA B3, VÀ NÓ HOÀN TOÀN IM LẶNG.
+// Reply của `claim.lua` mất, VÀ lượt đọc-lại cũng hỏng ⇒ ta KHÔNG loại trừ được
+// việc Redis đã ghi. Nếu tầng trên coi đó là thất bại sạch và NHẢ khoá
+// idempotency, thì retry hợp lệ của user (cùng key, đúng contract) sinh
+// sessionID MỚI và claim POD THỨ HAI — còn pod thứ nhất rò tới hết TTL, và vì
+// hash `session:{id}` của nó TỒN TẠI nên heuristic "pod mồ côi" của reaper (B7)
+// không bao giờ thấy. Mỗi lần là −1 trên trần 4 pod (D16).
+func TestMatCaReplyLanDocLaiThiGiuKhoaIdempotency(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.seedWarmPod(t, "sandbox-warm01", "sandbox-warm02")
+
+	// Nuốt reply của CẢ script LẪN lượt HMGET đọc-lại ngay sau nó.
+	hook := newLostReplyHook("evalsha", "hmget")
+	h.rdb.AddHook(hook)
+
+	_, err := h.svc.Create(ctx, createReq("u1", "k1"))
+	if err == nil {
+		t.Fatal("cần lỗi: cả reply lẫn lượt đọc-lại đều bị nuốt")
+	}
+	if hook.firedCount() != 2 {
+		t.Fatalf("hook bắn %d lần, cần 2 (evalsha + hmget)", hook.firedCount())
+	}
+
+	// Vế 1 — vế quan trọng nhất: khoá idempotency phải CÒN.
+	idemKey, err := rediskeys.Idem("u1", "k1")
+	if err != nil {
+		t.Fatalf("rediskeys.Idem: %v", err)
+	}
+	if n, _ := h.rdb.Exists(ctx, idemKey).Result(); n != 1 {
+		t.Fatal("khoá idempotency ĐÃ BỊ NHẢ dù không loại trừ được claim đã ghi — retry của user sẽ tạo POD THỨ HAI")
+	}
+
+	// Vế 2: đúng một pod bị tiêu, đúng một session tồn tại.
+	assertMotSessionMotPod(ctx, t, h, 1)
+
+	// Vế 3: retry đúng contract phải nhặt lại CHÍNH session đó, không tạo mới.
+	replayed, err := h.svc.Create(ctx, createReq("u1", "k1"))
+	if err != nil {
+		t.Fatalf("retry cùng idempotency_key: %v — user bị khoá ra ngoài session của chính mình", err)
+	}
+	if replayed.GetPodName() == "" {
+		t.Fatal("retry trả session không có pod")
+	}
+	assertMotSessionMotPod(ctx, t, h, 1)
+	if provisions, _ := h.pool.counts(); provisions != 0 {
+		t.Fatalf("provisions = %d, cần 0 — retry đã rẽ cold path", provisions)
+	}
+}
+
+// assertMotSessionMotPod khẳng định đúng `wantConsumed` pod rời pool và đúng
+// một hash session tồn tại.
+func assertMotSessionMotPod(ctx context.Context, t *testing.T, h *harness, wantConsumed int64) {
+	t.Helper()
+
+	const seeded = 2
+	if n, _ := h.rdb.LLen(ctx, rediskeys.PoolFree).Result(); n != seeded-wantConsumed {
+		t.Fatalf("pool:free = %d, cần %d — số pod bị tiêu không khớp", n, seeded-wantConsumed)
+	}
+
+	keys, err := h.rdb.Keys(ctx, "session:*").Result()
+	if err != nil {
+		t.Fatalf("KEYS: %v", err)
+	}
+	var hashes []string
+	for _, k := range keys {
+		if !strings.HasSuffix(k, ":pod") && !strings.HasSuffix(k, ":ws") {
+			hashes = append(hashes, k)
+		}
+	}
+	if int64(len(hashes)) != wantConsumed {
+		t.Fatalf("có %d hash session:*, cần %d — %v", len(hashes), wantConsumed, hashes)
+	}
+}
+
+// TestHaiCreateDongThoiCungKeyKhongNhanThongBaoSai (H-1).
+//
+// Lời gọi thua KHÔNG được nhận "session đã kết thúc; dùng idempotency_key mới":
+// đó là khẳng định SAI SỰ THẬT, và làm theo nó chính là tạo pod thứ hai. Đây là
+// ca double-click nút Start — không phải ca hiếm.
+func TestHaiCreateDongThoiCungKeyKhongNhanThongBaoSai(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.seedWarmPod(t, "sandbox-warm01", "sandbox-warm02")
+
+	// Dựng đúng trạng thái giữa chừng: khoá ở pha pending, session CHƯA có.
+	idemKey, err := rediskeys.Idem("u1", "k1")
+	if err != nil {
+		t.Fatalf("rediskeys.Idem: %v", err)
+	}
+	if err := h.rdb.Set(ctx, idemKey,
+		idemPendingPrefix+"phiendangtaodangchay", idemTTL).Err(); err != nil {
+		t.Fatalf("SET pending: %v", err)
+	}
+
+	_, err = h.svc.Create(ctx, createReq("u1", "k1"))
+	if got := status.Code(err); got != codes.Unavailable {
+		t.Fatalf("code = %v (%v), cần Unavailable — FailedPrecondition sẽ bảo client đổi key và tạo pod thứ hai", got, err)
+	}
+	msg := status.Convert(err).Message()
+	if strings.Contains(msg, "đã kết thúc") || strings.Contains(msg, "key mới") {
+		t.Fatalf("thông báo %q chỉ đạo client PHÁ dedupe — nó phải nói thử lại với CÙNG key", msg)
+	}
+	if !strings.Contains(msg, "CÙNG key") {
+		t.Fatalf("thông báo %q không nói rõ phải giữ nguyên key", msg)
+	}
+
+	// Không pod nào bị tiêu ở nhánh này.
+	if n, _ := h.rdb.LLen(ctx, rediskeys.PoolFree).Result(); n != 2 {
+		t.Fatalf("pool:free = %d, cần 2", n)
+	}
+}
+
+// TestThamSoClaimHongTraInvalidArgument (M-4).
+//
+// Gộp lỗi đầu vào vào Unavailable làm retry policy của gRPC thử lại vĩnh viễn
+// một request không bao giờ thành công, và dashboard đọc nó như sự cố hạ tầng.
+func TestThamSoClaimHongTraInvalidArgument(t *testing.T) {
+	h := newHarness(t)
+	h.seedWarmPod(t, "sandbox-warm01")
+
+	// Namespace chứa `:` — không qua nổi cổng của rediskeys, và đây là lỗi CẤU
+	// HÌNH của server, không phải hạ tầng tạm hỏng.
+	h.svc.cfg.Namespace = "dlp:sandbox"
+
+	_, err := h.svc.Create(context.Background(), createReq("u1", "k1"))
+	wantCode(t, err, codes.InvalidArgument)
 }
 
 // ---------------------------------------------------------------- cold path

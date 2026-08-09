@@ -1,0 +1,102 @@
+{
+  "commands": [
+    {
+      "command": "go test ./... -count=1 -race trên CẢ 4 module (REDIS_URL=Redis 7 thật) — lượt CUỐI, sau khi vá review",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T20:12:00+07:00",
+      "summary": "Toàn bộ 4 module xanh dưới -race, 0 DATA RACE. Gồm 5 test mới cho các lỗi CHẶN/CAO vừa vá và toàn bộ test cũ của PR spike #25 (TestConcurrentClaim, TestClaimRollsBackOnWriteFailure, TestClaimSurvivesScriptFlush, TestClaimFIFO) vẫn xanh sau khi claim.go đổi."
+    },
+    {
+      "command": "go test ./internal/... -count=1 -v | grep -c '^ *--- PASS' và grep -c '^--- SKIP'",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T20:05:00+07:00",
+      "summary": "116 PASS, 0 SKIP (trước khi vá review: 100 PASS). Đếm tường minh vì `go test` exit 0 KHI MỌI TEST SKIP — một suite skip sạch trông y hệt một suite xanh."
+    },
+    {
+      "command": "go test ./internal/pool/... ./internal/lifecycle/... -count=1 -race (5 test MỚI cho các lỗi CHẶN/CAO vừa vá)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T20:12:00+07:00",
+      "summary": "TestMatCaReplyLanDocLaiThiGiuKhoaIdempotency (C-1) · TestClaimIdempotentDocLaiKhiMatReply (C-2, ở chính package pool — trước đó package này có 0 test cho hàm đó) · TestCtxHuyGiuaChungVanXoaPodDaTao (C-3) · TestHaiCreateDongThoiCungKeyKhongNhanThongBaoSai (H-1) · TestBackoffThucSuCoHieuLuc (M-1) · TestNewServiceTuChoiCauHinhMauThuan (M-3) · TestThamSoClaimHongTraInvalidArgument (M-4). Cả nhóm dùng redis.Hook nuốt reply SAU khi lệnh đã chạy trọn — mô phỏng trung thực timeout TCP, không phải ca dễ."
+    },
+    {
+      "command": "for dir in $(go list -m -f '{{.Dir}}'); do (cd $dir && go build ./...); done",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T19:18:00+07:00",
+      "summary": "4 module build sạch: proto/gen/go, orchestrator, shared, terminal-gateway. Thêm k8s.io/{client-go,api,apimachinery} v0.34.9 KHÔNG kéo protobuf lệch — vẫn v1.36.11 như gateway."
+    },
+    {
+      "command": "for dir in $(go list -m -f '{{.Dir}}'); do (cd $dir && go vet ./...); done",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T19:18:00+07:00",
+      "summary": "4 module, 0 phát hiện."
+    },
+    {
+      "command": "for dir in $(go list -m -f '{{.Dir}}'); do (cd $dir && GOOS=linux golangci-lint run ./...); done",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T20:10:00+07:00",
+      "summary": "0 issues trên cả 4 module. Tổng cộng 4 lỗi đã vá qua hai lượt: errorlint đòi %w cho MỌI đối số error của fmt.Errorf (2 chỗ), revive đọc hậu tố 'Min' trên time.Duration là ĐƠN VỊ PHÚT chứ không phải 'minimum', và revive đòi context.Context là tham số đầu tiên. GOOS=linux là bắt buộc — build tag làm file *_unix.go vô hình với lint trên Windows."
+    },
+    {
+      "command": "gofmt -l services/",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T19:30:00+07:00",
+      "summary": "Trống. Lần đầu ra 2 file (manager.go, manager_test.go) — đã gofmt -w. Lệch gofmt không làm build đỏ nên nó chỉ lộ ở CI nếu không kiểm chủ động."
+    },
+    {
+      "command": "node scripts/env-check.mjs",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T19:36:00+07:00",
+      "summary": "OK — 43 biến, 4 scope, khớp code ↔ .env.example ↔ Helm ↔ CI. 4 biến mới (HARD_CAP, POOL_TARGET, SANDBOX_IMAGE, SANDBOX_RUNTIME_CLASS) qua đủ 3 nơi mà cổng gác cho service Go."
+    },
+    {
+      "command": "helm lint infra/helm/platform -f values.yaml và -f values-selfhost.yaml",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T19:14:00+07:00",
+      "summary": "2 bộ values, 0 chart failed (chỉ INFO 'icon is recommended', có từ trước). helm không có sẵn trên máy — tải binary v3.16.3 về scratchpad để kiểm thay vì đợi CI."
+    },
+    {
+      "command": "helm template platform infra/helm/platform -f values-selfhost.yaml --set <3 secret dummy> -s templates/orchestrator-deployment.yaml",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T19:16:00+07:00",
+      "summary": "Cả 4 env mới render đúng: HARD_CAP=2h, POOL_TARGET=1, SANDBOX_IMAGE=registry.k8s.io/pause:3.10, và SANDBOX_RUNTIME_CLASS=sysbox-runc — giá trị cuối KẾ THỪA từ sandbox.runtimeClassName (SSOT của CEL #1) thay vì hằng số nhân bản, đã xác minh bằng output chứ không bằng đọc template."
+    },
+    {
+      "command": "pnpm turbo run lint typecheck build test",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T19:26:00+07:00",
+      "summary": "12/12 task xanh. Lần chạy đầu 5 test web đỏ vì ECONNREFUSED :5432 — Postgres chưa bật, môi trường chứ không phải thay đổi của PR; bật `docker compose up -d postgres` rồi xanh sạch."
+    },
+    {
+      "command": "buf breaking (proto)",
+      "status": "skipped",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T19:40:00+07:00",
+      "summary": "KHÔNG chạy vì PR không đụng file .proto nào (`git diff origin/main...HEAD -- proto/` trống). Ghi 'skipped' thay vì 'pass' có chủ ý: cổng chưa chạy thì không được báo là đã qua. CI vẫn chạy nó."
+    },
+    {
+      "command": "Xác minh trên cluster K8s thật (pod Sysbox tạo được, VAP không từ chối, p95 claim < 1s với ≥50 mẫu)",
+      "status": "skipped",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T19:40:00+07:00",
+      "summary": "CHƯA CHẠY — session này không có kubeconfig của lab. 8 CEL mới chỉ được soi lại bằng Go trong podspec_test.go (bản sao có chủ ý), và AC 'claim p95 < 1s' chưa có số đo nào. Đây là khoảng trống thật, ghi vào adversarial-validation.unverifiedClaims chứ không ngầm coi là đã kiểm."
+    }
+  ],
+  "beforeAfter": [
+    "HAI LẦN ĐỎ CÓ THẬT trong phiên này — ghi lại vì chúng là bằng chứng cổng đang gác chứ không trang trí (mảng `commands` phản ánh trạng thái CUỐI nên không giữ chúng ở đó). (1) Lượt `go test ./...` đầu tiên: 12 test đỏ, GỒM CẢ test cũ của pool đã xanh ở PR #25. Nguyên nhân: các package chạy SONG SONG và cả pool lẫn lifecycle đều FLUSHDB trên DB 15 — mỗi bên xoá dữ liệu bên kia giữa chừng, triệu chứng không trỏ về nguyên nhân (pod `sandbox-cold1` của lifecycle lọt vào assertion FIFO của pool; khoá idem 'vừa hết hạn' sau 20ms) và rất dễ bị đổ cho 'test flaky'. Sửa: ép DB theo package (pool=15, lifecycle=14). (2) TestMatCaReplyLanDocLaiThiGiuKhoaIdempotency đỏ giữa lô vá và bắt được một lỗi VỪA TẠO RA: nhánh warm của claimWithColdPath còn map lỗi sang status.Error quá sớm, mà status.Error KHÔNG hiện thực Unwrap ⇒ errors.Is mất dấu sentinel ⇒ khoá idempotency bị nhả nhầm, tức lỗi C-1 sống lại qua một cánh cửa khác. Chẩn đoán bằng test debug tạm (đã xoá) chứ không đoán. Sửa: thêm toStatus() và đẩy việc map xuống làm bước CUỐI trên đường lỗi.",
+    "TRƯỚC: grpcserver có 10 chỗ trả codes.Unimplemented; CreateSession/ClaimSession/GetSession không làm gì. SAU: 3 RPC đó có hành vi thật (claim từ warm-pool, dedupe idempotency, cold path, authz theo chủ sở hữu); ExtendSession/ReapSession vẫn Unimplemented có chủ ý cho B5/B6.",
+    "TRƯỚC: orchestrator không có đường nào tới K8s API — 0 dependency k8s. SAU: internal/k8s là SSOT của pod spec, warm-pool tạo/xoá pod thật, RBAC sẵn có (create/get/list/watch/delete trong dlp-sandbox) đủ dùng không phải sửa.",
+    "TRƯỚC: `go test ./...` ở orchestrator xanh nhưng vì chỉ MỘT package chạm Redis. SAU: hai package chạm Redis, và việc chúng chạy song song đã ĐỎ THẬT một lần trước khi tách DB — bằng chứng rằng cổng test đang gác chứ không chỉ trang trí.",
+    "TRƯỚC: pool.Claim trả lỗi trần khi gặp 'session da ton tai'. SAU: pool.ClaimIdempotent biến ca đó thành đọc-lại, và TestRetryMatPhanHoiKhongTaoPodThuHai chứng minh retry KHÔNG rẽ cold-path và KHÔNG tiêu pod thứ hai."
+  ]
+}

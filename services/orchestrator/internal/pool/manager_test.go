@@ -34,10 +34,16 @@ type fakePods struct {
 
 	// createErr trả cho MỌI lời gọi Create khi khác nil.
 	createErr error
+	// createAttempts đếm MỌI lời gọi Create, kể cả lời gọi lỗi — `created` chỉ
+	// đếm lời gọi thành công, nên nó không đo được nhịp retry.
+	createAttempts []string
 	// getsBeforeReady là số lần Get trả "chưa ready" trước khi pod Ready.
 	getsBeforeReady int
 	// terminalPhase khác rỗng ⇒ pod vào thẳng trạng thái đó, không bao giờ Ready.
 	terminalPhase corev1.PodPhase
+	// onGet chạy SAU khi Get đã ghi nhận lượt gọi — test dùng để huỷ ctx đúng
+	// lúc manager đang ở giữa vòng chờ-ready.
+	onGet func(name string)
 
 	gets map[string]int
 }
@@ -47,6 +53,7 @@ func newFakePods() *fakePods { return &fakePods{gets: map[string]int{}} }
 func (f *fakePods) Create(_ context.Context, pod *corev1.Pod) (*corev1.Pod, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.createAttempts = append(f.createAttempts, pod.Name)
 	if f.createErr != nil {
 		return nil, fmt.Errorf("k8s: tạo pod %q: %w", pod.Name, f.createErr)
 	}
@@ -56,9 +63,15 @@ func (f *fakePods) Create(_ context.Context, pod *corev1.Pod) (*corev1.Pod, erro
 
 func (f *fakePods) Get(_ context.Context, name string) (*corev1.Pod, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.gets[name]++
+	hook := f.onGet
+	f.mu.Unlock()
+	if hook != nil {
+		hook(name)
+	}
 
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	pod := &corev1.Pod{}
 	pod.Name = name
 	if f.terminalPhase != "" {
@@ -93,6 +106,14 @@ func (f *fakePods) deletedNames() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]string(nil), f.deleted...)
+}
+
+// createErrCalls trả MỌI lượt gọi Create, kể cả lượt lỗi — cần cho việc đo nhịp
+// retry, vì `createdNames()` chỉ thấy lượt thành công.
+func (f *fakePods) createErrCalls() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.createAttempts...)
 }
 
 func newTestManager(t *testing.T, pods k8s.PodClient, target int) (*Manager, *metrics.Metrics) {
@@ -339,6 +360,70 @@ func TestPodChuaReadyKhongDuocVaoPool(t *testing.T) {
 	}
 	if n, _ := m.rdb.LLen(ctx, rediskeys.PoolFree).Result(); n != 1 {
 		t.Fatalf("pool:free = %d, cần 1", n)
+	}
+}
+
+// TestCtxHuyGiuaChungVanXoaPodDaTao (C-3).
+//
+// ⛔ ĐƯỜNG DỌN DẸP KHÔNG ĐƯỢC DÙNG CHÍNH ctx VỪA GÂY RA LỖI.
+// `waitReady` chờ tới 2 phút, còn deadline gRPC/tRPC của BFF ngắn hơn nhiều, và
+// người dùng đóng tab cũng huỷ ctx. Với ctx đã huỷ, `Delete(ctx, …)` không bao
+// giờ gửi được request — pod ở lại cluster, không hash `pod:{name}`, không
+// session nào trỏ tới, ăn một khe trong trần 4 pod (D16). Và đường này CHỈ chạy
+// khi pool đã rỗng, tức đúng lúc quota căng nhất; tầng đỡ duy nhất (sweep của
+// B7) thì CHƯA TỒN TẠI.
+func TestCtxHuyGiuaChungVanXoaPodDaTao(t *testing.T) {
+	pods := newFakePods()
+	pods.getsBeforeReady = 1 << 30 // không bao giờ Ready
+	m, _ := newTestManager(t, pods, 1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Huỷ ngay khi manager bắt đầu chờ pod Ready.
+	pods.onGet = func(string) { cancel() }
+
+	if _, err := m.Provision(ctx); err == nil {
+		t.Fatal("Provision phải lỗi khi ctx bị huỷ")
+	}
+
+	created, deleted := pods.createdNames(), pods.deletedNames()
+	if len(created) != 1 {
+		t.Fatalf("tạo %v, cần đúng 1 pod", created)
+	}
+	if len(deleted) != 1 || deleted[0] != created[0] {
+		t.Fatalf("tạo %v nhưng xoá %v — pod RÒ trên cluster, và B7 chưa tồn tại để dọn", created, deleted)
+	}
+}
+
+// TestBackoffThucSuCoHieuLuc (M-1).
+//
+// Bản đầu có cả time.Ticker LẪN timer(backoff) trong cùng một select, nên ticker
+// luôn bắn trước mọi backoff > tick và toàn bộ nhánh cấp số nhân là MÃ CHẾT.
+// Quy về sản phẩm (tick=10s): API server sập ⇒ thử lại mỗi 10s vĩnh viễn kèm
+// 360 dòng ERROR mỗi giờ — đúng thứ ồn mà quotaLogEvery được thêm để tránh ở
+// nhánh bên cạnh.
+//
+// Test đo SỐ LẦN GỌI Create trong một cửa sổ cố định. Không có backoff thì số
+// đó ≈ window/tick; có backoff (1s → 2s → 4s) thì ít hơn hẳn.
+func TestBackoffThucSuCoHieuLuc(t *testing.T) {
+	pods := newFakePods()
+	pods.createErr = errors.New("apiserver sập")
+	m, _ := newTestManager(t, pods, 1)
+	m.tick = 20 * time.Millisecond
+
+	const window = 700 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), window)
+	defer cancel()
+	_ = m.Run(ctx)
+
+	attempts := len(pods.createErrCalls())
+	// Không backoff: ~700/20 = 35 lần. Có backoff (minBackoff 1s > window):
+	// đúng 1 lần, vì lần thất bại đầu đã đặt backoff 1s > cả cửa sổ.
+	if attempts > 3 {
+		t.Fatalf("Create được gọi %d lần trong %s — backoff bị vô hiệu hoá (không backoff sẽ là ~%d lần)",
+			attempts, window, int(window/m.tick))
+	}
+	if attempts == 0 {
+		t.Fatal("Create không được gọi lần nào — vòng replenish không chạy")
 	}
 }
 

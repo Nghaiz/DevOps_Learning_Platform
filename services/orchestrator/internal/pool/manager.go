@@ -45,7 +45,26 @@ const (
 	// nghĩa là 360 dòng/giờ nói đúng một chuyện trong lúc nền tảng đang chạy
 	// bình thường ở công suất tối đa — đủ để chôn vùi lỗi thật.
 	quotaLogEvery = 5 * time.Minute
+
+	// cleanupTimeout là ngân sách cho đường DỌN DẸP (xoá pod sau khi một bước
+	// thất bại). Xem cleanupContext để biết vì sao nó không dùng ctx của caller.
+	cleanupTimeout = 10 * time.Second
 )
+
+// cleanupContext tách đường dọn dẹp khỏi ctx của caller.
+//
+// ⛔ KHÔNG ĐƯỢC DỌN BẰNG CHÍNH ctx VỪA GÂY RA LỖI. Lý do rất cụ thể: `waitReady`
+// chờ tới 2 phút, còn deadline gRPC/tRPC của BFF ngắn hơn nhiều, và người dùng
+// đóng tab cũng huỷ ctx. Khi ctx đã huỷ, `Delete(ctx, …)` KHÔNG BAO GIỜ gửi
+// được request (net/http trả lỗi ngay) — pod ở lại cluster, không có hash
+// `pod:{name}`, không session nào trỏ tới, và ăn một khe trong trần 4 pod (D16).
+//
+// Cay hơn nữa: đường này chỉ chạy khi pool đã RỖNG, tức đúng lúc quota căng
+// nhất. Và tầng đỡ duy nhất (sweep pod mồ côi của B7) CHƯA TỒN TẠI, nên hôm nay
+// đó là rò vĩnh viễn chứ không phải "rò tới lượt sweep" như log đang nói.
+func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+}
 
 // ErrPoolQuotaBlocked là sentinel cho "ResourceQuota chặn tạo pod".
 //
@@ -127,10 +146,16 @@ func (m *Manager) Trigger() {
 }
 
 // Run chạy vòng replenish tới khi ctx đóng. Chỉ trả lỗi của chính ctx.
+//
+// ⛔ CỐ Ý KHÔNG CÓ time.Ticker. Bản đầu có cả ticker (nhịp m.tick) LẪN timer
+// (mang giá trị backoff) trong cùng một select — nên ticker luôn bắn trước mọi
+// backoff > tick và toàn bộ nhánh cấp số nhân thành MÃ CHẾT. Đo được: với
+// tick=200ms, createErr cố định, chạy 3s → 15 lần gọi Create (= đúng 3s/200ms)
+// thay vì ~4 lần mà backoff 1s→2s→4s phải cho. Quy về sản phẩm (tick=10s,
+// maxBackoff=60s): API server sập ⇒ thử lại mỗi 10s vĩnh viễn kèm 360 dòng
+// ERROR mỗi giờ — đúng thứ ồn mà quotaLogEvery được thêm vào để tránh ở nhánh
+// bên cạnh. Ticker và timer mã hoá CÙNG một khái niệm hai lần; giữ lại timer.
 func (m *Manager) Run(ctx context.Context) error {
-	ticker := time.NewTicker(m.tick)
-	defer ticker.Stop()
-
 	backoff := time.Duration(0)
 	lastQuotaLog := time.Time{}
 
@@ -190,8 +215,9 @@ func (m *Manager) Run(ctx context.Context) error {
 			return ctx.Err()
 		case <-timer.C:
 		case <-m.trigger:
-			timer.Stop()
-		case <-ticker.C:
+			// Thúc từ đường claim (B3): pool vừa hụt một pod và người kế tiếp
+			// sẽ tới trước khi hết `wait`. Cắt ngắn cả nhịp thường LẪN backoff
+			// là đúng ở đây — có tín hiệu thật thì không việc gì phải chờ.
 			timer.Stop()
 		}
 	}
@@ -243,25 +269,38 @@ func (m *Manager) Provision(ctx context.Context) (string, error) {
 	if err := m.waitReady(ctx, name); err != nil {
 		// Pod đã tồn tại trên cluster và đang ăn quota. Bỏ nó lại là rò đúng
 		// một khe trong trần 4 (D16), và nó sẽ không có hash pod:{name} nên
-		// reaper thấy là "mồ côi" — đúng, nhưng phải chờ tới chu kỳ sweep.
-		// Dọn ngay ở đây rẻ hơn nhiều.
-		if delErr := m.pods.Delete(ctx, name, 0); delErr != nil {
-			m.log.Error("không xoá được pod chờ-ready thất bại — khe quota sẽ rò tới lượt sweep",
-				slog.String("pod", name), slog.String("err", delErr.Error()))
-		}
+		// reaper (B7 — CHƯA TỒN TẠI) mới là thứ dọn được. Dọn ngay ở đây.
+		m.deleteAfterFailure(ctx, name, "chờ-ready thất bại")
 		return "", err
 	}
 
 	if err := m.publish(ctx, name); err != nil {
-		if delErr := m.pods.Delete(ctx, name, 0); delErr != nil {
-			m.log.Error("không xoá được pod công bố thất bại",
-				slog.String("pod", name), slog.String("err", delErr.Error()))
-		}
+		m.deleteAfterFailure(ctx, name, "công bố vào pool thất bại")
 		return "", err
 	}
 
 	m.log.Info("pod ấm đã vào pool", slog.String("pod", name))
 	return name, nil
+}
+
+// deleteAfterFailure xoá một pod vừa tạo hỏng, bằng ctx TÁCH RỜI.
+//
+// Xem cleanupContext: dùng ctx của caller ở đây nghĩa là mỗi lần user đóng tab
+// giữa cold path là một pod ở lại cluster vĩnh viễn.
+func (m *Manager) deleteAfterFailure(ctx context.Context, name, why string) {
+	cleanupCtx, cancel := cleanupContext(ctx)
+	defer cancel()
+
+	if err := m.pods.Delete(cleanupCtx, name, 0); err != nil {
+		// Tới đây là hết đường tự chữa: pod tồn tại, không hash, không session.
+		// B7 chưa có nên KHÔNG hứa hẹn "sweep sẽ dọn" — nói thẳng là rò.
+		m.log.Error("RÒ KHE QUOTA: không xoá được pod hỏng, và chưa có reaper để dọn",
+			slog.String("pod", name),
+			slog.String("vi_sao_tao_hong", why),
+			slog.String("err", err.Error()))
+		return
+	}
+	m.log.Warn("đã xoá pod hỏng", slog.String("pod", name), slog.String("vi_sao", why))
 }
 
 // publish đưa một pod đã Ready vào pool.

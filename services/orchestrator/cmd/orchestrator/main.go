@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -73,13 +74,22 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer closeStores()
+	// KHÔNG `defer closeStores()`: Redis phải đóng SAU khi goroutine warm-pool
+	// đã dừng hẳn, và defer ở đây chạy trước cả poolWG.Wait() bên dưới lẫn sau
+	// nó tuỳ vị trí — quá tinh tế để đúng do vô tình. Đóng tường minh ở cuối.
 
 	grpcSrv := grpc.NewServer()
 	orchestratorv1.RegisterSessionServiceServer(grpcSrv, grpcserver.NewSessionService(log, sessions))
 
+	// WaitGroup chứ không phải goroutine thả nổi: warm-pool có thể đang ở giữa
+	// một lượt Provision (tạo pod → chờ Ready → công bố) lúc SIGTERM tới. Đóng
+	// Redis trong khi nó còn chạy nghĩa là `publish()` lỗi ở giữa và pod vừa tạo
+	// bị bỏ lại — đúng chế độ rò khe quota mà deleteAfterFailure sinh ra để chặn.
+	var poolWG sync.WaitGroup
 	if poolMgr != nil {
+		poolWG.Add(1)
 		go func() {
+			defer poolWG.Done()
 			if err := poolMgr.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 				log.Error("warm-pool dừng bất thường", slog.String("err", err.Error()))
 			}
@@ -164,6 +174,14 @@ func run() error {
 			runErr = fmt.Errorf("http shutdown: %w", err)
 		}
 	}
+
+	// Chờ warm-pool dứt hẳn TRƯỚC khi đóng Redis. Nó có thể đang giữa một lượt
+	// Provision; đóng client dưới chân nó làm `publish()` lỗi và pod vừa tạo bị
+	// bỏ lại trên cluster — một khe quota rò mà không reaper nào (B7 chưa có)
+	// dọn được. ctx đã huỷ ở stop() nên vòng lặp thoát ở lượt select kế tiếp.
+	poolWG.Wait()
+	closeStores()
+
 	if runErr != nil {
 		return runErr
 	}
@@ -213,11 +231,17 @@ func buildSessionEngine(
 	}
 	mgr := pool.NewManager(rdb, pods, podCfg, cfg.PoolTarget, log, met)
 
-	svc := lifecycle.NewService(rdb, mgr, lifecycle.Config{
+	svc, err := lifecycle.NewService(rdb, mgr, lifecycle.Config{
 		Namespace:  cfg.SandboxNamespace,
 		SessionTTL: cfg.SessionTTL,
 		HardCap:    cfg.HardCap,
 	}, log, met)
+	if err != nil {
+		_ = rdb.Close()
+		// Cấu hình mâu thuẫn là lỗi CỨNG lúc khởi động, không phải chế độ chạy:
+		// để nó qua thì mọi probe xanh trong khi 100% CreateSession thất bại.
+		return nil, nil, noop, err
+	}
 
 	log.Info("warm-pool bật",
 		slog.Int("pool_target", cfg.PoolTarget),

@@ -31,14 +31,29 @@ var claimScript = redis.NewScript(claimLua)
 // Caller (B3) bắt nó để tự tạo pod đồng bộ thay vì claim từ pool.
 var ErrPoolEmpty = errors.New("pool: không còn pod ấm trong pool:free")
 
-// Trần của TTL. Không phải con số cho đẹp: `EXPIRE` từ chối giá trị vượt
-// khoảng nó chấp nhận, và lỗi đó nổ ra ở lệnh CUỐI của claim.lua — sau khi
-// session đã ghi xong. Script tự hoàn tác được, nhưng chặn từ biên thì rẻ hơn
-// và cho thông báo hiểu được thay vì "invalid expire time in 'expire' command".
+// MaxTTLSeconds là trần của TTL. Không phải con số cho đẹp: `EXPIRE` từ chối
+// giá trị vượt khoảng nó chấp nhận, và lỗi đó nổ ra ở lệnh CUỐI của claim.lua —
+// sau khi session đã ghi xong. Script tự hoàn tác được, nhưng chặn từ biên thì
+// rẻ hơn và cho thông báo hiểu được thay vì "invalid expire time in 'expire'
+// command".
 //
 // 24h là trần kỹ thuật, KHÔNG phải chính sách: HARD_CAP thật (D11: 2h) do B5
 // áp. Cái này chỉ chặn giá trị vô nghĩa lọt xuống Redis.
-const maxTTLSeconds = int64(24 * 60 * 60)
+//
+// PHƠI RA (không phải `maxTTLSeconds` nội bộ) vì lifecycle phải ràng buộc
+// HARD_CAP theo nó LÚC KHỞI ĐỘNG. Không có ràng buộc đó thì `HARD_CAP=48h` qua
+// được cổng config, orchestrator lên xanh, mọi probe xanh — và 100% CreateSession
+// chết ở đây. Nhân bản con số 24h sang config là cách nó trôi đi.
+const MaxTTLSeconds = int64(24 * 60 * 60)
+
+// ErrInvalidClaimParams gói mọi lỗi VALIDATE đầu vào của Claim.
+//
+// Tách khỏi lỗi hạ tầng vì hai loại này phải ra hai mã gRPC khác nhau:
+// tham số sai là `InvalidArgument` (retry vô nghĩa), Redis chết là `Unavailable`
+// (retry đúng). Gộp chúng làm retry policy của gRPC thử lại vĩnh viễn một
+// request không bao giờ thành công, và dashboard đọc lỗi đầu vào như sự cố
+// hạ tầng.
+var ErrInvalidClaimParams = errors.New("pool: tham số claim không hợp lệ")
 
 // podPointerGrace là khoảng `session:{id}:pod` sống LÂU HƠN hash session.
 //
@@ -63,38 +78,43 @@ type ClaimParams struct {
 	TTLSeconds int64
 }
 
+// validate. MỌI lỗi ở đây bọc ErrInvalidClaimParams — xem sentinel đó để biết
+// vì sao việc phân loại này là contract chứ không phải trang trí.
 func (p ClaimParams) validate() error {
 	// SessionID/UserID: định danh, qua cổng pattern của rediskeys.
 	if err := rediskeys.ValidateID(p.SessionID); err != nil {
-		return fmt.Errorf("pool: session id: %w", err)
+		return fmt.Errorf("%w: session id: %w", ErrInvalidClaimParams, err)
 	}
 	// UserID không nằm trong key nào của script này, nhưng nó được ghi vào hash
 	// mà gateway so sánh NGUYÊN VĂN cho authz vế g — cùng miền định danh với
 	// Idem(userID, …), nên phải qua cùng một cổng.
 	if err := rediskeys.ValidateID(p.UserID); err != nil {
-		return fmt.Errorf("pool: user id: %w", err)
+		return fmt.Errorf("%w: user id: %w", ErrInvalidClaimParams, err)
 	}
 	// Namespace đi ra khỏi Redis rồi thành một đoạn trong URL `pods/exec` mà
 	// gateway gọi (G4 đọc field này thay vì hardcode). Một giá trị không kiểm
 	// vượt biên tin cậy Redis → K8s API, nên nó qua cùng cổng với định danh.
 	if err := rediskeys.ValidateID(p.Namespace); err != nil {
-		return fmt.Errorf("pool: namespace: %w", err)
+		return fmt.Errorf("%w: namespace: %w", ErrInvalidClaimParams, err)
 	}
 	// Tier là enum của proto. Chuỗi tự do ở đây nghĩa là gõ sai tồn tại im lặng
 	// trong Redis rồi đi thẳng ra FE.
 	if !validTiers[p.Tier] {
-		return fmt.Errorf("pool: tier %q không hợp lệ (cần một trong %v)", p.Tier, tierNames())
+		return fmt.Errorf("%w: tier %q không hợp lệ (cần một trong %v)",
+			ErrInvalidClaimParams, p.Tier, tierNames())
 	}
 	if p.NowUnix <= 0 {
-		return fmt.Errorf("pool: NowUnix phải > 0 (nhận %d)", p.NowUnix)
+		return fmt.Errorf("%w: NowUnix phải > 0 (nhận %d)", ErrInvalidClaimParams, p.NowUnix)
 	}
-	if p.TTLSeconds <= 0 || p.TTLSeconds > maxTTLSeconds {
-		return fmt.Errorf("pool: TTLSeconds phải trong (0, %d] (nhận %d)", maxTTLSeconds, p.TTLSeconds)
+	if p.TTLSeconds <= 0 || p.TTLSeconds > MaxTTLSeconds {
+		return fmt.Errorf("%w: TTLSeconds phải trong (0, %d] (nhận %d)",
+			ErrInvalidClaimParams, MaxTTLSeconds, p.TTLSeconds)
 	}
 	// Không kiểm thì tạo được session sinh ra đã hết hạn — gateway sẽ từ chối
 	// mọi kết nối vào nó với 409 và không ai hiểu vì sao.
 	if p.ExpiresAtUnix <= p.NowUnix {
-		return fmt.Errorf("pool: ExpiresAtUnix (%d) phải sau NowUnix (%d)", p.ExpiresAtUnix, p.NowUnix)
+		return fmt.Errorf("%w: ExpiresAtUnix (%d) phải sau NowUnix (%d)",
+			ErrInvalidClaimParams, p.ExpiresAtUnix, p.NowUnix)
 	}
 	return nil
 }

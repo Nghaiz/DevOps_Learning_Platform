@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -21,13 +22,23 @@ import (
 //go:embed idem_release.lua
 var idemReleaseLua string
 
-var idemReleaseScript = redis.NewScript(idemReleaseLua)
+//go:embed idem_promote.lua
+var idemPromoteLua string
+
+var (
+	idemReleaseScript = redis.NewScript(idemReleaseLua)
+	idemPromoteScript = redis.NewScript(idemPromoteLua)
+)
 
 const (
 	// idemTTL khớp con số đã pin trong plan (`SET idem:{key} … NX EX 600`).
 	// Ngắn hơn TTL session có chủ ý: khoá này chống F5 và gRPC retry, không
 	// phải chống người dùng bấm "Start" lại sau nửa tiếng.
 	idemTTL = 10 * time.Minute
+
+	// idemPendingPrefix đánh dấu pha "đã nhận việc, chưa claim xong".
+	// Xem idem_promote.lua để biết vì sao hai pha là bắt buộc.
+	idemPendingPrefix = "pending:"
 
 	// coldPathAttempts giới hạn số lần tạo-rồi-claim khi pool rỗng.
 	//
@@ -36,7 +47,20 @@ const (
 	// ăn quota — với trần 4 pod (D16), retry rộng tay biến một cơn tranh chấp
 	// thành cạn quota cho tất cả mọi người.
 	coldPathAttempts = 2
+
+	// cleanupTimeout là ngân sách cho đường dọn dẹp (nhả/nâng khoá idem).
+	// Nó chạy trên ctx TÁCH RỜI — xem cleanupContext.
+	cleanupTimeout = 5 * time.Second
 )
+
+// cleanupContext tách đường dọn dẹp khỏi ctx của caller.
+//
+// ⛔ Lỗi đưa ta tới đường dọn dẹp RẤT THƯỜNG là chính ctx bị huỷ. Nhả khoá bằng
+// ctx đã chết thì lệnh không bao giờ rời process: khoá kẹt đủ 10 phút, và mọi
+// retry trong khoảng đó rơi vào nhánh replay với thông báo sai.
+func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+}
 
 // Provisioner là phần warm-pool mà lifecycle cần. Interface (không phải
 // *pool.Manager) để test đường cold-path không phải dựng cluster.
@@ -74,14 +98,40 @@ type Service struct {
 	newSessionID func() (string, error)
 }
 
-// NewService dựng lifecycle service.
+// NewService dựng lifecycle service, và TỪ CHỐI cấu hình mâu thuẫn ngay tại đây.
+//
+// ⛔ VÌ SAO VALIDATE Ở ĐÂY CHỨ KHÔNG PHẢI TRONG config.Load: trần 24h là hằng
+// của pool (`pool.MaxTTLSeconds`), nơi `EXPIRE` thật sự bị chặn. Nhân bản con số
+// đó sang package config là cách nó trôi đi. Không có cổng này thì `HARD_CAP=48h`
+// qua được config, orchestrator lên xanh, mọi probe xanh — và 100%
+// CreateSession chết bằng một lỗi 5xx-class nói về "TTLSeconds", không nói gì
+// về HARD_CAP. Đo được: `SESSION_TTL=30h HARD_CAP=48h` → `Unavailable: pool:
+// TTLSeconds phải trong (0, 86400] (nhận 108000)`.
 func NewService(
 	rdb redis.UniversalClient,
 	provisioner Provisioner,
 	cfg Config,
 	log *slog.Logger,
 	met *metrics.Metrics,
-) *Service {
+) (*Service, error) {
+	if cfg.SessionTTL <= 0 {
+		return nil, fmt.Errorf("lifecycle: SESSION_TTL phải > 0 (nhận %s)", cfg.SessionTTL)
+	}
+	if cfg.HardCap <= 0 {
+		return nil, fmt.Errorf("lifecycle: HARD_CAP phải > 0 (nhận %s)", cfg.HardCap)
+	}
+	if cfg.SessionTTL > cfg.HardCap {
+		return nil, fmt.Errorf("lifecycle: SESSION_TTL (%s) > HARD_CAP (%s): mọi session sẽ bị cắt xuống trần cứng",
+			cfg.SessionTTL, cfg.HardCap)
+	}
+	if maxCap := time.Duration(pool.MaxTTLSeconds) * time.Second; cfg.HardCap > maxCap {
+		return nil, fmt.Errorf("lifecycle: HARD_CAP (%s) vượt trần kỹ thuật của claim (%s) — mọi CreateSession sẽ thất bại",
+			cfg.HardCap, maxCap)
+	}
+	if cfg.Namespace == "" {
+		return nil, fmt.Errorf("lifecycle: Namespace rỗng")
+	}
+
 	return &Service{
 		rdb:          rdb,
 		pool:         provisioner,
@@ -90,7 +140,7 @@ func NewService(
 		met:          met,
 		now:          time.Now,
 		newSessionID: NewSessionID,
-	}
+	}, nil
 }
 
 // Create cấp một session mới và claim pod cho nó ngay trong cùng lời gọi.
@@ -139,7 +189,8 @@ func (s *Service) Create(
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 
-	acquired, err := s.rdb.SetNX(ctx, idemKey, sessionID, idemTTL).Result()
+	pendingValue := idemPendingPrefix + sessionID
+	acquired, err := s.rdb.SetNX(ctx, idemKey, pendingValue, idemTTL).Result()
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "đặt khoá idempotency: %v", err)
 	}
@@ -147,14 +198,20 @@ func (s *Service) Create(
 		return s.replayIdempotent(ctx, idemKey, userID)
 	}
 
-	sess, err := s.claimWithColdPath(ctx, sessionID, userID, tier, ttl)
-	if err != nil {
-		// Nhả khoá để lần thử sau của user không nhận về một session không bao
-		// giờ được tạo. Giữ khoá lại nghĩa là user kẹt 10 phút với lỗi
-		// "session của idempotency_key này không có pod" mà chẳng làm gì được.
-		s.releaseIdem(ctx, idemKey, sessionID)
-		return nil, err
+	sess, claimErr := s.claimWithColdPath(ctx, sessionID, userID, tier, ttl)
+	if claimErr != nil {
+		// THỨ TỰ QUAN TRỌNG: quyết định nhả khoá đọc lỗi GỐC (còn nguyên chuỗi
+		// sentinel), rồi mới map sang mã gRPC. Map trước là cắt đứt chuỗi đó —
+		// `status.Error` không wrap — và releaseIdemIfSafe sẽ nhả nhầm khoá
+		// trong đúng ca mà nó tồn tại để chặn.
+		s.releaseIdemIfSafe(ctx, idemKey, pendingValue, claimErr)
+		return nil, s.toStatus(claimErr)
 	}
+
+	// Nâng khoá lên giá trị cuối. Lỗi ở đây KHÔNG làm hỏng lời gọi: session đã
+	// tồn tại thật, và khoá kẹt ở `pending:` chỉ khiến một retry (hiếm) nhận
+	// "đang xử lý, thử lại" thay vì nhận ngay session — phiền, không sai.
+	s.promoteIdem(ctx, idemKey, pendingValue, sessionID)
 	return sess.ToProto(), nil
 }
 
@@ -162,7 +219,7 @@ func (s *Service) Create(
 func (s *Service) replayIdempotent(
 	ctx context.Context, idemKey, userID string,
 ) (*orchestratorv1.Session, error) {
-	existingID, err := s.rdb.Get(ctx, idemKey).Result()
+	raw, err := s.rdb.Get(ctx, idemKey).Result()
 	if errors.Is(err, redis.Nil) {
 		// Khoá hết hạn đúng giữa SetNX và Get. Hiếm, nhưng có thật.
 		return nil, status.Error(codes.Aborted,
@@ -172,7 +229,36 @@ func (s *Service) replayIdempotent(
 		return nil, status.Errorf(codes.Unavailable, "đọc khoá idempotency: %v", err)
 	}
 
-	sess, err := Load(ctx, s.rdb, existingID)
+	// ⛔ PHA `pending:` PHẢI ĐƯỢC TÁCH RIÊNG, TRƯỚC KHI ĐỌC SESSION.
+	//
+	// Không tách thì "một lời gọi khác ĐANG xử lý" và "session ĐÃ kết thúc" ra
+	// cùng một ErrSessionNotFound, và nhánh dưới sẽ trả về "session này đã kết
+	// thúc; dùng idempotency_key mới" — một khẳng định SAI SỰ THẬT, và làm theo
+	// nó chính là tạo pod thứ hai. Đây là ca double-click nút Start, không phải
+	// ca hiếm: đo được với hai lời gọi đồng thời cách nhau 80ms.
+	if pendingID, ok := strings.CutPrefix(raw, idemPendingPrefix); ok {
+		// Pha pending mang HAI nghĩa khác nhau, và phải tách:
+		//   (a) lời gọi kia đang chạy thật, chưa ghi gì;
+		//   (b) lời gọi kia đã claim XONG nhưng mất reply nên chưa kịp nâng khoá.
+		// Phân biệt bằng chính hash `session:{id}` — SSOT là nó, không phải khoá
+		// idem. Không tách thì ca (b) khoá user ra ngoài session CỦA CHÍNH HỌ
+		// suốt 10 phút TTL, dù pod đã claim xong và đang chạy.
+		if sess, loadErr := Load(ctx, s.rdb, pendingID); loadErr == nil {
+			if _, ownErr := sess.OwnedBy(userID); ownErr != nil {
+				s.log.Error("khoá idempotency pending trỏ tới session của user khác",
+					slog.String("session_id", sess.ID))
+				return nil, status.Error(codes.Internal, "trạng thái idempotency không nhất quán")
+			}
+			s.promoteIdem(ctx, idemKey, raw, pendingID)
+			return sess.ToProto(), nil
+		}
+		s.log.Info("lời gọi đồng thời cùng idempotency_key đang xử lý",
+			slog.String("session_id_dang_tao", pendingID))
+		return nil, status.Error(codes.Unavailable,
+			"một lời gọi khác với cùng idempotency_key đang được xử lý; thử lại với CÙNG key (đừng đổi key)")
+	}
+
+	sess, err := Load(ctx, s.rdb, raw)
 	if errors.Is(err, ErrSessionNotFound) {
 		// Khoá còn nhưng session đã kết thúc (bị reap sớm). KHÔNG tạo session
 		// mới ở đây: hai lời gọi đồng thời rơi vào nhánh này sẽ cùng tạo, tức
@@ -203,6 +289,16 @@ func (s *Service) claimWithColdPath(
 	tier orchestratorv1.SandboxTier,
 	ttl time.Duration,
 ) (*Session, error) {
+	// ⛔ ĐO TỪ ĐÂY, KHÔNG PHẢI TỪ BÊN TRONG attempt().
+	//
+	// AC là "claim từ warm-pool p95 < 1s" — tức thời gian NGƯỜI DÙNG chờ để có
+	// pod. Bản đầu đặt mốc bên trong attempt() nên nhãn `warm` chỉ bao đúng một
+	// lượt EVALSHA (~1ms): histogram đó KHÔNG THỂ đỏ, nên dùng nó để chứng minh
+	// AC là tautology. Tệ hơn ở nhãn `cold`: mốc nằm SAU s.pool.Provision(), nên
+	// hàng chục giây chờ pod Ready — đúng thứ làm cold path chậm — rơi ra ngoài
+	// histogram, và số đo sẽ nói ngược lại chính comment ở metrics.go.
+	start := s.now()
+
 	// Đóng gói lại params ở MỖI lần thử, không tính một lần rồi dùng lại:
 	// TTL bắt đầu đếm từ lúc CLAIM, không phải lúc create (B4). Đường cold có
 	// thể mất hàng chục giây chờ pod Ready — dùng lại mốc thời gian cũ nghĩa là
@@ -210,7 +306,6 @@ func (s *Service) claimWithColdPath(
 	// trước NowUnix làm chính validate() của pool từ chối.
 	attempt := func(path string) (*Session, error) {
 		now := s.now()
-		start := now
 		_, err := pool.ClaimIdempotent(ctx, s.rdb, pool.ClaimParams{
 			SessionID:     sessionID,
 			UserID:        userID,
@@ -223,7 +318,6 @@ func (s *Service) claimWithColdPath(
 		if err != nil {
 			return nil, err
 		}
-		s.met.ClaimDuration.WithLabelValues(path).Observe(s.now().Sub(start).Seconds())
 
 		// Thúc replenish NGAY sau khi claim thành công: pool vừa hụt một pod và
 		// người kế tiếp sẽ tới trước tick sau.
@@ -231,8 +325,13 @@ func (s *Service) claimWithColdPath(
 
 		sess, err := Load(ctx, s.rdb, sessionID)
 		if err != nil {
-			return nil, fmt.Errorf("đọc lại session vừa claim: %w", err)
+			// Claim ĐÃ ghi xong; chỉ lượt đọc lại hỏng. Bọc
+			// ErrClaimMayHaveWritten để releaseIdemIfSafe GIỮ khoá — nhả nó ở
+			// đây là mở lại đúng cửa C-1 qua một cánh khác.
+			return nil, fmt.Errorf("%w: đọc lại session vừa claim: %w",
+				pool.ErrClaimMayHaveWritten, err)
 		}
+		s.met.ClaimDuration.WithLabelValues(path).Observe(s.now().Sub(start).Seconds())
 		return sess, nil
 	}
 
@@ -241,7 +340,8 @@ func (s *Service) claimWithColdPath(
 		return sess, nil
 	}
 	if !errors.Is(err, pool.ErrPoolEmpty) {
-		return nil, s.mapClaimError(err)
+		// Lỗi GỐC, chưa map — xem toStatus.
+		return nil, err
 	}
 
 	s.met.ColdPathTotal.Inc()
@@ -262,7 +362,10 @@ func (s *Service) claimWithColdPath(
 			return sess, nil
 		}
 		if !errors.Is(err, pool.ErrPoolEmpty) {
-			return nil, s.mapClaimError(err)
+			// Trả lỗi GỐC, chưa map sang status. Xem toStatus: `status.Error`
+			// KHÔNG wrap, nên map ở đây sẽ cắt đứt chuỗi sentinel mà
+			// releaseIdemIfSafe dựa vào — và hậu quả là nhả nhầm khoá.
+			return nil, err
 		}
 		// Pod ta vừa tạo bị một request đồng thời claim mất. Thử thêm một vòng.
 		s.log.Warn("pod vừa tạo bị claim mất trước khi tới lượt mình",
@@ -273,6 +376,21 @@ func (s *Service) claimWithColdPath(
 		"không giữ được pod nào sau khi tạo; hệ thống đang quá tải, thử lại")
 }
 
+// toStatus chuyển lỗi GỐC sang mã gRPC, và để yên thứ đã là status.
+//
+// Tồn tại vì `status.Error` KHÔNG hiện thực Unwrap: bọc sớm là cắt đứt chuỗi
+// sentinel (`pool.ErrClaimMayHaveWritten`, `pool.ErrInvalidClaimParams`) mà các
+// quyết định phía trên dựa vào. Nên map là việc CUỐI CÙNG trên đường lỗi.
+func (s *Service) toStatus(err error) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := status.FromError(err); ok && status.Code(err) != codes.Unknown {
+		return err
+	}
+	return s.mapClaimError(err)
+}
+
 func (s *Service) mapClaimError(err error) error {
 	if errors.Is(err, pool.ErrSessionOwnedByAnother) {
 		// Không thể xảy ra với sessionID 128-bit. Nếu xảy ra thì hoặc bộ sinh
@@ -280,16 +398,61 @@ func (s *Service) mapClaimError(err error) error {
 		s.log.Error("session id đụng độ giữa hai user", slog.String("err", err.Error()))
 		return status.Error(codes.Internal, "xung đột định danh session")
 	}
+	if errors.Is(err, pool.ErrInvalidClaimParams) {
+		// KHÔNG phải Unavailable. Gộp lỗi đầu vào vào mã "hạ tầng tạm hỏng"
+		// khiến retry policy của gRPC thử lại vĩnh viễn một request không bao
+		// giờ thành công, và dashboard đọc nó như sự cố hạ tầng. Ca thật đã đo
+		// được: HARD_CAP vượt trần 24h ⇒ mọi CreateSession trả Unavailable.
+		s.log.Error("tham số claim không hợp lệ — đây là lỗi cấu hình/lập trình, không phải sự cố",
+			slog.String("err", err.Error()))
+		return status.Errorf(codes.InvalidArgument, "%v", err)
+	}
 	return status.Errorf(codes.Unavailable, "claim pod: %v", err)
 }
 
-// releaseIdem nhả khoá best-effort. Lỗi chỉ log: đường này đã đang xử lý một
-// lỗi khác, và khoá tự hết hạn sau idemTTL.
-func (s *Service) releaseIdem(ctx context.Context, idemKey, sessionID string) {
-	if err := idemReleaseScript.Run(ctx, s.rdb, []string{idemKey}, sessionID).Err(); err != nil &&
+// releaseIdemIfSafe nhả khoá CHỈ KHI chắc chắn Redis chưa ghi state nào.
+//
+// ⛔ ĐÂY LÀ CHỖ MÀ MỘT "DỌN DẸP" NGÂY THƠ TẠO RA POD THỨ HAI. Bản đầu nhả khoá
+// trên MỌI lỗi. Kịch bản hỏng, hoàn toàn im lặng: `claim.lua` chạy TRỌN VẸN
+// trên server, reply mất ở tầng mạng (timeout TCP — đúng ca mà plan mô tả).
+// Caller nhận error, nhả khoá, và client retry ĐÚNG THEO CONTRACT với cùng
+// idempotency_key → SetNX thành công → sessionID MỚI → claim POD THỨ HAI. Pod
+// thứ nhất rò hết TTL, và vì hash `session:{id}` của nó TỒN TẠI nên heuristic
+// "pod mồ côi" của reaper (B7) không bao giờ thấy. Mỗi lần là −1 trên trần 4
+// pod (D16); ba lần là nền tảng chết mà không lỗi nào giải thích.
+//
+// pool.ErrClaimMayHaveWritten là tín hiệu "không loại trừ được đã ghi". Gặp nó
+// thì GIỮ khoá: một khoá thừa sống 10 phút (user thử lại được, đường replay trả
+// đúng session cũ) rẻ hơn nhiều so với một pod rò vĩnh viễn.
+func (s *Service) releaseIdemIfSafe(ctx context.Context, idemKey, pendingValue string, claimErr error) {
+	if errors.Is(claimErr, pool.ErrClaimMayHaveWritten) {
+		s.log.Warn("GIỮ khoá idempotency: không loại trừ được claim đã ghi Redis",
+			slog.String("err", claimErr.Error()))
+		return
+	}
+
+	// ctx TÁCH RỜI: lỗi đưa ta tới đây rất thường LÀ ctx bị huỷ, và nhả khoá
+	// bằng ctx đã chết thì lệnh không bao giờ rời process — khoá kẹt đủ 10 phút
+	// và mọi retry trong khoảng đó rơi vào nhánh replay.
+	cleanupCtx, cancel := cleanupContext(ctx)
+	defer cancel()
+
+	if err := idemReleaseScript.Run(cleanupCtx, s.rdb, []string{idemKey}, pendingValue).Err(); err != nil &&
 		!errors.Is(err, redis.Nil) {
 		s.log.Warn("không nhả được khoá idempotency; nó sẽ tự hết hạn",
 			slog.String("err", err.Error()))
+	}
+}
+
+// promoteIdem nâng khoá từ `pending:{id}` lên `{id}` sau khi claim thành công.
+func (s *Service) promoteIdem(ctx context.Context, idemKey, pendingValue, sessionID string) {
+	cleanupCtx, cancel := cleanupContext(ctx)
+	defer cancel()
+
+	if err := idemPromoteScript.Run(cleanupCtx, s.rdb,
+		[]string{idemKey}, pendingValue, sessionID).Err(); err != nil && !errors.Is(err, redis.Nil) {
+		s.log.Warn("không nâng được khoá idempotency khỏi pha pending",
+			slog.String("session_id", sessionID), slog.String("err", err.Error()))
 	}
 }
 
