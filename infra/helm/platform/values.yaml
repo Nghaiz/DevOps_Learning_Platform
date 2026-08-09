@@ -126,6 +126,91 @@ gateway:
     # templates/gateway-deployment.yaml). Chưa dùng thật ở P0 — gateway chưa gọi
     # orchestrator (task 22) — nhưng khoá đúng hình dạng DNS trong-cluster từ đây.
     orchestratorGrpcAddr: ''
+    # JWKS của Better Auth — gateway verify sandbox token bằng khoá công khai lấy
+    # từ đây (phase-1 D15, 1.B0.5). KHÔNG có khoá riêng nào của gateway: khoá
+    # riêng đẻ ra biến env × 4 nơi, một Helm secret, và một quy trình xoay vòng
+    # thủ công. JWKS cho rotation miễn phí.
+    #
+    # Rỗng = template tự suy ra "<release>-web:<port>/api/auth/jwks" (DNS
+    # in-cluster). Chỉ đặt tường minh khi web nằm ngoài cluster này.
+    jwksUrl: ''
+
+# Ingress gộp origin web ↔ gateway. TẮT mặc định — xem templates/ingress.yaml
+# để biết vì sao bật nó trên cluster không có ingress controller là cái bẫy im
+# lặng. Đây là điều kiện SỐNG của cookie dlp_sandbox (SameSite=Strict, host-only),
+# không phải tiện nghi vận hành.
+ingress:
+  enabled: false
+  # Tên IngressClass (vd 'traefik', 'nginx'). Rỗng = dùng class mặc định của cluster.
+  className: ''
+  # Rỗng = rule không gắn host (khớp mọi Host header) — chỉ hợp lý khi cluster
+  # phục vụ đúng một ứng dụng.
+  host: ''
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: ''
+
+# Postgres + Redis chạy TRONG cluster. TẮT mặc định ở đây: values.yaml là bản
+# "cloud-shaped", và trên cloud thì managed DB (backup, PITR, failover) thắng
+# tuyệt đối một pod tự dựng. values-selfhost.yaml bật lên cho VM lab.
+#
+# Trước P1, hai datastore này CHỈ tồn tại trong docker-compose.yml trên máy dev,
+# nên pod orchestrator trong cluster gọi RequireDataStores() là CrashLoop ngay
+# (phase-1 R10, task 1.B0.2).
+datastore:
+  enabled: false
+
+  # Rỗng = dùng StorageClass MẶC ĐỊNH của cluster. Cluster lab kubeadm không có
+  # StorageClass nào sẵn — xem infra/host/05-cluster-addons.sh (cài
+  # local-path-provisioner) và values-selfhost.yaml.
+  storageClassName: ''
+
+  # Rỗng = dùng global.imagePullPolicy. Self-host đặt Never cho image CỦA TA
+  # (import tay vào containerd), nhưng postgres/redis đến từ Docker Hub và PHẢI
+  # được phép pull — nếu không, đặt Never trên một image chưa có trên node là
+  # ImagePullBackOff vĩnh viễn mà thông báo lỗi không hề nói lý do thật.
+  imagePullPolicy: ''
+
+  # Secret có sẵn mang 4 khoá POSTGRES_PASSWORD / REDIS_PASSWORD / DATABASE_URL /
+  # REDIS_URL. Set giá trị này ⇒ chart KHÔNG tạo Secret và KHÔNG đòi password.
+  existingSecret: ''
+
+  postgres:
+    enabled: true
+    image: postgres:16-alpine
+    user: dlp
+    database: dlp
+    # KHÔNG có default — xem datastore-secret.yaml.
+    password: ''
+    storage: 4Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  redis:
+    enabled: true
+    image: redis:7-alpine
+    password: ''
+    # 1Gi cho AOF: warm-pool + session hash là dữ liệu nhỏ, nhưng AOF ghi phụ
+    # thêm liên tục và chỉ rewrite theo ngưỡng.
+    storage: 1Gi
+    # PHẢI thấp hơn resources.limits.memory một biên đủ rộng: AOF rewrite dùng
+    # fork() + copy-on-write nên đỉnh RSS cao hơn dataset. Chạm limit = OOMKill =
+    # mất mọi session đang chạy; chạm maxmemory = Redis trả lỗi ghi, và đó là
+    # thứ ta đọc được trong log.
+    maxmemory: 128mb
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
 
 platform:
   # Bảo vệ 3 pod nền tảng khỏi bị kube-scheduler preempt khi node cạn tài

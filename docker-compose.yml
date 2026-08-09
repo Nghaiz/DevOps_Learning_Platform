@@ -37,11 +37,21 @@ services:
     restart: 'no'
     # appendonly: warm-pool và session→pod map sống ở Redis. Mất RAM mà không có
     # AOF nghĩa là mất toàn bộ session đang chạy.
+    # notify-keyspace-events PHẢI khớp bản in-cluster
+    # (infra/helm/platform/templates/datastore-redis.yaml). Redis MẶC ĐỊNH TẮT
+    # keyspace notification, và khi tắt thì `SUBSCRIBE __keyevent@0__:expired`
+    # vẫn THÀNH CÔNG — chỉ là không bao giờ có event nào tới. Reaper tầng 1 sẽ
+    # chạy, log sạch, và không dọn gì cả. Thiếu cờ này ở dev nghĩa là reaper
+    # chạy đúng trên cluster nhưng "hỏng" trên máy dev theo kiểu không có triệu
+    # chứng nào — loại lệch dev/prod đắt nhất để chẩn đoán.
+    # `E` = keyevent, `x` = expired.
     command:
       [
         'redis-server',
         '--appendonly',
         'yes',
+        '--notify-keyspace-events',
+        'Ex',
         '--requirepass',
         '${REDIS_PASSWORD:?REDIS_PASSWORD chưa đặt — copy .env.example sang .env}',
       ]
@@ -54,6 +64,31 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Gộp origin web ↔ terminal-gateway cho DEV (phase-1 1.B0.4). Không phải tiện
+  # nghi: cookie dlp_sandbox là host-only + SameSite=Strict, nên Next ở :3000 và
+  # gateway ở :8082 là hai origin và cookie KHÔNG BAO GIỜ tới gateway. Chi tiết
+  # + thứ tự route: infra/dev/Caddyfile.
+  #
+  # `profiles` — KHÔNG chạy theo `docker compose up -d` mặc định. Proxy chỉ có
+  # ích khi web và gateway đang chạy trên host; bật nó cùng Postgres/Redis sẽ
+  # dựng một cổng 8080 trả 502 và làm người mới tưởng hạ tầng hỏng. Bật khi cần:
+  #   docker compose --profile proxy up -d
+  proxy:
+    image: caddy:2-alpine
+    container_name: dlp-proxy
+    restart: 'no'
+    profiles: ['proxy']
+    ports:
+      - '${PROXY_HOST:-127.0.0.1}:${PROXY_PORT:-8080}:8080'
+    volumes:
+      - ./infra/dev/Caddyfile:/etc/caddy/Caddyfile:ro
+    # host.docker.internal có sẵn trên Docker Desktop (Windows/macOS) nhưng KHÔNG
+    # có trên Docker Engine Linux — dòng này thêm nó vào /etc/hosts của container.
+    # Vô hại trên Desktop, bắt buộc trên Linux; thiếu nó thì proxy trả 502 với lý
+    # do "no such host" mà Caddyfile trông vẫn hoàn toàn đúng.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
 
 volumes:
   postgres_data:

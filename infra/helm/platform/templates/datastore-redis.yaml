@@ -1,0 +1,152 @@
+{{- if and .Values.datastore.enabled .Values.datastore.redis.enabled }}
+{{/*
+Redis in-cluster cho self-host. Xem ghi chú "vì sao tắt mặc định" ở
+datastore-postgres.yaml.
+
+HAI CỜ DƯỚI ĐÂY KHÔNG PHẢI TUỲ CHỌN — thiếu một cái là một hệ thống con của P1
+chết trong im lặng:
+
+  --appendonly yes
+      Warm-pool và ánh xạ session→pod sống HOÀN TOÀN trong Redis (SSOT, không
+      nhân bản sang Postgres — plan.md §4). Mất RAM mà không có AOF là mất mọi
+      session đang chạy, và pod sandbox tương ứng thành mồ côi không ai dọn.
+
+  --notify-keyspace-events Ex
+      Tầng 1 của reaper subscribe `__keyevent@0__:expired` (phase-1 B7). Redis
+      MẶC ĐỊNH TẮT keyspace notification, và khi tắt thì SUBSCRIBE vẫn thành
+      công — chỉ là không bao giờ có event nào tới. Reaper sẽ chạy, log sạch,
+      và không dọn gì cả. Đây đúng là loại lỗi mà `docs/redis-key-namespace.md`
+      tồn tại để chặn: mọi thứ xanh, hành vi sai.
+      `E` = keyevent, `x` = expired. Acceptance đọc lại đúng hai ký tự này.
+*/}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "platform.fullname" . }}-redis
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "redis") | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: ['ReadWriteOnce']
+  {{- with .Values.datastore.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.datastore.redis.storage | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "platform.fullname" . }}-redis
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "redis") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+  selector:
+    {{- include "platform.selectorLabels" (dict "context" . "component" "redis") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform.fullname" . }}-redis
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "redis") | nindent 4 }}
+spec:
+  replicas: 1
+  # Recreate — cùng lý do PVC ReadWriteOnce như Postgres.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "platform.selectorLabels" (dict "context" . "component" "redis") | nindent 6 }}
+  template:
+    metadata:
+      {{- if not .Values.datastore.existingSecret }}
+      annotations:
+        # Guard `not existingSecret` để nhất quán với orchestrator/web: khi dùng
+        # Secret ngoài băng, template này render rỗng nên checksum là sha256 của
+        # chuỗi rỗng — một hằng số, tức là một annotation không bao giờ đổi và
+        # đánh lừa người đọc rằng pod sẽ rollout khi Secret đổi.
+        checksum/datastore-secret: {{ include (print $.Template.BasePath "/datastore-secret.yaml") . | sha256sum }}
+      {{- end }}
+      labels:
+        {{- include "platform.selectorLabels" (dict "context" . "component" "redis") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- if .Values.platform.priorityClassEnabled }}
+      priorityClassName: {{ .Values.platform.priorityClassName }}
+      {{- end }}
+      containers:
+        - name: redis
+          image: {{ .Values.datastore.redis.image | quote }}
+          imagePullPolicy: {{ .Values.datastore.imagePullPolicy | default .Values.global.imagePullPolicy }}
+          ports:
+            - name: redis
+              containerPort: 6379
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "platform.datastoreSecretName" . }}
+                  key: REDIS_PASSWORD
+          # $(REDIS_PASSWORD) là cú pháp thay thế biến CỦA KUBERNETES (nó đọc
+          # env đã khai ở trên), không phải của shell — không có shell nào chạy
+          # ở đây. Nhờ vậy mật khẩu không bị viết cứng vào manifest.
+          args:
+            - '--appendonly'
+            - 'yes'
+            - '--notify-keyspace-events'
+            - 'Ex'
+            # maxmemory + noeviction: không đặt thì Redis phình tới khi chạm
+            # limits.memory của container và bị OOMKill — mất TOÀN BỘ session
+            # đang chạy (không có replica). Đặt ngưỡng thấp hơn limit để Redis
+            # từ chối ghi TRƯỚC khi kernel giết nó.
+            #
+            # `noeviction`, tuyệt đối không phải allkeys-lru: dữ liệu ở đây là
+            # SSOT của session đang sống. Evict một `session:{id}` nghĩa là
+            # session của sinh viên biến mất trong im lặng và pod thành mồ côi.
+            # Trả lỗi ghi là hành vi đúng (`rules/development-principles.md` §
+            # Errors Over Silent Fallbacks).
+            - '--maxmemory'
+            - {{ .Values.datastore.redis.maxmemory | quote }}
+            - '--maxmemory-policy'
+            - 'noeviction'
+            - '--requirepass'
+            - '$(REDIS_PASSWORD)'
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            exec:
+              # `redis-cli ping` KHÔNG kèm auth sẽ trả NOAUTH và probe vẫn tính
+              # là exit 0 ở một số bản — nên phải auth thật rồi so kết quả.
+              # --no-auth-warning để cảnh báo không lẫn vào output đem so sánh.
+              command:
+                - sh
+                - -c
+                - 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping | grep -q PONG'
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping | grep -q PONG'
+            # AOF lớn thì Redis nạp lại khi khởi động; liveness bắn sớm sẽ giết
+            # nó giữa lúc đang nạp và lặp vô hạn.
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.datastore.redis.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "platform.fullname" . }}-redis
+{{- end }}

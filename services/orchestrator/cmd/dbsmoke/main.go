@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/config"
-	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/rediskeys"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/store"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/logging"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
 )
 
 const (

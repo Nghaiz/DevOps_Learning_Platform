@@ -13,5 +13,5 @@ Package này **không build ra `dist/`**: consumer đều nằm trong monorepo v
 ## `src/redis-keys.ts`
 
 Namespace key Redis v0, có bản song sinh bằng Go ở
-`services/orchestrator/internal/rediskeys/keys.go`. SSOT của quy ước là
+`services/shared/rediskeys/keys.go`. SSOT của quy ước là
 [`docs/redis-key-namespace.md`](../../docs/redis-key-namespace.md).

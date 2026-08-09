@@ -1,39 +1,111 @@
 {
-  "_readme": "SSOT cho test vector của redis key namespace. CẢ HAI bản hiện thực (packages/shared-types/src/redis-keys.ts và services/orchestrator/internal/rediskeys/keys.go) đọc CHÍNH file này trong test. Sửa một bản hiện thực mà quên bản kia -> suite bên đó đỏ ngay. Thêm key mới -> sửa file này -> cả hai suite đỏ tới khi cả hai bắt kịp. Quy ước đầy đủ: docs/redis-key-namespace.md",
+  "_readme": "SSOT cho test vector của redis key namespace. CẢ HAI bản hiện thực (packages/shared-types/src/redis-keys.ts và services/shared/rediskeys/keys.go) đọc CHÍNH file này trong test. Sửa một bản hiện thực mà quên bản kia -> suite bên đó đỏ ngay. Thêm key mới -> sửa file này TRƯỚC -> cả hai suite đỏ tới khi cả hai bắt kịp. Quy ước đầy đủ: docs/redis-key-namespace.md",
 
   "poolFree": "pool:free",
+  "poolClaimed": "pool:claimed",
 
+  "_sessionFields": "Field của hash session:{id}. camelCase để khớp redis-keys.ts và JSON đi ra FE. Thứ tự cố định — test so sánh cả thứ tự, nên thêm field mới là phải thêm vào CUỐI ở cả ba nơi (file này, keys.go, redis-keys.ts) trong cùng một commit.",
+  "sessionFields": [
+    "userId",
+    "podName",
+    "namespace",
+    "status",
+    "tier",
+    "createdAt",
+    "expiresAt",
+    "revision",
+    "lastActiveAt"
+  ],
+
+  "_idemUser": "idem:{userId}:{key} — dedupe của CreateSession phải scope THEO USER. Namespace toàn cục nghĩa là user B gửi trùng idempotency_key của A sẽ nhận lại session CỦA A (proto: 'trả lại đúng session cũ'), tức là rò sessionId và biến vế authz `g` của gateway thành lớp duy nhất chặn B vào shell của A. userId dưới đây là hằng dùng cho mọi vector idem.",
+  "idemUserId": "u1",
+
+  "_valid": "Một `id` sinh ra NĂM key. Cùng một validator gác cả năm: session id, tên pod, và idempotency key đều đi thẳng vào chuỗi key nên đều bẻ được namespace bằng dấu ':'.",
   "valid": [
-    { "id": "abc123", "session": "session:abc123", "pod": "session:abc123:pod" },
-    { "id": "A", "session": "session:A", "pod": "session:A:pod" },
-    { "id": "0", "session": "session:0", "pod": "session:0:pod" },
+    {
+      "id": "abc123",
+      "session": "session:abc123",
+      "sessionPod": "session:abc123:pod",
+      "sessionWs": "session:abc123:ws",
+      "podState": "pod:abc123",
+      "idem": "idem:u1:abc123"
+    },
+    {
+      "id": "A",
+      "session": "session:A",
+      "sessionPod": "session:A:pod",
+      "sessionWs": "session:A:ws",
+      "podState": "pod:A",
+      "idem": "idem:u1:A"
+    },
+    {
+      "id": "0",
+      "session": "session:0",
+      "sessionPod": "session:0:pod",
+      "sessionWs": "session:0:ws",
+      "podState": "pod:0",
+      "idem": "idem:u1:0"
+    },
     {
       "id": "UPPER-lower_9",
       "session": "session:UPPER-lower_9",
-      "pod": "session:UPPER-lower_9:pod"
+      "sessionPod": "session:UPPER-lower_9:pod",
+      "sessionWs": "session:UPPER-lower_9:ws",
+      "podState": "pod:UPPER-lower_9",
+      "idem": "idem:u1:UPPER-lower_9"
     },
-    { "id": "with-dash", "session": "session:with-dash", "pod": "session:with-dash:pod" },
+    {
+      "id": "with-dash",
+      "session": "session:with-dash",
+      "sessionPod": "session:with-dash:pod",
+      "sessionWs": "session:with-dash:ws",
+      "podState": "pod:with-dash",
+      "idem": "idem:u1:with-dash"
+    },
     {
       "id": "with_underscore",
       "session": "session:with_underscore",
-      "pod": "session:with_underscore:pod"
+      "sessionPod": "session:with_underscore:pod",
+      "sessionWs": "session:with_underscore:ws",
+      "podState": "pod:with_underscore",
+      "idem": "idem:u1:with_underscore"
+    },
+    {
+      "_why": "tên pod thật mà orchestrator sinh (RFC1123 label) — tập con thực sự của pattern này",
+      "id": "sandbox-7f3a9c2e",
+      "session": "session:sandbox-7f3a9c2e",
+      "sessionPod": "session:sandbox-7f3a9c2e:pod",
+      "sessionWs": "session:sandbox-7f3a9c2e:ws",
+      "podState": "pod:sandbox-7f3a9c2e",
+      "idem": "idem:u1:sandbox-7f3a9c2e"
     },
     {
       "_why": "biên trên: đúng 64 ký tự phải HỢP LỆ",
       "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
       "session": "session:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "pod": "session:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:pod"
+      "sessionPod": "session:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:pod",
+      "sessionWs": "session:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:ws",
+      "podState": "pod:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "idem": "idem:u1:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     }
   ],
 
   "invalid": [
     { "id": "", "_why": "rỗng" },
     { "id": "a:b", "_why": "dấu hai chấm bẻ được namespace: session:a:b trùng dạng key :pod" },
+    {
+      "id": "a:ws",
+      "_why": "dấu hai chấm, biến thể nhắm key đếm WS: session:a:ws là key đếm của session a"
+    },
     { "id": "a b", "_why": "khoảng trắng" },
     { "id": "a/b", "_why": "dấu gạch chéo" },
     { "id": "a.b", "_why": "dấu chấm" },
     { "id": "a*", "_why": "wildcard — nguy hiểm với lệnh KEYS/SCAN" },
     { "id": "a\nb", "_why": "xuống dòng" },
+    {
+      "_why": "idempotency_key tới từ CLIENT (proto bắt buộc field này) — hash tag Redis Cluster phải bị từ chối, không được để client tự chọn slot",
+      "id": "a{dlp}b"
+    },
     {
       "_why": "biên trên: 65 ký tự phải BỊ TỪ CHỐI",
       "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"

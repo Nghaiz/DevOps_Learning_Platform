@@ -36,8 +36,12 @@ go run ./cmd/dbsmoke
 | `cmd/dbsmoke` | Smoke Postgres + Redis, exit 0/1 |
 | `internal/config` | Env → `Config`. Thiếu/sai → error lúc khởi động |
 | `internal/grpcserver` | Hiện thực `SessionService` |
-| `internal/rediskeys` | Namespace key Redis ([SSOT](../../docs/redis-key-namespace.md)) |
 | `internal/store` | Client Postgres (pgx) + Redis (go-redis) |
+
+Namespace key Redis **không** nằm ở đây nữa: nó chuyển sang
+`services/shared/rediskeys` ([SSOT quy ước](../../docs/redis-key-namespace.md)) vì
+terminal-gateway là module Go riêng và phải đọc `session:{id}` cho authz — package
+dưới `internal/` thì nó không import được (phase-1 D7).
 
 ## Postgres: vì sao chưa có sqlc
 

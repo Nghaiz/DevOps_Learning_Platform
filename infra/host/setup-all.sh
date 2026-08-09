@@ -26,6 +26,13 @@ sudo -E bash 02-kubeadm-init.sh
 banner "BƯỚC 3 — Cài Sysbox qua daemonset"
 bash 03-sysbox-install.sh
 
+# Chạy TRƯỚC cổng P0.F: bước 4 tạo pod để chứng minh Sysbox cách ly, và nếu token
+# CNI đã cũ thì pod đó không lên được — cổng sẽ đỏ vì một lý do hoàn toàn khác
+# với thứ nó định kiểm. Canary bị bỏ qua có thông báo (namespace dlp-sandbox do
+# Helm tạo, chưa tồn tại ở thời điểm này) — chạy lại script sau `helm install`.
+banner "BƯỚC 3.5 — Addon cluster (StorageClass + vá token CNI + canary)"
+bash 05-cluster-addons.sh
+
 if [ "$SKIP_VERIFY" = "1" ]; then
   printf '\n\033[33mSKIP_VERIFY=1 → bỏ qua cổng P0.F. Nhớ chạy 04-verify-sysbox.sh trước khi mở P1.\033[0m\n'
 else

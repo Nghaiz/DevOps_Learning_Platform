@@ -1,0 +1,36 @@
+# Reverse proxy gộp origin cho DEV (phase-1 1.B0.4 + D1).
+#
+# VÌ SAO TỒN TẠI: cookie `dlp_sandbox` mang sandbox token có `SameSite=Strict` và
+# KHÔNG có thuộc tính `Domain` (host-only) — xem docs/ws-terminal-protocol.md §2.
+# Ở dev, Next chạy `localhost:3000` còn terminal-gateway chạy `localhost:8082`;
+# đó là HAI origin khác nhau, nên trình duyệt sẽ không bao giờ gửi cookie kèm
+# handshake WS. Không có file này thì lane FE viết xong toàn bộ terminal rồi mới
+# phát hiện thiết kế token không chạy được — và sẽ tưởng là bug của mình.
+#
+# Sau proxy, origin DUY NHẤT của dev là http://localhost:8080.
+#
+# Chạy:  docker compose up -d proxy
+# Thử:   curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/api/health
+
+:8080 {
+	# Log ra stdout để `docker compose logs proxy` đọc được — mặc định Caddy ghi
+	# ra file trong container và ta sẽ không thấy gì khi debug định tuyến.
+	log {
+		output stdout
+		format console
+	}
+
+	# /ws/* đứng TRƯỚC handle bắt-tất-cả. Caddy chọn `handle` theo thứ tự khai
+	# báo trong cùng một khối, nên đảo hai khối này lại là mọi request WS rơi vào
+	# Next và trả 404 — với một thông báo không hề nói lý do thật.
+	#
+	# reverse_proxy của Caddy chuyển tiếp Upgrade/Connection sẵn, không cần cấu
+	# hình WebSocket riêng.
+	handle /ws/* {
+		reverse_proxy host.docker.internal:8082
+	}
+
+	handle {
+		reverse_proxy host.docker.internal:3000
+	}
+}
