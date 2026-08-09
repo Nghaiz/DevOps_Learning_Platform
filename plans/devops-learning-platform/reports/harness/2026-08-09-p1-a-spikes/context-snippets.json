@@ -3,16 +3,33 @@
   "mode": "code",
   "task": "Phase 1 §1.A của plans/devops-learning-platform/phase-1.md — hai spike HARD-GATE chặn toàn bộ 1.B/1.C: 1.A-1 (WS ⇄ pods/exec, rủi ro R1 score 20 — cao nhất dự án) và 1.A-2 (claim atomic warm-pool, R2 score 16). Mục tiêu spike là KHỬ RỦI RO + ghi báo cáo gotcha, không phải viết code production.",
   "scoutSummary": "Điều kiện vào đạt: 1.B0 (5 prerequisite) đã merge (2b1b928, PR #24) — Redis+Postgres in-cluster, rediskeys chuyển sang services/shared/, contract Redis mở rộng, origin gộp qua Caddy, GATEWAY_JWKS_URL. terminal-gateway có 0 dependency k8s trước spike; orchestrator chưa có package pool. Cluster lab debian-sandbox K8s v1.34.10 (kubeadm 1-node) truy cập được từ máy dev qua kubeconfig copy từ Host A; RuntimeClass sysbox-runc sống; image nestybox/ubuntu-noble-systemd-docker đã cache trên node. Redis 7 chạy local qua docker-compose (đã bật notify-keyspace-events xE + appendonly).",
-  "conventions": [
-    "Comment tiếng Việt giải thích VÌ SAO, không phải LÀM GÌ — khớp toàn bộ code Go sẵn có (store.go, keys.go, config.go)",
-    "rules/development-principles.md: errors-over-silent-fallbacks — pool rỗng là sentinel ErrPoolEmpty có chủ ý, không phải nuốt lỗi",
-    "rules/code-conventions.md: SSOT — field hash session:{id} lấy từ services/shared/rediskeys, không nối chuỗi tay",
-    ".gitattributes khoá LF cho mọi file chạy trên Linux (*.sh/*.yaml/*.proto) — thêm *.lua theo cùng chính sách"
+  "acceptanceCriteria": [
+    "Gate 1.A-1: fallback executor attach được vào pod Sysbox; report ghi rõ transport thắng + subprotocol thương lượng",
+    "Gate 1.A-1: vim + htop vẽ đầy đủ không rác ANSI; kéo cửa sổ → stty size khớp < 1s; exit đóng sạch, -race không báo, không leak goroutine; xoá pod giữa phiên → báo lỗi rõ, không treo",
+    "Gate 1.A-1: report trả lời đủ 6 câu gotcha S4, GỒM close code thật của read-limit",
+    "Gate 1.A-2: -race -count=20 xanh 20/20; đúng 50 thành công / 150 pool-rỗng / 0 podName trùng; LLEN pool:free==0, pool:claimed==50",
+    "Gate 1.A-2: chạy trên Redis THẬT (không miniredis); skip có log rõ khi REDIS_URL trống",
+    "Gate 1.A-2: Redis restart giữa chừng → EVALSHA gặp NOSCRIPT tự fallback EVAL, không mất claim"
   ],
-  "affectedContracts": [
-    "docs/ws-terminal-protocol.md §6 — close code: spike có nhiệm vụ pin 1009 vs 4413 (bản trước ghi 'chưa chốt cứng, spike S3/S4 phải xác minh')",
-    "services/shared/rediskeys — thêm ValidateID() để caller kiểm định danh trước khi GHI vào hash (không chỉ khi dựng key)",
-    "proto/orchestrator/v1/session.proto — KHÔNG đụng (buf breaking gate)"
+  "touchpoints": [
+    "services/orchestrator/internal/pool/** (package MỚI — claim.lua + loader, sẽ được B2/B3 dùng lại nguyên vẹn)",
+    "services/terminal-gateway/cmd/spike-exec/** (harness dùng-rồi-bỏ) + go.mod (client-go v0.34.9, coder/websocket v1.8.15, x/term)",
+    "services/shared/rediskeys/keys.go — thêm ValidateID, PoolQuarantine, PodPrefix",
+    "docs/redis-key-vectors.json + packages/shared-types/src/redis-keys.ts — bản song sinh phải bắt kịp cùng commit",
+    "docs/redis-key-namespace.md + docs/ws-terminal-protocol.md §6 — contract",
+    ".github/workflows/ci.yml — job Go thêm Redis service + cổng đỏ-nếu-skip",
+    "plans/devops-learning-platform/phase-1.md — AC Gate 1.A, G4/G5/G6, R1/R2"
   ],
-  "planReference": "plans/devops-learning-platform/phase-1.md §1.A-1 (S1-S4), §1.A-2 (A1-A5), AC 'Gate 1.A (HARD-GATE)'"
+  "publicContracts": [
+    "docs/ws-terminal-protocol.md §6 — ĐỔI: read-limit close code 4413 → 1009 (spike có nhiệm vụ pin, bản trước ghi 'chưa chốt cứng'); THÊM: quy tắc tra Redis trước khi chọn 4404 vs 1000",
+    "Redis namespace — THÊM pool:quarantine (list) + podPrefix; session:{id}:pod đổi từ 'cùng TTL với hash' sang 'TTL + grace' (con trỏ hồi tố cho reaper)",
+    "proto/orchestrator/v1/session.proto — KHÔNG chạm (buf breaking gate)"
+  ],
+  "blastRadius": [
+    "Không có consumer nào của internal/pool hôm nay — B2/B3 sẽ là consumer đầu tiên, nên đây là lúc rẻ nhất để sửa contract",
+    "Đổi TTL của session:{id}:pod ảnh hưởng B7 (reaper) — đã ghi thẳng lý do vào doc để B7 không đặt lại bằng nhau",
+    "Thêm key Redis ⇒ bắt buộc 4 nơi cùng commit (vector, Go, TS, doc); thiếu một nơi là suite bên đó đỏ ngay — đúng thiết kế 1.B0.3",
+    "CI job Go giờ cần Redis service; thiếu nó thì cổng mới ĐỎ (có chủ ý) thay vì skip im lặng",
+    "Không chạm apps/web, Helm, infra, proto ⇒ không ảnh hưởng đường deploy hiện tại"
+  ]
 }

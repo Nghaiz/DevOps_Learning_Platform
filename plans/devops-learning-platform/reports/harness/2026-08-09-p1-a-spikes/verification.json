@@ -162,18 +162,21 @@
       "summary": "Môi trường về nguyên trạng: dlp-sandbox còn đúng 1 pod (canary CNI của B0), /tmp trên Host A sạch binary + deb."
     }
   ],
-  "testsRun": true,
-  "allTestsPass": true,
-  "reviewFindings": {
-    "blocking": 2,
-    "high": 5,
-    "medium": 9,
-    "low": 9,
-    "fixed": "2 CHẶN + 5 CAO + 6/9 TRUNG + 2/9 THẤP",
-    "deferredWithAddress": [
-      "pool:claimed → SET ở B6",
-      "goleak thay đếm goroutine tay ở G4",
-      "chốt tầng nuốt stderr bằng probe WS thủ công (không chặn)"
-    ]
+  "beforeAfter": {
+    "trước review": "claim.lua chuỗi lệnh thẳng, comment khẳng định 'hoặc chạy trọn hoặc chưa chạy'; 6 test (seed toàn tên duy nhất); harness đo 20ms resize + màu htop khớp cursor-move; CI không có Redis nên suite pool skip vĩnh viễn.",
+    "sau review": "claim.lua tự hoàn tác (pcall+undo) và kiểm state=='free' + cách ly sang pool:quarantine; 11 test gồm 5 ca phủ đúng lỗ đã chứng minh; harness đo 12.5ms (poll 1ms) + SGR màu thật + UTF-8 qua printf; CI có Redis + cổng đỏ-nếu-skip (thử cả hai chiều: 0 vs 11).",
+    "phát hiện review": {
+      "blocking": 2,
+      "high": 5,
+      "medium": 9,
+      "low": 9,
+      "fixed": "2 CHẶN + 5 CAO + 6/9 TRUNG + 2/9 THẤP",
+      "deferredWithAddress": [
+        "pool:claimed → SET ở B6",
+        "goleak thay đếm goroutine tay ở G4",
+        "chốt tầng nuốt stderr bằng probe WS thủ công (không chặn)"
+      ]
+    },
+    "lịch sử review đối kháng": "Review đối kháng tìm 2 CHẶN + 5 CAO + 9 TRUNG + 9 THẤP, trong đó 7 claim của BẢN TRƯỚC bị bác bỏ bằng thực nghiệm (Lua-không-rollback, double-claim, quy kết kubelet, 0-goroutine-leak, htop-có-màu, UTF-8-round-trip, resize-20ms). Tất cả đã sửa — cả code lẫn câu chữ — nên ở trạng thái BÀN GIAO này không còn claim nào bị bác bỏ. Chi tiết từng cái: verification.json beforeAfter, commit ef8412f, và reports/2026-08-09-spike-ws-exec.md §3."
   }
 }
