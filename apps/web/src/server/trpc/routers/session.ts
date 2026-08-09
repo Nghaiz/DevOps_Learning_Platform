@@ -21,7 +21,13 @@ const createInput = z
     userId: z.string().min(1),
     tier: sandboxTierInput,
     ttlSeconds: z.number().int().min(0).default(0),
-    idempotencyKey: z.string().min(1),
+    // Khớp CHÍNH XÁC validator của `rediskeys.Idem` (docs/redis-key-namespace.md
+    // — cùng regex ở cả hai bản song sinh Go/TS). `.min(1)` trần cho qua `a:ws`,
+    // `a{dlp}b`, chuỗi 500 ký tự — orchestrator mới từ chối, và trả `Internal`
+    // thay vì `InvalidArgument` ở biên gần client nhất.
+    idempotencyKey: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{1,64}$/, 'idempotencyKey chỉ nhận [A-Za-z0-9_-], tối đa 64 ký tự'),
   })
   .strict();
 

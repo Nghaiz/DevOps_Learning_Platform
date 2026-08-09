@@ -1,0 +1,132 @@
+{{- if and .Values.datastore.enabled .Values.datastore.postgres.enabled }}
+{{/*
+Postgres in-cluster cho self-host. TẮT mặc định ở values.yaml — trên cloud thì
+managed Postgres (backup, PITR, failover) thắng tuyệt đối một pod tự dựng, và
+chart không nên khuyến khích chạy DB trạng thái trên cùng node với workload.
+
+VÌ SAO CẦN Ở P1: trước phase này Postgres/Redis CHỈ tồn tại trong
+docker-compose.yml trên máy dev, nên pod orchestrator trong cluster gọi
+RequireDataStores() là CrashLoop ngay (phase-1 R10). Web cũng cần chính Postgres
+này: Better Auth lưu khoá ký JWKS trong bảng `jwks`, và không có DB thì
+/api/auth/jwks — thứ gateway verify sandbox token qua đó (D15) — không bao giờ
+trả được khoá nào.
+*/}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "platform.fullname" . }}-postgres
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "postgres") | nindent 4 }}
+  annotations:
+    # PVC KHÔNG bị xoá khi `helm uninstall` — helm.sh/resource-policy: keep.
+    # Đây là cùng một lý do docker-compose.yml bắt named volume
+    # (rules/docker-volume-discipline.md): một lần `helm uninstall` nhầm không
+    # được phép mang theo toàn bộ tài khoản người dùng. Xoá có chủ ý:
+    #   kubectl delete pvc {{ include "platform.fullname" . }}-postgres
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: ['ReadWriteOnce']
+  {{- with .Values.datastore.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.datastore.postgres.storage | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "platform.fullname" . }}-postgres
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "postgres") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+  selector:
+    {{- include "platform.selectorLabels" (dict "context" . "component" "postgres") | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform.fullname" . }}-postgres
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "postgres") | nindent 4 }}
+spec:
+  replicas: 1
+  # Recreate, KHÔNG phải RollingUpdate mặc định: PVC là ReadWriteOnce, nên
+  # rolling update sẽ cố dựng pod thứ hai bám vào cùng một volume và kẹt
+  # Pending vĩnh viễn trong khi pod cũ vẫn chạy — deadlock im lặng ở đúng lúc
+  # đang `helm upgrade`.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "platform.selectorLabels" (dict "context" . "component" "postgres") | nindent 6 }}
+  template:
+    metadata:
+      {{- if not .Values.datastore.existingSecret }}
+      annotations:
+        # Guard `not existingSecret` để nhất quán với orchestrator/web — xem
+        # datastore-redis.yaml. Lưu ý riêng của Postgres: rollout KHÔNG đổi được
+        # mật khẩu trong DB (POSTGRES_PASSWORD chỉ tác dụng lúc initdb trên
+        # PGDATA rỗng, mà PVC được giữ lại). Xem infra/helm/README.md § "Xoay
+        # mật khẩu".
+        checksum/datastore-secret: {{ include (print $.Template.BasePath "/datastore-secret.yaml") . | sha256sum }}
+      {{- end }}
+      labels:
+        {{- include "platform.selectorLabels" (dict "context" . "component" "postgres") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- if .Values.platform.priorityClassEnabled }}
+      priorityClassName: {{ .Values.platform.priorityClassName }}
+      {{- end }}
+      containers:
+        - name: postgres
+          image: {{ .Values.datastore.postgres.image | quote }}
+          imagePullPolicy: {{ .Values.datastore.imagePullPolicy | default .Values.global.imagePullPolicy }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.datastore.postgres.user | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.datastore.postgres.database | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "platform.datastoreSecretName" . }}
+                  key: POSTGRES_PASSWORD
+            # PGDATA trỏ vào THƯ MỤC CON của mount point, không phải chính nó.
+            # `initdb` từ chối một thư mục không rỗng, và nhiều loại volume để
+            # sẵn `lost+found` ở gốc ⇒ pod CrashLoop với thông báo chỉ nói
+            # "directory not empty". Thư mục con né hẳn cả họ lỗi đó.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              # -U/-d tường minh: `pg_isready` trần dùng user OS (`postgres`)
+              # và sẽ báo sẵn sàng ngay cả khi DB của ứng dụng chưa initdb xong.
+              command: ['pg_isready', '-U', '{{ .Values.datastore.postgres.user }}', '-d', '{{ .Values.datastore.postgres.database }}']
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ['pg_isready', '-U', '{{ .Values.datastore.postgres.user }}', '-d', '{{ .Values.datastore.postgres.database }}']
+            # initdb lần đầu trên VM lab mất vài chục giây; liveness bắn sớm sẽ
+            # giết pod giữa lúc khởi tạo và lặp mãi không bao giờ xong.
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.datastore.postgres.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "platform.fullname" . }}-postgres
+{{- end }}

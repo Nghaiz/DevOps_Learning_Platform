@@ -28,6 +28,15 @@ shell history, trong `helm get values`, và trong log CI).
 {{- end -}}
 
 {{/*
+Tên Secret chứa credential + URL của Postgres/Redis in-cluster. Cùng khuôn với
+platform.webSecretName: `datastore.existingSecret` trỏ sang Secret tạo ngoài
+băng cho prod, mặc định là Secret do chart tạo (templates/datastore-secret.yaml).
+*/}}
+{{- define "platform.datastoreSecretName" -}}
+{{- .Values.datastore.existingSecret | default (printf "%s-datastore" (include "platform.fullname" .)) -}}
+{{- end -}}
+
+{{/*
 Label chung cho MỌI resource của chart này.
 */}}
 {{- define "platform.labels" -}}

@@ -26,6 +26,17 @@ type Config struct {
 	// OrchestratorGRPCAddr chưa dùng ở P0 (gateway chưa nối pod), nhưng seam đã
 	// khoá từ đây để P1 không phải sửa hình dạng config.
 	OrchestratorGRPCAddr string
+
+	// JWKSURL là endpoint JWKS của Better Auth (`/api/auth/jwks` trên apps/web).
+	// Gateway verify sandbox token bằng khoá CÔNG KHAI lấy từ đây — không có
+	// khoá riêng nào của gateway, và vì thế không có khoá nào phải xoay vòng
+	// bằng tay (phase-1 D13/D15).
+	//
+	// Tên có tiền tố GATEWAY_ trong khi các biến khác thì không: nó được pin
+	// như vậy trong contract (docs/ws-terminal-protocol.md §2 và bộ verify
+	// command của phase-1) vì nó là biến DUY NHẤT phải khớp giữa hai service.
+	// Đổi tên ở đây là đổi contract, không phải đổi style.
+	JWKSURL string
 }
 
 // Load đọc env. Mọi biến đều có default — terminal-gateway ở P0 chưa nối tới
@@ -42,5 +53,8 @@ func Load() (*Config, error) {
 		LogLevel:             envx.String("LOG_LEVEL", "info"),
 		ShutdownGrace:        shutdownGrace,
 		OrchestratorGRPCAddr: envx.String("ORCHESTRATOR_GRPC_ADDR", "localhost:9090"),
+		// Default trỏ web chạy local — đúng cho `make run-gateway`. Trong k8s,
+		// Helm đè bằng DNS in-cluster của Service web.
+		JWKSURL: envx.String("GATEWAY_JWKS_URL", "http://localhost:3000/api/auth/jwks"),
 	}, nil
 }

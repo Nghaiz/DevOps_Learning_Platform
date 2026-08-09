@@ -12,14 +12,22 @@ spec:
       {{- include "platform.selectorLabels" (dict "context" . "component" "web") | nindent 6 }}
   template:
     metadata:
-      {{- if not .Values.web.env.existingSecret }}
+      {{- if or (not .Values.web.env.existingSecret) (and .Values.datastore.enabled (not .Values.datastore.existingSecret)) }}
       annotations:
         # Đổi giá trị trong Secret KHÔNG tự rollout pod đang chạy (env đọc một
         # lần lúc container start). Checksum làm pod template đổi theo nội dung
         # Secret ⇒ `helm upgrade` xoay pod. Thiếu dòng này thì xoay
         # BETTER_AUTH_SECRET xong pod cũ vẫn ký bằng khoá cũ, và "đã xoay secret"
         # là niềm tin sai.
+        {{- if not .Values.web.env.existingSecret }}
         checksum/web-secret: {{ include (print $.Template.BasePath "/web-secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if and .Values.datastore.enabled (not .Values.datastore.existingSecret) }}
+        # Cùng lý do, cho DATABASE_URL/REDIS_URL: xoay mật khẩu Postgres mà web
+        # không rollout thì pod cũ giữ URL cũ và mọi truy vấn đỏ 28P01 — trong
+        # khi `helm upgrade` báo thành công.
+        checksum/datastore-secret: {{ include (print $.Template.BasePath "/datastore-secret.yaml") . | sha256sum }}
+        {{- end }}
       {{- end }}
       labels:
         {{- include "platform.selectorLabels" (dict "context" . "component" "web") | nindent 8 }}
@@ -49,16 +57,37 @@ spec:
               containerPort: {{ .Values.web.service.port }}
           env:
             # DATABASE_URL/REDIS_URL: OMIT khi rỗng thay vì set chuỗi rỗng —
-            # env.ts coi '' y như thiếu (throw). P0 chưa có Postgres/Redis
-            # in-cluster nên các route đụng DB sẽ 500 cho tới P1; /api/health cố
-            # ý không đụng DB nên probe vẫn phản ánh đúng "process sống".
+            # env.ts coi '' y như thiếu (throw). /api/health cố ý không đụng DB
+            # nên probe vẫn phản ánh đúng "process sống".
+            #
+            # Từ P1 (1.B0.2), datastore in-cluster cấp hai URL này qua Secret.
+            # Web BẮT BUỘC phải có DATABASE_URL kể từ đây, không chỉ vì các route
+            # đụng DB: Better Auth lưu khoá ký JWKS trong bảng `jwks`, nên không
+            # có DB thì `/api/auth/jwks` không trả được khoá nào — mà đó chính là
+            # thứ terminal-gateway verify sandbox token qua đó (phase-1 D15).
+            {{- if and .Values.datastore.enabled .Values.datastore.postgres.enabled (not .Values.web.env.databaseUrl) }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "platform.datastoreSecretName" . }}
+                  key: DATABASE_URL
+            {{- else }}
             {{- with .Values.web.env.databaseUrl }}
             - name: DATABASE_URL
               value: {{ . | quote }}
             {{- end }}
+            {{- end }}
+            {{- if and .Values.datastore.enabled .Values.datastore.redis.enabled (not .Values.web.env.redisUrl) }}
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "platform.datastoreSecretName" . }}
+                  key: REDIS_URL
+            {{- else }}
             {{- with .Values.web.env.redisUrl }}
             - name: REDIS_URL
               value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             # 3 credential dưới đây đi qua secretKeyRef, KHÔNG phải env.value:
             # `kubectl get deploy -o yaml` là quyền đọc phổ thông, và secret ký

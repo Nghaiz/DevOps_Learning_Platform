@@ -47,6 +47,12 @@ spec:
               value: {{ .Values.gateway.env.shutdownGrace | quote }}
             - name: ORCHESTRATOR_GRPC_ADDR
               value: {{ .Values.gateway.env.orchestratorGrpcAddr | default (printf "%s-orchestrator:%v" (include "platform.fullname" .) .Values.orchestrator.service.grpcPort) | quote }}
+            # Endpoint JWKS của Better Auth. KHÔNG phải secret — nó phơi khoá
+            # CÔNG KHAI, nên env.value là đúng chỗ, không phải secretKeyRef.
+            # 404 ở URL này nghĩa là plugin jwt() chưa mount và mọi verify token
+            # của gateway đều vô nghĩa (phase-1 1.B0.5).
+            - name: GATEWAY_JWKS_URL
+              value: {{ .Values.gateway.env.jwksUrl | default (printf "http://%s-web:%v/api/auth/jwks" (include "platform.fullname" .) .Values.web.service.port) | quote }}
           # Probe nhắm PORT ADMIN (8083, /healthz + /metrics) — KHÔNG phải port
           # public (8082, chỉ có /ws/session/{id}). kubelet gọi thẳng pod IP nên
           # không cần admin lên Service để probe hoạt động.

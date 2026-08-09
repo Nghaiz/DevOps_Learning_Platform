@@ -1,0 +1,142 @@
+# Vá R0 — token ServiceAccount của Calico CNI hết hạn sau 24h và KHÔNG BAO GIỜ
+# được làm mới, vì `install-cni` là **initContainer**: nó ghi
+# /etc/cni/net.d/calico-kubeconfig đúng một lần lúc pod calico-node khởi động,
+# rồi thoát. Token projected chỉ được kubelet xoay cho container ĐANG CHẠY.
+#
+# VÌ SAO NGUY HIỂM HƠN VẺ NGOÀI: khi token hết hạn, pod ĐANG CHẠY vẫn Running
+# (CNI chỉ được gọi lúc tạo/xoá sandbox), `kubectl get nodes` vẫn Ready, và
+# calico-node vẫn 1/1. Chỉ pod MỚI mới chết, với
+#   FailedCreatePodSandBox ... ClusterInformation: connection is unauthorized
+# — nghĩa là cluster mất khả năng tạo pod trong im lặng hoàn toàn, và ta chỉ
+# phát hiện đúng lúc cần tạo pod, tức là đúng lúc demo hoặc đúng lúc một sinh
+# viên bấm Start.
+#
+# ĐÂY LÀ BẢN VÁ, KHÔNG PHẢI FIX. Fix thật là chuyển sang `tigera-operator` (nó
+# chạy install-cni như container thường, có token xoay vòng). Bản vá này giữ
+# cluster sống cho tới lúc đó — xem plans/devops-learning-platform/phase-1.md D5.
+#
+# Áp dụng:  kubectl apply -f infra/k8s/cni-token-refresh.yaml
+# Gỡ:       kubectl delete -f infra/k8s/cni-token-refresh.yaml
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dlp-cni-token-refresh
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: dlp-platform
+    app.kubernetes.io/component: cni-token-refresh
+---
+# Quyền HẸP NHẤT có thể: patch đúng một DaemonSet tên calico-node.
+# resourceNames khoá lại tên cụ thể — SA này không đụng được DaemonSet nào khác
+# trong kube-system (kube-proxy, sysbox-deploy-k8s...).
+#
+# `get` + `patch` là đủ cho `kubectl rollout restart` (nó PATCH annotation
+# kubectl.kubernetes.io/restartedAt vào pod template). `list`/`watch` KHÔNG cần
+# và không được cấp — chúng không dùng resourceNames nên sẽ nới quyền ra toàn
+# namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dlp-cni-token-refresh
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: dlp-platform
+rules:
+  - apiGroups: ['apps']
+    resources: ['daemonsets']
+    resourceNames: ['calico-node']
+    verbs: ['get', 'patch']
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dlp-cni-token-refresh
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: dlp-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dlp-cni-token-refresh
+subjects:
+  - kind: ServiceAccount
+    name: dlp-cni-token-refresh
+    namespace: kube-system
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dlp-calico-token-refresh
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: dlp-platform
+    app.kubernetes.io/component: cni-token-refresh
+spec:
+  # Mỗi 12h, không phải mỗi 23h. Token sống 24h; chu kỳ 12h nghĩa là bỏ lỡ MỘT
+  # lần chạy (node reboot, node NotReady, cluster tắt qua đêm) vẫn còn nguyên
+  # một chu kỳ dự phòng trước khi token chết. Đặt sát 24h thì bản vá tự nó trở
+  # thành single point of failure.
+  schedule: '0 */12 * * *'
+  concurrencyPolicy: Forbid
+  # Bỏ lỡ cửa sổ quá 1h (máy dev tắt VM qua đêm rồi bật lại) → CHẠY BÙ ngay khi
+  # controller thấy được. Không có field này thì mặc định 100 lần miss liên tiếp
+  # sẽ khiến CronJob ngừng lịch hẳn.
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  # Giữ 3 job đỏ: khi cluster hỏng lúc 3 giờ sáng, thứ ta cần đọc là LOG của
+  # lần chạy đã đỏ, không phải "cronjob có tồn tại không".
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/part-of: dlp-platform
+            app.kubernetes.io/component: cni-token-refresh
+        spec:
+          serviceAccountName: dlp-cni-token-refresh
+          restartPolicy: Never
+          # Node control-plane có taint mặc định trên cluster nhiều node; trên
+          # lab 1-node taint đã bị gỡ. Toleration để manifest này chạy đúng ở cả
+          # hai chỗ mà không phải rẽ nhánh.
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+          containers:
+            - name: kubectl
+              # Distroless — KHÔNG có /bin/sh (đã đo: `stat /bin/sh: no such
+              # file`). Nên đây là `args` cho ENTRYPOINT `kubectl`, không phải
+              # một script shell. Một lệnh là đủ, và cũng là tất cả những gì
+              # image này chạy được.
+              image: registry.k8s.io/kubectl:v1.34.10
+              args:
+                - '-n'
+                - kube-system
+                - rollout
+                - restart
+                - daemonset/calico-node
+              # KHÔNG `rollout status` ở đây, và đó là quyết định: SA này chỉ có
+              # get/patch trên đúng ds/calico-node, không có quyền đọc pod. Mà
+              # rollout xanh cũng KHÔNG chứng minh token trong /etc/cni/net.d đã
+              # mới — việc chứng minh "cluster vẫn tạo được pod" thuộc về canary
+              # (cni-canary.yaml), bằng cách thật sự tạo một pod.
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 65532
+                capabilities:
+                  drop: ['ALL']
+                seccompProfile:
+                  type: RuntimeDefault

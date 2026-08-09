@@ -240,14 +240,22 @@ jobs:
           cache-dependency-path: '**/go.sum'
 
       - name: helm lint (3 bộ values)
-        # betterAuthSecret là `required` trong chart — không truyền thì template
-        # dừng. Giá trị dưới đây là rác dùng một lần trong runner.
+        # betterAuthSecret + 2 mật khẩu datastore là `required` trong chart —
+        # không truyền thì template dừng. Giá trị dưới đây là rác dùng một lần
+        # trong runner.
+        #
+        # values-selfhost.yaml bật `datastore.enabled: true` từ P1 (1.B0.2), nên
+        # thiếu hai --set datastore.* là job này đỏ ở ĐÚNG bộ values đó — trong
+        # khi `helm upgrade` thủ công (luôn có --set) vẫn xanh. Đây chính là loại
+        # "cổng chưa từng được chạy trên đường CI" mà repo này đã dính một lần.
         run: |
           for f in values.yaml values-selfhost.yaml values-cloud.yaml; do
             echo "--- helm lint -f $f"
             helm lint infra/helm/platform \
               -f "infra/helm/platform/$f" \
-              --set web.env.betterAuthSecret=ci-only-not-a-real-secret || exit 1
+              --set web.env.betterAuthSecret=ci-only-not-a-real-secret \
+              --set datastore.postgres.password=ci-only-not-a-real-password \
+              --set datastore.redis.password=ci-only-not-a-real-password || exit 1
           done
 
       - name: 'helm template + kubeconform (manifest có hợp lệ với API k8s không)'
@@ -258,9 +266,24 @@ jobs:
             helm template platform infra/helm/platform \
               -f "infra/helm/platform/$f" \
               --set web.env.betterAuthSecret=ci-only-not-a-real-secret \
+              --set datastore.postgres.password=ci-only-not-a-real-password \
+              --set datastore.redis.password=ci-only-not-a-real-password \
             | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
                 -ignore-missing-schemas || exit 1
           done
+
+      - name: 'helm template — nhánh ingress bật (chưa bộ values nào bật)'
+        # Ingress mặc định TẮT ở cả 3 bộ values, nên không có bước nào ở trên
+        # từng render template đó. Không test thì lỗi cú pháp trong ingress.yaml
+        # chỉ lộ vào đúng hôm bật ingress trên prod.
+        run: |
+          helm template platform infra/helm/platform \
+            --set web.env.betterAuthSecret=ci-only-not-a-real-secret \
+            --set ingress.enabled=true \
+            --set ingress.className=traefik \
+            --set ingress.host=dlp.example.com \
+          | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
+              -ignore-missing-schemas
 
       - name: 'helm template — nhánh existingSecret (đường đi của prod)'
         # Nhánh này KHÔNG được đòi betterAuthSecret và KHÔNG được sinh Secret.

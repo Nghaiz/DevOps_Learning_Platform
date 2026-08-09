@@ -1,0 +1,75 @@
+{{- if .Values.ingress.enabled }}
+{{/*
+Ingress GỘP ORIGIN cho web và terminal-gateway (phase-1 1.B0.4 + D1).
+
+ĐÂY KHÔNG PHẢI "cho tiện" — nó là điều kiện sống của thiết kế token.
+Sandbox token đi bằng cookie `dlp_sandbox` với `SameSite=Strict` và KHÔNG có
+thuộc tính `Domain` (host-only) — xem docs/ws-terminal-protocol.md §2. Trình
+duyệt vì thế chỉ gửi cookie đó tới ĐÚNG origin đã set nó. Nếu web ở
+`app.example.com` còn gateway ở `gw.example.com` thì cookie không bao giờ tới
+gateway và toàn bộ luật 8 (token chỉ trong httpOnly cookie) chết ở khâu deploy,
+không phải ở khâu code.
+
+Thứ tự path có chủ ý: `/ws` đứng TRƯỚC `/`. Đa số controller so khớp theo tiền tố
+dài nhất nên thứ tự không đổi kết quả, nhưng viết đúng thứ tự thì người đọc
+manifest không phải tự đi kiểm điều đó.
+
+TẮT MẶC ĐỊNH: cluster lab kubeadm 1-node CHƯA có ingress controller nào (Traefik
+tới ở P3). Bật cờ này trên cluster không có controller thì Ingress được tạo,
+không báo lỗi, và không định tuyến gì cả — im lặng đúng kiểu khó chẩn đoán nhất.
+Ở dev, việc gộp origin do Caddy trong docker-compose.yml đảm nhiệm.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "platform.fullname" . }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ required "ingress.host là bắt buộc khi ingress.tls.enabled" .Values.ingress.host | quote }}
+      secretName: {{ required "ingress.tls.secretName là bắt buộc khi ingress.tls.enabled" .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - {{- with .Values.ingress.host }}
+      host: {{ . | quote }}
+      {{- end }}
+      http:
+        paths:
+          {{- /*
+          Guard theo cờ enabled của từng service: một path trỏ vào Service không
+          tồn tại cho 503 mà không có dấu vết nào trong `helm template` — im lặng
+          đúng kiểu khó chẩn đoán nhất. Tắt cả hai thì `paths` rỗng và Ingress
+          không hợp lệ, nên `required` ở dưới dừng lại với lý do rõ ràng.
+          */}}
+          {{- if not (or .Values.gateway.enabled .Values.web.enabled) }}
+          {{- required "ingress.enabled=true nhưng cả gateway.enabled lẫn web.enabled đều false — Ingress sẽ không có backend nào" "" }}
+          {{- end }}
+          {{- if .Values.gateway.enabled }}
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "platform.fullname" . }}-gateway
+                port:
+                  number: {{ .Values.gateway.service.publicPort }}
+          {{- end }}
+          {{- if .Values.web.enabled }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "platform.fullname" . }}-web
+                port:
+                  number: {{ .Values.web.service.port }}
+          {{- end }}
+{{- end }}

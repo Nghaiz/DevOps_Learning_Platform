@@ -1,0 +1,101 @@
+# Canary tạo-pod — chuông báo cho R0 (token CNI Calico hết hạn).
+#
+# VÌ SAO CẦN CANARY RIÊNG, KHÔNG CHỈ CẦN CRONJOB VÁ:
+# `kubectl rollout restart` xanh KHÔNG chứng minh gì cả. Rollout chỉ nói "pod
+# calico-node mới đã Ready"; nó không nói token trong /etc/cni/net.d/calico-kubeconfig
+# đã được ghi mới, và không nói cluster tạo được pod. Chế độ hỏng của R0 là **im
+# lặng** — mọi thứ hiện Ready, chỉ pod MỚI mới chết. Thứ duy nhất phát hiện được
+# nó là thật sự tạo một pod mới, định kỳ.
+#
+# THIẾT KẾ: pod của chính CronJob **LÀ** canary.
+# Bản đầu định cho một job chạy `kubectl apply` để đẻ pod thứ hai. Bỏ, vì hai lý
+# do đo được: (1) `registry.k8s.io/kubectl` là distroless — không có `/bin/sh`,
+# nên mọi script nhiều bước đều chết ngay ở dòng đầu; (2) cách đó cần thêm SA,
+# Role, RoleBinding, ConfigMap và một `trap` dọn pod — toàn bộ chỉ để nói lại
+# đúng một câu mà Job đã tự nói được. Job lên lịch thẳng vào `dlp-sandbox` thì
+# **việc pod của nó chạy được** CHÍNH LÀ phép kiểm. CNI hỏng ⇒ pod kẹt
+# ContainerCreating ⇒ `activeDeadlineSeconds` bắn ⇒ Job đỏ.
+#
+# Canary chạy trong `dlp-sandbox` (không phải `default`) có chủ ý: nó đi qua ĐÚNG
+# con đường của pod sinh viên — ValidatingAdmissionPolicy 8 rule, RuntimeClass
+# sysbox-runc, ResourceQuota, LimitRange, NetworkPolicy. Nên nó bắt được cả lỗi
+# CNI lẫn lỗi admission/runtime, không chỉ lỗi CNI.
+#
+# CHI PHÍ QUOTA: pod khai resources TƯỜNG MINH (10m/16Mi) để KHÔNG dính default
+# của LimitRange (500m/512Mi) — để LimitRange điền hộ thì mỗi lần canary chạy
+# chiếm đúng 1/4 quota hiệu lực của lab (đo được: 4 pod). Nó vẫn giữ 1 slot
+# trong `pods: 10` khoảng 10 giây mỗi 30 phút.
+#
+# Áp dụng:  kubectl apply -f infra/k8s/cni-canary.yaml
+# Xem:      kubectl -n dlp-sandbox get jobs -l app.kubernetes.io/component=cni-canary
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dlp-cni-canary
+  namespace: dlp-sandbox
+  labels:
+    app.kubernetes.io/part-of: dlp-platform
+    app.kubernetes.io/component: cni-canary
+spec:
+  # 30 phút: đủ dày để phát hiện trước khi ai đó ngồi vào demo, đủ thưa để không
+  # đáng kể so với quota (1 pod × ~10s mỗi 30 phút).
+  schedule: '*/30 * * * *'
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 1
+  # Giữ nhiều job đỏ hơn job xanh: log + event của lần đỏ là thứ duy nhất có giá trị.
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: dlp-platform
+        app.kubernetes.io/component: cni-canary
+    spec:
+      # backoffLimit 0 — KHÔNG retry. Canary tự retry là canary tự bịt miệng
+      # mình: lỗi chập chờn (đúng thứ ta muốn thấy) biến mất sau lần thử thứ hai
+      # và job vẫn xanh. Chu kỳ 30 phút CHÍNH LÀ cơ chế thử lại.
+      backoffLimit: 0
+      # Đây là timeout của phép kiểm, không phải con số phòng hờ. Pod Sysbox đo
+      # được Ready trong ~6s; 180s cho biên rộng rãi kể cả khi node đang pull
+      # image. CNI hỏng ⇒ pod kẹt ContainerCreating ⇒ deadline bắn ⇒ Job
+      # DeadlineExceeded = đỏ.
+      activeDeadlineSeconds: 180
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/part-of: dlp-platform
+            app.kubernetes.io/component: cni-canary
+        spec:
+          # BẮT BUỘC bởi ValidatingAdmissionPolicy platform-sandbox-isolation.
+          # Chính vì canary phải tuân đúng luật của pod sinh viên nên nó cũng là
+          # regression test sống cho VAP: đổi policy mà quên báo ai, canary đỏ
+          # trong vòng 30 phút.
+          runtimeClassName: sysbox-runc
+          hostUsers: false
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          terminationGracePeriodSeconds: 0
+          containers:
+            - name: canary
+              # Image này ĐÃ có sẵn trên node (cni-token-refresh.yaml dùng chung)
+              # nên canary không phụ thuộc vào việc kéo được image từ internet.
+              # ENTRYPOINT của nó là `kubectl`; `version --client=true` KHÔNG gọi
+              # API server — canary đo khả năng TẠO POD, không đo API server.
+              image: registry.k8s.io/kubectl:v1.34.10
+              args: ['version', '--client=true']
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                runAsUser: 65532
+                capabilities:
+                  drop: ['ALL']
+                seccompProfile:
+                  type: RuntimeDefault
