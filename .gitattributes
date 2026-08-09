@@ -19,5 +19,18 @@ packages/shared-types/gen/** text eol=lf
 # Input giống hệt nhau ở mọi nền tảng thì output mới giống hệt nhau.
 *.proto text eol=lf
 
+# Script Lua được `go:embed` rồi gửi thẳng sang Redis. CRLF không làm Lua sai
+# cú pháp, nhưng nó đổi nội dung ⇒ đổi SHA1 ⇒ máy dev Windows và CI Linux nạp
+# HAI script khác nhau vào cache của cùng một Redis. Không hỏng, nhưng khiến
+# việc đối chiếu `SCRIPT EXISTS <sha>` lúc chẩn đoán trở nên vô nghĩa.
+*.lua text eol=lf
+
+# Go: `gofmt` là một CỔNG CI, nên bản dev đọc phải giống hệt bản CI đọc. Với
+# autocrlf trên Windows, working tree thành CRLF và `gofmt -l` báo MỌI file lệch
+# — nhiễu đến mức không ai đọc nữa, rồi một lỗi format THẬT chìm trong đó và chỉ
+# lộ khi CI đỏ (run 31308110663: căn lề struct tag + gofmt đổi '' thành ” theo
+# quy tắc TeX-quote trong comment). Khoá LF thì `gofmt -l` local nói đúng sự thật.
+*.go text eol=lf
+
 # Mặc định: để git tự chuẩn hoá text, nhị phân giữ nguyên.
 * text=auto

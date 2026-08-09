@@ -33,9 +33,10 @@ không có gì. Giờ vector nằm ở một file JSON duy nhất:
 |---|---|---|---|
 | `pool:free` | **list** | tên pod đang **WARM**, chờ claim | không |
 | `pool:claimed` | **list** | tên pod vừa rời pool, chưa gắn xong session | không |
+| `pool:quarantine` | **list** | pod bị `claim.lua` từ chối vì `pod:{name}.state ≠ free` — **không tự quay lại pool** | không |
 | `pod:{name}` | hash | state machine của pod (`state`, `sessionId`, `updatedAt`) | không |
 | `session:{id}` | hash | Trạng thái session đang sống — **SSOT** | `SESSION_TTL`, đặt lúc claim |
-| `session:{id}:pod` | string | session → tên pod đang phục vụ | theo `session:{id}` |
+| `session:{id}:pod` | string | con trỏ session → pod, **sống lâu hơn hash** (xem dưới) | `SESSION_TTL` + grace |
 | `session:{id}:ws` | string (counter) | số WS đang mở của session, trần `GATEWAY_MAX_WS_PER_SESSION` | theo `session:{id}` |
 | `idem:{userId}:{key}` | string | `idempotency_key` → `session.id` đã tạo (dedupe `CreateSession`), **scope theo user** | 600s |
 
@@ -55,6 +56,39 @@ Ba nguồn từng mô tả khác nhau (`redis-key-namespace.md` nói "set/list",
 `session:{id}`. Nếu chỉ `LPOP` khỏi `pool:free`, một lần crash giữa chừng làm pod biến mất khỏi
 mọi index và không ai dọn được nó. Nằm trong `pool:claimed` mà không có `session:{id}` tương ứng
 là **dấu hiệu để reaper sweep nhận ra pod mồ côi** (phase-1 B7).
+
+> **Nợ đã biết cho B6/B7:** chưa có ai rút pod khỏi `pool:claimed` lúc release, nên list này
+> phình theo thời gian và `LREM` là O(N). LIST được chọn cho `pool:free` vì FIFO (D6) — lý do
+> đó **không áp** cho `pool:claimed`, vốn chỉ dùng như tập thành viên. Khi B6 (`ReapSession`)
+> làm phần release, cân nhắc đổi `pool:claimed` sang SET. Đổi kiểu là đổi contract ⇒ sửa vector
+> + cả hai bản song sinh cùng lúc.
+
+### `pool:quarantine` — pod hỏng không được tự quay lại pool
+
+`claim.lua` chỉ nhận pod có `pod:{name}.state == "free"`. Pod trượt guard đó (tên lọt vào
+`pool:free` hai lần, hash biến mất, hash sai kiểu) bị đẩy sang `pool:quarantine` và **không**
+quay lại `pool:free` — đẩy lại là vòng lặp vô tận trên cùng một pod hỏng.
+
+Vì sao guard này tồn tại: Redis LIST **không** chống trùng. Một tên pod nằm hai lần trong
+`pool:free` (replenish retry sau timeout, reaper trả pod hai lần, hai instance cùng replenish)
+sẽ được claim hai lần, và **hai sinh viên exec vào cùng một pod** — cả hai đều qua authz vì hash
+của mỗi người ghi đúng `userId` của người đó. Đây là sập hoàn toàn lời hứa "một pod cô lập cho
+một sinh viên", nên chỗ chống phải nằm trong script chứ không phải trong niềm tin vào producer.
+
+List này dài ra là tín hiệu **có nguồn ghi sai vào `pool:free`** — B9 nên đếm nó.
+
+### `session:{id}:pod` KHÔNG phải bản sao của `podName` (đừng "dọn" nó đi)
+
+Nhìn qua thì đây là derived field: `session:{id}.podName` đã có cùng giá trị. Khác biệt nằm ở
+**TTL**, và đó mới là lý do nó tồn tại.
+
+Reaper tầng 1 nghe `__keyevent@0__:expired` của `session:{id}`. Lúc event tới, hash **đã biến
+mất** — không còn chỗ nào đọc được `podName` để biết phải xoá pod nào. `session:{id}:pod` sống
+thêm một khoảng grace chính là để trả lời câu đó. **Đặt hai TTL bằng nhau là làm reaper mù**, và
+lỗi ấy im lặng: pod cứ rò dần cho tới khi quota hết.
+
+Quan hệ đọc: hash là **SSOT của trạng thái session**; `session:{id}:pod` là **con trỏ hồi tố**
+chỉ dùng khi hash không còn. Session còn sống thì mọi bên đọc `podName` từ hash.
 
 ## Field của hash `session:{id}`
 

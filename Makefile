@@ -110,9 +110,15 @@ go-vet: ## go vet mọi Go module
 	  echo "--- vet $$dir"; (cd "$$dir" && go vet ./...) || exit 1; \
 	done
 
-go-lint: ## golangci-lint mọi Go module
+go-lint: ## golangci-lint mọi Go module (ép GOOS=linux — xem dưới)
+	@# GOOS=linux, kể cả khi chạy trên Windows/macOS: golangci-lint chỉ đọc file
+	@# thoả build tag của GOOS HIỆN TẠI, nên `client_unix.go` (//go:build unix)
+	@# hoàn toàn vô hình với dev trên Windows — local báo "0 issues" trong khi CI
+	@# (ubuntu) tìm ra 7 lỗi trong đúng file đó (run 31308495133). Dịch vụ nào
+	@# cũng deploy lên Linux, nên GOOS=linux là thứ SỰ THẬT cần kiểm, và ép ở
+	@# đây làm local == CI thay vì để mỗi người tự nhớ.
 	@for dir in $(GO_MODULE_DIRS); do \
-	  echo "--- lint $$dir"; (cd "$$dir" && golangci-lint run ./...) || exit 1; \
+	  echo "--- lint $$dir (GOOS=linux)"; (cd "$$dir" && GOOS=linux golangci-lint run ./...) || exit 1; \
 	done
 
 ## ---------- Dev infra ----------

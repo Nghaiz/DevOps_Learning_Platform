@@ -4,6 +4,12 @@
   "poolFree": "pool:free",
   "poolClaimed": "pool:claimed",
 
+  "_poolQuarantine": "pool:quarantine — pod bị claim.lua từ chối vì pod:{name}.state không phải 'free', thường là một tên pod lọt vào pool:free hai lần. Pod ở đây KHÔNG tự quay lại pool (đẩy lại là vòng lặp vô tận trên cùng pod hỏng). List dài ra là tín hiệu có nguồn ghi sai vào pool:free.",
+  "poolQuarantine": "pool:quarantine",
+
+  "_podPrefix": "Tiền tố key hash pod. Phơi thành hằng riêng vì claim.lua phải dựng pod:{name} ĐỘNG bên trong script (tên pod chỉ biết sau LMOVE, nên không khai báo được trong KEYS) — truyền prefix qua ARGV giữ SSOT thay vì để chuỗi 'pod:' nằm lặp trong file Lua, nơi không vector nào gác được.",
+  "podPrefix": "pod:",
+
   "_sessionFields": "Field của hash session:{id}. camelCase để khớp redis-keys.ts và JSON đi ra FE. Thứ tự cố định — test so sánh cả thứ tự, nên thêm field mới là phải thêm vào CUỐI ở cả ba nơi (file này, keys.go, redis-keys.ts) trong cùng một commit.",
   "sessionFields": [
     "userId",

@@ -24,6 +24,28 @@ export const POOL_FREE = 'pool:free';
 export const POOL_CLAIMED = 'pool:claimed';
 
 /**
+ * LIST pod bị `claim.lua` từ chối vì `pod:{name}.state` không phải `free` —
+ * thường là một tên pod lọt vào `pool:free` hai lần (replenish retry, reaper
+ * trả pod hai lần, hai instance cùng replenish).
+ *
+ * Nếu không chặn, cùng một pod được claim hai lần và HAI sinh viên exec vào
+ * CÙNG một pod — cả hai đều qua authz vì hash của mỗi người ghi đúng `userId`
+ * của người đó. Redis LIST không chống trùng, nên chỗ chống nằm trong script.
+ *
+ * Pod ở đây KHÔNG tự quay lại pool: đẩy lại là vòng lặp vô tận trên cùng một
+ * pod hỏng. List dài ra là tín hiệu có nguồn ghi sai vào `pool:free`.
+ */
+export const POOL_QUARANTINE = 'pool:quarantine';
+
+/**
+ * Tiền tố key hash pod. Là hằng riêng vì `claim.lua` phải dựng `pod:{name}`
+ * ĐỘNG bên trong script (tên pod chỉ biết sau `LMOVE`, nên không khai báo được
+ * trong `KEYS`) — truyền prefix này qua `ARGV` giữ SSOT thay vì để chuỗi
+ * `'pod:'` nằm lặp trong file Lua, nơi không vector test nào gác được.
+ */
+export const POD_PREFIX = 'pod:';
+
+/**
  * Field của hash `session:{id}` — ĐÚNG THỨ TỰ trong `docs/redis-key-vectors.json`.
  *
  * Pin ở đây vì đây là contract liên-service VÔ HÌNH: orchestrator (Go) ghi,

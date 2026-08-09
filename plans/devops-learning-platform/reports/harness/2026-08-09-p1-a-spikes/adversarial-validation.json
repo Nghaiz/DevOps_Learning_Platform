@@ -1,0 +1,12 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [],
+  "unverifiedClaims": [
+    "Số đo trên cluster (subprotocol v5.channel.k8s.io; ws 405.8 / spdy 442.1 / fallback 404.6 ms; resize 12.5ms; htop 8050 byte; phát hiện xoá pod 3.2s; exit 137; S3 pty 30 100 → 45 160) — reviewer đối kháng KHÔNG có kubeconfig nên chỉ xác minh được CÁCH đo, không xác minh giá trị. Session này đo trực tiếp; §5 của report có đủ lệnh để tái lập.",
+    "Tầng nào thật sự nuốt stderr khi tty=true. Đã chứng minh client-go tự bỏ stream (v2.go:80 + :156, nền của cả V4 lẫn V5) nên phép đo qua StreamOptions không phân biệt được kubelet có lớp riêng hay không. Muốn chốt phải bắt tay WS thủ công tới pods/exec rồi xem kênh 3. KHÔNG chặn: kết luận thiết kế (Stderr nil khi TTY) không phụ thuộc câu trả lời.",
+    "6 cổng CI trên PR — tương đương local đã chạy hết (3 module Go build/vet/test/lint ở dạng LF, 12 turbo task, env-check, 23 vector test TS). Riêng cổng skip-guard MỚI thêm đã thử tay cả hai chiều (0 vs 11 skip) nhưng chưa chạy trên GitHub Actions runner.",
+    "Nợ đã biết, KHÔNG do thay đổi này tạo ra: pool:claimed chưa có ai rút pod lúc release nên phình dần và LREM là O(N). Có từ thiết kế B0, đã ghi thành nợ có địa chỉ trong docs/redis-key-namespace.md để B6 xử lý (cân nhắc đổi sang SET); chưa đo được ngưỡng vì chưa có đường release."
+  ],
+  "missingProof": [],
+  "reachableRegressions": []
+}
