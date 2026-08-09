@@ -100,6 +100,21 @@ spec:
               value: {{ .Values.orchestrator.env.shutdownGrace | quote }}
             - name: SANDBOX_NAMESPACE
               value: {{ .Values.orchestrator.env.sandboxNamespace | quote }}
+            - name: HARD_CAP
+              value: {{ .Values.orchestrator.env.hardCap | quote }}
+            - name: POOL_TARGET
+              value: {{ .Values.orchestrator.env.poolTarget | quote }}
+            - name: SANDBOX_IMAGE
+              value: {{ .Values.orchestrator.env.sandboxImage | quote }}
+            {{- /*
+            RuntimeClass kế thừa `sandbox.runtimeClassName` — đó là SSOT, vì
+            chính giá trị đó nằm trong CEL #1 của ValidatingAdmissionPolicy.
+            Nhân bản hằng số này vào hai chỗ nghĩa là một ngày nào đó đổi một
+            chỗ, và triệu chứng KHÔNG trỏ về nguyên nhân: mọi pod bị admission
+            từ chối, còn log chỉ nói "warm-pool không bao giờ đầy".
+            */}}
+            - name: SANDBOX_RUNTIME_CLASS
+              value: {{ .Values.orchestrator.env.sandboxRuntimeClass | default .Values.sandbox.runtimeClassName | quote }}
           readinessProbe:
             httpGet:
               path: /healthz

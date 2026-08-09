@@ -101,8 +101,15 @@ func (p ClaimParams) validate() error {
 
 // validTiers khớp enum SandboxTier của proto. UNSPECIFIED bị loại có chủ ý:
 // comment trong session.proto yêu cầu fail-closed với giá trị đó.
+//
+// Đây là cổng HÌNH DẠNG (giá trị này có phải một tier hợp lệ của contract
+// không), KHÔNG phải cổng CHÍNH SÁCH ("tier nào đã triển khai"). Hai thứ đó
+// tách nhau có chủ ý: chính sách sống ở tầng RPC, nơi nó trả được
+// `Unimplemented` với thông báo hiểu được, thay vì để một tier hợp lệ của proto
+// chết ở đây dưới dạng "tier không hợp lệ" — thông báo đó sẽ sai.
 var validTiers = map[string]bool{
 	"SANDBOX_TIER_SYSBOX": true,
+	"SANDBOX_TIER_GVISOR": true,
 	"SANDBOX_TIER_KATA":   true,
 }
 

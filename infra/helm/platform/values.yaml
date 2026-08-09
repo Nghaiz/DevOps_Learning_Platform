@@ -92,6 +92,25 @@ orchestrator:
     shutdownGrace: '15s'
     sandboxNamespace: 'dlp-sandbox'
 
+    # Trần TUYỆT ĐỐI của một session, tính từ created_at, KHÔNG gia hạn được
+    # (phase-1 D11). Phải >= sessionTtl, nếu không orchestrator từ chối khởi động.
+    hardCap: '2h'
+
+    # Số pod ấm giữ sẵn. ⛔ trần session đồng thời = quota_hiệu_lực − poolTarget
+    # (D16). Trên lab quota hiệu lực là 4 pod, nên 3 ở đây phục vụ đúng MỘT user
+    # rồi replenish chết vĩnh viễn vì quota.
+    poolTarget: '1'
+
+    # `pause` cho tới khi 1.E đẩy images/sandbox-base lên ghcr — warm-pool, VAP,
+    # quota và số đo claim < 1s đều kiểm được mà không cần image thật.
+    sandboxImage: 'registry.k8s.io/pause:3.10'
+
+    # Để RỖNG để kế thừa `sandbox.runtimeClassName` — đó là SSOT. Chỉ đặt giá
+    # trị ở đây khi thật sự muốn orchestrator dựng pod với RuntimeClass KHÁC với
+    # cái mà ValidatingAdmissionPolicy đang ép, tức là cố tình làm mọi pod bị từ
+    # chối. Nhân bản con số này là cách nó trôi đi.
+    sandboxRuntimeClass: ''
+
 gateway:
   enabled: true
   image:

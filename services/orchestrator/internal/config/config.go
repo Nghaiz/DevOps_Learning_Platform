@@ -28,6 +28,31 @@ type Config struct {
 	SessionTTL       time.Duration
 	ShutdownGrace    time.Duration
 	SandboxNamespace string
+
+	// HardCap là trần TUYỆT ĐỐI của một session, tính từ created_at và KHÔNG
+	// gia hạn được (D11). Nó chặn `ttl_seconds` do client gửi ở CreateSession,
+	// và B5 sẽ dùng đúng con số này cho ExtendSession — hai đồng hồ, một trần.
+	HardCap time.Duration
+
+	// PoolTarget là số pod ấm giữ sẵn trong `pool:free`.
+	//
+	// ⛔ CÔNG THỨC PHẢI NHỚ (D16): trần session đồng thời = quota_hiệu_lực −
+	// PoolTarget. Trên lab quota hiệu lực đo được là 4 pod, nên PoolTarget=3
+	// phục vụ đúng MỘT user rồi replenish chết vĩnh viễn vì quota. Mặc định 1.
+	PoolTarget int
+
+	// SandboxImage là image của pod sandbox.
+	//
+	// Mặc định `pause` vì 1.E chưa đẩy images/sandbox-base lên ghcr: pool, VAP,
+	// quota và số đo claim < 1s đều kiểm được mà không cần image thật. Đổi bằng
+	// env khi 1.E merge — KHÔNG phải sửa code.
+	SandboxImage string
+
+	// SandboxRuntimeClass PHẢI khớp `sandbox.runtimeClassName` trong Helm
+	// values. Lệch một chữ là ValidatingAdmissionPolicy từ chối MỌI pod, và
+	// triệu chứng là "warm-pool không bao giờ đầy" chứ không phải một lỗi trỏ
+	// về đây.
+	SandboxRuntimeClass string
 }
 
 // Load đọc env và áp default.
@@ -44,6 +69,27 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	hardCap, err := envx.Duration("HARD_CAP", 2*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	poolTarget, err := envx.Int("POOL_TARGET", 1)
+	if err != nil {
+		return nil, err
+	}
+	if poolTarget < 1 {
+		// 0 KHÔNG phải "tắt warm-pool" — nó là mọi session đi cold path, tức
+		// bỏ hẳn mục tiêu claim < 1s. Muốn tắt thì phải là một quyết định có
+		// tên, không phải một số 0 lọt vào env.
+		return nil, fmt.Errorf("env POOL_TARGET: phải >= 1 (nhận %d)", poolTarget)
+	}
+	if sessionTTL > hardCap {
+		// Bắt ở đây thay vì để CreateSession âm thầm cắt mọi session xuống
+		// HARD_CAP: cấu hình mâu thuẫn thì SESSION_TTL không còn nghĩa gì, và
+		// một mặc định vô nghĩa là thứ không ai phát hiện ra.
+		return nil, fmt.Errorf("env SESSION_TTL (%s) > HARD_CAP (%s): mọi session sẽ bị cắt xuống trần cứng",
+			sessionTTL, hardCap)
+	}
 
 	return &Config{
 		GRPCAddr:         envx.String("GRPC_ADDR", ":9090"),
@@ -55,6 +101,11 @@ func Load() (*Config, error) {
 		SessionTTL:       sessionTTL,
 		ShutdownGrace:    shutdownGrace,
 		SandboxNamespace: envx.String("SANDBOX_NAMESPACE", "dlp-sandbox"),
+
+		HardCap:             hardCap,
+		PoolTarget:          poolTarget,
+		SandboxImage:        envx.String("SANDBOX_IMAGE", "registry.k8s.io/pause:3.10"),
+		SandboxRuntimeClass: envx.String("SANDBOX_RUNTIME_CLASS", "sysbox-runc"),
 	}, nil
 }
 
