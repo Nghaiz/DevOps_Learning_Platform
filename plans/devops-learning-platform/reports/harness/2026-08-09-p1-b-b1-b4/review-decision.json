@@ -1,0 +1,29 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "Reviewer độc lập (t1k-code-reviewer, adversarial, 46 lượt tool / ~18 phút) chạy 3 mutation trên code sản phẩm, 9 probe tiêm lỗi qua redis.Hook, serialize pod spec ra JSON để đọc đúng ngữ nghĩa CEL, và đo 3000 mẫu độ trễ hai nhánh NotFound. Kết quả: 3 CHẶN, 3 CAO, 4 TRUNG, 6 THẤP. Điểm ban đầu 6/10.",
+    "Cả 3 CHẶN đã sửa và có test chứng minh. C-1 (releaseIdem xoá khoá kể cả khi claim.lua đã ghi ⇒ retry hợp lệ tạo pod thứ hai, pod thứ nhất rò 1h và B7 không thấy vì hash session tồn tại) → khoá idem chuyển hai pha (pending:{id} → {id}), và chỉ nhả khi KHÔNG dính sentinel pool.ErrClaimMayHaveWritten. Test TestMatCaReplyLanDocLaiThiGiuKhoaIdempotency nuốt reply của CẢ evalsha LẪN hmget đọc-lại rồi khẳng định khoá còn + đúng 1 pod + đúng 1 hash session.",
+    "C-2 (ClaimIdempotent là mã chết — Create sinh sessionID mới mỗi lời gọi nên guard EXISTS không bao giờ khớp; AC 'Retry mất phản hồi' xanh nhờ một caller không tồn tại) → điều kiện kích hoạt đổi từ 'lỗi có nói session tồn tại không' sang 'ta có CHẮC CHẮN Redis chưa ghi gì không'. Chỉ ErrPoolEmpty và ErrInvalidClaimParams được trả thẳng; mọi lỗi khác đi đọc lại. TestClaimIdempotentDocLaiKhiMatReply ở chính package pool (trước đó 0 test) là đường sống thật.",
+    "C-3 (Provision dọn pod bằng chính ctx đã chết ⇒ user đóng tab giữa cold path là pod ở lại cluster vĩnh viễn, và B7 chưa tồn tại) → cleanupContext(context.WithoutCancel + 10s) cho mọi lượt Delete; TestCtxHuyGiuaChungVanXoaPodDaTao huỷ ctx đúng lúc manager đang chờ Ready rồi khẳng định pod vẫn bị xoá.",
+    "H-1 (hai Create đồng thời cùng key: bên thua nhận 'session đã kết thúc; dùng key mới' — khẳng định SAI SỰ THẬT, và làm theo nó chính là tạo pod thứ hai) → pha pending phân biệt được 'đang xử lý' với 'đã kết thúc'; thông báo đổi thành Unavailable 'thử lại với CÙNG key'. Thêm: nếu session của pha pending đã tồn tại thật (lời gọi kia mất reply) thì replay trả luôn session đó thay vì khoá user ra ngoài 10 phút.",
+    "H-2 (releaseIdem chạy bằng ctx đã huỷ ⇒ khoá kẹt 10 phút) → cùng thuốc với C-3: ctx tách rời.",
+    "M-1 (ticker và timer chung một select ⇒ backoff cấp số nhân là mã chết, API server sập thì retry mỗi 10s vĩnh viễn + 360 dòng ERROR/giờ) → bỏ hẳn ticker; TestBackoffThucSuCoHieuLuc đo số lần gọi Create trong cửa sổ cố định.",
+    "M-2 (dlp_claim_duration_seconds không đo thứ AC cần: nhãn warm chỉ bao một lượt EVALSHA ~1ms nên KHÔNG THỂ đỏ; nhãn cold đặt mốc SAU Provision nên hàng chục giây chờ Ready rơi ra ngoài) → mốc chuyển lên đầu claimWithColdPath, bao trọn cả Provision.",
+    "M-3 (HARD_CAP > 24h lọt cổng config nhưng làm MỌI CreateSession chết) → lifecycle.NewService trả error, ràng buộc theo pool.MaxTTLSeconds thay vì nhân bản con số 24h sang package config.",
+    "M-4 (mapClaimError gắn Unavailable cho cả lỗi đầu vào ⇒ gRPC retry policy thử lại vĩnh viễn một request không bao giờ thành công) → ErrInvalidClaimParams → InvalidArgument.",
+    "H-3 (gRPC không có xác thực nào; user_id là field client tự khai; namespace platform không có NetworkPolicy ⇒ ai tới được :9090 cũng cạn được trần 4 pod) — KHÔNG sửa trong PR này theo quyết định của user. Đây là khoảng trống của PLAN chứ không phải lệch implement: D13 chỉ phủ đường gateway→orchestrator. Đã ghi nợ CÓ CHỦ: task B0′ giao cho B6 + risk row R25 trong phase-1.md, kèm hạn chót tường minh (ngày G12 nối session.ts vào)."
+  ],
+  "regressionProof": [
+    "Suite đầy đủ dưới -race trên Redis 7 thật: 116 PASS, 0 SKIP. Đếm tường minh vì `go test` exit 0 khi mọi test skip.",
+    "Test cũ của PR spike (#25) — TestConcurrentClaim, TestClaimRollsBackOnWriteFailure, TestClaimSurvivesScriptFlush, TestClaimFIFO, TestClaimRejectsDuplicateInPool — vẫn xanh sau khi claim.go đổi (thêm SANDBOX_TIER_GVISOR, đổi maxTTLSeconds→MaxTTLSeconds, bọc ErrInvalidClaimParams).",
+    "Mutation của reviewer: đảo HSET/RPUSH trong publish() → ĐÚNG 1 test đỏ (TestPublishThuTuDungKhongBaoGioCachLyPodTot). Luật thứ tự của B2 có được gác thật, không phải tautology.",
+    "Mutation của reviewer: đổi câu chữ error_reply trong claim.lua → drift BỊ BẮT. Sau khi sửa C-2, marker chỉ còn dùng để phân loại nên drift không còn làm mất cơ chế bảo vệ; TestSessionExistsMarkerKhopKhitVoiLua gác nó ngay trong package pool.",
+    "Trong lúc vá: TestMatCaReplyLanDocLaiThiGiuKhoaIdempotency ĐỎ THẬT một lần và bắt được một lỗi tôi vừa tạo ra — nhánh warm của claimWithColdPath còn map lỗi sang status.Error quá sớm, mà status.Error KHÔNG hiện thực Unwrap nên errors.Is mất dấu sentinel và khoá bị nhả nhầm. Sửa bằng toStatus(): map là việc CUỐI CÙNG trên đường lỗi.",
+    "golangci-lint (GOOS=linux) 0 issues trên cả 4 module; gofmt sạch; go vet sạch.",
+    "pnpm turbo run lint typecheck build test: 12/12."
+  ],
+  "blockingReasons": [],
+  "contractStatus": "OK"
+}

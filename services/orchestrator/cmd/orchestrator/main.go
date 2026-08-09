@@ -11,11 +11,17 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/config"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/grpcserver"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/k8s"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/lifecycle"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/metrics"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/pool"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/store"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/httpx"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/logging"
 
@@ -57,8 +63,38 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	obs := httpx.NewObservability(serviceName, version)
+	met := metrics.New(obs.Registry)
+
+	// Warm-pool + lifecycle chỉ dựng được khi có Redis VÀ có đường tới K8s API.
+	// Thiếu một trong hai thì server vẫn lên (health probe xanh, /metrics chạy)
+	// nhưng ba RPC trả Unavailable với lý do rõ ràng — thay vì CrashLoop, thứ
+	// che mất chính thông báo cần đọc.
+	sessions, poolMgr, closeStores, err := buildSessionEngine(ctx, cfg, log, met)
+	if err != nil {
+		return err
+	}
+	// KHÔNG `defer closeStores()`: Redis phải đóng SAU khi goroutine warm-pool
+	// đã dừng hẳn, và defer ở đây chạy trước cả poolWG.Wait() bên dưới lẫn sau
+	// nó tuỳ vị trí — quá tinh tế để đúng do vô tình. Đóng tường minh ở cuối.
+
 	grpcSrv := grpc.NewServer()
-	orchestratorv1.RegisterSessionServiceServer(grpcSrv, grpcserver.NewSessionService(log))
+	orchestratorv1.RegisterSessionServiceServer(grpcSrv, grpcserver.NewSessionService(log, sessions))
+
+	// WaitGroup chứ không phải goroutine thả nổi: warm-pool có thể đang ở giữa
+	// một lượt Provision (tạo pod → chờ Ready → công bố) lúc SIGTERM tới. Đóng
+	// Redis trong khi nó còn chạy nghĩa là `publish()` lỗi ở giữa và pod vừa tạo
+	// bị bỏ lại — đúng chế độ rò khe quota mà deleteAfterFailure sinh ra để chặn.
+	var poolWG sync.WaitGroup
+	if poolMgr != nil {
+		poolWG.Add(1)
+		go func() {
+			defer poolWG.Done()
+			if err := poolMgr.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				log.Error("warm-pool dừng bất thường", slog.String("err", err.Error()))
+			}
+		}()
+	}
 
 	// gRPC health service: probe của K8s cho cổng gRPC dùng cái này, không dùng /healthz.
 	// Đăng ký CẢ service rỗng "" (mặc định của grpc_health_probe) lẫn tên service đầy
@@ -87,7 +123,6 @@ func run() error {
 		grpcErr <- grpcSrv.Serve(listener)
 	}()
 
-	obs := httpx.NewObservability(serviceName, version)
 	httpSrv := httpx.NewServer(cfg.HTTPAddr, obs.Mux)
 
 	httpErr := make(chan error, 1)
@@ -139,10 +174,82 @@ func run() error {
 			runErr = fmt.Errorf("http shutdown: %w", err)
 		}
 	}
+
+	// Chờ warm-pool dứt hẳn TRƯỚC khi đóng Redis. Nó có thể đang giữa một lượt
+	// Provision; đóng client dưới chân nó làm `publish()` lỗi và pod vừa tạo bị
+	// bỏ lại trên cluster — một khe quota rò mà không reaper nào (B7 chưa có)
+	// dọn được. ctx đã huỷ ở stop() nên vòng lặp thoát ở lượt select kế tiếp.
+	poolWG.Wait()
+	closeStores()
+
 	if runErr != nil {
 		return runErr
 	}
 
 	log.Info("đã dừng sạch")
 	return nil
+}
+
+// buildSessionEngine dựng Redis + client K8s + warm-pool + lifecycle.
+//
+// Trả (nil, nil, no-op, nil) khi REDIS_URL chưa đặt: server vẫn phục vụ
+// /healthz và /metrics, còn ba RPC session trả Unavailable kèm lý do. Đó là chế
+// độ hỏng ỒN ÀO NHƯNG SỐNG — CrashLoop ở đây khiến pod restart liên tục và
+// thông báo cần đọc bị cuộn mất trong log của các lần restart trước.
+//
+// Ngược lại, khi REDIS_URL CÓ đặt thì mọi lỗi đều là lỗi cứng: đã khai ý định
+// nối datastore thì nối không được là sự cố, không phải chế độ chạy.
+func buildSessionEngine(
+	ctx context.Context,
+	cfg *config.Config,
+	log *slog.Logger,
+	met *metrics.Metrics,
+) (grpcserver.Lifecycle, *pool.Manager, func(), error) {
+	noop := func() {}
+
+	if cfg.RedisURL == "" {
+		log.Warn("REDIS_URL trống — warm-pool và 3 RPC session TẮT; server chỉ phục vụ health/metrics")
+		return nil, nil, noop, nil
+	}
+
+	rdb, err := store.NewRedis(ctx, cfg.RedisURL)
+	if err != nil {
+		return nil, nil, noop, fmt.Errorf("nối Redis: %w", err)
+	}
+
+	clientset, err := k8s.NewClientset()
+	if err != nil {
+		_ = rdb.Close()
+		return nil, nil, noop, fmt.Errorf("dựng client Kubernetes: %w", err)
+	}
+	pods := k8s.NewPodClient(clientset, cfg.SandboxNamespace)
+
+	podCfg := k8s.PodConfig{
+		Namespace:        cfg.SandboxNamespace,
+		Image:            cfg.SandboxImage,
+		RuntimeClassName: cfg.SandboxRuntimeClass,
+	}
+	mgr := pool.NewManager(rdb, pods, podCfg, cfg.PoolTarget, log, met)
+
+	svc, err := lifecycle.NewService(rdb, mgr, lifecycle.Config{
+		Namespace:  cfg.SandboxNamespace,
+		SessionTTL: cfg.SessionTTL,
+		HardCap:    cfg.HardCap,
+	}, log, met)
+	if err != nil {
+		_ = rdb.Close()
+		// Cấu hình mâu thuẫn là lỗi CỨNG lúc khởi động, không phải chế độ chạy:
+		// để nó qua thì mọi probe xanh trong khi 100% CreateSession thất bại.
+		return nil, nil, noop, err
+	}
+
+	log.Info("warm-pool bật",
+		slog.Int("pool_target", cfg.PoolTarget),
+		slog.String("namespace", cfg.SandboxNamespace),
+		slog.String("image", cfg.SandboxImage),
+		slog.String("runtime_class", cfg.SandboxRuntimeClass),
+		slog.Duration("session_ttl", cfg.SessionTTL),
+		slog.Duration("hard_cap", cfg.HardCap))
+
+	return svc, mgr, func() { _ = rdb.Close() }, nil
 }

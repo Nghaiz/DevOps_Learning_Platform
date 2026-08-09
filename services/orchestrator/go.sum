@@ -92,3 +92,9 @@ gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+k8s.io/api v0.34.9 h1:aVsK5NQL7146suJriGuvpi9giNpwIRSHJ8v5HWakwBo=
+k8s.io/api v0.34.9/go.mod h1:8oYqD5tLKgvBSnkuDbHZTNrk7NTHybkfYjJ6lNjThjQ=
+k8s.io/apimachinery v0.34.9 h1:WuRPolTfoEST1TQe9sLcT1QAWLMT0CNE4Eqj29XuUmQ=
+k8s.io/apimachinery v0.34.9/go.mod h1:z7dd12Xd400CXIycE8nmn32xZhApV9zskHs0A5xeU/Q=
+k8s.io/client-go v0.34.9 h1:HlhSEGPyCFH5rQADW6NPKEziGns6ekgUCPK0OsOGU90=
+k8s.io/client-go v0.34.9/go.mod h1:bI3Sqqmwls2JKFZOQN9h8oLaeibvIA5pqqJAaSJWnrk=

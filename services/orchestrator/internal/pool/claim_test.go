@@ -25,6 +25,9 @@ import (
 // bảo đảm — và với URL ghi rõ /2 thì guard theo index còn im lặng cho qua.
 var localHosts = map[string]bool{"127.0.0.1": true, "localhost": true, "::1": true, "[::1]": true}
 
+// poolTestDB là DB Redis riêng của package này. Xem chú thích trong newTestRedis.
+const poolTestDB = 15
+
 // newTestRedis nối Redis THẬT từ REDIS_URL — không miniredis (1.A-2 A4):
 // miniredis hỗ trợ Lua không đầy đủ (đặc biệt LMOVE + redis.call lồng nhau)
 // ⇒ xanh trên miniredis mà đỏ trên Redis thật là guard không gác gì.
@@ -47,9 +50,20 @@ func newTestRedis(t *testing.T) *redis.Client {
 		t.Fatalf("REDIS_URL trỏ host %q — test này FLUSHDB, và một Redis không phải localhost rất có thể đang giữ session thật. "+
 			"Trỏ về 127.0.0.1, hoặc đặt DLP_ALLOW_REMOTE_FLUSHDB=1 nếu bạn CHẮC CHẮN đây là instance dùng-rồi-bỏ.", host)
 	}
-	if opts.DB == 0 {
-		t.Logf("REDIS_URL trỏ DB 0 — chuyển sang DB 15 để FLUSHDB không chạm dữ liệu dev")
-		opts.DB = 15
+	// DB CỐ ĐỊNH THEO PACKAGE, ép bất kể URL nói gì.
+	//
+	// `go test ./...` chạy các PACKAGE SONG SONG. Package này và
+	// internal/lifecycle đều FLUSHDB, nên dùng chung một DB nghĩa là mỗi bên
+	// xoá dữ liệu của bên kia giữa chừng — triệu chứng là những lỗi vô lý và
+	// KHÔNG TÁI LẬP ĐƯỢC ("pool rỗng" ngay sau khi seed, TTL = -2ns, pod của
+	// package khác lọt vào assertion FIFO). Chạy từng package một thì xanh, nên
+	// rất dễ đổ cho "test flaky" thay vì cho việc chia sẻ DB.
+	//
+	// Ép (thay vì chỉ đổi khi DB == 0) vì một REDIS_URL trỏ thẳng /14 sẽ đâm
+	// vào đúng DB của lifecycle. Danh sách phân bổ: pool=15, lifecycle=14.
+	if opts.DB != poolTestDB {
+		t.Logf("ép DB %d cho test của package pool (tránh đụng FLUSHDB với package khác)", poolTestDB)
+		opts.DB = poolTestDB
 	}
 
 	client := redis.NewClient(opts)

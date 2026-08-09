@@ -1,0 +1,22 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [],
+  "unverifiedClaims": [
+    "GHI CHÚ VỀ NGỮ NGHĨA: `disprovenClaims` và `reachableRegressions` ở đây phản ánh TRẠNG THÁI CUỐI, không phải lịch sử. Review đối kháng đã bác 6 khẳng định (ClaimIdempotent là mã chết; nhả khoá idem khi claim lỗi; Provision dọn được pod khi ctx huỷ; backoff có hiệu lực; claim_duration đo đúng thứ AC cần; và một điểm nhẹ về dạng chuỗi status) — cả 6 đã được vá và mỗi cái có test chứng minh. Toàn văn 6 khẳng định đó cùng bằng chứng đo được nằm ở review-decision.json (acceptanceCoverage + regressionProof); để chúng lại đây sẽ khiến cổng đọc là 'còn đang đứng'.",
+    "R25 — cổng gRPC orchestrator KHÔNG có xác thực nào: `user_id` là field client tự khai, và namespace platform không có NetworkPolicy. Ai tới được :9090 cũng cạn được trần 4 pod (DoS). ĐÂY LÀ KHOẢNG TRỐNG CÓ THẬT, chưa đóng. Không tính là regression của PR này vì nó tồn tại từ P0 và chưa consumer nào gọi orchestrator (apps/web chưa có client gRPC). Đã ghi nợ có chủ: task B0′ giao cho B6 + risk row R25 trong phase-1.md, hạn chót là ngày G12 nối session.ts vào. Người duyệt PR phải đọc dòng này chứ không được coi là đã đóng.",
+    "Test của package pool và lifecycle ép DB Redis 15/14 bất kể REDIS_URL nói gì, và CẢ HAI đều FLUSHDB — phạm vi rộng hơn trước (trước chỉ ép khi DB==0). Guard localhost + DLP_ALLOW_REMOTE_FLUSHDB vẫn nguyên, nên chỉ chạm được Redis local. Chưa kiểm ca một dev giữ dữ liệu thật trên DB 14/15 của Redis localhost.",
+    "8 CEL của ValidatingAdmissionPolicy: reviewer serialize pod spec ra JSON THẬT và đọc theo ngữ nghĩa has() — hostUsers:false CÓ MẶT (con trỏ tới false không bị omitempty bỏ), initContainers/volumes VẮNG HẲN nên !has() đúng, hostNetwork/PID/IPC vắng, privileged:false có mặt. Đủ 8/8 trên dây. NHƯNG đây vẫn là suy ra từ JSON, KHÔNG phải một `kubectl apply` bị/không bị admission từ chối. Chưa có cluster K8s trong session này.",
+    "AC 'claim từ warm-pool p95 < 1s với ≥50 mẫu' — CHƯA ĐO. Cần hạ tầng thật. Metric giờ đã đo đúng thứ cần đo (mốc bao trọn cả Provision ở nhánh cold), nhưng chưa có số nào.",
+    "IsQuotaExceeded chưa gặp message THẬT của apiserver v1.34 — mọi test dùng apierrors.NewForbidden tự dựng. Chuỗi 'exceeded quota: …' đến từ tài liệu, chưa từ cluster của dự án. Hướng hỏng đã xác minh là AN TOÀN: đổi câu chữ upstream ⇒ rơi về nhánh 'lỗi thật' = ồn ào + backoff, không phải im lặng.",
+    "Đường shutdown thật (SIGTERM giữa lúc Provision) mới mô phỏng bằng ctx-cancel + fake PodClient; chưa chạy trên pod thật. WaitGroup đã thêm nhưng chưa có bằng chứng runtime.",
+    "PSA `baseline` của namespace có phản ứng thêm gì với pod spec này không — chưa kiểm, cần cluster.",
+    "T-5 (ClaimIdempotent tin session.podName mà không đối chiếu pod:{podName}.sessionId) — CHƯA sửa. Vô hại hôm nay (sessionID 128-bit, chưa có reaper tái dùng pod), thành bẫy khi B6/B7 bắt đầu trả pod về pool. Ghi lại chứ không lặng lẽ bỏ qua."
+  ],
+  "missingProof": [
+    "Không có kubeconfig của lab trong session này ⇒ toàn bộ vế 'pod builder thật sự được admit' chưa có bằng chứng runtime. Đây là khoảng trống LỚN NHẤT của PR, và nó nằm đúng chỗ R5 (Sysbox pod tạo động fail, score 15) mô tả.",
+    "B7 (reaper) chưa tồn tại, nên mọi câu 'sẽ được sweep dọn' hiện KHÔNG có tầng đỡ nào. Đã sửa câu chữ log cho đúng sự thật ('RÒ KHE QUOTA … chưa có reaper để dọn') thay vì hứa hẹn một cơ chế chưa có — nhưng bản thân khoảng trống thì vẫn còn tới B7.",
+    "T-1: luật thứ tự ghi của publish() được gác bằng một test dựa vào publishHook — một seam CHỈ dành cho test nằm giữa hai lệnh. Xoá hook đó là mất guard mà suite vẫn xanh. Chưa có cách gác nào không cần seam.",
+    "reachableRegressions để RỖNG là một khẳng định, không phải bỏ trống: PR này không đổi hành vi nào mà consumer đang dựa vào. 3 RPC chuyển từ Unimplemented sang hành vi thật nhưng apps/web chưa có client gRPC nào gọi tới; contract public (proto, hash Redis, 8 CEL) không bị đụng. Việc warm-pool tạo pod thật trên lab là TÍNH NĂNG của chặng này, không phải regression — nhưng nó có đổi trạng thái cluster khi deploy (chiếm 1 trong 4 khe quota với POOL_TARGET=1), nên người deploy cần biết trước."
+  ],
+  "reachableRegressions": []
+}
