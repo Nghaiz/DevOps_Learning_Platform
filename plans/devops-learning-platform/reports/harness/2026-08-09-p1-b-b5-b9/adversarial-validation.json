@@ -1,0 +1,21 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [],
+  "unverifiedClaims": [
+    "GHI CHÚ NGỮ NGHĨA: `disprovenClaims` và `reachableRegressions` ở đây phản ánh TRẠNG THÁI CUỐI, không phải lịch sử. Review đã bác 8 khẳng định (4 CHẶN + 4 CAO) và tất cả đã được vá, mỗi cái có test; toàn văn kèm bằng chứng đo được nằm ở review-decision.json.",
+    "CHƯA CÓ CLUSTER K8s THẬT — khoảng trống LỚN NHẤT của chặng này, lớn hơn hẳn PR trước. Reaper là thành phần MỚI có QUYỀN XOÁ POD, chạy mỗi 60s, và nó chưa từng chạy trên cluster. Mọi bằng chứng về nó đến từ fake PodClient + Redis thật.",
+    "Job migration chưa từng được `helm install` THẬT. Hai lỗi CHẶN vừa vá (C-2, C-3) đều chỉ hỏng ở install MỚI, và chúng cũng chỉ được kiểm bằng `helm template` cộng tài liệu Helm về thứ tự hook↔resource. Reviewer CÓ build và chạy image migrator thật vào một DB nháp, nhưng đó là `docker run`, không phải Job trong cluster.",
+    "AC 'claim từ warm-pool p95 < 1s với ≥50 mẫu' VẪN chưa đo (nợ từ PR trước). Cần hạ tầng thật.",
+    "M-6 (pod kẹt Terminating làm dlp_reaper_orphan_pods_total đếm lặp mỗi vòng sweep) — reviewer nêu rõ đây là SUY LUẬN, không tái hiện được vì fake Delete gỡ pod khỏi List. CHƯA vá, chưa đo.",
+    "Giả thuyết chưa đóng của reviewer về orphanGrace: `k8s.NewClientset` KHÔNG đặt rest.Config.Timeout, nên nếu pods.Get treo lâu thì waitReady có thể vượt 5 phút và sweep xoá đúng pod đang chờ. Không dựng được API server treo để đo. Đáng đo trước khi bật trên cluster thật.",
+    "Interceptor chỉ là UnaryInterceptor. `session.proto` hiện không có streaming RPC nào (cả 5 đều unary), nhưng KHÔNG có cổng nào chặn việc một stream RPC thêm sau này đi vòng qua B0′.",
+    "`GRPC_REQUIRE_MTLS=true` giờ làm orchestrator từ chối khởi động — hành vi ĐÚNG cho hôm nay (cổng chưa mở được), nhưng nó cũng có nghĩa biện pháp giảm nhẹ R25 vẫn CHƯA có hiệu lực nào ngoài việc fail-closed ở nhánh system_component."
+  ],
+  "missingProof": [
+    "Không có bằng chứng runtime cho bất kỳ tầng nào của reaper trên cluster thật. Với một thành phần có quyền xoá pod, đây là khoảng trống phải đóng TRƯỚC khi bật trên lab có sinh viên đang dùng.",
+    "Thứ tự hook↔resource của Helm — nền của bản vá C-3 — là hành vi tài liệu hoá, không phải thứ đã chạy ở đây.",
+    "orphanGrace=5m dựa vào pool.defaultReadyTimeout=2m, nhưng hai hằng đó nằm ở HAI package và KHÔNG có cổng nào ràng buộc chúng. Ai nâng readyTimeout mà quên orphanGrace sẽ làm sweep giết pod đang sinh ra — đúng chế độ hỏng mà orphanGrace tồn tại để chặn.",
+    "`reachableRegressions` để RỖNG là một KHẲNG ĐỊNH, không phải bỏ trống. Phép thử đã áp cho từng ứng viên: (1) `GRPC_REQUIRE_MTLS=true` nay làm orchestrator từ chối khởi động — nhưng BIẾN NÀY CHƯA TỪNG SHIP (nó sinh ra trong chính chặng này), nên không consumer nào regress được. (2) datastore-secret thành Helm hook ⇒ `helm uninstall` để lại Secret — đổi hành vi vận hành có thật, đã ghi lý do trong template, và được lập luận là AN TOÀN HƠN vì PVC mang resource-policy keep nên mật khẩu phải khớp PGDATA cũ; muốn xoá sạch thì làm tay. (3) test package reaper ép DB Redis 13 và FLUSHDB nó — chỉ chạm developer chạy suite trên localhost, cùng PR sinh ra package đó. Không mục nào là một đường đang chạy bị hỏng; cả ba đều nằm lại đây để người duyệt đọc chứ không bị giấu."
+  ],
+  "reachableRegressions": []
+}

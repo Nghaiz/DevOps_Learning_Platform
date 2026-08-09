@@ -77,9 +77,18 @@ describe('schema Postgres', () => {
     const byName = Object.fromEntries(
       getTableConfig(sessionsAudit).columns.map((c) => [c.name, c]),
     );
+    // THỨ TỰ có ý nghĩa: `ALTER TYPE … ADD VALUE 'x' BEFORE 'y'` của Postgres
+    // chèn vào đúng vị trí, và Drizzle sinh migration theo thứ tự khai ở đây.
+    // Đảo thứ tự trong schema.ts sẽ sinh một migration khác hẳn.
+    //
+    // Danh sách này là contract LIÊN NGÔN NGỮ: Go ghi các giá trị này bằng chuỗi
+    // (services/orchestrator/internal/lifecycle/audit.go). Thêm một giá trị ở
+    // đây mà quên bên Go thì không lỗi nào báo — chỉ là một sự kiện không bao
+    // giờ được ghi. Chiều ngược lại thì INSERT lỗi ở runtime.
     expect(byName['event']?.enumValues).toEqual([
       'created',
       'claimed',
+      'extended',
       'expired',
       'reaped',
       'failed',

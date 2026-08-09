@@ -63,6 +63,25 @@ web:
     microsoftClientSecret: 'placeholder'
     corsAllowedOrigins: 'http://localhost:3000'
 
+# Job chạy migration Drizzle như hook pre-install/pre-upgrade.
+# Xem templates/migrate-job.yaml để biết vì sao là hook chứ không phải initContainer.
+migrate:
+  enabled: true
+  image:
+    repository: dlp-migrator
+    tag: ''
+    pullPolicy: ''
+  # Trần cứng để `helm upgrade` không treo vô thời hạn khi Postgres không tới
+  # được. 5 phút đủ rộng cho một migration thật, đủ hẹp để lỗi lộ ra nhanh.
+  activeDeadlineSeconds: 300
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
 orchestrator:
   enabled: true
   image:
@@ -110,6 +129,22 @@ orchestrator:
     # cái mà ValidatingAdmissionPolicy đang ép, tức là cố tình làm mọi pod bị từ
     # chối. Nhân bản con số này là cách nó trôi đi.
     sandboxRuntimeClass: ''
+
+    # Khoảng đẩy thêm mỗi lần gateway heartbeat (D11).
+    # ⚠ Con số này THỰC TẾ quyết định hạn của session sau lần gia hạn đầu tiên,
+    # không phải sessionTtl — xem Service.Extend trong internal/lifecycle.
+    extendDefault: '300s'
+
+    # Nhịp sweep của reaper. Sweep là ĐƯỜNG CHÍNH (keyspace notification chỉ là
+    # đường nhanh, best-effort và mất event khi reaper offline).
+    reapInterval: '60s'
+
+    # ⚠ MẶC ĐỊNH TẮT, VÀ ĐÓ LÀ MỘT MÓN NỢ CÓ HẠN CHÓT — xem R25/B0′ trong
+    # plans/devops-learning-platform/phase-1.md. Khi tắt, cổng gRPC KHÔNG xác
+    # thực người gọi: `user_id` là field client tự khai, và nhánh
+    # `system_component` của ReapSession bị TỪ CHỐI (fail-closed). Phải bật
+    # trước khi apps/web nối vào (G12).
+    grpcRequireMtls: 'false'
 
 gateway:
   enabled: true

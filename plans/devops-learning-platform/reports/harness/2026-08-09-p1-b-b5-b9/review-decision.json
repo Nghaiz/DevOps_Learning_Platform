@@ -1,0 +1,26 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "Reviewer độc lập (t1k-code-reviewer, adversarial, 61 lượt tool / ~20 phút) chạy mutation trên code sản phẩm, 14 probe tiêm lỗi qua redis.Hook, dựng server bufconn để đo interceptor, và BUILD + CHẠY THẬT image migrator vào một DB nháp. Kết quả ban đầu: 4 CHẶN, 4 CAO, 8 TRUNG, 5 THẤP — điểm 5/10, kết luận 'không merge cho tới khi C-1…C-4 được sửa'. Tất cả CHẶN và CAO đã vá, mỗi cái có test.",
+    "C-1 — điểm mù THỨ TƯ: pod rò VĨNH VIỄN khi tầng 1 lỡ event. Session hết hạn để lại hash pod:{name} với TTL=-1, tên nằm trong pool:claimed, Pod vẫn ăn quota — mà pool:claimed KHÔNG CÓ NHÁNH NÀO ĐỌC. Đo được: 5 vòng sweep, pod đã xoá = []. Sửa: tầng 2c đối chiếu pod:{name}.sessionId với EXISTS session:{id}. TestTang2cDonPodClaimedMaSessionKhongCon + vế đối xứng.",
+    "C-2 — `helm install` với values MẶC ĐỊNH hỏng: cổng ngoài dùng datastore.postgres.enabled (true), nhánh env dùng datastore.enabled (false) ⇒ Job render với DATABASE_URL rỗng ⇒ hook fail ⇒ install ABORT. Đây là regression so với trước PR. Sửa: một vị từ $hasDatabase duy nhất; xác minh bằng render thật — với values mặc định Job không còn render.",
+    "C-3 — hook `pre-install` chạy TRƯỚC datastore-secret vì Secret không phải hook, và hook-weight chỉ sắp thứ tự GIỮA CÁC HOOK. Chỉ hỏng ở install MỚI nên qua mặt mọi lần thử thông thường. Sửa: Secret thành hook weight -5. Đánh đổi 'uninstall không xoá Secret' được ghi lý do trong template: PVC có resource-policy keep, nên giữ Secret khớp PGDATA cũ AN TOÀN HƠN xoá nó.",
+    "C-4 — sự kiện audit `failed` KHÔNG BAO GIỜ tới Postgres: MarkFailed truyền Tier rỗng ⇒ protoTierToPG trả rỗng ⇒ audit return sớm, log ERROR đổ lỗi sai chỗ, và tăng counter 'audit thủng' vì một lý do khác hẳn thứ nó mô tả. Sửa: đọc userId/tier/podName từ hash TRƯỚC khi đổi status. Test khẳng định cả dòng audit LẪN việc counter KHÔNG tăng.",
+    "H-1 — đua thật: livePods được chụp TRƯỚC vòng SCAN, nên session vừa claim (đường cold path: Provision tạo pod rồi mới claim) bị đánh dấu FAILED OAN. Ca hỏng âm thầm: pod vẫn chạy, session bị giết trong Redis, FE nhận FAILED, và không dấu vết nào vì C-4. Sửa: xác minh lại bằng pods.Get đọc MỚI trước khi MarkFailed.",
+    "H-2 — GRPC_REQUIRE_MTLS=true là cổng KHÔNG MỞ ĐƯỢC (0 kết quả grep cho grpc.Creds trong service) và fail-OPEN khi thiếu peer. Sửa: nhánh từ chối ra ngoài khối `if hasPeer`; config.Load TỪ CHỐI KHỞI ĐỘNG khi bật true thay vì để cổng lên xanh rồi chặn 100% RPC; 4 test mới cho interceptor (trước đó 0 test).",
+    "H-3 — Extend kéo lùi hạn: đo được TTL 1h → 5m và expires_at lùi 55 phút ngay ở heartbeat đầu tiên, khiến token đã cấp sống lâu hơn session. User chốt hạn-chỉ-tiến; công thức thành max(current, min(now+extend, createdAt+hardCap)). Plan đã cập nhật kèm bằng chứng.",
+    "H-4 — ReapSystem là MÃ CHẾT (không call-site sản phẩm nào), đúng lỗi mà review PR trước tìm ra với ClaimIdempotent; và auditEventExpired là hằng chết nên đường đời PHỔ BIẾN NHẤT của session không có sự kiện kết thúc nào. Sửa: xoá ReapSystem, thay bằng ReapExpired có hai call-site thật (tầng 1 + tầng 2c); claim.lua ghi userId/tier vào pod:{name} để đọc được lúc hash session đã biến mất.",
+    "M-1..M-5, M-8 và 4 mục THẤP đều đã vá: errors.Join thay vì return sớm (một lỗi ở tầng 2a từng nuốt cả tầng 2b/2c/3), createdAt thiếu → FailedPrecondition thay vì Unavailable, test audit (trước đó 0), tầng 1 chết im lặng giờ log + đếm, khởi tạo trước nhãn metric, cổng contract enum liên ngôn ngữ, kiểm len trước index, LREM đối xứng, comment cũ nói 'B7 chưa tồn tại'."
+  ],
+  "regressionProof": [
+    "159 PASS / 0 SKIP dưới -race trên Redis 7 thật (trước lô vá: 141). Đếm tường minh vì go test exit 0 khi mọi test skip.",
+    "Test của hai PR trước (B1–B4 và spike #25) vẫn xanh sau khi claim.lua đổi (pod:{name} mang thêm userId/tier) và claim.go phơi PodPointerGrace.",
+    "HAI lượt ĐỎ THẬT trong lô vá, cả hai là tín hiệu đúng. (1) TestExtendCapNhatTTLCuaKey đỏ vì bản vá H-3 ĐÚNG — test cũ mã hoá hành vi kéo-lùi; đã viết lại thành hai vế đối xứng (hạn không lùi, VÀ vẫn đẩy tiến được). (2) Ba test reaper đỏ vì reaper chuyển sang uỷ quyền cho lifecycle, kèm một lỗi THẬT trong test double: k8sNotFound trả kiểu tự chế nên k8s.IsNotFound (đọc apierrors Reason) không nhận ra, tức test đang kiểm một đường KHÁC đường chạy thật.",
+    "Reviewer đã công kích và KHÔNG phá được: extend.lua nguyên khối dưới 8 goroutine cùng expected_revision (đúng 1 thắng); Reap đồng thời 2 lần (revision +1, audit 1 dòng); Reap huỷ ctx sau khi đánh dấu REAPED (pod VẪN bị xoá — bản vá C-3 của PR trước hoạt động); deletePodAndIndex LREM pool:free không gỡ nhầm pod free hợp lệ; mark_failed.lua không tạo hash zombie; resolveReapActor không có đường vượt ngoài ca fail-open đã vá; orphanGrace=5m không tìm được ca pod hợp lệ sống quá 5 phút mà chưa có hash.",
+    "golangci-lint 0 issues (GOOS=linux) trên 4 module; gofmt/vet sạch; helm lint 2 bộ values + render 3 kịch bản; env-check 46 biến; pnpm turbo 12/12."
+  ],
+  "blockingReasons": [],
+  "contractStatus": "CHANGED"
+}

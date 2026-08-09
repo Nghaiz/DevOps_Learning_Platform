@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -95,5 +96,36 @@ func TestLoadFailsOnMalformedDuration(t *testing.T) {
 
 	if _, err := config.Load(); err == nil {
 		t.Fatal("Load() muốn error với SESSION_TTL sai định dạng, nhận nil")
+	}
+}
+
+// TestRequireMTLSTuChoiKhoiDong (H-2).
+//
+// ⛔ Service chưa có `grpc.Creds`/`ClientCAs` nào (mTLS thật thuộc D13, làm cùng
+// lane gateway), nên bật cờ = 100% RPC trả Unauthenticated. Để nó khởi động
+// được là dựng một cổng an ninh GIẢ: health probe xanh, dashboard xanh, và
+// không request nào chạy. Thà chết lúc khởi động với thông báo nói đúng chuyện
+// gì thiếu.
+func TestRequireMTLSTuChoiKhoiDong(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("GRPC_REQUIRE_MTLS", "true")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("Load() chấp nhận GRPC_REQUIRE_MTLS=true — orchestrator sẽ lên xanh rồi chặn mọi RPC")
+	}
+	if !strings.Contains(err.Error(), "GRPC_REQUIRE_MTLS") {
+		t.Fatalf("thông báo %q không nêu tên biến gây lỗi", err)
+	}
+}
+
+// TestReapIntervalKhongDuocLaZero — 0 không phải "tắt reaper", nó là pod sống
+// mãi và ăn hết quota trong im lặng.
+func TestReapIntervalKhongDuocLaZero(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("REAP_INTERVAL", "0s")
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("Load() chấp nhận REAP_INTERVAL=0")
 	}
 }

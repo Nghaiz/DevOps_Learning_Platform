@@ -21,6 +21,7 @@ import (
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/lifecycle"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/pool"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/reaper"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/store"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/httpx"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/logging"
@@ -70,30 +71,40 @@ func run() error {
 	// Thiếu một trong hai thì server vẫn lên (health probe xanh, /metrics chạy)
 	// nhưng ba RPC trả Unavailable với lý do rõ ràng — thay vì CrashLoop, thứ
 	// che mất chính thông báo cần đọc.
-	sessions, poolMgr, closeStores, err := buildSessionEngine(ctx, cfg, log, met)
+	engine, err := buildSessionEngine(ctx, cfg, log, met)
 	if err != nil {
 		return err
 	}
-	// KHÔNG `defer closeStores()`: Redis phải đóng SAU khi goroutine warm-pool
-	// đã dừng hẳn, và defer ở đây chạy trước cả poolWG.Wait() bên dưới lẫn sau
-	// nó tuỳ vị trí — quá tinh tế để đúng do vô tình. Đóng tường minh ở cuối.
+	// KHÔNG `defer engine.close()`: Redis phải đóng SAU khi warm-pool và reaper
+	// đã dừng hẳn, và defer ở đây chạy trước cả bgWG.Wait() bên dưới lẫn sau nó
+	// tuỳ vị trí — quá tinh tế để đúng do vô tình. Đóng tường minh ở cuối.
 
-	grpcSrv := grpc.NewServer()
-	orchestratorv1.RegisterSessionServiceServer(grpcSrv, grpcserver.NewSessionService(log, sessions))
+	grpcSrv := grpc.NewServer(
+		grpc.UnaryInterceptor(grpcserver.NewAuthInterceptor(log, cfg.RequireMTLS)),
+	)
+	orchestratorv1.RegisterSessionServiceServer(grpcSrv, grpcserver.NewSessionService(log, engine.lifecycle))
 
 	// WaitGroup chứ không phải goroutine thả nổi: warm-pool có thể đang ở giữa
-	// một lượt Provision (tạo pod → chờ Ready → công bố) lúc SIGTERM tới. Đóng
-	// Redis trong khi nó còn chạy nghĩa là `publish()` lỗi ở giữa và pod vừa tạo
-	// bị bỏ lại — đúng chế độ rò khe quota mà deleteAfterFailure sinh ra để chặn.
-	var poolWG sync.WaitGroup
-	if poolMgr != nil {
-		poolWG.Add(1)
+	// một lượt Provision (tạo pod → chờ Ready → công bố) lúc SIGTERM tới, và
+	// reaper có thể đang giữa một vòng sweep. Đóng Redis dưới chân chúng nghĩa
+	// là `publish()` lỗi ở giữa và pod vừa tạo bị bỏ lại — đúng chế độ rò khe
+	// quota mà deleteAfterFailure sinh ra để chặn.
+	var bgWG sync.WaitGroup
+	runBackground := func(name string, fn func(context.Context) error) {
+		bgWG.Add(1)
 		go func() {
-			defer poolWG.Done()
-			if err := poolMgr.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-				log.Error("warm-pool dừng bất thường", slog.String("err", err.Error()))
+			defer bgWG.Done()
+			if err := fn(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				log.Error("tiến trình nền dừng bất thường",
+					slog.String("name", name), slog.String("err", err.Error()))
 			}
 		}()
+	}
+	if engine.pool != nil {
+		runBackground("warm-pool", engine.pool.Run)
+	}
+	if engine.reaper != nil {
+		runBackground("reaper", engine.reaper.Run)
 	}
 
 	// gRPC health service: probe của K8s cho cổng gRPC dùng cái này, không dùng /healthz.
@@ -175,12 +186,12 @@ func run() error {
 		}
 	}
 
-	// Chờ warm-pool dứt hẳn TRƯỚC khi đóng Redis. Nó có thể đang giữa một lượt
-	// Provision; đóng client dưới chân nó làm `publish()` lỗi và pod vừa tạo bị
-	// bỏ lại trên cluster — một khe quota rò mà không reaper nào (B7 chưa có)
-	// dọn được. ctx đã huỷ ở stop() nên vòng lặp thoát ở lượt select kế tiếp.
-	poolWG.Wait()
-	closeStores()
+	// Chờ warm-pool VÀ reaper dứt hẳn TRƯỚC khi đóng Redis. Cả hai có thể đang
+	// giữa một lượt thao tác pod; đóng client dưới chân chúng làm lượt ghi lỗi ở
+	// giữa và pod vừa tạo bị bỏ lại trên cluster. ctx đã huỷ ở stop() nên cả hai
+	// vòng lặp thoát ở lượt select kế tiếp.
+	bgWG.Wait()
+	engine.close()
 
 	if runErr != nil {
 		return runErr
@@ -199,57 +210,103 @@ func run() error {
 //
 // Ngược lại, khi REDIS_URL CÓ đặt thì mọi lỗi đều là lỗi cứng: đã khai ý định
 // nối datastore thì nối không được là sự cố, không phải chế độ chạy.
+// sessionEngine gom mọi thành phần cần Redis/K8s lại.
+//
+// Struct thay vì tuple nhiều giá trị: hàm dựng đã mọc từ 3 lên 5 thứ phải trả
+// về, và một tuple dài là chỗ để hoán vị nhầm hai giá trị cùng kiểu func().
+type sessionEngine struct {
+	// lifecycle nil khi REDIS_URL trống — grpcserver xử lý nil bằng Unavailable.
+	lifecycle grpcserver.Lifecycle
+	pool      *pool.Manager
+	reaper    *reaper.Reaper
+	// close đóng mọi kết nối. Luôn khác nil, kể cả ở chế độ degrade.
+	close func()
+}
+
 func buildSessionEngine(
 	ctx context.Context,
 	cfg *config.Config,
 	log *slog.Logger,
 	met *metrics.Metrics,
-) (grpcserver.Lifecycle, *pool.Manager, func(), error) {
-	noop := func() {}
+) (sessionEngine, error) {
+	degraded := sessionEngine{close: func() {}}
 
 	if cfg.RedisURL == "" {
-		log.Warn("REDIS_URL trống — warm-pool và 3 RPC session TẮT; server chỉ phục vụ health/metrics")
-		return nil, nil, noop, nil
+		log.Warn("REDIS_URL trống — warm-pool, reaper và 3 RPC session TẮT; server chỉ phục vụ health/metrics")
+		return degraded, nil
 	}
 
 	rdb, err := store.NewRedis(ctx, cfg.RedisURL)
 	if err != nil {
-		return nil, nil, noop, fmt.Errorf("nối Redis: %w", err)
+		return degraded, fmt.Errorf("nối Redis: %w", err)
+	}
+	closers := []func(){func() { _ = rdb.Close() }}
+	closeAll := func() {
+		for i := len(closers) - 1; i >= 0; i-- {
+			closers[i]()
+		}
 	}
 
 	clientset, err := k8s.NewClientset()
 	if err != nil {
-		_ = rdb.Close()
-		return nil, nil, noop, fmt.Errorf("dựng client Kubernetes: %w", err)
+		closeAll()
+		return degraded, fmt.Errorf("dựng client Kubernetes: %w", err)
 	}
 	pods := k8s.NewPodClient(clientset, cfg.SandboxNamespace)
 
-	podCfg := k8s.PodConfig{
+	mgr := pool.NewManager(rdb, pods, k8s.PodConfig{
 		Namespace:        cfg.SandboxNamespace,
 		Image:            cfg.SandboxImage,
 		RuntimeClassName: cfg.SandboxRuntimeClass,
-	}
-	mgr := pool.NewManager(rdb, pods, podCfg, cfg.PoolTarget, log, met)
+	}, cfg.PoolTarget, log, met)
 
-	svc, err := lifecycle.NewService(rdb, mgr, lifecycle.Config{
-		Namespace:  cfg.SandboxNamespace,
-		SessionTTL: cfg.SessionTTL,
-		HardCap:    cfg.HardCap,
+	// Postgres là TUỲ CHỌN ở giai đoạn này: chỉ audit (B8) dùng nó, và không
+	// đường session nào ĐỌC nó. Thiếu DATABASE_URL ⇒ audit tắt kèm cảnh báo,
+	// chứ không chặn cả engine — ép một biến chưa ai đọc chỉ tạo thói quen bỏ
+	// qua thông báo lỗi.
+	var auditDB lifecycle.AuditDB
+	if cfg.DatabaseURL == "" {
+		log.Warn("DATABASE_URL trống — audit sessions_audit TẮT. Session vẫn chạy; nhật ký vòng đời thì không.")
+	} else {
+		pgPool, pgErr := store.NewPostgres(ctx, cfg.DatabaseURL)
+		if pgErr != nil {
+			closeAll()
+			return degraded, fmt.Errorf("nối Postgres cho audit: %w", pgErr)
+		}
+		auditDB = pgPool
+		closers = append(closers, pgPool.Close)
+	}
+
+	svc, err := lifecycle.NewService(rdb, mgr, pods, auditDB, lifecycle.Config{
+		Namespace:     cfg.SandboxNamespace,
+		SessionTTL:    cfg.SessionTTL,
+		HardCap:       cfg.HardCap,
+		ExtendDefault: cfg.ExtendDefault,
 	}, log, met)
 	if err != nil {
-		_ = rdb.Close()
+		closeAll()
 		// Cấu hình mâu thuẫn là lỗi CỨNG lúc khởi động, không phải chế độ chạy:
 		// để nó qua thì mọi probe xanh trong khi 100% CreateSession thất bại.
-		return nil, nil, noop, err
+		return degraded, err
 	}
 
-	log.Info("warm-pool bật",
+	// Số DB phải là ĐÚNG DB client đang dùng: kênh keyspace mang số DB trong
+	// tên (`__keyevent@N__:expired`), và SUBSCRIBE vào kênh sai vẫn THÀNH CÔNG —
+	// chỉ là không bao giờ có event nào tới. Lấy từ chính options của client
+	// thay vì đọc lại URL, để hai nơi không thể lệch.
+	rp := reaper.New(rdb, pods, svc, rdb.Options().DB, cfg.ReapInterval, log, met)
+
+	log.Info("engine session bật",
 		slog.Int("pool_target", cfg.PoolTarget),
 		slog.String("namespace", cfg.SandboxNamespace),
 		slog.String("image", cfg.SandboxImage),
 		slog.String("runtime_class", cfg.SandboxRuntimeClass),
 		slog.Duration("session_ttl", cfg.SessionTTL),
-		slog.Duration("hard_cap", cfg.HardCap))
+		slog.Duration("hard_cap", cfg.HardCap),
+		slog.Duration("extend_default", cfg.ExtendDefault),
+		slog.Duration("reap_interval", cfg.ReapInterval),
+		slog.Bool("audit_bat", auditDB != nil),
+		slog.Bool("require_mtls", cfg.RequireMTLS))
 
-	return svc, mgr, func() { _ = rdb.Close() }, nil
+	return sessionEngine{lifecycle: svc, pool: mgr, reaper: rp, close: closeAll}, nil
 }

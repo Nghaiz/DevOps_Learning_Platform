@@ -38,6 +38,29 @@ ENV NEXT_OUTPUT=standalone
 # bỏ qua, không cần copy.
 RUN pnpm turbo run build
 
+# ---------------------------------------------------------------- migrator
+#
+# Image RIÊNG chỉ để chạy migration Drizzle. Không gộp vào image runtime được:
+# runtime là bản Next.js standalone đã prune, KHÔNG có drizzle-kit, KHÔNG có thư
+# mục drizzle/*.sql, và npm/corepack đã bị gỡ có chủ ý khỏi nó. Nhét công cụ
+# migration vào đó là hoàn tác đúng phần cắt bề mặt tấn công mà runtime vừa làm.
+#
+# VÌ SAO CẦN NÓ: tới trước bản này, migration phải chạy TAY qua `kubectl
+# port-forward` sau mỗi lần dựng lại DB (§"Còn để ngỏ" của phase-1). Hệ quả đã
+# được cảnh báo trước: dựng lại cluster ⇒ bảng `jwks` chưa tồn tại ⇒
+# `/api/auth/jwks` trả 500 ⇒ toàn bộ G2 sập, và không dấu hiệu nào chỉ về
+# nguyên nhân. B8 là lúc đầu tiên orchestrator THẬT SỰ ghi Postgres, nên đây là
+# hạn chót hợp lý để tự động hoá.
+FROM deps AS migrator
+WORKDIR /repo
+COPY apps/web/drizzle.config.ts apps/web/drizzle.config.ts
+COPY apps/web/drizzle apps/web/drizzle
+COPY apps/web/src/server/db apps/web/src/server/db
+WORKDIR /repo/apps/web
+# drizzle-kit tự giữ bảng `__drizzle_migrations`, nên chạy lại là no-op — Job
+# này an toàn khi Helm retry hoặc khi upgrade lại cùng một version.
+CMD ["node", "./node_modules/drizzle-kit/bin.cjs", "migrate"]
+
 # `node:24-alpine` TRỰC TIẾP, không phải `FROM base`: stage `base` bật corepack,
 # thứ image runtime không cần — nó chỉ chạy `node apps/web/server.js`.
 FROM node:24-alpine AS runner

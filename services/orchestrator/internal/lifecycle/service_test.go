@@ -141,7 +141,31 @@ type harness struct {
 	svc  *Service
 	rdb  *redis.Client
 	pool *fakePool
+	pods *fakePodDeleter
 	met  *metrics.Metrics
+}
+
+// fakePodDeleter ghi lại lượt xoá pod. Reap và reaper đều đi qua nó.
+type fakePodDeleter struct {
+	mu      sync.Mutex
+	deleted []string
+	err     error
+}
+
+func (f *fakePodDeleter) Delete(_ context.Context, name string, _ int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
+	f.deleted = append(f.deleted, name)
+	return nil
+}
+
+func (f *fakePodDeleter) deletedNames() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.deleted...)
 }
 
 func newHarness(t *testing.T) *harness {
@@ -149,15 +173,17 @@ func newHarness(t *testing.T) *harness {
 	rdb := newTestRedis(t)
 	fp := &fakePool{rdb: rdb}
 	met := metrics.New(prometheus.NewRegistry())
-	svc, err := NewService(rdb, fp, Config{
-		Namespace:  "dlp-sandbox",
-		SessionTTL: time.Hour,
-		HardCap:    2 * time.Hour,
+	pods := &fakePodDeleter{}
+	svc, err := NewService(rdb, fp, pods, nil, Config{
+		Namespace:     "dlp-sandbox",
+		SessionTTL:    time.Hour,
+		HardCap:       2 * time.Hour,
+		ExtendDefault: 5 * time.Minute,
 	}, slog.New(slog.NewJSONHandler(io.Discard, nil)), met)
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
-	return &harness{svc: svc, rdb: rdb, pool: fp, met: met}
+	return &harness{svc: svc, rdb: rdb, pool: fp, pods: pods, met: met}
 }
 
 // TestNewServiceTuChoiCauHinhMauThuan (M-3).
@@ -176,29 +202,29 @@ func TestNewServiceTuChoiCauHinhMauThuan(t *testing.T) {
 	}{
 		{
 			name:    "HARD_CAP vượt trần kỹ thuật 24h của claim",
-			cfg:     Config{Namespace: "ns", SessionTTL: 30 * time.Hour, HardCap: 48 * time.Hour},
+			cfg:     Config{Namespace: "ns", SessionTTL: 30 * time.Hour, HardCap: 48 * time.Hour, ExtendDefault: 5 * time.Minute},
 			wantErr: "vượt trần kỹ thuật",
 		},
 		{
 			name:    "SESSION_TTL > HARD_CAP",
-			cfg:     Config{Namespace: "ns", SessionTTL: 3 * time.Hour, HardCap: time.Hour},
+			cfg:     Config{Namespace: "ns", SessionTTL: 3 * time.Hour, HardCap: time.Hour, ExtendDefault: 5 * time.Minute},
 			wantErr: "> HARD_CAP",
 		},
 		{
 			name:    "SESSION_TTL = 0",
-			cfg:     Config{Namespace: "ns", SessionTTL: 0, HardCap: time.Hour},
+			cfg:     Config{Namespace: "ns", SessionTTL: 0, HardCap: time.Hour, ExtendDefault: 5 * time.Minute},
 			wantErr: "SESSION_TTL phải > 0",
 		},
 		{
 			name:    "Namespace rỗng",
-			cfg:     Config{Namespace: "", SessionTTL: time.Hour, HardCap: 2 * time.Hour},
+			cfg:     Config{Namespace: "", SessionTTL: time.Hour, HardCap: 2 * time.Hour, ExtendDefault: 5 * time.Minute},
 			wantErr: "Namespace rỗng",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewService(nil, nil, tt.cfg, log, met)
+			_, err := NewService(nil, nil, nil, nil, tt.cfg, log, met)
 			if err == nil {
 				t.Fatalf("cần lỗi chứa %q, nhận nil — cấu hình này sẽ làm mọi CreateSession thất bại", tt.wantErr)
 			}
@@ -209,8 +235,9 @@ func TestNewServiceTuChoiCauHinhMauThuan(t *testing.T) {
 	}
 
 	// Cấu hình đúng vẫn phải qua.
-	if _, err := NewService(nil, nil, Config{
+	if _, err := NewService(nil, nil, nil, nil, Config{
 		Namespace: "ns", SessionTTL: time.Hour, HardCap: 2 * time.Hour,
+		ExtendDefault: 5 * time.Minute,
 	}, log, met); err != nil {
 		t.Fatalf("cấu hình hợp lệ bị từ chối: %v", err)
 	}

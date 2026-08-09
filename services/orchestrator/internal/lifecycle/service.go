@@ -76,9 +76,14 @@ type Config struct {
 	Namespace  string
 	SessionTTL time.Duration
 	// HardCap là trần TUYỆT ĐỐI tính từ created_at, không gia hạn được (D11).
-	// Ở đây nó chặn `ttl_seconds` do client gửi; B5 sẽ dùng cùng con số cho
-	// ExtendSession.
+	// Nó chặn `ttl_seconds` do client gửi ở CreateSession VÀ là trần của
+	// ExtendSession (B5) — một con số, hai chỗ dùng.
 	HardCap time.Duration
+
+	// ExtendDefault là khoảng đẩy thêm khi client gửi `extend_seconds = 0`
+	// (D11: 300s). Xem Extend() để biết vì sao con số này thực tế quyết định
+	// hạn của session sau lần gia hạn đầu tiên, chứ không phải SESSION_TTL.
+	ExtendDefault time.Duration
 }
 
 // Service hiện thực CreateSession / ClaimSession / GetSession.
@@ -90,9 +95,13 @@ type Config struct {
 type Service struct {
 	rdb  redis.UniversalClient
 	pool Provisioner
-	cfg  Config
-	log  *slog.Logger
-	met  *metrics.Metrics
+	pods PodDeleter
+	// db có thể là nil: chạy không Postgres là chế độ hợp lệ ở giai đoạn này
+	// (audit là B8, và không đường session nào ĐỌC Postgres). Xem audit().
+	db  AuditDB
+	cfg Config
+	log *slog.Logger
+	met *metrics.Metrics
 
 	now          func() time.Time
 	newSessionID func() (string, error)
@@ -110,6 +119,8 @@ type Service struct {
 func NewService(
 	rdb redis.UniversalClient,
 	provisioner Provisioner,
+	pods PodDeleter,
+	db AuditDB,
 	cfg Config,
 	log *slog.Logger,
 	met *metrics.Metrics,
@@ -131,10 +142,22 @@ func NewService(
 	if cfg.Namespace == "" {
 		return nil, fmt.Errorf("lifecycle: Namespace rỗng")
 	}
+	if cfg.ExtendDefault <= 0 {
+		return nil, fmt.Errorf("lifecycle: EXTEND_DEFAULT phải > 0 (nhận %s)", cfg.ExtendDefault)
+	}
+	if cfg.ExtendDefault > cfg.HardCap {
+		// Không phải lỗi chết người (min() trong extend.lua vẫn cắt), nhưng nó
+		// nghĩa là EXTEND_DEFAULT không còn tác dụng gì — mọi lần gia hạn đều
+		// chạm trần cứng. Một giá trị vô nghĩa là thứ không ai phát hiện ra.
+		return nil, fmt.Errorf("lifecycle: EXTEND_DEFAULT (%s) > HARD_CAP (%s): mọi lần gia hạn đều chạm trần cứng",
+			cfg.ExtendDefault, cfg.HardCap)
+	}
 
 	return &Service{
 		rdb:          rdb,
 		pool:         provisioner,
+		pods:         pods,
+		db:           db,
 		cfg:          cfg,
 		log:          log,
 		met:          met,
@@ -212,6 +235,25 @@ func (s *Service) Create(
 	// tồn tại thật, và khoá kẹt ở `pending:` chỉ khiến một retry (hiếm) nhận
 	// "đang xử lý, thử lại" thay vì nhận ngay session — phiền, không sai.
 	s.promoteIdem(ctx, idemKey, pendingValue, sessionID)
+
+	// MỘT dòng audit cho CreateSession, không phải hai.
+	//
+	// Ở kiến trúc này create và claim là MỘT thao tác nguyên khối (xem doc của
+	// Create), nên `created` mang luôn podName/expiresAt — tức là nó đã trả lời
+	// đủ câu hỏi forensic "lúc nào user X nhận pod Y, hạn tới đâu". Đẻ thêm một
+	// dòng `claimed` cùng mốc thời gian chỉ làm bảng dài gấp đôi mà không thêm
+	// sự thật nào. `claimed` để dành cho ngày nào có đường claim tách rời thật.
+	expiresAt := time.Unix(sess.ExpiresAt, 0)
+	s.audit(ctx, auditEvent{
+		SessionID: sess.ID,
+		UserID:    sess.UserID,
+		Event:     auditEventCreated,
+		Tier:      sess.Tier,
+		PodName:   sess.PodName,
+		Namespace: sess.Namespace,
+		ExpiresAt: &expiresAt,
+	})
+
 	return sess.ToProto(), nil
 }
 

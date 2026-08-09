@@ -1,0 +1,1 @@
+ALTER TYPE "public"."session_event" ADD VALUE 'extended' BEFORE 'expired';

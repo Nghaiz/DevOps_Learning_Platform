@@ -1,0 +1,96 @@
+{
+  "commands": [
+    {
+      "command": "go test ./... -count=1 -race trên cả 4 module (Redis 7 thật) — lượt CUỐI sau khi vá review",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:40:00+07:00",
+      "summary": "Toàn bộ xanh dưới -race, 0 DATA RACE. 159 PASS / 0 SKIP (trước lô vá: 141). Gồm 6 package: config, grpcserver, k8s, lifecycle, pool, reaper."
+    },
+    {
+      "command": "go test ./internal/... -count=1 -v | grep -c '^ *--- PASS' và grep -c '^--- SKIP'",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:40:00+07:00",
+      "summary": "159 PASS, 0 SKIP. Đếm tường minh vì `go test` exit 0 KHI MỌI TEST SKIP."
+    },
+    {
+      "command": "go test ./internal/lifecycle/ -run TestExtendCapNhatTTLCuaKey (lượt ĐỎ có thật)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:05:00+07:00",
+      "summary": "Test này ĐỎ ngay sau bản vá H-3 — vì nó mã hoá hành vi CŨ ('gia hạn 600s kéo TTL từ 1h xuống 600s'). Đã viết lại thành TestExtendKhongBaoGioKeoLuiHan + TestExtendVanDayDuocHanVeTuongLai, hai vế đối xứng: hạn không lùi, VÀ vẫn đẩy tiến được. Ghi lại vì một test đỏ vì code đã ĐÚNG là tín hiệu cần đọc kỹ chứ không phải sửa cho xanh."
+    },
+    {
+      "command": "go test ./internal/reaper/ -count=1 (3 test ĐỎ giữa lô vá)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:20:00+07:00",
+      "summary": "Ba test đỏ sau khi reaper chuyển sang uỷ quyền cho lifecycle.ReapExpired: chúng còn khẳng định `pods.deletedNames()` (hành vi cũ, reaper tự dọn). Kèm một lỗi THẬT trong test double: `k8sNotFound` trả kiểu tự chế nên `k8s.IsNotFound` (dùng apierrors.Reason) không nhận ra ⇒ code sản phẩm rơi vào nhánh 'không phân biệt được', tức test kiểm một đường KHÁC đường chạy thật. Đã đổi sang apierrors.NewNotFound."
+    },
+    {
+      "command": "for dir in $(go list -m -f '{{.Dir}}'); do (cd $dir && GOOS=linux golangci-lint run ./...); done",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:35:00+07:00",
+      "summary": "0 issues trên cả 4 module. Bốn lỗi đã vá qua hai lượt: staticcheck QF1008 (embedded field), unused (errUnimplemented — chết vì cả 5 RPC đã hiện thực), gosec G304, revive context-as-argument."
+    },
+    {
+      "command": "gofmt -l services/ · go vet ./... · go build ./...",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:35:00+07:00",
+      "summary": "Sạch trên cả 4 module."
+    },
+    {
+      "command": "node scripts/env-check.mjs",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:38:00+07:00",
+      "summary": "OK — 46 biến (trước: 43), 4 scope. 3 biến mới qua đủ 3 nơi mà cổng gác cho service Go."
+    },
+    {
+      "command": "helm lint (2 bộ values) + helm template 3 kịch bản",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:25:00+07:00",
+      "summary": "lint 0 failed. Ba kịch bản render kiểm bằng OUTPUT chứ không bằng đọc template: (1) values MẶC ĐỊNH → Job migrate KHÔNG render (không có database nào để migrate) ⇒ `helm install` mặc định chạy lại được, đúng bản vá C-2; (2) selfhost → DATABASE_URL qua secretKeyRef, Secret có `hook-weight: -5` trước Job `5`, đúng bản vá C-3; (3) managed-DB (datastore tắt + web.env.databaseUrl đặt) → env.value, nhánh else đúng."
+    },
+    {
+      "command": "pnpm turbo run lint typecheck build test",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:39:00+07:00",
+      "summary": "12/12. Lần chạy đầu 1 test đỏ THẬT: schema.test.ts pin 5 giá trị enum session_event, mà B8 thêm 'extended'. Đã cập nhật test + ghi chú rằng THỨ TỰ khai có ý nghĩa (ALTER TYPE … ADD VALUE … BEFORE)."
+    },
+    {
+      "command": "Build + chạy thật image `migrator` vào một DB nháp (do reviewer thực hiện)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:15:00+07:00",
+      "summary": "Reviewer build stage `migrator`, chạy `drizzle-kit migrate` vào database nháp: apply thành công, `select unnest(enum_range(null::session_event))` trả created, claimed, extended, expired, reaped, failed ĐÚNG THỨ TỰ. Thiếu DATABASE_URL ⇒ exit 1 (Job sẽ fail đúng cách). DB nháp đã DROP, image đã rmi."
+    },
+    {
+      "command": "buf breaking (proto)",
+      "status": "skipped",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:42:00+07:00",
+      "summary": "KHÔNG chạy vì PR không đụng file .proto nào. Ghi 'skipped' thay vì 'pass' có chủ ý — cổng chưa chạy thì không được báo là đã qua. CI vẫn chạy nó."
+    },
+    {
+      "command": "Xác minh trên cluster K8s thật (reaper chạy, Job migration qua `helm install`, p95 claim < 1s)",
+      "status": "skipped",
+      "exitCode": 0,
+      "timestamp": "2026-08-09T23:42:00+07:00",
+      "summary": "CHƯA CHẠY — session này không có kubeconfig của lab. Đây là khoảng trống LỚN NHẤT: reaper là thành phần có quyền XOÁ POD và nó chưa từng chạy trên cluster; hai lỗi Helm CHẶN vừa vá chỉ hỏng ở `helm install` MỚI nên chúng cũng chỉ được kiểm bằng `helm template`."
+    }
+  ],
+  "beforeAfter": [
+    "TRƯỚC: grpcserver còn 2 Unimplemented. SAU: cả 5 RPC của contract có hành vi thật; hằng `errUnimplemented` bị lint báo unused và đã xoá — một dấu hiệu cơ học rằng chặng đã đóng.",
+    "TRƯỚC: `pool:claimed` được GHI ở 3 chỗ và ĐỌC ở 0 chỗ. SAU: reaper tầng 2c đọc nó để tìm pod mà session đã biến mất — chế độ hỏng khi tầng 1 lỡ event, và trước đó KHÔNG tầng nào chạm được (hash tồn tại nên không phải mồ côi; không còn session:* để SCAN; không nằm trong quarantine).",
+    "TRƯỚC: migration Postgres chạy TAY qua `kubectl port-forward` sau mỗi lần dựng lại DB. SAU: image `migrator` riêng + Job hook pre-install/pre-upgrade. Đóng món nợ ở §'Còn để ngỏ' của plan.",
+    "TRƯỚC: `ExtendSession` kéo lùi hạn 55 phút ở heartbeat đầu tiên (đo được). SAU: hạn chỉ tiến; hai test đối xứng gác cả hai chiều.",
+    "TRƯỚC: sự kiện audit `failed` và `expired` không bao giờ tới Postgres — nhật ký dừng ở `created` cho đa số phiên. SAU: cả hai có đường sống và có test; thêm một test gác chính việc 'mọi giá trị enum đều có call-site'.",
+    "TRƯỚC: contract enum liên ngôn ngữ (schema.ts ↔ hằng Go) không có cổng nào. SAU: TestEnumSessionEventKhopVoiSchemaTS đọc thẳng schema.ts — cùng mô hình redis-key-vectors.json của 1.B0.3."
+  ]
+}

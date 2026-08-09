@@ -455,6 +455,13 @@ jobs:
             image: dlp-web
             dockerfile: apps/web/Dockerfile
             context: .
+          # Image RIÊNG cho migration Drizzle — xem stage `migrator` trong
+          # apps/web/Dockerfile để biết vì sao không gộp vào image runtime.
+          - name: migrator
+            image: dlp-migrator
+            dockerfile: apps/web/Dockerfile
+            context: .
+            target: migrator
           - name: orchestrator
             image: dlp-orchestrator
             dockerfile: services/orchestrator/Dockerfile
@@ -495,6 +502,9 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          # Rỗng với mọi hàng trừ `migrator` — buildx hiểu chuỗi rỗng là "dùng
+          # stage cuối", đúng hành vi cũ của bốn hàng còn lại.
+          target: ${{ matrix.target }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
