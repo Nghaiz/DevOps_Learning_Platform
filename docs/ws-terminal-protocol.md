@@ -45,6 +45,16 @@ Lý do chọn cookie thay vì subprotocol:
 
 **Token dùng lại được trong TTL** — `exp` = `expires_at` của session, không one-time-use. Reconnect không cần xin token mới.
 
+### Khoá ký và cách gateway verify — KHÔNG sinh khoá mới
+
+Sandbox token ký bằng **chính khoá của plugin `jwt()` Better Auth** đang dùng cho `aud=orchestrator`, chỉ khác `aud`. Xác minh trong `node_modules` (better-auth 1.6.26): plugin phơi endpoint **`GET /api/auth/jwks`**, thuật toán mặc định **EdDSA / Ed25519**, và `auth.api.signJWT` nhận `overrideOptions` nên đổi `audience` cho từng lần mint là một tham số, không phải một khoá thứ hai.
+
+- **Mint (`apps/web`):** `mintSandboxTokenFor(userId, sessionId, expiresAt)` → payload `{ sub, sid, aud: "gateway", iss, iat, exp }`.
+- **Verify (gateway):** fetch `GATEWAY_JWKS_URL` (Service in-cluster của web), cache theo `kid`, **refetch khi gặp `kid` lạ** — đó là cách duy nhất chịu được rotation của Better Auth mà không cần deploy lại gateway. Ép `alg == EdDSA` (đừng chấp nhận `alg` từ header token), `aud == "gateway"`, `iss` khớp, `exp` chưa qua, `sub`/`sid` không rỗng.
+- **Khoá riêng bị loại có chủ ý:** nó đẻ ra 3 biến env × 4 nơi (`rules` G11), một Helm secret, và một quy trình xoay vòng thủ công — đúng thứ D13 tuyên bố tránh. JWKS cho rotation miễn phí.
+
+`aud` là thứ **duy nhất** phân tách hai loại token. Gateway **phải** từ chối `aud=orchestrator` (loại mà BFF đang mint cho gRPC) — nếu không, một token gọi orchestrator sẽ mở được shell.
+
 ### Hệ quả topology (BẮT BUỘC, lane infra phải làm)
 
 `SameSite=Strict` + không `Domain` ⇒ **gateway phải cùng origin với `apps/web`**. Nếu web ở `app.example.com` còn gateway ở `gw.example.com` thì trình duyệt không gửi cookie và thiết kế này chết.
@@ -62,7 +72,8 @@ Lý do chọn cookie thay vì subprotocol:
         Origin: https://app.example.com
 
 2. S    Kiểm TRƯỚC KHI upgrade, đúng thứ tự, dừng ở lỗi đầu tiên:
-        a. Origin ∈ allowlist             → sai: 403
+        a. Origin: có header  → phải ∈ allowlist  → sai: 403
+                   vắng      → CHO QUA (xem dưới)
         b. subprotocol có dlp.terminal.v1 → sai: 400
         c. cookie tồn tại                 → sai: 401
         d. JWT hợp lệ (sig/aud/exp/iss)   → sai: 401
@@ -70,7 +81,7 @@ Lý do chọn cookie thay vì subprotocol:
         f. Redis session:{id} tồn tại     → sai: 404
         g. hash.userId == token.sub       → sai: 403
         h. status ∈ {CLAIMED, RUNNING}    → sai: 409
-        i. session:{id}:ws < trần         → sai: 429
+        i. session:{id}:ws < trần (=1)    → sai: 429
 
 3. S→C  101 Switching Protocols
         Sec-WebSocket-Protocol: dlp.terminal.v1
@@ -80,6 +91,40 @@ Lý do chọn cookie thay vì subprotocol:
 6. S→C  {"type":"ready", …}                    ← frame đầu tiên server gửi
 7. ↔    binary tự do, control message tuỳ lúc
 ```
+
+### 3a. Bước a — vắng `Origin` thì CHO QUA (quyết định, không phải sơ suất)
+
+Trình duyệt **luôn** gửi `Origin` trên handshake WS; không có cách nào tắt từ JS. Nên CSWSH — thứ duy nhất bước a tồn tại để chặn — vẫn đóng kín dù ta cho qua request vắng `Origin`. Fail-closed ở đây không mua thêm bảo mật nào, mà lại chặn mọi client không-trình-duyệt: `wscat`, `websocat`, test e2e trong CI, và probe vận hành. Cả bộ acceptance IDOR ở `phase-1.md` chạy bằng `wscat`, vốn không gửi `Origin` trừ khi thêm `--origin`.
+
+Bước a vì thế đọc là: *"có `Origin` thì phải đúng"*, không phải *"phải có `Origin`"*. Authz thật nằm ở bước d–g và không phụ thuộc `Origin` ở bất kỳ đâu.
+
+### 3b. Khi nào 404 THẬT SỰ xảy ra (đọc kỹ trước khi viết test)
+
+Bước **e** (`token.sid == {id}`) chạy **trước** bước **f** (Redis tồn tại). Hệ quả:
+
+- **Đoán bừa một `{id}` → 403 ở bước e**, KHÔNG phải 404. Token của user chỉ mang đúng một `sid`, nên mọi `{id}` khác `sid` đều chết ở e.
+- **404 chỉ tới được khi `token.sid == {id}` nhưng Redis không còn key** — nghĩa là "session của CHÍNH BẠN đã biến mất" (đã reap, TTL hết, hoặc Redis mất dữ liệu).
+
+Đây là tính chất **tốt**: kẻ tấn công không bao giờ phân biệt được "id không tồn tại" với "id tồn tại nhưng của người khác" — cả hai đều 403 ở cùng một bước, cùng một đường code, nên không có kênh phụ thời gian để dò. Đừng "sửa" thứ tự này cho 404 dễ gặp hơn.
+
+### 3c. Một session = một WS đang mở (trần `i` = 1)
+
+`GATEWAY_MAX_WS_PER_SESSION=1`. Lý do là hành vi đo được của tmux, không phải giới hạn tuỳ tiện:
+
+`tmux new-session -A -s dlp` cho hai client attach vào **cùng một** session, và tmux (≥3.1, `window-size latest`) ép **một** kích thước cửa sổ cho cả hai — theo client hoạt động gần nhất. Đo thật trên tmux 3.4:
+
+```
+client1 (200x50) một mình      → window 200x49
+client2 (80x24) attach vào     → window TỤT xuống 80x23   ← tab 1 bị co
+client2 gõ phím                → 80x23
+client1 gõ phím                → 200x49                    ← lật qua lại mỗi keystroke
+```
+
+Tab thứ hai không phải là "thêm một terminal", nó **phá terminal đang có**. Với trần 1, WS thứ hai bị từ chối **429** trước upgrade kèm `code: "SESSION_IN_USE"`.
+
+**Reconnect không bị ảnh hưởng:** khi WS đóng, gateway `DECR session:{id}:ws` về 0, và tmux session vẫn sống trong pod — mở lại vào đúng màn hình cũ. Trần này chặn *đồng thời*, không chặn *nối lại*.
+
+**Status bar tmux phải TẮT** (`set -g status off` trong `/etc/skel/.tmux.conf`). Đo được ở trên: client 200x50 → window 200x**49**; status bar ăn đúng một dòng, nên `stty size` trong pod sẽ lệch 1 so với `rows` mà FE gửi. Tắt nó thì kích thước khớp tuyệt đối và AC đo được thẳng, không phải trừ bì.
 
 **Vì sao `init` riêng thay vì để `resize` làm luôn:** để quy tắc "frame đầu tiên, server chờ nó" là hiển ngôn, và để prompt oh-my-posh vẽ đúng bề rộng ngay lần đầu thay vì vẽ ở 80 cột rồi nhảy. FitAddon chỉ đo đúng **sau** `document.fonts.ready` nên kích thước thật đến muộn hơn `onopen` vài chục ms. Đổi lại một round-trip < 1ms trong LAN.
 
