@@ -1,182 +1,462 @@
 # Phase 1 — Sandbox Session Engine (MVP lõi)
 
-**Mức chi tiết:** DETAILED · **Effort:** L · **Blocks:** P2, P3, P4 · **Blocked by:** P0
-**⚠️ ĐÂY LÀ CRITICAL PATH.** 3 rủi ro high-score của toàn dự án tập trung ở đây: **Sysbox node setup**, **WS ⇄ pod-exec streaming (Go)**, **warm-pool race conditions**.
+**Mức chi tiết:** DETAILED · **Effort:** L · **Blocks:** P2, P3, P4 · **Blocked by:** P0 (đã đóng 2026-08-08)
+**Soát lại:** 2026-08-09 — ba lane planner đọc lại repo + đo trực tiếp trên cluster lab. Bản 2026-08-07 sai ở nhiều chỗ; xem §"Đã sửa gì so với bản 2026-08-07".
+**⚠️ ĐÂY LÀ CRITICAL PATH.** 3 rủi ro high-score của toàn dự án tập trung ở đây.
 
 ## Objective
 
 Xây engine dùng chung cho cả 3 trụ cột: người dùng đã đăng nhập → bấm "Start" → nhận **1 sandbox pod Sysbox cô lập trong < 1s** (từ warm-pool) → mở terminal xterm.js trong trình duyệt nối vào PTY của pod qua WSS, với **per-session authz** (không ai vào được shell của người khác). Session có TTL + reaper dọn. Sandbox chạy image `images/sandbox-base` với terminal UX cao cấp.
 
-**Định nghĩa "done" P1:** 1 user claim được pod < 1s, gõ lệnh trong terminal thật, session tự hết hạn và pod bị reap, và một user khác KHÔNG thể nối vào session đó.
+**Định nghĩa "done" P1:** 1 user claim được pod < 1s, gõ lệnh trong terminal thật, mất mạng rồi vào lại thì thấy đúng màn hình cũ, session tự hết hạn và pod bị reap, và một user khác KHÔNG thể nối vào session đó.
+
+---
+
+## Quyết định đã chốt (2026-08-09)
+
+| # | Quyết định | Chốt |
+|---|---|---|
+| **D1** | **Transport token sandbox** | **Cookie httpOnly `dlp_sandbox`** (`Secure; HttpOnly; SameSite=Strict; Path=/ws`), KHÔNG subprotocol. XSS không ăn cắp được, và nhất quán với quyết định P0 `disableSettingJwtHeader: true`. **Hệ quả bắt buộc:** gateway phải **cùng origin** với `apps/web` ⇒ Ingress route `/ws/*` ở prod, reverse proxy gộp origin ở dev. Chi tiết: [`docs/ws-terminal-protocol.md`](../../docs/ws-terminal-protocol.md) §2. |
+| **D2** | **Gateway có được chạm Redis không?** | **ĐỌC được, GHI thì không.** Comment `session.proto` cấm cụ thể *"ghi thẳng Redis từ gateway"* — nó cấm kênh **mutation** thứ hai, không cấm đọc. Gateway đọc `session:{id}` cho authz (rẻ, một lượt, không round-trip gRPC mỗi lần mở WS); mọi thay đổi trạng thái đi qua `ExtendSession`/`ReapSession` gRPC. |
+| **D3** | **Reconnect giữa phiên** | **tmux.** Image cài tmux, gateway exec vào `tmux new-session -A -s dlp`. Mất mạng rồi vào lại thấy đúng màn hình cũ, scrollback còn, tiến trình đang chạy không chết. Không có tmux thì `pods/exec` mỗi lần attach sinh tiến trình MỚI — đó không phải reconnect, và với nền tảng học làm lab dài thì mất bài giữa chừng là UX hỏng. |
+| **D4** | **`docker run hello-world` vs NetworkPolicy default-deny** | **Đổi AC của P1: chứng minh DinD offline.** Giữ default-deny nguyên vẹn. Chứng minh Sysbox DinD chạy được bằng `docker info` + `docker build` một image `FROM scratch` rồi `docker run` nó — không cần mạng, và đó đúng là thứ AC thật sự muốn kiểm. Registry mirror trong cluster để **P2** khi bài lab thật cần kéo image. Dòng `169.254.0.0/16` trong `egressExcept` không bao giờ được bỏ. |
+| **D5** | **Token CNI Calico hết hạn mỗi 24h** | **CronJob `rollout restart ds/calico-node` mỗi 12h ngay, chuyển `tigera-operator` sau.** Xem R0 — đây là blocker đang sống, không phải rủi ro giả định. |
+| **D6** | **Kiểu dữ liệu `pool:free`** | **LIST.** `LMOVE` là O(1) và FIFO nên pod cũ nhất được dùng trước ⇒ pod hỏng lộ sớm. Sửa cả 3 chỗ mô tả đang nói khác nhau (`docs/redis-key-namespace.md` "set/list", `redis-keys.ts` "Sorted set/list", `keys.go` không nói). |
+| **D7** | **`rediskeys` sống ở đâu** | **Chuyển sang `services/shared/rediskeys/`.** Hiện nằm dưới `services/orchestrator/internal/` nên gateway (module Go khác) **không compile được** nếu import — đây là chặn ở compile, không phải rủi ro. Kéo theo: sửa đường dẫn vector trong `keys_test.go` từ 4 cấp `..` xuống 3. |
+| **D8** | **Pod spec sandbox là SSOT ở đâu** | **Go builder `services/orchestrator/internal/k8s/podspec.go`.** Orchestrator phải tính tên/label/TTL động nên YAML tĩnh không đủ. `infra/k8s/pod-template-sandbox.yaml` (**file này chưa tồn tại**) chỉ dùng để test VAP thủ công, không phải nguồn sinh pod. Sửa bảng ownership cho khớp. |
+| **D9** | **Migration Postgres do ai sở hữu** | **Drizzle giữ toàn bộ schema.** Một DB, một công cụ migration, một thứ tự. Go đọc/ghi `sessions_audit` bằng pgx query viết tay. Repo hiện không có sqlc/goose và không nên thêm. |
+| **D10** | **Hash tag `{dlp}` cho Redis Cluster** | **Không thêm ở v0.** P1 dùng Redis đơn. Ghi giới hạn CROSSSLOT vào `docs/redis-key-namespace.md` để P3 không bất ngờ khi cân nhắc Cluster. |
+| **D11** | **Số của hai đồng hồ** | `HARD_CAP=2h`, idle-window `15m`, `EXTEND_DEFAULT=300s`. Tất cả qua env, không hardcode. |
+| **D12** | **Số biến thể image** | **Một image, điều khiển bằng build-arg** (`INCLUDE_PWSH=0`, `INCLUDE_DOCKER=1` mặc định). Tách slim/full chỉ khi đo được thời gian pull làm hỏng mục tiêu claim < 1s — YAGNI cho tới lúc đó. |
+| **D13** | **Service-auth gateway → orchestrator** | **mTLS in-cluster + nhánh `system_component`** đã có sẵn trong `ReapSessionRequest.actor`. Không thêm key nào phải xoay vòng. Gateway không mint được JWT `aud=orchestrator` (private key JWKS nằm trong Postgres của Better Auth, chỉ `apps/web` chạm được). |
+| **D14** | **Cách thực thi P1** | **Tuần tự từng chặng bằng `/t1k:cook`**, không fan-out `/t1k:team`. P1 có HARD-GATE thật (hai spike phải xanh mới được mở 1.B/1.C) và sáu rủi ro ≥ 15; chạy song song sớm sẽ vượt gate trước khi gate kịp đóng. Bản đồ ownership zero-overlap ở dưới vẫn giữ nguyên giá trị — nó là ranh giới file để mỗi chặng biết được phép chạm gì, không phải lời mời fan-out. |
+
+**Ownership 4 file `apps/web` nằm ngoài mọi lane nhưng bắt buộc phải sửa** → giao **lane gateway**: bên *phát* token nên là bên hiểu bên *verify* token.
+`src/server/trpc/routers/session.ts` (phát sandbox token + set cookie) · `src/server/trpc/init.ts` (thêm `resHeaders` — hiện `TRPCContext` chỉ có `db`/`user`/`reqHeaders` nên **không Set-Cookie được từ procedure**) · `src/server/auth/jwt.ts` (key ký `aud=gateway`) · `src/server/security/headers.ts` (CSP `connect-src`).
+
+---
 
 ## Kiến trúc luồng (P1)
 
 ```
-[Start] tRPC session.create ─► orchestrator.CreateSession (gRPC)
-                                  │  claim pod từ Redis pool:free (atomic)
-                                  │  ghi session:{id} -> {userId, podName, ns, expiresAt} (TTL)
+[Start] tRPC session.create ─► orchestrator.CreateSession (gRPC, aud=orchestrator)
+                                  │  claim pod từ pool:free (Lua atomic một lượt)
+                                  │  ghi session:{id} hash + session:{id}:pod (TTL)
                                   │  replenish pool async
                                   ▼
-        trả {sessionId, wsUrl, sandboxToken(aud=gateway)}
-[Browser xterm.js] ── WSS /ws/session/{id} (token qua cookie/subprotocol) ─►
-        terminal-gateway: verify token(aud=gateway) + authz(session.userId == token.sub)
-                          ── client-go remotecommand exec vào pod (SPDY stream) ──► PTY
-        resize (SIGWINCH) ⇄ WS control msg ; stdin/stdout/stderr ⇄ WS binary frames
-Reaper (orchestrator): quét session:{id} hết TTL / idle → delete pod + Redis keys (idempotent)
+        BFF mint sandbox token (aud=gateway, sid=sessionId, exp=expires_at)
+        → Set-Cookie dlp_sandbox (httpOnly, Path=/ws)  ← cần resHeaders trong TRPCContext
+        → trả {sessionId, wsUrl}
+[Browser xterm.js] ── WSS /ws/session/{id} (cookie, CÙNG ORIGIN) ─►
+        terminal-gateway: 9 bước kiểm trước upgrade (ws-terminal-protocol.md §3)
+                          ĐỌC redis session:{id} cho authz — không ghi (D2)
+                          ── client-go NewFallbackExecutor(ws, spdy) ──► tmux ──► PTY
+        stdin/stdout ⇄ WS binary frame ; resize ⇄ control JSON
+        traffic thật → gRPC ExtendSession (mTLS, expected_revision)
+Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis key (idempotent)
 ```
 
-## Task list
+## Contract đã pin (không lane nào tự chế shape)
 
-### 1.A Spike khử rủi ro (làm TRƯỚC — cổng vào phần còn lại)
-1. **Spike WS⇄exec** (rủi ro #2): 1 Go binary tối thiểu nối `remotecommand.NewSPDYExecutor` tới 1 pod có sẵn, stream stdin/stdout qua 1 WS, xử lý resize. Không pool, không authz. Mục tiêu: chứng minh streaming + resize + đóng sạch hoạt động. Ghi lại gotcha (SPDY vs WebSocket exec, TTY flag).
-2. **Spike claim atomic** (rủi ro #3): script Go bắn N goroutine cùng claim từ `pool:free` → chứng minh Redis atomic (Lua script hoặc `LMOVE`/`SETNX` + state) không double-claim.
-3. Chỉ khi 2 spike xanh mới build phần 1.B–1.E. (HARD-GATE nội bộ P1.)
+| Contract | SSOT | Ghi chú |
+|---|---|---|
+| gRPC | `proto/orchestrator/v1/session.proto` | 5 RPC, `Session.revision`, `expected_revision`, `hard_cap_reached`. CI có cổng `buf breaking` — **lane nào cũng KHÔNG được đổi breaking**. |
+| WS wire | [`docs/ws-terminal-protocol.md`](../../docs/ws-terminal-protocol.md) | **MỚI 2026-08-09.** Nhúng nguyên văn vào brief cả lane gateway lẫn lane FE. |
+| Redis key + **field** | `docs/redis-key-namespace.md` + `docs/redis-key-vectors.json` | Bản song sinh Go (`services/shared/rediskeys/`) và TS (`packages/shared-types/src/redis-keys.ts`), test hai bên đọc chung vector. **Bản cũ chỉ pin tên key, KHÔNG pin field** — phải bổ sung, xem 1.B0.3. |
+| Sandbox token | D1 + `ws-terminal-protocol.md` §2 | `aud=gateway`, `sub=userId`, `sid=sessionId`, `exp=expires_at`. Ký bằng key riêng của gateway. Dùng lại được trong TTL. |
 
-### 1.B Orchestrator — session lifecycle + warm-pool (Go, client-go)
-4. Implement `CreateSession`: claim pod từ pool (atomic Redis), gán `session:{id}` với TTL (30–60' hard cap + idle), trả podName/namespace. Nếu pool rỗng → tạo pod on-demand (cold path) + log cảnh báo.
-5. Implement `ClaimSession`/`GetSession`/`ExtendSession`/`ReapSession` gRPC theo proto P0. `ExtendSession` ép `expires_at = min(now + extend_seconds, created_at + hard_cap)` và kiểm `expected_revision` (khác → `FailedPrecondition`); mọi lần ghi session **+1 `revision`**. `ReapSession` đọc `oneof actor` — nhánh `user_id` phải khớp `session.user_id`, nhánh `system_component` chỉ chấp nhận trên đường in-cluster.
-6. **Warm-pool manager**: goroutine giữ N pod `pool:free` (config `POOL_TARGET`), tạo pod Sysbox trước (image sandbox-base, `runtimeClassName: sysbox-runc`), replenish async khi claim. Pod pending gắn nhãn `pool=free`, `app=sandbox`.
-7. **Reaper**: controller quét Redis (pub/sub keyspace expiry + sweep định kỳ) → xóa pod + key khi hết TTL/idle. **Idempotent** (xóa 2 lần không lỗi). Reap cả pod mồ côi (pod có mà không có session key).
-8. Pod spec chuẩn (1.D security) apply cho cả warm-pool lẫn on-demand.
-9. Persist audit session (created/claimed/reaped) vào Postgres qua sqlc (không phải state — chỉ audit).
+**Field của hash `session:{id}` (pin mới, camelCase cho khớp `redis-keys.ts`):**
+`userId` · `podName` · `namespace` · `status` · `tier` · `createdAt` · `expiresAt` · `revision` · `lastActiveAt`
 
-### 1.C Terminal-gateway — WS ⇄ pod exec + per-session authz (Go)
-10. Endpoint `WSS /ws/session/{id}`: **verify sandbox token** (JWT `aud=gateway`, ký bằng key riêng — luật 6), **per-session authz** (luật 10 & 1): tra Redis `session:{id}`, so `session.userId == token.sub`; sai/không khớp → 403 đóng WS. **id pod/session đoán được KHÔNG được là IDOR vào shell người khác.**
-11. Nối pod bằng client-go `remotecommand` exec (TTY), stream stdin/stdout/stderr ⇄ WS binary frames; **resize** qua control message → `TerminalSizeQueue`.
-12. **Sandbox token — token RIÊNG, buộc theo session** (luật 8). Chốt 2026-08-08 khi gỡ cookie `access_token` ở P0 (R3):
-    - **Do `session.create` phát**, không phải `/api/auth/refresh`. Claim: `aud=gateway`, `sub=userId`, **`sid=sessionId`**, `exp` = `expires_at` của session. Ký bằng key riêng của gateway (luật 6).
-    - `sid` là mấu chốt: token gắn với ĐÚNG MỘT session. Không có nó thì một token hợp lệ mở được mọi session của cùng user, và authz ở task 10 phải tra Redis mới biết — tức token không tự mang đủ thẩm quyền. Gateway kiểm **hai vế**: `token.sid == {id} trong URL` **và** `redis session:{id}.userId == token.sub`. Vế đầu chặn dùng lại token chéo session; vế sau chặn token đã cũ hơn trạng thái Redis.
-    - Transport: httpOnly + Secure + SameSite cookie **scope hẹp** (`path=/ws`) hoặc WS subprotocol header. KHÔNG query string.
-    - **KHÔNG tái dùng cookie `access_token` cũ** — nó đã bị gỡ ở P0 vì `aud=orchestrator` là credential server-to-server (BFF mint tại chỗ mỗi lần gọi gRPC), không phải thứ trình duyệt cầm.
-13. WS keepalive: ping/pong, idle-timeout → gọi **`ExtendSession`** (RPC pin ở P0, xem contract) để đẩy idle-deadline; gửi `expected_revision` đọc được từ lần `GetSession` gần nhất. Hard cap tính từ `created_at` KHÔNG gia hạn được ⇒ heartbeat bị chiếm quyền cũng không giữ pod sống vĩnh viễn; `hard_cap_reached` trong response cho FE báo trước thay vì để terminal chết đột ngột. Đóng WS → không kill pod ngay (cho reconnect trong TTL).
-14. **Rate/size limit** (luật 5): giới hạn kích thước frame, giới hạn số WS/user, backpressure khi client chậm.
-15. Scale-ngang ready: gateway stateless, tra session→pod ở Redis (không giữ state local) → cho phép nhiều replica sau session-affinity ở Ingress.
-16. `/metrics`: số WS active, exec errors, claim latency.
+**Key mới cần thêm:** `pod:{name}` (hash state machine) · `pool:claimed` (list) · `idem:{key}` (string, dedupe — proto BẮT BUỘC `idempotency_key` nhưng namespace hiện không có key nào cho nó) · `session:{id}:ws` (đếm WS đồng thời, cho luật 5).
 
-### 1.D Sandbox pod hardening (luật 10 — core, đầy đủ ở P3)
+---
 
-> **Cập nhật 2026-08-08 — tầng THỰC THI chính sách đã dựng xong TRƯỚC khi P1 bắt đầu**, sau 2 audit bảo mật độc lập (bề mặt auth + hạ tầng). Lý do làm sớm: audit chỉ ra cô lập đang phụ thuộc hoàn toàn vào việc code orchestrator *nhớ* set đúng field — một bug làm rơi `runtimeClassName` là root-in-pod thành root-on-node. Nay ràng buộc nằm ở **admission**, task 17–21 dưới đây trở thành "pod spec phải TUÂN THỦ policy" chứ không còn là "nhớ mà set".
+# Task list
+
+## 1.B0 — Prerequisite chặn cứng (làm TRƯỚC cả spike)
+
+**1.B0.1 — Vá Calico CNI token 24h (D5).** `install-cni` là **initContainer** nên token SA 24h không bao giờ được refresh; hết hạn thì mọi pod mới `FailedCreatePodSandBox: ClusterInformation: connection is unauthorized`, trong khi pod cũ vẫn Running nên lỗi **ẩn hoàn toàn**. Bước 1: CronJob `rollout restart ds/calico-node` mỗi 12h, có log. Bước 2 (sau, không chặn P1): chuyển `tigera-operator`. Thêm **canary tạo-pod** vào cron/CI để lỗi lộ ngay thay vì lộ lúc demo. *Chạm: `infra/host/`, `infra/k8s/`. Effort: S.*
+
+**1.B0.2 — Đưa Redis + Postgres vào cluster.** Hiện **không có trong cluster**, chỉ ở `docker-compose.yml` trên máy dev ⇒ orchestrator sẽ CrashLoop ngay khi gọi `RequireDataStores()`. Redis **phải bật `notify-keyspace-events Ex`** (hiện chưa bật ⇒ task reaper pub/sub sẽ không nhận event nào và im lặng) và `appendonly yes`; Postgres dùng named volume (`rules/docker-volume-discipline.md`). Điền `orchestrator.env.redisUrl/databaseUrl`. *Chạm: `infra/helm/platform/templates/`, `values-selfhost.yaml`, `docker-compose.yml`. Effort: M.*
+
+**1.B0.3 — Pin contract Redis mở rộng + chuyển `rediskeys` sang shared (D6, D7, D10).** Sửa `docs/redis-key-vectors.json` **TRƯỚC** để cả hai suite Go+TS đỏ, rồi mới bắt kịp hai bên — vector là thứ giữ hai bản song sinh khỏi trôi. Thêm field của `session:{id}` + 4 key mới vào `docs/redis-key-namespace.md`. Di chuyển package sang `services/shared/rediskeys/`, sửa đường dẫn vector trong test. *Chạm: `docs/redis-key-namespace.md`, `docs/redis-key-vectors.json`, `services/shared/rediskeys/**`, `packages/shared-types/src/redis-keys.ts`. **File chung 3 lane — làm tuần tự, không fan-out.** Effort: S.*
+
+**1.B0.4 — Gộp origin cho web ↔ gateway (D1).** Prod: Ingress route `/ws/*` → Service gateway cùng origin với web. Dev: reverse proxy (Caddy/Traefik) trong `docker-compose.yml`. **Phải xong trước khi lane FE code**, nếu không FE viết xong mới phát hiện cookie không bao giờ được gửi. *Chạm: `infra/helm/platform/templates/`, `docker-compose.yml`. Effort: S.*
+
+## 1.A — Spike khử rủi ro (HARD-GATE, chặn toàn bộ 1.B/1.C)
+
+> Mục tiêu spike là **khử rủi ro**, không phải viết trước code thật. Code spike được phép xấu; cái phải đẹp là **báo cáo gotcha**.
+
+### 1.A-1 — Spike WS ⇄ pod-exec (rủi ro #1 toàn dự án, score 20)
+
+**S1 — Dependency + exec chạy được.** Thêm `k8s.io/client-go` (minor khớp cluster: **v0.34.x** cho K8s 1.34.10) + `k8s.io/api`, `k8s.io/apimachinery` vào `services/terminal-gateway/go.mod` (hiện có **0 dependency k8s**). Viết `cmd/spike-exec/main.go` exec `/bin/sh -c 'echo hello'` vào pod có sẵn trong `dlp-sandbox`. Chốt patch bằng `go list -m -versions`, không chép số từ blog.
+
+**S2 — Ba transport, đo và so.** Cờ `-transport=ws|spdy|fallback`. **Plan cũ chốt SPDY là lỗi thời:** `kubectl` mặc định WebSocket từ K8s 1.31; ở **1.34** (cluster của ta là v1.34.10) RemoteCommand-over-WebSockets là **beta bật mặc định** (`v5.channel.k8s.io`) và lên Stable ở 1.35. **Chốt dùng `NewFallbackExecutor(wsExec, spdyExec, httpstream.IsUpgradeFailure)`** — đúng khuôn mẫu `kubectl exec`, WS là đường chính, SPDY là lưới an toàn. Ghi kết quả vào `plans/reports/`.
+
+**S3 — Bridge thật, người gõ được.** WS `/spike/{pod}` nối stdin/stdout ⇄ binary frame, resize qua control. Kèm `-client` mode đặt terminal local vào raw mode + bắt `SIGWINCH` để **một con người gõ thử mà không cần lane FE**.
+
+**S4 — Ghi gotcha + đóng gate.** Viết `plans/reports/2026-08-XX-spike-ws-exec.md` trả lời đủ: hành vi `TerminalSizeQueue.Next()` trả `nil` (= "hết queue, đừng hỏi nữa" — trả nhầm khi channel đóng là cách resize chết âm thầm giữa phiên); lỗi chính xác khi set `tty=true` kèm `stderr=true` (**PTY chỉ có một luồng ra, apiserver từ chối**); close code THẬT của `SetReadLimit` (`coder/websocket` tự đóng bằng `1009`, không phải mã ứng dụng — quyết định pin `4413` hay `1009` vào spec phụ thuộc kết quả đo này); cách lấy exit code (`exec.CodeExitError`); half-close stdin ở v5 so với v4; transport nào thắng.
+
+**Thư viện WS: `github.com/coder/websocket`, KHÔNG `gorilla/websocket`.** Gorilla **panic khi hai goroutine cùng `WriteMessage`** — bridge terminal có đúng bài toán đó (goroutine đọc-pod ghi binary, goroutine điều khiển ghi control JSON, goroutine keepalive ghi ping); với gorilla cả ba phải qua một write-mutex tự viết, quên một chỗ là panic trong production. `coder/websocket` có `context.Context` trên mọi thao tác (khớp `httpx` sẵn có) và writer an toàn đa goroutine. Ràng buộc còn lại: **một reader tại một thời điểm** ⇒ kiến trúc một-goroutine-đọc là bắt buộc.
+
+> **Tiêu chí xanh (tất cả phải đạt trước khi mở G1):** (1) `fallback` executor attach được vào pod Sysbox trong `dlp-sandbox`; (2) `vim` + `htop` vẽ đầy đủ, không rác ANSI; (3) kéo cửa sổ → `stty size` trong pod khớp trong < 1s; (4) `exit` → WS đóng sạch, tiến trình thoát 0, `-race` không báo, không goroutine leak; (5) xoá pod giữa phiên → bridge báo lỗi rõ, không treo.
+
+### 1.A-2 — Spike claim atomic (rủi ro #3, score 16)
+
+**A1 — Chốt state machine.** `pool:free` = **LIST** (D6). State: `free → claimed → active → reaping → gone`, sống ở hash `pod:{name}` (`state`, `sessionId`, `updatedAt`); `pool:free`/`pool:claimed` chỉ là index.
+
+**A2 — Viết `claim.lua`** (`internal/pool/claim.lua`, nhúng `go:embed`, nạp `SCRIPT LOAD`/`EVALSHA`). Một script làm trọn: `LMOVE pool:free pool:claimed` → `HSET pod:{name}` → `HSET session:{id}` → `SET session:{id}:pod` → `EXPIRE` cả hai → trả `podName`. Pool rỗng → trả sentinel `nil` để Go rẽ cold-path, **không phải lỗi**. *Không dùng `LMOVE` trần: move thì atomic nhưng 4 lệnh ghi sau đó thì không — crash ở giữa để lại pod nằm trong `pool:claimed` mà không có session.*
+
+**A3 — Test đua.** `N_POOL=50`, `N_G=200` goroutine claim đồng thời, `-race -count=20` (race chỉ hiện theo xác suất). **Xanh =** đúng 50 thành công, 150 trả "pool rỗng", **0 podName trùng**, `LLEN pool:free == 0`, `LLEN pool:claimed == 50`, không panic.
+
+**A4 — Chạy trên Redis THẬT, không miniredis.** miniredis hỗ trợ Lua không đầy đủ (đặc biệt `LMOVE` + `redis.call` lồng nhau) ⇒ xanh trên miniredis mà đỏ trên Redis thật là guard không gác gì. Dùng Redis từ `docker-compose.yml`; `t.Skip` có log rõ khi `REDIS_URL` trống — **không giả vờ xanh**.
+
+**A5 — Ghi gotcha.** `services/shared/rediskeys/README.md` hoặc `internal/pool/README.md`: `EVALSHA` sau khi Redis restart trả `NOSCRIPT` → phải fallback `EVAL`; giới hạn CROSSSLOT nếu sau này lên Cluster (D10).
+
+## 1.B — Orchestrator: lifecycle + warm-pool + reaper
+
+**B1 — `internal/k8s`: pod builder + client-go.** `rest.InClusterConfig()` với fallback kubeconfig cho dev. `BuildSandboxPod(name, sessionID)` sinh spec **tuân thủ đủ 8 CEL của VAP** — thiếu một field là admission từ chối, không phải runtime lỗi. *Effort: M.*
+
+**B2 — Warm-pool manager.** Goroutine giữ `POOL_TARGET` pod `pool=free`, replenish async sau claim, backoff khi tạo pod fail. **`POOL_TARGET` mặc định 3** vì quota hiệu lực chỉ đủ **4 pod** (xem L-quota dưới). Lỗi tạo pod phải log **nguyên văn message từ API server** (VAP reject có message rất rõ), không nuốt. *Effort: M.*
+
+**B3 — `CreateSession` + dedupe idempotency.** `SET idem:{key} {sessionID} NX EX 600`; trúng key cũ → trả lại đúng session cũ, **không tạo pod thứ hai**. `SANDBOX_TIER_UNSPECIFIED` → `InvalidArgument` (fail-closed theo comment proto). Pool rỗng → cold path + log `WARN` có đo latency. *Effort: M.*
+
+**B4 — `ClaimSession` / `GetSession`.** TTL bắt đầu đếm **lúc claim, không phải lúc create**. `GetSession` với `user_id` lệch trả **`NotFound`, KHÔNG phải `PermissionDenied`** — `PermissionDenied` xác nhận session tồn tại, biến chính RPC thành oracle dò id. *Effort: M.*
+
+**B5 — `ExtendSession` hai đồng hồ + optimistic lock.** `expires_at = min(now + extend_seconds, created_at + HARD_CAP)`; `expected_revision != 0 && != current` → `FailedPrecondition`; mọi lần ghi `INCR` revision **trong cùng một Lua script** với việc ghi field — đọc-rồi-ghi bằng 2 lệnh Go là tự tạo lại đúng race mà revision sinh ra để chặn. *Effort: M.*
+
+**B6 — `ReapSession` idempotent + authz theo `oneof actor`.** Nhánh `user_id` phải khớp `session.user_id`; nhánh `system_component` chỉ chấp nhận trên listener in-cluster (chặn ở interceptor theo peer addr, **không tin field**). Session đã reap → trả **OK** kèm session cuối, không lỗi. Xoá pod `GracePeriodSeconds: 0` + bỏ qua `IsNotFound`. *Effort: M.*
+
+**B7 — Reaper hai tầng.** Tầng 1: subscribe `__keyevent@0__:expired`. Tầng 2: **sweep định kỳ bắt buộc có** (`REAP_INTERVAL=60s`) — keyspace notification là *best-effort*, mất event khi reaper offline là mất pod vĩnh viễn. Sweep dọn cả **pod mồ côi** (label `app=sandbox` mà `pod:{name}` không tồn tại) và **session ma** (`session:{id}` còn mà pod đã biến mất → chuyển `FAILED`). *Effort: M.*
+
+**B8 — Audit Postgres (D9).** Ghi `created/claimed/extended/reaped/failed` vào `sessions_audit` (migration bằng **Drizzle**, query bằng pgx). **Chỉ audit, không phải state** — bảng này không được có cột nào trả lời "session X đang chạy ở pod nào" (`plan.md` §4 no-derived-fields). Lỗi ghi → log `ERROR` + counter, **RPC vẫn thành công**; audit không được chặn đường claim. *Effort: M.*
+
+**B9 — `/metrics`.** `dlp_claim_duration_seconds` (histogram, để đo p95 < 1s), `dlp_pool_free_size`, `dlp_pool_replenish_failures_total`, `dlp_reaper_orphan_pods_total`, `dlp_cold_path_total`. *Effort: S.*
+
+## 1.C — Terminal-gateway: WS ⇄ exec + per-session authz
+
+**G1 — Khung handler + Origin + subprotocol.** Pipeline pre-upgrade: allowlist `Origin` (`GATEWAY_ALLOWED_ORIGINS` — đây là thứ đóng CSWSH, bắt buộc vì handshake WS không chịu CORS), kiểm client chào `dlp.terminal.v1`, rồi mới upgrade và echo lại đúng một subprotocol. *Chạm: `internal/wsroute/`, `internal/ws/`. Effort: M.*
+
+**G2 — Verify sandbox token (luật 6 + 8).** Đọc token **chỉ từ cookie `dlp_sandbox`**; có unit test khẳng định query string bị **bỏ qua và bị từ chối**. Verify chữ ký bằng key riêng của gateway, ép `aud == "gateway"`, `exp` chưa qua, `iss` khớp, `sub`/`sid` không rỗng. Sai → **401 trước upgrade**. *Chạm: `internal/authz/token.go`. Effort: M.*
+
+**G3 — Per-session authz hai vế (luật 10 + 1).** Đọc Redis `session:{id}` bằng helper shared (D2, D7 — không nối chuỗi tay). **Vế 1** `token.sid == {id}` trong URL, **vế 2** `hash.userId == token.sub`, và `status ∈ {CLAIMED, RUNNING}`. Lệch bất kỳ vế nào → **403 trước upgrade**. Log `Warn` **có rate-limit/sampling** — endpoint public, log mỗi request là DoS vào quota log. *Effort: M.*
+
+**G4 — Nối pod exec.** `NewFallbackExecutor` theo kết quả spike, exec vào `hash.podName`/`hash.namespace` với `TTY: true`, `Stdin/Stdout` bật, **`Stderr` tắt**. Lệnh là **hằng số phía server** `GATEWAY_EXEC_COMMAND`, mặc định **`tmux new-session -A -s dlp`** (D3) — tuyệt đối không lấy từ frame client. **Predicate fallback không được nuốt lỗi authz:** RBAC 403 KHÔNG phải upgrade-failure; predicate quá rộng thì lỗi thiếu quyền `pods/exec` sẽ hiện ra dưới dạng "SPDY failed". *Effort: M.*
+
+**G5 — Bơm dữ liệu hai chiều.** Binary frame đi thẳng, **không parse, không decode UTF-8**. Backpressure: buffer có trần, client chậm quá trần → đóng `4429` thay vì phình bộ nhớ. *Effort: M.*
+
+**G6 — Resize + handshake `init`.** Đợi frame `init` mang `cols`/`rows` **trước khi dial exec** (timeout 3s → 80×24) để prompt oh-my-posh vẽ đúng bề rộng ngay lần đầu. Resize dồn dập phải **coalesce giữ giá trị cuối**, không đóng kết nối. *Effort: S.*
+
+**G7 — Keepalive + `ExtendSession`.** Server ping mỗi 20s, không pong trong 10s → chết. **Chỉ traffic thật (stdin/stdout) mới gọi `ExtendSession`; ping/pong KHÔNG tính** — nếu tính, một tab bỏ quên giữ pod sống tới tận trần cứng. Gửi `expected_revision` đọc từ hash; `FailedPrecondition` → đọc lại, xác minh còn đúng chủ + còn sống, thử lại **đúng một lần**, vẫn lệch → đóng `4404` (không hồi sinh session đã reap). `hard_cap_reached` → đẩy control `expiring`. Auth: mTLS + `system_component` (D13). *Effort: S.*
+
+**G8 — Rate/size limit (luật 5).** Read limit 32 KiB/frame; token-bucket 256 KiB/s (burst 512 KiB) → `4429`; control > 100/s → `4400`. Trần WS **trên mỗi session** (`GATEWAY_MAX_WS_PER_SESSION=2`) đếm bằng `session:{id}:ws`; trần theo user **suy ra** từ trần session/user của orchestrator — không nhân bản quota người dùng sang hai service. *Effort: S.*
+
+**G9 — Stateless.** Không map session→pod trong RAM; tra Redis mỗi lần connect. State duy nhất được giữ là vòng đời của **chính kết nối đang mở**. *Effort: S.*
+
+**G10 — Metrics.** `dlp_gateway_ws_active`, `..._ws_connections_total{result,reason}`, `..._exec_errors_total{kind}`, `..._ws_bytes_total{direction}`, `..._attach_duration_seconds` (101→`ready`), `..._extend_total{result}`. **Không label `session_id`/`user_id`** — nổ cardinality và là PII. *Đổi tên so với plan cũ: gateway đo **attach** latency; **claim** latency thuộc orchestrator.* *Effort: S.*
+
+**G11 — Config + cổng env-drift.** Mỗi biến mới phải sửa **đồng thời 4 nơi** hoặc `make env-check` đỏ: code, `.env.example`, Helm (`values.yaml` + deployment), `.github/ci.env`. Làm cùng lúc mỗi task thêm env, không dồn cuối. *Effort: S.*
+
+**G12 — Sửa 4 file `apps/web`** (ownership giao lane này, xem bảng D): phát sandbox token + `Set-Cookie` trong `session.ts`, thêm `resHeaders` vào `TRPCContext`, key ký `aud=gateway` trong `jwt.ts`, CSP `connect-src` trong `headers.ts`. *Effort: M.*
+
+**G13 — Test IDOR e2e (acceptance BẮT BUỘC).** Chạy trong CI với Redis thật + apiserver giả. *Effort: S.*
+
+## 1.D — Pod hardening: chỉ còn 4 khoảng trống
+
+> **Đã xác minh lại 2026-08-09 trên cluster thật — tầng thực thi CÓ THẬT và đúng như mô tả**, không phải tin plan suông. Kiểm từng thứ: VAP `platform-sandbox-isolation` 8 validation CEL (đọc từng expression), ns `dlp-sandbox` PSA `enforce=baseline / audit=warn=restricted`, 3 NetworkPolicy, ResourceQuota + LimitRange, PriorityClass `dlp-platform-critical`=1000000, RBAC (`orchestrator` create pod trong `dlp-sandbox`=**yes** / `default`=**no** / exec=**no**; `gateway` exec=**yes** / create pod=**no**), IMDS bị chặn (`exit=124` timeout), `uid_map` chứng minh user-ns thật.
 >
-> Đã deploy thật (helm revision 4, cluster kubeadm v1.34.10) và **chứng minh bằng thực nghiệm**, không phải bằng review YAML:
-> - **`ValidatingAdmissionPolicy` `platform-sandbox-isolation`** (8 validation CEL) ép `runtimeClassName: sysbox-runc` + `hostUsers: false`, cấm `hostNetwork/hostPID/hostIPC`, `privileged`, `hostPath`. Namespace `dlp-sandbox` gắn PSA **`baseline`** enforce (KHÔNG phải `restricted` — `restricted` đòi `runAsNonRoot` nên sẽ giết chính pod Sysbox; `restricted` chỉ đặt ở mức audit/warn).
-> - Kiểm chứng 5/5: pod thiếu `runtimeClassName` → **từ chối**; thiếu `hostUsers:false` → **từ chối**; `privileged:true` → **từ chối**; mount `hostPath: /` → **từ chối**; pod Sysbox đúng chuẩn → **cho qua** (quan trọng nhất — policy không chặn oan P1).
-> - **NetworkPolicy default-deny** trong `dlp-sandbox`: pod thật đã thử và **bị chặn cả 4**: IMDS `169.254.169.254`, apiserver `10.96.0.1:443`, internet `1.1.1.1`, node/LAN `192.168.94.130`. Cờ `sandbox.allowInternetEgress` (mặc định tắt) mở internet cho bài lab cần `apt-get` **mà vẫn giữ `169.254.0.0/16` trong `egressExcept`** — dòng đó không bao giờ được bỏ.
-> - **Bằng chứng cô lập thật từ trong pod:** `id` → `uid=0(root)`, `/proc/self/uid_map` → `0 3480748032 65536`. Root-trong-pod map ra uid 3480748032 trên host. Đây là kiểu bằng chứng mà cổng P0.F còn thiếu — 3/8 check của `04-verify-sysbox.sh` là **tautology** (apply manifest rồi `kubectl get` đọc lại chính manifest đó ⇒ chỉ chứng minh API server lưu đúng, không chứng minh runtime thực thi), và check IMDS xanh chỉ vì lab VMware không có IMDS để trả lời.
-> - **RBAC tối thiểu:** SA riêng cho từng service. `orchestrator` create pod **chỉ trong `dlp-sandbox`** (trong `default` → `no`); `gateway` chỉ `pods/exec` (kiểm bằng `--subresource=exec`, cú pháp `pods/exec` cũ trả sai); `web` không quyền gì và **`automountServiceAccountToken: false`** — đã xác nhận trong pod không có `/var/run/secrets/kubernetes.io/serviceaccount`.
-> - `ResourceQuota` + `LimitRange` trong `dlp-sandbox` (một sinh viên không làm sập node đơn) và `PriorityClass dlp-platform-critical` (priority 1000000) cho 3 pod nền tảng để pod sinh viên không evict được chúng.
-> - **Rate limit tRPC per-user** (`apps/web/src/server/trpc/init.ts`): mutation 20/phút, query 120/phút, khoá theo `ctx.user.id` — chặn pod-bomb từ sinh viên đã đăng nhập hợp lệ spam `session.create`. Khoá theo user chứ không theo IP nên không dính lỗ `x-forwarded-for` giả mạo. **Còn lại:** `auth.session` là `publicProcedure` nên vẫn không có limit (chỉ đọc session, tương đương một lượt vào trang; chặn được khi có Traefik ở P3).
+> **Task 17, 18, 20 của bản cũ KHÔNG phải làm lại.** Chỉ còn 4 khoảng trống dưới đây.
+
+**D-17′ — Viết lại AC capability cho đúng sự thật.** Đo được trên pod thật: `CapEff = CapBnd = 000001ffffffffff` (đủ 41 cap) **dù spec có `drop: [ALL]`** — Sysbox bỏ qua ở runtime. Giữ `drop:[ALL]` + `allowPrivilegeEscalation:false` + `seccompProfile:RuntimeDefault` trong spec (phòng thủ chiều sâu: nếu một ngày `runtimeClassName` rơi mất thì pod chạy runc thường và các field này mới có tác dụng), nhưng **bỏ AC "runtime có drop ALL"** — nó là **đúng loại tautology mà chính plan này phê phán** ở 3 check hỏng của `04-verify-sysbox.sh`. AC runtime thay bằng `uid_map` offset ≠ 0. *Effort: S.*
+
+**D-19′ — Đặt PID limit thật.** `/sys/fs/cgroup/pids.max` hiện là `max`, kubelet không có `podPidsLimit` ⇒ fork-bomb trong pod sinh viên hạ được node 1-node. Thêm `podPidsLimit: 4096` vào kubelet config + restart. *Chạm: `infra/host/`. Effort: S.*
+
+**D-21′ — Hạ phạm vi task 21 xuống đúng thực tế.** nodeSelector **đã xong bằng RuntimeClass** — `sysbox-runc` tự chèn `nodeSelector: sysbox-runtime=running`, không code thêm. Taint/toleration + node pool riêng **không áp dụng được trên cluster 1-node** (node hiện có `taints: rỗng`) ⇒ dời P3 cùng lúc với cloud multi-node. Ghi rõ lý do thay vì để task treo giả vờ chưa làm. *Effort: S.*
+
+**D-22′ — Sửa verify command sai.** `ls /var/run/docker.sock` kỳ vọng "No such file" **luôn sai** với image DinD — socket đó là của dockerd *bên trong* pod (Sysbox), không phải host sock. Thay bằng check không có `hostPath` volume (VAP validation #8 đã ép). Sửa AC `docker run hello-world` theo D4. *Effort: S.*
+
+## 1.E — `images/sandbox-base`
+
+> Hiện là **placeholder thuần** (`FROM ubuntu:26.04` + `CMD bash`, không cài gói nào).
 >
-> **Đã kéo về trước P1 ở đợt đóng P0 2026-08-08** (xem [phase-0.md § "Đóng P0"](phase-0.md)): `BETTER_AUTH_SECRET` + 2 OAuth secret chuyển sang `secretKeyRef` (trước đó `kubectl get deploy -o yaml` đọc được thẳng), gitleaks thành required check, cột `jwks.expiresAt`, và contract pin nốt (`ExtendSession` + `Session.revision` + cổng `buf breaking`).
->
-> **Vẫn dời P3 theo thoả thuận với audit:** `securityContext` đầy đủ cho 3 Deployment nền tảng, pin action CI bằng SHA, hardening SSH lab cho khớp `cloud-init.yaml`, viết lại 3 check đọc-lại-manifest của `04-verify-sysbox.sh` thành proof runtime.
+> **Kiểm chứng 2026-08-09, ngược với cảnh báo trong comment Dockerfile:** `ubuntu:26.04` (Resolute Raccoon, 2026-04-23) là LTS hỗ trợ tới 2031-04 — giữ nguyên base. `eza`, `fastfetch`, `zoxide` **đều đã nằm trong universe của 26.04** ⇒ bỏ hẳn repo bên thứ ba mà plan cũ ngầm định. Thứ thật sự thiếu gói cho 26.04 là **`pwsh`** (Microsoft chưa publish, issue upstream còn mở).
 
-17. Pod spec: `runtimeClassName: sysbox-runc`, **KHÔNG privileged**, `securityContext`: `allowPrivilegeEscalation:false`, **drop ALL capabilities**, `seccompProfile: RuntimeDefault`, AppArmor annotation.
-18. **KHÔNG mount `docker.sock`** (Sysbox cho docker-in-docker native, không cần host sock).
-19. **Resource limits**: CPU/mem request+limit, **PID limit** (chặn fork-bomb), + `ResourceQuota`/namespace lab.
-20. **NetworkPolicy default-deny** (khung ở P1, siết đủ ở P3): chặn lateral tới pod khác + **chặn cloud metadata `169.254.169.254`**.
-21. Pod chạy trên **node pool lab có taint** (tách khỏi control/web); pod có toleration + nodeSelector.
+**E1 — Base + một layer apt duy nhất.** `--no-install-recommends`: `zsh tmux git curl ca-certificates less jq unzip locales fzf bat zoxide fastfetch eza`. Xoá `/var/lib/apt/lists` **trong cùng layer**. Symlink `/usr/local/bin/bat → batcat`. *Effort: S.*
 
-### 1.E images/sandbox-base — terminal UX cao cấp (design §4b)
-22. Dockerfile base **nền Ubuntu** (chốt 2026-08-07 — KHÔNG Debian, dù host là Debian 13): cài `oh-my-posh`, `fastfetch`, `terminal-icons`, `eza`, `zoxide`, `fzf`, `bat`. Shell mặc định zsh (và bash sẵn). *Lý do tách Ubuntu-image khỏi Debian-host: phần lớn tài liệu DevOps, scenario KillerCoda và bài lab đều giả định `apt` trên Ubuntu; OS của image không liên quan gì tới OS của host.*
-23. Tùy chọn `pwsh` + `PSReadLine` + oh-my-posh (build arg bật/tắt để giữ image nhỏ khi không cần).
-24. Nerd Font cấu hình sẵn cho oh-my-posh theme; cho user nạp **dotfiles riêng** (mount/injection an toàn, không cho ghi ngoài home).
-25. Image tối ưu kích thước + layer cache; build trong CI, push registry; scan vuln (trivy) cơ bản.
+**E2 — Locale + màu.** Sinh `en_US.UTF-8`, đặt `LANG`, `LC_ALL`, `TERM=xterm-256color`, **`COLORTERM=truecolor`**. Thiếu `COLORTERM` là oh-my-posh rơi về 256 màu và AC "truecolor" fail dù terminal FE đúng. *Effort: S.*
 
-### 1.F Frontend terminal (packages/terminal + apps/web)
-26. `packages/terminal`: wrapper xterm.js + **WebGL addon** + truecolor 24-bit + **Nerd Font web font** + theme switch + addon copy/paste/search/weblinks; **resize đồng bộ PTY** (gửi cols/rows qua WS control).
-27. `apps/web`: trang session — nút Start (gọi tRPC session.create), mở WSS tới gateway với token trong cookie, render terminal. Trạng thái loading/claim, lỗi, hết hạn.
-28. Reconnect trong TTL: mất WS → thử nối lại cùng session.
+**E3 — `oh-my-posh` ghim version.** **Không** `curl … install.sh | bash` — script kéo `releases/latest` từ CDN nên build không tái lập được và không có checksum. Tải asset GitHub release ghim version, verify `sha256`. *Effort: S.*
 
-## File / dir ownership
+**E4 — Shell config dùng chung.** `skel/.zshrc`, `.bashrc`, `.tmux.conf` copy vào `/etc/skel` **và** `$HOME`: init oh-my-posh + zoxide, keybinding fzf, alias `ls→eza --icons`, `cat→bat`. Shell mặc định zsh, bash giữ nguyên. *Effort: S.*
 
-| Owner | Đường dẫn |
+**E5 — KHÔNG cài Nerd Font vào image.** Glyph render ở **trình duyệt**, không ở container — font là tài sản của `packages/terminal` (F3). Image chỉ cần theme phát đúng codepoint. *Sửa task 24 cũ: cài TTF vào image là ~50–100 MB vô ích.* *Effort: S.*
+
+**E6 — Build-arg `INCLUDE_PWSH=0`.** Khi `1`: `.deb` universal từ GitHub release (ghim version + sha256, **không** `packages-microsoft-prod` vì chưa có 26.04), rồi `Terminal-Icons` + `PSReadLine` từ PSGallery. *`terminal-icons` là **module PowerShell**, không phải công cụ Linux — plan cũ xếp nhầm vào danh sách apt.* Vỡ thì để `0` và ghi nợ, **không chặn P1**. *Effort: M.*
+
+**E7 — Build-arg `INCLUDE_DOCKER=1`.** **Plan cũ thiếu hoàn toàn task này** dù AC đòi chạy được docker. Cài `docker-ce` + CLI + buildx. Sysbox cho chạy `dockerd` trong pod không cần privileged, **không mount `docker.sock`**. *Effort: M.*
+
+**E8 — `entrypoint.sh`: dockerd + nạp dotfiles an toàn.** Đọc `/mnt/dotfiles` (mount read-only), copy vào `$HOME` với **allowlist tên file** (`.zshrc .bashrc .gitconfig .tmux.conf .config/**`), **từ chối** path tuyệt đối, `..`, và symlink; cap 256 KiB + 50 file. Tuyệt đối không `git clone` URL người dùng cung cấp — đó là bề mặt SSRF. *Effort: M.*
+
+**E9 — tmux là đường vào mặc định (D3).** Image có tmux (E1) và gateway exec vào `tmux new-session -A -s dlp` (G4). Gọi hai lần phải trả về **cùng một** session. *Effort: S.*
+
+**E10 — CI + Trivy + đo size.** Thêm build-args vào hàng matrix `sandbox-base`. **Context build là `images/sandbox-base`, không phải repo root** ⇒ file phụ trợ phải nằm trong thư mục đó. **Quét Trivy CỤC BỘ trước khi merge** — job `images` chỉ chạy trên `main`, đợi CI là quá muộn với image béo lên đáng kể. Có CRITICAL chưa vá → `.trivyignore` kèm lý do + ngày rà lại, **không nới ngưỡng**. *Effort: S.*
+
+## 1.F — `packages/terminal` + trang session
+
+> Hiện `packages/terminal` **chỉ có README**, chưa có code, chưa có `package.json`.
+> Package đúng là **`@xterm/*` v6.0.0** (không phải `xterm` cũ), và **v6 đã BỎ canvas renderer** — chỉ còn DOM + WebGL.
+
+**F1 — Dựng package.** Mirror `packages/ui`: `type: module`, `exports: "./src/index.ts"`, **alias TS6/TS7 y hệt** các package khác, `peerDependencies: { react: "^19.0.0" }`. **Bắt buộc có script `build`** (dù chỉ `tsc --noEmit`) vì `turbo.json` khai `typecheck.dependsOn: ["^build","build"]`. Ghim: `@xterm/xterm@6.0.0`, `addon-webgl@0.19.0`, `addon-fit@0.11.0`, `addon-search@0.16.0`, `addon-web-links@0.12.0`, `addon-clipboard@0.2.0`, `addon-unicode11@0.9.0`. *Effort: S.*
+
+**F2 — Core wrapper.** Nạp addon theo thứ tự fit → unicode11 → webgl → search/web-links/clipboard. Vì v6 bỏ canvas renderer, **tự code fallback**: `webgl.onContextLoss` → `dispose()` addon → rơi về DOM renderer + `console.warn` (errors-over-silent-fallback, không nuốt). *Effort: M.*
+
+**F3 — Font self-host.** Một Nerd Font (MesloLGS NF hoặc JetBrainsMono NF) dạng **woff2 subset** trong `src/assets/`, `@font-face` + `font-display: block`. CSP `font-src 'self'` ⇒ CDN bị chặn, self-host là bắt buộc chứ không phải lựa chọn. *Effort: S.*
+
+**F4 — Đo kích thước & resize.** FitAddon chỉ đúng **sau khi font đã load** ⇒ `await document.fonts.ready` rồi mới `fit()`. `ResizeObserver` + debounce ~100ms. **Gửi `init` trước mọi stdin** (contract §3). *Effort: S.*
+
+**F5 — Theme switch.** 2–3 theme `ITheme` truecolor, đổi runtime qua `term.options.theme`, persist bằng `localStorage` — không cookie (tránh phình header và bề mặt CSRF). *Effort: S.*
+
+**F6 — React binding.** `'use client'`, `useRef` + `useEffect` mount/dispose; terminal là imperative nên **không** re-render theo state. **React 19.2 StrictMode dev chạy effect hai lần** ⇒ thiếu `dispose()` triệt để là 2 canvas WebGL + 2 WS. *Effort: M.*
+
+**F7 — Trang session.** `app/(session)/session/page.tsx` (Server Component, kiểm auth) + `session-terminal.tsx` (`'use client'`) nạp bằng `next/dynamic` với **`ssr: false`** — xterm đụng `document` ngay lúc import module. *Effort: M.*
+
+**F8 — tRPC client (chưa tồn tại).** `apps/web` hiện chỉ có `@trpc/server`. Thêm `@trpc/client` (+ TanStack Query nếu cần cache) và `src/lib/trpc.ts` trỏ `/api/trpc`. Plan cũ giả định sẵn có. *Effort: S.*
+
+**F9 — Máy trạng thái UI.** `idle → creating → claiming → connecting → ready → (reconnecting) → expired | error`. Đếm ngược tới `expiresAt` (lấy từ `ready`, không cần gọi thêm), cảnh báo khi nhận `expiring`, nút "Gia hạn". **Thấy `1006` mà chưa từng nhận `ready`** → gọi tRPC `session.get` để biết lý do thật (contract §7). *Effort: M.*
+
+**F10 — Reconnect.** Backoff 1/2/4/8s cap 15s, chỉ khi `now < expiresAt`, và **dừng hẳn** với close code báo authz/hết hạn (không retry vô ích vào 403). Nhờ tmux (D3) nối lại là **phiên thật**, không phải shell mới. *Effort: S.*
+
+**F11 — Test.** vitest + jsdom: state machine, parser control message, logic backoff. WebGL và glyph không test tự động được ⇒ checklist thủ công + ảnh chụp lưu `plans/reports/`. *Effort: S.*
+
+---
+
+## File / dir ownership — bản đồ zero-overlap cho fan-out
+
+| Lane | Sở hữu độc quyền |
 |---|---|
-| Orchestrator | `services/orchestrator/internal/{pool,lifecycle,reaper,k8s}/**`, `.../gen/**` |
-| Gateway | `services/terminal-gateway/internal/{ws,exec,authz}/**` |
-| Contract (mở rộng) | `proto/orchestrator/v1/*.proto` (thêm field cho pool/tier), regen 2 đầu |
-| Sandbox pod spec | `infra/k8s/pod-template-sandbox.yaml`, `infra/k8s/networkpolicy-deny.yaml`, `infra/k8s/resourcequota-lab.yaml` |
-| Image | `images/sandbox-base/**` |
-| FE terminal | `packages/terminal/**`, `apps/web/src/app/(session)/**` |
-| Redis keys | quy ước tài liệu trong `services/orchestrator/internal/pool/keys.go` (SSOT key naming) |
+| **Orchestrator** | `services/orchestrator/internal/{pool,lifecycle,reaper,k8s,audit}/**`, `internal/grpcserver/` |
+| **Gateway** | `services/terminal-gateway/**`, **+ 4 file `apps/web`**: `src/server/trpc/routers/session.ts`, `src/server/trpc/init.ts`, `src/server/auth/jwt.ts`, `src/server/security/headers.ts` |
+| **Image** | `images/sandbox-base/**` |
+| **FE** | `packages/terminal/**`, `apps/web/src/app/(session)/**`, `apps/web/src/lib/trpc.ts` |
+| **Infra** | `infra/host/**`, `infra/helm/**`, `infra/k8s/**`, `docker-compose.yml` |
 
-**Tránh đụng file (parallel-safe):** orchestrator và gateway là 2 lane độc lập (chỉ chung `proto/` + Redis key contract — pin trước khi fan-out theo `rules/contract-first-integration.md`). `packages/terminal` (FE) độc lập lane thứ 3. Redis key naming là file chung → 1 owner khai báo trước.
+**File chung nhiều lane — làm TUẦN TỰ ở 1.B0.3, không lane nào tự sửa giữa chừng:**
+`docs/redis-key-namespace.md` · `docs/redis-key-vectors.json` · `services/shared/rediskeys/**` · `packages/shared-types/src/redis-keys.ts` · `docs/ws-terminal-protocol.md` · `turbo.json` · `.github/ci.env`
 
-## Dependencies
+**Contract pin trước fan-out** (`rules/contract-first-integration.md`): `docs/ws-terminal-protocol.md` nhúng nguyên văn vào brief lane gateway + lane FE; field hash `session:{id}` nhúng vào brief lane orchestrator + lane gateway.
 
-- **Blocks:** P2 (Lessons cần terminal + engine), P3 (hardening + load test), P4.
-- **Blocked by:** P0 (proto contract, Sysbox proof, skeleton services, auth).
-- **Nội bộ:** 1.A (spike) là HARD-GATE trước 1.B–1.F. 1.E (image) cần trước khi warm-pool tạo pod thật. Contract Redis-key + gRPC pin trước khi orchestrator∥gateway∥FE fan-out.
+**Branch/worktree:** lead cấp trước một nhánh cho mỗi lane; teammate **không** `git checkout -b` (chia chung HEAD). Commit bằng dạng pathspec `git commit -m … -- <paths>`, không `git add .` (`rules/parallel-teammate-git-index-race.md`).
+
+**Thứ tự bắt buộc:**
+```
+1.B0.1 (Calico) ─┬─► 1.B0.2 (Redis/PG) ─┐
+                 ├─► 1.B0.3 (contract)  ├─► 1.A-1 spike ─► 1.C gateway ─┐
+                 └─► 1.B0.4 (origin) ───┤                                ├─► tích hợp
+                                        ├─► 1.A-2 spike ─► 1.B orch ─────┤
+                                        ├─► 1.E image ───────────────────┤
+                                        └─► 1.F FE (cần WS contract) ────┘
+1.D chạy song song hoàn toàn, không chặn ai
+```
+**1.E-1 (E1–E5, E10) phải merge + push image lên ghcr TRƯỚC** khi warm-pool tạo pod thật; trước đó orchestrator chỉ test với `pause` image. Values Helm hiện trỏ tag `dev` (build tay) → phải chuyển sang tag `sha-<short>` do CI đóng.
+
+---
 
 ## Acceptance criteria
 
-**Chức năng (design §12):**
-- [ ] User bấm Start → claim pod từ warm-pool **< 1s** (đo p95).
-- [ ] Terminal xterm.js nối PTY pod: gõ `ls`, `docker run hello-world`, `fastfetch` hiển thị đúng; resize cửa sổ → PTY cập nhật (cols/rows khớp).
-- [ ] Glyph oh-my-posh + terminal-icons render đầy đủ (truecolor + Nerd Font).
-- [ ] Chọn được shell bash/zsh; pwsh khả dụng khi image build bật.
-- [ ] Session hết TTL → reaper xóa pod + Redis key trong ≤ 1 chu kỳ quét; pod mồ côi cũng bị dọn.
-- [ ] Warm-pool tự replenish về `POOL_TARGET` sau khi claim.
-- [ ] Pool rỗng → cold path tạo pod on-demand (chậm hơn nhưng không lỗi), có log cảnh báo.
+### Gate 1.A (HARD-GATE — không mở 1.B/1.C khi chưa xanh)
+- [ ] Spike WS: `fallback` executor attach được vào pod Sysbox; report ghi rõ transport thắng + subprotocol thương lượng.
+- [ ] Spike WS: `vim` + `htop` vẽ đầy đủ, không rác ANSI; kéo cửa sổ → `stty size` khớp < 1s; `exit` đóng sạch, `-race` không báo; xoá pod giữa phiên → báo lỗi rõ, không treo.
+- [ ] Spike WS: report trả lời đủ 6 câu gotcha ở S4, **gồm close code thật của read-limit**.
+- [ ] Spike claim: `-race -count=20` xanh 20/20; đúng 50 thành công / 150 "pool rỗng" / **0 podName trùng**; `LLEN pool:free==0`, `pool:claimed==50`.
+- [ ] Spike claim chạy trên **Redis thật**; skip có log rõ khi `REDIS_URL` trống.
+- [ ] Redis restart giữa chừng → `EVALSHA` gặp `NOSCRIPT` tự fallback `EVAL`, không mất claim.
 
-**Bảo mật (luật 10 — TESTABLE, đây là phase sở hữu):**
-- [ ] **Per-session WS authz:** user B mở `WSS /ws/session/{id-của-A}` → **403, đóng WS** (test: đoán/brute id không vào được shell người khác — kill IDOR luật 1 & 10).
-- [ ] **Token luật 8:** token chỉ qua cookie/subprotocol; `grep` không có token trong query; WS mở bằng query-token → từ chối.
-- [ ] **Luật 6:** gateway từ chối token thiếu/sai `aud=gateway` hoặc hết TTL.
-- [ ] Pod: `kubectl get pod -o yaml` xác nhận **không privileged**, `capabilities.drop:[ALL]`, `seccompProfile:RuntimeDefault`, **không mount docker.sock**, có PID/CPU/mem limit.
-- [ ] `runtimeClassName == sysbox-runc`; root-in-pod map ra UID ≠ 0 trên host.
-- [ ] **NetworkPolicy:** từ trong pod `curl http://169.254.169.254/` **timeout/deny**; ping pod session khác **deny** (test).
-- [ ] **Luật 5:** frame WS quá lớn → cắt/đóng; > N WS/user → từ chối.
+### Prerequisite 1.B0
+- [ ] Tạo được pod mới trong `dlp-sandbox` **sau > 25h** kể từ lần deploy Calico gần nhất (chứng minh D5 vá thật, không phải vừa restart xong).
+- [ ] `redis-cli CONFIG GET notify-keyspace-events` trả chuỗi chứa `E` và `x`.
+- [ ] Pod orchestrator `Running` với `REDIS_URL`/`DATABASE_URL` trỏ service in-cluster.
+- [ ] Web và gateway **cùng origin**: từ trang web, `document.cookie` scope `/ws` được gửi kèm trong handshake (kiểm bằng DevTools Network).
 
-**Rủi ro-khử:**
-- [ ] Spike WS⇄exec (1.A) xanh + ghi gotcha trước khi build gateway thật.
-- [ ] Test đồng thời: N goroutine claim → **0 double-claim** (rủi ro #3 đóng).
+### Chức năng
+- [ ] 5 RPC trả kết quả thật, không còn `Unimplemented`.
+- [ ] Claim từ warm-pool **p95 < 1s** (`dlp_claim_duration_seconds`, ≥ 50 mẫu).
+- [ ] Từ `ready` tới prompt đầu tiên: **p95 < 500ms** (`dlp_gateway_attach_duration_seconds`).
+- [ ] Prompt đầu tiên vẽ **đúng bề rộng** cửa sổ (không gãy dòng) — chứng minh `init`-trước-dial hoạt động.
+- [ ] `CreateSession` 2 lần cùng `idempotency_key` → **cùng `session.id`**, số pod tăng đúng **1**.
+- [ ] `GetSession` với `user_id` sai → **`NotFound`** (không phải `PermissionDenied`).
+- [ ] `ExtendSession` với `expected_revision` cũ → `FailedPrecondition`; mỗi lần ghi `revision` tăng đúng 1.
+- [ ] Gia hạn liên tục quá `HARD_CAP` → `expires_at` đứng yên, `hard_cap_reached=true`, FE nhận `expiring`.
+- [ ] Có traffic → `ExtendSession` được gọi; **chỉ ping/pong → `expires_at` KHÔNG đổi**, WS đóng `4408` sau idle-window.
+- [ ] `ReapSession` gọi 2 lần → cả hai OK; gọi với `user_id` người khác → từ chối, pod **vẫn sống**.
+- [ ] Sau claim, `pool:free` tự về `POOL_TARGET` trong ≤ 30s; pool rỗng → cold path thành công + `dlp_cold_path_total` tăng.
+- [ ] Xoá `session:{id}` khỏi Redis → sweep dọn pod mồ côi ≤ 1 chu kỳ. Xoá pod (key còn) → session chuyển `FAILED`.
+- [ ] Tắt Postgres → `CreateSession` **vẫn thành công**, chỉ log `ERROR` audit.
+- [ ] `sessions_audit` không có cột nào trả lời được "session X đang ở pod nào".
+- [ ] **Reconnect thật (D3):** ngắt mạng 5s → vào lại thấy **đúng màn hình cũ**, scrollback còn, tiến trình đang chạy không chết. `tmux ls` trong pod chỉ có **1** session.
+- [ ] Đóng WS → pod **không** bị xoá ngay; nối lại cùng `{id}` trong TTL vào đúng pod cũ.
+- [ ] 2 replica gateway sau round-robin LB: mở/đóng 20 WS xen kẽ, 0 lỗi.
+
+### Terminal UX
+- [ ] 10 binary có mặt trong image: `zsh tmux git jq fzf zoxide fastfetch eza bat oh-my-posh`.
+- [ ] `zsh -lic 'echo $COLORTERM'` → `truecolor`; `locale` báo UTF-8.
+- [ ] `eza --icons -la` in glyph thật (byte đa-byte, kiểm bằng `| xxd`), không phải `?`.
+- [ ] **DinD offline (D4):** `docker info` trả cả client lẫn server; `docker build` một image `FROM scratch` rồi `docker run` nó — thành công **không cần mạng**.
+- [ ] Dotfiles: file trong allowlist được copy; **symlink và `../` bị từ chối**, không ghi được ngoài `$HOME`.
+- [ ] Mở `/session`: DevTools Console **0 CSP violation**; gõ tiếng Việt / ký tự đa-byte không vỡ khi output cắt qua nhiều frame.
+- [ ] Tắt hardware acceleration → terminal vẫn chạy (fallback DOM renderer) + có `console.warn`.
+- [ ] StrictMode dev: mount/unmount 3 lần → chỉ còn **1** WebSocket sống.
+- [ ] `trivy image --severity CRITICAL --exit-code 1` pass **cục bộ trước khi merge**.
+
+### Bảo mật (luật 5, 6, 8, 10 — P1 là phase sở hữu luật 10)
+- [ ] **IDOR:** user B, token hợp lệ của chính B, mở `/ws/session/{id-của-A}` → **403, không upgrade, apiserver không nhận request nào**.
+- [ ] Token của A + `sid` session A nhưng URL là session A' (A cũng sở hữu) → **403** (chặn dùng lại token chéo session).
+- [ ] `{id}` đoán bừa → **404**, thời gian phản hồi không lệch có hệ thống so với 403 (không thành oracle liệt kê session).
+- [ ] Session `EXPIRED`/`REAPED` → **409**, không dial exec.
+- [ ] **Luật 6:** token `aud=orchestrator` (loại BFF đang mint) → **401**; ký sai key → 401; `exp` qua → 401; thiếu `sid` → 401.
+- [ ] **Luật 8:** WS mở bằng query-token → **401**; `grep -rn "URL.Query()"` = 0 ở đường đọc token; log gateway sau một phiên đầy đủ `grep -cE 'eyJ[A-Za-z0-9_-]{10,}'` = **0**; cookie có đủ `HttpOnly; Secure; SameSite=Strict; Path=/ws`.
+- [ ] **CSWSH:** handshake với `Origin: https://evil.example` → **403**.
+- [ ] **Luật 5:** frame vượt read-limit → đóng đúng close code đã pin sau spike; bơm 5 MiB/s → `4429` và RSS gateway không tăng quá 2× baseline; WS thứ 3 trên cùng session (trần 2) → **429**; bão 200 resize/s → coalesce, **không** đóng, `stty size` khớp giá trị cuối.
+- [ ] **Pod:** `runtimeClassName == sysbox-runc`; `uid_map` cột 2 ≠ 0; không `hostPath` volume; `pids.max` là **số** không phải `max`; fork-bomb → pod chết, node `Ready`, 3 pod platform không restart.
+- [ ] **NetworkPolicy:** từ trong pod `curl http://169.254.169.254/` timeout/deny; ping pod session khác deny.
+- [ ] **VAP regression:** pod thiếu `runtimeClassName` → bị từ chối (chạy lại mỗi lần đổi pod builder).
+
+---
 
 ## Verify commands
 
 ```bash
-# Warm-pool + claim latency (script test đồng thời)
-go test ./services/orchestrator/internal/pool/... -run TestConcurrentClaim -race   # 0 double-claim
-kubectl get pods -l pool=free                                                       # thấy N pod warm
+# ============ Gate 1.A ============
+cd services/terminal-gateway
+go list -m -versions k8s.io/client-go | tr ' ' '\n' | grep '^v0.34' | tail -3
+go run ./cmd/spike-exec -pod "$POD" -ns dlp-sandbox -transport fallback -client
+# trong phiên: chạy vim, kéo cửa sổ, rồi `stty size` — phải khớp cols/rows local
 
-# Per-session authz (IDOR test)
-# user A tạo session -> lấy id; user B token thử nối:
-wscat -c "wss://host/ws/session/$SID_A" -H "Cookie: session=$TOKEN_B"   # kỳ vọng 403/close
+docker compose up -d redis
+REDIS_URL=redis://:$REDIS_PASSWORD@127.0.0.1:6379/0 \
+  go test ./services/orchestrator/internal/pool/... -run TestConcurrentClaim -race -count=20
 
-# Pod hardening
-kubectl get pod $POD -o jsonpath='{.spec.containers[0].securityContext}'   # drop ALL, no priv
-kubectl get pod $POD -o jsonpath='{.spec.runtimeClassName}'                 # sysbox-runc
-kubectl exec $POD -- cat /proc/self/uid_map                                 # host uid != 0
-kubectl exec $POD -- curl -m 3 http://169.254.169.254/ ; echo "exit=$?"     # deny/timeout
-kubectl exec $POD -- sh -c 'ls /var/run/docker.sock' 2>&1                   # No such file
+# ============ Prerequisite ============
+# Calico: chạy SAU khi cluster đã lên > 25h
+ssh nghaiz@192.168.94.130 'sudo awk "/token:/{print \$2}" /etc/cni/net.d/calico-kubeconfig \
+  | cut -d. -f2 | base64 -d | tr "," "\n" | grep exp; date +%s'    # exp PHẢI > now
+redis-cli -a "$REDIS_PASSWORD" CONFIG GET notify-keyspace-events    # chứa E và x
 
-# Reaper
-# đặt TTL ngắn, chờ, kiểm pod + key biến mất
-kubectl get pod $POD ; redis-cli exists session:$SID    # cả hai => gone
+# ============ gRPC lifecycle ============
+grpcurl -plaintext -d '{"user_id":"u1","tier":"SANDBOX_TIER_SYSBOX","ttl_seconds":600,"idempotency_key":"k1"}' \
+  localhost:9090 orchestrator.v1.SessionService/CreateSession        # gọi 2 lần: cùng session.id
+grpcurl -plaintext -d '{"session_id":"'$SID'","user_id":"KHONG-PHAI-CHU"}' \
+  localhost:9090 orchestrator.v1.SessionService/GetSession           # NotFound
+curl -s localhost:8081/metrics | grep dlp_claim_duration_seconds_bucket
 
-# Terminal render (thủ công): mở /session, chạy fastfetch + eza --icons
+# ============ IDOR + luật 8 (acceptance bắt buộc) ============
+wscat -c "wss://app.example.com/ws/session/$SID_A" -H "Cookie: dlp_sandbox=$TOKEN_B" -s dlp.terminal.v1  # 403
+wscat -c "wss://app.example.com/ws/session/$SID_A" -H "Cookie: dlp_sandbox=$TOKEN_A" -s dlp.terminal.v1  # 101
+wscat -c "wss://app.example.com/ws/session/$SID_A?token=$TOKEN_A"   -s dlp.terminal.v1                   # 401
+wscat -c "wss://app.example.com/ws/session/khong-ton-tai" -H "Cookie: dlp_sandbox=$TOKEN_A" -s dlp.terminal.v1  # 404
+curl -i -H "Origin: https://evil.example" -H "Cookie: dlp_sandbox=$TOKEN_A" \
+     -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Version: 13" \
+     -H "Sec-WebSocket-Key: $(openssl rand -base64 16)" -H "Sec-WebSocket-Protocol: dlp.terminal.v1" \
+     "https://app.example.com/ws/session/$SID_A"                     # 403 (CSWSH)
+grep -rn "URL.Query()\|r.FormValue" services/terminal-gateway/internal/     # 0 ở đường token
+grep -rniE "wss?://[^\"']*(token|jwt|sid)=" apps packages && echo "VI PHẠM" || echo "OK"
+
+# RBAC — LƯU Ý cú pháp --subresource=exec; `can-i create pods/exec` trả kết quả SAI
+kubectl auth can-i create pods --subresource=exec -n dlp-sandbox \
+  --as=system:serviceaccount:dlp-platform:dlp-platform-gateway      # yes
+kubectl auth can-i create pods -n dlp-sandbox \
+  --as=system:serviceaccount:dlp-platform:dlp-platform-gateway      # no
+
+# ============ Image ============
+docker build -t dlp-sandbox-base:slim images/sandbox-base
+docker run --rm dlp-sandbox-base:slim bash -lc \
+  'for b in zsh tmux git jq fzf zoxide fastfetch eza bat oh-my-posh; do
+     command -v "$b" >/dev/null || { echo "MISSING $b"; exit 1; }; done; echo ALL-OK'
+docker run --rm dlp-sandbox-base:slim zsh -lic 'echo $COLORTERM; locale | grep -i utf-8'
+docker run --rm dlp-sandbox-base:slim bash -lc \
+  'tmux new-session -d -A -s dlp; tmux new-session -d -A -s dlp; tmux ls | wc -l'   # 1
+mkdir -p /tmp/df && printf 'echo hi\n' > /tmp/df/.zshrc && ln -sf /etc/shadow /tmp/df/.evil
+docker run --rm -v /tmp/df:/mnt/dotfiles:ro dlp-sandbox-base:slim bash -lc \
+  'grep -q hi "$HOME/.zshrc" && echo "copy OK"; [ ! -e "$HOME/.evil" ] && echo "symlink từ chối OK"'
+trivy image --severity CRITICAL --exit-code 1 dlp-sandbox-base:slim
+
+# ============ Pod hardening (khoảng trống thật) ============
+kubectl exec -n dlp-sandbox $POD -- cat /sys/fs/cgroup/pids.max     # số, không phải "max"
+kubectl exec -n dlp-sandbox $POD -- cat /proc/self/uid_map          # cột 2 != 0
+kubectl get pod -n dlp-sandbox $POD -o jsonpath='{.spec.volumes}'   # không có hostPath
+kubectl exec -n dlp-sandbox $POD -- curl -m 3 http://169.254.169.254/ ; echo "exit=$?"  # deny
+# DinD offline (D4) — KHÔNG dùng `docker run hello-world`, nó cần pull
+kubectl exec -n dlp-sandbox $POD -- sh -c \
+  'printf "FROM scratch\n" > /tmp/D && docker build -q -t t /tmp && docker images t'
+
+# ============ Cổng chung ============
+pnpm turbo run lint typecheck build test
+make go-build && make go-test && make go-vet && make env-check && make proto-breaking
 ```
 
-## Risk Assessment (P1)
+---
 
-| Rủi ro | Likelihood | Impact | Score | Mitigation |
+## Risk Assessment (P1) — hợp nhất 3 lane, đã đo lại
+
+| Rủi ro | L | I | Score | Mitigation |
 |---|---|---|---|---|
-| **WS ⇄ pod-exec streaming (Go)** — SPDY exec, TTY resize, đóng stream, backpressure sai | 4 | 5 | **20** | Spike 1.A TRƯỚC; dùng client-go `remotecommand` (đường chính chủ); e2e 1 session ổn rồi mới scale; test resize + đóng sạch. |
-| **Sysbox pod tạo động fail** (image, runtimeclass, node taint) | 4 | 5 | **20** | Dựa trên proof P0.F; warm-pool tạo trước để lỗi lộ sớm; log rõ; cold-path fallback không nuốt lỗi. |
-| **Warm-pool race** — double-claim, replenish thừa/thiếu | 4 | 4 | **16** | Redis atomic (Lua/`LMOVE`); state machine free→claimed→active; test đua có `-race`; reaper idempotent. |
-| Per-session authz sai → IDOR vào shell người khác | 3 | 5 | 15 | Authz kiểm `session.userId==token.sub` server-side; test brute id; token `aud=gateway`. |
-| Reaper xóa nhầm pod đang active (idle-detect sai) | 3 | 4 | 12 | lastActive cập nhật từ WS ping; grace period; TTL cứng tách idle-timeout; idempotent. |
-| Gateway không scale ngang (state local) | 2 | 4 | 8 | Gateway stateless, session→pod ở Redis; session-affinity ở Ingress (P3). |
+| **R0 — Calico CNI token 24h: cluster mất khả năng tạo pod, IM LẶNG.** Pod cũ vẫn Running nên lỗi ẩn hoàn toàn. **ĐANG XẢY RA, đã chữa tạm 2026-08-09.** | 5 | 5 | **25** | D5 + task 1.B0.1 là việc **đầu tiên**, trước cả spike. Canary tạo-pod trong cron/CI để lỗi lộ ngay. `rollout restart` KHÔNG phải fix. |
+| **R1 — WS ⇄ pod-exec streaming** (transport, resize, đóng stream, backpressure) | 4 | 5 | **20** | Spike 1.A-1 HARD-GATE; `NewFallbackExecutor` theo khuôn `kubectl` thay vì tự chế; 5 tiêu chí xanh đo được; `-race` + goleak. |
+| **R2 — Warm-pool race, double-claim** | 4 | 4 | **16** | Lua một-lượt-atomic, không chuỗi lệnh Go; test đua `-race -count=20` trên **Redis thật**; HARD-GATE trước 1.B. |
+| **R3 — Cookie không tới gateway vì khác origin** ⇒ thiết kế luật 8 chết ở deploy | 3 | 5 | **15** | 1.B0.4 **trước** khi lane FE code; Ingress prod + reverse proxy dev; nếu không chốt được thì phải mở lại D1. |
+| **R4 — IDOR vào shell người khác** (thiếu một vế authz) | 3 | 5 | **15** | Hai vế (`token.sid=={id}` + `redis.userId==token.sub`), fail **trước** upgrade; G13 test tự động trong CI, không kiểm tay. |
+| **R5 — Sysbox pod tạo động fail** | 3 | 5 | **15** | *Hạ từ 4→3 bằng thực nghiệm 2026-08-09: pod Sysbox đầy đủ securityContext Ready trong 6.06s, dockerd trong pod sống.* Rủi ro còn lại là builder quên field ⇒ test regression VAP + log nguyên văn message API server. |
+| **R6 — AC bảo mật là tautology** ⇒ tưởng cô lập mà không (`drop:[ALL]` bị Sysbox bỏ qua) | 4 | 3 | **12** | D-17′/D-22′ viết lại AC theo proof runtime. Nguyên tắc: mọi check đọc-lại-manifest phải có một check runtime đi kèm. |
+| **R7 — Quota chỉ đủ 4 pod đồng thời** (ba nguồn đang nói 20/10/4) | 4 | 3 | **12** | `POOL_TARGET` từ env, mặc định 3. `dlp_pool_free_size` + `dlp_cold_path_total` để thấy nghẹt. Dựng số quota thật trước khi hứa số session đồng thời ở P3. |
+| **R8 — Reaper mất event keyspace** ⇒ pod sống mãi, ăn hết quota | 4 | 3 | **12** | Hai tầng; **sweep là đường chính**, pub/sub chỉ là đường nhanh. `dlp_reaper_orphan_pods_total` > 0 kéo dài = báo động. |
+| **R9 — PID limit vắng** ⇒ fork-bomb hạ node 1-node | 3 | 4 | **12** | D-19′; test fork-bomb là AC bắt buộc. |
+| **R10 — Redis/Postgres vắng trong cluster** ⇒ CrashLoop khi bật `RequireDataStores` | 4 | 3 | **12** | 1.B0.2 trước B3. Không bật `RequireDataStores()` cho tới khi service in-cluster xanh. |
+| **R11 — Contract Redis nở thêm mà lane khác không biết** | 3 | 4 | **12** | 1.B0.3 pin trước fan-out; sửa `redis-key-vectors.json` TRƯỚC để cả hai suite đỏ đúng chỗ thiếu. |
+| **R12 — Trivy CRITICAL chặn `main`** sau khi image béo lên | 3 | 4 | **12** | Quét cục bộ **trước khi merge** (job `images` chỉ chạy trên main); ưu tiên gói universe hơn binary bên thứ ba. |
+| **R13 — Gateway không có credential gọi `ExtendSession`** | 3 | 3 | 9 | D13 mTLS + `system_component`; chốt trước G7. |
+| R14 — WebGL không khả dụng (v6 đã bỏ canvas renderer) | 3 | 3 | 9 | `onContextLoss` → fallback DOM + `console.warn`; test thủ công với hardware accel tắt. |
+| R15 — `pwsh` `.deb` vỡ dependency trên 26.04 | 3 | 3 | 9 | Ghim version + sha256, smoke `pwsh -v` trong Dockerfile; vỡ thì `INCLUDE_PWSH=0`, ghi nợ, **không chặn P1**. |
+| R16 — Image phình ⇒ pull chậm ⇒ hỏng mục tiêu claim < 1s | 3 | 3 | 9 | Ngưỡng size trong AC; pre-pull lên node lab; tách biến thể chỉ khi đo được (D12). |
+| R17 — FE hiểu nhầm `1006` là "gateway chết" | 4 | 2 | 8 | Contract §7 + F9 probe tRPC `session.get`. |
+| R18 — Dotfiles bị lợi dụng ghi ngoài `$HOME` | 2 | 4 | 8 | Allowlist + từ chối symlink/`..` + cap size; ca test symlink trong AC. |
+| R19 — Reaper xoá nhầm pod đang active | 3 | 4 | 12 | `lastActiveAt` cập nhật từ traffic thật (không phải ping); grace period; TTL cứng tách idle-timeout; idempotent. |
 
-**3 score ≥ 15 (WS-exec, Sysbox-dynamic, race)** → mitigation (spike 1.A + P0 proof + atomic claim test) BẮT BUỘC pass trước khi coi P1 done và mở P2.
+**Sáu mục ≥ 15 (R0, R1, R2, R3, R4, R5)** phải có mitigation **chạy xanh** trước khi task phụ thuộc bắt đầu.
+
+---
 
 ## Timeline (P1)
 
-| Task nhóm | Effort | Notes |
+| Nhóm | Effort | Phụ thuộc |
 |---|---|---|
-| 1.A Spike khử rủi ro | M | **Cổng vào** — làm trước |
-| 1.B Orchestrator pool+lifecycle+reaper | L | Đường găng |
-| 1.C Gateway WS⇄exec + authz | L | Đường găng (song song 1.B, chung proto/Redis contract) |
-| 1.D Pod hardening core | M | Chồng vào 1.B |
-| 1.E sandbox-base image | M | Cần trước warm-pool thật |
-| 1.F FE terminal | M | Lane song song thứ 3 |
-| **Total P1** | **L** | Critical path: 1.A → (1.B ∥ 1.C ∥ 1.F) với 1.D/1.E hỗ trợ |
+| 1.B0.1 Calico | **S** | 🔴 Chặn TẤT CẢ |
+| 1.B0.2 Redis+PG in-cluster · 1.B0.3 contract · 1.B0.4 origin | **M** | Song song nhau; B0.3 chặn spike claim, B0.4 chặn lane FE |
+| 1.A-1 spike WS⇄exec | **M** | HARD-GATE, chặn 1.C |
+| 1.A-2 spike claim atomic | **M** | HARD-GATE, chặn 1.B. Song song 1.A-1 |
+| 1.B orchestrator (B1–B9) | **L** | Đường găng |
+| 1.C gateway (G1–G13) | **L** | Đường găng, song song 1.B |
+| 1.D bốn khoảng trống | **S**×4 | Song song hoàn toàn |
+| 1.E image | **M** | E1–E5 phải xong **sớm nhất** (warm-pool chờ image) |
+| 1.F FE | **M–L** | Chặn bởi WS contract + B0.4 + G12 |
+| **Tổng P1** | **L (~3 tuần)** | Đường găng: `1.B0.1 → 1.B0.3 → 1.A → (1.B ∥ 1.C) → tích hợp`. 1.E-1 phải chen sớm. |
+
+---
+
+## Đã sửa gì so với bản 2026-08-07
+
+1. **SPDY → `NewFallbackExecutor(ws, spdy)`** — cluster là K8s v1.34.10 nơi WebSocket exec là beta bật mặc định, Stable ở 1.35; `kubectl` đã mặc định WS từ 1.31.
+2. **`rediskeys` chuyển sang `services/shared/`** — gateway không compile được nếu import từ `internal/` của orchestrator. Chặn ở compile, không phải rủi ro.
+3. **Field hash `session:{id}` chưa từng được pin** ở đâu cả — chỉ pin tên key. Đây đúng kiểu drift mà `contract-first-integration.md` tồn tại để chặn, và chỉ lộ ở runtime.
+4. **Token transport chốt cookie** — bản cũ mâu thuẫn với chính nó (task 12 nói "cookie HOẶC subprotocol", task 27 đã chốt cookie). Kèm hệ quả topology mà bản cũ không ghi.
+5. **`docker.sock` tồn tại trong pod DinD** — verify cũ kỳ vọng "No such file" nên **luôn sai**; socket đó là của dockerd bên trong, không phải host sock.
+6. **`drop:[ALL]` bị Sysbox bỏ qua ở runtime** — AC cũ là tautology.
+7. **Thiếu hoàn toàn task cài Docker vào image** dù AC đòi chạy được docker; và NetworkPolicy default-deny chặn pull ⇒ D4 đổi AC sang DinD offline.
+8. **"Reconnect trong TTL" không khả thi như mô tả** — `pods/exec` mỗi lần attach là tiến trình mới ⇒ D3 thêm tmux.
+9. **Nerd Font đặt sai chỗ** (image → `packages/terminal`); **`terminal-icons` xếp nhầm** là công cụ Linux (nó là module PowerShell).
+10. **`apps/web` chưa có tRPC client**, `TRPCContext` không có `resHeaders` nên **không Set-Cookie được** — cả hai là tiền đề mà bản cũ giả định sẵn có.
+11. **`infra/k8s/pod-template-sandbox.yaml` không tồn tại**; bảng ownership trỏ file ma ⇒ D8.
+12. **Metric "claim latency" gateway không đo được** — claim xảy ra ở orchestrator trước khi WS tồn tại. Gateway đo **attach** latency.
+13. **`pool:free` chưa pin kiểu dữ liệu**, ba nguồn nói khác nhau ⇒ D6.
+14. **`idempotency_key` bắt buộc trong proto nhưng namespace Redis không có key nào cho nó.**
+15. **Redis chưa bật keyspace notification** ⇒ reaper pub/sub sẽ không nhận event nào và im lặng.
+16. **Comment proto cấm *ghi* Redis từ gateway, không cấm *đọc*** ⇒ D2 giải mâu thuẫn task 10/15.
