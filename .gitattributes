@@ -19,5 +19,11 @@ packages/shared-types/gen/** text eol=lf
 # Input giống hệt nhau ở mọi nền tảng thì output mới giống hệt nhau.
 *.proto text eol=lf
 
+# Script Lua được `go:embed` rồi gửi thẳng sang Redis. CRLF không làm Lua sai
+# cú pháp, nhưng nó đổi nội dung ⇒ đổi SHA1 ⇒ máy dev Windows và CI Linux nạp
+# HAI script khác nhau vào cache của cùng một Redis. Không hỏng, nhưng khiến
+# việc đối chiếu `SCRIPT EXISTS <sha>` lúc chẩn đoán trở nên vô nghĩa.
+*.lua text eol=lf
+
 # Mặc định: để git tự chuẩn hoá text, nhị phân giữ nguyên.
 * text=auto

@@ -97,6 +97,8 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 
 ### 1.A-1 — Spike WS ⇄ pod-exec (rủi ro #1 toàn dự án, score 20)
 
+> **✅ Đã chạy 2026-08-09.** Kết quả + 6 gotcha: [`reports/2026-08-09-spike-ws-exec.md`](reports/2026-08-09-spike-ws-exec.md). Patch chốt: **client-go `v0.34.9`** chứ không `.10` — `.10` kéo `protobuf v1.36.12-pre` lệch với orchestrator, và một repo chỉ nên có một version protobuf.
+
 **S1 — Dependency + exec chạy được.** Thêm `k8s.io/client-go` (minor khớp cluster: **v0.34.x** cho K8s 1.34.10) + `k8s.io/api`, `k8s.io/apimachinery` vào `services/terminal-gateway/go.mod` (hiện có **0 dependency k8s**). Viết `cmd/spike-exec/main.go` exec `/bin/sh -c 'echo hello'` vào pod có sẵn trong `dlp-sandbox`. Chốt patch bằng `go list -m -versions`, không chép số từ blog.
 
 **S2 — Ba transport, đo và so.** Cờ `-transport=ws|spdy|fallback`. **Plan cũ chốt SPDY là lỗi thời:** `kubectl` mặc định WebSocket từ K8s 1.31; ở **1.34** (cluster của ta là v1.34.10) RemoteCommand-over-WebSockets là **beta bật mặc định** (`v5.channel.k8s.io`) và lên Stable ở 1.35. **Chốt dùng `NewFallbackExecutor(wsExec, spdyExec, httpstream.IsUpgradeFailure)`** — đúng khuôn mẫu `kubectl exec`, WS là đường chính, SPDY là lưới an toàn. Ghi kết quả vào `plans/reports/`.
@@ -110,6 +112,8 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 > **Tiêu chí xanh (tất cả phải đạt trước khi mở G1):** (1) `fallback` executor attach được vào pod Sysbox trong `dlp-sandbox`; (2) `vim` + `htop` vẽ đầy đủ, không rác ANSI; (3) kéo cửa sổ → `stty size` trong pod khớp trong < 1s; (4) `exit` → WS đóng sạch, tiến trình thoát 0, `-race` không báo, không goroutine leak; (5) xoá pod giữa phiên → bridge báo lỗi rõ, không treo.
 
 ### 1.A-2 — Spike claim atomic (rủi ro #3, score 16)
+
+> **✅ Đã chạy 2026-08-09.** Code: [`services/orchestrator/internal/pool/`](../../services/orchestrator/internal/pool/) · gotcha: [`README.md`](../../services/orchestrator/internal/pool/README.md). 20/20 xanh dưới `-race -count=20` trên Redis 7 thật.
 
 **A1 — Chốt state machine.** `pool:free` = **LIST** (D6). State: `free → claimed → active → reaping → gone`, sống ở hash `pod:{name}` (`state`, `sessionId`, `updatedAt`); `pool:free`/`pool:claimed` chỉ là index.
 
@@ -149,11 +153,11 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 
 **G3 — Per-session authz hai vế (luật 10 + 1).** Đọc Redis `session:{id}` bằng helper shared (D2, D7 — không nối chuỗi tay). **Vế 1** `token.sid == {id}` trong URL, **vế 2** `hash.userId == token.sub`, và `status ∈ {CLAIMED, RUNNING}`. Lệch bất kỳ vế nào → **403 trước upgrade**. Log `Warn` **có rate-limit/sampling** — endpoint public, log mỗi request là DoS vào quota log. *Effort: M.*
 
-**G4 — Nối pod exec.** `NewFallbackExecutor` theo kết quả spike, exec vào `hash.podName`/`hash.namespace` với `TTY: true`, `Stdin/Stdout` bật, **`Stderr` tắt**. Lệnh là **hằng số phía server** `GATEWAY_EXEC_COMMAND`, mặc định **`tmux new-session -A -s dlp`** (D3) — tuyệt đối không lấy từ frame client. Với D17 (trần 1 WS) lệnh này luôn chạy ở tư thế client-duy-nhất, nên không có ca hai client tranh kích thước cửa sổ; status bar tmux đã tắt từ image (E4) nên `stty size` trong pod khớp **chính xác** `cols`/`rows` của frame `init`. **Predicate fallback không được nuốt lỗi authz:** RBAC 403 KHÔNG phải upgrade-failure; predicate quá rộng thì lỗi thiếu quyền `pods/exec` sẽ hiện ra dưới dạng "SPDY failed". *Effort: M.*
+**G4 — Nối pod exec.** `NewFallbackExecutor` theo kết quả spike, exec vào `hash.podName`/`hash.namespace` với `TTY: true`, `Stdin/Stdout` bật, **`Stderr` để VẮNG (`nil`)** — spike đo được: đặt `Stderr` cùng `TTY:true` **không sinh lỗi nào**; `client-go/tools/remotecommand/v2.go:80` có `if p.Stderr != nil && !p.Tty` (nền của cả V4 lẫn V5, tức cả SPDY lẫn WS) nên stream stderr không được tạo và writer truyền vào **không bao giờ nhận byte**, không tín hiệu nào cho biết. *(Plan bản trước viết "apiserver từ chối" — sai; im lặng nguy hiểm hơn từ chối.)* Lệnh là **hằng số phía server** `GATEWAY_EXEC_COMMAND`, mặc định **`tmux new-session -A -s dlp`** (D3) — tuyệt đối không lấy từ frame client. Với D17 (trần 1 WS) lệnh này luôn chạy ở tư thế client-duy-nhất, nên không có ca hai client tranh kích thước cửa sổ; status bar tmux đã tắt từ image (E4) nên `stty size` trong pod khớp **chính xác** `cols`/`rows` của frame `init`. **Predicate fallback không được nuốt lỗi authz:** RBAC 403 KHÔNG phải upgrade-failure; predicate quá rộng thì lỗi thiếu quyền `pods/exec` sẽ hiện ra dưới dạng "SPDY failed". *Effort: M.*
 
-**G5 — Bơm dữ liệu hai chiều.** Binary frame đi thẳng, **không parse, không decode UTF-8**. Backpressure: buffer có trần, client chậm quá trần → đóng `4429` thay vì phình bộ nhớ. *Effort: M.*
+**G5 — Bơm dữ liệu hai chiều.** Binary frame đi thẳng, **không parse, không decode UTF-8**. Backpressure: buffer có trần, client chậm quá trần → đóng `4429` thay vì phình bộ nhớ. **⛔ CHẶN — phát hiện từ spike:** khi stream kết thúc, `exit 137` **không phân biệt được** "pod bị reap" với "người dùng `kill -9` trong pod của mình". Coi mọi `CodeExitError` là thoát bình thường ⇒ đóng `1000` ⇒ FE hiểu là "tự gõ exit", không hiện "phiên đã hết hạn" và không retry. Với exit ∈ {137, 143} hoặc lỗi hạ tầng, **phải đọc `session:{id}` rồi mới chọn mã**: key mất / `status ∈ {EXPIRED, REAPED}` → `4404`; còn sống → `1000`. Một lượt Redis trên đường đóng, không phải đường nóng. Chi tiết: `ws-terminal-protocol.md` §6. Đồng thời **hạ mức log `Unhandled Error` của client-go** — nó in ở mức `E` trên chính đường exit-0 thành công, để nguyên thì cảnh báo thật chìm nghỉm. *Effort: M.*
 
-**G6 — Resize + handshake `init`.** Đợi frame `init` mang `cols`/`rows` **trước khi dial exec** (timeout 3s → 80×24) để prompt oh-my-posh vẽ đúng bề rộng ngay lần đầu. Resize dồn dập phải **coalesce giữ giá trị cuối**, không đóng kết nối. *Effort: S.*
+**G6 — Resize + handshake `init`.** Đợi frame `init` mang `cols`/`rows` **trước khi dial exec** (timeout 3s → 80×24) để prompt oh-my-posh vẽ đúng bề rộng ngay lần đầu. Resize dồn dập phải **coalesce giữ giá trị cuối**, không đóng kết nối. **`TerminalSizeQueue.Next()` phải BLOCK** — trả `nil` nghĩa là "queue đóng vĩnh viễn"; client-go thoát hẳn vòng đọc và mọi resize sau đó rơi vào hư không trong khi WS vẫn sống (đo ở spike). Chỉ trả `nil` khi ctx đóng. **Coalesce buffer-1 giảm chứ không chặn lưu lượng:** spike đo 201 resize liên tiếp mất **~900ms** để PTY lắng (một resize đơn lẻ: 20ms) ⇒ debounce ~50ms phía FE (contract §4) là thứ thật sự chặn bão, đừng bỏ nó vì "server đã coalesce". *Effort: S.*
 
 **G7 — Keepalive + `ExtendSession`.** Server ping mỗi 20s, không pong trong 10s → chết. **Chỉ traffic thật (stdin/stdout) mới gọi `ExtendSession`; ping/pong KHÔNG tính** — nếu tính, một tab bỏ quên giữ pod sống tới tận trần cứng. Gửi `expected_revision` đọc từ hash; `FailedPrecondition` → đọc lại, xác minh còn đúng chủ + còn sống, thử lại **đúng một lần**, vẫn lệch → đóng `4404` (không hồi sinh session đã reap). `hard_cap_reached` → đẩy control `expiring`. Auth: mTLS + `system_component` (D13). *Effort: S.*
 
@@ -282,12 +286,16 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 ## Acceptance criteria
 
 ### Gate 1.A (HARD-GATE — không mở 1.B/1.C khi chưa xanh)
-- [ ] Spike WS: `fallback` executor attach được vào pod Sysbox; report ghi rõ transport thắng + subprotocol thương lượng.
-- [ ] Spike WS: `vim` + `htop` vẽ đầy đủ, không rác ANSI; kéo cửa sổ → `stty size` khớp < 1s; `exit` đóng sạch, `-race` không báo; xoá pod giữa phiên → báo lỗi rõ, không treo.
-- [ ] Spike WS: report trả lời đủ 6 câu gotcha ở S4, **gồm close code thật của read-limit**.
-- [ ] Spike claim: `-race -count=20` xanh 20/20; đúng 50 thành công / 150 "pool rỗng" / **0 podName trùng**; `LLEN pool:free==0`, `pool:claimed==50`.
-- [ ] Spike claim chạy trên **Redis thật**; skip có log rõ khi `REDIS_URL` trống.
-- [ ] Redis restart giữa chừng → `EVALSHA` gặp `NOSCRIPT` tự fallback `EVAL`, không mất claim.
+
+> **✅ ĐÃ XANH 2026-08-09.** Báo cáo: [`reports/2026-08-09-spike-ws-exec.md`](reports/2026-08-09-spike-ws-exec.md) (WS) · [`services/orchestrator/internal/pool/README.md`](../../services/orchestrator/internal/pool/README.md) (claim).
+> Ba giả định của plan **sai và đã sửa** — xem §"Spike sửa gì" ở cuối.
+
+- [x] Spike WS: `fallback` executor attach được vào pod Sysbox; report ghi rõ transport thắng + subprotocol thương lượng. → **WS thắng, `v5.channel.k8s.io`** (đo bằng bắt tay thủ công, không suy luận); SPDY chưa từng chạy. `fallback` 404.6ms ≈ `ws` 405.8ms < `spdy` 442.1ms.
+- [x] Spike WS: `vim` + `htop` vẽ đầy đủ, không rác ANSI; kéo cửa sổ → `stty size` khớp < 1s; `exit` đóng sạch, `-race` không báo; xoá pod giữa phiên → báo lỗi rõ, không treo. → vim vào/ra alt-screen + tự báo `columns=120`; htop 8089 byte ANSI có màu; resize khớp sau **20.2ms**; **0** DATA RACE, goroutine về 2 sau cả 6 phiên; xoá pod phát hiện sau **3.2s** không treo *(kèm phát hiện chặn — xem G4/G5)*.
+- [x] Spike WS: report trả lời đủ 6 câu gotcha ở S4, **gồm close code thật của read-limit**. → **`1009`** (thư viện tự đóng), contract §6 đã pin lại.
+- [x] Spike claim: `-race -count=20` xanh 20/20; đúng 50 thành công / 150 "pool rỗng" / **0 podName trùng**; `LLEN pool:free==0`, `pool:claimed==50`.
+- [x] Spike claim chạy trên **Redis thật**; skip có log rõ khi `REDIS_URL` trống.
+- [x] Redis restart giữa chừng → `EVALSHA` gặp `NOSCRIPT` tự fallback `EVAL`, không mất claim. → `TestClaimSurvivesScriptFlush` ép bằng `SCRIPT FLUSH` giữa hai lượt claim.
 
 ### Prerequisite 1.B0
 
@@ -458,8 +466,8 @@ make go-build && make go-test && make go-vet && make env-check && make proto-bre
 | Rủi ro | L | I | Score | Mitigation |
 |---|---|---|---|---|
 | **R0 — Calico CNI token 24h: cluster mất khả năng tạo pod, IM LẶNG.** Pod cũ vẫn Running nên lỗi ẩn hoàn toàn. **ĐANG XẢY RA, đã chữa tạm 2026-08-09.** | 5 | 5 | **25** | D5 + task 1.B0.1 là việc **đầu tiên**, trước cả spike. Canary tạo-pod trong cron/CI để lỗi lộ ngay. `rollout restart` KHÔNG phải fix. |
-| **R1 — WS ⇄ pod-exec streaming** (transport, resize, đóng stream, backpressure) | 4 | 5 | **20** | Spike 1.A-1 HARD-GATE; `NewFallbackExecutor` theo khuôn `kubectl` thay vì tự chế; 5 tiêu chí xanh đo được; `-race` + goleak. |
-| **R2 — Warm-pool race, double-claim** | 4 | 4 | **16** | Lua một-lượt-atomic, không chuỗi lệnh Go; test đua `-race -count=20` trên **Redis thật**; HARD-GATE trước 1.B. |
+| **R1 — WS ⇄ pod-exec streaming** (transport, resize, đóng stream, backpressure) | ~~4~~ **2** | 5 | ~~20~~ **10** | *Hạ bằng spike 1.A-1 (2026-08-09): cả 5 tiêu chí xanh đo được trên pod Sysbox thật — WS `v5.channel.k8s.io` thắng, resize 20ms, `-race` sạch, không leak.* Rủi ro còn lại là **đường đóng**: `exit 137` không phân biệt reap với `kill -9` ⇒ G5 phải tra Redis mới chọn được `4404` (chi tiết trong report, chưa implement). |
+| **R2 — Warm-pool race, double-claim** | ~~4~~ **1** | 4 | ~~16~~ **4** | *Đóng bằng spike 1.A-2 (2026-08-09): `claim.lua` một-lượt-atomic, 200 goroutine đua trên Redis thật, `-race -count=20` xanh 20/20, 0 podName trùng.* Còn lại là rủi ro B2 replenish đẩy sai đầu LIST (LIFO thay FIFO) — `TestClaimFIFO` gác phía claim, B2 tự gác phía push. |
 | **R3 — Cookie không tới gateway vì khác origin** ⇒ thiết kế luật 8 chết ở deploy | 3 | 5 | **15** | 1.B0.4 **trước** khi lane FE code; Ingress prod + reverse proxy dev; nếu không chốt được thì phải mở lại D1. |
 | **R4 — IDOR vào shell người khác** (thiếu một vế authz) | 3 | 5 | **15** | Hai vế (`token.sid=={id}` + `redis.userId==token.sub`), fail **trước** upgrade; G13 test tự động trong CI, không kiểm tay. |
 | **R5 — Sysbox pod tạo động fail** | 3 | 5 | **15** | *Hạ từ 4→3 bằng thực nghiệm 2026-08-09: pod Sysbox đầy đủ securityContext Ready trong 6.06s, dockerd trong pod sống.* Rủi ro còn lại là builder quên field ⇒ test regression VAP + log nguyên văn message API server. |
@@ -485,6 +493,8 @@ make go-build && make go-test && make go-vet && make env-check && make proto-bre
 
 **Tám mục ≥ 15 (R0, R1, R2, R3, R4, R5, R20, R22)** phải có mitigation **chạy xanh** trước khi task phụ thuộc bắt đầu.
 
+*Cập nhật 2026-08-09 sau Gate 1.A:* **R1 hạ 20→10** và **R2 hạ 16→4** — cả hai bằng số đo trên hạ tầng thật, không phải bằng lập luận. Còn **sáu** mục ≥ 15: R0 (chờ đủ 25h/37h canary), R3, R4, R5, R20, R22.
+
 ---
 
 ## Timeline (P1)
@@ -493,8 +503,8 @@ make go-build && make go-test && make go-vet && make env-check && make proto-bre
 |---|---|---|
 | 1.B0.1 Calico | **S** | 🔴 Chặn TẤT CẢ |
 | 1.B0.2 Redis+PG in-cluster · 1.B0.3 contract · 1.B0.4 origin · 1.B0.5 JWKS | **M** | Song song nhau; B0.3 chặn spike claim, B0.4 chặn lane FE, **B0.5 chặn G2** |
-| 1.A-1 spike WS⇄exec | **M** | HARD-GATE, chặn 1.C |
-| 1.A-2 spike claim atomic | **M** | HARD-GATE, chặn 1.B. Song song 1.A-1 |
+| 1.A-1 spike WS⇄exec | ~~M~~ **✅ xong 2026-08-09** | HARD-GATE **đã mở** — 1.C chạy được |
+| 1.A-2 spike claim atomic | ~~M~~ **✅ xong 2026-08-09** | HARD-GATE **đã mở** — 1.B chạy được |
 | 1.B orchestrator (B1–B9) | **L** | Đường găng |
 | 1.C gateway (G1–G13) | **L** | Đường găng, song song 1.B |
 | 1.D bốn khoảng trống | **S**×4 | D-17′/D-21′/D-22′ song song hoàn toàn; **D-19′ phụ thuộc 1.B0.1** (restart kubelet, xem R22) |
@@ -547,6 +557,22 @@ Review đối kháng bản PR #22. Ba phát hiện đến từ **thực nghiệm
 
 9. **Status bar tmux ăn 1 dòng** (200×50 → window 200×**49**) ⇒ `stty size` lệch so với `rows` FE gửi. Thêm `set -g status off` vào E4; AC resize đo khớp **chính xác**, không mang số magic "trừ 1".
 10. **Debounce resize lệch giữa hai tài liệu** — contract §4 nói 50ms, F4 nói 100ms. Contract là SSOT ⇒ F4 sửa về 50ms.
+
+---
+
+## Spike sửa gì (Gate 1.A, 2026-08-09)
+
+Hai spike chạy xong, gate xanh. Ba giả định của plan **sai khi đo thật** — sửa ở đây để lane 1.C không đi theo bản cũ.
+
+1. **`tty=true` + `stderr=true`: apiserver KHÔNG từ chối.** Plan viết "apiserver từ chối" và bảo lane gateway chờ một lỗi. Thực tế: `err == nil`, kubelet âm thầm đặt `stderr=false`, client-go cũng không tạo stream stderr, và byte của stderr gộp vào stdout (đúng hành vi PTY). Hệ quả: một `Stderr: w` để nhầm sẽ **không bao giờ nhận byte** và **không có lỗi nào để phát hiện**. G4 sửa thành "để `Stderr` vắng, có comment".
+2. **Read-limit đóng bằng `1009`, không phải `4413`.** `SetReadLimit` của `coder/websocket` tự đóng trong tầng thư viện, code ứng dụng không thấy frame vi phạm nên không có chỗ phát mã ứng dụng. Contract §6 đã pin `1009`. `4429` vẫn là mã ứng dụng vì byte-rate do code tự đếm.
+3. **`exit 137` không đủ để biết pod bị reap.** Xoá pod giữa phiên trả `CodeExitError(137)` — trùng với `kill -9` hợp lệ bên trong pod. Bridge spike vì thế đóng bằng `1000` và FE sẽ hiểu là "tự gõ exit". G5 phải tra Redis trước khi chọn `4404` vs `1000`.
+
+Ba thứ nhỏ hơn, đã ghi vào task tương ứng: `Next()` phải block (G6) · bão resize lắng sau ~900ms nên debounce FE vẫn cần (G6/F4) · log `Unhandled Error` của client-go in ở mức `E` trên đường thành công (G5/G10).
+
+Điều **không** đổi: `NewFallbackExecutor(ws, spdy)` đúng như D-chốt — WS thắng với `v5.channel.k8s.io`, SPDY chưa từng chạy, và `fallback` không tốn thêm gì (404.6ms ≈ ws 405.8ms).
+
+---
 
 ### Còn để ngỏ (không chặn cook, ghi lại để P2/P3 không quên)
 

@@ -175,13 +175,35 @@ Dải 4000–4999 là dải ứng dụng theo RFC 6455.
 | `4404` | SESSION_GONE | session bị reap / pod biến mất | không |
 | `4408` | IDLE_TIMEOUT | hết cửa sổ idle | không |
 | `4409` | HARD_CAP_REACHED | chạm trần cứng từ `created_at` | không |
-| `4413` | FRAME_TOO_LARGE | vượt read limit (luật 5) | không |
+| `1009` | MESSAGE_TOO_BIG | vượt read limit (luật 5) — **thư viện tự đóng**, xem dưới | không |
 | `4429` | RATE_LIMITED | vượt byte-rate hoặc client quá chậm (luật 5) | không |
 | `4500` | INTERNAL | exec dial fail, lỗi apiserver | **có** |
 
 **Gotcha:** payload close frame tối đa **125 byte**, 2 byte cho code ⇒ `reason` ≤ **123 byte**. Tiếng Việt có dấu là 2 byte/ký tự nên một câu 70 chữ cái đã vượt. Cắt ở tầng gửi, đừng tin caller.
 
-**Chưa chốt cứng:** close code khi vượt read limit có thể là `1009` (message too big) thay vì `4413` — `SetReadLimit` của `coder/websocket` tự đóng bằng 1009. Spike **S3/S4 phải xác minh hành vi thật** rồi mới pin. Không viết spec trước rồi ép thư viện theo.
+### Read limit → `1009`, KHÔNG phải `4413` (chốt bằng spike 1.A-1, 2026-08-09)
+
+Bản trước để ngỏ `4413` vs `1009`. Đo trực tiếp trên `coder/websocket v1.8.15` (`spike-exec -probe readlimit`, limit 1024, gửi 4096 byte):
+
+```
+server-side Read err: websocket: message too big: read limited at 1025 bytes
+client thấy close code: 1009    reason: "read limited at 1025 bytes"
+```
+
+`SetReadLimit` **tự đóng kết nối ngay trong tầng thư viện** — code ứng dụng không bao giờ nhìn thấy frame vi phạm, nên không có chỗ nào để phát `4413`. Chốt: **`1009`**. Muốn `4413` thì phải bỏ `SetReadLimit` và tự đếm byte, tức viết lại phần bảo vệ bộ nhớ mà thư viện đã làm đúng — đổi một mã đẹp hơn lấy một lớp lỗi mới. Không đáng.
+
+`4429` **vẫn là mã ứng dụng**: byte-rate do code tự đếm và tự đóng. Chỉ mỗi read-limit thuộc về thư viện.
+
+### `4404` khi pod biến mất — exit code KHÔNG đủ để nhận ra (chốt bằng spike 1.A-1)
+
+Xoá pod giữa phiên làm `StreamWithContext` trả `CodeExitError` với `ExitStatus() == 137` (SIGKILL) — **không phân biệt được** với `kill -9` hợp lệ bên trong pod. Bridge nào coi mọi `CodeExitError` là thoát bình thường sẽ đóng bằng `1000`, và FE hiểu thành "người dùng tự gõ `exit`, đừng retry".
+
+Gateway (G4/G5) BẮT BUỘC tra Redis `session:{id}` **trước khi chọn close code** khi stream kết thúc với exit ∈ {137, 143} hoặc với lỗi hạ tầng:
+
+- key mất, hoặc `status ∈ {EXPIRED, REAPED}` → **`4404`**
+- session còn sống → thoát thật → `1000`
+
+Một lượt đọc Redis trên đường đóng (không phải đường nóng); gateway đã có sẵn client Redis cho authz (D2).
 
 ## 7. Điểm đau: trình duyệt KHÔNG đọc được HTTP status của handshake hỏng
 

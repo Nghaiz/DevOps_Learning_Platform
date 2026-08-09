@@ -134,6 +134,14 @@ func Idem(userID, idempotencyKey string) (string, error) {
 	return "idem:" + userID + ":" + idempotencyKey, nil
 }
 
+// ValidateID phơi cổng validate cho caller cần kiểm định danh TRƯỚC khi nó
+// được ghi vào một hash (không chỉ khi dựng key). Ví dụ: pool.Claim ghi userId
+// vào hash session:{id} — gateway sẽ so sánh nguyên văn giá trị đó (authz vế g),
+// nên nó phải qua đúng cổng này dù không xuất hiện trong tên key nào.
+func ValidateID(id string) error {
+	return validateID(id)
+}
+
 func validateID(id string) error {
 	if !idPattern.MatchString(id) {
 		return fmt.Errorf("định danh %q không hợp lệ cho Redis key (cần khớp %s)", id, idPattern)
