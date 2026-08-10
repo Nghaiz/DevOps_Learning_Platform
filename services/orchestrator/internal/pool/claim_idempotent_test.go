@@ -43,6 +43,24 @@ func (h *lostReplyHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 		if name := cmd.Name(); name != "evalsha" && name != "eval" {
 			return err
 		}
+		// ⛔ CHỈ NUỐT REPLY CỦA MỘT LỜI GỌI ĐÃ THÀNH CÔNG.
+		//
+		// Thiếu guard này thì hook mâu thuẫn với chính tiền đề của nó ("để script
+		// chạy TRỌN VẸN trên server rồi mới nuốt reply"): khi cache script của
+		// Redis RỖNG, `EVALSHA` trả `NOSCRIPT` — script chưa chạy dòng nào — và
+		// hook lại thay lỗi đó bằng "mất reply". go-redis vì thế mất luôn đường
+		// rơi về `EVAL`, nên script KHÔNG BAO GIỜ chạy, trong khi test lại đòi
+		// ClaimIdempotent phục hồi một state chưa từng được ghi.
+		//
+		// Chế độ hỏng này TÁI HIỆN 100%: `SCRIPT FLUSH` rồi chạy lại package là
+		// đỏ. Nó ẩn suốt vì cache script hầu như luôn ấm sẵn — package
+		// `internal/lifecycle` chạy trước và đã nạp claim.lua. Cache là trạng
+		// thái TOÀN SERVER, không theo DB, nên việc mỗi package dùng một DB
+		// riêng không che được nó; bất kỳ test nào ở BẤT KỲ module nào trong
+		// repo gọi `SCRIPT FLUSH` cũng dựng lại đúng ca này.
+		if err != nil {
+			return err
+		}
 		h.mu.Lock()
 		defer h.mu.Unlock()
 		if !h.armed {

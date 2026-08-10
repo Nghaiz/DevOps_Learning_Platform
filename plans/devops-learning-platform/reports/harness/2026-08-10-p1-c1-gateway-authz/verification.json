@@ -1,0 +1,102 @@
+{
+  "commands": [
+    {
+      "command": "go test -race -count=1 -p 1 -v ./internal/... (services/terminal-gateway, Redis 7 thật từ docker-compose)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T21:05:00+07:00",
+      "summary": "69 PASS / 0 SKIP / 0 FAIL. Đếm PASS chứ không đọc chữ `ok`: `go test` trả exit 0 khi MỌI test đều SKIP, và toàn bộ sessionstore + wsroute của chặng này phụ thuộc Redis thật — một suite skip sạch sẽ trông y hệt một suite xanh."
+    },
+    {
+      "command": "kiểm đột biến 7 cổng bảo mật (sửa mã → chạy test → khôi phục)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T21:20:00+07:00",
+      "summary": "7/7 làm ĐÚNG test tương ứng ĐỎ: (1) bỏ check aud → TestVerifyTuChoiAudOrchestrator; (2) nới alg thành {EdDSA,HS256} → TestAlgKhongPhaiEdDSAChetTruocKhiChamKhoa; (3) vô hiệu bước e → TestG13_IdDoanBuaTra403ChuKhongPhai404 (cả 3 sub-case, rơi xuống 404); (4) vô hiệu bước g → TestG13_VeG_ForgeTokenSidCuaANhungSubLaB; (5) bỏ PEXPIRE trong acquire_ws.lua → TestAcquireWSLuonDatTTLTrongCungMotLuot; (6) bỏ sàn refetch JWKS → TestKidLaKhongThanhMayBomRequest; (7) log cookie.Value ở dòng deny → TestLuat8_LogKhongBaoGioChuaToken."
+    },
+    {
+      "command": "kiểm đột biến CỔNG alg chạy lại SAU khi vá test (nới allowlist thành {EdDSA, HS256})",
+      "status": "pass",
+      "exitCode": 1,
+      "timestamp": "2026-08-10T21:18:00+07:00",
+      "summary": "exitCode 1 là KẾT QUẢ MONG MUỐN: TestAlgKhongPhaiEdDSAChetTruocKhiChamKhoa ĐỎ khi allowlist bị nới. Lượt đột biến ĐẦU TIÊN (trước khi vá) cho thấy hai test alg-confusion cũ VẪN XANH — chúng chết ở tầng go-jose từ chối kiểu khoá chứ không ở tầng allowlist, tức đo nhầm tầng. Toàn văn ở adversarial-validation.json."
+    },
+    {
+      "command": "node scripts/env-check.mjs",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T21:35:00+07:00",
+      "summary": "env-check OK — 51 biến, 4 scope, khớp code ↔ .env.example ↔ Helm ↔ CI. Bốn biến mới của chặng: GATEWAY_TOKEN_ISSUER, GATEWAY_ALLOWED_ORIGINS, GATEWAY_MAX_WS_PER_SESSION, REDIS_URL."
+    },
+    {
+      "command": "golangci-lint run ./... với GOOS=linux, cả 4 module trong go.work",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T21:50:00+07:00",
+      "summary": "0 issue trên proto/gen/go, services/orchestrator, services/shared, services/terminal-gateway. Ép GOOS=linux vì file có build tag unix vô hình với dev trên Windows."
+    },
+    {
+      "command": "govulncheck ./... (services/terminal-gateway, sau khi thêm go-jose/v4 + go-redis/v9 + x/sync)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T21:52:00+07:00",
+      "summary": "No vulnerabilities found."
+    },
+    {
+      "command": "buf lint + buf breaking --against '.git#ref=HEAD'",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T21:41:00+07:00",
+      "summary": "Sạch. Chặng này không chạm proto."
+    },
+    {
+      "command": "gofmt -l . (services/terminal-gateway) + npx prettier --check trên yaml/md đã sửa",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T21:55:00+07:00",
+      "summary": "gofmt rỗng; prettier 'All matched files use Prettier code style'. git check-attr xác nhận eol=lf cho file Go, nên CRLF của Windows không giấu lỗi format khỏi CI."
+    },
+    {
+      "command": "đọc MÃ NGUỒN coder/websocket@v1.8.15 accept.go (không đọc tài liệu)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T22:10:00+07:00",
+      "summary": "Xác nhận HAI khẳng định mà chú thích trong code dựa vào: (1) `authenticateOrigin` so `r.Host` với `u.Host` rồi mới xét OriginPatterns ⇒ sau reverse proxy gộp origin, kiểm mặc định sẽ 403 MỌI handshake hợp lệ, nên InsecureSkipVerify:true + tự kiểm ở bước a là bắt buộc chứ không phải nới lỏng; (2) `selectSubprotocol` trả chuỗi RỖNG im lặng khi không khớp — không lỗi, không 400 ⇒ bước b phải tự kiểm trước Accept, đúng như contract §0 đòi."
+    },
+    {
+      "command": "helm lint + helm template + kubeconform trên CẢ BA bộ values (values.yaml, values-selfhost.yaml, values-cloud.yaml) + nhánh ingress + nhánh existingSecret — ĐÚNG bộ lệnh của job infra",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T22:55:00+07:00",
+      "summary": "Xanh cả 5 nhánh: 23/31/23 resource hợp lệ, ingress 24, existingSecret không sinh Secret và có tham chiếu. REDIS_URL render qua secretKeyRef ở values-selfhost (datastore in-cluster bật) và render `value: \"\"` ở hai bộ cloud-shaped — GIỐNG HỆT orchestrator cho cùng biến. Lượt chạy TRƯỚC ĐÓ đỏ ở đúng bước này: bản đầu đặt `required` ở nhánh else, làm `helm template` ABORT trên values.yaml và values-cloud.yaml (cả hai để datastore.enabled=false). Bài học: tôi đã thử hai nhánh TỰ THIẾT KẾ thay vì ba bộ values CI thật sự render."
+    },
+    {
+      "command": "actionlint (toàn bộ .github/workflows) sau khi thêm bước acceptance IDOR",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T22:58:00+07:00",
+      "summary": "0 phát hiện."
+    },
+    {
+      "command": "gitleaks trên PR — lượt đầu ĐỎ 2 finding, đã vá tại gốc",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T23:05:00+07:00",
+      "summary": "Rule generic-api-key bắt hằng `Sec-WebSocket-Key: <base64 22 ký tự — cố ý KHÔNG trích nguyên văn, xem lý do ngay dưới>` (nonce ví dụ của RFC 6455). Không phải secret, nhưng ĐÚNG hình dạng rule đó tìm: base64 22 ký tự cạnh một tên chứa chữ 'Key'. Vá bằng cách SINH 16 byte ngẫu nhiên mỗi request thay vì nới allowlist — server không kiểm nội dung giá trị này nên sinh còn sát thực tế hơn. Kèm theo: gitleaks-action quét cả DẢI COMMIT của PR, nên sửa ở commit tip là chưa đủ; phải squash nhánh để hằng đó không tồn tại trong bất kỳ commit nào. TỰ BẪY MÌNH MỘT LẦN NỮA: bản đầu của chính artifact này TRÍCH NGUYÊN VĂN hằng đó để giải thích, và gitleaks bắt lại đúng nó — một finding không nằm trong code mà nằm trong tài liệu MÔ TẢ finding. Nên ở đây chỉ mô tả hình dạng, không dán giá trị."
+    },
+    {
+      "command": "SCRIPT FLUSH (cache script RỖNG như runner CI) rồi chạy toàn bộ suite Go 4 module + bước `-count=20` của CI",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T00:20:00+07:00",
+      "summary": "14/14 package xanh dưới -race, và bước pool -count=20 xanh NGAY SAU khi suite gateway vừa gọi SCRIPT FLUSH — đúng trình tự CI. Lượt trước ĐỎ ở đúng đây: `TestClaimIdempotentDocLaiKhiMatReply` của orchestrator. Tái hiện 100% bằng `SCRIPT FLUSH` + chạy lại; xanh 100% khi cache ấm. Đó là lý do nó ẩn từ trước: package internal/lifecycle chạy trước và luôn nạp sẵn claim.lua."
+    },
+    {
+      "command": "kiểm đột biến bản vá hook `lostReplyHook` (gỡ guard `err != nil` ra)",
+      "status": "pass",
+      "exitCode": 1,
+      "timestamp": "2026-08-11T00:10:00+07:00",
+      "summary": "exitCode 1 là KẾT QUẢ MONG MUỐN: gỡ guard ra thì với cache rỗng test lại ĐỎ đúng như trước. Guard là thứ chịu lực, không phải chú thích trang trí."
+    }
+  ]
+}

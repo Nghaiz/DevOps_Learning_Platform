@@ -1,34 +1,331 @@
 // Package wsroute giữ endpoint WebSocket của terminal-gateway.
+//
+// Toàn bộ file này hiện thực ĐÚNG MỘT THỨ: chín bước kiểm TRƯỚC upgrade của
+// docs/ws-terminal-protocol.md §3 (a→i). Thứ tự các bước là CONTRACT, không phải
+// phong cách — xem §3b: bước e chạy trước bước f là lý do "id đoán bừa" trả 403
+// chứ không phải 404, và đó là thứ khoá kênh phụ liệt kê session.
+//
+// Cầu exec vào pod (G4–G6) là chặng 1.C-2. Ở chặng này, sau khi qua đủ chín bước
+// gateway VẪN upgrade thật rồi đóng ngay bằng 4500 — không phải để cho có, mà vì
+// một bộ acceptance chỉ toàn ca ĐỎ thì không phân biệt được "chặn đúng" với
+// "chặn tất". Ca 101 là đối chứng bắt buộc.
 package wsroute
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
+	"time"
+
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
+	"github.com/coder/websocket"
+	"golang.org/x/time/rate"
 )
 
-// Register gắn /ws/session/{id} vào mux.
-//
-// P0 CỐ Ý trả 401 cho mọi request: per-session authz (luật 8 + luật 10) là thứ
-// phải có TRƯỚC khi có đường vào pod, không phải thứ bọc thêm sau. Handler mở
-// sẵn rồi hứa "chặn sau" là cách một sandbox bị lọt.
-//
-// P1 thay thân hàm bằng: verify token per-session (cookie/subprotocol, KHÔNG qua
-// query string) → upgrade WS → nối pod exec SPDY.
-func Register(mux *http.ServeMux, log *slog.Logger) {
-	mux.HandleFunc("GET /ws/session/{id}", func(w http.ResponseWriter, r *http.Request) {
-		// Debug, KHÔNG phải Info, và KHÔNG ghi RemoteAddr ở mức mặc định:
-		// endpoint này public + unauthenticated, nên một vòng `curl` là log
-		// flood rẻ tiền (DoS vào quota Loki), và RemoteAddr là PII ghi vô điều
-		// kiện cho một request chưa chứng minh được danh tính. Ở P1, khi đã có
-		// authz thật, log fail-auth là ĐÚNG — nhưng lúc đó phải kèm rate-limit
-		// hoặc sampling, không phải một dòng mỗi request.
-		log.Debug("từ chối WS: per-session authz chưa hiện thực (P1)",
-			slog.String("session_id", r.PathValue("id")),
-			slog.String("remote", r.RemoteAddr),
-		)
+// Subprotocol là tên + version của giao thức (contract §0). Version nằm ở ĐÂY
+// chứ không phải một field `v` trong mỗi message: lệch version thì hỏng ngay ở
+// handshake với lỗi rõ ràng, thay vì hỏng ở frame thứ 500 với một `type` lạ.
+const Subprotocol = "dlp.terminal.v1"
 
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte("unauthorized\n"))
+// CookieName mang sandbox token. Contract §2 + luật 8: token CHỈ tới từ đây —
+// không query string, không header tự chế.
+const CookieName = "dlp_sandbox"
+
+// Mã lỗi trả trong body của các bước kiểm. FE switch trên `code`; `message` là
+// tiếng Việt cho người đọc (contract §5).
+//
+// ⛔ codeForbidden dùng CHUNG cho bước e và bước g — cố ý. Tách chúng ra là dựng
+// lại đúng kênh phụ mà §3b vừa đóng: kẻ tấn công sẽ phân biệt được "id không tồn
+// tại" với "id của người khác".
+const (
+	codeOriginNotAllowed = "ORIGIN_NOT_ALLOWED"
+	codeSubprotocol      = "SUBPROTOCOL_REQUIRED"
+	codeUnauthenticated  = "UNAUTHENTICATED"
+	codeForbidden        = "FORBIDDEN"
+	codeSessionNotFound  = "SESSION_NOT_FOUND"
+	codeSessionInactive  = "SESSION_NOT_ACTIVE"
+	codeSessionInUse     = "SESSION_IN_USE"
+	codeInternal         = "INTERNAL"
+)
+
+// TokenVerifier verify sandbox token (bước d).
+type TokenVerifier interface {
+	Verify(ctx context.Context, raw string) (*authz.Claims, error)
+}
+
+// SessionReader đọc trạng thái session và giữ trần WS (bước f, h, i).
+type SessionReader interface {
+	Get(ctx context.Context, sessionID string) (*sessionstore.Session, error)
+	AcquireWS(ctx context.Context, sessionID string, limit int, expiresAt int64) (func(context.Context) error, error)
+}
+
+// Deps là mọi thứ handler cần. Toàn interface để test chạy được mà không cần
+// Redis cho các ca chết trước bước f.
+type Deps struct {
+	Log             *slog.Logger
+	Verifier        TokenVerifier
+	Sessions        SessionReader
+	AllowedOrigins  []string
+	MaxWSPerSession int
+}
+
+// Register gắn /ws/session/{id} vào mux.
+func Register(mux *http.ServeMux, deps Deps) {
+	h := &handler{
+		deps: deps,
+		// Endpoint này PUBLIC và chưa xác thực ở thời điểm log — một vòng lặp
+		// `curl` là log flood rẻ tiền (DoS vào quota Loki) và RemoteAddr là PII
+		// ghi vô điều kiện cho một peer chưa chứng minh danh tính. Sampling ở
+		// đây là yêu cầu của G3, không phải tối ưu.
+		denyLimiter: rate.NewLimiter(rate.Every(time.Second), 5),
+	}
+	mux.HandleFunc("GET /ws/session/{id}", h.serve)
+}
+
+type handler struct {
+	deps        Deps
+	denyLimiter *rate.Limiter
+}
+
+func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	sessionID := r.PathValue("id")
+
+	// ---- a. Origin ------------------------------------------------------
+	//
+	// Đây là thứ DUY NHẤT đóng CSWSH: handshake WebSocket KHÔNG chịu CORS, nên
+	// không có lớp nào của trình duyệt chặn giúp.
+	//
+	// VẮNG hẳn header thì CHO QUA (contract §3a) — quyết định, không phải sơ
+	// suất: trình duyệt LUÔN gửi Origin và không tắt được từ JS, nên CSWSH vẫn
+	// đóng kín; còn fail-closed ở đây chặn wscat/websocat/probe vận hành/test
+	// e2e, tức chặn chính bộ acceptance IDOR của phase-1.
+	if origin := r.Header.Get("Origin"); origin != "" && !h.originAllowed(origin) {
+		h.deny(w, r, http.StatusForbidden, codeOriginNotAllowed,
+			"origin không nằm trong allowlist", "origin", origin)
+		return
+	}
+
+	// ---- b. Subprotocol -------------------------------------------------
+	if !clientOffers(r, Subprotocol) {
+		h.deny(w, r, http.StatusBadRequest, codeSubprotocol,
+			"client phải chào subprotocol "+Subprotocol,
+			"offered", r.Header.Get("Sec-WebSocket-Protocol"))
+		return
+	}
+
+	// ---- c. Cookie ------------------------------------------------------
+	cookie, err := r.Cookie(CookieName)
+	if err != nil || cookie.Value == "" {
+		h.deny(w, r, http.StatusUnauthorized, codeUnauthenticated,
+			"thiếu cookie "+CookieName)
+		return
+	}
+
+	// ---- d. Token hợp lệ ------------------------------------------------
+	claims, err := h.deps.Verifier.Verify(ctx, cookie.Value)
+	if err != nil {
+		// Lý do chi tiết CHỈ vào log. Body trả về đúng một mã cho mọi kiểu hỏng
+		// (chữ ký, aud, exp, iss): tách chúng ra là chỉ cho người đang dò biết
+		// họ sai ở đâu.
+		h.deny(w, r, http.StatusUnauthorized, codeUnauthenticated,
+			"token không hợp lệ", "reason", err.Error())
+		return
+	}
+
+	// ---- e. token.sid == {id} -------------------------------------------
+	//
+	// Chạy TRƯỚC khi chạm Redis (contract §3b). Hệ quả có chủ ý: mọi `{id}` lạ
+	// chết ở đây với 403, KHÔNG phải 404 — nên "id không tồn tại" và "id của
+	// người khác" đi qua cùng một dòng code, cùng một mã, không còn kênh phụ
+	// thời gian nào để đếm. Đừng đảo thứ tự cho 404 dễ gặp hơn.
+	if err := rediskeys.ValidateID(sessionID); err != nil || sessionID != claims.SessionID {
+		h.deny(w, r, http.StatusForbidden, codeForbidden,
+			"token không cấp cho session này", "sub", claims.Subject)
+		return
+	}
+
+	// ---- f. session:{id} tồn tại ----------------------------------------
+	sess, err := h.deps.Sessions.Get(ctx, sessionID)
+	switch {
+	case errors.Is(err, sessionstore.ErrNotFound):
+		// Ca DUY NHẤT chạm được 404: sid khớp mà key đã mất — "session của
+		// CHÍNH BẠN đã biến mất" (reap / TTL hết / Redis mất dữ liệu).
+		h.deny(w, r, http.StatusNotFound, codeSessionNotFound,
+			"phiên không còn tồn tại", "sub", claims.Subject)
+		return
+	case err != nil:
+		h.fail(w, r, "đọc session từ Redis", err)
+		return
+	}
+
+	// ---- g. hash.userId == token.sub ------------------------------------
+	//
+	// Vế thứ hai của luật 10. BFF thật không bao giờ mint được token vi phạm nó
+	// (nó chỉ mint sid của session vừa tạo cho chính user đó), nên bước này chỉ
+	// đỏ khi (1) ai đó forge token, hoặc (2) Redis bị ghi đè. Cả hai đều là ca
+	// phải chặn, và cả hai đều KHÔNG tái hiện được bằng một client hợp lệ — nên
+	// test của nó bắt buộc phải forge (G13 vế g).
+	if sess.UserID != claims.Subject {
+		h.deny(w, r, http.StatusForbidden, codeForbidden,
+			"session không thuộc về chủ token", "sub", claims.Subject)
+		return
+	}
+
+	// ---- h. status ∈ {CLAIMED, RUNNING} ---------------------------------
+	if !sess.Active() {
+		h.deny(w, r, http.StatusConflict, codeSessionInactive,
+			"phiên không ở trạng thái chạy được", "status", sess.Status)
+		return
+	}
+
+	// ---- i. trần WS đồng thời (D17 = 1) ---------------------------------
+	release, err := h.deps.Sessions.AcquireWS(ctx, sessionID, h.deps.MaxWSPerSession, sess.ExpiresAt)
+	switch {
+	case errors.Is(err, sessionstore.ErrWSLimitReached):
+		h.deny(w, r, http.StatusTooManyRequests, codeSessionInUse,
+			"phiên đang mở ở một kết nối khác")
+		return
+	case errors.Is(err, sessionstore.ErrNotFound):
+		// expiresAt đã qua nhưng hash còn (reaper chưa kịp). Cùng nghĩa với
+		// bước f, nên cùng mã — không đẻ thêm một trạng thái FE phải học.
+		h.deny(w, r, http.StatusNotFound, codeSessionNotFound,
+			"phiên không còn tồn tại", "sub", claims.Subject)
+		return
+	case err != nil:
+		h.fail(w, r, "chiếm khe WS", err)
+		return
+	}
+	// defer chạy cả khi upgrade hỏng — đó là điểm của việc INCR ở bước i chứ
+	// không phải sau upgrade.
+	defer func() {
+		// context của request đã huỷ khi WS đóng, nên release phải có context
+		// riêng, nếu không DECR không bao giờ tới được Redis và trần WS chỉ gỡ
+		// được bằng TTL.
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := release(rctx); err != nil {
+			h.deps.Log.Error("trả khe WS thất bại — session chỉ gỡ khoá được khi TTL hết",
+				slog.String("session_id", sessionID), slog.String("err", err.Error()))
+		}
+	}()
+
+	// ---- 101 -------------------------------------------------------------
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		Subprotocols: []string{Subprotocol},
+		// Bước a Ở TRÊN đã kiểm Origin theo allowlist của chúng ta, và nó là
+		// nguồn sự thật. Kiểm mặc định của thư viện so Origin với r.Host — sai
+		// ở đúng topology mà D1 bắt buộc phải có: gateway ngồi SAU một reverse
+		// proxy gộp origin, nên Host mà gateway thấy (`platform-gateway:8082`)
+		// không bao giờ là origin trình duyệt gửi. Bật nó lên thì mọi handshake
+		// hợp lệ trả 403. Đây KHÔNG phải nới lỏng bảo mật: nó là dời phép kiểm
+		// lên chỗ đọc được cấu hình thật.
+		InsecureSkipVerify: true,
 	})
+	if err != nil {
+		// Accept đã tự ghi mã lỗi HTTP.
+		h.deps.Log.Warn("upgrade WS thất bại",
+			slog.String("session_id", sessionID), slog.String("err", err.Error()))
+		return
+	}
+
+	// ⛔ CHẶNG 1.C-2 THAY ĐOẠN NÀY. Cho tới lúc đó gateway nói thẳng là chưa nối
+	// pod, thay vì giữ một kết nối im lặng để FE ngồi chờ prompt không bao giờ
+	// tới. Contract §5: `error` luôn đi ngay trước một close frame.
+	h.closeNotImplemented(ctx, conn, sess)
+}
+
+// closeNotImplemented báo cho client biết cầu exec chưa có rồi đóng.
+func (h *handler) closeNotImplemented(ctx context.Context, conn *websocket.Conn, sess *sessionstore.Session) {
+	payload, err := json.Marshal(map[string]string{
+		"type":    "error",
+		"code":    "EXEC_NOT_IMPLEMENTED",
+		"message": "cổng vào đã mở nhưng cầu exec tới pod chưa hiện thực (chặng 1.C-2)",
+	})
+	if err == nil {
+		wctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		_ = conn.Write(wctx, websocket.MessageText, payload)
+		cancel()
+	}
+	h.deps.Log.Info("handshake qua đủ 9 bước, chưa có cầu exec",
+		slog.String("pod", sess.PodName), slog.String("namespace", sess.Namespace))
+	// 4500 = INTERNAL theo bảng close code §6, và FE ĐƯỢC retry với mã đó —
+	// đúng ngữ nghĩa: thứ thiếu là ở phía server và sẽ có ở chặng sau.
+	_ = conn.Close(4500, "cau exec chua hien thuc")
+}
+
+// originAllowed so khớp NGUYÊN VĂN với allowlist.
+//
+// Không so prefix, không so suffix, không parse rồi so host: `https://app.example.com`
+// và `https://app.example.com.evil.tld` chỉ khác nhau ở phần đuôi, và mọi phép
+// so "gần đúng" đều có một biến thể cho attacker. Danh sách là danh sách.
+func (h *handler) originAllowed(origin string) bool {
+	for _, allowed := range h.deps.AllowedOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+// clientOffers kiểm client có chào `want` trong Sec-WebSocket-Protocol không.
+//
+// Tự tách thay vì hỏi thư viện: `coder/websocket` không phơi hàm đọc danh sách
+// đề nghị, và `Accept` chỉ ÂM THẦM bỏ trống subprotocol khi không khớp — không
+// lỗi, không 400. Contract §0 thì bắt "không khớp → không upgrade (400)", nên
+// phép kiểm phải nằm ở đây, trước Accept.
+//
+// Header có thể lặp lại nhiều dòng và mỗi dòng là danh sách ngăn bằng dấu phẩy
+// (RFC 6455 §4.1) — cả hai dạng đều hợp lệ và client thật dùng cả hai.
+func clientOffers(r *http.Request, want string) bool {
+	for _, line := range r.Header.Values("Sec-WebSocket-Protocol") {
+		for _, offered := range strings.Split(line, ",") {
+			if strings.TrimSpace(offered) == want {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// deny trả một bước kiểm hỏng: JSON `{code, message}` + mã HTTP thật.
+//
+// Mã HTTP THẬT chứ không phải upgrade-rồi-đóng: trình duyệt không đọc được
+// status của handshake hỏng (contract §7) nhưng wscat/curl/test tích hợp thì
+// đọc được, và bộ acceptance IDOR của phase-1 dựa vào đúng chỗ đó. FE lấy lý do
+// thật qua tRPC `session.get` khi thấy 1006.
+func (h *handler) deny(w http.ResponseWriter, r *http.Request, status int, code, message string, logAttrs ...string) {
+	if h.denyLimiter.Allow() {
+		attrs := []any{
+			slog.String("session_id", r.PathValue("id")),
+			slog.Int("status", status),
+			slog.String("code", code),
+		}
+		for i := 0; i+1 < len(logAttrs); i += 2 {
+			attrs = append(attrs, slog.String(logAttrs[i], logAttrs[i+1]))
+		}
+		h.deps.Log.Warn("từ chối handshake WS", attrs...)
+	}
+	writeJSON(w, status, code, message)
+}
+
+// fail là lỗi của CHÍNH gateway (Redis chết, script hỏng) — 500, và lý do đi
+// vào log ở mức Error chứ không phải Warn: đây không phải người dùng làm sai.
+func (h *handler) fail(w http.ResponseWriter, r *http.Request, what string, err error) {
+	h.deps.Log.Error("handshake WS lỗi nội bộ",
+		slog.String("session_id", r.PathValue("id")),
+		slog.String("op", what),
+		slog.String("err", err.Error()))
+	writeJSON(w, http.StatusInternalServerError, codeInternal, "lỗi nội bộ")
+}
+
+func writeJSON(w http.ResponseWriter, status int, code, message string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"code": code, "message": message})
 }

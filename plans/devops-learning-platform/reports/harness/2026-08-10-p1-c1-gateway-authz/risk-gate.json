@@ -1,0 +1,17 @@
+{
+  "highRisk": false,
+  "autoStopRequired": false,
+  "humanApproved": true,
+  "largeDiff": true,
+  "reasons": [
+    "highRisk: FALSE — và đây là khác biệt lớn so với chặng 1.E-1. Chặng này KHÔNG chạm cluster đang chạy: không `helm upgrade`, không xoá pod, không đổi image, không restart gì. Blast radius nằm trọn trong một service mà hôm nay trả 401 cho MỌI request — nên hồi quy xấu nhất có thể gây ra là 'vẫn không ai vào được terminal', đúng bằng trạng thái hiện tại.",
+    "autoStopRequired: FALSE — không có bước nào không đảo ngược được, và sau bản vá thì chart cũng KHÔNG còn thay đổi hành vi render nào: REDIS_URL của gateway đi đúng khuôn orchestrator (secretKeyRef khi datastore in-cluster bật, value rỗng khi không).",
+    "largeDiff: TRUE — ~2950 dòng thêm, 24 file. Nhưng phân bố lệch hẳn về test + chú thích: 4 file test chiếm phần lớn, và mã sản xuất là 4 file mới (jwks.go, token.go, store.go, wsroute.go viết lại) cộng 2 script Lua.",
+    "humanApproved: user chốt lát cắt 1.C-1 và môi trường test (Redis từ docker-compose máy dev) qua AskUserQuestion trước khi viết dòng code nào.",
+    "ĐÁNH ĐỔI CÓ CHỦ Ý #1 — `InsecureSkipVerify: true` trên `websocket.Accept`. Đọc như một lỗ hổng nếu chỉ nhìn tên. Đã xác minh bằng MÃ NGUỒN (không phải tài liệu): `authenticateOrigin` so `r.Host` với `u.Host`, mà gateway ngồi sau reverse proxy gộp origin nên `Host` nó thấy không bao giờ là origin trình duyệt gửi — bật kiểm mặc định thì MỌI handshake hợp lệ trả 403. Phép kiểm được dời lên bước a, nơi đọc được allowlist thật, và có test cả hai nhánh (Origin sai → 403, Origin vắng → 101).",
+    "ĐÁNH ĐỔI CÓ CHỦ Ý #2 — `REDIS_URL` bắt buộc nhưng KHÔNG ping lúc khởi động. Fail-fast ở config (thiếu biến = không có chế độ chạy hợp lệ), fail-soft ở runtime (Redis tạm chết = mất khả năng mở phiên MỚI, không mất cả tiến trình). Giá phải trả: một REDIS_URL trỏ sai host lên được `Ready` rồi mới hỏng ở handshake đầu tiên.",
+    "ĐÁNH ĐỔI CÓ CHỦ Ý #3 — cache JWKS cũ vẫn được dùng khi refetch hỏng. Là fallback được GHI LẠI và có log, không phải nuốt lỗi: khoá công khai không hết hạn theo đồng hồ, thứ hết hạn là `exp` trong token và nó vẫn được kiểm đầy đủ. Không có nó thì apps/web sập kéo theo mọi terminal của người dùng hợp lệ.",
+    "MÓN NỢ ĐÃ GHI, KHÔNG PHẢI RỦI RO ẨN — chặng này chưa chạy trên cluster. Xem adversarial-validation.unverifiedClaims mục 1. Mọi AC cần cluster đều để trống trong phase-1.md.",
+    "ĐÃ SỬA SAU KHI CI ĐỎ — bản đầu đặt `required` cho REDIS_URL trong gateway-deployment. Nghe như fail-closed tốt, thực ra là HỒI QUY: `values.yaml` và `values-cloud.yaml` để `datastore.enabled: false` (bản cloud-shaped, managed DB thắng pod tự dựng) nên `helm template` ABORT trên hai bộ đó, kể cả khi người vận hành hoàn toàn định điền `gateway.env.redisUrl` lúc deploy. Cổng thật nằm ở Go (config từ chối khởi động), đã có test + kiểm đột biến; cổng thứ hai ở tầng template không thêm an toàn nào mà làm chart lệch khỏi chính khuôn nó đang dùng cho cùng biến đó ở orchestrator."
+  ]
+}

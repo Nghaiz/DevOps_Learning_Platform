@@ -1,7 +1,8 @@
 // Command terminal-gateway cầu nối WebSocket ⇄ pod exec.
 //
-// P0: chỉ có khung HTTP + observability; /ws/session/{id} trả 401 vì per-session
-// authz chưa hiện thực. Streaming thật ở P1.
+// 1.C-1: chín bước kiểm trước upgrade của docs/ws-terminal-protocol.md §3 đã
+// chạy thật (Origin, subprotocol, cookie, JWT/JWKS, per-session authz hai vế,
+// trạng thái, trần WS). Cầu exec vào pod là chặng 1.C-2.
 package main
 
 import (
@@ -14,8 +15,11 @@ import (
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/httpx"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/logging"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/config"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/wsroute"
+	"github.com/redis/go-redis/v9"
 )
 
 const serviceName = "terminal-gateway"
@@ -44,13 +48,34 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	redisOpts, err := redis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		return fmt.Errorf("phân giải REDIS_URL: %w", err)
+	}
+	rdb := redis.NewClient(redisOpts)
+	defer func() { _ = rdb.Close() }()
+
+	// KHÔNG ping Redis lúc khởi động. Gateway phải lên được `Ready` để kubelet
+	// thôi restart nó ngay cả khi Redis đang rollout — mất Redis là mất khả năng
+	// mở phiên MỚI (handshake trả 500 ở bước f, có log rõ), không phải mất cả
+	// tiến trình. Fail-fast đúng chỗ là ở config: thiếu hẳn REDIS_URL thì service
+	// không có chế độ chạy hợp lệ nào, còn Redis tạm chết thì có.
+	store := sessionstore.New(rdb)
+	verifier := authz.NewVerifier(authz.NewJWKSCache(cfg.JWKSURL), cfg.TokenIssuer)
+
 	// Hai mux, hai port. Admin (/healthz + /metrics) không ra internet; public chỉ
 	// mang WS. Xem config.AdminAddr.
 	obs := httpx.NewObservability(serviceName, version)
 	adminSrv := httpx.NewServer(cfg.AdminAddr, obs.Mux)
 
 	publicMux := http.NewServeMux()
-	wsroute.Register(publicMux, log)
+	wsroute.Register(publicMux, wsroute.Deps{
+		Log:             log,
+		Verifier:        verifier,
+		Sessions:        store,
+		AllowedOrigins:  cfg.AllowedOrigins,
+		MaxWSPerSession: cfg.MaxWSPerSession,
+	})
 	// NewStreamingServer, không phải NewServer: phiên terminal sống hàng giờ và im
 	// lặng hàng phút, ReadTimeout/WriteTimeout 30s sẽ cắt ngang từ P1.
 	publicSrv := httpx.NewStreamingServer(cfg.PublicAddr, publicMux)

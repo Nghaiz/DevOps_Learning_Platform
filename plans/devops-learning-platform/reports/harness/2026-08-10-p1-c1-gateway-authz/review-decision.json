@@ -1,0 +1,34 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "GHI CHÚ NGỮ NGHĨA (cùng quy ước với các chặng trước): `disprovenClaims` và `reachableRegressions` phản ánh TRẠNG THÁI CUỐI. Chặng này bác bỏ 2 khẳng định của plan và cả 2 đã được vá ngay trong chính commit này, nên hai mảng đó rỗng — toàn văn nằm ngay dưới đây và trong phase-1.md.",
+    "ĐÃ BÁC BỎ VÀ ĐÃ VÁ — PLAN THIẾU BIẾN: G11 liệt kê đúng 4 biến mới của P1 và KHÔNG có `GATEWAY_TOKEN_ISSUER`, trong khi contract §2 lại bắt kiểm `iss`. Không suy ra được từ `GATEWAY_JWKS_URL` (DNS in-cluster vs URL công khai). Không có nó thì hoặc bỏ check `iss` (mất một vế luật 6) hoặc hardcode (drift). Đã thêm, chart lấy từ đúng `web.env.betterAuthUrl`.",
+    "ĐÃ BÁC BỎ VÀ ĐÃ VÁ — PLAN THIẾU BIẾN (2): G3 bắt gateway đọc `session:{id}` nhưng `REDIS_URL` chưa từng có trong danh sách env nào của lane gateway. Đã thêm, và nó là biến BẮT BUỘC duy nhất của service.",
+    "AC 'IDOR vế e' → XONG (TestG13_VeE). Nói thẳng phần chưa đo được: vế 'apiserver không nhận request nào' hiện đúng một cách TẦM THƯỜNG vì chặng này chưa có lời gọi apiserver nào cả. Vế đo được và đã đo là 'Redis không bị hỏi'.",
+    "AC 'IDOR vế g, forge token' → XONG (TestG13_VeG). Đột biến vô hiệu bước g làm ĐÚNG ca này ĐỎ và chỉ ca này — chứng minh nó là ca DUY NHẤT chạm bước g.",
+    "AC 'token chéo session' → XONG. AC 'id đoán bừa → 403 không phải 404' → XONG (3 sub-case). AC '404 chỉ khi session của chính mình biến mất' → XONG.",
+    "AC 'session EXPIRED/REAPED → 409' → XONG, kèm ca khẳng định bước i KHÔNG chạy khi bước h đã hỏng, và ca khẳng định dạng đầy đủ của enum ('SESSION_STATUS_CLAIMED') KHÔNG khớp.",
+    "AC 'Luật 6' (aud=orchestrator, ký sai key, exp qua, thiếu sid) → XONG, 6 ca. AC 'Luật 6 alg-confusion' → XONG nhưng chỉ sau khi kiểm đột biến lôi ra rằng hai ca đầu là tautology.",
+    "AC 'CSWSH Origin sai → 403' → XONG. AC 'Origin vắng → 101' → XONG.",
+    "AC 'Luật 5 vế trần WS' → XONG trên đường HTTP thật, gồm cả vế 'không giết reconnect'. Phần read-limit/byte-rate/bão resize thuộc G8/G6 — chưa.",
+    "AC 'Luật 8' → 3/4 vế (query-token → 401; URL.Query() = 0; log không chứa token, nay là TEST TỰ ĐỘNG). Vế cookie attributes chờ G12.",
+    "AC 'JWKS rotation' → cơ chế có test đầy đủ nhưng trên endpoint GIẢ. KHÔNG tick.",
+    "GHI CHÚ — VẤN ĐỀ KHÔNG CHẶN (schema không có chỗ riêng nên để ở đây): (1) EXEC_NOT_IMPLEMENTED + close 4500 là mã TẠM, không nằm trong enum contract §5, biến mất ở 1.C-2; nếu 1.F code trước thì FE có thể lỡ switch vào nó. (2) Bộ giải mã hash session:{id} bị NHÂN BẢN giữa orchestrator (lifecycle.Load, 9 field) và gateway (sessionstore.Get, 5 field) — không tránh được ở tầng module (D7), và tên field đã dùng chung rediskeys, nhưng luật ngầm 'UserID rỗng = không tồn tại' thì bị viết hai lần. (3) Bảng phân bổ DB Redis cho test vắt qua hai module, không cổng nào ép khớp. (4) TTL cache JWKS 5m và sàn refetch 10s là lựa chọn thiết kế, chưa có số đo chống lưng. (5) Gateway KHÔNG ping Redis lúc khởi động (chủ ý — pod phải Ready trong lúc Redis rollout); giá phải trả là REDIS_URL trỏ sai host vẫn lên được Ready rồi mới hỏng ở handshake đầu tiên.",
+    "GHI CHÚ — LÝ DO ĐIỂM 8 CHỨ KHÔNG PHẢI 9-10: chặng này chứng minh LOGIC, không chứng minh TÍCH HỢP. Chưa có handshake nào đi qua cookie thật, Caddy thật, JWKS thật của Better Auth, gateway thật trên cluster. Ranh giới đó CÓ CHỦ Ý (cookie chỉ tồn tại sau G12, mà G12 kéo theo B0'/mTLS), và hệ quả là mọi AC cần cluster đều KHÔNG được tick — chúng thật sự không được tick.",
+    "GHI CHÚ — CHẶNG NÀY CÓ SỬA MÃ NGOÀI PHẠM VI GATEWAY, đúng một file: `services/orchestrator/internal/pool/claim_idempotent_test.go`. Không phải mở rộng phạm vi tuỳ hứng — test mới của gateway (`SCRIPT FLUSH`, lệnh toàn server) làm test đó đỏ trên CI, và nguyên nhân gốc là khiếm khuyết trong chính hook của nó chứ không phải ở gateway. Bản vá là một guard 2 dòng đưa hook về đúng tiền đề nó tự tuyên bố, kèm kiểm đột biến."
+  ],
+  "regressionProof": [
+    "services/orchestrator: 6/6 package xanh dưới -race, đo từ trạng thái cache script RỖNG (điều kiện của runner CI), và bước `-count=20` của CI xanh ngay sau khi suite gateway gọi SCRIPT FLUSH. Chặng này có sửa MỘT file test của orchestrator (`claim_idempotent_test.go`) — bắt buộc, vì test mới của gateway phơi ra một khiếm khuyết ngủ đông trong hook của nó; xem reachableRegressions.",
+    "services/shared: 4/4 package xanh — rediskeys dùng chung không đổi.",
+    "buf lint + buf breaking --against HEAD sạch: contract gRPC không đổi.",
+    "golangci-lint 0 issue trên CẢ 4 module với GOOS=linux, không chỉ module vừa sửa.",
+    "govulncheck sạch sau khi thêm 4 dependency mới.",
+    "env-check xanh 51 biến / 4 scope — không scope nào khác bị kéo lệch.",
+    "Endpoint /healthz + /metrics ở port admin không bị chạm; main.go chỉ thêm khởi tạo, không đổi vòng đời server.",
+    "helm lint + template + kubeconform xanh trên cả 3 bộ values + nhánh ingress + nhánh existingSecret; actionlint 0 phát hiện. REDIS_URL của gateway render giống hệt orchestrator ở cả 3 bộ."
+  ],
+  "blockingReasons": [],
+  "contractStatus": "OK"
+}

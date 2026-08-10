@@ -53,6 +53,55 @@ spec:
             # của gateway đều vô nghĩa (phase-1 1.B0.5).
             - name: GATEWAY_JWKS_URL
               value: {{ .Values.gateway.env.jwksUrl | default (printf "http://%s-web:%v/api/auth/jwks" (include "platform.fullname" .) .Values.web.service.port) | quote }}
+            {{/*
+            `iss` của sandbox token. Rỗng ⇒ lấy ĐÚNG web.env.betterAuthUrl —
+            KHÔNG suy ra từ jwksUrl ở trên: cái đó là DNS in-cluster, còn `iss`
+            là URL công khai trình duyệt thấy. Hai chuỗi khác nhau về bản chất,
+            và ghép nhầm thì gateway 401 toàn bộ ở prod trong khi dev xanh.
+            */}}
+            - name: GATEWAY_TOKEN_ISSUER
+              value: {{ .Values.gateway.env.tokenIssuer | default .Values.web.env.betterAuthUrl | quote }}
+            {{/*
+            Allowlist Origin — lớp DUY NHẤT đóng CSWSH (handshake WS không chịu
+            CORS). Rỗng ⇒ appUrl, rơi về betterAuthUrl khi appUrl trống: cookie
+            dlp_sandbox là SameSite=Strict + host-only, nên gateway BUỘC phải
+            cùng origin với web và hai giá trị này vốn bằng nhau.
+            */}}
+            - name: GATEWAY_ALLOWED_ORIGINS
+              value: {{ .Values.gateway.env.allowedOrigins | default .Values.web.env.appUrl | default .Values.web.env.betterAuthUrl | quote }}
+            - name: GATEWAY_MAX_WS_PER_SESSION
+              value: {{ .Values.gateway.env.maxWsPerSession | quote }}
+            {{/*
+            Gateway ĐỌC hash session:{id} cho authz per-session (phase-1 D2).
+            secretKeyRef chứ không phải env.value: REDIS_URL CHỨA MẬT KHẨU, và
+            `kubectl get deploy -o yaml` là quyền gần như mọi role đọc-được-cluster
+            đều có. Đọc được mật khẩu Redis nghĩa là ghi đè được session:{id} —
+            tức nối user A vào shell của user B, đúng thứ luật 10 tồn tại để chặn.
+            Cùng khuôn CHÍNH XÁC với orchestrator-deployment.yaml.
+
+            ⛔ CỐ Ý KHÔNG DÙNG `required` Ở NHÁNH else, dù gateway BẮT BUỘC có
+            biến này. Bản đầu của 1.C-1 có, và nó làm cổng infra đỏ: `values.yaml`
+            và `values-cloud.yaml` để `datastore.enabled: false` (bản
+            "cloud-shaped" — managed DB thắng một pod tự dựng), nên `helm template`
+            trên hai bộ values đó ABORT ngay cả khi người vận hành hoàn toàn định
+            điền `gateway.env.redisUrl` lúc deploy thật.
+
+            Cổng thật nằm ở Go (`internal/config`: REDIS_URL không có default,
+            service từ chối khởi động), có test + kiểm đột biến. Đặt cổng thứ hai
+            ở tầng template không thêm an toàn nào — nó chỉ đổi "pod CrashLoop với
+            thông báo rõ" thành "không render nổi manifest", và làm chart lệch khỏi
+            chính khuôn orchestrator đang dùng cho cùng một biến.
+            */}}
+            {{- if and .Values.datastore.enabled .Values.datastore.redis.enabled (not .Values.gateway.env.redisUrl) }}
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "platform.datastoreSecretName" . }}
+                  key: REDIS_URL
+            {{- else }}
+            - name: REDIS_URL
+              value: {{ .Values.gateway.env.redisUrl | quote }}
+            {{- end }}
           # Probe nhắm PORT ADMIN (8083, /healthz + /metrics) — KHÔNG phải port
           # public (8082, chỉ có /ws/session/{id}). kubelet gọi thẳng pod IP nên
           # không cần admin lên Service để probe hoạt động.
