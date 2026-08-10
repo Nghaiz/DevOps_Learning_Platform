@@ -1,0 +1,14 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "highRisk: TRUE — đợt này chạy thí nghiệm PHÁ HOẠI CÓ KIỂM SOÁT trên cluster lab đang sống: tạo pod để ép reaper xoá, và ba lượt `helm install` vào namespace nháp. Thứ tệ nhất có thể xảy ra là đụng warm-pool hoặc tài nguyên cluster-scoped của release `platform` — đã chặn bằng cách disable priorityClass/sandbox trong probe và xác minh warm-pool nguyên vẹn sau thí nghiệm (pod sandbox-20ad99c1d909 vẫn Running).",
+    "autoStopRequired: TRUE — bản vá Helm đổi thời điểm chạy migration, tức đổi thứ tự khởi động của một release đang phục vụ. Quyết định merge thuộc người duyệt.",
+    "humanApproved: user chốt qua AskUserQuestion — phạm vi đóng cả 3 mục nặng, sửa cả 4 lỗ hổng mã, sinh artifact cho đợt rà, và chọn `post-install,pre-upgrade` cho Job migrate sau khi được trình bày 4 phương án kèm đánh đổi.",
+    "largeDiff: FALSE — 8 file mã/chart + 3 file plan/report. Không package mới nào ngoài `cmd/bench-claim`.",
+    "Bản vá Helm mở một cửa sổ MỚI ở lần install đầu tiên (web có thể lên trước migration ⇒ 500 ở route đụng DB). Đánh đổi có chủ ý, ghi lý do trong template, nhưng ĐỘ DÀI cửa sổ chưa đo — xem adversarial-validation.missingProof.",
+    "Bốn bản vá mã + bản vá Helm CHƯA deploy lên cluster. Số đo runtime hôm nay lấy trên sha-d5da78b."
+  ]
+}

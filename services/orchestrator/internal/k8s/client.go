@@ -3,6 +3,7 @@ package k8s
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -17,6 +18,22 @@ import (
 const (
 	clientQPS   = 20
 	clientBurst = 40
+
+	// clientTimeout là trần cho MỖI lời gọi HTTP tới API server.
+	//
+	// ⛔ Mặc định của client-go là KHÔNG CÓ TRẦN (`rest.Config.Timeout` = 0 ⇒
+	// http.Client.Timeout = 0 = vô hạn). Giả thuyết chưa đóng của review PR #27
+	// đi đúng từ chỗ này: `pool.Manager.waitReady` poll `pods.Get` với ngân sách
+	// 2 phút, nhưng một lời gọi `Get` TREO không bao giờ trả về thì ngân sách đó
+	// không bao giờ được kiểm — waitReady vượt qua `reaper.orphanGrace` (5 phút)
+	// và sweep xoá đúng pod mà warm-pool đang chờ. Không dựng được API server
+	// treo để đo, nên vá bằng cách LOẠI BỎ tiền đề: có trần thì `Get` treo hoá
+	// thành `Get` lỗi, waitReady thấy lỗi và tôn trọng deadline của chính nó.
+	//
+	// 30s: rộng hơn nhiều so với p99 của một `Get`/`Create` bình thường, và nhỏ
+	// hơn nhiều so với readyTimeout 2 phút, nên nó không bao giờ cắt ngang một
+	// vòng poll hợp lệ.
+	clientTimeout = 30 * time.Second
 )
 
 // NewClientset dựng client Kubernetes: in-cluster trước, kubeconfig sau.
@@ -50,6 +67,7 @@ func NewClientset() (*kubernetes.Clientset, error) {
 
 	cfg.QPS = clientQPS
 	cfg.Burst = clientBurst
+	cfg.Timeout = clientTimeout
 
 	clientset, err := kubernetes.NewForConfig(cfg)
 	if err != nil {

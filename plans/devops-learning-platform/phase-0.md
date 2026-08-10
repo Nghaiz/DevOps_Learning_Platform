@@ -281,7 +281,7 @@ Không mục nào chặn P0; tất cả đều có chủ nhân ở phase sau.
 | R4 | Cookie refresh path `/api/auth/*` rộng hơn mức tối thiểu | Đánh đổi có chủ ý (điểm lệch 9) — thu hẹp được nếu logout đổi sang xoá bằng route cùng path. **Còn mở** |
 | R5 | Bảng `jwks` **thiếu cột `expiresAt`** | ✅ **ĐÓNG 2026-08-08** — migration `0002`, cột NULLABLE (NULL = khoá chưa có hạn, chế độ trước khi bật rotation), có test gác |
 | R6 | Helm chart chưa đặt `securityContext` mức pod | **Còn mở, P3.** Đã hạ mức nghiêm trọng: pod sandbox nay bị `ValidatingAdmissionPolicy` + PSA baseline ép từ tầng admission (xem mục "Tầng thực thi cô lập"); phần còn thiếu là `securityContext` của 3 Deployment **nền tảng** (web/orchestrator/gateway), không phải của pod lab |
-| R7 | Action CI chưa pin bằng SHA (`@v7`, `@v2`… là tag di động) | **Còn mở, P3.** Supply-chain: tag bị đẩy lại là code lạ chạy trong CI có quyền push GHCR |
+| R7 | Action CI chưa pin bằng SHA (`@v7`, `@v2`… là tag di động) | ✅ **ĐÓNG — xác minh 2026-08-10.** `21/21` dòng `uses:` trong `ci.yml` đều pin SHA 40 ký tự (`grep "uses:" | grep -vE "@[0-9a-f]{40}"` → rỗng). Việc này xảy ra dần qua các PR #17–#28 mà không ai cập nhật lại bảng, nên bảng ghi "còn mở" suốt trong khi rủi ro đã hết |
 | R8 | `enforce_admins: false` — owner push thẳng `main` bỏ qua CI | **Cố ý.** Gate ràng buộc đường PR; siết khi có người thứ hai vào repo |
 
 ## Timeline (P0)
