@@ -223,9 +223,31 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 
 ## 1.E — `images/sandbox-base`
 
-> Hiện là **placeholder thuần** (`FROM ubuntu:26.04` + `CMD bash`, không cài gói nào).
+> **Tiến độ:** ✅ **1.E-1 XONG (E1–E5 + E10)** — 2026-08-10. Image thật đã thay `pause` trên cluster lab và warm-pool đang dựng pod từ nó. **E6–E9 còn nợ** (pwsh, DinD, entrypoint dotfiles) — xem [`images/sandbox-base/README.md`](../../images/sandbox-base/README.md) §"Chưa làm".
 >
-> **Kiểm chứng 2026-08-09, ngược với cảnh báo trong comment Dockerfile:** `ubuntu:26.04` (Resolute Raccoon, 2026-04-23) là LTS hỗ trợ tới 2031-04 — giữ nguyên base. `eza`, `fastfetch`, `zoxide` **đều đã nằm trong universe của 26.04** ⇒ bỏ hẳn repo bên thứ ba mà plan cũ ngầm định. Thứ thật sự thiếu gói cho 26.04 là **`pwsh`** (Microsoft chưa publish, issue upstream còn mở).
+> **⛔ BASE ĐỔI: `ubuntu:24.04` (Noble Numbat), KHÔNG phải 26.04.** Quyết định của người dùng ngày 2026-08-10 (yêu cầu ban đầu là 22.04, chốt lại 24.04 sau khi đo). Đo `apt-cache policy` trên chính ba base:
+>
+> | base | image | `eza` | `fastfetch` | `zoxide` | `tmux` | hết hỗ trợ |
+> |---|---|---|---|---|---|---|
+> | 22.04 | 119 MB | **THIẾU** | **THIẾU** | 0.4.3 (2021) | 3.2a | 2027-04 |
+> | **24.04** | **119 MB** | **0.18.2** | THIẾU | **0.9.3** | **3.4** | **2029-04** |
+> | 26.04 | 160 MB | 0.23.4 | 2.57.1 | 0.9.8 | 3.6a | 2031-04 |
+>
+> 24.04 nhẹ hơn 26.04 **41 MB** mà vẫn giữ `eza` trong repo; 22.04 cùng cỡ 119 MB nhưng mất CẢ `eza` LẪN `fastfetch` và `zoxide` tụt về bản 2021 — trả thêm hai món nợ để đổi lấy đúng 0 MB. `tmux 3.4` còn là **chính version mà D17 đo hành vi hai-client**, nên kết luận đó còn nguyên giá trị. `fastfetch` cài từ `.deb` chính chủ ghim version + digest (đã chạy thật trên Noble: `fastfetch 2.67.0`), **không** rơi về `neofetch` (archive từ 2024).
+> > ⚠ **Lý do "tốn RAM" KHÔNG đúng và cần ghi lại để không ai quyết định theo nó lần nữa:** kích thước image là **đĩa**, không phải RAM. Pod lab lúc rảnh tốn **~7.5 MB RSS** (PID 1); RAM thật do zsh + tmux + oh-my-posh quyết định và như nhau trên cả ba base. Chọn 24.04 là đúng vì **đĩa + vòng đời hỗ trợ + tài liệu DevOps phần lớn nhắm Noble**, không phải vì RAM.
+>
+> Số đo: **369 MB** image / **86 MB** tarball; Trivy **0 CRITICAL**, 14 HIGH (cả 14 là CVE **stdlib Go** trong binary `oh-my-posh`, tầng gói Ubuntu sạch) ⇒ **không cần `.trivyignore`**. oh-my-posh ghim `v30.6.4` + sha256; fastfetch ghim `2.67.0` + digest tự tính (release **không publish checksum nào** — đây là trust-on-first-use, KHÔNG phải chữ ký nhà phát hành, nâng version phải tính lại bằng tay).
+>
+> **⛔ Ba thứ plan KHÔNG lường trước:**
+> 1. **`CMD` của image quyết định warm-pool sống hay chết** — và PID 1 phải TỬ TẾ. `podspec.go` không đặt `Command`/`Args` và đặt `RestartPolicy: Never`, nên pod chạy `CMD` của image; `CMD ["/bin/bash"]` của bản placeholder không có TTY ⇒ thoát NGAY ⇒ pod về `Succeeded` trong khi `pool:free` vẫn đếm là ấm. *(Cơ chế này **suy ra khi đọc `podspec.go`** trước lúc đổi image, không phải quan sát được — warm-pool chưa bao giờ chạy image placeholder, nó chạy `pause`.)* Chốt **`tini` làm PID 1 + `CMD ["sleep","infinity"]`**: `sleep` trần là PID 1 tồi ở hai điểm và **cả hai là hồi quy so với `pause`** — không `wait()` nên con mồ côi thành zombie (E7 dockerd sẽ đẻ rất nhiều, ăn thẳng vào trần pids 4096 của D-19′), và không có handler nên kernel **bỏ qua SIGTERM** ⇒ `kubectl delete pod` chờ hết grace 30s, giữ 1 trong 4 khe quota. Đo được: với `tini`, `docker stop` trả về trong **0s**.
+> 2. **Đổi `SANDBOX_IMAGE` KHÔNG thay pod đang ấm.** Warm-pool không có logic rollout theo image: pod dựng từ image cũ nằm lại `pool:free` vô thời hạn, `Running`/`Ready` nên nhìn không có gì sai. **Quan sát được** sau `helm upgrade`: pool vẫn giữ nguyên pod `pause`. Chưa task nào sở hữu — ghi ở §"Còn để ngỏ".
+> 3. **AC glyph của bản cũ là lệnh không bao giờ xanh được** — xem sửa ở §Acceptance criteria → Terminal UX.
+>
+> **Bốn gói ngoài danh sách E1**, thêm có chủ ý: `ncurses-term` (tmux `tmux-256color` cần terminfo entry cùng tên, thiếu là tmux chết lúc khởi động ⇒ D3 hỏng ở đúng đường G4 sẽ đi) · `xxd` (AC glyph chạy *trong pod*) · **`vim-tiny`** (cấp `/usr/bin/vi`; base Ubuntu KHÔNG có editor nào, mà rc đặt `EDITOR=vi` ⇒ `git commit` không `-m` chết với "cannot run vi", và trên nền tảng DẠY DevOps thì không sửa được YAML/Dockerfile nghĩa là không làm được bài — **trong khi AC "10 binary" vẫn xanh trọn vẹn**) · `tini`.
+>
+> **Theme oh-my-posh là tài sản của repo, không phải asset tải về:** `themes.zip` của release **không có dòng nào trong `checksums.txt`** (kiểm 2026-08-10 — file chỉ liệt kê 10 binary), nên tải nó về là đúng cái "tải không checksum" mà E3 vừa cấm. Theme nằm ở `images/sandbox-base/etc/dlp.omp.json`, glyph viết bằng `\uXXXX`.
+>
+> **`SANDBOX_IMAGE` mất default trong mã Go (`internal/config`).** Trước đây default là `registry.k8s.io/pause:3.10` — một fallback IM LẶNG đúng nghĩa: `pause` chạy được, pod `Ready`, vào `pool:free`, sinh viên claim **thành công**, rồi mới hỏng ở gateway (G4) khi `tmux new-session` không tìm thấy shell. Nguyên nhân và triệu chứng cách nhau ba thành phần. Nay rỗng ⇒ orchestrator **từ chối khởi động** (cùng lý lẽ `RequireDataStores`), có test `TestSandboxImageBatBuoc` + kiểm đột biến (khôi phục default thì test ĐỎ).
 
 **E1 — Base + một layer apt duy nhất.** `--no-install-recommends`: `zsh tmux git curl ca-certificates less jq unzip locales fzf bat zoxide fastfetch eza`. Xoá `/var/lib/apt/lists` **trong cùng layer**. Symlink `/usr/local/bin/bat → batcat`. *Effort: S.*
 
@@ -307,7 +329,8 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 1.D: D-17′, D-21′, D-22′ song song hoàn toàn.
      D-19′ KHÔNG — nó restart kubelet trên node 1-node (xem R22).
 ```
-**1.E-1 (E1–E5, E10) phải merge + push image lên ghcr TRƯỚC** khi warm-pool tạo pod thật; trước đó orchestrator chỉ test với `pause` image. Values Helm hiện trỏ tag `dev` (build tay) → phải chuyển sang tag `sha-<short>` do CI đóng.
+~~**1.E-1 (E1–E5, E10) phải merge + push image lên ghcr TRƯỚC** khi warm-pool tạo pod thật~~ ✅ **XONG 2026-08-10** — nhưng **không phải qua ghcr**: node không có imagePullSecrets cho ghcr private và `podspec.go` ghim `ImagePullPolicy: IfNotPresent`, nên đường giao image ở lab là **side-load** (`docker save` → `scp` → `ctr -n k8s.io images import`), đúng khuôn `values-selfhost.yaml` đã dùng cho 4 image kia. `helm upgrade` xong, warm-pool đang dựng pod từ image thật.
+> Chart nay ghép `sandboxImage` từ `image.registry` + `image.tag` khi để rỗng (cùng khuôn `sandboxRuntimeClass`), nên đổi `image.tag` một chỗ là pod lab đi theo — không còn hằng số thứ hai để trôi. Tag `sha-<short>` do CI đóng sẽ dùng được ngay khi `main` có commit này; xem §"Còn để ngỏ" cho món nợ `--set` tạm thời.
 
 ---
 
@@ -342,7 +365,9 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 
 ### Chức năng
 - [ ] 5 RPC trả kết quả thật, không còn `Unimplemented`.
-- [x] Claim từ warm-pool **p95 < 1s** (`dlp_claim_duration_seconds`, ≥ 50 mẫu). → **p95 = 0.090s trên 50 mẫu warm**, đo 2026-08-10 bằng [`cmd/bench-claim`](../../services/orchestrator/cmd/bench-claim/). *Cảnh báo khi đọc lại: đo với image `pause:3.10` (warm-pool chưa dùng image lab) ⇒ **PHẢI đo lại sau 1.E**. Và cần 102 lượt gọi mới đủ 50 mẫu warm — 52 lượt rơi cold-path ở `POOL_TARGET=1`.*
+- [x] Claim từ warm-pool **p95 < 1s** (`dlp_claim_duration_seconds`, ≥ 50 mẫu). → **p95 = 0.092s trên 50 mẫu warm với IMAGE THẬT (Ubuntu 24.04)**, đo lại 2026-08-10 sau 1.E-1 bằng [`cmd/bench-claim`](../../services/orchestrator/cmd/bench-claim/) (98 lượt gọi: 50 warm + 48 cold ở `POOL_TARGET=1`). ✅ **Cảnh báo "phải đo lại sau 1.E" ĐÃ ĐÓNG.**
+  > Ba lần đo, ba image khác hẳn nhau, cùng một con số: `pause:3.10` **0.090s** · sandbox-base 26.04 (427 MB) **0.089s** · sandbox-base 24.04 (369 MB) **0.092s**. Đúng như cơ chế: claim là một `LMOVE` trên Redis trong pool đã ấm, nó **không chạm image** — nên đây là bằng chứng cho tính bất biến, không phải một cải thiện. Histogram được reset (restart orchestrator) trước mỗi lượt đo nên không mẫu nào lẫn giữa hai image.
+  > Thứ image THẬT SỰ ảnh hưởng là **thời gian dựng pod lúc replenish/cold-path**, và AC hiện tại không hỏi câu đó — vẫn đúng như ghi chú cũ: *"người thứ hai bấm Start ngay sau người thứ nhất chờ bao lâu"* chưa AC nào hỏi.
 - [ ] Từ `ready` tới prompt đầu tiên: **p95 < 500ms** (`dlp_gateway_attach_duration_seconds`).
 - [ ] Prompt đầu tiên vẽ **đúng bề rộng** cửa sổ (không gãy dòng) — chứng minh `init`-trước-dial hoạt động.
 - [ ] `CreateSession` 2 lần cùng `idempotency_key` → **cùng `session.id`**, số pod tăng đúng **1**.
@@ -365,9 +390,12 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 - [ ] 2 replica gateway sau round-robin LB: mở/đóng 20 WS xen kẽ (**tuần tự, không chồng lấn** — trần là 1 WS/session), 0 lỗi.
 
 ### Terminal UX
-- [ ] 10 binary có mặt trong image: `zsh tmux git jq fzf zoxide fastfetch eza bat oh-my-posh`.
-- [ ] `zsh -lic 'echo $COLORTERM'` → `truecolor`; `locale` báo UTF-8.
-- [ ] `eza --icons -la` in glyph thật (byte đa-byte, kiểm bằng `| xxd`), không phải `?`.
+- [x] 10 binary có mặt trong image: `zsh tmux git jq fzf zoxide fastfetch eza bat oh-my-posh`. → đủ 10, kiểm **trong pod thật** trên cluster 2026-08-10 (không phải chỉ `docker run` cục bộ).
+- [x] `zsh -lic 'echo $COLORTERM'` → `truecolor`; `locale` báo UTF-8. → `truecolor` + `LANG=en_US.UTF-8`. *Kèm theo: đoạn keybinding `fzf --zsh` phải gác `[[ -t 0 ]]` — `zsh -lic` có `-i` nên `-o interactive` đúng nhưng KHÔNG có tty, và zle in `can't change option: zle` vào đúng stdout mà AC này đang đọc.*
+- [x] **`eza --icons=always -la` in glyph thật, kiểm bằng CODEPOINT** (`grep -cP '[\x{E000}-\x{F8FF}]'`), không phải `?`. → **3** dòng có glyph PUA trong pod thật; **đối chứng `--icons=never` → 0**.
+  > ⛔ **AC bản cũ hỏng ở HAI tầng, và tầng thứ hai chỉ lộ ra khi review đối kháng.**
+  > **(a) `--icons` không bao giờ xanh được.** Không kèm giá trị nghĩa là `--icons=auto`, mà `auto` **tắt icon khi stdout không phải tty** — `| xxd` thì luôn là pipe. Đo cả ba ca: `--icons` qua pipe → **0** glyph; `--icons=always` qua pipe → **3**; `--icons` với `-t` (vẫn pipe vào `xxd`) → **0**.
+  > **(b) `| xxd | grep -E "ee|ef"` thì ngược lại — nó xanh VÌ LÝ DO SAI.** Regex chạy trên toàn dòng xxd: cột offset `00000ee0:` khớp `ee`, và hai byte cạnh nhau `0xAE 0xE1` in ra `aee1` cũng khớp, dù **không byte nào là PUA**. Bản vá đầu tiên của chặng này chỉ sửa (a) nên đổi một phép kiểm **tự làm mù** lấy một phép kiểm **tự làm sáng** — cùng họ "suite xanh vì skip sạch". Chốt: kiểm codepoint bằng `grep -P`, và **bắt buộc chạy kèm ca đối chứng `--icons=never` phải ra 0** — một phép kiểm không thể đỏ thì không kiểm gì cả.
 - [ ] **DinD offline (D4):** `docker info` trả cả client lẫn server; `docker build` một image `FROM scratch` rồi `docker run` nó — thành công **không cần mạng**.
 - [ ] Dotfiles: file trong allowlist được copy; **symlink và `../` bị từ chối**, không ghi được ngoài `$HOME`.
 - [ ] Mở `/session`: DevTools Console **0 CSP violation**; gõ tiếng Việt / ký tự đa-byte không vỡ khi output cắt qua nhiều frame.
@@ -550,7 +578,7 @@ make go-build && make go-test && make go-vet && make env-check && make proto-bre
 | 1.B orchestrator (B1–B9) | **L** | Đường găng |
 | 1.C gateway (G1–G13) | **L** | Đường găng, song song 1.B |
 | 1.D bốn khoảng trống | **S**×4 | D-17′/D-21′/D-22′ song song hoàn toàn; **D-19′ phụ thuộc 1.B0.1** (restart kubelet, xem R22) |
-| 1.E image | **M** | E1–E5 phải xong **sớm nhất** (warm-pool chờ image) |
+| 1.E image | ~~M~~ **E1–E5 + E10 ✅ xong 2026-08-10** · E6–E9 còn nợ | Warm-pool đã chạy image thật; E7 (DinD) chặn AC "DinD offline" (D4) |
 | 1.F FE | **M–L** | Chặn bởi WS contract + B0.4 + G12 |
 | **Tổng P1** | **L (~3 tuần)** | Đường găng: `1.B0.1 → 1.B0.3 → 1.A → (1.B ∥ 1.C) → tích hợp`. 1.E-1 phải chen sớm. |
 
@@ -630,4 +658,8 @@ Ba thứ nhỏ hơn, đã ghi vào task tương ứng: `Next()` phải block (G6
   > **Bản vá:** `helm.sh/hook: post-install,pre-upgrade`. Fresh install chạy migration SAU khi Postgres đã apply; upgrade giữ nguyên thứ tự schema-trước-code. Chứng minh cả hai đường trên cluster thật: fresh install → `deployed` + `enum_range(session_event)` trả đủ 6 giá trị đúng thứ tự trong Postgres của release; upgrade → revision 2 `deployed`. **Đánh đổi đã biết và chấp nhận:** ở lần install ĐẦU TIÊN, web có thể lên trước khi migration xong và trả 500 ở route đụng DB (gồm `/api/auth/jwks` mà G2 phụ thuộc) trong vài chục giây — nó TỰ KHỎI, còn `helm install` abort thì không. **Độ dài cửa sổ đó chưa đo** (probe chạy với `web.enabled=false`) — ghi nợ ở đây.
 - **Cổng Trivy chạy SAU `push: true`** (phát hiện khi rà 2026-08-10). Image có CRITICAL **vẫn được publish lên ghcr**; cổng chỉ làm run đỏ chứ không chặn artifact — đúng chế độ hỏng mà #28 mô tả nhưng chỉ vá phần CVE, không vá thứ tự. Sửa được bằng `push: false` + `load: true` → quét → bước push riêng, hoặc chấp nhận và ghi rõ "tag đỏ vẫn tồn tại trên registry". **P3.**
 - **`make` không có trên máy dev Windows** ⇒ mọi verify command dạng `make go-test` / `make proto-check` / `make env-check` trong hai phase doc **không chạy được như viết**. Đường thay thế đã kiểm 2026-08-10: `go test ./...` lặp qua `go list -m`, `buf lint`/`buf breaking --against '.git#ref=HEAD~1'`/`buf generate`, `node scripts/env-check.mjs`. **Và phải tự export `REDIS_URL`/`DATABASE_URL`** — root `.env` chỉ có 6 biến của compose, thiếu chúng thì 81 test Go tự SKIP và suite xanh mà không kiểm gì.
-- **LimitRange 1Gi cho pod DinD** có thể chật với dockerd + `docker build` — đo RSS thật ở 1.E rồi mới bàn chỉnh, đừng đoán.
+- **LimitRange 1Gi cho pod DinD** có thể chật với dockerd + `docker build` — đo RSS thật ở 1.E rồi mới bàn chỉnh, đừng đoán. *(1.E-1 chưa trả lời được: E7/DinD chưa làm, image hiện chỉ chạy `sleep infinity` nên RSS không đại diện.)*
+- **`images/sandbox-base/Dockerfile` KHÔNG có cổng nào ở PR — đã vá ở chặng này, ghi lại vì nó là một họ lỗi.** Job `images` chỉ chạy trên `main`, nên tới 1.E-1 file này là file duy nhất không ai gác lúc review. Chuỗi hậu quả cụ thể: PR nâng `OMP_VERSION`/`FASTFETCH_VERSION` mà quên digest ⇒ `sha256sum -c` đỏ ⇒ **`ci-ok` vẫn XANH ở PR** (job bị skip) ⇒ merge ⇒ main đỏ ⇒ **không có tag `sha-<short>` nào cho `dlp-sandbox-base`** ⇒ vì chart nay ghép `sandboxImage` từ `image.tag`, lần deploy kế tiếp trỏ vào một tag không bao giờ tồn tại ⇒ warm-pool ImagePullBackOff. Đã thêm job `sandbox-image` (build `push:false` + smoke 11 binary + PID 1 + Trivy CRITICAL) vào `needs` của `ci-ok`. **Bài học chung: "job chỉ chạy trên main" nghĩa là file đó không có review gate — mỗi lần file như thế bắt đầu có logic thật, phải thêm cổng PR-time.**
+- **Cold-path khi image chưa side-load: `CreateSession` treo ~2 phút rồi mới lỗi.** `pool.waitReady` chờ tới `DefaultReadyTimeout` và `ImagePullBackOff` là trạng thái `Pending` chứ không terminal, nên không có đường thoát sớm. Không rò quota (manager dọn pod), nhưng UX là hai phút im lặng. Chưa vá — cần một nhánh nhận diện `ImagePullBackOff`/`ErrImagePull` là lỗi terminal.
+- **Warm-pool không rollout theo image — MỚI, phát hiện 2026-08-10 ở 1.E-1.** Đổi `SANDBOX_IMAGE` rồi `helm upgrade` **không** thay pod đang ấm: warm-pool chỉ giữ đủ `POOL_TARGET`, nên pod dựng từ image cũ nằm lại `pool:free` vô thời hạn và người claim tiếp theo nhận đúng nó. Pod đó `Running`/`Ready` nên không tín hiệu nào nói có gì sai — với `pause` thì hậu quả là **không có shell để `tmux new-session` của G4 attach vào**, tức terminal chết mà orchestrator vẫn báo claim thành công. Hiện phải rút tay (`LREM pool:free 0 <pod>` → `DEL pod:<pod>` → `kubectl delete pod`, theo đúng thứ tự đó để không claim nào grab được pod đang bị rút). **Chưa task nào sở hữu.** Đường đúng ở P2/P3: warm-pool so `SANDBOX_IMAGE` hiện hành với `.spec.containers[0].image` của pod ấm và tự drain khi lệch — cùng họ với tầng 2c của B7 (dọn thứ không nhánh nào khác chạm tới).
+- **`orchestrator.env.sandboxImage` đang bị `--set` tường minh trên release lab** (`ghcr.io/nghaiz/dlp-sandbox-base:dev`) vì chart mặc định kế thừa `image.tag`, mà release đang ghim `sha-d5da78b` — tag đó chưa có image sandbox nào (job `images` của CI chỉ chạy trên `main`, và commit đó còn là placeholder). **Nợ có hạn chót:** sau khi PR này vào `main` và CI đóng `sha-<short>` cho `dlp-sandbox-base`, side-load tag đó rồi **bỏ `--set`** để pod lab quay về kế thừa SSOT `image.tag`.

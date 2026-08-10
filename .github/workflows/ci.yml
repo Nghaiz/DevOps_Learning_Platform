@@ -400,13 +400,83 @@ jobs:
   # alerts (cảnh báo CVE trong dependency) + govulncheck (Go, có reachability) +
   # Trivy (image). Khi nào repo thành public thì thêm lại.
   #
+  # ──────────────────────────────────────────── build thử image sandbox ở PR-time
+  #
+  # Job `images` bên dưới CHỈ chạy trên `main`, nên tới 1.E-1 thì `images/sandbox-base/
+  # Dockerfile` là file DUY NHẤT không có cổng nào ở PR. Lúc nó còn là placeholder
+  # 3 dòng thì vô hại; giờ nó có một layer apt, HAI lượt tải mạng và HAI cổng
+  # checksum, tức là đã có thứ để hỏng.
+  #
+  # Chế độ hỏng cụ thể được chặn ở đây: một PR nâng `OMP_VERSION`/`FASTFETCH_VERSION`
+  # mà quên cập nhật digest ⇒ `sha256sum -c` đỏ. Không có job này thì `ci-ok` vẫn
+  # XANH ở PR (job `images` bị skip), merge xong main mới đỏ — và vì `images` đỏ
+  # nên KHÔNG có tag `sha-<short>` nào cho `dlp-sandbox-base`. Cộng với việc chart
+  # nay ghép sandboxImage từ `image.tag`, lần deploy kế tiếp sẽ trỏ vào một tag
+  # không bao giờ tồn tại ⇒ warm-pool ImagePullBackOff.
+  #
+  # KHÔNG dùng `paths:` (rules/ci-cd-trigger-design.md #3 — required check bị skip
+  # vì paths sẽ treo ở "Expected — Waiting" vĩnh viễn). Build luôn, và cache gha
+  # dùng chung scope với job `images` nên lần chạy sau gần như tức thì.
+  sandbox-image:
+    name: 'Build thử: sandbox-base'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: 'Build (KHÔNG push) — cổng checksum + layer apt'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: images/sandbox-base
+          file: images/sandbox-base/Dockerfile
+          push: false
+          load: true
+          tags: dlp-sandbox-base:pr
+          cache-from: type=gha,scope=sandbox-base
+          # KHÔNG `cache-to`: job này chạy trên mọi PR, để nó ghi cache sẽ đẩy
+          # văng cache của `images` (giới hạn 10 GB/repo của GitHub).
+
+      - name: 'Smoke: 10 binary của AC + PID 1 + locale'
+        run: |
+          set -euo pipefail
+          missing=0
+          for b in zsh tmux git jq fzf zoxide fastfetch eza bat oh-my-posh vi; do
+            if ! docker run --rm --entrypoint /bin/bash dlp-sandbox-base:pr -c "command -v $b >/dev/null"; then
+              echo "::error::thiếu binary trong image: $b"; missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+
+          # PID 1 phải SỐNG. podspec.go không đặt Command/Args và dùng
+          # RestartPolicy=Never, nên một CMD thoát ngay sẽ biến mọi pod warm-pool
+          # thành xác mà `pool:free` vẫn đếm là ấm. Đây là cổng rẻ nhất cho nó.
+          cid=$(docker run -d dlp-sandbox-base:pr)
+          sleep 5
+          state=$(docker inspect -f '{{.State.Status}}' "$cid")
+          docker rm -f "$cid" >/dev/null
+          [ "$state" = "running" ] || { echo "::error::PID 1 chết sau 5s (state=$state)"; exit 1; }
+
+          got=$(docker run --rm --entrypoint /bin/zsh dlp-sandbox-base:pr -lic 'echo $COLORTERM')
+          [ "$got" = "truecolor" ] || { echo "::error::COLORTERM=$got, muốn truecolor"; exit 1; }
+          echo "smoke đạt."
+
+      - name: 'Trivy — CỔNG CHẶN ở CRITICAL (trước khi vào main)'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: dlp-sandbox-base:pr
+          format: table
+          exit-code: '1'
+          severity: 'CRITICAL'
+
   # ─────────────────────────────────────────────── cổng tổng hợp (required check)
   ci-ok:
     name: ci-ok
     # `always()` để job vẫn chạy KHI CÓ need thất bại/bị skip — nếu không, nó bị
     # skip theo và branch protection thấy một check "chưa chạy", treo PR mãi mãi.
     if: always()
-    needs: [proto, ts, go, infra, secret-scan]
+    needs: [proto, ts, go, infra, secret-scan, sandbox-image]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

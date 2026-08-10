@@ -16,8 +16,34 @@ func clearEnv(t *testing.T) {
 	for _, key := range []string{
 		"GRPC_ADDR", "HTTP_ADDR", "LOG_LEVEL", "GRPC_REFLECTION",
 		"DATABASE_URL", "REDIS_URL", "SESSION_TTL", "SHUTDOWN_GRACE", "SANDBOX_NAMESPACE",
+		"SANDBOX_IMAGE",
 	} {
 		t.Setenv(key, "")
+	}
+	// SANDBOX_IMAGE là biến BẮT BUỘC không có default (1.E-1) — `pause` từng là
+	// default và đó là fallback im lặng: pod Ready, claim thành công, rồi mới
+	// hỏng lúc gateway exec vào vì image không có shell. Các test dưới đây kiểm
+	// những default KHÁC, nên cấp cho chúng một giá trị hợp lệ; ca "để rỗng"
+	// có test riêng (TestSandboxImageBatBuoc).
+	t.Setenv("SANDBOX_IMAGE", "ghcr.io/nghaiz/dlp-sandbox-base:test")
+}
+
+// SANDBOX_IMAGE rỗng phải CHẶN khởi động, không được rơi về một default chạy được.
+//
+// Ca này tồn tại vì chế độ hỏng của nó không nằm ở orchestrator: `pause` khởi
+// động bình thường, pod vào `pool:free`, sinh viên claim THÀNH CÔNG — triệu
+// chứng chỉ xuất hiện ở gateway (G4) khi `tmux new-session` không tìm thấy shell
+// nào. Ba thành phần cách nhau giữa nguyên nhân và triệu chứng.
+func TestSandboxImageBatBuoc(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SANDBOX_IMAGE", "")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("Load() muốn error khi SANDBOX_IMAGE rỗng, nhận nil")
+	}
+	if !strings.Contains(err.Error(), "SANDBOX_IMAGE") {
+		t.Fatalf("error phải nêu tên biến để người vận hành sửa được, nhận: %v", err)
 	}
 }
 

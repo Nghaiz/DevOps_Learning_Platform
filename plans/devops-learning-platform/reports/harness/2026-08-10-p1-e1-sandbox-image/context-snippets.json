@@ -1,0 +1,39 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Chặng 1.E-1 của phase-1 (E1–E5 + E10): dựng images/sandbox-base thật thay placeholder, quét Trivy cục bộ, side-load lên cluster lab, đổi warm-pool sang image thật, và đo lại AC claim p95 — cảnh báo 'p95 = 0.090s đo với pause, PHẢI đo lại sau 1.E' là thứ chặng này tồn tại để đóng. GIỮA CHẶNG người dùng đổi yêu cầu base image (26.04 → 22.04 vì 'tốn RAM' → chốt 24.04 sau khi được trình bày số đo), nên image được dựng lại trên Ubuntu 24.04 và toàn bộ bộ kiểm chạy lại từ đầu.",
+  "scoutSummary": "Vào phiên trên nhánh fix/p1-b-evidence-debt; drift check phát hiện PR #29 ĐÃ MERGE vào main (679a838) và nhánh remote đã xoá — `git diff origin/main HEAD` rỗng nên 7 commit local đều đã nằm trong squash. Dọn nhánh, quay về main sạch. Trạng thái phase-1: 1.B0/1.A/1.B xong; 1.C (gateway) còn là stub 401 của P0; 1.D còn 4 khoảng trống; 1.E là placeholder thuần; 1.F chỉ có README. HARD-GATE 1.A đã mở nên 1.C/1.E/1.F đều chạy được — user chọn 1.E-1 trước.",
+  "acceptanceCriteria": [
+    "10 binary có mặt: zsh tmux git jq fzf zoxide fastfetch eza bat oh-my-posh — kiểm TRONG POD THẬT, không chỉ docker run cục bộ.",
+    "zsh -lic 'echo $COLORTERM' → truecolor; locale báo UTF-8.",
+    "eza in glyph thật (byte đa-byte qua xxd), không phải '?'.",
+    "trivy --severity CRITICAL --exit-code 1 pass CỤC BỘ trước khi merge (job images của CI chỉ chạy trên main).",
+    "Image được VAP + Sysbox admit trên cluster thật; uid_map cột 2 ≠ 0 (D-17′).",
+    "Warm-pool dựng pod từ image thật và pod Ready.",
+    "Claim p95 < 1s trên ≥ 50 mẫu warm ĐO LẠI với image thật (đóng cảnh báo của AC cũ)."
+  ],
+  "touchpoints": [
+    "images/sandbox-base/Dockerfile — thay placeholder bằng nội dung thật trên ubuntu:24.04 (E1–E5)",
+    "services/orchestrator/internal/config/config.go + config_test.go — bỏ default `pause` của SANDBOX_IMAGE (fail-fast) + test mới",
+    "services/orchestrator/.env.example — bỏ chỉ thị tự-huỷ 'khi 1.E merge thì đổi biến này'",
+    ".github/workflows/ci.yml — job `sandbox-image` build PR-time + smoke + Trivy, thêm vào needs của ci-ok",
+    "images/sandbox-base/etc/dlp.omp.json (MỚI) — theme oh-my-posh của repo, glyph viết \\uXXXX",
+    "images/sandbox-base/skel/.zshrc, .bashrc, .tmux.conf (MỚI) — E4",
+    "images/sandbox-base/README.md — viết lại từ 'chỗ dành sẵn' sang tài liệu thật",
+    "infra/helm/platform/values.yaml — orchestrator.env.sandboxImage: pause → '' (kế thừa)",
+    "infra/helm/platform/templates/orchestrator-deployment.yaml — SANDBOX_IMAGE ghép từ image.registry+image.tag",
+    "plans/devops-learning-platform/phase-1.md — tiến độ 1.E, sửa 2 AC sai, ghi 2 món nợ mới"
+  ],
+  "publicContracts": [
+    "proto — KHÔNG đụng.",
+    "Go — KHÔNG đụng dòng mã Go nào. cmd/bench-claim chỉ được CHẠY, không sửa.",
+    "Chart: `orchestrator.env.sandboxImage` đổi ngữ nghĩa — rỗng nay nghĩa là 'kế thừa image.registry + image.tag' thay vì 'rỗng'. Giá trị tường minh vẫn thắng (đã kiểm bằng helm template cả 3 nhánh). Không values file nào đang đặt tường minh nên không consumer nào gãy.",
+    "Image `dlp-sandbox-base` đổi từ placeholder (CMD bash) sang CMD sleep infinity — đây là thay đổi hợp đồng vận hành với podspec.go, xem risk-gate."
+  ],
+  "blastRadius": [
+    "Cluster lab ĐANG SỐNG: helm upgrade release `platform` (revision 8 → 9) và thay toàn bộ warm-pool sang image mới. Pod ấm cũ (pause) phải rút TAY khỏi pool:free vì warm-pool không rollout theo image.",
+    "Mọi pod sinh viên tương lai chạy image này — 427 MB thay vì pause 0.7 MB. LimitRange 1Gi/pod không đổi; quota hiệu lực vẫn 4 pod vì LimitRange defaultRequest (512Mi) mới là thứ quota đếm, không phải kích thước image.",
+    "Bench tạo 99 session trong lúc đo; pool trả về free=1/claimed=0/quarantine=0 sau khi xong.",
+    "KHÔNG đụng: 1.C gateway, 1.F FE, proto, mã Go, RBAC, NetworkPolicy, VAP."
+  ]
+}

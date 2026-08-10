@@ -1,0 +1,23 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [],
+  "unverifiedClaims": [
+    "AC 'từ ready tới prompt đầu tiên p95 < 500ms' CHƯA đo được — metric thuộc gateway (1.C chưa tồn tại).",
+    "AC 'DinD offline (D4)' CHƯA chạy được — E7 chưa làm, image không có dockerd.",
+    "AC dotfiles (allowlist, từ chối symlink và ../) CHƯA chạy được — E8 chưa làm.",
+    "Vế GATEWAY của E9 chưa chứng minh: `new-session -A` hai lần = 1 session mới chỉ đo qua `kubectl exec`, KHÔNG phải qua đường G4 thật (exec có TTY qua WS). Ca 'mất mạng rồi vào lại thấy đúng màn hình cũ' (D3) hoàn toàn chưa kiểm.",
+    "`stty size` trong POD chưa đo. Bằng chứng 200x50 khớp tuyệt đối lấy từ `docker run` cục bộ với cùng .tmux.conf; đường thật (FE gửi cols/rows → G6 → PTY) chưa tồn tại. Đủ để chốt `status off` là đúng, CHƯA đủ để tick AC resize.",
+    "RSS thật của pod khi có dockerd (E7) chưa đo — con số ~7.5 MB hiện tại chỉ là PID 1 nhàn rỗi. Câu hỏi 'LimitRange 1Gi có chật không' vẫn mở.",
+    "Thời gian dựng pod (replenish/cold-path) với image 369 MB chưa đo tách bạch. p95 CLAIM không đổi vì claim chỉ chạm Redis; 'người thứ hai bấm Start ngay sau người thứ nhất chờ bao lâu' vẫn chưa AC nào hỏi.",
+    "Job `sandbox-image` mới thêm vào CI CHƯA từng chạy trên GitHub — cú pháp đã đối chiếu với các job sẵn có và action đều pin SHA giống chỗ khác, nhưng lần chạy đầu tiên là ở PR này.",
+    "14 HIGH của oh-my-posh chưa đánh giá theo bề mặt tấn công thật (đều là stdlib net/http/mime; oh-my-posh trong pod không phục vụ mạng), mới chỉ ghi nhận là không tự vá được.",
+    "Digest của fastfetch .deb là TỰ TÍNH (release không publish checksum) ⇒ trust-on-first-use, không phải chữ ký nhà phát hành. Nếu artifact bị thay ruột TRƯỚC lần tải đầu của tôi thì digest này ghim đúng bản đã bị thay."
+  ],
+  "missingProof": [
+    "KHÔNG có test tự động nào gác ràng buộc liên-thành-phần `Dockerfile.CMD` ↔ `podspec.go` (không Command/Args + RestartPolicy Never). Job CI mới chỉ kiểm 'PID 1 còn sống sau 5s' phía image — nó KHÔNG biết gì về podspec, nên nếu ai đó thêm Command vào podspec thì cổng này vẫn xanh. Khuôn đúng là TestOrphanGraceBaoTronReadyTimeout (một test ràng hai hằng ở hai package).",
+    "KHÔNG có cổng nào chặn `--icons` (auto) hay kiểu grep hex-dump quay lại trong AC/verify. Đã sai HAI lần trong cùng một chặng (bản gốc và bản vá đầu), nên xác suất tái phát không nhỏ.",
+    "KHÔNG có proof cho nhánh 'image lệch' của warm-pool: chưa có mã nào so image của pod ấm với SANDBOX_IMAGE, nên chưa có test nào có thể đỏ.",
+    "Nhánh `ImagePullBackOff` → cold-path treo 2 phút chưa có test, và chưa có nhánh nhận diện nó là lỗi terminal."
+  ],
+  "reachableRegressions": []
+}

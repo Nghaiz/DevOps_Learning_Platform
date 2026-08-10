@@ -1,0 +1,35 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "GHI CHÚ NGỮ NGHĨA (cùng quy ước với chặng 2026-08-10-audit-p0-p1): `disprovenClaims` và `reachableRegressions` phản ánh TRẠNG THÁI CUỐI, không phải lịch sử. Chặng này BÁC BỎ 7 khẳng định và CẢ 7 đã được vá ngay trong chính commit này, nên hai mảng đó rỗng — toàn văn nằm ngay dưới đây và trong phase-1.md (bản lưu vĩnh viễn). Các đánh đổi còn sống được chuyển sang risk-gate.reasons vì chúng là ĐÁNH ĐỔI CÓ CHỦ Ý đã ghi tài liệu, không phải hồi quy chưa ai biết.",
+    "ĐÃ BÁC BỎ VÀ ĐÃ VÁ — PLAN AC SAI — 'eza --icons -la in glyph thật (kiểm bằng | xxd)': KHÔNG BAO GIỜ xanh được, kể cả với image đúng. `--icons` = `--icons=auto`, auto tắt icon khi stdout không phải tty, mà `| xxd` luôn là pipe. Đo ba nhánh: pipe+auto → 0, pipe+always → 3, `-t`+auto → 0.",
+    "ĐÃ BÁC BỎ VÀ ĐÃ VÁ — BẢN VÁ ĐẦU CỦA CHÍNH CHẶNG NÀY CŨNG SAI (review đối kháng bác) — `--icons=always | xxd | grep -cE 'ee|ef'` xanh vì LÝ DO SAI: regex khớp cột offset `00000ee0:` và ranh giới byte ghép `aee1`, không byte nào là PUA. Đổi một phép kiểm tự-làm-mù lấy một phép kiểm tự-làm-sáng. Chốt: `grep -cP '[\\x{E000}-\\x{F8FF}]'` + ca đối chứng `--icons=never` phải ra 0.",
+    "ĐÃ BÁC BỎ VÀ ĐÃ VÁ — PLAN NGẦM ĐỊNH SAI — '1.E-1 phải merge + push image lên ghcr TRƯỚC': ghcr private, node không có imagePullSecrets, podspec ghim IfNotPresent ⇒ push lên ghcr KHÔNG làm image tới được node. Đường thật là side-load, đúng khuôn values-selfhost.yaml.",
+    "ĐÃ BÁC BỎ VÀ ĐÃ VÁ — TIỀN ĐỀ CỦA YÊU CẦU ĐỔI BASE SAI (nhưng KẾT LUẬN vẫn đúng) — 'ubuntu 26.04 quá tốn RAM': kích thước image là ĐĨA, không phải RAM; pod lúc rảnh tốn ~7.5 MB RSS và RAM do zsh+tmux+oh-my-posh quyết định, như nhau trên mọi base. Đổi 26.04 → 24.04 tiết kiệm 41 MB ĐĨA, 0 MB RAM. Vẫn nên đổi — vì đĩa, vòng đời hỗ trợ tới 2029-04, và tài liệu DevOps phần lớn nhắm Noble.",
+    "ĐÃ BÁC BỎ VÀ ĐÃ VÁ — GIẢ ĐỊNH '22.04 nhẹ hơn' SAI — ubuntu:22.04 và ubuntu:24.04 CÙNG 119 MB. 22.04 mất cả eza lẫn fastfetch và zoxide tụt về bản 2021, tức trả thêm hai món nợ để đổi lấy đúng 0 MB.",
+    "ĐÃ BÁC BỎ VÀ ĐÃ VÁ — GHI CHÚ VẬN HÀNH CŨ SAI — 'mạng VM ~52 KiB/s': đo lại cho 4.1 MB/s (internet VM) và ~42 MB/s (LAN host→VM). Side-load vẫn đúng nhưng vì ghcr private, KHÔNG phải vì mạng chậm.",
+    "ĐÃ BÁC BỎ VÀ ĐÃ VÁ — KHẲNG ĐỊNH CỦA CHÍNH BẢN NHÁP TRƯỚC SAI — xếp 'CMD bash làm pod Succeeded' vào nhóm 'chỉ lộ khi chạy thật': thực ra nó SUY RA từ đọc podspec.go, vì warm-pool chưa bao giờ chạy image placeholder (nó chạy pause). Vẫn là phát hiện đúng, chỉ không thuộc nhóm quan sát được.",
+    "AC '10 binary' ĐẠT (11/11 kể cả `vi`), kiểm TRONG POD THẬT trên cluster — không chỉ `docker run` cục bộ, vì đó là nơi nó phải đúng.",
+    "AC 'COLORTERM=truecolor + locale UTF-8' ĐẠT, output sạch. Cần gác `[[ -t 0 ]]` quanh fzf ở CẢ hai file rc.",
+    "AC glyph ĐẠT — sau khi sửa AC HAI lần: `--icons` (auto) không bao giờ xanh được, rồi bản vá `| xxd | grep -E 'ee|ef'` lại xanh vì lý do sai. Bản chốt kiểm CODEPOINT và BẮT BUỘC kèm ca đối chứng `--icons=never` → 0.",
+    "AC 'trivy CRITICAL pass cục bộ trước merge' ĐẠT — 0 CRITICAL ⇒ không cần .trivyignore. 14 HIGH đều là CVE stdlib Go trong oh-my-posh (không tự vá được).",
+    "AC 'uid_map cột 2 ≠ 0' (D-17′) ĐẠT trên pod thật; VAP admit pod dựng đúng khuôn podspec.go.",
+    "AC 'claim p95 < 1s, ≥ 50 mẫu' ĐO LẠI với image thật: 0.092s / 50 mẫu warm, histogram reset trước khi đo. Cảnh báo tự phủ nhận của AC cũ đã đóng.",
+    "Vế IMAGE của E9 đạt (1 session); vế GATEWAY chưa chạm — ghi ở unverifiedClaims, không tick thay.",
+    "YÊU CẦU ĐỔI BASE được đáp ứng bằng ĐO chứ không bằng tuân lệnh: người dùng yêu cầu 22.04 vì 'tốn RAM'; đo cho thấy (a) RAM không liên quan tới base, (b) 22.04 KHÔNG nhẹ hơn 24.04 (cùng 119 MB) mà lại mất eza+fastfetch. Chốt 24.04 — vẫn đạt mục tiêu nhẹ hơn 26.04 (41 MB) và giữ được công cụ.",
+    "Câu hỏi 'fastfetch có dùng được trên 24.04 không' trả lời bằng chạy thật: ĐƯỢC (2.67.0 trên glibc 2.39), qua .deb chính chủ ghim digest — không phải rơi về neofetch đã archive."
+  ],
+  "regressionProof": [
+    "212 PASS / 0 SKIP / 0 FAIL (gộp subtest) trên 3 module Go dưới -race với Postgres 16 + Redis 7 THẬT. Orchestrator 163 → 164, đúng bằng test mới. Đếm tường minh vì `go test` exit 0 khi mọi test skip.",
+    "Kiểm đột biến TestSandboxImageBatBuoc: khôi phục default `pause` → ĐỎ; bỏ ra → xanh. Không phải tautology.",
+    "Ca đối chứng cho phép kiểm glyph: `--icons=never` → 0. Một phép kiểm không thể đỏ thì không kiểm gì cả — đây là thứ bản vá trước thiếu.",
+    "Đo `docker stop` = 0s chứng minh tini chuyển SIGTERM; với `sleep` trần lệnh này phải chờ hết timeout. Bắt được một hồi quy so với `pause` TRƯỚC khi nó lên cluster.",
+    "helm lint 0 failed trên 2 bộ values; helm template kiểm cả ba nhánh (kế thừa / override tường minh / đổi image.tag). Không values file nào đặt sandboxImage tường minh nên không consumer nào gãy.",
+    "gofmt sạch, GOOS=linux build + vet 0 issue.",
+    "Cluster lành sau toàn bộ thí nghiệm: pool free=1 / claimed=0 / quarantine=0, đúng 1 pod sandbox Running trên Ubuntu 24.04.4."
+  ],
+  "blockingReasons": [],
+  "contractStatus": "OK"
+}

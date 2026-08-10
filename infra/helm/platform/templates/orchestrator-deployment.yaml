@@ -104,8 +104,15 @@ spec:
               value: {{ .Values.orchestrator.env.hardCap | quote }}
             - name: POOL_TARGET
               value: {{ .Values.orchestrator.env.poolTarget | quote }}
+            {{- /*
+            Image pod lab kế thừa `image.registry` + `image.tag` y như mọi image
+            khác của chart. Hardcode `ghcr.io/nghaiz` + `dev` ở values là tạo
+            bản sao thứ hai của hai giá trị đó, và triệu chứng khi nó trôi rất
+            khó lần: `helm upgrade` đổi tag cho web/orchestrator/gateway, còn
+            pod sinh viên vẫn dựng từ image đời trước mà không log nào nói vì sao.
+            */}}
             - name: SANDBOX_IMAGE
-              value: {{ .Values.orchestrator.env.sandboxImage | quote }}
+              value: {{ .Values.orchestrator.env.sandboxImage | default (printf "%s/dlp-sandbox-base:%s" .Values.image.registry .Values.image.tag) | quote }}
             {{- /*
             RuntimeClass kế thừa `sandbox.runtimeClassName` — đó là SSOT, vì
             chính giá trị đó nằm trong CEL #1 của ValidatingAdmissionPolicy.
