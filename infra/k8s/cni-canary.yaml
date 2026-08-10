@@ -43,7 +43,12 @@ spec:
   schedule: '*/30 * * * *'
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 600
-  successfulJobsHistoryLimit: 1
+  # 26 ≈ 13 giờ lịch sử ở nhịp 30 phút. KHÔNG phải 1 (giá trị cũ): AC Calico của
+  # phase-1.md đòi bằng chứng tạo pod thành công ở HAI mốc cách nhau 12h (T+25h và
+  # T+37h), mà với limit 1 thì Job của mốc đầu bị thu gom mất trước khi tới mốc sau
+  # — bằng chứng tự bốc hơi đúng lúc cần đọc lại, và AC phải đo lại từ đầu.
+  # `status.lastSuccessfulTime` của CronJob chỉ giữ được MỘT mốc nên không thay thế được.
+  successfulJobsHistoryLimit: 26
   # Giữ nhiều job đỏ hơn job xanh: log + event của lần đỏ là thứ duy nhất có giá trị.
   failedJobsHistoryLimit: 5
   jobTemplate:
