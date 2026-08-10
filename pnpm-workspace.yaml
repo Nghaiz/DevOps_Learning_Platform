@@ -2,6 +2,40 @@ packages:
   - apps/*
   - packages/*
 
+# Gộp MỌI esbuild về một bản duy nhất, đủ mới để binary Go của nó sạch CVE.
+#
+# VÌ SAO: `@esbuild/linux-x64/bin/esbuild` là binary Go, nên nó mang theo lỗ hổng
+# của Go stdlib mà nó được build cùng. Trivy quét image `migrator` và chặn ở
+# CRITICAL — đây là thứ làm ĐỎ job `Build & push: migrator` ở d5da78b.
+#
+# Đo bằng cách build image thật rồi quét, không suy đoán:
+#   0.18.20  → Go v1.20.7  → 2 CRITICAL + 18 HIGH   (CVE-2024-24790, ...)
+#   0.25.12  → Go v1.23.12 → 1 CRITICAL + 14 HIGH   (CVE-2025-68121, crypto/tls)
+#   0.28.1   → sạch, không CVE nào ở mức HIGH/CRITICAL
+# Nên override ^0.25.12 là CHƯA ĐỦ — phải lên 0.28.x.
+#
+# HAI ĐƯỜNG đưa esbuild cũ vào cây, override này đóng cả hai:
+#   0.18.20 ← drizzle-kit -> @esbuild-kit/esm-loader -> @esbuild-kit/core-utils.
+#             Chuỗi này ĐÃ CHẾT: `@esbuild-kit/esm-loader` chỉ nằm trong
+#             package.json của drizzle-kit, KHÔNG file mã nào tham chiếu tới.
+#             Nâng drizzle-kit không gỡ được — 0.31.10 đã là bản mới nhất mà vẫn
+#             khai báo dòng thừa đó.
+#   0.25.12 ← drizzle-kit khai `esbuild ^0.25.4` trực tiếp.
+# `tsx` và `vite` trong repo vốn đã dùng 0.28.1, nên gộp về đó là kéo drizzle-kit
+# lên ngang hàng phần còn lại chứ không phải đẩy cả repo sang bản lạ.
+#
+# Sửa ở ĐÂY chứ không bằng một `rm -rf` trong Dockerfile: override gỡ package dính
+# lỗi khỏi TOÀN workspace (mọi image, cả máy dev), còn xoá trong image chỉ giấu nó
+# khỏi đúng một lần quét.
+#
+# ⚠ pnpm 11 KHÔNG còn đọc trường `pnpm` trong package.json — đặt override ở đó là
+# bị bỏ qua IM LẶNG (chỉ một dòng WARN lúc install, lock không đổi gì). Chỗ đúng
+# là file này.
+#
+# Bỏ override khi drizzle-kit tự lên esbuild 0.28+ và dọn @esbuild-kit.
+overrides:
+  esbuild: ^0.28.1
+
 # pnpm chặn postinstall script theo mặc định (supply-chain). esbuild cần script đó
 # để nạp binary đúng nền tảng; thiếu nó thì vitest / tsx / drizzle-kit không chạy.
 # Chỉ mở cho đúng package cần, không mở toàn cục.
