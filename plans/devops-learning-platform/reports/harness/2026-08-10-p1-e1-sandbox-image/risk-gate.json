@@ -1,0 +1,18 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "highRisk: TRUE — chặng này THAY image của mọi pod sinh viên tương lai, chạy `helm upgrade` lên release `platform` đang sống, và xoá tay pod ấm trong pool:free HAI lần (một lần khi đổi sang image thật, một lần nữa khi đổi base sang 24.04). Thứ tệ nhất là warm-pool không hồi lại và nền tảng hết pod để claim — chặn bằng cách rút khỏi pool:free TRƯỚC khi xoá pod, khẳng định LREM trả về 1, và xác minh replenish xong trước khi đi tiếp.",
+    "autoStopRequired: TRUE — `CMD`/`ENTRYPOINT` của image là ràng buộc liên-thành-phần với podspec.go (không Command/Args + RestartPolicy Never). Chọn sai là warm-pool đầy pod chết mà pool:free vẫn đếm là ấm. Ngoài ra chặng này BỎ default của một biến bắt buộc trong mã Go — đổi hành vi khởi động của orchestrator.",
+    "humanApproved: user chốt qua AskUserQuestion (chọn chặng 1.E-1 + điểm dừng có đụng cluster), rồi chỉ đạo đổi base giữa chặng (22.04 → chốt 24.04 sau khi được trình bày số đo), và yêu cầu tường minh 'thử mọi cách cho fastfetch, nếu không được thì neofetch' — đã thử và fastfetch chạy được nên KHÔNG dùng neofetch.",
+    "largeDiff: FALSE — 6 file image, 2 file chart, 1 file CI, 3 file Go (config + test + .env.example), 1 file plan, 5 artifact.",
+    "⚠ ĐỔI HÀNH VI KHỞI ĐỘNG: `SANDBOX_IMAGE` không còn default. Đây là fail-fast thay cho một fallback im lặng (`pause` chạy được nhưng không có shell ⇒ pod Ready, claim thành công, hỏng ở gateway). Chart luôn set biến này nên không đường nào đang chạy bị chặn, nhưng script dev nào dựa vào default cũ sẽ đỏ — đã cập nhật .env.example.",
+    "⚠ ĐỔI CỔNG CI: thêm `sandbox-image` vào `needs` của `ci-ok` (required check). Job này CHƯA từng chạy trên GitHub; nếu nó hỏng cú pháp thì nó chặn merge. Đánh đổi có chủ ý — trước đó Dockerfile này KHÔNG có cổng nào ở PR.",
+    "Món nợ MỞ RA: release lab mang `--set orchestrator.env.sandboxImage=…:dev` để lách việc `image.tag=sha-d5da78b` chưa có image sandbox tương ứng. Nó CHE mất chính chế độ hỏng mà thiết kế kế thừa tạo ra. Hạn chót gỡ: sau khi CI trên main đóng `sha-<short>` cho dlp-sandbox-base.",
+    "Món nợ PHÁT HIỆN nhưng CHƯA vá: warm-pool không rollout theo image (quan sát HAI lần, tái hiện được); và cold-path treo ~2 phút khi image chưa side-load. Chưa task nào sở hữu.",
+    "E6–E9 chưa làm ⇒ ba AC của §Terminal UX (DinD offline, dotfiles allowlist, reconnect thật) vẫn KHÔNG tick được. Chặng này cố ý không hứa chúng.",
+    "Digest fastfetch là tự tính (release không publish checksum) — ghim được artifact bất biến nhưng là trust-on-first-use, không phải chữ ký nhà phát hành."
+  ]
+}

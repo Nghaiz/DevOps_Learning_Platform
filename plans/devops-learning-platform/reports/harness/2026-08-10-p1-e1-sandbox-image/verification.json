@@ -1,0 +1,146 @@
+{
+  "commands": [
+    {
+      "command": "apt-cache policy trên CẢ BA base (ubuntu:22.04 / 24.04 / 26.04)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T17:05:00+07:00",
+      "summary": "22.04 THIẾU cả eza lẫn fastfetch, zoxide tụt về 0.4.3 (2021), tmux 3.2a. 24.04 có eza 0.18.2 + zoxide 0.9.3 + tmux 3.4, chỉ thiếu fastfetch. 26.04 đủ cả. Base 22.04 và 24.04 CÙNG 119 MB ⇒ 22.04 trả thêm hai món nợ để đổi lấy đúng 0 MB. Chốt 24.04."
+    },
+    {
+      "command": "đo RAM thật của pod sandbox đang chạy (phản biện tiền đề 'tốn RAM')",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T17:02:00+07:00",
+      "summary": "PID 1 chiếm ~7.5 MB RSS. Kích thước image là ĐĨA chứ không phải RAM; RAM do zsh+tmux+oh-my-posh quyết định và như nhau trên mọi base. Đổi base tiết kiệm 41 MB đĩa, 0 MB RAM. Ghi vào plan để quyết định sau không lặp lại tiền đề sai."
+    },
+    {
+      "command": "docker build (ubuntu:24.04) — cổng sha256 của oh-my-posh + fastfetch",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T17:40:00+07:00",
+      "summary": "Build xanh, cả hai `sha256sum -c` in OK. Image 369 MB / tarball 86 MB (26.04 trước đó: 427 MB / 103 MB). Cảnh báo FromPlatformFlagConstDisallowed là CÓ CHỦ Ý — xem TB-1 trong review."
+    },
+    {
+      "command": "fastfetch --version + chạy thật trong image 24.04",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T17:42:00+07:00",
+      "summary": "`fastfetch 2.67.0 (x86_64)` chạy trên glibc 2.39 của Noble, tự nhận `OS: Ubuntu 24.04.4 LTS (Noble Numbat)`. Trả lời dứt điểm câu hỏi 'fastfetch có dùng được trên 24.04 không': ĐƯỢC, qua .deb chính chủ — KHÔNG cần rơi về neofetch (archive 2024)."
+    },
+    {
+      "command": "11 binary (10 của AC + vi) trong image",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T17:44:00+07:00",
+      "summary": "11/11. `vi` là bản vá cho lỗ hổng review chỉ ra: rc đặt EDITOR=vi nhưng base KHÔNG có editor nào ⇒ `git commit` không -m sẽ chết, trong khi AC '10 binary' vẫn xanh trọn vẹn. bat qua symlink /usr/local/bin/bat."
+    },
+    {
+      "command": "zsh -lic 'echo $COLORTERM' (AC verbatim)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T17:45:00+07:00",
+      "summary": "In đúng 'truecolor', không kèm rác. Cần gác `[[ -t 0 ]]` quanh phần fzf ở CẢ .zshrc LẪN .bashrc: shell interactive-không-tty làm zle/readline in cảnh báo vào đúng output mà acceptance đang đọc."
+    },
+    {
+      "command": "PID 1 = tini + đo `docker stop` (cổng cho SIGTERM)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T17:47:00+07:00",
+      "summary": "ps -p 1 → `tini`; `docker stop` trả về trong 0s. Với `sleep` trần làm PID 1 thì kernel bỏ qua SIGTERM (không handler) và lệnh này phải chờ hết timeout — tức pod nằm Terminating giữ 1 trong 4 khe quota. `pause` KHÔNG có tật này, nên `sleep` trần là HỒI QUY do chặng này suýt tạo ra."
+    },
+    {
+      "command": "glyph: eza --icons=always | grep -cP '[PUA]' VÀ đối chứng --icons=never",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T17:50:00+07:00",
+      "summary": "3 và 0. Ca đối chứng là phần quan trọng nhất: bản vá ĐẦU của chặng này (`--icons=always | xxd | grep -E 'ee|ef'`) xanh vì lý do SAI — regex khớp cả cột offset `00000ee0:` lẫn ranh giới byte ghép `aee1`, không byte nào là PUA. Đổi sang kiểm codepoint + đối chứng phải-ra-0 thì phép kiểm mới có khả năng đỏ."
+    },
+    {
+      "command": "tmux 3.4: terminfo + status off + window size + E9",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T17:55:00+07:00",
+      "summary": "terminfo tmux-256color OK (nhờ ncurses-term); status=off, mouse=off, default-shell=/usr/bin/zsh; **window = 200x50 khớp tuyệt đối** (không phải 200x49) ⇒ AC resize của G6 không cần số magic 'trừ 1'. `new-session -A -s dlp` hai lần → đúng 1 session. Đây là tmux 3.4 — CHÍNH version mà D17 đo hành vi hai-client."
+    },
+    {
+      "command": "trivy --severity CRITICAL --exit-code 1 (cổng chặn, cục bộ trước merge)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T18:05:00+07:00",
+      "summary": "0 CRITICAL trên cả ubuntu 24.04 lẫn oh-my-posh ⇒ KHÔNG cần .trivyignore. HIGH: 14, toàn bộ nằm ở binary oh-my-posh (CVE stdlib Go, vá ở Go 1.25.10+/1.26.3+ — phụ thuộc thượng nguồn build lại). Tầng gói Ubuntu sạch."
+    },
+    {
+      "command": "gofmt + GOOS=linux go build + go vet sau khi bỏ default SANDBOX_IMAGE",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T18:20:00+07:00",
+      "summary": "Sạch cả ba. Ép GOOS=linux vì build tag giấu file *_unix.go trên máy Windows."
+    },
+    {
+      "command": "go test ./... -race -v trên 3 module Go, ĐẾM PASS/SKIP tường minh",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T18:30:00+07:00",
+      "summary": "212 PASS / 0 SKIP / 0 FAIL (gộp subtest), với Postgres 16 + Redis 7 THẬT từ docker compose. Riêng orchestrator: 164 (mốc trước 163, +1 đúng bằng TestSandboxImageBatBuoc mới). Đếm tường minh vì `go test` exit 0 khi mọi test SKIP — thiếu DSN là 81 test tự skip và suite vẫn xanh."
+    },
+    {
+      "command": "kiểm đột biến TestSandboxImageBatBuoc (khôi phục default `pause`)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T18:25:00+07:00",
+      "summary": "Khôi phục `envx.String(\"SANDBOX_IMAGE\", \"registry.k8s.io/pause:3.10\")` → test ĐỎ ('muốn error khi rỗng, nhận nil'); bỏ ra → xanh. Test không phải tautology."
+    },
+    {
+      "command": "scp + ctr -n k8s.io images import (side-load bản 24.04)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T18:40:00+07:00",
+      "summary": "Digest trên node (a52a5988…) khớp manifest list của build cục bộ. 86 MB truyền ~2s trên LAN. Ghi chú vận hành cũ '~52 KiB/s' KHÔNG còn đúng: LAN ~42 MB/s, internet của VM 4.1 MB/s."
+    },
+    {
+      "command": "rút pod ấm cũ theo runbook CÓ cổng LREM==1",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T18:45:00+07:00",
+      "summary": "LREM trả 1 (đúng kỳ vọng) → DEL hash → xoá pod → replenish dựng pod mới trên image 24.04 trong <60s. Cổng LREM==1 là bản vá từ review: trả 0 nghĩa là claim.lua vừa LMOVE pod đó cho một sinh viên, đi tiếp sẽ XOÁ POD CỦA PHIÊN ĐANG CHẠY."
+    },
+    {
+      "command": "kubectl exec vào pod thật: OS + fastfetch + PID1 + uid_map + 11 binary + COLORTERM + glyph",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T18:50:00+07:00",
+      "summary": "PRETTY_NAME=\"Ubuntu 24.04.4 LTS\" — đúng bản người dùng yêu cầu. fastfetch vẽ được; PID 1 = tini; uid_map '0 2758475776 65536' (cột 2 ≠ 0 ⇒ user-ns Sysbox thật, AC D-17′); 11/11 binary; truecolor; 3 dòng glyph PUA. Toàn bộ AC Terminal UX kiểm ở nơi nó phải đúng, không phải trên docker cục bộ."
+    },
+    {
+      "command": "helm lint + helm template 3 nhánh (mặc định / override / đổi image.tag)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T16:10:00+07:00",
+      "summary": "lint 0 failed trên cả values.yaml lẫn values-selfhost.yaml. Render: kế thừa → …dlp-sandbox-base:dev; override tường minh → pause:3.10 (vẫn thắng); --set image.tag=sha-abc1234 → …:sha-abc1234. Không values file nào đang đặt sandboxImage tường minh."
+    },
+    {
+      "command": "kubectl get pods -l app=sandbox NGAY SAU helm upgrade",
+      "status": "fail",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T15:52:00+07:00",
+      "summary": "PHÁT HIỆN: pod ấm VẪN chạy image cũ sau khi SANDBOX_IMAGE đã đổi. Warm-pool không rollout theo image — pod cũ nằm lại pool:free vô thời hạn, Running/Ready nên không tín hiệu nào báo sai. 'fail' của một kỳ vọng ngầm, không phải của lệnh. Lặp lại y hệt ở lượt đổi sang 24.04 ⇒ tái hiện được, không phải ngẫu nhiên."
+    },
+    {
+      "command": "restart orchestrator (reset histogram) + bench-claim -n 50 trên image 24.04",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T19:05:00+07:00",
+      "summary": "Histogram xác nhận về 0 TRƯỚC khi đo (không mẫu nào lẫn từ image trước). XANH: p95 = 0.092s / 50 mẫu warm (98 lượt gọi, 48 cold ở POOL_TARGET=1). Ba lần đo trên ba image khác hẳn: pause 0.090s · 26.04 0.089s · 24.04 0.092s ⇒ bằng chứng claim latency BẤT BIẾN theo image, không phải một cải thiện."
+    }
+  ],
+  "beforeAfter": [
+    "TRƯỚC: images/sandbox-base là placeholder thuần (FROM ubuntu:26.04 + CMD bash, 0 gói). SAU: image thật trên **Ubuntu 24.04** — 369 MB, 11 binary, locale UTF-8 + truecolor, oh-my-posh ghim v30.6.4, fastfetch ghim 2.67.0 (.deb chính chủ vì Noble không có gói), theme của repo, tmux 3.4 cấu hình theo D17, tini làm PID 1.",
+    "TRƯỚC: warm-pool dựng pod từ registry.k8s.io/pause:3.10 — không có shell để G4 exec `tmux new-session` vào, tức đường D3 chưa từng chạy được. SAU: warm-pool dựng pod từ image thật; đã exec vào pod trên cluster và chạy đủ bộ AC Terminal UX.",
+    "TRƯỚC: AC 'claim p95 < 1s' tick xanh kèm cảnh báo tự phủ nhận (đo với pause, phải đo lại sau 1.E). SAU: 0.092s trên 50 mẫu warm với image thật; cảnh báo đóng. Ba phép đo trên ba image cho cùng một con số ⇒ khẳng định 'claim không chạm image' có bằng chứng chứ không chỉ có lập luận.",
+    "TRƯỚC: `SANDBOX_IMAGE` có default `pause` trong internal/config — một fallback im lặng khiến pod Ready + claim thành công rồi mới hỏng ở gateway. SAU: không default, orchestrator từ chối khởi động nếu thiếu; có test + kiểm đột biến.",
+    "TRƯỚC: AC glyph là lệnh không bao giờ xanh được (`--icons` auto + pipe). SAU: `--icons=always` + kiểm CODEPOINT + ca đối chứng phải-ra-0. Bản vá giữa chừng (`| xxd | grep -E 'ee|ef'`) bị review bác vì xanh-do-lý-do-sai — ghi lại vì nó là bài học chứ không phải chi tiết.",
+    "TRƯỚC: images/sandbox-base/Dockerfile không có cổng nào ở PR (job `images` chỉ chạy trên main). SAU: job `sandbox-image` build push:false + smoke 11 binary + PID 1 sống + COLORTERM + Trivy CRITICAL, nằm trong `needs` của ci-ok.",
+    "MỚI LỘ RA: warm-pool không rollout theo image ⇒ đổi SANDBOX_IMAGE để lại pod đời cũ phục vụ sinh viên. Quan sát được HAI lần (đổi sang 26.04, rồi đổi sang 24.04), không suy ra từ đọc mã."
+  ]
+}

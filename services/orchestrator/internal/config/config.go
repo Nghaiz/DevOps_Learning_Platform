@@ -144,6 +144,21 @@ func Load() (*Config, error) {
 	// pool (`pool.MaxTTLSeconds`), nơi `EXPIRE` thật sự bị chặn, và nhân bản nó
 	// sang package này là cách nó trôi đi. Một chỗ kiểm, một chỗ sửa.
 
+	// KHÔNG có default cho SANDBOX_IMAGE — cùng lý lẽ với RequireDataStores bên
+	// dưới ("không có default an toàn cho địa chỉ dữ liệu"). Trước 1.E-1 chỗ này
+	// mặc định `registry.k8s.io/pause:3.10`, và đó là một fallback IM LẶNG đúng
+	// nghĩa: `pause` chạy được, pod lên `Running`/`Ready`, vào `pool:free`, sinh
+	// viên claim THÀNH CÔNG — rồi `tmux new-session` của G4 mới chết vì trong
+	// image đó không có shell nào cả. Triệu chứng nằm cách nguyên nhân ba
+	// thành phần. Chart luôn set biến này (rỗng thì template tự ghép từ
+	// image.registry+image.tag), nên fail-fast ở đây không chặn đường nào đang chạy.
+	sandboxImage := envx.String("SANDBOX_IMAGE", "")
+	if sandboxImage == "" {
+		return nil, fmt.Errorf("env SANDBOX_IMAGE: bắt buộc nhưng chưa đặt " +
+			"(không có default — `pause` chạy được nhưng không có shell, nên pod sẽ " +
+			"Ready rồi mới hỏng lúc gateway exec vào)")
+	}
+
 	return &Config{
 		GRPCAddr:         envx.String("GRPC_ADDR", ":9090"),
 		HTTPAddr:         envx.String("HTTP_ADDR", ":8081"),
@@ -160,7 +175,7 @@ func Load() (*Config, error) {
 		ExtendDefault:       extendDefault,
 		ReapInterval:        reapInterval,
 		RequireMTLS:         requireMTLS,
-		SandboxImage:        envx.String("SANDBOX_IMAGE", "registry.k8s.io/pause:3.10"),
+		SandboxImage:        sandboxImage,
 		SandboxRuntimeClass: envx.String("SANDBOX_RUNTIME_CLASS", "sysbox-runc"),
 	}, nil
 }

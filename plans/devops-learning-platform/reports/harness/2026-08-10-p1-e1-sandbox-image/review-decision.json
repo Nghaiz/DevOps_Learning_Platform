@@ -1,0 +1,27 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "AC '10 binary' ĐẠT (11/11 kể cả `vi`), kiểm TRONG POD THẬT trên cluster — không chỉ `docker run` cục bộ, vì đó là nơi nó phải đúng.",
+    "AC 'COLORTERM=truecolor + locale UTF-8' ĐẠT, output sạch. Cần gác `[[ -t 0 ]]` quanh fzf ở CẢ hai file rc.",
+    "AC glyph ĐẠT — sau khi sửa AC HAI lần: `--icons` (auto) không bao giờ xanh được, rồi bản vá `| xxd | grep -E 'ee|ef'` lại xanh vì lý do sai. Bản chốt kiểm CODEPOINT và BẮT BUỘC kèm ca đối chứng `--icons=never` → 0.",
+    "AC 'trivy CRITICAL pass cục bộ trước merge' ĐẠT — 0 CRITICAL ⇒ không cần .trivyignore. 14 HIGH đều là CVE stdlib Go trong oh-my-posh (không tự vá được).",
+    "AC 'uid_map cột 2 ≠ 0' (D-17′) ĐẠT trên pod thật; VAP admit pod dựng đúng khuôn podspec.go.",
+    "AC 'claim p95 < 1s, ≥ 50 mẫu' ĐO LẠI với image thật: 0.092s / 50 mẫu warm, histogram reset trước khi đo. Cảnh báo tự phủ nhận của AC cũ đã đóng.",
+    "Vế IMAGE của E9 đạt (1 session); vế GATEWAY chưa chạm — ghi ở unverifiedClaims, không tick thay.",
+    "YÊU CẦU ĐỔI BASE được đáp ứng bằng ĐO chứ không bằng tuân lệnh: người dùng yêu cầu 22.04 vì 'tốn RAM'; đo cho thấy (a) RAM không liên quan tới base, (b) 22.04 KHÔNG nhẹ hơn 24.04 (cùng 119 MB) mà lại mất eza+fastfetch. Chốt 24.04 — vẫn đạt mục tiêu nhẹ hơn 26.04 (41 MB) và giữ được công cụ.",
+    "Câu hỏi 'fastfetch có dùng được trên 24.04 không' trả lời bằng chạy thật: ĐƯỢC (2.67.0 trên glibc 2.39), qua .deb chính chủ ghim digest — không phải rơi về neofetch đã archive."
+  ],
+  "regressionProof": [
+    "212 PASS / 0 SKIP / 0 FAIL (gộp subtest) trên 3 module Go dưới -race với Postgres 16 + Redis 7 THẬT. Orchestrator 163 → 164, đúng bằng test mới. Đếm tường minh vì `go test` exit 0 khi mọi test skip.",
+    "Kiểm đột biến TestSandboxImageBatBuoc: khôi phục default `pause` → ĐỎ; bỏ ra → xanh. Không phải tautology.",
+    "Ca đối chứng cho phép kiểm glyph: `--icons=never` → 0. Một phép kiểm không thể đỏ thì không kiểm gì cả — đây là thứ bản vá trước thiếu.",
+    "Đo `docker stop` = 0s chứng minh tini chuyển SIGTERM; với `sleep` trần lệnh này phải chờ hết timeout. Bắt được một hồi quy so với `pause` TRƯỚC khi nó lên cluster.",
+    "helm lint 0 failed trên 2 bộ values; helm template kiểm cả ba nhánh (kế thừa / override tường minh / đổi image.tag). Không values file nào đặt sandboxImage tường minh nên không consumer nào gãy.",
+    "gofmt sạch, GOOS=linux build + vet 0 issue.",
+    "Cluster lành sau toàn bộ thí nghiệm: pool free=1 / claimed=0 / quarantine=0, đúng 1 pod sandbox Running trên Ubuntu 24.04.4."
+  ],
+  "blockingReasons": [],
+  "contractStatus": "OK"
+}

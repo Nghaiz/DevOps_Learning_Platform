@@ -32,5 +32,20 @@ packages/shared-types/gen/** text eol=lf
 # quy tắc TeX-quote trong comment). Khoá LF thì `gofmt -l` local nói đúng sự thật.
 *.go text eol=lf
 
+# Nội dung của image sandbox: `COPY` thẳng vào một container Linux, nên CRLF ở
+# đây là lỗi runtime chứ không phải chuyện thẩm mỹ. Ba file rc KHÔNG có đuôi
+# (.zshrc/.bashrc/.tmux.conf) nên chúng rơi vào `* text=auto` bên dưới và với
+# `core.autocrlf=true` thì working copy trên Windows thành CRLF — `docker build`
+# chép đúng bản CRLF đó vào image.
+#
+# Hậu quả cụ thể: zsh đọc `.zshrc` có CRLF sẽ báo `$'\r': command not found` ở
+# MỖI dòng lệnh, và tmux từ chối nạp `.tmux.conf` ⇒ mất `status off` (D17) nên
+# `stty size` lệch 1 so với rows FE gửi. Cả hai chỉ hỏng trên máy dev Windows
+# sau một lần checkout mới — CI (Linux) vẫn LF nên vẫn xanh, tức lỗi này KHÔNG
+# có cổng nào bắt được. Cùng họ với ba sự cố EOL đã ghi ở trên.
+images/sandbox-base/skel/**  text eol=lf
+images/sandbox-base/etc/**   text eol=lf
+**/Dockerfile                text eol=lf
+
 # Mặc định: để git tự chuẩn hoá text, nhị phân giữ nguyên.
 * text=auto

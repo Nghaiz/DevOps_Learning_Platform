@@ -120,9 +120,17 @@ orchestrator:
     # rồi replenish chết vĩnh viễn vì quota.
     poolTarget: '1'
 
-    # `pause` cho tới khi 1.E đẩy images/sandbox-base lên ghcr — warm-pool, VAP,
-    # quota và số đo claim < 1s đều kiểm được mà không cần image thật.
-    sandboxImage: 'registry.k8s.io/pause:3.10'
+    # Image của pod lab. RỖNG = kế thừa `image.registry` + `image.tag` ở trên
+    # (thành `<registry>/dlp-sandbox-base:<tag>`) — cùng khuôn với
+    # `sandboxRuntimeClass`, và vì đúng lý do đó: chép `ghcr.io/nghaiz` với `dev`
+    # xuống đây là dựng bản sao thứ hai của hai giá trị mà mọi image khác đã lấy
+    # từ một chỗ, rồi một ngày đổi tag ở trên mà pod lab vẫn chạy bản cũ.
+    #
+    # 1.E-1 (2026-08-10) đã thay `registry.k8s.io/pause:3.10` bằng image thật:
+    # `pause` chỉ ngủ, không có shell nào để exec vào, nên D3/G4 (tmux) không thể
+    # chạy trên nó. Đặt giá trị TƯỜNG MINH ở đây chỉ khi muốn ghim pod lab vào
+    # một image khác hẳn — ví dụ quay lại `pause` để đo warm-pool mà không tốn RAM.
+    sandboxImage: ''
 
     # Để RỖNG để kế thừa `sandbox.runtimeClassName` — đó là SSOT. Chỉ đặt giá
     # trị ở đây khi thật sự muốn orchestrator dựng pod với RuntimeClass KHÁC với

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://schema.jandedobbeleer.com/json/schema.json",
+  "version": 3,
+  "final_space": true,
+  "console_title_template": "dlp — {{ .Folder }}",
+  "_comment": "Glyph viết bằng \\uXXXX CÓ CHỦ Ý, không phải ký tự thật: đây toàn là Private Use Area (Nerd Font) — dán thẳng vào file thì một lần lưu sai encoding hoặc một editor 'dọn dẹp' là biến thành U+FFFD, và lỗi đó chỉ lộ ra dưới dạng ô vuông trong terminal của sinh viên. Font do packages/terminal cấp (F3/E5), image chỉ phát codepoint.",
+  "blocks": [
+    {
+      "type": "prompt",
+      "alignment": "left",
+      "segments": [
+        {
+          "type": "text",
+          "style": "diamond",
+          "leading_diamond": "\ue0b6",
+          "trailing_diamond": "\ue0b0",
+          "background": "#38bdf8",
+          "foreground": "#0b1021",
+          "template": " \uf31b dlp "
+        },
+        {
+          "type": "path",
+          "style": "powerline",
+          "powerline_symbol": "\ue0b0",
+          "background": "#1f2937",
+          "foreground": "#e5e7eb",
+          "properties": {
+            "style": "agnoster_short",
+            "max_depth": 3
+          },
+          "template": " \uf07b {{ .Path }} "
+        },
+        {
+          "type": "git",
+          "style": "powerline",
+          "powerline_symbol": "\ue0b0",
+          "background": "#4ade80",
+          "foreground": "#0b1021",
+          "background_templates": [
+            "{{ if or (.Working.Changed) (.Staging.Changed) }}#fbbf24{{ end }}"
+          ],
+          "properties": {
+            "fetch_status": true,
+            "branch_max_length": 25
+          },
+          "template": " \ue725 {{ .HEAD }}{{ if .Working.Changed }} \uf044 {{ .Working.String }}{{ end }} "
+        }
+      ]
+    },
+    {
+      "type": "prompt",
+      "alignment": "right",
+      "segments": [
+        {
+          "type": "executiontime",
+          "style": "plain",
+          "foreground": "#64748b",
+          "properties": {
+            "threshold": 500,
+            "style": "austin"
+          },
+          "template": " \uf252 {{ .FormattedMs }} "
+        },
+        {
+          "type": "time",
+          "style": "plain",
+          "foreground": "#64748b",
+          "properties": {
+            "time_format": "15:04:05"
+          },
+          "template": " {{ .CurrentDate | date .Format }} "
+        }
+      ]
+    },
+    {
+      "type": "prompt",
+      "alignment": "left",
+      "newline": true,
+      "segments": [
+        {
+          "type": "status",
+          "style": "plain",
+          "foreground": "#4ade80",
+          "foreground_templates": [
+            "{{ if gt .Code 0 }}#f87171{{ end }}"
+          ],
+          "properties": {
+            "always_enabled": true
+          },
+          "template": "\u276f "
+        }
+      ]
+    }
+  ]
+}
