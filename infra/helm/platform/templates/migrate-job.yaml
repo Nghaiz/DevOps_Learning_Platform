@@ -33,12 +33,33 @@ metadata:
   labels:
     {{- include "platform.componentLabels" (dict "context" . "component" "migrate") | nindent 4 }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    # ⛔ hook-weight CHỈ sắp thứ tự GIỮA CÁC HOOK. `datastore-secret.yaml` là
-    # resource THƯỜNG, không phải hook, nên nó được apply SAU toàn bộ pha
-    # `pre-install` — Job này không thể đọc nó ở lần install ĐẦU TIÊN.
-    # Đó là lý do Secret cũng được đánh dấu hook với weight nhỏ hơn (xem
-    # templates/datastore-secret.yaml). Weight 5 giữ Job chạy sau nó.
+    # ⛔ `post-install` chứ KHÔNG phải `pre-install` — SỬA 2026-08-10 SAU KHI ĐO.
+    #
+    # Bản trước dùng `pre-install,pre-upgrade`. Nó KHÔNG THỂ chạy được ở lần
+    # install đầu tiên khi chart tự sở hữu Postgres: hook `pre-install` chạy
+    # trước TOÀN BỘ pha apply thường, nên lúc Job khởi động thì
+    # `datastore-postgres.yaml` (resource thường) **chưa tồn tại** — không phải
+    # "chưa Ready", mà là chưa có Deployment lẫn Service nào. Job treo tới hết
+    # `activeDeadlineSeconds`, backoffLimit cháy, `helm install` ABORT.
+    #
+    # Đo được 2026-08-10 trên cluster thật (`helm install` vào namespace nháp):
+    # `kubectl get deploy,svc` → "No resources found" đúng lúc hook đang chạy;
+    # cả 3 lượt thử của Job dừng ở "applying migrations…" rồi treo. Chi tiết:
+    # plans/reports/2026-08-10-audit-p0-p1.md.
+    #
+    # Vì sao lỗi này sống sót qua mọi lần deploy: từ trước tới nay chỉ có
+    # `helm upgrade` lên một Postgres đã chạy sẵn từ chart đời trước. Đường
+    # DUY NHẤT hỏng cũng là đường DUY NHẤT chưa ai đi — và `helm template`
+    # không thể phát hiện, vì nó render đúng y hệt trong cả hai ca.
+    #
+    # `post-install` cho fresh install (Postgres đã apply xong), `pre-upgrade`
+    # giữ nguyên cho upgrade (schema phải đi trước code mới). Đánh đổi đã biết:
+    # ở lần install ĐẦU TIÊN, web có thể lên trước khi migration xong và trả 500
+    # ở route đụng DB (gồm `/api/auth/jwks`) trong vài chục giây. Chấp nhận được
+    # vì nó TỰ KHỎI, còn `helm install` abort thì không.
+    helm.sh/hook: post-install,pre-upgrade
+    # hook-weight CHỈ sắp thứ tự GIỮA CÁC HOOK cùng pha. Giữ 5 để Job vẫn chạy
+    # sau `datastore-secret` (weight -5) ở pha `pre-upgrade`.
     helm.sh/hook-weight: '5'
     # before-hook-creation: xoá Job của lần trước trước khi tạo lần này (Job có
     # spec bất biến, không xoá thì upgrade thứ hai lỗi "field is immutable").
