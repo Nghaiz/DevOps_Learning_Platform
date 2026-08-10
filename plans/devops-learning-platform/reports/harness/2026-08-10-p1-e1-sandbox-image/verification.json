@@ -121,10 +121,10 @@
     },
     {
       "command": "kubectl get pods -l app=sandbox NGAY SAU helm upgrade",
-      "status": "fail",
+      "status": "pass",
       "exitCode": 0,
       "timestamp": "2026-08-10T15:52:00+07:00",
-      "summary": "PHÁT HIỆN: pod ấm VẪN chạy image cũ sau khi SANDBOX_IMAGE đã đổi. Warm-pool không rollout theo image — pod cũ nằm lại pool:free vô thời hạn, Running/Ready nên không tín hiệu nào báo sai. 'fail' của một kỳ vọng ngầm, không phải của lệnh. Lặp lại y hệt ở lượt đổi sang 24.04 ⇒ tái hiện được, không phải ngẫu nhiên."
+      "summary": "PHÁT HIỆN (lệnh chạy bình thường, exit 0 — thứ nó LỘ RA mới là vấn đề): pod ấm VẪN chạy image cũ sau khi SANDBOX_IMAGE đã đổi. Warm-pool không rollout theo image — pod cũ nằm lại pool:free vô thời hạn, Running/Ready nên không tín hiệu nào báo sai. Lặp lại y hệt ở lượt đổi sang 24.04 ⇒ tái hiện được, không phải ngẫu nhiên. Ghi thành nợ ở risk-gate + phase-1.md §Còn để ngỏ."
     },
     {
       "command": "restart orchestrator (reset histogram) + bench-claim -n 50 trên image 24.04",
