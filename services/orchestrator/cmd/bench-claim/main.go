@@ -60,7 +60,10 @@ func run(addr, metricsAddr string, n int, userID string, replenishWait time.Dura
 	if err != nil {
 		return fmt.Errorf("nối gRPC %s: %w", addr, err)
 	}
-	defer conn.Close()
+	// `_ =` tường minh: errcheck bắt mọi Close() bị bỏ lơ. Ở đây lỗi đóng
+	// kết nối không có hành động khắc phục nào (chương trình đang thoát) nên
+	// nuốt nó là ĐÚNG — nhưng phải nuốt có chữ ký, không phải nuốt do quên.
+	defer func() { _ = conn.Close() }()
 	cli := orchestratorv1.NewSessionServiceClient(conn)
 
 	metricsURL := "http://" + metricsAddr + "/metrics"
@@ -177,7 +180,7 @@ func scrapeBuckets(url, path string) (map[string]float64, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -293,7 +296,7 @@ func scrapeGauge(url, name string) (float64, bool) {
 	if err != nil {
 		return 0, false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, false
