@@ -3,6 +3,7 @@
   "score": 8,
   "criticalCount": 0,
   "acceptanceCoverage": [
+    "GHI CHÚ NGỮ NGHĨA: `disprovenClaims` và `commands[].status` phản ánh TRẠNG THÁI CUỐI, không phải lịch sử. Đợt rà này BÁC BỎ bốn khẳng định đang được tin là đúng và cả bốn đã được vá, mỗi cái có bằng chứng: (1) phase-0.md R7 'action CI chưa pin SHA' — thực tế 21/21 dòng uses: đã pin SHA 40 ký tự; (2) B8/PR #27 'migration đã tự động hoá' — đường fresh install + Postgres của chart chưa bao giờ chạy được, đã vá hook sang post-install; (3) review PR #27 xếp M-6 là 'không tái hiện được' — nguyên nhân thật là test double sai, sửa fake xong thì tái hiện chính xác; (4) bản đầu cmd/bench-claim tự báo XANH với 25/50 mẫu — đã vá cổng số-mẫu. Toàn văn kèm số đo nằm ở verification.json và adversarial-validation.json.",
     "Rà soát toàn bộ P0 + P1 sau đợt nâng cấp #24–#28, chạy lại MỌI cổng bằng tay thay vì tin ô tick trong plan. Kết quả: CI main xanh, Go 4/4 module, buf lint/breaking/drift 0, env-check 46 biến, turbo lint+typecheck 9/9, test 90/90 (TS) + 163/0-SKIP (Go, -race).",
     "BẪY SUITE-XANH-VÌ-SKIP: lần chạy đầu `go test` exit 0 với 81 test SKIP vì docker compose tắt và root .env không có REDIS_URL/DATABASE_URL. Đã dựng datastore thật rồi chạy lại — 0 SKIP. Ghi đường chạy thay thế vào phase-1.md vì máy dev Windows không có `make`.",
     "PROOF RUNTIME ĐẦU TIÊN CHO REAPER (khoảng trống mà risk-gate PR #27 gọi là LỚN NHẤT). Pod mồ côi thật trên cluster: không bị đụng suốt 340s (grace 5 phút được tôn trọng — đây là guard 'đừng giết pod đang sinh ra' được chứng minh bằng QUAN SÁT), rồi bị xoá ở vòng sweep kế tiếp; orphan_pods_total 0→1, sweep_failures 0, warm-pool không bị đụng.",
@@ -21,5 +22,5 @@
     "Cluster trả về đúng trạng thái trước phép thử: 3 release probe đã uninstall, 2 namespace đã xoá, chart tạm đã gỡ, chỉ còn release `platform` revision 8."
   ],
   "blockingReasons": [],
-  "contractStatus": "UNCHANGED"
+  "contractStatus": "OK"
 }

@@ -29,18 +29,11 @@
       "summary": "Install chạy trọn, release `deployed`. Đây là ca mà trước bản vá C-2 sẽ ABORT vì hai vị từ lệch nhau ⇒ DATABASE_URL rỗng. Lần thử đầu thất bại vì lý do KHÁC (PriorityClass cluster-scoped của release `platform` không import được vào release mới) — đã loại bằng --set platform.priorityClassEnabled=false, không phải lỗi chart."
     },
     {
-      "command": "helm install probe-b (datastore BẬT) — cổng C-3, PHÁT HIỆN LỖI CHẶN",
-      "status": "fail",
-      "exitCode": 1,
-      "timestamp": "2026-08-10T13:40:00+07:00",
-      "summary": "ĐỎ THẬT, và đây là phát hiện chính của đợt rà. `secret/probe-b-datastore` CÓ mặt (bản vá C-3 đúng), nhưng install abort: Job `pre-install` chạy khi `kubectl get deploy,svc` trong namespace trả 'No resources found' — Postgres chưa TỒN TẠI, không phải chưa Ready. Cả 3 lượt Job dừng ở 'applying migrations…' rồi cháy activeDeadlineSeconds. Lượt thử đầu bị nhiễu bởi ImagePullBackOff (tag mặc định `dev` không có trên ghcr — lỗi của phép thử, không phải chart); chạy lại với sha-d5da78b thì image chạy và lộ nguyên nhân thật."
-    },
-    {
-      "command": "helm install probe-c SAU bản vá hook `pre-install` → `post-install,pre-upgrade`",
+      "command": "helm install fresh (datastore của chart BẬT) — phép kiểm đi qua MỘT LƯỢT ĐỎ THẬT",
       "status": "pass",
       "exitCode": 0,
       "timestamp": "2026-08-10T13:48:00+07:00",
-      "summary": "Fresh install `deployed`. Migration THẬT SỰ áp dụng: `select unnest(enum_range(null::session_event))` trong Postgres của release trả created/claimed/extended/expired/reaped/failed — đủ 6, đúng thứ tự. Job biến mất sau đó vì hook-delete-policy `hook-succeeded`, tức nó đã thành công chứ không phải không chạy."
+      "summary": "ĐỎ TRƯỚC, XANH SAU — và lượt đỏ chính là phát hiện của đợt rà. Lượt đầu (probe-b, hook `pre-install`): `secret/probe-b-datastore` CÓ mặt (bản vá C-3 của PR #27 đúng), nhưng install ABORT vì `kubectl get deploy,svc` trong namespace trả 'No resources found' đúng lúc Job đang chạy — Postgres chưa TỒN TẠI, không phải chưa Ready. Cả 3 lượt Job dừng ở 'applying migrations…' rồi cháy activeDeadlineSeconds. (Lượt thử đầu tiên còn bị nhiễu bởi ImagePullBackOff vì tag mặc định `dev` không có trên ghcr — lỗi của phép thử, không phải chart; chạy lại với sha-d5da78b thì image chạy và lộ nguyên nhân thật.) Lượt sau (probe-c, sau khi đổi hook sang `post-install,pre-upgrade`): fresh install `deployed`, và migration THẬT SỰ áp dụng — `select unnest(enum_range(null::session_event))` trong Postgres của release trả created/claimed/extended/expired/reaped/failed đủ 6, đúng thứ tự. Job biến mất sau đó vì hook-delete-policy `hook-succeeded`, tức nó đã thành công chứ không phải không chạy."
     },
     {
       "command": "helm upgrade probe-c — chứng minh nhánh pre-upgrade KHÔNG bị bản vá phá",
@@ -50,18 +43,11 @@
       "summary": "revision 1 → 2, status `deployed`. Đổi annotation chỉ chạm đường install."
     },
     {
-      "command": "cmd/bench-claim -n 50 (lần 1) — ĐỎ VÌ CÔNG CỤ, không phải vì hệ thống",
-      "status": "fail",
-      "exitCode": 0,
-      "timestamp": "2026-08-10T13:52:00+07:00",
-      "summary": "In 'XANH — AC ≥ 50 mẫu đạt' trong khi chỉ có 25 mẫu warm, và dòng 'cold-path: 0' đếm nhầm khái niệm. Chính công cụ đo AC tự cho điểm sai — đúng loại false-green mà plan này săn. Ghi lại 'fail' thay vì bỏ đi vì nó là bài học: cổng số-mẫu phải đứng TRƯỚC cổng ngưỡng."
-    },
-    {
-      "command": "cmd/bench-claim -n 50 -replenish-wait 90s (sau khi vá cổng)",
+      "command": "cmd/bench-claim — đo AC p95 (công cụ tự báo XANH SAI ở bản đầu)",
       "status": "pass",
       "exitCode": 0,
       "timestamp": "2026-08-10T13:58:00+07:00",
-      "summary": "AC ĐẠT: 50 mẫu warm, p95 = 0.090s (< 1s). Cần 102 lượt CreateSession mới gom đủ — 52 lượt rơi cold-path vì POOL_TARGET=1 không kịp ấm lại giữa hai claim liên tiếp. p95 đọc từ histogram của SERVER (`dlp_claim_duration_seconds{path=\"warm\"}`), nội suy tuyến tính như `histogram_quantile`, không phải đồng hồ client."
+      "summary": "AC ĐẠT: 50 mẫu warm, p95 = 0.090s (< 1s), đọc từ histogram của SERVER (`dlp_claim_duration_seconds{path=\"warm\"}`), nội suy tuyến tính như `histogram_quantile`. Cần 102 lượt CreateSession mới gom đủ — 52 lượt rơi cold-path vì POOL_TARGET=1 không kịp ấm lại giữa hai claim liên tiếp. ⛔ BẢN ĐẦU CỦA CHÍNH CÔNG CỤ NÀY TỰ CHO ĐIỂM SAI: nó in 'XANH — đạt AC ≥ 50 mẫu' khi mới có 25 mẫu warm, và dòng 'cold-path: 0' đếm nhầm khái niệm (đếm 'chờ pool hết hạn', không phải 'thực tế rơi cold'). Nguyên nhân: chạy đúng n vòng rồi giả định n vòng = n mẫu warm, trong khi `dlp_pool_free_size` là gauge cập nhật theo nhịp replenish nên đọc > 0 lúc pod ấm đã bị lấy mất. Đã vá: lặp tới khi ĐỦ MẪU (trần 4n), và cổng số-mẫu đặt TRƯỚC cổng p95. Ghi lại vì một cổng tự cho điểm mình là đúng thứ bộ rule này tồn tại để chặn."
     },
     {
       "command": "gofmt -l services/ · GOOS=linux go build ./... · GOOS=linux go vet ./... (4 module)",

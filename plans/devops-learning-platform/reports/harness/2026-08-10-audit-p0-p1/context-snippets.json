@@ -1,6 +1,6 @@
 {
   "skill": "t1k-brainstorm",
-  "mode": "audit",
+  "mode": "review",
   "task": "Rà soát toàn bộ P0 + P1 sau đợt nâng cấp #24–#28: mọi cài đặt, chỉnh sửa, bản vá, món nợ, điều chưa làm. Sau đó đóng nợ bằng chứng của chặng 1.B mà hook workflow-artifact-gate trỏ tới, để mở đường cook 1.E.",
   "scoutSummary": "Vào phiên với HEAD=17fed14, working tree sạch, main==origin/main. Hook workflow-artifact-gate cảnh báo suốt bốn lệnh git, trỏ vào artifact PR #27. Chẩn đoán: hook chọn thư mục artifact MỚI NHẤT trên đĩa (chặng hôm nay chưa có artifact nào) và validator hard-stage đòi decision==='PASS' chặt chẽ, nên PASS_WITH_RISK bị đọc thành 'chưa PASS'. Nhưng unverifiedClaims/missingProof thì thật: reaper chưa từng chạy trên cluster, Job migration chưa từng qua helm install thật, AC p95 chưa có mẫu nào.",
   "acceptanceCriteria": [
