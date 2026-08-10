@@ -1,0 +1,27 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 9,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "AC 'gõ được lệnh thật trong pod' → ĐẠT trên cluster: `echo <marker>` trả lại đúng marker qua WS, session tạo bằng gRPC CreateSession thật.",
+    "AC 'prompt đầu tiên vẽ đúng bề rộng — chứng minh init-trước-dial' → ĐẠT, và đo mạnh hơn AC yêu cầu: `stty size` trong pod = 34 120, khớp TUYỆT ĐỐI frame init. AC gốc là quan sát bằng mắt; con số này tái lập được, và nó đóng CÙNG LÚC E4 (status bar off — nếu còn thì rows = 33).",
+    "AC 'đóng WS → nối lại cùng {id} vào đúng pod cũ' → ĐẠT: ready.podName trả đúng pod cũ, scrollback tmux còn nguyên dấu vết trước khi ngắt.",
+    "AC 'reap giữa phiên' → ĐẠT với close 4404. Đây là chế độ hỏng spike đánh dấu CHẶN G5, và cặp test exit-137 (cùng exit code, hai close code) là thứ giữ nó không hồi quy.",
+    "AC 'Reconnect thật (D3)' → HAI TRÊN BA, KHÔNG tick. Vế 'tiến trình đang chạy không chết' chưa dựng ca đo.",
+    "AC 'Trần 1 WS không giết reconnect (D17)' → vế thứ nhất ĐẠT trên cluster; vế SIGKILL-rồi-chờ-TTL chưa chạy thật. KHÔNG tick.",
+    "AC 'p95 attach < 500ms' → KHÔNG đo được, metric thuộc G10.",
+    "GHI CHÚ — SAI LỆCH CONTRACT CÓ CHỦ Ý: control `ready` không mang `hardCapAt` dù §5 liệt kê. Gateway không tính được mốc đó mà không dựng hằng số thứ hai cho HARD_CAP của orchestrator. Đường đúng là G7; FE dùng expiresAt cho đồng hồ, đủ cho chặng này. Đã ghi ở phase-1.md, trong buildReady, và trong ControlOut.",
+    "GHI CHÚ — VẤN ĐỀ KHÔNG CHẶN: (1) `attachGrace` 2s là lưới cho lệnh exec im lặng — với `tmux new-session -A` nó gần như không chạy, nhưng nó là một con số CHỌN chứ không phải ĐO. (2) `writeTimeout` 10s (ngưỡng 'client quá chậm' → 4429) cũng là số chọn; chưa dựng ca client chậm thật để đo. (3) Byte-rate token-bucket của luật 5 thuộc G8, chưa có — hiện chỉ có vế 'client không đọc kịp'. (4) Công cụ đo không nằm trong repo nên bằng chứng cluster KHÔNG tái lập bằng một lệnh; đường tái lập đúng là test e2e sau G12.",
+    "GHI CHÚ — LÝ DO ĐIỂM 9 (1.C-1 là 8): chặng này chứng minh cả LOGIC lẫn TÍCH HỢP. Trừ điểm còn lại đúng một chỗ: đường cookie thật vẫn chờ G12, nên bên phát token trong phép đo là công cụ, không phải apps/web."
+  ],
+  "regressionProof": [
+    "16/16 package Go xanh dưới -race, đo từ cache script RỖNG (điều kiện runner CI), gồm bước pool -count=20 chạy NGAY SAU khi suite gateway gọi SCRIPT FLUSH — đúng cái bẫy đã làm đỏ PR #32.",
+    "Toàn bộ 73 ca của 1.C-1 (authz, sessionstore, wsroute) vẫn xanh sau khi wsroute chuyển từ 'đóng 4500' sang 'giao cho cầu'.",
+    "Thêm một ca hồi quy MỚI cho ranh giới vừa dựng: TestG13_DichExecLayTuRedisChuKhongTuURL khẳng định podName/namespace của Target tới từ hash session:{id}. Thiếu nó thì một implement lấy pod từ path vẫn cho suite IDOR xanh.",
+    "golangci-lint 0 issue trên CẢ 4 module với GOOS=linux; govulncheck sạch; buf lint + breaking sạch; env-check 52 biến/4 scope.",
+    "helm lint + template + kubeconform xanh trên cả 3 bộ values CI render + nhánh ingress + nhánh existingSecret; actionlint sạch.",
+    "Trên cluster: 5 pod nền tảng vẫn Running sau 3 lượt helm upgrade; warm-pool tự replenish pod mới sau lượt reap của phép đo."
+  ],
+  "blockingReasons": [],
+  "contractStatus": "OK"
+}

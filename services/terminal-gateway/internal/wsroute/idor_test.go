@@ -32,6 +32,7 @@ type realHarness struct {
 	srv    *httptest.Server
 	signer *testjwt.Signer
 	rdb    *redis.Client
+	bridge *fakeBridge
 }
 
 func newRealHarness(t *testing.T) *realHarness {
@@ -40,17 +41,19 @@ func newRealHarness(t *testing.T) *realHarness {
 	signer := testjwt.NewSigner(t, "kid-1")
 	jwks := testjwt.NewJWKSServer(t, signer)
 
+	bridge := &fakeBridge{}
 	mux := http.NewServeMux()
 	wsroute.Register(mux, wsroute.Deps{
 		Log:             slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Verifier:        authz.NewVerifier(authz.NewJWKSCache(jwks.URL), testjwt.Issuer),
 		Sessions:        sessionstore.New(rdb),
+		Bridge:          bridge,
 		AllowedOrigins:  []string{testOrigin},
 		MaxWSPerSession: 1,
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return &realHarness{srv: srv, signer: signer, rdb: rdb}
+	return &realHarness{srv: srv, signer: signer, rdb: rdb, bridge: bridge}
 }
 
 func (h *realHarness) seed(t *testing.T, sessionID, userID string) {
@@ -109,6 +112,36 @@ func TestG13_ChuThatVaoDuoc101(t *testing.T) {
 	}
 	if got := resp.Header.Get("Sec-WebSocket-Protocol"); got != wsroute.Subprotocol {
 		t.Fatalf("echo subprotocol %q, muốn %q", got, wsroute.Subprotocol)
+	}
+}
+
+// ⛔ ĐÍCH CỦA EXEC TỚI TỪ REDIS, KHÔNG TỪ URL.
+//
+// Đây là vế còn lại của luật 10, và nó chỉ có nghĩa sau khi cầu exec tồn tại:
+// bước g chứng minh "session này là của bạn", ca này chứng minh "và pod ta sắp
+// exec vào đúng là pod của session đó". Thiếu nó thì một implement lấy podName
+// từ path (hoặc từ một frame client) vẫn cho TOÀN BỘ suite IDOR xanh, trong khi
+// "gõ được lệnh trong pod" đã lặng lẽ thành "gõ được lệnh trong pod NGƯỜI KHÁC".
+func TestG13_DichExecLayTuRedisChuKhongTuURL(t *testing.T) {
+	h := newRealHarness(t)
+	h.seed(t, "sess-a", "user-a")
+
+	resp := h.do(t, "sess-a", h.signer.Mint(testjwt.SandboxClaims("user-a", "sess-a")))
+	if resp.Status != http.StatusSwitchingProtocols {
+		t.Fatalf("status = %d, muốn 101", resp.Status)
+	}
+
+	target, ok := h.bridge.last()
+	if !ok {
+		t.Fatal("cầu exec không được gọi dù handshake đã 101")
+	}
+	// seed() ghi đúng hai giá trị này vào hash session:{id}.
+	if target.PodName != "sandbox-deadbeef" || target.Namespace != "dlp-sandbox" {
+		t.Fatalf("đích exec = %s/%s, muốn dlp-sandbox/sandbox-deadbeef — giá trị này "+
+			"PHẢI tới từ hash session:{id}", target.Namespace, target.PodName)
+	}
+	if target.SessionID != "sess-a" {
+		t.Fatalf("sessionId = %q, muốn sess-a", target.SessionID)
 	}
 }
 

@@ -1,0 +1,17 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "highRisk: TRUE — và đây là khác biệt so với 1.C-1. Chặng này CHẠM CLUSTER ĐANG SỐNG: side-load image gateway mới, 3 lượt `helm upgrade` lên release `platform`, một lượt CreateSession + ReapSession thật (tiêu rồi trả một pod của warm-pool trên trần 4 pod, D16), và trỏ tạm cấu hình JWKS của lab sang một JWKS dùng-rồi-bỏ.",
+    "autoStopRequired: TRUE — trỏ `gateway.env.jwksUrl` sang JWKS của công cụ đo nghĩa là trong cửa sổ đó, gateway CHỈ chấp nhận token của công cụ đó. Để nguyên là để lab ở trạng thái không xác thực được token thật nào. Đã trả về mặc định kế thừa ngay sau khi đo và XÁC NHẬN bằng jsonpath, không phải bằng lập luận.",
+    "humanApproved: user chốt chặng 1.C-2 qua AskUserQuestion trước khi viết dòng code nào.",
+    "largeDiff: FALSE — 4 file mã mới trong một package, cộng các mối nối. Phần lớn dòng là chú thích ghi lại số đo của spike.",
+    "ĐÁNH ĐỔI CÓ CHỦ Ý #1 — `rest.Config.Timeout = 0` cho đường stream, KHÁC hẳn 30s của orchestrator. Đọc như một cái bỏ sót nếu chỉ nhìn con số. Lý do: nó chảy vào `http.Client.Timeout`, deadline TUYỆT ĐỐI trên cả vòng đời request — 30s ở đây nghĩa là mọi phiên terminal chết đúng 30 giây sau khi mở. Cùng cái bẫy mà `httpx.NewStreamingServer` đã tách khỏi `NewServer`.",
+    "ĐÁNH ĐỔI CÓ CHỦ Ý #2 — `sessionGone` fail-OPEN khi Redis không trả lời: đóng 4404 bảo FE 'đừng retry', nên đoán sai theo hướng đó là khoá người dùng khỏi một phiên vẫn còn hạn; đoán sai hướng kia chỉ tốn một lượt retry vô hại. Có test riêng cho nhánh này.",
+    "ĐÁNH ĐỔI CÓ CHỦ Ý #3 — `ready` chờ byte đầu tiên HOẶC `attachGrace` 2s. Không có callback 'đã attach' nào từ client-go, nên byte đầu là bằng chứng mạnh nhất có sẵn; grace là lưới để một GATEWAY_EXEC_COMMAND im lặng không làm FE treo vĩnh viễn.",
+    "MÓN NỢ ĐÃ GHI #1 — đường cookie thật (G12) vẫn chưa có; bên phát token trong phép đo là công cụ, không phải apps/web. Cũng là hạn chót của R25.",
+    "MÓN NỢ ĐÃ GHI #2 — release lab đang chạy gateway tag `dev-4030577` (dựng từ nhánh, side-load tay), không phải tag `sha-*` do CI đóng. CÙNG HỌ với món nợ `--set sandboxImage` đã đóng ở PR #31; trình tự đóng nó (side-load TRƯỚC, helm upgrade SAU) đã ghi trong phase-1.md."
+  ]
+}
