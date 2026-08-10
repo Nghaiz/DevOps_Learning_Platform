@@ -1,0 +1,40 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Chặng 1.C-2 của phase-1: cầu exec của terminal-gateway — G4 (dial pod qua NewFallbackExecutor), G5 (bơm hai chiều + backpressure + chọn close code), G6 (handshake `init` trước dial, resize coalesce). Kèm chốt vế T+25h của AC Calico bằng số đo trước khi Job canary bị thu gom. G7 (keepalive/extend), phần còn lại của G8 (byte-rate), G10 (metrics) và G12 (4 file apps/web) KHÔNG thuộc chặng này.",
+  "scoutSummary": "Vào phiên ngay sau khi PR #32 (1.C-1) merge; local về main sạch tại 2a4646a. Trạng thái 1.C: chín bước authz đã chạy thật nhưng wsroute đóng 4500 tạm vì chưa có cầu exec. Đọc lại toàn văn báo cáo spike 1.A-1 (6 gotcha + 4 mục 'sai so với plan') và mã cmd/spike-exec/bridge.go — bản đã được chứng minh trên pod Sysbox thật — để hiện thực theo chứ không phát minh lại. Soi lab: 5 pod nền tảng Running, warm-pool có sandbox-7d69d4975fe5, VM không có go/docker/wscat/grpcurl (chỉ ctr/python3/jq/openssl).",
+  "acceptanceCriteria": [
+    "Một con người GÕ ĐƯỢC LỆNH THẬT trong pod qua WS, trên cluster thật — không phải chỉ xanh trong test.",
+    "`stty size` trong pod khớp TUYỆT ĐỐI cols/rows của frame `init` (không lệch 1) — đóng cùng lúc G6 init-trước-dial và E4 status-off.",
+    "Reap giữa phiên → close 4404 chứ KHÔNG phải 1000: exit 137 của pod bị xoá trùng khít với kill -9 hợp lệ, nên phải tra Redis mới chọn được mã.",
+    "Nối lại là PHIÊN THẬT: scrollback tmux còn nguyên dấu vết trước khi ngắt, và vào đúng pod cũ.",
+    "`Stderr` VẮNG khi TTY — đặt vào thì writer không bao giờ nhận byte và KHÔNG có lỗi nào báo.",
+    "`Next()` của TerminalSizeQueue BLOCK; trả nil chỉ khi ctx đóng.",
+    "Byte gõ TRƯỚC `init` không bị mất.",
+    "`ready` chỉ phát khi có bằng chứng đã attach — không phát rồi mới báo lỗi.",
+    "Lệnh exec là hằng số phía server; rỗng thì service từ chối khởi động.",
+    "Mỗi cổng mới chứng minh được nó CÓ THỂ ĐỎ bằng kiểm đột biến.",
+    "Chạy ĐÚNG bộ lệnh của CI (3 bộ values Helm; suite Go từ cache script RỖNG), không phải một tập con tự chọn."
+  ],
+  "touchpoints": [
+    "services/terminal-gateway/internal/podexec — MỚI: client.go (rest.Config cho stream), executor.go (dial + execURL), bridge.go (cầu), control.go (shape control message)",
+    "services/terminal-gateway/internal/wsroute — giao kết nối cho cầu thay vì đóng 4500 tạm; thêm Deps.Bridge",
+    "services/terminal-gateway/internal/sessionstore — thêm Store.Alive cho đường đóng",
+    "services/terminal-gateway/internal/config — thêm ExecCommand (GATEWAY_EXEC_COMMAND)",
+    "infra/helm/platform values + gateway-deployment — GATEWAY_EXEC_COMMAND (có `required`)",
+    ".github/ci.env — GATEWAY_EXEC_COMMAND",
+    "plans/devops-learning-platform/phase-1.md + reports/2026-08-10-verify-terminal-1c2.md — tiến độ, AC, báo cáo bằng chứng"
+  ],
+  "publicContracts": [
+    "docs/ws-terminal-protocol.md — KHÔNG đổi. Chặng này hiện thực §3 bước 4–6, §4, §5, §6.",
+    "MỘT SAI LỆCH CÓ CHỦ Ý ĐÃ GHI: control `ready` KHÔNG mang `hardCapAt` dù §5 liệt kê nó. Gateway không tính được mốc đó (= createdAt + HARD_CAP, config của orchestrator); thêm GATEWAY_HARD_CAP là dựng hằng số thứ hai. Đường đúng là G7.",
+    "MỚI: control `error` với `code: RATE_LIMITED` (client quá chậm) và `EXEC_FAILED`. `SESSION_GONE` đã có trong §6.",
+    "proto/orchestrator/v1/session.proto — KHÔNG chạm; buf lint + breaking sạch."
+  ],
+  "blastRadius": [
+    "services/terminal-gateway — service này trước chặng là 'authz xong rồi đóng 4500'. Hồi quy xấu nhất về mặt chức năng là quay lại đúng trạng thái đó.",
+    "⚠ CHẶNG NÀY CHẠM CLUSTER, khác 1.C-1: side-load image gateway mới + 3 lượt `helm upgrade` lên release đang sống. Không đụng orchestrator/web/datastore/pod sandbox.",
+    "Một lượt `CreateSession` + `ReapSession` thật trên lab (tiêu rồi trả lại một pod của warm-pool; đã xác nhận replenish dựng lại pod mới sandbox-571bafddf37f).",
+    "Cấu hình JWKS của lab bị trỏ tạm sang một JWKS dùng-rồi-bỏ trong lúc đo, ĐÃ trả về mặc định kế thừa ngay sau đó và xác nhận bằng jsonpath."
+  ]
+}

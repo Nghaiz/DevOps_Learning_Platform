@@ -192,6 +192,31 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 > 2. **`required` cho `REDIS_URL` trong chart nghe như fail-closed tốt, thực ra là hồi quy.** `values.yaml` và `values-cloud.yaml` để `datastore.enabled: false` (bản cloud-shaped) nên `helm template` **ABORT** trên hai bộ đó. Tôi chỉ thử hai nhánh **tự thiết kế** thay vì ba bộ values **CI thật sự render** — đúng loại "cổng chưa từng chạy trên đường CI" mà chính workflow cảnh báo trong comment của nó. Gỡ `required`; cổng thật nằm ở Go (`config` từ chối khởi động, có test + đột biến), và cổng thứ hai ở tầng template chỉ làm chart lệch khỏi khuôn orchestrator đang dùng cho cùng biến.
 > 3. **Vá secret ở commit tip là CHƯA ĐỦ.** `gitleaks-action` trên event `pull_request` quét cả **dải commit** của PR, nên một hằng đã xoá ở tip vẫn bị bắt trong lịch sử nhánh. (Hằng đó là `Sec-WebSocket-Key: dGhl…` — nonce ví dụ của RFC 6455, không phải secret, nhưng **đúng hình dạng** rule `generic-api-key` tìm: base64 22 ký tự cạnh một tên chứa chữ "Key". Vá bằng cách **sinh** nonce, không nới allowlist.)
 >
+> ---
+>
+> ### 1.C-2 — cầu exec (G4+G5+G6) ✅ XONG 2026-08-10, **có chứng minh trên cluster thật**
+>
+> `internal/podexec` nối kết nối đã qua authz vào PTY của pod. Khác 1.C-1 ở đúng một điểm quan trọng: chặng này **đã chạy trên cluster**, không chỉ trong test.
+>
+> **Chín phép kiểm end-to-end trên lab** (session tạo qua **gRPC `CreateSession` thật**, pod là pod thật vừa claim từ warm-pool — KHÔNG seed Redis bằng tay):
+> 1. `CreateSession` → `session=9c5a18c8…`, `pod=sandbox-7d69d4975fe5`, `status=CLAIMED`.
+> 2. control `ready` mang đúng `podName` orchestrator vừa claim, `expiresAt` RFC3339, `maxFrameBytes=32768`.
+> 3. **GÕ ĐƯỢC LỆNH THẬT:** `echo BANG-CHUNG-<nonce>` → pod trả lại đúng marker.
+> 4. **`stty size` trong pod = `34 120`** — khớp TUYỆT ĐỐI `cols`/`rows` của frame `init`, **không lệch 1**. Đây là phép đo đóng cả hai thứ cùng lúc: `init`-trước-dial của G6, và `set -g status off` của E4.
+> 5. `tmux ls` thấy session `dlp` ⇒ gateway attach qua tmux (D3).
+> 6–8. Đóng WS rồi mở lại: vào **đúng pod cũ**, và `tmux capture-pane -p -S -50` **vẫn thấy dấu vết ghi trước khi ngắt** ⇒ nối lại là PHIÊN THẬT, không phải shell mới. Trần 1 WS chặn đồng thời mà không chặn reconnect.
+> 9. **`ReapSession` giữa phiên → close code `4404`**, không phải `1000`. Đây chính là chế độ hỏng mà spike đánh dấu **CHẶN G5**: `exit 137` của pod bị xoá trùng khít với `kill -9` hợp lệ, nên nếu không tra Redis thì FE hiểu thành "tự gõ exit, đừng retry".
+>
+> **Bốn quyết định phát sinh:**
+> 1. **`rest.Config.Timeout` PHẢI là 0 cho đường stream.** Nó chảy vào `http.Client.Timeout` — deadline **tuyệt đối** trên cả vòng đời request, không phải idle-timeout. Orchestrator đặt `30s` và đúng cho nó (một `Get` treo từng suýt làm reaper xoá nhầm pod); cùng con số đó ở gateway nghĩa là **mọi phiên terminal chết đúng 30 giây sau khi mở**, bất kể sinh viên đang gõ gì. Đây là cùng cái bẫy mà `httpx.NewStreamingServer` đã tách khỏi `NewServer`, ở đầu ngược lại của kết nối.
+> 2. **`ready` chỉ phát khi có bằng chứng đã attach** — byte stdout ĐẦU TIÊN, cộng lưới `attachGrace` 2s cho lệnh im lặng. `ready` theo contract §5 nghĩa là "đã attach vào pod thật"; phát nó rồi mới báo lỗi là nói dối FE: nó vẽ terminal, tắt spinner, rồi mới nhận close — người dùng thấy một terminal chớp lên rồi biến mất.
+> 3. **`hardCapAt` của `ready` CỐ Ý VẮNG dù contract §5 liệt kê nó.** Gateway không tính được mốc đó: nó `= createdAt + HARD_CAP`, mà `HARD_CAP` là config của **orchestrator**. Thêm một `GATEWAY_HARD_CAP` là dựng hằng số thứ hai cho cùng một con số — đúng thứ phase-1 đã trả giá vài lần. Đường đúng là **G7** (`hard_cap_reached` tới từ `ExtendSession`). FE dùng `expiresAt` cho đồng hồ đếm ngược, đủ cho mọi thứ nó cần ở chặng này.
+> 4. **`GATEWAY_EXEC_COMMAND` rỗng → service TỪ CHỐI khởi động.** Rỗng nghĩa là apiserver nhận `command: []` và chạy `CMD` của image, tức `sleep infinity` (1.E) — pod attach "thành công" rồi terminal treo câm. Fail-fast thay vì để lỗi đó lộ ra ở tận trình duyệt.
+>
+> **⛔ MÓN NỢ MỞ RA TỪ CHÍNH PHÉP CHỨNG MINH NÀY:** vì G12 chưa có, không ai mint được cookie `dlp_sandbox` thật, nên prover **tự đóng vai bên phát token** (sinh cặp Ed25519, phục vụ JWKS riêng, gateway được `--set gateway.env.jwksUrl` trỏ vào đó). Đổi **duy nhất** bên phát token; toàn bộ pipeline authz + cầu exec chạy nguyên vẹn. Đã trả cấu hình lab về mặc định kế thừa ngay sau khi đo (`jwksUrl=''` ⇒ `http://platform-web:3000/api/auth/jwks`). **Vế còn thiếu vẫn là G12**, và nó cũng là hạn chót của R25.
+>
+> **⛔ MÓN NỢ THỨ HAI — cùng họ với `--set sandboxImage` đã đóng ở PR #31:** release lab đang chạy gateway tag **`dev-4030577`** (dựng từ nhánh, side-load bằng tay) chứ không phải một tag `sha-*` do CI đóng. Đóng nợ ngay sau khi PR merge, theo đúng thứ tự đã dùng ở 1.E-1 — **side-load TRƯỚC, `helm upgrade` SAU**: `docker save` tag `sha-<merge>` → `scp` → `ctr -n k8s.io images import` → `helm upgrade --reset-then-reuse-values --set gateway.image.tag=sha-<merge>`.
+>
 > **Cổng chống DoS của JWKS là SÀN THỜI GIAN, không phải `singleflight`.** "Refetch khi gặp `kid` lạ" (D15) mà không có sàn là một cần gạt DoS công khai vào `apps/web`: 200 token mang 200 `kid` bịa ra = 200 lượt fetch. `singleflight` chỉ gộp các lượt **đồng thời**; các lượt này đi **lần lượt** nên nó không thấy gì cả. Kèm `lastAttempt` đếm cả lần THẤT BẠI — nếu chỉ đếm lần thành công thì đúng lúc `apps/web` yếu nhất, gateway đạp mạnh nhất.
 
 **G1 — Khung handler + Origin + subprotocol.** Pipeline pre-upgrade: allowlist `Origin` (`GATEWAY_ALLOWED_ORIGINS` — đây là thứ đóng CSWSH, bắt buộc vì handshake WS không chịu CORS), kiểm client chào `dlp.terminal.v1`, rồi mới upgrade và echo lại đúng một subprotocol. **Request VẮNG header `Origin` thì CHO QUA** (contract §3a) — trình duyệt luôn gửi `Origin` nên CSWSH vẫn đóng kín, còn fail-closed ở đây sẽ chặn `wscat`/`websocat`/test e2e/probe vận hành, tức chặn chính bộ acceptance IDOR ở dưới. Bước này đọc là *"có `Origin` thì phải đúng"*, không phải *"phải có `Origin`"*. Unit test cả hai ca: vắng → qua, sai → 403. *Chạm: `internal/wsroute/`, `internal/ws/`. Effort: M.*
@@ -392,7 +417,7 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
   > Ba lần đo, ba image khác hẳn nhau, cùng một con số: `pause:3.10` **0.090s** · sandbox-base 26.04 (427 MB) **0.089s** · sandbox-base 24.04 (369 MB) **0.092s**. Đúng như cơ chế: claim là một `LMOVE` trên Redis trong pool đã ấm, nó **không chạm image** — nên đây là bằng chứng cho tính bất biến, không phải một cải thiện. Histogram được reset (restart orchestrator) trước mỗi lượt đo nên không mẫu nào lẫn giữa hai image.
   > Thứ image THẬT SỰ ảnh hưởng là **thời gian dựng pod lúc replenish/cold-path**, và AC hiện tại không hỏi câu đó — vẫn đúng như ghi chú cũ: *"người thứ hai bấm Start ngay sau người thứ nhất chờ bao lâu"* chưa AC nào hỏi.
 - [ ] Từ `ready` tới prompt đầu tiên: **p95 < 500ms** (`dlp_gateway_attach_duration_seconds`).
-- [ ] Prompt đầu tiên vẽ **đúng bề rộng** cửa sổ (không gãy dòng) — chứng minh `init`-trước-dial hoạt động.
+- [x] Prompt đầu tiên vẽ **đúng bề rộng** cửa sổ (không gãy dòng) — chứng minh `init`-trước-dial hoạt động. → Đo mạnh hơn cả AC yêu cầu: `stty size` **trong pod thật** trả **`34 120`**, khớp TUYỆT ĐỐI `cols`/`rows` của frame `init` — không lệch 1, tức `set -g status off` của E4 đúng và `init`-trước-dial đúng. Đo qua WS thật trên cluster 2026-08-10; "không gãy dòng" là quan sát bằng mắt, còn con số này thì tái lập được.
 - [ ] `CreateSession` 2 lần cùng `idempotency_key` → **cùng `session.id`**, số pod tăng đúng **1**.
 - [ ] `GetSession` với `user_id` sai → **`NotFound`** (không phải `PermissionDenied`).
 - [ ] `ExtendSession` với `expected_revision` cũ → `FailedPrecondition`; mỗi lần ghi `revision` tăng đúng 1.
@@ -407,9 +432,9 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 - [ ] **Retry mất phản hồi (B3):** gọi `Claim()` hai lần cùng `sessionID` (mô phỏng timeout mạng sau khi script đã chạy) → lần hai trả **cùng `podName`**, số pod tăng đúng **1**, không rẽ cold-path.
 - [ ] Tắt Postgres → `CreateSession` **vẫn thành công**, chỉ log `ERROR` audit.
 - [ ] `sessions_audit` không có cột nào trả lời được "session X đang ở pod nào".
-- [ ] **Reconnect thật (D3):** ngắt mạng 5s → vào lại thấy **đúng màn hình cũ**, scrollback còn, tiến trình đang chạy không chết. `tmux ls` trong pod chỉ có **1** session.
-- [ ] **Trần 1 WS không giết reconnect (D17):** đóng WS → `session:{id}:ws` về **0** trong ≤ 1s → mở lại **thành công** (không dính 429). Và: kill gateway giữa phiên (SIGKILL, không kịp `DECR`) → session vẫn mở lại được sau khi TTL của `session:{id}:ws` hết, **không khoá vĩnh viễn**.
-- [ ] Đóng WS → pod **không** bị xoá ngay; nối lại cùng `{id}` trong TTL vào đúng pod cũ.
+- [ ] **Reconnect thật (D3):** ngắt mạng 5s → vào lại thấy **đúng màn hình cũ**, scrollback còn, tiến trình đang chạy không chết. `tmux ls` trong pod chỉ có **1** session. ⏳ **HAI TRÊN BA** (đo trên cluster 2026-08-10): đóng WS rồi mở lại → vào đúng pod cũ, và `tmux capture-pane -p -S -50` **vẫn thấy dấu vết ghi trước khi ngắt** ⇒ nối lại là PHIÊN THẬT chứ không phải shell mới; `tmux ls` thấy đúng session `dlp`. **Vế "tiến trình đang chạy không chết" chưa đo** — chưa dựng ca có một tiến trình dài (vd `sleep 300 &` rồi ngắt) để khẳng định nó sống qua lần ngắt. Không tick cho tới khi đo vế đó.
+- [ ] **Trần 1 WS không giết reconnect (D17):** đóng WS → `session:{id}:ws` về **0** trong ≤ 1s → mở lại **thành công** (không dính 429). Và: kill gateway giữa phiên (SIGKILL, không kịp `DECR`) → session vẫn mở lại được sau khi TTL của `session:{id}:ws` hết, **không khoá vĩnh viễn**. ⏳ **Vế thứ nhất ĐẠT trên cluster** 2026-08-10: đóng WS rồi mở lại thành công, không dính 429 (vế này cũng đã có test tự động ở 1.C-1). **Vế SIGKILL chưa đo trên cluster** — TTL của `session:{id}:ws` đã có test tự động khẳng định nó được đặt trong CÙNG một lượt atomic, nhưng ca "giết gateway giữa phiên rồi chờ TTL" thì chưa chạy thật.
+- [x] Đóng WS → pod **không** bị xoá ngay; nối lại cùng `{id}` trong TTL vào đúng pod cũ. → Đo trên cluster 2026-08-10: đóng WS, mở lại cùng `{id}`, `ready.podName` trả **đúng pod cũ** (`sandbox-7d69d4975fe5`) và scrollback tmux còn nguyên.
 - [ ] 2 replica gateway sau round-robin LB: mở/đóng 20 WS xen kẽ (**tuần tự, không chồng lấn** — trần là 1 WS/session), 0 lỗi.
 
 ### Terminal UX
@@ -599,7 +624,7 @@ make go-build && make go-test && make go-vet && make env-check && make proto-bre
 | 1.A-1 spike WS⇄exec | ~~M~~ **✅ xong 2026-08-09** | HARD-GATE **đã mở** — 1.C chạy được |
 | 1.A-2 spike claim atomic | ~~M~~ **✅ xong 2026-08-09** | HARD-GATE **đã mở** — 1.B chạy được |
 | 1.B orchestrator (B1–B9) | **L** | Đường găng |
-| 1.C gateway (G1–G13) | **L** · **1.C-1 ✅ xong 2026-08-10** (G1, G2, G3, G11, G13 + bước i) · **1.C-2** G4–G6 (cầu exec) · **1.C-3** G7–G10 (extend, rate-limit, metrics) · **G12** (4 file `apps/web`, kéo theo B0′/mTLS) | Đường găng, song song 1.B. G12 là **hạn chót của R25** — ngày `session.ts` nối vào orchestrator. |
+| 1.C gateway (G1–G13) | **L** · **1.C-1 ✅ xong 2026-08-10** (G1, G2, G3, G11, G13 + bước i) · **1.C-2 ✅ xong 2026-08-10** (G4–G6, cầu exec — **đã gõ được lệnh thật trên cluster**) · **1.C-3** G7–G10 (extend, rate-limit, metrics) · **G12** (4 file `apps/web`, kéo theo B0′/mTLS) | Đường găng, song song 1.B. G12 là **hạn chót của R25** — ngày `session.ts` nối vào orchestrator. |
 | 1.D bốn khoảng trống | **S**×4 | D-17′/D-21′/D-22′ song song hoàn toàn; **D-19′ phụ thuộc 1.B0.1** (restart kubelet, xem R22) |
 | 1.E image | ~~M~~ **E1–E5 + E10 ✅ xong 2026-08-10** · E6–E9 còn nợ | Warm-pool đã chạy image thật; E7 (DinD) chặn AC "DinD offline" (D4) |
 | 1.F FE | **M–L** | Chặn bởi WS contract + B0.4 + G12 |

@@ -1,0 +1,25 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [],
+  "unverifiedClaims": [
+    "Vế 'tiến trình đang chạy không chết' của AC reconnect (D3) CHƯA đo: chưa dựng ca có một tiến trình dài (vd `sleep 300 &`) rồi ngắt mạng. Scrollback còn nguyên là bằng chứng cho MÀN HÌNH, không cho TIẾN TRÌNH — hai thứ khác nhau, và tmux giữ cái thứ hai bằng một cơ chế khác (session không chết khi client detach).",
+    "Vế SIGKILL của AC trần WS (D17) CHƯA chạy thật: 'giết gateway giữa phiên rồi chờ TTL của session:{id}:ws hết'. Có test khẳng định TTL được đặt trong CÙNG một lượt atomic, nhưng đó là bằng chứng cho CƠ CHẾ, không cho CA VẬN HÀNH.",
+    "`attachGrace` 2s và `writeTimeout` 10s là số CHỌN, không phải số ĐO. Chưa dựng ca client chậm thật để biết 10s là rộng hay hẹp; và chưa đo lệnh exec nào im lặng quá 2s để biết grace có bao giờ chạy.",
+    "AC 'p95 attach < 500ms' chưa đo được — `dlp_gateway_attach_duration_seconds` thuộc G10. Seam đã có (thời điểm phát `ready`), metric thì chưa.",
+    "AC 'hai replica gateway sau round-robin LB, 20 WS xen kẽ' chưa đo: release lab chạy replicaCount 1.",
+    "Byte-rate token-bucket của luật 5 (256 KiB/s, burst 512 KiB → 4429) CHƯA có — thuộc G8. Hiện chỉ có vế 'client không đọc kịp' qua deadline mỗi lượt ghi.",
+    "Bằng chứng cluster KHÔNG tái lập bằng một lệnh: công cụ đo nằm trong scratchpad, không commit (lý lẽ ở reports/2026-08-10-verify-terminal-1c2.md §'Công cụ đo'). Đường tái lập đúng là một test e2e sau G12.",
+    "Contract §5 liệt kê `hardCapAt` trong `ready` mà chặng này KHÔNG gửi. Đây là sai lệch có chủ ý và đã ghi ở ba nơi, nhưng nó VẪN là một sai lệch so với SSOT cho tới khi G7 hạ cánh — nếu 1.F code trước G7 thì FE phải chịu được field vắng.",
+    "Vế T+37h của AC Calico chưa tới (mốc 2026-08-10T20:40:14Z = 03:40 ngày 11-08 giờ +07). Và khoảng cách 26↔13 giữa `successfulJobsHistoryLimit` và số Job thực còn giữ thì CHƯA điều tra — đã ghi lại chứ không bỏ qua."
+  ],
+  "missingProof": [
+    "LƯỢT ĐỐI KHÁNG #1: [rest.Config cho đường stream] Bản đầu định dùng lại khuôn `k8s.NewClientset` của orchestrator, vốn đặt `Timeout = 30s`. Đọc lại vì sao con số đó tồn tại (một `Get` treo từng suýt làm reaper xoá nhầm pod) thì lộ ra nó chảy vào `http.Client.Timeout` — deadline TUYỆT ĐỐI, không phải idle. Với exec, cùng con số đó giết mọi phiên terminal ở giây thứ 30. Vá: config RIÊNG với Timeout = 0, kèm chú thích chỉ sang `httpx.NewStreamingServer` — cùng cái bẫy, đầu ngược lại của kết nối. KHÔNG đo được bằng test (test không giữ phiên 30s), nên bằng chứng ở đây là đọc mã + đối chiếu tiền lệ trong repo.",
+    "LƯỢT ĐỐI KHÁNG #2: [`wsWriter.slow`] Bản đầu là `bool` trần. Nó được GHI từ goroutine copy-stdout của client-go và ĐỌC từ goroutine chính lúc chọn close code — data race thật. Vá: `atomic.Bool`. `-race` sẽ bắt, nhưng chỉ khi có ca chạm được nhánh đó; sửa trước khi phải dựa vào may mắn.",
+    "LƯỢT ĐỐI KHÁNG #3: [`ready` phát khi nào] Bản đầu định phát `ready` ngay sau khi dựng executor — nhưng `newExecutor` chỉ DỰNG, không dial, nên `ready` khi đó không chứng minh gì. Vá: chờ byte stdout đầu tiên (bằng chứng đã attach) + grace 2s. Kèm test khẳng định stream chết trước attach thì TUYỆT ĐỐI không phát `ready`.",
+    "LƯỢT ĐỐI KHÁNG #4: [test `execURL` suýt sai vì kỳ vọng sai] Ca đầu đòi `stderr=false` trong query; thực tế `PodExecOptions.Stderr` có `omitempty` nên `false` VẮNG HẲN. Đã sửa ca thành khẳng định ngữ nghĩa ('không được bật') kèm chú thích vì sao vắng là đúng — một test đòi đúng chuỗi 'false' sẽ dụ người sau đi 'sửa' encoding cho khớp test.",
+    "LƯỢT ĐỐI KHÁNG #5: [seed Redis hay gọi gRPC?] Đường dễ là seed hash `session:{id}` bằng tay rồi mở WS. Nó chứng minh cầu, nhưng bỏ qua toàn bộ câu hỏi 'pod này có thật là pod orchestrator vừa claim không'. Chọn đường khó: `CreateSession` qua gRPC thật, rồi khẳng định `ready.podName` khớp pod orchestrator trả về. Nhờ đó mục 9 (reap → 4404) cũng dùng được `ReapSession` thật thay vì `DEL` tay.",
+    "LƯỢT ĐỐI KHÁNG #6: [`pkill -f` tự giết session] Script đo dùng `pkill -f 'port-forward svc/platform-'` để dọn port-forward cũ. Pattern đó khớp luôn command line của CHÍNH shell đang chạy script qua ssh ⇒ nó tự giết session, và triệu chứng là 'không có output nào' — hai lượt liền tôi tưởng ssh hỏng. Đã ghi vào trình tự tái hiện của báo cáo.",
+    "TỰ PHÊ: bốn lượt trên là những thứ tôi tự bắt được TRƯỚC khi CI chạy — khác hẳn PR trước, nơi ba phát hiện đến từ CI vì tôi đã chạy một tập con tự chọn thay vì đúng bộ lệnh của job. Lần này chạy đúng bộ lệnh (3 bộ values, suite Go từ cache script rỗng) trước khi push. Đó là bài học của PR #32 được áp dụng, không phải may mắn."
+  ],
+  "reachableRegressions": []
+}

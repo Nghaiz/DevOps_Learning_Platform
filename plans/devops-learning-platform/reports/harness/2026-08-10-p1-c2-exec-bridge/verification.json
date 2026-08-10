@@ -1,0 +1,60 @@
+{
+  "commands": [
+    {
+      "command": "go test -race -count=1 -p 1 -v ./internal/... (services/terminal-gateway, Redis thật)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T23:40:00+07:00",
+      "summary": "90 PASS / 0 SKIP / 0 FAIL (1.C-1 là 69). Package podexec MỚI đóng góp 17 ca, gồm cặp exit-137 phân biệt 4404-vs-1000. Đếm PASS chứ không đọc chữ `ok`."
+    },
+    {
+      "command": "kiểm đột biến 5 cổng mới của G4/G5/G6",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T23:55:00+07:00",
+      "summary": "5/5 làm ĐÚNG test tương ứng ĐỎ: (1) bỏ lượt hỏi Redis trên đường đóng → TestExit137_SessionDaMat_Dong4404; (2) Next() trả nil khi hàng rỗng → TestNextBlockKhiHangRongChuKhongTraNil; (3) vứt byte gõ trước init → TestByteGoTruocInitKhongBiMat; (4) bật Stderr cùng TTY → TestExecURLDatDungCoTTYVaKhongCoStderr; (5) waitAttached luôn báo chưa-xong (phát ready dù stream đã chết) → TestStreamChetTruocAttachThiKhongPhatReady."
+    },
+    {
+      "command": "CHỨNG MINH TRÊN CLUSTER: 9 phép kiểm end-to-end qua WS thật, session tạo bằng gRPC CreateSession thật",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T19:52:00+07:00",
+      "summary": "Tất cả đạt. Điểm mốc: `echo <marker>` → pod trả lại marker (GÕ ĐƯỢC LỆNH THẬT); `stty size` = 34 120 khớp TUYỆT ĐỐI frame init; tmux ls thấy `dlp`; nối lại vào đúng pod cũ với scrollback còn nguyên; ReapSession giữa phiên → close 4404 (KHÔNG phải 1000 — đúng chế độ hỏng spike đánh dấu CHẶN G5). Toàn văn: reports/2026-08-10-verify-terminal-1c2.md."
+    },
+    {
+      "command": "trả cấu hình JWKS của lab về mặc định kế thừa sau khi đo",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T19:58:00+07:00",
+      "summary": "GATEWAY_JWKS_URL=http://platform-web:3000/api/auth/jwks, GATEWAY_TOKEN_ISSUER=http://localhost:3000, GATEWAY_EXEC_COMMAND='tmux new-session -A -s dlp' — đọc bằng jsonpath từ deployment. Warm-pool đã replenish pod mới sandbox-571bafddf37f sau lượt reap."
+    },
+    {
+      "command": "SCRIPT FLUSH (cache rỗng như runner CI) + toàn bộ suite Go 4 module + bước pool -count=20 của CI",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T23:20:00+07:00",
+      "summary": "16/16 package xanh dưới -race; bước pool -count=20 xanh ngay sau khi suite gateway gọi SCRIPT FLUSH — đúng trình tự CI, và đúng cái bẫy đã làm đỏ PR trước."
+    },
+    {
+      "command": "helm lint + template + kubeconform trên CẢ BA bộ values + nhánh execCommand rỗng",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T23:10:00+07:00",
+      "summary": "23/31/23 resource hợp lệ. GATEWAY_EXEC_COMMAND render 'tmux new-session -A -s dlp'; đặt rỗng thì template ABORT đúng như thiết kế. Chạy ĐÚNG bộ lệnh của job infra chứ không phải nhánh tự chọn — bài học từ PR trước."
+    },
+    {
+      "command": "golangci-lint (GOOS=linux, 4 module) + govulncheck + gofmt + env-check + buf",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T23:30:00+07:00",
+      "summary": "0 issue trên cả 4 module; No vulnerabilities found; gofmt rỗng; env-check OK 52 biến/4 scope; buf lint + breaking sạch. Một phát hiện của lint đã sửa: revive error-return bắt `(bool, error)` chứ không `(error, bool)`."
+    },
+    {
+      "command": "AC Calico vế T+25h — đọc trạng thái cluster",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T19:10:00+07:00",
+      "summary": "T0 = 2026-08-09T07:40:14Z ⇒ T+25h = 2026-08-10T08:40:14Z. Job canary đầu tiên thành công sau mốc: dlp-cni-canary-29772540 @ 09:00:11Z, chuỗi quanh mốc liền mạch. Ghi ngay vì chỉ còn 13 Job được giữ (≈6.5h) chứ không phải ≈13h như successfulJobsHistoryLimit=26 hứa."
+    }
+  ]
+}
