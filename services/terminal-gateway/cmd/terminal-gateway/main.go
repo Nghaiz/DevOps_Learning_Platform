@@ -17,6 +17,7 @@ import (
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/logging"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/config"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/wsroute"
 	"github.com/redis/go-redis/v9"
@@ -63,6 +64,17 @@ func run() error {
 	store := sessionstore.New(rdb)
 	verifier := authz.NewVerifier(authz.NewJWKSCache(cfg.JWKSURL), cfg.TokenIssuer)
 
+	// Config RIÊNG cho đường stream — `Timeout` phải là 0, xem podexec.NewExecConfig.
+	restCfg, clientset, err := podexec.NewExecConfig()
+	if err != nil {
+		return fmt.Errorf("dựng client Kubernetes cho exec: %w", err)
+	}
+	bridge := podexec.New(
+		podexec.NewExecutorFactory(restCfg, clientset, cfg.ExecCommand),
+		store.Alive,
+		log,
+	)
+
 	// Hai mux, hai port. Admin (/healthz + /metrics) không ra internet; public chỉ
 	// mang WS. Xem config.AdminAddr.
 	obs := httpx.NewObservability(serviceName, version)
@@ -73,6 +85,7 @@ func run() error {
 		Log:             log,
 		Verifier:        verifier,
 		Sessions:        store,
+		Bridge:          bridge,
 		AllowedOrigins:  cfg.AllowedOrigins,
 		MaxWSPerSession: cfg.MaxWSPerSession,
 	})

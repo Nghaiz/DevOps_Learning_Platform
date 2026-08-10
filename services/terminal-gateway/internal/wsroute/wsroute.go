@@ -5,10 +5,10 @@
 // phong cách — xem §3b: bước e chạy trước bước f là lý do "id đoán bừa" trả 403
 // chứ không phải 404, và đó là thứ khoá kênh phụ liệt kê session.
 //
-// Cầu exec vào pod (G4–G6) là chặng 1.C-2. Ở chặng này, sau khi qua đủ chín bước
-// gateway VẪN upgrade thật rồi đóng ngay bằng 4500 — không phải để cho có, mà vì
-// một bộ acceptance chỉ toàn ca ĐỎ thì không phân biệt được "chặn đúng" với
-// "chặn tất". Ca 101 là đối chứng bắt buộc.
+// Sau khi qua đủ chín bước, kết nối được giao cho `internal/podexec` — nó nối
+// stdin/stdout vào PTY của pod và tự chọn close code khi phiên kết thúc (G4–G6).
+// Package này KHÔNG biết gì về exec, và đó là ranh giới cố ý: authz phải đọc
+// được trọn vẹn mà không phải cuộn qua logic streaming.
 package wsroute
 
 import (
@@ -22,6 +22,7 @@ import (
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"github.com/coder/websocket"
 	"golang.org/x/time/rate"
@@ -64,12 +65,22 @@ type SessionReader interface {
 	AcquireWS(ctx context.Context, sessionID string, limit int, expiresAt int64) (func(context.Context) error, error)
 }
 
+// SessionBridge nhận kết nối SAU khi qua đủ authz và chạy trọn phiên terminal,
+// rồi tự đóng nó với mã đúng ngữ nghĩa (contract §6).
+//
+// Là interface để test của package này dựng được ca 101 mà không cần apiserver —
+// cùng lý do `SessionReader` là interface.
+type SessionBridge interface {
+	Serve(ctx context.Context, c *websocket.Conn, t podexec.Target)
+}
+
 // Deps là mọi thứ handler cần. Toàn interface để test chạy được mà không cần
 // Redis cho các ca chết trước bước f.
 type Deps struct {
 	Log             *slog.Logger
 	Verifier        TokenVerifier
 	Sessions        SessionReader
+	Bridge          SessionBridge
 	AllowedOrigins  []string
 	MaxWSPerSession int
 }
@@ -234,29 +245,17 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ⛔ CHẶNG 1.C-2 THAY ĐOẠN NÀY. Cho tới lúc đó gateway nói thẳng là chưa nối
-	// pod, thay vì giữ một kết nối im lặng để FE ngồi chờ prompt không bao giờ
-	// tới. Contract §5: `error` luôn đi ngay trước một close frame.
-	h.closeNotImplemented(ctx, conn, sess)
-}
-
-// closeNotImplemented báo cho client biết cầu exec chưa có rồi đóng.
-func (h *handler) closeNotImplemented(ctx context.Context, conn *websocket.Conn, sess *sessionstore.Session) {
-	payload, err := json.Marshal(map[string]string{
-		"type":    "error",
-		"code":    "EXEC_NOT_IMPLEMENTED",
-		"message": "cổng vào đã mở nhưng cầu exec tới pod chưa hiện thực (chặng 1.C-2)",
+	// Từ đây là việc của podexec: nó sở hữu vòng đời kết nối và ĐÓNG nó.
+	//
+	// `podName`/`namespace` lấy từ REDIS, không từ URL hay frame client — đó là
+	// điều kiện để "gõ được lệnh trong pod" không bao giờ có nghĩa là "gõ được
+	// lệnh trong pod NGƯỜI KHÁC".
+	h.deps.Bridge.Serve(ctx, conn, podexec.Target{
+		SessionID: sessionID,
+		PodName:   sess.PodName,
+		Namespace: sess.Namespace,
+		ExpiresAt: sess.ExpiresAt,
 	})
-	if err == nil {
-		wctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		_ = conn.Write(wctx, websocket.MessageText, payload)
-		cancel()
-	}
-	h.deps.Log.Info("handshake qua đủ 9 bước, chưa có cầu exec",
-		slog.String("pod", sess.PodName), slog.String("namespace", sess.Namespace))
-	// 4500 = INTERNAL theo bảng close code §6, và FE ĐƯỢC retry với mã đó —
-	// đúng ngữ nghĩa: thứ thiếu là ở phía server và sẽ có ở chặng sau.
-	_ = conn.Close(4500, "cau exec chua hien thuc")
 }
 
 // originAllowed so khớp NGUYÊN VĂN với allowlist.

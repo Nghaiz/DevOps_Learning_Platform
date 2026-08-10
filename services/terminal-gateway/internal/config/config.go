@@ -78,6 +78,19 @@ type Config struct {
 	// Trần này chặn ĐỒNG THỜI, không chặn NỐI LẠI: WS đóng → DECR về 0.
 	MaxWSPerSession int
 
+	// ExecCommand là lệnh chạy trong pod khi gateway attach (G4).
+	//
+	// ⛔ HẰNG SỐ PHÍA SERVER, và đó là ranh giới bảo mật chứ không phải tiện
+	// nghi cấu hình: contract §3c cấm `init` mang field `shell`/`command`, vì
+	// cho client chọn lệnh là cho client chọn thứ chạy trong pod — kể cả pod của
+	// chính họ, đó là bề mặt không cần mở.
+	//
+	// Mặc định `tmux new-session -A -s dlp` (D3): không có tmux thì mỗi lần
+	// attach `pods/exec` sinh một tiến trình MỚI — đó không phải reconnect, và
+	// với nền tảng học làm lab dài thì mất bài giữa chừng là UX hỏng. `-A` làm
+	// lời gọi thứ hai ATTACH vào session cũ thay vì tạo cái mới.
+	ExecCommand []string
+
 	// RedisURL là Redis mà orchestrator ghi `session:{id}`. Gateway ĐỌC hash đó
 	// cho authz per-session (D2: đọc được, ghi trạng thái session thì không).
 	//
@@ -114,6 +127,18 @@ func Load() (*Config, error) {
 			"per-session (phase-1 D2/G3); thiếu nó thì mọi handshake chết ở bước f", err)
 	}
 
+	// Tách theo KHOẢNG TRẮNG, không phải dấu phẩy: đây là argv, và
+	// `strings.Fields` là cách duy nhất giữ nó đọc giống hệt lúc gõ tay.
+	execCommand := strings.Fields(envx.String("GATEWAY_EXEC_COMMAND", "tmux new-session -A -s dlp"))
+	if len(execCommand) == 0 {
+		// Rỗng ⇒ apiserver nhận `command: []` và chạy ENTRYPOINT/CMD của image,
+		// tức `sleep infinity` (1.E) — pod attach "thành công" rồi treo im lặng
+		// mà không có shell nào. Fail-fast thay vì để nó lộ ra như "terminal
+		// không phản hồi".
+		return nil, fmt.Errorf("env GATEWAY_EXEC_COMMAND: rỗng — không có lệnh " +
+			"thì exec chạy CMD của image (`sleep infinity`) và terminal treo câm")
+	}
+
 	return &Config{
 		PublicAddr:           envx.String("PUBLIC_ADDR", ":8082"),
 		AdminAddr:            envx.String("ADMIN_ADDR", "127.0.0.1:8083"),
@@ -130,6 +155,7 @@ func Load() (*Config, error) {
 		AllowedOrigins:  splitList(envx.String("GATEWAY_ALLOWED_ORIGINS", "http://localhost:3000")),
 		MaxWSPerSession: maxWS,
 		RedisURL:        redisURL,
+		ExecCommand:     execCommand,
 	}, nil
 }
 

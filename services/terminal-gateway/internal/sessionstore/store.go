@@ -135,6 +135,27 @@ func (s *Store) Get(ctx context.Context, sessionID string) (*Session, error) {
 	return out, nil
 }
 
+// Alive trả true khi session vẫn còn và vẫn ở trạng thái chạy được.
+//
+// Dùng trên ĐƯỜNG ĐÓNG của một phiên terminal (contract §6): exit code 137/143
+// KHÔNG phân biệt được "pod bị reap" với "người dùng tự `kill -9` trong pod của
+// mình", nên gateway phải hỏi Redis mới chọn được `4404` hay `1000`.
+//
+// "Không tồn tại" trả `(false, nil)` chứ KHÔNG phải lỗi: với câu hỏi này thì
+// key đã mất là một CÂU TRẢ LỜI hợp lệ ("đã reap"), không phải sự cố. Trộn hai
+// thứ đó buộc caller phải phân loại lỗi để biết ý nghĩa, và đó là cách nhánh
+// 4404 lặng lẽ không bao giờ chạy.
+func (s *Store) Alive(ctx context.Context, sessionID string) (bool, error) {
+	sess, err := s.Get(ctx, sessionID)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	return sess.Active(), nil
+}
+
 // AcquireWS chiếm một khe WS của session (bước i).
 //
 // Trả hàm release để caller `defer`. Chạm trần → ErrWSLimitReached và release là

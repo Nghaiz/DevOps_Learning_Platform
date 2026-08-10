@@ -11,14 +11,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/testjwt"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/wsroute"
+	"github.com/coder/websocket"
 )
 
 const testOrigin = "https://app.example.test"
@@ -54,10 +57,38 @@ func (s *spySessions) AcquireWS(context.Context, string, int, int64) (func(conte
 	return noop, nil
 }
 
+// fakeBridge thay cầu exec thật: ghi lại Target rồi đóng kết nối ngay.
+//
+// Ghi lại Target là điểm chính, không phải đóng cho gọn — nó cho test khẳng
+// định `podName`/`namespace` tới từ REDIS chứ không từ URL. Thiếu phép khẳng
+// định đó thì một implement lấy pod từ path vẫn cho toàn bộ suite xanh, và
+// "gõ được lệnh trong pod" lặng lẽ thành "gõ được lệnh trong pod NGƯỜI KHÁC".
+type fakeBridge struct {
+	mu      sync.Mutex
+	targets []podexec.Target
+}
+
+func (f *fakeBridge) Serve(_ context.Context, c *websocket.Conn, t podexec.Target) {
+	f.mu.Lock()
+	f.targets = append(f.targets, t)
+	f.mu.Unlock()
+	_ = c.Close(websocket.StatusNormalClosure, "fake")
+}
+
+func (f *fakeBridge) last() (podexec.Target, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.targets) == 0 {
+		return podexec.Target{}, false
+	}
+	return f.targets[len(f.targets)-1], true
+}
+
 type harness struct {
 	srv      *httptest.Server
 	signer   *testjwt.Signer
 	sessions *spySessions
+	bridge   *fakeBridge
 }
 
 func newHarness(t *testing.T, sessions *spySessions) *harness {
@@ -65,18 +96,20 @@ func newHarness(t *testing.T, sessions *spySessions) *harness {
 	signer := testjwt.NewSigner(t, "kid-1")
 	jwks := testjwt.NewJWKSServer(t, signer)
 
+	bridge := &fakeBridge{}
 	mux := http.NewServeMux()
 	wsroute.Register(mux, wsroute.Deps{
 		Log:             slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Verifier:        authz.NewVerifier(authz.NewJWKSCache(jwks.URL), testjwt.Issuer),
 		Sessions:        sessions,
+		Bridge:          bridge,
 		AllowedOrigins:  []string{testOrigin},
 		MaxWSPerSession: 1,
 	})
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return &harness{srv: srv, signer: signer, sessions: sessions}
+	return &harness{srv: srv, signer: signer, sessions: sessions, bridge: bridge}
 }
 
 // newWSKey sinh giá trị Sec-WebSocket-Key (16 byte ngẫu nhiên, base64 — RFC 6455
@@ -343,6 +376,7 @@ func TestLuat8_LogKhongBaoGioChuaToken(t *testing.T) {
 		Log:             slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
 		Verifier:        authz.NewVerifier(authz.NewJWKSCache(jwks.URL), testjwt.Issuer),
 		Sessions:        spy,
+		Bridge:          &fakeBridge{},
 		AllowedOrigins:  []string{testOrigin},
 		MaxWSPerSession: 1,
 	})

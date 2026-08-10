@@ -222,6 +222,18 @@ gateway:
     # lật qua lại mỗi keystroke. Nâng lên >1 là chấp nhận terminal tự co giãn.
     maxWsPerSession: '1'
 
+    # Lệnh chạy trong pod khi gateway attach (G4). Tách theo khoảng trắng — argv.
+    #
+    # ⛔ HẰNG SỐ PHÍA SERVER: contract §3c cấm client chọn lệnh, vì đó là cho
+    # client chọn thứ chạy trong pod. Đổi giá trị này là đổi thứ MỌI sinh viên
+    # nhận được khi mở terminal.
+    #
+    # `tmux new-session -A -s dlp` (D3) chứ không phải `bash`: pods/exec mỗi lần
+    # attach sinh tiến trình MỚI, nên không có tmux thì "mất mạng rồi vào lại" là
+    # một shell trắng, không phải phiên cũ. Image sandbox-base đã cài sẵn tmux 3.4
+    # và tắt status bar (E4) để stty size khớp chính xác cols/rows FE gửi.
+    execCommand: 'tmux new-session -A -s dlp'
+
 # Ingress gộp origin web ↔ gateway. TẮT mặc định — xem templates/ingress.yaml
 # để biết vì sao bật nó trên cluster không có ingress controller là cái bẫy im
 # lặng. Đây là điều kiện SỐNG của cookie dlp_sandbox (SameSite=Strict, host-only),

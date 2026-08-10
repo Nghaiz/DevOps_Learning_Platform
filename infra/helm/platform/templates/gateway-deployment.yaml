@@ -72,6 +72,15 @@ spec:
             - name: GATEWAY_MAX_WS_PER_SESSION
               value: {{ .Values.gateway.env.maxWsPerSession | quote }}
             {{/*
+            Lệnh exec là HẰNG SỐ PHÍA SERVER (contract §3c) — client không bao
+            giờ chọn được nó. `required` ở đây là đúng chỗ, khác hẳn REDIS_URL ở
+            dưới: values.yaml LUÔN có giá trị mặc định cho nó, nên nhánh này chỉ
+            đỏ khi ai đó cố tình xoá trắng — và một chuỗi rỗng nghĩa là exec chạy
+            CMD của image (`sleep infinity`) rồi terminal treo câm.
+            */}}
+            - name: GATEWAY_EXEC_COMMAND
+              value: {{ required "gateway.env.execCommand không được rỗng — exec sẽ chạy CMD của image (sleep infinity) và terminal treo câm" .Values.gateway.env.execCommand | quote }}
+            {{/*
             Gateway ĐỌC hash session:{id} cho authz per-session (phase-1 D2).
             secretKeyRef chứ không phải env.value: REDIS_URL CHỨA MẬT KHẨU, và
             `kubectl get deploy -o yaml` là quyền gần như mọi role đọc-được-cluster
