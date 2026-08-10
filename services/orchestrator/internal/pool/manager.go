@@ -31,9 +31,22 @@ const (
 // thời 3 nơi (code, .env.example, Helm) hoặc `make env-check` đỏ — cái giá đó
 // chỉ đáng cho thứ ops thật sự cần xoay.
 const (
-	defaultTick         = 10 * time.Second
-	defaultReadyTimeout = 2 * time.Minute
-	defaultReadyPoll    = 250 * time.Millisecond
+	defaultTick = 10 * time.Second
+
+	// DefaultReadyTimeout là ngân sách chờ pod mới Ready trước khi ghi
+	// `HSET pod:{name} state=free`.
+	//
+	// ⛔ EXPORT CÓ CHỦ Ý — ĐÂY LÀ NỬA KIA CỦA MỘT RÀNG BUỘC LIÊN PACKAGE.
+	// Trong toàn bộ khoảng này, pod đã tồn tại trên cluster nhưng CHƯA có hash
+	// `pod:{name}`, tức nó khớp chính xác định nghĩa "mồ côi" của reaper. Vì thế
+	// `reaper.orphanGrace` BẮT BUỘC phải lớn hơn hằng này cộng biên; ai nâng
+	// riêng con số ở đây sẽ khiến sweep giết đúng pod mà warm-pool đang chờ.
+	// Trước bản này hai hằng nằm ở hai package và KHÔNG có gì ràng buộc chúng —
+	// nợ `missingProof` của review PR #27. Cổng nằm ở
+	// `reaper.TestOrphanGraceBaoTronReadyTimeout`.
+	DefaultReadyTimeout = 2 * time.Minute
+
+	defaultReadyPoll = 250 * time.Millisecond
 
 	// Tên đặt là min/maxBackoff chứ không phải backoffMin/backoffMax: revive
 	// đọc hậu tố "Min" trên một time.Duration là đơn vị PHÚT, không phải
@@ -126,7 +139,7 @@ func NewManager(
 		log:          log,
 		met:          met,
 		tick:         defaultTick,
-		readyTimeout: defaultReadyTimeout,
+		readyTimeout: DefaultReadyTimeout,
 		readyPoll:    defaultReadyPoll,
 		now:          time.Now,
 		trigger:      make(chan struct{}, 1),

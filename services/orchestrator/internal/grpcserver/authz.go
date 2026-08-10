@@ -98,3 +98,36 @@ func NewAuthInterceptor(log *slog.Logger, requireMTLS bool) grpc.UnaryServerInte
 		return handler(context.WithValue(ctx, peerTrustKey{}, trust), req)
 	}
 }
+
+// NewStreamDenyInterceptor TỪ CHỐI mọi RPC dạng stream.
+//
+// ⛔ ĐÂY LÀ CỔNG CHO MỘT LỖI CHƯA XẢY RA, KHÔNG PHẢI PHÒNG THỦ THỪA.
+// `NewAuthInterceptor` là UnaryServerInterceptor: gRPC-Go KHÔNG áp nó cho
+// stream handler. Hôm nay điều đó vô hại vì cả 5 RPC của `session.proto` đều
+// unary. Nhưng ngày ai đó thêm một RPC `stream` — ví dụ theo dõi trạng thái
+// session realtime — nó sẽ chạy với PeerTrust RỖNG mà không một dòng lỗi nào:
+// `PeerTrustFrom(ctx)` trả zero value, `InCluster=false`, và toàn bộ B0′ bị đi
+// vòng qua. Không có gì trong review, trong test, hay trong compiler bắt được
+// việc đó — nó chỉ là một interceptor không được gọi.
+//
+// Vì thế: chặn ở đây, ồn ào. Ai thêm stream RPC sẽ thấy `Unimplemented` ngay
+// lần gọi đầu tiên kèm chỉ dẫn phải làm gì, thay vì thấy nó chạy tốt và phát
+// hiện lỗ hổng sau khi đã ship. Khi thật sự cần stream, thay hàm này bằng một
+// StreamServerInterceptor xác lập PeerTrust y hệt bản unary — ĐỪNG chỉ xoá nó.
+//
+// Nợ `unverifiedClaims` của review PR #27: "Interceptor chỉ là UnaryInterceptor…
+// KHÔNG có cổng nào chặn việc một stream RPC thêm sau này đi vòng qua B0′."
+func NewStreamDenyInterceptor() grpc.StreamServerInterceptor {
+	return func(
+		_ interface{},
+		_ grpc.ServerStream,
+		info *grpc.StreamServerInfo,
+		_ grpc.StreamHandler,
+	) error {
+		return status.Errorf(codes.Unimplemented,
+			"RPC dạng stream (%s) bị từ chối: authz của orchestrator (B0′/R25) mới chỉ có "+
+				"UnaryServerInterceptor, nên stream sẽ chạy với PeerTrust rỗng. "+
+				"Muốn thêm stream RPC thì viết StreamServerInterceptor xác lập PeerTrust trước, "+
+				"đừng gỡ cổng này.", info.FullMethod)
+	}
+}

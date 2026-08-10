@@ -81,6 +81,10 @@ func run() error {
 
 	grpcSrv := grpc.NewServer(
 		grpc.UnaryInterceptor(grpcserver.NewAuthInterceptor(log, cfg.RequireMTLS)),
+		// Stream bị từ chối vì auth interceptor chỉ phủ unary — xem
+		// NewStreamDenyInterceptor. Cả 5 RPC hiện tại đều unary nên dòng này
+		// không đổi hành vi nào đang chạy; nó chặn hành vi TƯƠNG LAI.
+		grpc.StreamInterceptor(grpcserver.NewStreamDenyInterceptor()),
 	)
 	orchestratorv1.RegisterSessionServiceServer(grpcSrv, grpcserver.NewSessionService(log, engine.lifecycle))
 

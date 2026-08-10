@@ -44,7 +44,11 @@ const (
 	// sweep rơi vào giữa sẽ xoá pod mà warm-pool đang chờ, warm-pool tạo lại,
 	// sweep lại xoá — vòng lặp đốt quota mà mọi log đều nói "đã dọn pod mồ côi".
 	//
-	// Phải LỚN HƠN pool.defaultReadyTimeout (2 phút) cộng biên cho lượt HSET.
+	// Phải LỚN HƠN `pool.DefaultReadyTimeout` (2 phút) cộng biên cho lượt HSET.
+	// Ràng buộc đó nay CÓ CỔNG: `TestOrphanGraceBaoTronReadyTimeout`. Trước bản
+	// này hai hằng nằm ở hai package và không gì buộc chúng đi cùng nhau — ai
+	// nâng readyTimeout mà quên chỗ này sẽ làm sweep giết pod đang sinh ra, đúng
+	// chế độ hỏng mà orphanGrace tồn tại để chặn.
 	orphanGrace = 5 * time.Minute
 
 	// quarantineBatch giới hạn số pod cách ly xử lý mỗi vòng, để một danh sách
@@ -333,9 +337,29 @@ func (r *Reaper) sweepClaimedWithoutSession(ctx context.Context) error {
 // sweepOrphanPods xoá pod mang label sandbox mà không có hash `pod:{name}`.
 func (r *Reaper) sweepOrphanPods(ctx context.Context, pods []corev1.Pod) error {
 	cutoff := r.now().Add(-orphanGrace)
+	terminating := 0
 
 	for i := range pods {
 		pod := &pods[i]
+
+		// ⛔ M-6 — POD ĐANG BỊ XOÁ THÌ ĐỪNG ĐẾM LẠI.
+		// `DeletionTimestamp != nil` nghĩa là lệnh xoá ĐÃ được gửi và API server
+		// đã nhận; pod chỉ còn nằm đó chờ kubelet/finalizer. Nhưng nó vẫn hiện
+		// trong List và vẫn không có hash `pod:{name}`, nên vòng sweep sau lại
+		// khớp đúng định nghĩa mồ côi: `ReaperOrphanPodsTotal` tăng thêm một lần
+		// nữa cho CÙNG một pod, mỗi 60 giây, mãi mãi nếu pod kẹt Terminating.
+		// Hậu quả không phải con số xấu — mà là counter này được dùng như báo
+		// động ("> 0 kéo dài = có nguồn nào đó rò pod"), nên một pod kẹt biến nó
+		// thành chuông kêu liên tục và mất hẳn khả năng chỉ ra pod THỨ HAI.
+		// Gửi lại Delete cũng vô nghĩa: nó chỉ là một lời gọi API không đổi gì.
+		//
+		// Đây là suy luận mà review PR #27 (M-6) không tái hiện được vì fake
+		// Delete gỡ pod khỏi List ngay — tức test double khi đó KHÔNG THỂ dựng
+		// ra trạng thái Terminating. Nay có `TestSweepKhongDemLaiPodDangTerminating`.
+		if pod.DeletionTimestamp != nil {
+			terminating++
+			continue
+		}
 
 		// ⛔ CỬA SỔ SINH RA. Pod vừa được Provision tạo CHƯA có hash
 		// `pod:{name}` (nó chỉ được ghi sau khi pod Ready), nên nó khớp chính
@@ -369,6 +393,12 @@ func (r *Reaper) sweepOrphanPods(ctx context.Context, pods []corev1.Pod) error {
 			slog.Time("created", pod.CreationTimestamp.Time))
 		r.deletePodAndIndex(ctx, pod.Name)
 	}
+
+	// Gauge, KHÔNG phải counter: một pod kẹt Terminating phải hiện ra là "vẫn
+	// đang kẹt" chứ không phải cộng dồn mỗi vòng — đúng cái bẫy M-6 ở trên. 0 là
+	// trạng thái bình thường; số dương kéo dài qua nhiều vòng là finalizer treo
+	// hoặc kubelet không dọn được, và đó là thứ duy nhất còn nói cho ta biết.
+	r.met.ReaperPodsTerminating.Set(float64(terminating))
 	return nil
 }
 

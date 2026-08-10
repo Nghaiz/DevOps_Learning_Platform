@@ -3,6 +3,7 @@ package grpcserver_test
 import (
 	"context"
 	"net"
+	"strings"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -89,5 +90,39 @@ func TestInterceptorBatMaPeerKhongCoCertThiTuChoi(t *testing.T) {
 func TestTrustFromContextMacDinhFailClosed(t *testing.T) {
 	if grpcserver.TrustFromContext(context.Background()).InCluster {
 		t.Fatal("context rỗng cho InCluster=true — fail-open ở tầng đọc")
+	}
+}
+
+// TestStreamDenyInterceptorTuChoiMoiStream đóng nợ `unverifiedClaims` của review
+// PR #27: "interceptor chỉ là UnaryInterceptor, không có cổng nào chặn việc một
+// stream RPC thêm sau này đi vòng qua B0′".
+//
+// Không thể test "stream RPC tương lai chạy với PeerTrust rỗng" vì RPC đó chưa
+// tồn tại. Thứ test ĐƯỢC là cổng: mọi stream đều bị từ chối, nên RPC tương lai
+// không thể im lặng chạy qua.
+func TestStreamDenyInterceptorTuChoiMoiStream(t *testing.T) {
+	interceptor := grpcserver.NewStreamDenyInterceptor()
+
+	handlerDaChay := false
+	err := interceptor(nil, nil,
+		&grpc.StreamServerInfo{FullMethod: "/orchestrator.v1.SessionService/WatchSession"},
+		func(interface{}, grpc.ServerStream) error {
+			handlerDaChay = true
+			return nil
+		})
+
+	if err == nil {
+		t.Fatal("stream RPC được cho qua — nó sẽ chạy với PeerTrust rỗng, tức B0′ bị đi vòng")
+	}
+	if handlerDaChay {
+		t.Fatal("handler ĐÃ CHẠY dù interceptor trả lỗi — từ chối phải xảy ra TRƯỚC handler")
+	}
+	if got := status.Code(err); got != codes.Unimplemented {
+		t.Fatalf("code = %v, cần Unimplemented", got)
+	}
+	// Thông điệp phải nêu đích danh method: người thêm stream RPC cần biết ngay
+	// phải làm gì, không phải đi đọc lại lịch sử git để hiểu vì sao bị chặn.
+	if !strings.Contains(err.Error(), "WatchSession") {
+		t.Fatalf("thông điệp không nêu method: %v", err)
 	}
 }

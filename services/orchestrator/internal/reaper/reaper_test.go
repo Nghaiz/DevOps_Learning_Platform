@@ -20,6 +20,7 @@ import (
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/k8s"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/metrics"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/pool"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
 )
 
@@ -96,6 +97,16 @@ func (f *fakePods) Delete(_ context.Context, name string, _ int64) error {
 	f.deleted = append(f.deleted, name)
 	for i := range f.pods {
 		if f.pods[i].Name == name {
+			// ⛔ Pod ĐÃ có DeletionTimestamp thì Delete là NO-OP và pod VẪN nằm
+			// trong List — đúng hành vi API server thật khi finalizer/kubelet
+			// chưa dọn xong. Bản trước gỡ pod khỏi slice vô điều kiện, tức test
+			// double mặc định "xoá là biến mất tức thì"; chính giả định đó làm
+			// M-6 không tái hiện được ở review PR #27 và bị hạ xuống "suy luận".
+			// Pod thường (không có DeletionTimestamp) vẫn biến mất như cũ nên
+			// mọi test hiện có không đổi hành vi.
+			if f.pods[i].DeletionTimestamp != nil {
+				return nil
+			}
 			f.pods = append(f.pods[:i], f.pods[i+1:]...)
 			break
 		}
@@ -125,6 +136,27 @@ func (f *fakePods) addPod(name string, age time.Duration) {
 	p.Name = name
 	p.Labels = map[string]string{k8s.LabelApp: k8s.LabelAppValue}
 	p.CreationTimestamp = metav1.NewTime(time.Now().Add(-age))
+	f.pods = append(f.pods, p)
+}
+
+// addTerminatingPod thêm pod ĐANG BỊ XOÁ: có DeletionTimestamp nhưng VẪN nằm
+// trong List — trạng thái `Terminating` thật của Kubernetes khi finalizer hoặc
+// kubelet chưa dọn xong.
+//
+// ⛔ ĐÂY LÀ THỨ TEST DOUBLE CŨ KHÔNG DỰNG ĐƯỢC, và đó là lý do M-6 đi qua review
+// PR #27 dưới dạng "suy luận, không tái hiện được": `fakePods.Delete` gỡ pod
+// khỏi slice NGAY, nên sau một lượt xoá thì List không còn thấy pod nữa và vòng
+// sweep thứ hai không có gì để đếm lại. Test double che mất chính chế độ hỏng.
+// Hàm này dựng thẳng trạng thái đó thay vì đi qua Delete.
+func (f *fakePods) addTerminatingPod(name string, age time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p := corev1.Pod{}
+	p.Name = name
+	p.Labels = map[string]string{k8s.LabelApp: k8s.LabelAppValue}
+	p.CreationTimestamp = metav1.NewTime(time.Now().Add(-age))
+	now := metav1.Now()
+	p.DeletionTimestamp = &now
 	f.pods = append(f.pods, p)
 }
 
@@ -260,6 +292,91 @@ func TestSweepXoaPodMoCoiDuTuoi(t *testing.T) {
 	}
 	if v := testutil.ToFloat64(met.ReaperOrphanPodsTotal); v != 1 {
 		t.Fatalf("dlp_reaper_orphan_pods_total = %v, cần 1", v)
+	}
+}
+
+// TestSweepKhongDemLaiPodDangTerminating đóng M-6 của review PR #27.
+//
+// Pod kẹt `Terminating` vẫn hiện trong List và vẫn không có hash `pod:{name}`,
+// nên nó khớp định nghĩa mồ côi ở MỌI vòng sweep. Trước bản vá, mỗi vòng cộng
+// thêm 1 vào `dlp_reaper_orphan_pods_total` và gửi lại một lệnh Delete vô nghĩa.
+// Hỏng thật nằm ở chỗ counter đó được dùng làm BÁO ĐỘNG ("> 0 kéo dài = có
+// nguồn rò pod"): một pod kẹt biến nó thành chuông kêu không ngớt và mất khả
+// năng chỉ ra pod mồ côi THỨ HAI — tức bản vá này bảo vệ ý nghĩa của một metric,
+// không phải bảo vệ độ chính xác của một con số.
+func TestSweepKhongDemLaiPodDangTerminating(t *testing.T) {
+	r, pods, _, _, met := newTestReaper(t)
+	ctx := context.Background()
+
+	pods.addTerminatingPod("sandbox-terminat01", orphanGrace+time.Minute)
+
+	for i := 1; i <= 3; i++ {
+		if err := r.sweep(ctx); err != nil {
+			t.Fatalf("sweep vòng %d: %v", i, err)
+		}
+	}
+
+	if v := testutil.ToFloat64(met.ReaperOrphanPodsTotal); v != 0 {
+		t.Fatalf("dlp_reaper_orphan_pods_total = %v sau 3 vòng, cần 0 — "+
+			"pod đã có DeletionTimestamp thì lệnh xoá ĐÃ gửi rồi, đếm lại là đếm trùng", v)
+	}
+	if got := pods.deletedNames(); len(got) != 0 {
+		t.Fatalf("đã gửi Delete %v — pod đang Terminating không cần xoá lại, "+
+			"lời gọi API đó không đổi được gì", got)
+	}
+	// Vế còn lại: nó KHÔNG được biến mất khỏi tầm quan sát. Gauge phải chỉ đúng
+	// vào nó, nếu không thì bản vá này chỉ đổi "đếm trùng" thành "mù hoàn toàn".
+	if v := testutil.ToFloat64(met.ReaperPodsTerminating); v != 1 {
+		t.Fatalf("dlp_reaper_pods_terminating = %v, cần 1 — bỏ qua pod không có nghĩa là giấu nó", v)
+	}
+}
+
+// TestSweepGaugeTerminatingVeZeroKhiPodBienMat — gauge phải HẠ khi pod dọn xong.
+// Nếu nó chỉ tăng thì nó là counter đội lốt gauge, và "dương kéo dài = finalizer
+// treo" trở thành báo động vĩnh viễn sau lần Terminating đầu tiên.
+func TestSweepGaugeTerminatingVeZeroKhiPodBienMat(t *testing.T) {
+	r, pods, _, _, met := newTestReaper(t)
+	ctx := context.Background()
+
+	pods.addTerminatingPod("sandbox-terminat02", orphanGrace+time.Minute)
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep 1: %v", err)
+	}
+	if v := testutil.ToFloat64(met.ReaperPodsTerminating); v != 1 {
+		t.Fatalf("gauge = %v sau vòng 1, cần 1", v)
+	}
+
+	pods.mu.Lock()
+	pods.pods = nil
+	pods.mu.Unlock()
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep 2: %v", err)
+	}
+	if v := testutil.ToFloat64(met.ReaperPodsTerminating); v != 0 {
+		t.Fatalf("gauge = %v sau khi pod đã biến mất, cần 0", v)
+	}
+}
+
+// TestOrphanGraceBaoTronReadyTimeout là CỔNG cho một ràng buộc liên package.
+//
+// `pool.Manager.Provision` tạo Pod rồi chờ Ready tới `pool.DefaultReadyTimeout`
+// trước khi ghi `HSET pod:{name} state=free`. Trong toàn bộ khoảng đó pod khớp
+// CHÍNH XÁC định nghĩa mồ côi. Nếu `orphanGrace` không bao trọn khoảng ấy, sweep
+// xoá đúng pod mà warm-pool đang chờ → warm-pool tạo lại → sweep lại xoá: vòng
+// lặp đốt quota trong khi mọi log đều nói "đã dọn pod mồ côi".
+//
+// Hai hằng nằm ở HAI package khác nhau và trước bản này không gì buộc chúng đi
+// cùng nhau — `missingProof` của review PR #27. Test này là sợi dây đó: ai nâng
+// readyTimeout mà quên orphanGrace sẽ thấy ĐỎ ở đây thay vì thấy pod bốc hơi
+// trên cluster.
+func TestOrphanGraceBaoTronReadyTimeout(t *testing.T) {
+	const bien = 2 * time.Minute
+
+	if orphanGrace < pool.DefaultReadyTimeout+bien {
+		t.Fatalf("orphanGrace=%v KHÔNG bao trọn pool.DefaultReadyTimeout=%v + biên %v. "+
+			"Sweep sẽ xoá pod mà warm-pool đang chờ Ready. Nâng orphanGrace, "+
+			"đừng hạ biên.", orphanGrace, pool.DefaultReadyTimeout, bien)
 	}
 }
 

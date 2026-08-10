@@ -44,6 +44,13 @@ type Metrics struct {
 	// pod:{name}. > 0 kéo dài = báo động: có nguồn tạo pod ngoài warm-pool,
 	// hoặc một đường dọn dẹp đang hỏng.
 	ReaperOrphanPodsTotal prometheus.Counter
+	// ReaperPodsTerminating là số pod sandbox đang có DeletionTimestamp tại vòng
+	// sweep gần nhất. GAUGE, không phải counter — pod kẹt Terminating phải đọc
+	// là "vẫn đang kẹt" chứ không cộng dồn mỗi 60s (bẫy M-6, xem sweepOrphanPods).
+	// Đây cũng là thứ giữ cho ReaperOrphanPodsTotal còn dùng được làm báo động:
+	// pod kẹt không còn bơm vào counter kia nữa, nên counter kia tăng nghĩa là
+	// có pod mồ côi MỚI thật.
+	ReaperPodsTerminating prometheus.Gauge
 	// ReaperGhostSessionsTotal đếm session:{id} còn mà pod đã biến mất.
 	ReaperGhostSessionsTotal prometheus.Counter
 	// ReaperClaimedOrphanTotal đếm pod nằm trong pool:claimed mà session không
@@ -126,6 +133,10 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "dlp_reaper_orphan_pods_total",
 			Help: "Pod mang label app=sandbox mà không có hash pod:{name}. > 0 kéo dài = báo động.",
 		}),
+		ReaperPodsTerminating: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "dlp_reaper_pods_terminating",
+			Help: "Pod sandbox đang có DeletionTimestamp ở vòng sweep gần nhất. Dương kéo dài = finalizer treo / kubelet không dọn được.",
+		}),
 		ReaperGhostSessionsTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "dlp_reaper_ghost_sessions_total",
 			Help: "session:{id} còn trong Redis mà pod đã biến mất — chuyển FAILED.",
@@ -163,6 +174,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.ExtendTotal,
 		m.ReapTotal,
 		m.ReaperOrphanPodsTotal,
+		m.ReaperPodsTerminating,
 		m.ReaperGhostSessionsTotal,
 		m.ReaperClaimedOrphanTotal,
 		m.ReaperQuarantineReapedTotal,
