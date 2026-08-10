@@ -188,6 +188,10 @@ gateway:
     # templates/gateway-deployment.yaml). Chưa dùng thật ở P0 — gateway chưa gọi
     # orchestrator (task 22) — nhưng khoá đúng hình dạng DNS trong-cluster từ đây.
     orchestratorGrpcAddr: ''
+    # Rỗng = lấy REDIS_URL từ Secret của datastore in-cluster (qua secretKeyRef —
+    # URL chứa mật khẩu). Chỉ đặt tường minh khi trỏ Redis NGOÀI cluster, và lúc
+    # đó nhớ rằng giá trị này sẽ hiện nguyên văn trong `helm get values`.
+    redisUrl: ''
     # JWKS của Better Auth — gateway verify sandbox token bằng khoá công khai lấy
     # từ đây (phase-1 D15, 1.B0.5). KHÔNG có khoá riêng nào của gateway: khoá
     # riêng đẻ ra biến env × 4 nơi, một Helm secret, và một quy trình xoay vòng
@@ -196,6 +200,27 @@ gateway:
     # Rỗng = template tự suy ra "<release>-web:<port>/api/auth/jwks" (DNS
     # in-cluster). Chỉ đặt tường minh khi web nằm ngoài cluster này.
     jwksUrl: ''
+
+    # Giá trị `iss` mà sandbox token bắt buộc mang.
+    #
+    # ⚠ KHÔNG suy ra được từ jwksUrl: jwksUrl là DNS NỘI BỘ
+    # (http://<release>-web:3000/...) còn `iss` là URL CÔNG KHAI trình duyệt
+    # thấy. Rỗng = template lấy ĐÚNG `web.env.betterAuthUrl` — một giá trị, hai
+    # nơi đọc, không có hằng số thứ hai để trôi.
+    tokenIssuer: ''
+
+    # Allowlist `Origin` của handshake WS, ngăn cách bằng dấu phẩy. Đây là thứ
+    # DUY NHẤT đóng CSWSH (handshake WS không chịu CORS).
+    #
+    # Rỗng = template lấy `web.env.appUrl` (rơi về `betterAuthUrl` khi trống) —
+    # cùng origin với web là ĐIỀU KIỆN SỐNG của cookie dlp_sandbox
+    # (SameSite=Strict, host-only), nên hai giá trị này vốn phải bằng nhau.
+    allowedOrigins: ''
+
+    # Trần WS ĐỒNG THỜI trên một session (D17). Số ĐO ĐƯỢC trên tmux 3.4: client
+    # thứ hai attach làm cửa sổ của client thứ nhất tụt từ 200×50 xuống 80×23 rồi
+    # lật qua lại mỗi keystroke. Nâng lên >1 là chấp nhận terminal tự co giãn.
+    maxWsPerSession: '1'
 
 # Ingress gộp origin web ↔ gateway. TẮT mặc định — xem templates/ingress.yaml
 # để biết vì sao bật nó trên cluster không có ingress controller là cái bẫy im

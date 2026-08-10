@@ -239,6 +239,25 @@ jobs:
           fi
           grep -c '"Action":"pass"' /tmp/pool-test.json
 
+      # Cùng lý lẽ với bước warm-pool ở trên, cho lane còn lại: authz per-session
+      # của gateway (luật 8 + luật 10) chạy trên Redis THẬT, nên gỡ Redis ra là
+      # cả bộ acceptance IDOR tự skip và CI vẫn xanh. Đây đúng là bộ test mà
+      # G13 nói "chạy trong CI", nên nó phải có cổng chống-skip riêng — bước
+      # `make go-test` ở trên KHÔNG có, và một lượt skip sạch ở đó im lặng
+      # tuyệt đối.
+      - name: 'Acceptance IDOR + trần WS của gateway (Redis thật, không được SKIP)'
+        env:
+          REDIS_URL: redis://127.0.0.1:6379/15
+        working-directory: services/terminal-gateway
+        run: |
+          set -o pipefail
+          go test ./internal/sessionstore/... ./internal/wsroute/... -race -count=1 -json | tee /tmp/gw-test.json
+          if grep -q '"Action":"skip"' /tmp/gw-test.json; then
+            echo "::error::Test authz của gateway bị SKIP — Redis service không tới được. Acceptance IDOR (G13) không gác gì trong lần chạy này."
+            exit 1
+          fi
+          grep -c '"Action":"pass"' /tmp/gw-test.json
+
       - name: Cài golangci-lint v2.x
         # `go install` thay vì install.sh: script trên master mang bảng checksum
         # của bộ version HIỆN TẠI của nó — cài version pin cũ hơn là mismatch

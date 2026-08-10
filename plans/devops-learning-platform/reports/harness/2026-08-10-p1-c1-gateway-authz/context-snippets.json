@@ -1,0 +1,44 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Chặng 1.C-1 của phase-1: cổng vào của terminal-gateway — G1 (khung handler + Origin + subprotocol), G2 (verify sandbox token qua JWKS Better Auth, ép alg=EdDSA), G3 (per-session authz hai vế trên hash session:{id}), G11 (config + cổng env-drift), G13 (acceptance IDOR e2e có forge token), cộng bước i của G8 (trần WS đồng thời, D17). Cầu exec vào pod (G4–G6), keepalive/extend (G7), phần còn lại của rate-limit (G8), metrics (G10) và 4 file apps/web (G12) KHÔNG thuộc chặng này.",
+  "scoutSummary": "Vào phiên trên nhánh docs/p1-e1-close-set-debt đã merge (PR #31); dọn nhánh, quay về main sạch tại 44be609. Đọc phase-1.md (668 dòng) + docs/ws-terminal-protocol.md (SSOT contract WS) + services/terminal-gateway hiện trạng. Trạng thái phase-1 lúc vào: 1.B0/1.A/1.B xong; 1.E-1 xong (E6–E9 còn nợ); 1.C là stub P0 trả 401 cho MỌI request (wsroute.go 34 dòng); 1.D còn 4 khoảng trống; 1.F chỉ có README. HARD-GATE 1.A đã mở nên 1.C chạy được. User chọn lát cắt 1.C-1 (cổng vào) và chọn chạy test trên Redis từ docker-compose máy dev.",
+  "acceptanceCriteria": [
+    "Chín bước kiểm của contract §3 chạy ĐÚNG THỨ TỰ, mỗi bước trả đúng mã đã pin (403/400/401/401/403/404/403/409/429).",
+    "Chủ hợp lệ nhận 101 + server echo đúng subprotocol dlp.terminal.v1 — ca ĐỐI CHỨNG, không có nó thì mọi ca chặn đều vô nghĩa.",
+    "Vế g của luật 10 (hash.userId == token.sub) có test RIÊNG dùng token FORGE — BFF thật không mint được nó, nên không forge thì bước g có thể vắng mặt hoàn toàn mà acceptance vẫn xanh.",
+    "Id đoán bừa trả 403 chứ KHÔNG phải 404 (contract §3b) — không có kênh phụ để liệt kê session.",
+    "alg bị ép phía server (EdDSA); alg=none và alg=HS256-ký-bằng-public-key đều 401.",
+    "aud=orchestrator bị từ chối — aud là thứ duy nhất tách hai loại token ký bằng cùng một khoá.",
+    "Rotation JWKS: gặp kid lạ thì tự refetch, KHÔNG cần restart; và refetch có sàn thời gian để nó không thành cần gạt DoS vào apps/web.",
+    "Trần 1 WS đồng thời chặn tab thứ hai (429 + SESSION_IN_USE) nhưng KHÔNG chặn nối lại.",
+    "Bộ đếm WS luôn có TTL đặt trong CÙNG một lượt atomic — gateway bị SIGKILL không được khoá session vĩnh viễn.",
+    "Token không bao giờ xuất hiện trong log (luật 8).",
+    "Mỗi cổng bảo mật phải chứng minh được nó CÓ THỂ ĐỎ bằng kiểm đột biến.",
+    "Biến env mới vào đủ 4 nơi; env-check xanh; helm lint + template + kubeconform xanh trên CẢ BA bộ values mà CI render (không phải hai nhánh tự chọn)."
+  ],
+  "touchpoints": [
+    "services/terminal-gateway/internal/wsroute — VIẾT LẠI từ stub P0 (401 cho mọi request) thành pipeline 9 bước",
+    "services/terminal-gateway/internal/config — thêm 4 trường, REDIS_URL thành biến bắt buộc (ĐỔI hành vi khởi động)",
+    "services/terminal-gateway/cmd/terminal-gateway/main.go — dựng redis client + JWKS cache + verifier, nối vào wsroute.Deps",
+    "services/terminal-gateway/go.mod — thêm go-jose/v4 v4.1.4, go-redis/v9 v9.22.0 (KHỚP orchestrator — một version cho cả repo), x/sync, x/time",
+    "infra/helm/platform/values.yaml + templates/gateway-deployment.yaml — 4 biến, REDIS_URL qua secretKeyRef",
+    ".github/ci.env — 3 biến gateway",
+    ".github/workflows/ci.yml — thêm bước acceptance IDOR có cổng chống-skip",
+    "plans/devops-learning-platform/phase-1.md + services/terminal-gateway/README.md — tiến độ + AC",
+    "services/orchestrator/internal/pool/claim_idempotent_test.go — NGOÀI phạm vi lane gateway, sửa bắt buộc: `SCRIPT FLUSH` của test mới phơi ra khiếm khuyết trong hook của test đó (nuốt cả reply NOSCRIPT)."
+  ],
+  "publicContracts": [
+    "docs/ws-terminal-protocol.md — KHÔNG đổi. Chặng này hiện thực §3 đúng như đã pin.",
+    "proto/orchestrator/v1/session.proto — KHÔNG chạm; buf lint + buf breaking sạch.",
+    "services/shared/rediskeys — KHÔNG đổi; gateway dùng đúng helper dùng chung thay vì nối chuỗi tay.",
+    "MỚI, tạm thời: control message {type:error, code:EXEC_NOT_IMPLEMENTED} + close 4500 sau upgrade. KHÔNG nằm trong enum contract §5 và biến mất ở 1.C-2 khi G4 thay đoạn đó."
+  ],
+  "blastRadius": [
+    "Chỉ services/terminal-gateway — service mà hôm nay trả 401 cho MỌI request, nên hồi quy xấu nhất là 'vẫn không ai vào được terminal', đúng bằng trạng thái hiện tại.",
+    "KHÔNG chạm cluster: không helm upgrade, không xoá pod, không đổi image, không restart. Khác hẳn chặng 1.E-1.",
+    "orchestrator/web/proto KHÔNG bị chạm; suite orchestrator chạy lại xanh 6/6 để chứng minh.",
+    "Chart KHÔNG đổi hành vi render: REDIS_URL của gateway đi đúng khuôn orchestrator đang dùng. (Bản đầu có thêm một đường fail-closed bằng `required` — đã gỡ sau khi cổng infra đỏ trên hai bộ values cloud-shaped.)",
+    "MỞ RỘNG SO VỚI DỰ TÍNH BAN ĐẦU: cache script Lua của Redis là trạng thái TOÀN SERVER, nên suite test của gateway chạm được sang suite của orchestrator dù hai bên dùng DB khác nhau. Đây là bán kính mà bảng phân bổ DB không che."
+  ]
+}
