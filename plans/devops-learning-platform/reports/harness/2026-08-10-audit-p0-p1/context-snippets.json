@@ -1,0 +1,38 @@
+{
+  "skill": "t1k-brainstorm",
+  "mode": "audit",
+  "task": "Rà soát toàn bộ P0 + P1 sau đợt nâng cấp #24–#28: mọi cài đặt, chỉnh sửa, bản vá, món nợ, điều chưa làm. Sau đó đóng nợ bằng chứng của chặng 1.B mà hook workflow-artifact-gate trỏ tới, để mở đường cook 1.E.",
+  "scoutSummary": "Vào phiên với HEAD=17fed14, working tree sạch, main==origin/main. Hook workflow-artifact-gate cảnh báo suốt bốn lệnh git, trỏ vào artifact PR #27. Chẩn đoán: hook chọn thư mục artifact MỚI NHẤT trên đĩa (chặng hôm nay chưa có artifact nào) và validator hard-stage đòi decision==='PASS' chặt chẽ, nên PASS_WITH_RISK bị đọc thành 'chưa PASS'. Nhưng unverifiedClaims/missingProof thì thật: reaper chưa từng chạy trên cluster, Job migration chưa từng qua helm install thật, AC p95 chưa có mẫu nào.",
+  "acceptanceCriteria": [
+    "Mọi cổng của P0+P1 chạy lại bằng tay và xanh, KHÔNG tin ô tick trong plan.",
+    "Đóng 3 mục nặng của unverifiedClaims PR #27: reaper trên cluster thật, helm install thật, p95 ≥ 50 mẫu.",
+    "Sửa 4 lỗ hổng mã: M-6, rest.Config.Timeout, StreamInterceptor, ràng buộc orphanGrace↔readyTimeout.",
+    "Sinh artifact cho đợt rà để hook thôi trỏ vào PR #27, và ghi nợ còn lại đúng chỗ.",
+    "Vá doc drift trong phase-0.md/phase-1.md."
+  ],
+  "touchpoints": [
+    "services/orchestrator/internal/reaper/reaper.go — guard DeletionTimestamp + gauge terminating",
+    "services/orchestrator/internal/reaper/reaper_test.go — fake Delete trung thực + 3 test mới",
+    "services/orchestrator/internal/metrics/metrics.go — ReaperPodsTerminating (gauge)",
+    "services/orchestrator/internal/k8s/client.go — rest.Config.Timeout",
+    "services/orchestrator/internal/pool/manager.go — export DefaultReadyTimeout",
+    "services/orchestrator/internal/grpcserver/authz.go + authz_test.go — StreamDenyInterceptor",
+    "services/orchestrator/cmd/orchestrator/main.go — đăng ký StreamInterceptor",
+    "services/orchestrator/cmd/bench-claim/** (MỚI) — đo AC p95",
+    "infra/helm/platform/templates/migrate-job.yaml — hook pre-install → post-install",
+    "infra/k8s/cni-canary.yaml — successfulJobsHistoryLimit 1 → 26",
+    "plans/devops-learning-platform/phase-0.md, phase-1.md, plans/reports/2026-08-10-audit-p0-p1.md"
+  ],
+  "publicContracts": [
+    "proto — KHÔNG đụng. buf breaking xanh.",
+    "Metric MỚI `dlp_reaper_pods_terminating` (gauge). Thêm series, không đổi series cũ.",
+    "Thời điểm chạy migration ĐỔI: `pre-install` → `post-install` (nhánh `pre-upgrade` giữ nguyên). Đây là đổi hợp đồng vận hành của chart, ghi lý do đầy đủ trong template.",
+    "`pool.defaultReadyTimeout` → `pool.DefaultReadyTimeout` (export). Nội bộ module Go, không ai ngoài repo dùng.",
+    "Mọi RPC dạng stream nay bị từ chối bằng Unimplemented. Không RPC hiện tại nào bị chạm (cả 5 đều unary)."
+  ],
+  "blastRadius": [
+    "Thí nghiệm chạy trên cluster lab ĐANG SỐNG: tạo pod ép reaper xoá, 3 lượt helm install vào namespace nháp. Đã disable priorityClass + sandbox trong probe để không cướp tài nguyên cluster-scoped của release platform, và xác minh warm-pool nguyên vẹn sau đó.",
+    "Đổi thời điểm migration ảnh hưởng MỌI lần install/upgrade sau này của chart.",
+    "cni-canary patch áp thẳng lên cluster đang chạy (successfulJobsHistoryLimit 26) — chỉ giữ thêm lịch sử Job, không đổi hành vi canary."
+  ]
+}

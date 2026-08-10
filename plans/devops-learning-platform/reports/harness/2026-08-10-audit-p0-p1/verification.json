@@ -1,0 +1,116 @@
+{
+  "commands": [
+    {
+      "command": "go test ./... -count=1 -race trên cả 4 module (Redis 7 + Postgres 16 THẬT)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T14:05:00+07:00",
+      "summary": "163 PASS / 0 SKIP (trước đợt này: 159). Lần chạy ĐẦU của phiên cho 81 SKIP vì docker compose tắt — `go test` vẫn exit 0. Con số 163 là suite ĐÃ CHẠY, không phải suite exit 0."
+    },
+    {
+      "command": "Kiểm đột biến bản vá M-6: gỡ guard `if pod.DeletionTimestamp != nil { continue }` rồi chạy TestSweepKhongDemLaiPodDangTerminating",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T13:44:00+07:00",
+      "summary": "ĐỎ đúng như phải thế: `dlp_reaper_orphan_pods_total = 3 sau 3 vòng, cần 0`. Khôi phục guard → xanh. Trước khi sửa test double (Delete trên pod đang Terminating là no-op, khớp API server thật) thì chỉ đỏ ở mức 1 — tức fake cũ che mất chính sự tích luỹ, đúng lý do M-6 bị review PR #27 hạ xuống 'suy luận'."
+    },
+    {
+      "command": "PROOF RUNTIME REAPER trên cluster thật: tạo pod `sandbox-orphanproof01` (label app=sandbox, EXISTS pod:{name} = 0) trong dlp-sandbox, poll 20s/lần",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T13:30:00+07:00",
+      "summary": "Pod tạo 06:24:40Z. KHÔNG bị đụng suốt 340s — orphanGrace 5 phút được tôn trọng, tức guard 'đừng giết pod đang sinh ra' được chứng minh bằng QUAN SÁT chứ không bằng đọc code. Biến mất giữa T+340s và T+360s, đúng một vòng sweep sau khi hết grace. dlp_reaper_orphan_pods_total 0→1, sweep_failures_total 0. Warm-pool `sandbox-20ad99c1d909` vẫn Running 140m — không xoá nhầm. Đây là lần ĐẦU TIÊN reaper thực thi quyền xoá pod trên cluster."
+    },
+    {
+      "command": "helm install probe-a (values MẶC ĐỊNH) vào namespace nháp — cổng C-2",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T13:35:00+07:00",
+      "summary": "Install chạy trọn, release `deployed`. Đây là ca mà trước bản vá C-2 sẽ ABORT vì hai vị từ lệch nhau ⇒ DATABASE_URL rỗng. Lần thử đầu thất bại vì lý do KHÁC (PriorityClass cluster-scoped của release `platform` không import được vào release mới) — đã loại bằng --set platform.priorityClassEnabled=false, không phải lỗi chart."
+    },
+    {
+      "command": "helm install probe-b (datastore BẬT) — cổng C-3, PHÁT HIỆN LỖI CHẶN",
+      "status": "fail",
+      "exitCode": 1,
+      "timestamp": "2026-08-10T13:40:00+07:00",
+      "summary": "ĐỎ THẬT, và đây là phát hiện chính của đợt rà. `secret/probe-b-datastore` CÓ mặt (bản vá C-3 đúng), nhưng install abort: Job `pre-install` chạy khi `kubectl get deploy,svc` trong namespace trả 'No resources found' — Postgres chưa TỒN TẠI, không phải chưa Ready. Cả 3 lượt Job dừng ở 'applying migrations…' rồi cháy activeDeadlineSeconds. Lượt thử đầu bị nhiễu bởi ImagePullBackOff (tag mặc định `dev` không có trên ghcr — lỗi của phép thử, không phải chart); chạy lại với sha-d5da78b thì image chạy và lộ nguyên nhân thật."
+    },
+    {
+      "command": "helm install probe-c SAU bản vá hook `pre-install` → `post-install,pre-upgrade`",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T13:48:00+07:00",
+      "summary": "Fresh install `deployed`. Migration THẬT SỰ áp dụng: `select unnest(enum_range(null::session_event))` trong Postgres của release trả created/claimed/extended/expired/reaped/failed — đủ 6, đúng thứ tự. Job biến mất sau đó vì hook-delete-policy `hook-succeeded`, tức nó đã thành công chứ không phải không chạy."
+    },
+    {
+      "command": "helm upgrade probe-c — chứng minh nhánh pre-upgrade KHÔNG bị bản vá phá",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T13:49:00+07:00",
+      "summary": "revision 1 → 2, status `deployed`. Đổi annotation chỉ chạm đường install."
+    },
+    {
+      "command": "cmd/bench-claim -n 50 (lần 1) — ĐỎ VÌ CÔNG CỤ, không phải vì hệ thống",
+      "status": "fail",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T13:52:00+07:00",
+      "summary": "In 'XANH — AC ≥ 50 mẫu đạt' trong khi chỉ có 25 mẫu warm, và dòng 'cold-path: 0' đếm nhầm khái niệm. Chính công cụ đo AC tự cho điểm sai — đúng loại false-green mà plan này săn. Ghi lại 'fail' thay vì bỏ đi vì nó là bài học: cổng số-mẫu phải đứng TRƯỚC cổng ngưỡng."
+    },
+    {
+      "command": "cmd/bench-claim -n 50 -replenish-wait 90s (sau khi vá cổng)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T13:58:00+07:00",
+      "summary": "AC ĐẠT: 50 mẫu warm, p95 = 0.090s (< 1s). Cần 102 lượt CreateSession mới gom đủ — 52 lượt rơi cold-path vì POOL_TARGET=1 không kịp ấm lại giữa hai claim liên tiếp. p95 đọc từ histogram của SERVER (`dlp_claim_duration_seconds{path=\"warm\"}`), nội suy tuyến tính như `histogram_quantile`, không phải đồng hồ client."
+    },
+    {
+      "command": "gofmt -l services/ · GOOS=linux go build ./... · GOOS=linux go vet ./... (4 module)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T14:06:00+07:00",
+      "summary": "Sạch. Ép GOOS=linux vì build tag giấu file *_unix.go khi chạy trên Windows."
+    },
+    {
+      "command": "buf lint · buf breaking --against '.git#ref=HEAD~1' · buf generate (drift)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T13:10:00+07:00",
+      "summary": "Cả ba exit 0; `git status` rỗng sau khi sinh lại ⇒ 0 drift. Đợt này không đụng .proto nào."
+    },
+    {
+      "command": "node scripts/env-check.mjs · helm lint (2 bộ values)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T14:07:00+07:00",
+      "summary": "env-check 46 biến / 4 scope. helm lint 0 failed cả hai bộ. Đợt này không thêm env mới."
+    },
+    {
+      "command": "pnpm turbo run lint typecheck test (với Postgres/Redis thật)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T13:15:00+07:00",
+      "summary": "lint+typecheck 9/9; test 64 web + 23 shared-types + 3 ui = 90, 0 skip. Đợt này không đụng mã TS."
+    },
+    {
+      "command": "Đo cửa sổ web-trả-500 sau `helm install` mới (hệ quả của bản vá hook)",
+      "status": "skipped",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T14:08:00+07:00",
+      "summary": "CHƯA CHẠY — probe chạy với `web.enabled=false` để không dựng stack thứ hai trên lab 1-node. Ghi 'skipped' thay vì 'pass' có chủ ý: đây là cửa sổ do CHÍNH bản vá này sinh ra, và nó chưa được đo."
+    },
+    {
+      "command": "Proof runtime cho tầng 1 / 2b / 2c / 3 của reaper trên cluster",
+      "status": "skipped",
+      "exitCode": 0,
+      "timestamp": "2026-08-10T14:08:00+07:00",
+      "summary": "CHƯA CHẠY — hôm nay chỉ đóng tầng 2a (pod mồ côi). Bốn nhánh còn lại vẫn chỉ có bằng chứng từ fake PodClient + Redis thật."
+    }
+  ],
+  "beforeAfter": [
+    "TRƯỚC: reaper là thành phần có quyền xoá pod chạy mỗi 60s mà CHƯA TỪNG chạy trên cluster; mọi counter = 0 sau 2h17m uptime. SAU: tầng 2a có proof runtime kèm số đo, gồm cả bằng chứng nó KHÔNG xoá sớm (340s im lặng) và KHÔNG xoá nhầm (warm-pool nguyên vẹn).",
+    "TRƯỚC: `helm install` + Postgres của chart là đường LUÔN HỎNG, không ai biết vì mọi lần deploy đều là upgrade. SAU: fresh install chạy được, migration vào DB thật, và đường upgrade được chứng minh không bị phá.",
+    "TRƯỚC: AC 'claim p95 < 1s' có 0 mẫu. SAU: 50 mẫu warm, p95 = 0.090s, công cụ đo nằm trong repo và đo lại được.",
+    "TRƯỚC: M-6 là 'suy luận, không tái hiện được'. SAU: tái hiện chính xác (3 vòng → 3 lần đếm), đã vá, có kiểm đột biến.",
+    "TRƯỚC: `phase-0.md` R7 ghi 'còn mở' trong khi rủi ro đã đóng; verify command RBAC trỏ SA không tồn tại. SAU: cả hai đã sửa theo trạng thái đo được."
+  ]
+}

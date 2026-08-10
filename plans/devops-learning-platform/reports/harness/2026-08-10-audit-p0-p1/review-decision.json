@@ -1,0 +1,25 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "Rà soát toàn bộ P0 + P1 sau đợt nâng cấp #24–#28, chạy lại MỌI cổng bằng tay thay vì tin ô tick trong plan. Kết quả: CI main xanh, Go 4/4 module, buf lint/breaking/drift 0, env-check 46 biến, turbo lint+typecheck 9/9, test 90/90 (TS) + 163/0-SKIP (Go, -race).",
+    "BẪY SUITE-XANH-VÌ-SKIP: lần chạy đầu `go test` exit 0 với 81 test SKIP vì docker compose tắt và root .env không có REDIS_URL/DATABASE_URL. Đã dựng datastore thật rồi chạy lại — 0 SKIP. Ghi đường chạy thay thế vào phase-1.md vì máy dev Windows không có `make`.",
+    "PROOF RUNTIME ĐẦU TIÊN CHO REAPER (khoảng trống mà risk-gate PR #27 gọi là LỚN NHẤT). Pod mồ côi thật trên cluster: không bị đụng suốt 340s (grace 5 phút được tôn trọng — đây là guard 'đừng giết pod đang sinh ra' được chứng minh bằng QUAN SÁT), rồi bị xoá ở vòng sweep kế tiếp; orphan_pods_total 0→1, sweep_failures 0, warm-pool không bị đụng.",
+    "C-2 ĐÓNG TRÊN ĐƯỜNG THẬT: `helm install` values mặc định chạy trọn (ca mà trước bản vá sẽ ABORT vì DATABASE_URL rỗng).",
+    "C-3 ĐÓNG NHƯNG LÔI RA LỖI NẶNG HƠN: Secret hook weight -5 hoạt động đúng, nhưng install vẫn abort vì Job `pre-install` chạy khi Postgres CHƯA TỒN TẠI. `helm template` không thể thấy — nó render giống hệt ở cả hai ca. Đã vá sang `post-install,pre-upgrade`, chứng minh cả hai đường: fresh install `deployed` + enum 6 giá trị trong DB; upgrade lên revision 2 `deployed`.",
+    "AC 'claim p95 < 1s, ≥ 50 mẫu' ĐẠT: 50 mẫu warm, p95 = 0.090s, đo từ histogram của server (không phải đồng hồ client). Công cụ đo nằm trong repo (`cmd/bench-claim`) nên đo lại được ở mọi chặng sau.",
+    "M-6 chuyển từ 'suy luận' sang 'tái hiện được': sửa test double cho khớp hành vi API server (Delete trên pod đang Terminating là no-op) rồi kiểm đột biến — gỡ guard ra thì đỏ với orphan_pods_total = 3 sau 3 vòng.",
+    "Bốn bản vá mã đóng bốn mục unverifiedClaims của PR #27: M-6 (đếm lặp), rest.Config.Timeout (tiền đề giả thuyết orphanGrace), StreamInterceptor (cổng chặn stream RPC tương lai đi vòng qua B0'), ràng buộc orphanGrace↔pool.DefaultReadyTimeout (cổng liên package).",
+    "Doc drift: 6 điểm vá trong phase-0.md/phase-1.md, gồm một mục plan ghi SAI (R7 đã đóng mà vẫn ghi 'còn mở') và namespace thật là `default` chứ không phải `dlp-platform` (verify command RBAC cũ trỏ SA không tồn tại, `can-i` trả 'no' mà không báo lỗi ⇒ AC đỏ giả)."
+  ],
+  "regressionProof": [
+    "163 PASS / 0 SKIP dưới -race trên Redis 7 + Postgres 16 thật (trước đợt này: 159). Đếm tường minh vì `go test` exit 0 khi mọi test skip.",
+    "Kiểm đột biến trên bản vá M-6: gỡ guard `DeletionTimestamp != nil` → TestSweepKhongDemLaiPodDangTerminating ĐỎ (orphan_pods_total = 3, cần 0). Khôi phục → xanh. Test không phải tautology.",
+    "gofmt sạch, `GOOS=linux go build` + `go vet` 0 issue trên 4 module (ép GOOS=linux vì build tag giấu file *_unix.go trên máy Windows).",
+    "helm lint 0 failed trên 2 bộ values; đường upgrade chạy thật (probe-c revision 1 → 2, cả hai `deployed`) chứng minh việc đổi hook không phá nhánh pre-upgrade.",
+    "Cluster trả về đúng trạng thái trước phép thử: 3 release probe đã uninstall, 2 namespace đã xoá, chart tạm đã gỡ, chỉ còn release `platform` revision 8."
+  ],
+  "blockingReasons": [],
+  "contractStatus": "UNCHANGED"
+}
