@@ -32,7 +32,7 @@
 # (Apple Silicon) cho image **xanh nhưng hỏng âm thầm**: base thành arm64, binary
 # vẫn là amd64, `sha256sum -c` VẪN KHỚP (nó kiểm đúng file nó tải, không kiểm
 # arch), rồi trong pod mỗi lần mở shell là `exec format error` và prompt biến mất.
-FROM --platform=linux/amd64 ubuntu:24.04
+FROM --platform=linux/amd64 ubuntu:26.04
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Hai binary tải thẳng — GHIM VERSION + SHA256.
