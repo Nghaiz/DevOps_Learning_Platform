@@ -1,0 +1,15 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "highRisk: TRUE — D-19′ RESTART KUBELET trên cụm 1-node, tức bounce toàn bộ pod kể cả control-plane. Chế độ hỏng cụ thể: nếu token CNI Calico đang cũ tại thời điểm đó (R0) thì KHÔNG pod nào quay lại, và ta tự tay dựng lại đúng sự cố mà R0 mô tả. Giảm rủi ro bằng chuỗi cứng trong chính script: cron vá token phải tồn tại → ép chạy job vá NGAY → rollout status calico-node → canary TRƯỚC phải xanh → mới đổi config → canary SAU. Cộng backup file config + lệnh khôi phục in ra ở mọi nhánh die.",
+    "highRisk: TRUE — thêm một nhánh XOÁ POD chạy mỗi 60 giây trên MỌI pod đang ấm. Bán kính nổ của một hiện thực sai không phải 'một pod' mà là 'warm-pool rỗng vĩnh viễn', và nó im lặng vì mọi log đều nói 'đã rút pod chết'. Giảm rủi ro: ca đối chứng âm được coi là ca CHÍNH (không phải ca phụ), cộng kiểm đột biến chứng minh nó đỏ khi bỏ IsTerminal.",
+    "autoStopRequired: TRUE — dừng hỏi người dùng TRƯỚC khi viết dòng nào: chọn chặng nào trong năm hạng mục P1 còn mở (B6-T4, 1.C-4 mTLS, 1.D, 1.E E6–E9, 1.F nợ). Đây là quyết định phạm vi, không phải chi tiết implement. Người dùng chọn 'B6-T4 + 1.D (S×5)' và lựa chọn đó ĐÃ NÊU RÕ ràng buộc restart kubelet.",
+    "largeDiff: FALSE — 3 file Go (một hàm mới ~55 dòng + 6 test + 1 metric), 1 script bash mới, 1 script bash sửa 4 check, cộng plan + báo cáo. Không package mới, không dependency mới, không file nguồn nào bị xoá.",
+    "GIẢM RỦI RO — cái KHÔNG bị chạm: không sửa một dòng nào của `claim.lua`, `podspec.go`, `manager.go`, `session.proto`, `docs/ws-terminal-protocol.md`, hay bất kỳ file nào của gateway/web. Tầng 4 chỉ ĐỌC `pool:free` và dùng `LREM`/`Delete` đã có.",
+    "NỢ RỦI RO CÒN LẠI — release lab đang chạy `dlp-orchestrator:dev-b6t4`, một tag dựng từ nhánh và side-load bằng tay, không phải tag `sha-*` do CI đóng. Đây là lần thứ NĂM của cùng một món nợ trong P1. Đóng ngay sau khi PR merge, side-load TRƯỚC / helm upgrade SAU.",
+    "NỢ RỦI RO CÒN LẠI — `04-verify-sysbox.sh` chưa chạy đầu-cuối sau khi sửa: nó tạo pod từ image `nestybox/ubuntu-noble-systemd-docker` chưa side-load, mà cụm không pull được. Ba check đã sửa được xác minh bằng cùng phép đo trên pod sandbox thật, nhưng vế DinD của check #7 phải chờ E7."
+  ]
+}

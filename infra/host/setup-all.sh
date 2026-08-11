@@ -33,6 +33,12 @@ bash 03-sysbox-install.sh
 banner "BƯỚC 3.5 — Addon cluster (StorageClass + vá token CNI + canary)"
 bash 05-cluster-addons.sh
 
+# Chạy SAU 05 (cron vá token phải tồn tại trước — script tự chặn nếu chưa) và
+# TRƯỚC cổng P0.F: bước 4 đo `pids.max` trong pod, mà trần đó chỉ tồn tại sau khi
+# kubelet nạp `podPidsLimit`. Đảo thứ tự là cổng đỏ vì một thứ chưa được cài.
+banner "BƯỚC 3.6 — Trần PID mỗi pod (D-19′: fork-bomb không hạ được node)"
+sudo -E PIDS_LIMIT="${PIDS_LIMIT:-4096}" bash 06-kubelet-pids-limit.sh
+
 if [ "$SKIP_VERIFY" = "1" ]; then
   printf '\n\033[33mSKIP_VERIFY=1 → bỏ qua cổng P0.F. Nhớ chạy 04-verify-sysbox.sh trước khi mở P1.\033[0m\n'
 else

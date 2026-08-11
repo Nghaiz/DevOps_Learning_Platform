@@ -1,0 +1,32 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "phase-1: B6-T4 (tầng reaper thứ 4 — pod CHẾT nằm trong pool:free) + bốn khoảng trống §1.D (D-17′ AC capability, D-19′ trần PID, D-21′ hạ phạm vi taint/nodeSelector, D-22′ verify command sai). Người dùng chọn gộp 5 task Effort S trong một chặng, biết trước D-19′ phải restart kubelet trên cụm 1-node.",
+  "scoutSummary": "Vào phiên trên nhánh `feat/p1-f-terminal-fe` đã squash-merge thành 11d85fc; còn ĐÚNG MỘT commit doc chưa lên main (0969219, nửa đầu AC ReapSession) — cherry-pick sang nhánh mới thay vì bỏ. Đọc plan (835 dòng) rồi đọc mã: `internal/reaper/reaper.go` có 3 tầng (1 pub/sub, 2a/2b/2c sweep, 3 quarantine), `k8s.IsTerminal` ĐÃ tồn tại nhưng chỉ được gọi trong `pool.waitReady` — tức lúc TẠO, không bao giờ gọi lại. `04-verify-sysbox.sh` có 8 check, ba trong số đó hỏng đúng như plan mô tả. `infra/host/` chưa có script nào chạm kubelet config. Trạng thái P1: còn 1.C-4 mTLS, 1.E E6–E9, 1.F 4 mục chưa tick.",
+  "acceptanceCriteria": [
+    "Pod `Failed` nằm trong `pool:free` bị rút ≤ 1 chu kỳ sweep, xoá cả Pod lẫn hash, có metric riêng — và metric của BỐN tầng kia phải bằng 0 để chứng minh đúng tầng 4 dọn.",
+    "Pod ấm còn sống trong `pool:free` KHÔNG bị đụng (đối chứng âm — đây là ca quan trọng nhất, không phải ca phụ).",
+    "Lỗi apiserver không-phải-NotFound KHÔNG được coi là 'pod đã chết'.",
+    "`pids.max` của pod là một số, KHÔNG phải `max`; fork-bomb → pod chặn lại, node còn `Ready`, pod nền tảng 0 restart.",
+    "Ba check hỏng của `04-verify-sysbox.sh` (tautology drop:[ALL], đua docker.sock, false-pass metadata) phải hết khả năng xanh-vì-lý-do-sai."
+  ],
+  "touchpoints": [
+    "services/orchestrator/internal/reaper/reaper.go — thêm sweepDeadFreePods vào errors.Join của sweep()",
+    "services/orchestrator/internal/reaper/reaper_test.go — 6 ca mới + hook onGet/getErr/addPodWithPhase trên test double",
+    "services/orchestrator/internal/metrics/metrics.go — ReaperDeadFreePodsTotal",
+    "infra/host/06-kubelet-pids-limit.sh (MỚI) + setup-all.sh bước 3.6",
+    "infra/host/04-verify-sysbox.sh — check #3, #4, #7, #8",
+    "plans/devops-learning-platform/phase-1.md + reports/2026-08-11-verify-b6t4-pod-hardening.md"
+  ],
+  "publicContracts": [
+    "KHÔNG đổi proto — `session.proto` không bị chạm một dòng nào; `buf breaking` không có bề mặt.",
+    "KHÔNG đổi contract WS (`docs/ws-terminal-protocol.md`) — chặng này không chạm gateway.",
+    "KHÔNG đổi Redis key namespace — tầng 4 chỉ ĐỌC `pool:free` và dùng `LREM` đã có; không key mới, không field mới.",
+    "THÊM một metric Prometheus `dlp_reaper_dead_free_pods_total` — bề mặt chỉ-thêm, không dashboard nào đang tồn tại bị gãy."
+  ],
+  "blastRadius": [
+    "Reaper chạy mỗi 60s trên MỌI pod đang ấm ⇒ một hiện thực xoá quá tay làm warm-pool rỗng vĩnh viễn mà mọi log đều nói 'đã rút pod chết'. Đây là lý do ca đối chứng âm được coi là ca chính.",
+    "D-19′ restart kubelet trên cụm 1-NODE ⇒ bounce toàn bộ pod, gồm cả control-plane. Nếu token CNI Calico cũ tại thời điểm đó (R0) thì không pod nào quay lại.",
+    "helm upgrade lên release lab đang chạy (revision 25→26), chỉ đổi orchestrator.image.tag; web/gateway giữ nguyên qua --reset-then-reuse-values."
+  ]
+}

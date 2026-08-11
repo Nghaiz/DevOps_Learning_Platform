@@ -59,6 +59,19 @@ type Metrics struct {
 	ReaperClaimedOrphanTotal prometheus.Counter
 	// ReaperQuarantineReapedTotal đếm pod bị cách ly đã được dọn khỏi cluster.
 	ReaperQuarantineReapedTotal prometheus.Counter
+	// ReaperDeadFreePodsTotal đếm pod CHẾT (Failed/Succeeded, hoặc đã biến mất
+	// khỏi apiserver) nằm trong `pool:free` — tầng 4.
+	//
+	// Đây là counter duy nhất nói được "pool đang quảng cáo một pod không dùng
+	// được". Mọi tầng khác đều đọc TRẠNG THÁI REDIS; `claim.lua` cũng chỉ hỏi
+	// `pod:{name}.state == 'free'` và KHÔNG hỏi apiserver, nên trước tầng 4 thì
+	// một pod `Failed` nằm trong pool là vô hình với toàn bộ hệ thống — người
+	// phát hiện ra là SINH VIÊN, lúc terminal không attach được.
+	//
+	// Tăng đúng 1 sau mỗi lần node reboot (RestartPolicy: Never ⇒ pod sandbox
+	// chuyển Failed vĩnh viễn) là BÌNH THƯỜNG. Tăng liên tục giữa hai lần reboot
+	// nghĩa là có nguồn nào đó đang giết pod ấm.
+	ReaperDeadFreePodsTotal prometheus.Counter
 	// ReaperSweepFailuresTotal đếm vòng sweep lỗi. Sweep là ĐƯỜNG CHÍNH của
 	// reaper (keyspace notification chỉ là đường nhanh, best-effort), nên nó
 	// hỏng âm thầm là pod sống mãi và ăn hết quota.
@@ -149,6 +162,10 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "dlp_reaper_quarantine_reaped_total",
 			Help: "Pod bị cách ly đã được dọn khỏi cluster. Không có nhánh này thì mỗi lần cách ly là −1 vĩnh viễn trên trần đồng thời (D16).",
 		}),
+		ReaperDeadFreePodsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dlp_reaper_dead_free_pods_total",
+			Help: "Pod CHẾT (Failed/Succeeded/đã biến mất) nằm trong pool:free và đã bị rút. claim.lua không hỏi apiserver, nên trước tầng 4 người phát hiện ra là sinh viên. Tăng 1 sau mỗi lần node reboot là bình thường.",
+		}),
 		ReaperSweepFailuresTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "dlp_reaper_sweep_failures_total",
 			Help: "Vòng sweep định kỳ thất bại. Sweep là ĐƯỜNG CHÍNH của reaper — pub/sub chỉ là đường nhanh.",
@@ -178,6 +195,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.ReaperGhostSessionsTotal,
 		m.ReaperClaimedOrphanTotal,
 		m.ReaperQuarantineReapedTotal,
+		m.ReaperDeadFreePodsTotal,
 		m.ReaperSweepFailuresTotal,
 		m.ReaperKeyspaceEventsTotal,
 		m.AuditWriteFailuresTotal,

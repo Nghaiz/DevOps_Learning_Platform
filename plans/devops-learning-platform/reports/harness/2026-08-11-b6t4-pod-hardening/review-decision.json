@@ -1,0 +1,23 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "blockingReasons": [],
+  "contractStatus": "OK",
+  "acceptanceCoverage": [
+    "AC 'pod chết trong pool:free bị rút ≤ 1 chu kỳ' → ĐẠT trên cụm, 8ms sau khi reaper khởi động. Vế PHÂN ĐỊNH cũng đạt: 5 counter reaper khác đều = 0 ⇒ chứng minh đúng tầng 4 dọn chứ không phải một nhánh nào tình cờ chạm tới. Không có vế này thì 'pod biến mất' chỉ là một quan sát, không phải một quy kết.",
+    "AC 'pod ấm còn sống KHÔNG bị đụng' → ĐẠT qua TestTang4KhongDungPodAmConSong + kiểm đột biến (bỏ IsTerminal ⇒ CHỈ ca này đỏ). Trên cụm: sau khi tầng 4 dọn, pool:free hội tụ về pod ấm Running và giữ nguyên qua 6 lượt quan sát.",
+    "AC 'lỗi apiserver ≠ pod đã chết' → ĐẠT qua TestTang4KhongRutPodKhiApiserverLoi + đột biến. CHƯA đo trên cụm (không dựng được ca apiserver lỗi mà không làm hỏng cụm) — đây là ranh giới bằng chứng đã ghi rõ.",
+    "AC pod hardening 'runtimeClassName / uid_map ≠ 0 / không hostPath / trần PID / fork-bomb' → ĐẠT trên cụm sau D-19′, NHƯNG vế `pids.max` phải VIẾT LẠI: dưới Sysbox nó luôn trả 'max' từ trong pod dù kubelet đã áp đúng. AC mới đo cgroup HOST + hành vi fork. Xem adversarial-validation.json.",
+    "AC 'ba check hỏng của 04-verify-sysbox.sh' → ĐÃ SỬA cả ba (tautology capability, đua docker.sock, false-pass metadata) + vế docker run hello-world theo D4. NHƯNG chưa chạy script đầu-cuối (image nestybox chưa side-load) ⇒ ghi 'skipped' trong verification.json, không tick.",
+    "D-21′ → ĐÓNG bằng tài liệu kèm ĐIỀU KIỆN MỞ LẠI cụ thể (ngày cluster có ≥ 2 node), thay vì một lời hoãn không mốc."
+  ],
+  "regressionProof": [
+    "248 PASS / 0 SKIP toàn repo dưới -race với Redis + Postgres thật. Số 0-SKIP là phép kiểm có ý: `go test` trả exit 0 khi MỌI ca tự skip, và suite này skip sạch nếu thiếu REDIS_URL.",
+    "18 ca reaper CŨ vẫn xanh nguyên vẹn sau khi thêm tầng 4 — tầng mới nằm trong cùng `errors.Join` nên nó có thể làm hỏng ba tầng kia nếu return sớm; nó không return sớm, và 18 ca cũ là bằng chứng.",
+    "Test double được MỞ RỘNG chứ không sửa hành vi cũ: `addPod` giữ nguyên (phase rỗng ⇒ IsTerminal=false), `getErr`/`onGet` mặc định nil. Mọi ca cũ chạy qua đúng đường cũ.",
+    "KHÔNG chạm `claim.lua`, `manager.go`, `podspec.go`, `grpcserver/`, hay bất kỳ file nào của gateway/web ⇒ không có bề mặt hồi quy cho các chặng 1.B/1.C/1.F.",
+    "Contract KHÔNG đổi: không sửa proto, không sửa docs/ws-terminal-protocol.md, không thêm/đổi Redis key hay field. Metric mới là bề mặt chỉ-thêm.",
+    "Trên cụm sau helm upgrade: 5 pod nền tảng 0 restart do chặng này (2 restart của postgres/redis là do lần restart kubelet của D-19′, đã đối chiếu mốc thời gian); gateway và web giữ nguyên image qua --reset-then-reuse-values."
+  ]
+}

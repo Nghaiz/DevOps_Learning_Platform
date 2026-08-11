@@ -115,16 +115,80 @@ else
   no "uid_map = '$UIDMAP' → root trong pod VẪN là root host. Sysbox KHÔNG cách ly. Blocker."
 fi
 
-# 3. Không có docker.sock (luật 10)
-if kexec test -e /var/run/docker.sock; then
-  no "/var/run/docker.sock TỒN TẠI trong pod — vi phạm luật 10, escape ra host"
+# 3. Không mount hostPath (luật 10)
+#
+# ⛔ D-22′ — BẢN CŨ KIỂM SAI THỨ, VÀ NÓ XANH VÌ MAY CHỨ KHÔNG VÌ ĐÚNG.
+# Cũ: `test -e /var/run/docker.sock` kỳ vọng "không tồn tại". Nhưng image này là
+# image DinD — socket đó là của dockerd *bên trong* pod (Sysbox), và nó XUẤT HIỆN
+# ngay khi dockerd lên. Check cũ chỉ xanh vì nó chạy TRƯỚC bước 7 (bước chờ
+# dockerd tới 90s); đảo thứ tự hai bước là cổng đỏ mà không có gì thay đổi về
+# bảo mật. Tức nó đo một cuộc đua, không đo một tính chất.
+# Thứ luật 10 thật sự cấm là mount socket CỦA HOST vào pod — và đó là một
+# `hostPath` volume, đọc được từ spec, không phụ thuộc thời điểm. VAP validation
+# #8 (`platform-sandbox-isolation`) đã ép điều này ở admission; đây là phép đo
+# độc lập xác nhận nó có hiệu lực.
+HOSTPATHS="$(kubectl get -n "$NS" pod "$POD" -o jsonpath='{.spec.volumes[*].hostPath.path}')"
+if [ -z "$HOSTPATHS" ]; then
+  ok "không có hostPath volume nào (⇒ không có đường mount docker.sock của host)"
 else
-  ok "không mount docker.sock"
+  no "pod có hostPath volume: '$HOSTPATHS' — vi phạm luật 10, đây là đường escape ra host"
 fi
 
-# 4. Capabilities dropped
-CAPS="$(kubectl get -n "$NS" pod "$POD" -o jsonpath='{.spec.containers[0].securityContext.capabilities.drop[0]}')"
-[ "$CAPS" = "ALL" ] && ok "capabilities.drop = [ALL]" || no "capabilities.drop = '$CAPS'"
+# 4. Trần PID mỗi pod (D-19′)
+#
+# ⛔ D-17′ — CHECK CŨ Ở CHỖ NÀY LÀ TAUTOLOGY, ĐÃ BỎ.
+# Cũ: đọc `.spec.containers[0].securityContext.capabilities.drop[0]` và so với
+# "ALL" — nhưng CHÍNH SCRIPT NÀY vừa ghi field đó trong $MANIFEST ở trên. Nó
+# không thể đỏ, nên nó không kiểm gì cả.
+# Sự thật đo được trên pod thật: `CapEff = CapBnd = 000001ffffffffff` (đủ 41 cap)
+# DÙ spec có `drop: [ALL]` — Sysbox bỏ qua field đó ở runtime. Giữ `drop:[ALL]`
+# trong spec là phòng thủ chiều sâu (ngày `runtimeClassName` rơi mất thì pod chạy
+# runc thường và field này mới có tác dụng), nhưng khẳng định "runtime đã drop"
+# là SAI. Tính chất cách ly thật nằm ở check #2 (`uid_map` offset ≠ 0), thứ đỏ
+# được nếu user-namespace không hoạt động.
+# Chỗ này thay bằng một phép đo runtime KHÁC ĐỎ ĐƯỢC và trước đây không ai gác:
+# trần PID. `max` nghĩa là một fork-bomb trong pod sinh viên hạ cả node 1-node.
+# ⛔ ĐỌC TỪ HOST, KHÔNG ĐỌC TỪ TRONG POD — và đây là cùng một cái bẫy với
+# `drop:[ALL]` ở trên, chỉ khác chỗ nó cắn.
+# Đo được 2026-08-11 trên cụm: `kubectl exec -- cat /sys/fs/cgroup/pids.max`
+# trả **`max`** trong khi kubelet ĐÃ áp `podPidsLimit: 4096` và cgroup của pod
+# trên host đọc đúng `4096`. Sysbox ảo hoá `/sys/fs/cgroup` trong container: pod
+# nhìn thấy cgroup-namespace root của chính nó (một cgroup con được uỷ quyền,
+# chưa đặt trần) chứ không thấy slice mà kubelet ép. Trần của tổ tiên VẪN có
+# hiệu lực — nhưng nó vô hình với mọi phép đo từ bên trong.
+# Kiểm bằng lệnh trong pod là AC KHÔNG BAO GIỜ XANH ĐƯỢC dù cấu hình hoàn toàn
+# đúng, đúng loại tautology-ngược mà D-17′ vừa dọn ở check #4 cũ.
+PODUID="$(kubectl get -n "$NS" pod "$POD" -o jsonpath='{.metadata.uid}')"
+SLICE=""
+for base in /sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice \
+            /sys/fs/cgroup/kubepods.slice/kubepods-besteffort.slice \
+            /sys/fs/cgroup/kubepods.slice; do
+  cand="$base/kubepods-burstable-pod${PODUID//-/_}.slice"
+  [ -f "$cand/pids.max" ] && { SLICE="$cand"; break; }
+  cand="$base/kubepods-pod${PODUID//-/_}.slice"
+  [ -f "$cand/pids.max" ] && { SLICE="$cand"; break; }
+done
+[ -z "$SLICE" ] && SLICE="$(find /sys/fs/cgroup -maxdepth 4 -type d -name "*${PODUID//-/_}*" 2>/dev/null | head -1)"
+
+if [ -n "$SLICE" ] && [ -r "$SLICE/pids.max" ]; then
+  PIDSMAX="$(cat "$SLICE/pids.max" 2>/dev/null | tr -d '\r')"
+  if [ -n "$PIDSMAX" ] && [ "$PIDSMAX" != "max" ]; then
+    ok "trần PID mỗi pod = $PIDSMAX (D-19′, đọc ở cgroup HOST — điểm thực thi thật)"
+    printf '  \033[2m· quan sát\033[0m  trong pod thì `cat /sys/fs/cgroup/pids.max` = %s (Sysbox ảo hoá — ĐỪNG kiểm ở đó)\n' \
+      "$(kexec cat /sys/fs/cgroup/pids.max | tr -d '\r')"
+  else
+    no "cgroup host của pod có pids.max='$PIDSMAX' → KHÔNG có trần PID; fork-bomb hạ được node.
+          Vá: sudo bash $(dirname "$0")/06-kubelet-pids-limit.sh"
+  fi
+else
+  no "không tìm được cgroup slice của pod (uid=$PODUID) → KHÔNG kết luận được về trần PID.
+          Script này phải chạy TRÊN NODE. Không đổi mục này thành PASS: 'không đo được' ≠ 'đạt'."
+fi
+
+# Quan sát, KHÔNG phải cổng: in ra sự thật về capability để không ai đọc
+# `drop:[ALL]` trong spec rồi tin rằng runtime đã drop. Xem D-17′.
+CAPEFF="$(kexec grep -E '^CapEff:' /proc/self/status | awk '{print $2}')"
+printf '  \033[2m· quan sát\033[0m  CapEff runtime = %s (Sysbox bỏ qua drop:[ALL] — D-17′; cách ly thật là user-ns ở check #2)\n' "${CAPEFF:-?}"
 
 # 5. Không privileged
 PRIV="$(kubectl get -n "$NS" pod "$POD" -o jsonpath='{.spec.containers[0].securityContext.privileged}')"
@@ -143,30 +207,62 @@ for _ in $(seq 1 18); do
   sleep 5
 done
 if [ "$DIND" = "1" ]; then
-  # KHÔNG dùng kexec ở đây: nó nuốt stderr, mà toàn bộ lỗi của 'docker run' nằm ở stderr.
-  DOUT="$(kubectl exec -n "$NS" "$POD" -- docker run --rm hello-world 2>&1)"
-  if printf '%s' "$DOUT" | grep -q 'Hello from Docker'; then
-    ok "chạy được 'docker run hello-world' BÊN TRONG pod không-privileged"
+  # ⛔ D4 — `docker run hello-world` LÀ PHÉP THỬ SAI, ĐÃ BỎ.
+  # Nó phải KÉO image từ Docker Hub, mà NetworkPolicy default-deny của
+  # `dlp-sandbox` (luật 10) chặn đúng đường đó. Giữ nó nghĩa là hoặc cổng đỏ trên
+  # một nền tảng đang chạy ĐÚNG, hoặc phải nới NetworkPolicy để cổng xanh — tức
+  # phép thử ép ta phá chính thứ nó đang gác. Ở ns `sysbox-proof` này chưa có
+  # NetworkPolicy nên nó "xanh", và đó là lý do lỗi thiết kế sống sót tới giờ.
+  #
+  # Thứ AC thật sự muốn kiểm là: **dockerd chạy được trong pod KHÔNG-privileged,
+  # và làm được việc mà không cần mạng.** `FROM scratch` không kéo gì cả.
+  # KHÔNG dùng kexec: nó nuốt stderr, mà toàn bộ lỗi của docker nằm ở stderr.
+  BOUT="$(kubectl exec -n "$NS" "$POD" -- sh -c \
+    'set -e; mkdir -p /tmp/dind-offline; printf "FROM scratch\n" > /tmp/dind-offline/Dockerfile;
+     docker build -q -t dlp-offline-proof /tmp/dind-offline && docker images -q dlp-offline-proof' 2>&1)"
+  if printf '%s' "$BOUT" | tail -1 | grep -qE '^[0-9a-f]{12,}$'; then
+    ok "docker build 'FROM scratch' THÀNH CÔNG trong pod không-privileged — không chạm mạng (D4)"
   else
-    no "dockerd sống nhưng 'docker run' fail. Output thật:"
-    printf '%s\n' "$DOUT" | tail -25 | sed 's/^/          /'
+    no "dockerd sống nhưng 'docker build FROM scratch' fail. Output thật:"
+    printf '%s\n' "$BOUT" | tail -25 | sed 's/^/          /'
     printf '\n          --- bối cảnh trong pod ---\n'
     kubectl exec -n "$NS" "$POD" -- docker info 2>&1 \
       | grep -iE 'storage driver|cgroup|backing filesystem|server version|warning' \
       | sed 's/^/          /'
-    kubectl exec -n "$NS" "$POD" -- sh -c 'getent hosts registry-1.docker.io || echo "DNS: KHÔNG phân giải được registry-1.docker.io"' 2>&1 \
-      | sed 's/^/          /'
   fi
+
+  # Vế `docker run` của AC: image `FROM scratch` KHÔNG có binary nào nên docker
+  # từ chối với "no command specified" — và chính lỗi đó là bằng chứng: docker đã
+  # phân giải image CỤC BỘ, không hề thử pull. Thứ phải đỏ ở đây là dấu vết của
+  # một lượt ra mạng, không phải việc container có chạy được hay không.
+  ROUT="$(kubectl exec -n "$NS" "$POD" -- docker run --rm dlp-offline-proof 2>&1 || true)"
+  if printf '%s' "$ROUT" | grep -qiE 'unable to find image|pull access denied|dial tcp|lookup .* no such host|i/o timeout'; then
+    no "'docker run' đã cố RA MẠNG cho một image có sẵn cục bộ — vế offline của D4 hỏng:"
+    printf '%s\n' "$ROUT" | tail -10 | sed 's/^/          /'
+  else
+    ok "'docker run' phân giải image CỤC BỘ, không thử pull (D4 offline)"
+  fi
+  kubectl exec -n "$NS" "$POD" -- docker rmi -f dlp-offline-proof >/dev/null 2>&1 || true
 else
   no "dockerd không lên trong 90s (image '$IMAGE' có thể không kèm docker; thử KEEP=1 rồi vào xem)"
 fi
 
 # 8. Metadata endpoint (khung NetworkPolicy — siết đủ ở P3)
 log "Cloud metadata (NetworkPolicy đầy đủ làm ở P3, đây chỉ là baseline)"
-if kexec curl -s -m 3 http://169.254.169.254/ >/dev/null 2>&1; then
-  printf '  \033[33m! WARN\033[0m  vào được 169.254.169.254 — cần NetworkPolicy deny (P1 task 20)\n'
+# ⛔ BẢN CŨ XANH KHI CURL VẮNG MẶT. `kexec curl …` trả khác 0 vì hai lý do hoàn
+# toàn khác nhau — "bị chặn" và "không có lệnh curl trong image" — rồi cả hai
+# rơi vào nhánh `ok`. Một image không kèm curl sẽ làm check này báo "đã chặn"
+# mà không ai từng gửi một gói nào. Phải tách hai ca trước khi kết luận.
+if ! kexec sh -c 'command -v curl' >/dev/null 2>&1; then
+  printf '  \033[33m! BỎ QUA\033[0m  image "%s" không có curl — KHÔNG kết luận được. (Bản cũ báo PASS ở đây.)\n' "$IMAGE"
+elif kexec curl -s -m 3 http://169.254.169.254/ >/dev/null 2>&1; then
+  # Vẫn WARN chứ không FAIL: pod này ở ns `sysbox-proof`, còn NetworkPolicy
+  # default-deny chỉ phủ `dlp-sandbox`. Đỏ ở đây là đỏ vì sai namespace, không
+  # vì sai cấu hình. AC thật của luật 10 đo trên pod trong `dlp-sandbox`.
+  printf '  \033[33m! WARN\033[0m  vào được 169.254.169.254 từ ns/%s — bình thường, ns này KHÔNG có NetworkPolicy.\n' "$NS"
+  printf '            AC thật đo trong dlp-sandbox: kubectl exec -n dlp-sandbox $POD -- curl -m 3 http://169.254.169.254/\n'
 else
-  ok "không vào được cloud metadata endpoint"
+  ok "không vào được cloud metadata endpoint (curl CÓ trong image, và nó bị chặn)"
 fi
 
 # ------------------------------------------------------------------
