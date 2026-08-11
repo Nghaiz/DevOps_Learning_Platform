@@ -33,8 +33,7 @@
       "status": "pass",
       "exitCode": 0,
       "timestamp": "2026-08-11T16:12:30+07:00",
-      "summary": "0 violation trên toàn phiên. Nhưng '0 violation' chỉ có nghĩa nếu CSP THẬT SỰ đang thực thi, nên đo thêm hai đối chứng ÂM từ trong trang: `wss://evil.example:9999` → violation `connect-src`; ảnh `http://evil.example/x.png` → violation `img-src`. Cùng lúc đó WS CÙNG ORIGIN không sinh violation nào. ⇒ Trả lời dứt điểm câu hỏi mà G12 để lại cho 1.F: **`connect-src 'self'` CÓ phủ `ws://`/`wss://` cùng origin**, và `headers.ts` KHÔNG cần sửa. Header cũng được xác nhận có mặt bằng `curl -I`.",
-      "evidence": "violations=[{connect-src, wss://evil.example:9999/ws}, {img-src, https://evil.example/x.png}]"
+      "summary": "0 violation trên toàn phiên. Nhưng '0 violation' chỉ có nghĩa nếu CSP THẬT SỰ đang thực thi, nên đo thêm hai đối chứng ÂM từ trong trang: `wss://evil.example:9999` → violation `connect-src`; ảnh `http://evil.example/x.png` → violation `img-src`. Cùng lúc đó WS CÙNG ORIGIN không sinh violation nào. ⇒ Trả lời dứt điểm câu hỏi mà G12 để lại cho 1.F: **`connect-src 'self'` CÓ phủ `ws://`/`wss://` cùng origin**, và `headers.ts` KHÔNG cần sửa. Header cũng được xác nhận có mặt bằng `curl -I`. BẰNG CHỨNG: violations=[{connect-src, wss://evil.example:9999/ws}, {img-src, https://evil.example/x.png}]"
     },
     {
       "command": "Font self-host + renderer — đọc từ chính trang đang chạy",
@@ -48,8 +47,7 @@
       "status": "pass",
       "exitCode": 0,
       "timestamp": "2026-08-11T15:55:00+07:00",
-      "summary": "Node Ready, clock NTP-synced, control plane đủ Running, Postgres phục hồi sạch ('end-of-recovery' rồi 'ready to accept connections', 712 dòng audit còn nguyên), Redis AOF `ok` + `notify-keyspace-events=xE`, 2 PVC Bound, đĩa 13%. Ba deployment đều CÓ readinessProbe thật nên READY=true là có nghĩa. Token CNI trên đĩa còn 23.85h và cron refresh chạy trong ~3h ⇒ R0 chưa nổ.",
-      "evidence": "Xem finding 'pod chết kẹt trong pool:free' ở adversarial-validation.json — đây là thứ phép rà soát này lôi ra."
+      "summary": "Node Ready, clock NTP-synced, control plane đủ Running, Postgres phục hồi sạch ('end-of-recovery' rồi 'ready to accept connections', 712 dòng audit còn nguyên), Redis AOF `ok` + `notify-keyspace-events=xE`, 2 PVC Bound, đĩa 13%. Ba deployment đều CÓ readinessProbe thật nên READY=true là có nghĩa. Token CNI trên đĩa còn 23.85h và cron refresh chạy trong ~3h ⇒ R0 chưa nổ. BẰNG CHỨNG: Xem finding 'pod chết kẹt trong pool:free' ở adversarial-validation.json — đây là thứ phép rà soát này lôi ra."
     },
     {
       "command": "Hoàn tác cấu hình lab (nếu cần trả về mặc định chart)",

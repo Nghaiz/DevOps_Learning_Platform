@@ -12,10 +12,12 @@
     "AC 'StrictMode dev: 3 lần mount/unmount → 1 WebSocket' → ĐO GIÁN TIẾP ở tầng connection (3 lượt mở/đóng → 0 socket sống), chưa đo chính vòng đời effect dưới StrictMode.",
     "F1–F6, F8, F10, F11 → ĐẠT. F7 đạt nhưng KIẾN TRÚC KHÁC PLAN (ba lớp thay vì hai — plan không build được trên Next 16). F9 đạt phần máy trạng thái + đồng hồ + cảnh báo hard-cap; nút 'Gia hạn' có code + procedure nhưng chưa bấm thật trên cụm."
   ],
-  "riskNotes": [
-    "PASS_WITH_RISK chứ không PASS: ba AC của chính chương này (fallback DOM, StrictMode, nút Gia hạn) mới có code chứ chưa có số đo. Không tick chúng trong plan.",
-    "Điểm 8/10 chứ không 9–10: chặng này lôi ra một lỗi CHẶN NGƯỜI DÙNG ở lane khác (pod chết trong pool:free) và chỉ vá được TẠM trên cụm, chưa vá ở mã. Một nền tảng mà sinh viên đầu tiên sau mỗi lần reboot nhận pod chết thì không thể gọi là xong.",
-    "Contract SSOT đã đổi (`hardCapAt` từ bắt buộc → vắng ở v1). Theo `rules/contract-first-integration.md` thì sửa contract phải báo CẢ HAI lane: lane gateway KHÔNG phải làm gì (nó vốn đã đúng), lane FE đã theo. Ghi rõ trong file contract kèm lý do và cái giá đã trả.",
-    "`packages/terminal` chứa một asset nhị phân 636 KB trong repo. Có chủ ý (hermetic build, không phụ thuộc release GitHub còn sống lúc CI chạy) và có script tái tạo ghim sha256, nhưng nó vẫn là 636 KB đi vào mọi lượt clone."
+  "regressionProof": [
+    "KHÔNG hồi quy do chặng này: 20 ca web ĐỎ ban đầu đã được chứng minh là lỗi MÔI TRƯỜNG chứ không phải hồi quy — `git stash` bỏ hết thay đổi của chặng rồi chạy lại, 19 ca vẫn ĐỎ y hệt. Sau `docker compose up -d postgres redis` + `db:migrate` thì cả 19 xanh.",
+    "199 test xanh / 0 SKIP toàn workspace (91 terminal + 82 web + 23 shared-types + 3 ui). Con số 0-skip là phép kiểm có ý: trước khi có Postgres cục bộ thì 9 ca `rule-07` tự SKIP, và một suite 'xanh' lúc đó là suite mù.",
+    "KHÔNG chạm một dòng nào của `services/terminal-gateway` và `services/orchestrator` ⇒ 242 test Go của các chặng trước không có bề mặt để hồi quy.",
+    "Bốn procedure tRPC cũ (`create`/`claim`/`get`/`reap`) không đổi hành vi; `extend` là procedure THÊM MỚI, mirror đúng khuôn 4 cái kia (`assertOwnerOrAdmin` → `callHeaders` → `callOrchestrator` → `toJsonSession`).",
+    "`proxy.ts` chỉ thêm `/session` vào `PROTECTED_PATHS`; `/dashboard` giữ nguyên và ca redirect của nó vẫn xanh trong suite web.",
+    "Contract SSOT đổi theo hướng NỚI (`hardCapAt` bắt buộc → tuỳ chọn) ⇒ không client/server nào đang chạy bị lệch thêm; gateway vốn đã không gửi field đó từ 1.C-2."
   ]
 }

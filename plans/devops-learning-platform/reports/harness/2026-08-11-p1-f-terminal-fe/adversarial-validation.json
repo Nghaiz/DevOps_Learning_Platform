@@ -5,21 +5,23 @@
     "BÁC BỎ — contract §5 liệt kê `hardCapAt` là field bắt buộc của `ready`. KHÔNG BÊN NÀO GỬI NÓ, và gateway cố ý không gửi vì lý do đúng (mốc = createdAt + HARD_CAP, mà HARD_CAP là config của orchestrator; gateway tự tính = dựng hằng số thứ hai). Bác bỏ bằng cách đọc `buildReady` trong bridge.go rồi đối chiếu frame thật trên cụm.",
     "BÁC BỎ — giả định 'pod nằm trong pool:free thì pod đó còn sống'. Sai: sau khi VMware sập, `pool:free` giữ `sandbox-674a2a67af4a` với `pod:{name}.state=free` trong khi Kubernetes báo pod `Failed` (container terminated, exitCode 255). Bác bỏ bằng cách đọc CẢ HAI nguồn rồi so, không tin một nguồn."
   ],
+  "missingProof": [
+    "Không có ảnh/log nào cho nhánh fallback DOM renderer — cần một lượt chạy với hardware acceleration tắt.",
+    "Không có phép đếm WebSocket sống dưới `<StrictMode>` trong `next dev`; cần jsdom + mock `terminal-core` hoặc một lượt dev thật.",
+    "Không có số đo `expiresAt` trước/sau một cú bấm 'Gia hạn'.",
+    "Không có phép đo p95 cho '101 → ready' ở đường FE (nợ này vốn đã có từ 1.C-3, chặng này không đóng)."
+  ],
+  "reachableRegressions": [
+    "⛔ CHẶN NGƯỜI DÙNG (lane orchestrator, chưa vá ở mã) — pod `Failed` nằm lại trong `pool:free` và `claim.lua` sẽ phát nó cho sinh viên tiếp theo. `RestartPolicy: Never` ⇒ mọi lần node reboot đầu độc warm-pool; không tầng reaper nào phủ ca này (`IsTerminal()` chỉ được gọi ở `waitReady`, tức lúc TẠO). Với `POOL_TARGET=1` thì sinh viên ĐẦU TIÊN sau reboot nhận đúng pod chết. Đã dọn tay trên cụm; cần tầng sweep thứ 4 quét `pool:free` đối chiếu apiserver.",
+    "`~/dlp-deploy` trên VM lệch repo 20h (thiếu toàn bộ khối env gateway gồm `REDIS_URL`) ⇒ `helm upgrade` từ nó làm gateway CrashLoop và release rơi `failed` (revision 20). Cơ chế: `--reset-then-reuse-values` giữ VALUES nhưng KHÔNG giữ TEMPLATE. Đã đồng bộ chart; bẫy vẫn còn cho lần sau nếu ai đó upgrade trước khi sync.",
+    "Image sandbox không có `sudo` — quan sát, chưa phải lỗi (pod chạy user-ns có uid_map offset), nhưng một nền tảng DẠY DevOps mà bài lab gõ `sudo` là chết thì lane image nên quyết định có chủ ý.",
+    "Cụm lab đang ở `betterAuthUrl=http://localhost:8080` khác mặc định chart (3000). Có chủ ý (không có ingress, contract §2 đòi cùng origin) nhưng là một khác biệt giữa lab và chart mà lần deploy sau phải biết."
+  ],
   "unverifiedClaims": [
-    "AC 'Tắt hardware acceleration → terminal vẫn chạy (fallback DOM renderer) + có console.warn' — CHƯA ĐO. Nhánh fallback có code (`onContextLoss` → dispose addon, và try/catch quanh `loadAddon`) nhưng chưa ai tắt hardware acceleration của Chrome rồi mở lại trang. 'Có code' không phải 'đã chạy'.",
-    "AC 'StrictMode dev: mount/unmount 3 lần → chỉ còn 1 WebSocket sống' — ĐO GIÁN TIẾP, chưa đo trực tiếp. Cái ĐÃ đo là bất biến ở tầng dưới (`connection.test.ts`: mở/đóng 3 lượt → 0 socket còn mở; `close()` chủ động KHÔNG gọi `onClose` nên không kích hoạt vòng nối lại). Cái CHƯA đo là chính vòng đời effect của React dưới `<StrictMode>` trong `next dev` — cần jsdom + mock `terminal-core`, hoặc một lượt chạy dev thật.",
-    "AC 'Reconnect: ngắt mạng 5s → vào lại thấy đúng màn hình cũ' — logic backoff có test thuần, nhưng CHƯA ngắt mạng thật trên trình duyệt để xem tmux trả lại scrollback qua đường FE. 1.C-2 đã chứng minh vế server (mở lại vào đúng pod cũ, scrollback còn) nhưng bằng wscat, không bằng trang này.",
-    "Nút 'Gia hạn' (`session.extend`) CHƯA bấm trên cụm. Đường code có test kiểu ở `next build` và mirror đúng 4 procedure anh em, nhưng chưa có một lượt bấm thật để thấy `expiresAt` nhích lên. Đây là món dễ đo nhất còn nợ.",
-    "Ba theme mới đổi được ở dropdown nhưng CHƯA kiểm bằng mắt từng bảng màu — chỉ `dlp-dark` được nhìn thấy trong ảnh."
-  ],
-  "newFindings": [
-    "⛔ LỖI THẬT, ĐÃ VÁ TẠM TRÊN CỤM NHƯNG CHƯA VÁ Ở MÃ — **pod chết vẫn nằm trong `pool:free` và sẽ được phát cho sinh viên tiếp theo**. Sau khi VMware sập, `podspec.go` đặt `RestartPolicy: Never` nên pod sandbox chuyển `Failed` VĨNH VIỄN; nhưng `claim.lua` chỉ kiểm `pod:{name}.state == 'free'` (không hỏi Kubernetes), và KHÔNG tầng reaper nào phát hiện ca này: tầng 1 nghe keyspace expiry (pod rảnh không có session), `sweepOrphanPods` đòi hash VẮNG (hash này CÓ), `sweepGhostSessions` đòi có `session:{id}` (không có), `sweepClaimedWithoutSession` quét `pool:claimed` (pod này ở `pool:free`), `drainQuarantine` quét `pool:quarantine` (không ở đó). `IsTerminal()` có tồn tại trong `internal/k8s/pods.go` nhưng CHỈ được gọi trong `waitReady` — tức lúc TẠO, không bao giờ gọi lại. Hệ quả: mỗi lần node reboot là đầu độc warm-pool, và với `POOL_TARGET=1` thì sinh viên ĐẦU TIÊN bấm Start nhận đúng pod chết. Đã dọn tay trên cụm (xoá pod + `LREM pool:free` + `DEL pod:{name}`) và warm-pool dựng lại pod sạch trong 5s. **Bản vá đúng là một tầng reaper thứ 4** — quét `pool:free`, đối chiếu phase với apiserver — thuộc lane orchestrator, CHƯA làm.",
-    "PHÁT HIỆN PHỤ — `~/dlp-deploy` trên VM lệch repo 20 giờ (thiếu TOÀN BỘ khối env gateway của 1.C-1/1.C-3, gồm `REDIS_URL`). `helm upgrade` từ nó làm gateway CrashLoop 'env REDIS_URL: bắt buộc nhưng chưa đặt' và release rơi vào `failed` (revision 20). Báo cáo G12 ĐÃ CẢNH BÁO đúng cái bẫy này và tôi vẫn dẫm phải vì không đọc report trước khi thao tác cụm. Đã đồng bộ chart từ repo sang VM. Lưu ý cơ chế: `--reset-then-reuse-values` giữ VALUES nhưng KHÔNG giữ TEMPLATE — chart cũ âm thầm bỏ rơi env var mà values vẫn còn.",
-    "QUAN SÁT (chưa phải lỗi) — image sandbox KHÔNG có `sudo` (`zsh: command not found: sudo`). Pod vốn chạy user-ns có uid_map offset nên có thể không cần, nhưng một nền tảng DẠY DevOps mà bài lab nào gõ `sudo` cũng chết là một khoảng trống UX đáng để lane image (E-series) quyết định có chủ ý, thay vì để phát hiện ra lúc demo."
-  ],
-  "adversarialNotes": [
-    "Phép đo CSP suýt thành tautology. Lượt đầu tôi kiểm bằng cách bọc `new WebSocket(...)` trong try/catch và chờ nó NÉM — nó không ném, và tôi suýt kết luận 'CSP không thực thi'. Sai phương pháp: Chrome báo vi phạm CSP cho WebSocket BẤT ĐỒNG BỘ qua sự kiện `securitypolicyviolation`, không phải bằng exception ở constructor. Làm lại bằng listener, kèm hai đối chứng âm (cross-origin WS + cross-origin ảnh) để chứng minh CSP đang thực thi — nếu không thì '0 violation' đúng một cách vô nghĩa.",
-    "Ca test `clampDimension(Infinity)` do CHÍNH TÔI viết đã bắt lỗi của chính tôi: `!Number.isFinite(x)` gộp NaN với Infinity nên một container rộng vô hạn (bug layout ⇒ chia cho 0) biến thành terminal RỘNG 1 CỘT thay vì kẹp về trần 1000. Đã tách: chỉ NaN mới về MIN.",
-    "Không sửa gateway dù nó là bên lệch contract. Lý lẽ của gateway (không dựng hằng số HARD_CAP thứ hai) mạnh hơn lý lẽ của bảng contract, nên bên phải nhượng bộ là tài liệu + FE. Sửa gateway ở đây sẽ là 'làm cho test xanh' theo hướng sai."
+    "AC 'tắt hardware acceleration → fallback DOM renderer + console.warn' — CÓ CODE, CHƯA CHẠY.",
+    "AC 'StrictMode dev: 3 lần mount/unmount → 1 WebSocket sống' — đo GIÁN TIẾP ở tầng connection, chưa đo vòng đời effect React thật.",
+    "AC 'reconnect: ngắt mạng 5s → thấy đúng màn hình cũ' — backoff có test thuần; chưa ngắt mạng thật qua đường FE.",
+    "Nút 'Gia hạn' (`session.extend`) chưa bấm trên cụm — chưa thấy `expiresAt` nhích lên bằng mắt.",
+    "Ba theme đổi được ở dropdown nhưng chỉ `dlp-dark` được nhìn thấy trong ảnh."
   ]
 }
