@@ -1,0 +1,38 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "phase-1 §1.C-3 — G7 (keepalive + ExtendSession theo traffic thật), G8 (token-bucket stdin + trần control), G9 (chứng minh stateless), G10 (7 collector dlp_gateway_*). Kèm hai việc user chốt đầu phiên: đóng nợ image PR #36 (lab về sha-d1ee230, gateway/web thôi override tag) và sửa ngữ nghĩa contract §5 cho `expiring`. mTLS tách thành chương 1.C-4, KHÔNG thuộc chặng này.",
+  "scoutSummary": "Vào phiên khi nhánh feat/p1-c3-g12-sandbox-token đã merge thành d1ee230 nhưng local còn giữ commit tiền squash — dọn nhánh, về main sạch. Đọc plan (753 dòng) rồi soi mã trước khi quyết định, và hỏi user chọn 1 trong 4 khối còn lại của phase-1. Ba thứ tìm được TRƯỚC khi code, cả ba đều đổi việc: (1) ORCHESTRATOR_GRPC_ADDR đã đủ 4 nơi từ P0 nên chặng này không thêm env nào — env-check giữ nguyên 52 biến; (2) dòng Timeline ghi 'G12 đóng R25' là nhầm với R20, R25 vẫn mở và hạn chót của chính nó (ngày session.ts nối vào) vừa trôi qua; (3) số học của B5 cộng với F9 cho ra một lỗi FE CHẮC CHẮN xảy ra ở mọi phiên dài hơn 55 phút — đồng hồ đếm ngược chạy về 0 trong khi terminal vẫn sống.",
+  "acceptanceCriteria": [
+    "Có traffic thật (stdin HOẶC stdout) → ExtendSession được gọi; im lặng (kể cả khi ping/pong vẫn chạy) → KHÔNG gia hạn.",
+    "Hạn dịch → FE nhận control `expiring` mang mốc mới; chạm trần cứng → `expiring` với hardCapReached=true, phát đúng MỘT lần.",
+    "Phiên hết thời lượng tối đa đóng bằng 4409 (HARD_CAP_REACHED), phân biệt được với 4404 (bị thu hồi).",
+    "Vượt trần byte-rate stdin → 4429; bão control → 4400; nhưng một frame 32 KiB hợp lệ và một cơn kéo cửa sổ 50 resize vẫn phải qua được.",
+    "Lỗi gia hạn tạm thời (orchestrator rollout) KHÔNG giết phiên.",
+    "Hai phiên song song trên cùng một Bridge không dùng chung trạng thái (G9).",
+    "7 collector dlp_gateway_* sống trên /metrics, không nhãn nào mang session_id/user_id/pod_name."
+  ],
+  "touchpoints": [
+    "services/terminal-gateway/internal/podexec — bridge.go (connState, finish, rate limit), heartbeat.go + control.go (MỚI/sửa)",
+    "services/terminal-gateway/internal/extend — MỚI, client gRPC + phân loại FailedPrecondition",
+    "services/terminal-gateway/internal/metrics — MỚI, 7 collector",
+    "services/terminal-gateway/internal/sessionstore — thêm Revision + CreatedAt vào Session",
+    "services/terminal-gateway/internal/wsroute — Deps.Metrics, truyền UserID vào Target",
+    "services/terminal-gateway/cmd/{terminal-gateway,verify-heartbeat} — dial gRPC; prover cluster (MỚI)",
+    "docs/ws-terminal-protocol.md §5 + §8 — ngữ nghĩa expiring, luật ping trên goroutine riêng",
+    "plans/devops-learning-platform/phase-1.md — 1.C-3, 1.C-4, F9, R13, R25, hai dòng AC"
+  ],
+  "publicContracts": [
+    "docs/ws-terminal-protocol.md §5 — `expiring` ĐỔI NGỮ NGHĨA (phát mỗi lần expiresAt đổi, không chỉ khi chạm trần). Shape KHÔNG đổi: vẫn `{type, expiresAt, hardCapReached}`. An toàn vì lane FE chưa viết dòng nào.",
+    "docs/ws-terminal-protocol.md §6 — 4409 nay THẬT SỰ phát được (trước đó là mã chết trong bảng). 4408 vẫn nằm trong bảng nhưng không đường nào phát; đã ghi đề xuất bỏ ở P2.",
+    "proto/orchestrator/v1/session.proto — KHÔNG đổi. buf breaking sạch.",
+    "Không thêm biến env nào: ORCHESTRATOR_GRPC_ADDR đã có đủ 4 nơi từ P0."
+  ],
+  "blastRadius": [
+    "terminal-gateway: mọi phiên terminal đi qua đường mới (heartbeat + hai trần tốc độ). Đường authz 9 bước KHÔNG đổi.",
+    "orchestrator: nhận thêm một consumer gRPC (ExtendSession theo nhịp ≤60s/phiên). Không sửa mã orchestrator.",
+    "apps/web: KHÔNG chạm.",
+    "Cluster lab: 4 lượt helm upgrade (rev 16→19), side-load 6 image, và hai đồng hồ orchestrator bị nén tạm rồi trả về — đã xác nhận trả về bằng kubectl get deploy env.",
+    "Nợ mang sang: gateway chạy tag dev-1c3b, phải đóng sau khi PR merge."
+  ]
+}

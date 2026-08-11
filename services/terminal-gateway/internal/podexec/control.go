@@ -28,6 +28,18 @@ type ControlOut struct {
 	ExpiresAt     string `json:"expiresAt,omitempty"`
 	MaxFrameBytes int    `json:"maxFrameBytes,omitempty"`
 
+	// expiring
+	//
+	// `omitempty` như mọi field khác của struct này: một ControlOut phục vụ đủ
+	// bốn `type`, nên field không thuộc về message đang gửi phải BIẾN MẤT, không
+	// phải xuất hiện dưới dạng zero value — `ready` mang theo `hardCapReached:
+	// false` là mời FE đọc một câu trả lời cho câu hỏi chưa ai hỏi.
+	//
+	// Hệ quả FE phải biết (và contract §5 nói rõ): trên `expiring`, vắng field
+	// đồng nghĩa `false` — "hạn vừa dịch, chưa chạm trần". Trong TS thì
+	// `!msg.hardCapReached` xử lý đúng cả hai dạng.
+	HardCapReached bool `json:"hardCapReached,omitempty"`
+
 	// error
 	Code    string `json:"code,omitempty"`
 	Message string `json:"message,omitempty"`

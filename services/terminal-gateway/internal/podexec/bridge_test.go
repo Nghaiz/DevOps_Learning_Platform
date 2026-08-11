@@ -13,8 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
 	"github.com/coder/websocket"
+	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/client-go/tools/remotecommand"
 )
 
@@ -65,18 +67,70 @@ func itoa(n int) string {
 type bridgeHarness struct {
 	client *websocket.Conn
 	served chan struct{}
+	met    *metrics.Metrics
+	reg    *prometheus.Registry
+}
+
+// stubExtender là Extender mặc định cho các ca không quan tâm tới gia hạn: nó
+// trả OK với hạn KHÔNG đổi, nên heartbeat không bao giờ phát `expiring` và
+// không ca test cũ nào phải biết G7 tồn tại.
+type stubExtender struct {
+	mu    sync.Mutex
+	calls int
+	res   podexec.ExtendResult
+	err   error
+}
+
+func (s *stubExtender) Extend(context.Context, string, string) (podexec.ExtendResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls++
+	return s.res, s.err
+}
+
+func (s *stubExtender) callCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
+}
+
+// bridgeOpts là các nút chỉnh mà chỉ vài ca test cần. Zero value = hành vi của
+// mọi ca cũ, nên chúng không phải đổi một dòng nào.
+type bridgeOpts struct {
+	extender podexec.Extender
+	// timing rút nhịp heartbeat xuống mức test chờ được. 0 = giữ nhịp production
+	// (20s/10s/60s), tức heartbeat không bao giờ tick trong một ca test ngắn.
+	pingEvery, pongWait, extendEvery time.Duration
 }
 
 // newBridge dựng một server WS chạy Bridge thật, và trả kết nối phía CLIENT.
-func newBridge(t *testing.T, exec *fakeExecutor, alive podexec.SessionAliveFunc) *bridgeHarness {
+func newBridge(t *testing.T, exec *fakeExecutor, alive podexec.SessionAliveFunc, opts ...bridgeOpts) *bridgeHarness {
 	t.Helper()
 
-	h := &bridgeHarness{served: make(chan struct{})}
+	var o bridgeOpts
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	if o.extender == nil {
+		o.extender = &stubExtender{}
+	}
+
+	// Registry RIÊNG mỗi test: registry toàn cục làm ca thứ hai trong cùng
+	// process panic "duplicate collector".
+	reg := prometheus.NewRegistry()
+	met := metrics.New(reg)
+
+	h := &bridgeHarness{served: make(chan struct{}), met: met, reg: reg}
 	b := podexec.New(
 		func(podexec.Target) (remotecommand.Executor, error) { return exec, nil },
 		alive,
+		o.extender,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		met,
 	)
+	if o.pingEvery > 0 {
+		b.SetHeartbeatTiming(o.pingEvery, o.pongWait, o.extendEvery)
+	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer close(h.served)
@@ -93,6 +147,7 @@ func newBridge(t *testing.T, exec *fakeExecutor, alive podexec.SessionAliveFunc)
 			PodName:   "sandbox-deadbeef",
 			Namespace: "dlp-sandbox",
 			ExpiresAt: time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC).Unix(),
+			UserID:    "user-a",
 		})
 	}))
 	t.Cleanup(srv.Close)

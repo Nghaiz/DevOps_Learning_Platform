@@ -1,0 +1,14 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [],
+  "unverifiedClaims": [
+    "Nhịp production của gateway (ping 20s / pong 10s / extend 60s) CHƯA chạy đủ lâu trên cluster. Phép đo nén đồng hồ của ORCHESTRATOR chứ không nén hằng của gateway, nên chúng đã chạy đúng ~5 phút — chưa phải một phiên hàng giờ.",
+    "Trần byte-rate 256 KiB/s và trần control 100/s CHƯA bị chạm trên cluster — chỉ có test đơn vị. Chúng đóng bằng mã ứng dụng do code tự đếm nên không phụ thuộc hạ tầng, nhưng 'không phụ thuộc hạ tầng' là một lập luận, không phải một số đo.",
+    "Nhánh 'client quá chậm → 4429' (intentSlow) là nhánh DUY NHẤT finish còn tự đóng, và nó chưa có test tự động lẫn phép đo cluster — cần một client cố tình ngừng đọc trong lúc pod bơm dữ liệu. Nhánh có từ 1.C-2 (khi đó là w.slow), chặng này chỉ chuyển sang connState nên hành vi không đổi, nhưng vẫn là vùng chưa được gác.",
+    "Cuộc đua heartbeat ↔ finish: lượt đo cluster đi vào nhánh finish (metric gone=0 chứng minh lượt gia hạn thứ 5 chưa từng chạy). Nhánh heartbeat của closeTerminal có test đơn vị nhưng CHƯA quan sát được trên cluster — nó cần reaper chậm hơn nhịp gia hạn.",
+    "attach_duration 0.708s là MỘT mẫu nguội. Không kết luận được gì về p95, và chưa giải thích được vì sao vượt ngưỡng 500ms của AC.",
+    "Bản vá 4409 dựa trên một SUY LUẬN PHÍA CLIENT: gateway nhớ 'đã từng chạm trần' rồi tự kết luận session biến mất nghĩa là hết giờ. Đúng cho mọi ca quan sát được, nhưng nếu một admin reap đúng một phiên đang ở trần cứng thì nó vẫn báo 4409. Đường sạch hơn thuộc P2/P3: orchestrator trả lý do reap, hoặc đặt TTL hash dài hơn expiresAt một khoảng grace như session:{id}:pod đã làm."
+  ],
+  "missingProof": [],
+  "reachableRegressions": []
+}

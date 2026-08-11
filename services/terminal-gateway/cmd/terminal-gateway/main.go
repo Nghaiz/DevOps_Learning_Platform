@@ -8,19 +8,25 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/httpx"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/logging"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/config"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/extend"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/wsroute"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const serviceName = "terminal-gateway"
@@ -64,6 +70,38 @@ func run() error {
 	store := sessionstore.New(rdb)
 	verifier := authz.NewVerifier(authz.NewJWKSCache(cfg.JWKSURL), cfg.TokenIssuer)
 
+	// Hai mux, hai port. Admin (/healthz + /metrics) không ra internet; public chỉ
+	// mang WS. Xem config.AdminAddr.
+	obs := httpx.NewObservability(serviceName, version)
+	met := metrics.New(obs.Registry)
+	adminSrv := httpx.NewServer(cfg.AdminAddr, obs.Mux)
+
+	// ⛔ KẾT NỐI TỚI ORCHESTRATOR HIỆN LÀ PLAINTEXT (R13/R25, phase-1 1.C-3).
+	//
+	// D13 chốt mTLS cho đường này, và nó VẪN CHƯA CÓ: cụm không có cert-manager,
+	// `grpcRequireMtls=false`, và `config.Load` của orchestrator TỪ CHỐI khởi
+	// động khi bật `true` vì server chưa có `grpc.Creds`/`ClientCAs` nào — bật
+	// cờ lúc này là dựng một cổng an ninh GIẢ trả `Unauthenticated` cho 100% RPC.
+	//
+	// Chặng này không làm rủi ro nặng thêm: `apps/web` đã gọi cùng cổng đó không
+	// xác thực từ G12, nên gateway là consumer thứ hai của một lỗ hổng đã mở, chứ
+	// không phải người mở nó. Đóng nó là việc của một chặng riêng (1.C-4) vì mTLS
+	// thật chạm CẢ HAI consumer, hai ngôn ngữ, và chart.
+	//
+	// `NewClient` (không phải `Dial`) nên lời gọi này KHÔNG chặn: nối thật xảy ra
+	// ở RPC đầu tiên. Gateway vì thế lên `Ready` được ngay cả khi orchestrator
+	// đang rollout — cùng lý lẽ với việc không ping Redis lúc khởi động.
+	grpcConn, err := grpc.NewClient(cfg.OrchestratorGRPCAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("dựng client gRPC tới orchestrator: %w", err)
+	}
+	defer func() { _ = grpcConn.Close() }()
+	log.Warn("kết nối orchestrator KHÔNG mã hoá, không xác thực peer — xem R13/R25, chặng 1.C-4",
+		slog.String("addr", cfg.OrchestratorGRPCAddr))
+
+	extender := extend.New(orchestratorv1.NewSessionServiceClient(grpcConn), store, log, met)
+
 	// Config RIÊNG cho đường stream — `Timeout` phải là 0, xem podexec.NewExecConfig.
 	restCfg, clientset, err := podexec.NewExecConfig()
 	if err != nil {
@@ -72,13 +110,10 @@ func run() error {
 	bridge := podexec.New(
 		podexec.NewExecutorFactory(restCfg, clientset, cfg.ExecCommand),
 		store.Alive,
+		extender,
 		log,
+		met,
 	)
-
-	// Hai mux, hai port. Admin (/healthz + /metrics) không ra internet; public chỉ
-	// mang WS. Xem config.AdminAddr.
-	obs := httpx.NewObservability(serviceName, version)
-	adminSrv := httpx.NewServer(cfg.AdminAddr, obs.Mux)
 
 	publicMux := http.NewServeMux()
 	wsroute.Register(publicMux, wsroute.Deps{
@@ -86,6 +121,7 @@ func run() error {
 		Verifier:        verifier,
 		Sessions:        store,
 		Bridge:          bridge,
+		Metrics:         met,
 		AllowedOrigins:  cfg.AllowedOrigins,
 		MaxWSPerSession: cfg.MaxWSPerSession,
 	})

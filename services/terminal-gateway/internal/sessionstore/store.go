@@ -17,6 +17,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
@@ -63,6 +64,21 @@ type Session struct {
 	Status string
 	// ExpiresAt là hạn của session (epoch giây). Dùng để đặt TTL cho bộ đếm WS.
 	ExpiresAt int64
+
+	// Revision là bộ đếm tăng đơn điệu của hash, gửi làm `expected_revision`
+	// trong ExtendSession (G7). Đọc ở đây thay vì gọi thêm một RPC `GetSession`:
+	// D2 cho phép gateway ĐỌC hash, và đây đúng là một lượt đọc.
+	Revision int64
+
+	// CreatedAt là mốc tạo session (epoch giây).
+	//
+	// ⛔ TỒN TẠI VÌ MỘT NHÁNH LỖI, KHÔNG PHẢI VÌ ĐỦ BỘ. `extend.lua` từ chối
+	// bằng `state:` cho HAI chuyện khác hẳn nhau — trạng thái cuối đời, VÀ hash
+	// thiếu `createdAt` (không tính được trần cứng). Cả hai tới gateway dưới
+	// cùng một mã gRPC `FailedPrecondition`. Không đọc field này thì nhánh hash
+	// hỏng bị phân loại nhầm thành "chạm trần cứng" và sinh viên nhận `4409`
+	// cho một sự cố dữ liệu. Xem extend.classify.
+	CreatedAt int64
 }
 
 // Active trả true khi session được phép mở terminal (bước h).
@@ -101,6 +117,8 @@ func (s *Store) Get(ctx context.Context, sessionID string) (*Session, error) {
 		rediskeys.FieldNamespace,
 		rediskeys.FieldStatus,
 		rediskeys.FieldExpiresAt,
+		rediskeys.FieldRevision,
+		rediskeys.FieldCreatedAt,
 	).Result()
 	if err != nil {
 		return nil, fmt.Errorf("sessionstore: HMGET %s: %w", key, err)
@@ -117,14 +135,15 @@ func (s *Store) Get(ctx context.Context, sessionID string) (*Session, error) {
 		Namespace: str(2),
 		Status:    str(3),
 	}
-	if raw := str(4); raw != "" {
-		// Hạn hỏng KHÔNG được coi là session hợp lệ: TTL của bộ đếm WS suy ra
-		// từ nó, và một giá trị 0 sẽ làm PEXPIRE lỗi ⇒ handshake trả 500 ở tận
-		// bước i. Để 0 và để CheckWS quyết định — xem AcquireWS.
-		if _, err := fmt.Sscanf(raw, "%d", &out.ExpiresAt); err != nil {
-			out.ExpiresAt = 0
-		}
-	}
+	// Số hỏng/thiếu để về 0, KHÔNG phải lỗi. Với `expiresAt` thì TTL của bộ đếm
+	// WS suy ra từ nó và AcquireWS đã có nhánh từ chối cho giá trị ≤ 0; với
+	// `revision` thì 0 nghĩa là "bỏ qua kiểm" đúng theo proto; với `createdAt`
+	// thì 0 là tín hiệu hash hỏng mà extend.classify đọc. Cả ba đều có người
+	// đọc số 0 và biết phải làm gì, nên trả lỗi ở đây chỉ đẩy quyết định lên
+	// một tầng không đủ ngữ cảnh để quyết.
+	out.ExpiresAt = parseEpoch(str(4))
+	out.Revision = parseEpoch(str(5))
+	out.CreatedAt = parseEpoch(str(6))
 
 	// HMGET trên key KHÔNG tồn tại trả một mảng toàn nil — không phải error,
 	// không phải redis.Nil. Bỏ qua chỗ này thì "session không tồn tại" đi tiếp
@@ -133,6 +152,19 @@ func (s *Store) Get(ctx context.Context, sessionID string) (*Session, error) {
 		return nil, ErrNotFound
 	}
 	return out, nil
+}
+
+// parseEpoch đọc một field số của hash. Rỗng / không parse được → 0.
+//
+// strconv chứ không phải fmt.Sscanf: Sscanf CHẤP NHẬN tiền tố số rồi bỏ qua
+// phần đuôi, nên `"123abc"` trả 123 không lỗi — một hash bị ghi hỏng sẽ đi tiếp
+// dưới dạng một con số trông hợp lệ.
+func parseEpoch(raw string) int64 {
+	n, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // Alive trả true khi session vẫn còn và vẫn ở trạng thái chạy được.

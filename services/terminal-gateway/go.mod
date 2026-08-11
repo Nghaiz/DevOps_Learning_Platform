@@ -7,14 +7,19 @@ go 1.26.5
 // và đó cũng là thứ Dockerfile dựa vào.
 replace github.com/Nghaiz/DevOps_Learning_Platform/services/shared => ../shared
 
+replace github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go => ../../proto/gen/go
+
 require (
+	github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go v0.0.0-00010101000000-000000000000
 	github.com/Nghaiz/DevOps_Learning_Platform/services/shared v0.0.0
 	github.com/coder/websocket v1.8.15
 	github.com/go-jose/go-jose/v4 v4.1.4
+	github.com/prometheus/client_golang v1.24.1
 	github.com/redis/go-redis/v9 v9.22.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/term v0.45.0
 	golang.org/x/time v0.9.0
+	google.golang.org/grpc v1.83.0
 	k8s.io/api v0.34.9
 	k8s.io/apimachinery v0.34.9
 	k8s.io/client-go v0.34.9
@@ -43,7 +48,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/prometheus/client_golang v1.24.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.70.1 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
@@ -56,6 +60,7 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

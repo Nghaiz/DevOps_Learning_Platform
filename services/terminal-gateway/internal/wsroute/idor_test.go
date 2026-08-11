@@ -11,11 +11,13 @@ import (
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/redistest"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/testjwt"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/wsroute"
 	"github.com/coder/websocket"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -48,6 +50,7 @@ func newRealHarness(t *testing.T) *realHarness {
 		Verifier:        authz.NewVerifier(authz.NewJWKSCache(jwks.URL), testjwt.Issuer),
 		Sessions:        sessionstore.New(rdb),
 		Bridge:          bridge,
+		Metrics:         metrics.New(prometheus.NewRegistry()),
 		AllowedOrigins:  []string{testOrigin},
 		MaxWSPerSession: 1,
 	})
