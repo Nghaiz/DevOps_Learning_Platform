@@ -69,6 +69,18 @@ ARG FASTFETCH_SHA256=d27b68638d49ae109294b47e7328b7868f5c5568e9cd2be83514eb0d674
 #   xxd — AC "Terminal UX" kiểm glyph *trong pod*; thiếu nó thì lệnh acceptance
 #     chỉ chạy được sau khi chép byte ra ngoài, và đó là lúc người ta bỏ qua nó.
 #
+#   sudo — KHÔNG cấp thêm quyền nào: phiên lab vốn đã chạy `uid=0(root)`, và
+#     Sysbox map root-trong-container sang một uid không đặc quyền trên host, nên
+#     `sudo` ở đây chỉ là một no-op đắt 2 MB. Nó tồn tại vì lý do SƯ PHẠM: gần
+#     như mọi hướng dẫn DevOps trên mạng viết `sudo apt install ...`, và
+#     `ubuntu:24.04` gốc KHÔNG ship sudo (đo thật: `docker run --rm ubuntu:24.04
+#     command -v sudo` → rỗng). Thiếu nó thì mỗi lượt copy-paste của sinh viên
+#     chết với `command not found` — một thông báo không hề gợi ý "bạn vốn đã là
+#     root". Người dùng gặp đúng ca này 2026-08-11 khi thử phiên đầu tiên.
+#     Alias trong shell rc KHÔNG thay thế được: nó chỉ tồn tại trong shell tương
+#     tác, còn script `#!/bin/bash`, `make`, `ansible` gọi `sudo` vẫn chết — tức
+#     dời lỗi sang chỗ khó hiểu hơn thay vì đóng nó.
+#
 #   vim-tiny — cung cấp `/usr/bin/vi`. `.zshrc`/`.bashrc` đặt `EDITOR=vi`, mà
 #     base Ubuntu KHÔNG có editor nào: thiếu gói này thì `git commit` (không -m)
 #     chết với "cannot run vi", và trên một nền tảng DẠY DevOps thì không sửa
@@ -90,6 +102,7 @@ RUN apt-get update && \
         ncurses-term \
         xxd \
         vim-tiny \
+        sudo \
         tini \
         fzf \
         bat \

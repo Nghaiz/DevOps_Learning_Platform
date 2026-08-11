@@ -1,0 +1,38 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "phase-1 §1.F — lane FE: dựng `packages/terminal` từ số 0 (F1–F6, F10, F11) + trang `/session` trong apps/web (F7–F9). Kèm việc user chốt đầu phiên: đóng nợ image `gateway.image.tag=dev-1c3b` về một tag `sha-*` do CI đóng. Kèm hai yêu cầu giữa phiên: (a) đổi font sang CaskaydiaCove Nerd Font và gỡ font khác đã cài, (b) rà soát toàn bộ sức khoẻ VM sau khi VMware sập và tắt hẳn Debian 13.",
+  "scoutSummary": "Vào phiên trên nhánh `feat/p1-c3-extend-ratelimit-metrics` đã được squash-merge thành 9776bda — diff với origin/main RỖNG nên dọn nhánh, về main sạch. Đọc plan (785 dòng) + contract `docs/ws-terminal-protocol.md` (253 dòng, SSOT) trước khi viết dòng nào. Trạng thái P1: 1.B0/1.A/1.B/1.C-1/1.C-2/G12/1.C-3/1.E-1 đã xong; còn 1.F (chưa có gì ngoài README), 1.E E6–E9, 1.D 4 khoảng trống, 1.C-4 mTLS. Plan xác nhận 1.F hết bị chặn từ 2026-08-11. Bản đồ ownership cho lane FE đúng ba đường: `packages/terminal/**`, `apps/web/src/app/(session)/**`, `apps/web/src/lib/trpc.ts`.",
+  "acceptanceCriteria": [
+    "Mở `/session`: DevTools Console 0 CSP violation; gõ tiếng Việt / đa-byte không vỡ khi output cắt qua nhiều frame.",
+    "Prompt đầu tiên vẽ đúng bề rộng cửa sổ (chứng minh `init`-trước-dial + `document.fonts.ready` trước `fit()`).",
+    "Tắt hardware acceleration → terminal vẫn chạy (fallback DOM renderer) + có `console.warn`.",
+    "StrictMode dev: mount/unmount 3 lần → chỉ còn 1 WebSocket sống.",
+    "F1–F11 của plan: package dựng được, core wrapper + fallback WebGL, font self-host, resize debounce 50ms theo contract §4, theme switch, React binding, trang session, tRPC client, máy trạng thái + đồng hồ + 4409, reconnect backoff, test vitest."
+  ],
+  "touchpoints": [
+    "packages/terminal/** (MỚI HOÀN TOÀN — 13 file nguồn, 4 file test, 1 woff2 636 KB, 1 script sinh font)",
+    "apps/web/src/app/(session)/session/{page,session-client,terminal-pane}.tsx (mới)",
+    "apps/web/src/lib/trpc.ts (mới)",
+    "apps/web/src/server/trpc/routers/session.ts (thêm procedure `extend` — NGOÀI bản đồ ownership của lane FE)",
+    "apps/web/src/proxy.ts (thêm `/session` vào PROTECTED_PATHS)",
+    "apps/web/Dockerfile (copy packages/terminal vào cả stage deps lẫn builder)",
+    "docs/ws-terminal-protocol.md §5 (contract SSOT — `hardCapAt`)",
+    "CỤM LAB: helm revision 21→24, đổi origin nền tảng sang http://localhost:8080"
+  ],
+  "publicContracts": [
+    "docs/ws-terminal-protocol.md — ĐÃ ĐỔI: `ready.hardCapAt` từ bắt buộc → vắng ở v1, kèm lý do (gateway không có HARD_CAP) và cái giá đã trả (parser loại sạch `ready`, badge treo im lặng).",
+    "packages/terminal `exports` — `.` (barrel) và `./style.css`; đây là API mà apps/web phụ thuộc.",
+    "tRPC `session.extend` — procedure MỚI, shape `{sessionId, userId, extendSeconds}` → `{session, hardCapReached}`.",
+    "proto/orchestrator/v1 — KHÔNG đổi.",
+    "Chart values: `web.env.betterAuthUrl` là SSOT mà `gateway.env.tokenIssuer` + `allowedOrigins` kế thừa khi để rỗng."
+  ],
+  "blastRadius": [
+    "Trang `/session` là bề mặt MỚI, chưa có người dùng ⇒ hỏng không kéo theo route nào đang chạy.",
+    "`session.extend` thêm một đường gọi orchestrator từ BFF; đi qua đúng `assertOwnerOrAdmin` + rate-limit per-user như 4 procedure kia.",
+    "`proxy.ts` chạy trên MỌI request — thêm một phần tử vào mảng `PROTECTED_PATHS`, không đổi logic.",
+    "Dockerfile đổi ⇒ ảnh hưởng MỌI lần build web image (đã build + deploy thật, xanh).",
+    "Contract SSOT đổi ⇒ ràng buộc cả lane gateway lẫn lane FE; hướng đổi là NỚI nên không bên nào đang chạy bị lệch thêm.",
+    "CỤM LAB: đổi origin nền tảng — nếu sai thì mọi token `iss` lệch và gateway 401 toàn bộ. Đã xác nhận bằng `kubectl get deploy ... env` sau upgrade."
+  ]
+}

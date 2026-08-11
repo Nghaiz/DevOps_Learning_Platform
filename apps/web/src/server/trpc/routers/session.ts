@@ -36,6 +36,17 @@ const claimInput = z.object({ sessionId: z.string().min(1), userId: z.string().m
 
 const getInput = z.object({ sessionId: z.string().min(1), userId: z.string().min(1) }).strict();
 
+const extendInput = z
+  .object({
+    sessionId: z.string().min(1),
+    userId: z.string().min(1),
+    // 0 = dùng idle-window mặc định của server (`EXTEND_DEFAULT`), đúng nghĩa
+    // proto. Trần 2h khớp `HARD_CAP` — xin nhiều hơn cũng bị công thức của B5
+    // cắt về trần, nên chặn ở biên gần client nhất thay vì để orchestrator từ chối.
+    extendSeconds: z.number().int().min(0).max(7200).default(0),
+  })
+  .strict();
+
 const reapInput = z
   .object({
     sessionId: z.string().min(1),
@@ -243,6 +254,45 @@ export const sessionRouter = createTRPCRouter({
       ),
     );
     return { session: toJsonSession(response.session) };
+  }),
+
+  /**
+   * F9 — nút "Gia hạn" của trang `/session`.
+   *
+   * **Vì sao vẫn cần dù 1.C-3 đã tự gia hạn theo traffic:** contract §8 chốt
+   * rằng CHỈ stdin/stdout thật mới đẩy `ExtendSession` — ping/pong và `resize`
+   * cố tình không tính, để một tab bỏ quên không giữ pod tới trần cứng. Hệ quả
+   * đúng-nhưng-khó-chịu: sinh viên đang ĐỌC tài liệu bên cửa sổ khác, không gõ
+   * gì trong 55 phút, mất phiên dù đang ngồi ngay đó. Một cú bấm là bằng chứng
+   * có người — thứ mà ping/pong không bao giờ là.
+   *
+   * `expectedRevision: 0` (bỏ qua optimistic lock) là ĐÚNG ở đây, không phải
+   * đường tắt: FE không đọc-rồi-ghi, nó chỉ xin đẩy hạn, và công thức của B5
+   * (`max(current, min(now + extend, createdAt + HARD_CAP))`) chỉ tiến không lùi
+   * — nên không có ca "ghi đè mất thay đổi của người khác" để mà chặn. Gác
+   * revision ở đây chỉ tạo ra `FailedPrecondition` giả mỗi khi gateway vừa tự
+   * gia hạn xong trước cú bấm vài ms.
+   */
+  extend: protectedProcedure.input(extendInput).mutation(async ({ ctx, input }) => {
+    assertOwnerOrAdmin(ctx, input.userId);
+    const headers = await callHeaders(ctx.user.id, ctx.user.role);
+    const response = await callOrchestrator(() =>
+      orchestratorClient().extendSession(
+        {
+          sessionId: input.sessionId,
+          userId: input.userId,
+          extendSeconds: input.extendSeconds,
+          // `BigInt(0)` chứ không phải literal `0n`: tsconfig của apps/web target
+          // ES2017 (cùng lý do đã ghi ở security/sandbox-token-cookie.test.ts).
+          expectedRevision: BigInt(0),
+        },
+        { headers },
+      ),
+    );
+    return {
+      session: toJsonSession(response.session),
+      hardCapReached: response.hardCapReached,
+    };
   }),
 
   reap: protectedProcedure.input(reapInput).mutation(async ({ ctx, input }) => {

@@ -166,6 +166,17 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 
 **B6 — `ReapSession` idempotent + authz theo `oneof actor`.** Nhánh `user_id` phải khớp `session.user_id`; nhánh `system_component` chỉ chấp nhận trên listener in-cluster (chặn ở interceptor theo peer addr, **không tin field**). Session đã reap → trả **OK** kèm session cuối, không lỗi. Xoá pod `GracePeriodSeconds: 0` + bỏ qua `IsNotFound`. *Effort: M.*
 
+> ⛔ **TẦNG THỨ TƯ CÒN THIẾU — pod CHẾT nằm lại trong `pool:free` và sẽ được phát cho sinh viên tiếp theo.** Phát hiện 2026-08-11 khi rà soát cụm sau sự cố VMware (chi tiết: [`reports/2026-08-11-verify-1f-terminal-fe.md`](reports/2026-08-11-verify-1f-terminal-fe.md)). Quan sát được, không phải suy luận:
+>
+> ```
+> Redis:      pool:free = [sandbox-674a2a67af4a]   pod:{name}.state = free
+> Kubernetes: phase = Failed, container terminated, exitCode 255
+> ```
+>
+> `podspec.go` đặt `RestartPolicy: Never`, nên **mọi lần node reboot** là pod sandbox chuyển `Failed` vĩnh viễn. `claim.lua` chỉ hỏi `pod:{name}.state == 'free'` — nó **không hỏi apiserver**. Và không tầng nào hiện có phủ ca này: tầng 1 cần một `session:{id}` hết hạn (pod rảnh không có), `sweepOrphanPods` đòi hash **VẮNG** (hash này **CÓ**), `sweepGhostSessions` đòi có `session:{id}` (không có), tầng 2c quét `pool:claimed` (pod này ở `pool:free`), tầng 3 quét `pool:quarantine` (không ở đó). `IsTerminal()` **có tồn tại** trong `internal/k8s/pods.go` nhưng chỉ được gọi ở `waitReady` — tức lúc **tạo**, không bao giờ gọi lại.
+>
+> Với `POOL_TARGET=1` thì **sinh viên ĐẦU TIÊN bấm Start sau mỗi lần reboot nhận đúng pod chết**. Đã dọn tay trên cụm (xoá pod + `LREM pool:free` + `DEL pod:{name}`; warm-pool dựng lại pod sạch trong 5s). **Bản vá đúng — chưa làm:** tầng sweep thứ 4 quét `pool:free` đối chiếu phase với apiserver, cùng khuôn idempotent với ba tầng kia. *Effort: S.*
+
 **B7 — Reaper hai tầng.** Tầng 1: subscribe `__keyevent@0__:expired`. Tầng 2: **sweep định kỳ bắt buộc có** (`REAP_INTERVAL=60s`) — keyspace notification là *best-effort*, mất event khi reaper offline là mất pod vĩnh viễn. Sweep dọn cả **pod mồ côi** (label `app=sandbox` mà `pod:{name}` không tồn tại) và **session ma** (`session:{id}` còn mà pod đã biến mất → chuyển `FAILED`).
 > **⛔ Tầng thứ ba bắt buộc: dọn `pool:quarantine`.** Pod bị `claim.lua` cách ly **vẫn là Pod đang chạy** trong `dlp-sandbox`, vẫn ăn quota — nhưng nó **vẫn có** hash `pod:{name}` nên không phải "pod mồ côi", và không có `session:{id}` nào trỏ tới nên không phải "session ma". Không nhánh nào ở trên chạm được nó. Với trần 4 pod (D16), ba lần cách ly là nền tảng chết mà không lỗi nào nói vì sao. Sweep phải: `LRANGE pool:quarantine` → xoá Pod (bỏ qua `IsNotFound`) → `DEL pod:{name}` → `LREM pool:quarantine`. Idempotent như mọi nhánh reaper khác. *Effort: M.*
 
@@ -375,7 +386,22 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 
 ## 1.F — `packages/terminal` + trang session
 
-> Hiện `packages/terminal` **chỉ có README**, chưa có code, chưa có `package.json`.
+> **Tiến độ:** ✅ **1.F XONG 2026-08-11 — terminal chạy THẬT trong trình duyệt.** F1–F11 đều có code; bằng chứng trên cluster: [`reports/2026-08-11-verify-1f-terminal-fe.md`](reports/2026-08-11-verify-1f-terminal-fe.md), ảnh [`assets/2026-08-11-1f-lenh-that.png`](reports/assets/2026-08-11-1f-lenh-that.png). Sinh viên mở `/session`, bấm "Bắt đầu", và **gõ được lệnh thật** — mọi chặng trước chỉ chứng minh được bằng `wscat`.
+>
+> **Ba việc chặng này đóng ngoài F1–F11:**
+> 1. **Câu hỏi CSP mà G12 để lại đã trả lời dứt điểm: `connect-src 'self'` CÓ phủ `ws://` cùng origin ⇒ `headers.ts` KHÔNG cần sửa.** Đo bằng listener `securitypolicyviolation` **kèm đối chứng âm** (`wss://evil.example` → violation `connect-src`; ảnh cross-origin → violation `img-src`) — vì "0 violation" là khẳng định vô nghĩa nếu CSP không thực thi. *Phương pháp suýt sai: lượt đầu chờ `new WebSocket()` NÉM; Chrome báo vi phạm CSP cho WS **bất đồng bộ**, không bằng exception.*
+> 2. **Lệch contract `hardCapAt`** — xem hộp ⛔ ngay dưới.
+> 3. **Nợ image `dev-1c3b` đã đóng**: lab về một tag `sha-9776bda` do CI đóng cho cả 5 image, `gateway.image.tag` trả về rỗng (kế thừa). Không còn hằng số thứ hai.
+>
+> ⛔ **LỆCH CONTRACT chỉ lộ ra trên TRÌNH DUYỆT THẬT — `ready` không có `hardCapAt`.** Contract §5 liệt kê field đó là bắt buộc; `buildReady` của gateway **cố ý không gửi** (mốc = `createdAt + HARD_CAP`, mà `HARD_CAP` là config của **orchestrator** — gateway tự tính là dựng hằng số thứ hai). Parser đầu tiên của lane FE làm đúng theo bảng nên **loại sạch mọi `ready`**: terminal vẫn vẽ prompt và gõ được (byte binary không qua parser), nhưng badge đứng ở "đang kết nối" vĩnh viễn, đồng hồ không hiện, **và không một dòng log nào**. Typecheck hai bên xanh, 90 test xanh, `next build` xanh. Đây là ca mẫu cho chính câu mở đầu của `docs/ws-terminal-protocol.md`: *"chỉ runtime mới lộ"*. **Bên nhượng bộ là contract + FE, KHÔNG phải gateway** — lý lẽ chống-hằng-số-thứ-hai mạnh hơn bảng. Đã sửa contract §5, `hardCapAt: string | null`, ca hồi quy dùng đúng byte gateway gửi, và **bỏ hẳn nhánh bỏ-qua-im-lặng** trong `connection.ts`.
+>
+> **Hai chỗ kiến trúc lệch plan có chủ ý:** (a) **F7 của plan KHÔNG BUILD ĐƯỢC trên Next 16** — `ssr: false` bị cấm trong Server Component, nên tầng là **ba lớp** (`page` server → `session-client` client/máy-trạng-thái → `terminal-pane` client/`ssr:false`), không phải hai; (b) **bỏ state `claiming`** (`CreateSession` claim pod ngay trong cùng lời gọi ⇒ state đó là code chết; phép kiểm thành *điều kiện* trên cạnh `creating → connecting`) và **thêm state `exited`** cho control `exit` mà danh sách của plan không có chỗ nhận.
+>
+> **Font: `CaskaydiaCove Nerd Font Mono`** (quyết định của người dùng 2026-08-11). Bản **Mono** vì nó ép icon về đúng một ô, khớp `wcwidth` phía server. Subset **636 KB**, ghim `v3.5.0` + sha256 tự tính. **Bỏ dải plane-15** (Material Design Icons): đo được **+428 KB** (635 → 1063) cho một dải mà không gì trong image phát ra. Chỉ ship Regular — chữ đậm để trình duyệt tự tổng hợp, tránh bẫy phủ-glyph lệch giữa hai face.
+>
+> **Còn nợ (KHÔNG tick):** fallback DOM khi tắt hardware acceleration (có code, chưa chạy) · StrictMode 3 lần mount (đo **gián tiếp** ở tầng connection, chưa đo vòng đời effect) · nút "Gia hạn" (`session.extend` có, chưa bấm thật) · reconnect qua đường FE (chưa ngắt mạng thật).
+
+> ~~Hiện `packages/terminal` **chỉ có README**, chưa có code, chưa có `package.json`.~~ ✅ Đã dựng đủ.
 > Package đúng là **`@xterm/*` v6.0.0** (không phải `xterm` cũ), và **v6 đã BỎ canvas renderer** — chỉ còn DOM + WebGL.
 
 **F1 — Dựng package.** Mirror `packages/ui`: `type: module`, `exports: "./src/index.ts"`, **alias TS6/TS7 y hệt** các package khác, `peerDependencies: { react: "^19.0.0" }`. **Bắt buộc có script `build`** (dù chỉ `tsc --noEmit`) vì `turbo.json` khai `typecheck.dependsOn: ["^build","build"]`. Ghim: `@xterm/xterm@6.0.0`, `addon-webgl@0.19.0`, `addon-fit@0.11.0`, `addon-search@0.16.0`, `addon-web-links@0.12.0`, `addon-clipboard@0.2.0`, `addon-unicode11@0.9.0`. *Effort: S.*
@@ -519,7 +545,18 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 - [ ] 2 replica gateway sau round-robin LB: mở/đóng 20 WS xen kẽ (**tuần tự, không chồng lấn** — trần là 1 WS/session), 0 lỗi.
 
 ### Terminal UX
-- [x] 10 binary có mặt trong image: `zsh tmux git jq fzf zoxide fastfetch eza bat oh-my-posh`. → đủ 10, kiểm **trong pod thật** trên cluster 2026-08-10 (không phải chỉ `docker run` cục bộ).
+> ⛔ **`sudo` PHẢI có trong image, dù phiên lab vốn đã chạy `uid=0(root)`.** Người dùng thử phiên đầu tiên (2026-08-11, ngay sau 1.F) gõ `sudo whoami` và nhận `zsh: command not found: sudo`, rồi hỏi *"tôi đã bảo phải là Ubuntu cơ mà?"* — hai hiểu nhầm cùng lúc, và cả hai đều là lỗi của ta chứ không phải của người dùng:
+>
+> 1. **Nó ĐÚNG là Ubuntu** (`PRETTY_NAME="Ubuntu 24.04.4 LTS"`, đo trong pod). zsh là *shell* (E4 chốt, bật qua `set -g default-shell /usr/bin/zsh` trong `.tmux.conf`), không phải *distro*. Nhưng người dùng không có cách nào biết điều đó từ một dòng `command not found`.
+> 2. **`ubuntu:24.04` gốc KHÔNG ship `sudo`** — đo thật: `docker run --rm ubuntu:24.04 command -v sudo` → rỗng. Nên đây không phải thứ "bị quên" mà là thứ chưa ai thêm.
+>
+> `sudo` ở đây **không cấp thêm quyền nào** (đã là root; Sysbox map root-trong-container sang uid không đặc quyền trên host) — nó là một no-op đắt 2 MB, tồn tại vì lý do **sư phạm**: gần như mọi hướng dẫn DevOps viết `sudo apt install ...`, và một nền tảng DẠY DevOps mà lệnh copy-paste nào cũng chết là ma sát mỗi ngày.
+>
+> **Alias trong shell rc KHÔNG thay thế được** (đã cân nhắc và loại): nó chỉ tồn tại trong shell tương tác, còn script `#!/bin/bash`, `make`, `ansible` gọi `sudo` vẫn chết — tức dời lỗi sang chỗ khó chẩn đoán hơn. Đã kiểm CẢ HAI đường trong image mới: `sudo whoami` → `root`, và một script `#!/bin/bash` gọi `sudo apt-get --version` → chạy đúng. Trivy `--severity CRITICAL` → **0**. Size **373 MB** (không tăng).
+>
+> **Bẫy triển khai đi kèm (khuôn cũ của 1.E-1):** đổi `SANDBOX_IMAGE` **KHÔNG** thay pod đang ấm — pod cũ nằm lại `pool:free` vô thời hạn và trông hoàn toàn khoẻ. Phải xoá tay pod ấm cũ rồi để warm-pool dựng lại (đo: **8s**).
+
+- [x] 10 binary có mặt trong image: `zsh tmux git jq fzf zoxide fastfetch eza bat oh-my-posh`. **+ `sudo` (thêm 2026-08-11)** — xem hộp dưới. → đủ 10, kiểm **trong pod thật** trên cluster 2026-08-10 (không phải chỉ `docker run` cục bộ).
 - [x] `zsh -lic 'echo $COLORTERM'` → `truecolor`; `locale` báo UTF-8. → `truecolor` + `LANG=en_US.UTF-8`. *Kèm theo: đoạn keybinding `fzf --zsh` phải gác `[[ -t 0 ]]` — `zsh -lic` có `-i` nên `-o interactive` đúng nhưng KHÔNG có tty, và zle in `can't change option: zle` vào đúng stdout mà AC này đang đọc.*
 - [x] **`eza --icons=always -la` in glyph thật, kiểm bằng CODEPOINT** (`grep -cP '[\x{E000}-\x{F8FF}]'`), không phải `?`. → **3** dòng có glyph PUA trong pod thật; **đối chứng `--icons=never` → 0**.
   > ⛔ **AC bản cũ hỏng ở HAI tầng, và tầng thứ hai chỉ lộ ra khi review đối kháng.**
@@ -527,7 +564,7 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
   > **(b) `| xxd | grep -E "ee|ef"` thì ngược lại — nó xanh VÌ LÝ DO SAI.** Regex chạy trên toàn dòng xxd: cột offset `00000ee0:` khớp `ee`, và hai byte cạnh nhau `0xAE 0xE1` in ra `aee1` cũng khớp, dù **không byte nào là PUA**. Bản vá đầu tiên của chặng này chỉ sửa (a) nên đổi một phép kiểm **tự làm mù** lấy một phép kiểm **tự làm sáng** — cùng họ "suite xanh vì skip sạch". Chốt: kiểm codepoint bằng `grep -P`, và **bắt buộc chạy kèm ca đối chứng `--icons=never` phải ra 0** — một phép kiểm không thể đỏ thì không kiểm gì cả.
 - [ ] **DinD offline (D4):** `docker info` trả cả client lẫn server; `docker build` một image `FROM scratch` rồi `docker run` nó — thành công **không cần mạng**.
 - [ ] Dotfiles: file trong allowlist được copy; **symlink và `../` bị từ chối**, không ghi được ngoài `$HOME`.
-- [ ] Mở `/session`: DevTools Console **0 CSP violation**; gõ tiếng Việt / ký tự đa-byte không vỡ khi output cắt qua nhiều frame.
+- [x] Mở `/session`: DevTools Console **0 CSP violation**; gõ tiếng Việt / ký tự đa-byte không vỡ khi output cắt qua nhiều frame. → Đo trên cluster 2026-08-11 qua Chrome thật: 0 violation, **kèm đối chứng âm** chứng minh CSP đang thực thi (`wss://evil.example` → violation `connect-src`; ảnh cross-origin → violation `img-src`) — không có đối chứng thì "0 violation" đúng một cách vô nghĩa. `echo "phiên lab tiếng Việt ✓ $(hostname)"` trả về nguyên vẹn cả dấu lẫn ✓ (U+2713). ⇒ **`connect-src 'self'` CÓ phủ `ws://` cùng origin, `headers.ts` không cần sửa.**
 - [ ] Tắt hardware acceleration → terminal vẫn chạy (fallback DOM renderer) + có `console.warn`.
 - [ ] StrictMode dev: mount/unmount 3 lần → chỉ còn **1** WebSocket sống.
 - [ ] `trivy image --severity CRITICAL --exit-code 1` pass **cục bộ trước khi merge**.
@@ -708,7 +745,7 @@ make go-build && make go-test && make go-vet && make env-check && make proto-bre
 | 1.C gateway (G1–G13) | **L** · **1.C-1 ✅ xong 2026-08-10** (G1, G2, G3, G11, G13 + bước i) · **1.C-2 ✅ xong 2026-08-10** (G4–G6, cầu exec — **đã gõ được lệnh thật trên cluster**) · **G12 ✅ xong 2026-08-11** (cookie thật, 18/18 e2e — đóng **R20**, KHÔNG phải R25) · **1.C-3 ✅ xong 2026-08-11** (G7–G10: extend theo traffic thật, rate-limit, metrics) · **1.C-4 mTLS còn nợ** (D13/R13/R25, **M–L**) | Đường găng, song song 1.B. **1.F hết bị chặn bởi G12** kể từ 2026-08-11; còn chặn bởi WS contract + B0.4 (cả hai đã xong) ⇒ lane FE mở được ngay. 1.C-4 **không chặn 1.F**. |
 | 1.D bốn khoảng trống | **S**×4 | D-17′/D-21′/D-22′ song song hoàn toàn; **D-19′ phụ thuộc 1.B0.1** (restart kubelet, xem R22) |
 | 1.E image | ~~M~~ **E1–E5 + E10 ✅ xong 2026-08-10** · E6–E9 còn nợ | Warm-pool đã chạy image thật; E7 (DinD) chặn AC "DinD offline" (D4) |
-| 1.F FE | **M–L** | ~~Chặn bởi WS contract + B0.4 + G12~~ ✅ **HẾT CHẶN 2026-08-11** — cả ba tiền đề đã xong. |
+| 1.F FE | ~~M–L~~ **✅ xong 2026-08-11** (F1–F11; terminal gõ được lệnh thật trong trình duyệt, 0 CSP violation có đối chứng âm) | Đóng luôn câu hỏi CSP mà G12 để lại ⇒ `headers.ts` không phải sửa. Lôi ra lệch contract `hardCapAt` và một lỗi chặn-người-dùng của lane orchestrator (pod chết trong `pool:free`). |
 | **Tổng P1** | **L (~3 tuần)** | Đường găng: `1.B0.1 → 1.B0.3 → 1.A → (1.B ∥ 1.C) → tích hợp`. 1.E-1 phải chen sớm. |
 
 ---

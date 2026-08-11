@@ -1,0 +1,60 @@
+{
+  "commands": [
+    {
+      "command": "pnpm turbo run lint typecheck test (16 task, toàn workspace)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T16:12:00+07:00",
+      "summary": "16/16 task xanh. Đếm test THẬT SỰ CHẠY chứ không tin exit code: 91 terminal + 82 web + 23 shared-types + 3 ui = 199, 0 SKIP. Con số 0-skip là có ý — trước khi dựng Postgres/Redis cục bộ thì 9 ca `rule-07-refresh-rotation` tự SKIP và 20 ca khác ĐỎ; một suite 'xanh' lúc đó sẽ là suite mù."
+    },
+    {
+      "command": "git stash + chạy lại rule-06 & sandbox-token-cookie trên MÃ GỐC",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T15:50:00+07:00",
+      "summary": "19 ca ĐỎ y hệt trên mã CHƯA có thay đổi của chặng này ⇒ chứng minh 20 ca đỏ ban đầu là lỗi MÔI TRƯỜNG (không có Postgres), không phải hồi quy do chặng này gây ra. Sau khi `docker compose up -d postgres redis` + `pnpm db:migrate` thì cả 19 ca xanh. Không kết luận 'không phải lỗi của tôi' bằng lập luận — chạy hai lượt rồi so."
+    },
+    {
+      "command": "docker build -f apps/web/Dockerfile (lượt 1 ĐỎ, lượt 2 xanh sau bản vá)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T16:00:00+07:00",
+      "summary": "Lượt 1 ĐỎ: `Module not found: Can't resolve '@devops-platform/terminal'`. Nguyên nhân KHÔNG nằm ở file import mà ở Dockerfile — nó copy tường minh từng package và chưa có dòng nào cho `packages/terminal`, nên `turbo run build` trong image chạy với 'Packages in scope' thiếu hẳn package đó. Đã thêm 2 dòng COPY + ghi cảnh báo ngay tại chỗ để lần sau không phải đi tìm. Lượt 2: image 296 MB."
+    },
+    {
+      "command": "CHỨNG MINH TRÊN CỤM THẬT — trình duyệt Chrome qua origin gộp http://localhost:8080",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T16:11:00+07:00",
+      "summary": "Đăng ký user thật → `/session` → bấm 'Bắt đầu' → session tạo trên pod `sandbox-bc57d8f7a11e` → badge 'Đang chạy' + đồng hồ 'Còn 1:00:33'. Gõ `echo \"phiên lab tiếng Việt ✓ $(hostname)\"` → pod trả lại NGUYÊN VẸN cả dấu tiếng Việt lẫn ✓ (U+2713). Gõ `eza --icons=always -la /etc` → glyph Nerd Font THẬT hiện ra (khoá, thư mục, file), không phải tofu. Ảnh: reports/assets/2026-08-11-1f-lenh-that.png."
+    },
+    {
+      "command": "CSP — đo bằng listener `securitypolicyviolation`, KÈM ĐỐI CHỨNG ÂM",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T16:12:30+07:00",
+      "summary": "0 violation trên toàn phiên. Nhưng '0 violation' chỉ có nghĩa nếu CSP THẬT SỰ đang thực thi, nên đo thêm hai đối chứng ÂM từ trong trang: `wss://evil.example:9999` → violation `connect-src`; ảnh `http://evil.example/x.png` → violation `img-src`. Cùng lúc đó WS CÙNG ORIGIN không sinh violation nào. ⇒ Trả lời dứt điểm câu hỏi mà G12 để lại cho 1.F: **`connect-src 'self'` CÓ phủ `ws://`/`wss://` cùng origin**, và `headers.ts` KHÔNG cần sửa. Header cũng được xác nhận có mặt bằng `curl -I`. BẰNG CHỨNG: violations=[{connect-src, wss://evil.example:9999/ws}, {img-src, https://evil.example/x.png}]"
+    },
+    {
+      "command": "Font self-host + renderer — đọc từ chính trang đang chạy",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T16:12:30+07:00",
+      "summary": "`document.fonts` báo `DLPTerminalNF:loaded` ⇒ woff2 CaskaydiaCove tải được dưới `font-src 'self'` (CDN đã bị CSP chặn sẵn, nên self-host là bắt buộc chứ không phải sở thích). `document.querySelectorAll('canvas').length === 3` ⇒ WebGL renderer đang hoạt động, không phải rơi về DOM."
+    },
+    {
+      "command": "RÀ SOÁT VM sau khi VMware sập (yêu cầu giữa phiên của người dùng)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T15:55:00+07:00",
+      "summary": "Node Ready, clock NTP-synced, control plane đủ Running, Postgres phục hồi sạch ('end-of-recovery' rồi 'ready to accept connections', 712 dòng audit còn nguyên), Redis AOF `ok` + `notify-keyspace-events=xE`, 2 PVC Bound, đĩa 13%. Ba deployment đều CÓ readinessProbe thật nên READY=true là có nghĩa. Token CNI trên đĩa còn 23.85h và cron refresh chạy trong ~3h ⇒ R0 chưa nổ. BẰNG CHỨNG: Xem finding 'pod chết kẹt trong pool:free' ở adversarial-validation.json — đây là thứ phép rà soát này lôi ra."
+    },
+    {
+      "command": "Hoàn tác cấu hình lab (nếu cần trả về mặc định chart)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T16:13:00+07:00",
+      "summary": "helm upgrade platform ~/dlp-deploy/infra/helm/platform --reset-then-reuse-values --set web.env.betterAuthUrl=http://localhost:3000 --set web.env.corsAllowedOrigins=http://localhost:3000 --set gateway.env.allowedOrigins='' --set web.image.tag=sha-<merge>. CHƯA CHẠY có chủ ý — trả về 3000 làm đường trình duyệt hỏng lại khi cụm không có ingress."
+    }
+  ]
+}
