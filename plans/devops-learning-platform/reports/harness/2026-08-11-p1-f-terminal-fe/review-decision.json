@@ -1,0 +1,21 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "blockingReasons": [],
+  "contractStatus": "CHANGED",
+  "acceptanceCoverage": [
+    "AC 'Mở /session: DevTools Console 0 CSP violation' → ĐẠT, và đạt kèm ĐỐI CHỨNG ÂM chứng minh CSP đang thực thi thật (cross-origin WS → violation connect-src). Trả lời luôn câu hỏi G12 để lại: `connect-src 'self'` CÓ phủ ws:// cùng origin ⇒ `headers.ts` không cần sửa.",
+    "AC 'gõ tiếng Việt / ký tự đa-byte không vỡ khi output cắt qua nhiều frame' → ĐẠT: `echo \"phiên lab tiếng Việt ✓ $(hostname)\"` trả về nguyên vẹn cả dấu lẫn ✓ (U+2713). Cơ chế đứng sau là contract §1 bẫy 2 — ghi thẳng Uint8Array vào xterm, KHÔNG TextDecoder từng frame — và nó có test riêng ở connection.test.ts.",
+    "AC 'Prompt đầu tiên vẽ đúng bề rộng' → ĐẠT bằng quan sát (prompt oh-my-posh + powerline không gãy dòng). Cơ chế: `await document.fonts.ready` TRƯỚC `fit()`, rồi gửi `init` trước mọi stdin.",
+    "AC 'Tắt hardware acceleration → fallback DOM + console.warn' → CHƯA ĐO (có code, chưa chạy). Xem adversarial-validation.json.",
+    "AC 'StrictMode dev: 3 lần mount/unmount → 1 WebSocket' → ĐO GIÁN TIẾP ở tầng connection (3 lượt mở/đóng → 0 socket sống), chưa đo chính vòng đời effect dưới StrictMode.",
+    "F1–F6, F8, F10, F11 → ĐẠT. F7 đạt nhưng KIẾN TRÚC KHÁC PLAN (ba lớp thay vì hai — plan không build được trên Next 16). F9 đạt phần máy trạng thái + đồng hồ + cảnh báo hard-cap; nút 'Gia hạn' có code + procedure nhưng chưa bấm thật trên cụm."
+  ],
+  "riskNotes": [
+    "PASS_WITH_RISK chứ không PASS: ba AC của chính chương này (fallback DOM, StrictMode, nút Gia hạn) mới có code chứ chưa có số đo. Không tick chúng trong plan.",
+    "Điểm 8/10 chứ không 9–10: chặng này lôi ra một lỗi CHẶN NGƯỜI DÙNG ở lane khác (pod chết trong pool:free) và chỉ vá được TẠM trên cụm, chưa vá ở mã. Một nền tảng mà sinh viên đầu tiên sau mỗi lần reboot nhận pod chết thì không thể gọi là xong.",
+    "Contract SSOT đã đổi (`hardCapAt` từ bắt buộc → vắng ở v1). Theo `rules/contract-first-integration.md` thì sửa contract phải báo CẢ HAI lane: lane gateway KHÔNG phải làm gì (nó vốn đã đúng), lane FE đã theo. Ghi rõ trong file contract kèm lý do và cái giá đã trả.",
+    "`packages/terminal` chứa một asset nhị phân 636 KB trong repo. Có chủ ý (hermetic build, không phụ thuộc release GitHub còn sống lúc CI chạy) và có script tái tạo ghim sha256, nhưng nó vẫn là 636 KB đi vào mọi lượt clone."
+  ]
+}

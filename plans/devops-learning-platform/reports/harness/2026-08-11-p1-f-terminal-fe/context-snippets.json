@@ -1,0 +1,21 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "phase-1 §1.F — lane FE: dựng `packages/terminal` từ số 0 (F1–F6, F10, F11) + trang `/session` trong apps/web (F7–F9). Kèm việc user chốt đầu phiên: đóng nợ image `gateway.image.tag=dev-1c3b` về một tag `sha-*` do CI đóng. Kèm hai yêu cầu giữa phiên: (a) đổi font sang CaskaydiaCove Nerd Font và gỡ font khác đã cài, (b) rà soát toàn bộ sức khoẻ VM sau khi VMware sập và tắt hẳn Debian 13.",
+  "scoutSummary": "Vào phiên trên nhánh `feat/p1-c3-extend-ratelimit-metrics` đã được squash-merge thành 9776bda — diff với origin/main RỖNG nên dọn nhánh, về main sạch. Đọc plan (785 dòng) + contract `docs/ws-terminal-protocol.md` (253 dòng, SSOT) trước khi viết dòng nào. Trạng thái P1: 1.B0/1.A/1.B/1.C-1/1.C-2/G12/1.C-3/1.E-1 đã xong; còn 1.F (chưa có gì ngoài README), 1.E E6–E9, 1.D 4 khoảng trống, 1.C-4 mTLS. Plan xác nhận 1.F hết bị chặn từ 2026-08-11. Bản đồ ownership cho lane FE đúng ba đường: `packages/terminal/**`, `apps/web/src/app/(session)/**`, `apps/web/src/lib/trpc.ts`.",
+  "keyDecisions": [
+    "CHỌN LANE bằng AskUserQuestion (4 lựa chọn) — user chọn 1.F, và chọn đóng nợ image TRƯỚC khi cook.",
+    "BỎ state `claiming` khỏi máy trạng thái dù plan F9 liệt kê nó: `CreateSession` claim pod NGAY trong cùng lời gọi (B3 đi cold-path đồng bộ), nên `claiming` là state không bao giờ dừng lại ở đó — code chết. Phép kiểm 'session có nối được không' vẫn còn nhưng là ĐIỀU KIỆN trên cạnh `creating → connecting`, không phải một state.",
+    "THÊM state `exited` mà plan không có: contract §5 định nghĩa control `exit` và danh sách state của plan không có chỗ nhận nó. Gộp vào `idle` thì mất thông tin 'pod vẫn còn, nối lại không tốn thêm pod khỏi trần quota 4'; gộp vào `error` thì báo lỗi cho việc người dùng CỐ Ý làm.",
+    "KHÔNG kèm TanStack Query dù plan F8 để ngỏ ('nếu cần cache'): trang này gọi đúng 2 thứ (`session.create` một lần, `session.get` chỉ trên đường lỗi §7), mọi realtime đi qua WS. Thêm tầng cache là thêm một nguồn 'dữ liệu cũ' cho trang mà không có gì để cache.",
+    "THÊM `session.extend` vào tRPC router (ngoài bản đồ ownership của lane FE) để nút 'Gia hạn' của F9 là thật. `expectedRevision: 0` (bỏ optimistic lock) là ĐÚNG chứ không phải đường tắt: FE không đọc-rồi-ghi, và công thức B5 chỉ tiến không lùi ⇒ không có ca 'ghi đè mất thay đổi'.",
+    "FONT: đổi sang CaskaydiaCove Nerd Font Mono theo yêu cầu user, gỡ bản JetBrainsMono đã sinh trước đó. Giữ bản **Mono** (icon rộng 1 ô) để khớp `wcwidth` phía server. BỎ dải plane-15 (Material Design Icons): đo trên chính face này là +428 KB (635 → 1063 KB) cho một dải mà không gì trong image sandbox phát ra.",
+    "KHÔNG sửa `services/terminal-gateway` dù nó lệch contract `hardCapAt` — lý lẽ của gateway mạnh hơn bảng contract. Sửa tài liệu + FE."
+  ],
+  "surprises": [
+    "Next 16 CẤM `ssr: false` trong Server Component ⇒ kiến trúc F7 của plan không build được. Phát hiện bằng cách đọc `node_modules/next/dist/docs/` theo đúng chỉ dẫn của `apps/web/AGENTS.md`, TRƯỚC khi viết code — nên nó tốn 0 phút debug.",
+    "Lệch contract `hardCapAt` chỉ lộ ra trên trình duyệt thật, sau khi mọi test và mọi typecheck đều xanh. Terminal gõ được nhưng badge đứng ở 'đang kết nối' và không một dòng log — vì parser của tôi bỏ qua IM LẶNG frame không khớp. Đã bỏ nhánh im lặng đó.",
+    "Rà soát VM (yêu cầu giữa phiên) lôi ra một lỗi CHẶN NGƯỜI DÙNG mà không phép đo nào của các chặng trước chạm tới: pod `Failed` nằm lại trong `pool:free` và sẽ được `claim.lua` phát cho sinh viên tiếp theo. Không tầng reaper nào phủ ca này.",
+    "`~/dlp-deploy` trên VM lệch repo 20h và làm hỏng một lượt `helm upgrade` (gateway CrashLoop thiếu REDIS_URL). Báo cáo G12 đã cảnh báo đúng cái bẫy này — tôi dẫm phải vì thao tác cụm trước khi đọc report của chặng trước."
+  ]
+}

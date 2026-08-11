@@ -1,0 +1,14 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": true,
+  "reasons": [
+    "highRisk: TRUE — chặng chạm CLUSTER ĐANG SỐNG bốn lượt `helm upgrade` (revision 21→24) và một lượt ĐỔI ORIGIN của cả nền tảng (`web.env.betterAuthUrl` 3000→8080, kéo theo `GATEWAY_TOKEN_ISSUER` + `GATEWAY_ALLOWED_ORIGINS` qua đường kế thừa của chart). Đổi origin sai nghĩa là mọi token có `iss` không khớp và gateway 401 toàn bộ — đã xác nhận bằng `kubectl get deploy ... env` sau upgrade chứ không tin `helm get values`.",
+    "highRisk: TRUE — chặng SỬA MỘT FILE CONTRACT SSOT (`docs/ws-terminal-protocol.md` §5, field `hardCapAt`). Contract ràng buộc hai lane; sửa sai là hai bên tự nhất quán mà lệch nhau, đúng chế độ hỏng mà chính chặng này vừa lôi ra.",
+    "autoStopRequired: TRUE — dừng hỏi người dùng TRƯỚC khi code: (1) chọn lane trong bốn lane P1 còn lại, (2) chính sách đóng nợ image `dev-1c3b`. Cả hai đều là quyết định phạm vi, không phải chi tiết implement.",
+    "largeDiff: TRUE — một package workspace HOÀN TOÀN MỚI (`packages/terminal`, 13 file nguồn + 4 file test + 1 asset nhị phân 636 KB) cộng 3 route file mới trong apps/web.",
+    "GIẢM RỦI RO — cái KHÔNG bị chạm: không sửa một dòng nào của `services/terminal-gateway` hay `services/orchestrator`, dù chặng này tìm ra lệch contract ở gateway. Lý do gateway giữ nguyên nằm ở review-decision.json.",
+    "NỢ RỦI RO CÒN LẠI — cụm lab đang ở `betterAuthUrl=http://localhost:8080` (khác mặc định `values.yaml` là 3000). ĐÂY LÀ CHỦ Ý: không có ingress nào trong cụm, nên đường DUY NHẤT dùng lab bằng trình duyệt là proxy Caddy gộp origin ở :8080, và contract §2 đòi web+gateway cùng origin. Trả về 3000 sẽ làm đường trình duyệt hỏng lại. Cách hoàn tác ghi ở verification.json."
+  ]
+}
