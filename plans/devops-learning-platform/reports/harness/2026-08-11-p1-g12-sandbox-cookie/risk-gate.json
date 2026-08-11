@@ -1,0 +1,19 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "highRisk: TRUE — chặng này CHẠM CLUSTER ĐANG SỐNG: 3 lượt `helm upgrade` lên release `platform` (revision 13/14/15), side-load 2 image, một lượt CreateSession thật tiêu một pod của warm-pool trên trần 4 (D16). Và nó chạm đúng đường XÁC THỰC: một cookie sai thuộc tính hoặc một `aud` sai là mở shell cho nhầm người.",
+    "autoStopRequired: TRUE — hai chỗ. (1) Chart trên host LỆCH repo: `helm upgrade` bằng ~/dlp-deploy sẽ âm thầm gỡ 4 biến env gateway; đã dừng, so sha256 từng file, rồi ship chart từ repo. (2) Cụm vừa qua 14h suspend với kcm/scheduler crash-loop — phải xác nhận cụm lành TRƯỚC khi kết luận bất cứ điều gì về CNI hay về code.",
+    "humanApproved: user chốt cả ba việc của phiên qua AskUserQuestion trước khi viết dòng code nào — chọn G12 làm chặng, chọn viết lại AC Calico cho chịu suspend, chọn đóng nợ image gateway ngay.",
+    "largeDiff: FALSE — 6 file mã (4 của G12 + config.ts + test-helpers) và 1 file test. Phần lớn dòng là chú thích ghi lại vì sao, gồm hai đính chính tài liệu.",
+    "ĐÁNH ĐỔI CÓ CHỦ Ý #1 — `GATEWAY_AUD` đặt trong `config.ts`, file THỨ NĂM ngoài bảng ownership 4 file của G12. Đọc như vi phạm nếu chỉ đếm file. Lý do: `aud` là thứ DUY NHẤT tách token gọi gRPC với token mở shell (contract §2), nên hai hằng số phải nhìn thấy nhau; tách ra hai file là mời một `aud` thứ ba mọc ở chỗ thứ ba. Bảng ownership tồn tại cho fan-out song song, mà chặng này chạy tuần tự — không có lane nào để đụng.",
+    "ĐÁNH ĐỔI CÓ CHỦ Ý #2 — đổi shape trả về của CẢ 5 procedure `session.*` (message proto → JsonSession). Rộng hơn phạm vi G12, nhưng đây là VÁ một lỗi 500 có sẵn: để nguyên thì 4 procedure kia vẫn 500 với mọi client HTTP. Không consumer nào vỡ — `@trpc/client` chưa tồn tại (F8 chưa làm), nên đây là thời điểm rẻ nhất để sửa.",
+    "ĐÁNH ĐỔI CÓ CHỦ Ý #3 — admin tạo session hộ thì KHÔNG phát cookie, tức một tính năng bị bỏ trống thay vì đoán. Cả hai cách mint ở nhánh đó đều sai theo hai hướng ngược nhau (cookie chết sẵn + đè cookie admin, hoặc phát chìa mở shell người khác). Bỏ trống là fail-closed và ghi rõ.",
+    "ĐÁNH ĐỔI CÓ CHỦ Ý #4 — `headers.ts` KHÔNG sửa dù nó nằm trong 4 file của G12. Task nói rõ 'chỉ sửa NẾU DevTools báo CSP violation thật', và chưa có trang /session để quan sát. Sửa mò bây giờ là nới CSP dựa trên phỏng đoán.",
+    "MÓN NỢ ĐÃ GHI #1 — release lab đang chạy web tag `dev-g12b` (dựng từ nhánh, side-load tay), không phải tag `sha-*` do CI đóng. CÙNG HỌ với nợ `--set sandboxImage` (đóng ở PR #31) và nợ gateway `dev-4030577` (đóng ở CHÍNH chặng này, revision 13). Trình tự đóng: side-load TRƯỚC, helm upgrade SAU.",
+    "MÓN NỢ ĐÃ GHI #2 — công cụ đo vẫn ngoài repo nên bằng chứng cluster chưa tái lập bằng một lệnh. Lần này công cụ KHÔNG mint gì (nó đi đúng đường người dùng đi), nên rào cản của 1.C-2 đã hết: đường đúng là biến nó thành test e2e trong CI.",
+    "MÓN NỢ ĐÃ GHI #3 — cụm lab sẽ ngủ lại. AC Calico mới có vế 3 để xử lý, nhưng KHÔNG có gì tự động chạy vế đó sau mỗi lần resume; hiện vẫn là việc tay, và cách phát hiện đứt chuỗi (`lastScheduleTime` lệch quá một nhịp) đã ghi trong phase-1."
+  ]
+}

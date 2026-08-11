@@ -1,0 +1,74 @@
+{
+  "commands": [
+    {
+      "command": "CHỨNG MINH TRÊN CLUSTER: 18 phép kiểm end-to-end, bên phát token là apps/web THẬT",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T10:52:00+07:00",
+      "summary": "18 PASS / 0 FAIL. sign-up Better Auth → tRPC session.create → header Set-Cookie mang dlp_sandbox (Path=/ws, HttpOnly, Secure, SameSite=Strict, không Domain) → WS /ws/session/{id} → 101 + echo dlp.terminal.v1 → ready (podName=sandbox-8aafb3e05db3) → `echo <marker>` trả lại marker ĐÚNG 2 LẦN (1 lần là tiếng vọng bàn phím; 2 lần mới chứng minh shell CHẠY). Gateway giữ NGUYÊN cấu hình kế thừa — jwksUrl='' ⇒ JWKS thật của web, tokenIssuer='' — không --set nào cho riêng phép đo. ⛔ LƯỢT CHẠY ĐẦU TIÊN (10:44) FAIL Ở BƯỚC 3 và đó là phát hiện giá trị nhất của chặng: `POST /api/trpc/session.create` → HTTP 500 'Do not know how to serialize a BigInt' — lỗi CÓ SẴN từ P0 (session.* trả thẳng message proto, Session có 3 field bigint, JSON.stringify NÉM), xảy ra SAU khi pod đã bị claim ⇒ mất một pod khỏi trần quota 4. Đã vá bằng toJsonSession cho cả 5 procedure, dựng lại image, chạy lại → 18/18. Toàn văn: reports/2026-08-11-verify-g12-sandbox-cookie.md."
+    },
+    {
+      "command": "pnpm exec vitest run (apps/web, Postgres thật qua docker compose)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T10:48:16+07:00",
+      "summary": "12 file / 82 PASS / 0 SKIP / 0 FAIL (trước chặng: 11 file / 64). Đếm số PASS chứ không đọc chữ 'passed' — một suite skip sạch cũng exit 0. 18 ca mới chia hai phần: A (mint, integration với signJWT + Postgres thật), B (router, mock orchestrator-client)."
+    },
+    {
+      "command": "kiểm đột biến 5 cổng của G12",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T10:47:00+07:00",
+      "summary": "5/5 làm ĐÚNG ca tương ứng ĐỎ, không nhiều hơn: (1) bỏ `exp` khỏi payload signJWT → chỉ ca 'exp = expiresAt CHÍNH XÁC' (exp-iat rơi về 900 của plugin, chứng minh payload thật sự thắng và overrideOptions là thừa); (2) vô hiệu guard `ctx.user.id !== ownerUserId` → chỉ ca 'ADMIN tạo session HỘ user khác'; (3) GATEWAY_AUD='orchestrator' → chỉ ca 'aud=gateway KHÁC aud access token'; (4) bỏ `Secure` → chỉ ca 'cookie đủ 5 thuộc tính'; (5) trả thẳng message proto (bỏ toJsonSession) → đúng 3 ca serialize."
+    },
+    {
+      "command": "pnpm exec tsc --noEmit (apps/web)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T10:48:00+07:00",
+      "summary": "Sạch. Hai lỗi đã sửa trong lượt trước, cả hai ở file test: BigInt literal `3n` không dùng được vì target dưới ES2020 (→ BigInt(3)), và `exactOptionalPropertyTypes` không cho gán undefined vào `?:` (→ khai `| undefined` tường minh)."
+    },
+    {
+      "command": "pnpm lint (turbo, 3 package)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T10:26:00+07:00",
+      "summary": "5/5 task thành công, 0 issue. `pnpm format:check` KHÔNG chạy — ci.yml:169 ghi rõ cổng đó cố ý chưa bật (đang đỏ trên main ở 15 file); file của chặng này theo đúng style xung quanh."
+    },
+    {
+      "command": "pnpm env:check",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T10:26:00+07:00",
+      "summary": "OK — 52 biến, 4 scope, khớp code ↔ .env.example ↔ Helm ↔ CI. Chặng này KHÔNG thêm biến env nào: aud là hằng số trong mã (đổi nó là đổi contract bảo mật, không phải một tham số vận hành)."
+    },
+    {
+      "command": "ĐÓNG NỢ IMAGE GATEWAY của 1.C-2: side-load sha-841fb3d + helm upgrade",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T10:21:08+07:00",
+      "summary": "Revision 13 deployed. `kubectl get deploy platform-gateway` → ghcr.io/nghaiz/dlp-terminal-gateway:sha-841fb3d (CI trên main xanh, run 31391549274). 11 biến env render đủ, GỒM cả GATEWAY_TOKEN_ISSUER/ALLOWED_ORIGINS/EXEC_COMMAND/REDIS_URL — xác nhận bằng jsonpath, không bằng lập luận."
+    },
+    {
+      "command": "PHÁT HIỆN CHẶN: chart ở ~/dlp-deploy trên host LỆCH so với repo",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T10:18:00+07:00",
+      "summary": "So sha256 từng file (chuẩn hoá CRLF) giữa repo và ~/dlp-deploy: 2/25 file lệch — templates/gateway-deployment.yaml và values.yaml, thiếu TOÀN BỘ khối env gateway của 1.C-1/1.C-2. `helm upgrade` bằng chart đó sẽ âm thầm gỡ 4 biến env và làm gateway 401 mọi handshake. Đã tránh bằng cách ship chart TỪ REPO sang /tmp/dlp-chart và upgrade bằng bản đó. Đây là cái bẫy 'dlp-deploy lệch repo' đã biết, lần này bắt được bằng số đo trước khi nó cắn."
+    },
+    {
+      "command": "AC Calico viết lại — vế 2 (tạo pod khi token gốc chắc chắn đã chết)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T10:11:00+07:00",
+      "summary": "T0 = 2026-08-09T07:40:14Z; đo lúc 2026-08-11T03:11Z = T0+43.5h (>24h). Job dlp-canary-manual tạo tay từ cronjob/dlp-cni-canary → pod dlp-canary-manual-p6d4z Running CÓ IP ⇒ CNI cấp địa chỉ được, R0 chưa nổ. Đây đồng thời là vế 3 (canary ĐẦU TIÊN sau khi chuỗi đứt 14h vì cụm ngủ)."
+    },
+    {
+      "command": "Chẩn đoán cụm sau resume",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T10:11:00+07:00",
+      "summary": "kube-controller-manager 9 restart, kube-scheduler 14 restart, cả hai `exit 1` với `leaderelection lost` sau `dial tcp 192.168.94.130:6443: connect: network is unreachable` — NIC lên chậm hơn kubelet lúc resume. Hệ quả: KHÔNG CronJob nào được lên lịch suốt 14h, kể cả chính bản vá R0 (dlp-calico-token-refresh). Cả hai đã tự phục hồi; mọi pod Running/Completed; clock đồng bộ NTP."
+    }
+  ]
+}
