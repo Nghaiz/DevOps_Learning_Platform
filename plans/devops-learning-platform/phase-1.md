@@ -545,7 +545,18 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 - [ ] 2 replica gateway sau round-robin LB: mở/đóng 20 WS xen kẽ (**tuần tự, không chồng lấn** — trần là 1 WS/session), 0 lỗi.
 
 ### Terminal UX
-- [x] 10 binary có mặt trong image: `zsh tmux git jq fzf zoxide fastfetch eza bat oh-my-posh`. → đủ 10, kiểm **trong pod thật** trên cluster 2026-08-10 (không phải chỉ `docker run` cục bộ).
+> ⛔ **`sudo` PHẢI có trong image, dù phiên lab vốn đã chạy `uid=0(root)`.** Người dùng thử phiên đầu tiên (2026-08-11, ngay sau 1.F) gõ `sudo whoami` và nhận `zsh: command not found: sudo`, rồi hỏi *"tôi đã bảo phải là Ubuntu cơ mà?"* — hai hiểu nhầm cùng lúc, và cả hai đều là lỗi của ta chứ không phải của người dùng:
+>
+> 1. **Nó ĐÚNG là Ubuntu** (`PRETTY_NAME="Ubuntu 24.04.4 LTS"`, đo trong pod). zsh là *shell* (E4 chốt, bật qua `set -g default-shell /usr/bin/zsh` trong `.tmux.conf`), không phải *distro*. Nhưng người dùng không có cách nào biết điều đó từ một dòng `command not found`.
+> 2. **`ubuntu:24.04` gốc KHÔNG ship `sudo`** — đo thật: `docker run --rm ubuntu:24.04 command -v sudo` → rỗng. Nên đây không phải thứ "bị quên" mà là thứ chưa ai thêm.
+>
+> `sudo` ở đây **không cấp thêm quyền nào** (đã là root; Sysbox map root-trong-container sang uid không đặc quyền trên host) — nó là một no-op đắt 2 MB, tồn tại vì lý do **sư phạm**: gần như mọi hướng dẫn DevOps viết `sudo apt install ...`, và một nền tảng DẠY DevOps mà lệnh copy-paste nào cũng chết là ma sát mỗi ngày.
+>
+> **Alias trong shell rc KHÔNG thay thế được** (đã cân nhắc và loại): nó chỉ tồn tại trong shell tương tác, còn script `#!/bin/bash`, `make`, `ansible` gọi `sudo` vẫn chết — tức dời lỗi sang chỗ khó chẩn đoán hơn. Đã kiểm CẢ HAI đường trong image mới: `sudo whoami` → `root`, và một script `#!/bin/bash` gọi `sudo apt-get --version` → chạy đúng. Trivy `--severity CRITICAL` → **0**. Size **373 MB** (không tăng).
+>
+> **Bẫy triển khai đi kèm (khuôn cũ của 1.E-1):** đổi `SANDBOX_IMAGE` **KHÔNG** thay pod đang ấm — pod cũ nằm lại `pool:free` vô thời hạn và trông hoàn toàn khoẻ. Phải xoá tay pod ấm cũ rồi để warm-pool dựng lại (đo: **8s**).
+
+- [x] 10 binary có mặt trong image: `zsh tmux git jq fzf zoxide fastfetch eza bat oh-my-posh`. **+ `sudo` (thêm 2026-08-11)** — xem hộp dưới. → đủ 10, kiểm **trong pod thật** trên cluster 2026-08-10 (không phải chỉ `docker run` cục bộ).
 - [x] `zsh -lic 'echo $COLORTERM'` → `truecolor`; `locale` báo UTF-8. → `truecolor` + `LANG=en_US.UTF-8`. *Kèm theo: đoạn keybinding `fzf --zsh` phải gác `[[ -t 0 ]]` — `zsh -lic` có `-i` nên `-o interactive` đúng nhưng KHÔNG có tty, và zle in `can't change option: zle` vào đúng stdout mà AC này đang đọc.*
 - [x] **`eza --icons=always -la` in glyph thật, kiểm bằng CODEPOINT** (`grep -cP '[\x{E000}-\x{F8FF}]'`), không phải `?`. → **3** dòng có glyph PUA trong pod thật; **đối chứng `--icons=never` → 0**.
   > ⛔ **AC bản cũ hỏng ở HAI tầng, và tầng thứ hai chỉ lộ ra khi review đối kháng.**
