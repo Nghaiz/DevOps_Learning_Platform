@@ -137,7 +137,8 @@ mở ra internet** — vào qua tunnel: `ssh -L 6443:127.0.0.1:6443 debian@<IP>`
 | [`02-kubeadm-init.sh`](02-kubeadm-init.sh) | `kubeadm init` + Calico + gỡ taint single-node | có |
 | [`03-sysbox-install.sh`](03-sysbox-install.sh) | Label node + daemonset Sysbox + cổng chặn version | không |
 | [`04-verify-sysbox.sh`](04-verify-sysbox.sh) | **Cổng P0.F** — 8 kiểm chứng bảo mật | không |
-| [`setup-all.sh`](setup-all.sh) | Chạy 00→04 theo thứ tự | hỏi 1 lần |
+| [`06-kubelet-pids-limit.sh`](06-kubelet-pids-limit.sh) | Trần PID mỗi pod (D-19′) — fork-bomb chặn lại thay vì hạ node. Restart kubelet, nên tự chạy đủ hàng rào R0: vá token CNI → canary TRƯỚC → đổi → canary SAU | có |
+| [`setup-all.sh`](setup-all.sh) | Chạy 00→04 theo thứ tự (kèm 3.5 addon, 3.6 trần PID) | hỏi 1 lần |
 | [`fix-containerd-handler.sh`](fix-containerd-handler.sh) | Sửa lỗi containerd không đăng ký handler `sysbox-runc` — chạy khi cần | chỉ khi `FIX=1` |
 | [`fix-cluster-dns.sh`](fix-cluster-dns.sh) | Sửa CoreDNS không chuyển tiếp được ra ngoài (`server misbehaving`) — chạy khi cần | không |
 | [`diagnose-pod-network.sh`](diagnose-pod-network.sh) | Định vị DNS/egress của pod hỏng ở tầng nào (CNI / kube-proxy / CoreDNS / upstream) | không |
@@ -153,14 +154,24 @@ Bằng chứng đóng cổng **P0.F**, khớp acceptance criteria ở
 
 1. `runtimeClassName == sysbox-runc`
 2. **`/proc/self/uid_map` — root trong pod map ra UID ≠ 0 trên host** ← quan trọng nhất
-3. Không có `/var/run/docker.sock` (luật 10)
-4. `capabilities.drop == [ALL]`
+3. **Không có `hostPath` volume** (luật 10) — *đổi 2026-08-11, D-22′*
+4. **Trần PID đọc ở cgroup HOST của pod** (D-19′) — *đổi 2026-08-11, D-17′*
 5. `privileged == false`
 6. `seccompProfile == RuntimeDefault`
-7. **`docker run hello-world` chạy được BÊN TRONG pod không-privileged** ← lý do cả dự án chọn Sysbox
+7. **`docker build FROM scratch` + `docker run` KHÔNG chạm mạng, bên trong pod không-privileged** ← lý do cả dự án chọn Sysbox — *đổi 2026-08-11, D4*
 8. Cloud metadata `169.254.169.254` (cảnh báo — siết đủ ở P3)
 
 Fail bất kỳ mục nào → exit 1, **không được mở P1**. Giữ pod lại để mổ xẻ: `KEEP=1 bash 04-verify-sysbox.sh`
+
+> ### ⛔ Ba check trên đổi vì chúng xanh mà không kiểm gì — đọc trước khi "sửa lại như cũ"
+>
+> Bằng chứng đầy đủ: [`reports/2026-08-11-verify-b6t4-pod-hardening.md`](../../plans/devops-learning-platform/reports/2026-08-11-verify-b6t4-pod-hardening.md) §3.
+>
+> - **#4 cũ (`capabilities.drop == [ALL]`) là TAUTOLOGY** — nó đọc lại đúng field mà chính script vừa ghi trong `$MANIFEST` 60 dòng trên. Không thể đỏ. Sự thật runtime: `CapEff = 000001ffffffffff` (đủ 41 cap) vì **Sysbox bỏ qua `drop:[ALL]`**; cách ly thật nằm ở check #2. Nay in `CapEff` ra như *quan sát*, không phải cổng.
+> - **#3 cũ (`test -e /var/run/docker.sock`) ĐO MỘT CUỘC ĐUA** — socket đó là của dockerd *bên trong* pod và xuất hiện khi dockerd lên; check xanh chỉ vì nó chạy ở bước 3 còn bước 7 mới chờ dockerd tới 90s. Đảo thứ tự hai bước là cổng đỏ mà không có gì đổi về bảo mật.
+> - **#8 cũ PASS VÌ LÝ DO SAI** — `kexec curl …` trả khác 0 cả khi *bị chặn* lẫn khi *image không có curl*, hai ca rơi chung nhánh `ok`. Nay tách `command -v curl` trước; thiếu curl → **BỎ QUA**, không phải PASS.
+>
+> **Và đừng đọc `pids.max` từ TRONG pod.** Sysbox ảo hoá `/sys/fs/cgroup` nên nó luôn trả `max` kể cả khi kubelet đã áp đúng — đo được 2026-08-11: trong pod `max`, cgroup host `4096`, `pids.events` `max 5`. Điểm thực thi là slice của pod trên host.
 
 ### Tốc độ cấp sandbox — số đo thật
 

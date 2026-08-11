@@ -1,10 +1,11 @@
 // Package reaper dọn pod và session hết vòng đời (phase-1 B7).
 //
-// BA TẦNG, VÀ THỨ TỰ QUAN TRỌNG VỀ MẶT VAI TRÒ:
+// BỐN TẦNG, VÀ THỨ TỰ QUAN TRỌNG VỀ MẶT VAI TRÒ:
 //
 //	Tầng 1 — keyspace notification (`__keyevent@N__:expired`). ĐƯỜNG NHANH.
 //	Tầng 2 — sweep định kỳ. ĐƯỜNG CHÍNH.
 //	Tầng 3 — drain `pool:quarantine`.
+//	Tầng 4 — đối chiếu `pool:free` với apiserver.
 //
 // Tầng 1 KHÔNG được coi là đường chính: keyspace notification là best-effort —
 // Redis không lưu event, nên mọi session hết hạn trong lúc reaper offline (deploy,
@@ -15,6 +16,10 @@
 // kia: nó VẪN CÓ hash `pod:{name}` nên không phải "pod mồ côi", và không session
 // nào trỏ tới nên không phải "session ma". Không nhánh nào ở trên chạm được nó,
 // mà mỗi mục là −1 trên trần 4 pod (D16).
+//
+// Tầng 4 khác BA TẦNG KIA VỀ BẢN CHẤT: ba tầng trên đều so Redis với Redis (hoặc
+// so pod-của-cluster với hash). Tầng 4 là tầng DUY NHẤT hỏi apiserver *pod đang
+// nằm trong pool có còn sống không*. Xem sweepDeadFreePods.
 package reaper
 
 import (
@@ -58,6 +63,13 @@ const (
 	// claimedBatch giới hạn số pod đã-claim soi mỗi vòng (tầng 2c). Cùng lý do
 	// với quarantineBatch; danh sách dài hơn sẽ được vét ở các vòng sau.
 	claimedBatch = 100
+
+	// freeBatch giới hạn số pod ấm soi mỗi vòng (tầng 4). `pool:free` giữ đúng
+	// POOL_TARGET phần tử ở trạng thái bình thường (1 trên lab, D16), nên trần
+	// này chỉ là lưới chặn cho ca list phình bất thường — mà chính ca đó là
+	// triệu chứng ta muốn thấy chứ không phải thứ nên biến sweep thành một lượt
+	// gọi apiserver kéo dài.
+	freeBatch = 100
 
 	// fieldPodSessionID là field mà claim.lua ghi vào hash `pod:{name}`.
 	// Contract giữa Lua và Go — đổi một bên là tầng 2c mù trong im lặng.
@@ -259,8 +271,87 @@ func (r *Reaper) sweep(ctx context.Context) error {
 		r.sweepOrphanPods(ctx, pods),
 		r.sweepGhostSessions(ctx, live),
 		r.sweepClaimedWithoutSession(ctx),
+		r.sweepDeadFreePods(ctx),
 		r.drainQuarantine(ctx),
 	)
+}
+
+// sweepDeadFreePods — TẦNG 4: pod CHẾT vẫn nằm trong `pool:free`.
+//
+// ⛔ ĐIỂM MÙ THỨ NĂM, VÀ NÓ CẮN THẲNG VÀO SINH VIÊN ĐẦU TIÊN SAU MỖI LẦN REBOOT.
+//
+// Quan sát được trên cụm 2026-08-11 (không phải suy luận):
+//
+//	Redis:      pool:free = [sandbox-674a2a67af4a]   pod:{name}.state = free
+//	Kubernetes: phase = Failed, container terminated, exitCode 255
+//
+// `podspec.go` đặt `RestartPolicy: Never`, nên MỌI lần node reboot là pod sandbox
+// chuyển `Failed` vĩnh viễn. `claim.lua` chỉ hỏi `pod:{name}.state == 'free'` —
+// nó KHÔNG hỏi apiserver. Bốn tầng kia đều trượt: tầng 1 cần một `session:{id}`
+// hết hạn (pod rảnh không có); tầng 2a đòi hash VẮNG (hash này CÓ); tầng 2b đòi
+// có `session:{id}` (không có); tầng 2c quét `pool:claimed` (pod này ở
+// `pool:free`); tầng 3 quét `pool:quarantine` (không ở đó).
+//
+// `k8s.IsTerminal` ĐÃ tồn tại từ trước, nhưng chỉ được gọi trong `pool.waitReady`
+// — tức lúc TẠO, không bao giờ gọi lại. Với `POOL_TARGET=1`, hệ quả cụ thể là
+// sinh viên ĐẦU TIÊN bấm Start sau mỗi lần reboot nhận đúng pod chết, và
+// orchestrator vẫn báo claim thành công.
+//
+// ⛔ THỨ TỰ `LREM` TRƯỚC LÀ LUẬT, KHÔNG PHẢI SỞ THÍCH — nó vừa là phép giành
+// quyền sở hữu vừa là thứ chặn claim. `LREM` trả 1 nghĩa là *ta* vừa rút tên đó
+// khỏi pool ⇒ không claim nào còn grab được nó ⇒ ta được phép xoá. Trả 0 nghĩa
+// là ai đó đã lấy trước (một claim đồng thời, hoặc một vòng sweep khác) ⇒ TA
+// KHÔNG ĐỘNG VÀO POD. Xoá mà không giành quyền trước là mở đúng cửa sổ đua mà
+// bản dọn tay đã tránh: claim.lua `LMOVE` pod ra `pool:claimed` và gắn session,
+// rồi ta xoá pod dưới chân một session vừa sinh ra.
+//
+// Ca "đã bị claim trước" không bị bỏ rơi: pod chết + session sống là đúng định
+// nghĩa **session ma** của tầng 2b, và nó sẽ chuyển session sang `FAILED` ở vòng
+// sau — FE nhận lỗi rõ ràng thay vì một terminal câm.
+func (r *Reaper) sweepDeadFreePods(ctx context.Context) error {
+	names, err := r.rdb.LRange(ctx, rediskeys.PoolFree, 0, freeBatch-1).Result()
+	if err != nil {
+		return fmt.Errorf("reaper: LRANGE %s: %w", rediskeys.PoolFree, err)
+	}
+
+	var errs []error
+	for _, name := range names {
+		pod, getErr := r.pods.Get(ctx, name)
+		switch {
+		case getErr == nil && !k8s.IsTerminal(pod):
+			continue // pod ấm và còn sống — đúng thứ pool nên quảng cáo
+		case getErr != nil && !k8s.IsNotFound(getErr):
+			// Không phân biệt được "chết" với "apiserver đang lỗi" ⇒ KHÔNG ĐOÁN.
+			// Rút pod dựa trên một lượt đọc lỗi là tự tay phá warm-pool mỗi khi
+			// apiserver chớp — và với trần 4 pod (D16) thì mỗi lần như thế là
+			// một khe quota mất trong lúc hạ tầng đang yếu sẵn.
+			errs = append(errs, fmt.Errorf("reaper: đọc pod ấm %q: %w", name, getErr))
+			continue
+		}
+
+		// Tới đây: pod đã Failed/Succeeded, hoặc đã biến mất khỏi apiserver.
+		removed, remErr := r.rdb.LRem(ctx, rediskeys.PoolFree, 0, name).Result()
+		if remErr != nil {
+			errs = append(errs, fmt.Errorf("reaper: LREM %s %q: %w", rediskeys.PoolFree, name, remErr))
+			continue
+		}
+		if removed == 0 {
+			// Ai đó đã lấy tên này khỏi pool giữa LRANGE và LREM. Không phải
+			// của ta nữa — tầng 2b/2c sẽ lo phần còn lại.
+			continue
+		}
+
+		r.met.ReaperDeadFreePodsTotal.Inc()
+		reason := "đã biến mất khỏi apiserver"
+		if pod != nil {
+			reason = string(pod.Status.Phase)
+		}
+		r.log.Warn("pod CHẾT nằm trong pool:free — đã rút trước khi ai đó claim phải nó",
+			slog.String("pod", name), slog.String("phase", reason))
+
+		r.deletePodAndIndex(ctx, name)
+	}
+	return errors.Join(errs...)
 }
 
 // sweepClaimedWithoutSession — TẦNG 2c: pod đã claim mà session không còn.

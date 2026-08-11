@@ -2,6 +2,7 @@ package reaper
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -76,19 +77,43 @@ type fakePods struct {
 	pods    []corev1.Pod
 	deleted []string
 	listErr error
+	// getErr ép Get trả lỗi KHÔNG-PHẢI-NotFound, để dựng ca "apiserver đang
+	// lỗi" tách khỏi ca "pod đã biến mất". Hai ca đó đòi hai hành vi ngược nhau
+	// ở tầng 4 và một double không phân biệt được chúng thì test không kiểm gì.
+	getErr error
+	// onGet chạy TRONG Get, trước khi trả về. Nó tồn tại để dựng đúng một cửa
+	// sổ đua: "có ai đó rút tên khỏi pool:free giữa LRANGE và LREM của tầng 4".
+	// Không có hook này thì luật LREM-trước-mới-được-xoá không có cách nào ĐỎ.
+	onGet func(name string)
 }
 
 func (f *fakePods) Create(_ context.Context, pod *corev1.Pod) (*corev1.Pod, error) { return pod, nil }
 
 func (f *fakePods) Get(_ context.Context, name string) (*corev1.Pod, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	hook, getErr := f.onGet, f.getErr
+	var found *corev1.Pod
 	for i := range f.pods {
 		if f.pods[i].Name == name {
-			return &f.pods[i], nil
+			found = &f.pods[i]
+			break
 		}
 	}
-	return nil, k8sNotFound(name)
+	f.mu.Unlock()
+
+	// Ngoài lock: hook mô phỏng một tác nhân KHÁC (claim đồng thời) chạm Redis
+	// trong lúc reaper đang đọc apiserver. Giữ lock qua nó là tự tạo thứ tự mà
+	// production không có.
+	if hook != nil {
+		hook(name)
+	}
+	if getErr != nil {
+		return nil, getErr
+	}
+	if found == nil {
+		return nil, k8sNotFound(name)
+	}
+	return found, nil
 }
 
 func (f *fakePods) Delete(_ context.Context, name string, _ int64) error {
@@ -136,6 +161,20 @@ func (f *fakePods) addPod(name string, age time.Duration) {
 	p.Name = name
 	p.Labels = map[string]string{k8s.LabelApp: k8s.LabelAppValue}
 	p.CreationTimestamp = metav1.NewTime(time.Now().Add(-age))
+	f.pods = append(f.pods, p)
+}
+
+// addPodWithPhase thêm pod với một `status.phase` cụ thể — thứ `addPod` để
+// trống. Tầng 4 quyết định dựa trên phase, nên không có hàm này thì mọi ca của
+// nó chỉ chạm được nhánh "pod đã biến mất".
+func (f *fakePods) addPodWithPhase(name string, age time.Duration, phase corev1.PodPhase) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p := corev1.Pod{}
+	p.Name = name
+	p.Labels = map[string]string{k8s.LabelApp: k8s.LabelAppValue}
+	p.CreationTimestamp = metav1.NewTime(time.Now().Add(-age))
+	p.Status.Phase = phase
 	f.pods = append(f.pods, p)
 }
 
@@ -718,5 +757,213 @@ func TestSweepKhongDanhDauFAILEDOanChoSessionVuaClaim(t *testing.T) {
 	if got := sessions.failedIDs(); len(got) != 0 {
 		t.Fatalf("session %v bị đánh dấu FAILED OAN — pod của nó VẪN CÓ trên cluster, "+
 			"ảnh chụp livePods chỉ đơn giản là cũ", got)
+	}
+}
+
+// ---------------------------------------------------------------- tầng 4
+
+// seedFreePod dựng đúng trạng thái mà `pool.Manager.Provision` để lại cho một
+// pod ấm: hash `pod:{name}` state=free TRƯỚC, rồi mới `RPUSH pool:free` (thứ tự
+// là luật cứng của B2 — đảo lại là cách ly nhầm một pod hoàn toàn tốt).
+func seedFreePod(t *testing.T, rdb *redis.Client, podName string) {
+	t.Helper()
+	ctx := context.Background()
+	key, err := rediskeys.Pod(podName)
+	if err != nil {
+		t.Fatalf("rediskeys.Pod: %v", err)
+	}
+	if err := rdb.HSet(ctx, key, "state", "free").Err(); err != nil {
+		t.Fatalf("HSET pod: %v", err)
+	}
+	if err := rdb.RPush(ctx, rediskeys.PoolFree, podName).Err(); err != nil {
+		t.Fatalf("RPUSH free: %v", err)
+	}
+}
+
+// TestTang4RutPodChetKhoiPoolFree — ⛔ ĐIỂM MÙ THỨ NĂM, ĐO ĐƯỢC TRÊN CỤM.
+//
+// Trạng thái quan sát 2026-08-11 sau một lần node reboot:
+//
+//	Redis:      pool:free = [sandbox-674a2a67af4a]   pod:{name}.state = free
+//	Kubernetes: phase = Failed, exitCode 255
+//
+// `RestartPolicy: Never` + reboot ⇒ Failed vĩnh viễn; `claim.lua` chỉ hỏi Redis.
+// Bốn tầng kia đều trượt (xem doc của sweepDeadFreePods). Với `POOL_TARGET=1`,
+// sinh viên ĐẦU TIÊN bấm Start sau mỗi lần reboot nhận đúng pod này.
+func TestTang4RutPodChetKhoiPoolFree(t *testing.T) {
+	r, pods, _, rdb, met := newTestReaper(t)
+	ctx := context.Background()
+
+	const name = "sandbox-chetsaureboot"
+	// Pod TRẺ và CÓ hash ⇒ tầng 2a bỏ qua ở cả hai điều kiện. Không session nào
+	// trỏ tới ⇒ tầng 2b không thấy. Ở pool:free ⇒ tầng 2c và 3 không thấy.
+	pods.addPodWithPhase(name, time.Minute, corev1.PodFailed)
+	seedFreePod(t, rdb, name)
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	if got := pods.deletedNames(); len(got) != 1 || got[0] != name {
+		t.Fatalf("xoá %v, cần [%s] — pod chết còn nằm trong pool là pod SẼ ĐƯỢC PHÁT cho người tiếp theo", got, name)
+	}
+	if n, err := rdb.LLen(ctx, rediskeys.PoolFree).Result(); err != nil || n != 0 {
+		t.Fatalf("LLEN pool:free = %v (err %v), cần 0", n, err)
+	}
+	podKey, _ := rediskeys.Pod(name)
+	if n, err := rdb.Exists(ctx, podKey).Result(); err != nil || n != 0 {
+		t.Fatalf("hash %s vẫn còn (exists=%v, err %v) — để lại là claim.lua vẫn thấy state=free", podKey, n, err)
+	}
+	if v := testutil.ToFloat64(met.ReaperDeadFreePodsTotal); v != 1 {
+		t.Fatalf("dlp_reaper_dead_free_pods_total = %v, cần 1", v)
+	}
+}
+
+// TestTang4KhongDungPodAmConSong — ĐỐI CHỨNG ÂM, và nó là ca quan trọng nhất.
+//
+// Tầng 4 chạy MỖI vòng sweep trên MỌI pod đang ấm. Một hiện thực xoá quá tay ở
+// đây không làm test nào khác đỏ — nó chỉ làm warm-pool rỗng mãi mãi trong khi
+// mọi log đều nói "đã rút pod chết". Không có ca này thì "tầng 4 xanh" chỉ chứng
+// minh nó biết xoá, không chứng minh nó biết KHÔNG xoá.
+func TestTang4KhongDungPodAmConSong(t *testing.T) {
+	r, pods, _, rdb, met := newTestReaper(t)
+	ctx := context.Background()
+
+	const name = "sandbox-amkhoemanh"
+	pods.addPodWithPhase(name, time.Minute, corev1.PodRunning)
+	seedFreePod(t, rdb, name)
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	if got := pods.deletedNames(); len(got) != 0 {
+		t.Fatalf("xoá %v — pod đang Running trong pool:free là pod ấm BÌNH THƯỜNG", got)
+	}
+	if n, _ := rdb.LLen(ctx, rediskeys.PoolFree).Result(); n != 1 {
+		t.Fatalf("LLEN pool:free = %d, cần 1 — tầng 4 vừa rút mất một pod tốt", n)
+	}
+	if v := testutil.ToFloat64(met.ReaperDeadFreePodsTotal); v != 0 {
+		t.Fatalf("dlp_reaper_dead_free_pods_total = %v, cần 0", v)
+	}
+}
+
+// TestTang4DonTenPodDaBienMatKhoiApiserver — pod bị xoá khỏi cluster (GC của
+// node, `kubectl delete` bằng tay) mà tên vẫn nằm trong pool.
+//
+// Không phải ca lý thuyết: đúng đường "rút tay" mà người vận hành đã phải làm
+// ba lần khi đổi image (§Còn để ngỏ, warm-pool không rollout theo image) — nếu
+// ai đó xoá Pod trước rồi quên LREM, pool quảng cáo một cái tên không tồn tại và
+// claim thành công vào hư không.
+func TestTang4DonTenPodDaBienMatKhoiApiserver(t *testing.T) {
+	r, pods, _, rdb, met := newTestReaper(t)
+	ctx := context.Background()
+
+	const name = "sandbox-tenma000001"
+	seedFreePod(t, rdb, name) // KHÔNG addPod ⇒ apiserver trả NotFound
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	if n, _ := rdb.LLen(ctx, rediskeys.PoolFree).Result(); n != 0 {
+		t.Fatalf("LLEN pool:free = %d, cần 0", n)
+	}
+	if v := testutil.ToFloat64(met.ReaperDeadFreePodsTotal); v != 1 {
+		t.Fatalf("dlp_reaper_dead_free_pods_total = %v, cần 1", v)
+	}
+	_ = pods
+}
+
+// TestTang4KhongRutPodKhiApiserverLoi — "không phân biệt được" ≠ "đã chết".
+//
+// ⛔ Nếu tầng 4 gộp mọi lỗi Get thành "pod chết", thì một lượt apiserver chớp
+// (timeout, 503 lúc rollout control-plane) sẽ rút SẠCH pool:free — đúng lúc hạ
+// tầng đang yếu nhất. Với trần 4 pod (D16) đó là nền tảng tự đánh sập mình, và
+// mọi log đều nói "đã rút pod chết".
+func TestTang4KhongRutPodKhiApiserverLoi(t *testing.T) {
+	r, pods, _, rdb, met := newTestReaper(t)
+	ctx := context.Background()
+
+	const name = "sandbox-apiserverloi"
+	seedFreePod(t, rdb, name)
+	pods.getErr = errors.New("etcdserver: request timed out")
+
+	err := r.sweep(ctx)
+	if err == nil {
+		t.Fatal("sweep nuốt lỗi apiserver — lỗi im lặng ở tầng này là pool rỗng không ai giải thích được")
+	}
+
+	if got := pods.deletedNames(); len(got) != 0 {
+		t.Fatalf("xoá %v khi apiserver đang lỗi — không phân biệt được thì KHÔNG ĐOÁN", got)
+	}
+	if n, _ := rdb.LLen(ctx, rediskeys.PoolFree).Result(); n != 1 {
+		t.Fatalf("LLEN pool:free = %d, cần 1 — pod vẫn phải ở lại", n)
+	}
+	if v := testutil.ToFloat64(met.ReaperDeadFreePodsTotal); v != 0 {
+		t.Fatalf("dlp_reaper_dead_free_pods_total = %v, cần 0", v)
+	}
+}
+
+// TestTang4LREMLaPhepGianhQuyen — luật thứ tự, và ca DUY NHẤT làm nó đỏ được.
+//
+// ⛔ Cửa sổ đua thật: giữa `LRANGE pool:free` và lúc tầng 4 quyết định xoá, một
+// `claim.lua` đồng thời có thể `LMOVE` pod sang `pool:claimed` và gắn session
+// vào nó. Xoá pod lúc đó là giật pod khỏi chân một session VỪA SINH RA.
+//
+// `LREM` trả 0 chính là tín hiệu "tên này không còn là của ta". Bỏ guard
+// `removed == 0` thì ca này ĐỎ — đó là toàn bộ lý do nó tồn tại. Hook onGet
+// dựng đúng cửa sổ đó: nó rút tên khỏi pool:free trong lúc reaper đang hỏi
+// apiserver.
+func TestTang4LREMLaPhepGianhQuyen(t *testing.T) {
+	r, pods, _, rdb, met := newTestReaper(t)
+	ctx := context.Background()
+
+	const name = "sandbox-duagiuachung"
+	pods.addPodWithPhase(name, time.Minute, corev1.PodFailed)
+	seedFreePod(t, rdb, name)
+
+	// Một claim đồng thời thắng cuộc đua: LMOVE free → claimed.
+	pods.onGet = func(got string) {
+		if got != name {
+			return
+		}
+		if err := rdb.LMove(ctx, rediskeys.PoolFree, rediskeys.PoolClaimed, "left", "right").Err(); err != nil {
+			t.Errorf("LMOVE mô phỏng claim: %v", err)
+		}
+	}
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	if got := pods.deletedNames(); len(got) != 0 {
+		t.Fatalf("xoá %v — tên đã rời pool:free trước khi tầng 4 giành được quyền; "+
+			"pod này giờ thuộc về một session vừa claim, và tầng 2b/2c mới là nơi xử lý nó", got)
+	}
+	if v := testutil.ToFloat64(met.ReaperDeadFreePodsTotal); v != 0 {
+		t.Fatalf("dlp_reaper_dead_free_pods_total = %v, cần 0 — tầng 4 không sở hữu tên này", v)
+	}
+}
+
+// TestTang4Idempotent — mọi nhánh reaper đều gọi lại được, tầng 4 không ngoại lệ.
+func TestTang4Idempotent(t *testing.T) {
+	r, pods, _, rdb, met := newTestReaper(t)
+	ctx := context.Background()
+
+	const name = "sandbox-lapdilapla"
+	pods.addPodWithPhase(name, time.Minute, corev1.PodSucceeded)
+	seedFreePod(t, rdb, name)
+
+	for i := 0; i < 3; i++ {
+		if err := r.sweep(ctx); err != nil {
+			t.Fatalf("sweep vòng %d: %v", i+1, err)
+		}
+	}
+	if got := pods.deletedNames(); len(got) != 1 {
+		t.Fatalf("xoá %v — ba vòng sweep phải chỉ xoá đúng một lần", got)
+	}
+	if v := testutil.ToFloat64(met.ReaperDeadFreePodsTotal); v != 1 {
+		t.Fatalf("dlp_reaper_dead_free_pods_total = %v, cần 1 — counter cộng dồn mỗi vòng "+
+			"biến báo động 'có nguồn giết pod ấm' thành tiếng ồn", v)
 	}
 }

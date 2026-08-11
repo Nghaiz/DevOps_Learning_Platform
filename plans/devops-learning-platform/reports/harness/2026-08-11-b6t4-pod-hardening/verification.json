@@ -1,0 +1,106 @@
+{
+  "commands": [
+    {
+      "command": "go test ./... -race -count=1 (4 module Go, với Redis + Postgres THẬT)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:05:00+07:00",
+      "summary": "248 PASS / 0 SKIP. Đếm bằng `grep '^--- ' | awk '{print $2}' | sort | uniq -c` chứ không tin exit code — `go test` trả 0 khi MỌI ca tự skip, và suite này skip sạch nếu thiếu REDIS_URL. Riêng package reaper: 24 PASS (18 cũ + 6 mới của tầng 4), 0 SKIP."
+    },
+    {
+      "command": "kiểm đột biến tầng 4 — 4 phép, mỗi phép sed vào reaper.go rồi chạy lại test",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:08:00+07:00",
+      "summary": "Gỡ sweepDeadFreePods khỏi sweep() ⇒ 4 ca đỏ. Bỏ guard `removed == 0` ⇒ CHỈ TestTang4LREMLaPhepGianhQuyen đỏ. Coi mọi lỗi Get là 'đã chết' ⇒ CHỈ TestTang4KhongRutPodKhiApiserverLoi đỏ. Bỏ IsTerminal ⇒ CHỈ TestTang4KhongDungPodAmConSong đỏ. Ba phép sau mỗi phép đỏ ĐÚNG MỘT ca ⇒ các ca không che nhau. Khôi phục xong, build lại OK."
+    },
+    {
+      "command": "gofmt -l ./internal/ && GOOS=linux go build ./... && GOOS=linux go vet ./...",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:02:00+07:00",
+      "summary": "Sạch cả ba. GOOS=linux là bắt buộc trên máy dev Windows — build tag giấu file *_unix.go nên `go build` mặc định có thể xanh trong khi CI đỏ."
+    },
+    {
+      "command": "node scripts/env-check.mjs",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:06:00+07:00",
+      "summary": "52 biến / 4 scope, khớp code ↔ .env.example ↔ Helm ↔ CI. Chặng này không thêm biến env nào (podPidsLimit là cấu hình kubelet trên host, không phải env của service)."
+    },
+    {
+      "command": "bash -n cho toàn bộ infra/host/*.sh (12 script)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:04:00+07:00",
+      "summary": "12/12 không lỗi cú pháp, gồm 06-kubelet-pids-limit.sh mới và 04-verify-sysbox.sh đã sửa 4 check."
+    },
+    {
+      "command": "CỤM — tái hiện lỗi trên bản CŨ sha-9776bda: giết init-PID của container từ HOST (ctr tasks)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:20:41+07:00",
+      "summary": "phase=Failed, exitCode=137, `pool:free=[sandbox-8bb412626eca]`, `pod:{name}.state=free`. Đúng trạng thái quan sát được ngày 2026-08-11 (bản gốc exitCode 255 do reboot). LƯU Ý: `kill -9 1` TỪ TRONG POD không dùng được — kernel chặn SIGKILL gửi tới PID 1 của chính PID-namespace đó; đã thử, pod vẫn Running."
+    },
+    {
+      "command": "CỤM — theo dõi bản CŨ 150 giây (2.5 chu kỳ REAP_INTERVAL=60s)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:23:58+07:00",
+      "summary": "T+30/60/90/120/150s: phase=Failed, pool:free KHÔNG đổi, state=free. Ba tầng cũ không chạm tới nó — đúng như phân tích điểm mù. `LINDEX pool:free 0` = chính pod chết đó."
+    },
+    {
+      "command": "CỤM — helm upgrade → dev-b6t4 (revision 26), đọc log + /metrics",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:24:57+07:00",
+      "summary": "Log 10:24:44.916Z: 'pod CHẾT nằm trong pool:free — đã rút trước khi ai đó claim phải nó' pod=sandbox-8bb412626eca phase=Failed — 8ms sau khi reaper khởi động (quét-ngay-lúc-khởi-động). Metric: dead_free_pods_total=1 trong khi orphan/ghost/claimed_orphan/quarantine_reaped/sweep_failures ĐỀU = 0 ⇒ đúng tầng 4 dọn, không phải nhánh khác. pool:claimed rỗng, pool:quarantine rỗng, EXISTS pod:{name}=0."
+    },
+    {
+      "command": "CỤM — nhánh NotFound của tầng 4 (xoá pod ấm bằng tay khi tên còn trong pool:free)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:32:00+07:00",
+      "summary": "dead_free_pods_total 1 → 3; pool:free hội tụ về đúng một pod ấm mới. Cùng đường code, khác nhánh — nhánh này cũng không tầng nào khác phủ."
+    },
+    {
+      "command": "CỤM — sudo bash 06-kubelet-pids-limit.sh (lượt đầu, có restart kubelet)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:29:04+07:00",
+      "summary": "Chuỗi an toàn chạy đủ: cronjob tồn tại → job vá token Complete → calico-node rollout xong → canary TRƯỚC XANH → backup config → ghi podPidsLimit:4096 → đồng bộ ConfigMap kubelet-config → restart kubelet → node Ready → canary SAU XANH. Backup ở /var/lib/kubelet/config.yaml.bak-20260811-172904."
+    },
+    {
+      "command": "CỤM — đo trần PID ở ĐÚNG điểm thực thi (cgroup host) + phép đo hành vi",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:35:00+07:00",
+      "summary": "kubelet Container Manager báo \"PodPidsLimit\":4096. cgroup HOST của pod: pids.max=4096. TRONG POD thì `cat /sys/fs/cgroup/pids.max` trả 'max' — Sysbox ảo hoá /sys/fs/cgroup nên đo từ bên trong là ĐO SAI CHỖ. Phép đo hành vi (đẻ tiến trình có kiểm soát, KHÔNG fork-bomb thật): `bash: fork: Resource temporarily unavailable`, kernel ghi `pids.events: max 5`, node vẫn Ready, 5 pod nền tảng 0 restart."
+    },
+    {
+      "command": "CỤM — chạy lại 06-kubelet-pids-limit.sh (kiểm nhánh idempotent)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:41:00+07:00",
+      "summary": "Dừng ở bước 0, KHÔNG restart kubelet lần nữa, đọc cgroup host của pod ấm mới sandbox-7632e728e153 → pids.max=4096, pids.events='max 0'. Nhánh idempotent bản đầu tiên đã SAI (nó đọc pids.max từ trong pod nên sẽ `die` ở mọi lần chạy lại) — lỗi này chỉ lộ ra nhờ chính phép đo ở dòng trên."
+    },
+    {
+      "command": "CỤM — AC pod hardening còn lại trên pod sandbox thật",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:33:00+07:00",
+      "summary": "uid_map = '0 2635137024 65536' (cột 2 ≠ 0 ⇒ user-ns thật). `.spec.volumes[*].hostPath.path` = rỗng ⇒ không có đường mount docker.sock của host (D-22′)."
+    },
+    {
+      "command": "bash infra/host/04-verify-sysbox.sh (đầu-cuối)",
+      "status": "skipped",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T17:45:00+07:00",
+      "summary": "KHÔNG chạy được: script tạo pod từ image `nestybox/ubuntu-noble-systemd-docker` CHƯA side-load, và cụm không pull được (mạng VM). Ghi là 'skipped' chứ không phải 'pass' — ba check đã sửa được xác minh bằng CÙNG phép đo trên pod sandbox thật (hostPath rỗng, cgroup host pids.max=4096, uid_map offset≠0), nhưng vế DinD offline của check #7 phải chờ E7 vì image của ta chưa có docker."
+    }
+  ],
+  "beforeAfter": {
+    "before": "pool:free = [sandbox-8bb412626eca] · pod:{name}.state = free · k8s phase = Failed (exitCode 137) · giữ nguyên qua 2.5 chu kỳ sweep · kubelet không có podPidsLimit ⇒ cgroup pod pids.max = 'max' ⇒ fork-bomb hạ được node 1-node · 04-verify-sysbox.sh có 3 check không thể đỏ hoặc xanh-vì-lý-do-sai",
+    "after": "pod chết bị rút 8ms sau khi reaper lên; dlp_reaper_dead_free_pods_total=1 với 5 counter reaper khác = 0; pool:free chỉ còn pod ấm Running · cgroup host pids.max=4096, pids.events='max 5' sau phép đo hành vi, node Ready, pod nền tảng 0 restart · 3 check của 04-verify-sysbox.sh nay đo đúng điểm thực thi và đỏ được"
+  }
+}
