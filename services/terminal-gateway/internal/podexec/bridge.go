@@ -117,6 +117,24 @@ type connState struct {
 	// intent giữ lý do ĐẦU TIÊN. CompareAndSwap chứ không phải Store: nguyên
 	// nhân đầu là nguyên nhân THẬT, những cái sau là hệ quả của nó.
 	intent atomic.Int32
+
+	// hardCapSeen: đã từng nhận `hard_cap_reached=true` từ orchestrator chưa.
+	//
+	// ⛔ ĐÂY LÀ THỨ DUY NHẤT PHÂN BIỆT ĐƯỢC "HẾT GIỜ" VỚI "BỊ THU HỒI", và nó
+	// phải sống ở đây vì HAI goroutine khác nhau cần nó (heartbeat lúc gia hạn
+	// hỏng, và `finish` lúc stream đứt vì reaper xoá pod — hai đường đua nhau).
+	//
+	// Vì sao không hỏi lại orchestrator: nhánh `extend: hardcap:` của
+	// `extend.lua` gần như KHÔNG BAO GIỜ chạy được. Script đặt TTL của
+	// `session:{id}` đúng bằng `expiresAt`, nên tới thời điểm `newExpiresAt <=
+	// now` thì hash đã BIẾN MẤT — lượt gia hạn kế tiếp thấy "không tồn tại", tức
+	// chính là ca `4404`. Đo được trên cluster 2026-08-11: phiên chạm trần cứng
+	// đóng bằng `4404` kèm `SESSION_GONE`, và người vừa dùng hết thời lượng
+	// nhận được thông báo "phiên của bạn bị thu hồi".
+	//
+	// Gateway thì BIẾT: nó đã phát `expiring{hardCapReached:true}` hai phút
+	// trước đó. Nhớ lấy một bit là đủ để nói đúng sự thật.
+	hardCapSeen atomic.Bool
 }
 
 func (s *connState) markActivity()      { s.activity.Store(true) }
@@ -629,8 +647,10 @@ func (b *Bridge) finish(ctx context.Context, c *websocket.Conn, t Target, stream
 	//   - lỗi hạ tầng: session đã biến mất, HAY apiserver trục trặc?
 	// Cả hai phải hỏi Redis (contract §6).
 	if b.sessionGone(ctx, t.SessionID) {
-		b.sendControl(ctx, c, ControlOut{Type: "error", Code: "SESSION_GONE", Message: "phiên đã kết thúc"})
-		_ = c.Close(4404, "session gone")
+		// Đường ĐUA với heartbeat: reaper xoá pod làm stream đứt ở đây, trong
+		// khi heartbeat có thể đang phát hiện cùng chuyện đó qua lượt gia hạn.
+		// Cùng một hàm ⇒ cùng một mã, bất kể ai tới trước.
+		b.closeTerminal(ctx, c, t, st)
 		return
 	}
 
@@ -647,6 +667,33 @@ func (b *Bridge) finish(ctx context.Context, c *websocket.Conn, t Target, stream
 	b.met.ExecErrorsTotal.WithLabelValues(metrics.KindStream).Inc()
 	b.sendControl(ctx, c, ControlOut{Type: "error", Code: "EXEC_FAILED", Message: "phiên tới pod bị gián đoạn"})
 	_ = c.Close(4500, truncateReason("loi stream: "+errText(streamErr)))
+}
+
+// closeTerminal đóng một phiên đã hết hiệu lực, chọn giữa `4404` và `4409` theo
+// thứ gateway ĐÃ QUAN SÁT được.
+//
+// ⛔ HAI GOROUTINE CÙNG TỚI ĐƯỢC ĐÂY VÀ CHÚNG ĐUA NHAU — đó là lý do hàm này
+// tồn tại thay vì hai đoạn giống nhau. Khi phiên chạm trần cứng, có hai thứ xảy
+// ra gần như cùng lúc: heartbeat gọi gia hạn và thấy session biến mất, VÀ reaper
+// xoá pod làm stream đứt (`finish` chạy). Ai tới trước cũng phải đóng bằng CÙNG
+// một mã, nếu không close code của cùng một sự kiện phụ thuộc vào việc hôm đó
+// reaper nhanh hay chậm.
+//
+// `intent` (CompareAndSwap) giữ cho lần đóng thứ hai thành no-op.
+func (b *Bridge) closeTerminal(ctx context.Context, c *websocket.Conn, t Target, st *connState) {
+	if st.hardCapSeen.Load() {
+		b.log.Info("phiên kết thúc vì hết thời lượng tối đa — đóng 4409",
+			slog.String("session_id", t.SessionID))
+		st.setIntent(intentHardCap)
+		b.sendControl(ctx, c, ControlOut{
+			Type: "error", Code: "HARD_CAP_REACHED", Message: "phiên đã chạy hết thời lượng tối đa"})
+		_ = c.Close(4409, "hard cap reached")
+		return
+	}
+	b.log.Info("session không còn hiệu lực — đóng 4404", slog.String("session_id", t.SessionID))
+	st.setIntent(intentGone)
+	b.sendControl(ctx, c, ControlOut{Type: "error", Code: "SESSION_GONE", Message: "phiên đã kết thúc"})
+	_ = c.Close(4404, "session gone")
 }
 
 // sessionGone hỏi Redis. Lỗi khi hỏi → coi là CÒN SỐNG (fail-open có chủ ý):

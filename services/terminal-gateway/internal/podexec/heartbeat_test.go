@@ -51,7 +51,59 @@ func blockUntilCtx() *fakeExecutor {
 	}}
 }
 
+// scriptedExtender trả lần lượt từng bước rồi lặp lại bước cuối — cần cho các
+// ca mà hành vi ĐỔI giữa chừng (chạm trần rồi mới biến mất).
+type scriptedExtender struct {
+	mu    sync.Mutex
+	steps []podexec.ExtendResult
+	n     int
+}
+
+func (s *scriptedExtender) Extend(context.Context, string, string) (podexec.ExtendResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := s.n
+	if i >= len(s.steps) {
+		i = len(s.steps) - 1
+	}
+	s.n++
+	return s.steps[i], nil
+}
+
 // ---------------------------------------------------------------- harness bổ sung
+
+// readUntilCloseWhileTyping gõ đều đặn cho tới khi server đóng, rồi trả những gì
+// đã nhận.
+//
+// Vế gõ là bắt buộc: heartbeat chỉ gọi ExtendSession khi có traffic THẬT, nên
+// một harness chỉ-đọc sẽ không bao giờ tới được nhánh đang cần đo.
+func (h *bridgeHarness) readUntilCloseWhileTyping(t *testing.T) ([]podexec.ControlOut, []byte, websocket.StatusCode) {
+	t.Helper()
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		tk := time.NewTicker(20 * time.Millisecond)
+		defer tk.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-tk.C:
+				wctx, wcancel := context.WithTimeout(context.Background(), time.Second)
+				err := h.client.Write(wctx, websocket.MessageBinary, []byte("x"))
+				wcancel()
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+	controls, stdout, code := h.readUntilClose(t)
+	close(stop)
+	<-done
+	return controls, stdout, code
+}
 
 func (h *bridgeHarness) sendStdin(t *testing.T, b []byte) {
 	t.Helper()
@@ -366,6 +418,61 @@ func TestQuaTranCungThiDong4409ChuKhongPhai4404(t *testing.T) {
 	}
 	if co, ok := findControl(controls, "error"); !ok || co.Code != "HARD_CAP_REACHED" {
 		t.Errorf("control error = %+v, muốn code=HARD_CAP_REACHED", co)
+	}
+}
+
+// ⛔ TestChamTranRoiSessionBienMatThiDong4409ChuKhongPhai4404.
+//
+// Ca này tới từ một lượt chạy THẬT trên cluster, không từ suy luận — prover
+// `cmd/verify-heartbeat` đỏ đúng ở đây.
+//
+// Nhánh `extend: hardcap:` của `extend.lua` gần như KHÔNG BAO GIỜ chạy: script
+// đặt TTL của `session:{id}` đúng bằng `expiresAt`, nên tới lúc `newExpiresAt <=
+// now` thì hash đã biến mất và lượt gia hạn kế tiếp nhận "không tồn tại". Đo
+// được: phiên chạm trần cứng đóng bằng `4404` + `SESSION_GONE`, tức nói với
+// người vừa dùng hết 2 giờ rằng "phiên của bạn bị thu hồi".
+//
+// Gateway thì BIẾT rõ hơn thế: nó vừa phát `expiring{hardCapReached:true}`.
+// Ca này khoá đúng tính chất đó — cùng một `ExtendGone`, hai close code khác
+// nhau tuỳ vào việc trước đó đã báo chạm trần hay chưa.
+func TestChamTranRoiSessionBienMatThiDong4409ChuKhongPhai4404(t *testing.T) {
+	capped := time.Date(2026, 8, 9, 12, 30, 0, 0, time.UTC).Unix()
+	ext := &scriptedExtender{steps: []podexec.ExtendResult{
+		// Lượt 1: còn gia hạn được, nhưng đã bị trần cắt → `expiring(true)`.
+		{Outcome: podexec.ExtendOK, ExpiresAt: capped, HardCapReached: true},
+		// Lượt 2+: hash đã hết TTL ⇒ orchestrator/store nói "không tồn tại".
+		{Outcome: podexec.ExtendGone},
+	}}
+	h := newBridge(t, blockUntilCtx(), alwaysGone, fastTiming(ext))
+	h.sendInit(t, 80, 24)
+	h.waitReady(t)
+
+	controls, _, code := h.readUntilCloseWhileTyping(t)
+	if code != 4409 {
+		t.Fatalf("close code = %d, muốn 4409 — sau khi đã báo hardCapReached, "+
+			"session biến mất nghĩa là HẾT GIỜ chứ không phải bị thu hồi", code)
+	}
+	if co, ok := findControl(controls, "error"); !ok || co.Code != "HARD_CAP_REACHED" {
+		t.Errorf("control error = %+v, muốn code=HARD_CAP_REACHED", co)
+	}
+}
+
+// TestChuaChamTranMaBienMatThiVan4404 — vế đối chứng.
+//
+// Không có nó thì ca trên cũng xanh với một implement đóng 4409 cho MỌI session
+// biến mất, tức xoá mất khả năng nói "phiên của bạn bị thu hồi".
+func TestChuaChamTranMaBienMatThiVan4404(t *testing.T) {
+	ext := &stubExtender{res: podexec.ExtendResult{Outcome: podexec.ExtendGone}}
+	h := newBridge(t, blockUntilCtx(), alwaysGone, fastTiming(ext))
+	h.sendInit(t, 80, 24)
+	h.waitReady(t)
+
+	controls, _, code := h.readUntilCloseWhileTyping(t)
+	if code != 4404 {
+		t.Fatalf("close code = %d, muốn 4404 — chưa từng báo chạm trần thì đây là thu hồi", code)
+	}
+	if co, ok := findControl(controls, "error"); !ok || co.Code != "SESSION_GONE" {
+		t.Errorf("control error = %+v, muốn code=SESSION_GONE", co)
 	}
 }
 

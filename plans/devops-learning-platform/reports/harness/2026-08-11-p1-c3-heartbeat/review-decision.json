@@ -1,0 +1,21 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 9,
+  "criticalCount": 0,
+  "blockingReasons": [],
+  "contractStatus": "CHANGED",
+  "acceptanceCoverage": [
+    "AC 'Gia hạn liên tục quá HARD_CAP → expires_at đứng yên, hard_cap_reached=true, FE nhận expiring' → ĐẠT trên cluster thật, quan sát từng bước: hạn dịch rồi DỪNG đúng ở createdAt+HARD_CAP kèm cờ.",
+    "AC 'Có traffic → ExtendSession được gọi; chỉ ping/pong → expires_at KHÔNG đổi' → hai vế đầu ĐẠT (test tự động + cluster). Vế thứ ba của cùng dòng ('WS đóng 4408 sau idle-window') là AC KHÔNG THỰC HIỆN ĐƯỢC — không đường nào phát 4408 và cũng không nên có; ghi đề xuất bỏ ở P2 thay vì lặng lẽ tick.",
+    "AC 'Từ ready tới prompt đầu tiên p95 < 500ms' → KHÔNG tick. Câu chữ AC mô tả một khoảng ~0 theo cấu tạo (ready chỉ phát khi byte stdout đầu tiên tới), khác với metric nó trỏ tới (101→ready). Số đo đầu tiên 0.708s VƯỢT ngưỡng; một mẫu nguội chưa nói được p95.",
+    "G8: có test CẢ HAI CHIỀU — vượt trần đóng đúng mã, và ca đối chứng (frame 32 KiB hợp lệ, 50 resize của một cơn kéo cửa sổ) vẫn qua. Trần phải chặn lạm dụng chứ không chặn tính năng.",
+    "G9: hai phiên SONG SONG trên cùng một Bridge, mỗi phiên thấy đúng pod của mình, dưới -race.",
+    "G10: 7 collector sống trên /metrics của cluster, không nhãn nào mang session_id/user_id/pod_name."
+  ],
+  "regressionProof": [
+    "240→242 PASS / 0 SKIP / 0 FAIL toàn repo dưới -race với Redis + Postgres THẬT. Đếm bằng awk trên -v, không tin dòng `ok`: một suite xanh vì mọi test SKIP là chế độ hỏng đã có thật trong repo (redistest t.Skip khi thiếu REDIS_URL).",
+    "4 test CÓ SẴN của 1.C-2 (close code 1000/4404/4500 + control exit) ĐỎ khi bản đầu đặt cancel() trước finish() — bộ test cũ gác được đúng hồi quy mà chặng này suýt gây ra, và đó là cách phát hiện coder/websocket đóng phăng conn khi ctx bị huỷ.",
+    "Toàn bộ đường authz 9 bước của 1.C-1 và cầu exec của 1.C-2 không sửa một dòng logic; wsroute chỉ thêm counter và một field UserID vào Target.",
+    "buf breaking sạch (proto không đổi); env-check giữ nguyên 52 biến/4 scope; golangci-lint v2 0 issues; gofmt + GOOS=linux go vet sạch trên cả 4 module."
+  ]
+}

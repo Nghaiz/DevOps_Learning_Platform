@@ -196,25 +196,23 @@ func (b *Bridge) extendOnce(
 	// nhánh control-hỏng (4400) đã dùng từ 1.C-2.
 	switch res.Outcome {
 	case ExtendGone:
-		b.log.Info("session không còn hiệu lực giữa phiên — đóng 4404",
-			slog.String("session_id", t.SessionID))
-		st.setIntent(intentGone)
-		b.sendControl(ctx, c, ControlOut{Type: "error", Code: "SESSION_GONE", Message: "phiên đã kết thúc"})
-		_ = c.Close(4404, "session gone")
+		// Session biến mất SAU khi đã báo chạm trần cứng ⇒ nó hết GIỜ, không
+		// phải bị thu hồi. Xem connState.hardCapSeen: đây là đường duy nhất
+		// `4409` thật sự tới được người dùng.
+		b.closeTerminal(ctx, c, t, st)
 		cancel()
 		return false
 	case ExtendHardCap:
-		b.log.Info("phiên đã qua trần cứng — đóng 4409",
-			slog.String("session_id", t.SessionID))
-		st.setIntent(intentHardCap)
-		b.sendControl(ctx, c, ControlOut{
-			Type: "error", Code: "HARD_CAP_REACHED", Message: "phiên đã chạy hết thời lượng tối đa"})
-		_ = c.Close(4409, "hard cap reached")
+		// Nhánh phòng thủ: orchestrator nói thẳng "đã qua trần". Hiếm khi chạy
+		// được (hash thường đã hết TTL trước đó), nhưng khi chạy thì nó là câu
+		// trả lời chắc chắn nhất, nên vẫn ưu tiên.
+		st.hardCapSeen.Store(true)
+		b.closeTerminal(ctx, c, t, st)
 		cancel()
 		return false
 	}
 
-	b.sendExpiring(ctx, c, res, announced, hardCapAnnounced)
+	b.sendExpiring(ctx, c, st, res, announced, hardCapAnnounced)
 	return true
 }
 
@@ -235,7 +233,7 @@ func (b *Bridge) extendOnce(
 // `expiring` giống hệt, tức 60 giây một lần bảo FE "sắp hết hạn" cho tới lúc
 // phiên chết — cảnh báo lặp là cảnh báo bị bỏ qua.
 func (b *Bridge) sendExpiring(
-	ctx context.Context, c *websocket.Conn, res ExtendResult,
+	ctx context.Context, c *websocket.Conn, st *connState, res ExtendResult,
 	announced *int64, hardCapAnnounced *bool,
 ) {
 	moved := res.ExpiresAt > *announced
@@ -246,6 +244,12 @@ func (b *Bridge) sendExpiring(
 
 	*announced = max(*announced, res.ExpiresAt)
 	*hardCapAnnounced = *hardCapAnnounced || res.HardCapReached
+	if res.HardCapReached {
+		// Ghi nhớ cho đường ĐÓNG (closeTerminal): lát nữa session biến mất thì
+		// đây là thứ duy nhất còn biết nó biến mất vì HẾT GIỜ chứ không phải vì
+		// bị thu hồi.
+		st.hardCapSeen.Store(true)
+	}
 
 	b.sendControl(ctx, c, ControlOut{
 		Type:           "expiring",

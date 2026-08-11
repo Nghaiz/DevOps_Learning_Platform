@@ -1,0 +1,12 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "highRisk: TRUE — chặng chạm CLUSTER ĐANG SỐNG: 4 lượt helm upgrade (revision 16→19), side-load 6 image, và NÉN HAI ĐỒNG HỒ của orchestrator (sessionTtl/extendDefault/hardCap) rồi phải trả về. Quên trả về nghĩa là mọi phiên lab sau đó chết sau 90 giây mà không ai hiểu vì sao — đã xác nhận trả về bằng `kubectl get deploy ... env`, không tin `helm get values`.",
+    "autoStopRequired: TRUE — hai chỗ dừng lại hỏi người dùng TRƯỚC khi code: (1) phạm vi chặng (4 khối còn lại của phase-1), (2) hai quyết định thật sự đổi việc — mTLS làm luôn hay tách chương, và sửa contract §5 ngay hay ghi nợ cho 1.F. Cả hai đều chọn phương án khuyến nghị.",
+    "humanApproved: TRUE — người dùng chốt scope 1.C-3 + đóng nợ image đầu phiên, và chốt hai quyết định trên qua AskUserQuestion.",
+    "largeDiff: FALSE — 4 file mới + 8 file sửa, tập trung trong services/terminal-gateway. Không chạm proto, không chạm orchestrator, không thêm biến env."
+  ]
+}

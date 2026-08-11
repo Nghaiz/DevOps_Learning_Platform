@@ -1,0 +1,39 @@
+{
+  "commands": [
+    {
+      "command": "go test -race ./... (4 module, đếm PASS/SKIP/FAIL riêng)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T13:10:00+07:00",
+      "summary": "242 PASS / 0 SKIP / 0 FAIL với Redis + Postgres THẬT. orchestrator 118, shared 21, terminal-gateway 103 (82 trước chặng này + 21 ca mới). Đếm bằng awk trên -v thay vì tin dòng `ok`: một suite xanh vì mọi test đều SKIP là chế độ hỏng đã có thật trong repo này (redistest t.Skip khi thiếu REDIS_URL)."
+    },
+    {
+      "command": "CHỨNG MINH TRÊN CLUSTER — cmd/verify-heartbeat (lượt 1 ĐỎ, lượt 2 xanh sau bản vá)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T12:48:00+07:00",
+      "summary": "⛔ LƯỢT 1 FAIL, và đó là phát hiện giá trị nhất của chặng. Ba control `expiring` đúng thiết kế (hạn dịch 05:27:32 → 05:29:03 → 05:30:03 rồi dừng ở capAt kèm hardCapReached=true) nhưng mã đóng là 4404 + SESSION_GONE thay vì 4409. Nguyên nhân ở extend.lua: nó đặt TTL của session:{id} ĐÚNG BẰNG expiresAt, nên tới lúc `newExpiresAt <= now` — điều kiện duy nhất để nhánh `extend: hardcap:` bắn — thì hash đã biến mất. Nhánh đó và nhánh causeHardCap của classify đều là mã gần như chết; người dùng hết 2 giờ hợp lệ được báo \"phiên bị thu hồi\". 21 test đơn vị mù vì Extender giả trả thẳng ExtendHardCap, một outcome production không bao giờ sinh ra — lần THỨ BA của họ lỗi \"đường không ai đi thì không ai gác\" (1.E-1: job CI chỉ chạy trên main; G12: createCaller bỏ qua tầng serialize). BẢN VÁ: gateway nhớ một bit hardCapSeen trên connState (không phải biến cục bộ của vòng heartbeat, vì hai goroutine đua nhau tới đường đóng) và cả hai nhánh dùng chung closeTerminal. LƯỢT 2 PASS: sign-up Better Auth → tRPC session.create → Set-Cookie dlp_sandbox → WS 101 → ready → gõ phím → hạn DỊCH THẬT (05:40:06 → 05:41:37 → 05:42:37 → 05:43:36) → expiring{hardCapReached:true} → đóng 4409 + HARD_CAP_REACHED. Nén hai đồng hồ orchestrator (90s/120s/300s) để vừa một lượt đo — nén THAM SỐ chứ không nén đường đi."
+    },
+    {
+      "command": "Đọc /metrics của gateway sau lượt đo",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T12:49:00+07:00",
+      "summary": "extend_total{ok}=2, {hard_cap}=2, {gone}=0, ws_bytes{in}=59/{out}=24531, ws_connections{accepted,ok}=1, attach_duration=0.708s (1 mẫu). ⛔ `gone=0` là số đo đáng giá nhất: lượt gia hạn thứ 5 CHƯA TỪNG CHẠY — kết nối đóng qua đường `finish` (reaper xoá pod, stream đứt), không qua heartbeat. Tức cuộc đua hai goroutine là THẬT và lượt đo đi vào nhánh CÒN LẠI so với nhánh bản vá nhắm tới. Vẫn ra 4409 vì cả hai nhánh dùng chung closeTerminal — nếu chỉ vá phía heartbeat thì lượt 2 đã trả 4404 và trông như bản vá không ăn."
+    },
+    {
+      "command": "golangci-lint v2 (gateway) + gofmt + GOOS=linux go vet (4 module) + node scripts/env-check.mjs + buf lint/breaking",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T13:05:00+07:00",
+      "summary": "0 issues. golangci-lint bắt gosec G101 (mật khẩu hằng trong prover) — đã sửa bằng crypto/rand thay vì nolint, vì gitleaks-action quét cả DẢI COMMIT của PR nên xoá ở tip là chưa đủ (bài học 1.C-1). env-check OK 52 biến/4 scope (chặng này KHÔNG thêm env mới: ORCHESTRATOR_GRPC_ADDR đã có sẵn đủ 4 nơi từ P0). buf breaking sạch — proto không đổi."
+    },
+    {
+      "command": "Trả lab về nguyên trạng sau khi đo",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-11T13:00:00+07:00",
+      "summary": "helm revision 19: SESSION_TTL=1h, HARD_CAP=2h, EXTEND_DEFAULT=300s — xác nhận bằng `kubectl get deploy ... env`, không bằng `helm get values`. Nợ còn lại: gateway chạy tag dev-1c3b."
+    }
+  ]
+}
