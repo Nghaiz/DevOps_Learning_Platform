@@ -156,7 +156,7 @@ Tab thứ hai không phải là "thêm một terminal", nó **phá terminal đan
   "expiresAt": "2026-08-09T12:00:00Z", "hardCapAt": "2026-08-09T13:00:00Z",
   "maxFrameBytes": 32768 }
 
-{ "type": "expiring", "expiresAt": "…", "hardCapReached": true }
+{ "type": "expiring", "expiresAt": "…", "hardCapReached": false }
 
 { "type": "error",    "code": "SESSION_EXPIRED", "message": "phiên đã hết hạn" }
 
@@ -164,7 +164,15 @@ Tab thứ hai không phải là "thêm một terminal", nó **phá terminal đan
 ```
 
 - **`ready`** cho FE biết đã attach vào pod thật (101 chỉ nghĩa là "tới được gateway"), mang sẵn `expiresAt`/`hardCapAt` để FE vẽ đồng hồ đếm ngược không cần gọi thêm tRPC, và `maxFrameBytes` để FE tự chia nhỏ paste lớn thay vì bị đóng `4413` giữa lúc sinh viên dán một manifest YAML.
-- **`expiring`** là ánh xạ trực tiếp của `ExtendSessionResponse.hard_cap_reached`. Comment trong `session.proto` nói field đó tồn tại "cho FE báo trước thay vì để terminal chết đột ngột" — gateway BẮT BUỘC chuyển tiếp, không thì field đó vô dụng.
+- **`expiring`** báo rằng **`expiresAt` vừa THAY ĐỔI**, và `hardCapReached` nói còn đường gia hạn nữa hay không. FE **chỉ cảnh báo người dùng khi `hardCapReached: true`**; khi `false` thì đơn giản là cập nhật lại đồng hồ đếm ngược, im lặng. Vắng field ⇒ `false` (`omitempty`, xem Go struct `ControlOut`).
+
+  > ⛔ **Vì sao `expiring` KHÔNG chỉ dành cho lúc chạm trần** (chốt 2026-08-11, chặng 1.C-3). Bản trước ngầm định `hardCapReached` luôn `true`, tức `ready` là lần DUY NHẤT FE biết `expiresAt`. Ghép với công thức đã sửa của B5 — `max(current, min(now + extend, createdAt + HARD_CAP))` — thì với `SESSION_TTL=1h` và `EXTEND_DEFAULT=300s`, hạn **đứng yên suốt ~55 phút** rồi mới nhích 5 phút mỗi lượt gia hạn cho tới trần 2h. Nghĩa là **mọi phiên chạy quá 55 phút** đều có đồng hồ FE chạy về 0 trong khi terminal vẫn sống. Đó là lỗi CHẮC CHẮN XẢY RA, không phải ca hiếm. Sửa ngữ nghĩa (không đổi shape, không thêm `type` mới) rẻ hơn nhiều so với để lane FE phát hiện bằng cách poll tRPC.
+  >
+  > Chính sự tồn tại của boolean `hardCapReached` đã ngụ ý message này gửi được với `false` — một field luôn bằng `true` là một field thừa.
+
+- Gateway phát `expiring` khi — và chỉ khi — **có tin mới**: hạn tiến lên (hạn không bao giờ lùi), hoặc **lần đầu** chạm trần cứng. Không lặp lại cảnh báo trần cứng ở mỗi nhịp heartbeat: một cảnh báo lặp mỗi 60 giây là một cảnh báo bị bỏ qua.
+
+- `hard_cap_reached` của `ExtendSessionResponse` ánh xạ thẳng vào field cùng tên. Comment trong `session.proto` nói field đó tồn tại "cho FE báo trước thay vì để terminal chết đột ngột" — gateway BẮT BUỘC chuyển tiếp, không thì field đó vô dụng. Khi đã **QUA** trần (orchestrator không gia hạn thêm được nữa) thì đó không còn là `expiring` mà là kết thúc phiên: `error` + close **`4409`**.
 - **`error`** luôn đi ngay trước một close frame. `code` là enum ổn định (FE switch trên nó); `message` là tiếng Việt cho người đọc, FE **không parse**.
 - **`exit`** khi shell tự thoát, kèm ngay sau là close `1000`.
 
@@ -229,6 +237,10 @@ Không làm mục này thì UX cho "phiên của bạn đã hết hạn" và "ga
 Server gửi **WS ping frame chuẩn** mỗi 20s; không pong trong 10s → coi là chết. JS trong trình duyệt **không gửi/nhận được** ping/pong frame (trình duyệt tự trả pong, code không thấy) nên FE không cần làm gì.
 
 **Ping/pong KHÔNG tính là traffic cho idle-window.** Nếu tính, một tab bỏ quên sẽ giữ pod sống tới tận trần cứng.
+
+Chỉ **stdin/stdout thật** mới đẩy `ExtendSession` (gateway gọi tối đa mỗi 60s, và chỉ khi có traffic từ nhịp trước). Byte **stdout** cũng tính: một lệnh chạy lâu đang in log nghĩa là phiên còn người dùng, dù không ai chạm bàn phím — `tail -f` không được coi là idle. Control message (`resize`) thì **không** tính: nó do `ResizeObserver` của FE tự phát, không phải bằng chứng có người ngồi đó.
+
+> ⛔ **Ping phải chạy trên goroutine RIÊNG với vòng gia hạn** (chốt 1.C-3). `Ping` chặn cho tới khi có pong hoặc hết hạn 10s; gộp hai đồng hồ vào một `select` thì mỗi lượt ping đóng băng nhánh gia hạn tới 10 giây — đúng lúc hạ tầng chậm là lúc biên an toàn cần nhất. Đo được ở test: với nhịp ping ngắn, nhánh gia hạn **không bao giờ** chạy.
 
 ## 9. Cố ý KHÔNG có trong v1
 

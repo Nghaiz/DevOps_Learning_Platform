@@ -22,6 +22,7 @@ import (
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"github.com/coder/websocket"
@@ -81,8 +82,21 @@ type Deps struct {
 	Verifier        TokenVerifier
 	Sessions        SessionReader
 	Bridge          SessionBridge
+	Metrics         *metrics.Metrics
 	AllowedOrigins  []string
 	MaxWSPerSession int
+}
+
+// denyCodes là mọi mã mà một bước kiểm có thể trả về. Danh sách sống Ở ĐÂY vì
+// package này là nơi phát ra chúng — xem comment khởi tạo series bên dưới.
+var denyCodes = []string{
+	codeOriginNotAllowed,
+	codeSubprotocol,
+	codeUnauthenticated,
+	codeForbidden,
+	codeSessionNotFound,
+	codeSessionInactive,
+	codeSessionInUse,
 }
 
 // Register gắn /ws/session/{id} vào mux.
@@ -95,6 +109,21 @@ func Register(mux *http.ServeMux, deps Deps) {
 		// đây là yêu cầu của G3, không phải tối ưu.
 		denyLimiter: rate.NewLimiter(rate.Every(time.Second), 5),
 	}
+
+	// Khởi tạo mọi series về 0 ngay lúc đăng ký route. Không có bước này thì
+	// `rate(dlp_gateway_ws_connections_total{reason="FORBIDDEN"}[5m]) > 0` trả
+	// NO-DATA cho tới lần IDOR đầu tiên — và no-data trông y hệt "chưa ai tấn
+	// công" trên dashboard, tức đúng cảnh báo đó im lặng đúng lúc cần nhất.
+	//
+	// Làm ở đây chứ không trong metrics.New: chỉ package này biết mã nào đi với
+	// `denied` còn mã nào đi với `error`, và mã đó là thứ nó trả cho client —
+	// một danh sách, không phải hai bảng chờ trôi khỏi nhau.
+	deps.Metrics.WSConnectionsTotal.WithLabelValues(metrics.ResultAccepted, metrics.ReasonOK)
+	for _, c := range denyCodes {
+		deps.Metrics.WSConnectionsTotal.WithLabelValues(metrics.ResultDenied, c)
+	}
+	deps.Metrics.WSConnectionsTotal.WithLabelValues(metrics.ResultError, codeInternal)
+
 	mux.HandleFunc("GET /ws/session/{id}", h.serve)
 }
 
@@ -245,16 +274,23 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.deps.Metrics.WSConnectionsTotal.WithLabelValues(metrics.ResultAccepted, metrics.ReasonOK).Inc()
+	h.deps.Metrics.WSActive.Inc()
+	defer h.deps.Metrics.WSActive.Dec()
+
 	// Từ đây là việc của podexec: nó sở hữu vòng đời kết nối và ĐÓNG nó.
 	//
 	// `podName`/`namespace` lấy từ REDIS, không từ URL hay frame client — đó là
 	// điều kiện để "gõ được lệnh trong pod" không bao giờ có nghĩa là "gõ được
-	// lệnh trong pod NGƯỜI KHÁC".
+	// lệnh trong pod NGƯỜI KHÁC". Cùng lý lẽ cho `userId`: nó là thứ G7 gửi cho
+	// orchestrator làm vế authz của ExtendSession, và bước g vừa chứng minh nó
+	// trùng `claims.Subject`.
 	h.deps.Bridge.Serve(ctx, conn, podexec.Target{
 		SessionID: sessionID,
 		PodName:   sess.PodName,
 		Namespace: sess.Namespace,
 		ExpiresAt: sess.ExpiresAt,
+		UserID:    sess.UserID,
 	})
 }
 
@@ -299,6 +335,12 @@ func clientOffers(r *http.Request, want string) bool {
 // đọc được, và bộ acceptance IDOR của phase-1 dựa vào đúng chỗ đó. FE lấy lý do
 // thật qua tRPC `session.get` khi thấy 1006.
 func (h *handler) deny(w http.ResponseWriter, r *http.Request, status int, code, message string, logAttrs ...string) {
+	// Counter tăng VÔ ĐIỀU KIỆN, khác hẳn log bên dưới. Sampling log là để một
+	// vòng `curl` không đốt quota Loki; sampling counter thì làm chính con số
+	// đo tần suất tấn công trở nên sai — và đó là con số duy nhất còn lại khi
+	// log đã bị bỏ bớt.
+	h.deps.Metrics.WSConnectionsTotal.WithLabelValues(metrics.ResultDenied, code).Inc()
+
 	if h.denyLimiter.Allow() {
 		attrs := []any{
 			slog.String("session_id", r.PathValue("id")),
@@ -316,6 +358,7 @@ func (h *handler) deny(w http.ResponseWriter, r *http.Request, status int, code,
 // fail là lỗi của CHÍNH gateway (Redis chết, script hỏng) — 500, và lý do đi
 // vào log ở mức Error chứ không phải Warn: đây không phải người dùng làm sai.
 func (h *handler) fail(w http.ResponseWriter, r *http.Request, what string, err error) {
+	h.deps.Metrics.WSConnectionsTotal.WithLabelValues(metrics.ResultError, codeInternal).Inc()
 	h.deps.Log.Error("handshake WS lỗi nội bộ",
 		slog.String("session_id", r.PathValue("id")),
 		slog.String("op", what),

@@ -17,11 +17,13 @@ import (
 	"time"
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/testjwt"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/wsroute"
 	"github.com/coder/websocket"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const testOrigin = "https://app.example.test"
@@ -103,6 +105,7 @@ func newHarness(t *testing.T, sessions *spySessions) *harness {
 		Verifier:        authz.NewVerifier(authz.NewJWKSCache(jwks.URL), testjwt.Issuer),
 		Sessions:        sessions,
 		Bridge:          bridge,
+		Metrics:         metrics.New(prometheus.NewRegistry()),
 		AllowedOrigins:  []string{testOrigin},
 		MaxWSPerSession: 1,
 	})
@@ -377,6 +380,7 @@ func TestLuat8_LogKhongBaoGioChuaToken(t *testing.T) {
 		Verifier:        authz.NewVerifier(authz.NewJWKSCache(jwks.URL), testjwt.Issuer),
 		Sessions:        spy,
 		Bridge:          &fakeBridge{},
+		Metrics:         metrics.New(prometheus.NewRegistry()),
 		AllowedOrigins:  []string{testOrigin},
 		MaxWSPerSession: 1,
 	})

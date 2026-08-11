@@ -18,8 +18,17 @@ type Target struct {
 	SessionID string
 	PodName   string
 	Namespace string
-	// ExpiresAt (epoch giây) chỉ dùng để điền control `ready` cho FE vẽ đồng hồ.
+	// ExpiresAt (epoch giây) là mốc `ready` báo cho FE vẽ đồng hồ, và cũng là
+	// mốc heartbeat so để biết khi nào hạn ĐÃ DỊCH và phải phát `expiring`.
 	ExpiresAt int64
+
+	// UserID là `hash.userId` — đã được bước g của handshake xác nhận TRÙNG với
+	// `sub` của token, nên hai nguồn ở đây là một.
+	//
+	// Gửi làm `user_id` của ExtendSession (G7): proto nói rõ gateway điền từ
+	// token đã verify chứ KHÔNG lấy từ input client, và đây là vế authz duy
+	// nhất orchestrator có ở RPC đó.
+	UserID string
 }
 
 // ExecutorFactory dựng executor cho một Target. Là một seam để test chạy được
