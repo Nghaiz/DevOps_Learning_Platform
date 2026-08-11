@@ -6,7 +6,7 @@ import { checkRateLimit } from './server/security/rate-limit';
 import { exceedsBodyLimit } from './server/security/body-limit';
 import { rateLimitTrustProxy } from './server/env';
 
-const PROTECTED_PATHS = ['/dashboard'];
+const PROTECTED_PATHS = ['/dashboard', '/session'];
 const AUTH_ONLY_PATHS = ['/login'];
 
 // Cảnh báo skip-rate-limit chỉ log MỘT lần mỗi process — không spam mỗi request,

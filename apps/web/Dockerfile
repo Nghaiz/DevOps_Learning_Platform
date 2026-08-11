@@ -15,6 +15,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/ui/package.json packages/ui/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
+COPY packages/terminal/package.json packages/terminal/package.json
 # --frozen-lockfile: build KHÔNG được tự ý sửa lockfile — lệch lockfile phải lộ ra
 # ở CI (pnpm install thường), không phải âm thầm re-resolve trong image build.
 RUN pnpm install --frozen-lockfile
@@ -28,14 +29,23 @@ COPY tsconfig.base.json eslint.config.mjs ./
 COPY apps/web apps/web
 COPY packages/ui packages/ui
 COPY packages/shared-types packages/shared-types
+COPY packages/terminal packages/terminal
 ENV NEXT_TELEMETRY_DISABLED=1
 # Bật standalone TẠI ĐÂY (không hardcode trong next.config.ts): trên Windows dev,
 # bước trace standalone tạo symlink → EPERM; chỉ image Docker cần standalone.
 ENV NEXT_OUTPUT=standalone
-# Build cả 3 package trong workspace (turbo.json dependsOn: ["^build"] đã đảm bảo
-# thứ tự shared-types/ui trước web). Monorepo hiện chỉ có 3 package này — xem
-# pnpm-workspace.yaml; các thư mục packages/* khác chưa có package.json nên pnpm
-# bỏ qua, không cần copy.
+# Build cả 4 package trong workspace (turbo.json dependsOn: ["^build"] đã đảm bảo
+# thứ tự shared-types/ui/terminal trước web).
+#
+# ⛔ DANH SÁCH COPY Ở TRÊN PHẢI THEO KỊP `pnpm-workspace.yaml`. Thêm một package
+# vào workspace mà quên copy nó vào đây thì `turbo run build` trong image chạy
+# với "Packages in scope" THIẾU package đó, và lỗi hiện ra là `Module not found:
+# Can't resolve '@devops-platform/<tên>'` — trỏ vào file import chứ không trỏ vào
+# Dockerfile, nên rất dễ đi sửa nhầm chỗ. Đã xảy ra đúng như vậy khi thêm
+# `packages/terminal` ở 1.F.
+#
+# `packages/scenario` CHƯA có package.json nên pnpm bỏ qua — đúng như cũ, không
+# cần copy cho tới khi nó có manifest.
 RUN pnpm turbo run build
 
 # ---------------------------------------------------------------- migrator

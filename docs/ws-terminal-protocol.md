@@ -153,7 +153,7 @@ Tab thứ hai không phải là "thêm một terminal", nó **phá terminal đan
 
 ```jsonc
 { "type": "ready",    "sessionId": "abc", "podName": "sbx-x1",
-  "expiresAt": "2026-08-09T12:00:00Z", "hardCapAt": "2026-08-09T13:00:00Z",
+  "expiresAt": "2026-08-09T12:00:00Z",   // hardCapAt: VẮNG ở v1 — xem ghi chú dưới
   "maxFrameBytes": 32768 }
 
 { "type": "expiring", "expiresAt": "…", "hardCapReached": false }
@@ -163,7 +163,15 @@ Tab thứ hai không phải là "thêm một terminal", nó **phá terminal đan
 { "type": "exit",     "exitCode": 0 }
 ```
 
-- **`ready`** cho FE biết đã attach vào pod thật (101 chỉ nghĩa là "tới được gateway"), mang sẵn `expiresAt`/`hardCapAt` để FE vẽ đồng hồ đếm ngược không cần gọi thêm tRPC, và `maxFrameBytes` để FE tự chia nhỏ paste lớn thay vì bị đóng `4413` giữa lúc sinh viên dán một manifest YAML.
+- **`ready`** cho FE biết đã attach vào pod thật (101 chỉ nghĩa là "tới được gateway"), mang sẵn `expiresAt` để FE vẽ đồng hồ đếm ngược không cần gọi thêm tRPC, và `maxFrameBytes` để FE tự chia nhỏ paste lớn thay vì bị đóng `4413` giữa lúc sinh viên dán một manifest YAML.
+
+  > ⛔ **`hardCapAt` KHÔNG được gửi ở v1** (chốt 2026-08-11, chặng 1.F — trước đó bảng này liệt kê nó như một field bắt buộc và **không bên nào gửi nó**).
+  >
+  > Gateway không tính được mốc này: nó bằng `createdAt + HARD_CAP`, mà `HARD_CAP` là config của **orchestrator**. Muốn gateway tự tính thì phải cấp cho nó một `GATEWAY_HARD_CAP` riêng — tức **hằng số thứ hai cho cùng một con số**, đúng loại nợ mà P1 đã trả giá vài lần (`sandboxImage`, `SESSION_TTL`). Lý lẽ đó đúng, nên bên phải sửa là **contract + FE**, không phải gateway. Nguồn: `services/terminal-gateway/internal/podexec/bridge.go` § `buildReady`.
+  >
+  > **Cái giá của việc để bảng này sai:** parser đầu tiên của `packages/terminal` làm đúng như bảng — bắt buộc `hardCapAt` — nên nó loại **mọi** frame `ready`. Triệu chứng trên cụm thật: terminal vẽ prompt và gõ lệnh được (byte binary không đi qua parser), nhưng trạng thái UI đứng ở "đang kết nối" vĩnh viễn và đồng hồ không bao giờ hiện. Typecheck hai bên đều xanh — mỗi bên tự nhất quán. Đây là ca mẫu cho câu mở đầu file này: *"chỉ runtime mới lộ"*.
+  >
+  > FE vì thế coi `hardCapAt` là **tuỳ chọn** (`string | null`). Ngày nào cần mốc trần cứng thật, đường đúng là orchestrator trả nó trong `Session` rồi gateway chuyển tiếp — KHÔNG phải thêm một config trần cứng cho gateway.
 - **`expiring`** báo rằng **`expiresAt` vừa THAY ĐỔI**, và `hardCapReached` nói còn đường gia hạn nữa hay không. FE **chỉ cảnh báo người dùng khi `hardCapReached: true`**; khi `false` thì đơn giản là cập nhật lại đồng hồ đếm ngược, im lặng. Vắng field ⇒ `false` (`omitempty`, xem Go struct `ControlOut`).
 
   > ⛔ **Vì sao `expiring` KHÔNG chỉ dành cho lúc chạm trần** (chốt 2026-08-11, chặng 1.C-3). Bản trước ngầm định `hardCapReached` luôn `true`, tức `ready` là lần DUY NHẤT FE biết `expiresAt`. Ghép với công thức đã sửa của B5 — `max(current, min(now + extend, createdAt + HARD_CAP))` — thì với `SESSION_TTL=1h` và `EXTEND_DEFAULT=300s`, hạn **đứng yên suốt ~55 phút** rồi mới nhích 5 phút mỗi lượt gia hạn cho tới trần 2h. Nghĩa là **mọi phiên chạy quá 55 phút** đều có đồng hồ FE chạy về 0 trong khi terminal vẫn sống. Đó là lỗi CHẮC CHẮN XẢY RA, không phải ca hiếm. Sửa ngữ nghĩa (không đổi shape, không thêm `type` mới) rẻ hơn nhiều so với để lane FE phát hiện bằng cách poll tRPC.

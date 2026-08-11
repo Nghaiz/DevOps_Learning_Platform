@@ -42,3 +42,6 @@ values-secrets.yaml
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Playwright MCP scratch (ảnh/snapshot của phiên đo, không phải tài sản repo)
+.playwright-mcp/

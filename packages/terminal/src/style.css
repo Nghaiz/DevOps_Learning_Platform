@@ -1,0 +1,36 @@
+/*
+ * F3 — font self-host: **CaskaydiaCove Nerd Font Mono** (Cascadia Code đã vá
+ * glyph Nerd Fonts), bản subset do `scripts/build-font.mjs` sinh ra.
+ *
+ * CSP của repo (`apps/web/src/server/security/headers.ts`) đặt `font-src 'self'`,
+ * nên CDN bị chặn — self-host là BẮT BUỘC, không phải một lựa chọn phong cách.
+ * Next emit file woff2 dưới `/_next/static/media/`, tức cùng origin ⇒ khớp 'self'.
+ *
+ * `font-display: block` (theo F3): terminal ẩn cho tới khi font tải xong, thay vì
+ * vẽ bằng font fallback rồi nhảy. Với terminal thì FOUT tệ hơn hẳn một khối trống
+ * ngắn — FitAddon đo theo bề rộng ký tự, nên vẽ bằng metric fallback nghĩa là
+ * chọn SAI số cột, gửi `init` sai lên PTY, rồi reflow toàn bộ khi font thật tới.
+ *
+ * Chỉ khai MỘT face ở `font-weight: normal`. Chữ đậm do trình duyệt tự tổng hợp
+ * — xem `scripts/build-font.mjs` § "Vì sao chỉ Regular, không Bold".
+ */
+
+@import '@xterm/xterm/css/xterm.css';
+
+@font-face {
+  font-family: 'DLPTerminalNF';
+  src: url('./assets/dlp-terminal-nf.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+/*
+ * xterm tự đặt `position: relative` cho `.xterm-screen`, nhưng KHÔNG tự chiếm hết
+ * container. Thiếu hai dòng dưới thì `proposeDimensions()` đọc chiều cao 0 ở lần
+ * đo đầu và `measure()` trả về kích thước mặc định 80×24.
+ */
+.xterm {
+  height: 100%;
+  padding: 8px;
+}
