@@ -15,6 +15,20 @@ export interface TRPCContext {
   user: AuthedUser | null;
   /** Header gốc của request — session.ts forward nó để mint JWT gọi orchestrator. */
   reqHeaders: Headers;
+  /**
+   * Header của RESPONSE. Tồn tại cho ĐÚNG một việc ở P1: `session.create` append
+   * `Set-Cookie: dlp_sandbox=…` sau khi orchestrator trả session (phase-1 G12).
+   *
+   * `fetchRequestHandler` tự tạo object này và dựng `Response` từ nó
+   * (`@trpc/server@11.18.0` → `dist/adapters/fetch/index.mjs`: `const resHeaders =
+   * new Headers()` … `headers: resHeaders`), nên route handler
+   * `app/api/trpc/[trpc]/route.ts` KHÔNG cần sửa gì — đó cũng là lý do file đó
+   * không nằm trong danh sách ownership của G12.
+   *
+   * Dùng `append`, không `set`: `Set-Cookie` là header đa-giá-trị, và `set` sẽ
+   * lặng lẽ đè cookie do một middleware khác đặt.
+   */
+  resHeaders: Headers;
 }
 
 /**
@@ -32,7 +46,7 @@ export async function createTRPCContext(opts: FetchCreateContextFnOptions): Prom
     session === null
       ? null
       : { id: session.user.id, role: (session.user as { role?: string }).role === 'admin' ? 'admin' : 'user' };
-  return { db: getDb(), user, reqHeaders: opts.req.headers };
+  return { db: getDb(), user, reqHeaders: opts.req.headers, resHeaders: opts.resHeaders };
 }
 
 const t = initTRPC.context<TRPCContext>().create({

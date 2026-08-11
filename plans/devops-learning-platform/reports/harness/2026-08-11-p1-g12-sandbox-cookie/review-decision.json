@@ -1,0 +1,27 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 9,
+  "criticalCount": 0,
+  "blockingReasons": [],
+  "contractStatus": "CHANGED",
+  "acceptanceCoverage": [
+    "AC 'cookie do apps/web THẬT phát ra được gateway THẬT chấp nhận' → ĐẠT, 18/18 trên cluster. Điểm mấu chốt phân biệt chặng này với 1.C-2: gateway giữ NGUYÊN cấu hình kế thừa (jwksUrl='', tokenIssuer=''), không --set nào cho riêng phép đo. Món nợ 'prover tự đóng vai bên phát token' ĐÓNG.",
+    "AC 'cookie đủ contract §2' → ĐẠT: Path=/ws, HttpOnly, Secure, SameSite=Strict, KHÔNG Domain — đo cả ở unit test lẫn trên response HTTP thật.",
+    "AC 'token mang aud=gateway, sid, sub, alg=EdDSA, cùng khoá access token' → ĐẠT. Vế 'cùng khoá' đo bằng so `kid` của hai token, không bằng lập luận từ config.",
+    "AC 'exp = expires_at của session CHÍNH XÁC' → ĐẠT, và kiểm đột biến chứng minh nó không tautology: bỏ `exp` khỏi payload thì exp-iat rơi về 900 (TTL plugin) và ĐÚNG ca đó đỏ.",
+    "AC 'gõ được lệnh thật qua chuỗi đầy đủ' → ĐẠT: sign-up → session.create → Set-Cookie → 101 → ready → marker trả về ĐÚNG 2 lần.",
+    "AC 'admin tạo hộ → không phát cookie' → ĐẠT, có test + đột biến.",
+    "AC 'mỗi cổng mới chứng minh được nó CÓ THỂ ĐỎ' → ĐẠT: 5 đột biến, bốn cái đầu mỗi cái đúng MỘT ca.",
+    "AC Calico viết lại 'chặt hơn chứ không dễ hơn' → ĐẠT về lập luận, và vế 2+3 đã có số đo (T0+43.5h, canary đầu tiên sau đứt chuỗi). Vế 3 kiểm một ca mà bản cũ KHÔNG BAO GIỜ kiểm (token già đi trong lúc cron không chạy).",
+    "GHI CHÚ — VẤN ĐỀ KHÔNG CHẶN: (1) cookie chưa qua trình duyệt thật; client đo là WS viết tay. (2) `claim`/`get`/`reap` đã vá bigint nhưng chưa chạy HTTP thật lần nào — cùng loại khoảng trống vừa sinh ra lỗi 500. (3) `connect-src 'self'` vs `wss://` chưa kiểm, để 1.F. (4) ca 'hai session ghi đè cookie của nhau' chỉ suy ra, chưa dựng test.",
+    "GHI CHÚ — LÝ DO ĐIỂM 9 (1.C-2 cũng 9): chặng này chứng minh cả logic lẫn tích hợp, VÀ lôi ra một lỗi 500 có sẵn mà 64 test cũ mù. Không cho 10 vì hai lẽ: cookie chưa đi qua trình duyệt thật (vế cuối của thiết kế cookie), và ba procedure vừa vá vẫn chưa có đường HTTP nào chạm tới — tức tôi vừa vá một lớp lỗi rồi để lại đúng điều kiện đã sinh ra nó."
+  ],
+  "regressionProof": [
+    "82/82 ca xanh, 0 SKIP (trước chặng: 64) — đếm số PASS chứ không đọc chữ 'passed', vì suite skip sạch cũng exit 0.",
+    "Toàn bộ 64 ca cũ vẫn xanh sau khi TRPCContext thêm field bắt buộc `resHeaders` và sau khi 5 procedure đổi shape trả về.",
+    "Ca hồi quy MỚI cho lỗi vừa vá: quét TOÀN CÂY response tìm bigint (không chỉ 3 field đã biết) ⇒ field bigint thêm về sau mà quên map cũng đỏ. Đột biến 'trả thẳng message proto' làm đúng 3 ca serialize đỏ.",
+    "tsc --noEmit sạch trên apps/web; pnpm lint 5/5 task, 0 issue; env:check OK 52 biến/4 scope.",
+    "Không chạm Go, proto, hay chart ⇒ không cần chạy lại suite Go / buf breaking / kubeconform. `git diff --stat` xác nhận phạm vi chỉ trong apps/web + docs + plans.",
+    "Hồi quy hạ tầng đã kiểm sau mỗi lượt upgrade: gateway 11 biến env render đủ (jsonpath), 1/1 Ready; web 1/1 Running; mọi pod cụm Running/Completed sau khi kcm/scheduler tự phục hồi."
+  ]
+}

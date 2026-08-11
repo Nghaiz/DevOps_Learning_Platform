@@ -17,11 +17,27 @@ export const ACCESS_TOKEN_TTL = '15m';
 export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 
 /**
- * `aud` mặc định cho JWT do BFF phát ra khi gọi services/orchestrator qua gRPC.
- * P0 chỉ có một service hạ nguồn; thêm service thứ hai thì tham số hoá theo request
- * thay vì hard-code thêm một hằng số nữa — chưa cần ở đây (YAGNI).
+ * `aud` của JWT do BFF phát ra khi gọi services/orchestrator qua gRPC.
  */
 export const ORCHESTRATOR_AUD = 'orchestrator';
+
+/**
+ * `aud` của **sandbox token** — token duy nhất mở được shell (cookie `dlp_sandbox`,
+ * xem docs/ws-terminal-protocol.md §2 và server/auth/jwt.ts).
+ *
+ * ⛔ HAI HẰNG SỐ NÀY PHẢI NẰM CẠNH NHAU, và đây là lý do bản P0 nói "thêm service
+ * thứ hai thì tham số hoá thay vì thêm hằng số" đã bị thay: `aud` là thứ **DUY
+ * NHẤT** phân tách một token gọi gRPC với một token mở được shell (contract §2).
+ * Gateway BẮT BUỘC từ chối `aud=orchestrator`; nếu không, cái token mà BFF vẫn
+ * mint cho mỗi lời gọi `session.*` sẽ mở được terminal của chính user đó — và
+ * chuỗi đó không đi qua bước authz nào của luật 10.
+ *
+ * Tham số hoá `aud` theo request (đường P0 đề xuất) chính là bỏ tính chất đó: khi
+ * `aud` là biến, không còn chỗ nào trong repo khẳng định "chỉ có đúng hai giá trị,
+ * và chúng phải khác nhau". Giữ hằng số, giữ chúng cạnh nhau, để lần thêm service
+ * thứ ba là một sửa đổi CÓ THỂ REVIEW chứ không phải một tham số trôi qua.
+ */
+export const GATEWAY_AUD = 'gateway';
 
 /**
  * Better Auth: email/password + OAuth Google/Microsoft + RBAC (`role` trên bảng

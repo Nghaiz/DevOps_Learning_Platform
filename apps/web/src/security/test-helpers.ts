@@ -19,9 +19,15 @@ export async function closeTestDb(): Promise<void> {
   }
 }
 
-/** Context tRPC giả cho test router trực tiếp qua `appRouter.createCaller`. */
+/**
+ * Context tRPC giả cho test router trực tiếp qua `appRouter.createCaller`.
+ *
+ * `resHeaders` là một `Headers` THẬT chứ không phải stub: `fetchRequestHandler`
+ * cũng đưa vào đúng kiểu đó và dựng `Response` từ nó, nên test đọc
+ * `ctx.resHeaders.getSetCookie()` là đọc đúng thứ trình duyệt sẽ nhận.
+ */
 export function ctxFor(user: AuthedUser | null): TRPCContext {
-  return { db: testDb(), user, reqHeaders: new Headers() };
+  return { db: testDb(), user, reqHeaders: new Headers(), resHeaders: new Headers() };
 }
 
 export function uniqueId(prefix: string): string {

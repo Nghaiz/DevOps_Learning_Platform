@@ -1,0 +1,39 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Chặng G12 của phase-1 §1.C: 4 file `apps/web` phát sandbox token — `mintSandboxTokenFor` (aud=gateway, exp=expires_at của session, cùng khoá JWKS Better Auth), `resHeaders` trong TRPCContext, header Set-Cookie mang `dlp_sandbox` trên `session.create`. Kèm hai việc user chốt trong cùng phiên: đóng nợ image gateway trên lab (dev-4030577 → sha-841fb3d) và viết lại AC Calico T+37h cho chịu được suspend. G7–G10 (1.C-3) KHÔNG thuộc chặng này.",
+  "scoutSummary": "Vào phiên ngay sau khi PR #33 (1.C-2) merge; dọn nhánh và về main sạch tại 841fb3d. Soi lab TRƯỚC khi code và tìm ra hai thứ plan không biết: (1) cụm ngủ 14h (journal gap 2026-08-10T20:05+07 → 2026-08-11T10:09+07) làm kcm/scheduler mất lease leader election và crash-loop, nên MỌI CronJob ngừng lên lịch — trùm đúng lên mốc T+37h của AC Calico; (2) chart ở ~/dlp-deploy trên host LỆCH so với repo, thiếu toàn bộ khối env gateway của 1.C-1/1.C-2, nên `helm upgrade` bằng nó sẽ âm thầm gỡ GATEWAY_TOKEN_ISSUER/ALLOWED_ORIGINS/EXEC_COMMAND/REDIS_URL. Đọc `better-auth@1.6.26` trong node_modules (sign.mjs + plugins/jwt/index.mjs) thay vì tin plan về `overrideOptions`; đọc `@trpc/server@11.18.0/dist/adapters/fetch` để xác nhận `resHeaders` có thật và `fetchRequestHandler` dựng Response từ nó (⇒ route.ts không cần sửa).",
+  "acceptanceCriteria": [
+    "Cookie `dlp_sandbox` do apps/web THẬT phát ra được gateway THẬT chấp nhận — gateway giữ nguyên cấu hình kế thừa, KHÔNG `--set` jwksUrl/tokenIssuer cho riêng phép đo. Đây là món nợ 1.C-2 mở ra.",
+    "Cookie mang đủ contract §2: Path=/ws · HttpOnly · Secure · SameSite=Strict · KHÔNG Domain (host-only).",
+    "Token mang aud=gateway, sid = session vừa tạo, sub = user thật, alg=EdDSA, ký bằng ĐÚNG khoá của access token (D15 — không sinh khoá thứ hai).",
+    "`exp` = expires_at của session CHÍNH XÁC, không phải TTL 15m của plugin.",
+    "Chuỗi end-to-end chạy tới cùng: sign-up → session.create → Set-Cookie → WS 101 → ready → GÕ ĐƯỢC LỆNH THẬT trong pod.",
+    "Admin tạo session hộ user khác → KHÔNG phát cookie (không phát chìa mở shell của người khác cho trình duyệt admin).",
+    "Mỗi cổng mới chứng minh được nó CÓ THỂ ĐỎ bằng kiểm đột biến.",
+    "AC Calico viết lại phải CHẶT HƠN chứ không dễ hơn bản cũ."
+  ],
+  "touchpoints": [
+    "apps/web/src/server/auth/jwt.ts — mintSandboxTokenFor (MỚI)",
+    "apps/web/src/server/auth/config.ts — GATEWAY_AUD (file THỨ NĂM, ngoài bảng ownership 4 file của G12; lệch có chủ ý, lý do ghi trong phase-1)",
+    "apps/web/src/server/trpc/init.ts — resHeaders vào TRPCContext",
+    "apps/web/src/server/trpc/routers/session.ts — buildSandboxCookie + attachSandboxCookie + toJsonSession (vá lỗi bigint)",
+    "apps/web/src/security/test-helpers.ts — ctxFor cấp resHeaders thật (hệ quả compile-time của việc đổi interface)",
+    "apps/web/src/security/sandbox-token-cookie.test.ts — 18 ca MỚI",
+    "docs/ws-terminal-protocol.md §2 — đính chính `overrideOptions`",
+    "plans/devops-learning-platform/phase-1.md — G12 xong, AC Calico viết lại, AC B0 cookie, timeline",
+    "plans/devops-learning-platform/reports/2026-08-11-verify-g12-sandbox-cookie.md — báo cáo bằng chứng"
+  ],
+  "publicContracts": [
+    "docs/ws-terminal-protocol.md §2 — shape token KHÔNG đổi ({sub,sid,aud,iss,iat,exp}); ĐÍNH CHÍNH cơ chế mint: bỏ `overrideOptions` (thừa + merge nông làm mất `issuer`).",
+    "ĐỔI SHAPE TRẢ VỀ của tRPC `session.create/claim/get/reap`: từ message proto sang JsonSession (Timestamp → ISO-8601, revision → number). Đây là VÁ một lỗi 500 có sẵn, không phải đổi thiết kế. KHÔNG có consumer nào vỡ: `@trpc/client` chưa tồn tại (F8 chưa làm).",
+    "proto/orchestrator/v1/session.proto — KHÔNG chạm.",
+    "TRPCContext — thêm `resHeaders`. Nội bộ BFF, không phải contract liên-service."
+  ],
+  "blastRadius": [
+    "apps/web — đường HTTP của session.* trước chặng này trả 500 cho MỌI lời gọi; hồi quy xấu nhất là quay lại đúng trạng thái đó.",
+    "⚠ CHẠM CLUSTER: 3 lượt `helm upgrade` lên release `platform` đang sống (revision 13 gateway sha-841fb3d, 14 web dev-g12, 15 web dev-g12b). Chart dùng là bản SHIP TỪ REPO sang /tmp, KHÔNG phải ~/dlp-deploy (bản đó lệch).",
+    "Một lượt CreateSession thật trên lab (tiêu một pod của warm-pool trên trần 4, D16) + một Job canary tạo tay.",
+    "KHÔNG đụng orchestrator, datastore, proto, hay bất kỳ service Go nào."
+  ]
+}

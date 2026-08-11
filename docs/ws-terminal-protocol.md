@@ -47,7 +47,14 @@ Lý do chọn cookie thay vì subprotocol:
 
 ### Khoá ký và cách gateway verify — KHÔNG sinh khoá mới
 
-Sandbox token ký bằng **chính khoá của plugin `jwt()` Better Auth** đang dùng cho `aud=orchestrator`, chỉ khác `aud`. Xác minh trong `node_modules` (better-auth 1.6.26): plugin phơi endpoint **`GET /api/auth/jwks`**, thuật toán mặc định **EdDSA / Ed25519**, và `auth.api.signJWT` nhận `overrideOptions` nên đổi `audience` cho từng lần mint là một tham số, không phải một khoá thứ hai.
+Sandbox token ký bằng **chính khoá của plugin `jwt()` Better Auth** đang dùng cho `aud=orchestrator`, chỉ khác `aud`. Xác minh trong `node_modules` (better-auth 1.6.26): plugin phơi endpoint **`GET /api/auth/jwks`**, thuật toán mặc định **EdDSA / Ed25519**, và đổi `aud` cho từng lần mint là một tham số, không phải một khoá thứ hai.
+
+> **⛔ Đính chính 2026-08-11 (G12), sau khi đọc mã nguồn thay vì suy luận.** Bản trước ghi cơ chế đổi `aud` là **`overrideOptions`**. Sai ở cả hai vế:
+>
+> 1. **Thừa.** `dist/plugins/jwt/sign.mjs` lấy `aud`/`exp`/`iss` **thẳng từ payload** — `const aud = payload.aud; … .setAudience(aud ?? defaultAud)`. Payload đã thắng `options.jwt.audience`, nên đặt `aud` trong payload là đủ (và `mintAccessTokenFor` vốn đã làm đúng thế từ P0).
+> 2. **Có hại.** Endpoint merge **NÔNG**: `{...options, ...c.body.overrideOptions}` (`dist/plugins/jwt/index.mjs`). Truyền `{jwt:{audience:'gateway'}}` thay TRỌN khối `jwt` ⇒ **mất `issuer`** đang cấu hình, và `iss` lặng lẽ rơi về `baseURL`. Ở lab hai giá trị đó trùng nhau nên không lộ; ngày chúng tách (JWKS là DNS nội bộ, `iss` là URL công khai — chính lý do `GATEWAY_TOKEN_ISSUER` tồn tại) thì gateway **401 toàn bộ**.
+>
+> Implement đúng: đặt `{sub, sid, aud, iss, iat, exp}` trong `payload`, **không** `overrideOptions`. Xem `apps/web/src/server/auth/jwt.ts`.
 
 - **Mint (`apps/web`):** `mintSandboxTokenFor(userId, sessionId, expiresAt)` → payload `{ sub, sid, aud: "gateway", iss, iat, exp }`.
 - **Verify (gateway):** fetch `GATEWAY_JWKS_URL` (Service in-cluster của web), cache theo `kid`, **refetch khi gặp `kid` lạ** — đó là cách duy nhất chịu được rotation của Better Auth mà không cần deploy lại gateway. Ép `alg == EdDSA` (đừng chấp nhận `alg` từ header token), `aud == "gateway"`, `iss` khớp, `exp` chưa qua, `sub`/`sid` không rỗng.
