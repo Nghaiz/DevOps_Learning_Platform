@@ -1,0 +1,130 @@
+{
+  "commands": [
+    {
+      "command": "docker build images/sandbox-base (INCLUDE_DOCKER=1, mac dinh)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T11:20:00+07:00",
+      "summary": "docker-ce 5:29.7.2-1~ubuntu.24.04~noble. Cong sha256 cua khoa apt Docker di qua (build do ngay tai dong `sha256sum -c` neu Docker xoay khoa). Image 379 -> 809 MB (+430), tarball 86 -> 194 MB."
+    },
+    {
+      "command": "docker build --build-arg INCLUDE_PWSH=1 --build-arg INCLUDE_DOCKER=0",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T11:52:00+07:00",
+      "summary": "Nhanh pwsh KHONG chi build duoc ma CHAY duoc: pwsh -> 7.6.4, Terminal-Icons -> 0.11.0. Image 706 MB => pwsh cong ~330 MB, do la ly do INCLUDE_PWSH van mac dinh 0. Khong ship mot nhanh chua tung build."
+    },
+    {
+      "command": "trivy image --input sb.tar --scanners vuln --severity CRITICAL --exit-code 1 --timeout 15m",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T11:32:00+07:00",
+      "summary": "0 CRITICAL tren CA tang goi Ubuntu LAN 5 binary Go => KHONG can .trivyignore. HIGH: 14 (oh-my-posh, stdlib Go, nhu 1.E-1) + 3 (docker-buildx). CANH BAO: luot chay TRUOC do FATAL vi khong tai duoc DB, va vi bi nuot stderr nen no bao exit=0 — mot cong bao mat nuot stderr la cong LUON XANH. Con so tren doc tu bang Report Summary, khong doc tu exit code."
+    },
+    {
+      "command": "AC D4 'DinD offline' — pod dind-probe tren cum (sysbox-runc, NetworkPolicy default-deny)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T11:36:00+07:00",
+      "summary": "5 ve: (1) curl registry-1.docker.io HONG + curl 169.254.169.254 HONG => that su offline, day la ve lam AC co nghia; (2) docker info Client=Server=29.7.2; (3) docker build FROM scratch (COPY binary TINH oh-my-posh) thanh cong; (4) docker run no -> in 30.6.4; (5) docker image ls chi co DUNG image vua build => khong gi bi pull, tuc `docker build` dung BuildKit NHUNG trong dockerd chu khong pull moby/buildkit."
+    },
+    {
+      "command": "do cgroup TREN HOST cho pod dind-probe",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T11:38:00+07:00",
+      "summary": "pids.current=30/4096 => canh bao cua plan ('dockerd de rat nhieu con, an vao tran pids cua D-19') KHONG hien thuc hoa. memory.current=153MiB/1GiB. requests KHONG doi (512Mi/500m) => tran 4 session dong thoi cua D16 giu nguyen. Doc tren HOST vi Sysbox ao hoa /sys/fs/cgroup — so nhin tu trong pod la so gia."
+    },
+    {
+      "command": "E8 allowlist dotfiles — fixture 5 muc",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T11:15:00+07:00",
+      "summary": "Chep 2, tu choi 3. Ca duy nhat co gia tri chung minh la .gitconfig: TEN nam TRONG allowlist nhung bi chan vi la symlink tro /etc/passwd — bon ca kia deu co the xanh voi mot phep kiem chi doc ten. Hai cap (60 file / 300000 byte) deu bo TOAN BO bundle, khong chep nua voi."
+    },
+    {
+      "command": "E9 — new-session -A hai luot",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T11:29:00+07:00",
+      "summary": "session_id $0 -> $0, tmux ls = 1. Cong so session_id chu KHONG chi dem `tmux ls`: so dem bang 1 cung dung trong ca 'luot hai giet session cu roi tao moi' — ma ca do chinh la mat bai cua sinh vien, tuc dung thu D3 sinh ra de chan."
+    },
+    {
+      "command": "go test -count=1 -v ./... (3 module, Redis + Postgres THAT)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T12:05:00+07:00",
+      "summary": "359 PASS / 0 FAIL / 0 SKIP (orchestrator 187, gateway 120, shared 52) — KHOP CHINH XAC con so cua 1.C-4, dung nhu ky vong vi chang nay khong cham dong Go nao. Hai lan suyt bao sai: (a) luot dau PASS=162 SKIP=108 vi quen nap .env — dung bay 'suite xanh co the la suite skip sach'; (b) luot sau 270 nhin nhu hoi quy, thuc ra `grep '^--- PASS'` bo sot subtest."
+    },
+    {
+      "command": "actionlint .github/workflows/ci.yml",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T11:58:00+07:00",
+      "summary": "0 issue tren 138 dong workflow moi them."
+    },
+    {
+      "command": "shellcheck images/sandbox-base/entrypoint.sh",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T11:59:00+07:00",
+      "summary": "0 issue. Chi con SC2317 (info) da disable kem ly do: `exit 0` KHONG unreachable — `return` o top-level chi hop le khi script duoc SOURCE, chay truc tiep thi nhanh `|| exit 0` moi la nhanh chay."
+    },
+    {
+      "command": "SAU REVIEW — layout atomic-writer cua kubelet (ConfigMap/Secret/projected)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T13:05:00+07:00",
+      "summary": "Fixture dung ..data -> ..2026_08_12_04_34_54.123456789/ + hai symlink ten nguoi dung. TRUOC khi va: chep 0 file voi log tro vao 'allowlist'. SAU khi va: 'phat hien layout atomic-writer', chep 2 file, tu choi 0. Day la kieu volume nhieu kha nang nhat cho producer tuong lai."
+    },
+    {
+      "command": "SAU REVIEW — entrypoint KHONG co CMD",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T13:00:00+07:00",
+      "summary": "TRUOC khi va: `docker run --entrypoint /usr/local/bin/dlp-entrypoint.sh IMG` -> rc=0, tuc PID 1 thoat => pod Succeeded => warm-pool dem mot xac. SAU khi va: `docker run -d --entrypoint ...` -> state=running sau 5s."
+    },
+    {
+      "command": "SAU REVIEW — $HOME chua symlink",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T13:02:00+07:00",
+      "summary": "ln -s /etc /root/.config roi nap dotfiles -> 'dotfiles BI BO QUA TOAN BO: $HOME chua symlink (/root/.config)'. Truoc do mkdir -p/cp se ghi XUYEN qua thanh phan cha ra ngoai $HOME trong khi moi test ten-file van xanh."
+    },
+    {
+      "command": "SAU REVIEW — doi chung duong tai bien cua cap",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T13:10:00+07:00",
+      "summary": "60 file -> chep 0 (dung). DUNG 50 file -> chep 50 (dung). Ca thu hai la ca DUY NHAT phan biet -gt voi -ge; hai ca cu chi khang dinh 0 nen mot cap dat nham thanh 0 cung xanh."
+    },
+    {
+      "command": "SAU REVIEW — nhanh dockerd HONG",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T13:08:00+07:00",
+      "summary": "Thay dockerd bang mot script exit 1 -> 'dockerd KHONG len duoc ... 20 dong cuoi cua log:' ra STDERR. Truoc khi va, dong 'da khoi dong nen' in ra VO DIEU KIEN vi `&` luon thanh cong duoi goc nhin shell cha."
+    },
+    {
+      "command": "SAU REVIEW — cong E9 thiet ke lai (quan sat tu ngoai)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T13:12:00+07:00",
+      "summary": "id1=$0 id2=$0 n=1 clients 0 -> 1. Ban sua reviewer de xuat (docker run -t, khang dinh exit 0) BI BAC BO bang phep do: co TTY thi luot hai attach that va chiem terminal toi khi timeout 30s."
+    },
+    {
+      "command": "SAU REVIEW — build lai + trivy + shellcheck + actionlint",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T13:15:00+07:00",
+      "summary": "Build xanh. Trivy 0 CRITICAL tren image DA SUA (doc bang Report Summary). shellcheck 0 issue, actionlint 0 issue tren workflow da them ~90 dong cong moi."
+    },
+    {
+      "command": "helm lint infra/helm/platform && node scripts/env-check.mjs",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T12:00:00+07:00",
+      "summary": "0 chart failed. env-check: 66 bien / 4 scope, khop code <-> .env.example <-> Helm <-> CI — chang nay KHONG them env nao, con so khong doi la ket qua dung."
+    }
+  ]
+}

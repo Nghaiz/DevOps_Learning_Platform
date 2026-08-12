@@ -1,0 +1,13 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "highRisk: TRUE — E8 chep file do NGUOI DUNG cung cap vao $HOME cua phien lab. Day la be mat bao mat that, khong phai tien ich: mot allowlist chi doc TEN file se cho `.gitconfig -> /etc/passwd` di qua. Co che chan thuc su chi la MOT dong (`find -type f` khong co -L) va no chan ca hai vector cung luc; them -L 'cho tien' mo lai ca hai trong khi moi test ten-file van xanh.",
+    "highRisk: TRUE — doi ENTRYPOINT cua image chay trong warm-pool. Bai hoc 1.E-1: podspec.go khong override Command/Args va dat RestartPolicy:Never, nen mot PID 1 thoat som lam moi pod warm-pool thanh xac ma pool:free VAN dem la am, va sinh vien claim trung. Giam rui ro bang `exec \"$@\"` (giu chuoi tini -> sleep infinity) + nhanh dockerd chay NEN va khong duoc phep fatal + do that tren pod probe (Running suot buoi do) va `docker run -d` (state=running sau 5s).",
+    "highRisk: TRUE — image tang 379 -> 809 MB. Neu Trivy tim thay CRITICAL thi job `images` do tren main => KHONG co tag sha-* nao cho dlp-sandbox-base, ma chart nay ghep sandboxImage tu image.tag => lan deploy ke tiep tro vao mot tag khong bao gio ton tai => warm-pool ImagePullBackOff. Vi the quet Trivy CUC BO TRUOC merge la bat buoc, khong phai tuy chon. Ket qua: 0 CRITICAL.",
+    "Giam rui ro: khong cham mot dong Go/TS nao, khong them env nao. Duong lui la revert 4 file va side-load lai tarball cu.",
+    "Giam rui ro: moi cong moi deu duoc hoi 'neu tinh nang bi go bo hoan toan, assertion nay co DO khong?' — nen cong E9 so session_id chu khong dem `tmux ls`, va cong dotfiles co them assertion 'phai NOI RA khi bo symlink'."
+  ]
+}
