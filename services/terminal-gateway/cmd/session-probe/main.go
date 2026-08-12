@@ -68,6 +68,8 @@ func main() {
 		err = caseAttach(ctx, *webURL, *gwURL, *metricsURL, *origin, *n)
 	case "survive":
 		err = caseSurvive(ctx, *webURL, *gwURL, *origin)
+	case "luat5":
+		err = caseLuat5(ctx, *webURL, *gwURL, *metricsURL, *origin)
 	default:
 		err = fmt.Errorf("-case không hợp lệ: %q (cần attach hoặc survive)", *kase)
 	}
@@ -348,6 +350,121 @@ func caseSurvive(ctx context.Context, webURL, gwURL, origin string) error {
 	}
 	fmt.Println("KẾT LUẬN: ĐẠT — tiến trình sống qua lần ngắt, và tmux vẫn đúng MỘT session.")
 	return nil
+}
+
+// ---------------------------------------------------------------- ca luật 5
+
+var reRSS = regexp.MustCompile(`(?m)^process_resident_memory_bytes\s+([0-9.e+]+)`)
+
+// caseLuat5 đo hai vế ĐO ĐƯỢC của luật 5: bơm quá trần byte-rate → `4429`, và
+// RSS của gateway không phình theo lượng byte bị chặn.
+//
+// ⛔ VẾ RSS MỚI LÀ VẾ ĐẮT, không phải vế `4429`. Một hiện thực đọc hết frame vào
+// RAM rồi mới đếm token vẫn trả `4429` đúng lúc — và vẫn là một cần gạt OOM: kẻ
+// tấn công trả giá bằng một kết nối, gateway trả giá bằng bộ nhớ của MỌI phiên
+// đang chạy trên cùng pod. Chỉ khi RSS đứng yên ta mới biết trần đang chặn ở tầng
+// ĐỌC chứ không phải ở tầng đếm.
+//
+// ⚠ VẾ "bão 200 resize/s → KHÔNG đóng" của AC luật 5 CỐ Ý không đo ở đây: nó mâu
+// thuẫn với chính G8. Trần control là 100/s (`TestBaoControlThiDong4400` khẳng
+// định 300 lượt liên tiếp → `4400`), nên 200/s PHẢI đóng `4400`. Con số 200 chỉ
+// có nghĩa ở phía TRƯỚC debounce ~50ms của FE (contract §4), tức ≤20/s tới server.
+// Đo nó như AC viết là đo một thứ hiện thực cố tình không làm — cùng họ với `4408`
+// và `ready`→prompt. Cần sửa câu chữ AC trước khi có gì để đo.
+func caseLuat5(ctx context.Context, webURL, gwURL, metricsURL, origin string) error {
+	rssTruoc, err := docRSS(ctx, metricsURL)
+	if err != nil {
+		return fmt.Errorf("đọc RSS trước: %w", err)
+	}
+	fmt.Printf("1. RSS gateway trước: %.1f MiB\n", rssTruoc/1024/1024)
+
+	s, err := taoSession(ctx, webURL)
+	if err != nil {
+		return err
+	}
+	c, err := dialChoNha(ctx, s, gwURL, origin)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = c.CloseNow() }()
+	w := wrap(ctx, c)
+	if err := writeJSON(ctx, c, map[string]any{"type": "init", "cols": 120, "rows": 34}); err != nil {
+		return err
+	}
+	if _, err := doiControl(w, "ready", 60*time.Second); err != nil {
+		return err
+	}
+	fmt.Printf("2. session %s, pod %s, WS ready\n", s.sid, s.pod)
+
+	// Bơm ~5 MiB/s bằng frame ĐÚNG BẰNG trần một frame (32 KiB): từng frame hợp
+	// lệ với read-limit, nên thứ duy nhất có thể chặn là token-bucket. Trộn lẫn
+	// hai tầng ở đây sẽ làm ta không biết tầng nào vừa đóng kết nối.
+	frame := make([]byte, 32*1024)
+	batDau := time.Now()
+	var daGui int
+	for {
+		wctx, wcancel := context.WithTimeout(ctx, 5*time.Second)
+		err := c.Write(wctx, websocket.MessageBinary, frame)
+		wcancel()
+		if err != nil {
+			break // server đã đóng — đúng thứ ta chờ
+		}
+		daGui += len(frame)
+		if time.Since(batDau) > 20*time.Second {
+			break
+		}
+	}
+	fmt.Printf("3. đã bơm %.1f MiB trong %s\n", float64(daGui)/1024/1024, time.Since(batDau).Round(time.Millisecond))
+
+	var code websocket.StatusCode = -1
+	select {
+	case err := <-w.errc:
+		code = websocket.CloseStatus(err)
+	case <-time.After(10 * time.Second):
+	}
+
+	// RSS đọc SAU khi kết nối đã đóng: nếu gateway có đệm, đây là lúc đỉnh còn
+	// chưa được GC trả lại, tức thời điểm bất lợi nhất cho nó — đúng cái ta muốn.
+	rssSau, err := docRSS(ctx, metricsURL)
+	if err != nil {
+		return fmt.Errorf("đọc RSS sau: %w", err)
+	}
+
+	fmt.Printf("\n=== M5 (hai vế đo được) ===\n")
+	fmt.Printf("close code           = %d (cần 4429)\n", code)
+	fmt.Printf("RSS trước            = %.1f MiB\n", rssTruoc/1024/1024)
+	fmt.Printf("RSS sau              = %.1f MiB (trần: 2× = %.1f MiB)\n",
+		rssSau/1024/1024, rssTruoc*2/1024/1024)
+	if code != 4429 {
+		return fmt.Errorf("close code = %d, muốn 4429 — token-bucket không chặn được luồng 5 MiB/s", code)
+	}
+	if rssSau > rssTruoc*2 {
+		return fmt.Errorf("RSS %.1f MiB > 2× baseline %.1f MiB — gateway đang ĐỆM byte bị chặn, tức trần chặn ở tầng đếm chứ không ở tầng đọc",
+			rssSau/1024/1024, rssTruoc*2/1024/1024)
+	}
+	fmt.Println("KẾT LUẬN: ĐẠT cả hai vế đo được. Vế 'bão 200 resize/s' KHÔNG đo — xem ghi chú mâu thuẫn AC ở doc của hàm này.")
+	return nil
+}
+
+func docRSS(ctx context.Context, base string) (float64, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/metrics", nil)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+	m := reRSS.FindStringSubmatch(string(raw))
+	if m == nil {
+		return 0, fmt.Errorf("không thấy process_resident_memory_bytes trong %s/metrics", base)
+	}
+	return strconv.ParseFloat(m[1], 64)
 }
 
 // ---------------------------------------------------------------- hạ tầng vặt
