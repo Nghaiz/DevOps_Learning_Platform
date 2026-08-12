@@ -1,0 +1,19 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Dong nhom AC lifecycle + warm-pool cua phase-1 P1",
+  "scoutSummary": "Ca 7 lane P1 da dong code (PR #41/#42). Con lai ~25 o AC chua tick. Audit cho thay 16/16 test Go tuong ung DA TON TAI va la test that (co doi chung duong, co ca chung minh cua so dua) — no chu yeu la BANG CHUNG RUNTIME tren cum.",
+  "acceptanceCriteria": [
+    "10 o AC §Chuc nang duoc tick kem so do",
+    "Khong o nao tick bang lap luan",
+    "Moi ca do co doi chung duong"
+  ],
+  "touchpoints": [
+    "services/orchestrator/cmd/lifecycle-probe/ (moi)",
+    "services/orchestrator/internal/lifecycle/extend.go (comment)",
+    "apps/web/src/server/db/schema.ts (comment)",
+    "plans/devops-learning-platform/phase-1.md (tick AC)"
+  ],
+  "publicContracts": "Khong doi. proto khong sua, Redis key khong sua, WS contract khong sua.",
+  "blastRadius": "Thap — mot cong cu chan doan khong ai import + hai comment."
+}

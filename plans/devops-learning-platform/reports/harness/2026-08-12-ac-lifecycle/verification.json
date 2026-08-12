@@ -1,0 +1,60 @@
+{
+  "commands": [
+    {
+      "command": "go test ./... -count=1 (4 module, Redis + Postgres THAT)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T15:30:00+07:00",
+      "summary": "359 PASS / 0 FAIL / 0 SKIP. Dem bang grep '^--- SKIP' chu KHONG tin exit code: go test tra 0 khi moi ca tu skip, va suite nay skip sach neu thieu REDIS_URL/DATABASE_URL (root .env khong co hai bien do)."
+    },
+    {
+      "command": "go test ./... -race -count=1",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T15:35:00+07:00",
+      "summary": "17 package ok, 0 DATA RACE."
+    },
+    {
+      "command": "GOOS=linux go build ./... && GOOS=linux go vet ./... && gofmt -l services/",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T15:50:00+07:00",
+      "summary": "Sach. Ep GOOS=linux vi build tag giau file *_unix.go tren Windows."
+    },
+    {
+      "command": "lifecycle-probe -case all (trong cum, mTLS require, cert web)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T08:45:00Z",
+      "summary": "20 check / 0 fail. Dong 5 AC: idempotency (cung id VA cung pod), Get user sai -> NotFound, revision +1 / revision cu -> FailedPrecondition, hard cap cat dung moc va dung yen, reap idempotent + reap cua nguoi khac bi tu choi."
+    },
+    {
+      "command": "lifecycle-probe -case reap -hold 45s + kubectl quan sat trong cua so",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T08:48:26Z",
+      "summary": "Trong cua so hold: sandbox-a891d59fa6b2 Running ready=true deletionTimestamp=<none> o apiserver. Sau khi chu that reap: cung pod tra NotFound (doi chung duong)."
+    },
+    {
+      "command": "kubectl scale deploy platform-postgres --replicas=0 + lifecycle-probe -case get",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T08:51:17Z",
+      "summary": "CreateSession VAN thanh cong khi Postgres tat. dlp_audit_write_failures_total 0 -> 2, log ERROR kem nguyen van 'connection refused'. Da scale lai 1."
+    },
+    {
+      "command": "KIEM DOT BIEN: dao thu tu publish() thanh RPUSH truoc HSET state=free",
+      "status": "pass",
+      "exitCode": 1,
+      "timestamp": "2026-08-12T15:20:00+07:00",
+      "summary": "DUNG MOT ca do: TestPublishThuTuDungKhongBaoGioCachLyPodTot ('pool:quarantine co 1 muc'). Ba ca cung package van xanh => loi khu tru dung tinh chat. Da hoan nguyen, git diff manager.go rong."
+    },
+    {
+      "command": "npx vitest run src/server/db/schema.test.ts",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T15:53:00+07:00",
+      "summary": "8/8. Allowlist cot sessions_audit la danh sach DONG."
+    }
+  ]
+}

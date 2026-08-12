@@ -1,0 +1,22 @@
+### QUAN SÁT TRONG CỬA SỔ HOLD, lúc 2026-08-12T08:48:26Z
+### pod của session bị-từ-chối-reap = sandbox-a891d59fa6b2
+sandbox-a891d59fa6b2   Running   true   <none>
+### PHASE: Succeeded  EXIT: 0
+### LOG ###
+
+===== CASE reap =====
+  . PODNAME                                        sandbox-a891d59fa6b2
+  . SESSIONID                                      9d3a6ab6ae64a00d67e1eb0a1b9d5468
+  [PASS] reap của user lạ bị từ chối (NotFound)         code=NotFound
+  [PASS] session vẫn sống sau lần reap bị từ chối       code=OK status=SESSION_STATUS_CLAIMED pod=sandbox-a891d59fa6b2
+  > HOLD-BAT-DAU 2026-08-12T08:48:25Z (45s)
+  > HOLD-KET-THUC 2026-08-12T08:49:10Z
+  [PASS] chủ thật reap lượt 1 → OK + REAPED             code=OK status=SESSION_STATUS_REAPED
+  [PASS] reap lượt 2 cũng OK (idempotent)               code=OK
+  [PASS] revision không đổi giữa hai lượt reap          2 vs 2
+
+===== TỔNG =====
+checks=5 fails=0
+KẾT QUẢ: PASS
+### SAU KHI CHỦ THẬT REAP, pod sandbox-a891d59fa6b2 ở apiserver:
+Error from server (NotFound): pods "sandbox-a891d59fa6b2" not found

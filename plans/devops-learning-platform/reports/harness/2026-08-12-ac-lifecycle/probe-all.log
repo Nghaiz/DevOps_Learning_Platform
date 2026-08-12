@@ -1,0 +1,50 @@
+All commands and output from this session will be recorded in container logs, including credentials and sensitive information passed through the command prompt.
+If you don't see a command prompt, try pressing enter.
+  [PASS] đối chứng: key khác ⇒ session khác             id=4f3581e864c21437e66551c839a2ab70 pod=sandbox-f2b41abbd0ed
+  ~ đã dọn session 4f3581e864c21437e66551c839a2ab70 (pod sandbox-f2b41abbd0ed)
+  ~ đã dọn session 2e55c061639b71f541518dec215e7fda (pod sandbox-951beede9195)
+
+===== CASE get =====
+  . session                                        id=3d8b131d9a78df0edcbb207f924b1b70 pod=sandbox-ae8bb29e65c2
+  [PASS] user lạ → NotFound (KHÔNG PermissionDenied)    code=NotFound
+  [PASS] đối chứng: chủ thật đọc được                   code=OK id=3d8b131d9a78df0edcbb207f924b1b70
+  ~ đã dọn session 3d8b131d9a78df0edcbb207f924b1b70 (pod sandbox-ae8bb29e65c2)
+
+===== CASE claim =====
+  . session                                        id=989a2f00b666e0476951211be8536c74 pod=sandbox-494d88bf562c
+  [PASS] ClaimSession trả đúng pod cũ                   code=OK pod=sandbox-494d88bf562c
+  [PASS] Claim của user lạ → NotFound                   code=NotFound
+  ~ đã dọn session 989a2f00b666e0476951211be8536c74 (pod sandbox-494d88bf562c)
+
+===== CASE extend =====
+  . revision lúc tạo                               1
+  [PASS] đối chứng: revision ĐÚNG đi qua                code=OK
+  [PASS] revision tăng đúng 1                           1 → 2
+  [PASS] revision cũ → FailedPrecondition               code=FailedPrecondition
+  [PASS] lượt bị từ chối không ghi gì                   revision=2, cần 2
+  ~ đã dọn session 5acbfef2da335a01ca20be6872b866de (pod sandbox-5a0449383a60)
+
+===== CASE hardcap =====
+  . created_at                                     2026-08-12T08:45:28Z
+  . trần cứng kỳ vọng                              2026-08-12T10:45:28Z
+  . expires_at sau lượt 1                          2026-08-12T10:45:28Z
+  [PASS] hard_cap_reached = true                        true
+  [PASS] expires_at bị cắt ĐÚNG mốc created_at+HARD_CAP 2026-08-12T10:45:28Z vs 2026-08-12T10:45:28Z
+  . expires_at sau lượt 2                          2026-08-12T10:45:28Z
+  [PASS] expires_at ĐỨNG YÊN ở lượt 2                   2026-08-12T10:45:28Z vs 2026-08-12T10:45:28Z
+  [PASS] hard_cap_reached vẫn true ở lượt 2             true
+  ~ đã dọn session 2cf4edbe9121b1528bd8672509c563da (pod sandbox-0bf6cbbace2f)
+
+===== CASE reap =====
+  . PODNAME                                        sandbox-9e1780314eab
+  . SESSIONID                                      7e731046d6a6efe1a1296c54387cc843
+  [PASS] reap của user lạ bị từ chối (NotFound)         code=NotFound
+  [PASS] session vẫn sống sau lần reap bị từ chối       code=OK status=SESSION_STATUS_CLAIMED pod=sandbox-9e1780314eab
+  [PASS] chủ thật reap lượt 1 → OK + REAPED             code=OK status=SESSION_STATUS_REAPED
+  [PASS] reap lượt 2 cũng OK (idempotent)               code=OK
+  [PASS] revision không đổi giữa hai lượt reap          2 vs 2
+
+===== TỔNG =====
+checks=20 fails=0
+KẾT QUẢ: PASS
+pod "lifecycle-probe-all" deleted from default namespace

@@ -1,0 +1,11 @@
+{
+  "decision": "PASS",
+  "disprovenClaims": [],
+  "reachableRegressions": [],
+  "missingProof": [],
+  "unverifiedClaims": [
+    "Bon o warm-pool/reaper (replenish <=30s + 3 session dong thoi, tin hieu cham quota, pod mo coi / session ma -> FAILED, quarantine tang 3) CHUA co bang chung runtime — chung can day cum toi tran quota nen phai chay rieng. KHONG tick.",
+    "Ve 'so pod tang dung 1' cua AC idempotency duoc do bang TEN POD giong nhau chu khong bang mot phep dem giua hai luot create; phep dem do can probe dung lai giua chung. Ten pod la bang chung manh hon nhung KHAC voi cau chu cua AC — ghi ro thay vi lam ngo.",
+    "Luat thu tu ghi khi replenish duoc gac boi DUNG MOT test (ba ca cung package khong cam nhan duoc dot bien). Do la mot diem gac duy nhat, khong phai mot tang phong thu."
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "decision": "PASS",
+  "score": 8,
+  "criticalCount": 0,
+  "blockingReasons": [],
+  "contractStatus": "OK",
+  "acceptanceCoverage": [
+    "AC '5 RPC tra ket qua that' -> DAT: ca 5 RPC chay that tren cum qua lifecycle-probe.",
+    "AC 'idempotency_key 2 lan -> cung session.id, so pod tang dung 1' -> DAT, va do MANH hon cau chu: hai luot tra CUNG TEN POD (mot phep dem co the trung nhau ngau nhien khi mot pod chet va mot pod khac sinh ra; ten pod thi khong). Kem doi chung key khac -> pod khac.",
+    "AC 'GetSession user sai -> NotFound' -> DAT + doi chung duong chu that doc duoc.",
+    "AC 'expected_revision cu -> FailedPrecondition, revision tang dung 1' -> DAT, kem ve 'luot bi tu choi khong ghi gi'.",
+    "AC 'gia han qua HARD_CAP -> expires_at dung yen, hard_cap_reached' -> DAT bang dang thuc tuyet doi voi created_at+HARD_CAP.",
+    "AC 'Reap 2 lan deu OK; user khac -> tu choi, pod VAN SONG' -> DAT CA HAI TANG (Redis + apiserver). Nua sau truoc day la no.",
+    "AC 'tat Postgres -> CreateSession van thanh cong' -> DAT tren cum.",
+    "AC 'dao thu tu replenish -> test phai DO' -> DAT bang kiem dot bien that.",
+    "AC 'retry mat phan hoi khong tao pod thu hai' -> DAT tren Redis that.",
+    "AC 'sessions_audit khong co cot tra loi session X dang o pod nao' -> DAT o muc allowlist DONG; ranh gioi cua pod_name (su that lich su theo su kien, KHONG phai trang thai hien tai) nay duoc ghi tai cho thay vi chi nam trong dau nguoi viet schema."
+  ],
+  "regressionProof": "359 PASS / 0 SKIP truoc va sau thay doi; -race sach; vitest web 8/8. Thay doi ma trong chang nay chi gom: mot cong cu MOI (cmd/lifecycle-probe, khong ai import) va HAI comment. Khong dong logic nao bi sua."
+}
