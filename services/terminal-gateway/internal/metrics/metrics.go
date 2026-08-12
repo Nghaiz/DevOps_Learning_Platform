@@ -45,6 +45,69 @@ const (
 	KindStream = "stream"
 )
 
+// Nhãn `phase` của dlp_gateway_attach_phase_seconds — năm chặng con, nối đuôi
+// nhau, phủ ĐÚNG khoảng mà dlp_gateway_attach_duration_seconds đo (1.G-4 M1).
+//
+// Thứ tự thời gian:
+//
+//	101 ─PhaseWaitInit─► init ─PhaseBuildExec─► executor ─PhaseUpgrade─►
+//	101-từ-apiserver ─PhaseStreams─► stream đã dựng ─PhasePTY─► `ready`
+const (
+	// PhaseWaitInit — 101 tới lúc nhận frame `init` của client.
+	//
+	// ⛔ ĐÂY LÀ THỜI GIAN CỦA CLIENT, không phải công của gateway. Contract §3
+	// bước 4 bắt đợi `init` TRƯỚC khi dial (để dial đúng kích thước cửa sổ ngay
+	// từ đầu), nên nó nằm trong khoảng 101→`ready` một cách hợp lệ — nhưng đọc
+	// nó thành "gateway chậm" là quy sai trách nhiệm.
+	PhaseWaitInit = "wait_init"
+
+	// PhaseBuildExec — dựng executor: hai lượt TLSConfigFor (WS + SPDY), mỗi
+	// lượt đọc và parse CA. Thuần CPU + đĩa cục bộ, không chạm mạng.
+	PhaseBuildExec = "build_exec"
+
+	// PhaseUpgrade — TCP + TLS + HTTP-101 tới apiserver, đo quanh RoundTrip.
+	//
+	// ⛔ LÀ MỘT SỐ GỘP, và ranh giới đó không phải lười: `transport/websocket`.
+	// RoundTripper chỉ có TLSConfig/Proxier/Conn — KHÔNG có field Dial — nên
+	// rest.Config.Dial bị bỏ qua trên đường WS và không có chỗ nào tách được
+	// TCP khỏi TLS mà không fork client-go.
+	PhaseUpgrade = "upgrade"
+
+	// PhaseStreams — upgrade xong tới lúc client-go dựng xong các stream.
+	//
+	// Đo bằng lượt Read ĐẦU TIÊN trên pipe stdin: streamProtocolV4.stream gọi
+	// createStreams → close(ready) → copyStdin trước copyStdout. Là một PROXY,
+	// vì copyStdin spawn goroutine (v2.go:95) nên nó cộng thêm độ trễ lập lịch.
+	PhaseStreams = "streams"
+
+	// PhasePTY — stream đã dựng tới byte stdout ĐẦU TIÊN, tức `ready`.
+	//
+	// Gộp apiserver → kubelet → CRI → `tmux attach` → shell vẽ ký tự đầu. Toàn
+	// bộ nằm NGOÀI gateway; gateway chỉ ngồi đợi.
+	PhasePTY = "pty"
+)
+
+// Nhãn `reason` của dlp_gateway_attach_phase_incomplete_total.
+//
+// ⛔ HAI NHÃN VÌ HAI CHẨN ĐOÁN, KHÔNG PHẢI VÌ CHI TIẾT. Gộp một counter thì
+// không phân biệt được "hook không bao giờ chạy" (lỗi hệ thống, phải đi sửa)
+// với "goroutine lệch lịch" (hiếm, vô hại, kệ nó) — đúng lý lẽ đã dùng để tách
+// dlp_reaper_stale_image_pods_total khỏi dlp_reaper_dead_free_pods_total.
+//
+// Kèm một tác dụng phụ đáng giá: tách ra thì guard mốc-rỗng mới có ca test giết
+// được nó. Trước khi tách, `IsZero()` là mã không thể đỏ (mốc rỗng là năm 1 nên
+// luôn thoả `Before`), và một guard không thể đỏ là guard không gác gì.
+const (
+	// ReasonMissingMark — một mốc chưa bao giờ được đặt: hook không chạy. Khác 0
+	// một cách đều đặn nghĩa là instrumentation HỎNG, không phải hệ thống chậm.
+	ReasonMissingMark = "missing_mark"
+
+	// ReasonOutOfOrder — mốc có đủ nhưng lệch thứ tự thời gian, tức goroutine
+	// `copyStdin` của client-go được lập lịch sau byte stdout đầu tiên. Vài lượt
+	// lẻ là bình thường.
+	ReasonOutOfOrder = "out_of_order"
+)
+
 // Nhãn `result` của dlp_gateway_extend_total. Một lượt gọi Extend đóng góp ĐÚNG
 // MỘT lần tăng, vào kết quả CUỐI CÙNG của nó.
 const (
@@ -84,6 +147,23 @@ type Metrics struct {
 	// WS tồn tại (`dlp_claim_duration_seconds`) — gateway không đo được nó, và
 	// đặt tên nhầm là mời người đọc so hai con số không cùng đơn vị việc.
 	AttachDuration prometheus.Histogram
+
+	// AttachPhase chia AttachDuration thành năm chặng nối đuôi (1.G-4 M1).
+	//
+	// Tồn tại vì con số tổng KHÔNG quy được trách nhiệm: 0.75s có thể là gateway
+	// chậm, apiserver chậm, hay client gửi `init` muộn — ba nguyên nhân đòi ba
+	// hành động khác nhau và một histogram tổng không phân biệt được.
+	AttachPhase *prometheus.HistogramVec
+
+	// AttachPhaseIncompleteTotal đếm lượt attach mà phép chia chặng KHÔNG dùng
+	// được (thiếu mốc, hoặc các mốc lệch thứ tự thời gian).
+	//
+	// ⛔ TỒN TẠI ĐỂ PHÉP ĐO BIẾT TỰ NHẬN SAI. Mốc PhaseStreams đến từ một
+	// goroutine (client-go copyStdin) nên thứ tự với byte stdout đầu tiên KHÔNG
+	// được đảm bảo — chỉ gần như luôn đúng. Kẹp số âm về 0 thì bảng phân bổ vẫn
+	// "hợp lý" trong khi nó đang bịa; bỏ qua lượt đó và đếm riêng thì phép so
+	// `count(phase) == count(attach)` của probe phát hiện được ngay.
+	AttachPhaseIncompleteTotal *prometheus.CounterVec
 
 	// ExtendTotal tách theo kết quả CUỐI của mỗi lượt gia hạn.
 	ExtendTotal *prometheus.CounterVec
@@ -138,6 +218,25 @@ func New(reg prometheus.Registerer) *Metrics {
 			},
 		}),
 
+		AttachPhase: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name: "dlp_gateway_attach_phase_seconds",
+			Help: "Năm chặng con nối đuôi của 101 → `ready`. Tổng năm chặng của một lượt attach bằng đúng một mẫu của dlp_gateway_attach_duration_seconds.",
+			// ⛔ KHÔNG dùng lại bucket của AttachDuration. Các chặng nhỏ hơn tổng
+			// một bậc: `build_exec` tính bằng mili-giây, `wait_init` trong cụm
+			// gần bằng một RTT. Bucket nhỏ nhất của AttachDuration là 0.05, nên
+			// bốn trong năm chặng sẽ dồn hết vào bucket đầu và bảng phân bổ mất
+			// sạch độ phân giải — một histogram "có số" mà không nói được gì.
+			Buckets: []float64{
+				0.001, 0.0025, 0.005, 0.01, 0.025, 0.05,
+				0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 2, 5,
+			},
+		}, []string{"phase"}),
+
+		AttachPhaseIncompleteTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "dlp_gateway_attach_phase_incomplete_total",
+			Help: "Lượt attach bị loại khỏi phép chia chặng, tách theo lý do (missing_mark = hook không chạy; out_of_order = goroutine lệch lịch). Khác 0 nghĩa là bảng phân bổ KHÔNG phủ hết mẫu.",
+		}, []string{"reason"}),
+
 		ExtendTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "dlp_gateway_extend_total",
 			Help: "Lượt ExtendSession gateway gọi, tách theo kết quả cuối (ok/hard_cap/gone/error). Đúng một lần tăng cho mỗi lượt gọi.",
@@ -155,6 +254,8 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.ExecErrorsTotal,
 		m.WSBytesTotal,
 		m.AttachDuration,
+		m.AttachPhase,
+		m.AttachPhaseIncompleteTotal,
 		m.ExtendTotal,
 		m.ExtendRevisionRetryTotal,
 	)
@@ -176,6 +277,15 @@ func New(reg prometheus.Registerer) *Metrics {
 	}
 	for _, r := range []string{ExtendOK, ExtendHardCap, ExtendGone, ExtendError} {
 		m.ExtendTotal.WithLabelValues(r)
+	}
+	// Năm chặng khởi tạo về 0 vì probe của 1.G-4 so `count` của TỪNG chặng với
+	// `count` của AttachDuration để biết bảng phân bổ có phủ hết mẫu không. Một
+	// nhãn vắng mặt trả NO-DATA, mà no-data trông y hệt "chặng đó bằng 0".
+	for _, p := range []string{PhaseWaitInit, PhaseBuildExec, PhaseUpgrade, PhaseStreams, PhasePTY} {
+		m.AttachPhase.WithLabelValues(p)
+	}
+	for _, r := range []string{ReasonMissingMark, ReasonOutOfOrder} {
+		m.AttachPhaseIncompleteTotal.WithLabelValues(r)
 	}
 
 	return m

@@ -10,6 +10,7 @@ package podexec
 import (
 	"errors"
 	"fmt"
+	"net/http"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -68,5 +69,22 @@ func NewExecConfig() (*rest.Config, *kubernetes.Clientset, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("podexec: dựng clientset: %w", err)
 	}
+
+	// Hook đo chặng `upgrade` (1.G-4 M1). Gắn SAU `NewForConfig` có chủ ý:
+	// `NewForConfig` chụp một bản sao nông của cfg, nên chỉ đường exec — thứ
+	// dùng `cfg` trực tiếp qua `NewExecutorFactory` — đi qua wrapper này. Mọi
+	// lời gọi REST thường của clientset không bị chạm tới, và số đo vì thế
+	// không lẫn lượt nào ngoài attach.
+	//
+	// Nối chuỗi thay vì gán đè: gán đè sẽ âm thầm vứt wrapper của một lớp khác
+	// (auth exec-plugin, proxy) nếu sau này có ai đặt — một mất mát không lỗi.
+	truoc := cfg.WrapTransport
+	cfg.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
+		if truoc != nil {
+			rt = truoc(rt)
+		}
+		return UpgradeTimingWrapper(rt)
+	}
+
 	return cfg, cs, nil
 }

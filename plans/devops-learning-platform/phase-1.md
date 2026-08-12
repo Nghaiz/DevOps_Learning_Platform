@@ -643,6 +643,47 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 
 **N6 — Vế `stty size` của luật 5 (a).** Sau khi sửa câu chữ AC ở trên, phần duy nhất còn nợ là *"pty thực sự đổi kích thước"*. Gửi ~50 resize **dưới trần** (burst 100 + 100/s), giá trị `cols` tăng dần, rồi chạy `stty size` trong pod và so với giá trị **cuối cùng**. Phải khớp **chính xác** — status bar tmux đã tắt ở E4 nên không được lệch 1. Hai test đơn vị đã có (`TestKeoCuaSoBinhThuongKhongBiChan`, `TestBaoControlThiDong4400`) phủ vế "đóng/không đóng"; **không** test nào chạm pty thật.
 
+### 1.G-4 — M1: quy 0.75s p95 attach về từng chặng
+
+> **Ô AC ĐỎ duy nhất của cả phase** (dòng §Chức năng: *101 → `ready`, p95 < 500ms, ≥ 50 mẫu*). Đo 2026-08-12: **p95 = 0.750s**. 1.G-2 đã chốt *"chưa quy được nguyên nhân, và đừng nới ngưỡng trước khi quy được"* — chặng này làm đúng việc đó và **không** làm gì khác.
+>
+> **Vì sao nó là chặng riêng chứ không ghép vào 1.G-3:** 1.G-3 là *đo những AC đã viết sẵn*; đây là *điều tra*. Việc đầu ra của nó không phải một ô tick mà là **một bảng phân bổ thời gian** — và chỉ sau khi có bảng đó thì mới biết ô kia đóng bằng bản vá hay bằng một ngưỡng viết lại. Gộp hai loại việc là để một cuộc điều tra chưa có kết luận chặn merge của bốn phép đo đã xong.
+
+**Ranh giới chặng này KHÔNG làm:** M8 (hai ô FE) — cần harness Playwright chưa tồn tại, một loại chi phí khác hẳn. Vẫn nợ sau 1.G-4.
+
+**P1 — Chốt ngưỡng quyết định TRƯỚC khi đo.** ⛔ **Đây là task đầu tiên và nó có lý do:** nếu chốt sau, con số đo ra sẽ **tự biện minh cho chính nó** — đúng cái bẫy mà món nợ web-500 ở §"Còn để ngỏ" đã phải ghi thành luật. Bảng dưới là hợp đồng; kết quả đo rơi vào hàng nào thì đi theo hàng đó, không thương lượng lại sau khi thấy số.
+
+| Chặng chiếm phần lớn | Đọc là gì | Hành động đã chốt |
+|---|---|---|
+| **`wait_init`** ≥ 15% | Metric đang tính cả thời gian **chờ client**, không phải công của gateway | Mốc `attachStart` sai chỗ. Dời mốc về **sau** khi nhận `init`, sửa `Help` của metric, sửa câu chữ AC. Đây là **vá phép đo**, không phải nới ngưỡng. |
+| **`build_exec`** ≥ 15% | Dựng executor (2 lần `TLSConfigFor`, đọc + parse CA mỗi lượt attach) là **lãng phí thuần** | Vá: cache theo tiến trình. Đo lại. Nếu qua 500ms thì ô đóng bằng bản vá. |
+| **`upgrade`** ≥ 40% | TCP + TLS + HTTP-101 tới apiserver. Lượt upgrade **không dùng lại được connection pool** theo bản chất giao thức | Không vá được ở P1. Ghi số, và ngưỡng phải viết lại theo **chi phí hạ tầng đo được** chứ không theo con số 500ms chưa ai dẫn nguồn. |
+| **`pty`** ≥ 40% | apiserver → kubelet → CRI → `tmux attach` → byte đầu của shell. Nằm **ngoài** gateway | Như trên. Kèm bắt buộc: nói rõ **người dùng thấy gì** trong khoảng đó (màn hình đen hay con trỏ), vì đó mới là thứ AC thật sự bảo vệ. |
+
+> **Không hàng nào cho phép "nới ngưỡng cho xanh".** Hai hàng dưới cùng cho phép **viết lại** ngưỡng, và điều kiện là con số mới phải **dẫn ra được từ chi phí đo được**, kèm một câu nói rõ hậu quả người dùng. Ngưỡng 500ms của bản plan gốc **chưa bao giờ có nguồn** — đó là một phát hiện của chặng này, không phải cái cớ.
+
+**P2 — Instrument năm chặng con.** Mốc `attachStart` giữ nguyên (= 101, đúng contract) và thêm histogram `dlp_gateway_attach_phase_seconds{phase}` với năm giá trị:
+
+```
+101 ──wait_init──► init ──build_exec──► executor ──upgrade──► 101-tu-apiserver
+    ──streams──► stream da dung ──pty──► byte stdout dau tien = ready
+```
+
+> **Hai hook, và cả hai đã đọc từ mã client-go v0.34.9 chứ không suy đoán** — vế này quan trọng vì một hook không chạy sẽ cho ra chặng `0s` trông y hệt "chặng đó rất nhanh":
+> 1. **`upgrade` ← `rest.Config.WrapTransport`.** `transport.HTTPWrappersForConfig` áp `WrapTransport` ở [`round_trippers.go:42-44`](https://github.com/kubernetes/client-go/blob/v0.34.9/transport/round_trippers.go#L42-L44), và `websocket.RoundTripperFor` gọi đúng hàm đó ⇒ hook **có** chạy trên đường WS. ⛔ **`rest.Config.Dial` thì KHÔNG** — `transport/websocket.RoundTripper` chỉ có `TLSConfig`/`Proxier`/`Conn`, không có field Dial, nên đường đó bỏ qua Dial trong im lặng. Vì thế **không tách được TCP khỏi TLS**; `upgrade` là một số gộp, và phải ghi rõ nó gộp cái gì.
+> 2. **`streams` ← lượt `Read` ĐẦU TIÊN trên pipe stdin.** `streamProtocolV4.stream` gọi `createStreams` → `close(ready)` → `copyStdin()` ở [`v4.go:55-70`](https://github.com/kubernetes/client-go/blob/v0.34.9/tools/remotecommand/v4.go#L55-L70), **trước** `copyStdout` ở `:73`. Nên lần đầu ai đó gọi `Read` trên stdin chính là mốc "stream đã dựng xong". Đếm lúc **vào** `Read`, không phải lúc `Read` trả về — `io.Pipe` chặn tới khi có người ghi, nên đo lúc trả về là đo thời gian người dùng gõ phím.
+>
+> ⛔ **Đối chứng âm bắt buộc: `Σ năm chặng` phải ≈ tổng attach.** Không có phép đối chiếu này thì một hook không chạy sẽ lặng lẽ đẩy toàn bộ thời gian sang chặng kế bên và bảng phân bổ vẫn trông hợp lý. Lệch quá **±5%** ⇒ phép đo sai, **không** được đọc kết quả. Đây đúng là vế "histogram tăng đúng 50" của M1 lần trước, áp cho chính bản thân phép chia chặng.
+> ⛔ **Bucket phải khác bucket của `attach_duration`.** Các chặng con nhỏ hơn tổng một bậc; dùng lại bucket cũ (nhỏ nhất 0.05) thì bốn trong năm chặng dồn hết vào bucket đầu và bảng phân bổ mất sạch độ phân giải — một histogram "có số" mà không nói được gì.
+>
+> *Chạm: `services/terminal-gateway/internal/podexec/`, `internal/metrics/`, `cmd/session-probe/`. Effort: M.*
+
+**P3 — Đọc bảng phân bổ.** Mở rộng `session-probe -case attach` để đọc **delta** của cả năm chặng (cùng khuôn trước/sau đã dùng cho `attach_duration`), in bảng phần trăm, và **tự đỏ** khi phép đối chiếu tổng lệch quá ±5%. Chạy ≥ 50 mẫu trên cụm.
+
+> **Một mẫu nguội và các mẫu ấm phải đọc riêng.** 1.G-2 đã ghi *"từ lượt 2 trở đi phiên tmux đã tồn tại"* — nên lượt đầu gánh cả `tmux new-session`, còn 49 lượt sau là chi phí **nối lại**. Trộn chung rồi lấy p95 là để một mẫu nguội quyết định kết luận cho 49 mẫu ấm.
+
+**P4 — Quyết theo bảng P1, cập nhật AC + `docs/ws-terminal-protocol.md` nếu ngưỡng đổi.** Nếu hàng trúng là hai hàng trên (vá được) thì vá + đo lại **trong chặng này**. Nếu là hai hàng dưới thì chặng này đóng bằng **số đo + ngưỡng viết lại có nguồn**, và mọi việc tối ưu thật (nếu có) là của P3 — nói rõ ra thay vì để nó trôi.
+
 ---
 
 ## File / dir ownership — bản đồ zero-overlap cho fan-out

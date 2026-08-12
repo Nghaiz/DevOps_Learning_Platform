@@ -301,11 +301,18 @@ func (b *Bridge) Serve(ctx context.Context, c *websocket.Conn, t Target) {
 	// khi Accept trả 101, nên đây CHÍNH LÀ mốc 101 của contract.
 	attachStart := time.Now()
 
+	// Timer chia mốc tổng thành năm chặng (1.G-4 M1). Phải gắn vào ctx TRƯỚC
+	// khi dial: RoundTripper đo `upgrade` tìm nó qua `req.Context()`, mà request
+	// đó thừa hưởng đúng ctx ta truyền cho `StreamWithContext`.
+	at := newAttachTimer(attachStart)
+	ctx = withAttachTimer(ctx, at)
+
 	c.SetReadLimit(MaxFrameBytes)
 	st := &connState{}
 
 	// ---- contract §3 bước 4: đợi `init` TRƯỚC khi dial ---------------------
 	size, pendingStdin := b.readInit(ctx, c, t)
+	at.markInit(time.Now())
 
 	q := &sizeQueue{ch: make(chan remotecommand.TerminalSize, 1), ctx: ctx}
 	q.push(size)
@@ -338,13 +345,14 @@ func (b *Bridge) Serve(ctx context.Context, c *websocket.Conn, t Target) {
 		_ = c.Close(4500, "khong dung duoc executor")
 		return
 	}
+	at.markExec(time.Now())
 
 	w := &wsWriter{c: c, ctx: ctx, st: st, met: b.met, firstByte: make(chan struct{})}
 
 	streamDone := make(chan error, 1)
 	go func() {
 		streamDone <- exec.StreamWithContext(ctx, remotecommand.StreamOptions{
-			Stdin:  stdinR,
+			Stdin:  &timedStdinReader{r: stdinR, t: at},
 			Stdout: w,
 			// ⛔ Stderr VẮNG MẶT khi TTY — xem execURL.
 			Tty:               true,
@@ -358,8 +366,13 @@ func (b *Bridge) Serve(ctx context.Context, c *websocket.Conn, t Target) {
 		<-readerDone
 		return
 	}
+	// Mốc `ready` lấy MỘT lần rồi dùng cho cả hai phép đo: nếu lấy hai lần thì
+	// tổng năm chặng không còn bằng đúng mẫu tổng, và phép đối chứng ±5% của
+	// probe sẽ lệch vì chính dụng cụ đo chứ không vì hệ thống.
+	readyAt := time.Now()
 	b.sendControl(ctx, c, b.buildReady(t))
-	b.met.AttachDuration.Observe(time.Since(attachStart).Seconds())
+	b.met.AttachDuration.Observe(readyAt.Sub(attachStart).Seconds())
+	at.observe(b.met, readyAt)
 
 	// ---- keepalive + gia hạn (G7) -----------------------------------------
 	//
