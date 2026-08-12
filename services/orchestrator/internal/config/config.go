@@ -3,9 +3,11 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/envx"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/tlsx"
 )
 
 // Config là toàn bộ cấu hình runtime của orchestrator.
@@ -67,13 +69,30 @@ type Config struct {
 	// best-effort và mất event khi reaper offline là mất pod vĩnh viễn.
 	ReapInterval time.Duration
 
-	// RequireMTLS bật xác thực client trên cổng gRPC.
+	// MTLSMode là ba nấc xác thực client trên cổng gRPC (1.C-4, đóng R25/B0′).
 	//
-	// Mặc định FALSE ở giai đoạn này vì lane gateway (1.C) chưa tồn tại nên chưa
-	// ai trình được cert, và bật cứng sẽ giết cả `grpcurl` trong Verify commands
-	// lẫn đường BFF→orchestrator của G12. Khi tắt, nhánh `system_component` của
-	// ReapSession bị TỪ CHỐI (fail-closed) — xem R25/B0′ trong phase-1.md.
-	RequireMTLS bool
+	// Bản trước là một cờ bool và nó KHÔNG bật được: từ `false` sang `true` là
+	// một bước nhảy mà giữa chừng mọi RPC trả `Unauthenticated` — nên `config.Load`
+	// phải từ chối khởi động khi bật, và cờ nằm đó không ai dám động. Ba nấc tồn
+	// tại để có một trạng thái GIỮA quan sát được: `permissive` cấp TLS cho server
+	// và cert cho mọi client, nhưng chưa bắt buộc; chỉ khi ĐO được cả hai consumer
+	// đang trình cert mới sang `require`.
+	//
+	// Khi `off`, nhánh `system_component` của ReapSession bị TỪ CHỐI (fail-closed).
+	MTLSMode tlsx.Mode
+
+	// MTLSFiles là cert/key/CA của cổng gRPC. Rỗng khi MTLSMode=off.
+	MTLSFiles tlsx.Files
+
+	// MTLSSystemCNs là allowlist CommonName được dùng nhánh `system_component`.
+	//
+	// ⛔ VÌ SAO KHÔNG PHẢI "CÓ CERT LÀ ĐỦ". Interceptor chỉ kiểm chuỗi cert verify
+	// được, mà CA của ta ký cert cho CẢ apps/web LẪN gateway — nên "có cert hợp lệ"
+	// gộp hai consumer có quyền khác nhau vào một. Cụ thể: apps/web sẽ reap được
+	// session của BẤT KỲ ai qua nhánh system_component, trong khi việc của nó chỉ
+	// là reap phiên của chính người đang đăng nhập (nhánh user_id). mTLS không ghim
+	// CN thì chặn được kẻ ngoài nhưng không phân quyền được giữa hai người trong.
+	MTLSSystemCNs []string
 
 	// SandboxRuntimeClass PHẢI khớp `sandbox.runtimeClassName` trong Helm
 	// values. Lệch một chữ là ValidatingAdmissionPolicy từ chối MỌI pod, và
@@ -117,21 +136,39 @@ func Load() (*Config, error) {
 		// im lặng. Tắt reaper phải là một quyết định có tên, không phải một số 0.
 		return nil, fmt.Errorf("env REAP_INTERVAL: phải > 0 (nhận %s)", reapInterval)
 	}
-	requireMTLS, err := envx.Bool("GRPC_REQUIRE_MTLS", false)
+	mtlsMode, err := tlsx.ParseMode(envx.String("GRPC_MTLS_MODE", string(tlsx.ModeOff)))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("env GRPC_MTLS_MODE: %w", err)
 	}
-	if requireMTLS {
-		// ⛔ TỪ CHỐI KHỞI ĐỘNG, KHÔNG LÊN XANH RỒI CHẶN 100% RPC.
+	mtlsFiles := tlsx.Files{
+		CertFile: envx.String("GRPC_TLS_CERT_FILE", ""),
+		KeyFile:  envx.String("GRPC_TLS_KEY_FILE", ""),
+		CAFile:   envx.String("GRPC_TLS_CA_FILE", ""),
+	}
+	var systemCNs []string
+	if mtlsMode.Enabled() {
+		// ⛔ FAIL-FAST GIỮ NGUYÊN TINH THẦN BẢN CŨ, ĐỔI ĐIỀU KIỆN.
 		//
-		// Service này chưa có `grpc.Creds`/`ClientCAs` nào (mTLS thật thuộc D13,
-		// làm cùng lane gateway ở B6/G7), nên bật cờ = mọi RPC trả
-		// Unauthenticated. Để nó khởi động được là dựng một cổng an ninh GIẢ:
-		// health probe xanh, dashboard xanh, và không request nào chạy. Thà chết
-		// lúc khởi động với thông báo nói đúng chuyện gì thiếu.
-		return nil, fmt.Errorf("env GRPC_REQUIRE_MTLS=true nhưng orchestrator chưa cấu hình được TLS " +
-			"(chưa có grpc.Creds/ClientCAs — mTLS thật thuộc D13, làm cùng lane gateway). " +
-			"Bật cờ này bây giờ sẽ khiến MỌI RPC trả Unauthenticated")
+		// Bản cũ từ chối khởi động khi BẬT cờ, vì lúc đó không có đường nào để
+		// cert tồn tại. Nay có, nên điều kiện đúng là: bật mà THIẾU cert. Cả hai
+		// bản chống cùng một chế độ hỏng — pod lên xanh, health probe xanh, và
+		// mọi RPC trả Unauthenticated vì server không có creds. Thà chết lúc
+		// khởi động với thông báo nói đúng file nào thiếu.
+		if err := mtlsFiles.Validate(); err != nil {
+			return nil, fmt.Errorf("env GRPC_MTLS_MODE=%s nhưng cert chưa sẵn sàng: %w "+
+				"(kiểm GRPC_TLS_CERT_FILE / GRPC_TLS_KEY_FILE / GRPC_TLS_CA_FILE và Secret mTLS đã mount chưa)",
+				mtlsMode, err)
+		}
+		systemCNs = splitCNs(envx.String("GRPC_MTLS_SYSTEM_CNS", ""))
+		if len(systemCNs) == 0 {
+			// Rỗng KHÔNG được hiểu là "cho phép mọi CN" — đó là cách ghim CN tự
+			// vô hiệu hoá trong im lặng khi ai đó xoá biến khỏi values. Rỗng
+			// nghĩa là chưa ai quyết định, và một quyết định chưa có thì không
+			// được suy ra hộ.
+			return nil, fmt.Errorf("env GRPC_MTLS_SYSTEM_CNS: bắt buộc khi GRPC_MTLS_MODE=%s "+
+				"(danh sách CommonName được dùng nhánh actor.system_component; rỗng KHÔNG có nghĩa là cho phép tất cả)",
+				mtlsMode)
+		}
 	}
 	if poolTarget < 1 {
 		// 0 KHÔNG phải "tắt warm-pool" — nó là mọi session đi cold path, tức
@@ -174,10 +211,28 @@ func Load() (*Config, error) {
 		PoolTarget:          poolTarget,
 		ExtendDefault:       extendDefault,
 		ReapInterval:        reapInterval,
-		RequireMTLS:         requireMTLS,
+		MTLSMode:            mtlsMode,
+		MTLSFiles:           mtlsFiles,
+		MTLSSystemCNs:       systemCNs,
 		SandboxImage:        sandboxImage,
 		SandboxRuntimeClass: envx.String("SANDBOX_RUNTIME_CLASS", "sysbox-runc"),
 	}, nil
+}
+
+// splitCNs tách danh sách CommonName ngăn bằng dấu phẩy, bỏ khoảng trắng thừa
+// và mục rỗng.
+//
+// Bỏ mục rỗng là bắt buộc chứ không phải lịch sự: `"platform-gateway,"` (dấu
+// phẩy thừa cuối) sẽ sinh một CN rỗng, và một cert không có CN cũng khớp nó —
+// tức dấu phẩy thừa mở đúng cái cửa mà allowlist sinh ra để đóng.
+func splitCNs(raw string) []string {
+	out := make([]string, 0, 2)
+	for _, part := range strings.Split(raw, ",") {
+		if cn := strings.TrimSpace(part); cn != "" {
+			out = append(out, cn)
+		}
+	}
+	return out
 }
 
 // RequireDataStores kiểm CẢ DATABASE_URL LẪN REDIS_URL.

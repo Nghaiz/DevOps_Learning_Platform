@@ -12,8 +12,14 @@ spec:
       {{- include "platform.selectorLabels" (dict "context" . "component" "orchestrator") | nindent 6 }}
   template:
     metadata:
-      {{- if and .Values.datastore.enabled (not .Values.datastore.existingSecret) }}
+      {{- if or (and .Values.datastore.enabled (not .Values.datastore.existingSecret)) (ne .Values.platform.grpcMtlsMode "off") }}
       annotations:
+      {{- end }}
+      {{- if ne .Values.platform.grpcMtlsMode "off" }}
+        {{- /* Xem giải thích ở gateway-deployment.yaml — cùng lý do. */}}
+        checksum/mtls-secret: {{ include (print $.Template.BasePath "/mtls-secret.yaml") . | sha256sum }}
+      {{- end }}
+      {{- if and .Values.datastore.enabled (not .Values.datastore.existingSecret) }}
         # Đổi mật khẩu trong Secret mà orchestrator không rollout thì pod cũ giữ
         # URL cũ (env đọc một lần lúc container start) — Redis đỏ NOAUTH trong
         # khi `helm upgrade` báo thành công. Checksum buộc pod template đổi theo
@@ -126,8 +132,21 @@ spec:
               value: {{ .Values.orchestrator.env.extendDefault | quote }}
             - name: REAP_INTERVAL
               value: {{ .Values.orchestrator.env.reapInterval | quote }}
-            - name: GRPC_REQUIRE_MTLS
-              value: {{ .Values.orchestrator.env.grpcRequireMtls | quote }}
+            {{- include "platform.mtlsEnv" (dict "context" . "cert" "server") | nindent 12 }}
+            {{- if ne .Values.platform.grpcMtlsMode "off" }}
+            {{- /*
+            Allowlist CN được dùng nhánh actor.system_component. CHỈ gateway —
+            apps/web có cert hợp lệ nhưng KHÔNG được phong system_component, vì
+            việc của nó là reap phiên của chính người đang đăng nhập (nhánh
+            user_id). Xem internal/grpcserver/session_service.go.
+            */}}
+            - name: GRPC_MTLS_SYSTEM_CNS
+              value: {{ printf "%s-gateway" (include "platform.fullname" .) | quote }}
+            {{- end }}
+          {{- if ne .Values.platform.grpcMtlsMode "off" }}
+          volumeMounts:
+            {{- include "platform.mtlsVolumeMount" . | nindent 12 }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /healthz
@@ -142,4 +161,8 @@ spec:
             periodSeconds: 20
           resources:
             {{- toYaml .Values.orchestrator.resources | nindent 12 }}
+      {{- if ne .Values.platform.grpcMtlsMode "off" }}
+      volumes:
+        {{- include "platform.mtlsVolume" . | nindent 8 }}
+      {{- end }}
 {{- end }}

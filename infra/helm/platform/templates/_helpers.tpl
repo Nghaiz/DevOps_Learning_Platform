@@ -67,3 +67,60 @@ app.kubernetes.io/name: {{ include "platform.name" .context }}
 app.kubernetes.io/instance: {{ .context.Release.Name }}
 app.kubernetes.io/component: {{ .component }}
 {{- end -}}
+
+{{/*
+Tên Secret chứa CA + 3 cert mTLS gRPC (1.C-4).
+*/}}
+{{- define "platform.mtlsSecretName" -}}
+{{- printf "%s-mtls" (include "platform.fullname" .) -}}
+{{- end -}}
+
+{{/*
+Khối env mTLS cho MỘT service. Gọi:
+  {{ include "platform.mtlsEnv" (dict "context" . "cert" "gateway") }}
+
+`cert` là tiền tố key trong Secret: "server" (orchestrator), "gateway", "web".
+
+⛔ MỘT HELPER CHỨ KHÔNG PHẢI BA KHỐI CHÉP TAY. Ba service phải nhìn thấy CÙNG
+một `GRPC_MTLS_MODE` — đó là toàn bộ lý do trình tự permissive→require an toàn.
+Ba khối chép tay là ba cơ hội để một cái bị quên lúc siết, và hậu quả của việc
+quên (client chưa cert gặp server đã require) chính là chế độ hỏng mà ba nấc
+sinh ra để tránh.
+*/}}
+{{- define "platform.mtlsEnv" -}}
+- name: GRPC_MTLS_MODE
+  value: {{ .context.Values.platform.grpcMtlsMode | quote }}
+{{- if ne .context.Values.platform.grpcMtlsMode "off" }}
+- name: GRPC_TLS_CERT_FILE
+  value: /etc/dlp/mtls/{{ .cert }}.crt
+- name: GRPC_TLS_KEY_FILE
+  value: /etc/dlp/mtls/{{ .cert }}.key
+- name: GRPC_TLS_CA_FILE
+  value: /etc/dlp/mtls/ca.crt
+{{- end }}
+{{- end -}}
+
+{{/*
+volumeMount cho Secret mTLS. Rỗng khi mode=off.
+*/}}
+{{- define "platform.mtlsVolumeMount" -}}
+{{- if ne .Values.platform.grpcMtlsMode "off" }}
+- name: mtls
+  mountPath: /etc/dlp/mtls
+  readOnly: true
+{{- end }}
+{{- end -}}
+
+{{/*
+volume cho Secret mTLS. `defaultMode` 0400 chứ không phải mặc định 0644: private
+key đọc được bởi mọi user trong container là đúng thứ `chmod 400` tồn tại để
+chặn, và ở đây không có ai khác cần đọc nó.
+*/}}
+{{- define "platform.mtlsVolume" -}}
+{{- if ne .Values.platform.grpcMtlsMode "off" }}
+- name: mtls
+  secret:
+    secretName: {{ include "platform.mtlsSecretName" . }}
+    defaultMode: 0400
+{{- end }}
+{{- end -}}

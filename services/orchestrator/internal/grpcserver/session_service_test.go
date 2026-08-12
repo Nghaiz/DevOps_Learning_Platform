@@ -81,7 +81,7 @@ func TestReapActorPhaiDuocSERVERXacMinh(t *testing.T) {
 
 	t.Run("system_component từ peer không chứng minh được là in-cluster → PermissionDenied", func(t *testing.T) {
 		fake := &fakeLifecycle{sess: sess}
-		svc := grpcserver.NewSessionService(discardLogger(), fake)
+		svc := grpcserver.NewSessionService(discardLogger(), fake, nil)
 
 		// Không interceptor ⇒ PeerTrust rỗng ⇒ InCluster=false. Đây ĐÚNG là
 		// trạng thái khi GRPC_REQUIRE_MTLS=false, tức mặc định hôm nay.
@@ -99,7 +99,7 @@ func TestReapActorPhaiDuocSERVERXacMinh(t *testing.T) {
 
 	t.Run("thiếu actor → InvalidArgument", func(t *testing.T) {
 		fake := &fakeLifecycle{sess: sess}
-		svc := grpcserver.NewSessionService(discardLogger(), fake)
+		svc := grpcserver.NewSessionService(discardLogger(), fake, nil)
 		_, err := svc.ReapSession(context.Background(), &orchestratorv1.ReapSessionRequest{SessionId: "s1"})
 		if got := status.Code(err); got != codes.InvalidArgument {
 			t.Fatalf("code = %v, cần InvalidArgument", got)
@@ -111,7 +111,7 @@ func TestReapActorPhaiDuocSERVERXacMinh(t *testing.T) {
 
 	t.Run("user_id đi qua nguyên vẹn xuống lifecycle", func(t *testing.T) {
 		fake := &fakeLifecycle{sess: sess}
-		svc := grpcserver.NewSessionService(discardLogger(), fake)
+		svc := grpcserver.NewSessionService(discardLogger(), fake, nil)
 		_, err := svc.ReapSession(context.Background(), &orchestratorv1.ReapSessionRequest{
 			SessionId: "s1",
 			Actor:     &orchestratorv1.ReapSessionRequest_UserId{UserId: "userA"},
@@ -130,7 +130,7 @@ func TestReapActorPhaiDuocSERVERXacMinh(t *testing.T) {
 // người dùng mất cảnh báo mà không test nào ở tầng dưới thấy được.
 func TestExtendBocDungCoHardCap(t *testing.T) {
 	fake := &fakeLifecycle{sess: &orchestratorv1.Session{Id: "s1"}, hardCapReached: true}
-	svc := grpcserver.NewSessionService(discardLogger(), fake)
+	svc := grpcserver.NewSessionService(discardLogger(), fake, nil)
 
 	resp, err := svc.ExtendSession(context.Background(), &orchestratorv1.ExtendSessionRequest{
 		SessionId: "s1", UserId: "u1",
@@ -149,7 +149,7 @@ func TestExtendBocDungCoHardCap(t *testing.T) {
 // chạy). Ba RPC session khi đó phải trả Unavailable kèm lý do — nil pointer
 // dereference ở đây là pod chết ở request đầu tiên, đúng lúc khó chẩn đoán nhất.
 func TestKhongCoDatastoreThiUnavailableChuKhongPanic(t *testing.T) {
-	svc := grpcserver.NewSessionService(discardLogger(), nil)
+	svc := grpcserver.NewSessionService(discardLogger(), nil, nil)
 	ctx := context.Background()
 
 	calls := map[string]func() error{
@@ -181,7 +181,7 @@ func TestKhongCoDatastoreThiUnavailableChuKhongPanic(t *testing.T) {
 func TestAdapterKhongDoiRequestVaBocResponse(t *testing.T) {
 	want := &orchestratorv1.Session{Id: "sess-1", UserId: "u1"}
 	fake := &fakeLifecycle{sess: want}
-	svc := grpcserver.NewSessionService(discardLogger(), fake)
+	svc := grpcserver.NewSessionService(discardLogger(), fake, nil)
 	ctx := context.Background()
 
 	createReq := &orchestratorv1.CreateSessionRequest{
@@ -214,7 +214,7 @@ func TestAdapterKhongDoiRequestVaBocResponse(t *testing.T) {
 // khác sẽ phá đúng tính chất đó mà không test nào ở tầng dưới thấy được.
 func TestLoiCuaLifecycleDiRaNguyenVen(t *testing.T) {
 	want := status.Error(codes.NotFound, "session không tồn tại")
-	svc := grpcserver.NewSessionService(discardLogger(), &fakeLifecycle{err: want})
+	svc := grpcserver.NewSessionService(discardLogger(), &fakeLifecycle{err: want}, nil)
 
 	_, err := svc.GetSession(context.Background(), &orchestratorv1.GetSessionRequest{SessionId: "s", UserId: "u"})
 	if !errors.Is(err, want) {

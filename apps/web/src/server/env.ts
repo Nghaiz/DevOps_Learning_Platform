@@ -52,6 +52,42 @@ export function orchestratorGrpcAddr(): string {
   return process.env['ORCHESTRATOR_GRPC_ADDR'] ?? 'localhost:9090';
 }
 
+/** Cert mTLS cho kênh gRPC tới orchestrator (1.C-4). */
+export interface GrpcMtls {
+  certFile: string;
+  keyFile: string;
+  caFile: string;
+  serverName: string;
+}
+
+/**
+ * Đọc cấu hình mTLS cho kênh gRPC. Trả `null` khi `GRPC_MTLS_MODE=off`.
+ *
+ * `GRPC_MTLS_MODE` là CÙNG một biến với hai service Go — một knob cho cả ba
+ * thành phần. Phía client, `permissive` và `require` giống hệt nhau (đều trình
+ * cert); khác biệt chỉ ở phía server, và đó chính là thứ làm trình tự bật an
+ * toàn: đặt `permissive` cho cả cụm ⇒ mọi client đã có cert ⇒ đổi sang
+ * `require` không thay đổi hành vi client nào.
+ *
+ * Giá trị lạ là LỖI chứ không rơi về `off`: một typo làm tắt mã hoá trong im
+ * lặng đúng lúc người vận hành tin rằng vừa bật nó.
+ */
+export function grpcMtls(): GrpcMtls | null {
+  const mode = process.env['GRPC_MTLS_MODE'] ?? 'off';
+  if (mode === 'off') return null;
+  if (mode !== 'permissive' && mode !== 'require') {
+    throw new Error(
+      `GRPC_MTLS_MODE không hợp lệ: ${mode} — chỉ nhận 'off', 'permissive', 'require'`,
+    );
+  }
+  return {
+    certFile: requireEnv('GRPC_TLS_CERT_FILE'),
+    keyFile: requireEnv('GRPC_TLS_KEY_FILE'),
+    caFile: requireEnv('GRPC_TLS_CA_FILE'),
+    serverName: requireEnv('GRPC_TLS_SERVER_NAME'),
+  };
+}
+
 export function betterAuthSecret(): string {
   return requireEnv('BETTER_AUTH_SECRET');
 }

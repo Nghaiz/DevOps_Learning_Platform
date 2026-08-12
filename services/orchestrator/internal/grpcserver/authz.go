@@ -9,6 +9,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/tlsx"
 )
 
 // peerTrustKey là khoá context mang KẾT LUẬN của interceptor về peer.
@@ -27,6 +29,15 @@ type peerTrustKey struct{}
 type PeerTrust struct {
 	// InCluster chỉ đúng khi peer đã trình client cert được CA của ta ký.
 	InCluster bool
+	// CommonName là CN của client cert ĐÃ VERIFY. Rỗng khi InCluster=false.
+	//
+	// ⛔ ĐỌC TỪ VerifiedChains, KHÔNG PHẢI PeerCertificates. Hai mảng khác nhau ở
+	// đúng chỗ quan trọng: `PeerCertificates[0]` là cert client GỬI LÊN (chưa qua
+	// verify), còn `VerifiedChains[0][0]` là cert đã được kiểm bằng ClientCAs.
+	// Đọc nhầm mảng đầu nghĩa là bất kỳ ai cũng tự khai CN bằng một cert tự ký —
+	// tức allowlist CN biến thành trang trí, và nó hỏng IM LẶNG vì hai mảng có
+	// cùng kiểu và thường có cùng nội dung khi mọi thứ đang đúng.
+	CommonName string
 	// Addr chỉ để log/chẩn đoán. TUYỆT ĐỐI không dùng làm căn cứ authz: địa chỉ
 	// nguồn giả được, và trong cluster thì mọi thứ đều nằm trong dải pod CIDR.
 	Addr string
@@ -51,14 +62,23 @@ func TrustFromContext(ctx context.Context) PeerTrust {
 // `system_component` bị từ chối. Đó là fail-closed, và nó khiến việc bật mTLS
 // có hậu quả NHÌN THẤY ĐƯỢC thay vì là một cờ ai cũng quên.
 //
-// requireMTLS=false là mặc định có chủ ý ở giai đoạn này: lane gateway (1.C)
-// chưa tồn tại nên chưa ai trình được cert, và bật cứng bây giờ sẽ giết
-// `grpcurl` trong Verify commands lẫn đường BFF→orchestrator của G12.
-func NewAuthInterceptor(log *slog.Logger, requireMTLS bool) grpc.UnaryServerInterceptor {
-	if !requireMTLS {
-		log.Warn("GRPC_REQUIRE_MTLS=false — cổng gRPC KHÔNG xác thực người gọi. " +
+// BA NẤC (1.C-4) — và nấc giữa là toàn bộ lý do bản trước không bật được:
+//
+//	off        server không có TLS. Không chứng minh được gì ⇒ InCluster=false,
+//	           nhánh system_component bị từ chối.
+//	permissive server CÓ TLS, nhận cả client có cert lẫn không. Client có cert
+//	           hợp lệ ⇒ InCluster=true; client không cert ⇒ đi tiếp với
+//	           InCluster=false. Nấc này để QUAN SÁT ai đã cắm cert trước khi siết.
+//	require    không có cert hợp lệ ⇒ Unauthenticated.
+//
+// ⚠ `permissive` KHÔNG khoan dung với cert SAI. Cert do CA lạ ký làm hỏng bắt
+// tay TLS ngay ở tầng dưới (crypto/tls VerifyClientCertIfGiven), interceptor
+// không bao giờ thấy request đó. Nấc này chỉ khoan dung với việc VẮNG cert.
+func NewAuthInterceptor(log *slog.Logger, mode tlsx.Mode) grpc.UnaryServerInterceptor {
+	if mode == tlsx.ModeOff {
+		log.Warn("GRPC_MTLS_MODE=off — cổng gRPC KHÔNG xác thực người gọi. " +
 			"`user_id` trong request là field client tự khai, và nhánh system_component sẽ bị TỪ CHỐI. " +
-			"Xem R25/B0′ trong phase-1.md: phải bật trước khi apps/web nối vào (G12).")
+			"Xem R25/B0′ trong phase-1.md.")
 	}
 
 	return func(
@@ -77,26 +97,37 @@ func NewAuthInterceptor(log *slog.Logger, requireMTLS bool) grpc.UnaryServerInte
 		//
 		// Bản đầu đặt nó BÊN TRONG, nên một request KHÔNG có peer trong context
 		// đi thẳng qua handler dù cổng đang bật — fail-OPEN, ngược hẳn với lập
-		// luận ngay phía trên. Đo được: `không có peer, requireMTLS=true →
+		// luận ngay phía trên. Đo được: `không có peer, mTLS bật →
 		// err=<nil>, handler đã chạy=true`.
-		if requireMTLS {
-			if !hasPeer {
-				return nil, status.Error(codes.Unauthenticated,
-					"cổng này yêu cầu mTLS: không xác định được peer của kết nối")
-			}
-			tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
-			if !ok || len(tlsInfo.State.VerifiedChains) == 0 {
-				// Peer không trình được cert do CA của ta ký ⇒ chặn hẳn, không
-				// hạ xuống "external". Nửa vời ở đây là bật một cổng rồi để nó
-				// không gác gì. (Go chỉ điền VerifiedChains SAU khi verify bằng
-				// ClientCAs, nên cert của CA khác cho mảng rỗng.)
+		if mode.Enabled() {
+			cn, verified := verifiedCN(p, hasPeer)
+			if !verified && mode == tlsx.ModeRequire {
 				return nil, status.Error(codes.Unauthenticated,
 					"cổng này yêu cầu mTLS: không có client certificate hợp lệ")
 			}
-			trust.InCluster = true
+			// permissive: !verified ⇒ giữ nguyên zero value (InCluster=false) và
+			// đi tiếp. Đó là ĐỊNH NGHĨA của nấc giữa, không phải một nhánh sót.
+			trust.InCluster = verified
+			trust.CommonName = cn
 		}
 		return handler(context.WithValue(ctx, peerTrustKey{}, trust), req)
 	}
+}
+
+// verifiedCN rút CommonName từ chuỗi cert ĐÃ VERIFY của peer.
+//
+// Trả (cn, false) khi không có gì verify được. Go chỉ điền `VerifiedChains` SAU
+// khi kiểm bằng `ClientCAs`, nên cert của CA khác cho mảng RỖNG — đó là lý do
+// phép kiểm ở đây là `len(VerifiedChains) > 0` chứ không phải `PeerCertificates`.
+func verifiedCN(p *peer.Peer, hasPeer bool) (string, bool) {
+	if !hasPeer {
+		return "", false
+	}
+	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok || len(tlsInfo.State.VerifiedChains) == 0 || len(tlsInfo.State.VerifiedChains[0]) == 0 {
+		return "", false
+	}
+	return tlsInfo.State.VerifiedChains[0][0].Subject.CommonName, true
 }
 
 // NewStreamDenyInterceptor TỪ CHỐI mọi RPC dạng stream.

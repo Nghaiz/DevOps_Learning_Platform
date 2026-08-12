@@ -147,12 +147,10 @@ orchestrator:
     # đường nhanh, best-effort và mất event khi reaper offline).
     reapInterval: '60s'
 
-    # ⚠ MẶC ĐỊNH TẮT, VÀ ĐÓ LÀ MỘT MÓN NỢ CÓ HẠN CHÓT — xem R25/B0′ trong
-    # plans/devops-learning-platform/phase-1.md. Khi tắt, cổng gRPC KHÔNG xác
-    # thực người gọi: `user_id` là field client tự khai, và nhánh
-    # `system_component` của ReapSession bị TỪ CHỐI (fail-closed). Phải bật
-    # trước khi apps/web nối vào (G12).
-    grpcRequireMtls: 'false'
+    # mTLS của cổng gRPC nay điều khiển bằng MỘT biến dùng chung cho cả ba
+    # service: `platform.grpcMtlsMode` ở cuối file. Không còn cờ riêng ở đây —
+    # ba giá trị riêng lẻ là ba cơ hội để chúng lệch nhau, và một client chưa
+    # cắm cert gặp server đã siết là 100% RPC đỏ.
 
 gateway:
   enabled: true
@@ -319,6 +317,24 @@ platform:
   priorityClassEnabled: true
   priorityClassName: dlp-platform-critical
   priorityClassValue: 1000000
+
+  # mTLS cho cổng gRPC orchestrator — MỘT biến cho cả ba service (1.C-4).
+  #
+  #   off        Không TLS. Cổng gRPC không xác thực người gọi: `user_id` là
+  #              field client tự khai, nhánh `system_component` của ReapSession
+  #              bị TỪ CHỐI (fail-closed). Đây là trạng thái R25 mô tả.
+  #   permissive Server có TLS và nhận CẢ client có cert lẫn không; client nào
+  #              cũng đã trình cert. Nấc để QUAN SÁT trước khi siết.
+  #   require    Không có client cert hợp lệ ⇒ Unauthenticated.
+  #
+  # ⛔ TRÌNH TỰ BẬT LÀ NỘI DUNG CỦA TÍNH NĂNG, KHÔNG PHẢI GHI CHÚ VẬN HÀNH.
+  # Nhảy thẳng off → require nghĩa là trong lúc ba Deployment cuốn, mọi client
+  # chưa kịp mang cert đều bị từ chối — tức trang session hỏng và heartbeat
+  # ExtendSession chết, trong khi `helm upgrade` báo thành công. Đúng trình tự:
+  # đặt `permissive`, ĐO thấy cả gateway lẫn web đang trình cert, rồi mới
+  # `require`. Bản trước là một cờ bool và nó không bật được suốt hai chặng
+  # chính vì thiếu nấc giữa này.
+  grpcMtlsMode: 'permissive'
 
 # Tầng cô lập cho namespace chạy pod sandbox sinh viên (P1) — sinh viên có
 # root BÊN TRONG pod và là tác nhân CỐ Ý ĐỐI KHÁNG. Namespace này KHÁC
