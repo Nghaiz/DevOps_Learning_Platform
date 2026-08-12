@@ -551,8 +551,17 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 **M3 — SIGKILL gateway giữa phiên** (không kịp `DECR`) → chờ TTL `session:{id}:ws` → mở lại được, **không khoá vĩnh viễn**. Cơ chế có test tự động; ca giết-thật thì chưa chạy.
 **M4 — Xoay khoá Better Auth THẬT** (đổi `kid`) → gateway tự refetch, không restart. Hiện chỉ có test trên **endpoint JWKS giả**.
 **M5 — Luật 5 phần còn lại:** RSS gateway không quá 2× baseline khi bơm 5 MiB/s; bão 200 resize/s → coalesce, không đóng, `stty size` khớp **chính xác** giá trị cuối.
-**M6 — NetworkPolicy vế còn lại:** ping pod session khác → deny.
-**M7 — VAP regression:** pod thiếu `runtimeClassName` → admission từ chối.
+**M6 — NetworkPolicy vế còn lại:** ping pod session khác → deny. ✅ **ĐẠT 2026-08-12.** Dựng pod sandbox thứ hai bằng cách **clone spec pod ấm** (tự chế spec thì đỏ ở admission vì VAP bắt `hostUsers: false` — cùng bẫy đã gặp ở tầng 3). Đo từ pod A (`10.244.211.74`) sang pod B (`10.244.211.91`):
+> | Đích | Kết quả | Đọc thế nào |
+> |---|---|---|
+> | **chính pod A** `:22` | refused, **23 ms** | gói TỚI NƠI, chỉ là không ai lắng nghe |
+> | **pod session khác** `:22` | **timeout `rc=124`, 5015 ms** | gói **bị DROP** ⇒ NetworkPolicy chặn |
+> | loopback `:22` | refused, 20 ms | phép đo hoạt động |
+>
+> ⛔ **Hai đối chứng dương mới là phần làm phép đo này có nghĩa.** Không có chúng thì một lượt timeout cũng đúng với "gõ nhầm IP" hoặc "pod B chưa lên". Vế `refused trong 23 ms` tới **chính IP của mình** chứng minh phương pháp probe phát hiện được cổng-tới-được-nhưng-đóng; chỉ khi đó con số 5015 ms mới đọc được là **drop** chứ không phải "không có gì ở đó".
+> *Kèm theo: image sandbox **không có `ping`** (`command -v ping` rỗng) — AC viết "ping" nhưng phép đo đúng phải là TCP, và TCP còn phân biệt được `refused` (tới nơi) với `timeout` (bị drop), thứ mà ICMP im lặng không cho biết.*
+
+**M7 — VAP regression:** pod thiếu `runtimeClassName` → admission từ chối. ✅ **ĐẠT 2026-08-12.** `kubectl apply` một pod hợp lệ mọi mặt trừ `runtimeClassName` → bị `ValidatingAdmissionPolicy 'platform-sandbox-isolation'` từ chối, **nguyên văn**: *"Pod trong namespace sandbox BẮT BUỘC set spec.runtimeClassName = "sysbox-runc" — thiếu field này nghĩa là pod sẽ chạy bằng runc thường, KHÔNG có cô lập Sysbox user-namespace."* Đây là admission từ chối (pod không bao giờ tồn tại), không phải lỗi runtime.
 **M8 — Hai ô FE:** tắt hardware acceleration → fallback DOM + `console.warn`; StrictMode dev mount/unmount 3 lần → còn **1** WebSocket.
 > **M9 — Hai replica gateway sau LB** (AC hiện có): mở/đóng 20 WS **tuần tự** (trần là 1 WS/session), 0 lỗi. Ghi chung ở đây vì nó dùng đúng cảnh 2-replica mà W1 phải dựng để đo — chạy một lượt deploy cho cả hai.
 
@@ -744,8 +753,8 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 > Đây là lần thứ HAI trong §1.D một AC đọc sai điểm thực thi vì Sysbox chen vào giữa. Bài học chung, khác với "một đường không ai đi thì không ai gác": **dưới một runtime ảo hoá, `kubectl exec` không phải là điểm quan sát trung lập — nó là một điểm quan sát ĐÃ BỊ RUNTIME BIÊN TẬP.** Cái giá cụ thể của việc không biết điều này: người tiếp theo sẽ đọc `max`, kết luận D-19′ hỏng, rồi đi "sửa" một cấu hình vốn đã đúng — hoặc tệ hơn, hạ AC xuống cho dễ đạt.
 >
 > AC thay bằng hai vế **đo đúng chỗ và đỏ được**: (1) `pids.max` của **cgroup pod trên host** là số; (2) hành vi — fork tới khi hỏng, `pids.events` có `max > 0`, node còn `Ready`.
-- [ ] **NetworkPolicy:** từ trong pod `curl http://169.254.169.254/` timeout/deny; ping pod session khác deny. ⏳ **MỘT TRÊN HAI.** Vế IMDS **đã đo 2026-08-12 ở 1.E-2** trong pod thật dưới `default-deny` đang sống (`curl http://169.254.169.254/` hỏng — xem AC DinD ở §Terminal UX, cùng một lượt đo). Vế **ping pod session khác** chưa dựng cảnh: cần HAI pod sandbox cùng lúc, tức chạm trần quota 4 nên phải chạy riêng. Giao **1.G-2 M6**.
-- [ ] **VAP regression:** pod thiếu `runtimeClassName` → bị từ chối (chạy lại mỗi lần đổi pod builder).
+- [x] **NetworkPolicy:** từ trong pod `curl http://169.254.169.254/` timeout/deny; ping pod session khác deny. ✅ **ĐỦ HAI TRÊN HAI** (vế thứ hai đóng 2026-08-12 ở 1.G-2 M6, kèm hai đối chứng dương — xem M6). *(Ghi trước khi đóng:)* ⏳ **MỘT TRÊN HAI.** Vế IMDS **đã đo 2026-08-12 ở 1.E-2** trong pod thật dưới `default-deny` đang sống (`curl http://169.254.169.254/` hỏng — xem AC DinD ở §Terminal UX, cùng một lượt đo). Vế **ping pod session khác** chưa dựng cảnh: cần HAI pod sandbox cùng lúc, tức chạm trần quota 4 nên phải chạy riêng. Giao **1.G-2 M6**.
+- [x] **VAP regression:** pod thiếu `runtimeClassName` → bị từ chối (chạy lại mỗi lần đổi pod builder). ✅ **ĐẠT 2026-08-12** ở 1.G-2 M7 — admission từ chối kèm nguyên văn lý do, pod không bao giờ tồn tại.
 
 **mTLS cổng gRPC (R25/B0′/D13 — thêm 2026-08-12 ở 1.C-4).** Đo bằng [`cmd/mtls-probe`](../../services/orchestrator/cmd/mtls-probe/) chạy **trong cụm**: ba vế dưới cần hai cert hợp lệ do CÙNG một CA ký, nên không đo được từ ngoài.
 
