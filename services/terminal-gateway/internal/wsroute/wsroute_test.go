@@ -86,6 +86,34 @@ func (f *fakeBridge) last() (podexec.Target, bool) {
 	return f.targets[len(f.targets)-1], true
 }
 
+// waitLast chờ tới khi cầu exec ĐƯỢC GỌI, tối đa d.
+//
+// ⛔ ĐỌC `last()` MỘT LẦN NGAY SAU 101 LÀ MỘT CUỘC ĐUA, VÀ NÓ ĐÃ NỔ THẬT trên CI
+// (run của PR #44, 2026-08-12): `Serve` chạy ở goroutine PHÍA SERVER, còn client
+// thấy 101 ngay khi handshake xong — không có gì buộc `Serve` append xong trước
+// khi test đọc. Trên máy dev nó luôn kịp (30/30 lượt xanh), trên runner tải nặng
+// thì không.
+//
+// Vế đắt của loại lỗi này không phải một lượt CI đỏ: một test đỏ theo TẢI dạy
+// người đọc bỏ qua màu đỏ, và ngày nó đỏ vì lý do thật thì không ai tin nó nữa.
+//
+// Chờ có hạn chứ KHÔNG phải `time.Sleep` cố định: sleep đủ dài thì chậm mọi lượt
+// chạy, sleep ngắn thì vẫn đua. Hết hạn mà chưa được gọi vẫn là ĐỎ — vế "cầu
+// exec phải được gọi" không bị nới thành "có thể được gọi".
+func (f *fakeBridge) waitLast(t *testing.T, d time.Duration) (podexec.Target, bool) {
+	t.Helper()
+	deadline := time.Now().Add(d)
+	for {
+		if target, ok := f.last(); ok {
+			return target, true
+		}
+		if time.Now().After(deadline) {
+			return podexec.Target{}, false
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 type harness struct {
 	srv      *httptest.Server
 	signer   *testjwt.Signer

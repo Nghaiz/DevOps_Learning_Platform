@@ -134,9 +134,11 @@ func TestG13_DichExecLayTuRedisChuKhongTuURL(t *testing.T) {
 		t.Fatalf("status = %d, muốn 101", resp.Status)
 	}
 
-	target, ok := h.bridge.last()
+	// Chờ có hạn: `Serve` chạy ở goroutine phía server sau khi client thấy 101.
+	// Xem waitLast — đọc một lần là cuộc đua, và nó đã nổ trên CI.
+	target, ok := h.bridge.waitLast(t, 2*time.Second)
 	if !ok {
-		t.Fatal("cầu exec không được gọi dù handshake đã 101")
+		t.Fatal("cầu exec không được gọi dù handshake đã 101 (chờ 2s)")
 	}
 	// seed() ghi đúng hai giá trị này vào hash session:{id}.
 	if target.PodName != "sandbox-deadbeef" || target.Namespace != "dlp-sandbox" {
