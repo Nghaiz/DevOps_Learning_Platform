@@ -197,9 +197,28 @@ Sáu THẤP đã vá: `find` nuốt stderr · dòng log tự mâu thuẫn (`ché
 
 ---
 
-## 9. Nợ mở ra từ chặng này
+## 9. Sau merge — hai món nợ đã đóng thật (2026-08-12, cùng ngày)
 
-- **Warm-pool + gateway chưa chạy image mới.** Rủi ro lớn nhất của việc đổi ENTRYPOINT — *"PID 1 chết, `pool:free` đếm một xác"*, bài học của 1.E-1 — **đã bị bác bỏ**: pod probe dùng đúng `RestartPolicy: Never` và không override `Command`/`Args` như `podspec.go`, và nó Running suốt buổi đo. Vế còn lại (gateway attach qua WS) thuộc 1.C và tmux không đổi gì. **Đóng bằng cách side-load `sha-*` sau khi PR merge rồi `helm upgrade`** — một lượt đóng luôn cả nợ tag, thay vì đẻ thêm một nợ `dev-1e2`.
+PR #41 merge vào `main` (`d09db86`), CI đóng `sha-d09db86` cho cả 5 image, và cả hai vế treo được đóng trong **một lượt**:
+
+| | |
+|---|---|
+| Release | revision **33**, cả 5 thành phần chạy `sha-d09db86`, `sandboxImage` kế thừa đúng ⇒ **nợ tag ĐÓNG** (lần thứ 7 của cùng món nợ, và là lần đầu đóng ngay trong ngày merge) |
+| Warm-pool | rút pod cũ theo đúng thứ tự `LREM` (**trả về 1**) → `DEL` → `delete`; orchestrator dựng lại `sandbox-951beede9195` từ **image CI đóng** |
+| AC D4 qua **đường giao hàng thật** | trong pod warm-pool đó: `curl` ra registry và ra `169.254.169.254` đều **hỏng**; `docker info` `Client=Server=29.7.2`; `docker build FROM scratch` + `docker run` → **30.6.4**; `docker image ls` chỉ có image vừa build |
+| tmux (lệnh G4 exec vào) | `session_id` `$0` → `$0`, `tmux ls` = 1, và `docker run` **bên trong tmux** trả `30.6.4` |
+
+Nghĩa là AC D4 nay có **hai** mức bằng chứng: pod probe dựng tay (artifact đúng) và pod do orchestrator tạo từ image CI (đường giao hàng đúng). Vế thứ hai là vế mà chặng chính cố ý hoãn — nó đã đóng, không còn là nợ.
+
+### Ba thứ học được ở bước sau-merge
+
+1. **`docker pull` của Docker Desktop đứng ở 0 B/s trong ~40 phút** với image 809 MB, trong khi chính VM — guest trên cùng máy, cùng một link internet — `ctr pull` được ở 239 KiB/s rồi 3.4 MiB/s. Nghẽn nằm ở đường pull của Docker Desktop, không phải ở mạng. Ghi chú dự án đã có sẵn đường `ctr pull` với token `gh` mà không được đọc trước khi bắt đầu.
+2. **`ctr` tiếp tục từ phần dở dang.** Lượt đầu đứt ở 45 MB (`connection reset by peer`); lượt cuối chỉ cần tải thêm **106 MB** là xong 809 MB. Đừng khởi động lại từ đầu khi một lượt pull đứt giữa chừng.
+3. **`~/dlp-deploy` trên VM lệch khỏi repo và thiếu hẳn `mtls-secret.yaml`** — tức nó cũ hơn cả chặng 1.C-4, dù revision 32 rõ ràng đã deploy mTLS. `helm upgrade` từ thư mục đó sẽ **xoá Secret mTLS** và làm cổng gRPC chết. Đã đồng bộ lại từ repo trước khi upgrade, và thay hẳn thư mục cũ. Bài học chung: **thư mục deploy trên máy đích không phải nguồn sự thật** — đối chiếu với repo trước mỗi lượt upgrade.
+
+---
+
+## 10. Nợ còn lại
 - **`/mnt/dotfiles` chưa có producer** (§2). Chưa task nào sở hữu vế mount.
 - **Không có ai rollout warm-pool theo image.** Món nợ cũ từ 1.E-1 vẫn nguyên: đổi `SANDBOX_IMAGE` KHÔNG thay pod đang ấm, phải rút tay theo thứ tự `LREM` → `DEL` → `delete`. Với image 809 MB thì mỗi lần bump `image.tag` còn phải nhớ side-load thêm tarball 194 MB, nếu không warm-pool `ImagePullBackOff`.
 - **Không có phép đo nào cho cold-path claim sau khi image béo lên.** AC hiện chỉ hỏi p95 claim từ pool ẤM (0.092s, không chạm image). Câu *"người thứ hai bấm Start ngay sau người thứ nhất chờ bao lâu"* vẫn chưa AC nào hỏi — và giờ nó có thêm 3.6s dockerd trong đó.
