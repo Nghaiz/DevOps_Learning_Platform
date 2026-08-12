@@ -44,6 +44,11 @@ type fakePods struct {
 	// onGet chạy SAU khi Get đã ghi nhận lượt gọi — test dùng để huỷ ctx đúng
 	// lúc manager đang ở giữa vòng chờ-ready.
 	onGet func(name string)
+	// onDelete chạy TRONG Delete, trước khi ghi nhận. Nó tồn tại để quan sát
+	// trạng thái Redis ở ĐÚNG thời điểm ta gọi apiserver — không có nó thì luật
+	// "DEL hash TRƯỚC, xoá Pod SAU" của deleteSurplus không có cách nào ĐỎ, vì
+	// nhìn từ trạng thái CUỐI thì hai thứ tự cho kết quả giống hệt nhau.
+	onDelete func(name string)
 
 	gets map[string]int
 }
@@ -89,8 +94,15 @@ func (f *fakePods) Get(_ context.Context, name string) (*corev1.Pod, error) {
 
 func (f *fakePods) Delete(_ context.Context, name string, _ int64) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	hook := f.onDelete
 	f.deleted = append(f.deleted, name)
+	f.mu.Unlock()
+
+	// Ngoài lock: hook đọc Redis, và giữ lock qua một lượt I/O là tự tạo thứ tự
+	// mà production không có.
+	if hook != nil {
+		hook(name)
+	}
 	return nil
 }
 

@@ -603,6 +603,47 @@ func TestKeoCuaSoBinhThuongKhongBiChan(t *testing.T) {
 	}
 }
 
+// TestFrameVuotReadLimitDongBang1009.
+//
+// ⛔ ĐÂY LÀ HẰNG SỐ DUY NHẤT CỦA LUẬT 5 ĐẾN TỪ THỰC NGHIỆM MÀ TRƯỚC BẢN NÀY
+// KHÔNG CÓ GÌ GÁC. Plan bản 2026-08-07 đoán `4413` — một mã ỨNG DỤNG. Spike
+// 1.A-1 đo được sự thật khác: `coder/websocket` TỰ đóng bằng `1009`
+// (StatusMessageTooBig) ngay trong tầng thư viện, nên code ứng dụng không bao
+// giờ thấy frame vi phạm và không có chỗ nào để phát một mã của riêng ta.
+// Contract §6 pin `1009` theo phép đo đó.
+//
+// Vì sao nó cần một ca riêng dù đã có `TestVuotTranTocDoStdinThiDong4429`: hai
+// ca đo HAI TẦNG khác nhau (một frame to ↔ nhiều frame nhỏ đi liên tục), và
+// tầng read-limit là tầng KHÔNG có dòng code nào của ta bên trong. Ngày ai đó
+// nâng `SetReadLimit` lên 1 MiB "cho fastfetch đỡ bị cắt" — đúng thứ
+// `cmd/spike-exec/bridge.go` đang làm ở dòng 156 — thì contract §6 sai mà không
+// test nào đỏ, và FE sẽ switch trên một mã không bao giờ tới.
+//
+// Ca này CỐ Ý không đòi control `error` đi kèm: thư viện đóng TRƯỚC khi code
+// ứng dụng thấy gì, nên đòi một control ở đây là đòi một thứ không thể tồn tại.
+// Vế đối chứng — frame ĐÚNG bằng `MaxFrameBytes` vẫn qua — đã có ở
+// `TestDanMotFrameToVanQuaDuoc`, nên không nhân bản lại ở đây.
+func TestFrameVuotReadLimitDongBang1009(t *testing.T) {
+	h := newBridge(t, blockUntilCtx(), alwaysAlive)
+	h.sendInit(t, 80, 24)
+	h.waitReady(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// ĐÚNG MỘT BYTE quá trần — ranh giới, không phải một frame khổng lồ. Một
+	// frame to gấp nhiều lần cũng đỏ khi guard mất, nhưng nó không nói được trần
+	// nằm ở ĐÂU, mà chính vị trí đó là thứ contract §6 pin cho FE.
+	over := make([]byte, podexec.MaxFrameBytes+1)
+	_ = h.client.Write(ctx, websocket.MessageBinary, over)
+
+	_, _, code := h.readUntilClose(t)
+	if code != websocket.StatusMessageTooBig {
+		t.Fatalf("close code = %d, muốn %d (1009) — contract §6 pin mã này theo phép đo của spike 1.A-1, không phải theo phỏng đoán",
+			code, websocket.StatusMessageTooBig)
+	}
+}
+
 // ---------------------------------------------------------------- G9: stateless
 
 // ⛔ TestHaiPhienSongSongKhongDungChungTrangThai.

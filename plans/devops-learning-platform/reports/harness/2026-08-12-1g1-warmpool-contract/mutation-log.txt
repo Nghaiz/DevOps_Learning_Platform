@@ -1,0 +1,72 @@
+Kiem dot bien — 1.G-1, 2026-08-12
+=================================
+
+Nghi thuc: doi mot cho trong ma san pham -> chay tap con test lien quan -> ghi lai
+CA NAO DO -> hoan nguyen bang cach GHI LAI NOI DUNG DA LUU (khong dung git checkout,
+xem GOTCHA o duoi).
+
+Muc tieu khong phai "co test do" ma "DUNG test do": mot dot bien vao mot ranh gioi
+phai lam do dung ca duoc viet cho ranh gioi do. Do tran nghia la ranh gioi khong
+co diem gac rieng.
+
+
+[M1] trim.lua: LLEN <= target  ->  LLEN < target        (rut qua tay mot pod)
+     DO 4 ca: TestTrimRutPodThuaVeDungTran,
+              TestTrimKhongDungGiKhiPoolDungTran,
+              TestTrimRutDungPhanThuaKhongRutXuongDuoiTran,
+              TestTrimRutTuDauPHAIGiuNguyenFIFO
+     => Do TRAN, va dung nhu vay: day la dot bien vao chinh dieu kien loi cua
+        script, khong phai vao mot ranh gioi.
+
+[M2] trim.lua: RPOP -> LPOP                             (pha FIFO cua D6)
+     DO 4 ca: (cung bon ca tren)
+     => Do tran. Ghi chu: TestTrimRutTuDauPHAIGiuNguyenFIFO la ca DUY NHAT do vi
+        DANH TINH pod con lai chu khong vi so luong — mot phep dem se xanh voi ca
+        LPOP. Do la ve phan biet that su cua ca do.
+
+[M3] trim.go: dao thu tu  DEL pod:{name}  <->  pods.Delete
+     DO 1 ca: TestTrimXoaHashTRUOCKhiXoaPod
+     => KHU TRU DUNG MOT CA. Day la luat quan trong nhat cua W1 (diem mu thu sau)
+        va no co dung mot diem gac. Ca nay chi do duoc nho hook onDelete quan sat
+        trang thai Redis O GIUA — nhin tu trang thai CUOI thi hai thu tu giong het
+        nhau.
+
+[M4] reaper.go: vo hieu guard  if r.wantImage == "" { return false }
+     DO 1 ca: TestTang4WantImageRongThiKhongKetLuan
+     => KHU TRU DUNG MOT CA. Guard nay chan che do hong "cau hinh sai bien thanh
+        xoa lien tuc": so voi chuoi rong nghia la RUT SACH pool:free moi vong
+        sweep, mai mai, trong khi moi dong log deu noi "da rut pod lech image".
+
+[M5] reaper.go: doc  Containers[0]  thay vi tim theo TEN k8s.ContainerName
+     DO 1 ca: TestTang4KhongThayContainerTheoTenThiKhongKetLuan
+     => KHU TRU DUNG MOT CA. Dot bien nay chay DUNG hom nay va im lang sai ngay
+        spec co sidecar — do la ly do ca nay ton tai rieng.
+
+[M6] reaper.go: bo nhanh  case r.staleImage(pod):  khoi switch
+     DO 1 ca: TestTang4RutPodAmLechImage
+     => KHU TRU DUNG MOT CA. Hai doi chung am (pod dung image, wantImage rong)
+        VAN XANH duoi dot bien nay — dung nhu mong doi, vi chung khang dinh nhanh
+        "KHONG xoa".
+
+
+Tong: 6 phep. 4 phep khu tru dung mot ca. 2 phep do tran, ca hai vao loi cua
+trim.lua chu khong vao ranh gioi.
+
+
+GOTCHA QUY TRINH — se can bat ky ai lap lai kieu kiem nay
+---------------------------------------------------------
+Hoan nguyen dot bien bang `git checkout -- <file>` la SAI trong bo canh nay:
+
+  - File DA SUA ma CHUA COMMIT: git checkout dua no ve HEAD, tuc XOA SACH phan
+    sua. O luot dau tien no da xoa toan bo W2 trong reaper.go (struct field,
+    tham so cua New, nhanh switch, staleImage, sandboxImageOf, doc-comment).
+    Phat hien ra vi reaper_test.go — file KHONG bi checkout — goi mot signature
+    khong con ton tai.
+
+  - File CHUA TRACK (trim.lua moi tao): git checkout bao
+    "pathspec ... did not match any file(s) known to git" va DOT BIEN O LAI
+    nguyen trong file. Neu khong doc ky output thi buoc tiep theo se chay tren
+    ma da bi dot bien.
+
+Duong dung: doc file vao mot bien truoc khi dot bien, ghi lai tu bien sau khi
+chay xong. Bang o tren duoc dung lai theo cach do.

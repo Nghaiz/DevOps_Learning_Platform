@@ -178,6 +178,37 @@ func (f *fakePods) addPodWithPhase(name string, age time.Duration, phase corev1.
 	f.pods = append(f.pods, p)
 }
 
+// addPodWithImage thêm pod ấm có ĐÚNG một container tên `k8s.ContainerName`
+// mang image cho trước — thứ `addPodWithPhase` để trống hoàn toàn
+// (`Spec.Containers` rỗng), nên trước hàm này vế lệch-image của tầng 4 không có
+// cách nào dựng cảnh.
+func (f *fakePods) addPodWithImage(name string, age time.Duration, phase corev1.PodPhase, image string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p := corev1.Pod{}
+	p.Name = name
+	p.Labels = map[string]string{k8s.LabelApp: k8s.LabelAppValue}
+	p.CreationTimestamp = metav1.NewTime(time.Now().Add(-age))
+	p.Status.Phase = phase
+	p.Spec.Containers = []corev1.Container{{Name: k8s.ContainerName, Image: image}}
+	f.pods = append(f.pods, p)
+}
+
+// addPodWithNamedContainer dựng pod mà container KHÔNG mang tên
+// `k8s.ContainerName` — ca "không tìm thấy container theo tên". Nó tồn tại để
+// chứng minh nhánh đó là KHÔNG-KẾT-LUẬN, không phải "lệch".
+func (f *fakePods) addPodWithNamedContainer(name string, age time.Duration, container, image string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p := corev1.Pod{}
+	p.Name = name
+	p.Labels = map[string]string{k8s.LabelApp: k8s.LabelAppValue}
+	p.CreationTimestamp = metav1.NewTime(time.Now().Add(-age))
+	p.Status.Phase = corev1.PodRunning
+	p.Spec.Containers = []corev1.Container{{Name: container, Image: image}}
+	f.pods = append(f.pods, p)
+}
+
 // addTerminatingPod thêm pod ĐANG BỊ XOÁ: có DeletionTimestamp nhưng VẪN nằm
 // trong List — trạng thái `Terminating` thật của Kubernetes khi finalizer hoặc
 // kubelet chưa dọn xong.
@@ -246,13 +277,20 @@ func (f *fakeSessions) failedIDs() []string {
 	return append([]string(nil), f.failed...)
 }
 
-func newTestReaper(t *testing.T) (*Reaper, *fakePods, *fakeSessions, *redis.Client, *metrics.Metrics) {
+// newTestReaper. `wantImage` là variadic để MỌI ca có sẵn giữ nguyên chữ:
+// không truyền ⇒ `""` ⇒ phép so image của tầng 4 TẮT, tức các ca cũ chạy đúng
+// đường code cũ. Ca nào cần vế lệch-image thì truyền tường minh.
+func newTestReaper(t *testing.T, wantImage ...string) (*Reaper, *fakePods, *fakeSessions, *redis.Client, *metrics.Metrics) {
 	t.Helper()
 	rdb := newTestRedis(t)
 	pods := &fakePods{}
 	sessions := &fakeSessions{}
 	met := metrics.New(prometheus.NewRegistry())
-	r := New(rdb, pods, sessions, reaperTestDB, time.Hour,
+	want := ""
+	if len(wantImage) > 0 {
+		want = wantImage[0]
+	}
+	r := New(rdb, pods, sessions, want, reaperTestDB, time.Hour,
 		slog.New(slog.NewJSONHandler(io.Discard, nil)), met)
 	return r, pods, sessions, rdb, met
 }
@@ -845,6 +883,143 @@ func TestTang4KhongDungPodAmConSong(t *testing.T) {
 	}
 	if v := testutil.ToFloat64(met.ReaperDeadFreePodsTotal); v != 0 {
 		t.Fatalf("dlp_reaper_dead_free_pods_total = %v, cần 0", v)
+	}
+}
+
+// Hai image dùng cho nhóm ca lệch-image. `imageCu` cố ý là `pause` vì đó chính
+// là image đã gây ra sự cố thật: pod `pause` nằm lại pool:free, `Running`/`Ready`,
+// claim thành công, rồi `tmux new-session` của G4 không có shell để attach.
+const (
+	imageMoi = "ghcr.io/nghaiz/dlp-sandbox-base:sha-moinhat"
+	imageCu  = "registry.k8s.io/pause:3.10"
+)
+
+// TestTang4RutPodAmLechImage — vế W2 của tầng 4.
+//
+// ⛔ POD NÀY KHOẺ MẠNH VỀ MỌI MẶT MÀ VẪN KHÔNG DÙNG ĐƯỢC, và đó là điều làm nó
+// vô hình: `Running`, có hash `state=free`, nằm đúng trong `pool:free`. Bốn
+// nhánh còn lại của reaper đều bỏ qua (hash CÓ, không session nào trỏ tới,
+// không ở `pool:claimed`, không ở `pool:quarantine`) và tầng 4 bản cũ cũng bỏ
+// qua vì nó chỉ hỏi `IsTerminal`. Đổi `SANDBOX_IMAGE` rồi `helm upgrade` KHÔNG
+// thay pod đang ấm — tái hiện ba lần trên cụm, mỗi lần phải rút tay.
+func TestTang4RutPodAmLechImage(t *testing.T) {
+	r, pods, _, rdb, met := newTestReaper(t, imageMoi)
+	ctx := context.Background()
+
+	const name = "sandbox-lechimage01"
+	pods.addPodWithImage(name, time.Minute, corev1.PodRunning, imageCu)
+	seedFreePod(t, rdb, name)
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	if got := pods.deletedNames(); len(got) != 1 || got[0] != name {
+		t.Fatalf("xoá %v, cần [%s] — pod image cũ còn trong pool là pod SẼ ĐƯỢC PHÁT cho người tiếp theo", got, name)
+	}
+	if n, _ := rdb.LLen(ctx, rediskeys.PoolFree).Result(); n != 0 {
+		t.Fatalf("LLEN pool:free = %d, cần 0", n)
+	}
+	podKey, _ := rediskeys.Pod(name)
+	if n, _ := rdb.Exists(ctx, podKey).Result(); n != 0 {
+		t.Fatalf("hash %s vẫn còn — để lại là claim.lua vẫn thấy state=free", podKey)
+	}
+
+	// ⛔ VẾ QUY TRÁCH NHIỆM: counter lệch-image tăng, counter pod-CHẾT ĐỨNG YÊN.
+	// Thiếu vế thứ hai thì một hiện thực gộp hai nguyên nhân vào một counter vẫn
+	// xanh — và ngày đó, "đã rollout pod ấm" (đúng, xảy ra một lần sau khi đổi
+	// image) không còn phân biệt được với "có nguồn đang giết pod ấm" (sai).
+	if v := testutil.ToFloat64(met.ReaperStaleImagePodsTotal); v != 1 {
+		t.Fatalf("dlp_reaper_stale_image_pods_total = %v, cần 1", v)
+	}
+	if v := testutil.ToFloat64(met.ReaperDeadFreePodsTotal); v != 0 {
+		t.Fatalf("dlp_reaper_dead_free_pods_total = %v, cần 0 — pod này KHÔNG chết, nó chỉ cũ", v)
+	}
+}
+
+// TestTang4KhongDungPodAmDungImage — ĐỐI CHỨNG ÂM của vế lệch-image.
+//
+// Cùng lý lẽ với TestTang4KhongDungPodAmConSong: phép so image chạy mỗi vòng
+// sweep trên MỌI pod đang ấm, nên một hiện thực so sai chiều (hoặc so bằng
+// `!=` trên chuỗi đã chuẩn hoá khác nhau) sẽ rút sạch warm-pool mà không test
+// nào khác đỏ.
+func TestTang4KhongDungPodAmDungImage(t *testing.T) {
+	r, pods, _, rdb, met := newTestReaper(t, imageMoi)
+	ctx := context.Background()
+
+	const name = "sandbox-dungimage01"
+	pods.addPodWithImage(name, time.Minute, corev1.PodRunning, imageMoi)
+	seedFreePod(t, rdb, name)
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	if got := pods.deletedNames(); len(got) != 0 {
+		t.Fatalf("xoá %v — pod đang chạy ĐÚNG image hiện hành là pod ấm bình thường", got)
+	}
+	if n, _ := rdb.LLen(ctx, rediskeys.PoolFree).Result(); n != 1 {
+		t.Fatalf("LLEN pool:free = %d, cần 1 — tầng 4 vừa rút mất một pod tốt", n)
+	}
+	if v := testutil.ToFloat64(met.ReaperStaleImagePodsTotal); v != 0 {
+		t.Fatalf("dlp_reaper_stale_image_pods_total = %v, cần 0", v)
+	}
+}
+
+// TestTang4WantImageRongThiKhongKetLuan — guard fail-closed.
+//
+// ⛔ `wantImage == ""` PHẢI tắt hẳn phép kiểm, KHÔNG phải "coi mọi pod là lệch".
+// `config.Load` hiện fail-fast khi `SANDBOX_IMAGE` rỗng, nhưng nếu một ngày
+// đường đó bị nới thì so với chuỗi rỗng nghĩa là RÚT SẠCH `pool:free` mỗi vòng
+// sweep, mãi mãi — một cấu hình sai biến thành xoá liên tục, trong khi mọi dòng
+// log đều nói "đã rút pod lệch image". Đây là ca duy nhất gác ranh giới đó.
+func TestTang4WantImageRongThiKhongKetLuan(t *testing.T) {
+	r, pods, _, rdb, met := newTestReaper(t) // wantImage = ""
+	ctx := context.Background()
+
+	const name = "sandbox-khongbiet01"
+	pods.addPodWithImage(name, time.Minute, corev1.PodRunning, imageCu)
+	seedFreePod(t, rdb, name)
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	if got := pods.deletedNames(); len(got) != 0 {
+		t.Fatalf("xoá %v — không có gì để so thì KHÔNG được kết luận gì", got)
+	}
+	if n, _ := rdb.LLen(ctx, rediskeys.PoolFree).Result(); n != 1 {
+		t.Fatalf("LLEN pool:free = %d, cần 1", n)
+	}
+	if v := testutil.ToFloat64(met.ReaperStaleImagePodsTotal); v != 0 {
+		t.Fatalf("dlp_reaper_stale_image_pods_total = %v, cần 0", v)
+	}
+}
+
+// TestTang4KhongThayContainerTheoTenThiKhongKetLuan — cùng ranh giới, nhánh
+// khác: tìm container theo TÊN (`k8s.ContainerName`) chứ không theo
+// `Containers[0]`, và không tìm thấy là KHÔNG-KẾT-LUẬN.
+//
+// Vì sao đáng một ca riêng: một hiện thực đọc `Containers[0].Image` chạy đúng
+// hôm nay và im lặng sai ngày spec có sidecar — lúc đó nó so image của SIDECAR
+// với `SANDBOX_IMAGE`, luôn lệch, và rút sạch pool mỗi vòng.
+func TestTang4KhongThayContainerTheoTenThiKhongKetLuan(t *testing.T) {
+	r, pods, _, rdb, met := newTestReaper(t, imageMoi)
+	ctx := context.Background()
+
+	const name = "sandbox-tenkhac001"
+	pods.addPodWithNamedContainer(name, time.Minute, "mot-sidecar-nao-do", imageCu)
+	seedFreePod(t, rdb, name)
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	if got := pods.deletedNames(); len(got) != 0 {
+		t.Fatalf("xoá %v — không thấy container sandbox theo tên thì không kết luận được gì về image", got)
+	}
+	if v := testutil.ToFloat64(met.ReaperStaleImagePodsTotal); v != 0 {
+		t.Fatalf("dlp_reaper_stale_image_pods_total = %v, cần 0", v)
 	}
 }
 

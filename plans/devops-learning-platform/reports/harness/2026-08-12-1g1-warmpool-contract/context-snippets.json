@@ -1,0 +1,29 @@
+{
+  "files": [
+    "services/orchestrator/internal/pool/trim.lua — MOI. So-roi-pop nguyen tu. Khac claim.lua: ghi DUNG MOT lenh nen khong co nghia vu tu-hoan-tac (bai hoc 1.A-2 chi ap cho script nhieu ghi).",
+    "services/orchestrator/internal/pool/trim.go — MOI. trimSurplus + deleteSurplus. Luat thu tu DEL hash TRUOC pods.Delete nam o day.",
+    "services/orchestrator/internal/pool/manager.go — goi trimSurplus trong vong Run, sau replenishOnce. Loi cua no KHONG day vao backoff va KHONG tang ReplenishFailuresTotal.",
+    "services/orchestrator/internal/reaper/reaper.go — tang 4 mo rong sang pod lech image: wantImage field, New(+1 tham so), switch 3 duong ra, staleImage + sandboxImageOf.",
+    "services/orchestrator/internal/metrics/metrics.go — hai counter moi: dlp_pool_trimmed_total, dlp_reaper_stale_image_pods_total.",
+    "services/orchestrator/cmd/orchestrator/main.go — truyen cfg.SandboxImage vao reaper.New.",
+    "docs/ws-terminal-protocol.md §6 — bo hang 4408, mo rong ngu nghia 4404, them muc giai thich vi sao.",
+    "packages/terminal/src/{protocol.ts,session-machine.ts,protocol.test.ts} — bo CloseCode.IDLE_TIMEOUT o ca 3 noi.",
+    "plans/devops-learning-platform/phase-1.md — them §1.G, sua 2 AC, tick 1 AC + nua AC, gan chu 4 no."
+  ],
+  "decisions": [
+    "W2 ve nha o TANG 4 CUA REAPER, khong phai pool.Manager — ly do la SO DO: sweepDeadFreePods DA LRANGE pool:free roi pods.Get tung pod moi vong sweep, nen phep so image ton 0 loi goi apiserver them. Dat o manager la dung mot loop thu hai doc apiserver VA mot thanh phan thu hai mutate pool:free.",
+    "W1 chon duong (a) manager rut bot thay (b) leader-election. (a) lam he thong TU SUA (phan thua bi rut o vong sau nen tran luon quay ve dung), gia la churn — khong phai ro. (b) dat gap nhieu lan (lease + renew + fencing) va VAN de ngo cho P3.",
+    "DEL pod:{name} TRUOC, pods.Delete SAU. Dao lai thi mot luot Delete hong de lai pod CO hash, khong o list nao, khong session nao tro toi — khong tang reaper nao phu duoc ca do (diem mu thu SAU). Xoa hash truoc thi luot hong de lai pod HASH-LESS = mo coi cua tang 2a.",
+    "RPOP (dau PHAI) chu khong LPOP: claim.lua LMOVE tu dau TRAI, nen rut o dau phai giu FIFO cua D6 va bo dung pod MOI NHAT (pod vua bi tao thua).",
+    "Counter TACH: stale_image != dead_free_pods. Gop thi sau moi lan doi image ta khong phan biet duoc 'da rollout pod am' (dung) voi 'co nguon dang giet pod am' (sai) — ma ve thu hai moi la dieu counter tang 4 ton tai de noi.",
+    "So container theo TEN k8s.ContainerName, khong phai .containers[0]: index dung hom nay va IM LANG SAI ngay spec co sidecar (luc do so image cua sidecar, luon lech, rut sach pool moi vong).",
+    "wantImage rong => TAT HAN phep kiem, khong phai 'coi moi pod la lech'. Khong co gi de so thi khong ket luan gi — cung ranh gioi voi 'chi IsNotFound moi la da-bien-mat'.",
+    "Bo 4408 chu khong implement no: he thong khong co idle-window tach roi. Muon phan biet 'het han vi khong hoat dong' voi 'bi thu hoi' thi them LY DO vao payload, dung them MA DONG."
+  ],
+  "gotchas": [
+    "git checkout -- <file> de hoan nguyen mot dot bien dua file ve HEAD, KHONG ve ban truoc dot bien. Voi file da sua ma chua commit, no XOA SACH phan sua do (o day: toan bo W2 trong reaper.go). Voi file chua track (trim.lua) thi no bao loi va dot bien O LAI trong file. Duong dung: luu noi dung file vao bien roi ghi lai tu bien.",
+    "go test tra exit 0 khi moi ca tu skip. Suite Go cua repo nay skip sach neu thieu REDIS_URL/DATABASE_URL, ma root .env chi co 6 bien cua compose — phai tu ghep hai URL do truoc khi chay.",
+    "Ep GOOS=linux khi vet: build tag giau file *_unix.go tren Windows.",
+    "Nhin tu trang thai CUOI thi hai thu tu (DEL truoc / Delete truoc) cho ket qua giong het nhau. Luat thu tu chi do duoc bang cach quan sat O GIUA — do la ly do fakePods.onDelete ton tai, cung khuon voi hook onGet ma tang 4 da can o PR truoc."
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "decision": "PASS_WITH_CONCERNS",
+  "disprovenClaims": [
+    "Ban ghi 2026-08-11 mo ta warm-pool bom qua tran nhu HIEN TUONG THOANG QUA cua rollout (maxSurge, hai manager cung song ~13 giay). SAI o muc do: values.yaml:91 dat orchestrator replicaCount: 2, nen hai manager song THUONG TRUC tren moi deploy khong dung values-selfhost.yaml. Lab chay replicaCount 1 nen no dang bi CHE — do la ly do no song toi gio."
+  ],
+  "reachableRegressions": [],
+  "missingProof": [
+    "Ca hai ban va warm-pool CHUA CO PHEP DO NAO TREN CUM. Bang chung hien co la test don vi tren Redis that + kiem dot bien. Canh replicaCount: 2 — canh DUY NHAT tai hien duoc nguyen nhan goc — thuoc 1.G-2.",
+    "dlp_pool_trimmed_total va dlp_reaper_stale_image_pods_total chua tung tang tren cum, chi tang trong test.",
+    "Mot luot go test -v dem duoc 369 PASS / 1 FAIL; 9 luot sau do 0 do va ten ca KHONG duoc giu lai. Khong goi suite la sach. Nghi van dau tien: TestScriptSongSotSauScriptFlush dung SCRIPT FLUSH (lenh TOAN SERVER) va trim.lua nay la script thu hai song trong cung cache do."
+  ],
+  "unverifiedClaims": [
+    "Duong (a) tu-sua duoc chon thay (b) leader-election dua tren lap luan chi phi, KHONG dua tren phep do tan so hai manager dua nhau. Neu dlp_pool_trimmed_total tang rat nhanh tren cum thi ket luan nay phai xem lai — do la dung tin hieu de mo lai cau hoi (P3).",
+    "Ranh gioi 'churn khong phai ro' dung o muc thiet ke, nhung CHI PHI cua churn (bao nhieu pod bi tao roi xoa moi gio o replicaCount 2) chua do.",
+    "maxTrimPerCycle = 10 la mot con so chon theo lap luan (phan thua binh thuong la 1), khong theo phep do phan bo do dai pool:free.",
+    "Luat FIFO cua W1 va luat thu tu DEL/Delete moi luat duoc gac boi DUNG MOT test. Mot diem gac duy nhat, khong phai mot tang phong thu — cung ranh gioi da ghi cho luat thu tu replenish o PR truoc.",
+    "Ve read-limit: test do CLOSE CODE ma khong do duoc rang khong byte nao cua frame vuot tran toi duoc stdin cua pod. Hai tinh chat khac nhau; ca nay chi khang dinh tinh chat thu nhat."
+  ]
+}
