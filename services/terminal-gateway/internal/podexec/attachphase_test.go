@@ -356,9 +356,11 @@ func TestUpgradeWrapperDatMocQuaContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dựng request: %v", err)
 	}
-	if _, err := rt.RoundTrip(req); err != nil {
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
 		t.Fatalf("round trip: %v", err)
 	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
 
 	at.mu.Lock()
 	defer at.mu.Unlock()
@@ -382,9 +384,11 @@ func TestUpgradeWrapperKhongPanicKhiVangTimer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dựng request: %v", err)
 	}
-	if _, err := rt.RoundTrip(req); err != nil {
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
 		t.Fatalf("round trip không có timer phải đi qua im lặng, nhận: %v", err)
 	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
 }
 
 // TestUpgradeChiGiuLuotDauTien: `NewFallbackExecutor` có thể thử WS rồi SPDY,

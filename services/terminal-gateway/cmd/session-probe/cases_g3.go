@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -443,9 +444,9 @@ func caseM9(ctx context.Context, webURL, gwURL, origin string, podMetrics []stri
 // không phân biệt được bản vá đang chạy với việc trần WS không tồn tại.
 func caseM3(ctx context.Context, webURL, gwURL, origin, killCmd string) error {
 	if strings.TrimSpace(killCmd) == "" {
-		return fmt.Errorf("-kill-cmd rỗng. Ca này cần một lệnh GIẾT gateway thật (SIGKILL), ví dụ:\n" +
-			"  -kill-cmd 'kubectl -n default delete pod -l app.kubernetes.io/component=gateway --force --grace-period=0'\n" +
-			"Truyền lệnh từ ngoài thay vì nhúng cứng kubectl: probe không nên tự quyết cách giết tiến trình.")
+		return errors.New("-kill-cmd rỗng — ca này cần một lệnh GIẾT gateway thật (SIGKILL), ví dụ: " +
+			"-kill-cmd 'kubectl -n default delete pod -l app.kubernetes.io/component=gateway --force --grace-period=0'; " +
+			"truyền lệnh từ ngoài thay vì nhúng cứng kubectl vì probe không nên tự quyết cách giết tiến trình")
 	}
 
 	s, err := taoSession(ctx, webURL)
@@ -528,6 +529,11 @@ func caseM3(ctx context.Context, webURL, gwURL, origin, killCmd string) error {
 
 	// --- SIGKILL -------------------------------------------------------------
 	fmt.Printf("5. GIẾT gateway: %s\n", killCmd)
+	// #nosec G204 -- `killCmd` là THAM SỐ CỦA NGƯỜI VẬN HÀNH (`-kill-cmd`), và
+	// việc nó chạy tuỳ ý là chủ đích: probe cố tình KHÔNG nhúng cứng `kubectl`
+	// để không tự quyết cách giết tiến trình. Đây là công cụ lab chạy bằng tay
+	// trên node (xem cảnh báo "CHỈ DÙNG TRÊN LAB" ở đầu main.go); không có
+	// đường nào cho input từ mạng tới đây.
 	out, err := exec.CommandContext(ctx, "sh", "-c", killCmd).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("lệnh giết hỏng: %w (output: %s)", err, truncate(string(out), 300))
@@ -670,6 +676,8 @@ func caseJWKS(ctx context.Context, webURL, gwURL, origin, rotateCmd string) erro
 
 	// --- Xoay ---------------------------------------------------------------
 	fmt.Printf("2. XOAY khoá: %s\n", rotateCmd)
+	// #nosec G204 -- cùng lý do với `killCmd` ở caseM3: `-rotate-cmd` là tham số
+	// của người vận hành, và probe cố tình không nhúng cứng lệnh SQL xoay khoá.
 	out, err := exec.CommandContext(ctx, "sh", "-c", rotateCmd).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("lệnh xoay hỏng: %w (output: %s)", err, truncate(string(out), 400))
