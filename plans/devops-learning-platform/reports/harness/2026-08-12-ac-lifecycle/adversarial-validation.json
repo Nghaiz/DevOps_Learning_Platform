@@ -4,8 +4,10 @@
   "reachableRegressions": [],
   "missingProof": [],
   "unverifiedClaims": [
-    "Bon o warm-pool/reaper (replenish <=30s + 3 session dong thoi, tin hieu cham quota, pod mo coi / session ma -> FAILED, quarantine tang 3) CHUA co bang chung runtime — chung can day cum toi tran quota nen phai chay rieng. KHONG tick.",
-    "Ve 'so pod tang dung 1' cua AC idempotency duoc do bang TEN POD giong nhau chu khong bang mot phep dem giua hai luot create; phep dem do can probe dung lai giua chung. Ten pod la bang chung manh hon nhung KHAC voi cau chu cua AC — ghi ro thay vi lam ngo.",
-    "Luat thu tu ghi khi replenish duoc gac boi DUNG MOT test (ba ca cung package khong cam nhan duoc dot bien). Do la mot diem gac duy nhat, khong phai mot tang phong thu."
+    "Ve 'so pod tang dung 1' cua AC idempotency duoc do bang TEN POD giong nhau chu khong bang mot phep dem giua hai luot create. Ten pod la bang chung manh hon nhung KHAC voi cau chu cua AC — ghi ro thay vi lam ngo.",
+    "Luat thu tu ghi khi replenish duoc gac boi DUNG MOT test (ba ca cung package khong cam nhan duoc dot bien). Mot diem gac duy nhat, khong phai mot tang phong thu.",
+    "Do tre replenish ~6.7s do voi do phan giai bang mot luot kubectl exec (vai tram ms), khong phai do bang dong ho trong process. Du xa nguong 30s nen sai so khong doi ket luan.",
+    "Probe CO Y khong assert so luot thanh cong khi bao hoa (con so do phu thuoc nhip replenish tai dung mili-giay do). Chi assert HINH DANG cua loi: moi luot hong phai la ResourceExhausted.",
+    "9 lan cham quota chi ra 1 dong WARN (log throttle co chu y qua quotaLogEvery). Counter la tin hieu de canh bao; dem dong log de do tan suat cham tran se dem hut."
   ]
 }

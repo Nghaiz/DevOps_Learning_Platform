@@ -37,6 +37,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -66,6 +67,13 @@ func main() {
 	// cửa sổ quan sát rộng vài mili-giây: kubectl luôn tới muộn, và ta chỉ khẳng
 	// định được vế Redis rồi ghi nó ra như thể đã đo cả hai.
 	hold := flag.Duration("hold", 0, "ca reap: dừng bao lâu sau lời từ chối, để kubectl kịp quan sát pod")
+	// ⛔ `-keep` CHỈ dành cho ca `create`, và nó cố ý để lại rác. Các ca dựng cảnh
+	// cho reaper (xoá `session:{id}` của một phiên ĐANG CHẠY, xoá pod dưới chân
+	// một session còn sống) cần một session sống sót sau khi probe thoát — probe
+	// tự dọn thì không còn gì cho reaper dọn, và ta sẽ đo một cái bẫy rỗng.
+	// Người gọi chịu trách nhiệm dọn; trần quota lab chỉ có 4 pod.
+	keep := flag.Bool("keep", false, "ca create: KHÔNG reap khi thoát (để dựng cảnh cho reaper)")
+	n := flag.Int("n", 5, "ca pool: số CreateSession đồng thời")
 	flag.Parse()
 
 	if *tag == "" {
@@ -92,6 +100,8 @@ func main() {
 		tag:     *tag,
 		hardCap: *hardCap,
 		hold:    *hold,
+		keep:    *keep,
+		n:       *n,
 	}
 
 	cases := map[string]func(context.Context){
@@ -101,7 +111,12 @@ func main() {
 		"extend":  p.caseExtend,
 		"hardcap": p.caseHardCap,
 		"reap":    p.caseReap,
+		"create":  p.caseCreate,
+		"pool":    p.casePoolSaturate,
 	}
+	// `create` KHÔNG nằm trong `all`: với `-keep` nó cố ý để lại một session sống
+	// để dựng cảnh cho reaper, nên chạy chung sẽ ăn mất một khe trên trần 4 pod
+	// và làm ca sau đỏ vì hết chỗ — phép đo hỏng vì phép đo trước.
 	order := []string{"idem", "get", "claim", "extend", "hardcap", "reap"}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -139,6 +154,8 @@ type probe struct {
 	tag     string
 	hardCap time.Duration
 	hold    time.Duration
+	keep    bool
+	n       int
 
 	current string
 	checks  int
@@ -232,6 +249,108 @@ func (p *probe) caseIdempotency(ctx context.Context) {
 	defer p.cleanup(ctx, other, p.userA)
 	p.check("đối chứng: key khác ⇒ session khác", other.GetId() != first.GetId(),
 		fmt.Sprintf("id=%s pod=%s", other.GetId(), other.GetPodName()))
+}
+
+// ---------------------------------------------------------------- dựng cảnh cho reaper
+
+// caseCreate tạo một session thật và (với `-keep`) ĐỂ NGUYÊN nó.
+//
+// Đây không phải một AC — nó là bước dựng cảnh cho hai AC của reaper mà không
+// cách nào dựng từ ngoài: "xoá `session:{id}` của một phiên ĐANG CHẠY" và "xoá
+// pod dưới chân một session còn sống". Cả hai đòi một session do đúng đường
+// `CreateSession` sinh ra (có hash đủ field, có `session:{id}:pod`, tên nằm
+// trong `pool:claimed`) — nặn tay trong Redis sẽ dựng một cái bẫy rỗng, và bản
+// vá trước của AC này đã hỏng đúng vì thế: nó tạo pod KHÔNG hash, tức đo nhánh
+// "pod mồ côi" chứ không đo nhánh mà AC mô tả.
+func (p *probe) caseCreate(ctx context.Context) {
+	sess, err := p.create(ctx, p.userA, "create-"+p.tag)
+	if err != nil {
+		p.check("tạo được session", false, fmt.Sprintf("err=%v", err))
+		return
+	}
+	p.check("tạo được session", true, fmt.Sprintf("status=%s", sess.GetStatus()))
+	// Hai dòng này là giao diện với script bên ngoài — giữ nguyên định dạng.
+	p.kv("SESSIONID", sess.GetId())
+	p.kv("PODNAME", sess.GetPodName())
+
+	if p.hold > 0 {
+		fmt.Printf("  > HOLD-BAT-DAU %s (%s)\n", time.Now().UTC().Format(time.RFC3339), p.hold)
+		time.Sleep(p.hold)
+		fmt.Printf("  > HOLD-KET-THUC %s\n", time.Now().UTC().Format(time.RFC3339))
+	}
+	if p.keep {
+		fmt.Println("  ! -keep: KHÔNG reap. Người gọi phải tự dọn — trần quota lab là 4 pod.")
+		return
+	}
+	p.cleanup(ctx, sess, p.userA)
+}
+
+// ---------------------------------------------------------------- AC: warm-pool + quota
+
+// casePoolSaturate đẩy cụm tới TRẦN QUOTA bằng N `CreateSession` ĐỒNG THỜI.
+//
+// Đồng thời chứ không tuần tự là điểm mấu chốt: chạy tuần tự thì warm-pool kịp
+// ấm lại giữa hai lượt và mọi claim đều đi nhánh warm — tức là ta sẽ không bao
+// giờ chạm cold-path lẫn trần quota, và AC "session thứ N rơi cold path" trở
+// thành một câu không phép đo nào chạm tới.
+//
+// ⛔ VẾ ĐƯỢC KHẲNG ĐỊNH Ở ĐÂY LÀ *HÌNH DẠNG CỦA LỖI*, KHÔNG PHẢI SỐ LƯỢT THÀNH
+// CÔNG. Bao nhiêu lượt qua được phụ thuộc nhịp replenish tại đúng mili-giây đó,
+// nên assert một con số là dựng một test lệ thuộc thời gian — nó sẽ đỏ ngẫu
+// nhiên và người sau sẽ nới nó cho tới khi nó không kiểm gì. Tính chất BỀN là:
+// chạm trần quota phải trả `ResourceExhausted` — một mã phân biệt được — chứ
+// KHÔNG phải `Internal`/`Unknown`. Trần là một sự thật về hạ tầng mà client xử
+// lý được ("thử lại sau"); `Internal` nghĩa là "server hỏng", và gộp hai thứ đó
+// làm một là cách một nền tảng hết chỗ trông y hệt một nền tảng có bug.
+func (p *probe) casePoolSaturate(ctx context.Context) {
+	type outcome struct {
+		idx  int
+		sess *orchestratorv1.Session
+		err  error
+	}
+	res := make([]outcome, p.n)
+	var wg sync.WaitGroup
+	for i := range p.n {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			s, err := p.create(ctx, fmt.Sprintf("%s-u%d", p.userA, i), fmt.Sprintf("pool-%s-%d", p.tag, i))
+			res[i] = outcome{idx: i, sess: s, err: err}
+		}(i)
+	}
+	wg.Wait()
+
+	ok, badCode := 0, 0
+	for _, r := range res {
+		if r.err == nil {
+			ok++
+			p.kv(fmt.Sprintf("lượt %d", r.idx), fmt.Sprintf("OK   id=%s pod=%s", r.sess.GetId(), r.sess.GetPodName()))
+			continue
+		}
+		c := codeOf(r.err)
+		p.kv(fmt.Sprintf("lượt %d", r.idx), fmt.Sprintf("LỖI  code=%s  %s", c, status.Convert(r.err).Message()))
+		if c != codes.ResourceExhausted {
+			badCode++
+		}
+	}
+
+	p.check("có ít nhất một lượt thành công", ok > 0, fmt.Sprintf("%d/%d thành công", ok, p.n))
+	p.check("mọi lượt hỏng đều là ResourceExhausted (không Internal/Unknown)",
+		badCode == 0, fmt.Sprintf("%d lượt hỏng sai mã", badCode))
+
+	if p.hold > 0 {
+		fmt.Printf("  > HOLD-BAT-DAU %s (%s)\n", time.Now().UTC().Format(time.RFC3339), p.hold)
+		time.Sleep(p.hold)
+		fmt.Printf("  > HOLD-KET-THUC %s\n", time.Now().UTC().Format(time.RFC3339))
+	}
+
+	// Dọn NGAY cả khi có ca đỏ: trần quota lab là 4 pod, để lại session là mọi
+	// phép đo sau đỏ vì hết chỗ chứ không vì hệ thống.
+	for _, r := range res {
+		if r.err == nil {
+			p.cleanup(ctx, r.sess, fmt.Sprintf("%s-u%d", p.userA, r.idx))
+		}
+	}
 }
 
 // ---------------------------------------------------------------- AC: GetSession
