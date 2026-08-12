@@ -47,9 +47,19 @@ func main() {
 	gwURL := flag.String("gateway", "ws://localhost:8082", "gốc WS của terminal-gateway")
 	metricsURL := flag.String("metrics", "", "gốc /metrics của gateway (mặc định: suy ra từ -gateway, cổng 8081)")
 	origin := flag.String("origin", "", "header Origin (mặc định: bằng -web)")
-	kase := flag.String("case", "attach", "attach | survive")
-	n := flag.Int("n", 50, "số mẫu cho ca attach")
+	kase := flag.String("case", "attach", "attach | survive | luat5 | idle | resize | m9")
+	n := flag.Int("n", 50, "số mẫu cho ca attach (và số lượt cho ca m9)")
 	budget := flag.Duration("budget", 10*time.Minute, "trần thời gian")
+	// Ca m9 cần đọc /metrics của TỪNG replica: `-pod-metrics` nhận danh sách
+	// ngăn bằng dấu phẩy. Không suy ra được từ -gateway vì đó là ClusterIP của
+	// Service, mà /metrics lại KHÔNG đi qua Service (xem suyRaMetricsURL).
+	podMetrics := flag.String("pod-metrics", "", "danh sách gốc /metrics của từng replica gateway, ngăn bằng dấu phẩy (ca m9)")
+	quanSat := flag.Duration("quan-sat", 6*time.Minute, "thời gian quan sát tối đa cho ca idle")
+	// Ca m3 cần một lệnh SIGKILL thật. Truyền từ ngoài thay vì nhúng cứng
+	// `kubectl`: cách giết tiến trình là quyết định của người vận hành, và để nó
+	// hiện nguyên văn trong dòng lệnh khiến báo cáo tự chứng minh đã giết cái gì.
+	killCmd := flag.String("kill-cmd", "", "lệnh shell giết gateway (ca m3)")
+	rotateCmd := flag.String("rotate-cmd", "", "lệnh shell xoay khoá Better Auth (ca jwks)")
 	flag.Parse()
 
 	if *origin == "" {
@@ -70,8 +80,24 @@ func main() {
 		err = caseSurvive(ctx, *webURL, *gwURL, *origin)
 	case "luat5":
 		err = caseLuat5(ctx, *webURL, *gwURL, *metricsURL, *origin)
+	case "idle":
+		err = caseIdle(ctx, *webURL, *gwURL, *origin, *quanSat)
+	case "resize":
+		err = caseResize(ctx, *webURL, *gwURL, *origin)
+	case "m3":
+		err = caseM3(ctx, *webURL, *gwURL, *origin, *killCmd)
+	case "jwks":
+		err = caseJWKS(ctx, *webURL, *gwURL, *origin, *rotateCmd)
+	case "m9":
+		var ds []string
+		for _, u := range strings.Split(*podMetrics, ",") {
+			if u = strings.TrimSpace(u); u != "" {
+				ds = append(ds, u)
+			}
+		}
+		err = caseM9(ctx, *webURL, *gwURL, *origin, ds, *n)
 	default:
-		err = fmt.Errorf("-case không hợp lệ: %q (cần attach hoặc survive)", *kase)
+		err = fmt.Errorf("-case không hợp lệ: %q (cần attach | survive | luat5 | idle | resize | m9)", *kase)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\nFAIL: %v\n", err)
@@ -472,6 +498,17 @@ func docRSS(ctx context.Context, base string) (float64, error) {
 type session struct {
 	sid, pod string
 	jar      *cookieJar
+
+	// Đủ để MINT LẠI cookie `dlp_sandbox` cho CHÍNH session này.
+	//
+	// ⛔ Cookie sandbox hết hạn ĐÚNG BẰNG `expiresAt` của phiên (`jwt.ts` mint
+	// với `exp: expiresAtSeconds`), và `attachSandboxCookie` chỉ được gọi từ
+	// MỘT chỗ duy nhất: `session.create`. Nên đường mint lại là gọi `create`
+	// LẠI với ĐÚNG `idempotencyKey` cũ — nó trả về đúng session cũ (không claim
+	// thêm pod khỏi trần quota) kèm cookie mới tính theo `expiresAt` hiện tại.
+	// Không giữ hai field này thì mọi ca đo kéo dài hơn `expiresAt` ban đầu sẽ
+	// ăn 401 UNAUTHENTICATED ở tầng authz và không bao giờ chạm tới thứ nó định đo.
+	userID, idem string
 }
 
 type controlOut struct {
@@ -549,11 +586,12 @@ func taoSession(ctx context.Context, webURL string) (*session, error) {
 			} `json:"data"`
 		} `json:"result"`
 	}
+	idem := fmt.Sprintf("probe-%d", time.Now().UnixNano())
 	if err := postJSON(ctx, jar, webURL+"/api/trpc/session.create", map[string]any{
 		"userId":         signUp.User.ID,
 		"tier":           1, // SANDBOX_TIER_SYSBOX — zod nhận GIÁ TRỊ, không nhận tên
 		"ttlSeconds":     0,
-		"idempotencyKey": fmt.Sprintf("probe-%d", time.Now().UnixNano()),
+		"idempotencyKey": idem,
 	}, &created); err != nil {
 		return nil, fmt.Errorf("session.create: %w", err)
 	}
@@ -563,7 +601,44 @@ func taoSession(ctx context.Context, webURL string) (*session, error) {
 	if jar.get("dlp_sandbox") == "" {
 		return nil, fmt.Errorf("không nhận được cookie dlp_sandbox")
 	}
-	return &session{sid: created.Result.Data.Session.ID, pod: created.Result.Data.Session.PodName, jar: jar}, nil
+	return &session{
+		sid:    created.Result.Data.Session.ID,
+		pod:    created.Result.Data.Session.PodName,
+		jar:    jar,
+		userID: signUp.User.ID,
+		idem:   idem,
+	}, nil
+}
+
+// lamMoiCookie mint lại cookie `dlp_sandbox` cho ĐÚNG session này.
+//
+// Gọi `session.create` lần nữa với ĐÚNG `idempotencyKey` cũ: lượt này trả về
+// session CŨ (không claim thêm pod) nhưng đính `Set-Cookie` mới, tính theo
+// `expiresAt` HIỆN TẠI — tức sau mọi lượt heartbeat đã đẩy hạn. Đây là đường
+// mint lại DUY NHẤT: `attachSandboxCookie` chỉ có một call-site là `create`.
+func lamMoiCookie(ctx context.Context, webURL string, s *session) error {
+	var lai struct {
+		Result struct {
+			Data struct {
+				Session struct {
+					ID string `json:"id"`
+				} `json:"session"`
+			} `json:"data"`
+		} `json:"result"`
+	}
+	if err := postJSON(ctx, s.jar, webURL+"/api/trpc/session.create", map[string]any{
+		"userId":         s.userID,
+		"tier":           1,
+		"ttlSeconds":     0,
+		"idempotencyKey": s.idem,
+	}, &lai); err != nil {
+		return fmt.Errorf("mint lại cookie: %w", err)
+	}
+	if got := lai.Result.Data.Session.ID; got != s.sid {
+		return fmt.Errorf("mint lại cookie trả session KHÁC (%s ≠ %s) — idempotencyKey không còn hiệu lực, "+
+			"nên lượt này đã claim thêm một pod thay vì tái dùng phiên cũ", got, s.sid)
+	}
+	return nil
 }
 
 // dialChoNha dial, và nếu gặp 429 thì chờ khe WS của lượt trước được nhả.
