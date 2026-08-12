@@ -14,7 +14,11 @@
     "AC 'tat Postgres -> CreateSession van thanh cong' -> DAT tren cum.",
     "AC 'dao thu tu replenish -> test phai DO' -> DAT bang kiem dot bien that.",
     "AC 'retry mat phan hoi khong tao pod thu hai' -> DAT tren Redis that.",
-    "AC 'sessions_audit khong co cot tra loi session X dang o pod nao' -> DAT o muc allowlist DONG; ranh gioi cua pod_name (su that lich su theo su kien, KHONG phai trang thai hien tai) nay duoc ghi tai cho thay vi chi nam trong dau nguoi viet schema."
+    "AC 'sessions_audit khong co cot tra loi session X dang o pod nao' -> DAT o muc allowlist DONG; ranh gioi cua pod_name (su that lich su theo su kien, KHONG phai trang thai hien tai) nay duoc ghi tai cho thay vi chi nam trong dau nguoi viet schema.",
+    "AC 'pool:free ve POOL_TARGET <=30s + session vuot pool -> cold path' -> DAT: ~6.7s; bao hoa 5 dong thoi cho pods=4/free=0/claimed=4 va cold_path_total 4->8.",
+    "AC 'cham quota co tin hieu rieng, khong gia dang loi' -> DAT: quota_blocked 0->9, replenish_failures VAN 0, 1 WARN / 0 ERROR, luot hong = ResourceExhausted.",
+    "AC 'xoa session:{id} -> sweep don; xoa pod -> session FAILED' -> DAT CA HAI VE, kem dinh chinh: tang bat ve 1 la 2c (claimed_orphan) chu KHONG phai nhanh 'pod mo coi'.",
+    "AC 'quarantine khong ro quota (tang 3)' -> DAT: don ca ba sau 24s, quarantine_reaped 0->1 va 5 counter reaper khac dung yen o 0."
   ],
-  "regressionProof": "359 PASS / 0 SKIP truoc va sau thay doi; -race sach; vitest web 8/8. Thay doi ma trong chang nay chi gom: mot cong cu MOI (cmd/lifecycle-probe, khong ai import) va HAI comment. Khong dong logic nao bi sua."
+  "regressionProof": "359 PASS / 0 SKIP truoc va sau thay doi; -race sach; vitest web 8/8. Thay doi ma trong chang nay chi gom: mot cong cu MOI (cmd/lifecycle-probe, khong ai import) va HAI comment. Khong dong logic nao bi sua. Vong hai: them 3 ca cho probe (create/-keep, pool/-n) — van khong package nao import no. Cum tra ve trang thai sach: quota 1/10, moi key con lai co TTL."
 }

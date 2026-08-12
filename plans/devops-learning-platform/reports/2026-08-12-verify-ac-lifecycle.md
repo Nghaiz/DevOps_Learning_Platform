@@ -124,15 +124,103 @@ thức là file `.lua`; doc-comment nay trỏ sang đó thay vì chép lại.
 
 ---
 
-## 5. Còn nợ (KHÔNG tick)
+## 5. Bốn ô warm-pool/reaper — đóng nốt trong cùng phiên
 
-Bốn ô warm-pool/reaper của nhóm này chưa dựng được bằng chứng runtime — chúng cần đẩy cụm tới
-**trần quota 4 pod** (D16) nên phải chạy riêng, không chung với các ca trên:
+Bốn ô này phải chạy **riêng** vì chúng cố tình đẩy cụm tới trần quota; chạy chung với §2 thì ca
+sau đỏ vì hết pod — một phép đo hỏng vì phép đo trước, không phải vì hệ thống. Thêm hai ca cho
+probe: `create -keep` (để lại session sống, dựng cảnh cho reaper) và `pool -n N` (N `CreateSession`
+**đồng thời**).
 
-- `pool:free` về `POOL_TARGET` ≤ 30s, 3 session đồng thời, session kế → cold path
-- chạm quota có tín hiệu riêng (`dlp_pool_replenish_quota_blocked_total`, `WARN` không `ERROR`)
-- pod mồ côi / session ma → `FAILED`
-- quarantine không rò quota (B7 tầng 3)
+### 5.1 Quarantine không rò quota (B7 tầng 3)
 
-Baseline đã chụp để lần đo sau có mốc so: `cold_path_total=4`, `pool_free_size=1`,
-`quarantine_size=0`, `quota_blocked=0`, mọi counter reaper = 0 (trừ `keyspace_events=7`).
+Dựng cảnh bằng một Pod **THẬT** (clone spec pod ấm — tự chế spec thì đỏ ở admission vì một field
+không liên quan gì tới thứ đang đo: VAP bắt `hostUsers: false`), đặt `pod:{name}.state=active`,
+`LPUSH` tên vào **đầu** `pool:free`, rồi kích một claim thật.
+
+| Mốc | Quan sát |
+|---|---|
+| ngay sau claim | `pool:quarantine=[sandbox-ac604quaran01]`, hash **còn**, Pod **`Running`** ở apiserver — đúng chế độ hỏng tầng 3 tồn tại để dọn |
+| t+24s (< 1 chu kỳ 60s) | list rỗng, hash mất, Pod **`KHÔNG-CÒN`** |
+
+`dlp_reaper_quarantine_reaped_total` **0 → 1**, và **năm counter reaper khác đều đứng yên ở 0**
+(`orphan_pods`, `ghost_sessions`, `dead_free_pods`, `claimed_orphan`, `sweep_failures`). Vế sau
+mới là vế quy được trách nhiệm cho tầng 3 — thiếu nó ta chỉ ghi nhận "pod biến mất".
+Log: `WARN` *"dọn pod bị cách ly — mỗi mục là −1 trên trần đồng thời"*.
+
+*Kèm theo, claim **đi tiếp** lấy pod tốt sau khi cách ly pod hỏng — không rơi vào "pool rỗng".*
+
+### 5.2 Xoá `session:{id}` của một phiên ĐANG CHẠY — và tầng bắt nó KHÔNG phải tầng AC nói
+
+| Quan sát | Số đo |
+|---|---|
+| dọn xong | **13s** (< 1 chu kỳ) — `pool:claimed` rỗng, hash mất, Pod mất |
+| counter tăng | `dlp_reaper_claimed_orphan_total` 0 → 1 (**tầng 2c**) |
+| `dlp_reaper_orphan_pods_total` | **vẫn 0** |
+| `dlp_reaper_keyspace_events_total` | **đứng yên ở 22** |
+
+⛔ **Hai đính chính cho câu chữ của AC.** (a) AC gọi đây là *"sweep dọn pod mồ côi"*, nhưng
+nhánh thật sự bắt nó là **tầng 2c** (`pool:claimed` có tên mà `session:{id}` không còn) — nhánh
+"pod mồ côi" đòi hash **VẮNG**, mà ở đây hash **CÓ**. Bản vá trước của AC này đo nhầm chính vì
+thế: nó tạo một pod **không hash**, tức dựng cảnh cho nhánh khác với nhánh AC mô tả.
+(b) `keyspace_events` đứng yên **chứng minh tầng 1 mù với ca này**: `DEL` sinh event `del`, không
+sinh `expired`. Nếu tầng 2 vắng mặt thì pod này ở lại vĩnh viễn — đúng lý do plan bắt sweep định
+kỳ là **bắt buộc có**, không phải dự phòng.
+
+### 5.3 Xoá Pod dưới chân một session còn sống → `FAILED`
+
+`status` `CLAIMED` → **`FAILED` sau 23s**; `dlp_reaper_ghost_sessions_total` 0 → 1; log `WARN`
+*"session ma: pod đã biến mất nhưng session còn sống — chuyển FAILED"*.
+
+**Hai tầng phối hợp, và điều đó chỉ thấy được khi theo dõi tiếp:** đánh dấu `FAILED` **không**
+rút tên pod khỏi `pool:claimed` — tên nằm lại cho tới khi **tầng 2c** thu hồi ở vòng sau
+(`claimed_orphan_total` 1 → 2). Hai tầng chạm cùng một sự cố ở hai thời điểm khác nhau; đọc mỗi
+tầng một mình sẽ tưởng có rò.
+
+### 5.4 Replenish + trần quota
+
+**Độ trễ replenish** đo bằng cách theo dõi `pool:free` **liên tục từ trước khi claim** — đo từ
+lúc pod probe thoát chỉ cho một chặn trên, vì claim xảy ra bên trong pod:
+
+```
+12:56:28.21Z  pool:free=[]                      ← claim
+12:56:34.93Z  pool:free=[sandbox-0b383c1aaee9]  ← replenish xong
+```
+
+**≈6.7s**, xa dưới ngưỡng 30s *(độ phân giải bằng một lượt `kubectl exec`, cỡ vài trăm ms)*.
+
+**Bão hoà, 5 `CreateSession` đồng thời** (đồng thời chứ không tuần tự: chạy tuần tự thì warm-pool
+kịp ấm lại giữa hai lượt, mọi claim đi nhánh warm, và AC "session kế rơi cold path" thành một câu
+không phép đo nào chạm tới):
+
+| | |
+|---|---|
+| thành công | **4/5** — đúng trần hiệu lực 4 pod mà D16 tính ra, lần đầu được xác nhận bằng phép đo |
+| lượt hỏng | `ResourceExhausted` + *"đã đạt trần số sandbox đồng thời của cluster; thử lại sau ít phút"* |
+| trong lúc bão hoà | `pods=4 free=0 claimed=4` |
+| `dlp_cold_path_total` | 4 → **8** (1 lượt ăn pod ấm, 4 lượt rẽ cold path — kể cả lượt sau đó chết vì quota) |
+| `dlp_pool_replenish_quota_blocked_total` | 0 → **9** |
+| `dlp_pool_replenish_failures_total` | **vẫn 0** |
+| log | **1 WARN, 0 ERROR** |
+
+Vế `replenish_failures_total = 0` là vế đắt nhất ở đây: chạm trần **không** bị đếm là lỗi hệ
+thống, nên một nền tảng đang chạy hết công suất không trông giống một nền tảng có bug.
+
+⛔ **Probe cố ý KHÔNG assert số lượt thành công.** Con số đó phụ thuộc nhịp replenish tại đúng
+mili-giây đó; assert nó là dựng một test lệ thuộc thời gian, nó sẽ đỏ ngẫu nhiên và người sau sẽ
+nới cho tới khi nó không kiểm gì. Tính chất **bền** được assert là *hình dạng của lỗi*: mọi lượt
+hỏng phải là `ResourceExhausted`, không `Internal`/`Unknown`.
+
+**"Không backoff vô hạn" — mã còn mạnh hơn AC đòi.** `manager.go` đặt `backoff = 0` cho nhánh
+quota (*"quota là trần công suất, không phải sự cố"*), tức **không backoff chút nào**. Đo được
+sau khi áp lực rút: counter đứng yên ở 9 và `pool_free_size` về 1 trong khi Pod mới lên sau 2 phút.
+*Và 9 lần chặn chỉ ra 1 dòng WARN vì log bị throttle có chủ ý (`quotaLogEvery`) — **counter mới là
+tín hiệu để cảnh báo, log không phải một-dòng-một-lần-chặn**. Ai đếm dòng log để đo tần suất chạm
+trần sẽ đếm hụt 9 lần.*
+
+### 5.5 Trạng thái cụm sau toàn bộ phép đo
+
+`pool:free` 1 pod · `pool:claimed`/`pool:quarantine` rỗng · quota **1/10** · mọi pod nền tảng
+`Running` · Postgres đã bật lại. Mọi key `session:*` còn lại đều **có TTL** (99–3843s), không key
+nào `-1` ⇒ không rò. `pod:{name}` để `-1` là **có chủ ý** — hash hết hạn khi pod còn nằm trong
+`pool:free` sẽ khiến `claim.lua` đọc `state` ra nil rồi **cách ly một pod tốt**; vòng đời của hash
+đó thuộc reaper, không thuộc đồng hồ.

@@ -55,6 +55,48 @@
       "exitCode": 0,
       "timestamp": "2026-08-12T15:53:00+07:00",
       "summary": "8/8. Allowlist cot sessions_audit la danh sach DONG."
+    },
+    {
+      "command": "lifecycle-probe -case pool -n 5 -hold 40s (5 CreateSession DONG THOI)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T12:58:25Z",
+      "summary": "4/5 thanh cong = dung tran hieu luc 4 pod ma D16 tinh ra (lan dau xac nhan bang phep do). Luot hong tra ResourceExhausted, khong Internal/Unknown. Trong luc bao hoa: pods=4 free=0 claimed=4. cold_path_total 4->8; quota_blocked_total 0->9; replenish_failures_total VAN 0; log 1 WARN / 0 ERROR."
+    },
+    {
+      "command": "theo doi pool:free lien tuc TU TRUOC khi claim (do do tre replenish)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T12:56:34Z",
+      "summary": "pool:free rong 12:56:28.21Z -> co pod moi 12:56:34.93Z = ~6.7s, xa duoi nguong 30s. Do tu luc pod probe thoat chi cho mot chan tren vi claim xay ra ben trong pod."
+    },
+    {
+      "command": "dung canh quarantine: Pod THAT + state=active + LPUSH pool:free + kich claim",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T12:47:15Z",
+      "summary": "Tang 3 don ca ba (list, hash, Pod) sau 24s < 1 chu ky 60s. quarantine_reaped_total 0->1 va NAM counter reaper khac deu dung yen o 0 — ve quy trach nhiem. Pod phai clone spec pod am: tu che spec do o admission vi VAP bat hostUsers=false."
+    },
+    {
+      "command": "dung canh 2c: DEL session:{id} cua mot phien DANG CHAY",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T12:50:39Z",
+      "summary": "Don xong 13s. claimed_orphan_total 0->1 (TANG 2c), orphan_pods_total VAN 0, keyspace_events_total DUNG YEN o 22 => tang 1 mu voi ca nay (DEL sinh event 'del', khong sinh 'expired')."
+    },
+    {
+      "command": "dung canh 2b: kubectl delete pod duoi chan session con song",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T12:51:52Z",
+      "summary": "CLAIMED -> FAILED sau 23s, ghost_sessions_total 0->1, log WARN. Danh dau FAILED KHONG rut ten khoi pool:claimed — tang 2c thu hoi o vong sau (claimed_orphan_total 1->2)."
+    },
+    {
+      "command": "kiem TTL moi key con lai sau toan bo phep do",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T13:05:00Z",
+      "summary": "Moi key session:* co TTL (99-3843s), khong key nao -1 => khong ro. pod:{name} de -1 la CO CHU Y (hash het han khi pod con trong pool:free se lam claim.lua cach ly nham mot pod tot). Cum sach: quota 1/10, pool:claimed va pool:quarantine rong, Postgres da bat lai."
     }
   ]
 }
