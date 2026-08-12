@@ -161,11 +161,17 @@ describe('isRetryableCloseCode — bảng contract §6', () => {
     ['UNAUTHENTICATED', CloseCode.UNAUTHENTICATED],
     ['FORBIDDEN', CloseCode.FORBIDDEN],
     ['SESSION_GONE', CloseCode.SESSION_GONE],
-    ['IDLE_TIMEOUT', CloseCode.IDLE_TIMEOUT],
     ['HARD_CAP_REACHED', CloseCode.HARD_CAP_REACHED],
     ['RATE_LIMITED', CloseCode.RATE_LIMITED],
   ])('%s KHÔNG retry', (_label, code) => {
     expect(isRetryableCloseCode(code)).toBe(false);
+  });
+
+  it('4408 KHÔNG còn trong bảng CloseCode — đã bỏ ở 1.G-1, xem contract §6', () => {
+    // Gác việc BỎ khỏi bị âm thầm hoàn tác. `4408` là mã chết từ đầu (không
+    // đường nào của gateway phát nó); ai khôi phục nó vào đây mà không sửa
+    // contract §6 sẽ dựng lại đúng một nhánh `switch` không bao giờ chạy.
+    expect(Object.values(CloseCode)).not.toContain(4408);
   });
 
   it('mã lạ mặc định KHÔNG retry', () => {

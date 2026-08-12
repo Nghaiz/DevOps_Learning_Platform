@@ -1,0 +1,46 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "Chang 1.G-1: dong no P1 truoc khi mo P2. W1 POOL_TARGET thanh TRAN (khong chi la san); W2 tang 4 reaper mo rong sang pod am LECH IMAGE; W3 test read-limit -> close 1009; W4 bo close code 4408 khoi contract §6 + FE; W5 ke toan AC (sua 2 o sai cau chu, tick 1 o + nua o, gan chu 4 no vo chu).",
+  "scoutSummary": "Doc tron phase-1.md (1001 dong) + doi chieu repo. Moi lane P1 da dong, khong lane nao con task chua cham, nhung AC moi 57/69 va §'Con de ngo' tich BON muc ghi thang 'chua task nao so huu'. Hai trong bon muc do la ban va warm-pool va chung se can vao P2 (P2 doi image theo scenario + deploy lien tuc). Doc ma: pool/manager.go (replenishOnce CHI bom khi thieu, khong nhanh nao rut khi thua), reaper/reaper.go (sweepDeadFreePods DA LRANGE pool:free roi pods.Get tung pod moi vong => cho dat phep so image ton 0 loi goi apiserver them), metrics.go, podspec.go (PodConfig.Image + k8s.ContainerName exported), claim.go (khuon redis.NewScript tu lo EVALSHA->EVAL). Grep xac minh values.yaml:91 dat orchestrator replicaCount 2 => hai warm-pool manager song THUONG TRUC, khong chi 13s luc rollout nhu ban ghi 2026-08-11 mo ta. Grep 4408: 3 noi trong packages/terminal + 1 hang trong docs §6. Grep test read-limit trong terminal-gateway: KHONG co ca nao.",
+  "acceptanceCriteria": [
+    "W1: pool vuot tran -> rut ve DUNG POOL_TARGET, khong bao gio rut xuong duoi tran, co doi chung am (pool dung tran -> khong rut gi).",
+    "W1: rut o dau PHAI de giu FIFO cua D6 — do bang DANH TINH pod con lai, khong bang so luong.",
+    "W1: DEL pod:{name} TRUOC pods.Delete, quan sat o GIUA (nhin tu trang thai CUOI thi hai thu tu giong het nhau).",
+    "W1: tran vo nghia -> script tra loi va khong rut gi (fail-closed; nhanh nay XOA POD).",
+    "W2: pod Running + image cu -> bi rut; stale_image_total tang VA dead_free_pods_total DUNG YEN (ve quy trach nhiem).",
+    "W2: doi chung am — pod Running + dung image -> khong dung toi.",
+    "W2: wantImage rong -> KHONG ket luan gi; khong thay container theo TEN -> KHONG ket luan gi.",
+    "W3: frame DUNG MOT byte qua tran -> close 1009, khong doi control error di kem.",
+    "W4: 4408 bo khoi ca 4 noi + mot ca gac chieu nguoc lai (Object.values(CloseCode) khong chua 4408).",
+    "Moi luat moi phai co it nhat mot test DO DUOC duoi kiem dot bien, va 4 luat ranh gioi phai do DUNG MOT ca."
+  ],
+  "touchpoints": [
+    "services/orchestrator/internal/pool/trim.lua (MOI)",
+    "services/orchestrator/internal/pool/trim.go (MOI)",
+    "services/orchestrator/internal/pool/trim_test.go (MOI, 6 ca)",
+    "services/orchestrator/internal/pool/manager.go (goi trimSurplus trong vong Run)",
+    "services/orchestrator/internal/pool/manager_test.go (hook onDelete cho fakePods)",
+    "services/orchestrator/internal/reaper/reaper.go (wantImage, New +1 tham so, switch 3 duong ra, staleImage, sandboxImageOf)",
+    "services/orchestrator/internal/reaper/reaper_test.go (newTestReaper variadic, 2 helper pod, 4 ca moi)",
+    "services/orchestrator/internal/metrics/metrics.go (2 counter moi)",
+    "services/orchestrator/cmd/orchestrator/main.go (truyen cfg.SandboxImage vao reaper.New)",
+    "services/terminal-gateway/internal/podexec/heartbeat_test.go (1 ca read-limit)",
+    "docs/ws-terminal-protocol.md §6",
+    "packages/terminal/src/protocol.ts, session-machine.ts, protocol.test.ts",
+    "plans/devops-learning-platform/phase-1.md"
+  ],
+  "publicContracts": [
+    "docs/ws-terminal-protocol.md §6 — THU HEP bang close code: bo hang 4408 (IDLE_TIMEOUT), mo rong ngu nghia 4404 sang 'het han vi khong hoat dong'. Da grep het consumer truoc khi bo: 3 noi, tat ca trong packages/terminal, sua cung luot; pnpm turbo run typecheck 8/8 la cong khang dinh.",
+    "reaper.New(...) them tham so wantImage string. Mot nguon (cfg.SandboxImage), hai nguoi doc (pool.Manager de DUNG pod, reaper de biet pod nao LECH) — khong phai hang so thu hai.",
+    "Hai metric MOI phoi ra /metrics: dlp_pool_trimmed_total, dlp_reaper_stale_image_pods_total.",
+    "KHONG doi contract gRPC (proto), KHONG doi Redis key/field, KHONG them env moi — nen khong can make env-check hay buf breaking."
+  ],
+  "blastRadius": [
+    "Hai nhanh MOI deu XOA POD. Ca hai duoc bao boi guard fail-closed co test rieng + doi chung am chung minh nhanh 'khong xoa' hoat dong.",
+    "Chang nay KHONG cham cum: khong deploy, khong helm upgrade, khong tao/xoa pod nao tren lab. Moi rui ro van hanh doi sang 1.G-2.",
+    "Ban va W1 doi hanh vi vong Run cua warm-pool manager: nay moi vong co them mot luot trim.lua tren Redis. O trang thai khoe (pool dung tran) day la DUNG MOT lenh EVALSHA moi 10 giay.",
+    "Bo 4408 la thu hep bang close code phia FE: mot nhanh switch bien mat, gop vao SESSION_GONE. Khong consumer nao ngoai packages/terminal doc ma do.",
+    "reaper.New doi signature: 1 call-site san pham + 1 call-site test."
+  ]
+}

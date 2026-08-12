@@ -195,14 +195,21 @@ Dải 4000–4999 là dải ứng dụng theo RFC 6455.
 | `4400` | PROTOCOL_ERROR | control JSON hỏng / `type` lạ / bão control | không |
 | `4401` | UNAUTHENTICATED | token hết hạn giữa phiên | không |
 | `4403` | FORBIDDEN | authz lệch phát hiện giữa phiên | không |
-| `4404` | SESSION_GONE | session bị reap / pod biến mất | không |
-| `4408` | IDLE_TIMEOUT | hết cửa sổ idle | không |
+| `4404` | SESSION_GONE | session bị reap / pod biến mất / **hết hạn vì không hoạt động** | không |
 | `4409` | HARD_CAP_REACHED | chạm trần cứng từ `created_at` | không |
 | `1009` | MESSAGE_TOO_BIG | vượt read limit (luật 5) — **thư viện tự đóng**, xem dưới | không |
 | `4429` | RATE_LIMITED | vượt byte-rate hoặc client quá chậm (luật 5) | không |
 | `4500` | INTERNAL | exec dial fail, lỗi apiserver | **có** |
 
 **Gotcha:** payload close frame tối đa **125 byte**, 2 byte cho code ⇒ `reason` ≤ **123 byte**. Tiếng Việt có dấu là 2 byte/ký tự nên một câu 70 chữ cái đã vượt. Cắt ở tầng gửi, đừng tin caller.
+
+### `4408` (IDLE_TIMEOUT) đã BỊ BỎ khỏi bảng — 2026-08-12, chặng 1.G-1
+
+Nó là **mã chết từ đầu**: không đường nào của gateway từng phát nó, và 1.C-3 đã ghi nhận điều đó rồi hoãn quyết định. Nay chốt bỏ.
+
+Lý do không phải "chưa implement" mà là **hệ thống không có khái niệm đó**. Không tồn tại một idle-window tách rời: một phiên im lặng đơn giản là hết `expiresAt` → reaper xoá pod → stream đứt → gateway hỏi Redis và đóng **`4404`**. Muốn phát được `4408` thì orchestrator phải nói *lý do* reap, tức thêm field vào contract gRPC — cho một khác biệt mà **FE xử lý y hệt nhau** (cả hai đều "phiên đã kết thúc, đừng retry"). Một mã trong bảng mà không có đường nào phát ra là một nhánh `switch` phía FE không bao giờ chạy, và nó nói dối người đọc bảng về những gì hệ thống làm được.
+
+Ai cần phân biệt "hết hạn vì không hoạt động" với "bị thu hồi" trong tương lai: thêm **lý do** vào payload, đừng thêm **mã đóng** — close code chỉ có 123 byte reason và đang gánh cả routing lẫn ngữ nghĩa.
 
 ### Read limit → `1009`, KHÔNG phải `4413` (chốt bằng spike 1.A-1, 2026-08-09)
 

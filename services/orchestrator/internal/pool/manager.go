@@ -178,6 +178,24 @@ func (m *Manager) Run(ctx context.Context) error {
 		}
 
 		err := m.replenishOnce(ctx)
+
+		// Rút phần THỪA ngay sau khi bơm phần THIẾU, trong cùng một vòng: hai
+		// nhánh là hai chiều của cùng một bất biến `|pool:free| == target`. Trước
+		// bản này chỉ có chiều bơm, nên `POOL_TARGET` là SÀN mà không phải TRẦN —
+		// xem trimSurplus để biết cái giá đo được của việc thiếu chiều còn lại.
+		//
+		// ⛔ Lỗi ở đây KHÔNG đẩy vào backoff và KHÔNG tăng ReplenishFailuresTotal.
+		// Hai thứ đó nói về đường BƠM THÊM; trộn vào chính là lỗi mà
+		// ReplenishQuotaBlockedTotal đã phải tách ra để tránh. Và tín hiệu cho
+		// "rút thừa đang hỏng" đã có sẵn, trực tiếp hơn một counter mới:
+		// `dlp_pool_free_size` đứng TRÊN POOL_TARGET qua nhiều vòng. Thêm một
+		// counter thứ hai cho cùng một sự thật là chỗ để hai con số trôi khỏi nhau.
+		if trimErr := m.trimSurplus(ctx); trimErr != nil && ctx.Err() == nil {
+			m.log.Error("rút pod thừa thất bại — trần session đồng thời đang bị giữ thấp",
+				slog.String("err", trimErr.Error()),
+				slog.Int("pool_target", m.target))
+		}
+
 		m.observeSizes(ctx)
 
 		switch {

@@ -1,0 +1,15 @@
+{
+  "highRisk": false,
+  "autoStopRequired": false,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "Khong cham cum: chang nay chi sua ma + test + tai lieu, khong deploy, khong helm upgrade, khong tao/xoa pod nao tren lab. Moi rui ro van hanh doi sang 1.G-2.",
+    "Hai nhanh MOI deu XOA POD, nen chung duoc bao boi guard fail-closed co test rieng: tran vo nghia -> script tra loi va khong rut gi; wantImage rong -> tat han phep kiem; khong thay container theo TEN -> khong ket luan. Ca ba deu co doi chung am chung minh nhanh 'khong xoa' hoat dong.",
+    "Thu tu xoa duoc chon de che do hong nam TRONG vung phu cua mot tang reaper da co (DEL hash truoc => luot Delete hong de lai pod hash-less = mo coi cua tang 2a), thay vi tao ra mot diem mu thu sau.",
+    "Dot bien tren trim.go va reaper.go da hoan nguyen; go test hai package xanh lai, gofmt -l rong.",
+    "Thu hep bang close code (bo 4408) da grep het consumer truoc khi bo: 3 noi, tat ca trong packages/terminal, sua cung luot; pnpm turbo run typecheck 8/8 la cong khang dinh.",
+    "RUI RO CON LAI 1: duong (a) tu-sua danh doi CHURN — moi lan hai manager dua nhau la mot pod bi tao roi xoa. O tran 4 pod cua lab (D16) mot luot churn dung tam thoi mot khe quota. Chua do tan so tren cum.",
+    "RUI RO CON LAI 2: mot ca do chap chon KHONG tai hien duoc (1/10 luot). Da ghi vao bao cao va giao 1.G-2 soat, khong lam ngo."
+  ]
+}

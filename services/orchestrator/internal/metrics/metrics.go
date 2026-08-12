@@ -32,6 +32,19 @@ type Metrics struct {
 
 	ReplenishFailuresTotal     prometheus.Counter
 	ReplenishQuotaBlockedTotal prometheus.Counter
+	// PoolTrimmedTotal đếm pod ấm bị rút vì `pool:free` VƯỢT POOL_TARGET.
+	//
+	// Trước bản này `POOL_TARGET` chỉ là SÀN: replenish bơm khi thiếu, không
+	// nhánh nào rút khi thừa. Mỗi pod thừa là −1 trên trần session đồng thời
+	// (D16) và nó ở lại VĨNH VIỄN — nhìn từ ngoài thì nền tảng chỉ đơn giản
+	// phục vụ được ít người hơn, không lỗi nào nói vì sao.
+	//
+	// Tăng đều đặn là BÌNH THƯỜNG khi chạy nhiều replica orchestrator
+	// (`values.yaml` đặt `replicaCount: 2`): mỗi manager độc lập thấy pool hụt
+	// và mỗi bên dựng một pod, phần thừa bị rút ở vòng sau. Đó là churn có chủ
+	// ý của đường (a) tự-sửa. Tăng RẤT nhanh nghĩa là hai manager đang đua liên
+	// tục — lúc đó mới đáng bàn tới leader-election (P3).
+	PoolTrimmedTotal prometheus.Counter
 
 	// ExtendTotal tách theo KẾT QUẢ, không phải theo session. `revision_mismatch`
 	// tăng đều là dấu hiệu hai tiến trình đang tranh cùng một session — chính
@@ -72,6 +85,20 @@ type Metrics struct {
 	// chuyển Failed vĩnh viễn) là BÌNH THƯỜNG. Tăng liên tục giữa hai lần reboot
 	// nghĩa là có nguồn nào đó đang giết pod ấm.
 	ReaperDeadFreePodsTotal prometheus.Counter
+	// ReaperStaleImagePodsTotal đếm pod ấm bị rút vì đang chạy image KHÁC
+	// `SANDBOX_IMAGE` hiện hành — cùng tầng 4, nhưng TÁCH counter có chủ ý.
+	//
+	// Gộp vào ReaperDeadFreePodsTotal thì sau mỗi lần đổi image ta không phân
+	// biệt được "đã rollout pod ấm" (đúng, mong đợi, xảy ra một lần) với "có
+	// nguồn đang giết pod ấm" (sai, cần điều tra) — mà đúng vế thứ hai là điều
+	// counter tầng 4 tồn tại để nói.
+	//
+	// Warm-pool KHÔNG có logic rollout theo image: pod dựng từ image cũ nằm lại
+	// `pool:free` vô thời hạn, `Running`/`Ready` nên nhìn không có gì sai. Với
+	// `pause` thì hậu quả là `tmux new-session` của G4 không có shell để attach
+	// ⇒ terminal chết trong khi orchestrator vẫn báo claim thành công. Tái hiện
+	// ba lần, ba lượt đổi image, không lần nào tự rollout.
+	ReaperStaleImagePodsTotal prometheus.Counter
 	// ReaperSweepFailuresTotal đếm vòng sweep lỗi. Sweep là ĐƯỜNG CHÍNH của
 	// reaper (keyspace notification chỉ là đường nhanh, best-effort), nên nó
 	// hỏng âm thầm là pod sống mãi và ăn hết quota.
@@ -132,6 +159,11 @@ func New(reg prometheus.Registerer) *Metrics {
 			Help: "Số lần replenish bị ResourceQuota chặn. Đây là nền tảng chạy hết công suất, KHÔNG phải lỗi — tách khỏi replenish_failures để cảnh báo không trộn hai chuyện.",
 		}),
 
+		PoolTrimmedTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dlp_pool_trimmed_total",
+			Help: "Pod ấm bị rút vì pool:free vượt POOL_TARGET. Trước khi có chiều rút, mỗi pod thừa là −1 VĨNH VIỄN trên trần session đồng thời (D16) mà không lỗi nào nói vì sao. Tăng đều khi chạy nhiều replica orchestrator là churn có chủ ý.",
+		}),
+
 		ExtendTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "dlp_extend_total",
 			Help: "Số lần ExtendSession, tách theo kết quả (ok/revision_mismatch/bad_state/hard_cap/not_found/error).",
@@ -166,6 +198,10 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "dlp_reaper_dead_free_pods_total",
 			Help: "Pod CHẾT (Failed/Succeeded/đã biến mất) nằm trong pool:free và đã bị rút. claim.lua không hỏi apiserver, nên trước tầng 4 người phát hiện ra là sinh viên. Tăng 1 sau mỗi lần node reboot là bình thường.",
 		}),
+		ReaperStaleImagePodsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dlp_reaper_stale_image_pods_total",
+			Help: "Pod ấm chạy image KHÁC SANDBOX_IMAGE hiện hành và đã bị rút. Warm-pool không tự rollout theo image, nên trước nhánh này pod image cũ nằm trong pool:free vô thời hạn — Running/Ready nên nhìn không có gì sai. Tách khỏi dead_free_pods để phân biệt 'đã rollout' với 'có nguồn đang giết pod ấm'.",
+		}),
 		ReaperSweepFailuresTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "dlp_reaper_sweep_failures_total",
 			Help: "Vòng sweep định kỳ thất bại. Sweep là ĐƯỜNG CHÍNH của reaper — pub/sub chỉ là đường nhanh.",
@@ -188,6 +224,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.ColdPathTotal,
 		m.ReplenishFailuresTotal,
 		m.ReplenishQuotaBlockedTotal,
+		m.PoolTrimmedTotal,
 		m.ExtendTotal,
 		m.ReapTotal,
 		m.ReaperOrphanPodsTotal,
@@ -196,6 +233,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.ReaperClaimedOrphanTotal,
 		m.ReaperQuarantineReapedTotal,
 		m.ReaperDeadFreePodsTotal,
+		m.ReaperStaleImagePodsTotal,
 		m.ReaperSweepFailuresTotal,
 		m.ReaperKeyspaceEventsTotal,
 		m.AuditWriteFailuresTotal,

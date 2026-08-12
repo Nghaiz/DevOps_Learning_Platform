@@ -101,7 +101,11 @@ export const CloseCode = {
   UNAUTHENTICATED: 4401,
   FORBIDDEN: 4403,
   SESSION_GONE: 4404,
-  IDLE_TIMEOUT: 4408,
+  // `IDLE_TIMEOUT: 4408` ĐÃ BỊ BỎ 2026-08-12 (chặng 1.G-1). Nó là mã chết từ
+  // đầu: hệ thống không có idle-window tách rời — phiên im lặng chỉ đơn giản là
+  // hết `expiresAt` → reaper xoá pod → gateway đóng `SESSION_GONE`. Giữ nó lại
+  // là giữ một nhánh `switch` không bao giờ chạy và nói dối người đọc bảng.
+  // Xem contract §6.
   HARD_CAP_REACHED: 4409,
   RATE_LIMITED: 4429,
   INTERNAL: 4500,

@@ -316,7 +316,10 @@ func buildSessionEngine(
 	// tên (`__keyevent@N__:expired`), và SUBSCRIBE vào kênh sai vẫn THÀNH CÔNG —
 	// chỉ là không bao giờ có event nào tới. Lấy từ chính options của client
 	// thay vì đọc lại URL, để hai nơi không thể lệch.
-	rp := reaper.New(rdb, pods, svc, rdb.Options().DB, cfg.ReapInterval, log, met)
+	// `cfg.SandboxImage` đi vào CẢ pool.Manager (để DỰNG pod) lẫn reaper (để biết
+	// pod ấm nào đã LỆCH image — tầng 4). Một nguồn, hai người đọc: không phải
+	// hằng số thứ hai, vì cả hai nhận cùng một giá trị từ cùng một config.Load.
+	rp := reaper.New(rdb, pods, svc, cfg.SandboxImage, rdb.Options().DB, cfg.ReapInterval, log, met)
 
 	log.Info("engine session bật",
 		slog.Int("pool_target", cfg.PoolTarget),

@@ -102,6 +102,16 @@ type Reaper struct {
 	pods     k8s.PodClient
 	sessions SessionReaper
 
+	// wantImage là `SANDBOX_IMAGE` hiện hành — thứ mà một pod ấm PHẢI đang chạy.
+	//
+	// Đây KHÔNG phải hằng số thứ hai cho cùng một giá trị: cả pool.Manager và
+	// reaper đều nhận nó từ cùng một `cfg.SandboxImage` của một lượt
+	// `config.Load`, truyền vào như một giá trị. Một nguồn, hai người đọc.
+	//
+	// Rỗng ⇒ TẮT HẲN phép so image (xem staleImage). Không có gì để so thì
+	// không kết luận gì.
+	wantImage string
+
 	redisDB  int
 	interval time.Duration
 	log      *slog.Logger
@@ -119,20 +129,22 @@ func New(
 	rdb redis.UniversalClient,
 	pods k8s.PodClient,
 	sessions SessionReaper,
+	wantImage string,
 	redisDB int,
 	interval time.Duration,
 	log *slog.Logger,
 	met *metrics.Metrics,
 ) *Reaper {
 	return &Reaper{
-		rdb:      rdb,
-		pods:     pods,
-		sessions: sessions,
-		redisDB:  redisDB,
-		interval: interval,
-		log:      log,
-		met:      met,
-		now:      time.Now,
+		rdb:       rdb,
+		pods:      pods,
+		sessions:  sessions,
+		wantImage: wantImage,
+		redisDB:   redisDB,
+		interval:  interval,
+		log:       log,
+		met:       met,
+		now:       time.Now,
 	}
 }
 
@@ -276,7 +288,22 @@ func (r *Reaper) sweep(ctx context.Context) error {
 	)
 }
 
-// sweepDeadFreePods — TẦNG 4: pod CHẾT vẫn nằm trong `pool:free`.
+// sweepDeadFreePods — TẦNG 4: pod KHÔNG DÙNG ĐƯỢC vẫn nằm trong `pool:free`.
+//
+// "Không dùng được" = CHẾT (Failed/Succeeded/đã biến mất) **hoặc** đang chạy
+// image CŨ. Vế thứ hai thêm 2026-08-12 (1.G-1, W2) và nó về nhà ở đây chứ không
+// thành một nhánh riêng trong `pool.Manager` vì một lý do đo được: hàm này ĐÃ
+// `LRANGE pool:free` rồi `pods.Get` từng pod mỗi vòng sweep, nên phép so image
+// tốn **0 lời gọi apiserver thêm**. Đặt ở manager là dựng một loop thứ hai đọc
+// apiserver VÀ một thành phần thứ hai mutate `pool:free`.
+//
+// Warm-pool KHÔNG có logic rollout theo image: đổi `SANDBOX_IMAGE` rồi
+// `helm upgrade` không thay pod đang ấm — pod cũ nằm lại `pool:free` vô thời hạn,
+// `Running`/`Ready` nên không tín hiệu nào nói có gì sai, và người claim tiếp
+// theo nhận đúng nó. Với `pause` thì hậu quả là `tmux new-session` của G4 không
+// có shell để attach ⇒ terminal chết trong khi orchestrator vẫn báo claim thành
+// công. Tái hiện BA lần, ba lượt đổi image, không lần nào tự rollout; trước bản
+// này phải rút tay mỗi lần.
 //
 // ⛔ ĐIỂM MÙ THỨ NĂM, VÀ NÓ CẮN THẲNG VÀO SINH VIÊN ĐẦU TIÊN SAU MỖI LẦN REBOOT.
 //
@@ -317,9 +344,14 @@ func (r *Reaper) sweepDeadFreePods(ctx context.Context) error {
 	var errs []error
 	for _, name := range names {
 		pod, getErr := r.pods.Get(ctx, name)
+
+		// Ba đường ra khác nhau, và việc TÁCH chúng là nội dung của tầng này:
+		// "chết", "lệch image", và "không kết luận được".
+		var (
+			reason string
+			stale  bool
+		)
 		switch {
-		case getErr == nil && !k8s.IsTerminal(pod):
-			continue // pod ấm và còn sống — đúng thứ pool nên quảng cáo
 		case getErr != nil && !k8s.IsNotFound(getErr):
 			// Không phân biệt được "chết" với "apiserver đang lỗi" ⇒ KHÔNG ĐOÁN.
 			// Rút pod dựa trên một lượt đọc lỗi là tự tay phá warm-pool mỗi khi
@@ -327,9 +359,20 @@ func (r *Reaper) sweepDeadFreePods(ctx context.Context) error {
 			// một khe quota mất trong lúc hạ tầng đang yếu sẵn.
 			errs = append(errs, fmt.Errorf("reaper: đọc pod ấm %q: %w", name, getErr))
 			continue
+		case getErr != nil:
+			// CHỈ `IsNotFound` mới là "đã biến mất".
+			reason = "đã biến mất khỏi apiserver"
+		case k8s.IsTerminal(pod):
+			reason = string(pod.Status.Phase)
+		case r.staleImage(pod):
+			stale = true
+		default:
+			continue // ấm, còn sống, đúng image — đúng thứ pool nên quảng cáo
 		}
 
-		// Tới đây: pod đã Failed/Succeeded, hoặc đã biến mất khỏi apiserver.
+		// Tới đây: pod đã Failed/Succeeded, đã biến mất khỏi apiserver, hoặc
+		// đang chạy image CŨ. Cả ba đều là "pool đang quảng cáo một pod không
+		// dùng được", và cả ba đi qua cùng một luật giành-quyền-sở-hữu.
 		removed, remErr := r.rdb.LRem(ctx, rediskeys.PoolFree, 0, name).Result()
 		if remErr != nil {
 			errs = append(errs, fmt.Errorf("reaper: LREM %s %q: %w", rediskeys.PoolFree, name, remErr))
@@ -341,17 +384,60 @@ func (r *Reaper) sweepDeadFreePods(ctx context.Context) error {
 			continue
 		}
 
-		r.met.ReaperDeadFreePodsTotal.Inc()
-		reason := "đã biến mất khỏi apiserver"
-		if pod != nil {
-			reason = string(pod.Status.Phase)
+		if stale {
+			got, _ := sandboxImageOf(pod)
+			r.met.ReaperStaleImagePodsTotal.Inc()
+			// Cả hai image trong cùng một dòng log: "lệch" mà không nói lệch
+			// khỏi cái gì thì người trực phải đi tra hai nơi mới đọc được.
+			r.log.Warn("pod ấm chạy image CŨ — đã rút để warm-pool dựng lại bằng image hiện hành",
+				slog.String("pod", name),
+				slog.String("image_dang_chay", got),
+				slog.String("image_muon", r.wantImage))
+		} else {
+			r.met.ReaperDeadFreePodsTotal.Inc()
+			r.log.Warn("pod CHẾT nằm trong pool:free — đã rút trước khi ai đó claim phải nó",
+				slog.String("pod", name), slog.String("phase", reason))
 		}
-		r.log.Warn("pod CHẾT nằm trong pool:free — đã rút trước khi ai đó claim phải nó",
-			slog.String("pod", name), slog.String("phase", reason))
 
 		r.deletePodAndIndex(ctx, name)
 	}
 	return errors.Join(errs...)
+}
+
+// sandboxImageOf đọc image của container sandbox trong spec của pod.
+//
+// Tìm theo TÊN (`k8s.ContainerName`), KHÔNG phải `Containers[0]`: index đúng hôm
+// nay và im lặng sai ngày spec có thêm sidecar. Không tìm thấy ⇒ `ok=false`, và
+// caller phải coi đó là "không kết luận được" chứ không phải "lệch".
+func sandboxImageOf(pod *corev1.Pod) (string, bool) {
+	if pod == nil {
+		return "", false
+	}
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == k8s.ContainerName {
+			return pod.Spec.Containers[i].Image, true
+		}
+	}
+	return "", false
+}
+
+// staleImage: pod ấm đang chạy image KHÁC `SANDBOX_IMAGE` hiện hành.
+//
+// ⛔ `wantImage == ""` ⇒ TẮT HẲN phép kiểm, KHÔNG phải "coi mọi pod là lệch".
+// `config.Load` đã fail-fast khi `SANDBOX_IMAGE` rỗng (1.E-1), nhưng nếu một
+// ngày đường đó bị nới thì so với chuỗi rỗng nghĩa là RÚT SẠCH `pool:free` mỗi
+// vòng sweep, mãi mãi — một cấu hình sai biến thành xoá liên tục, trong khi mọi
+// dòng log đều nói "đã rút pod lệch image". Không có gì để so thì không kết luận
+// gì: cùng ranh giới với "chỉ `IsNotFound` mới là đã-biến-mất" ở trên.
+func (r *Reaper) staleImage(pod *corev1.Pod) bool {
+	if r.wantImage == "" {
+		return false
+	}
+	got, ok := sandboxImageOf(pod)
+	if !ok {
+		return false
+	}
+	return got != r.wantImage
 }
 
 // sweepClaimedWithoutSession — TẦNG 2c: pod đã claim mà session không còn.

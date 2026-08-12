@@ -189,9 +189,14 @@ function closeMessage(code: number): { phase: SessionPhase; message: string } {
         message: 'Bạn đã dùng hết thời lượng tối đa cho phiên này. Hãy tạo phiên mới.',
       };
     case CloseCode.SESSION_GONE:
-      return { phase: 'expired', message: 'Phiên đã kết thúc và pod đã được thu hồi.' };
-    case CloseCode.IDLE_TIMEOUT:
-      return { phase: 'expired', message: 'Phiên đã đóng vì không có hoạt động.' };
+      // Gánh CẢ hai nguyên nhân từ 2026-08-12 (1.G-1): bị thu hồi, và hết hạn
+      // vì không hoạt động. `4408` đã bị bỏ khỏi contract §6 — hệ thống không
+      // có idle-window tách rời, nên hai ca đó đi chung một đường code và người
+      // dùng cần đọc được cả hai khả năng trong một câu.
+      return {
+        phase: 'expired',
+        message: 'Phiên đã kết thúc và pod đã được thu hồi (hết hạn hoặc bị thu hồi).',
+      };
     case CloseCode.UNAUTHENTICATED:
       return { phase: 'error', message: 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.' };
     case CloseCode.FORBIDDEN:
