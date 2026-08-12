@@ -69,12 +69,21 @@ type Files struct {
 	CAFile   string
 }
 
-// Validate kiểm ba đường dẫn ĐỌC ĐƯỢC, không chỉ khác rỗng.
+// Validate kiểm ba file THẬT SỰ MỞ ĐƯỢC ĐỂ ĐỌC, không chỉ khác rỗng và không
+// chỉ tồn tại.
 //
-// Khác biệt này quan trọng: Secret mount sai key (`tls.crt` vs `server.crt`) cho
-// ra một path khác rỗng trỏ vào chỗ không có file. Kiểm khác-rỗng thì qua, và
-// lỗi chỉ lộ ở lần bắt tay đầu tiên — tức ở request của người dùng, không phải
-// lúc pod khởi động.
+// ⛔ `os.Stat` LÀ SAI Ở ĐÂY, VÀ SAI ĐÚNG CHỖ HAY HỎNG NHẤT. Bản đầu dùng
+// `os.Stat` kèm chính doc comment này nói "ĐỌC ĐƯỢC" — nhưng `os.Stat` chỉ cần
+// quyền duyệt thư mục, KHÔNG cần quyền đọc file. Đo được trên cụm 2026-08-12:
+// Secret mount `defaultMode: 0400` vào container non-root cho ra file
+// `root:root -r--------`; `ls`/`stat` chạy bình thường, `cat` trả
+// `Permission denied`. Tức cổng fail-fast mà cả hai service dựa vào **cho qua
+// đúng họ lỗi duy nhất mà cert mount từ Secret thực sự hay gặp**, và lỗi lộ ra
+// muộn hơn ở `LoadX509KeyPair` (hoặc ở phía web thì không lộ ra ở tầng
+// Kubernetes chút nào — pod `Ready`, mọi RPC 500).
+//
+// Ca gốc vẫn được giữ: Secret mount sai key cho ra path khác rỗng trỏ vào chỗ
+// không có file.
 func (f Files) Validate() error {
 	for _, item := range []struct {
 		name string
@@ -87,9 +96,13 @@ func (f Files) Validate() error {
 		if item.path == "" {
 			return fmt.Errorf("mTLS đang bật nhưng thiếu đường dẫn %s", item.name)
 		}
-		if _, err := os.Stat(item.path); err != nil {
-			return fmt.Errorf("không đọc được file %s tại %s: %w", item.name, item.path, err)
+		// #nosec G304 — đường dẫn đến từ env do người vận hành/Helm đặt, không
+		// từ input người dùng; đây chính là phép kiểm quyền đọc của file đó.
+		fh, err := os.Open(item.path)
+		if err != nil {
+			return fmt.Errorf("không mở được file %s tại %s để đọc: %w", item.name, item.path, err)
 		}
+		_ = fh.Close()
 	}
 	return nil
 }
@@ -100,6 +113,7 @@ func (f Files) Validate() error {
 // hàng trăm CA công cộng, và chấp nhận chúng nghĩa là bất kỳ ai mua được một
 // cert hợp lệ cũng thành "in-cluster". Vòng tin cậy phải đúng bằng CA của ta.
 func caPool(caFile string) (*x509.CertPool, error) {
+	// #nosec G304 — đường dẫn CA đến từ env do người vận hành/Helm đặt.
 	pem, err := os.ReadFile(caFile)
 	if err != nil {
 		return nil, fmt.Errorf("đọc CA %s: %w", caFile, err)

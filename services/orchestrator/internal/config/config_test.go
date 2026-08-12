@@ -153,6 +153,57 @@ func TestMTLSBatMaThieuCertThiTuChoiKhoiDong(t *testing.T) {
 	}
 }
 
+// TestSplitCNsBoMucRong — dấu phẩy thừa KHÔNG được sinh ra một CN rỗng.
+//
+// ⛔ CA NÀY KHÔNG PHẢI CHI TIẾT CÚ PHÁP. `"platform-gateway,"` với
+// `strings.Split` trần cho ra `["platform-gateway", ""]`, và một cert **không có
+// CN** đọc ra `""` ⇒ khớp allowlist ⇒ được phong `system_component`. Tức đúng
+// một dấu phẩy thừa trong values mở lại cái cửa mà cả chương này đóng. Không có
+// test thì một hiện thực `strings.Split` trần vẫn xanh toàn bộ suite.
+func TestSplitCNsBoMucRong(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"tls.crt", "tls.key", "ca.crt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o600); err != nil {
+			t.Fatalf("ghi %s: %v", name, err)
+		}
+	}
+	for _, tc := range []struct {
+		raw  string
+		want []string
+	}{
+		{"platform-gateway,", []string{"platform-gateway"}},
+		{",platform-gateway", []string{"platform-gateway"}},
+		{" platform-gateway , , platform-web ", []string{"platform-gateway", "platform-web"}},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			clearEnv(t)
+			t.Setenv("GRPC_MTLS_MODE", "require")
+			t.Setenv("GRPC_TLS_CERT_FILE", filepath.Join(dir, "tls.crt"))
+			t.Setenv("GRPC_TLS_KEY_FILE", filepath.Join(dir, "tls.key"))
+			t.Setenv("GRPC_TLS_CA_FILE", filepath.Join(dir, "ca.crt"))
+			t.Setenv("GRPC_MTLS_SYSTEM_CNS", tc.raw)
+
+			cfg, err := config.Load()
+			if err != nil {
+				t.Fatalf("Load(): %v", err)
+			}
+			if len(cfg.MTLSSystemCNs) != len(tc.want) {
+				t.Fatalf("MTLSSystemCNs = %q, cần %q", cfg.MTLSSystemCNs, tc.want)
+			}
+			for i, cn := range tc.want {
+				if cfg.MTLSSystemCNs[i] != cn {
+					t.Fatalf("MTLSSystemCNs = %q, cần %q", cfg.MTLSSystemCNs, tc.want)
+				}
+			}
+			for _, cn := range cfg.MTLSSystemCNs {
+				if cn == "" {
+					t.Fatal("allowlist chứa CN RỖNG — một cert không có CN sẽ khớp nó")
+				}
+			}
+		})
+	}
+}
+
 // TestMTLSModeLaChuoiLaThiTuChoi.
 //
 // Một typo (`permisive`, `require ` thừa dấu cách) rơi về `off` nghĩa là cổng an

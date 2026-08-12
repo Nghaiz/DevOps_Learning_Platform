@@ -36,6 +36,7 @@ spec:
       labels:
         {{- include "platform.selectorLabels" (dict "context" . "component" "web") | nindent 8 }}
     spec:
+      {{- include "platform.mtlsPodSecurityContext" . | nindent 6 }}
       serviceAccountName: {{ include "platform.fullname" . }}-web
       # web đứng trước internet, chỉ gọi orchestrator qua gRPC — không có lý
       # do gì cầm token API server. Lặp lại false ở đây dù ServiceAccount
@@ -162,6 +163,6 @@ spec:
           {{- end }}
       {{- if ne .Values.platform.grpcMtlsMode "off" }}
       volumes:
-        {{- include "platform.mtlsVolume" . | nindent 8 }}
+        {{- include "platform.mtlsVolume" (dict "context" . "cert" "web") | nindent 8 }}
       {{- end }}
 {{- end }}

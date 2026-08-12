@@ -327,14 +327,38 @@ platform:
   #              cũng đã trình cert. Nấc để QUAN SÁT trước khi siết.
   #   require    Không có client cert hợp lệ ⇒ Unauthenticated.
   #
-  # ⛔ TRÌNH TỰ BẬT LÀ NỘI DUNG CỦA TÍNH NĂNG, KHÔNG PHẢI GHI CHÚ VẬN HÀNH.
-  # Nhảy thẳng off → require nghĩa là trong lúc ba Deployment cuốn, mọi client
-  # chưa kịp mang cert đều bị từ chối — tức trang session hỏng và heartbeat
-  # ExtendSession chết, trong khi `helm upgrade` báo thành công. Đúng trình tự:
-  # đặt `permissive`, ĐO thấy cả gateway lẫn web đang trình cert, rồi mới
-  # `require`. Bản trước là một cờ bool và nó không bật được suốt hai chặng
-  # chính vì thiếu nấc giữa này.
-  grpcMtlsMode: 'permissive'
+  # ⛔ MẶC ĐỊNH `require`, KHÔNG PHẢI `permissive` — VÀ ĐÓ LÀ MỘT SỬA LỖI.
+  # Bản đầu để `permissive` làm mặc định, nhưng `permissive` KHÔNG đóng R25:
+  # nó nhận client không cert, nên `user_id` trong CreateSession/GetSession/
+  # ExtendSession vẫn là field client tự khai và bất kỳ workload nào tới được
+  # :9090 vẫn cạn được trần 4 pod. Chỉ `require` đóng vế đó. Ship `permissive`
+  # làm mặc định là ship một chương "đóng R25" mà R25 vẫn mở.
+  # Cài mới an toàn với `require` ngay: chart tự sinh đủ cert cho cả ba service
+  # trong cùng một `helm install`, nên không có ai thiếu cert.
+  #
+  # ⛔ `permissive` LÀ BƯỚC DI TRÚ, KHÔNG PHẢI TRẠNG THÁI ĐÍCH — và cái thang
+  # này chỉ có MỘT bậc êm, không phải hai. Đã đo 2026-08-12:
+  #   off → permissive   CÓ cửa sổ chết. Đây là cú lật TRANSPORT ở cả hai đầu
+  #                      (server h2c→TLS, client http→https), Kubernetes cuốn ba
+  #                      Deployment không theo thứ tự nào, nên chiều nào cũng có
+  #                      lúc client và server nói hai giao thức khác nhau.
+  #                      Bắt buộc chấp nhận một cửa sổ, hoặc cuốn lúc vắng người.
+  #   permissive→require KHÔNG có cửa sổ. Client không đổi hành vi (đã trình
+  #                      cert từ trước), chỉ server siết. Đây là bậc êm DUY NHẤT,
+  #                      và cũng là bậc sẽ còn lặp lại (xoay CA, thêm consumer).
+  #   permissive → off   CŨNG có cửa sổ chết, đối xứng với bậc đầu. Nghĩa là
+  #                      KHÔNG có đường lùi không-gián-đoạn về `off`; đường lùi
+  #                      an toàn duy nhất là `require → permissive`.
+  # Nói cách khác: ba nấc bảo vệ chiều CERT, không bảo vệ chiều TLS.
+  grpcMtlsMode: 'require'
+
+  # Group sở hữu volume cert. `fsGroup` là thứ làm cert ĐỌC ĐƯỢC, không phải
+  # tuỳ chọn phong cách: cả ba image chạy non-root (Go uid 65532, web uid 1001),
+  # và không có fsGroup thì kubelet để file `root:root` ⇒ không tiến trình nào
+  # trong pod đọc nổi. Đo được trên cụm 2026-08-12: hai pod Go CrashLoopBackOff
+  # với `permission denied`, còn web lên `Ready` rồi trả 500 ở mọi RPC — vì
+  # probe là httpGet nên Kubernetes không thấy gì sai.
+  mtlsFsGroup: 65532
 
 # Tầng cô lập cho namespace chạy pod sandbox sinh viên (P1) — sinh viên có
 # root BÊN TRONG pod và là tác nhân CỐ Ý ĐỐI KHÁNG. Namespace này KHÁC

@@ -1,0 +1,8 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "phase-1 1.C-4 — mTLS gateway/BFF <-> orchestrator (D13/R13/R25/B0'). Chuong cuoi cua lane gateway. Nguoi dung chon chang nay thay vi 1.E E6-E9, va chon dong no image lab truoc khi cook.",
+  "scoutSummary": "Vao phien tren nhanh b6t4 da squash-merge (PR #39) — don nhanh, ve main. Scout ma: cong gRPC dung o cmd/orchestrator/main.go:82 voi DUNG 2 ServerOption, khong grpc.Creds; B0' interceptor + PeerTrust da co khung o internal/grpcserver/authz.go nhung config.Load TU CHOI khoi dong khi bat co; gateway dial insecure.NewCredentials() inline tai call site (chua co seam); apps/web dung connectrpc h2c cleartext; chart 19 template, KHONG co cert-manager, KHONG Secret cert nao; toan repo 0 dong crypto/tls la ma that.",
+  "decisions": "Ba quyet dinh nguoi dung chot: (1) chart tu sinh CA bang genCA/genSignedCert + lookup, khong cert-manager; (2) ghim CN — chi gateway duoc nhanh system_component; (3) ba nac off|permissive|require thay co bool.",
+  "keyFindings": "ReapSession kiem ready() TRUOC authz (lifecycle=nil => nhanh ghim CN khong bao gio chay). Client Go khong gui cert do CA la ky => cau hinh nham CA cho PermissionDenied chu khong loi TLS. Kiem dot bien bac bo mot comment cua chinh chang. Review doi khang tim 2 CHAN + 5 CAO, trong do defaultMode 0400 + non-root lam cum khong len noi voi dung gia tri mac dinh ship ra — cum xac nhan ngay trong phien."
+}

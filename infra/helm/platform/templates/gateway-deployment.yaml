@@ -17,15 +17,20 @@ spec:
         {{- /*
         CA đổi mà pod không cuốn = pod giữ cert do CA CŨ ký, còn server tin CA
         MỚI ⇒ bắt tay hỏng vĩnh viễn, và `helm upgrade` vẫn báo thành công.
-        Nhánh `lookup` trong mtls-secret.yaml giữ Secret ổn định qua các lần
-        upgrade thường, nên checksum này đứng yên; nó chỉ đổi ở đúng hai ca cần
-        cuốn — lần install đầu, và khi ai đó xoá Secret.
+
+        ⚠ CHECKSUM NÀY KHÔNG "ĐỨNG YÊN" NHƯ BẢN NHÁP VIẾT. Đo được 2026-08-12:
+        một lần `helm template` sinh BA giá trị KHÁC NHAU cho ba deployment, vì
+        mỗi `include` render lại `genCA` với randomness mới. Hệ quả thật: lần
+        `helm upgrade` ĐẦU TIÊN sau install luôn cuốn cả ba pod dù cert không
+        đổi (từ lần đó trở đi `lookup` có giá trị nên nó ổn định). Vô hại — cùng
+        một CA — nhưng đừng dùng "checksum không đổi" làm căn cứ chẩn đoán.
         */}}
         checksum/mtls-secret: {{ include (print $.Template.BasePath "/mtls-secret.yaml") . | sha256sum }}
       {{- end }}
       labels:
         {{- include "platform.selectorLabels" (dict "context" . "component" "gateway") | nindent 8 }}
     spec:
+      {{- include "platform.mtlsPodSecurityContext" . | nindent 6 }}
       serviceAccountName: {{ include "platform.fullname" . }}-gateway
       {{- if .Values.platform.priorityClassEnabled }}
       priorityClassName: {{ .Values.platform.priorityClassName }}
@@ -157,6 +162,6 @@ spec:
           {{- end }}
       {{- if ne .Values.platform.grpcMtlsMode "off" }}
       volumes:
-        {{- include "platform.mtlsVolume" . | nindent 8 }}
+        {{- include "platform.mtlsVolume" (dict "context" . "cert" "gateway") | nindent 8 }}
       {{- end }}
 {{- end }}

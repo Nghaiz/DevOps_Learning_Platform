@@ -112,15 +112,63 @@ volumeMount cho Secret mTLS. Rỗng khi mode=off.
 {{- end -}}
 
 {{/*
-volume cho Secret mTLS. `defaultMode` 0400 chứ không phải mặc định 0644: private
-key đọc được bởi mọi user trong container là đúng thứ `chmod 400` tồn tại để
-chặn, và ở đây không có ai khác cần đọc nó.
+volume cho Secret mTLS. Gọi:
+  {{ include "platform.mtlsVolume" (dict "context" . "cert" "gateway") }}
+
+⛔ `items:` LÀ RANH GIỚI PHÂN QUYỀN, KHÔNG PHẢI TỐI ƯU.
+Bản đầu mount NGUYÊN Secret vào cả ba pod, và điều đó **vô hiệu hoá chính phép
+ghim CN** mà chương này dựng lên: pod `web` đứng trước internet, nên bất kỳ
+đường đọc file tuỳ ý nào ở đó (path traversal, SSRF file://, RCE) cũng lấy được
+`gateway.key` → dựng client cert CN=`platform-gateway` → qua allowlist →
+`ReapSession` với `system_component` reap được session của bất kỳ ai. Ghim CN
+chỉ có nghĩa khi khoá của gateway KHÔNG nằm trên đĩa của web. Đo được trên cụm
+2026-08-12: `kubectl exec deploy/platform-web -- ls /etc/dlp/mtls/` liệt kê cả
+`gateway.key`.
+
+⛔ `defaultMode: 0440` + `fsGroup`, KHÔNG PHẢI 0400.
+Cả ba image chạy non-root (Go uid 65532, web uid 1001). Không có `fsGroup` thì
+kubelet để file `root:root`, và `0400` nghĩa là **không tiến trình nào trong pod
+đọc được** — đo được trên cụm: cả hai pod Go CrashLoopBackOff với
+`open /etc/dlp/mtls/server.crt: permission denied`, còn web thì lên `Ready` rồi
+trả 500 ở mọi RPC (probe là httpGet nên k8s không thấy gì sai). `fsGroup` cho
+kubelet chgrp volume về group đó và thêm nó vào supplementary group của
+container; `0440` để nhóm đọc được mà vẫn không world-readable.
 */}}
 {{- define "platform.mtlsVolume" -}}
-{{- if ne .Values.platform.grpcMtlsMode "off" }}
+{{- if ne .context.Values.platform.grpcMtlsMode "off" }}
 - name: mtls
   secret:
-    secretName: {{ include "platform.mtlsSecretName" . }}
-    defaultMode: 0400
+    secretName: {{ include "platform.mtlsSecretName" .context }}
+    defaultMode: 0440
+    items:
+      - key: ca.crt
+        path: ca.crt
+      - key: {{ .cert }}.crt
+        path: {{ .cert }}.crt
+      - key: {{ .cert }}.key
+        path: {{ .cert }}.key
+{{- end }}
+{{- end -}}
+
+{{/*
+securityContext mức POD cho mTLS — `fsGroup` là thứ làm volume đọc được.
+Xem giải thích ở platform.mtlsVolume.
+*/}}
+{{- define "platform.mtlsPodSecurityContext" -}}
+{{- if ne .Values.platform.grpcMtlsMode "off" }}
+{{- /*
+  ⛔ `required` Ở ĐÂY LÀ BẮT BUỘC, KHÔNG PHẢI PHÒNG THỦ THỪA — và nó tồn tại vì
+  một lượt deploy đã hỏng đúng như thế. `helm upgrade --reuse-values` dùng lại
+  values ĐÃ TÍNH của release trước và **KHÔNG nạp key mới** thêm vào
+  `values.yaml`. Nên `mtlsFsGroup` (key mới ở chặng này) là nil, template phát ra
+  `fsGroup:` rỗng, Kubernetes đọc thành null và bỏ qua — pod lên với
+  `securityContext: {}` và cert lại `root:root` không đọc nổi. Toàn bộ chuỗi đó
+  IM LẶNG: `helm upgrade` xanh, manifest hợp lệ, chỉ pod CrashLoop với một
+  thông báo nói về quyền file.
+  Đường dùng đúng là `--reset-then-reuse-values` (nạp lại default của chart rồi
+  mới đắp values người dùng lên).
+*/}}
+securityContext:
+  fsGroup: {{ required "platform.mtlsFsGroup bắt buộc khi grpcMtlsMode≠off — nếu bạn vừa chạy `helm upgrade --reuse-values` thì đó là nguyên nhân: cờ đó KHÔNG nạp key mới của values.yaml. Dùng --reset-then-reuse-values." .Values.platform.mtlsFsGroup }}
 {{- end }}
 {{- end -}}

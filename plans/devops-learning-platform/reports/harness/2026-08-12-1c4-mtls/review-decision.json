@@ -1,0 +1,20 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "blockingReasons": [],
+  "contractStatus": "OK",
+  "acceptanceCoverage": [
+    "AC 'require chan client khong cert' -> DAT tren cum: Unavailable + 'tls: certificate required', va lifecycle.Reap KHONG chay (test tu dong khang dinh ve thu hai).",
+    "AC 'ghim CN chan apps/web dung system_component' -> DAT: cert web hop le do dung CA cum ky van nhan PermissionDenied voi thong bao neu dich danh GRPC_MTLS_SYSTEM_CNS.",
+    "AC 'doi chung duong — gateway DUOC' -> DAT: NotFound (authz cho qua, lifecycle chay that). Them 4 luot ReapSession OK khi don phien test — cung duong, khac du lieu.",
+    "AC 'duong nguoi dung con song' -> DAT ca ba ve (web->orchestrator, gateway->orchestrator, terminal go duoc).",
+    "AC 'permissive la nac GIUA that' -> DAT: cung probe khong-cert cho PermissionDenied o permissive va Unavailable o require."
+  ],
+  "risks": [
+    "Nac permissive KHONG dong R25 (nhan client khong cert => user_id van la field client tu khai). Da doi mac dinh values sang require sau khi review chi ra; permissive nay chi la buoc di tru.",
+    "off->permissive CO cua so chet (lat transport hai dau). Cai thang bao ve chieu CERT, khong bao ve chieu TLS — da ghi vao values.yaml va report thay vi de loi tuyen bo sai dung do.",
+    "Khong co metric dem 'bao nhieu ket noi da trinh cert' => dieu kien de sang require khong do duoc, chi suy tu log Warn.",
+    "Khong co quy trinh xoay cert: CA private key bi vut sau lan render dau, nen khong phat them cert cho consumer thu tu duoc."
+  ]
+}

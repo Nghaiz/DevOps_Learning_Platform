@@ -223,10 +223,18 @@ func clientTLSEpGuiCert(t *testing.T, rogue tlsx.Files) *tls.Config {
 
 // callReap gọi ReapSession với actor=system_component qua một kênh THẬT.
 //
-// Chọn ReapSession vì nó là RPC DUY NHẤT phân biệt được ba mức: bắt tay hỏng
-// (lỗi transport), bắt tay xong nhưng không đủ quyền (PermissionDenied), và đủ
-// quyền (đi tới lifecycle — ở đây lifecycle=nil nên trả Unavailable, và chính
-// Unavailable là bằng chứng authz đã CHO QUA).
+// Chọn ReapSession vì nó là RPC DUY NHẤT phân biệt được ba mức:
+//
+//	Unavailable      bắt tay TLS hỏng (không cert ở nấc require, cert CA lạ bị ép gửi)
+//	PermissionDenied bắt tay XONG, authz từ chối (CN ngoài allowlist, hoặc không
+//	                 cert ở nấc permissive)
+//	err == nil       authz CHO QUA và lifecycle chạy thật — soi `fake.gotActor`
+//
+// ⚠ `Unavailable` ở đây CHỈ có nghĩa "bắt tay hỏng". Bản nháp của doc này viết
+// ngược lại ("Unavailable là bằng chứng authz đã cho qua") — đúng với bản đầu
+// dùng lifecycle=nil, sai từ khi startServer truyền fake khác nil. Hai nghĩa
+// ngược nhau cho cùng một mã trong cùng một file là cách một assert bị nới sai
+// chiều ở lần sửa sau.
 func callReap(t *testing.T, addr string, cfg *tls.Config) error {
 	t.Helper()
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(credentials.NewTLS(cfg)))
@@ -484,26 +492,4 @@ func TestAllowlistRongThiKhongAiDuocSystemComponent(t *testing.T) {
 	if fake.gotReapID != "" {
 		t.Fatal("lifecycle.Reap ĐÃ CHẠY dù lời gọi phải bị từ chối — chặn xảy ra SAU khi đã làm việc")
 	}
-}
-
-func containsAny(err error, subs ...string) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	for _, s := range subs {
-		if len(s) > 0 && len(msg) >= len(s) && contains(msg, s) {
-			return true
-		}
-	}
-	return false
-}
-
-func contains(haystack, needle string) bool {
-	for i := 0; i+len(needle) <= len(haystack); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return true
-		}
-	}
-	return false
 }
