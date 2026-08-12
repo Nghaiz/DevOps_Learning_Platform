@@ -619,8 +619,8 @@ jobs:
           echo "$out"
           grep -qx 'zshrc=DLP_FIXTURE_ZSHRC' <<<"$out" || { echo '::error::.zshrc trong allowlist KHÔNG được chép'; exit 1; }
           grep -qx 'nvim=DLP_FIXTURE_NVIM'   <<<"$out" || { echo '::error::.config/** KHÔNG được chép'; exit 1; }
-          grep -qx 'evil=NO'                 <<<"$out" || { echo '::error::file NGOÀI allowlist đã lọt vào $HOME'; exit 1; }
-          grep -qx 'authk=NO'                <<<"$out" || { echo '::error::.ssh/authorized_keys đã lọt vào $HOME'; exit 1; }
+          grep -qx 'evil=NO'                 <<<"$out" || { echo '::error::file NGOÀI allowlist đã lọt vào thư mục HOME'; exit 1; }
+          grep -qx 'authk=NO'                <<<"$out" || { echo '::error::.ssh/authorized_keys đã lọt vào thư mục HOME'; exit 1; }
           # Vế QUAN TRỌNG NHẤT: symlink là vector duy nhất thoát ra ngoài $HOME
           # qua một thư mục mount — `.gitconfig` ở đây có TÊN nằm trong
           # allowlist, nên nếu chỉ kiểm tên thì nó lọt và $HOME/.gitconfig thành
@@ -659,7 +659,7 @@ jobs:
               if ! dlp_dotfile_allowed "$ok"; then echo "CHẶN NHẦM: $ok"; fail=1; fi
             done
             exit $fail
-          ' || { echo '::error::guard `..` hoặc allowlist sai'; exit 1; }
+          ' || { echo '::error::guard traversal hoặc allowlist sai'; exit 1; }
 
           # Hai cap: vỡ cap thì bỏ TOÀN BỘ bundle, không chép nửa vời.
           fx="$RUNNER_TEMP/dotfiles-cap"; rm -rf "$fx"; mkdir -p "$fx/.config"
