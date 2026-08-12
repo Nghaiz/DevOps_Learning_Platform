@@ -5,14 +5,14 @@
       "status": "pass",
       "exitCode": 0,
       "timestamp": "2026-08-12T21:40:00+07:00",
-      "summary": "369 PASS / 0 FAIL / 0 SKIP. Dem bang grep '--- PASS|--- FAIL|--- SKIP' chu KHONG tin exit code: go test tra 0 khi moi ca tu skip, va suite nay skip sach neu thieu REDIS_URL/DATABASE_URL (root .env khong co hai bien do)."
+      "summary": "369 PASS / 0 FAIL / 0 SKIP. Dem bang grep '--- PASS|--- FAIL|--- SKIP' chu KHONG tin exit code: go test tra 0 khi moi ca tu skip, va suite nay skip sach neu thieu REDIS_URL/DATABASE_URL (root .env chi co 6 bien cua compose, khong co hai URL do)."
     },
     {
       "command": "go test ./internal/pool/... ./internal/reaper/... -run 'TestTrim|TestTang4' -v -count=1",
       "status": "pass",
       "exitCode": 0,
       "timestamp": "2026-08-12T21:15:00+07:00",
-      "summary": "Khang dinh 11 ca MOI THAT SU CHAY, khong phai skip: 6 TestTrim* + 4 TestTang4* le ch-image + 1 read-limit. Kem 6 ca tang-4 cu van xanh (khong hoi quy)."
+      "summary": "Khang dinh 11 ca MOI THAT SU CHAY chu khong skip: 6 TestTrim* + 4 TestTang4* lech-image + 1 read-limit. Kem 6 ca tang-4 CU van xanh (khong hoi quy khi mo rong sweepDeadFreePods)."
     },
     {
       "command": "go test -race -count=1 tren internal/pool, internal/reaper, internal/podexec",
@@ -33,7 +33,7 @@
       "status": "pass",
       "exitCode": 0,
       "timestamp": "2026-08-12T21:25:00+07:00",
-      "summary": "8/8 task. Cong nay la thu khang dinh viec BO CloseCode.IDLE_TIMEOUT khong lam vo consumer nao ngoai packages/terminal (grep truoc do chi thay 3 noi trong package do)."
+      "summary": "8/8 task. Day la cong khang dinh viec BO CloseCode.IDLE_TIMEOUT khong lam vo consumer nao ngoai packages/terminal."
     },
     {
       "command": "pnpm --filter @devops-platform/terminal run test (vitest)",
@@ -43,39 +43,26 @@
       "summary": "91 PASS / 4 file. Gom ca moi 'Object.values(CloseCode) khong chua 4408' — gac chieu nguoc lai cua W4."
     },
     {
-      "command": "Kiem dot bien: 6 phep, hoan nguyen bang cach ghi lai NOI DUNG DA LUU (khong dung git checkout)",
+      "command": "Kiem dot bien 6 phep (hoan nguyen bang cach ghi lai NOI DUNG DA LUU, khong dung git checkout)",
       "status": "pass",
       "exitCode": 0,
       "timestamp": "2026-08-12T21:48:00+07:00",
-      "summary": "4/6 phep do DUNG MOT ca (thu tu DEL/Delete, guard wantImage rong, doc Containers[0], bo nhanh staleImage). 2/6 do tran 4 ca vi chung dot bien vao chinh loi cua trim.lua (<= thanh <, RPOP thanh LPOP). Chi tiet: mutation-log.txt."
+      "summary": "4/6 phep do DUNG MOT ca: thu tu DEL/Delete, guard wantImage rong, doc Containers[0], bo nhanh staleImage. 2/6 do tran 4 ca vi chung dot bien vao chinh loi cua trim.lua (<= thanh <, RPOP thanh LPOP). Chi tiet + gotcha quy trinh: mutation-log.txt."
     },
     {
-      "command": "go test ./... x 9 luot (4 thuong + 3 -v + 2 luot dau)",
-      "status": "warn",
+      "command": "go test ./... lap 9 luot (4 thuong + 3 -v + 2 luot dau) de soat chap chon",
+      "status": "pass",
       "exitCode": 0,
       "timestamp": "2026-08-12T22:05:00+07:00",
-      "summary": "MOT luot -v dem duoc 369 PASS / 1 FAIL; 9 luot con lai 0 do va ten ca do KHONG duoc giu lai. Ghi ra day thay vi goi suite la sach. Nghi van dau tien cho 1.G-2: TestScriptSongSotSauScriptFlush cua gateway dung SCRIPT FLUSH (lenh TOAN SERVER) va trim.lua nay la script thu hai song trong cung cache do."
+      "summary": "CANH BAO, khong phai mot luot sach: MOT luot -v dem duoc 369 PASS / 1 FAIL, 9 luot con lai 0 do, va ten ca do KHONG duoc giu lai. Ghi ra day thay vi goi suite la sach. Nghi van dau tien cho 1.G-2: TestScriptSongSotSauScriptFlush cua gateway dung SCRIPT FLUSH (lenh TOAN SERVER) va trim.lua nay la script THU HAI song trong cung cache do."
     }
   ],
-  "acceptanceChecks": [
-    "W1 POOL_TARGET la TRAN: pool 3 pod / target 1 -> ve dung 1, xoa dung 2 pod, dlp_pool_trimmed_total = 2, hash cua pod da rut deu mat.",
-    "W1 doi chung am: pool DUNG tran -> khong rut gi, counter = 0 (ca quan trong nhat cua nhom).",
-    "W1 khong rut xuong DUOI tran: target 2 / 3 pod -> rut dung 1.",
-    "W1 FIFO cua D6 giu nguyen: rut o dau PHAI, pod cu nhat la pod con lai.",
-    "W1 thu tu DEL hash TRUOC pods.Delete, quan sat o GIUA qua hook onDelete (nhin tu trang thai CUOI thi hai thu tu giong het nhau).",
-    "W1 tran vo nghia (-1) -> script tra loi, khong rut gi (fail-closed; nhanh nay XOA POD nen mot ARGV hong roi vao 'tran = 0' se vet sach warm-pool).",
-    "W2 pod Running + image cu -> bi rut, stale_image_total = 1 VA dead_free_pods_total = 0 (ve quy trach nhiem).",
-    "W2 doi chung am: pod Running + DUNG image -> khong dung toi.",
-    "W2 wantImage rong -> KHONG ket luan gi (khong phai 'coi moi pod la lech').",
-    "W2 khong thay container theo TEN -> KHONG ket luan gi (chan bay .containers[0] khi spec co sidecar).",
-    "W3 frame DUNG MOT byte qua tran -> close 1009 (StatusMessageTooBig), khong doi control error di kem.",
-    "W4 4408 bi bo khoi ca 4 noi; Object.values(CloseCode) khong chua 4408."
-  ],
-  "regressionProof": [
-    "6 ca tang-4 co san van xanh sau khi mo rong sweepDeadFreePods (TestTang4RutPodChetKhoiPoolFree, KhongDungPodAmConSong, DonTenPodDaBienMat, KhongRutPodKhiApiserverLoi, LREMLaPhepGianhQuyen, Idempotent).",
-    "newTestReaper doi sang variadic wantImage nen MOI ca co san giu nguyen chu va chay dung duong code cu (wantImage = '' => phep so image TAT).",
-    "reaper.New them mot tham so: chi mot call-site san pham (cmd/orchestrator/main.go) va mot call-site test.",
-    "Dot bien tren trim.go va reaper.go da hoan nguyen; go test 2 package xanh lai va gofmt -l rong.",
-    "Khong doi contract gRPC, khong doi Redis key/field, khong them env moi — nen khong can chay make env-check hay buf breaking."
+  "beforeAfter": [
+    "TRUOC W1: replenishOnce chi bom khi thieu. pool:free = 2 voi POOL_TARGET = 1 o lai VINH VIEN; tran session dong thoi tut 3 -> 2 (D16) ma khong loi nao noi vi sao.",
+    "SAU W1: moi vong Run co them mot luot trim.lua; pool 3 pod / target 1 -> ve dung 1, dlp_pool_trimmed_total = 2. O trang thai khoe (pool dung tran) day la dung mot EVALSHA moi 10 giay va khong xoa gi.",
+    "TRUOC W2: tang 4 chi hoi IsTerminal. Pod am chay image CU la Running/Ready nen khong nhanh nao cua ca 5 tang cham toi; nguoi claim tiep theo nhan dung no. Tai hien BA lan, moi lan phai rut tay.",
+    "SAU W2: tang 4 hoi them 'image co khop SANDBOX_IMAGE khong' — 0 loi goi apiserver them vi vong lap da Get tung pod. Pod lech image bi rut, stale_image_total tang rieng, dead_free_pods_total dung yen.",
+    "TRUOC W3: khong test nao gac ve read-limit cua luat 5. Nang SetReadLimit len 1 MiB lam contract §6 sai ma khong ca nao do.",
+    "SAU W3: mot ca do DUNG MOT BYTE qua tran, khang dinh close code 1009."
   ]
 }

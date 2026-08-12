@@ -3,26 +3,26 @@
   "score": 8,
   "criticalCount": 0,
   "blockingReasons": [],
-  "contractStatus": "CHANGED_INTENTIONAL",
+  "contractStatus": "CHANGED",
   "acceptanceCoverage": [
-    "W1 'POOL_TARGET la TRAN' -> DAT o muc test don vi tren Redis that, gom doi chung am (pool dung tran -> khong rut gi) va ca 'khong rut xuong duoi tran'. Phep do tren cum thuoc 1.G-2.",
-    "W1 luat FIFO (rut o dau PHAI) -> DAT, va do bang danh tinh pod con lai chu khong bang so luong: mot phep dem se xanh voi ca LPOP.",
+    "W1 'POOL_TARGET la TRAN' -> DAT o muc test don vi tren Redis that, gom doi chung am (pool dung tran -> khong rut gi) va ca 'khong rut xuong duoi tran' (target 2 / 3 pod -> rut dung 1). Phep do tren cum thuoc 1.G-2.",
+    "W1 luat FIFO (rut o dau PHAI) -> DAT, do bang DANH TINH pod con lai chu khong bang so luong: mot phep dem se xanh voi ca LPOP.",
     "W1 luat thu tu (DEL hash TRUOC pods.Delete) -> DAT, quan sat o GIUA qua hook onDelete. Nhin tu trang thai CUOI thi hai thu tu cho ket qua giong het nhau, nen ca nay bat buoc phai quan sat giua.",
+    "W1 tran vo nghia (-1) -> script tra loi, khong rut gi. Nhanh nay XOA POD nen mot ARGV hong roi vao 'tran = 0' se vet sach warm-pool moi vong.",
     "W2 'pod am lech image cung la pod khong dung duoc' -> DAT, kem VE QUY TRACH NHIEM: stale_image_total tang VA dead_free_pods_total dung yen. Thieu ve thu hai thi mot hien thuc gop hai nguyen nhan vao mot counter van xanh.",
-    "W2 hai ranh gioi khong-ket-luan (wantImage rong, khong thay container theo TEN) -> DAT, moi cai mot ca rieng.",
+    "W2 hai ranh gioi khong-ket-luan (wantImage rong; khong thay container theo TEN) -> DAT, moi cai mot ca rieng.",
     "W3 'frame vuot read-limit -> close code da pin sau spike' -> DAT: 1009, do o DUNG MOT BYTE qua tran.",
-    "W4 '4408 bi bo khoi contract §6 + FE' -> DAT o ca 4 noi, kem ca gac chieu nguoc lai.",
-    "W5 ke toan: luat 8 tick du 4/4 bang bang chung da nam san tren dia tu G12; NetworkPolicy chuyen sang 1/2; hai o doi cau chu cho DO DUOC; bon no 'chua task nao so huu' nay co chu het."
+    "W4 '4408 bo khoi contract §6 + FE' -> DAT o ca 4 noi, kem ca gac chieu nguoc lai.",
+    "W5 ke toan: luat 8 tick du 4/4 bang bang chung da nam san tren dia tu G12; NetworkPolicy chuyen tu trong sang 1/2 (ve IMDS da do o 1.E-2); hai o doi cau chu cho DO DUOC; bon no 'chua task nao so huu' nay co chu het.",
+    "Moi luat moi co it nhat mot test do duoc duoi kiem dot bien; 4 luat ranh gioi do DUNG MOT ca."
   ],
   "regressionProof": [
     "369 PASS / 0 FAIL / 0 SKIP tren 3 module Go voi Redis + Postgres that; -race sach tren 3 package da doi.",
     "6 ca tang-4 co san van xanh sau khi mo rong sweepDeadFreePods tu 'pod CHET' sang 'pod KHONG DUNG DUOC'.",
+    "newTestReaper doi sang variadic wantImage nen MOI ca co san giu nguyen chu va chay dung duong code cu (wantImage = '' => phep so image TAT).",
     "GOOS=linux go vet sach; gofmt -l rong; pnpm turbo run typecheck 8/8; vitest packages/terminal 91 PASS.",
     "Moi dot bien da hoan nguyen bang cach ghi lai noi dung da luu; go test hai package xanh lai sau do.",
-    "Khong doi contract gRPC, khong doi Redis key/field, khong them env moi."
-  ],
-  "contractNotes": [
-    "docs/ws-terminal-protocol.md §6 BO hang 4408 (IDLE_TIMEOUT) va mo rong ngu nghia 4404 sang 'het han vi khong hoat dong'. Day la thu hep bang ma, khong phai them — moi consumer cua 4408 (dung 3 noi, tat ca trong packages/terminal) da duoc sua cung luot.",
-    "reaper.New them tham so wantImage string. Mot nguon (cfg.SandboxImage), hai nguoi doc (pool.Manager de DUNG pod, reaper de biet pod nao LECH) — khong phai hang so thu hai."
+    "KHONG doi contract gRPC, KHONG doi Redis key/field, KHONG them env moi.",
+    "Thu hep bang close code: grep het 3 consumer cua 4408 truoc khi bo, sua cung luot, turbo typecheck 8/8 khang dinh."
   ]
 }
