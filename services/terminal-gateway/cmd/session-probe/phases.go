@@ -69,6 +69,9 @@ type bangChang struct {
 	// out_of_order = ghi nhận rồi thôi), nên báo một con số gộp là bắt người
 	// đọc đi điều tra lại thứ counter đã biết sẵn.
 	incompleteLyDo map[string]float64
+
+	// controlled là đại lượng ô AC gác (1.G-4 P4): tổng attach TRỪ `pty`.
+	controlled changStat
 }
 
 var (
@@ -80,6 +83,10 @@ var (
 
 	reTongSum   = regexp.MustCompile(`^dlp_gateway_attach_duration_seconds_sum\s+([0-9.e+-]+)`)
 	reTongCount = regexp.MustCompile(`^dlp_gateway_attach_duration_seconds_count\s+([0-9.e+-]+)`)
+
+	reCtlBucket = regexp.MustCompile(`^dlp_gateway_attach_controlled_seconds_bucket\{le="([^"]+)"\}\s+([0-9.e+-]+)`)
+	reCtlCount  = regexp.MustCompile(`^dlp_gateway_attach_controlled_seconds_count\s+([0-9.e+-]+)`)
+	reCtlSum    = regexp.MustCompile(`^dlp_gateway_attach_controlled_seconds_sum\s+([0-9.e+-]+)`)
 	// Counter nay CO nhan `reason`, nen phai khop ca khoi nhan roi cong don —
 	// mau khong nhan se khong khop dong nao va bao cao "0 luot bi loai" trong
 	// khi moi luot deu bi loai.
@@ -136,6 +143,22 @@ func docBangChang(ctx context.Context, base string) (*bangChang, error) {
 			}
 			b.chang[phase] = s
 
+		case reCtlBucket.MatchString(line):
+			m := reCtlBucket.FindStringSubmatch(line)
+			le, err1 := strconv.ParseFloat(m[1], 64)
+			cum, err2 := strconv.ParseFloat(m[2], 64)
+			if err1 == nil && err2 == nil {
+				b.controlled.buckets = append(b.controlled.buckets, bucket{le: le, cum: int64(cum)})
+			}
+		case reCtlCount.MatchString(line):
+			if v, err := strconv.ParseFloat(reCtlCount.FindStringSubmatch(line)[1], 64); err == nil {
+				b.controlled.count = int64(v)
+			}
+		case reCtlSum.MatchString(line):
+			if v, err := strconv.ParseFloat(reCtlSum.FindStringSubmatch(line)[1], 64); err == nil {
+				b.controlled.sum = v
+			}
+
 		case reTongSum.MatchString(line):
 			if v, err := strconv.ParseFloat(reTongSum.FindStringSubmatch(line)[1], 64); err == nil {
 				b.tongSum = v
@@ -168,8 +191,21 @@ func docBangChang(ctx context.Context, base string) (*bangChang, error) {
 		sort.Slice(s.buckets, func(i, j int) bool { return s.buckets[i].le < s.buckets[j].le })
 		b.chang[p] = s
 	}
+	sort.Slice(b.controlled.buckets, func(i, j int) bool {
+		return b.controlled.buckets[i].le < b.controlled.buckets[j].le
+	})
 	return b, nil
 }
+
+// NguongControlled là ô AC mà 1.G-4 P4 chốt cho phần gateway kiểm soát được.
+//
+// Vì sao 150ms chứ không phải "số đo + biên": đo được ~81ms ở trần CPU 500m,
+// nên 150ms cho gần 2× biên mà vẫn ĐỎ ĐƯỢC — nếu ai đó thêm một lượt round-trip
+// đồng bộ vào đường attach thì ô này bắt. Ngưỡng 500ms cũ trên TỔNG thì không:
+// `pty` một mình đã 280ms và không đổi theo gateway, nên ô cũ đỏ vì hạ tầng và
+// mù với chính thứ nó cần gác. 0.15 cũng là một mốc bucket, nên p95 đọc ra
+// khẳng định được thay vì bị làm tròn lên 0.2.
+const NguongControlled = 0.15
 
 // inBangPhanBo in bảng quy trách nhiệm và TỰ ĐỎ khi phép đo không tự nhất quán.
 //
@@ -245,5 +281,38 @@ func inBangPhanBo(truoc, sau *bangChang, soLuot int) error {
 		fmt.Printf("%-12s %9.4fs %7.1f%% %9.4fs\n", d.ten, d.mean, d.mean/tongTrungBinh*100, d.p95)
 	}
 	fmt.Printf("%-12s %9.4fs %7.1f%%\n", "TỔNG", tongTrungBinh, 100.0)
+
+	// ---- ô AC: phần gateway kiểm soát được --------------------------------
+	ctlN := sau.controlled.deltaCount(truoc.controlled)
+	if ctlN != tongDeltaCount {
+		return fmt.Errorf("attach_controlled tăng %d mẫu nhưng tổng tăng %d — "+
+			"ô AC đang đo trên một mẫu số khác", ctlN, tongDeltaCount)
+	}
+	ctlP95 := sau.controlled.p95Delta(truoc.controlled)
+	ctlMean := sau.controlled.deltaSum(truoc.controlled) / float64(ctlN)
+
+	// Đối chứng: controlled phải bằng ĐÚNG tổng trừ pty. Không có phép này thì
+	// một ngày ai đó gộp nhầm `pty` vào và ô AC lặng lẽ quay về đo sàn hạ tầng.
+	ptyMean := 0.0
+	if s, ok := sau.chang[metricsPhasePTY]; ok {
+		ptyMean = s.deltaSum(truoc.chang[metricsPhasePTY]) / float64(ctlN)
+	}
+	if lech := ctlMean - (tongMeanThat - ptyMean); lech > 1e-4 || lech < -1e-4 {
+		return fmt.Errorf("ĐỐI CHỨNG ĐỎ: controlled=%.4fs nhưng tổng−pty=%.4fs — "+
+			"ô AC KHÔNG đo thứ nó tuyên bố đo", ctlMean, tongMeanThat-ptyMean)
+	}
+
+	trangThai := "ĐẠT"
+	if ctlP95 > NguongControlled {
+		trangThai = "ĐỎ"
+	}
+	fmt.Printf("\nÔ AC — phần gateway kiểm soát được (tổng − pty):\n")
+	fmt.Printf("  trung bình = %.4fs · p95 = %.4fs · ngưỡng = %.3fs ⇒ %s\n",
+		ctlMean, ctlP95, NguongControlled, trangThai)
+	fmt.Printf("  (pty = %.4fs — sàn hạ tầng, KHÔNG nằm trong ô AC này)\n", ptyMean)
 	return nil
 }
+
+// metricsPhasePTY lặp lại hằng của package metrics vì cmd này đọc /metrics qua
+// HTTP chứ không import gateway — chuỗi là contract giữa hai bên.
+const metricsPhasePTY = "pty"

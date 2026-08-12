@@ -1,0 +1,38 @@
+=== Kiểm đột biến — internal/podexec/attachphase.go · 2026-08-13 ===
+Lệnh: go test ./internal/podexec/ -run "TestNamChang|TestTungChang|TestThieuMoc|TestMocLech|TestStdin|TestUpgrade|TestControlled"
+Mỗi phép: sửa mã, chạy, khôi phục.
+
+┌───────────────────────────────────────────┬──────────────────────────────────────────┐
+│ Đột biến                                  │ Ca đỏ                                    │
+├───────────────────────────────────────────┼──────────────────────────────────────────┤
+│ 1. Kẹp hiệu số âm về 0 thay vì loại lượt  │ TestMocLechThuTuThiBiLoaiChuKhongKepVe0  │
+│                                           │ ĐÚNG MỘT ca                              │
+├───────────────────────────────────────────┼──────────────────────────────────────────┤
+│ 2. Đặt mốc `streams` lúc Read TRẢ VỀ      │ TestStdinDatMocLucVAORead                │
+│    thay vì lúc VÀO Read                   │ ĐÚNG MỘT ca                              │
+├───────────────────────────────────────────┼──────────────────────────────────────────┤
+│ 3. markUpgrade giữ lượt CUỐI (set) thay   │ TestUpgradeChiGiuLuotDauTien             │
+│    vì lượt ĐẦU (setOnce)                  │ ĐÚNG MỘT ca                              │
+├───────────────────────────────────────────┼──────────────────────────────────────────┤
+│ 4. Bỏ nhánh IsZero ⇒ mốc rỗng bị dán      │ TestThieuMocThiKhongPhatMauNao (3 sub)   │
+│    nhãn out_of_order                      │ ĐÚNG MỘT ca (cả 3 nhánh của nó)          │
+└───────────────────────────────────────────┴──────────────────────────────────────────┘
+
+⛔ PHÉP 4 LÚC ĐẦU **XANH** — và đó là phát hiện, không phải thành công.
+
+Bản đầu gộp cả hai lý do loại vào một counter không nhãn. Khi đó guard
+`IsZero()` là MÃ KHÔNG THỂ ĐỎ: một `time.Time` rỗng là năm 1, nên nó luôn
+thoả luôn cả `Before(truoc)` — xoá `IsZero()` đi thì hành vi quan sát được
+không đổi. Một guard không test nào giết được là một guard không gác gì, và
+đó đúng họ lỗi "mã chết làm AC xanh" mà dự án đã dính hai lần trước.
+
+Bản vá KHÔNG phải là thêm một assert: hai ca đó là HAI CHẨN ĐOÁN khác nhau —
+`missing_mark` (hook không chạy ⇒ đi sửa instrumentation) và `out_of_order`
+(goroutine copyStdin lệch lịch ⇒ ghi nhận rồi thôi). Tách thành hai nhãn
+`reason` làm chúng phân biệt được ở runtime, VÀ khiến guard có ca giết được.
+Cùng lý lẽ đã dùng để tách dlp_reaper_stale_image_pods_total khỏi
+dlp_reaper_dead_free_pods_total ở 1.G-1.
+
+Thứ tự kiểm cũng thành ràng buộc thật: phải hỏi `IsZero()` TRƯỚC `Before()`,
+nếu không mọi hook-không-chạy bị dán nhãn "lệch lịch" — chôn một lỗi hệ thống
+dưới một nhãn nói rằng mọi thứ vẫn bình thường.

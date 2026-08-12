@@ -107,6 +107,15 @@ func (t *attachTimer) observe(met *metrics.Metrics, ready time.Time) {
 	for i, m := range moc {
 		met.AttachPhase.WithLabelValues(m.phase).Observe(dur[i])
 	}
+
+	// Phần gateway kiểm soát được = mọi chặng TRỪ `pty` (chặng cuối). Cộng ở
+	// đây chứ không ở PromQL vì p95 của một tổng không suy ra được từ p95 của
+	// các thành phần — phải cộng TỪNG LƯỢT rồi mới phát một mẫu.
+	var controlled float64
+	for _, d := range dur[:len(dur)-1] {
+		controlled += d
+	}
+	met.AttachControlled.Observe(controlled)
 }
 
 // ---------------------------------------------------------------- hook upgrade

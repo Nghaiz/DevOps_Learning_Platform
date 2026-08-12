@@ -51,3 +51,6 @@ Thumbs.db
 # 16 MB binary lọt vào repo qua một `git add -A` là chuyện đã suýt xảy ra.
 services/orchestrator/mtls-probe
 services/orchestrator/mtls-probe.exe
+
+# Log của scripts/go-test-summary.sh — sinh lại được, không commit.
+.go-test-logs/

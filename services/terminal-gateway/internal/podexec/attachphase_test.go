@@ -108,6 +108,64 @@ func TestNamChangCongLaiBangDungTong(t *testing.T) {
 	}
 }
 
+// TestControlledBangTongTruPTY gác đại lượng mà ô AC mới gác (1.G-4 P4).
+//
+// Bất biến: `controlled` = tổng − `pty`. Vế quan trọng là **trừ đúng pty**:
+// gộp nhầm pty vào thì ô AC lại đo sàn hạ tầng (62–78% và không đổi theo CPU
+// gateway) — tức quay về đúng chế độ mù mà việc tách ra sinh ra để chữa.
+func TestControlledBangTongTruPTY(t *testing.T) {
+	met := metricMoi(t)
+
+	t0 := time.Now()
+	at := newAttachTimer(t0)
+	at.markInit(t0.Add(10 * time.Millisecond))
+	at.markExec(t0.Add(35 * time.Millisecond))
+	at.markUpgrade(t0.Add(200 * time.Millisecond))
+	at.markStreams(t0.Add(210 * time.Millisecond))
+	ready := t0.Add(750 * time.Millisecond)
+
+	at.observe(met, ready)
+
+	var m dto.Metric
+	if err := met.AttachControlled.(prometheus.Metric).Write(&m); err != nil {
+		t.Fatalf("đọc AttachControlled: %v", err)
+	}
+	if n := m.GetHistogram().GetSampleCount(); n != 1 {
+		t.Fatalf("AttachControlled có %d mẫu, muốn 1", n)
+	}
+
+	_, pty := docChang(t, met, metrics.PhasePTY)
+	tong := ready.Sub(t0).Seconds()
+	muon := tong - pty // = 0.210s
+	if got := m.GetHistogram().GetSampleSum(); got-muon > 1e-9 || muon-got > 1e-9 {
+		t.Fatalf("controlled = %.6fs, muốn tổng(%.6f) − pty(%.6f) = %.6fs", got, tong, pty, muon)
+	}
+}
+
+// TestControlledKhongPhatKhiLuotBiLoai: lượt không phân bổ được thì KHÔNG được
+// phát mẫu controlled nào. Phát ra một con số cộng từ các mốc lệch thứ tự là
+// đưa rác vào đúng đại lượng mà AC gác.
+func TestControlledKhongPhatKhiLuotBiLoai(t *testing.T) {
+	met := metricMoi(t)
+
+	t0 := time.Now()
+	at := newAttachTimer(t0)
+	at.markInit(t0.Add(10 * time.Millisecond))
+	at.markExec(t0.Add(35 * time.Millisecond))
+	// thiếu `upgrade`
+	at.markStreams(t0.Add(210 * time.Millisecond))
+
+	at.observe(met, t0.Add(750*time.Millisecond))
+
+	var m dto.Metric
+	if err := met.AttachControlled.(prometheus.Metric).Write(&m); err != nil {
+		t.Fatalf("đọc AttachControlled: %v", err)
+	}
+	if n := m.GetHistogram().GetSampleCount(); n != 0 {
+		t.Fatalf("AttachControlled phát %d mẫu cho lượt bị loại, muốn 0", n)
+	}
+}
+
 func TestTungChangDungGiaTri(t *testing.T) {
 	met := metricMoi(t)
 

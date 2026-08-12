@@ -155,6 +155,22 @@ type Metrics struct {
 	// hành động khác nhau và một histogram tổng không phân biệt được.
 	AttachPhase *prometheus.HistogramVec
 
+	// AttachControlled đo phần của attach mà GATEWAY KIỂM SOÁT ĐƯỢC — tức tổng
+	// bốn chặng đầu, KHÔNG gồm `pty`.
+	//
+	// Tồn tại vì đây là đại lượng mà AC gác (1.G-4 P4). Không suy ra được từ
+	// AttachPhase: p95 của một tổng KHÔNG bằng tổng các p95, nên muốn gác p95
+	// của tổng thì phải cộng từng lượt rồi phát một mẫu — đúng việc histogram
+	// này làm.
+	//
+	// ⛔ VÌ SAO TÁCH KHỎI AttachDuration. Đo 1.G-4 trên cụm: `pty` (apiserver →
+	// kubelet → CRI → tmux) chiếm 62–78% và KHÔNG đổi khi trần CPU gateway đi
+	// từ 150m lên 2000m — nó là sàn hạ tầng, gateway không chạm tới được ở P1.
+	// Một ô AC gác trên tổng vì thế đỏ vì hạ tầng và không bao giờ đỏ vì
+	// gateway: chính chế độ hỏng mà nó tồn tại để bắt thì nó lại mù. Đại lượng
+	// này thì đỏ đúng khi gateway chậm đi.
+	AttachControlled prometheus.Histogram
+
 	// AttachPhaseIncompleteTotal đếm lượt attach mà phép chia chặng KHÔNG dùng
 	// được (thiếu mốc, hoặc các mốc lệch thứ tự thời gian).
 	//
@@ -232,6 +248,20 @@ func New(reg prometheus.Registerer) *Metrics {
 			},
 		}, []string{"phase"}),
 
+		AttachControlled: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name: "dlp_gateway_attach_controlled_seconds",
+			Help: "Phần của 101 → `ready` mà gateway kiểm soát được: wait_init + build_exec + upgrade + streams. KHÔNG gồm `pty` (apiserver → kubelet → CRI → tmux), vốn là sàn hạ tầng.",
+			// 0.15 là MỘT MỐC BUCKET có chủ ý: đó đúng là ngưỡng AC, và p95 của
+			// histogram Prometheus đọc ra là chặn trên của bucket. Không có mốc
+			// đó thì "p95 < 150ms" không bao giờ khẳng định được — con số gần
+			// nhất sẽ là 0.2, và ô AC sẽ đỏ vì độ phân giải của dụng cụ chứ
+			// không vì hệ thống. Cùng bài học với bucket 0.5→0.75 của
+			// AttachDuration, thứ khiến 1.G-4 không phân biệt nổi 0.52 với 0.74.
+			Buckets: []float64{
+				0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.3, 0.5, 1,
+			},
+		}),
+
 		AttachPhaseIncompleteTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "dlp_gateway_attach_phase_incomplete_total",
 			Help: "Lượt attach bị loại khỏi phép chia chặng, tách theo lý do (missing_mark = hook không chạy; out_of_order = goroutine lệch lịch). Khác 0 nghĩa là bảng phân bổ KHÔNG phủ hết mẫu.",
@@ -255,6 +285,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.WSBytesTotal,
 		m.AttachDuration,
 		m.AttachPhase,
+		m.AttachControlled,
 		m.AttachPhaseIncompleteTotal,
 		m.ExtendTotal,
 		m.ExtendRevisionRetryTotal,

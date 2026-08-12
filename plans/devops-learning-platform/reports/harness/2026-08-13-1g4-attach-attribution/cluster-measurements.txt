@@ -1,0 +1,79 @@
+=== 1.G-4 M1 — số đo trên cụm, 2026-08-13 ===
+Cụm: debian-sandbox (192.168.94.130), k8s v1.34.10 + Sysbox
+Gateway: ghcr.io/nghaiz/dlp-terminal-gateway:sha-996cca7 → sha-dabd086
+Các image khác GIỮ NGUYÊN sha-0d54bbb (dùng gateway.image.tag riêng, nên
+`image.tag` không đổi ⇒ SANDBOX_IMAGE/web/orchestrator/migrator không bị chạm —
+tránh trọn ba bẫy deploy mà 1.G-3 đã trả giá).
+Công cụ: session-probe -case attach -n 50, đọc p95 từ histogram CỦA SERVER.
+Origin: http://localhost:8080 (bằng GATEWAY_ALLOWED_ORIGINS; mặc định của probe
+lấy theo -web nên trả 403 ORIGIN_NOT_ALLOWED — không phải lỗi bản vá).
+
+────────────────────────────────────────────────────────────────────────
+A. BẢNG PHÂN BỔ — 49 mẫu ẤM, ba nấc trần CPU gateway
+────────────────────────────────────────────────────────────────────────
+
+chặng          150m              500m         2000m
+------------   ---------------   ----------   ----------
+wait_init       6.0ms ·  1.2%      1.0ms       0.9ms
+build_exec      0.8ms ·  0.2%      0.9ms       0.7ms
+upgrade        28.0ms ·  6.1%      9.8ms       8.3ms
+streams       135.0ms · 29.6%     85.1ms      69.4ms
+pty           281.0ms · 61.6%    315.3ms     279.3ms
+------------   ---------------   ----------   ----------
+TỔNG          456.5ms            412.1ms     358.7ms
+
+Đối chứng âm Σchặng vs mẫu tổng: lệch 0.00% ở MỌI lượt đo (trần ±5%).
+incomplete{missing_mark}=0, incomplete{out_of_order}=0 ở mọi lượt.
+count từng chặng == count tổng == 50 ở mọi lượt.
+
+────────────────────────────────────────────────────────────────────────
+B. THROTTLE CFS — đọc cpu.stat trên HOST, delta quanh đúng lượt 50 mẫu
+────────────────────────────────────────────────────────────────────────
+
+trần 150m  (cpu.max = 15000 100000):
+  nr_periods   delta 284
+  nr_throttled delta 110      ⇒ 38.7% chu kỳ bị throttle
+  throttled    delta 6.156 s  ⇒ 123 ms / lượt attach
+  usage        delta 2.598 s  ⇒ nhu cầu trung bình ~106m
+
+trần 500m  (cpu.max = 50000 100000):
+  nr_throttled delta 1 / 223  ⇒ 0.4% chu kỳ
+  throttled    delta 0.089 s  ⇒ 1.8 ms / lượt
+
+trần 2000m (cpu.max = 200000 100000):
+  nr_throttled delta 0        ⇒ 0%
+  throttled    delta 0 s      ⇒ 0 ms / lượt
+
+⛔ ĐỌC KỸ: nhu cầu TRUNG BÌNH chỉ ~106m, nên 150m "trông đủ". Thứ giết nó là
+ĐỘT BIẾN — quota CFS cắt theo từng cửa sổ 100ms chứ không theo trung bình.
+Đây là lý do trần đặt theo mức trung bình quan sát được là một cái bẫy.
+
+⛔ `pty` KHÔNG ĐỔI theo trần CPU (281 / 315 / 279 ms). Đây là ĐỐI CHỨNG làm
+cả phép đo có nghĩa: nếu nâng CPU mà mọi chặng cùng co lại thì con số đã phải
+bị nghi là hiện vật của dụng cụ. Chỉ chặng CPU-bound co; `pty` đứng yên.
+
+────────────────────────────────────────────────────────────────────────
+C. Ô AC MỚI — dlp_gateway_attach_controlled_seconds (tổng − pty)
+────────────────────────────────────────────────────────────────────────
+
+Bản sha-dabd086, trần 500m, 49 mẫu ấm:
+  trung bình = 0.0758s
+  p95        = 0.1250s
+  ngưỡng     = 0.150s        ⇒ ĐẠT
+  pty        = 0.2801s (78.7%) — sàn hạ tầng, NGOÀI ô AC
+
+Đối chứng của chính ô AC (probe tự đỏ nếu lệch > 1e-4):
+  controlled == tổng − pty  ✓
+  count(controlled) == count(tổng) == 50  ✓
+
+────────────────────────────────────────────────────────────────────────
+D. TỔNG 101→ready — ghi số, KHÔNG gác
+────────────────────────────────────────────────────────────────────────
+
+Histogram đầy đủ ở trần 2000m (pod mới, đúng 50 mẫu, không lẫn lịch sử):
+  le=0.3 → 11 | le=0.5 → 45 | le=0.75 → 50 | sum=18.005 count=50
+  ⇒ trung bình 0.360s; p90 ≤ 0.5s; p95 ∈ (0.5, 0.75]
+
+⚠ Bucket nhảy 0.5 → 0.75 nên KHÔNG phân biệt được p95 thật là 0.52 hay 0.74.
+Hệ quả cụ thể: bản vá trần CPU cải thiện trung bình 457→356ms (−22%) nhưng
+p95 KHÔNG đổi bucket — tức cây thước không có vạch ở đúng chỗ cần đọc.
