@@ -25,9 +25,11 @@ import (
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/store"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/httpx"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/logging"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/tlsx"
 
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	healthv1 "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -79,14 +81,30 @@ func run() error {
 	// đã dừng hẳn, và defer ở đây chạy trước cả bgWG.Wait() bên dưới lẫn sau nó
 	// tuỳ vị trí — quá tinh tế để đúng do vô tình. Đóng tường minh ở cuối.
 
-	grpcSrv := grpc.NewServer(
-		grpc.UnaryInterceptor(grpcserver.NewAuthInterceptor(log, cfg.RequireMTLS)),
+	grpcOpts := []grpc.ServerOption{
+		grpc.UnaryInterceptor(grpcserver.NewAuthInterceptor(log, cfg.MTLSMode)),
 		// Stream bị từ chối vì auth interceptor chỉ phủ unary — xem
 		// NewStreamDenyInterceptor. Cả 5 RPC hiện tại đều unary nên dòng này
 		// không đổi hành vi nào đang chạy; nó chặn hành vi TƯƠNG LAI.
 		grpc.StreamInterceptor(grpcserver.NewStreamDenyInterceptor()),
-	)
-	orchestratorv1.RegisterSessionServiceServer(grpcSrv, grpcserver.NewSessionService(log, engine.lifecycle))
+	}
+	if cfg.MTLSMode.Enabled() {
+		// config.Load đã Validate() ba file, nên lỗi ở đây là lỗi NỘI DUNG file
+		// (key không khớp cert, CA không phải PEM) chứ không phải file vắng mặt.
+		// Trả lỗi thay vì log-rồi-chạy-tiếp: chạy tiếp nghĩa là cổng lên plaintext
+		// trong khi env nói nó đang được bảo vệ.
+		tlsCfg, err := tlsx.ServerConfig(cfg.MTLSFiles, cfg.MTLSMode)
+		if err != nil {
+			return fmt.Errorf("dựng TLS cho cổng gRPC (GRPC_MTLS_MODE=%s): %w", cfg.MTLSMode, err)
+		}
+		grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(tlsCfg)))
+		log.Info("cổng gRPC bật TLS",
+			slog.String("mtlsMode", string(cfg.MTLSMode)),
+			slog.Any("systemCNs", cfg.MTLSSystemCNs))
+	}
+	grpcSrv := grpc.NewServer(grpcOpts...)
+	orchestratorv1.RegisterSessionServiceServer(grpcSrv,
+		grpcserver.NewSessionService(log, engine.lifecycle, cfg.MTLSSystemCNs))
 
 	// WaitGroup chứ không phải goroutine thả nổi: warm-pool có thể đang ở giữa
 	// một lượt Provision (tạo pod → chờ Ready → công bố) lúc SIGTERM tới, và
@@ -310,7 +328,7 @@ func buildSessionEngine(
 		slog.Duration("extend_default", cfg.ExtendDefault),
 		slog.Duration("reap_interval", cfg.ReapInterval),
 		slog.Bool("audit_bat", auditDB != nil),
-		slog.Bool("require_mtls", cfg.RequireMTLS))
+		slog.String("mtls_mode", string(cfg.MTLSMode)))
 
 	return sessionEngine{lifecycle: svc, pool: mgr, reaper: rp, close: closeAll}, nil
 }

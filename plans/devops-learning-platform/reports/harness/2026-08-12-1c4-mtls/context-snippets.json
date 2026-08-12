@@ -1,0 +1,34 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "phase-1 1.C-4 — mTLS gateway/BFF <-> orchestrator (D13/R13/R25/B0'). Chuong cuoi cua lane gateway. Nguoi dung chon chang nay thay vi 1.E E6-E9, va chon dong no image lab truoc khi cook.",
+  "scoutSummary": "Vao phien tren nhanh b6t4 da squash-merge (PR #39) — don nhanh, ve main. Scout ma: cong gRPC dung o cmd/orchestrator/main.go:82 voi DUNG 2 ServerOption, khong grpc.Creds; B0' interceptor + PeerTrust da co khung o internal/grpcserver/authz.go nhung config.Load TU CHOI khoi dong khi bat co; gateway dial insecure.NewCredentials() inline tai call site (chua co seam); apps/web dung connectrpc h2c cleartext; chart 19 template, KHONG co cert-manager, KHONG Secret cert nao; toan repo 0 dong crypto/tls la ma that. | QUYET DINH: Ba quyet dinh nguoi dung chot: (1) chart tu sinh CA bang genCA/genSignedCert + lookup, khong cert-manager; (2) ghim CN — chi gateway duoc nhanh system_component; (3) ba nac off|permissive|require thay co bool. | PHAT HIEN: ReapSession kiem ready() TRUOC authz (lifecycle=nil => nhanh ghim CN khong bao gio chay). Client Go khong gui cert do CA la ky => cau hinh nham CA cho PermissionDenied chu khong loi TLS. Kiem dot bien bac bo mot comment cua chinh chang. Review doi khang tim 2 CHAN + 5 CAO, trong do defaultMode 0400 + non-root lam cum khong len noi voi dung gia tri mac dinh ship ra — cum xac nhan ngay trong phien.",
+  "acceptanceCriteria": [
+    "require chan client khong trinh cert (bat tay hong), va lifecycle.Reap KHONG chay",
+    "require chan ca ket noi plaintext (h2c)",
+    "ghim CN: cert cua apps/web hop le van bi tu choi nhanh actor.system_component",
+    "doi chung duong: cert cua gateway di toi lifecycle that (NotFound, khong phai PermissionDenied)",
+    "duong nguoi dung con song sau khi siet: session.create 200 tu web, ExtendSession thanh cong tu gateway, terminal go duoc",
+    "permissive la nac GIUA that: cung probe khong-cert cho PermissionDenied o permissive va Unavailable o require"
+  ],
+  "touchpoints": [
+    "services/shared/tlsx/ (moi) — dung tls.Config cho ca hai service Go",
+    "services/orchestrator/{cmd,internal/config,internal/grpcserver}/ — grpc.Creds, ba nac, ghim CN",
+    "services/terminal-gateway/{cmd,internal/config}/ — seam orchestratorDialOptions",
+    "apps/web/src/server/{env.ts,grpc/orchestrator-client.ts} — connect-node TLS",
+    "infra/helm/platform/ — mtls-secret.yaml, _helpers.tpl, 3 deployment, values.yaml",
+    "scripts/env-check.mjs — cong nay truoc do mu voi _helpers.tpl"
+  ],
+  "publicContracts": [
+    "session.proto KHONG doi — 5 RPC, shape giu nguyen, buf breaking khong bi cham",
+    "GRPC_REQUIRE_MTLS (bool) THAY bang GRPC_MTLS_MODE (off|permissive|require) — breaking o tang env, khong o tang wire",
+    "Bon env moi: GRPC_TLS_{CERT,KEY,CA}_FILE + GRPC_TLS_SERVER_NAME; GRPC_MTLS_SYSTEM_CNS chi cho orchestrator",
+    "values.platform.grpcMtlsMode + values.platform.mtlsFsGroup — mac dinh require"
+  ],
+  "blastRadius": [
+    "CA BA service dung chung cong gRPC nay: mot cau hinh sai cho 'toan bo nen tang tra Unauthenticated', khong phai 'mot tinh nang hong'",
+    "Da hien thuc hoa dung hai lan tren cum trong chinh phien nay (0400+non-root; --reuse-values khong nap key moi)",
+    "Doi CA ma pod khong cuon = ba service cam cert lech nhau, trieu chung TU KHOI sau vai chuc giay nen de bi do cho 'mang chap'",
+    "off->permissive lat transport hai dau ⇒ bat buoc mot cua so gian doan; chi permissive->require la em"
+  ]
+}

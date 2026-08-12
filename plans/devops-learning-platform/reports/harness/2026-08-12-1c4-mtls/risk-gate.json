@@ -1,0 +1,11 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "highRisk: TRUE — bat xac thuc tren cong gRPC ma CA BA service dang dung. Mot cau hinh sai khong cho 'loi nho o mot tinh nang' ma cho 'toan bo nen tang tra Unauthenticated'. Da hien thuc hoa dung hai lan trong chang nay tren cum: lan dau vi defaultMode 0400 + non-root, lan hai vi --reuse-values khong nap key moi nen fsGroup thanh null.",
+    "highRisk: TRUE — chart tu sinh CA. CA doi ma pod khong cuon = ba service cam cert lech nhau, va trieu chung la Unauthenticated rai rac TU KHOI sau vai chuc giay, de bi do cho 'mang chap'. Giam rui ro bang lookup + checksum annotation + guard fail khi Secret thieu khoa.",
+    "Giam rui ro bang ba nac: moi ben cam cert o permissive TRUOC, do, roi moi siet. Duong lui an toan la require->permissive."
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "commands": [
+    {
+      "command": "go test ./... -race -count=1 (4 module, Redis + Postgres THAT)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T09:40:00+07:00",
+      "summary": "359 PASS / 0 SKIP / 0 FAIL (truoc chang: 248). Dem bang grep '^--- PASS' chu KHONG tin exit code — go test tra 0 khi moi ca tu skip, va suite nay skip sach neu thieu REDIS_URL. SKIP=0 la ve phai doc cung."
+    },
+    {
+      "command": "golangci-lint run (GOOS=linux, v2.12.2, 4 module)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T09:45:00+07:00",
+      "summary": "0 issues. Truoc khi va review: 3 issue — G304 o tlsx.go + hai helper chet (containsAny/contains) trong mtls_test.go, du de CI job Go do va chan merge."
+    },
+    {
+      "command": "kiem dot bien — 4 phep",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T09:20:00+07:00",
+      "summary": "permissive->RequireAndVerify => 3 ca do. Bo ghim CN => CHI 2 ca CN do. ParseMode roi ve off => CHI 2 ca mode do. Bo guard VerifiedChains => CHI TestGuardVerifiedChainsChanCertChuaVerify do. Hai luot dau ban dau cho 'khong ca nao do' ma thuc ra la dot bien KHONG BIEN DICH DUOC — harness da sua de phan biet, vi loi bien dich va 'khong do' nhin giong het nhau khi chi grep '--- FAIL'."
+    },
+    {
+      "command": "probe mTLS trong cum — 4 ca x 2 nac",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T09:33:00+07:00",
+      "summary": "permissive: plaintext->Unavailable, khong-cert->PermissionDenied, cert web->PermissionDenied(CN), cert gateway->NotFound. require: khong-cert chuyen thanh Unavailable 'tls: certificate required' — DAY la khac biet do duoc giua hai nac, chung minh chung la hai trang thai that."
+    },
+    {
+      "command": "duong nguoi dung o nac require",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T09:36:00+07:00",
+      "summary": "session.create qua kenh connect-node TLS -> http=200 + pod that + Set-Cookie dlp_sandbox (LAN DAU ve Node duoc do). Gateway: dlp_gateway_extend_total{ok} 0->1 sau 81s WS co traffic that — can vi grpc.NewClient LAZY nen log 'dung mTLS' chi chung minh cau hinh. Terminal go duoc: WS 101, 14081 byte ve, thay dung dau vet lenh."
+    },
+    {
+      "command": "pnpm turbo test + env-check + helm lint/template",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-12T09:47:00+07:00",
+      "summary": "web 95 test PASS (82->95, +13 ca cho duong mTLS cua Node — truoc do duong nay KHONG co test nao va CI ghim off). env-check 66 bien/4 scope. helm render OK o ca ba nac, lint 0 failed."
+    }
+  ]
+}

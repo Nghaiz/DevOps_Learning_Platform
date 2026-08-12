@@ -45,3 +45,9 @@ Thumbs.db
 
 # Playwright MCP scratch (ảnh/snapshot của phiên đo, không phải tài sản repo)
 .playwright-mcp/
+
+# Binary của công cụ chẩn đoán mTLS — `go build ./cmd/mtls-probe` sinh nó ngay
+# trong thư mục module, và nó KHÔNG có đuôi nên không dính pattern nào ở trên.
+# 16 MB binary lọt vào repo qua một `git add -A` là chuyện đã suýt xảy ra.
+services/orchestrator/mtls-probe
+services/orchestrator/mtls-probe.exe

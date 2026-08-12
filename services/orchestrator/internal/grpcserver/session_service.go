@@ -4,6 +4,7 @@ package grpcserver
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/lifecycle"
@@ -35,13 +36,27 @@ type SessionService struct {
 
 	log       *slog.Logger
 	lifecycle Lifecycle
+
+	// systemCNs là allowlist CommonName được dùng nhánh `actor.system_component`.
+	//
+	// ⛔ CHÍNH SÁCH Ở ĐÂY, SỰ THẬT Ở INTERCEPTOR. Interceptor chỉ nói "cert này
+	// verify được và CN của nó là X" — một sự thật. Việc X có được phong
+	// system_component hay không là một quyết định, và quyết định thuộc về tầng
+	// biết `oneof actor` nghĩa là gì. Nhét allowlist vào interceptor sẽ buộc nó
+	// biết về proto, và mọi RPC khác phải chịu một phép kiểm chỉ ReapSession cần.
+	systemCNs []string
 }
 
 // NewSessionService dựng service. lifecycle có thể là nil khi orchestrator chạy
 // mà không có datastore — khi đó cả ba RPC trả Unavailable với lý do rõ ràng,
 // chứ KHÔNG panic ở request đầu tiên.
-func NewSessionService(log *slog.Logger, lifecycle Lifecycle) *SessionService {
-	return &SessionService{log: log, lifecycle: lifecycle}
+//
+// systemCNs rỗng ⇒ KHÔNG CN nào được dùng nhánh system_component. Fail-closed:
+// một danh sách chưa cấu hình không được suy thành "cho phép tất cả" (config.Load
+// đã chặn ca đó khi mTLS bật, nhưng tầng này không được phụ thuộc vào điều đó —
+// đây là tuyến phòng thủ thứ hai, không phải bản sao).
+func NewSessionService(log *slog.Logger, lifecycle Lifecycle, systemCNs []string) *SessionService {
+	return &SessionService{log: log, lifecycle: lifecycle, systemCNs: systemCNs}
 }
 
 // CreateSession cấp session mới và claim pod cho nó.
@@ -148,7 +163,7 @@ func (s *SessionService) resolveReapActor(
 		}
 		trust := TrustFromContext(ctx)
 		if !trust.InCluster {
-			// Với GRPC_REQUIRE_MTLS=false, server KHÔNG chứng minh được peer là
+			// Với GRPC_MTLS_MODE=off, server KHÔNG chứng minh được peer là
 			// in-cluster, nên nhánh này bị từ chối thẳng thay vì đoán bằng IP.
 			// Reaper nội bộ KHÔNG đi qua đây — nó gọi thẳng lifecycle.Reap
 			// trong cùng process, nên việc từ chối ở đây không chặn gì đang chạy.
@@ -157,7 +172,23 @@ func (s *SessionService) resolveReapActor(
 				slog.String("peer", trust.Addr))
 			return lifecycle.ReapActor{}, status.Error(codes.PermissionDenied,
 				"actor.system_component chỉ chấp nhận trên kết nối in-cluster đã xác thực (mTLS); "+
-					"xem GRPC_REQUIRE_MTLS")
+					"xem GRPC_MTLS_MODE")
+		}
+		// ⛔ "CÓ CERT" CHƯA ĐỦ — CA CỦA TA KÝ CHO CẢ apps/web LẪN gateway.
+		//
+		// Không có phép kiểm này thì mTLS chặn được kẻ ngoài nhưng gộp hai người
+		// TRONG có quyền khác nhau làm một: apps/web sẽ reap được session của bất
+		// kỳ ai qua nhánh system_component, trong khi việc của nó chỉ là reap
+		// phiên của chính người đang đăng nhập (nhánh user_id). Và nó hỏng im
+		// lặng — đường user_id vẫn chạy đúng, nên không test chức năng nào đỏ.
+		if !slices.Contains(s.systemCNs, trust.CommonName) {
+			s.log.Warn("từ chối actor=system_component: CommonName không nằm trong allowlist",
+				slog.String("component", a.SystemComponent),
+				slog.String("cn", trust.CommonName),
+				slog.String("peer", trust.Addr))
+			return lifecycle.ReapActor{}, status.Error(codes.PermissionDenied,
+				"actor.system_component: client certificate hợp lệ nhưng CommonName không được cấp quyền "+
+					"system_component; xem GRPC_MTLS_SYSTEM_CNS")
 		}
 		return lifecycle.ReapActor{System: true, Component: a.SystemComponent}, nil
 

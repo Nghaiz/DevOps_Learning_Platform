@@ -1,0 +1,32 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [
+    "BAC BO — comment PeerTrust.CommonName viet 'doc nham PeerCertificates nghia la allowlist CN bien thanh trang tri'. Kiem dot bien cho thay doi sang PeerCertificates KHONG lam test nao do: voi ClientAuth hien tai, crypto/tls da verify XONG truoc khi interceptor chay nen hai mang chua cung mot cert. Guard chi an tien khi ClientAuth bi ha xuong RequireAnyClientCert. Da viet test dung cau hinh do va sua comment theo ranh gioi DO DUOC.",
+    "BAC BO — Files.Validate() khai 'kiem ba duong dan DOC DUOC' nhung dung os.Stat, ma os.Stat chi can quyen DUYET THU MUC. Do tren cum: ls/stat chay duoc tren dung file ma cat tra Permission denied => cong fail-fast cho qua dung ho loi duy nhat ma cert mount tu Secret thuc su hay gap. Da doi sang os.Open.",
+    "BAC BO — comment checksum khai 'dung yen, chi doi o dung hai ca'. Mot lan helm template sinh BA gia tri KHAC NHAU cho ba deployment (moi include render lai genCA). Lan upgrade dau sau install luon cuon ca ba pod du cert khong doi.",
+    "BAC BO — values khai 'trinh tu ba nac khong co cua so chet'. Chi dung cho permissive->require. off->permissive va permissive->off deu lat transport o ca hai dau, va Kubernetes cuon ba Deployment khong theo thu tu nao.",
+    "BAC BO — mac dinh ship permissive trong khi commit message noi 'dong R25'. permissive nhan client khong cert => ve 'user_id la field client tu khai' VAN MO. Da doi mac dinh sang require."
+  ],
+  "reachableRegressions": [
+    "DA SUA — defaultMode 0400 + container non-root, khong fsGroup => KHONG pod nao doc duoc cert. Quan sat duoc: hai pod Go CrashLoopBackOff, web len Ready roi tra 500 o moi RPC (probe la httpGet nen k8s khong thay gi sai), helm upgrade bao thanh cong.",
+    "DA SUA — mount NGUYEN Secret vao ca ba pod => apps/web (dung truoc internet) cam gateway.key => bat ky duong doc file tuy y nao cung dung duoc cert CN=platform-gateway va reap session cua bat ky ai. Ghim CN bi chinh chart vo hieu hoa. Do duoc: kubectl exec deploy/platform-web -- ls /etc/dlp/mtls/ liet ke gateway.key. Da tach bang items:.",
+    "DA SUA — golangci-lint 3 issue (G304 + 2 helper chet) du de CI job Go do va chan merge.",
+    "DA SUA — Secret thieu mot khoa thi thieu VINH VIEN (toYaml $prev.data chep nguyen map, khong nhanh nao tai sinh). Them guard fail neu dich danh khoa thieu.",
+    "DA SUA — cong env-check mu voi _helpers.tpl: 4 bien mTLS phat ra tu define dung chung nen nam ngoai tam regex, cong van xanh vi KHONG NHIN THAY. Nay doc ca _helpers.tpl.",
+    "DA SUA — helm upgrade --reuse-values KHONG nap key moi cua values.yaml => mtlsFsGroup nil => template phat fsGroup rong => k8s bo qua => pod lai khong doc duoc cert, IM LANG. Them required() neu dich danh nguyen nhan va chi ra --reset-then-reuse-values."
+  ],
+  "missingProof": [
+    "Khong co metric dem 'bao nhieu ket noi da trinh cert da verify' — nac permissive duoc ban la trang thai QUAN SAT nhung thu can quan sat thi khong duoc do.",
+    "Chua co quy trinh xoay cert; CA private key bi vut sau lan render dau.",
+    "lookup fail-open voi RBAC: thieu quyen get secrets se xoay CA moi lan upgrade trong im lang — khong phan biet duoc tu trong template.",
+    "NewStreamDenyInterceptor chua co test qua kenh gRPC that, chi goi truc tiep ham interceptor.",
+    "Khong co probe/metric nao phat hien 'cong gRPC dang tu choi 100% bat tay' — readiness la httpGet tren cong khac."
+  ],
+  "unverifiedClaims": [
+    "Khong co metric dem 'bao nhieu ket noi da trinh cert da verify' — nac permissive duoc ban la trang thai QUAN SAT nhung thu can quan sat thi khong duoc do.",
+    "Chua co quy trinh xoay cert; CA private key bi vut sau lan render dau.",
+    "lookup fail-open voi RBAC: thieu quyen get secrets se xoay CA moi lan upgrade trong im lang — khong phan biet duoc tu trong template.",
+    "NewStreamDenyInterceptor chua co test qua kenh gRPC that, chi goi truc tiep ham interceptor.",
+    "Khong co probe/metric nao phat hien 'cong gRPC dang tu choi 100% bat tay' — readiness la httpGet tren cong khac."
+  ]
+}

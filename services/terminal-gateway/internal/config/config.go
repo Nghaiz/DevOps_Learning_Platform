@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/envx"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/tlsx"
 )
 
 // Config là toàn bộ cấu hình runtime của terminal-gateway.
@@ -28,6 +29,25 @@ type Config struct {
 	// OrchestratorGRPCAddr chưa dùng ở P0 (gateway chưa nối pod), nhưng seam đã
 	// khoá từ đây để P1 không phải sửa hình dạng config.
 	OrchestratorGRPCAddr string
+
+	// MTLSMode dùng CHUNG một biến với orchestrator và apps/web (1.C-4).
+	//
+	// Phía CLIENT, `permissive` và `require` giống hệt nhau: cả hai đều trình
+	// client cert. Khác biệt chỉ có ở phía server. Đó chính là điều làm một-biến
+	// -cho-cả-cụm an toàn: đặt `permissive` là mọi client đã cắm cert trong khi
+	// server còn khoan dung, nên bước sang `require` không đổi hành vi client nào.
+	MTLSMode tlsx.Mode
+
+	// MTLSFiles là cert/key/CA client. Rỗng khi MTLSMode=off.
+	MTLSFiles tlsx.Files
+
+	// MTLSServerName phải khớp một SAN trong cert của orchestrator.
+	//
+	// Tách khỏi OrchestratorGRPCAddr thay vì cắt phần host của nó: hai giá trị
+	// TRÙNG nhau hôm nay nhưng không buộc phải trùng — ngày có Service mesh hay
+	// port-forward thì địa chỉ dial đổi mà tên trên cert thì không. Suy hộ từ
+	// địa chỉ là dựng một ràng buộc ngầm sẽ hỏng đúng lúc khó chẩn đoán nhất.
+	MTLSServerName string
 
 	// JWKSURL là endpoint JWKS của Better Auth (`/api/auth/jwks` trên apps/web).
 	// Gateway verify sandbox token bằng khoá CÔNG KHAI lấy từ đây — không có
@@ -139,8 +159,35 @@ func Load() (*Config, error) {
 			"thì exec chạy CMD của image (`sleep infinity`) và terminal treo câm")
 	}
 
+	mtlsMode, err := tlsx.ParseMode(envx.String("GRPC_MTLS_MODE", string(tlsx.ModeOff)))
+	if err != nil {
+		return nil, fmt.Errorf("env GRPC_MTLS_MODE: %w", err)
+	}
+	mtlsFiles := tlsx.Files{
+		CertFile: envx.String("GRPC_TLS_CERT_FILE", ""),
+		KeyFile:  envx.String("GRPC_TLS_KEY_FILE", ""),
+		CAFile:   envx.String("GRPC_TLS_CA_FILE", ""),
+	}
+	mtlsServerName := envx.String("GRPC_TLS_SERVER_NAME", "")
+	if mtlsMode.Enabled() {
+		// Fail-fast cùng lý lẽ với orchestrator: thiếu cert mà mode bật nghĩa là
+		// gateway lên xanh rồi MỌI heartbeat ExtendSession hỏng ở bắt tay TLS —
+		// và triệu chứng đó (session hết hạn giữa chừng dù người dùng đang gõ)
+		// trỏ về đồng hồ session, không trỏ về một file cert vắng mặt.
+		if err := mtlsFiles.Validate(); err != nil {
+			return nil, fmt.Errorf("env GRPC_MTLS_MODE=%s nhưng cert chưa sẵn sàng: %w", mtlsMode, err)
+		}
+		if mtlsServerName == "" {
+			return nil, fmt.Errorf("env GRPC_TLS_SERVER_NAME: bắt buộc khi GRPC_MTLS_MODE=%s "+
+				"(phải khớp một SAN trong cert của orchestrator)", mtlsMode)
+		}
+	}
+
 	return &Config{
 		PublicAddr:           envx.String("PUBLIC_ADDR", ":8082"),
+		MTLSMode:             mtlsMode,
+		MTLSFiles:            mtlsFiles,
+		MTLSServerName:       mtlsServerName,
 		AdminAddr:            envx.String("ADMIN_ADDR", "127.0.0.1:8083"),
 		LogLevel:             envx.String("LOG_LEVEL", "info"),
 		ShutdownGrace:        shutdownGrace,

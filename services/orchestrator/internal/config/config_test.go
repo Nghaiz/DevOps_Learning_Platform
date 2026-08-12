@@ -1,6 +1,8 @@
 package config_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +19,8 @@ func clearEnv(t *testing.T) {
 		"GRPC_ADDR", "HTTP_ADDR", "LOG_LEVEL", "GRPC_REFLECTION",
 		"DATABASE_URL", "REDIS_URL", "SESSION_TTL", "SHUTDOWN_GRACE", "SANDBOX_NAMESPACE",
 		"SANDBOX_IMAGE",
+		"GRPC_MTLS_MODE", "GRPC_TLS_CERT_FILE", "GRPC_TLS_KEY_FILE", "GRPC_TLS_CA_FILE",
+		"GRPC_MTLS_SYSTEM_CNS",
 	} {
 		t.Setenv(key, "")
 	}
@@ -125,22 +129,120 @@ func TestLoadFailsOnMalformedDuration(t *testing.T) {
 	}
 }
 
-// TestRequireMTLSTuChoiKhoiDong (H-2).
+// TestMTLSBatMaThieuCertThiTuChoiKhoiDong (H-2, viết lại ở 1.C-4).
 //
-// ⛔ Service chưa có `grpc.Creds`/`ClientCAs` nào (mTLS thật thuộc D13, làm cùng
-// lane gateway), nên bật cờ = 100% RPC trả Unauthenticated. Để nó khởi động
-// được là dựng một cổng an ninh GIẢ: health probe xanh, dashboard xanh, và
-// không request nào chạy. Thà chết lúc khởi động với thông báo nói đúng chuyện
-// gì thiếu.
-func TestRequireMTLSTuChoiKhoiDong(t *testing.T) {
+// ⛔ ĐIỀU KIỆN ĐỔI, CHẾ ĐỘ HỎNG THÌ KHÔNG. Bản trước từ chối khởi động khi BẬT
+// cờ, vì lúc đó chưa có đường nào để cert tồn tại. Nay có, nên điều kiện đúng
+// là: bật mà THIẾU cert. Cả hai bản chống cùng một thứ — pod lên xanh, health
+// probe xanh, và mọi RPC trả Unauthenticated vì server không có creds. Đó là
+// một cổng an ninh GIẢ, và nó tệ hơn không có cổng nào vì dashboard nói ngược lại.
+func TestMTLSBatMaThieuCertThiTuChoiKhoiDong(t *testing.T) {
+	for _, mode := range []string{"permissive", "require"} {
+		t.Run(mode, func(t *testing.T) {
+			clearEnv(t)
+			t.Setenv("GRPC_MTLS_MODE", mode)
+
+			_, err := config.Load()
+			if err == nil {
+				t.Fatalf("Load() chấp nhận GRPC_MTLS_MODE=%s không cert — orchestrator sẽ lên xanh rồi chặn mọi RPC", mode)
+			}
+			if !strings.Contains(err.Error(), "GRPC_MTLS_MODE") {
+				t.Fatalf("thông báo %q không nêu tên biến gây lỗi", err)
+			}
+		})
+	}
+}
+
+// TestSplitCNsBoMucRong — dấu phẩy thừa KHÔNG được sinh ra một CN rỗng.
+//
+// ⛔ CA NÀY KHÔNG PHẢI CHI TIẾT CÚ PHÁP. `"platform-gateway,"` với
+// `strings.Split` trần cho ra `["platform-gateway", ""]`, và một cert **không có
+// CN** đọc ra `""` ⇒ khớp allowlist ⇒ được phong `system_component`. Tức đúng
+// một dấu phẩy thừa trong values mở lại cái cửa mà cả chương này đóng. Không có
+// test thì một hiện thực `strings.Split` trần vẫn xanh toàn bộ suite.
+func TestSplitCNsBoMucRong(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"tls.crt", "tls.key", "ca.crt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o600); err != nil {
+			t.Fatalf("ghi %s: %v", name, err)
+		}
+	}
+	for _, tc := range []struct {
+		raw  string
+		want []string
+	}{
+		{"platform-gateway,", []string{"platform-gateway"}},
+		{",platform-gateway", []string{"platform-gateway"}},
+		{" platform-gateway , , platform-web ", []string{"platform-gateway", "platform-web"}},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			clearEnv(t)
+			t.Setenv("GRPC_MTLS_MODE", "require")
+			t.Setenv("GRPC_TLS_CERT_FILE", filepath.Join(dir, "tls.crt"))
+			t.Setenv("GRPC_TLS_KEY_FILE", filepath.Join(dir, "tls.key"))
+			t.Setenv("GRPC_TLS_CA_FILE", filepath.Join(dir, "ca.crt"))
+			t.Setenv("GRPC_MTLS_SYSTEM_CNS", tc.raw)
+
+			cfg, err := config.Load()
+			if err != nil {
+				t.Fatalf("Load(): %v", err)
+			}
+			if len(cfg.MTLSSystemCNs) != len(tc.want) {
+				t.Fatalf("MTLSSystemCNs = %q, cần %q", cfg.MTLSSystemCNs, tc.want)
+			}
+			for i, cn := range tc.want {
+				if cfg.MTLSSystemCNs[i] != cn {
+					t.Fatalf("MTLSSystemCNs = %q, cần %q", cfg.MTLSSystemCNs, tc.want)
+				}
+			}
+			for _, cn := range cfg.MTLSSystemCNs {
+				if cn == "" {
+					t.Fatal("allowlist chứa CN RỖNG — một cert không có CN sẽ khớp nó")
+				}
+			}
+		})
+	}
+}
+
+// TestMTLSModeLaChuoiLaThiTuChoi.
+//
+// Một typo (`permisive`, `require ` thừa dấu cách) rơi về `off` nghĩa là cổng an
+// ninh TẮT trong im lặng đúng lúc người vận hành tin rằng vừa bật nó — và không
+// có triệu chứng nào để lần ra, vì `off` là trạng thái chạy được.
+func TestMTLSModeLaChuoiLaThiTuChoi(t *testing.T) {
 	clearEnv(t)
-	t.Setenv("GRPC_REQUIRE_MTLS", "true")
+	t.Setenv("GRPC_MTLS_MODE", "permisive")
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("Load() nuốt một mode viết sai — nó sẽ chạy với mTLS TẮT trong khi env nói ngược lại")
+	}
+}
+
+// TestMTLSAllowlistCNRongThiTuChoiKhoiDong.
+//
+// Rỗng KHÔNG được hiểu là "cho phép mọi CN": đó là cách ghim CN tự vô hiệu hoá
+// trong im lặng khi ai đó xoá biến khỏi values. Một quyết định chưa có thì không
+// được suy ra hộ — nhất là khi đường suy ra mặc định lại là đường mở nhất.
+func TestMTLSAllowlistCNRongThiTuChoiKhoiDong(t *testing.T) {
+	clearEnv(t)
+	dir := t.TempDir()
+	// Nội dung không cần hợp lệ: Validate() chỉ kiểm ĐỌC ĐƯỢC, và ca này dừng
+	// trước khi có ai parse chúng.
+	for _, name := range []string{"tls.crt", "tls.key", "ca.crt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o600); err != nil {
+			t.Fatalf("ghi %s: %v", name, err)
+		}
+	}
+	t.Setenv("GRPC_MTLS_MODE", "require")
+	t.Setenv("GRPC_TLS_CERT_FILE", filepath.Join(dir, "tls.crt"))
+	t.Setenv("GRPC_TLS_KEY_FILE", filepath.Join(dir, "tls.key"))
+	t.Setenv("GRPC_TLS_CA_FILE", filepath.Join(dir, "ca.crt"))
 
 	_, err := config.Load()
 	if err == nil {
-		t.Fatal("Load() chấp nhận GRPC_REQUIRE_MTLS=true — orchestrator sẽ lên xanh rồi chặn mọi RPC")
+		t.Fatal("Load() chấp nhận allowlist CN rỗng — mọi cert do CA cụm ký sẽ dùng được system_component")
 	}
-	if !strings.Contains(err.Error(), "GRPC_REQUIRE_MTLS") {
+	if !strings.Contains(err.Error(), "GRPC_MTLS_SYSTEM_CNS") {
 		t.Fatalf("thông báo %q không nêu tên biến gây lỗi", err)
 	}
 }

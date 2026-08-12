@@ -106,9 +106,22 @@ function envNamesFromCompose(file) {
 /**
  * Tên env trong Deployment. Lọc theo CHỮ HOA: `- name: http` / `- name: web` là
  * tên port và tên container, không phải biến môi trường.
+ *
+ * ⛔ PHẢI ĐỌC CẢ `_helpers.tpl`, KHÔNG CHỈ FILE DEPLOYMENT. Cổng này bắt biến
+ * bằng regex đọc TRỰC TIẾP file deployment, nên khoảnh khắc một khối env được
+ * gom vào một `define` dùng chung (đúng việc nên làm — xem `platform.mtlsEnv`,
+ * một biến cho cả ba service), những biến đó **biến mất khỏi tầm nhìn của cổng**
+ * và nó vẫn báo xanh. Xanh vì KHÔNG NHÌN THẤY, không phải vì khớp — đúng loại
+ * hỏng mà chính repo này gọi là tautology. Phát hiện ở review 1.C-4 (2026-08-12).
  */
 function envNamesFromHelm(file) {
-  return new Set(matchAll(read(file), /^\s*-\s*name:\s*([A-Z][A-Z0-9_]*)\s*$/gm));
+  const helpers = path.join(path.dirname(file), '_helpers.tpl');
+  const sources = existsSync(helpers) ? [file, helpers] : [file];
+  const names = new Set();
+  for (const f of sources) {
+    for (const n of matchAll(read(f), /^\s*-\s*name:\s*([A-Z][A-Z0-9_]*)\s*$/gm)) names.add(n);
+  }
+  return names;
 }
 
 /**

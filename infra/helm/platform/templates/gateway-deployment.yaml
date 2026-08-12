@@ -12,9 +12,25 @@ spec:
       {{- include "platform.selectorLabels" (dict "context" . "component" "gateway") | nindent 6 }}
   template:
     metadata:
+      {{- if ne .Values.platform.grpcMtlsMode "off" }}
+      annotations:
+        {{- /*
+        CA đổi mà pod không cuốn = pod giữ cert do CA CŨ ký, còn server tin CA
+        MỚI ⇒ bắt tay hỏng vĩnh viễn, và `helm upgrade` vẫn báo thành công.
+
+        ⚠ CHECKSUM NÀY KHÔNG "ĐỨNG YÊN" NHƯ BẢN NHÁP VIẾT. Đo được 2026-08-12:
+        một lần `helm template` sinh BA giá trị KHÁC NHAU cho ba deployment, vì
+        mỗi `include` render lại `genCA` với randomness mới. Hệ quả thật: lần
+        `helm upgrade` ĐẦU TIÊN sau install luôn cuốn cả ba pod dù cert không
+        đổi (từ lần đó trở đi `lookup` có giá trị nên nó ổn định). Vô hại — cùng
+        một CA — nhưng đừng dùng "checksum không đổi" làm căn cứ chẩn đoán.
+        */}}
+        checksum/mtls-secret: {{ include (print $.Template.BasePath "/mtls-secret.yaml") . | sha256sum }}
+      {{- end }}
       labels:
         {{- include "platform.selectorLabels" (dict "context" . "component" "gateway") | nindent 8 }}
     spec:
+      {{- include "platform.mtlsPodSecurityContext" . | nindent 6 }}
       serviceAccountName: {{ include "platform.fullname" . }}-gateway
       {{- if .Values.platform.priorityClassEnabled }}
       priorityClassName: {{ .Values.platform.priorityClassName }}
@@ -47,6 +63,18 @@ spec:
               value: {{ .Values.gateway.env.shutdownGrace | quote }}
             - name: ORCHESTRATOR_GRPC_ADDR
               value: {{ .Values.gateway.env.orchestratorGrpcAddr | default (printf "%s-orchestrator:%v" (include "platform.fullname" .) .Values.orchestrator.service.grpcPort) | quote }}
+            {{- include "platform.mtlsEnv" (dict "context" . "cert" "gateway") | nindent 12 }}
+            {{- if ne .Values.platform.grpcMtlsMode "off" }}
+            {{/*
+            Tên trên cert server, KHÔNG cắt ra từ ORCHESTRATOR_GRPC_ADDR ở trên.
+            Hai giá trị trùng nhau hôm nay nhưng không buộc phải trùng: ngày ai
+            đó trỏ gateway qua port-forward hay một Service mesh, địa chỉ dial
+            đổi mà tên trên cert thì không — và lỗi khi đó là "bad certificate"
+            trỏ về TLS, không trỏ về chỗ đã suy hộ.
+            */}}
+            - name: GRPC_TLS_SERVER_NAME
+              value: {{ printf "%s-orchestrator" (include "platform.fullname" .) | quote }}
+            {{- end }}
             # Endpoint JWKS của Better Auth. KHÔNG phải secret — nó phơi khoá
             # CÔNG KHAI, nên env.value là đúng chỗ, không phải secretKeyRef.
             # 404 ở URL này nghĩa là plugin jwt() chưa mount và mọi verify token
@@ -128,4 +156,12 @@ spec:
             periodSeconds: 20
           resources:
             {{- toYaml .Values.gateway.resources | nindent 12 }}
+          {{- if ne .Values.platform.grpcMtlsMode "off" }}
+          volumeMounts:
+            {{- include "platform.mtlsVolumeMount" . | nindent 12 }}
+          {{- end }}
+      {{- if ne .Values.platform.grpcMtlsMode "off" }}
+      volumes:
+        {{- include "platform.mtlsVolume" (dict "context" . "cert" "gateway") | nindent 8 }}
+      {{- end }}
 {{- end }}

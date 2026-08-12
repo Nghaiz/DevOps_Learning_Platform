@@ -19,7 +19,14 @@
       "t1k-web-testing-tester",
       "t1k-project-manager",
       "t1k-docs-manager",
-      "t1k-git-manager"
+      "t1k-git-manager",
+      "Explore",
+      "general-purpose",
+      "t1k-planner",
+      "t1k-fullstack-developer",
+      "t1k-tester",
+      "t1k-code-reviewer",
+      "t1k-debugger"
     ],
     "perSpawnModelOverride": true,
     "security": {

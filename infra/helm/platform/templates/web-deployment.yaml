@@ -12,8 +12,12 @@ spec:
       {{- include "platform.selectorLabels" (dict "context" . "component" "web") | nindent 6 }}
   template:
     metadata:
-      {{- if or (not .Values.web.env.existingSecret) (and .Values.datastore.enabled (not .Values.datastore.existingSecret)) }}
+      {{- if or (not .Values.web.env.existingSecret) (and .Values.datastore.enabled (not .Values.datastore.existingSecret)) (ne .Values.platform.grpcMtlsMode "off") }}
       annotations:
+        {{- if ne .Values.platform.grpcMtlsMode "off" }}
+        {{- /* Xem giải thích ở gateway-deployment.yaml — cùng lý do. */}}
+        checksum/mtls-secret: {{ include (print $.Template.BasePath "/mtls-secret.yaml") . | sha256sum }}
+        {{- end }}
         # Đổi giá trị trong Secret KHÔNG tự rollout pod đang chạy (env đọc một
         # lần lúc container start). Checksum làm pod template đổi theo nội dung
         # Secret ⇒ `helm upgrade` xoay pod. Thiếu dòng này thì xoay
@@ -32,6 +36,7 @@ spec:
       labels:
         {{- include "platform.selectorLabels" (dict "context" . "component" "web") | nindent 8 }}
     spec:
+      {{- include "platform.mtlsPodSecurityContext" . | nindent 6 }}
       serviceAccountName: {{ include "platform.fullname" . }}-web
       # web đứng trước internet, chỉ gọi orchestrator qua gRPC — không có lý
       # do gì cầm token API server. Lặp lại false ở đây dù ServiceAccount
@@ -111,6 +116,11 @@ spec:
               # Web (BFF) là caller gRPC DUY NHẤT ở P0 — thiếu biến này thì
               # env.ts default localhost:9090 = web pod tự gọi chính nó.
               value: {{ .Values.web.env.orchestratorGrpcAddr | default (printf "%s-orchestrator:%v" (include "platform.fullname" .) .Values.orchestrator.service.grpcPort) | quote }}
+            {{- include "platform.mtlsEnv" (dict "context" . "cert" "web") | nindent 12 }}
+            {{- if ne .Values.platform.grpcMtlsMode "off" }}
+            - name: GRPC_TLS_SERVER_NAME
+              value: {{ printf "%s-orchestrator" (include "platform.fullname" .) | quote }}
+            {{- end }}
             {{- with .Values.web.env.rateLimitTrustProxy }}
             - name: RATE_LIMIT_TRUST_PROXY
               value: {{ . | quote }}
@@ -147,4 +157,12 @@ spec:
             periodSeconds: 20
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}
+          {{- if ne .Values.platform.grpcMtlsMode "off" }}
+          volumeMounts:
+            {{- include "platform.mtlsVolumeMount" . | nindent 12 }}
+          {{- end }}
+      {{- if ne .Values.platform.grpcMtlsMode "off" }}
+      volumes:
+        {{- include "platform.mtlsVolume" (dict "context" . "cert" "web") | nindent 8 }}
+      {{- end }}
 {{- end }}

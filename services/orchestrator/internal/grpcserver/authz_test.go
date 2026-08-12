@@ -12,14 +12,20 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/grpcserver"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/tlsx"
 )
 
 // runInterceptor chạy interceptor với một handler đánh dấu "đã tới".
+//
+// ⚠ GIỚI HẠN CỦA CẢ HỌ TEST NÀY, ghi rõ để không ai đọc nhầm phạm vi: nó dựng
+// `peer.Peer` bằng tay, KHÔNG bắt tay TLS thật, nên nó chỉ chứng minh được logic
+// rẽ nhánh của interceptor. Vế "cert do CA lạ ký thì bị chặn" và "CN đọc đúng"
+// nằm ở mtls_test.go, nơi có một server gRPC thật với cert thật.
 func runInterceptor(
-	ctx context.Context, t *testing.T, requireMTLS bool,
+	ctx context.Context, t *testing.T, mode tlsx.Mode,
 ) (reached bool, trust grpcserver.PeerTrust, err error) {
 	t.Helper()
-	interceptor := grpcserver.NewAuthInterceptor(discardLogger(), requireMTLS)
+	interceptor := grpcserver.NewAuthInterceptor(discardLogger(), mode)
 	_, err = interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/test/Method"},
 		func(inner context.Context, _ interface{}) (interface{}, error) {
 			reached = true
@@ -39,12 +45,12 @@ func ctxWithPeer() context.Context {
 
 // TestInterceptorTatThiKhongChungMinhDuocGi.
 //
-// Với GRPC_REQUIRE_MTLS=false, interceptor phải nói THẲNG là không chứng minh
+// Với GRPC_MTLS_MODE=off, interceptor phải nói THẲNG là không chứng minh
 // được gì (InCluster=false) thay vì đoán bằng dải IP — mọi pod trong cluster đều
 // nằm trong pod CIDR, kể cả pod của sinh viên nếu NetworkPolicy hở, nên một
 // heuristic theo IP cho kết quả "hợp lệ" cho chính thứ nó phải chặn.
 func TestInterceptorTatThiKhongChungMinhDuocGi(t *testing.T) {
-	reached, trust, err := runInterceptor(ctxWithPeer(), t, false)
+	reached, trust, err := runInterceptor(ctxWithPeer(), t, tlsx.ModeOff)
 	if err != nil {
 		t.Fatalf("cổng tắt không được chặn request: %v", err)
 	}
@@ -65,7 +71,7 @@ func TestInterceptorTatThiKhongChungMinhDuocGi(t *testing.T) {
 // nên một request KHÔNG có peer đi thẳng qua handler dù cổng đang bật —
 // fail-OPEN, ngược hẳn với lập luận trong chính doc comment phía trên nó.
 func TestInterceptorBatMaKhongCoPeerThiTuChoi(t *testing.T) {
-	reached, _, err := runInterceptor(context.Background(), t, true)
+	reached, _, err := runInterceptor(context.Background(), t, tlsx.ModeRequire)
 	if reached {
 		t.Fatal("handler ĐÃ CHẠY dù cổng bật và không xác định được peer — fail-OPEN")
 	}
@@ -76,12 +82,40 @@ func TestInterceptorBatMaKhongCoPeerThiTuChoi(t *testing.T) {
 
 // TestInterceptorBatMaPeerKhongCoCertThiTUCHOI.
 func TestInterceptorBatMaPeerKhongCoCertThiTuChoi(t *testing.T) {
-	reached, _, err := runInterceptor(ctxWithPeer(), t, true)
+	reached, _, err := runInterceptor(ctxWithPeer(), t, tlsx.ModeRequire)
 	if reached {
 		t.Fatal("handler ĐÃ CHẠY dù peer không trình được client certificate")
 	}
 	if got := status.Code(err); got != codes.Unauthenticated {
 		t.Fatalf("code = %v, cần Unauthenticated", got)
+	}
+}
+
+// TestInterceptorPermissiveChoQuaKhiVANGCert (nấc giữa, 1.C-4).
+//
+// ⛔ ĐÂY LÀ CA ĐỊNH NGHĨA NẤC `permissive`, VÀ NÓ DỄ BỊ HIỆN THỰC NHẦM THÀNH
+// `require`. Nếu ai đó dùng tls.RequireAndVerifyClientCert cho permissive, hoặc
+// copy nhánh từ chối của require sang, thì nấc giữa biến mất — và cùng với nó là
+// toàn bộ trình tự bật an toàn (mọi client cắm cert TRƯỚC, rồi mới siết). Hỏng
+// theo kiểu không test chức năng nào đỏ: cụm vẫn chạy, chỉ là không còn đường
+// nào để bật mTLS mà không có cửa sổ chết.
+//
+// Vế đối xứng — permissive KHÔNG khoan dung với cert SAI — không test được ở
+// đây (nó xảy ra ở tầng crypto/tls, trước interceptor). Xem
+// TestPermissiveVanChanCertCuaCALa trong mtls_test.go.
+func TestInterceptorPermissiveChoQuaKhiVangCert(t *testing.T) {
+	reached, trust, err := runInterceptor(ctxWithPeer(), t, tlsx.ModePermissive)
+	if err != nil {
+		t.Fatalf("permissive phải cho qua client không cert: %v", err)
+	}
+	if !reached {
+		t.Fatal("handler không được gọi — permissive đang hành xử như require")
+	}
+	if trust.InCluster {
+		t.Fatal("InCluster=true dù client không trình cert nào")
+	}
+	if trust.CommonName != "" {
+		t.Fatalf("CommonName = %q, phải rỗng khi không có cert", trust.CommonName)
 	}
 }
 

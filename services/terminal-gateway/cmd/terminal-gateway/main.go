@@ -17,6 +17,7 @@ import (
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/httpx"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/logging"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/tlsx"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/config"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/extend"
@@ -26,6 +27,7 @@ import (
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/wsroute"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -76,29 +78,26 @@ func run() error {
 	met := metrics.New(obs.Registry)
 	adminSrv := httpx.NewServer(cfg.AdminAddr, obs.Mux)
 
-	// ⛔ KẾT NỐI TỚI ORCHESTRATOR HIỆN LÀ PLAINTEXT (R13/R25, phase-1 1.C-3).
-	//
-	// D13 chốt mTLS cho đường này, và nó VẪN CHƯA CÓ: cụm không có cert-manager,
-	// `grpcRequireMtls=false`, và `config.Load` của orchestrator TỪ CHỐI khởi
-	// động khi bật `true` vì server chưa có `grpc.Creds`/`ClientCAs` nào — bật
-	// cờ lúc này là dựng một cổng an ninh GIẢ trả `Unauthenticated` cho 100% RPC.
-	//
-	// Chặng này không làm rủi ro nặng thêm: `apps/web` đã gọi cùng cổng đó không
-	// xác thực từ G12, nên gateway là consumer thứ hai của một lỗ hổng đã mở, chứ
-	// không phải người mở nó. Đóng nó là việc của một chặng riêng (1.C-4) vì mTLS
-	// thật chạm CẢ HAI consumer, hai ngôn ngữ, và chart.
+	// Đường tới orchestrator (D13/R13/R25, đóng ở 1.C-4).
 	//
 	// `NewClient` (không phải `Dial`) nên lời gọi này KHÔNG chặn: nối thật xảy ra
 	// ở RPC đầu tiên. Gateway vì thế lên `Ready` được ngay cả khi orchestrator
 	// đang rollout — cùng lý lẽ với việc không ping Redis lúc khởi động.
-	grpcConn, err := grpc.NewClient(cfg.OrchestratorGRPCAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	//
+	// ⚠ HỆ QUẢ CỦA `NewClient`: cert SAI cũng không lộ ở đây. Bắt tay TLS xảy ra
+	// ở RPC đầu tiên, nên một CA lệch sẽ hiện ra dưới dạng heartbeat
+	// `ExtendSession` hỏng chứ không phải lỗi lúc khởi động. Đó là lý do
+	// `config.Load` phải kiểm ba file ĐỌC ĐƯỢC trước — nó là phép kiểm sớm duy
+	// nhất còn lại.
+	dialOpts, err := orchestratorDialOptions(cfg, log)
+	if err != nil {
+		return err
+	}
+	grpcConn, err := grpc.NewClient(cfg.OrchestratorGRPCAddr, dialOpts...)
 	if err != nil {
 		return fmt.Errorf("dựng client gRPC tới orchestrator: %w", err)
 	}
 	defer func() { _ = grpcConn.Close() }()
-	log.Warn("kết nối orchestrator KHÔNG mã hoá, không xác thực peer — xem R13/R25, chặng 1.C-4",
-		slog.String("addr", cfg.OrchestratorGRPCAddr))
 
 	extender := extend.New(orchestratorv1.NewSessionServiceClient(grpcConn), store, log, met)
 
@@ -173,4 +172,31 @@ func run() error {
 
 	log.Info("đã dừng sạch")
 	return nil
+}
+
+// orchestratorDialOptions dựng credentials cho kênh gRPC tới orchestrator.
+//
+// Tách thành hàm riêng chứ không viết inline ở call site: đây là seam mà 1.C-3
+// đã hứa ("client gRPC của gateway đặt sau một seam nhận grpc.DialOption"), và
+// nó là chỗ DUY NHẤT quyết định kênh này có mã hoá hay không — nên nó cũng là
+// chỗ duy nhất phải đọc khi hỏi câu đó.
+//
+// Phía client, `permissive` và `require` cho ra CÙNG một cấu hình: cả hai trình
+// client cert. Khác biệt nằm trọn ở server. Không có nhánh riêng cho hai nấc ở
+// đây là ĐÚNG, không phải thiếu sót.
+func orchestratorDialOptions(cfg *config.Config, log *slog.Logger) ([]grpc.DialOption, error) {
+	if !cfg.MTLSMode.Enabled() {
+		log.Warn("kết nối orchestrator KHÔNG mã hoá, không xác thực peer — GRPC_MTLS_MODE=off, xem R13/R25",
+			slog.String("addr", cfg.OrchestratorGRPCAddr))
+		return []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}, nil
+	}
+	tlsCfg, err := tlsx.ClientConfig(cfg.MTLSFiles, cfg.MTLSServerName)
+	if err != nil {
+		return nil, fmt.Errorf("dựng TLS cho kênh tới orchestrator (GRPC_MTLS_MODE=%s): %w", cfg.MTLSMode, err)
+	}
+	log.Info("kênh tới orchestrator dùng mTLS",
+		slog.String("addr", cfg.OrchestratorGRPCAddr),
+		slog.String("serverName", cfg.MTLSServerName),
+		slog.String("mtlsMode", string(cfg.MTLSMode)))
+	return []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))}, nil
 }

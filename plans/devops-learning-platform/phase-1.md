@@ -204,7 +204,7 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 
 ## 1.C — Terminal-gateway: WS ⇄ exec + per-session authz
 
-> **Tiến độ:** ✅ **LANE GATEWAY XONG.** 1.C-1 (G1, G2, G3, G11, G13 + bước i của G8) 2026-08-10 · 1.C-2 (G4–G6) 2026-08-10 · G12 2026-08-11 · **1.C-3 (G7–G10) 2026-08-11**. Còn lại của lane này chỉ là **1.C-4 — mTLS (D13/R13/R25)**, tách chương có chủ ý; xem dưới.
+> **Tiến độ:** ✅ **LANE GATEWAY XONG TRỌN VẸN.** 1.C-1 (G1, G2, G3, G11, G13 + bước i của G8) 2026-08-10 · 1.C-2 (G4–G6) 2026-08-10 · G12 2026-08-11 · 1.C-3 (G7–G10) 2026-08-11 · **1.C-4 mTLS (D13/R13/R25) 2026-08-12 — chương cuối, R25 ĐÓNG.**
 >
 > Chặng này cố ý **upgrade thật rồi đóng ngay `4500`** thay vì dừng trước upgrade: một bộ acceptance chỉ toàn ca ĐỎ không phân biệt được "chặn đúng chỗ" với "chặn tất cả". Ca 101 là đối chứng, và nó là ca duy nhất chứng minh chín bước kia có thể MỞ.
 >
@@ -324,7 +324,34 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 >
 > **⛔ MÓN NỢ, cùng họ với ba lần trước:** release lab đang chạy gateway tag `dev-1c3` (dựng từ nhánh, side-load bằng tay). Đóng ngay sau khi PR merge — **side-load TRƯỚC, `helm upgrade` SAU**. Kèm theo: hai đồng hồ của orchestrator đã bị nén (`sessionTtl=90s`, `extendDefault=120s`, `hardCap=300s`) để phép đo vừa một lượt chạy — **phải trả về `1h`/`300s`/`2h`**.
 
-> ### 1.C-4 — mTLS gateway/BFF ⇄ orchestrator (D13, R13, R25) — **CHƯA LÀM**
+> ### 1.C-4 — mTLS gateway/BFF ⇄ orchestrator (D13, R13, R25) — ✅ **XONG 2026-08-12**
+>
+> **Bằng chứng:** [`reports/2026-08-12-verify-1c4-mtls.md`](reports/2026-08-12-verify-1c4-mtls.md) · artifact: [`harness/2026-08-12-1c4-mtls/`](reports/harness/2026-08-12-1c4-mtls/). Công cụ đo nằm trong repo: [`cmd/mtls-probe`](../../services/orchestrator/cmd/mtls-probe/).
+>
+> **⛔ CỜ BOOL CŨ KHÔNG PHẢI "CHƯA BẬT", NÓ LÀ "KHÔNG BẬT ĐƯỢC" — và đó mới là lý do R25 sống sót hai chặng.** `GRPC_REQUIRE_MTLS` chỉ có hai trạng thái, mà đường giữa chúng đi qua một cửa sổ mọi RPC trả `Unauthenticated`: bật cờ khi server chưa có `grpc.Creds` là dựng một cổng an ninh GIẢ, nên `config.Load` phải **từ chối khởi động** khi ai đó bật. Kết quả là một cờ không ai dám động, và hạn chót mà chính R25 tự đặt trôi qua trong im lặng. Thay bằng **ba nấc** `off | permissive | require` với **một biến dùng chung cho cả ba service**: `permissive` là trạng thái GIỮA *quan sát được* — server có TLS, mọi client đã trình cert, nhưng chưa bắt buộc. Chỉ khi ĐO thấy cả hai consumer đang trình cert mới sang `require`.
+>
+> Một biến chứ không ba là chủ ý: ba giá trị riêng lẻ là ba cơ hội để chúng lệch nhau, và hậu quả của việc lệch (client chưa cert gặp server đã siết) chính là chế độ hỏng mà ba nấc sinh ra để tránh.
+>
+> **⛔ RANH GIỚI THẬT CỦA CÁI THANG — nó bảo vệ chiều CERT, KHÔNG bảo vệ chiều TLS.** Bản nháp của chặng này viết "ba nấc loại bỏ cửa sổ chết"; review đối kháng bác bỏ, và bác bỏ đúng. `permissive` khoan dung với việc *vắng cert* nhưng nó **vẫn là TLS**, nên `off → permissive` là một cú lật **transport ở cả hai đầu** (server h2c→TLS, client `http`→`https`) — Kubernetes cuốn ba Deployment không theo thứ tự nào, nên chiều nào cũng có lúc hai bên nói hai giao thức khác nhau. Đo được: probe plaintext ở `permissive` trả `Unavailable`. Bậc êm **duy nhất** là `permissive → require` (client không đổi hành vi, chỉ server siết) — và đó cũng là bậc sẽ còn lặp lại về sau, nên giá trị của nó không giảm. Chiều lùi: `require → permissive` an toàn, `permissive → off` thì **không** — tức không có đường lùi không-gián-đoạn về `off`.
+>
+> **Mặc định là `require`, không phải `permissive`.** `permissive` nhận client không cert, nên **nó KHÔNG đóng R25**: `user_id` trong `CreateSession`/`GetSession`/`ExtendSession` vẫn là field client tự khai. Ship `permissive` làm mặc định là ship một chương "đóng R25" mà R25 vẫn mở — review chỉ ra, đã sửa. Cài mới an toàn với `require` ngay vì chart phát đủ cert cho cả ba service trong cùng một `helm install`.
+>
+> **Ghim CN, vì "có cert hợp lệ" chưa phải phân quyền.** CA của cụm ký cert cho **cả** `apps/web` **lẫn** gateway, nên một interceptor chỉ kiểm "chuỗi cert verify được" gộp hai consumer có quyền khác nhau làm một: `apps/web` sẽ reap được session của **bất kỳ ai** qua nhánh `system_component`, trong khi việc của nó chỉ là reap phiên của chính người đang đăng nhập (nhánh `user_id`). Lỗ hổng đó **im lặng** — đường `user_id` vẫn chạy đúng nên không test chức năng nào đỏ. `GRPC_MTLS_SYSTEM_CNS` chỉ chứa CN của gateway; allowlist rỗng là **lỗi khởi động**, không phải "cho phép tất cả".
+>
+> **⛔ BA THỨ CHỈ LỘ RA KHI ĐO, KHÔNG SUY LUẬN ĐƯỢC:**
+> 1. **`ReapSession` gọi `ready()` TRƯỚC `resolveReapActor`** ⇒ với `lifecycle=nil` thì nhánh authz — gồm cả phép ghim CN — **không bao giờ chạy**. Bản đầu của `mtls_test.go` dùng `nil` và có hai ca **xanh mà chưa thực thi dòng nào** của thứ chúng khẳng định đang gác.
+> 2. **Client Go KHÔNG gửi cert do CA lạ ký.** Server công bố `ClientCAs` ở bước `CertificateRequest` và client chỉ gửi cert khớp danh sách đó, nên **cấu hình nhầm CA không cho lỗi TLS nào** — nó cho `PermissionDenied` ở nhánh `system_component`, tức một thông báo nói về AUTHZ trong khi nguyên nhân nằm ở CERT. Khẳng định "cert CA lạ làm hỏng bắt tay" chỉ đúng với kẻ **cố tình** gửi. Cả hai đường nay đều có test.
+> 3. **Kiểm đột biến BÁC BỎ một comment của chính chặng này.** Đổi interceptor sang đọc `PeerCertificates` thay vì `VerifiedChains` **không làm test nào đỏ** — vì với `ClientAuth` hiện tại, `crypto/tls` đã verify xong trước khi interceptor chạy. Guard chỉ ăn tiền khi `ClientAuth` bị hạ xuống `RequireAnyClientCert`. Đã viết `TestGuardVerifiedChainsChanCertChuaVerify` dựng đúng cấu hình đó và sửa comment theo ranh giới **đo được** thay vì ranh giới mong muốn.
+>
+> **⛔ HAI LỖI CHẶN CHỈ LỘ RA KHI CHẠM CỤM, cả hai đều để `helm upgrade` báo THÀNH CÔNG.**
+> 1. **`defaultMode: 0400` + container non-root ⇒ KHÔNG pod nào đọc được cert.** Cả ba image chạy non-root (Go uid 65532, web uid 1001) và pod không có `fsGroup`, nên kubelet để file `root:root`. Quan sát: hai pod Go `CrashLoopBackOff` với `permission denied`, còn **web lên `Ready`** rồi trả 500 ở mọi RPC — probe là `httpGet` nên Kubernetes không thấy gì sai. Vá bằng `fsGroup` + `0440`.
+> 2. **Mount NGUYÊN Secret vào cả ba pod ⇒ ghim CN bị chính chart vô hiệu hoá.** `apps/web` đứng trước internet mà cầm `gateway.key`: bất kỳ đường đọc file tuỳ ý nào ở đó cũng dựng được cert `CN=platform-gateway` và reap session của bất kỳ ai. Đo được bằng `kubectl exec deploy/platform-web -- ls /etc/dlp/mtls/`. Vá bằng `items:` — mỗi pod chỉ nhận `ca.crt` + cert của chính nó.
+>
+> **Và một lỗi thứ ba của chính bản vá:** `helm upgrade --reuse-values` **không nạp key mới** thêm vào `values.yaml`, nên `mtlsFsGroup` là nil ⇒ template phát `fsGroup:` rỗng ⇒ Kubernetes bỏ qua ⇒ pod lại không đọc được cert, **im lặng**. Nay có `required()` nêu đích danh nguyên nhân và chỉ ra `--reset-then-reuse-values`.
+>
+> **Chart tự sinh CA (`genCA`/`genSignedCert` + `lookup`), không cert-manager.** Cụm không có nó, và cài thêm là side-load ba image qua mạng VM ~52 KiB/s **cộng** một operator phải bảo trì — mà nó là thành phần của CỤM chứ không của chart, nên ai dựng lại lab phải nhớ cài trước. `lookup` giữ Secret cũ nguyên byte qua mỗi upgrade; thiếu nó thì mỗi lần upgrade phát một CA khác và ba pod cuốn không đồng thời sẽ bắt tay hỏng theo kiểu "tự khỏi sau vài chục giây". *Bẫy phải biết: `lookup` LUÔN trả rỗng khi `helm template`/`--dry-run`, nên diff sẽ LUÔN hiện cert đổi — đó là hiện vật của công cụ, không phải tín hiệu.*
+>
+> *(Phần dưới là lập luận HOÃN của chặng 1.C-3, giữ lại để thấy quyết định đã đổi vì cái gì.)*
 >
 > Tách chương có chủ ý khi thực thi 1.C-3, không phải bỏ quên. R13 nói "chốt trước G7"; đây là chỗ chốt nó, và kết luận là **hoãn có điều kiện**.
 >
@@ -634,6 +661,15 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 - [ ] **NetworkPolicy:** từ trong pod `curl http://169.254.169.254/` timeout/deny; ping pod session khác deny.
 - [ ] **VAP regression:** pod thiếu `runtimeClassName` → bị từ chối (chạy lại mỗi lần đổi pod builder).
 
+**mTLS cổng gRPC (R25/B0′/D13 — thêm 2026-08-12 ở 1.C-4).** Đo bằng [`cmd/mtls-probe`](../../services/orchestrator/cmd/mtls-probe/) chạy **trong cụm**: ba vế dưới cần hai cert hợp lệ do CÙNG một CA ký, nên không đo được từ ngoài.
+
+- [x] **`require` chặn client không cert:** probe dial TLS không trình cert → bắt tay hỏng (`Unavailable`), và `lifecycle.Reap` **không** chạy.
+- [x] **`require` chặn plaintext:** probe dial h2c (không TLS) → hỏng. Đây là vế chứng minh cổng không còn nhận kết nối trần.
+- [x] **Ghim CN — `apps/web` bị từ chối nhánh `system_component`:** probe dùng **cert của web** (hợp lệ, đúng CA của cụm) → `PermissionDenied`. *Đây là ca chứng minh mTLS phân quyền được giữa hai người TRONG, không chỉ chặn kẻ ngoài. Không có nó thì "có cert = làm được mọi thứ hệ thống làm được".*
+- [x] **Đối chứng dương — gateway ĐƯỢC:** probe dùng **cert của gateway** → `NotFound` (authz cho qua, lifecycle chạy thật). *Một bộ acceptance chỉ toàn ca ĐỎ không phân biệt được "chặn đúng chỗ" với "chặn tất cả".*
+- [x] **Đường người dùng còn sống sau khi siết:** `session.create` → **200** + pod thật + `Set-Cookie dlp_sandbox` (lần ĐẦU vế Node được đo), và `dlp_gateway_extend_total{ok}` **0→1** sau 81s WS có traffic thật. ⛔ Vế thứ hai BẮT BUỘC phải đo bằng metric chứ không bằng log: `grpc.NewClient` là **lazy**, nên dòng `"kênh tới orchestrator dùng mTLS"` mới chứng minh *cấu hình*, chưa chứng minh *bắt tay*.
+- [x] **`permissive` thật sự là nấc GIỮA:** cùng probe không-cert, ở `permissive` bắt tay **THÀNH CÔNG** rồi mới `PermissionDenied` ở authz — khác hẳn `Unavailable` của `require`. Không phân biệt được hai mã này thì không có bằng chứng nào rằng nấc giữa tồn tại.
+
 ---
 
 ## Verify commands
@@ -739,6 +775,43 @@ kubectl exec -n dlp-sandbox $POD -- curl -m 3 http://169.254.169.254/ ; echo "ex
 kubectl exec -n dlp-sandbox $POD -- sh -c \
   'printf "FROM scratch\n" > /tmp/D && docker build -q -t t /tmp && docker images t'
 
+# ============ mTLS cổng gRPC (1.C-4) ============
+# ⛔ PHẢI CHẠY TRONG CỤM. Ba vế quan trọng nhất cần HAI cert hợp lệ do CÙNG một
+# CA ký (gateway + web), mà cert nằm trong Secret của cụm — từ ngoài không cầm
+# được. Image probe side-load, không lên registry (xem Dockerfile của nó).
+docker build -f services/orchestrator/cmd/mtls-probe/Dockerfile -t dlp-mtls-probe:dev-1c4 .
+docker save dlp-mtls-probe:dev-1c4 | ssh <node> 'sudo ctr -n k8s.io images import -'
+
+# Khuôn chạy: mount Secret mTLS rồi trỏ -cert vào cert MUỐN ĐÓNG VAI.
+run_probe() {  # $1 = tên ca, $2.. = cờ
+  kubectl run mtls-probe-$1 --rm -i --restart=Never --image=dlp-mtls-probe:dev-1c4 \
+    --image-pull-policy=Never \
+    --overrides='{"spec":{"containers":[{"name":"mtls-probe-'"$1"'","image":"dlp-mtls-probe:dev-1c4",
+      "imagePullPolicy":"Never","args":['"$2"'],
+      "volumeMounts":[{"name":"mtls","mountPath":"/etc/dlp/mtls","readOnly":true}]}],
+      "volumes":[{"name":"mtls","secret":{"secretName":"platform-mtls"}}]}}'
+}
+
+# Bốn ca. Mã trả về phân biệt được BA mức, đừng gộp thành "có lỗi/không lỗi":
+#   Unavailable      = bắt tay TLS hỏng
+#   PermissionDenied = bắt tay XONG, authz từ chối
+#   NotFound         = authz CHO QUA, lifecycle chạy thật  ← đối chứng dương
+run_probe plaintext '"-ca",""'                                              # → hỏng
+run_probe nocert    '"-ca","/etc/dlp/mtls/ca.crt"'                          # require→Unavailable
+run_probe web       '"-ca","/etc/dlp/mtls/ca.crt","-cert","/etc/dlp/mtls/web.crt","-key","/etc/dlp/mtls/web.key"'
+                                                                            # → PermissionDenied (ghim CN)
+run_probe gateway   '"-ca","/etc/dlp/mtls/ca.crt","-cert","/etc/dlp/mtls/gateway.crt","-key","/etc/dlp/mtls/gateway.key"'
+                                                                            # → NotFound (ĐƯỢC phép)
+
+# Cert chart sinh ra — SAN phải phủ cả tên ngắn LẪN FQDN, nếu không client Node
+# (dial bằng tên Service) bắt tay hỏng mà log chỉ nói "bad certificate".
+kubectl get secret platform-mtls -o jsonpath='{.data.server\.crt}' | base64 -d \
+  | openssl x509 -noout -subject -ext subjectAltName
+
+# Đường người dùng phải CÒN SỐNG sau khi siết — vế này quan trọng ngang bốn ca trên.
+kubectl logs deploy/platform-orchestrator | grep 'cổng gRPC bật TLS'
+kubectl logs deploy/platform-gateway      | grep 'kênh tới orchestrator dùng mTLS'
+
 # ============ Cổng chung ============
 pnpm turbo run lint typecheck build test
 make go-build && make go-test && make go-vet && make env-check && make proto-breaking
@@ -766,7 +839,7 @@ make go-build && make go-test && make go-vet && make env-check && make proto-bre
 | **R10 — Redis/Postgres vắng trong cluster** ⇒ CrashLoop khi bật `RequireDataStores` | 4 | 3 | **12** | 1.B0.2 trước B3. Không bật `RequireDataStores()` cho tới khi service in-cluster xanh. |
 | **R11 — Contract Redis nở thêm mà lane khác không biết** | 3 | 4 | **12** | 1.B0.3 pin trước fan-out; sửa `redis-key-vectors.json` TRƯỚC để cả hai suite đỏ đúng chỗ thiếu. |
 | **R12 — Trivy CRITICAL chặn `main`** sau khi image béo lên | 3 | 4 | **12** | Quét cục bộ **trước khi merge** (job `images` chỉ chạy trên main); ưu tiên gói universe hơn binary bên thứ ba. |
-| **R13 — Gateway không có credential gọi `ExtendSession`** | 3 | 3 | 9 | ~~D13 mTLS + `system_component`; chốt trước G7.~~ **Đã chốt 2026-08-11 khi làm G7 — và chốt là HOÃN CÓ ĐIỀU KIỆN, xem 1.C-4.** Hai đính chính so với bản trên: (1) `ExtendSession` **không có `oneof actor`**, nó mang `user_id` phẳng, nên `system_component` không áp dụng cho RPC này — gateway điền `user_id` từ `sub` của token đã verify, đúng như proto yêu cầu; (2) mTLS chưa dựng được (không cert-manager, orchestrator từ chối khởi động với `grpcRequireMtls=true` vì chưa có creds), và gateway dial plaintext **không** làm rủi ro nặng thêm vì `apps/web` đã gọi cùng cổng không xác thực từ G12. |
+| **R13 — Gateway không có credential gọi `ExtendSession`** | 3 | 3 | 9 | ~~D13 mTLS + `system_component`; chốt trước G7.~~ **Đã chốt 2026-08-11 khi làm G7 — và chốt là HOÃN CÓ ĐIỀU KIỆN, xem 1.C-4.** Hai đính chính so với bản trên: (1) `ExtendSession` **không có `oneof actor`**, nó mang `user_id` phẳng, nên `system_component` không áp dụng cho RPC này — gateway điền `user_id` từ `sub` của token đã verify, đúng như proto yêu cầu; (2) mTLS chưa dựng được (không cert-manager, orchestrator từ chối khởi động với `grpcRequireMtls=true` vì chưa có creds), và gateway dial plaintext **không** làm rủi ro nặng thêm vì `apps/web` đã gọi cùng cổng không xác thực từ G12. ✅ **ĐÓNG 2026-08-12 ở 1.C-4:** gateway dial bằng client cert qua seam `orchestratorDialOptions`; CA do chart tự sinh (`genCA` + `lookup`), không cần cert-manager. Đính chính (1) vẫn đứng: `ExtendSession` mang `user_id` phẳng nên `system_component` không áp dụng cho RPC đó — mTLS chứng minh gateway LÀ gateway, còn `user_id` vẫn lấy từ `sub` của token đã verify. |
 | R14 — WebGL không khả dụng (v6 đã bỏ canvas renderer) | 3 | 3 | 9 | `onContextLoss` → fallback DOM + `console.warn`; test thủ công với hardware accel tắt. |
 | R15 — `pwsh` `.deb` vỡ dependency trên 26.04 | 3 | 3 | 9 | Ghim version + sha256, smoke `pwsh -v` trong Dockerfile; vỡ thì `INCLUDE_PWSH=0`, ghi nợ, **không chặn P1**. |
 | R16 — Image phình ⇒ pull chậm ⇒ hỏng mục tiêu claim < 1s | 3 | 3 | 9 | Ngưỡng size trong AC; pre-pull lên node lab; tách biến thể chỉ khi đo được (D12). |
@@ -776,7 +849,7 @@ make go-build && make go-test && make go-vet && make env-check && make proto-bre
 | **R23 — `idem:{key}` không scope theo user** ⇒ user B trùng `idempotency_key` của A thì nhận lại **session của A**, rò `sessionId` và biến vế authz `g` thành lớp duy nhất chặn B vào shell của A | 3 | 5 | **15** | *Đã đóng ở 1.B0.3 (2026-08-09, do review đối kháng phát hiện):* key đổi thành `idem:{userId}:{key}`, hai đoạn validate riêng, có test "hai user cùng key ra hai key khác nhau" — ca duy nhất chứng minh scope tồn tại. Thêm regex khớp validator vào zod của BFF để từ chối ở biên gần client nhất. |
 | **R24 — JWKS đi qua HTTP trần trong namespace platform, không có NetworkPolicy** ⇒ ai chiếm được Service `-web` phục vụ JWKS giả, gateway "refetch khi gặp `kid` lạ" (D15) nạp khoá đó và verify token giả → shell của mọi session | 2 | 5 | **10** | *Sửa mô tả 2026-08-10 theo cluster thật:* **namespace platform KHÔNG tồn tại** — cả 5 pod nền tảng chạy ở **`default`**. Chart chỉ có NetworkPolicy cho `dlp-sandbox`. Hệ quả nặng hơn bản cũ ghi: không có namespace riêng thì **không có seam nào để đặt NetworkPolicy** tách web↔gateway↔orchestrator, nên mitigation "NetworkPolicy cho namespace platform" hiện **không thực hiện được** chứ không phải "chưa làm". Đóng ở **P3** theo đúng thứ tự: (1) tách release sang namespace riêng, (2) NetworkPolicy, (3) hoặc pin JWKS/mTLS giữa gateway ↔ web. Chưa khai thác được từ ngoài (cần đứng trong cluster). Ghi ở đây để nó không biến mất — đây là điểm tin cậy DUY NHẤT của luật 6 và luật 10. |
 
-| **R25 — Cổng gRPC orchestrator không có xác thực nào** ⇒ `user_id` là field client tự khai, và bất kỳ workload nào tới được `:9090` cũng cạn được trần 4 pod (DoS toàn nền tảng, không cần biết bí mật nào) | 3 | 4 | **12** | *Phát hiện 2026-08-09 bằng review đối kháng PR B1–B4; trước đó KHÔNG có task/AC/risk nào nhắc tới — D13 chỉ phủ đường gateway→orchestrator.* Giao **B0′ → làm trong B6** cùng mTLS của D13. ~~Rủi ro **chưa hiện thực** vì `apps/web` chưa có client gRPC; hạn chót là ngày G12 nối `session.ts` vào.~~ Rò dữ liệu thì không: `GetSession`/`ClaimSession` đòi cả `session_id` 128-bit lẫn `user_id` khớp. **⛔ Cập nhật 2026-08-11: HẠN CHÓT ĐÃ TRÔI QUA. Rủi ro nay ĐÃ HIỆN THỰC** — `session.ts` nối vào từ G12 (2026-08-11) và cổng vẫn `grpcRequireMtls: 'false'`, nên `user_id` trong mọi RPC vẫn là field client tự khai. 1.C-3 thêm consumer **thứ hai** (gateway gọi `ExtendSession`) trên cùng cổng đó. Dòng Timeline của G12 ghi "R25 ĐÓNG" là **nhầm với R20**. Chuyển sang **1.C-4**, và đó là chương duy nhất còn lại của lane gateway. |
+| **R25 — Cổng gRPC orchestrator không có xác thực nào** ⇒ `user_id` là field client tự khai, và bất kỳ workload nào tới được `:9090` cũng cạn được trần 4 pod (DoS toàn nền tảng, không cần biết bí mật nào) | 3 | 4 | **12** | *Phát hiện 2026-08-09 bằng review đối kháng PR B1–B4; trước đó KHÔNG có task/AC/risk nào nhắc tới — D13 chỉ phủ đường gateway→orchestrator.* Giao **B0′ → làm trong B6** cùng mTLS của D13. ~~Rủi ro **chưa hiện thực** vì `apps/web` chưa có client gRPC; hạn chót là ngày G12 nối `session.ts` vào.~~ Rò dữ liệu thì không: `GetSession`/`ClaimSession` đòi cả `session_id` 128-bit lẫn `user_id` khớp. ~~**⛔ Cập nhật 2026-08-11: HẠN CHÓT ĐÃ TRÔI QUA. Rủi ro nay ĐÃ HIỆN THỰC**~~ — `session.ts` nối vào từ G12 (2026-08-11) và cổng vẫn `grpcRequireMtls: 'false'`, nên `user_id` trong mọi RPC vẫn là field client tự khai. 1.C-3 thêm consumer **thứ hai** (gateway gọi `ExtendSession`) trên cùng cổng đó. Dòng Timeline của G12 ghi "R25 ĐÓNG" là **nhầm với R20**. ✅ **ĐÓNG THẬT 2026-08-12 ở 1.C-4** — `GRPC_MTLS_MODE=require`, cổng chỉ nhận client trình cert do CA của cụm ký, và nhánh `system_component` còn bị ghim thêm theo CommonName (chỉ gateway; `apps/web` có cert hợp lệ vẫn bị từ chối nhánh đó). **Bài học vì sao nó sống sót hai chặng:** cờ bool không có nấc giữa, nên mọi lượt bật đều đi qua cửa sổ 100% RPC `Unauthenticated` — nó không phải bị quên, nó **không bật được**. |
 
 **Tám mục ≥ 15 (R0, R1, R2, R3, R4, R5, R20, R22)** phải có mitigation **chạy xanh** trước khi task phụ thuộc bắt đầu.
 
@@ -793,7 +866,7 @@ make go-build && make go-test && make go-vet && make env-check && make proto-bre
 | 1.A-1 spike WS⇄exec | ~~M~~ **✅ xong 2026-08-09** | HARD-GATE **đã mở** — 1.C chạy được |
 | 1.A-2 spike claim atomic | ~~M~~ **✅ xong 2026-08-09** | HARD-GATE **đã mở** — 1.B chạy được |
 | 1.B orchestrator (B1–B9) | **L** | Đường găng |
-| 1.C gateway (G1–G13) | **L** · **1.C-1 ✅ xong 2026-08-10** (G1, G2, G3, G11, G13 + bước i) · **1.C-2 ✅ xong 2026-08-10** (G4–G6, cầu exec — **đã gõ được lệnh thật trên cluster**) · **G12 ✅ xong 2026-08-11** (cookie thật, 18/18 e2e — đóng **R20**, KHÔNG phải R25) · **1.C-3 ✅ xong 2026-08-11** (G7–G10: extend theo traffic thật, rate-limit, metrics) · **1.C-4 mTLS còn nợ** (D13/R13/R25, **M–L**) | Đường găng, song song 1.B. **1.F hết bị chặn bởi G12** kể từ 2026-08-11; còn chặn bởi WS contract + B0.4 (cả hai đã xong) ⇒ lane FE mở được ngay. 1.C-4 **không chặn 1.F**. |
+| 1.C gateway (G1–G13) | **L** · **1.C-1 ✅ xong 2026-08-10** (G1, G2, G3, G11, G13 + bước i) · **1.C-2 ✅ xong 2026-08-10** (G4–G6, cầu exec — **đã gõ được lệnh thật trên cluster**) · **G12 ✅ xong 2026-08-11** (cookie thật, 18/18 e2e — đóng **R20**, KHÔNG phải R25) · **1.C-3 ✅ xong 2026-08-11** (G7–G10: extend theo traffic thật, rate-limit, metrics) · **1.C-4 ✅ xong 2026-08-12** (mTLS ba nấc + ghim CN — **R25 ĐÓNG**) | ~~Đường găng~~ **LANE ĐÓNG**, song song 1.B. **1.F hết bị chặn bởi G12** kể từ 2026-08-11. Bài học của 1.C-4: cờ bool `GRPC_REQUIRE_MTLS` sống sót hai chặng không phải vì ai quên, mà vì nó **không bật được** — thiếu một nấc giữa thì mọi lượt bật đều đi qua cửa sổ 100% RPC đỏ. |
 | 1.D bốn khoảng trống | **S**×4 | D-17′/D-21′/D-22′ song song hoàn toàn; **D-19′ phụ thuộc 1.B0.1** (restart kubelet, xem R22) |
 | 1.E image | ~~M~~ **E1–E5 + E10 ✅ xong 2026-08-10** · E6–E9 còn nợ | Warm-pool đã chạy image thật; E7 (DinD) chặn AC "DinD offline" (D4) |
 | 1.F FE | ~~M–L~~ **✅ xong 2026-08-11** (F1–F11; terminal gõ được lệnh thật trong trình duyệt, 0 CSP violation có đối chứng âm) | Đóng luôn câu hỏi CSP mà G12 để lại ⇒ `headers.ts` không phải sửa. Lôi ra lệch contract `hardCapAt` và một lỗi chặn-người-dùng của lane orchestrator (pod chết trong `pool:free`). |
