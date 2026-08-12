@@ -360,6 +360,62 @@ func TestPermissiveVanChanCertCuaCALa(t *testing.T) {
 	}
 }
 
+// TestGuardVerifiedChainsChanCertChuaVerify — ca DUY NHẤT phân biệt được
+// `VerifiedChains` với `PeerCertificates`.
+//
+// ⛔ VÌ SAO NÓ PHẢI TỰ DỰNG tls.Config THAY VÌ DÙNG tlsx.ServerConfig.
+// Kiểm đột biến 2026-08-12 cho kết quả bất ngờ: đổi interceptor sang đọc
+// `PeerCertificates` KHÔNG làm test nào đỏ. Lý do đúng chứ không phải test yếu —
+// với `VerifyClientCertIfGiven`/`RequireAndVerifyClientCert`, crypto/tls đã
+// verify xong TRƯỚC khi interceptor chạy, nên hai mảng chứa cùng một cert.
+//
+// Guard chỉ ăn tiền ở đúng một ca: `ClientAuth` bị hạ xuống một hằng KHÔNG
+// verify. `RequireAnyClientCert` là hằng đó — server đòi cert nhưng không kiểm
+// nó bằng ClientCAs, nên `PeerCertificates` chứa cert CHƯA VERIFY còn
+// `VerifiedChains` RỖNG. Test này dựng đúng cấu hình ấy để lời khẳng định trong
+// PeerTrust.CommonName có người gác, thay vì là một bình luận không kiểm được.
+func TestGuardVerifiedChainsChanCertChuaVerify(t *testing.T) {
+	f := newFixture(t)
+	fake := &fakeLifecycle{sess: &orchestratorv1.Session{Id: "s-test"}}
+
+	srvCert, err := tls.LoadX509KeyPair(f.server.CertFile, f.server.KeyFile)
+	if err != nil {
+		t.Fatalf("nạp cert server: %v", err)
+	}
+	srv := grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(&tls.Config{
+			Certificates: []tls.Certificate{srvCert},
+			// KHÔNG ClientCAs, và RequireAnyClientCert ⇒ nhận mọi cert, không verify.
+			ClientAuth: tls.RequireAnyClientCert,
+			MinVersion: tls.VersionTLS12,
+		})),
+		grpc.UnaryInterceptor(grpcserver.NewAuthInterceptor(discardLogger(), tlsx.ModeRequire)),
+	)
+	orchestratorv1.RegisterSessionServiceServer(srv,
+		grpcserver.NewSessionService(discardLogger(), fake, []string{f.cnGw}))
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go func() { _ = srv.Serve(lis) }()
+	t.Cleanup(srv.Stop)
+
+	// Cert TỰ KÝ mang đúng CN của gateway — thứ mà allowlist sẽ chấp nhận nếu CN
+	// được đọc từ một mảng chưa verify.
+	rogueCA, rogueKey, rogueCAPEM := newCA(t, "ca-tu-ky")
+	rogue := writeFiles(t, rogueCAPEM, newLeaf(t, rogueCA, rogueKey, f.cnGw, nil))
+	rogue.CAFile = f.server.CAFile
+
+	err = callReap(t, lis.Addr().String(), clientTLSEpGuiCert(t, rogue))
+	if got := status.Code(err); got != codes.Unauthenticated {
+		t.Fatalf("code = %v (err=%v), cần Unauthenticated — cert tự ký CHƯA VERIFY được chấp nhận, "+
+			"tức CN đang đọc từ PeerCertificates", got, err)
+	}
+	if fake.gotReapID != "" {
+		t.Fatal("lifecycle.Reap ĐÃ CHẠY với một cert tự ký — allowlist CN bị đi vòng")
+	}
+}
+
 // TestClientLichSuKhongGuiCertCALa — ghim ĐƯỜNG THẬT, không phải đường tấn công.
 //
 // Ca trên (TestPermissiveVanChanCertCuaCALa) đo kẻ tấn công CỐ TÌNH gửi. Ca này

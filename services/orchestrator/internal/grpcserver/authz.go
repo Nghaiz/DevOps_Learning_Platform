@@ -31,12 +31,20 @@ type PeerTrust struct {
 	InCluster bool
 	// CommonName là CN của client cert ĐÃ VERIFY. Rỗng khi InCluster=false.
 	//
-	// ⛔ ĐỌC TỪ VerifiedChains, KHÔNG PHẢI PeerCertificates. Hai mảng khác nhau ở
-	// đúng chỗ quan trọng: `PeerCertificates[0]` là cert client GỬI LÊN (chưa qua
-	// verify), còn `VerifiedChains[0][0]` là cert đã được kiểm bằng ClientCAs.
-	// Đọc nhầm mảng đầu nghĩa là bất kỳ ai cũng tự khai CN bằng một cert tự ký —
-	// tức allowlist CN biến thành trang trí, và nó hỏng IM LẶNG vì hai mảng có
-	// cùng kiểu và thường có cùng nội dung khi mọi thứ đang đúng.
+	// Đọc từ `VerifiedChains`, không phải `PeerCertificates`. Ranh giới của lời
+	// khẳng định này đã ĐO, và nó hẹp hơn vẻ ngoài: với `ClientAuth` hiện tại
+	// (VerifyClientCertIfGiven / RequireAndVerifyClientCert), crypto/tls đã verify
+	// XONG trước khi interceptor chạy, nên hai mảng chứa cùng một cert và đổi
+	// sang `PeerCertificates` KHÔNG làm test nào đỏ — kiểm đột biến 2026-08-12
+	// xác nhận điều đó. Bản nháp của comment này nói "đọc nhầm là allowlist thành
+	// trang trí" mà không có ca nào chứng minh; đó là một khẳng định không ai gác.
+	//
+	// Guard là tuyến phòng thủ THỨ HAI, và nó chỉ ăn tiền ở đúng một ca: ngày ai
+	// đó hạ `ClientAuth` xuống `RequestClientCert`/`RequireAnyClientCert` (hai
+	// hằng KHÔNG verify). Khi đó `PeerCertificates` chứa cert chưa kiểm còn
+	// `VerifiedChains` rỗng, và đọc nhầm mảng nghĩa là bất kỳ ai tự ký một cert
+	// CN="platform-gateway" cũng reap được session của người khác. Ca đó nay có
+	// test riêng — TestGuardVerifiedChainsChanCertChuaVerify.
 	CommonName string
 	// Addr chỉ để log/chẩn đoán. TUYỆT ĐỐI không dùng làm căn cứ authz: địa chỉ
 	// nguồn giả được, và trong cluster thì mọi thứ đều nằm trong dải pod CIDR.
