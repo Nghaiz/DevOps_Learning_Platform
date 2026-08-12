@@ -345,15 +345,28 @@ jobs:
               -ignore-missing-schemas
 
       - name: 'helm template — nhánh existingSecret (đường đi của prod)'
-        # Nhánh này KHÔNG được đòi betterAuthSecret và KHÔNG được sinh Secret.
+        # Nhánh này KHÔNG được đòi betterAuthSecret và KHÔNG được sinh Secret WEB.
         # Không test thì logic `if not existingSecret` trong web-secret.yaml chỉ
         # được chạy lần đầu vào đúng hôm deploy prod.
+        #
+        # ⛔ PHÉP KIỂM PHẢI NHẮM ĐÚNG SECRET WEB, KHÔNG PHẢI "kind: Secret" BẤT KỲ.
+        # Bản trước grep `kind: Secret` trần, và nó đúng chừng nào chart chỉ có
+        # MỘT Secret. Chặng 1.C-4 thêm `platform-mtls` (CA + cert mTLS, sinh ở
+        # mọi nhánh có grpcMtlsMode≠off) ⇒ cổng đỏ ở một chart hoàn toàn đúng.
+        # Siết lại theo ĐÚNG ý định ban đầu, và siết MẠNH HƠN: thêm vế khẳng
+        # định `platform-mtls` VẪN được sinh — nếu không, một ngày ai đó tắt
+        # nhầm mTLS thì phép kiểm này sẽ xanh vì lý do sai.
         run: |
           out=$(helm template platform infra/helm/platform \
             --set web.env.existingSecret=dlp-web-prod)
-          if printf '%s' "$out" | grep -q 'kind: Secret'; then
-            echo "existingSecret đã set mà chart vẫn sinh Secret — sai"; exit 1
+          secrets=$(printf '%s' "$out" \
+            | awk '/^kind: Secret$/{f=1} f&&/^  name:/{print $2; f=0}')
+          echo "Secret được sinh: ${secrets:-<không có>}"
+          if printf '%s' "$secrets" | grep -qE '^platform-web$'; then
+            echo "existingSecret đã set mà chart vẫn sinh Secret WEB — sai"; exit 1
           fi
+          printf '%s' "$secrets" | grep -qE '^platform-mtls$' \
+            || { echo "Secret mTLS biến mất — phép kiểm này sẽ xanh vì lý do sai"; exit 1; }
           printf '%s' "$out" | grep -q 'name: dlp-web-prod' \
             || { echo "pod không tham chiếu Secret có sẵn"; exit 1; }
 
