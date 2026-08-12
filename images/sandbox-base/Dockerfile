@@ -17,15 +17,20 @@
 # trả thêm hai món nợ để đổi lấy đúng 0 MB. `tmux 3.4` còn là **chính version mà
 # D17 đo hành vi hai-client** — chạy đúng bản đã đo thì kết luận đó còn giá trị.
 #
-# ⚠ Kích thước image là ĐĨA, không phải RAM. Pod lab lúc rảnh chỉ tốn ~7.5 MB RSS
-# (PID 1); RAM thật do zsh + tmux + oh-my-posh quyết định và như nhau trên cả ba
-# base. Đừng chọn base vì lý do RAM.
+# ⚠ Kích thước image là ĐĨA, không phải RAM — và hai con số dưới đây KHÔNG thay
+# thế cho nhau. Với `INCLUDE_DOCKER=0`, pod lab lúc rảnh tốn ~7.5 MB RSS (PID 1)
+# và RAM thật do zsh + tmux + oh-my-posh quyết định, như nhau trên cả ba base.
+# Với mặc định `INCLUDE_DOCKER=1` thì KHÁC HẲN: entrypoint bật dockerd ngay lúc
+# container start (không phải lúc claim), nên pod "lúc rảnh" đo được **153 MiB**
+# trên cgroup host — gấp ~20×. Vẫn nằm dưới `requests` 512Mi nên trần 4 session
+# của D16 không đổi, nhưng ai tính sức chứa node phải dùng con số 153 MiB.
+# Dù sao, đừng chọn BASE vì lý do RAM: base không phải thứ quyết định nó.
 #
-# CHƯA CÓ Ở CHẶNG NÀY (E6–E9, xem README §"Chưa làm"): pwsh, docker/DinD,
-# entrypoint nạp dotfiles. `INCLUDE_PWSH`/`INCLUDE_DOCKER` cố tình CHƯA khai báo
-# — một ARG khai sẵn mà không có nhánh nào đọc là lời hứa suông, và CI truyền
-# build-arg lạ vào thì buildx chỉ cảnh báo chứ không đỏ, nên nó sẽ im lặng vô
-# nghĩa cho tới khi ai đó tin vào nó.
+# Chặng 1.E-2 đóng E6–E9: `INCLUDE_DOCKER` (mặc định 1) và `INCLUDE_PWSH` (mặc
+# định 0) nay là ARG THẬT, mỗi cái có đúng một nhánh RUN đọc nó. Ở 1.E-1 chúng
+# cố tình chưa khai báo vì một ARG khai sẵn mà không nhánh nào đọc là lời hứa
+# suông — buildx chỉ CẢNH BÁO khi nhận build-arg lạ chứ không đỏ, nên nó sẽ im
+# lặng vô nghĩa cho tới khi có người tin vào nó.
 #
 # `--platform=linux/amd64` GHIM CÓ CHỦ Ý: cả CI runner lẫn VM lab đều amd64, và
 # hai binary tải thẳng ở dưới cũng là amd64. Không ghim thì build trên máy arm64
@@ -181,6 +186,91 @@ RUN cp -a /etc/skel/. /root/
 # codepoint, và theme ở trên đã làm việc đó.
 
 # ─────────────────────────────────────────────────────────────────────────────
+# E7 — Docker/DinD qua `INCLUDE_DOCKER` (mặc định 1, theo D12).
+#
+# Sysbox chạy `dockerd` TRONG pod mà không cần `privileged` và KHÔNG mount
+# `/var/run/docker.sock` của host — đó là toàn bộ lý do nền tảng này dạy được
+# Docker mà không phát quyền root của node cho sinh viên.
+#
+# ⚠ KHOÁ APT GHIM BẰNG SHA256, KHÔNG `curl … | sh`. Cùng kỷ luật với E3 ở trên,
+# và ở đây nó nặng hơn: khoá này ký MỌI gói lấy từ download.docker.com, nên
+# nhận nhầm một khoá là nhận nhầm cả kho. Docker xoay khoá thì build ĐỎ ở dòng
+# `sha256sum -c` — to và đúng chỗ, thay vì âm thầm tin một khoá mới.
+#
+# Lưu khoá dạng ASCII-armor `.asc` chứ không `gpg --dearmor`: `gnupg` KHÔNG có
+# trong ubuntu:24.04 (đã kiểm), nên dearmor sẽ kéo thêm một cây dependency chỉ
+# để đổi định dạng — mà apt ≥ 2.4 đọc thẳng được `.asc` qua `signed-by=`.
+#
+# Codename lấy động từ `/etc/os-release` thay vì gõ cứng `noble`: nếu ai đó nâng
+# FROM lên một bản Docker chưa hỗ trợ thì `apt-get update` ĐỎ ngay tại đây. Gõ
+# cứng thì nó vẫn cài gói của noble lên base khác và hỏng ở runtime.
+#
+# KHÔNG cài `docker-compose-plugin`: chưa AC nào đòi, và nó là ~40 MB đi thẳng
+# vào tarball phải side-load mỗi lần bump `image.tag`.
+ARG INCLUDE_DOCKER=1
+ARG DOCKER_GPG_SHA256=1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
+RUN if [ "$INCLUDE_DOCKER" = "1" ]; then \
+        set -eux; \
+        install -m 0755 -d /etc/apt/keyrings; \
+        curl -fsSL -o /etc/apt/keyrings/docker.asc https://download.docker.com/linux/ubuntu/gpg; \
+        echo "${DOCKER_GPG_SHA256}  /etc/apt/keyrings/docker.asc" | sha256sum -c -; \
+        chmod a+r /etc/apt/keyrings/docker.asc; \
+        . /etc/os-release; \
+        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" \
+            > /etc/apt/sources.list.d/docker.list; \
+        apt-get update; \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            docker-ce docker-ce-cli containerd.io docker-buildx-plugin; \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# E6 — PowerShell qua `INCLUDE_PWSH` (mặc định 0).
+#
+# `.deb` universal từ GitHub release, KHÔNG `packages-microsoft-prod`: kho đó
+# chưa có kênh cho 24.04 ở thời điểm chốt, và thêm một kho apt nữa là thêm một
+# khoá nữa phải ghim.
+#
+# ⚠ Khác `fastfetch`: sha256 dưới đây lấy từ `hashes.sha256` CỦA CHÍNH RELEASE
+# (chữ ký nhà phát hành), không phải digest ta tự tính — mạnh hơn hẳn
+# trust-on-first-use. File đó mã hoá **UTF-16LE có BOM**, nên `sha256sum -c` ăn
+# thẳng nó sẽ vỡ và `grep` trên nó im lặng trả rỗng; phải `iconv` trước khi đọc.
+# Đó là lý do con số được ghim thành hằng ở đây thay vì tải file về mà kiểm.
+#
+# CHỈ cài `Terminal-Icons`. Plan E6 ghi "Terminal-Icons + PSReadLine", nhưng
+# PSReadLine đã ĐI KÈM pwsh 7 — cài thêm một bản từ PSGallery chỉ tạo hai
+# version cùng tên trong `$PSModulePath` và bản nào thắng phụ thuộc thứ tự nạp.
+ARG INCLUDE_PWSH=0
+ARG PWSH_VERSION=7.6.4
+ARG PWSH_SHA256=e5688e0569568d48051c49d3e93504cde47af709cdaaabd9a8892bc676b3bdf3
+RUN if [ "$INCLUDE_PWSH" = "1" ]; then \
+        set -eux; \
+        curl -fsSL -o /tmp/powershell.deb \
+            "https://github.com/PowerShell/PowerShell/releases/download/v${PWSH_VERSION}/powershell_${PWSH_VERSION}-1.deb_amd64.deb"; \
+        echo "${PWSH_SHA256}  /tmp/powershell.deb" | sha256sum -c -; \
+        apt-get update; \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/powershell.deb; \
+        rm -f /tmp/powershell.deb; \
+        pwsh -NoLogo -NonInteractive -Command \
+            "Install-PSResource -Name Terminal-Icons -Scope AllUsers -TrustRepository -Quiet"; \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# E8 — entrypoint: dockerd nền + nạp dotfiles qua allowlist.
+#
+# `chmod` tường minh vì repo được checkout trên Windows ở máy dev: bit thực thi
+# không sống sót qua NTFS, và một ENTRYPOINT mất bit x cho pod
+# `CreateContainerError` — lỗi hiện ra ở kubelet chứ không ở build, tức cách xa
+# nguyên nhân đúng ba thành phần.
+#
+# Đặt CUỐI file có chủ ý: nội dung script này thay đổi nhiều hơn hẳn layer apt
+# của E7, nên để trên sẽ huỷ cache của một layer mấy trăm MB mỗi lần sửa một
+# dòng bash.
+COPY entrypoint.sh /usr/local/bin/dlp-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/dlp-entrypoint.sh
+
+# ─────────────────────────────────────────────────────────────────────────────
 # PID 1 phải SỐNG, và phải là một PID 1 TỬ TẾ.
 #
 # (a) Vì sao không để CMD thoát: `internal/k8s/podspec.go` KHÔNG đặt Command/Args
@@ -200,9 +290,15 @@ RUN cp -a /etc/skel/. /root/
 #         minh, mà `sleep` không cài ⇒ `kubectl delete pod` (grace mặc định 30s)
 #         để pod nằm `Terminating` đủ 30 giây, giữ 1 trong 4 khe quota (D16).
 #     `tini -- sleep infinity` reap con mồ côi và chuyển tín hiệu đúng cách.
-ENTRYPOINT ["/usr/bin/tini", "--"]
+#
+# (c) 1.E-2 chèn `dlp-entrypoint.sh` vào GIỮA tini và CMD, không thay thế tini.
+#     Chuỗi vẫn là tini(PID 1) → sleep infinity, vì script kết bằng `exec "$@"`.
+#     Nhánh dockerd của nó chạy NỀN và cố ý không được phép làm hỏng chuỗi này:
+#     dockerd chết (ví dụ chạy ngoài Sysbox, như trên runner CI) chỉ ghi log rồi
+#     đi tiếp — nếu không thì mọi pod warm-pool sẽ chết theo một tiến trình phụ.
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/dlp-entrypoint.sh"]
 CMD ["sleep", "infinity"]
 
 LABEL org.opencontainers.image.title="dlp-sandbox-base" \
-      org.opencontainers.image.description="DevOps Learning Platform — sandbox base (P1 1.E-1, Ubuntu 24.04: zsh/tmux/oh-my-posh + CLI hiện đại; chưa có pwsh/DinD)" \
+      org.opencontainers.image.description="DevOps Learning Platform — sandbox base (P1 1.E-2, Ubuntu 24.04: zsh/tmux/oh-my-posh + CLI hiện đại + Docker/DinD; pwsh sau build-arg INCLUDE_PWSH=1)" \
       org.opencontainers.image.source="https://github.com/Nghaiz/DevOps_Learning_Platform"

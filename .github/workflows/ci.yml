@@ -1,11 +1,15 @@
 # CI xanh mới merge. Sáu cổng chạy SONG SONG, gom về một check duy nhất `ci-ok`:
 #
-#   proto ─┐
-#   ts     ├─► ci-ok ─► images (chỉ push main / tag v*)
-#   go     │
-#   infra  │
-#   secret-scan ┘
-#   dependency-review (chỉ PR)
+#   proto ────────┐
+#   ts            │
+#   go            ├─► ci-ok ─► images (chỉ push main / tag v*)
+#   infra         │
+#   secret-scan   │
+#   sandbox-image ┘
+#
+# (`dependency-review` từng nằm ở đây, ĐÃ XOÁ — xem khối lý do ngay trên job
+#  `sandbox-image`. Sơ đồ này lệch suốt từ lúc đó tới 1.E-2; sửa cùng lúc với
+#  việc `sandbox-image` nhận thêm toàn bộ cổng E6/E7/E8/E9.)
 #
 # VÌ SAO MỘT FILE: `images: needs: ci-ok` là phụ thuộc job THẬT trong cùng
 # workflow run. Tách sang file khác thì phải đi đường workflow_run, vốn phải chạy
@@ -494,13 +498,260 @@ jobs:
           [ "$got" = "truecolor" ] || { echo "::error::COLORTERM=$got, muốn truecolor"; exit 1; }
           echo "smoke đạt."
 
+      # ─────────────────────────────────────────────────────── E7 (1.E-2)
+      #
+      # CHỈ kiểm SỰ CÓ MẶT của binary. AC "DinD offline" (D4) — `docker info`
+      # trả cả client lẫn server, `docker build` + `docker run` không cần mạng —
+      # được đo trên pod **Sysbox thật** trên cluster, không đo ở đây.
+      #
+      # Vì sao không thêm một lượt `docker run --privileged` cho có vẻ đầy đủ:
+      # runner GitHub không có Sysbox, nên xanh ở đây không nói được gì chắc
+      # chắn về môi trường tính năng thật sự chạy, còn đỏ ở đây có thể là đỏ
+      # giả. Một cổng không phân biệt được hai thứ đó là cổng gây nhiễu.
+      # ─────────────────────────────────────────────────────── E6 (1.E-2)
+      #
+      # Lý do tồn tại của cả job này (xem đầu khối) là bắt PR nâng version mà
+      # quên cập nhật digest. Lý do đó KHÔNG phủ `PWSH_VERSION`/`PWSH_SHA256`:
+      # mặc định `INCLUDE_PWSH=0` nên không lượt build nào chạm tới chúng, và
+      # một PR nâng pwsh sẽ XANH toàn bộ rồi mới đỏ ở máy người đầu tiên bật
+      # `=1` — cách xa commit gây lỗi.
+      #
+      # Không build cả nhánh pwsh (nó cộng ~330 MB và vài phút mỗi PR); chỉ tải
+      # đúng `.deb` và kiểm checksum — đó chính xác là thứ cần gác.
+      - name: 'E6: PWSH_SHA256 khớp .deb thật (nhánh mặc định-tắt vẫn phải có cổng)'
+        run: |
+          set -euo pipefail
+          ver=$(grep -oP '^ARG PWSH_VERSION=\K.*'   images/sandbox-base/Dockerfile)
+          sum=$(grep -oP '^ARG PWSH_SHA256=\K.*'    images/sandbox-base/Dockerfile)
+          echo "PWSH_VERSION=$ver"
+          curl -fsSL -o /tmp/pwsh.deb \
+            "https://github.com/PowerShell/PowerShell/releases/download/v${ver}/powershell_${ver}-1.deb_amd64.deb"
+          echo "${sum}  /tmp/pwsh.deb" | sha256sum -c - \
+            || { echo "::error::PWSH_SHA256 không khớp .deb của v${ver} — cập nhật digest trong Dockerfile"; exit 1; }
+          rm -f /tmp/pwsh.deb
+
+      - name: 'E7: docker/dockerd/buildx có trong image'
+        run: |
+          set -euo pipefail
+          for b in docker dockerd; do
+            docker run --rm --entrypoint /bin/bash dlp-sandbox-base:pr -c "command -v $b >/dev/null" \
+              || { echo "::error::thiếu binary: $b"; exit 1; }
+          done
+          # buildx là cli-plugin (/usr/libexec/docker/cli-plugins), KHÔNG nằm
+          # trên PATH ⇒ `command -v docker-buildx` luôn trượt dù cài đúng. Hỏi
+          # qua chính CLI. Lệnh này KHÔNG cần dockerd đang chạy.
+          docker run --rm --entrypoint /bin/bash dlp-sandbox-base:pr -c 'docker buildx version' \
+            || { echo "::error::docker-buildx-plugin không nạp được"; exit 1; }
+
+      # ─────────────────────────────────────────────────────── E9 (1.E-2)
+      #
+      # D3 dựa vào việc `new-session -A` là IDEMPOTENT: gateway (G4) exec vào
+      # `tmux new-session -A -s dlp` mỗi lần attach, nên nếu lượt hai đẻ session
+      # thứ hai thì reconnect sẽ cho sinh viên một màn hình TRỐNG thay vì bài
+      # đang làm — và triệu chứng đó nhìn giống hệt "mất kết nối".
+      # ⚠ ĐO ĐƯỢC 2026-08-12, tmux 3.4: lượt HAI của `new-session -A` trả về **1**
+      # kèm `open terminal failed: not a terminal` khi không có TTY. Không phải
+      # lỗi — với `-A` và session đã tồn tại, tmux chuyển sang ngữ nghĩa ATTACH,
+      # và `-d` chỉ gác đường TẠO chứ không gác đường attach. Đường thật an toàn
+      # vì `podexec/bridge.go` đặt `Tty: true`; nhưng bất kỳ ai gọi
+      # `tmux new-session -A` KHÔNG qua PTY (health probe, script dọn dẹp) sẽ
+      # nhận mã 1 mà session vẫn đúng.
+      #
+      # Nên cổng này KHÔNG khẳng định mã trả về — nó khẳng định thứ E9 thật sự
+      # hứa: hai lượt gọi cho **cùng một** session. So `session_id` chứ không chỉ
+      # đếm `tmux ls`: số đếm bằng 1 cũng đúng trong ca "lượt hai giết session cũ
+      # rồi tạo session mới" — mà ca đó chính là mất bài của sinh viên, tức đúng
+      # thứ D3 sinh ra để chặn.
+      # Cổng này quan sát lượt hai TỪ NGOÀI thay vì đọc mã trả về của nó, vì
+      # `2>/dev/null || true` (bản đầu) nuốt MỌI chế độ hỏng: bump tmux làm `-A`
+      # ngừng attach thì cổng vẫn xanh, còn sinh viên reconnect qua G4 thì mất
+      # phiên. Và không thể chạy lượt hai ở foreground có TTY — đo được
+      # 2026-08-12: nó ATTACH thật và chiếm terminal cho tới khi timeout.
+      #
+      # Nên: lượt hai chạy NỀN có TTY (giống G4, `bridge.go` đặt `Tty: true`),
+      # rồi khẳng định từ ngoài. `list-clients` 0 → 1 là vế ĐỎ ĐƯỢC — nó chứng
+      # minh lượt hai thật sự attach, chứ không phải "không làm gì cả" (mà ca
+      # không-làm-gì cũng cho id1 == id2).
+      - name: 'E9: new-session -A lượt hai ATTACH vào đúng session cũ (D3)'
+        run: |
+          set -euo pipefail
+          cid=$(docker run -d -t --entrypoint /bin/bash dlp-sandbox-base:pr -c \
+                  'tmux new-session -d -s dlp; sleep 300')
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          sleep 2
+          id1=$(docker exec "$cid" tmux display-message -p -t dlp '#{session_id}' | tr -d '\r')
+          c0=$(docker exec "$cid" tmux list-clients 2>/dev/null | wc -l)
+          docker exec -d -t "$cid" bash -c 'tmux new-session -A -s dlp'
+          sleep 4
+          id2=$(docker exec "$cid" tmux display-message -p -t dlp '#{session_id}' | tr -d '\r')
+          n=$(docker exec "$cid" tmux ls | wc -l)
+          c1=$(docker exec "$cid" tmux list-clients | wc -l)
+          echo "id1=$id1 id2=$id2 n=$n clients: $c0 -> $c1"
+          [ "$n" = "1" ]      || { echo "::error::tmux ls trả $n session, muốn 1"; exit 1; }
+          [ -n "$id1" ]       || { echo "::error::không đọc được session_id"; exit 1; }
+          [ "$id1" = "$id2" ] || { echo "::error::session bị TẠO LẠI ($id1 → $id2) — reconnect sẽ mất bài"; exit 1; }
+          [ "$c0" = "0" ]     || { echo "::error::đã có client trước lượt hai — phép đo vô nghĩa"; exit 1; }
+          [ "$c1" -ge 1 ]     || { echo "::error::lượt hai KHÔNG attach (clients vẫn 0) — '-A' đã ngừng hoạt động"; exit 1; }
+
+      # ─────────────────────────────────────────────────────── E8 (1.E-2)
+      #
+      # Đây là cổng BẢO MẬT của chặng, không phải cổng tiện ích: nhánh này chép
+      # file do người dùng cung cấp vào $HOME của phiên lab.
+      - name: 'E8: allowlist dotfiles — chép cái được phép, TỪ CHỐI phần còn lại'
+        run: |
+          set -euo pipefail
+          fx="$RUNNER_TEMP/dotfiles-fixture"
+          rm -rf "$fx"; mkdir -p "$fx/.config/nvim" "$fx/.ssh"
+          echo 'DLP_FIXTURE_ZSHRC' > "$fx/.zshrc"                 # allowlist → phải chép
+          echo 'DLP_FIXTURE_NVIM'  > "$fx/.config/nvim/init.lua"  # .config/** → phải chép
+          echo 'pwned'             > "$fx/evil.sh"                # ngoài allowlist → từ chối
+          echo 'ssh-rsa AAAA'      > "$fx/.ssh/authorized_keys"   # ngoài allowlist → từ chối
+          ln -s /etc/passwd "$fx/.gitconfig"                      # TÊN hợp lệ nhưng là SYMLINK → từ chối
+
+          # 2>&1 có chủ ý: nhánh này phải NÓI RA thứ nó bỏ, không chỉ bỏ đúng.
+          out=$(docker run --rm -v "$fx:/mnt/dotfiles:ro" dlp-sandbox-base:pr bash -c '
+            printf "zshrc=%s\n"  "$(cat ~/.zshrc 2>/dev/null | head -1)"
+            printf "nvim=%s\n"   "$(cat ~/.config/nvim/init.lua 2>/dev/null)"
+            printf "evil=%s\n"   "$([ -e ~/evil.sh ] && echo YES || echo NO)"
+            printf "authk=%s\n"  "$([ -e ~/.ssh/authorized_keys ] && echo YES || echo NO)"
+            printf "gitcfg=%s\n" "$([ -e ~/.gitconfig ] && echo YES || echo NO)"
+          ' 2>&1)
+          echo "$out"
+          grep -qx 'zshrc=DLP_FIXTURE_ZSHRC' <<<"$out" || { echo '::error::.zshrc trong allowlist KHÔNG được chép'; exit 1; }
+          grep -qx 'nvim=DLP_FIXTURE_NVIM'   <<<"$out" || { echo '::error::.config/** KHÔNG được chép'; exit 1; }
+          grep -qx 'evil=NO'                 <<<"$out" || { echo '::error::file NGOÀI allowlist đã lọt vào $HOME'; exit 1; }
+          grep -qx 'authk=NO'                <<<"$out" || { echo '::error::.ssh/authorized_keys đã lọt vào $HOME'; exit 1; }
+          # Vế QUAN TRỌNG NHẤT: symlink là vector duy nhất thoát ra ngoài $HOME
+          # qua một thư mục mount — `.gitconfig` ở đây có TÊN nằm trong
+          # allowlist, nên nếu chỉ kiểm tên thì nó lọt và $HOME/.gitconfig thành
+          # bản sao /etc/passwd.
+          grep -qx 'gitcfg=NO'               <<<"$out" || { echo '::error::SYMLINK đã đi qua allowlist'; exit 1; }
+          # ...và phải NÓI RA rằng nó đã bỏ symlink. `find -type f` loại symlink
+          # ÂM THẦM (nó không bao giờ vào vòng lặp), nên nếu không có lượt quét
+          # `-type l` riêng thì `.gitconfig` của người dùng biến mất không dấu
+          # vết — an toàn nhưng không chẩn đoán được. Đo được 2026-08-12: trước
+          # khi thêm lượt quét đó, log ghi "từ chối 2" trong khi có 3 file bị bỏ.
+          grep -q 'là symlink, không đi theo' <<<"$out" \
+            || { echo '::error::symlink bị bỏ IM LẶNG — không có dòng log nào'; exit 1; }
+
+      - name: 'E8: guard `..` + hai cap (gọi thẳng hàm, không qua mount)'
+        run: |
+          set -euo pipefail
+          # `find` trên một thư mục thật KHÔNG BAO GIỜ sinh segment `..`, nên
+          # guard đó không có ca kiểm nào qua đường mount. Gọi thẳng hàm qua
+          # `--lib-only` — không có bước này thì guard sống mãi mà chưa từng
+          # được chạy một lần nào.
+          docker run --rm --entrypoint /bin/bash dlp-sandbox-base:pr -c '
+            set -u
+            source /usr/local/bin/dlp-entrypoint.sh --lib-only
+            fail=0
+            for bad in "../etc/passwd" ".config/../../etc/passwd" "/etc/passwd" ".." "id_rsa"; do
+              if dlp_dotfile_allowed "$bad"; then echo "LỌT: $bad"; fail=1; fi
+            done
+            # Đối chứng dương: một allowlist từ chối MỌI THỨ cũng làm 5 ca trên
+            # xanh, nên phải có ca khẳng định nó vẫn cho qua đúng thứ cần cho qua.
+            #
+            # Ca cuối là ca chống-quá-chặt: `nvim..bak` chứa ".." nhưng không có
+            # segment nào LÀ "..", nên nó phải ĐƯỢC PHÉP. Viết guard bằng `*..*`
+            # (thay vì `*/../*`) sẽ chặn nó — và ca này là thứ duy nhất phân biệt
+            # được hai cách viết đó.
+            for ok in ".zshrc" ".bashrc" ".gitconfig" ".tmux.conf" ".config/nvim/init.lua" ".config/nvim..bak/init.lua"; do
+              if ! dlp_dotfile_allowed "$ok"; then echo "CHẶN NHẦM: $ok"; fail=1; fi
+            done
+            exit $fail
+          ' || { echo '::error::guard `..` hoặc allowlist sai'; exit 1; }
+
+          # Hai cap: vỡ cap thì bỏ TOÀN BỘ bundle, không chép nửa vời.
+          fx="$RUNNER_TEMP/dotfiles-cap"; rm -rf "$fx"; mkdir -p "$fx/.config"
+          for i in $(seq 1 60); do echo x > "$fx/.config/f$i"; done
+          got=$(docker run --rm -v "$fx:/mnt/dotfiles:ro" dlp-sandbox-base:pr bash -c 'ls ~/.config 2>/dev/null | wc -l')
+          [ "$got" = "0" ] || { echo "::error::cap 50 file không chặn (chép $got)"; exit 1; }
+
+          rm -rf "$fx"; mkdir -p "$fx/.config"
+          head -c 300000 /dev/zero | tr '\0' 'a' > "$fx/.config/big"
+          got=$(docker run --rm -v "$fx:/mnt/dotfiles:ro" dlp-sandbox-base:pr bash -c 'ls ~/.config 2>/dev/null | wc -l')
+          [ "$got" = "0" ] || { echo "::error::cap 256 KiB không chặn (chép $got)"; exit 1; }
+
+          # ĐỐI CHỨNG DƯƠNG TẠI BIÊN. Hai ca trên chỉ khẳng định "0 file được
+          # chép", mà một cap đặt nhầm thành 0 cũng cho ra 0 — ca dưới là thứ
+          # duy nhất phân biệt `-gt` với `-ge` ở đúng ranh giới 50.
+          rm -rf "$fx"; mkdir -p "$fx/.config"
+          for i in $(seq 1 50); do echo x > "$fx/.config/f$i"; done
+          got=$(docker run --rm -v "$fx:/mnt/dotfiles:ro" dlp-sandbox-base:pr bash -c 'ls ~/.config 2>/dev/null | wc -l')
+          [ "$got" = "50" ] || { echo "::error::ĐÚNG 50 file (= cap) phải được chép, nhận $got"; exit 1; }
+
+      # ─────────────────────────────────────────────────────── E8 / kubelet
+      #
+      # ConfigMap / Secret / projected KHÔNG được kubelet ghi thẳng vào thư mục
+      # mount — nó dựng layout atomic-writer (`..data` symlink + thư mục có dấu
+      # thời gian). Không xử lý thì mọi tên người dùng thấy đều là symlink và
+      # mọi file thật nằm dưới `..2026_…/`, cho ra **chép 0 file** với log trỏ
+      # vào "allowlist" — tức dẫn người debug đi sai hướng hoàn toàn.
+      #
+      # Producer của /mnt/dotfiles CHƯA TỒN TẠI ở P1, nên ca này là thứ duy nhất
+      # giữ cho nhánh E8 dùng được với kiểu volume mà nó SẼ gặp.
+      - name: 'E8: layout atomic-writer của kubelet (ConfigMap/Secret/projected)'
+        run: |
+          set -euo pipefail
+          fx="$RUNNER_TEMP/dotfiles-k8s"; rm -rf "$fx"
+          stamp='..2026_08_12_04_34_54.123456789'
+          mkdir -p "$fx/$stamp/.config/nvim"
+          echo 'DLP_K8S_ZSHRC' > "$fx/$stamp/.zshrc"
+          echo 'DLP_K8S_NVIM'  > "$fx/$stamp/.config/nvim/init.lua"
+          ln -s "$stamp" "$fx/..data"
+          ln -s '..data/.zshrc' "$fx/.zshrc"
+          ln -s '..data/.config' "$fx/.config"
+
+          out=$(docker run --rm -v "$fx:/mnt/dotfiles:ro" dlp-sandbox-base:pr bash -c '
+            printf "zshrc=%s\n" "$(head -1 ~/.zshrc 2>/dev/null)"
+            printf "nvim=%s\n"  "$(cat ~/.config/nvim/init.lua 2>/dev/null)"' 2>&1)
+          echo "$out"
+          grep -q 'layout atomic-writer' <<<"$out" \
+            || { echo '::error::không nhận ra ..data — nhánh dotfiles sẽ chép 0 file với ConfigMap'; exit 1; }
+          grep -qx 'zshrc=DLP_K8S_ZSHRC' <<<"$out" || { echo '::error::.zshrc qua ConfigMap KHÔNG được chép'; exit 1; }
+          grep -qx 'nvim=DLP_K8S_NVIM'   <<<"$out" || { echo '::error::.config/** qua ConfigMap KHÔNG được chép'; exit 1; }
+
+      # ─────────────────────────────────────────────── bất biến PID 1 (E8)
+      #
+      # `set -u` KHÔNG bắt `"$@"` rỗng, nên `exec "$@"` với 0 tham số không exec
+      # gì cả và script trả 0 ⇒ tini thoát ⇒ pod **Succeeded** ⇒ warm-pool đầy
+      # xác mà `pool:free` vẫn đếm là ấm. Cổng PID-1 ở trên KHÔNG phủ ca này vì
+      # nó chạy `docker run -d` (có CMD). Đây là ca gọi entrypoint TRỰC TIẾP —
+      # đúng thứ xảy ra nếu ai đó đặt `containers[].command` trong podspec.go.
+      - name: 'E8: entrypoint KHÔNG có CMD vẫn phải giữ PID 1 sống'
+        run: |
+          set -euo pipefail
+          cid=$(docker run -d --entrypoint /usr/local/bin/dlp-entrypoint.sh dlp-sandbox-base:pr)
+          sleep 5
+          state=$(docker inspect -f '{{.State.Status}}' "$cid")
+          docker rm -f "$cid" >/dev/null
+          [ "$state" = "running" ] \
+            || { echo "::error::entrypoint không CMD → state=$state (muốn running). PID 1 thoát = pod Succeeded = warm-pool đếm một xác."; exit 1; }
+
+      # ⛔ `--exit-code 1` trả 0 KHÔNG có nghĩa là "0 CRITICAL". Trivy FATAL khi
+      # không tải được DB lỗ hổng (ghcr rate-limit là ca hay gặp), và khi đó nó
+      # KHÔNG quét byte nào — trong khi log của một job xanh thì không ai đọc.
+      # Dính đúng ca này lúc quét cục bộ ở 1.E-2. Nên cổng ghi kết quả ra FILE
+      # rồi bước sau khẳng định lượt quét ĐÃ chạy; thiếu vế đó thì đây là một
+      # cổng bảo mật luôn xanh, tệ hơn không có cổng.
       - name: 'Trivy — CỔNG CHẶN ở CRITICAL (trước khi vào main)'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: dlp-sandbox-base:pr
           format: table
+          output: trivy-critical.txt
           exit-code: '1'
           severity: 'CRITICAL'
+          timeout: '15m'
+
+      - name: 'Trivy: khẳng định lượt quét ĐÃ chạy (chống xanh-vì-FATAL)'
+        run: |
+          set -euo pipefail
+          [ -s trivy-critical.txt ] \
+            || { echo '::error::trivy không ghi ra kết quả nào — nhiều khả năng FATAL khi tải DB. Cổng CRITICAL vừa rồi KHÔNG quét gì.'; exit 1; }
+          cat trivy-critical.txt
+          grep -qiE 'Report Summary|Total:|no vulnerabilities|Legend' trivy-critical.txt \
+            || { echo '::error::output của trivy không có bảng tổng kết — không coi là đã quét.'; exit 1; }
 
   # ─────────────────────────────────────────────── cổng tổng hợp (required check)
   ci-ok:

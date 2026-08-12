@@ -398,7 +398,14 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 
 ## 1.E — `images/sandbox-base`
 
-> **Tiến độ:** ✅ **1.E-1 XONG (E1–E5 + E10)** — 2026-08-10. Image thật đã thay `pause` trên cluster lab và warm-pool đang dựng pod từ nó. **E6–E9 còn nợ** (pwsh, DinD, entrypoint dotfiles) — xem [`images/sandbox-base/README.md`](../../images/sandbox-base/README.md) §"Chưa làm".
+> **Tiến độ:** ✅ **LANE 1.E ĐÓNG.** 1.E-1 (E1–E5 + E10) 2026-08-10 — image thật đã thay `pause`, warm-pool dựng pod từ nó. **1.E-2 (E6–E9) 2026-08-12** — DinD chạy thật trên pod Sysbox, **AC "DinD offline" (D4) ĐÓNG**. Báo cáo: [`reports/2026-08-12-verify-1e2-dind.md`](reports/2026-08-12-verify-1e2-dind.md) · chi tiết image: [`images/sandbox-base/README.md`](../../images/sandbox-base/README.md).
+>
+> **Bài học của 1.E-2 — một cổng có thể xanh vì nó chưa từng đo được gì.** Ba ca ở chặng này:
+> 1. `trivy … --exit-code 1` trả **0** sau khi FATAL vì không tải được DB — cộng với `>/dev/null 2>&1` thì nó thành một cổng bảo mật luôn xanh. Đọc **Report Summary**, đừng đọc mã trả về.
+> 2. Verify command của D4 trong chính plan này ghi Dockerfile vào `/tmp/D` rồi `docker build /tmp` (buildx tìm `Dockerfile`), và dừng ở `docker images` chứ không `docker run`. Nó chưa bao giờ chạy được — nhưng vì chưa ai chạy nên chưa ai biết.
+> 3. `FROM scratch` rỗng thì không có gì để `docker run`. AC đòi vế run, nên phải COPY một binary **tĩnh** — và trong image này chỉ đúng `oh-my-posh` là tĩnh.
+>
+> Cả ba đều cùng một họ với ba check hỏng của `04-verify-sysbox.sh` mà chính plan này phê phán: **phép kiểm xanh vì nó không kiểm gì**, không phải vì thứ nó kiểm đã đúng.
 >
 > **⛔ BASE ĐỔI: `ubuntu:24.04` (Noble Numbat), KHÔNG phải 26.04.** Quyết định của người dùng ngày 2026-08-10 (yêu cầu ban đầu là 22.04, chốt lại 24.04 sau khi đo). Đo `apt-cache policy` trên chính ba base:
 >
@@ -622,12 +629,16 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
   > ⛔ **AC bản cũ hỏng ở HAI tầng, và tầng thứ hai chỉ lộ ra khi review đối kháng.**
   > **(a) `--icons` không bao giờ xanh được.** Không kèm giá trị nghĩa là `--icons=auto`, mà `auto` **tắt icon khi stdout không phải tty** — `| xxd` thì luôn là pipe. Đo cả ba ca: `--icons` qua pipe → **0** glyph; `--icons=always` qua pipe → **3**; `--icons` với `-t` (vẫn pipe vào `xxd`) → **0**.
   > **(b) `| xxd | grep -E "ee|ef"` thì ngược lại — nó xanh VÌ LÝ DO SAI.** Regex chạy trên toàn dòng xxd: cột offset `00000ee0:` khớp `ee`, và hai byte cạnh nhau `0xAE 0xE1` in ra `aee1` cũng khớp, dù **không byte nào là PUA**. Bản vá đầu tiên của chặng này chỉ sửa (a) nên đổi một phép kiểm **tự làm mù** lấy một phép kiểm **tự làm sáng** — cùng họ "suite xanh vì skip sạch". Chốt: kiểm codepoint bằng `grep -P`, và **bắt buộc chạy kèm ca đối chứng `--icons=never` phải ra 0** — một phép kiểm không thể đỏ thì không kiểm gì cả.
-- [ ] **DinD offline (D4):** `docker info` trả cả client lẫn server; `docker build` một image `FROM scratch` rồi `docker run` nó — thành công **không cần mạng**.
-- [ ] Dotfiles: file trong allowlist được copy; **symlink và `../` bị từ chối**, không ghi được ngoài `$HOME`.
+- [x] **DinD offline (D4):** `docker info` trả cả client lẫn server; `docker build` một image `FROM scratch` rồi `docker run` nó — thành công **không cần mạng**. → ✅ **ĐẠT 2026-08-12 trên pod Sysbox thật** (1.E-2), dưới NetworkPolicy `default-deny` đang sống: `Client=29.7.2 Server=29.7.2`; build `FROM scratch` (COPY binary **tĩnh** `oh-my-posh`) rồi `docker run` in `30.6.4`; `docker image ls` sau đó chỉ có đúng image vừa build. Bằng chứng: [`reports/2026-08-12-verify-1e2-dind.md`](reports/2026-08-12-verify-1e2-dind.md).
+  > **Vế "không cần mạng" được ĐO chứ không được khẳng định:** cùng pod đó, `curl https://registry-1.docker.io/v2/` **hỏng** và `curl http://169.254.169.254/` **hỏng**. Thiếu vế này thì AC chỉ chứng minh "lần chạy đó tình cờ không cần mạng", không chứng minh "chạy được KHI KHÔNG CÓ mạng".
+  > **Và `docker build` không pull `moby/buildkit`** vì builder mặc định là driver `docker` (BuildKit nhúng trong dockerd). Ai chạy `docker buildx create` sẽ sinh driver `docker-container` — driver ĐÓ pull image và tự làm hỏng AC này.
+- [x] Dotfiles: file trong allowlist được copy; **symlink và `../` bị từ chối**, không ghi được ngoài `$HOME`. → ✅ ở **tầng image** (1.E-2): fixture 5 file → chép 2, từ chối 3 (`evil.sh`, `.ssh/authorized_keys` ngoài allowlist; `.gitconfig` là **symlink trỏ `/etc/passwd`** — tên nằm TRONG allowlist nên nó là ca duy nhất chứng minh phép kiểm không chỉ đọc tên). Guard `../` gọi thẳng qua `--lib-only`; hai cap (50 file / 256 KiB) bỏ TOÀN BỘ bundle chứ không chép nửa vời.
+  > ⚠ **Đọc AC này đúng độ mạnh của nó:** `/mnt/dotfiles` **chưa có ai mount**. `podspec.go` đặt `Volumes: nil`, CEL #8 cấm `hostPath`, và P1 chưa có tính năng nào cấp nội dung dotfiles — nên nhánh này chưa từng chạy qua đường người dùng thật. Quyết định có chủ ý ở 1.E-2 (không mở rộng sang file của lane 1.B để dựng một đường ống rỗng). Vế mount thuộc phase có tính năng dotfiles thật.
 - [x] Mở `/session`: DevTools Console **0 CSP violation**; gõ tiếng Việt / ký tự đa-byte không vỡ khi output cắt qua nhiều frame. → Đo trên cluster 2026-08-11 qua Chrome thật: 0 violation, **kèm đối chứng âm** chứng minh CSP đang thực thi (`wss://evil.example` → violation `connect-src`; ảnh cross-origin → violation `img-src`) — không có đối chứng thì "0 violation" đúng một cách vô nghĩa. `echo "phiên lab tiếng Việt ✓ $(hostname)"` trả về nguyên vẹn cả dấu lẫn ✓ (U+2713). ⇒ **`connect-src 'self'` CÓ phủ `ws://` cùng origin, `headers.ts` không cần sửa.**
 - [ ] Tắt hardware acceleration → terminal vẫn chạy (fallback DOM renderer) + có `console.warn`.
 - [ ] StrictMode dev: mount/unmount 3 lần → chỉ còn **1** WebSocket sống.
-- [ ] `trivy image --severity CRITICAL --exit-code 1` pass **cục bộ trước khi merge**.
+- [x] `trivy image --severity CRITICAL --exit-code 1` pass **cục bộ trước khi merge**. → ✅ 2026-08-12 với image `INCLUDE_DOCKER=1` (809 MB): **0 CRITICAL** trên cả tầng gói Ubuntu lẫn 5 binary Go ⇒ **không cần `.trivyignore`**. HIGH: 14 (`oh-my-posh`, như 1.E-1) + 3 (`docker-buildx`).
+  > ⛔ **`--exit-code 1` trả 0 KHÔNG có nghĩa "0 CRITICAL".** Trivy FATAL khi không tải được DB lỗ hổng; nuốt stderr (`>/dev/null 2>&1`) là lượt đó trả **0** trong khi chưa quét được gì. Dính đúng ca này khi làm 1.E-2 — lượt đầu FATAL vì DB timeout, lượt sau bị nuốt output và báo "exit=0". Phải đọc bảng **Report Summary** trước khi tin mã trả về.
 
 ### Bảo mật (luật 5, 6, 8, 10 — P1 là phase sở hữu luật 10)
 > **Hai vế authz chết ở hai bước khác nhau — phải kiểm RIÊNG.** Bước **e** (`token.sid == {id}`) chạy trước bước **g** (`hash.userId == token.sub`). Mọi ca "user B mở session của A" đều dừng ở **e** và **không bao giờ chạm g**. Nếu chỉ kiểm những ca đó, một implement thiếu hẳn bước g vẫn cho acceptance xanh toàn bộ — đúng loại tautology mà D-17′ phê phán. Ca cho bước g bắt buộc phải **forge token bằng khoá test**.
@@ -771,9 +782,25 @@ sudo cat "$SLICE/pids.events"                                       # sau fork-t
 kubectl exec -n dlp-sandbox $POD -- cat /proc/self/uid_map          # cột 2 != 0
 kubectl get pod -n dlp-sandbox $POD -o jsonpath='{.spec.volumes}'   # không có hostPath
 kubectl exec -n dlp-sandbox $POD -- curl -m 3 http://169.254.169.254/ ; echo "exit=$?"  # deny
-# DinD offline (D4) — KHÔNG dùng `docker run hello-world`, nó cần pull
-kubectl exec -n dlp-sandbox $POD -- sh -c \
-  'printf "FROM scratch\n" > /tmp/D && docker build -q -t t /tmp && docker images t'
+# DinD offline (D4) — KHÔNG dùng `docker run hello-world`, nó cần pull.
+# ⛔ BẢN CŨ Ở ĐÂY KHÔNG CHẠY ĐƯỢC (sửa 2026-08-12, cùng loại lỗi với D-22′):
+#   (a) ghi Dockerfile vào `/tmp/D` rồi `docker build /tmp` — buildx tìm file
+#       tên `Dockerfile`, không tìm `D`, nên nó đỏ trước khi kiểm được gì;
+#   (b) dừng ở `docker images t`, tức chỉ chứng minh BUILD. AC D4 viết rõ
+#       "rồi `docker run` nó" — và vế run mới là vế phân biệt "image tồn tại"
+#       với "image chạy được";
+#   (c) `FROM scratch` rỗng thì KHÔNG CÓ GÌ để run. Phải COPY một binary TĨNH
+#       vào; trong image này chỉ `oh-my-posh` tĩnh (`tini`/`docker-proxy` đều
+#       động — chọn nhầm thì chết ở loader, nhìn hệt "DinD hỏng").
+kubectl exec -n dlp-sandbox $POD -- docker info \
+  --format 'Client={{.ClientInfo.Version}} Server={{.ServerVersion}}'
+kubectl exec -n dlp-sandbox $POD -- bash -c '
+  mkdir -p /tmp/b && cp /usr/local/bin/oh-my-posh /tmp/b/app
+  printf "FROM scratch\nCOPY app /app\nENTRYPOINT [\"/app\"]\n" > /tmp/b/Dockerfile
+  docker build -q -t s:probe /tmp/b && docker run --rm s:probe --version'
+# Vế BẮT BUỘC đi kèm — không có nó thì "không cần mạng" chỉ là lời khẳng định:
+kubectl exec -n dlp-sandbox $POD -- timeout 6 curl -sS https://registry-1.docker.io/v2/
+kubectl exec -n dlp-sandbox $POD -- docker image ls   # chỉ có image vừa build
 
 # ============ mTLS cổng gRPC (1.C-4) ============
 # ⛔ PHẢI CHẠY TRONG CỤM. Ba vế quan trọng nhất cần HAI cert hợp lệ do CÙNG một
@@ -868,7 +895,7 @@ make go-build && make go-test && make go-vet && make env-check && make proto-bre
 | 1.B orchestrator (B1–B9) | **L** | Đường găng |
 | 1.C gateway (G1–G13) | **L** · **1.C-1 ✅ xong 2026-08-10** (G1, G2, G3, G11, G13 + bước i) · **1.C-2 ✅ xong 2026-08-10** (G4–G6, cầu exec — **đã gõ được lệnh thật trên cluster**) · **G12 ✅ xong 2026-08-11** (cookie thật, 18/18 e2e — đóng **R20**, KHÔNG phải R25) · **1.C-3 ✅ xong 2026-08-11** (G7–G10: extend theo traffic thật, rate-limit, metrics) · **1.C-4 ✅ xong 2026-08-12** (mTLS ba nấc + ghim CN — **R25 ĐÓNG**) | ~~Đường găng~~ **LANE ĐÓNG**, song song 1.B. **1.F hết bị chặn bởi G12** kể từ 2026-08-11. Bài học của 1.C-4: cờ bool `GRPC_REQUIRE_MTLS` sống sót hai chặng không phải vì ai quên, mà vì nó **không bật được** — thiếu một nấc giữa thì mọi lượt bật đều đi qua cửa sổ 100% RPC đỏ. |
 | 1.D bốn khoảng trống | **S**×4 | D-17′/D-21′/D-22′ song song hoàn toàn; **D-19′ phụ thuộc 1.B0.1** (restart kubelet, xem R22) |
-| 1.E image | ~~M~~ **E1–E5 + E10 ✅ xong 2026-08-10** · E6–E9 còn nợ | Warm-pool đã chạy image thật; E7 (DinD) chặn AC "DinD offline" (D4) |
+| 1.E image | ~~M~~ **E1–E5 + E10 ✅ xong 2026-08-10** · **E6–E9 ✅ xong 2026-08-12** | ~~E7 (DinD) chặn AC "DinD offline"~~ **LANE ĐÓNG** — AC D4 đo trên pod Sysbox thật. Image 379 → **809 MB** (+430 MB), tarball 194 MB; `pids.current` 30/4096 và RSS 153 MiB/1 GiB nên **trần 4 session của D16 không đổi** (`requests` giữ nguyên 512Mi). `INCLUDE_PWSH` chạy được nhưng mặc định **0** vì cộng thêm ~330 MB |
 | 1.F FE | ~~M–L~~ **✅ xong 2026-08-11** (F1–F11; terminal gõ được lệnh thật trong trình duyệt, 0 CSP violation có đối chứng âm) | Đóng luôn câu hỏi CSP mà G12 để lại ⇒ `headers.ts` không phải sửa. Lôi ra lệch contract `hardCapAt` và một lỗi chặn-người-dùng của lane orchestrator (pod chết trong `pool:free`). |
 | **Tổng P1** | **L (~3 tuần)** | Đường găng: `1.B0.1 → 1.B0.3 → 1.A → (1.B ∥ 1.C) → tích hợp`. 1.E-1 phải chen sớm. |
 

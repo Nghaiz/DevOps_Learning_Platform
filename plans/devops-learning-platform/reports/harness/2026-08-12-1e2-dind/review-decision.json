@@ -1,0 +1,24 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "score": 8,
+  "criticalCount": 0,
+  "contractStatus": "OK",
+  "blockingReasons": [],
+  "acceptanceCoverage": [
+    "AC 'DinD offline (D4)' -> DAT tren pod Sysbox that duoi NetworkPolicy default-deny: docker info Client=Server=29.7.2; docker build FROM scratch (COPY binary TINH oh-my-posh) thanh cong; docker run no in 30.6.4; docker image ls chi co dung image vua build. Ve doi chung AM (curl ra registry-1.docker.io va ra 169.254.169.254 deu HONG) la ve lam AC nay co nghia — thieu no thi bon ve kia chi chung minh 'lan chay do tinh co khong can mang'.",
+    "AC dotfiles -> DAT o TANG IMAGE, voi CA HAI kieu volume se gap (thu muc that + layout atomic-writer cua kubelet). Ca duy nhat co gia tri chung minh la .gitconfig: TEN nam TRONG allowlist, bi chan vi la symlink tro /etc/passwd — bon ca kia deu co the xanh voi mot phep kiem chi doc ten. CAVEAT ghi ro o ca ba noi: /mnt/dotfiles chua co producer nen nhanh nay chua tung chay qua duong nguoi dung that.",
+    "AC 'trivy CRITICAL pass cuc bo truoc merge' -> DAT: 0 CRITICAL tren ca tang goi Ubuntu lan 5 binary Go => khong can .trivyignore. Con so doc tu bang Report Summary, KHONG doc tu exit code — luot chay dau FATAL vi DB timeout va van tra 0.",
+    "E9 (D3) -> DAT voi thiet ke do duoc: list-clients 0 -> 1 chung minh luot hai ATTACH that, cong id1 == id2 va tmux ls == 1. Ban dau (chi dem tmux ls) khong do duoc ca 'luot hai giet session cu roi tao moi' — ma ca do chinh la mat bai cua sinh vien.",
+    "E6 -> nhanh pwsh build VA chay that (7.6.4 + Terminal-Icons 0.11.0); mac dinh van 0 vi cong ~330 MB. Them cong CI tai .deb + kiem checksum, vi mac-dinh-tat nghia la khong luot build nao cham toi PWSH_SHA256.",
+    "RUI RO DA CHAP NHAN: warm-pool + gateway chua chay image moi. Rui ro chinh cua doi ENTRYPOINT ('PID 1 chet, pool:free dem mot xac') DA bi bac bo boi pod probe (cung RestartPolicy:Never, khong override Command/Args, Running suot buoi do) VA boi cong CI moi goi entrypoint truc tiep. Nguoi dung chon dong ve con lai sau merge bang tag sha-* — mot luot dong luon ca no tag.",
+    "RUI RO DA CHAP NHAN: tini khong chay `-g` nen dockerd khong shutdown em (chet bang SIGKILL luc do PID namespace). Pod van terminate dung han nen D16 khong vo."
+  ],
+  "regressionProof": [
+    "go test 359 PASS / 0 FAIL / 0 SKIP (Redis + Postgres THAT; orchestrator 187, gateway 120, shared 52) — KHOP CHINH XAC con so cua 1.C-4, dung ky vong vi chang nay khong cham dong Go/TS nao.",
+    "env-check 66 bien / 4 scope khong doi — chang nay khong them env nao.",
+    "helm lint 0 chart failed; actionlint 0 issue; shellcheck 0 issue.",
+    "requests cua pod sandbox khong doi (512Mi/500m) => tran 4 session dong thoi cua D16 giu nguyen du image beo len 430 MB va dockerd chay tu luc pod start.",
+    "Fixture dotfiles kieu thu-muc-that van cho ket qua nhu truoc khi va #1: chep 2, tu choi 3 (evil.sh, .ssh/authorized_keys, .gitconfig-symlink).",
+    "Guard `..` + allowlist: 5 ca xau deny, 6 ca tot allow (gom .config/nvim..bak/init.lua — ca chong-qua-chat)."
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "phase-1 1.E-2 — E6-E9 cua lane image (pwsh, Docker/DinD, entrypoint nap dotfiles, tmux la duong vao). Dong AC 'DinD offline' (D4) va AC dotfiles. Nguoi dung chon chang nay trong 4 mang ho con lai cua P1 (3 mang kia: AC lifecycle 1.B, AC bao mat, no mo ra tu 1.C-4).",
+  "scoutSummary": "Vao phien tren main sach, khong drift so voi origin. Timeline P1: 1.A/1.B/1.C/1.D/1.F deu da dong; 1.E la lane DUY NHAT con task mo. Scout ma: Dockerfile 1.E-1 co ENTRYPOINT tini + CMD sleep infinity va CO Y chua khai bao INCLUDE_DOCKER/INCLUDE_PWSH; podspec.go dat Volumes:nil, CEL #8 cam hostPath; job CI `images` chi chay tren main nen co job `sandbox-image` build thu o moi PR; VAP doi runtimeClassName + hostUsers:false + khong hostPath. Cum song: k8s v1.34.10, Sysbox 0.7.0, release revision 32. | QUYET DINH: (1) cook mang 1.E-2 vi la lane duy nhat con task mo va E7 chan AC D4; (2) no tag lab hoa ra DA DONG SAN — revision 32 chay sha-1530c13 cho ca 5 image, tuc report ghi no 'dev-1c4b' da loi thoi (lan THU HAI mot mon no duoc chep tu report sang report sau khi da tra); (3) phat hien lo hong plan: E8 doc /mnt/dotfiles nhung KHONG AI mount no, chon 'chi tang image, khong dung podspec' de khong dung mot duong ong rong trong file SSOT cua lane 1.B; (4) AC D4 do tren CUM chu khong o CI, vi runner GitHub khong co Sysbox nen `--privileged` o do do mot moi truong KHAC — xanh khong noi duoc gi, do co the la do gia; (5) dung o pod probe, khong chuyen warm-pool sang dev-1e2, de dong ve con lai bang sha-* sau merge (mot luot dong luon ca no tag). | TU QUYET: chi cai Terminal-Icons chu khong ca PSReadLine (PSReadLine di kem pwsh 7, cai them tao hai version cung ten trong $PSModulePath); bo docker-compose-plugin (chua AC nao doi, +40 MB vao tarball phai side-load).",
+  "acceptanceCriteria": [
+    "AC 'DinD offline' (D4): docker info tra ca client lan server; docker build mot image FROM scratch roi docker run no — thanh cong KHONG can mang. Phai co ve doi chung AM (curl ra ngoai HONG), neu khong thi chi chung minh 'lan chay do tinh co khong can mang'.",
+    "AC dotfiles: file trong allowlist duoc copy; symlink va ../ bi tu choi; khong ghi duoc ngoai $HOME.",
+    "AC 'trivy image --severity CRITICAL --exit-code 1' pass CUC BO truoc khi merge.",
+    "E9 (D3): goi `tmux new-session -A` hai lan phai tra ve CUNG MOT session.",
+    "E6: nhanh INCLUDE_PWSH phai build duoc that (khong ship mot nhanh chua tung build)."
+  ],
+  "touchpoints": [
+    "images/sandbox-base/Dockerfile — them ARG INCLUDE_DOCKER/INCLUDE_PWSH + hai nhanh RUN + COPY entrypoint + doi ENTRYPOINT",
+    "images/sandbox-base/entrypoint.sh — FILE MOI",
+    ".github/workflows/ci.yml — job sandbox-image nhan them cong E6/E7/E8/E9 + siet cong Trivy + sua so do header",
+    "images/sandbox-base/README.md, plans/devops-learning-platform/phase-1.md — tai lieu + AC + sua verify command cua D4 (ban cu khong chay duoc)",
+    "KHONG cham: bat ky file Go/TS nao, bat ky bien env nao, podspec.go, chart Helm"
+  ],
+  "publicContracts": [
+    "KHONG co contract chung nao bi cham: 0 dong Go/TS, 0 bien env moi (env-check van 66 bien / 4 scope).",
+    "Rang buoc duy nhat di qua bien la hop dong NGAM giua image va podspec.go: pod khong override Command/Args va dat RestartPolicy:Never, nen ENTRYPOINT cua image quyet dinh warm-pool song hay chet. ENTRYPOINT moi giu nguyen chuoi tini(PID 1) -> sleep infinity bang `exec \"$@\"`, va nay tu bao ve bang `[ \"$#\" -gt 0 ] || set -- sleep infinity`.",
+    "Hop dong MOI duoc chot o chang nay: /mnt/dotfiles duoc phep la thu muc that HOAC layout atomic-writer cua kubelet (ConfigMap/Secret/projected) — ca hai deu co ca kiem. Day la API ma producer tuong lai phai theo."
+  ],
+  "blastRadius": [
+    "Moi pod lab cua sinh vien: image doi ENTRYPOINT va tang 379 -> 809 MB. Mot PID 1 thoat som = warm-pool day pod chet ma pool:free van dem la am.",
+    "Warm-pool: moi lan bump image.tag phai side-load them tarball 194 MB len node, neu khong thi ImagePullBackOff.",
+    "Quota/D16: dockerd chay tu luc pod start nen RSS luc ranh 7.5 MB -> 153 MiB. `requests` KHONG doi (512Mi) nen tran 4 session dong thoi giu nguyen.",
+    "CI: job sandbox-image chay o MOI PR va nay dai them ~90 dong; Trivy do tren main = khong co tag sha-* cho sandbox-base = lan deploy ke tiep tro vao tag khong ton tai.",
+    "Be mat bao mat moi: nhanh E8 chep file do NGUOI DUNG cung cap vao $HOME cua phien lab."
+  ]
+}
