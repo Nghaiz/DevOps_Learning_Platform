@@ -20,5 +20,12 @@
     "AC 'xoa session:{id} -> sweep don; xoa pod -> session FAILED' -> DAT CA HAI VE, kem dinh chinh: tang bat ve 1 la 2c (claimed_orphan) chu KHONG phai nhanh 'pod mo coi'.",
     "AC 'quarantine khong ro quota (tang 3)' -> DAT: don ca ba sau 24s, quarantine_reaped 0->1 va 5 counter reaper khac dung yen o 0."
   ],
-  "regressionProof": "359 PASS / 0 SKIP truoc va sau thay doi; -race sach; vitest web 8/8. Thay doi ma trong chang nay chi gom: mot cong cu MOI (cmd/lifecycle-probe, khong ai import) va HAI comment. Khong dong logic nao bi sua. Vong hai: them 3 ca cho probe (create/-keep, pool/-n) — van khong package nao import no. Cum tra ve trang thai sach: quota 1/10, moi key con lai co TTL."
+  "regressionProof": [
+    "Suite Go 359 PASS / 0 FAIL / 0 SKIP truoc va sau thay doi; -race 17 package ok, 0 DATA RACE.",
+    "vitest apps/web schema.test.ts 8/8.",
+    "GOOS=linux go build + go vet sach; gofmt -l rong.",
+    "Thay doi ma chi gom mot cong cu chan doan MOI (khong ai import) va HAI doc-comment — khong dong logic nao bi sua.",
+    "Kiem dot bien tren manager.go da hoan nguyen, git diff cua file do rong.",
+    "Cum tra ve trang thai sach: quota 1/10, pool:claimed va pool:quarantine rong, moi key session:* con lai deu co TTL."
+  ]
 }

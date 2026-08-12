@@ -14,6 +14,17 @@
     "apps/web/src/server/db/schema.ts (comment)",
     "plans/devops-learning-platform/phase-1.md (tick AC)"
   ],
-  "publicContracts": "Khong doi. proto khong sua, Redis key khong sua, WS contract khong sua.",
-  "blastRadius": "Thap — mot cong cu chan doan khong ai import + hai comment."
+  "publicContracts": [
+    "proto/orchestrator/v1/session.proto — KHONG doi (buf breaking xanh)",
+    "docs/redis-key-namespace.md + redis-key-vectors.json — KHONG doi",
+    "docs/ws-terminal-protocol.md — KHONG doi",
+    "apps/web schema sessions_audit — KHONG doi cot nao, chi them comment ly le cho pod_name"
+  ],
+  "blastRadius": [
+    "services/orchestrator/cmd/lifecycle-probe/ — package MOI, khong package nao import",
+    "services/orchestrator/internal/lifecycle/extend.go — chi doc-comment",
+    "apps/web/src/server/db/schema.ts — chi doc-comment",
+    "plans/devops-learning-platform/** — tai lieu + artifact",
+    "Cum lab: da tra ve trang thai sach (quota 1/10, Postgres bat lai, moi session probe da reap)"
+  ]
 }
