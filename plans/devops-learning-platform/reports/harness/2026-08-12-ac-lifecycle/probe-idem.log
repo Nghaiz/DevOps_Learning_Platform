@@ -1,0 +1,19 @@
+### POD SANDBOX TRƯỚC: 1
+   sandbox-399968645a0c Running
+### PHASE: Succeeded  EXIT: 0
+### LOG ###
+
+===== CASE idem =====
+  . lượt 1                                         id=f86566fa4d915516ec45e7ddabea357f pod=sandbox-399968645a0c
+  . lượt 2                                         id=f86566fa4d915516ec45e7ddabea357f pod=sandbox-399968645a0c
+  [PASS] cùng session.id                                f86566fa4d915516ec45e7ddabea357f vs f86566fa4d915516ec45e7ddabea357f
+  [PASS] cùng pod (không tạo pod thứ hai)               sandbox-399968645a0c vs sandbox-399968645a0c
+  [PASS] đối chứng: key khác ⇒ session khác             id=1088f8076af57e1bea58713574acdb60 pod=sandbox-318736c1ac0d
+  ~ đã dọn session 1088f8076af57e1bea58713574acdb60 (pod sandbox-318736c1ac0d)
+  ~ đã dọn session f86566fa4d915516ec45e7ddabea357f (pod sandbox-399968645a0c)
+
+===== TỔNG =====
+checks=3 fails=0
+KẾT QUẢ: PASS
+### POD SANDBOX SAU: 1
+   sandbox-a891d59fa6b2 Running

@@ -33,16 +33,17 @@ const (
 
 // Extend đẩy idle-deadline của một session đang chạy về phía trước.
 //
-// ⛔ CÔNG THỨC CÓ THỂ KÉO LÙI HẠN, VÀ ĐÓ LÀ ĐIỀU PLAN PIN NGUYÊN VĂN:
-// `expires_at = min(now + extend_seconds, created_at + HARD_CAP)` (B5). Hệ quả
-// cụ thể: session tạo với SESSION_TTL=1h, tới heartbeat ĐẦU TIÊN với
-// EXTEND_DEFAULT=300s thì hạn tụt từ t0+1h xuống t0+~6ph. Nói cách khác,
-// SESSION_TTL chỉ là hạn cho tới lần gia hạn đầu; sau đó expires_at luôn bám
-// EXTEND_DEFAULT. Điều này có thể ĐÚNG với ý định (đây là idle-deadline, không
-// phải tổng thời lượng), nhưng nó va với AC "đóng WS → nối lại cùng {id} trong
-// TTL vào đúng pod cũ" — cửa sổ nối lại khi đó chỉ còn EXTEND_DEFAULT chứ không
-// phải SESSION_TTL. Hiện thực theo đúng công thức đã pin và ghi lại ở đây;
-// muốn hạn chỉ tiến không lùi thì đổi thành max(current, min(...)) — một dòng.
+// Công thức: `expires_at = max(current, min(now + extend_seconds, created_at + HARD_CAP))`.
+// Vế `max` KHÔNG có trong bản pin đầu của B5 và được thêm sau khi đo: `min` một
+// mình kéo hạn LÙI 55 phút ở heartbeat đầu tiên (SESSION_TTL=1h gặp
+// EXTEND_DEFAULT=300s), làm gãy AC nối-lại-trong-TTL, khiến token đã cấp sống
+// lâu hơn session, và bắn reaper tầng 1 sớm. Lý lẽ đầy đủ + ba hệ quả nằm ngay
+// tại chỗ thực thi trong `extend.lua` — đọc ở đó, đừng nhân bản sang đây.
+//
+// ⛔ Comment cũ ở chỗ này mô tả công thức KHÔNG có vế `max` và còn dặn người đọc
+// "muốn hạn chỉ tiến không lùi thì đổi thành max(...) — một dòng", trong khi
+// `extend.lua` đã có vế đó từ B5. Một comment sai hướng người đọc đi sửa thứ đã
+// đúng; ghi lại vì SSOT của công thức là file .lua, không phải doc-comment này.
 func (s *Service) Extend(
 	ctx context.Context, req *orchestratorv1.ExtendSessionRequest,
 ) (*orchestratorv1.Session, bool, error) {

@@ -1,0 +1,11 @@
+{
+  "highRisk": false,
+  "autoStopRequired": false,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "Diff khong dong toi duong chay: mot binary chan doan moi + hai comment. Khong package nao import lifecycle-probe, va Dockerfile cua no CO Y khong nam trong ma tran CI (cung ly le voi mtls-probe: dung ship mot binary tao/xoa duoc session cua nguoi khac vao moi moi truong).",
+    "Thao tac cum co rui ro DA HOAN NGUYEN va da xac minh: scale platform-postgres ve 0 roi ve 1 (rollout status OK). Moi session probe tao ra deu duoc reap trong cung luot chay — tran quota lab chi co 4 pod nen mot probe quen don se lam phep do SAU do do vi het cho.",
+    "Kiem dot bien tren manager.go da hoan nguyen; git diff cua file do RONG."
+  ]
+}

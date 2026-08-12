@@ -88,6 +88,18 @@ export const sessionsAudit = pgTable(
     userId: text('user_id').notNull(),
     event: sessionEvent('event').notNull(),
     tier: sandboxTier('tier').notNull(),
+    /**
+     * Pod GẮN VỚI SỰ KIỆN NÀY, không phải pod hiện tại của session. Một session
+     * đi qua nhiều dòng (`created`/`claimed`/`reaped`) và mỗi dòng giữ tên pod
+     * đúng tại thời điểm đó.
+     *
+     * ⚠ Ranh giới dễ bị vượt: `… WHERE session_id=X ORDER BY occurred_at DESC
+     * LIMIT 1` sẽ TRÔNG như trả lời được "session X đang ở pod nào". Nó không —
+     * nó trả lời "pod của sự kiện gần nhất ĐÃ GHI", và hai câu đó lệch nhau ngay
+     * khi reaper xoá pod mà không kịp ghi audit (audit được phép hỏng mà RPC vẫn
+     * thành công — chính là AC "tắt Postgres"). Câu hỏi hiện-tại chỉ Redis trả
+     * lời; dùng bảng này để trả lời nó là dựng nguồn sự thật thứ hai.
+     */
     podName: text('pod_name'),
     namespace: text('namespace'),
     /**
