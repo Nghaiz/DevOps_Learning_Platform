@@ -149,7 +149,18 @@ func caseAttach(ctx context.Context, webURL, gwURL, metricsURL, origin string, n
 	if err != nil {
 		return fmt.Errorf("đọc histogram TRƯỚC: %w", err)
 	}
+	changTruoc, err := docBangChang(ctx, metricsURL)
+	if err != nil {
+		return fmt.Errorf("đọc bảng chặng TRƯỚC: %w", err)
+	}
 	fmt.Printf("2. histogram trước: %d mẫu\n", truoc.count)
+
+	// Mốc chụp SAU LƯỢT ĐẦU tách mẫu nguội khỏi mẫu ấm.
+	//
+	// 1.G-2 đã ghi: từ lượt 2 trở đi phiên tmux đã tồn tại, nên lượt đầu gánh
+	// thêm `tmux new-session` còn 49 lượt sau là chi phí NỐI LẠI. Trộn chung
+	// rồi lấy p95 là để một mẫu nguội quyết định kết luận cho phần còn lại.
+	var changSauNguoi *bangChang
 
 	var clientMs []float64
 	for i := 0; i < n; i++ {
@@ -161,6 +172,11 @@ func caseAttach(ctx context.Context, webURL, gwURL, metricsURL, origin string, n
 			return fmt.Errorf("lượt %d/%d: %w", i+1, n, err)
 		}
 		clientMs = append(clientMs, float64(d.Milliseconds()))
+		if i == 0 {
+			if changSauNguoi, err = docBangChang(ctx, metricsURL); err != nil {
+				return fmt.Errorf("đọc bảng chặng sau lượt nguội: %w", err)
+			}
+		}
 		if (i+1)%10 == 0 {
 			fmt.Printf("   %d/%d lượt\n", i+1, n)
 		}
@@ -169,6 +185,10 @@ func caseAttach(ctx context.Context, webURL, gwURL, metricsURL, origin string, n
 	sau, err := docHistogram(ctx, metricsURL)
 	if err != nil {
 		return fmt.Errorf("đọc histogram SAU: %w", err)
+	}
+	changSau, err := docBangChang(ctx, metricsURL)
+	if err != nil {
+		return fmt.Errorf("đọc bảng chặng SAU: %w", err)
 	}
 	them := sau.count - truoc.count
 	fmt.Printf("3. histogram sau: %d mẫu (thêm %d)\n", sau.count, them)
@@ -189,6 +209,24 @@ func caseAttach(ctx context.Context, webURL, gwURL, metricsURL, origin string, n
 		fmt.Printf("KẾT LUẬN: VƯỢT ngưỡng 500ms — AC này ĐỎ, không phải chỉ cần sửa câu chữ.\n")
 	} else {
 		fmt.Printf("KẾT LUẬN: ĐẠT ngưỡng 500ms.\n")
+	}
+
+	// ---- 1.G-4 M1: quy con số trên về từng chặng ---------------------------
+	//
+	// In CẢ HAI bảng thay vì chọn một: bảng "mọi mẫu" là thứ khớp với con số
+	// p95 vừa in ở trên, còn bảng "chỉ mẫu ấm" mới là thứ trả lời câu hỏi thật
+	// ("sinh viên nối lại tốn bao lâu"). Chọn sẵn một bảng cho người đọc là
+	// giấu đi mất nửa còn lại của câu trả lời.
+	fmt.Printf("\n--- mọi mẫu (%d lượt, gồm cả lượt nguội đầu tiên) ---", n)
+	if err := inBangPhanBo(changTruoc, changSau, n); err != nil {
+		return fmt.Errorf("bảng phân bổ (mọi mẫu): %w", err)
+	}
+
+	if n > 1 && changSauNguoi != nil {
+		fmt.Printf("\n--- CHỈ mẫu ấm (%d lượt, bỏ lượt nguội đầu tiên) ---", n-1)
+		if err := inBangPhanBo(changSauNguoi, changSau, n-1); err != nil {
+			return fmt.Errorf("bảng phân bổ (mẫu ấm): %w", err)
+		}
 	}
 	return nil
 }

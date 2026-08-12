@@ -1,0 +1,41 @@
+=== go test -count=1 -v · 2026-08-13 · Redis + Postgres THẬT (docker-compose) ===
+REDIS_URL / DATABASE_URL export tường minh — thiếu chúng thì 81 ca tự SKIP
+và suite xanh mà không kiểm gì (bài học đã ghi ở §"Còn để ngỏ").
+
+services/terminal-gateway: PASS=135 SKIP=0 FAIL=0
+services/orchestrator:     PASS=196 SKIP=0 FAIL=1   <-- xem §FLAKE
+services/shared:           PASS=52  SKIP=0 FAIL=0
+                           ------------------------
+TỔNG lượt đầu:             PASS=383 SKIP=0 FAIL=1
+Nền 1.G-1: 369 PASS. Chặng này thêm 14 ca (attachphase_test.go).
+
+-race -count=3 trên internal/podexec + internal/wsroute: 0 DATA RACE.
+  (quan trọng vì attachTimer bị ghi từ BA goroutine: Serve, RoundTripper
+   của client-go, và goroutine copyStdin của client-go)
+GOOS=linux go vet ./... : sạch cả 3 module
+gofmt -l                : sạch cả 3 module
+
+=== FLAKE — 1 ca đỏ ở lượt đầu, KHÔNG tái hiện được ===
+
+Lượt đầu: orchestrator FAIL=1.
+Chạy lại ngay: xanh.
+Săn thêm 10 lượt `go test ./... -count=1 -v` liên tiếp: 10/10 xanh, FAIL=0.
+⇒ tổng 12 lượt, 1 đỏ, không tái hiện.
+
+Không đụng gì tới module orchestrator ở chặng này — thay đổi nằm hoàn toàn
+trong services/terminal-gateway + infra/helm. Nên đây KHÔNG phải hồi quy do
+1.G-4; nó là cùng ca chập chờn mà 1.G-1 đã ghi (bản ghi đó cũng đếm 1 FAIL
+rồi 9 lượt sau sạch).
+
+⛔ BÀI HỌC CỦA CHÍNH LƯỢT NÀY — VÀ NÓ LẶP LẠI ĐÚNG LỖI 1.G-1 ĐÃ GHI:
+script tổng kết chỉ `grep -c` để ĐẾM, nên khi ca đỏ xuất hiện thì TÊN của nó
+nằm trong biến rồi bị vứt. 1.G-1 viết "tên ca không được giữ lại" như một
+điều đáng tiếc; chặng này dẫm lại y hệt vì script vẫn đếm-không-giữ.
+
+Bản vá đã land cùng chặng: `scripts/go-test-summary.sh` luôn ghi tên ca đỏ ra
+file trước khi in số đếm. Một con số đếm không nói được ca nào đỏ, và ca đỏ
+chập chờn thì gần như chỉ có một cơ hội để bắt tên.
+
+Nghi vấn còn để ngỏ (từ 1.G-1, chưa xác nhận): `TestScriptSongSotSauScriptFlush`
+dùng `SCRIPT FLUSH` — lệnh TOÀN SERVER — và nay có script Lua thứ hai
+(`trim.lua`) sống trong cùng cache đó.

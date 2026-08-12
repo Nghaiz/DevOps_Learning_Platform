@@ -48,10 +48,24 @@ gateway:
   replicaCount: 1
   resources:
     requests:
-      cpu: 25m
+      cpu: 100m
       memory: 32Mi
     limits:
-      cpu: 150m
+      # ⛔ 150m LÀ CON SỐ ĐÃ ĐO LÀ SAI, không phải một mức tiết kiệm hợp lý.
+      # 1.G-4 đo trên chính cụm này: ở trần 150m, gateway bị throttle **38.7%
+      # số chu kỳ CFS** (110/284) và mất **123ms mỗi lượt attach** — tức ~27%
+      # toàn bộ thời gian 101→`ready`. Nhu cầu CPU trung bình đo được chỉ ~106m,
+      # nên 150m "trông đủ"; cái giết nó là ĐỘT BIẾN, và quota CFS cắt đột biến
+      # theo từng cửa sổ 100ms chứ không theo trung bình.
+      #
+      # 500m ⇒ throttle còn 0.4% chu kỳ (1.8ms/lượt) và tổng attach giảm
+      # 457ms → 412ms. Đo thêm 2000m chỉ được 359ms, nhưng 36ms trong phần
+      # chênh đó nằm ở `pty` (sàn hạ tầng, không liên quan CPU gateway) nên
+      # không quy được cho trần CPU — vì thế chốt 500m, không chốt 2000m.
+      #
+      # Triệu chứng khi trần quá thấp KHÔNG phải OOM hay lỗi: nó là "terminal
+      # lâu mở", và không log nào nói vì sao. Chỉ `cpu.stat` trên host nói.
+      cpu: 500m
       memory: 128Mi
 
 # Postgres + Redis chạy TRONG cluster trên self-host: VM lab không có managed DB,

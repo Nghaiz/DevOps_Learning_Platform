@@ -168,10 +168,16 @@ gateway:
     # không qua Service. Xem services/terminal-gateway/internal/config/config.go.
   resources:
     requests:
-      cpu: 50m
+      cpu: 100m
       memory: 64Mi
     limits:
-      cpu: 250m
+      # Xem values-selfhost.yaml cho số đo đầy đủ (1.G-4). Tóm tắt: dựng một
+      # phiên terminal là công việc ĐỘT BIẾN (bắt tay TLS tới apiserver, dựng
+      # stream, bơm byte đầu), còn quota CFS cắt theo từng cửa sổ 100ms — nên
+      # trần đặt theo mức trung bình sẽ throttle đúng lúc người dùng đang chờ.
+      # Ở 150m đo được 38.7% chu kỳ bị throttle và +123ms mỗi lượt attach; 250m
+      # nằm cùng vùng đó. 500m đưa throttle về 0.4%.
+      cpu: 500m
       memory: 256Mi
   env:
     publicAddr: ':8082'

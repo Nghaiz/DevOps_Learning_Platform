@@ -591,7 +591,7 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 ### 1.G-3 — Bốn ô còn lại của 1.G-2, gom vào MỘT lượt deploy ✅ XONG 2026-08-13
 
 > **Bằng chứng:** [`reports/2026-08-13-verify-1g3-cluster-proofs.md`](reports/2026-08-13-verify-1g3-cluster-proofs.md). **Năm phép đo, năm ĐẠT, không ô nào đỏ** — N2 idle-`4404` · N3 M3 SIGKILL · N4 M4 xoay `kid` thật · N5 M9 hai replica · N6 `stty size`. Cụm chạy `sha-0d54bbb` (đã đồng bộ từ `sha-d09db86`, lệch 5 commit).
-> **Còn nợ của 1.G-2 sau chặng này:** **M8** (hai ô FE — cần harness Playwright chưa tồn tại) và **M1** (quy 0.75s p95 attach về từng thành phần). Cả hai **không cần cụm**, nên không thuộc chặng này.
+> **Còn nợ của 1.G-2 sau chặng này:** **M8** (hai ô FE — cần harness Playwright chưa tồn tại) và **M1** (quy 0.75s p95 attach về từng thành phần). Cả hai **không cần cụm**, nên không thuộc chặng này. *(M1 đã đóng ở **1.G-4**, 2026-08-13 — và hoá ra nó CÓ cần cụm: nguyên nhân là throttle CPU, chỉ đọc được từ `cpu.stat` trên host. Dòng "không cần cụm" ở trên là một phán đoán sai, giữ nguyên để thấy nó sai ở đâu.)*
 > ⛔ **Ba bẫy deploy đã trả giá, ghi để lần sau không dẫm lại:** (1) có **BỐN** image chứ không phải ba — `dlp-migrator` là stage `--target migrator` của `apps/web/Dockerfile`, không có Dockerfile riêng, và là hook `pre-upgrade` nên thiếu nó thì **chặn cả lượt upgrade**; (2) `image.tag` kéo theo `SANDBOX_IMAGE` mặc định ⇒ đổi tag mà không có `dlp-sandbox-base` ở tag đó là cho **cả warm-pool** `ErrImageNeverPull`; (3) `~/dlp-deploy` **không phải checkout git** (không `.git`, host không cài `git`) nên không có sha để đối chiếu — đối chiếu bằng **tag image đang chạy**.
 
 > **Vì sao lại tách tiếp một chặng con.** Bốn ô còn trống (M3 · M4 · M9 · idle-`4404`) cộng thêm vế `stty size` của luật 5 đều đòi **cùng một cảnh cụm** mà cụm hiện tại không có: hai replica, và TTL nén. Dựng cảnh đó là phần đắt nhất; đo bốn ô trên bốn lượt deploy là trả giá đó bốn lần. M8 (hai ô FE) **không** nằm ở đây vì nó không cần cụm — nó cần một harness trình duyệt chưa tồn tại, tức một loại chi phí khác hẳn. M1 (quy 0.75s về từng thành phần) cũng không, vì nó là việc *điều tra*, không phải việc *đo một AC đã viết sẵn*.
@@ -642,6 +642,77 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 > `/metrics` ở cổng admin **8083**, **không** expose qua Service, và image gateway là **distroless** (không `exec curl` được) ⇒ scrape theo **IP pod**, giống cách `session-probe` đang làm.
 
 **N6 — Vế `stty size` của luật 5 (a).** Sau khi sửa câu chữ AC ở trên, phần duy nhất còn nợ là *"pty thực sự đổi kích thước"*. Gửi ~50 resize **dưới trần** (burst 100 + 100/s), giá trị `cols` tăng dần, rồi chạy `stty size` trong pod và so với giá trị **cuối cùng**. Phải khớp **chính xác** — status bar tmux đã tắt ở E4 nên không được lệch 1. Hai test đơn vị đã có (`TestKeoCuaSoBinhThuongKhongBiChan`, `TestBaoControlThiDong4400`) phủ vế "đóng/không đóng"; **không** test nào chạm pty thật.
+
+### 1.G-4 — M1: quy 0.75s p95 attach về từng chặng ✅ XONG 2026-08-13
+
+> **Bằng chứng:** [`reports/2026-08-13-verify-1g4-attach-attribution.md`](reports/2026-08-13-verify-1g4-attach-attribution.md) · artifact: [`harness/2026-08-13-1g4-attach-attribution/`](reports/harness/2026-08-13-1g4-attach-attribution/).
+>
+> **Kết quả một dòng: nguyên nhân KHÔNG nằm ở chỗ nào trong bốn hàng của bảng P1 — gateway bị THROTTLE CPU.** Ở trần `150m`, gateway mất **38.7% số chu kỳ CFS** (110/284) và **123ms mỗi lượt attach**, tức ~27% toàn bộ 101→`ready`. Nâng trần lên `500m` xoá gần hết (0.4% chu kỳ, 1.8ms/lượt) và cắt tổng từ **457ms → 412ms**; ở `2000m` còn **359ms**.
+>
+> **Bảng phân bổ (49 mẫu ấm, ba nấc trần CPU, đối chứng Σchặng vs tổng lệch 0.00% ở mọi lượt đo):**
+>
+> | chặng | 150m | 500m | 2000m | đọc là gì |
+> |---|---|---|---|---|
+> | `wait_init` | 6.0ms · 1.2% | 1.0ms | 0.9ms | thời gian **client** |
+> | `build_exec` | 0.8ms · 0.2% | 0.9ms | 0.7ms | công **gateway** tự làm |
+> | `upgrade` | 28.0ms · 6.1% | 9.8ms | 8.3ms | bắt tay apiserver |
+> | `streams` | 135.0ms · 29.6% | 85.1ms | 69.4ms | dựng stream |
+> | **`pty`** | **281.0ms · 61.6%** | **315.3ms** | **279.3ms** | pod → CRI → tmux |
+> | **TỔNG** | **456.5ms** | **412.1ms** | **358.7ms** | |
+> | throttle/lượt | **123ms** | 1.8ms | 0ms | |
+>
+> ⛔ **`pty` KHÔNG ĐỔI theo trần CPU của gateway (281 / 315 / 279 ms) — và đó là vế làm phép đo này có nghĩa, không phải một dòng phụ.** Nếu nâng CPU mà mọi chặng cùng co lại thì con số đã phải bị nghi là hiện vật của dụng cụ. Nó không co: chỉ những chặng CPU-bound co, còn `pty` đứng yên. Nhờ thế phần co được quy đúng về throttling, và `pty` quy đúng về hạ tầng.
+>
+> **Hai giả thuyết "vá được" của bảng P1 đều CHẾT bằng số đo:** `wait_init` 1.2% (mốc metric KHÔNG đặt sai chỗ) và `build_exec` 0.2% (cache TLS config sẽ tiết kiệm 0.8ms — không đáng làm). Ghi ra vì một giả thuyết bị bác bằng số đắt hơn nhiều so với một giả thuyết chưa ai thử.
+>
+> ⚠ **Bảng P1 có một lỗ, và lỗ đó là bài học của chặng này.** Bốn hàng đều hỏi *"chặng nào chiếm phần lớn"*, tức đều ngầm định nguyên nhân nằm **trong** một chặng. Throttling không nằm trong chặng nào — nó **giãn mọi chặng CPU-bound cùng lúc**, và không hàng nào bắt được. Bảng cũng không có hàng cho `streams` (29.6%). Việc chốt ngưỡng trước khi đo vẫn đúng và vẫn nên làm; cái sai là tin rằng bốn hàng đã vét hết không gian nguyên nhân.
+>
+> **`streams` còn một phần chưa quy được:** 66ms ở 500m với throttling ≈ 0, trong khi đường mã (`createStreams` dựng object cục bộ rồi `copyStdin` gọi `Read`) lẽ ra tính bằng micro-giây. Nó nhạy với CPU (135→69ms) nên phần lớn là tranh CPU, nhưng phần dư chưa có lời giải. **Không quy bừa** — cần một dụng cụ mịn hơn thứ chặng này dựng.
+>
+> **Hai thứ đã land:**
+> 1. **Trần CPU gateway `150m`/`250m` → `500m`** ở cả `values.yaml` lẫn `values-selfhost.yaml` (quyết định người dùng 2026-08-13). Chọn 500m chứ không 2000m vì 36ms trong phần chênh 53ms giữa hai nấc nằm ở `pty` — không quy được cho trần CPU.
+> 2. **Ô AC tách hai vế** (quyết định người dùng 2026-08-13) — xem §Chức năng. Vế gác là `dlp_gateway_attach_controlled_seconds` (tổng − `pty`), **p95 < 150ms**, đo được **0.1250s ⇒ ĐẠT**.
+>
+> ⛔ **Vì sao ngưỡng 500ms trên TỔNG là một ô AC mù, không chỉ là một ô quá chặt.** `pty` một mình đã 280ms và **không đổi theo bất cứ thứ gì gateway làm**. Một ô gác trên tổng vì thế đỏ khi hạ tầng chậm đi và **không bao giờ** đỏ khi gateway chậm đi — tức mù với đúng chế độ hỏng nó tồn tại để bắt. Vế mới đỏ được: 150ms cho gần 2× biên trên 81ms đo được, đủ chặt để bắt một round-trip đồng bộ lỡ thêm vào đường attach. *Con số 500ms của plan gốc chưa bao giờ có nguồn — đó cũng là một phát hiện.*
+
+> **Bối cảnh khi mở chặng — ô AC ĐỎ duy nhất của cả phase** (dòng §Chức năng: *101 → `ready`, p95 < 500ms, ≥ 50 mẫu*). Đo 2026-08-12: **p95 = 0.750s**. 1.G-2 đã chốt *"chưa quy được nguyên nhân, và đừng nới ngưỡng trước khi quy được"* — chặng này làm đúng việc đó và **không** làm gì khác.
+>
+> **Vì sao nó là chặng riêng chứ không ghép vào 1.G-3:** 1.G-3 là *đo những AC đã viết sẵn*; đây là *điều tra*. Việc đầu ra của nó không phải một ô tick mà là **một bảng phân bổ thời gian** — và chỉ sau khi có bảng đó thì mới biết ô kia đóng bằng bản vá hay bằng một ngưỡng viết lại. Gộp hai loại việc là để một cuộc điều tra chưa có kết luận chặn merge của bốn phép đo đã xong.
+
+**Ranh giới chặng này KHÔNG làm:** M8 (hai ô FE) — cần harness Playwright chưa tồn tại, một loại chi phí khác hẳn. Vẫn nợ sau 1.G-4.
+
+**P1 — Chốt ngưỡng quyết định TRƯỚC khi đo.** ⛔ **Đây là task đầu tiên và nó có lý do:** nếu chốt sau, con số đo ra sẽ **tự biện minh cho chính nó** — đúng cái bẫy mà món nợ web-500 ở §"Còn để ngỏ" đã phải ghi thành luật. Bảng dưới là hợp đồng; kết quả đo rơi vào hàng nào thì đi theo hàng đó, không thương lượng lại sau khi thấy số.
+
+| Chặng chiếm phần lớn | Đọc là gì | Hành động đã chốt |
+|---|---|---|
+| **`wait_init`** ≥ 15% | Metric đang tính cả thời gian **chờ client**, không phải công của gateway | Mốc `attachStart` sai chỗ. Dời mốc về **sau** khi nhận `init`, sửa `Help` của metric, sửa câu chữ AC. Đây là **vá phép đo**, không phải nới ngưỡng. |
+| **`build_exec`** ≥ 15% | Dựng executor (2 lần `TLSConfigFor`, đọc + parse CA mỗi lượt attach) là **lãng phí thuần** | Vá: cache theo tiến trình. Đo lại. Nếu qua 500ms thì ô đóng bằng bản vá. |
+| **`upgrade`** ≥ 40% | TCP + TLS + HTTP-101 tới apiserver. Lượt upgrade **không dùng lại được connection pool** theo bản chất giao thức | Không vá được ở P1. Ghi số, và ngưỡng phải viết lại theo **chi phí hạ tầng đo được** chứ không theo con số 500ms chưa ai dẫn nguồn. |
+| **`pty`** ≥ 40% | apiserver → kubelet → CRI → `tmux attach` → byte đầu của shell. Nằm **ngoài** gateway | Như trên. Kèm bắt buộc: nói rõ **người dùng thấy gì** trong khoảng đó (màn hình đen hay con trỏ), vì đó mới là thứ AC thật sự bảo vệ. |
+
+> **Không hàng nào cho phép "nới ngưỡng cho xanh".** Hai hàng dưới cùng cho phép **viết lại** ngưỡng, và điều kiện là con số mới phải **dẫn ra được từ chi phí đo được**, kèm một câu nói rõ hậu quả người dùng. Ngưỡng 500ms của bản plan gốc **chưa bao giờ có nguồn** — đó là một phát hiện của chặng này, không phải cái cớ.
+
+**P2 — Instrument năm chặng con.** Mốc `attachStart` giữ nguyên (= 101, đúng contract) và thêm histogram `dlp_gateway_attach_phase_seconds{phase}` với năm giá trị:
+
+```
+101 ──wait_init──► init ──build_exec──► executor ──upgrade──► 101-tu-apiserver
+    ──streams──► stream da dung ──pty──► byte stdout dau tien = ready
+```
+
+> **Hai hook, và cả hai đã đọc từ mã client-go v0.34.9 chứ không suy đoán** — vế này quan trọng vì một hook không chạy sẽ cho ra chặng `0s` trông y hệt "chặng đó rất nhanh":
+> 1. **`upgrade` ← `rest.Config.WrapTransport`.** `transport.HTTPWrappersForConfig` áp `WrapTransport` ở [`round_trippers.go:42-44`](https://github.com/kubernetes/client-go/blob/v0.34.9/transport/round_trippers.go#L42-L44), và `websocket.RoundTripperFor` gọi đúng hàm đó ⇒ hook **có** chạy trên đường WS. ⛔ **`rest.Config.Dial` thì KHÔNG** — `transport/websocket.RoundTripper` chỉ có `TLSConfig`/`Proxier`/`Conn`, không có field Dial, nên đường đó bỏ qua Dial trong im lặng. Vì thế **không tách được TCP khỏi TLS**; `upgrade` là một số gộp, và phải ghi rõ nó gộp cái gì.
+> 2. **`streams` ← lượt `Read` ĐẦU TIÊN trên pipe stdin.** `streamProtocolV4.stream` gọi `createStreams` → `close(ready)` → `copyStdin()` ở [`v4.go:55-70`](https://github.com/kubernetes/client-go/blob/v0.34.9/tools/remotecommand/v4.go#L55-L70), **trước** `copyStdout` ở `:73`. Nên lần đầu ai đó gọi `Read` trên stdin chính là mốc "stream đã dựng xong". Đếm lúc **vào** `Read`, không phải lúc `Read` trả về — `io.Pipe` chặn tới khi có người ghi, nên đo lúc trả về là đo thời gian người dùng gõ phím.
+>
+> ⛔ **Đối chứng âm bắt buộc: `Σ năm chặng` phải ≈ tổng attach.** Không có phép đối chiếu này thì một hook không chạy sẽ lặng lẽ đẩy toàn bộ thời gian sang chặng kế bên và bảng phân bổ vẫn trông hợp lý. Lệch quá **±5%** ⇒ phép đo sai, **không** được đọc kết quả. Đây đúng là vế "histogram tăng đúng 50" của M1 lần trước, áp cho chính bản thân phép chia chặng.
+> ⛔ **Bucket phải khác bucket của `attach_duration`.** Các chặng con nhỏ hơn tổng một bậc; dùng lại bucket cũ (nhỏ nhất 0.05) thì bốn trong năm chặng dồn hết vào bucket đầu và bảng phân bổ mất sạch độ phân giải — một histogram "có số" mà không nói được gì.
+>
+> *Chạm: `services/terminal-gateway/internal/podexec/`, `internal/metrics/`, `cmd/session-probe/`. Effort: M.*
+
+**P3 — Đọc bảng phân bổ.** Mở rộng `session-probe -case attach` để đọc **delta** của cả năm chặng (cùng khuôn trước/sau đã dùng cho `attach_duration`), in bảng phần trăm, và **tự đỏ** khi phép đối chiếu tổng lệch quá ±5%. Chạy ≥ 50 mẫu trên cụm.
+
+> **Một mẫu nguội và các mẫu ấm phải đọc riêng.** 1.G-2 đã ghi *"từ lượt 2 trở đi phiên tmux đã tồn tại"* — nên lượt đầu gánh cả `tmux new-session`, còn 49 lượt sau là chi phí **nối lại**. Trộn chung rồi lấy p95 là để một mẫu nguội quyết định kết luận cho 49 mẫu ấm.
+
+**P4 — Quyết theo bảng P1, cập nhật AC + `docs/ws-terminal-protocol.md` nếu ngưỡng đổi.** Nếu hàng trúng là hai hàng trên (vá được) thì vá + đo lại **trong chặng này**. Nếu là hai hàng dưới thì chặng này đóng bằng **số đo + ngưỡng viết lại có nguồn**, và mọi việc tối ưu thật (nếu có) là của P3 — nói rõ ra thay vì để nó trôi.
 
 ---
 
@@ -737,7 +808,11 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 - [x] Claim từ warm-pool **p95 < 1s** (`dlp_claim_duration_seconds`, ≥ 50 mẫu). → **p95 = 0.092s trên 50 mẫu warm với IMAGE THẬT (Ubuntu 24.04)**, đo lại 2026-08-10 sau 1.E-1 bằng [`cmd/bench-claim`](../../services/orchestrator/cmd/bench-claim/) (98 lượt gọi: 50 warm + 48 cold ở `POOL_TARGET=1`). ✅ **Cảnh báo "phải đo lại sau 1.E" ĐÃ ĐÓNG.**
   > Ba lần đo, ba image khác hẳn nhau, cùng một con số: `pause:3.10` **0.090s** · sandbox-base 26.04 (427 MB) **0.089s** · sandbox-base 24.04 (369 MB) **0.092s**. Đúng như cơ chế: claim là một `LMOVE` trên Redis trong pool đã ấm, nó **không chạm image** — nên đây là bằng chứng cho tính bất biến, không phải một cải thiện. Histogram được reset (restart orchestrator) trước mỗi lượt đo nên không mẫu nào lẫn giữa hai image.
   > Thứ image THẬT SỰ ảnh hưởng là **thời gian dựng pod lúc replenish/cold-path**, và AC hiện tại không hỏi câu đó — vẫn đúng như ghi chú cũ: *"người thứ hai bấm Start ngay sau người thứ nhất chờ bao lâu"* chưa AC nào hỏi.
-- [ ] Từ **101 tới `ready`**: **p95 < 500ms** (`dlp_gateway_attach_duration_seconds`), ≥ 50 mẫu. ⛔ **ĐO 2026-08-12: p95 = 0.750s trên 50 mẫu ⇒ AC NÀY ĐỎ.** Không tick, và **không nới ngưỡng** cho tới khi quy được 0.75s về từng thành phần (dial apiserver / dựng stream / tmux attach). Chi tiết + cách đọc con số: §1.G-2 M1.
+- [x] **Phần gateway kiểm soát được** của 101 → `ready`: **p95 < 150ms** (`dlp_gateway_attach_controlled_seconds` = tổng − `pty`), ≥ 50 mẫu. → **p95 = 0.1250s, trung bình 0.0758s ⇒ ĐẠT** (49 mẫu ấm, 2026-08-13, trần CPU 500m). Bằng chứng: [1.G-4](reports/2026-08-13-verify-1g4-attach-attribution.md).
+  > ⛔ **Ô này thay ô cũ "tổng p95 < 500ms", và đó là sửa một phép đo MÙ chứ không phải nới ngưỡng cho xanh.** Đo 1.G-4: `pty` (apiserver → kubelet → CRI → `tmux attach`) chiếm **62–79%** và **KHÔNG đổi** khi trần CPU gateway đi từ 150m → 500m → 2000m (281 / 315 / 279 ms). Một ô gác trên TỔNG vì thế đỏ khi hạ tầng chậm đi và **không bao giờ** đỏ khi gateway chậm đi — mù với đúng chế độ hỏng nó tồn tại để bắt. Ngưỡng 150ms cho gần 2× biên trên 81ms đo được, đủ chặt để bắt một round-trip đồng bộ lỡ thêm vào đường attach. *Con số 500ms của bản plan gốc chưa bao giờ có nguồn — đó là một phát hiện của 1.G-4, không phải cái cớ.*
+- [x] **Tổng 101 → `ready` — ghi số, KHÔNG gác.** → trung bình **0.356s**, p95 nằm bucket **(0.5, 0.75]**, 44–45/50 mẫu ≤ 0.5s (tức p90 đạt). Sàn không rút được ở P1 là `pty` ≈ **280ms**.
+  > **Người dùng thấy gì trong 280ms đó:** WS đã 101 nhưng chưa có `ready`, nên FE giữ trạng thái "đang nối" — không phải màn hình trắng, và không có ký tự nào bị mất (`pendingStdin` giữ byte tới sớm). Rút nó xuống đòi giữ sẵn exec stream hoặc pre-warm `tmux` trong pod ấm — **P3**, không phải P1.
+  > ⚠ **Bucket của `dlp_gateway_attach_duration_seconds` nhảy 0.5 → 0.75 nên không phân biệt được p95 thật là 0.52 hay 0.74.** Cải thiện 457ms → 356ms (−22%) từ bản vá trần CPU **không hiện ra ở p95** vì cả hai đều rơi cùng một bucket. Nếu P3 cần theo dõi p95 tổng thì phải thêm mốc bucket trước, nếu không sẽ đo bằng một cây thước không có vạch ở chỗ cần đọc.
   > **AC này tự mâu thuẫn, và metric nay đã tồn tại nên nhìn thấy được** (1.C-3, 2026-08-11). Câu chữ đo *`ready` → prompt*, nhưng `ready` chỉ được phát KHI byte stdout đầu tiên tới nơi (quyết định của 1.C-2: `ready` nghĩa là "đã attach thật", không phải "đã upgrade") — byte đầu tiên CHÍNH LÀ prompt, nên khoảng mà câu chữ mô tả bằng ~0 theo cấu tạo và không bao giờ đỏ được. Metric mà nó trỏ tới đo khoảng KHÁC: **101 → `ready`**, tức thời gian dial exec + dựng stream tới PTY. Đó mới là con số đáng gác. **Số đo đầu tiên: 0.708s cho một mẫu nguội** (dial lạnh, pod vừa claim) — **vượt ngưỡng 500ms**. Một mẫu chưa nói được p95; cần ≥ 50 mẫu như AC claim đã làm. Sửa câu chữ thành "từ 101 tới `ready`" rồi đo lại bằng một vòng lặp mở/đóng WS — **chưa làm ở chặng này**, ghi nợ.
 - [x] Prompt đầu tiên vẽ **đúng bề rộng** cửa sổ (không gãy dòng) — chứng minh `init`-trước-dial hoạt động. → Đo mạnh hơn cả AC yêu cầu: `stty size` **trong pod thật** trả **`34 120`**, khớp TUYỆT ĐỐI `cols`/`rows` của frame `init` — không lệch 1, tức `set -g status off` của E4 đúng và `init`-trước-dial đúng. Đo qua WS thật trên cluster 2026-08-10; "không gãy dòng" là quan sát bằng mắt, còn con số này thì tái lập được.
 - [x] `CreateSession` 2 lần cùng `idempotency_key` → **cùng `session.id`**, số pod tăng đúng **1**. → Đo trên cụm 2026-08-12: cùng id `f86566fa…` **và cùng pod `sandbox-399968645a0c`**, kèm đối chứng key khác ⇒ id khác **và pod khác** (`sandbox-318736c1ac0d`). *Đo mạnh hơn câu chữ: một phép ĐẾM có thể trùng nhau ngẫu nhiên khi một pod chết và một pod khác sinh ra; TÊN pod thì không.*
