@@ -7,7 +7,7 @@ PASS  lessons.get trả đủ step + markdown (chứng minh .md CÓ trong image)
 PASS  không có năng lực nào thiếu (bài hợp năng lực thật)
       unsupportedCapabilities=[]
 PASS  startSession cấp pod
-      session=019e6083d15aa77d0f4346a12d90c295 pod=sandbox-05b44654c706
+      session=69d8b2a7221b6d987037fc06cede425c pod=sandbox-1eed46ccdc40
 PASS  AC pass/fail — vế FAIL (chưa làm gì)
       passed=false exit=1 output="Chua thay /root/lab/hello.txt. Hay chay: echo dlp > /root/lab/hello.txt"
 PASS  AC setup — background CHẠY + asset ĐẨY được
