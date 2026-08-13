@@ -1,0 +1,60 @@
+{
+  "commands": [
+    {
+      "command": "pnpm lint",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T16:50:00+07:00",
+      "summary": "9/9 task. Da tung DO o luot dau: terminal#build hong vi HAI ban vitest@4.1.10 trong cung do thi kieu. Nguyen nhan do tu lockfile: vitest khai jsdom la PEER TUY CHON, terminal ghim jsdom@^27 con toi them jsdom@^30 vao packages/ui => hai bien the peer. Xac nhan la hoi quy CUA TOI bang worktree o commit goc (terminal#build XANH o do), khong phai doan."
+    },
+    {
+      "command": "pnpm typecheck (gom next build)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T16:50:00+07:00",
+      "summary": "10/10 task, next build ra 13 route (them /lessons, /lessons/[id], /api/scenarios/[id]/assets/[...path]). Hai lan do truoc do: (1) barrel packages/ui keo component co hook vao cay Server Component; (2) barrel @devops-platform/scenario keo node:fs vao bundle TRINH DUYET."
+    },
+    {
+      "command": "pnpm test",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T16:52:00+07:00",
+      "summary": "378 ca / 0 do: web 156, terminal 91, scenario 79, ui 29, shared-types 23. Dem tu output tung package, khong tin mot exit code chung."
+    },
+    {
+      "command": "gofmt -l internal cmd; GOOS=linux go vet ./...; go test ./internal/{execroute,podexec,config}/...",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T16:52:00+07:00",
+      "summary": "gofmt sach, vet sach, 3 goi test ok. GOOS=linux BAT BUOC: build tag giau file *_unix.go khi chay tren Windows."
+    },
+    {
+      "command": "node harness/2026-08-13-2d-lessons-e2e/e2e-lessons.mjs (CUM THAT)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T16:47:00+07:00",
+      "summary": "14/14 PASS qua dung API trinh duyet goi. Dong 4 o AC: pass/fail that (exit 1 voi thong bao CUA BAI -> exit 0), setup script (.setup-done=ready trong pod), asset-push (file that, mode 644), NetworkPolicy (169.254.169.254 bi chan) KEM doi chung am (example.com cung chan, exit 28)."
+    },
+    {
+      "command": "Playwright tren cum — browser-checks.txt",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T16:58:00+07:00",
+      "summary": "Resize do BO CUC THAT: ArrowRight 50->52 => left 854->888px; End kep dung aria-valuemax; localStorage nho ti le. Nut Kiem tra AN o phase khong co verify (xac nhan tren loki-quickstart). Route asset: 200 cho anh, 404 cho start.sh/traversal, 401 khi chua dang nhap. Tang nay bat duoc bug ma e2e API KHONG the bat (useInfiniteQuery gui `direction` => 400)."
+    },
+    {
+      "command": "doi chung CSS: dem class chi-co-trong-packages/ui trong bundle",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T16:30:00+07:00",
+      "summary": "ring-slate-400 / bg-slate-700 / bg-slate-200: 0 -> 1 sau khi them @source. Doi chung duong (bg-slate-50, antialiased, co trong apps/web): 1 -> 1. Chung minh loi da chay san tren main chu khong phai phong xa."
+    },
+    {
+      "command": "doi chung image: dem file .md TRONG image web",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T16:36:00+07:00",
+      "summary": "0 -> 26 sau khi go `**/*.md` khoi .dockerignore cho content/. Phep kiem cu (`ls $SCENARIOS_DIR`) liet ke THU MUC nen no XANH ca khi khong con file .md nao — day la ly do bay nay song sot qua 2.B."
+    }
+  ]
+}

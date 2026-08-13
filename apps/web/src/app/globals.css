@@ -1,1 +1,20 @@
 @import 'tailwindcss';
+
+/*
+ * Tailwind v4 tự dò source từ thư mục chứa file CSS này và CỐ Ý bỏ qua
+ * `node_modules` — mà workspace package lại được pnpm nối vào đúng đó. Hệ quả:
+ * class chỉ xuất hiện trong `packages/*` KHÔNG BAO GIỜ được biên dịch.
+ *
+ * Đây không phải phòng xa cho 2.D: nó đã hỏng sẵn trên main. Đối chứng đo ngày
+ * 2026-08-13 trên `.next/static/chunks/*.css` — `ring-slate-400`,
+ * `bg-slate-700`, `bg-slate-200` (chỉ có trong packages/ui) đếm được 0 lần,
+ * trong khi `bg-slate-50`, `min-h-screen`, `antialiased` (có trong apps/web)
+ * đếm được 1 lần. Tức mọi <Button> đang chạy KHÔNG có hover, KHÔNG có focus
+ * ring, KHÔNG có disabled — ba biến thể màu của nó chưa từng vào bundle.
+ *
+ * Lỗi này im lặng theo đúng nghĩa tệ nhất: không cảnh báo build, không lỗi
+ * runtime, chỉ là giao diện trông "hơi nhạt". Thêm package mới thì thêm một
+ * dòng ở đây.
+ */
+@source "../../../../packages/ui/src";
+@source "../../../../packages/terminal/src";

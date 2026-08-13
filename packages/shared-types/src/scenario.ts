@@ -55,9 +55,18 @@ export const scenarioIdSchema = z
   );
 
 /**
- * Xuất xứ — bắt buộc, không nullable. AC 2.E đòi "đã verify license", và cách duy
- * nhất để câu đó còn đúng sáu tháng nữa là license phải là DỮ LIỆU máy kiểm được
- * chứ không phải một dòng trong commit message.
+ * Xuất xứ upstream. AC 2.E đòi "đã verify license", và cách duy nhất để câu đó
+ * còn đúng sáu tháng nữa là license phải là DỮ LIỆU máy kiểm được chứ không phải
+ * một dòng trong commit message.
+ *
+ * `null` = bài do CHÍNH NỀN TẢNG NÀY soạn, không nhập từ đâu cả. Khi đó không có
+ * commit upstream để ghim và `vendor-scenarios.mjs` bỏ qua bài đó — license của
+ * nó là license của repo này.
+ *
+ * ⚠ Nullable là mô hình ĐÚNG chứ không phải nới lỏng để lách: bản `ScenarioSource`
+ * chạy trên DB (soạn bài trực tiếp trên UI — §Yêu cầu nền tảng #3) sẽ sinh ra
+ * toàn bài không có upstream. Bắt chúng khai một `source` giả để qua schema là
+ * cách biến một field kiểm-license-được thành một field chứa dữ liệu bịa.
  */
 export const scenarioSourceSchema = z
   .object({
@@ -173,7 +182,7 @@ export const scenarioSchema = z
     steps: z.array(scenarioStepSchema).min(1),
     assets: z.array(scenarioAssetSchema),
 
-    source: scenarioSourceSchema,
+    source: scenarioSourceSchema.nullable(),
     /**
      * Field upstream mà ta KHÔNG hiểu và đã cố ý bỏ qua, dạng đường dẫn chấm
      * (`details.intro.courseData`). Rỗng là trường hợp thường.

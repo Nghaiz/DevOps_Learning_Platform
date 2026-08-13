@@ -128,6 +128,16 @@ async function processScenario(id, mode) {
   const dir = path.join(CONTENT_ROOT, id);
   const sidecar = JSON.parse(await readFile(path.join(dir, SIDECAR), 'utf8'));
   const { source } = sidecar;
+
+  // `source: null` = bài FIRST-PARTY, soạn ngay trong repo này. Không có upstream
+  // nên không có gì để so byte — và quan trọng hơn, `--fetch` mà chạy vào đây sẽ
+  // XOÁ SẠCH thư mục (nhánh "xoá trước rồi ghi lại" ở dưới) rồi không tải lại
+  // được gì. Bỏ qua sớm, và ĐẾM nó ra để "N scenario khớp upstream" không lặng lẽ
+  // biến thành lời khai bao gồm cả bài chưa từng được kiểm.
+  if (source === null) {
+    return { count: 0, skipped: true, problems: [] };
+  }
+
   const slug = ghSlug(source.repo);
 
   const upstream = await listUpstreamFiles(slug, source.commit, source.path);
@@ -192,7 +202,9 @@ async function main() {
   let failed = 0;
   for (const id of ids) {
     const result = await processScenario(id, args.mode);
-    if (result.problems.length === 0) {
+    if (result.skipped === true) {
+      console.log(`− ${id} — first-party (source: null), không có upstream để đối chiếu`);
+    } else if (result.problems.length === 0) {
       console.log(
         `✓ ${id} — ${result.count} file ${args.mode === 'fetch' ? 'đã tải' : 'khớp upstream'}`,
       );

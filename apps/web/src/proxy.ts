@@ -6,8 +6,26 @@ import { checkRateLimit } from './server/security/rate-limit';
 import { exceedsBodyLimit } from './server/security/body-limit';
 import { rateLimitTrustProxy } from './server/env';
 
-const PROTECTED_PATHS = ['/dashboard', '/session'];
+const PROTECTED_PATHS = ['/dashboard', '/session', '/lessons'];
 const AUTH_ONLY_PATHS = ['/login'];
+
+/**
+ * Khớp chính đường đó HOẶC đường con của nó.
+ *
+ * `PROTECTED_PATHS.includes(pathname)` (bản cũ) là khớp CHÍNH XÁC, và nó đủ
+ * đúng chừng nào mọi trang được gác đều không có đường con — `/dashboard` và
+ * `/session` đều vậy. `/lessons/<id>` phá vỡ giả định đó: `includes` trả false,
+ * nên trang chi tiết bài học sẽ KHÔNG được gác trong khi trang danh sách thì
+ * có. Một lỗ authz mở ra bởi việc thêm một route, không bởi việc sửa dòng nào.
+ *
+ * Nối `/` trước khi so tiền tố là phần bắt buộc: `startsWith('/lessons')` trần
+ * sẽ nuốt cả `/lessons-public` hay `/lessonsfoo` — gác nhầm thứ không định gác.
+ */
+function matchesProtected(pathname: string): boolean {
+  return PROTECTED_PATHS.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
 
 // Cảnh báo skip-rate-limit chỉ log MỘT lần mỗi process — không spam mỗi request,
 // nhưng cũng không im lặng (development-principles: fallback phải có tín hiệu).
@@ -101,7 +119,7 @@ export function proxy(request: NextRequest): NextResponse {
   if (hasSession && AUTH_ONLY_PATHS.includes(pathname)) {
     return secured(NextResponse.redirect(new URL('/dashboard', request.url)));
   }
-  if (!hasSession && PROTECTED_PATHS.includes(pathname)) {
+  if (!hasSession && matchesProtected(pathname)) {
     return secured(NextResponse.redirect(new URL('/login', request.url)));
   }
 

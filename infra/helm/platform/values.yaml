@@ -256,7 +256,20 @@ gateway:
     # hình họ đang làm bài, (2) trả exit code của tmux chứ không của script.
     # Script đi qua STDIN của `sh` — không qua argv, vì argv nằm trong query
     # string của URL apiserver và một verify script vài KB sẽ phình nó.
-    execShell: 'sh'
+    #
+    # ⛔ `bash`, KHÔNG phải `sh` — đo trên cụm 2026-08-13, không phải phòng xa.
+    # Nội dung Killercoda là script BASH: shebang `#!/bin/bash`, `[[ ]]`, và
+    # `set -euo pipefail`. `sh` trong image sandbox là dash, và dash không có
+    # `pipefail`, nên MỌI verify script thật chết ngay dòng `set`:
+    #     sh: 3: set: Illegal option -o pipefail        (exit 2)
+    # `ckad-configmap-as-files` (bài mà plan P2 chỉ định làm bằng chứng pass/fail)
+    # dùng cả `[[ ]]` lẫn `set -euo pipefail` ⇒ nó đã hỏng vì lý do NÀY nữa, độc
+    # lập với việc thiếu `kubectl`.
+    #
+    # Bẫy nguy hiểm hơn cả lỗi: lượt chấm đó vẫn trả `passed:false` — đúng cái
+    # nhãn mà một bài CHƯA LÀM cũng nhận. Ô AC "vế fail" vì thế XANH VÌ LÝ DO
+    # SAI, và không ai đọc `output` để thấy nó chưa từng chạy dòng nào.
+    execShell: 'bash'
     # Trần MỘT lượt chấm. Vượt → 502 (lỗi), KHÔNG phải "bài sai": một script treo
     # không phải một bài làm sai, và trả "fail" cho nó sẽ bắt người học đi sửa
     # một bài vốn đã đúng.

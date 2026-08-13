@@ -32,7 +32,8 @@ export const scenarioSidecarSchema = z
     difficulty: z.enum(SCENARIO_DIFFICULTIES),
     /** Ước lượng của ta, không phải của upstream. `null` = chưa ước lượng. */
     estimatedMinutes: z.number().int().positive().nullable(),
-    source: scenarioSourceSchema,
+    /** `null` = bài first-party (soạn tại repo này), không có upstream để ghim. */
+    source: scenarioSourceSchema.nullable(),
     /**
      * Field lạ trong `index.json` mà ta ĐÃ xem xét và cố ý bỏ qua, dạng đường
      * dẫn chấm (`details.intro.courseData`). Mặc định rỗng.

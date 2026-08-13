@@ -1,0 +1,44 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "P2 / 2.D — split-pane lesson UI (markdown trai + terminal phai), cong them dong 4 o AC can cum that cua 2.C/2.E. Nguoi dung chot 6 quyet dinh: pham vi = 2.D + e2e tren cum; TanStack Query; react-markdown + rehype-sanitize; jsdom cho logic + browser-mode cho bo cuc; dong o pass/fail bang bai first-party VA hien thuc asset-push (khong dung NetworkPolicy); bai thieu nang luc thi CANH BAO chu khong chan.",
+  "scoutSummary": "Doc phase-2.md + report 2.A va 2.B/2.C: 2.A/2.B/2.C xong, 2.D la lane duy nhat con mo. Scout FE tra ve 7 diem chan, nang nhat la packages/terminal KHONG co duong go vao PTY nen ca nut {{exec}} lan foreground deu bat kha. Doc them images/sandbox-base/Dockerfile (khong co kubectl), sandbox-networkpolicy (default-deny, chi mo DNS) va 4 verify script da vendor — ba dieu do cong lai chung minh KHONG bai vendored nao sinh duoc cap pass/fail that.",
+  "acceptanceCriteria": [
+    "Import scenario that -> hien du step o FE",
+    "Split-pane hoat dong, resize duoc, code copy button hoat dong",
+    "Step nav Prev/Next + progress bar; step done duoc danh dau",
+    "Bam Check -> verifyScript chay TRONG POD, tra pass/fail dung (1 pass + 1 fail)",
+    "Setup script chay khi start; moi truong step dung",
+    "Progress luu va khoi phuc khi quay lai",
+    "Validation isolation — NetworkPolicy chan 169.254.169.254 trong verify",
+    "Luat 1/3/4 khong hoi quy (IDOR, Zod strict, tran pagination)"
+  ],
+  "touchpoints": [
+    "packages/terminal — them onReady(handle|null); API cong khai doi, co test browser-mode + screenshot baseline",
+    "packages/ui — them src/lesson/**, barrel index.ts (file dung chung, lead giu)",
+    "packages/scenario — them assets.ts, subpath ./content-blocks, source nullable",
+    "packages/shared-types — Scenario.source thanh nullable (DTO dung chung)",
+    "apps/web — lessons router runSetup doi shape (+assetsPushed), proxy.ts PROTECTED_PATHS, route asset moi, provider tRPC moi",
+    "services/terminal-gateway — GATEWAY_EXEC_SHELL mac dinh sh -> bash",
+    "infra/helm/platform — values.yaml execShell",
+    "content/scenarios — them bai first-party dlp-sandbox-basics",
+    ".dockerignore — ngoai le cho content/**/*.md",
+    "CUM THAT: 4 luot helm upgrade, side-load 2 image, tao/xoa pod sandbox"
+  ],
+  "publicContracts": [
+    "TerminalSurfaceProps — them onReady tuy chon (them field, khong pha ban cu)",
+    "Scenario.source: ScenarioSource -> ScenarioSource | null (PHA: moi doc gia phai xu ly null; da sua parse.mjs, content-scenarios.test.ts, vendor-scenarios.mjs)",
+    "lessons.runSetup output — them assetsPushed (them field)",
+    "@devops-platform/scenario — them subpath ./content-blocks",
+    "@devops-platform/ui — them 4 component lesson vao barrel",
+    "GET /api/scenarios/[id]/assets/[...path] — route HTTP moi, co gac dang nhap",
+    "GATEWAY_EXEC_SHELL mac dinh doi sh -> bash (doi HANH VI cua moi luot cham)"
+  ],
+  "blastRadius": [
+    "Moi trang dung packages/ui: sua @source lam class cua ui BAT DAU duoc bien dich — giao dien /,/login,/dashboard,/session doi (hover/focus/disabled xuat hien tro lai). Doi theo huong DUNG nhung van la thay doi thi giac ngoai pham vi 2.D.",
+    "Moi luot cham cua moi bai: doi shell sh -> bash.",
+    "Moi consumer cua Scenario.source: nullable la thay doi kieu pha vo.",
+    "Gac dang nhap: doi tu khop-chinh-xac sang so tien to anh huong toan bo /lessons/**; rui ro over-match da do (/lessonsfoo -> 404).",
+    "Cum lab: release platform da qua 4 luot upgrade; web+gateway dang chay image moi."
+  ]
+}

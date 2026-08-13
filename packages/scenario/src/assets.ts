@@ -1,0 +1,245 @@
+import { readdir, readFile, stat } from 'node:fs/promises';
+import { resolve, sep } from 'node:path';
+import type { ScenarioAsset } from '@devops-platform/shared-types/scenario';
+
+/**
+ * Đọc file asset của một scenario từ đĩa (P2 / 2.D — task 0.6).
+ *
+ * ## Vì sao tầng này tồn tại
+ *
+ * `Scenario.assets[]` được parse từ 2.A rồi **không ai đọc** — `flattenAssets`
+ * đổ nó vào DTO và chuỗi dừng ở đó. Hệ quả đo được: `loxilb-tcp-load-balancing`
+ * có `background` chạy `sudo /bin/bash ./start.sh`, mà `start.sh` chưa bao giờ
+ * được đưa vào pod, nên setup của nó chết ở `No such file or directory`. Một
+ * field DTO không có người tiêu thụ trông y hệt một tính năng đã xong.
+ *
+ * ## Ranh giới
+ *
+ * File này biết **bố cục đĩa** (`<scenarioDir>/assets/<file>`) và không biết gì
+ * về shell, pod, hay gateway. Việc sinh script đẩy nằm ở
+ * `apps/web/src/server/lessons/asset-push.ts`. Tách vậy vì bố cục đĩa là kiến
+ * thức của `packages/scenario` (cùng chỗ với loader), còn cách đẩy vào sandbox
+ * là kiến thức của BFF — và bản `ScenarioSource` chạy trên DB sau này sẽ thay
+ * nửa đầu mà không đụng nửa sau.
+ */
+
+/**
+ * Trần tổng dung lượng asset của MỘT scenario, tính trên byte THÔ.
+ *
+ * ⛔ Con số này SUY RA từ trần vận chuyển, không phải chọn cho tròn. Script đẩy
+ * đi vào `POST /exec/session/{id}` dưới dạng `JSON.stringify({script})`, mà
+ * `execroute.go` chặn thân request ở `maxBodyBytes = 64 KiB`
+ * (`http.MaxBytesReader`). Đường đi làm phình dữ liệu ba lần:
+ *
+ *   base64 ×4/3  →  xuống dòng mỗi 76 ký tự (+1.3%)  →  JSON escaping
+ *
+ * cộng thêm phần khung (`mkdir`/`chmod`/heredoc) của mỗi file. 40 KiB thô nở ra
+ * ≈ 55 KiB, còn chỗ cho khung mà vẫn dưới 64 KiB.
+ *
+ * Bản đầu đặt 1 MiB — lớn gấp **16 lần** thứ vận chuyển được. Bài `loxilb` chỉ
+ * 18.2 KiB nên không ai thấy; bài đầu tiên kèm một tarball nhỏ sẽ vượt, và
+ * gateway trả `BAD_REQUEST` → BFF dịch thành *"Không chạy được script chấm bài
+ * trong sandbox"* — một lỗi CHẤM BÀI cho một lượt ĐẨY FILE.
+ *
+ * Nếu nâng `maxBodyBytes`, nâng luôn số này (và ngược lại) — chúng là một cặp.
+ */
+export const MAX_TOTAL_ASSET_BYTES = 40 * 1024;
+
+/**
+ * Trần số ký tự `*` trong một pattern.
+ *
+ * `matchAsset` dịch mỗi `*` thành `[^/]*`, nên `a*b*c*…` sinh ra regex có nhiều
+ * nhóm sao liền kề — trên một chuỗi KHÔNG khớp, engine phải thử mọi cách chia
+ * chuỗi và thời gian tăng theo hàm mũ. Đo trên máy dev: 6 dấu `*` trên tên 30 ký
+ * tự mất 13 ms, còn **10 dấu `*` trên tên 40 ký tự mất ~115 GIÂY**.
+ *
+ * Nó chạy ĐỒNG BỘ trong mutation `runSetup`, nên một pattern như vậy treo event
+ * loop của BFF cho MỌI người dùng, không riêng người gửi.
+ *
+ * Hôm nay pattern đến từ `index.json` đã vendored nên không ai ngoài đưa vào
+ * được. Nhưng bản `ScenarioSource` chạy trên DB (soạn bài trên UI — đã có trong
+ * lộ trình) biến chính `index.json` thành dữ liệu người dùng, và đó đúng là ngày
+ * không ai nhớ tới file này.
+ */
+const MAX_GLOB_STARS = 4;
+
+export interface ResolvedAsset {
+  /** Tên file đã giải glob, tương đối so với `<scenarioDir>/assets/`. */
+  readonly name: string;
+  /** Thư mục đích trong sandbox, nguyên văn từ `index.json` (có thể là `~/`). */
+  readonly target: string;
+  readonly chmod: string | null;
+  readonly bytes: Uint8Array;
+}
+
+export class ScenarioAssetError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'ScenarioAssetError';
+  }
+}
+
+/**
+ * Giải danh sách asset thành file thật kèm nội dung.
+ *
+ * - `file` có thể là glob (upstream `upload-assets` cho phép) — hỗ trợ `*` trong
+ *   MỘT phân đoạn tên. Glob không khớp file nào thì **NÉM**: bài mong đợi file đó
+ *   tồn tại, và đẩy 0 file rồi để `background` chết ở `No such file or directory`
+ *   là dời lỗi ra xa nguyên nhân đúng một tầng.
+ * - Trùng lặp bị loại theo `(name, target)` — `loxilb` khai `config-mirror.sh` và
+ *   `rmconfig-mirror.sh` HAI LẦN trong cùng một `index.json`; đẩy hai lần chỉ tốn
+ *   băng thông, nhưng nó cũng làm mọi con số "đã đẩy N file" sai.
+ */
+export async function resolveScenarioAssets(
+  scenarioDir: string,
+  assets: readonly ScenarioAsset[],
+): Promise<ResolvedAsset[]> {
+  if (assets.length === 0) {
+    return [];
+  }
+
+  // `resolve` chứ không `join`: guard traversal ở dưới so tiền tố chuỗi, nên hai
+  // vế BẮT BUỘC cùng dạng tuyệt đối. Với `scenariosDir()` mặc định là đường dẫn
+  // tương đối (`../../content/scenarios`), một vế `join` và một vế `resolve` sẽ
+  // KHÔNG BAO GIỜ khớp tiền tố — guard biến thành "luôn ném", và ca hợp lệ chết
+  // trong khi ca tấn công cũng chết, nên test xanh mà tính năng hỏng.
+  const assetsDir = resolve(scenarioDir, 'assets');
+  let entries: string[];
+  try {
+    // `recursive: true` vì `file` của Killercoda CÓ THỂ là đường dẫn nhiều tầng
+    // (`app-star/star.json` — xem chú thích ở `killercoda.ts`). Bản `readdir`
+    // phẳng sẽ không thấy chúng, và triệu chứng là "asset không khớp file nào"
+    // cho một khai báo hoàn toàn hợp lệ.
+    //
+    // Chuẩn hoá `\` → `/`: trên Windows (máy dev của repo này) `readdir` trả về
+    // dấu phân cách của hệ điều hành, còn `index.json` luôn viết `/`. Không
+    // chuẩn hoá thì asset nhiều tầng khớp trên Linux và trượt trên Windows —
+    // một khác biệt chỉ lộ ra ở máy khác với máy vừa viết test.
+    entries = (await readdir(assetsDir, { recursive: true })).map((e) =>
+      e.split(sep).join('/'),
+    );
+  } catch (cause) {
+    throw new ScenarioAssetError(
+      `Scenario khai ${String(assets.length)} asset nhưng không đọc được thư mục ${assetsDir}`,
+      { cause },
+    );
+  }
+
+  const out: ResolvedAsset[] = [];
+  const seen = new Set<string>();
+  let total = 0;
+
+  for (const asset of assets) {
+    const matches = matchAsset(asset.file, entries);
+    if (matches.length === 0) {
+      throw new ScenarioAssetError(
+        `Asset "${asset.file}" không khớp file nào trong ${assetsDir}`,
+      );
+    }
+
+    let filesForPattern = 0;
+
+    for (const name of matches) {
+
+      // KHÔNG có phép kiểm traversal ở đây, và đó là kết luận chứ không phải sót.
+      // `name` KHÔNG đến từ `index.json` — nó đến từ `matchAsset`, mà hàm đó chỉ
+      // trả về phần tử CÓ THẬT trong `entries` (kết quả `readdir` của chính
+      // `assetsDir`). Một `"file": "../../../etc/passwd"` không khớp phần tử nào
+      // nên đã chết ở nhánh `matches.length === 0` phía trên, với thông báo đúng
+      // nguyên nhân hơn.
+      //
+      // Bản đầu của file này CÓ một guard `startsWith(assetsDir)` ở đây. Nó là mã
+      // chết: không đầu vào nào tới được nó. Guard traversal THẬT nằm ở
+      // `app/api/scenarios/[id]/assets/[...path]/route.ts`, nơi đường dẫn đến
+      // thẳng từ URL của người dùng.
+      const full = resolve(assetsDir, name);
+      const info = await stat(full);
+
+      // `readdir(recursive)` trả về CẢ thư mục. Một glob như `"file": "*"` vì thế
+      // khớp trúng thư mục con, và `readFile` trên nó ném `EISDIR` — một `Error`
+      // TRẦN, không phải `ScenarioAssetError`, nên nó lọt qua ranh giới lỗi có
+      // kiểu và hiện ra dưới dạng `INTERNAL_SERVER_ERROR` mù mịt.
+      //
+      // Bỏ qua (không ném): thư mục khớp glob là chuyện bình thường, chỉ là
+      // không có gì để đẩy. Ca "khớp nhưng KHÔNG có file nào" mới đáng ném, và
+      // nó được đếm bằng `filesForPattern` ở dưới.
+      if (!info.isFile()) {
+        continue;
+      }
+
+      // Đếm ở ĐÂY — "pattern này khớp được FILE" — chứ KHÔNG đếm sau bước khử
+      // trùng ở dưới. Đếm sau thì một khai báo trùng hợp lệ (`loxilb` khai
+      // `config-mirror.sh` hai lần) sẽ có `filesForPattern === 0` ở lượt thứ hai
+      // và bị ném nhầm là "chỉ khớp thư mục".
+      filesForPattern += 1;
+
+      // Ký tự phân tách là NUL vì nó KHÔNG xuất hiện được trong tên file lẫn
+      // target — dùng khoảng trắng thì `("a b", "c")` và `("a", "b c")` cho cùng
+      // một khoá.
+      //
+      // ⛔ Viết bằng escape `\u0000`, TUYỆT ĐỐI không dán byte NUL thật vào mã
+      // nguồn. Bản đầu của file này có một byte 0x00 thật ở đúng dòng này, và
+      // hậu quả không nằm ở runtime: git coi cả file là NHỊ PHÂN, nên
+      // `git diff --stat` in `Bin 0 -> 6829 bytes` và `git diff` chỉ nói "Binary
+      // files differ". Tức file NHẠY CẢM NHẤT của nhánh này **vô hình trong diff
+      // của PR** — người review (và Copilot) đọc diff sẽ review đúng số không.
+      const key = `${name}\u0000${asset.target}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+
+      // Kiểm trần TRƯỚC khi đọc. Kiểm sau nghĩa là một file 2 GB vẫn được nạp
+      // trọn vào bộ nhớ rồi mới bị từ chối — trần dùng để chặn đúng chuyện đó.
+      total += info.size;
+      if (total > MAX_TOTAL_ASSET_BYTES) {
+        throw new ScenarioAssetError(
+          `Tổng dung lượng asset vượt trần ${String(MAX_TOTAL_ASSET_BYTES)} byte ` +
+            `(giới hạn suy từ trần thân request 64 KiB của /exec/session)`,
+        );
+      }
+
+      out.push({
+        name,
+        target: asset.target,
+        chmod: asset.chmod,
+        bytes: new Uint8Array(await readFile(full)),
+      });
+    }
+
+    if (filesForPattern === 0) {
+      // Khớp toàn thư mục ⇒ đẩy 0 file. Im lặng ở đây sẽ để `background` chết ở
+      // `No such file or directory` — xa nguyên nhân đúng một tầng, đúng thứ cả
+      // module này sinh ra để chặn.
+      throw new ScenarioAssetError(
+        `Asset "${asset.file}" chỉ khớp thư mục, không khớp file nào trong ${assetsDir}`,
+      );
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Khớp một mục `file` với danh sách file có thật.
+ *
+ * Chỉ hỗ trợ `*` (không vắt qua `/`) — đủ cho mọi biến thể quan sát được, và mỗi
+ * ký tự glob thêm vào là một ký tự phải escape đúng ở tầng shell bên dưới.
+ */
+function matchAsset(pattern: string, entries: readonly string[]): string[] {
+  const segments = pattern.split('*');
+  if (segments.length === 1) {
+    return entries.includes(pattern) ? [pattern] : [];
+  }
+  if (segments.length - 1 > MAX_GLOB_STARS) {
+    // NÉM chứ không cắt bớt hay bỏ qua: một pattern nhiều `*` như vậy là dấu
+    // hiệu nội dung sai, và im lặng khớp 0 file sẽ đẩy lỗi xuống `background`.
+    throw new ScenarioAssetError(
+      `Asset "${pattern}" có quá ${String(MAX_GLOB_STARS)} dấu "*" — từ chối để tránh regex bùng nổ`,
+    );
+  }
+  const rx = new RegExp(
+    `^${segments.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')}$`,
+  );
+  return entries.filter((e) => rx.test(e)).sort();
+}

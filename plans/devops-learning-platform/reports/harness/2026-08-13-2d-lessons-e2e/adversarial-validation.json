@@ -1,0 +1,26 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [
+    "'Dung ckad-configmap-as-files lam bang chung pass/fail' (chi dinh cua phase-2.md) — BAC BO bang hai chung cu doc lap: image sandbox khong co kubectl (images/sandbox-base/Dockerfile), va verify.sh cua no dung [[ ]] + set -euo pipefail nen chet duoi sh. Ve PASS bat kha ⇒ dung guong cua bay /bin/true ma chinh plan canh bao o prolug.",
+    "'32 test Go cua 2.C chung minh duong exec chay' — BAC BO: gateway dang chay sha-a6f6768, commit TRUOC khi internal/execroute ton tai (git ls-tree tra rong). Test do MA TRONG REPO, khong do BINARY DANG CHAY. Endpoint tra 404 tren cum.",
+    "'ls $SCENARIOS_DIR chung minh content da vao image' (phep kiem cua 2.B) — BAC BO: thu muc do COPY tao ra van co that khi moi file .md ben trong da bi .dockerignore boc. Dem duoc 0 file .md trong image dang chay truoc khi sua.",
+    "'O AC ve-FAIL da dat' (luot do dau cua chinh toi) — BAC BO: no xanh vi LY DO SAI. output la `sh: 3: set: Illegal option -o pipefail`, tuc script chua chay noi dong nao; exit 2 cua dash duoc dich thanh passed:false, dung nhan ma mot bai CHUA LAM cung nhan.",
+    "'E2E API 14/14 xanh nghia la trang /lessons chay' — BAC BO: trang hong HOAN TOAN o trinh duyet (400 unrecognized_keys: direction). Harness goi thang procedure nen khong di qua doan ma sinh input cua client."
+  ],
+  "unverifiedClaims": [
+    "'Terminal o khoang phai noi duoc va go duoc' — CHUA do. Da render dung khoang va TerminalSurface nhan du props, nhung WS di toi gateway ma port-forward chi toi web. Khong duoc suy tu '1.F da dong duong WS': 1.F chung minh GATEWAY chay, khong chung minh ban 2.D goi dung no.",
+    "'{{exec}} bom lenh that vao PTY' — cung ly do. sendInput co test don vi + handle lifecycle da duoc review xac nhan (handle dong kin quanh dung connection cua no, khong ghi nham phien moi), nhung chua co luot bam that.",
+    "'Bai vendored chay tron ven' — ckad can kubeadm-in-pod, loxilb can egress. Ca hai ngoai pham vi 2.D."
+  ],
+  "missingProof": [
+    "Chua co cong browser-mode vitest thuong truc trong CI cho packages/ui. O 'resize duoc' dong bang Playwright tren cum mot lan, khong phai bang mot cong chay moi PR.",
+    "Duong asset-push moi chi chay voi MOT asset (18.2 KiB cua loxilb khong duoc dung; bai first-party chi co 1 file). Tran 40 KiB va nhanh nhieu-tang (`app/config.json`) duoc gac bang test don vi, CHUA co luot day nhieu tang nao tren cum that.",
+    "Cham theo exit code khong phan biet duoc 'script loi' voi 'bai sai' khi ca hai tra khac 0. Doi sh -> bash xoa NGUYEN NHAN he thong, khong xoa LOP loi nay."
+  ],
+  "reachableRegressions": [
+    "@source cho packages/ui lam class cua ui BAT DAU duoc bien dich ⇒ giao dien /, /login, /dashboard, /session doi thi giac (hover/focus/disabled xuat hien). Doi theo huong DUNG, nhung nam ngoai pham vi 2.D va chua ai xem lai bang mat tung trang.",
+    "GATEWAY_EXEC_SHELL mac dinh bash tao phu thuoc CUNG vao bash trong MOI image sandbox. Hom nay chi co mot tier (Ubuntu 24.04, co bash). Mot tier Alpine/distroless tuong lai se lam MOI luot Check va MOI setup vo hieu cung luc.",
+    "Scenario.source thanh nullable la thay doi kieu PHA VO. Da sua 4 call-site trong repo (loader, parse.mjs, content-scenarios.test.ts, vendor-scenarios.mjs); consumer ngoai repo — neu co — se vo.",
+    "Cum lab da qua 5 luot helm upgrade trong phien nay; web+gateway dang chay image cua nhanh, KHONG phai cua main. Merge xong phai deploy lai tu main."
+  ]
+}

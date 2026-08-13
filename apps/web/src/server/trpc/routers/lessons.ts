@@ -13,7 +13,9 @@ import { attachSandboxCookie } from '../../auth/sandbox-cookie';
 import { mintAccessTokenFor } from '../../auth/jwt';
 import { callOrchestrator, orchestratorClient } from '../../grpc/orchestrator-client';
 import { toJsonSession } from '../../grpc/session-json';
-import { scenarioSource, unsupportedCapabilities } from '../../lessons/catalog';
+import { resolveScenarioAssets } from '@devops-platform/scenario';
+import { scenarioDir, scenarioSource, unsupportedCapabilities } from '../../lessons/catalog';
+import { buildAssetPushScript, isAssetPushPhase } from '../../lessons/asset-push';
 import { phaseRefSchema, resolvePhase } from '../../lessons/phase';
 import { runScriptInSession } from '../../lessons/validate';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
@@ -307,11 +309,43 @@ export const lessonsRouter = createTRPCRouter({
     const scenario = await requireScenario(input.scenarioId);
     const phase = resolvePhase(scenario, input.phase);
 
-    if (phase.setup.background === null) {
-      return { ran: false, foreground: phase.setup.foreground };
+    // Asset đi TRƯỚC `background`, không song song và không sau: `loxilb` chạy
+    // `sudo /bin/bash ./start.sh` ngay dòng đầu background, nên thứ tự này là
+    // điều kiện đúng-sai chứ không phải tối ưu.
+    const pushable = isAssetPushPhase(scenario, input.phase)
+      ? await resolveScenarioAssets(scenarioDir(scenario.id), scenario.assets)
+      : [];
+    const pushScript = buildAssetPushScript(pushable);
+
+    if (phase.setup.background === null && pushScript === null) {
+      return { ran: false, assetsPushed: 0, foreground: phase.setup.foreground };
     }
 
     const expiresAtSeconds = await sessionExpiry(ctx, input.sessionId);
+
+    if (pushScript !== null) {
+      const push = await runScriptInSession({
+        sessionId: input.sessionId,
+        userId: ctx.user.id,
+        expiresAtSeconds,
+        script: pushScript,
+      });
+      if (!push.passed) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Đẩy file kèm bài học thất bại (exit ${String(push.exitCode)}). Hãy khởi động lại phiên.`,
+        });
+      }
+    }
+
+    if (phase.setup.background === null) {
+      return {
+        ran: false,
+        assetsPushed: pushable.length,
+        foreground: phase.setup.foreground,
+      };
+    }
+
     const outcome = await runScriptInSession({
       sessionId: input.sessionId,
       userId: ctx.user.id,
@@ -328,7 +362,7 @@ export const lessonsRouter = createTRPCRouter({
         message: `Script chuẩn bị môi trường thất bại (exit ${outcome.exitCode}). Hãy khởi động lại phiên.`,
       });
     }
-    return { ran: true, foreground: phase.setup.foreground };
+    return { ran: true, assetsPushed: pushable.length, foreground: phase.setup.foreground };
   }),
 
   /**

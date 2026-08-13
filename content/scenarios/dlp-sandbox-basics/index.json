@@ -1,0 +1,44 @@
+{
+  "title": "Làm quen sandbox DevOps",
+  "description": "Bốn bước đầu tiên trong môi trường sandbox: tệp, JSON với jq, dựng image Docker không cần mạng, và kiểm chứng sự cô lập mạng.",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "foreground": "intro/foreground.sh",
+      "background": "intro/background.sh"
+    },
+    "steps": [
+      {
+        "title": "Tạo tệp đầu tiên",
+        "text": "step1.md",
+        "verify": "step1/verify.sh"
+      },
+      {
+        "title": "Đọc và ghi JSON bằng jq",
+        "text": "step2.md",
+        "verify": "step2/verify.sh"
+      },
+      {
+        "title": "Dựng image Docker không cần mạng",
+        "text": "step3.md",
+        "verify": "step3/verify.sh"
+      },
+      {
+        "title": "Sandbox bị cô lập mạng",
+        "text": "step4.md",
+        "verify": "step4/verify.sh"
+      }
+    ],
+    "finish": {
+      "text": "finish.md"
+    },
+    "assets": {
+      "host01": [
+        { "file": "lab-seed.json", "target": "~/", "chmod": "+r" }
+      ]
+    }
+  },
+  "backend": {
+    "imageid": "ubuntu"
+  }
+}

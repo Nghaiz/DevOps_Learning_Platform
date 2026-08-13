@@ -25,3 +25,16 @@ docs
 secure-test-devops
 .claude
 **/*.md
+
+# ⛔ NGOẠI LỆ BẮT BUỘC — nội dung bài học LÀ markdown.
+#
+# `**/*.md` ở trên loại luôn `content/scenarios/**/*.md`, tức mọi `intro.md`,
+# `step1.md`, `finish.md`. Hệ quả: image có ĐỦ thư mục scenario và `index.json`,
+# nhưng rỗng nội dung — `loadScenarios` đọc `step1.md` và chết ENOENT ở request
+# đầu tiên vào `/lessons`.
+#
+# Bẫy này sống sót qua chặng 2.B vì phép kiểm lúc đó là `ls $SCENARIOS_DIR`: nó
+# liệt kê THƯ MỤC, mà thư mục thì có thật. Phép kiểm đúng phải đếm file `.md`
+# TRONG image:
+#   docker run --rm --entrypoint sh <img> -c 'find $SCENARIOS_DIR -name "*.md" | wc -l'
+!content/**/*.md

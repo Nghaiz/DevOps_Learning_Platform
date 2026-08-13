@@ -1,0 +1,8 @@
+{
+  "id": "dlp-sandbox-basics",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "source": null,
+  "acknowledgedUnknownFields": [],
+  "notes": "Bài FIRST-PARTY (source: null) — soạn tại repo này, không nhập từ upstream nào. Lý do tồn tại: cả 4 bài đã vendor đều KHÔNG sinh được cặp pass/fail thật trên cụm hiện tại (ckad thiếu kubectl nên luôn fail; prolug verify là /bin/true nên luôn pass; loki không có verify nào; loxilb cần egress internet mà NetworkPolicy default-deny chặn). Bài này chỉ dùng thứ CÓ THẬT trong images/sandbox-base: bash, coreutils, jq, và Docker/DinD — đúng năng lực duy nhất P1 đã đo. Nó cũng mang 1 asset để chứng minh tầng asset-push, và một step khẳng định chính sự cô lập mạng."
+}

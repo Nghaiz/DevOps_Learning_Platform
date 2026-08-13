@@ -187,7 +187,13 @@ func Load() (*Config, error) {
 			"thì exec chạy CMD của image (`sleep infinity`) và terminal treo câm")
 	}
 
-	execShell := strings.Fields(envx.String("GATEWAY_EXEC_SHELL", "sh"))
+	// Mặc định `bash`, KHÔNG `sh`: nội dung Killercoda là script bash (`[[ ]]`,
+	// `set -o pipefail`), còn `sh` trong image sandbox là dash. Đo trên cụm
+	// 2026-08-13: dash chết ở `set: Illegal option -o pipefail` (exit 2) — mà
+	// exit 2 lại được dịch thành `passed:false`, tức "bài sai", nên lỗi này giả
+	// dạng thành một lượt chấm bình thường. Xem `infra/helm/platform/values.yaml`
+	// § gateway.env.execShell.
+	execShell := strings.Fields(envx.String("GATEWAY_EXEC_SHELL", "bash"))
 	if len(execShell) == 0 {
 		// Rỗng ⇒ apiserver chạy CMD của image (`sleep infinity`), script chấm
 		// không bao giờ được đọc, và lượt chấm treo tới hết ExecTimeout rồi trả
