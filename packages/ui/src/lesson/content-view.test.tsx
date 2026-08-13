@@ -4,15 +4,17 @@ import type { ContentBlock } from '@devops-platform/scenario/content-blocks';
 import { ContentView } from './content-view.tsx';
 
 /**
- * ⚠ KHÔNG dùng `@testing-library/user-event` ở đây dù nó là lựa chọn thường
- * thấy cho test click — package này CHƯA cài `@testing-library/jest-dom`
- * (không có trong devDependencies), nên các matcher như `toBeInTheDocument`/
- * `toHaveAttribute`/`toBeDisabled` không tồn tại trên `expect(...)`. Đồng
- * thời `userEvent.setup()` hiện KHÔNG typecheck được với cấu hình
- * `moduleResolution: NodeNext` của repo (xem báo cáo cuối phiên). Test ở đây
- * vì vậy chỉ dùng `fireEvent` (đủ cho click) và khẳng định trên DOM API/
- * thuộc tính thuần — không phụ thuộc gói nào chưa được khai trong
- * package.json của package này.
+ * Test ở đây dùng `fireEvent` + khẳng định trên DOM API thuần. Đó là ĐỦ cho
+ * click, không phải một hạn chế.
+ *
+ * ⚠ Bản đầu của khối chú thích này nói `@testing-library/jest-dom` "không có
+ * trong devDependencies" và `userEvent` không typecheck được. Cả hai câu ĐÃ HẾT
+ * ĐÚNG trong cùng nhánh: `jest-dom` nay là devDependency và được nạp ở
+ * `vitest.setup.ts` (`@testing-library/jest-dom/vitest` — đường `/vitest` là
+ * bắt buộc, bản bare đăng ký vào `expect` của Jest và im lặng không gắn matcher
+ * nào). `userEvent` dùng được với import CÓ TÊN: `import { userEvent } from
+ * '@testing-library/user-event'` — bản default import mới là bản không
+ * typecheck dưới `moduleResolution: NodeNext`.
  */
 
 /**

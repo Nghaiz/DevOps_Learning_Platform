@@ -59,8 +59,9 @@ describe('StepNav', () => {
  * còn quyền ghi thay vì bỏ sót — xem báo cáo cuối cùng để biết đây là một chỗ
  * hợp đồng nhiệm vụ thiếu sót, không phải một lựa chọn tuỳ tiện.
  *
- * (Cũng không dùng matcher `@testing-library/jest-dom` — package KHÔNG có
- * dependency đó, xem comment tương tự ở `split-pane.test.tsx`.)
+ * (Test dùng DOM API thuần thay vì matcher jest-dom. Lưu ý: jest-dom NAY đã
+ * là devDependency và được nạp ở `vitest.setup.ts` — bản đầu của chú thích này
+ * nói ngược lại và đã hết đúng.)
  */
 describe('ProgressBar', () => {
   it('tính đúng phần trăm và đặt các thuộc tính aria progressbar', () => {

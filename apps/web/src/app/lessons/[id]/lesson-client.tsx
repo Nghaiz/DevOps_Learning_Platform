@@ -30,6 +30,22 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
 
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckOutcome | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
+  /** Tăng để BUỘC effect setup chạy lại — nút "Thử lại" của lỗi setup. */
+  const [setupAttempt, setSetupAttempt] = useState(0);
+  /**
+   * Step ĐÃ CHẤM ĐẠT trong phiên làm việc này.
+   *
+   * ⛔ KHÔNG suy dấu ✓ từ `progress.stepIndex`. Router ghi rõ `stepIndex` là
+   * "VỊ TRÍ HIỆN TẠI, không phải step xa nhất từng tới", và `onSelect` ghi nó
+   * mỗi lần người học chỉ ĐIỀU HƯỚNG. Suy từ đó nghĩa là: mở bài, bấm vào step
+   * cuối để xem trước ⇒ mọi step trước nó lập tức hiện ✓ và thanh tiến độ nhảy
+   * lên gần đầy, trong khi KHÔNG lượt chấm nào từng chạy. Dấu ✓ khi đó là lời
+   * nói dối, và nó nói dối đúng về thứ nền tảng này tồn tại để đo.
+   *
+   * Nguồn sự thật duy nhất còn lại ở client là kết quả `checkStep` thật.
+   */
+  const [passedSteps, setPassedSteps] = useState<ReadonlySet<number>>(new Set());
 
   const scenario = query.data?.scenario ?? null;
   const phases = useMemo(() => (scenario === null ? [] : buildPhases(scenario)), [scenario]);
@@ -59,47 +75,72 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
   // trước khi cờ kịp có tác dụng — tức chạy setup hai lần.
   const setupDone = useRef(new Set<string>());
   const terminal = session.terminal;
-  const phaseKey = active?.key ?? null;
-  const phaseRef = active?.ref ?? null;
   const sessionId = session.state.sessionId;
 
   useEffect(() => {
-    if (phaseKey === null || phaseRef === null || sessionId === null || terminal === null) {
+    if (active === null || sessionId === null || terminal === null || phases.length === 0) {
       return;
     }
-    // Khoá gồm CẢ `sessionId`, không chỉ `phaseKey`.
-    //
-    // Khoá chỉ theo phase thì sau khi người học bấm "Bắt đầu" lần hai (phiên cũ
-    // hết hạn, pod mới toanh), cờ của phiên CŨ vẫn còn ⇒ `background` KHÔNG BAO
-    // GIỜ chạy trong pod mới. Bài hiện ra bình thường rồi hỏng ở step đầu tiên,
-    // với triệu chứng ("lệnh trong bài không có tác dụng") không trỏ về đâu cả.
-    const runKey = `${sessionId}:${phaseKey}`;
-    if (setupDone.current.has(runKey)) {
-      return;
-    }
-    setupDone.current.add(runKey);
 
-    runSetup.mutate(
-      { scenarioId, sessionId, phase: phaseRef },
-      {
-        onSuccess: (result) => {
-          // `foreground` được TRẢ VỀ chứ không chạy ở server — đó là định nghĩa
-          // của nó (phải hiện ra trong terminal người học đang nhìn). Gõ nó vào
-          // WS ở đây là nửa còn lại của ranh giới 2.C/2.D.
-          if (result.foreground !== null) {
-            terminal.sendInput(`${result.foreground}\r`);
-          }
+    // ⛔ Phải chuẩn bị phase ĐẦU TIÊN, không chỉ phase đang mở.
+    //
+    // Asset chỉ được đẩy ở phase setup đầu tiên (`isAssetPushPhase`), và
+    // `intro/background.sh` cũng chỉ chạy ở đó. Nhưng người học quay lại được
+    // thả đúng vào step đang dở (khôi phục tiến độ). Chuỗi thật:
+    //   qua step 1 → phiên hết hạn → mở lại (rơi vào step1) → bấm "Bắt đầu"
+    // ⇒ pod MỚI TOANH, mà lượt runSetup duy nhất là cho `step1` — phase không có
+    // `background` — nên `intro` không bao giờ chạy và `lab-seed.json` không bao
+    // giờ tới pod. Mọi verify sau đó trượt với "Chua thay /root/lab/hello.txt".
+    //
+    // Đó ĐÚNG là hạng lỗi "asset chưa tới pod" mà cả lane này sinh ra để đóng,
+    // bị đường khôi-phục-tiến-độ dựng lại.
+    const first = phases[0];
+    const needed = first === undefined || first.key === active.key ? [active] : [first, active];
+
+    for (const target of needed) {
+      // Bỏ qua phase chẳng có gì để chuẩn bị — trừ phase đầu, nơi asset được đẩy
+      // (việc đó là logic phía server, client không thấy trong DTO).
+      const isFirst = target.key === first?.key;
+      if (!isFirst && target.phase.setup.background === null) {
+        continue;
+      }
+
+      // Khoá gồm CẢ `sessionId`: khoá chỉ theo phase thì cờ của phiên CŨ sống
+      // sót sang pod mới và setup không bao giờ chạy lại.
+      const runKey = `${sessionId}:${target.key}`;
+      if (setupDone.current.has(runKey)) {
+        continue;
+      }
+      setupDone.current.add(runKey);
+
+      runSetup.mutate(
+        { scenarioId, sessionId, phase: target.ref },
+        {
+          onSuccess: (result) => {
+            setSetupError(null);
+            // `foreground` được TRẢ VỀ chứ không chạy ở server — đó là định
+            // nghĩa của nó (phải hiện ra trong terminal người học đang nhìn).
+            // Chỉ gõ của phase ĐANG MỞ: gõ foreground của intro trong lúc người
+            // ta đang ở step 3 là bơm lệnh lạ vào màn hình họ đang làm bài.
+            if (result.foreground !== null && target.key === active.key) {
+              terminal.sendInput(`${result.foreground}\r`);
+            }
+          },
+          onError: (error) => {
+            // ⛔ Setup hỏng PHẢI hiện ra. Bản đầu chỉ xoá cờ rồi im lặng: người
+            // học nhìn một terminal bình thường trong khi môi trường bài chưa hề
+            // được dựng, và mọi verify sau đó trượt vì lý do không liên quan.
+            // Xoá cờ mà không có gì kích hoạt lại effect cũng KHÔNG phải "cho
+            // phép thử lại" — nút "Thử lại" ở dưới mới là.
+            setupDone.current.delete(runKey);
+            setSetupError(describeTrpcError(error));
+          },
         },
-        onError: () => {
-          // Cho phép thử lại: setup hỏng mà khoá luôn phase thì người học không
-          // có đường nào ngoài việc tải lại trang.
-          setupDone.current.delete(runKey);
-        },
-      },
-    );
+      );
+    }
     // `runSetup` bị loại khỏi deps có chủ ý: danh tính của mutation object đổi
     // mỗi lần render, và đưa nó vào deps sẽ chạy lại effect liên tục.
-  }, [phaseKey, phaseRef, sessionId, terminal, scenarioId]);
+  }, [active, phases, sessionId, terminal, scenarioId, setupAttempt]);
 
   // ── Điều hướng ──────────────────────────────────────────────────────────────
   const onSelect = useCallback(
@@ -132,6 +173,11 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
             exitCode: result.exitCode,
             output: result.output,
           });
+          // Chỉ ĐÂY mới sinh ra dấu ✓ — một lượt chấm ĐẠT có thật.
+          if (result.passed && active.stepIndex !== null) {
+            const index = active.stepIndex;
+            setPassedSteps((prev) => new Set(prev).add(index));
+          }
           void utils.lessons.invalidate();
         },
         // ⛔ Lỗi hệ thống KHÔNG được hiện thành "bài sai". Phiên hết hạn, pod bị
@@ -182,18 +228,21 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
   }
 
   const blocks = parseContentBlocks(active.phase.markdown);
-  const doneThrough = query.data.progress.stepIndex;
   const completed = query.data.progress.status === 'completed';
   const unsupported = query.data.unsupportedCapabilities;
 
+  // `done` = ĐÃ CHẤM ĐẠT, không phải "đã đi qua". Bài đã hoàn thành
+  // (`completed`, do server ghi `completedAt` khi chấm đạt step cuối) thì mọi
+  // step đều đạt; ngoài ra chỉ tick thứ chính phiên này chấm đạt.
   const navItems = phases.map((p) => ({
     key: p.key,
     label: p.label,
-    done:
-      p.stepIndex === null
-        ? false
-        : completed || p.stepIndex < doneThrough,
+    done: p.stepIndex === null ? false : completed || passedSteps.has(p.stepIndex),
   }));
+
+  // Thanh tiến độ đếm CÙNG một thứ với dấu ✓ — nếu nó đếm `stepIndex` thì hai
+  // chỉ báo cạnh nhau sẽ nói hai điều khác nhau về cùng một bài.
+  const doneCount = completed ? scenario.steps.length : passedSteps.size;
 
   return (
     <main className="flex h-screen flex-col bg-white">
@@ -205,9 +254,9 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
 
         <div className="w-40">
           <ProgressBar
-            value={completed ? scenario.steps.length : doneThrough}
+            value={doneCount}
             max={scenario.steps.length}
-            label={`${String(completed ? scenario.steps.length : doneThrough)}/${String(scenario.steps.length)} bước`}
+            label={`${String(doneCount)}/${String(scenario.steps.length)} bước đã đạt`}
           />
         </div>
 
@@ -243,6 +292,29 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
       {session.startError !== null && (
         <div role="alert" className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
           {session.startError}
+        </div>
+      )}
+
+      {/*
+        Setup hỏng KHÔNG được im lặng. Không có khối này, một lượt đẩy asset lỗi
+        hay `background` thoát non-zero hiện ra dưới dạng: không gì cả — terminal
+        trông bình thường, còn bài thì lặng lẽ không chạy được.
+      */}
+      {setupError !== null && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800"
+        >
+          <span>Không chuẩn bị được môi trường bài học: {setupError}</span>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setSetupError(null);
+              setSetupAttempt((n) => n + 1);
+            }}
+          >
+            Thử lại
+          </Button>
         </div>
       )}
 

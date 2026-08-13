@@ -102,6 +102,54 @@ describe('resolveScenarioAssets', () => {
     );
   });
 
+  it('trần nằm DƯỚI trần thân request 64 KiB của gateway', () => {
+    // Hai con số này là MỘT CẶP. Bản đầu đặt 1 MiB — gấp 16 lần thứ vận chuyển
+    // được — nên bài đầu tiên kèm tarball nhỏ sẽ vượt `maxBodyBytes` và gateway
+    // trả BAD_REQUEST, mà BFF dịch thành "không chạy được script CHẤM BÀI": một
+    // lỗi chấm bài cho một lượt ĐẨY FILE.
+    //
+    // base64 nở ×4/3, cộng xuống dòng + JSON escaping + khung mkdir/chmod.
+    const GATEWAY_MAX_BODY_BYTES = 64 * 1024;
+    expect(Math.ceil((MAX_TOTAL_ASSET_BYTES * 4) / 3)).toBeLessThan(GATEWAY_MAX_BODY_BYTES);
+  });
+
+  it('glob khớp trúng THƯ MỤC thì bỏ qua thư mục, không ném EISDIR', async () => {
+    // `readdir(recursive)` tra ve ca thu muc. `readFile` tren thu muc nem EISDIR
+    // — mot Error TRAN, khong phai ScenarioAssetError — nen no lot qua ranh gioi
+    // loi co kieu va hien ra duoi dang INTERNAL_SERVER_ERROR mu mit.
+    const root = await makeScenarioDir({ 'app/config.json': '{}', 'top.sh': 'x' });
+    const got = await resolveScenarioAssets(root, [asset('*')]);
+
+    // `*` không vắt qua `/` nên chỉ khớp `top.sh` và thư mục `app`; thư mục bị bỏ.
+    expect(got.map((a) => a.name)).toEqual(['top.sh']);
+  });
+
+  it('glob CHỈ khớp thư mục thì NÉM, không trả rỗng im lặng', async () => {
+    const root = await makeScenarioDir({ 'app/config.json': '{}' });
+    await expect(resolveScenarioAssets(root, [asset('app')])).rejects.toThrow(
+      /chỉ khớp thư mục/,
+    );
+  });
+
+  it('pattern quá nhiều dấu * bị TỪ CHỐI (chặn regex bùng nổ)', async () => {
+    // Đo thật: 10 dấu `*` trên một tên 40 ký tự có chứa `/` làm engine regex
+    // chạy ~115 GIÂY, và nó chạy ĐỒNG BỘ trong mutation runSetup nên treo event
+    // loop của BFF cho MỌI người dùng. Hôm nay pattern đến từ nội dung đã
+    // vendored; bản ScenarioSource chạy trên DB biến nó thành đầu vào người dùng.
+    const root = await makeScenarioDir({ 'a.sh': 'x' });
+    await expect(
+      resolveScenarioAssets(root, [asset('*a*b*c*d*e*f*g*h*i*j*')]),
+    ).rejects.toThrow(/quá 4 dấu/);
+  });
+
+  it('pattern nhiều * nhưng trong hạn vẫn chạy nhanh', async () => {
+    const root = await makeScenarioDir({ 'a-b-c-d.sh': 'x' });
+    const started = Date.now();
+    const got = await resolveScenarioAssets(root, [asset('*-*-*-*.sh')]);
+    expect(got.map((a) => a.name)).toEqual(['a-b-c-d.sh']);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
   it('khai asset nhưng KHÔNG có thư mục assets/ thì NÉM kèm đường dẫn', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'dlp-missing-'));
     dirs.push(root);

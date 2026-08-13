@@ -32,7 +32,6 @@ export interface LessonSession {
   readonly terminal: TerminalHandle | null;
   readonly starting: boolean;
   readonly startError: string | null;
-  readonly unsupportedCapabilities: readonly string[];
   start: () => void;
   onControl: (message: ServerControl) => void;
   onClose: (code: number) => void;
@@ -44,7 +43,6 @@ export function useLessonSession(scenarioId: string): LessonSession {
   const [connectionKey, setConnectionKey] = useState(0);
   const [terminal, setTerminal] = useState<TerminalHandle | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
-  const [unsupported, setUnsupported] = useState<readonly string[]>([]);
 
   const startSession = api.lessons.startSession.useMutation();
 
@@ -57,7 +55,6 @@ export function useLessonSession(scenarioId: string): LessonSession {
       { scenarioId, idempotencyKey: globalThis.crypto.randomUUID() },
       {
         onSuccess: (result) => {
-          setUnsupported(result.unsupportedCapabilities);
           const session = result.session;
           if (session === null || session === undefined) {
             dispatch({ type: 'CREATE_FAILED', message: 'Máy chủ không trả về phiên nào.' });
@@ -126,7 +123,6 @@ export function useLessonSession(scenarioId: string): LessonSession {
     terminal,
     starting: startSession.isPending,
     startError,
-    unsupportedCapabilities: unsupported,
     start,
     onControl,
     onClose,

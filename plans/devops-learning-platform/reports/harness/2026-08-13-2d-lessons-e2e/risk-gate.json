@@ -10,11 +10,9 @@
     "SUA MOT CONG BAO MAT: `PROTECTED_PATHS` doi tu khop-chinh-xac sang so tien to. Rui ro hai chieu — sot (khong gac) va over-match (gac nham). Ca hai deu co phep do: /lessons/<id> -> 307, /lessonsfoo -> 404.",
     "Doi mac dinh GATEWAY_EXEC_SHELL sh -> bash. Anh huong MOI luot cham cua MOI bai. Ly do la mot loi da do duoc, khong phai so thich: dash khong co pipefail nen moi verify script that chet o dong `set`.",
     "diff lon: 74 file, ~5300 dong them. Phan lon la component FE moi + noi dung bai + bang chung harness, nhung van vuot nguong largeDiff.",
-    "Nguoi dung da phe duyet pham vi nay tuong minh (chon 'Ca hai: bai first-party + asset-push' va '2.D + e2e tren cum') truoc khi bat dau."
-  ],
-  "mitigations": [
-    "Chi ghi de tag image THEO SERVICE (web, gateway), KHONG dung global image.tag — nen SANDBOX_IMAGE giu nguyen sha cu va tranh bay ErrImageNeverPull tren toan bo warm-pool.",
-    "helm chay TU WINDOWS tro thang vao chart trong repo, khong dung ~/dlp-deploy (ban tren host lech so voi repo — bay da tra gia o 1.F).",
-    "Khong sua NetworkPolicy: bai first-party duoc thiet ke de chay DUOC duoi default-deny thay vi noi long cong bao mat de bai chay."
+    "Nguoi dung da phe duyet pham vi nay tuong minh (chon 'Ca hai: bai first-party + asset-push' va '2.D + e2e tren cum') truoc khi bat dau.",
+    "GIAM THIEU: Chi ghi de tag image THEO SERVICE (web, gateway), KHONG dung global image.tag — nen SANDBOX_IMAGE giu nguyen sha cu va tranh bay ErrImageNeverPull tren toan bo warm-pool.",
+    "GIAM THIEU: helm chay TU WINDOWS tro thang vao chart trong repo, khong dung ~/dlp-deploy (ban tren host lech so voi repo — bay da tra gia o 1.F).",
+    "GIAM THIEU: Khong sua NetworkPolicy: bai first-party duoc thiet ke de chay DUOC duoi default-deny thay vi noi long cong bao mat de bai chay."
   ]
 }

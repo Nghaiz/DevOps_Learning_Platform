@@ -3,12 +3,12 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SplitPane } from './split-pane.tsx';
 
 /**
- * `@testing-library/jest-dom` KHÔNG có trong devDependencies của package này
- * (đã kiểm tra `node_modules` — không tồn tại), nên các matcher quen thuộc như
- * `toHaveAttribute`/`toBeInTheDocument` không tồn tại trên kiểu `Assertion`.
- * Test ở đây cố ý dùng thẳng DOM API (`getAttribute`) thay vì matcher jest-dom
- * — KHÔNG phải sơ suất. Xem báo cáo cuối nhiệm vụ: đây là một khoảng trống hạ
- * tầng test nằm ngoài 5 file được phép sửa của agent này.
+ * Test ở đây khẳng định thẳng trên DOM API (`getAttribute`, `style`) thay vì
+ * matcher jest-dom. Giữ nguyên lối đó vì nó nói rõ đang đo THUỘC TÍNH nào.
+ *
+ * ⚠ Bản đầu của khối này nói `@testing-library/jest-dom` "không có trong
+ * devDependencies". Câu đó ĐÃ HẾT ĐÚNG trong cùng nhánh — nó là devDependency
+ * và được nạp ở `vitest.setup.ts`, nên matcher jest-dom dùng được nếu muốn.
  */
 function ariaValueNow(el: Element): string | null {
   return el.getAttribute('aria-valuenow');

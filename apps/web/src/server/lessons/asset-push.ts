@@ -73,10 +73,22 @@ export function buildAssetPushScript(assets: readonly ResolvedAsset[]): string |
   const lines: string[] = ['set -eu'];
 
   for (const asset of assets) {
-    const dir = shellQuote(expandHome(asset.target));
-    const path = shellQuote(joinTarget(expandHome(asset.target), asset.name));
+    const filePath = joinTarget(expandHome(asset.target), asset.name);
+    const path = shellQuote(filePath);
 
-    lines.push(`mkdir -p ${dir}`);
+    // `mkdir -p` phải tạo thư mục CHA CỦA FILE, không phải `asset.target`.
+    //
+    // `name` có thể nhiều tầng (`app-star/star.json` — `killercoda.ts` ghi rõ đó
+    // là hình dạng upstream có thật, và `resolveScenarioAssets` hỗ trợ nó bằng
+    // `readdir(recursive)`). Bản đầu `mkdir -p` đúng `target`, nên với
+    // `target="~/"` + `name="app/config.json"` nó tạo `$HOME` (đã có sẵn) rồi
+    // ghi vào `$HOME/app/config.json` — mà `$HOME/app` không tồn tại. Redirect
+    // thất bại, `set -eu` giết script, `runSetup` ném, và người học không nhận
+    // được môi trường nào.
+    //
+    // Hai tầng của cùng tính năng bất đồng về "tên asset hợp lệ là gì", và
+    // không test nào bắt được vì `asset-push.test.ts` chỉ dùng tên phẳng.
+    lines.push(`mkdir -p ${shellQuote(dirnamePosix(filePath))}`);
     // Heredoc trích dẫn (`<<'EOF'`) — KHÔNG phải bản không trích dẫn: bản không
     // trích dẫn cho shell nội suy `$` và `` ` `` trong thân, mà thân ở đây là dữ
     // liệu từ đĩa. base64 không chứa hai ký tự đó nên hôm nay vô hại, nhưng dựa
@@ -120,6 +132,18 @@ function expandHome(target: string): string {
 
 function joinTarget(dir: string, name: string): string {
   return dir.endsWith('/') ? `${dir}${name}` : `${dir}/${name}`;
+}
+
+/**
+ * Thư mục cha, tính theo POSIX.
+ *
+ * ⛔ KHÔNG dùng `node:path.dirname`: mã này chạy trên BFF (có thể là Windows lúc
+ * dev) nhưng sinh ra đường dẫn cho shell LINUX trong pod. `path.win32.dirname`
+ * sẽ coi `/` và `\` như nhau và trả về dấu phân tách sai.
+ */
+function dirnamePosix(filePath: string): string {
+  const at = filePath.lastIndexOf('/');
+  return at <= 0 ? '/' : filePath.slice(0, at);
 }
 
 /**

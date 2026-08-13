@@ -66,9 +66,34 @@ describe('buildAssetPushScript', () => {
     expect(script).not.toMatch(/'~\//);
   });
 
+  it('tên asset NHIỀU TẦNG: mkdir tạo thư mục cha của FILE, không phải target', () => {
+    // Hồi quy: bản đầu `mkdir -p` đúng `target` (`$HOME`, vốn đã tồn tại) rồi
+    // ghi vào `$HOME/app/config.json` — mà `$HOME/app` không có ⇒ redirect
+    // thất bại ⇒ `set -eu` giết script ⇒ người học không nhận được môi trường.
+    // `killercoda.ts` ghi rõ `app-star/star.json` là hình dạng upstream có thật.
+    const script = buildAssetPushScript([resolved({ name: 'app/config.json' })]) ?? '';
+
+    expect(script).toContain(`mkdir -p "$HOME"/'app'`);
+    expect(script).toContain(`base64 -d > "$HOME"/'app/config.json'`);
+  });
+
+  it('tên phẳng vẫn mkdir đúng thư mục target', () => {
+    const script = buildAssetPushScript([resolved({ name: 'start.sh' })]) ?? '';
+    expect(script).toContain('mkdir -p "$HOME"');
+  });
+
+  it('nhiều tầng dưới target tuyệt đối', () => {
+    const script = buildAssetPushScript([
+      resolved({ name: 'a/b/c.txt', target: '/opt/lab/' }),
+    ]) ?? '';
+    expect(script).toContain(`mkdir -p '/opt/lab/a/b'`);
+  });
+
   it('target tuyệt đối được trích dẫn nguyên vẹn', () => {
     const script = buildAssetPushScript([resolved({ target: '/opt/lab/' })]) ?? '';
-    expect(script).toContain(`mkdir -p '/opt/lab/'`);
+    // `mkdir` nhận thư mục CHA CỦA FILE (`/opt/lab`), không phải `target` nguyên
+    // văn (`/opt/lab/`) — dấu `/` cuối bị `dirnamePosix` cắt.
+    expect(script).toContain(`mkdir -p '/opt/lab'`);
     expect(script).toContain(`base64 -d > '/opt/lab/start.sh'`);
   });
 
