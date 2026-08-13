@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TRPCError } from '@trpc/server';
-import { runVerifyScript } from './validate';
+import { runScriptInSession } from './validate';
 
 /**
  * `runVerifyScript` — biên BFF ⇄ terminal-gateway (P2 / 2.C).
@@ -50,10 +50,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('runVerifyScript — dịch exit code', () => {
+describe('runScriptInSession — dịch exit code', () => {
   it('exit 0 → passed (contract Killercoda, không có ngưỡng nào khác)', async () => {
     stubFetch(200, { exitCode: 0, output: 'ok\n', truncated: false });
-    await expect(runVerifyScript(REQ)).resolves.toEqual({
+    await expect(runScriptInSession(REQ)).resolves.toEqual({
       passed: true,
       exitCode: 0,
       output: 'ok\n',
@@ -63,21 +63,21 @@ describe('runVerifyScript — dịch exit code', () => {
 
   it('exit khác 0 → KHÔNG passed, và KHÔNG ném', async () => {
     stubFetch(200, { exitCode: 1, output: 'chua tao\n', truncated: false });
-    const out = await runVerifyScript(REQ);
+    const out = await runScriptInSession(REQ);
     expect(out.passed).toBe(false);
     expect(out.exitCode).toBe(1);
   });
 
   it('cờ truncated đi qua nguyên vẹn', async () => {
     stubFetch(200, { exitCode: 0, output: 'abc', truncated: true });
-    await expect(runVerifyScript(REQ)).resolves.toMatchObject({ truncated: true });
+    await expect(runScriptInSession(REQ)).resolves.toMatchObject({ truncated: true });
   });
 });
 
-describe('runVerifyScript — gọi gateway đúng cách', () => {
+describe('runScriptInSession — gọi gateway đúng cách', () => {
   it('gửi script trong body và token qua header Cookie, KHÔNG qua URL (luật 8)', async () => {
     const spy = stubFetch(200, { exitCode: 0, output: '', truncated: false });
-    await runVerifyScript(REQ);
+    await runScriptInSession(REQ);
 
     expect(spy).toHaveBeenCalledTimes(1);
     const [url, init] = spy.mock.calls[0] as unknown as [string, RequestInit];
@@ -92,24 +92,24 @@ describe('runVerifyScript — gọi gateway đúng cách', () => {
   });
 });
 
-describe('runVerifyScript — lỗi KHÔNG được thành "fail"', () => {
+describe('runScriptInSession — lỗi KHÔNG được thành "fail"', () => {
   it('session đã kết thúc → NOT_FOUND, không phải passed:false', async () => {
     stubFetch(404, { code: 'SESSION_NOT_FOUND', message: 'phiên không còn tồn tại' });
-    await expect(runVerifyScript(REQ)).rejects.toSatisfy(
+    await expect(runScriptInSession(REQ)).rejects.toSatisfy(
       (e: unknown) => codeOf(e) === 'NOT_FOUND',
     );
   });
 
   it('session chưa sẵn sàng → CONFLICT', async () => {
     stubFetch(409, { code: 'SESSION_NOT_ACTIVE', message: 'chưa chạy được' });
-    await expect(runVerifyScript(REQ)).rejects.toSatisfy(
+    await expect(runScriptInSession(REQ)).rejects.toSatisfy(
       (e: unknown) => codeOf(e) === 'CONFLICT',
     );
   });
 
   it('gateway 502 (pod/apiserver hỏng, hoặc script quá hạn) → lỗi server, không phải fail', async () => {
     stubFetch(502, { code: 'EXEC_FAILED', message: 'không chạy được' });
-    await expect(runVerifyScript(REQ)).rejects.toSatisfy(
+    await expect(runScriptInSession(REQ)).rejects.toSatisfy(
       (e: unknown) => codeOf(e) === 'INTERNAL_SERVER_ERROR',
     );
   });
@@ -119,7 +119,7 @@ describe('runVerifyScript — lỗi KHÔNG được thành "fail"', () => {
     // hình (JWKS/iss/đồng hồ), không phải "người dùng thiếu quyền". Trả FORBIDDEN
     // ra FE sẽ gửi người ta đi đăng nhập lại cho một sự cố họ không sửa được.
     stubFetch(403, { code: 'FORBIDDEN', message: 'token không cấp cho session này' });
-    await expect(runVerifyScript(REQ)).rejects.toSatisfy(
+    await expect(runScriptInSession(REQ)).rejects.toSatisfy(
       (e: unknown) => codeOf(e) === 'INTERNAL_SERVER_ERROR',
     );
   });
@@ -127,7 +127,7 @@ describe('runVerifyScript — lỗi KHÔNG được thành "fail"', () => {
   it('200 nhưng sai shape → ném, KHÔNG đoán exitCode', async () => {
     // `exitCode ?? 1` sẽ báo "bài sai" cho một lỗi của chính chúng ta.
     stubFetch(200, { exit_code: 0, stdout: 'ok' });
-    await expect(runVerifyScript(REQ)).rejects.toSatisfy(
+    await expect(runScriptInSession(REQ)).rejects.toSatisfy(
       (e: unknown) => codeOf(e) === 'INTERNAL_SERVER_ERROR',
     );
   });
@@ -137,7 +137,7 @@ describe('runVerifyScript — lỗi KHÔNG được thành "fail"', () => {
       'fetch',
       vi.fn(() => Promise.reject(new Error('connect ECONNREFUSED 10.42.0.7:8082'))),
     );
-    const error = await runVerifyScript(REQ).catch((e: unknown) => e);
+    const error = await runScriptInSession(REQ).catch((e: unknown) => e);
     expect(codeOf(error)).toBe('INTERNAL_SERVER_ERROR');
     expect((error as TRPCError).message).not.toContain('10.42.0.7');
   });

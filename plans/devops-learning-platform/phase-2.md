@@ -158,9 +158,12 @@ pnpm --filter @devops-platform/scenario test    # 62 PASS: parse 4 scenario th�
 node packages/scenario/scripts/parse.mjs content/scenarios/ckad-configmap-as-files [--json]
 node scripts/vendor-scenarios.mjs --check       # nội dung khớp commit đã ghim (chạm mạng)
 
-# tRPC lessons + IDOR  (2.B — đã chạy: 20 ca)
-pnpm --filter web test -- lessons          # gồm test authz progress (userA != userB)
-pnpm --filter web test -- phase            # nhánh intro/finish vắng mặt (scenario dựng tay)
+# tRPC lessons + IDOR  (2.B — đã chạy: 21 ca)
+#
+# ⚠ KHÔNG viết `test -- lessons`: `--` tự nó thành một filter khớp MỌI file, nên
+# lệnh đó chạy cả suite và chỉ TRÔNG như đang lọc (16 file thay vì 3).
+pnpm --filter web test lessons             # 3 file / 40 ca — gồm authz progress (userA != userB)
+pnpm --filter web test phase               # nhánh intro/finish vắng mặt (scenario dựng tay)
 
 # Gateway exec one-shot  (2.C — đã chạy: 32 ca)
 cd services/terminal-gateway && go test ./internal/execroute/... ./internal/podexec/...

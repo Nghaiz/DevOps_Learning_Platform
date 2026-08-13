@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { SandboxTier } from '@devops-platform/shared-types';
 import {
@@ -15,7 +15,7 @@ import { callOrchestrator, orchestratorClient } from '../../grpc/orchestrator-cl
 import { toJsonSession } from '../../grpc/session-json';
 import { scenarioSource, unsupportedCapabilities } from '../../lessons/catalog';
 import { phaseRefSchema, resolvePhase } from '../../lessons/phase';
-import { runVerifyScript } from '../../lessons/validate';
+import { runScriptInSession } from '../../lessons/validate';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
 /**
@@ -208,9 +208,33 @@ export const lessonsRouter = createTRPCRouter({
     const page = all.slice(start, start + input.limit);
     const next = start + input.limit;
 
-    // Tiến độ CHỈ của người gọi. Một truy vấn cho cả trang thay vì N truy vấn.
-    const rows = await ctx.db.select().from(progress).where(eq(progress.userId, ctx.user.id));
-    const byLesson = new Map(rows.map((row) => [row.lessonId, row]));
+    // Tiến độ CHỈ của người gọi, và CHỈ của các bài trên trang này. Một truy vấn
+    // cho cả trang thay vì N truy vấn.
+    //
+    // `inArray` chứ không phải lọc mỗi `userId`: một người học lâu năm có tiến độ
+    // trên hàng trăm bài, và kéo hết chúng về để ghép vào một trang 20 mục là
+    // đọc thừa theo số bài họ TỪNG học chứ không theo số bài đang hiện.
+    //
+    // `page.length === 0` (cursor ở mục cuối) phải chặn trước: `inArray` với mảng
+    // rỗng sinh SQL `in ()` — lỗi cú pháp ở Postgres, không phải "không khớp gì".
+    const byLesson = new Map<string, typeof progress.$inferSelect>();
+    if (page.length > 0) {
+      const rows = await ctx.db
+        .select()
+        .from(progress)
+        .where(
+          and(
+            eq(progress.userId, ctx.user.id),
+            inArray(
+              progress.lessonId,
+              page.map((s) => s.id),
+            ),
+          ),
+        );
+      for (const row of rows) {
+        byLesson.set(row.lessonId, row);
+      }
+    }
 
     return {
       items: page.map((scenario) => ({
@@ -288,7 +312,7 @@ export const lessonsRouter = createTRPCRouter({
     }
 
     const expiresAtSeconds = await sessionExpiry(ctx, input.sessionId);
-    const outcome = await runVerifyScript({
+    const outcome = await runScriptInSession({
       sessionId: input.sessionId,
       userId: ctx.user.id,
       expiresAtSeconds,
@@ -352,7 +376,7 @@ export const lessonsRouter = createTRPCRouter({
     }
 
     const expiresAtSeconds = await sessionExpiry(ctx, input.sessionId);
-    const outcome = await runVerifyScript({
+    const outcome = await runScriptInSession({
       sessionId: input.sessionId,
       userId: ctx.user.id,
       expiresAtSeconds,

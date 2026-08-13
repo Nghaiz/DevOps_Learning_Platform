@@ -396,3 +396,29 @@ describe('lessons — cảnh báo năng lực chưa hỗ trợ', () => {
     expect(out.unsupportedCapabilities).toEqual([]);
   });
 });
+
+describe('lessons.list — trang rỗng', () => {
+  let user: { id: string; role: 'user' };
+
+  beforeEach(async () => {
+    user = await makeUser('lesson-empty');
+  });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
+  it('cursor ở mục CUỐI → trang rỗng, không nổ SQL `in ()`', async () => {
+    // `inArray` với mảng rỗng sinh `in ()` — lỗi CÚ PHÁP ở Postgres, không phải
+    // "không khớp gì". Ca này chỉ chạm được khi cursor trỏ đúng mục cuối, nên nó
+    // rất dễ lọt qua mọi test phân trang "bình thường".
+    const c = await caller(user);
+    const all = await c.lessons.list({ limit: 100 });
+    const last = all.items[all.items.length - 1];
+    expect(last).toBeDefined();
+
+    const after = await c.lessons.list({ limit: 10, cursor: last!.id });
+    expect(after.items).toEqual([]);
+    expect(after.nextCursor).toBeNull();
+  });
+});

@@ -5,8 +5,13 @@ import { SANDBOX_COOKIE_NAME } from '../auth/sandbox-cookie';
 import { gatewayInternalUrl } from '../env';
 
 /**
- * Chấm một step: chạy `verifyScript` TRONG pod session qua endpoint exec
- * one-shot của terminal-gateway (P2 / 2.C — `docs/scenario-format.md` §4).
+ * Chạy MỘT script trong pod session qua endpoint exec one-shot của
+ * terminal-gateway (P2 / 2.C — `docs/scenario-format.md` §4).
+ *
+ * Tên là `runScriptInSession`, KHÔNG phải `runVerifyScript`: hai người gọi dùng
+ * nó cho hai việc khác nhau — `checkStep` chạy `verifyScript`, `runSetup` chạy
+ * `setup.background`. Đặt tên theo một trong hai người gọi làm người đọc sau
+ * tưởng lượt setup đang "chấm" cái gì đó.
  *
  * ## Vì sao BFF tự mint token thay vì forward cookie của người dùng
  *
@@ -41,7 +46,7 @@ const execOkSchema = z
 /** Shape gateway trả ở mọi mã lỗi. */
 const execErrorSchema = z.object({ code: z.string(), message: z.string() }).strict();
 
-export interface VerifyOutcome {
+export interface ScriptOutcome {
   /**
    * Contract Killercoda: **pass khi exit code = 0** (`docs/scenario-format.md`
    * §1). Không có ngưỡng nào khác, không đọc stdout để đoán.
@@ -52,7 +57,7 @@ export interface VerifyOutcome {
   truncated: boolean;
 }
 
-export interface VerifyRequest {
+export interface ScriptRequest {
   sessionId: string;
   userId: string;
   expiresAtSeconds: number;
@@ -77,7 +82,7 @@ export interface VerifyRequest {
  */
 const BFF_TIMEOUT_MS = 45_000;
 
-export async function runVerifyScript(req: VerifyRequest): Promise<VerifyOutcome> {
+export async function runScriptInSession(req: ScriptRequest): Promise<ScriptOutcome> {
   const token = await mintSandboxTokenFor(req.userId, req.sessionId, req.expiresAtSeconds);
   const url = `${gatewayInternalUrl().replace(/\/+$/, '')}/exec/session/${encodeURIComponent(req.sessionId)}`;
 
@@ -108,7 +113,7 @@ export async function runVerifyScript(req: VerifyRequest): Promise<VerifyOutcome
   const raw: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw gatewayError(response.status, raw);
+    throw gatewayError(raw);
   }
 
   const parsed = execOkSchema.safeParse(raw);
@@ -138,7 +143,7 @@ export async function runVerifyScript(req: VerifyRequest): Promise<VerifyOutcome
  * FE phân biệt được hai thứ đó vì tRPC ném lỗi có mã, còn `passed:false` thì trả
  * về bình thường.
  */
-function gatewayError(status: number, raw: unknown): TRPCError {
+function gatewayError(raw: unknown): TRPCError {
   const parsed = execErrorSchema.safeParse(raw);
   const code = parsed.success ? parsed.data.code : 'UNKNOWN';
 
@@ -166,9 +171,12 @@ function gatewayError(status: number, raw: unknown): TRPCError {
     default:
       // Gồm `EXEC_FAILED` (502 — pod/apiserver hỏng, hoặc script quá hạn),
       // `BAD_REQUEST` (400 — lỗi lập trình phía BFF), và mọi mã chưa biết. Tất cả
-      // đều là "hệ thống", không phải "bài sai", nên chúng đi chung một nhánh;
-      // `status` chỉ vào log của gateway chứ không đổi được điều đó.
-      void status;
+      // đều là "hệ thống", không phải "bài sai", nên chúng đi chung một nhánh.
+      //
+      // HTTP status KHÔNG được truyền vào hàm này, có chủ ý: phân loại đi theo
+      // `code` (từ vựng chung với wsroute, FE switch trên nó), không theo status.
+      // Nhận cả hai rồi chỉ dùng một là mời người sau rẽ nhánh theo status và
+      // dựng ra hai bảng phân loại chờ trôi khỏi nhau.
       return new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Không chạy được script chấm bài trong sandbox',

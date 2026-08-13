@@ -230,7 +230,7 @@ node packages/scenario/scripts/parse.mjs content/scenarios/ckad-configmap-as-fil
 node scripts/vendor-scenarios.mjs --check           # nội dung khớp commit đã ghim (chạm mạng)
 
 # tRPC lessons: IDOR progress, Zod strict, trần pagination (2.B)
-pnpm --filter web test -- lessons
+pnpm --filter web test lessons
 
 # Gateway exec one-shot: authz a→h, exit code, cắt cỡ, KHÔNG chiếm khe WS (2.C)
 cd services/terminal-gateway && go test ./internal/execroute/... ./internal/podexec/...
