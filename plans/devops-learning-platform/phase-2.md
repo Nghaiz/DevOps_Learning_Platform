@@ -137,8 +137,22 @@ so byte để chống drift. Thêm bài mới: `docs/scenario-format.md` §6.
 Ba ràng buộc dài hạn của chủ dự án, ghi ở đây vì chúng quyết định hình dạng kiến
 trúc chứ không phải một task lẻ:
 
-1. **Ngang KillerCoda *và* KodeKloud.** Killercoda là mốc của 2.A/2.E (format
-   scenario). KodeKloud thêm: khoá học nhiều bài, quiz, playground, và IDE.
+1. **Ngang KillerCoda *và* KodeKloud — về TRẢI NGHIỆM HỌC, KHÔNG về mô hình kinh
+   doanh.** Killercoda là mốc của 2.A/2.E (format scenario). Lấy từ KodeKloud:
+   playground, IDE, quiz, và cách gom nhiều bài thành một lộ trình học.
+
+   ⛔ **KHÔNG dựng phần bán khoá học** (chốt 2026-08-13): không pricing/gói cước,
+   không thanh toán, không paywall, không giỏ hàng, không chứng chỉ-như-hàng-hoá,
+   không phễu marketing. Ghi ra đây vì "ngang KodeKloud" đọc trần rất dễ kéo theo
+   cả tầng thương mại của họ, và tầng đó là thứ ĐẮT nhất để lỡ dựng: nó đẻ ra
+   nghĩa vụ pháp lý (hoá đơn, hoàn tiền, dữ liệu thẻ) mà một đề tài NCKH không có
+   lý do gì gánh. Nếu một task tương lai nhắc tới `payment`/`subscription`/
+   `pricing`, nó nằm ngoài phạm vi cho tới khi chủ dự án nói khác.
+
+   Hệ quả cho thiết kế: "khoá học" nếu có chỉ là **cách nhóm nội dung** (một danh
+   sách scenario có thứ tự), không phải một đơn vị bán hàng — nên nó không cần
+   `price`, `sku`, `entitlement`, hay bất kỳ khái niệm quyền-truy-cập-theo-tiền
+   nào. Quyền truy cập vẫn chỉ là đăng nhập (luật 1).
 2. **Có IDE Theia như KodeKloud.** Móc đã có sẵn trong DTO: `interfaceLayout`
    (`interface.layout: "ide"` của Killercoda upstream — `packages/shared-types/src/scenario.ts`)
    và `capabilities`. Cả hai đã chảy tới FE qua `lessons.get`. Lane Theia là một
