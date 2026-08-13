@@ -921,7 +921,16 @@ jobs:
             type=sha,prefix=sha-,format=short
             type=raw,value=latest,enable={{is_default_branch}}
 
+      # ⛔ THỨ TỰ: build (KHÔNG push) → quét → chỉ push khi cổng xanh.
+      #
+      # Bản trước đặt `push: true` ngay ở bước build và để cả hai bước Trivy chạy
+      # SAU — nghĩa là một image CRITICAL đã nằm trên ghcr dưới cả `sha-…` lẫn
+      # `latest` trước khi cổng kịp đỏ; cổng chỉ tô đỏ run chứ không chặn artifact.
+      # Và phạm vi rộng hơn vẻ ngoài: job `sandbox-image` (PR-time) chỉ gác
+      # `sandbox-base`, nên với `web`/`migrator`/`orchestrator`/`terminal-gateway`
+      # thì đây là cổng DUY NHẤT. Khuôn dưới đây chép từ chính job đó.
       - id: build
+        name: 'Build ĐỂ QUÉT (chưa push)'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ${{ matrix.context }}
@@ -929,18 +938,21 @@ jobs:
           # Rỗng với mọi hàng trừ `migrator` — buildx hiểu chuỗi rỗng là "dùng
           # stage cuối", đúng hành vi cũ của bốn hàng còn lại.
           target: ${{ matrix.target }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          push: false
+          # `load: true` đưa image vào docker cục bộ của runner để Trivy quét
+          # được. Tag CỤC BỘ, không mang tên registry: một tag `ghcr.io/…` nằm
+          # trong docker cục bộ trông hệt tag đã push, và người đọc log sau này
+          # không phân biệt được hai thứ.
+          load: true
+          tags: ${{ matrix.image }}:scan
           labels: ${{ steps.meta.outputs.labels }}
           # Cache layer giữa các run — không có nó thì mỗi lần push main là build
-          # lại `pnpm install` + `next build` từ số 0.
+          # lại `pnpm install` + `next build` từ số 0. `cache-to` nằm ở lượt NÀY
+          # để lượt push bên dưới là một cache hit thuần.
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,scope=${{ matrix.name }},mode=max
-          # SBOM + provenance (SLSA) đính kèm image: trả lời được "image này chứa
-          # package gì, sinh ra từ commit nào, bằng workflow nào" mà không phải
-          # tin vào trí nhớ. Bắt buộc khi tới lúc phải rà một CVE mới công bố.
-          sbom: true
-          provenance: mode=max
+          # ⛔ KHÔNG `sbom`/`provenance` ở đây: docker exporter (thứ `load: true`
+          # dùng) không nhận attestation và buildx sẽ đỏ. Chúng thuộc lượt push.
 
       # HAI bước Trivy, có chủ ý — một để ĐỌC, một để CHẶN.
       #
@@ -952,9 +964,11 @@ jobs:
       - name: 'Trivy — báo cáo HIGH + CRITICAL (không chặn)'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          # Quét theo DIGEST, không theo tag: tag `latest` có thể đã bị run khác
-          # đẩy đè trong lúc job này chạy — digest thì trỏ đúng thứ vừa build.
-          image-ref: ghcr.io/nghaiz/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          # ⛔ Quét TAG CỤC BỘ, không phải digest registry. Bản trước dùng
+          # `…@${{ steps.build.outputs.digest }}`; với `push: false` thì digest
+          # ấy CHƯA TỒN TẠI, nên để nguyên là bước quét trỏ vào một tham chiếu
+          # rỗng — đúng ca "xanh mà chưa quét gì".
+          image-ref: ${{ matrix.image }}:scan
           # `table` ra thẳng log, KHÔNG PHẢI `sarif` + upload-sarif. Nộp SARIF
           # đòi code scanning, thứ cần GitHub Advanced Security trên repo private
           # — bản trước dùng SARIF và sẽ đỏ ngay lần merge đầu vào main (job này
@@ -962,15 +976,64 @@ jobs:
           format: table
           exit-code: '0'
           severity: 'HIGH,CRITICAL'
+          timeout: '15m'
 
-      - name: 'Trivy — CỔNG CHẶN ở CRITICAL'
+      - name: 'Trivy — CỔNG CHẶN ở CRITICAL (TRƯỚC push)'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ghcr.io/nghaiz/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ matrix.image }}:scan
           format: table
+          output: trivy-critical.txt
           exit-code: '1'
           severity: 'CRITICAL'
+          timeout: '15m'
           # `ignore-unfixed: false` (mặc định) giữ nguyên: một CRITICAL chưa có
           # bản vá vẫn là thứ phải BIẾT và quyết định có ship hay không, không
           # phải thứ tự động bỏ qua. Cần bỏ qua một CVE cụ thể thì thêm vào
           # .trivyignore kèm lý do và ngày rà lại — không nới cả ngưỡng.
+
+      # ⛔ `--exit-code 1` trả 0 KHÔNG có nghĩa "0 CRITICAL": Trivy FATAL khi
+      # không tải được DB lỗ hổng, và một cổng đọc mỗi mã trả về sẽ cho qua đúng
+      # lượt chưa quét được gì. Khuôn này chép từ job `sandbox-image`.
+      - name: 'Khẳng định lượt quét ĐÃ THẬT SỰ chạy'
+        run: |
+          test -s trivy-critical.txt || {
+            echo "::error::Trivy không sinh báo cáo — nhiều khả năng FATAL trước khi quét"; exit 1; }
+          grep -qiE 'Report Summary|Total:|no vulnerabilities|Legend' trivy-critical.txt || {
+            echo "::error::báo cáo Trivy không có dấu hiệu của một lượt quét hoàn tất"; cat trivy-critical.txt; exit 1; }
+          echo "lượt quét hoàn tất, 0 CRITICAL."
+
+      # Cổng đã xanh — giờ mới publish. Lượt này là cache hit thuần từ `cache-from`
+      # ở trên, nên chi phí gần như chỉ là thời gian export + upload layer.
+      - id: push
+        name: 'Push lên ghcr (chỉ khi cổng CRITICAL xanh)'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          # SBOM + provenance (SLSA) đính kèm image: trả lời được "image này chứa
+          # package gì, sinh ra từ commit nào, bằng workflow nào" mà không phải
+          # tin vào trí nhớ. Bắt buộc khi tới lúc phải rà một CVE mới công bố.
+          sbom: true
+          provenance: mode=max
+
+      # ⚠ RỦI RO TỒN DƯ, nói thẳng thay vì để người đọc tưởng cổng này kín:
+      # tách làm hai lượt build nghĩa là thứ được push không được CHỨNG MINH là
+      # bit-identical với thứ vừa quét. Trên thực tế hai lượt chạy trong cùng một
+      # job, từ cùng một checkout, và lượt sau là cache hit thuần từ `cache-from`
+      # — nên khả năng lệch là lý thuyết, không phải vận hành.
+      #
+      # Đã cân nhắc và LOẠI một phép so `imageid` giữa hai lượt: với `load: true`
+      # thì `imageid` là config ID của docker, còn với `push: true` kèm
+      # `provenance`/`sbom` thì iidfile chứa digest của MANIFEST LIST. Hai đại
+      # lượng khác loại, nên phép so sẽ đỏ ở mọi lượt chạy đúng — và vì job này
+      # chỉ chạy trên `main`, cái đỏ đó không lộ ra ở PR nào cả. Một cổng luôn
+      # đỏ vì lý do sai còn tệ hơn không có cổng.
+      #
+      # Muốn khử hẳn phần tồn dư này thì đường đúng là `push-by-digest` rồi mới
+      # gắn tag sau khi quét — đắt hơn và thuộc P3, không thuộc chặng kế toán này.

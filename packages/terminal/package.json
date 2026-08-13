@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "//test": "CỐ Ý chỉ chạy project `node`. `turbo run test` gọi script này ở job `ts` của CI, mà job đó KHÔNG cài trình duyệt — để `vitest run` trần ở đây là job `ts` đỏ vì thiếu chromium. Hai project trình duyệt có cổng riêng (`test:browser` + job `terminal-browser`), xem vitest.config.ts.",
     "test": "vitest run --project node",
-    "test:browser": "vitest run --project gpu-on --project gpu-off"
+    "test:browser": "vitest run --project gpu-on --project gpu-off --project safari15"
   },
   "//xterm": "Ghim CHÍNH XÁC, không dải `^`: xterm v6 phân bổ addon ra 6 package rời và mỗi addon khai peerDependency vào đúng một minor của core. Một `^` ở đây cho phép pnpm nâng lệch một addon so với core, và triệu chứng là addon im lặng không nạp (`loadAddon` không ném) chứ không phải lỗi cài đặt.",
   "dependencies": {

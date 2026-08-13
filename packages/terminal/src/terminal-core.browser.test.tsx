@@ -1,3 +1,5 @@
+import { WebglAddon } from '@xterm/addon-webgl';
+import { Terminal } from '@xterm/xterm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RESIZE_DEBOUNCE_MS, createTerminalCore, type TerminalCore } from './terminal-core.ts';
 
@@ -115,6 +117,96 @@ describe('fallback renderer khi không có WebGL2 (AC §Terminal UX)', () => {
       expect(container.querySelector('.xterm-rows')).not.toBeNull();
     }
   });
+});
+
+describe('thứ tự `open()` TRƯỚC `loadAddon(webgl)` (AC §Terminal UX, 1.G-6 R2)', () => {
+  /**
+   * Bất biến được gác: tại đúng lúc `WebglAddon.activate()` chạy,
+   * `terminal.element` ĐÃ tồn tại — nghĩa là `open()` đã chạy trước.
+   *
+   * Đảo thứ tự thì addon rơi vào nhánh thoát sớm
+   * `if (!terminal.element) { onWillOpen(() => this.activate(t)); return }`,
+   * tức lần activate THẬT xảy ra sau, bất đồng bộ, **ngoài** khối `try` của
+   * `terminal-core.ts` — một ngoại lệ ở đó không ai bắt. Bản vá Q5 của 1.G-5
+   * (đưa constructor vào `try`) KHÔNG phủ ca này.
+   *
+   * Đo bằng HÀNH VI chứ không đọc thứ tự dòng trong source: một assertion trên
+   * số dòng sẽ xanh với mọi bản refactor giữ nguyên thứ tự chữ nhưng đổi ngữ nghĩa.
+   */
+  type ActivateFn = (terminal: Terminal) => void;
+
+  let container: HTMLDivElement;
+  let core: TerminalCore | null = null;
+  let original: ActivateFn;
+  /** `null` = lúc activate chạy thì terminal CHƯA có element. */
+  let elementAtActivate: Array<HTMLElement | null>;
+
+  beforeEach(() => {
+    container = mountContainer();
+    elementAtActivate = [];
+    original = WebglAddon.prototype.activate as ActivateFn;
+    (WebglAddon.prototype as unknown as { activate: ActivateFn }).activate = function (
+      this: WebglAddon,
+      terminal: Terminal,
+    ): void {
+      elementAtActivate.push(terminal.element ?? null);
+      return original.call(this, terminal);
+    };
+  });
+
+  afterEach(() => {
+    (WebglAddon.prototype as unknown as { activate: ActivateFn }).activate = original;
+    core?.dispose();
+    core = null;
+    container.remove();
+  });
+
+  it('createTerminalCore: activate() thấy `terminal.element` ĐÃ tồn tại', () => {
+    core = createTerminalCore({
+      container,
+      theme: 'dlp-dark',
+      onData: () => {},
+      onResize: () => {},
+    });
+
+    // Vế này phải đứng trước: nếu activate KHÔNG hề được gọi thì mảng rỗng, và
+    // một assertion "phần tử [0] là HTMLElement" trên mảng rỗng sẽ đỏ vì lý do
+    // sai. Tách ra để đọc được ngay hỏng ở đâu.
+    expect(elementAtActivate.length).toBeGreaterThanOrEqual(1);
+    expect(elementAtActivate[0]).toBeInstanceOf(HTMLElement);
+  });
+
+  // ⛔ Đối chứng âm chỉ chạy ở `gpu-on`, và lý do là một SỐ ĐO chứ không phải sự
+  // tiện lợi. Ở `gpu-off`, lượt activate bị hoãn ném `"WebGL2 not supported"`
+  // KHÔNG phải ra ngoài `open()` mà xuyên qua event-emitter của xterm vào
+  // `onUnexpectedError` (`errors.ts:30`) ⇒ nó thành **unhandled error toàn cục**,
+  // `try/catch` quanh `open()` không bắt được, và vitest đỏ cả lượt chạy.
+  //
+  // Đó CHÍNH LÀ tác hại mà bất biến này chặn — nhưng ở dạng không quan sát được
+  // bằng assertion. Bắt nó im bằng cách chặn error handler toàn cục là dựng đúng
+  // thứ nguy hiểm: một cái lưới nuốt luôn mọi lỗi thật khác của file này. Nên đo
+  // THỜI ĐIỂM activate ở cảnh có WebGL (nơi lượt activate thứ hai thành công,
+  // không sinh tiếng ồn), và ghi quan sát `gpu-off` vào report.
+  it.runIf(__EXPECT_WEBGL2__)(
+    'đối chứng âm (chỉ gpu-on): `loadAddon` TRƯỚC `open()` ⇒ lần activate đầu KHÔNG thấy element',
+    () => {
+      // Không có ca này thì assertion trên cũng đúng với một hiện thực KHÔNG BAO
+      // GIỜ gọi activate, hoặc với một spy không hoạt động — tức nó khẳng định
+      // đúng cái nó không kiểm.
+      const bare = new Terminal({ allowProposedApi: true });
+      bare.loadAddon(new WebglAddon());
+      bare.open(container);
+
+      // Hai phần tử: [0] lượt gọi bị hoãn (element chưa có), [1] lượt thật sau
+      // `open()`. Chính sự tồn tại của phần tử [0] là bằng chứng thứ tự sai đã
+      // đẩy activate ra ngoài `try`.
+      expect(elementAtActivate.length).toBeGreaterThanOrEqual(2);
+      expect(elementAtActivate[0]).toBeNull();
+      expect(elementAtActivate[1]).toBeInstanceOf(HTMLElement);
+
+      bare.dispose();
+    },
+  );
 });
 
 describe('debounce resize 50ms — contract §4, vế (a) của luật 5', () => {
