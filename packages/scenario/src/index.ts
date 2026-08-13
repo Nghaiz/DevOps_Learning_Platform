@@ -24,3 +24,4 @@ export {
   type ContentBlock,
 } from './content-blocks.ts';
 export { INDEX_FILENAME, SIDECAR_FILENAME, loadScenario, loadScenarios } from './loader.ts';
+export { filesystemScenarioSource, type ScenarioSource } from './source.ts';

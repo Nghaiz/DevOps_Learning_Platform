@@ -109,6 +109,19 @@ spec:
             - name: GATEWAY_EXEC_COMMAND
               value: {{ required "gateway.env.execCommand không được rỗng — exec sẽ chạy CMD của image (sleep infinity) và terminal treo câm" .Values.gateway.env.execCommand | quote }}
             {{/*
+            Exec ONE-SHOT (P2 / 2.C) — nút "Check" của Lessons. Ba biến RIÊNG,
+            không dùng lại execCommand: attach vào tmux của người học để chấm sẽ
+            gõ lệnh giữa màn hình họ đang làm bài và trả exit code của tmux.
+            Cùng lý lẽ `required` với execCommand: values.yaml luôn có default,
+            nên nhánh này chỉ đỏ khi ai đó cố tình xoá trắng.
+            */}}
+            - name: GATEWAY_EXEC_SHELL
+              value: {{ required "gateway.env.execShell không được rỗng — script chấm sẽ không được đọc và mọi lượt Check treo tới khi hết hạn" .Values.gateway.env.execShell | quote }}
+            - name: GATEWAY_EXEC_TIMEOUT
+              value: {{ .Values.gateway.env.execTimeout | quote }}
+            - name: GATEWAY_EXEC_MAX_OUTPUT
+              value: {{ .Values.gateway.env.execMaxOutput | quote }}
+            {{/*
             Gateway ĐỌC hash session:{id} cho authz per-session (phase-1 D2).
             secretKeyRef chứ không phải env.value: REDIS_URL CHỨA MẬT KHẨU, và
             `kubectl get deploy -o yaml` là quyền gần như mọi role đọc-được-cluster

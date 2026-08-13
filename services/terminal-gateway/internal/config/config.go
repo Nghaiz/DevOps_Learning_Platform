@@ -111,6 +111,34 @@ type Config struct {
 	// lời gọi thứ hai ATTACH vào session cũ thay vì tạo cái mới.
 	ExecCommand []string
 
+	// ExecShell là lệnh chạy script CHẤM ĐIỂM one-shot (P2 / 2.C), tách hẳn khỏi
+	// ExecCommand.
+	//
+	// ⛔ KHÔNG dùng lại ExecCommand: mặc định của nó là `tmux new-session -A -s
+	// dlp`, và attach vào tmux của người học rồi bơm script chấm vào đó sẽ (1)
+	// gõ lệnh chấm ngay giữa màn hình họ đang làm bài, (2) trả về exit code của
+	// tmux chứ không của script. Hai đường, hai lệnh.
+	//
+	// Script đi qua STDIN chứ không qua argv — xem podexec/oneshot.go. `sh` đọc
+	// stdin cho đúng ngữ nghĩa Killercoda: exit code của script = exit code của
+	// lệnh cuối, và 0 nghĩa là pass.
+	ExecShell []string
+
+	// ExecTimeout là trần cho MỘT lượt chấm. Vượt → 502, KHÔNG phải "fail":
+	// một script treo không phải một bài làm sai, và trả "fail" cho nó sẽ bắt
+	// người học đi sửa bài trong khi thứ hỏng là cụm.
+	//
+	// 30s: verify script thật nặng nhất trong kho vendor là `kubectl get` trên
+	// cụm kubeadm (vài giây). Rộng gấp nhiều lần mà vẫn ngắn hơn hạn kiên nhẫn
+	// của người đang bấm một cái nút.
+	ExecTimeout time.Duration
+
+	// ExecMaxOutput là trần byte output trả về mỗi lượt chấm (ô AC "output
+	// verify bị cắt cỡ"). Đây là trần CHỐNG DoS, không phải trần hiển thị: FE chỉ
+	// dùng output làm hint vài dòng, còn một script `cat /dev/urandom` không
+	// được phép bơm hết RAM gateway rồi hết băng thông BFF.
+	ExecMaxOutput int
+
 	// RedisURL là Redis mà orchestrator ghi `session:{id}`. Gateway ĐỌC hash đó
 	// cho authz per-session (D2: đọc được, ghi trạng thái session thì không).
 	//
@@ -159,6 +187,39 @@ func Load() (*Config, error) {
 			"thì exec chạy CMD của image (`sleep infinity`) và terminal treo câm")
 	}
 
+	execShell := strings.Fields(envx.String("GATEWAY_EXEC_SHELL", "sh"))
+	if len(execShell) == 0 {
+		// Rỗng ⇒ apiserver chạy CMD của image (`sleep infinity`), script chấm
+		// không bao giờ được đọc, và lượt chấm treo tới hết ExecTimeout rồi trả
+		// 502. Cùng bẫy với GATEWAY_EXEC_COMMAND rỗng, cùng cách chặn.
+		return nil, fmt.Errorf("env GATEWAY_EXEC_SHELL: rỗng — không có lệnh thì " +
+			"script chấm không được đọc và mọi lượt Check treo tới khi hết hạn")
+	}
+
+	execTimeout, err := envx.Duration("GATEWAY_EXEC_TIMEOUT", 30*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	if execTimeout <= 0 {
+		// context.WithTimeout với giá trị ≤ 0 hết hạn NGAY, nên mọi lượt chấm
+		// trả 502 trước khi chạm pod — một cách tắt nút "Check" mà không lỗi nào
+		// nói vì sao. Cùng lý lẽ với GATEWAY_MAX_WS_PER_SESSION < 1.
+		return nil, fmt.Errorf("env GATEWAY_EXEC_TIMEOUT: %s phải > 0 "+
+			"(≤ 0 thì mọi lượt chấm hết hạn ngay lập tức)", execTimeout)
+	}
+
+	execMaxOutput, err := envx.Int("GATEWAY_EXEC_MAX_OUTPUT", 8*1024)
+	if err != nil {
+		return nil, err
+	}
+	if execMaxOutput < 1 {
+		// 0 làm mọi output rỗng và `truncated` luôn true — FE sẽ hiện "đã cắt
+		// bớt" cho một script không in gì, và hint của mọi bài biến mất trong
+		// im lặng.
+		return nil, fmt.Errorf("env GATEWAY_EXEC_MAX_OUTPUT: %d phải ≥ 1 "+
+			"(0 thì mọi output rỗng và luôn báo đã cắt cỡ)", execMaxOutput)
+	}
+
 	mtlsMode, err := tlsx.ParseMode(envx.String("GRPC_MTLS_MODE", string(tlsx.ModeOff)))
 	if err != nil {
 		return nil, fmt.Errorf("env GRPC_MTLS_MODE: %w", err)
@@ -203,6 +264,9 @@ func Load() (*Config, error) {
 		MaxWSPerSession: maxWS,
 		RedisURL:        redisURL,
 		ExecCommand:     execCommand,
+		ExecShell:       execShell,
+		ExecTimeout:     execTimeout,
+		ExecMaxOutput:   execMaxOutput,
 	}, nil
 }
 

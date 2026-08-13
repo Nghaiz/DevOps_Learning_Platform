@@ -161,17 +161,39 @@ enum proto/DB nhưng chưa có runtime — điền vào đây là hứa thứ kh
 
 ---
 
-## 4. Chốt cho 2.C — `checkStep` đi đường nào
+## 4. `checkStep` đi đường nào — ĐÃ HIỆN THỰC (2.C, 2026-08-13)
 
-**Quyết định (chốt 2026-08-13, chưa hiện thực):** `checkStep` gọi một endpoint
-HTTP **one-shot trên `terminal-gateway`**, không thêm RPC vào
-`proto/orchestrator/v1`.
+`checkStep` gọi một endpoint HTTP **one-shot trên `terminal-gateway`**, không
+thêm RPC vào `proto/orchestrator/v1`.
 
 ```
 POST /exec/session/{id}     Cookie: dlp_sandbox=<sandbox token BFF tự mint>
 body   { script: "<nội dung verifyScript>" }
-200    { exitCode: number, stdout: string, truncated: boolean }
+200    { exitCode: number, output: string, truncated: boolean }
+4xx/5xx{ code, message }    — cùng từ vựng `code` với wsroute
 ```
+
+Mã: `services/terminal-gateway/internal/execroute` + `internal/podexec/oneshot.go`;
+phía BFF là `apps/web/src/server/lessons/validate.ts`.
+
+### 4.0 Ba chỗ bản phác ở trên đã SAI, sửa lúc hiện thực
+
+| Bản phác | Thực tế | Vì sao |
+|---|---|---|
+| `stdout` | **`output`** | One-shot đặt `Stderr: true` (khác đường terminal), và cả hai chiều gộp vào một buffer — thứ người học sẽ thấy nếu tự gõ lệnh. Gọi nó là `stdout` là nói dối về nội dung. |
+| "auth bằng chính cookie `dlp_sandbox`" (đọc như *forward cookie của người dùng*) | **BFF tự mint token server-side** | Cookie mang `Path=/ws`, nên trình duyệt **không gửi nó tới `/api/trpc/*`** — BFF không có gì để forward. Đây không phải bất tiện: hệ quả là endpoint này **không phơi ra trình duyệt** chút nào. |
+| (không nói) | **`sh` đọc script từ STDIN, không từ argv** | `Command` của `PodExecOptions` nằm trong **query string** của URL apiserver. Một verify script vài KB phình URL tới ngưỡng bị từ chối, và triệu chứng ("bài này bấm Check thì lỗi, bài kia thì không") không trỏ về độ dài script. |
+
+### 4.1 Chuỗi authz: a→h, **KHÔNG có i**
+
+`execroute` chạy lại đúng các bước a→h của `docs/ws-terminal-protocol.md` §3, bỏ
+bước b (subprotocol — vô nghĩa với HTTP thường) và **bỏ bước i (trần WS)**.
+
+Bước i vắng mặt là điều kiện đúng đắn, không phải thiếu sót: D17=1 nghĩa là khe
+WS đang bị terminal của người học chiếm, nên một lượt chấm xin thêm khe sẽ hoặc
+bị 429, hoặc đá văng chính terminal đó — đúng lúc người ta vừa bấm "Check".
+`execroute.SessionReader` vì thế **không khai** `AcquireWS`, và
+`TestExecDoesNotTakeWSSlot` đếm để một type assertion không lẻn nó vào lại.
 
 Lý do:
 
@@ -189,21 +211,29 @@ Lý do:
 
 Khác biệt so với đường WS mà 2.C **phải** xử lý riêng:
 
-| Vấn đề | Ghi chú cho 2.C |
+| Vấn đề | Đã xử thế nào |
 |---|---|
-| `GATEWAY_EXEC_COMMAND` là hằng số phía server (contract §3c cấm client chọn lệnh) | verify script là **nội dung do server đọc từ đĩa**, không phải chuỗi từ client — ranh giới đó phải giữ nguyên: BFF gửi script lấy từ `Scenario.steps[i].verifyScript`, tuyệt đối không nhận script từ body của người dùng. |
-| `podexec` đặt `Stderr:false, TTY:true` | exec one-shot cần exit code, nên **không** dùng TTY: phải `Stderr:true, TTY:false` và đọc `exitCode` từ status của `remotecommand`. Đây là một executor **khác**, dùng chung `Target`. |
-| Trần WS đồng thời D17=1 | exec one-shot **không** được chiếm khe WS, nếu không bấm Check sẽ đá văng terminal đang mở. |
-| Output khổng lồ | cắt cỡ ở gateway (ô AC "output verify bị cắt cỡ"), báo `truncated: true`. |
+| `GATEWAY_EXEC_COMMAND` là hằng số phía server (contract §3c cấm client chọn lệnh) | Ranh giới giữ ở **BFF**: `lessons.checkStep` tra script theo `(scenarioId, phase)` trong catalog; input schema `.strict()` không có field `script` nào để gửi. Gateway không phân biệt được chuỗi từ đĩa với chuỗi từ form, nên nó không cố — nó chỉ đảm bảo script chạy được **duy nhất trong pod của chủ token**. Biến riêng `GATEWAY_EXEC_SHELL` (`sh`), tách khỏi `GATEWAY_EXEC_COMMAND`. |
+| `podexec` đặt `Stderr:false, TTY:true` | `oneShotURL` đặt `Stderr:true, TTY:false`; exit code đọc từ `CodeExitError` qua `exitStatus`. `TestOneShotURLDiffersFromTerminalURL` chặn việc "gộp cho gọn" hai hàm URL. ⚠ `tty` **vắng mặt** khỏi query khi false (`ParameterCodec` bỏ bool zero-value) — kiểm `tty=false` là một test luôn đỏ. |
+| Trần WS đồng thời D17=1 | Bỏ hẳn bước i; interface `SessionReader` không khai `AcquireWS` — xem §4.1. |
+| Output khổng lồ | `cappedWriter` cắt ở `GATEWAY_EXEC_MAX_OUTPUT` (8 KiB), báo `truncated: true`. ⚠ Nó **luôn** trả `len(p), nil` kể cả khi bỏ byte: trả số nhỏ hơn là `io.ErrShortWrite` với `io.Copy` của client-go, và stream bị huỷ ⇒ mất luôn exit code. Cắt nghĩa là bỏ byte, không phải bỏ kết quả. |
+| Script treo | `GATEWAY_EXEC_TIMEOUT` (30s) → **502, không phải "fail"**. Trần BFF (45s) rộng hơn có chủ ý: BFF cắt trước thì mất câu trả lời của một lượt chấm đã xong. |
 
 ---
 
 ## 5. Verify commands
 
 ```bash
-pnpm --filter @devops-platform/scenario test        # parse ≥3 scenario thật, 0 lỗi
+# Parser + nguồn nội dung (2.A + 2.E)
+pnpm --filter @devops-platform/scenario test        # parse 4 scenario thật, 0 lỗi
 node packages/scenario/scripts/parse.mjs content/scenarios/ckad-configmap-as-files
 node scripts/vendor-scenarios.mjs --check           # nội dung khớp commit đã ghim (chạm mạng)
+
+# tRPC lessons: IDOR progress, Zod strict, trần pagination (2.B)
+pnpm --filter web test lessons
+
+# Gateway exec one-shot: authz a→h, exit code, cắt cỡ, KHÔNG chiếm khe WS (2.C)
+cd services/terminal-gateway && go test ./internal/execroute/... ./internal/podexec/...
 ```
 
 ## 6. Thêm một scenario mới

@@ -24,11 +24,27 @@ Trụ cột ① — trải nghiệm học kiểu KillerCoda: bài markdown từn
 4. ✅ Loader: đọc scenario từ `content/scenarios/**`; validate cấu trúc, báo lỗi rõ nếu format sai (errors-over-fallback). Field lạ trong `index.json` → từ chối, trừ khi sidecar khai tường minh kèm lý do; field đã bỏ qua nổi lên ở `Scenario.ignoredUpstreamFields`.
 5. ✅ Test parser trên kho thật — **4 scenario** từ 3 repo. ⚠ **`killercoda/scenario-examples` KHÔNG có LICENSE** (all rights reserved) nên chỉ đọc để hiểu format, không vendor được; nguồn thay thế xem 2.E.
 
-### 2.B DB & tRPC — nội dung + tiến độ
-6. Schema Postgres (Drizzle): `scenarios` (metadata + ref nội dung), `progress{userId, scenarioId, stepIndex, status, updatedAt}`. Nội dung md có thể để trong repo/asset, DB giữ metadata + tiến độ.
-7. tRPC router `lessons`: `list` (pagination cap 100 — luật 4), `get(scenarioId)`, `startSession(scenarioId)` (gọi orchestrator, gắn scenario setup vào pod), `saveProgress`, `checkStep(scenarioId, stepIndex)`.
-8. **Object-level authz (luật 1):** `progress` mọi query lọc theo `ctx.user.id`; user không đọc/sửa progress người khác. Test IDOR.
-9. Zod input strict mọi procedure (luật 3); reject field lạ.
+### 2.B DB & tRPC — nội dung + tiến độ ✅ XONG (2026-08-13)
+
+> Báo cáo: [`reports/2026-08-13-verify-2b2c-lessons-trpc-exec.md`](reports/2026-08-13-verify-2b2c-lessons-trpc-exec.md)
+
+6. ✅ **KHÔNG dựng bảng `scenarios`, và KHÔNG thêm cột `progress.status`** — hai
+   sửa so với plan, cùng một lý do: cả hai đều là derived field.
+   - `scenarios`: metadata đã có nguồn sự thật là `index.json` + `dlp.json` trên
+     đĩa, ghim byte bằng `vendor-scenarios.mjs --check`. Bảng DB là bản sao.
+   - `status`: tính trọn từ `(stepIndex, completedAt, stepCount)`.
+   Thay vào đó là **seam `ScenarioSource`** (`packages/scenario/src/source.ts`) —
+   hôm nay một hiện thực filesystem; bản DB-backed (soạn bài trên UI, xem §Yêu cầu
+   nền tảng) cắm vào sau mà router/FE không sửa. Bảng `scenarios` thuộc về ngày
+   đó, và ngày đó nó là NGUỒN chứ không phải bản sao.
+7. ✅ Router `lessons`: `list` (cursor + cap 100), `get`, `startSession` (tier suy
+   từ `backend.imageid`, KHÔNG nhận từ input), `saveProgress`, `checkStep`,
+   `runSetup`. **`checkStep` nhận `phase: intro|finish|step{index}`**, không phải
+   `stepIndex` — `loxilb` có `verify` ở **intro** và không có ở step nào, nên một
+   API chỉ chấm được step sẽ im lặng bỏ qua script chấm của nó.
+8. ✅ Luật 1 ở dạng mạnh nhất: input **không có field `userId`** nào để giả mạo;
+   mọi truy vấn lọc theo `ctx.user.id` từ session cookie. Test IDOR: 6 ca.
+9. ✅ Zod `.strict()` mọi procedure, kể cả từng nhánh của discriminated union.
 
 ### 2.C Validation engine — chấm step trong sandbox
 
@@ -43,10 +59,21 @@ Trụ cột ① — trải nghiệm học kiểu KillerCoda: bài markdown từn
 > của nó là `/bin/true`, vế "fail" bất khả. Dùng `ckad-configmap-as-files` (kubectl thật)
 > hoặc `loxilb-tcp-load-balancing` (`stat /var/run/netns/loxilb`).
 
-10. `checkStep`: gateway exec `verifyScript` của step trong pod session (dùng đường exec P1), thu exit code + stdout → pass/fail. **Pass khi exit code = 0** (docs Killercoda § Verification Scripts). Timeout + giới hạn output.
-11. Setup script chạy khi start scenario (chuẩn bị môi trường step). Idempotent nếu có thể.
-12. Kết quả check cập nhật `progress.stepIndex`/`status`; trả cho FE.
-13. Bảo mật: verifyScript chạy TRONG pod cô lập (không trên host/gateway); output cắt cỡ; không cho script thoát pod (đã có hardening P1).
+10. ✅ `POST /exec/session/{id}` trên gateway (`internal/execroute` +
+    `podexec/oneshot.go`): authz a→h, **bỏ bước i** (chấm không được chiếm khe WS
+    D17=1, nếu không bấm Check sẽ đá văng terminal đang mở). `TTY:false,
+    Stderr:true` để lấy exit code; **script qua STDIN chứ không qua argv** —
+    `Command` nằm trong query string của URL apiserver và script vài KB sẽ phình
+    nó. Pass khi exit code = 0. Timeout 30s → **502, không phải "fail"**.
+11. ✅ `lessons.runSetup` chạy `background` của một phase. **`foreground` được TRẢ
+    VỀ cho FE chứ không chạy ở đây** — đó là chính định nghĩa của nó (hiện ra
+    trong terminal người học); chạy qua exec one-shot là chạy ở shell khác và
+    người học nhìn một terminal im lặng. FE (2.D) gõ nó vào WS.
+12. ✅ Pass ở step → `progress.stepIndex = min(index+1, last)`; step cuối ghi
+    `completedAt`. `status` suy ra, không lưu (xem task 6).
+13. ✅ `Target` (pod/namespace) đọc từ **Redis**, không từ URL/body — đó là thứ
+    làm ô AC "chạy trong pod cô lập" đúng theo cấu trúc. Output cắt cỡ 8 KiB.
+    ⬜ Vế NetworkPolicy (`curl 169.254.169.254` trong verify vẫn bị chặn) cần cụm.
 
 ### 2.D Frontend — split-pane lesson UI
 14. Layout split-pane (resizable): trái = nội dung step (markdown render, code copy button, hình/asset), phải = terminal `packages/terminal` (engine P1).
@@ -94,16 +121,34 @@ so byte để chống drift. Thêm bài mới: `docs/scenario-format.md` §6.
 - [ ] … → **hiển thị đủ step** ở FE. — tách khỏi ô trên vì hai vế do hai chặng khác nhau đóng; vế hiển thị thuộc 2.D và một ô gộp sẽ hoặc bị tick sớm, hoặc giữ parser ở trạng thái "chưa xong" suốt cả phase.
 - [ ] Split-pane: nội dung trái + terminal phải hoạt động; resize được; code copy button hoạt động.
 - [ ] Step nav Prev/Next + progress bar; step done được đánh dấu.
-- [ ] Bấm "Check" → verifyScript chạy trong pod, trả pass/fail đúng (test 1 step pass + 1 step fail).
-- [ ] Setup script chạy khi start; môi trường step đúng.
-- [ ] Progress lưu và khôi phục khi quay lại scenario.
+- [ ] Bấm "Check" → verifyScript chạy trong pod, trả pass/fail đúng (test 1 step pass + 1 step fail). — **cần cụm**; đường đi đã dựng và gác bằng 32 test Go, nhưng chưa lượt nào chạm apiserver thật. Dùng `ckad-configmap-as-files`, KHÔNG dùng `prolug-*` (`/bin/true`).
+- [ ] Setup script chạy khi start; môi trường step đúng. — `runSetup` đã dựng (`background`); vế `foreground` thuộc 2.D, vế bằng chứng cần cụm.
+- [x] Progress lưu và khôi phục khi quay lại scenario. — `saveProgress` + `get`, 6 ca trong `lessons-authz.test.ts` (gồm ca "mở lại bài đã xong KHÔNG mất dấu hoàn thành").
 
 **Bảo mật (luật §6):**
-- [ ] **Luật 1:** user A không đọc/sửa được `progress` của user B (tRPC 403 — test IDOR).
-- [ ] **Luật 3:** input `checkStep`/`saveProgress` field lạ hoặc sai type → reject (Zod strict).
-- [ ] **Luật 4:** `lessons.list` `limit` lớn → ép ≤100.
-- [ ] **Validation isolation:** verifyScript chạy trong pod cô lập (không trên gateway/host); script cố `curl 169.254.169.254` trong verify → vẫn bị NetworkPolicy chặn (kế thừa P1).
-- [ ] Output verify bị cắt cỡ (không cho dump khổng lồ gây DoS).
+- [x] **Luật 1:** user A không đọc/sửa được `progress` của user B. — dạng mạnh hơn 403: input **không có field `userId`**, nên không có gì để giả mạo. 6 ca.
+- [x] **Luật 3:** input `checkStep`/`saveProgress` field lạ hoặc sai type → reject (Zod strict). — 4 ca tRPC + 4 ca `phaseRefSchema`; phía Go `DisallowUnknownFields` cũng có ca riêng.
+- [x] **Luật 4:** `lessons.list` `limit` lớn → ép ≤100. — kèm ca cursor chết → `BAD_REQUEST` (quay về trang 1 trong im lặng làm infinite-scroll lặp vô hạn).
+- [ ] **Validation isolation:** — tách hai vế vì hai chặng khác nhau đóng. **[x] vế cấu trúc:** `Target` đọc từ Redis, không từ URL/body (`TestExecPassesExitCodeAndUsesRedisTarget`), và bước g chặn token forge. **[ ] vế NetworkPolicy** (`curl 169.254.169.254` trong verify) cần cụm.
+- [x] Output verify bị cắt cỡ (không cho dump khổng lồ gây DoS). — `cappedWriter`, 4 ca, gồm ca biên "đúng bằng trần thì KHÔNG báo cắt" và ca "cắt cỡ không được làm mất exit code".
+
+## Yêu cầu nền tảng (chốt 2026-08-13) — ảnh hưởng P2 trở đi
+
+Ba ràng buộc dài hạn của chủ dự án, ghi ở đây vì chúng quyết định hình dạng kiến
+trúc chứ không phải một task lẻ:
+
+1. **Ngang KillerCoda *và* KodeKloud.** Killercoda là mốc của 2.A/2.E (format
+   scenario). KodeKloud thêm: khoá học nhiều bài, quiz, playground, và IDE.
+2. **Có IDE Theia như KodeKloud.** Móc đã có sẵn trong DTO: `interfaceLayout`
+   (`interface.layout: "ide"` của Killercoda upstream — `packages/shared-types/src/scenario.ts`)
+   và `capabilities`. Cả hai đã chảy tới FE qua `lessons.get`. Lane Theia là một
+   chặng riêng (dựng image + layout ba khoang), **chưa** làm ở lượt này.
+3. **Soạn bài trực tiếp trên UI, không hardcode vào repo.** Đây là lý do
+   `ScenarioSource` là một interface (`packages/scenario/src/source.ts`) chứ
+   không phải một lời gọi `loadScenarios()` rải trong router. Bản DB-backed hiện
+   thực đúng `list()` + `get()`; router, `checkStep` và FE không biết khác biệt.
+   Bảng `scenarios` sinh ra ở chặng đó — lúc nó là NGUỒN, không phải bản sao của
+   đĩa (xem 2.B task 6).
 
 ## Verify commands
 
@@ -113,14 +158,23 @@ pnpm --filter @devops-platform/scenario test    # 62 PASS: parse 4 scenario th�
 node packages/scenario/scripts/parse.mjs content/scenarios/ckad-configmap-as-files [--json]
 node scripts/vendor-scenarios.mjs --check       # nội dung khớp commit đã ghim (chạm mạng)
 
-# tRPC lessons + IDOR
-pnpm --filter web test -- lessons          # gồm test authz progress (userA != userB)
+# tRPC lessons + IDOR  (2.B — đã chạy: 21 ca)
+#
+# ⚠ KHÔNG viết `test -- lessons`: `--` tự nó thành một filter khớp MỌI file, nên
+# lệnh đó chạy cả suite và chỉ TRÔNG như đang lọc (16 file thay vì 3).
+pnpm --filter web test lessons             # 3 file / 40 ca — gồm authz progress (userA != userB)
+pnpm --filter web test phase               # nhánh intro/finish vắng mặt (scenario dựng tay)
 
-# checkStep e2e (thủ công/e2e): start scenario -> gõ giải -> Check => pass; sai => fail
-pnpm --filter web test:e2e -- lessons-check
+# Gateway exec one-shot  (2.C — đã chạy: 32 ca)
+cd services/terminal-gateway && go test ./internal/execroute/... ./internal/podexec/...
 
-# list pagination cap
-curl -s "https://host/api/trpc/lessons.list?input=%7B%22limit%22:100000%7D" | jq '.result.data | length'  # <=100
+# Image web PHẢI mang packages/scenario + content/  (đã đo, kèm đối chứng âm)
+docker build -f apps/web/Dockerfile -t dlp/web:test .
+docker run --rm --entrypoint sh dlp/web:test -c 'ls $SCENARIOS_DIR'   # 4 thư mục
+
+# checkStep e2e trên CỤM (chưa chạy — ô AC "pass/fail đúng" còn hở)
+#   start scenario ckad-configmap-as-files -> Check khi chưa làm => fail
+#   -> tạo configmap trong pod -> Check => pass
 ```
 
 ## Risk Assessment (P2)

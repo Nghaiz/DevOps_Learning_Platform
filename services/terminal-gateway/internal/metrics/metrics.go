@@ -184,6 +184,20 @@ type Metrics struct {
 	// ExtendTotal tách theo kết quả CUỐI của mỗi lượt gia hạn.
 	ExtendTotal *prometheus.CounterVec
 
+	// ExecOneShotTotal đếm lượt gọi `POST /exec/session/{id}` — nút "Check" của
+	// trụ cột Lessons (P2 / 2.C).
+	//
+	// ⛔ TÁCH KHỎI WSConnectionsTotal dù cùng chuỗi authz và cùng từ vựng `code`.
+	// Hai đường có tần suất khác nhau vài bậc (một lượt attach mỗi phiên, so với
+	// một lượt chấm mỗi lần bấm Check) và hai chế độ hỏng khác nhau. Gộp chúng
+	// thì một cơn bão "Check" sẽ dìm tỉ lệ từ chối của handshake xuống dưới
+	// ngưỡng alert, và đúng cảnh báo IDOR mà G3 dựng lên sẽ im lặng.
+	//
+	// KHÔNG đếm exit code ở đây: script chấm trả khác 0 là KẾT QUẢ hợp lệ ("bài
+	// chưa đúng"), không phải lỗi — cùng lý lẽ với việc ExecErrorsTotal không
+	// đếm exit code của shell.
+	ExecOneShotTotal *prometheus.CounterVec
+
 	// ExtendRevisionRetryTotal đếm SỰ KIỆN "va revision rồi thử lại", tách hẳn
 	// khỏi ExtendTotal.
 	//
@@ -272,6 +286,11 @@ func New(reg prometheus.Registerer) *Metrics {
 			Help: "Lượt ExtendSession gateway gọi, tách theo kết quả cuối (ok/hard_cap/gone/error). Đúng một lần tăng cho mỗi lượt gọi.",
 		}, []string{"result"}),
 
+		ExecOneShotTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "dlp_gateway_exec_oneshot_total",
+			Help: "Lượt exec one-shot (chấm step của Lessons), tách theo kết quả (accepted/denied/error) và lý do — `reason` dùng đúng mã `code` trả về cho người gọi. Exit code của script KHÔNG tính vào đây.",
+		}, []string{"result", "reason"}),
+
 		ExtendRevisionRetryTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "dlp_gateway_extend_revision_retry_total",
 			Help: "Lượt gia hạn va revision rồi phải đọc lại và thử lại — dấu vết hai tiến trình cùng ghi một session.",
@@ -288,6 +307,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.AttachControlled,
 		m.AttachPhaseIncompleteTotal,
 		m.ExtendTotal,
+		m.ExecOneShotTotal,
 		m.ExtendRevisionRetryTotal,
 	)
 
