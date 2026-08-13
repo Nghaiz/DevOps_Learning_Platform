@@ -86,7 +86,10 @@ function textFrame(payload) {
   return Buffer.concat([Buffer.from([0x81, 0x80 | body.length]), mask, masked]);
 }
 
-/** Giải frame server→client (không mask). Trả {opcode, payload} hoặc null. */
+/**
+ * Giải MỘT frame server→client (không mask). Trả {opcode, payload, size} hoặc
+ * null khi chưa đủ byte. `size` để caller cắt buffer và đọc frame kế tiếp.
+ */
 function readFrame(buf) {
   if (buf.length < 2) return null;
   const opcode = buf[0] & 0x0f;
@@ -96,9 +99,17 @@ function readFrame(buf) {
     if (buf.length < 4) return null;
     len = buf.readUInt16BE(2);
     offset = 4;
+  } else if (len === 127) {
+    if (buf.length < 10) return null;
+    len = Number(buf.readBigUInt64BE(2));
+    offset = 10;
   }
   if (buf.length < offset + len) return null;
-  return { opcode, payload: buf.subarray(offset, offset + len).toString('utf8') };
+  return {
+    opcode,
+    payload: buf.subarray(offset, offset + len).toString('utf8'),
+    size: offset + len,
+  };
 }
 
 /** Handshake WS THÔ trên TLS. Trả { status, ms, socket }. */
@@ -118,10 +129,28 @@ function upgrade(sessionId) {
             `Origin: ${ORIGIN}\r\n` +
             `Cookie: ${cookie}\r\n\r\n`,
         );
-        socket.once('data', (chunk) => {
-          const head = chunk.toString('latin1').split('\r\n')[0];
-          resolve({ status: head, ms: Date.now() - t0, socket, alpn: socket.alpnProtocol });
-        });
+        {
+          /*
+           * ⚠ PHẢI GIỮ PHẦN DƯ SAU HEADER. Bản đầu làm
+           * `socket.once('data', chunk => resolve(statusLine))` và VỨT phần còn
+           * lại của chunk. Khi server gộp `101 …\r\n\r\n` và frame `ready` vào
+           * CÙNG một segment TCP thì frame đó biến mất, và probe kết luận "không
+           * nhận được ready" — tức báo ĐỎ cho một hệ đang chạy đúng.
+           * Hai lượt đo đầu tiên xanh chỉ vì hai gói tới rời nhau; đó là một phép
+           * đo phụ thuộc thời điểm, không phải một phép đo.
+           */
+          let acc = Buffer.alloc(0);
+          const onData = (chunk) => {
+            acc = Buffer.concat([acc, chunk]);
+            const end = acc.indexOf('\r\n\r\n');
+            if (end === -1) return;
+            socket.off('data', onData);
+            const head = acc.subarray(0, end).toString('latin1').split('\r\n')[0];
+            const rest = acc.subarray(end + 4);
+            resolve({ status: head, ms: Date.now() - t0, socket, alpn: socket.alpnProtocol, rest });
+          };
+          socket.on('data', onData);
+        }
       },
     );
     socket.setTimeout(15000, () => reject(new Error('handshake timeout 15s')));
@@ -176,9 +205,20 @@ async function main() {
   result.socket.on('end', () => {
     closed = true;
   });
+  // Buffer tích luỹ, khởi đầu bằng phần dư đi CÙNG segment với header 101.
+  let buf = result.rest ?? Buffer.alloc(0);
+  const drain = () => {
+    for (;;) {
+      const frame = readFrame(buf);
+      if (!frame) break;
+      buf = buf.subarray(frame.size);
+      if (frame.opcode === 0x1 && !ready) ready = frame.payload.slice(0, 90);
+    }
+  };
+  drain();
   result.socket.on('data', (chunk) => {
-    const frame = readFrame(chunk);
-    if (frame?.opcode === 0x1 && !ready) ready = frame.payload.slice(0, 90);
+    buf = Buffer.concat([buf, chunk]);
+    drain();
   });
   result.socket.write(textFrame(JSON.stringify({ type: 'init', cols: 120, rows: 34 })));
 

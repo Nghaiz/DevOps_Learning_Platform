@@ -16,7 +16,8 @@ tôi, và một điều là kết luận của một report P2.
 | `externalTrafficPolicy: Local` cho Service traefik | **lỗ hổng thật, tìm được nhờ đo từ MÁY KHÁC** |
 | `RATE_LIMIT_TRUST_PROXY=1` cho web | bật, sau khi đo xong chứ không trước |
 | Cổng CI mới: tham chiếu middleware phải khớp định nghĩa | xanh trên render thật, **đỏ** trên 2 kiểu bóp méo |
-| 7 ô AC | 7/7, trong đó 1 ô phải viết lại vì tiêu chí gốc mù |
+| 9 ô AC (7 gốc + 2 thêm từ review) | 9/9, trong đó 1 ô phải viết lại vì tiêu chí gốc mù |
+| Vòng review đối kháng | 1 lỗ hổng NẶNG bỏ sót + **4/6** kiểu bóp méo cổng CI cho qua — đã vá cả hai |
 
 ## Ba giả định của sketch bị scout bác bỏ trước khi viết dòng nào
 
@@ -166,6 +167,135 @@ sau 5000ms: socket CÒN MỞ          ← đã vượt hạn init 3s
 Probe nằm ở [`harness/2026-08-14-3a-edge/ws-upgrade-probe.mjs`](harness/2026-08-14-3a-edge/ws-upgrade-probe.mjs),
 có cờ `EXPECT=fail` để chạy được vế đối chứng âm.
 
+## Vòng review đối kháng — và một lỗ hổng NẶNG HƠN mà tôi đã bỏ sót
+
+Sau khi tôi tự vá mục dưới, một vòng review đối kháng chạy **sáu kiểu bóp méo
+thật** vào cổng CI và render chart ở mọi nhánh. Kết quả không dễ nghe: cổng tôi
+viết ra để chặn "middleware suy giảm trong im lặng" **cho qua bốn trên sáu**, và
+bản vá của tôi **vẫn còn** lỗ hổng chính — chỉ là ở một chỗ khác chỗ tôi đã nhìn.
+
+### Lỗ hổng chính: `web.service.type: NodePort` là một CỬA THỨ HAI
+
+Cổng chặn tôi thêm ở mục dưới khẳng định `ingress.enabled=true`, tức "CÓ một
+proxy". Nó **không** khẳng định "mọi lưu lượng ĐỀU đi qua proxy đó" — và cùng hồ
+sơ `values-selfhost.yaml` lại cố ý mở một cửa thứ hai: `web.service.type: NodePort`.
+
+Đo trên cụm, không suy luận:
+
+```
+kubectl get svc platform-web            → NodePort  32238
+curl http://192.168.94.130:32238/       → 200        ← không đi qua Traefik
+```
+
+Hai hậu quả, hậu quả thứ hai là thứ tôi hoàn toàn không nghĩ tới:
+
+1. **Né trần.** Xoay XFF mỗi request ⇒ mỗi request một bucket. Trần body ở biên
+   cũng mất, nên lỗ chunked mà AC-A2 vừa bịt lại mở nguyên trên đường này.
+2. **KHOÁ NGƯỜI KHÁC.** `buckets` trong `rate-limit.ts` là `Map` toàn cục của
+   process, tức CÙNG một map phục vụ lưu lượng hợp lệ. Tái hiện được:
+
+```
+# từ VM: 130 request vào NodePort, giả danh IP nạn nhân
+curl … -H "X-Forwarded-For: 192.168.94.1" http://192.168.94.130:32238/
+   → 120×200, 10×429            (bucket của 192.168.94.1 đã cạn)
+
+# từ máy Windows — vốn THẬT SỰ là 192.168.94.1 — qua đường HTTPS hợp lệ:
+   lần 1 → 429   {"error":"too_many_requests"}
+   lần 2 → 429
+   lần 3 → 429
+```
+
+Một người ngoài khoá được một người dùng thật, lặp vô hạn, chỉ bằng `curl` từ LAN.
+**Vector này do CHÍNH chặng 3.A tạo ra:** trước đó `clientKey()` luôn trả `null`
+nên không bucket nào từng tồn tại để mà đầu độc. Chặng "hardening" tự thêm một lỗ.
+
+Sửa: `web.service.type: ClusterIP` (lý do cũ của NodePort — "chưa có ingress
+controller, Traefik tới ở P3" — đã hết hiệu lực đúng ở chặng này), **và** thêm vế
+thứ hai vào cổng chặn: trustProxy bật mà service không phải ClusterIP ⇒ `fail`.
+
+Cổng đó bắn ngay trên lượt deploy kế tiếp — vì `helm get values` còn giữ
+`web.service.type: NodePort` từ một `--set` cũ và nó đè lên values-selfhost. Đúng
+thứ nó sinh ra để bắt.
+
+```
+curl http://192.168.94.130:32238/  →  000 / connection refused     ← cửa đã đóng
+```
+
+### Cổng CI cho qua bốn kiểu hỏng thật
+
+Phép kiểm cũ chỉ khẳng định **một chiều**: mọi tham chiếu đều khớp một Middleware
+có thật. Nó không khẳng định chiều ngược lại — rằng mỗi Ingress mang ĐÚNG tập
+middleware nó phải mang. Bốn kiểu hỏng lọt qua, mỗi kiểu đều XANH:
+
+| Bóp méo | Hậu quả thật | Cổng cũ |
+|---|---|---|
+| Gỡ hẳn annotation middlewares khỏi `platform-web` | đường web mất SẠCH trần body + rate-limit | xanh |
+| Đổi entrypoint `platform-web` sang `web` | HTTPS trả 404 cho toàn ứng dụng; trên HTTP hai router tranh nhau | xanh |
+| Trỏ `platform-web` sang `ratelimit-ws` | cả site tụt xuống 20 req/phút — trông như "app chậm" | xanh |
+| Gõ sai field spec (`maxRequestBodyByte`) | apiserver **prune** field lạ trong im lặng ⇒ buffering KHÔNG có trần, mà `kubectl get -o yaml` in ra vẫn trông bình thường | xanh |
+
+Kiểu cuối đáng sợ nhất và cũng là kiểu tôi đã tự tay mở đường: `kubeconform`
+chạy với `-ignore-missing-schemas`, và output của chính nó nói `Skipped: 4` —
+đúng bốn CRD mới. Tôi đọc `Valid: 27` mà không đọc `Skipped: 4`.
+
+Cổng viết lại: pin **tập mong đợi CHÍNH XÁC** cho từng Ingress (middleware +
+entrypoint), khẳng định tập Middleware được định nghĩa, và khẳng định spec có đủ
+field đúng kiểu. Chạy lại đúng sáu kiểu bóp méo đó cộng một kiểu thứ bảy (gỡ trần
+riêng của router tĩnh):
+
+```
+BASELINE                                    exit=0  OK
+A. gỡ annotation middlewares khỏi web       exit=1  LỆCH so với mong đợi
+B. tên tham chiếu sai (bodylimits)          exit=1  LỆCH
+C. web ghim entrypoint HTTP                 exit=1  LỆCH
+D. spec typo maxRequestBodyByte             exit=1  spec Middleware thiếu …
+E. average thành chuỗi                      exit=1  muốn 6 dòng average/burst dạng SỐ
+F. web trỏ sang ratelimit-ws                exit=1  LỆCH
+G. gỡ trần riêng của router tĩnh            exit=1  LỆCH
+```
+
+Phép kiểm được trích **verbatim từ chính workflow** rồi chạy trên bảy chart bị bóp
+méo, để thứ tôi kiểm và thứ CI chạy không thể trôi khỏi nhau.
+
+> **Baseline đỏ ở lượt đầu**, và đó là một lỗi của chính cổng: `awk` chỉ xả bản ghi
+> khi gặp một `kind:` KHÁC Ingress, mà bốn Ingress nằm liên tiếp — nên nó chỉ đọc
+> ra object cuối cùng. Một parser im lặng nuốt 3/4 bản ghi là cách dễ nhất để cổng
+> trở nên vô dụng theo hướng ngược lại.
+
+### Trần biên đang đếm cả asset tĩnh
+
+`proxy.ts` khai matcher `['/((?!_next/static|_next/image|favicon.ico).*)']` — lớp
+rate-limit của web **cố ý không đếm** asset tĩnh. Trần ở biên thì đặt trên `/` nên
+đếm tất: mỗi chunk JS, mỗi CSS, mỗi font. Chú thích tôi viết trong values ("120
+khớp `RATE_LIMIT_MAX_REQUESTS` của web") vì thế **sai** — hai lớp không cùng một
+tập request.
+
+Chế độ hỏng rất khó chẩn: 429 rơi trúng một chunk JS thì trình duyệt báo
+`ChunkLoadError`/trang trắng, không báo "bị giới hạn". Và harness e2e đi qua API
+nên KHÔNG BAO GIỜ tải asset — nó xanh 14/14 trong lúc trình duyệt thật hỏng, đúng
+bài học đã ghi ở 2.D.
+
+Đo: riêng trang chủ tham chiếu **14** file `/_next/static` ngay trong HTML (chưa
+tính import lồng nhau, font, ảnh) trên trần `burst: 60`.
+
+Sửa theo đúng ý định của `proxy.ts` thay vì chỉnh số mò: tách `/_next/static`
+thành router riêng với trần rộng hơn hẳn (600/phút, burst 300) — vẫn CÓ trần vì
+asset rẻ nhưng không miễn phí. Ô AC mới **A8** đo chính điều đó (xem bảng).
+
+### Các mục còn lại của review
+
+- **`redirectHttps.port` để trống** ⇒ `Location` trỏ về cổng 443 mặc định, tức
+  đúng sự cố nợ P2 §3 mà middleware này sinh ra để tránh. Đổi `with` → `required`
+  với thông báo nêu cả hai giá trị hợp lệ (`30443` cho lab, `"443"` cho cổng chuẩn).
+- **Negative test trustProxy chỉ khẳng định "render thất bại"**, không khẳng định
+  thất bại ĐÚNG LÝ DO ⇒ sẽ xanh vĩnh viễn nếu chart sau này thêm một `required`
+  khác. Thêm đối chứng dương (không có cờ thì phải render được) + `grep` thông điệp.
+- **`with` coi `'0'` là truthy** ⇒ `rateLimitTrustProxy: '0'` (một lệnh TẮT tường
+  minh) vẫn kích `fail`. Đổi sang `eq . "1"`.
+- **Khối `annotations:` rỗng** khi không có annotation nào. Dựng dict rồi mới phát.
+- **Trần `/ws` 20/phút chưa đo, và NAT gộp cả lớp học vào một bucket** — ghi vào
+  values như một nợ có tên, phải soi trước 3.E.
+
 ## Lỗ hổng thứ hai — do chính bản vá này tạo ra, tự soát mới thấy
 
 Bản đầu của 3.A đặt `rateLimitTrustProxy: '1'` thẳng trong `values-selfhost.yaml`,
@@ -218,10 +348,12 @@ Kèm một bước CI gác **vế ngược**: nếu chart render ĐƯỢC tổ h
 | **A1** body 2 MiB có `Content-Length` | ✅ | `413` + body `Request Entity Too Large` (plain text ⇒ Traefik, không phải JSON của web) |
 | **A2** 2 MiB **chunked** | ✅ | `413`; sanity xác nhận `Transfer-Encoding: chunked` không kèm `Content-Length`. Đối chứng âm 512 KiB chunked → `400` từ ứng dụng |
 | **A3** rate-limit ở biên | ✅ | 300 request song song / **6s** ⇒ **239×429 với `content_type` RỖNG** (chữ ký Traefik; Next trả `application/json`) + **61×200** ≈ `burst: 60`. Đối chứng âm: sau 65s, 10 request → 10×200 |
-| **A4** XFF không giả mạo được | ✅ | Từ Windows gửi `X-Forwarded-For: 9.9.9.9` ⇒ backend nhận `192.168.94.1` (IP thật). Đối chứng âm: đi thẳng vào Service ⇒ `1.2.3.4` tới nguyên vẹn |
+| **A4** XFF không giả mạo được | ✅ | 300 request qua Traefik, **mỗi request một XFF giả KHÁC NHAU** ⇒ `61×200 / 239×429`, **y hệt** lượt không giả mạo: 300 giá trị bịa gộp hết vào MỘT bucket. Nếu XFF được tin thì 300 bucket riêng ⇒ 0 lần 429. Đối chứng âm: đi thẳng vào Service (không qua Traefik) ⇒ `1.2.3.4` tới nguyên vẹn |
 | **A5** redirect HTTP→HTTPS | ✅ | `302` + `Location: https://dlp.192.168.94.130.sslip.io:30443/` — **đúng cổng công khai**; `/ws/session/x` trên HTTP cũng được đẩy sang HTTPS |
 | **A6** WebSocket vẫn sống | ✅ | `101` + `{"type":"ready"}` + socket mở sau 5s. Đối chứng âm KHÔNG đỏ được ⇒ bác bỏ giả định buffering (xem trên) |
 | **A7** harness e2e | ✅ | **14/14 PASS** trên origin HTTPS sau khi đổi biên |
+| **A8** router tĩnh có ngân sách RIÊNG *(mới, từ review)* | ✅ | NGAY SAU khi 240 request động bị 429, **200/200** request vào `/_next/static` trả **200**. Chung trần thì chúng đã 429 cùng nhau — đây là vế phân biệt |
+| **A9** cửa thứ hai đã đóng *(mới, từ review)* | ✅ | `web.service.type=ClusterIP`; `curl http://192.168.94.130:32238/` ⇒ **000 / connection refused** (trước đó: `200`) |
 
 ## Cổng CI mới — và vì sao nó cần tồn tại
 
@@ -262,8 +394,13 @@ helm template … --set ingress.middleware.enabled=true                        #
    ổn định qua vài lần deploy.
 2. **`externalTrafficPolicy: Local` chưa được kiểm trên cụm NHIỀU node.** Trên 1 node
    nó không mất gói; nhiều node thì đòi pod Traefik có mặt ở node nhận traffic.
-3. **Chưa đo trần rate-limit của `/ws` (20/phút).** A3 chỉ đo đường `/`. Trần WS sẽ
-   được 3.E soi khi chạy kịch bản luật 5.
+3. **Chưa đo trần rate-limit của `/ws` (20/phút)** — và có hai lý do cụ thể để
+   nghi nó quá chật, phải soi TRƯỚC 3.E chứ không sau:
+   (a) gateway restart ⇒ mọi client nối lại cùng lúc; nếu client retry không có
+   backoff nhiễu thì một người ăn hết burst 10;
+   (b) `externalTrafficPolicy: Local` trả lại IP THẬT của client, nhưng một lớp
+   học sau NAT chung vẫn gộp N người vào MỘT địa chỉ — 20 handshake/phút chia cho
+   cả lớp là quá chật. Chưa đọc mã reconnect của FE.
 4. **Tài khoản thử còn trong DB lab:** `wsprobe-*`, cùng các user harness e2e tạo mỗi
    lượt chạy.
 5. **`~/dlp-deploy` vẫn là bẫy.** Chặng này upgrade từ `~/dlp-chart-p3a/` và đã kiểm

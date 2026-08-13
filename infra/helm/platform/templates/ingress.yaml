@@ -8,42 +8,47 @@ thuộc tính `Domain` (host-only) — xem docs/ws-terminal-protocol.md §2. Tr�
 duyệt vì thế chỉ gửi cookie đó tới ĐÚNG origin đã set nó. Nếu web ở
 `app.example.com` còn gateway ở `gw.example.com` thì cookie không bao giờ tới
 gateway và toàn bộ luật 8 (token chỉ trong httpOnly cookie) chết ở khâu deploy,
-không phải ở khâu code. Tách làm nhiều Ingress DƯỚI ĐÂY không phá điều đó: cả ba
-vẫn dùng CHUNG một `ingress.host`, tức vẫn đúng một origin.
+không phải ở khâu code. Việc tách làm nhiều Ingress DƯỚI ĐÂY không phá điều đó:
+mọi object đều dùng CHUNG `ingress.host`, tức vẫn đúng một origin.
 
 TẮT MẶC ĐỊNH: bật cờ này trên cluster không có ingress controller thì Ingress
 được tạo, không báo lỗi, và không định tuyến gì cả — im lặng đúng kiểu khó chẩn
 đoán nhất. Ở dev, việc gộp origin do Caddy trong docker-compose.yml đảm nhiệm.
 
-═══ VÌ SAO BA INGRESS CHỨ KHÔNG PHẢI MỘT (P3 / 3.A) ═══
+═══ VÌ SAO BỐN INGRESS CHỨ KHÔNG PHẢI MỘT (P3 / 3.A) ═══
 
-Trước P3 đây là MỘT Ingress hai path. Không thể giữ như vậy khi gắn middleware,
+Trước P3 đây là MỘT Ingress hai path. Không giữ được như vậy khi gắn middleware,
 vì annotation `traefik.ingress.kubernetes.io/router.middlewares` áp cho **mọi**
-router sinh ra từ một Ingress — không có cú pháp per-path. Hai hệ quả bắt buộc
-phải tách:
+router sinh ra từ một Ingress — không có cú pháp per-path. Bốn object, ba lý do:
 
-1. `-web` vs `-ws`: hai đường cần TRẦN RATE-LIMIT KHÁC NHAU. Mỗi handshake `/ws`
-   là một lượt attach vào pod sandbox, đắt hơn một GET nhiều bậc, nên nó có trần
-   riêng chặt hơn (xem middleware-ratelimit.yaml). Không tách Ingress thì không có
-   cách nào cho hai path hai trần.
+1. `-web` (`/`) vs `-ws` (`/ws`): hai đường cần TRẦN RATE-LIMIT KHÁC NHAU. Mỗi
+   handshake `/ws` là một lượt attach vào pod sandbox, đắt hơn một GET nhiều bậc.
 
    ⚠ ĐÂY KHÔNG PHẢI lý do ban đầu tôi tách, và lý do ban đầu ĐÃ BỊ ĐO LÀ SAI.
-   Bản đầu lập luận rằng middleware `buffering` sẽ làm hỏng WebSocket vì nó đệm
-   trọn request. Đo trên cụm 2026-08-14 (đối chứng âm của AC-A6): gắn thẳng
-   `bodylimit` vào Ingress `/ws` rồi chạy lại probe ⇒ **vẫn 101, vẫn nhận
-   `{"type":"ready"}`, socket vẫn mở sau 5s**. Buffering vô hại ở đây vì request
+   Bản đầu lập luận `buffering` sẽ làm hỏng WebSocket vì nó đệm trọn request. Đo
+   trên cụm 2026-08-14 (đối chứng âm của AC-A6): gắn thẳng `bodylimit` vào Ingress
+   `/ws` ⇒ **vẫn 101, vẫn nhận `{"type":"ready"}`, socket vẫn mở sau 5s**. Request
    nâng cấp WS **không có body** để đệm, và sau 101 kết nối được hijack. Giữ
-   `bodylimit` khỏi `/ws` vẫn đúng (một trần body cho thứ không có body chỉ là
-   nhiễu), nhưng nó là dọn dẹp chứ không phải điều kiện sống.
+   `bodylimit` khỏi `/ws` vẫn đúng (trần body cho thứ không có body chỉ là nhiễu),
+   nhưng đó là dọn dẹp chứ không phải điều kiện sống.
 
-2. `-redirect`: middleware `redirectScheme` gắn lên Ingress phục vụ HTTPS sẽ
-   chuyển hướng chính request HTTPS ⇒ vòng lặp vô hạn. Nên nó nằm ở Ingress
-   riêng ghim `router.entrypoints: web`, còn hai Ingress trên ghim `websecure`.
-   Không ghim entrypoint thì provider kubernetesIngress gắn router vào MỌI
-   entrypoint và hai router cùng rule sẽ tranh nhau trên cổng HTTP.
+2. `-static` (`/_next/static`): asset tĩnh có trần RỘNG HƠN HẲN, khớp với việc
+   `apps/web/src/proxy.ts` cố ý loại `_next/static` khỏi matcher của nó. Đếm
+   chung thì một lượt tải trang nguội ăn hết burst và request THẬT tiếp theo bị
+   429 — mà 429 rơi trúng một chunk JS thì trình duyệt báo `ChunkLoadError`, không
+   báo "bị giới hạn". Chi tiết + số đo: middleware-ratelimit.yaml.
+
+3. `-redirect`: `redirectScheme` gắn lên Ingress phục vụ HTTPS sẽ chuyển hướng
+   chính request HTTPS ⇒ **vòng lặp vô hạn**. Nên nó ở Ingress riêng ghim
+   `router.entrypoints: web`, còn ba cái trên ghim `websecure`. Không ghim
+   entrypoint thì provider kubernetesIngress gắn router vào MỌI entrypoint và hai
+   router cùng rule tranh nhau trên cổng HTTP.
+
+Thứ tự path KHÔNG cần lo: Traefik xếp ưu tiên router theo ĐỘ DÀI rule, nên
+`/_next/static` > `/ws` > `/` bất kể chúng đến từ object nào.
 
 Khi `ingress.middleware.enabled=false` (cluster không phải Traefik) thì không
-annotation nào phát ra và ba Ingress này suy biến thành định tuyến thuần —
+annotation nào phát ra và các Ingress này suy biến thành định tuyến thuần —
 controller nào cũng hiểu, không khoá vào Traefik.
 */}}
 {{- if not (or .Values.gateway.enabled .Values.web.enabled) }}
@@ -63,21 +68,25 @@ controller nào cũng hiểu, không khoá vào Traefik.
 {{- $mw := required "ingress.middleware thiếu trong values — nếu bạn vừa chạy `helm upgrade --reuse-values` thì ĐÓ là nguyên nhân: cờ đó KHÔNG nạp key mới của values.yaml. Dùng --reset-then-reuse-values." .Values.ingress.middleware }}
 {{- $fullname := include "platform.fullname" . }}
 {{- $ns := .Release.Namespace }}
+{{- $userAnn := .Values.ingress.annotations | default dict }}
 {{- if .Values.web.enabled }}
+{{- $ann := $userAnn }}
+{{- if $mw.enabled }}
+{{- $ann = merge (dict
+      "traefik.ingress.kubernetes.io/router.entrypoints" $mw.entrypoints.secure
+      "traefik.ingress.kubernetes.io/router.middlewares" (printf "%s-%s-bodylimit@kubernetescrd,%s-%s-ratelimit-web@kubernetescrd" $ns $fullname $ns $fullname)
+    ) $userAnn }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ $fullname }}-web
   labels:
     {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
+  {{- with $ann }}
   annotations:
-    {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- if $mw.enabled }}
-    traefik.ingress.kubernetes.io/router.entrypoints: {{ $mw.entrypoints.secure | quote }}
-    traefik.ingress.kubernetes.io/router.middlewares: {{ printf "%s-%s-bodylimit@kubernetescrd,%s-%s-ratelimit-web@kubernetescrd" $ns $fullname $ns $fullname | quote }}
-    {{- end }}
+  {{- end }}
 spec:
   {{- with .Values.ingress.className }}
   ingressClassName: {{ . | quote }}
@@ -101,28 +110,69 @@ spec:
                 name: {{ $fullname }}-web
                 port:
                   number: {{ .Values.web.service.port }}
+{{- if $mw.enabled }}
+---
+{{- $annStatic := merge (dict
+      "traefik.ingress.kubernetes.io/router.entrypoints" $mw.entrypoints.secure
+      "traefik.ingress.kubernetes.io/router.middlewares" (printf "%s-%s-ratelimit-static@kubernetescrd" $ns $fullname)
+    ) $userAnn }}
+{{/*
+Chỉ tồn tại khi middleware bật: không có middleware thì object này định tuyến y
+hệt `-web` và chỉ là một Ingress thừa. KHÔNG gắn `bodylimit` — asset tĩnh phục vụ
+bằng GET, không có request body để chặn.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullname }}-static
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
+  annotations:
+    {{- toYaml $annStatic | nindent 4 }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - {{- with .Values.ingress.host }}
+      host: {{ . | quote }}
+      {{- end }}
+      http:
+        paths:
+          - path: /_next/static
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-web
+                port:
+                  number: {{ .Values.web.service.port }}
+{{- end }}
 {{- end }}
 {{- if .Values.gateway.enabled }}
 ---
+{{- $annWs := $userAnn }}
+{{- if $mw.enabled }}
+{{- $annWs = merge (dict
+      "traefik.ingress.kubernetes.io/router.entrypoints" $mw.entrypoints.secure
+      "traefik.ingress.kubernetes.io/router.middlewares" (printf "%s-%s-ratelimit-ws@kubernetescrd" $ns $fullname)
+    ) $userAnn }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ $fullname }}-ws
   labels:
     {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
+  {{- with $annWs }}
   annotations:
-    {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- if $mw.enabled }}
-    traefik.ingress.kubernetes.io/router.entrypoints: {{ $mw.entrypoints.secure | quote }}
-    {{- /*
-      CHỈ rate-limit, KHÔNG bodylimit — xem khối giải thích ở đầu file. Trần body
-      với WebSocket vô nghĩa: khung dữ liệu đi sau khi handshake xong, không nằm
-      trong request body mà buffering nhìn thấy.
-    */}}
-    traefik.ingress.kubernetes.io/router.middlewares: {{ printf "%s-%s-ratelimit-ws@kubernetescrd" $ns $fullname | quote }}
-    {{- end }}
+  {{- end }}
 spec:
   {{- with .Values.ingress.className }}
   ingressClassName: {{ . | quote }}
@@ -149,16 +199,20 @@ spec:
 {{- end }}
 {{- if and $mw.enabled $mw.redirectHttps.enabled }}
 ---
+{{- $annRedirect := merge (dict
+      "traefik.ingress.kubernetes.io/router.entrypoints" $mw.entrypoints.insecure
+      "traefik.ingress.kubernetes.io/router.middlewares" (printf "%s-%s-redirect-https@kubernetescrd" $ns $fullname)
+    ) $userAnn }}
 {{/*
-Ingress CHỈ để chuyển hướng: nó ghim entrypoint HTTP và gắn redirectScheme, nên
-mọi request cập cổng 30080 bị đẩy sang HTTPS trước khi chạm backend. Backend vẫn
-phải khai (Ingress không hợp lệ nếu thiếu) nhưng không bao giờ nhận request —
+Ingress CHỈ để chuyển hướng: ghim entrypoint HTTP và gắn redirectScheme, nên mọi
+request cập cổng HTTP bị đẩy sang HTTPS trước khi chạm backend. Backend vẫn phải
+khai (Ingress không hợp lệ nếu thiếu) nhưng không bao giờ nhận request —
 middleware trả 30x trước.
 
-Path `/` prefix phủ CẢ `/ws`: một client vào nhầm `ws://…:30080/ws` cũng cần được
-đẩy sang `wss://…:30443/ws`, và để `/ws` rơi vào HTTP nghĩa là cookie `Secure`
-không được gửi kèm rồi handshake trả 401 không rõ lý do — đúng chế độ hỏng mà nợ
-P2 §3 đã tốn một chặng để gỡ.
+Path `/` prefix phủ CẢ `/ws` và `/_next/static`: một client vào nhầm
+`ws://…:30080/ws` cũng cần được đẩy sang `wss://…:30443/ws`, và để `/ws` rơi vào
+HTTP nghĩa là cookie `Secure` không được gửi kèm rồi handshake trả 401 không rõ
+lý do — đúng chế độ hỏng mà nợ P2 §3 đã tốn một chặng để gỡ.
 */}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -167,11 +221,7 @@ metadata:
   labels:
     {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
   annotations:
-    {{- with .Values.ingress.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-    traefik.ingress.kubernetes.io/router.entrypoints: {{ $mw.entrypoints.insecure | quote }}
-    traefik.ingress.kubernetes.io/router.middlewares: {{ printf "%s-%s-redirect-https@kubernetescrd" $ns $fullname | quote }}
+    {{- toYaml $annRedirect | nindent 4 }}
 spec:
   {{- with .Values.ingress.className }}
   ingressClassName: {{ . | quote }}

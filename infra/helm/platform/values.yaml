@@ -321,14 +321,36 @@ ingress:
       # biên cho qua" — tốn tài nguyên mà không ai gác.
       maxRequestBodyBytes: 1048576
     rateLimit:
-      # HTTP thường: 120 req/phút khớp RATE_LIMIT_MAX_REQUESTS của web.
+      # Request ĐỘNG (mọi thứ trừ /_next/static và /ws).
+      #
+      # ⚠ 120 TRÙNG SỐ với RATE_LIMIT_MAX_REQUESTS của web nhưng KHÔNG phải cùng
+      # một ngân sách — đừng đọc thành "hai lớp cùng trần". `proxy.ts` khai matcher
+      # `['/((?!_next/static|_next/image|favicon.ico).*)']` nên lớp của web KHÔNG
+      # đếm asset tĩnh; router này xấp xỉ được điều đó CHỈ VÌ `/_next/static` đã
+      # tách sang router riêng bên dưới. Bỏ router tĩnh đi là trần này lập tức đếm
+      # cả chunk JS — tức sự tương đương đến từ CẤU HÌNH, không phải hiển nhiên.
       web:
         average: 120
         period: 1m
         burst: 60
+      # Asset tĩnh: rộng hơn hẳn, có lý do đo được — xem
+      # templates/middleware-ratelimit.yaml. Riêng trang chủ đã tham chiếu 14 file
+      # `/_next/static` ngay trong HTML (đo 2026-08-14), chưa tính import lồng
+      # nhau, font và ảnh; trang bài học nguội còn nặng hơn. Vẫn có trần chứ không
+      # thả tự do — asset rẻ nhưng không miễn phí.
+      static:
+        average: 600
+        period: 1m
+        burst: 300
       # Handshake WebSocket: MỖI lượt là một lần attach vào pod sandbox, đắt hơn
       # một GET nhiều bậc. Trần D17=1 (một phiên một WS) KHÔNG chặn được việc một
       # IP mở liên tiếp nhiều handshake nhắm nhiều session khác nhau.
+      #
+      # ⚠ CHƯA ĐO trên tải thật. Hai ca phải soi trước 3.E: (a) gateway restart ⇒
+      # mọi client nối lại cùng lúc, nếu client retry không có backoff nhiễu thì
+      # một người ăn hết burst; (b) một lớp học sau NAT chung vẫn dùng CHUNG một
+      # bucket dù `externalTrafficPolicy: Local` đã trả lại IP thật — NAT gộp N
+      # người vào một địa chỉ, và 20/phút chia cho cả lớp là quá chật.
       ws:
         average: 20
         period: 1m

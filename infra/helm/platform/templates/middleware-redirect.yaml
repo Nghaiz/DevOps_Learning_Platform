@@ -33,7 +33,13 @@ spec:
   redirectScheme:
     scheme: https
     permanent: {{ .Values.ingress.middleware.redirectHttps.permanent }}
-    {{- with .Values.ingress.middleware.redirectHttps.port }}
-    port: {{ . | quote }}
-    {{- end }}
+    {{- /*
+      `required` chứ KHÔNG phải `with`: để trống thì Traefik dựng
+      `Location: https://<host>/` → cổng 443 → connection refused trên cụm
+      NodePort, tức ĐÚNG sự cố mà middleware này được viết ra để tránh. Nhánh
+      trống là hợp lệ trên deployment cổng chuẩn, nhưng khi đó vẫn phải khai
+      `port: "443"` TƯỜNG MINH — một cổng bị bỏ trống vì quên và một cổng 443 do
+      chủ ý nhìn giống hệt nhau trong values, mà hậu quả thì khác hẳn.
+    */}}
+    port: {{ required "ingress.middleware.redirectHttps.port bắt buộc khi redirectHttps.enabled — để trống thì Location trỏ về cổng 443 mặc định, và trên cụm NodePort đó là một cổng không ai mở được (nợ P2 §3). Khai cổng CÔNG KHAI của entrypoint HTTPS: 30443 cho lab NodePort, \"443\" cho deployment cổng chuẩn." .Values.ingress.middleware.redirectHttps.port | quote }}
 {{- end }}

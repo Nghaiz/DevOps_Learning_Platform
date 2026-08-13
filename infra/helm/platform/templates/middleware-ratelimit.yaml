@@ -53,4 +53,36 @@ spec:
     average: {{ .Values.ingress.middleware.rateLimit.ws.average }}
     period: {{ .Values.ingress.middleware.rateLimit.ws.period | quote }}
     burst: {{ .Values.ingress.middleware.rateLimit.ws.burst }}
+---
+{{/*
+Trần RIÊNG cho `/_next/static` — rộng hơn hẳn, và đó là CHỦ Ý.
+
+`apps/web/src/proxy.ts` khai matcher
+`['/((?!_next/static|_next/image|favicon.ico).*)']`, tức lớp rate-limit của web
+**cố ý không đếm** asset tĩnh. Nếu ở biên ta đếm chúng chung với request động thì
+hai lớp không còn cùng một ngân sách: một lượt tải trang nguội kéo hàng chục
+chunk JS/CSS/font, ăn hết burst, và request THẬT tiếp theo bị 429.
+
+Chế độ hỏng của việc đó rất khó chẩn: 429 rơi trúng một file chunk thì trình
+duyệt báo `ChunkLoadError`/trang trắng, chứ không báo "bạn bị giới hạn". Và
+harness e2e đi qua API nên KHÔNG BAO GIỜ tải asset — nó xanh 14/14 trong lúc
+trình duyệt thật hỏng (đúng bài học đã ghi ở 2.D).
+
+Đo trên cụm 2026-08-14: riêng trang chủ đã tham chiếu **14** tài nguyên
+`/_next/static` ngay trong HTML, chưa tính import lồng nhau, font và ảnh.
+
+Vẫn có TRẦN chứ không thả tự do: asset tĩnh rẻ và cache được (Next băm tên file
+nên chúng bất biến), nhưng một trần rộng vẫn giữ được biên chống DoS.
+*/}}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "platform.fullname" . }}-ratelimit-static
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
+spec:
+  rateLimit:
+    average: {{ .Values.ingress.middleware.rateLimit.static.average }}
+    period: {{ .Values.ingress.middleware.rateLimit.static.period | quote }}
+    burst: {{ .Values.ingress.middleware.rateLimit.static.burst }}
 {{- end }}

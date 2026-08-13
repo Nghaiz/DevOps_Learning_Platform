@@ -133,29 +133,30 @@ spec:
             - name: GRPC_TLS_SERVER_NAME
               value: {{ printf "%s-orchestrator" (include "platform.fullname" .) | quote }}
             {{- end }}
-            {{- with .Values.web.env.rateLimitTrustProxy }}
+            {{- if eq (.Values.web.env.rateLimitTrustProxy | toString) "1" }}
             {{- /*
-              ⛔ CỔNG CHẶN CỨNG (P3 / 3.A). Tin `x-forwarded-for` chỉ đúng khi có
-              một proxy đứng trước và GHI ĐÈ header đó bằng địa chỉ socket thật.
-              Không có proxy thì XFF là thứ client tự đặt, và bật cờ này biến trần
-              theo IP từ "một lớp phòng thủ" thành "một lớp giả": kẻ tấn công xoay
-              giá trị mỗi request là mỗi request một bucket mới.
+              ⛔ CỔNG CHẶN CỨNG (P3 / 3.A), HAI VẾ. Tin `x-forwarded-for` chỉ đúng
+              khi (a) có proxy đứng trước GHI ĐÈ header đó, VÀ (b) KHÔNG còn đường
+              nào khác vào web. Thiếu vế (b) thì vế (a) vô nghĩa: kẻ tấn công chỉ
+              cần đi vòng qua proxy.
 
-              Bản đầu của chặng này đặt cờ `'1'` thẳng trong values-selfhost.yaml,
-              và điều đó SAI vì các lệnh deploy self-host ghi trong
-              docs/env/05-helm-secrets-deploy.md + infra/helm/README.md dùng đúng
-              hồ sơ ấy mà KHÔNG bật ingress.
-
-              `ingress.enabled` là điều kiện MẠNH NHẤT chart kiểm được — nó không
-              chứng minh được proxy có ghi đè XFF hay không (Traefik mặc định CÓ;
-              xem 07-ingress-controller.sh), nên thông báo dưới nói rõ phần còn lại
-              thuộc trách nhiệm người vận hành.
+              `eq … "1"` chứ KHÔNG phải `with`: `with` coi mọi chuỗi khác rỗng là
+              đúng, nên `rateLimitTrustProxy: '0'` — một lệnh TẮT tường minh, và
+              env.ts đọc đúng là tắt — vẫn lọt vào đây và kích `fail`.
             */}}
             {{- if not $.Values.ingress.enabled }}
-            {{- fail "web.env.rateLimitTrustProxy đang BẬT nhưng ingress.enabled=false — không có proxy nào đứng trước web, nên `x-forwarded-for` là header client TỰ ĐẶT ĐƯỢC và trần rate-limit theo IP trở thành vô nghĩa (xoay XFF mỗi request = mỗi request một bucket). Hoặc bật ingress, hoặc bỏ cờ này. Nếu bạn dùng một proxy NGOÀI chart, hãy tự khẳng định nó ghi đè XFF rồi đặt ingress.enabled=true." }}
+            {{- fail "web.env.rateLimitTrustProxy=1 nhưng ingress.enabled=false — không có proxy nào đứng trước web, nên `x-forwarded-for` là header client TỰ ĐẶT ĐƯỢC và trần rate-limit theo IP trở thành vô nghĩa (xoay XFF mỗi request = mỗi request một bucket). Hoặc bật ingress, hoặc bỏ cờ này. Nếu bạn dùng một proxy NGOÀI chart, hãy tự khẳng định nó ghi đè XFF rồi đặt ingress.enabled=true." }}
+            {{- end }}
+            {{- if ne $.Values.web.service.type "ClusterIP" }}
+            {{- fail "web.env.rateLimitTrustProxy=1 nhưng web.service.type KHÔNG phải ClusterIP — Service kiểu NodePort/LoadBalancer là một CỬA THỨ HAI vào web không đi qua ingress, và trên đường đó không ai ghi đè `x-forwarded-for`. Hậu quả đo được trên cụm 2026-08-14: (1) né sạch trần theo IP lẫn trần body ở biên; (2) KHOÁ NGƯỜI KHÁC — bắn 130 request vào NodePort kèm XFF của nạn nhân thì nạn nhân nhận 429 trên đường HỢP LỆ qua ingress, vì `buckets` là Map toàn cục của process. Đặt web.service.type=ClusterIP (chẩn đoán bằng `kubectl port-forward`), hoặc bỏ cờ trust-proxy." }}
             {{- end }}
             - name: RATE_LIMIT_TRUST_PROXY
+              value: {{ .Values.web.env.rateLimitTrustProxy | quote }}
+            {{- else }}
+            {{- with .Values.web.env.rateLimitTrustProxy }}
+            - name: RATE_LIMIT_TRUST_PROXY
               value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             - name: GOOGLE_CLIENT_ID
               value: {{ .Values.web.env.googleClientId | quote }}

@@ -375,36 +375,81 @@ jobs:
             -ignore-missing-schemas || exit 1
 
           defined=$(printf '%s\n' "$out" \
-            | awk '/^kind: Middleware$/{f=1} f&&/^  name:/{print $2; f=0}' | sort -u)
+            | awk '/^kind: Middleware$/{f=1} f&&/^  name: /{print $2; f=0}' | sort -u)
           echo "Middleware được định nghĩa:"; printf '%s\n' "$defined"
-          [ "$(printf '%s\n' "$defined" | grep -c .)" -eq 4 ] \
-            || { echo "muốn đúng 4 Middleware (bodylimit, ratelimit-web, ratelimit-ws, redirect-https)"; exit 1; }
+          # `printf` chứ không phải chuỗi nhiều dòng: trong block scalar của YAML,
+          # một dòng bắt đầu ở cột 0 sẽ THOÁT khỏi khối `run:` và làm hỏng workflow.
+          want_defined=$(printf '%s\n' \
+            platform-bodylimit \
+            platform-ratelimit-static \
+            platform-ratelimit-web \
+            platform-ratelimit-ws \
+            platform-redirect-https)
+          [ "$defined" = "$want_defined" ] \
+            || { echo "tập Middleware lệch. Muốn:"; printf '%s\n' "$want_defined"; exit 1; }
 
+          # ── Khẳng định CHÍNH XÁC từng Ingress ────────────────────────────────
+          # ⛔ VÌ SAO KHÔNG CHỈ KIỂM "tham chiếu khớp định nghĩa": phép kiểm đó là
+          # MỘT CHIỀU (definition ⊇ reference) và một review đối kháng đã chứng
+          # minh nó cho qua BỐN kiểu hỏng thật, mỗi kiểu đều XANH:
+          #   A. gỡ HẲN annotation middlewares khỏi platform-web ⇒ đường web mất
+          #      sạch trần body + rate-limit, mà mọi tham chiếu còn lại vẫn khớp;
+          #   C. đổi entrypoint của platform-web sang `web` ⇒ HTTPS trả 404 cho
+          #      toàn ứng dụng, và trên HTTP hai router cùng rule tranh nhau;
+          #   F. trỏ platform-web sang ratelimit-WS ⇒ cả site tụt xuống 20 req/phút,
+          #      trông như "app chậm" chứ không như lỗi cấu hình.
+          # Nên ở đây pin TẬP MONG ĐỢI cho từng object, cả middleware lẫn entrypoint.
           # Release.Namespace của `helm template` là `default` ⇒ tiền tố `default-`.
-          referenced=$(printf '%s\n' "$out" \
-            | sed -n 's/.*router\.middlewares: *"\(.*\)".*/\1/p' \
-            | tr ',' '\n' | sed 's/@kubernetescrd$//; s/^default-//' | sort -u)
-          echo "Middleware được tham chiếu:"; printf '%s\n' "$referenced"
-          [ -n "$referenced" ] || { echo "không Ingress nào tham chiếu middleware — annotation đã im lặng biến mất"; exit 1; }
-          # `<<<` chứ KHÔNG phải `printf | while`: nhánh sau chạy vòng lặp trong một
-          # subshell, nên `exit 1` ở đó chỉ thoát subshell và bước CI vẫn XANH —
-          # một cổng gác không bao giờ đỏ được.
-          while read -r ref; do
-            [ -n "$ref" ] || continue
-            printf '%s\n' "$defined" | grep -qx "$ref" \
-              || { echo "tham chiếu '$ref' KHÔNG khớp Middleware nào — Traefik sẽ bỏ qua nó trong im lặng"; exit 1; }
-          done <<< "$referenced"
+          # ⚠ `flush()` phải chạy CẢ khi gặp một Ingress MỚI, không chỉ khi gặp kind
+          # khác. Bản đầu chỉ xả ở nhánh `kind` khác, mà bốn Ingress nằm LIÊN TIẾP
+          # trong output — nên nó chỉ in ra object CUỐI, và cổng đỏ ngay trên chart
+          # đúng. Một parser im lặng nuốt 3/4 bản ghi là cách dễ nhất để cổng này
+          # trở nên vô dụng theo hướng ngược lại.
+          actual=$(printf '%s\n' "$out" | awk '
+            function flush() { if (ing && name != "") print name "|" ep "|" mw }
+            /^kind: Ingress$/ { flush(); ing=1; name=""; ep=""; mw=""; next }
+            /^kind: / { flush(); ing=0; next }
+            ing && /^  name: / && name=="" { name=$2 }
+            ing && /router\.entrypoints:/ { ep=$2; gsub(/"/,"",ep) }
+            ing && /router\.middlewares:/ { mw=$2; gsub(/"/,"",mw) }
+            END { flush() }
+          ' | sed 's/@kubernetescrd//g; s/default-//g' | sort)
+          echo "Ingress thực tế (tên|entrypoint|middlewares):"; printf '%s\n' "$actual"
+          want_actual=$(printf '%s\n' \
+            'platform-redirect|web|platform-redirect-https' \
+            'platform-static|websecure|platform-ratelimit-static' \
+            'platform-web|websecure|platform-bodylimit,platform-ratelimit-web' \
+            'platform-ws|websecure|platform-ratelimit-ws')
+          if [ "$actual" != "$want_actual" ]; then
+            echo "LỆCH so với mong đợi:"; printf '%s\n' "$want_actual"
+            echo "(một annotation BIẾN MẤT, một entrypoint sai, hay một tham chiếu trỏ nhầm middleware đều rơi vào đây)"
+            exit 1
+          fi
 
-          # `/ws` KHÔNG được mang bodylimit, và redirect PHẢI ở entrypoint HTTP.
-          # Vế redirect là vế chống vòng lặp vô hạn: gắn redirectScheme lên router
-          # phục vụ HTTPS thì request HTTPS tự chuyển hướng về chính nó.
-          ws_mw=$(printf '%s\n' "$out" | awk '/name: platform-ws$/{f=1} f&&/router\.middlewares:/{print; exit}')
-          printf '%s' "$ws_mw" | grep -q bodylimit \
-            && { echo "platform-ws mang bodylimit — trần body cho thứ không có body"; exit 1; }
-          printf '%s\n' "$out" | awk '/name: platform-redirect$/{f=1} f&&/router\.entrypoints:/{print; exit}' \
-            | grep -q '"web"' \
-            || { echo "platform-redirect không ghim entrypoint HTTP ⇒ vòng lặp chuyển hướng trên HTTPS"; exit 1; }
-          echo 'OK: 4 Middleware, mọi tham chiếu khớp định nghĩa, /ws sạch bodylimit, redirect ghim entrypoint web.'
+          # ── spec của Middleware: kubeconform KHÔNG kiểm được ─────────────────
+          # `-ignore-missing-schemas` bỏ qua đúng 4 CRD này (`Skipped: N` trong
+          # output ở trên). Hậu quả: một field gõ sai (`maxRequestBodyByte`) render
+          # hợp lệ, rồi apiserver PRUNE nó trong im lặng theo structural schema của
+          # CRD — kết quả là một middleware `buffering` KHÔNG có trần, mà
+          # `kubectl get middleware -o yaml` in ra vẫn trông bình thường. Cùng lớp
+          # với sự cố `service.type`, chỉ thấp hơn một tầng.
+          need() {
+            printf '%s\n' "$out" | grep -q "$1" \
+              || { echo "spec Middleware thiếu '$1' — field gõ sai sẽ bị apiserver prune TRONG IM LẶNG"; exit 1; }
+          }
+          need '^    maxRequestBodyBytes: '
+          need '^    memRequestBodyBytes: '
+          need '^    scheme: https$'
+          need '^    port: '
+          # average/burst phải là SỐ TRẦN (3 middleware × 2 field = 6 dòng). Một giá
+          # trị lỡ thành chuỗi (`average: "120"`) bị apiserver từ chối vì lệch kiểu
+          # — ồn ào, khác hẳn ca prune im lặng ở trên, nhưng vẫn là một lượt deploy
+          # hỏng nên bắt sớm ở đây rẻ hơn.
+          n=$(printf '%s\n' "$out" | grep -cE '^    (average|burst): [0-9]+$')
+          [ "$n" -eq 6 ] || { echo "muốn 6 dòng average/burst dạng SỐ TRẦN (web/static/ws), thấy $n"; exit 1; }
+          n=$(printf '%s\n' "$out" | grep -cE '^    period: "[^"]+"$')
+          [ "$n" -eq 3 ] || { echo "muốn 3 dòng period dạng chuỗi có nháy, thấy $n"; exit 1; }
+          echo 'OK: 5 Middleware, 4 Ingress khớp CHÍNH XÁC tập middleware + entrypoint, spec có đủ field và đúng kiểu.'
 
       - name: 'helm template — trustProxy KHÔNG được bật khi không có proxy (P3/3.A)'
         # Vế NGƯỢC: `web.env.rateLimitTrustProxy=1` khi `ingress.enabled=false`
@@ -416,17 +461,42 @@ jobs:
         # lệnh deploy self-host ở docs/env/05 + infra/helm/README.md dùng đúng hồ
         # sơ đó mà KHÔNG bật ingress. Bước này gác để lần sau không tái diễn.
         run: |
-          if helm template platform infra/helm/platform \
-               -f infra/helm/platform/values-selfhost.yaml \
-               --set web.env.betterAuthSecret=ci-only-not-a-real-secret \
-               --set web.env.betterAuthUrl=https://ci.example \
-               --set datastore.postgres.password=ci-only-not-a-real-password \
-               --set datastore.redis.password=ci-only-not-a-real-password \
-               --set web.env.rateLimitTrustProxy=1 >/dev/null 2>&1; then
+          base=(helm template platform infra/helm/platform
+            -f infra/helm/platform/values-selfhost.yaml
+            --set web.env.betterAuthSecret=ci-only-not-a-real-secret
+            --set web.env.betterAuthUrl=https://ci.example
+            --set datastore.postgres.password=ci-only-not-a-real-password
+            --set datastore.redis.password=ci-only-not-a-real-password)
+
+          # ⛔ ĐỐI CHỨNG DƯƠNG TRƯỚC. Không có nó thì "render thất bại" không phân
+          # biệt được với "chart hỏng vì lý do khác" — và bước này sẽ XANH VĨNH VIỄN
+          # trong khi chứng minh con số không. Dự án đã có hai bài học đúng dạng
+          # ("suite xanh có thể là suite skip sạch", "'0 lỗi' cần đối chứng âm").
+          "${base[@]}" >/dev/null 2>&1 \
+            || { echo "chart KHÔNG render được ngay cả khi trustProxy TẮT — phép kiểm dưới sẽ vô nghĩa"; exit 1; }
+
+          # Vế NGƯỢC: bật cờ mà không có proxy PHẢI chết, và phải chết ĐÚNG LÝ DO.
+          if err=$("${base[@]}" --set web.env.rateLimitTrustProxy=1 2>&1 >/dev/null); then
             echo "chart RENDER ĐƯỢC với trustProxy bật mà không có ingress — cổng đã mất tác dụng"
             exit 1
           fi
-          echo 'OK: tổ hợp trustProxy=1 + ingress.enabled=false bị chart từ chối.'
+          printf '%s' "$err" | grep -q 'rateLimitTrustProxy' \
+            || { echo "chart chết, nhưng KHÔNG phải vì cổng trustProxy — thông báo: $err"; exit 1; }
+          echo 'OK: trustProxy=1 + ingress.enabled=false bị từ chối, và đúng lý do.'
+
+          # Vế thứ hai của cổng: bật ingress nhưng để web là NodePort ⇒ vẫn còn cửa
+          # thứ hai không qua proxy. Đo được trên cụm: đầu độc bucket qua NodePort
+          # khoá được người dùng thật trên đường HTTPS hợp lệ.
+          if err=$("${base[@]}" --set web.env.rateLimitTrustProxy=1 \
+                     --set ingress.enabled=true --set ingress.className=traefik \
+                     --set ingress.host=ci.example \
+                     --set web.service.type=NodePort 2>&1 >/dev/null); then
+            echo "chart RENDER ĐƯỢC với trustProxy bật + web NodePort — cửa thứ hai vẫn mở"
+            exit 1
+          fi
+          printf '%s' "$err" | grep -q 'ClusterIP' \
+            || { echo "chết nhưng không phải vì cổng service.type — thông báo: $err"; exit 1; }
+          echo 'OK: trustProxy=1 + web.service.type=NodePort bị từ chối, và đúng lý do.'
 
       - name: 'helm template — nhánh existingSecret (đường đi của prod)'
         # Nhánh này KHÔNG được đòi betterAuthSecret và KHÔNG được sinh Secret WEB.

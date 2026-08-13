@@ -34,10 +34,28 @@ web:
   # sạch trần theo IP. Cờ này chỉ được bật ở nơi biên Traefik thật sự được dựng
   # (infra/host/08-tls-entrypoint.sh in ra lệnh kèm nó).
   service:
-    # NodePort để poke thủ công từ máy dev qua IP node — chưa có ingress controller
-    # (Traefik tới ở P3, xem phase-0.md). Đổi lại ClusterIP + `kubectl port-forward`
-    # nếu không cần truy cập trực tiếp.
-    type: NodePort
+    # ⛔ ClusterIP, KHÔNG PHẢI NodePort — đổi ở P3/3.A, và lý do cũ ĐÃ HẾT HIỆU LỰC.
+    #
+    # NodePort có ở đây để "poke thủ công khi chưa có ingress controller (Traefik
+    # tới ở P3)". Traefik đã tới, nên tiền đề đó không còn. Giữ NodePort sau khi
+    # bật `RATE_LIMIT_TRUST_PROXY=1` là mở một CỬA THỨ HAI vào web KHÔNG đi qua
+    # Traefik, tức không có ai ghi đè `x-forwarded-for` trên đường đó.
+    #
+    # Đo trên cụm 2026-08-14 — hai hậu quả, hậu quả thứ hai nặng hơn:
+    #   1. Né trần: xoay XFF mỗi request ⇒ mỗi request một bucket mới. Trần body ở
+    #      biên cũng mất, nên lỗ chunked mà AC-A2 vừa bịt lại mở ra trên đường này.
+    #   2. KHOÁ NGƯỜI KHÁC: bắn 130 request vào NodePort kèm
+    #      `X-Forwarded-For: 192.168.94.1` ⇒ máy Windows (đúng là IP đó) sau đó
+    #      nhận 429 trên đường HTTPS HỢP LỆ qua Traefik. `buckets` trong
+    #      rate-limit.ts là Map toàn cục của process, nên nó là CÙNG một map phục
+    #      vụ lưu lượng thật. Lặp lại vô hạn được.
+    #
+    # Vector (2) là do chính chặng 3.A tạo ra: trước đó `clientKey()` luôn trả null
+    # nên không bucket nào từng tồn tại để mà đầu độc.
+    #
+    # Cần vào thẳng web để chẩn đoán ⇒ `kubectl port-forward svc/platform-web 3000:3000`
+    # (đường của người có quyền cluster), đừng mở lại cổng cho cả LAN.
+    type: ClusterIP
   resources:
     requests:
       cpu: 50m
