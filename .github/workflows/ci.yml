@@ -1,11 +1,12 @@
 # CI xanh mới merge. Sáu cổng chạy SONG SONG, gom về một check duy nhất `ci-ok`:
 #
-#   proto ────────┐
-#   ts            │
-#   go            ├─► ci-ok ─► images (chỉ push main / tag v*)
-#   infra         │
-#   secret-scan   │
-#   sandbox-image ┘
+#   proto ───────────┐
+#   ts               │
+#   go               │
+#   infra            ├─► ci-ok ─► images (chỉ push main / tag v*)
+#   secret-scan      │
+#   sandbox-image    │
+#   terminal-browser ┘
 #
 # (`dependency-review` từng nằm ở đây, ĐÃ XOÁ — xem khối lý do ngay trên job
 #  `sandbox-image`. Sơ đồ này lệch suốt từ lúc đó tới 1.E-2; sửa cùng lúc với
@@ -754,12 +755,82 @@ jobs:
             || { echo '::error::output của trivy không có bảng tổng kết — không coi là đã quét.'; exit 1; }
 
   # ─────────────────────────────────────────────── cổng tổng hợp (required check)
+  # ────────────────────────────────────────────────── test trình duyệt (xterm)
+  terminal-browser:
+    name: Terminal (Chromium — WebGL fallback + StrictMode)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # ⛔ TUYỆT ĐỐI KHÔNG thêm `paths:` cho job này. `ci-ok` là required check, và
+    # một job bị skip-by-paths được GitHub báo `Expected — Waiting` VĨNH VIỄN ⇒
+    # deadlock merge (rules/ci-cd-trigger-design.md §3). Job chạy mọi PR; nó tốn
+    # ~1 phút nên không đáng đánh đổi lấy rủi ro đó.
+    #
+    # VÌ SAO JOB RIÊNG chứ không nhét vào `ts`: job `ts` chạy `turbo run test`,
+    # tức mọi package. Cài chromium ở đó là bắt MỌI lượt chạy TS trả giá tải
+    # trình duyệt, và khi đỏ thì không đọc ngay được là hỏng typecheck hay hỏng
+    # trình duyệt. `packages/terminal` vì thế tách `test` (project `node`) khỏi
+    # `test:browser` (hai project chromium) — xem package.json của nó.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: 'Bật cache pnpm (sau action-setup — cần pnpm trên PATH)'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      # Khoá cache theo ĐÚNG version playwright trong lockfile. Khoá theo
+      # `hashFiles('pnpm-lock.yaml')` thì mọi thay đổi dependency không liên quan
+      # cũng thổi bay cache trình duyệt (~130 MB tải lại); khoá theo một hằng số
+      # thì nâng playwright xong vẫn nạp browser cũ và `playwright install` phải
+      # tải lại trong im lặng mỗi lượt.
+      - name: 'Đọc version playwright (SSOT = lockfile đã cài)'
+        id: pw
+        run: |
+          v=$(pnpm --filter @devops-platform/terminal exec playwright --version | awk '{print $2}')
+          test -n "$v" || { echo "::error::không đọc được version playwright"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: 'Cache trình duyệt Playwright'
+        id: pw-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      # `--with-deps` chỉ cần khi cache trượt: nó cài thư viện hệ thống của
+      # chromium (apt), thứ KHÔNG nằm trong ~/.cache/ms-playwright nên cache hit
+      # vẫn phải chạy bước deps riêng bên dưới.
+      - name: 'Cài chromium (cache trượt)'
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @devops-platform/terminal exec playwright install --with-deps chromium
+
+      - name: 'Cài thư viện hệ thống chromium (cache trúng)'
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @devops-platform/terminal exec playwright install-deps chromium
+
+      # Hai project: `gpu-on` (mặc định, WebGL2 CÓ) và `gpu-off`
+      # (`--disable-3d-apis`, WebGL2 KHÔNG). Mỗi project tự assert tiền đề WebGL
+      # của nó trước mọi ca khác, nên một bản chromium đổi hành vi cờ làm job này
+      # ĐỎ thay vì lặng lẽ chạy sai cảnh.
+      - name: 'vitest browser mode (gpu-on + gpu-off)'
+        run: pnpm --filter @devops-platform/terminal test:browser
+
   ci-ok:
     name: ci-ok
     # `always()` để job vẫn chạy KHI CÓ need thất bại/bị skip — nếu không, nó bị
     # skip theo và branch protection thấy một check "chưa chạy", treo PR mãi mãi.
     if: always()
-    needs: [proto, ts, go, infra, secret-scan, sandbox-image]
+    needs: [proto, ts, go, infra, secret-scan, sandbox-image, terminal-browser]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

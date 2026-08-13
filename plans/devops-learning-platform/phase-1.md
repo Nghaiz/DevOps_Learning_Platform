@@ -585,13 +585,13 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 > *Kèm theo: image sandbox **không có `ping`** (`command -v ping` rỗng) — AC viết "ping" nhưng phép đo đúng phải là TCP, và TCP còn phân biệt được `refused` (tới nơi) với `timeout` (bị drop), thứ mà ICMP im lặng không cho biết.*
 
 **M7 — VAP regression:** pod thiếu `runtimeClassName` → admission từ chối. ✅ **ĐẠT 2026-08-12.** `kubectl apply` một pod hợp lệ mọi mặt trừ `runtimeClassName` → bị `ValidatingAdmissionPolicy 'platform-sandbox-isolation'` từ chối, **nguyên văn**: *"Pod trong namespace sandbox BẮT BUỘC set spec.runtimeClassName = "sysbox-runc" — thiếu field này nghĩa là pod sẽ chạy bằng runc thường, KHÔNG có cô lập Sysbox user-namespace."* Đây là admission từ chối (pod không bao giờ tồn tại), không phải lỗi runtime.
-**M8 — Hai ô FE:** tắt hardware acceleration → fallback DOM + `console.warn`; StrictMode dev mount/unmount 3 lần → còn **1** WebSocket.
+**M8 — Hai ô FE:** tắt hardware acceleration → fallback DOM + `console.warn`; StrictMode dev mount/unmount 3 lần → còn **1** WebSocket. ✅ **ĐẠT 2026-08-13** ở **1.G-5** — nhưng vế đầu chỉ đóng được **sau khi viết lại câu chữ**: tắt hardware acceleration KHÔNG xoá WebGL2 (Chrome rơi về SwiftShader), nên ô cũ không quan sát được nhánh fallback. Xem 1.G-5 Q1.
 > **M9 — Hai replica gateway sau LB** (AC hiện có): mở/đóng 20 WS **tuần tự** (trần là 1 WS/session), 0 lỗi. Ghi chung ở đây vì nó dùng đúng cảnh 2-replica mà W1 phải dựng để đo — chạy một lượt deploy cho cả hai. ✅ **ĐẠT 2026-08-13** ở 1.G-3 §N5: 20 lượt, 0 lỗi, phân bố **9/11** trên hai replica (tổng histogram khớp 20).
 
 ### 1.G-3 — Bốn ô còn lại của 1.G-2, gom vào MỘT lượt deploy ✅ XONG 2026-08-13
 
 > **Bằng chứng:** [`reports/2026-08-13-verify-1g3-cluster-proofs.md`](reports/2026-08-13-verify-1g3-cluster-proofs.md). **Năm phép đo, năm ĐẠT, không ô nào đỏ** — N2 idle-`4404` · N3 M3 SIGKILL · N4 M4 xoay `kid` thật · N5 M9 hai replica · N6 `stty size`. Cụm chạy `sha-0d54bbb` (đã đồng bộ từ `sha-d09db86`, lệch 5 commit).
-> **Còn nợ của 1.G-2 sau chặng này:** **M8** (hai ô FE — cần harness Playwright chưa tồn tại) và **M1** (quy 0.75s p95 attach về từng thành phần). Cả hai **không cần cụm**, nên không thuộc chặng này. *(M1 đã đóng ở **1.G-4**, 2026-08-13 — và hoá ra nó CÓ cần cụm: nguyên nhân là throttle CPU, chỉ đọc được từ `cpu.stat` trên host. Dòng "không cần cụm" ở trên là một phán đoán sai, giữ nguyên để thấy nó sai ở đâu.)*
+> **Còn nợ của 1.G-2 sau chặng này:** **M8** (hai ô FE — cần harness Playwright chưa tồn tại) và **M1** (quy 0.75s p95 attach về từng thành phần). Cả hai **không cần cụm**, nên không thuộc chặng này. *(**M8 đã đóng ở 1.G-5**, 2026-08-13 — và dòng "không cần cụm" đúng với nó: harness là vitest browser mode chạy Chromium cục bộ + một job CI, không chạm cụm lần nào.)* *(M1 đã đóng ở **1.G-4**, 2026-08-13 — và hoá ra nó CÓ cần cụm: nguyên nhân là throttle CPU, chỉ đọc được từ `cpu.stat` trên host. Dòng "không cần cụm" ở trên là một phán đoán sai, giữ nguyên để thấy nó sai ở đâu.)*
 > ⛔ **Ba bẫy deploy đã trả giá, ghi để lần sau không dẫm lại:** (1) có **BỐN** image chứ không phải ba — `dlp-migrator` là stage `--target migrator` của `apps/web/Dockerfile`, không có Dockerfile riêng, và là hook `pre-upgrade` nên thiếu nó thì **chặn cả lượt upgrade**; (2) `image.tag` kéo theo `SANDBOX_IMAGE` mặc định ⇒ đổi tag mà không có `dlp-sandbox-base` ở tag đó là cho **cả warm-pool** `ErrImageNeverPull`; (3) `~/dlp-deploy` **không phải checkout git** (không `.git`, host không cài `git`) nên không có sha để đối chiếu — đối chiếu bằng **tag image đang chạy**.
 
 > **Vì sao lại tách tiếp một chặng con.** Bốn ô còn trống (M3 · M4 · M9 · idle-`4404`) cộng thêm vế `stty size` của luật 5 đều đòi **cùng một cảnh cụm** mà cụm hiện tại không có: hai replica, và TTL nén. Dựng cảnh đó là phần đắt nhất; đo bốn ô trên bốn lượt deploy là trả giá đó bốn lần. M8 (hai ô FE) **không** nằm ở đây vì nó không cần cụm — nó cần một harness trình duyệt chưa tồn tại, tức một loại chi phí khác hẳn. M1 (quy 0.75s về từng thành phần) cũng không, vì nó là việc *điều tra*, không phải việc *đo một AC đã viết sẵn*.
@@ -713,6 +713,87 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 > **Một mẫu nguội và các mẫu ấm phải đọc riêng.** 1.G-2 đã ghi *"từ lượt 2 trở đi phiên tmux đã tồn tại"* — nên lượt đầu gánh cả `tmux new-session`, còn 49 lượt sau là chi phí **nối lại**. Trộn chung rồi lấy p95 là để một mẫu nguội quyết định kết luận cho 49 mẫu ấm.
 
 **P4 — Quyết theo bảng P1, cập nhật AC + `docs/ws-terminal-protocol.md` nếu ngưỡng đổi.** Nếu hàng trúng là hai hàng trên (vá được) thì vá + đo lại **trong chặng này**. Nếu là hai hàng dưới thì chặng này đóng bằng **số đo + ngưỡng viết lại có nguồn**, và mọi việc tối ưu thật (nếu có) là của P3 — nói rõ ra thay vì để nó trôi.
+
+### 1.G-5 — M8: hai ô FE, và một harness trình duyệt chưa từng tồn tại ✅ XONG 2026-08-13
+
+> **Bằng chứng:** [`reports/2026-08-13-verify-1g5-fe-browser-harness.md`](reports/2026-08-13-verify-1g5-fe-browser-harness.md) · artifact: [`harness/2026-08-13-1g5-fe-browser/`](reports/harness/2026-08-13-1g5-fe-browser/).
+>
+> **Kết quả một dòng: hai ô M8 ĐÓNG, và một trong hai chỉ đóng được sau khi viết lại câu chữ — vì tiền đề của nó sai.** Tắt hardware acceleration KHÔNG xoá WebGL2 (Chrome rơi về SwiftShader), nên ô AC cũ không bao giờ quan sát được nhánh fallback nó tồn tại để quan sát. Bảng năm cờ, cả headless lẫn headed, ở Q1 dưới.
+>
+> **Số đo:** `packages/terminal` **111 PASS / 0 FAIL** trên ba tầng (`node` 91 · `gpu-on` 10 · `gpu-off` 10, tăng từ 91/một tầng); `turbo run lint typecheck build test` **16/16**; **kiểm đột biến 6 phép, 6 bị bắt** ([`mutation-log.txt`](reports/harness/2026-08-13-1g5-fe-browser/mutation-log.txt)). Ô AC **65/67 → 69/69, KHÔNG còn ô trống nào trong cả phase**.
+>
+> ⚠ **Số ô đếm được KHÔNG khớp mẫu số "69" mà bản ghi 2026-08-12 dùng — và đó là một phát hiện kế toán, không phải lỗi làm tròn.** Đếm literal `- [ ]`/`- [x]` lúc mở chặng này: **67** ô (65 tick, 2 trống), không phải 69. Mẫu số 69 có từ 2026-08-12; từ đó 1.G-3 và 1.G-4 đã **gộp và viết lại** vài ô (rõ nhất là ô luật 5 nuốt các vế con, và ô `pids.max` đổi thành hai vế trong một ô), nên mẫu số cũ trôi mà không ai cập nhật. Chặng này đếm lại bằng `grep -cE '^\s*- \[[x ]\]'` thay vì chép con số cũ. **Bản nháp đầu của chính chặng này đã viết "67/69" do suy ra từ dòng 2026-08-12 chứ không đếm** — đúng cái bẫy mà D-21′ mô tả, bắt được lúc rà soát.
+>
+> **Harness tìm thêm một lỗi THẬT ngoài hai ô AC:** mọi lần mount terminal gửi một frame `resize` **thừa** mang đúng kích thước `init` vừa gửi — `lastNotified` seed bằng mặc định 80×24 của xterm chứ không bằng số đo thật. Mâu thuẫn thẳng với hợp đồng ghi trong chính file đó. Đã vá + thêm **một ô AC mới** (quyết định người dùng 2026-08-13) ⇒ tổng ô 69 → 70.
+>
+> ⛔ **Và bộ kiểm đột biến của chính chặng này có lỗi ở lượt đầu, cùng họ với thứ nó đi tìm:** một đột biến gây lệch dấu ngoặc làm vitest chết trước khi in báo cáo JSON, script đọc `failed = 0` rồi báo **"XANH — đột biến không bị bắt"**. Đúng họ "suite xanh vì mọi test đều skip" và Trivy `--exit-code 1` nuốt stderr: **không phân biệt "đã chạy và qua" với "chưa chạy được"**. Đã vá harness (bắt buộc `parsed` **và** `total === baseline`). *Bẫy kèm: file nguồn là **CRLF**, nên anchor đột biến nhiều dòng viết bằng `\n` không khớp và báo "KHÔNG TÌM THẤY chuỗi gốc" — trông giống "đột biến không áp dụng được" chứ không giống "regex sai".*
+>
+> **Còn nợ sau chặng này (nói thẳng, không để trôi):** nhánh **Safari < 16** của bản vá Q5 **chưa có gì gác** — harness là Chromium, mà Chrome đi nhánh ném khác; và **thứ tự `open()` trước `loadAddon()`** (xem Q0 mục 3) cũng chưa có test. Cả hai ghi ở §6 của report.
+
+> **Chặng CUỐI của P1.** Sau 1.G-4, acceptance ở **65/67 ô** (đếm literal, xem cảnh báo mẫu số ở trên) và hai ô còn trống đều thuộc M8 — nợ duy nhất mà cả 1.G-2, 1.G-3, 1.G-4 đều ghi "vẫn nợ" rồi đi tiếp, vì cả ba chặng đó đo bằng cụm còn ô này đo bằng **trình duyệt**, một loại chi phí khác hẳn.
+>
+> **Vì sao nó đắt hơn vẻ ngoài của nó.** Hai ô AC trông như hai assertion nhỏ, nhưng `packages/terminal` **chưa từng có một test nào chạy trong trình duyệt thật**: 91 test hiện có chạy trên `environment: 'node'` (ba khối thuần) và jsdom. Cả hai ô M8 đều đòi thứ jsdom không có — một ô cần WebGL2 thật, ô kia cần xterm dựng được DOM thật. Nên chi phí thật của chặng này là **dựng tầng test thứ ba**, còn hai assertion là phần rẻ.
+>
+> **Hệ quả tiện thể, và nó lớn hơn hai ô AC:** [`terminal-core.ts`](../../packages/terminal/src/terminal-core.ts) — 214 dòng giữ **cả** nhánh fallback WebGL **lẫn** debounce resize 50ms — hiện **không có một test nào chạm tới**. Bốn file test hiện có phủ `backoff` · `connection` · `protocol` · `session-machine`. Harness của chặng này là thứ đầu tiên làm cho file đó test được.
+
+**Q0 — Ba phát hiện kế toán, ghi TRƯỚC khi làm để không ai phải điều tra lại.**
+
+1. **`vitest.config.ts` mô tả một file KHÔNG TỒN TẠI.** Docblock của [`packages/terminal/vitest.config.ts`](../../packages/terminal/vitest.config.ts) viết *"File nào thật sự cần DOM tự khai bằng docblock `@vitest-environment jsdom` ở đầu file (`react-binding.test.tsx`)"*. Không có `react-binding.test.tsx` trong repo, và chưa từng có. Đây là ảnh gương của D-21′: ở đó **một nợ đã trả mà không ai đóng sổ** trông giống nợ chưa trả; ở đây **một lời hứa chưa ai giữ** trông giống việc đã làm — và nó đã che đúng ô AC StrictMode suốt từ 1.F.
+2. **`connection.test.ts:194` trông y hệt ô AC StrictMode nhưng đo tầng KHÁC.** Ca `'mở rồi đóng 3 lần liên tiếp ⇒ 0 socket còn sống (AC StrictMode)'` chạy trên `openConnection` với một `WebSocket` giả, **không dựng React**. Nó gác `connection.ts`; ô AC hỏi về `TerminalSurface.tsx` — nơi `useEffect`, deps, và thứ tự cleanup sống. Một lỗi deps làm effect mở hai socket sẽ **không** chạm ca này. Tên ca có chữ "AC StrictMode" là lý do nó đọc như đã đóng.
+3. **Nhánh `activate()` thoát sớm nằm NGOÀI try/catch.** `WebglAddon.activate()` có đường `if (!terminal.element) { onWillOpen(() => this.activate(t)); return }` — tức lần activate thật xảy ra **sau**, bất đồng bộ, ngoài khối `try` ở [`terminal-core.ts:93`](../../packages/terminal/src/terminal-core.ts#L93). Hôm nay an toàn **chỉ vì** `terminal.open()` gọi ở dòng 88 **trước** `loadAddon` ở dòng 94. Đảo hai dòng đó là biến một fallback có kiểm soát thành một unhandled error, và không test nào hiện nay nói được điều đó.
+
+**Q1 — Ô AC "tắt hardware acceleration" SAI TIỀN ĐỀ. Đo trước, viết lại sau.**
+
+> ⛔ **Tắt hardware acceleration KHÔNG xoá WebGL2 — Chrome rơi về SwiftShader và addon nạp bình thường.** Đo 2026-08-13 bằng Chrome 151 đã cài (`channel: 'chrome'`), năm cảnh, cả `headless` lẫn headed:
+>
+> | Cờ launch | WebGL2 | renderer |
+> |---|---|---|
+> | *(mặc định — đối chứng dương)* | **PRESENT** | ANGLE (NVIDIA RTX 4060, D3D11) |
+> | `--disable-gpu` ← **đúng nghĩa "tắt hardware acceleration"** | **PRESENT** | ANGLE (Google, **SwiftShader**) |
+> | `--disable-gpu --disable-software-rasterizer` | **ABSENT** | — |
+> | `--disable-3d-apis` | **ABSENT** | — |
+> | `--use-gl=disabled` | **ABSENT** | — |
+>
+> **Đọc bảng này cho đúng:** ở cảnh mà ô AC gọi tên, `new WebglAddon()` + `loadAddon` **thành công**, `console.warn` **không** chạy, và renderer **vẫn là WebGL** — chỉ chạy trên CPU. Nên ô AC như đã viết không bao giờ quan sát được thứ nó tồn tại để quan sát. Cùng họ với `--icons=auto` (một phép kiểm không thể đỏ) và `pids.max` đọc từ trong pod (đo sai điểm thực thi): **tên của cảnh không phải là cảnh**.
+>
+> **Vì sao ở đây được phép đo trước rồi mới viết lại AC, trong khi 1.G-4 P1 bắt chốt ngưỡng TRƯỚC.** Luật đó tồn tại để một con số của **hệ thống ta** không tự biện minh cho ngưỡng của chính nó. Bảng trên không phải số đo hệ thống ta — nó là **một sự thật về Chrome**, đúng như nhau dù `terminal-core.ts` viết thế nào. Không có gì để tự biện minh.
+>
+> **AC viết lại (hai vế, mỗi vế là đối chứng của vế kia):**
+> - **(a) `gpu-off`** — Chromium chạy với `--disable-3d-apis`: `createTerminalCore` **không ném**, `console.warn` mang đúng thông điệp fallback, terminal **vẫn ghi và vẫn hiện chữ** qua DOM renderer.
+> - **(b) `gpu-on`** — cùng test file, launch mặc định: WebGL2 **có**, addon nạp, và **KHÔNG** có `console.warn` fallback nào.
+>
+> ⛔ **Mỗi project phải tự khẳng định tiền đề của nó.** `gpu-off` assert `webgl2 === ABSENT` **trước** mọi assertion khác; `gpu-on` assert `PRESENT`. Không có vế này thì ngày một bản Chrome đổi hành vi cờ, `gpu-off` lặng lẽ chạy **có** WebGL và test vẫn xanh vì nó chưa bao giờ kiểm rằng cảnh đã dựng đúng — đúng họ "suite xanh vì mọi test đều skip".
+>
+> *Ghi kèm: `headless` và headed cho **cùng** kết quả ở cả năm cảnh, nên chạy headless trong CI là hợp lệ. Vế này phải đo chứ không được giả định — GPU trong headless là một chỗ khác biệt kinh điển.*
+
+**Q2 — Harness: vitest browser mode, ba project trong một config.** Giữ `node` (91 test hiện có, không đụng) và thêm hai project trình duyệt dùng chung một file test, khác nhau đúng ở `launch.args`.
+
+> **Chọn vitest browser mode chứ không `@playwright/test` riêng:** `packages/terminal` đã chạy vitest, đã có `vitest.config.ts`, và hai ô AC là **component test** chứ không phải hành trình người dùng. Dựng runner thứ hai là hai bộ config, hai cách chạy, hai chỗ để lệch.
+>
+> ⛔ **Playwright MCP đang cài trên máy KHÔNG thay được harness này, và lý do phải ghi ra.** `@playwright/mcp` 0.0.78 chạy ở chế độ `--extension` — nó **gắn vào Chrome đang chạy**, nên (a) không đặt được `launch.args`, tức không dựng được cảnh `gpu-off`, và (b) nó là dụng cụ tương tác, **không chạy trong `pnpm test` hay CI**. Nó đã dùng để dò bảng Q1 và vẫn là dụng cụ tốt cho việc nhìn tận mắt; nó không phải cổng gác.
+> ⛔ **`playwright-core` đi kèm MCP ghim chromium build 1232 trong khi máy có 1208/1228** ⇒ `chromium.launch()` mặc định chết ở `Executable doesn't exist`. Bảng Q1 đo được là nhờ `channel: 'chrome'` (Chrome 151 đã cài). Ai chạy lại phép dò đó phải biết điều này, nếu không sẽ đọc "launch failed" thành "cờ không hoạt động".
+
+**Q3 — Ô AC StrictMode: kế toán CHÍNH XÁC, không chỉ "còn 1".**
+
+> React 19 ở dev chạy effect **mount → cleanup → mount** cho mỗi lần mount. Nên một chu kỳ mount/unmount đúng phải sinh **2** WebSocket và đóng **1**. Ba chu kỳ kết thúc ở trạng thái đã mount ⇒ **dựng 6 · đóng 5 · sống 1**.
+>
+> **Assert cả ba con số, không chỉ con số cuối.** Chỉ assert "sống 1" thì một hiện thực **không hề double-invoke** (StrictMode không bật, hoặc React chạy bản production) cũng cho "sống 1" — và khi đó test khẳng định đúng cái nó không kiểm. Con số `dựng = 6` là vế duy nhất chứng minh cảnh StrictMode **thật sự đã dựng**.
+> **Đếm ở `globalThis.WebSocket`**, không tiêm qua `socketFactory`: `TerminalSurface` gọi `openConnection` **không** truyền `socketFactory` (xem [`terminal-surface.tsx:106`](../../packages/terminal/src/terminal-surface.tsx#L106)), nên đường production đọc đúng biến toàn cục. Tiêm factory là đo một đường mà component không đi.
+
+**Q4 — Vế (a) của luật 5: debounce 50ms, đo ở tầng FE.** M5 đã đề xuất tách luật 5 thành hai vế và giao vế (a) *"FE debounce đúng 50ms"* cho tầng FE, nhưng ô AC đã tick 5/5 trong khi vế (a) **chưa có gì gác** — `RESIZE_DEBOUNCE_MS = 50` ở [`terminal-core.ts:37`](../../packages/terminal/src/terminal-core.ts#L37) không test nào chạm. Harness Q2 làm nó rẻ đi: bắn N lần đổi kích thước container trong một cửa sổ < 50ms ⇒ `onResize` chạy **đúng một lần**, và chỉ sau ~50ms.
+
+> **Kèm ca đối chứng bắt buộc:** hai lần đổi kích thước cách nhau **> 50ms** ⇒ `onResize` chạy **hai** lần. Không có ca này thì một hiện thực "chỉ gọi onResize đúng một lần mãi mãi" cũng qua được vế trên.
+> **Và ca `cols/rows không đổi ⇒ không phát`** ([`terminal-core.ts:143`](../../packages/terminal/src/terminal-core.ts#L143)): đổi chiều cao vài pixel dưới một hàng ⇒ `onResize` **không** chạy. Đây là nhánh trực tiếp bảo vệ trần control 100/s của G8.
+
+**Q5 — Vá `new WebglAddon()` vào trong `try`.** Constructor nằm ngoài khối try ở [`terminal-core.ts:92`](../../packages/terminal/src/terminal-core.ts#L92).
+
+> **Đây là lỗi thật, không phải phòng thủ suông** — đã đọc dist của `@xterm/addon-webgl@0.19.0`: constructor có đúng một nhánh ném, `isSafari && safariVersion < 16` → `throw new Error("Webgl2 is only supported on Safari 16 and above")`. Nhánh đó **không** được `try` bọc, nên trên Safari 15 `createTerminalCore` ném ⇒ **cả terminal không dựng được**, chứ không phải "rơi về DOM renderer". Chrome không bao giờ đi vào nhánh này (nó ném ở `activate()` với `"WebGL2 not supported"`, và nhánh đó **đã** được bọc) — nên đây là một cảnh harness Q2 không dựng được, và phải nói thẳng thay vì để ô AC ngụ ý đã phủ.
+
+**Q6 — Cổng CI `terminal-browser` vào `needs` của `ci-ok`.**
+
+> Không có cổng PR-time thì `terminal-core.ts` quay lại đúng trạng thái hôm nay — và §"Còn để ngỏ" đã ghi bài học này thành chữ ở ca `images/sandbox-base/Dockerfile`: **"job chỉ chạy trên main nghĩa là file đó không có review gate"**.
+> ⛔ **KHÔNG đặt `paths:` lên job này** ([`rules/ci-cd-trigger-design.md`](../../.claude/rules/ci-cd-trigger-design.md) §3): `ci-ok` là required check, và một job bị skip-by-paths được GitHub báo `Expected — Waiting` vĩnh viễn ⇒ deadlock merge. Lọc bằng `if:` ở tầng step nếu cần, không bằng `paths:`.
+> `timeout-minutes` bắt buộc; cache browser theo version để lượt sau không tải lại.
 
 ---
 
@@ -871,8 +952,17 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 - [x] Dotfiles: file trong allowlist được copy; **symlink và `../` bị từ chối**, không ghi được ngoài `$HOME`. → ✅ ở **tầng image** (1.E-2): fixture 5 file → chép 2, từ chối 3 (`evil.sh`, `.ssh/authorized_keys` ngoài allowlist; `.gitconfig` là **symlink trỏ `/etc/passwd`** — tên nằm TRONG allowlist nên nó là ca duy nhất chứng minh phép kiểm không chỉ đọc tên). Guard `../` gọi thẳng qua `--lib-only`; hai cap (50 file / 256 KiB) bỏ TOÀN BỘ bundle chứ không chép nửa vời.
   > ⚠ **Đọc AC này đúng độ mạnh của nó:** `/mnt/dotfiles` **chưa có ai mount**. `podspec.go` đặt `Volumes: nil`, CEL #8 cấm `hostPath`, và P1 chưa có tính năng nào cấp nội dung dotfiles — nên nhánh này chưa từng chạy qua đường người dùng thật. Quyết định có chủ ý ở 1.E-2 (không mở rộng sang file của lane 1.B để dựng một đường ống rỗng). Vế mount thuộc phase có tính năng dotfiles thật.
 - [x] Mở `/session`: DevTools Console **0 CSP violation**; gõ tiếng Việt / ký tự đa-byte không vỡ khi output cắt qua nhiều frame. → Đo trên cluster 2026-08-11 qua Chrome thật: 0 violation, **kèm đối chứng âm** chứng minh CSP đang thực thi (`wss://evil.example` → violation `connect-src`; ảnh cross-origin → violation `img-src`) — không có đối chứng thì "0 violation" đúng một cách vô nghĩa. `echo "phiên lab tiếng Việt ✓ $(hostname)"` trả về nguyên vẹn cả dấu lẫn ✓ (U+2713). ⇒ **`connect-src 'self'` CÓ phủ `ws://` cùng origin, `headers.ts` không cần sửa.**
-- [ ] Tắt hardware acceleration → terminal vẫn chạy (fallback DOM renderer) + có `console.warn`.
-- [ ] StrictMode dev: mount/unmount 3 lần → chỉ còn **1** WebSocket sống.
+- [x] **WebGL2 bị từ chối → terminal vẫn chạy bằng DOM renderer + có `console.warn`.** ✅ **ĐẠT 2026-08-13** ở 1.G-5 ([report](reports/2026-08-13-verify-1g5-fe-browser-harness.md) §1), đo trong Chromium thật, hai project vitest là đối chứng của nhau: `gpu-off` (`--disable-3d-apis`) → `createTerminalCore` **không ném**, có `console.warn` fallback, **không** canvas WebGL trong DOM, `.xterm-rows` tồn tại và terminal vẫn ghi được; `gpu-on` (mặc định) → WebGL2 có, canvas có, **không** warn nào.
+  > ⛔ **Câu chữ cũ — "Tắt hardware acceleration" — SAI TIỀN ĐỀ, và ô này không bao giờ xanh được như đã viết.** Đo trên Chrome 151, cả headless lẫn headed: `--disable-gpu` (đúng nghĩa "tắt hardware acceleration") **vẫn cho WebGL2** qua **SwiftShader** ⇒ addon nạp bình thường, không `console.warn`, nhánh fallback KHÔNG chạy. Chỉ ba cờ xoá được WebGL2: `--disable-3d-apis`, `--use-gl=disabled`, `--disable-gpu --disable-software-rasterizer`. Bảng đầy đủ: [`webgl-flag-probe.txt`](reports/harness/2026-08-13-1g5-fe-browser/webgl-flag-probe.txt).
+  > **Đây là lần thứ BA trong P1 một ô AC đọc sai điểm thực thi**, sau `--icons=auto` (phép kiểm không thể đỏ) và `pids.max` đọc từ trong pod (Sysbox biên tập điểm quan sát). Mẫu chung: **tên của cảnh không phải là cảnh.** Giá cụ thể nếu không phát hiện: người tiếp theo chạy `--disable-gpu`, không thấy warn, rồi đi "sửa" một nhánh fallback vốn đã đúng.
+  > *Vì sao được đo trước rồi mới viết lại AC (trong khi 1.G-4 P1 bắt chốt ngưỡng TRƯỚC):* luật đó chặn một con số của **hệ thống ta** tự biện minh cho ngưỡng của chính nó. Bảng cờ là **sự thật về Chrome**, đúng như nhau dù `terminal-core.ts` viết thế nào.
+- [x] **StrictMode dev: mount/unmount 3 lần → dựng 6 · đóng 5 · còn sống ĐÚNG 1.** ✅ **ĐẠT 2026-08-13** ở 1.G-5 ([report](reports/2026-08-13-verify-1g5-fe-browser-harness.md) §3) — `terminal-surface.browser.test.tsx`, React 19 dev trong Chromium thật, đếm ở `globalThis.WebSocket` (đường production; `TerminalSurface` không truyền `socketFactory`). Kiểm thêm `alive === 1` sau **MỖI** lần mount, và `alive === 0` sau unmount cuối.
+  > ⛔ **Ba con số, không phải một.** Chỉ assert "còn sống 1" thì một cảnh **không hề double-invoke** (StrictMode không bật, hoặc React chạy bản production) cũng cho "còn 1" — test khi đó khẳng định đúng cái nó không kiểm. `dựng = 6` là vế **duy nhất** chứng minh cảnh StrictMode thật sự đã dựng.
+  > ⛔ **`connection.test.ts:194` KHÔNG phủ ô này dù tên ca có chữ "AC StrictMode".** Ca đó chạy `openConnection` với socket giả, **không dựng React** — nó gác `connection.ts`, còn ô này hỏi về deps/cleanup của `terminal-surface.tsx`. Kiểm đột biến M4 đo đúng khoảng cách: bỏ `connection.close()` trong cleanup ⇒ 4 ca mới ĐỎ, ca cũ **vẫn xanh**. Một cái tên đọc như đã đóng là lý do ô này trống suốt từ 1.F.
+- [x] **Mount rồi không đổi gì → 0 frame `resize`** (ô MỚI, thêm 2026-08-13 ở 1.G-5 theo quyết định người dùng). ✅ **ĐẠT** ([report](reports/2026-08-13-verify-1g5-fe-browser-harness.md) §4) — và ô này tồn tại vì nó **ĐỎ ở lượt chạy đầu tiên**: `lastNotified` seed bằng mặc định **80×24** của xterm, nên lượt bắn bắt buộc của `ResizeObserver` lúc `observe()` đo được 78×16, thấy khác, và phát một `resize` thừa ở **MỌI** lần mount — mang đúng kích thước mà `init` vừa gửi (contract §3 bước 4). Mâu thuẫn thẳng với hợp đồng ghi trong chính file đó (docblock `onResize`: *"KHÔNG gọi cho lần đo đầu tiên"*). Đã vá: lượt đo đầu chỉ GHI, không phát.
+  > **Đường vá bị loại:** seed `lastNotified = measure()` lúc dựng cũng đóng được lỗi nhưng ép `fit()` chạy **trước khi font tải xong** — đúng thứ F4 cấm. **Ranh giới còn đúng sau vá:** container 0×0 lúc mount rồi mới có kích thước ⇒ **vẫn phát**. Bản vá bỏ frame thừa, không bỏ frame thật.
+- [x] **Debounce resize 50ms (contract §4 — vế (a) của luật 5, M5 giao cho tầng FE).** ✅ **ĐẠT 2026-08-13** ở 1.G-5: 5 lần đổi kích thước cách nhau 15ms (tổng < một cửa sổ debounce sau mỗi lần reset) ⇒ `onResize` chạy **đúng 1** lần, **kèm khẳng định `ResizeObserver` đã bắn ≥ 3 lần** — không có con số đó thì "5 lần đổi ⇒ 1 lần gọi" là tautology, vì trình duyệt có thể gộp cả 5 vào MỘT lần bắn RO và phép đo hoá ra kiểm chính RO chứ không kiểm debounce. **Đối chứng:** hai lần đổi cách nhau > 50ms ⇒ **2** lần gọi (thiếu ca này thì một hiện thực "chỉ gọi đúng một lần mãi mãi" vẫn qua). **Và:** đổi chiều cao 2px (dưới một hàng) ⇒ `rows` không đổi ⇒ **0** lần gọi.
+  > *Trước chặng này `RESIZE_DEBOUNCE_MS = 50` **không test nào chạm** — ô luật 5 đã tick 5/5 trong khi vế (a) chưa có gì gác.*
 - [x] `trivy image --severity CRITICAL --exit-code 1` pass **cục bộ trước khi merge**. → ✅ 2026-08-12 với image `INCLUDE_DOCKER=1` (809 MB): **0 CRITICAL** trên cả tầng gói Ubuntu lẫn 5 binary Go ⇒ **không cần `.trivyignore`**. HIGH: 14 (`oh-my-posh`, như 1.E-1) + 3 (`docker-buildx`).
   > ⛔ **`--exit-code 1` trả 0 KHÔNG có nghĩa "0 CRITICAL".** Trivy FATAL khi không tải được DB lỗ hổng; nuốt stderr (`>/dev/null 2>&1`) là lượt đó trả **0** trong khi chưa quét được gì. Dính đúng ca này khi làm 1.E-2 — lượt đầu FATAL vì DB timeout, lượt sau bị nuốt output và báo "exit=0". Phải đọc bảng **Report Summary** trước khi tin mã trả về.
 

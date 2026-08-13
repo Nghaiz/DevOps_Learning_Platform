@@ -54,3 +54,9 @@ services/orchestrator/mtls-probe.exe
 
 # Log của scripts/go-test-summary.sh — sinh lại được, không commit.
 .go-test-logs/
+
+# Ảnh chụp lúc test trình duyệt ĐỎ (vitest browser mode). Vitest sinh chúng để
+# xem tận mắt trạng thái DOM lúc assertion trượt — sinh lại được ở mỗi lượt chạy,
+# và một lượt đỏ có thể đẻ ra hàng chục PNG.
+packages/terminal/.vitest-attachments/
+packages/terminal/src/__screenshots__/

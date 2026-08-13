@@ -89,8 +89,20 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
 
   // F2 — v6 đã bỏ canvas renderer, chỉ còn DOM + WebGL. Nên fallback phải TỰ
   // code: mất context ⇒ dispose addon ⇒ xterm tự quay về DOM renderer.
-  let webgl: WebglAddon | null = new WebglAddon();
+  let webgl: WebglAddon | null = null;
   try {
+    // ⛔ `new WebglAddon()` phải nằm TRONG try. Constructor của
+    // `@xterm/addon-webgl@0.19.0` có đúng một nhánh ném — `isSafari &&
+    // safariVersion < 16` → `throw new Error("Webgl2 is only supported on Safari
+    // 16 and above")` (đọc từ dist, không suy đoán). Để nó ngoài try thì trên
+    // Safari 15 `createTerminalCore` NÉM và cả terminal không dựng được, chứ
+    // không phải "rơi về DOM renderer" như ý định của khối này.
+    //
+    // Chrome đi nhánh khác: nó ném `"WebGL2 not supported"` bên trong
+    // `activate()`, tức bên trong `loadAddon` ngay dưới — nhánh đó try này vốn
+    // đã bọc. Nên đây là một cảnh harness Chromium KHÔNG dựng được, và ta nói
+    // thẳng thay vì để ô AC ngụ ý đã phủ.
+    webgl = new WebglAddon();
     terminal.loadAddon(webgl);
     webgl.onContextLoss(() => {
       // errors-over-silent-fallback: rơi về DOM là hành vi ĐÚNG, nhưng người
@@ -140,6 +152,22 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
     debounceTimer = setTimeout(() => {
       debounceTimer = null;
       const size = measure();
+      if (lastNotified === null) {
+        // ⛔ Lượt đo ĐẦU TIÊN chỉ GHI, KHÔNG phát — đúng hợp đồng đã ghi ở
+        // docblock của `onResize` ("KHÔNG gọi cho lần đo đầu tiên").
+        //
+        // `ResizeObserver` LUÔN bắn một lượt ngay khi `observe()`, nên nếu seed
+        // `lastNotified` bằng `lastSize` (= mặc định 80×24 của xterm lúc dựng,
+        // TRƯỚC mọi phép đo thật) thì lượt bắn đó thấy 78×16 ≠ 80×24 và phát một
+        // `resize` thừa ở MỌI lần mount — mang đúng kích thước mà `init` vừa gửi
+        // xong (contract §3 bước 4). Đo được 2026-08-13 ở 1.G-5: mount rồi không
+        // đổi gì vẫn ra đúng một lượt `onResize({cols:78,rows:16})`.
+        //
+        // Seed bằng `measure()` lúc dựng thì hỏng chỗ khác: nó ép `fit()` chạy
+        // TRƯỚC khi font tải xong, đúng thứ F4 cấm.
+        lastNotified = size;
+        return;
+      }
       if (size.cols === lastNotified.cols && size.rows === lastNotified.rows) {
         // Không phát `resize` khi số không đổi: `ResizeObserver` bắn cả khi chỉ
         // đổi chiều cao vài pixel dưới một hàng, và mỗi frame control thừa là
@@ -151,7 +179,8 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
     }, RESIZE_DEBOUNCE_MS);
   });
 
-  let lastNotified: TerminalDimensions = lastSize;
+  /** `null` = chưa có lượt đo nào. Xem khối lý do trong callback trên. */
+  let lastNotified: TerminalDimensions | null = null;
   resizeObserver.observe(options.container);
 
   return {
