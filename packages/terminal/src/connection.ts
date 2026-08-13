@@ -40,6 +40,9 @@ export interface Connection {
 
 const encoder = new TextEncoder();
 
+/** Trần cho lượt HANDSHAKE — lý do đầy đủ ở `handshakeTimer` trong `openConnection`. */
+export const HANDSHAKE_TIMEOUT_MS = 10_000;
+
 export function openConnection(options: ConnectionOptions): Connection {
   const factory =
     options.socketFactory ??
@@ -52,8 +55,44 @@ export function openConnection(options: ConnectionOptions): Connection {
   socket.binaryType = 'arraybuffer';
 
   let closed = false;
+  let opened = false;
+
+  /**
+   * Trần thời gian cho HANDSHAKE — không phải cho phiên.
+   *
+   * Vì sao cần: một handshake WS có thể không thành công MÀ CŨNG KHÔNG thất bại.
+   * Đo được trên cụm 2026-08-13: khi `/ws` không có luật định tuyến và request
+   * upgrade rơi xuống Next, server không trả gì cả — `curl` treo trọn 20s với
+   * `http_code=000`, và trình duyệt ở nguyên trạng thái CONNECTING, KHÔNG phát
+   * `error`, KHÔNG phát `close`. Máy trạng thái vì thế không nhận được sự kiện
+   * nào để mà xử lý: badge đứng ở "Đang kết nối…" vĩnh viễn, không lỗi UI,
+   * không một dòng console. Mọi phanh phía sau (backoff, hỏi lý do thật ở
+   * contract §7) đều vô dụng vì chúng đều bắt đầu từ một `close`.
+   *
+   * Đây KHÔNG phải ca giả định của phòng lab: bất kỳ proxy/LB nào nuốt mất
+   * upgrade — sai luật ingress, middleware chặn, gateway treo — đều cho đúng
+   * hình dạng này ở production.
+   *
+   * 10s: handshake là một lượt HTTP upgrade, không phải provisioning (pod đã
+   * `ready` trước khi FE nối). Chờ lâu hơn chỉ kéo dài đoạn người dùng ngồi nhìn
+   * màn hình không nói gì.
+   */
+  const handshakeTimer = setTimeout(() => {
+    if (opened || closed) {
+      return;
+    }
+    closed = true;
+    // Báo CLOSE_ABNORMAL chứ không phải một mã riêng: đó ĐÚNG là thứ đã xảy ra
+    // dưới góc nhìn của client (không có close code từ server), và nó chảy vào
+    // đúng nhánh mà `session-machine` đã có sẵn cho ca "1006 khi chưa từng
+    // ready" — retry có backoff + đi hỏi lý do thật.
+    options.onClose(CLOSE_ABNORMAL);
+    socket.close();
+  }, HANDSHAKE_TIMEOUT_MS);
 
   socket.addEventListener('open', () => {
+    opened = true;
+    clearTimeout(handshakeTimer);
     // Contract §3 bước 4 — `init` là frame ĐẦU TIÊN, trước mọi stdin. Server chờ
     // nó (3s) trước khi dial exec, nên gửi muộn là prompt vẽ ở 80×24 rồi nhảy.
     socket.send(
@@ -93,6 +132,7 @@ export function openConnection(options: ConnectionOptions): Connection {
   });
 
   socket.addEventListener('close', (event: CloseEvent) => {
+    clearTimeout(handshakeTimer);
     if (closed) {
       return;
     }
@@ -130,6 +170,7 @@ export function openConnection(options: ConnectionOptions): Connection {
     },
 
     close(): void {
+      clearTimeout(handshakeTimer);
       if (closed) {
         return;
       }
