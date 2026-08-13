@@ -47,3 +47,24 @@ export function describeTrpcError(error: unknown): string {
   }
   return 'Không gọi được máy chủ. Kiểm tra kết nối rồi thử lại.';
 }
+
+/**
+ * Mã lỗi tRPC (`NOT_FOUND`, `FORBIDDEN`, …) của một lỗi phía client, hoặc `null`
+ * khi lỗi không đến từ server (mạng đứt, JSON hỏng).
+ *
+ * Cần tách khỏi `describeTrpcError` vì hai câu hỏi khác nhau: câu kia hỏi "hiện
+ * gì cho người dùng", câu này hỏi "có nên bỏ cuộc không" — xem `session-reason.ts`.
+ * `error.data` là `unknown` ở kiểu của @trpc/client nên phải đi qua guard chứ
+ * không ép kiểu.
+ */
+export function trpcErrorCode(error: unknown): string | null {
+  if (!(error instanceof TRPCClientError)) {
+    return null;
+  }
+  const data: unknown = error.data;
+  if (typeof data !== 'object' || data === null || !('code' in data)) {
+    return null;
+  }
+  const code: unknown = (data as { code: unknown }).code;
+  return typeof code === 'string' ? code : null;
+}

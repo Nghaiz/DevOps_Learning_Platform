@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   DEFAULT_THEME,
@@ -15,6 +15,7 @@ import {
 import { SandboxTier } from '@devops-platform/shared-types';
 import { Button } from '@devops-platform/ui';
 import { trpc, describeTrpcError } from '../../../lib/trpc';
+import { useSessionReasonLookup } from '../../../lib/use-session-reason-lookup';
 
 /**
  * ⛔ `ssr: false` phải nằm trong một CLIENT component — Next 16 NÉM khi thấy nó
@@ -146,36 +147,16 @@ export function SessionClient({ userId }: { userId: string }): React.ReactElemen
   }, [state.retryDelayMs, state.attempt]);
 
   // ── Contract §7 — hỏi lý do thật khi thấy 1006 mà chưa từng `ready` ──────────
-  const lookupInFlight = useRef(false);
-  useEffect(() => {
-    const sessionId = state.sessionId;
-    if (!state.needsReasonLookup || sessionId === null || lookupInFlight.current) {
-      return;
-    }
-    lookupInFlight.current = true;
-    void (async () => {
-      try {
-        const result = await trpc.session.get.query({ sessionId, userId });
-        const status = result.session?.status;
-        // 5=EXPIRED, 6=REAPED, 7=FAILED — ba trạng thái không nối lại được nữa.
-        const gone = status === undefined || status >= 5;
-        dispatch({
-          type: 'REASON_RESOLVED',
-          message: gone
-            ? 'Phiên đã kết thúc ở máy chủ (hết hạn hoặc đã bị thu hồi).'
-            : 'Chưa mở được kết nối tới phiên — đang thử lại.',
-          gone,
-        });
-      } catch (error) {
-        // Lỗi ở chính lượt hỏi lý do KHÔNG được kết luận là phiên chết: gọi
-        // `session.get` hỏng có thể chỉ là mạng chập. Báo nguyên văn rồi để vòng
-        // backoff chạy tiếp.
-        dispatch({ type: 'REASON_RESOLVED', message: describeTrpcError(error), gone: false });
-      } finally {
-        lookupInFlight.current = false;
-      }
-    })();
-  }, [state.needsReasonLookup, state.sessionId, userId]);
+  //
+  // Phần quyết định nằm ở `useSessionReasonLookup` + `session-reason.ts`, dùng
+  // chung với trang bài học. Ở đây chỉ còn cách LẤY trạng thái, vì hai trang gọi
+  // hai procedure khác nhau (xem `SessionStatusFetcher`).
+  const fetchStatus = useCallback(
+    async (sessionId: string) => (await trpc.session.get.query({ sessionId, userId })).session
+        ?.status ?? null,
+    [userId],
+  );
+  useSessionReasonLookup(state, dispatch, fetchStatus);
 
   const onExtend = useCallback(async () => {
     const sessionId = state.sessionId;
