@@ -73,7 +73,10 @@ Trụ cột ① — trải nghiệm học kiểu KillerCoda: bài markdown từn
     `completedAt`. `status` suy ra, không lưu (xem task 6).
 13. ✅ `Target` (pod/namespace) đọc từ **Redis**, không từ URL/body — đó là thứ
     làm ô AC "chạy trong pod cô lập" đúng theo cấu trúc. Output cắt cỡ 8 KiB.
-    ⬜ Vế NetworkPolicy (`curl 169.254.169.254` trong verify vẫn bị chặn) cần cụm.
+    ✅ Vế NetworkPolicy: đã đo trên cụm kèm đối chứng âm (xem AC §Bảo mật). Bổ
+    sung 2026-08-13: cùng phép chặn đó nay còn được đo **trong terminal của
+    người học** chứ không chỉ ở đường verify — bấm nút `{{exec}}` chạy
+    `curl 169.254.169.254` trong PTY trả `exit=28` sau 3.407s.
 
 ### 2.D Frontend — split-pane lesson UI ✅ XONG (2026-08-13)
 
@@ -109,9 +112,47 @@ thiếu `kubectl` nên luôn fail (gương của bẫy `/bin/true` mà plan cả
 cần egress mà NetworkPolicy `default-deny` chặn. Bài này chỉ dùng thứ có thật
 trong image (bash, coreutils, `jq`, Docker/DinD), 4 step + 1 asset.
 
+### 2.G Ingress + đóng ô AC terminal ✅ XONG (2026-08-13)
+
+> Báo cáo: [`reports/2026-08-13-verify-2g-ws-ingress.md`](reports/2026-08-13-verify-2g-ws-ingress.md) ·
+> Bằng chứng: [`reports/harness/2026-08-13-2d-ws-ingress/`](reports/harness/2026-08-13-2d-ws-ingress/)
+
+Sinh ra vì ô AC cuối của P2 tự đặt điều kiện "tick khi có ingress", và điều kiện
+đó là thật chứ không phải thủ tục: `buildSessionWsUrl` dựng URL từ
+`location.origin`, nên trình duyệt phải thấy `/` (web) và `/ws` (gateway) trên
+MỘT origin — thứ mà `kubectl port-forward svc/platform-web` không bao giờ cho.
+
+20. ✅ `infra/host/07-ingress-controller.sh` — Traefik 3.7.10 (chart 41.2.0, ghim
+    + đối chiếu sha256 như `05-cluster-addons.sh`). **ClusterIP, không
+    LoadBalancer** (kubeadm 1-node không có cloud provider ⇒ `<pending>` vĩnh
+    viễn, không lỗi) và **không đặt trần CPU** (1.G-4: trần CPU làm gateway mất
+    123ms/lượt attach qua throttle CFS, triệu chứng chỉ là "terminal lâu mở").
+21. ✅ Bật Ingress gộp origin đã có sẵn từ 1.B0.4. `helm upgrade` **không dùng
+    `--reuse-values`** (nó đánh rơi key mới) — dump `helm get values` ra file rồi
+    truyền cùng values-selfhost. Diff dry-run báo chứng chỉ mTLS bị sinh lại;
+    đó là **ảo giác của `--dry-run`** (`lookup` luôn trả rỗng khi dry-run —
+    `templates/mtls-secret.yaml` đã ghi sẵn bẫy này). Chạy thật: 0 pod restart.
+22. ✅ Sửa hai lỗi mà mọi cổng offline đều xanh, cả hai chỉ lộ nhờ đối chứng âm:
+    - **Trần cho lượt handshake WS** (`packages/terminal/src/connection.ts`).
+      Handshake có thể không mở được MÀ CŨNG KHÔNG thất bại: khi request upgrade
+      rơi xuống Next, server không trả gì — `curl` treo trọn 20s với
+      `http_code=000`, trình duyệt ở nguyên CONNECTING, **không** `error`,
+      **không** `close`. Không có `close` thì backoff lẫn lượt hỏi lý do thật đều
+      không bao giờ chạy. Bất kỳ proxy/LB nào nuốt upgrade đều cho hình dạng này.
+    - **Không ai tiêu thụ `needsReasonLookup` trên trang bài học** — cờ mà
+      `session-machine` đặt cho ca "1006 khi chưa từng ready" chỉ có một người
+      đọc là `/session` của P1. Nay là hook dùng chung + `lessons.sessionStatus`
+      (KHÔNG dùng `session.get` của P1 vì input của nó có `userId` — hình dạng
+      2.B đã cố bỏ), và `state.message` được hiện lên header.
+
+    ⚠ Vòng chẩn đoán ĐẦU TIÊN sai: tôi sửa vế thứ hai trước, deploy, đo lại và
+    triệu chứng còn nguyên — vì thiếu vế thứ nhất thì không có sự kiện nào để
+    phanh bắt. "UI đứng im" có ít nhất hai nguyên nhân khác hẳn nhau (sự kiện đến
+    mà không ai xử lý / sự kiện không bao giờ đến) và chúng cho CÙNG triệu chứng.
+
 ### 2.E Nội dung mẫu ✅ XONG phần import (2026-08-13)
 
-19. ✅ Import **4** scenario thật vào `content/scenarios/` (license đã verify bằng cách tải chính file LICENSE ở commit đã ghim). Smoke test toàn luồng ⬜ — cần 2.C/2.D.
+19. ✅ Import **4** scenario thật vào `content/scenarios/` (license đã verify bằng cách tải chính file LICENSE ở commit đã ghim). ✅ Smoke test toàn luồng (2026-08-13, sau khi có ingress): trên trình duyệt thật, import → hiển thị step → terminal nối và gõ được → `{{exec}}` bơm lệnh → "Kiểm tra" chấm **Đạt** → tiến độ lưu. [Bằng chứng](reports/harness/2026-08-13-2d-ws-ingress/browser-ws-checks.txt).
 
 | id | license | biến thể format nó mang |
 |---|---|---|
@@ -147,7 +188,8 @@ so byte để chống drift. Thêm bài mới: `docs/scenario-format.md` §6.
 - [x] **Import scenario Katacoda thật → parse không lỗi** (≥3 scenario mẫu). — 4 scenario từ 3 repo, 62 test, [report 2.A](reports/2026-08-13-verify-2a-scenario-parser.md).
 - [x] … → **hiển thị đủ step** ở FE. — đo trên cụm: `lessons.get` trả 4 step, markdown 450/559/971/905 ký tự. Ô này cũng là thứ bắt được `.dockerignore` loại `**/*.md` — image trước đó có ĐỦ thư mục nhưng 0 file `.md`.
 - [x] Split-pane: nội dung trái render đúng; **resize được**; code copy button hoạt động. — resize đo trên trình duyệt thật (ArrowRight 50→52 ⇒ left 854→888px; End kẹp đúng `aria-valuemax`; tỉ lệ nhớ trong `localStorage`); 12 nút "Chép" + 4 nút "Chạy" trên nội dung vendored thật.
-- [ ] … → **terminal ở khoang phải nối được và gõ được**. — tách khỏi ô trên vì tôi CHƯA đo nó: port-forward chỉ tới `platform-web`, còn `/ws/*` là gateway nên cần ingress (P3). Mới đo tới mức khoang render đúng và `TerminalSurface` nhận đủ props. Vế `{{exec}}` bơm lệnh thật vào PTY nằm cùng ô này. Tick ô này khi có ingress, đừng tick sớm vì "đường WS đã đóng ở 1.F" — 1.F chứng minh gateway, không chứng minh bản 2.D gọi đúng nó.
+- [x] … → **terminal ở khoang phải nối được và gõ được**. — đóng 2026-08-13 bằng đúng điều kiện ô này tự đặt ra: dựng ingress controller ([`infra/host/07-ingress-controller.sh`](../../infra/host/07-ingress-controller.sh), Traefik — P3 §5/§6 đã chốt Traefik) rồi bật Ingress gộp origin có sẵn từ 1.B0.4. Đo trên trình duyệt thật: prompt shell sống trong khoang phải; gõ `echo …$(id -u)-$(hostname)` trả `0` + **đúng tên pod sandbox**; nút `{{exec}}` bơm nguyên văn lệnh vào PTY và chạy (`exit=28`). Kèm **đối chứng âm**: bỏ đúng luật `/ws` khỏi Ingress thì `/` vẫn 200 còn `/ws` rơi xuống Next (404 kèm CSP của web) — thiếu dòng này thì ô vẫn xanh cả khi WS tới gateway bằng đường khác. [Bằng chứng](reports/harness/2026-08-13-2d-ws-ingress/browser-ws-checks.txt).
+  - ⚠ Đường vào là `kubectl port-forward -n traefik svc/traefik 8080:80` → `http://localhost:8080`, **không** phải NodePort theo IP node: cookie `dlp_sandbox` mang `Secure` vô điều kiện, và trình duyệt bỏ qua `Set-Cookie` `Secure` trên HTTP với host khác `localhost` — trong im lặng. Entry point thật + TLS là việc của P3.
 - [x] Step nav Prev/Next + progress bar; step done được đánh dấu.
 - [x] Bấm "Check" → verifyScript chạy trong pod, trả pass/fail đúng (test 1 step pass + 1 step fail). — 14/14 e2e trên cụm. FAIL `exit 1` với thông báo CỦA BÀI → PASS `exit 0`. **KHÔNG dùng `ckad`** như plan chỉ định: image sandbox không có `kubectl` nên vế pass bất khả — đúng gương của bẫy `/bin/true`. Dùng `dlp-sandbox-basics` (2.F).
 - [x] Setup script chạy khi start; môi trường step đúng. — `background` chạy (`.setup-done = ready` trong pod), `foreground` TRẢ VỀ cho FE gõ vào WS, `assetsPushed=1`.
@@ -161,6 +203,20 @@ so byte để chống drift. Thêm bài mới: `docs/scenario-format.md` §6.
 - [x] **Gác đăng nhập theo tiền tố** (phát hiện ở 2.D): `/lessons/<id>` → 307, `/lessonsfoo` → 404 (không over-match). `PROTECTED_PATHS.includes()` cũ khớp CHÍNH XÁC nên trang chi tiết không được gác.
 - [x] **Route asset không thành đường đọc file tuỳ ý:** ảnh → 200; `start.sh` → **404** (allowlist theo đuôi, không phát script sandbox); traversal thô và đã mã hoá → 404; chưa đăng nhập → 401.
 - [x] Output verify bị cắt cỡ (không cho dump khổng lồ gây DoS). — `cappedWriter`, 4 ca, gồm ca biên "đúng bằng trần thì KHÔNG báo cắt" và ca "cắt cỡ không được làm mất exit code".
+
+## Nợ chuyển sang P3 (ghi 2026-08-13, không ô AC nào của P2 gác)
+
+1. **Gateway không log lượt thành công.** `kubectl logs deploy/platform-gateway
+   --since=15m` chỉ có dòng WARN của handshake bị từ chối; lượt attach WS thành
+   công và lượt `POST /exec/session/{id}` — cả hai đã thực sự xảy ra — không để
+   lại dòng nào. Đường nóng không có dấu vết kiểm toán. → P3 §7 (observability).
+2. **`stepIndex` là mốc nước cao, nhưng nhãn nói như thể là tập bước đã đạt.**
+   Đạt ĐÚNG bước cuối từ trạng thái 0 làm thanh tiến độ nhảy thẳng `0/4 → 4/4`.
+   Không phải lỗi lưu trữ (task 12 chốt `min(index+1, last)` có lý do), mà là
+   nhãn "4/4 bước đã đạt" nói sai về thứ nó hiển thị. Sửa bằng cách đổi nhãn,
+   hoặc lưu tập bước đã đạt — quyết định thuộc chặng có UI tiến độ thật.
+3. **Entry point thật + TLS.** Hôm nay vào bằng port-forward tới Traefik vì cookie
+   `Secure` chỉ được chấp nhận trên `localhost` khi chạy HTTP. → P3.
 
 ## Yêu cầu nền tảng (chốt 2026-08-13) — ảnh hưởng P2 trở đi
 
@@ -234,6 +290,24 @@ docker run --rm --entrypoint sh dlp/web:test -c 'find $SCENARIOS_DIR -name "*.md
 # ⚠ Harness PHẢI gửi header `Origin` khớp `corsAllowedOrigins`, nếu không
 #   Better Auth trả 403 MISSING_OR_NULL_ORIGIN — `curl` qua được, `fetch` của
 #   Node thì không, nên hai công cụ cho hai kết quả khác nhau.
+
+# Ingress + terminal WS trên trình duyệt  (2.G — đã chạy)
+bash infra/host/07-ingress-controller.sh          # trên node; ghim chart + sha256
+helm get values platform -o yaml > /tmp/live-values.yaml
+helm upgrade platform infra/helm/platform \
+  -f infra/helm/platform/values-selfhost.yaml -f /tmp/live-values.yaml \
+  --set ingress.enabled=true --set ingress.className=traefik
+kubectl port-forward -n traefik svc/traefik 8080:80     # rồi mở http://localhost:8080
+
+# Định tuyến: `/ws` PHẢI trả lỗi CỦA GATEWAY, không phải 404 của Next.
+curl -s http://localhost:8080/ws/session/x      # {"code":"SUBPROTOCOL_REQUIRED",...}
+
+# ⛔ `curl` GET thường KHÔNG đủ mạnh cho ca handshake treo — nó trả 404 ngay.
+#    Phải gửi ĐÚNG một request upgrade thì mới thấy server im lặng (http=000):
+curl -s -o /dev/null -w "%{http_code} %{time_total}\n" --max-time 20 \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  http://localhost:8080/ws/session/x
 ```
 
 ## Risk Assessment (P2)

@@ -1,0 +1,19 @@
+{
+  "decision": "PASS_WITH_RISK",
+  "disprovenClaims": [
+    "'Trieu chung Dang-ket-noi-vinh-vien la do khong ai tieu thu co needsReasonLookup tren trang bai hoc' — CHINH TOI khang dinh dieu nay, sua theo no, DEPLOY, roi BAC BO no bang phep do lai: trieu chung con nguyen. Nguyen nhan that: handshake TREO (1 socket mo, 25s khong co su kien close nao; curl upgrade that: http_code=000 sau tron 20s). Khong co close thi moi phanh phia sau deu khong co gi de kich hoat. Lo hong 'khong ai tieu thu co' la CO THAT va da vá, nhung no khong phai nguyen nhan cua trieu chung nay.",
+    "'Sua xong hook la nguoi hoc se thay ly do' — BAC BO khi doc lai lesson-client.tsx: no khong render state.message o dau ca; nhan phase noi 'Dang ket noi…' con phase error noi dung mot chu 'Loi'. Sua trang thai ma quen cho hien thi thi ban va xanh o moi cong offline va VO HINH tren man hinh.",
+    "'Diff cua helm --dry-run cho thay chung chi mTLS bi sinh lai, tuc upgrade se restart ca ba pod' — BAC BO bang chinh template: mtls-secret.yaml:18 ghi rang lookup LUON tra rong khi --dry-run. Chay that: 0 pod restart."
+  ],
+  "reachableRegressions": [],
+  "unverifiedClaims": [
+    "Khong co dau vet DUONG (log) cho luot WS di qua Traefik: gateway khong log luot thanh cong, va toi CO Y khong bat access log cua Traefik trong luot nay (observability co chu so huu ro rang la P3 §7). Bang chung hien tai la gian tiep nhung day du: (a) /ws tra than loi CUA GATEWAY, (b) next.config.ts khong co rewrites nen Next khong the proxy /ws, (c) doi chung am — bo luat /ws thi /ws roi xuong Next.",
+    "'Moi proxy/LB nuot upgrade deu cho hinh dang treo nay' — suy rong tu MOT truong hop do duoc (Next khong tra loi request upgrade). Hop ly nhung chua do tren mot LB thu hai.",
+    "Bai hoc dat nhat cua luot nay: 'UI dung im' co it nhat HAI nguyen nhan khac han nhau — su kien den ma khong ai xu ly, va su kien khong bao gio den — va chung cho CUNG mot trieu chung tren man hinh. Doc ma nguon cho ra mot cau chuyen hop ly cho ca hai, nen doc ma khong phan biet duoc. Chi phep dem o tang van chuyen moi phan biet duoc."
+  ],
+  "missingProof": [
+    "Tran handshake 10s co the ban nham tren mot mang cuc cham. Hau qua duoc gioi han: no sinh ra mot 1006 -> backoff thu lai, chu khong dung han (decideRetry van tra retry:true khi phien con han). Va 10s la cho mot luot HTTP upgrade, khong phai cho provisioning (pod da ready truoc khi FE noi).",
+    "NOT_FOUND tu luot hoi ly do nay ket luan 'phien da chet'. Neu ton tai mot cua so dua giua 'orchestrator vua tra sessionId' va 'GetSession thay duoc phien do', mot phien song se bi ket luan chet. Da can nhac: sessionId den TU CHINH orchestrator o luot startSession, va Redis o day la mot instance don, nen cua so do khong dung duoc bang cau truc hien tai. KHONG do truc tiep — ghi ra day thay vi im lang.",
+    "lessons.sessionStatus goi orchestrator moi luot handshake that bai. Bi chan tren boi backoff (toi da ~1 luot/15s moi tab), nhung day la mot duong goi MOI tu FE toi orchestrator ma truoc do khong co."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": false,
+  "reasons": [
+    "CHAM CUM THAT: cai them mot controller cap cluster (Traefik, namespace rieng, ClusterRole doc duoc Secret toan cluster), 5 luot helm upgrade tren release `platform` dang chay, 3 luot build + side-load image web, va xoa pod sandbox de giai phong quota.",
+    "SUA MA TREN DUONG NONG CUA MOI PHIEN: tran handshake trong openConnection nam trong duong ket noi cua CA HAI trang (/session cua P1 va trang bai hoc cua 2.D). Mot loi o timer nay se giet ket noi dang chay chu khong chi anh huong duong loi.",
+    "SUA TRANG /session CUA P1 — pham vi ngoai 2.D: thay effect inline bang hook dung chung. Trang do da qua review o 1.F.",
+    "THEM MOT PROCEDURE tRPC moi (lessons.sessionStatus) goi thang orchestrator.",
+    "GIAM THIEU: Tran handshake: da do duong THANH CONG tren cum sau khi deploy (revision 52) — noi duoc, go duoc, output tra ve dung ten pod sandbox. Va da do rieng trang /session: 'Dang chay', pod sandbox-e7e4f7fa3430, dong ho TTL chay, xterm mount.",
+    "GIAM THIEU: clearTimeout o ca ba loi ra co ca test rieng, kem doi chung 'mo kip thi tran khong ban' va ca 'close that toi truoc tran => dung MOT lan onClose voi ma cua server'.",
+    "GIAM THIEU: helm: dry-run truoc, doc diff, va nhan ra phan chung chi mTLS la ao giac cua --dry-run (mtls-secret.yaml:18 ghi san) truoc khi chay that. Chay that: 0 pod restart.",
+    "GIAM THIEU: Traefik cai bang script ghim chart version + doi chieu sha256 tu digest cua chinh repo index, cung ky luat voi 05-cluster-addons.sh. Namespace rieng, khong dung chung voi release platform (helm uninstall platform khong duoc phep go controller cua cluster).",
+    "GIAM THIEU: lessons.sessionStatus: input .strict(), khong co field userId, nguoi dung suy tu ctx.user.id; co ca test cho ca chua dang nhap va ca gui kem userId."
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "commands": [
+    {
+      "command": "pnpm lint",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T21:40:00+07:00",
+      "summary": "9/9 task. Da DO mot luot: useRef con sot trong import cua session-client.tsx sau khi go effect inline — dung loai loi ma 'sua xong la xong' bo qua."
+    },
+    {
+      "command": "pnpm typecheck (gom next build)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T21:45:00+07:00",
+      "summary": "10/10 task."
+    },
+    {
+      "command": "pnpm test",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T21:47:00+07:00",
+      "summary": "398 ca: web 168 · terminal 94 · scenario 84 · ui 29 · shared-types 23. Luot dau DO 42 ca vi Postgres/Redis chua chay — kiem lai bang docker ps chu khong ket luan 'loi cua toi'; docker compose up -d postgres redis roi chay lai thi xanh."
+    },
+    {
+      "command": "pnpm --filter web test session-reason",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T21:48:00+07:00",
+      "summary": "8 passed — KHANG DINH rang ca moi that su CHAY, khong phai skip sach roi exit 0."
+    },
+    {
+      "command": "docker run --rm --entrypoint sh dlp-web:sha-6c60b1a -c 'find $SCENARIOS_DIR -name \"*.md\" | wc -l'",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T21:55:00+07:00",
+      "summary": "26 file .md trong image (khong phai dem thu muc — bay .dockerignore cua 2.D)."
+    },
+    {
+      "command": "curl -s http://localhost:8080/ws/session/nonexistent",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T20:59:00+07:00",
+      "summary": "{\"code\":\"SUBPROTOCOL_REQUIRED\"} — than loi CUA GATEWAY, chung minh /ws di toi gateway qua Traefik. GET / -> 200, /lessons -> 307."
+    },
+    {
+      "command": "DOI CHUNG AM: kubectl patch ingress (bo path /ws) + curl upgrade that",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T21:05:00+07:00",
+      "summary": "Bo dung luat /ws: / van 200, /ws -> 404 kem header CSP CUA WEB (roi xuong Next). Request upgrade that: http_code=000, time_total=20.009 — server im lang, KHONG tra gi. Day la phep do da bat ra nguyen nhan that cua loi handshake treo."
+    },
+    {
+      "command": "Playwright tren cum — duong day du",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T21:49:00+07:00",
+      "summary": "Bat dau -> 'Sandbox san sang'; go `echo NCKH-GO-DUOC-$(id -u)-$(hostname)` -> `NCKH-GO-DUOC-0-sandbox-cffe70db7e34` (uid 0 + DUNG ten pod sandbox); nut {{exec}} -> PTY nhan nguyen van lenh curl 169.254.169.254 -> exit=28 sau 3.407s; 'Kiem tra' -> Dat, thong bao CUA BAI; tien do luu."
+    },
+    {
+      "command": "Playwright — do lai DOI CHUNG AM sau khi sua (revision 52)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T21:47:00+07:00",
+      "summary": "header 'Mat ket noi — dang thu lai…' + role=status 'Chua mo duoc ket noi toi phien — dang thu lai.' + 4 luot GET /api/trpc/lessons.sessionStatus -> 200. Truoc khi sua: 'Dang ket noi…' 37s, 0 loi UI, 0 dong console, 0 request."
+    },
+    {
+      "command": "Playwright — hoi quy trang /session cua P1",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T21:56:00+07:00",
+      "summary": "'Dang chay', pod sandbox-e7e4f7fa3430, dong ho TTL 1:00:33, xterm mount. Trang bi sua ngoai pham vi 2.D nen phai do rieng chu khong suy tu 'typecheck xanh'."
+    },
+    {
+      "command": "helm upgrade --dry-run + diff voi helm get manifest",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-08-13T21:02:00+07:00",
+      "summary": "Diff bao toan bo CA/cert mTLS doi + 3 checksum pod doi. KHONG chay ngay: doc mtls-secret.yaml:18 -> lookup LUON rong khi --dry-run, nen do la ao giac cua che do dry-run. Chay that: 0 pod restart, dung 1 object them vao (Ingress)."
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "decision": "PASS",
+  "score": 8,
+  "criticalCount": 0,
+  "contractStatus": "CHANGED",
+  "blockingReasons": [],
+  "acceptanceCoverage": [
+    "'terminal o khoang phai noi duoc va go duoc' -> DAT tren trinh duyet that: prompt shell song trong khoang phai, va lenh go tay tra ve uid 0 + DUNG ten pod sandbox (sandbox-cffe70db7e34). Khang dinh tren HOSTNAME chu khong chi tren 'co chu hien ra', vi mot shell chay sai cho cung hien chu.",
+    "'{{exec}} bom lenh that vao PTY' -> DAT: nut Chay -> PTY nhan nguyen van lenh -> exit=28 sau 3.407s. Kem mot ket qua ngoai du tinh: NetworkPolicy chan metadata NGAY TRONG terminal cua nguoi hoc, truoc day moi do o duong verify.",
+    "'Smoke test toan luong (2.E)' -> DAT: import -> hien step -> terminal -> {{exec}} -> Kiem tra: Dat -> tien do luu, tat ca tren trinh duyet.",
+    "Dinh tuyen ingress -> DAT kem DOI CHUNG AM: bo dung luat /ws thi / van 200 con /ws roi xuong Next (404 + CSP cua web). Thieu doi chung nay thi o AC van xanh ca khi WS toi gateway bang duong khac. Da loai tru them kha nang Next tu proxy: next.config.ts khong co rewrites.",
+    "HOP DONG: THEM: lessons.sessionStatus({sessionId}) -> {status: number|null}. Khong nhan userId (2.B). Chi tra status vi expiresAt.seconds la bigint va se cho 500 o tang serialize.",
+    "HOP DONG: DOI HANH VI (ca /session lan trang bai hoc): NOT_FOUND/FORBIDDEN tu luot hoi ly do nay ket luan 'phien da chet' thay vi roi vao nhanh mang chap. Ban inline cu de mot phien bi reaper xoa van quay vong backoff nhu the mang loi.",
+    "HOP DONG: THEM: tran 10s cho luot handshake WS trong openConnection. Anh huong MOI phien cua ca hai trang.",
+    "GHI CHU: Diem tru: vong chan doan dau tien SAI ve nguyen nhan (xem adversarial-validation). Ban sua thu nhat da duoc deploy roi moi phat hien la khong dong duoc trieu chung. Cai bat duoc no la phep do lai sau deploy, khong phai review ma nguon."
+  ],
+  "regressionProof": [
+    "Trang /session cua P1 (bi sua ngoai pham vi 2.D): do rieng tren trinh duyet — 'Dang chay', pod sandbox-e7e4f7fa3430, dong ho TTL 1:00:33, xterm mount.",
+    "Duong THANH CONG sau khi them tran handshake: revision 52, noi duoc + go duoc, output tra ve dung ten pod (sandbox-9cf97d850f18).",
+    "clearTimeout o nhanh close co ca test rieng: close that toi truoc tran => dung MOT lan onClose voi ma cua server (4401), khong bi boi them 1006.",
+    "398 ca test xanh; kiem rieng rang 8 ca moi THAT SU chay (khong phai skip sach roi exit 0)."
+  ]
+}
