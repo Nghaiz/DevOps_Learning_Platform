@@ -75,12 +75,39 @@ Trụ cột ① — trải nghiệm học kiểu KillerCoda: bài markdown từn
     làm ô AC "chạy trong pod cô lập" đúng theo cấu trúc. Output cắt cỡ 8 KiB.
     ⬜ Vế NetworkPolicy (`curl 169.254.169.254` trong verify vẫn bị chặn) cần cụm.
 
-### 2.D Frontend — split-pane lesson UI
-14. Layout split-pane (resizable): trái = nội dung step (markdown render, code copy button, hình/asset), phải = terminal `packages/terminal` (engine P1).
-15. Step navigation: Prev/Next, progress bar, đánh dấu step done; nút **"Check"** gọi `checkStep` → hiển thị pass/fail + hint.
-16. Trang danh sách scenario (`/lessons`): grid, filter difficulty, trạng thái tiến độ (chỉ của user).
-17. Trạng thái: đang provision sandbox, sandbox sẵn sàng, hết hạn (offer restart), lỗi validation.
-18. Dùng `packages/ui` (shadcn); responsive; a11y cơ bản.
+### 2.D Frontend — split-pane lesson UI ✅ XONG (2026-08-13)
+
+> Báo cáo: [`reports/2026-08-13-verify-2d-lessons-ui.md`](reports/2026-08-13-verify-2d-lessons-ui.md) ·
+> Bằng chứng: [`reports/harness/2026-08-13-2d-lessons-e2e/`](reports/harness/2026-08-13-2d-lessons-e2e/)
+
+14. ✅ Split-pane resize được (`role="separator"`, kéo bằng pointer-capture **và**
+    bàn phím). Đo trên trình duyệt thật: ArrowRight 50→52 (left 854→888px), End
+    kẹp đúng `aria-valuemax`, tỉ lệ nhớ trong `localStorage`.
+15. ✅ Step nav + progress bar + nút **"Kiểm tra"**. Nút **ẨN** khi phase không có
+    `verifyScript` — `checkStep` NÉM `PRECONDITION_FAILED` ở ca đó, nên một nút
+    hiện vô điều kiện là nút chỉ biết báo lỗi (`loki-quickstart`: không phase nào
+    có verify). Kết quả chấm có **BA** nhánh, không hai: đạt / chưa đạt / lỗi hệ
+    thống.
+16. ✅ `/lessons`: lưới, lọc độ khó, huy hiệu tiến độ (chỉ của user).
+17. ✅ Trạng thái phiên dùng lại `session-machine` của P1 (không viết máy thứ hai).
+    `unsupportedCapabilities` hiện **nổi bật** — bắt buộc theo 2.B §2.2.
+18. ✅ Component trình bày ở `packages/ui/src/lesson/` cho P4 tái dùng; phần có
+    dây nối (tRPC, PTY) ở lại `apps/web`.
+
+**Sáu tiền đề không nằm trong task list, đều phải làm trước:** `packages/terminal`
+không có đường gõ vào PTY (thêm `onReady(handle|null)`) · Tailwind **không quét**
+`packages/ui` (lỗi đã chạy sẵn trên main — mọi `<Button>` mất hover/focus/disabled,
+đo bằng đối chứng 0→1 trên bundle CSS) · `PROTECTED_PATHS` khớp chính xác nên
+`/lessons/<id>` **không được gác** · `Scenario.assets[]` không có người tiêu thụ ·
+`content/` không phục vụ qua HTTP · `source` của sidecar không nullable.
+
+### 2.F Bài first-party `dlp-sandbox-basics` ✅ XONG (2026-08-13)
+
+Sinh ra vì **cả 4 bài đã vendor đều không sinh được cặp pass/fail thật**: `ckad`
+thiếu `kubectl` nên luôn fail (gương của bẫy `/bin/true` mà plan cảnh báo ở
+`prolug` — và plan lại chỉ định dùng `ckad`), `loki` không có verify nào, `loxilb`
+cần egress mà NetworkPolicy `default-deny` chặn. Bài này chỉ dùng thứ có thật
+trong image (bash, coreutils, `jq`, Docker/DinD), 4 step + 1 asset.
 
 ### 2.E Nội dung mẫu ✅ XONG phần import (2026-08-13)
 
@@ -118,18 +145,21 @@ so byte để chống drift. Thêm bài mới: `docs/scenario-format.md` §6.
 
 **Chức năng:**
 - [x] **Import scenario Katacoda thật → parse không lỗi** (≥3 scenario mẫu). — 4 scenario từ 3 repo, 62 test, [report 2.A](reports/2026-08-13-verify-2a-scenario-parser.md).
-- [ ] … → **hiển thị đủ step** ở FE. — tách khỏi ô trên vì hai vế do hai chặng khác nhau đóng; vế hiển thị thuộc 2.D và một ô gộp sẽ hoặc bị tick sớm, hoặc giữ parser ở trạng thái "chưa xong" suốt cả phase.
-- [ ] Split-pane: nội dung trái + terminal phải hoạt động; resize được; code copy button hoạt động.
-- [ ] Step nav Prev/Next + progress bar; step done được đánh dấu.
-- [ ] Bấm "Check" → verifyScript chạy trong pod, trả pass/fail đúng (test 1 step pass + 1 step fail). — **cần cụm**; đường đi đã dựng và gác bằng 32 test Go, nhưng chưa lượt nào chạm apiserver thật. Dùng `ckad-configmap-as-files`, KHÔNG dùng `prolug-*` (`/bin/true`).
-- [ ] Setup script chạy khi start; môi trường step đúng. — `runSetup` đã dựng (`background`); vế `foreground` thuộc 2.D, vế bằng chứng cần cụm.
-- [x] Progress lưu và khôi phục khi quay lại scenario. — `saveProgress` + `get`, 6 ca trong `lessons-authz.test.ts` (gồm ca "mở lại bài đã xong KHÔNG mất dấu hoàn thành").
+- [x] … → **hiển thị đủ step** ở FE. — đo trên cụm: `lessons.get` trả 4 step, markdown 450/559/971/905 ký tự. Ô này cũng là thứ bắt được `.dockerignore` loại `**/*.md` — image trước đó có ĐỦ thư mục nhưng 0 file `.md`.
+- [x] Split-pane: nội dung trái render đúng; **resize được**; code copy button hoạt động. — resize đo trên trình duyệt thật (ArrowRight 50→52 ⇒ left 854→888px; End kẹp đúng `aria-valuemax`; tỉ lệ nhớ trong `localStorage`); 12 nút "Chép" + 4 nút "Chạy" trên nội dung vendored thật.
+- [ ] … → **terminal ở khoang phải nối được và gõ được**. — tách khỏi ô trên vì tôi CHƯA đo nó: port-forward chỉ tới `platform-web`, còn `/ws/*` là gateway nên cần ingress (P3). Mới đo tới mức khoang render đúng và `TerminalSurface` nhận đủ props. Vế `{{exec}}` bơm lệnh thật vào PTY nằm cùng ô này. Tick ô này khi có ingress, đừng tick sớm vì "đường WS đã đóng ở 1.F" — 1.F chứng minh gateway, không chứng minh bản 2.D gọi đúng nó.
+- [x] Step nav Prev/Next + progress bar; step done được đánh dấu.
+- [x] Bấm "Check" → verifyScript chạy trong pod, trả pass/fail đúng (test 1 step pass + 1 step fail). — 14/14 e2e trên cụm. FAIL `exit 1` với thông báo CỦA BÀI → PASS `exit 0`. **KHÔNG dùng `ckad`** như plan chỉ định: image sandbox không có `kubectl` nên vế pass bất khả — đúng gương của bẫy `/bin/true`. Dùng `dlp-sandbox-basics` (2.F).
+- [x] Setup script chạy khi start; môi trường step đúng. — `background` chạy (`.setup-done = ready` trong pod), `foreground` TRẢ VỀ cho FE gõ vào WS, `assetsPushed=1`.
+- [x] Progress lưu và khôi phục khi quay lại scenario. — `saveProgress` + `get`, 6 ca trong `lessons-authz.test.ts`; trên cụm `stepIndex 0 → 1` sau lượt chấm đạt.
 
 **Bảo mật (luật §6):**
 - [x] **Luật 1:** user A không đọc/sửa được `progress` của user B. — dạng mạnh hơn 403: input **không có field `userId`**, nên không có gì để giả mạo. 6 ca.
 - [x] **Luật 3:** input `checkStep`/`saveProgress` field lạ hoặc sai type → reject (Zod strict). — 4 ca tRPC + 4 ca `phaseRefSchema`; phía Go `DisallowUnknownFields` cũng có ca riêng.
 - [x] **Luật 4:** `lessons.list` `limit` lớn → ép ≤100. — kèm ca cursor chết → `BAD_REQUEST` (quay về trang 1 trong im lặng làm infinite-scroll lặp vô hạn).
-- [ ] **Validation isolation:** — tách hai vế vì hai chặng khác nhau đóng. **[x] vế cấu trúc:** `Target` đọc từ Redis, không từ URL/body (`TestExecPassesExitCodeAndUsesRedisTarget`), và bước g chặn token forge. **[ ] vế NetworkPolicy** (`curl 169.254.169.254` trong verify) cần cụm.
+- [x] **Validation isolation:** **[x] vế cấu trúc:** `Target` đọc từ Redis, không từ URL/body (`TestExecPassesExitCodeAndUsesRedisTarget`), bước g chặn token forge. **[x] vế NetworkPolicy:** verify chạy `curl 169.254.169.254` trong pod → bị chặn, `exit 0` (script khẳng định NGƯỢC). Kèm **đối chứng âm**: `curl https://example.com` trong cùng pod → `exit=28`. Thiếu đối chứng thì ô này vẫn xanh cả khi verify chạy nhầm chỗ.
+- [x] **Gác đăng nhập theo tiền tố** (phát hiện ở 2.D): `/lessons/<id>` → 307, `/lessonsfoo` → 404 (không over-match). `PROTECTED_PATHS.includes()` cũ khớp CHÍNH XÁC nên trang chi tiết không được gác.
+- [x] **Route asset không thành đường đọc file tuỳ ý:** ảnh → 200; `start.sh` → **404** (allowlist theo đuôi, không phát script sandbox); traversal thô và đã mã hoá → 404; chưa đăng nhập → 401.
 - [x] Output verify bị cắt cỡ (không cho dump khổng lồ gây DoS). — `cappedWriter`, 4 ca, gồm ca biên "đúng bằng trần thì KHÔNG báo cắt" và ca "cắt cỡ không được làm mất exit code".
 
 ## Yêu cầu nền tảng (chốt 2026-08-13) — ảnh hưởng P2 trở đi
@@ -186,9 +216,24 @@ cd services/terminal-gateway && go test ./internal/execroute/... ./internal/pode
 docker build -f apps/web/Dockerfile -t dlp/web:test .
 docker run --rm --entrypoint sh dlp/web:test -c 'ls $SCENARIOS_DIR'   # 4 thư mục
 
-# checkStep e2e trên CỤM (chưa chạy — ô AC "pass/fail đúng" còn hở)
-#   start scenario ckad-configmap-as-files -> Check khi chưa làm => fail
-#   -> tạo configmap trong pod -> Check => pass
+# FE — split-pane lesson UI  (2.D — đã chạy: ui 29 ca jsdom + phases 8 ca)
+pnpm --filter @devops-platform/ui test     # SplitPane/StepNav/ProgressBar/ContentView
+pnpm --filter web test phases              # ánh xạ key ↔ stepIndex
+
+# ⛔ Image PHẢI mang cả .md, không chỉ thư mục. `ls` KHÔNG đủ mạnh — nó liệt kê
+#    thư mục, mà thư mục thì luôn có thật kể cả khi .dockerignore đã loại hết md.
+docker run --rm --entrypoint sh dlp/web:test -c 'find $SCENARIOS_DIR -name "*.md" | wc -l'   # 26
+
+# checkStep e2e trên CỤM  (2.D — đã chạy: 14/14 PASS)
+#   kubectl port-forward svc/platform-web 3000:3000
+#   node plans/devops-learning-platform/reports/harness/2026-08-13-2d-lessons-e2e/e2e-lessons.mjs
+#
+# ⚠ Dùng `dlp-sandbox-basics`, KHÔNG dùng `ckad-configmap-as-files` như bản plan
+#   cũ ghi: image sandbox không có kubectl nên verify của ckad luôn
+#   `command not found` ⇒ vế PASS bất khả (gương của bẫy /bin/true ở prolug).
+# ⚠ Harness PHẢI gửi header `Origin` khớp `corsAllowedOrigins`, nếu không
+#   Better Auth trả 403 MISSING_OR_NULL_ORIGIN — `curl` qua được, `fetch` của
+#   Node thì không, nên hai công cụ cho hai kết quả khác nhau.
 ```
 
 ## Risk Assessment (P2)

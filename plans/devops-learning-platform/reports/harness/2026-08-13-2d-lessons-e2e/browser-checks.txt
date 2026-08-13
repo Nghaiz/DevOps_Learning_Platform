@@ -1,0 +1,48 @@
+Kiểm chứng trên TRÌNH DUYỆT THẬT (Playwright, Chromium) — cụm 2026-08-13
+web=sha-a8663e0 · gateway=sha-80b4b6c · qua port-forward localhost:8080
+
+Vì sao cần tầng này dù đã có e2e API: bug `useInfiniteQuery` gửi `direction`
+làm trang /lessons hỏng HOÀN TOÀN (400) trong khi e2e API xanh 14/14. Harness
+gọi thẳng procedure, không đi qua đoạn mã sinh input của client.
+
+[1] Gác đăng nhập theo TIỀN TỐ (sửa `.includes` → so tiền tố)
+    /lessons                 -> 307   (gác)
+    /lessons/dlp-sandbox-basics -> 307 (gác — ca mà exact-match BỎ SÓT)
+    /lessons/anything/deep   -> 307   (gác)
+    /lessonsfoo              -> 404   (KHÔNG gác — chặn over-match)
+    /dashboard               -> 307   (không hồi quy)
+
+[2] Danh sách — 5 thẻ, lọc độ khó, huy hiệu tiến độ   (browser-lessons-list.png)
+    Ảnh ...-BROKEN-before-fix.png là CÙNG trang trước khi sửa `direction`.
+
+[3] Split-pane + step nav + progress bar             (browser-lesson-splitpane.png)
+    nav: Trước | Giới thiệu | Tạo tệp đầu tiên | Đọc và ghi JSON bằng jq |
+         Dựng image Docker không cần mạng | Sandbox bị cô lập mạng | Kết thúc | Tiếp
+    progressbar 0/4 bước · khối {{exec}} thành nút "Chạy"
+
+[4] Nút "Kiểm tra" ẨN khi phase KHÔNG có verifyScript
+    dlp-sandbox-basics / "Giới thiệu" (intro, verify=null) -> hasKiemTra=false
+    loki-quickstart (KHÔNG phase nào có verify)            -> hasKiemTra=false
+    dlp-sandbox-basics / step1 (có verify)                 -> có nút
+
+[5] RESIZE — đo bố cục THẬT, thứ jsdom không chứng minh được
+    ban đầu     aria-valuenow=50  left=854px  right=848px
+    ArrowRight  aria-valuenow=52  left=888px  right=814px   (bố cục ĐỔI THẬT)
+    End         aria-valuenow=80 = aria-valuemax  left=1366px  (kẹp đúng trần)
+    localStorage['dlp-lesson-split'] = "0.8"                 (nhớ tỉ lệ)
+
+[6] Nhãn step vắng title rơi về "Bước N" — trên NỘI DUNG THẬT
+    loki-quickstart (cả 2 step title=null) -> "Bước 1", "Bước 2"
+
+[7] Nút copy/exec trên nội dung vendored thật
+    loki-quickstart / Bước 1 -> 12 nút "Chép", 4 nút "Chạy"
+
+[8] Route asset — cả đường đúng LẪN từng guard
+    GET assets/topology.png                  -> 200 image/png
+    GET assets/../../../package.json         -> 404   (traversal thô)
+    GET assets/..%2f..%2fdlp.json            -> 404   (traversal đã mã hoá)
+    GET assets/start.sh                      -> 404   (allowlist: KHÔNG phát script sandbox)
+    GET /api/scenarios/NOT_A_VALID_ID/...    -> 400   (id sai định dạng)
+    GET assets/nope.png                      -> 404   (không tồn tại)
+    GET assets/topology.png  (KHÔNG đăng nhập) -> 401
+    GET /api/trpc/lessons.get (KHÔNG đăng nhập) -> 401
