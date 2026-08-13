@@ -1,0 +1,22 @@
+Phép đo: clone SẠCH với core.autocrlf=true (mô phỏng máy dev Windows), kiểm EOL
+của một file vendor. Kèm đối chứng âm — bỏ đúng một dòng .gitattributes.
+
+  git clone -c core.autocrlf=true -b feat/p2-2a-scenario-parser <repo> <dir>
+
+A. CÓ `content/scenarios/** -text`  (HEAD)
+   content/scenarios/prolug-linux-system-checking/index.json : LF   ✓
+   content/scenarios/ckad-configmap-as-files/step1.md        : LF   ✓
+   content/scenarios/loki-quickstart/setup.sh                : LF   ✓
+   content/scenarios/loxilb-.../assets/topology.png          : 57147 byte,
+                                                               magic 89504e470d0a1a0a ✓
+
+B. ĐỐI CHỨNG ÂM — xoá đúng dòng đó rồi checkout lại content/
+   content/scenarios/prolug-linux-system-checking/index.json : CRLF ✗
+
+Kết luận: dòng .gitattributes là thứ CHỊU LỰC. Không có nó, `node
+scripts/vendor-scenarios.mjs --check` báo LỆCH toàn bộ trên một cây vừa clone
+sạch ở Windows, trong khi CI (Linux) vẫn xanh — tức không cổng nào bắt được.
+
+Bẫy thứ tự: `-text` phải nằm SAU `* text=auto`. Dòng khớp cuối cùng thắng, theo
+TỪNG attribute. Đặt trước thì `git check-attr text` trả `auto` và dòng im lặng
+vô hiệu (đã dẫm phải trong lúc làm).

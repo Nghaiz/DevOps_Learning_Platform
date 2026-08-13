@@ -18,7 +18,7 @@ turbo run typecheck                  →  10/10
 turbo run lint                       →   8/8
 ```
 
-Ba lỗi tự lộ ra trong lúc làm, cả ba đều **không nằm trong ô AC nào**: một cổng chống drift đồng loã với chính sự hỏng nó phải bắt, một lệnh format vô hại phá được cổng đó, và một bộ verify script luôn-pass sẽ làm ô AC của 2.C xanh mà chẳng chứng minh gì.
+Bốn lỗi tự lộ ra trong lúc làm, không cái nào nằm trong ô AC: một cổng chống drift **đồng loã** với chính sự hỏng nó phải bắt, một lệnh `pnpm format` phá được cổng đó, một `git clone` trên Windows cũng phá được nó, và một bộ verify script **luôn-pass** sẽ làm ô AC của 2.C xanh mà chẳng chứng minh gì.
 
 ---
 
@@ -112,7 +112,20 @@ Sửa: tải/so bằng `Buffer` (`arrayBuffer` + `Buffer.equals`). Bằng chứn
 
 Sửa: `.prettierignore` loại `content/scenarios/**` nhưng **giữ lại** `dlp.json` (file của ta).
 
-### 3.3 Ba verify script của `prolug` là `/bin/true`
+### 3.3 Một `git clone` trên Windows cũng phá được cổng đó
+
+`core.autocrlf=true` + `* text=auto` ⇒ mọi file vendor thành **CRLF** trong working tree sau một lần clone sạch, và `--check` (so với raw upstream, LF) báo LỆCH **toàn bộ**. CI chạy Linux nên vẫn LF, vẫn xanh — **không cổng nào bắt được**. Đây là sự cố EOL thứ **năm** cùng họ trong repo này (`.gitattributes` đã ghi bốn cái trước).
+
+Sửa: `content/scenarios/** -text`. Đo bằng clone sạch có ép `autocrlf=true`, kèm **đối chứng âm** — bỏ đúng một dòng ([`harness/crlf-clean-clone.txt`](harness/2026-08-13-2a-scenario-parser/crlf-clean-clone.txt)):
+
+| | `index.json` sau clone |
+|---|---|
+| CÓ `content/scenarios/** -text` | **LF ✓** |
+| bỏ đúng dòng đó | **CRLF ✗** |
+
+Kèm một bẫy thứ tự đã dẫm phải trong lúc làm: **`-text` phải nằm SAU `* text=auto`**. Dòng khớp cuối cùng thắng, và điều đó áp cho **từng attribute riêng** — các khối cũ trong file sống sót vì chúng đặt `eol`, thứ `text=auto` không nhắc tới; còn `-text` tranh chấp trực tiếp với `text=auto` nên đứng trước là **im lặng vô hiệu** (`git check-attr text` vẫn trả `auto`).
+
+### 3.4 Ba verify script của `prolug` là `/bin/true`
 
 ```bash
 $ cat content/scenarios/prolug-linux-system-checking/step{1,2,3}/verify.sh
