@@ -37,4 +37,10 @@ regexes = [
   '''ci-only-password''',
   '''ci-only-secret-khong-dung-o-bat-ky-dau-khac''',
   '''ci-only-not-a-real-secret''',
+
+  # Nonce MẪU của RFC 6455 §1.3 ("the sample nonce" base64) dùng trong lệnh curl
+  # tái hiện handshake WebSocket ở tài liệu. Sec-WebSocket-Key không phải khoá bí
+  # mật — nó là giá trị ngẫu nhiên client tự sinh mỗi lần bắt tay. Neo theo đúng
+  # giá trị trong RFC, không nới ra cả header.
+  '''dGhlIHNhbXBsZSBub25jZQ==''',
 ]
