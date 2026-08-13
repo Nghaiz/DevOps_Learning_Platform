@@ -3,8 +3,8 @@ import { resolve, sep } from 'node:path';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { scenarioIdSchema } from '@devops-platform/shared-types/scenario';
-import { getAuth } from '../../../../../server/auth/config';
-import { scenarioDir } from '../../../../../server/lessons/catalog';
+import { getAuth } from '../../../../../../server/auth/config';
+import { scenarioDir } from '../../../../../../server/lessons/catalog';
 
 /**
  * Phục vụ asset TĨNH của scenario (ảnh trong nội dung bài) — P2 / 2.D task 0.5.

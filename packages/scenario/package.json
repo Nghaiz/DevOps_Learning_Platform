@@ -3,8 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "//exports": "`.` kéo theo loader + source đọc đĩa (`node:fs`). `./content-blocks` là subpath AN TOÀN CHO TRÌNH DUYỆT — thuần chuỗi, không import Node built-in nào. Trang bài học chạy `parseContentBlocks` ở client, và import nó qua `.` làm Turbopack lôi `node:fs/promises` vào bundle trình duyệt rồi ĐỔ BUILD (`the chunking context does not support external modules`). Cùng lối với `@devops-platform/shared-types/scenario`.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./content-blocks": "./src/content-blocks.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

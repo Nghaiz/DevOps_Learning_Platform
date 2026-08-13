@@ -1,0 +1,153 @@
+'use client';
+
+import { useEffect, useState, type ReactNode } from 'react';
+import type { CodeAction } from '@devops-platform/scenario/content-blocks';
+import { cn } from '../cn.ts';
+
+export interface CodeBlockProps {
+  readonly code: string;
+  readonly language: string | null;
+  readonly action: CodeAction;
+  readonly inline: boolean;
+  /** `undefined` = ẩn hẳn nút chạy (khác với `execEnabled: false` = hiện nhưng disable). */
+  readonly onExec?: ((command: string, interrupt: boolean) => void) | undefined;
+  /** Mặc định `true`. */
+  readonly execEnabled?: boolean | undefined;
+}
+
+type CopyStatus = 'idle' | 'success' | 'error';
+
+const COPY_LABEL: Record<CopyStatus, string> = {
+  idle: 'Chép',
+  success: 'Đã chép',
+  error: 'Chép thất bại',
+};
+
+/** Nút hành động dùng chung — kích thước nhỏ, một style cho cả inline lẫn khối. */
+function ActionButton({
+  onClick,
+  disabled,
+  title,
+  className,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string | undefined;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={cn(
+        'inline-flex h-6 shrink-0 items-center rounded px-2 text-xs font-medium text-slate-100',
+        'bg-slate-700 transition-colors hover:bg-slate-600',
+        'disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400',
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Khối code CÓ HÀNH ĐỘNG — kết quả của `parseContentBlocks` (packages/scenario)
+ * khi gặp hậu tố `{{copy}}`/`{{exec}}`/`{{exec interrupt}}`. Fence THƯỜNG (không
+ * hậu tố) không bao giờ tới đây — chúng ở lại trong `ContentBlock.kind ===
+ * 'markdown'` và do MarkdownView vẽ (không nút, không tương tác).
+ */
+export function CodeBlock({ code, language, action, inline, onExec, execEnabled = true }: CodeBlockProps) {
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle');
+
+  // Tự reset sau ~2s để nút không kẹt mãi ở "Đã chép"/"Chép thất bại".
+  useEffect(() => {
+    if (copyStatus === 'idle') {
+      return;
+    }
+    const timer = setTimeout(() => setCopyStatus('idle'), 2000);
+    return () => clearTimeout(timer);
+  }, [copyStatus]);
+
+  const handleCopy = (): void => {
+    // `navigator.clipboard.writeText` CÓ THỂ reject (thiếu quyền, context không
+    // an toàn — http thường, iframe bị chặn permission). Bắt bằng tham số thứ
+    // hai của `.then`, KHÔNG nuốt lỗi trong im lặng — người học phải thấy nút
+    // đổi sang trạng thái lỗi thay vì tưởng đã chép mà thực ra không.
+    navigator.clipboard.writeText(code).then(
+      () => setCopyStatus('success'),
+      () => setCopyStatus('error'),
+    );
+  };
+
+  const handleExec = (): void => {
+    onExec?.(code, action === 'exec-interrupt');
+  };
+
+  const showCopy = action === 'copy';
+  // Ẩn hẳn (không render) khi onExec undefined — khác với execEnabled=false
+  // (vẫn render nhưng disabled). Hai trạng thái này truyền đạt hai điều khác
+  // nhau cho người học: "tính năng này không tồn tại ở đây" vs "có nhưng chưa
+  // dùng được lúc này".
+  const showExec = (action === 'exec' || action === 'exec-interrupt') && onExec !== undefined;
+  const execTitle = execEnabled ? undefined : 'Terminal chưa sẵn sàng — đợi terminal kết nối rồi thử lại.';
+  const execLabel = action === 'exec-interrupt' ? 'Ngắt & chạy' : 'Chạy';
+
+  const codeEl = (
+    <code
+      className={cn(
+        'font-mono text-slate-800',
+        inline ? 'rounded bg-slate-100 px-1.5 py-0.5 text-[0.85em]' : 'block whitespace-pre text-slate-100',
+      )}
+    >
+      {code}
+    </code>
+  );
+
+  if (inline) {
+    // Mảnh giữa câu — span, KHÔNG phải card full-width (nội dung scenario đặt
+    // nó giữa câu văn, xem MarkdownView § isMidSentenceFragment).
+    return (
+      <span className="inline-flex items-center gap-1 align-middle">
+        {codeEl}
+        {showCopy && (
+          <ActionButton onClick={handleCopy} className="bg-slate-200 text-slate-700 hover:bg-slate-300">
+            {COPY_LABEL[copyStatus]}
+          </ActionButton>
+        )}
+        {showExec && (
+          <ActionButton
+            onClick={handleExec}
+            disabled={!execEnabled}
+            title={execTitle}
+            className="bg-slate-200 text-slate-700 hover:bg-slate-300"
+          >
+            {execLabel}
+          </ActionButton>
+        )}
+      </span>
+    );
+  }
+
+  return (
+    <div className="my-2 overflow-hidden rounded-md border border-slate-800 bg-slate-900">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-800 px-3 py-1.5">
+        <span className="text-xs text-slate-400">{language ?? 'text'}</span>
+        <div className="flex gap-1.5">
+          {showCopy && <ActionButton onClick={handleCopy}>{COPY_LABEL[copyStatus]}</ActionButton>}
+          {showExec && (
+            <ActionButton onClick={handleExec} disabled={!execEnabled} title={execTitle}>
+              {execLabel}
+            </ActionButton>
+          )}
+        </div>
+      </div>
+      <pre className="overflow-x-auto px-3 py-2 text-sm">{codeEl}</pre>
+    </div>
+  );
+}
