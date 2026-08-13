@@ -11,7 +11,9 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "//test": "CỐ Ý chỉ chạy project `node`. `turbo run test` gọi script này ở job `ts` của CI, mà job đó KHÔNG cài trình duyệt — để `vitest run` trần ở đây là job `ts` đỏ vì thiếu chromium. Hai project trình duyệt có cổng riêng (`test:browser` + job `terminal-browser`), xem vitest.config.ts.",
+    "test": "vitest run --project node",
+    "test:browser": "vitest run --project gpu-on --project gpu-off"
   },
   "//xterm": "Ghim CHÍNH XÁC, không dải `^`: xterm v6 phân bổ addon ra 6 package rời và mỗi addon khai peerDependency vào đúng một minor của core. Một `^` ở đây cho phép pnpm nâng lệch một addon so với core, và triệu chứng là addon im lặng không nạp (`loadAddon` không ném) chứ không phải lỗi cài đặt.",
   "dependencies": {
@@ -31,10 +33,15 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.4",
     "@typescript/native": "npm:typescript@^7.0.2",
+    "@vitest/browser-playwright": "4.1.10",
     "eslint": "^10.8.1",
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "^27.0.0",
+    "playwright": "^1.62.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "subset-font": "^2.5.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.0.0",

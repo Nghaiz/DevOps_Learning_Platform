@@ -1,0 +1,43 @@
+=== BASELINE ===
+total=20 failed=0
+
+=== KẾT QUẢ ===
+
+M1 — lastNotified seed lại bằng lastSize (bỏ bản vá lượt-đo-đầu-chỉ-ghi)
+   ✅ ĐỎ đúng ca (8 ca đỏ, 2 khớp kỳ vọng)
+     · debounce resize 50ms — contract §4, vế (a) của luật 5 mount rồi KHÔNG đổi gì ⇒ 0 frame resize (lượt đo đầu chỉ ghi, không phát)
+     · debounce resize 50ms — contract §4, vế (a) của luật 5 nhiều lần đổi kích thước trong một cửa sổ debounce ⇒ onResize chạy ĐÚNG 1 lần
+     · debounce resize 50ms — contract §4, vế (a) của luật 5 đối chứng: hai lần đổi CÁCH NHAU hơn 50ms ⇒ onResize chạy 2 lần
+     · debounce resize 50ms — contract §4, vế (a) của luật 5 cols/rows không đổi ⇒ KHÔNG phát resize (bảo vệ trần control 100/s của G8)
+     · debounce resize 50ms — contract §4, vế (a) của luật 5 mount rồi KHÔNG đổi gì ⇒ 0 frame resize (lượt đo đầu chỉ ghi, không phát)
+     · debounce resize 50ms — contract §4, vế (a) của luật 5 nhiều lần đổi kích thước trong một cửa sổ debounce ⇒ onResize chạy ĐÚNG 1 lần
+
+M2 — bỏ console.warn trong catch WebGL
+   ✅ ĐỎ đúng ca (1 ca đỏ, 1 khớp kỳ vọng)
+     · fallback renderer khi không có WebGL2 (AC §Terminal UX) cảnh không-WebGL: có console.warn fallback và KHÔNG có canvas WebGL
+
+M3 — catch WebGL ném lại thay vì fallback (bỏ hẳn nhánh dự phòng)
+   ✅ ĐỎ đúng ca (9 ca đỏ, 1 khớp kỳ vọng)
+     · fallback renderer khi không có WebGL2 (AC §Terminal UX) createTerminalCore KHÔNG ném, dù có WebGL hay không
+     · fallback renderer khi không có WebGL2 (AC §Terminal UX) terminal vẫn nhận và giữ được dữ liệu ở cả hai cảnh
+     · fallback renderer khi không có WebGL2 (AC §Terminal UX) cảnh không-WebGL: có console.warn fallback và KHÔNG có canvas WebGL
+     · debounce resize 50ms — contract §4, vế (a) của luật 5 mount rồi KHÔNG đổi gì ⇒ 0 frame resize (lượt đo đầu chỉ ghi, không phát)
+     · debounce resize 50ms — contract §4, vế (a) của luật 5 nhiều lần đổi kích thước trong một cửa sổ debounce ⇒ onResize chạy ĐÚNG 1 lần
+     · debounce resize 50ms — contract §4, vế (a) của luật 5 đối chứng: hai lần đổi CÁCH NHAU hơn 50ms ⇒ onResize chạy 2 lần
+
+M4 — bỏ connection.close() trong cleanup của effect kết nối
+   ✅ ĐỎ đúng ca (4 ca đỏ, 2 khớp kỳ vọng)
+     · vòng đời WebSocket dưới StrictMode mount/unmount 3 lần ⇒ dựng 6 · đóng 5 · còn sống ĐÚNG 1
+     · vòng đời WebSocket dưới StrictMode unmount cuối cùng đóng nốt socket còn lại — không rò qua biên test
+     · vòng đời WebSocket dưới StrictMode mount/unmount 3 lần ⇒ dựng 6 · đóng 5 · còn sống ĐÚNG 1
+     · vòng đời WebSocket dưới StrictMode unmount cuối cùng đóng nốt socket còn lại — không rò qua biên test
+
+M5 — RESIZE_DEBOUNCE_MS 50 → 5 (debounce quá ngắn để gộp burst)
+   ✅ ĐỎ đúng ca (2 ca đỏ, 2 khớp kỳ vọng)
+     · debounce resize 50ms — contract §4, vế (a) của luật 5 nhiều lần đổi kích thước trong một cửa sổ debounce ⇒ onResize chạy ĐÚNG 1 lần
+     · debounce resize 50ms — contract §4, vế (a) của luật 5 nhiều lần đổi kích thước trong một cửa sổ debounce ⇒ onResize chạy ĐÚNG 1 lần
+
+M6 — bỏ cờ --disable-3d-apis khỏi project gpu-off
+   ✅ ĐỎ đúng ca (2 ca đỏ, 1 khớp kỳ vọng)
+     · cảnh WebGL của project khớp với cờ launch đã cấu hình — tiền đề của mọi ca dưới
+     · fallback renderer khi không có WebGL2 (AC §Terminal UX) cảnh không-WebGL: có console.warn fallback và KHÔNG có canvas WebGL
