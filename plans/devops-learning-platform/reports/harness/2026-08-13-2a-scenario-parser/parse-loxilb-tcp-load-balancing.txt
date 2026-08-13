@@ -1,0 +1,17 @@
+id                 loxilb-tcp-load-balancing
+title              LoxiLB IPv4 Basic TCP Load Balancing Test
+difficulty         advanced (~30 phút)
+tier / imageid     sysbox ← ubuntu
+capabilities       (không)
+license            Apache-2.0 — https://github.com/loxilb-io/killercoda-examples@3c2f0ff
+assets             12 file → host01
+intro              592 ký tự md · 0 khối hành động · verify 26 ký tự · foreground · background
+finish             51 ký tự md · 0 khối hành động · không verify
+
+steps (3):
+  [0] Let's check our topology first
+      633 ký tự md · 0 khối hành động · không verify
+  [1] Configure LoxiLB Rules and Check configuration
+      303 ký tự md · 0 khối hành động · không verify
+  [2] Validate LoxiLB Rules 
+      1046 ký tự md · 0 khối hành động · không verify

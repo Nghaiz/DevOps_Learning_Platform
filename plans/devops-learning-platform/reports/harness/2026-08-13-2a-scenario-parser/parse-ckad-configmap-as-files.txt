@@ -1,0 +1,13 @@
+id                 ckad-configmap-as-files
+title              CKAD: ConfigMap as Files (Mount into NGINX html)
+difficulty         intermediate (~15 phút)
+tier / imageid     sysbox ← kubernetes-kubeadm-2nodes
+capabilities       kubernetes, multi-node
+license            MIT — https://github.com/omkar-shelke25/ckad-killercoda@54c573a
+field bỏ qua       details.intro.courseData
+intro              240 ký tự md · 0 khối hành động · không verify
+finish             513 ký tự md · 0 khối hành động · không verify
+
+steps (1):
+  [0] Mount ConfigMap as files into a Pod
+      1819 ký tự md · 0 khối hành động · verify 2247 ký tự

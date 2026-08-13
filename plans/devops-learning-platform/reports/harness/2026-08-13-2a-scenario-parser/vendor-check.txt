@@ -1,0 +1,4 @@
+✓ ckad-configmap-as-files — 7 file khớp upstream
+✓ loki-quickstart — 8 file khớp upstream
+✓ loxilb-tcp-load-balancing — 22 file khớp upstream
+✓ prolug-linux-system-checking — 11 file khớp upstream

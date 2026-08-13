@@ -4,6 +4,10 @@
 // allowImportingTsExtensions (chỉ hợp lệ vì noEmit).
 export * from './redis-keys.ts';
 
+// DTO scenario (P2 — Lessons). Hình dạng SAU chuẩn hoá; schema upstream nằm ở
+// packages/scenario và cố ý không xuất hiện ở đây.
+export * from './scenario.ts';
+
 // Type sinh từ proto/orchestrator/v1/session.proto — SSOT của contract Next↔Go.
 export type {
   ClaimSessionRequest,

@@ -1,13 +1,10 @@
 {
-  "name": "@devops-platform/shared-types",
+  "name": "@devops-platform/scenario",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "//exports": "Subpath `./scenario` KHÔNG phải tiện nghi: barrel `.` kéo theo gen/orchestrator/v1/session_pb.ts, và file đó có `enum` — thứ Node strip-only từ chối (ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX). Mọi script chạy bằng `node` trần mà chạm DTO scenario (packages/scenario/scripts/parse.mjs) sẽ chết ở đó. Parser cũng vốn không cần type proto, nên subpath này vừa sửa lỗi vừa đúng phân tầng.",
   "exports": {
-    ".": "./src/index.ts",
-    "./scenario": "./src/scenario.ts",
-    "./orchestrator/v1": "./gen/orchestrator/v1/session_pb.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -16,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "^2.13.0",
+    "@devops-platform/shared-types": "workspace:*",
     "zod": "^4.4.3"
   },
   "//typescript": "Alias TS6/TS7 song song — xem giải thích ở package.json gốc: `tsc` = TS7 native, `typescript` = shim TS6 cho typescript-eslint API.",

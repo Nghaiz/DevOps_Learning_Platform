@@ -1,0 +1,71 @@
+
+ RUN  v4.1.10 D:/NCKH/DevOps_Learning_Platform/packages/scenario
+
+ ✓ src/backend.test.ts > mapBackendImage > ubuntu là sandbox trần, không đòi năng lực gì 3ms
+ ✓ src/backend.test.ts > mapBackendImage > imageid kubernetes luôn kèm capability kubernetes 2ms
+ ✓ src/backend.test.ts > mapBackendImage > 2nodes kèm thêm multi-node, 1node thì không 1ms
+ ✓ src/backend.test.ts > mapBackendImage > imageid chưa xem xét trả null, kể cả khi trông quen 0ms
+ ✓ src/backend.test.ts > mapBackendImage > mọi tier khai ra đều là tier P1 dựng thật (chưa có gvisor/kata) 1ms
+ ✓ src/backend.test.ts > mapBackendImage > KNOWN_BACKEND_IMAGE_IDS khớp bảng và đã sắp xếp 1ms
+ ✓ src/content-blocks.test.ts > parseContentBlocks — hậu tố hành động > nhận đủ bốn hậu tố inline của docs Killercoda 5ms
+ ✓ src/content-blocks.test.ts > parseContentBlocks — hậu tố hành động > nhận fence nhiều dòng kèm hậu tố và giữ nguyên ngôn ngữ 1ms
+ ✓ src/content-blocks.test.ts > parseContentBlocks — hậu tố hành động > fence KHÔNG có hậu tố ở nguyên trong văn xuôi (FE render như code block thường) 0ms
+ ✓ src/content-blocks.test.ts > parseContentBlocks — hậu tố hành động > inline code KHÔNG có hậu tố ở nguyên trong văn xuôi (mặc định copy-được là việc của FE) 0ms
+ ✓ src/content-blocks.test.ts > parseContentBlocks — các bẫy > fence không-hậu-tố đứng trước fence có-hậu-tố không làm mất đoạn văn ở giữa 1ms
+ ✓ src/content-blocks.test.ts > parseContentBlocks — các bẫy > biến {{TRAFFIC_*}} không bị nhận nhầm thành hành động 0ms
+ ✓ src/content-blocks.test.ts > parseContentBlocks — các bẫy > có khoảng trắng giữa backtick và ngoặc thì KHÔNG phải hành động 0ms
+ ✓ src/content-blocks.test.ts > parseContentBlocks — các bẫy > fence chưa đóng thì trả nguyên văn, không nuốt phần đuôi tài liệu 0ms
+ ✓ src/content-blocks.test.ts > parseContentBlocks — các bẫy > verb lạ thì NÉM, không im lặng bỏ qua và không đoán bừa 1ms
+ ✓ src/content-blocks.test.ts > parseContentBlocks — các bẫy > văn xuôi quanh hành động inline được giữ, không bị cắt mất 0ms
+ ✓ src/content-blocks.test.ts > parseContentBlocks — các bẫy > markdown rỗng cho ra danh sách rỗng 0ms
+ ✓ src/content-blocks.test.ts > executableCommands > chỉ lấy exec và exec-interrupt, bỏ copy/none 0ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — đường xanh > nhận scenario tối thiểu 8ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — đường xanh > nhận đủ intro/finish/assets/interface 3ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — đường xanh > step vắng title là hợp lệ (upstream `use-images` làm vậy) 0ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — đường xanh > scenario không có details là hợp lệ Ở TẦNG NÀY (upstream `ubuntu-simple`) — loader mới từ chối 0ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — luật 3, field lạ > field lạ chưa khai thì NÉM và nêu đúng đường dẫn 2ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — luật 3, field lạ > field lạ ĐÃ khai thì cho qua và được ghi lại, không nuốt im lặng 1ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — luật 3, field lạ > gom ĐỦ mọi field lạ trong một lần báo, không dừng ở cái đầu tiên 1ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — luật 3, field lạ > lời khai đã cũ (upstream đã dọn field) cũng là LỖI, không phải chuyện vô hại 1ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — luật 3, field lạ > KHÔNG làm biến đổi object của caller khi bỏ field đã khai 1ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — sai cấu trúc thật > thiếu title 1ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — sai cấu trúc thật > thiếu backend.imageid 1ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — sai cấu trúc thật > step thiếu text — một bước không có nội dung là trang trắng 1ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — sai cấu trúc thật > sai kiểu (steps là object thay vì mảng) 0ms
+ ✓ src/killercoda.test.ts > parseKillercodaIndex — sai cấu trúc thật > lỗi cấu trúc thắng lỗi field lạ — không cho khai để né một schema thật sự sai 1ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — parse kho thật > nạp được ≥3 scenario, không lỗi 2ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — parse kho thật > mọi scenario đều có ≥1 step, step đánh số liên tục từ 0, và markdown không rỗng 3ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — parse kho thật > mọi scenario khai đủ xuất xứ + license máy đọc được (AC 2.E) 1ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — parse kho thật > markdown của mọi step parse được thành block, không có verb lạ 3ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — từng biến thể format > ckad: verify theo từng step + field lạ courseData được ghi lại chứ không nuốt 1ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — từng biến thể format > prolug: step nằm trong THƯ MỤC CON, intro dùng background chứ không foreground 2ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — từng biến thể format > loki: step KHÔNG có title và KHÔNG phase nào có verify — nút Check phải ẩn được 1ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — từng biến thể format > loxilb: có assets kèm chmod, và intro cũng chấm được 1ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — từng biến thể format > bộ mẫu phủ được cả hai cực: có verify và không verify nào 1ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — hành động code có thật trong nội dung > ít nhất một scenario mang nút bấm-để-chạy 1ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — hành động code có thật trong nội dung > biến TRAFFIC trong nội dung thật không bị biến thành nút 1ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — verify script có thật sự kiểm gì không > prolug dùng verify no-op — ĐỪNG chọn nó làm bằng chứng pass/fail của 2.C 1ms
+ ✓ src/content-scenarios.test.ts > content/scenarios — verify script có thật sự kiểm gì không > ít nhất một scenario có verify thật sự soi trạng thái — 2.C có vật liệu để chấm 0ms
+ ✓ src/loader.test.ts > loadScenario — đường xanh > dựng DTO đầy đủ từ thư mục hợp lệ 32ms
+ ✓ src/loader.test.ts > loadScenario — đường xanh > đọc nội dung script chứ không phải đường dẫn script 19ms
+ ✓ src/loader.test.ts > loadScenario — đường xanh > index step liên tục từ 0 và ánh xạ imageid k8s ra capability 11ms
+ ✓ src/loader.test.ts > loadScenario — errors-over-fallback > id sidecar khác tên thư mục ⇒ NÉM (id là khoá progress.lesson_id) 9ms
+ ✓ src/loader.test.ts > loadScenario — errors-over-fallback > không có step nào ⇒ NÉM dù Killercoda cho phép 8ms
+ ✓ src/loader.test.ts > loadScenario — errors-over-fallback > imageid lạ ⇒ NÉM và liệt kê imageid đã biết 8ms
+ ✓ src/loader.test.ts > loadScenario — errors-over-fallback > đường dẫn text trỏ ra ngoài thư mục ⇒ NÉM 8ms
+ ✓ src/loader.test.ts > loadScenario — errors-over-fallback > đường dẫn tuyệt đối ⇒ NÉM 10ms
+ ✓ src/loader.test.ts > loadScenario — errors-over-fallback > file markdown vắng mặt ⇒ NÉM, nêu rõ field nào trỏ tới nó 8ms
+ ✓ src/loader.test.ts > loadScenario — errors-over-fallback > bỏ qua field upstream mà không ghi notes ⇒ NÉM 12ms
+ ✓ src/loader.test.ts > loadScenario — errors-over-fallback > dlp.json thiếu license ⇒ NÉM (AC 2.E: license phải máy kiểm được) 8ms
+ ✓ src/loader.test.ts > loadScenario — errors-over-fallback > dlp.json có field lạ ⇒ NÉM (luật 3 áp cho cả file của ta) 6ms
+ ✓ src/loader.test.ts > loadScenario — errors-over-fallback > JSON hỏng ⇒ NÉM kèm tên file 8ms
+ ✓ src/loader.test.ts > loadScenario — errors-over-fallback > lỗi luôn mang tên thư mục để định vị được 9ms
+ ✓ src/loader.test.ts > loadScenarios > nạp nhiều thư mục, sắp xếp theo id 16ms
+ ✓ src/loader.test.ts > loadScenarios > MỘT scenario hỏng làm hỏng cả mẻ — không bỏ qua trong im lặng 13ms
+ ✓ src/loader.test.ts > loadScenarios > bỏ qua file lẻ ở cấp root, chỉ nạp thư mục 12ms
+
+ Test Files  5 passed (5)
+      Tests  62 passed (62)
+   Start at  13:30:20
+   Duration  996ms (transform 732ms, setup 0ms, import 1.39s, tests 266ms, environment 1ms)
+

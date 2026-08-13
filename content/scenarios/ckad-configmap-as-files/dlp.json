@@ -1,0 +1,15 @@
+{
+  "id": "ckad-configmap-as-files",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 15,
+  "source": {
+    "repo": "https://github.com/omkar-shelke25/ckad-killercoda",
+    "commit": "54c573a3402139e5c307b82418e526d13c03bc54",
+    "path": "ConfigMap-as-Files",
+    "license": "MIT",
+    "licenseUrl": "https://raw.githubusercontent.com/omkar-shelke25/ckad-killercoda/54c573a3402139e5c307b82418e526d13c03bc54/LICENSE",
+    "upstreamTitle": "CKAD: ConfigMap as Files (Mount into NGINX html)"
+  },
+  "acknowledgedUnknownFields": ["details.intro.courseData"],
+  "notes": "details.intro.courseData=\"setup.sh\" là di sản Katacoda: trang docs của Killercoda creator (đọc 2026-08-13) liệt kê foreground/background/verify và KHÔNG có courseData, nên nhiều khả năng chính Killercoda cũng đang bỏ qua nó và setup.sh của bài này chưa từng chạy ở upstream. Ta cũng bỏ qua, và ghi lại ở Scenario.ignoredUpstreamFields để 2.C nhìn thấy. Bài vẫn tự đủ: step1 hướng dẫn tạo ConfigMap từ đầu, không phụ thuộc setup.sh. Khi 2.C có đường chạy script, cân nhắc map courseData -> background."
+}

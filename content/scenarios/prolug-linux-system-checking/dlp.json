@@ -1,0 +1,15 @@
+{
+  "id": "prolug-linux-system-checking",
+  "difficulty": "beginner",
+  "estimatedMinutes": 20,
+  "source": {
+    "repo": "https://github.com/het-tanis/prolug-labs",
+    "commit": "a33086490d7ba3a390b24757d080845e9f445c95",
+    "path": "Linux-Labs/01-system-checking",
+    "license": "MIT",
+    "licenseUrl": "https://raw.githubusercontent.com/het-tanis/prolug-labs/a33086490d7ba3a390b24757d080845e9f445c95/LICENSE",
+    "upstreamTitle": "Let's do Linux"
+  },
+  "acknowledgedUnknownFields": [],
+  "notes": "Biến thể format: mỗi step nằm trong THƯ MỤC CON (step1/text.md + step1/verify.sh) thay vì file phẳng, và intro dùng background chứ không foreground. ⚠ CẢ BA verify.sh của upstream đều là `/bin/true`, tức luôn exit 0 — ĐỪNG dùng scenario này làm bằng chứng cho ô AC pass/fail của 2.C, vế 'fail' là bất khả. Dùng ckad-configmap-as-files (verify kubectl thật) hoặc loxilb (stat netns) cho việc đó."
+}

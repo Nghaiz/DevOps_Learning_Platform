@@ -49,3 +49,25 @@ images/sandbox-base/etc/**   text eol=lf
 
 # Mặc định: để git tự chuẩn hoá text, nhị phân giữ nguyên.
 * text=auto
+
+# Nội dung vendor từ upstream — bản sao BYTE-EXACT, KHÔNG chuẩn hoá gì cả.
+#
+# `-text` (không phải `text eol=lf`) vì đây là một tấm gương: thư mục chứa
+# markdown, JSON, shell, .js và một PNG, còn cổng
+# `node scripts/vendor-scenarios.mjs --check` so TỪNG BYTE với commit đã ghim.
+# `eol=lf` vẫn cho git viết lại CRLF→LF lúc commit, nên một file upstream vốn
+# CRLF sẽ được lưu sai; `-text` thì git không đụng vào byte nào.
+#
+# Vì sao nó phải nằm SAU `* text=auto` chứ không như các khối ở trên: trong
+# .gitattributes **dòng khớp cuối cùng thắng**, và điều đó áp cho TỪNG attribute
+# riêng. Các khối trên sống sót vì chúng đặt `eol`, thứ mà `* text=auto` không
+# nhắc tới — còn `-text` thì tranh chấp trực tiếp với `text=auto` và sẽ THUA nếu
+# đứng trước. Đặt nhầm chỗ thì dòng này im lặng vô hiệu, `git check-attr text`
+# vẫn trả `auto`.
+#
+# Hậu quả nếu thiếu: với `core.autocrlf=true`, một lần `git clone` trên Windows
+# biến mọi file text ở đây thành CRLF ⇒ `--check` báo LỆCH cả 4 scenario trên
+# một cây vừa clone sạch, và lời khai license trong dlp.json ("nội dung này ĐÚNG
+# là commit X") thành sai. CI (Linux) vẫn LF nên vẫn xanh — tức lỗi này KHÔNG có
+# cổng nào bắt được, y hệt bốn sự cố EOL ở trên.
+content/scenarios/** -text

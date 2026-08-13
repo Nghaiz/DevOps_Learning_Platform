@@ -10,12 +10,19 @@ Trụ cột ① — trải nghiệm học kiểu KillerCoda: bài markdown từn
 
 ## Task list
 
-### 2.A packages/scenario — parser Katacoda/Killercoda
-1. Parse `index.json` (Katacoda/Killercoda): metadata, `details.steps[]`, `intro`, `finish`, `assets`, `backend.imageid` (map sang tier/image của ta), env/setup.
-2. Parse từng `step{N}.md` (nội dung markdown) + `background`/`foreground` scripts (setup + validation) theo format Killercoda.
-3. Chuẩn hóa sang DTO chung (`packages/shared-types`): `Scenario{id, title, difficulty, steps[]}`, `Step{index, markdownHtml, verifyScript?, setupScript?}`. Zod schema strict (luật 3).
-4. Loader: đọc scenario từ thư mục repo (`content/scenarios/**`) và/hoặc DB; validate cấu trúc, báo lỗi rõ nếu format sai (errors-over-fallback).
-5. Test parser trên kho thật (killercoda `scenario-examples` / grafana killercoda) — ≥ 3 scenario mẫu.
+### 2.A packages/scenario — parser Katacoda/Killercoda ✅ XONG (2026-08-13)
+
+> Báo cáo: [`reports/2026-08-13-verify-2a-scenario-parser.md`](reports/2026-08-13-verify-2a-scenario-parser.md) ·
+> Contract: [`docs/scenario-format.md`](../../docs/scenario-format.md)
+
+1. ✅ Parse `index.json` (Katacoda/Killercoda): metadata, `details.steps[]`, `intro`, `finish`, `assets`, `backend.imageid` (map sang tier/image của ta), env/setup.
+2. ✅ Parse từng `step{N}.md` (nội dung markdown) + `background`/`foreground` scripts (setup + validation) theo format Killercoda. **`foreground` và `background` GIỮ TÁCH NHAU** — docs Killercoda phân biệt rõ (foreground hiện lệnh trong terminal người học, background chạy ẩn), gộp thành một `setupScript` là mất đúng thông tin quyết định UX.
+3. ✅ Chuẩn hóa sang DTO chung (`packages/shared-types/src/scenario.ts`). **Hai sửa so với bản phác ban đầu, cả hai bắt buộc:**
+   - `Step.markdown` (nguyên văn) **thay cho** `markdownHtml`. HTML vừa là derived field vừa **không chở nổi** hậu tố `{{exec}}`/`{{copy}}` — chúng phải thành nút nối vào terminal, một chuỗi HTML không có chỗ gắn handler. Thay bằng hàm thuần `parseContentBlocks(markdown)` dùng chung cho 2.C và 2.D.
+   - `difficulty` **không parse được** — Killercoda `index.json` không có field đó (code search 0 hit; docs không liệt kê). Nó đến từ sidecar `dlp.json` của ta, bắt buộc, không default.
+   Zod schema strict (luật 3) ở cả `index.json` upstream lẫn `dlp.json`.
+4. ✅ Loader: đọc scenario từ `content/scenarios/**`; validate cấu trúc, báo lỗi rõ nếu format sai (errors-over-fallback). Field lạ trong `index.json` → từ chối, trừ khi sidecar khai tường minh kèm lý do; field đã bỏ qua nổi lên ở `Scenario.ignoredUpstreamFields`.
+5. ✅ Test parser trên kho thật — **4 scenario** từ 3 repo. ⚠ **`killercoda/scenario-examples` KHÔNG có LICENSE** (all rights reserved) nên chỉ đọc để hiểu format, không vendor được; nguồn thay thế xem 2.E.
 
 ### 2.B DB & tRPC — nội dung + tiến độ
 6. Schema Postgres (Drizzle): `scenarios` (metadata + ref nội dung), `progress{userId, scenarioId, stepIndex, status, updatedAt}`. Nội dung md có thể để trong repo/asset, DB giữ metadata + tiến độ.
@@ -24,7 +31,19 @@ Trụ cột ① — trải nghiệm học kiểu KillerCoda: bài markdown từn
 9. Zod input strict mọi procedure (luật 3); reject field lạ.
 
 ### 2.C Validation engine — chấm step trong sandbox
-10. `checkStep`: gateway/orchestrator exec `verifyScript` của step trong pod session (dùng đường exec P1), thu exit code + stdout → pass/fail. Timeout + giới hạn output.
+
+> **Transport đã CHỐT (2026-08-13, chưa hiện thực):** `POST /exec/session/{id}` trên
+> **terminal-gateway**, auth bằng chính cookie `dlp_sandbox` do BFF mint server-side.
+> **Không** thêm RPC vào `proto/orchestrator/v1` — orchestrator không có mã exec lẫn RBAC
+> `pods/exec`, còn gateway đã có cả hai và đã hardening ở P1. Bốn khác biệt so với đường WS
+> mà 2.C phải xử lý riêng (`TTY:false` để lấy exit code, không chiếm khe WS D17=1, cắt cỡ
+> output, script đến từ đĩa chứ không từ body client): [`docs/scenario-format.md`](../../docs/scenario-format.md) §4.
+>
+> ⚠ **Đừng chọn `prolug-linux-system-checking` làm bằng chứng pass/fail** — cả ba `verify.sh`
+> của nó là `/bin/true`, vế "fail" bất khả. Dùng `ckad-configmap-as-files` (kubectl thật)
+> hoặc `loxilb-tcp-load-balancing` (`stat /var/run/netns/loxilb`).
+
+10. `checkStep`: gateway exec `verifyScript` của step trong pod session (dùng đường exec P1), thu exit code + stdout → pass/fail. **Pass khi exit code = 0** (docs Killercoda § Verification Scripts). Timeout + giới hạn output.
 11. Setup script chạy khi start scenario (chuẩn bị môi trường step). Idempotent nếu có thể.
 12. Kết quả check cập nhật `progress.stepIndex`/`status`; trả cho FE.
 13. Bảo mật: verifyScript chạy TRONG pod cô lập (không trên host/gateway); output cắt cỡ; không cho script thoát pod (đã có hardening P1).
@@ -36,8 +55,19 @@ Trụ cột ① — trải nghiệm học kiểu KillerCoda: bài markdown từn
 17. Trạng thái: đang provision sandbox, sandbox sẵn sàng, hết hạn (offer restart), lỗi validation.
 18. Dùng `packages/ui` (shadcn); responsive; a11y cơ bản.
 
-### 2.E Nội dung mẫu
-19. Import 2–3 scenario Katacoda thật vào `content/scenarios/` (đã verify license) làm nội dung khởi đầu + smoke test toàn luồng.
+### 2.E Nội dung mẫu ✅ XONG phần import (2026-08-13)
+
+19. ✅ Import **4** scenario thật vào `content/scenarios/` (license đã verify bằng cách tải chính file LICENSE ở commit đã ghim). Smoke test toàn luồng ⬜ — cần 2.C/2.D.
+
+| id | license | biến thể format nó mang |
+|---|---|---|
+| `ckad-configmap-as-files` | MIT (`omkar-shelke25/ckad-killercoda`) | verify kubectl thật; mang `courseData` (field Killercoda không định nghĩa); imageid 2-node |
+| `prolug-linux-system-checking` | MIT (`het-tanis/prolug-labs`) | step trong thư mục con; intro dùng `background`; ⚠ verify là `/bin/true` |
+| `loki-quickstart` | Apache-2.0 (`grafana/killercoda`) | step không có title; không phase nào có verify |
+| `loxilb-tcp-load-balancing` | Apache-2.0 (`loxilb-io/killercoda-examples`) | `assets` + `chmod`; intro có đủ fg/bg/verify; chứa `{{TRAFFIC_*}}` |
+
+Nội dung giữ **nguyên văn** tại commit đã ghim; `node scripts/vendor-scenarios.mjs --check`
+so byte để chống drift. Thêm bài mới: `docs/scenario-format.md` §6.
 
 ## File / dir ownership
 
@@ -60,7 +90,8 @@ Trụ cột ① — trải nghiệm học kiểu KillerCoda: bài markdown từn
 ## Acceptance criteria
 
 **Chức năng:**
-- [ ] Import scenario Katacoda thật → parse không lỗi, hiển thị đủ step (test trên ≥3 scenario mẫu).
+- [x] **Import scenario Katacoda thật → parse không lỗi** (≥3 scenario mẫu). — 4 scenario từ 3 repo, 62 test, [report 2.A](reports/2026-08-13-verify-2a-scenario-parser.md).
+- [ ] … → **hiển thị đủ step** ở FE. — tách khỏi ô trên vì hai vế do hai chặng khác nhau đóng; vế hiển thị thuộc 2.D và một ô gộp sẽ hoặc bị tick sớm, hoặc giữ parser ở trạng thái "chưa xong" suốt cả phase.
 - [ ] Split-pane: nội dung trái + terminal phải hoạt động; resize được; code copy button hoạt động.
 - [ ] Step nav Prev/Next + progress bar; step done được đánh dấu.
 - [ ] Bấm "Check" → verifyScript chạy trong pod, trả pass/fail đúng (test 1 step pass + 1 step fail).
@@ -77,9 +108,10 @@ Trụ cột ① — trải nghiệm học kiểu KillerCoda: bài markdown từn
 ## Verify commands
 
 ```bash
-# Parser trên kho thật
-pnpm --filter @app/scenario test          # parse >=3 scenario mẫu, 0 lỗi
-node packages/scenario/scripts/parse.mjs content/scenarios/intro-k8s   # in DTO
+# Parser trên kho thật  (2.A + 2.E — đã chạy, xem report)
+pnpm --filter @devops-platform/scenario test    # 62 PASS: parse 4 scenario thật, 0 lỗi
+node packages/scenario/scripts/parse.mjs content/scenarios/ckad-configmap-as-files [--json]
+node scripts/vendor-scenarios.mjs --check       # nội dung khớp commit đã ghim (chạm mạng)
 
 # tRPC lessons + IDOR
 pnpm --filter web test -- lessons          # gồm test authz progress (userA != userB)

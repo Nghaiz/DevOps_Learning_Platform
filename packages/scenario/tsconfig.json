@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    // Loader đọc thẳng đĩa (node:fs/promises, node:path) — khác shared-types/ui,
+    // package này cần Node API trong CẢ mã sản phẩm chứ không riêng test.
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "eslint.config.mjs"]
+}
