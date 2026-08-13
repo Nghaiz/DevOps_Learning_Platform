@@ -1,0 +1,24 @@
+{
+  "decision": "PASS",
+  "score": 8,
+  "criticalCount": 0,
+  "contractStatus": "CHANGED",
+  "blockingReasons": [],
+  "acceptanceCoverage": [
+    "'Check tra pass/fail dung (1 pass + 1 fail)' -> DAT tren cum: FAIL exit 1 voi thong bao CUA BAI ('Chua thay /root/lab/hello.txt') -> PASS exit 0. Khang dinh tren OUTPUT chu khong chi tren `passed`, vi mot loi shell cung tra passed:false (xem adversarial).",
+    "'Setup script chay khi start' -> DAT: `.setup-done = ready` quan sat trong pod, va `foreground` duoc TRA VE cho FE thay vi chay o server.",
+    "'Validation isolation (NetworkPolicy)' -> DAT kem DOI CHUNG AM: curl example.com trong cung pod cung that bai (exit 28). Thieu doi chung nay thi o AC van xanh ca khi verify chay nham cho.",
+    "'Hien du step o FE' -> DAT: lessons.get tra 4 step, markdown 450/559/971/905 ky tu. Chinh o nay bat duoc .dockerignore loai **/*.md.",
+    "'Split-pane + resize + copy button' -> DAT tren TRINH DUYET THAT: ArrowRight 50->52 keo theo left 854->888px; End kep dung aria-valuemax; 12 nut Chep + 4 nut Chay tren noi dung vendored.",
+    "'Progress luu va khoi phuc' -> DAT: stepIndex 0 -> 1 sau luot cham dat.",
+    "⬜ 'Terminal o khoang phai noi duoc va go duoc' -> CHUA DO, va CO Y de o AC. Port-forward chi toi platform-web con /ws/* la gateway nen can ingress (P3). Tach thanh o rieng thay vi tick kem chu thich."
+  ],
+  "regressionProof": [
+    "lint 9/9, typecheck 10/10 (gom next build 13 route), test 386 ca / 0 do tren 5 package.",
+    "Go: gofmt sach, GOOS=linux go vet sach, execroute + podexec + config ok.",
+    "Doi chung CSS: class chi-co-trong-packages/ui 0 -> 1 trong bundle; doi chung duong (class cua apps/web) giu nguyen 1 -> 1.",
+    "Doi chung image: file .md trong image 0 -> 26.",
+    "Gac dang nhap khong hoi quy: /dashboard van 307; /lessonsfoo 404 (khong over-match).",
+    "e2e chay LAI tren deploy = dau nhanh: 14/14 PASS."
+  ]
+}
