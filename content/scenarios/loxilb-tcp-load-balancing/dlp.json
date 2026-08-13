@@ -1,0 +1,15 @@
+{
+  "id": "loxilb-tcp-load-balancing",
+  "difficulty": "advanced",
+  "estimatedMinutes": 30,
+  "source": {
+    "repo": "https://github.com/loxilb-io/killercoda-examples",
+    "commit": "3c2f0ff867b0b2bbb04fa08529ba4974d6ab83d7",
+    "path": "loxilb-tcplb",
+    "license": "Apache-2.0",
+    "licenseUrl": "https://raw.githubusercontent.com/loxilb-io/killercoda-examples/3c2f0ff867b0b2bbb04fa08529ba4974d6ab83d7/LICENSE",
+    "upstreamTitle": "LoxiLB IPv4 Basic TCP Load Balancing Test"
+  },
+  "acknowledgedUnknownFields": [],
+  "notes": "Biến thể format: có details.assets (12 file đẩy vào host01, kèm chmod) và intro mang ĐỦ cả foreground + background + verify — ca duy nhất trong bộ mẫu chứng minh intro cũng chấm được."
+}

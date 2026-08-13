@@ -1,0 +1,14 @@
+id                 loki-quickstart
+title              Loki Quickstart Demo
+difficulty         beginner (~25 phút)
+tier / imageid     sysbox ← ubuntu
+capabilities       (không)
+license            Apache-2.0 — https://github.com/grafana/killercoda@486234c
+intro              1339 ký tự md · 0 khối hành động · không verify · foreground
+finish             830 ký tự md · 0 khối hành động · không verify
+
+steps (2):
+  [0] (không tiêu đề)
+      2570 ký tự md · 16 khối hành động · không verify
+  [1] (không tiêu đề)
+      7122 ký tự md · 32 khối hành động · không verify

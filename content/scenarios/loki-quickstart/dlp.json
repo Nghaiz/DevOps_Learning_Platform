@@ -1,0 +1,15 @@
+{
+  "id": "loki-quickstart",
+  "difficulty": "beginner",
+  "estimatedMinutes": 25,
+  "source": {
+    "repo": "https://github.com/grafana/killercoda",
+    "commit": "486234c17c1e0668591909e47f4ca92e10656bb6",
+    "path": "loki/loki-quickstart",
+    "license": "Apache-2.0",
+    "licenseUrl": "https://raw.githubusercontent.com/grafana/killercoda/486234c17c1e0668591909e47f4ca92e10656bb6/LICENSE",
+    "upstreamTitle": "Loki Quickstart Demo"
+  },
+  "acknowledgedUnknownFields": [],
+  "notes": "Biến thể format: step KHÔNG có title (Killercoda cho phép), và không phase nào có verify — đây là ca chứng minh Scenario.steps[].verifyScript=null hợp lệ, tức nút Check của 2.D phải biết ẩn đi chứ không phải luôn hiện."
+}

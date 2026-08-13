@@ -32,4 +32,32 @@ export default tseslint.config(
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
+  {
+    // `scripts/**/*.mjs` chạy bằng Node, không phải trong trình duyệt, và không
+    // nằm trong `tsconfig.include` — nên không có `@types/node` nào khai
+    // `console`/`fetch`/`Buffer`/`process` cho chúng, và `no-undef` của
+    // js.configs.recommended báo đỏ toàn bộ. Khai globals thay vì tắt
+    // `no-undef`: tắt hẳn sẽ bỏ luôn phép bắt lỗi gõ sai tên biến.
+    //
+    // Ở BASE chứ không lặp lại trong từng package: packages/terminal đã cần
+    // đúng khối này, packages/scenario là chỗ thứ hai — ngưỡng rule-of-two của
+    // `code-conventions.md` § No Duplicated Logic.
+    //
+    // `no-console` tắt hẳn ở đây (khác mặc định chỉ cho warn/error): với một CLI
+    // thì stdout CHÍNH LÀ sản phẩm, và ép nó dùng `console.warn` là đẩy output
+    // sang stderr — hỏng mọi lần ai đó pipe kết quả đi chỗ khác.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        Buffer: 'readonly',
+        URL: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        process: 'readonly',
+      },
+    },
+    rules: {
+      'no-console': 'off',
+    },
+  },
 );

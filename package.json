@@ -13,6 +13,8 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "env:check": "node scripts/env-check.mjs",
+    "//scenarios:check": "Chạm mạng (GitHub) nên KHÔNG nằm trong `turbo run test` — so byte nội dung vendor với commit đã ghim trong từng content/scenarios/*/dlp.json.",
+    "scenarios:check": "node scripts/vendor-scenarios.mjs --check",
     "repo:check": "node scripts/check-repo-settings.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -1,0 +1,16 @@
+id                 prolug-linux-system-checking
+title              Let's do Linux
+difficulty         beginner (~20 phút)
+tier / imageid     sysbox ← ubuntu
+capabilities       (không)
+license            MIT — https://github.com/het-tanis/prolug-labs@a330864
+intro              23 ký tự md · 0 khối hành động · không verify · background
+finish             54 ký tự md · 0 khối hành động · không verify
+
+steps (3):
+  [0] Linux Commands to gather information
+      986 ký tự md · 4 khối hành động · verify 22 ký tự
+  [1] Linux Commands to dig into the system
+      1212 ký tự md · 5 khối hành động · verify 22 ký tự
+  [2] Linux Commands to see networking traffic and load
+      651 ký tự md · 2 khối hành động · verify 22 ký tự
