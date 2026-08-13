@@ -116,6 +116,18 @@ spec:
               # Web (BFF) là caller gRPC DUY NHẤT ở P0 — thiếu biến này thì
               # env.ts default localhost:9090 = web pod tự gọi chính nó.
               value: {{ .Values.web.env.orchestratorGrpcAddr | default (printf "%s-orchestrator:%v" (include "platform.fullname" .) .Values.orchestrator.service.grpcPort) | quote }}
+            - name: GATEWAY_INTERNAL_URL
+              # Đường BFF → gateway cho `lessons.checkStep` (P2 / 2.C). Là Service
+              # in-cluster, KHÔNG phải origin công khai: trình duyệt đi qua reverse
+              # proxy gộp origin (D1), BFF thì gọi thẳng. Thiếu biến này thì env.ts
+              # default localhost:8082 = web pod tự gọi chính nó và mọi lượt "Check"
+              # trả ECONNREFUSED.
+              value: {{ .Values.web.env.gatewayInternalUrl | default (printf "http://%s-gateway:%v" (include "platform.fullname" .) .Values.gateway.service.publicPort) | quote }}
+            - name: SCENARIOS_DIR
+              # Nội dung bài học nướng sẵn trong image (apps/web/Dockerfile COPY
+              # content). Đường TUYỆT ĐỐI vì cwd runtime là /repo, khác cwd của
+              # `next dev` mà default trong env.ts tính theo.
+              value: {{ .Values.web.env.scenariosDir | quote }}
             {{- include "platform.mtlsEnv" (dict "context" . "cert" "web") | nindent 12 }}
             {{- if ne .Values.platform.grpcMtlsMode "off" }}
             - name: GRPC_TLS_SERVER_NAME

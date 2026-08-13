@@ -20,6 +20,7 @@ import (
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/tlsx"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/config"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/execroute"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/extend"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
@@ -123,6 +124,25 @@ func run() error {
 		Metrics:         met,
 		AllowedOrigins:  cfg.AllowedOrigins,
 		MaxWSPerSession: cfg.MaxWSPerSession,
+	})
+
+	// Exec one-shot — nút "Check" của trụ cột Lessons (P2 / 2.C).
+	//
+	// Dùng CHUNG `restCfg`/`clientset` với đường terminal: một client, một ngân
+	// sách QPS, một bộ cert. `Timeout: 0` của restCfg là đúng cho cả hai — trần
+	// thời gian của lượt chấm do `cfg.ExecTimeout` áp qua context, tức nó cắt
+	// đúng một lượt chạy chứ không cắt cả kết nối dùng chung.
+	execroute.Register(publicMux, execroute.Deps{
+		Log:      log,
+		Verifier: verifier,
+		Sessions: store,
+		Runner: podexec.NewOneShotRunner(
+			podexec.NewOneShotFactory(restCfg, clientset, cfg.ExecShell),
+			cfg.ExecMaxOutput,
+		),
+		Metrics:        met,
+		AllowedOrigins: cfg.AllowedOrigins,
+		Timeout:        cfg.ExecTimeout,
 	})
 	// NewStreamingServer, không phải NewServer: phiên terminal sống hàng giờ và im
 	// lặng hàng phút, ReadTimeout/WriteTimeout 30s sẽ cắt ngang từ P1.

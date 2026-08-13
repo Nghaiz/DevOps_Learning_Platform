@@ -53,6 +53,17 @@ web:
     appUrl: ''
     # Rỗng = template tự suy "<release>-orchestrator:<grpcPort>" (DNS in-cluster).
     orchestratorGrpcAddr: ''
+    # Đường BFF → terminal-gateway cho `lessons.checkStep` (P2 / 2.C).
+    # Rỗng = template tự suy "<release>-gateway:<port>" (DNS in-cluster).
+    #
+    # ⚠ KHÔNG phải `appUrl`. Trình duyệt tới gateway qua reverse proxy gộp origin
+    # (D1); BFF thì gọi thẳng Service. Đặt origin công khai vào đây nghĩa là mỗi
+    # lượt bấm "Check" đi ra internet rồi vòng lại, và nó hỏng đúng lúc ingress
+    # chưa sẵn sàng — trong khi bản thân cụm vẫn hoàn toàn khoẻ.
+    gatewayInternalUrl: ''
+    # Thư mục nội dung bài học TRONG image (apps/web/Dockerfile `COPY content`).
+    # Tuyệt đối vì cwd runtime là /repo. Chỉ đổi khi mount nội dung từ volume.
+    scenariosDir: '/repo/content/scenarios'
     # '1' CHỈ khi web đứng sau proxy set x-forwarded-for đúng (Traefik — P3).
     # Rỗng = biến bị omit, middleware skip rate limit (log 1 lần). Xem
     # apps/web/src/middleware.ts clientKey().
@@ -237,6 +248,23 @@ gateway:
     # một shell trắng, không phải phiên cũ. Image sandbox-base đã cài sẵn tmux 3.4
     # và tắt status bar (E4) để stty size khớp chính xác cols/rows FE gửi.
     execCommand: 'tmux new-session -A -s dlp'
+
+    # --- exec ONE-SHOT: chấm step của Lessons (P2 / 2.C) ---------------------
+    #
+    # ⛔ TÁCH HẲN khỏi execCommand ở trên, không phải trùng lặp. Attach vào tmux
+    # của người học rồi bơm script chấm vào đó sẽ (1) gõ lệnh chấm ngay giữa màn
+    # hình họ đang làm bài, (2) trả exit code của tmux chứ không của script.
+    # Script đi qua STDIN của `sh` — không qua argv, vì argv nằm trong query
+    # string của URL apiserver và một verify script vài KB sẽ phình nó.
+    execShell: 'sh'
+    # Trần MỘT lượt chấm. Vượt → 502 (lỗi), KHÔNG phải "bài sai": một script treo
+    # không phải một bài làm sai, và trả "fail" cho nó sẽ bắt người học đi sửa
+    # một bài vốn đã đúng.
+    execTimeout: '30s'
+    # Trần byte output mỗi lượt chấm. Đây là trần CHỐNG DoS, không phải trần hiển
+    # thị — FE chỉ dùng output làm hint vài dòng. Cắt cỡ KHÔNG làm mất exit code
+    # (xem podexec/oneshot.go `cappedWriter`).
+    execMaxOutput: '8192'
 
 # Ingress gộp origin web ↔ gateway. TẮT mặc định — xem templates/ingress.yaml
 # để biết vì sao bật nó trên cluster không có ingress controller là cái bẫy im

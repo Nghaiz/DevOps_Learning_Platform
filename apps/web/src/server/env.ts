@@ -52,6 +52,39 @@ export function orchestratorGrpcAddr(): string {
   return process.env['ORCHESTRATOR_GRPC_ADDR'] ?? 'localhost:9090';
 }
 
+/**
+ * URL NỘI BỘ của terminal-gateway — BFF gọi `POST /exec/session/{id}` để chấm
+ * step (P2 / 2.C).
+ *
+ * ⛔ KHÔNG dùng lại `appUrl`/`betterAuthUrl`. Trình duyệt tới gateway qua reverse
+ * proxy gộp origin (D1), còn BFF thì gọi thẳng Service in-cluster — hai đường,
+ * hai địa chỉ. Suy hộ từ origin công khai nghĩa là mọi lượt "Check" đi vòng ra
+ * internet rồi quay lại, và nó sẽ hỏng đúng lúc ingress chưa sẵn sàng.
+ *
+ * Default `localhost:8082` khớp `PUBLIC_ADDR` mặc định của gateway — đúng cho
+ * `make run-gateway` ở máy dev. Trong k8s, Helm đè bằng DNS của Service.
+ */
+export function gatewayInternalUrl(): string {
+  return process.env['GATEWAY_INTERNAL_URL'] ?? 'http://localhost:8082';
+}
+
+/**
+ * Thư mục gốc chứa nội dung bài học (`content/scenarios`).
+ *
+ * ⚠ Default là đường dẫn TƯƠNG ĐỐI THEO CWD, và cwd khác nhau giữa hai môi
+ * trường: `next dev` / `vitest` chạy từ `apps/web` (nên `../../content/scenarios`
+ * đúng), còn image standalone chạy từ `/repo` (nên Dockerfile + Helm đặt biến
+ * tường minh `/repo/content/scenarios`).
+ *
+ * Đoán sai KHÔNG im lặng: `loadScenarios` gọi `readdir` và ném ENOENT, nên một
+ * đường dẫn sai hiện ra ngay ở request đầu tiên tới `/lessons` kèm đúng đường dẫn
+ * nó đã thử. Đó là điều làm một default tương đối chấp nhận được ở đây — nếu
+ * loader trả mảng rỗng thay vì ném thì biến này phải là `requireEnv`.
+ */
+export function scenariosDir(): string {
+  return process.env['SCENARIOS_DIR'] ?? '../../content/scenarios';
+}
+
 /** Cert mTLS cho kênh gRPC tới orchestrator (1.C-4). */
 export interface GrpcMtls {
   certFile: string;

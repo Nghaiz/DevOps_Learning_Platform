@@ -1,10 +1,11 @@
-import { TRPCError } from '@trpc/server';
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { SandboxTier, type Session } from '@devops-platform/shared-types';
+import { SandboxTier } from '@devops-platform/shared-types';
 import { sessionsAudit } from '../../db/schema';
-import { mintAccessTokenFor, mintSandboxTokenFor } from '../../auth/jwt';
+import { mintAccessTokenFor } from '../../auth/jwt';
+import { attachSandboxCookie } from '../../auth/sandbox-cookie';
 import { callOrchestrator, orchestratorClient } from '../../grpc/orchestrator-client';
+import { toJsonSession } from '../../grpc/session-json';
 import { assertOwnerOrAdmin, createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
 /**
@@ -55,149 +56,10 @@ const reapInput = z
   })
   .strict();
 
-/**
- * ⛔ **`Session` của proto KHÔNG serialize được ra JSON** — và đây là lỗi CÓ SẴN
- * từ P0, chỉ lộ ra ở chặng này vì G12 là thứ đầu tiên gọi `session.*` qua HTTP thật.
- *
- * Ba field là `bigint` (`expiresAt.seconds`, `createdAt.seconds`, `revision: int64`),
- * và `JSON.stringify` **NÉM** trên bigint chứ không bỏ qua. Triệu chứng đo được
- * trên cluster 2026-08-11: `POST /api/trpc/session.create` → **HTTP 500**
- * `"Do not know how to serialize a BigInt"`, sau khi pod ĐÃ được claim — tức
- * người dùng mất một pod khỏi trần quota 4 và nhận về một lỗi 500 vô nghĩa.
- *
- * **Vì sao không test nào bắt được:** `rule-01-authz` và bạn bè gọi qua
- * `appRouter.createCaller`, trả thẳng object JS — không có bước serialize nào.
- * Bằng chứng 1.C-2 thì gọi `CreateSession` bằng gRPC, cũng không qua tRPC. Đường
- * HTTP của `session.*` **chưa từng chạy** cho tới hôm nay. Cùng họ với "job chỉ
- * chạy trên `main` nên file đó không có cổng review" ở 1.E-1: một đường không ai
- * đi thì không ai gác.
- *
- * Vì thế BFF trả một shape của RIÊNG mình thay vì chuyển tiếp message proto:
- * `Timestamp` → chuỗi ISO-8601 (thứ `new Date()` phía FE đọc thẳng được, và F9
- * cần cho đồng hồ đếm ngược), `revision` → number. Kèm lợi ích thứ hai: `$typeName`
- * và các field nội bộ của connect-es không còn rò ra trình duyệt.
- */
-export interface JsonSession {
-  id: string;
-  userId: string;
-  status: number;
-  podName: string;
-  namespace: string;
-  tier: number;
-  createdAt: string | null;
-  expiresAt: string | null;
-  revision: number;
-}
-
-function tsToIso(ts: { seconds: bigint; nanos: number } | undefined): string | null {
-  if (ts === undefined) {
-    return null;
-  }
-  return new Date(Number(ts.seconds) * 1000 + Math.floor(ts.nanos / 1_000_000)).toISOString();
-}
-
-function toJsonSession(session: Session | undefined): JsonSession | null {
-  if (session === undefined) {
-    return null;
-  }
-  return {
-    id: session.id,
-    userId: session.userId,
-    status: session.status,
-    podName: session.podName,
-    namespace: session.namespace,
-    tier: session.tier,
-    createdAt: tsToIso(session.createdAt),
-    expiresAt: tsToIso(session.expiresAt),
-    // int64 → number: revision là bộ đếm INCR trên một session, thực tế đếm hàng
-    // chục. Vượt 2^53 nghĩa là đã có 9e15 lần ghi trên MỘT session — không phải
-    // chế độ hỏng đáng phòng, và `string` sẽ bắt FE tự parse mà không được gì.
-    revision: Number(session.revision),
-  };
-}
-
 /** Đính JWT (aud=orchestrator, xem server/auth/jwt.ts) vào metadata gRPC. */
 async function callHeaders(userId: string, role: string): Promise<HeadersInit> {
   const token = await mintAccessTokenFor(userId, role);
   return { authorization: `Bearer ${token}` };
-}
-
-/**
- * Thuộc tính cookie sandbox — SSOT: `docs/ws-terminal-protocol.md` §2.
- *
- * `Path=/ws` thu hẹp cookie xuống ĐÚNG đường handshake: mọi request tới `/`,
- * `/api/*`, `/session` đều KHÔNG mang nó, nên một lỗ rò header ở route khác không
- * làm lộ token mở shell.
- *
- * `Secure` KHÔNG rẽ nhánh theo NODE_ENV (khác cookie phiên của Better Auth, vốn
- * để plugin tự quyết): `.env.example` đã chốt điều này và ghi kèm bẫy của nó —
- * trình duyệt chấp nhận cookie `Secure` trên HTTP khi host là `localhost` (secure
- * context), nên dev qua `http://localhost:8080` (proxy Caddy gộp origin) chạy
- * bình thường; đổi sang `http://192.168.x.x:8080` thì Set-Cookie bị **bỏ qua
- * trong im lặng** và mọi handshake trả 401 mà không thông báo gì. Một nhánh
- * `NODE_ENV` ở đây sẽ giấu đúng lớp phòng thủ đó ở lần deploy đầu tiên mà ai đó
- * quên đặt biến.
- *
- * KHÔNG có `Domain` ⇒ host-only, và cùng với `SameSite=Strict` đó là thứ ép
- * gateway phải CÙNG ORIGIN với web (D1) — điều kiện đã dựng sẵn ở 1.B0.4.
- */
-const SANDBOX_COOKIE_NAME = 'dlp_sandbox';
-
-function buildSandboxCookie(token: string, maxAgeSeconds: number): string {
-  return [
-    `${SANDBOX_COOKIE_NAME}=${token}`,
-    'Path=/ws',
-    `Max-Age=${maxAgeSeconds}`,
-    'HttpOnly',
-    'Secure',
-    'SameSite=Strict',
-  ].join('; ');
-}
-
-/**
- * Mint sandbox token cho session vừa tạo và gắn `Set-Cookie` vào response.
- *
- * **Chỉ mint khi người gọi tạo session CHO CHÍNH MÌNH.** `assertOwnerOrAdmin` cho
- * admin tạo session hộ user khác, và ở nhánh đó cả hai lựa chọn đều sai:
- * `sub=ctx.user.id` sinh ra cookie chết sẵn (gateway bước g so `hash.userId` với
- * `token.sub` → 403) mà lại ĐÈ MẤT cookie session của chính admin; `sub=input.userId`
- * thì phát cho trình duyệt admin một chìa mở thẳng shell của user kia — một quyền
- * KHÁC HẲN quyền "tạo session hộ", và không đi qua bước authz nào của luật 10.
- * Nên: admin tạo hộ thì session vẫn được tạo, cookie thì không. Chủ nhân thật sự
- * mở `/session` của mình và nhận cookie ở lượt create của chính họ.
- *
- * Thiếu `session`/`expiresAt` ⇒ NÉM, không bỏ qua im lặng: đó là vi phạm contract
- * của orchestrator, và một cookie vắng mặt sẽ hiện ra ở tận trình duyệt dưới dạng
- * "401 khi mở terminal" — cách nguyên nhân ba thành phần. Ném ở đây KHÔNG rò pod:
- * `idempotencyKey` là bắt buộc trong `createInput`, nên lượt retry trả về ĐÚNG
- * session cũ thay vì claim thêm một pod nữa khỏi trần quota 4.
- */
-async function attachSandboxCookie(
-  ctx: { user: { id: string }; resHeaders: Headers },
-  ownerUserId: string,
-  session: { id?: string; expiresAt?: { seconds: bigint } | undefined } | undefined,
-): Promise<void> {
-  if (ctx.user.id !== ownerUserId) {
-    return;
-  }
-  const sessionId = session?.id;
-  const expiresAt = session?.expiresAt;
-  if (sessionId === undefined || sessionId === '' || expiresAt === undefined) {
-    throw new TRPCError({
-      code: 'INTERNAL_SERVER_ERROR',
-      message:
-        'orchestrator trả session thiếu id/expires_at — không mint được sandbox token (contract proto/orchestrator/v1)',
-    });
-  }
-
-  // Một mốc `now` duy nhất cho cả hai phép tính: mint kiểm `exp > now` rồi cookie
-  // tính `Max-Age = exp - now`. Đọc đồng hồ hai lần thì hai con số lệch nhau vài
-  // ms, và đúng ở biên (`exp == now + 1`) sinh ra `Max-Age=0` — cookie bị xoá ngay
-  // khi vừa đặt, trong khi token thì hợp lệ. Một lần đọc, không có cửa sổ đó.
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  const expiresAtSeconds = Number(expiresAt.seconds);
-  const token = await mintSandboxTokenFor(ownerUserId, sessionId, expiresAtSeconds);
-  ctx.resHeaders.append('Set-Cookie', buildSandboxCookie(token, expiresAtSeconds - nowSeconds));
 }
 
 export const sessionRouter = createTRPCRouter({

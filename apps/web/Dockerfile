@@ -16,6 +16,7 @@ COPY apps/web/package.json apps/web/package.json
 COPY packages/ui/package.json packages/ui/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/terminal/package.json packages/terminal/package.json
+COPY packages/scenario/package.json packages/scenario/package.json
 # --frozen-lockfile: build KHÔNG được tự ý sửa lockfile — lệch lockfile phải lộ ra
 # ở CI (pnpm install thường), không phải âm thầm re-resolve trong image build.
 RUN pnpm install --frozen-lockfile
@@ -30,6 +31,7 @@ COPY apps/web apps/web
 COPY packages/ui packages/ui
 COPY packages/shared-types packages/shared-types
 COPY packages/terminal packages/terminal
+COPY packages/scenario packages/scenario
 ENV NEXT_TELEMETRY_DISABLED=1
 # Bật standalone TẠI ĐÂY (không hardcode trong next.config.ts): trên Windows dev,
 # bước trace standalone tạo symlink → EPERM; chỉ image Docker cần standalone.
@@ -42,10 +44,9 @@ ENV NEXT_OUTPUT=standalone
 # với "Packages in scope" THIẾU package đó, và lỗi hiện ra là `Module not found:
 # Can't resolve '@devops-platform/<tên>'` — trỏ vào file import chứ không trỏ vào
 # Dockerfile, nên rất dễ đi sửa nhầm chỗ. Đã xảy ra đúng như vậy khi thêm
-# `packages/terminal` ở 1.F.
-#
-# `packages/scenario` CHƯA có package.json nên pnpm bỏ qua — đúng như cũ, không
-# cần copy cho tới khi nó có manifest.
+# `packages/terminal` ở 1.F, và `packages/scenario` là lượt thứ hai: nó có
+# package.json từ 2.A, nhưng tới 2.B mới có ai import nó — nên cảnh báo cũ ("chưa
+# có manifest, chưa cần copy") đã hết đúng trước khi có ai đọc lại nó.
 RUN pnpm turbo run build
 
 # ---------------------------------------------------------------- migrator
@@ -122,6 +123,21 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001 -G nodejs
 # prune chỉ còn dependency thật sự dùng lúc chạy — không cần node_modules đầy đủ.
 COPY --from=builder /repo/apps/web/.next/standalone ./
 COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
+
+# Nội dung bài học (P2 — trụ cột Lessons).
+#
+# ⛔ PHẢI COPY TƯỜNG MINH — `outputFileTracingRoot` KHÔNG gom được thư mục này.
+# Trace của Next đi theo `import`, còn `packages/scenario` đọc nội dung bằng
+# `readdir`/`readFile` lúc CHẠY với đường dẫn tới từ biến môi trường. Không có
+# dòng này thì image build xanh, test xanh, và `/lessons` trả ENOENT ở request
+# đầu tiên trên cụm — cùng họ bẫy với `content/` không nằm trong bất kỳ stage nào
+# trước bản này.
+#
+# `SCENARIOS_DIR` tuyệt đối vì cwd của runtime là `/repo`, khác cwd của `next dev`
+# (`apps/web`) mà default trong `server/env.ts` tính theo. Đặt ở đây chứ không chỉ
+# ở Helm: `docker run` trần cũng phải chạy được.
+COPY content ./content
+ENV SCENARIOS_DIR=/repo/content/scenarios
 
 USER nextjs
 EXPOSE 3000
