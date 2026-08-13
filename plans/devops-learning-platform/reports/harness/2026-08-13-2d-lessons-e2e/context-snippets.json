@@ -1,0 +1,23 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "P2 / 2.D — split-pane lesson UI (markdown trai + terminal phai), cong them dong 4 o AC can cum that cua 2.C/2.E. Nguoi dung chot: pham vi = 2.D + e2e tren cum; TanStack Query; react-markdown + rehype-sanitize; jsdom cho logic + browser-mode cho bo cuc; dong o pass/fail bang bai first-party VA hien thuc asset-push (khong dung NetworkPolicy); bai thieu nang luc thi CANH BAO chu khong chan.",
+  "scoutSummary": "Doc phase-2.md + report 2.A va 2.B/2.C. 2.A/2.B/2.C da xong; 2.D la lane duy nhat con mo. Scout FE (Explore) tra ve 7 diem chan, trong do nang nhat: packages/terminal KHONG co duong go vao PTY nen ca nut {{exec}} lan foreground deu bat kha.",
+  "keyFindings": [
+    "Ca 4 bai da vendor deu KHONG sinh duoc cap pass/fail that. ckad thieu kubectl (ve pass bat kha) — dung guong cua bay /bin/true ma chinh plan canh bao o prolug, va plan lai chi dinh dung ckad. loki khong co verify nao. loxilb can asset-push (chua ton tai) + egress (default-deny chan).",
+    ".dockerignore loai `**/*.md` nen noi dung bai CHUA BAO GIO vao image; phep kiem cu `ls $SCENARIOS_DIR` xanh vi no liet ke THU MUC.",
+    "Gateway dang chay sha-a6f6768 — CU HON ca 2.C, nen /exec/session/{id} tra 404. 32 test Go cua 2.C xanh vi chung test ma trong repo, khong test binary dang chay.",
+    "GATEWAY_EXEC_SHELL=sh (dash) lam moi verify script that chet o `set -o pipefail` VA loi do gia trang thanh passed:false — o AC 've fail' xanh vi ly do sai.",
+    "useInfiniteQuery gui `direction` vao input => 400 voi Zod .strict(); trang /lessons hong hoan toan o trinh duyet trong khi e2e API xanh 14/14.",
+    "Tailwind KHONG quet packages/ui: loi da chay san tren main, moi <Button> mat hover/focus/disabled.",
+    "PROTECTED_PATHS.includes() khop chinh xac nen /lessons/<id> khong duoc gac."
+  ],
+  "decisionsDeferredToUser": [
+    "Pham vi luot nay (2.D + e2e tren cum)",
+    "Tang du lieu FE (@trpc/react-query + TanStack Query)",
+    "Thu vien render markdown (react-markdown + remark-gfm + rehype-sanitize)",
+    "Ha tang test FE (jsdom cho logic + browser-mode cho bo cuc)",
+    "Cach dong o AC pass/fail (bai first-party + asset-push, khong dung netpol)",
+    "Bai thieu nang luc: canh bao noi bat, van cho mo"
+  ]
+}

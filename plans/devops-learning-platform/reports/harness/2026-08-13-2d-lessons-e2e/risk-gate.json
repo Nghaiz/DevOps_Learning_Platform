@@ -1,0 +1,20 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": true,
+  "reasons": [
+    "CHAM CUM THAT: build + side-load 2 image, 4 luot helm upgrade tren release `platform` dang chay, va tao/xoa pod sandbox. Khong phai chang chi-sua-ma.",
+    "Them mot duong SINH SCRIPT SHELL chay bang ROOT trong pod cua nguoi hoc (asset-push). Du noi dung den tu dia da vendored + ghim byte, moi ten file/target/chmod van duoc trich dan va chmod duoc kiem bang regex allowlist; mot lo hong o day la RCE trong sandbox.",
+    "Them mot ROUTE PHUC VU FILE (`/api/scenarios/[id]/assets/[...path]`). Da gac dang nhap that, allowlist theo duoi anh, guard traversal tren duong dan DA chuan hoa; ca 6 nhanh do tren cum (200/404/404/404/400/401).",
+    "SUA MOT CONG BAO MAT: `PROTECTED_PATHS` doi tu khop-chinh-xac sang so tien to. Rui ro hai chieu — sot (khong gac) va over-match (gac nham). Ca hai deu co phep do: /lessons/<id> -> 307, /lessonsfoo -> 404.",
+    "Doi mac dinh GATEWAY_EXEC_SHELL sh -> bash. Anh huong MOI luot cham cua MOI bai. Ly do la mot loi da do duoc, khong phai so thich: dash khong co pipefail nen moi verify script that chet o dong `set`.",
+    "diff lon: 74 file, ~5300 dong them. Phan lon la component FE moi + noi dung bai + bang chung harness, nhung van vuot nguong largeDiff.",
+    "Nguoi dung da phe duyet pham vi nay tuong minh (chon 'Ca hai: bai first-party + asset-push' va '2.D + e2e tren cum') truoc khi bat dau."
+  ],
+  "mitigations": [
+    "Chi ghi de tag image THEO SERVICE (web, gateway), KHONG dung global image.tag — nen SANDBOX_IMAGE giu nguyen sha cu va tranh bay ErrImageNeverPull tren toan bo warm-pool.",
+    "helm chay TU WINDOWS tro thang vao chart trong repo, khong dung ~/dlp-deploy (ban tren host lech so voi repo — bay da tra gia o 1.F).",
+    "Khong sua NetworkPolicy: bai first-party duoc thiet ke de chay DUOC duoi default-deny thay vi noi long cong bao mat de bai chay."
+  ]
+}
