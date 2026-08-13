@@ -45,4 +45,4 @@ export { DEFAULT_THEME, THEMES, THEME_NAMES, loadThemeName, saveThemeName } from
 export type { ThemeName } from './themes.ts';
 
 export { TerminalSurface } from './terminal-surface.tsx';
-export type { TerminalSurfaceProps } from './terminal-surface.tsx';
+export type { TerminalHandle, TerminalSurfaceProps } from './terminal-surface.tsx';

@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Scenario } from '@devops-platform/shared-types/scenario';
 import { parseContentBlocks } from './content-blocks.ts';
 import { loadScenarios } from './loader.ts';
+import { scenarioSidecarSchema, type ScenarioSidecar } from './sidecar.ts';
 
 /**
  * Ô AC 2.A/2.E: "Import scenario Katacoda thật → parse không lỗi, hiển thị đủ
@@ -21,6 +23,14 @@ const CONTENT_ROOT = path.resolve(import.meta.dirname, '..', '..', '..', 'conten
 
 const scenarios = await loadScenarios(CONTENT_ROOT);
 const byId = new Map(scenarios.map((s) => [s.id, s]));
+
+/** Đọc thẳng `dlp.json` — `notes` là field của sidecar, không chảy vào DTO `Scenario`. */
+function readSidecar(id: string): ScenarioSidecar {
+  const raw: unknown = JSON.parse(
+    readFileSync(path.join(CONTENT_ROOT, id, 'dlp.json'), 'utf8'),
+  );
+  return scenarioSidecarSchema.parse(raw);
+}
 
 function get(id: string): Scenario {
   const scenario = byId.get(id);
@@ -50,11 +60,29 @@ describe('content/scenarios — parse kho thật', () => {
     }
   });
 
-  it('mọi scenario khai đủ xuất xứ + license máy đọc được (AC 2.E)', () => {
-    for (const scenario of scenarios) {
-      expect(scenario.source.license, scenario.id).toMatch(/^(MIT|Apache-2\.0|BSD-3-Clause)$/);
-      expect(scenario.source.commit, scenario.id).toMatch(/^[0-9a-f]{40}$/);
-      expect(scenario.source.repo, scenario.id).toMatch(/^https:\/\/github\.com\//);
+  it('mọi scenario NHẬP TỪ UPSTREAM khai đủ xuất xứ + license máy đọc được (AC 2.E)', () => {
+    const vendored = scenarios.filter((s) => s.source !== null);
+
+    // Khẳng định vẫn còn scenario vendored để kiểm. Thiếu dòng này, một thay đổi
+    // biến mọi `source` thành null sẽ làm vòng lặp dưới chạy 0 lần và test XANH —
+    // đúng hạng "0 vi phạm vì không kiểm gì cả".
+    expect(vendored.length).toBeGreaterThanOrEqual(3);
+
+    for (const scenario of vendored) {
+      expect(scenario.source?.license, scenario.id).toMatch(/^(MIT|Apache-2\.0|BSD-3-Clause)$/);
+      expect(scenario.source?.commit, scenario.id).toMatch(/^[0-9a-f]{40}$/);
+      expect(scenario.source?.repo, scenario.id).toMatch(/^https:\/\/github\.com\//);
+    }
+  });
+
+  it('scenario first-party (source: null) có LÝ DO ghi trong notes, không phải khai thiếu', () => {
+    // `source: null` là một khẳng định ("bài này do ta soạn"), không phải một ô bỏ
+    // trống. Ràng buộc nó phải kèm giải thích để lần sau không ai dùng `null` như
+    // đường tắt qua schema khi lười tra commit upstream.
+    for (const scenario of scenarios.filter((s) => s.source === null)) {
+      const sidecar = readSidecar(scenario.id);
+      expect(sidecar.notes, scenario.id).toBeTruthy();
+      expect(sidecar.notes?.length ?? 0, scenario.id).toBeGreaterThan(40);
     }
   });
 

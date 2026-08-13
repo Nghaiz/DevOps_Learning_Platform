@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { filesystemScenarioSource, type ScenarioSource } from '@devops-platform/scenario';
 import type { ScenarioCapability } from '@devops-platform/shared-types/scenario';
 import { scenariosDir } from '../env';
@@ -15,6 +16,24 @@ let source: ScenarioSource | null = null;
 export function scenarioSource(): ScenarioSource {
   source ??= filesystemScenarioSource(scenariosDir());
   return source;
+}
+
+/**
+ * Thư mục trên đĩa của một scenario — dùng cho asset (đẩy vào sandbox, và phục
+ * vụ ảnh qua `/api/scenarios/[id]/assets/[...path]`).
+ *
+ * ⚠ Đây là chỗ DUY NHẤT trong apps/web giả định nội dung nằm trên đĩa, tức nó là
+ * món nợ đã biết đối với seam `ScenarioSource`: bản DB-backed sẽ không có thư
+ * mục nào để trả về. Khi ngày đó tới, asset phải đi qua chính seam đó (thêm
+ * `readAsset(id, name)`) chứ không phải qua đường dẫn. Ghi ra đây để nó không
+ * lặng lẽ nhân bản sang call-site thứ ba.
+ *
+ * `id` an toàn để nối vào đường dẫn vì mọi caller đều đã cho nó qua
+ * `scenarioIdSchema` (`^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$`) — không có `.`,
+ * không có `/`, nên không traversal được.
+ */
+export function scenarioDir(id: string): string {
+  return join(scenariosDir(), id);
 }
 
 /**

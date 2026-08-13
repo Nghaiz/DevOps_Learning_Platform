@@ -53,7 +53,9 @@ line('tier / imageid', `${scenario.tier} ← ${scenario.backendImageId}`);
 line('capabilities', scenario.capabilities.length ? scenario.capabilities.join(', ') : '(không)');
 line(
   'license',
-  `${scenario.source.license} — ${scenario.source.repo}@${scenario.source.commit.slice(0, 7)}`,
+  scenario.source === null
+    ? 'first-party (soạn tại repo này, không có upstream)'
+    : `${scenario.source.license} — ${scenario.source.repo}@${scenario.source.commit.slice(0, 7)}`,
 );
 if (scenario.ignoredUpstreamFields.length > 0) {
   line('field bỏ qua', scenario.ignoredUpstreamFields.join(', '));

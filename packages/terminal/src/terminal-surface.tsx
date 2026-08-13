@@ -19,6 +19,21 @@ import type { ThemeName } from './themes.ts';
  * ⇒ WS cũ đóng, WS mới mở. Terminal (và scrollback) KHÔNG bị dựng lại vì nó
  * nằm ở một effect khác với deps rỗng — nối lại phải thấy đúng màn hình cũ.
  */
+/**
+ * Tay cầm để GÕ VÀO PTY từ bên ngoài terminal — thứ mà nút `{{exec}}` của bài
+ * học và `foreground` script của Killercoda cần.
+ *
+ * ⚠ Đừng nhầm với `TerminalCore.write()`: `write` VẼ byte lên màn hình (nó là
+ * đường server → mắt người dùng). `sendInput` đi ngược lại, vào stdin của shell
+ * — đúng như người dùng vừa gõ. Dùng nhầm `write` thì lệnh hiện ra trên màn
+ * hình mà không có gì chạy, và trông y hệt như đã chạy.
+ */
+export interface TerminalHandle {
+  /** Gõ chuỗi vào PTY. Muốn Enter thì tự kèm `'\r'` — hàm này không tự thêm. */
+  sendInput(data: string): void;
+  focus(): void;
+}
+
 export interface TerminalSurfaceProps {
   readonly wsUrl: string;
   /** Đổi giá trị = yêu cầu mở lại kết nối. `null` = không kết nối. */
@@ -26,6 +41,20 @@ export interface TerminalSurfaceProps {
   readonly theme: ThemeName;
   readonly onControl: (message: ServerControl) => void;
   readonly onClose: (code: number) => void;
+  /**
+   * Phát handle mỗi khi kết nối MỞ, và phát `null` mỗi khi nó đóng.
+   *
+   * Vế `null` là phần quan trọng, không phải phần dọn dẹp cho gọn: không có nó
+   * thì nút "Chạy lệnh này" vẫn sáng trong lúc PTY đã chết, người dùng bấm, và
+   * `Connection.sendInput` NO-OP im lặng (có chủ ý — xem connection.ts, byte gõ
+   * lúc đang nối lại cố tình không được xếp hàng). Người dùng thấy một nút bấm
+   * được mà không có gì xảy ra, mà đây lại đúng là lúc terminal đang nối lại
+   * nên trông như nền tảng bị treo.
+   *
+   * Callback chứ không phải `ref`: handle gắn với ĐÚNG một `Connection`, nên
+   * nối lại là một handle mới. Một ref bền vững sẽ che mất chuyển tiếp đó.
+   */
+  readonly onReady?: (handle: TerminalHandle | null) => void;
 }
 
 export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement {
@@ -36,8 +65,16 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
   // Callback mới nhất trong ref: effect kết nối KHÔNG được phụ thuộc vào danh
   // tính hàm của props, nếu không mỗi lần trang re-render (đồng hồ đếm ngược
   // tick mỗi giây!) sẽ dựng lại toàn bộ WebSocket.
-  const handlersRef = useRef({ onControl: props.onControl, onClose: props.onClose });
-  handlersRef.current = { onControl: props.onControl, onClose: props.onClose };
+  const handlersRef = useRef({
+    onControl: props.onControl,
+    onClose: props.onClose,
+    onReady: props.onReady,
+  });
+  handlersRef.current = {
+    onControl: props.onControl,
+    onClose: props.onClose,
+    onReady: props.onReady,
+  };
 
   // ── Vòng đời TERMINAL: mount một lần, sống qua mọi lần nối lại ──────────────
   useEffect(() => {
@@ -115,11 +152,21 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
     });
     connectionRef.current = connection;
 
+    // Handle đóng kín quanh ĐÚNG `connection` này, không đọc `connectionRef` —
+    // nên một handle cũ mà consumer lỡ giữ lại sau khi nối lại sẽ ghi vào socket
+    // đã đóng (no-op), chứ KHÔNG lén ghi vào phiên mới. Ghi nhầm phiên là lỗi
+    // im lặng tệ hơn nhiều so với một lệnh bị rơi.
+    handlersRef.current.onReady?.({
+      sendInput: (data) => connection.sendInput(data),
+      focus: () => coreRef.current?.focus(),
+    });
+
     return () => {
       connection.close();
       if (connectionRef.current === connection) {
         connectionRef.current = null;
       }
+      handlersRef.current.onReady?.(null);
     };
   }, [props.connectionKey, props.wsUrl]);
 

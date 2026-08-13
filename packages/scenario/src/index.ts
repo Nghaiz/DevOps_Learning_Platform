@@ -25,3 +25,9 @@ export {
 } from './content-blocks.ts';
 export { INDEX_FILENAME, SIDECAR_FILENAME, loadScenario, loadScenarios } from './loader.ts';
 export { filesystemScenarioSource, type ScenarioSource } from './source.ts';
+export {
+  MAX_TOTAL_ASSET_BYTES,
+  ScenarioAssetError,
+  resolveScenarioAssets,
+  type ResolvedAsset,
+} from './assets.ts';
