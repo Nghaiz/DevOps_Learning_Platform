@@ -11,6 +11,12 @@
 global:
   imagePullPolicy: Never
 
+# Ingress + TLS KHÔNG đặt ở đây, có chủ ý: `ingress.host`, `corsAllowedOrigins`
+# và `betterAuthUrl` đều chứa IP của node, mà IP đó khác nhau ở mỗi máy lab —
+# ghim một IP vào file commit trong git là đẻ ra một giá trị sai cho mọi người
+# trừ đúng một người. `infra/host/08-tls-entrypoint.sh` đọc IP lúc chạy, sinh
+# chứng chỉ khớp, rồi IN RA nguyên văn lệnh `helm upgrade` kèm đủ `--set`.
+
 # LƯU Ý: betterAuthSecret KHÔNG nằm trong file này (file này commit vào git).
 # Deploy self-host truyền secret lúc chạy:
 #   helm upgrade --install platform infra/helm/platform \

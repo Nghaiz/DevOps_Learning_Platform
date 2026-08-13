@@ -138,6 +138,8 @@ mở ra internet** — vào qua tunnel: `ssh -L 6443:127.0.0.1:6443 debian@<IP>`
 | [`03-sysbox-install.sh`](03-sysbox-install.sh) | Label node + daemonset Sysbox + cổng chặn version | không |
 | [`04-verify-sysbox.sh`](04-verify-sysbox.sh) | **Cổng P0.F** — 8 kiểm chứng bảo mật | không |
 | [`06-kubelet-pids-limit.sh`](06-kubelet-pids-limit.sh) | Trần PID mỗi pod (D-19′) — fork-bomb chặn lại thay vì hạ node. Restart kubelet, nên tự chạy đủ hàng rào R0: vá token CNI → canary TRƯỚC → đổi → canary SAU | có |
+| [`07-ingress-controller.sh`](07-ingress-controller.sh) | Traefik (chart ghim + sha256) làm controller cho Ingress **gộp origin** `/` + `/ws`. NodePort ghim 30080/30443 | không |
+| [`08-tls-entrypoint.sh`](08-tls-entrypoint.sh) | **CA nội bộ + chứng chỉ TLS** cho `dlp.<ip>.sslip.io` → entry point thật, bỏ hẳn `port-forward`. Cookie `Secure` chỉ sống trên HTTPS (hoặc `localhost`) | không |
 | [`setup-all.sh`](setup-all.sh) | Chạy 00→04 theo thứ tự (kèm 3.5 addon, 3.6 trần PID) | hỏi 1 lần |
 | [`fix-containerd-handler.sh`](fix-containerd-handler.sh) | Sửa lỗi containerd không đăng ký handler `sysbox-runc` — chạy khi cần | chỉ khi `FIX=1` |
 | [`fix-cluster-dns.sh`](fix-cluster-dns.sh) | Sửa CoreDNS không chuyển tiếp được ra ngoài (`server misbehaving`) — chạy khi cần | không |

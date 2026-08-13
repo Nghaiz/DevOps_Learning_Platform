@@ -30,13 +30,13 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
 	k8swebsocket "k8s.io/client-go/transport/websocket"
+	"k8s.io/streaming/pkg/httpstream"
 )
 
 var (

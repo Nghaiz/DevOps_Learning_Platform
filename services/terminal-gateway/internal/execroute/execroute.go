@@ -231,6 +231,7 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	runCtx, cancel := context.WithTimeout(ctx, h.deps.Timeout)
 	defer cancel()
 
+	startedAt := time.Now()
 	result, err := h.deps.Runner.Run(runCtx, podexec.Target{
 		SessionID: sessionID,
 		PodName:   sess.PodName,
@@ -250,6 +251,33 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.deps.Metrics.ExecOneShotTotal.WithLabelValues(metrics.ResultAccepted, metrics.ReasonOK).Inc()
+
+	// ---- dấu vết kiểm toán -------------------------------------------------
+	//
+	// Nợ P2 §1. Trước dòng này, đường nóng CHỈ log lượt bị TỪ CHỐI: một lượt chấm
+	// thành công — tức mã VỪA CHẠY trong pod của một người thật — không để lại dấu
+	// vết nào. Danh sách lượt bị chặn tự nó không trả lời được "ai đã chạy gì, ở
+	// đâu, lúc nào", mà đó mới là câu hỏi của một cuộc điều tra sự cố.
+	//
+	// KHÔNG rate-limit như `deny`. Sampling ở `deny` có lý do thật (endpoint public,
+	// một vòng `curl` đốt quota Loki), nhưng tới được đây nghĩa là đã qua trọn a→h
+	// với token hợp lệ của ĐÚNG chủ phiên. Một audit log tự bỏ bớt dòng thì không
+	// còn là audit log — nó thành một mẫu ngẫu nhiên, và khoảng trống trong nó
+	// không phân biệt được với "không có gì xảy ra".
+	//
+	// `exit_code` vào log vì nó là KẾT QUẢ chấm — thứ duy nhất phân biệt "chạy
+	// được script" với "chạy được script VÀ bài đúng". `output` thì KHÔNG: tới
+	// 8 KiB mỗi lượt, và nó là bài làm của người học chứ không phải dữ kiện kiểm
+	// toán. Script cũng không: nó đến từ đĩa, đã biết trước theo `phase`.
+	h.deps.Log.Info("chạy exec one-shot",
+		slog.String("session_id", sessionID),
+		slog.String("user_id", sess.UserID),
+		slog.String("pod", sess.PodName),
+		slog.String("namespace", sess.Namespace),
+		slog.Int("exit_code", result.ExitCode),
+		slog.Bool("truncated", result.Truncated),
+		slog.Duration("duration", time.Since(startedAt)))
+
 	writeJSON(w, http.StatusOK, execResponse{
 		ExitCode:  result.ExitCode,
 		Output:    result.Output,

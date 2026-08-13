@@ -9,6 +9,7 @@ import { Button, ContentView, ProgressBar, SplitPane, StepNav } from '@devops-pl
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { buildPhases, canCheck, phaseKeyForStepIndex } from './phases';
+import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
 import { CheckResultPanel, type CheckOutcome } from './check-result-panel';
 
@@ -242,7 +243,15 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
 
   // Thanh tiến độ đếm CÙNG một thứ với dấu ✓ — nếu nó đếm `stepIndex` thì hai
   // chỉ báo cạnh nhau sẽ nói hai điều khác nhau về cùng một bài.
-  const doneCount = completed ? scenario.steps.length : passedSteps.size;
+  //
+  // Nhãn thì tách hẳn sang `summarizeProgress`: nhánh `completed` đặt con số
+  // bằng tổng số step từ MỘT lượt chấm, nên câu "N/N bước đã đạt" khẳng định
+  // nhiều hơn thứ ta lưu (nợ P2 §2). Xem `progress.ts`.
+  const progress = summarizeProgress({
+    stepCount: scenario.steps.length,
+    passedInSession: passedSteps.size,
+    completed,
+  });
 
   return (
     <main className="flex h-screen flex-col bg-white">
@@ -253,11 +262,7 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
         <h1 className="text-sm font-semibold">{scenario.title}</h1>
 
         <div className="w-40">
-          <ProgressBar
-            value={doneCount}
-            max={scenario.steps.length}
-            label={`${String(doneCount)}/${String(scenario.steps.length)} bước đã đạt`}
-          />
+          <ProgressBar value={progress.value} max={progress.max} label={progress.label} />
         </div>
 
         <div className="ml-auto flex items-center gap-2">

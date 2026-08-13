@@ -204,19 +204,57 @@ so byte để chống drift. Thêm bài mới: `docs/scenario-format.md` §6.
 - [x] **Route asset không thành đường đọc file tuỳ ý:** ảnh → 200; `start.sh` → **404** (allowlist theo đuôi, không phát script sandbox); traversal thô và đã mã hoá → 404; chưa đăng nhập → 401.
 - [x] Output verify bị cắt cỡ (không cho dump khổng lồ gây DoS). — `cappedWriter`, 4 ca, gồm ca biên "đúng bằng trần thì KHÔNG báo cắt" và ca "cắt cỡ không được làm mất exit code".
 
-## Nợ chuyển sang P3 (ghi 2026-08-13, không ô AC nào của P2 gác)
+## Nợ chuyển sang P3 — ✅ ĐÃ ĐÓNG CẢ BA (2026-08-14)
 
-1. **Gateway không log lượt thành công.** `kubectl logs deploy/platform-gateway
-   --since=15m` chỉ có dòng WARN của handshake bị từ chối; lượt attach WS thành
-   công và lượt `POST /exec/session/{id}` — cả hai đã thực sự xảy ra — không để
-   lại dòng nào. Đường nóng không có dấu vết kiểm toán. → P3 §7 (observability).
-2. **`stepIndex` là mốc nước cao, nhưng nhãn nói như thể là tập bước đã đạt.**
-   Đạt ĐÚNG bước cuối từ trạng thái 0 làm thanh tiến độ nhảy thẳng `0/4 → 4/4`.
-   Không phải lỗi lưu trữ (task 12 chốt `min(index+1, last)` có lý do), mà là
-   nhãn "4/4 bước đã đạt" nói sai về thứ nó hiển thị. Sửa bằng cách đổi nhãn,
-   hoặc lưu tập bước đã đạt — quyết định thuộc chặng có UI tiến độ thật.
-3. **Entry point thật + TLS.** Hôm nay vào bằng port-forward tới Traefik vì cookie
-   `Secure` chỉ được chấp nhận trên `localhost` khi chạy HTTP. → P3.
+> Báo cáo: [`reports/2026-08-14-verify-p2-debt-closure.md`](reports/2026-08-14-verify-p2-debt-closure.md)
+
+1. ✅ **Gateway không log lượt thành công.** Đường nóng chỉ log lượt bị TỪ CHỐI,
+   nên một phiên WS mở thành công và một lượt `POST /exec/session/{id}` thành
+   công — cả hai đều là "mã vừa chạy trong pod của một người thật" — không để
+   lại dòng nào; `kubectl logs deploy/platform-gateway` chỉ kể được chuyện những
+   lượt KHÔNG xảy ra. Nay cả hai đường phát `slog.Info` (session/user/pod/ns,
+   thêm `exit_code` cho exec; WS phát HAI dòng mở+đóng kèm duration).
+   **KHÔNG** rate-limit như `deny` (audit log tự bỏ bớt dòng thì khoảng trống
+   trong nó không phân biệt được với "không có gì xảy ra"), **KHÔNG** log
+   output/script. 6 test, gồm 2 đối chứng âm.
+2. ✅ **Nhãn tiến độ nói nhiều hơn thứ ta lưu.** Nhánh `completed` đặt X = N từ
+   ĐÚNG một lượt chấm, nên nhảy thẳng tới bước cuối rồi chấm đạt cho
+   "4/4 bước đã đạt" — một khẳng định về ba bước chưa từng được chấm. Sửa bằng
+   ĐỔI NHÃN (`summarizeProgress`, hàm thuần + 5 test): xong bài ⇒ "Đã hoàn
+   thành"; chưa xong ⇒ "X/N bước đã đạt **trong phiên này**" (`passedSteps` là
+   state client nên nó không phải "từ trước tới giờ"). Lưu hẳn tập bước đã đạt
+   cần đổi schema và vẫn thuộc chặng có UI tiến độ thật.
+3. ✅ **Entry point thật + TLS.** `infra/host/08-tls-entrypoint.sh` sinh CA nội
+   bộ + chứng chỉ cho `dlp.<ip>.sslip.io` (SAN mang cả DNS lẫn IP), tạo Secret
+   TLS; Traefik chuyển sang NodePort ghim 30080/30443. Vào bằng
+   `https://dlp.192.168.94.130.sslip.io:30443` từ **mọi máy trong LAN**, không
+   còn `port-forward`. Đo trên cụm: `/` → 200 `tls_verify=0`; `/ws` → lỗi CỦA
+   GATEWAY; handshake đúng subprotocol → `401 UNAUTHENTICATED` (tới được authz,
+   không rơi xuống Next); Better Auth set được cookie **`__Secure-`** trên host
+   KHÁC `localhost` — đúng thứ bất khả trước đây. Đối chứng âm: bỏ `--cacert` ⇒
+   `http=000`.
+   - openssl chứ không cert-manager: ở đây có ĐÚNG MỘT chứng chỉ cho cụm lab 1
+     node, thêm một operator + CRD phải ghim version/sha256 để quản nó là đổi
+     nhiều lấy ít. Khi P3 cần nhiều host hoặc gia hạn tự động thì mới đáng.
+
+### Lỗi tự lộ ra khi đóng nợ 3 — `--set` KHÔNG có hiệu lực suốt từ 2.G
+
+`07-ingress-controller.sh` viết `--set service.type=ClusterIP` kèm một khối chú
+thích dài giải thích vì sao ClusterIP đúng. **Khoá đó không tồn tại trong chart
+traefik v41** — nó là `service.spec.type`. Helm nhận key lạ mà không kêu một
+tiếng, chart giữ nguyên mặc định `LoadBalancer`, và trên kubeadm 1-node thì
+LoadBalancer nằm `<pending>` VĨNH VIỄN.
+
+Thứ làm ca này khó thấy: `helm get values traefik` vẫn in ra `service.type:
+ClusterIP`. Tức **chính lệnh người ta dùng để kiểm tra lại khẳng định điều
+sai** — giá trị đã KHAI và đối tượng SỐNG nói hai điều khác nhau, và chỉ một
+trong hai định tuyến được gói tin. Ô AC 2.G vẫn xanh vì nó đo qua
+`port-forward`, mà port-forward đi thẳng tới Service nên nó không quan tâm
+`type` là gì.
+
+Sửa: đổi sang `service.spec.type`, **và** thêm bước "Khẳng định type + cổng trên
+ĐỐI TƯỢNG SỐNG" đọc `.spec.type` bằng `kubectl` rồi `exit 1` nếu lệch. Giá trị
+đã khai không phải bằng chứng.
 
 ## Yêu cầu nền tảng (chốt 2026-08-13) — ảnh hưởng P2 trở đi
 
