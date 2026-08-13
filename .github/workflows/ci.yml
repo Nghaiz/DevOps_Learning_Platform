@@ -406,6 +406,28 @@ jobs:
             || { echo "platform-redirect không ghim entrypoint HTTP ⇒ vòng lặp chuyển hướng trên HTTPS"; exit 1; }
           echo 'OK: 4 Middleware, mọi tham chiếu khớp định nghĩa, /ws sạch bodylimit, redirect ghim entrypoint web.'
 
+      - name: 'helm template — trustProxy KHÔNG được bật khi không có proxy (P3/3.A)'
+        # Vế NGƯỢC: `web.env.rateLimitTrustProxy=1` khi `ingress.enabled=false`
+        # PHẢI làm chart chết. Không có proxy đứng trước thì `x-forwarded-for` là
+        # header client tự đặt được, và tin nó biến trần theo IP thành một lớp
+        # GIẢ — xoay XFF mỗi request là mỗi request một bucket mới.
+        #
+        # Bản đầu của 3.A đặt cờ này thẳng vào values-selfhost.yaml, trong khi các
+        # lệnh deploy self-host ở docs/env/05 + infra/helm/README.md dùng đúng hồ
+        # sơ đó mà KHÔNG bật ingress. Bước này gác để lần sau không tái diễn.
+        run: |
+          if helm template platform infra/helm/platform \
+               -f infra/helm/platform/values-selfhost.yaml \
+               --set web.env.betterAuthSecret=ci-only-not-a-real-secret \
+               --set web.env.betterAuthUrl=https://ci.example \
+               --set datastore.postgres.password=ci-only-not-a-real-password \
+               --set datastore.redis.password=ci-only-not-a-real-password \
+               --set web.env.rateLimitTrustProxy=1 >/dev/null 2>&1; then
+            echo "chart RENDER ĐƯỢC với trustProxy bật mà không có ingress — cổng đã mất tác dụng"
+            exit 1
+          fi
+          echo 'OK: tổ hợp trustProxy=1 + ingress.enabled=false bị chart từ chối.'
+
       - name: 'helm template — nhánh existingSecret (đường đi của prod)'
         # Nhánh này KHÔNG được đòi betterAuthSecret và KHÔNG được sinh Secret WEB.
         # Không test thì logic `if not existingSecret` trong web-secret.yaml chỉ

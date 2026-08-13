@@ -166,6 +166,51 @@ sau 5000ms: socket CÒN MỞ          ← đã vượt hạn init 3s
 Probe nằm ở [`harness/2026-08-14-3a-edge/ws-upgrade-probe.mjs`](harness/2026-08-14-3a-edge/ws-upgrade-probe.mjs),
 có cờ `EXPECT=fail` để chạy được vế đối chứng âm.
 
+## Lỗ hổng thứ hai — do chính bản vá này tạo ra, tự soát mới thấy
+
+Bản đầu của 3.A đặt `rateLimitTrustProxy: '1'` thẳng trong `values-selfhost.yaml`,
+với lý lẽ "hồ sơ self-host đi kèm `07-ingress-controller.sh` nên luôn có Traefik".
+
+**Lý lẽ đó sai.** Các lệnh deploy self-host được ghi trong
+`docs/env/05-helm-secrets-deploy.md` và `infra/helm/README.md` dùng **đúng hồ sơ ấy
+mà KHÔNG bật ingress**:
+
+```bash
+helm upgrade --install platform infra/helm/platform \
+  -f infra/helm/platform/values-selfhost.yaml \
+  --set web.env.betterAuthSecret="$(openssl rand -hex 32)"
+```
+
+Ở trạng thái đó không có proxy nào đứng trước web (Service web là NodePort, vào
+thẳng), nên `x-forwarded-for` là header **client tự đặt được**. Tin nó biến trần
+theo IP từ một lớp phòng thủ thành một lớp **giả**: xoay XFF mỗi request là mỗi
+request một bucket mới, né sạch giới hạn. Trớ trêu là đó chính là điều
+`docs/web-auth-security.md` đã ghi khi giải thích vì sao cờ này mặc định TẮT — bản
+vá của tôi đi ngược lại tài liệu của chính dự án.
+
+Ba việc đã sửa:
+
+1. **Gỡ khỏi `values-selfhost.yaml`.** Hồ sơ không được tự bật một cờ mà tiền đề
+   của nó nằm ngoài hồ sơ.
+2. **Chuyển vào lệnh do `08-tls-entrypoint.sh` in ra** — đúng nơi biên Traefik
+   được dựng, cùng lượt với `ingress.middleware.enabled`.
+3. **Cổng chặn cứng trong chart** (`web-deployment.yaml`): `rateLimitTrustProxy`
+   bật mà `ingress.enabled=false` ⇒ `fail` với thông báo nêu rõ hậu quả và hai
+   đường sửa. `ingress.enabled` là điều kiện mạnh nhất chart kiểm được — nó không
+   chứng minh proxy có ghi đè XFF hay không, nên thông báo nói rõ phần đó thuộc
+   người vận hành.
+
+Kiểm ba trạng thái:
+
+```
+trustProxy BẬT + ingress TẮT  → Error: … header client TỰ ĐẶT ĐƯỢC …   (chart từ chối)
+trustProxy BẬT + ingress BẬT  → RATE_LIMIT_TRUST_PROXY="1"             (render)
+mặc định (cả hai TẮT)         → 0 lần xuất hiện biến                    (render)
+```
+
+Kèm một bước CI gác **vế ngược**: nếu chart render ĐƯỢC tổ hợp nguy hiểm thì bước
+đó đỏ. Một cổng chỉ kiểm "đường đúng vẫn chạy" sẽ xanh cả sau khi ai đó gỡ mất cổng.
+
 ## Bảng ô AC
 
 | Ô | Kết quả | Bằng chứng |

@@ -25,23 +25,14 @@ global:
 
 web:
   replicaCount: 1
-  env:
-    # Tin `x-forwarded-for` (P3 / 3.A). CHỈ đúng vì hồ sơ self-host này đi kèm
-    # infra/host/07-ingress-controller.sh, và script đó ghim HAI thứ mà cờ này
-    # dựa vào — thiếu một trong hai là bật cờ thành lỗ hổng, không phải tính năng:
-    #
-    #   1. Traefik đứng trước web và GHI ĐÈ `x-forwarded-for` bằng địa chỉ socket
-    #      thật. Đo 2026-08-14: gửi `X-Forwarded-For: 9.9.9.9` từ ngoài vào, backend
-    #      nhận `192.168.94.1` (IP thật). Đối chứng âm: cùng request đi thẳng vào
-    #      Service, không qua Traefik ⇒ `1.2.3.4` tới NGUYÊN VẸN.
-    #   2. `externalTrafficPolicy: Local` trên Service traefik. Với mặc định
-    #      `Cluster`, kube-proxy SNAT về IP node và mọi client dùng chung một
-    #      bucket ⇒ người đầu tiên chạm trần khoá tất cả những người còn lại.
-    #
-    # Trên bất kỳ hồ sơ nào KHÔNG có cả hai, để rỗng. `clientKey()` khi đó trả
-    # null và lớp IP tự bỏ qua — mất một lớp, nhưng không tin một header client
-    # tự đặt được.
-    rateLimitTrustProxy: '1'
+  # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
+  # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ
+  # hổng: các lệnh deploy self-host ghi trong docs/env/05-helm-secrets-deploy.md
+  # và infra/helm/README.md dùng ĐÚNG file này mà KHÔNG bật ingress. Ở trạng thái
+  # đó không có proxy nào đứng trước web, nên tin `x-forwarded-for` nghĩa là tin
+  # một header client tự đặt được — kẻ tấn công xoay giá trị mỗi request là né
+  # sạch trần theo IP. Cờ này chỉ được bật ở nơi biên Traefik thật sự được dựng
+  # (infra/host/08-tls-entrypoint.sh in ra lệnh kèm nó).
   service:
     # NodePort để poke thủ công từ máy dev qua IP node — chưa có ingress controller
     # (Traefik tới ở P3, xem phase-0.md). Đổi lại ClusterIP + `kubectl port-forward`

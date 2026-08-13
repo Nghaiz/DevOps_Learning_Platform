@@ -106,7 +106,15 @@ printf '    --set ingress.enabled=true --set ingress.className=traefik \\\n'
 printf '    --set ingress.host=%s \\\n' "$DLP_HOST"
 printf '    --set ingress.tls.enabled=true --set ingress.tls.secretName=%s \\\n' "$TLS_SECRET"
 printf '    --set web.env.corsAllowedOrigins=https://%s:%s \\\n' "$DLP_HOST" "$HTTPS_NODEPORT"
-printf '    --set web.env.betterAuthUrl=https://%s:%s\n\n' "$DLP_HOST" "$HTTPS_NODEPORT"
+printf '    --set web.env.betterAuthUrl=https://%s:%s \\\n' "$DLP_HOST" "$HTTPS_NODEPORT"
+printf '    --set ingress.middleware.enabled=true \\\n'
+printf '    --set ingress.middleware.redirectHttps.enabled=true \\\n'
+printf '    --set ingress.middleware.redirectHttps.port=%s \\\n' "$HTTPS_NODEPORT"
+printf '    --set web.env.rateLimitTrustProxy=1\n\n'
+printf 'Vì sao rateLimitTrustProxy đi KÈM lệnh này chứ không nằm trong values-selfhost:\n'
+printf '  cờ đó tin `x-forwarded-for`, chỉ đúng khi CÓ proxy đứng trước ghi đè header đó.\n'
+printf '  Deploy self-host KHÔNG bật ingress (docs/env/05) thì không có proxy nào, và bật\n'
+printf '  cờ khi ấy = tin header client tự đặt được. Chart chặn cứng ca đó bằng `fail`.\n\n'
 printf 'Đường vào (mọi máy trong LAN, KHÔNG cần port-forward):\n'
 printf '  \033[1mhttps://%s:%s\033[0m\n\n' "$DLP_HOST" "$HTTPS_NODEPORT"
 printf 'Trình duyệt sẽ cảnh báo tới khi CA được tin. Lấy CA về:\n'

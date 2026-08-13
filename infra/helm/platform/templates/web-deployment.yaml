@@ -134,6 +134,26 @@ spec:
               value: {{ printf "%s-orchestrator" (include "platform.fullname" .) | quote }}
             {{- end }}
             {{- with .Values.web.env.rateLimitTrustProxy }}
+            {{- /*
+              ⛔ CỔNG CHẶN CỨNG (P3 / 3.A). Tin `x-forwarded-for` chỉ đúng khi có
+              một proxy đứng trước và GHI ĐÈ header đó bằng địa chỉ socket thật.
+              Không có proxy thì XFF là thứ client tự đặt, và bật cờ này biến trần
+              theo IP từ "một lớp phòng thủ" thành "một lớp giả": kẻ tấn công xoay
+              giá trị mỗi request là mỗi request một bucket mới.
+
+              Bản đầu của chặng này đặt cờ `'1'` thẳng trong values-selfhost.yaml,
+              và điều đó SAI vì các lệnh deploy self-host ghi trong
+              docs/env/05-helm-secrets-deploy.md + infra/helm/README.md dùng đúng
+              hồ sơ ấy mà KHÔNG bật ingress.
+
+              `ingress.enabled` là điều kiện MẠNH NHẤT chart kiểm được — nó không
+              chứng minh được proxy có ghi đè XFF hay không (Traefik mặc định CÓ;
+              xem 07-ingress-controller.sh), nên thông báo dưới nói rõ phần còn lại
+              thuộc trách nhiệm người vận hành.
+            */}}
+            {{- if not $.Values.ingress.enabled }}
+            {{- fail "web.env.rateLimitTrustProxy đang BẬT nhưng ingress.enabled=false — không có proxy nào đứng trước web, nên `x-forwarded-for` là header client TỰ ĐẶT ĐƯỢC và trần rate-limit theo IP trở thành vô nghĩa (xoay XFF mỗi request = mỗi request một bucket). Hoặc bật ingress, hoặc bỏ cờ này. Nếu bạn dùng một proxy NGOÀI chart, hãy tự khẳng định nó ghi đè XFF rồi đặt ingress.enabled=true." }}
+            {{- end }}
             - name: RATE_LIMIT_TRUST_PROXY
               value: {{ . | quote }}
             {{- end }}
