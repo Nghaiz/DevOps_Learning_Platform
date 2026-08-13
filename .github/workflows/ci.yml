@@ -349,6 +349,63 @@ jobs:
           | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
               -ignore-missing-schemas
 
+      - name: 'helm template — nhánh middleware biên bật (P3/3.A)'
+        # Ba Middleware + việc tách Ingress làm ba CHỈ render khi
+        # ingress.middleware.enabled=true, mà KHÔNG bộ values nào bật nó (mặc định
+        # false để trung lập nhà cung cấp — Middleware là CRD riêng của Traefik).
+        # Không có bước này thì ba manifest mới không bao giờ được CI render.
+        #
+        # ⛔ PHÉP KIỂM CHÍNH LÀ VẾ "THAM CHIẾU KHỚP ĐỊNH NGHĨA", KHÔNG PHẢI "render
+        # được". Traefik BỎ QUA TRONG IM LẶNG một `router.middlewares` trỏ tới
+        # Middleware không tồn tại: Ingress vẫn Ready, route vẫn chạy, và trần
+        # body/rate-limit đơn giản là KHÔNG có. Đó đúng là chế độ hỏng của sự cố
+        # `service.type` (2026-08-14) — giá trị đã khai và hành vi thật nói hai
+        # điều khác nhau, và không cổng nào bắt được.
+        run: |
+          out=$(helm template platform infra/helm/platform \
+            --set web.env.betterAuthSecret=ci-only-not-a-real-secret \
+            --set ingress.enabled=true \
+            --set ingress.className=traefik \
+            --set ingress.host=dlp.example.com \
+            --set ingress.middleware.enabled=true \
+            --set ingress.middleware.redirectHttps.enabled=true \
+            --set ingress.middleware.redirectHttps.port=30443)
+
+          printf '%s' "$out" | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
+            -ignore-missing-schemas || exit 1
+
+          defined=$(printf '%s\n' "$out" \
+            | awk '/^kind: Middleware$/{f=1} f&&/^  name:/{print $2; f=0}' | sort -u)
+          echo "Middleware được định nghĩa:"; printf '%s\n' "$defined"
+          [ "$(printf '%s\n' "$defined" | grep -c .)" -eq 4 ] \
+            || { echo "muốn đúng 4 Middleware (bodylimit, ratelimit-web, ratelimit-ws, redirect-https)"; exit 1; }
+
+          # Release.Namespace của `helm template` là `default` ⇒ tiền tố `default-`.
+          referenced=$(printf '%s\n' "$out" \
+            | sed -n 's/.*router\.middlewares: *"\(.*\)".*/\1/p' \
+            | tr ',' '\n' | sed 's/@kubernetescrd$//; s/^default-//' | sort -u)
+          echo "Middleware được tham chiếu:"; printf '%s\n' "$referenced"
+          [ -n "$referenced" ] || { echo "không Ingress nào tham chiếu middleware — annotation đã im lặng biến mất"; exit 1; }
+          # `<<<` chứ KHÔNG phải `printf | while`: nhánh sau chạy vòng lặp trong một
+          # subshell, nên `exit 1` ở đó chỉ thoát subshell và bước CI vẫn XANH —
+          # một cổng gác không bao giờ đỏ được.
+          while read -r ref; do
+            [ -n "$ref" ] || continue
+            printf '%s\n' "$defined" | grep -qx "$ref" \
+              || { echo "tham chiếu '$ref' KHÔNG khớp Middleware nào — Traefik sẽ bỏ qua nó trong im lặng"; exit 1; }
+          done <<< "$referenced"
+
+          # `/ws` KHÔNG được mang bodylimit, và redirect PHẢI ở entrypoint HTTP.
+          # Vế redirect là vế chống vòng lặp vô hạn: gắn redirectScheme lên router
+          # phục vụ HTTPS thì request HTTPS tự chuyển hướng về chính nó.
+          ws_mw=$(printf '%s\n' "$out" | awk '/name: platform-ws$/{f=1} f&&/router\.middlewares:/{print; exit}')
+          printf '%s' "$ws_mw" | grep -q bodylimit \
+            && { echo "platform-ws mang bodylimit — trần body cho thứ không có body"; exit 1; }
+          printf '%s\n' "$out" | awk '/name: platform-redirect$/{f=1} f&&/router\.entrypoints:/{print; exit}' \
+            | grep -q '"web"' \
+            || { echo "platform-redirect không ghim entrypoint HTTP ⇒ vòng lặp chuyển hướng trên HTTPS"; exit 1; }
+          echo 'OK: 4 Middleware, mọi tham chiếu khớp định nghĩa, /ws sạch bodylimit, redirect ghim entrypoint web.'
+
       - name: 'helm template — nhánh existingSecret (đường đi của prod)'
         # Nhánh này KHÔNG được đòi betterAuthSecret và KHÔNG được sinh Secret WEB.
         # Không test thì logic `if not existingSecret` trong web-secret.yaml chỉ

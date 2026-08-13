@@ -1,0 +1,56 @@
+{{- if and .Values.ingress.enabled (dig "middleware" "enabled" false .Values.ingress) }}
+{{/*
+Rate limit Ở BIÊN (P3 / 3.A — luật 5 của design §6).
+
+VÌ SAO CẦN, khi apps/web đã có checkRateLimit(): lớp theo IP của web hiện KHÔNG
+CHẠY. `RATE_LIMIT_TRUST_PROXY` mặc định off ⇒ clientKey() (apps/web/src/proxy.ts)
+trả null vô điều kiện ⇒ middleware bỏ qua hẳn phép kiểm. Đó không phải "giới hạn
+lỏng" mà là KHÔNG CÓ giới hạn theo IP. Lớp per-user trong protectedProcedure vẫn
+chạy và không phụ thuộc cờ đó — nhưng nó chỉ gác được người ĐÃ đăng nhập, nên
+mọi đường public (đăng nhập, đăng ký, /ws handshake) hiện không có trần nào.
+
+Web KHÔNG thể tự sửa điều này: nó chỉ thấy `x-forwarded-for`, mà header đó client
+tự đặt được. Trần theo IP chỉ có nghĩa ở lớp đầu tiên nhìn thấy socket thật —
+tức ở đây.
+
+HAI middleware chứ không một, vì hai đường có đơn giá rất khác nhau:
+
+- `-web`: HTTP thường. 120 req/phút là nhịp duyệt web bình thường của một người.
+- `-ws`: handshake WebSocket. MỖI lượt là một lần attach vào pod sandbox — đắt
+  hơn một GET nhiều bậc. Để chung 120/phút nghĩa là một IP mở được 120 lượt
+  attach mỗi phút, thứ mà trần D17=1 (một phiên một WS) không chặn được vì mỗi
+  handshake có thể nhắm một session khác.
+
+⚠ sourceCriterion để MẶC ĐỊNH (không khai ipStrategy): Traefik khi đó lấy
+RemoteAddr của kết nối, tức IP mà chính Traefik nhìn thấy — không đọc XFF, nên
+không giả mạo được. Nhưng điều đó CHỈ đúng nếu source IP còn nguyên khi tới
+Traefik: với Service NodePort + externalTrafficPolicy=Cluster, kube-proxy SNAT
+gói tin về IP node và MỌI client sẽ dùng CHUNG một bucket. Phải đo trước khi tin
+(3.A bước 5) — một trần chung cho cả thế giới thì client đầu tiên tự khoá mọi
+người còn lại, đúng chế độ self-DoS mà web đã cố ý tránh khi từ chối bucket
+'unknown'.
+*/}}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "platform.fullname" . }}-ratelimit-web
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
+spec:
+  rateLimit:
+    average: {{ .Values.ingress.middleware.rateLimit.web.average }}
+    period: {{ .Values.ingress.middleware.rateLimit.web.period | quote }}
+    burst: {{ .Values.ingress.middleware.rateLimit.web.burst }}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "platform.fullname" . }}-ratelimit-ws
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
+spec:
+  rateLimit:
+    average: {{ .Values.ingress.middleware.rateLimit.ws.average }}
+    period: {{ .Values.ingress.middleware.rateLimit.ws.period | quote }}
+    burst: {{ .Values.ingress.middleware.rateLimit.ws.burst }}
+{{- end }}

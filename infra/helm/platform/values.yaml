@@ -295,6 +295,57 @@ ingress:
     enabled: false
     secretName: ''
 
+  # ── Middleware ở BIÊN (P3 / 3.A — luật 5 của design §6) ────────────────────
+  # TẮT mặc định vì đây là CRD riêng của Traefik (traefik.io/v1alpha1). Bật trên
+  # cluster dùng nginx/HAProxy thì `helm upgrade` chết ở bước apply với lỗi
+  # "no matches for kind Middleware" — tắt là mặc định trung lập nhà cung cấp,
+  # đúng cam kết cloud-agnostic của plan.md §7.
+  #
+  # Bật cờ này KHÔNG tự nó siết gì thêm ở apps/web: `web.env.rateLimitTrustProxy`
+  # là một quyết định TÁCH RỜI và phải bật SAU khi đã đo được Traefik thật sự
+  # chuẩn hoá `x-forwarded-for` (3.A bước 5). Bật trust-proxy trước phép đo đó là
+  # tự tay mở đường giả mạo IP: web sẽ tin một header mà client tự đặt được.
+  middleware:
+    enabled: false
+    # Tên entrypoint của Traefik. Mặc định của chart traefik: web=:8000 (HTTP),
+    # websecure=:8443 (HTTPS). Ghim router vào đúng entrypoint là thứ ngăn vòng
+    # lặp chuyển hướng — xem templates/middleware-redirect.yaml.
+    entrypoints:
+      secure: websecure
+      insecure: web
+    bodyLimit:
+      # 1 MiB — CÙNG con số với MAX_JSON_BODY_BYTES của apps/web
+      # (server/security/body-limit.ts). Hai lớp cùng trần có chủ ý: lớp web trả
+      # lỗi tRPC đọc được cho client hợp lệ, lớp biên chặn thứ không bao giờ nên
+      # tới nơi. Lệch số giữa hai lớp thì khoảng giữa là vùng "web từ chối nhưng
+      # biên cho qua" — tốn tài nguyên mà không ai gác.
+      maxRequestBodyBytes: 1048576
+    rateLimit:
+      # HTTP thường: 120 req/phút khớp RATE_LIMIT_MAX_REQUESTS của web.
+      web:
+        average: 120
+        period: 1m
+        burst: 60
+      # Handshake WebSocket: MỖI lượt là một lần attach vào pod sandbox, đắt hơn
+      # một GET nhiều bậc. Trần D17=1 (một phiên một WS) KHÔNG chặn được việc một
+      # IP mở liên tiếp nhiều handshake nhắm nhiều session khác nhau.
+      ws:
+        average: 20
+        period: 1m
+        burst: 10
+    redirectHttps:
+      enabled: false
+      # Cổng CÔNG KHAI của entrypoint HTTPS, khai TƯỜNG MINH. Rỗng = giữ nguyên
+      # cổng của request. Traefik chỉ biết websecure là :8443 bên trong pod và
+      # không biết gì về NodePort 30443 bên ngoài, nên để rỗng trên NodePort sẽ
+      # sinh `Location` trỏ vào một cổng không ai mở được — đúng nỗi lo nợ P2 §3.
+      port: ''
+      # false ⇒ 302 Found; true ⇒ 301 Moved Permanently (đo trên cụm 2026-08-14).
+      # Giữ 302 ở chặng này vì 301 bị trình duyệt cache lâu dài: một Location sai
+      # cổng sẽ dính lại cả sau khi đã sửa, và triệu chứng ("vẫn hỏng") không phân
+      # biệt được với "bản vá chưa deploy". Đổi sang true khi AC-A5 xanh ổn định.
+      permanent: false
+
 # Postgres + Redis chạy TRONG cluster. TẮT mặc định ở đây: values.yaml là bản
 # "cloud-shaped", và trên cloud thì managed DB (backup, PITR, failover) thắng
 # tuyệt đối một pod tự dựng. values-selfhost.yaml bật lên cho VM lab.
