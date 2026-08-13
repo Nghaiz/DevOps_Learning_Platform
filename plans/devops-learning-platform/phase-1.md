@@ -797,6 +797,90 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 
 ---
 
+### 1.G-6 — Bốn món nợ P1 nằm NGOÀI mọi ô AC (chặng đóng phase) ✅ XONG 2026-08-13
+
+> **Bằng chứng:** [`reports/2026-08-13-verify-1g6-debt-closure.md`](reports/2026-08-13-verify-1g6-debt-closure.md) · artifact: [`harness/2026-08-13-1g6-debt-closure/`](reports/harness/2026-08-13-1g6-debt-closure/).
+>
+> **Kết quả một dòng: bốn nợ đóng, bốn ô AC mới, và HAI phát hiện mà chính phép đo lôi ra — cả hai đều là "phép đo sai điểm quy chiếu", không phải lỗi hệ thống.**
+> **Số đo:** `packages/terminal` **91 node + 29 browser PASS / 1 skip có chủ ý** (thêm project `safari15` 6/6); `turbo run lint typecheck build test` **16/16** (`apps/web` 95 PASS); kiểm đột biến **4/4 bị bắt** + đối chứng dương xanh; cổng shell Trivy **4/4 ca đúng**; cửa sổ web-500 = **12.3s** (ngưỡng 60s). Ô AC **+4**.
+> ⛔ **Phát hiện 1 — bảng nhánh ném của addon:** report 1.G-5 ghi constructor "có đúng một nhánh ném"; đọc dist ra **ba** điều kiện, nên Safari 15 **có** WebGL2 thì KHÔNG ném. Chính vì thế nhánh Safari đo được **trong Chromium** (UA giả + `--disable-3d-apis`) và không cần mock — điều 1.G-5 kết luận ngược.
+> ⛔ **Phát hiện 2 — hai đồng hồ:** lượt đo R4 đầu tiên cho cửa sổ **ÂM 46.7s** vì `t0` đọc từ apiserver (đồng hồ VM) còn `t1` bấm ở Windows, mà VM nhanh hơn **58.98s**. Cửa sổ âm thì lộ ngay; ca nguy hiểm là lệch **nhỏ** — số vẫn dương và vẫn sai.
+> **Còn nợ sau chặng này (không để trôi):** thứ tự Trivy mới **chưa từng chạy thật** (job `images` chỉ chạy trên `main`), và rủi ro tồn dư "hai lượt build có thể không bit-identical" được ghi lại chứ không khử — đường khử là `push-by-digest`, thuộc P3. Cả hai ở §6 của report.
+
+> **Mở 2026-08-13, ngay sau khi 1.G-5 merge (#49).** Sau chặng đó phase **hết ô AC trống**. Nhưng bốn món nợ được ghi rành mạch trong report + §"Còn để ngỏ" **không nằm trong ô AC nào**, tức không có gì đỏ khi chúng quay lại. Chặng này không thêm tính năng người dùng nào; nó biến cả bốn thành ô gác được.
+>
+> ⛔ **Một trong bốn là nợ MỒ CÔI, và đó là chế độ hỏng khác hẳn "chưa task nào sở hữu".** Mục web-500 ở §"Còn để ngỏ" ghi thẳng **"CHỦ: 1.G-2"** — nhưng 1.G-2 (#46) chỉ ship `cmd/session-probe` + sửa plan, còn 1.G-3 dựng cảnh bằng `helm **upgrade**` chứ không `helm install`. Chương chủ đóng mà **không làm**, và ba chặng sau đó không chặng nào phát hiện. Nợ *chưa có chủ* thì mỗi lượt rà soát đều nhìn thấy; nợ *có chủ trên giấy* thì mọi lượt rà soát đọc lướt qua — đắt hơn, vì nó ẩn.
+>
+> **Vì sao gom một chặng chứ không ba:** hai nợ FE (R1, R2) verify offline trong `packages/terminal`, R3 verify bằng chính CI, R4 cần cụm. Ba loại bằng chứng, nhưng **cả ba đều nhỏ** và cùng một mục tiêu kế toán; tách ra là ba PR mỗi PR sửa vài chục dòng. Ranh giới an toàn vẫn giữ: R4 chạy **sau cùng** và không được đụng release `platform` đang sống.
+
+**R0 — Đính chính [report 1.G-5](reports/2026-08-13-verify-1g5-fe-browser-harness.md) §6 TRƯỚC khi làm R1.** Report ghi constructor của `@xterm/addon-webgl@0.19.0` *"có **đúng một** nhánh ném — `isSafari && safariVersion < 16`"*. Đọc lại dist 2026-08-13: nhánh đó có **ba** điều kiện, vế thứ ba là một phép dò `getContext('webgl2')` **bên trong** chính nhánh:
+
+> ```js
+> if (isSafari && getSafariVersion() < 16) {
+>   if (!document.createElement("canvas").getContext("webgl2", {antialias:!1,depth:!1,preserveDrawingBuffer:!0}))
+>     throw new Error("Webgl2 is only supported on Safari 16 and above")
+> }
+> ```
+>
+> **Hệ quả trực tiếp, đo bằng Playwright 1.62.1 + chromium bundled, headless, 2026-08-13:**
+>
+> | Cờ launch | userAgent | `isSafari` | `Version/` | WebGL2 | Constructor ném? |
+> |---|---|---|---|---|---|
+> | *(mặc định)* | *(mặc định)* | false | 0 | có | không |
+> | *(mặc định)* | **Safari 15** | **true** | **15** | **có** | **không** |
+> | `--disable-3d-apis` | *(mặc định)* | false | 0 | không | không |
+> | `--disable-3d-apis` | **Safari 15** | **true** | **15** | **không** | **CÓ** |
+>
+> Hàng thứ hai là điều report cũ nói sai: Safari 15 **có** WebGL2 thì constructor **không** ném. Và hàng thứ tư nói ra thứ report cũ kết luận ngược: nhánh Safari **đo được trong Chromium**, không cần Safari thật và không cần mock.
+
+**R1 — D1: gác nhánh Safari < 16 bằng nhánh THẬT của vendor, không mock.**
+
+> **Cảnh:** project vitest thứ tư — `safari15` — chromium với `launchOptions.args = ['--disable-3d-apis']` **và** `contextOptions.userAgent` = chuỗi Safari 15.6.1 thật. `contextOptions` có trong `@vitest/browser-playwright@4.1.10` (`index.d.ts:28`), `userAgent` không nằm trong danh sách `Omit`.
+> **Vì sao KHÔNG `vi.mock('@xterm/addon-webgl')`:** mock chỉ khẳng định lại **niềm tin của ta** về vendor — nếu bản sau đổi thông điệp hoặc bỏ nhánh, mock vẫn ném đúng như cũ và test vẫn xanh trong khi thứ nó gác đã biến mất. Nhánh thật đo được thì không có cớ để mock. *(Đường lùi nếu UA giả làm chính xterm đi nhánh Safari của nó và cảnh vỡ: ghi thẳng ra rồi mới lùi về `vi.mock`, không im lặng đổi.)*
+> ⛔ **Tiền đề phải là ASSERTION, không phải giả định** — cùng luật `__EXPECT_WEBGL2__` của 1.G-5: ca đầu file khẳng định `new WebglAddon()` **ném** đúng `/Safari 16 and above/`. Thiếu vế đó thì ngày UA-spoof hoặc cờ ngừng tác dụng, file này lặng lẽ chạy cảnh Chrome-bình-thường và **vẫn xanh** vì `createTerminalCore` vốn không ném ở cảnh đó.
+> **File riêng `src/terminal-core.safari.test.tsx`** — KHÔNG khớp glob `src/**/*.browser.test.tsx` của `gpu-on`/`gpu-off`, nên không cần `exclude` và không lọt vào hai project kia. *Chạm: `packages/terminal/vitest.config.ts`, `package.json` (script `test:browser`), file test mới. Effort: S.*
+
+**R2 — D2: thứ tự `open()` TRƯỚC `loadAddon(webgl)`.**
+
+> Hôm nay `terminal.open()` ở [`terminal-core.ts:88`](../../packages/terminal/src/terminal-core.ts#L88) chạy trước `loadAddon` ở dòng 106, nên `activate()` chạy **đồng bộ, bên trong `try`**. Đảo lại thì addon rơi vào nhánh `if (!terminal.element) { onWillOpen(() => this.activate(t)); return }` ⇒ lần activate thật xảy ra **sau, bất đồng bộ, ngoài `try`** ⇒ một ngoại lệ thoát ra không ai bắt. Bản vá Q5 của 1.G-5 **không** phủ ca này.
+> **Bất biến quan sát được:** tại đúng lúc `WebglAddon.prototype.activate` được gọi, `terminal.element` **đã tồn tại**. `activate` là method trên prototype (đã kiểm: `constructor, activate, textureAtlas, clearTextureAtlas`) nên vá được từ test để ghi lại trạng thái tại thời điểm gọi — không phải đọc thứ tự dòng trong source, mà đo hành vi.
+> ⛔ **Đối chứng âm BẮT BUỘC:** dựng một `Terminal` trần, `loadAddon` **trước** `open()`, cùng spy ⇒ lần gọi đầu tiên phải thấy `element` **vắng**. Không có vế này thì assertion "element có mặt" cũng đúng với một hiện thực **không bao giờ gọi `activate`**, và test khẳng định đúng cái nó không kiểm. *Chạm: `terminal-core.browser.test.tsx`. Effort: S.*
+
+**R3 — D3: đảo thứ tự cổng Trivy trong job `images` (image CRITICAL đang được publish rồi mới quét).**
+
+> **Số liệu, đọc từ [`ci.yml`](../../.github/workflows/ci.yml):** `push: true` ở **dòng 932**; hai bước Trivy ở **952** (báo cáo, `exit-code: 0`) và **966** (cổng chặn, `exit-code: 1`, `severity: CRITICAL`). Cổng đứng **sau** push ⇒ image CRITICAL **đã nằm trên ghcr** dưới cả `sha-…` lẫn `latest`; cổng chỉ làm run đỏ.
+> **Khuôn đúng đã có sẵn trong chính file này** — job `sandbox-image` (PR-time) dùng `push: false` + `load: true` + tag cục bộ `dlp-sandbox-base:pr`, quét, **và** có assertion *"lượt quét đã thật sự chạy"* (dòng 748–755) vì `--exit-code` một mình không phân biệt "0 CRITICAL" với "Trivy FATAL". Việc của R3 là mang khuôn đó sang `images`.
+> ⛔ **Và phạm vi rộng hơn vẻ ngoài: `sandbox-image` chỉ gác `sandbox-base`.** Bốn image còn lại (`web`, `migrator`, `orchestrator`, `terminal-gateway`) **không có cổng quét nào trước merge** — với chúng, job `images` là cổng DUY NHẤT, và cổng đó đang đứng sau push.
+> ⛔ **Bẫy chết người khi đảo:** hai bước Trivy hiện quét theo **digest registry** (`ghcr.io/nghaiz/…@${{ steps.build.outputs.digest }}`). Sau khi đổi sang `push: false` thì digest ấy **chưa tồn tại**; quên sửa `image-ref` sang tag cục bộ là bước quét trỏ vào một tham chiếu rỗng — và đó là ca "xanh mà chưa quét gì", đúng họ với FATAL-nuốt-stderr mà chính file này đã cảnh báo.
+> ⛔ **`sbom: true` + `provenance: mode=max` KHÔNG đi cùng `load: true`** (docker exporter không nhận attestation). Chúng thuộc lượt **push**, không thuộc lượt build-để-quét.
+> **Rủi ro tồn dư phải nói ra, không được tuyên bố là kín:** lượt push là một lần chạy buildx **thứ hai** (cache-hit từ `type=gha`), nên về lý thuyết nó có thể không bit-identical với thứ vừa quét. Khử bằng cách so `steps.<id>.outputs.imageid` của hai lượt và đỏ khi lệch; **nếu đo ra hai output không so được với nhau thì ghi rõ rủi ro tồn dư trong report** thay vì im lặng bỏ assertion. *Chạm: `.github/workflows/ci.yml` job `images`. Effort: M.*
+
+**R4 — D4: đo cửa sổ web-500 trên `helm install` SẠCH (nợ mồ côi, chạy sau cùng).**
+
+> **Ngưỡng đã chốt 2026-08-10, TRƯỚC mọi phép đo — kế thừa nguyên văn, không đặt lại:** dưới **~60s** thì giữ `post-install` và chỉ ghi số vào tài liệu; **trên** ngưỡng đó thì web cần một `readinessProbe` chạm DB, vì lúc ấy Service định tuyến vào một pod trả 500 đủ lâu để người dùng đầu tiên gặp phải. *(Ngưỡng nằm ở §"Còn để ngỏ"; nó có trước con số nên con số không tự biện minh được cho chính nó — đúng luật 1.G-4 P1.)*
+> **Đại lượng:** `t0` = pod web đạt condition `Ready` (đọc `lastTransitionTime` của condition, **không** bấm đồng hồ tay), `t1` = lượt `GET /api/auth/jwks` đầu tiên trả **200**.
+> ⛔ **Đối chứng dương bắt buộc: phải quan sát được ÍT NHẤT một lượt 500 trước lượt 200.** Nếu poll đầu tiên đã 200, phép đo **không phân biệt** "cửa sổ ngắn" với "bắt đầu poll quá muộn nên bỏ lỡ cả cửa sổ" — và số 0s đọc ra sẽ sai theo hướng trấn an. Vậy phải poll **từ trước khi** web `Ready`, và ghi lại mã trả về của từng lượt.
+> **Chi phí thấp hơn tưởng: không cần build hay side-load.** Node đã có đủ **5/5** image ở tag `sha-a6f6768` (kiểm 2026-08-13 bằng `ctr -n k8s.io images ls`), tức một bộ nhất quán ⇒ install thẳng bằng tag đó.
+> ⛔ **Release thứ hai KHÔNG sống chung được nếu chạy nguyên xi — đã đọc template, có ĐÚNG HAI blocker, cả hai vì tên lấy từ `values` chứ không từ `.Release.Name`:**
+>
+> | Resource | Tên render ra | Vì sao đụng |
+> |---|---|---|
+> | [`priorityclass.yaml:10`](../../infra/helm/platform/templates/priorityclass.yaml#L10) | `{{ .Values.platform.priorityClassName }}` → `dlp-platform-critical` | cluster-scoped, release `platform` đã sở hữu ⇒ Helm abort ở *invalid ownership metadata* |
+> | [`sandbox-namespace.yaml`](../../infra/helm/platform/templates/sandbox-namespace.yaml) | `{{ .Values.sandbox.namespace }}` → `dlp-sandbox` | y hệt |
+>
+> *(VAP + binding **có** template theo `platform.fullname` nên KHÔNG đụng — chúng không phải blocker, dù bảng đo trên cụm liệt kê cả ba.)*
+>
+> **Đường đã chọn — đổi tên PriorityClass, TẮT sandbox.** `--set platform.priorityClassName=dlp-scratch-critical --set sandbox.enabled=false`.
+> ⛔ **KHÔNG dùng `platform.priorityClassEnabled=false` để né blocker thứ nhất**, dù nó ngắn hơn một chữ: cờ đó gỡ `priorityClassName` khỏi **mọi** pod nền tảng của release nháp, nên trên VM 1-node pod nháp thành thứ bị evict trước tiên — tức nó nhiễu vào **đúng cái mốc `Ready` mà chặng này đi đo**. Đổi tên không có nhược điểm đó.
+> **Và cảnh nháp chỉ dựng thứ phép đo cần:** `--set orchestrator.enabled=false --set gateway.enabled=false` (cả hai cờ đều có sẵn: [`values.yaml:86`](../../infra/helm/platform/values.yaml#L86) và [`:156`](../../infra/helm/platform/values.yaml#L156)). Đường `jwks` không đi qua hai service đó; dựng chúng chỉ tốn RAM trên VM ~11Gi và thêm biến số.
+> ⛔ **Ranh giới đã biết trước, phải nói ra vì nó có thể làm phép đo ĐỎ chứ không chỉ chậm:** Job migration **không có** vế chờ Postgres (không initContainer, không retry) trong khi `initdb` của một Postgres hoàn toàn mới mất vài chục giây, và `backoffLimit: 2` ⇒ chỉ **3** lượt thử trước khi `activeDeadlineSeconds: 300` giết cả `helm install`. Nếu ca đó xảy ra thì nó **chính là món nợ**, không phải một trục trặc của phép đo — ghi lại nguyên trạng, đừng thử lại cho tới khi may mắn.
+> ⛔ **PVC mang `helm.sh/resource-policy: keep`** ⇒ `helm uninstall` để lại chúng, và một lượt install lại cùng tên sẽ bind PVC cũ với mật khẩu `initdb` cũ trong khi Secret sinh mật khẩu mới → `28P01` mà helm vẫn báo thành công. Dọn phải `kubectl delete pvc` tường minh.
+> ⛔ **TUYỆT ĐỐI không `helm upgrade`/`uninstall` release `platform`.** Lab đang chạy trên đó; mọi thứ của chặng này nằm trong namespace nháp và bị **xoá sạch sau khi đo**. *Chạm: không file nào nếu số dưới ngưỡng; `infra/helm/platform/templates/web-deployment.yaml` nếu trên ngưỡng. Effort: M.*
+
+**R5 — Bốn ô AC mới, một ô cho mỗi nợ.** Sửa xong mà không có ô gác thì lần soát sau vẫn phải điều tra lại từ đầu — chính là thứ chặng này tồn tại để chấm dứt.
+
+---
+
 ## File / dir ownership — bản đồ zero-overlap cho fan-out
 
 | Lane | Sở hữu độc quyền |
@@ -963,6 +1047,11 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
   > **Đường vá bị loại:** seed `lastNotified = measure()` lúc dựng cũng đóng được lỗi nhưng ép `fit()` chạy **trước khi font tải xong** — đúng thứ F4 cấm. **Ranh giới còn đúng sau vá:** container 0×0 lúc mount rồi mới có kích thước ⇒ **vẫn phát**. Bản vá bỏ frame thừa, không bỏ frame thật.
 - [x] **Debounce resize 50ms (contract §4 — vế (a) của luật 5, M5 giao cho tầng FE).** ✅ **ĐẠT 2026-08-13** ở 1.G-5: 5 lần đổi kích thước cách nhau 15ms (tổng < một cửa sổ debounce sau mỗi lần reset) ⇒ `onResize` chạy **đúng 1** lần, **kèm khẳng định `ResizeObserver` đã bắn ≥ 3 lần** — không có con số đó thì "5 lần đổi ⇒ 1 lần gọi" là tautology, vì trình duyệt có thể gộp cả 5 vào MỘT lần bắn RO và phép đo hoá ra kiểm chính RO chứ không kiểm debounce. **Đối chứng:** hai lần đổi cách nhau > 50ms ⇒ **2** lần gọi (thiếu ca này thì một hiện thực "chỉ gọi đúng một lần mãi mãi" vẫn qua). **Và:** đổi chiều cao 2px (dưới một hàng) ⇒ `rows` không đổi ⇒ **0** lần gọi.
   > *Trước chặng này `RESIZE_DEBOUNCE_MS = 50` **không test nào chạm** — ô luật 5 đã tick 5/5 trong khi vế (a) chưa có gì gác.*
+- [x] **Nhánh Safari < 16: `createTerminalCore` KHÔNG ném, rơi về DOM renderer** (ô MỚI, 1.G-6 R1). ✅ **ĐẠT 2026-08-13** — project `safari15` **6/6 PASS**, và stderr in ra nguyên văn `Error: Webgl2 is only supported on Safari 16 and above` bị `try` bắt ⇒ nhánh vendor THẬT đã chạy, không phải mock. Kiểm đột biến M1 (đưa constructor ra ngoài `try`) **bị bắt**. Cảnh `safari15` — chromium `--disable-3d-apis` **+** `userAgent` Safari 15 — là cảnh **duy nhất** thoả cả ba điều kiện nhánh ném của `@xterm/addon-webgl@0.19.0`. Ca đầu file khẳng định `new WebglAddon()` **thật sự ném** `/Safari 16 and above/` (tiền đề là assertion, không phải giả định), rồi mới tới `createTerminalCore` không ném + `console.warn` fallback + terminal còn ghi được chữ.
+  > ⛔ **Bản vá Q5 của 1.G-5 đúng nhưng KHÔNG có gì gác cho tới ô này** — harness khi đó là Chromium mặc định, mà Chrome đi nhánh ném **khác** (`"WebGL2 not supported"` bên trong `activate()`, vốn đã nằm trong `try`). Ô này đỏ nếu ai đưa `new WebglAddon()` ra ngoài khối `try`.
+  > ⛔ **Và nó sửa một câu sai trong report 1.G-5:** constructor **không** chỉ gác bằng `isSafari && version < 16` — còn một phép dò `getContext('webgl2')` **bên trong** nhánh, nên Safari 15 mà **có** WebGL2 thì **không** ném. Bảng 2×2 ở 1.G-6 R0.
+- [x] **`terminal.open()` chạy TRƯỚC `loadAddon(webgl)`** (ô MỚI, 1.G-6 R2). ✅ **ĐẠT 2026-08-13**, kiểm đột biến M4 (chuyển `open()` xuống sau khối try) **bị bắt**. — đo bằng hành vi, không đọc thứ tự dòng: vá `WebglAddon.prototype.activate` để ghi lại `terminal.element` **tại đúng lúc gọi**, và nó phải đã tồn tại. **Đối chứng âm bắt buộc:** `Terminal` trần, `loadAddon` trước `open()` ⇒ lần gọi đầu thấy `element` **vắng**.
+  > *Đảo thứ tự thì addon rơi vào nhánh `onWillOpen(...)`, tức lần activate thật xảy ra **bất đồng bộ, ngoài `try`** — một ngoại lệ ở đó không ai bắt. Hôm nay an toàn chỉ vì `open()` ở dòng 88 đứng trước `loadAddon` ở dòng 106; không test nào giữ điều đó.*
 - [x] `trivy image --severity CRITICAL --exit-code 1` pass **cục bộ trước khi merge**. → ✅ 2026-08-12 với image `INCLUDE_DOCKER=1` (809 MB): **0 CRITICAL** trên cả tầng gói Ubuntu lẫn 5 binary Go ⇒ **không cần `.trivyignore`**. HIGH: 14 (`oh-my-posh`, như 1.E-1) + 3 (`docker-buildx`).
   > ⛔ **`--exit-code 1` trả 0 KHÔNG có nghĩa "0 CRITICAL".** Trivy FATAL khi không tải được DB lỗ hổng; nuốt stderr (`>/dev/null 2>&1`) là lượt đó trả **0** trong khi chưa quét được gì. Dính đúng ca này khi làm 1.E-2 — lượt đầu FATAL vì DB timeout, lượt sau bị nuốt output và báo "exit=0". Phải đọc bảng **Report Summary** trước khi tin mã trả về.
 
@@ -1007,6 +1096,25 @@ Reaper (orchestrator): keyspace expiry + sweep định kỳ → xoá pod + Redis
 - [x] **Đối chứng dương — gateway ĐƯỢC:** probe dùng **cert của gateway** → `NotFound` (authz cho qua, lifecycle chạy thật). *Một bộ acceptance chỉ toàn ca ĐỎ không phân biệt được "chặn đúng chỗ" với "chặn tất cả".*
 - [x] **Đường người dùng còn sống sau khi siết:** `session.create` → **200** + pod thật + `Set-Cookie dlp_sandbox` (lần ĐẦU vế Node được đo), và `dlp_gateway_extend_total{ok}` **0→1** sau 81s WS có traffic thật. ⛔ Vế thứ hai BẮT BUỘC phải đo bằng metric chứ không bằng log: `grpc.NewClient` là **lazy**, nên dòng `"kênh tới orchestrator dùng mTLS"` mới chứng minh *cấu hình*, chưa chứng minh *bắt tay*.
 - [x] **`permissive` thật sự là nấc GIỮA:** cùng probe không-cert, ở `permissive` bắt tay **THÀNH CÔNG** rồi mới `PermissionDenied` ở authz — khác hẳn `Unavailable` của `require`. Không phân biệt được hai mã này thì không có bằng chứng nào rằng nấc giữa tồn tại.
+
+**Chuỗi cung ứng image (thêm 2026-08-13 ở 1.G-6).**
+
+- [x] **Cổng Trivy đứng TRƯỚC `push`, cho cả 5 image** (ô MỚI, 1.G-6 R3): job `images` build với `push: false` + `load: true`, quét **tag cục bộ**, chỉ push khi cổng CRITICAL xanh. Ô này đỏ nếu ai đưa `push: true` về lượt build đầu. ✅ **ĐẠT 2026-08-13** — `actionlint` sạch, và cổng shell "lượt quét đã thật sự chạy" được kiểm trên **4 ca** ([`guard-scan-ran.sh`](reports/harness/2026-08-13-1g6-debt-closure/guard-scan-ran.sh)): thiếu file · file rỗng · FATAL lọt vào output ⇒ **chặn cả ba**; báo cáo Trivy thật ⇒ **cho qua**.
+  > ⚠ **Vế chưa chứng minh được ở PR, nói thẳng:** job `images` chỉ chạy trên `main`, nên bản thân thứ tự mới **không có lượt chạy nào ở PR này** — đúng họ lỗi mà §"Còn để ngỏ" đã ghi. Bằng chứng hiện có là `actionlint` + bộ 4 ca trên cổng shell; lượt chạy thật đầu tiên là lần merge kế tiếp.
+  > ⛔ **Trạng thái trước chặng này: `push: true` ở [`ci.yml:932`](../../.github/workflows/ci.yml#L932), hai bước Trivy ở 952 và 966** ⇒ image CRITICAL **đã nằm trên ghcr** dưới cả `sha-…` lẫn `latest`; cổng chỉ làm run đỏ chứ không chặn artifact.
+  > ⛔ **Phạm vi rộng hơn vẻ ngoài:** job `sandbox-image` (PR-time, `push:false` + `load:true`) chỉ gác **`sandbox-base`**. Với `web` · `migrator` · `orchestrator` · `terminal-gateway` thì job `images` là cổng **DUY NHẤT** — và nó đứng sau push.
+  > **Vế bắt buộc đi kèm — assertion "lượt quét đã THẬT SỰ chạy"** (khuôn đã có ở `ci.yml:748-755`): `--exit-code 1` trả 0 không phân biệt "0 CRITICAL" với "Trivy FATAL vì không tải được DB". Thiếu vế này thì cổng mới cũng chỉ là cổng giả, đúng lỗi mà chính file CI đã ghi thành chữ.
+
+**Fresh install (thêm 2026-08-13 ở 1.G-6 — nợ mồ côi từ §"Còn để ngỏ").**
+
+- [x] **Cửa sổ web-500 trên `helm install` sạch đã ĐO ĐƯỢC một con số**, và hành động khớp ngưỡng đã chốt **từ 2026-08-10** (dưới ~60s ⇒ giữ `post-install`, chỉ ghi số; trên ⇒ web phải có `readinessProbe` chạm DB). `t0` = condition `Ready` của pod web (`lastTransitionTime`), `t1` = lượt `GET /api/auth/jwks` đầu tiên trả 200. ✅ **ĐẠT 2026-08-13: cửa sổ = 12.3s**, tức **dưới** ngưỡng ⇒ giữ nguyên `post-install`, **không sửa file nào**.
+  > **Hình dạng cửa sổ, không chỉ độ dài:** `t0+0.8s` và `t0+4.5s` còn là `000` (endpoint chưa được lập trình xong), `t0+5.4s → t0+11.4s` là **chín** lượt `500` liên tiếp, `t0+12.3s` là `200`. Job migration hoàn tất ngay sau đó.
+  > ⛔ **Phải quan sát được ÍT NHẤT một lượt 500 trước lượt 200**, tức poll bắt đầu **trước khi** web `Ready` — **đối chứng này CÓ MẶT** (9 lượt 500). Không có vế đó thì một kết quả "0s" không phân biệt được "cửa sổ ngắn" với "bắt đầu đo quá muộn nên bỏ lỡ cả cửa sổ", và nó sai theo hướng trấn an.
+  > ⛔ **HAI ĐỒNG HỒ, KHÔNG PHẢI MỘT — lượt đo đầu cho ra cửa sổ ÂM 46.7s.** `t0` do apiserver ghi bằng đồng hồ **VM**, `t1` do poller bấm bằng đồng hồ **Windows**, và VM đang chạy nhanh hơn **58.98s** (đo 3 lượt, RTT < 0.5s: [`clock-skew.txt`](reports/harness/2026-08-13-1g6-debt-closure/clock-skew.txt)). Một cửa sổ âm thì lộ ngay; nguy hiểm hơn là ca lệch đồng hồ **nhỏ**, khi đó con số vẫn DƯƠNG và trông hợp lý. Bộ đo nay tự đo lệch và **đỏ nếu không đo được**, thay vì mặc định 0.
+  > **Ranh giới đã lường trước và ĐÃ XẢY RA:** Job migration không có vế chờ Postgres ⇒ lượt thử **thứ nhất** (`+4s` sau khi tạo) chạy khi Postgres còn chưa start container, và **hỏng**; `backoffLimit: 2` cho lượt thứ hai, lượt này mới thành công. Tức fresh install hôm nay **sống nhờ retry**, không nhờ thứ tự. Bằng chứng: hai pod migrate trong [`cluster-events.txt`](reports/harness/2026-08-13-1g6-debt-closure/cluster-events.txt).
+  > *Job mang `hook-delete-policy: hook-succeeded` nên nó **tự xoá** khi xong — `kubectl logs` sau đó không còn gì. Ai điều tra lại phải đọc events, và events chỉ sống khoảng một giờ.*
+  > *Ô này mang chữ **CHỦ: 1.G-2** từ 2026-08-10 nhưng 1.G-2 đóng mà không làm, và ba chặng sau không chặng nào phát hiện. Một nợ có chủ trên giấy ẩn kỹ hơn một nợ không có chủ — đó là lý do nó thành ô AC chứ không phải một dòng ở §"Còn để ngỏ".*
+  > *`readinessProbe` hôm nay trỏ `/api/health`, [route cố ý KHÔNG chạm DB](../../infra/helm/platform/templates/web-deployment.yaml) — chính vì thế `Ready` bắn độc lập với trạng thái migration, và cửa sổ này tồn tại.*
 
 ---
 
@@ -1300,7 +1408,12 @@ Ba thứ nhỏ hơn, đã ghi vào task tương ứng: `Next()` phải block (G6
   > **Còn tệ hơn tình trạng cũ:** món nợ gốc là "web lên nhưng thiếu migration ⇒ `/api/auth/jwks` trả 500"; B8 biến nó thành "`helm install` hỏng hẳn".
   >
   > **Bản vá:** `helm.sh/hook: post-install,pre-upgrade`. Fresh install chạy migration SAU khi Postgres đã apply; upgrade giữ nguyên thứ tự schema-trước-code. Chứng minh cả hai đường trên cluster thật: fresh install → `deployed` + `enum_range(session_event)` trả đủ 6 giá trị đúng thứ tự trong Postgres của release; upgrade → revision 2 `deployed`. **Đánh đổi đã biết và chấp nhận:** ở lần install ĐẦU TIÊN, web có thể lên trước khi migration xong và trả 500 ở route đụng DB (gồm `/api/auth/jwks` mà G2 phụ thuộc) trong vài chục giây — nó TỰ KHỎI, còn `helm install` abort thì không. **Độ dài cửa sổ đó chưa đo** (probe chạy với `web.enabled=false`) — ghi nợ ở đây.
+  > ### ✅ ĐÃ ĐO 2026-08-13 ở **1.G-6 R4** — cửa sổ **12.3s**, dưới ngưỡng ⇒ giữ `post-install`, không sửa file nào
+  > ⛔ **Và đây là một nợ MỒ CÔI, ghi lại vì chế độ hỏng của nó khác "chưa task nào sở hữu".** Dòng "CHỦ: 1.G-2" bên dưới viết từ 2026-08-10; nhưng 1.G-2 (#46) chỉ ship `cmd/session-probe` + sửa plan, còn 1.G-3 dựng cảnh bằng `helm upgrade` chứ không `install`. Chương chủ đóng mà không làm, và **ba chặng sau đó không chặng nào phát hiện** — vì một mục đã có chữ "CHỦ:" thì mọi lượt rà soát đọc lướt qua. Nợ không có chủ thì lượt rà nào cũng nhìn thấy; nợ có chủ trên giấy ẩn kỹ hơn.
+  > **Hai thứ phép đo lôi ra ngoài con số:** (1) lượt migrate **thứ nhất hỏng** vì Job không chờ Postgres — fresh install sống nhờ `backoffLimit: 2`, không nhờ thứ tự; (2) trừ hai mốc trên hai đồng hồ khác nhau cho ra cửa sổ **âm** — xem ô AC §Bảo mật.
+  >
   > **CHỦ: 1.G-2**, chạy ghép vào lượt `helm install` sạch mà M9 (hai replica gateway) dù sao cũng phải dựng. Đo đúng một số: khoảng từ lúc pod web `Ready` tới lúc `GET /api/auth/jwks` trả 200. **Ngưỡng để quyết định, chốt trước khi đo** (nếu không thì con số đo ra sẽ tự biện minh cho chính nó): dưới ~60s thì giữ nguyên `post-install` và chỉ ghi số vào tài liệu; trên ngưỡng đó thì web cần một readinessProbe chạm DB, vì lúc ấy Service sẽ định tuyến vào một pod trả 500 đủ lâu để người dùng đầu tiên gặp phải.
+- ~~**Cổng Trivy chạy SAU `push: true`**~~ ✅ **ĐÓNG 2026-08-13 ở 1.G-6 R3** — job `images` nay build `push:false` + `load:true`, quét tag cục bộ, rồi mới push; kèm assertion "lượt quét đã thật sự chạy" (bộ 4 ca). **Phạm vi thật rộng hơn bản ghi gốc:** `sandbox-image` chỉ gác `sandbox-base`, nên với 4 image còn lại đây là cổng DUY NHẤT. **Rủi ro tồn dư còn lại, cố ý không khử ở chặng này:** lượt push là lần build thứ hai (cache hit) nên không CHỨNG MINH được bit-identical với thứ đã quét — đường khử là `push-by-digest`, **P3**. Bản ghi gốc:
 - **Cổng Trivy chạy SAU `push: true`** (phát hiện khi rà 2026-08-10). Image có CRITICAL **vẫn được publish lên ghcr**; cổng chỉ làm run đỏ chứ không chặn artifact — đúng chế độ hỏng mà #28 mô tả nhưng chỉ vá phần CVE, không vá thứ tự. Sửa được bằng `push: false` + `load: true` → quét → bước push riêng, hoặc chấp nhận và ghi rõ "tag đỏ vẫn tồn tại trên registry". **P3.**
 - **`make` không có trên máy dev Windows** ⇒ mọi verify command dạng `make go-test` / `make proto-check` / `make env-check` trong hai phase doc **không chạy được như viết**. Đường thay thế đã kiểm 2026-08-10: `go test ./...` lặp qua `go list -m`, `buf lint`/`buf breaking --against '.git#ref=HEAD~1'`/`buf generate`, `node scripts/env-check.mjs`. **Và phải tự export `REDIS_URL`/`DATABASE_URL`** — root `.env` chỉ có 6 biến của compose, thiếu chúng thì 81 test Go tự SKIP và suite xanh mà không kiểm gì.
 - **LimitRange 1Gi cho pod DinD** có thể chật với dockerd + `docker build` — đo RSS thật ở 1.E rồi mới bàn chỉnh, đừng đoán. *(1.E-1 chưa trả lời được: E7/DinD chưa làm, image hiện chỉ chạy `sleep infinity` nên RSS không đại diện.)*

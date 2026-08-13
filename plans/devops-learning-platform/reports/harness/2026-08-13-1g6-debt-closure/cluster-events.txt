@@ -1,0 +1,38 @@
+<nil>                  Normal    dlp-scratch-postgres-5746c88d76-66gfg   Scheduled               Successfully assigned dlp-scratch/dlp-scratch-postgres-5746c88d76-66gfg to debian-sandbox
+<nil>                  Normal    dlp-scratch-web-857b68846-mrdrl         Scheduled               Successfully assigned dlp-scratch/dlp-scratch-web-857b68846-mrdrl to debian-sandbox
+<nil>                  Normal    dlp-scratch-migrate-6w85g               Scheduled               Successfully assigned dlp-scratch/dlp-scratch-migrate-6w85g to debian-sandbox
+<nil>                  Normal    dlp-scratch-redis-667674bfbb-fm6sc      Scheduled               Successfully assigned dlp-scratch/dlp-scratch-redis-667674bfbb-fm6sc to debian-sandbox
+<nil>                  Normal    dlp-scratch-migrate-wbvmk               Scheduled               Successfully assigned dlp-scratch/dlp-scratch-migrate-wbvmk to debian-sandbox
+2026-08-13T04:14:54Z   Normal    dlp-scratch-redis                       ScalingReplicaSet       Scaled up replica set dlp-scratch-redis-667674bfbb from 0 to 1
+2026-08-13T04:14:54Z   Normal    dlp-scratch-redis                       WaitForFirstConsumer    waiting for first consumer to be created before binding
+2026-08-13T04:14:54Z   Normal    dlp-scratch-web                         ScalingReplicaSet       Scaled up replica set dlp-scratch-web-857b68846 from 0 to 1
+2026-08-13T04:14:54Z   Normal    dlp-scratch-migrate                     SuccessfulCreate        Created pod: dlp-scratch-migrate-6w85g
+2026-08-13T04:14:54Z   Normal    dlp-scratch-web-857b68846               SuccessfulCreate        Created pod: dlp-scratch-web-857b68846-mrdrl
+2026-08-13T04:14:54Z   Normal    dlp-scratch-postgres                    Provisioning            External provisioner is provisioning volume for claim "dlp-scratch/dlp-scratch-postgres"
+2026-08-13T04:14:54Z   Normal    dlp-scratch-redis                       ExternalProvisioning    Waiting for a volume to be created either by the external provisioner 'rancher.io/local-path' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered.
+2026-08-13T04:14:54Z   Normal    dlp-scratch-postgres                    ExternalProvisioning    Waiting for a volume to be created either by the external provisioner 'rancher.io/local-path' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered.
+2026-08-13T04:14:54Z   Normal    dlp-scratch-redis-667674bfbb            SuccessfulCreate        Created pod: dlp-scratch-redis-667674bfbb-fm6sc
+2026-08-13T04:14:54Z   Normal    dlp-scratch-postgres                    ScalingReplicaSet       Scaled up replica set dlp-scratch-postgres-5746c88d76 from 0 to 1
+2026-08-13T04:14:54Z   Normal    dlp-scratch-postgres-5746c88d76         SuccessfulCreate        Created pod: dlp-scratch-postgres-5746c88d76-66gfg
+2026-08-13T04:14:54Z   Normal    dlp-scratch-postgres                    WaitForFirstConsumer    waiting for first consumer to be created before binding
+2026-08-13T04:14:55Z   Normal    dlp-scratch-redis                       Provisioning            External provisioner is provisioning volume for claim "dlp-scratch/dlp-scratch-redis"
+2026-08-13T04:14:57Z   Normal    dlp-scratch-web-857b68846-mrdrl         Pulled                  Container image "ghcr.io/nghaiz/dlp-web:sha-a6f6768" already present on machine
+2026-08-13T04:14:57Z   Normal    dlp-scratch-migrate-6w85g               Pulled                  Container image "ghcr.io/nghaiz/dlp-migrator:sha-a6f6768" already present on machine
+2026-08-13T04:14:57Z   Normal    dlp-scratch-migrate-6w85g               Created                 Created container: migrate
+2026-08-13T04:14:58Z   Normal    dlp-scratch-web-857b68846-mrdrl         Created                 Created container: web
+2026-08-13T04:14:58Z   Normal    dlp-scratch-migrate-6w85g               Started                 Started container migrate
+2026-08-13T04:14:58Z   Normal    dlp-scratch-web-857b68846-mrdrl         Started                 Started container web
+2026-08-13T04:15:02Z   Normal    dlp-scratch-postgres                    ProvisioningSucceeded   Successfully provisioned volume pvc-b6c9d7d0-bac4-4cd7-9fc7-60690c8d331c
+2026-08-13T04:15:03Z   Normal    dlp-scratch-redis                       ProvisioningSucceeded   Successfully provisioned volume pvc-11d63e00-c6b9-4d7a-9588-6624d5799c5c
+2026-08-13T04:15:04Z   Normal    dlp-scratch-postgres-5746c88d76-66gfg   Created                 Created container: postgres
+2026-08-13T04:15:04Z   Normal    dlp-scratch-postgres-5746c88d76-66gfg   Pulled                  Container image "postgres:16-alpine" already present on machine
+2026-08-13T04:15:05Z   Normal    dlp-scratch-postgres-5746c88d76-66gfg   Started                 Started container postgres
+2026-08-13T04:15:06Z   Normal    dlp-scratch-redis-667674bfbb-fm6sc      Started                 Started container redis
+2026-08-13T04:15:06Z   Normal    dlp-scratch-redis-667674bfbb-fm6sc      Created                 Created container: redis
+2026-08-13T04:15:06Z   Normal    dlp-scratch-redis-667674bfbb-fm6sc      Pulled                  Container image "redis:7-alpine" already present on machine
+2026-08-13T04:15:11Z   Warning   dlp-scratch-web-857b68846-mrdrl         Unhealthy               Readiness probe failed: Get "http://10.244.211.89:3000/api/health": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+2026-08-13T04:15:19Z   Normal    dlp-scratch-migrate                     SuccessfulCreate        Created pod: dlp-scratch-migrate-wbvmk
+2026-08-13T04:15:20Z   Normal    dlp-scratch-migrate-wbvmk               Created                 Created container: migrate
+2026-08-13T04:15:20Z   Normal    dlp-scratch-migrate-wbvmk               Pulled                  Container image "ghcr.io/nghaiz/dlp-migrator:sha-a6f6768" already present on machine
+2026-08-13T04:15:20Z   Normal    dlp-scratch-migrate-wbvmk               Started                 Started container migrate
+2026-08-13T04:15:34Z   Normal    dlp-scratch-migrate                     Completed               Job completed

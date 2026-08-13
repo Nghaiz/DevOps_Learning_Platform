@@ -1,0 +1,14 @@
+Lệch đồng hồ Windows ↔ VM lab, đo 2026-08-13 ngay sau phép đo R4.
+Phương pháp: kẹp lượt SSH giữa hai lần đọc đồng hồ Windows, lấy trung điểm;
+RTT dưới 0.5s nên sai số của phép ước lượng dưới một phần tư giây.
+
+  luot 1: windows=1786594554200 vm=1786594613168 lech=58968ms rtt=365ms
+  luot 2: windows=1786594554637 vm=1786594613632 lech=58995ms rtt=421ms
+  luot 3: windows=1786594555070 vm=1786594614041 lech=58971ms rtt=369ms
+
+=> VM NHANH HƠN Windows 58.98s (±0.02s giữa ba lượt).
+
+Vì sao con số này quyết định kết quả R4: t0 (`Ready.lastTransitionTime`) do
+apiserver ghi bằng đồng hồ VM, còn t1 (lượt 200 đầu tiên) do poller bấm bằng
+đồng hồ Windows. Trừ thẳng hai mốc đó cho ra -46.7s — một cửa sổ ÂM, tức vô
+nghĩa. Sau hiệu chỉnh mới ra 12.3s, và khi đó mọi mốc trong events khớp nhau.
