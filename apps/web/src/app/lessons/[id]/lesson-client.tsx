@@ -67,10 +67,17 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
     if (phaseKey === null || phaseRef === null || sessionId === null || terminal === null) {
       return;
     }
-    if (setupDone.current.has(phaseKey)) {
+    // Khoá gồm CẢ `sessionId`, không chỉ `phaseKey`.
+    //
+    // Khoá chỉ theo phase thì sau khi người học bấm "Bắt đầu" lần hai (phiên cũ
+    // hết hạn, pod mới toanh), cờ của phiên CŨ vẫn còn ⇒ `background` KHÔNG BAO
+    // GIỜ chạy trong pod mới. Bài hiện ra bình thường rồi hỏng ở step đầu tiên,
+    // với triệu chứng ("lệnh trong bài không có tác dụng") không trỏ về đâu cả.
+    const runKey = `${sessionId}:${phaseKey}`;
+    if (setupDone.current.has(runKey)) {
       return;
     }
-    setupDone.current.add(phaseKey);
+    setupDone.current.add(runKey);
 
     runSetup.mutate(
       { scenarioId, sessionId, phase: phaseRef },
@@ -86,7 +93,7 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
         onError: () => {
           // Cho phép thử lại: setup hỏng mà khoá luôn phase thì người học không
           // có đường nào ngoài việc tải lại trang.
-          setupDone.current.delete(phaseKey);
+          setupDone.current.delete(runKey);
         },
       },
     );
