@@ -264,6 +264,27 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
           <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
             {SESSION_PHASE_LABEL[session.state.phase] ?? session.state.phase}
           </span>
+          {/*
+            Lý do thật, khi máy trạng thái đã hỏi được (contract §7).
+
+            Không có dòng này thì lượt hỏi lý do chỉ đổi state chứ không đổi màn
+            hình: nhãn phase nói "Đang kết nối…" trong khi phiên đã chết hẳn, và
+            phase `error` thì nói đúng một chữ "Lỗi". Đó là nửa còn lại của lỗi
+            mà đối chứng âm ở lượt này bắt được — sửa hook mà quên chỗ hiển thị
+            thì người học vẫn ngồi nhìn một cái nhãn không nói gì.
+          */}
+          {session.state.message !== null && (
+            <span
+              role="status"
+              className={
+                session.state.phase === 'error' || session.state.phase === 'expired'
+                  ? 'text-xs text-red-700'
+                  : 'text-xs text-slate-500'
+              }
+            >
+              {session.state.message}
+            </span>
+          )}
           {session.state.sessionId === null && (
             <Button onClick={session.start} disabled={session.starting}>
               {session.starting ? 'Đang tạo phiên…' : 'Bắt đầu'}
