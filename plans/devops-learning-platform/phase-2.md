@@ -189,7 +189,7 @@ so byte để chống drift. Thêm bài mới: `docs/scenario-format.md` §6.
 - [x] … → **hiển thị đủ step** ở FE. — đo trên cụm: `lessons.get` trả 4 step, markdown 450/559/971/905 ký tự. Ô này cũng là thứ bắt được `.dockerignore` loại `**/*.md` — image trước đó có ĐỦ thư mục nhưng 0 file `.md`.
 - [x] Split-pane: nội dung trái render đúng; **resize được**; code copy button hoạt động. — resize đo trên trình duyệt thật (ArrowRight 50→52 ⇒ left 854→888px; End kẹp đúng `aria-valuemax`; tỉ lệ nhớ trong `localStorage`); 12 nút "Chép" + 4 nút "Chạy" trên nội dung vendored thật.
 - [x] … → **terminal ở khoang phải nối được và gõ được**. — đóng 2026-08-13 bằng đúng điều kiện ô này tự đặt ra: dựng ingress controller ([`infra/host/07-ingress-controller.sh`](../../infra/host/07-ingress-controller.sh), Traefik — P3 §5/§6 đã chốt Traefik) rồi bật Ingress gộp origin có sẵn từ 1.B0.4. Đo trên trình duyệt thật: prompt shell sống trong khoang phải; gõ `echo …$(id -u)-$(hostname)` trả `0` + **đúng tên pod sandbox**; nút `{{exec}}` bơm nguyên văn lệnh vào PTY và chạy (`exit=28`). Kèm **đối chứng âm**: bỏ đúng luật `/ws` khỏi Ingress thì `/` vẫn 200 còn `/ws` rơi xuống Next (404 kèm CSP của web) — thiếu dòng này thì ô vẫn xanh cả khi WS tới gateway bằng đường khác. [Bằng chứng](reports/harness/2026-08-13-2d-ws-ingress/browser-ws-checks.txt).
-  - ⚠ Đường vào là `kubectl port-forward -n traefik svc/traefik 8080:80` → `http://localhost:8080`, **không** phải NodePort theo IP node: cookie `dlp_sandbox` mang `Secure` vô điều kiện, và trình duyệt bỏ qua `Set-Cookie` `Secure` trên HTTP với host khác `localhost` — trong im lặng. Entry point thật + TLS là việc của P3.
+  - ~~⚠ Đường vào là `kubectl port-forward -n traefik svc/traefik 8080:80`~~ — **hết hiệu lực từ 2026-08-14**. Lý do của nó (cookie `dlp_sandbox` mang `Secure` vô điều kiện, trình duyệt bỏ qua `Set-Cookie` `Secure` trên HTTP với host khác `localhost` — trong im lặng) nhắm vào **HTTP**, và nợ §3 đã dựng TLS thật. Đường vào nay là **`https://dlp.<ip>.sslip.io:30443`** từ mọi máy trong LAN, không port-forward. Xem [`08-tls-entrypoint.sh`](../../infra/host/08-tls-entrypoint.sh).
 - [x] Step nav Prev/Next + progress bar; step done được đánh dấu.
 - [x] Bấm "Check" → verifyScript chạy trong pod, trả pass/fail đúng (test 1 step pass + 1 step fail). — 14/14 e2e trên cụm. FAIL `exit 1` với thông báo CỦA BÀI → PASS `exit 0`. **KHÔNG dùng `ckad`** như plan chỉ định: image sandbox không có `kubectl` nên vế pass bất khả — đúng gương của bẫy `/bin/true`. Dùng `dlp-sandbox-basics` (2.F).
 - [x] Setup script chạy khi start; môi trường step đúng. — `background` chạy (`.setup-done = ready` trong pod), `foreground` TRẢ VỀ cho FE gõ vào WS, `assetsPushed=1`.
@@ -318,9 +318,16 @@ pnpm --filter web test phases              # ánh xạ key ↔ stepIndex
 #    thư mục, mà thư mục thì luôn có thật kể cả khi .dockerignore đã loại hết md.
 docker run --rm --entrypoint sh dlp/web:test -c 'find $SCENARIOS_DIR -name "*.md" | wc -l'   # 26
 
-# checkStep e2e trên CỤM  (2.D — đã chạy: 14/14 PASS)
-#   kubectl port-forward svc/platform-web 3000:3000
+# checkStep e2e trên CỤM  (2.D — chạy lại 2026-08-14 trên origin HTTPS: 14/14 PASS)
+#
+# KHÔNG còn port-forward. Chạy thẳng qua ingress TLS:
+#   BASE_URL=https://dlp.192.168.94.130.sslip.io:30443 \
+#   ORIGIN=https://dlp.192.168.94.130.sslip.io:30443 \
+#   NODE_EXTRA_CA_CERTS=<đường dẫn ca.crt> \
 #   node plans/devops-learning-platform/reports/harness/2026-08-13-2d-lessons-e2e/e2e-lessons.mjs
+#
+# ⚠ `NODE_EXTRA_CA_CERTS` phải là đường dẫn WINDOWS nếu chạy từ Git Bash —
+#   Node giải `/tmp/x` thành `D:\tmp\x` chứ không theo ánh xạ của MSYS.
 #
 # ⚠ Dùng `dlp-sandbox-basics`, KHÔNG dùng `ckad-configmap-as-files` như bản plan
 #   cũ ghi: image sandbox không có kubectl nên verify của ckad luôn
@@ -329,16 +336,22 @@ docker run --rm --entrypoint sh dlp/web:test -c 'find $SCENARIOS_DIR -name "*.md
 #   Better Auth trả 403 MISSING_OR_NULL_ORIGIN — `curl` qua được, `fetch` của
 #   Node thì không, nên hai công cụ cho hai kết quả khác nhau.
 
-# Ingress + terminal WS trên trình duyệt  (2.G — đã chạy)
-bash infra/host/07-ingress-controller.sh          # trên node; ghim chart + sha256
-helm get values platform -o yaml > /tmp/live-values.yaml
-helm upgrade platform infra/helm/platform \
-  -f infra/helm/platform/values-selfhost.yaml -f /tmp/live-values.yaml \
-  --set ingress.enabled=true --set ingress.className=traefik
-kubectl port-forward -n traefik svc/traefik 8080:80     # rồi mở http://localhost:8080
+# Ingress + TLS + entry point thật  (2.G + nợ §3 — đã chạy)
+bash infra/host/07-ingress-controller.sh    # Traefik, chart ghim + sha256, NodePort 30080/30443
+bash infra/host/08-tls-entrypoint.sh        # CA nội bộ + chứng chỉ + Secret TLS; in ra lệnh helm
+
+# ⛔ helm upgrade phải trỏ vào chart CỦA REPO, không phải một bản chép cũ trên VM.
+#    ~/dlp-deploy trên VM lab đã lệch: template của nó KHÔNG có GATEWAY_INTERNAL_URL,
+#    nên upgrade từ đó lặng lẽ gỡ biến đó khỏi Deployment và MỌI lượt "Kiểm tra"
+#    chết bằng INTERNAL_SERVER_ERROR — trong khi `helm upgrade` vẫn STATUS: deployed.
 
 # Định tuyến: `/ws` PHẢI trả lỗi CỦA GATEWAY, không phải 404 của Next.
-curl -s http://localhost:8080/ws/session/x      # {"code":"SUBPROTOCOL_REQUIRED",...}
+curl -s --cacert ca.crt https://dlp.192.168.94.130.sslip.io:30443/ws/session/x
+#   {"code":"SUBPROTOCOL_REQUIRED",...}
+#
+# ⚠ curl trên WINDOWS dùng schannel và đòi kiểm CRL; CA lab không có CRL nên nó
+#   trả (60) CERT_TRUST_REVOCATION_STATUS_UNKNOWN dù chứng chỉ hoàn toàn hợp lệ.
+#   Thêm `--ssl-no-revoke`. curl trên VM (OpenSSL) và Node fetch thì không vướng.
 
 # ⛔ `curl` GET thường KHÔNG đủ mạnh cho ca handshake treo — nó trả 404 ngay.
 #    Phải gửi ĐÚNG một request upgrade thì mới thấy server im lặng (http=000):
