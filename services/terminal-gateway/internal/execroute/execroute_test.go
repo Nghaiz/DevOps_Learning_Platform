@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -110,6 +111,9 @@ type harness struct {
 	signer   *testjwt.Signer
 	sessions *spySessions
 	runner   *fakeRunner
+	// logs giữ MỌI dòng handler phát ra, ở mức ồn nhất (Debug). Dấu vết kiểm toán
+	// của đường nóng (nợ P2 §1) chỉ kiểm được nếu test đọc được log thật.
+	logs *bytes.Buffer
 }
 
 func activeSession() *sessionstore.Session {
@@ -127,9 +131,10 @@ func newHarness(t *testing.T, sessions *spySessions, runner *fakeRunner) *harnes
 	signer := testjwt.NewSigner(t, "kid-1")
 	jwks := testjwt.NewJWKSServer(t, signer)
 
+	logs := &bytes.Buffer{}
 	mux := http.NewServeMux()
 	execroute.Register(mux, execroute.Deps{
-		Log:            slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Log:            slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
 		Verifier:       authz.NewVerifier(authz.NewJWKSCache(jwks.URL), testjwt.Issuer),
 		Sessions:       sessions,
 		Runner:         runner,
@@ -140,7 +145,7 @@ func newHarness(t *testing.T, sessions *spySessions, runner *fakeRunner) *harnes
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return &harness{srv: srv, signer: signer, sessions: sessions, runner: runner}
+	return &harness{srv: srv, signer: signer, sessions: sessions, runner: runner, logs: logs}
 }
 
 func validClaims() testjwt.Claims {
@@ -510,5 +515,133 @@ func TestExecTimeoutIsNotAFail(t *testing.T) {
 	if res.Status != http.StatusBadGateway || res.code(t) != "EXEC_FAILED" {
 		t.Fatalf("status/code = %d/%s, muốn 502/EXEC_FAILED — quá hạn KHÔNG phải exitCode khác 0",
 			res.Status, res.code(t))
+	}
+}
+
+// --- Dấu vết kiểm toán đường nóng (nợ P2 §1) --------------------------------
+//
+// Trước chặng này gateway CHỈ log lượt bị từ chối. Một lượt chấm thành công —
+// mã vừa chạy trong pod của một người thật — không để lại dòng nào, nên câu hỏi
+// "ai đã chạy gì, ở đâu, lúc nào" không có nguồn nào trả lời được.
+
+// auditLine trả dòng log kiểm toán của lượt chấm, hoặc "" nếu không có.
+func auditLine(logs string) string {
+	for _, line := range strings.Split(logs, "\n") {
+		if strings.Contains(line, "chạy exec one-shot") {
+			return line
+		}
+	}
+	return ""
+}
+
+func TestExecGhiDauVetKiemToanKhiThanhCong(t *testing.T) {
+	sessions := &spySessions{sess: activeSession()}
+	runner := &fakeRunner{result: podexec.OneShotResult{ExitCode: 3, Output: "sai roi\n"}}
+	h := newHarness(t, sessions, runner)
+
+	if res := h.post(t, testSession, defaultBody()); res.Status != http.StatusOK {
+		t.Fatalf("status = %d, muốn 200", res.Status)
+	}
+
+	line := auditLine(h.logs.String())
+	if line == "" {
+		t.Fatalf("không có dòng kiểm toán nào cho lượt chấm thành công\n--- log ---\n%s", h.logs.String())
+	}
+
+	// Bốn trường là tối thiểu để dòng log đứng tên được: AI (user), CÁI GÌ
+	// (exit_code), Ở ĐÂU (pod + namespace). Thiếu bất kỳ trường nào thì dòng log
+	// vẫn tồn tại nhưng không dùng để điều tra được — đúng chế độ hỏng mà nợ P2
+	// §1 mô tả, chỉ khác là lần này nó im lặng hơn.
+	for _, want := range []string{
+		"session_id=" + testSession,
+		"user_id=" + testUser,
+		"pod=sandbox-real-pod",
+		"namespace=dlp-sandboxes",
+		"exit_code=3",
+	} {
+		if !strings.Contains(line, want) {
+			t.Errorf("dòng kiểm toán thiếu %q\n--- dòng ---\n%s", want, line)
+		}
+	}
+}
+
+// TestExecKiemToanKhongChoNoiDungBaiLamVaoLog là vế "đừng log quá tay".
+//
+// Output tới 8 KiB mỗi lượt và là BÀI LÀM của người học, không phải dữ kiện kiểm
+// toán; script thì đến từ đĩa nên log lại cũng chỉ là chép đĩa vào Loki. Một
+// dòng kiểm toán phình ra như vậy sẽ bị người vận hành tắt, và khi đó ta mất cả
+// dấu vết lẫn công sức thêm nó.
+func TestExecKiemToanKhongChoNoiDungBaiLamVaoLog(t *testing.T) {
+	const output = "NOI-DUNG-BAI-LAM-KHONG-DUOC-VAO-LOG"
+	const script = "SCRIPT-CHAM-KHONG-DUOC-VAO-LOG"
+
+	sessions := &spySessions{sess: activeSession()}
+	runner := &fakeRunner{result: podexec.OneShotResult{ExitCode: 0, Output: output}}
+	h := newHarness(t, sessions, runner)
+
+	body, err := json.Marshal(map[string]string{"script": script})
+	if err != nil {
+		t.Fatalf("dựng body: %v", err)
+	}
+	if res := h.post(t, testSession, string(body)); res.Status != http.StatusOK {
+		t.Fatalf("status = %d, muốn 200", res.Status)
+	}
+
+	// Đối chứng dương: output THẬT SỰ đã đi qua handler (nếu không, phép khẳng
+	// định bên dưới xanh vì lý do sai — chuỗi không có trong log vì nó chưa từng
+	// tồn tại ở đâu cả).
+	if got, _ := runner.last(); got.PodName == "" {
+		t.Fatalf("runner chưa từng được gọi — phép kiểm dưới sẽ xanh vì lý do sai")
+	}
+	for _, leak := range []string{output, script} {
+		if strings.Contains(h.logs.String(), leak) {
+			t.Errorf("log chứa %q — dữ liệu bài làm không thuộc về dấu vết kiểm toán\n--- log ---\n%s",
+				leak, h.logs.String())
+		}
+	}
+}
+
+// TestExecKhongGhiKiemToanKhiBiTuChoi là ĐỐI CHỨNG ÂM của hai test trên.
+//
+// Thiếu nó, một implement log vô điều kiện ở đầu handler vẫn cho cả hai test kia
+// xanh — và khi đó "dòng kiểm toán" nói rằng script đã chạy trong pod ở đúng
+// những lượt mà nó chưa bao giờ chạy. Sai theo hướng đó tệ hơn là không có log.
+func TestExecKhongGhiKiemToanKhiBiTuChoi(t *testing.T) {
+	sessions := &spySessions{sess: activeSession()}
+	runner := &fakeRunner{}
+	h := newHarness(t, sessions, runner)
+
+	// Token của người khác → dừng ở bước g, KHÔNG chạm pod.
+	foreign := validClaims()
+	foreign.Subject = "user-nguoi-khac"
+	res := h.post(t, testSession, defaultBody(), withCookie(h.signer.Mint(foreign)))
+	if res.Status != http.StatusForbidden {
+		t.Fatalf("status = %d, muốn 403", res.Status)
+	}
+	if runner.calls() != 0 {
+		t.Fatalf("runner chạy %d lần, muốn 0 — lượt bị từ chối không được chạm pod", runner.calls())
+	}
+	if line := auditLine(h.logs.String()); line != "" {
+		t.Fatalf("có dòng kiểm toán cho lượt BỊ TỪ CHỐI — nó khẳng định script đã chạy trong pod:\n%s", line)
+	}
+}
+
+var jwtLike = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{10,}`)
+
+// TestLuat8_LogKiemToanKhongChuaToken mở rộng luật 8 sang execroute.
+//
+// wsroute đã có phép kiểm này từ phase-1; execroute thì tới chặng này mới bắt
+// đầu log ở đường THÀNH CÔNG, tức mới có chỗ để token lọt vào. Log đi tới Loki
+// và ở lại đó nhiều tuần, nên token trong log là token đã lộ.
+func TestLuat8_LogKiemToanKhongChuaToken(t *testing.T) {
+	sessions := &spySessions{sess: activeSession()}
+	h := newHarness(t, sessions, &fakeRunner{result: podexec.OneShotResult{ExitCode: 0}})
+
+	// Một lượt thành công + một lượt token hỏng: cả hai nhánh log đều phải sạch.
+	h.post(t, testSession, defaultBody())
+	h.post(t, testSession, defaultBody(), withCookie("eyJhbGciOiJub25lIn0.e30."))
+
+	if m := jwtLike.FindString(h.logs.String()); m != "" {
+		t.Fatalf("log chứa chuỗi giống JWT: %q\n--- log ---\n%s", m, h.logs.String())
 	}
 }

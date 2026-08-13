@@ -278,6 +278,33 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	h.deps.Metrics.WSActive.Inc()
 	defer h.deps.Metrics.WSActive.Dec()
 
+	// ---- dấu vết kiểm toán -------------------------------------------------
+	//
+	// Nợ P2 §1. Trước dòng này, đường nóng CHỈ log lượt bị TỪ CHỐI, nên một phiên
+	// mở THÀNH CÔNG — một người thật vừa có shell trong một pod — không để lại dòng
+	// nào. Counter `WSConnectionsTotal` biết ĐÃ CÓ bao nhiêu lượt, nhưng không biết
+	// lượt nào của ai: một con số không đứng tên được thì không dùng để điều tra.
+	//
+	// KHÔNG rate-limit như `deny`: tới đây là đã qua trọn a→i, và trần WS D17=1 đã
+	// tự chặn việc một phiên đẻ ra nhiều dòng. Xem chú thích cùng tên ở execroute.
+	//
+	// Hai dòng chứ không một: chỉ "mở" thì mọi phiên trong log trông như còn đang
+	// mở, kể cả phiên đã đóng từ lâu — và "phiên nào CÒN mở" là đúng câu hỏi người
+	// trực hỏi lúc 3 giờ sáng.
+	attachedAt := time.Now()
+	h.deps.Log.Info("mở phiên WS",
+		slog.String("session_id", sessionID),
+		slog.String("user_id", sess.UserID),
+		slog.String("pod", sess.PodName),
+		slog.String("namespace", sess.Namespace))
+	defer func() {
+		h.deps.Log.Info("đóng phiên WS",
+			slog.String("session_id", sessionID),
+			slog.String("user_id", sess.UserID),
+			slog.String("pod", sess.PodName),
+			slog.Duration("duration", time.Since(attachedAt)))
+	}()
+
 	// Từ đây là việc của podexec: nó sở hữu vòng đời kết nối và ĐÓNG nó.
 	//
 	// `podName`/`namespace` lấy từ REDIS, không từ URL hay frame client — đó là

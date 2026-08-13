@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -456,4 +457,150 @@ func TestRedisChetTra500ChuKhongPhai403(t *testing.T) {
 
 	resp := h.req(t, "sess-a", h.cookie(t, testjwt.SandboxClaims("user-a", "sess-a")))
 	assertDeny(t, resp, http.StatusInternalServerError, "INTERNAL")
+}
+
+// --- Dấu vết kiểm toán đường nóng (nợ P2 §1) --------------------------------
+
+// withCookie thay cookie sandbox mặc định bằng token cho trước.
+func withCookie(raw string) func(*http.Request) {
+	return func(r *http.Request) {
+		r.Header.Del("Cookie")
+		r.AddCookie(&http.Cookie{Name: wsroute.CookieName, Value: raw}) //nolint:gosec // cookie phía request, xem chú thích ở h.cookie
+	}
+}
+
+// safeLog là bộ đệm log an toàn khi đua.
+//
+// Cần mutex vì ĐÂY là ca 101: khác mọi ca handshake-bị-từ-chối trong file này,
+// handler còn chạy tiếp SAU khi response đã xong (Bridge.Serve rồi defer log
+// "đóng"), nên goroutine của server ghi log trong lúc test đọc. Một
+// `bytes.Buffer` trần ở đây là data race, và `-race` của CI sẽ bắt.
+type safeLog struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (s *safeLog) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *safeLog) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.String()
+}
+
+// waitFor chờ tới khi log chứa `want`, tối đa d. Hết hạn mà chưa thấy vẫn là ĐỎ.
+func (s *safeLog) waitFor(want string, d time.Duration) bool {
+	deadline := time.Now().Add(d)
+	for {
+		if strings.Contains(s.String(), want) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// TestWSGhiDauVetKiemToanMoVaDong đóng nợ P2 §1 cho đường terminal.
+//
+// Trước chặng này gateway CHỈ log handshake BỊ TỪ CHỐI. Một phiên mở thành công
+// — một người thật vừa có shell trong một pod — không để lại dòng nào, nên
+// `kubectl logs deploy/platform-gateway` chỉ kể được chuyện những lượt KHÔNG xảy
+// ra. Counter `WSConnectionsTotal` biết có bao nhiêu lượt nhưng không biết lượt
+// nào của ai; một con số không đứng tên được thì không dùng để điều tra.
+//
+// Kiểm CẢ HAI dòng: chỉ có "mở" thì mọi phiên trong log trông như còn đang mở.
+func TestWSGhiDauVetKiemToanMoVaDong(t *testing.T) {
+	logs := &safeLog{}
+	signer := testjwt.NewSigner(t, "kid-1")
+	jwks := testjwt.NewJWKSServer(t, signer)
+	sessions := &spySessions{sess: &sessionstore.Session{
+		UserID:    "user-a",
+		PodName:   "sandbox-pod-thật",
+		Namespace: "dlp-sandboxes",
+		Status:    sessionstore.StatusRunning,
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}}
+
+	bridge := &fakeBridge{}
+	mux := http.NewServeMux()
+	wsroute.Register(mux, wsroute.Deps{
+		Log:             slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Verifier:        authz.NewVerifier(authz.NewJWKSCache(jwks.URL), testjwt.Issuer),
+		Sessions:        sessions,
+		Bridge:          bridge,
+		Metrics:         metrics.New(prometheus.NewRegistry()),
+		AllowedOrigins:  []string{testOrigin},
+		MaxWSPerSession: 1,
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	h := &harness{srv: srv, signer: signer, sessions: sessions, bridge: bridge}
+	if res := h.req(t, "sess-a", withCookie(signer.Mint(testjwt.SandboxClaims("user-a", "sess-a")))); res.Status != http.StatusSwitchingProtocols {
+		t.Fatalf("status = %d, muốn 101 (body %q)", res.Status, string(res.Body))
+	}
+	if _, ok := bridge.waitLast(t, 2*time.Second); !ok {
+		t.Fatalf("cầu exec chưa từng được gọi — chưa có phiên nào để mà kiểm toán")
+	}
+
+	if !logs.waitFor("mở phiên WS", 2*time.Second) {
+		t.Fatalf("không có dòng kiểm toán \"mở phiên WS\"\n--- log ---\n%s", logs.String())
+	}
+	if !logs.waitFor("đóng phiên WS", 2*time.Second) {
+		t.Fatalf("có \"mở\" nhưng không có \"đóng\" — mọi phiên trong log sẽ trông như còn mở\n--- log ---\n%s",
+			logs.String())
+	}
+
+	// Dòng phải đứng tên được: AI, Ở ĐÂU. Thiếu thì dòng log vẫn có mà vô dụng.
+	for _, want := range []string{"user_id=user-a", "pod=sandbox-pod-thật", "namespace=dlp-sandboxes"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Errorf("log kiểm toán thiếu %q\n--- log ---\n%s", want, logs.String())
+		}
+	}
+}
+
+// TestWSKhongGhiKiemToanKhiHandshakeBiTuChoi là ĐỐI CHỨNG ÂM của test trên.
+//
+// Thiếu nó, một implement log "mở phiên WS" ở ĐẦU handler (trước authz) vẫn cho
+// test kia xanh — và khi đó dòng kiểm toán khẳng định có người mở được shell ở
+// đúng những lượt bị chặn. Sai theo hướng đó tệ hơn hẳn là không log.
+func TestWSKhongGhiKiemToanKhiHandshakeBiTuChoi(t *testing.T) {
+	logs := &safeLog{}
+	signer := testjwt.NewSigner(t, "kid-1")
+	jwks := testjwt.NewJWKSServer(t, signer)
+	sessions := &spySessions{sess: &sessionstore.Session{
+		UserID: "user-a", Status: sessionstore.StatusRunning,
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}}
+
+	bridge := &fakeBridge{}
+	mux := http.NewServeMux()
+	wsroute.Register(mux, wsroute.Deps{
+		Log:             slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Verifier:        authz.NewVerifier(authz.NewJWKSCache(jwks.URL), testjwt.Issuer),
+		Sessions:        sessions,
+		Bridge:          bridge,
+		Metrics:         metrics.New(prometheus.NewRegistry()),
+		AllowedOrigins:  []string{testOrigin},
+		MaxWSPerSession: 1,
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	// Token của người khác → dừng ở bước g.
+	h := &harness{srv: srv, signer: signer, sessions: sessions, bridge: bridge}
+	res := h.req(t, "sess-a", withCookie(signer.Mint(testjwt.SandboxClaims("user-nguoi-khac", "sess-a"))))
+	if res.Status == http.StatusSwitchingProtocols {
+		t.Fatalf("handshake của người khác được chấp nhận — ca này phải bị từ chối")
+	}
+	if strings.Contains(logs.String(), "mở phiên WS") {
+		t.Fatalf("có dòng kiểm toán cho handshake BỊ TỪ CHỐI — nó khẳng định có shell mở ra:\n%s",
+			logs.String())
+	}
 }
