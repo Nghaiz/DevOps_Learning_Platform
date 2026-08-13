@@ -1,0 +1,30 @@
+PASS  đăng ký + phiên đăng nhập
+      HTTP 200
+PASS  lessons.list thấy bài first-party
+      5 bài: ckad-configmap-as-files, dlp-sandbox-basics, loki-quickstart, loxilb-tcp-load-balancing, prolug-linux-system-checking
+PASS  lessons.get trả đủ step + markdown (chứng minh .md CÓ trong image)
+      4 step, độ dài md: 450/559/971/905
+PASS  không có năng lực nào thiếu (bài hợp năng lực thật)
+      unsupportedCapabilities=[]
+PASS  startSession cấp pod
+      session=1b7df7ba8dc355389d46b44b34575135 pod=sandbox-d167bae0e5fb
+PASS  AC pass/fail — vế FAIL (chưa làm gì)
+      passed=false exit=1 output="Chua thay /root/lab/hello.txt. Hay chay: echo dlp > /root/lab/hello.txt"
+PASS  AC setup — background CHẠY + asset ĐẨY được
+      ran=true assetsPushed=1 foreground=có (FE gõ vào WS)
+PASS  asset-push — file có thật trong pod, nội dung nguyên vẹn
+      { "lab": "dlp-sandbox-basics", "seededBy": "asset-push", 644
+PASS  setup background để lại dấu vết trong pod
+      /root/lab/.setup-done = ready
+PASS  AC pass/fail — vế PASS (sau khi làm đúng)
+      passed=true exit=0 output="Dat — /root/lab/hello.txt da co noi dung dung."
+PASS  pass ở step đẩy tiến độ tiến lên
+      stepIndex 0 → 1, status=in-progress
+PASS  AC isolation — 169.254.169.254 bị chặn (verify khẳng định NGƯỢC)
+      passed=true exit=0 output="Dat — ket noi toi 169.254.169.254 bi chan dung nhu mong doi."
+PASS  đối chứng âm — pod cũng KHÔNG ra được internet chung
+      curl https://example.com trong pod → exit=28
+PASS  sessionId lạ → NÉM lỗi, KHÔNG trả passed:false
+      threw=true code=NOT_FOUND msg=orchestrator gRPC: session không tồn tại
+
+=== 14/14 PASS ===

@@ -1,0 +1,98 @@
+apiVersion: v1
+items:
+- apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: platform
+      meta.helm.sh/release-namespace: default
+    creationTimestamp: "2026-08-08T08:28:04Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: sandbox-networkpolicy
+      app.kubernetes.io/instance: platform
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: platform
+      app.kubernetes.io/version: 0.1.0
+      helm.sh/chart: platform-0.1.0
+    name: platform-sandbox-allow-egress-dns
+    namespace: dlp-sandbox
+    resourceVersion: "28417"
+    uid: c11b5e98-ddb3-4675-a4c3-a421edf1a1fa
+  spec:
+    egress:
+    - ports:
+      - port: 53
+        protocol: UDP
+      - port: 53
+        protocol: TCP
+      to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+        podSelector:
+          matchLabels:
+            k8s-app: kube-dns
+    podSelector: {}
+    policyTypes:
+    - Egress
+- apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: platform
+      meta.helm.sh/release-namespace: default
+    creationTimestamp: "2026-08-08T08:28:04Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: sandbox-networkpolicy
+      app.kubernetes.io/instance: platform
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: platform
+      app.kubernetes.io/version: 0.1.0
+      helm.sh/chart: platform-0.1.0
+    name: platform-sandbox-allow-ingress-gateway
+    namespace: dlp-sandbox
+    resourceVersion: "28419"
+    uid: 2b1e7ef4-3651-4350-8f31-503a4f1cde2b
+  spec:
+    ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: default
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/component: gateway
+            app.kubernetes.io/instance: platform
+            app.kubernetes.io/name: platform
+    podSelector: {}
+    policyTypes:
+    - Ingress
+- apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: platform
+      meta.helm.sh/release-namespace: default
+    creationTimestamp: "2026-08-08T08:28:04Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: sandbox-networkpolicy
+      app.kubernetes.io/instance: platform
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: platform
+      app.kubernetes.io/version: 0.1.0
+      helm.sh/chart: platform-0.1.0
+    name: platform-sandbox-default-deny
+    namespace: dlp-sandbox
+    resourceVersion: "28415"
+    uid: 175a2000-995f-4daa-bd19-2dc9e4d4f149
+  spec:
+    podSelector: {}
+    policyTypes:
+    - Ingress
+    - Egress
+kind: List
+metadata:
+  resourceVersion: ""

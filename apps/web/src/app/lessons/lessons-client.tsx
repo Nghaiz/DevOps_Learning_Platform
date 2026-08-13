@@ -31,15 +31,32 @@ const STATUS_CLASS: Record<string, string> = {
 export function LessonsClient(): React.ReactElement {
   const [difficulty, setDifficulty] = useState<ScenarioDifficulty | 'all'>('all');
 
-  const query = api.lessons.list.useInfiniteQuery(
-    {},
-    { getNextPageParam: (last) => last.nextCursor },
-  );
+  /**
+   * ⛔ `useQuery`, KHÔNG `useInfiniteQuery` — và đây là ràng buộc cứng, không
+   * phải lựa chọn phong cách.
+   *
+   * `useInfiniteQuery` của @trpc/react-query nhét `direction` vào INPUT gửi lên
+   * server. Đo trên cụm 2026-08-13, request thật của trang này:
+   *     GET /api/trpc/lessons.list?batch=1&input={"0":{"direction":"forward"}}  → 400
+   *     [{"code":"unrecognized_keys","keys":["direction"], ...}]
+   * `listInputSchema` là `.strict()` (luật 3), nên nó từ chối — ĐÚNG như thiết
+   * kế. Hai thứ này không tương thích với nhau.
+   *
+   * Cách sửa SAI là thêm `direction` vào schema: server không đọc field đó, nên
+   * đó là nới lỏng một cổng bảo mật để chứa một field vô nghĩa.
+   *
+   * ⚠ Bug này KHÔNG bị e2e API bắt: harness gọi thẳng `lessons.list({limit:100})`
+   * và xanh, trong khi đường người dùng thật đỏ 400. Chỉ có trình duyệt mới đi
+   * qua đúng đoạn mã sinh input.
+   *
+   * KHÔNG gửi `limit`: server đã có mặc định + trần (luật 4) và TRẢ VỀ `limit`
+   * nó thực sự dùng. Nhập lại hằng số đó ở client sẽ phải import từ
+   * `server/trpc/init` — kéo mã server vào bundle trình duyệt, đúng hạng lỗi
+   * `node:fs` vừa làm đổ build ở chặng này.
+   */
+  const query = api.lessons.list.useQuery({});
 
-  const items = useMemo(
-    () => query.data?.pages.flatMap((page) => page.items) ?? [],
-    [query.data],
-  );
+  const items = useMemo(() => query.data?.items ?? [], [query.data]);
 
   // Lọc phía CLIENT có chủ ý: `lessons.list` không nhận tham số lọc, và thêm một
   // tham số vào API để lọc 5 bài là dựng phân trang phía server cho một tập vừa
@@ -127,14 +144,18 @@ export function LessonsClient(): React.ReactElement {
         </ul>
       )}
 
-      {query.hasNextPage && (
-        <Button
-          variant="secondary"
-          onClick={() => void query.fetchNextPage()}
-          disabled={query.isFetchingNextPage}
-        >
-          {query.isFetchingNextPage ? 'Đang tải…' : 'Tải thêm'}
-        </Button>
+      {/*
+        Kho nội dung vượt một trang thì NÓI RA, không cắt im lặng.
+        Hôm nay `MAX_LIST_LIMIT` = 100 và catalog có 5 bài, nên nhánh này không
+        chạy. Nó tồn tại để ngày catalog vượt 100, người dùng thấy "còn bài chưa
+        hiện" thay vì một danh sách trông đầy đủ mà thiếu — cùng kỷ luật với món
+        nợ đã ghi ở `lessons.list` (nạp cả catalog vào bộ nhớ rồi mới cắt trang).
+      */}
+      {query.data?.nextCursor != null && (
+        <p role="status" className="text-sm text-amber-700">
+          Kho bài đã vượt {query.data.limit} mục — trang này mới hiện {items.length} bài đầu.
+          Giao diện phân trang chưa được dựng.
+        </p>
       )}
     </PageShell>
   );
