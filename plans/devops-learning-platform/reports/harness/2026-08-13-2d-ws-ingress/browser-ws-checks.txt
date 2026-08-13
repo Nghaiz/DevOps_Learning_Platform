@@ -1,0 +1,129 @@
+Terminal WS qua INGRESS — đo trên trình duyệt thật (Playwright/Chromium)
+cụm 2026-08-13 · web=sha-cc0027c · gateway=sha-80b4b6c · traefik=v3.7.10 (chart 41.2.0)
+helm revision 48 · origin http://localhost:8080  (kubectl port-forward -n traefik svc/traefik 8080:80)
+
+Ô AC đóng ở lượt này: phase-2.md — "terminal ở khoang phải nối được và gõ được"
+(gồm cả vế `{{exec}}` bơm lệnh thật vào PTY).
+
+Vì sao trước đây KHÔNG đo được: `buildSessionWsUrl` dựng URL từ
+`globalThis.location.origin`, nên trình duyệt phải thấy `/` (web) và `/ws` (gateway)
+trên MỘT origin. Cụm lab chưa có ingress controller nào, và port-forward chỉ tới
+`platform-web`.
+
+Vì sao đường vào là localhost chứ không phải IP node: cookie `dlp_sandbox` mang
+`Secure` VÔ ĐIỀU KIỆN (apps/web/src/server/auth/sandbox-cookie.ts:40, và chính file
+đó ghi sẵn bẫy). Trình duyệt bỏ qua Set-Cookie `Secure` trên HTTP khi host KHÔNG
+phải localhost — trong im lặng. NodePort http://192.168.94.130:3xxxx vì thế sẽ cho
+401 ở mọi handshake mà không nói lý do. TLS thật là việc của P3.
+
+────────────────────────────────────────────────────────────────────────────
+[1] ĐỊNH TUYẾN — Traefik chia đúng hai nhánh
+    GET /                      -> 200          (web)
+    GET /lessons               -> 307          (gác đăng nhập, web)
+    GET /ws/session/nonexistent-> 400 + {"code":"SUBPROTOCOL_REQUIRED",
+                                  "message":"client phải chào subprotocol dlp.terminal.v1"}
+                                  ⇒ thân lỗi CỦA GATEWAY, không phải của web
+
+[2] ĐỐI CHỨNG ÂM — bỏ đúng luật `/ws` khỏi Ingress, giữ nguyên `/`
+    kubectl patch ingress platform --type=json \
+      -p '[{"op":"remove","path":"/spec/rules/0/http/paths/0"}]'
+
+    GET /                      -> 200          (web vẫn sống — control đúng chỗ)
+    GET /ws/session/nonexistent-> 404 + header CSP CỦA WEB
+                                  ⇒ rơi xuống nhánh `/` (Next), KHÔNG còn tới gateway
+    trình duyệt: bấm "Bắt đầu" -> kẹt ở "Đang kết nối…" (xem [5])
+
+    Thiếu dòng này thì "[1] chạy" vẫn xanh kể cả khi WS đến gateway bằng đường
+    khác. Đã loại trừ thêm khả năng Next tự proxy: apps/web/next.config.ts KHÔNG
+    có `rewrites`, và không middleware nào bắt `/ws`.
+
+    Khôi phục: helm upgrade (idempotent) -> paths = /ws /   -> /ws lại trả
+    SUBPROTOCOL_REQUIRED của gateway.
+
+[3] WS NỐI ĐƯỢC — prompt shell sống trong khoang phải     (ws-01-session-ready.png)
+    trạng thái UI: "Chưa có phiên" -> bấm "Bắt đầu" -> "Sandbox sẵn sàng"
+    khoang phải: prompt starship `dlp  /` + đồng hồ 14:01:25 (do PTY trong pod vẽ)
+
+[4] GÕ ĐƯỢC — lệnh của người học chạy TRONG pod sandbox   (ws-02-typed.png)
+    gõ:      echo NCKH-GO-DUOC-$(id -u)-$(hostname)
+    nhận về: NCKH-GO-DUOC-0-sandbox-cffe70db7e34
+             ├─ uid 0  = root trong sandbox (đúng thiết kế)
+             └─ hostname = ĐÚNG tên pod sandbox ⇒ shell nằm trong pod, không ở đâu khác
+
+    (pod `sandbox-cffe70db7e34` 3h28m tuổi = pod warm-pool được claim; pod
+     `sandbox-ed0b382625de` sinh ngay sau đó là lượt bù pool, không phải rò.)
+
+[5] {{exec}} BƠM LỆNH THẬT VÀO PTY                        (ws-03-exec.png)
+    bấm nút "Chạy" của khối lệnh trong bài -> PTY nhận nguyên văn:
+      curl -s --max-time 3 http://169.254.169.254/ ; echo "exit=$?"
+    kết quả: exit=28 sau 3.407s
+    ⇒ vừa chứng minh {{exec}}, vừa cho thấy NetworkPolicy chặn metadata NGAY TRONG
+      terminal của người học — trước đây chỉ mới đo ở đường verify (exec one-shot).
+
+[6] VÒNG ĐẦY ĐỦ QUA UI — "Kiểm tra" chấm đạt             (ws-04-check-passed.png)
+    bấm "Kiểm tra" -> "Đạt — Dat — ket noi toi 169.254.169.254 bi chan dung nhu
+    mong doi." (thông báo CỦA BÀI)
+    ⇒ smoke test toàn luồng của 2.E: import -> hiển thị -> terminal -> chấm -> tiến độ.
+
+────────────────────────────────────────────────────────────────────────────
+PHÁT HIỆN (không nằm trong ô AC nào — chỉ lộ ra nhờ đối chứng âm ở [2])
+
+(A) Handshake TREO — không mở được mà cũng không thất bại
+    Với luật `/ws` bị bỏ, trang bài học kẹt ở "Đang kết nối…" **37 giây** rồi vẫn
+    thế: 0 lỗi UI, 0 dòng console, 0 request hỏi lý do.
+
+    ⚠ CHẨN ĐOÁN ĐẦU TIÊN CỦA TÔI SAI, và nó chỉ lộ ra vì tôi đo lại SAU khi deploy
+    bản sửa. Ghi cả hai vòng ở đây thay vì chỉ ghi kết luận đúng — vòng sai mới là
+    thứ dạy được điều gì.
+
+    Vòng 1 (SAI về nguyên nhân, nhưng lỗ hổng nó vá là có thật):
+      `session-machine` CÓ đặt cờ `needsReasonLookup` cho ca "1006 khi chưa từng
+      ready" (packages/terminal/src/session-machine.ts:233), nhưng cờ đó chỉ có
+      MỘT người tiêu thụ — `app/(session)/session/session-client.tsx`.
+      `use-lesson-session.ts` của 2.D không đọc nó. Đúng là một lỗ hổng, và đã vá
+      (hook dùng chung + `lessons.sessionStatus` + hiện `state.message` lên header).
+      Nhưng deploy xong đo lại: TRIỆU CHỨNG CÒN NGUYÊN.
+
+    Vòng 2 (nguyên nhân THẬT) — hai phép đo:
+      • đếm WebSocket trong trình duyệt: đúng MỘT socket được tạo tới
+        `ws://localhost:8080/ws/session/…`, và trong 25s KHÔNG có sự kiện `close`
+        nào. Không phải "close rồi mà không ai xử lý" — là KHÔNG HỀ CÓ close.
+      • request upgrade thật bằng curl (Connection/Upgrade/Sec-WebSocket-*):
+          http_code=000   time_total=20.009   (treo trọn timeout, không trả gì)
+
+      Nghĩa là handshake không thành công mà cũng không thất bại. Không có `close`
+      thì máy trạng thái không nhận sự kiện nào, nên MỌI phanh phía sau — backoff,
+      hỏi lý do thật — đều không có gì để kích hoạt. Vá tầng dưới mà thiếu sự kiện
+      tầng trên thì không sửa được gì.
+
+      Sửa: `openConnection` đặt trần 10s cho lượt handshake; quá trần mà chưa
+      `open` ⇒ báo `1006` rồi đóng socket. `clearTimeout` ở cả ba lối ra (open /
+      close / close chủ động) — thiếu ở nhánh close thì một phiên đóng bằng 4401
+      bị bồi thêm một 1006 và bộ đếm backoff nhảy hai bậc cho một lần rớt.
+
+    Bài học: "UI đứng im" có ÍT NHẤT hai nguyên nhân khác hẳn nhau — sự kiện đến
+    mà không ai xử lý, và sự kiện không bao giờ đến. Chúng cho CÙNG một triệu
+    chứng trên màn hình. Phân biệt được chỉ bằng cách đếm ở tầng vận chuyển; đọc
+    mã nguồn cho ra một câu chuyện hợp lý cho cả hai.
+
+    ĐO LẠI SAU KHI SỬA (web sha-fda8b58, helm revision 52, luật `/ws` vẫn bị bỏ):
+      header: "Mất kết nối — đang thử lại…"
+      role=status: "Chưa mở được kết nối tới phiên — đang thử lại."
+      network: 4 lượt GET /api/trpc/lessons.sessionStatus → 200
+      (ws-05-after-fix-negative-control.png)
+      ⇒ có close (do trần sinh ra) → có backoff → có hỏi lý do → có chữ trên màn hình.
+
+    KHÔNG HỒI QUY trên đường đầy đủ: khôi phục luật `/ws`, bấm "Bắt đầu" →
+    "Sandbox sẵn sàng", gõ `echo XAC-NHAN-CUOI-$(hostname)-rev52` → trả về
+    `XAC-NHAN-CUOI-sandbox-9cf97d850f18-rev52` (ws-06-final-typed.png).
+
+(B) Gateway không log lượt thành công
+    `kubectl logs deploy/platform-gateway --since=15m` chỉ có 2 dòng WARN của
+    handshake bị từ chối. Lượt attach WS thành công và lượt `POST /exec/session/{id}`
+    (checkStep) — cả hai đã xảy ra — không để lại dòng nào. Không có dấu vết kiểm
+    toán cho đường nóng. Thuộc P3 §7 (observability).
+
+(C) Thanh tiến độ nhảy 0/4 -> 4/4 khi chỉ đạt ĐÚNG bước cuối
+    `progress.stepIndex` là mốc nước cao (task 12: `min(index+1, last)`), không phải
+    tập bước đã đạt. Nhãn "4/4 bước đã đạt" vì thế nói sai: người học nhảy thẳng
+    tới bước cuối và đạt nó sẽ thấy 4/4 dù chưa làm 3 bước đầu.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildSessionWsUrl, openConnection } from './connection.ts';
+import { HANDSHAKE_TIMEOUT_MS, buildSessionWsUrl, openConnection } from './connection.ts';
 import { SUBPROTOCOL } from './protocol.ts';
 
 /**
@@ -75,6 +75,62 @@ function setup(initialSize = { cols: 120, rows: 34 }) {
   }
   return { connection, socket, onControl, onBinary, onClose };
 }
+
+describe('handshake treo — không mở được mà cũng không đóng', () => {
+  /**
+   * Ca này KHÔNG phải giả định: đo trên cụm 2026-08-13. Khi `/ws` mất luật định
+   * tuyến và request upgrade rơi xuống Next, server không trả gì cả — `curl`
+   * treo trọn 20s với `http_code=000`, trình duyệt ở nguyên CONNECTING, không
+   * phát `error`, không phát `close`. Máy trạng thái không nhận sự kiện nào nên
+   * badge đứng ở "Đang kết nối…" vĩnh viễn: 0 lỗi UI, 0 dòng console.
+   *
+   * Mọi phanh khác đều bắt đầu từ một `close`, nên nếu thiếu trần này thì
+   * backoff và lượt hỏi lý do thật (contract §7) đều không bao giờ chạy.
+   */
+  it('quá trần handshake mà chưa `open` ⇒ báo 1006 cho máy trạng thái', () => {
+    vi.useFakeTimers();
+    try {
+      const { onClose, socket } = setup();
+      vi.advanceTimersByTime(HANDSHAKE_TIMEOUT_MS - 1);
+      expect(onClose).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1);
+      // 1006 chứ không phải mã riêng: đó đúng là thứ client quan sát được (không
+      // có close code từ server), và nó chảy vào nhánh "1006 khi chưa từng ready"
+      // mà `session-machine` đã có sẵn — retry backoff + đi hỏi lý do thật.
+      expect(onClose).toHaveBeenCalledExactlyOnceWith(1006);
+      expect(socket.closedWith).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ĐỐI CHỨNG: mở kịp thì trần không bắn, và không có close giả', () => {
+    vi.useFakeTimers();
+    try {
+      const { socket, onClose } = setup();
+      socket.open();
+      vi.advanceTimersByTime(HANDSHAKE_TIMEOUT_MS * 3);
+      expect(onClose).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('close thật tới trước trần ⇒ đúng MỘT lần onClose, mang mã của server', () => {
+    // Không có `clearTimeout` ở nhánh close, một phiên đóng bằng 4401 sẽ bị trần
+    // bồi thêm một 1006 nữa và bộ đếm backoff nhảy hai bậc cho một lần rớt.
+    vi.useFakeTimers();
+    try {
+      const { socket, onClose } = setup();
+      socket.emit('close', { code: 4401 });
+      vi.advanceTimersByTime(HANDSHAKE_TIMEOUT_MS * 3);
+      expect(onClose).toHaveBeenCalledExactlyOnceWith(4401);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
 
 describe('handshake', () => {
   it('chào đúng subprotocol dlp.terminal.v1 (contract §0)', () => {

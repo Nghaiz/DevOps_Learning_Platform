@@ -10,7 +10,8 @@ import {
   type TerminalHandle,
 } from '@devops-platform/terminal';
 import { api } from '../../../lib/trpc-react';
-import { describeTrpcError } from '../../../lib/trpc';
+import { trpc, describeTrpcError } from '../../../lib/trpc';
+import { useSessionReasonLookup } from '../../../lib/use-session-reason-lookup';
 
 /**
  * Vòng đời phiên sandbox cho trang bài học.
@@ -97,6 +98,19 @@ export function useLessonSession(scenarioId: string): LessonSession {
       clearTimeout(timer);
     };
   }, [state.retryDelayMs, state.attempt]);
+
+  // Contract §7 — cái phanh cho ca `1006 khi chưa từng ready`.
+  //
+  // Máy trạng thái ĐÃ đặt cờ `needsReasonLookup` cho ca này từ 1.F, nhưng trước
+  // lượt này trang bài học không đọc cờ đó: một handshake bị từ chối vĩnh viễn
+  // (401/403/404 — trình duyệt gộp hết thành 1006) quay vòng backoff 15s mãi mãi
+  // dưới nhãn "Đang kết nối…", không lỗi UI, không dòng console. Đo được bằng
+  // cách bỏ luật `/ws` khỏi Ingress: 37s im lặng tuyệt đối.
+  const fetchStatus = useCallback(
+    async (sessionId: string) => (await trpc.lessons.sessionStatus.query({ sessionId })).status,
+    [],
+  );
+  useSessionReasonLookup(state, dispatch, fetchStatus);
 
   const wsUrl = useMemo(
     () =>

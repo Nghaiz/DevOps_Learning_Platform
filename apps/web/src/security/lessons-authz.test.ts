@@ -94,6 +94,19 @@ describe('lessons — luật 1: tiến độ là của riêng từng người', 
     await closeTestDb();
   });
 
+  it('sessionStatus cũng KHÔNG nhận userId, và trả `null` khi phiên không còn', async () => {
+    // Procedure này sinh ra để FE phân biệt "mạng chập" với "phiên đã chết"
+    // (contract §7). Nó CỐ Ý không dùng `session.get` của P1 — thứ nhận `userId`
+    // trong input — vì router này đã bỏ hẳn hình dạng đó ở 2.B.
+    const c = await caller(userA);
+    // Mock orchestrator của file này luôn trả `session: undefined`.
+    expect(await c.lessons.sessionStatus({ sessionId: 'sess-1' })).toEqual({ status: null });
+    await expect(
+      // @ts-expect-error — cố tình gửi userId để chứng minh KHÔNG có chỗ nhận nó
+      c.lessons.sessionStatus({ sessionId: 'sess-1', userId: 'nan-nhan' }),
+    ).rejects.toSatisfy(isTRPCCode('BAD_REQUEST'));
+  });
+
   it('input KHÔNG có field userId — không có chỗ nào để giả mạo danh tính', async () => {
     const a = await caller(userA);
 
@@ -160,6 +173,9 @@ describe('lessons — luật 1: tiến độ là của riêng từng người', 
     await expect(
       anon.lessons.saveProgress({ scenarioId: SCENARIO_MULTISTEP, stepIndex: 0 }),
     ).rejects.toSatisfy(isTRPCCode('UNAUTHORIZED'));
+    await expect(anon.lessons.sessionStatus({ sessionId: 'sess-1' })).rejects.toSatisfy(
+      isTRPCCode('UNAUTHORIZED'),
+    );
   });
 
   it('saveProgress KHÔNG xoá dấu hoàn thành đã ghi', async () => {

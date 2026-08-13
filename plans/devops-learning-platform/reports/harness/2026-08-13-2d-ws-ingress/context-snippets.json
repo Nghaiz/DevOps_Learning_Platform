@@ -1,0 +1,30 @@
+{
+  "skill": "t1k-cook",
+  "mode": "code",
+  "task": "P2 / 2.G — dong o AC cuoi cua phase-2 ('terminal o khoang phai noi duoc va go duoc', gom ve {{exec}}) va smoke test toan luong cua 2.E. Nguoi dung chot: cai ingress controller len cum lab (thay vi proxy gop origin cuc bo, hoac de o AC mo sang P3), va sau do chot tiep: sua ngay phat hien A trong luot nay thay vi ghi thanh no.",
+  "scoutSummary": "Doc phase-2.md + report 2.D: 2.A-2.F xong va da merge (PR #54 tren main); con 3 muc ho — o AC terminal WS (dong 150), smoke toan luong cua 2.E (dong 114), va mot dau ⬜ loi thoi o dong 76 (ve NetworkPolicy da dong o AC dong 160). Nut that cua ca (1) va (2) la CUNG mot thu: buildSessionWsUrl dung URL tu location.origin nen trinh duyet phai thay / va /ws tren MOT origin, ma cum lab khong co ingress controller nao (kubectl get ingressclass -> No resources found) va port-forward chi toi platform-web. Template ingress gop origin DA co san tu 1.B0.4, tat mac dinh kem chu thich noi ro ly do. Doc them: sandbox-cookie.ts (cookie Secure vo dieu kien -> duong do phai la localhost, khong phai IP node), values-selfhost.yaml (quota sandbox thu nho cho VM lab), 05-cluster-addons.sh (ky luat ghim version + sha256), mtls-secret.yaml (bay lookup rong khi --dry-run).",
+  "acceptanceCriteria": [
+    "Terminal o khoang phai NOI DUOC va GO DUOC tren trinh duyet that (o AC cuoi cua phase-2, dong 150).",
+    "{{exec}} bom lenh that vao PTY va lenh do chay trong pod sandbox.",
+    "Smoke test toan luong cua 2.E: import -> hien step -> terminal -> Kiem tra -> tien do luu, tat ca qua UI.",
+    "Dinh tuyen ingress phai duoc chung minh KEM DOI CHUNG AM, khong chi 'no chay'."
+  ],
+  "touchpoints": [
+    "packages/terminal/src/connection.ts — duong ket noi cua CA HAI trang (/session cua P1 va trang bai hoc).",
+    "apps/web/src/app/(session)/session/session-client.tsx — trang P1, ngoai pham vi 2.D nhung bi sua.",
+    "apps/web/src/app/lessons/[id]/{use-lesson-session.ts,lesson-client.tsx}",
+    "apps/web/src/server/trpc/routers/lessons.ts — them procedure.",
+    "Cum lab: release helm `platform` dang chay + mot controller cap cluster moi (namespace traefik)."
+  ],
+  "publicContracts": [
+    "THEM lessons.sessionStatus({sessionId}) -> {status: number|null}; input .strict(), KHONG co userId.",
+    "DOI HANH VI ca hai trang: NOT_FOUND/FORBIDDEN tu luot hoi ly do ket luan 'phien da chet' thay vi 'mang chap'.",
+    "THEM tran 10s cho luot handshake WS trong openConnection — anh huong MOI phien.",
+    "Ingress cua release `platform` chuyen tu tat sang bat (ingress.enabled=true, className=traefik)."
+  ],
+  "blastRadius": [
+    "Moi phien terminal cua ca hai trang (tran handshake nam tren duong nong).",
+    "Cum lab: Traefik dung ClusterRole doc duoc Secret toan cluster; helm revision 47 -> 52.",
+    "Pod sandbox: da xoa 7 pod bo quen de giai phong quota trong luc do (pod ephemeral, reaper cung xoa theo TTL)."
+  ]
+}

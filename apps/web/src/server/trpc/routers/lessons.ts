@@ -180,6 +180,8 @@ const runSetupInput = z
   .object({ scenarioId: scenarioIdSchema, sessionId: z.string().min(1), phase: phaseRefSchema })
   .strict();
 
+const sessionStatusInput = z.object({ sessionId: z.string().min(1) }).strict();
+
 // ---------------------------------------------------------------- router
 
 export const lessonsRouter = createTRPCRouter({
@@ -257,6 +259,33 @@ export const lessonsRouter = createTRPCRouter({
       // FE (2.D) BẮT BUỘC hiện cảnh báo này — xem `catalog.unsupportedCapabilities`.
       unsupportedCapabilities: unsupportedCapabilities(scenario.capabilities),
     };
+  }),
+
+  /**
+   * Contract §7 — trạng thái phiên phía máy chủ, để FE biết một `1006` là "mạng
+   * chập" hay "phiên đã chết".
+   *
+   * Vì sao KHÔNG dùng `session.get` của P1 dù nó trả đúng thứ này: input của nó
+   * có `userId` (P1 kiểm bằng `assertOwnerOrAdmin`). 2.B đã bỏ hẳn hình dạng đó
+   * khỏi router này — không có field nào để giả mạo thì không có gì phải kiểm.
+   * Người dùng suy từ `ctx.user.id`, và orchestrator vẫn tự kiểm chủ sở hữu.
+   *
+   * `status` là số của enum `SandboxStatus`, KHÔNG phải bigint — trả thẳng qua
+   * JSON được. (`expiresAt.seconds` thì là bigint và sẽ cho 500 ở tầng
+   * serialize; đó là lý do procedure này chỉ trả đúng `status`.)
+   *
+   * `null` = orchestrator trả lời nhưng không kèm phiên. Phiên đã bị xoá hẳn thì
+   * `GetSession` NÉM `NOT_FOUND`, và client đọc mã đó (`session-reason.ts`).
+   */
+  sessionStatus: protectedProcedure.input(sessionStatusInput).query(async ({ ctx, input }) => {
+    const headers = await callHeaders(ctx.user.id, ctx.user.role);
+    const response = await callOrchestrator(() =>
+      orchestratorClient().getSession(
+        { sessionId: input.sessionId, userId: ctx.user.id },
+        { headers },
+      ),
+    );
+    return { status: response.session?.status ?? null };
   }),
 
   /**
