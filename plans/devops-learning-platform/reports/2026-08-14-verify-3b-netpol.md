@@ -17,10 +17,11 @@ NetworkPolicy mà tôi hiểu ngược.
 | 4 chiều kết nối **plan không có** | tìm được từ mã nguồn trước khi áp |
 | Lỗi `podSelector` thiếu `matchLabels` (apiserver prune ⇒ chọn MỌI pod) | tự bắt lúc đọc render, sửa ở tầng helper |
 | Ba cổng chặn cấu hình gắn nhầm vào `denyEnabled` | chuyển sang `enabled` sau khi đo |
-| `netpol-verify.sh` 21 chiều, hai vế | **21/21**, có baseline TRƯỚC khi áp |
+| `netpol-verify.sh` 22 chiều, hai vế | **22/22**, có baseline TRƯỚC khi áp |
 | Harness e2e | **14/14**, chạy lại lần hai với gateway cache rỗng |
 | seccomp | plan nói "không chỗ nào đặt" — **sai**, đã đặt sẵn; đo + 2 đối chứng |
 | Cổng CI mới + 8 kiểu bóp méo | 8/8 đỏ đúng chỗ — nhưng **bản đầu cho qua 1/8** |
+| Vòng review đối kháng | 12 phát hiện; **3 cái vá lại chính bằng chứng của chặng** |
 
 ## Bốn chiều kết nối plan không có, và ba trong bốn hỏng IM LẶNG
 
@@ -170,9 +171,11 @@ cột này thì một ô BLOCK xanh nhờ dịch vụ chết đọc y hệt mộ
 
 Nó còn bắt được một thay đổi **định tính** giữa hai pha: ô `POD LẠ → postgres`
 từ **3366ms** (allow) lên **20332ms** (deny). 20s là timeout **DNS**, không phải
-timeout TCP — sau default-deny, egress của pod lạ bị chặn nên nó không resolve
-nổi tên nữa. Hàng rào đã dịch từ *ingress của đích* sang *egress của nguồn*.
-Pass/fail đơn thuần cho cùng một chữ "BLOCK" ở cả hai.
+timeout TCP.
+
+Lúc đầu tôi đọc con số đó thành tin tốt ("hàng rào đã dịch từ ingress của đích
+sang egress của nguồn"). Vòng review chỉ ra nó còn là **một lời cảnh báo về
+chính phép đo**, và điều đó đúng — xem mục dưới.
 
 ### Giới hạn thật của AC-B2, ghi ra để không ai tin quá mức
 
@@ -287,12 +290,87 @@ Cổng CI còn gác **vế ngược** cho cả ba cổng chặn cấu hình: n�
 render ĐƯỢC thì bước đó đỏ, và thông báo phải đúng lý do (không chỉ "chết là
 được"). Một cổng chỉ kiểm đường đúng sẽ xanh cả sau khi ai đó gỡ mất chính nó.
 
+## Vòng review đối kháng — ba phát hiện vá lại chính BẰNG CHỨNG của chặng
+
+Một vòng review đối kháng chạy sau khi tôi đã tự thấy đủ. Nó không tìm được chiều
+kết nối nào bị thiếu (đã kiểm chéo lại từ mã), nhưng tìm ra **12 điểm**, và ba
+trong số đó tấn công đúng thứ chặng này dựa vào để tự tin: **phép đo**.
+
+### R1 — ô AC-B2 xanh vì lý do SAI ở pha deny
+
+Pod lạ probe `platform-postgres` **theo TÊN**. Dưới default-deny, egress của pod
+lạ — kể cả UDP/53 — bị chặn, nên request chết ở khâu **phân giải tên**, không ở
+`allow-ingress-postgres`. Hệ quả thẳng thừng: **xoá hẳn policy đó thì ô vẫn
+xanh**. Ô AC duy nhất mà chặng này tồn tại vì nó lại không đo thứ nó tự nhận.
+
+Dấu hiệu đã nằm ngay trong số tôi báo cáo — 3.4s vọt lên **20.3s** — và tôi đọc
+nó thành tin tốt thay vì thành cảnh báo. 20s là timeout DNS.
+
+Sửa: pod lạ probe bằng **ClusterIP**, bỏ DNS khỏi đường đi. Số đo mới: **3410ms**
+(TCP bị thả) thay vì 20332ms (DNS chết).
+
+Và ghi ra điều mà bản đầu lờ đi: hai pha đo **hai thứ khác nhau** —
+pha allow đo `allow-ingress-*` của đích, pha deny đo egress-deny của nguồn; dưới
+deny thì `allow-ingress-*` là phòng thủ chiều sâu và **không probe nào tách riêng
+được** (mọi pod có egress tới postgres đều nằm trong danh sách ingress của nó).
+
+### R2 — `nc` và `kubectl exec` dùng chung một exit code
+
+`rc≠0` được đọc thành "BLOCK". Nhưng pod bị evict, container restart, apiserver
+nấc, hay gõ sai tên Service cũng cho `rc≠0`. Với 12 ô PASS lỗi đó ồn ào và tự lộ;
+với 9 ô BLOCK nó **im lặng** — tức đúng nửa có giá trị của script mang một kênh
+xanh-giả hệ thống.
+
+Sửa: chạy `sh -c 'nc …; echo RC=$?'` và parse `RC=`, để "nc bảo không nối được"
+tách khỏi "không chạy nổi nc". Thiếu `RC=` ⇒ ô báo **LỖI**, không báo BLOCK.
+
+### R3 — cột thời gian được TÍNH, được GIẢI THÍCH, rồi không bao giờ được KIỂM
+
+Bản đầu đo `dur`, viết hẳn một khối chú thích về việc nó phân biệt "bị thả" với
+"bị từ chối"… rồi chỉ **in** ra. Dựng xong cái phân biệt rồi bỏ đó không dùng.
+
+Sửa: ô BLOCK trả về dưới `TIMEOUT×0.9` bị đánh **LỆCH** kèm lý do — RST hoặc dịch
+vụ chết không phải là hàng rào.
+
+### Các phát hiện còn lại đã sửa
+
+| Phát hiện | Vì sao nó quan trọng | Sửa |
+|---|---|---|
+| `.subsets[0].addresses[0]` — chỉ endpoint apiserver ĐẦU TIÊN | Trên control-plane HA (3 địa chỉ) policy chỉ mở 1/3 mà ô VẪN xanh, vì probe đi đúng vào cái đã mở. Hỏng ~2/3 số lượt attach — "thỉnh thoảng lỗi", lớp khó quy nguyên nhân nhất | duyệt TẤT CẢ endpoint ở cả script verify lẫn script bật |
+| Cổng trong rule là `service.*Port`, không phải **containerPort** | Cùng lý lẽ post-DNAT tôi dùng cho apiserver: kube-proxy dịch sang `targetPort` TRƯỚC khi policy được đánh giá. Hôm nay hai số trùng nhau nên vô hại; đổi `service.publicPort` (hợp lệ — Service vẫn chạy vì `targetPort` là TÊN) sẽ giết cả ba chiều web↔gateway↔orchestrator với render sạch | helper hằng số cổng container + **cổng CI đối chiếu với `containerPort` trong deployment** |
+| Cổng datastore chỉ rẽ trên `datastore.enabled` | `datastore.enabled=true` + `postgres.enabled=false` (RDS ngoài + Redis trong cụm) là cấu hình hợp lệ, và bản đầu render một rule trỏ tới pod postgres **không tồn tại** ⇒ không bao giờ khớp, im lặng | vị từ theo TỪNG store, dùng lại đúng công thức `migrate-job.yaml` đã có |
+| Ba cổng chỉ kiểm "khác rỗng" | Mọi giá trị nguy hiểm đều khác rỗng. `nodeCidrs: [0.0.0.0/0]` mở 3 cổng cho toàn internet — **tệ hơn** ca rỗng, vì nó là một dòng tường minh người đọc sẽ tưởng là cố ý | thêm kiểm ĐỘ RỘNG: prefix < /16 ⇒ `fail` |
+| `webExternalEgress.except` không có cổng nào | `--set …except=null` ⇒ `except: null` ⇒ pod web được mở 0.0.0.0/0 **không loại trừ gì**, biến một lỗ SSRF thành đường vào mọi dịch vụ nội bộ | `fail` khi bật mà `except` rỗng |
+
+> **Một lỗi Helm kinh điển lộ ra khi vá:** `include` luôn trả về **string**, và
+> mọi chuỗi khác rỗng đều truthy — **kể cả `"false"`**. Helper
+> `netpolStoreInCluster` bản đầu phát ra `false`, nên mọi `if include …` gọi nó
+> đều đọc ra TRUE và ba cổng chặn rẽ nhầm nhánh trong im lặng. Bộ thử vế-ngược
+> bắt được (ô "postgres ngoài cụm" render được thay vì chết). Nay helper phát ra
+> `"true"` hoặc **chuỗi rỗng** — giá trị falsey duy nhất an toàn để trả từ `include`.
+
+### Chưa sửa, đã ghi
+
+- **Probe kubelet mở 3000/8083/8081 cho MỌI nguồn có IP node** — không riêng
+  kubelet: pod hostNetwork bất kỳ, tiến trình trên node, traffic bị SNAT về node.
+  Hai cổng đó phục vụ `/metrics` không authz. Vẫn **siết hơn trước 3.B** (trước
+  đó mọi pod đều tới được), nên là rủi ro tồn dư chứ không phải hồi quy — nhưng
+  chú thích cũ nói hẹp hơn thực tế và đã được sửa lại.
+- **`kubectl port-forward` tới postgres/redis/gateway:8082/orchestrator:9090 nay
+  không dùng được** (traffic đi từ netns của node). web:3000 vẫn được, nên hỏng
+  **bất đối xứng** và dễ chẩn nhầm thành lỗi Postgres. Đây là đường debug mà
+  chính `migrate-job.yaml` và thông báo `fail` của `web-deployment.yaml` chỉ dẫn.
+- **`k8s-app: kube-dns`** đúng trên kubeadm nhưng không phải mọi bản phân phối;
+  NodeLocal DNSCache (hostNetwork) không selector nào bắt được.
+- **`CHART` mặc định trỏ `~/dlp-chart-p3b`** trong `09-networkpolicy.sh` — cùng
+  họ với bẫy `~/dlp-deploy` đã cắn hai lần.
+
 ## Bảng ô AC
 
 | Ô | Kết quả | Bằng chứng |
 |---|---|---|
-| **B1** mọi chiều đúng mong đợi | ✅ | `netpol-verify.sh` **21/21** (12 thông + 9 chặn). Baseline trước khi áp: 9/9 ô BLOCK đều PASS ⇒ probe biết phát hiện đường mở |
-| **B2** pod lạ không chạm được datastore | ✅ | pod không nhãn release → postgres/redis **BLOCK** (20.3s = timeout DNS, tức egress bị chặn). Trước khi áp: **PASS**. Giới hạn label-based ghi rõ ở trên |
+| **B1** mọi chiều đúng mong đợi | ✅ | `netpol-verify.sh` **22/22** (13 thông + 9 chặn) sau vòng review. Baseline trước khi áp: 9/9 ô BLOCK đều PASS ⇒ probe biết phát hiện đường mở. Ô thứ 13 là ô đo **tiền đề post-DNAT** (probe apiserver QUA ClusterIP, 346ms) — tiền đề mà cả thiết kế ipBlock dựa vào và trước review chưa từng được đo |
+| **B2** pod lạ không chạm được datastore | ✅ | pod không nhãn release → postgres/redis **BLOCK 3410ms** khi probe bằng **ClusterIP** (TCP bị thả). Trước khi áp: **PASS**. Bản đầu probe theo TÊN và xanh vì DNS chết — xem R1. Giới hạn label-based ghi rõ ở trên |
 | **B3** sandbox vẫn bị cô lập | ✅ | `curl https://example.com` → exit 28; `curl 169.254.169.254` → exit 28; đối chứng dương: DNS trong pod vẫn resolve ⇒ pod không phải "chết mạng" |
 | **B4** harness e2e | ✅ | **14/14** sau default-deny, và **14/14 lần hai** với gateway vừa restart (cache JWKS rỗng ⇒ buộc tải thật qua mạng đã siết) |
 | **B5** seccomp | ✅ | `Seccomp: 2`/2 filters trên MỌI tiến trình pod sandbox kể cả `dockerd`, đo trên host. Hai đối chứng: PSA từ chối `Unconfined`; pod không khai profile đọc ra `Seccomp: 0` |

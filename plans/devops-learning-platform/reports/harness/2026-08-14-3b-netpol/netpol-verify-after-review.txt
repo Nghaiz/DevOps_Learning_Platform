@@ -1,0 +1,57 @@
+namespace=default  release=platform  timeout=3s
+apiserver endpoint (1): 192.168.94.130:6443   ClusterIP: 10.96.0.1
+datastore ClusterIP: postgres=10.97.23.243 redis=10.108.74.231 web=10.106.75.220
+dựng pod probe…
+
+── VẾ 1/2: các chiều BẮT BUỘC THÔNG ──────────────────────────────────────
+OK   web → gateway:8082 (chấm bài)             muốn=PASS  được=PASS     425ms
+OK   web → orchestrator:9090 (gRPC session)       muốn=PASS  được=PASS     430ms
+OK   web → postgres:5432 (Better Auth)            muốn=PASS  được=PASS     439ms
+OK   web → redis:6379                             muốn=PASS  được=PASS     390ms
+OK   gateway → web:3000 (JWKS)                    muốn=PASS  được=PASS     402ms
+OK   gateway → orchestrator:9090 (extend)         muốn=PASS  được=PASS     385ms
+OK   gateway → redis:6379 (authz phiên)          muốn=PASS  được=PASS     476ms
+OK   gateway → apiserver (pods/exec)              muốn=PASS  được=PASS     424ms
+OK   orchestrator → postgres:5432 (audit)         muốn=PASS  được=PASS     435ms
+OK   orchestrator → redis:6379 (pool)             muốn=PASS  được=PASS     474ms
+OK   orchestrator → apiserver (tạo/xoá pod)    muốn=PASS  được=PASS     402ms
+OK   migrate → postgres:5432 (helm hook)          muốn=PASS  được=PASS     457ms
+OK   gateway → apiserver QUA ClusterIP [tiền đề] muốn=PASS  được=PASS     356ms
+
+── VẾ 2/2: các chiều BẮT BUỘC BỊ CHẶN (vế làm cho vế trên có nghĩa) ──────
+OK   POD LẠ → postgres:5432   [AC-B2]           muốn=BLOCK được=BLOCK   3389ms
+OK   POD LẠ → redis:6379      [AC-B2]           muốn=BLOCK được=BLOCK   3390ms
+OK   POD LẠ → web:3000                          muốn=BLOCK được=BLOCK   3411ms
+OK   POD LẠ → apiserver                         muốn=BLOCK được=BLOCK   3399ms
+OK   gateway → postgres:5432 (không phận sự) muốn=BLOCK được=BLOCK   3372ms
+OK   migrate → redis:6379 (không phận sự)    muốn=BLOCK được=BLOCK   3490ms
+OK   orchestrator → web:3000 (không phận sự) muốn=BLOCK được=BLOCK   3383ms
+OK   web → apiserver (leo thang)                  muốn=BLOCK được=BLOCK   3418ms
+OK   web → internet 1.1.1.1:443                   muốn=BLOCK được=BLOCK   3357ms
+
+════════════════════════════════════════════════════════════════════════
+OK   | web → gateway:8082 (chấm bài)             | PASS  | PASS  |    425ms
+OK   | web → orchestrator:9090 (gRPC session)       | PASS  | PASS  |    430ms
+OK   | web → postgres:5432 (Better Auth)            | PASS  | PASS  |    439ms
+OK   | web → redis:6379                             | PASS  | PASS  |    390ms
+OK   | gateway → web:3000 (JWKS)                    | PASS  | PASS  |    402ms
+OK   | gateway → orchestrator:9090 (extend)         | PASS  | PASS  |    385ms
+OK   | gateway → redis:6379 (authz phiên)          | PASS  | PASS  |    476ms
+OK   | gateway → apiserver (pods/exec)              | PASS  | PASS  |    424ms
+OK   | orchestrator → postgres:5432 (audit)         | PASS  | PASS  |    435ms
+OK   | orchestrator → redis:6379 (pool)             | PASS  | PASS  |    474ms
+OK   | orchestrator → apiserver (tạo/xoá pod)    | PASS  | PASS  |    402ms
+OK   | migrate → postgres:5432 (helm hook)          | PASS  | PASS  |    457ms
+OK   | gateway → apiserver QUA ClusterIP [tiền đề] | PASS  | PASS  |    356ms
+OK   | POD LẠ → postgres:5432   [AC-B2]           | BLOCK | BLOCK |   3389ms
+OK   | POD LẠ → redis:6379      [AC-B2]           | BLOCK | BLOCK |   3390ms
+OK   | POD LẠ → web:3000                          | BLOCK | BLOCK |   3411ms
+OK   | POD LẠ → apiserver                         | BLOCK | BLOCK |   3399ms
+OK   | gateway → postgres:5432 (không phận sự) | BLOCK | BLOCK |   3372ms
+OK   | migrate → redis:6379 (không phận sự)    | BLOCK | BLOCK |   3490ms
+OK   | orchestrator → web:3000 (không phận sự) | BLOCK | BLOCK |   3383ms
+OK   | web → apiserver (leo thang)                  | BLOCK | BLOCK |   3418ms
+OK   | web → internet 1.1.1.1:443                   | BLOCK | BLOCK |   3357ms
+════════════════════════════════════════════════════════════════════════
+PASS-đúng-mong-đợi: 22    LỆCH: 0
+Mọi chiều khớp mong đợi.

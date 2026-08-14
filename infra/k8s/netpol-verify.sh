@@ -47,14 +47,33 @@ PROBE_PREFIX="netpol-probe"
 # Endpoint THẬT của apiserver — không phải ClusterIP. NetworkPolicy được đánh giá
 # sau DNAT nên đây mới là đích policy nhìn thấy (xem chú thích khối 2 của
 # templates/platform-networkpolicy.yaml).
-APISERVER="$(kubectl get endpoints kubernetes -n default \
-  -o jsonpath='{.subsets[0].addresses[0].ip}:{.subsets[0].ports[0].port}' 2>/dev/null)"
-if [[ -z "$APISERVER" || "$APISERVER" == ":" ]]; then
+#
+# ⛔ TẤT CẢ endpoint, KHÔNG PHẢI `addresses[0]`. Trên control-plane HA có 3 địa
+# chỉ và Service `kubernetes` xoay vòng cả ba. Chỉ kiểm cái đầu thì một policy
+# chỉ mở 1/3 VẪN cho ô xanh — probe đi đúng vào endpoint đã được mở — trong khi
+# gateway/orchestrator hỏng ~2/3 số lượt. Triệu chứng là "thỉnh thoảng không
+# attach được", lớp khó quy nguyên nhân nhất.
+mapfile -t API_IPS < <(kubectl get endpoints kubernetes -n default \
+  -o jsonpath='{range .subsets[*].addresses[*]}{.ip}{"\n"}{end}' 2>/dev/null | grep -v '^$')
+API_PORT="$(kubectl get endpoints kubernetes -n default \
+  -o jsonpath='{.subsets[0].ports[0].port}' 2>/dev/null)"
+if [[ ${#API_IPS[@]} -eq 0 || -z "$API_PORT" ]]; then
   echo "LỖI: không đọc được endpoint apiserver — không thể kiểm chiều quan trọng nhất." >&2
   exit 1
 fi
-API_HOST="${APISERVER%:*}"
-API_PORT="${APISERVER##*:}"
+API_HOST="${API_IPS[0]}"
+
+# ClusterIP của Service `kubernetes` — cho ô đo TIỀN ĐỀ post-DNAT (xem cuối vế 1).
+API_CLUSTER_IP="$(kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}')"
+
+# ⛔ ClusterIP của datastore: pod LẠ phải probe bằng IP, KHÔNG bằng TÊN.
+# Dưới `default-deny`, egress của pod lạ — KỂ CẢ DNS — bị chặn, nên một probe
+# theo tên chết ở khâu PHÂN GIẢI TÊN và ô vẫn ra "BLOCK": xanh vì lý do sai.
+# Xoá hẳn `allow-ingress-postgres` thì ô đó VẪN xanh, tức ô AC-B2 không đo thứ
+# nó tự nhận là đang đo. Probe theo IP bỏ được khâu DNS khỏi đường đi.
+PG_IP="$(kubectl get svc "${RELEASE}-postgres" -n "$NS" -o jsonpath='{.spec.clusterIP}' 2>/dev/null)"
+REDIS_IP="$(kubectl get svc "${RELEASE}-redis" -n "$NS" -o jsonpath='{.spec.clusterIP}' 2>/dev/null)"
+WEB_IP="$(kubectl get svc "${RELEASE}-web" -n "$NS" -o jsonpath='{.spec.clusterIP}' 2>/dev/null)"
 
 PASS=0
 FAIL=0
@@ -130,25 +149,56 @@ check() {
   local port="$4"
   local expect="$5"
   local name="${PROBE_PREFIX}-${suffix}"   # tách dòng — xem probe_pod
-  local start end dur rc got mark
+  local start end dur rc got mark out note
   start="$(date +%s%N)"
-  kubectl exec -n "$NS" "$name" -c probe -- \
-    nc -z -w "$TIMEOUT" "$host" "$port" >/dev/null 2>&1
-  rc=$?
+  # ⛔ TÁCH exit code của `nc` KHỎI exit code của `kubectl exec`.
+  # Gộp chúng thì pod bị evict, container restart, apiserver nấc, hay gõ sai tên
+  # Service đều cho `rc≠0` ⇒ đọc thành "BLOCK" ⇒ ô XANH. Với 12 ô PASS lỗi đó ồn
+  # ào và tự lộ; với 9 ô BLOCK nó IM LẶNG — tức đúng nửa CÓ GIÁ TRỊ của script
+  # mang một kênh xanh-giả hệ thống. In `RC=` từ TRONG pod rồi parse mới phân
+  # biệt được "nc bảo không nối được" với "không chạy nổi nc".
+  out="$(kubectl exec -n "$NS" "$name" -c probe -- \
+    sh -c "nc -z -w $TIMEOUT $host $port; echo RC=\$?" 2>/dev/null)"
   end="$(date +%s%N)"
   dur=$(( (end - start) / 1000000 ))
-  [[ $rc -eq 0 ]] && got="PASS" || got="BLOCK"
+  if [[ "$out" != *RC=* ]]; then
+    ROWS+=("$(printf 'LỖI | %-46s | %-5s | exec hỏng — không kết luận | %6sms' "$desc" "$expect" "$dur")")
+    printf 'LỖI %-46s kubectl exec hỏng — KHÔNG kết luận được (KHÔNG tính là BLOCK)\n' "$desc"
+    FAIL=$((FAIL + 1))
+    return
+  fi
+  rc="${out##*RC=}"
+  rc="${rc//[$'\r\n ']/}"
+  [[ "$rc" == "0" ]] && got="PASS" || got="BLOCK"
 
+  note=""
   if [[ "$got" == "$expect" ]]; then
     mark="OK  "; PASS=$((PASS + 1))
   else
     mark="LỆCH"; FAIL=$((FAIL + 1))
   fi
-  ROWS+=("$(printf '%s | %-46s | %-5s | %-5s | %6sms' "$mark" "$desc" "$expect" "$got" "$dur")")
-  printf '%s %-46s muốn=%-5s được=%-5s %6sms\n' "$mark" "$desc" "$expect" "$got" "$dur"
+  # ⛔ KHẲNG ĐỊNH trên cột thời gian, không chỉ IN nó ra.
+  # Bản đầu tính đúng `dur`, giải thích đúng ý nghĩa của nó ở đầu file, rồi
+  # KHÔNG kiểm bao giờ — dựng một cái phân biệt xong bỏ đó không dùng. Bị policy
+  # CHẶN = gói bị THẢ = chờ hết timeout. Một ô BLOCK trả về sau <1s là bị TỪ
+  # CHỐI (RST) hoặc dịch vụ đã chết — đó KHÔNG phải hàng rào, nên phải ĐỎ.
+  if [[ "$got" == "BLOCK" && "$expect" == "BLOCK" && $dur -lt $((TIMEOUT * 900)) ]]; then
+    mark="LỆCH"
+    note="  ← BLOCK quá NHANH (${dur}ms): RST/dịch vụ chết, KHÔNG phải policy thả gói"
+    PASS=$((PASS - 1)); FAIL=$((FAIL + 1))
+  fi
+  ROWS+=("$(printf '%s | %-46s | %-5s | %-5s | %6sms%s' "$mark" "$desc" "$expect" "$got" "$dur" "$note")")
+  printf '%s %-46s muốn=%-5s được=%-5s %6sms%s\n' "$mark" "$desc" "$expect" "$got" "$dur" "$note"
 }
 
-echo "namespace=$NS  release=$RELEASE  apiserver=$APISERVER  timeout=${TIMEOUT}s"
+echo "namespace=$NS  release=$RELEASE  timeout=${TIMEOUT}s"
+echo "apiserver endpoint (${#API_IPS[@]}): ${API_IPS[*]}:${API_PORT}   ClusterIP: ${API_CLUSTER_IP}"
+echo "datastore ClusterIP: postgres=${PG_IP:-<không có>} redis=${REDIS_IP:-<không có>} web=${WEB_IP:-<không có>}"
+# Pod lạ probe bằng IP — thiếu IP thì ô AC-B2 sẽ xanh vì lý do sai, nên dừng hẳn.
+if [[ -z "$PG_IP" || -z "$REDIS_IP" || -z "$WEB_IP" ]]; then
+  echo "LỖI: thiếu ClusterIP của datastore/web ⇒ ô AC-B2 sẽ không đo được thứ nó nhận là đang đo." >&2
+  exit 1
+fi
 echo "dựng pod probe…"
 probe_pod web web           || exit 1
 probe_pod gw gateway        || exit 1
@@ -173,13 +223,44 @@ check "orchestrator → postgres:5432 (audit)"    orch "${RELEASE}-postgres"    
 check "orchestrator → redis:6379 (pool)"        orch "${RELEASE}-redis"        6379 PASS
 check "orchestrator → apiserver (tạo/xoá pod)"  orch "$API_HOST"        "$API_PORT" PASS
 check "migrate → postgres:5432 (helm hook)"     migrate "${RELEASE}-postgres"  5432 PASS
+# ⛔ Ô ĐO TIỀN ĐỀ, không đo một chiều nghiệp vụ nào.
+# Cả thiết kế `allow-egress-apiserver` (dùng ipBlock IP-node thay vì selector)
+# dựa trên MỘT tiền đề: NetworkPolicy được đánh giá SAU khi kube-proxy DNAT.
+# Tiền đề đó được khẳng định ở chart, ở values, ở 09-networkpolicy.sh — và
+# TRƯỚC ô này thì chưa từng được ĐO. Các ô apiserver khác probe thẳng IP node
+# nên chúng xanh ở cả hai giả thuyết, y hệt bẫy "0 dòng log" của 3.A.
+# Ở đây probe qua ClusterIP: gateway thật cũng dial ClusterIP (rest.InClusterConfig).
+#   xanh nhanh  ⇒ post-DNAT, tiền đề đúng.
+#   BLOCK ~3s   ⇒ PRE-DNAT: rule apiserver KHÔNG BAO GIỜ khớp, và gateway/
+#                 orchestrator đang sống nhờ may chứ không nhờ policy.
+check "gateway → apiserver QUA ClusterIP [tiền đề]" gw "$API_CLUSTER_IP" 443 PASS
+# Mọi endpoint apiserver, không riêng cái đầu (xem chú thích API_IPS).
+for _ip in "${API_IPS[@]:1}"; do
+  check "gateway → apiserver $_ip (HA)"          gw   "$_ip"          "$API_PORT" PASS
+done
 echo
 
 echo "── VẾ 2/2: các chiều BẮT BUỘC BỊ CHẶN (vế làm cho vế trên có nghĩa) ──────"
 # AC-B2: pod LẠ trong chính namespace nền tảng không được chạm datastore.
-check "POD LẠ → postgres:5432   [AC-B2]"        stray "${RELEASE}-postgres"    5432 BLOCK
-check "POD LẠ → redis:6379      [AC-B2]"        stray "${RELEASE}-redis"       6379 BLOCK
-check "POD LẠ → web:3000"                       stray "${RELEASE}-web"         3000 BLOCK
+#
+# ⛔ PROBE BẰNG ClusterIP, KHÔNG BẰNG TÊN — và đây là một bản vá sau review.
+# Bản đầu probe theo tên Service. Dưới `default-deny`, egress của pod lạ (kể cả
+# UDP/53) bị chặn, nên request chết ở khâu PHÂN GIẢI TÊN chứ không ở hàng rào
+# đang được kiểm — ô vẫn "BLOCK", vẫn xanh, và sẽ CÒN xanh cả khi
+# `allow-ingress-postgres` bị xoá sạch. Dấu hiệu đã hiện ra trong số đo mà tôi
+# đọc nhầm thành tin tốt: 3.4s (pha allow) vọt lên 20.3s (pha deny) — 20s là
+# timeout DNS, không phải timeout TCP.
+#
+# Điều hai pha thật sự đo, sau khi bỏ DNS khỏi đường đi:
+#   · pha ALLOW (chưa deny): pod lạ egress tự do ⇒ ô này đo ĐÚNG `allow-ingress-*`
+#     của đích.
+#   · pha DENY: pod lạ bị chặn ở EGRESS của chính nó ⇒ ô đo default-deny, còn
+#     `allow-ingress-*` lúc này là phòng thủ chiều sâu và KHÔNG tách riêng được
+#     bằng bất kỳ probe nào (mọi pod có egress tới postgres đều nằm trong danh
+#     sách ingress của postgres). Ghi ra thay vì giả vờ ô này đo cả hai.
+check "POD LẠ → postgres:5432   [AC-B2]"        stray "$PG_IP"                 5432 BLOCK
+check "POD LẠ → redis:6379      [AC-B2]"        stray "$REDIS_IP"              6379 BLOCK
+check "POD LẠ → web:3000"                       stray "$WEB_IP"                3000 BLOCK
 check "POD LẠ → apiserver"                      stray "$API_HOST"       "$API_PORT" BLOCK
 # Phân quyền ngang: gateway/migrate không có việc gì với các đích này.
 check "gateway → postgres:5432 (không phận sự)" gw   "${RELEASE}-postgres"     5432 BLOCK

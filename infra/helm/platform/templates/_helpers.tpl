@@ -135,19 +135,55 @@ datastore chuyển vào/ra khỏi cụm; ba khối chép tay là ba cơ hội đ
 quên, và cái bị quên sẽ render ra một rule KHÔNG BAO GIỜ KHỚP (podSelector trỏ
 tới pod không tồn tại) — hợp lệ với apiserver, im lặng với người đọc.
 */}}
+{{- /*
+⛔ QUYẾT ĐỊNH THEO TỪNG STORE, KHÔNG THEO MỖI `datastore.enabled`.
+Bản đầu chỉ rẽ nhánh trên `datastore.enabled`, và review đã chứng minh nó hỏng ở
+một cấu hình hoàn toàn hợp lý: RDS ngoài cụm + Redis trong cụm, tức
+`datastore.enabled=true` nhưng `datastore.postgres.enabled=false`. Lúc đó nhánh
+"trong cụm" render một rule trỏ `podSelector: component=postgres` — mà KHÔNG CÓ
+pod postgres nào tồn tại ⇒ rule KHÔNG BAO GIỜ khớp, hợp lệ với apiserver, im
+lặng với người đọc, và web mất Better Auth. `migrate-job.yaml` đã tính đúng vị
+từ này từ trước (`and datastore.enabled datastore.<store>.enabled`); ở đây dùng
+lại đúng vị từ đó thay vì phát minh một cái lỏng hơn.
+*/}}
+{{- /*
+⛔ PHÁT RA "true" HOẶC CHUỖI RỖNG — KHÔNG PHÁT RA "false".
+`include` luôn trả về STRING, và trong template Go mọi chuỗi khác rỗng đều
+TRUTHY — kể cả chuỗi "false". Bản đầu của helper này phát ra `false` và mọi
+`{{ if include … }}` / `{{ if not (include …) }}` gọi nó đều đọc ra TRUE, nên ba
+cổng chặn và hai policy ingress đều rẽ nhầm nhánh trong im lặng. Bộ thử vế-ngược
+là thứ bắt được (cổng "postgres ngoài cụm" render được thay vì chết).
+Chuỗi rỗng là giá trị falsey DUY NHẤT an toàn để trả về từ `include`.
+*/}}
+{{- define "platform.netpolStoreInCluster" -}}
+{{- $ctx := .context -}}
+{{- if eq .store "postgres" -}}
+{{- if and $ctx.Values.datastore.enabled $ctx.Values.datastore.postgres.enabled }}true{{ end -}}
+{{- else -}}
+{{- if and $ctx.Values.datastore.enabled $ctx.Values.datastore.redis.enabled }}true{{ end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "platform.netpolStorePort" -}}
+{{- if eq .store "postgres" }}5432{{ else }}6379{{ end -}}
+{{- end -}}
+
 {{- define "platform.netpolDatastoreEgress" -}}
 {{- $ctx := .context -}}
-{{- if $ctx.Values.datastore.enabled }}
-{{- range .stores }}
+{{- range $store := .stores }}
+{{- $port := include "platform.netpolStorePort" (dict "store" $store) -}}
+{{- if include "platform.netpolStoreInCluster" (dict "context" $ctx "store" $store) }}
 - to:
     - podSelector:
-        {{- include "platform.netpolComponent" (dict "context" $ctx "component" .) | nindent 8 }}
+        {{- include "platform.netpolComponent" (dict "context" $ctx "component" $store) | nindent 8 }}
   ports:
     - protocol: TCP
-      port: {{ if eq . "postgres" }}5432{{ else }}6379{{ end }}
-{{- end }}
+      port: {{ $port }}
 {{- else }}
+{{- /* Ngoài cụm: chỉ lấy các endpoint khai đúng CỔNG của store này, để một
+       entry Redis không vô tình mở đường tới cổng Postgres và ngược lại. */}}
 {{- range $ctx.Values.networkPolicy.platform.datastoreExternalEgress }}
+{{- if eq (toString .port) $port }}
 - to:
     - ipBlock:
         cidr: {{ .cidr }}
@@ -156,7 +192,21 @@ tới pod không tồn tại) — hợp lệ với apiserver, im lặng với ng
       port: {{ .port }}
 {{- end }}
 {{- end }}
+{{- end }}
+{{- end }}
 {{- end -}}
+
+
+{{/*
+Cổng CONTAINER (không phải Service port) của gateway/orchestrator — xem chú thích
+đầu platform-networkpolicy.yaml. Đặt thành helper để NetworkPolicy và mọi nơi
+khác dùng CÙNG một hằng số, và để CI có một tên cụ thể để đối chiếu với
+`containerPort` trong deployment.
+*/}}
+{{- define "platform.gatewayPublicContainerPort" -}}8082{{- end -}}
+{{- define "platform.gatewayAdminContainerPort" -}}8083{{- end -}}
+{{- define "platform.orchestratorHttpContainerPort" -}}8081{{- end -}}
+{{- define "platform.orchestratorGrpcContainerPort" -}}9090{{- end -}}
 
 {{/*
 Tên Secret chứa CA + 3 cert mTLS gRPC (1.C-4).

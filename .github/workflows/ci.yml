@@ -589,7 +589,29 @@ jobs:
           must_fail 'datastore ngoài cụm mà không khai endpoint' 'datastoreExternalEgress RỖNG' \
             --set datastore.enabled=false "${netpol[@]}"
 
-          echo 'OK: netpol render đúng ở cả 3 nhánh, và 3 cổng chặn cấu hình đều bắn đúng lý do.'
+          echo '--- hằng số cổng CONTAINER phải khớp containerPort trong deployment ---'
+          # NetworkPolicy được đánh giá SAU DNAT nên nó phải nói về cổng CONTAINER,
+          # không phải `service.*Port`. Hai giá trị đó hôm nay TRÙNG nhau, nên nếu
+          # ai đó đổi containerPort mà quên helper (hoặc ngược lại) thì mọi rule
+          # web↔gateway↔orchestrator trỏ sai cổng — `helm template` sạch, pod
+          # Running 1/1, và cả ba chiều chết cùng lúc. Đối chiếu trực tiếp ở đây.
+          check_port() { # $1=helper  $2=file  $3=tên port
+            local want got
+            want=$(helm template platform infra/helm/platform "${common[@]}" \
+              --show-only "templates/$2" 2>/dev/null \
+              | grep -A1 "name: $3$" | grep -oE 'containerPort: [0-9]+' | grep -oE '[0-9]+' | head -1)
+            got=$(grep -oE "define \"$1\" -}}[0-9]+" infra/helm/platform/templates/_helpers.tpl \
+              | grep -oE '[0-9]+$')
+            [ -n "$want" ] && [ -n "$got" ] || { echo "không đọc được cổng cho $1 (want='$want' got='$got')"; exit 1; }
+            [ "$want" = "$got" ] || { echo "LỆCH: $1=$got nhưng containerPort '$3'=$want trong $2"; exit 1; }
+            echo "  OK  $1 = $got khớp containerPort $3"
+          }
+          check_port platform.gatewayPublicContainerPort    gateway-deployment.yaml      public
+          check_port platform.gatewayAdminContainerPort     gateway-deployment.yaml      admin
+          check_port platform.orchestratorHttpContainerPort orchestrator-deployment.yaml http
+          check_port platform.orchestratorGrpcContainerPort orchestrator-deployment.yaml grpc
+
+          echo 'OK: netpol render đúng ở cả 3 nhánh, 3 cổng chặn cấu hình bắn đúng lý do, hằng số cổng khớp containerPort.'
 
       - name: shellcheck (infra/host/*.sh)
         uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0

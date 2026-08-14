@@ -45,7 +45,7 @@ PREFIX = "platform-"
 # hợp lệ không": ở 3.A, cổng chỉ kiểm một chiều (mọi tham chiếu đều khớp một
 # định nghĩa có thật) và vì thế cho qua 4/6 kiểu hỏng — trong đó có kiểu GỠ HẲN
 # một rule. Thiếu một policy là một chiều mất hàng rào, và không gì khác báo.
-EXPECTED_ALLOW = {
+EXPECTED_ALLOW_BASE = {
     "allow-egress-dns",
     "allow-egress-apiserver",
     "allow-egress-web",
@@ -55,10 +55,15 @@ EXPECTED_ALLOW = {
     "allow-ingress-web",
     "allow-ingress-gateway",
     "allow-ingress-orchestrator",
-    "allow-ingress-postgres",
-    "allow-ingress-redis",
     "allow-ingress-kubelet-probes",
 }
+
+# Ingress của datastore chỉ render khi store đó chạy TRONG cụm — với RDS/
+# ElastiCache thì không có pod nào ở đây để bảo vệ. Nên tập mong đợi phụ thuộc
+# cấu hình, và người gọi phải KHAI ra thay vì để cổng đoán: `--stores postgres,redis`
+# (mặc định). Khai sai sẽ làm cổng đỏ, đó là chủ ý — một tập "co giãn theo thực
+# tế" thì không gác được gì.
+STORE_INGRESS = {"postgres": "allow-ingress-postgres", "redis": "allow-ingress-redis"}
 DENY_NAME = "default-deny"
 
 # Policy sandbox (P1) — 3.B KHÔNG được đụng vào. Kiểm sự có mặt của chúng ở đây
@@ -149,15 +154,25 @@ def check_rules(where, rules, peer_key):
 
 
 def main():
-    argv = set(sys.argv[1:])
+    args = sys.argv[1:]
+    argv = set(args)
     expect_deny = "--expect-deny" in argv
     expect_none = "--expect-none" in argv
+    stores = ["postgres", "redis"]
+    if "--stores" in args:
+        raw = args[args.index("--stores") + 1]
+        stores = [x for x in raw.split(",") if x]
+        unknown = set(stores) - set(STORE_INGRESS)
+        if unknown:
+            print(f"LỖI: --stores không nhận {sorted(unknown)}", file=sys.stderr)
+            return 2
+    expected_allow = set(EXPECTED_ALLOW_BASE) | {STORE_INGRESS[x] for x in stores}
 
     docs = [d for d in yaml.safe_load_all(sys.stdin.read()) if d]
     netpols = [d for d in docs if d.get("kind") == "NetworkPolicy"]
 
     names = {np.get("metadata", {}).get("name", "<không tên>") for np in netpols}
-    platform_names = {short(n) for n in names} & (EXPECTED_ALLOW | {DENY_NAME})
+    platform_names = {short(n) for n in names} & (set(STORE_INGRESS.values()) | EXPECTED_ALLOW_BASE | {DENY_NAME})
     sandbox_present = {short(n) for n in names} & EXPECTED_SANDBOX
 
     # ── Nhánh "phải KHÔNG render gì" (mặc định của chart: enabled=false) ──────
@@ -175,7 +190,7 @@ def main():
         return finish()
 
     # ── Tập policy phải KHỚP CHÍNH XÁC ───────────────────────────────────────
-    want = set(EXPECTED_ALLOW) | ({DENY_NAME} if expect_deny else set())
+    want = set(expected_allow) | ({DENY_NAME} if expect_deny else set())
     if platform_names != want:
         err(
             f"tập policy LỆCH. thiếu={sorted(want - platform_names)} "
@@ -192,7 +207,7 @@ def main():
     # ── Từng policy ──────────────────────────────────────────────────────────
     for np in netpols:
         sname = short(np.get("metadata", {}).get("name", "<không tên>"))
-        if sname not in (EXPECTED_ALLOW | {DENY_NAME}):
+        if sname not in (expected_allow | {DENY_NAME}):
             continue  # policy sandbox: thuộc P1, ngoài phạm vi cổng này
         spec = np.get("spec") or {}
         ptypes = spec.get("policyTypes") or []

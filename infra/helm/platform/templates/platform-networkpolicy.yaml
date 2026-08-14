@@ -50,6 +50,18 @@ chưa ai dùng là nới quyền không có lý do. Ai bật đường dial-th�
 lai PHẢI thêm egress ở file này — rule ingress bên kia một mình là không đủ.
 ═══════════════════════════════════════════════════════════════════════════════
 */}}
+{{- /*
+⛔ CỔNG TRONG CÁC RULE DƯỚI ĐÂY LÀ **containerPort**, KHÔNG PHẢI `service.*Port`.
+Cùng một lý lẽ post-DNAT đã dùng cho apiserver, áp cho MỌI đích: kube-proxy dịch
+`Service.port` sang `targetPort` TRƯỚC khi policy được đánh giá, nên thứ policy
+nhìn thấy là cổng CONTAINER. Bản đầu dùng `.Values.gateway.service.publicPort`
+và `.Values.orchestrator.service.{grpc,http}Port`; hôm nay chúng TRÙNG cổng
+container nên không ai thấy gì, nhưng đổi `service.publicPort` (một thay đổi
+hoàn toàn hợp lệ — Service vẫn hoạt động nhờ `targetPort` là TÊN) sẽ làm mọi
+rule đó trỏ sai cổng và toàn bộ chiều web↔gateway↔orchestrator chết cùng lúc,
+với `helm template` sạch và pod `Running 1/1`.
+Cổng CI khẳng định các hằng số này khớp `containerPort` trong deployment.
+*/}}
 {{- $ns := .Release.Namespace }}
 {{- $np := .Values.networkPolicy.platform }}
 {{- /*
@@ -78,8 +90,50 @@ gắn nhầm vào `denyEnabled`. Lý do sửa nằm ngay ở chú thích đầu 
 {{- if not $np.nodeCidrs }}
   {{- fail "networkPolicy.platform.enabled=true nhưng nodeCidrs RỖNG — rule probe sẽ render với `from:` rỗng, mà `from` rỗng trong NetworkPolicy nghĩa là KHỚP MỌI NGUỒN: cổng 3000/8083/8081 mở cho tất cả, phá đúng ba policy ingress vừa dựng. Đây là hỏng theo hướng NỚI LỎNG nên không có gì đỏ để nhìn. Lấy giá trị: kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type==\"InternalIP\")].address}' (probe kubelet đi từ IP NODE, không từ pod)." }}
 {{- end }}
-{{- if and (not .Values.datastore.enabled) (not $np.datastoreExternalEgress) }}
-  {{- fail "datastore.enabled=false (Postgres/Redis là dịch vụ QUẢN LÝ ngoài cụm — mặc định của values.yaml và của hồ sơ cloud) nhưng networkPolicy.platform.datastoreExternalEgress RỖNG. Các rule datastore ghim theo podSelector, mà ngoài cụm thì KHÔNG có pod nào để ghim ⇒ `egress:` của orchestrator/migrate rỗng ⇒ mất đường tới DB. Khai endpoint thật (RDS/ElastiCache/CloudSQL) dạng {cidr, port}, hoặc đặt datastore.enabled=true nếu DB chạy trong cụm." }}
+{{- /*
+Datastore: kiểm THEO TỪNG STORE. `datastore.enabled` một mình là vị từ SAI —
+`datastore.enabled=true` + `datastore.postgres.enabled=false` (RDS ngoài + Redis
+trong cụm) là cấu hình hợp lệ và bản đầu của cổng này cho nó lọt.
+*/}}
+{{- range $store := (list "postgres" "redis") }}
+  {{- $port := include "platform.netpolStorePort" (dict "store" $store) }}
+  {{- if not (include "platform.netpolStoreInCluster" (dict "context" $ "store" $store)) }}
+    {{- $found := false }}
+    {{- range $.Values.networkPolicy.platform.datastoreExternalEgress }}
+      {{- if eq (toString .port) $port }}{{ $found = true }}{{ end }}
+    {{- end }}
+    {{- if not $found }}
+      {{- fail (printf "%s nằm NGOÀI cụm (datastore.enabled=%v, datastore.%s.enabled=%v) nhưng networkPolicy.platform.datastoreExternalEgress KHÔNG có entry nào cổng %s. Rule datastore ghim theo podSelector, mà ngoài cụm thì không có pod để ghim ⇒ web/orchestrator/migrate mất đường tới %s: Better Auth chết, và lượt `helm upgrade` kế tiếp treo ở hook migrate. Khai endpoint thật dạng {cidr: <ip>/32, port: %s}, hoặc bật datastore.%s.enabled nếu nó chạy trong cụm." $store $.Values.datastore.enabled $store (index $.Values.datastore $store).enabled $port $store $port $store) }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- /*
+⛔ CÁC CỔNG TRÊN CHỈ KIỂM "KHÁC RỖNG" — chưa đủ, vì mọi giá trị NGUY HIỂM đều
+khác rỗng. `nodeCidrs: [0.0.0.0/0]` render ra một rule mở cổng 3000/8083/8081
+cho TOÀN BỘ internet, và nó còn tệ hơn ca `from` rỗng mà thông báo ở trên mô tả:
+lần này nó là một dòng tường minh mà người đọc sẽ tưởng là cố ý.
+Nên kiểm luôn ĐỘ RỘNG: prefix ngắn hơn /16 ở đây gần như chắc chắn là nhầm.
+*/}}
+{{- range $cidr := (concat $np.nodeCidrs (list)) }}
+  {{- $prefix := int (last (splitList "/" (toString $cidr))) }}
+  {{- if lt $prefix 16 }}
+    {{- fail (printf "networkPolicy.platform.nodeCidrs chứa %s — prefix /%d là một dải KHỔNG LỒ, và rule probe sẽ mở cổng 3000/8083/8081 cho toàn bộ dải đó. nodeCidrs phải là IP NODE (thường /32). Nếu thật sự cần dải rộng thì đó là một quyết định phải ghi ra, không phải một giá trị gõ vội." $cidr $prefix) }}
+  {{- end }}
+{{- end }}
+{{- range $ep := $np.apiServerEndpoints }}
+  {{- $prefix := int (last (splitList "/" (toString $ep.cidr))) }}
+  {{- if lt $prefix 16 }}
+    {{- fail (printf "networkPolicy.platform.apiServerEndpoints chứa %s — prefix /%d cho gateway+orchestrator egress không giới hạn trên cổng %v. Phải là IP endpoint apiserver (/32)." $ep.cidr $prefix $ep.port) }}
+  {{- end }}
+{{- end }}
+{{- /*
+webExternalEgress: bản đầu KHÔNG có cổng nào, nên `--set …except=null` render ra
+`except: null` và apiserver hiểu là "không loại trừ gì" — tức toàn bộ lý lẽ an
+toàn của khối đó (giữ các dải nội bộ ngoài tầm) bốc hơi bằng một `--set`, mà
+không gì báo.
+*/}}
+{{- if and $np.webExternalEgress.enabled (not $np.webExternalEgress.except) }}
+  {{- fail "networkPolicy.platform.webExternalEgress.enabled=true nhưng `except` RỖNG ⇒ pod web (pod đứng NGAY TRƯỚC người dùng) được mở egress tới 0.0.0.0/0 KHÔNG loại trừ gì, kể cả dải nội bộ của chính cụm — biến một lỗ SSRF bất kỳ ở web thành đường vào mọi dịch vụ nội bộ. Giữ ít nhất các dải link-local/service/pod/node." }}
 {{- end }}
 {{- /*
 Ba helper dùng ở dưới (`platform.netpolRelease`, `platform.netpolComponents`,
@@ -190,13 +244,13 @@ spec:
             {{- include "platform.netpolComponent" (dict "context" . "component" "gateway") | nindent 14 }}
       ports:
         - protocol: TCP
-          port: {{ .Values.gateway.service.publicPort }}
+          port: {{ include "platform.gatewayPublicContainerPort" . }}
     - to:
         - podSelector:
             {{- include "platform.netpolComponent" (dict "context" . "component" "orchestrator") | nindent 14 }}
       ports:
         - protocol: TCP
-          port: {{ .Values.orchestrator.service.grpcPort }}
+          port: {{ include "platform.orchestratorGrpcContainerPort" . }}
     {{- include "platform.netpolDatastoreEgress" (dict "context" . "stores" (list "postgres" "redis")) | nindent 4 }}
 {{- if $np.webExternalEgress.enabled }}
     # ── Egress RA NGOÀI CỤM cho web — MẶC ĐỊNH TẮT ──────────────────────────
@@ -256,7 +310,7 @@ spec:
             {{- include "platform.netpolComponent" (dict "context" . "component" "orchestrator") | nindent 14 }}
       ports:
         - protocol: TCP
-          port: {{ .Values.orchestrator.service.grpcPort }}
+          port: {{ include "platform.orchestratorGrpcContainerPort" . }}
     {{- include "platform.netpolDatastoreEgress" (dict "context" . "stores" (list "redis")) | nindent 4 }}
 ---
 # ─────────────────────────────────────────────────────────────────────────────
@@ -370,7 +424,7 @@ spec:
             {{- include "platform.netpolComponent" (dict "context" . "component" "web") | nindent 12 }}
       ports:
         - protocol: TCP
-          port: {{ .Values.gateway.service.publicPort }}
+          port: {{ include "platform.gatewayPublicContainerPort" . }}
 ---
 # ─────────────────────────────────────────────────────────────────────────────
 # 9. INGRESS vào orchestrator — CHỈ từ web và gateway, CHỈ cổng gRPC.
@@ -396,8 +450,8 @@ spec:
             {{- include "platform.netpolComponents" (dict "context" . "components" (list "web" "gateway")) | nindent 12 }}
       ports:
         - protocol: TCP
-          port: {{ .Values.orchestrator.service.grpcPort }}
-{{- if .Values.datastore.enabled }}
+          port: {{ include "platform.orchestratorGrpcContainerPort" . }}
+{{- if include "platform.netpolStoreInCluster" (dict "context" . "store" "postgres") }}
 ---
 # ─────────────────────────────────────────────────────────────────────────────
 # 10. INGRESS vào datastore — ĐÂY LÀ Ô AC-B2.
@@ -436,6 +490,8 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+{{- end }}
+{{- if include "platform.netpolStoreInCluster" (dict "context" . "store" "redis") }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -501,7 +557,7 @@ spec:
         - protocol: TCP
           port: 8083
         - protocol: TCP
-          port: {{ .Values.orchestrator.service.httpPort }}
+          port: {{ include "platform.orchestratorHttpContainerPort" . }}
 {{- if $np.denyEnabled }}
 ---
 # ─────────────────────────────────────────────────────────────────────────────
