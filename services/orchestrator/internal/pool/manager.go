@@ -417,7 +417,7 @@ func (m *Manager) waitReady(ctx context.Context, name string) error {
 	}
 }
 
-// observeSizes cập nhật hai gauge. Lỗi đọc chỉ log Debug: một gauge lệch không
+// observeSizes cập nhật ba gauge. Lỗi đọc chỉ log Debug: một gauge lệch không
 // đáng làm vòng replenish rẽ nhánh, còn nuốt hoàn toàn thì không ai biết vì sao
 // dashboard đứng hình.
 func (m *Manager) observeSizes(ctx context.Context) {
@@ -430,5 +430,10 @@ func (m *Manager) observeSizes(ctx context.Context) {
 		m.met.PoolQuarantineSize.Set(float64(n))
 	} else {
 		m.log.Debug("không đọc được LLEN pool:quarantine", slog.String("err", err.Error()))
+	}
+	if n, err := m.rdb.LLen(ctx, rediskeys.PoolClaimed).Result(); err == nil {
+		m.met.PoolClaimedSize.Set(float64(n))
+	} else {
+		m.log.Debug("không đọc được LLEN pool:claimed", slog.String("err", err.Error()))
 	}
 }

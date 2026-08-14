@@ -608,7 +608,24 @@ jobs:
           printf '%s' "$out" | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
             -ignore-missing-schemas -kubernetes-version 1.34.0 -
 
-          echo '--- vế NGƯỢC: sáu cổng chặn cấu hình PHẢI làm chart chết ---'
+          echo '--- chiều scrape Prometheus (3.D) — nhánh opt-in ---'
+          # Không bộ values nào bật metricsScrape, nên nếu không có bước này CI
+          # sẽ KHÔNG BAO GIỜ render hai policy đó — đúng khoảng mù mà 3.A và 3.B
+          # đều đã phải vá một lần.
+          helm template platform infra/helm/platform "${common[@]}" "${netpol[@]}" \
+            --set networkPolicy.platform.metricsScrape.enabled=true | gate --metrics-scrape
+
+          # Vế NGƯỢC của chính cổng vừa chạy: cùng bản render ấy, nhưng KHÔNG
+          # khai --metrics-scrape thì phải ĐỎ. Thiếu vế này thì `--metrics-scrape`
+          # có thể là một cờ không làm gì cả, và ta không phân biệt được.
+          if helm template platform infra/helm/platform "${common[@]}" "${netpol[@]}" \
+               --set networkPolicy.platform.metricsScrape.enabled=true | gate >/dev/null 2>&1; then
+            echo '::error::hai policy scrape render mà cổng vẫn xanh khi không khai --metrics-scrape — cổng đang mù với policy tên MỚI.'
+            exit 1
+          fi
+          echo '  OK  policy scrape lạ bị bắt khi không được khai'
+
+          echo '--- vế NGƯỢC: bảy cổng chặn cấu hình PHẢI làm chart chết ---'
           # Một cổng chỉ kiểm "đường đúng vẫn chạy" sẽ xanh cả sau khi ai đó gỡ
           # mất chính cổng đó. Sáu ca dưới đây đều là cấu hình HỎNG THEO HƯỚNG
           # KHÔNG CÓ TRIỆU CHỨNG, nên chúng phải chết lúc render.
@@ -646,6 +663,10 @@ jobs:
             "${netpol[@]}" \
             --set networkPolicy.platform.webExternalEgress.enabled=true \
             --set 'networkPolicy.platform.webExternalEgress.except=null'
+          must_fail netpol:E-MONITORING-NS-EMPTY 'bật scrape mà không khai namespace monitoring' \
+            "${netpol[@]}" \
+            --set networkPolicy.platform.metricsScrape.enabled=true \
+            --set 'networkPolicy.platform.metricsScrape.namespace=null'
 
           # Guard nào chưa ai bắn thử thì chưa ai chứng minh là nó gác. Đối
           # chiếu tập mã trong template với tập mã vừa bắn — thêm guard mới mà

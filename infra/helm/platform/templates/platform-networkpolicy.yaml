@@ -136,6 +136,17 @@ không gì báo.
   {{- fail "[netpol:E-WEB-EXCEPT-EMPTY] networkPolicy.platform.webExternalEgress.enabled=true nhưng `except` RỖNG ⇒ pod web (pod đứng NGAY TRƯỚC người dùng) được mở egress tới 0.0.0.0/0 KHÔNG loại trừ gì, kể cả dải nội bộ của chính cụm — biến một lỗ SSRF bất kỳ ở web thành đường vào mọi dịch vụ nội bộ. Giữ ít nhất các dải link-local/service/pod/node." }}
 {{- end }}
 {{- /*
+metricsScrape: hỏng theo hướng ĐÓNG và IM LẶNG, nên vẫn cần cổng chặn.
+`namespace` rỗng ⇒ matchLabels sinh ra `kubernetes.io/metadata.name: ""`, mà
+không namespace nào mang nhãn giá trị rỗng ⇒ rule khớp KHÔNG GÌ CẢ. Vì
+NetworkPolicy cộng dồn (OR), một rule khớp rỗng không làm gì đỏ — nó chỉ lặng lẽ
+không mở đường, và triệu chứng duy nhất là `up == 0` ở Prometheus, thứ rất dễ
+đọc nhầm thành "target chưa cài xong".
+*/}}
+{{- if and $np.metricsScrape.enabled (not $np.metricsScrape.namespace) }}
+  {{- fail "[netpol:E-MONITORING-NS-EMPTY] networkPolicy.platform.metricsScrape.enabled=true nhưng `namespace` RỖNG ⇒ namespaceSelector render thành kubernetes.io/metadata.name: \"\" và KHÔNG khớp namespace nào. Rule vẫn tồn tại, helm vẫn xanh, nhưng chiều scrape KHÔNG được mở — Prometheus sẽ báo up==0 cho gateway và orchestrator, và điều đó đọc y hệt như 'chưa cài xong'. Khai đúng namespace đang chạy Prometheus (mặc định: monitoring), hoặc đặt metricsScrape.enabled=false." }}
+{{- end }}
+{{- /*
 Ba helper dùng ở dưới (`platform.netpolRelease`, `platform.netpolComponents`,
 `platform.netpolDatastoreEgress`) nằm trong `_helpers.tpl` — `define` KHÔNG được
 lồng trong một khối `if`, mà cả file này nằm trong `if networkPolicy.platform.enabled`.
@@ -555,13 +566,85 @@ spec:
         - protocol: TCP
           port: {{ .Values.web.service.port }}
         - protocol: TCP
-          port: 8083
+          # Dùng helper thay cho số 8083 gõ thẳng (sửa 2026-08-15, chặng 3.D).
+          # Helper tồn tại chính để CI đối chiếu được với `containerPort` trong
+          # deployment; một literal ở đây là chỗ DUY NHẤT trong file lọt khỏi
+          # phép đối chiếu đó, tức đổi cổng admin của gateway thì mọi cổng CI
+          # vẫn xanh còn chiều probe thì trỏ vào hư không.
+          port: {{ include "platform.gatewayAdminContainerPort" . }}
         - protocol: TCP
           port: {{ include "platform.orchestratorHttpContainerPort" . }}
+{{- if $np.metricsScrape.enabled }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 12. INGRESS scrape /metrics của gateway — CHỈ từ namespace monitoring, CHỈ
+# cổng admin.
+#
+# Là rule RIÊNG chứ không phải nới khối 8 (ingress vào gateway): khối 8 mở cổng
+# CÔNG KHAI 8082 cho Traefik và web; gộp chiều scrape vào đó sẽ cho namespace
+# monitoring nói chuyện với cổng WS thật của người dùng. Quan sát và điều khiển
+# phải là hai chiều tách bạch.
+#
+# ⚠ Cổng admin 8083 CỐ Ý không nằm trên Service gateway (`/metrics` không có
+# authz), nên Prometheus phải scrape THEO IP POD — dùng PodMonitor, không phải
+# ServiceMonitor. Xem infra/observability/. Rule này mở đúng đường đó và không
+# mở gì thêm.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-ingress-metrics-gateway
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "gateway") | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $np.metricsScrape.namespace }}
+      ports:
+        - protocol: TCP
+          port: {{ include "platform.gatewayAdminContainerPort" . }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 13. INGRESS scrape /metrics của orchestrator — CHỈ từ namespace monitoring,
+# CHỈ cổng HTTP.
+#
+# Đây chính là "rule MỚI" mà khối 9 đã dặn trước: khối 9 giữ cổng gRPC 9090 chỉ
+# cho web + gateway, và cổng HTTP 8081 KHÔNG mở cho pod nào. Nới khối 9 để
+# scrape sẽ mở luôn gRPC cho monitoring — đổi một chiều đọc thành một chiều
+# gọi RPC tạo/xoá pod.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-ingress-metrics-orchestrator
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "orchestrator") | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $np.metricsScrape.namespace }}
+      ports:
+        - protocol: TCP
+          port: {{ include "platform.orchestratorHttpContainerPort" . }}
+{{- end }}
 {{- if $np.denyEnabled }}
 ---
 # ─────────────────────────────────────────────────────────────────────────────
-# 12. DEFAULT-DENY — ÁP SAU CÙNG, và chỉ khi denyEnabled=true.
+# 14. DEFAULT-DENY — ÁP SAU CÙNG, và chỉ khi denyEnabled=true.
 #
 # podSelector RỖNG ở đây là CỐ Ý và khác hẳn mọi khối trên: deny phải phủ MỌI pod
 # trong namespace, kể cả pod lạ không mang nhãn của release — đó chính là thứ
