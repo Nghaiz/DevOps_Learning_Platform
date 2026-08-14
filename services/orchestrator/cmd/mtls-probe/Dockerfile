@@ -8,7 +8,7 @@
 # CỐ Ý KHÔNG nằm trong ma trận CI: đây là công cụ đo, không phải thành phần
 # chạy thường trực. Ship nó lên registry là mời một binary biết nói chuyện với
 # cổng gRPC vào mọi môi trường — đúng thứ luật 10 không muốn có sẵn.
-FROM golang:1.26-alpine AS build
+FROM golang:1.26.6-alpine AS build
 WORKDIR /src
 
 COPY go.work go.work.sum* ./

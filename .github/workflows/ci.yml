@@ -275,16 +275,59 @@ jobs:
       - name: golangci-lint (mọi module)
         run: make go-lint
 
+      # go.work là SSOT của phiên bản Go: setup-go đọc nó, nên govulncheck bên
+      # dưới quét đúng stdlib của phiên bản đó. Nhưng BINARY GIAO ĐI lại build
+      # trong Dockerfile — nếu base image lệch, cổng vuln xanh trong khi ảnh
+      # chạy thật vẫn dính. Đã dính đúng một lần: `golang:1.26-alpine` còn ở
+      # 1.26.5 sau khi CI đã chuyển sang 1.26.6, tức tag "trôi theo minor"
+      # KHÔNG bảo vệ được gì. Vì vậy Dockerfile ghim patch chính xác, và cổng
+      # này giữ cho nó không lệch khỏi go.work ở lần nâng sau.
+      - name: 'Ghim toolchain: go.mod + Dockerfile phải khớp go.work'
+        run: |
+          want=$(awk '/^go [0-9]/{print $2; exit}' go.work)
+          [ -n "$want" ] || { echo '::error::không đọc được dòng "go" trong go.work'; exit 1; }
+          echo "SSOT: go.work → go$want"
+          rc=0
+
+          n_mod=0
+          for f in $(git ls-files '*go.mod'); do
+            n_mod=$((n_mod + 1))
+            got=$(awk '/^go [0-9]/{print $2; exit}' "$f")
+            [ "$got" = "$want" ] || { echo "::error file=$f::go $got lệch go.work (go$want)"; rc=1; }
+          done
+
+          n_df=0
+          for f in $(git ls-files '*Dockerfile'); do
+            grep -q '^FROM golang:' "$f" || continue
+            n_df=$((n_df + 1))
+            got=$(sed -n 's/^FROM golang:\([0-9][^ -]*\).*/\1/p' "$f" | head -1)
+            [ "$got" = "$want" ] || { echo "::error file=$f::golang:$got lệch go.work (go$want)"; rc=1; }
+          done
+
+          # Cổng khớp-0-file là cổng không gác gì: repo này đã có tiền lệ
+          # "xanh vì không match cái nào", nên khẳng định số file đếm được.
+          [ "$n_mod" -ge 4 ] || { echo "::error::chỉ thấy $n_mod go.mod — cổng không quét đủ"; exit 1; }
+          [ "$n_df" -ge 4 ] || { echo "::error::chỉ thấy $n_df Dockerfile FROM golang: — cổng không quét đủ"; exit 1; }
+          echo "khớp: $n_mod go.mod + $n_df Dockerfile → go$want"
+          exit $rc
+
       - name: govulncheck (mọi module)
         # Đối chiếu dependency Go với Go vulnerability DB. Khác Dependabot ở chỗ
         # nó phân tích REACHABILITY — chỉ báo khi code thật sự gọi tới hàm dính
         # lỗi, nên gần như không có nhiễu để phải bỏ qua.
+        #
+        # KHÔNG dừng ở module đỏ đầu tiên: `|| exit 1` trong vòng lặp từng che
+        # mất 3 module còn lại (lần go1.26.5 dính GO-2026-6090 chỉ báo
+        # proto/gen/go, không ai biết 3 module kia sạch hay bẩn cho tới khi quét
+        # tay). Quét hết rồi mới trả mã lỗi.
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          rc=0
           for dir in $(go list -m -f '{{.Dir}}'); do
             echo "--- govulncheck $dir"
-            (cd "$dir" && govulncheck ./...) || exit 1
+            (cd "$dir" && govulncheck ./...) || rc=1
           done
+          exit $rc
 
   # ───────────────────────────────────────────────────── hạ tầng (Helm + shell)
   infra:
