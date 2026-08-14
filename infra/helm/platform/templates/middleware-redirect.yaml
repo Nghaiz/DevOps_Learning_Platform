@@ -1,0 +1,45 @@
+{{- if and .Values.ingress.enabled (dig "middleware" "enabled" false .Values.ingress) (dig "middleware" "redirectHttps" "enabled" false .Values.ingress) }}
+{{/*
+Chuyển hướng HTTP → HTTPS (P3 / 3.A — nợ P2 §3 để lại).
+
+VÌ SAO KHÔNG DÙNG `ports.web.redirectTo` của chart Traefik: cờ đó dựng Location
+từ tên entrypoint, mà Traefik chỉ biết entrypoint `websecure` là :8443 BÊN TRONG
+pod — nó không biết gì về NodePort 30443 mà thế giới bên ngoài gọi vào. Kết quả
+là `Location: https://host:8443/`, một cổng không ai mở được. Nợ P2 đã lường
+trước điều này và cố ý không bật; ở đây khai cổng công khai TƯỜNG MINH.
+
+⛔ ĐÂY LÀ LÝ DO ingress.yaml PHẢI TÁCH LÀM BA, KHÔNG PHẢI HAI.
+Annotation middleware trên một Ingress áp cho MỌI router sinh ra từ nó, và
+provider kubernetesIngress của Traefik mặc định gắn router vào MỌI entrypoint.
+Gắn redirectScheme lên Ingress phục vụ HTTPS ⇒ request HTTPS cũng bị chuyển
+hướng sang HTTPS ⇒ vòng lặp vô hạn, và trình duyệt báo ERR_TOO_MANY_REDIRECTS
+chứ không báo gì về cấu hình. Nên middleware này CHỈ được gắn lên Ingress
+`-redirect`, và Ingress đó ghim `router.entrypoints: web` để không bao giờ chạm
+tới đường HTTPS.
+
+`permanent: false` ⇒ **302 Found** (đo trên cụm 2026-08-14; `true` cho 301). Giữ
+302 ở chặng này CÓ CHỦ Ý: 301 bị trình duyệt cache lâu dài, nên nếu cổng trong
+Location sai một lần thì người dùng dính cái sai đó kể cả sau khi ta đã sửa xong
+— và triệu chứng ("vẫn hỏng") không phân biệt được với "bản vá chưa deploy". Đổi
+sang true sau khi AC-A5 xanh ổn định.
+*/}}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "platform.fullname" . }}-redirect-https
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: {{ .Values.ingress.middleware.redirectHttps.permanent }}
+    {{- /*
+      `required` chứ KHÔNG phải `with`: để trống thì Traefik dựng
+      `Location: https://<host>/` → cổng 443 → connection refused trên cụm
+      NodePort, tức ĐÚNG sự cố mà middleware này được viết ra để tránh. Nhánh
+      trống là hợp lệ trên deployment cổng chuẩn, nhưng khi đó vẫn phải khai
+      `port: "443"` TƯỜNG MINH — một cổng bị bỏ trống vì quên và một cổng 443 do
+      chủ ý nhìn giống hệt nhau trong values, mà hậu quả thì khác hẳn.
+    */}}
+    port: {{ required "ingress.middleware.redirectHttps.port bắt buộc khi redirectHttps.enabled — để trống thì Location trỏ về cổng 443 mặc định, và trên cụm NodePort đó là một cổng không ai mở được (nợ P2 §3). Khai cổng CÔNG KHAI của entrypoint HTTPS: 30443 cho lab NodePort, \"443\" cho deployment cổng chuẩn." .Values.ingress.middleware.redirectHttps.port | quote }}
+{{- end }}

@@ -1,0 +1,589 @@
+{{- if .Values.networkPolicy.platform.enabled }}
+{{- /*
+═══════════════════════════════════════════════════════════════════════════════
+NetworkPolicy cho namespace NỀN TẢNG ({{ .Release.Namespace }}) — P3/3.B.
+
+Trước chặng này namespace nền tảng KHÔNG có NetworkPolicy nào: web, gateway,
+orchestrator, postgres, redis nằm chung một namespace mở toang. Bất kỳ pod nào
+lọt được vào đây đều nói chuyện thẳng với Postgres và Redis, và không gì ngăn
+gateway gọi ngang sang datastore ngoài quy ước. (Namespace `dlp-sandbox` đã có
+default-deny từ P1 — xem sandbox-networkpolicy.yaml; file này KHÔNG đụng tới nó.)
+
+⛔ ĐỌC TRƯỚC KHI SỬA — NGỮ NGHĨA NETWORKPOLICY DỄ HIỂU NGƯỢC.
+Policy KHÔNG cộng dồn theo kiểu "deny mặc định rồi allow đắp lên". Ngay khi MỘT
+policy bất kỳ chọn trúng một pod với `policyTypes: Egress`, egress của pod đó lập
+tức bị thu về ĐÚNG những gì các policy khớp liệt kê — kể cả khi
+`platform-default-deny` chưa được áp. Hệ quả thực hành, khác với trực giác:
+
+  · RỦI RO NẰM Ở BƯỚC ÁP CÁC `allow-*`, KHÔNG PHẢI Ở BƯỚC BẬT `denyEnabled`.
+    Áp allow là lúc web/gateway/orchestrator/migrate bị siết. Bật deny sau đó chỉ
+    phủ nốt phần còn hở: pod KHÔNG được policy nào chọn (pod lạ), và egress của
+    postgres/redis.
+  · Vì vậy `denyEnabled` vẫn phải bật SAU — nhưng lý do là để tách hai pha đo,
+    chứ không phải vì "chưa deny thì chưa siết".
+
+⛔ MỘT CHIỀU BỊ QUÊN KHÔNG LÀM POD CHẾT — NÓ LÀM TÍNH NĂNG CHẾT.
+Mọi pod vẫn `Running 1/1`, probe vẫn xanh (probe đi từ kubelet, không đi qua các
+chiều dưới), `helm upgrade` vẫn thành công. Chỉ có sản phẩm là hỏng. Vì vậy mỗi
+khối dưới đây ghi rõ VÌ SAO chiều đó cần mở, kèm bằng chứng từ mã nguồn — chú
+thích là thứ ngăn người sau gỡ nhầm một rule trông như dead code.
+
+Bốn chiều dưới đây KHÔNG có trong bảng của plan (phase-3-detailed.md §3.B) và chỉ
+lộ ra khi đọc mã thay vì đọc trí nhớ. Ba trong bốn cái hỏng theo kiểu IM LẶNG:
+  · gateway → web:3000       GATEWAY_JWKS_URL (gateway-deployment.yaml:83).
+    Cache JWKS 5 phút (authz/jwks.go:34) ⇒ chặn chiều này thì hệ vẫn khoẻ SUỐT 5
+    PHÚT rồi mới 401 mọi handshake. Đo ngay sau khi áp policy sẽ thấy "xanh".
+  · web → orchestrator:9090  ORCHESTRATOR_GRPC_ADDR (web-deployment.yaml:115)
+  · orchestrator → postgres  DATABASE_URL. Audit lifecycle là TUỲ CHỌN theo thiết
+    kế (orchestrator main.go:290-292 log cảnh báo rồi chạy tiếp) ⇒ chặn nó không
+    làm gì đỏ, chỉ mất log kiểm toán.
+  · Job `migrate` → postgres. Job là helm hook `pre-upgrade` (migrate-job.yaml:60)
+    ⇒ quên chiều này thì lượt `helm upgrade` KẾ TIẾP treo, không phải lượt này —
+    hỏng lệch pha với thay đổi gây ra nó.
+
+⛔ MỘT BẤT ĐỐI XỨNG CÓ CHỦ Ý: KHÔNG mở egress gateway → `{{ .Values.sandbox.namespace }}`.
+sandbox-networkpolicy.yaml có sẵn rule cho phép INGRESS từ gateway vào pod
+sandbox, và chú thích ở đó nói rõ nó dành cho hướng tương lai (gateway nối thẳng
+TCP/WS vào pod) chứ KHÔNG phải điều kiện cần cho exec hôm nay — exec đi qua
+apiserver (khối 2). Nên ở đây cố ý KHÔNG mở chiều egress tương ứng: mở một chiều
+chưa ai dùng là nới quyền không có lý do. Ai bật đường dial-thẳng đó trong tương
+lai PHẢI thêm egress ở file này — rule ingress bên kia một mình là không đủ.
+═══════════════════════════════════════════════════════════════════════════════
+*/}}
+{{- /*
+⛔ CỔNG TRONG CÁC RULE DƯỚI ĐÂY LÀ **containerPort**, KHÔNG PHẢI `service.*Port`.
+Cùng một lý lẽ post-DNAT đã dùng cho apiserver, áp cho MỌI đích: kube-proxy dịch
+`Service.port` sang `targetPort` TRƯỚC khi policy được đánh giá, nên thứ policy
+nhìn thấy là cổng CONTAINER. Bản đầu dùng `.Values.gateway.service.publicPort`
+và `.Values.orchestrator.service.{grpc,http}Port`; hôm nay chúng TRÙNG cổng
+container nên không ai thấy gì, nhưng đổi `service.publicPort` (một thay đổi
+hoàn toàn hợp lệ — Service vẫn hoạt động nhờ `targetPort` là TÊN) sẽ làm mọi
+rule đó trỏ sai cổng và toàn bộ chiều web↔gateway↔orchestrator chết cùng lúc,
+với `helm template` sạch và pod `Running 1/1`.
+Cổng CI khẳng định các hằng số này khớp `containerPort` trong deployment.
+*/}}
+{{- $ns := .Release.Namespace }}
+{{- $np := .Values.networkPolicy.platform }}
+{{- /*
+─── Cổng chặn cấu hình: nổ lúc RENDER thay vì hỏng lúc CHẠY ──────────────────
+Cả ba giá trị dưới đây phụ thuộc cụm. Thiếu chúng, policy vẫn render HỢP LỆ
+(kubeconform xanh), `helm upgrade` vẫn xanh, apiserver vẫn nhận — và hệ hỏng
+theo kiểu không tín hiệu. `fail` là cách duy nhất biến một lỗi im lặng thành
+một lỗi ồn ào.
+
+⛔ BA CỔNG NÀY GẮN VỚI `enabled`, KHÔNG PHẢI `denyEnabled` — và bản đầu của tôi
+gắn nhầm vào `denyEnabled`. Lý do sửa nằm ngay ở chú thích đầu file: các policy
+`allow-*` TỰ CHÚNG đã siết, nên mọi hậu quả dưới đây xảy ra ngay từ lúc
+`enabled=true`, chưa cần deny. Cụ thể, đo trên bản render:
+  · apiServerEndpoints rỗng ⇒ `egress:` của allow-egress-apiserver rỗng ⇒
+    gateway/orchestrator MẤT đường tới apiserver ⇒ terminal chết, pool chết.
+  · nodeCidrs rỗng ⇒ `from:` rỗng, mà `from` rỗng trong NetworkPolicy nghĩa là
+    KHỚP MỌI NGUỒN — rule probe biến thành rule mở cổng 3000/8083/8081 cho tất
+    cả, phá đúng ba policy ingress 7/8/9 vừa dựng. Đây là hỏng theo hướng NỚI
+    LỎNG, nguy hơn hỏng theo hướng chặn vì không có gì đỏ để mà nhìn.
+  · datastoreExternalEgress rỗng khi datastore ngoài cụm ⇒ `egress:` của
+    orchestrator/migrate rỗng ⇒ mất đường tới DB.
+*/}}
+{{- if not $np.apiServerEndpoints }}
+  {{- fail "[netpol:E-APISERVER-EMPTY] networkPolicy.platform.enabled=true nhưng apiServerEndpoints RỖNG — allow-egress-apiserver sẽ render với `egress:` rỗng, tức gateway KHÔNG exec được (terminal chết) và orchestrator KHÔNG tạo được pod sandbox, trong khi mọi pod vẫn Running 1/1 nên không có tín hiệu nào báo. Lấy giá trị đúng: kubectl get endpoints kubernetes -o jsonpath='{.subsets[0].addresses[0].ip}:{.subsets[0].ports[0].port}' — trên kubeadm là IP NODE + 6443, KHÔNG phải ClusterIP 10.96.0.1:443 (policy được đánh giá SAU DNAT). Hoặc đặt networkPolicy.platform.enabled=false." }}
+{{- end }}
+{{- if not $np.nodeCidrs }}
+  {{- fail "[netpol:E-NODECIDRS-EMPTY] networkPolicy.platform.enabled=true nhưng nodeCidrs RỖNG — rule probe sẽ render với `from:` rỗng, mà `from` rỗng trong NetworkPolicy nghĩa là KHỚP MỌI NGUỒN: cổng 3000/8083/8081 mở cho tất cả, phá đúng ba policy ingress vừa dựng. Đây là hỏng theo hướng NỚI LỎNG nên không có gì đỏ để nhìn. Lấy giá trị: kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type==\"InternalIP\")].address}' (probe kubelet đi từ IP NODE, không từ pod)." }}
+{{- end }}
+{{- /*
+Datastore: kiểm THEO TỪNG STORE. `datastore.enabled` một mình là vị từ SAI —
+`datastore.enabled=true` + `datastore.postgres.enabled=false` (RDS ngoài + Redis
+trong cụm) là cấu hình hợp lệ và bản đầu của cổng này cho nó lọt.
+*/}}
+{{- range $store := (list "postgres" "redis") }}
+  {{- $port := include "platform.netpolStorePort" (dict "store" $store) }}
+  {{- if not (include "platform.netpolStoreInCluster" (dict "context" $ "store" $store)) }}
+    {{- $found := false }}
+    {{- range $.Values.networkPolicy.platform.datastoreExternalEgress }}
+      {{- if eq (toString .port) $port }}{{ $found = true }}{{ end }}
+    {{- end }}
+    {{- if not $found }}
+      {{- fail (printf "[netpol:E-DATASTORE-EGRESS] %s nằm NGOÀI cụm (datastore.enabled=%v, datastore.%s.enabled=%v) nhưng networkPolicy.platform.datastoreExternalEgress KHÔNG có entry nào cổng %s. Rule datastore ghim theo podSelector, mà ngoài cụm thì không có pod để ghim ⇒ web/orchestrator/migrate mất đường tới %s: Better Auth chết, và lượt `helm upgrade` kế tiếp treo ở hook migrate. Khai endpoint thật dạng {cidr: <ip>/32, port: %s}, hoặc bật datastore.%s.enabled nếu nó chạy trong cụm." $store $.Values.datastore.enabled $store (index $.Values.datastore $store).enabled $port $store $port $store) }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- /*
+⛔ CÁC CỔNG TRÊN CHỈ KIỂM "KHÁC RỖNG" — chưa đủ, vì mọi giá trị NGUY HIỂM đều
+khác rỗng. `nodeCidrs: [0.0.0.0/0]` render ra một rule mở cổng 3000/8083/8081
+cho TOÀN BỘ internet, và nó còn tệ hơn ca `from` rỗng mà thông báo ở trên mô tả:
+lần này nó là một dòng tường minh mà người đọc sẽ tưởng là cố ý.
+Nên kiểm luôn ĐỘ RỘNG: prefix ngắn hơn /16 ở đây gần như chắc chắn là nhầm.
+*/}}
+{{- range $cidr := (concat $np.nodeCidrs (list)) }}
+  {{- $prefix := int (last (splitList "/" (toString $cidr))) }}
+  {{- if lt $prefix 16 }}
+    {{- fail (printf "[netpol:E-NODECIDR-BROAD] networkPolicy.platform.nodeCidrs chứa %s — prefix /%d là một dải KHỔNG LỒ, và rule probe sẽ mở cổng 3000/8083/8081 cho toàn bộ dải đó. nodeCidrs phải là IP NODE (thường /32). Nếu thật sự cần dải rộng thì đó là một quyết định phải ghi ra, không phải một giá trị gõ vội." $cidr $prefix) }}
+  {{- end }}
+{{- end }}
+{{- range $ep := $np.apiServerEndpoints }}
+  {{- $prefix := int (last (splitList "/" (toString $ep.cidr))) }}
+  {{- if lt $prefix 16 }}
+    {{- fail (printf "[netpol:E-APISERVER-BROAD] networkPolicy.platform.apiServerEndpoints chứa %s — prefix /%d cho gateway+orchestrator egress không giới hạn trên cổng %v. Phải là IP endpoint apiserver (/32)." $ep.cidr $prefix $ep.port) }}
+  {{- end }}
+{{- end }}
+{{- /*
+webExternalEgress: bản đầu KHÔNG có cổng nào, nên `--set …except=null` render ra
+`except: null` và apiserver hiểu là "không loại trừ gì" — tức toàn bộ lý lẽ an
+toàn của khối đó (giữ các dải nội bộ ngoài tầm) bốc hơi bằng một `--set`, mà
+không gì báo.
+*/}}
+{{- if and $np.webExternalEgress.enabled (not $np.webExternalEgress.except) }}
+  {{- fail "[netpol:E-WEB-EXCEPT-EMPTY] networkPolicy.platform.webExternalEgress.enabled=true nhưng `except` RỖNG ⇒ pod web (pod đứng NGAY TRƯỚC người dùng) được mở egress tới 0.0.0.0/0 KHÔNG loại trừ gì, kể cả dải nội bộ của chính cụm — biến một lỗ SSRF bất kỳ ở web thành đường vào mọi dịch vụ nội bộ. Giữ ít nhất các dải link-local/service/pod/node." }}
+{{- end }}
+{{- /*
+Ba helper dùng ở dưới (`platform.netpolRelease`, `platform.netpolComponents`,
+`platform.netpolDatastoreEgress`) nằm trong `_helpers.tpl` — `define` KHÔNG được
+lồng trong một khối `if`, mà cả file này nằm trong `if networkPolicy.platform.enabled`.
+*/}}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. EGRESS DNS — mọi pod của release.
+# Không có rule này thì KHÔNG chiều nào ở dưới hoạt động: mọi địa chỉ trong chart
+# là tên Service (`{{ include "platform.fullname" . }}-postgres:5432`, …), nên chặn DNS là chặn tất cả,
+# mà triệu chứng lại là "connection timeout" chứ không phải "DNS lỗi".
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-egress-dns
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolRelease" (dict "context" .) | nindent 4 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. EGRESS tới kube-apiserver — gateway + orchestrator.
+#   · gateway      → pods/exec (PTY terminal + exec một-lượt để chấm bài)
+#                    podexec/executor.go:87-89, oneshot.go:88-90
+#   · orchestrator → tạo/xoá/list pod sandbox + reaper (k8s/pods.go:48-77)
+#
+# ⛔ BẪY ĐÃ LƯỜNG, VÀ NÓ LÀ LÝ DO KHỐI NÀY DÙNG ipBlock CHỨ KHÔNG PHẢI SELECTOR.
+# `rest.InClusterConfig()` trỏ `kubernetes.default.svc:443` (ClusterIP
+# 10.96.0.1), nhưng NetworkPolicy được đánh giá SAU khi kube-proxy đã DNAT, nên
+# đích mà policy thật sự nhìn thấy là endpoint thật của apiserver: IP NODE +
+# 6443 trên kubeadm — không phải ClusterIP, và không phải một pod nào cả, nên
+# KHÔNG selector nào khớp được nó. Viết rule cho cổng 443 là viết một rule không
+# bao giờ khớp.
+# Chặn nhầm chiều này = orchestrator không tạo được pod VÀ gateway không attach
+# được, tức CẢ SẢN PHẨM CHẾT, trong khi mọi pod vẫn `Running 1/1`.
+#
+# Kết nối exec là stream dài (SPDY/WebSocket upgrade) — NetworkPolicy có
+# conntrack nên chiều về không cần rule riêng, nhưng đừng thu hẹp cổng ở đây.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-egress-apiserver
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponents" (dict "context" . "components" (list "gateway" "orchestrator")) | nindent 4 }}
+  policyTypes:
+    - Egress
+  egress:
+    {{- range $np.apiServerEndpoints }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr }}
+      ports:
+        - protocol: TCP
+          port: {{ .port }}
+    {{- end }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. EGRESS của web.
+#   · gateway:{{ .Values.gateway.service.publicPort }}   GATEWAY_INTERNAL_URL — nút "Check" của bài học gọi
+#                    exec một-lượt để chấm (lessons/validate.ts:87-102)
+#   · orchestrator:{{ .Values.orchestrator.service.grpcPort }}  gRPC mTLS — session.create/claim/get
+#                    (grpc/orchestrator-client.ts:30-31) ← KHÔNG có trong bảng plan
+#   · postgres:5432  Better Auth (users/sessions/accounts/JWKS) + Drizzle
+#   · redis:6379     hiện chỉ db-smoke dùng tới; rate-limit runtime là Map
+#                    trong tiến trình (security/rate-limit.ts:14). Vẫn mở vì giá
+#                    bằng 0, còn nếu một route nào đó dựng client Redis lười thì
+#                    sự kiện 'error' không ai bắt sẽ GIẾT tiến trình Node.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-egress-web
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "web") | nindent 4 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            {{- include "platform.netpolComponent" (dict "context" . "component" "gateway") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "platform.gatewayPublicContainerPort" . }}
+    - to:
+        - podSelector:
+            {{- include "platform.netpolComponent" (dict "context" . "component" "orchestrator") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "platform.orchestratorGrpcContainerPort" . }}
+    {{- include "platform.netpolDatastoreEgress" (dict "context" . "stores" (list "postgres" "redis")) | nindent 4 }}
+{{- if $np.webExternalEgress.enabled }}
+    # ── Egress RA NGOÀI CỤM cho web — MẶC ĐỊNH TẮT ──────────────────────────
+    # Cần khi bật đăng nhập bằng IdP ngoài: Better Auth gọi phía SERVER tới
+    # oauth2.googleapis.com / www.googleapis.com (JWKS của Google) và
+    # login.microsoftonline.com / graph.microsoft.com (auth/config.ts:83-92).
+    # Trên lab hai client id đang là 'placeholder' nên chưa cần.
+    # Mở egress internet cho pod đứng NGAY TRƯỚC người dùng là bề mặt SSRF, nên
+    # đây phải là một lựa chọn có ý thức chứ không phải mặc định; `except` giữ
+    # các dải nội bộ để nó không thành đường vòng vào chính cụm.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              {{- toYaml $np.webExternalEgress.except | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. EGRESS của gateway.
+#   · web:{{ .Values.web.service.port }}       GATEWAY_JWKS_URL — gateway TẢI JWKS TỪ WEB để xác thực
+#                    token sandbox (authz/jwks.go:189-196). ← KHÔNG có trong bảng plan.
+#                    ⚠ JWKS được cache 5 phút, nên chặn chiều này KHÔNG hỏng ngay:
+#                    hệ chạy bình thường tới khi cache hết hạn rồi mới 401 mọi
+#                    handshake mới. Một phép đo chạy ngay sau khi áp policy sẽ
+#                    kết luận SAI là "vẫn tốt".
+#   · orchestrator:{{ .Values.orchestrator.service.grpcPort }}  ExtendSession — nhịp heartbeat giữ phiên sống
+#                    (extend/extend.go:131). Hỏng chiều này thì terminal MỞ ĐƯỢC
+#                    rồi chết đúng lúc hết TTL — triệu chứng lệch hẳn nguyên nhân.
+#   · redis:6379     đọc `session:{id}` để phân quyền lúc handshake
+#                    (sessionstore/store.go:114)
+#   (egress apiserver ở khối 2)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-egress-gateway
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "gateway") | nindent 4 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            {{- include "platform.netpolComponent" (dict "context" . "component" "web") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.web.service.port }}
+    - to:
+        - podSelector:
+            {{- include "platform.netpolComponent" (dict "context" . "component" "orchestrator") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "platform.orchestratorGrpcContainerPort" . }}
+    {{- include "platform.netpolDatastoreEgress" (dict "context" . "stores" (list "redis")) | nindent 4 }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. EGRESS của orchestrator.
+#   · redis:6379     warm pool + session SSOT + reaper tầng 1 nghe sự kiện
+#                    `__keyevent@N__:expired` (reaper.go:178) — đây là kết nối
+#                    pub/sub SỐNG LÂU, không phải request ngắn.
+#   · postgres:5432  `sessions_audit` (lifecycle/audit.go:123). ⚠ TUỲ CHỌN theo
+#                    thiết kế: main.go:290-292 log cảnh báo rồi chạy tiếp nếu
+#                    không nối được ⇒ chặn chiều này KHÔNG làm gì đỏ, chỉ âm thầm
+#                    mất log kiểm toán. Không có ô AC nào bắt được, nên rule này
+#                    là thứ duy nhất giữ nó.
+#   (egress apiserver ở khối 2 — chiều quan trọng nhất của orchestrator)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-egress-orchestrator
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "orchestrator") | nindent 4 }}
+  policyTypes:
+    - Egress
+  egress:
+    {{- include "platform.netpolDatastoreEgress" (dict "context" . "stores" (list "postgres" "redis")) | nindent 4 }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. EGRESS của Job `migrate` → postgres.
+# Job này là helm hook `post-install,pre-upgrade` (migrate-job.yaml:60). Quên
+# chiều này thì lượt `helm upgrade` KẾ TIẾP treo tới `activeDeadlineSeconds` rồi
+# abort — thất bại xảy ra LỆCH PHA với thay đổi gây ra nó, nên rất dễ quy sai
+# nguyên nhân. Và vì migration tạo bảng `jwks`, hỏng nó là hỏng cả chuỗi auth.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-egress-migrate
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "migrate") | nindent 4 }}
+  policyTypes:
+    - Egress
+  egress:
+    {{- include "platform.netpolDatastoreEgress" (dict "context" . "stores" (list "postgres")) | nindent 4 }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. INGRESS vào web — từ ingress controller (namespace
+# `{{ $np.ingressControllerNamespace }}`) và từ gateway (JWKS).
+#
+# ⚠ Traefik KHÔNG ở namespace nền tảng — nó có namespace riêng, nên đây là
+# namespaceSelector chứ không phải podSelector. Ghim theo nhãn
+# `kubernetes.io/metadata.name` (nhãn do chính Kubernetes đặt và không gỡ được)
+# thay vì một nhãn tự chế mà người vận hành có thể quên gắn.
+#
+# ⚠ Hai phần tử trong `from:` là HAI mục riêng (hai dấu `-`), tức phép HOẶC.
+# Gộp `namespaceSelector` và `podSelector` vào CÙNG một mục sẽ thành phép VÀ —
+# "pod gateway NẰM TRONG namespace traefik" — không bao giờ khớp, và cả hai
+# chiều cùng chết trong im lặng. Đây là lỗi cú pháp dễ mắc nhất của
+# NetworkPolicy vì cả hai dạng đều hợp lệ với apiserver.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-ingress-web
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "web") | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $np.ingressControllerNamespace }}
+        - podSelector:
+            {{- include "platform.netpolComponent" (dict "context" . "component" "gateway") | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.web.service.port }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. INGRESS vào gateway — từ ingress controller (`/ws`) và từ web (chấm bài).
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-ingress-gateway
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "gateway") | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $np.ingressControllerNamespace }}
+        - podSelector:
+            {{- include "platform.netpolComponent" (dict "context" . "component" "web") | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "platform.gatewayPublicContainerPort" . }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. INGRESS vào orchestrator — CHỈ từ web và gateway, CHỈ cổng gRPC.
+# Cổng HTTP {{ .Values.orchestrator.service.httpPort }} cố ý KHÔNG mở cho pod nào: nó chỉ phục vụ /healthz,
+# mà probe đi từ kubelet (khối 11), không từ pod. Nếu sau này có Prometheus thì
+# chiều scrape là một rule MỚI từ namespace monitoring — đừng nới rule này.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-ingress-orchestrator
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "orchestrator") | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            {{- include "platform.netpolComponents" (dict "context" . "components" (list "web" "gateway")) | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "platform.orchestratorGrpcContainerPort" . }}
+{{- if include "platform.netpolStoreInCluster" (dict "context" . "store" "postgres") }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. INGRESS vào datastore — ĐÂY LÀ Ô AC-B2.
+# Postgres chỉ nhận từ web / orchestrator / migrate; Redis chỉ nhận từ web /
+# gateway / orchestrator. Một pod lạ trong cùng namespace KHÔNG khớp selector
+# nào ⇒ bị chặn. Đó là toàn bộ giá trị của chặng này: trước đây pod lạ nào cũng
+# nói chuyện thẳng được với Postgres.
+#
+# ⚠ GIỚI HẠN THẬT, GHI RA ĐỂ KHÔNG AI TIN QUÁ MỨC: NetworkPolicy phân biệt theo
+# NHÃN. Kẻ tạo được pod trong namespace này với nhãn
+# `app.kubernetes.io/component=web` sẽ qua được rule. Hàng rào cho việc ĐÓ là
+# RBAC trên quyền tạo pod, không phải file này. Đây là phòng thủ chiều sâu chống
+# lateral movement từ một workload BỊ CHIẾM, không phải chống một kẻ đã có quyền
+# tạo pod tuỳ ý.
+#
+# Chỉ render khi datastore chạy TRONG cụm: với DB quản lý ngoài cụm thì không
+# có pod nào ở đây để bảo vệ, và hàng rào tương ứng là security group của nhà
+# cung cấp.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-ingress-postgres
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "postgres") | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            {{- include "platform.netpolComponents" (dict "context" . "components" (list "web" "orchestrator" "migrate")) | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: 5432
+{{- end }}
+{{- if include "platform.netpolStoreInCluster" (dict "context" . "store" "redis") }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-ingress-redis
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "redis") | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            {{- include "platform.netpolComponents" (dict "context" . "components" (list "web" "gateway" "orchestrator")) | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: 6379
+{{- end }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. INGRESS cho PROBE của kubelet.
+#
+# ⚠ CHIỀU NÀY KHÔNG ĐẾN TỪ MỘT POD, nên không selector nào bắt được nó: kubelet
+# gọi probe từ chính NODE. Dưới default-deny, thiếu khối này thì readiness/
+# liveness đỏ ⇒ Kubernetes giết và tạo lại pod liên tục ⇒ đọc ra y hệt "ứng dụng
+# crash", trong khi ứng dụng hoàn toàn khoẻ.
+#
+# Chỉ mở ĐÚNG ba cổng probe:
+#   · web  {{ .Values.web.service.port }}         GET /api/health
+#   · gateway 8083            GET /healthz — ⚠ cổng ADMIN, và nó CỐ Ý KHÔNG nằm
+#                             trên Service (gateway-service.yaml). Một policy
+#                             viết ra từ danh sách Service sẽ bỏ sót đúng cổng
+#                             này, và triệu chứng là CrashLoopBackOff chứ không
+#                             phải một lỗi mạng.
+#   · orchestrator {{ .Values.orchestrator.service.httpPort }}     GET /healthz — cổng http, KHÔNG phải cổng gRPC
+# Postgres/Redis dùng probe kiểu `exec` (pg_isready / redis-cli) nên KHÔNG cần
+# chiều mạng nào — cố ý vắng mặt ở đây, đừng "bổ sung cho đủ".
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-ingress-kubelet-probes
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponents" (dict "context" . "components" (list "web" "gateway" "orchestrator")) | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- range $np.nodeCidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.web.service.port }}
+        - protocol: TCP
+          port: 8083
+        - protocol: TCP
+          port: {{ include "platform.orchestratorHttpContainerPort" . }}
+{{- if $np.denyEnabled }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 12. DEFAULT-DENY — ÁP SAU CÙNG, và chỉ khi denyEnabled=true.
+#
+# podSelector RỖNG ở đây là CỐ Ý và khác hẳn mọi khối trên: deny phải phủ MỌI pod
+# trong namespace, kể cả pod lạ không mang nhãn của release — đó chính là thứ
+# AC-B2 đo. Các khối allow ở trên thì ngược lại, ghim đúng nhãn release để không
+# vô tình cấp quyền cho pod lạ.
+#
+# Xem lại chú thích đầu file: policy này KHÔNG phải thứ tạo ra sự siết chặt cho
+# web/gateway/orchestrator — các allow ở trên đã siết rồi. Phần nó thật sự thêm
+# vào là: (a) pod KHÔNG được policy nào chọn, và (b) egress của postgres/redis
+# (cả hai không cần egress nào — reply traffic đi theo conntrack, không cần rule).
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-default-deny
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+{{- end }}
+{{- end }}

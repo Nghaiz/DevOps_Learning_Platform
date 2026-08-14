@@ -1,0 +1,42 @@
+{{- if and .Values.ingress.enabled (dig "middleware" "enabled" false .Values.ingress) }}
+{{/*
+Trần body Ở BIÊN (P3 / 3.A — luật 5 của design §6).
+
+VÌ SAO CẦN, khi apps/web đã có exceedsBodyLimit(): lớp của web chỉ đọc header
+`Content-Length` (server/security/body-limit.ts). Một request
+`Transfer-Encoding: chunked` KHÔNG mang header đó ⇒ hàm nhận null ⇒ trả false ⇒
+body đi thẳng qua, bao nhiêu byte cũng được. Luật 5 sinh ra từ đúng lỗi "payload
+10MB → 502" của bản pentest, nên lỗ này nằm ngay giữa luật chứ không phải rìa.
+
+`buffering` là middleware DUY NHẤT của Traefik đếm BYTE THẬT: nó đọc body vào
+buffer trước khi chuyển tiếp, nên chunked hay không đều bị chặn như nhau. Vượt
+trần ⇒ 413 phát ra từ Traefik, request KHÔNG bao giờ tới pod web.
+
+Không gắn middleware này lên router `/ws` — nhưng KHÔNG phải vì lý do ta tưởng
+lúc đầu. Giả thuyết ban đầu: buffering đệm trọn request nên sẽ giết một kết nối
+nâng cấp WebSocket. **Đo trên cụm 2026-08-14 bác bỏ điều đó**: gắn thẳng
+middleware này vào Ingress `/ws` rồi chạy lại ws-upgrade-probe.mjs ⇒ vẫn 101, vẫn
+nhận `{"type":"ready"}`, socket vẫn mở sau 5s. Request nâng cấp WS không mang
+body, nên buffering không có gì để đệm; sau 101 thì kết nối được hijack.
+
+Vẫn giữ nó khỏi `/ws` vì một trần body áp lên thứ không có body chỉ là nhiễu cấu
+hình — nhưng đó là dọn dẹp, không phải điều kiện sống. Lý do THẬT khiến `/` và
+`/ws` phải là hai Ingress là chúng cần hai trần rate-limit khác nhau
+(middleware-ratelimit.yaml), và annotation middleware không có cú pháp per-path.
+
+memRequestBodyBytes = maxRequestBodyBytes CÓ CHỦ Ý: để bằng nhau thì buffer không
+bao giờ tràn xuống đĩa. Đặt thấp hơn nghĩa là mỗi request cỡ trần ghi một file
+tạm trong pod Traefik — một đường DoS bằng đĩa mở ra ngay trong thứ dựng lên để
+chặn DoS.
+*/}}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "platform.fullname" . }}-bodylimit
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
+spec:
+  buffering:
+    maxRequestBodyBytes: {{ .Values.ingress.middleware.bodyLimit.maxRequestBodyBytes }}
+    memRequestBodyBytes: {{ .Values.ingress.middleware.bodyLimit.maxRequestBodyBytes }}
+{{- end }}

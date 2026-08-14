@@ -91,9 +91,23 @@ step "Cài/nâng cấp Traefik trong namespace ${TRAEFIK_NAMESPACE}"
 # lượt attach, mà triệu chứng chỉ là "terminal lâu mở" — không log nào nói. Traefik
 # nằm trên CÙNG đường đó. OOM thì ồn ào và chẩn được, throttle thì không, nên chặn
 # RAM mà thả CPU là lựa chọn có chủ ý chứ không phải quên điền.
+#
+# ⛔ `externalTrafficPolicy=Local` LÀ ĐIỀU KIỆN SỐNG CỦA RATE LIMIT THEO IP (P3/3.A).
+# Với mặc định `Cluster`, kube-proxy SNAT gói tin NodePort về IP node, nên Traefik
+# thấy MỌI client đến từ cùng một địa chỉ. Đo được trên đúng cụm này 2026-08-14:
+# gọi từ máy Windows 192.168.94.1 mà backend nhận `X-Forwarded-For: 192.168.94.130`
+# (IP node). Hệ quả không phải "giới hạn hơi sai" mà là **một bucket chung cho cả
+# thế giới**: client đầu tiên chạm trần khoá luôn mọi người còn lại — đúng chế độ
+# self-DoS mà apps/web đã cố ý từ chối khi loại bucket 'unknown'. Và vì Traefik ghi
+# đè XFF bằng địa chỉ nó nhìn thấy, bật `RATE_LIMIT_TRUST_PROXY=1` trên nền `Cluster`
+# sẽ chép nguyên lỗi đó xuống lớp web.
+# Sau khi đổi `Local`: cùng phép gọi đó nhận `X-Forwarded-For: 192.168.94.1` — IP
+# thật của client. Trên cụm 1 node `Local` không mất gói (không có node nào khác để
+# rơi vào); trên nhiều node nó đòi pod Traefik có mặt ở node nhận traffic.
 helm upgrade --install traefik "$tgz" \
   --namespace "$TRAEFIK_NAMESPACE" --create-namespace \
   --set service.spec.type=NodePort \
+  --set service.spec.externalTrafficPolicy=Local \
   --set "ports.web.nodePort=${TRAEFIK_HTTP_NODEPORT}" \
   --set "ports.websecure.nodePort=${TRAEFIK_HTTPS_NODEPORT}" \
   --set ingressRoute.dashboard.enabled=false \
@@ -122,7 +136,18 @@ for want in "$TRAEFIK_HTTP_NODEPORT" "$TRAEFIK_HTTPS_NODEPORT"; do
     | tr ' ' '\n' | grep -qx "$want" \
     || { echo "Cổng ${want} không có trên Service traefik — origin sẽ trôi sau mỗi lần cài."; exit 1; }
 done
-echo "OK: type=NodePort, cổng ${TRAEFIK_HTTP_NODEPORT}/${TRAEFIK_HTTPS_NODEPORT} đúng như đã ghim."
+# Cùng lý do với `type`: `service.spec.externalTrafficPolicy` là một key trong khối
+# "additional entries added to the Service spec", nên gõ sai tên → helm im lặng →
+# Service giữ mặc định `Cluster` → IP nguồn bị SNAT → rate-limit theo IP thành một
+# bucket chung. Không có triệu chứng nào cho tới khi người thứ hai bị khoá oan.
+live_etp="$(kubectl -n "$TRAEFIK_NAMESPACE" get svc traefik -o jsonpath='{.spec.externalTrafficPolicy}')"
+if [ "$live_etp" != "Local" ]; then
+  echo "Service traefik có externalTrafficPolicy=${live_etp:-<rỗng>}, muốn Local."
+  echo "Cluster = kube-proxy SNAT về IP node ⇒ mọi client dùng CHUNG một bucket rate-limit."
+  echo "Đừng bật RATE_LIMIT_TRUST_PROXY=1 khi vế này còn đỏ — nó chép lỗi xuống lớp web."
+  exit 1
+fi
+echo "OK: type=NodePort, externalTrafficPolicy=Local, cổng ${TRAEFIK_HTTP_NODEPORT}/${TRAEFIK_HTTPS_NODEPORT} đúng như đã ghim."
 
 printf '\n\033[1;32mIngress controller đã cài.\033[0m\n'
 printf 'Bước tiếp theo — TLS + entry point thật:\n'

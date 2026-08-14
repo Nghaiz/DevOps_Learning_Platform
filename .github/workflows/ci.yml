@@ -275,16 +275,59 @@ jobs:
       - name: golangci-lint (mọi module)
         run: make go-lint
 
+      # go.work là SSOT của phiên bản Go: setup-go đọc nó, nên govulncheck bên
+      # dưới quét đúng stdlib của phiên bản đó. Nhưng BINARY GIAO ĐI lại build
+      # trong Dockerfile — nếu base image lệch, cổng vuln xanh trong khi ảnh
+      # chạy thật vẫn dính. Đã dính đúng một lần: `golang:1.26-alpine` còn ở
+      # 1.26.5 sau khi CI đã chuyển sang 1.26.6, tức tag "trôi theo minor"
+      # KHÔNG bảo vệ được gì. Vì vậy Dockerfile ghim patch chính xác, và cổng
+      # này giữ cho nó không lệch khỏi go.work ở lần nâng sau.
+      - name: 'Ghim toolchain: go.mod + Dockerfile phải khớp go.work'
+        run: |
+          want=$(awk '/^go [0-9]/{print $2; exit}' go.work)
+          [ -n "$want" ] || { echo '::error::không đọc được dòng "go" trong go.work'; exit 1; }
+          echo "SSOT: go.work → go$want"
+          rc=0
+
+          n_mod=0
+          for f in $(git ls-files '*go.mod'); do
+            n_mod=$((n_mod + 1))
+            got=$(awk '/^go [0-9]/{print $2; exit}' "$f")
+            [ "$got" = "$want" ] || { echo "::error file=$f::go $got lệch go.work (go$want)"; rc=1; }
+          done
+
+          n_df=0
+          for f in $(git ls-files '*Dockerfile'); do
+            grep -q '^FROM golang:' "$f" || continue
+            n_df=$((n_df + 1))
+            got=$(sed -n 's/^FROM golang:\([0-9][^ -]*\).*/\1/p' "$f" | head -1)
+            [ "$got" = "$want" ] || { echo "::error file=$f::golang:$got lệch go.work (go$want)"; rc=1; }
+          done
+
+          # Cổng khớp-0-file là cổng không gác gì: repo này đã có tiền lệ
+          # "xanh vì không match cái nào", nên khẳng định số file đếm được.
+          [ "$n_mod" -ge 4 ] || { echo "::error::chỉ thấy $n_mod go.mod — cổng không quét đủ"; exit 1; }
+          [ "$n_df" -ge 4 ] || { echo "::error::chỉ thấy $n_df Dockerfile FROM golang: — cổng không quét đủ"; exit 1; }
+          echo "khớp: $n_mod go.mod + $n_df Dockerfile → go$want"
+          exit $rc
+
       - name: govulncheck (mọi module)
         # Đối chiếu dependency Go với Go vulnerability DB. Khác Dependabot ở chỗ
         # nó phân tích REACHABILITY — chỉ báo khi code thật sự gọi tới hàm dính
         # lỗi, nên gần như không có nhiễu để phải bỏ qua.
+        #
+        # KHÔNG dừng ở module đỏ đầu tiên: `|| exit 1` trong vòng lặp từng che
+        # mất 3 module còn lại (lần go1.26.5 dính GO-2026-6090 chỉ báo
+        # proto/gen/go, không ai biết 3 module kia sạch hay bẩn cho tới khi quét
+        # tay). Quét hết rồi mới trả mã lỗi.
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          rc=0
           for dir in $(go list -m -f '{{.Dir}}'); do
             echo "--- govulncheck $dir"
-            (cd "$dir" && govulncheck ./...) || exit 1
+            (cd "$dir" && govulncheck ./...) || rc=1
           done
+          exit $rc
 
   # ───────────────────────────────────────────────────── hạ tầng (Helm + shell)
   infra:
@@ -349,6 +392,155 @@ jobs:
           | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
               -ignore-missing-schemas
 
+      - name: 'helm template — nhánh middleware biên bật (P3/3.A)'
+        # Ba Middleware + việc tách Ingress làm ba CHỈ render khi
+        # ingress.middleware.enabled=true, mà KHÔNG bộ values nào bật nó (mặc định
+        # false để trung lập nhà cung cấp — Middleware là CRD riêng của Traefik).
+        # Không có bước này thì ba manifest mới không bao giờ được CI render.
+        #
+        # ⛔ PHÉP KIỂM CHÍNH LÀ VẾ "THAM CHIẾU KHỚP ĐỊNH NGHĨA", KHÔNG PHẢI "render
+        # được". Traefik BỎ QUA TRONG IM LẶNG một `router.middlewares` trỏ tới
+        # Middleware không tồn tại: Ingress vẫn Ready, route vẫn chạy, và trần
+        # body/rate-limit đơn giản là KHÔNG có. Đó đúng là chế độ hỏng của sự cố
+        # `service.type` (2026-08-14) — giá trị đã khai và hành vi thật nói hai
+        # điều khác nhau, và không cổng nào bắt được.
+        run: |
+          out=$(helm template platform infra/helm/platform \
+            --set web.env.betterAuthSecret=ci-only-not-a-real-secret \
+            --set ingress.enabled=true \
+            --set ingress.className=traefik \
+            --set ingress.host=dlp.example.com \
+            --set ingress.middleware.enabled=true \
+            --set ingress.middleware.redirectHttps.enabled=true \
+            --set ingress.middleware.redirectHttps.port=30443)
+
+          printf '%s' "$out" | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
+            -ignore-missing-schemas || exit 1
+
+          defined=$(printf '%s\n' "$out" \
+            | awk '/^kind: Middleware$/{f=1} f&&/^  name: /{print $2; f=0}' | sort -u)
+          echo "Middleware được định nghĩa:"; printf '%s\n' "$defined"
+          # `printf` chứ không phải chuỗi nhiều dòng: trong block scalar của YAML,
+          # một dòng bắt đầu ở cột 0 sẽ THOÁT khỏi khối `run:` và làm hỏng workflow.
+          want_defined=$(printf '%s\n' \
+            platform-bodylimit \
+            platform-ratelimit-static \
+            platform-ratelimit-web \
+            platform-ratelimit-ws \
+            platform-redirect-https)
+          [ "$defined" = "$want_defined" ] \
+            || { echo "tập Middleware lệch. Muốn:"; printf '%s\n' "$want_defined"; exit 1; }
+
+          # ── Khẳng định CHÍNH XÁC từng Ingress ────────────────────────────────
+          # ⛔ VÌ SAO KHÔNG CHỈ KIỂM "tham chiếu khớp định nghĩa": phép kiểm đó là
+          # MỘT CHIỀU (definition ⊇ reference) và một review đối kháng đã chứng
+          # minh nó cho qua BỐN kiểu hỏng thật, mỗi kiểu đều XANH:
+          #   A. gỡ HẲN annotation middlewares khỏi platform-web ⇒ đường web mất
+          #      sạch trần body + rate-limit, mà mọi tham chiếu còn lại vẫn khớp;
+          #   C. đổi entrypoint của platform-web sang `web` ⇒ HTTPS trả 404 cho
+          #      toàn ứng dụng, và trên HTTP hai router cùng rule tranh nhau;
+          #   F. trỏ platform-web sang ratelimit-WS ⇒ cả site tụt xuống 20 req/phút,
+          #      trông như "app chậm" chứ không như lỗi cấu hình.
+          # Nên ở đây pin TẬP MONG ĐỢI cho từng object, cả middleware lẫn entrypoint.
+          # Release.Namespace của `helm template` là `default` ⇒ tiền tố `default-`.
+          # ⚠ `flush()` phải chạy CẢ khi gặp một Ingress MỚI, không chỉ khi gặp kind
+          # khác. Bản đầu chỉ xả ở nhánh `kind` khác, mà bốn Ingress nằm LIÊN TIẾP
+          # trong output — nên nó chỉ in ra object CUỐI, và cổng đỏ ngay trên chart
+          # đúng. Một parser im lặng nuốt 3/4 bản ghi là cách dễ nhất để cổng này
+          # trở nên vô dụng theo hướng ngược lại.
+          actual=$(printf '%s\n' "$out" | awk '
+            function flush() { if (ing && name != "") print name "|" ep "|" mw }
+            /^kind: Ingress$/ { flush(); ing=1; name=""; ep=""; mw=""; next }
+            /^kind: / { flush(); ing=0; next }
+            ing && /^  name: / && name=="" { name=$2 }
+            ing && /router\.entrypoints:/ { ep=$2; gsub(/"/,"",ep) }
+            ing && /router\.middlewares:/ { mw=$2; gsub(/"/,"",mw) }
+            END { flush() }
+          ' | sed 's/@kubernetescrd//g; s/default-//g' | sort)
+          echo "Ingress thực tế (tên|entrypoint|middlewares):"; printf '%s\n' "$actual"
+          want_actual=$(printf '%s\n' \
+            'platform-redirect|web|platform-redirect-https' \
+            'platform-static|websecure|platform-ratelimit-static' \
+            'platform-web|websecure|platform-bodylimit,platform-ratelimit-web' \
+            'platform-ws|websecure|platform-ratelimit-ws')
+          if [ "$actual" != "$want_actual" ]; then
+            echo "LỆCH so với mong đợi:"; printf '%s\n' "$want_actual"
+            echo "(một annotation BIẾN MẤT, một entrypoint sai, hay một tham chiếu trỏ nhầm middleware đều rơi vào đây)"
+            exit 1
+          fi
+
+          # ── spec của Middleware: kubeconform KHÔNG kiểm được ─────────────────
+          # `-ignore-missing-schemas` bỏ qua đúng 4 CRD này (`Skipped: N` trong
+          # output ở trên). Hậu quả: một field gõ sai (`maxRequestBodyByte`) render
+          # hợp lệ, rồi apiserver PRUNE nó trong im lặng theo structural schema của
+          # CRD — kết quả là một middleware `buffering` KHÔNG có trần, mà
+          # `kubectl get middleware -o yaml` in ra vẫn trông bình thường. Cùng lớp
+          # với sự cố `service.type`, chỉ thấp hơn một tầng.
+          need() {
+            printf '%s\n' "$out" | grep -q "$1" \
+              || { echo "spec Middleware thiếu '$1' — field gõ sai sẽ bị apiserver prune TRONG IM LẶNG"; exit 1; }
+          }
+          need '^    maxRequestBodyBytes: '
+          need '^    memRequestBodyBytes: '
+          need '^    scheme: https$'
+          need '^    port: '
+          # average/burst phải là SỐ TRẦN (3 middleware × 2 field = 6 dòng). Một giá
+          # trị lỡ thành chuỗi (`average: "120"`) bị apiserver từ chối vì lệch kiểu
+          # — ồn ào, khác hẳn ca prune im lặng ở trên, nhưng vẫn là một lượt deploy
+          # hỏng nên bắt sớm ở đây rẻ hơn.
+          n=$(printf '%s\n' "$out" | grep -cE '^    (average|burst): [0-9]+$')
+          [ "$n" -eq 6 ] || { echo "muốn 6 dòng average/burst dạng SỐ TRẦN (web/static/ws), thấy $n"; exit 1; }
+          n=$(printf '%s\n' "$out" | grep -cE '^    period: "[^"]+"$')
+          [ "$n" -eq 3 ] || { echo "muốn 3 dòng period dạng chuỗi có nháy, thấy $n"; exit 1; }
+          echo 'OK: 5 Middleware, 4 Ingress khớp CHÍNH XÁC tập middleware + entrypoint, spec có đủ field và đúng kiểu.'
+
+      - name: 'helm template — trustProxy KHÔNG được bật khi không có proxy (P3/3.A)'
+        # Vế NGƯỢC: `web.env.rateLimitTrustProxy=1` khi `ingress.enabled=false`
+        # PHẢI làm chart chết. Không có proxy đứng trước thì `x-forwarded-for` là
+        # header client tự đặt được, và tin nó biến trần theo IP thành một lớp
+        # GIẢ — xoay XFF mỗi request là mỗi request một bucket mới.
+        #
+        # Bản đầu của 3.A đặt cờ này thẳng vào values-selfhost.yaml, trong khi các
+        # lệnh deploy self-host ở docs/env/05 + infra/helm/README.md dùng đúng hồ
+        # sơ đó mà KHÔNG bật ingress. Bước này gác để lần sau không tái diễn.
+        run: |
+          base=(helm template platform infra/helm/platform
+            -f infra/helm/platform/values-selfhost.yaml
+            --set web.env.betterAuthSecret=ci-only-not-a-real-secret
+            --set web.env.betterAuthUrl=https://ci.example
+            --set datastore.postgres.password=ci-only-not-a-real-password
+            --set datastore.redis.password=ci-only-not-a-real-password)
+
+          # ⛔ ĐỐI CHỨNG DƯƠNG TRƯỚC. Không có nó thì "render thất bại" không phân
+          # biệt được với "chart hỏng vì lý do khác" — và bước này sẽ XANH VĨNH VIỄN
+          # trong khi chứng minh con số không. Dự án đã có hai bài học đúng dạng
+          # ("suite xanh có thể là suite skip sạch", "'0 lỗi' cần đối chứng âm").
+          "${base[@]}" >/dev/null 2>&1 \
+            || { echo "chart KHÔNG render được ngay cả khi trustProxy TẮT — phép kiểm dưới sẽ vô nghĩa"; exit 1; }
+
+          # Vế NGƯỢC: bật cờ mà không có proxy PHẢI chết, và phải chết ĐÚNG LÝ DO.
+          if err=$("${base[@]}" --set web.env.rateLimitTrustProxy=1 2>&1 >/dev/null); then
+            echo "chart RENDER ĐƯỢC với trustProxy bật mà không có ingress — cổng đã mất tác dụng"
+            exit 1
+          fi
+          printf '%s' "$err" | grep -q 'rateLimitTrustProxy' \
+            || { echo "chart chết, nhưng KHÔNG phải vì cổng trustProxy — thông báo: $err"; exit 1; }
+          echo 'OK: trustProxy=1 + ingress.enabled=false bị từ chối, và đúng lý do.'
+
+          # Vế thứ hai của cổng: bật ingress nhưng để web là NodePort ⇒ vẫn còn cửa
+          # thứ hai không qua proxy. Đo được trên cụm: đầu độc bucket qua NodePort
+          # khoá được người dùng thật trên đường HTTPS hợp lệ.
+          if err=$("${base[@]}" --set web.env.rateLimitTrustProxy=1 \
+                     --set ingress.enabled=true --set ingress.className=traefik \
+                     --set ingress.host=ci.example \
+                     --set web.service.type=NodePort 2>&1 >/dev/null); then
+            echo "chart RENDER ĐƯỢC với trustProxy bật + web NodePort — cửa thứ hai vẫn mở"
+            exit 1
+          fi
+          printf '%s' "$err" | grep -q 'ClusterIP' \
+            || { echo "chết nhưng không phải vì cổng service.type — thông báo: $err"; exit 1; }
+          echo 'OK: trustProxy=1 + web.service.type=NodePort bị từ chối, và đúng lý do.'
+
       - name: 'helm template — nhánh existingSecret (đường đi của prod)'
         # Nhánh này KHÔNG được đòi betterAuthSecret và KHÔNG được sinh Secret WEB.
         # Không test thì logic `if not existingSecret` trong web-secret.yaml chỉ
@@ -374,6 +566,126 @@ jobs:
             || { echo "Secret mTLS biến mất — phép kiểm này sẽ xanh vì lý do sai"; exit 1; }
           printf '%s' "$out" | grep -q 'name: dlp-web-prod' \
             || { echo "pod không tham chiếu Secret có sẵn"; exit 1; }
+
+      - name: 'helm template — NetworkPolicy nền tảng (P3/3.B)'
+        # KHÔNG bộ values nào bật `networkPolicy.platform.enabled` (mặc định false:
+        # ba giá trị bắt buộc của nó phụ thuộc cụm). Không có bước này thì CI KHÔNG
+        # BAO GIỜ render 13 manifest mới — cùng khoảng mù mà 3.A đã phải vá cho
+        # nhánh middleware.
+        #
+        # ⛔ PHÉP KIỂM NẰM TRONG MỘT SCRIPT, KHÔNG VIẾT INLINE Ở ĐÂY.
+        # 3.A phải trích phép kiểm "verbatim từ chính workflow" rồi chạy tay trên
+        # các chart bị bóp méo, để thứ được kiểm và thứ CI chạy không trôi khỏi
+        # nhau. Ở đây không có gì để trôi: CI và người chạy tay gọi CÙNG một file.
+        #
+        # Cổng ngữ nghĩa này BỔ SUNG cho kubeconform chứ không thay thế: kubeconform
+        # bắt lỗi schema (đã đo: nhãn trần dưới `podSelector:` bị nó bắt vì
+        # NetworkPolicy là kiểu có sẵn), còn ba kiểu hỏng nguy hiểm nhất ở đây đều
+        # HỢP LỆ về schema — `egress: null` (chặn sạch), `from: []` (mở toang),
+        # thiếu `ports:` (mở mọi cổng).
+        run: |
+          python3 -m pip install --quiet pyyaml
+          gate() { python3 infra/k8s/netpol_render_gate.py "$@"; }
+          common=(-f infra/helm/platform/values-selfhost.yaml
+            --set web.env.betterAuthSecret=ci-only-not-a-real-secret
+            --set datastore.postgres.password=ci-only-not-a-real-password
+            --set datastore.redis.password=ci-only-not-a-real-password)
+          netpol=(--set networkPolicy.platform.enabled=true
+            --set 'networkPolicy.platform.apiServerEndpoints[0].cidr=10.0.0.1/32'
+            --set 'networkPolicy.platform.apiServerEndpoints[0].port=6443'
+            --set 'networkPolicy.platform.nodeCidrs[0]=10.0.0.1/32')
+
+          echo '--- nhánh mặc định: KHÔNG được render policy nền tảng nào ---'
+          helm template platform infra/helm/platform "${common[@]}" | gate --expect-none
+
+          echo '--- pha allow (denyEnabled=false) ---'
+          helm template platform infra/helm/platform "${common[@]}" "${netpol[@]}" | gate
+
+          echo '--- pha deny (denyEnabled=true) ---'
+          out=$(helm template platform infra/helm/platform "${common[@]}" "${netpol[@]}" \
+            --set networkPolicy.platform.denyEnabled=true)
+          printf '%s' "$out" | gate --expect-deny
+          printf '%s' "$out" | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
+            -ignore-missing-schemas -kubernetes-version 1.34.0 -
+
+          echo '--- vế NGƯỢC: sáu cổng chặn cấu hình PHẢI làm chart chết ---'
+          # Một cổng chỉ kiểm "đường đúng vẫn chạy" sẽ xanh cả sau khi ai đó gỡ
+          # mất chính cổng đó. Sáu ca dưới đây đều là cấu hình HỎNG THEO HƯỚNG
+          # KHÔNG CÓ TRIỆU CHỨNG, nên chúng phải chết lúc render.
+          # Khớp theo MÃ LỖI ổn định (`[netpol:E-*]`), không theo văn xuôi. Bản
+          # đầu khớp bằng chuỗi tiếng Việt trong chính thông báo, nên khi commit
+          # sau đổi cách diễn đạt của một guard thì cổng vẫn "đỏ" — nhưng đỏ vì
+          # SAI LÝ DO, tức đối chứng âm ngừng chứng minh được điều nó định
+          # chứng minh. Mã lỗi tách văn xuôi khỏi phép kiểm.
+          covered=()
+          must_fail() { # $1=mã lỗi  $2=nhãn  còn lại: --set
+            local code="$1" label="$2"; shift 2
+            local err
+            if err=$(helm template platform infra/helm/platform "${common[@]}" "$@" 2>&1); then
+              echo "LỖI: '$label' render ĐƯỢC — cổng chặn không tồn tại."; exit 1
+            fi
+            printf '%s' "$err" | grep -qF "$code" \
+              || { echo "LỖI: '$label' chết nhưng SAI LÝ DO (không thấy $code). Thông báo: $err"; exit 1; }
+            echo "  OK  $code — $label"
+            covered+=("$code")
+          }
+          must_fail netpol:E-APISERVER-EMPTY 'apiServerEndpoints rỗng' \
+            --set networkPolicy.platform.enabled=true \
+            --set 'networkPolicy.platform.nodeCidrs[0]=10.0.0.1/32'
+          must_fail netpol:E-NODECIDRS-EMPTY 'nodeCidrs rỗng' \
+            --set networkPolicy.platform.enabled=true \
+            --set 'networkPolicy.platform.apiServerEndpoints[0].cidr=10.0.0.1/32' \
+            --set 'networkPolicy.platform.apiServerEndpoints[0].port=6443'
+          must_fail netpol:E-DATASTORE-EGRESS 'datastore ngoài cụm mà không khai endpoint' \
+            --set datastore.enabled=false "${netpol[@]}"
+          must_fail netpol:E-NODECIDR-BROAD 'nodeCidrs là dải khổng lồ' \
+            "${netpol[@]}" --set 'networkPolicy.platform.nodeCidrs[0]=10.0.0.0/8'
+          must_fail netpol:E-APISERVER-BROAD 'apiServerEndpoints là dải khổng lồ' \
+            "${netpol[@]}" --set 'networkPolicy.platform.apiServerEndpoints[0].cidr=0.0.0.0/0'
+          must_fail netpol:E-WEB-EXCEPT-EMPTY 'web egress ra internet mà không loại trừ gì' \
+            "${netpol[@]}" \
+            --set networkPolicy.platform.webExternalEgress.enabled=true \
+            --set 'networkPolicy.platform.webExternalEgress.except=null'
+
+          # Guard nào chưa ai bắn thử thì chưa ai chứng minh là nó gác. Đối
+          # chiếu tập mã trong template với tập mã vừa bắn — thêm guard mới mà
+          # quên đối chứng âm sẽ đỏ ngay tại đây, chứ không im lặng trôi qua.
+          declared=$(grep -oE 'netpol:E-[A-Z-]+' infra/helm/platform/templates/platform-networkpolicy.yaml | sort -u)
+          tested=$(printf '%s\n' "${covered[@]}" | sort -u)
+          [ -n "$declared" ] || { echo '::error::không tìm thấy mã netpol:E-* nào trong template — cổng này không gác gì'; exit 1; }
+          if [ "$declared" != "$tested" ]; then
+            echo "::error::tập guard lệch tập đối chứng âm."
+            echo "chỉ có trong template (chưa bắn thử):"; comm -23 <(printf '%s\n' "$declared") <(printf '%s\n' "$tested")
+            echo "chỉ có trong CI (guard đã bị gỡ?):";    comm -13 <(printf '%s\n' "$declared") <(printf '%s\n' "$tested")
+            exit 1
+          fi
+          echo "  OK  $(printf '%s\n' "$declared" | wc -l) guard, tất cả đều có đối chứng âm"
+
+          echo '--- hằng số cổng CONTAINER phải khớp containerPort trong deployment ---'
+          # NetworkPolicy được đánh giá SAU DNAT nên nó phải nói về cổng CONTAINER,
+          # không phải `service.*Port`. Hai giá trị đó hôm nay TRÙNG nhau, nên nếu
+          # ai đó đổi containerPort mà quên helper (hoặc ngược lại) thì mọi rule
+          # web↔gateway↔orchestrator trỏ sai cổng — `helm template` sạch, pod
+          # Running 1/1, và cả ba chiều chết cùng lúc. Đối chiếu trực tiếp ở đây.
+          check_port() { # $1=helper  $2=file  $3=tên port
+            local want got
+            want=$(helm template platform infra/helm/platform "${common[@]}" \
+              --show-only "templates/$2" 2>/dev/null \
+              | grep -A1 "name: $3$" | grep -oE 'containerPort: [0-9]+' | grep -oE '[0-9]+' | head -1)
+            got=$(grep -oE "define \"$1\" -}}[0-9]+" infra/helm/platform/templates/_helpers.tpl \
+              | grep -oE '[0-9]+$')
+            if [ -z "$want" ] || [ -z "$got" ]; then
+              echo "không đọc được cổng cho $1 (want='$want' got='$got')"; exit 1
+            fi
+            [ "$want" = "$got" ] || { echo "LỆCH: $1=$got nhưng containerPort '$3'=$want trong $2"; exit 1; }
+            echo "  OK  $1 = $got khớp containerPort $3"
+          }
+          check_port platform.gatewayPublicContainerPort    gateway-deployment.yaml      public
+          check_port platform.gatewayAdminContainerPort     gateway-deployment.yaml      admin
+          check_port platform.orchestratorHttpContainerPort orchestrator-deployment.yaml http
+          check_port platform.orchestratorGrpcContainerPort orchestrator-deployment.yaml grpc
+
+          echo 'OK: netpol render đúng ở cả 3 nhánh, 6 cổng chặn cấu hình bắn đúng lý do, hằng số cổng khớp containerPort.'
 
       - name: shellcheck (infra/host/*.sh)
         uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0

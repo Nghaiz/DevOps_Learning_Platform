@@ -8,7 +8,7 @@
 # CỐ Ý KHÔNG nằm trong ma trận CI — cùng lý lẽ với mtls-probe: đây là công cụ
 # đo, không phải thành phần chạy thường trực, và ship nó lên registry là mời một
 # binary tạo/xoá được session của người khác vào mọi môi trường.
-FROM golang:1.26-alpine AS build
+FROM golang:1.26.6-alpine AS build
 WORKDIR /src
 
 COPY go.work go.work.sum* ./
