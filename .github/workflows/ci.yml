@@ -608,29 +608,58 @@ jobs:
           printf '%s' "$out" | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
             -ignore-missing-schemas -kubernetes-version 1.34.0 -
 
-          echo '--- vế NGƯỢC: ba cổng chặn cấu hình PHẢI làm chart chết ---'
+          echo '--- vế NGƯỢC: sáu cổng chặn cấu hình PHẢI làm chart chết ---'
           # Một cổng chỉ kiểm "đường đúng vẫn chạy" sẽ xanh cả sau khi ai đó gỡ
-          # mất chính cổng đó. Ba ca dưới đây đều là cấu hình HỎNG THEO HƯỚNG
+          # mất chính cổng đó. Sáu ca dưới đây đều là cấu hình HỎNG THEO HƯỚNG
           # KHÔNG CÓ TRIỆU CHỨNG, nên chúng phải chết lúc render.
-          must_fail() { # $1=nhãn  $2=chuỗi phải có trong thông báo  còn lại: --set
-            local label="$1" want="$2"; shift 2
+          # Khớp theo MÃ LỖI ổn định (`[netpol:E-*]`), không theo văn xuôi. Bản
+          # đầu khớp bằng chuỗi tiếng Việt trong chính thông báo, nên khi commit
+          # sau đổi cách diễn đạt của một guard thì cổng vẫn "đỏ" — nhưng đỏ vì
+          # SAI LÝ DO, tức đối chứng âm ngừng chứng minh được điều nó định
+          # chứng minh. Mã lỗi tách văn xuôi khỏi phép kiểm.
+          covered=()
+          must_fail() { # $1=mã lỗi  $2=nhãn  còn lại: --set
+            local code="$1" label="$2"; shift 2
             local err
             if err=$(helm template platform infra/helm/platform "${common[@]}" "$@" 2>&1); then
               echo "LỖI: '$label' render ĐƯỢC — cổng chặn không tồn tại."; exit 1
             fi
-            printf '%s' "$err" | grep -q "$want" \
-              || { echo "LỖI: '$label' chết nhưng SAI LÝ DO. Thông báo: $err"; exit 1; }
-            echo "  OK  $label"
+            printf '%s' "$err" | grep -qF "$code" \
+              || { echo "LỖI: '$label' chết nhưng SAI LÝ DO (không thấy $code). Thông báo: $err"; exit 1; }
+            echo "  OK  $code — $label"
+            covered+=("$code")
           }
-          must_fail 'apiServerEndpoints rỗng' 'apiServerEndpoints RỖNG' \
+          must_fail netpol:E-APISERVER-EMPTY 'apiServerEndpoints rỗng' \
             --set networkPolicy.platform.enabled=true \
             --set 'networkPolicy.platform.nodeCidrs[0]=10.0.0.1/32'
-          must_fail 'nodeCidrs rỗng' 'nodeCidrs RỖNG' \
+          must_fail netpol:E-NODECIDRS-EMPTY 'nodeCidrs rỗng' \
             --set networkPolicy.platform.enabled=true \
             --set 'networkPolicy.platform.apiServerEndpoints[0].cidr=10.0.0.1/32' \
             --set 'networkPolicy.platform.apiServerEndpoints[0].port=6443'
-          must_fail 'datastore ngoài cụm mà không khai endpoint' 'datastoreExternalEgress RỖNG' \
+          must_fail netpol:E-DATASTORE-EGRESS 'datastore ngoài cụm mà không khai endpoint' \
             --set datastore.enabled=false "${netpol[@]}"
+          must_fail netpol:E-NODECIDR-BROAD 'nodeCidrs là dải khổng lồ' \
+            "${netpol[@]}" --set 'networkPolicy.platform.nodeCidrs[0]=10.0.0.0/8'
+          must_fail netpol:E-APISERVER-BROAD 'apiServerEndpoints là dải khổng lồ' \
+            "${netpol[@]}" --set 'networkPolicy.platform.apiServerEndpoints[0].cidr=0.0.0.0/0'
+          must_fail netpol:E-WEB-EXCEPT-EMPTY 'web egress ra internet mà không loại trừ gì' \
+            "${netpol[@]}" \
+            --set networkPolicy.platform.webExternalEgress.enabled=true \
+            --set 'networkPolicy.platform.webExternalEgress.except=null'
+
+          # Guard nào chưa ai bắn thử thì chưa ai chứng minh là nó gác. Đối
+          # chiếu tập mã trong template với tập mã vừa bắn — thêm guard mới mà
+          # quên đối chứng âm sẽ đỏ ngay tại đây, chứ không im lặng trôi qua.
+          declared=$(grep -oE 'netpol:E-[A-Z-]+' infra/helm/platform/templates/platform-networkpolicy.yaml | sort -u)
+          tested=$(printf '%s\n' "${covered[@]}" | sort -u)
+          [ -n "$declared" ] || { echo '::error::không tìm thấy mã netpol:E-* nào trong template — cổng này không gác gì'; exit 1; }
+          if [ "$declared" != "$tested" ]; then
+            echo "::error::tập guard lệch tập đối chứng âm."
+            echo "chỉ có trong template (chưa bắn thử):"; comm -23 <(printf '%s\n' "$declared") <(printf '%s\n' "$tested")
+            echo "chỉ có trong CI (guard đã bị gỡ?):";    comm -13 <(printf '%s\n' "$declared") <(printf '%s\n' "$tested")
+            exit 1
+          fi
+          echo "  OK  $(printf '%s\n' "$declared" | wc -l) guard, tất cả đều có đối chứng âm"
 
           echo '--- hằng số cổng CONTAINER phải khớp containerPort trong deployment ---'
           # NetworkPolicy được đánh giá SAU DNAT nên nó phải nói về cổng CONTAINER,
@@ -654,7 +683,7 @@ jobs:
           check_port platform.orchestratorHttpContainerPort orchestrator-deployment.yaml http
           check_port platform.orchestratorGrpcContainerPort orchestrator-deployment.yaml grpc
 
-          echo 'OK: netpol render đúng ở cả 3 nhánh, 3 cổng chặn cấu hình bắn đúng lý do, hằng số cổng khớp containerPort.'
+          echo 'OK: netpol render đúng ở cả 3 nhánh, 6 cổng chặn cấu hình bắn đúng lý do, hằng số cổng khớp containerPort.'
 
       - name: shellcheck (infra/host/*.sh)
         uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
