@@ -1,0 +1,170 @@
+# values cho kube-prometheus-stack trên lab 1-node (8 vCPU / 11 GB / 112 GB đĩa).
+#
+# VÌ SAO KHÔNG NHÉT VÀO CHART `platform`: cùng lý lẽ với Traefik ở
+# 07-ingress-controller.sh — stack quan sát sống LÂU HƠN release ứng dụng.
+# `helm uninstall platform` phải không được kéo theo Prometheus, nếu không thì
+# đúng lúc gỡ ứng dụng để chẩn đoán là lúc mất hết số liệu để chẩn đoán.
+#
+# NGUYÊN TẮC TÀI NGUYÊN (theo 07-ingress-controller.sh): XIN cpu, CHẶN ram,
+# KHÔNG BAO GIỜ chặn cpu. Đo được ở chặng trước: `cpu limit` làm CFS throttle và
+# đọc ra y hệt "ứng dụng chậm" — 150m từng làm mất 123ms mỗi lượt attach. Với
+# Prometheus thì throttle lúc scrape/compact còn tệ hơn: nó làm CHÍNH công cụ
+# chẩn đoán trở thành thứ cần chẩn đoán.
+
+fullnameOverride: kps
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Prometheus
+# ─────────────────────────────────────────────────────────────────────────────
+prometheus:
+  prometheusSpec:
+    # 3 ngày, không phải 15 ngày mặc định. Lab có 112 GB đĩa dùng chung với
+    # image sandbox + DinD; giữ 15 ngày là để một service phụ trợ cạnh tranh
+    # đĩa với chính sản phẩm. 3 ngày đủ cho vòng đo của P3 (k6 ở 3.F đọc kết
+    # quả trong cùng phiên).
+    retention: 3d
+    retentionSize: 4GB
+
+    # ⛔ MẶC ĐỊNH CỦA CHART LÀ MỘT BẪY IM LẶNG.
+    # kube-prometheus-stack mặc định chỉ chọn ServiceMonitor/PodMonitor mang
+    # nhãn `release: <tên-release>`. Monitor thiếu nhãn đó KHÔNG bị báo lỗi —
+    # nó chỉ đơn giản không bao giờ được scrape, và triệu chứng là "target
+    # không xuất hiện", thứ đọc y hệt "chưa cài xong" hoặc "app chưa expose
+    # /metrics". Ta đã có đủ một họ lỗi im lặng ở P3 rồi.
+    #
+    # Đặt false = chọn MỌI monitor trong cụm. Rộng hơn cần thiết, nhưng hỏng
+    # theo hướng ỒN ÀO (thấy target thừa) thay vì im lặng (thiếu target), và
+    # trên cụm lab một-node thì "mọi monitor" là đúng những gì ta tự khai.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1500Mi
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          # local-path là StorageClass DUY NHẤT trên lab (dựng ở
+          # 05-cluster-addons.sh). Không khai thì PVC Pending VĨNH VIỄN và
+          # Prometheus kẹt ContainerCreating — P1 đã dính đúng ca này.
+          storageClassName: local-path
+          accessModes: ['ReadWriteOnce']
+          resources:
+            requests:
+              storage: 5Gi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Alertmanager — 1 replica, KHÔNG cluster
+# ─────────────────────────────────────────────────────────────────────────────
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ['ReadWriteOnce']
+          resources:
+            requests:
+              storage: 1Gi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Grafana
+# ─────────────────────────────────────────────────────────────────────────────
+grafana:
+  # Mật khẩu admin: KHÔNG ghim trong file này (file này vào git).
+  # 10-observability.sh truyền qua --set từ biến môi trường.
+  defaultDashboardsEnabled: true
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+
+  persistence:
+    enabled: true
+    storageClassName: local-path
+    size: 1Gi
+
+  # Dashboard khai bằng FILE trong repo, nạp qua sidecar đọc ConfigMap có nhãn
+  # `grafana_dashboard: "1"`. Cấu hình bằng tay trong UI là trạng thái ẩn:
+  # nó sống trong PVC, không ai review được, và mất khi dựng lại cụm.
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: '1'
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+      label: grafana_datasource
+      searchNamespace: ALL
+
+  # Loki khai tường minh ở đây thay vì để sidecar tự tìm — datasource thiếu thì
+  # panel log rỗng mà không báo lỗi.
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki-gateway.monitoring.svc.cluster.local
+      jsonData:
+        maxLines: 1000
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Exporter
+# ─────────────────────────────────────────────────────────────────────────────
+# kube-state-metrics GIỮ LẠI dù nó tốn ~100Mi: nó là nguồn của
+# `kube_cronjob_status_last_schedule_time`, tức là thứ THAY THẾ cho việc giữ 26
+# Job canary mà 3.C vừa bỏ. Không có nó thì 3.C là mất năng lực chẩn đoán ròng
+# chứ không phải chuyển năng lực ấy sang chỗ tốt hơn.
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 24Mi
+    limits:
+      memory: 64Mi
+
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+# Trên kubeadm 1-node, control-plane chạy như static pod và KHÔNG expose
+# endpoint scrape trên địa chỉ mà các job mặc định trỏ tới. Bật chúng cho ra
+# một loạt target đỏ vĩnh viễn — và một bảng target đầy màu đỏ "bình thường"
+# là cách chắc chắn nhất để không ai nhận ra target đỏ THẬT.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false

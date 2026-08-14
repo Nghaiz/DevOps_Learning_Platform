@@ -1,0 +1,77 @@
+# Ba đích scrape của AC-D1. HAI trong ba là PodMonitor chứ không phải
+# ServiceMonitor, và đó là hệ quả trực tiếp của hai quyết định có trước:
+#
+#  · gateway — cổng admin 8083 CỐ Ý không nằm trên Service
+#    (`gateway-service.yaml`, `values.yaml` §gateway.service): `/metrics` không
+#    có authz, nên đưa nó lên Service là mở một cổng không xác thực cho mọi
+#    thứ phân giải được tên Service. ServiceMonitor sẽ không tìm thấy cổng nào
+#    — không phải lỗi Prometheus.
+#  · traefik — chart v41 có entrypoint `metrics` trên POD (:9100) nhưng Service
+#    chỉ expose `web` + `websecure` (đo trên cụm 2026-08-15). Sửa Service của
+#    Traefik là sửa một chart do host script quản lý; PodMonitor không đụng nó.
+#
+# orchestrator thì ngược lại: cổng http 8081 ĐÃ có trên Service, nên
+# ServiceMonitor là đường tự nhiên và không phải nới gì.
+#
+# ⛔ Cả ba đều cần NetworkPolicy tương ứng khi networkPolicy.platform.enabled=true
+# (xem networkPolicy.platform.metricsScrape trong chart platform). Thiếu nó thì
+# target hiện ra nhưng `up == 0`, và điều đó đọc y hệt "app chưa chạy".
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: dlp-gateway
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: dlp-platform
+spec:
+  namespaceSelector:
+    matchNames: ['default']
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform
+      app.kubernetes.io/component: gateway
+  podMetricsEndpoints:
+    # `port` ở PodMonitor là TÊN của containerPort, không phải số.
+    # gateway-deployment.yaml khai `name: admin` cho 8083.
+    - port: admin
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: dlp-orchestrator
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: dlp-platform
+spec:
+  namespaceSelector:
+    matchNames: ['default']
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform
+      app.kubernetes.io/component: orchestrator
+  endpoints:
+    # Tên port trên orchestrator-service.yaml là `http` (8081).
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: dlp-traefik
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: dlp-platform
+spec:
+  namespaceSelector:
+    matchNames: ['traefik']
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

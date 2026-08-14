@@ -1,0 +1,87 @@
+# Loki cho lab 1-node. Chart grafana/loki mặc định dựng kiến trúc PHÂN TÁN
+# (read/write/backend + memcached) — hợp lý ở quy mô thật, nhưng trên 11 GB RAM
+# nó chiếm phần lớn ngân sách còn lại chỉ để phục vụ log của 5 pod.
+#
+# SingleBinary + filesystem là hình thái đúng ở đây, và phải TẮT TƯỜNG MINH các
+# thành phần phân tán: để mặc định thì chart dựng CẢ HAI, và triệu chứng là pod
+# Pending vì hết RAM chứ không phải một thông báo cấu hình.
+
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+
+  commonConfig:
+    # 1, không phải 3 mặc định. Trên một node thì replication_factor 3 nghĩa là
+    # Loki chờ 3 bản ghi mà chỉ có 1 ingester ⇒ mọi lượt ghi lỗi, và log lỗi
+    # nằm trong chính hệ đang hỏng.
+    replication_factor: 1
+
+  storage:
+    type: filesystem
+
+  schemaConfig:
+    configs:
+      - from: '2024-04-01'
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+  limits_config:
+    retention_period: 72h
+    # Cùng con số 3 ngày với Prometheus: hai nguồn lệch retention thì đúng lúc
+    # điều tra sự cố sẽ có metric mà không có log (hoặc ngược lại), và khoảng
+    # lệch ấy chỉ lộ ra khi đang cần nhất.
+    reject_old_samples: true
+    reject_old_samples_max_age: 72h
+
+  # Chart 7.x đòi khai; để trống thì sinh cấu hình thiếu và Loki crash-loop.
+  useTestSchema: false
+
+singleBinary:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      memory: 512Mi
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 5Gi
+
+# ⛔ Tắt tường minh toàn bộ nhánh phân tán.
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+# Canary của Loki tự sinh log để tự kiểm — hữu ích ở production, nhưng ở đây nó
+# thêm một Deployment và làm nhiễu đúng phép đo AC-D3 (ta muốn thấy log của
+# web/gateway/orchestrator, không phải log do chính Loki bịa ra).
+lokiCanary:
+  enabled: false
+
+test:
+  enabled: false
+
+# Không cần nhiều bản gateway trên 1 node.
+gateway:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
