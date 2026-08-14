@@ -674,7 +674,9 @@ jobs:
               | grep -A1 "name: $3$" | grep -oE 'containerPort: [0-9]+' | grep -oE '[0-9]+' | head -1)
             got=$(grep -oE "define \"$1\" -}}[0-9]+" infra/helm/platform/templates/_helpers.tpl \
               | grep -oE '[0-9]+$')
-            [ -n "$want" ] && [ -n "$got" ] || { echo "không đọc được cổng cho $1 (want='$want' got='$got')"; exit 1; }
+            if [ -z "$want" ] || [ -z "$got" ]; then
+              echo "không đọc được cổng cho $1 (want='$want' got='$got')"; exit 1
+            fi
             [ "$want" = "$got" ] || { echo "LỆCH: $1=$got nhưng containerPort '$3'=$want trong $2"; exit 1; }
             echo "  OK  $1 = $got khớp containerPort $3"
           }
