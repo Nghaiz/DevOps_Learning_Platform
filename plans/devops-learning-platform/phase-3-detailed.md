@@ -67,9 +67,19 @@ Hai điều này sketch không biết:
 
 ### 0.4 — Hai phát hiện phụ, chưa có trong sketch
 
-- **Không chỗ nào đặt `seccompProfile`.** Design §6 luật 10 ghi rõ
-  "seccomp+AppArmor". `sandbox-namespace.yaml` đặt PSA `enforce=baseline`, mà
-  baseline KHÔNG đòi seccomp profile. → 3.B.
+- ~~**Không chỗ nào đặt `seccompProfile`.**~~ **SAI — đã bác bỏ khi làm 3.B
+  (2026-08-14).** Hai vế của câu này đều sai:
+  1. `seccompProfile: RuntimeDefault` **đã được đặt** ở
+     [`podspec.go:129`](../../services/orchestrator/internal/k8s/podspec.go) — pod
+     sandbox do orchestrator sinh bằng **mã Go**, không bằng YAML, nên việc scout
+     chỉ tìm trong `sandbox-*.yaml` là tìm sai chỗ.
+  2. PSA `baseline` **có** chặn seccomp: nó cấm
+     `seccompProfile.type: Unconfined`. Đo được khi cố tình tạo một pod
+     Unconfined trong `dlp-sandbox` — apiserver từ chối.
+  Đo trên HOST (không đo trong pod — Sysbox biên tập thứ `kubectl exec` nhìn
+  thấy): mọi tiến trình của pod sandbox, kể cả `dockerd` lồng trong, đều có
+  `Seccomp: 2` (filter mode) và `Seccomp_filters: 2`. → 3.B chỉ còn việc ĐO, không
+  còn việc SỬA.
 - **CSP còn `style-src 'unsafe-inline'`** ([`headers.ts:8`](../../apps/web/src/server/security/headers.ts)).
   Luật 9 sẽ bị self-pentest soi đúng chỗ này. → 3.E quyết định: sửa hay ghi nhận
   có lý do.
@@ -99,8 +109,8 @@ session trên lab 1-node, N đo được = …" thì không.
 
 | Chặng | Nội dung | Sketch task | Trạng thái |
 |---|---|---|---|
-| **3.A** | Biên Traefik: body-size, rate-limit, XFF, redirect HTTP→HTTPS | 6 | **Lượt này** |
-| **3.B** | NetworkPolicy namespace nền tảng + seccomp | 3 | Lượt này |
+| **3.A** | Biên Traefik: body-size, rate-limit, XFF, redirect HTTP→HTTPS | 6 | ✅ xong — [report](reports/2026-08-14-verify-3a-edge.md) |
+| **3.B** | NetworkPolicy namespace nền tảng + seccomp | 3 | ✅ xong — [report](reports/2026-08-14-verify-3b-netpol.md) |
 | **3.C** | Rò tài nguyên: pod GC + đo lại reaper | 8 | Lượt này |
 | **3.D** | Observability: Prometheus + Grafana + Loki | 7 | Lượt này |
 | **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | Lượt này (cuối) |

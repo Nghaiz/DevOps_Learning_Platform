@@ -524,6 +524,73 @@ jobs:
           printf '%s' "$out" | grep -q 'name: dlp-web-prod' \
             || { echo "pod không tham chiếu Secret có sẵn"; exit 1; }
 
+      - name: 'helm template — NetworkPolicy nền tảng (P3/3.B)'
+        # KHÔNG bộ values nào bật `networkPolicy.platform.enabled` (mặc định false:
+        # ba giá trị bắt buộc của nó phụ thuộc cụm). Không có bước này thì CI KHÔNG
+        # BAO GIỜ render 13 manifest mới — cùng khoảng mù mà 3.A đã phải vá cho
+        # nhánh middleware.
+        #
+        # ⛔ PHÉP KIỂM NẰM TRONG MỘT SCRIPT, KHÔNG VIẾT INLINE Ở ĐÂY.
+        # 3.A phải trích phép kiểm "verbatim từ chính workflow" rồi chạy tay trên
+        # các chart bị bóp méo, để thứ được kiểm và thứ CI chạy không trôi khỏi
+        # nhau. Ở đây không có gì để trôi: CI và người chạy tay gọi CÙNG một file.
+        #
+        # Cổng ngữ nghĩa này BỔ SUNG cho kubeconform chứ không thay thế: kubeconform
+        # bắt lỗi schema (đã đo: nhãn trần dưới `podSelector:` bị nó bắt vì
+        # NetworkPolicy là kiểu có sẵn), còn ba kiểu hỏng nguy hiểm nhất ở đây đều
+        # HỢP LỆ về schema — `egress: null` (chặn sạch), `from: []` (mở toang),
+        # thiếu `ports:` (mở mọi cổng).
+        run: |
+          python3 -m pip install --quiet pyyaml
+          gate() { python3 infra/k8s/netpol_render_gate.py "$@"; }
+          common=(-f infra/helm/platform/values-selfhost.yaml
+            --set web.env.betterAuthSecret=ci-only-not-a-real-secret
+            --set datastore.postgres.password=ci-only-not-a-real-password
+            --set datastore.redis.password=ci-only-not-a-real-password)
+          netpol=(--set networkPolicy.platform.enabled=true
+            --set 'networkPolicy.platform.apiServerEndpoints[0].cidr=10.0.0.1/32'
+            --set 'networkPolicy.platform.apiServerEndpoints[0].port=6443'
+            --set 'networkPolicy.platform.nodeCidrs[0]=10.0.0.1/32')
+
+          echo '--- nhánh mặc định: KHÔNG được render policy nền tảng nào ---'
+          helm template platform infra/helm/platform "${common[@]}" | gate --expect-none
+
+          echo '--- pha allow (denyEnabled=false) ---'
+          helm template platform infra/helm/platform "${common[@]}" "${netpol[@]}" | gate
+
+          echo '--- pha deny (denyEnabled=true) ---'
+          out=$(helm template platform infra/helm/platform "${common[@]}" "${netpol[@]}" \
+            --set networkPolicy.platform.denyEnabled=true)
+          printf '%s' "$out" | gate --expect-deny
+          printf '%s' "$out" | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
+            -ignore-missing-schemas -kubernetes-version 1.34.0 -
+
+          echo '--- vế NGƯỢC: ba cổng chặn cấu hình PHẢI làm chart chết ---'
+          # Một cổng chỉ kiểm "đường đúng vẫn chạy" sẽ xanh cả sau khi ai đó gỡ
+          # mất chính cổng đó. Ba ca dưới đây đều là cấu hình HỎNG THEO HƯỚNG
+          # KHÔNG CÓ TRIỆU CHỨNG, nên chúng phải chết lúc render.
+          must_fail() { # $1=nhãn  $2=chuỗi phải có trong thông báo  còn lại: --set
+            local label="$1" want="$2"; shift 2
+            local err
+            if err=$(helm template platform infra/helm/platform "${common[@]}" "$@" 2>&1); then
+              echo "LỖI: '$label' render ĐƯỢC — cổng chặn không tồn tại."; exit 1
+            fi
+            printf '%s' "$err" | grep -q "$want" \
+              || { echo "LỖI: '$label' chết nhưng SAI LÝ DO. Thông báo: $err"; exit 1; }
+            echo "  OK  $label"
+          }
+          must_fail 'apiServerEndpoints rỗng' 'apiServerEndpoints RỖNG' \
+            --set networkPolicy.platform.enabled=true \
+            --set 'networkPolicy.platform.nodeCidrs[0]=10.0.0.1/32'
+          must_fail 'nodeCidrs rỗng' 'nodeCidrs RỖNG' \
+            --set networkPolicy.platform.enabled=true \
+            --set 'networkPolicy.platform.apiServerEndpoints[0].cidr=10.0.0.1/32' \
+            --set 'networkPolicy.platform.apiServerEndpoints[0].port=6443'
+          must_fail 'datastore ngoài cụm mà không khai endpoint' 'datastoreExternalEgress RỖNG' \
+            --set datastore.enabled=false "${netpol[@]}"
+
+          echo 'OK: netpol render đúng ở cả 3 nhánh, và 3 cổng chặn cấu hình đều bắn đúng lý do.'
+
       - name: shellcheck (infra/host/*.sh)
         uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
         with:

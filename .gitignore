@@ -60,3 +60,7 @@ services/orchestrator/mtls-probe.exe
 # và một lượt đỏ có thể đẻ ra hàng chục PNG.
 packages/terminal/.vitest-attachments/
 packages/terminal/src/__screenshots__/
+
+# Bản chart bị bóp méo do gate-distort.sh sinh ra — tạo lại được, KHÔNG commit
+# (chứa template Secret nên secret-guard chặn, và 8 bản chart là rác repo)
+plans/devops-learning-platform/reports/harness/*/distort/

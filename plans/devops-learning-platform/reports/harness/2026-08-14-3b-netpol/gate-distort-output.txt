@@ -1,0 +1,16 @@
+── BASELINE (chart thật) ────────────────────────────────────────────────
+  OK   BASELINE deny                                  exit=0  ✓ cổng netpol xanh: tập policy khớp chính xác, selector ngặt, không rule nào rỗng, apiserver/probe dùng ipBlock, sandbox nguyên vẹn.
+  OK   BASELINE mặc định (enabled=false)         exit=0
+
+── BÓP MÉO (mỗi cái PHẢI làm cổng đỏ) ───────────────────────────────────
+  OK   A. podSelector mất matchLabels (prune)       exit=1  · allow-egress-web: podSelector có key LẠ ['app.kubernetes.io/compone
+  OK   B. một rule mất ports (mở mọi cổng)  exit=1  · allow-ingress-web.ingress[0]: thiếu `ports:` ⇒ cho phép MỌI C�
+  OK   C. nodeCidrs rỗng ⇒ from rỗng (mở toang) exit=1  · allow-ingress-kubelet-probes.ingress[0]: `from:` rỗng/thi�
+  OK   D. gỡ hẳn allow-egress-migrate             exit=1  · tập policy LỆCH. thiếu=['allow-egress-migrate'] thừa=[]. (Thi�
+  OK   E. default-deny không phủ pod lạ          exit=1  · default-deny: podSelector phải RỖNG ({}) để phủ MỌI pod k�
+  OK   F. apiserver dùng selector (không khớp)    exit=1  · allow-egress-apiserver.egress[0]: đích phải là `ipBlock` (endpoin
+  OK   G. postgres nhận từ MỌI pod trong ns     exit=1  · allow-ingress-postgres.ingress[0].from[0]: `podSelector: {}` ⇒ MỌI
+  OK   H. đổi tên allow-ingress-redis             exit=1  · tập policy LỆCH. thiếu=['allow-ingress-redis'] thừa=[]. (Thi�
+
+── ĐỐI CHỨNG: cổng có đỏ NHẦM trên chart thật không? ────────────────────
+  OK   BASELINE lại (phải vẫn xanh)             exit=0  ✓ cổng netpol xanh: tập policy khớp chính xác, selector ngặt, không rule nào rỗng, apiserver/probe dùng ipBlock, sandbox nguyên vẹn.

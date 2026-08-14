@@ -480,6 +480,87 @@ platform:
   # probe là httpGet nên Kubernetes không thấy gì sai.
   mtlsFsGroup: 65532
 
+# Cô lập mạng cho namespace NỀN TẢNG (web/gateway/orchestrator/postgres/redis) —
+# P3/3.B. Namespace sandbox có default-deny riêng từ P1 (khối `sandbox` ở dưới);
+# phần này là hàng rào cho chính các dịch vụ nền tảng, vốn TRƯỚC 3.B không có
+# NetworkPolicy nào.
+networkPolicy:
+  platform:
+    # ⛔ MẶC ĐỊNH TẮT, VÀ ĐÓ LÀ MỘT QUYẾT ĐỊNH CHỨ KHÔNG PHẢI SỰ THẬN TRỌNG THỪA.
+    # Bật cờ này là siết mạng NGAY (xem ghi chú `denyEnabled` ngay dưới: các
+    # policy allow tự chúng đã siết). Ba giá trị bên dưới — apiServerEndpoints,
+    # nodeCidrs, và datastoreExternalEgress khi DB nằm ngoài cụm — PHỤ THUỘC CỤM
+    # và không có mặc định đúng nào; bật mà chưa khai đủ thì chart `fail` lúc
+    # render. Vì thế nó phải là hành động có ý thức tại chỗ deploy, cùng khuôn
+    # với `ingress.middleware.enabled`.
+    # Đường bật đã dựng sẵn: infra/host/09-networkpolicy.sh — script đọc endpoint
+    # apiserver + IP node TỪ CỤM ĐANG CHẠY rồi in ra lệnh `--set` tương ứng, nên
+    # không ai phải gõ tay ba giá trị dễ sai đó.
+    enabled: false
+
+    # ⛔ HAI PHA, KHÔNG PHẢI MỘT. Đọc ngữ nghĩa ở đầu
+    # templates/platform-networkpolicy.yaml trước khi đổi cờ này.
+    #
+    # Điều DỄ HIỂU NGƯỢC NHẤT: các policy `allow-*` ở trên TỰ CHÚNG đã siết
+    # web/gateway/orchestrator/migrate — trong Kubernetes, một pod bị BẤT KỲ
+    # policy nào chọn với `policyTypes: Egress` lập tức chỉ còn đúng những chiều
+    # được liệt kê. Cờ này KHÔNG phải thứ bật sự siết chặt; nó phủ nốt phần còn
+    # hở: pod lạ không policy nào chọn, và egress của postgres/redis.
+    #
+    # Vẫn bật SAU vì lý do đo đạc: áp allow → xác nhận từng chiều còn sống bằng
+    # infra/k8s/netpol-verify.sh → rồi mới bật deny. Bật cả hai cùng lúc thì mọi
+    # nguyên nhân sai đều cho CÙNG một triệu chứng (timeout) và không tách được.
+    # Giữ tắt được để chẩn đoán mà không phải gỡ cả chart.
+    denyEnabled: false
+
+    # Namespace của ingress controller. `kubernetes.io/metadata.name` là nhãn do
+    # chính Kubernetes đặt trên mọi namespace nên không phụ thuộc người vận hành
+    # có nhớ gắn nhãn hay không.
+    ingressControllerNamespace: traefik
+
+    # ⛔ Endpoint THẬT của kube-apiserver — KHÔNG phải ClusterIP 10.96.0.1:443.
+    # NetworkPolicy được đánh giá SAU khi kube-proxy DNAT, nên đích policy nhìn
+    # thấy là endpoint thật (kubeadm: IP node + 6443). Rỗng + denyEnabled=true ⇒
+    # chart `fail`, vì chiều này hỏng làm CẢ SẢN PHẨM chết trong khi mọi pod vẫn
+    # Running 1/1 (gateway không exec được, orchestrator không tạo được pod).
+    #   kubectl get endpoints kubernetes \
+    #     -o jsonpath='{.subsets[0].addresses[0].ip}:{.subsets[0].ports[0].port}'
+    apiServerEndpoints: []
+    # - cidr: 192.168.94.130/32
+    #   port: 6443
+
+    # ⛔ IP node — nguồn của probe kubelet. Probe KHÔNG đi từ pod nên không
+    # selector nào bắt được; thiếu dải này dưới default-deny thì web/gateway/
+    # orchestrator bị giết-tạo-lại liên tục và đọc ra y hệt "ứng dụng crash".
+    # Rỗng + denyEnabled=true ⇒ chart `fail`.
+    #   kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
+    nodeCidrs: []
+    # - 192.168.94.130/32
+
+    # Dùng KHI `datastore.enabled=false` (Postgres/Redis là dịch vụ quản lý
+    # ngoài cụm — đây là MẶC ĐỊNH của values.yaml và của hồ sơ cloud). Lúc đó
+    # các rule datastore không thể ghim theo podSelector vì không có pod nào.
+    # Rỗng + datastore.enabled=false + denyEnabled=true ⇒ chart `fail`.
+    datastoreExternalEgress: []
+    # - cidr: 10.20.0.5/32   # RDS
+    #   port: 5432
+    # - cidr: 10.20.0.6/32   # ElastiCache
+    #   port: 6379
+
+    # Egress ra internet cho web — CHỈ cần khi bật đăng nhập bằng IdP ngoài
+    # (Google/Microsoft): Better Auth đổi authorization-code → token và tải JWKS
+    # từ phía SERVER. Trên lab hai client id là 'placeholder' nên tắt.
+    # Mở egress internet cho pod đứng ngay trước người dùng là bề mặt SSRF ⇒
+    # phải là lựa chọn có ý thức, và `except` giữ các dải nội bộ để nó không
+    # thành đường vòng ngược vào chính cụm.
+    webExternalEgress:
+      enabled: false
+      except:
+        - '169.254.0.0/16' # link-local / IMDS cloud — KHÔNG BAO GIỜ bỏ dòng này
+        - '10.96.0.0/12' # service CIDR cluster (mặc định kubeadm)
+        - '10.244.0.0/16' # pod CIDR cluster (mặc định Calico)
+        - '192.168.0.0/16' # mạng node/VM lab
+
 # Tầng cô lập cho namespace chạy pod sandbox sinh viên (P1) — sinh viên có
 # root BÊN TRONG pod và là tác nhân CỐ Ý ĐỐI KHÁNG. Namespace này KHÁC
 # namespace platform (web/orchestrator/gateway) — orchestrator tạo pod sandbox

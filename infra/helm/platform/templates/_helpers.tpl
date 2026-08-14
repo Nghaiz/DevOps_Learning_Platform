@@ -69,6 +69,96 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{/*
+─── Helper cho platform-networkpolicy.yaml (P3/3.B) ──────────────────────────
+Ba helper dưới đây sống ở ĐÂY chứ không cạnh chỗ dùng vì `define` không được
+lồng trong khối `if`, mà cả platform-networkpolicy.yaml nằm trong
+`if .Values.networkPolicy.platform.enabled`.
+
+Selector "mọi pod CỦA RELEASE NÀY" — cố ý KHÔNG dùng podSelector rỗng ở các
+policy allow. Rỗng sẽ cấp quyền cho cả pod lạ rơi vào namespace, tức tự tay vô
+hiệu hoá AC-B2 (đối chứng âm: pod lạ KHÔNG được chạm datastore). Chỉ khối
+default-deny mới dùng podSelector rỗng, và ở đó rỗng là đúng.
+*/}}
+{{- define "platform.netpolRelease" -}}
+matchLabels:
+  app.kubernetes.io/name: {{ include "platform.name" .context }}
+  app.kubernetes.io/instance: {{ .context.Release.Name }}
+{{- end -}}
+
+{{/*
+Selector MỘT component, dạng LabelSelector đầy đủ (có `matchLabels:`). Gọi:
+  {{ include "platform.netpolComponent" (dict "context" . "component" "web") }}
+
+⛔ TỒN TẠI ĐỂ CHẶN MỘT LỖI IM LẶNG, KHÔNG PHẢI ĐỂ GÕ ÍT HƠN.
+`platform.selectorLabels` phát ra các dòng nhãn TRẦN, còn `podSelector` của
+NetworkPolicy là một LabelSelector — nhãn phải nằm DƯỚI `matchLabels:`. Đặt
+nhãn trần thẳng vào `podSelector:` vẫn qua được `helm lint` và vẫn được
+apiserver NHẬN, vì field lạ trên kiểu có sẵn bị **prune trong im lặng** — kết
+quả là `podSelector: {}`, tức policy CHỌN MỌI POD trong namespace thay vì đúng
+một component. Một rule allow bị prune như thế thành rule cấp quyền cho tất cả;
+một rule deny thì phủ luôn cả những pod không định phủ.
+`kubectl get netpol -o yaml` in ra vẫn trông bình thường. Dùng helper này ở MỌI
+`podSelector`, đừng gọi thẳng `platform.selectorLabels` trong NetworkPolicy.
+*/}}
+{{- define "platform.netpolComponent" -}}
+matchLabels:
+  {{- include "platform.selectorLabels" (dict "context" .context "component" .component) | nindent 2 }}
+{{- end -}}
+
+{{/*
+Selector theo DANH SÁCH component — matchExpressions vì NetworkPolicy không có
+phép OR nào khác. Gọi:
+  {{ include "platform.netpolComponents" (dict "context" . "components" (list "web" "gateway")) }}
+*/}}
+{{- define "platform.netpolComponents" -}}
+matchLabels:
+  app.kubernetes.io/name: {{ include "platform.name" .context }}
+  app.kubernetes.io/instance: {{ .context.Release.Name }}
+matchExpressions:
+  - key: app.kubernetes.io/component
+    operator: In
+    values:
+      {{- range .components }}
+      - {{ . }}
+      {{- end }}
+{{- end -}}
+
+{{/*
+Khối `to:` egress tới datastore. Hai hình thái tuỳ `datastore.enabled`:
+  · true  → Postgres/Redis là pod trong cụm  ⇒ podSelector
+  · false → dịch vụ quản lý ngoài cụm        ⇒ ipBlock từ
+            networkPolicy.platform.datastoreExternalEgress
+
+⛔ MỘT HELPER CHỨ KHÔNG PHẢI BA KHỐI CHÉP TAY — cùng lý lẽ với platform.mtlsEnv.
+Ba nơi cần nó (web, orchestrator, migrate) phải đổi hình thái CÙNG LÚC khi
+datastore chuyển vào/ra khỏi cụm; ba khối chép tay là ba cơ hội để một cái bị
+quên, và cái bị quên sẽ render ra một rule KHÔNG BAO GIỜ KHỚP (podSelector trỏ
+tới pod không tồn tại) — hợp lệ với apiserver, im lặng với người đọc.
+*/}}
+{{- define "platform.netpolDatastoreEgress" -}}
+{{- $ctx := .context -}}
+{{- if $ctx.Values.datastore.enabled }}
+{{- range .stores }}
+- to:
+    - podSelector:
+        {{- include "platform.netpolComponent" (dict "context" $ctx "component" .) | nindent 8 }}
+  ports:
+    - protocol: TCP
+      port: {{ if eq . "postgres" }}5432{{ else }}6379{{ end }}
+{{- end }}
+{{- else }}
+{{- range $ctx.Values.networkPolicy.platform.datastoreExternalEgress }}
+- to:
+    - ipBlock:
+        cidr: {{ .cidr }}
+  ports:
+    - protocol: TCP
+      port: {{ .port }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
 Tên Secret chứa CA + 3 cert mTLS gRPC (1.C-4).
 */}}
 {{- define "platform.mtlsSecretName" -}}
