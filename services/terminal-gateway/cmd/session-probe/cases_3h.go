@@ -74,7 +74,7 @@ type phienDrain struct {
 
 	// Pha 2 — đóng.
 	closeCode websocket.StatusCode // -1 = đứt KHÔNG kèm close code (client thấy như 1006)
-	doiDongMs time.Duration        // từ lúc kích rollout tới lúc socket đóng
+	doiDong   time.Duration        // từ lúc kích rollout tới lúc socket đóng
 
 	// Pha 3 — nối lại.
 	noiLaiMa      string        // "101" | "429" | mã/lỗi khác
@@ -161,9 +161,12 @@ func caseDrain(ctx context.Context, webURL, gwURL, origin, rolloutCmd string, n 
 
 	// Chạy rollout ĐỒNG THỜI với việc quan sát: `rollout status` chặn tới khi
 	// xong, mà socket đóng TRƯỚC đó. Chờ lệnh xong rồi mới đọc thì mốc thời gian
-	// `doiDongMs` mất nghĩa.
+	// `doiDong` mất nghĩa.
 	xong := make(chan error, 1)
 	go func() {
+		// #nosec G204 -- rolloutCmd là hằng số phía probe (cờ dòng lệnh của công
+		// cụ vận hành, không phải input người dùng); probe này không chạy trong
+		// service, chỉ chạy tay khi đo 3.H.
 		out, err := exec.CommandContext(ctx, "sh", "-c", rolloutCmd).CombinedOutput()
 		if err != nil {
 			xong <- fmt.Errorf("%w — output: %s", err, duoi(string(out), 300))
@@ -183,14 +186,14 @@ func caseDrain(ctx context.Context, webURL, gwURL, origin, rolloutCmd string, n 
 			case <-ctx.Done():
 				return fmt.Errorf("[%s] hết budget khi đợi close: %w", p.ten, ctx.Err())
 			case err := <-p.w.errc:
-				p.doiDongMs = time.Since(tKich)
+				p.doiDong = time.Since(tKich)
 				p.closeCode = websocket.CloseStatus(err)
 				if p.closeCode == -1 {
 					fmt.Printf("   [%s] đóng sau %v · KHÔNG kèm close code (client đọc như 1006) · %v\n",
-						p.ten, p.doiDongMs.Round(time.Millisecond), truncate(err.Error(), 120))
+						p.ten, p.doiDong.Round(time.Millisecond), truncate(err.Error(), 120))
 				} else {
 					fmt.Printf("   [%s] đóng sau %v · close code = %d\n",
-						p.ten, p.doiDongMs.Round(time.Millisecond), int(p.closeCode))
+						p.ten, p.doiDong.Round(time.Millisecond), int(p.closeCode))
 				}
 				doiXong = true
 			case <-p.w.ch:
@@ -337,7 +340,7 @@ func ketLuanDrain(ps []*phienDrain) error {
 			so429++
 		}
 		fmt.Printf("%-5s %-12s %-10v %-8s %-10v %v\n",
-			p.ten, ma, p.doiDongMs.Round(time.Millisecond), p.noiLaiMa, p.noiLai429Trc, p.noiLaiPodKhop)
+			p.ten, ma, p.doiDong.Round(time.Millisecond), p.noiLaiMa, p.noiLai429Trc, p.noiLaiPodKhop)
 	}
 
 	n := len(ps)

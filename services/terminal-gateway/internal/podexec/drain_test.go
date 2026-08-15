@@ -111,7 +111,7 @@ func (stubExtenderDrain) Extend(context.Context, string, string) (podexec.Extend
 // khuyết tật với `4408` mà 1.G-1 đã gỡ.
 func TestDrainDongPhienBang1012(t *testing.T) {
 	batDau := make(chan struct{})
-	dc, c, servedXong := dungCauDrain(t, func(ctx context.Context, o remotecommand.StreamOptions) error {
+	dc, c, servedXong := dungCauDrain(t, func(ctx context.Context, _ remotecommand.StreamOptions) error {
 		close(batDau)
 		<-ctx.Done() // shell "chạy mãi" cho tới khi bị huỷ
 		return ctx.Err()
@@ -157,7 +157,7 @@ func TestDrainDongPhienBang1012(t *testing.T) {
 func TestDrainDoiPhienDutHan(t *testing.T) {
 	batDau := make(chan struct{})
 	daDut := make(chan struct{})
-	dc, c, _ := dungCauDrain(t, func(ctx context.Context, o remotecommand.StreamOptions) error {
+	dc, c, _ := dungCauDrain(t, func(ctx context.Context, _ remotecommand.StreamOptions) error {
 		close(batDau)
 		<-ctx.Done()
 		time.Sleep(300 * time.Millisecond)
