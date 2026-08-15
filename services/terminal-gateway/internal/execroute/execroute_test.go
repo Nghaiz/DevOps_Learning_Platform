@@ -53,7 +53,11 @@ func (s *spySessions) Get(context.Context, string) (*sessionstore.Session, error
 	return s.sess, nil
 }
 
-func (s *spySessions) AcquireWS(context.Context, string, int, int64) (func(context.Context) error, error) {
+// Chữ ký phải khớp NGUYÊN VĂN `sessionstore.Store.AcquireWS` (kể cả tham số
+// `lease` thêm ở 3.H): cái bẫy này bắt được đường type-assertion, mà một
+// assertion chỉ khớp khi chữ ký trùng khít. Để chữ ký cũ ở đây là tự vô hiệu
+// hoá chính cái bẫy — nó sẽ không khớp nữa, và sẽ không bao giờ đếm được gì.
+func (s *spySessions) AcquireWS(context.Context, string, int, int64, time.Duration) (func(context.Context) error, error) {
 	s.acquireCalls.Add(1)
 	return func(context.Context) error { return nil }, nil
 }

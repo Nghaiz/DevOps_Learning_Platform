@@ -22,6 +22,7 @@ import (
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/drain"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
@@ -63,7 +64,8 @@ type TokenVerifier interface {
 // SessionReader đọc trạng thái session và giữ trần WS (bước f, h, i).
 type SessionReader interface {
 	Get(ctx context.Context, sessionID string) (*sessionstore.Session, error)
-	AcquireWS(ctx context.Context, sessionID string, limit int, expiresAt int64) (func(context.Context) error, error)
+	AcquireWS(ctx context.Context, sessionID string, limit int, expiresAt int64, lease time.Duration) (func(context.Context) error, error)
+	RefreshWS(ctx context.Context, sessionID string, expiresAt int64, lease time.Duration) error
 }
 
 // SessionBridge nhận kết nối SAU khi qua đủ authz và chạy trọn phiên terminal,
@@ -85,7 +87,31 @@ type Deps struct {
 	Metrics         *metrics.Metrics
 	AllowedOrigins  []string
 	MaxWSPerSession int
+
+	// WSLease là lease của khe `session:{id}:ws`, được gia hạn theo nhịp suốt
+	// vòng đời phiên (3.H). 0 ⇒ giữ hành vi cũ (TTL = phần đời còn lại của
+	// session), tức không có lease ngắn.
+	WSLease time.Duration
+
+	// Drain điều phối tắt êm (3.H). nil ⇒ không drain.
+	//
+	// ⛔ ĐẾM PHẢI Ở TẦNG NÀY, KHÔNG PHẢI TRONG `podexec.Serve`. `release` khe WS
+	// là defer của handler dưới đây; một WaitGroup bao quanh riêng `Serve` báo
+	// "drain xong" khi Serve trả về — TRƯỚC khi defer đó chạy — nên process
+	// thoát và khe không bao giờ được trả. Đo được trên cụm: close code đúng
+	// 1012 mà khe vẫn còn val=1. Unit test của Bridge không thấy vì nó gọi
+	// `Serve` trực tiếp, không qua tầng này.
+	Drain *drain.Coordinator
 }
+
+// wsLeaseRefreshChia quyết định nhịp gia hạn từ lease: gia hạn ở 1/3 lease.
+//
+// ⛔ KHÔNG gia hạn ở 1/2 hay sát lease. Với 1/3, phải LỠ hai nhịp liên tiếp khe
+// mới rụng — một lượt Redis chậm hay một lượt GC không đủ giết phiên của người
+// đang gõ. Sát lease thì mọi trục trặc thoáng qua đều thành mất khe, và triệu
+// chứng của nó (429 SESSION_IN_USE ở tab của chính mình) là thứ khó chẩn đoán
+// nhất trong cả hệ vì nó tự khỏi trước khi ai kịp nhìn.
+const wsLeaseRefreshChia = 3
 
 // denyCodes là mọi mã mà một bước kiểm có thể trả về. Danh sách sống Ở ĐÂY vì
 // package này là nơi phát ra chúng — xem comment khởi tạo series bên dưới.
@@ -135,6 +161,16 @@ type handler struct {
 func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	sessionID := r.PathValue("id")
+
+	// ---- drain: đếm TRỌN handler, kể cả các defer ------------------------
+	//
+	// Đặt Ở ĐÂY, trước mọi bước authz và trước khi chiếm khe WS. `Enter` phải bao
+	// được cái defer `release` phía dưới — đó là toàn bộ lý do việc đếm nằm ở
+	// tầng này chứ không trong `podexec.Serve` (xem Deps.Drain).
+	if h.deps.Drain != nil {
+		xong := h.deps.Drain.Enter()
+		defer xong()
+	}
 
 	// ---- a. Origin ------------------------------------------------------
 	//
@@ -225,7 +261,7 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ---- i. trần WS đồng thời (D17 = 1) ---------------------------------
-	release, err := h.deps.Sessions.AcquireWS(ctx, sessionID, h.deps.MaxWSPerSession, sess.ExpiresAt)
+	release, err := h.deps.Sessions.AcquireWS(ctx, sessionID, h.deps.MaxWSPerSession, sess.ExpiresAt, h.deps.WSLease)
 	switch {
 	case errors.Is(err, sessionstore.ErrWSLimitReached):
 		h.deny(w, r, http.StatusTooManyRequests, codeSessionInUse,
@@ -312,6 +348,15 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	// lệnh trong pod NGƯỜI KHÁC". Cùng lý lẽ cho `userId`: nó là thứ G7 gửi cho
 	// orchestrator làm vế authz của ExtendSession, và bước g vừa chứng minh nó
 	// trùng `claims.Subject`.
+	// Lease của khe WS phải được gia hạn suốt phiên (3.H). Vòng này sống ĐÚNG
+	// bằng `Serve`: dừng ngay khi Serve trả về, tức trước cả `release` ở defer
+	// phía trên — nên không có lượt gia hạn nào chạy sau khi khe đã được trả.
+	// (Kể cả nếu có, `refresh_ws.lua` chỉ PEXPIRE nên nó không hồi sinh key.)
+	if h.deps.WSLease > 0 {
+		stopLease := h.batDauGiaHanLease(ctx, sessionID, sess.ExpiresAt)
+		defer stopLease()
+	}
+
 	h.deps.Bridge.Serve(ctx, conn, podexec.Target{
 		SessionID: sessionID,
 		PodName:   sess.PodName,
@@ -319,6 +364,59 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt: sess.ExpiresAt,
 		UserID:    sess.UserID,
 	})
+}
+
+// batDauGiaHanLease chạy vòng gia hạn khe WS và trả hàm dừng.
+//
+// ⛔ CONTEXT RIÊNG, KHÔNG DÙNG ctx CỦA REQUEST. Hai lý do, và cái thứ hai mới là
+// cái đắt: (1) ta cần dừng vòng này ngay khi Serve trả về, sớm hơn lúc ctx của
+// request huỷ; (2) mỗi lượt gia hạn cần một context CÒN SỐNG để nói chuyện với
+// Redis — dùng ctx đã huỷ thì lượt gia hạn cuối cùng lặng lẽ hỏng, đúng khuôn
+// bẫy mà `release` ở trên đã phải né bằng `context.WithoutCancel`.
+//
+// Lỗi gia hạn KHÔNG cắt phiên — xem `sessionstore.RefreshWS`.
+func (h *handler) batDauGiaHanLease(ctx context.Context, sessionID string, expiresAt int64) func() {
+	nhip := h.deps.WSLease / wsLeaseRefreshChia
+	if nhip <= 0 {
+		return func() {}
+	}
+
+	lctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(nhip)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-lctx.Done():
+				return
+			case <-ticker.C:
+				rctx, rcancel := context.WithTimeout(lctx, 5*time.Second)
+				err := h.deps.Sessions.RefreshWS(rctx, sessionID, expiresAt, h.deps.WSLease)
+				rcancel()
+				switch {
+				case err == nil:
+				case errors.Is(err, sessionstore.ErrWSSlotGone):
+					// Khe rụng giữa phiên: nhịp gia hạn không theo kịp lease, hoặc
+					// phiên đã quá hạn. Không đóng kết nối — chỉ báo, vì tới đây
+					// người dùng vẫn đang gõ được và cắt họ không sửa được gì.
+					h.deps.Log.Warn("khe WS đã rụng giữa phiên — một client khác có thể chiếm chỗ",
+						slog.String("session_id", sessionID))
+					return
+				default:
+					h.deps.Log.Warn("gia hạn khe WS thất bại",
+						slog.String("session_id", sessionID), slog.String("err", err.Error()))
+				}
+			}
+		}
+	}()
+
+	return func() {
+		cancel()
+		<-done
+	}
 }
 
 // originAllowed so khớp NGUYÊN VĂN với allowlist.

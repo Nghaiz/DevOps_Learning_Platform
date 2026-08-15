@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/drain"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/coder/websocket"
 	"golang.org/x/time/rate"
@@ -99,6 +100,7 @@ const (
 	intentGone                    // session không còn hiệu lực → 4404
 	intentHardCap                 // đã qua trần cứng → 4409
 	intentProtocol                // control hỏng / bão control → 4400 (đã tự đóng)
+	intentDrain                   // gateway đang tắt để rollout → 1012 (đã tự đóng)
 )
 
 // connState là trạng thái của ĐÚNG MỘT kết nối đang mở.
@@ -169,6 +171,27 @@ type Bridge struct {
 	pingEvery   time.Duration
 	pongWait    time.Duration
 	extendEvery time.Duration
+
+	// drain phát tín hiệu tắt êm (3.H). Chỉ ĐỌC tín hiệu ở đây; việc ĐẾM vòng
+	// đời phiên nằm ở `wsroute`, vì `release` khe WS là defer của handler chứ
+	// không phải của Serve — xem package `drain` để biết vì sao ranh giới đó
+	// quan trọng và nó đã hỏng thế nào khi đặt sai chỗ.
+	//
+	// nil ⇒ không có drain (đường test cũ, và `make(chan)` nil chặn vĩnh viễn
+	// nên nhánh select không bao giờ bắn — đúng hành vi muốn có).
+	drain *drain.Coordinator
+}
+
+// SetDrain gắn coordinator drain. Gọi TRƯỚC lời gọi Serve đầu tiên.
+func (b *Bridge) SetDrain(d *drain.Coordinator) { b.drain = d }
+
+// tinHieuDrain trả kênh drain, hoặc nil khi chưa gắn coordinator.
+// Đọc từ kênh nil chặn vĩnh viễn — đúng thứ ta muốn cho nhánh select.
+func (b *Bridge) tinHieuDrain() <-chan struct{} {
+	if b.drain == nil {
+		return nil
+	}
+	return b.drain.Signal()
 }
 
 // New dựng Bridge.
@@ -309,6 +332,25 @@ func (b *Bridge) Serve(ctx context.Context, c *websocket.Conn, t Target) {
 
 	c.SetReadLimit(MaxFrameBytes)
 	st := &connState{}
+
+	// ---- drain (3.H) ------------------------------------------------------
+	//
+	// CHỈ nhận tín hiệu ở đây. Việc ĐẾM vòng đời phiên nằm ở `wsroute` — xem
+	// package `drain` để biết vì sao: `release` khe WS là defer của HANDLER, nên
+	// một WaitGroup đặt quanh riêng `Serve` báo "xong" trước khi khe được trả.
+	// Đo được trên cụm (3.H): close code đúng 1012 mà khe vẫn còn, val=1.
+	go func() {
+		select {
+		case <-ctx.Done():
+			// Phiên kết thúc bình thường — goroutine này thoát cùng nó, không rò.
+		case <-b.tinHieuDrain():
+			st.setIntent(intentDrain)
+			// Đóng ngay tại chỗ phát hiện, đúng khuôn bốn intent kia: `finish`
+			// sẽ thấy intent và im lặng đi qua.
+			_ = c.Close(websocket.StatusServiceRestart, "gateway dang khoi dong lai, hay noi lai")
+			cancel()
+		}
+	}()
 
 	// ---- contract §3 bước 4: đợi `init` TRƯỚC khi dial ---------------------
 	size, pendingStdin := b.readInit(ctx, c, t)
@@ -638,7 +680,7 @@ func (b *Bridge) finish(ctx context.Context, c *websocket.Conn, t Target, stream
 		_ = c.Close(4429, "client qua cham")
 		return
 
-	case intentRateLimited, intentGone, intentHardCap, intentProtocol:
+	case intentRateLimited, intentGone, intentHardCap, intentProtocol, intentDrain:
 		// Bốn ca này ĐÃ gửi `error` + close frame ngay tại chỗ phát hiện, kèm
 		// đúng mã của nó, rồi mới cancel(). Im lặng ở đây là có chủ ý: đi tiếp
 		// sẽ log "stream lỗi hạ tầng" cho một phiên chết vì lý do đã biết rõ, và

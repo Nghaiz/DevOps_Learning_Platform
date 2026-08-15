@@ -1,0 +1,34 @@
+{{- if and .Values.gateway.enabled .Values.gateway.pdb.enabled }}
+{{- /*
+PodDisruptionBudget cho gateway — chặng 3.H.
+
+Vì sao cần: `kubectl drain` (nâng cấp node, bảo trì) đuổi pod theo nhóm, và
+KHÔNG có gì buộc nó chừa lại một replica gateway. Đuổi cả hai cùng lúc nghĩa là
+không còn ai nhận WS trong suốt lúc pod mới khởi động — mọi người đang học đều
+mất terminal cùng một lúc, và đây là ca mà drain êm KHÔNG cứu được: drain đóng
+phiên tử tế, nhưng không có replica nào còn sống để họ nối lại vào.
+
+⛔ PDB CHỈ GÁC ĐƯỜNG EVICTION (drain, node pressure). Nó KHÔNG gác
+`kubectl delete pod`, không gác rolling update — rollout đi qua
+`strategy.rollingUpdate.maxUnavailable`, một cơ chế hoàn toàn khác. Đọc "đã có
+PDB" thành "rollout an toàn rồi" là đọc sai, và đó là hiểu nhầm phổ biến nhất
+về đối tượng này.
+
+⛔ minAvailable: 1 VỚI replicaCount: 1 SẼ CHẶN DRAIN VĨNH VIỄN. Một replica mà
+đòi luôn có một replica sống nghĩa là không bao giờ đuổi được pod nào, và
+`kubectl drain` treo tới hết timeout. Vì thế mặc định `enabled: false` và
+values-selfhost bật nó CÙNG LÚC với replicaCount: 2 — hai giá trị này phải đi
+đôi, không phải hai lựa chọn độc lập.
+*/}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "platform.fullname" . }}-gateway
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "gateway") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.gateway.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "platform.selectorLabels" (dict "context" . "component" "gateway") | nindent 6 }}
+{{- end }}

@@ -1,0 +1,22 @@
+-- Gia hạn lease của khe WS đang giữ.
+--
+-- KEYS[1] = session:{id}:ws
+-- ARGV[1] = lease mới, tính bằng mili-giây (> 0)
+--
+-- Trả: 1 nếu đã gia hạn, 0 nếu key KHÔNG tồn tại (không có gì để gia hạn).
+--
+-- ⛔ CHỈ ĐƯỢC `PEXPIRE`, TUYỆT ĐỐI KHÔNG `SET`/`INCR`/`SETEX`.
+-- `PEXPIRE` trên key không tồn tại trả 0 và KHÔNG tạo key. Đó chính là tính chất
+-- ta cần: một lượt refresh chạy trễ — sau khi `release_ws.lua` đã `DEL` khe —
+-- phải KHÔNG làm gì cả. Dùng `SET` ở đây là dựng lại khe cho một phiên đã đóng,
+-- và khe ma đó khoá session cho tới khi hết lease trong khi không ai đang mở.
+--
+-- Đường đua có thật, không phải giả thuyết: goroutine refresh chạy theo ticker
+-- còn `release` chạy trong defer của phiên — không có gì xếp thứ tự hai cái đó.
+--
+-- ⛔ MỘT LỆNH GHI DUY NHẤT, nên không cần pcall + hoàn tác như `acquire_ws.lua`.
+-- Redis Lua có isolation nhưng KHÔNG có rollback: script nhiều lệnh ghi phải tự
+-- hoàn tác. Ở đây bất biến đó được giữ bằng cách không có lệnh ghi thứ hai —
+-- thêm một lệnh ghi vào script này thì phải thêm cả đường hoàn tác.
+
+return redis.call('PEXPIRE', KEYS[1], ARGV[1])

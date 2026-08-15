@@ -20,6 +20,7 @@ import (
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/tlsx"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/config"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/drain"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/execroute"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/extend"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
@@ -107,6 +108,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("dựng client Kubernetes cho exec: %w", err)
 	}
+	drainer := drain.New()
 	bridge := podexec.New(
 		podexec.NewExecutorFactory(restCfg, clientset, cfg.ExecCommand),
 		store.Alive,
@@ -114,12 +116,15 @@ func run() error {
 		log,
 		met,
 	)
+	bridge.SetDrain(drainer)
 
 	publicMux := http.NewServeMux()
 	wsroute.Register(publicMux, wsroute.Deps{
 		Log:             log,
 		Verifier:        verifier,
 		Sessions:        store,
+		WSLease:         cfg.WSLease,
+		Drain:           drainer,
 		Bridge:          bridge,
 		Metrics:         met,
 		AllowedOrigins:  cfg.AllowedOrigins,
@@ -172,6 +177,29 @@ func run() error {
 		}
 	case <-ctx.Done():
 		log.Info("nhận tín hiệu dừng, đang shutdown")
+	}
+
+	// ---- drain WS TRƯỚC khi đợi http server dứt (3.H) ---------------------
+	//
+	// ⛔ THỨ TỰ Ở ĐÂY LÀ TOÀN BỘ VẤN ĐỀ. `httpx.ListenAndServe` gọi
+	// `srv.Shutdown`, mà Shutdown KHÔNG theo dõi kết nối đã hijack — WS sau 101
+	// nằm ngoài tầm nó. Nên `<-publicErr` bên dưới trả về gần như tức thì kể cả
+	// khi còn hàng chục phiên đang mở; process thoát, goroutine phiên chết giữa
+	// chừng, và `defer` trả khe WS không bao giờ chạy. Đó chính là baseline đo
+	// được của 3.H: 2/2 phiên đứt trần, 2/2 ăn 429 khi nối lại.
+	//
+	// Drain phải chạy Ở ĐÂY — sau khi có tín hiệu dừng, TRƯỚC khi đọc kênh lỗi.
+	drainCtx, drainCancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.ShutdownGrace)
+	conTreo := drainer.Drain(drainCtx)
+	drainCancel()
+	if conTreo > 0 {
+		// Không nuốt: đây là số phiên sẽ đứt cứng, tức số người dùng sẽ không
+		// nối lại được cho tới khi lease khe WS hết. Người vận hành cần thấy nó
+		// để biết `SHUTDOWN_GRACE` đang đặt quá ngắn.
+		log.Warn("hết hạn drain, còn phiên chưa đóng êm",
+			slog.Int64("con_treo", conTreo), slog.Duration("grace", cfg.ShutdownGrace))
+	} else {
+		log.Info("đã drain sạch mọi phiên WS")
 	}
 
 	stop()

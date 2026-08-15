@@ -115,8 +115,8 @@ session trên lab 1-node, N đo được = …" thì không.
 | **3.D** | Observability: Prometheus + Grafana + Loki | 7 | ✅ xong — [report](reports/2026-08-15-verify-3c3d-gc-observability.md) |
 | **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | ✅ xong — [report](reports/2026-08-15-verify-3e-self-pentest.md) · **10/10, 0 lỗ hổng** |
 | **3.F** | k6 load test tới trần CẤU HÌNH | 2 | ✅ xong — [report](reports/2026-08-15-verify-3f-k6.md) · **N=3**, và một lỗi thật: chạm trần trả 500 |
+| **3.H** | WS scale layer: drain `1012`, lease khe WS tự lành, 2 replica | 5 | 🔵 đang làm — [chi tiết](#3h--ws-scale-layer) · sketch sai 3/4 vế, xem §H0 |
 | 3.G | Autoscaling cloud-agnostic + chi phí | 4, 9 | Hoãn |
-| 3.H | WS scale layer | 5 | Hoãn |
 
 **Thứ tự có lý do:** 3.E (pentest) đứng CUỐI vì nó đo luật 5 (rate-limit/body-size)
 và luật 10 (network/sandbox) — hai thứ 3.A và 3.B mới dựng. Chạy pentest trước thì
@@ -650,14 +650,234 @@ ghi rõ đã sửa gì vì sao).
 
 ---
 
-## 3.G / 3.H — hoãn lượt này
+## 3.H — WS scale layer
 
-Giữ ở mức sketch, chi tiết hoá khi tới lượt. Ràng buộc §1 áp cho cả hai:
+**Effort:** M · **Blocked by:** 3.F (phải biết trần thật) · **Blocks:** production go-live
+**Chi tiết hoá:** 2026-08-15
+
+### §H0. Scout đã bác bỏ ba phần tư của sketch task 5
+
+Sketch task 5 có bốn vế. Ba vế **đã xong hoặc không có đối tượng**, và việc phát
+hiện ra điều đó là kết quả chính của bước scout — không ghi lại thì lượt sau lại
+đi dựng những thứ đã đứng sẵn.
+
+| Sketch nói | Đo được | Hệ quả |
+|---|---|---|
+| "session→pod ở Redis" | **Đã có từ P1.** `wsroute.go:194` đọc hash `session:{id}` mỗi lần connect; `Target` (`wsroute.go:315-321`) mang sẵn `PodName`/`Namespace`. | Không có gì để dựng. |
+| "gateway scale ngang (đã stateless từ P1)" | **Khẳng định ĐÚNG, đã kiểm chứ không tin.** Không map/registry session→conn nào ở package-level lẫn struct field; `connState` cấp phát trên stack mỗi kết nối (`bridge.go:311`). State in-memory duy nhất là cache JWKS, deny-limiter của log, và gauge — không cái nào keyed theo session. | `replicaCount` là một con số, không phải một dự án. |
+| "session-affinity ở Traefik" | Bề mặt trống ở **cả hai** đường (`gateway-service.yaml:8-17` không có `sessionAffinity`; không `TraefikService`, không annotation sticky nào trong repo). Nhưng vì gateway thật sự stateless, affinity **không cần cho tính đúng đắn**. | **BỎ, có lý do** — xem H1. |
+| "tune WS ping/idle" | Ping 20s / pong 10s **cố ý hardcode** (`heartbeat.go:54-55`, lý do G11 ghi tại `:48-49`: "mỗi biến env là 4 nơi phải sửa"). Idle-window ở tầng app **không tồn tại** — mã `4408` đã bị gỡ khỏi contract ở 1.G-1 vì không đường nào phát nó. Traefik chạy **không một arg timeout nào** (đọc trên deployment sống 2026-08-15) ⇒ toàn mặc định v3.7.10. | Nhánh "tune" gần như rỗng. Còn lại đúng một câu hỏi đo được: mặc định `idleTimeout` của Traefik có giết WS im lặng không. → AC-H7. |
+
+**Việc thật của 3.H nằm ở chỗ sketch không nhìn tới.** Scout tìm ra ba khuyết
+tật, và chúng không độc lập — chúng là một chuỗi.
+
+### §H1. Ba khuyết tật, một chuỗi
+
+**Khuyết tật 1 — khe WS kẹt xuyên replica.**
+`DECR` khe nằm trong `defer` (`wsroute.go:246-256`). Mà `http.Server.Shutdown`
+**không theo dõi kết nối đã hijack** — WS sau 101 nằm ngoài tầm nó. Nên lúc
+SIGTERM: `Shutdown` trả về gần như tức thì, `main` return, process thoát, mọi
+goroutine WS chết giữa chừng, **defer không chạy**. `SHUTDOWN_GRACE=15s` không
+bảo vệ WS chút nào — nó chỉ đợi các request HTTP thường.
+
+Khe kẹt lại với TTL = `expiresAt − now` (`store.go:208`) và **không heartbeat nào
+làm mới nó** — `AcquireWS` là nơi ghi duy nhất. Client nối lại ăn
+`429 SESSION_IN_USE` tới **hàng chục phút**. Chính `acquire_ws.lua:9-15` đã ghi
+đúng chế độ hỏng này ("session của sinh viên khoá VĨNH VIỄN ở trạng thái đang mở
+ở tab khác") — nó chỉ chưa lường rằng TTL dài bằng cả phiên thì "đường thoát duy
+nhất" ấy dài ngang việc không có đường thoát.
+
+**Khuyết tật 2 — contract hứa `1012` mà gateway chưa bao giờ phát.**
+`docs/ws-terminal-protocol.md` §6 khai `1012 SERVICE_RESTART` — "gateway
+restart", FE nên retry: **có**. FE đã implement **và có test**
+(`protocol.ts:99,134`, `protocol.test.ts:152-153`, `backoff.test.ts:37`).
+Nhưng grep `1012|SERVICE_RESTART` trong `services/` → **0 hit**. Đây đúng cùng
+loại khuyết tật với `4408` mà 1.G-1 đã gỡ: một nhánh phía FE không bao giờ chạy.
+
+Khác biệt quan trọng: `4408` được gỡ vì hệ **không có khái niệm đó**. `1012` thì
+hệ có khái niệm (gateway restart xảy ra mỗi lần deploy) — chỉ là chưa ai nối dây.
+Nên đường đúng ở đây là **nối dây**, không phải gỡ mã.
+
+**Khuyết tật 3 — FE không jitter, dựa trên một tiền đề mà rollout làm sai.**
+`backoff.ts:5-8` cố ý bỏ jitter với lý do ghi rõ: *"trần D17 là 1 WS trên một
+session, và mỗi session thuộc đúng một người dùng. **Không có đàn client nào cùng
+nối lại một lúc** để mà phải rải ra."*
+
+Tiền đề đúng cho ca đứt mạng lẻ tẻ, **sai chính xác vào lúc gateway rollout**:
+drain đóng mọi phiên **cùng một khoảnh khắc**, nên mọi client chạy cùng một lịch
+1/2/4/8/15s **không lệch pha**. Và `values.yaml:349-353` — chú thích của chính
+trần rate-limit WS — đã tự cảnh báo đúng ca đó ("gateway restart ⇒ mọi client nối
+lại cùng lúc") kèm ghi nhận trần **chưa đo trên tải thật**. Hai file, mỗi file tự
+nó hợp lý, mâu thuẫn nhau ở đúng điểm 3.H chạm vào.
+
+**Chuỗi hoàn chỉnh:** rollout → WS bị cắt cứng (1) → client nối lại đồng pha (3)
+→ đâm trần WS 20/1m burst 10 dùng chung **một** bucket vì SNAT → mà khe WS của họ
+đang kẹt (1). Ba lớp cùng bắn, và mỗi lớp một mình đều đọc ra "mạng có vấn đề".
+
+### §H2. Quyết định thiết kế phải chốt TRƯỚC khi viết
+
+**H1. BỎ session-affinity, và thay bằng một ô AC mạnh hơn nó.**
+Chốt với chủ dự án 2026-08-15. Affinity không cần cho tính đúng đắn, và tệ hơn:
+nó **che** mọi lỗi cross-replica, làm ô "scale ngang chạy đúng" trở nên mù — xanh
+kể cả khi hệ không thực sự stateless. Thay vào đó AC-H3 **ép** client nối lại
+trúng replica KHÁC và đòi nó attach đúng pod cũ. Đó là bằng chứng cho tính
+stateless; sticky chỉ là bằng chứng cho việc ta đã tránh phải chứng minh.
+
+**H2. Drain phải do gateway chủ động, không trông vào `srv.Shutdown`.**
+Vì `Shutdown` không đụng kết nối hijack (§H1), cần một đường tách bạch: một
+`drainCtx` mà mỗi `Serve` select trên đó, cộng một `sync.WaitGroup` đếm phiên
+sống. SIGTERM → huỷ `drainCtx` → mỗi phiên tự đóng bằng `1012` → **defer chạy →
+DECR diễn ra** → `Wait` có trần thời gian. Đây là in-memory state mới, nhưng nó
+per-replica và chỉ phục vụ lúc tắt máy — không phải state session, không phá tính
+stateless.
+
+**H3. TTL khe WS đổi sang lease ngắn được heartbeat làm mới.**
+Hôm nay TTL = cả phần đời còn lại của session. Đổi thành lease ngắn (mặc định
+90s) và cho `pingLoop` (đã chạy 20s/lượt) làm mới. Hệ quả: replica chết đột ngột
+(SIGKILL/OOM/mất node — những ca drain **không** đỡ được) làm khe tự nhả trong
+≤ lease thay vì hàng chục phút.
+
+Hai ràng buộc bắt buộc, cả hai đều là bẫy đã có tiền lệ trong repo:
+- Refresh **chỉ được `PEXPIRE`, tuyệt đối không `SET`/`INCR`**. `PEXPIRE` trên key
+  không tồn tại trả 0 và không tạo key — nên một refresh chạy trễ sau khi release
+  đã `DEL` sẽ **không** hồi sinh khe. Dùng `SET` ở đây là tự dựng lại khe cho một
+  phiên đã đóng.
+- Lease **cắt trần ở phần đời còn lại của session**, và giữ nguyên guard
+  `ttl <= 0 → từ chối` (`store.go:207-215`): `PEXPIRE` với giá trị ≤ 0 **XOÁ key
+  ngay**, tức khe vừa chiếm biến mất và trần WS im lặng mất tác dụng.
+- Redis Lua có isolation, **không có rollback** — script refresh phải tự hoàn tác
+  đúng khuôn `acquire_ws.lua:26-31` nếu có nhiều hơn một lệnh ghi.
+
+**H4. Đo trần rate-limit WS, KHÔNG nới.** Chốt với chủ dự án 2026-08-15, cùng
+khuôn đã chốt cho 3.F. Nới rate-limit là nới một lớp phòng thủ luật 5 mà 3.E vừa
+chấm 10/10; nếu số đo bảo nó chật thì đường sửa **đầu tiên** phải xét là jitter ở
+FE (khuyết tật 3), vì đó là sửa đúng nguyên nhân. Nới trần là sửa triệu chứng và
+phải trả giá bằng một lượt pentest luật 5 chạy lại.
+
+**H5. `dlp_gateway_ws_active` phải `sum()` qua pod.** Gauge là per-replica
+(`metrics.go:219`). Mọi query của chặng này dùng `sum(dlp_gateway_ws_active)`.
+Đọc giá trị đơn lẻ khi có 2 replica là đọc một nửa hệ và tưởng là cả hệ.
+
+**H6. Khẳng định trên ĐỐI TƯỢNG SỐNG, không tin `helm get values`.**
+`07-ingress-controller.sh:79-87` đã ghi bài học đắt: helm nhận key lạ không kêu
+một tiếng, và `helm get values` **in lại chính khoá sai đó** — tức lệnh dùng để
+kiểm tra lại khẳng định điều sai. Mọi ô AC của 3.H đọc `kubectl get … -o jsonpath`
+trên đối tượng thật.
+
+### §H3. Task list
+
+**H-0. Trả nợ image tag (làm TRƯỚC, vì mọi bước sau đều `helm upgrade`).**
+Cụm đang chạy `dlp-web:3f-quota429` + `dlp-orchestrator:3c3-9e35e97` do side-load;
+không script nào trong `infra/host/*.sh` truyền `--set *.image.tag`. Đã xác minh
+`sha-25cb824` (web, gateway, orchestrator) **đều có trên ghcr** và pull được.
+- Ghim `image.tag` vào `values-selfhost.yaml` — file này **là** hợp đồng "phải
+  side-load tag nào", vì cụm `pullPolicy: Never` không kéo được từ registry.
+- `infra/host/11-sideload-images.sh` (mới): đọc tag **từ chính `values-selfhost.yaml`**
+  (SSOT, không nhận tham số tag rời) rồi pull → save → scp → `ctr import`. Không
+  có script này thì lần sau lại là một chuỗi lệnh tay và nợ lại sinh ra.
+
+**H-1. Drain WS êm.**
+- Gateway: `drainCtx` + `WaitGroup`; `Serve` select trên `drainCtx.Done()` → đóng
+  `1012` kèm reason ngắn (≤123 byte, contract §6 gotcha).
+- Chờ `Wait` có trần = `SHUTDOWN_GRACE`; hết trần thì log rõ số phiên còn treo
+  (đừng nuốt — đó là con số người vận hành cần).
+- Helm: `terminationGracePeriodSeconds` **> `shutdownGrace`** (nếu ngược lại thì
+  kubelet SIGKILL trước khi gateway kịp drain xong — đúng lỗi đang có).
+- `preStop` sleep ngắn để endpoint rụng khỏi Traefik trước khi tiến trình bắt đầu
+  từ chối; không có nó thì kết nối mới vẫn rơi vào pod đang tắt.
+
+**H-2. Lease khe WS tự lành.** `refresh_ws.lua` (chỉ `PEXPIRE`) + `Store.RefreshWS`
++ gọi từ `pingLoop`. Lease vào values, không hardcode.
+
+**H-3. Scale ngang thật.** `gateway.replicaCount: 2` ở `values-selfhost.yaml`
+(hôm nay bị đè về 1; `values.yaml` vốn đã là 2) + `PodDisruptionBudget`
+`minAvailable: 1`. Kiểm `nodeCidrs` **không** cần đụng — cụm 1 node, và policy
+gateway đều theo label selector nên replica thứ N tự được phủ.
+
+**H-4. Đo bão nối-lại.** Kịch bản: N phiên sống → rollout gateway → đếm tách rời
+(a) phiên nối lại thành công, (b) 429-của-biên, (c) 429-của-Next, (d) lỗi vận
+chuyển, (e) `SESSION_IN_USE`. Ghi số vào report; **không** sửa `values.yaml`.
+
+**H-5. Quyết định jitter.** Chỉ sau khi H-4 có số. Nếu bão đụng trần → jitter ở
+`backoff.ts` là ứng viên đầu tiên (sửa nguyên nhân), kèm sửa luôn comment đang
+khẳng định sai. Nếu không đụng → ghi nhận tiền đề vẫn đứng ở quy mô lab và nêu rõ
+quy mô nào sẽ làm nó đổ.
+
+### §H4. Acceptance criteria
+
+- [ ] **AC-H1 — drain phát `1012`, và đó là mã MỚI xuất hiện.** Rollout gateway
+      khi có ≥1 phiên sống → client nhận close **`1012`**.
+      **Đối chứng dương bắt buộc:** trước chặng này, cùng phép đo phải cho close
+      **`1006`** (đứt cứng). Thiếu vế đó thì "nhận 1012" không phân biệt được với
+      "FE tự bịa mã" — và `1012` là mã đã nằm sẵn trong `protocol.ts` từ lâu, nên
+      nó *có thể* xuất hiện vì lý do khác.
+- [ ] **AC-H2 — khe WS được trả về, đo trên Redis.** Ngay sau rollout,
+      `session:{id}:ws` **không tồn tại** (release `DEL` khi về 0).
+      **Đối chứng âm:** trong cùng lượt, một session có WS **đang mở** phải vẫn
+      **còn** khe — thiếu vế này thì "khe đã trả" không phân biệt được với "khe bị
+      xoá bừa" hoặc với việc TTL vừa hết.
+      ⚠ Đo bằng `EXISTS`/`PTTL` trên Redis, **không** bằng "nối lại được": nối lại
+      được cũng đúng khi trần WS đã hỏng hoàn toàn.
+- [ ] **AC-H3 — nối lại trúng replica KHÁC vẫn attach đúng pod cũ.** Đây là ô
+      thay thế cho sticky. Với 2 replica: mở phiên (ghi lại replica A qua log/metric
+      theo pod), ép đóng, nối lại cho tới khi trúng replica **B**, khẳng định
+      (a) attach thành công, (b) **đúng pod sandbox cũ** (so `podName`), (c) màn
+      hình tmux còn nguyên nội dung trước đó.
+      ⚠ Ô ĐỎ nếu không bao giờ trúng được replica B trong số lượt hợp lý — khi đó
+      phép đo **không đo được điều nó định đo**, không được đọc thành "đã đúng".
+- [ ] **AC-H4 — khe kẹt tự lành trong ≤ lease, khi drain KHÔNG đỡ được.** Giết
+      cứng một replica (`pkill -9` **trên node** — `kubectl delete --force` KHÔNG
+      phải SIGKILL, tiến trình còn sống thêm ~30s) khi nó đang giữ một phiên.
+      Khẳng định: nối lại **429 `SESSION_IN_USE`** ngay sau đó (đối chứng dương —
+      chứng minh khe THẬT SỰ kẹt), rồi **101** sau ≤ lease.
+      ⚠ Phiên phải sống LÂU HƠN lease, nếu không thì lúc khe nhả phiên cũng chết và
+      vế "101" bất khả — đúng bẫy `cases_g3.go:425-437` đã ghi cho `caseM3`.
+- [ ] **AC-H5 — hai replica cùng phục vụ thật.** `sum(dlp_gateway_ws_active) == N`
+      **và** phân bố trên **≥2 pod** (mỗi pod > 0). Một ô chỉ kiểm tổng sẽ xanh y
+      hệt khi cả N phiên nằm trên một pod.
+- [ ] **AC-H6 — bão nối-lại: các con số TÁCH RỜI.** Báo cáo riêng (a)…(e) ở H-4.
+      Ô này **ghi số, không gác ngưỡng** — mục tiêu là biết trần biên có chật
+      không, và câu trả lời là dữ liệu cho H-5, không phải một cổng.
+      ⚠ Lỗi vận chuyển và 429 **không được gộp**: 3.E đã đo đúng ca ramp song song
+      ra `000` chứ không ra 429.
+- [ ] **AC-H7 — `idleTimeout` mặc định của Traefik có giết WS im lặng không.**
+      Giữ một WS **hoàn toàn im lặng** (không stdin/stdout; chỉ còn ping 20s của
+      gateway) qua mốc mặc định của Traefik v3, khẳng định socket vẫn mở.
+      Ô này đóng nốt vế "tune idle" của sketch bằng một phép đo thay vì một knob.
+- [ ] **AC-H8 — không hồi quy.** harness e2e P2 **14/14**, và
+      `reaper-verify.sh --case all` vẫn xanh (drain đụng đường tắt máy, reaper đụng
+      đường dọn — hai thứ dễ va nhau).
+- [ ] **AC-H9 — nợ image tag đã đóng.** `helm upgrade` **không** `--set` nào về
+      image, chạy xong ba deployment vẫn ở `sha-25cb824`.
+      **Đối chứng dương:** khẳng định trên **đối tượng sống**
+      (`kubectl get deploy -o jsonpath='{...image}'`), KHÔNG bằng `helm get values`
+      (§H2 H6 — chính lệnh đó từng in lại khoá sai).
+
+### §H5. File ownership
+
+`services/terminal-gateway/internal/podexec/bridge.go` + `heartbeat.go` (drain +
+refresh) · `services/terminal-gateway/internal/wsroute/wsroute.go` (nối drainCtx) ·
+`services/terminal-gateway/internal/sessionstore/{store.go,refresh_ws.lua}` (mới) ·
+`services/terminal-gateway/cmd/terminal-gateway/main.go` (drainCtx + WaitGroup) ·
+`infra/helm/platform/templates/gateway-deployment.yaml` (preStop, grace) ·
+`infra/helm/platform/templates/gateway-pdb.yaml` (mới) ·
+`infra/helm/platform/values.yaml` + `values-selfhost.yaml` (lease, replicaCount, image.tag) ·
+`infra/host/11-sideload-images.sh` (mới) ·
+`packages/terminal/src/backoff.ts` (**chỉ nếu** H-5 kết luận cần) ·
+`docs/ws-terminal-protocol.md` (§6: `1012` từ "khai mà chưa phát" → "đã phát").
+
+**KHÔNG đụng:** `values.yaml` khối `ingress.middleware.rateLimit` (phạm vi đã chốt
+là ĐO, không nới) · `acquire_ws.lua`/`release_ws.lua` (thêm script mới, không sửa
+hai script đã có đối chứng) · logic `clientKey()` ở web.
+
+---
+
+## 3.G — hoãn lượt này
+
+Giữ ở mức sketch, chi tiết hoá khi tới lượt. Ràng buộc §1 vẫn áp:
 
 - **3.G — autoscaling + chi phí.** `cluster-autoscaler` cloud-agnostic; verify bằng
   `helm template` + `--dry-run=server`; **không** khẳng định đã scale thật.
-- **3.H — WS scale layer.** session-affinity Traefik, tune ping/idle, gateway scale
-  ngang. Cần 3.F để biết trần thật ở đâu.
 
 ---
 

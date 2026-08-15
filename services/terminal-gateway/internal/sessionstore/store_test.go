@@ -97,12 +97,12 @@ func TestAcquireWSChanKetNoiThuHai(t *testing.T) {
 	store := sessionstore.New(rdb)
 	exp := time.Now().Add(time.Hour).Unix()
 
-	release, err := store.AcquireWS(context.Background(), "sess-a", 1, exp)
+	release, err := store.AcquireWS(context.Background(), "sess-a", 1, exp, 0)
 	if err != nil {
 		t.Fatalf("khe đầu tiên phải chiếm được: %v", err)
 	}
 
-	if _, err := store.AcquireWS(context.Background(), "sess-a", 1, exp); !errors.Is(err, sessionstore.ErrWSLimitReached) {
+	if _, err := store.AcquireWS(context.Background(), "sess-a", 1, exp, 0); !errors.Is(err, sessionstore.ErrWSLimitReached) {
 		t.Fatalf("khe thứ hai muốn ErrWSLimitReached, nhận %v", err)
 	}
 
@@ -110,7 +110,7 @@ func TestAcquireWSChanKetNoiThuHai(t *testing.T) {
 	if err := release(context.Background()); err != nil {
 		t.Fatalf("release: %v", err)
 	}
-	release2, err := store.AcquireWS(context.Background(), "sess-a", 1, exp)
+	release2, err := store.AcquireWS(context.Background(), "sess-a", 1, exp, 0)
 	if err != nil {
 		t.Fatalf("sau khi đóng WS thứ nhất, mở lại phải được (reconnect): %v", err)
 	}
@@ -125,7 +125,7 @@ func TestAcquireWSLuonDatTTLTrongCungMotLuot(t *testing.T) {
 	rdb := redistest.New(t, redistest.DBSessionStore)
 	store := sessionstore.New(rdb)
 
-	if _, err := store.AcquireWS(context.Background(), "sess-a", 1, time.Now().Add(30*time.Minute).Unix()); err != nil {
+	if _, err := store.AcquireWS(context.Background(), "sess-a", 1, time.Now().Add(30*time.Minute).Unix(), 0); err != nil {
 		t.Fatalf("AcquireWS: %v", err)
 	}
 
@@ -153,7 +153,7 @@ func TestAcquireWSTuChoiSessionDaQuaHan(t *testing.T) {
 	rdb := redistest.New(t, redistest.DBSessionStore)
 	store := sessionstore.New(rdb)
 
-	_, err := store.AcquireWS(context.Background(), "sess-a", 1, time.Now().Add(-time.Minute).Unix())
+	_, err := store.AcquireWS(context.Background(), "sess-a", 1, time.Now().Add(-time.Minute).Unix(), 0)
 	if !errors.Is(err, sessionstore.ErrNotFound) {
 		t.Fatalf("AcquireWS với expiresAt đã qua muốn ErrNotFound, nhận %v", err)
 	}
@@ -170,7 +170,7 @@ func TestReleaseCuoiCungXoaKey(t *testing.T) {
 	rdb := redistest.New(t, redistest.DBSessionStore)
 	store := sessionstore.New(rdb)
 
-	release, err := store.AcquireWS(context.Background(), "sess-a", 1, time.Now().Add(time.Hour).Unix())
+	release, err := store.AcquireWS(context.Background(), "sess-a", 1, time.Now().Add(time.Hour).Unix(), 0)
 	if err != nil {
 		t.Fatalf("AcquireWS: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestReleaseThuaKhongDayBoDemXuongAm(t *testing.T) {
 	store := sessionstore.New(rdb)
 	exp := time.Now().Add(time.Hour).Unix()
 
-	release, err := store.AcquireWS(context.Background(), "sess-a", 1, exp)
+	release, err := store.AcquireWS(context.Background(), "sess-a", 1, exp, 0)
 	if err != nil {
 		t.Fatalf("AcquireWS: %v", err)
 	}
@@ -202,10 +202,10 @@ func TestReleaseThuaKhongDayBoDemXuongAm(t *testing.T) {
 	}
 
 	// Trần vẫn phải còn tác dụng sau khi bị release thừa.
-	if _, err := store.AcquireWS(context.Background(), "sess-a", 1, exp); err != nil {
+	if _, err := store.AcquireWS(context.Background(), "sess-a", 1, exp, 0); err != nil {
 		t.Fatalf("chiếm lại sau release thừa: %v", err)
 	}
-	if _, err := store.AcquireWS(context.Background(), "sess-a", 1, exp); !errors.Is(err, sessionstore.ErrWSLimitReached) {
+	if _, err := store.AcquireWS(context.Background(), "sess-a", 1, exp, 0); !errors.Is(err, sessionstore.ErrWSLimitReached) {
 		t.Fatalf("trần WS mất tác dụng sau release thừa: %v", err)
 	}
 }
@@ -229,7 +229,7 @@ func TestScriptSongSotSauScriptFlush(t *testing.T) {
 	store := sessionstore.New(rdb)
 	exp := time.Now().Add(time.Hour).Unix()
 
-	release, err := store.AcquireWS(context.Background(), "sess-a", 1, exp)
+	release, err := store.AcquireWS(context.Background(), "sess-a", 1, exp, 0)
 	if err != nil {
 		t.Fatalf("AcquireWS lần đầu: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestScriptSongSotSauScriptFlush(t *testing.T) {
 		t.Fatalf("SCRIPT FLUSH: %v", err)
 	}
 
-	release2, err := store.AcquireWS(context.Background(), "sess-a", 1, exp)
+	release2, err := store.AcquireWS(context.Background(), "sess-a", 1, exp, 0)
 	if err != nil {
 		t.Fatalf("sau SCRIPT FLUSH, AcquireWS phải tự rơi về EVAL: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestAcquireWSDuaChiMotThang(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			<-start
-			_, err := store.AcquireWS(context.Background(), "sess-dua", 1, exp)
+			_, err := store.AcquireWS(context.Background(), "sess-dua", 1, exp, 0)
 			results <- err
 		}()
 	}
