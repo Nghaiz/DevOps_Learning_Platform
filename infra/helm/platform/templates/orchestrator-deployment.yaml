@@ -129,6 +129,18 @@ spec:
             */}}
             - name: SANDBOX_RUNTIME_CLASS
               value: {{ .Values.orchestrator.env.sandboxRuntimeClass | default .Values.sandbox.runtimeClassName | quote }}
+            {{- if .Values.registryMirror.enabled }}
+            {{- /*
+            URL mirror docker.io mà pod sandbox trỏ dockerd tới (P3/3.I). CHỈ set
+            khi mirror bật — tắt mirror ⇒ không có env ⇒ podspec.go không thêm
+            DLP_REGISTRY_MIRROR ⇒ sandbox chạy y hệt hôm nay (không hồi quy).
+            Mặc định tự ghép từ tên Service mirror (SSOT), y như SANDBOX_IMAGE tự
+            ghép từ image.registry+tag; override qua orchestrator.env.registryMirror
+            chỉ khi ghim một mirror ngoài chart.
+            */}}
+            - name: SANDBOX_REGISTRY_MIRROR
+              value: {{ .Values.orchestrator.env.registryMirror | default (printf "http://%s-registry-mirror.%s.svc.cluster.local:%v" (include "platform.fullname" .) .Values.registryMirror.namespace .Values.registryMirror.service.port) | quote }}
+            {{- end }}
             - name: EXTEND_DEFAULT
               value: {{ .Values.orchestrator.env.extendDefault | quote }}
             - name: REAP_INTERVAL

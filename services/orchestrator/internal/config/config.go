@@ -99,6 +99,14 @@ type Config struct {
 	// triệu chứng là "warm-pool không bao giờ đầy" chứ không phải một lỗi trỏ
 	// về đây.
 	SandboxRuntimeClass string
+
+	// SandboxRegistryMirror là URL mirror docker.io trong cụm (P3/3.I). Truyền
+	// xuống pod sandbox qua env `DLP_REGISTRY_MIRROR`. RỖNG = KHÔNG cấu hình
+	// mirror (hành vi hôm nay). KHÔNG có default và KHÔNG fail-fast khi rỗng:
+	// khác `SANDBOX_IMAGE` — rỗng ở đây là một trạng thái HỢP LỆ (cụm chưa bật
+	// mirror), còn image rỗng thì pod không dựng được. Ép một biến tuỳ chọn là
+	// chặn mọi cụm chưa cần mirror.
+	SandboxRegistryMirror string
 }
 
 // Load đọc env và áp default.
@@ -207,15 +215,16 @@ func Load() (*Config, error) {
 		ShutdownGrace:    shutdownGrace,
 		SandboxNamespace: envx.String("SANDBOX_NAMESPACE", "dlp-sandbox"),
 
-		HardCap:             hardCap,
-		PoolTarget:          poolTarget,
-		ExtendDefault:       extendDefault,
-		ReapInterval:        reapInterval,
-		MTLSMode:            mtlsMode,
-		MTLSFiles:           mtlsFiles,
-		MTLSSystemCNs:       systemCNs,
-		SandboxImage:        sandboxImage,
-		SandboxRuntimeClass: envx.String("SANDBOX_RUNTIME_CLASS", "sysbox-runc"),
+		HardCap:               hardCap,
+		PoolTarget:            poolTarget,
+		ExtendDefault:         extendDefault,
+		ReapInterval:          reapInterval,
+		MTLSMode:              mtlsMode,
+		MTLSFiles:             mtlsFiles,
+		MTLSSystemCNs:         systemCNs,
+		SandboxImage:          sandboxImage,
+		SandboxRuntimeClass:   envx.String("SANDBOX_RUNTIME_CLASS", "sysbox-runc"),
+		SandboxRegistryMirror: envx.String("SANDBOX_REGISTRY_MIRROR", ""),
 	}, nil
 }
 

@@ -1,0 +1,25 @@
+{{- if .Values.registryMirror.enabled }}
+# ─────────────────────────────────────────────────────────────────────────────
+# P3/3.I mắt 1 — namespace của registry mirror.
+#
+# Mirror là thành phần CÓ STATE (cache blob) và CÓ EGRESS RA INTERNET (fetch
+# upstream Docker Hub). Nó KHÔNG được nằm trong `dlp-sandbox`: để chung là cho
+# pod sinh viên thấy một pod hàng xóm có đường ra ngoài, tức mở đúng cái cửa mà
+# luật 10 đóng. Namespace riêng, netpol riêng.
+#
+# `kubernetes.io/metadata.name` được apiserver tự gắn (NamespaceDefaultLabelName),
+# nhưng khai TƯỜNG MINH ở đây để rule ingress của sandbox chọn được ns này bằng
+# namespaceSelector mà không phụ thuộc admission mặc định còn bật hay không.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.registryMirror.namespace }}
+  labels:
+    {{- include "platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry-mirror
+    kubernetes.io/metadata.name: {{ .Values.registryMirror.namespace }}
+    # Pod Security Admission `restricted` ÉP securityContext của deployment —
+    # không có nhãn này thì hardening chỉ là khai báo, admission không gác.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+{{- end }}

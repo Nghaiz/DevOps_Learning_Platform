@@ -61,6 +61,53 @@ dlp_dotfile_allowed() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# P3/3.I — mirror docker.io trong cụm.
+#
+# Ghi `/etc/docker/daemon.json` TỪ env `DLP_REGISTRY_MIRROR` (URL mirror trong
+# cụm, vd `http://…-registry-mirror.dlp-registry.svc.cluster.local:5000`).
+#
+# ⚠ PHẢI CHẠY TRƯỚC start_dockerd. dockerd đọc daemon.json DUY NHẤT lúc khởi
+# động; ghi sau khi dockerd đã lên thì mirror không có tác dụng mà KHÔNG lỗi nào
+# — `docker pull` vẫn đi thẳng registry-1.docker.io rồi chết vì egress chặn, và
+# triệu chứng đó không trỏ về đây.
+#
+# RỖNG = KHÔNG ghi gì (return 0). Đó là hành vi mặc định của mọi build hiện có
+# và của test CI chạy dockerd ngoài Sysbox — không hồi quy.
+#
+# `insecure-registries` LÀ BẮT BUỘC cùng `registry-mirrors` khi mirror chạy
+# HTTP: dockerd TỪ CHỐI một registry-mirror http nếu host không nằm trong
+# insecure-registries (nó mặc định đòi https). Mạng cụm đã cô lập (luật 10) nên
+# http nội cụm là đánh đổi có chủ ý — xem D-I6 trong plan.
+write_docker_daemon_json() {
+    local mirror="${DLP_REGISTRY_MIRROR:-}"
+    [ -n "$mirror" ] || return 0
+
+    # dockerd không có ⇒ ghi file cũng vô nghĩa. Không cảnh báo: build slim
+    # (INCLUDE_DOCKER=0) mà nhận env mirror là cấu hình dư, không phải lỗi.
+    command -v dockerd >/dev/null 2>&1 || return 0
+
+    # host:port cho insecure-registries = URL bỏ scheme. dockerd muốn dạng
+    # host[:port] KHÔNG có `http://`.
+    local host="$mirror"
+    host="${host#http://}"
+    host="${host#https://}"
+    host="${host%%/*}"
+
+    if ! mkdir -p /etc/docker; then
+        warn "không tạo được /etc/docker — bỏ qua cấu hình mirror, docker sẽ đi thẳng docker.io (rồi chặn bởi egress)"
+        return 0
+    fi
+
+    cat > /etc/docker/daemon.json <<EOF
+{
+  "registry-mirrors": ["${mirror}"],
+  "insecure-registries": ["${host}"]
+}
+EOF
+    log "docker: mirror ${mirror} ghi vào /etc/docker/daemon.json (insecure host ${host})"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # E7 — dockerd.
 #
 # Gác bằng `command -v`: build INCLUDE_DOCKER=0 KHÔNG được vỡ vì entrypoint đi
@@ -239,6 +286,7 @@ if [ "${1:-}" = "--lib-only" ]; then
     return 0 2>/dev/null || exit 0
 fi
 
+write_docker_daemon_json
 start_dockerd
 load_dotfiles
 

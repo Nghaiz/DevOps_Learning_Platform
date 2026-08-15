@@ -202,3 +202,15 @@ sandbox:
     requestsMemory: '2112Mi'
     limitsCpu: '4'
     limitsMemory: '4Gi'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Registry mirror docker.io (P3/3.I mắt 1) — BẬT trên self-host.
+#
+# Lab tự-host: sandbox KHÔNG có internet (luật 10, 3.B). Không có mirror thì trụ
+# cột "học Docker" không có đường chạy (`docker build` chết vì egress chặn).
+# Mirror mở egress sandbox CHỈ tới nó — internet công khai/IMDS/apiserver vẫn chặn.
+#
+# ⚠ Phạm vi CHỈ docker.io (dockerd registry-mirrors chỉ mirror trong suốt Hub).
+# Storage/resources kế thừa default ở values.yaml; local-path đã có trên cụm.
+registryMirror:
+  enabled: true

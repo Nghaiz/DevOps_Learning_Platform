@@ -1,0 +1,95 @@
+{{- if .Values.registryMirror.enabled }}
+# ─────────────────────────────────────────────────────────────────────────────
+# P3/3.I mắt 1 — registry:2 ở chế độ PULL-THROUGH (proxy) cho docker.io.
+#
+# `REGISTRY_PROXY_REMOTEURL` bật chế độ proxy: mọi pull đi qua mirror được fetch
+# từ upstream RỒI cache lại. Chỉ MỘT upstream cho mỗi instance registry:2 — đây
+# là docker.io (D-I2). Vì lý do đó dockerd `registry-mirrors` (cũng chỉ mirror
+# docker.io trong suốt) khớp đúng phạm vi này; ghcr/quay KHÔNG đi qua đây và VẪN
+# bị egress sandbox chặn (luật 10 không nới về hướng đó).
+#
+# Image `registry:2` là image CÔNG KHAI trên Docker Hub — node kéo được bình
+# thường (khác image `dlp-*` private ở ghcr chạy pullPolicy Never). Không ghim
+# vào 11-sideload-images.sh: nó không phải image của ta.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform.fullname" . }}-registry-mirror
+  namespace: {{ .Values.registryMirror.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "registry-mirror") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "platform.selectorLabels" (dict "context" . "component" "registry-mirror") | nindent 6 }}
+  strategy:
+    # Recreate vì PVC là RWO: hai pod cùng mount một PV local-path không lên
+    # được, và RollingUpdate sẽ kẹt ở pod mới Pending trong khi pod cũ giữ volume.
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "platform.componentLabels" (dict "context" . "component" "registry-mirror") | nindent 8 }}
+    spec:
+      # Mirror là workload PHƠI RA NGOÀI nhất của thiết kế (nó có đường egress
+      # internet). Siết như pod sandbox: một CVE của registry:2 KHÔNG được cho
+      # root-trong-container trên chính thành phần chạm được internet.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        # fsGroup để PVC (registry ghi /var/lib/registry) thuộc về UID non-root.
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: registry
+          image: {{ .Values.registryMirror.image | quote }}
+          imagePullPolicy: {{ .Values.registryMirror.imagePullPolicy | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            # registry:2 proxy mode chỉ ghi /var/lib/registry (PVC, mount rw) —
+            # rootfs để read-only được. Nếu bản registry tương lai cần /tmp thì
+            # thêm một emptyDir, ĐỪNG mở lại rootfs.
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: REGISTRY_PROXY_REMOTEURL
+              value: {{ .Values.registryMirror.remoteUrl | quote }}
+            # KHÔNG bật REGISTRY_STORAGE_DELETE_ENABLED: nó phơi verb HTTP
+            # `DELETE /v2/.../manifests/...` cho MỌI sandbox (ingress mở cho cả
+            # ns sandbox), tức một học viên xoá được manifest trong cache dùng
+            # chung → mọi người khác miss cache, phải kéo lại. Không có registry
+            # auth ở đây. Dọn cache là việc OFFLINE (`registry garbage-collect`
+            # trên storage), không cần verb DELETE qua mạng — nên tắt.
+            - name: REGISTRY_HTTP_ADDR
+              value: {{ printf ":%v" .Values.registryMirror.service.port | quote }}
+          ports:
+            - name: registry
+              containerPort: {{ .Values.registryMirror.service.port }}
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: registry
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v2/
+              port: registry
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.registryMirror.resources | nindent 12 }}
+          volumeMounts:
+            - name: cache
+              mountPath: /var/lib/registry
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: {{ include "platform.fullname" . }}-registry-mirror
+{{- end }}

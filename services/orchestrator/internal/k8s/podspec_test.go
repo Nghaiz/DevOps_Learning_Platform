@@ -156,6 +156,50 @@ func TestPodSpecKhongKhaiResources(t *testing.T) {
 	}
 }
 
+// TestRegistryMirrorEnv — P3/3.I mắt 1.
+//
+// Hai vế, và vế RỖNG mới là vế chống hồi quy: RegistryMirror rỗng ⇒ container
+// KHÔNG mang env DLP_REGISTRY_MIRROR (sandbox chạy y hệt trước 3.I). Có giá trị
+// ⇒ đúng một env với đúng giá trị đó, không hơn.
+func TestRegistryMirrorEnv(t *testing.T) {
+	t.Run("rỗng thì không có env", func(t *testing.T) {
+		cfg := testConfig() // RegistryMirror để zero-value = ""
+		name, _ := NewPodName()
+		pod, err := BuildSandboxPod(name, cfg)
+		if err != nil {
+			t.Fatalf("BuildSandboxPod: %v", err)
+		}
+		for _, e := range pod.Spec.Containers[0].Env {
+			if e.Name == "DLP_REGISTRY_MIRROR" {
+				t.Fatalf("RegistryMirror rỗng nhưng container vẫn mang env %q=%q — đó là hồi quy cho mọi cụm chưa bật mirror", e.Name, e.Value)
+			}
+		}
+	})
+
+	t.Run("có giá trị thì đúng một env", func(t *testing.T) {
+		cfg := testConfig()
+		want := "http://platform-registry-mirror.dlp-registry.svc.cluster.local:5000"
+		cfg.RegistryMirror = want
+		name, _ := NewPodName()
+		pod, err := BuildSandboxPod(name, cfg)
+		if err != nil {
+			t.Fatalf("BuildSandboxPod: %v", err)
+		}
+		found := 0
+		for _, e := range pod.Spec.Containers[0].Env {
+			if e.Name == "DLP_REGISTRY_MIRROR" {
+				found++
+				if e.Value != want {
+					t.Fatalf("env DLP_REGISTRY_MIRROR = %q, muốn %q", e.Value, want)
+				}
+			}
+		}
+		if found != 1 {
+			t.Fatalf("env DLP_REGISTRY_MIRROR xuất hiện %d lần, muốn đúng 1", found)
+		}
+	})
+}
+
 // TestPodKhongMangNhanSession — no-derived-fields (plan.md §4).
 //
 // Ánh xạ pod→session chỉ sống ở hash `pod:{name}`. Một label session trên pod là
