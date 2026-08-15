@@ -1220,10 +1220,15 @@ netpol (bài mới KHÔNG cần mở thêm đường nào).
 >
 > Mục "Vì sao nó tồn tại" ở đầu 3.I lập luận `requests: 512Mi` bị **thổi phồng
 > ~10 lần** vì sandbox chỉ dùng 43–75 Mi. Số đó đo lúc **idle**. M2 đo dưới tải
-> bài Docker THẬT, ở cgroup host, 3 lượt: **đỉnh 437 / 451 / 470 MiB**.
+> bài Docker THẬT, ở cgroup host, **5 lượt: 433 / 437 / 451 / 470 / 532 MiB**.
 >
-> ⇒ `requests: 512Mi` phủ đỉnh với dư địa **13%** — **gần đúng, không thổi phồng**.
-> Cắt về mức idle sẽ OOM/evict đúng phiên đang build.
+> ⇒ `requests: 512Mi` **không phủ đỉnh** — nó nằm GIỮA dải, và lượt cao nhất
+> (532Mi, nền pod 138Mi) **vượt qua nó**. Pod tiêu quá phần nó giữ chỗ là ứng
+> viên bị evict khi node chịu áp lực, đúng lúc người học đang build. Cắt về mức
+> idle thì OOM chắc chắn; giữ nguyên 512Mi vẫn còn rủi ro ở đuôi trên.
+>
+> ⇒ **Bàn giao cho M4 là DẢI kèm giá trị lớn nhất (532Mi), không phải trung vị.**
+> Đặt `requests` theo trung vị là thiết kế cho một nửa số lượt.
 >
 > ⇒ **Mục tiêu "20–30 phiên đồng thời" phải xem lại bằng số học RAM:** 25 × 451Mi
 > ≈ **11 GiB** = toàn bộ RAM của VM, chưa trừ platform (~1.4Gi), observability,
