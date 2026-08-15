@@ -116,6 +116,7 @@ session trên lab 1-node, N đo được = …" thì không.
 | **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | ✅ xong — [report](reports/2026-08-15-verify-3e-self-pentest.md) · **10/10, 0 lỗ hổng** |
 | **3.F** | k6 load test tới trần CẤU HÌNH | 2 | ✅ xong — [report](reports/2026-08-15-verify-3f-k6.md) · **N=3**, và một lỗi thật: chạm trần trả 500 |
 | **3.H** | WS scale layer: drain `1012`, lease khe WS tự lành, 2 replica | 5 | ✅ xong — [report](reports/2026-08-15-verify-3h-ws-scale.md) · nối lại **0/2 → 2/2**; khe kẹt **hàng chục phút → 70s** |
+| **3.I** | Registry mirror trong cụm + nâng trần phiên đồng thời | mới | 🔵 CHỐT 2026-08-15, chưa chi tiết hoá — đứng TRƯỚC 3.G |
 | 3.G | Autoscaling cloud-agnostic + chi phí | 4, 9 | Hoãn |
 
 **Thứ tự có lý do:** 3.E (pentest) đứng CUỐI vì nó đo luật 5 (rate-limit/body-size)
@@ -869,6 +870,57 @@ refresh) · `services/terminal-gateway/internal/wsroute/wsroute.go` (nối drain
 **KHÔNG đụng:** `values.yaml` khối `ingress.middleware.rateLimit` (phạm vi đã chốt
 là ĐO, không nới) · `acquire_ws.lua`/`release_ws.lua` (thêm script mới, không sửa
 hai script đã có đối chứng) · logic `clientKey()` ở web.
+
+---
+
+## 3.I — Registry mirror + nâng trần phiên đồng thời (CHỐT, chưa chi tiết hoá)
+
+**Chốt với chủ dự án 2026-08-15**, phát sinh từ 3.H. Chặng này **đứng trước** 3.G.
+
+### Vì sao nó tồn tại
+
+Chủ dự án chất vấn trần 3 phiên ("khác gì phế vật"), và chất vấn đó đúng. Đo được
+ở 3.H, ở **cgroup trên host**:
+
+| Đại lượng | `requests` đặt | Dùng THẬT |
+|---|---|---|
+| RAM mỗi sandbox | 512Mi | **43–75 Mi** |
+| CPU mỗi sandbox | 500m | ~0 (62m core trung bình khi có việc) |
+
+Trần 3 là số học của quota chia cho một con số **thổi phồng ~10 lần**
+(`requests.cpu 2100m ÷ 500m = 4 pod`, trừ `POOL_TARGET=1`). Node lúc đo còn
+**5770m/8000m CPU** và ~5.8 GB RAM. **Không có gì về phần cứng ở đây.**
+
+### Nhưng KHÔNG được đặt lại `requests` ngay — và đây là phát hiện chặn đường
+
+Sandbox **không ra được internet** (3.B, e2e xác nhận `exit 28`) **và** docker lồng
+trong đó **không có image nào nạp sẵn**. Một `docker build` từ `python:3.12-slim`
+chết sau 63s. Hệ quả kép:
+
+1. Trụ cột "học Docker" hiện **chưa có đường chạy**.
+2. **Không tồn tại tải bài học nặng để đo** — nên mọi `requests` đặt lúc này đều là
+   đoán. Đặt theo số idle rồi để bài học Docker nặng lên sau là mời kubelet giết
+   đúng phiên đang làm bài (nó evict theo mức vượt `requests`).
+
+### Hướng đã chốt: registry mirror trong cụm
+
+Pull-through cache trong cụm; egress sandbox mở **CHỈ** tới nó. Giữ nguyên cách ly
+internet của luật 10, mà học viên vẫn kéo được image tuỳ ý — gần trải nghiệm
+KillerCoda/KodeKloud nhất.
+
+**Ràng buộc bắt buộc mang theo khi chi tiết hoá:**
+
+- Lỗ netpol này là **nới một luật §6 mà 3.E vừa chấm 10/10** ⇒ luật 10 phải chấm
+  lại, kèm đối chứng dương. Không được xanh bằng cách bỏ qua.
+- Mirror là một thành phần **có state và có băng thông ra ngoài** — nó phải nằm
+  ngoài `dlp-sandbox`, và sandbox chỉ được thấy đúng nó (không thấy DNS công cộng,
+  không thấy `169.254.169.254`).
+- Thứ tự: mirror chạy → bài học Docker chạy được → **rồi mới** đo tải → **rồi mới**
+  đặt `requests` → **rồi mới** nới quota → đo lại trần.
+- Nới quota phải nới **cả `pods:`** (đang 10), nếu không nó thành ràng buộc mới ngay
+  sau khi gỡ ràng buộc cũ.
+
+**Mục tiêu trần:** 20–30 phiên đồng thời trên chính VM này, chặn bởi RAM thật.
 
 ---
 
