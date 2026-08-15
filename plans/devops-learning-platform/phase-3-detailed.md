@@ -111,7 +111,7 @@ session trên lab 1-node, N đo được = …" thì không.
 |---|---|---|---|
 | **3.A** | Biên Traefik: body-size, rate-limit, XFF, redirect HTTP→HTTPS | 6 | ✅ xong — [report](reports/2026-08-14-verify-3a-edge.md) |
 | **3.B** | NetworkPolicy namespace nền tảng + seccomp | 3 | ✅ xong — [report](reports/2026-08-14-verify-3b-netpol.md) |
-| **3.C** | Rò tài nguyên: pod GC + đo lại reaper | 8 | 🟡 gần xong — [report](reports/2026-08-15-verify-3c3d-gc-observability.md) · **AC-C2 còn nợ** |
+| **3.C** | Rò tài nguyên: pod GC + đo lại reaper | 8 | ✅ xong — [GC](reports/2026-08-15-verify-3c3d-gc-observability.md) + [đóng nợ](reports/2026-08-15-verify-3c-debt-closure.md) · 14/14, và một chỗ rò §0.2 bảo là không có |
 | **3.D** | Observability: Prometheus + Grafana + Loki | 7 | ✅ xong — [report](reports/2026-08-15-verify-3c3d-gc-observability.md) |
 | **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | ✅ xong — [report](reports/2026-08-15-verify-3e-self-pentest.md) · **10/10, 0 lỗ hổng** |
 | 3.F | k6 load test tới trần VM | 2 | Hoãn |
@@ -325,13 +325,26 @@ Chặng nhỏ nhất của P3 (§0.2). Mục tiêu **không** phải viết thê
 
 ### Acceptance criteria
 
-- [ ] **AC-C1** — sau một chu kỳ canary, số pod `Succeeded` trong `dlp-sandbox`
-      **≤ 2** (hiện 30). Đo bằng `kubectl get pods` trước/sau.
-- [ ] **AC-C2** — reaper dọn **100%** session hết hạn trong một lượt đo có thời
+- [x] **AC-C1** — sau một chu kỳ canary, số pod `Succeeded` trong `dlp-sandbox`
+      **≤ 2** (hiện 30). Đo bằng `kubectl get pods` trước/sau. → 26 → 2.
+- [x] **AC-C2** — reaper dọn **100%** session hết hạn trong một lượt đo có thời
       điểm rõ ràng. **Đối chứng âm:** một session CHƯA hết hạn trong cùng lượt
       **không** bị dọn — thiếu vế này thì "dọn sạch" không phân biệt được với "xoá bừa".
-- [ ] **AC-C3** — orchestrator restart giữa lúc có session sống ⇒ session vẫn dùng
-      được, pool không rò pod.
+      → **2/2**, xoá 9s sau mốc hết hạn; session `ttl=900s` trong cùng lượt còn nguyên.
+      ⚠ Phép đo **không** đặt trên `GetSession` trả NotFound: key rụng vì TTL Redis,
+      không vì reaper — ô ấy sẽ xanh y hệt trên cụm đã gỡ hẳn reaper.
+- [x] **AC-C3** — orchestrator restart giữa lúc có session sống ⇒ session vẫn dùng
+      được, pool không rò pod. → đọc VÀ ghi đều OK sau restart, đúng pod cũ
+      (`startTime` không đổi), `phantom=0 orphan=0`.
+      ⚠ "Pool không rò" **không** nghĩa là mọi con số đứng yên: `pool:free` PHẢI đổi
+      khi orchestrator bổ sung về `POOL_TARGET`. Bất biến đúng là index Redis khớp
+      cụm hai chiều.
+
+> **§0.2 sai ở tiền đề.** Nó viết task 8 co xuống "một knob + một phép đo" vì
+> "reaper đã cứng từ P1". Phép đo ấy tìm ra một chỗ rò thật: session `FAILED` để
+> lại tên pod trong `pool:claimed` (không tầng nào nhặt — 2b bỏ qua status cuối,
+> 2c thấy key còn nên tưởng session sống), làm `dlp_pool_claimed_size` sai gấp 6
+> lần suốt tới `SESSION_TTL`. Đã vá + đo trước/sau trên cụm.
 
 > **Bẫy đã ghi:** VM ngủ làm vỡ mọi ô AC treo theo đồng hồ, và đồng hồ VM lệch
 > ~59s so với Windows. Mọi phép đo thời gian ở chặng này lấy timestamp **trên VM**,
@@ -454,6 +467,22 @@ Giữ ở mức sketch, chi tiết hoá khi tới lượt. Ràng buộc đã ch�
 
 - **3.F — k6 load test.** Ramp tới trần thật của VM, ô AC ghi rõ "trên lab 1-node,
   N = …". Cần 3.D xong trước để đọc kết quả bằng metric thay vì đoán qua log.
+
+  > **Đo được ở lượt 3.C (2026-08-15) — §1 vẫn còn lạc quan gấp mười.** §1 dự kiến
+  > "20–40 session"; trần thật là **3**. `requests.cpu 2100m ÷ 500m = 4 pod`
+  > (`values-selfhost.yaml`), trừ `POOL_TARGET=1` ⇒ 3 session đồng thời. `pods: 10`
+  > trong quota **không** phải ràng buộc chặn. Và node còn rảnh (requests
+  > 2730m/8000m CPU, 2760Mi/11929Mi RAM) ⇒ **trần này do quota đặt ra, không do
+  > phần cứng.**
+  >
+  > Trần thứ hai đứng trước cả trần thứ nhất: rate-limit biên Traefik — web
+  > 120/1m burst 60, **WS handshake 20/1m burst 10** — và NodePort SNAT làm **mọi
+  > VU của k6 dùng chung MỘT bucket IP**. Nên k6 sẽ đụng cấu hình rất lâu trước khi
+  > đụng phần cứng.
+  >
+  > ⇒ Trước khi viết k6 phải chốt: 3.F đo trần **cấu hình như đang chạy**, hay nới
+  > quota + rate-limit để tìm trần **phần cứng**? Hai lựa chọn cho hai ô AC khác
+  > hẳn nhau, và ô nào cũng phải tự khai trần nó đang đo.
 - **3.G — autoscaling + chi phí.** `cluster-autoscaler` cloud-agnostic; verify bằng
   `helm template` + `--dry-run=server`; **không** khẳng định đã scale thật.
 - **3.H — WS scale layer.** session-affinity Traefik, tune ping/idle, gateway scale
