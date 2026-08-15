@@ -61,12 +61,118 @@ echo "── ship chart tươi → ${VM_SSH}:${REMOTE_DIR}/platform"
 tar -C "$(dirname "$CHART_SRC")" -cf - "$(basename "$CHART_SRC")" \
   | ssh "$VM_SSH" "rm -rf '${REMOTE_DIR}' && mkdir -p '${REMOTE_DIR}' && tar -C '${REMOTE_DIR}' -xf -"
 
-# Overlay secret đọc TỪ release đang chạy, GIỮ NGUYÊN trên VM.
-echo "── trích secret live (helm get values) → overlay tạm trên VM"
-ssh "$VM_SSH" "helm get values '${RELEASE}' -n '${NAMESPACE}' 2>/dev/null | sed '1d' > ${REMOTE_DIR}/live-values.yaml" \
+# ─────────────────────────────────────────────────────────────────────────────
+# Overlay VM-only, LỌC THEO DANH SÁCH CHO PHÉP. Đọc và giữ NGUYÊN trên VM.
+#
+# ⛔ BẢN ĐẦU CỦA BƯỚC NÀY LÀ MỘT CÁI BẪY — và nó đã cắn (P3/3.I mắt 2).
+#
+# Nó lấy TOÀN BỘ `helm get values` (mọi giá trị user-supplied của lần cài trước)
+# rồi áp SAU `values-selfhost.yaml`. Nghĩa là mọi `--set` từng gõ một lần sẽ
+# sống mãi và ĐÈ LÊN git: đo được ngày 2026-08-15, overlay 110 dòng đang ghim
+# `image.tag: sha-25cb824`, `gateway.image.tag: 3h-drain2`,
+# `orchestrator.image.tag: 3i-m1`, `orchestrator.env.sandboxImage: …3i-m1` —
+# ba tag tay từ ba lượt đo khác nhau. Sửa tag trong values-selfhost rồi deploy
+# thì `helm upgrade` báo THÀNH CÔNG, `rollout status` XANH, pod `Running 1/1`,
+# và image vẫn y nguyên bản cũ. Không có gì đỏ lên. Đây đúng là lớp lỗi mà
+# script 11-sideload + chính script này được dựng ra để diệt, chỉ đổi chỗ nấp:
+# từ "chart cũ trên VM" sang "values cũ trong release".
+#
+# LUẬT: **git sở hữu mọi thứ git khai. VM chỉ cấp thứ git CỐ Ý không khai.**
+# `values-selfhost.yaml` khai: global, image, web, orchestrator, gateway,
+# datastore, sandbox, registryMirror. Nên chỉ những thứ dưới đây được mang sang:
+#
+#   · bí mật — không bao giờ vào git (mật khẩu PG/Redis, betterAuthSecret)
+#   · giá trị phụ thuộc MÁY — IP/NodePort của node, khác nhau ở mỗi lab, nên
+#     `ingress.*`, `networkPolicy.*`, `platform.*` (git không khai khối nào
+#     trong ba khối này) + mấy leaf `web.env.*` do 08-tls-entrypoint.sh sinh.
+#
+# Danh sách CHO PHÉP chứ không phải danh sách CẤM: một key mới ai đó `--set`
+# trong tương lai sẽ bị BỎ (git thắng), thay vì lặng lẽ sống mãi.
+#
+# Lọc bằng `-o json` + python3 stdlib: VM không có yq, cũng không có pyyaml.
+# JSON là YAML hợp lệ nên helm nhận thẳng bằng `-f`.
+# ─────────────────────────────────────────────────────────────────────────────
+echo "── trích VM-only values (bí mật + phụ thuộc máy) → overlay tạm trên VM"
+ssh "$VM_SSH" "helm get values '${RELEASE}' -n '${NAMESPACE}' -o json 2>/dev/null > ${REMOTE_DIR}/live-all.json" \
   || loi "không đọc được values live — release ${RELEASE} đã cài chưa?"
-ssh "$VM_SSH" "test -s ${REMOTE_DIR}/live-values.yaml" \
-  || loi "overlay secret rỗng — dừng để KHÔNG regenerate mật khẩu (mọi RPC/DB sẽ đỏ)"
+
+ssh "$VM_SSH" "python3 - ${REMOTE_DIR}/live-all.json ${REMOTE_DIR}/live-values.json" <<'PYFILTER'
+import json, sys
+
+src, dst = sys.argv[1], sys.argv[2]
+with open(src) as f:
+    live = json.load(f) or {}
+
+# Khối git KHÔNG khai trong values-selfhost.yaml ⇒ mang nguyên khối.
+KEEP_SUBTREES = ['ingress', 'networkPolicy', 'platform']
+# Leaf nằm TRONG khối git có khai ⇒ chỉ mang đúng leaf, không mang cả khối.
+KEEP_PATHS = [
+    ['datastore', 'postgres', 'password'],
+    ['datastore', 'redis', 'password'],
+    ['datastore', 'existingSecret'],
+    ['web', 'env', 'betterAuthSecret'],
+    ['web', 'env', 'existingSecret'],
+    ['web', 'env', 'betterAuthUrl'],
+    ['web', 'env', 'corsAllowedOrigins'],
+    ['web', 'env', 'rateLimitTrustProxy'],
+]
+
+out = {}
+for k in KEEP_SUBTREES:
+    if k in live:
+        out[k] = live[k]
+
+def dig(d, path):
+    for p in path:
+        if not isinstance(d, dict) or p not in d:
+            return None
+        d = d[p]
+    return d
+
+for path in KEEP_PATHS:
+    v = dig(live, path)
+    if v is None:
+        continue
+    node = out
+    for p in path[:-1]:
+        node = node.setdefault(p, {})
+    node[path[-1]] = v
+
+# Cổng chống REGENERATE bí mật: thiếu một trong ba thì DỪNG. Deploy tiếp sẽ
+# sinh mật khẩu mới trong khi Postgres/Redis vẫn giữ mật khẩu cũ ⇒ mọi thứ đỏ,
+# và triệu chứng (auth failed) nằm cách nguyên nhân rất xa.
+missing = []
+if dig(out, ['datastore', 'postgres', 'password']) is None and dig(out, ['datastore', 'existingSecret']) is None:
+    missing.append('datastore.postgres.password')
+if dig(out, ['datastore', 'redis', 'password']) is None and dig(out, ['datastore', 'existingSecret']) is None:
+    missing.append('datastore.redis.password')
+if dig(out, ['web', 'env', 'betterAuthSecret']) is None and dig(out, ['web', 'env', 'existingSecret']) is None:
+    missing.append('web.env.betterAuthSecret')
+if missing:
+    sys.stderr.write('LỖI: không tìm thấy bí mật trong values live: %s\n' % ', '.join(missing))
+    sys.stderr.write('Dừng để KHÔNG regenerate mật khẩu (Postgres/Redis vẫn giữ mật khẩu cũ).\n')
+    sys.exit(1)
+
+with open(dst, 'w') as f:
+    json.dump(out, f, indent=2)
+
+# In ra ĐƯỜNG DẪN KEY, tuyệt đối không in giá trị (đây là file chứa mật khẩu).
+def paths(d, prefix=''):
+    for k, v in sorted(d.items()):
+        p = prefix + k
+        if isinstance(v, dict):
+            yield from paths(v, p + '.')
+        else:
+            yield p
+
+print('   mang sang (%d key):' % len(list(paths(out))))
+for p in paths(out):
+    print('     · ' + p)
+PYFILTER
+[[ $? -eq 0 ]] || loi "lọc values live thất bại — xem thông báo ở trên"
+
+ssh "$VM_SSH" "test -s ${REMOTE_DIR}/live-values.json" \
+  || loi "overlay VM-only rỗng — dừng để KHÔNG regenerate mật khẩu (mọi RPC/DB sẽ đỏ)"
 
 # Ship các overlay bổ sung.
 REMOTE_EXTRA=()
@@ -79,10 +185,10 @@ for ov in "${EXTRA_OVERLAYS[@]:-}"; do
   REMOTE_EXTRA+=("-f ${REMOTE_DIR}/extra-${base}")
 done
 
-echo "── helm upgrade từ chart tươi (values-selfhost → secret live → overlay bổ sung)"
+echo "── helm upgrade từ chart tươi (values-selfhost → VM-only → overlay bổ sung)"
 ssh "$VM_SSH" "helm upgrade '${RELEASE}' '${REMOTE_DIR}/platform' -n '${NAMESPACE}' \
     -f '${REMOTE_DIR}/platform/${SELFHOST_VALUES}' \
-    -f '${REMOTE_DIR}/live-values.yaml' \
+    -f '${REMOTE_DIR}/live-values.json' \
     ${REMOTE_EXTRA[*]:-} --wait --timeout 5m"
 
 # Dọn bẫy: nếu ~/dlp-deploy còn tồn tại (bản chép tay cũ), thay bằng một tấm
