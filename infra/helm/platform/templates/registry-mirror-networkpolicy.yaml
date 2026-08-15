@@ -1,0 +1,98 @@
+{{- if and .Values.registryMirror.enabled .Values.registryMirror.networkPolicy.enabled }}
+# ─────────────────────────────────────────────────────────────────────────────
+# P3/3.I mắt 1 — NetworkPolicy của namespace mirror.
+#
+# Mirror có đường ra internet, nên nó là thành phần PHẢI được rào chặt nhất sau
+# sandbox. Bốn policy:
+#   1. default-deny cả hai chiều (mọi traffic khác phải có allow riêng).
+#   2. ingress: CHỈ từ pod trong ns sandbox, CHỈ cổng registry. Không mở cho ns
+#      khác — web/gateway/orchestrator không kéo image qua đây.
+#   3. egress DNS tới CoreDNS (resolve registry-1.docker.io).
+#   4. egress internet 443 để fetch upstream, EXCEPT dải nội bộ cụm — mirror bị
+#      chiếm cũng KHÔNG thành đường vòng vào apiserver/pod/IMDS.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-registry-mirror-default-deny
+  namespace: {{ .Values.registryMirror.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "registry-mirror") | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-registry-mirror-allow-ingress-sandbox
+  namespace: {{ .Values.registryMirror.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "registry-mirror") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "registry-mirror") | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.sandbox.namespace }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.registryMirror.service.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-registry-mirror-allow-egress-dns
+  namespace: {{ .Values.registryMirror.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "registry-mirror") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "registry-mirror") | nindent 4 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-registry-mirror-allow-egress-upstream
+  namespace: {{ .Values.registryMirror.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "registry-mirror") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "registry-mirror") | nindent 4 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            # Giữ dải nội bộ trong `except` vì cùng lý do webExternalEgress giữ:
+            # mở 0.0.0.0/0 mà không loại trừ là biến mirror thành đường vòng vào
+            # apiserver/pod/IMDS của chính cụm nếu registry:2 dính lỗ SSRF.
+            except:
+              {{- toYaml .Values.registryMirror.egressExcept | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}

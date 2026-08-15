@@ -1,0 +1,24 @@
+{{- if .Values.registryMirror.enabled }}
+# ─────────────────────────────────────────────────────────────────────────────
+# P3/3.I mắt 1 — PVC cache của mirror.
+#
+# Cache blob của registry:2. Mất PVC = pull lại từ Docker Hub, KHÔNG mất dữ liệu
+# học viên ⇒ RWO local-path là đủ, không cần replicate. `WaitForFirstConsumer`
+# của local-path nghĩa là PV chỉ bind khi pod mirror được lịch — bình thường.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "platform.fullname" . }}-registry-mirror
+  namespace: {{ .Values.registryMirror.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "registry-mirror") | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- with .Values.registryMirror.storage.className }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.registryMirror.storage.size | quote }}
+{{- end }}

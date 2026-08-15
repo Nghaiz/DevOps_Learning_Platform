@@ -1,0 +1,26 @@
+{{- if .Values.registryMirror.enabled }}
+# ─────────────────────────────────────────────────────────────────────────────
+# P3/3.I mắt 1 — Service ClusterIP của mirror.
+#
+# DNS ổn định để sandbox trỏ dockerd registry-mirror tới đây:
+#   http://<fullname>-registry-mirror.<ns>.svc.cluster.local:<port>
+# Sandbox resolve được tên này vì rule egress DNS tới CoreDNS đã mở (3.B). NetPol
+# đánh giá SAU DNAT nên rule egress sandbox→mirror ghim theo POD mirror, không
+# theo ClusterIP này — xem sandbox-networkpolicy.yaml.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "platform.fullname" . }}-registry-mirror
+  namespace: {{ .Values.registryMirror.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "registry-mirror") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "platform.selectorLabels" (dict "context" . "component" "registry-mirror") | nindent 4 }}
+  ports:
+    - name: registry
+      protocol: TCP
+      port: {{ .Values.registryMirror.service.port }}
+      targetPort: registry
+{{- end }}

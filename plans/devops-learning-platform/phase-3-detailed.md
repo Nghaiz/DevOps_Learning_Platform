@@ -116,7 +116,7 @@ session trên lab 1-node, N đo được = …" thì không.
 | **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | ✅ xong — [report](reports/2026-08-15-verify-3e-self-pentest.md) · **10/10, 0 lỗ hổng** |
 | **3.F** | k6 load test tới trần CẤU HÌNH | 2 | ✅ xong — [report](reports/2026-08-15-verify-3f-k6.md) · **N=3**, và một lỗi thật: chạm trần trả 500 |
 | **3.H** | WS scale layer: drain `1012`, lease khe WS tự lành, 2 replica | 5 | ✅ xong — [report](reports/2026-08-15-verify-3h-ws-scale.md) · nối lại **0/2 → 2/2**; khe kẹt **hàng chục phút → 70s** |
-| **3.I** | Registry mirror trong cụm + nâng trần phiên đồng thời | mới | 🔵 CHỐT 2026-08-15, chưa chi tiết hoá — đứng TRƯỚC 3.G |
+| **3.I** | Registry mirror trong cụm + nâng trần phiên đồng thời | mới | 🟡 chi tiết hoá 2026-08-15 — 5 mắt xích, lượt này làm MẮT 1 (mirror + egress + luật 10 chấm lại). Đứng TRƯỚC 3.G |
 | 3.G | Autoscaling cloud-agnostic + chi phí | 4, 9 | Hoãn |
 
 **Thứ tự có lý do:** 3.E (pentest) đứng CUỐI vì nó đo luật 5 (rate-limit/body-size)
@@ -841,7 +841,7 @@ quy mô nào sẽ làm nó đổ.
       không, và câu trả lời là dữ liệu cho H-5, không phải một cổng.
       ⚠ Lỗi vận chuyển và 429 **không được gộp**: 3.E đã đo đúng ca ramp song song
       ra `000` chứ không ra 429.
-- [ ] **AC-H7 — `idleTimeout` mặc định của Traefik có giết WS im lặng không.**
+- [x] **AC-H7 — `idleTimeout` mặc định của Traefik có giết WS im lặng không.**
       Giữ một WS **hoàn toàn im lặng** (không stdin/stdout; chỉ còn ping 20s của
       gateway) qua mốc mặc định của Traefik v3, khẳng định socket vẫn mở.
       Ô này đóng nốt vế "tune idle" của sketch bằng một phép đo thay vì một knob.
@@ -873,9 +873,10 @@ hai script đã có đối chứng) · logic `clientKey()` ở web.
 
 ---
 
-## 3.I — Registry mirror + nâng trần phiên đồng thời (CHỐT, chưa chi tiết hoá)
+## 3.I — Registry mirror trong cụm + nâng trần phiên đồng thời (CHI TIẾT)
 
 **Chốt với chủ dự án 2026-08-15**, phát sinh từ 3.H. Chặng này **đứng trước** 3.G.
+Chi tiết hoá 2026-08-15 (lượt cook này).
 
 ### Vì sao nó tồn tại
 
@@ -902,25 +903,190 @@ chết sau 63s. Hệ quả kép:
    đoán. Đặt theo số idle rồi để bài học Docker nặng lên sau là mời kubelet giết
    đúng phiên đang làm bài (nó evict theo mức vượt `requests`).
 
-### Hướng đã chốt: registry mirror trong cụm
+### Chuỗi bắt buộc — 5 mắt xích, lượt này làm MẮT 1
 
-Pull-through cache trong cụm; egress sandbox mở **CHỈ** tới nó. Giữ nguyên cách ly
-internet của luật 10, mà học viên vẫn kéo được image tuỳ ý — gần trải nghiệm
-KillerCoda/KodeKloud nhất.
+Thứ tự dưới đây là ràng buộc, không phải gợi ý: mỗi mắt cần đầu ra của mắt trước
+làm dữ liệu, không được đảo.
 
-**Ràng buộc bắt buộc mang theo khi chi tiết hoá:**
+| Mắt | Nội dung | Điều kiện vào | Lượt này |
+|---|---|---|---|
+| **M1** | Registry mirror (docker.io pull-through) + egress sandbox CHỈ tới mirror + luật 10 chấm lại + chứng minh `docker pull`/`build` chạy được | Cụm P3 đang chạy | ✅ **làm** |
+| M2 | Viết/kiểm bài học Docker chạy được end-to-end trên mirror | M1 xong | hoãn |
+| M3 | Đo tải bài học Docker THẬT ở cgroup host (RAM/CPU đỉnh khi build) | M2 có tải | hoãn |
+| M4 | Đặt lại `requests`/`limits` theo số M3 (KHÔNG theo idle) | M3 có số | hoãn |
+| M5 | Nới quota (cả `requests.*` **lẫn** `pods:`) → đo lại trần đồng thời | M4 xong | hoãn |
 
-- Lỗ netpol này là **nới một luật §6 mà 3.E vừa chấm 10/10** ⇒ luật 10 phải chấm
-  lại, kèm đối chứng dương. Không được xanh bằng cách bỏ qua.
-- Mirror là một thành phần **có state và có băng thông ra ngoài** — nó phải nằm
-  ngoài `dlp-sandbox`, và sandbox chỉ được thấy đúng nó (không thấy DNS công cộng,
-  không thấy `169.254.169.254`).
-- Thứ tự: mirror chạy → bài học Docker chạy được → **rồi mới** đo tải → **rồi mới**
-  đặt `requests` → **rồi mới** nới quota → đo lại trần.
-- Nới quota phải nới **cả `pods:`** (đang 10), nếu không nó thành ràng buộc mới ngay
-  sau khi gỡ ràng buộc cũ.
+⚠ **Vì sao dừng ở M1:** M3 cần "tải bài học thật" để đo, mà tải đó chỉ tồn tại
+SAU khi M1 mở được đường pull image. Đặt `requests` (M4) trước khi có số đo M3 là
+đúng cái sai §I0.2 dưới đây cấm. Lượt này mở đường; số đo và nới trần là lượt sau.
 
-**Mục tiêu trần:** 20–30 phiên đồng thời trên chính VM này, chặn bởi RAM thật.
+### §I0. Scout — ba điều kiện biên mới, quyết định cả kiến trúc
+
+1. **dockerd `registry-mirrors` chỉ mirror TRONG SUỐT được Docker Hub.** Runtime
+   bên trong sandbox là `dockerd` (docker-ce, `INCLUDE_DOCKER=1`), không phải
+   containerd. `registry-mirrors` của dockerd chỉ áp cho `docker.io`; ghcr/quay/gcr
+   **không** redirect trong suốt được. ⇒ **Chốt phạm vi: mirror docker.io.** Nó phủ
+   `docker pull python/nginx/alpine/node/ubuntu` và `docker build FROM <hub image>`
+   — ~90% bài học Docker, đúng trải nghiệm KillerCoda. Các registry khác **giữ
+   nguyên bị chặn** (luật 10 không bị nới về hướng đó). AC phải khai thẳng "chỉ
+   docker.io", không được xanh như thể phủ mọi registry.
+
+2. **VAP `*-sandbox-isolation` chỉ cấm `hostPath`, không cấm env, không cấm mọi
+   volume** (CEL #8 = `volumes.all(v, !has(v.hostPath))`). ⇒ Inject cấu hình mirror
+   bằng **env → entrypoint ghi `/etc/docker/daemon.json`** là con đường sạch nhất:
+   không volume, không đụng VAP, và **env rỗng = hành vi hôm nay** (không hồi quy
+   cho test CI chạy dockerd ngoài Sysbox, cho user hiện có).
+
+3. **Node kéo được image công khai từ internet** (traefik/loki/nginx đang chạy từ
+   `docker.io`/`quay.io`). ⇒ `registry:2` của mirror pull được bình thường, và mirror
+   fetch upstream Docker Hub được. `imagePullPolicy: Never` của self-host chỉ áp cho
+   image `dlp-*` private ở ghcr, không áp cho image công khai.
+
+### §I1. Quyết định thiết kế phải chốt TRƯỚC khi viết
+
+| # | Quyết định | Chốt |
+|---|---|---|
+| D-I1 | Công nghệ mirror | `registry:2` (Distribution) ở **chế độ proxy/pull-through** (`REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io`). Không tự dựng cache — đây là tính năng có sẵn, đã kiểm chứng. |
+| D-I2 | Upstream | **CHỈ `registry-1.docker.io`** (xem §I0.1). Một upstream = một instance registry:2. |
+| D-I3 | Vị trí | Namespace **mới `dlp-registry`**, KHÔNG trong `dlp-sandbox` (mirror có state + egress internet — để trong ns sandbox là cho sandbox thấy một pod có đường ra ngoài). |
+| D-I4 | Persistence | PVC qua `local-path-provisioner` (đã có trên cụm). Mất cache = pull lại, không mất dữ liệu học viên ⇒ ReadWriteOnce local là đủ. |
+| D-I5 | Inject vào sandbox | **env `DLP_REGISTRY_MIRROR` → entrypoint ghi daemon.json** trước `start_dockerd`. Rỗng = không ghi gì (hành vi cũ). SSOT: helm value → orchestrator env → pod env → entrypoint. |
+| D-I6 | TLS mirror | **HTTP trong cụm** (không TLS). Mạng cụm đã cô lập; TLS thêm quản lý cert. daemon.json phải có CẢ `registry-mirrors` LẪN `insecure-registries` (dockerd từ chối mirror http nếu host không nằm trong insecure-registries). |
+| D-I7 | Egress sandbox → mirror | Thêm **một** rule egress: sandbox → pod mirror trong `dlp-registry` cổng 5000. Giữ default-deny; **KHÔNG** bật `allowInternetEgress`. IMDS/apiserver/internet-công-khai vẫn chặn. |
+| D-I8 | Egress mirror → internet | Mirror cần ra `registry-1.docker.io` + `auth.docker.io` (443) + DNS. `dlp-registry` **không** áp default-deny (hoặc áp kèm allow-egress-internet tường minh cho riêng pod mirror). |
+
+**⚠ Điều D-I6 kéo theo một bẫy đo:** dockerd chỉ nạp daemon.json lúc **khởi động**.
+entrypoint ghi file RỒI mới `start_dockerd` — đúng thứ tự. Nếu ghi sau khi dockerd
+đã chạy thì mirror không có tác dụng mà không lỗi nào — pull vẫn đi thẳng docker.io
+(rồi chết vì egress chặn). Test phải khẳng định mirror THỰC SỰ được dùng, không chỉ
+"pull thành công" (xem AC-I5 đối chứng).
+
+### §I2. Task list — MẮT 1
+
+**Nhóm A — mirror deployment (helm, `dlp-registry`)**
+1. `templates/registry-mirror-namespace.yaml` — ns `dlp-registry` + nhãn
+   `kubernetes.io/metadata.name` (netpol dựa vào).
+2. `templates/registry-mirror-deployment.yaml` — `registry:2`, env
+   `REGISTRY_PROXY_REMOTEURL`, `REGISTRY_STORAGE_DELETE_ENABLED=true`, mount PVC ở
+   `/var/lib/registry`. `requests`/`limits` khiêm tốn (registry idle ~10Mi).
+3. `templates/registry-mirror-pvc.yaml` — PVC `local-path`, ví dụ 10Gi.
+4. `templates/registry-mirror-service.yaml` — ClusterIP cổng 5000.
+5. `templates/registry-mirror-networkpolicy.yaml` — ingress CHỈ từ ns
+   `dlp-sandbox`; egress internet 443 (except dải nội bộ) + DNS.
+6. Khối `registryMirror:` trong `values.yaml` (+ selfhost) — `enabled`, `image`,
+   `remoteUrl`, `storage.size`, `resources`. **Mặc định TẮT ở values gốc**, bật ở
+   `values-selfhost.yaml`.
+
+**Nhóm B — đường inject (Go + image)**
+7. `images/sandbox-base/entrypoint.sh` — hàm `write_docker_daemon_json()` đọc
+   `DLP_REGISTRY_MIRROR`; rỗng ⇒ return 0 (no-op). Gọi **trước** `start_dockerd`.
+8. `services/orchestrator/internal/k8s/podspec.go` — thêm env
+   `DLP_REGISTRY_MIRROR` vào container sandbox từ `PodConfig` (mở rộng struct +
+   validate cho phép rỗng).
+9. `services/orchestrator/internal/config/config.go` — đọc env
+   `SANDBOX_REGISTRY_MIRROR` (từ helm), truyền xuống `PodConfig`.
+10. `orchestrator-deployment.yaml` — set env `SANDBOX_REGISTRY_MIRROR` từ
+    `.Values.orchestrator.env.registryMirror` (mặc định rỗng; selfhost đặt URL
+    mirror).
+
+**Nhóm C — sandbox egress netpol**
+11. `templates/sandbox-networkpolicy.yaml` — thêm rule egress sandbox → pod mirror
+    (`dlp-registry`, cổng 5000). CHỈ render khi `registryMirror.enabled`. Giữ
+    default-deny; không đụng rule DNS/gateway đã có.
+
+**Nhóm D — build + deploy + đo (trên cụm)**
+12. Build lại `dlp-sandbox-base` (entrypoint đổi ⇒ tag mới sha) → side-load qua
+    `11-sideload-images.sh` (đọc tag từ values, KHÔNG `--tag` dòng lệnh).
+13. `helm upgrade` áp mirror + egress + orchestrator env. Sideload registry:2 nếu
+    muốn tái lập được (hoặc để node pull — nó công khai).
+14. Chứng minh `docker pull python:3.12-slim` và `docker build FROM ubuntu:24.04`
+    trong sandbox THẬT chạy được qua mirror.
+15. **Luật 10 chấm lại** (kịch bản 3.E) — kèm đối chứng dương cho từng chiều còn
+    phải chặn.
+
+**Nhóm E — nợ 3.H gộp lượt này (đã chốt với chủ dự án)**
+16. Ghim `gateway.image.tag` = sha của 3.H trong `values-selfhost.yaml`, bỏ
+    `--set gateway.image.tag` — đóng trọn AC-H9.
+17. Đo AC-H7: giữ một WS im lặng qua mốc `idleTimeout` mặc định Traefik v3 →
+    socket còn mở.
+18. Sửa bẫy `~/dlp-deploy` lệch repo trên VM (đồng bộ hoặc bỏ thư mục lệch).
+
+### §I3. Acceptance criteria — MẮT 1
+
+Mọi ô đo **trên cụm**, dùng đồng hồ **của VM** (bẫy lệch ~59s so với Windows —
+không trộn timestamp hai máy). "0 vi phạm" phải có đối chứng dương ĐỎ đi kèm.
+
+- [x] **AC-I1 — mirror sống và proxy đúng docker.io.** Từ trong cụm
+      `curl http://<mirror-svc>:5000/v2/` → **200**; kéo một manifest qua nó
+      (`/v2/library/hello-world/manifests/latest`) trả manifest thật.
+      **Đối chứng âm:** cùng lệnh với một path KHÔNG phải docker.io không tạo được
+      cache lạ (registry:2 proxy chỉ một upstream — path lạ trả lỗi, không lộ
+      upstream khác).
+- [x] **AC-I2 — `docker pull python:3.12-slim` trong sandbox THẬT thành công.**
+      Đây là chính lệnh "chết sau 63s" ở 3.H. **Đối chứng dương lịch sử:** ghi lại
+      rằng trước M1 nó `exit`/timeout vì egress chặn.
+- [x] **AC-I3 — `docker build` từ image Hub thành công.** `FROM ubuntu:24.04` +
+      một `RUN apt-get`-nhẹ (hoặc `RUN echo`) build xong trong sandbox — trụ cột
+      "học Docker" có đường chạy.
+- [x] **AC-I4 — luật 10 vẫn 10/10 với đối chứng dương, SAU khi mở mirror.** Chấm
+      lại kịch bản 3.E trên phiên thật:
+      - sandbox → `169.254.169.254` (IMDS): **vẫn chặn** (curl 000/timeout).
+      - sandbox → apiserver: **vẫn chặn**.
+      - sandbox → một host internet BẤT KỲ ngoài mirror (vd `1.1.1.1:443`,
+        `github.com:443`): **vẫn chặn** — đây là ô mới, chứng minh mirror KHÔNG mở
+        toang egress.
+      - sandbox → mirror:5000: **thông** (đối chứng dương — chứng minh phép đo
+        "chặn" ở trên là netpol enforce, không phải mạng chết).
+      - WS-IDOR own=101/foreign=403 vẫn giữ.
+- [x] **AC-I5 — mirror THỰC SỰ được dùng, không chỉ "pull xong".** Sau AC-I2, log
+      của pod mirror có dòng phục vụ `python`, HOẶC `docker info` trong sandbox liệt
+      kê mirror ở `Registry Mirrors`. Thiếu ô này thì "pull thành công" có thể do
+      một đường khác (nếu ai đó lỡ bật egress) — không phân biệt được.
+- [x] **AC-I6 — env rỗng = hành vi cũ (không hồi quy).** Build image mới, chạy
+      `docker run --rm <img>` KHÔNG set `DLP_REGISTRY_MIRROR` → `/etc/docker/
+      daemon.json` **không** được tạo (hoặc giữ nguyên), entrypoint không lỗi. Suite
+      unit `entrypoint.sh --lib-only` (nếu thêm hàm) vẫn xanh.
+- [x] **AC-I7 — harness e2e P2 vẫn 14/14** sau khi áp netpol egress mới +
+      orchestrator env mới. `netpol-verify.sh` xanh; `reaper-verify.sh` xanh.
+- [x] **AC-I8 — helm render sạch.** `helm template` + `--dry-run=server` không lỗi;
+      `kubeconform` xanh (⚠ nhớ kubeconform bỏ qua CRD — không dựa nó để enforce
+      schema của thứ ngoài core API). Mirror + egress **chỉ render khi
+      `registryMirror.enabled`**; tắt cờ ⇒ diff về đúng hệ hôm nay.
+- [ ] **AC-H9 (đóng nốt) — gateway tag ghim trong values.** `helm upgrade` KHÔNG
+      `--set` image nào; ba deployment + gateway ở đúng sha đã publish. Khẳng định
+      trên **đối tượng sống** (`kubectl get deploy -o jsonpath`), không bằng
+      `helm get values`.
+- [x] **AC-H7 — idleTimeout Traefik không giết WS im lặng.** WS im lặng qua mốc
+      mặc định v3 → socket còn mở. Ghi số mốc đo được.
+
+### §I4. File ownership — MẮT 1
+
+`infra/helm/platform/templates/registry-mirror-{namespace,deployment,pvc,service,networkpolicy}.yaml` (mới) ·
+`infra/helm/platform/templates/sandbox-networkpolicy.yaml` (thêm egress → mirror) ·
+`infra/helm/platform/values.yaml` + `values-selfhost.yaml` (khối `registryMirror`, `orchestrator.env.registryMirror`, ghim `gateway.image.tag`) ·
+`images/sandbox-base/entrypoint.sh` (hàm write daemon.json + gọi trước dockerd) ·
+`services/orchestrator/internal/k8s/podspec.go` (env `DLP_REGISTRY_MIRROR`) ·
+`services/orchestrator/internal/config/config.go` (đọc `SANDBOX_REGISTRY_MIRROR`) ·
+`infra/helm/platform/templates/orchestrator-deployment.yaml` (env) ·
+`docs/` (ghi đường mirror + cách tắt).
+
+**KHÔNG đụng:** `sandbox-admissionpolicy.yaml` (VAP không đổi — env không phải field
+nó gác) · rule DNS/gateway trong `sandbox-networkpolicy.yaml` (chỉ THÊM, không sửa) ·
+`values.yaml` khối `sandbox.quota`/`limitRange`/`resources` (nới trần là M4/M5, KHÔNG
+lượt này) · logic `clientKey()` ở web · `acquire_ws.lua`/`release_ws.lua`.
+
+### Mắt 2–5 — giữ ở mức chốt, chi tiết hoá khi tới lượt
+
+Ràng buộc mang theo (không được đánh rơi):
+
+- Mirror là thành phần **có state + băng thông ra ngoài** — vĩnh viễn ngoài
+  `dlp-sandbox`; sandbox chỉ thấy đúng nó.
+- Nới quota (M5) phải nới **cả `pods:`** (đang 10 ở selfhost), nếu không nó thành
+  ràng buộc mới ngay sau khi gỡ ràng buộc cũ.
+- **Mục tiêu trần:** 20–30 phiên đồng thời trên chính VM này, chặn bởi RAM thật —
+  đo, không đoán.
+- `requests` (M4) đặt theo **đỉnh đo được khi build** (M3), không theo idle:
+  under-request gây OOM-kill đúng phiên đang làm bài, tệ hơn trần thấp.
 
 ---
 

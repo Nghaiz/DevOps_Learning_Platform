@@ -122,6 +122,13 @@ orchestrator:
     shutdownGrace: '15s'
     sandboxNamespace: 'dlp-sandbox'
 
+    # URL mirror docker.io truyền xuống pod sandbox (P3/3.I). RỖNG = template tự
+    # ghép từ `registryMirror` khi mirror bật (SSOT), giống cách SANDBOX_IMAGE tự
+    # ghép từ image.registry+tag. Đặt giá trị TƯỜNG MINH ở đây chỉ khi muốn ghim
+    # một URL mirror KHÁC (vd mirror ngoài chart) — nhân bản con số này là cách
+    # nó trôi khỏi tên Service thật.
+    registryMirror: ''
+
     # Trần TUYỆT ĐỐI của một session, tính từ created_at, KHÔNG gia hạn được
     # (phase-1 D11). Phải >= sessionTtl, nếu không orchestrator từ chối khởi động.
     hardCap: '2h'
@@ -635,7 +642,11 @@ sandbox:
   # TẮT theo mặc định — bật có ý thức khi bài lab cần internet thật (vd
   # apt-get). Bật KHÔNG mở IMDS/CIDR nội bộ cluster, xem egressExcept.
   allowInternetEgress: false
-  egressExcept:
+  # ⛔ DÙNG CHUNG với registryMirror.egressExcept qua YAML anchor: đây là tập
+  # CIDR CHỐNG-PIVOT (giữ egress internet không vòng lại vào IMDS/apiserver/
+  # pod/node của chính cụm). Hai bản chép rời sẽ trôi khỏi nhau khi CIDR cụm đổi,
+  # và bản trôi lệch mở lại đúng đường mà cả hai tồn tại để đóng. Một nguồn.
+  egressExcept: &internalPivotCidrs
     - '169.254.0.0/16' # link-local / IMDS cloud — KHÔNG BAO GIỜ bỏ dòng này
     - '10.96.0.0/12' # service CIDR cluster (mặc định kubeadm)
     - '10.244.0.0/16' # pod CIDR cluster (mặc định Calico trên cluster đích)
@@ -660,3 +671,42 @@ sandbox:
     defaultMemory: '1Gi'
     maxCpu: '2'
     maxMemory: '2Gi'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Registry mirror docker.io trong cụm (P3/3.I mắt 1).
+#
+# MẶC ĐỊNH TẮT. Bật ở values-selfhost.yaml (lab tự-host, sandbox không có
+# internet). Khi bật:
+#   · dựng ns `dlp-registry` + registry:2 pull-through proxy docker.io + PVC.
+#   · sandbox được mở egress CHỈ tới mirror (netpol, không mở internet).
+#   · orchestrator truyền URL mirror xuống pod qua env DLP_REGISTRY_MIRROR;
+#     entrypoint sandbox ghi /etc/docker/daemon.json trước khi start dockerd.
+#
+# ⚠ Phạm vi CHỈ docker.io: dockerd `registry-mirrors` chỉ mirror trong suốt được
+# Docker Hub. ghcr/quay/gcr KHÔNG đi qua đây và VẪN bị egress sandbox chặn.
+registryMirror:
+  enabled: false
+  namespace: dlp-registry
+  # Image công khai trên Docker Hub — node kéo được (không phải image dlp-* private).
+  image: registry:2
+  imagePullPolicy: IfNotPresent
+  # Upstream DUY NHẤT. Một instance registry:2 proxy đúng một upstream.
+  remoteUrl: https://registry-1.docker.io
+  service:
+    port: 5000
+  storage:
+    className: local-path
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  networkPolicy:
+    enabled: true
+  # Dải nội bộ giữ trong `except` của egress internet mirror — mirror bị chiếm
+  # KHÔNG thành đường vòng vào apiserver/pod/IMDS. Tham chiếu anchor của
+  # sandbox.egressExcept (SSOT) để hai tập chống-pivot KHÔNG BAO GIỜ trôi khỏi nhau.
+  egressExcept: *internalPivotCidrs
