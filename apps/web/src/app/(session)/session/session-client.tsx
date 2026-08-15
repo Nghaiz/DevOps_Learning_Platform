@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import {
   DEFAULT_THEME,
   THEME_NAMES,
+  backoffDelayMsJittered,
   buildSessionWsUrl,
   initialState,
   loadThemeName,
@@ -130,10 +131,13 @@ export function SessionClient({ userId }: { userId: string }): React.ReactElemen
 
   // ── F10 — hẹn giờ nối lại theo backoff mà máy trạng thái tính ────────────────
   useEffect(() => {
-    const delay = state.retryDelayMs;
-    if (delay === null) {
+    if (state.retryDelayMs === null) {
       return;
     }
+    // AC-H6 (P3/3.H) — jitter áp Ở ĐÂY, không trong máy trạng thái (reducer phải
+    // thuần). Rollout gateway đóng mọi phiên cùng lúc; không rải ra thì cả lớp
+    // cùng đâm vào trần `/ws` của biên — đo được 19 lượt 429 trên 14 phiên.
+    const delay = backoffDelayMsJittered(state.attempt);
     const timer = setTimeout(() => {
       dispatch({ type: 'RETRY_NOW' });
       setConnectionKey((key) => key + 1);

@@ -653,21 +653,73 @@ sandbox:
     - '192.168.0.0/16' # mạng node/VM lab
 
   # Chặn resource-exhaustion (fork-bomb / spawn hàng loạt pod) từ 1 sinh
-  # viên làm sập node. Ước lượng ban đầu cho VM lab ~11Gi RAM tổng (platform
-  # hiện dùng ~1.4Gi) — chỉnh qua --set khi có capacity thật khác.
+  # viên làm sập node. Đây là DEFAULT chung; self-host đè bằng số đo thật.
+  #
+  # ⛔ TRẦN ĐỒNG THỜI KHÔNG PHẢI `pods:` — nó là số NHỎ NHẤT trong NĂM ràng buộc,
+  # và `pods:` gần như không bao giờ là cái nhỏ nhất:
+  #     min( requestsCpu    ÷ limitRange.defaultRequestCpu,
+  #          requestsMemory ÷ limitRange.defaultRequestMemory,
+  #          limitsCpu      ÷ limitRange.defaultCpu,
+  #          limitsMemory   ÷ limitRange.defaultMemory,
+  #          pods )  −  POOL_TARGET
+  # Với số dưới đây + LimitRange (250m/256Mi/2/1Gi):
+  #     min(16, 16, 16, 16, 20) − 1 = **15 phiên đồng thời**.
+  #
+  # ⚠ HAI VẾ `limits*` LÀ CHỖ DỄ QUÊN NHẤT, và quên là tụt trần trong im lặng.
+  # `defaultCpu` vừa đổi 1 → 2 (mắt 3 đo được nhu cầu thật ~1.8 core). Giữ
+  # `limitsCpu: 8` như cũ sẽ cho 8 ÷ 2 = **4 pod** — trần tụt xuống đúng con số
+  # của lab CŨ, trong khi mọi khoá `requests*` trông như đã được nới. Nên mỗi lần
+  # đụng `limitRange.default*` PHẢI rà lại cả hai khoá `limits*` ở đây.
+  #
+  # Sửa `pods:` một mình sẽ KHÔNG nâng được trần — đó chính là bẫy mà mắt 5 của
+  # 3.I ghi lại. `infra/k8s/reaper-verify.sh` § `quota_pod_ceiling` tính đúng
+  # công thức này từ đối tượng SỐNG; đừng chép cứng con số vào bất kỳ script nào.
   quota:
     pods: '20'
     requestsCpu: '4'
     requestsMemory: '4Gi'
-    limitsCpu: '8'
-    limitsMemory: '8Gi'
+    limitsCpu: '32'
+    limitsMemory: '16Gi'
 
   # Pod sandbox không tự khai resources (orchestrator tạo hộ, sinh viên không
   # viết YAML) — LimitRange ép default để quota ở trên thật sự có hiệu lực.
+  #
+  # ⛔ MỌI SỐ DƯỚI ĐÂY ĐẾN TỪ PHÉP ĐO Ở CGROUP HOST (P3/3.I mắt 3), KHÔNG TỪ ƯỚC
+  # LƯỢNG. Công cụ: `infra/k8s/sandbox_load_probe.py`; tải: trọn bài
+  # `dlp-docker-basics` (pull python:3.12-slim + nginx:alpine + docker build).
+  # Đổi số ở đây thì phải đo lại, đừng chỉnh cho vừa một mục tiêu trần đồng thời.
+  #
+  # ── RAM: vì sao 256Mi chứ không phải 512Mi ────────────────────────────────
+  # `memory.current` đỉnh đo được là **428–464Mi**, và bản 3.H/mắt 2 suýt lấy
+  # chính con số đó làm `requests`. Nhưng `memory.current` GỘP CẢ PAGE CACHE:
+  # `docker pull`/`build` ghi hàng trăm MB layer xuống overlay và mọi byte ấy vào
+  # cache. Tách ra bằng `memory.stat`:
+  #     anon (KHÔNG thu hồi được)          : 121–127Mi
+  #     page cache                         : 254–274Mi
+  #     workingSet = current − inactive_file: **158–163Mi**   ← số quyết định
+  # `workingSet` mới là đại lượng kubelet dùng để xếp hạng eviction và để so với
+  # `requests.memory`. Đặt requests theo 512Mi là giữ chỗ cho ~270Mi mà kernel
+  # sẵn sàng bỏ đi miễn phí — nó không làm hệ an toàn hơn, chỉ ép trần đồng thời
+  # xuống một nửa. 256Mi = đỉnh đo được 163Mi + ~57% dư địa.
+  #
+  # ── CPU: vì sao limit 2 chứ không phải 1 ──────────────────────────────────
+  # Với `defaultCpu: 1` cũ, bài học bị throttle **401/4693 chu kỳ, 19.4s bị giữ
+  # lại** — người học chờ một trần nhân tạo. Nới trần rồi đo lại (0 throttle ⇒ số
+  # này là NHU CẦU, không phải sàn) cho đỉnh thật theo cửa sổ:
+  #     0.2s: 2.23–2.42 core · 1s: 1.76–1.87 · 5s: 1.44–1.57 · 60s: 0.63–0.71
+  # `limit 2` phủ đỉnh 1s. Đo được: trọn bài giảm **238s → 195s (−18%)**.
+  # KHÔNG đặt 4: một sinh viên build sẽ ăn nửa node 8 core và bỏ đói người khác.
+  #
+  # ── requests.cpu 250m: đây là chỗ CỐ Ý overcommit, và khai thẳng ───────────
+  # Trung bình cả phiên 0.16–0.22 core; trung bình riêng CỬA SỔ ĐANG LÀM BÀI
+  # 0.32–0.47 core. 250m nằm GIỮA hai số đó ⇒ nếu toàn bộ sinh viên build cùng
+  # lúc thì họ tranh CPU và build chậm đi. Đó là đánh đổi CÓ CHỦ Ý: CPU quá tải
+  # thì DEGRADE (chậm), RAM quá tải thì KILL (OOM) — nên overcommit đặt ở CPU,
+  # còn RAM giữ nguyên trần 1Gi/pod.
   limitRange:
-    defaultRequestCpu: '500m'
-    defaultRequestMemory: '512Mi'
-    defaultCpu: '1'
+    defaultRequestCpu: '250m'
+    defaultRequestMemory: '256Mi'
+    defaultCpu: '2'
     defaultMemory: '1Gi'
     maxCpu: '2'
     maxMemory: '2Gi'

@@ -77,6 +77,7 @@ type JWKSServer struct {
 	*httptest.Server
 	body   func() []byte
 	status func() int
+	delay  func() time.Duration
 	hits   chan struct{}
 }
 
@@ -87,12 +88,16 @@ func NewJWKSServer(t *testing.T, signers ...*Signer) *JWKSServer {
 	js := &JWKSServer{
 		body:   func() []byte { return body },
 		status: func() int { return http.StatusOK },
+		delay:  func() time.Duration { return 0 },
 		hits:   make(chan struct{}, 1024),
 	}
 	js.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		select {
 		case js.hits <- struct{}{}:
 		default:
+		}
+		if d := js.delay(); d > 0 {
+			time.Sleep(d)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(js.status())
@@ -115,6 +120,16 @@ func (s *JWKSServer) SetStatus(code int) { s.status = func() int { return code }
 
 // Hits trả số lần endpoint đã bị gọi từ lúc dựng.
 func (s *JWKSServer) Hits() int { return len(s.hits) }
+
+// SetDelay ép endpoint trả chậm — cần để dựng CỬA SỔ ĐUA của một lượt fetch
+// đang bay.
+//
+// Không có nó thì mọi test JWKS chỉ quan sát được trạng thái "đã fetch xong",
+// và cả một lớp lỗi (caller bỏ đi tay không trong lúc fetch chưa xong) là bất
+// khả quan sát: server httptest trả trong micro-giây nên goroutine thứ hai gần
+// như luôn thấy cache đã đầy. Lỗi đó CÓ THẬT trên cụm — xem
+// `TestColdCacheDongThoiKhongTraKidNotFound`.
+func (s *JWKSServer) SetDelay(d time.Duration) { s.delay = func() time.Duration { return d } }
 
 // Claims là payload của một sandbox token.
 type Claims struct {

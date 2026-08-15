@@ -42,10 +42,12 @@
 #
 # 2. **Ca `restart` TỰ CHẶN lượt kế của ca `expiry`.** Nó cố ý để lại một session
 #    còn sống (đó là điều nó khẳng định: session sống sót qua restart), và session
-#    đó mang TTL đầy đủ **1 giờ**. Trong khi ca `expiry` cần **3 khe** trên trần 4
-#    (`requests.cpu 2100m ÷ 500m`), mà warm-pool đã giữ 1 khe. Nên ngay sau một
-#    lượt `--case all`, lượt kế sẽ dừng ở "thiếu khe quota: đang 2, cần 3, trần 4"
-#    và KHÔNG chạy được cho tới khi session kia hết hạn (~1h). Đo được 2026-08-16.
+#    đó mang TTL đầy đủ **1 giờ**. Trong khi ca `expiry` cần **3 khe**, mà
+#    warm-pool đã giữ 1 khe. Trên lab CŨ (trần 4) điều đó đủ để lượt kế dừng ở
+#    "thiếu khe quota" cho tới khi session kia hết hạn (~1h) — đo được 2026-08-16.
+#    Sau khi 3.I mắt 5 nâng trần lên 21, ràng buộc này gần như không còn cắn;
+#    nhưng cổng vẫn giữ vì nó là điều kiện môi trường thật, chỉ khác là trần nay
+#    ĐỌC TỪ CỤM (`quota_pod_ceiling`) chứ không chép cứng.
 #
 #    ⛔ Xoá pod KHÔNG giải phóng khe: session vẫn sống nên orchestrator dựng lại
 #    pod ngay. Phải chờ TTL, hoặc chạy ca khác trước và để `expiry` sau cùng.
@@ -150,7 +152,7 @@ metric() {
 # ⛔ DỌN THEO NHÃN, KHÔNG THEO BIẾN. `logs="$(probe ...)"` chạy probe trong một
 # SUBSHELL, nên mọi `MANG_BIEN+=(...)` bên trong chỉ sửa bản sao của subshell —
 # trap ở tiến trình cha không bao giờ thấy tên pod nào và rác ở lại cụm, ăn khe
-# trên trần 4 pod của lượt chạy sau. Nhãn thì sống trong apiserver, không phụ
+# quota của lượt chạy sau. Nhãn thì sống trong apiserver, không phụ
 # thuộc tiến trình nào. (Đo được: lượt chạy đầu để lại 2 pod Completed.)
 PROBE_LABEL="dlp.probe=reaper-verify"
 probe() {
@@ -275,6 +277,76 @@ sandbox_pod_count() {
 	printf '%s\n' "$out" | grep -c Running || true
 }
 
+# ── Trần pod sandbox — TÍNH TỪ ĐỐI TƯỢNG SỐNG, KHÔNG CHÉP CỨNG ───────────────
+# ⛔ Bản trước của script này chép cứng số `4` vào ba cổng gác, kèm chú thích
+# "requests.cpu 2100m ÷ 500m = 4 pod". Nó đúng đúng một lần: ngay khi 3.I mắt 5
+# nới quota (250m/256Mi ⇒ 21 pod), cả ba cổng ấy bắt đầu TỪ CHỐI CHẠY dù cụm còn
+# thừa chỗ — và thông điệp lỗi vẫn tự tin in ra "trần 4". Một hằng số chép từ
+# cấu hình sang script là một bản sao sẽ trôi, và bản trôi thì im lặng.
+#
+# Trần thật = số NHỎ NHẤT trong năm ràng buộc (xem values.yaml § sandbox.quota).
+# `pods:` gần như không bao giờ là cái nhỏ nhất, nên gác theo mình nó là gác hụt.
+#
+# In ra một con số; `UNKNOWN` nếu không đọc được — người gọi phải phân biệt
+# "không đo được" với "đo được và chật", đúng khuôn `exit 2` sẵn có.
+quota_pod_ceiling() {
+	local q lr
+	q="$(kubectl -n "$SANDBOX_NS" get resourcequota -o jsonpath='{.items[0].spec.hard}' 2>/dev/null)" || true
+	lr="$(kubectl -n "$SANDBOX_NS" get limitrange -o jsonpath='{.items[0].spec.limits[0]}' 2>/dev/null)" || true
+	if [ -z "$q" ] || [ -z "$lr" ]; then
+		printf 'UNKNOWN'
+		return 0
+	fi
+	printf '%s\n%s\n' "$q" "$lr" | awk '
+		# Đổi đơn vị k8s → số. CPU về milli, RAM về Mi. Thiếu hàm này thì
+		# "4" và "4Gi" so với nhau bằng so chuỗi và ra kết quả vô nghĩa.
+		function cpu_m(v) { if (v ~ /m$/) { sub(/m$/, "", v); return v + 0 } return (v + 0) * 1000 }
+		function mem_mi(v) {
+			if (v ~ /Gi$/) { sub(/Gi$/, "", v); return (v + 0) * 1024 }
+			if (v ~ /Mi$/) { sub(/Mi$/, "", v); return v + 0 }
+			if (v ~ /Ki$/) { sub(/Ki$/, "", v); return (v + 0) / 1024 }
+			return (v + 0) / 1048576
+		}
+		function get(s, k,   m) {
+			m = s; if (match(m, "\"" k "\":\"[^\"]+\"")) {
+				m = substr(m, RSTART, RLENGTH); sub(".*:\"", "", m); sub("\"$", "", m); return m
+			}
+			return ""
+		}
+		NR == 1 { quota = $0 } NR == 2 { lim = $0 }
+		END {
+			rc = get(quota, "requests.cpu");    rm = get(quota, "requests.memory")
+			lc = get(quota, "limits.cpu");      lm = get(quota, "limits.memory")
+			pods = get(quota, "pods")
+			# LimitRange lồng hai mức: defaultRequest.* và default.*
+			drq = lim; sub(/.*"defaultRequest":\{/, "", drq); sub(/\}.*/, "", drq)
+			dfl = lim; sub(/.*"default":\{/, "", dfl); sub(/\}.*/, "", dfl)
+			drc = get(drq, "cpu"); drm = get(drq, "memory")
+			dfc = get(dfl, "cpu"); dfm = get(dfl, "memory")
+			if (drc == "" || drm == "") { printf "UNKNOWN"; exit }
+			best = (pods == "" ? 9999 : pods + 0)
+			n = int(cpu_m(rc) / cpu_m(drc)); if (n < best) best = n
+			n = int(mem_mi(rm) / mem_mi(drm)); if (n < best) best = n
+			if (lc != "" && dfc != "") { n = int(cpu_m(lc) / cpu_m(dfc)); if (n < best) best = n }
+			if (lm != "" && dfm != "") { n = int(mem_mi(lm) / mem_mi(dfm)); if (n < best) best = n }
+			printf "%d", best
+		}'
+}
+
+# Cổng chung cho ba ca: cần thêm `$1` khe trên trần đọc-từ-cụm.
+# Trả 0 nếu đủ chỗ, 1 nếu chật, 2 nếu không đọc được trần.
+du_khe() {
+	local can="$1" running tran
+	running="$(sandbox_pod_count)"
+	tran="$(quota_pod_ceiling)"
+	KHE_RUNNING="$running"
+	KHE_TRAN="$tran"
+	[ "$running" = UNKNOWN ] && return 2
+	[ "$tran" = UNKNOWN ] && return 2
+	[ $((running + can)) -gt "$tran" ] && return 1
+	return 0
+}
+
 # ── "0 pod rò" nghĩa là gì, chính xác ────────────────────────────────────────
 # ⛔ KHÔNG phải "mọi con số đứng yên". `pool:free` PHẢI đổi khi orchestrator khởi
 # động lại và bổ sung pool về `POOL_TARGET` — đó là nó làm đúng việc, không phải
@@ -342,22 +414,24 @@ phantom_orphan() {
 case_expiry() {
 	step "AC-C2 — reaper dọn session hết hạn (đối chứng âm: session chưa hết hạn)"
 
-	# Preflight quota. Trần thật của lab KHÔNG phải `pods: 10` mà là CPU/RAM:
-	# requests.cpu 2100m ÷ 500m = 4 pod. Chạy thiếu chỗ thì `CreateSession` đỏ vì
-	# hết quota và ta sẽ đọc nó thành "reaper hỏng".
+	# Preflight quota. Trần thật của lab KHÔNG phải `pods:` mà là số nhỏ nhất
+	# trong năm ràng buộc quota×LimitRange — `quota_pod_ceiling` đọc từ cụm.
+	# Chạy thiếu chỗ thì `CreateSession` đỏ vì hết quota và ta sẽ đọc nó thành
+	# "reaper hỏng".
 	# ⛔ THIẾU KHE LÀ ĐIỀU KIỆN MÔI TRƯỜNG, KHÔNG PHẢI MỘT Ô AC ĐỎ. Ghi nó bằng
 	# `bad` nghĩa là một lượt chạy trùng lúc cụm bận đọc ra như "reaper hỏng".
 	# `exit 2` phân biệt được "không đo được" với "đo được và sai".
-	local running need_slots
-	running="$(sandbox_pod_count)"
+	local need_slots rc
 	need_slots=$((EXPIRE_COUNT + 1))
-	if [ "$running" = UNKNOWN ]; then
-		echo "không đếm được pod sandbox (kubectl lỗi) — không đo được, không kết luận" >&2
+	du_khe "$need_slots"
+	rc=$?
+	if [ "$rc" -eq 2 ]; then
+		echo "không đọc được số pod / trần quota (kubectl lỗi) — không đo được, không kết luận" >&2
 		exit 2
 	fi
-	info "sandbox pod đang chạy: ${running} · cần thêm ${need_slots} khe (trần 4)"
-	if [ $((running + need_slots)) -gt 4 ]; then
-		echo "thiếu khe quota: đang ${running}, cần ${need_slots}, trần 4 — chờ session cũ hết hạn rồi chạy lại" >&2
+	info "sandbox pod đang chạy: ${KHE_RUNNING} · cần thêm ${need_slots} khe (trần ${KHE_TRAN})"
+	if [ "$rc" -eq 1 ]; then
+		echo "thiếu khe quota: đang ${KHE_RUNNING}, cần ${need_slots}, trần ${KHE_TRAN} — chờ session cũ hết hạn rồi chạy lại" >&2
 		exit 2
 	fi
 
@@ -574,10 +648,8 @@ scrub_session() {
 case_restart() {
 	step "AC-C3 — session sống qua được một lần restart orchestrator"
 
-	local running
-	running="$(sandbox_pod_count)"
-	if [ $((running + 1)) -gt 4 ]; then
-		bad "đủ khe quota để dựng cảnh" "đang ${running}, trần 4"
+	if ! du_khe 1; then
+		bad "đủ khe quota để dựng cảnh" "đang ${KHE_RUNNING}, cần 1, trần ${KHE_TRAN}"
 		return
 	fi
 
@@ -680,10 +752,8 @@ case_restart() {
 case_ghost() {
 	step "Chỗ rò session-ma — FAILED không được để lại tên trong pool:claimed"
 
-	local running
-	running="$(sandbox_pod_count)"
-	if [ $((running + 2)) -gt 4 ]; then
-		bad "đủ khe quota để dựng cảnh" "đang ${running}, cần 2, trần 4"
+	if ! du_khe 2; then
+		bad "đủ khe quota để dựng cảnh" "đang ${KHE_RUNNING}, cần 2, trần ${KHE_TRAN}"
 		return
 	fi
 

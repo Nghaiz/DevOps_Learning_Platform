@@ -36,7 +36,7 @@ chứ không phải một ramp.
 | 1 | Better Auth **signup theo IP** | ~2–3 lượt rồi 429 |
 | 2 | rate-limit biên **`/ws`** | 20/1m, burst 10 |
 | 3 | rate-limit biên **web** | 120/1m, burst 60 |
-| 4 | **session đồng thời** ← thứ 3.F muốn đo | `requests.cpu ÷ 500m`, trừ `POOL_TARGET` |
+| 4 | **session đồng thời** ← thứ 3.F muốn đo | `min(5 ràng buộc quota×LimitRange)`, trừ `POOL_TARGET` — xem `values.yaml` § `sandbox.quota` |
 
 Trần 1 đứng trước cả lúc tải bắt đầu: k6 tạo user mỗi VU là chết ở bước dựng,
 chưa kịp đo gì — và 429 lúc đó đọc y hệt "hệ đã chặn tải". Vì thế
