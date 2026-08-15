@@ -35,6 +35,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -55,7 +56,7 @@ func main() {
 	caFile := flag.String("ca", "/etc/dlp/mtls/ca.crt", "CA bundle")
 	certFile := flag.String("cert", "/etc/dlp/mtls/web.crt", "client cert")
 	keyFile := flag.String("key", "/etc/dlp/mtls/web.key", "client key")
-	caseName := flag.String("case", "all", "idem|get|claim|extend|hardcap|reap|all")
+	caseName := flag.String("case", "all", "all|idem|get|claim|extend|hardcap|reap|create|pool|check")
 	userA := flag.String("user", "probe-user-a", "chủ sở hữu session")
 	userB := flag.String("user2", "probe-user-b", "người KHÁC, dùng cho ca IDOR")
 	tag := flag.String("tag", "", "hậu tố cho idempotency_key; rỗng ⇒ lấy theo đồng hồ")
@@ -74,7 +75,47 @@ func main() {
 	// Người gọi chịu trách nhiệm dọn; trần quota lab chỉ có 4 pod.
 	keep := flag.Bool("keep", false, "ca create: KHÔNG reap khi thoát (để dựng cảnh cho reaper)")
 	n := flag.Int("n", 5, "ca pool: số CreateSession đồng thời")
+	// ⛔ TTL NGẮN LÀ THỨ DUY NHẤT LÀM AC-C2 ĐO ĐƯỢC TRONG MỘT LƯỢT CHẠY.
+	// `SESSION_TTL` của cụm là 1h, nên "chờ session hết hạn rồi xem reaper có dọn
+	// không" là một phép đo dài một tiếng — và mọi ô AC treo theo đồng hồ tường ở
+	// dự án này đều đã bị VM ngủ giết ít nhất một lần. Server đã nhận `ttl_seconds`
+	// từ đầu (`session.proto:70`, `lifecycle/service.go:resolveTTL`): >0 dùng
+	// nguyên giá trị, chỉ chặn dưới 1s và trần HARD_CAP. Probe chỉ thiếu đường
+	// truyền nó xuống.
+	ttl := flag.Int("ttl", 0, "ca create/pool: ttl_seconds gửi kèm CreateSession; 0 = mặc định của server")
+	sessionID := flag.String("session", "", "ca check: id của session ĐÃ TỒN TẠI cần kiểm")
 	flag.Parse()
+
+	if *caseName == "check" && *sessionID == "" {
+		fmt.Fprintln(os.Stderr, "-case check cần -session <id> (id do một lượt `-case create -keep` trước đó in ra)")
+		os.Exit(2)
+	}
+
+	// ⛔ CHẶN `-ttl` Ở CÁC CA KHÁC. Ca `hardcap` khẳng định mốc trần suy ra từ TTL
+	// MẶC ĐỊNH của server; ép một TTL ngắn vào đó làm nó đỏ vì phép đo sai chứ
+	// không vì hệ sai, và người đọc bản ghi sẽ đi tìm lỗi trong orchestrator.
+	if *ttl != 0 && *caseName != "create" && *caseName != "pool" {
+		fmt.Fprintf(os.Stderr, "-ttl chỉ dùng với -case create hoặc -case pool (đang: %s)\n", *caseName)
+		os.Exit(2)
+	}
+	if *ttl < 0 {
+		fmt.Fprintf(os.Stderr, "-ttl âm (%d): server trả InvalidArgument, không cần gửi đi để biết\n", *ttl)
+		os.Exit(2)
+	}
+	// ⛔ CHẶN TRÀN TRƯỚC KHI ÉP KIỂU. `int32(*ttl)` cắt trong im lặng: `-ttl
+	// 4294967296` thành 0, tức "dùng mặc định của server" (1h) mà không một lời
+	// nào — rồi script chờ theo `EXPIRESAT` và treo một tiếng, hoặc chết vì ctx
+	// 3 phút của probe. Một biến đổi đầu vào im lặng trong chính công cụ tồn tại
+	// để phép đo đáng tin là thứ không được phép có.
+	if *ttl > math.MaxInt32 {
+		fmt.Fprintf(os.Stderr, "-ttl %d vượt int32 — server nhận int32, ép kiểu sẽ đổi giá trị trong im lặng\n", *ttl)
+		os.Exit(2)
+	}
+	// #nosec G115 -- hai `os.Exit(2)` ngay trên đã chặn cả hai đầu (`< 0` và
+	// `> MaxInt32`), nên phép ép này không đổi được giá trị. Đặt nó SÁT guard chứ
+	// không ở chỗ dựng struct, để người đọc kiểm được lý do bằng mắt thay vì phải
+	// tin một dòng `#nosec` cách đó 40 dòng.
+	ttlSeconds := int32(*ttl)
 
 	if *tag == "" {
 		*tag = fmt.Sprintf("t%d", time.Now().UnixNano())
@@ -94,14 +135,16 @@ func main() {
 	defer func() { _ = conn.Close() }()
 
 	p := &probe{
-		client:  orchestratorv1.NewSessionServiceClient(conn),
-		userA:   *userA,
-		userB:   *userB,
-		tag:     *tag,
-		hardCap: *hardCap,
-		hold:    *hold,
-		keep:    *keep,
-		n:       *n,
+		client:    orchestratorv1.NewSessionServiceClient(conn),
+		userA:     *userA,
+		userB:     *userB,
+		tag:       *tag,
+		hardCap:   *hardCap,
+		hold:      *hold,
+		keep:      *keep,
+		n:         *n,
+		ttl:       ttlSeconds,
+		sessionID: *sessionID,
 	}
 
 	cases := map[string]func(context.Context){
@@ -113,11 +156,16 @@ func main() {
 		"reap":    p.caseReap,
 		"create":  p.caseCreate,
 		"pool":    p.casePoolSaturate,
+		"check":   p.caseCheck,
 	}
 	// `create` KHÔNG nằm trong `all`: với `-keep` nó cố ý để lại một session sống
 	// để dựng cảnh cho reaper, nên chạy chung sẽ ăn mất một khe trên trần 4 pod
 	// và làm ca sau đỏ vì hết chỗ — phép đo hỏng vì phép đo trước.
 	order := []string{"idem", "get", "claim", "extend", "hardcap", "reap"}
+	// Danh sách để BÁO LỖI, khác `order` là danh sách để CHẠY. Trộn hai thứ này
+	// làm thông báo "ca không tồn tại" liệt kê thiếu đúng những ca chạy riêng
+	// (`create`, `pool`, `check`) — tức công cụ tự nói rằng ca có thật là không có.
+	available := append(append([]string{}, order...), "create", "pool", "check")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -125,7 +173,7 @@ func main() {
 	toRun := order
 	if *caseName != "all" {
 		if _, ok := cases[*caseName]; !ok {
-			fmt.Fprintf(os.Stderr, "ca không tồn tại: %s (có: %s)\n", *caseName, strings.Join(order, ", "))
+			fmt.Fprintf(os.Stderr, "ca không tồn tại: %s (có: %s)\n", *caseName, strings.Join(available, ", "))
 			os.Exit(2)
 		}
 		toRun = []string{*caseName}
@@ -148,14 +196,16 @@ func main() {
 }
 
 type probe struct {
-	client  orchestratorv1.SessionServiceClient
-	userA   string
-	userB   string
-	tag     string
-	hardCap time.Duration
-	hold    time.Duration
-	keep    bool
-	n       int
+	client    orchestratorv1.SessionServiceClient
+	userA     string
+	userB     string
+	tag       string
+	hardCap   time.Duration
+	hold      time.Duration
+	keep      bool
+	n         int
+	ttl       int32
+	sessionID string
 
 	current string
 	checks  int
@@ -183,11 +233,49 @@ func (p *probe) create(ctx context.Context, user, idemKey string) (*orchestrator
 		UserId:         user,
 		Tier:           orchestratorv1.SandboxTier_SANDBOX_TIER_SYSBOX,
 		IdempotencyKey: idemKey,
+		TtlSeconds:     p.ttl, // 0 ⇒ server dùng SESSION_TTL; xem cờ -ttl
 	})
 	if err != nil {
 		return nil, err
 	}
 	return resp.GetSession(), nil
+}
+
+// caseCheck kiểm một session ĐÃ TỒN TẠI (do lượt chạy trước tạo bằng `-keep`)
+// còn dùng được không. Đây là vế còn thiếu của AC-C3: mọi ca khác tự tạo session
+// của riêng nó, nên không ca nào trả lời được câu "session đang sống TỪ TRƯỚC có
+// qua nổi một lần restart orchestrator không".
+//
+// ⛔ KIỂM CẢ ĐỌC LẪN GHI. Một ca chỉ gọi `GetSession` sẽ xanh ngay cả khi
+// orchestrator mới khởi động lại đã mất đường ghi Redis — nó đọc được hash cũ và
+// báo "session vẫn dùng được" về một hệ thống không nhận thêm được lệnh nào.
+// `ExtendSession` là lời ghi rẻ nhất chứng minh đường ghi còn sống, và revision
+// tăng đúng 1 là bằng chứng lời ghi ấy tới đúng session này.
+func (p *probe) caseCheck(ctx context.Context) {
+	got, err := p.client.GetSession(ctx, &orchestratorv1.GetSessionRequest{
+		SessionId: p.sessionID, UserId: p.userA,
+	})
+	p.check("ĐỌC được session đã tồn tại", err == nil, fmt.Sprintf("code=%s", codeOf(err)))
+	if err != nil {
+		return
+	}
+	sess := got.GetSession()
+	p.kv("SESSIONID", sess.GetId())
+	p.kv("PODNAME", sess.GetPodName())
+	p.kv("STATUS", sess.GetStatus().String())
+	p.kv("EXPIRESAT", sess.GetExpiresAt().AsTime().UTC().Format(time.RFC3339))
+
+	alive := sess.GetStatus() == orchestratorv1.SessionStatus_SESSION_STATUS_CLAIMED ||
+		sess.GetStatus() == orchestratorv1.SessionStatus_SESSION_STATUS_RUNNING
+	p.check("status còn sống (CLAIMED|RUNNING)", alive, sess.GetStatus().String())
+
+	r0 := sess.GetRevision()
+	ext, extErr := p.client.ExtendSession(ctx, &orchestratorv1.ExtendSessionRequest{
+		SessionId: sess.GetId(), UserId: p.userA, ExpectedRevision: r0,
+	})
+	r1 := ext.GetSession().GetRevision()
+	p.check("GHI được (ExtendSession)", extErr == nil, fmt.Sprintf("code=%s", codeOf(extErr)))
+	p.check("revision tăng đúng 1", r1 == r0+1, fmt.Sprintf("%d → %d", r0, r1))
 }
 
 // cleanup trả pod về cụm. KHÔNG tính là check: trần quota của lab là 4 pod
@@ -269,9 +357,15 @@ func (p *probe) caseCreate(ctx context.Context) {
 		return
 	}
 	p.check("tạo được session", true, fmt.Sprintf("status=%s", sess.GetStatus()))
-	// Hai dòng này là giao diện với script bên ngoài — giữ nguyên định dạng.
+	// Ba dòng này là giao diện với script bên ngoài — giữ nguyên định dạng.
 	p.kv("SESSIONID", sess.GetId())
 	p.kv("PODNAME", sess.GetPodName())
+	// ⛔ MỐC HẾT HẠN LẤY TỪ SERVER, KHÔNG ĐỂ SCRIPT TỰ CỘNG `now + ttl`.
+	// Đồng hồ VM lệch đồng hồ Windows ~59s (đo 3 lượt, 1.G-6), và một script chạy
+	// từ máy khác sẽ cộng ra một mốc lệch đúng chừng đó. Ở đây `expires_at` do
+	// chính orchestrator ghi, cùng đồng hồ với Redis đang đếm TTL — nên script
+	// chờ đúng thứ nó cần chờ thay vì chờ một con số hợp lý mà sai.
+	p.kv("EXPIRESAT", sess.GetExpiresAt().AsTime().UTC().Format(time.RFC3339))
 
 	if p.hold > 0 {
 		fmt.Printf("  > HOLD-BAT-DAU %s (%s)\n", time.Now().UTC().Format(time.RFC3339), p.hold)

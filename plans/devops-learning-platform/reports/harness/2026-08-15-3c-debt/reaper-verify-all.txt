@@ -1,0 +1,62 @@
+reaper-verify · ns=default sandbox=dlp-sandbox · 2026-08-15T05:02:11Z
+
+── AC-C2 — reaper dọn session hết hạn (đối chứng âm: session chưa hết hạn)
+     sandbox pod đang chạy: 1 · cần thêm 3 khe (trần 4)
+     scrape /metrics: 244 dòng
+     mốc counter: claimed_orphan=0 keyspace_events=2
+     session ngắn (ttl=45s): sandbox-27b16970b189 sandbox-011575c33ca2
+     session dài  (ttl=900s): sandbox-653492864ebd · hết hạn 2026-08-15T05:17:31Z
+  PASS t0: cả 3 pod đều SỐNG và nằm trong pool:claimed phép quan sát có khả năng thấy 'còn'
+     chờ tới 05:04:44Z (hết hạn 2026-08-15T05:02:59Z + REAP_INTERVAL 60s + 45s biên)
+  PASS AC-C2 vế 1: 2/2 pod của session hết hạn đã bị XOÁ sau 9s kể từ mốc hết hạn 2026-08-15T05:02:59Z (độ phân giải poll 5s)
+  PASS AC-C2 vế 1b: tên đã rời pool:claimed              index sạch — dlp_pool_claimed_size đếm đúng
+  PASS AC-C2 vế 2 (đối chứng âm): session CHƯA hết hạn còn nguyên pod=Running, trong pool:claimed
+     scrape /metrics: 244 dòng
+     counter sau: claimed_orphan=0→0 keyspace_events=2→4
+     (tầng 1 = keyspace event, xoá gần như tức thì; tầng 2c = lưới đỡ mỗi 60s)
+     dọn session 99f266d757c4b27e2cd532d76fb21e61 (pod sandbox-653492864ebd)
+
+── Chỗ rò session-ma — FAILED không được để lại tên trong pool:claimed
+     sẽ thành ma: sandbox-75aee60ba519 · đối chứng: sandbox-9a28598cc358
+  PASS t0: cả hai pod nằm trong pool:claimed                phép quan sát thấy được 'có trong index'
+     đã xoá sandbox-75aee60ba519 khỏi apiserver lúc 05:03:34Z
+  PASS tầng 2b nhận ra session ma                           status=FAILED
+  PASS session ma KHÔNG để lại tên trong pool:claimed    index sạch, hash pod:{name} đã xoá
+  PASS hash session ma VẪN còn (FE đọc được lý do)   EXISTS=1, status=FAILED
+  PASS đối chứng âm: session còn sống KHÔNG bị đụng pod=Running, vẫn trong pool:claimed
+     dọn session 77bc39b9fd560b844f389053942e30bf (pod sandbox-75aee60ba519)
+     dọn session 56ce88f7a1443279ffbf6fa3104eb7a4 (pod sandbox-9a28598cc358)
+
+── AC-C3 — session sống qua được một lần restart orchestrator
+     session ef1fc409747ef40a4c2c512b9a45ec0b trên pod sandbox-a2b2eb9a56e0
+     khớp index/cụm trước restart: phantom=0:∅ orphan=0:∅
+  PASS trước restart: session đọc được VÀ ghi được GetSession + ExtendSession đều OK
+
+── restart orchestrator
+     rollout xong lúc 05:05:10Z
+  PASS AC-C3 vế 2: session cũ VẪN dùng được sau restart GetSession + ExtendSession đều OK
+  PASS AC-C3 vế 2b: ĐÚNG pod cũ còn chạy, không bị tạo lại startTime 2026-08-15T05:03:26Z không đổi
+     pool: free 1→1 (đổi theo POOL_TARGET là ĐÚNG), claimed 1→1
+     khớp index/cụm sau restart: phantom=0:∅ orphan=0:∅
+  PASS AC-C3 vế 1a: số pod ĐÃ CLAIM không đổi qua restart claimed 1→1
+  PASS AC-C3 vế 1b: index Redis khớp cụm — 0 pod rò cả hai chiều phantom=0:∅ orphan=0:∅
+     dọn session ef1fc409747ef40a4c2c512b9a45ec0b (pod sandbox-a2b2eb9a56e0)
+
+── TỔNG
+PASS | t0: cả 3 pod đều SỐNG và nằm trong pool:claimed | phép quan sát có khả năng thấy 'còn'
+PASS | AC-C2 vế 1: 2/2 pod của session hết hạn đã bị XOÁ | sau 9s kể từ mốc hết hạn 2026-08-15T05:02:59Z (độ phân giải poll 5s)
+PASS | AC-C2 vế 1b: tên đã rời pool:claimed | index sạch — dlp_pool_claimed_size đếm đúng
+PASS | AC-C2 vế 2 (đối chứng âm): session CHƯA hết hạn còn nguyên | pod=Running, trong pool:claimed
+PASS | t0: cả hai pod nằm trong pool:claimed | phép quan sát thấy được 'có trong index'
+PASS | tầng 2b nhận ra session ma | status=FAILED
+PASS | session ma KHÔNG để lại tên trong pool:claimed | index sạch, hash pod:{name} đã xoá
+PASS | hash session ma VẪN còn (FE đọc được lý do) | EXISTS=1, status=FAILED
+PASS | đối chứng âm: session còn sống KHÔNG bị đụng | pod=Running, vẫn trong pool:claimed
+PASS | trước restart: session đọc được VÀ ghi được | GetSession + ExtendSession đều OK
+PASS | AC-C3 vế 2: session cũ VẪN dùng được sau restart | GetSession + ExtendSession đều OK
+PASS | AC-C3 vế 2b: ĐÚNG pod cũ còn chạy, không bị tạo lại | startTime 2026-08-15T05:03:26Z không đổi
+PASS | AC-C3 vế 1a: số pod ĐÃ CLAIM không đổi qua restart | claimed 1→1
+PASS | AC-C3 vế 1b: index Redis khớp cụm — 0 pod rò cả hai chiều | phantom=0:∅ orphan=0:∅
+
+pass=14 fail=0
+KẾT QUẢ: PASS

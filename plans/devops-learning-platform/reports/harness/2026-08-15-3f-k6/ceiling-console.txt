@@ -1,0 +1,7 @@
+##CEILING## giữ 3 session (id phân biệt = 3), lượt từ chối đầu tiên = #4 (refused_quota)
+  #1 created code=200 http=200 
+  #2 created code=200 http=200 
+  #3 created code=200 http=200 
+  #4 refused_quota code=TOO_MANY_REQUESTS http=429 {\"error\":{\"message\":\"orchestrator gRPC: đã đạt trần số sandbox đồng thời của cluster; thử lại sau ít phút\",\"code\":-32029,\"data\":{\"code\":\"TOO_MANY_REQUESTS\",\"httpStatus\":429,\"path\":
+##CEILING## giữ đỉnh 40s để lấy mẫu metric
+##CEILING## đã dọn 3/3 session

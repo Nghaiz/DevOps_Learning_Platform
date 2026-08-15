@@ -244,6 +244,25 @@ jobs:
           fi
           grep -c '"Action":"pass"' /tmp/pool-test.json
 
+      # Cùng lý lẽ, cho lane thứ ba: vòng đời session (`internal/lifecycle`). Nó
+      # chạy trên Redis THẬT vì `claim.lua` cần Lua đầy đủ, và nó chứa các ĐỐI
+      # CHỨNG ÂM của P3/3.C — "session còn sống KHÔNG bị đụng khi dọn session ma",
+      # "lượt hai vẫn dọn sau khi chết giữa chừng". Đối chứng âm là thứ mất đi thì
+      # không ai thấy: một lần đổi env là chúng skip sạch, `make go-test` ở trên
+      # trả 0, và bản vá chống-rò không còn gì gác nó.
+      - name: 'Vòng đời session + đối chứng âm reaper (Redis thật, không được SKIP)'
+        env:
+          REDIS_URL: redis://127.0.0.1:6379/15
+        working-directory: services/orchestrator
+        run: |
+          set -o pipefail
+          go test ./internal/lifecycle/... -count=1 -json | tee /tmp/lifecycle-test.json
+          if grep -q '"Action":"skip"' /tmp/lifecycle-test.json; then
+            echo "::error::Test vòng đời session bị SKIP — Redis service không tới được. Đối chứng âm của 3.C không gác gì trong lần chạy này."
+            exit 1
+          fi
+          grep -c '"Action":"pass"' /tmp/lifecycle-test.json
+
       # Cùng lý lẽ với bước warm-pool ở trên, cho lane còn lại: authz per-session
       # của gateway (luật 8 + luật 10) chạy trên Redis THẬT, nên gỡ Redis ra là
       # cả bộ acceptance IDOR tự skip và CI vẫn xanh. Đây đúng là bộ test mà
@@ -712,6 +731,8 @@ jobs:
         uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
         with:
           scandir: ./infra/host
+          # NGƯỠNG: xem khối lý lẽ ở bước infra/k8s bên dưới (cùng một `severity`,
+          # cùng một món nợ).
           # `error` là NGƯỠNG KHỞI ĐẦU, không phải đích. Mặc định của action fail
           # ở cả mức `note`, và 10 script hiện có sinh 16 phát hiện — đưa linter
           # vào codebase sẵn có ở ngưỡng đó thì hoặc phải viết lại script đang
@@ -724,6 +745,34 @@ jobs:
           #     Là số đo bị mất, không phải rác vô hại.
           #   - 15 × SC2015 (`A && B || C` không phải if-then-else) + SC2016,
           #     đều mức `note`.
+          severity: error
+
+      - name: shellcheck (infra/k8s/*.sh)
+        # `scandir` chỉ nhận MỘT thư mục, nên hai script kiểm-chứng trong
+        # `infra/k8s` (netpol-verify, reaper-verify) NẰM NGOÀI cổng trên suốt từ
+        # 3.B tới nay. Chúng là mã chạy trên cụm thật và quyết định một ô AC xanh
+        # hay đỏ — đúng loại mã mà một lỗi cú pháp im lặng gây hại nhất: script
+        # chết giữa chừng, không ô nào đỏ, và bảng tổng đọc ra như "chưa chạy gì".
+        # Cả hai đã sạch ở `severity: error` khi thêm bước này, nên không nợ mới.
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
+        with:
+          scandir: ./infra/k8s
+          severity: error
+
+      - name: shellcheck (infra/k6/*.sh)
+        # Cùng lý lẽ với bước `infra/k8s` ngay trên, và `scandir` chỉ nhận MỘT
+        # thư mục nên phải có bước riêng. `run-load.sh` + `provision-users.sh`
+        # quyết định ô AC của 3.F xanh hay đỏ; một lỗi cú pháp im lặng ở đây cho
+        # ra đúng cái hại tệ nhất — script chết giữa chừng, không ô nào đỏ, và
+        # bảng tổng đọc ra như "đã đo và mọi thứ ổn".
+        #
+        # ⚠ Cổng này CHỈ TĨNH. Chạy thật `run-load.sh` cần một cụm sống nên không
+        # vào CI được (cùng lý do `reaper-verify.sh`), và kịch bản k6 (`.js`) cũng
+        # không được lint ở đây vì `k6 inspect` đòi binary k6 trên runner. Đừng
+        # đọc cổng này xanh thành "load test đã chạy".
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
+        with:
+          scandir: ./infra/k6
           severity: error
 
       - name: actionlint (chính các workflow này)

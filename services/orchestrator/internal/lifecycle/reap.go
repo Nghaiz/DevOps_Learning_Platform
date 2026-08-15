@@ -237,6 +237,30 @@ func (s *Service) ReapExpired(ctx context.Context, sessionID, podName string) er
 //
 // KHÔNG xoá session: FE cần đọc được lý do phiên chết thay vì thấy 404 trần.
 // TTL của hash vẫn chạy nên nó tự biến mất sau đó.
+//
+// ⛔ TIỀN ĐỀ: POD ĐÃ BIẾN MẤT. Call-site duy nhất (reaper tầng 2b) xác minh lại
+// bằng một `pods.Get` mới trước khi gọi, chính vì ảnh chụp cũ có thể giết oan một
+// pod cold-path vừa sinh ra. Đừng gọi hàm này cho một session còn pod sống.
+//
+// ⛔ VÀ VÌ SAO NÓ PHẢI DỌN INDEX POOL — ĐO ĐƯỢC TRÊN CỤM, 2026-08-15.
+// Bản trước chỉ đổi status rồi trả về, để lại tên pod trong `pool:claimed` và
+// hash `pod:{name}`. Không tầng nào nhặt được phần rác đó:
+//
+//   - tầng 2b bỏ qua mọi status cuối (`reaper.go`: `status != CLAIMED && != RUNNING`)
+//     — đúng, vì đánh dấu lại là tăng revision vô cớ;
+//   - tầng 2c chỉ dọn khi `EXISTS session:{id}` == 0, mà hash FAILED VẪN CÒN cho
+//     tới hết TTL — nên nó đọc "session còn sống, pod đang phục vụ nó" và bỏ qua.
+//
+// Đo thật trên cụm lab: `pool:claimed` giữ **6** tên trong khi `dlp-sandbox` chỉ
+// có **1** pod thật; 5 mục thừa đều thuộc session FAILED. Hệ quả là
+// `dlp_pool_claimed_size` — panel "pod pool" của 3.D và là đại lượng 3.F định
+// dùng để khẳng định "0 pod rò" — báo sai gấp 6 lần suốt tới một giờ
+// (`SESSION_TTL`), rồi tự khỏi khi TTL rụng và tầng 2c nhặt. Một chỗ rò tự lành
+// vẫn là một chỗ rò: trong cửa sổ ấy mọi phép đo dựa trên gauge đó đều vô nghĩa.
+//
+// `cleanupPod` idempotent và `pods.Delete` đã nuốt `NotFound`, nên gọi nó cho một
+// pod đã biến mất không sinh log lỗi giả. Nó KHÔNG chạm hash `session:{id}` —
+// hợp đồng "FE đọc được lý do" giữ nguyên.
 func (s *Service) MarkFailed(ctx context.Context, sessionID, reason string) error {
 	sessionKey, err := rediskeys.Session(sessionID)
 	if err != nil {
@@ -273,6 +297,48 @@ func (s *Service) MarkFailed(ctx context.Context, sessionID, reason string) erro
 			Namespace: s.cfg.Namespace,
 			Detail:    reason,
 		})
+	}
+
+	// ⛔ DỌN VÔ ĐIỀU KIỆN — KHÔNG ĐẶT TRONG `changed == 1`.
+	//
+	// Bản đầu của bản vá này đặt lời gọi bên trong nhánh đó với lý lẽ "lượt thứ
+	// hai không có gì để dọn". Lý lẽ ấy sai, và `Reap` ở ngay đầu file đã bác bỏ
+	// nó từ trước: nó CỐ Ý gọi `cleanupPod` cả trong ca `alreadyReaped`, vì "lần
+	// trước có thể đã đánh dấu xong mà chết trước khi xoá được pod".
+	//
+	// Cùng ca đó xảy ra ở đây, và hậu quả nặng hơn: script Lua HSET xong →
+	// tiến trình chết (rollout, OOM, SIGKILL trong lúc audit chờ Postgres 3s) →
+	// chưa tới lượt dọn. Trạng thái còn lại là ĐÚNG chỗ rò mà commit này sinh ra
+	// để vá, và KHÔNG tầng nào nhặt được nó: 2b bỏ qua status cuối và không bao
+	// giờ thăm lại; 2c thấy `EXISTS session:{id}` == 1 nên bỏ qua; 2a đòi hash
+	// pod VẮNG mà hash này còn; tầng 4 chỉ quét `pool:free`. Rò tới hết
+	// `SESSION_TTL`, không có đường retry.
+	//
+	// Mọi bước trong `cleanupPod` đều idempotent (`Delete` nuốt NotFound, DEL và
+	// LREM là no-op), nên gọi lại rẻ và an toàn.
+	if podName != "" {
+		s.cleanupPod(ctx, podName)
+
+		// ⛔ VÀ XOÁ LUÔN CON TRỎ `session:{id}:pod`.
+		//
+		// Con trỏ sống lâu hơn hash (`ttl + PodPointerGrace`) để tầng 1 còn đọc
+		// được podName khi hash hết hạn. Với một session ĐÃ chốt FAILED thì tầng
+		// 1 không còn việc gì — nhưng nếu để con trỏ lại, đúng mốc TTL nó sẽ gọi
+		// `ReapExpired`, hàm này đọc userId/tier từ hash `pod:{name}` mà ta vừa
+		// xoá, không thấy, rồi log WARN "session hết hạn nhưng hash pod thiếu
+		// userId/tier — không ghi được dòng audit kết thúc".
+		//
+		// Cảnh báo ấy sinh ra để tố một chỗ THỦNG THẬT. Nếu nó cũng bắn cho một
+		// session ma bình thường thì nó không còn phân biệt được hai giả thuyết,
+		// và một cảnh báo không phân biệt được gì là một cảnh báo phải tắt. Dòng
+		// `failed` đã ghi ở trên rồi; thêm một dòng `expired` cho cùng cái chết
+		// cũng là ghi thừa.
+		if ptrKey, ptrErr := rediskeys.SessionPod(sessionID); ptrErr == nil {
+			if delErr := s.rdb.Del(ctx, ptrKey).Err(); delErr != nil && !errors.Is(delErr, redis.Nil) {
+				s.log.Warn("không xoá được con trỏ session:{id}:pod",
+					slog.String("session_id", sessionID), slog.String("err", delErr.Error()))
+			}
+		}
 	}
 	return nil
 }

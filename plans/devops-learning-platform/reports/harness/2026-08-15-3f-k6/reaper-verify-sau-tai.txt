@@ -1,0 +1,33 @@
+  [32mPASS[0m trước restart: session đọc được VÀ ghi được GetSession + ExtendSession đều OK
+
+[1m── restart orchestrator[0m
+     rollout xong lúc 07:09:39Z
+  [32mPASS[0m AC-C3 vế 2: session cũ VẪN dùng được sau restart GetSession + ExtendSession đều OK
+  [32mPASS[0m AC-C3 vế 2b: ĐÚNG pod cũ còn chạy, không bị tạo lại startTime 2026-08-15T07:08:23Z không đổi
+     pool: free 0→1 (đổi theo POOL_TARGET là ĐÚNG), claimed 2→2
+     khớp index/cụm sau restart: phantom=0:∅ orphan=0:∅
+  [32mPASS[0m AC-C3 vế 1a: pod của session này vẫn trong pool:claimed claimed 2→2, sandbox-d7ef3276ae74 còn trong index
+  [32mPASS[0m AC-C3 vế 1b: index Redis khớp cụm — 0 pod rò cả hai chiều phantom=0:∅ orphan=0:∅
+     dọn session b6fa64b2cdcf19844a57cb30fae354b7 (pod sandbox-d7ef3276ae74)
+
+[1m── TỔNG[0m
+PASS | t0: cả 3 pod đều SỐNG và nằm trong pool:claimed | phép quan sát có khả năng thấy 'còn'
+PASS | AC-C2 vế 1: 2/2 pod của session hết hạn đã bị XOÁ | sau 2s kể từ mốc hết hạn muộn nhất (độ phân giải poll 5s)
+PASS | AC-C2 vế 1b: tên đã rời pool:claimed | index sạch — dlp_pool_claimed_size đếm đúng
+PASS | AC-C2 vế 2 (đối chứng âm): session CHƯA hết hạn còn nguyên | pod=Running, trong pool:claimed
+PASS | t0: cả hai pod nằm trong pool:claimed | phép quan sát thấy được 'có trong index'
+PASS | tầng 2b nhận ra session ma | status=FAILED
+PASS | session ma KHÔNG để lại tên trong pool:claimed | index sạch, hash pod:{name} đã xoá
+PASS | hash session ma VẪN còn (FE đọc được lý do) | EXISTS=1, status=FAILED
+PASS | đối chứng âm: session còn sống KHÔNG bị đụng | pod=Running, vẫn trong pool:claimed
+PASS | trước restart: session đọc được VÀ ghi được | GetSession + ExtendSession đều OK
+PASS | AC-C3 vế 2: session cũ VẪN dùng được sau restart | GetSession + ExtendSession đều OK
+PASS | AC-C3 vế 2b: ĐÚNG pod cũ còn chạy, không bị tạo lại | startTime 2026-08-15T07:08:23Z không đổi
+PASS | AC-C3 vế 1a: pod của session này vẫn trong pool:claimed | claimed 2→2, sandbox-d7ef3276ae74 còn trong index
+PASS | AC-C3 vế 1b: index Redis khớp cụm — 0 pod rò cả hai chiều | phantom=0:∅ orphan=0:∅
+
+pass=14 fail=0
+KẾT QUẢ: PASS
+EXIT=0
+
+[exited with code 0]
