@@ -775,6 +775,35 @@ jobs:
           scandir: ./infra/k6
           severity: error
 
+      - name: 'shellcheck (content/scenarios/dlp-* — script bài first-party)'
+        # Script của BÀI HỌC chạy bằng quyền root TRONG pod của người học, và
+        # `verify.sh` quyết định một bước "đạt" hay "chưa đạt". Một lỗi cú pháp ở
+        # đây cho ra đúng lớp hại tệ nhất: script chết trước khi kết luận, gateway
+        # đọc mã thoát khác 0, và người học thấy "chưa đạt" cho một bài họ vừa làm
+        # ĐÚNG. Suốt 2.E→3.I chúng nằm ngoài mọi cổng.
+        #
+        # ⛔ KHÔNG dùng `scandir: ./content/scenarios` — thư mục đó còn chứa script
+        # VENDOR NGUYÊN VĂN từ upstream, và chúng KHÔNG sạch: đo 2026-08-16 có 5
+        # lỗi mức `error` (SC2148 thiếu shebang ở loxilb/prolug, SC2218 ở
+        # loxilb/common.sh). Ta không được sửa chúng — `vendor-scenarios.mjs
+        # --check` so BYTE với commit đã ghim, và license đòi giữ nguyên. Nên cổng
+        # này chỉ soi bài FIRST-PARTY (`dlp-*`), là thứ ta thật sự sở hữu.
+        #
+        # Lọc bằng glob chứ không liệt kê tên: bài first-party thứ ba sẽ tự động
+        # được gác mà không phải sửa file này.
+        run: |
+          mapfile -t files < <(find content/scenarios -path 'content/scenarios/dlp-*' -name '*.sh' | sort)
+          # Cổng đếm được 0 file sẽ XANH mà không kiểm gì — đúng hạng "0 vi phạm
+          # vì không kiểm gì cả". Đổi tên thư mục bài là rơi thẳng vào ca đó, nên
+          # nó phải ĐỎ chứ không được im lặng.
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::không tìm thấy script bài first-party nào (content/scenarios/dlp-*/**.sh) — cổng này sẽ xanh mà không kiểm gì. Sửa glob hoặc bỏ bước."
+            exit 1
+          fi
+          echo "soi ${#files[@]} script:"
+          printf '  · %s\n' "${files[@]}"
+          shellcheck --severity=warning "${files[@]}"
+
       - name: actionlint (chính các workflow này)
         # Bắt lỗi cú pháp expression, tên context sai, và (nhờ shellcheck có sẵn
         # trên runner) cả lỗi shell trong khối `run:` — lớp lỗi mà cách duy nhất

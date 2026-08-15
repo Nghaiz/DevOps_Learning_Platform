@@ -1,14 +1,16 @@
 # 3.I mắt 2 — bài học Docker end-to-end trên mirror
 
-**Ngày:** 2026-08-15 · **Chặng:** 3.I (mắt 2/5) · **Cụm:** lab 1-node
-192.168.94.130 · **Deploy:** helm revision 76, tag `sha-94d1670` (xây tay — xem §7).
+**Ngày:** 2026-08-15, bổ sung 2026-08-16 (§7b) · **Chặng:** 3.I (mắt 2/5) ·
+**Cụm:** lab 1-node 192.168.94.130 · **Deploy:** tag hiện tại `sha-0941471` **do
+CI publish** (bản 2026-08-15 dùng `sha-94d1670` xây tay khi CI chết — xem §5, §7b).
 
 ## 0. Một câu
 
 Bài `dlp-docker-basics` chạy được trọn vẹn trên phiên thật — **21/21**, mỗi step
 chấm cả vế "chưa đạt" lẫn vế "đạt" — và phép đo đi kèm **bác bỏ tiền đề của mắt
-4**: tải Docker thật đỉnh **451 MiB**, tức `requests 512Mi` hiện tại gần như
-đúng, không "thổi phồng 10 lần" như số idle của 3.H gợi ý.
+4**: tải Docker thật đỉnh **433–532 MiB** qua 5 lượt, tức `requests: 512Mi` KHÔNG
+"thổi phồng 10 lần" như số idle của 3.H gợi ý — nó nằm giữa dải, và lượt cao nhất
+còn **vượt** qua nó (§7b).
 
 ## 1. Ba điều kiện biên đo TRƯỚC khi viết — chúng đổi hình dạng bài
 
@@ -62,8 +64,8 @@ phép đo mù — nó cũng "đạt" khi dockerd chết hoặc mạng pod hỏng
 | **AC-I13** step "không cài được gói" | ✅ | pypi chặn + mirror thông, trong **cùng một lượt chấm** |
 | **AC-I14** bài cũ hết dạy sai | ✅ | câu "`docker pull` sẽ thất bại" đã bỏ; `FROM scratch` build rc=0 và verify THẬT của step3 vẫn "Dat" |
 | **AC-I15** không hồi quy | ✅ | e2e P2 **14/14** · netpol **22/22, 0 lệch** · reaper **14/14, 0 fail** |
-| **AC-I16** tải của bài, đo ở cgroup host | ✅ | RAM đỉnh **451Mi**/1024Mi (44%); CPU **87.0 CPU-giây**/219s ⇒ TB **0.40 core** |
-| **AC-H9** ghim tag, bỏ mọi `--set` | ✅ | 4 deployment + `SANDBOX_IMAGE` đều `sha-94d1670`, khẳng định trên **đối tượng sống** — xem §5 |
+| **AC-I16** tải của bài, đo ở cgroup host | ✅ | RAM đỉnh **433–532Mi**/1024Mi qua 5 lượt (§7b); CPU **87–195 CPU-giây** ⇒ TB **0.40–0.71 core** |
+| **AC-H9** ghim tag, bỏ mọi `--set` | ✅ | 4 deployment + `SANDBOX_IMAGE` cùng một tag, khẳng định trên **đối tượng sống**. Nay là `sha-0941471` **do CI publish** — xem §5 + §7b |
 
 **Chạy 3 lượt độc lập, mỗi lượt một pod tươi: 20/20, 20/20, 21/21** (lượt 3 thêm
 ô CPU). Không lượt nào lệch.
@@ -206,13 +208,50 @@ là môi trường, không phải hồi quy. (`docker compose up -d postgres red
 kiểm file nào". Thêm một file lỗi cố ý vào cùng lệnh ⇒ nó bắt SC2034 + SC2154 và
 trả rc=1. Vậy con số 0 là thật.
 
+## 7b. Bổ sung 2026-08-16 — CI sống lại, và số đo RAM mạnh hơn
+
+Repo được chuyển **PUBLIC** ⇒ Actions chạy lại (public repo không tính phí). Ba
+thứ đổi theo, đo lại toàn bộ trên cụm:
+
+1. **PR #65 xanh toàn bộ trên CI thật**, merge thành `0941471`.
+2. **Cụm đã bỏ image xây tay.** CI publish đủ 5 image `sha-0941471`; side-load +
+   `helm upgrade` KHÔNG `--set` ⇒ 4 deployment + `SANDBOX_IMAGE` đều
+   `sha-0941471`. **AC-H9 giờ đóng đúng hình dạng gốc** mà mắt 1 §7.2 vạch ra
+   (sha DO CI PUBLISH), không còn là đường lùi xây tay.
+3. **Hồi quy chạy lại trên image CI:** bài Docker **21/21 ×2 lượt** · e2e P2
+   **14/14** · netpol **22/22, 0 lệch**.
+
+### ⚠ Số đo RAM: một lượt VƯỢT `requests`
+
+Gộp 5 lượt (3 trên image xây tay + 2 trên image CI):
+
+| Lượt | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| Đỉnh RAM | 437Mi | 451Mi | 470Mi | **532Mi** | 433Mi |
+| Nền lúc mở phiên | 78Mi | 76Mi | ~77Mi | **138Mi** | 69Mi |
+
+Lượt 4 đạt **532 MiB — VƯỢT `requests: 512Mi`**, và nó đi kèm một cái nền cao
+bất thường (138Mi thay vì ~75Mi), tức pod xuất phát đã nặng sẵn.
+
+**Điều này làm kết luận §6 MẠNH HƠN, không yếu đi.** §6 nói "512Mi phủ đỉnh với
+dư địa 13%" dựa trên đỉnh 451Mi. Với dải thật **433–532Mi**, `requests: 512Mi`
+**không nằm trên đỉnh mà nằm GIỮA dải** — có lượt pod tiêu quá phần nó giữ chỗ,
+tức trở thành ứng viên bị evict khi node chịu áp lực, đúng lúc người học đang
+build.
+
+⇒ Số bàn giao cho mắt 3/4 phải là **dải kèm giá trị lớn nhất (532Mi)**, không
+phải trung vị. Đặt `requests` theo trung vị là thiết kế cho một nửa số lượt.
+
 ## 8. Nợ còn lại
 
-- **CI vẫn chết** (billing). Mọi cổng đang chạy tay ⇒ dễ quên. Nếu tình trạng kéo
-  dài, nên có một script `make ci-local` gom đủ 6 cổng trên thành một lệnh.
-- **`content/scenarios/**/*.sh` nằm NGOÀI cổng shellcheck của CI** (`scandir` chỉ
-  nhận `infra/host` và `infra/k8s`). Script của bài học chạy trong pod người học
-  mà không có cổng nào gác — lượt này kiểm tay.
+- ~~**CI vẫn chết** (billing)~~ — **ĐÃ XONG 2026-08-16**: repo chuyển PUBLIC,
+  Actions chạy lại. Xem §7b.
+- ~~**`content/scenarios/**/*.sh` nằm NGOÀI cổng shellcheck của CI**~~ — **ĐÃ
+  XONG 2026-08-16**: thêm bước `shellcheck (content/scenarios/dlp-*)`. Chỉ soi
+  bài FIRST-PARTY vì script vendor upstream **không sạch** (đo được 5 lỗi mức
+  `error`: SC2148 ở loxilb/prolug, SC2218 ở loxilb/common.sh) và không được sửa
+  (license + `vendor --check` so byte). Lọc bằng glob `dlp-*` nên bài first-party
+  sau tự được gác; có guard ĐỎ khi glob khớp 0 file, để cổng không xanh rỗng.
 - **Mắt 3–5** chưa làm; mang theo phát hiện §6 (số 451Mi và số học RAM).
 - Không có `lessons.endSession` — phiên chỉ kết thúc bằng TTL 1h rồi reaper dọn.
   Ba lượt e2e để lại 3 phiên, đã dọn tay sau khi đo.
