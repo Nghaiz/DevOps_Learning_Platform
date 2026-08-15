@@ -64,6 +64,10 @@ func main() {
 	// -kill-cmd: cách rollout là quyết định của người vận hành, và để nó hiện
 	// nguyên văn trong dòng lệnh khiến báo cáo tự chứng minh đã kích cái gì.
 	rolloutCmd := flag.String("rollout-cmd", "", "lệnh shell rollout gateway (ca drain)")
+	// Ca drain dùng cho HAI kịch bản có thang thời gian khác hẳn nhau: rollout êm
+	// (khe trả ngay) và SIGKILL (khe chỉ rụng khi hết lease). Trần chờ vì thế phải
+	// đặt được từ ngoài — xem cuaSoNoiLai.
+	reconnectWait := flag.Duration("reconnect-wait", 15*time.Second, "trần chờ khe WS được nhả ở pha 3 (ca drain)")
 	flag.Parse()
 
 	if *origin == "" {
@@ -101,6 +105,7 @@ func main() {
 		}
 		err = caseM9(ctx, *webURL, *gwURL, *origin, ds, *n)
 	case "drain":
+		cuaSoNoiLai = *reconnectWait
 		err = caseDrain(ctx, *webURL, *gwURL, *origin, *rolloutCmd, *n)
 	default:
 		err = fmt.Errorf("-case không hợp lệ: %q (cần attach | survive | luat5 | idle | resize | m3 | jwks | m9 | drain)", *kase)

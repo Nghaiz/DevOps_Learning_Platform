@@ -115,7 +115,7 @@ session trên lab 1-node, N đo được = …" thì không.
 | **3.D** | Observability: Prometheus + Grafana + Loki | 7 | ✅ xong — [report](reports/2026-08-15-verify-3c3d-gc-observability.md) |
 | **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | ✅ xong — [report](reports/2026-08-15-verify-3e-self-pentest.md) · **10/10, 0 lỗ hổng** |
 | **3.F** | k6 load test tới trần CẤU HÌNH | 2 | ✅ xong — [report](reports/2026-08-15-verify-3f-k6.md) · **N=3**, và một lỗi thật: chạm trần trả 500 |
-| **3.H** | WS scale layer: drain `1012`, lease khe WS tự lành, 2 replica | 5 | 🔵 đang làm — [chi tiết](#3h--ws-scale-layer) · sketch sai 3/4 vế, xem §H0 |
+| **3.H** | WS scale layer: drain `1012`, lease khe WS tự lành, 2 replica | 5 | ✅ xong — [report](reports/2026-08-15-verify-3h-ws-scale.md) · nối lại **0/2 → 2/2**; khe kẹt **hàng chục phút → 70s** |
 | 3.G | Autoscaling cloud-agnostic + chi phí | 4, 9 | Hoãn |
 
 **Thứ tự có lý do:** 3.E (pentest) đứng CUỐI vì nó đo luật 5 (rate-limit/body-size)
@@ -805,34 +805,34 @@ quy mô nào sẽ làm nó đổ.
 
 ### §H4. Acceptance criteria
 
-- [ ] **AC-H1 — drain phát `1012`, và đó là mã MỚI xuất hiện.** Rollout gateway
+- [x] **AC-H1 — drain phát `1012`, và đó là mã MỚI xuất hiện.** Rollout gateway
       khi có ≥1 phiên sống → client nhận close **`1012`**.
       **Đối chứng dương bắt buộc:** trước chặng này, cùng phép đo phải cho close
       **`1006`** (đứt cứng). Thiếu vế đó thì "nhận 1012" không phân biệt được với
       "FE tự bịa mã" — và `1012` là mã đã nằm sẵn trong `protocol.ts` từ lâu, nên
       nó *có thể* xuất hiện vì lý do khác.
-- [ ] **AC-H2 — khe WS được trả về, đo trên Redis.** Ngay sau rollout,
+- [x] **AC-H2 — khe WS được trả về, đo trên Redis.** Ngay sau rollout,
       `session:{id}:ws` **không tồn tại** (release `DEL` khi về 0).
       **Đối chứng âm:** trong cùng lượt, một session có WS **đang mở** phải vẫn
       **còn** khe — thiếu vế này thì "khe đã trả" không phân biệt được với "khe bị
       xoá bừa" hoặc với việc TTL vừa hết.
       ⚠ Đo bằng `EXISTS`/`PTTL` trên Redis, **không** bằng "nối lại được": nối lại
       được cũng đúng khi trần WS đã hỏng hoàn toàn.
-- [ ] **AC-H3 — nối lại trúng replica KHÁC vẫn attach đúng pod cũ.** Đây là ô
+- [x] **AC-H3 — nối lại trúng replica KHÁC vẫn attach đúng pod cũ.** Đây là ô
       thay thế cho sticky. Với 2 replica: mở phiên (ghi lại replica A qua log/metric
       theo pod), ép đóng, nối lại cho tới khi trúng replica **B**, khẳng định
       (a) attach thành công, (b) **đúng pod sandbox cũ** (so `podName`), (c) màn
       hình tmux còn nguyên nội dung trước đó.
       ⚠ Ô ĐỎ nếu không bao giờ trúng được replica B trong số lượt hợp lý — khi đó
       phép đo **không đo được điều nó định đo**, không được đọc thành "đã đúng".
-- [ ] **AC-H4 — khe kẹt tự lành trong ≤ lease, khi drain KHÔNG đỡ được.** Giết
+- [x] **AC-H4 — khe kẹt tự lành trong ≤ lease, khi drain KHÔNG đỡ được.** Giết
       cứng một replica (`pkill -9` **trên node** — `kubectl delete --force` KHÔNG
       phải SIGKILL, tiến trình còn sống thêm ~30s) khi nó đang giữ một phiên.
       Khẳng định: nối lại **429 `SESSION_IN_USE`** ngay sau đó (đối chứng dương —
       chứng minh khe THẬT SỰ kẹt), rồi **101** sau ≤ lease.
       ⚠ Phiên phải sống LÂU HƠN lease, nếu không thì lúc khe nhả phiên cũng chết và
       vế "101" bất khả — đúng bẫy `cases_g3.go:425-437` đã ghi cho `caseM3`.
-- [ ] **AC-H5 — hai replica cùng phục vụ thật.** `sum(dlp_gateway_ws_active) == N`
+- [x] **AC-H5 — hai replica cùng phục vụ thật.** `sum(dlp_gateway_ws_active) == N`
       **và** phân bố trên **≥2 pod** (mỗi pod > 0). Một ô chỉ kiểm tổng sẽ xanh y
       hệt khi cả N phiên nằm trên một pod.
 - [ ] **AC-H6 — bão nối-lại: các con số TÁCH RỜI.** Báo cáo riêng (a)…(e) ở H-4.
@@ -844,10 +844,10 @@ quy mô nào sẽ làm nó đổ.
       Giữ một WS **hoàn toàn im lặng** (không stdin/stdout; chỉ còn ping 20s của
       gateway) qua mốc mặc định của Traefik v3, khẳng định socket vẫn mở.
       Ô này đóng nốt vế "tune idle" của sketch bằng một phép đo thay vì một knob.
-- [ ] **AC-H8 — không hồi quy.** harness e2e P2 **14/14**, và
+- [x] **AC-H8 — không hồi quy.** harness e2e P2 **14/14**, và
       `reaper-verify.sh --case all` vẫn xanh (drain đụng đường tắt máy, reaper đụng
       đường dọn — hai thứ dễ va nhau).
-- [ ] **AC-H9 — nợ image tag đã đóng.** `helm upgrade` **không** `--set` nào về
+- [x] **AC-H9 — nợ image tag đã đóng.** `helm upgrade` **không** `--set` nào về
       image, chạy xong ba deployment vẫn ở `sha-25cb824`.
       **Đối chứng dương:** khẳng định trên **đối tượng sống**
       (`kubectl get deploy -o jsonpath='{...image}'`), KHÔNG bằng `helm get values`

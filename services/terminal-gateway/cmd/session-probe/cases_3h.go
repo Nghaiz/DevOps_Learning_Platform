@@ -25,6 +25,46 @@ import (
 // là quyết định của 3.G, không phải của một hằng số ở đây.
 const tranPhienDongThoi = 3
 
+// cuaSoNoiLai là trần thời gian chờ khe WS được nhả ở pha 3.
+//
+// Đặt qua -reconnect-wait. Mặc định 15s hợp cho ca drain êm (khe trả ngay);
+// ca SIGKILL cần > lease khe WS (mặc định 90s) — xem doiKheNha.
+var cuaSoNoiLai = 15 * time.Second
+
+// doiKheNha thử nối lại tới khi được, hoặc hết `hen`.
+//
+// Tách khỏi `dialChoNha` (trần 10s cứng) vì hai ca cần hai thang thời gian khác
+// hẳn nhau, và dùng nhầm thang cho ra kết luận sai chứ không chỉ ra số sai:
+//   - drain êm  : khe được trả trong mili-giây
+//   - SIGKILL   : khe chỉ rụng khi hết lease
+//
+// In tiến trình mỗi 15s: một lượt chờ 90s im lặng đọc ra như treo.
+func doiKheNha(ctx context.Context, s *session, gwURL, origin string, hen time.Duration) (*websocket.Conn, error) {
+	batDau := time.Now()
+	inLan := batDau
+	for {
+		c, err := dial(ctx, s, gwURL, origin)
+		if err == nil {
+			return c, nil
+		}
+		if !strings.Contains(err.Error(), "429") {
+			return nil, err
+		}
+		if time.Since(batDau) >= hen {
+			return nil, fmt.Errorf("khe vẫn kẹt sau %v: %w", hen.Round(time.Second), err)
+		}
+		if time.Since(inLan) >= 15*time.Second {
+			fmt.Printf("      …vẫn 429 sau %v\n", time.Since(batDau).Round(time.Second))
+			inLan = time.Now()
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+}
+
 // phienDrain là thứ quan sát được về MỘT phiên xuyên suốt ba pha của ca drain.
 type phienDrain struct {
 	ten string
@@ -183,11 +223,18 @@ func caseDrain(ctx context.Context, webURL, gwURL, origin, rolloutCmd string, n 
 		}
 
 		// Nếu lượt đầu 429 thì thử lại có nhịp để đo BAO LÂU khe mới nhả.
+		//
+		// ⛔ CỬA SỔ CHỜ PHẢI VƯỢT LEASE KHE WS. `dialChoNha` chỉ retry 10s — đủ cho
+		// ca drain êm (khe được trả ngay), nhưng KHÔNG đủ cho ca SIGKILL: ở đó
+		// `defer` không chạy nên khe chỉ rụng khi hết lease (mặc định 90s). Dùng
+		// cửa sổ 10s cho ca SIGKILL sẽ đọc ra "không bao giờ nối lại được", trong
+		// khi sự thật là "nối lại được sau 90s" — hai kết luận khác hẳn nhau về
+		// mức nghiêm trọng.
 		if p.noiLai429Trc {
-			c, err = dialChoNha(ctx, p.s, gwURL, origin)
+			c, err = doiKheNha(ctx, p.s, gwURL, origin, cuaSoNoiLai)
 			if err != nil {
 				p.err = fmt.Errorf("nối lại: %w", err)
-				fmt.Printf("   [%s] 429 rồi KHÔNG nối lại được trong 10s: %v\n", p.ten, err)
+				fmt.Printf("   [%s] 429 rồi KHÔNG nối lại được trong %v: %v\n", p.ten, cuaSoNoiLai, err)
 				continue
 			}
 		} else if err != nil {
@@ -302,7 +349,12 @@ func ketLuanDrain(ps []*phienDrain) error {
 	case soDung1012 == n:
 		fmt.Println("\nĐỌC: gateway phát 1012 SERVICE_RESTART cho MỌI phiên ⇒ drain êm đang chạy.")
 	case soDutTran == n:
-		fmt.Println("\nĐỌC: MỌI phiên đứt KHÔNG kèm close code ⇒ chưa có drain êm (đây là hình dạng BASELINE trước 3.H).")
+		// KHÔNG kết luận "chưa có drain êm": ca SIGKILL cho ra ĐÚNG hình dạng này
+		// dù drain chạy hoàn hảo — `defer` không chạy thì không có close frame nào
+		// để gửi. Chỉ người chạy mới biết `-rollout-cmd` là rollout hay là `kill -9`,
+		// nên câu kết luận phải mô tả, không quy nhân quả.
+		fmt.Println("\nĐỌC: MỌI phiên đứt KHÔNG kèm close code. Nếu -rollout-cmd là rollout ⇒ chưa có drain êm;")
+		fmt.Println("     nếu là SIGKILL ⇒ ĐÚNG NHƯ MONG ĐỢI (defer không chạy được, lease khe WS là lưới duy nhất).")
 	default:
 		fmt.Println("\nĐỌC: hỗn hợp — một số phiên êm, một số đứt trần. Không kết luận được, xem từng dòng.")
 	}
