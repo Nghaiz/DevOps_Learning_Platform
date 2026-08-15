@@ -134,8 +134,15 @@ orchestrator:
     hardCap: '2h'
 
     # Số pod ấm giữ sẵn. ⛔ trần session đồng thời = quota_hiệu_lực − poolTarget
-    # (D16). Trên lab quota hiệu lực là 4 pod, nên 3 ở đây phục vụ đúng MỘT user
-    # rồi replenish chết vĩnh viễn vì quota.
+    # (D16), với quota_hiệu_lực là min của NĂM ràng buộc quota×LimitRange — xem
+    # `sandbox.quota` cuối file.
+    #
+    # 2026-08-16 (3.I mắt 5): quota hiệu lực trên lab đi từ 4 lên **21 pod**, nên
+    # ràng buộc cũ ("3 ở đây là phục vụ đúng MỘT user rồi replenish chết vì
+    # quota") KHÔNG còn áp. Vẫn để 1 vì nâng nó là một đánh đổi CHƯA đo: mỗi pod
+    # ấm là một khe quota bị giữ thường trực và một phần chi phí đáy khi không ai
+    # học (docs/cost-model.md §5), đổi lấy việc người thứ 2..N không phải chờ cold
+    # path. Muốn đổi thì đo tỉ lệ cold-path thật trước, đừng nâng theo cảm giác.
     poolTarget: '1'
 
     # Image của pod lab. RỖNG = kế thừa `image.registry` + `image.tag` ở trên
@@ -707,8 +714,15 @@ sandbox:
   # lại** — người học chờ một trần nhân tạo. Nới trần rồi đo lại (0 throttle ⇒ số
   # này là NHU CẦU, không phải sàn) cho đỉnh thật theo cửa sổ:
   #     0.2s: 2.23–2.42 core · 1s: 1.76–1.87 · 5s: 1.44–1.57 · 60s: 0.63–0.71
-  # `limit 2` phủ đỉnh 1s. Đo được: trọn bài giảm **238s → 195s (−18%)**.
-  # KHÔNG đặt 4: một sinh viên build sẽ ăn nửa node 8 core và bỏ đói người khác.
+  # `limit 2` phủ đỉnh cửa sổ 1s. KHÔNG đặt 4: một sinh viên build sẽ ăn nửa
+  # node 8 core và bỏ đói người khác.
+  #
+  # ⚠ Bằng chứng chính là **throttle**, KHÔNG phải thời gian tường. Ở trần 1:
+  # 401/4693 chu kỳ bị giữ lại; ở trần 4: 0/4562. Thời gian tường có đo được
+  # (238s ở trần 1, 195s ở trần 4) nhưng hai lượt ấy chạy trên trạng thái cụm
+  # KHÁC nhau, nên đừng trích nó như một phép đo tăng tốc — lượt ở trần 2 sau đó
+  # cho 288s với cụm đang bận, và con số ấy KHÔNG có nghĩa là trần 2 chậm hơn
+  # trần 1. Chỉ `nr_throttled` là đại lượng so sánh được ở đây.
   #
   # ── requests.cpu 250m: đây là chỗ CỐ Ý overcommit, và khai thẳng ───────────
   # Trung bình cả phiên 0.16–0.22 core; trung bình riêng CỬA SỔ ĐANG LÀM BÀI
@@ -762,3 +776,62 @@ registryMirror:
   # KHÔNG thành đường vòng vào apiserver/pod/IMDS. Tham chiếu anchor của
   # sandbox.egressExcept (SSOT) để hai tập chống-pivot KHÔNG BAO GIỜ trôi khỏi nhau.
   egressExcept: *internalPivotCidrs
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Autoscaling (P3/3.G) — cluster-autoscaler TRUNG LẬP NHÀ CUNG CẤP.
+#
+# ⛔ MỨC ĐỘ ĐƯỢC CHỨNG MINH: **render + `--dry-run=server` + kubeconform**. Hành
+# vi scale KHÔNG được chứng minh, và không thể chứng minh trên lab hiện tại —
+# cụm kubeadm 1 node, `cluster.x-k8s.io` và `metrics.k8s.io` đều RỖNG, không
+# tầng nào cấp được node. Ràng buộc này §1 của plan đã chốt trước với chủ dự án.
+# Đừng đọc sự tồn tại của khối này thành "đã có autoscaling".
+#
+# ⛔ MẶC ĐỊNH TẮT. Bật là quyết định của người vận hành một cụm có node group
+# thật; bật nhầm trên cụm 1 node cho một vòng lặp log lỗi và một autoscaler nhìn
+# node control-plane duy nhất như ứng viên scale-down.
+autoscaling:
+  clusterAutoscaler:
+    enabled: false
+
+    # `clusterapi` là provider DUY NHẤT thật sự không khoá nhà cung cấp: cùng bộ
+    # CRD chạy trên AWS/GCP/Azure/vSphere/bare-metal. Đặt `aws`/`gce`/`azure`
+    # vẫn được, nhưng đó là chọn khoá vào đúng nhà cung cấp ấy.
+    cloudProvider: clusterapi
+
+    # Ghim tag, KHÔNG `latest`: autoscaler có quyền xoá node, nên một bản nhảy
+    # version sau lưng là thứ cuối cùng ta muốn trong cụm.
+    image: registry.k8s.io/autoscaling/cluster-autoscaler:v1.34.1
+    imagePullPolicy: IfNotPresent
+
+    # Chuỗi auto-discovery của provider. RỖNG mặc định vì mỗi provider một cú
+    # pháp, và một giá trị mặc định sai sẽ "chạy" mà không quản nhóm node nào —
+    # đúng kiểu hỏng im lặng mà cả P3 tránh.
+    #   clusterapi : 'clusterAPI:namespace=default'
+    #   aws        : 'asg:tag=k8s.io/cluster-autoscaler/enabled'
+    nodeGroupAutoDiscovery: []
+
+    balanceSimilarNodeGroups: true
+
+    scaleDown:
+      # Scale-to-zero off-peak: cần scale-down BẬT, cộng với việc nhóm node khai
+      # được min=0 ở tầng provider (với clusterapi là annotation
+      # `cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "0"` trên
+      # MachineDeployment). Chart này KHÔNG đặt hộ annotation đó — nó nằm ở
+      # object của provider, ngoài phạm vi chart.
+      enabled: true
+      # 10m chứ không mặc định: một buổi học có khoảng nghỉ giữa hai bài, và
+      # `unneededTime` ngắn sẽ trả node ngay trước khi cả lớp quay lại — trả rồi
+      # xin lại là trả tiền hai lần cho cùng một capacity, cộng thêm một lượt
+      # chờ boot node ngay giữa buổi.
+      unneededTime: 10m
+      delayAfterAdd: 10m
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+    extraArgs: []

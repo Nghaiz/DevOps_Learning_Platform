@@ -411,6 +411,34 @@ jobs:
           | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
               -ignore-missing-schemas
 
+      - name: 'helm template — nhánh cluster-autoscaler bật (P3/3.G)'
+        # Cùng lỗ hổng với hai bước trên: `autoscaling.clusterAutoscaler.enabled`
+        # mặc định FALSE ở cả 3 bộ values (bật là quyết định của người vận hành
+        # cụm có node group thật), nên không bước nào ở trên từng render template
+        # này. Không có bước này thì một lỗi cú pháp ở đó chỉ lộ vào đúng hôm ai
+        # đó bật autoscaler trên prod.
+        #
+        # ⚠ Cổng này CHỈ chứng minh render + schema. Hành vi scale KHÔNG được
+        # chứng minh ở bất cứ đâu trong repo, và không được đọc thành đã có —
+        # lab 1-node không có `cluster.x-k8s.io` lẫn `metrics.k8s.io`.
+        run: |
+          helm template platform infra/helm/platform \
+            --set web.env.betterAuthSecret=ci-only-not-a-real-secret \
+            --set autoscaling.clusterAutoscaler.enabled=true \
+            --set 'autoscaling.clusterAutoscaler.nodeGroupAutoDiscovery[0]=clusterAPI:namespace=default' \
+          | "$(go env GOPATH)/bin/kubeconform" -strict -summary \
+              -ignore-missing-schemas
+
+          # Đối chứng âm: TẮT cờ ⇒ KHÔNG một object autoscaler nào được render.
+          # Thiếu vế này thì một `if` viết sai (vd luôn true) vẫn qua cổng trên.
+          n=$(helm template platform infra/helm/platform \
+                --set web.env.betterAuthSecret=ci-only-not-a-real-secret \
+              | grep -c 'cluster-autoscaler' || true)
+          if [ "$n" -ne 0 ]; then
+            echo "cluster-autoscaler render dù cờ TẮT ($n dòng) — khối if hỏng" >&2
+            exit 1
+          fi
+
       - name: 'helm template — nhánh middleware biên bật (P3/3.A)'
         # Ba Middleware + việc tách Ingress làm ba CHỈ render khi
         # ingress.middleware.enabled=true, mà KHÔNG bộ values nào bật nó (mặc định

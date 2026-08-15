@@ -1,0 +1,165 @@
+{{- /*
+P3/3.G — cluster-autoscaler, TRUNG LẬP NHÀ CUNG CẤP.
+
+⛔ ĐỌC TRƯỚC KHI TIN FILE NÀY LÀM ĐƯỢC GÌ.
+Trên lab 1-node hiện tại, phần DUY NHẤT được chứng minh là **render + dry-run +
+schema**. Hành vi scale KHÔNG được chứng minh, và không thể chứng minh ở đây:
+
+  · `kubectl api-resources --api-group=cluster.x-k8s.io` → RỖNG (không Cluster API)
+  · `kubectl api-resources --api-group=metrics.k8s.io`   → RỖNG (không metrics-server)
+  · cụm là kubeadm 1 node, không cloud provider, không node pool
+
+cluster-autoscaler chỉ thêm/bớt NODE, mà không có tầng nào cấp được node ở đây.
+Nên mọi lời hứa "đã scale up/down" trong một report sẽ là lời hứa bịa. Ràng buộc
+này do §1 của plan chốt trước với chủ dự án, không phải chỗ để lách.
+
+⛔ VÀ VÌ SAO MẶC ĐỊNH `enabled: false`.
+Một autoscaler bật nhầm trên cụm không có node group sẽ log lỗi vòng lặp và, tệ
+hơn, `--scale-down-enabled` mặc định của nó nhìn node control-plane duy nhất như
+một ứng viên. Bật là một quyết định của người vận hành cụm THẬT, không phải mặc
+định của chart.
+
+VÌ SAO `clusterapi` LÀ MẶC ĐỊNH: nó là provider duy nhất thật sự không khoá nhà
+cung cấp — Cluster API chạy trên AWS/GCP/Azure/bare-metal/vSphere qua cùng một
+bộ CRD. Các provider `aws`/`gce`/`azure` vẫn đặt được qua values, nhưng chọn một
+trong số đó là chọn khoá vào đúng nhà cung cấp ấy, đúng thứ plan cấm.
+*/ -}}
+{{- if .Values.autoscaling.clusterAutoscaler.enabled }}
+{{- $ca := .Values.autoscaling.clusterAutoscaler }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "platform.fullname" . }}-cluster-autoscaler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "cluster-autoscaler") | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "platform.fullname" . }}-cluster-autoscaler
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "cluster-autoscaler") | nindent 4 }}
+rules:
+  # Quyền tối thiểu theo upstream. KHÔNG dùng cluster-admin: autoscaler chạy
+  # thường trực và có quyền xoá node, nên một quyền thừa ở đây là một quyền
+  # thừa vĩnh viễn trên mọi cụm cài chart này.
+  - apiGroups: ['']
+    resources: [events, endpoints]
+    verbs: [create, patch]
+  - apiGroups: ['']
+    resources: [pods/eviction]
+    verbs: [create]
+  - apiGroups: ['']
+    resources: [nodes, pods, services, replicationcontrollers, persistentvolumeclaims, persistentvolumes, namespaces]
+    verbs: [get, list, watch]
+  - apiGroups: ['']
+    resources: [nodes]
+    verbs: [update, patch]
+  - apiGroups: [apps]
+    resources: [daemonsets, replicasets, statefulsets]
+    verbs: [get, list, watch]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses, csinodes, csidrivers, csistoragecapacities, volumeattachments]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [create, get, update]
+{{- if eq $ca.cloudProvider "clusterapi" }}
+  # Chỉ provider clusterapi mới cần nhóm CRD này. Cấp nó vô điều kiện sẽ là một
+  # ClusterRole tham chiếu API không tồn tại trên cụm dùng provider khác —
+  # RBAC không lỗi vì điều đó, nên nó là quyền thừa im lặng.
+  - apiGroups: [cluster.x-k8s.io]
+    resources: [machinedeployments, machinedeployments/scale, machines, machinesets, machinepools, machinepools/scale]
+    verbs: [get, list, update, watch]
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "platform.fullname" . }}-cluster-autoscaler
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "cluster-autoscaler") | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "platform.fullname" . }}-cluster-autoscaler
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "platform.fullname" . }}-cluster-autoscaler
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform.fullname" . }}-cluster-autoscaler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "cluster-autoscaler") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "platform.selectorLabels" (dict "context" . "component" "cluster-autoscaler") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "platform.selectorLabels" (dict "context" . "component" "cluster-autoscaler") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "platform.fullname" . }}-cluster-autoscaler
+      priorityClassName: system-cluster-critical
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cluster-autoscaler
+          image: {{ $ca.image | quote }}
+          imagePullPolicy: {{ $ca.imagePullPolicy | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          command:
+            - ./cluster-autoscaler
+            - --cloud-provider={{ $ca.cloudProvider }}
+            - --namespace={{ .Release.Namespace }}
+            # `least-waste` chứ không `random`: pod sandbox xin 250m/256Mi (số ĐO
+            # ĐƯỢC ở 3.I mắt 3), nên nhóm node vừa khít luôn tồn tại và chọn bừa
+            # sẽ mở một node lớn cho một pod nhỏ rồi trả tiền cho phần thừa.
+            - --expander=least-waste
+            - --scale-down-enabled={{ $ca.scaleDown.enabled }}
+            - --scale-down-unneeded-time={{ $ca.scaleDown.unneededTime }}
+            - --scale-down-delay-after-add={{ $ca.scaleDown.delayAfterAdd }}
+            # ⛔ Sandbox pod KHÔNG được bị autoscaler đuổi giữa buổi học. Chúng
+            # không có controller (orchestrator tạo pod trần), nên mặc định
+            # autoscaler coi node chứa chúng là "gỡ được" và evict thẳng — người
+            # học mất phiên mà không lỗi nào ở tầng ứng dụng. Cờ này chặn đúng ca đó.
+            - --skip-nodes-with-system-pods=true
+            - --skip-nodes-with-local-storage=true
+            - --balance-similar-node-groups={{ $ca.balanceSimilarNodeGroups }}
+            {{- range $ca.nodeGroupAutoDiscovery }}
+            - --node-group-auto-discovery={{ . }}
+            {{- end }}
+            {{- range $ca.extraArgs }}
+            - {{ . }}
+            {{- end }}
+          resources:
+            {{- toYaml $ca.resources | nindent 12 }}
+          ports:
+            - name: metrics
+              containerPort: 8085
+          livenessProbe:
+            httpGet:
+              path: /health-check
+              port: 8085
+            initialDelaySeconds: 30
+{{- end }}

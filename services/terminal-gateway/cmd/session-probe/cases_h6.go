@@ -378,7 +378,44 @@ func caseStorm(ctx context.Context, webURL, gwURL, origin, rolloutCmd, usersFile
 	}
 	wg.Wait()
 
+	donRac(ctx, webURL, ps)
 	return ketLuanStorm(ps)
+}
+
+// donRac trả lại khe quota mà lượt đo chiếm.
+//
+// ⛔ KHÔNG PHẢI PHÉP LỊCH SỰ — LÀ ĐIỀU KIỆN ĐỂ LƯỢT SAU CHẠY ĐƯỢC. Lượt đo đầu
+// tiên của ca này (2026-08-16) bỏ qua bước dọn và để lại **14 phiên** với TTL
+// đầy đủ 1 giờ. Hệ quả dây chuyền, và không cái nào tự khai nguyên nhân:
+//   - `reaper-verify.sh` từ chối chạy vì thiếu khe, và thông điệp của nó ("thiếu
+//     khe quota") đọc như cụm đang bận chứ không như "phép đo trước xả rác";
+//   - lượt `storm` kế tiếp không đủ khe cho `-n` của nó và chết ở PHA 1.
+//
+// `session.reap` là đúng đường trả sớm (cùng đường `infra/k6/ceiling.js` dùng);
+// không có nó thì phiên chỉ rụng theo TTL, tức lượt đo tự khoá mình một giờ.
+func donRac(ctx context.Context, webURL string, ps []*phienBao) {
+	var ok, hong int
+	for _, p := range ps {
+		if p.s == nil {
+			continue
+		}
+		var out struct{}
+		err := postJSON(ctx, p.s.jar, webURL+"/api/trpc/session.reap", map[string]any{
+			"sessionId": p.s.sid,
+			"userId":    p.s.userID,
+			"reason":    "storm-AC-H6-cleanup",
+		}, &out)
+		if err != nil {
+			hong++
+			continue
+		}
+		ok++
+	}
+	fmt.Printf("\n   dọn: %d phiên đã trả, %d không trả được", ok, hong)
+	if hong > 0 {
+		fmt.Printf("  ⚠ %d phiên còn giữ khe tới khi hết TTL — lượt đo sau có thể thiếu chỗ", hong)
+	}
+	fmt.Println()
 }
 
 // tongNghi là thời điểm của lượt thứ `luot` tính từ mốc đóng — cộng dồn lịch,
