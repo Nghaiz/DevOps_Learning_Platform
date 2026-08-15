@@ -228,6 +228,10 @@ function applyClosed(state: SessionState, code: number, nowMs: number): SessionS
       ...state,
       phase: 'reconnecting',
       attempt,
+      // CƠ SỞ tất định của lịch backoff. Jitter KHÔNG áp ở đây vì `reduce` phải
+      // thuần (nó còn được gọi qua `events.reduce(reduce, from)`, nên một tham
+      // số thứ ba sẽ nhận nhầm CHỈ SỐ mảng làm nguồn ngẫu nhiên). Nơi hẹn giờ
+      // gọi `backoffDelayMsJittered(state.attempt)` — xem backoff.ts § AC-H6.
       retryDelayMs: backoffDelayMs(attempt),
       // Contract §7 — chỉ hỏi lý do thật khi CHƯA TỪNG ready và đúng mã 1006.
       needsReasonLookup: code === CLOSE_ABNORMAL && !state.everReady,

@@ -14,9 +14,14 @@
 export const TARGET = __ENV.TARGET || 'https://dlp.192.168.94.130.sslip.io:30443';
 export const ORIGIN = __ENV.ORIGIN || TARGET;
 
-// Số user tối đa kịch bản `ceiling` sẽ thử. Phải LỚN HƠN trần dự kiến (3), nếu
-// không thì "không thấy lượt bị từ chối" không phân biệt được với "hết user để thử".
-export const MAX_ATTEMPTS = Number(__ENV.MAX_ATTEMPTS || 6);
+// Số user tối đa kịch bản `ceiling` sẽ thử. Phải LỚN HƠN trần dự kiến, nếu không
+// thì "không thấy lượt bị từ chối" không phân biệt được với "hết user để thử" —
+// và hai thứ đó cho CÙNG một kết quả quan sát được.
+//
+// ⚠ 3.I mắt 5 nâng trần 3 → 20 phiên. Giá trị cũ (6) giờ NHỎ HƠN trần, tức kịch
+// bản sẽ cạn user trước khi hệ kịp từ chối và ô AC-F1 sẽ ghi một trần GIẢ bằng
+// đúng số user có sẵn. Mỗi lần nới quota phải nâng số này lên trên trần mới.
+export const MAX_ATTEMPTS = Number(__ENV.MAX_ATTEMPTS || 26);
 
 // TTL của session tạo ra trong lượt đo. Đủ dài để giữ pod suốt lượt, đủ ngắn để
 // một lượt chạy hỏng không ghim pod tới hàng giờ.

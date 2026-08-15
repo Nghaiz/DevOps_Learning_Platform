@@ -116,8 +116,8 @@ session trên lab 1-node, N đo được = …" thì không.
 | **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | ✅ xong — [report](reports/2026-08-15-verify-3e-self-pentest.md) · **10/10, 0 lỗ hổng** |
 | **3.F** | k6 load test tới trần CẤU HÌNH | 2 | ✅ xong — [report](reports/2026-08-15-verify-3f-k6.md) · **N=3**, và một lỗi thật: chạm trần trả 500 |
 | **3.H** | WS scale layer: drain `1012`, lease khe WS tự lành, 2 replica | 5 | ✅ xong — [report](reports/2026-08-15-verify-3h-ws-scale.md) · nối lại **0/2 → 2/2**; khe kẹt **hàng chục phút → 70s** |
-| **3.I** | Registry mirror trong cụm + nâng trần phiên đồng thời | mới | 🟡 5 mắt xích — **M1 ✅** [report](reports/2026-08-15-verify-3i-m1-registry-mirror.md) · **M2 ✅** [report](reports/2026-08-15-verify-3i-m2-docker-lesson.md) (21/21; AC-H9 đóng; và **số đo bác bỏ tiền đề của M4**) · M3–M5 hoãn. Đứng TRƯỚC 3.G |
-| 3.G | Autoscaling cloud-agnostic + chi phí | 4, 9 | Hoãn |
+| **3.I** | Registry mirror trong cụm + nâng trần phiên đồng thời | mới | ✅ **xong 5/5 mắt** — **M1 ✅** [report](reports/2026-08-15-verify-3i-m1-registry-mirror.md) · **M2 ✅** [report](reports/2026-08-15-verify-3i-m2-docker-lesson.md) (21/21; AC-H9 đóng; và **số đo bác bỏ tiền đề của M4**) · **M3–M5 ✅** [report](reports/2026-08-16-verify-3i-m3m5-h6.md) (workingSet 158–163Mi bác bỏ bàn giao của M2; trần **3 → 21 phiên**). Đứng TRƯỚC 3.G |
+| **3.G** | Autoscaling cloud-agnostic + chi phí | 4, 9 | ✅ xong ở mức §1 cho phép — [report](reports/2026-08-16-verify-3i-m3m5-h6.md) · render+kubeconform+dry-run xanh; **hành vi scale KHÔNG chứng minh được** (lab không có node group) |
 
 **Thứ tự có lý do:** 3.E (pentest) đứng CUỐI vì nó đo luật 5 (rate-limit/body-size)
 và luật 10 (network/sandbox) — hai thứ 3.A và 3.B mới dựng. Chạy pentest trước thì
@@ -836,7 +836,7 @@ quy mô nào sẽ làm nó đổ.
 - [x] **AC-H5 — hai replica cùng phục vụ thật.** `sum(dlp_gateway_ws_active) == N`
       **và** phân bố trên **≥2 pod** (mỗi pod > 0). Một ô chỉ kiểm tổng sẽ xanh y
       hệt khi cả N phiên nằm trên một pod.
-- [ ] **AC-H6 — bão nối-lại: các con số TÁCH RỜI.** Báo cáo riêng (a)…(e) ở H-4.
+- [x] **AC-H6 — bão nối-lại: các con số TÁCH RỜI.** Báo cáo riêng (a)…(e) ở H-4.
       Ô này **ghi số, không gác ngưỡng** — mục tiêu là biết trần biên có chật
       không, và câu trả lời là dữ liệu cho H-5, không phải một cổng.
       ⚠ Lỗi vận chuyển và 429 **không được gộp**: 3.E đã đo đúng ca ramp song song
@@ -1214,7 +1214,28 @@ netpol (bài mới KHÔNG cần mở thêm đường nào).
 
 ---
 
-### Mắt 3–5 — giữ ở mức chốt, chi tiết hoá khi tới lượt
+### Mắt 3–5 — ĐÃ LÀM 2026-08-16 · [report](reports/2026-08-16-verify-3i-m3m5-h6.md)
+
+> **Kết quả một dòng:** phép đo của mắt 3 **bác bỏ chính bàn giao của mắt 2** ghi
+> ngay dưới đây. Trần đồng thời **3 → 21 phiên**, chặn bởi ResourceQuota
+> (`5400m ÷ 250m`), không bởi phần cứng.
+>
+> | Ô | Kết quả |
+> |---|---|
+> | **M3** đỉnh CPU tức thời | **2.23–2.42 core @0.2s** (0 throttle ⇒ là NHU CẦU). Ở trần cũ `limits 1`: **401/4693 chu kỳ bị throttle** ⇒ số đo cũ là SÀN, không phải nhu cầu |
+> | **M3** RAM — tách anon/cache | `current` 428–464Mi = **anon 121–127Mi** + page cache 254–274Mi; **workingSet 158–163Mi** ⇐ đại lượng kubelet dùng |
+> | **M4** requests/limits | 500m/512Mi/1/1Gi → **250m/256Mi/2/1Gi** |
+> | **M5** quota + trần đo lại | quota → 5400m/5500Mi/44/22Gi/26 pod; k6: **21 phiên id phân biệt**, lượt #22 `refused_quota`, 0 lỗi 5xx, 0 lỗi vận chuyển |
+>
+> ⛔ **Ô cảnh báo ngay dưới đây SAI ở tiền đề, và đây là chỗ ghi lại điều đó.**
+> Nó viết *"trần đồng thời bị chặn bởi RAM thật, 25 × 451Mi ≈ 11GiB"*. Con số
+> 451Mi là `memory.current`, mà đại lượng đó **gộp page cache** của
+> `docker pull`/`build` — thứ kernel bỏ đi miễn phí và kubelet KHÔNG tính khi
+> đuổi pod. Số phải nhân là **163Mi**: 21 × 163Mi ≈ **3.3GiB** trên node 11.6GiB.
+> Kết luận "chặn bởi RAM thật" không đứng. Bài học: `memory.current` không bao
+> giờ là "RAM ứng dụng cần" khi workload có ghi đĩa nặng.
+
+### Bàn giao GỐC của mắt 2 (giữ nguyên để đối chiếu — xem ô trên)
 
 > ### ⛔ M2 ĐÃ BÁC BỎ tiền đề mở đầu của chuỗi — đọc trước khi chi tiết hoá M4
 >
@@ -1257,12 +1278,30 @@ Ràng buộc mang theo (không được đánh rơi):
 
 ---
 
-## 3.G — hoãn lượt này
+## 3.G — ĐÃ LÀM (2026-08-16), ở đúng mức §1 cho phép
 
-Giữ ở mức sketch, chi tiết hoá khi tới lượt. Ràng buộc §1 vẫn áp:
+Ràng buộc §1 giữ nguyên và được tôn trọng: `cluster-autoscaler` cloud-agnostic
+(provider mặc định `clusterapi` — provider duy nhất thật sự không khoá nhà cung
+cấp), verify bằng `helm template` + `kubeconform -strict` + `--dry-run=server`;
+**KHÔNG** khẳng định đã scale thật.
 
-- **3.G — autoscaling + chi phí.** `cluster-autoscaler` cloud-agnostic; verify bằng
-  `helm template` + `--dry-run=server`; **không** khẳng định đã scale thật.
+**Đo TRƯỚC khi viết:** `kubectl api-resources` cho `cluster.x-k8s.io` → RỖNG và
+`metrics.k8s.io` → RỖNG. Lab là kubeadm 1 node, không cloud provider, không node
+group ⇒ **hành vi scale không chứng minh được ở đây, và không có đường lách**.
+
+| Mức | Trạng thái |
+|---|---|
+| render bật/tắt (`helm template`) | ✅ off 24 object · on 28 · tắt cờ ⇒ **0 dòng** tham chiếu |
+| `kubeconform -strict` | ✅ 28/28 valid |
+| `kubectl apply --dry-run=server` | ✅ 4/4 object |
+| **hành vi scale up/down / scale-to-zero** | ❌ **KHÔNG chứng minh** |
+| **spot interruption handling** | ❌ **chưa có gì** — cơ chế riêng từng nhà cung cấp, không API trung lập |
+
+Chi phí (task 9 của sketch): [`docs/cost-model.md`](../../docs/cost-model.md).
+Đòn bẩy duy nhất ĐÃ chứng minh là **mật độ** — mắt 4/5 đưa nó từ 3 lên 21
+phiên/node, tức chi phí mỗi phiên giảm ~7 lần mà không mua thêm gì.
+
+Chi tiết: [report](reports/2026-08-16-verify-3i-m3m5-h6.md) §8.
 
 ---
 

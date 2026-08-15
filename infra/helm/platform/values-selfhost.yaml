@@ -187,29 +187,48 @@ datastore:
         cpu: 250m
         memory: 192Mi
 
-# VM lab chỉ ~11Gi RAM tổng — quota mặc định ở values.yaml (4Gi request /
-# 8Gi limit) để nguyên thì gần hết dư địa cho pod sandbox trên node này. Thu
-# nhỏ lại cho vừa capacity thật của VM lab; runtimeClassName/egressExcept
-# giữ nguyên default (đã đúng cho cluster này, xem VM-RESIZE-RAM.md).
+# Quota sandbox của VM lab — ĐẶT LẠI Ở P3/3.I MẮT 5 (2026-08-16) theo số đo
+# cgroup của mắt 3, thay cho bộ số cũ dựng trên `requests` thổi phồng.
+#
+# ── Vì sao trần cũ là 3 phiên, và vì sao nó KHÔNG phải giới hạn phần cứng ────
+# Bộ cũ: `requests` 500m/512Mi ⇒ 2100m ÷ 500m = 4 pod, trừ POOL_TARGET=1 ⇒ **3
+# phiên**. Con số 512Mi đến từ `memory.current` đỉnh (428–464Mi), mà đại lượng
+# ấy GỘP page cache của `docker pull`/`build`. Mắt 3 tách ra: workingSet đỉnh —
+# đúng đại lượng kubelet dùng để đuổi pod — chỉ **158–163Mi**. Tức mỗi pod giữ
+# chỗ gấp ~3 lần phần nó thật sự không nhả được.
+#
+# Mắt 2 từng kết luận "trần bị chặn bởi RAM thật, 25 × 451Mi ≈ 11GiB = cả VM".
+# Phép đo của mắt 3 BÁC BỎ kết luận đó: 451Mi là con số đã gộp cache; số phải
+# nhân lên là 163Mi ⇒ 21 × 163Mi ≈ 3.3GiB, node 11.6GiB thừa sức.
+#
+# ── Số dưới đây suy ra từ mục tiêu 20 phiên, không phải làm tròn ─────────────
+#   21 pod (20 phiên + POOL_TARGET=1) × 250m  = 5250m, + canary 100m → 5400m
+#   21 pod × 256Mi                            = 5376Mi, + canary 64Mi → 5500Mi
+#   21 pod × 2 (defaultCpu)                   = 42,    + canary      → 44
+#   21 pod × 1Gi (defaultMemory)              = 21Gi,  + canary      → 22Gi
+# ⇒ min(5400÷250, 5500÷256, 44÷2, 22528÷1024, 26) = min(21,21,22,22,26) = 21 pod
+#   − POOL_TARGET 1 = **20 phiên đồng thời**. Không khoá nào là ràng buộc lẻ loi.
+#
+# `pods: 26` chứ không 22: pod đang Terminating VẪN tính vào quota `pods` hàng
+# chục giây sau khi phiên đóng, và namespace này còn chạy CronJob canary. Đặt sát
+# 22 là mời một cơn từ chối giả đúng lúc đông người — cùng lớp lỗi mà chú thích
+# canary của bản cũ đã ghi.
+#
+# ── Chỗ CỐ Ý overcommit, khai thẳng ─────────────────────────────────────────
+# `limitsCpu: 44` và `limitsMemory: 22Gi` đều VƯỢT phần cứng (8 core / 11.6Gi).
+# Đó là bản chất của `limits` — nó là TRẦN BURST, không phải chỗ giữ. Phần thật
+# sự gác an toàn node là `requests`: 5400m/5500Mi, cộng platform (1880m/1832Mi)
+# = 7280m/7332Mi trên 8000m/11830Mi ⇒ **91% CPU, 62% RAM** đã đặt chỗ.
+# Ván cược: nếu CẢ 21 pod cùng chạm 1Gi anon một lúc thì node hết RAM. Đo được
+# thì anon đỉnh chỉ 127Mi/pod (21 × 127Mi ≈ 2.6Gi), nên cược này rộng cửa —
+# nhưng nó LÀ một ván cược, và mọi lần nâng trần sau phải đo lại chứ đừng suy ra.
 sandbox:
   quota:
-    pods: '10'
-    # Dư địa cho CANARY, không phải số làm tròn tuỳ tiện.
-    #
-    # LimitRange đặt defaultRequest 500m/512Mi ⇒ 4 pod sandbox = đúng 2000m/2048Mi.
-    # Để quota ở đúng 2/2Gi thì khi hệ thống ở trạng thái D16 gọi là BÌNH THƯỜNG
-    # (POOL_TARGET=1 + 3 session = 4 pod), pod canary (10m/16Mi) không được admit
-    # ⇒ Job DeadlineExceeded ⇒ **báo động giả đúng lúc đông người nhất**. Tệ hơn:
-    # đỏ-vì-quota và đỏ-vì-CNI-chết cho CÙNG một tín hiệu, nên chuông mất khả năng
-    # phân biệt. Ngược lại nếu canary vào trước thì pod sandbox thứ 4 bị chặn và
-    # trần đồng thời thật là 3, không phải 4 như D16 chốt.
-    #
-    # 2100m/2112Mi = 4 pod sandbox + đúng phần của canary (100m/64Mi). Trần đồng
-    # thời vẫn là 4, công thức của D16 không đổi.
-    requestsCpu: '2100m'
-    requestsMemory: '2112Mi'
-    limitsCpu: '4'
-    limitsMemory: '4Gi'
+    pods: '26'
+    requestsCpu: '5400m'
+    requestsMemory: '5500Mi'
+    limitsCpu: '44'
+    limitsMemory: '22Gi'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Registry mirror docker.io (P3/3.I mắt 1) — BẬT trên self-host.

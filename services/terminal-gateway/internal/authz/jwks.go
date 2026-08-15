@@ -151,17 +151,43 @@ func (j *JWKSCache) lookup(kid string) (key jose.JSONWebKey, fresh, ok bool) {
 }
 
 // refresh fetch lại JWKS, tôn trọng sàn minGap và gộp các lượt đồng thời.
+//
+// ⛔ SÀN minGap PHẢI NẰM *TRONG* singleflight, KHÔNG PHẢI TRƯỚC NÓ.
+//
+// Bản trước kiểm `tooSoon` ở NGOÀI `group.Do` rồi `return nil` sớm. Điều đó tạo
+// một cuộc đua làm hỏng đúng ca đông người nhất — đo được trên cụm 2026-08-16
+// (AC-H6, rollout gateway với 14 phiên):
+//
+//  1. Pod gateway MỚI khởi động ⇒ `keys` rỗng, `lastAttempt` = zero.
+//  2. 14 client nối lại trong cùng ~18ms. Cả 14 cùng miss cache, cùng gọi refresh.
+//  3. Goroutine ĐẦU vào `group.Do`, đặt `lastAttempt = now`, bắt đầu fetch HTTP.
+//  4. 13 goroutine còn lại đọc `lastAttempt` VỪA BỊ ĐẶT ⇒ `tooSoon` = true ⇒
+//     `return nil` NGAY, **không chờ lượt fetch đang bay**.
+//  5. Chúng tra lại cache — vẫn rỗng vì fetch chưa xong — và trả `ErrKeyNotFound`.
+//  6. Người dùng nhận **401 UNAUTHENTICATED** cho một token HOÀN TOÀN HỢP LỆ.
+//
+// Triệu chứng ngoài đời: mỗi lần rollout gateway, đợt nối lại đầu tiên ăn 401,
+// đốt 2 lượt retry của FE, rồi mới thành công — và những lượt phí ấy lại nuôi
+// chính cơn bão rate-limit ở biên mà §H1 mô tả. Log nói "JWKS không có kid này",
+// đọc ra như lỗi xoay khoá, trong khi JWKS hoàn toàn bình thường.
+//
+// Đặt cổng vào TRONG `Do` giữ được cả hai tính chất cùng lúc:
+//   - lượt gọi ĐỒNG THỜI cùng chờ đúng một lượt fetch rồi cùng thấy cache đầy;
+//   - lượt gọi VỀ SAU (khi lượt trước đã xong) vẫn bị sàn minGap chặn, nên "kid
+//     lạ" vẫn không thành cần gạt DoS vào apps/web.
 func (j *JWKSCache) refresh(ctx context.Context) error {
-	j.mu.RLock()
-	tooSoon := j.nowFunc().Sub(j.lastAttempt) < j.minGap
-	j.mu.RUnlock()
-	if tooSoon {
-		// Không phải lỗi hạ tầng — là cổng chống DoS đang làm đúng việc. Caller
-		// sẽ tra lại cache và trả ErrKeyNotFound nếu thật sự không có kid.
-		return nil
-	}
-
 	_, err, _ := j.group.Do("fetch", func() (any, error) {
+		// Cổng chống DoS: chỉ chặn lượt fetch MỚI, và vì nó nằm trong singleflight
+		// nên nó không bao giờ chặn nhầm một caller đang chờ lượt fetch hiện hành.
+		j.mu.RLock()
+		tooSoon := j.nowFunc().Sub(j.lastAttempt) < j.minGap
+		j.mu.RUnlock()
+		if tooSoon {
+			// Không phải lỗi hạ tầng — cổng đang làm đúng việc. Caller sẽ tra lại
+			// cache và trả ErrKeyNotFound nếu thật sự không có kid.
+			return nil, nil
+		}
+
 		// Ghi lastAttempt TRƯỚC khi gọi mạng: một apps/web treo tới timeout
 		// không được biến thành một lượt thử mới ngay khi lượt này bỏ cuộc.
 		j.mu.Lock()

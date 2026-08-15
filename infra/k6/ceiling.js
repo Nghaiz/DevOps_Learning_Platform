@@ -68,8 +68,8 @@ export const options = {
     // Ngưỡng để ở `>=1`, KHÔNG phải `>=3`: 3 là con số ta đang ĐO, không phải con
     // số ta khẳng định trước. Nướng dự đoán vào cổng thì cổng không còn đo được
     // nữa — nó chỉ xác nhận dự đoán. Trần thật do report ghi lại.
-    // Cận dưới ĐỘC LẬP với N: quota 2100m/500m = 4 pod, nên 2 session đồng thời
-    // là khả thi bất kể N thật là mấy. `>=2` vì thế ràng buộc thật, khác `>=N`
+    // Cận dưới ĐỘC LẬP với N: quota cho ≥ 4 pod ở MỌI cấu hình từng chạy (lab cũ
+    // 4, lab sau mắt 5 là 21), nên 2 session đồng thời là khả thi bất kể N thật là mấy. `>=2` vì thế ràng buộc thật, khác `>=N`
     // (tự tham chiếu) và khác `>=1` (quá lỏng, một hệ gần chết vẫn qua).
     dlpk6_sessions_created: ['count>=2'],
     // ⛔ Chống replay idempotent: `CreateSession` cùng `(userId, idempotencyKey)`

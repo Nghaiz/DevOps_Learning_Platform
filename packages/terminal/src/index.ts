@@ -19,7 +19,7 @@ export type {
   ServerControl,
 } from './protocol.ts';
 
-export { MAX_BACKOFF_MS, backoffDelayMs, decideRetry } from './backoff.ts';
+export { MAX_BACKOFF_MS, backoffDelayMs, backoffDelayMsJittered, decideRetry } from './backoff.ts';
 export type { RetryDecision, RetryDecisionInput } from './backoff.ts';
 
 export { initialState, reduce } from './session-machine.ts';

@@ -17,13 +17,20 @@ import (
 	"github.com/coder/websocket"
 )
 
-// tranPhienDongThoi là trần phiên đồng thời của cụm lab, ĐO ĐƯỢC ở 3.F chứ không
-// đoán: ResourceQuota cho `requests.cpu 2100m`, mỗi pod sandbox xin `500m` ⇒ 4
-// pod, trừ `POOL_TARGET=1` giữ ấm ⇒ 3 phiên claim được cùng lúc.
+// tranPhienDongThoi là trần phiên đồng thời của cụm lab, ĐO ĐƯỢC chứ không đoán.
 //
-// Đây là trần CẤU HÌNH, không phải trần phần cứng (node còn rảnh nhiều). Nới nó
-// là quyết định của 3.G, không phải của một hằng số ở đây.
-const tranPhienDongThoi = 3
+// 2026-08-16 (3.I mắt 5): 3 → 21. Trần cũ đến từ `requests` 500m/512Mi mà mắt 3
+// chứng minh là thổi phồng — `memory.current` đỉnh 428–464Mi gộp page cache, còn
+// workingSet (đại lượng kubelet thật sự dùng) chỉ 158–163Mi. Sau khi đặt lại
+// 250m/256Mi: `requests.cpu 5400m ÷ 250m = 21 pod`. Đo lại bằng k6 `ceiling.js`:
+// 21 phiên id phân biệt, lượt #22 bị từ chối đúng lý do quota.
+//
+// ⛔ ĐÂY LÀ MỘT BẢN SAO CỦA CẤU HÌNH, VÀ BẢN SAO THÌ TRÔI. Nguồn thật là
+// ResourceQuota × LimitRange trên cụm; `infra/k8s/reaper-verify.sh`
+// § `quota_pod_ceiling` tính đúng công thức 5-ràng-buộc từ đối tượng SỐNG. Hằng
+// số ở đây chỉ để chặn một cờ `-n` vô lý sớm, KHÔNG phải nguồn sự thật — mỗi lần
+// nới quota phải sửa nó, nếu không ca drain/storm từ chối chạy dù cụm còn chỗ.
+const tranPhienDongThoi = 21
 
 // cuaSoNoiLai là trần thời gian chờ khe WS được nhả ở pha 3.
 //

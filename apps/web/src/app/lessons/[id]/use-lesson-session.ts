@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import {
+  backoffDelayMsJittered,
   buildSessionWsUrl,
   initialState,
   reduce,
@@ -86,10 +87,15 @@ export function useLessonSession(scenarioId: string): LessonSession {
   // trần), và nếu chỉ phụ thuộc delay thì effect không chạy lại — vòng nối lại
   // đứng im vĩnh viễn ở lần thứ hai. (Bẫy đã gặp ở 1.F.)
   useEffect(() => {
-    const delay = state.retryDelayMs;
-    if (delay === null) {
+    if (state.retryDelayMs === null) {
       return;
     }
+    // AC-H6 (P3/3.H) — jitter áp Ở ĐÂY, không trong máy trạng thái: `reduce`
+    // phải thuần (nó còn chạy qua `events.reduce(reduce, from)`, nên một tham số
+    // thứ ba sẽ nhận nhầm CHỈ SỐ mảng làm nguồn ngẫu nhiên). Rollout gateway đóng
+    // mọi phiên trong cùng một khoảnh khắc; không rải ra thì cả lớp cùng đâm vào
+    // trần `/ws` của biên — đo được 19 lượt 429 trên 14 phiên.
+    const delay = backoffDelayMsJittered(state.attempt);
     const timer = setTimeout(() => {
       dispatch({ type: 'RETRY_NOW' });
       setConnectionKey((key) => key + 1);

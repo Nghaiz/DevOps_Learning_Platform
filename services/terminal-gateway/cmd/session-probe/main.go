@@ -61,7 +61,7 @@ func main() {
 	gwURL := flag.String("gateway", "ws://localhost:8082", "gốc WS của terminal-gateway")
 	metricsURL := flag.String("metrics", "", "gốc /metrics của gateway (mặc định: suy ra từ -gateway, cổng 8081)")
 	origin := flag.String("origin", "", "header Origin (mặc định: bằng -web)")
-	kase := flag.String("case", "attach", "attach | survive | hold | luat5 | idle | resize | m3 | jwks | m9 | drain")
+	kase := flag.String("case", "attach", "attach | survive | hold | luat5 | idle | resize | m3 | jwks | m9 | drain | storm")
 	n := flag.Int("n", 50, "số mẫu cho ca attach (và số lượt cho ca m9)")
 	budget := flag.Duration("budget", 10*time.Minute, "trần thời gian")
 	// Ca m9 cần đọc /metrics của TỪNG replica: `-pod-metrics` nhận danh sách
@@ -77,7 +77,8 @@ func main() {
 	// Ca drain cần một lượt rollout THẬT. Truyền từ ngoài cùng lý do như
 	// -kill-cmd: cách rollout là quyết định của người vận hành, và để nó hiện
 	// nguyên văn trong dòng lệnh khiến báo cáo tự chứng minh đã kích cái gì.
-	rolloutCmd := flag.String("rollout-cmd", "", "lệnh shell rollout gateway (ca drain)")
+	rolloutCmd := flag.String("rollout-cmd", "", "lệnh shell rollout gateway (ca drain, storm)")
+	usersFile := flag.String("users-file", "", "pool user dựng sẵn cho ca storm (infra/k6/.users.json — xem provision-users.sh)")
 	// Ca drain dùng cho HAI kịch bản có thang thời gian khác hẳn nhau: rollout êm
 	// (khe trả ngay) và SIGKILL (khe chỉ rụng khi hết lease). Trần chờ vì thế phải
 	// đặt được từ ngoài — xem cuaSoNoiLai.
@@ -132,8 +133,10 @@ func main() {
 	case "drain":
 		cuaSoNoiLai = *reconnectWait
 		err = caseDrain(ctx, *webURL, *gwURL, *origin, *rolloutCmd, *n)
+	case "storm":
+		err = caseStorm(ctx, *webURL, *gwURL, *origin, *rolloutCmd, *usersFile, *n)
 	default:
-		err = fmt.Errorf("-case không hợp lệ: %q (cần attach | survive | hold | luat5 | idle | resize | m3 | jwks | m9 | drain)", *kase)
+		err = fmt.Errorf("-case không hợp lệ: %q (cần attach | survive | hold | luat5 | idle | resize | m3 | jwks | m9 | drain | storm)", *kase)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\nFAIL: %v\n", err)
