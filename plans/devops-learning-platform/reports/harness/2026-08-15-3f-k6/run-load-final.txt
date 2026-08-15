@@ -1,0 +1,54 @@
+══ 3.F — k6 load test tới trần CẤU HÌNH ══
+target=https://dlp.192.168.94.130.sslip.io:30443
+k6: k6.exe v2.2.0 (commit/00a9a1b7f5, go1.26.5, windows/amd64)
+
+── 0. Tiền đề (mọi thứ dưới đây thoát 2 nếu hỏng) ──
+quota: requests.cpu=2100m pods=10 · node allocatable cpu=8
+trạng thái đầu SẠCH: pod sống=1 (POOL_TARGET=1) claimed=0
+mốc thời gian bắt đầu (đồng hồ client, chỉ dùng để tính THỜI LƯỢNG): 1786778052
+
+── 1. Dựng pool user ──
+[provision] dùng lại cache: 6 user, cookie còn sống (me.get=200)
+
+── 2. ceiling.js (đo trần session đồng thời) ──
+(đã lấy 11 mẫu trong lúc k6 chạy)
+##CEILING## giữ 3 session (id phân biệt = 3), lượt từ chối đầu tiên = #4 (refused_quota)
+  #1 created code=200 http=200 
+  #2 created code=200 http=200 
+  #3 created code=200 http=200 
+  #4 refused_quota code=TOO_MANY_REQUESTS http=429 {\"error\":{\"message\":\"orchestrator gRPC: đã đạt trần số sandbox đồng thời của cluster; thử lại sau ít phút\",\"code\":-32029,\"data\":{\"code\":\"TOO_MANY_REQUESTS\",\"httpStatus\":429,\"path\":
+##CEILING## giữ đỉnh 40s để lấy mẫu metric
+##CEILING## đã dọn 3/3 session
+k6 ceiling exit=0 · max(claimed)=3 · max pod sống=4
+created=3 distinct=3 refused{quota=1 other=0 5xx=0} quota_as_5xx=0 conn_err=0
+
+── 3. Đối chiếu server (increase over 143s) ── claim{ok}=3 claim{quota_blocked}=1
+pod sống sau=1 (trước=1) claimed=0 free=1
+
+── 4. claim latency (tách theo path, kèm n) ──
+  path=warm n≈11.343068318683194 p95=0.0863055337461392s
+  path=cold n≈2.047050222079002 p95=9.75s
+
+── 5. edge.js (hỏng đúng kiểu ở biên) ──
+##EDGE## đợi 40s cho bucket rate-limit hồi trước khi đo
+##EDGE## đối chứng âm (4 lượt cách 4s): mã = 404,404,404,404
+##EDGE## burst 40 lượt không nghỉ: {\"404\":10,\"429\":30}
+##EDGE## body của 429 đầu tiên: \"Too Many Requests\"
+##EDGE## ghi chú AC-F4: \"000\" là ĐỨT KẾT NỐI, không phải \"bị chặn\". Hai con số này cố ý đếm riêng.
+k6 edge exit=0
+
+══ Bảng ô AC ══
+Ô                               KẾT QUẢ Bằng chứng
+AC-F1 trần đồng thời      PASS   N=3 session id phân biệt; lượt #4 bị quota chặn; max pod sống=4 max claimed=3
+AC-F1b đối chiếu server     PASS   increase 143s: claim{ok}=3 (client báo 3), claim{quota_blocked}=1 — server CÓ ghi nhận lượt đo
+AC-F2 hỏng đúng kiểu (quota) PASS   quota trả lỗi có ngữ nghĩa; pod sống 1→1 (không tồn đọng)
+AC-F3 hỏng đúng kiểu (biên) PASS   burst→429 x30; đối chứng âm 4 lượt dưới ngưỡng→0 lượt 429
+AC-F4 chặn≠đứt kết nối PASS   ceiling: 0 lỗi kết nối; edge burst: 0 lỗi kết nối (đếm RIÊNG, không cộng vào 429)
+AC-F6 claim p95 (ghi số)       PASS   xem §4 (tách theo path + n); gộp=8.336732653530948s tại N=3 — KHÔNG gác ngưỡng
+
+Ô đóng ngoài script này:
+  AC-F5 reaper → bash infra/k8s/reaper-verify.sh   (chạy TRÊN VM, sau lượt tải)
+  AC-F7 e2e    → harness e2e P2 14/14 (chạy SAU khi pool đã về mức trước tải)
+  AC-F8 chống xanh-giả → threshold trong ceiling.js/edge.js · k6 exit: ceiling=0 edge=0
+
+KẾT LUẬN: mọi ô đo được đều XANH.

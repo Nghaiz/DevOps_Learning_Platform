@@ -114,7 +114,7 @@ session trên lab 1-node, N đo được = …" thì không.
 | **3.C** | Rò tài nguyên: pod GC + đo lại reaper | 8 | ✅ xong — [GC](reports/2026-08-15-verify-3c3d-gc-observability.md) + [đóng nợ](reports/2026-08-15-verify-3c-debt-closure.md) · 14/14, và một chỗ rò §0.2 bảo là không có |
 | **3.D** | Observability: Prometheus + Grafana + Loki | 7 | ✅ xong — [report](reports/2026-08-15-verify-3c3d-gc-observability.md) |
 | **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | ✅ xong — [report](reports/2026-08-15-verify-3e-self-pentest.md) · **10/10, 0 lỗ hổng** |
-| 3.F | k6 load test tới trần VM | 2 | Hoãn |
+| **3.F** | k6 load test tới trần CẤU HÌNH | 2 | ✅ xong — [report](reports/2026-08-15-verify-3f-k6.md) · **N=3**, và một lỗi thật: chạm trần trả 500 |
 | 3.G | Autoscaling cloud-agnostic + chi phí | 4, 9 | Hoãn |
 | 3.H | WS scale layer | 5 | Hoãn |
 
@@ -461,38 +461,199 @@ verify luôn `command not found` ⇒ vế PASS bất khả).
 
 ---
 
-## 3.F / 3.G / 3.H — hoãn lượt này
+## 3.F — k6 load test tới trần CẤU HÌNH
 
-Giữ ở mức sketch, chi tiết hoá khi tới lượt. Ràng buộc đã chốt (§1) áp cho cả ba:
+**Effort:** M · **Blocked by:** 3.D (đọc kết quả bằng metric, không đoán qua log) ·
+**Blocks:** 3.H (phải biết trần thật trước khi bàn scale WS)
 
-- **3.F — k6 load test.** Ramp tới trần thật của VM, ô AC ghi rõ "trên lab 1-node,
-  N = …". Cần 3.D xong trước để đọc kết quả bằng metric thay vì đoán qua log.
+### Bối cảnh — ba trần, xếp theo thứ tự k6 sẽ đụng
 
-  > **Đo được ở lượt 3.C (2026-08-15) — §1 vẫn còn lạc quan gấp mười.** §1 dự kiến
-  > "20–40 session"; trần thật là **3**. `requests.cpu 2100m ÷ 500m = 4 pod`
-  > (`values-selfhost.yaml`), trừ `POOL_TARGET=1` ⇒ 3 session đồng thời. `pods: 10`
-  > trong quota **không** phải ràng buộc chặn. Và node còn rảnh (requests
-  > 2730m/8000m CPU, 2760Mi/11929Mi RAM) ⇒ **trần này do quota đặt ra, không do
-  > phần cứng.**
-  >
-  > Trần thứ hai đứng trước cả trần thứ nhất: rate-limit biên Traefik — web
-  > 120/1m burst 60, **WS handshake 20/1m burst 10** — và NodePort SNAT làm **mọi
-  > VU của k6 dùng chung MỘT bucket IP**. Nên k6 sẽ đụng cấu hình rất lâu trước khi
-  > đụng phần cứng.
-  >
-  > **CHỐT VỚI CHỦ DỰ ÁN (2026-08-15): đo trần CẤU HÌNH như đang chạy.** Không nới
-  > quota, không nới rate-limit. Hệ quả cho ô AC của 3.F:
-  >
-  > - Ô AC phải ghi nguyên văn thứ nó đo: *"trên lab 1-node, cấu hình hiện tại,
-  >   N = … session đồng thời; chặn bởi ResourceQuota chứ không bởi phần cứng"*.
-  >   Một ô ghi "chịu N session" mà không khai trần nào chặn là ô nói dối.
-  > - k6 vì thế đo **hai** thứ, không phải một: (a) hệ có chạm đúng trần cấu hình
-  >   không, và (b) khi chạm thì nó hỏng ĐÚNG KIỂU không — 429 từ biên chứ không
-  >   phải 5xx, `dlp_claim_total{result="quota_blocked"}` tăng chứ không phải pod
-  >   mồ côi, reaper theo kịp chứ không tồn đọng.
-  > - Vì mọi VU chung một bucket IP (NodePort SNAT), ramp song song sẽ ra **lỗi
-  >   kết nối 000** chứ không ra 429 — 3.E đã đo đúng ca này. Kịch bản k6 phải có
-  >   nhánh tuần tự để phân biệt "bị chặn đúng" với "không kết nối được".
+Sketch viết *"ramp tới vài trăm session đồng thời, claim p95 < 1s"*. §1 hạ xuống
+"20–40". Lượt 3.C đo ra con số thật và nó **nhỏ hơn §1 một bậc mười**:
+
+| # | Trần | Giá trị | Đo ở đâu |
+|---|---|---|---|
+| 1 | Better Auth **signup theo IP** | ~2–3 lượt rồi 429 | `infra/pentest/lib/common.sh` § `login_new` |
+| 2 | Rate-limit biên **WS handshake** | 20/1m, burst 10 | `values.yaml` › `ingress.middleware.rateLimit` |
+| 3 | Rate-limit biên **web động** | 120/1m, burst 60 | cùng chỗ |
+| 4 | **Session đồng thời** | **3** | `requests.cpu 2100m ÷ 500m = 4 pod`, trừ `POOL_TARGET=1` |
+| 5 | **per-user tRPC mutation** | 20/1m, **in-memory mỗi replica × 2** | `server/trpc/init.ts` |
+| 6 | **cold path vs timeout của CLIENT** | pod Sysbox boot > 20s; k6 mặc định 60s | `common.sh` phải dùng `-m 120` |
+| — | Phần cứng | **không bao giờ chạm** | node còn 2730m/8000m CPU lúc đo |
+
+Trần 5 và 6 do **review đối kháng** bổ sung (2026-08-15), và cả hai đều là đường
+ra kết luận SAI chứ không chỉ là giới hạn:
+
+- **Trần 5** bắn ra 429 từ *Next*, không từ quota. Một ô AC chỉ tách "429" khỏi
+  "lỗi kết nối" sẽ xếp nó vào ô "bị chặn đúng", rồi ghi một N nhỏ hơn thật **và
+  quy cho ResourceQuota** — ô tự khai sai nguyên nhân, đúng thứ §1 cấm. (Thiết kế
+  hiện tại né được vì mỗi session dùng một USER riêng ⇒ mỗi bucket chỉ 2 mutation.)
+- **Trần 6** làm một hệ đang chạy ĐÚNG thiết kế trông như hỏng: client bỏ cuộc ở
+  60s trong khi orchestrator vẫn tạo pod ⇒ **đẻ pod mồ côi**, làm đỏ cả ô "không
+  rò pod" lẫn ô "không lỗi kết nối" — hai ô đỏ vì một mặc định của công cụ đo.
+
+Trần 4 là thứ sketch định đo. Ba trần đứng TRƯỚC nó, và trần 1 đứng trước cả lúc
+tải bắt đầu — k6 tạo user mỗi VU là chết ngay ở bước dựng, chưa kịp đo gì.
+
+**Xác nhận lại trên cụm sống (2026-08-15, trước khi viết chặng này):**
+`platform-sandbox-quota` used `pods:1, requests.cpu:500m` / hard `pods:10,
+requests.cpu:2100m`. Đúng như 3.C tính. `pods: 10` **không** phải ràng buộc chặn.
+
+**CHỐT VỚI CHỦ DỰ ÁN (2026-08-15): đo trần CẤU HÌNH như đang chạy.** Không nới
+quota, không nới rate-limit. 3.F là chặng **ĐO**, không phải chặng nới.
+
+### Quyết định thiết kế phải chốt TRƯỚC khi viết
+
+**F1. k6 chạy Ở NGOÀI hệ đang đo — trên Windows, không trên VM, không trong cụm.**
+Chốt với chủ dự án 2026-08-15. Lý do là tính đúng đắn của phép đo, không phải tiện:
+cụm chỉ có **8 vCPU và generator tải nằm cùng chỗ với hệ nó đang đo sẽ ăn đúng
+phần CPU mà nó đang đo** — số ra thấp hơn thực tế và không cách nào biết thấp bao
+nhiêu. Chạy trên VM còn vượt ranh giới đã chốt ("không `apt install` thêm gì").
+
+k6 **v2.2.0** binary standalone, tải về scratchpad, không cài vào hệ thống, không
+commit vào repo. Đã đo đường đi trước khi viết plan: `GET /` từ Windows qua
+VMware NAT vào `:30443` → **200, 9007 byte**.
+
+> **Module WS:** `k6/net/websockets` **KHÔNG tồn tại** ở v2.2.0 (k6 báo
+> `unknown dependency` rồi cố build binary tuỳ biến — đọc ra như lỗi mạng). Hai
+> module chạy được: `k6/ws` (legacy, `connect()` **chặn VU suốt vòng đời socket**)
+> và `k6/experimental/websockets` (API sự kiện). Chọn **`k6/ws`**: một VU giữ một
+> socket đúng bằng một session là mô hình ta cần, và tính chặn của nó chính là
+> thứ làm "VU đang chạy" = "session đang giữ". Đã thử cả hai, cả hai `import` được.
+
+**F2. Hai kịch bản tách rời, KHÔNG một ramp.** Vì NodePort SNAT + một máy nguồn
+⇒ **mọi VU dùng chung MỘT bucket IP**. Ramp song song sẽ ra **lỗi kết nối** chứ
+không ra 429 — 3.E đã đo đúng ca này. Một ramp duy nhất vì thế trộn hai nguyên
+nhân vào một triệu chứng:
+
+- **Kịch bản `ceiling` (tuần tự, có nhịp):** mở session 1→2→3→4, mỗi lượt cách
+  nhau đủ để **không** chạm trần 2/3. Đo trần 4 sạch, không lẫn rate-limit.
+- **Kịch bản `edge` (burst có chủ đích):** cố tình vượt trần 2. Đo hệ hỏng đúng
+  kiểu ở biên. Chỉ ô này mới được phép thấy 429.
+
+**F3. User pool dựng sẵn, KHÔNG signup mỗi VU** (trần 1). Một script cấp phát
+chạy trước, có backoff khi gặp 429, ghi cookie ra file **gitignored** và
+**tái dùng ở lần chạy sau** — chạy lại 3.F không được tốn thêm lượt signup.
+
+**F4. Không trộn đồng hồ.** k6 chạy trên Windows, metric đến từ Prometheus trên
+VM, và **đồng hồ VM lệch ~59s so với Windows**. Mọi tương quan k6↔metric vì thế
+dùng **khoảng thời lượng** hoặc timestamp **lấy trên VM**, không bao giờ lấy mốc
+tuyệt đối của Windows đem so với mốc của VM. Lệch nhỏ nguy hơn lệch lớn: số vẫn
+dương, vẫn "hợp lý", chỉ sai.
+
+### Task list
+
+1. **`infra/k6/lib/config.js`** — target, ngưỡng, số VU, đọc từ env; không hardcode.
+2. **`infra/k6/provision-users.sh`** — dựng pool user (F3), backoff 429, cache
+   cookie ra `infra/k6/.users.json` (gitignore), in ra số user dùng lại vs tạo mới.
+3. **`infra/k6/ceiling.js`** — kịch bản tuần tự (F2): claim session tới khi bị từ
+   chối; ghi lại **mã lỗi và hình dạng lỗi** của lượt bị từ chối, không chỉ ghi
+   "thất bại"; giữ socket sống bằng `k6/ws` để session thật sự chiếm chỗ.
+4. **`infra/k6/edge.js`** — kịch bản burst (F2): vượt trần WS handshake; **đếm
+   riêng** 429 và lỗi kết nối; có nhánh dưới ngưỡng làm đối chứng âm.
+5. **`infra/k6/run-load.sh`** — runner: chạy provision → ceiling → edge, thu metric
+   Prometheus trước/sau, chụp `kubectl get pods -n dlp-sandbox` trước/sau, in bảng
+   kết quả, `exit 1` nếu bất kỳ ô AC nào lệch.
+6. **`infra/k6/README.md`** — vì sao chạy ở Windows, vì sao hai kịch bản, cách
+   tái lập.
+7. **Cổng CI:** chỉ **tĩnh** (`k6 inspect` / lint) — chạy thật cần cụm sống, cùng
+   lý do `reaper-verify.sh` chưa vào CI được. Ghi rõ giới hạn này, không giả vờ
+   là cổng chạy thật.
+
+### Acceptance criteria
+
+- [x] **AC-F1** — **Trần đồng thời đo được, và ô này tự khai trần nào chặn.** Ghi
+      nguyên văn dạng: *"trên lab 1-node, cấu hình hiện tại, N = … session đồng
+      thời; chặn bởi ResourceQuota (`requests.cpu 2100m ÷ 500m = 4 pod`, trừ
+      `POOL_TARGET=1`) chứ không bởi phần cứng — node lúc đo còn …/8000m CPU rảnh."*
+      Một ô ghi "chịu N session" mà không khai trần nào chặn là **ô nói dối** (§1).
+      Đếm bằng **session id PHÂN BIỆT**, không bằng số lượt 2xx: `CreateSession`
+      cùng `(userId, idempotencyKey)` **trả lại session cũ** với 200 OK và không
+      claim thêm pod (`replayIdempotent`), nên N lượt lặp trên MỘT pod cũng đọc ra
+      "N session". Ghi kèm **số pod sandbox tối đa quan sát được** và **đối chiếu
+      với công thức**; lệch ⇒ phải giải thích ngay trong ô, không được xanh.
+      **Đối chứng dương:** session **1 và 2** phải xanh — cận dưới ĐỘC LẬP với N
+      (quota cho 4 pod nên 2 session luôn khả thi). Neo vào chính N là tự tham chiếu.
+- [x] **AC-F1b** — **Đối chiếu chéo với server.** `Δ dlp_claim_total{result="ok"}`
+      ≥ số session k6 báo, **và** `Δ dlp_claim_total{result="quota_blocked"}` ≥ 1
+      trong cửa sổ đo. Đây là ô **duy nhất** bắt được ca "k6 chạy sai địa chỉ":
+      một TARGET sai không làm nhúc nhích counter phía server, trong khi mọi con
+      số phía client vẫn đẹp.
+- [x] **AC-F2** — **Hỏng đúng kiểu ở tầng quota.** Lượt vượt trần phải là **đúng
+      lỗi quota** — nhận diện bằng thông điệp của orchestrator, KHÔNG bằng "không
+      phải 2xx". `401` (cookie cache chết), `429` (trần per-user), `400`
+      (idempotencyKey sai) đều là "lỗi có cấu trúc, không 5xx, không treo": một
+      lượt chạy mà MỌI claim chết ở tầng auth vẫn làm ô này xanh với N = 0.
+      Bất kỳ mã lỗi nào khác quota trong kịch bản `ceiling` ⇒ **phép đo hỏng**,
+      ô ĐỎ, không được đọc thành "chạm trần".
+      Và lỗi ấy phải **giữ được ngữ nghĩa** cho người dùng — chạm trần là trạng
+      thái BÌNH THƯỜNG của một hệ có quota, không phải sự cố 5xx.
+      **Không rác để lại:** đếm pod `app=sandbox`, **bỏ** pha `Succeeded`/`Failed`
+      (terminal ⇒ không tính vào quota) và **bỏ** pod có `deletionTimestamp`
+      (Terminating còn hiện hàng chục giây ⇒ đỏ oan). Namespace này còn chạy
+      CronJob `dlp-cni-canary`; đếm thô "mọi pod trong namespace" đã cho kết quả
+      sai ngay lượt chạy đầu.
+- [x] **AC-F3** — **Hỏng đúng kiểu ở biên:** burst vượt trần WS handshake → **429
+      từ Traefik**, phân biệt với 429 của Next bằng body/header (cùng khuôn phân
+      biệt đã dùng ở AC-A3). **Đối chứng âm:** nhịp dưới ngưỡng → **không** 429,
+      chứng minh 429 đến từ việc vượt ngưỡng chứ không từ việc gửi WS.
+- [x] **AC-F4** — **"Bị chặn đúng" phân biệt được với "không kết nối được".** k6
+      báo cáo **các con số tách rời**: 429-của-biên, 429-của-Next, và lỗi tầng
+      **vận chuyển** (DNS/TCP/TLS/reset). Ô ĐỎ nếu lỗi vận chuyển > 0 trong kịch
+      bản `ceiling`. *(3.E đã đo đúng ca này: ramp song song ra 000, không ra 429.)*
+      ⚠ **Timeout do CLIENT huỷ đếm riêng, không gộp vào lỗi vận chuyển** (trần 6):
+      cold path boot > 20s là hệ chạy ĐÚNG thiết kế; một timeout ngắn biến nó thành
+      hai ô đỏ oan **và** đẻ pod mồ côi do chính phép đo gây ra.
+      **Đối chứng đường mạng:** `GET /` ngay trước và sau kịch bản — nếu `/` cũng
+      hỏng thì kết luận "đường đo hỏng", chỉ `/api/trpc` hỏng mới kết luận "hệ".
+- [x] **AC-F5** — **Reaper theo kịp sau tải.** Đóng bằng
+      [`infra/k8s/reaper-verify.sh`](../../infra/k8s/reaper-verify.sh) chạy **trên
+      VM** sau lượt tải — script đó đã mã hoá đúng ngữ nghĩa cần (hết hạn thật theo
+      đồng hồ + đối chứng âm session chưa hết hạn + mốc thời gian lấy từ cụm).
+      Viết lại phép đo ấy trong k6 là trùng lặp, và tệ hơn: k6 chạy trên Windows
+      không có đường mTLS tới orchestrator để đặt TTL ngắn.
+      ⚠ **≥ 1 session PHẢI thật sự hết hạn trong cửa sổ đo.** Không có gì hết hạn
+      thì "dọn 100%" là **0/0** và ô xanh với mẫu số rỗng — cả vế đối chứng âm
+      cũng xanh vì chẳng có gì bị dọn.
+- [x] **AC-F6** — **claim latency: ghi số, KHÔNG gác ngưỡng.** Tách **theo nhãn
+      `path`** kèm **số mẫu n** của từng path. `metrics.go` đã cảnh báo ngay tại
+      chỗ khai báo rằng gộp warm+cold "kéo p95 lên và làm AC hoặc đỏ oan, hoặc
+      (tệ hơn) được nới ra cho vừa". Với **n < 20**, `histogram_quantile` chỉ trả
+      **biên bucket** — một con số trông thật mà thực chất là lượng tử hoá: ghi giá
+      trị thô, đừng phát biểu p95. Ghi rõ histogram **chỉ quan sát lượt thành công**,
+      nên nó không nói gì về lượt bị chặn. KHÔNG dùng ngưỡng "< 1s" của sketch:
+      sketch đặt nó cho "vài trăm session" trên hạ tầng khác.
+- [x] **AC-F7** — harness e2e P2 **14/14** vẫn xanh sau chặng (3.F không sửa gì
+      đường chạy, nên bất kỳ hồi quy nào cũng là tín hiệu đã đụng nhầm).
+- [x] **AC-F8** — **Kịch bản k6 không tự nói dối.** Thiếu ô này thì một script chạy
+      sai địa chỉ, hoặc bỏ qua sạch, vẫn "xanh" — đúng ca đã cắn dự án này
+      (`ckad-configmap-as-files` verify luôn `command not found` ⇒ vế PASS bất khả).
+      **Ba vế, không một:**
+      (a) `iterations > 0`;
+      (b) **≥ 2** session claim thành công với **id PHÂN BIỆT** — cận dưới độc lập
+      với N (quota cho 4 pod nên 2 session luôn khả thi). Ngưỡng `≥ N` là **tautology**
+      (so kết quả với chính nó); ngưỡng `≥ 1` quá lỏng;
+      (c) **đối chiếu chéo với server** (AC-F1b) — chỉ vế này bắt được "chạy sai
+      địa chỉ", vì một TARGET sai không làm nhúc nhích counter phía server.
+      ⚠ Ngưỡng đặt trên một custom metric **chưa từng có mẫu** đọc ra là *pass* —
+      nên mỗi metric trong ngưỡng phải được ghi ít nhất một lần trên đường chạy thật.
+
+### File ownership
+
+`infra/k6/**` (mới) · `.gitignore` (thêm `infra/k6/.users.json`) ·
+`plans/devops-learning-platform/reports/2026-08-15-verify-3f-k6.md` (mới) ·
+cổng CI tĩnh nếu bước 7 kết luận thêm được.
+
+**KHÔNG đụng:** `values.yaml` (quota + rate-limit — phạm vi đã chốt là ĐO, không
+nới) · `services/**` (trừ khi AC-F2 phát hiện hỏng-sai-kiểu thật, và khi đó phải
+ghi rõ đã sửa gì vì sao).
+
+---
+
+## 3.G / 3.H — hoãn lượt này
+
+Giữ ở mức sketch, chi tiết hoá khi tới lượt. Ràng buộc §1 áp cho cả hai:
+
 - **3.G — autoscaling + chi phí.** `cluster-autoscaler` cloud-agnostic; verify bằng
   `helm template` + `--dry-run=server`; **không** khẳng định đã scale thật.
 - **3.H — WS scale layer.** session-affinity Traefik, tune ping/idle, gateway scale

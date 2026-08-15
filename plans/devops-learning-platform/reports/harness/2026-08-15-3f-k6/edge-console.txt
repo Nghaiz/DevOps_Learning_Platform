@@ -1,0 +1,5 @@
+##EDGE## đợi 40s cho bucket rate-limit hồi trước khi đo
+##EDGE## đối chứng âm (4 lượt cách 4s): mã = 404,404,404,404
+##EDGE## burst 40 lượt không nghỉ: {\"404\":10,\"429\":30}
+##EDGE## body của 429 đầu tiên: \"Too Many Requests\"
+##EDGE## ghi chú AC-F4: \"000\" là ĐỨT KẾT NỐI, không phải \"bị chặn\". Hai con số này cố ý đếm riêng.

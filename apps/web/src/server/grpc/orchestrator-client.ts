@@ -61,6 +61,22 @@ const CONNECT_TO_TRPC_CODE: Partial<Record<Code, TRPCError['code']>> = {
   [Code.AlreadyExists]: 'CONFLICT',
   [Code.DeadlineExceeded]: 'TIMEOUT',
   [Code.Unavailable]: 'INTERNAL_SERVER_ERROR',
+  // ⛔ THÊM Ở P3/3.F sau khi k6 ĐO ĐƯỢC hậu quả của việc thiếu dòng này.
+  //
+  // Orchestrator trả `codes.ResourceExhausted` kèm câu tiếng Việt dành cho người
+  // dùng ("đã đạt trần số sandbox đồng thời của cluster; thử lại sau ít phút" —
+  // `lifecycle/service.go`), và có hẳn test khẳng định điều đó
+  // (`TestChamQuotaTraResourceExhausted`). Nhưng mã ấy KHÔNG có trong bảng này,
+  // nên nó rơi xuống `?? 'INTERNAL_SERVER_ERROR'` ⇒ người dùng nhận **HTTP 500**.
+  // Test phía orchestrator vẫn xanh vì nó dừng ở biên gRPC; không tầng nào đo
+  // đường XUYÊN QUA BFF cho tới khi 3.F chạm trần thật trên cụm.
+  //
+  // Vì sao 429 chứ không 503: "nền tảng đầy chỗ" là trạng thái BÌNH THƯỜNG của
+  // một hệ có quota, không phải sự cố — 5xx sẽ kéo alert error-rate của 3.D nổ
+  // mỗi lần cluster đầy. Đây cũng là ánh xạ chuẩn gRPC ResourceExhausted→HTTP 429.
+  // Trùng mã với hai lớp rate-limit (biên Traefik, per-user tRPC) là đánh đổi đã
+  // biết: ba nguồn nằm ở ba tầng khác nhau và phân biệt được bằng `message`.
+  [Code.ResourceExhausted]: 'TOO_MANY_REQUESTS',
 };
 
 /**
