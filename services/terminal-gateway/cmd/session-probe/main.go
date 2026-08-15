@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -42,12 +43,25 @@ import (
 	"github.com/coder/websocket"
 )
 
+// probeHTTP là client HTTP dùng cho MỌI lượt gọi web/metrics. Mặc định là
+// DefaultClient; `-insecure` thay bằng client bỏ verify TLS — cần khi đi QUA
+// Traefik (`https://…sslip.io:30443`) với cert tự ký của lab. wsDialClient là
+// client mà `websocket.Dial` dùng; nil = mặc định (verify TLS).
+//
+// ⚠ CHỈ cho lab: bỏ verify TLS mở đường MITM. Công cụ này vốn đã "CHỈ DÙNG TRÊN
+// LAB" (header file), và ca `hold` (AC-H7) BẮT BUỘC đi qua Traefik để đo được
+// idleTimeout của biên — không có đường nào khác chạm tới lớp đó.
+var (
+	probeHTTP    = http.DefaultClient
+	wsDialClient *http.Client
+)
+
 func main() {
 	webURL := flag.String("web", "http://localhost:3000", "gốc của apps/web (BFF tRPC + Better Auth)")
 	gwURL := flag.String("gateway", "ws://localhost:8082", "gốc WS của terminal-gateway")
 	metricsURL := flag.String("metrics", "", "gốc /metrics của gateway (mặc định: suy ra từ -gateway, cổng 8081)")
 	origin := flag.String("origin", "", "header Origin (mặc định: bằng -web)")
-	kase := flag.String("case", "attach", "attach | survive | luat5 | idle | resize | m3 | jwks | m9 | drain")
+	kase := flag.String("case", "attach", "attach | survive | hold | luat5 | idle | resize | m3 | jwks | m9 | drain")
 	n := flag.Int("n", 50, "số mẫu cho ca attach (và số lượt cho ca m9)")
 	budget := flag.Duration("budget", 10*time.Minute, "trần thời gian")
 	// Ca m9 cần đọc /metrics của TỪNG replica: `-pod-metrics` nhận danh sách
@@ -68,7 +82,16 @@ func main() {
 	// (khe trả ngay) và SIGKILL (khe chỉ rụng khi hết lease). Trần chờ vì thế phải
 	// đặt được từ ngoài — xem cuaSoNoiLai.
 	reconnectWait := flag.Duration("reconnect-wait", 15*time.Second, "trần chờ khe WS được nhả ở pha 3 (ca drain)")
+	insecure := flag.Bool("insecure", false, "bỏ verify TLS (đi qua Traefik cert tự ký của lab; CHỈ dùng lab)")
 	flag.Parse()
+
+	if *insecure {
+		// #nosec G402 -- lab-only: ca hold BẮT BUỘC đi qua Traefik (:30443, cert
+		// tự ký) để đo idleTimeout của biên; xem chú thích probeHTTP.
+		tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+		probeHTTP = &http.Client{Transport: tr}
+		wsDialClient = probeHTTP
+	}
 
 	if *origin == "" {
 		*origin = *webURL
@@ -86,6 +109,8 @@ func main() {
 		err = caseAttach(ctx, *webURL, *gwURL, *metricsURL, *origin, *n)
 	case "survive":
 		err = caseSurvive(ctx, *webURL, *gwURL, *origin)
+	case "hold":
+		err = caseHold(ctx, *webURL, *gwURL, *origin, *budget)
 	case "luat5":
 		err = caseLuat5(ctx, *webURL, *gwURL, *metricsURL, *origin)
 	case "idle":
@@ -108,7 +133,7 @@ func main() {
 		cuaSoNoiLai = *reconnectWait
 		err = caseDrain(ctx, *webURL, *gwURL, *origin, *rolloutCmd, *n)
 	default:
-		err = fmt.Errorf("-case không hợp lệ: %q (cần attach | survive | luat5 | idle | resize | m3 | jwks | m9 | drain)", *kase)
+		err = fmt.Errorf("-case không hợp lệ: %q (cần attach | survive | hold | luat5 | idle | resize | m3 | jwks | m9 | drain)", *kase)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\nFAIL: %v\n", err)
@@ -526,7 +551,7 @@ func docRSS(ctx context.Context, base string) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := probeHTTP.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -717,6 +742,9 @@ func dial(ctx context.Context, s *session, gwURL, origin string) (*websocket.Con
 	c, resp, err := websocket.Dial(ctx, gwURL+"/ws/session/"+s.sid, &websocket.DialOptions{
 		HTTPHeader:   hdr,
 		Subprotocols: []string{"dlp.terminal.v1"},
+		// nil = client mặc định (verify TLS). `-insecure` đặt client bỏ verify để
+		// đi qua Traefik cert tự ký — bắt buộc cho ca hold (AC-H7).
+		HTTPClient: wsDialClient,
 	})
 	if resp != nil && resp.Body != nil {
 		_ = resp.Body.Close()
@@ -852,7 +880,7 @@ func docHistogram(ctx context.Context, base string) (*histogram, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := probeHTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -954,7 +982,7 @@ func postJSON(ctx context.Context, jar *cookieJar, url string, in, out any) erro
 	if h := jar.header(); h != "" {
 		req.Header.Set("Cookie", h)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := probeHTTP.Do(req)
 	if err != nil {
 		return err
 	}

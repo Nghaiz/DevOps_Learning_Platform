@@ -50,6 +50,14 @@ type PodConfig struct {
 	// RuntimeClassName BẮT BUỘC khớp RuntimeClass Sysbox đã cài trên cluster.
 	// Thiếu hoặc sai ⇒ VAP validation #1 từ chối pod ngay ở admission.
 	RuntimeClassName string
+
+	// RegistryMirror là URL mirror docker.io trong cụm (P3/3.I, mắt 1). Đi vào
+	// pod qua env `DLP_REGISTRY_MIRROR`; entrypoint.sh ghi `/etc/docker/daemon.json`
+	// TRƯỚC khi khởi động dockerd. RỖNG = KHÔNG thêm env, tức sandbox chạy y hệt
+	// hôm nay (dockerd không có mirror) — đó là hành vi mặc định để không hồi quy.
+	// Sản phẩm phụ có chủ ý: đây là env, KHÔNG phải volume, nên KHÔNG chạm CEL #8
+	// của ValidatingAdmissionPolicy (chỉ cấm hostPath).
+	RegistryMirror string
 }
 
 func (c PodConfig) validate() error {
@@ -91,6 +99,17 @@ func BuildSandboxPod(name string, cfg PodConfig) (*corev1.Pod, error) {
 	}
 
 	falsePtr := func() *bool { b := false; return &b }
+
+	// Env của container sandbox. Xây trước để nhánh RegistryMirror chỉ THÊM khi
+	// có giá trị — RỖNG ⇒ slice rỗng ⇒ pod không mang env nào, tức hành vi cũ.
+	// Đây là điểm DUY NHẤT đọc RegistryMirror; không có nguồn thứ hai.
+	var sandboxEnv []corev1.EnvVar
+	if cfg.RegistryMirror != "" {
+		sandboxEnv = append(sandboxEnv, corev1.EnvVar{
+			Name:  "DLP_REGISTRY_MIRROR",
+			Value: cfg.RegistryMirror,
+		})
+	}
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -139,6 +158,9 @@ func BuildSandboxPod(name string, cfg PodConfig) (*corev1.Pod, error) {
 				Name:            ContainerName,
 				Image:           cfg.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
+				// RỖNG khi không cấu hình mirror — corev1 serialize `env: null`,
+				// không đổi hành vi so với bản chưa có field này.
+				Env: sandboxEnv,
 				SecurityContext: &corev1.SecurityContext{
 					// CEL #6 — tường minh false.
 					Privileged:               falsePtr(),

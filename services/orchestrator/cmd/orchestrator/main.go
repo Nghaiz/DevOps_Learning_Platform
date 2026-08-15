@@ -280,6 +280,7 @@ func buildSessionEngine(
 		Namespace:        cfg.SandboxNamespace,
 		Image:            cfg.SandboxImage,
 		RuntimeClassName: cfg.SandboxRuntimeClass,
+		RegistryMirror:   cfg.SandboxRegistryMirror,
 	}, cfg.PoolTarget, log, met)
 
 	// Postgres là TUỲ CHỌN ở giai đoạn này: chỉ audit (B8) dùng nó, và không

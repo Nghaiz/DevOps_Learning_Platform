@@ -129,6 +129,81 @@ func theoDoiPhien(ctx context.Context, webURL, gwURL, origin, ten string, goMoi,
 	}
 }
 
+// ---------------------------------------------------------------- ca hold (AC-H7)
+
+// traefikIdleDefaultV3 là mốc `respondingTimeouts.idleTimeout` mặc định của
+// Traefik v3 khi KHÔNG khai arg nào (đo trên cụm: deploy traefik không có arg
+// idle-timeout ⇒ dùng mặc định). Một WS im lặng phải sống QUA mốc này để chứng
+// minh Traefik không giết kết nối đã upgrade.
+const traefikIdleDefaultV3 = 180 * time.Second
+
+// caseHold đóng AC-H7: một WS IM LẶNG (không stdin/stdout; chỉ còn ping 20s của
+// gateway) phải sống QUA mốc `idleTimeout` mặc định của Traefik v3.
+//
+// Đây là "phép đo thay vì một knob" mà plan §3.I đòi cho nợ 3.H #3: report 3.H
+// mới suy luận "ping 20s < idle 180s nên sống", còn ô này đo thật.
+//
+// ⛔ VÌ SAO `conSong` + KHÔNG `1006` MỚI LÀ CÂU TRẢ LỜI, không phải chỉ "sống lâu":
+// nếu Traefik giết kết nối đã upgrade ở mốc idle thì client nhận `1006` (đứt
+// KHÔNG lời) đúng quanh 180s — không phải một close code có nghĩa. Một phiên
+// sống tới hết `budget` mà không close code nào ⇒ Traefik để yên WebSocket.
+// Trên cụm lab (sessionTtl dài + gateway heartbeat gia hạn) phiên KHÔNG chết vì
+// hết hạn ứng dụng trong quãng đo, nên thứ DUY NHẤT có thể giết nó ở đây là biên.
+func caseHold(ctx context.Context, webURL, gwURL, origin string, budget time.Duration) error {
+	// Giữ ngắn hơn ctx budget một biên: nếu `hen` == ctx deadline thì hai sự kiện
+	// đua nhau, và nhánh THUA có thể là read-lỗi-vì-ctx-huỷ (w.errc, closeCode=-1)
+	// — đọc ra y hệt "biên giết WS". Biên margin cho `hetHan` fire SẠCH trước khi
+	// ctx hết, tức survival luôn đi qua nhánh conSong=true/err=nil.
+	const margin = 15 * time.Second
+	if budget < traefikIdleDefaultV3+2*margin {
+		return fmt.Errorf("ca hold cần -budget >= %s (mốc idle %s + biên %s×2) để phép đo có nghĩa; nhận %s",
+			traefikIdleDefaultV3+2*margin, traefikIdleDefaultV3, margin, budget)
+	}
+	hen := budget - margin
+	fmt.Printf("== ca hold · giữ 1 WS IM LẶNG %s (ctx budget %s), phải sống qua mốc idle Traefik %s ==\n\n",
+		hen.Round(time.Second), budget.Round(time.Second), traefikIdleDefaultV3)
+
+	kq := theoDoiPhien(ctx, webURL, gwURL, origin, "hold-im-lặng", 0, hen)
+
+	// Thất bại THIẾT LẬP (chưa kịp `ready`): songDuoc ~0 mà đã lỗi. Phân biệt với
+	// "đứt sau khi đã mở" — cái sau mới là dữ liệu cho AC-H7.
+	if !kq.conSong && kq.songDuoc < time.Second && kq.err != nil {
+		return fmt.Errorf("phiên không mở được (chưa tới ready): %w", kq.err)
+	}
+
+	trangThai := "còn sống"
+	if !kq.conSong {
+		trangThai = fmt.Sprintf("đóng %d", kq.closeCode)
+	}
+	fmt.Printf("\nsống được: %s · trạng thái: %s · expiring: %d\n\n",
+		kq.songDuoc.Round(time.Second), trangThai, kq.soExpiring)
+
+	// ⛔ `conSong=true` LÀ CÂU TRẢ LỜI, không phải `err==nil`. theoDoiPhien đặt
+	// conSong=true ở CẢ HAI nhánh sống-qua-mốc: hết `hen` (err=nil) VÀ hết ctx
+	// budget (err=deadline — WS vẫn mở khi ngân sách cạn). Cả hai nghĩa là biên
+	// KHÔNG giết WS; deadline chỉ là cách phép đo tự dừng, không phải phiên hỏng.
+	if kq.conSong {
+		if kq.songDuoc < traefikIdleDefaultV3 {
+			return fmt.Errorf("conSong nhưng chỉ %s < mốc %s — budget đặt quá ngắn, phép đo vô nghĩa",
+				kq.songDuoc.Round(time.Second), traefikIdleDefaultV3)
+		}
+		fmt.Printf("PASS AC-H7: WS im lặng sống %s > mốc idle Traefik v3 %s — biên KHÔNG giết WebSocket đã upgrade.\n",
+			kq.songDuoc.Round(time.Second), traefikIdleDefaultV3)
+		return nil
+	}
+
+	// conSong=false SAU khi đã ready = WS bị đóng. closeCode==-1 (đứt KHÔNG lời,
+	// tương đương 1006) quanh mốc idle CHÍNH LÀ chế độ hỏng AC-H7 phòng.
+	if kq.closeCode == -1 && kq.songDuoc >= traefikIdleDefaultV3-30*time.Second {
+		return fmt.Errorf("WS đứt KHÔNG lời (1006-like) sau %s ~ mốc idle Traefik %s — "+
+			"biên GIẾT WebSocket im lặng. Cần khai idleTimeout ở entrypoint Traefik (AC-H7 ĐỎ)",
+			kq.songDuoc.Round(time.Second), traefikIdleDefaultV3)
+	}
+	return fmt.Errorf("WS đóng %d sau %s — chết vì lý do KHÁC idle (4404=hết hạn ứng dụng, 4409=hard-cap); "+
+		"kiểm sessionTtl/heartbeat, không kết luận được về idle Traefik",
+		kq.closeCode, kq.songDuoc.Round(time.Second))
+}
+
 // ---------------------------------------------------------------- ca idle (N2)
 
 // caseIdle đóng cả BA vế của ô AC idle bằng HAI phiên chạy song song.

@@ -74,6 +74,41 @@ spec:
       # Không giới hạn port: chưa có convention cố định cho port pod sandbox
       # (tuỳ bài lab sinh viên chạy gì) — nguồn đã bị khoá chặt đúng vào pod
       # gateway của release này, thu hẹp thêm port không tăng cô lập thật sự.
+{{- if .Values.registryMirror.enabled }}
+---
+# 3b. Egress sandbox → registry mirror (P3/3.I mắt 1). CHỈ render khi mirror bật.
+#
+# Đây là DUY NHẤT một chiều được mở thêm cho sandbox, và nó KHÔNG mở internet:
+# đích ghim theo POD mirror trong ns `dlp-registry` (NetworkPolicy đánh giá sau
+# DNAT nên ghim pod là ghim đúng đích cuối). default-deny giữ nguyên; IMDS,
+# apiserver, và mọi host internet ngoài mirror VẪN bị chặn — đó là điều AC-I4
+# đo lại luật 10 với đối chứng dương.
+#
+# ⚠ Rule này một mình KHÔNG đủ để pull chạy: phải có CẢ rule ingress phía mirror
+# (registry-mirror-networkpolicy.yaml khối 2). Mở một chiều mà quên chiều kia là
+# "kết nối treo tới hết timeout" — đúng lớp lỗi netpol khó lần nhất.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-sandbox-allow-egress-mirror
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "sandbox-networkpolicy") | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.registryMirror.namespace }}
+          podSelector:
+            {{- include "platform.netpolComponent" (dict "context" . "component" "registry-mirror") | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.registryMirror.service.port }}
+{{- end }}
 {{- if .Values.sandbox.allowInternetEgress }}
 ---
 # 4. Egress internet CÓ ĐIỀU KIỆN — CHỈ render khi allowInternetEgress=true.
