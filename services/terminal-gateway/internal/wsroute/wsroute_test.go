@@ -38,6 +38,7 @@ const testOrigin = "https://app.example.test"
 type spySessions struct {
 	getCalls     atomic.Int32
 	acquireCalls atomic.Int32
+	refreshCalls atomic.Int32
 	sess         *sessionstore.Session
 	getErr       error
 	acquireErr   error
@@ -51,13 +52,18 @@ func (s *spySessions) Get(context.Context, string) (*sessionstore.Session, error
 	return s.sess, nil
 }
 
-func (s *spySessions) AcquireWS(context.Context, string, int, int64) (func(context.Context) error, error) {
+func (s *spySessions) AcquireWS(context.Context, string, int, int64, time.Duration) (func(context.Context) error, error) {
 	s.acquireCalls.Add(1)
 	noop := func(context.Context) error { return nil }
 	if s.acquireErr != nil {
 		return noop, s.acquireErr
 	}
 	return noop, nil
+}
+
+func (s *spySessions) RefreshWS(context.Context, string, int64, time.Duration) error {
+	s.refreshCalls.Add(1)
+	return nil
 }
 
 // fakeBridge thay cầu exec thật: ghi lại Target rồi đóng kết nối ngay.

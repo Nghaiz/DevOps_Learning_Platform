@@ -43,8 +43,41 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- /*
+      terminationGracePeriodSeconds PHẢI LỚN HƠN SHUTDOWN_GRACE (3.H).
+
+      Thứ tự lúc kubelet tắt pod: chạy preStop → gửi SIGTERM → đợi
+      terminationGracePeriodSeconds → SIGKILL. Tiến trình gateway dùng
+      SHUTDOWN_GRACE làm trần cho việc drain WS. Nếu grace của k8s ≤ SHUTDOWN_GRACE
+      thì SIGKILL tới TRƯỚC khi drain xong, `defer` trả khe WS không chạy, và ta
+      quay lại đúng chế độ hỏng mà 3.H đang vá — trong khi mọi thứ vẫn "rollout
+      thành công". Cộng thêm preStopSleep vì đồng hồ k8s bắt đầu đếm TỪ preStop.
+      */}}
+      terminationGracePeriodSeconds: {{ .Values.gateway.terminationGracePeriodSeconds }}
       containers:
         - name: gateway
+          {{- if gt (int .Values.gateway.preStopSleepSeconds) 0 }}
+          {{- /*
+          preStop ngủ để endpoint kịp RỤNG khỏi Traefik trước khi tiến trình bắt
+          đầu từ chối. Xoá endpoint và gửi SIGTERM là HAI đường bất đồng bộ: không
+          có preStop thì kết nối mới vẫn được định tuyến vào pod đang tắt trong
+          vài trăm ms đó, và người dùng thấy một lỗi nối lại ngay giữa lúc rollout
+          — đúng thời điểm họ vừa bị drain.
+
+          ⛔ PHẢI LÀ `sleep:` (SleepAction, k8s ≥1.29), KHÔNG PHẢI `exec:`.
+          Image gateway là `gcr.io/distroless/static-debian12:nonroot`: không
+          shell, không coreutils, KHÔNG CÓ `/bin/sleep`. Một preStop exec ở đây
+          hỏng ở mọi lần tắt pod — và hỏng trong IM LẶNG, vì kubelet chỉ ghi một
+          Event rồi vẫn tắt pod đúng như thường. Không có gì trong `helm upgrade`
+          hay `rollout status` đỏ lên.
+
+          SleepAction do kubelet thực thi, không cần binary nào trong image.
+          */}}
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: {{ int .Values.gateway.preStopSleepSeconds }}
+          {{- end }}
           image: '{{ .Values.image.registry }}/{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag | default .Values.image.tag }}'
           imagePullPolicy: {{ .Values.gateway.image.pullPolicy | default .Values.global.imagePullPolicy }}
           ports:
@@ -61,6 +94,8 @@ spec:
               value: {{ .Values.gateway.env.logLevel | quote }}
             - name: SHUTDOWN_GRACE
               value: {{ .Values.gateway.env.shutdownGrace | quote }}
+            - name: GATEWAY_WS_LEASE
+              value: {{ .Values.gateway.env.wsLease | quote }}
             - name: ORCHESTRATOR_GRPC_ADDR
               value: {{ .Values.gateway.env.orchestratorGrpcAddr | default (printf "%s-orchestrator:%v" (include "platform.fullname" .) .Values.orchestrator.service.grpcPort) | quote }}
             {{- include "platform.mtlsEnv" (dict "context" . "cert" "gateway") | nindent 12 }}

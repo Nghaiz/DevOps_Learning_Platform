@@ -11,6 +11,23 @@
 global:
   imagePullPolicy: Never
 
+# --- tag image, GHIM Ở ĐÂY CÓ CHỦ Ý (3.H, trả nợ 3.C + 3.F) -----------------
+#
+# Trước chặng này, tag chỉ tồn tại trong các `--set` gõ tay lúc deploy. Hệ quả đo
+# được: cụm chạy `dlp-web:3f-quota429` + `dlp-orchestrator:3c3-9e35e97`, và BẤT KỲ
+# `helm upgrade` nào quên `--set` sẽ lặng lẽ kéo hai service về tag cũ — với web
+# thì lỗi 500 lúc chạm trần quota QUAY LẠI, và không có gì đỏ lên để báo.
+#
+# ⛔ TAG Ở ĐÂY LÀ HỢP ĐỒNG "PHẢI SIDE-LOAD ĐÚNG TAG NÀY", không phải một gợi ý.
+# Cụm dùng `imagePullPolicy: Never` (ghi chú ngay trên): kubelet KHÔNG kéo được
+# từ registry, nên image phải có sẵn trên node. `infra/host/11-sideload-images.sh`
+# đọc CHÍNH giá trị này làm nguồn sự thật rồi pull→save→scp→ctr import — nên đổi
+# tag ở đây là đủ, và chạy script là cách duy nhất giữ hai bên khớp nhau.
+#
+# Đổi tag khi nào: sau mỗi lần merge vào `main` mà CI đã publish `sha-<short>`.
+image:
+  tag: sha-25cb824
+
 # Ingress + TLS KHÔNG đặt ở đây, có chủ ý: `ingress.host`, `corsAllowedOrigins`
 # và `betterAuthUrl` đều chứa IP của node, mà IP đó khác nhau ở mỗi máy lab —
 # ghim một IP vào file commit trong git là đẻ ra một giá trị sai cho mọi người
@@ -77,7 +94,23 @@ orchestrator:
       memory: 128Mi
 
 gateway:
-  replicaCount: 1
+  # 2 replica từ chặng 3.H. Gateway stateless đã được KIỂM CHỨNG chứ không chỉ
+  # được khẳng định: không map/registry session→conn nào ở package-level hay
+  # struct field; đích exec đọc từ Redis mỗi lần connect, và trần WS đồng thời
+  # cũng nằm ở Redis — nên một client nối lại trúng replica KHÁC vẫn attach đúng
+  # pod cũ (AC-H3).
+  #
+  # Chi phí trên lab: gateway xin 100m/32Mi mỗi replica, node còn dư nhiều.
+  #
+  # ⛔ KHÔNG dựng session-affinity ở Traefik, có chủ ý. Affinity không cần cho
+  # tính đúng đắn, và nó CHE mọi lỗi cross-replica — ô AC "scale ngang chạy
+  # đúng" sẽ xanh kể cả khi hệ không thực sự stateless. Xem plan §H2 quyết định H1.
+  replicaCount: 2
+  pdb:
+    # Bật CÙNG LÚC với replicaCount: 2 — `minAvailable: 1` trên 1 replica chặn
+    # `kubectl drain` vĩnh viễn.
+    enabled: true
+    minAvailable: 1
   resources:
     requests:
       cpu: 100m

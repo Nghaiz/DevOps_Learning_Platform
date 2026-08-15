@@ -98,6 +98,20 @@ type Config struct {
 	// Trần này chặn ĐỒNG THỜI, không chặn NỐI LẠI: WS đóng → DECR về 0.
 	MaxWSPerSession int
 
+	// WSLease là lease của khe `session:{id}:ws` (3.H), gia hạn ở 1/3 lease
+	// suốt vòng đời phiên.
+	//
+	// ⛔ ĐÂY LÀ THỜI GIAN MỘT NGƯỜI DÙNG BỊ KHOÁ NGOÀI phiên của chính mình khi
+	// gateway chết ĐỘT NGỘT (SIGKILL, OOM, mất node) — những ca mà drain êm
+	// không đỡ được vì `defer` không chạy. Trước 3.H giá trị này là cả phần đời
+	// còn lại của session, tức hàng chục phút.
+	//
+	// Đánh đổi khi chỉnh: ngắn hơn ⇒ tự lành nhanh hơn, nhưng nhịp gia hạn dày
+	// hơn và biên chịu lỗi Redis mỏng đi. Dài hơn ⇒ ngược lại. 90s cho biên 2
+	// nhịp lỡ (gia hạn mỗi 30s) và một cửa sổ khoá ngoài mà người dùng đọc ra là
+	// "thử lại sau một lát", không phải "hỏng rồi".
+	WSLease time.Duration
+
 	// ExecCommand là lệnh chạy trong pod khi gateway attach (G4).
 	//
 	// ⛔ HẰNG SỐ PHÍA SERVER, và đó là ranh giới bảo mật chứ không phải tiện
@@ -155,6 +169,11 @@ type Config struct {
 // per-session authz, và gateway không có chế độ chạy nào hợp lệ mà thiếu nó.
 func Load() (*Config, error) {
 	shutdownGrace, err := envx.Duration("SHUTDOWN_GRACE", 15*time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	wsLease, err := envx.Duration("GATEWAY_WS_LEASE", 90*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -268,6 +287,7 @@ func Load() (*Config, error) {
 		TokenIssuer:     envx.String("GATEWAY_TOKEN_ISSUER", "http://localhost:3000"),
 		AllowedOrigins:  splitList(envx.String("GATEWAY_ALLOWED_ORIGINS", "http://localhost:3000")),
 		MaxWSPerSession: maxWS,
+		WSLease:         wsLease,
 		RedisURL:        redisURL,
 		ExecCommand:     execCommand,
 		ExecShell:       execShell,

@@ -46,11 +46,15 @@ var acquireWSSrc string
 //go:embed release_ws.lua
 var releaseWSSrc string
 
+//go:embed refresh_ws.lua
+var refreshWSSrc string
+
 // redis.NewScript tự thử EVALSHA rồi rơi về EVAL khi gặp NOSCRIPT — đúng thứ
 // cần sau một lần Redis restart / SCRIPT FLUSH (bài học A5 của spike claim).
 var (
 	acquireWSScript = redis.NewScript(acquireWSSrc)
 	releaseWSScript = redis.NewScript(releaseWSSrc)
+	refreshWSScript = redis.NewScript(refreshWSSrc)
 )
 
 // Session là phần hash `session:{id}` mà authz dùng.
@@ -197,7 +201,36 @@ func (s *Store) Alive(ctx context.Context, sessionID string) (bool, error) {
 // release trả error CHỨ KHÔNG nuốt: khi nó hỏng, TTL là thứ DUY NHẤT còn lại gỡ
 // khoá session, và người vận hành cần thấy dấu vết trước khi sinh viên báo
 // "terminal của em bảo đang mở ở tab khác" suốt một giờ.
-func (s *Store) AcquireWS(ctx context.Context, sessionID string, limit int, expiresAt int64) (release func(context.Context) error, err error) {
+// leaseTTL tính TTL cho khe WS: lease ngắn, nhưng KHÔNG bao giờ dài hơn phần
+// đời còn lại của session.
+//
+// ⛔ VÌ SAO LEASE NGẮN THAY VÌ `expiresAt - now` (đổi ở 3.H).
+// `DECR` khe nằm trong defer của phiên. SIGKILL, OOM-kill, mất node — không ca
+// nào cho defer chạy, và `http.Server.Shutdown` KHÔNG theo dõi kết nối đã hijack
+// nên rollout cũng không. TTL vì thế là đường thoát duy nhất khỏi "session khoá
+// ở trạng thái đang mở ở tab khác", đúng như `acquire_ws.lua` đã ghi. Nhưng một
+// TTL dài bằng cả phiên (tới hàng chục phút) thì đường thoát ấy dài ngang việc
+// không có đường thoát: đo được ở baseline 3.H — 2/2 phiên KHÔNG vào lại được.
+//
+// Lease ngắn + gia hạn theo nhịp đổi chi phí ấy lấy một lượt PEXPIRE mỗi nhịp.
+//
+// ⛔ VẪN PHẢI CẮT TRẦN Ở `expiresAt`: một khe sống lâu hơn chính phiên là rác
+// giữ khoá cho một session đã chết.
+func (s *Store) leaseTTL(expiresAt int64, lease time.Duration) time.Duration {
+	conLai := time.Unix(expiresAt, 0).Sub(s.now())
+	if conLai <= 0 {
+		return conLai
+	}
+	if lease > 0 && lease < conLai {
+		return lease
+	}
+	return conLai
+}
+
+// AcquireWS giữ một khe WS của session (trần `limit`), với lease tự hết hạn để
+// khe không kẹt vĩnh viễn khi tiến trình giữ nó chết đột ngột. Hàm release trả
+// về nhả khe đó.
+func (s *Store) AcquireWS(ctx context.Context, sessionID string, limit int, expiresAt int64, lease time.Duration) (release func(context.Context) error, err error) {
 	noop := func(context.Context) error { return nil }
 
 	key, err := rediskeys.SessionWS(sessionID)
@@ -205,7 +238,7 @@ func (s *Store) AcquireWS(ctx context.Context, sessionID string, limit int, expi
 		return noop, fmt.Errorf("sessionstore: dựng key đếm WS: %w", err)
 	}
 
-	ttl := time.Unix(expiresAt, 0).Sub(s.now())
+	ttl := s.leaseTTL(expiresAt, lease)
 	if ttl <= 0 {
 		// Session đã quá hạn theo chính field của nó nhưng hash vẫn còn (reaper
 		// chưa kịp chạy). Từ chối luôn thay vì đặt một TTL âm/0: PEXPIRE với giá
@@ -228,4 +261,42 @@ func (s *Store) AcquireWS(ctx context.Context, sessionID string, limit int, expi
 		}
 		return nil
 	}, nil
+}
+
+// ErrWSSlotGone nghĩa là khe không còn tồn tại lúc gia hạn.
+//
+// Phân biệt với lỗi Redis là CÓ CHỦ Ý: "khe biến mất" và "Redis không trả lời"
+// đòi hai phản ứng khác nhau. Khe biến mất giữa phiên nghĩa là hoặc TTL đã hết
+// (nhịp gia hạn không theo kịp — một lỗi cấu hình), hoặc ai đó đã release nhầm.
+// Gộp cả hai vào một `error` chung thì cái thứ nhất lẫn vào nhiễu hạ tầng.
+var ErrWSSlotGone = errors.New("sessionstore: khe WS không còn tồn tại")
+
+// RefreshWS gia hạn lease của khe WS đang giữ (3.H).
+//
+// Gọi theo nhịp trong suốt vòng đời phiên. Không gia hạn được KHÔNG phải lý do
+// đóng phiên: khe hết hạn chỉ làm một client KHÁC chiếm được chỗ, mà trần WS là
+// tiện nghi chống-hai-tab chứ không phải hàng rào an ninh (authz đã chặn ở chín
+// bước trước đó). Cắt phiên của người đang gõ vì một lượt PEXPIRE lỗi là đổi một
+// phiền toái nhỏ lấy một sự cố thật.
+func (s *Store) RefreshWS(ctx context.Context, sessionID string, expiresAt int64, lease time.Duration) error {
+	key, err := rediskeys.SessionWS(sessionID)
+	if err != nil {
+		return fmt.Errorf("sessionstore: dựng key đếm WS: %w", err)
+	}
+
+	ttl := s.leaseTTL(expiresAt, lease)
+	if ttl <= 0 {
+		// Phiên đã quá hạn: để khe tự rụng. Gia hạn ở đây là kéo dài một khe
+		// thuộc về session không còn sống.
+		return ErrWSSlotGone
+	}
+
+	n, err := refreshWSScript.Run(ctx, s.rdb, []string{key}, ttl.Milliseconds()).Int64()
+	if err != nil {
+		return fmt.Errorf("sessionstore: gia hạn khe WS %s: %w", key, err)
+	}
+	if n == 0 {
+		return ErrWSSlotGone
+	}
+	return nil
 }

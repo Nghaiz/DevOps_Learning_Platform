@@ -47,7 +47,7 @@ func main() {
 	gwURL := flag.String("gateway", "ws://localhost:8082", "gốc WS của terminal-gateway")
 	metricsURL := flag.String("metrics", "", "gốc /metrics của gateway (mặc định: suy ra từ -gateway, cổng 8081)")
 	origin := flag.String("origin", "", "header Origin (mặc định: bằng -web)")
-	kase := flag.String("case", "attach", "attach | survive | luat5 | idle | resize | m9")
+	kase := flag.String("case", "attach", "attach | survive | luat5 | idle | resize | m3 | jwks | m9 | drain")
 	n := flag.Int("n", 50, "số mẫu cho ca attach (và số lượt cho ca m9)")
 	budget := flag.Duration("budget", 10*time.Minute, "trần thời gian")
 	// Ca m9 cần đọc /metrics của TỪNG replica: `-pod-metrics` nhận danh sách
@@ -60,6 +60,14 @@ func main() {
 	// hiện nguyên văn trong dòng lệnh khiến báo cáo tự chứng minh đã giết cái gì.
 	killCmd := flag.String("kill-cmd", "", "lệnh shell giết gateway (ca m3)")
 	rotateCmd := flag.String("rotate-cmd", "", "lệnh shell xoay khoá Better Auth (ca jwks)")
+	// Ca drain cần một lượt rollout THẬT. Truyền từ ngoài cùng lý do như
+	// -kill-cmd: cách rollout là quyết định của người vận hành, và để nó hiện
+	// nguyên văn trong dòng lệnh khiến báo cáo tự chứng minh đã kích cái gì.
+	rolloutCmd := flag.String("rollout-cmd", "", "lệnh shell rollout gateway (ca drain)")
+	// Ca drain dùng cho HAI kịch bản có thang thời gian khác hẳn nhau: rollout êm
+	// (khe trả ngay) và SIGKILL (khe chỉ rụng khi hết lease). Trần chờ vì thế phải
+	// đặt được từ ngoài — xem cuaSoNoiLai.
+	reconnectWait := flag.Duration("reconnect-wait", 15*time.Second, "trần chờ khe WS được nhả ở pha 3 (ca drain)")
 	flag.Parse()
 
 	if *origin == "" {
@@ -96,8 +104,11 @@ func main() {
 			}
 		}
 		err = caseM9(ctx, *webURL, *gwURL, *origin, ds, *n)
+	case "drain":
+		cuaSoNoiLai = *reconnectWait
+		err = caseDrain(ctx, *webURL, *gwURL, *origin, *rolloutCmd, *n)
 	default:
-		err = fmt.Errorf("-case không hợp lệ: %q (cần attach | survive | luat5 | idle | resize | m9)", *kase)
+		err = fmt.Errorf("-case không hợp lệ: %q (cần attach | survive | luat5 | idle | resize | m3 | jwks | m9 | drain)", *kase)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\nFAIL: %v\n", err)
