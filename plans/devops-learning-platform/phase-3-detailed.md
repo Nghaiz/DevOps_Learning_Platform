@@ -480,9 +480,19 @@ Giữ ở mức sketch, chi tiết hoá khi tới lượt. Ràng buộc đã ch�
   > VU của k6 dùng chung MỘT bucket IP**. Nên k6 sẽ đụng cấu hình rất lâu trước khi
   > đụng phần cứng.
   >
-  > ⇒ Trước khi viết k6 phải chốt: 3.F đo trần **cấu hình như đang chạy**, hay nới
-  > quota + rate-limit để tìm trần **phần cứng**? Hai lựa chọn cho hai ô AC khác
-  > hẳn nhau, và ô nào cũng phải tự khai trần nó đang đo.
+  > **CHỐT VỚI CHỦ DỰ ÁN (2026-08-15): đo trần CẤU HÌNH như đang chạy.** Không nới
+  > quota, không nới rate-limit. Hệ quả cho ô AC của 3.F:
+  >
+  > - Ô AC phải ghi nguyên văn thứ nó đo: *"trên lab 1-node, cấu hình hiện tại,
+  >   N = … session đồng thời; chặn bởi ResourceQuota chứ không bởi phần cứng"*.
+  >   Một ô ghi "chịu N session" mà không khai trần nào chặn là ô nói dối.
+  > - k6 vì thế đo **hai** thứ, không phải một: (a) hệ có chạm đúng trần cấu hình
+  >   không, và (b) khi chạm thì nó hỏng ĐÚNG KIỂU không — 429 từ biên chứ không
+  >   phải 5xx, `dlp_claim_total{result="quota_blocked"}` tăng chứ không phải pod
+  >   mồ côi, reaper theo kịp chứ không tồn đọng.
+  > - Vì mọi VU chung một bucket IP (NodePort SNAT), ramp song song sẽ ra **lỗi
+  >   kết nối 000** chứ không ra 429 — 3.E đã đo đúng ca này. Kịch bản k6 phải có
+  >   nhánh tuần tự để phân biệt "bị chặn đúng" với "không kết nối được".
 - **3.G — autoscaling + chi phí.** `cluster-autoscaler` cloud-agnostic; verify bằng
   `helm template` + `--dry-run=server`; **không** khẳng định đã scale thật.
 - **3.H — WS scale layer.** session-affinity Traefik, tune ping/idle, gateway scale
