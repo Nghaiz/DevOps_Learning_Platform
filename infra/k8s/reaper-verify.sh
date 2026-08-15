@@ -205,12 +205,59 @@ cleanup() {
 trap cleanup EXIT
 
 # ── Quan sát ─────────────────────────────────────────────────────────────────
-pod_exists() { kubectl -n "$SANDBOX_NS" get pod "$1" -o jsonpath='{.status.phase}' 2>/dev/null; }
-in_claimed() {
-	if redis LRANGE pool:claimed 0 -1 | grep -qx "$1"; then echo yes; else echo no; fi
+#
+# ⛔ FAIL-CLOSED. ĐÂY LÀ CHỖ DỄ LÀM Ô AC NÓI DỐI NHẤT TRONG CẢ FILE.
+#
+# Bản đầu viết `kubectl get pod ... 2>/dev/null` rồi coi output rỗng là "pod đã
+# biến mất", và `in_claimed` echo `no` khi lệnh redis hỏng. Cả hai ánh xạ
+# **lỗi công cụ → thứ ta đang tìm đã biến mất** — tức đúng chiều làm ô AC XANH.
+# Một lượt `kubectl exec` chớp giữa lượt đo là "AC-C2 vế 1b: tên đã rời
+# pool:claimed" PASS kèm chú thích "index sạch", trong khi tên vẫn nằm nguyên đó.
+#
+# Đối chứng dương ở t0 KHÔNG bịt được lỗ này: nó chứng minh phép quan sát thấy
+# được "còn" tại t0, không nói gì về t1.
+#
+# Nên ba hàm dưới trả BA giá trị, và giá trị thứ ba luôn là ĐỎ ở chỗ dùng:
+#   · pod_exists  → "<phase>" | MISSING (NotFound thật) | UNKNOWN
+#   · in_claimed  → yes | no | unknown
+#   · sandbox_pod_count → số | UNKNOWN
+pod_exists() {
+	local out rc
+	out="$(kubectl -n "$SANDBOX_NS" get pod "$1" -o jsonpath='{.status.phase}' 2>&1)"
+	rc=$?
+	if [ "$rc" -eq 0 ]; then
+		printf '%s' "${out:-UNKNOWN}"
+		return 0
+	fi
+	# Chỉ NotFound mới là "đã biến mất". Mọi lỗi khác (apiserver, kubeconfig,
+	# context sai, RBAC) là KHÔNG BIẾT — và không biết thì không được tính là đã dọn.
+	case "$out" in
+	*NotFound* | *"not found"*) printf 'MISSING' ;;
+	*) printf 'UNKNOWN' ;;
+	esac
 }
+pod_gone() { [ "$(pod_exists "$1")" = MISSING ]; }
+
+in_claimed() {
+	local out rc
+	out="$(redis LRANGE pool:claimed 0 -1)"
+	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		printf 'unknown'
+		return 0
+	fi
+	if printf '%s\n' "$out" | grep -qxF "$1"; then printf 'yes'; else printf 'no'; fi
+}
+
 sandbox_pod_count() {
-	kubectl -n "$SANDBOX_NS" get pods -l app=sandbox --no-headers 2>/dev/null | grep -c Running || true
+	local out rc
+	out="$(kubectl -n "$SANDBOX_NS" get pods -l app=sandbox --no-headers 2>/dev/null)"
+	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		printf 'UNKNOWN'
+		return 0
+	fi
+	printf '%s\n' "$out" | grep -c Running || true
 }
 
 # ── "0 pod rò" nghĩa là gì, chính xác ────────────────────────────────────────
@@ -227,7 +274,10 @@ sandbox_pod_count() {
 #     là chỗ rò ĂN QUOTA: không ai biết nó tồn tại để dọn.
 # Tầng 2a có grace 5 phút cho pod vừa sinh, nên pod trẻ hơn ngưỡng đó không tính
 # là orphan — nếu tính, mọi lượt đo trùng một cold-path đang chạy sẽ đỏ oan.
-index_names() { { redis LRANGE pool:free 0 -1; redis LRANGE pool:claimed 0 -1; } | grep . | sort -u; }
+# ⛔ `|| true` sau `grep .`: dưới `pipefail`, hai list RỖNG làm grep trả 1 ⇒ hàm
+# trả 1 ⇒ `idx="$(index_names)"` là simple command thất bại ⇒ `set -e` giết cả
+# script giữa phép đo, không in bảng TỔNG. Pool rỗng là trạng thái hợp lệ.
+index_names() { { redis LRANGE pool:free 0 -1; redis LRANGE pool:claimed 0 -1; } | grep . | sort -u || true; }
 
 # ⛔ `custom-columns` CHỨ KHÔNG PHẢI `jsonpath`. Không vì jsonpath sai — nó chạy
 # đúng — mà vì chuỗi jsonpath cần dấu nháy lồng trong dấu nháy và một `{"\n"}`,
@@ -259,7 +309,9 @@ phantom_orphan() {
 
 	while read -r name created; do
 		if [ -z "$name" ]; then continue; fi
-		age=$((now - $(date -u -d "$created" +%s)))
+		local born
+		born="$(epoch_of "$created")" || continue
+		age=$((now - born))
 		if [ "$age" -lt "$young" ]; then continue; fi
 		if ! grep -qxF "$name" <<<"$idx"; then
 			orphan+=("$name")
@@ -278,13 +330,20 @@ case_expiry() {
 	# Preflight quota. Trần thật của lab KHÔNG phải `pods: 10` mà là CPU/RAM:
 	# requests.cpu 2100m ÷ 500m = 4 pod. Chạy thiếu chỗ thì `CreateSession` đỏ vì
 	# hết quota và ta sẽ đọc nó thành "reaper hỏng".
+	# ⛔ THIẾU KHE LÀ ĐIỀU KIỆN MÔI TRƯỜNG, KHÔNG PHẢI MỘT Ô AC ĐỎ. Ghi nó bằng
+	# `bad` nghĩa là một lượt chạy trùng lúc cụm bận đọc ra như "reaper hỏng".
+	# `exit 2` phân biệt được "không đo được" với "đo được và sai".
 	local running need_slots
 	running="$(sandbox_pod_count)"
 	need_slots=$((EXPIRE_COUNT + 1))
+	if [ "$running" = UNKNOWN ]; then
+		echo "không đếm được pod sandbox (kubectl lỗi) — không đo được, không kết luận" >&2
+		exit 2
+	fi
 	info "sandbox pod đang chạy: ${running} · cần thêm ${need_slots} khe (trần 4)"
 	if [ $((running + need_slots)) -gt 4 ]; then
-		bad "đủ khe quota để dựng cảnh" "đang ${running}, cần ${need_slots}, trần 4 — chờ session cũ hết hạn rồi chạy lại"
-		return
+		echo "thiếu khe quota: đang ${running}, cần ${need_slots}, trần 4 — chờ session cũ hết hạn rồi chạy lại" >&2
+		exit 2
 	fi
 
 	scrape_metrics || true
@@ -315,15 +374,19 @@ case_expiry() {
 	if [ -z "${pods[0]:-}" ] || [ -z "$long_pod" ] || [ -z "${expires[0]:-}" ]; then
 		bad "dựng được cảnh (${EXPIRE_COUNT} session ngắn + 1 session dài)" \
 			"short=${pods[*]:-∅} long=${long_pod:-∅} expiresAt=${expires[0]:-∅}"
+		scrub_all "${pods[@]:-}" "$long_pod"
 		return
 	fi
 	info "session ngắn (ttl=${SHORT_TTL}s): ${pods[*]}"
 	info "session dài  (ttl=${LONG_TTL}s): ${long_pod} · hết hạn ${long_exp}"
 
 	# ── VẾ 1 (đối chứng dương): t0 — mọi thứ ĐANG SỐNG và quan sát được ──────
-	local alive_at_t0=yes p
+	local alive_at_t0=yes p ph
 	for p in "${pods[@]}" "$long_pod"; do
-		[ -n "$(pod_exists "$p")" ] || alive_at_t0=no
+		ph="$(pod_exists "$p")"
+		case "$ph" in
+		MISSING | UNKNOWN) alive_at_t0=no ;;
+		esac
 		[ "$(in_claimed "$p")" = yes ] || alive_at_t0=no
 	done
 	if [ "$alive_at_t0" = yes ]; then
@@ -337,20 +400,34 @@ case_expiry() {
 	# Hạn chót = EXPIRESAT (đồng hồ server) + REAP_INTERVAL + biên. Tầng 1 nghe
 	# keyspace event nên thường xoá trong ~1s; tầng 2c là lưới đỡ khi event lỡ,
 	# và nó chỉ chạy mỗi REAP_INTERVAL.
-	local reap_interval exp_epoch deadline t_start
-	reap_interval="$(kubectl -n "$NS" get deploy "${RELEASE}-orchestrator" \
-		-o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="REAP_INTERVAL")].value}' 2>/dev/null || echo 60s)"
-	reap_interval="${reap_interval%s}"
-	exp_epoch="$(date -u -d "${expires[0]}" +%s)"
+	local reap_interval exp_epoch deadline t_start e
+	reap_interval="$(read_reap_interval)"
+
+	# ⛔ NEO VÀO MỐC HẾT HẠN MUỘN NHẤT, KHÔNG PHẢI CÁI ĐẦU TIÊN. Các session ngắn
+	# được dựng TUẦN TỰ, mỗi cái một probe pod (chờ tới 180s). Nên
+	# `exp[n] ≥ exp[0] + thời-gian-dựng`: neo vào `exp[0]` thì một lần schedule
+	# chậm là session cuối chưa kịp hết hạn khi hạn chót đã qua, và ô AC đỏ chỉ
+	# thẳng vào reaper cho một lỗi của phép đo.
+	exp_epoch=0
+	for e in "${expires[@]}"; do
+		local t
+		t="$(epoch_of "$e")" || continue
+		[ "$t" -gt "$exp_epoch" ] && exp_epoch="$t"
+	done
+	if [ "$exp_epoch" -eq 0 ]; then
+		bad "đọc được mốc hết hạn từ server" "expires=${expires[*]:-∅}"
+		scrub_all "${pods[@]}" "$long_pod"
+		return
+	fi
 	deadline=$((exp_epoch + reap_interval + 45))
 	t_start="$(vm_now)"
-	info "chờ tới $(date -u -d "@${deadline}" +%H:%M:%SZ) (hết hạn ${expires[0]} + REAP_INTERVAL ${reap_interval}s + 45s biên)"
+	info "chờ tới $(date -u -d "@${deadline}" +%H:%M:%SZ) (hết hạn muộn nhất $(date -u -d "@${exp_epoch}" +%H:%M:%SZ) + REAP_INTERVAL ${reap_interval}s + 45s biên)"
 
 	local gone_at=""
 	while [ "$(vm_now)" -le "$deadline" ]; do
 		local all_gone=yes
 		for p in "${pods[@]}"; do
-			[ -z "$(pod_exists "$p")" ] || all_gone=no
+			pod_gone "$p" || all_gone=no
 		done
 		if [ "$all_gone" = yes ]; then
 			gone_at="$(vm_now)"
@@ -362,7 +439,7 @@ case_expiry() {
 	# ── VẾ 2: session hết hạn đã bị dọn ──────────────────────────────────────
 	local elapsed still=()
 	for p in "${pods[@]}"; do
-		[ -z "$(pod_exists "$p")" ] || still+=("$p")
+		pod_gone "$p" || still+=("$p [$(pod_exists "$p")]")
 	done
 	if [ ${#still[@]} -eq 0 ]; then
 		[ -n "$gone_at" ] || gone_at="$(vm_now)"
@@ -372,30 +449,33 @@ case_expiry() {
 		# một lượt chạy nhanh, lớn hơn ở lượt chậm — tức một con số không so sánh
 		# được giữa hai lượt.
 		elapsed=$((gone_at - exp_epoch))
-		ok "AC-C2 vế 1: ${EXPIRE_COUNT}/${EXPIRE_COUNT} pod của session hết hạn đã bị XOÁ" 			"sau ${elapsed}s kể từ mốc hết hạn ${expires[0]} (độ phân giải poll 5s)"
+		ok "AC-C2 vế 1: ${EXPIRE_COUNT}/${EXPIRE_COUNT} pod của session hết hạn đã bị XOÁ" \
+			"sau ${elapsed}s kể từ mốc hết hạn muộn nhất (độ phân giải poll 5s)"
 	else
-		bad "AC-C2 vế 1: pod của session hết hạn đã bị XOÁ" "còn sống: ${still[*]}"
+		bad "AC-C2 vế 1: pod của session hết hạn đã bị XOÁ" "chưa biến mất: ${still[*]}"
 	fi
 
-	local still_indexed=()
+	# `unknown` KHÔNG được tính là "đã rời index" — xem khối fail-closed ở đầu file.
+	local still_indexed=() idx
 	for p in "${pods[@]}"; do
-		[ "$(in_claimed "$p")" = no ] || still_indexed+=("$p")
+		idx="$(in_claimed "$p")"
+		[ "$idx" = no ] || still_indexed+=("${p}(${idx})")
 	done
 	if [ ${#still_indexed[@]} -eq 0 ]; then
 		ok "AC-C2 vế 1b: tên đã rời pool:claimed" "index sạch — dlp_pool_claimed_size đếm đúng"
 	else
-		bad "AC-C2 vế 1b: tên đã rời pool:claimed" "còn treo: ${still_indexed[*]}"
+		bad "AC-C2 vế 1b: tên đã rời pool:claimed" "còn treo (hoặc không đọc được): ${still_indexed[*]}"
 	fi
 
 	# ── VẾ 3 (đối chứng âm): session CHƯA hết hạn phải còn nguyên ────────────
 	local long_phase long_idx
 	long_phase="$(pod_exists "$long_pod")"
 	long_idx="$(in_claimed "$long_pod")"
-	if [ -n "$long_phase" ] && [ "$long_idx" = yes ]; then
+	if [ "$long_phase" = Running ] && [ "$long_idx" = yes ]; then
 		ok "AC-C2 vế 2 (đối chứng âm): session CHƯA hết hạn còn nguyên" "pod=${long_phase}, trong pool:claimed"
 	else
 		bad "AC-C2 vế 2 (đối chứng âm): session CHƯA hết hạn còn nguyên" \
-			"pod='${long_phase:-BIẾN MẤT}' claimed=${long_idx} — reaper đang xoá bừa, không phải dọn đúng"
+			"pod='${long_phase}' claimed=${long_idx} — nếu MISSING thì reaper xoá bừa; nếu UNKNOWN thì phép đo hỏng, đừng kết luận"
 	fi
 
 	# ── Tầng nào đã làm việc ─────────────────────────────────────────────────
@@ -410,7 +490,54 @@ case_expiry() {
 	# Dọn ĐỦ MỌI DẤU VẾT, không chỉ session key. Xoá mỗi key rồi bỏ đi sẽ để lại
 	# đúng cái rác mà chặng này vừa vá — lượt chạy sau sẽ đọc nó thành một chỗ rò
 	# mới, và trần quota 4 pod không chịu được vài lượt như thế.
-	scrub_session "$long_id" "$long_pod"
+	#
+	# ⛔ DỌN CẢ SESSION NGẮN. Bản đầu chỉ dọn session dài, nên khi AC-C2 ĐỎ (đúng
+	# lúc ta cần chạy lại nhất) hai pod ngắn ở lại và lượt sau chết ở preflight
+	# quota — một ô đỏ hoàn toàn do rác của lượt trước.
+	scrub_all "${pods[@]}" "$long_pod"
+}
+
+# read_reap_interval — REAP_INTERVAL của orchestrator, ĐÃ kiểm là số.
+#
+# ⛔ `kubectl get -o jsonpath` THOÁT 0 VÀ IN RỖNG khi field không tồn tại, nên
+# `|| echo 60s` chỉ cứu được ca kubectl lỗi, không cứu ca đổi tên env / khác
+# RELEASE / orchestrator không phải `containers[0]`. Với chuỗi rỗng,
+# `$((exp + reap_interval + 45))` cho ra `exp + 45` mà bash KHÔNG báo gì (nó đọc
+# `+ + 45` là cộng-nhị-phân rồi cộng-đơn-phân) ⇒ hạn chờ tụt xuống dưới một chu
+# kỳ sweep và AC-C2 đỏ vì phép đo.
+read_reap_interval() {
+	local v
+	v="$(kubectl -n "$NS" get deploy "${RELEASE}-orchestrator" \
+		-o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="REAP_INTERVAL")].value}' 2>/dev/null || true)"
+	v="${v%s}"
+	case "$v" in
+	'' | *[!0-9]*)
+		info "không đọc được REAP_INTERVAL (nhận '${v}') — dùng mặc định 60s"
+		printf '60'
+		;;
+	*) printf '%s' "$v" ;;
+	esac
+}
+
+# epoch_of — RFC3339 → epoch; thoát khác 0 nếu không phân giải được.
+# `date` lỗi mà không chặn ở đây thì `$((now - ))` giết cả script giữa phép đo.
+epoch_of() {
+	local t
+	[ -n "$1" ] || return 1
+	t="$(date -u -d "$1" +%s 2>/dev/null)" || return 1
+	[ -n "$t" ] || return 1
+	printf '%s' "$t"
+}
+
+# scrub_all <pod...> — dọn theo TÊN POD, tra ngược session id từ hash pod.
+# Dùng ở các đường thoát sớm, nơi ta có tên pod nhưng không muốn thread session id.
+scrub_all() {
+	local p sid
+	for p in "$@"; do
+		[ -n "$p" ] || continue
+		sid="$(redis HGET "pod:${p}" sessionId 2>/dev/null || true)"
+		scrub_session "${sid:-unknown}" "$p"
+	done
 }
 
 # scrub_session — gỡ mọi dấu vết của một session dựng-để-đo.
@@ -502,10 +629,16 @@ case_restart() {
 	info "pool: free ${free0}→${free1} (đổi theo POOL_TARGET là ĐÚNG), claimed ${claimed0}→${claimed1}"
 	info "khớp index/cụm sau restart: ${consist1}"
 
-	if [ "$claimed0" = "$claimed1" ]; then
-		ok "AC-C3 vế 1a: số pod ĐÃ CLAIM không đổi qua restart" "claimed ${claimed0}→${claimed1}"
+	# ⛔ KHÔNG GÁC TRÊN MỖI TỔNG. `LLEN` bằng nhau vẫn đúng khi pod của session này
+	# rơi ra và một pod khác lọt vào — ô gác trên TỔNG mù đúng ca nó cần thấy. Nên
+	# kèm một khẳng định trên CHÍNH tên pod đang đo.
+	local spod_idx
+	spod_idx="$(in_claimed "$spod")"
+	if [ "$claimed0" = "$claimed1" ] && [ "$spod_idx" = yes ]; then
+		ok "AC-C3 vế 1a: pod của session này vẫn trong pool:claimed" "claimed ${claimed0}→${claimed1}, ${spod} còn trong index"
 	else
-		bad "AC-C3 vế 1a: số pod ĐÃ CLAIM không đổi qua restart" "claimed ${claimed0}→${claimed1}"
+		bad "AC-C3 vế 1a: pod của session này vẫn trong pool:claimed" \
+			"claimed ${claimed0}→${claimed1}, ${spod} trong index=${spod_idx}"
 	fi
 	if [ "$consist1" = "$(printf 'phantom=0:∅ orphan=0:∅')" ]; then
 		ok "AC-C3 vế 1b: index Redis khớp cụm — 0 pod rò cả hai chiều" "$consist1"
@@ -612,7 +745,7 @@ case_ghost() {
 	local ctl_idx ctl_phase
 	ctl_idx="$(in_claimed "$ctl_pod")"
 	ctl_phase="$(pod_exists "$ctl_pod")"
-	if [ "$ctl_idx" = yes ] && [ -n "$ctl_phase" ]; then
+	if [ "$ctl_idx" = yes ] && [ "$ctl_phase" = Running ]; then
 		ok "đối chứng âm: session còn sống KHÔNG bị đụng" "pod=${ctl_phase}, vẫn trong pool:claimed"
 	else
 		bad "đối chứng âm: session còn sống KHÔNG bị đụng" \

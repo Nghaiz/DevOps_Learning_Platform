@@ -35,6 +35,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -99,6 +100,15 @@ func main() {
 	}
 	if *ttl < 0 {
 		fmt.Fprintf(os.Stderr, "-ttl âm (%d): server trả InvalidArgument, không cần gửi đi để biết\n", *ttl)
+		os.Exit(2)
+	}
+	// ⛔ CHẶN TRÀN TRƯỚC KHI ÉP KIỂU. `int32(*ttl)` cắt trong im lặng: `-ttl
+	// 4294967296` thành 0, tức "dùng mặc định của server" (1h) mà không một lời
+	// nào — rồi script chờ theo `EXPIRESAT` và treo một tiếng, hoặc chết vì ctx
+	// 3 phút của probe. Một biến đổi đầu vào im lặng trong chính công cụ tồn tại
+	// để phép đo đáng tin là thứ không được phép có.
+	if *ttl > math.MaxInt32 {
+		fmt.Fprintf(os.Stderr, "-ttl %d vượt int32 — server nhận int32, ép kiểu sẽ đổi giá trị trong im lặng\n", *ttl)
 		os.Exit(2)
 	}
 

@@ -471,4 +471,59 @@ func TestMarkFailedDonIndexPoolCuaSessionMa(t *testing.T) {
 	if got := h.pods.deletedNames(); len(got) != 1 || got[0] != ghostPod {
 		t.Fatalf("xoá %v, cần đúng [%s]", got, ghostPod)
 	}
+
+	// Con trỏ phải đi cùng hash pod: để lại thì đúng mốc TTL, tầng 1 sẽ gọi
+	// ReapExpired trên một session đã chốt, không đọc được userId/tier (hash pod
+	// vừa xoá) và log WARN "audit thủng" cho một việc bình thường.
+	ghostPtr, _ := rediskeys.SessionPod(ghost.GetId())
+	if n, _ := h.rdb.Exists(ctx, ghostPtr).Result(); n != 0 {
+		t.Fatal("con trỏ session:{id}:pod của session ma còn — tầng 1 sẽ bắn cảnh báo sai lúc TTL rụng")
+	}
+}
+
+// TestMarkFailedDonLaiSauKhiChetGiuaChung.
+//
+// Ca crash-giữa-chừng: script Lua đã HSET FAILED nhưng tiến trình chết trước khi
+// dọn index (rollout, OOM, SIGKILL trong lúc audit chờ Postgres). Trạng thái còn
+// lại là ĐÚNG chỗ rò mà bản vá này sinh ra để vá.
+//
+// ⛔ VÀ KHÔNG TẦNG NÀO CỦA REAPER NHẶT ĐƯỢC NÓ: 2b bỏ qua status cuối và không
+// bao giờ thăm lại; 2c thấy `EXISTS session:{id}` == 1 nên coi là session sống;
+// 2a đòi hash pod VẮNG mà hash này còn; tầng 4 chỉ quét `pool:free`. Nên đường
+// tự lành duy nhất là chính `MarkFailed` chịu chạy lại — tức lời gọi thứ hai
+// PHẢI dọn, dù script trả `changed == 0`.
+func TestMarkFailedDonLaiSauKhiChetGiuaChung(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	sess := startSession(t, h)
+	podName := sess.GetPodName()
+
+	// Lượt 1 — chốt FAILED và dọn.
+	if err := h.svc.MarkFailed(ctx, sess.GetId(), "pod biến mất"); err != nil {
+		t.Fatalf("MarkFailed lượt 1: %v", err)
+	}
+
+	// Dựng lại đúng cảnh "chết giữa chừng": status đã FAILED, index thì chưa dọn.
+	if err := h.rdb.RPush(ctx, rediskeys.PoolClaimed, podName).Err(); err != nil {
+		t.Fatalf("dựng lại index: %v", err)
+	}
+	podKey, _ := rediskeys.Pod(podName)
+	if err := h.rdb.HSet(ctx, podKey, "sessionId", sess.GetId()).Err(); err != nil {
+		t.Fatalf("dựng lại hash pod: %v", err)
+	}
+
+	// Lượt 2 — script trả changed == 0 (đã ở trạng thái cuối). Vẫn PHẢI dọn.
+	if err := h.svc.MarkFailed(ctx, sess.GetId(), "lượt hai sau crash"); err != nil {
+		t.Fatalf("MarkFailed lượt 2: %v", err)
+	}
+
+	claimed, _ := h.rdb.LRange(ctx, rediskeys.PoolClaimed, 0, -1).Result()
+	for _, n := range claimed {
+		if n == podName {
+			t.Fatal("lượt hai KHÔNG dọn: chỗ rò sống lại sau một lần crash, và không tầng nào của reaper nhặt được nó")
+		}
+	}
+	if n, _ := h.rdb.Exists(ctx, podKey).Result(); n != 0 {
+		t.Fatal("lượt hai KHÔNG xoá hash pod dựng lại")
+	}
 }

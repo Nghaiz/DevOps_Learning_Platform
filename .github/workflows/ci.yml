@@ -244,6 +244,25 @@ jobs:
           fi
           grep -c '"Action":"pass"' /tmp/pool-test.json
 
+      # Cùng lý lẽ, cho lane thứ ba: vòng đời session (`internal/lifecycle`). Nó
+      # chạy trên Redis THẬT vì `claim.lua` cần Lua đầy đủ, và nó chứa các ĐỐI
+      # CHỨNG ÂM của P3/3.C — "session còn sống KHÔNG bị đụng khi dọn session ma",
+      # "lượt hai vẫn dọn sau khi chết giữa chừng". Đối chứng âm là thứ mất đi thì
+      # không ai thấy: một lần đổi env là chúng skip sạch, `make go-test` ở trên
+      # trả 0, và bản vá chống-rò không còn gì gác nó.
+      - name: 'Vòng đời session + đối chứng âm reaper (Redis thật, không được SKIP)'
+        env:
+          REDIS_URL: redis://127.0.0.1:6379/15
+        working-directory: services/orchestrator
+        run: |
+          set -o pipefail
+          go test ./internal/lifecycle/... -count=1 -json | tee /tmp/lifecycle-test.json
+          if grep -q '"Action":"skip"' /tmp/lifecycle-test.json; then
+            echo "::error::Test vòng đời session bị SKIP — Redis service không tới được. Đối chứng âm của 3.C không gác gì trong lần chạy này."
+            exit 1
+          fi
+          grep -c '"Action":"pass"' /tmp/lifecycle-test.json
+
       # Cùng lý lẽ với bước warm-pool ở trên, cho lane còn lại: authz per-session
       # của gateway (luật 8 + luật 10) chạy trên Redis THẬT, nên gỡ Redis ra là
       # cả bộ acceptance IDOR tự skip và CI vẫn xanh. Đây đúng là bộ test mà

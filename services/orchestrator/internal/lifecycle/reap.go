@@ -297,13 +297,47 @@ func (s *Service) MarkFailed(ctx context.Context, sessionID, reason string) erro
 			Namespace: s.cfg.Namespace,
 			Detail:    reason,
 		})
-		// Sau audit: audit đọc userId/tier từ hash SESSION (đã đọc ở trên), còn
-		// cleanupPod xoá hash POD. Hai hash khác nhau, nhưng giữ thứ tự này thì
-		// một lần đổi chỗ nguồn đọc sau này không âm thầm làm thủng dòng audit.
-		// Chỉ chạy khi changed == 1: lượt thứ hai không có gì để dọn, và gọi lại
-		// sẽ ghi thêm log cho một việc đã xong.
-		if podName != "" {
-			s.cleanupPod(ctx, podName)
+	}
+
+	// ⛔ DỌN VÔ ĐIỀU KIỆN — KHÔNG ĐẶT TRONG `changed == 1`.
+	//
+	// Bản đầu của bản vá này đặt lời gọi bên trong nhánh đó với lý lẽ "lượt thứ
+	// hai không có gì để dọn". Lý lẽ ấy sai, và `Reap` ở ngay đầu file đã bác bỏ
+	// nó từ trước: nó CỐ Ý gọi `cleanupPod` cả trong ca `alreadyReaped`, vì "lần
+	// trước có thể đã đánh dấu xong mà chết trước khi xoá được pod".
+	//
+	// Cùng ca đó xảy ra ở đây, và hậu quả nặng hơn: script Lua HSET xong →
+	// tiến trình chết (rollout, OOM, SIGKILL trong lúc audit chờ Postgres 3s) →
+	// chưa tới lượt dọn. Trạng thái còn lại là ĐÚNG chỗ rò mà commit này sinh ra
+	// để vá, và KHÔNG tầng nào nhặt được nó: 2b bỏ qua status cuối và không bao
+	// giờ thăm lại; 2c thấy `EXISTS session:{id}` == 1 nên bỏ qua; 2a đòi hash
+	// pod VẮNG mà hash này còn; tầng 4 chỉ quét `pool:free`. Rò tới hết
+	// `SESSION_TTL`, không có đường retry.
+	//
+	// Mọi bước trong `cleanupPod` đều idempotent (`Delete` nuốt NotFound, DEL và
+	// LREM là no-op), nên gọi lại rẻ và an toàn.
+	if podName != "" {
+		s.cleanupPod(ctx, podName)
+
+		// ⛔ VÀ XOÁ LUÔN CON TRỎ `session:{id}:pod`.
+		//
+		// Con trỏ sống lâu hơn hash (`ttl + PodPointerGrace`) để tầng 1 còn đọc
+		// được podName khi hash hết hạn. Với một session ĐÃ chốt FAILED thì tầng
+		// 1 không còn việc gì — nhưng nếu để con trỏ lại, đúng mốc TTL nó sẽ gọi
+		// `ReapExpired`, hàm này đọc userId/tier từ hash `pod:{name}` mà ta vừa
+		// xoá, không thấy, rồi log WARN "session hết hạn nhưng hash pod thiếu
+		// userId/tier — không ghi được dòng audit kết thúc".
+		//
+		// Cảnh báo ấy sinh ra để tố một chỗ THỦNG THẬT. Nếu nó cũng bắn cho một
+		// session ma bình thường thì nó không còn phân biệt được hai giả thuyết,
+		// và một cảnh báo không phân biệt được gì là một cảnh báo phải tắt. Dòng
+		// `failed` đã ghi ở trên rồi; thêm một dòng `expired` cho cùng cái chết
+		// cũng là ghi thừa.
+		if ptrKey, ptrErr := rediskeys.SessionPod(sessionID); ptrErr == nil {
+			if delErr := s.rdb.Del(ctx, ptrKey).Err(); delErr != nil && !errors.Is(delErr, redis.Nil) {
+				s.log.Warn("không xoá được con trỏ session:{id}:pod",
+					slog.String("session_id", sessionID), slog.String("err", delErr.Error()))
+			}
 		}
 	}
 	return nil
