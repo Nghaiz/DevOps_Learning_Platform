@@ -116,7 +116,7 @@ session trên lab 1-node, N đo được = …" thì không.
 | **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | ✅ xong — [report](reports/2026-08-15-verify-3e-self-pentest.md) · **10/10, 0 lỗ hổng** |
 | **3.F** | k6 load test tới trần CẤU HÌNH | 2 | ✅ xong — [report](reports/2026-08-15-verify-3f-k6.md) · **N=3**, và một lỗi thật: chạm trần trả 500 |
 | **3.H** | WS scale layer: drain `1012`, lease khe WS tự lành, 2 replica | 5 | ✅ xong — [report](reports/2026-08-15-verify-3h-ws-scale.md) · nối lại **0/2 → 2/2**; khe kẹt **hàng chục phút → 70s** |
-| **3.I** | Registry mirror trong cụm + nâng trần phiên đồng thời | mới | 🟡 chi tiết hoá 2026-08-15 — 5 mắt xích, lượt này làm MẮT 1 (mirror + egress + luật 10 chấm lại). Đứng TRƯỚC 3.G |
+| **3.I** | Registry mirror trong cụm + nâng trần phiên đồng thời | mới | 🟡 5 mắt xích — **M1 ✅** [report](reports/2026-08-15-verify-3i-m1-registry-mirror.md) · **M2 ✅** [report](reports/2026-08-15-verify-3i-m2-docker-lesson.md) (21/21; AC-H9 đóng; và **số đo bác bỏ tiền đề của M4**) · M3–M5 hoãn. Đứng TRƯỚC 3.G |
 | 3.G | Autoscaling cloud-agnostic + chi phí | 4, 9 | Hoãn |
 
 **Thứ tự có lý do:** 3.E (pentest) đứng CUỐI vì nó đo luật 5 (rate-limit/body-size)
@@ -1052,7 +1052,7 @@ không trộn timestamp hai máy). "0 vi phạm" phải có đối chứng dươ
       `kubeconform` xanh (⚠ nhớ kubeconform bỏ qua CRD — không dựa nó để enforce
       schema của thứ ngoài core API). Mirror + egress **chỉ render khi
       `registryMirror.enabled`**; tắt cờ ⇒ diff về đúng hệ hôm nay.
-- [ ] **AC-H9 (đóng nốt) — gateway tag ghim trong values.** `helm upgrade` KHÔNG
+- [x] **AC-H9 (đóng nốt) — gateway tag ghim trong values.** `helm upgrade` KHÔNG
       `--set` image nào; ba deployment + gateway ở đúng sha đã publish. Khẳng định
       trên **đối tượng sống** (`kubectl get deploy -o jsonpath`), không bằng
       `helm get values`.
@@ -1169,32 +1169,32 @@ Bốn điều kiện biên đo TRƯỚC khi viết, trên chính sandbox thật 
 
 Mọi ô đo **trên cụm**, đồng hồ **của VM**. Ô "0 vi phạm" phải có đối chứng đi kèm.
 
-- [ ] **AC-I9 — bài mới parse được và hiện ra.** `loadScenarios` nạp 5 bài, bài mới
+- [x] **AC-I9 — bài mới parse được và hiện ra.** `loadScenarios` nạp 5 bài, bài mới
       có đủ 6 step, `packages/scenario` suite xanh. **Đối chứng:** bài hiện trong
       danh sách trên UI/tRPC của cụm, không chỉ trong test local.
-- [ ] **AC-I10 — `docker pull` qua mirror trong phiên THẬT của bài.** Người học
+- [x] **AC-I10 — `docker pull` qua mirror trong phiên THẬT của bài.** Người học
       chạy đúng lệnh step 1 → `Status: Downloaded`. **Đối chứng dương lịch sử:**
       chính lệnh này chết ở 3.H.
-- [ ] **AC-I11 — mỗi step chấm được CẢ HAI VẾ.** Với từng step có verify: bấm
+- [x] **AC-I11 — mỗi step chấm được CẢ HAI VẾ.** Với từng step có verify: bấm
       Kiểm tra **trước** khi làm → **chưa đạt**; làm xong → **đạt**. Một bài chỉ
       chứng minh được vế "đạt" là bài chưa chứng minh gì (bẫy `prolug` verify
       `/bin/true` đã ghi ở `content/scenarios/README.md`).
-- [ ] **AC-I12 — build THẬT thành công trong phiên.** `docker build -t myapp:1 .`
+- [x] **AC-I12 — build THẬT thành công trong phiên.** `docker build -t myapp:1 .`
       từ `FROM python:3.12-slim` rc=0, `docker run myapp:1` in đúng chuỗi mong đợi.
-- [ ] **AC-I13 — step "không cài được gói" ĐỎ đúng chỗ.** Kết nối tới `pypi.org:443`
+- [x] **AC-I13 — step "không cài được gói" ĐỎ đúng chỗ.** Kết nối tới `pypi.org:443`
       từ trong container **thất bại** (verify đạt). **Đối chứng dương bắt buộc:**
       cùng lượt đó, `docker pull` từ mirror **vẫn chạy** — chứng minh phép đo bắt
       được "chặn" là netpol, không phải mạng chết.
       ⚠ **KHÔNG** ô nào của bài dùng `apt-get` làm bằng chứng (§I5.0.2).
-- [ ] **AC-I14 — bài cũ hết dạy sai.** `dlp-sandbox-basics` không còn câu "`docker
+- [x] **AC-I14 — bài cũ hết dạy sai.** `dlp-sandbox-basics` không còn câu "`docker
       pull` sẽ thất bại"; step3 + step4 verify vẫn **đạt** trên phiên thật.
-- [ ] **AC-I15 — không hồi quy.** e2e P2 **14/14**, `netpol-verify` xanh,
+- [x] **AC-I15 — không hồi quy.** e2e P2 **14/14**, `netpol-verify` xanh,
       `reaper-verify` xanh (chạy CÔ LẬP — harness song song làm lệch delta
       `pool:claimed`, đã ghi ở M1 §5).
-- [ ] **AC-I16 — đỉnh tải của bài, đo ở cgroup host.** Ghi RAM/CPU đỉnh khi chạy
+- [x] **AC-I16 — đỉnh tải của bài, đo ở cgroup host.** Ghi RAM/CPU đỉnh khi chạy
       trọn bài (pull + build). Đây là **đầu vào của M3**, nên phải ghi số, không
       ghi "ổn". Kèm trần đang áp (1Gi) để thấy còn bao nhiêu dư địa.
-- [ ] **AC-H9 (đóng nốt)** — `helm upgrade` KHÔNG `--set` image nào; 4 deployment
+- [x] **AC-H9 (đóng nốt)** — `helm upgrade` KHÔNG `--set` image nào; 4 deployment
       ở đúng tag ghim trong git. Khẳng định trên **đối tượng sống**
       (`kubectl get deploy -o jsonpath`), không bằng `helm get values`.
       Report khai rõ image **xây tay** (Actions bị chặn billing).
@@ -1215,6 +1215,29 @@ netpol (bài mới KHÔNG cần mở thêm đường nào).
 ---
 
 ### Mắt 3–5 — giữ ở mức chốt, chi tiết hoá khi tới lượt
+
+> ### ⛔ M2 ĐÃ BÁC BỎ tiền đề mở đầu của chuỗi — đọc trước khi chi tiết hoá M4
+>
+> Mục "Vì sao nó tồn tại" ở đầu 3.I lập luận `requests: 512Mi` bị **thổi phồng
+> ~10 lần** vì sandbox chỉ dùng 43–75 Mi. Số đó đo lúc **idle**. M2 đo dưới tải
+> bài Docker THẬT, ở cgroup host, 3 lượt: **đỉnh 437 / 451 / 470 MiB**.
+>
+> ⇒ `requests: 512Mi` phủ đỉnh với dư địa **13%** — **gần đúng, không thổi phồng**.
+> Cắt về mức idle sẽ OOM/evict đúng phiên đang build.
+>
+> ⇒ **Mục tiêu "20–30 phiên đồng thời" phải xem lại bằng số học RAM:** 25 × 451Mi
+> ≈ **11 GiB** = toàn bộ RAM của VM, chưa trừ platform (~1.4Gi), observability,
+> kubelet. Trần đồng thời cụm này bị chặn bởi **RAM thật**, KHÔNG bởi quota đặt
+> sai — trái với giả định vào chặng. M5 không được hứa một con số mà số học RAM
+> không đỡ nổi.
+>
+> ⇒ Dư địa duy nhất còn lại là khoảng cách `requests` (steady state) ↔ `limits`
+> (đỉnh transient lúc pull+build). Khai thác nó **là** overcommit; M4 phải quyết
+> có nhận cược đó không **bằng số đo**, và khai thẳng là đang cược.
+>
+> M3 vẫn cần chạy: nó lấy **đỉnh CPU tức thời** bằng lấy mẫu — thứ M2 không đo
+> được vì **cgroup v2 không có `cpu.peak`** (chỉ có `usage_usec` cộng dồn; M2 đo
+> được 87.0 CPU-giây / 219s ⇒ TB 0.40 core).
 
 Ràng buộc mang theo (không được đánh rơi):
 
