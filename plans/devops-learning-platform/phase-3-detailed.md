@@ -196,33 +196,35 @@ tường minh. Ô AC phải kiểm chính `Location` header, không chỉ kiểm
 
 ### Acceptance criteria
 
-- [ ] **AC-A1** — `POST` body 2 MiB **có** `Content-Length` → Traefik trả **413**
+> **Cả 7 ô ĐÓNG 2026-08-14** — [report](reports/2026-08-14-verify-3a-edge.md): **9/9** ô (7 gốc + 2 thêm từ review đối kháng), trong đó AC-A1 phải VIẾT LẠI vì tiêu chí gốc ("0 dòng log ở pod web") mù — nó cho cùng kết quả ở cả hai giả thuyết. Ô checkbox dưới đây bị bỏ quên chưa tick tới 2026-08-16.
+
+- [x] **AC-A1** — `POST` body 2 MiB **có** `Content-Length` → Traefik trả **413**
       *trước khi* request tới pod web. Bằng chứng là **BODY của phản hồi**:
       `Request Entity Too Large` (plain text, của Traefik) — web không thể phát ra
       chuỗi đó, nó trả JSON `{"error":"payload_too_large"}`.
       ⚠ **KHÔNG dùng "0 dòng log ở pod web" làm bằng chứng.** Đã thử và đối chứng âm
       bác bỏ: một request 200 hợp lệ CŨNG cho 0 dòng (Next không log request thành
       công), nên phép kiểm ấy mù — nó cho cùng kết quả ở cả hai giả thuyết.
-- [ ] **AC-A2** — `POST` body 2 MiB gửi **`Transfer-Encoding: chunked`** (không
+- [x] **AC-A2** — `POST` body 2 MiB gửi **`Transfer-Encoding: chunked`** (không
       `Content-Length`) → cũng **413**. *Đây là ô quan trọng nhất của 3.A:* đúng ca
       mà `exceedsBodyLimit()` của web thủng. **Đối chứng âm:** body 512 KiB chunked
       → **200/2xx**, chứng minh 413 đến từ kích thước chứ không từ việc chunked.
-- [ ] **AC-A3** — vượt ngưỡng rate-limit trên `/` → **429 từ Traefik** (phân biệt
+- [x] **AC-A3** — vượt ngưỡng rate-limit trên `/` → **429 từ Traefik** (phân biệt
       với 429 của Next bằng body/header). **Đối chứng âm:** dưới ngưỡng → không 429.
-- [ ] **AC-A4** — XFF: gửi `X-Forwarded-For: 1.2.3.4` giả từ ngoài → giá trị web
+- [x] **AC-A4** — XFF: gửi `X-Forwarded-For: 1.2.3.4` giả từ ngoài → giá trị web
       nhận được **không phải** `1.2.3.4` mà là IP thật. **Đối chứng âm:** đo lại cùng
       request thẳng vào Service (không qua Traefik) → thấy `1.2.3.4` đi lọt, chứng
       minh phép đo có khả năng phát hiện giả mạo.
-- [ ] **AC-A5** — `http://…:30080/` → **30x** với `Location` **chính xác**
+- [x] **AC-A5** — `http://…:30080/` → **30x** với `Location` **chính xác**
       `https://dlp.192.168.94.130.sslip.io:30443/` (kiểm cả cổng trong Location, không
       chỉ kiểm mã).
-- [ ] **AC-A6** — **WebSocket vẫn sống:** handshake `/ws` qua HTTPS trả **101**,
+- [x] **AC-A6** — **WebSocket vẫn sống:** handshake `/ws` qua HTTPS trả **101**,
       nhận `{"type":"ready"}`, và giữ socket **≥ 5s** không bị đóng.
       ⚠ Phải **> 3s** và phải **gửi frame `init`**: gateway chờ `init` đúng 3s rồi
       huỷ dial exec và đóng (`docs/ws-terminal-protocol.md` §3 bước 4). Một probe
       thiếu `init` đóng ở ~3.0s và đọc ra y hệt "middleware giết WS" — hai nguyên
       nhân, một triệu chứng.
-- [ ] **AC-A7** — harness e2e P2 (14/14) **vẫn 14/14** sau khi đổi biên.
+- [x] **AC-A7** — harness e2e P2 (14/14) **vẫn 14/14** sau khi đổi biên.
 
 ### File ownership
 
@@ -288,15 +290,17 @@ bằng chứng trong report):
 
 ### Acceptance criteria
 
-- [ ] **AC-B1** — `netpol-verify.sh` xanh: **mọi** chiều ở bảng thông, và các chiều
+> **Cả 5 ô ĐÓNG 2026-08-14** — [report](reports/2026-08-14-verify-3b-netpol.md): `netpol-verify.sh` **22/22** hai vế (có baseline TRƯỚC khi áp) · e2e **14/14** · seccomp: plan nói "không chỗ nào đặt" là **SAI**, nó đã đặt sẵn ở `podspec.go` — đo trên HOST + 2 đối chứng. Ô checkbox bị bỏ quên chưa tick tới 2026-08-16.
+
+- [x] **AC-B1** — `netpol-verify.sh` xanh: **mọi** chiều ở bảng thông, và các chiều
       ngoài bảng bị chặn.
-- [ ] **AC-B2** — **Đối chứng âm bắt buộc:** một pod lạ trong namespace nền tảng
+- [x] **AC-B2** — **Đối chứng âm bắt buộc:** một pod lạ trong namespace nền tảng
       **không** kết nối được Postgres và Redis. Thiếu ô này thì "default-deny đã áp"
       chỉ là một object tồn tại, không phải một hàng rào.
-- [ ] **AC-B3** — sandbox pod vẫn **không** ra được internet và **không** tới được
+- [x] **AC-B3** — sandbox pod vẫn **không** ra được internet và **không** tới được
       `169.254.169.254` (giữ nguyên kết quả P1, chứng minh 3.B không nới lỏng gì).
-- [ ] **AC-B4** — harness e2e **14/14** sau khi áp `default-deny` (ô gác toàn hệ).
-- [ ] **AC-B5** — seccomp: hoặc `RuntimeDefault` áp được **và** PTY + exec vẫn chạy,
+- [x] **AC-B4** — harness e2e **14/14** sau khi áp `default-deny` (ô gác toàn hệ).
+- [x] **AC-B5** — seccomp: hoặc `RuntimeDefault` áp được **và** PTY + exec vẫn chạy,
       **hoặc** một ghi nhận nêu rõ xung đột Sysbox kèm bằng chứng lỗi thật.
 
 ### File ownership
@@ -389,17 +393,19 @@ metric đã sẵn**: Traefik đã bật `--metrics.prometheus.entrypoint=metrics
 
 ### Acceptance criteria
 
-- [ ] **AC-D1** — Prometheus scrape **thành công** cả 3 target (traefik, gateway,
+> **Cả 5 ô ĐÓNG 2026-08-15** — [report](reports/2026-08-15-verify-3c3d-gc-observability.md): D1 **3/3 up** (kèm cặp baseline trước/sau) · D2 **6/6** metric có dữ liệu · D3 **3/3** component Loki · D4 alert **firing** thật tới Alertmanager · D5 **1268 MB / 7915 MB** còn trống. Ô checkbox bị bỏ quên chưa tick tới 2026-08-16.
+
+- [x] **AC-D1** — Prometheus scrape **thành công** cả 3 target (traefik, gateway,
       orchestrator): `up == 1`. **Đối chứng âm:** tắt một target ⇒ `up == 0` (chứng
       minh `up == 1` đang đo thật chứ không phải target không tồn tại).
-- [ ] **AC-D2** — Dashboard hiện **đủ** metric design §12: claim latency, WS active,
+- [x] **AC-D2** — Dashboard hiện **đủ** metric design §12: claim latency, WS active,
       pod pool, reap rate, error. Bằng chứng: query trả **điểm dữ liệu khác rỗng** cho
       từng metric, không phải panel rỗng.
-- [ ] **AC-D3** — Loki nhận log từ web + gateway + orchestrator; query ra được đúng
+- [x] **AC-D3** — Loki nhận log từ web + gateway + orchestrator; query ra được đúng
       dòng kiểm toán `exec` mà chặng B của P2 đã thêm.
-- [ ] **AC-D4** — một alert **bắn thật** khi ép vượt ngưỡng (hạ ngưỡng tạm để kích).
+- [x] **AC-D4** — một alert **bắn thật** khi ép vượt ngưỡng (hạ ngưỡng tạm để kích).
       Alert chưa từng bắn là alert chưa biết có chạy không.
-- [ ] **AC-D5** — toàn bộ stack chạy trong ngân sách RAM còn lại của VM; ghi số đo
+- [x] **AC-D5** — toàn bộ stack chạy trong ngân sách RAM còn lại của VM; ghi số đo
       trước/sau. Nếu không vừa thì cắt bớt và **ghi rõ đã cắt gì**.
 
 ### File ownership
@@ -444,15 +450,17 @@ verify luôn `command not found` ⇒ vế PASS bất khả).
 
 ### Acceptance criteria
 
-- [ ] **AC-E1** — `run-all.sh --target https://…:30443` → **0 lỗi trên cả 10 luật**,
+> **Cả 5 ô ĐÓNG 2026-08-15** — [report](reports/2026-08-15-verify-3e-self-pentest.md): **10/10** luật đạt, **10/10** đối chứng dương ĐỎ, **0** lỗ hổng thật, `run-all.sh` exit 0 trên cụm live. Ô checkbox bị bỏ quên chưa tick tới 2026-08-16.
+
+- [x] **AC-E1** — `run-all.sh --target https://…:30443` → **0 lỗi trên cả 10 luật**,
       có bảng kết quả từng luật.
-- [ ] **AC-E2** — **mỗi** luật có đối chứng dương ĐỎ đúng như dự kiến. 10/10 đối
+- [x] **AC-E2** — **mỗi** luật có đối chứng dương ĐỎ đúng như dự kiến. 10/10 đối
       chứng phải đỏ; một đối chứng xanh nghĩa là kịch bản luật đó đang không đo gì.
-- [ ] **AC-E3** — luật 5 đo được lớp Traefik mới của 3.A (payload lớn + chunked +
+- [x] **AC-E3** — luật 5 đo được lớp Traefik mới của 3.A (payload lớn + chunked +
       rate-limit), không chỉ lớp Next.
-- [ ] **AC-E4** — luật 10 đo được: WS IDOR bị chặn, metadata bị chặn, không thoát
+- [x] **AC-E4** — luật 10 đo được: WS IDOR bị chặn, metadata bị chặn, không thoát
       được sandbox, không có `docker.sock`.
-- [ ] **AC-E5** — mọi lỗi tìm được đã vá **và** có test hồi quy trong suite thường,
+- [x] **AC-E5** — mọi lỗi tìm được đã vá **và** có test hồi quy trong suite thường,
       không chỉ trong script pentest.
 
 ### File ownership
