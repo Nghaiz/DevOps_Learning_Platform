@@ -227,6 +227,9 @@ func (s *Store) leaseTTL(expiresAt int64, lease time.Duration) time.Duration {
 	return conLai
 }
 
+// AcquireWS giữ một khe WS của session (trần `limit`), với lease tự hết hạn để
+// khe không kẹt vĩnh viễn khi tiến trình giữ nó chết đột ngột. Hàm release trả
+// về nhả khe đó.
 func (s *Store) AcquireWS(ctx context.Context, sessionID string, limit int, expiresAt int64, lease time.Duration) (release func(context.Context) error, err error) {
 	noop := func(context.Context) error { return nil }
 

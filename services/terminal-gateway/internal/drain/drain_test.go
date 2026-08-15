@@ -88,7 +88,7 @@ func TestEnterGoiDungHaiLanKhongPanic(t *testing.T) {
 }
 
 // Drain gọi hai lần không được panic vì `close` kênh đã đóng.
-func TestDrainGoiHaiLanKhongPanic(t *testing.T) {
+func TestDrainGoiHaiLanKhongPanic(_ *testing.T) {
 	d := drain.New()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()

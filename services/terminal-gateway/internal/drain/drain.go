@@ -38,6 +38,7 @@ type Coordinator struct {
 	dangMo atomic.Int64
 }
 
+// New dựng một Coordinator chưa drain, sẵn sàng nhận Enter.
 func New() *Coordinator {
 	return &Coordinator{ch: make(chan struct{})}
 }
