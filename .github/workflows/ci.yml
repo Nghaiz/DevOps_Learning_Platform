@@ -759,6 +759,22 @@ jobs:
           scandir: ./infra/k8s
           severity: error
 
+      - name: shellcheck (infra/k6/*.sh)
+        # Cùng lý lẽ với bước `infra/k8s` ngay trên, và `scandir` chỉ nhận MỘT
+        # thư mục nên phải có bước riêng. `run-load.sh` + `provision-users.sh`
+        # quyết định ô AC của 3.F xanh hay đỏ; một lỗi cú pháp im lặng ở đây cho
+        # ra đúng cái hại tệ nhất — script chết giữa chừng, không ô nào đỏ, và
+        # bảng tổng đọc ra như "đã đo và mọi thứ ổn".
+        #
+        # ⚠ Cổng này CHỈ TĨNH. Chạy thật `run-load.sh` cần một cụm sống nên không
+        # vào CI được (cùng lý do `reaper-verify.sh`), và kịch bản k6 (`.js`) cũng
+        # không được lint ở đây vì `k6 inspect` đòi binary k6 trên runner. Đừng
+        # đọc cổng này xanh thành "load test đã chạy".
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
+        with:
+          scandir: ./infra/k6
+          severity: error
+
       - name: actionlint (chính các workflow này)
         # Bắt lỗi cú pháp expression, tên context sai, và (nhờ shellcheck có sẵn
         # trên runner) cả lỗi shell trong khối `run:` — lớp lỗi mà cách duy nhất

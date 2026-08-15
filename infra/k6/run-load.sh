@@ -96,6 +96,10 @@ QUOTA_HARD_PODS="$(kubectl get resourcequota -n "$NS_SANDBOX" -o jsonpath='{.ite
 NODE_CPU_ALLOC="$(kubectl get nodes -o jsonpath='{.items[0].status.allocatable.cpu}' 2>/dev/null)"
 NODE_CPU_REQ="$(kubectl describe node 2>/dev/null | grep -A5 'Allocated resources' | grep -oE '^  cpu +[0-9]+m' | head -1 | grep -oE '[0-9]+m')"
 echo "quota: requests.cpu=$QUOTA_HARD_CPU pods=$QUOTA_HARD_PODS · node allocatable cpu=$NODE_CPU_ALLOC"
+# ⛔ Con số này KHÔNG trang trí: ô AC-F1 phải tự khai trần nào chặn, và câu
+# "chặn bởi quota chứ không bởi phần cứng" chỉ đứng vững nếu node còn rảnh THẬT.
+# In nó ra để người đọc report đối chiếu được, thay vì tin lời.
+echo "node đã cấp phát: requests.cpu=${NODE_CPU_REQ:-<không đọc được>} / allocatable ${NODE_CPU_ALLOC}"
 
 # ⛔ TRẠNG THÁI ĐẦU PHẢI SẠCH. ResourceQuota tính pod cho tới khi pod biến mất
 # HẲN, và session chưa reap giữ pod tới hết TTL (1h). Chạy lượt thứ hai trên một
