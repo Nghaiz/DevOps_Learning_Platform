@@ -111,6 +111,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "-ttl %d vượt int32 — server nhận int32, ép kiểu sẽ đổi giá trị trong im lặng\n", *ttl)
 		os.Exit(2)
 	}
+	// #nosec G115 -- hai `os.Exit(2)` ngay trên đã chặn cả hai đầu (`< 0` và
+	// `> MaxInt32`), nên phép ép này không đổi được giá trị. Đặt nó SÁT guard chứ
+	// không ở chỗ dựng struct, để người đọc kiểm được lý do bằng mắt thay vì phải
+	// tin một dòng `#nosec` cách đó 40 dòng.
+	ttlSeconds := int32(*ttl)
 
 	if *tag == "" {
 		*tag = fmt.Sprintf("t%d", time.Now().UnixNano())
@@ -138,7 +143,7 @@ func main() {
 		hold:      *hold,
 		keep:      *keep,
 		n:         *n,
-		ttl:       int32(*ttl),
+		ttl:       ttlSeconds,
 		sessionID: *sessionID,
 	}
 
