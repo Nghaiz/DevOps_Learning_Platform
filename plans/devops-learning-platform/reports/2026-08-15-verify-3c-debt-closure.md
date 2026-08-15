@@ -1,8 +1,9 @@
 # 3.C — đóng nợ AC-C2 + AC-C3, và một chỗ rò mà plan đã khẳng định là không có
 
 **Ngày:** 2026-08-15 · **Chặng:** P3/3.C (nợ còn lại) · **Nhánh:** `p3-3c-debt-3f-k6`
-**Bằng chứng:** [`harness/2026-08-15-3c-debt/reaper-verify-all.txt`](harness/2026-08-15-3c-debt/reaper-verify-all.txt)
-**Chạy trên:** cụm lab 1 node, orchestrator `3c2-3f9f6c8`, helm revision 67
+**Bằng chứng:** [lượt đầu](harness/2026-08-15-3c-debt/reaper-verify-all.txt) ·
+[lượt sau review + xoay khoá](harness/2026-08-15-3c-debt/reaper-verify-all-sau-review.txt)
+**Chạy trên:** cụm lab 1 node, orchestrator `3c3-9e35e97`, helm revision 68
 
 | Ô | Kết quả |
 |---|---|
@@ -177,6 +178,55 @@ bash /tmp/reaper-verify.sh --case all               # 14/14
 
 ---
 
+## 6b. Review đối kháng tìm ra một đường XANH GIẢ ở đúng ô AC chính
+
+Ba phát hiện thật, đã vá và chạy lại (14/14 sau khi vá).
+
+**Nặng nhất — phép đo fail-OPEN.** `pod_exists` coi output rỗng là *"pod đã biến
+mất"*, `in_claimed` echo `no` khi lệnh redis hỏng. Cả hai ánh xạ **lỗi công cụ →
+thứ đang tìm đã biến mất**, tức đúng chiều làm ô AC **xanh**. Một lượt
+`kubectl exec` chớp giữa lượt đo là *"AC-C2 vế 1b: tên đã rời pool:claimed"* PASS
+kèm chú thích "index sạch", trong khi tên vẫn nằm nguyên đó.
+
+Đối chứng dương ở t0 **không** bịt được lỗ này — nó chỉ chứng minh phép quan sát
+thấy được "còn" **tại t0**, không nói gì về t1. Nay ba hàm quan sát trả **ba** giá
+trị, và giá trị thứ ba (`UNKNOWN` / `unknown`) luôn ĐỎ ở chỗ dùng.
+
+**`cleanupPod` nằm trong `changed == 1` ⇒ một lần crash tái tạo đúng chỗ rò vừa
+vá.** HSET FAILED xong rồi chết (rollout, OOM, SIGKILL trong lúc audit chờ
+Postgres 3s) ⇒ index chưa dọn ⇒ **không tầng nào nhặt** (2b bỏ qua status cuối và
+không thăm lại; 2c thấy `EXISTS`==1; 2a đòi hash pod vắng; tầng 4 chỉ quét
+`pool:free`) ⇒ rò tới hết `SESSION_TTL`, không có đường retry. Và `Reap` ở ngay
+đầu cùng file đã bác bỏ lý lẽ ấy từ trước: nó **cố ý** dọn cả trong ca
+`alreadyReaped`. Nay dọn vô điều kiện, có test dựng lại đúng cảnh crash.
+
+**Một cảnh báo chẩn đoán bị làm cho nói dối.** Xoá hash pod mà giữ con trỏ
+`session:{id}:pod` ⇒ đúng mốc TTL, tầng 1 gọi `ReapExpired`, không đọc được
+userId/tier và log WARN *"session hết hạn nhưng hash pod thiếu userId/tier"*.
+Cảnh báo ấy sinh ra để tố một chỗ **thủng thật**; bắn cho mọi session ma bình
+thường thì nó không phân biệt được gì nữa. Nay xoá luôn con trỏ.
+
+Ba đường **đỏ giả** cũng vá: hạn chờ neo `expires[0]` thay vì mốc muộn nhất ·
+`REAP_INTERVAL` rỗng làm `$((exp + "" + 45))` ra `exp+45` mà bash **không báo gì**
+· `case_expiry` không dọn session ngắn nên khi nó đỏ thì lượt sau chết ở
+preflight vì rác của lượt trước (nay preflight `exit 2` — "không đo được" khác
+"đo được và sai"). Thêm cổng chống-skip cho lane `internal/lifecycle`: nó chứa
+các đối chứng âm của chặng này mà trước đó **không** có cổng đó.
+
+## 6c. Xoay khoá sau sự cố lộ bí mật
+
+PKI mTLS và mật khẩu Postgres/Redis đã lộ ra transcript phiên làm việc (lệnh
+`diff` không lọc trên manifest helm — lỗi của tôi). Chủ dự án chọn xoay cả hai.
+
+Đã làm: `ALTER USER dlp WITH PASSWORD` **trước** (PGDATA đã khởi tạo nên
+`POSTGRES_PASSWORD` một mình không đổi được gì — đúng cái bẫy
+[`datastore-secret.yaml:39-42`](../../../infra/helm/platform/templates/datastore-secret.yaml#L39-L42)
+đã ghi) → xoá Secret `platform-mtls` → `helm upgrade` sinh lại. Dry-run chạy
+trước khi động vào DB để `required()` bắn ở chỗ vô hại nếu tên khoá `--set` sai.
+
+Bằng chứng xoay thật: `ca.crt` sha `9bb49315…` → `557f0dbb…`; 5 deployment roll
+xong; `reaper-verify --case all` **14/14** và harness e2e **14/14** sau đó.
+
 ## 7. Còn lại
 
 1. **Trần đồng thời của lab là 3 session, không phải "vài trăm".** `requests.cpu
@@ -186,10 +236,10 @@ bash /tmp/reaper-verify.sh --case all               # 14/14
 2. **Rate-limit biên sẽ cắn k6 trước khi VM cắn:** web 120/1m burst 60, **WS
    handshake 20/1m burst 10**; và NodePort SNAT làm **mọi VU dùng chung một bucket
    IP**. 3.F cần quyết định đo trần *cấu hình* hay nới ra để tìm trần *phần cứng*.
-3. **PKI mTLS và mật khẩu datastore đã lộ ra transcript phiên làm việc** khi tôi
-   chạy một lệnh `diff` không lọc trên manifest helm. Cụm lab host-only, CA tự ký,
-   nhưng ai cầm khoá thì mạo danh được `web`/`gateway`/`orchestrator` với cổng gRPC.
-   Xoay khoá = xoá Secret `platform-mtls` + `helm upgrade` + restart ba service —
-   **chưa làm, chờ quyết định.**
-4. **`reaper-verify.sh` chưa vào CI** (nó cần một cụm thật). Chỉ shellcheck được
+3. **`reaper-verify.sh` chưa vào CI** (nó cần một cụm thật). Chỉ shellcheck được
    gác; phần chạy vẫn là thao tác tay trên VM.
+4. **`SESSION_TTL` của cụm vẫn 1h.** Ô AC-C2 đo được nhờ `-ttl` phía client, không
+   nhờ đổi cấu hình cụm — nên phép đo này tái lập được mà không đụng vận hành.
+5. **Cụm đang chạy image `3c3-9e35e97` do side-load, không qua registry.** Lần
+   `helm upgrade` nào không truyền `--set orchestrator.image.tag` sẽ kéo release
+   về tag cũ trong values. Sau khi PR merge và CI publish, nên trỏ lại tag chuẩn.
