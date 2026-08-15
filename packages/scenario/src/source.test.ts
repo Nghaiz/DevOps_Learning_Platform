@@ -11,10 +11,11 @@ describe('filesystemScenarioSource', () => {
 
     // Danh sách ghim CỨNG có chủ ý: nó là cổng "kho nội dung vừa đổi" — thêm hoặc
     // mất một bài phải là một sửa đổi CÓ Ý THỨC ở đây, không phải một con số tự
-    // trôi. `dlp-sandbox-basics` là bài first-party (source: null), xen giữa các
-    // bài vendored vì thứ tự là theo id chứ không theo xuất xứ.
+    // trôi. Hai bài `dlp-*` là first-party (source: null), xen giữa các bài
+    // vendored vì thứ tự là theo id chứ không theo xuất xứ.
     expect(items.map((s) => s.id)).toEqual([
       'ckad-configmap-as-files',
+      'dlp-docker-basics',
       'dlp-sandbox-basics',
       'loki-quickstart',
       'loxilb-tcp-load-balancing',

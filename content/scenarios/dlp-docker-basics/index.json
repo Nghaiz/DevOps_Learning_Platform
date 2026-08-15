@@ -1,0 +1,54 @@
+{
+  "title": "Docker căn bản: kéo, chạy, dựng image",
+  "description": "Sáu bước với Docker thật trong sandbox: kéo image từ Docker Hub qua mirror của cụm, chạy container và xem log, dựng image riêng từ Dockerfile, hiểu tag là con trỏ, và vì sao bước cài gói qua mạng lại không chạy được ở đây.",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "foreground": "intro/foreground.sh",
+      "background": "intro/background.sh"
+    },
+    "steps": [
+      {
+        "title": "Kéo image đầu tiên từ Docker Hub",
+        "text": "step1.md",
+        "verify": "step1/verify.sh"
+      },
+      {
+        "title": "Chạy container và mở cổng",
+        "text": "step2.md",
+        "verify": "step2/verify.sh"
+      },
+      {
+        "title": "Xem log và chui vào trong container",
+        "text": "step3.md",
+        "verify": "step3/verify.sh"
+      },
+      {
+        "title": "Dựng image của riêng bạn",
+        "text": "step4.md",
+        "verify": "step4/verify.sh"
+      },
+      {
+        "title": "Tag là con trỏ, không phải bản sao",
+        "text": "step5.md",
+        "verify": "step5/verify.sh"
+      },
+      {
+        "title": "Vì sao `pip install` không chạy được ở đây",
+        "text": "step6.md",
+        "verify": "step6/verify.sh"
+      }
+    ],
+    "finish": {
+      "text": "finish.md"
+    },
+    "assets": {
+      "host01": [
+        { "file": "app.py", "target": "~/", "chmod": "+r" }
+      ]
+    }
+  },
+  "backend": {
+    "imageid": "ubuntu"
+  }
+}

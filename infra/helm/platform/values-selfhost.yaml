@@ -24,9 +24,18 @@ global:
 # đọc CHÍNH giá trị này làm nguồn sự thật rồi pull→save→scp→ctr import — nên đổi
 # tag ở đây là đủ, và chạy script là cách duy nhất giữ hai bên khớp nhau.
 #
-# Đổi tag khi nào: sau mỗi lần merge vào `main` mà CI đã publish `sha-<short>`.
+# Đổi tag khi nào: sau mỗi lần image được xây lại ở một commit mới.
+#
+# ⚠ 2026-08-15 — NGUỒN CỦA IMAGE ĐÃ ĐỔI. GitHub Actions bị chặn vì billing
+# ("The job was not started because recent account payments have failed"), mọi
+# job trên main đỏ TRƯỚC khi chạy bước nào kể từ `e90ce8f`. Chủ dự án chốt: phát
+# triển tiếp như không có Actions. Nên `sha-<short>` ở đây KHÔNG còn nghĩa "CI đã
+# publish" mà là "image đã được XÂY TAY tại đúng commit đó rồi side-load lên
+# node" — cụm vốn `imagePullPolicy: Never`, nó không kéo từ ghcr bao giờ, nên
+# giá trị của tag nằm ở chỗ nó chỉ đúng một commit truy được, không nằm ở chỗ
+# ai xây. Trình tự tái lập ghi ở report 3.I mắt 2 §"Trình tự tái lập".
 image:
-  tag: sha-25cb824
+  tag: sha-94d1670
 
 # Ingress + TLS KHÔNG đặt ở đây, có chủ ý: `ingress.host`, `corsAllowedOrigins`
 # và `betterAuthUrl` đều chứa IP của node, mà IP đó khác nhau ở mỗi máy lab —

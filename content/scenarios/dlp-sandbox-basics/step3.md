@@ -7,9 +7,12 @@ quyền `privileged`, và không dùng chung Docker daemon của máy chủ. Ki�
 docker version --format '{{.Server.Version}}'
 ```{{exec}}
 
-Sandbox **không có Internet** (bước sau sẽ giải thích), nên `docker pull` sẽ
-thất bại. Nhưng bạn vẫn dựng được image — với `FROM scratch`, image nền rỗng,
-không phải tải gì cả.
+Sandbox **không nối thẳng ra Internet** (bước sau sẽ giải thích). Nó chỉ được mở
+đúng một cánh cửa: một bản sao Docker Hub đặt trong cụm, đủ để `docker pull` các
+image chính thức. Mọi kho khác vẫn đóng.
+
+Bước này cố ý **không dùng cánh cửa đó**: với `FROM scratch` — image nền rỗng —
+bạn dựng được một image mà không phải tải về bất cứ thứ gì.
 
 Tạo thư mục build và một tệp để đóng gói:
 

@@ -116,7 +116,7 @@ session trên lab 1-node, N đo được = …" thì không.
 | **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | ✅ xong — [report](reports/2026-08-15-verify-3e-self-pentest.md) · **10/10, 0 lỗ hổng** |
 | **3.F** | k6 load test tới trần CẤU HÌNH | 2 | ✅ xong — [report](reports/2026-08-15-verify-3f-k6.md) · **N=3**, và một lỗi thật: chạm trần trả 500 |
 | **3.H** | WS scale layer: drain `1012`, lease khe WS tự lành, 2 replica | 5 | ✅ xong — [report](reports/2026-08-15-verify-3h-ws-scale.md) · nối lại **0/2 → 2/2**; khe kẹt **hàng chục phút → 70s** |
-| **3.I** | Registry mirror trong cụm + nâng trần phiên đồng thời | mới | 🟡 chi tiết hoá 2026-08-15 — 5 mắt xích, lượt này làm MẮT 1 (mirror + egress + luật 10 chấm lại). Đứng TRƯỚC 3.G |
+| **3.I** | Registry mirror trong cụm + nâng trần phiên đồng thời | mới | 🟡 5 mắt xích — **M1 ✅** [report](reports/2026-08-15-verify-3i-m1-registry-mirror.md) · **M2 ✅** [report](reports/2026-08-15-verify-3i-m2-docker-lesson.md) (21/21; AC-H9 đóng; và **số đo bác bỏ tiền đề của M4**) · M3–M5 hoãn. Đứng TRƯỚC 3.G |
 | 3.G | Autoscaling cloud-agnostic + chi phí | 4, 9 | Hoãn |
 
 **Thứ tự có lý do:** 3.E (pentest) đứng CUỐI vì nó đo luật 5 (rate-limit/body-size)
@@ -1052,7 +1052,7 @@ không trộn timestamp hai máy). "0 vi phạm" phải có đối chứng dươ
       `kubeconform` xanh (⚠ nhớ kubeconform bỏ qua CRD — không dựa nó để enforce
       schema của thứ ngoài core API). Mirror + egress **chỉ render khi
       `registryMirror.enabled`**; tắt cờ ⇒ diff về đúng hệ hôm nay.
-- [ ] **AC-H9 (đóng nốt) — gateway tag ghim trong values.** `helm upgrade` KHÔNG
+- [x] **AC-H9 (đóng nốt) — gateway tag ghim trong values.** `helm upgrade` KHÔNG
       `--set` image nào; ba deployment + gateway ở đúng sha đã publish. Khẳng định
       trên **đối tượng sống** (`kubectl get deploy -o jsonpath`), không bằng
       `helm get values`.
@@ -1075,7 +1075,169 @@ nó gác) · rule DNS/gateway trong `sandbox-networkpolicy.yaml` (chỉ THÊM, k
 `values.yaml` khối `sandbox.quota`/`limitRange`/`resources` (nới trần là M4/M5, KHÔNG
 lượt này) · logic `clientKey()` ở web · `acquire_ws.lua`/`release_ws.lua`.
 
-### Mắt 2–5 — giữ ở mức chốt, chi tiết hoá khi tới lượt
+### §I5. MẮT 2 — bài học Docker end-to-end trên mirror (CHI TIẾT 2026-08-15)
+
+**Điều kiện vào:** M1 xong ✅ (merge #64). **Chốt với chủ dự án:** bài ngang
+KillerCoda, **có build thật** — vì bài này còn là **ĐỒ ĐO cho M3**, và một bài
+nhẹ sẽ cho M3 một đỉnh gần bằng idle, tức M4 lại đoán tiếp đúng cái §I0 cấm.
+
+#### §I5.0 — Scout đã đo, và nó đổi hình dạng bài học
+
+Bốn điều kiện biên đo TRƯỚC khi viết, trên chính sandbox thật đang chạy
+(`sandbox-034475526638`, image `3i-m1`, mirror đã cấu hình):
+
+1. **Build trong sandbox KHÔNG ra được mạng.** `RUN apt-get update` từ
+   `ubuntu:24.04`: `Could not connect to archive.ubuntu.com:80` trên **cả 9 IP**,
+   `security.ubuntu.com` cũng vậy. Mirror chỉ mở docker.io — đúng thiết kế D-I7.
+   ⇒ **Bài KHÔNG được có bước cài gói qua mạng** (`apt-get install`, `pip install`,
+   `npm i`). Đây là ràng buộc nội dung, không phải điều chỉnh nhỏ.
+
+2. **⚠ `apt-get update` VẪN `exit 0` khi mọi repo hỏng** — nó chỉ in `W: Failed to
+   fetch`, không đặt mã lỗi. Lần đo đầu của tôi vì thế cho `BUILD_RC=0` và **suýt
+   đọc thành "apt chạy được"**; chỉ `--no-cache --progress=plain` mới lòi ra sự
+   thật. Hệ quả kép, cả hai đều phải mang vào luật của chặng:
+   - Một step `RUN apt-get update` sẽ **XANH mà không tải gì**, và tiêu **44.8s**
+     để không làm gì — người học ngồi nhìn 45s rồi nhận một lớp rỗng.
+   - **CẤM dùng `apt-get` làm bằng chứng cho bất kỳ ô AC nào.** Nó là một lệnh
+     luôn-thành-công ở môi trường này, tức một phép đo mù — cùng hạng với "0 dòng
+     log ở pod web" mà AC-A1 đã bác.
+
+3. **Trần pod: 1Gi RAM / 1 CPU** (LimitRange `defaultMemory`/`defaultCpu`), quota
+   `requests` 2100m/2112Mi, `pods: 10`. Đo ở **cgroup host** (không đo trong pod —
+   Sysbox biên tập thứ `exec` nhìn thấy) khi pull `ubuntu:24.04` + build:
+   **đỉnh 318 MiB / trần 1024 MiB**. Bài có build thật vì thế vừa trần, và cho M3
+   một đỉnh THẬT để đo thay vì số idle 43–75Mi của 3.H.
+
+4. **`GATEWAY_EXEC_TIMEOUT = 30s` là trần cho MỘT lượt chấm** (vượt ⇒ **502**,
+   không phải "fail"). ⇒ `verify.sh` chỉ được `inspect`/`ps`/đọc file — **KHÔNG**
+   được `pull`/`build` trong lượt chấm. Việc nặng thuộc về terminal của người học.
+
+> **Phát hiện phụ — M1 làm SAI một bài đang có.** `dlp-sandbox-basics/step3.md`
+> dạy: *"Sandbox **không có Internet** …, nên `docker pull` sẽ thất bại"*. Sau M1
+> câu đó **sai**: `docker pull python:3.12-slim` chạy được. Một bài học dạy điều
+> không đúng là lỗi nội dung, không phải nợ kỹ thuật — sửa trong chặng này.
+
+#### §I5.1 — Quyết định thiết kế phải chốt TRƯỚC khi viết
+
+| # | Quyết định | Chốt |
+|---|---|---|
+| D-I9 | id bài | **`dlp-docker-basics`** — first-party (`source: null`), tiền tố `dlp-` như `dlp-sandbox-basics`. |
+| D-I10 | Phạm vi nội dung | pull → run/logs/exec → viết Dockerfile → build → đọc layer. **Không** bước cài gói (§I5.0.2). Bước cuối **dạy chính giới hạn đó** thay vì giấu nó. |
+| D-I11 | Bước "vì sao không cài được gói" | Là một step THẬT có verify, không phải ghi chú. Verify = **đối chứng âm**: từ trong container, `socket.create_connection(('pypi.org',443),3)` phải **NÉM**. Đây là ô duy nhất chứng minh mirror KHÔNG mở toang egress, đo từ đúng chỗ người học đứng. |
+| D-I12 | Đỉnh tải cho M3 | Nằm ở step build (`FROM python:3.12-slim` + `COPY`), cộng pull `nginx:alpine`. M3 đo **chính bài này**, không dựng tải giả. |
+| D-I13 | verify chạy nhanh | Mọi `verify.sh` chỉ `docker image inspect` / `docker ps` / đọc file (§I5.0.4). Không lệnh nào chạm mạng trừ ô D-I11, và ô đó có `timeout 3`. |
+
+#### §I5.2 — Task list
+
+**Nhóm A — bài học mới**
+1. `content/scenarios/dlp-docker-basics/{dlp.json,index.json,intro.md,finish.md}` —
+   sidecar `source: null` + `notes` giải thích vì sao first-party (test ép
+   `notes.length > 40`).
+2. `step1…step6.md` + `stepN/verify.sh` cho từng bước, theo D-I10.
+3. `intro/background.sh` + `foreground.sh` — dựng `/root/lab-docker`, khẳng định
+   asset đã tới (cùng khuôn `dlp-sandbox-basics`).
+4. `assets/app.py` — asset để step build có gì mà `COPY`, đồng thời tái dùng tầng
+   asset-push đã có.
+
+**Nhóm B — sửa nội dung M1 làm sai**
+5. `dlp-sandbox-basics/step3.md` + `intro.md` — bỏ câu "`docker pull` sẽ thất bại",
+   nói đúng hiện trạng (mirror docker.io mở, phần còn lại vẫn chặn) và trỏ sang
+   bài mới. **Giữ nguyên** `step4` (ô cô lập vẫn đúng, verify vẫn xanh).
+
+**Nhóm C — cổng kiểm (CI GitHub Actions đang bị chặn billing ⇒ chạy TẠI CHỖ)**
+6. Chạy tương đương từng job CI ở local, **ép đúng môi trường CI** (`GOOS=linux`,
+   eol=lf — phép kiểm Go/gofmt local không phủ hết CI nếu bỏ hai thứ này).
+7. `packages/scenario` test vẫn xanh với bài thứ 5; `content/scenarios/README.md`
+   thêm dòng cho bài mới.
+
+**Nhóm D — chứng minh trên cụm (không ô nào xanh bằng phép đo local)**
+8. Build lại image `web` (nội dung nướng vào image — `COPY content ./content`),
+   side-load, deploy.
+9. Chạy bài **end-to-end trên phiên THẬT** qua Traefik: từng step, cả vế **đạt**
+   lẫn vế **chưa đạt**.
+10. Đo lại đỉnh cgroup host khi chạy trọn bài — số này là đầu vào của M3.
+
+**Nhóm E — nợ mang sang**
+11. **AC-H9** — ghim `image.tag` trong `values-selfhost.yaml`, `helm upgrade`
+    KHÔNG `--set` image nào. ⚠ Đường đóng mà M1 §7.2 vạch (chờ CI publish sha)
+    **không dùng được** — GitHub Actions bị chặn billing từ `e90ce8f`. Chủ dự án
+    chốt: **làm như không có Actions**. ⇒ image xây TẠI CHỖ ở đúng sha main,
+    side-load (cụm vốn `pullPolicy: Never`), rồi ghim. Report phải **khai thẳng**
+    là xây tay, không được viết như thể CI publish.
+
+#### §I5.3 — Acceptance criteria — MẮT 2
+
+Mọi ô đo **trên cụm**, đồng hồ **của VM**. Ô "0 vi phạm" phải có đối chứng đi kèm.
+
+- [x] **AC-I9 — bài mới parse được và hiện ra.** `loadScenarios` nạp 5 bài, bài mới
+      có đủ 6 step, `packages/scenario` suite xanh. **Đối chứng:** bài hiện trong
+      danh sách trên UI/tRPC của cụm, không chỉ trong test local.
+- [x] **AC-I10 — `docker pull` qua mirror trong phiên THẬT của bài.** Người học
+      chạy đúng lệnh step 1 → `Status: Downloaded`. **Đối chứng dương lịch sử:**
+      chính lệnh này chết ở 3.H.
+- [x] **AC-I11 — mỗi step chấm được CẢ HAI VẾ.** Với từng step có verify: bấm
+      Kiểm tra **trước** khi làm → **chưa đạt**; làm xong → **đạt**. Một bài chỉ
+      chứng minh được vế "đạt" là bài chưa chứng minh gì (bẫy `prolug` verify
+      `/bin/true` đã ghi ở `content/scenarios/README.md`).
+- [x] **AC-I12 — build THẬT thành công trong phiên.** `docker build -t myapp:1 .`
+      từ `FROM python:3.12-slim` rc=0, `docker run myapp:1` in đúng chuỗi mong đợi.
+- [x] **AC-I13 — step "không cài được gói" ĐỎ đúng chỗ.** Kết nối tới `pypi.org:443`
+      từ trong container **thất bại** (verify đạt). **Đối chứng dương bắt buộc:**
+      cùng lượt đó, `docker pull` từ mirror **vẫn chạy** — chứng minh phép đo bắt
+      được "chặn" là netpol, không phải mạng chết.
+      ⚠ **KHÔNG** ô nào của bài dùng `apt-get` làm bằng chứng (§I5.0.2).
+- [x] **AC-I14 — bài cũ hết dạy sai.** `dlp-sandbox-basics` không còn câu "`docker
+      pull` sẽ thất bại"; step3 + step4 verify vẫn **đạt** trên phiên thật.
+- [x] **AC-I15 — không hồi quy.** e2e P2 **14/14**, `netpol-verify` xanh,
+      `reaper-verify` xanh (chạy CÔ LẬP — harness song song làm lệch delta
+      `pool:claimed`, đã ghi ở M1 §5).
+- [x] **AC-I16 — đỉnh tải của bài, đo ở cgroup host.** Ghi RAM/CPU đỉnh khi chạy
+      trọn bài (pull + build). Đây là **đầu vào của M3**, nên phải ghi số, không
+      ghi "ổn". Kèm trần đang áp (1Gi) để thấy còn bao nhiêu dư địa.
+- [x] **AC-H9 (đóng nốt)** — `helm upgrade` KHÔNG `--set` image nào; 4 deployment
+      ở đúng tag ghim trong git. Khẳng định trên **đối tượng sống**
+      (`kubectl get deploy -o jsonpath`), không bằng `helm get values`.
+      Report khai rõ image **xây tay** (Actions bị chặn billing).
+
+#### §I5.4 — File ownership — MẮT 2
+
+`content/scenarios/dlp-docker-basics/**` (mới) ·
+`content/scenarios/dlp-sandbox-basics/{step3.md,intro.md}` (sửa câu sai) ·
+`content/scenarios/README.md` (thêm dòng) ·
+`infra/helm/platform/values-selfhost.yaml` (ghim `image.tag` — AC-H9) ·
+`docs/scenario-format.md` (ghi giới hạn "chỉ docker.io, không cài gói qua mạng").
+
+**KHÔNG đụng:** `packages/scenario/src/*.ts` (parser đã chịu được hình dạng này —
+bài mới không mang biến thể format nào mới) · `dlp-sandbox-basics/step4*` (ô cô
+lập vẫn đúng) · mọi thứ M1 §I4 đã cấm (quota/limitRange/`requests` — đó là M4/M5) ·
+netpol (bài mới KHÔNG cần mở thêm đường nào).
+
+---
+
+### Mắt 3–5 — giữ ở mức chốt, chi tiết hoá khi tới lượt
+
+> ### ⛔ M2 ĐÃ BÁC BỎ tiền đề mở đầu của chuỗi — đọc trước khi chi tiết hoá M4
+>
+> Mục "Vì sao nó tồn tại" ở đầu 3.I lập luận `requests: 512Mi` bị **thổi phồng
+> ~10 lần** vì sandbox chỉ dùng 43–75 Mi. Số đó đo lúc **idle**. M2 đo dưới tải
+> bài Docker THẬT, ở cgroup host, 3 lượt: **đỉnh 437 / 451 / 470 MiB**.
+>
+> ⇒ `requests: 512Mi` phủ đỉnh với dư địa **13%** — **gần đúng, không thổi phồng**.
+> Cắt về mức idle sẽ OOM/evict đúng phiên đang build.
+>
+> ⇒ **Mục tiêu "20–30 phiên đồng thời" phải xem lại bằng số học RAM:** 25 × 451Mi
+> ≈ **11 GiB** = toàn bộ RAM của VM, chưa trừ platform (~1.4Gi), observability,
+> kubelet. Trần đồng thời cụm này bị chặn bởi **RAM thật**, KHÔNG bởi quota đặt
+> sai — trái với giả định vào chặng. M5 không được hứa một con số mà số học RAM
+> không đỡ nổi.
+>
+> ⇒ Dư địa duy nhất còn lại là khoảng cách `requests` (steady state) ↔ `limits`
+> (đỉnh transient lúc pull+build). Khai thác nó **là** overcommit; M4 phải quyết
+> có nhận cược đó không **bằng số đo**, và khai thẳng là đang cược.
+>
+> M3 vẫn cần chạy: nó lấy **đỉnh CPU tức thời** bằng lấy mẫu — thứ M2 không đo
+> được vì **cgroup v2 không có `cpu.peak`** (chỉ có `usage_usec` cộng dồn; M2 đo
+> được 87.0 CPU-giây / 219s ⇒ TB 0.40 core).
 
 Ràng buộc mang theo (không được đánh rơi):
 
