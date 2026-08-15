@@ -396,3 +396,79 @@ func TestMarkFailedChiDoiSessionDangSong(t *testing.T) {
 			revAfterFail, got2.GetRevision())
 	}
 }
+
+// TestMarkFailedDonIndexPoolCuaSessionMa (P3/3.C, đo được trên cụm 2026-08-15).
+//
+// Trước bản vá, `MarkFailed` chỉ đổi status. Tên pod ở lại `pool:claimed` và hash
+// `pod:{name}` ở lại, mà KHÔNG tầng nào của reaper nhặt được: tầng 2b bỏ qua mọi
+// status cuối, tầng 2c chỉ dọn khi `EXISTS session:{id}` == 0 — mà hash FAILED
+// vẫn còn tới hết TTL. Đo trên cụm: `pool:claimed` giữ 6 tên trong khi namespace
+// chỉ có 1 pod thật, tức `dlp_pool_claimed_size` sai gấp 6 lần suốt tới một giờ.
+//
+// ⛔ VẾ THỨ HAI MỚI LÀ VẾ CÓ GIÁ TRỊ. Một hàm dọn SẠCH `pool:claimed` cũng làm
+// vế thứ nhất xanh y hệt. Session B — vẫn CLAIMED, pod vẫn sống — phải còn
+// nguyên sau lượt dọn, nếu không thì thứ vừa viết là một cái chổi quét bừa chứ
+// không phải một bản vá nhắm đúng session ma.
+func TestMarkFailedDonIndexPoolCuaSessionMa(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	ghost := startSession(t, h) // dùng sandbox-warm01
+	alive, err := h.svc.Create(ctx, createReq("u2", "k2"))
+	if err != nil {
+		t.Fatalf("Create session đối chứng: %v", err)
+	}
+	ghostPod, alivePod := ghost.GetPodName(), alive.GetPodName()
+	if ghostPod == alivePod {
+		t.Fatalf("hai session dùng chung pod %q — cảnh dựng sai, đối chứng vô nghĩa", ghostPod)
+	}
+
+	if err := h.svc.MarkFailed(ctx, ghost.GetId(), "pod biến mất khỏi cluster"); err != nil {
+		t.Fatalf("MarkFailed: %v", err)
+	}
+
+	// ── Vế 1: dấu vết của session ma đã sạch ──────────────────────────────────
+	claimed, _ := h.rdb.LRange(ctx, rediskeys.PoolClaimed, 0, -1).Result()
+	for _, n := range claimed {
+		if n == ghostPod {
+			t.Fatal("pod của session FAILED vẫn nằm trong pool:claimed — dlp_pool_claimed_size sẽ đếm một pod không tồn tại")
+		}
+	}
+	ghostPodKey, _ := rediskeys.Pod(ghostPod)
+	if n, _ := h.rdb.Exists(ctx, ghostPodKey).Result(); n != 0 {
+		t.Fatal("hash pod:{name} của session FAILED còn — TTL của nó là -1, không ai dọn thì nó sống mãi")
+	}
+
+	// Hash session PHẢI còn: FE đọc lý do phiên chết ở đây. Đây là ranh giới giữa
+	// "dọn index" và "xoá session" — vượt qua nó là đổi hợp đồng với FE.
+	if got, err := h.svc.Get(ctx, &orchestratorv1.GetSessionRequest{
+		SessionId: ghost.GetId(), UserId: "u1",
+	}); err != nil {
+		t.Fatalf("Get sau MarkFailed: %v — FE mất đường đọc lý do phiên chết", err)
+	} else if got.GetStatus() != orchestratorv1.SessionStatus_SESSION_STATUS_FAILED {
+		t.Fatalf("status = %v, cần FAILED", got.GetStatus())
+	}
+
+	// ── Vế 2 (đối chứng âm): session còn sống KHÔNG bị đụng tới ───────────────
+	var aliveStillClaimed bool
+	for _, n := range claimed {
+		if n == alivePod {
+			aliveStillClaimed = true
+		}
+	}
+	if !aliveStillClaimed {
+		t.Fatalf("pod %q của session CLAIMED bị gỡ khỏi pool:claimed — bản vá đang quét bừa", alivePod)
+	}
+	alivePodKey, _ := rediskeys.Pod(alivePod)
+	if n, _ := h.rdb.Exists(ctx, alivePodKey).Result(); n != 1 {
+		t.Fatalf("hash pod:{name} của session CLAIMED bị xoá — bản vá đang quét bừa")
+	}
+	for _, n := range h.pods.deletedNames() {
+		if n == alivePod {
+			t.Fatalf("pod %q của session CLAIMED bị XOÁ khỏi cụm — đây là mất dữ liệu người dùng, không phải dọn rác", alivePod)
+		}
+	}
+	if got := h.pods.deletedNames(); len(got) != 1 || got[0] != ghostPod {
+		t.Fatalf("xoá %v, cần đúng [%s]", got, ghostPod)
+	}
+}

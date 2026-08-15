@@ -237,6 +237,30 @@ func (s *Service) ReapExpired(ctx context.Context, sessionID, podName string) er
 //
 // KHÔNG xoá session: FE cần đọc được lý do phiên chết thay vì thấy 404 trần.
 // TTL của hash vẫn chạy nên nó tự biến mất sau đó.
+//
+// ⛔ TIỀN ĐỀ: POD ĐÃ BIẾN MẤT. Call-site duy nhất (reaper tầng 2b) xác minh lại
+// bằng một `pods.Get` mới trước khi gọi, chính vì ảnh chụp cũ có thể giết oan một
+// pod cold-path vừa sinh ra. Đừng gọi hàm này cho một session còn pod sống.
+//
+// ⛔ VÀ VÌ SAO NÓ PHẢI DỌN INDEX POOL — ĐO ĐƯỢC TRÊN CỤM, 2026-08-15.
+// Bản trước chỉ đổi status rồi trả về, để lại tên pod trong `pool:claimed` và
+// hash `pod:{name}`. Không tầng nào nhặt được phần rác đó:
+//
+//   - tầng 2b bỏ qua mọi status cuối (`reaper.go`: `status != CLAIMED && != RUNNING`)
+//     — đúng, vì đánh dấu lại là tăng revision vô cớ;
+//   - tầng 2c chỉ dọn khi `EXISTS session:{id}` == 0, mà hash FAILED VẪN CÒN cho
+//     tới hết TTL — nên nó đọc "session còn sống, pod đang phục vụ nó" và bỏ qua.
+//
+// Đo thật trên cụm lab: `pool:claimed` giữ **6** tên trong khi `dlp-sandbox` chỉ
+// có **1** pod thật; 5 mục thừa đều thuộc session FAILED. Hệ quả là
+// `dlp_pool_claimed_size` — panel "pod pool" của 3.D và là đại lượng 3.F định
+// dùng để khẳng định "0 pod rò" — báo sai gấp 6 lần suốt tới một giờ
+// (`SESSION_TTL`), rồi tự khỏi khi TTL rụng và tầng 2c nhặt. Một chỗ rò tự lành
+// vẫn là một chỗ rò: trong cửa sổ ấy mọi phép đo dựa trên gauge đó đều vô nghĩa.
+//
+// `cleanupPod` idempotent và `pods.Delete` đã nuốt `NotFound`, nên gọi nó cho một
+// pod đã biến mất không sinh log lỗi giả. Nó KHÔNG chạm hash `session:{id}` —
+// hợp đồng "FE đọc được lý do" giữ nguyên.
 func (s *Service) MarkFailed(ctx context.Context, sessionID, reason string) error {
 	sessionKey, err := rediskeys.Session(sessionID)
 	if err != nil {
@@ -273,6 +297,14 @@ func (s *Service) MarkFailed(ctx context.Context, sessionID, reason string) erro
 			Namespace: s.cfg.Namespace,
 			Detail:    reason,
 		})
+		// Sau audit: audit đọc userId/tier từ hash SESSION (đã đọc ở trên), còn
+		// cleanupPod xoá hash POD. Hai hash khác nhau, nhưng giữ thứ tự này thì
+		// một lần đổi chỗ nguồn đọc sau này không âm thầm làm thủng dòng audit.
+		// Chỉ chạy khi changed == 1: lượt thứ hai không có gì để dọn, và gọi lại
+		// sẽ ghi thêm log cho một việc đã xong.
+		if podName != "" {
+			s.cleanupPod(ctx, podName)
+		}
 	}
 	return nil
 }
