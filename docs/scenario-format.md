@@ -245,3 +245,34 @@ cd services/terminal-gateway && go test ./internal/execroute/... ./internal/pode
 3. `node packages/scenario/scripts/parse.mjs content/scenarios/<id>` — đọc lỗi
    nếu có; field lạ thì khai vào `acknowledgedUnknownFields` kèm `notes`.
 4. `pnpm --filter @devops-platform/scenario test`.
+5. Cập nhật danh sách ghim cứng trong `packages/scenario/src/source.test.ts` — nó
+   là cổng "kho nội dung vừa đổi", cố ý đỏ khi có bài vào/ra.
+
+### 6.1 Bài first-party (`source: null`)
+
+Bỏ qua bước 2 (không có upstream để kéo). `notes` **bắt buộc** và phải giải thích
+vì sao bài được soạn tại chỗ — test ép `notes.length > 40` để `null` không bị
+dùng như đường tắt qua schema.
+
+### 6.2 ⛔ Ba ràng buộc của môi trường chạy — viết bài phải biết trước
+
+Đo trên cụm 2026-08-15 (P3/3.I mắt 2). Bỏ qua chúng thì bài **soạn xong mới biết
+là không chạy được**, và hỏng theo kiểu khó đọc.
+
+1. **Sandbox chỉ ra được `docker.io`, qua registry mirror trong cụm.** Mọi bước
+   cài gói qua mạng — `pip install`, `apt-get install`, `npm install` — **không
+   chạy**; PyPI/kho Debian/npm/ghcr/quay đều bị NetworkPolicy default-deny chặn.
+   Bài Docker được phép dựng image `FROM <image Hub>` + `COPY`, không được phép
+   cài gói. (`dlp-docker-basics` dạy thẳng giới hạn này ở step 6 thay vì né nó.)
+
+2. **⚠ `apt-get update` vẫn `exit 0` khi không tải được gì** — chỉ in
+   `W: Failed to fetch`, mất ~45s rồi coi như xong. Hệ quả: một step dùng nó sẽ
+   **xanh mà không làm gì**. **Không dùng `apt-get` làm bằng chứng cho bất kỳ ô
+   AC nào** — ở môi trường này nó là lệnh luôn-thành-công, tức phép đo mù.
+
+3. **Một lượt chấm có trần 30s** (`GATEWAY_EXEC_TIMEOUT`); vượt trần trả **502**,
+   không trả "chưa đạt" — người học thấy lỗi hệ thống thay vì thấy bài chấm mình.
+   ⇒ `verify.sh` chỉ được `inspect`/`ps`/đọc file. Việc nặng (`pull`, `build`)
+   thuộc về terminal của người học, không thuộc lượt chấm. Mọi lệnh chạm mạng
+   trong verify **phải** có `timeout`/`--max-time`: default-deny DROP im lặng,
+   không REJECT, nên thiếu trần thời gian là treo tới hết 30s.

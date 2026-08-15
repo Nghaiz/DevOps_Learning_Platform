@@ -32,6 +32,26 @@ Bốn bài được chọn vì **khác nhau về hình dạng**, không vì nhi�
 | `loki-quickstart` | Apache-2.0 | step **không** có title; **không** phase nào có verify |
 | `loxilb-tcp-load-balancing` | Apache-2.0 | có `assets` + `chmod`; intro có đủ foreground/background/verify; chứa biến `{{TRAFFIC_*}}` |
 
+## Bài first-party (`source: null`)
+
+Soạn tại repo này, không nhập từ đâu. Chúng tồn tại vì bộ vendor ở trên **không
+bài nào** sinh được cặp pass/fail thật trên cụm hiện tại (xem hai bẫy dưới).
+
+| id | vì sao có mặt |
+|---|---|
+| `dlp-sandbox-basics` | bài pass/fail thật đầu tiên; chỉ dùng năng lực P1 đã đo (bash, jq, DinD); mang 1 asset; có bước khẳng định chính sự cô lập mạng |
+| `dlp-docker-basics` | trụ cột "học Docker", mở được sau khi P3/3.I mắt 1 dựng registry mirror; **cũng là đồ đo tải cho mắt 3** (đỉnh RAM/CPU khi build) |
+
+### ⚠ `dlp-docker-basics` — hai ràng buộc của môi trường
+
+- **Chỉ `docker.io` đi qua được mirror.** Mọi bước cài gói qua mạng
+  (`pip install`, `apt-get install`, `npm install`) **không chạy** trong sandbox —
+  ghcr/quay/PyPI/kho Debian đều bị NetworkPolicy chặn. Bài dạy thẳng giới hạn này
+  ở step 6 thay vì giấu nó; đừng "sửa" bằng cách thêm bước cài gói.
+- **`apt-get update` vẫn `exit 0` khi mọi repo hỏng** (đo 2026-08-15: 44.8s, chỉ
+  in `W: Failed to fetch`). ⇒ **Không dùng `apt-get` làm bằng chứng cho bất kỳ ô
+  AC nào** — nó là lệnh luôn-thành-công ở đây, tức một phép đo mù.
+
 ### ⚠ Hai bẫy đã biết
 
 - **`prolug` có verify no-op.** Cả ba `verify.sh` là `/bin/true` → luôn exit 0.

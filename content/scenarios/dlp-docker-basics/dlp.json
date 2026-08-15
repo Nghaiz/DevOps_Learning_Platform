@@ -1,0 +1,8 @@
+{
+  "id": "dlp-docker-basics",
+  "difficulty": "beginner",
+  "estimatedMinutes": 25,
+  "source": null,
+  "acknowledgedUnknownFields": [],
+  "notes": "Bai FIRST-PARTY (source: null) — soan tai repo nay. Ly do ton tai: P3/3.I mat 1 dung registry mirror docker.io trong cum, va truoc do tru cot \"hoc Docker\" KHONG CO duong chay (sandbox khong ra internet, docker long ben trong khong co image nao nap san — mot `docker build` tu python:3.12-slim chet sau 63s o 3.H). Bai nay la bai dau tien chung minh duong do da mo: pull that tu Docker Hub qua mirror, chay container, build image tu base that. No cung la DO DO cho mat 3: dinh RAM/CPU khi build o day la dau vao de dat lai `requests`, thay cho so idle. Bai KHONG co buoc cai goi qua mang (apt-get/pip/npm) vi mirror chi phu docker.io — step 6 day chinh gioi han do thay vi giau no."
+}
