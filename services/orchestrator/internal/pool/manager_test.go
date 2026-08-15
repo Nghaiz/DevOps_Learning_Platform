@@ -499,3 +499,48 @@ func TestQuarantineGaugeDuocQuanSat(t *testing.T) {
 		t.Fatalf("dlp_pool_quarantine_size = %v, cần 2", got)
 	}
 }
+
+// TestBaGaugePoolKhongDauNoiNhamKhoa — ba gauge pool đọc ba khoá Redis KHÁC
+// nhau, và cách hỏng đáng sợ nhất của chúng không phải "không cập nhật" mà là
+// "đấu nối nhầm khoá": gauge claimed đọc LLEN của pool:free chẳng hạn. Kiểu
+// hỏng đó cho một dashboard đầy đủ, mọi panel có số, mọi số SAI — và không có
+// gì đỏ để nhìn.
+//
+// Nên ba danh sách được nạp BA số khác nhau (1/2/3). Với ba số phân biệt, bất
+// kỳ hoán vị đấu nối nào cũng làm ít nhất một khẳng định đỏ; nếu cả ba cùng
+// bằng nhau thì phép kiểm này không phân biệt được đúng với hoán vị.
+//
+// dlp_pool_claimed_size là gauge được thêm ở 3.D: pool:free một mình không nói
+// được "pool cạn vì đang tải cao" (claimed lớn) hay "cạn vì replenish chết"
+// (claimed nhỏ) — hai sự cố ngược nhau, cùng một triệu chứng free == 0.
+func TestBaGaugePoolKhongDauNoiNhamKhoa(t *testing.T) {
+	pods := newFakePods()
+	m, met := newTestManager(t, pods, 1)
+	ctx := context.Background()
+
+	if err := m.rdb.RPush(ctx, rediskeys.PoolFree, "sandbox-free01").Err(); err != nil {
+		t.Fatalf("RPUSH free: %v", err)
+	}
+	if err := m.rdb.RPush(ctx, rediskeys.PoolQuarantine, "sandbox-qua01", "sandbox-qua02").Err(); err != nil {
+		t.Fatalf("RPUSH quarantine: %v", err)
+	}
+	if err := m.rdb.RPush(ctx, rediskeys.PoolClaimed, "sandbox-clm01", "sandbox-clm02", "sandbox-clm03").Err(); err != nil {
+		t.Fatalf("RPUSH claimed: %v", err)
+	}
+
+	m.observeSizes(ctx)
+
+	for _, c := range []struct {
+		ten  string
+		got  float64
+		want float64
+	}{
+		{"dlp_pool_free_size", testutil.ToFloat64(met.PoolFreeSize), 1},
+		{"dlp_pool_quarantine_size", testutil.ToFloat64(met.PoolQuarantineSize), 2},
+		{"dlp_pool_claimed_size", testutil.ToFloat64(met.PoolClaimedSize), 3},
+	} {
+		if c.got != c.want {
+			t.Errorf("%s = %v, cần %v — nếu số này bằng giá trị mong đợi của gauge KHÁC thì gauge đang đọc nhầm khoá Redis", c.ten, c.got, c.want)
+		}
+	}
+}

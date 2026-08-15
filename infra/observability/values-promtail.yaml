@@ -1,0 +1,27 @@
+# promtail — DaemonSet đọc log container trên node và đẩy sang Loki.
+#
+# Đích là Service `loki-gateway` của release loki trong cùng namespace. Sai tên
+# đích ở đây hỏng theo kiểu IM LẶNG nhất trong cả stack: promtail vẫn Running,
+# vẫn đọc file, chỉ là không ai nhận — và ô AC-D3 sẽ đỏ với triệu chứng "query
+# không ra dòng nào", thứ đọc y hệt "chưa có log nào được ghi".
+config:
+  clients:
+    - url: http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 192Mi
+
+# Node control-plane trên cụm nhiều node có taint; lab 1-node đã gỡ. Khai
+# toleration để manifest chạy đúng ở cả hai chỗ mà không phải rẽ nhánh — cùng
+# khuôn với cni-token-refresh.yaml.
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule

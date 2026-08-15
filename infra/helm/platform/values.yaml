@@ -561,6 +561,32 @@ networkPolicy:
         - '10.244.0.0/16' # pod CIDR cluster (mặc định Calico)
         - '192.168.0.0/16' # mạng node/VM lab
 
+    # Chiều scrape của Prometheus (P3/3.D). Là rule RIÊNG theo đúng ghi chú đã
+    # cắm sẵn ở khối 9 của templates/platform-networkpolicy.yaml: "Nếu sau này
+    # có Prometheus thì chiều scrape là một rule MỚI từ namespace monitoring —
+    # đừng nới rule này." Nới khối 9 sẽ mở cổng gRPC cho namespace monitoring,
+    # tức đổi một chiều quan sát thành một chiều điều khiển.
+    #
+    # ⛔ VÌ SAO OPT-IN, KHÔNG MẶC ĐỊNH BẬT. Hai cổng mở ở đây phục vụ `/metrics`
+    # KHÔNG CÓ AUTHZ — chính là lý do cổng admin 8083 của gateway cố ý không nằm
+    # trên Service (xem `gateway.service` ở trên). Bật cờ này khi CHƯA cài stack
+    # quan sát nghĩa là mở hai cổng đó cho một namespace chưa tồn tại, mà tên
+    # namespace thì ai tạo được namespace cũng chiếm được. Bật đúng lúc chạy
+    # infra/host/10-observability.sh, không sớm hơn.
+    metricsScrape:
+      enabled: false
+      # Namespace chạy Prometheus. Ghim theo `kubernetes.io/metadata.name` —
+      # nhãn Kubernetes tự đặt, không phụ thuộc người vận hành nhớ gắn.
+      #
+      # Chủ ý dùng namespaceSelector TRẦN (mọi pod trong namespace này), KHÔNG
+      # kèm podSelector của Prometheus: nhãn pod do chart kube-prometheus-stack
+      # đặt và đổi theo phiên bản chart, nên ghim vào đó là dựng một chiều sẽ
+      # chết trong im lặng ở lần nâng chart kế tiếp. Đánh đổi được chấp nhận vì
+      # cả namespace này là thành phần hạ tầng tin cậy (Prometheus, Grafana,
+      # Loki, promtail) — nếu sau này có workload không tin cậy vào đây thì
+      # đánh đổi ấy hết đúng và phải ghim chặt lại.
+      namespace: monitoring
+
 # Tầng cô lập cho namespace chạy pod sandbox sinh viên (P1) — sinh viên có
 # root BÊN TRONG pod và là tác nhân CỐ Ý ĐỐI KHÁNG. Namespace này KHÁC
 # namespace platform (web/orchestrator/gateway) — orchestrator tạo pod sandbox

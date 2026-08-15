@@ -111,9 +111,9 @@ session trên lab 1-node, N đo được = …" thì không.
 |---|---|---|---|
 | **3.A** | Biên Traefik: body-size, rate-limit, XFF, redirect HTTP→HTTPS | 6 | ✅ xong — [report](reports/2026-08-14-verify-3a-edge.md) |
 | **3.B** | NetworkPolicy namespace nền tảng + seccomp | 3 | ✅ xong — [report](reports/2026-08-14-verify-3b-netpol.md) |
-| **3.C** | Rò tài nguyên: pod GC + đo lại reaper | 8 | Lượt này |
-| **3.D** | Observability: Prometheus + Grafana + Loki | 7 | Lượt này |
-| **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | Lượt này (cuối) |
+| **3.C** | Rò tài nguyên: pod GC + đo lại reaper | 8 | 🟡 gần xong — [report](reports/2026-08-15-verify-3c3d-gc-observability.md) · **AC-C2 còn nợ** |
+| **3.D** | Observability: Prometheus + Grafana + Loki | 7 | ✅ xong — [report](reports/2026-08-15-verify-3c3d-gc-observability.md) |
+| **3.E** | Self-pentest 10 luật §6 — **GATE** | 1 | Lượt sau (cuối) |
 | 3.F | k6 load test tới trần VM | 2 | Hoãn |
 | 3.G | Autoscaling cloud-agnostic + chi phí | 4, 9 | Hoãn |
 | 3.H | WS scale layer | 5 | Hoãn |

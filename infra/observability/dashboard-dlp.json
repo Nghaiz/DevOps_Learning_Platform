@@ -1,0 +1,165 @@
+{
+  "title": "DLP — nền tảng",
+  "uid": "dlp-platform",
+  "tags": ["dlp"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROM",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Claim latency — p95 / p50 (mục tiêu p95 < 1s)",
+      "description": "Mục tiêu thiết kế của warm pool. p95 vượt 1s kéo dài ⇒ alert DlpClaimLatencyP95Cao.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(dlp_claim_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(dlp_claim_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "WebSocket đang mở",
+      "description": "dlp_gateway_ws_active — Inc lúc upgrade, Dec lúc đóng. Trôi lên đơn điệu mà không có người dùng ⇒ nghi rò goroutine.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineWidth": 2 } },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "sum(dlp_gateway_ws_active)", "legendFormat": "ws active" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Warm pool — free / claimed / quarantine",
+      "description": "free == 0 MỘT MÌNH không kết luận được: claimed cao = tải thật, claimed thấp = replenish chết. Hai ca ngược nhau, cùng triệu chứng.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineWidth": 2 } },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "dlp_pool_free_size", "legendFormat": "free" },
+        { "refId": "B", "expr": "dlp_pool_claimed_size", "legendFormat": "claimed" },
+        { "refId": "C", "expr": "dlp_pool_quarantine_size", "legendFormat": "quarantine" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Reap rate (theo result)",
+      "description": "sum by(result) rate(dlp_reap_total). Kèm dlp_reaper_sweep_failures_total — sweep chết là chế độ hỏng im lặng, triệu chứng xuất hiện ở quota chứ không ở đây.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "lineWidth": 2 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (result) (rate(dlp_reap_total[5m]))",
+          "legendFormat": "reap {{result}}"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(dlp_reaper_sweep_failures_total[5m])",
+          "legendFormat": "sweep FAIL"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Error rate — claim / WS / exec / extend",
+      "description": "Gom các nhánh lỗi. dlp_claim_total{result!=\"ok\"} thêm ở 3.D: trước đó CHỈ lượt claim thành công được đo, nên tỉ lệ hỏng của claim không quan sát được.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "lineWidth": 2 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (result) (rate(dlp_claim_total{result!=\"ok\"}[5m]))",
+          "legendFormat": "claim {{result}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(dlp_gateway_ws_connections_total{result=\"error\"}[5m]))",
+          "legendFormat": "ws error"
+        },
+        {
+          "refId": "C",
+          "expr": "sum by (kind) (rate(dlp_gateway_exec_errors_total[5m]))",
+          "legendFormat": "exec {{kind}}"
+        },
+        {
+          "refId": "D",
+          "expr": "sum(rate(dlp_extend_total{result=\"error\"}[5m]))",
+          "legendFormat": "extend error"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Canary CNI — nhịp lên lịch (thay cho lịch sử Job mà 3.C bỏ)",
+      "description": "3.C hạ successfulJobsHistoryLimit 26 → 2, nên không còn đọc được khoảng đứt nhịp từ danh sách Job. Năng lực ấy chuyển về ĐÂY: khoảng phẳng = cụm ngủ / kcm chết, thứ đã vỡ nhiều ô AC treo theo đồng hồ ở P1.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - kube_cronjob_status_last_schedule_time{cronjob=\"dlp-cni-canary\"}",
+          "legendFormat": "giây kể từ lần lên lịch cuối"
+        }
+      ]
+    }
+  ]
+}

@@ -358,6 +358,16 @@ func (s *Service) claimWithColdPath(
 			TTLSeconds:    int64(ttl / time.Second),
 		})
 		if err != nil {
+			// dlp_claim_total đếm MỖI lượt thử đúng một lần, ở ĐÚNG chỗ kết quả
+			// của lượt đó được biết — không phải ở nơi gọi attempt(). path="warm"
+			// gặp ErrPoolEmpty ở đây rồi rẽ sang cold path KHÔNG bị đếm lại lần
+			// hai: attempt(cold) là một lượt thử THẬT KHÁC, tự đếm lấy kết quả
+			// của chính nó khi tới lượt nó chạy.
+			result := metrics.ResultError
+			if errors.Is(err, pool.ErrPoolEmpty) {
+				result = metrics.ResultPoolEmpty
+			}
+			s.met.ClaimTotal.WithLabelValues(path, result).Inc()
 			return nil, err
 		}
 
@@ -369,11 +379,14 @@ func (s *Service) claimWithColdPath(
 		if err != nil {
 			// Claim ĐÃ ghi xong; chỉ lượt đọc lại hỏng. Bọc
 			// ErrClaimMayHaveWritten để releaseIdemIfSafe GIỮ khoá — nhả nó ở
-			// đây là mở lại đúng cửa C-1 qua một cánh khác.
+			// đây là mở lại đúng cửa C-1 qua một cánh khác. Vẫn đếm result=error:
+			// đây KHÔNG phải ErrPoolEmpty nên không có nhãn riêng cho nó.
+			s.met.ClaimTotal.WithLabelValues(path, metrics.ResultError).Inc()
 			return nil, fmt.Errorf("%w: đọc lại session vừa claim: %w",
 				pool.ErrClaimMayHaveWritten, err)
 		}
 		s.met.ClaimDuration.WithLabelValues(path).Observe(s.now().Sub(start).Seconds())
+		s.met.ClaimTotal.WithLabelValues(path, metrics.ResultOK).Inc()
 		return sess, nil
 	}
 
@@ -393,9 +406,13 @@ func (s *Service) claimWithColdPath(
 	for i := 0; i < coldPathAttempts; i++ {
 		if _, err := s.pool.Provision(ctx); err != nil {
 			if errors.Is(err, pool.ErrPoolQuotaBlocked) {
+				// Provision() thất bại TRƯỚC khi attempt() kịp chạy, nên đây là
+				// chỗ DUY NHẤT đếm được kết quả này — không nằm trong attempt().
+				s.met.ClaimTotal.WithLabelValues(metrics.PathCold, metrics.ResultQuotaBlocked).Inc()
 				return nil, status.Error(codes.ResourceExhausted,
 					"đã đạt trần số sandbox đồng thời của cluster; thử lại sau ít phút")
 			}
+			s.met.ClaimTotal.WithLabelValues(metrics.PathCold, metrics.ResultError).Inc()
 			return nil, status.Errorf(codes.Internal, "tạo pod cho cold path: %v", err)
 		}
 

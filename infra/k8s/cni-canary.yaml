@@ -43,14 +43,32 @@ spec:
   schedule: '*/30 * * * *'
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 600
-  # 26 ≈ 13 giờ lịch sử ở nhịp 30 phút. KHÔNG phải 1 (giá trị cũ): AC Calico của
-  # phase-1.md đòi bằng chứng tạo pod thành công ở HAI mốc cách nhau 12h (T+25h và
-  # T+37h), mà với limit 1 thì Job của mốc đầu bị thu gom mất trước khi tới mốc sau
-  # — bằng chứng tự bốc hơi đúng lúc cần đọc lại, và AC phải đo lại từ đầu.
-  # `status.lastSuccessfulTime` của CronJob chỉ giữ được MỘT mốc nên không thay thế được.
-  successfulJobsHistoryLimit: 26
+  # 2 — HẠ TỪ 26 (2026-08-15, chặng 3.C). Lý do của 26 đã CHẾT chứ không phải bị
+  # bỏ qua: nó sinh ra để phục vụ vế AC Calico "tạo pod thành công ở HAI mốc T+25h
+  # và T+37h", mà vế T+37h đã bị **BỎ 2026-08-11** (phase-1.md §Calico) sau khi cụm
+  # ngủ 14h trùm đúng lên mốc đó. AC nay là ba vế chịu-được-suspend và KHÔNG vế nào
+  # đọc lịch sử Job: vế 1 đọc `exp` của token, vế 2/3 đo một lượt tạo pod tại thời
+  # điểm tự chọn. Việc phát hiện đứt chuỗi cũng không cần lịch sử — nó so
+  # `status.lastScheduleTime` với `date -u`. Giữ 26 sau khi lý do đã chết chỉ còn
+  # là tích 26 pod `Succeeded` mà không ai đọc.
+  #
+  # Vì sao 2 chứ không phải 0: hai lượt gần nhất đủ để phân biệt "vừa chạy xong"
+  # với "chạy đúng một lần rồi thôi" mà không phải chờ hết một nhịp 30 phút.
+  successfulJobsHistoryLimit: 2
   # Giữ nhiều job đỏ hơn job xanh: log + event của lần đỏ là thứ duy nhất có giá trị.
   failedJobsHistoryLimit: 5
+  # ⛔ CỐ Ý KHÔNG dùng `ttlSecondsAfterFinished`, dù đó là knob mà plan P3 §3.C đề
+  # xuất và đề xuất cho CẢ BA Job trong repo. TTL **không phân biệt theo kết quả**:
+  # tài liệu k8s ghi thẳng là nó dọn Job "either Complete or Failed", và dọn kiểu
+  # cascade (xoá luôn pod). Đặt TTL lên canary nghĩa là Job ĐỎ cũng tự bốc hơi sau
+  # đúng ngần ấy giây — canary nổ lúc 3 giờ sáng thì tới sáng không còn log lẫn
+  # event để đọc, phá đúng thứ `failedJobsHistoryLimit: 5` ngay trên đang giữ. Với
+  # một CHUÔNG BÁO thì đó là đánh đổi sai chiều: ta dọn rác xanh, không dọn bằng
+  # chứng đỏ.
+  # `successfulJobsHistoryLimit` thì CÓ phân biệt (chỉ đụng job xanh) nên nó mới là
+  # knob đúng. Cùng lý lẽ, hai Job còn lại cũng không nhận TTL: `migrate-job.yaml`
+  # cố ý bỏ `hook-failed` để giữ Job đỏ mà đọc log, còn `cni-token-refresh.yaml`
+  # giữ 3 job xanh làm bằng chứng sống rằng bản vá R0 vẫn đang chạy.
   jobTemplate:
     metadata:
       labels:

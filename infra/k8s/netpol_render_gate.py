@@ -66,6 +66,20 @@ EXPECTED_ALLOW_BASE = {
 STORE_INGRESS = {"postgres": "allow-ingress-postgres", "redis": "allow-ingress-redis"}
 DENY_NAME = "default-deny"
 
+# Chiều scrape của Prometheus (3.D) — chỉ render khi
+# networkPolicy.platform.metricsScrape.enabled=true, nên cùng khuôn `--stores`:
+# người gọi phải KHAI (`--metrics-scrape`), cổng không đoán.
+METRICS_SCRAPE = {
+    "allow-ingress-metrics-gateway",
+    "allow-ingress-metrics-orchestrator",
+}
+
+# Nhãn phân định policy NỀN TẢNG với policy sandbox của P1.
+# `platform.componentLabels` đặt nhãn này cho mọi policy trong
+# platform-networkpolicy.yaml; sandbox-networkpolicy.yaml dùng
+# "sandbox-networkpolicy".
+PLATFORM_COMPONENT = "platform-networkpolicy"
+
 # Policy sandbox (P1) — 3.B KHÔNG được đụng vào. Kiểm sự có mặt của chúng ở đây
 # để một thay đổi ở file 3.B vô tình xoá/đổi tên chúng sẽ đỏ ngay.
 EXPECTED_SANDBOX = {
@@ -167,12 +181,34 @@ def main():
             print(f"LỖI: --stores không nhận {sorted(unknown)}", file=sys.stderr)
             return 2
     expected_allow = set(EXPECTED_ALLOW_BASE) | {STORE_INGRESS[x] for x in stores}
+    if "--metrics-scrape" in argv:
+        expected_allow |= METRICS_SCRAPE
 
     docs = [d for d in yaml.safe_load_all(sys.stdin.read()) if d]
     netpols = [d for d in docs if d.get("kind") == "NetworkPolicy"]
 
     names = {np.get("metadata", {}).get("name", "<không tên>") for np in netpols}
-    platform_names = {short(n) for n in names} & (set(STORE_INGRESS.values()) | EXPECTED_ALLOW_BASE | {DENY_NAME})
+    # ⛔ NHẬN DIỆN THEO NHÃN, KHÔNG THEO GIAO VỚI TẬP TÊN ĐÃ BIẾT (sửa 3.D).
+    #
+    # Bản đầu viết:
+    #     platform_names = {short(n) for n in names} & (STORE_INGRESS ∪ BASE ∪ DENY)
+    # Phép GIAO ấy làm cổng MÙ với đúng ca mà chú thích của EXPECTED_ALLOW_BASE
+    # tự nhận là bắt được: một policy mang tên MỚI bị phép giao loại khỏi tập so
+    # sánh, nên nó không bao giờ hiện ra ở vế `thừa`. Tức "thêm một chiều ngoài ý
+    # định" — nguy hiểm hơn "gỡ một chiều" vì nó NỚI quyền — lọt im lặng, và
+    # 3.D suýt thêm hai policy mới mà cổng vẫn xanh.
+    #
+    # Nhãn `app.kubernetes.io/component` do chính chart đặt nên không trôi được:
+    # policy nền tảng = "platform-networkpolicy", policy sandbox của P1 =
+    # "sandbox-networkpolicy". Lấy theo nhãn thì mọi tên lạ đều lộ.
+    platform_names = {
+        short(np.get("metadata", {}).get("name", "<không tên>"))
+        for np in netpols
+        if ((np.get("metadata") or {}).get("labels") or {}).get(
+            "app.kubernetes.io/component"
+        )
+        == PLATFORM_COMPONENT
+    }
     sandbox_present = {short(n) for n in names} & EXPECTED_SANDBOX
 
     # ── Nhánh "phải KHÔNG render gì" (mặc định của chart: enabled=false) ──────

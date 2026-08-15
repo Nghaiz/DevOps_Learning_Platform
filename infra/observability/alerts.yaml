@@ -1,0 +1,78 @@
+# Alert cơ bản (plan §3.D task 6). Ba luật, mỗi luật gác một chế độ hỏng đã
+# QUAN SÁT ĐƯỢC ở P1/P2 chứ không phải một ngưỡng đẹp mắt.
+#
+# ⛔ MỘT ALERT CHƯA TỪNG BẮN LÀ MỘT ALERT CHƯA BIẾT CÓ CHẠY KHÔNG. Đây chính là
+# ô AC-D4: hạ ngưỡng tạm để ép nó bắn thật, rồi trả ngưỡng về. Cùng một lý lẽ
+# với canary CNI ở P1 ("canary chưa từng đỏ là canary chưa biết có kêu hay
+# không") và với đối chứng dương của 3.E.
+#
+# `for:` KHÔNG được để 0: mọi luật dưới đây đo thứ dao động theo lượt, và alert
+# bắn theo từng gai nhọn là alert người ta học cách phớt lờ.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dlp-platform
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: dlp-platform
+spec:
+  groups:
+    - name: dlp-platform
+      # 30s: đủ dày để một alert 2 phút không bị bỏ lỡ, đủ thưa để không thành
+      # gánh nặng trên lab 1-node.
+      interval: 30s
+      rules:
+        # ── 1. Claim latency ────────────────────────────────────────────────
+        # Mục tiêu thiết kế của claim là p95 < 1s (đó là lý do warm pool tồn
+        # tại). Vượt 1s kéo dài nghĩa là warm pool đang không phục vụ được và
+        # phần lớn lượt đi cold path — người dùng thấy "bấm xong ngồi chờ".
+        - alert: DlpClaimLatencyP95Cao
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le) (rate(dlp_claim_duration_seconds_bucket[5m]))
+            ) > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: 'claim p95 > 1s trong 5 phút'
+            description: >-
+              p95 của dlp_claim_duration_seconds vượt 1s — mục tiêu thiết kế của
+              warm pool. Xem dlp_pool_free_size (pool cạn?) và
+              dlp_cold_path_total (bao nhiêu lượt phải đi đường lạnh).
+
+        # ── 2. Reaper sweep fail ────────────────────────────────────────────
+        # Reaper là thứ DUY NHẤT dọn pod hết hạn. Nó chết trong im lặng thì
+        # không gì đỏ cho tới khi quota cạn và KHÔNG AI tạo được session nữa —
+        # tức triệu chứng xuất hiện ở một chỗ hoàn toàn khác nguyên nhân.
+        - alert: DlpReaperSweepFail
+          expr: increase(dlp_reaper_sweep_failures_total[15m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: 'reaper sweep thất bại trong 15 phút qua'
+            description: >-
+              dlp_reaper_sweep_failures_total tăng. Reaper không dọn được thì pod
+              hết hạn tồn đọng và quota dlp-sandbox cạn dần; triệu chứng cuối
+              cùng là "không tạo được session mới", rất xa nguyên nhân.
+
+        # ── 3. Pod pool cạn ─────────────────────────────────────────────────
+        # free == 0 MỘT MÌNH không đủ để kết luận: nó vừa là "đang tải cao" vừa
+        # là "replenish chết". dlp_pool_claimed_size (thêm ở 3.D) là thứ tách
+        # hai ca đó, nên annotation chỉ thẳng sang nó thay vì bắt người trực
+        # tự nhớ ra.
+        - alert: DlpPoolCan
+          expr: dlp_pool_free_size == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: 'warm pool cạn liên tục 10 phút'
+            description: >-
+              dlp_pool_free_size = 0. Đối chiếu dlp_pool_claimed_size để phân
+              biệt hai nguyên nhân NGƯỢC NHAU cùng triệu chứng: claimed cao =
+              đang tải thật; claimed thấp = vòng replenish chết (xem
+              dlp_pool_replenish_failures_total và
+              dlp_pool_replenish_quota_blocked_total).

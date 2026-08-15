@@ -21,14 +21,52 @@ const (
 	PathCold = "cold"
 )
 
+// Nhãn "result" cho dlp_claim_total — kết quả của MỘT lượt thử claim (một lần
+// gọi claim.lua trên path warm, hoặc một lần tạo-rồi-claim trên path cold).
+const (
+	// ResultOK — claim trả về pod hợp lệ và Load lại session thành công.
+	ResultOK = "ok"
+	// ResultPoolEmpty — pool:free rỗng (hoặc quét hết MAX_SCAN toàn pod hỏng)
+	// ở ĐÚNG lượt thử này. Trên path="warm" đây là đường BÌNH THƯỜNG: mỗi lượt
+	// như vậy tự rẽ sang cold path ngay (claimWithColdPath), không phải lỗi.
+	// Trên path="cold" tăng nghĩa là pod vừa tạo bị một request khác giành mất
+	// trước khi tới lượt claim lại — tranh chấp thật giữa các request đồng thời,
+	// vẫn không phải lỗi, nhưng tăng NHANH là dấu hiệu pool đang quá tải.
+	ResultPoolEmpty = "pool_empty"
+	// ResultQuotaBlocked — ResourceQuota chặn Provision() ở cold path (map sang
+	// codes.ResourceExhausted cho caller). Nền tảng đang chạy hết công suất,
+	// CÙNG ngữ nghĩa với ReplenishQuotaBlockedTotal — không phải lỗi lập trình.
+	ResultQuotaBlocked = "quota_blocked"
+	// ResultError — mọi lỗi khác: Redis, apiserver (Provision), hoặc đọc lại
+	// session sau khi claim ĐÃ ghi xong (ErrClaimMayHaveWritten). Tăng đều đặn
+	// (khác đột biến từng đợt do trùng thời điểm redeploy) là dấu hiệu cần điều
+	// tra ngay, không chờ alert khác nổ trước mới biết.
+	ResultError = "error"
+)
+
 // Metrics giữ mọi collector của orchestrator.
 type Metrics struct {
 	ClaimDuration *prometheus.HistogramVec
 
 	PoolFreeSize       prometheus.Gauge
 	PoolQuarantineSize prometheus.Gauge
+	// PoolClaimedSize là độ dài hiện tại của `pool:claimed`. claim.lua LMOVE
+	// pod vào đây và để nó nằm lại VĨNH VIỄN khi thành công (đây chính là index
+	// mà ReaperClaimedOrphanTotal/reaper dùng để dò pod mồ côi) — pod chỉ rời
+	// list này khi session kết thúc (ReapSession xoá). Vì vậy giá trị của gauge
+	// này xấp xỉ SỐ SESSION đang có pod gắn, tăng/giảm theo nhịp claim/reap là
+	// BÌNH THƯỜNG. Không co lại theo thời gian (chỉ tăng, không bao giờ giảm)
+	// là dấu hiệu reap không dọn kịp hoặc đang rò session/pod.
+	PoolClaimedSize prometheus.Gauge
 
 	ColdPathTotal prometheus.Counter
+
+	// ClaimTotal đếm MỌI lượt thử claim, tách theo path (warm/cold) và result
+	// (ok/pool_empty/quota_blocked/error). Khác ClaimDuration (chỉ quan sát
+	// lượt THÀNH CÔNG) và khác ColdPathTotal (chỉ đếm số lần RẼ sang cold path,
+	// không đếm số LƯỢT THỬ bên trong nó) — đây là chỗ DUY NHẤT trả lời được tỉ
+	// lệ pool_empty/quota_blocked/error trên tổng số lượt thử claim thật.
+	ClaimTotal *prometheus.CounterVec
 
 	ReplenishFailuresTotal     prometheus.Counter
 	ReplenishQuotaBlockedTotal prometheus.Counter
@@ -144,10 +182,20 @@ func New(reg prometheus.Registerer) *Metrics {
 			Help: "Số pod bị claim.lua cách ly. Mỗi mục là −1 trên trần đồng thời (D16) và là tín hiệu DUY NHẤT cho biết có nguồn ghi sai vào pool:free.",
 		}),
 
+		PoolClaimedSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "dlp_pool_claimed_size",
+			Help: "Độ dài hiện tại của pool:claimed — xấp xỉ số session đang có pod gắn. Không co lại theo thời gian là dấu hiệu reap không dọn kịp hoặc đang rò session/pod.",
+		}),
+
 		ColdPathTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "dlp_cold_path_total",
 			Help: "Số lần pool rỗng buộc phải tạo pod đồng bộ.",
 		}),
+
+		ClaimTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "dlp_claim_total",
+			Help: "Số lượt thử claim, tách theo path (warm/cold) và result (ok/pool_empty/quota_blocked/error).",
+		}, []string{"path", "result"}),
 
 		ReplenishFailuresTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "dlp_pool_replenish_failures_total",
@@ -221,7 +269,9 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.ClaimDuration,
 		m.PoolFreeSize,
 		m.PoolQuarantineSize,
+		m.PoolClaimedSize,
 		m.ColdPathTotal,
+		m.ClaimTotal,
 		m.ReplenishFailuresTotal,
 		m.ReplenishQuotaBlockedTotal,
 		m.PoolTrimmedTotal,
@@ -256,6 +306,14 @@ func New(reg prometheus.Registerer) *Metrics {
 	for _, actor := range []string{"user", "system"} {
 		for _, r := range []string{"ok", "already_reaped", "not_found", "error"} {
 			m.ReapTotal.WithLabelValues(actor, r)
+		}
+	}
+
+	// Cùng lý do cho dlp_claim_total: 2 path x 4 result = 8 tổ hợp, zero-init
+	// hết để alert trên bất kỳ tổ hợp nào cũng thấy 0 thay vì NO-DATA.
+	for _, path := range []string{PathWarm, PathCold} {
+		for _, r := range []string{ResultOK, ResultPoolEmpty, ResultQuotaBlocked, ResultError} {
+			m.ClaimTotal.WithLabelValues(path, r)
 		}
 	}
 
