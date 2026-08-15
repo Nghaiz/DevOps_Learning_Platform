@@ -26,12 +26,29 @@
 
 ## Acceptance criteria (sketch — 10 luật là gate)
 
-- [ ] **Self-pentest §6: 0 lỗi trên cả 10 luật** (bằng chứng từng luật — design §12).
-- [ ] k6: ≥ vài trăm session đồng thời, claim p95 < 1s, reaper dọn 100% hết hạn, 0 pod rò.
-- [ ] NetworkPolicy: mọi chiều lateral + metadata bị chặn (test script).
+- [x] **Self-pentest §6: 0 lỗi trên cả 10 luật** (bằng chứng từng luật — design §12).
+      → 3.E, 10/10 luật + **10/10 đối chứng dương ĐỎ**, 0 lỗ hổng.
+- [~] k6: ~~≥ vài trăm session đồng thời~~, claim p95 < 1s, reaper dọn 100% hết hạn, 0 pod rò.
+      **KHÔNG tick trọn, và đây là chỗ phải nói thẳng.** §1 của bản detailed đã hạ
+      mục tiêu này về "trần thật của VM" (chốt với chủ dự án 2026-08-14) vì lab là
+      **1 node / 8 vCPU / 11.6Gi**. Đo được: **N = 21 phiên đồng thời**, chặn bởi
+      ResourceQuota chứ không bởi phần cứng. "Vài trăm" chưa từng được đo, và
+      không đo được trên hạ tầng này. Reaper dọn 100% + 0 pod rò: **đã đóng**
+      (3.C/3.F, `reaper-verify.sh` 14/14). Ngưỡng "p95 < 1s" **cố ý không gác** —
+      sketch đặt nó cho "vài trăm session" trên hạ tầng khác; số ghi lại là
+      p95 **9.0s** cho `session.create` đi cold path.
+- [x] NetworkPolicy: mọi chiều lateral + metadata bị chặn (test script).
+      → 3.B, `netpol-verify.sh` **22/22** hai vế; lỗ thật nằm ở namespace NỀN TẢNG chứ không ở sandbox.
 - [ ] Autoscaler scale up/down theo tải; scale-to-zero off-peak hoạt động.
-- [ ] Dashboard Grafana hiển thị đủ metric; alert bắn khi vượt ngưỡng.
-- [ ] Rate limit + body-size ở Ingress chặn đúng.
+      **KHÔNG đóng, và không đóng được ở đây.** Manifest cloud-agnostic đã ship và
+      qua render + `kubeconform -strict` + `--dry-run=server` (3.G), nhưng hành vi
+      scale KHÔNG chứng minh được: `cluster.x-k8s.io` và `metrics.k8s.io` đều RỖNG
+      trên lab, không tầng nào cấp được node. §1 đã chốt trước là **không** khẳng
+      định đã scale thật. Ô này chỉ đóng được trên một cụm có node group.
+- [x] Dashboard Grafana hiển thị đủ metric; alert bắn khi vượt ngưỡng.
+      → 3.D, 6/6 metric có dữ liệu, alert **firing** thật.
+- [x] Rate limit + body-size ở Ingress chặn đúng.
+      → 3.A, kể cả ca `Transfer-Encoding: chunked` mà lớp Next thủng.
 
 ## Verify commands (sketch)
 
