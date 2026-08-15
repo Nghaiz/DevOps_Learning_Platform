@@ -712,6 +712,8 @@ jobs:
         uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
         with:
           scandir: ./infra/host
+          # NGƯỠNG: xem khối lý lẽ ở bước infra/k8s bên dưới (cùng một `severity`,
+          # cùng một món nợ).
           # `error` là NGƯỠNG KHỞI ĐẦU, không phải đích. Mặc định của action fail
           # ở cả mức `note`, và 10 script hiện có sinh 16 phát hiện — đưa linter
           # vào codebase sẵn có ở ngưỡng đó thì hoặc phải viết lại script đang
@@ -724,6 +726,18 @@ jobs:
           #     Là số đo bị mất, không phải rác vô hại.
           #   - 15 × SC2015 (`A && B || C` không phải if-then-else) + SC2016,
           #     đều mức `note`.
+          severity: error
+
+      - name: shellcheck (infra/k8s/*.sh)
+        # `scandir` chỉ nhận MỘT thư mục, nên hai script kiểm-chứng trong
+        # `infra/k8s` (netpol-verify, reaper-verify) NẰM NGOÀI cổng trên suốt từ
+        # 3.B tới nay. Chúng là mã chạy trên cụm thật và quyết định một ô AC xanh
+        # hay đỏ — đúng loại mã mà một lỗi cú pháp im lặng gây hại nhất: script
+        # chết giữa chừng, không ô nào đỏ, và bảng tổng đọc ra như "chưa chạy gì".
+        # Cả hai đã sạch ở `severity: error` khi thêm bước này, nên không nợ mới.
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
+        with:
+          scandir: ./infra/k8s
           severity: error
 
       - name: actionlint (chính các workflow này)

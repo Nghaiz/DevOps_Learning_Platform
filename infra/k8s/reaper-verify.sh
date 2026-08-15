@@ -132,7 +132,12 @@ metric() {
 # tự làm hỏng site nó đang chẩn. Sibling `netpol-verify.sh` dùng `exec: false`
 # cho việc này; ở đây image là distroless (không có `false` để exec), nên dùng
 # `tcpSocket` tới một cổng không ai nghe — độc lập hoàn toàn với nội dung image.
-PROBE_PODS=()
+# ⛔ DỌN THEO NHÃN, KHÔNG THEO BIẾN. `logs="$(probe ...)"` chạy probe trong một
+# SUBSHELL, nên mọi `MANG_BIEN+=(...)` bên trong chỉ sửa bản sao của subshell —
+# trap ở tiến trình cha không bao giờ thấy tên pod nào và rác ở lại cụm, ăn khe
+# trên trần 4 pod của lượt chạy sau. Nhãn thì sống trong apiserver, không phụ
+# thuộc tiến trình nào. (Đo được: lượt chạy đầu để lại 2 pod Completed.)
+PROBE_LABEL="dlp.probe=reaper-verify"
 probe() {
 	local name="$1"; shift
 	local args_json="" a
@@ -141,7 +146,6 @@ probe() {
 	done
 	args_json="[${args_json%,}]"
 
-	PROBE_PODS+=("$name")
 	kubectl -n "$NS" apply -f - >/dev/null <<EOF
 apiVersion: v1
 kind: Pod
@@ -151,6 +155,7 @@ metadata:
     app.kubernetes.io/name: ${RELEASE}
     app.kubernetes.io/instance: ${RELEASE}
     app.kubernetes.io/component: web
+    dlp.probe: reaper-verify
 spec:
   restartPolicy: Never
   containers:
@@ -195,10 +200,7 @@ EOF
 kvof() { printf '%s' "$1" | awk -v k="$2" '$1 == "." && $2 == k { print $3; exit }'; }
 
 cleanup() {
-	local p
-	for p in "${PROBE_PODS[@]:-}"; do
-		[ -n "$p" ] && kubectl -n "$NS" delete pod "$p" --ignore-not-found --wait=false >/dev/null 2>&1 || true
-	done
+	kubectl -n "$NS" delete pod -l "$PROBE_LABEL" --ignore-not-found --wait=false >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
@@ -209,6 +211,62 @@ in_claimed() {
 }
 sandbox_pod_count() {
 	kubectl -n "$SANDBOX_NS" get pods -l app=sandbox --no-headers 2>/dev/null | grep -c Running || true
+}
+
+# ── "0 pod rò" nghĩa là gì, chính xác ────────────────────────────────────────
+# ⛔ KHÔNG phải "mọi con số đứng yên". `pool:free` PHẢI đổi khi orchestrator khởi
+# động lại và bổ sung pool về `POOL_TARGET` — đó là nó làm đúng việc, không phải
+# rò. Một ô AC khẳng định `free` bất biến sẽ ĐỎ VĨNH VIỄN vì một hành vi đúng, và
+# người sau sẽ nới nó cho tới khi nó không kiểm gì. (Đã đỏ đúng như thế ở lượt đo
+# 04:57Z: free 0→1 sau restart.)
+#
+# Bất biến THẬT là index Redis khớp cụm, theo hai chiều:
+#   · phantom — tên nằm trong pool:free/claimed mà KHÔNG có pod thật. Đây là chỗ
+#     rò làm `dlp_pool_claimed_size` nói dối.
+#   · orphan  — pod thật mang nhãn sandbox mà KHÔNG có tên trong index nào. Đây
+#     là chỗ rò ĂN QUOTA: không ai biết nó tồn tại để dọn.
+# Tầng 2a có grace 5 phút cho pod vừa sinh, nên pod trẻ hơn ngưỡng đó không tính
+# là orphan — nếu tính, mọi lượt đo trùng một cold-path đang chạy sẽ đỏ oan.
+index_names() { { redis LRANGE pool:free 0 -1; redis LRANGE pool:claimed 0 -1; } | grep . | sort -u; }
+
+# ⛔ `custom-columns` CHỨ KHÔNG PHẢI `jsonpath`. Không vì jsonpath sai — nó chạy
+# đúng — mà vì chuỗi jsonpath cần dấu nháy lồng trong dấu nháy và một `{"\n"}`,
+# tức ba lớp escape khi file này được sinh/sửa bằng công cụ. Đúng chỗ đó đã hỏng
+# một lần: `\n` biến thành một dòng mới THẬT, `cluster_names` trả rỗng, và mọi
+# tên trong index bị đọc thành "phantom" — một ô AC đỏ rực trong khi hệ không
+# sao. Dạng dưới không có escape nào để hỏng.
+cluster_names() {
+	kubectl -n "$SANDBOX_NS" get pods -l app=sandbox --no-headers \
+		-o custom-columns=NAME:.metadata.name,PHASE:.status.phase,CREATED:.metadata.creationTimestamp 2>/dev/null |
+		awk '$2 == "Running" { print $1, $3 }' | sort -u
+}
+
+# phantom_orphan — in "phantom=<n>:<tên...> orphan=<n>:<tên...>"
+phantom_orphan() {
+	local idx clu now name created age
+	local young=300
+	local -a phantom=() orphan=()
+	idx="$(index_names)"
+	clu="$(cluster_names)"
+	now="$(vm_now)"
+
+	while read -r name; do
+		if [ -z "$name" ]; then continue; fi
+		if ! awk -v n="$name" '$1 == n { f = 1 } END { exit !f }' <<<"$clu"; then
+			phantom+=("$name")
+		fi
+	done <<<"$idx"
+
+	while read -r name created; do
+		if [ -z "$name" ]; then continue; fi
+		age=$((now - $(date -u -d "$created" +%s)))
+		if [ "$age" -lt "$young" ]; then continue; fi
+		if ! grep -qxF "$name" <<<"$idx"; then
+			orphan+=("$name")
+		fi
+	done <<<"$clu"
+
+	printf 'phantom=%d:%s orphan=%d:%s' "${#phantom[@]}" "${phantom[*]:-∅}" "${#orphan[@]}" "${orphan[*]:-∅}"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -308,8 +366,13 @@ case_expiry() {
 	done
 	if [ ${#still[@]} -eq 0 ]; then
 		[ -n "$gone_at" ] || gone_at="$(vm_now)"
-		elapsed=$((gone_at - t_start))
-		ok "AC-C2 vế 1: ${EXPIRE_COUNT}/${EXPIRE_COUNT} pod của session hết hạn đã bị XOÁ" "sau ${elapsed}s kể từ lúc dựng cảnh"
+		# Đo từ MỐC HẾT HẠN, không từ lúc bắt đầu chờ. Con số AC quan tâm là "sau
+		# khi hết hạn bao lâu thì pod biến mất"; đo từ t_start thì nó gộp cả thời
+		# gian dựng cảnh (3 probe pod, mỗi cái ~15s) và đọc ra nhỏ hơn sự thật ở
+		# một lượt chạy nhanh, lớn hơn ở lượt chậm — tức một con số không so sánh
+		# được giữa hai lượt.
+		elapsed=$((gone_at - exp_epoch))
+		ok "AC-C2 vế 1: ${EXPIRE_COUNT}/${EXPIRE_COUNT} pod của session hết hạn đã bị XOÁ" 			"sau ${elapsed}s kể từ mốc hết hạn ${expires[0]} (độ phân giải poll 5s)"
 	else
 		bad "AC-C2 vế 1: pod của session hết hạn đã bị XOÁ" "còn sống: ${still[*]}"
 	fi
@@ -389,9 +452,11 @@ case_restart() {
 	info "session ${sid} trên pod ${spod}"
 
 	# Mốc TRƯỚC: đọc được, ghi được, pod bao nhiêu tuổi.
-	local free0 claimed0 pod_start0
+	local free0 claimed0 pod_start0 consist0
 	free0="$(redis LLEN pool:free)"
 	claimed0="$(redis LLEN pool:claimed)"
+	consist0="$(phantom_orphan)"
+	info "khớp index/cụm trước restart: ${consist0}"
 	pod_start0="$(kubectl -n "$SANDBOX_NS" get pod "$spod" -o jsonpath='{.status.startTime}' 2>/dev/null || echo "")"
 
 	logs="$(probe "reaper-probe-before-${tag}" -case check -session "$sid" -user "reaper-live-${tag}")"
@@ -430,13 +495,22 @@ case_restart() {
 			"phase='${pod_phase:-BIẾN MẤT}' startTime ${pod_start0} → ${pod_start1}"
 	fi
 
-	local free1 claimed1
+	local free1 claimed1 consist1
 	free1="$(redis LLEN pool:free)"
 	claimed1="$(redis LLEN pool:claimed)"
-	if [ "$free0" = "$free1" ] && [ "$claimed0" = "$claimed1" ]; then
-		ok "AC-C3 vế 1: pool không rò qua restart" "free ${free0}→${free1}, claimed ${claimed0}→${claimed1}"
+	consist1="$(phantom_orphan)"
+	info "pool: free ${free0}→${free1} (đổi theo POOL_TARGET là ĐÚNG), claimed ${claimed0}→${claimed1}"
+	info "khớp index/cụm sau restart: ${consist1}"
+
+	if [ "$claimed0" = "$claimed1" ]; then
+		ok "AC-C3 vế 1a: số pod ĐÃ CLAIM không đổi qua restart" "claimed ${claimed0}→${claimed1}"
 	else
-		bad "AC-C3 vế 1: pool không rò qua restart" "free ${free0}→${free1}, claimed ${claimed0}→${claimed1}"
+		bad "AC-C3 vế 1a: số pod ĐÃ CLAIM không đổi qua restart" "claimed ${claimed0}→${claimed1}"
+	fi
+	if [ "$consist1" = "$(printf 'phantom=0:∅ orphan=0:∅')" ]; then
+		ok "AC-C3 vế 1b: index Redis khớp cụm — 0 pod rò cả hai chiều" "$consist1"
+	else
+		bad "AC-C3 vế 1b: index Redis khớp cụm — 0 pod rò cả hai chiều" "$consist1"
 	fi
 
 	scrub_session "$sid" "$spod"
