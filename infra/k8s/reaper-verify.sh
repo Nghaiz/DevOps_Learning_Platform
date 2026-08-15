@@ -35,6 +35,21 @@
 #   bash infra/k8s/reaper-verify.sh --case ghost     # chỗ rò session-ma
 #   bash infra/k8s/reaper-verify.sh --case restart   # AC-C3
 #
+# ⚠ CHẠY CÔ LẬP, VÀ CHỈ MỘT LƯỢT MỖI GIỜ — hai ràng buộc khác nhau:
+#
+# 1. **Cô lập.** Bất kỳ harness nào claim pod song song đều làm lệch delta đếm
+#    `pool:claimed` mà AC-C3 vế 1a dựa vào (đo được 13/14 vì e2e chạy chung).
+#
+# 2. **Ca `restart` TỰ CHẶN lượt kế của ca `expiry`.** Nó cố ý để lại một session
+#    còn sống (đó là điều nó khẳng định: session sống sót qua restart), và session
+#    đó mang TTL đầy đủ **1 giờ**. Trong khi ca `expiry` cần **3 khe** trên trần 4
+#    (`requests.cpu 2100m ÷ 500m`), mà warm-pool đã giữ 1 khe. Nên ngay sau một
+#    lượt `--case all`, lượt kế sẽ dừng ở "thiếu khe quota: đang 2, cần 3, trần 4"
+#    và KHÔNG chạy được cho tới khi session kia hết hạn (~1h). Đo được 2026-08-16.
+#
+#    ⛔ Xoá pod KHÔNG giải phóng khe: session vẫn sống nên orchestrator dựng lại
+#    pod ngay. Phải chờ TTL, hoặc chạy ca khác trước và để `expiry` sau cùng.
+#
 # Thoát 1 nếu bất kỳ vế nào đỏ.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
