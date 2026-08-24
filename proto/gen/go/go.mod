@@ -5,8 +5,8 @@ module github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go
 go 1.26.6
 
 require (
-	google.golang.org/grpc v1.83.0
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/grpc v1.83.1
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
