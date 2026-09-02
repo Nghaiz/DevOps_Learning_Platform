@@ -317,7 +317,13 @@ gateway:
     # Trần MỘT lượt chấm. Vượt → 502 (lỗi), KHÔNG phải "bài sai": một script treo
     # không phải một bài làm sai, và trả "fail" cho nó sẽ bắt người học đi sửa
     # một bài vốn đã đúng.
-    execTimeout: '30s'
+    #
+    # 120s, không 30s (đóng nợ 2026-08-16-concurrent-build-load): 30s đo ở cụm
+    # rảnh; dưới 18 người cùng `docker build`, script chấm giãn 8–25× và 17/18
+    # người nhận 500 cho một bài ĐÃ ĐÚNG. BFF (`validate.ts`) giữ trần rộng hơn
+    # số này 15s có chủ ý — đổi ở đây thì đổi cả bên đó. Số để chỉnh lần sau nằm
+    # ở histogram `dlp_gateway_exec_oneshot_duration_seconds` (panel 3.D).
+    execTimeout: '120s'
     # Trần byte output mỗi lượt chấm. Đây là trần CHỐNG DoS, không phải trần hiển
     # thị — FE chỉ dùng output làm hint vài dòng. Cắt cỡ KHÔNG làm mất exit code
     # (xem podexec/oneshot.go `cappedWriter`).

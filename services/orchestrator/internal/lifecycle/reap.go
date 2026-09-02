@@ -11,6 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	corev1 "k8s.io/api/core/v1"
 
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/k8s"
@@ -343,12 +344,19 @@ func (s *Service) MarkFailed(ctx context.Context, sessionID, reason string) erro
 	return nil
 }
 
-// PodDeleter là phần k8s.PodClient mà lifecycle cần. Khai riêng thay vì nhận cả
-// PodClient: Reap chỉ xoá pod, và một interface hẹp làm rõ điều đó ở chỗ đọc.
-type PodDeleter interface {
+// PodAccess là phần k8s.PodClient mà lifecycle cần: XOÁ (Reap, MarkFailed) và
+// ĐỌC (podAlive — kiểm pod còn sống ngay sau claim). Vẫn hẹp hơn PodClient có
+// chủ ý: không Create (việc của pool), không List (việc của reaper) — một
+// interface hẹp nói rõ ở chỗ đọc lifecycle được phép làm gì với pod.
+//
+// Tên cũ là PodDeleter; đổi khi thêm Get (đóng nợ §6.2 của
+// 2026-08-16-concurrent-build-load) vì giữ tên cũ là để một interface nói dối
+// về chính nó.
+type PodAccess interface {
+	Get(ctx context.Context, name string) (*corev1.Pod, error)
 	Delete(ctx context.Context, name string, gracePeriodSeconds int64) error
 }
 
-// Đảm bảo k8s.PodClient thoả PodDeleter — nếu chữ ký Delete đổi, dòng này không
+// Đảm bảo k8s.PodClient thoả PodAccess — nếu chữ ký đổi, dòng này không
 // compile thay vì lỗi ở runtime.
-var _ PodDeleter = (k8s.PodClient)(nil)
+var _ PodAccess = (k8s.PodClient)(nil)

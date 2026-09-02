@@ -1,0 +1,278 @@
+{
+  "n": 18,
+  "wallAllMs": 64722,
+  "tGo": 1786853436871,
+  "rows": [
+    {
+      "sid": 0,
+      "marks": {
+        "claim": 1677,
+        "dockerdReady": 1641,
+        "pull": 86787,
+        "build": 28503
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 1,
+      "marks": {
+        "claim": 27792,
+        "dockerdReady": 19024,
+        "pull": 74696,
+        "build": 27002
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 2,
+      "sessionId": "ea93b823a3d4fc0660f01055d945d0e0",
+      "pod": "sandbox-8b993aa7d6b9",
+      "uid": "4a2880cf-0300-47cf-a795-c97e3a4f01f2",
+      "marks": {
+        "claim": 33156,
+        "dockerdReady": 26091,
+        "pull": 187311,
+        "build": 17619
+      },
+      "fails": [],
+      "netRetries": 0,
+      "ok": true
+    },
+    {
+      "sid": 3,
+      "marks": {
+        "claim": 33471,
+        "dockerdReady": 26830,
+        "pull": 206312,
+        "build": 22929
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 4,
+      "marks": {
+        "claim": 43460,
+        "dockerdReady": 24890,
+        "pull": 233927,
+        "build": 28912
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 5,
+      "marks": {
+        "claim": 38358,
+        "dockerdReady": 25686,
+        "pull": 129891,
+        "build": 23386
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 6,
+      "marks": {
+        "claim": 32026,
+        "dockerdReady": 25881,
+        "pull": 105150,
+        "build": 24380
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 7,
+      "marks": {
+        "claim": 33488,
+        "dockerdReady": 28670,
+        "pull": 102074,
+        "build": 27378
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 8,
+      "marks": {
+        "claim": 44748,
+        "dockerdReady": 25288,
+        "pull": 133364,
+        "build": 26719
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 9,
+      "marks": {
+        "claim": 27877,
+        "dockerdReady": 24966,
+        "pull": 93508,
+        "build": 28607
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 10,
+      "marks": {
+        "claim": 36146,
+        "dockerdReady": 25713,
+        "pull": 212972,
+        "build": 27315
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 11,
+      "marks": {
+        "claim": 42633,
+        "dockerdReady": 25631,
+        "pull": 142348,
+        "build": 25792
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 12,
+      "marks": {
+        "claim": 31355,
+        "dockerdReady": 26431,
+        "pull": 99532,
+        "build": 28659
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 13,
+      "marks": {
+        "claim": 23468,
+        "dockerdReady": 2871,
+        "pull": 216893,
+        "build": 27821
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 14,
+      "marks": {
+        "claim": 38521,
+        "dockerdReady": 25629,
+        "pull": 178511,
+        "build": 28615
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 15,
+      "marks": {
+        "claim": 24993,
+        "dockerdReady": 24300,
+        "pull": 133872,
+        "build": 29089
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 16,
+      "marks": {
+        "claim": 39814,
+        "dockerdReady": 26308,
+        "pull": 111254,
+        "build": 28623
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 17,
+      "marks": {
+        "claim": 31447,
+        "dockerdReady": 26019,
+        "pull": 198607,
+        "build": 24124
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    }
+  ],
+  "bad": [],
+  "quota": {
+    "before": {
+      "hard": {
+        "limits.cpu": "44",
+        "limits.memory": "22Gi",
+        "pods": "26",
+        "requests.cpu": "5400m",
+        "requests.memory": "5500Mi"
+      },
+      "used": {
+        "limits.cpu": "6",
+        "limits.memory": "3Gi",
+        "pods": "3",
+        "requests.cpu": "750m",
+        "requests.memory": "768Mi"
+      }
+    },
+    "after": {
+      "hard": {
+        "limits.cpu": "44",
+        "limits.memory": "22Gi",
+        "pods": "26",
+        "requests.cpu": "5400m",
+        "requests.memory": "5500Mi"
+      },
+      "used": {
+        "limits.cpu": "42",
+        "limits.memory": "21Gi",
+        "pods": "21",
+        "requests.cpu": "5250m",
+        "requests.memory": "5376Mi"
+      }
+    }
+  }
+}

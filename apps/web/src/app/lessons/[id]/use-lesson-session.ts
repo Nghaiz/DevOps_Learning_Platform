@@ -34,7 +34,11 @@ export interface LessonSession {
   readonly terminal: TerminalHandle | null;
   readonly starting: boolean;
   readonly startError: string | null;
+  /** `true` trong lúc `lessons.endSession` đang chạy — nút "Kết thúc phiên" disable theo nó. */
+  readonly ending: boolean;
   start: () => void;
+  /** Kết thúc phiên sớm: reap ở orchestrator rồi đưa máy trạng thái về idle. */
+  end: () => void;
   onControl: (message: ServerControl) => void;
   onClose: (code: number) => void;
   onTerminalReady: (handle: TerminalHandle | null) => void;
@@ -47,6 +51,7 @@ export function useLessonSession(scenarioId: string): LessonSession {
   const [startError, setStartError] = useState<string | null>(null);
 
   const startSession = api.lessons.startSession.useMutation();
+  const endSession = api.lessons.endSession.useMutation();
 
   const start = useCallback(() => {
     dispatch({ type: 'START' });
@@ -81,6 +86,28 @@ export function useLessonSession(scenarioId: string): LessonSession {
       },
     );
   }, [scenarioId, startSession]);
+
+  // Dispatch ENDED chỉ SAU khi BFF xác nhận reap xong: về idle trước rồi reap
+  // hỏng là người dùng thấy "đã kết thúc" trong khi pod vẫn giữ một khe quota
+  // thêm một giờ — đúng thứ nút này sinh ra để chấm dứt.
+  const end = useCallback(() => {
+    const sessionId = state.sessionId;
+    if (sessionId === null) {
+      return;
+    }
+    setStartError(null);
+    endSession.mutate(
+      { sessionId },
+      {
+        onSuccess: () => {
+          dispatch({ type: 'ENDED' });
+        },
+        onError: (error) => {
+          setStartError(describeTrpcError(error));
+        },
+      },
+    );
+  }, [state.sessionId, endSession]);
 
   // Hẹn giờ nối lại theo backoff mà máy trạng thái tính. `attempt` PHẢI nằm trong
   // deps: hai lần rớt liên tiếp có thể cho cùng `retryDelayMs` (cả hai đều ở
@@ -143,7 +170,9 @@ export function useLessonSession(scenarioId: string): LessonSession {
     terminal,
     starting: startSession.isPending,
     startError,
+    ending: endSession.isPending,
     start,
+    end,
     onControl,
     onClose,
     onTerminalReady: setTerminal,

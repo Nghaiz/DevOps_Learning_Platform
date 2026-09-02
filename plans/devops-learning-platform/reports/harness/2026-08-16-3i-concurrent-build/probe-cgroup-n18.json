@@ -1,0 +1,596 @@
+{
+  "ns": "dlp-sandbox",
+  "label": "app=sandbox",
+  "interval_ms": 250,
+  "duration_s": 1200.0,
+  "pods": {
+    "sandbox-08d203cde2d8": {
+      "uid": "16693df9-7f21-4e59-8b7c-36326ea7de36",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod16693df9_7f21_4e59_8b7c_36326ea7de36.slice",
+      "so_mau": 4218,
+      "t_thay_s": 0.0,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.05037015099177394,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.6247246430440536,
+        "0.5s": 0.9891721557190281,
+        "1s": 0.9851449278683418,
+        "2s": 0.9469755926282897,
+        "5s": 0.8541889395134808,
+        "15s": 0.7352041209585395,
+        "60s": 0.30255009996242294
+      },
+      "mem_peak_kernel_byte": 335040512,
+      "mem_mau_max_byte": 334745600,
+      "anon_dinh_byte": 111136768,
+      "file_cache_dinh_byte": 209948672,
+      "working_set_dinh_byte": 182857728,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 6582
+      }
+    },
+    "sandbox-c1b2757c007e": {
+      "uid": "550f33b0-5853-497e-8006-d6bf9a785da8",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod550f33b0_5853_497e_8006_d6bf9a785da8.slice",
+      "so_mau": 4218,
+      "t_thay_s": 0.0,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.008126648063130449,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 0.11691539884395862,
+        "0.5s": 0.06488710112449103,
+        "1s": 0.034892870680862276,
+        "2s": 0.02328274152771726,
+        "5s": 0.014918793814001935,
+        "15s": 0.01069457098741549,
+        "60s": 0.00930186461143225
+      },
+      "mem_peak_kernel_byte": 447016960,
+      "mem_mau_max_byte": 407355392,
+      "anon_dinh_byte": 114249728,
+      "file_cache_dinh_byte": 271859712,
+      "working_set_dinh_byte": 139489280,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 8587
+      }
+    },
+    "sandbox-c396e566531b": {
+      "uid": "87594404-6c22-43af-a064-62f7d3b94951",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod87594404_6c22_43af_a064_62f7d3b94951.slice",
+      "so_mau": 4218,
+      "t_thay_s": 0.0,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.00934895670199871,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 0.5947236571177164,
+        "0.5s": 0.47950117888894306,
+        "1s": 0.3994405383365567,
+        "2s": 0.23069692839012482,
+        "5s": 0.09682442121725654,
+        "15s": 0.03731430636690004,
+        "60s": 0.01609084237194074
+      },
+      "mem_peak_kernel_byte": 450289664,
+      "mem_mau_max_byte": 414392320,
+      "anon_dinh_byte": 102752256,
+      "file_cache_dinh_byte": 272822272,
+      "working_set_dinh_byte": 141864960,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 8914
+      }
+    },
+    "sandbox-6412f3bbd030": {
+      "uid": "2353a58c-7196-438b-81b4-99a5268a3be1",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2353a58c_7196_438b_81b4_99a5268a3be1.slice",
+      "so_mau": 4126,
+      "t_thay_s": 24.8,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.061618026005377156,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.4562134539160567,
+        "0.5s": 1.2960934514487186,
+        "1s": 0.971754444197231,
+        "2s": 0.7349322083564325,
+        "5s": 0.6068080310184598,
+        "15s": 0.5560755384981305,
+        "60s": 0.36025974084194506
+      },
+      "mem_peak_kernel_byte": 425795584,
+      "mem_mau_max_byte": 424869888,
+      "anon_dinh_byte": 121716736,
+      "file_cache_dinh_byte": 287600640,
+      "working_set_dinh_byte": 150740992,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 1,
+        "throttled_usec": 2408,
+        "nr_periods": 6947
+      }
+    },
+    "sandbox-2894c6c0ede1": {
+      "uid": "b993d218-e8bf-4d8c-8c53-4b95837df9ed",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podb993d218_e8bf_4d8c_8c53_4b95837df9ed.slice",
+      "so_mau": 4094,
+      "t_thay_s": 34.0,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.07346306344658794,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.1516711712487557,
+        "0.5s": 1.0574300465974573,
+        "1s": 0.9688492006231273,
+        "2s": 0.8627648532549919,
+        "5s": 0.5344650432300253,
+        "15s": 0.5011729946865994,
+        "60s": 0.3860601235687684
+      },
+      "mem_peak_kernel_byte": 301813760,
+      "mem_mau_max_byte": 300527616,
+      "anon_dinh_byte": 111054848,
+      "file_cache_dinh_byte": 172568576,
+      "working_set_dinh_byte": 149696512,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 6396
+      }
+    },
+    "sandbox-7f594d6fe46b": {
+      "uid": "3b343a02-aec1-49b0-bdb9-509d53ce7c12",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod3b343a02_aec1_49b0_bdb9_509d53ce7c12.slice",
+      "so_mau": 4083,
+      "t_thay_s": 37.0,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.06430618541246874,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.3793562504618446,
+        "0.5s": 1.340771860940702,
+        "1s": 1.2612759388060855,
+        "2s": 1.1903008265646162,
+        "5s": 1.0922512170497827,
+        "15s": 0.8124717363004952,
+        "60s": 0.4945527337468194
+      },
+      "mem_peak_kernel_byte": 326754304,
+      "mem_mau_max_byte": 325234688,
+      "anon_dinh_byte": 107347968,
+      "file_cache_dinh_byte": 215621632,
+      "working_set_dinh_byte": 183472128,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 6264
+      }
+    },
+    "sandbox-1517669209ca": {
+      "uid": "43a8786b-7b05-4e65-9d6f-d21738960233",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod43a8786b_7b05_4e65_9d6f_d21738960233.slice",
+      "so_mau": 4072,
+      "t_thay_s": 40.3,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.08468604121107338,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.4530478010885894,
+        "0.5s": 1.1168293991879783,
+        "1s": 1.0676071002862046,
+        "2s": 0.8140729916954705,
+        "5s": 0.7241568742361699,
+        "15s": 0.5666961597735872,
+        "60s": 0.40359977807317793
+      },
+      "mem_peak_kernel_byte": 328994816,
+      "mem_mau_max_byte": 326770688,
+      "anon_dinh_byte": 109453312,
+      "file_cache_dinh_byte": 195543040,
+      "working_set_dinh_byte": 154955776,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 6438
+      }
+    },
+    "sandbox-a4a17623f7c4": {
+      "uid": "d0937173-30b2-417b-8329-34d224358224",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podd0937173_30b2_417b_8329_34d224358224.slice",
+      "so_mau": 4072,
+      "t_thay_s": 40.3,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.074912439951197,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.3940285552141145,
+        "0.5s": 1.2876113764256147,
+        "1s": 1.115140782381439,
+        "2s": 0.9738573463202851,
+        "5s": 0.9067752065315067,
+        "15s": 0.7027951141245796,
+        "60s": 0.4238665283209193
+      },
+      "mem_peak_kernel_byte": 331640832,
+      "mem_mau_max_byte": 330940416,
+      "anon_dinh_byte": 109658112,
+      "file_cache_dinh_byte": 207208448,
+      "working_set_dinh_byte": 160112640,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 6035
+      }
+    },
+    "sandbox-15db4e171d11": {
+      "uid": "56e4abfc-453a-413e-b64b-b0158cd73571",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod56e4abfc_453a_413e_b64b_b0158cd73571.slice",
+      "so_mau": 4061,
+      "t_thay_s": 43.5,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.0775470754245374,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.5260505029351343,
+        "0.5s": 1.278209614355258,
+        "1s": 1.24494022845194,
+        "2s": 1.1029442889258736,
+        "5s": 0.9700863414465399,
+        "15s": 0.644136215424284,
+        "60s": 0.4666655184263919
+      },
+      "mem_peak_kernel_byte": 411680768,
+      "mem_mau_max_byte": 411156480,
+      "anon_dinh_byte": 110592000,
+      "file_cache_dinh_byte": 287830016,
+      "working_set_dinh_byte": 150839296,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 6649
+      }
+    },
+    "sandbox-3a855639fa78": {
+      "uid": "a1c713a5-186b-4a2e-8288-c8915f3a2e26",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda1c713a5_186b_4a2e_8288_c8915f3a2e26.slice",
+      "so_mau": 4061,
+      "t_thay_s": 43.5,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.11790282395885175,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.6741428061492343,
+        "0.5s": 1.331149708363558,
+        "1s": 1.2144400402497733,
+        "2s": 1.1121067630639128,
+        "5s": 1.0078326498371342,
+        "15s": 0.6336437091346829,
+        "60s": 0.49416360589776126
+      },
+      "mem_peak_kernel_byte": 412803072,
+      "mem_mau_max_byte": 411488256,
+      "anon_dinh_byte": 106913792,
+      "file_cache_dinh_byte": 287625216,
+      "working_set_dinh_byte": 152629248,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 1,
+        "throttled_usec": 1969,
+        "nr_periods": 6941
+      }
+    },
+    "sandbox-6541a82bbe15": {
+      "uid": "9e7879ec-dc6d-4467-a89e-1d58ce8242ca",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod9e7879ec_dc6d_4467_a89e_1d58ce8242ca.slice",
+      "so_mau": 4061,
+      "t_thay_s": 43.5,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.05724066664327469,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.7779733909992455,
+        "0.5s": 1.0195051143167113,
+        "1s": 0.9802895848240576,
+        "2s": 0.7738035989986667,
+        "5s": 0.6091498812133785,
+        "15s": 0.5083044386817095,
+        "60s": 0.3331712525706713
+      },
+      "mem_peak_kernel_byte": 422449152,
+      "mem_mau_max_byte": 421638144,
+      "anon_dinh_byte": 104382464,
+      "file_cache_dinh_byte": 287842304,
+      "working_set_dinh_byte": 269950976,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 6444
+      }
+    },
+    "sandbox-8b993aa7d6b9": {
+      "uid": "4a2880cf-0300-47cf-a795-c97e3a4f01f2",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod4a2880cf_0300_47cf_a795_c97e3a4f01f2.slice",
+      "so_mau": 4061,
+      "t_thay_s": 43.5,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.11223065936073257,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.7710359410205723,
+        "0.5s": 1.621994880480245,
+        "1s": 1.426703791147736,
+        "2s": 1.2893182985473672,
+        "5s": 1.1005455844228282,
+        "15s": 0.6986628215626859,
+        "60s": 0.5163155251941562
+      },
+      "mem_peak_kernel_byte": 410308608,
+      "mem_mau_max_byte": 407687168,
+      "anon_dinh_byte": 106430464,
+      "file_cache_dinh_byte": 287719424,
+      "working_set_dinh_byte": 154255360,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 1,
+        "throttled_usec": 0,
+        "nr_periods": 7081
+      }
+    },
+    "sandbox-ce01786f2e13": {
+      "uid": "d253929d-8f2b-44bf-a73a-55f7dd418382",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podd253929d_8f2b_44bf_a73a_55f7dd418382.slice",
+      "so_mau": 4061,
+      "t_thay_s": 43.5,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.06858343557152882,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.145387530025246,
+        "0.5s": 1.129320466299512,
+        "1s": 0.8043926822498613,
+        "2s": 0.7193552583879755,
+        "5s": 0.6542059594370542,
+        "15s": 0.4724387881969782,
+        "60s": 0.4031693203788724
+      },
+      "mem_peak_kernel_byte": 315097088,
+      "mem_mau_max_byte": 312655872,
+      "anon_dinh_byte": 105340928,
+      "file_cache_dinh_byte": 191377408,
+      "working_set_dinh_byte": 149610496,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 6497
+      }
+    },
+    "sandbox-e7e9090d95ee": {
+      "uid": "883b89ed-6503-46de-a6bb-2456bf71ebc1",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod883b89ed_6503_46de_a6bb_2456bf71ebc1.slice",
+      "so_mau": 4061,
+      "t_thay_s": 43.5,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.08644339459507493,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.844858686787378,
+        "0.5s": 1.6292061475332889,
+        "1s": 1.461711135616134,
+        "2s": 1.4300782504702696,
+        "5s": 1.1614398547492126,
+        "15s": 0.6397180006773048,
+        "60s": 0.34230088975751577
+      },
+      "mem_peak_kernel_byte": 424402944,
+      "mem_mau_max_byte": 411627520,
+      "anon_dinh_byte": 128458752,
+      "file_cache_dinh_byte": 287191040,
+      "working_set_dinh_byte": 171421696,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 2,
+        "throttled_usec": 40153,
+        "nr_periods": 7365
+      }
+    },
+    "sandbox-410908c8965c": {
+      "uid": "42d19732-8d74-48c4-88c5-deba3a1eccc6",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod42d19732_8d74_48c4_88c5_deba3a1eccc6.slice",
+      "so_mau": 4051,
+      "t_thay_s": 46.8,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.08168515516028595,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.0223415651514498,
+        "0.5s": 0.9284500406760565,
+        "1s": 0.8387178662900927,
+        "2s": 0.7701763729315139,
+        "5s": 0.5093271550175978,
+        "15s": 0.45590880027171127,
+        "60s": 0.36912346938345353
+      },
+      "mem_peak_kernel_byte": 270782464,
+      "mem_mau_max_byte": 269484032,
+      "anon_dinh_byte": 109617152,
+      "file_cache_dinh_byte": 166514688,
+      "working_set_dinh_byte": 153948160,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 6170
+      }
+    },
+    "sandbox-136f73440e2a": {
+      "uid": "e04f6bdd-b988-4e65-a862-3af45ae7851a",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pode04f6bdd_b988_4e65_a862_3af45ae7851a.slice",
+      "so_mau": 4041,
+      "t_thay_s": 49.8,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.07678817437588448,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.5708538735043438,
+        "0.5s": 1.1717929759753472,
+        "1s": 0.8539222587196905,
+        "2s": 0.8086825147033933,
+        "5s": 0.6921886936969674,
+        "15s": 0.5624847411350415,
+        "60s": 0.3457477352361437
+      },
+      "mem_peak_kernel_byte": 243314688,
+      "mem_mau_max_byte": 225140736,
+      "anon_dinh_byte": 120918016,
+      "file_cache_dinh_byte": 134889472,
+      "working_set_dinh_byte": 151732224,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 6367
+      }
+    },
+    "sandbox-156237746907": {
+      "uid": "dea6e6f9-1acf-4610-95d7-af98bd8ca525",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poddea6e6f9_1acf_4610_95d7_af98bd8ca525.slice",
+      "so_mau": 4041,
+      "t_thay_s": 49.8,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.05936898365101362,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 0.9524096371306603,
+        "0.5s": 0.9173826507929129,
+        "1s": 0.7452622815426355,
+        "2s": 0.7399559680861103,
+        "5s": 0.540719947199203,
+        "15s": 0.4789546150455359,
+        "60s": 0.3409452030787438
+      },
+      "mem_peak_kernel_byte": 268886016,
+      "mem_mau_max_byte": 266457088,
+      "anon_dinh_byte": 122355712,
+      "file_cache_dinh_byte": 168697856,
+      "working_set_dinh_byte": 167485440,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 6173
+      }
+    },
+    "sandbox-59c2a9f47829": {
+      "uid": "4cf0ecec-1f30-49a1-afc9-fb747f3fac0c",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod4cf0ecec_1f30_49a1_afc9_fb747f3fac0c.slice",
+      "so_mau": 4041,
+      "t_thay_s": 49.8,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.07294904182171941,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.6719445484141207,
+        "0.5s": 1.2145666370067847,
+        "1s": 0.8137442555806649,
+        "2s": 0.7635241314596748,
+        "5s": 0.5828989668307976,
+        "15s": 0.47895472142134604,
+        "60s": 0.3953574298172534
+      },
+      "mem_peak_kernel_byte": 281542656,
+      "mem_mau_max_byte": 279404544,
+      "anon_dinh_byte": 110604288,
+      "file_cache_dinh_byte": 153858048,
+      "working_set_dinh_byte": 152694784,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 2,
+        "throttled_usec": 38925,
+        "nr_periods": 5941
+      }
+    },
+    "sandbox-cfaa258f44fe": {
+      "uid": "470b6e97-fe76-448b-8f41-87c31a4d7f2f",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod470b6e97_fe76_448b_8f41_87c31a4d7f2f.slice",
+      "so_mau": 4031,
+      "t_thay_s": 52.8,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.08075482824765227,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.8813346062345067,
+        "0.5s": 1.6479787943703392,
+        "1s": 1.3421457286567715,
+        "2s": 1.1463218799916775,
+        "5s": 1.0425979266955516,
+        "15s": 0.6561253816847359,
+        "60s": 0.48577049144938184
+      },
+      "mem_peak_kernel_byte": 413315072,
+      "mem_mau_max_byte": 399097856,
+      "anon_dinh_byte": 108838912,
+      "file_cache_dinh_byte": 287444992,
+      "working_set_dinh_byte": 152698880,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 2,
+        "throttled_usec": 41413,
+        "nr_periods": 6591
+      }
+    },
+    "sandbox-b2c2d043c50c": {
+      "uid": "c78bbf18-a35f-41e3-86e7-8718c989e80a",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podc78bbf18_a35f_41e3_86e7_8718c989e80a.slice",
+      "so_mau": 4020,
+      "t_thay_s": 56.0,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.07104559360184086,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 1.2466251771411991,
+        "0.5s": 0.9695004903898546,
+        "1s": 0.7944074820766612,
+        "2s": 0.8057824730796453,
+        "5s": 0.5872816630302282,
+        "15s": 0.4642859518626159,
+        "60s": 0.33609602422956625
+      },
+      "mem_peak_kernel_byte": 246878208,
+      "mem_mau_max_byte": 246296576,
+      "anon_dinh_byte": 108670976,
+      "file_cache_dinh_byte": 151515136,
+      "working_set_dinh_byte": 157151232,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 5980
+      }
+    },
+    "sandbox-f83f9a852497": {
+      "uid": "073e615b-065c-4621-b1b8-e5dfbd960223",
+      "cgroup": "/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod073e615b_065c_4621_b1b8_e5dfbd960223.slice",
+      "so_mau": 4020,
+      "t_thay_s": 56.0,
+      "tran_cpu_core": 2.0,
+      "cpu_tb_core": 0.010885935763280787,
+      "cpu_dinh_theo_cua_so_core": {
+        "0.2s": 0.8885678620298235,
+        "0.5s": 0.8041573462101449,
+        "1s": 0.6920807699051805,
+        "2s": 0.6842925760961306,
+        "5s": 0.3883196864020574,
+        "15s": 0.20653698138450302,
+        "60s": 0.07129586989103541
+      },
+      "mem_peak_kernel_byte": 44736512,
+      "mem_mau_max_byte": 44216320,
+      "anon_dinh_byte": 40259584,
+      "file_cache_dinh_byte": 729088,
+      "working_set_dinh_byte": 43819008,
+      "mem_max_byte": 1073741824,
+      "throttle": {
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_periods": 8083
+      }
+    }
+  }
+}

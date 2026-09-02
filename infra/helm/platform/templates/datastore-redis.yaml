@@ -133,6 +133,15 @@ spec:
                 - 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping | grep -q PONG'
             initialDelaySeconds: 5
             periodSeconds: 10
+            # timeoutSeconds mặc định là 1s, và 1s là con số đã ĐO là sai trên VM
+            # lab 2026-09-02: node quá tải CPU (load 25 trên 8 core do một workload
+            # ngoài) làm `redis-cli ping` mất >1s ⇒ probe "timed out" ba lần ⇒
+            # kubelet giết một Redis vẫn đang phục vụ ⇒ orchestrator + web đổ
+            # theo (restart 15–23 lần trong một giờ). Probe phải phân biệt "chậm
+            # vì node đói" với "chết"; 5s + failureThreshold 6 (1 phút liên tục)
+            # làm được điều đó, còn 1s × 3 thì không.
+            timeoutSeconds: 5
+            failureThreshold: 6
           livenessProbe:
             exec:
               command:
@@ -143,6 +152,9 @@ spec:
             # nó giữa lúc đang nạp và lặp vô hạn.
             initialDelaySeconds: 30
             periodSeconds: 20
+            # Xem readinessProbe: 1s giết Redis đang sống khi node đói CPU.
+            timeoutSeconds: 5
+            failureThreshold: 6
           resources:
             {{- toYaml .Values.datastore.redis.resources | nindent 12 }}
       volumes:

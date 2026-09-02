@@ -1,0 +1,57 @@
+{
+  "n": 1,
+  "wallAllMs": 12922,
+  "tGo": 1786852963938,
+  "rows": [
+    {
+      "sid": 0,
+      "sessionId": "23148b0b352ff40839834cb870e816c6",
+      "pod": "sandbox-c396e566531b",
+      "uid": "87594404-6c22-43af-a064-62f7d3b94951",
+      "marks": {
+        "claim": 192,
+        "dockerdReady": 889,
+        "pull": 100032,
+        "build": 3676
+      },
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
+    }
+  ],
+  "bad": [],
+  "quota": {
+    "before": {
+      "hard": {
+        "limits.cpu": "44",
+        "limits.memory": "22Gi",
+        "pods": "26",
+        "requests.cpu": "5400m",
+        "requests.memory": "5500Mi"
+      },
+      "used": {
+        "limits.cpu": "4",
+        "limits.memory": "2Gi",
+        "pods": "2",
+        "requests.cpu": "500m",
+        "requests.memory": "512Mi"
+      }
+    },
+    "after": {
+      "hard": {
+        "limits.cpu": "44",
+        "limits.memory": "22Gi",
+        "pods": "26",
+        "requests.cpu": "5400m",
+        "requests.memory": "5500Mi"
+      },
+      "used": {
+        "limits.cpu": "6",
+        "limits.memory": "3Gi",
+        "pods": "3",
+        "requests.cpu": "750m",
+        "requests.memory": "768Mi"
+      }
+    }
+  }
+}

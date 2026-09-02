@@ -239,6 +239,10 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt: sess.ExpiresAt,
 		UserID:    sess.UserID,
 	}, script)
+	// Quan sát CẢ lượt hỏng lẫn lượt hết hạn: đuôi của histogram này chính là
+	// bằng chứng để nâng/hạ GATEWAY_EXEC_TIMEOUT; chỉ đo lượt thành công là
+	// cắt đúng phần đuôi cần nhìn.
+	h.deps.Metrics.ExecOneShotDuration.Observe(time.Since(startedAt).Seconds())
 	if err != nil {
 		// Quá hạn tách khỏi hỏng thật: 504 nói "thử lại/bài chạy lâu", 500 nói
 		// "gọi người trực". Gộp chúng là dạy người đọc log bỏ qua cả hai.

@@ -116,6 +116,11 @@ spec:
               command: ['pg_isready', '-U', '{{ .Values.datastore.postgres.user }}', '-d', '{{ .Values.datastore.postgres.database }}']
             initialDelaySeconds: 5
             periodSeconds: 10
+            # 1s mặc định giết Postgres đang sống khi node đói CPU — đo 2026-09-02,
+            # cùng lý lẽ với datastore-redis.yaml (probe phải phân biệt "chậm"
+            # với "chết").
+            timeoutSeconds: 5
+            failureThreshold: 6
           livenessProbe:
             exec:
               command: ['pg_isready', '-U', '{{ .Values.datastore.postgres.user }}', '-d', '{{ .Values.datastore.postgres.database }}']
@@ -123,6 +128,9 @@ spec:
             # giết pod giữa lúc khởi tạo và lặp mãi không bao giờ xong.
             initialDelaySeconds: 60
             periodSeconds: 20
+            # Xem readinessProbe: 1s giết Postgres đang sống khi node đói CPU.
+            timeoutSeconds: 5
+            failureThreshold: 6
           resources:
             {{- toYaml .Values.datastore.postgres.resources | nindent 12 }}
       volumes:

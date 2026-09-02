@@ -93,7 +93,9 @@ export type SessionEvent =
   | { readonly type: 'CONTROL'; readonly message: ServerControl }
   | { readonly type: 'CLOSED'; readonly code: number; readonly nowMs: number }
   | { readonly type: 'RETRY_NOW' }
-  | { readonly type: 'REASON_RESOLVED'; readonly message: string; readonly gone: boolean };
+  | { readonly type: 'REASON_RESOLVED'; readonly message: string; readonly gone: boolean }
+  /** Người dùng tự kết thúc phiên (BFF đã reap xong). Về idle, KHÔNG nối lại. */
+  | { readonly type: 'ENDED' };
 
 function parseIsoMs(value: string | null): number | null {
   if (value === null) {
@@ -213,6 +215,14 @@ function closeMessage(code: number): { phase: SessionPhase; message: string } {
 }
 
 function applyClosed(state: SessionState, code: number, nowMs: number): SessionState {
+  if (state.phase === 'idle') {
+    // Không có phiên nào để đóng. Xảy ra thật sau `ENDED`: BFF reap xong, máy
+    // trạng thái về idle, RỒI gateway mới đóng WS với 4404 — không có guard
+    // này thì cái đuôi đó ghi đè idle thành `expired` với câu "pod đã bị thu
+    // hồi", tức một phiên người dùng vừa CHỦ ĐỘNG kết thúc hiện ra như bị hệ
+    // thống giết.
+    return state;
+  }
   if (code === CloseCode.NORMAL && state.phase === 'exited') {
     // `exit` đã tới trước và đã quyết định phase — close 1000 chỉ là đuôi của nó
     // (contract §5: "`exit` … kèm ngay sau là close `1000`"). Ghi đè ở đây sẽ
@@ -278,6 +288,16 @@ export function reduce(state: SessionState, event: SessionEvent): SessionState {
 
     case 'RETRY_NOW':
       return { ...state, phase: 'connecting', retryDelayMs: null };
+
+    case 'ENDED':
+      // Về đúng initialState (sessionId null ⇒ nút "Bắt đầu" hiện lại), chỉ giữ
+      // một câu để người dùng biết chuyện gì vừa xảy ra. retryDelayMs null là
+      // phần quan trọng: kết thúc giữa lúc đang `reconnecting` phải HUỶ lịch nối
+      // lại, không thì effect hẹn giờ nối vào một phiên đã reap.
+      return {
+        ...initialState,
+        message: 'Bạn đã kết thúc phiên. Bấm "Bắt đầu" để mở phiên mới.',
+      };
 
     case 'REASON_RESOLVED':
       // Đã biết lý do thật từ `session.get` ⇒ dừng vòng nối lại nếu session chết.

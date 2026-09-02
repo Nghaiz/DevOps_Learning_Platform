@@ -113,6 +113,26 @@ func IsTerminal(pod *corev1.Pod) bool {
 	return pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded
 }
 
+// IsDoomed trả true khi pod SẼ KHÔNG phục vụ được nữa — gồm cả pha cuối lẫn ca
+// "đang bị xoá".
+//
+// ⛔ VÌ SAO KHÔNG DÙNG `IsTerminal` MỘT MÌNH, và vì sao khác biệt này không phải
+// tiểu tiết. Một pod đang bị xoá giữ NGUYÊN `phase: Running` suốt thời gian
+// grace (mặc định 30s, và `kubectl delete pod --force` cũng KHÔNG phải SIGKILL
+// ngay) — chỉ `metadata.deletionTimestamp` khác nil nói ra điều đó. Nên một phép
+// kiểm chỉ đọc `phase` sẽ đọc "còn sống" ở ĐÚNG cửa sổ mà pod chắc chắn chết,
+// tức đúng ca `kubectl delete pod` / evict đã đo được ở
+// `reports/2026-08-16-concurrent-build-load.md` §6.2.
+//
+// `IsTerminal` giữ nguyên nghĩa hẹp của nó (chỉ phase) vì nó là thứ
+// `pool.waitReady` cần lúc TẠO pod: ở đó `deletionTimestamp` chưa thể tồn tại.
+func IsDoomed(pod *corev1.Pod) bool {
+	if pod == nil {
+		return false
+	}
+	return IsTerminal(pod) || pod.DeletionTimestamp != nil
+}
+
 // IsQuotaExceeded nhận diện "ResourceQuota chặn", tách khỏi mọi lỗi API khác.
 //
 // VÌ SAO PHẢI TÁCH: chạm quota KHÔNG phải lỗi hệ thống — nó là nền tảng đang

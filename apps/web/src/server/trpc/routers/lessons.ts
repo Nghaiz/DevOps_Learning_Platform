@@ -181,6 +181,7 @@ const runSetupInput = z
   .strict();
 
 const sessionStatusInput = z.object({ sessionId: z.string().min(1) }).strict();
+const endSessionInput = z.object({ sessionId: z.string().min(1) }).strict();
 
 // ---------------------------------------------------------------- router
 
@@ -282,6 +283,34 @@ export const lessonsRouter = createTRPCRouter({
     const response = await callOrchestrator(() =>
       orchestratorClient().getSession(
         { sessionId: input.sessionId, userId: ctx.user.id },
+        { headers },
+      ),
+    );
+    return { status: response.session?.status ?? null };
+  }),
+
+  /**
+   * Kết thúc phiên SỚM, theo ý người học.
+   *
+   * Đóng nợ ghi ở 3.I mắt 3–5 §10: "`session.reap` là đường trả sớm duy nhất;
+   * không có `lessons.endSession`". Trước dòng này một phiên bài học chỉ chết
+   * theo TTL 1h rồi reaper dọn — người học đóng tab là một khe quota bị giữ một
+   * giờ cho không ai, và ở trần 21 pod thì 21 tab đóng là cả lớp bị từ chối.
+   *
+   * Uỷ quyền cho `ReapSession` của orchestrator với actor = CHÍNH người gọi.
+   * Không nhận `userId` từ input (cùng lý lẽ với `sessionStatus`): orchestrator
+   * kiểm chủ sở hữu và trả NotFound cho phiên của người khác (luật 1). Chỉ trả
+   * `status` — `expiresAt.seconds` là bigint và sẽ 500 ở tầng serialize.
+   */
+  endSession: protectedProcedure.input(endSessionInput).mutation(async ({ ctx, input }) => {
+    const headers = await callHeaders(ctx.user.id, ctx.user.role);
+    const response = await callOrchestrator(() =>
+      orchestratorClient().reapSession(
+        {
+          sessionId: input.sessionId,
+          reason: 'user_ended',
+          actor: { case: 'userId', value: ctx.user.id },
+        },
         { headers },
       ),
     );
