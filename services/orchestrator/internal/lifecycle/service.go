@@ -475,11 +475,15 @@ func (s *Service) claimWithColdPath(
 		"không giữ được pod nào sau khi tạo; hệ thống đang quá tải, thử lại")
 }
 
-// podAlive hỏi apiserver xem pod còn tồn tại và chưa ở pha cuối.
+// podAlive hỏi apiserver xem pod còn phục vụ được không.
 //
-// `(false, nil)` là câu trả lời CHẮC ("pod không còn / đã Failed|Succeeded");
+// `(false, nil)` là câu trả lời CHẮC ("không còn / pha cuối / đang bị xoá");
 // `err != nil` là "không biết" — caller phải phân biệt hai ca này, vì coi
 // "không biết" là "chết" sẽ giết oan claim mỗi khi apiserver chậm.
+//
+// ⛔ `k8s.IsDoomed`, KHÔNG phải `IsTerminal`: pod đang bị xoá giữ nguyên
+// `phase: Running` suốt grace period, nên phép kiểm chỉ đọc phase sẽ cho qua
+// đúng cái pod mà hàm này sinh ra để chặn.
 func (s *Service) podAlive(ctx context.Context, name string) (bool, error) {
 	pod, err := s.pods.Get(ctx, name)
 	if k8s.IsNotFound(err) {
@@ -488,7 +492,7 @@ func (s *Service) podAlive(ctx context.Context, name string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return !k8s.IsTerminal(pod), nil
+	return !k8s.IsDoomed(pod), nil
 }
 
 // toStatus chuyển lỗi GỐC sang mã gRPC, và để yên thứ đã là status.

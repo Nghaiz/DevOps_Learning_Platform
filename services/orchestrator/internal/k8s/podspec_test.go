@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func testConfig() PodConfig {
@@ -324,6 +325,35 @@ func TestIsReady(t *testing.T) {
 	}
 	if !IsReady(ready(corev1.PodRunning, &condTrue)) {
 		t.Error("Running + Ready=True phải là ready")
+	}
+}
+
+// TestIsDoomedBatDuocPodDangBiXoa — pod đang Terminating giữ nguyên phase
+// Running suốt grace period, nên một phép kiểm chỉ đọc phase sẽ nói "còn sống"
+// ở đúng cửa sổ pod chắc chắn chết.
+func TestIsDoomedBatDuocPodDangBiXoa(t *testing.T) {
+	running := &corev1.Pod{Status: corev1.PodStatus{Phase: corev1.PodRunning}}
+	if IsDoomed(running) {
+		t.Error("pod Running bình thường không phải doomed")
+	}
+
+	now := metav1.Now()
+	terminating := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &now},
+		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	if IsTerminal(terminating) {
+		t.Error("tiền đề của test hỏng: IsTerminal đọc phase, và phase vẫn là Running")
+	}
+	if !IsDoomed(terminating) {
+		t.Error("pod có deletionTimestamp PHẢI là doomed — đây là ca kubectl delete/evict")
+	}
+
+	if !IsDoomed(&corev1.Pod{Status: corev1.PodStatus{Phase: corev1.PodFailed}}) {
+		t.Error("pod Failed phải là doomed")
+	}
+	if IsDoomed(nil) {
+		t.Error("nil không phải doomed (giữ khuôn với IsTerminal)")
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/metrics"
@@ -157,6 +158,9 @@ type fakePodDeleter struct {
 	deleted []string
 	err     error
 	missing map[string]bool
+	// terminating: pod CÒN trong apiserver, phase vẫn Running, nhưng đã có
+	// deletionTimestamp — đúng trạng thái của một pod trong grace period.
+	terminating map[string]bool
 }
 
 func (f *fakePodDeleter) Get(_ context.Context, name string) (*corev1.Pod, error) {
@@ -168,7 +172,12 @@ func (f *fakePodDeleter) Get(_ context.Context, name string) (*corev1.Pod, error
 		return nil, fmt.Errorf("k8s: đọc pod %q: %w", name,
 			apierrors.NewNotFound(corev1.Resource("pods"), name))
 	}
-	return &corev1.Pod{Status: corev1.PodStatus{Phase: corev1.PodRunning}}, nil
+	pod := &corev1.Pod{Status: corev1.PodStatus{Phase: corev1.PodRunning}}
+	if f.terminating[name] {
+		now := metav1.Now()
+		pod.DeletionTimestamp = &now
+	}
+	return pod, nil
 }
 
 func (f *fakePodDeleter) Delete(_ context.Context, name string, _ int64) error {
@@ -434,6 +443,32 @@ func TestPodAmDaChetTruocKhiGiaoThiBaoLoiVaRutKhoiPool(t *testing.T) {
 	}
 	if sess.GetPodName() != "sandbox-warm02" {
 		t.Errorf("pod_name = %q, cần sandbox-warm02", sess.GetPodName())
+	}
+}
+
+// TestPodDangBiXoaCungKhongDuocGiao — vế thứ hai của cổng podAlive, và là ca
+// mà một phép kiểm chỉ đọc `phase` sẽ BỎ LỌT.
+//
+// `kubectl delete pod` (và evict) không giết pod ngay: suốt grace period pod vẫn
+// nằm trong apiserver với `phase: Running`, chỉ `deletionTimestamp` khác nil.
+// Thiếu test này thì `podAlive` xanh ở ca `missing` và im lặng cho qua ở đúng
+// cửa sổ 30s mà sự cố §6.2 thật sự xảy ra.
+func TestPodDangBiXoaCungKhongDuocGiao(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.seedWarmPod(t, "sandbox-term01")
+	h.pods.terminating = map[string]bool{"sandbox-term01": true}
+
+	_, err := h.svc.Create(ctx, createReq("u1", "k1"))
+	wantCode(t, err, codes.Unavailable)
+
+	if got := testutil.ToFloat64(h.met.ClaimDeadPodTotal); got != 1 {
+		t.Errorf("dlp_claim_dead_pod_total = %v, cần 1 — pod Terminating phải tính như pod chết", got)
+	}
+	for _, list := range []string{rediskeys.PoolClaimed, rediskeys.PoolFree} {
+		if n, _ := h.rdb.LLen(ctx, list).Result(); n != 0 {
+			t.Errorf("%s còn %d mục — pod đang bị xoá phải bị rút khỏi index", list, n)
+		}
 	}
 }
 

@@ -364,6 +364,13 @@ func (r *Reaper) sweepDeadFreePods(ctx context.Context) error {
 			reason = "đã biến mất khỏi apiserver"
 		case k8s.IsTerminal(pod):
 			reason = string(pod.Status.Phase)
+		case pod.DeletionTimestamp != nil:
+			// Pod đang bị xoá vẫn mang `phase: Running` suốt grace period. Không
+			// có nhánh này thì nó ở lại `pool:free` và được giao cho người kế
+			// tiếp — người đó nhận `Unavailable` từ cổng `podAlive` của
+			// lifecycle. Cổng ấy chặn đúng, nhưng chặn ở chỗ người dùng đã phải
+			// chờ; rút ở đây là chặn trước khi ai kịp chạm vào.
+			reason = "đang bị xoá (Terminating)"
 		case r.staleImage(pod):
 			stale = true
 		default:
