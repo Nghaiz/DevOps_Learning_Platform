@@ -182,6 +182,15 @@ const runSetupInput = z
 
 const sessionStatusInput = z.object({ sessionId: z.string().min(1) }).strict();
 const endSessionInput = z.object({ sessionId: z.string().min(1) }).strict();
+const extendSessionInput = z
+  .object({
+    sessionId: z.string().min(1),
+    // 0 = dùng idle-window mặc định của server (`EXTEND_DEFAULT`). Trần 7200
+    // khớp `HARD_CAP` — xin nhiều hơn cũng bị công thức B5 cắt về trần, nên
+    // chặn ở biên gần client nhất. Cùng khuôn với `session.extend`.
+    extendSeconds: z.number().int().min(0).max(7200).default(0),
+  })
+  .strict();
 
 // ---------------------------------------------------------------- router
 
@@ -287,6 +296,43 @@ export const lessonsRouter = createTRPCRouter({
       ),
     );
     return { status: response.session?.status ?? null };
+  }),
+
+  /**
+   * Gia hạn phiên đang học.
+   *
+   * `ExtendSession` đã có ở proto và ở orchestrator từ P1, nhưng FE **chưa từng
+   * gọi** — nên trước dòng này một người học đang làm dở chỉ có thể nhìn đồng hồ
+   * chạy về 0 rồi mất pod, dù server hoàn toàn cho phép đẩy hạn.
+   *
+   * Không nhận `userId` từ input (cùng lý lẽ với `endSession`/`sessionStatus`):
+   * orchestrator tự kiểm chủ sở hữu và trả NotFound cho phiên của người khác
+   * (luật 1). `expectedRevision: 0` là ĐÚNG ở đây chứ không phải đường tắt —
+   * xem khối lý lẽ ở `session.extend`: FE không đọc-rồi-ghi, và công thức B5 chỉ
+   * tiến không lùi, nên không có ca "ghi đè mất thay đổi của người khác".
+   *
+   * Trả `expiresAt` **của server**, không để client tự tính — đó là giá trị duy
+   * nhất đúng, và `hardCapReached` cho FE biết nút phải chuyển sang disabled.
+   */
+  extendSession: protectedProcedure.input(extendSessionInput).mutation(async ({ ctx, input }) => {
+    const headers = await callHeaders(ctx.user.id, ctx.user.role);
+    const response = await callOrchestrator(() =>
+      orchestratorClient().extendSession(
+        {
+          sessionId: input.sessionId,
+          userId: ctx.user.id,
+          extendSeconds: input.extendSeconds,
+          // `BigInt(0)` chứ không literal `0n`: tsconfig apps/web target ES2017.
+          expectedRevision: BigInt(0),
+        },
+        { headers },
+      ),
+    );
+    const session = toJsonSession(response.session);
+    return {
+      expiresAt: session?.expiresAt ?? null,
+      hardCapReached: response.hardCapReached,
+    };
   }),
 
   /**

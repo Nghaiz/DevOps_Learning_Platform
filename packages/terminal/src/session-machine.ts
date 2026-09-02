@@ -95,7 +95,17 @@ export type SessionEvent =
   | { readonly type: 'RETRY_NOW' }
   | { readonly type: 'REASON_RESOLVED'; readonly message: string; readonly gone: boolean }
   /** Người dùng tự kết thúc phiên (BFF đã reap xong). Về idle, KHÔNG nối lại. */
-  | { readonly type: 'ENDED' };
+  | { readonly type: 'ENDED' }
+  /**
+   * Server đã gia hạn xong. `expiresAt` là giá trị SERVER trả, không phải thứ
+   * client tự cộng — đó là khác biệt giữa "nhận sự thật qua một kênh khác" và
+   * "tự bịa ra một derived field".
+   */
+  | {
+      readonly type: 'EXTENDED';
+      readonly expiresAt: string | null;
+      readonly hardCapReached: boolean;
+    };
 
 function parseIsoMs(value: string | null): number | null {
   if (value === null) {
@@ -288,6 +298,16 @@ export function reduce(state: SessionState, event: SessionEvent): SessionState {
 
     case 'RETRY_NOW':
       return { ...state, phase: 'connecting', retryDelayMs: null };
+
+    case 'EXTENDED':
+      // KHÔNG đổi `phase`: gia hạn không phải một chuyển trạng thái, nó chỉ đẩy
+      // đồng hồ. Đổi phase ở đây sẽ đá một phiên đang `reconnecting` về `ready`
+      // trong khi WS vẫn đứt.
+      return {
+        ...state,
+        expiresAtMs: parseIsoMs(event.expiresAt) ?? state.expiresAtMs,
+        hardCapReached: event.hardCapReached,
+      };
 
     case 'ENDED':
       // Về đúng initialState (sessionId null ⇒ nút "Bắt đầu" hiện lại), chỉ giữ

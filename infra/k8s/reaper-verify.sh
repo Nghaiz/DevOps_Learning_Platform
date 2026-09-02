@@ -80,8 +80,8 @@ while [ $# -gt 0 ]; do
 done
 
 case "$CASE" in
-all | expiry | restart | ghost) ;;
-*) echo "--case phải là all|expiry|restart|ghost (đang: $CASE)" >&2; exit 2 ;;
+all | expiry | restart | ghost | deadpod) ;;
+*) echo "--case phải là all|expiry|restart|ghost|deadpod (đang: $CASE)" >&2; exit 2 ;;
 esac
 
 PASS=0
@@ -841,6 +841,129 @@ case_ghost() {
 	scrub_session "$ctl_id" "$ctl_pod"
 }
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# case_deadpod — 5.F: claim gặp pod ĐÃ CHẾT thì KHÔNG giao nó cho người học.
+#
+# Gác đúng sự cố đo được ở `reports/2026-08-16-concurrent-build-load.md` §6.2:
+# một pod trong `pool:free` biến mất khỏi cluster (kubectl delete / evict / node
+# pressure), `claim.lua` vẫn giao tên nó, và MỌI `exec` sau đó trả NotFound —
+# người học nhận một terminal không bao giờ nối được, không lỗi nào nói vì sao.
+#
+# ⛔ VÌ SAO BƠM MỘT TÊN MA THAY VÌ `kubectl delete` MỘT POD THẬT.
+# Xoá pod thật là ca hiện thực hơn, nhưng nó ĐUA với tầng 4 của reaper (quét
+# `pool:free`, rút pod chết). Reaper thắng đua thì claim không bao giờ chạm pod
+# chết, ô AC XANH — và xanh vì phép thử không dựng được cảnh, không phải vì cổng
+# hoạt động. Bơm tên ma vào ĐẦU `pool:free` ngay trước khi claim làm cửa sổ chỉ
+# còn vài mili-giây, nên cảnh dựng được một cách tất định.
+#
+# LPUSH chứ không RPUSH: `claim.lua` LMOVE từ đầu TRÁI, nên tên ma phải nằm
+# đầu hàng thì lượt claim kế mới nhận đúng nó.
+case_deadpod() {
+	step "5.F — claim gặp pod đã chết: không giao, đánh FAILED, rút khỏi index"
+
+	local rc
+	du_khe 1
+	rc=$?
+	if [ "$rc" -eq 2 ]; then
+		echo "không đọc được số pod / trần quota — không đo được, không kết luận" >&2
+		exit 2
+	fi
+	if [ "$rc" -eq 1 ]; then
+		echo "thiếu khe quota: đang ${KHE_RUNNING}, trần ${KHE_TRAN} — chạy lại sau" >&2
+		exit 2
+	fi
+
+	scrape_metrics || true
+	local m_dead0
+	m_dead0="$(metric dlp_claim_dead_pod_total)"
+	if [ "$m_dead0" = NA ]; then
+		bad "đọc được dlp_claim_dead_pod_total" \
+			"counter không có trong /metrics — orchestrator đang chạy bản CŨ, chưa có cổng podAlive"
+		return
+	fi
+	info "mốc counter: claim_dead_pod=${m_dead0}"
+
+	# ── Dựng cảnh ────────────────────────────────────────────────────────────
+	local tag phantom
+	tag="dp$(vm_now)"
+	# `sandbox-` + 12 hex: hợp lệ với cả IsDNS1123Label lẫn rediskeys.ValidateID.
+	phantom="sandbox-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+
+	if [ "$(pod_exists "$phantom")" != MISSING ]; then
+		bad "tên ma KHÔNG trùng pod thật" "trùng ${phantom} — sinh lại rồi chạy lại"
+		return
+	fi
+
+	redis HSET "pod:${phantom}" state free >/dev/null || true
+	redis LPUSH pool:free "$phantom" >/dev/null || true
+	info "đã bơm tên ma vào đầu pool:free: ${phantom}"
+
+	# ── Claim ────────────────────────────────────────────────────────────────
+	local logs sid pod
+	logs="$(probe "reaper-probe-dead-${tag}" -case create -keep -ttl "$LONG_TTL" -user "dead-${tag}" -tag "d${tag}")"
+	sid="$(kvof "$logs" SESSIONID)"
+	pod="$(kvof "$logs" PODNAME)"
+
+	# ── Vế 1: KHÔNG được giao tên ma ─────────────────────────────────────────
+	if [ "$pod" = "$phantom" ]; then
+		bad "claim KHÔNG giao pod đã chết" \
+			"đã giao ${phantom} — cổng podAlive không chạy; mọi exec của phiên này sẽ NotFound"
+	else
+		ok "claim KHÔNG giao pod đã chết" "pod trả về: '${pod:-∅ (claim bị từ chối, đúng kỳ vọng)}'"
+	fi
+
+	# ── Vế 2: counter tăng đúng 1 ────────────────────────────────────────────
+	scrape_metrics || true
+	local m_dead1 delta
+	m_dead1="$(metric dlp_claim_dead_pod_total)"
+	delta="$(awk -v a="$m_dead0" -v b="$m_dead1" 'BEGIN { printf "%d", b - a }')"
+	if [ "$delta" -eq 1 ]; then
+		ok "dlp_claim_dead_pod_total tăng đúng 1" "${m_dead0} → ${m_dead1}"
+	elif [ "$delta" -eq 0 ] && [ -n "$pod" ] && [ "$pod" != "$phantom" ]; then
+		# Reaper tầng 4 thắng đua và rút tên ma trước khi claim chạm tới. Người
+		# dùng vẫn được bảo vệ, nhưng phép thử KHÔNG dựng được cảnh nó định dựng —
+		# nói thẳng thay vì tính là pass.
+		bad "dựng được cảnh (claim phải CHẠM tên ma)" \
+			"counter không đổi và claim nhận pod thật '${pod}' — reaper tầng 4 rút tên ma trước; chạy lại"
+	else
+		bad "dlp_claim_dead_pod_total tăng đúng 1" "${m_dead0} → ${m_dead1} (Δ=${delta})"
+	fi
+
+	# ── Vế 3: tên ma bị rút khỏi CẢ HAI index + hash pod xoá ─────────────────
+	local in_free in_cl has_hash
+	in_free="$(redis LPOS pool:free "$phantom" || echo '')"
+	in_cl="$(in_claimed "$phantom")"
+	has_hash="$(redis EXISTS "pod:${phantom}" || echo NA)"
+	if [ -z "$in_free" ] && [ "$in_cl" = no ] && [ "$has_hash" = 0 ]; then
+		ok "tên ma bị rút khỏi pool:free + pool:claimed + hash pod" "cả ba sạch"
+	else
+		bad "tên ma bị rút khỏi pool:free + pool:claimed + hash pod" \
+			"free_pos='${in_free:-∅}' claimed=${in_cl} hash_exists=${has_hash} — lượt claim sau sẽ gặp lại nó"
+	fi
+
+	# ── Đối chứng dương: claim NGAY SAU vẫn phải chạy được ───────────────────
+	#
+	# Thiếu vế này thì một cổng podAlive luôn trả false (chặn MỌI claim) cũng làm
+	# ba vế trên xanh — và hệ thống đó không phục vụ được ai.
+	local logs2 sid2 pod2
+	logs2="$(probe "reaper-probe-alive-${tag}" -case create -keep -ttl "$LONG_TTL" -user "alive-${tag}" -tag "a${tag}")"
+	sid2="$(kvof "$logs2" SESSIONID)"
+	pod2="$(kvof "$logs2" PODNAME)"
+	if [ -n "$pod2" ] && [ "$(pod_exists "$pod2")" = Running ]; then
+		ok "đối chứng dương: claim kế tiếp vẫn nhận pod SỐNG" "pod=${pod2}"
+	else
+		bad "đối chứng dương: claim kế tiếp vẫn nhận pod SỐNG" \
+			"pod='${pod2:-∅}' — cổng đang chặn cả claim hợp lệ"
+	fi
+
+	# ── Dọn ──────────────────────────────────────────────────────────────────
+	redis DEL "pod:${phantom}" >/dev/null || true
+	redis LREM pool:free 0 "$phantom" >/dev/null || true
+	redis LREM pool:claimed 0 "$phantom" >/dev/null || true
+	if [ -n "$sid" ]; then scrub_session "$sid" "$pod"; fi
+	if [ -n "$sid2" ]; then scrub_session "$sid2" "$pod2"; fi
+}
 # ─────────────────────────────────────────────────────────────────────────────
 printf '\033[1mreaper-verify\033[0m · ns=%s sandbox=%s · %s\n' "$NS" "$SANDBOX_NS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
@@ -856,6 +979,9 @@ if [ "$CASE" = all ] || [ "$CASE" = ghost ]; then
 fi
 if [ "$CASE" = all ] || [ "$CASE" = restart ]; then
 	case_restart
+fi
+if [ "$CASE" = all ] || [ "$CASE" = deadpod ]; then
+	case_deadpod
 fi
 
 step "TỔNG"
