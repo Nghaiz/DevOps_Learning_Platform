@@ -301,6 +301,43 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
             vẫn đang giữ khe quota, và "kết thúc" là cách duy nhất người học tự
             nhả nó ra mà không đợi TTL.
           */}
+          {/*
+            Đồng hồ + nút "Thêm giờ".
+
+            Chỉ hiện khi còn DƯỚI 10 phút: một cái đồng hồ chạy suốt buổi học là
+            nhiễu, còn mười phút cuối là lúc nó thật sự nói được điều gì.
+
+            ⛔ Chạm `hardCap` thì DISABLE kèm lý do, KHÔNG ẩn đi. Một nút biến
+            mất không nói được vì sao nó biến mất, và người học sẽ đọc ra là
+            trang hỏng chứ không phải "đã hết thời lượng tối đa".
+          */}
+          {session.state.sessionId !== null &&
+            session.remainingMs !== null &&
+            session.remainingMs < 10 * 60_000 && (
+              <>
+                <span
+                  className={
+                    session.remainingMs < 2 * 60_000
+                      ? 'text-xs font-semibold text-red-700'
+                      : 'text-xs text-amber-700'
+                  }
+                >
+                  Còn {Math.ceil(session.remainingMs / 60_000)} phút
+                </span>
+                <Button
+                  variant="secondary"
+                  onClick={session.extend}
+                  disabled={session.extending || session.state.hardCapReached}
+                  title={
+                    session.state.hardCapReached
+                      ? 'Đã dùng hết thời lượng tối đa cho phiên này — hãy kết thúc và mở phiên mới.'
+                      : undefined
+                  }
+                >
+                  {session.extending ? 'Đang thêm giờ…' : 'Thêm giờ'}
+                </Button>
+              </>
+            )}
           {session.state.sessionId !== null && (
             <Button variant="secondary" onClick={session.end} disabled={session.ending}>
               {session.ending ? 'Đang kết thúc…' : 'Kết thúc phiên'}

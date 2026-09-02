@@ -36,9 +36,15 @@ export interface LessonSession {
   readonly startError: string | null;
   /** `true` trong lúc `lessons.endSession` đang chạy — nút "Kết thúc phiên" disable theo nó. */
   readonly ending: boolean;
+  /** `true` trong lúc `lessons.extendSession` đang chạy. */
+  readonly extending: boolean;
+  /** Mili-giây còn lại tới `expiresAt`; `null` khi chưa biết hạn. Đã kẹp ở 0. */
+  readonly remainingMs: number | null;
   start: () => void;
   /** Kết thúc phiên sớm: reap ở orchestrator rồi đưa máy trạng thái về idle. */
   end: () => void;
+  /** Xin server đẩy hạn; đồng hồ chỉ đổi khi server đã xác nhận. */
+  extend: () => void;
   onControl: (message: ServerControl) => void;
   onClose: (code: number) => void;
   onTerminalReady: (handle: TerminalHandle | null) => void;
@@ -52,6 +58,7 @@ export function useLessonSession(scenarioId: string): LessonSession {
 
   const startSession = api.lessons.startSession.useMutation();
   const endSession = api.lessons.endSession.useMutation();
+  const extendSession = api.lessons.extendSession.useMutation();
 
   const start = useCallback(() => {
     dispatch({ type: 'START' });
@@ -108,6 +115,53 @@ export function useLessonSession(scenarioId: string): LessonSession {
       },
     );
   }, [state.sessionId, endSession]);
+
+  // Gia hạn: chỉ dispatch SAU khi server xác nhận, và dispatch đúng giá trị
+  // server trả. Tự cộng thêm ở client là bịa ra một derived field — và nó sẽ
+  // lệch với server ở mọi ca bị `HARD_CAP` cắt.
+  const extend = useCallback(() => {
+    const sessionId = state.sessionId;
+    if (sessionId === null) {
+      return;
+    }
+    setStartError(null);
+    extendSession.mutate(
+      { sessionId, extendSeconds: 0 },
+      {
+        onSuccess: (result) => {
+          dispatch({
+            type: 'EXTENDED',
+            expiresAt: result.expiresAt,
+            hardCapReached: result.hardCapReached,
+          });
+        },
+        onError: (error) => {
+          setStartError(describeTrpcError(error));
+        },
+      },
+    );
+  }, [state.sessionId, extendSession]);
+
+  // Đồng hồ đếm ngược. 15s một nhịp là đủ: thứ nó điều khiển là một cái nhãn
+  // phút và một nút hiện/ẩn, không phải một thanh giây. Nhịp 1s ở đây là 60 lần
+  // render mỗi phút cho không ai.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (state.expiresAtMs === null) {
+      return;
+    }
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 15_000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [state.expiresAtMs]);
+
+  const remainingMs = useMemo(
+    () => (state.expiresAtMs === null ? null : Math.max(0, state.expiresAtMs - nowMs)),
+    [state.expiresAtMs, nowMs],
+  );
 
   // Hẹn giờ nối lại theo backoff mà máy trạng thái tính. `attempt` PHẢI nằm trong
   // deps: hai lần rớt liên tiếp có thể cho cùng `retryDelayMs` (cả hai đều ở
@@ -171,8 +225,11 @@ export function useLessonSession(scenarioId: string): LessonSession {
     starting: startSession.isPending,
     startError,
     ending: endSession.isPending,
+    extending: extendSession.isPending,
+    remainingMs,
     start,
     end,
+    extend,
     onControl,
     onClose,
     onTerminalReady: setTerminal,

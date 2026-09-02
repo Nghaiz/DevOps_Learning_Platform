@@ -153,15 +153,47 @@ smoke trong `12-helm-deploy.sh` · 5.F ca claim-gặp-pod-chết trong `reaper-v
 
 ## Acceptance criteria
 
-- [ ] 5 giá trị của 5.A khẳng định trên **đối tượng sống**, kèm giá trị CŨ làm đối chứng.
+- [x] 5 giá trị của 5.A khẳng định trên **đối tượng sống**, kèm giá trị CŨ làm đối chứng.
+      → bảng ở §"Khẳng định trên đối tượng sống" trên. `GATEWAY_EXEC_TIMEOUT` đọc từ
+      spec của POD (không `kubectl exec` — image distroless).
 - [ ] N=18 cùng build: **18/18 qua bước chấm** (hoặc con số thật + p99 histogram nếu chưa).
+      **5.B chưa chạy.** Trần 120s đã ở trên cụm (khẳng định ở §trên), nhưng "trần đúng"
+      và "18 người cùng build không ai nhận 500" là hai khẳng định khác nhau — cái sau
+      chỉ đóng được bằng chính harness đã đo ra lỗi.
 - [ ] claim p95 của 3 người đầu < 1s; số người đi cold path ghi rõ.
-- [ ] `dlp_claim_dead_pod_total` = 0 trong lượt đo bình thường, và = 1 trong ca dựng của 5.F.
-- [ ] Đổi `image.tag` ⇒ pod ấm cũ bị rút, pool tự đủ lại (`dlp_reaper_stale_image_pods_total` tăng đúng số).
-- [ ] Nút "Thêm giờ" gia hạn thật; chạm `hardCap` thì disable kèm lý do.
-- [ ] `12-helm-deploy.sh` có cổng smoke, trượt thì exit ≠ 0, và tự dọn phiên nó tạo.
-- [ ] `reaper-verify.sh` xanh toàn bộ, và ca mới ĐỎ trên image cũ (đối chứng âm).
-- [ ] 10 luật §6 không suy giảm: `endSession`/`extendSession` không nhận `userId` từ input (luật 1), Zod strict (luật 3).
+- [x] `dlp_claim_dead_pod_total` = 0 trong lượt đo bình thường, và = 1 trong ca dựng của 5.F.
+      → đo qua Prometheus sau deploy: **0**. `reaper-verify.sh --case deadpod`: **0 → 1**.
+- [x] Đổi `image.tag` ⇒ pod ấm cũ bị rút, pool tự đủ lại (`dlp_reaper_stale_image_pods_total` tăng đúng số).
+      → **thí nghiệm tự nhiên** của chính lượt deploy 5.A: `stale_image=1` (đúng 1 pod
+      ấm cũ, vì `POOL_TARGET` trước đó là 1), `dead_free_pods=0` (chứng minh nó bị rút
+      vì IMAGE CŨ chứ không vì chết), `pool_free_size=3` (pool tự đủ lại theo target mới).
+- [~] Nút "Thêm giờ" gia hạn thật; chạm `hardCap` thì disable kèm lý do.
+      **Mã xong, đường server đã chứng minh, THAO TÁC NGƯỜI DÙNG THÌ CHƯA.**
+      Đã có: `lessons.extendSession` · sự kiện `EXTENDED` (nhận `expiresAt` SERVER trả,
+      không tự cộng ở client) · đồng hồ đếm ngược 15s/nhịp · nút hiện khi còn <10 phút,
+      **disable kèm `title` giải thích** khi `hardCapReached` (không ẩn — một nút biến mất
+      không nói được vì sao). 3 test mới, **đối chứng âm đã chạy**: gỡ nhánh `EXTENDED`
+      ⇒ 3 test ĐỎ; khôi phục ⇒ 105/105 xanh.
+      Đường server: `lifecycle-probe -case extend` trên cụm **4/4 PASS** (revision tăng
+      đúng 1, revision cũ → FailedPrecondition, lượt bị từ chối không ghi gì).
+      Còn thiếu đúng một vế: một người thật bấm nút trên trình duyệt. Đó là việc của
+      harness e2e (P13), không phải của một cổng shell.
+- [x] `12-helm-deploy.sh` có cổng smoke, trượt thì exit ≠ 0, và tự dọn phiên nó tạo.
+      → `infra/host/13-smoke.sh`, gọi ở cuối `12-helm-deploy.sh` (opt-out `--no-smoke`).
+      Chạy thật: **7/7 PASS**. **Đối chứng âm đã chạy**: `RELEASE=khong-ton-tai` ⇒ 3 vế
+      ĐỎ, `exit=1`. Probe dùng `-case create` KHÔNG kèm `-keep` nên tự reap; `trap` xoá
+      pod probe ở mọi đường thoát.
+- [~] `reaper-verify.sh` xanh toàn bộ, và ca mới ĐỎ trên image cũ (đối chứng âm).
+      Ca mới `--case deadpod` chạy trên cụm: **4/4 PASS**, trong đó có sẵn một **đối
+      chứng dương** ("claim kế tiếp vẫn nhận pod SỐNG") — thiếu nó thì một cổng
+      `podAlive` luôn trả false cũng làm ba vế kia xanh.
+      **Vế "ĐỎ trên image cũ" chưa chạy**, có chủ ý: nó đòi deploy lại orchestrator bản
+      cũ lên cụm đang phục vụ. Thay bằng một guard TRONG ca: `metric` trả `NA` ⇒ `bad`
+      kèm câu "orchestrator đang chạy bản CŨ, chưa có cổng podAlive". Guard đó **cũng
+      chưa được thấy đỏ**, nên ô này để `[~]` chứ không tick.
+- [x] 10 luật §6 không suy giảm: `endSession`/`extendSession` không nhận `userId` từ input (luật 1), Zod strict (luật 3).
+      → cả hai input schema `.strict()` và **không có field `userId`**; `ctx.user.id` là
+      nguồn duy nhất. Orchestrator vẫn tự kiểm chủ sở hữu (NotFound cho phiên người khác).
 
 ## Verify commands
 

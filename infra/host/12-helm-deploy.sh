@@ -21,7 +21,8 @@
 # nằm lại trong shell history / log).
 #
 # Dùng:
-#   bash infra/host/12-helm-deploy.sh                          # upgrade, giữ bí mật live
+#   bash infra/host/12-helm-deploy.sh                          # upgrade + cổng smoke
+#   bash infra/host/12-helm-deploy.sh --no-smoke               # bỏ cổng smoke (hiếm khi đúng)
 #   bash infra/host/12-helm-deploy.sh -f infra/helm/.../x.yaml # thêm overlay (đè cuối)
 #   VM_SSH=nghaiz@192.168.94.130 bash infra/host/12-helm-deploy.sh
 #
@@ -41,10 +42,12 @@ loi() { echo "LỖI: $*" >&2; exit 1; }
 # Overlay bổ sung (đè SAU secret) — ví dụ ghim tag image tạm cho một lượt đo.
 # Đường dẫn tương đối repo; script scp từng cái lên VM.
 EXTRA_OVERLAYS=()
+RUN_SMOKE=1
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -f) shift; EXTRA_OVERLAYS+=("$1"); shift ;;
-    *)  loi "tham số lạ: $1 (chỉ nhận -f <overlay>)" ;;
+    --no-smoke) RUN_SMOKE=0; shift ;;
+    *)  loi "tham số lạ: $1 (chỉ nhận -f <overlay> | --no-smoke)" ;;
   esac
 done
 
@@ -198,6 +201,24 @@ ssh "$VM_SSH" "if [ -d ~/dlp-deploy ]; then
   mkdir -p ~/dlp-deploy;
   printf 'ĐÃ BỎ. Deploy bằng infra/host/12-helm-deploy.sh (ship chart TƯƠI từ repo).\nBản chép tay ở đây từng LỆCH commit và làm helm upgrade gỡ mất tính năng.\n' > ~/dlp-deploy/README-DEPRECATED.txt;
 fi"
+
+# ── Cổng smoke (P5 / 5.E) ────────────────────────────────────────────────────
+#
+# ⛔ `helm upgrade --wait` chỉ nói "pod Ready", và lịch sử dự án có BA lần mọi
+# thứ Ready trong khi hệ không phục vụ được ai (tag không ghim → service về bản
+# cũ · quên side-load sandbox-base → pool rỗng · web xanh mà biên chưa phục vụ).
+# Không có cổng này thì script kết thúc bằng chữ "Xong" ở đúng những lượt đó.
+#
+# Cổng chạy SAU khi upgrade xong và LÀM HỎNG mã thoát của script khi nó đỏ —
+# một cổng chỉ in cảnh báo là một cổng bị bỏ qua.
+if [ "$RUN_SMOKE" = 1 ]; then
+  echo
+  VM_SSH="$VM_SSH" RELEASE="$RELEASE" NAMESPACE="$NAMESPACE" \
+    bash "$(dirname "${BASH_SOURCE[0]}")/13-smoke.sh"
+else
+  echo
+  echo "(bỏ qua cổng smoke theo --no-smoke — deploy CHƯA được chứng minh là phục vụ được)"
+fi
 
 echo
 echo "Xong. Chart deploy TỪ repo, không từ bản chép cũ. ~/dlp-deploy đã bị vô hiệu hoá."

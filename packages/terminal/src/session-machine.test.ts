@@ -41,6 +41,50 @@ describe('đường đi thành công', () => {
   });
 });
 
+describe('EXTENDED — server đã gia hạn', () => {
+  it('đẩy expiresAtMs theo giá trị SERVER trả, không đổi phase', () => {
+    const ready = run([{ type: 'START' }, CREATED, READY]);
+    expect(ready.phase).toBe('ready');
+
+    const later = new Date(Date.parse(IN_AN_HOUR) + 30 * 60_000).toISOString();
+    const extended = reduce(ready, {
+      type: 'EXTENDED',
+      expiresAt: later,
+      hardCapReached: false,
+    });
+    expect(extended.expiresAtMs).toBe(Date.parse(later));
+    expect(extended.phase).toBe('ready');
+    expect(extended.hardCapReached).toBe(false);
+  });
+
+  it('KHÔNG đá một phiên đang reconnecting về ready', () => {
+    // Gia hạn chỉ đẩy đồng hồ. Đổi phase ở đây sẽ nói "đã kết nối" trong khi WS
+    // vẫn đứt — đúng loại nhãn khẳng định nhiều hơn thứ ta biết.
+    const reconnecting = run([
+      { type: 'START' },
+      CREATED,
+      READY,
+      { type: 'CLOSED', code: CLOSE_ABNORMAL, nowMs: Date.parse(IN_AN_HOUR) - 30 * 60_000 },
+    ]);
+    expect(reconnecting.phase).toBe('reconnecting');
+
+    const extended = reduce(reconnecting, {
+      type: 'EXTENDED',
+      expiresAt: IN_AN_HOUR,
+      hardCapReached: false,
+    });
+    expect(extended.phase).toBe('reconnecting');
+    expect(extended.retryDelayMs).toBe(reconnecting.retryDelayMs);
+  });
+
+  it('expiresAt null giữ nguyên đồng hồ cũ thay vì xoá nó', () => {
+    const ready = run([{ type: 'START' }, CREATED, READY]);
+    const extended = reduce(ready, { type: 'EXTENDED', expiresAt: null, hardCapReached: true });
+    expect(extended.expiresAtMs).toBe(ready.expiresAtMs);
+    expect(extended.hardCapReached).toBe(true);
+  });
+});
+
 describe('ENDED — người dùng tự kết thúc phiên', () => {
   it('ready → ENDED về idle, sessionId null, có câu thông báo', () => {
     const state = run([{ type: 'START' }, CREATED, READY, { type: 'ENDED' }]);
