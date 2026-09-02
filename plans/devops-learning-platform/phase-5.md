@@ -90,9 +90,16 @@ nhân phỏng đoán.
 
 ### Còn lại của 5.A
 
-Task list dưới đây vẫn nguyên giá trị cho phần **chưa** làm: 5.B đo lại N=18 trên
-trần 120s + pool 3 · 5.C rollout warm-pool theo image · 5.D extend từ FE · 5.E cổng
-smoke trong `12-helm-deploy.sh` · 5.F ca claim-gặp-pod-chết trong `reaper-verify`.
+5.A/5.C/5.D/5.E/5.F đã đóng. Còn lại của P5:
+
+- **5.B chưa đóng trọn** — xem ô AC đầu tiên: bản vá `timeout 90` chưa được đo dưới
+  tải, vì lượt đo sau khi vá rơi đúng vào một node vừa reboot.
+- **`orchestrator gRPC: Premature close` ~5–10%** — lỗi mới nổi lên khi trần timeout
+  hết che nó: 1/18 (lượt A) và 2/18 (lượt B) lượt `checkStep` trả HTTP 500. Đã lần
+  được đường (`sessionExpiry` → `GetSession` → `callOrchestrator`, kết nối h2 đứt
+  giữa chừng; orchestrator KHÔNG có log lỗi và KHÔNG restart). **Chưa vá có chủ ý:**
+  retry trong `callOrchestrator` sẽ che triệu chứng thay vì giải thích nó, và hàm ấy
+  bọc cả những RPC không idempotent.
 
 ---
 ## Task list
@@ -157,16 +164,23 @@ smoke trong `12-helm-deploy.sh` · 5.F ca claim-gặp-pod-chết trong `reaper-v
       → bảng ở §"Khẳng định trên đối tượng sống" trên. `GATEWAY_EXEC_TIMEOUT` đọc từ
       spec của POD (không `kubectl exec` — image distroless).
 - [~] N=18 cùng build: **18/18 qua bước chấm** (hoặc con số thật + p99 histogram nếu chưa).
-      **Đã chạy 2026-09-03. Vế trần gateway ĐÓNG; vế "hoàn tất bài" thì KHÔNG.**
-      · **0/18 chạm `GATEWAY_EXEC_TIMEOUT`** (lượt trước 17/18) ⇒ bản vá trần hoạt động.
-      · Nhưng **1/18 hoàn tất bài**, vì chỗ nghẽn **dịch xuống một tầng**: `timeout 20`
-        bên trong `content/scenarios/dlp-docker-basics/step4/verify.sh`. Bằng chứng trực
-        tiếp (harness nay giữ `output`): 17× `exit=124` — mã của GNU `timeout` — kèm
-        chuỗi ĐÚNG mà container đã kịp in ra trước khi bị giết.
-      · Đã nâng `20` → `90` và thay comment cũ (thứ đẻ ra con số sai) bằng số đo.
-        ⚠ **Bản vá CHƯA kiểm dưới tải**: nội dung nướng vào image web nên chỉ có hiệu
-        lực sau CI publish + side-load + upgrade. "90s là đủ" hiện là suy luận từ
-        4.6s × ~10, không phải phép đo.
+      **Chạy HAI lượt 2026-09-03. Vế trần gateway ĐÓNG; vế "hoàn tất bài" CHƯA đóng
+      được vì phép đo thứ hai bị nhiễu.**
+      · Lượt A (`sha-4b7e553`): **0/18 chạm `GATEWAY_EXEC_TIMEOUT`** (lượt 08-16 là
+        17/18) ⇒ bản vá trần gateway hoạt động. Nhưng vẫn **1/18 hoàn tất**, vì chỗ
+        nghẽn **dịch xuống một tầng**: `timeout 20` trong
+        `content/scenarios/dlp-docker-basics/step4/verify.sh`. Bằng chứng trực tiếp
+        (harness nay giữ `output`): 17× `exit=124` — mã của GNU `timeout` — **kèm
+        chuỗi ĐÚNG mà container đã kịp in ra trước khi bị giết**.
+      · Đã nâng `20` → `90`, deploy `sha-2b79fd3`, khẳng định `timeout 90` có thật
+        trong image ĐANG CHẠY (`kubectl exec … grep`).
+      · Lượt B: **16/18 hoàn tất**. ⛔ **Con số này CHƯA chứng minh bản vá.** Node vừa
+        reboot (máy dev crash), nên `docker build` p50 đi từ **36.5s xuống 5.3s** —
+        nhanh hơn 7 lần, thứ mà một bản vá timeout không thể gây ra. Với `docker run`
+        ~4.6s ở node rảnh, **trần 20 cũ cũng sẽ qua**. Lượt B chứng minh "hệ chạy đúng
+        khi node rảnh", không chứng minh "90s cứu được ca dưới tải".
+      · **Phép đo còn thiếu:** N=18 trên node ĐÃ BỊ TẢI với `timeout 90`; hoặc hai lượt
+        liên tiếp trên cùng trạng thái node, một với `20` và một với `90`.
       Báo cáo: `reports/2026-09-03-verify-5b-rerun-n18.md`.
 - [~] claim p95 của 3 người đầu < 1s; số người đi cold path ghi rõ.
       Đo được: ba người đầu **3.7 / 3.9 / 3.9 s** (lượt trước, pool=1: 23–45s cho MỌI người).

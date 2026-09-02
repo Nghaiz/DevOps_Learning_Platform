@@ -1,347 +1,305 @@
 {
   "n": 18,
-  "wallAllMs": 109750,
-  "tGo": 1788370849190,
+  "wallAllMs": 17092,
+  "tGo": 1788388081480,
   "rows": [
     {
       "sid": 0,
-      "sessionId": "db7b82f56ffc26ae73f584fb716eab82",
-      "pod": "sandbox-4e5ca153694a",
-      "uid": "c3dc3f37-050a-4fc5-91ef-9c057f1860b8",
+      "sessionId": "2fe40d484c9366295db05ba9ef981426",
+      "pod": "sandbox-1c936e894117",
+      "uid": "3739c359-9762-46d1-af76-9cab15f90e33",
       "marks": {
-        "claim": 3735,
-        "dockerdReady": 3853,
-        "pull": 145257,
-        "build": 32057,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
-      },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=32057ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
-    },
-    {
-      "sid": 1,
-      "sessionId": "b9b11a72875a2ec65e40eba78201bcd1",
-      "pod": "sandbox-0bcc735cb4fd",
-      "uid": "264316b3-3922-4250-b139-cc71c5f48cfe",
-      "marks": {
-        "claim": 3889,
-        "dockerdReady": 3759,
-        "pull": 145350,
-        "build": 37421,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
-      },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37421ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
-    },
-    {
-      "sid": 2,
-      "sessionId": "7017cde4a5b10c508de15c9bc883ef15",
-      "pod": "sandbox-dbe31967b7d2",
-      "uid": "ff9c0d15-6368-4f7d-88f2-0705528820aa",
-      "marks": {
-        "claim": 3900,
-        "dockerdReady": 4366,
-        "pull": 137310,
-        "build": 32217,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
-      },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=32217ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
-    },
-    {
-      "sid": 3,
-      "sessionId": "6b46aee523f08b837708be072a23f775",
-      "pod": "sandbox-e845454e94cc",
-      "uid": "4a12ad74-0ba8-4489-9de0-7f21b45e022b",
-      "marks": {
-        "claim": 67444,
-        "dockerdReady": 78727,
-        "pull": 203893,
-        "build": 37532,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
-      },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37532ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
-    },
-    {
-      "sid": 4,
-      "sessionId": "2f5a885e7d98b251150dcb7b034715ac",
-      "pod": "sandbox-ab0b5b6ebc53",
-      "uid": "242ac155-f8d7-4bfc-821c-ccf632b0d09f",
-      "marks": {
-        "claim": 71024,
-        "dockerdReady": 78641,
-        "pull": 160055,
-        "build": 31288,
+        "claim": 9563,
+        "dockerdReady": 2519,
+        "pull": 74618,
+        "build": 4993,
         "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
         "checkExit": 0
       },
       "fails": [],
-      "netRetries": 0,
+      "netRetries": 1,
+      "ok": true
+    },
+    {
+      "sid": 1,
+      "sessionId": "05d05918d63d73fd3e4d665493ce77c6",
+      "pod": "sandbox-27434295010c",
+      "uid": "e92cf667-e084-41c5-bfdf-418991421486",
+      "marks": {
+        "claim": 979,
+        "dockerdReady": 438,
+        "pull": 70371,
+        "build": 5328,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
+      },
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
+    },
+    {
+      "sid": 2,
+      "sessionId": "0b9f6ee68cccc4954e536de360268f80",
+      "pod": "sandbox-5e0c9d62ad36",
+      "uid": "55eb4147-5070-491c-9dd3-8287c23e4537",
+      "marks": {
+        "claim": 1578,
+        "dockerdReady": 635,
+        "pull": 70699,
+        "build": 5087,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
+      },
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
+    },
+    {
+      "sid": 3,
+      "sessionId": "13f0f2afebcbb1d5038ae714ca226e9c",
+      "pod": "sandbox-3456ef56b5cc",
+      "uid": "f31333f0-a6bf-4729-8dc4-191888bf42fd",
+      "marks": {
+        "claim": 10481,
+        "dockerdReady": 3007,
+        "pull": 77037,
+        "build": 5155,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
+      },
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
+    },
+    {
+      "sid": 4,
+      "sessionId": "aada73148842ab37388bf15cf11fc9e7",
+      "pod": "sandbox-fedbbf089235",
+      "uid": "4cf7b331-2e8b-4e22-9d7f-3d094bf9e979",
+      "marks": {
+        "claim": 9604,
+        "dockerdReady": 3066,
+        "pull": 77073,
+        "build": 4808,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
+      },
+      "fails": [],
+      "netRetries": 1,
       "ok": true
     },
     {
       "sid": 5,
-      "sessionId": "9d612d0c5a5fbf80fd98744935028277",
-      "pod": "sandbox-db929afccc32",
-      "uid": "c5cd0fd0-82ca-44c5-9705-391ffa2049b5",
       "marks": {
-        "claim": 58742,
-        "dockerdReady": 34804,
-        "pull": 153953,
-        "build": 32764,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 9010,
+        "dockerdReady": 874,
+        "pull": 76278,
+        "build": 5505
       },
       "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=32764ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"orchestrator gRPC: Premature close\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
       ],
-      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 6,
-      "sessionId": "f85a43b03f081e88e21c98450b92ef93",
-      "pod": "sandbox-77ae15a81391",
-      "uid": "6a2d8510-64a5-4ecf-a59d-c4c4d43a391a",
+      "sessionId": "fb96a93a1c01c64bef5a86015bb0e988",
+      "pod": "sandbox-9349ee549d89",
+      "uid": "ae1253b6-ccef-4a9e-985b-b8b1779358e3",
       "marks": {
-        "claim": 83310,
-        "dockerdReady": 61791,
-        "pull": 164286,
-        "build": 37621,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 10394,
+        "dockerdReady": 4209,
+        "pull": 75319,
+        "build": 5536,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37621ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
     },
     {
       "sid": 7,
-      "sessionId": "bf4299de7f3f374812caee998e6ef5b1",
-      "pod": "sandbox-a0b69064595f",
-      "uid": "69ed0946-edbd-4de5-bdf1-6f3ca38ab335",
+      "sessionId": "49ed2afddb4dc48e332aa7e576d45b44",
+      "pod": "sandbox-e55b982a573c",
+      "uid": "e13e45df-648f-4149-ba8c-2a2f9ea54ae7",
       "marks": {
-        "claim": 50298,
-        "dockerdReady": 55872,
-        "pull": 159753,
-        "build": 36392,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 10124,
+        "dockerdReady": 3832,
+        "pull": 76867,
+        "build": 5452,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=36392ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
     },
     {
       "sid": 8,
-      "sessionId": "a4d3707519af277bd51fb0d8971392dc",
-      "pod": "sandbox-e012d21286a9",
-      "uid": "dc6c1343-01c2-48ec-8f79-4b53846a683c",
+      "sessionId": "8cab63bf60d6d4fa57c6ea1825473385",
+      "pod": "sandbox-064eec30b26e",
+      "uid": "660a1416-d7d2-45c9-89d8-787969077c73",
       "marks": {
-        "claim": 42332,
-        "dockerdReady": 37153,
-        "pull": 110883,
-        "build": 32235,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 10728,
+        "dockerdReady": 2588,
+        "pull": 75755,
+        "build": 5503,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=32235ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
     },
     {
       "sid": 9,
-      "sessionId": "3508eb4abe7f68f6162b8f51b3a532b4",
-      "pod": "sandbox-c298631fc391",
-      "uid": "8449d8f5-6d4c-4e4b-b387-4dd7a053fadc",
+      "sessionId": "9ede759608f7f171fbf992daf0d44fde",
+      "pod": "sandbox-d13d5e354621",
+      "uid": "53a11f15-84b0-463e-be80-0c208a191a41",
       "marks": {
-        "claim": 63930,
-        "dockerdReady": 84224,
-        "pull": 182572,
-        "build": 37513,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 10091,
+        "dockerdReady": 2187,
+        "pull": 77787,
+        "build": 5496,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37513ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
     },
     {
       "sid": 10,
-      "sessionId": "823e149a86248674f9e63f5688c73c41",
-      "pod": "sandbox-45b599dc7618",
-      "uid": "51c886aa-83fa-4b0e-a5fd-4f444b7465cf",
+      "sessionId": "bba763d6b783e8ce4b138dc74c4a6561",
+      "pod": "sandbox-1a7baea26712",
+      "uid": "b7e31234-4ac7-4171-b750-c7e077be6bc7",
       "marks": {
-        "claim": 42064,
-        "dockerdReady": 5896,
-        "pull": 252001,
-        "build": 37481,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 9471,
+        "dockerdReady": 3359,
+        "pull": 73848,
+        "build": 4127,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37481ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
     },
     {
       "sid": 11,
-      "sessionId": "51fa18f8b767013f46fd1f96d4c2dcdf",
-      "pod": "sandbox-9ba174950fae",
-      "uid": "0221f83e-f087-4332-b2c4-b9f6e1b6faee",
+      "sessionId": "be382176925d8eef764eeddb426063d8",
+      "pod": "sandbox-d92cfd162b4c",
+      "uid": "9157fe4e-c476-4a4b-80dd-bc4858c98fb1",
       "marks": {
-        "claim": 81994,
-        "dockerdReady": 62198,
-        "pull": 160461,
-        "build": 34560,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 2059,
+        "dockerdReady": 1058,
+        "pull": 70001,
+        "build": 5484,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=34560ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
     },
     {
       "sid": 12,
-      "sessionId": "c1ded74e2ccfea79a3cea0e0fe6a06f3",
-      "pod": "sandbox-fbcdced66e8b",
-      "uid": "4dd25187-6fc7-4fe9-9ac4-38d887e0b848",
+      "sessionId": "551b27d7c182f080d3c2ed8cdfac9482",
+      "pod": "sandbox-ae9fa871923a",
+      "uid": "3e6702e2-caba-4d63-9bbe-fcecfaa0d2ec",
       "marks": {
-        "claim": 51891,
-        "dockerdReady": 59271,
-        "pull": 189151,
-        "build": 35207,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 9609,
+        "dockerdReady": 3409,
+        "pull": 78045,
+        "build": 5354,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=35207ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
     },
     {
       "sid": 13,
-      "sessionId": "dbf8ff94c792006d2413d098dea33e25",
-      "pod": "sandbox-27b79f2c4a9c",
-      "uid": "84406c17-e240-408a-b7db-9c60e552d27d",
       "marks": {
-        "claim": 51969,
-        "dockerdReady": 41856,
-        "pull": 136397,
-        "build": 36455,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 9764,
+        "dockerdReady": 2424,
+        "pull": 76181,
+        "build": 5534
       },
       "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=36455ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"orchestrator gRPC: Premature close\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
       ],
-      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 14,
-      "sessionId": "c7ce19c9a3e697311f0d11704421328d",
-      "pod": "sandbox-14ec7a87d66c",
-      "uid": "1d930bcd-a6cf-41c2-9307-076c248bffe5",
+      "sessionId": "eba6bd561c2d09dab429348b596c1445",
+      "pod": "sandbox-d25c5034424d",
+      "uid": "3bb97cb9-c8ae-45f4-9167-ab3f284103b7",
       "marks": {
-        "claim": 51175,
-        "dockerdReady": 53218,
-        "pull": 166477,
-        "build": 35761,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 10493,
+        "dockerdReady": 4279,
+        "pull": 139529,
+        "build": 5011,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=35761ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
+      "fails": [],
+      "netRetries": 2,
+      "ok": true
     },
     {
       "sid": 15,
-      "sessionId": "5cd404fe30a891de582be737bdd503f2",
-      "pod": "sandbox-e9b58c3b934f",
-      "uid": "f5e61c8a-8ad5-4816-b708-c43129f4851b",
+      "sessionId": "8626a84454b8881a38854807c4d29b65",
+      "pod": "sandbox-c6ef0cc24721",
+      "uid": "cd510c98-9ea4-40f2-8750-fb4ce9ee26a0",
       "marks": {
-        "claim": 59983,
-        "dockerdReady": 85688,
-        "pull": 205450,
-        "build": 37549,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 10832,
+        "dockerdReady": 3591,
+        "pull": 76442,
+        "build": 5484,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37549ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
     },
     {
       "sid": 16,
-      "sessionId": "b263100cc10f01356028b0ac4207ea5f",
-      "pod": "sandbox-f8ca151d364a",
-      "uid": "b8dabf9c-1100-4a57-9829-c18d7cea6c35",
+      "sessionId": "f573461dda2cd3895cf825e05465e229",
+      "pod": "sandbox-55271cc425df",
+      "uid": "29a4ea41-9e1c-485f-915b-0db061d3ad0f",
       "marks": {
-        "claim": 50553,
-        "dockerdReady": 100822,
-        "pull": 201305,
-        "build": 37639,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 10286,
+        "dockerdReady": 3828,
+        "pull": 138050,
+        "build": 5006,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37639ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
+      "fails": [],
+      "netRetries": 2,
+      "ok": true
     },
     {
       "sid": 17,
-      "sessionId": "e25c5dcef25d6122ed04af817273eeb5",
-      "pod": "sandbox-f48e2a109168",
-      "uid": "79bd029f-35c3-44c2-98ec-aed1b17038a0",
+      "sessionId": "cb67b6480c3a445e7d10f485d1d64864",
+      "pod": "sandbox-1e1af8d253d5",
+      "uid": "965c433e-9fc4-482f-9bb2-c25ef14ed811",
       "marks": {
-        "claim": 45999,
-        "dockerdReady": 33287,
-        "pull": 114038,
-        "build": 37272,
-        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
-        "checkExit": 1
+        "claim": 10497,
+        "dockerdReady": 3730,
+        "pull": 75531,
+        "build": 5030,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
-      "fails": [
-        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37272ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
-      ],
-      "netRetries": 0,
-      "ok": false
+      "fails": [],
+      "netRetries": 1,
+      "ok": true
     }
   ],
   "bad": [],
@@ -355,11 +313,11 @@
         "requests.memory": "5500Mi"
       },
       "used": {
-        "limits.cpu": "8",
-        "limits.memory": "4Gi",
-        "pods": "4",
-        "requests.cpu": "1",
-        "requests.memory": "1Gi"
+        "limits.cpu": "6",
+        "limits.memory": "3Gi",
+        "pods": "3",
+        "requests.cpu": "750m",
+        "requests.memory": "768Mi"
       }
     },
     "after": {
@@ -371,11 +329,11 @@
         "requests.memory": "5500Mi"
       },
       "used": {
-        "limits.cpu": "8",
-        "limits.memory": "4Gi",
-        "pods": "4",
-        "requests.cpu": "1",
-        "requests.memory": "1Gi"
+        "limits.cpu": "6",
+        "limits.memory": "3Gi",
+        "pods": "3",
+        "requests.cpu": "750m",
+        "requests.memory": "768Mi"
       }
     }
   }
