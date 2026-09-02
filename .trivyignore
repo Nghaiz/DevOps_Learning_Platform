@@ -1,0 +1,22 @@
+# .trivyignore — CVE mà cổng Trivy (ci.yml, severity CRITICAL) được phép bỏ qua.
+#
+# ⛔ Mỗi mục PHẢI kèm: vì sao không ảnh hưởng tới CÁCH ta chạy binary đó, và một
+# ngày rà lại. Không có hai vế đó thì đây là cách nới ngưỡng mà không ai thấy.
+# Trivy đọc file này từ thư mục làm việc của lượt quét (gốc repo trong CI).
+
+# CVE-2026-56854 — golang.org/x/crypto/ssh: bỏ qua giới hạn source-address
+# (`from=` trong authorized_keys) khi tiến trình đóng vai SSH SERVER xác thực
+# kết nối VÀO. Vá ở x/crypto 0.55.0.
+#
+# Có trong ba binary Go của images/sandbox-base: /usr/bin/dockerd và
+# docker-buildx (x/crypto 0.54.0), /usr/local/bin/oh-my-posh (0.53.0). Không
+# binary nào trong ba cái mở SSH server trong sandbox: dockerd/buildx chỉ dùng
+# gói ssh làm CLIENT (`docker -H ssh://`, buildx ssh forwarding — không dùng ở
+# đây), oh-my-posh kéo gói này gián tiếp và không nghe cổng nào. Code path bị
+# lỗi không chạy trong image này.
+#
+# Upstream chưa có build với 0.55.0 tính tới 2026-09-02 (moby docker-v29.7.2 /
+# buildx v0.36.1 / oh-my-posh v31.1.2 đều ≤ 0.54.0 — đọc go.mod của từng tag).
+# RÀ LẠI 2026-10-01: bump docker-ce/buildx/OMP khi release mới mang x/crypto
+# ≥ 0.55.0, rồi XOÁ mục này để cổng đóng lại như cũ.
+CVE-2026-56854

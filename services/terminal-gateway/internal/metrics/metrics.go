@@ -198,6 +198,17 @@ type Metrics struct {
 	// đếm exit code của shell.
 	ExecOneShotTotal *prometheus.CounterVec
 
+	// ExecOneShotDuration đo thời gian MỘT lượt chấm chạy trong pod (từ lúc gọi
+	// Runner.Run tới lúc có kết quả hoặc hết hạn), chỉ ở đường đã qua authz.
+	//
+	// Tồn tại vì GATEWAY_EXEC_TIMEOUT từng là một hằng số chọn lúc cụm rảnh
+	// (30s) và bị đo là sai dưới tải (2026-08-16: 17/18 lượt chấm thủng trần dù
+	// build đúng). Không có histogram này thì lần chỉnh trần kế tiếp lại là
+	// cảm giác; có nó thì p99 của đại lượng này SO VỚI trần là câu trả lời.
+	// Bucket kéo tới 300s vì thứ cần thấy là ĐUÔI dưới tranh chấp CPU, không
+	// phải trung vị lúc rảnh.
+	ExecOneShotDuration prometheus.Histogram
+
 	// ExtendRevisionRetryTotal đếm SỰ KIỆN "va revision rồi thử lại", tách hẳn
 	// khỏi ExtendTotal.
 	//
@@ -291,6 +302,12 @@ func New(reg prometheus.Registerer) *Metrics {
 			Help: "Lượt exec one-shot (chấm step của Lessons), tách theo kết quả (accepted/denied/error) và lý do — `reason` dùng đúng mã `code` trả về cho người gọi. Exit code của script KHÔNG tính vào đây.",
 		}, []string{"result", "reason"}),
 
+		ExecOneShotDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "dlp_gateway_exec_oneshot_duration_seconds",
+			Help:    "Thời gian một lượt exec one-shot (chấm step) chạy trong pod, gồm cả lượt hết hạn. So p99 với GATEWAY_EXEC_TIMEOUT để chỉnh trần bằng số.",
+			Buckets: []float64{0.5, 1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 300},
+		}),
+
 		ExtendRevisionRetryTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "dlp_gateway_extend_revision_retry_total",
 			Help: "Lượt gia hạn va revision rồi phải đọc lại và thử lại — dấu vết hai tiến trình cùng ghi một session.",
@@ -308,6 +325,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.AttachPhaseIncompleteTotal,
 		m.ExtendTotal,
 		m.ExecOneShotTotal,
+		m.ExecOneShotDuration,
 		m.ExtendRevisionRetryTotal,
 	)
 

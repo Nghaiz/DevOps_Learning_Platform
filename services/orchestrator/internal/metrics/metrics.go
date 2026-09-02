@@ -61,6 +61,14 @@ type Metrics struct {
 
 	ColdPathTotal prometheus.Counter
 
+	// ClaimDeadPodTotal đếm lượt claim.lua giao một pod mà apiserver nói đã
+	// chết/biến mất (kiểm ngay sau claim, lifecycle.podAlive). Mỗi mục là một
+	// người học vừa nhận lỗi thay vì một terminal chết câm — và là bằng chứng có
+	// NGUỒN đang xoá pod ngoài đường reaper (evict, node pressure, tay người).
+	// Khác dlp_reaper_dead_free_pods_total: tầng đó bắt pod chết TRƯỚC khi ai
+	// claim; counter này bắt đúng những pod lọt qua cửa sổ giữa hai lượt quét.
+	ClaimDeadPodTotal prometheus.Counter
+
 	// ClaimTotal đếm MỌI lượt thử claim, tách theo path (warm/cold) và result
 	// (ok/pool_empty/quota_blocked/error). Khác ClaimDuration (chỉ quan sát
 	// lượt THÀNH CÔNG) và khác ColdPathTotal (chỉ đếm số lần RẼ sang cold path,
@@ -191,6 +199,10 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "dlp_cold_path_total",
 			Help: "Số lần pool rỗng buộc phải tạo pod đồng bộ.",
 		}),
+		ClaimDeadPodTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "dlp_claim_dead_pod_total",
+			Help: "Pod đã claim nhưng apiserver nói đã chết/biến mất — session bị đánh FAILED và client phải tạo lại. >0 nghĩa là có nguồn xoá pod ngoài reaper.",
+		}),
 
 		ClaimTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "dlp_claim_total",
@@ -271,6 +283,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.PoolQuarantineSize,
 		m.PoolClaimedSize,
 		m.ColdPathTotal,
+		m.ClaimDeadPodTotal,
 		m.ClaimTotal,
 		m.ReplenishFailuresTotal,
 		m.ReplenishQuotaBlockedTotal,

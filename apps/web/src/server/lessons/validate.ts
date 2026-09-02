@@ -75,12 +75,17 @@ export interface ScriptRequest {
 /**
  * Trần thời gian phía BFF cho một lượt chấm.
  *
- * Rộng hơn `GATEWAY_EXEC_TIMEOUT` (30s) một cách CÓ CHỦ Ý: nếu BFF cắt trước thì
+ * Rộng hơn `GATEWAY_EXEC_TIMEOUT` (120s) một cách CÓ CHỦ Ý: nếu BFF cắt trước thì
  * gateway vẫn đang chạy script trong pod và ta mất luôn câu trả lời của nó — người
  * học nhận "lỗi mạng" cho một lượt chấm đã hoàn thành. Để gateway cắt trước thì
  * lỗi mang đúng mã `EXEC_FAILED` và đúng nguyên nhân.
+ *
+ * 120s + 15s, không 30s + 15s: trần gateway được nâng sau phép đo 18 người cùng
+ * build (2026-08-16-concurrent-build-load — script chấm giãn 8–25×, 17/18 nhận
+ * 500). Hai con số này là MỘT cặp; đổi bên chart (`gateway.env.execTimeout`)
+ * mà quên bên này là BFF cắt trước gateway và lỗi đổi tên thành "lỗi mạng".
  */
-const BFF_TIMEOUT_MS = 45_000;
+const BFF_TIMEOUT_MS = 135_000;
 
 export async function runScriptInSession(req: ScriptRequest): Promise<ScriptOutcome> {
   const token = await mintSandboxTokenFor(req.userId, req.sessionId, req.expiresAtSeconds);

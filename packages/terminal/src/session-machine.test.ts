@@ -41,6 +41,53 @@ describe('đường đi thành công', () => {
   });
 });
 
+describe('ENDED — người dùng tự kết thúc phiên', () => {
+  it('ready → ENDED về idle, sessionId null, có câu thông báo', () => {
+    const state = run([{ type: 'START' }, CREATED, READY, { type: 'ENDED' }]);
+    expect(state.phase).toBe('idle');
+    expect(state.sessionId).toBeNull();
+    expect(state.retryDelayMs).toBeNull();
+    expect(state.message).toContain('kết thúc');
+  });
+
+  it('ENDED giữa lúc reconnecting HUỶ lịch nối lại', () => {
+    const reconnecting = run([
+      { type: 'START' },
+      CREATED,
+      READY,
+      { type: 'CLOSED', code: CLOSE_ABNORMAL, nowMs: Date.parse(IN_AN_HOUR) - 30 * 60_000 },
+    ]);
+    expect(reconnecting.phase).toBe('reconnecting');
+    expect(reconnecting.retryDelayMs).not.toBeNull();
+
+    const ended = reduce(reconnecting, { type: 'ENDED' });
+    expect(ended.phase).toBe('idle');
+    expect(ended.retryDelayMs).toBeNull();
+  });
+
+  it('đuôi CLOSED 4404 tới SAU ENDED không ghi đè idle thành expired', () => {
+    // Đối chứng: cùng mã 4404 trên một phiên đang ready thì PHẢI ra expired —
+    // guard chỉ được bắt ca idle, không được nuốt mã đóng của phiên sống.
+    const live = run([
+      { type: 'START' },
+      CREATED,
+      READY,
+      { type: 'CLOSED', code: CloseCode.SESSION_GONE, nowMs: Date.parse(IN_AN_HOUR) - 30 * 60_000 },
+    ]);
+    expect(live.phase).toBe('expired');
+
+    const after = run([
+      { type: 'START' },
+      CREATED,
+      READY,
+      { type: 'ENDED' },
+      { type: 'CLOSED', code: CloseCode.SESSION_GONE, nowMs: Date.parse(IN_AN_HOUR) - 30 * 60_000 },
+    ]);
+    expect(after.phase).toBe('idle');
+    expect(after.message).toContain('kết thúc');
+  });
+});
+
 describe('cạnh creating → connecting có điều kiện (thay cho state `claiming`)', () => {
   it('podName rỗng ⇒ error, KHÔNG mở WS', () => {
     // Không có phép kiểm này thì FE mở WS vào một session gateway chắc chắn từ

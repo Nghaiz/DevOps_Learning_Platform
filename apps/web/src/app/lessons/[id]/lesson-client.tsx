@@ -295,6 +295,17 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
               {session.starting ? 'Đang tạo phiên…' : 'Bắt đầu'}
             </Button>
           )}
+          {/*
+            Trả pod ngay khi học xong thay vì để reaper dọn sau 1h. Hiện ở MỌI
+            phase có sessionId (kể cả reconnecting/error): một phiên đang hỏng
+            vẫn đang giữ khe quota, và "kết thúc" là cách duy nhất người học tự
+            nhả nó ra mà không đợi TTL.
+          */}
+          {session.state.sessionId !== null && (
+            <Button variant="secondary" onClick={session.end} disabled={session.ending}>
+              {session.ending ? 'Đang kết thúc…' : 'Kết thúc phiên'}
+            </Button>
+          )}
         </div>
       </header>
 

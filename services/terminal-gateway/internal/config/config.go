@@ -221,7 +221,16 @@ func Load() (*Config, error) {
 			"script chấm không được đọc và mọi lượt Check treo tới khi hết hạn")
 	}
 
-	execTimeout, err := envx.Duration("GATEWAY_EXEC_TIMEOUT", 30*time.Second)
+	// 120s, KHÔNG phải 30s. 30s là con số chọn lúc cụm rảnh (script chấm chạy
+	// 0.87–3.06s) và đã ĐO là sai: 18 người cùng `docker build` (báo cáo
+	// 2026-08-16-concurrent-build-load) làm script chấm giãn 8–25× — 18/18 build
+	// xong, 17/18 nhận 500 ở bước chấm vì đâm thủng trần này. Một hằng số đặt
+	// trên thao tác chạy TRONG workload của người học giãn theo tranh chấp CPU;
+	// đặt nó theo số đo lúc rảnh là thiết kế cho trường hợp không bao giờ xảy ra
+	// lúc đông. 120s phủ lượt lâu nhất đo được (>30s, ngoại suy ~75s ở 18
+	// người) với biên cho 40 người; histogram dlp_gateway_exec_oneshot_duration
+	// là thứ để nâng/hạ nó bằng số lần sau, không phải cảm giác.
+	execTimeout, err := envx.Duration("GATEWAY_EXEC_TIMEOUT", 120*time.Second)
 	if err != nil {
 		return nil, err
 	}

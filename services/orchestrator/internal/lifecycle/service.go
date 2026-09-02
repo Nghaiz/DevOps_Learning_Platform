@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/k8s"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/pool"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
@@ -95,7 +96,7 @@ type Config struct {
 type Service struct {
 	rdb  redis.UniversalClient
 	pool Provisioner
-	pods PodDeleter
+	pods PodAccess
 	// db có thể là nil: chạy không Postgres là chế độ hợp lệ ở giai đoạn này
 	// (audit là B8, và không đường session nào ĐỌC Postgres). Xem audit().
 	db  AuditDB
@@ -119,7 +120,7 @@ type Service struct {
 func NewService(
 	rdb redis.UniversalClient,
 	provisioner Provisioner,
-	pods PodDeleter,
+	pods PodAccess,
 	db AuditDB,
 	cfg Config,
 	log *slog.Logger,
@@ -385,6 +386,45 @@ func (s *Service) claimWithColdPath(
 			return nil, fmt.Errorf("%w: đọc lại session vừa claim: %w",
 				pool.ErrClaimMayHaveWritten, err)
 		}
+
+		// ⛔ Pod đã claim phải CÒN SỐNG trước khi giao tên nó cho người dùng.
+		//
+		// claim.lua chỉ hỏi Redis; nó không biết apiserver nói gì. Đo 2026-08-16
+		// (concurrent-build-load §6.2): một pod trong pool:free bị xoá ngoài đường
+		// reaper (`kubectl delete pod` — nhưng evict/node pressure đi ĐÚNG đường
+		// hỏng này), lượt startSession kế phát ra tên pod đã chết và MỌI exec sau
+		// đó trả NotFound: người học nhận một terminal không bao giờ nối được, và
+		// không lỗi nào nói vì sao. Reaper tầng 4 có quét pool:free, nhưng giữa
+		// hai lượt quét là một cửa sổ, và người rơi vào cửa sổ đó là sinh viên.
+		//
+		// KHÔNG tự thử lại ở đây: hash session đã ghi, khoá idempotency đang
+		// pending trỏ vào nó, và "đổi pod cho một session" không có script nguyên
+		// tử nào. Thành thật hơn: đánh dấu FAILED (FE đọc được lý do, MarkFailed
+		// tự rút pod khỏi pool để lượt kế KHÔNG gặp lại nó) và trả lỗi để client
+		// tạo lại — FE sinh idempotency_key mới mỗi lần bấm, nên lượt kế là một
+		// claim mới thật, không phải replay của session FAILED này.
+		if alive, aliveErr := s.podAlive(ctx, sess.PodName); aliveErr != nil {
+			// apiserver không trả lời KHÔNG phải bằng chứng pod chết — không chặn
+			// claim vì thế; exec sau sẽ tự lộ nếu pod thật sự mất. Log để cửa sổ
+			// mù này có dấu vết thay vì vô hình.
+			s.log.Warn("không kiểm được pod sau claim — giao tiếp tục",
+				slog.String("session_id", sessionID), slog.String("pod", sess.PodName),
+				slog.String("err", aliveErr.Error()))
+		} else if !alive {
+			s.met.ClaimDeadPodTotal.Inc()
+			s.log.Error("pod ấm đã chết trước khi giao — đánh dấu FAILED và rút khỏi pool",
+				slog.String("session_id", sessionID), slog.String("pod", sess.PodName))
+			if mfErr := s.MarkFailed(ctx, sessionID, "pod đã biến mất trước khi giao cho người dùng"); mfErr != nil {
+				s.log.Error("không đánh dấu FAILED được — reaper tầng 2b sẽ nhặt",
+					slog.String("session_id", sessionID), slog.String("err", mfErr.Error()))
+			}
+			s.met.ClaimTotal.WithLabelValues(path, metrics.ResultError).Inc()
+			// Bọc ErrClaimMayHaveWritten: claim ĐÃ ghi, releaseIdemIfSafe phải GIỮ
+			// khoá — nhả nó là mở lại cửa C-1 (hai session cho một key).
+			return nil, fmt.Errorf("%w: pod %s đã chết trước khi giao; tạo lại phiên với idempotency_key mới",
+				pool.ErrClaimMayHaveWritten, sess.PodName)
+		}
+
 		s.met.ClaimDuration.WithLabelValues(path).Observe(s.now().Sub(start).Seconds())
 		s.met.ClaimTotal.WithLabelValues(path, metrics.ResultOK).Inc()
 		return sess, nil
@@ -433,6 +473,22 @@ func (s *Service) claimWithColdPath(
 
 	return nil, status.Error(codes.ResourceExhausted,
 		"không giữ được pod nào sau khi tạo; hệ thống đang quá tải, thử lại")
+}
+
+// podAlive hỏi apiserver xem pod còn tồn tại và chưa ở pha cuối.
+//
+// `(false, nil)` là câu trả lời CHẮC ("pod không còn / đã Failed|Succeeded");
+// `err != nil` là "không biết" — caller phải phân biệt hai ca này, vì coi
+// "không biết" là "chết" sẽ giết oan claim mỗi khi apiserver chậm.
+func (s *Service) podAlive(ctx context.Context, name string) (bool, error) {
+	pod, err := s.pods.Get(ctx, name)
+	if k8s.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return !k8s.IsTerminal(pod), nil
 }
 
 // toStatus chuyển lỗi GỐC sang mã gRPC, và để yên thứ đã là status.

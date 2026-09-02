@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -18,6 +19,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/metrics"
@@ -146,10 +149,26 @@ type harness struct {
 }
 
 // fakePodDeleter ghi lại lượt xoá pod. Reap và reaper đều đi qua nó.
+//
+// Get trả một pod Running cho mọi tên, TRỪ những tên trong `missing` — đó là
+// cách mô phỏng "pod bị xoá ngoài đường reaper" mà podAlive phải bắt được.
 type fakePodDeleter struct {
 	mu      sync.Mutex
 	deleted []string
 	err     error
+	missing map[string]bool
+}
+
+func (f *fakePodDeleter) Get(_ context.Context, name string) (*corev1.Pod, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.missing[name] {
+		// Bọc y như k8s.podClient.Get để khẳng định k8s.IsNotFound nhìn xuyên
+		// được lớp %w — nếu không, test này xanh mà production thì không.
+		return nil, fmt.Errorf("k8s: đọc pod %q: %w", name,
+			apierrors.NewNotFound(corev1.Resource("pods"), name))
+	}
+	return &corev1.Pod{Status: corev1.PodStatus{Phase: corev1.PodRunning}}, nil
 }
 
 func (f *fakePodDeleter) Delete(_ context.Context, name string, _ int64) error {
@@ -378,6 +397,43 @@ func TestCreateClaimTuWarmPool(t *testing.T) {
 	}
 	if got := testutil.CollectAndCount(h.met.ClaimDuration); got == 0 {
 		t.Error("dlp_claim_duration_seconds không có mẫu nào — AC p95 < 1s cần metric này")
+	}
+}
+
+// TestPodAmDaChetTruocKhiGiaoThiBaoLoiVaRutKhoiPool — đóng nợ §6.2 của
+// 2026-08-16-concurrent-build-load: orchestrator từng giao tên một pod đã bị xoá
+// ngoài đường reaper, và người học nhận một terminal mà mọi exec đều NotFound.
+func TestPodAmDaChetTruocKhiGiaoThiBaoLoiVaRutKhoiPool(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.seedWarmPod(t, "sandbox-dead01")
+	h.pods.missing = map[string]bool{"sandbox-dead01": true}
+
+	_, err := h.svc.Create(ctx, createReq("u1", "k1"))
+	wantCode(t, err, codes.Unavailable)
+
+	for _, list := range []string{rediskeys.PoolClaimed, rediskeys.PoolFree} {
+		if n, _ := h.rdb.LLen(ctx, list).Result(); n != 0 {
+			t.Errorf("%s còn %d mục — pod chết phải bị rút khỏi index, không thì lượt kế gặp lại nó", list, n)
+		}
+	}
+	if got := h.pods.deletedNames(); len(got) != 1 || got[0] != "sandbox-dead01" {
+		t.Errorf("deleted = %v, cần đúng [sandbox-dead01] (MarkFailed dọn vô điều kiện)", got)
+	}
+	if got := testutil.ToFloat64(h.met.ClaimDeadPodTotal); got != 1 {
+		t.Errorf("dlp_claim_dead_pod_total = %v, cần 1", got)
+	}
+
+	// Đối chứng dương: cùng harness, pod còn sống ⇒ claim đi qua bình thường.
+	// Thiếu vế này thì một podAlive luôn trả false vẫn làm test trên xanh.
+	h.pods.missing = nil
+	h.seedWarmPod(t, "sandbox-warm02")
+	sess, err := h.svc.Create(ctx, createReq("u1", "k2"))
+	if err != nil {
+		t.Fatalf("pod sống mà Create hỏng: %v", err)
+	}
+	if sess.GetPodName() != "sandbox-warm02" {
+		t.Errorf("pod_name = %q, cần sandbox-warm02", sess.GetPodName())
 	}
 }
 

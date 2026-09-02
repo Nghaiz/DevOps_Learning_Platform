@@ -1174,7 +1174,14 @@ jobs:
       # Dính đúng ca này lúc quét cục bộ ở 1.E-2. Nên cổng ghi kết quả ra FILE
       # rồi bước sau khẳng định lượt quét ĐÃ chạy; thiếu vế đó thì đây là một
       # cổng bảo mật luôn xanh, tệ hơn không có cổng.
+      # `continue-on-error` KHÔNG nới cổng: bước kế đọc `outcome` và exit 1.
+      # Nó tồn tại để bước kế LUÔN chạy và IN bảng CVE. Bản trước dừng job ngay
+      # tại đây khi có CRITICAL, nên bước `cat` không bao giờ chạy đúng lúc cần
+      # nó nhất — log CI đỏ mà không nói CVE nào (đo 2026-09-02: phải kéo image
+      # về quét tay mới biết là CVE-2026-56854 trong dockerd/buildx/oh-my-posh).
       - name: 'Trivy — CỔNG CHẶN ở CRITICAL (trước khi vào main)'
+        id: trivy-critical
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: dlp-sandbox-base:pr
@@ -1192,6 +1199,8 @@ jobs:
           cat trivy-critical.txt
           grep -qiE 'Report Summary|Total:|no vulnerabilities|Legend' trivy-critical.txt \
             || { echo '::error::output của trivy không có bảng tổng kết — không coi là đã quét.'; exit 1; }
+          [ "${{ steps.trivy-critical.outcome }}" = success ] \
+            || { echo '::error::Trivy tìm thấy CRITICAL — bảng ở ngay trên. Bump phiên bản, hoặc thêm CVE vào .trivyignore KÈM lý do + ngày rà lại.'; exit 1; }
 
   # ─────────────────────────────────────────────── cổng tổng hợp (required check)
   # ────────────────────────────────────────────────── test trình duyệt (xterm)
@@ -1417,7 +1426,11 @@ jobs:
           severity: 'HIGH,CRITICAL'
           timeout: '15m'
 
+      # `continue-on-error` + `outcome` ở bước kế: cùng lý lẽ với job
+      # `sandbox-image` — cổng vẫn chặn, nhưng bảng CVE phải được IN ra.
       - name: 'Trivy — CỔNG CHẶN ở CRITICAL (TRƯỚC push)'
+        id: trivy-critical-push
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ matrix.image }}:scan
@@ -1440,6 +1453,9 @@ jobs:
             echo "::error::Trivy không sinh báo cáo — nhiều khả năng FATAL trước khi quét"; exit 1; }
           grep -qiE 'Report Summary|Total:|no vulnerabilities|Legend' trivy-critical.txt || {
             echo "::error::báo cáo Trivy không có dấu hiệu của một lượt quét hoàn tất"; cat trivy-critical.txt; exit 1; }
+          cat trivy-critical.txt
+          [ "${{ steps.trivy-critical-push.outcome }}" = success ] || {
+            echo "::error::Trivy tìm thấy CRITICAL — bảng ở ngay trên. Bump phiên bản, hoặc thêm CVE vào .trivyignore KÈM lý do + ngày rà lại."; exit 1; }
           echo "lượt quét hoàn tất, 0 CRITICAL."
 
       # Cổng đã xanh — giờ mới publish. Lượt này là cache hit thuần từ `cache-from`

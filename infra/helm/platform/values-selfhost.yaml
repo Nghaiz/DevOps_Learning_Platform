@@ -93,6 +93,17 @@ web:
 
 orchestrator:
   replicaCount: 1
+  env:
+    # 3 pod ấm, không 1 — đóng nợ của 3.I mắt 3–5 và 2026-08-16-concurrent-build-load.
+    #
+    # Số đo làm cơ sở (18 người vào cùng lúc, POOL_TARGET=1): 17/18 đi cold path,
+    # `claim` 23–45s, phần lớn là CHỜ POD MỚI chứ không phải chờ CPU. Với trần
+    # quota 21 pod, giữ 3 pod ấm tốn 3 khe (trần phiên 20 → 18) và ~3×163Mi
+    # workingSet lúc rảnh, đổi lấy 3 người đầu của mỗi đợt vào nhận pod <1s và
+    # replenish chạy trước khi người thứ 4 tới. Đây là ĐÁNH ĐỔI ĐÃ ĐO ở một điểm
+    # (N=18), không phải tối ưu: đo `dlp_claim_total{path="cold"}` /
+    # `dlp_claim_total` sau vài buổi học thật rồi mới chỉnh tiếp.
+    poolTarget: '3'
   resources:
     requests:
       cpu: 25m
