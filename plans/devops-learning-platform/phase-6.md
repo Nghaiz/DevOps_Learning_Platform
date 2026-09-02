@@ -81,9 +81,19 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 ## Verify commands
 
 ```bash
-kubectl exec $POD -- ss -ltn | grep -v 127.0.0.1     # IDE không nghe ra ngoài
-curl -s -o /dev/null -w '%{http_code}' https://$HOST/ide/session/$OTHER_SESSION/   # 403/404
-kubectl exec $POD -- sh -c 'echo x > /root/a.txt' && # rồi mở IDE xem có thấy
+# IDE chỉ nghe loopback trong pod — dòng nào lọt qua grep là một cổng mở ra ngoài
+kubectl exec $POD -- ss -ltn | grep -v 127.0.0.1
+
+# Route IDE của phiên NGƯỜI KHÁC phải bị từ chối (luật 1)
+curl -s -o /dev/null -w '%{http_code}\n' https://$HOST/ide/session/$OTHER_SESSION/   # 403/404
+
+# Cùng filesystem: ghi bằng exec, rồi đọc lại bằng exec để khẳng định đường ghi
+# hoạt động. Vế 'editor CÓ thấy file này' là bước THỦ CÔNG — mở IDE và nhìn;
+# không có lệnh nào kiểm hộ, và giả vờ có là tự lừa mình.
+kubectl exec $POD -- sh -c 'echo dlp-ide-probe > /root/a.txt'
+kubectl exec $POD -- cat /root/a.txt          # phải in dlp-ide-probe
+
+# Binary IDE có thật trong image biến thể
 docker run --rm dlp-sandbox-base:ide sh -c 'test -x <ide-binary>'
 ```
 
