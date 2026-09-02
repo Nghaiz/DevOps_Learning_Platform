@@ -96,15 +96,25 @@ apps/web/Dockerfile                 (CHỈ KHI R1 nổ — đổi stage builder 
 
 ## Acceptance criteria
 
-- [ ] `node_modules/.bin/tsc --version` → `Version 7.0.2`; `node_modules/.bin/tsc6 --version` → `6.0.x`
-- [ ] `node -p "require('typescript').version"` → `6.0.x` (tool cần API vẫn có API)
-- [ ] `pnpm lint` exit 0 — **đây là cổng chứng minh shim hoạt động**
-- [ ] `pnpm typecheck` exit 0, và log cho thấy đang chạy TS7
-- [ ] `pnpm test` exit 0, zero failure
-- [ ] `pnpm --filter @devops-platform/web build` exit 0 (Next 15 vẫn dùng API TS6)
-- [ ] `docker build -f apps/web/Dockerfile -t dlp/web .` **thành công** — chứng minh binary TS7 chạy được trên `node:24-alpine` (musl)
-- [ ] Không file `.ts`/`.tsx` nào bị sửa (`git diff --stat` chỉ có package.json / lockfile / tsconfig comment / README)
-- [ ] 6 cổng CI xanh trên PR
+- [x] `node_modules/.bin/tsc --version` → `Version 7.0.2`; `node_modules/.bin/tsc6 --version` → `6.0.x`
+      → đo 2026-09-02: `7.0.2` / `6.0.3`.
+- [x] `node -p "require('typescript').version"` → `6.0.x` (tool cần API vẫn có API)
+      → đo 2026-09-02: `6.0.3`.
+- [x] `pnpm lint` exit 0 — **đây là cổng chứng minh shim hoạt động**
+      → chạy local 2026-09-02 (exit 0) + job `ts` của CI xanh trên PR #84.
+- [x] `pnpm typecheck` exit 0, và log cho thấy đang chạy TS7
+      → chạy local 2026-09-02 (exit 0); `tsc` phân giải về `@typescript/native` 7.0.2 (ô đầu).
+- [x] `pnpm test` exit 0, zero failure
+      → **trong CI**, nơi job `ts` dựng `postgres:16-alpine` + Redis rồi `db:migrate` trước khi chạy.
+      ⚠ Local KHÔNG có DB thì 42 test đỏ và đọc y hệt hồi quy — đó là môi trường, không phải mã.
+- [x] `pnpm --filter @devops-platform/web build` exit 0 (nay là Next **16.3**, vẫn dùng API TS6 — xem ô `useTypeScriptCli` dưới)
+      → `turbo run … build` nằm trong cùng bước của job `ts`; CI xanh.
+- [x] `docker build -f apps/web/Dockerfile -t dlp/web .` **thành công** — chứng minh binary TS7 chạy được trên `node:24-alpine` (musl)
+      → bằng chứng mạnh hơn một lượt build: `ghcr.io/nghaiz/dlp-web:sha-0941471` **đang chạy trên cụm lab**, và image đó do chính Dockerfile này sinh ra.
+- [x] Không file `.ts`/`.tsx` nào bị sửa (`git diff --stat` chỉ có package.json / lockfile / tsconfig comment / README)
+      → `git show --stat 33ee9be` (commit U1): **0** file `.ts`/`.tsx` trong diffstat.
+- [x] 6 cổng CI xanh trên PR
+      → PR #19 lúc đó; nay ma trận là **8** job (`proto`/`ts`/`go`/`infra`/`secret-scan`/`sandbox-image`/`terminal-browser`/`ci-ok`).
 
 ## Verify commands
 
@@ -225,15 +235,32 @@ plans/devops-learning-platform/phase-3.md  (chỉ THÊM mục ghi nhận IP peer
 
 ## Acceptance criteria
 
-- [ ] `next` = 16.3.0; `pnpm --filter @devops-platform/web build` exit 0
-- [ ] `apps/web/src/middleware.ts` **không còn tồn tại**; `proxy.ts` export hàm tên `proxy`
-- [ ] `grep -rn "from '../middleware'" apps/web/src` → **0 kết quả**
-- [ ] **10/10 luật bảo mật xanh**, không luật nào bị skip hay nới
-- [ ] `pnpm lint && pnpm typecheck && pnpm test` exit 0
-- [ ] `next build` typecheck qua `tsc` CLI (TS7) — xác nhận bằng log build
-- [ ] `docker build -f apps/web/Dockerfile -t dlp/web .` **thành công**; nếu phải dùng `--webpack` thì lý do đã ghi trong code + issue đã mở
-- [ ] `git status --short` sạch sau khi chạy `next dev` một lần (chứng minh `AGENTS.md` + `.next/dev` đã xử lý đúng)
-- [ ] 6 cổng CI xanh trên PR
+- [x] `next` = 16.3.x; `pnpm --filter @devops-platform/web build` exit 0
+      → `apps/web/package.json` ghim `^16.3.0`; build chạy trong job `ts`, CI xanh.
+- [x] `apps/web/src/middleware.ts` **không còn tồn tại**; `proxy.ts` export hàm tên `proxy`
+      → kiểm 2026-09-02: file vắng; `proxy.ts:58` `export function proxy(request: NextRequest)`.
+- [x] `grep -rn "from '../middleware'" apps/web/src` → **0 kết quả**
+      → kiểm 2026-09-02: 0.
+- [x] **10/10 luật bảo mật xanh**, không luật nào bị skip hay nới
+      → 13 file test dưới `apps/web/src/security/`, chạy trong job `ts` trên Postgres thật.
+      Vế mạnh hơn: 3.E đã self-pentest 10/10 luật **trên cụm**, kèm 10/10 đối chứng dương ĐỎ.
+- [x] `pnpm lint && pnpm typecheck && pnpm test` exit 0
+      → như ba ô của U1 ở trên (test cần DB của CI).
+- [~] `next build` typecheck qua `tsc` CLI (TS7) — xác nhận bằng log build
+      **CỐ Ý ĐỂ MỞ, và đây là ô duy nhất của cả plan này chưa đóng.** `apps/web/next.config.ts`
+      đặt `experimental.useTypeScriptCli: false`, nên `next build` typecheck bằng **API TS6**,
+      không qua `tsc` CLI. Lý do: Next 16 CLI mode gõ cứng `typescript/bin/tsc`, mà shim chỉ
+      có `bin.tsc6`. Chạy `next dev` 2026-09-02 in ra đúng dòng `⨯ useTypeScriptCli` xác nhận
+      cờ đang tắt. Đây là **mục 2 của issue #20**, chặn bởi typescript-eslint#10940 (còn OPEN,
+      cập nhật gần nhất 2026-07-09). Đóng cùng lúc với việc gỡ alias, không sớm hơn.
+- [x] `docker build -f apps/web/Dockerfile -t dlp/web .` **thành công**; nếu phải dùng `--webpack` thì lý do đã ghi trong code + issue đã mở
+      → image `sha-0941471` đang chạy trên cụm (xem ô tương ứng của U1).
+- [x] `git status --short` sạch sau khi chạy `next dev` một lần (chứng minh `AGENTS.md` + `.next/dev` đã xử lý đúng)
+      → **chạy thật** 2026-09-02 (`next dev --port 3099`, Ready in 5.2s, dừng sau 75s):
+      `git status --short` không có mục nào ngoài file của lượt làm việc hiện tại.
+      Kiểm HÀNH VI chứ không chỉ kiểm `.gitignore` có dòng — hai thứ đó khác nhau.
+- [x] 6 cổng CI xanh trên PR
+      → PR #21 lúc đó; nay là 8 job (xem ô tương ứng của U1).
 
 ## Verify commands
 
