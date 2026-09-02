@@ -156,11 +156,24 @@ smoke trong `12-helm-deploy.sh` · 5.F ca claim-gặp-pod-chết trong `reaper-v
 - [x] 5 giá trị của 5.A khẳng định trên **đối tượng sống**, kèm giá trị CŨ làm đối chứng.
       → bảng ở §"Khẳng định trên đối tượng sống" trên. `GATEWAY_EXEC_TIMEOUT` đọc từ
       spec của POD (không `kubectl exec` — image distroless).
-- [ ] N=18 cùng build: **18/18 qua bước chấm** (hoặc con số thật + p99 histogram nếu chưa).
-      **5.B chưa chạy.** Trần 120s đã ở trên cụm (khẳng định ở §trên), nhưng "trần đúng"
-      và "18 người cùng build không ai nhận 500" là hai khẳng định khác nhau — cái sau
-      chỉ đóng được bằng chính harness đã đo ra lỗi.
-- [ ] claim p95 của 3 người đầu < 1s; số người đi cold path ghi rõ.
+- [~] N=18 cùng build: **18/18 qua bước chấm** (hoặc con số thật + p99 histogram nếu chưa).
+      **Đã chạy 2026-09-03. Vế trần gateway ĐÓNG; vế "hoàn tất bài" thì KHÔNG.**
+      · **0/18 chạm `GATEWAY_EXEC_TIMEOUT`** (lượt trước 17/18) ⇒ bản vá trần hoạt động.
+      · Nhưng **1/18 hoàn tất bài**, vì chỗ nghẽn **dịch xuống một tầng**: `timeout 20`
+        bên trong `content/scenarios/dlp-docker-basics/step4/verify.sh`. Bằng chứng trực
+        tiếp (harness nay giữ `output`): 17× `exit=124` — mã của GNU `timeout` — kèm
+        chuỗi ĐÚNG mà container đã kịp in ra trước khi bị giết.
+      · Đã nâng `20` → `90` và thay comment cũ (thứ đẻ ra con số sai) bằng số đo.
+        ⚠ **Bản vá CHƯA kiểm dưới tải**: nội dung nướng vào image web nên chỉ có hiệu
+        lực sau CI publish + side-load + upgrade. "90s là đủ" hiện là suy luận từ
+        4.6s × ~10, không phải phép đo.
+      Báo cáo: `reports/2026-09-03-verify-5b-rerun-n18.md`.
+- [~] claim p95 của 3 người đầu < 1s; số người đi cold path ghi rõ.
+      Đo được: ba người đầu **3.7 / 3.9 / 3.9 s** (lượt trước, pool=1: 23–45s cho MỌI người).
+      Cải thiện ~6–12 lần nhưng **không đạt ngưỡng 1s** — pool 3 pod ấm bị 18 người
+      tranh nhau ngay ở giây đầu, nên cả ba đều chờ apiserver dưới tải. 15/18 đi cold
+      path. Ngưỡng 1s đặt cho một warm-pool đủ lớn; trên hạ tầng này nó đòi `POOL_TARGET`
+      cao hơn, và mỗi pod ấm là một khe quota bị giữ thường trực — đánh đổi thuộc P12.
 - [x] `dlp_claim_dead_pod_total` = 0 trong lượt đo bình thường, và = 1 trong ca dựng của 5.F.
       → đo qua Prometheus sau deploy: **0**. `reaper-verify.sh --case deadpod`: **0 → 1**.
 - [x] Đổi `image.tag` ⇒ pod ấm cũ bị rút, pool tự đủ lại (`dlp_reaper_stale_image_pods_total` tăng đúng số).
