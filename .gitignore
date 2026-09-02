@@ -65,6 +65,11 @@ packages/terminal/src/__screenshots__/
 # (chứa template Secret nên secret-guard chặn, và 8 bản chart là rác repo)
 plans/devops-learning-platform/reports/harness/*/distort/
 
+# Thư mục rào chắn của harness đo đồng thời: state giữa các worker trong MỘT
+# lượt chạy, không phải kết quả.  xoá nó lúc BẮT ĐẦU (để lượt mới không
+# đọc cờ GO cũ) chứ không xoá lúc kết thúc — nên nó luôn còn lại sau mỗi lượt.
+plans/devops-learning-platform/reports/harness/*/.barrier-*/
+
 # infra/k6 — cookie phiên thật + log lượt chạy (P3/3.F)
 infra/k6/.users.json
 infra/k6/out/
