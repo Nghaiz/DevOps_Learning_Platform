@@ -23,6 +23,43 @@
 
 ⛔ **Bẫy đã dẫm hai lần, đừng dẫm lần ba:** `~/dlp-deploy` trên VM là bản chép tay của chart và đã bị đánh dấu DEPRECATED. Mọi `helm upgrade` đi qua `12-helm-deploy.sh`, không đi qua thư mục đó.
 
+## Trạng thái 5.A — ĐÃ THỬ 2026-09-02, BỊ CHẶN BỞI MẠNG (không phải bởi mã)
+
+Ghi lại để phiên sau không dò lại từ đầu:
+
+| Việc | Kết quả |
+|---|---|
+| CI publish `sha-4b7e553` cho **cả 5** image | ✅ có trên ghcr (kiểm bằng `gh api user/packages/...`) |
+| `11-sideload-images.sh` | ❌ treo ở bước `docker pull`, >10 phút không nhận được byte nào |
+| Cụm | vẫn `sha-0941471` — **không đụng gì**, 6/6 pod Running |
+| `values-selfhost.yaml` | **KHÔNG bump tag**, có chủ ý (xem dưới) |
+
+**Số đo mạng lúc thử** (cả hai phía, nên đây là upstream chung chứ không phải máy dev):
+
+| Từ | Tới | Tốc độ |
+|---|---|---|
+| máy dev (Windows) | `ghcr.io/v2/` | **93 B/s** |
+| máy dev | `api.github.com` | 5.9 KB/s |
+| VM lab | `ghcr.io/v2/` | **96 B/s** |
+| VM lab | `registry-1.docker.io/v2/` | 33 B/s |
+
+Kho image của docker **không tăng một byte nào** trong 60s quan sát ⇒ pull đứng,
+không phải chậm-nhưng-tiến. VM cũng chậm y hệt nên **không có đường vòng** (cho VM
+tự `ctr images pull` cũng vô nghĩa).
+
+⛔ **VÌ SAO KHÔNG COMMIT TAG MỚI DÙ ĐÃ SỬA SẴN MỘT DÒNG.** Chính file values ghi:
+*"TAG Ở ĐÂY LÀ HỢP ĐỒNG PHẢI SIDE-LOAD ĐÚNG TAG NÀY"*. Cụm chạy
+`imagePullPolicy: Never`, nên commit một tag mà node KHÔNG có image nghĩa là lần
+`helm upgrade` kế tiếp dựng pod không bao giờ khởi động được — và người chạy nó sẽ
+đọc ra như một lỗi của bản vá, không phải như một tag chưa được nạp. Tag ở lại
+`sha-0941471` cho tới khi side-load thật sự thành công.
+
+**Việc còn lại khi mạng bình thường trở lại** — nguyên vẹn 5.A dưới đây, chạy theo
+đúng thứ tự, với `image.tag` đổi sang sha mới nhất của `main` tại thời điểm đó
+(đừng dùng lại `sha-4b7e553` nếu `main` đã đi tiếp).
+
+---
+
 ## Task list
 
 ### 5.A — Deploy bản vá và chứng minh nó ĐANG chạy
