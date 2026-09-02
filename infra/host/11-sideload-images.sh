@@ -88,6 +88,84 @@ ssh -o ConnectTimeout=8 "$VM_SSH" true 2>/dev/null || loi "không ssh được t
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# ─────────────────────────────────────────────────────────────────────────────
+# kiem_tarball — CỔNG CHẶN trước khi scp: mọi blob phải băm ra ĐÚNG tên của nó.
+#
+# Đóng một chế độ hỏng ĐÃ GẶP (2026-09-02). Tarball `docker save` sang tới VM có
+# một blob tên `blobs/sha256/a0f82f…` mà nội dung băm ra `2fc66109…`. `ctr images
+# import` nạp vào, băm lại, thấy lệch, KHÔNG lưu dưới digest được khai — rồi lúc
+# unpack báo:
+#
+#     failed to get reader from content store: content digest sha256:…: not found
+#
+# ⛔ Thông báo đó đọc như THIẾU dữ liệu; thực chất là dữ liệu SAI TÊN. Và nó nổ ra
+# trên VM, sau một lượt scp hàng chục MB — tức xa nhất có thể khỏi nguyên nhân.
+# Cổng này kéo nó về máy dev, trước khi truyền.
+#
+# ⚠ NGUYÊN NHÂN GỐC CHƯA XÁC ĐỊNH, và cổng này CỐ Ý không đoán. Lượt điều tra
+# ngay sau đó KHÔNG tái hiện được: một `docker save` tươi của đúng image ấy cho
+# tarball có 17/17 blob khớp digest, scp sang VM giữ nguyên sha256, và `ctr import`
+# chạy exit 0. Nghi phạm hợp lý nhất là ba thao tác docker chạy ĐỒNG THỜI trên cùng
+# image lúc ấy (một lượt side-load smoke + một `docker pull` tay + lượt side-load
+# đầy đủ), cộng một `taskkill` rơi vào đúng cửa sổ đó. Nhưng artefact đã bị xoá
+# trước khi soi được, nên đó là giả thuyết, không phải kết luận.
+#
+# Vì lý do đó cổng kiểm ĐIỀU KIỆN HỎNG ("tarball này có blob sai digest không"),
+# không kiểm một nguyên nhân phỏng đoán ("máy này có bật containerd store không").
+# Kiểm nguyên nhân là kiểm một PROXY: chặn oan khi giả thuyết sai, bỏ lọt khi cùng
+# triệu chứng đến từ đường khác.
+#
+# Kiểm MỌI blob, không chỉ blob lớn nhất: chọn "lớn nhất" là một phỏng đoán nữa về
+# chỗ hỏng, và bản đầu của cổng này đã XANH trên một tarball thật chỉ vì nó bỏ qua
+# 16 blob còn lại. Băm trọn một tar 300 MB mất vài giây — rẻ hơn nhiều so với
+# truyền nó đi rồi hỏng.
+kiem_tarball() {
+  local tar="$1" ten="$2" thu_muc n that lech=0
+
+  thu_muc="$(mktemp -d)"
+  tar -xf "$tar" -C "$thu_muc" 'blobs/sha256' 2>/dev/null \
+    || loi "${ten}: tarball không có thư mục blobs/sha256 — docker save hỏng"
+
+  shopt -s nullglob
+  local danh_sach=("$thu_muc"/blobs/sha256/*)
+  shopt -u nullglob
+  [[ ${#danh_sach[@]} -gt 0 ]] || { rm -rf "$thu_muc"; loi "${ten}: tarball không có blob nào"; }
+
+  for f in "${danh_sach[@]}"; do
+    n="$(basename "$f")"
+    # Bỏ qua tên không phải digest (một số bản docker để lại file phụ ở đây).
+    [[ "$n" =~ ^[0-9a-f]{64}$ ]] || continue
+    that="$(sha256sum "$f" | cut -d' ' -f1)"
+    if [[ "$that" != "$n" ]]; then
+      echo "   blob LỆCH: ${n:0:16}… băm ra ${that:0:16}…" >&2
+      lech=$((lech + 1))
+    fi
+  done
+  rm -rf "$thu_muc"
+  [[ $lech -eq 0 ]] && return 0
+
+  cat >&2 <<HET
+
+LỖI: ${ten} — tarball có ${lech} blob SAI DIGEST; ctr sẽ từ chối nó với thông báo
+     "content digest …: not found" (đọc như thiếu dữ liệu, thực chất là sai tên).
+
+Thử theo thứ tự này:
+
+  1. Chạy LẠI script khi KHÔNG có thao tác docker nào khác đụng cùng image.
+     Lần gặp trước không tái hiện được sau khi dọn các tiến trình song song.
+
+  2. Nếu vẫn lệch: bỏ qua docker save, cho VM tự kéo (đã đo là chạy được):
+
+       ssh ${VM_SSH} 'sudo ctr -n k8s.io images pull \\
+         --user <github-user>:<token-có-read:packages> \\
+         ${REGISTRY}/${ten}:${TAG}'
+
+     ⚠ token nằm trong argv nên hiện ra ở \`ps\` của VM — chỉ dùng trên máy lab
+     một người, và thu hồi token nếu VM có người khác dùng chung.
+
+HET
+  exit 1
+}
 for ten in "${DANH_SACH[@]}"; do
   ref="${REGISTRY}/${ten}:${TAG}"
   echo "── ${ten}"
@@ -102,6 +180,11 @@ for ten in "${DANH_SACH[@]}"; do
 
   tar="${TMP}/${ten}.tar"
   docker save -o "$tar" "$ref"
+
+  # ⛔ TRƯỚC scp, không sau: một tarball hỏng thì truyền nó đi là phí băng thông
+  # trên đúng đường truyền đang chậm, rồi mới hỏng ở nơi khó đọc nhất.
+  kiem_tarball "$tar" "$ten"
+
   echo "   scp $(du -h "$tar" | cut -f1)"
   scp -q "$tar" "${VM_SSH}:/tmp/${ten}.tar"
 
