@@ -17,8 +17,8 @@
     "db:smoke": "tsx --env-file-if-exists=.env src/scripts/db-smoke.ts"
   },
   "dependencies": {
-    "@better-auth/drizzle-adapter": "^1.6.26",
-    "@bufbuild/protobuf": "^2.13.0",
+    "@better-auth/drizzle-adapter": "^1.7.2",
+    "@bufbuild/protobuf": "^2.14.0",
     "@connectrpc/connect": "^2.1.2",
     "@connectrpc/connect-node": "^2.1.2",
     "@devops-platform/scenario": "workspace:*",
@@ -32,7 +32,7 @@
     "better-auth": "^1.6.26",
     "drizzle-orm": "^0.45.2",
     "ioredis": "^6.0.0",
-    "next": "^16.3.0",
+    "next": "^16.3.3",
     "postgres": "^3.4.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -42,17 +42,17 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/postcss": "^4.3.3",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.0",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
+    "@types/react-dom": "^19.2.5",
     "@typescript/native": "npm:typescript@^7.0.2",
     "drizzle-kit": "^0.31.10",
-    "eslint": "^10.8.1",
+    "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.23.11",
+    "tsx": "^4.23.13",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.0.0",
-    "vitest": "^4.0.0"
+    "typescript-eslint": "^8.68.0",
+    "vitest": "^4.1.11"
   }
 }
