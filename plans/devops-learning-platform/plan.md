@@ -61,10 +61,30 @@ infra/helm/ · infra/k8s/   Helm charts + Sysbox RuntimeClass, gVisor, NetworkPo
 | **P0** | Nền móng | DETAILED | Monorepo build được, Postgres+Redis, Next.js+Better Auth login, skeleton 2 Go service, CI/CD, **kubeadm 1-node (K8s v1.34) + Sysbox**, proto contract v0 | `phase-0.md` |
 | **P1** | Sandbox Session Engine (MVP lõi) | DETAILED | create/claim/reap pod Sysbox, terminal-gateway WS⇄PTY, per-session authz, warm-pool nhỏ, sandbox-base image | `phase-1.md` |
 | **P2** | Lessons pillar | DETAILED | parser Katacoda, UI split-pane (nội dung\|terminal), step nav, validation script | `phase-2.md` |
-| **P3** | Hardening & tải | SKETCH | 10 luật §6 self-pentest, k6 load test, autoscaling, NetworkPolicy, observability | `phase-3.md` |
-| **P4** | Labs ② + Games ③ | SKETCH | chấm điểm task, kind/vcluster trong pod; nhánh game frontend-only | `phase-4.md` |
+| **P3** | Hardening & tải | SKETCH + DETAILED | 10 luật §6 self-pentest 0 lỗi, k6, NetworkPolicy 22/22, observability, trần 3→21 phiên | `phase-3.md`, `phase-3-detailed.md` |
+| ~~P4~~ | ~~Labs ② + Games ③~~ | SKETCH — **ĐÃ TÁCH** | Sketch này được **thay thế** bởi P7/P8/P11/P14 (xem dưới). Giữ file làm dấu vết lịch sử, không cook từ nó. | `phase-4.md` |
 
-**Critical path:** P0 → **P1 (shared engine)** → P2. P3 hardening chạy chồng lấn cuối P1/P2. P4 sau khi engine ổn.
+### Chặng tiếp theo (chốt 2026-09-02) — P5 → P14
+
+Sau khi P0–P3 đóng, ba việc quyết định hình dạng phần còn lại: (a) mọi bản vá phải **chạy trên cụm** chứ không chỉ nằm trong repo; (b) **`RUNTIME_SUPPORTED_CAPABILITIES` mới chỉ có `docker`** — nền tảng học Kubernetes chưa chạy được Kubernetes; (c) ràng buộc của chủ dự án: **chỉ làm FE khi BE/orchestrator/Theia/terminal/sandbox/pod đã xong**.
+
+| Phase | Tên | Effort | Kết quả chính | File |
+|---|---|---|---|---|
+| **P5** | Engine v2 — deploy lặp lại được | M | Bản vá nợ-sau-P3 chạy trên cụm + đo lại N=18; cổng smoke trong deploy; extend từ FE; rollout warm-pool theo image | `phase-5.md` |
+| **P6** | Theia IDE lane | L | Chốt IDE bằng số đo, layer opt-in, reverse-proxy dùng lại chuỗi authz `/ws`, layout `ide` | `phase-6.md` |
+| **P7** | K8s trong pod | L | Mở năng lực `kubernetes` (kind/k3s/vcluster — đo rồi chọn), profile tài nguyên riêng, bài CKAD chạy thật | `phase-7.md` |
+| **P8** | Trụ cột ② Labs + chấm nhiều task | L | Format lab, chấm từng task, bảng xếp hạng có authz, playground | `phase-8.md` |
+| **P9** | Soạn bài trên UI | L | `ScenarioSource` bản DB (seam đã dựng từ 2.B), vai trò author, nháp→xuất bản, asset | `phase-9.md` |
+| **P10** | Lộ trình học + Quiz | M | Gom nội dung có thứ tự, quiz chấm server-side, đáp án không rời server | `phase-10.md` |
+| **P11** | Tier-2 gVisor + CTF | M | gVisor systrap (**Kata ngoài phạm vi — VM không có nested virt**), escape test có đối chứng dương | `phase-11.md` |
+| **P12** | Chứng minh quy mô | M | 40 người **qua Traefik**, soak 2–4h, tách CPU theo giai đoạn, chạy lại pentest sau khi nới rate-limit | `phase-12.md` |
+| **P13** | Frontend — hệ thiết kế + toàn bộ màn hình | XL | Token + dark mode, 4 trình học, danh mục, trang soạn, quản trị, a11y + e2e | `phase-13.md` |
+| **P14** | Trụ cột ③ Games + hoàn thiện + RC | L | Game frontend-only (0 backend), runbook, khôi phục **đã thử**, pentest cuối, `v0.1.0-rc1` | `phase-14.md` |
+
+**Critical path:** P0 → **P1** → P2 → P3 → **P5** → (P6 ∥ P7) → P8 → P9 → P10 → P11 → **P12** → P13 → P14.
+P6 và P7 độc lập nhau về mã nhưng **không độc lập về RAM** — cả hai đều đẩy `requests` của pod sandbox lên và cùng hạ trần đồng thời; P12 đo trên tổng.
+
+**Ba ranh giới giữ nguyên suốt P5–P14:** ⛔ không dựng phần thương mại (pricing/thanh toán/paywall/entitlement) · ⛔ không lưu field suy ra được · ⛔ không làm FE trước khi backend đóng.
 
 ## 4. Mối quan tâm xuyên suốt (Cross-cutting concerns)
 
