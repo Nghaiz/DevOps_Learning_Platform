@@ -36,6 +36,59 @@ mkdirSync(BARRIER_DIR, { recursive: true });
 console.log(`\n═══ ${N} người học, rào chắn chung trước docker build ═══`);
 console.log(`đường: ${BASE_URL} (ClusterIP qua port-forward; origin giữ nguyên ⇒ origin-check của app vẫn chạy)\n`);
 
+// ── Đường hầm: driver TỰ dựng và TỰ canh ─────────────────────────────────────
+//
+// ⛔ ĐÂY LÀ MỘT LỖ HỔNG ĐÃ LÀM HỎNG MỘT LƯỢT ĐO (2026-09-03, lượt thứ ba).
+// Trước khối này, harness giả định `kubectl port-forward` do người chạy dựng sẵn
+// ở ngoài. Đường hầm ấy chết trong im lặng — và khi nó chết, CẢ 18 worker chết
+// cùng lúc, còn báo cáo chỉ nói "18 worker chết trước rào chắn". Không dòng nào
+// nói rằng thứ chết là cái ống, không phải hệ đang đo. Một phép đo mà chế độ
+// hỏng của CÔNG CỤ đọc giống hệt chế độ hỏng của ĐỐI TƯỢNG là một phép đo hỏng.
+//
+// Nay driver tự spawn nó, tự kiểm sống bằng `/api/health`, và tự dựng lại. Nếu
+// không dựng nổi thì DỪNG với exit 2 ("không đo được") thay vì chạy tiếp rồi báo
+// một tập kết quả toàn đỏ mà nguyên nhân nằm ở máy chạy.
+let pfProc = null;
+function spawnPf() {
+  const port = new URL(BASE_URL).port || '13000';
+  pfProc = spawn('kubectl', ['port-forward', 'svc/platform-web', `${port}:3000`],
+    { stdio: 'ignore' });
+  pfProc.on('close', () => { pfProc = null; });
+}
+async function pfKhoe() {
+  try {
+    const r = await fetch(`${BASE_URL}/api/health`, { signal: AbortSignal.timeout(4000) });
+    return r.ok;
+  } catch { return false; }
+}
+async function bảoĐảmĐườngHầm(nhãn) {
+  for (let i = 0; i < 12; i += 1) {
+    if (await pfKhoe()) return true;
+    // ⛔ GIẾT RỒI DỰNG LẠI, KHÔNG chỉ "dựng nếu tiến trình đã chết".
+    // Bản đầu của khối này viết `if (!pfProc) spawnPf()` và nó KHÔNG BAO GIỜ
+    // dựng lại — đo được ngay lượt sau: `kubectl port-forward` vào trạng thái
+    // GIỮ CỔNG mà không còn chuyển tiếp gì (netstat thấy 13000 LISTENING, curl
+    // trả 000). Tiến trình còn sống nên điều kiện `!pfProc` sai vĩnh viễn, và
+    // guard vừa viết ra để tự lành thì lặp thông báo lỗi tới hết lượt.
+    // Cùng một lỗi với thứ nó định gác: kiểm SỰ TỒN TẠI thay vì kiểm HOẠT ĐỘNG.
+    if (pfProc) { try { pfProc.kill(); } catch { /* đã chết */ } pfProc = null; }
+    spawnPf();
+    await sleep(2500);
+  }
+  console.error(`\n✖ KHÔNG ĐO ĐƯỢC: đường hầm tới ${BASE_URL} không lên (${nhãn}).`);
+  console.error('  Đây là lỗi của MÁY CHẠY, không phải của hệ đang đo — đừng đọc kết quả nào.');
+  return false;
+}
+if (!(await bảoĐảmĐườngHầm('trước khi spawn'))) {
+  process.exit(2);
+}
+// Canh trong suốt lượt đo: 18 worker im lặng chết là triệu chứng của ống rụng.
+const pfCanh = setInterval(() => { void bảoĐảmĐườngHầm('giữa lượt'); }, 10_000);
+process.on('exit', () => {
+  clearInterval(pfCanh);
+  if (pfProc) pfProc.kill();
+});
+
 // ── Ảnh chụp quota TRƯỚC ─────────────────────────────────────────────────────
 const quotaBefore = JSON.parse(kc(['get', 'resourcequota', '-n', 'dlp-sandbox', '-o', 'json'])).items[0];
 console.log(`quota trước: pods=${quotaBefore.status.used.pods}/${quotaBefore.status.hard.pods} ` +

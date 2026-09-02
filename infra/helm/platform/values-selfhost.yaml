@@ -34,7 +34,7 @@ global:
 # ca "CI chết", xây tay ở đúng commit rồi side-load vẫn là đường lùi hợp lệ —
 # nhưng phải KHAI ra, vì `sha-` tự nó trông y hệt tag của CI.
 image:
-  tag: sha-4b7e553
+  tag: sha-2b79fd3
 
 # Ingress + TLS KHÔNG đặt ở đây, có chủ ý: `ingress.host`, `corsAllowedOrigins`
 # và `betterAuthUrl` đều chứa IP của node, mà IP đó khác nhau ở mỗi máy lab —
