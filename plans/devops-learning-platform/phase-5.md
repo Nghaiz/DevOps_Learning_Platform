@@ -23,84 +23,76 @@
 
 ⛔ **Bẫy đã dẫm hai lần, đừng dẫm lần ba:** `~/dlp-deploy` trên VM là bản chép tay của chart và đã bị đánh dấu DEPRECATED. Mọi `helm upgrade` đi qua `12-helm-deploy.sh`, không đi qua thư mục đó.
 
-## Trạng thái 5.A — ĐÃ THỬ 2026-09-02, HỎNG Ở `docker save`, KHÔNG PHẢI Ở MẠNG
+## Trạng thái 5.A — ✅ XONG 2026-09-02, cụm chạy `sha-4b7e553` (helm rev 79)
 
-> ⚠ **Bản đầu của mục này chẩn đoán SAI** ("mạng chặn, 93 B/s") và đã được sửa trong
-> cùng ngày. Giữ lại cả hai vì bài học nằm ở khoảng cách giữa chúng — xem §"Phép đo
-> tự nói dối" dưới.
+> ⚠ Mục này đã bị viết SAI **hai lần** trong cùng ngày trước khi đúng. Giữ lại vết
+> đó ở §"Hai chẩn đoán sai" vì nó đắt hơn kết quả.
 
-### Điều thật sự hỏng
+### Khẳng định trên đối tượng sống
 
-`11-sideload-images.sh` chạy `docker pull` → `docker save` → `scp` → `ctr images import`.
-Ba bước đầu **THÀNH CÔNG**. Bước bốn hỏng **tất định trong 3.5 giây**:
+| # | Đại lượng | Trước | Sau | Đọc từ đâu |
+|---|---|---|---|---|
+| 1 | image 3 service | `sha-0941471` | **`sha-4b7e553`** | `kubectl get deploy -o custom-columns` |
+| 2 | `GATEWAY_EXEC_TIMEOUT` | `30s` | **`120s`** | spec của POD đang chạy |
+| 3 | `POOL_TARGET` | `1` | **`3`** | spec Deployment |
+| 4 | redis liveness `timeoutSeconds` | `1` | **`5`** | spec Deployment |
+| 5 | helm revision | 78 | **79** | `helm list` |
 
-```
-ctr: failed to extract layer (application/vnd.oci.image.layer.v1.tar+gzip
-  sha256:a0f82f71477f…) failed to get reader from content store:
-  content digest sha256:a0f82f71477f…: not found
-```
+Kèm: **3 pod ấm** (trước 1) · **6/6 pod Running, 0 restart** · quota 3/26 ·
+`/api/health` → **200 `{"status":"ok"}`** và `/login` → **200**, đi qua Traefik
+`:30443` chứ không qua port-forward.
 
-Blob ĐÓ **có mặt** trong tarball (`tar -tf` thấy nó, 53,377,296 byte). Nhưng:
+⛔ **`kubectl exec deploy/platform-gateway -- env` TRẢ RỖNG, và rỗng ở đây KHÔNG
+nghĩa là "biến không được đặt".** Image gateway là **distroless** — không có
+`/bin/sh`, nên `exec` hỏng và `grep` nhận vào một dòng trống, im lặng. Đọc từ spec
+của pod (`kubectl get pods … -o json | jq`) mới là nguồn đúng. Verify command của
+chính plan này đã sai vì lý do đó và đã được sửa ở §Verify dưới.
 
-| | |
+### Đường đã đi được (và số đo của nó)
+
+`sudo ctr -n k8s.io images pull` **thẳng trên VM**, không qua `docker save`:
+
+| Image | Thời gian |
 |---|---|
-| Tên file blob trong tar | `a0f82f71477fc2e453be843cff60ca54b0f44a67df7a3f01fddf121b807826be` |
-| `sha256sum` NỘI DUNG của chính nó | **`2fc661092594c6e8b85426a74c564080628765a3251b01284ef4b5046fad5307`** |
+| `dlp-web` | 22 m 33 s |
+| `dlp-orchestrator` | 5 m 19 s |
+| `dlp-terminal-gateway` | 2 m 07 s |
+| `dlp-sandbox-base` | **31 s** — layer đã có sẵn vì `images/` không đổi giữa hai commit |
+| `dlp-migrator` | ~17 m |
 
-⇒ **`docker save` xuất ra tarball có blob sai digest.** `ctr` nạp vào, băm lại, thấy
-lệch, không lưu dưới digest được khai — rồi lúc unpack báo "not found". Triệu chứng
-đọc như thiếu dữ liệu; thực chất là dữ liệu SAI TÊN.
+Băng thông thật đo bằng byte của content store: **175–230 KB/s**.
 
-Nguyên nhân gần như chắc chắn: Docker Desktop bật **containerd image store**, và ở chế
-độ đó `docker save` ghi layer đã GIẢI NÉN dưới tên digest của bản NÉN. Đây là lỗi của
-máy dev, **không phải** của script, không phải của image trên ghcr.
+### Hai chẩn đoán sai, và vì sao chúng đứng vững một lúc
 
-### Đường đi được, đã đo
+**Sai #1 — "mạng đứng, 93 B/s".** Số đó đến từ
+`curl -w '%{speed_download}'` chạy trên `https://ghcr.io/v2/`, một phản hồi **401
+dài 73 byte**. Nó đo độ trễ của một request rỗng, không đo băng thông. Bằng chứng
+bác bỏ đã nằm sẵn trong log lúc đó: dòng `scp 70M` nghĩa là 73 MB **đã tải xong
+và đã sang tới VM**.
 
-`sudo ctr -n k8s.io images pull --user <user>:<token> ghcr.io/nghaiz/<img>:<tag>` chạy
-**thẳng trên VM**, bỏ qua `docker save` hoàn toàn. Đo được: content store lớn thêm
-**2 MB trong 25 s ≈ 80 KB/s** — chậm nhưng THẬT.
+**Sai #2 — "`docker save` xuất tarball sai digest".** Có thật một blob tên
+`a0f82f…` băm ra `2fc66109…`, và `ctr import` từ chối nó hai lần. Nhưng lượt kiểm
+ngay sau đó **không tái hiện được**: `docker save` tươi của đúng image ấy cho
+**17/17 blob khớp digest**, scp sang VM giữ nguyên `sha256`, `ctr import` **exit
+0**. ⇒ Đó là **một artefact hỏng cá biệt**, không phải thuộc tính của `docker
+save`. Nghi phạm: ba thao tác docker chạy đồng thời trên cùng image lúc đó, cộng
+một `taskkill` rơi vào cửa sổ ấy — nhưng artefact đã bị xoá trước khi soi được,
+nên đây là **giả thuyết chưa chứng minh**.
 
-### Phép đo tự nói dối — bài học đắt nhất của lượt này
+**Điểm chung của cả hai lần:** một nguyên nhân được viết vào repo mà **chưa chạy
+lại trên một artefact tươi**. Cả hai lần triệu chứng đều khớp thuyết phục với câu
+chuyện sai. Kỷ luật rút ra: *tái hiện trước khi đặt tên cho nguyên nhân* — và khi
+log đã có sẵn kết quả, đọc log trước khi đi đo.
 
-Bản đầu kết luận "mạng đứng, 93 B/s" từ:
+Cổng chặn sinh ra từ lượt này (`kiem_tarball` trong `11-sideload-images.sh`) vì thế
+kiểm **điều kiện hỏng** ("tarball có blob sai digest không"), không kiểm nguyên
+nhân phỏng đoán.
 
-```bash
-curl -s -o /dev/null -w '%{speed_download}' https://ghcr.io/v2/    # 401, thân 73 byte
-```
+### Còn lại của 5.A
 
-`%{speed_download}` trên một phản hồi **401 dài 73 byte** không đo băng thông — nó đo
-độ trễ của một request rỗng. Con số 93 B/s là artefact, và nó **khớp một cách thuyết
-phục** với triệu chứng đang thấy (pull lâu), nên nó được tin. Bằng chứng bác bỏ đã có
-sẵn trong chính log mà lúc đó chưa đọc kỹ: dòng `scp 70M` nghĩa là 73 MB **đã tải
-xong và đã sang tới VM**.
-
-⇒ Đo băng thông bằng một lượt tải THẬT (byte của content store, hoặc một blob thật),
-không bằng một request trả lỗi. Và khi log đã có sẵn kết quả, đọc log trước khi đo.
-
-### Trạng thái để lại
-
-| | |
-|---|---|
-| Cụm | vẫn `sha-0941471`, **không đụng gì**, 6/6 pod Running |
-| `values-selfhost.yaml` | **KHÔNG bump tag** — cụm chạy `imagePullPolicy: Never`, commit một tag mà node không có image là làm mọi pod kế tiếp không khởi động được |
-| ghcr | `sha-4b7e553` có đủ **5/5** image |
-| node | 0/5 image ở tag mới |
-| `images/` giữa `0941471..4b7e553` | **không đổi một dòng** ⇒ nội dung `dlp-sandbox-base` y hệt, chỉ khác tag (193 MB trên node) |
-
-**Bản chụp đối chứng CŨ** (để lượt deploy sau khẳng định được là đã đổi thật): image
-`sha-0941471` · `GATEWAY_EXEC_TIMEOUT=30s` · `POOL_TARGET=1` · 1 pod ấm · redis
-liveness `timeoutSeconds=1` · helm revision 78.
-
-### Việc còn lại — hai đường, chọn một
-
-1. **Sửa máy dev** (rẻ nhất nếu làm được): tắt containerd image store trong Docker
-   Desktop, rồi `11-sideload-images.sh` chạy như thiết kế.
-2. **Đổi script sang `ctr pull` trên VM** cho những image lớn — bỏ hẳn khâu
-   `docker save`, đổi lấy việc VM cần credential ghcr. Ở 80 KB/s, 4 image dịch vụ
-   (~73 MB mỗi cái) mất ~15 phút/cái; `dlp-sandbox-base` (193 MB) là cái đắt nhất.
-
-Dù chọn đường nào, `image.tag` chỉ được commit SAU khi node có đủ image.
+Task list dưới đây vẫn nguyên giá trị cho phần **chưa** làm: 5.B đo lại N=18 trên
+trần 120s + pool 3 · 5.C rollout warm-pool theo image · 5.D extend từ FE · 5.E cổng
+smoke trong `12-helm-deploy.sh` · 5.F ca claim-gặp-pod-chết trong `reaper-verify`.
 
 ---
 ## Task list
@@ -176,7 +168,9 @@ Dù chọn đường nào, `image.tag` chỉ được commit SAU khi node có đ
 ```bash
 bash infra/host/11-sideload-images.sh && bash infra/host/12-helm-deploy.sh   # có cổng smoke
 kubectl get deploy -o custom-columns=N:.metadata.name,IMG:.spec.template.spec.containers[*].image
-kubectl exec deploy/platform-gateway -- env | grep -E 'EXEC_TIMEOUT'
+# ⛔ KHÔNG dùng `kubectl exec … -- env`: image gateway là distroless, không có
+# /bin/sh ⇒ exec hỏng và grep nhận dòng trống — rỗng đọc ra như "chưa đặt".
+kubectl get pods -l app.kubernetes.io/component=gateway -o json  | jq -r '.items[0].spec.containers[0].env[]|select(.name=="GATEWAY_EXEC_TIMEOUT")|.value'
 node plans/devops-learning-platform/reports/harness/2026-08-16-3i-concurrent-build/run.mjs --n 18
 bash infra/k8s/reaper-verify.sh
 ```
