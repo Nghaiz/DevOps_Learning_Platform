@@ -23,43 +23,86 @@
 
 ⛔ **Bẫy đã dẫm hai lần, đừng dẫm lần ba:** `~/dlp-deploy` trên VM là bản chép tay của chart và đã bị đánh dấu DEPRECATED. Mọi `helm upgrade` đi qua `12-helm-deploy.sh`, không đi qua thư mục đó.
 
-## Trạng thái 5.A — ĐÃ THỬ 2026-09-02, BỊ CHẶN BỞI MẠNG (không phải bởi mã)
+## Trạng thái 5.A — ĐÃ THỬ 2026-09-02, HỎNG Ở `docker save`, KHÔNG PHẢI Ở MẠNG
 
-Ghi lại để phiên sau không dò lại từ đầu:
+> ⚠ **Bản đầu của mục này chẩn đoán SAI** ("mạng chặn, 93 B/s") và đã được sửa trong
+> cùng ngày. Giữ lại cả hai vì bài học nằm ở khoảng cách giữa chúng — xem §"Phép đo
+> tự nói dối" dưới.
 
-| Việc | Kết quả |
+### Điều thật sự hỏng
+
+`11-sideload-images.sh` chạy `docker pull` → `docker save` → `scp` → `ctr images import`.
+Ba bước đầu **THÀNH CÔNG**. Bước bốn hỏng **tất định trong 3.5 giây**:
+
+```
+ctr: failed to extract layer (application/vnd.oci.image.layer.v1.tar+gzip
+  sha256:a0f82f71477f…) failed to get reader from content store:
+  content digest sha256:a0f82f71477f…: not found
+```
+
+Blob ĐÓ **có mặt** trong tarball (`tar -tf` thấy nó, 53,377,296 byte). Nhưng:
+
+| | |
 |---|---|
-| CI publish `sha-4b7e553` cho **cả 5** image | ✅ có trên ghcr (kiểm bằng `gh api user/packages/...`) |
-| `11-sideload-images.sh` | ❌ treo ở bước `docker pull`, >10 phút không nhận được byte nào |
-| Cụm | vẫn `sha-0941471` — **không đụng gì**, 6/6 pod Running |
-| `values-selfhost.yaml` | **KHÔNG bump tag**, có chủ ý (xem dưới) |
+| Tên file blob trong tar | `a0f82f71477fc2e453be843cff60ca54b0f44a67df7a3f01fddf121b807826be` |
+| `sha256sum` NỘI DUNG của chính nó | **`2fc661092594c6e8b85426a74c564080628765a3251b01284ef4b5046fad5307`** |
 
-**Số đo mạng lúc thử** (cả hai phía, nên đây là upstream chung chứ không phải máy dev):
+⇒ **`docker save` xuất ra tarball có blob sai digest.** `ctr` nạp vào, băm lại, thấy
+lệch, không lưu dưới digest được khai — rồi lúc unpack báo "not found". Triệu chứng
+đọc như thiếu dữ liệu; thực chất là dữ liệu SAI TÊN.
 
-| Từ | Tới | Tốc độ |
-|---|---|---|
-| máy dev (Windows) | `ghcr.io/v2/` | **93 B/s** |
-| máy dev | `api.github.com` | 5.9 KB/s |
-| VM lab | `ghcr.io/v2/` | **96 B/s** |
-| VM lab | `registry-1.docker.io/v2/` | 33 B/s |
+Nguyên nhân gần như chắc chắn: Docker Desktop bật **containerd image store**, và ở chế
+độ đó `docker save` ghi layer đã GIẢI NÉN dưới tên digest của bản NÉN. Đây là lỗi của
+máy dev, **không phải** của script, không phải của image trên ghcr.
 
-Kho image của docker **không tăng một byte nào** trong 60s quan sát ⇒ pull đứng,
-không phải chậm-nhưng-tiến. VM cũng chậm y hệt nên **không có đường vòng** (cho VM
-tự `ctr images pull` cũng vô nghĩa).
+### Đường đi được, đã đo
 
-⛔ **VÌ SAO KHÔNG COMMIT TAG MỚI DÙ ĐÃ SỬA SẴN MỘT DÒNG.** Chính file values ghi:
-*"TAG Ở ĐÂY LÀ HỢP ĐỒNG PHẢI SIDE-LOAD ĐÚNG TAG NÀY"*. Cụm chạy
-`imagePullPolicy: Never`, nên commit một tag mà node KHÔNG có image nghĩa là lần
-`helm upgrade` kế tiếp dựng pod không bao giờ khởi động được — và người chạy nó sẽ
-đọc ra như một lỗi của bản vá, không phải như một tag chưa được nạp. Tag ở lại
-`sha-0941471` cho tới khi side-load thật sự thành công.
+`sudo ctr -n k8s.io images pull --user <user>:<token> ghcr.io/nghaiz/<img>:<tag>` chạy
+**thẳng trên VM**, bỏ qua `docker save` hoàn toàn. Đo được: content store lớn thêm
+**2 MB trong 25 s ≈ 80 KB/s** — chậm nhưng THẬT.
 
-**Việc còn lại khi mạng bình thường trở lại** — nguyên vẹn 5.A dưới đây, chạy theo
-đúng thứ tự, với `image.tag` đổi sang sha mới nhất của `main` tại thời điểm đó
-(đừng dùng lại `sha-4b7e553` nếu `main` đã đi tiếp).
+### Phép đo tự nói dối — bài học đắt nhất của lượt này
+
+Bản đầu kết luận "mạng đứng, 93 B/s" từ:
+
+```bash
+curl -s -o /dev/null -w '%{speed_download}' https://ghcr.io/v2/    # 401, thân 73 byte
+```
+
+`%{speed_download}` trên một phản hồi **401 dài 73 byte** không đo băng thông — nó đo
+độ trễ của một request rỗng. Con số 93 B/s là artefact, và nó **khớp một cách thuyết
+phục** với triệu chứng đang thấy (pull lâu), nên nó được tin. Bằng chứng bác bỏ đã có
+sẵn trong chính log mà lúc đó chưa đọc kỹ: dòng `scp 70M` nghĩa là 73 MB **đã tải
+xong và đã sang tới VM**.
+
+⇒ Đo băng thông bằng một lượt tải THẬT (byte của content store, hoặc một blob thật),
+không bằng một request trả lỗi. Và khi log đã có sẵn kết quả, đọc log trước khi đo.
+
+### Trạng thái để lại
+
+| | |
+|---|---|
+| Cụm | vẫn `sha-0941471`, **không đụng gì**, 6/6 pod Running |
+| `values-selfhost.yaml` | **KHÔNG bump tag** — cụm chạy `imagePullPolicy: Never`, commit một tag mà node không có image là làm mọi pod kế tiếp không khởi động được |
+| ghcr | `sha-4b7e553` có đủ **5/5** image |
+| node | 0/5 image ở tag mới |
+| `images/` giữa `0941471..4b7e553` | **không đổi một dòng** ⇒ nội dung `dlp-sandbox-base` y hệt, chỉ khác tag (193 MB trên node) |
+
+**Bản chụp đối chứng CŨ** (để lượt deploy sau khẳng định được là đã đổi thật): image
+`sha-0941471` · `GATEWAY_EXEC_TIMEOUT=30s` · `POOL_TARGET=1` · 1 pod ấm · redis
+liveness `timeoutSeconds=1` · helm revision 78.
+
+### Việc còn lại — hai đường, chọn một
+
+1. **Sửa máy dev** (rẻ nhất nếu làm được): tắt containerd image store trong Docker
+   Desktop, rồi `11-sideload-images.sh` chạy như thiết kế.
+2. **Đổi script sang `ctr pull` trên VM** cho những image lớn — bỏ hẳn khâu
+   `docker save`, đổi lấy việc VM cần credential ghcr. Ở 80 KB/s, 4 image dịch vụ
+   (~73 MB mỗi cái) mất ~15 phút/cái; `dlp-sandbox-base` (193 MB) là cái đắt nhất.
+
+Dù chọn đường nào, `image.tag` chỉ được commit SAU khi node có đủ image.
 
 ---
-
 ## Task list
 
 ### 5.A — Deploy bản vá và chứng minh nó ĐANG chạy
