@@ -53,6 +53,13 @@ function spawnPf() {
   const port = new URL(BASE_URL).port || '13000';
   pfProc = spawn('kubectl', ['port-forward', 'svc/platform-web', `${port}:3000`],
     { stdio: 'ignore' });
+  // ⛔ spawn() BÁO LỖI QUA SỰ KIỆN, KHÔNG QUA throw.
+  // Thiếu handler `error` thì một `kubectl` vắng mặt (ENOENT) làm CẢ driver
+  // chết bằng stack trace và exit 1 — thay vì đi vào đúng nhánh "không đo
+  // được" mà cổng này sinh ra để đi. Đo được 2026-09-03: chạy với PATH không có
+  // kubectl ⇒ `spawn kubectl ENOENT` chưa bắt, exit 1, không một dòng nào của
+  // thông báo chẩn đoán được in ra.
+  pfProc.on('error', () => { pfProc = null; });
   pfProc.on('close', () => { pfProc = null; });
 }
 async function pfKhoe() {
@@ -77,6 +84,11 @@ async function bảoĐảmĐườngHầm(nhãn) {
   }
   console.error(`\n✖ KHÔNG ĐO ĐƯỢC: đường hầm tới ${BASE_URL} không lên (${nhãn}).`);
   console.error('  Đây là lỗi của MÁY CHẠY, không phải của hệ đang đo — đừng đọc kết quả nào.');
+  // Nguyên nhân đã gặp: một `kubectl port-forward` MỒ CÔI của lượt trước vẫn
+  // GIỮ cổng (netstat thấy LISTENING) nhưng không chuyển tiếp gì. Nó KHÔNG phải
+  // tiến trình con của driver, nên `pfProc.kill()` ở trên không với tới nó.
+  console.error(`  Kiểm trước: netstat -ano | grep :${new URL(BASE_URL).port || '13000'}`);
+  console.error('  Có tiến trình lạ đang giữ cổng ⇒ giết theo PID rồi chạy lại.');
   return false;
 }
 if (!(await bảoĐảmĐườngHầm('trước khi spawn'))) {
