@@ -1,242 +1,346 @@
 {
   "n": 18,
-  "wallAllMs": 64722,
-  "tGo": 1786853436871,
+  "wallAllMs": 109750,
+  "tGo": 1788370849190,
   "rows": [
     {
       "sid": 0,
+      "sessionId": "db7b82f56ffc26ae73f584fb716eab82",
+      "pod": "sandbox-4e5ca153694a",
+      "uid": "c3dc3f37-050a-4fc5-91ef-9c057f1860b8",
       "marks": {
-        "claim": 1677,
-        "dockerdReady": 1641,
-        "pull": 86787,
-        "build": 28503
+        "claim": 3735,
+        "dockerdReady": 3853,
+        "pull": 145257,
+        "build": 32057,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=32057ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 1,
+      "sessionId": "b9b11a72875a2ec65e40eba78201bcd1",
+      "pod": "sandbox-0bcc735cb4fd",
+      "uid": "264316b3-3922-4250-b139-cc71c5f48cfe",
       "marks": {
-        "claim": 27792,
-        "dockerdReady": 19024,
-        "pull": 74696,
-        "build": 27002
+        "claim": 3889,
+        "dockerdReady": 3759,
+        "pull": 145350,
+        "build": 37421,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37421ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 2,
-      "sessionId": "ea93b823a3d4fc0660f01055d945d0e0",
-      "pod": "sandbox-8b993aa7d6b9",
-      "uid": "4a2880cf-0300-47cf-a795-c97e3a4f01f2",
+      "sessionId": "7017cde4a5b10c508de15c9bc883ef15",
+      "pod": "sandbox-dbe31967b7d2",
+      "uid": "ff9c0d15-6368-4f7d-88f2-0705528820aa",
       "marks": {
-        "claim": 33156,
-        "dockerdReady": 26091,
-        "pull": 187311,
-        "build": 17619
+        "claim": 3900,
+        "dockerdReady": 4366,
+        "pull": 137310,
+        "build": 32217,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
+      },
+      "fails": [
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=32217ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
+      ],
+      "netRetries": 0,
+      "ok": false
+    },
+    {
+      "sid": 3,
+      "sessionId": "6b46aee523f08b837708be072a23f775",
+      "pod": "sandbox-e845454e94cc",
+      "uid": "4a12ad74-0ba8-4489-9de0-7f21b45e022b",
+      "marks": {
+        "claim": 67444,
+        "dockerdReady": 78727,
+        "pull": 203893,
+        "build": 37532,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
+      },
+      "fails": [
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37532ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
+      ],
+      "netRetries": 0,
+      "ok": false
+    },
+    {
+      "sid": 4,
+      "sessionId": "2f5a885e7d98b251150dcb7b034715ac",
+      "pod": "sandbox-ab0b5b6ebc53",
+      "uid": "242ac155-f8d7-4bfc-821c-ccf632b0d09f",
+      "marks": {
+        "claim": 71024,
+        "dockerdReady": 78641,
+        "pull": 160055,
+        "build": 31288,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0
       },
       "fails": [],
       "netRetries": 0,
       "ok": true
     },
     {
-      "sid": 3,
-      "marks": {
-        "claim": 33471,
-        "dockerdReady": 26830,
-        "pull": 206312,
-        "build": 22929
-      },
-      "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
-      ],
-      "ok": false
-    },
-    {
-      "sid": 4,
-      "marks": {
-        "claim": 43460,
-        "dockerdReady": 24890,
-        "pull": 233927,
-        "build": 28912
-      },
-      "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
-      ],
-      "ok": false
-    },
-    {
       "sid": 5,
+      "sessionId": "9d612d0c5a5fbf80fd98744935028277",
+      "pod": "sandbox-db929afccc32",
+      "uid": "c5cd0fd0-82ca-44c5-9705-391ffa2049b5",
       "marks": {
-        "claim": 38358,
-        "dockerdReady": 25686,
-        "pull": 129891,
-        "build": 23386
+        "claim": 58742,
+        "dockerdReady": 34804,
+        "pull": 153953,
+        "build": 32764,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=32764ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 6,
+      "sessionId": "f85a43b03f081e88e21c98450b92ef93",
+      "pod": "sandbox-77ae15a81391",
+      "uid": "6a2d8510-64a5-4ecf-a59d-c4c4d43a391a",
       "marks": {
-        "claim": 32026,
-        "dockerdReady": 25881,
-        "pull": 105150,
-        "build": 24380
+        "claim": 83310,
+        "dockerdReady": 61791,
+        "pull": 164286,
+        "build": 37621,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37621ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 7,
+      "sessionId": "bf4299de7f3f374812caee998e6ef5b1",
+      "pod": "sandbox-a0b69064595f",
+      "uid": "69ed0946-edbd-4de5-bdf1-6f3ca38ab335",
       "marks": {
-        "claim": 33488,
-        "dockerdReady": 28670,
-        "pull": 102074,
-        "build": 27378
+        "claim": 50298,
+        "dockerdReady": 55872,
+        "pull": 159753,
+        "build": 36392,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=36392ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 8,
+      "sessionId": "a4d3707519af277bd51fb0d8971392dc",
+      "pod": "sandbox-e012d21286a9",
+      "uid": "dc6c1343-01c2-48ec-8f79-4b53846a683c",
       "marks": {
-        "claim": 44748,
-        "dockerdReady": 25288,
-        "pull": 133364,
-        "build": 26719
+        "claim": 42332,
+        "dockerdReady": 37153,
+        "pull": 110883,
+        "build": 32235,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=32235ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 9,
+      "sessionId": "3508eb4abe7f68f6162b8f51b3a532b4",
+      "pod": "sandbox-c298631fc391",
+      "uid": "8449d8f5-6d4c-4e4b-b387-4dd7a053fadc",
       "marks": {
-        "claim": 27877,
-        "dockerdReady": 24966,
-        "pull": 93508,
-        "build": 28607
+        "claim": 63930,
+        "dockerdReady": 84224,
+        "pull": 182572,
+        "build": 37513,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37513ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 10,
+      "sessionId": "823e149a86248674f9e63f5688c73c41",
+      "pod": "sandbox-45b599dc7618",
+      "uid": "51c886aa-83fa-4b0e-a5fd-4f444b7465cf",
       "marks": {
-        "claim": 36146,
-        "dockerdReady": 25713,
-        "pull": 212972,
-        "build": 27315
+        "claim": 42064,
+        "dockerdReady": 5896,
+        "pull": 252001,
+        "build": 37481,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37481ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 11,
+      "sessionId": "51fa18f8b767013f46fd1f96d4c2dcdf",
+      "pod": "sandbox-9ba174950fae",
+      "uid": "0221f83e-f087-4332-b2c4-b9f6e1b6faee",
       "marks": {
-        "claim": 42633,
-        "dockerdReady": 25631,
-        "pull": 142348,
-        "build": 25792
+        "claim": 81994,
+        "dockerdReady": 62198,
+        "pull": 160461,
+        "build": 34560,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=34560ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 12,
+      "sessionId": "c1ded74e2ccfea79a3cea0e0fe6a06f3",
+      "pod": "sandbox-fbcdced66e8b",
+      "uid": "4dd25187-6fc7-4fe9-9ac4-38d887e0b848",
       "marks": {
-        "claim": 31355,
-        "dockerdReady": 26431,
-        "pull": 99532,
-        "build": 28659
+        "claim": 51891,
+        "dockerdReady": 59271,
+        "pull": 189151,
+        "build": 35207,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=35207ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 13,
+      "sessionId": "dbf8ff94c792006d2413d098dea33e25",
+      "pod": "sandbox-27b79f2c4a9c",
+      "uid": "84406c17-e240-408a-b7db-9c60e552d27d",
       "marks": {
-        "claim": 23468,
-        "dockerdReady": 2871,
-        "pull": 216893,
-        "build": 27821
+        "claim": 51969,
+        "dockerdReady": 41856,
+        "pull": 136397,
+        "build": 36455,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=36455ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 14,
+      "sessionId": "c7ce19c9a3e697311f0d11704421328d",
+      "pod": "sandbox-14ec7a87d66c",
+      "uid": "1d930bcd-a6cf-41c2-9307-076c248bffe5",
       "marks": {
-        "claim": 38521,
-        "dockerdReady": 25629,
-        "pull": 178511,
-        "build": 28615
+        "claim": 51175,
+        "dockerdReady": 53218,
+        "pull": 166477,
+        "build": 35761,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=35761ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 15,
+      "sessionId": "5cd404fe30a891de582be737bdd503f2",
+      "pod": "sandbox-e9b58c3b934f",
+      "uid": "f5e61c8a-8ad5-4816-b708-c43129f4851b",
       "marks": {
-        "claim": 24993,
-        "dockerdReady": 24300,
-        "pull": 133872,
-        "build": 29089
+        "claim": 59983,
+        "dockerdReady": 85688,
+        "pull": 205450,
+        "build": 37549,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37549ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 16,
+      "sessionId": "b263100cc10f01356028b0ac4207ea5f",
+      "pod": "sandbox-f8ca151d364a",
+      "uid": "b8dabf9c-1100-4a57-9829-c18d7cea6c35",
       "marks": {
-        "claim": 39814,
-        "dockerdReady": 26308,
-        "pull": 111254,
-        "build": 28623
+        "claim": 50553,
+        "dockerdReady": 100822,
+        "pull": 201305,
+        "build": 37639,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37639ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     },
     {
       "sid": 17,
+      "sessionId": "e25c5dcef25d6122ed04af817273eeb5",
+      "pod": "sandbox-f48e2a109168",
+      "uid": "79bd029f-35c3-44c2-98ec-aed1b17038a0",
       "marks": {
-        "claim": 31447,
-        "dockerdReady": 26019,
-        "pull": 198607,
-        "build": 24124
+        "claim": 45999,
+        "dockerdReady": 33287,
+        "pull": 114038,
+        "build": 37272,
+        "checkOutput": "Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\nDLP docker lab: xin chao tu container\npython=3.12.14\n",
+        "checkExit": 1
       },
       "fails": [
-        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"Không chạy được script chấm bài trong sandbox\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+        "build vế ĐẠT (sau khi làm) — passed=false exit=1 build=37272ms | output: \"Image myapp:1 co ton tai nhung chay THAT BAI (exit=124):\\nDLP docker lab: xin chao tu container\\npython=3.12.14\\n\""
       ],
+      "netRetries": 0,
       "ok": false
     }
   ],
@@ -251,11 +355,11 @@
         "requests.memory": "5500Mi"
       },
       "used": {
-        "limits.cpu": "6",
-        "limits.memory": "3Gi",
-        "pods": "3",
-        "requests.cpu": "750m",
-        "requests.memory": "768Mi"
+        "limits.cpu": "8",
+        "limits.memory": "4Gi",
+        "pods": "4",
+        "requests.cpu": "1",
+        "requests.memory": "1Gi"
       }
     },
     "after": {
@@ -267,11 +371,11 @@
         "requests.memory": "5500Mi"
       },
       "used": {
-        "limits.cpu": "42",
-        "limits.memory": "21Gi",
-        "pods": "21",
-        "requests.cpu": "5250m",
-        "requests.memory": "5376Mi"
+        "limits.cpu": "8",
+        "limits.memory": "4Gi",
+        "pods": "4",
+        "requests.cpu": "1",
+        "requests.memory": "1Gi"
       }
     }
   }

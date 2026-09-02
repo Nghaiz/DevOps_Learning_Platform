@@ -73,6 +73,8 @@ async function http(path, init = {}) {
   throw new Error(`mạng hỏng sau 4 lượt (${path}): ${String(lastErr).slice(0, 120)}`);
 }
 let netRetries = 0;
+// Phiên của worker này, để `donPhien()` dọn được ở MỌI đường thoát.
+let sessionIdForCleanup = null;
 
 async function trpcMutate(proc, input) {
   const res = await http(`/api/trpc/${proc}`, { method: 'POST', body: JSON.stringify(input) });
@@ -112,6 +114,7 @@ async function main() {
     idempotencyKey: `conc-${SID}-${T0}`,
   });
   const sessionId = started.session.id;
+  sessionIdForCleanup = sessionId;
   const pod = started.session.podName;
   marks.claim = t() - T0;
   assert('startSession cấp pod', Boolean(sessionId && pod), `pod=${pod} ${marks.claim}ms`);
@@ -166,8 +169,16 @@ async function main() {
   marks.build = t() - tBuild;
 
   const after = await check(3);
+  // ⛔ GIỮ `output` CỦA SCRIPT CHẤM. Bản trước chỉ ghi `passed`/`exitCode`, và
+  // hậu quả đo được ở lượt N=18 ngày 2026-09-03: 17/18 trả `passed=false` mà
+  // KHÔNG ai biết vì sao — phải đi suy luận từ hai phép đo khác để đoán ra
+  // nguyên nhân. Một harness không giữ lời của thứ nó đang chấm thì lượt chạy
+  // sau lại phải đoán lần nữa.
+  marks.checkOutput = String(after.output ?? '').slice(0, 400);
+  marks.checkExit = after.exitCode;
   assert('build vế ĐẠT (sau khi làm)', after.passed === true && after.exitCode === 0,
-    `passed=${after.passed} exit=${after.exitCode} build=${marks.build}ms${buildErr ? ` ⚠ ${buildErr}` : ''}`);
+    `passed=${after.passed} exit=${after.exitCode} build=${marks.build}ms` +
+      `${buildErr ? ` ⚠ ${buildErr}` : ''} | output: ${JSON.stringify(marks.checkOutput)}`);
 
   // Đối chứng cuối: image phải CHẠY được, không chỉ tồn tại.
   let runOut = '';
@@ -184,7 +195,34 @@ async function main() {
   }) + '\n');
 }
 
-main().catch((err) => {
+// ── Tự dọn phiên ─────────────────────────────────────────────────────────────
+//
+// ⛔ THIẾU KHỐI NÀY LÀ MỘT LỖI ĐO ĐƯỢC, không phải một thiếu sót thẩm mỹ.
+// Lượt N=18 ngày 2026-09-03 để lại 18 phiên sống, đẩy quota lên 21/26 và
+// cpu 5250m/5400m — tức **trần đã đầy**, và lượt chạy kế tiếp không có khe nào.
+// Người chạy nó sẽ thấy `CreateSession` bị quota từ chối và đọc ra là "hệ hết
+// chỗ", trong khi thứ chiếm chỗ là rác của chính phép đo trước.
+//
+// Dùng `lessons.endSession` chứ KHÔNG `session.reap`: `reap` đòi `userId` khớp
+// `ctx.user.id`, mà harness chỉ có uid của POD trong tay — dọn bằng nó trả
+// FORBIDDEN 17/17 (đã đo). `endSession` suy người dùng từ cookie nên không có
+// gì để lệch.
+//
+// ⛔ VÀ KHÔNG `kubectl delete pod`: xoá pod bằng tay làm lệch warm pool, và
+// orchestrator sẽ giao tên pod đã chết cho lượt claim kế (sự cố §6.2).
+async function donPhien() {
+  if (!sessionIdForCleanup) return;
+  try {
+    await trpcMutate('lessons.endSession', { sessionId: sessionIdForCleanup });
+  } catch (e) {
+    // Dọn hỏng KHÔNG được làm hỏng kết quả đo — nhưng phải nói ra, vì khe quota
+    // còn bị giữ và lượt sau sẽ trả giá.
+    process.stderr.write(`[s${SID}] dọn phiên hỏng: ${String(e).slice(0, 160)}\n`);
+  }
+}
+
+main().then(donPhien).catch(async (err) => {
+  await donPhien();
   process.stdout.write(JSON.stringify({
     sid: Number(SID), marks, fails: [...fails, `HARNESS: ${String(err).slice(0, 300)}`], ok: false,
   }) + '\n');
