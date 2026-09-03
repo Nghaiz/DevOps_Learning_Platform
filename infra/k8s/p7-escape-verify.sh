@@ -87,11 +87,32 @@ case "$r" in *REACHED*) bad "IMDS tu cluster con" "TOI DUOC";; *) ok "IMDS tu cl
 r=$(inner "wget -T $TIMEOUT -q --no-check-certificate -O- https://$NODE_IP:6443/version >/dev/null 2>&1 && echo REACHED || echo blocked")
 case "$r" in *REACHED*) bad "apiserver CHU tu cluster con" "TOI DUOC";; *) ok "apiserver CHU tu cluster con bi chan";; esac
 
-r=$(inner "wget -T $TIMEOUT -q -O- http://$MIRROR_HOST:5000/v2/ >/dev/null 2>&1 && echo REACHED || echo blocked")
-case "$r" in
-  *REACHED*) ok "mirror toi duoc tu cluster con (can, de keo image bai hoc)";;
-  *) printf '  \033[33mGHI CHU\033[0m mirror KHONG toi duoc tu cluster con — bai hoc se ImagePullBackOff\n';;
-esac
+# ⚠ Do bang IP, KHONG bang ten DNS.
+#
+# Mot pod trong cluster con phan giai ten qua coredns CUA CLUSTER CON, va
+# coredns do khong biet gi ve service cua cum CHU — nen
+# `platform-registry-mirror.dlp-registry.svc.cluster.local` tra NXDOMAIN. Do
+# bang ten se doc ra la "mirror bi chan" trong khi that ra duong mang thong.
+#
+# Lan chay dau (2026-09-04) da mac dung bay nay va suyt ket luan sai rang bai
+# hoc se ImagePullBackOff — trong khi `nginx:1.29.0` ngay truoc do da keo ve
+# THANH CONG trong chinh cluster con ay.
+#
+# Hai duong khac nhau, dung ca hai deu can:
+#   · containerd CUA CLUSTER CON keo image -> di bang registries.yaml + netns
+#     cua pod sandbox -> DUOC.
+#   · pod NGUOI HOC tao ra -> di bang CNI cua cluster con -> cung ra duoc, nhung
+#     phai goi bang IP vi DNS la cua cluster con.
+MIRROR_IP=${MIRROR_IP:-$(kubectl get svc -n dlp-registry -o jsonpath='{.items[0].spec.clusterIP}' 2>/dev/null)}
+if [ -n "$MIRROR_IP" ]; then
+  r=$(inner "wget -T $TIMEOUT -q -O- http://$MIRROR_IP:5000/v2/ >/dev/null 2>&1 && echo REACHED || echo blocked")
+  case "$r" in
+    *REACHED*) ok "mirror toi duoc tu cluster con qua IP $MIRROR_IP (can, de keo image bai hoc)";;
+    *) printf '  \033[33mGHI CHU\033[0m mirror KHONG toi duoc tu cluster con qua IP — bai hoc co the ImagePullBackOff\n';;
+  esac
+else
+  printf '  \033[33mGHI CHU\033[0m khong tim duoc ClusterIP cua mirror — bo qua phep thu nay\n'
+fi
 echo
 
 printf 'Tong: %d dat, %d truot\n' "$pass" "$fail"

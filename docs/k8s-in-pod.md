@@ -117,7 +117,7 @@ Nên profile `k8s` khai `limitsCpu: '4'` — **miễn phí về trần** (`44 ÷
 Hậu quả nếu quên: `kubectl run --image=nginx` trong cluster con đi thẳng ra `registry-1.docker.io`, đâm vào deny-all, treo tới `ImagePullBackOff`. Triệu chứng — *"pod của tôi không bao giờ Ready"* — không trỏ về NetworkPolicy ở bất cứ đâu.
 
 Nên mỗi đường phải cấu hình mirror ở **tầng của chính nó**:
-- **k3s**: `/etc/rancher/k3s/registries.yaml` (xem `infra/host/p7-k3s-boot.sh`).
+- **k3s**: `/etc/rancher/k3s/registries.yaml` (xem `images/sandbox-base/k3s-boot.sh`).
 - **kind**: patch `containerd` config trong node container, hoặc `containerdConfigPatches` trong `kind` config.
 
 ## Cách ly — cluster con là một đường mạng MỚI
@@ -178,3 +178,34 @@ Ví dụ: 10 phiên thường + 3 phiên K8s = 2560 + 2304 = 4864Mi ⇒ vừa.
 - Đỉnh 589 MiB là với cluster con vừa lên **cộng một Deployment nginx**. Lab nặng hơn (nhiều Deployment, PVC, image lớn) **chưa có số**. `limits` 2Gi mới là thứ thật sự gác; `requests` chỉ là chỗ giữ khi xếp lịch.
 - **Chưa chạy thử 6 phiên K8s đồng thời.** Trần 6 là số suy từ quota, không phải số đã đo — đúng loại khoảng cách mà báo cáo tải 18-phiên trước đây phải đóng bằng một lượt chạy thật.
 - `multi-node` vẫn **chưa hỗ trợ**: cluster con là một node. Không mở kèm.
+
+## vcluster — đo được, và bị loại vì lý do KHÔNG phải RAM
+
+Đã dựng thật (`helm install vc1 vcluster --repo https://charts.loft.sh -n dlp-p7-vc`, chart 0.36.1) và đo ở cùng cgroup mức pod:
+
+```
+vc1-0 (control-plane ảo)                       workingSet 419 MiB
+coredns-…-x-kube-system-x-vc1 (đã đồng bộ)     workingSet  14 MiB
+                                        TỔNG   433 MiB
+```
+
+**433 MiB — nhẹ nhất trong ba đường** (k3s 589, kind 922). Nếu chỉ so RAM thì vcluster thắng.
+
+Nó vẫn bị loại, và bằng chứng nằm ngay trong tên cái pod ở trên:
+
+```
+$ kubectl get pods -n dlp-p7-vc -o custom-columns=NAME:.metadata.name,NS:.metadata.namespace,NODE:.spec.nodeName
+coredns-df8c87f55-fm8bn-x-kube-system-x-vc1   dlp-p7-vc   debian-sandbox
+```
+
+Cái pod đó, về mặt logic, thuộc `kube-system` **của cluster ảo**. Về mặt vật lý nó là **một pod thật trong namespace của cụm CHỦ, trên node của cụm CHỦ**. Đó chính là kiến trúc syncer của vcluster: API là ảo, còn **workload thì không**.
+
+Hệ quả cho nền tảng này, cụ thể chứ không trừu tượng:
+
+1. **Mọi pod người học tạo ra là một pod thật trong cụm của ta**, ăn quota thật của `dlp-sandbox` và chịu chung LimitRange — cái trần "6 phiên" tính ở trên mất ý nghĩa vì mẫu số không còn cố định.
+2. **Ranh giới cách ly là phần mềm syncer, không phải ranh giới kernel.** Với k3s-trong-Sysbox, pod của người học nằm trong một cluster lồng, trong một container user-namespaced; một lỗi thoát phải xuyên qua cả hai. Với vcluster, nó chỉ phải qua syncer.
+3. **P11 (CTF trên K8s) làm điều đó tệ hơn nhiều lần.** Một bài CTF *mời* người chơi thử thoát. Đặt workload của họ trực tiếp trên cụm chủ là sai từ tiền đề.
+
+Plan đã xếp vcluster là "KÉM NHẤT" về cô lập và yêu cầu **chứng minh không thoát sang namespace khác trước khi cân nhắc**. Phép đo trên cho thấy không cần tới bước đó: workload vốn đã ở cụm chủ theo thiết kế, nên câu hỏi "có thoát được không" đã bị đặt sai — nó không cần thoát.
+
+**Kết luận:** vcluster rẻ nhất về RAM và đắt nhất về thứ không đánh đổi được. Đã gỡ sau khi đo (`helm uninstall vc1 -n dlp-p7-vc`).
