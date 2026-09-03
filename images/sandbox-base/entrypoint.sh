@@ -151,6 +151,83 @@ start_dockerd() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 7.C — cluster Kubernetes con (k3s), dựng NỀN.
+#
+# Gác bằng `DLP_K8S` chứ không bằng `command -v kubectl`: image mặc định CÓ
+# kubectl (INCLUDE_K8S=1) nhưng đại đa số phiên là bài Linux/Docker và không
+# cần cluster nào. Dựng nó cho mọi phiên là trả ~589 MiB RAM thường trực cho
+# thứ không ai dùng, và trần đồng thời tụt từ 20 xuống 6 cho TẤT CẢ.
+#
+# ⚠ Vì sao dựng NỀN chứ không dựng lúc người học gõ lệnh đầu tiên:
+# đo được 2026-09-04 — từ lúc container k3s chạy tới `kubectl get nodes` = Ready
+# là ~31 s, cộng thời gian kéo image `rancher/k3s` qua mirror. Bắt người học
+# ngồi nhìn màn hình đen 1–2 phút sau khi bấm "Bắt đầu" là hỏng trải nghiệm;
+# dựng nền ngay lúc pod lên thì tới lúc họ đọc xong phần dẫn nhập, cluster đã
+# sẵn sàng. `dlp-k8s-wait` là cái chốt cho ai (hoặc script chấm nào) tới sớm hơn.
+#
+# CẢ HÀM chạy trong subshell nền vì `start_dockerd` CỐ Ý không chờ socket —
+# nên ở đây phải tự chờ, và chờ ở tiền cảnh sẽ chặn `exec "$@"` mất vài chục
+# giây, tức pod chưa Ready, tức warm-pool đếm sai.
+K3S_IMAGE="${DLP_K3S_IMAGE:-rancher/k3s:v1.34.1-k3s1}"
+K3S_KUBECONFIG_DIR=/var/lib/dlp/k3s
+
+start_k8s() {
+    [ "${DLP_K8S:-0}" = "1" ] || return 0
+    if ! command -v docker >/dev/null 2>&1; then
+        warn "DLP_K8S=1 nhưng image không có docker — không dựng được cluster con"
+        return 0
+    fi
+    mkdir -p /var/log/dlp "$K3S_KUBECONFIG_DIR" || {
+        warn "không tạo được $K3S_KUBECONFIG_DIR — bỏ qua cluster con"
+        return 0
+    }
+
+    (
+        # Chờ dockerd. 90 s là trần rộng có chủ ý: đường cold-path kéo cả image
+        # sandbox trước đó, và thà chờ lâu còn hơn báo hỏng một thứ đang lên.
+        i=0
+        while [ "$i" -lt 90 ]; do
+            docker info >/dev/null 2>&1 && break
+            i=$((i + 1))
+            sleep 1
+        done
+        if ! docker info >/dev/null 2>&1; then
+            echo "[dlp-k8s] dockerd không lên sau 90s — không dựng cluster con" >&2
+            exit 0
+        fi
+
+        # ⛔ KHÔNG `--network host`. Host-network cho container k3s nghĩa là
+        # cluster con dùng chung network namespace với pod: service CIDR mặc
+        # định 10.96.0.0/16 của nó nuốt gọn kube-dns 10.96.0.10 của cụm CHỦ, và
+        # pod mất DNS lẫn đường ra mirror. Bridge riêng + publish loopback giữ
+        # kubeconfig trỏ 127.0.0.1 mà chỉ thêm một luật DNAT.
+        docker run -d --name dlp-k3s --privileged \
+            -p 127.0.0.1:6443:6443 \
+            --tmpfs /run --tmpfs /var/run \
+            -e DLP_REGISTRY_MIRROR="${DLP_REGISTRY_MIRROR:-}" \
+            -v "$K3S_KUBECONFIG_DIR":/output \
+            -v /usr/local/lib/dlp/k3s-boot.sh:/k3s-boot.sh:ro \
+            --entrypoint /bin/sh "$K3S_IMAGE" /k3s-boot.sh >/dev/null 2>&1 \
+            || { echo "[dlp-k8s] docker run thất bại" >&2; exit 0; }
+
+        # Chép kubeconfig ra chỗ `kubectl` tìm mặc định, ngay khi k3s ghi nó.
+        mkdir -p /root/.kube
+        i=0
+        while [ "$i" -lt 300 ]; do
+            if [ -s "$K3S_KUBECONFIG_DIR/kubeconfig.yaml" ]; then
+                cp "$K3S_KUBECONFIG_DIR/kubeconfig.yaml" /root/.kube/config
+                chmod 0600 /root/.kube/config
+                break
+            fi
+            i=$((i + 1))
+            sleep 1
+        done
+    ) >>/var/log/dlp/k8s.log 2>&1 &
+
+    log "cluster con k3s đang dựng nền (log: /var/log/dlp/k8s.log; chờ bằng: dlp-k8s-wait)"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 6.B/6.C — Theia (IDE), CHỈ nghe loopback.
 #
 # Gác bằng đường dẫn chứ không bằng `command -v`, vì `node` được chép vào
@@ -356,6 +433,7 @@ fi
 
 write_docker_daemon_json
 start_dockerd
+start_k8s
 start_theia
 load_dotfiles
 

@@ -310,6 +310,14 @@ RUN if [ "$INCLUDE_K8S" = "1" ]; then \
         kind version >/dev/null; \
     fi
 
+# Script boot cua cluster con + lenh cho. Chep KHONG DIEU KIEN (khong gac bang
+# INCLUDE_K8S): chung la vai KB text, va mot entrypoint di tim file khong co la
+# quat min hen gio y het truong hop `command -v dockerd` da chan o E8. Chinh
+# entrypoint moi la cho quyet dinh co dung cluster hay khong (DLP_K8S).
+COPY k3s-boot.sh /usr/local/lib/dlp/k3s-boot.sh
+COPY dlp-k8s-wait.sh /usr/local/bin/dlp-k8s-wait
+RUN chmod 0755 /usr/local/lib/dlp/k3s-boot.sh /usr/local/bin/dlp-k8s-wait
+
 # ─────────────────────────────────────────────────────────────────────────────
 # E8 — entrypoint: dockerd nền + nạp dotfiles qua allowlist.
 #

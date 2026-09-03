@@ -145,7 +145,10 @@ setup_k3s() {
   # cua no (so tan cgroup v2 + registries.yaml cho containerd cua cluster con)
   # dai qua muc chiu duoc cua mot chuoi qua bon lop trich dan
   # ssh -> kubectl exec -> bash -c -> docker run -> sh -c.
-  kubectl cp -n "$NS" "$BIN_DIR/p7-k3s-boot.sh" "$POD:/k3s-boot.sh" >/dev/null 2>&1
+  #
+  # File duoc scp tu `images/sandbox-base/k3s-boot.sh` — CHINH ban ma image
+  # dung, khong phai ban sao. Xem header cua file do.
+  kubectl cp -n "$NS" "$BIN_DIR/k3s-boot.sh" "$POD:/k3s-boot.sh" >/dev/null 2>&1
   # ⛔ CO Y KHONG `--network host`.
   #
   # Host-network cho container k3s = cluster con DUNG CHUNG network namespace
