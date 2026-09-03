@@ -1,0 +1,45 @@
+{
+  "id": "dlp-linux-triage",
+  "title": "Truy vết sự cố Linux: tiến trình, quyền, user, container",
+  "description": "Năm việc thật một quản trị viên Linux hay gặp: tìm và dừng một tiến trình ngốn CPU, sửa một script bị mất quyền thực thi, tạo user thuộc đúng nhóm, siết lại quyền một file nhạy cảm, và chạy một container Docker công bố đúng cổng. Không cần Kubernetes — chỉ cần shell và Docker sẵn có trong sandbox.",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 30,
+  "source": null,
+  "backend": {
+    "imageid": "ubuntu"
+  },
+  "tasks": [
+    {
+      "id": "find-kill-runaway",
+      "title": "Tìm và dừng tiến trình ngốn CPU",
+      "hint": "docker: khong lien quan o buoc nay. Dung `ps aux` hoac `pgrep -af runaway-worker` de tim PID, roi `kill` hoac `pkill -f runaway-worker`."
+    },
+    {
+      "id": "fix-healthcheck-script",
+      "title": "Sửa script bị mất quyền thực thi",
+      "hint": "`ls -l /root/lab-linux/healthcheck.sh` de xem quyen hien tai. Thieu chu 'x' o cot quyen nghia la chua thuc thi duoc — `chmod +x` de them."
+    },
+    {
+      "id": "create-deploy-user",
+      "title": "Tạo user mới thuộc đúng nhóm",
+      "hint": "`useradd -m deploy` tao user kem thu muc home. Nhom phu them bang `usermod -aG docker deploy` — KHONG dung `-g` (do la nhom CHINH, se ghi de)."
+    },
+    {
+      "id": "harden-secret-permissions",
+      "title": "Siết lại quyền một file nhạy cảm",
+      "hint": "`stat -c '%a' <file>` doc quyen dang dung so bat phan. Muc tieu la 600 — chi chu so doc/ghi, khong ai khac doc duoc."
+    },
+    {
+      "id": "run-published-container",
+      "title": "Chạy container công bố đúng cổng",
+      "weight": 2,
+      "hint": "`docker run -d --name lab-web -p 8090:80 nginx:alpine`. Kiem lai bang `curl -s -o /dev/null -w '%{http_code}\\n' http://localhost:8090/`."
+    }
+  ],
+  "setup": {
+    "foreground": "setup/foreground.sh",
+    "background": "setup/background.sh"
+  },
+  "passThresholdPercent": 80,
+  "leaderboard": true
+}
