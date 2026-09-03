@@ -8,6 +8,11 @@ export * from './redis-keys.ts';
 // packages/scenario và cố ý không xuất hiện ở đây.
 export * from './scenario.ts';
 
+// DTO lab + playground (P8 — trụ cột ②). Cả hai `extend`/`pick` từ
+// `contentBaseSchema` của scenario.ts — cố ý KHÔNG phải cây DTO song song.
+export * from './lab.ts';
+export * from './playground.ts';
+
 // Type sinh từ proto/orchestrator/v1/session.proto — SSOT của contract Next↔Go.
 export type {
   ClaimSessionRequest,

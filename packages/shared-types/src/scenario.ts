@@ -155,34 +155,50 @@ export const scenarioAssetSchema = z
   .strict();
 export type ScenarioAsset = z.infer<typeof scenarioAssetSchema>;
 
-export const scenarioSchema = z
-  .object({
-    id: scenarioIdSchema,
-    title: z.string().min(1),
-    description: z.string().nullable(),
-    difficulty: z.enum(SCENARIO_DIFFICULTIES),
-    estimatedMinutes: z.number().int().positive().nullable(),
+/**
+ * Phần CHUNG của mọi loại nội dung chạy được trên nền tảng (lesson / lab /
+ * playground). Tồn tại vì P8 thêm hai loại nội dung nữa, và cách sai là chép
+ * mười field này ra ba nơi: chúng sẽ lệch ở lần đầu tiên ai đó thêm một tier
+ * hoặc một capability, và không có gì báo.
+ *
+ * ⛔ Đây KHÔNG phải "base class cho tương lai". Nó được tách ra đúng lúc có
+ * người dùng thứ hai và thứ ba (`labSchema`, `playgroundSchema`), không sớm hơn.
+ *
+ * Cố ý là object THƯỜNG (không `.strict()`): mỗi schema cụ thể `.extend(...)`
+ * rồi tự `.strict()` ở cuối, nên "từ chối field lạ" vẫn đúng ở mọi nhánh.
+ */
+export const contentBaseSchema = z.object({
+  id: scenarioIdSchema,
+  title: z.string().min(1),
+  description: z.string().nullable(),
+  difficulty: z.enum(SCENARIO_DIFFICULTIES),
+  estimatedMinutes: z.number().int().positive().nullable(),
 
-    tier: z.enum(SANDBOX_TIER_NAMES),
-    capabilities: z.array(z.enum(SCENARIO_CAPABILITIES)),
-    /** Nguyên văn `backend.imageid` upstream — giữ để truy nguyên, KHÔNG để chạy. */
-    backendImageId: z.string().min(1),
-    /** `interface.layout` upstream (`ide`). `null` = terminal thường. */
-    interfaceLayout: z.string().nullable(),
+  tier: z.enum(SANDBOX_TIER_NAMES),
+  capabilities: z.array(z.enum(SCENARIO_CAPABILITIES)),
+  /** Nguyên văn `backend.imageid` upstream — giữ để truy nguyên, KHÔNG để chạy. */
+  backendImageId: z.string().min(1),
+  /** `interface.layout` upstream (`ide`). `null` = terminal thường. */
+  interfaceLayout: z.string().nullable(),
 
+  assets: z.array(scenarioAssetSchema),
+  source: scenarioSourceSchema.nullable(),
+});
+export type ContentBase = z.infer<typeof contentBaseSchema>;
+
+export const scenarioSchema = contentBaseSchema
+  .extend({
     intro: scenarioPhaseSchema.nullable(),
     finish: scenarioPhaseSchema.nullable(),
     /**
-     * ≥1. Killercoda chấp nhận scenario KHÔNG có step nào (upstream
+     * >=1. Killercoda chấp nhận scenario KHÔNG có step nào (upstream
      * `ubuntu-simple` chỉ có `title` + `backend`) — với họ đó là một playground.
      * Với nền tảng học của ta thì một bài không có bước nào là một trang trắng,
      * nên loader từ chối nó ở biên nhập thay vì để nó hiện ra ở FE dưới dạng
-     * "danh sách step rỗng".
+     * "danh sách step rỗng". Playground THẬT là một loại nội dung riêng
+     * (`playgroundSchema`), không phải một scenario rỗng.
      */
     steps: z.array(scenarioStepSchema).min(1),
-    assets: z.array(scenarioAssetSchema),
-
-    source: scenarioSourceSchema.nullable(),
     /**
      * Field upstream mà ta KHÔNG hiểu và đã cố ý bỏ qua, dạng đường dẫn chấm
      * (`details.intro.courseData`). Rỗng là trường hợp thường.

@@ -7,7 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./scenario": "./src/scenario.ts",
-    "./orchestrator/v1": "./gen/orchestrator/v1/session_pb.ts"
+    "./orchestrator/v1": "./gen/orchestrator/v1/session_pb.ts",
+    "./lab": "./src/lab.ts",
+    "./playground": "./src/playground.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
