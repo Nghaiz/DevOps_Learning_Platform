@@ -151,6 +151,56 @@ start_dockerd() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 6.B/6.C — Theia (IDE), CHỈ nghe loopback.
+#
+# Gác bằng đường dẫn chứ không bằng `command -v`, vì `node` được chép vào
+# /opt/theia/node/bin chứ không lên PATH: build INCLUDE_IDE=0 KHÔNG được vỡ vì
+# entrypoint đi tìm một thư mục không có — cùng lý do start_dockerd gác bằng
+# `command -v` (một entrypoint chỉ chạy đúng với một tổ hợp build-arg là quả mìn
+# hẹn giờ cho lần đầu ai đó build bản slim).
+#
+# ⛔ `--hostname=127.0.0.1` là VẾ BẢO MẬT, không phải mặc định tiện tay. Image
+# upstream chạy `--hostname=0.0.0.0`; giữ nguyên là mở một cổng ra ngoài pod và
+# hạ luật 9 xuống chỉ còn NetworkPolicy. Trình duyệt KHÔNG nối thẳng vào đây —
+# nó đi qua reverse-proxy của terminal-gateway (6.C), nơi chuỗi authz a→h của
+# `/ws` được dùng lại nguyên vẹn.
+#
+# Workspace mặc định là $HOME của pod, KHÔNG phải một thư mục riêng: ô AC của
+# phase-6 đòi "sửa file trong editor, `cat` trong terminal thấy nội dung mới —
+# CÙNG filesystem, không phải hai bản sao". Trỏ Theia vào chỗ khác là tự tay
+# dựng bản sao thứ hai.
+DLP_IDE_PORT="${DLP_IDE_PORT:-4000}"
+
+start_theia() {
+    [ -x /opt/theia/node/bin/node ] || return 0
+
+    local main=/opt/theia/applications/browser/lib/backend/main.js
+    if [ ! -f "$main" ]; then
+        warn "/opt/theia có node nhưng thiếu $main — image IDE dựng hỏng, bỏ qua"
+        return 0
+    fi
+    if ! mkdir -p /var/log/dlp; then
+        warn "không tạo được /var/log/dlp — Theia sẽ không khởi động"
+        return 0
+    fi
+
+    /opt/theia/node/bin/node "$main" "${HOME:-/root}"         --hostname=127.0.0.1 --port="$DLP_IDE_PORT"         >>/var/log/dlp/theia.log 2>&1 &
+    local pid=$!
+    # Cùng lý do như dockerd: `&` luôn thành công dưới góc nhìn shell cha, nên
+    # in "đã khởi động" ngay sau nó là khẳng định không dựa trên gì. Theia mất
+    # ~2s tới lúc trả HTTP (đo 6.A: 1916ms) nên nhịp chờ dài hơn của dockerd —
+    # nhưng đây CHỈ kiểm tiến trình còn sống, KHÔNG kiểm nó phục vụ được. Muốn
+    # biết "dùng được chưa" thì phải hỏi cổng, và đó là việc của 6.C.
+    sleep 1
+    if kill -0 "$pid" 2>/dev/null; then
+        log "Theia đã khởi động nền trên 127.0.0.1:$DLP_IDE_PORT (log: /var/log/dlp/theia.log)"
+    else
+        warn "Theia KHÔNG lên được. Route IDE sẽ trả 502. 20 dòng cuối của log:"
+        tail -n 20 /var/log/dlp/theia.log >&2 2>/dev/null || true
+    fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # E8 — nạp dotfiles.
 load_dotfiles() {
     [ -d "$DOTFILES_SRC" ] || return 0
@@ -288,6 +338,7 @@ fi
 
 write_docker_daemon_json
 start_dockerd
+start_theia
 load_dotfiles
 
 # `set -u` KHÔNG bắt `"$@"` rỗng (bash miễn trừ hai special param `$@`/`$*` từ

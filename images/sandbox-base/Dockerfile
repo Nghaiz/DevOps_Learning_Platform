@@ -37,7 +37,13 @@
 # (Apple Silicon) cho image **xanh nhưng hỏng âm thầm**: base thành arm64, binary
 # vẫn là amd64, `sha256sum -c` VẪN KHỚP (nó kiểm đúng file nó tải, không kiểm
 # arch), rồi trong pod mỗi lần mở shell là `exec format error` và prompt biến mất.
-FROM --platform=linux/amd64 ubuntu:24.04
+# ─────────────────────────────────────────────────────────────────────────────
+# ARG TOÀN CỤC — phải khai TRƯỚC `FROM` đầu tiên thì `FROM ide-${INCLUDE_IDE}`ở
+# cuối file mới nội suy được. ARG khai sau một FROM chỉ sống trong stage đó.
+ARG INCLUDE_IDE=0
+ARG THEIA_IMAGE=ghcr.io/eclipse-theia/theia-ide/theia-ide@sha256:595d34047d91223b5d55fd5b611bb10981154c4b28de9271b2578f996f323751
+
+FROM --platform=linux/amd64 ubuntu:24.04 AS base
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Hai binary tải thẳng — GHIM VERSION + SHA256.
@@ -302,3 +308,47 @@ CMD ["sleep", "infinity"]
 LABEL org.opencontainers.image.title="dlp-sandbox-base" \
       org.opencontainers.image.description="DevOps Learning Platform — sandbox base (P1 1.E-2, Ubuntu 24.04: zsh/tmux/oh-my-posh + CLI hiện đại + Docker/DinD; pwsh sau build-arg INCLUDE_PWSH=1)" \
       org.opencontainers.image.source="https://github.com/Nghaiz/DevOps_Learning_Platform"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6.B — IDE (Eclipse Theia) là layer OPT-IN qua `INCLUDE_IDE` (mặc định 0).
+#
+# VÌ SAO NHIỀU STAGE CHỨ KHÔNG PHẢI `RUN if`: khuôn `RUN if` của INCLUDE_DOCKER/
+# INCLUDE_PWSH không dùng được ở đây, vì thứ cần đưa vào đến từ MỘT IMAGE KHÁC và
+# `COPY --from=` không có dạng có điều kiện. Chép rồi `rm` là tệ nhất: file đã xoá
+# vẫn nằm trong layer trước, image không-IDE phình lên mà chẳng có IDE — đúng thứ
+# ô AC "image không IDE KHÔNG tăng kích thước (so byte với tag trước)" cấm.
+#
+# Với `INCLUDE_IDE=0`, image cuối là `ide-0`, tức `base` không thêm layer nào ⇒
+# GIỐNG HỆT tag trước. BuildKit cũng cắt `theia-src` khỏi đồ thị nên nó KHÔNG pull
+# 708 MB cho một build không cần IDE.
+#
+# NGUỒN THEIA: image upstream ghim DIGEST, KHÔNG build từ nguồn (chốt 2026-09-04,
+# `docs/ide-choice.md` §5). Bản trước của 6.A kết luận "Theia không còn bản dựng
+# sẵn" sau khi kiểm `ghcr.io/eclipse-theia/theia-ide` → 403; package trên GHCR có
+# đường BA đoạn, và `…/theia-ide/theia-ide` trả 200. Digest thay cho `sha256sum -c`
+# là cùng một mức bảo đảm, khác cơ chế.
+#
+# `ARG THEIA_IMAGE` (khai ở đầu file) là cửa lùi: trỏ nó sang một image tự build
+# theo `browser.Dockerfile` nếu digest trên biến mất khỏi registry, hoặc khi tới
+# ngày cần tuỳ biến bản dựng (bố cục shell/branding là Theia extension biên dịch
+# vào bản dựng — không thả được vào /opt/theia lúc chạy).
+FROM --platform=linux/amd64 ${THEIA_IMAGE} AS theia-src
+
+FROM base AS ide-0
+
+FROM base AS ide-1
+# `/home/theia` mang ứng dụng đã build + plugin tải sẵn từ **Open VSX**.
+COPY --from=theia-src /home/theia /opt/theia
+# node ĐI KÈM chứ không cài từ apt: image gốc của Theia là `node:24-bookworm-slim`,
+# nên `node` nằm ở base image ấy chứ không nằm trong /home/theia. Chép mỗi
+# /home/theia sang Ubuntu là được một cây JS không có gì chạy nó — và triệu chứng
+# ("exec: node: not found") xuất hiện lúc chạy pod, xa nhất có thể khỏi dòng COPY
+# đã thiếu.
+#
+# Binary link với glibc 2.36 (bookworm) chạy trên Ubuntu 24.04 (glibc 2.39): glibc
+# tương thích NGƯỢC theo chiều này. Chiều ngược lại thì không, nên đừng đảo hai base.
+COPY --from=theia-src /usr/local/bin/node /opt/theia/node/bin/node
+ENV THEIA_DEFAULT_PLUGINS=local-dir:/opt/theia/plugins     USE_LOCAL_GIT=true     DLP_IDE=1
+
+# Image cuối. `INCLUDE_IDE=0` ⇒ `ide-0` ⇒ không một layer nào thêm vào `base`.
+FROM ide-${INCLUDE_IDE}
