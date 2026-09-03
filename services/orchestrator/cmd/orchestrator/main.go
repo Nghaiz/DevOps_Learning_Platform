@@ -301,10 +301,11 @@ func buildSessionEngine(
 	}
 
 	svc, err := lifecycle.NewService(rdb, mgr, pods, auditDB, lifecycle.Config{
-		Namespace:     cfg.SandboxNamespace,
-		SessionTTL:    cfg.SessionTTL,
-		HardCap:       cfg.HardCap,
-		ExtendDefault: cfg.ExtendDefault,
+		Namespace:       cfg.SandboxNamespace,
+		SessionTTL:      cfg.SessionTTL,
+		HardCap:         cfg.HardCap,
+		ExtendDefault:   cfg.ExtendDefault,
+		SandboxProfiles: cfg.SandboxProfiles,
 	}, log, met)
 	if err != nil {
 		closeAll()
@@ -332,7 +333,8 @@ func buildSessionEngine(
 		slog.Duration("extend_default", cfg.ExtendDefault),
 		slog.Duration("reap_interval", cfg.ReapInterval),
 		slog.Bool("audit_bat", auditDB != nil),
-		slog.String("mtls_mode", string(cfg.MTLSMode)))
+		slog.String("mtls_mode", string(cfg.MTLSMode)),
+		slog.Int("sandbox_profiles", len(cfg.SandboxProfiles)))
 
 	return sessionEngine{lifecycle: svc, pool: mgr, reaper: rp, close: closeAll}, nil
 }
