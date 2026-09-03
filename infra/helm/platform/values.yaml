@@ -759,7 +759,14 @@ sandbox:
     defaultRequestMemory: '256Mi'
     defaultCpu: '2'
     defaultMemory: '1Gi'
-    maxCpu: '2'
+    # `maxCpu: 4` (nâng từ 2 ở P7 7.C) — TRẦN của LimitRange, không phải mặc
+    # định. Pod thường vẫn nhận `defaultCpu: 2`; con số này chỉ mở đường cho
+    # profile `k8s` khai `limitsCpu: '4'` (xem `sandbox.profiles.k8s`).
+    #
+    # Phải nâng ở đây thì mới có tác dụng: LimitRange TỪ CHỐI pod vượt `max` chứ
+    # KHÔNG cắt bớt xuống — một profile 4 core dưới `maxCpu: 2` không chạy chậm,
+    # nó không được tạo, và lỗi hiện ra ở apiserver chứ không ở chỗ khai profile.
+    maxCpu: '4'
     maxMemory: '2Gi'
 
   # ── Profile RIÊNG cho bài có IDE (P6 / 6.E, đo 2026-09-04) ─────────────────
@@ -826,21 +833,60 @@ sandbox:
   # nào bị ảnh hưởng cho tới khi có ít nhất một key ở đây VÀ một scenario/BFF
   # gửi đúng tên đó trong `CreateSessionRequest.profile`.
   #
-  # Số đo cho profile "k8s" (P7 7.B, harness 2026-09-04, k3s-trong-Sysbox —
-  # đường được chọn: workingSet đỉnh 589Mi / 729MB đĩa tạm, so với 922Mi/3553MB
-  # của kind) VẪN CHƯA VÀO ĐÂY — lead đang đo trần đồng thời (min-của-năm-ràng-
-  # buộc, D16) và sẽ điền khối `k8s: {...}` trong một commit riêng. Đừng tự
-  # đoán số rồi điền vào — xem `docs/k8s-in-pod.md` khi nó tồn tại (7.B).
+  # ── profile "k8s" — số ĐO ĐƯỢC, không phải ước lượng (P7 7.B, 2026-09-04) ──
   #
-  # Hình dạng một entry (không phải giá trị thật — ví dụ minh hoạ):
-  #   k8s:
-  #     requestsCpu: '500m'
-  #     requestsMemory: '768Mi'
-  #     limitsCpu: '2'
-  #     limitsMemory: '2Gi'
-  #     env:
-  #       DLP_K8S_PROFILE: '1'
-  profiles: {}
+  # Đường được chọn: **k3s trong Docker, trong pod Sysbox**. Đo ở cgroup mức pod
+  # trên host (workingSet = memory.current − inactive_file), harness
+  # `infra/host/p7-measure.sh`, chi tiết ở `docs/k8s-in-pod.md`:
+  #
+  #   đối chứng (chỉ dockerd)  workingSet đỉnh   94.89Mi ·    1MB đĩa
+  #   k3s                      workingSet đỉnh  589   Mi ·  729MB đĩa
+  #   kind                     workingSet đỉnh  922.31Mi · 3553MB đĩa
+  #
+  # `requestsMemory: 768Mi` đặt theo **ĐỈNH** (589Mi) cộng ~30% biên, KHÔNG theo
+  # trung vị — bài học `sandbox-quota-is-misconfigured-not-hardware`: đặt theo
+  # trung vị là thiết kế cho một nửa số lượt.
+  #
+  # `limitsCpu: '4'` chứ không 2, và nó MIỄN PHÍ về trần: đo được lúc dựng
+  # cluster con có `nr_throttled 457 / throttled_usec 30.9s` ở trần 2 core, tức
+  # pod thật sự muốn hơn 2 core trong pha boot. Nâng lên 4 rút ngắn 49s-tới-Ready
+  # mà KHÔNG chạm ràng buộc nào: 44 ÷ 4 = 11 > 7. Đòi hỏi `limitRange.maxCpu`
+  # phải là 4 (xem dưới) — LimitRange chặn theo `max`, và một profile vượt `max`
+  # bị apiserver từ chối chứ không bị cắt bớt.
+  #
+  # ── TRẦN ĐỒNG THỜI CỦA BÀI K8S — min của NĂM ràng buộc, quota self-host ────
+  #   requestsCpu     5400m  ÷  500m  = 10
+  #   requestsMemory  5500Mi ÷  768Mi =  7   ← RÀNG BUỘC CHẶN
+  #   limitsCpu          44  ÷    4   = 11
+  #   limitsMemory    22528Mi ÷ 2048Mi = 11
+  #   pods               26            = 26
+  # ⇒ min = 7 pod − POOL_TARGET 1 = **6 phiên K8s đồng thời**.
+  #
+  # So với 20 phiên thường: **thấp hơn 14**. Nói thẳng con số đó thay vì trung
+  # bình hoá là toàn bộ điểm của mục này — một bài K8s tốn gấp 3 lần một bài
+  # Linux, và giấu điều đó sau một `requests` chung sẽ làm người thứ bảy nhận
+  # 429 mà không hiểu vì sao.
+  #
+  # ⚠ Quota là CHUNG cho cả namespace, nên "6" chỉ đúng khi MỌI phiên là K8s.
+  # Ràng buộc thật là tuyến tính, và đây là dạng dùng được:
+  #     256Mi·n_thường + 768Mi·n_k8s ≤ 5500Mi   (và bốn bất đẳng thức còn lại)
+  # Ví dụ: 10 phiên thường + 3 phiên K8s = 2560 + 2304 = 4864Mi ⇒ vừa.
+  #
+  # ⚠ CHƯA ĐO: đỉnh 589Mi là với cluster con vừa lên + MỘT Deployment nginx.
+  # Một lab nặng hơn (nhiều Deployment, PVC, image lớn) chưa có số. Trần `limits`
+  # 2Gi là thứ thật sự gác; `requests` chỉ là chỗ giữ khi xếp lịch.
+  profiles:
+    k8s:
+      requestsCpu: '500m'
+      requestsMemory: '768Mi'
+      limitsCpu: '4'
+      limitsMemory: '2Gi'
+      env:
+        # Cờ mà `start_k8s` của entrypoint sandbox đọc. Không có nó thì image
+        # vẫn có kubectl nhưng KHÔNG dựng cluster nào — cố ý: đại đa số phiên là
+        # bài Linux/Docker, và dựng cluster cho tất cả là trả 589Mi thường trực
+        # cho thứ không ai dùng, kéo trần của MỌI người từ 20 xuống 6.
+        DLP_K8S: '1'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Registry mirror docker.io trong cụm (P3/3.I mắt 1).
