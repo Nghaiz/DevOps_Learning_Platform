@@ -61,7 +61,10 @@ vi.mock('../server/labs/catalog', () => ({
   playgroundSource: () => ({
     listLabs: async () => [],
     getLab: async () => null,
-    listPlaygrounds: async () => [...playgroundFixtures.values()].sort((a: never, b: never) => (a as { id: string }).id.localeCompare((b as { id: string }).id)),
+    listPlaygrounds: async () =>
+      [...playgroundFixtures.values()]
+        .map((p) => p as { id: string })
+        .sort((a, b) => a.id.localeCompare(b.id)),
     getPlayground: async (id: string) => playgroundFixtures.get(id) ?? null,
   }),
   requireLab: async (id: string) => {
@@ -125,7 +128,11 @@ vi.mock('../server/grpc/orchestrator-client', () => ({
  * — mọi test PHẢI tự đặt `fetchSpy.mockImplementationOnce(...)` nếu nó THẬT SỰ
  * cần đi tới `runScriptInSession`.
  */
-const fetchSpy = vi.fn(() => {
+// Annotation kiểu trả về TƯỜNG MINH — khác `lessons-authz.test.ts` (không cần vì
+// file đó không bao giờ `mockImplementationOnce`). Thiếu nó, TS suy `never` từ
+// một hàm luôn `throw`, và mọi `mockImplementationOnce(() => Promise<Response>)`
+// dưới đây sẽ đỏ ở `pnpm typecheck` (`Promise<Response>` không gán được cho `never`).
+const fetchSpy = vi.fn((): Promise<Response> => {
   throw new Error('test không được gọi gateway thật');
 });
 vi.stubGlobal('fetch', fetchSpy);
@@ -493,24 +500,31 @@ describe('labs.leaderboard', () => {
   }
 
   it('lab.leaderboard === false → NOT_FOUND', async () => {
-    makeLab({ id: 'lb-disabled', leaderboard: false });
+    const labId = uniqueId('lb-disabled');
+    makeLab({ id: labId, leaderboard: false });
     const viewer = await makeUser('lb-viewer-disabled');
     await expect(
-      (await caller(viewer)).labs.leaderboard({ labId: 'lb-disabled', limit: 10 }),
+      (await caller(viewer)).labs.leaderboard({ labId, limit: 10 }),
     ).rejects.toSatisfy(isTRPCCode('NOT_FOUND'));
   });
 
   it('mặc định ẩn danh, không lộ email; opt-in hiện tên; loại attempt chưa nộp; giới hạn 100', async () => {
-    makeLab({ id: 'lb-basic', leaderboard: true, passThresholdPercent: 50 });
-    const anon = await submitWith('lb-basic', { taskA: 0, taskB: 0 }, false, 'lb-anon');
-    const named = await submitWith('lb-basic', { taskA: 0, taskB: 0 }, true, 'lb-named');
+    // `labId` PHẢI duy nhất mỗi lượt chạy: leaderboard gộp theo TOÀN BỘ lịch sử
+    // của một labId (không lọc theo user), nên một chuỗi tĩnh sẽ cộng dồn dòng
+    // từ lượt chạy test TRƯỚC còn sót lại trong Postgres (không có dọn bảng
+    // giữa các lần chạy — cùng khuôn `lessons-authz.test.ts`, nơi cách ly dựa
+    // vào `uniqueId()` cho user chứ không phải xoá bảng).
+    const labId = uniqueId('lb-basic');
+    makeLab({ id: labId, leaderboard: true, passThresholdPercent: 50 });
+    const anon = await submitWith(labId, { taskA: 0, taskB: 0 }, false, 'lb-anon');
+    const named = await submitWith(labId, { taskA: 0, taskB: 0 }, true, 'lb-named');
 
     // Một lần thử KHÔNG nộp — không được xuất hiện.
     const c3 = await caller(await makeUser('lb-unsubmitted'));
-    await c3.labs.startAttempt({ labId: 'lb-basic', idempotencyKey: uniqueId('idem') });
+    await c3.labs.startAttempt({ labId, idempotencyKey: uniqueId('idem') });
 
     const viewer = await caller(anon.user);
-    const out = await viewer.labs.leaderboard({ labId: 'lb-basic', limit: 100_000 });
+    const out = await viewer.labs.leaderboard({ labId, limit: 100_000 });
 
     expect(out.items).toHaveLength(2); // KHÔNG có dòng thứ ba (chưa nộp)
     for (const row of out.items) {
@@ -528,18 +542,21 @@ describe('labs.leaderboard', () => {
   });
 
   it('sắp xếp percent DESC, durationSeconds ASC, submittedAt ASC — cả ba mức đều được test', async () => {
-    makeLab({ id: 'lb-order', leaderboard: true, passThresholdPercent: 1 });
+    // Cùng lý do `labId` phải duy nhất như test ở trên — leaderboard gộp TOÀN
+    // BỘ lịch sử của một labId, chuỗi tĩnh sẽ cộng dồn dòng từ lượt chạy trước.
+    const labId = uniqueId('lb-order');
+    makeLab({ id: labId, leaderboard: true, passThresholdPercent: 1 });
 
     // A: percent thấp hơn hẳn (chỉ task-a đạt) — luôn đứng CUỐI bất kể duration/thời điểm.
     const lowPercent = await makeUser('lb-order-low');
     {
       const c = await caller(lowPercent);
-      const started = await c.labs.startAttempt({ labId: 'lb-order', idempotencyKey: uniqueId('idem') });
+      const started = await c.labs.startAttempt({ labId, idempotencyKey: uniqueId('idem') });
       fetchSpy.mockImplementationOnce(() => Promise.resolve(jsonResponse(200, { exitCode: 0, output: '', truncated: false })));
-      await c.labs.checkTask({ labId: 'lb-order', attemptId: started.attemptId, taskId: 'task-a' });
+      await c.labs.checkTask({ labId, attemptId: started.attemptId, taskId: 'task-a' });
       fetchSpy.mockImplementationOnce(() => Promise.resolve(jsonResponse(200, { exitCode: 1, output: '', truncated: false })));
-      await c.labs.checkTask({ labId: 'lb-order', attemptId: started.attemptId, taskId: 'task-b' });
-      await c.labs.submit({ labId: 'lb-order', attemptId: started.attemptId });
+      await c.labs.checkTask({ labId, attemptId: started.attemptId, taskId: 'task-b' });
+      await c.labs.submit({ labId, attemptId: started.attemptId });
     }
 
     // B, C, D: percent 100% (cả hai task đạt) — phân biệt bằng duration rồi submittedAt.
@@ -549,13 +566,13 @@ describe('labs.leaderboard', () => {
     async function fullPass(prefix: string, waitMs: number): Promise<string> {
       const u = await makeUser(prefix);
       const c = await caller(u);
-      const started = await c.labs.startAttempt({ labId: 'lb-order', idempotencyKey: uniqueId('idem') });
+      const started = await c.labs.startAttempt({ labId, idempotencyKey: uniqueId('idem') });
       fetchSpy.mockImplementationOnce(() => Promise.resolve(jsonResponse(200, { exitCode: 0, output: '', truncated: false })));
-      await c.labs.checkTask({ labId: 'lb-order', attemptId: started.attemptId, taskId: 'task-a' });
+      await c.labs.checkTask({ labId, attemptId: started.attemptId, taskId: 'task-a' });
       fetchSpy.mockImplementationOnce(() => Promise.resolve(jsonResponse(200, { exitCode: 0, output: '', truncated: false })));
-      await c.labs.checkTask({ labId: 'lb-order', attemptId: started.attemptId, taskId: 'task-b' });
+      await c.labs.checkTask({ labId, attemptId: started.attemptId, taskId: 'task-b' });
       await new Promise((r) => setTimeout(r, waitMs));
-      await c.labs.submit({ labId: 'lb-order', attemptId: started.attemptId });
+      await c.labs.submit({ labId, attemptId: started.attemptId });
       return u.id;
     }
 
@@ -564,7 +581,7 @@ describe('labs.leaderboard', () => {
     const dId = await fullPass('lb-order-d', 1100); // duration dài tương tự b, nộp SAU b
 
     const viewer = await caller(lowPercent);
-    const out = await viewer.labs.leaderboard({ labId: 'lb-order', limit: 10 });
+    const out = await viewer.labs.leaderboard({ labId, limit: 10 });
     expect(out.items.map((r) => r.rank)).toEqual([1, 2, 3, 4]);
     expect(out.items[3]?.percent).toBeLessThan(out.items[0]!.percent); // A ở cuối
     void cId;

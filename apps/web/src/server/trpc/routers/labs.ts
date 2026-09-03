@@ -127,6 +127,7 @@ export const labsRouter = createTRPCRouter({
     const next = start + input.limit;
     return {
       items: page,
+      limit: input.limit,
       nextCursor: next < all.length ? (page[page.length - 1]?.id ?? null) : null,
     };
   }),
