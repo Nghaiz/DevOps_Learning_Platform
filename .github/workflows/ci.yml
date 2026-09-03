@@ -25,14 +25,27 @@
 # tj-actions/changed-files (2025). Dependabot nâng SHA giúp (.github/dependabot.yml).
 name: CI
 
+# ⏸ TẠM DỪNG 2026-09-04 — giai đoạn phát triển nhanh tới hết phase 14.
+#
+# Workflow này KHÔNG còn tự chạy. Nó chỉ chạy khi gọi tay (nút "Run workflow"
+# trên tab Actions, hoặc `gh workflow run ci.yml`). Lý do, phạm vi, và LỆNH BẬT
+# LẠI: `docs/ci-paused.md`.
+#
+# Quét secret KHÔNG bị tắt — nó tách sang `.github/workflows/secret-scan.yml` và
+# vẫn chạy mọi push. Đó là cổng duy nhất mà hỏng thì bật lại CI sau không cứu
+# được (secret lọt vào lịch sử git ⇒ phải xoay khoá + rewrite history).
+#
+# Khối `on:` gốc giữ nguyên ở đây, comment lại, để bật lại là bỏ comment:
+#
+#   push:
+#     branches: [main]
+#     tags: ['v*']
+#   pull_request:
+#
+# (KHÔNG để `push:` trần: với branch trong chính repo này, GitHub bắn CẢ `push`
+# LẪN `pull_request` ⇒ mọi PR chạy CI hai lần, tốn đôi số phút runner.)
 on:
-  # KHÔNG để `push:` trần: với branch nằm trong chính repo này, GitHub bắn CẢ
-  # `push` LẪN `pull_request` ⇒ mọi PR chạy CI hai lần, tốn đôi số phút runner.
-  # Giới hạn push về main + tag (nơi không có PR nào bắn thay).
-  push:
-    branches: [main]
-    tags: ['v*']
-  pull_request:
+  workflow_dispatch:
 
 # Least privilege cấp workflow: mặc định của GITHUB_TOKEN rộng hơn nhiều thứ CI
 # này cần. Job nào cần hơn thì tự khai thêm (images: packages:write, ...).
