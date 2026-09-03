@@ -98,6 +98,19 @@ type Config struct {
 	// Trần này chặn ĐỒNG THỜI, không chặn NỐI LẠI: WS đóng → DECR về 0.
 	MaxWSPerSession int
 
+	// IDEPort là cổng Theia nghe trong pod sandbox. PHẢI khớp `DLP_IDE_PORT` của
+	// `images/sandbox-base/entrypoint.sh`; lệch nhau thì mọi phiên IDE trả 503 và
+	// triệu chứng trỏ vào "IDE hỏng" chứ không trỏ vào hai con số lệch nhau.
+	IDEPort int
+
+	// IDEMaxPerSession là trần kết nối IDE đồng thời của MỘT phiên.
+	//
+	// ⛔ CỐ Ý TÁCH KHỎI MaxWSPerSession (phase-6 task 10). MaxWSPerSession = 1 vì
+	// hai terminal cùng gõ vào một tmux là hỏng; IDE thì mở hàng loạt kết nối
+	// song song một cách bình thường. Gộp hai con số là hoặc chặn IDE ở kết nối
+	// thứ hai, hoặc nâng trần terminal lên và mất bất biến D17. Mặc định 8.
+	IDEMaxPerSession int
+
 	// WSLease là lease của khe `session:{id}:ws` (3.H), gia hạn ở 1/3 lease
 	// suốt vòng đời phiên.
 	//
@@ -176,6 +189,19 @@ func Load() (*Config, error) {
 	wsLease, err := envx.Duration("GATEWAY_WS_LEASE", 90*time.Second)
 	if err != nil {
 		return nil, err
+	}
+
+	idePort, err := envx.Int("GATEWAY_IDE_PORT", 4000)
+	if err != nil {
+		return nil, err
+	}
+	ideMax, err := envx.Int("GATEWAY_IDE_MAX_PER_SESSION", 8)
+	if err != nil {
+		return nil, err
+	}
+	if ideMax < 1 {
+		return nil, fmt.Errorf("env GATEWAY_IDE_MAX_PER_SESSION: %d phải ≥ 1 "+
+			"(0 nghĩa là chặn mọi phiên IDE mà không nói vì sao)", ideMax)
 	}
 
 	maxWS, err := envx.Int("GATEWAY_MAX_WS_PER_SESSION", 1)
@@ -293,15 +319,17 @@ func Load() (*Config, error) {
 		// Default khớp BETTER_AUTH_URL mặc định của apps/web ở dev. Trong k8s,
 		// Helm suy ra từ ĐÚNG `web.env.betterAuthUrl` — một giá trị, hai nơi
 		// đọc, không có hằng số thứ hai để trôi.
-		TokenIssuer:     envx.String("GATEWAY_TOKEN_ISSUER", "http://localhost:3000"),
-		AllowedOrigins:  splitList(envx.String("GATEWAY_ALLOWED_ORIGINS", "http://localhost:3000")),
-		MaxWSPerSession: maxWS,
-		WSLease:         wsLease,
-		RedisURL:        redisURL,
-		ExecCommand:     execCommand,
-		ExecShell:       execShell,
-		ExecTimeout:     execTimeout,
-		ExecMaxOutput:   execMaxOutput,
+		TokenIssuer:      envx.String("GATEWAY_TOKEN_ISSUER", "http://localhost:3000"),
+		AllowedOrigins:   splitList(envx.String("GATEWAY_ALLOWED_ORIGINS", "http://localhost:3000")),
+		MaxWSPerSession:  maxWS,
+		IDEPort:          idePort,
+		IDEMaxPerSession: ideMax,
+		WSLease:          wsLease,
+		RedisURL:         redisURL,
+		ExecCommand:      execCommand,
+		ExecShell:        execShell,
+		ExecTimeout:      execTimeout,
+		ExecMaxOutput:    execMaxOutput,
 	}, nil
 }
 

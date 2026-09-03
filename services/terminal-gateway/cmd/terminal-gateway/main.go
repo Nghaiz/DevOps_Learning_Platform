@@ -23,6 +23,7 @@ import (
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/drain"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/execroute"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/extend"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/ideroute"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
@@ -149,6 +150,24 @@ func run() error {
 		AllowedOrigins: cfg.AllowedOrigins,
 		Timeout:        cfg.ExecTimeout,
 	})
+	// IDE reverse-proxy (P6 / 6.C). Dùng LẠI verifier + store y hệt hai route
+	// trên — chuỗi authz là một bản duy nhất trong `internal/sessionauth`.
+	//
+	// `clientset` dùng chung với hai đường kia: một client, một ngân sách QPS.
+	// Resolver có cache TTL ngắn vì một phiên IDE sinh hàng trăm request và một
+	// `GET pod` mỗi request là đưa apiserver vào đường nóng của IDE.
+	ideroute.Register(publicMux, ideroute.Deps{
+		Log:            log,
+		Verifier:       verifier,
+		Sessions:       store,
+		PodIPs:         ideroute.NewCachedPodIP(clientset, 0),
+		Metrics:        met,
+		AllowedOrigins: cfg.AllowedOrigins,
+		Port:           cfg.IDEPort,
+		MaxPerSession:  cfg.IDEMaxPerSession,
+		Timeout:        cfg.ExecTimeout,
+	})
+
 	// NewStreamingServer, không phải NewServer: phiên terminal sống hàng giờ và im
 	// lặng hàng phút, ReadTimeout/WriteTimeout 30s sẽ cắt ngang từ P1.
 	publicSrv := httpx.NewStreamingServer(cfg.PublicAddr, publicMux)

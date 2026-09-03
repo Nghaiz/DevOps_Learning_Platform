@@ -159,11 +159,29 @@ start_dockerd() {
 # `command -v` (một entrypoint chỉ chạy đúng với một tổ hợp build-arg là quả mìn
 # hẹn giờ cho lần đầu ai đó build bản slim).
 #
-# ⛔ `--hostname=127.0.0.1` là VẾ BẢO MẬT, không phải mặc định tiện tay. Image
-# upstream chạy `--hostname=0.0.0.0`; giữ nguyên là mở một cổng ra ngoài pod và
-# hạ luật 9 xuống chỉ còn NetworkPolicy. Trình duyệt KHÔNG nối thẳng vào đây —
-# nó đi qua reverse-proxy của terminal-gateway (6.C), nơi chuỗi authz a→h của
-# `/ws` được dùng lại nguyên vẹn.
+# ⛔ `--hostname=0.0.0.0` LÀ MỘT ĐÁNH ĐỔI ĐÃ CÂN, không phải mặc định tiện tay.
+#
+# Bản đầu của 6.C ghim `127.0.0.1` cho chặt. Nhưng gateway và sandbox là HAI
+# network namespace: `127.0.0.1` của pod sandbox không tồn tại với gateway, nên
+# ghim loopback là buộc mọi byte của IDE (tải file, WS, autocomplete) phải đi qua
+# `portforward` của apiserver. Trên cụm này apiserver đã restart 41 lần và cả
+# cụm là 8 vCPU — đặt IDE lên đường đó là mua một lớp phòng thủ bằng một điểm
+# hỏng duy nhất cho MỌI phiên cùng lúc. Chốt 2026-09-04: nghe podIP, gateway nối
+# thẳng.
+#
+# AI ĐANG GÁNH PHẦN BẢO MẬT SAU QUYẾT ĐỊNH NÀY — cả ba, và không cái nào thừa:
+#  1. NetworkPolicy default-deny trong namespace sandbox: pod sandbox KHÔNG chạm
+#     được pod sandbox khác. Đây là lớp thật sự cô lập người học với người học.
+#  2. Rule `sandbox-allow-ingress-gateway`: chỉ pod gateway của release này vào
+#     được. Rule đó đã có từ P1 và comment của nó ghi sẵn "giữ cho hướng tương
+#     lai gateway nối trực tiếp TCP/WS" — hướng đó là đây.
+#  3. Chuỗi authz a/c–h trong `internal/sessionauth`: gateway chỉ proxy tới pod
+#     của CHÍNH chủ token.
+#
+# ⚠ Điều KHÔNG còn đúng nữa: một pod bất kỳ chạm được podIP:4000 sẽ gặp một
+# Theia KHÔNG xác thực. Lớp (1) là thứ duy nhất chặn điều đó, nên NetworkPolicy
+# của namespace sandbox từ nay là hạ tầng THIẾT YẾU, không phải phòng thủ chiều
+# sâu. Tắt Calico enforcement là mở toang IDE của mọi người học.
 #
 # Workspace mặc định là $HOME của pod, KHÔNG phải một thư mục riêng: ô AC của
 # phase-6 đòi "sửa file trong editor, `cat` trong terminal thấy nội dung mới —
@@ -184,7 +202,7 @@ start_theia() {
         return 0
     fi
 
-    /opt/theia/node/bin/node "$main" "${HOME:-/root}"         --hostname=127.0.0.1 --port="$DLP_IDE_PORT"         >>/var/log/dlp/theia.log 2>&1 &
+    /opt/theia/node/bin/node "$main" "${HOME:-/root}"         --hostname=0.0.0.0 --port="$DLP_IDE_PORT"         >>/var/log/dlp/theia.log 2>&1 &
     local pid=$!
     # Cùng lý do như dockerd: `&` luôn thành công dưới góc nhìn shell cha, nên
     # in "đã khởi động" ngay sau nó là khẳng định không dựa trên gì. Theia mất
@@ -193,7 +211,7 @@ start_theia() {
     # biết "dùng được chưa" thì phải hỏi cổng, và đó là việc của 6.C.
     sleep 1
     if kill -0 "$pid" 2>/dev/null; then
-        log "Theia đã khởi động nền trên 127.0.0.1:$DLP_IDE_PORT (log: /var/log/dlp/theia.log)"
+        log "Theia đã khởi động nền trên 0.0.0.0:$DLP_IDE_PORT (log: /var/log/dlp/theia.log)"
     else
         warn "Theia KHÔNG lên được. Route IDE sẽ trả 502. 20 dòng cuối của log:"
         tail -n 20 /var/log/dlp/theia.log >&2 2>/dev/null || true

@@ -86,7 +86,9 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 - [x] `docs/ide-choice.md` có bảng số của **cả hai** ứng viên + đối chứng pod-không-IDE, và điều kiện đảo quyết định. → chốt **Theia**; [report 6.A](reports/2026-09-03-verify-6a-ide-measure.md)
 - [x] `INCLUDE_IDE=0` mặc định; image không IDE **không tăng kích thước**. → đối chứng dựng Dockerfile TRƯỚC khi sửa trên cùng máy/cùng cache: RootFS layer **giống hệt từng cái**. IDE=1 = 2.19GB (+1.38GB, khớp +1.37GB của 6.A).
 - [ ] Mở bài `layout: ide` ⇒ sửa file trong editor, `cat` trong terminal thấy nội dung mới (**cùng filesystem**, không phải hai bản sao).
-- [x] IDE **không** nghe `0.0.0.0` trong pod. → pod Sysbox `ide-verify` trên cụm: đúng MỘT socket LISTEN `0100007F:0FA0` (127.0.0.1:4000); đối chứng âm: `curl` qua podIP exit 7 (refused); đối chứng dương: loopback 200.
+- [ ] ~~IDE **không** nghe `0.0.0.0` trong pod~~ — **ĐẢO 2026-09-04**, ô này không còn đúng. Ghim loopback buộc mọi byte IDE đi qua `portforward` của apiserver (hai pod = hai netns), mà apiserver cụm này đã restart 41 lần. Chốt: IDE nghe podIP, gateway nối thẳng. Ô AC thay thế:
+- [ ] Chỉ pod **gateway** chạm được `sandbox:4000`; một pod sandbox KHÁC bị từ chối. → cần test có **đối chứng dương** (gateway nối được) và **đối chứng âm** (pod sandbox thứ hai timeout), vì "không nối được" cũng là thứ một NetworkPolicy hỏng tạo ra.
+- [ ] `sandbox-default-deny` phải được khẳng định là ĐANG enforce trước khi tin ô trên — nó từ nay là hạ tầng thiết yếu, không phải phòng thủ chiều sâu (`images/sandbox-base/entrypoint.sh` § start_theia ghi lý do).
 - [ ] Truy cập route IDE của phiên NGƯỜI KHÁC ⇒ từ chối, cùng mã và cùng đường log như `/ws` (luật 1 + 10).
 - [ ] Không token nào trong URL/query của IDE (luật 8) — kiểm bằng log gateway + devtools network.
 - [ ] Mở IDE **không** chiếm khe WS của terminal: terminal vẫn attach được khi IDE đang mở.

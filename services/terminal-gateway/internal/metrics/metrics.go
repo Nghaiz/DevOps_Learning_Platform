@@ -198,6 +198,16 @@ type Metrics struct {
 	// đếm exit code của shell.
 	ExecOneShotTotal *prometheus.CounterVec
 
+	// IDESessionsTotal đếm lượt mở route reverse-proxy IDE (`/ide/session/{id}/`).
+	//
+	// ⛔ TÁCH KHỎI hai cái trên, cùng lý lẽ đã dùng để tách ExecOneShotTotal khỏi
+	// WSConnectionsTotal, và ở đây khoảng cách tần suất còn lớn hơn nữa: MỘT phiên
+	// IDE sinh hàng trăm request (mỗi asset, mỗi lượt autocomplete, mỗi lần mở
+	// file), so với một lượt attach mỗi phiên. Gộp vào WSConnectionsTotal thì một
+	// người học mở IDE là đủ dìm tỉ lệ từ chối của handshake xuống dưới ngưỡng
+	// alert — tức chính cảnh báo IDOR của G3 sẽ im lặng vì có người đang học bài.
+	IDESessionsTotal *prometheus.CounterVec
+
 	// ExecOneShotDuration đo thời gian MỘT lượt chấm chạy trong pod (từ lúc gọi
 	// Runner.Run tới lúc có kết quả hoặc hết hạn), chỉ ở đường đã qua authz.
 	//
@@ -301,6 +311,10 @@ func New(reg prometheus.Registerer) *Metrics {
 			Name: "dlp_gateway_exec_oneshot_total",
 			Help: "Lượt exec one-shot (chấm step của Lessons), tách theo kết quả (accepted/denied/error) và lý do — `reason` dùng đúng mã `code` trả về cho người gọi. Exit code của script KHÔNG tính vào đây.",
 		}, []string{"result", "reason"}),
+		IDESessionsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "dlp_gateway_ide_requests_total",
+			Help: "Lượt request tới route reverse-proxy IDE, tách theo kết quả và mã.",
+		}, []string{"result", "reason"}),
 
 		ExecOneShotDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:    "dlp_gateway_exec_oneshot_duration_seconds",
@@ -325,6 +339,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.AttachPhaseIncompleteTotal,
 		m.ExtendTotal,
 		m.ExecOneShotTotal,
+		m.IDESessionsTotal,
 		m.ExecOneShotDuration,
 		m.ExtendRevisionRetryTotal,
 	)

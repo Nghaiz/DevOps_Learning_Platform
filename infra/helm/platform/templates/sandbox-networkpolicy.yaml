@@ -74,6 +74,15 @@ spec:
       # Không giới hạn port: chưa có convention cố định cho port pod sandbox
       # (tuỳ bài lab sinh viên chạy gì) — nguồn đã bị khoá chặt đúng vào pod
       # gateway của release này, thu hẹp thêm port không tăng cô lập thật sự.
+      #
+      # ⚠ 2026-09-04 — TIỀN ĐỀ CỦA ĐOẠN TRÊN ĐÃ ĐỔI. Khi nó được viết, pod
+      # sandbox KHÔNG nghe cổng nào; "thu hẹp port không tăng cô lập" đúng vì
+      # chẳng có gì để chạm. Từ 6.B, pod biến thể IDE nghe podIP:4000 và Theia
+      # ở đó KHÔNG xác thực. Thứ chặn pod-sandbox-này chạm IDE của
+      # pod-sandbox-kia là policy default-deny ở mục 1, KHÔNG phải mục này —
+      # nên mục 1 từ nay là hạ tầng thiết yếu chứ không phải phòng thủ chiều sâu.
+      # Vẫn giữ "không giới hạn port" vì nguồn đã khoá đúng một pod; nhưng đừng
+      # đọc đoạn comment cũ như một khẳng định còn nguyên hiệu lực.
 {{- if .Values.registryMirror.enabled }}
 ---
 # 3b. Egress sandbox → registry mirror (P3/3.I mắt 1). CHỈ render khi mirror bật.
