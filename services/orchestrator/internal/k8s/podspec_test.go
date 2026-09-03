@@ -1,10 +1,12 @@
 package k8s
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -154,6 +156,179 @@ func TestPodSpecKhongKhaiResources(t *testing.T) {
 	if len(c.Resources.Requests) != 0 || len(c.Resources.Limits) != 0 {
 		t.Fatalf("container khai resources (%v / %v) — LimitRange phải là nơi duy nhất đặt số này (D16)",
 			c.Resources.Requests, c.Resources.Limits)
+	}
+}
+
+// buildSandboxPodPreProfile là bản SAO CHÉP-Y-NGUYÊN của BuildSandboxPod
+// TRƯỚC KHI trường Profile (P7 7.C) tồn tại — nó KHÔNG gọi hàm thật, và đó
+// chính là điểm của test: nếu một ngày sau này ai đó đổi hành vi nhánh
+// `Profile == nil` (vô tình thêm resources mặc định, đổi thứ tự env, đổi bất kỳ
+// field nào khác), diff sẽ hiện ra ở ĐÂY thay vì âm thầm đổi trần đồng thời của
+// mọi session KHÔNG dùng profile (D16). Giữ nguyên logic 1:1 với bản trước —
+// KHÔNG "dọn" hay rút gọn nó.
+func buildSandboxPodPreProfile(name string, cfg PodConfig) (*corev1.Pod, error) {
+	if err := validatePodName(name); err != nil {
+		return nil, err
+	}
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+
+	falsePtr := func() *bool { b := false; return &b }
+
+	var sandboxEnv []corev1.EnvVar
+	if cfg.RegistryMirror != "" {
+		sandboxEnv = append(sandboxEnv, corev1.EnvVar{
+			Name:  "DLP_REGISTRY_MIRROR",
+			Value: cfg.RegistryMirror,
+		})
+	}
+
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: cfg.Namespace,
+			Labels: map[string]string{
+				LabelApp:       LabelAppValue,
+				LabelManagedBy: LabelManagedByValue,
+			},
+		},
+		Spec: corev1.PodSpec{
+			RuntimeClassName:             &cfg.RuntimeClassName,
+			HostUsers:                    falsePtr(),
+			HostNetwork:                  false,
+			HostPID:                      false,
+			HostIPC:                      false,
+			AutomountServiceAccountToken: falsePtr(),
+			EnableServiceLinks:           falsePtr(),
+			RestartPolicy:                corev1.RestartPolicyNever,
+			SecurityContext: &corev1.PodSecurityContext{
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			},
+			Containers: []corev1.Container{{
+				Name:            ContainerName,
+				Image:           cfg.Image,
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Env:             sandboxEnv,
+				SecurityContext: &corev1.SecurityContext{
+					Privileged:               falsePtr(),
+					AllowPrivilegeEscalation: falsePtr(),
+					Capabilities: &corev1.Capabilities{
+						Drop: []corev1.Capability{"ALL"},
+					},
+				},
+			}},
+			InitContainers: nil,
+			Volumes:        nil,
+		},
+	}, nil
+}
+
+// TestPodSpecProfileNilByteIdenticalToDefault — cổng chống hồi quy CHO PHÉP
+// P7 7.C tồn tại (D16 vẫn đúng cho profile mặc định).
+//
+// "Marshal cả hai rồi so" đúng nghĩa đen: pod dựng bởi BuildSandboxPod hiện
+// hành (cfg.Profile == nil) PHẢI byte-for-byte giống pod dựng bởi bản THAM
+// CHIẾU trước khi trường Profile tồn tại (buildSandboxPodPreProfile ở trên).
+// Tên pod CỐ ĐỊNH (không NewPodName() ngẫu nhiên) để hai lượt build so sánh
+// được, và bảng chạy qua vài PodConfig khác nhau — không chỉ testConfig() —
+// để không bỏ lọt một nhánh chỉ hiện ra với RegistryMirror khác rỗng.
+func TestPodSpecProfileNilByteIdenticalToDefault(t *testing.T) {
+	fixedName := "sandbox-000000000000"
+
+	cases := []struct {
+		name string
+		cfg  PodConfig
+	}{
+		{"config mặc định", testConfig()},
+		{"có registry mirror", func() PodConfig {
+			c := testConfig()
+			c.RegistryMirror = "http://platform-registry-mirror.dlp-registry.svc.cluster.local:5000"
+			return c
+		}()},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.cfg.Profile != nil {
+				t.Fatalf("ca test phải để Profile nil — đây là cổng cho ĐƯỜNG MẶC ĐỊNH")
+			}
+
+			got, err := BuildSandboxPod(fixedName, tc.cfg)
+			if err != nil {
+				t.Fatalf("BuildSandboxPod: %v", err)
+			}
+			want, err := buildSandboxPodPreProfile(fixedName, tc.cfg)
+			if err != nil {
+				t.Fatalf("buildSandboxPodPreProfile: %v", err)
+			}
+
+			gotJSON, err := json.Marshal(got)
+			if err != nil {
+				t.Fatalf("marshal pod hiện hành: %v", err)
+			}
+			wantJSON, err := json.Marshal(want)
+			if err != nil {
+				t.Fatalf("marshal pod tham chiếu: %v", err)
+			}
+			if string(gotJSON) != string(wantJSON) {
+				t.Fatalf("Profile == nil KHÔNG còn byte-identical với hành vi trước P7 7.C — "+
+					"đây chính là hồi quy đổi trần đồng thời (D16) cho MỌI session không dùng profile.\n"+
+					"got:  %s\nwant: %s", gotJSON, wantJSON)
+			}
+		})
+	}
+}
+
+// TestPodSpecProfileDatKhaiResourcesVaEnv — nhánh Profile != nil (P7 7.C).
+func TestPodSpecProfileDatKhaiResourcesVaEnv(t *testing.T) {
+	cfg := testConfig()
+	cfg.RegistryMirror = "http://mirror.example:5000"
+	cfg.Profile = &SandboxProfile{
+		RequestsCPU:    resource.MustParse("500m"),
+		RequestsMemory: resource.MustParse("2Gi"),
+		LimitsCPU:      resource.MustParse("2"),
+		LimitsMemory:   resource.MustParse("3Gi"),
+		Env: map[string]string{
+			"DLP_PROFILE_ZZZ": "sau-cung-theo-thu-tu-sort",
+			"DLP_PROFILE_AAA": "dau-tien-theo-thu-tu-sort",
+		},
+	}
+	name, err := NewPodName()
+	if err != nil {
+		t.Fatalf("NewPodName: %v", err)
+	}
+	pod, err := BuildSandboxPod(name, cfg)
+	if err != nil {
+		t.Fatalf("BuildSandboxPod: %v", err)
+	}
+	c := pod.Spec.Containers[0]
+
+	if got := c.Resources.Requests.Cpu().String(); got != "500m" {
+		t.Errorf("Requests.Cpu = %q, muốn 500m", got)
+	}
+	if got := c.Resources.Requests.Memory().String(); got != "2Gi" {
+		t.Errorf("Requests.Memory = %q, muốn 2Gi", got)
+	}
+	if got := c.Resources.Limits.Cpu().String(); got != "2" {
+		t.Errorf("Limits.Cpu = %q, muốn 2", got)
+	}
+	if got := c.Resources.Limits.Memory().String(); got != "3Gi" {
+		t.Errorf("Limits.Memory = %q, muốn 3Gi", got)
+	}
+
+	// Env của profile NỐI VÀO SAU DLP_REGISTRY_MIRROR, sắp theo key.
+	wantEnvNames := []string{"DLP_REGISTRY_MIRROR", "DLP_PROFILE_AAA", "DLP_PROFILE_ZZZ"}
+	if len(c.Env) != len(wantEnvNames) {
+		t.Fatalf("container mang %d env, muốn %d: %+v", len(c.Env), len(wantEnvNames), c.Env)
+	}
+	for i, e := range c.Env {
+		if e.Name != wantEnvNames[i] {
+			t.Errorf("env[%d].Name = %q, muốn %q (thứ tự: mirror trước, rồi profile sort theo key)",
+				i, e.Name, wantEnvNames[i])
+		}
 	}
 }
 

@@ -10,8 +10,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sort"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 
@@ -58,6 +60,33 @@ type PodConfig struct {
 	// Sản phẩm phụ có chủ ý: đây là env, KHÔNG phải volume, nên KHÔNG chạm CEL #8
 	// của ValidatingAdmissionPolicy (chỉ cấm hostPath).
 	RegistryMirror string
+
+	// Profile chọn resources CÓ TÊN cho pod (P7 7.C — ví dụ "k8s" cho lab
+	// Kubernetes-trong-pod, cần nhiều RAM hơn LimitRange mặc định).
+	//
+	// nil = HÀNH VI HÔM NAY: container KHÔNG khai resources, LimitRange của
+	// namespace là nơi DUY NHẤT quyết định requests/limits — xem chú thích ở
+	// BuildSandboxPod. Khác nil ⇒ container mang Requests/Limits TƯỜNG MINH
+	// theo đúng bốn số của profile, và env của profile được NỐI vào SAU
+	// DLP_REGISTRY_MIRROR (không thay thế nó).
+	Profile *SandboxProfile
+}
+
+// SandboxProfile là một bộ resources + env TƯỜNG MINH cho một profile sandbox
+// có tên (P7 7.C). Server phân giải TÊN → giá trị này từ `SANDBOX_PROFILES`
+// (xem internal/config) — package k8s chỉ biết cầm giá trị đã phân giải, không
+// biết gì về cơ chế đặt tên profile.
+type SandboxProfile struct {
+	RequestsCPU    resource.Quantity
+	RequestsMemory resource.Quantity
+	LimitsCPU      resource.Quantity
+	LimitsMemory   resource.Quantity
+
+	// Env NỐI VÀO SAU env của RegistryMirror trong container sandbox — không
+	// thay thế danh sách đó. Duyệt theo thứ tự KEY đã sort: map Go không có thứ
+	// tự lặp ổn định, và một pod spec đổi thứ tự env giữa hai lần build cùng
+	// input là một diff giả trong `kubectl diff` / GitOps.
+	Env map[string]string
 }
 
 func (c PodConfig) validate() error {
@@ -86,10 +115,17 @@ func (c PodConfig) validate() error {
 // (no-derived-fields) cấm, và là lý do `sessions_audit` cũng không được có cột
 // đó. Pod ấm trong pool còn chưa có session nào để mà gắn.
 //
-// VÌ SAO KHÔNG ĐẶT `resources`: LimitRange của namespace ép defaultRequest
-// 500m/512Mi và default limit 1/1Gi. Toàn bộ số học quota của D16 ("trần hiệu
-// lực = 4 pod") dựa trên hai con số đó. Tự khai resources ở đây là âm thầm đổi
-// trần đồng thời mà không ai sửa D16.
+// VÌ SAO KHÔNG ĐẶT `resources` KHI Profile == nil: LimitRange của namespace ép
+// defaultRequest 250m/256Mi và default limit 2/1Gi. Toàn bộ số học quota của
+// D16 ("trần hiệu lực = N pod") dựa trên hai con số đó. Tự khai resources ở đây
+// cho MỌI pod là âm thầm đổi trần đồng thời mà không ai sửa D16.
+//
+// P7 7.C mở đúng MỘT lối thoát có chủ ý, không phải xoá bỏ luật trên: một pod
+// mang `cfg.Profile != nil` khai resources TƯỜNG MINH theo đúng bốn số của
+// profile đó — LimitRange không còn là nơi quyết định cho RIÊNG pod này, và
+// trần đồng thời của profile đó được tính lại RIÊNG (xem values.yaml, D16 vẫn
+// đúng cho profile mặc định). `cfg.Profile == nil` (đường mặc định) giữ nguyên
+// hành vi hôm nay byte-for-byte — xem TestPodSpecProfileNilByteIdenticalToDefault.
 func BuildSandboxPod(name string, cfg PodConfig) (*corev1.Pod, error) {
 	if err := validatePodName(name); err != nil {
 		return nil, err
@@ -109,6 +145,19 @@ func BuildSandboxPod(name string, cfg PodConfig) (*corev1.Pod, error) {
 			Name:  "DLP_REGISTRY_MIRROR",
 			Value: cfg.RegistryMirror,
 		})
+	}
+	// Env của profile (nếu có) NỐI VÀO SAU — không thay thế DLP_REGISTRY_MIRROR.
+	// Sort key: map Go lặp KHÔNG có thứ tự ổn định, và một pod spec đổi thứ tự
+	// env giữa hai lần build cùng input là một diff giả.
+	if cfg.Profile != nil && len(cfg.Profile.Env) > 0 {
+		keys := make([]string, 0, len(cfg.Profile.Env))
+		for k := range cfg.Profile.Env {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			sandboxEnv = append(sandboxEnv, corev1.EnvVar{Name: k, Value: cfg.Profile.Env[k]})
+		}
 	}
 
 	return &corev1.Pod{
@@ -161,6 +210,10 @@ func BuildSandboxPod(name string, cfg PodConfig) (*corev1.Pod, error) {
 				// RỖNG khi không cấu hình mirror — corev1 serialize `env: null`,
 				// không đổi hành vi so với bản chưa có field này.
 				Env: sandboxEnv,
+				// Profile == nil ⇒ ResourceRequirements{} (zero value, `omitempty`
+				// trên cả Requests lẫn Limits) — marshal ra JSON giống hệt việc
+				// không có field Resources nào cả. Xem profileResources.
+				Resources: profileResources(cfg.Profile),
 				SecurityContext: &corev1.SecurityContext{
 					// CEL #6 — tường minh false.
 					Privileged:               falsePtr(),
@@ -187,6 +240,29 @@ func BuildSandboxPod(name string, cfg PodConfig) (*corev1.Pod, error) {
 			Volumes: nil,
 		},
 	}, nil
+}
+
+// profileResources trả ResourceRequirements cho container sandbox.
+//
+// nil ⇒ zero-value ResourceRequirements{}. corev1.ResourceRequirements khai
+// `Requests`/`Limits` với tag json `omitempty`, và giá trị zero của cả hai là
+// map nil — nên marshal ra JSON của zero-value struct này TUYỆT ĐỐI không khác
+// gì việc field `Resources` chưa từng tồn tại trong container literal (đây
+// chính là cơ sở của TestPodSpecProfileNilByteIdenticalToDefault).
+func profileResources(p *SandboxProfile) corev1.ResourceRequirements {
+	if p == nil {
+		return corev1.ResourceRequirements{}
+	}
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    p.RequestsCPU,
+			corev1.ResourceMemory: p.RequestsMemory,
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    p.LimitsCPU,
+			corev1.ResourceMemory: p.LimitsMemory,
+		},
+	}
 }
 
 // validatePodName ép tên qua CẢ HAI cổng, vì tên pod sống ở hai thế giới:
