@@ -179,6 +179,24 @@ orchestrator:
 
 gateway:
   enabled: true
+
+  # ── IDE reverse-proxy (P6 / 6.C) ─────────────────────────────────────────
+  #
+  # ⛔ MỘT GIÁ TRỊ, BA NƠI ĐỌC. `port` dưới đây phải khớp `DLP_IDE_PORT` của
+  # `images/sandbox-base/entrypoint.sh` VÀ `GATEWAY_IDE_PORT` của gateway. Lệch
+  # bất kỳ đâu thì route IDE trả 503 và triệu chứng đọc ra là "IDE hỏng" chứ
+  # không trỏ vào ba con số lệch nhau.
+  #
+  # Nó cũng là cổng trong rule egress `allow-egress-gateway` → namespace sandbox.
+  # Đo được 2026-09-04: thiếu rule đó thì gateway gọi sandbox:4000 bị DROP
+  # (curl exit 28), trong khi pod sandbox gọi chính nó trả 200 — dịch vụ có
+  # phục vụ, đường bị chặn ở egress.
+  ide:
+    port: 4000
+    # maxPerSession: trần kết nối IDE đồng thời của MỘT phiên. CỐ Ý tách khỏi
+    # `maxWSPerSession` (=1): hai terminal cùng gõ vào một tmux là hỏng, còn IDE
+    # mở nhiều kết nối song song là bình thường.
+    maxPerSession: 8
   image:
     repository: dlp-terminal-gateway
     tag: ''

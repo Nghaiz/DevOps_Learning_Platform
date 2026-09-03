@@ -1,0 +1,41 @@
+# 6.C — chứng minh NetworkPolicy đang GÁC cái mà quyết định 0.0.0.0 giao cho nó.
+#
+# Bỏ loopback nghĩa là chuyển toàn bộ phần "không ai ngoài gateway chạm được IDE"
+# sang NetworkPolicy. Tuyên bố đó phải được ĐO, không được tin — nếu Calico không
+# enforce thì mọi pod sandbox chạm được một Theia KHÔNG xác thực của người khác.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netpol-ide           # NẠN NHÂN: chạy IDE trên podIP:4000
+  namespace: dlp-sandbox
+  labels: {app: sandbox-netpol-test}
+spec:
+  runtimeClassName: sysbox-runc
+  hostUsers: false
+  restartPolicy: Never
+  containers:
+    - name: sandbox
+      image: ghcr.io/nghaiz/dlp-sandbox-base:ide-probe
+      imagePullPolicy: Never
+      resources:
+        requests: {cpu: "250m", memory: "256Mi"}
+        limits:   {cpu: "2",    memory: "1Gi"}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netpol-attacker      # KẺ TẤN CÔNG: một pod sandbox KHÁC, cùng namespace
+  namespace: dlp-sandbox
+  labels: {app: sandbox-netpol-test}
+spec:
+  runtimeClassName: sysbox-runc
+  hostUsers: false
+  restartPolicy: Never
+  containers:
+    - name: sandbox
+      image: ghcr.io/nghaiz/dlp-sandbox-base:ide-probe
+      imagePullPolicy: Never
+      resources:
+        requests: {cpu: "250m", memory: "256Mi"}
+        limits:   {cpu: "2",    memory: "1Gi"}

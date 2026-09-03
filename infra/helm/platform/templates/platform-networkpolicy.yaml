@@ -323,6 +323,29 @@ spec:
         - protocol: TCP
           port: {{ include "platform.orchestratorGrpcContainerPort" . }}
     {{- include "platform.netpolDatastoreEgress" (dict "context" . "stores" (list "redis")) | nindent 4 }}
+{{- if .Values.sandbox.enabled }}
+    # ── gateway → pod sandbox, cổng IDE (P6 / 6.C) ──────────────────────────
+    #
+    # THIẾU RULE NÀY THÌ ROUTE IDE 503 VÀ TRIỆU CHỨNG KHÔNG TRỎ VÀO ĐÂY. Đo được
+    # 2026-09-04: pod mang đúng nhãn gateway gọi `http://<podIP>:4000/` bị
+    # **timeout** (curl exit 28 — DROP, không phải refused), trong khi chính pod
+    # sandbox gọi podIP của mình trả 200. Tức dịch vụ CÓ phục vụ, đường bị chặn ở
+    # egress của gateway.
+    #
+    # Rule `sandbox-allow-ingress-gateway` bên sandbox-networkpolicy.yaml chỉ mở
+    # được vế INGRESS. NetworkPolicy cần CẢ HAI vế cùng cho phép; mở một vế rồi
+    # tưởng đã xong là chế độ hỏng kinh điển của nó — và ở đây nó im lặng.
+    #
+    # Cổng khớp `DLP_IDE_PORT` của entrypoint sandbox và `GATEWAY_IDE_PORT` của
+    # gateway. Ba nơi, một giá trị: lệch bất kỳ đâu là 503 không giải thích.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.sandbox.namespace }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.gateway.ide.port | default 4000 }}
+{{- end }}
 ---
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. EGRESS của orchestrator.
