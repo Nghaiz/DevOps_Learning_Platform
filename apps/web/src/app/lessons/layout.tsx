@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { getAuth } from '../../server/auth/config';
-import { LessonsProvider } from '../../lib/trpc-react';
+import { TrpcQueryProvider } from '../../lib/trpc-react';
 
 /**
  * Layout của trụ cột bài học.
@@ -23,5 +23,5 @@ export default async function LessonsLayout({ children }: { children: ReactNode 
     redirect('/login');
   }
 
-  return <LessonsProvider>{children}</LessonsProvider>;
+  return <TrpcQueryProvider>{children}</TrpcQueryProvider>;
 }

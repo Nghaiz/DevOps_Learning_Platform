@@ -7,7 +7,12 @@ import { httpBatchLink } from '@trpc/client';
 import type { AppRouter } from '../server/trpc/routers/app-router';
 
 /**
- * Client tRPC + cache cho trụ cột bài học (P2 / 2.D).
+ * Client tRPC + cache — ban đầu cho trụ cột bài học (P2 / 2.D), P8 dùng LẠI
+ * nguyên vẹn cho `/labs` và `/playgrounds` (cùng lý lẽ: danh sách có cursor,
+ * `getAttempt` cần cache dùng chung với thẻ trạng thái, mutation cần
+ * `invalidate` thay vì tự truyền hàm refetch xuống ba tầng component). Tên
+ * `LessonsProvider` cũ đã đổi thành `TrpcQueryProvider` vì nó không còn riêng
+ * cho lessons — hành vi bên trong KHÔNG đổi.
  *
  * ## Vì sao ở đây CÓ TanStack Query trong khi `/session` thì KHÔNG
  *
@@ -37,7 +42,7 @@ import type { AppRouter } from '../server/trpc/routers/app-router';
  */
 export const api = createTRPCReact<AppRouter>();
 
-export function LessonsProvider({ children }: { children: ReactNode }) {
+export function TrpcQueryProvider({ children }: { children: ReactNode }) {
   // `useState(() => …)` chứ không phải hằng ở module scope: một QueryClient dùng
   // chung giữa các request trên server sẽ rò cache của người dùng này sang người
   // dùng khác. Đây là lỗi bảo mật, không phải lỗi hiệu năng — và nó không lộ ra
