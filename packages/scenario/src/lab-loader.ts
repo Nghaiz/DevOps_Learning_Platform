@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { labSchema, type Lab, type LabTask } from '@devops-platform/shared-types/lab';
 import { mapBackendImage, KNOWN_BACKEND_IMAGE_IDS } from './backend.ts';
 import { labFileSchema, type LabFile, type LabTaskFile } from './lab.ts';
