@@ -517,7 +517,7 @@ describe('labs.leaderboard', () => {
     const labId = uniqueId('lb-basic');
     makeLab({ id: labId, leaderboard: true, passThresholdPercent: 50 });
     const anon = await submitWith(labId, { taskA: 0, taskB: 0 }, false, 'lb-anon');
-    const named = await submitWith(labId, { taskA: 0, taskB: 0 }, true, 'lb-named');
+    await submitWith(labId, { taskA: 0, taskB: 0 }, true, 'lb-named');
 
     // Một lần thử KHÔNG nộp — không được xuất hiện.
     const c3 = await caller(await makeUser('lb-unsubmitted'));
