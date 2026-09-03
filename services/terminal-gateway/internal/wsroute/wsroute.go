@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/drain"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionauth"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"github.com/coder/websocket"
 	"golang.org/x/time/rate"
@@ -37,7 +37,9 @@ const Subprotocol = "dlp.terminal.v1"
 
 // CookieName mang sandbox token. Contract §2 + luật 8: token CHỈ tới từ đây —
 // không query string, không header tự chế.
-const CookieName = "dlp_sandbox"
+// CookieName giữ lại làm alias để test và caller cũ không phải sửa; SSOT là
+// sessionauth.
+const CookieName = sessionauth.CookieName
 
 // Mã lỗi trả trong body của các bước kiểm. FE switch trên `code`; `message` là
 // tiếng Việt cho người đọc (contract §5).
@@ -181,9 +183,8 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	// suất: trình duyệt LUÔN gửi Origin và không tắt được từ JS, nên CSWSH vẫn
 	// đóng kín; còn fail-closed ở đây chặn wscat/websocat/probe vận hành/test
 	// e2e, tức chặn chính bộ acceptance IDOR của phase-1.
-	if origin := r.Header.Get("Origin"); origin != "" && !h.originAllowed(origin) {
-		h.deny(w, r, http.StatusForbidden, codeOriginNotAllowed,
-			"origin không nằm trong allowlist", "origin", origin)
+	if d := h.chain().CheckOrigin(r); d != nil {
+		h.denyOf(w, r, d)
 		return
 	}
 
@@ -195,70 +196,22 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ---- c. Cookie ------------------------------------------------------
-	cookie, err := r.Cookie(CookieName)
-	if err != nil || cookie.Value == "" {
-		h.deny(w, r, http.StatusUnauthorized, codeUnauthenticated,
-			"thiếu cookie "+CookieName)
-		return
-	}
-
-	// ---- d. Token hợp lệ ------------------------------------------------
-	claims, err := h.deps.Verifier.Verify(ctx, cookie.Value)
-	if err != nil {
-		// Lý do chi tiết CHỈ vào log. Body trả về đúng một mã cho mọi kiểu hỏng
-		// (chữ ký, aud, exp, iss): tách chúng ra là chỉ cho người đang dò biết
-		// họ sai ở đâu.
-		h.deny(w, r, http.StatusUnauthorized, codeUnauthenticated,
-			"token không hợp lệ", "reason", err.Error())
-		return
-	}
-
-	// ---- e. token.sid == {id} -------------------------------------------
+	// ---- c–h. chuỗi dùng chung ------------------------------------------
 	//
-	// Chạy TRƯỚC khi chạm Redis (contract §3b). Hệ quả có chủ ý: mọi `{id}` lạ
-	// chết ở đây với 403, KHÔNG phải 404 — nên "id không tồn tại" và "id của
-	// người khác" đi qua cùng một dòng code, cùng một mã, không còn kênh phụ
-	// thời gian nào để đếm. Đừng đảo thứ tự cho 404 dễ gặp hơn.
-	if err := rediskeys.ValidateID(sessionID); err != nil || sessionID != claims.SessionID {
-		h.deny(w, r, http.StatusForbidden, codeForbidden,
-			"token không cấp cho session này", "sub", claims.Subject)
+	// Bước b Ở TRÊN phải nằm GIỮA a và c, nên chuỗi được gọi làm hai vế thay vì
+	// một — thứ tự đó là contract, không phải tuỳ tiện. Bước i ở DƯỚI ở lại đây
+	// vì nó chiếm một khe và cái defer trả khe phải nhìn thấy được (xem
+	// sessionauth doc).
+	res, denial, err := h.chain().CheckSession(ctx, r, sessionID)
+	if denial != nil {
+		h.denyOf(w, r, denial)
 		return
 	}
-
-	// ---- f. session:{id} tồn tại ----------------------------------------
-	sess, err := h.deps.Sessions.Get(ctx, sessionID)
-	switch {
-	case errors.Is(err, sessionstore.ErrNotFound):
-		// Ca DUY NHẤT chạm được 404: sid khớp mà key đã mất — "session của
-		// CHÍNH BẠN đã biến mất" (reap / TTL hết / Redis mất dữ liệu).
-		h.deny(w, r, http.StatusNotFound, codeSessionNotFound,
-			"phiên không còn tồn tại", "sub", claims.Subject)
-		return
-	case err != nil:
+	if err != nil {
 		h.fail(w, r, "đọc session từ Redis", err)
 		return
 	}
-
-	// ---- g. hash.userId == token.sub ------------------------------------
-	//
-	// Vế thứ hai của luật 10. BFF thật không bao giờ mint được token vi phạm nó
-	// (nó chỉ mint sid của session vừa tạo cho chính user đó), nên bước này chỉ
-	// đỏ khi (1) ai đó forge token, hoặc (2) Redis bị ghi đè. Cả hai đều là ca
-	// phải chặn, và cả hai đều KHÔNG tái hiện được bằng một client hợp lệ — nên
-	// test của nó bắt buộc phải forge (G13 vế g).
-	if sess.UserID != claims.Subject {
-		h.deny(w, r, http.StatusForbidden, codeForbidden,
-			"session không thuộc về chủ token", "sub", claims.Subject)
-		return
-	}
-
-	// ---- h. status ∈ {CLAIMED, RUNNING} ---------------------------------
-	if !sess.Active() {
-		h.deny(w, r, http.StatusConflict, codeSessionInactive,
-			"phiên không ở trạng thái chạy được", "status", sess.Status)
-		return
-	}
+	claims, sess := res.Claims, res.Session
 
 	// ---- i. trần WS đồng thời (D17 = 1) ---------------------------------
 	release, err := h.deps.Sessions.AcquireWS(ctx, sessionID, h.deps.MaxWSPerSession, sess.ExpiresAt, h.deps.WSLease)
@@ -424,6 +377,21 @@ func (h *handler) batDauGiaHanLease(ctx context.Context, sessionID string, expir
 // Không so prefix, không so suffix, không parse rồi so host: `https://app.example.com`
 // và `https://app.example.com.evil.tld` chỉ khác nhau ở phần đuôi, và mọi phép
 // so "gần đúng" đều có một biến thể cho attacker. Danh sách là danh sách.
+// chain dựng chuỗi authz dùng chung từ Deps của route này.
+func (h *handler) chain() sessionauth.Deps {
+	return sessionauth.Deps{
+		Verifier:       h.deps.Verifier,
+		Sessions:       h.deps.Sessions,
+		AllowedOrigins: h.deps.AllowedOrigins,
+	}
+}
+
+// denyOf dịch một Denial của chuỗi sang deny của route này — metric series là
+// của route, quyết định là của chuỗi.
+func (h *handler) denyOf(w http.ResponseWriter, r *http.Request, d *sessionauth.Denial) {
+	h.deny(w, r, d.Status, d.Code, d.Message, d.LogAttrs...)
+}
+
 func (h *handler) originAllowed(origin string) bool {
 	for _, allowed := range h.deps.AllowedOrigins {
 		if origin == allowed {

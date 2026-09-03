@@ -26,10 +26,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionauth"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"golang.org/x/time/rate"
 )
@@ -41,7 +41,8 @@ import (
 // `/exec/...`. Người gọi hợp lệ DUY NHẤT là BFF, và BFF tự mint token
 // server-side rồi đặt header `Cookie` khi gọi. Không phải sơ suất — đó chính là
 // điều làm endpoint này không phơi ra trình duyệt.
-const CookieName = "dlp_sandbox"
+// CookieName giữ lại làm alias; SSOT là sessionauth.
+const CookieName = sessionauth.CookieName
 
 // Mã lỗi — dùng LẠI đúng từ vựng của wsroute để FE chỉ phải học một bảng mã.
 const (
@@ -156,69 +157,38 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	// nó sẽ không nằm trong allowlist. (Cookie `Path=/ws` đã chặn ca đó một
 	// tầng trước, nhưng hai hàng rào rẻ hơn một hàng rào phụ thuộc thuộc tính
 	// cookie mà người khác có thể sửa.)
-	if origin := r.Header.Get("Origin"); origin != "" && !h.originAllowed(origin) {
-		h.deny(w, r, http.StatusForbidden, codeOriginNotAllowed,
-			"origin không nằm trong allowlist", "origin", origin)
+	if d := h.chain().CheckOrigin(r); d != nil {
+		h.denyOf(w, r, d)
 		return
 	}
 
-	// ---- c. Cookie ------------------------------------------------------
-	cookie, err := r.Cookie(CookieName)
-	if err != nil || cookie.Value == "" {
-		h.deny(w, r, http.StatusUnauthorized, codeUnauthenticated, "thiếu cookie "+CookieName)
-		return
-	}
-
-	// ---- d. Token hợp lệ ------------------------------------------------
-	claims, err := h.deps.Verifier.Verify(ctx, cookie.Value)
-	if err != nil {
-		h.deny(w, r, http.StatusUnauthorized, codeUnauthenticated,
-			"token không hợp lệ", "reason", err.Error())
-		return
-	}
-
-	// ---- e. token.sid == {id} -------------------------------------------
+	// ---- c–h. chuỗi dùng chung ------------------------------------------
 	//
-	// Trước khi chạm Redis, cùng lý lẽ §3b: "id không tồn tại" và "id của người
-	// khác" đi qua cùng một dòng, cùng một mã.
-	if err := rediskeys.ValidateID(sessionID); err != nil || sessionID != claims.SessionID {
-		h.deny(w, r, http.StatusForbidden, codeForbidden,
-			"token không cấp cho session này", "sub", claims.Subject)
+	// Trước 6.C khối này là một BẢN CHÉP TAY của wsroute — cùng thứ tự, cùng mã,
+	// hai bản trôi độc lập. Giờ chỉ còn một bản, trong `sessionauth`.
+	res, denial, err := h.chain().CheckSession(ctx, r, sessionID)
+	if denial != nil {
+		h.denyOf(w, r, denial)
 		return
 	}
+	if err != nil {
+		h.fail(w, r, codeInternal, "đọc session từ Redis", err)
+		return
+	}
+	sess := res.Session
 
 	// ---- thân request ----------------------------------------------------
 	//
 	// Đọc SAU authz, không trước: một body 64 KiB từ người chưa chứng minh được
 	// danh tính không đáng để gateway đọc.
+	//
+	// 6.C dời chỗ đọc từ GIỮA bước e và f ra SAU trọn chuỗi c–h, vì chuỗi giờ là
+	// một khối không chia được. Chặt hơn bản cũ chứ không lỏng hơn: body chỉ được
+	// đọc khi đã qua ĐỦ authz. Hệ quả nhìn thấy được: một request vừa sai body
+	// vừa trỏ vào phiên đã chết nay trả mã của PHIÊN chứ không phải BAD_REQUEST —
+	// đúng thứ tự ưu tiên, vì "phiên của bạn đã hết" là thứ người dùng cần biết.
 	script, ok := h.readScript(w, r)
 	if !ok {
-		return
-	}
-
-	// ---- f. session:{id} tồn tại ----------------------------------------
-	sess, err := h.deps.Sessions.Get(ctx, sessionID)
-	switch {
-	case errors.Is(err, sessionstore.ErrNotFound):
-		h.deny(w, r, http.StatusNotFound, codeSessionNotFound,
-			"phiên không còn tồn tại", "sub", claims.Subject)
-		return
-	case err != nil:
-		h.fail(w, r, codeInternal, "đọc session từ Redis", err)
-		return
-	}
-
-	// ---- g. hash.userId == token.sub ------------------------------------
-	if sess.UserID != claims.Subject {
-		h.deny(w, r, http.StatusForbidden, codeForbidden,
-			"session không thuộc về chủ token", "sub", claims.Subject)
-		return
-	}
-
-	// ---- h. status ∈ {CLAIMED, RUNNING} ---------------------------------
-	if !sess.Active() {
-		h.deny(w, r, http.StatusConflict, codeSessionInactive,
-			"phiên không ở trạng thái chạy được", "status", sess.Status)
 		return
 	}
 
@@ -311,6 +281,20 @@ func (h *handler) readScript(w http.ResponseWriter, r *http.Request) (string, bo
 		return "", false
 	}
 	return req.Script, true
+}
+
+// chain dựng chuỗi authz dùng chung từ Deps của route này.
+func (h *handler) chain() sessionauth.Deps {
+	return sessionauth.Deps{
+		Verifier:       h.deps.Verifier,
+		Sessions:       h.deps.Sessions,
+		AllowedOrigins: h.deps.AllowedOrigins,
+	}
+}
+
+// denyOf dịch Denial của chuỗi sang deny của route này.
+func (h *handler) denyOf(w http.ResponseWriter, r *http.Request, d *sessionauth.Denial) {
+	h.deny(w, r, d.Status, d.Code, d.Message, d.LogAttrs...)
 }
 
 func (h *handler) originAllowed(origin string) bool {
