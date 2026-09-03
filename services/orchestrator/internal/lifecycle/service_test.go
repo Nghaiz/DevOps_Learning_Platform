@@ -167,12 +167,6 @@ func (f *fakePool) counts() (provisions, triggers int) {
 	return f.provisions, f.triggers
 }
 
-func (f *fakePool) profileCounts() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.profileProvisions
-}
-
 type harness struct {
 	svc  *Service
 	rdb  *redis.Client
