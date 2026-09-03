@@ -56,6 +56,15 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 13. IDE nhúng bằng `<iframe>` trỏ route 6.C. CSP hiện tại phải được nới **đúng một origin** — và nới CSP là việc phải chạy lại đối chứng của 3.E (xem `zero-violation-needs-negative-control`).
 14. Trạng thái "IDE đang khởi động" phải hiện ra. Một iframe trắng trong 20s đọc y hệt một trang hỏng.
 
+> ⚠ **Số mới cần 6.E đối chiếu (đo 2026-09-04, pod `ide-verify`):** workingSet ở
+> cgroup trên host = **428Mi** sau đúng MỘT lượt `curl` loopback. 6.A đo bản
+> tự-build ở trạng thái "chưa có client" là **253Mi**. Chênh 175Mi, và có ít nhất
+> hai cách giải thích chưa phân định được: (a) một lượt HTTP đã đủ dựng state
+> backend nên đây KHÔNG phải "chưa có client"; (b) image upstream khác bản
+> tự-build. **Đừng dùng 428Mi để tính trần** cho tới khi 6.E đo bằng đúng harness
+> của 6.A (Playwright qua port-forward), vì `curl` chỉ chứng minh "đang nghe"
+> chứ không chứng minh "đang phục vụ" — đúng bẫy `curl-probe-measures-listening-not-usage`.
+
 ### 6.E — Trần đồng thời sau khi có IDE
 
 15. Đo lại `requests`/`limits` cho biến thể có IDE: pod sandbox hiện dùng workingSet đỉnh **163Mi** (bài Docker); IDE cộng thêm bao nhiêu là con số của 6.A.
@@ -75,9 +84,9 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 ## Acceptance criteria
 
 - [x] `docs/ide-choice.md` có bảng số của **cả hai** ứng viên + đối chứng pod-không-IDE, và điều kiện đảo quyết định. → chốt **Theia**; [report 6.A](reports/2026-09-03-verify-6a-ide-measure.md)
-- [ ] `INCLUDE_IDE=0` mặc định; image không IDE **không tăng kích thước** (so byte với tag trước).
+- [x] `INCLUDE_IDE=0` mặc định; image không IDE **không tăng kích thước**. → đối chứng dựng Dockerfile TRƯỚC khi sửa trên cùng máy/cùng cache: RootFS layer **giống hệt từng cái**. IDE=1 = 2.19GB (+1.38GB, khớp +1.37GB của 6.A).
 - [ ] Mở bài `layout: ide` ⇒ sửa file trong editor, `cat` trong terminal thấy nội dung mới (**cùng filesystem**, không phải hai bản sao).
-- [ ] IDE **không** nghe `0.0.0.0` trong pod (`/proc/net/tcp` chứng minh — image không có `ss`/`netstat`, xem Verify commands).
+- [x] IDE **không** nghe `0.0.0.0` trong pod. → pod Sysbox `ide-verify` trên cụm: đúng MỘT socket LISTEN `0100007F:0FA0` (127.0.0.1:4000); đối chứng âm: `curl` qua podIP exit 7 (refused); đối chứng dương: loopback 200.
 - [ ] Truy cập route IDE của phiên NGƯỜI KHÁC ⇒ từ chối, cùng mã và cùng đường log như `/ws` (luật 1 + 10).
 - [ ] Không token nào trong URL/query của IDE (luật 8) — kiểm bằng log gateway + devtools network.
 - [ ] Mở IDE **không** chiếm khe WS của terminal: terminal vẫn attach được khi IDE đang mở.
