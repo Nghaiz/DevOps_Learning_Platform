@@ -7,6 +7,8 @@
 ## 0. Quyết định
 
 **Chọn Eclipse Theia (bản browser, `eclipse-theia/theia-ide` v1.74.100).**
+Lấy bằng image upstream ghim digest — `ghcr.io/eclipse-theia/theia-ide/theia-ide`,
+**không** build từ nguồn (xem §5).
 
 Nó **thua** code-server ở hai tiêu chí dễ nhìn nhất — kích thước image và
 "RAM lúc rảnh" theo nghĩa hẹp — và **thắng ở tiêu chí duy nhất quyết định trần
@@ -54,7 +56,7 @@ phồng vì nó gộp page cache.
 | base để so | 203.3 MiB tarball / 831 MB đĩa | — |
 | license sản phẩm | MIT (code-server) trên VS Code OSS (MIT) | MIT (`theia-ide`) trên framework Theia (**EPL-2.0**) |
 | marketplace mặc định | **Open VSX** (`open-vsx.org/vscode/gallery` trong `product.json`) | **Open VSX** (mọi URL trong `theiaPlugins` trỏ open-vsx.org) |
-| có bản dựng sẵn cho browser | có, tarball ghim được checksum | **KHÔNG** — phải tự build từ nguồn |
+| có bản dựng sẵn cho browser | có, tarball ghim được checksum | **CÓ** — `ghcr.io/eclipse-theia/theia-ide/theia-ide`, ghim được digest (xem §5) |
 
 ## 2. Vì sao chọn cái thua ở "RAM lúc rảnh"
 
@@ -128,35 +130,80 @@ Chọn lại code-server nếu **bất kỳ** điều nào dưới đây đượ
    định và tiêu chí 3 (kích thước, khởi động nhanh hơn 2.4×) thắng.
 2. **code-server nhả RAM khi client ngắt** ở bản mới, đưa mức thường trực sau vài
    lượt tải lại xuống **dưới 500Mi**. Đo lại bằng đúng harness này.
-3. **Chi phí build Theia thành vật cản thật**: build từ nguồn hết >20 phút trong
-   CI, hoặc không ghim lại được thành một artifact bất biến. Xem §5.
+3. **Đường lấy image upstream mất hiệu lực**: upstream ngừng publish và bản đã
+   ghim digest không còn pull được, buộc phải quay lại build từ nguồn — và build
+   đó hết >20 phút trong CI. Xem §5. (Điều kiện này **không** áp dụng ở nhịp hiện
+   tại: đã có image ghim digest, 0 phút build.)
 4. Theia bỏ Open VSX hoặc đổi sang một marketplace có điều khoản hạn chế.
 
 Nếu chênh lệch RAM ở trạng thái quyết định rơi xuống **dưới 50Mi**, chọn theo
 **license và chi phí vận hành** — lúc đó code-server thắng, vì nó là một `curl` +
 `sha256sum -c` thay vì một lượt build.
 
-## 5. Món nợ mà lựa chọn này mang theo
+## 5. Đường lấy Theia — và đính chính lỗi của lượt đo 6.A
 
-**Theia không còn bản dựng sẵn nào cho trình duyệt** (kiểm 2026-09-03):
+⚠ **ĐÍNH CHÍNH (2026-09-04).** Bản trước của mục này viết *"Theia không còn bản
+dựng sẵn nào cho trình duyệt"*. Kết luận đó **SAI**, và sai vì **gõ thiếu một đoạn
+path**, không phải vì upstream ngừng publish:
 
-- `theiaide/theia` trên Docker Hub → **404** (repo đã bị xoá).
-- `ghcr.io/eclipse-theia/theia-ide` → **404** với token ẩn danh.
-- Release của `eclipse-theia/theia-ide` chỉ có artifact **Electron** cho desktop.
+```
+ghcr.io/eclipse-theia/theia-ide/theia-ide   HTTP 200  ← đường ĐÚNG (org/repo/package)
+ghcr.io/eclipse-theia/theia-ide             HTTP 403  ← đường 6.A đã kiểm
+```
 
-Nên 6.B **không** dùng được khuôn `curl + sha256sum -c` mà `fastfetch`/`oh-my-posh`/
-`pwsh` đang dùng. Đường duy nhất là build từ nguồn theo `browser.Dockerfile` của
-chính repo đó (đo được: bước build 356.5s, tổng ~8 phút kể cả pull base và export; tải 97 plugin từ Open VSX).
+403 của GHCR không phân biệt "không có quyền" với "không có đường này"; đọc nó
+thành "không tồn tại" là suy diễn. Đối chứng dương: cùng phương thức ẩn danh,
+`ghcr.io/coder/code-server` cấp token bình thường — nên 403 kia là *sai đường*.
+Bài học đã ghi vào memory: `ghcr-package-path-has-two-segments`.
 
-Hệ quả phải xử ở 6.B:
+Phần **số đo** của 6.A không bị ảnh hưởng — nó đo bản build-từ-nguồn của **cùng
+version 1.74.100** mà image upstream đang mang.
 
-- **Ghim gì?** Ghim tag nguồn (`v1.74.100`) chứ không ghim digest artifact — không
-  có artifact nào để ghim. Đây là một mức bảo đảm **yếu hơn** hai đường còn lại
-  trong image, và phải ghi rõ như vậy thay vì để nó trông giống nhau.
-- **Build ở đâu?** Build trong CI rồi publish một image trung gian, hoặc build
-  tay rồi side-load. Không có đường thứ ba.
-- **`yarn --pure-lockfile` + `download:plugins` cần mạng** lúc build; hai lần build
-  cách nhau vài tháng có thể ra hai cây phụ thuộc khác nhau nếu upstream đổi.
+### Image dùng cho 6.B
+
+| | |
+|---|---|
+| Đường | `ghcr.io/eclipse-theia/theia-ide/theia-ide` |
+| Tag | `1.74.100` (= `latest`), publish 2026-08-11 |
+| Digest index | `sha256:595d34047d91223b5d55fd5b611bb10981154c4b28de9271b2578f996f323751` |
+| Nền tảng | `linux/amd64` + `linux/arm64` (OCI image index) |
+| Entrypoint | `node .../applications/browser/lib/backend/main.js` — **browser mode**, không phải Electron |
+| Pull ẩn danh | được (kiểm 2026-09-04) |
+
+**Cách dùng ở 6.B:** `FROM <image>@sha256:595d34… AS theia`, rồi `COPY /home/theia`
+sang `sandbox-base` — đúng khuôn mà harness `Dockerfile.theia` đã viết. Không có
+bước build nào. JDK/Maven/sshd mà image upstream mang theo **không** rơi vào image
+mình, vì chỉ `/home/theia` được chép.
+
+⛔ **Chưa chứng minh:** chưa pull image này về cụm. "Manifest trả 200" chưa bằng
+"chạy được sau side-load", và bố cục `/home/theia` của bản upstream chưa được đối
+chiếu với bản 6.A tự build. Đó là việc **đầu tiên** của 6.B.
+
+### Rủi ro còn lại, và cách bịt
+
+Workflow publish của upstream là `on: workflow_dispatch` — **chạy tay**. Hệ quả:
+image chậm hơn framework một nhịp minor (image 1.74.100 so với framework v1.75.0
+ngày 2026-08-27), và không ai cam kết bản sau được publish đúng hẹn.
+
+Bịt bằng **ghim digest**: bản đã kiểm chạy y nguyên dù upstream ngừng publish.
+Đường lùi nếu digest đó biến mất khỏi registry: build từ nguồn theo
+`browser.Dockerfile` — đã chạy được ở 6.A (bước build 356.5s, tổng ~8 phút, tải 97
+plugin từ Open VSX). Đó là đường **dự phòng**, không phải đường mặc định nữa.
+
+### Phạm vi custom (chốt 2026-09-04)
+
+Chủ dự án chốt **không custom gì ở giai đoạn này** — dùng Theia mặc định, ưu tiên
+ra sản phẩm sớm. Mọi tuỳ biến bản dựng (bố cục shell, gỡ menu, widget riêng,
+branding) **hoãn tới khi được yêu cầu**.
+
+Lý do việc đó là một cái cửa chứ không phải một nút bấm: tài liệu Theia ghi *"A
+Theia app is composed of so-called Theia extensions. Each extension resides in its
+own npm package"* — nên bốn mức tuỳ biến trên là **npm package biên dịch vào bản
+dựng**, không thả được vào `/home/theia` lúc chạy. Ngày mở lại nhịp đó là ngày
+quay về build từ nguồn, và ngày bắt đầu tự gánh việc theo kịp release upstream.
+
+Cấu hình **theo từng bài** (settings, danh sách extension, file mở sẵn) thì khác —
+đó là cấu hình cấp pod lúc chạy, không đụng bản dựng, và làm được bất cứ lúc nào.
 
 ## 6. Phát hiện phụ, ảnh hưởng thẳng tới AC của 6.C
 

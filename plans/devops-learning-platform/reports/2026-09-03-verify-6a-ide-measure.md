@@ -4,6 +4,25 @@
 **Harness:** [`harness/2026-09-03-6a-ide-measure/`](harness/2026-09-03-6a-ide-measure/)
 **SSOT quyết định:** [`docs/ide-choice.md`](../../../docs/ide-choice.md)
 
+> ## ⚠ Đính chính 2026-09-04 — §6 sai
+>
+> Mục 6 ("Món nợ") kết luận **"Theia không còn bản dựng sẵn nào cho browser"**.
+> Sai. Package trên GHCR có đường **ba đoạn** (`org/repo/package`); lượt kiểm 6.A
+> chỉ thử hai đoạn và đọc 403 thành "không tồn tại":
+>
+> ```
+> ghcr.io/eclipse-theia/theia-ide/theia-ide   HTTP 200  ← đúng
+> ghcr.io/eclipse-theia/theia-ide             HTTP 403  ← đã kiểm ở 6.A
+> ```
+>
+> **Phần số đo không bị ảnh hưởng** — bản build-từ-nguồn mà 6.A đo là **cùng
+> version 1.74.100** với image upstream. Chỉ kết luận về *đường lấy image* là sai,
+> và nó đã lan sang `docs/ide-choice.md` §5 + điều kiện đảo #3 (đã sửa cả hai).
+>
+> Chốt mới: 6.B dùng image upstream ghim digest, **không build từ nguồn**. Chi
+> tiết + rủi ro còn lại: [`docs/ide-choice.md` §5](../../../docs/ide-choice.md).
+> Rà soát đầy đủ: [`2026-09-04-ide-choice-recheck.md`](../../reports/2026-09-04-ide-choice-recheck.md).
+
 ## 0. Kết luận một dòng
 
 **Chọn Theia** — nó thua code-server ở kích thước image và ở "RAM lúc rảnh" theo
@@ -96,7 +115,7 @@ kubectl exec $POD -- ss -ltn | grep -v 127.0.0.1
 nào trên `0.0.0.0`; pod đối chứng không có socket LISTEN nào — đối chứng âm cho
 chính phép kiểm ấy.
 
-## 6. Món nợ mà lựa chọn này mang theo
+## 6. Món nợ mà lựa chọn này mang theo — ⚠ ĐÃ ĐÍNH CHÍNH, xem đầu file
 
 Theia **không còn bản dựng sẵn nào cho browser** (kiểm 2026-09-03: `theiaide/theia`
 404, `ghcr.io/eclipse-theia/theia-ide` 404, release chỉ có Electron). 6.B do đó

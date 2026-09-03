@@ -33,7 +33,12 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 ### 6.B — Image: IDE là layer opt-in
 
 4. `INCLUDE_IDE` (mặc định **0**), cùng khuôn với `INCLUDE_DOCKER`/`INCLUDE_PWSH` đã có. Bài không cần IDE **không** trả tiền cho nó.
-5. Binary ghim version + `sha256sum -c` như mọi thứ khác trong image này (fastfetch/oh-my-posh/pwsh đều theo khuôn đó — đừng phá khuôn).
+5. **Nguồn Theia: image upstream ghim DIGEST, không build từ nguồn** (chốt 2026-09-04 sau đính chính 6.A — `docs/ide-choice.md` §5):
+   `FROM ghcr.io/eclipse-theia/theia-ide/theia-ide@sha256:595d34047d91223b5d55fd5b611bb10981154c4b28de9271b2578f996f323751 AS theia`
+   rồi `COPY --from=theia /home/theia /opt/theia` — đúng khuôn `harness/2026-09-03-6a-ide-measure/Dockerfile.theia` đã chạy được.
+   Ghim digest thay cho `sha256sum -c`; đó là **cùng một mức bảo đảm**, chỉ khác cơ chế, nên khuôn của fastfetch/oh-my-posh/pwsh không bị phá.
+   Giữ `ARG THEIA_IMAGE` (harness đã có) làm cửa lùi sang build-từ-nguồn nếu digest biến mất khỏi registry.
+   ⛔ **Việc ĐẦU TIÊN của 6.B:** pull image đó, side-load, chạy thử trong pod Sysbox — "manifest trả 200" chưa bằng "chạy được", và bố cục `/home/theia` bản upstream chưa đối chiếu với bản 6.A tự build.
 6. Extension: chỉ Open VSX, danh sách ngắn và ghim version. **Không** marketplace của Microsoft (điều khoản không cho phép ngoài sản phẩm MS).
 7. Cổng CI: nếu `INCLUDE_IDE=1` thì smoke "binary tồn tại + PID 1 sống + HTTP trả 200 sau ≤ Ns" — cùng khuôn E6–E9 đã có.
 
@@ -47,6 +52,7 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 ### 6.D — FE: layout `ide`
 
 12. `interfaceLayout === 'ide'` ⇒ bố cục 3 vùng (nội dung | editor | terminal), kéo giãn được, nhớ tỉ lệ trong `localStorage`. Bài không có cờ ⇒ giữ nguyên split-pane 2 vùng của 2.D.
+    ⛔ **Không custom bản dựng Theia** (chốt 2026-09-04): IDE là editor mặc định trong `<iframe>`. Mọi UI của nền tảng — nút chấm bài, tiến độ, điều hướng bước — nằm ở pane NGOÀI iframe. Bố cục shell / gỡ menu / widget riêng / branding đều là Theia extension **biên dịch vào bản dựng**, hoãn tới khi chủ dự án yêu cầu.
 13. IDE nhúng bằng `<iframe>` trỏ route 6.C. CSP hiện tại phải được nới **đúng một origin** — và nới CSP là việc phải chạy lại đối chứng của 3.E (xem `zero-violation-needs-negative-control`).
 14. Trạng thái "IDE đang khởi động" phải hiện ra. Một iframe trắng trong 20s đọc y hệt một trang hỏng.
 
@@ -71,7 +77,7 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 - [x] `docs/ide-choice.md` có bảng số của **cả hai** ứng viên + đối chứng pod-không-IDE, và điều kiện đảo quyết định. → chốt **Theia**; [report 6.A](reports/2026-09-03-verify-6a-ide-measure.md)
 - [ ] `INCLUDE_IDE=0` mặc định; image không IDE **không tăng kích thước** (so byte với tag trước).
 - [ ] Mở bài `layout: ide` ⇒ sửa file trong editor, `cat` trong terminal thấy nội dung mới (**cùng filesystem**, không phải hai bản sao).
-- [ ] IDE **không** nghe `0.0.0.0` trong pod (`ss -ltn` trong pod chứng minh).
+- [ ] IDE **không** nghe `0.0.0.0` trong pod (`/proc/net/tcp` chứng minh — image không có `ss`/`netstat`, xem Verify commands).
 - [ ] Truy cập route IDE của phiên NGƯỜI KHÁC ⇒ từ chối, cùng mã và cùng đường log như `/ws` (luật 1 + 10).
 - [ ] Không token nào trong URL/query của IDE (luật 8) — kiểm bằng log gateway + devtools network.
 - [ ] Mở IDE **không** chiếm khe WS của terminal: terminal vẫn attach được khi IDE đang mở.
@@ -83,11 +89,11 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 ```bash
 # IDE chỉ nghe loopback trong pod — dòng nào lọt qua grep là một cổng mở ra ngoài.
 #
-# ⚠ SỬA sau 6.A: sandbox-base KHÔNG có `ss` lẫn `netstat` (đo 2026-09-03), nên
-# lệnh dưới đỏ vì THIẾU BINARY chứ không vì có cổng mở — đỏ trên một hệ lành.
-# Hoặc thêm `iproute2` vào image ở 6.B, hoặc đọc /proc/net/tcp (0100007F =
-# 127.0.0.1, 00000000 = 0.0.0.0) như harness `listen.sh` đang làm.
-kubectl exec $POD -- ss -ltn | grep -v 127.0.0.1
+# ⚠ CHỐT 2026-09-04: sandbox-base KHÔNG có `ss` lẫn `netstat` (đo 2026-09-03), nên
+# `ss -ltn` đỏ vì THIẾU BINARY chứ không vì có cổng mở — đỏ trên một hệ lành.
+# Dùng /proc/net/tcp (0100007F = 127.0.0.1, 00000000 = 0.0.0.0), như harness
+# `listen.sh` đã chạy được. KHÔNG thêm iproute2 chỉ để phục vụ một lệnh verify.
+kubectl exec $POD -- sh -c 'cat /proc/net/tcp /proc/net/tcp6'   | awk '$4=="0A"{print $2}' | grep -v '^0100007F:' | grep -v '^00000000000000000000000001000000:'
 
 # Route IDE của phiên NGƯỜI KHÁC phải bị từ chối (luật 1)
 curl -s -o /dev/null -w '%{http_code}\n' https://$HOST/ide/session/$OTHER_SESSION/   # 403/404
