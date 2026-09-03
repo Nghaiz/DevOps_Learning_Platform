@@ -49,7 +49,18 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 10. WebSocket của IDE đi cùng đường (IDE dùng WS cho nhiều thứ). Trần `GATEWAY_MAX_WS_PER_SESSION` hiện là 1 cho terminal — IDE **không được** ăn vào khe đó; tách trần riêng, ghi rõ vì sao trong code.
 11. Cắt cỡ và rate-limit: IDE tải file lớn hơn terminal vài bậc. Đặt trần riêng, đo trước khi đặt.
 
-### 6.D — FE: layout `ide`
+### 6.D — FE: layout `ide` — ⏸ HOÃN SANG P13 (chốt 2026-09-04)
+
+> Chủ dự án chốt: bỏ qua 6.D, đi tiếp backend. Lý do: plan của P13 ghi thẳng
+> **"FE hiện tại là giàn giáo của kỹ sư backend… không đủ để ai đó ngồi học ba
+> tiếng"** và P13 dựng lại toàn bộ — nên một layout 3 vùng viết bây giờ là viết
+> để bị đè. P13 task 12 đã có sẵn ô "thêm layout `ide` của P6".
+>
+> ⚠ **Giá phải trả, ghi rõ:** ô AC *"sửa file trong editor, `cat` trong terminal
+> thấy nội dung mới"* KHÔNG đóng được cho tới P13, vì vế "editor CÓ thấy file
+> này" là bước THỦ CÔNG cần mở IDE bằng trình duyệt. Đường ghi đã chứng minh
+> (exec ghi `$HOME/a.txt`, đọc lại được); vế đọc-bằng-mắt thì chưa. Đừng đọc P6
+> là "đã đóng" khi chưa có ai nhìn thấy editor.
 
 12. `interfaceLayout === 'ide'` ⇒ bố cục 3 vùng (nội dung | editor | terminal), kéo giãn được, nhớ tỉ lệ trong `localStorage`. Bài không có cờ ⇒ giữ nguyên split-pane 2 vùng của 2.D.
     ⛔ **Không custom bản dựng Theia** (chốt 2026-09-04): IDE là editor mặc định trong `<iframe>`. Mọi UI của nền tảng — nút chấm bài, tiến độ, điều hướng bước — nằm ở pane NGOÀI iframe. Bố cục shell / gỡ menu / widget riêng / branding đều là Theia extension **biên dịch vào bản dựng**, hoãn tới khi chủ dự án yêu cầu.
@@ -85,14 +96,14 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 
 - [x] `docs/ide-choice.md` có bảng số của **cả hai** ứng viên + đối chứng pod-không-IDE, và điều kiện đảo quyết định. → chốt **Theia**; [report 6.A](reports/2026-09-03-verify-6a-ide-measure.md)
 - [x] `INCLUDE_IDE=0` mặc định; image không IDE **không tăng kích thước**. → đối chứng dựng Dockerfile TRƯỚC khi sửa trên cùng máy/cùng cache: RootFS layer **giống hệt từng cái**. IDE=1 = 2.19GB (+1.38GB, khớp +1.37GB của 6.A).
-- [ ] Mở bài `layout: ide` ⇒ sửa file trong editor, `cat` trong terminal thấy nội dung mới (**cùng filesystem**, không phải hai bản sao).
+- [~] Cùng filesystem — chứng minh MỘT CHIỀU (2026-09-04): ghi `$HOME/lab/hello.txt` bằng `kubectl exec`, mở Theia bằng trình duyệt thật (Playwright) ⇒ Explorer hiện `/root/lab/hello.txt`, click vào thì tiêu đề đổi thành `hello.txt - root - Theia IDE`. **Chiều ngược lại — sửa TRONG editor rồi `cat` ở terminal — CHƯA làm**, và nó là chiều quan trọng hơn (nó chứng minh đường GHI của editor, không chỉ đường ĐỌC). Đóng nốt ở P13 khi có layout thật.
 - [ ] ~~IDE **không** nghe `0.0.0.0` trong pod~~ — **ĐẢO 2026-09-04**, ô này không còn đúng. Ghim loopback buộc mọi byte IDE đi qua `portforward` của apiserver (hai pod = hai netns), mà apiserver cụm này đã restart 41 lần. Chốt: IDE nghe podIP, gateway nối thẳng. Ô AC thay thế:
 - [ ] Chỉ pod **gateway** chạm được `sandbox:4000`; một pod sandbox KHÁC bị từ chối. → cần test có **đối chứng dương** (gateway nối được) và **đối chứng âm** (pod sandbox thứ hai timeout), vì "không nối được" cũng là thứ một NetworkPolicy hỏng tạo ra.
 - [ ] `sandbox-default-deny` phải được khẳng định là ĐANG enforce trước khi tin ô trên — nó từ nay là hạ tầng thiết yếu, không phải phòng thủ chiều sâu (`images/sandbox-base/entrypoint.sh` § start_theia ghi lý do).
 - [ ] Truy cập route IDE của phiên NGƯỜI KHÁC ⇒ từ chối, cùng mã và cùng đường log như `/ws` (luật 1 + 10).
 - [ ] Không token nào trong URL/query của IDE (luật 8) — kiểm bằng log gateway + devtools network.
 - [ ] Mở IDE **không** chiếm khe WS của terminal: terminal vẫn attach được khi IDE đang mở.
-- [ ] Trần đồng thời mới tính lại theo min-của-năm và ghi phép tính vào values.
+- [x] Trần đồng thời tính lại theo min-của-năm, phép tính ghi vào `values.yaml` → `sandbox.limitRange.ideProfile`. → **7 pod** (ước lượng cũ 10 sai 18%); [report 6.E](reports/2026-09-04-verify-6e-ide-ceiling.md). ⚠ `ideProfile` chưa được orchestrator đọc — là con số, chưa phải hành vi.
 - [ ] CSP nới đúng một origin; chạy lại đối chứng CSP của 3.E, 0 vi phạm mới.
 
 ## Verify commands
