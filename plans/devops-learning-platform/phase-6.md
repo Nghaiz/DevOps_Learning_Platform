@@ -68,7 +68,7 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 
 ## Acceptance criteria
 
-- [ ] `docs/ide-choice.md` có bảng số của **cả hai** ứng viên + đối chứng pod-không-IDE, và điều kiện đảo quyết định.
+- [x] `docs/ide-choice.md` có bảng số của **cả hai** ứng viên + đối chứng pod-không-IDE, và điều kiện đảo quyết định. → chốt **Theia**; [report 6.A](reports/2026-09-03-verify-6a-ide-measure.md)
 - [ ] `INCLUDE_IDE=0` mặc định; image không IDE **không tăng kích thước** (so byte với tag trước).
 - [ ] Mở bài `layout: ide` ⇒ sửa file trong editor, `cat` trong terminal thấy nội dung mới (**cùng filesystem**, không phải hai bản sao).
 - [ ] IDE **không** nghe `0.0.0.0` trong pod (`ss -ltn` trong pod chứng minh).
@@ -81,7 +81,12 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 ## Verify commands
 
 ```bash
-# IDE chỉ nghe loopback trong pod — dòng nào lọt qua grep là một cổng mở ra ngoài
+# IDE chỉ nghe loopback trong pod — dòng nào lọt qua grep là một cổng mở ra ngoài.
+#
+# ⚠ SỬA sau 6.A: sandbox-base KHÔNG có `ss` lẫn `netstat` (đo 2026-09-03), nên
+# lệnh dưới đỏ vì THIẾU BINARY chứ không vì có cổng mở — đỏ trên một hệ lành.
+# Hoặc thêm `iproute2` vào image ở 6.B, hoặc đọc /proc/net/tcp (0100007F =
+# 127.0.0.1, 00000000 = 0.0.0.0) như harness `listen.sh` đang làm.
 kubectl exec $POD -- ss -ltn | grep -v 127.0.0.1
 
 # Route IDE của phiên NGƯỜI KHÁC phải bị từ chối (luật 1)

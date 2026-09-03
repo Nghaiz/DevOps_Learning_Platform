@@ -1,0 +1,42 @@
+# 6.A — ứng viên 2: Eclipse Theia (bản browser), ĐO chứ chưa chốt.
+#
+# ⚠ Theia KHÔNG còn bản dựng sẵn nào cho trình duyệt (kiểm 2026-09-03):
+# `theiaide/theia` trên Docker Hub trả 404, `ghcr.io/eclipse-theia/theia-ide`
+# trả 404, và release của `eclipse-theia/theia-ide` chỉ có artifact Electron cho
+# desktop. Muốn đo nó thì phải tự build từ nguồn theo `browser.Dockerfile` của
+# chính repo đó — đó là stage `theia` ở dưới, và bản thân sự thật này là một
+# TIÊU CHÍ chứ không phải phiền toái: mỗi lần bump version là một lượt build
+# ~10 phút trên máy dev thay vì một dòng `curl` có checksum.
+#
+# Xếp lên CÙNG tag sandbox-base như ứng viên code-server, vì lý do y hệt: thứ
+# 6.A cần là PHẦN CỘNG THÊM, và cách duy nhất đọc được nó là giữ mọi thứ khác
+# giống pod đối chứng.
+#
+# ⛔ Stage `theia` phải được build TRƯỚC bằng tay (xem run.md), vì nó cần chính
+# repo eclipse-theia/theia-ide làm build context — không phải thư mục này.
+ARG BASE=ghcr.io/nghaiz/dlp-sandbox-base:sha-2b79fd3
+ARG THEIA_IMAGE=dlp-measure-theia:1.74.100
+FROM ${THEIA_IMAGE} AS theia
+FROM ${BASE}
+
+# `/home/theia` mang ứng dụng đã build + 97 plugin tải từ **Open VSX** (kiểm:
+# mọi URL trong `theiaPlugins` của package.json trỏ open-vsx.org — không có
+# marketplace của Microsoft, đúng ràng buộc 6.B task 6).
+COPY --from=theia /home/theia /opt/theia
+
+# node ĐI KÈM chứ không cài từ apt: image gốc của Theia là `node:24-bookworm-slim`,
+# nên `node` nằm ở base image ấy chứ không nằm trong /home/theia. Chép mỗi
+# /home/theia sang Ubuntu là được một cây JS không có gì chạy nó — và triệu
+# chứng ("exec: node: not found") xuất hiện lúc chạy pod, xa nhất có thể khỏi
+# dòng COPY đã thiếu.
+#
+# Binary link với glibc 2.36 (bookworm) chạy trên Ubuntu 24.04 (glibc 2.39):
+# glibc tương thích NGƯỢC theo chiều này. Chiều ngược lại thì không, nên đừng
+# đảo hai base.
+COPY --from=theia /usr/local/bin/node /opt/theia/node/bin/node
+
+ENV THEIA_DEFAULT_PLUGINS=local-dir:/opt/theia/plugins \
+    USE_LOCAL_GIT=true
+
+LABEL org.opencontainers.image.title="dlp-ide-measure-theia" \
+      org.opencontainers.image.description="6.A đo RAM/CPU/kích thước — Theia browser trên sandbox-base. KHÔNG dùng cho production."

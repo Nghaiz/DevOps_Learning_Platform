@@ -1,0 +1,35 @@
+# 6.A — ứng viên 1: code-server, ĐO chứ chưa chốt.
+#
+# Xếp NGAY TRÊN tag sandbox-base đang chạy trên cụm, không dựng lại từ ubuntu:
+# thứ 6.A cần biết là PHẦN IDE CỘNG THÊM bao nhiêu, và cách duy nhất đọc được
+# con số đó là giữ mọi thứ khác y hệt pod đối chứng — cùng base, cùng dockerd,
+# cùng entrypoint. Dựng lại từ đầu thì mỗi khác biệt nhỏ trong layer apt cũng
+# rơi vào cột "IDE tốn bao nhiêu".
+#
+# ⚠ Đây là image ĐO, không phải image sản phẩm. `INCLUDE_IDE` của 6.B sẽ sống
+# trong images/sandbox-base/Dockerfile sau khi có kết quả; đặt nó vào đây trước
+# là dựng khuôn quanh một ứng viên chưa thắng.
+ARG BASE=ghcr.io/nghaiz/dlp-sandbox-base:sha-2b79fd3
+FROM ${BASE}
+
+# Tarball standalone (đã gói sẵn node riêng), KHÔNG phải .deb: .deb kéo thêm một
+# cây phụ thuộc apt chỉ để đặt đúng những file này vào /usr/lib.
+#
+# ⚠ Release của code-server KHÔNG publish checksum nào (đã kiểm v4.135.0: 9 asset,
+# không có sum/sha/asc). Con số dưới đây là digest của đúng artifact đã tải và
+# kiểm ngày 2026-09-03 (235.209.481 byte) — cùng bản chất trust-on-first-use với
+# `fastfetch` ở image gốc, KHÔNG phải chữ ký nhà phát hành. Nâng version thì phải
+# tính lại bằng tay.
+ARG CODE_SERVER_VERSION=4.135.0
+ARG CODE_SERVER_SHA256=300ef4e37e469e6368a4673c6a623e1c9ba8a34f42b394fb49c431a8900bc7d1
+RUN set -eux; \
+    curl -fsSL -o /tmp/code-server.tar.gz \
+        "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-amd64.tar.gz"; \
+    echo "${CODE_SERVER_SHA256}  /tmp/code-server.tar.gz" | sha256sum -c -; \
+    mkdir -p /opt/code-server; \
+    tar -xzf /tmp/code-server.tar.gz -C /opt/code-server --strip-components=1; \
+    rm -f /tmp/code-server.tar.gz; \
+    ln -sf /opt/code-server/bin/code-server /usr/local/bin/code-server
+
+LABEL org.opencontainers.image.title="dlp-ide-measure-codeserver" \
+      org.opencontainers.image.description="6.A đo RAM/CPU/kích thước — code-server trên sandbox-base. KHÔNG dùng cho production."

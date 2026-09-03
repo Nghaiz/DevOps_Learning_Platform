@@ -1,0 +1,85 @@
+# 6.A — ba pod ĐO, dựng CÙNG LÚC trên cùng node.
+#
+# ⛔ Namespace RIÊNG, không phải `dlp-sandbox`. Hai lý do, cả hai đều là để phép
+# đo không nói dối:
+#   · ResourceQuota của `dlp-sandbox` (26 pod / 5400m) đang có 3 pod warm thật.
+#     Nhét ba pod đo vào đó là vừa ăn khe của người dùng vừa để lượt đo phụ
+#     thuộc vào việc lúc ấy có bao nhiêu người đang học.
+#   · NetworkPolicy deny-all ở đó chặn cả `kubectl port-forward` lẫn probe HTTP,
+#     mà "bao lâu thì phục vụ được HTTP" là một trong năm số 6.A phải trả lời.
+#
+# Mọi thứ CÒN LẠI giữ y hệt pod sandbox thật (`internal/k8s/podspec.go` +
+# LimitRange của `dlp-sandbox`): runtimeClass sysbox-runc, hostUsers=false,
+# RestartPolicy Never, requests 250m/256Mi, limits 2/1Gi. Lệch một trong số đó
+# là đo một con vật khác.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dlp-ide-measure
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: ide-measure-limits
+  namespace: dlp-ide-measure
+spec:
+  limits:
+    - type: Container
+      defaultRequest: { cpu: '250m', memory: '256Mi' }
+      default: { cpu: '2', memory: '1Gi' }
+      max: { cpu: '2', memory: '2Gi' }
+---
+# ĐỐI CHỨNG — sandbox-base y nguyên, không IDE. 6.A.3.
+#
+# Không có nó thì mọi con số dưới là TỔNG chứ không phải PHẦN THÊM, và câu hỏi
+# 6.A hỏi là phần thêm.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ide-measure-control
+  namespace: dlp-ide-measure
+  labels: { app: ide-measure, variant: control }
+spec:
+  runtimeClassName: sysbox-runc
+  hostUsers: false
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  containers:
+    - name: sandbox
+      image: ghcr.io/nghaiz/dlp-sandbox-base:sha-2b79fd3
+      imagePullPolicy: Never
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ide-measure-codeserver
+  namespace: dlp-ide-measure
+  labels: { app: ide-measure, variant: codeserver }
+spec:
+  runtimeClassName: sysbox-runc
+  hostUsers: false
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  containers:
+    - name: sandbox
+      image: ghcr.io/nghaiz/dlp-ide-measure-codeserver:sha-2b79fd3
+      imagePullPolicy: Never
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ide-measure-theia
+  namespace: dlp-ide-measure
+  labels: { app: ide-measure, variant: theia }
+spec:
+  runtimeClassName: sysbox-runc
+  hostUsers: false
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  containers:
+    - name: sandbox
+      image: ghcr.io/nghaiz/dlp-ide-measure-theia:sha-2b79fd3
+      imagePullPolicy: Never

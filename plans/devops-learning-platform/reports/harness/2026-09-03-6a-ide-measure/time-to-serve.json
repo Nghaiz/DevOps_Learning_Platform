@@ -1,0 +1,10 @@
+{
+  "codeserver": {
+    "httpCode": "302",
+    "timeToServeMs": 809
+  },
+  "theia": {
+    "httpCode": "200",
+    "timeToServeMs": 1916
+  }
+}
