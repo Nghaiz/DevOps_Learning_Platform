@@ -129,6 +129,16 @@ spec:
             */}}
             - name: SANDBOX_RUNTIME_CLASS
               value: {{ .Values.orchestrator.env.sandboxRuntimeClass | default .Values.sandbox.runtimeClassName | quote }}
+            {{- /*
+            SSOT là `sandbox.profiles` (P7 7.C) — CÙNG lý lẽ với SANDBOX_IMAGE/
+            SANDBOX_RUNTIME_CLASS ở trên: hai bản chép rời của cùng số sẽ trôi
+            khỏi nhau. `toJson` trên một map RỖNG ({}) ra đúng "{}", và
+            `config.parseSandboxProfiles("{}")` trả map rỗng — KHÔNG đổi hành vi
+            so với hôm nay. `default dict` chỉ để an toàn khi một values đè
+            (values-selfhost.yaml, …) quên khai hẳn khối `sandbox.profiles`.
+            */}}
+            - name: SANDBOX_PROFILES
+              value: {{ .Values.sandbox.profiles | default dict | toJson | quote }}
             {{- if .Values.registryMirror.enabled }}
             {{- /*
             URL mirror docker.io mà pod sandbox trỏ dockerd tới (P3/3.I). CHỈ set

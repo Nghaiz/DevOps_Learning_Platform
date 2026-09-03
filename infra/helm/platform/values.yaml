@@ -807,6 +807,41 @@ sandbox:
     limitCpu: '2'
     limitMemory: '1Gi'
 
+  # ── profiles — cơ chế P7 7.C (orchestrator/internal/k8s podspec.go
+  # `PodConfig.Profile`), SHIP RỖNG CÓ CHỦ Ý ─────────────────────────────────
+  #
+  # Đây là NỐI DÂY, khác hẳn `ideProfile` ở trên (đo được, CHƯA nối — xem chú
+  # thích của khối đó): mỗi key ở đây đi thẳng vào orchestrator qua env
+  # SANDBOX_PROFILES (JSON, xem templates/orchestrator-deployment.yaml) rồi
+  # được `config.parseSandboxProfiles` phân giải NGAY LÚC khởi động
+  # (resource.ParseQuantity — sai định dạng là orchestrator KHÔNG lên). Từ đó
+  # một `CreateSessionRequest.profile` khớp tên key sẽ khiến pod mang
+  # `resources` TƯỜNG MINH đúng bốn số dưới đây thay vì để LimitRange (D16)
+  # quyết định — xem `BuildSandboxPod`/`profileResources`.
+  #
+  # RỖNG = HÀNH VI HÔM NAY, KHÔNG ĐỔI GÌ: `{}` ⇒ `SANDBOX_PROFILES={}` ⇒
+  # `parseSandboxProfiles` trả map rỗng ⇒ CHỈ profile mặc định ("") tồn tại ⇒
+  # mọi pod vẫn dựng bằng `PodConfig.Profile == nil` (byte-identical với trước
+  # P7 7.C — xem TestPodSpecProfileNilByteIdenticalToDefault). Không một session
+  # nào bị ảnh hưởng cho tới khi có ít nhất một key ở đây VÀ một scenario/BFF
+  # gửi đúng tên đó trong `CreateSessionRequest.profile`.
+  #
+  # Số đo cho profile "k8s" (P7 7.B, harness 2026-09-04, k3s-trong-Sysbox —
+  # đường được chọn: workingSet đỉnh 589Mi / 729MB đĩa tạm, so với 922Mi/3553MB
+  # của kind) VẪN CHƯA VÀO ĐÂY — lead đang đo trần đồng thời (min-của-năm-ràng-
+  # buộc, D16) và sẽ điền khối `k8s: {...}` trong một commit riêng. Đừng tự
+  # đoán số rồi điền vào — xem `docs/k8s-in-pod.md` khi nó tồn tại (7.B).
+  #
+  # Hình dạng một entry (không phải giá trị thật — ví dụ minh hoạ):
+  #   k8s:
+  #     requestsCpu: '500m'
+  #     requestsMemory: '768Mi'
+  #     limitsCpu: '2'
+  #     limitsMemory: '2Gi'
+  #     env:
+  #       DLP_K8S_PROFILE: '1'
+  profiles: {}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Registry mirror docker.io trong cụm (P3/3.I mắt 1).
 #
