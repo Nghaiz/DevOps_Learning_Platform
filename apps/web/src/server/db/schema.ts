@@ -265,3 +265,97 @@ export const authRefreshTokens = pgTable(
 
 export type AuthRefreshToken = typeof authRefreshTokens.$inferSelect;
 export type NewAuthRefreshToken = typeof authRefreshTokens.$inferInsert;
+
+/**
+ * === Labs (P8 — trụ cột ②) ===
+ *
+ * Một lần thử làm lab. MỘT DÒNG MỖI LẦN THỬ — khác `progress` (một dòng mỗi cặp
+ * user+lesson): một lab cho phép thử lại nhiều lần (leaderboard xếp theo lần
+ * NỘP, không phải lần làm), nên "lần thử" phải là một thực thể riêng có id.
+ *
+ * ⛔ **CẤM** các cột suy ra được — rà từng cột trước khi thêm cột mới:
+ * `score`/`percent` (= tổng `weight` các task đạt / tổng `weight`, tính từ
+ * `lab_task_results` + `Lab.tasks`), `status` (= so `percent` với
+ * `Lab.passThresholdPercent`), `duration_seconds` (=
+ * `submitted_at - started_at`), `task_count`/`passed_count` (đếm được từ
+ * `lab_task_results`). Tất cả tính ở chỗ dùng — xem
+ * `packages/scenario/src/lab-score.ts` (contract §2) và `docs/lab-format.md`
+ * § "Không lưu field suy ra được".
+ */
+export const labAttempts = pgTable(
+  'lab_attempts',
+  {
+    /** Sinh ở tầng router (`crypto.randomUUID()`) — không phải cột suy ra được. */
+    id: text('id').primaryKey(),
+    /** Chủ sở hữu lần thử. Cascade: xoá tài khoản thì xoá luôn lịch sử lab của họ. */
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /**
+     * KHÔNG FK: nội dung lab nằm trên đĩa (`content/labs/**`, giống
+     * `progress.lessonId`), không phải một bảng Postgres.
+     */
+    labId: text('lab_id').notNull(),
+    /** Sandbox pod đã dùng cho lần thử này — truy nguyên khi có khiếu nại chấm sai. */
+    sessionId: text('session_id').notNull(),
+    /** Mốc bắt đầu — vế đầu của `duration_seconds` (tính, không lưu). */
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    /** `null` = đang làm dở. Khác `null` = đã nộp — mốc cuối của duration. */
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    /**
+     * Lựa chọn CỦA NGƯỜI HỌC (mặc định ẩn danh) — không tính được từ đâu, đây là
+     * dữ liệu chính. `labs.leaderboard` đọc cột này ở mỗi truy vấn (không đóng
+     * băng lúc nộp), nên đổi ý sau khi đã nộp vẫn có tác dụng.
+     */
+    displayNamePublic: boolean('display_name_public').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('lab_attempts_user_lab_started_idx').on(table.userId, table.labId, table.startedAt),
+    index('lab_attempts_lab_submitted_idx').on(table.labId, table.submittedAt),
+  ],
+);
+
+/**
+ * Một lượt chấm ĐÃ LƯU của một task, trong một lần thử.
+ *
+ * **Bất biến (contract §1):** một dòng ở đây LUÔN là phán quyết chấm bài THẬT —
+ * `labs.checkTask` chỉ ghi dòng này sau khi `runScriptInSession` trả lời mà
+ * KHÔNG ném lỗi. Lỗi hạ tầng (script hỏng / hết hạn / pod chết) ném `TRPCError`
+ * và không đi tới câu `insert` — không có dòng "lỗi hạ tầng" nào trong bảng này.
+ *
+ * ⛔ **CẤM** `passed` (= `exit_code === 0`, xem `ScriptOutcome.passed` của
+ * `validate.ts`) và `attempt_no` (= đếm dòng trước đó của cùng
+ * `(attempt_id, task_id)` cộng một).
+ */
+export const labTaskResults = pgTable(
+  'lab_task_results',
+  {
+    /** Sinh ở tầng router (`crypto.randomUUID()`). */
+    id: text('id').primaryKey(),
+    attemptId: text('attempt_id')
+      .notNull()
+      .references(() => labAttempts.id, { onDelete: 'cascade' }),
+    /** Khớp `LabTask.id` — định danh BỀN, không phải chỉ số vị trí trong `tasks[]`. */
+    taskId: text('task_id').notNull(),
+    /** Phán quyết thô của `/exec` — nguồn sự thật duy nhất cho "task này đạt chưa". */
+    exitCode: integer('exit_code').notNull(),
+    /** Đã cắt cỡ ở server TRƯỚC khi lưu (`LAB_OUTPUT_MAX_BYTES`, `server/labs/output.ts`). */
+    output: text('output').notNull(),
+    /** Thứ tự các lần thử lại của CÙNG một task — vế cần để lấy "lần chấm gần nhất". */
+    checkedAt: timestamp('checked_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('lab_task_results_attempt_task_checked_idx').on(
+      table.attemptId,
+      table.taskId,
+      table.checkedAt,
+    ),
+  ],
+);
+
+export type LabAttemptRow = typeof labAttempts.$inferSelect;
+export type NewLabAttemptRow = typeof labAttempts.$inferInsert;
+export type LabTaskResultRow = typeof labTaskResults.$inferSelect;
+export type NewLabTaskResultRow = typeof labTaskResults.$inferInsert;
