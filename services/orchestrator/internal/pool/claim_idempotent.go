@@ -71,7 +71,32 @@ func ClaimIdempotent(ctx context.Context, rdb redis.Cmdable, p ClaimParams) (str
 	if errors.Is(claimErr, ErrPoolEmpty) || errors.Is(claimErr, ErrInvalidClaimParams) {
 		return "", claimErr
 	}
+	return readBackClaim(ctx, rdb, p, claimErr)
+}
 
+// ClaimDirectIdempotent bọc ClaimDirect (P7 7.C) bằng ĐÚNG kỷ luật đọc-lại của
+// ClaimIdempotent — xem doc của hàm đó để biết vì sao "chỉ đọc lại khi biết
+// chắc chưa ghi gì" là SAI: chế độ hỏng thật là script chạy TRỌN trên server
+// rồi reply mất ở tầng mạng, và lỗi đó không mang marker nào phân biệt được
+// với "chưa ghi gì".
+//
+// KHÔNG dùng chung ClaimIdempotent vì ClaimDirect không có sentinel ErrPoolEmpty
+// (không có khái niệm "pool rỗng" — pod đã biết tên sẵn).
+func ClaimDirectIdempotent(ctx context.Context, rdb redis.Cmdable, podName string, p ClaimParams) (string, error) {
+	claimErr := ClaimDirect(ctx, rdb, podName, p)
+	if claimErr == nil {
+		return podName, nil
+	}
+	if errors.Is(claimErr, ErrInvalidClaimParams) {
+		return "", claimErr
+	}
+	return readBackClaim(ctx, rdb, p, claimErr)
+}
+
+// readBackClaim là phần đọc-lại DÙNG CHUNG giữa ClaimIdempotent và
+// ClaimDirectIdempotent — cùng một câu hỏi ("Redis có ghi được gì cho session
+// này không") bất kể script nào vừa chạy.
+func readBackClaim(ctx context.Context, rdb redis.Cmdable, p ClaimParams, claimErr error) (string, error) {
 	sessionKey, keyErr := rediskeys.Session(p.SessionID)
 	if keyErr != nil {
 		return "", keyErr

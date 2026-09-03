@@ -76,6 +76,19 @@ type ClaimParams struct {
 	ExpiresAtUnix int64
 	// TTLSeconds đặt EXPIRE cho session:{id}.
 	TTLSeconds int64
+
+	// Profile là TÊN profile resources của pod (P7 7.C). RỖNG = mặc định.
+	//
+	// KHÔNG validate ở đây: giá trị này đã đi qua đúng MỘT cổng trước khi tới
+	// package này — lifecycle.Service tra nó trong SANDBOX_PROFILES (chỉ chấp
+	// nhận tên đã khai, InvalidArgument cho tên lạ) TRƯỚC KHI gọi Claim/ClaimDirect.
+	// Nó chỉ được GHI vào hash `session:{id}` (giá trị, không phải một phần tên
+	// key), nên không cần qua idPattern như SessionID/UserID/Namespace.
+	//
+	// claim.lua (đường mặc định, xem Claim) KHÔNG đọc field này — pod trong
+	// pool:free luôn là default-profile, việc claim nó không cần biết "profile"
+	// là gì. Chỉ claim_direct.lua (xem ClaimDirect) ghi nó vào hash session.
+	Profile string
 }
 
 // validate. MỌI lỗi ở đây bọc ErrInvalidClaimParams — xem sentinel đó để biết
