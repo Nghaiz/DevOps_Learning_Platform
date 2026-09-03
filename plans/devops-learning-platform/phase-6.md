@@ -100,9 +100,9 @@ Tiêu chí quyết định, theo thứ tự: (1) **RAM lúc rảnh** — mỗi 1
 - [ ] ~~IDE **không** nghe `0.0.0.0` trong pod~~ — **ĐẢO 2026-09-04**, ô này không còn đúng. Ghim loopback buộc mọi byte IDE đi qua `portforward` của apiserver (hai pod = hai netns), mà apiserver cụm này đã restart 41 lần. Chốt: IDE nghe podIP, gateway nối thẳng. Ô AC thay thế:
 - [ ] Chỉ pod **gateway** chạm được `sandbox:4000`; một pod sandbox KHÁC bị từ chối. → cần test có **đối chứng dương** (gateway nối được) và **đối chứng âm** (pod sandbox thứ hai timeout), vì "không nối được" cũng là thứ một NetworkPolicy hỏng tạo ra.
 - [ ] `sandbox-default-deny` phải được khẳng định là ĐANG enforce trước khi tin ô trên — nó từ nay là hạ tầng thiết yếu, không phải phòng thủ chiều sâu (`images/sandbox-base/entrypoint.sh` § start_theia ghi lý do).
-- [ ] Truy cập route IDE của phiên NGƯỜI KHÁC ⇒ từ chối, cùng mã và cùng đường log như `/ws` (luật 1 + 10).
-- [ ] Không token nào trong URL/query của IDE (luật 8) — kiểm bằng log gateway + devtools network.
-- [ ] Mở IDE **không** chiếm khe WS của terminal: terminal vẫn attach được khi IDE đang mở.
+- [x] Truy cập route IDE của phiên NGƯỜI KHÁC ⇒ từ chối, **cùng mã** vì cùng một bản chuỗi (`internal/sessionauth`). → `TestIDERejectsForeignSession` (403 FORBIDDEN, **0 lượt chạm Redis** — chết trước bước f như `/ws`) + `TestIDERejectsSessionOfAnotherUser`. ⚠ Mức UNIT, chưa chạy trên cụm qua Traefik.
+- [x] Không token trong URL/query: cấu trúc route là `/ide/session/{id}/…`, id KHÔNG phải bí mật (chuỗi authz đọc token từ cookie). Thêm một vế mạnh hơn AC đòi: token **không rò xuống pod** — `TestIDEDoesNotForwardSessionCookieToPod` khẳng định upstream nhận `Cookie` rỗng. ⚠ Vế devtools-network là việc của 6.D/P13.
+- [x] Mở IDE không chiếm khe WS của terminal — bảo đảm bằng **cấu trúc**: `ideroute` không import `sessionstore`, và `sessionauth.SessionReader` không khai `AcquireWS`. → `TestIDENeverTouchesTerminalWSSlot` có bẫy type-assertion với chữ ký khớp nguyên văn `sessionstore.Store.AcquireWS` (0 lượt gọi qua 3 request). ⚠ Mức UNIT.
 - [x] Trần đồng thời tính lại theo min-của-năm, phép tính ghi vào `values.yaml` → `sandbox.limitRange.ideProfile`. → **7 pod** (ước lượng cũ 10 sai 18%); [report 6.E](reports/2026-09-04-verify-6e-ide-ceiling.md). ⚠ `ideProfile` chưa được orchestrator đọc — là con số, chưa phải hành vi.
 - [ ] CSP nới đúng một origin; chạy lại đối chứng CSP của 3.E, 0 vi phạm mới.
 
