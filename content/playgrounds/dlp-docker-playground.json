@@ -1,0 +1,9 @@
+{
+  "id": "dlp-docker-playground",
+  "title": "Sân chơi Docker tự do",
+  "description": "Một sandbox có sẵn Docker (chạy DinD trong pod, không dùng chung daemon của máy chủ), không bài, không chấm điểm — dùng để thử pull/run/build một image trước khi vào dlp-docker-basics hoặc dlp-linux-triage. Phiên tự đóng sau 30 phút.",
+  "backend": {
+    "imageid": "ubuntu"
+  },
+  "ttlSeconds": 1800
+}

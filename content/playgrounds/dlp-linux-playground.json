@@ -1,0 +1,9 @@
+{
+  "id": "dlp-linux-playground",
+  "title": "Sân chơi Linux tự do",
+  "description": "Một sandbox Linux trống, không bài, không chấm điểm — dùng để thử lệnh, thử một ý tưởng, hoặc luyện tay trước khi vào một bài học/lab thật. Phiên tự đóng sau 30 phút.",
+  "backend": {
+    "imageid": "ubuntu"
+  },
+  "ttlSeconds": 1800
+}

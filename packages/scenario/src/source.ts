@@ -1,9 +1,14 @@
+import path from 'node:path';
 import {
   toScenarioSummary,
   type Scenario,
   type ScenarioSummary,
 } from '@devops-platform/shared-types/scenario';
+import { toLabSummary, type Lab, type LabSummary } from '@devops-platform/shared-types/lab';
+import type { Playground, PlaygroundSummary } from '@devops-platform/shared-types/playground';
+import { loadLabs } from './lab-loader.ts';
 import { loadScenarios } from './loader.ts';
+import { loadPlaygrounds } from './playground-loader.ts';
 
 /**
  * Nguồn nội dung bài học — **seam** giữa "bài học tới từ đâu" và mọi thứ đọc nó.
@@ -45,33 +50,94 @@ export interface ScenarioSource {
 }
 
 /**
- * Nguồn đọc từ đĩa.
+ * `ScenarioSource` mở rộng cho hai trụ cột P8 (Lab, Playground) — MỘT seam duy
+ * nhất cho cả ba loại nội dung, để bản DB-backed (soạn bài trên UI) cắm vào
+ * một chỗ chứ không ba. `ScenarioSource` vẫn được xuất NGUYÊN VẸN (không đổi
+ * hình dạng) để `apps/web/src/server/lessons/catalog.ts` — vốn gõ biến của nó
+ * là `ScenarioSource`, không phải `ContentSource` — tiếp tục biên dịch không
+ * sửa gì: `ContentSource` là SUPERSET có cấu trúc, nên một giá trị
+ * `ContentSource` gán được cho một biến `ScenarioSource` mà TypeScript không
+ * phàn nàn.
  *
- * Nạp MỘT LẦN rồi giữ trong bộ nhớ: nội dung được nướng vào image lúc build
- * (`apps/web/Dockerfile` copy `content/`), nên nó không đổi trong vòng đời tiến
- * trình. Đọc lại mỗi request là 4 lần `readdir` + hàng chục `readFile` cho một
- * trang danh sách.
- *
- * ⛔ Cache giữ **promise**, không giữ kết quả. Hai request tới cùng lúc lúc khởi
- * động sẽ cùng chờ MỘT lần nạp; giữ kết quả thì cả hai cùng thấy cache rỗng và
- * cùng nạp — trên một thư mục 4 bài thì vô hại, nhưng đó là đúng cái race mà
- * người ta không nghĩ tới khi thêm bài thứ 200.
- *
- * ⛔ Promise hỏng thì XOÁ khỏi cache. Giữ lại một promise reject nghĩa là một
- * lượt nạp lỗi tạm thời (đĩa bận, mount chưa sẵn sàng) sẽ đóng băng vĩnh viễn:
- * mọi request sau đó đều thấy đúng lỗi cũ và chỉ khởi động lại pod mới gỡ được.
+ * Cùng ranh giới rút-gọn-vs-đầy-đủ của `ScenarioSource`: `list*()` trả bản
+ * RÚT GỌN (không nội dung task/markdown), `get*()` trả bản đầy đủ.
  */
-export function filesystemScenarioSource(rootDir: string): ScenarioSource {
-  let pending: Promise<Map<string, Scenario>> | null = null;
+export interface ContentSource extends ScenarioSource {
+  /** Danh sách rút gọn, đã sắp theo `id`. */
+  listLabs(): Promise<LabSummary[]>;
+  /** `null` = không có lab đó — cùng quy ước `get()` ở trên, KHÔNG ném. */
+  getLab(id: string): Promise<Lab | null>;
+  /** Danh sách playground — bản ĐẦY ĐỦ (`PlaygroundSummary` = `Playground`, nó vốn đã bé). */
+  listPlaygrounds(): Promise<PlaygroundSummary[]>;
+  /** `null` = không có playground đó — KHÔNG ném. */
+  getPlayground(id: string): Promise<Playground | null>;
+}
 
-  async function all(): Promise<Map<string, Scenario>> {
-    pending ??= loadScenarios(rootDir)
+/**
+ * Nguồn đọc từ đĩa — hiện thực DUY NHẤT của `ContentSource` (luật §5 của
+ * contract: KHÔNG dựng nguồn thứ hai; bản DB-backed của P9 cắm vào bằng cách
+ * hiện thực lại đúng interface này).
+ *
+ * Nạp MỘT LẦN rồi giữ trong bộ nhớ, MỖI LOẠI NỘI DUNG một cache riêng (ba
+ * `pending` độc lập): nội dung được nướng vào image lúc build (`apps/web/Dockerfile`
+ * copy `content/`), nên nó không đổi trong vòng đời tiến trình. Đọc lại mỗi
+ * request là hàng chục `readFile` cho một trang danh sách. Ba cache tách biệt
+ * — không phải một cache gộp — vì ba loại nội dung có thể hỏng ĐỘC LẬP: một
+ * `lab.json` sai cấu trúc không được phép làm `/lessons` (đã nạp tốt) ngừng
+ * phục vụ.
+ *
+ * ⛔ Mỗi cache giữ **promise**, không giữ kết quả — và promise hỏng thì XOÁ
+ * khỏi cache. Cùng hai kỷ luật đã áp cho scenario ở trên, lặp lại cho lab và
+ * playground vì đây là nơi race/đóng-băng-vĩnh-viễn có thể tái diễn nếu quên.
+ *
+ * `labsRootDir`/`playgroundsRootDir` mặc định là THƯ MỤC ANH EM của
+ * `rootDir` (`<cha của rootDir>/labs`, `<cha của rootDir>/playgrounds`) — đúng
+ * bố cục thật của `content/{scenarios,labs,playgrounds}`. Suy luận này chỉ để
+ * caller HIỆN CÓ (`filesystemScenarioSource(scenariosDir())`, một tham số)
+ * tiếp tục hoạt động mà không cần sửa; caller nào cần trỏ khác thư mục anh em
+ * (test, hoặc `SCENARIOS_DIR` không theo bố cục này) truyền tường minh qua
+ * `options`.
+ */
+export function filesystemScenarioSource(
+  rootDir: string,
+  options: { readonly labsRootDir?: string; readonly playgroundsRootDir?: string } = {},
+): ContentSource {
+  const labsRootDir = options.labsRootDir ?? path.join(path.dirname(rootDir), 'labs');
+  const playgroundsRootDir =
+    options.playgroundsRootDir ?? path.join(path.dirname(rootDir), 'playgrounds');
+
+  let pendingScenarios: Promise<Map<string, Scenario>> | null = null;
+  let pendingLabs: Promise<Map<string, Lab>> | null = null;
+  let pendingPlaygrounds: Promise<Map<string, Playground>> | null = null;
+
+  async function allScenarios(): Promise<Map<string, Scenario>> {
+    pendingScenarios ??= loadScenarios(rootDir)
       .then((scenarios) => new Map(scenarios.map((s) => [s.id, s])))
       .catch((cause: unknown) => {
-        pending = null;
+        pendingScenarios = null;
         throw cause;
       });
-    return pending;
+    return pendingScenarios;
+  }
+
+  async function allLabs(): Promise<Map<string, Lab>> {
+    pendingLabs ??= loadLabs(labsRootDir)
+      .then((labs) => new Map(labs.map((l) => [l.id, l])))
+      .catch((cause: unknown) => {
+        pendingLabs = null;
+        throw cause;
+      });
+    return pendingLabs;
+  }
+
+  async function allPlaygrounds(): Promise<Map<string, Playground>> {
+    pendingPlaygrounds ??= loadPlaygrounds(playgroundsRootDir)
+      .then((playgrounds) => new Map(playgrounds.map((p) => [p.id, p])))
+      .catch((cause: unknown) => {
+        pendingPlaygrounds = null;
+        throw cause;
+      });
+    return pendingPlaygrounds;
   }
 
   return {
@@ -81,12 +147,26 @@ export function filesystemScenarioSource(rootDir: string): ScenarioSource {
       // mục`, nên thứ tự Map đã là thứ tự theo id. Sắp lại ở đây là công thừa
       // dựa trên một ràng buộc có thể trôi — nên khẳng định lại nó, rẻ hơn là
       // tin vào nó.
-      return [...(await all()).values()]
+      return [...(await allScenarios()).values()]
         .sort((a, b) => a.id.localeCompare(b.id))
         .map(toScenarioSummary);
     },
     async get(id: string) {
-      return (await all()).get(id) ?? null;
+      return (await allScenarios()).get(id) ?? null;
+    },
+    async listLabs() {
+      return [...(await allLabs()).values()]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map(toLabSummary);
+    },
+    async getLab(id: string) {
+      return (await allLabs()).get(id) ?? null;
+    },
+    async listPlaygrounds() {
+      return [...(await allPlaygrounds()).values()].sort((a, b) => a.id.localeCompare(b.id));
+    },
+    async getPlayground(id: string) {
+      return (await allPlaygrounds()).get(id) ?? null;
     },
   };
 }

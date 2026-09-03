@@ -63,3 +63,68 @@ describe('filesystemScenarioSource', () => {
     await expect(source.list()).rejects.toThrow();
   });
 });
+
+/**
+ * `ContentSource` — phần mở rộng P8. `filesystemScenarioSource(CONTENT_DIR)`
+ * KHÔNG truyền `labsRootDir`/`playgroundsRootDir` tường minh: đây chính là
+ * đường caller HIỆN CÓ (`catalog.ts`) sẽ đi — nếu suy luận thư mục anh em sai,
+ * bài test này là chỗ đầu tiên đỏ.
+ */
+describe('filesystemScenarioSource — ContentSource (lab + playground)', () => {
+  it('listLabs liệt kê bản rút gọn, sắp theo id, không mang task', async () => {
+    const items = await filesystemScenarioSource(CONTENT_DIR).listLabs();
+    expect(items.map((l) => l.id)).toEqual(['dlp-linux-triage']);
+    for (const item of items) {
+      expect(item).not.toHaveProperty('tasks');
+      expect(item.taskCount).toBeGreaterThan(0);
+    }
+  });
+
+  it('getLab trả lab đầy đủ kèm task', async () => {
+    const lab = await filesystemScenarioSource(CONTENT_DIR).getLab('dlp-linux-triage');
+    expect(lab).not.toBeNull();
+    expect(lab?.tasks.length).toBeGreaterThan(0);
+    expect(lab?.tasks[0]?.markdown).toContain('#');
+  });
+
+  it('getLab trả null cho id không có, KHÔNG ném', async () => {
+    await expect(filesystemScenarioSource(CONTENT_DIR).getLab('khong-ton-tai')).resolves.toBeNull();
+  });
+
+  it('listPlaygrounds liệt kê mọi playground, sắp theo id', async () => {
+    const items = await filesystemScenarioSource(CONTENT_DIR).listPlaygrounds();
+    expect(items.map((p) => p.id)).toEqual(['dlp-docker-playground', 'dlp-linux-playground']);
+  });
+
+  it('getPlayground trả playground đầy đủ', async () => {
+    const playground = await filesystemScenarioSource(CONTENT_DIR).getPlayground(
+      'dlp-linux-playground',
+    );
+    expect(playground).not.toBeNull();
+    expect(playground?.ttlSeconds).toBe(1800);
+  });
+
+  it('getPlayground trả null cho id không có, KHÔNG ném', async () => {
+    await expect(
+      filesystemScenarioSource(CONTENT_DIR).getPlayground('khong-ton-tai'),
+    ).resolves.toBeNull();
+  });
+
+  it('cache của scenario/lab/playground ĐỘC LẬP — lab hỏng không ảnh hưởng list() scenario', async () => {
+    const source = filesystemScenarioSource(CONTENT_DIR, {
+      labsRootDir: path.join(CONTENT_DIR, 'khong-co-thu-muc-nay'),
+    });
+    await expect(source.listLabs()).rejects.toThrow();
+    // scenario vẫn nạp tốt dù labsRootDir sai — hai cache tách biệt.
+    await expect(source.list()).resolves.not.toHaveLength(0);
+  });
+
+  it('labsRootDir/playgroundsRootDir tường minh ghi đè suy luận thư mục anh em', async () => {
+    const explicit = filesystemScenarioSource(path.join(CONTENT_DIR, 'khong-lien-quan'), {
+      labsRootDir: path.join(CONTENT_DIR, '..', 'labs'),
+      playgroundsRootDir: path.join(CONTENT_DIR, '..', 'playgrounds'),
+    });
+    const labs = await explicit.listLabs();
+    expect(labs.map((l) => l.id)).toEqual(['dlp-linux-triage']);
+  });
+});
