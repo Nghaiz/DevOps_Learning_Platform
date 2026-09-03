@@ -11,6 +11,8 @@
 | Branch protection `main` (đòi `ci-ok` xanh, strict) | **đã gỡ** | GitHub repo settings |
 | Hook `pre-push` chặn push thẳng lên `main` | **no-op** (`exit 0` ở đầu) | `scripts/git-hooks/pre-push` |
 
+| Hook local `workflow-artifact-gate` (advisory, ồn ở mọi commit/push) | **tắt** | `.claude/t1k-artifact-gate.disabled` (không commit — xoá file là bật lại) |
+
 ## KHÔNG tắt
 
 **Quét secret (`gitleaks`) vẫn chạy mọi push** — tách sang
