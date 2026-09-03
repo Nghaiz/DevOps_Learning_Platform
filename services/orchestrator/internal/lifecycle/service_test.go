@@ -24,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/k8s"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/pool"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
@@ -98,6 +99,15 @@ type fakePool struct {
 	// steal chạy SAU khi pod vào pool — mô phỏng một request đồng thời cướp pod.
 	steal func()
 	seq   int
+
+	// profileProvisions đếm lượt gọi ProvisionWithProfile (P7 7.C) — TÁCH khỏi
+	// `provisions` (đường default) vì test cho profiled path phải khẳng định
+	// pool:free KHÔNG bị chạm, và trộn hai bộ đếm sẽ che mất chính khẳng định
+	// đó (Provision() default có thể ngẫu nhiên tăng đúng bằng profileProvisions
+	// trong một test lơ đãng).
+	profileProvisions int
+	// profileErr trả cho MỌI lời gọi ProvisionWithProfile khi khác nil.
+	profileErr error
 }
 
 func (f *fakePool) Provision(ctx context.Context) (string, error) {
@@ -135,10 +145,32 @@ func (f *fakePool) Trigger() {
 	f.triggers++
 }
 
+// ProvisionWithProfile mô phỏng pool.Manager.ProvisionWithProfile (P7 7.C):
+// sinh một tên pod KHÔNG đẩy vào bất kỳ đâu trong Redis (không pool:free,
+// không pod:{name}) — đúng hợp đồng "chưa có state nào cho tới khi
+// ClaimDirect ghi nó". Test kiểm profileProvisions để khẳng định pool:free
+// không bị chạm bởi đường profiled.
+func (f *fakePool) ProvisionWithProfile(_ context.Context, _ *k8s.SandboxProfile) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.profileProvisions++
+	if f.profileErr != nil {
+		return "", f.profileErr
+	}
+	f.seq++
+	return "sandbox-profile" + strconv.Itoa(f.seq), nil
+}
+
 func (f *fakePool) counts() (provisions, triggers int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.provisions, f.triggers
+}
+
+func (f *fakePool) profileCounts() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.profileProvisions
 }
 
 type harness struct {
