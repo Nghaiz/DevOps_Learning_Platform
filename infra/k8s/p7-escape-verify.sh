@@ -106,9 +106,23 @@ case "$r" in *REACHED*) bad "apiserver CHU tu cluster con" "TOI DUOC";; *) ok "a
 MIRROR_IP=${MIRROR_IP:-$(kubectl get svc -n dlp-registry -o jsonpath='{.items[0].spec.clusterIP}' 2>/dev/null)}
 if [ -n "$MIRROR_IP" ]; then
   r=$(inner "wget -T $TIMEOUT -q -O- http://$MIRROR_IP:5000/v2/ >/dev/null 2>&1 && echo REACHED || echo blocked")
+  # ⚠ Phep thu nay do EGRESS CUA POD NGUOI HOC, khong do duong keo image.
+  #
+  # Hai ket qua deu chap nhan duoc, va KHONG ket qua nao noi gi ve viec bai hoc
+  # co keo duoc image hay khong:
+  #   · toi duoc  -> pod nguoi hoc goi thang duoc mirror (tien, khong bat buoc).
+  #   · bi chan   -> cach ly CHAT HON; pod nguoi hoc khong cham duoc service cua
+  #                  cum chu. Image van keo binh thuong vi containerd cua
+  #                  cluster con di bang duong khac (registries.yaml + netns cua
+  #                  pod sandbox), da kiem rieng: nginx:1.29.0 Running.
+  #
+  # Do duoc 2026-09-04: toi duoc tu ns do luong, BI CHAN tu dlp-sandbox — hai
+  # ket qua khac nhau tren cung mot hinh dang netpol, va CHUA giai thich duoc
+  # (nghi la double-NAT k3s->docker0->pod lam Calico khong map noi source IP).
+  # Ghi lai nhu mot quan sat chua co ket luan, khong bia mot ly do nghe hop ly.
   case "$r" in
-    *REACHED*) ok "mirror toi duoc tu cluster con qua IP $MIRROR_IP (can, de keo image bai hoc)";;
-    *) printf '  \033[33mGHI CHU\033[0m mirror KHONG toi duoc tu cluster con qua IP — bai hoc co the ImagePullBackOff\n';;
+    *REACHED*) printf '  \033[33mGHI CHU\033[0m pod cua cluster con goi thang duoc mirror qua IP %s\n' "$MIRROR_IP";;
+    *) printf '  \033[33mGHI CHU\033[0m pod cua cluster con KHONG goi thang duoc mirror (cach ly chat hon; keo image khong bi anh huong)\n';;
   esac
 else
   printf '  \033[33mGHI CHU\033[0m khong tim duoc ClusterIP cua mirror — bo qua phep thu nay\n'
