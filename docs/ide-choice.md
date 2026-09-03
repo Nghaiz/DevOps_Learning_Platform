@@ -113,7 +113,34 @@ Với IDE, `requests` phải phủ mức thường trực đo được ở §1a:
 **tách profile** (bài-có-IDE dùng `requests` riêng) chứ không nâng đều cho mọi
 bài. Nâng đều thì bài không dùng IDE — phần lớn giáo trình — cũng mất 11 khe.
 
-⛔ **Bảng trên là ƯỚC LƯỢNG, chưa phải phép đo.** Nó lấy số của pod chạy **IDE và
+### ✅ ĐÃ ĐO 2026-09-04 — ước lượng dưới đây SAI 18%, giữ lại để đối chiếu
+
+Phép đo còn thiếu đã chạy (harness `2026-09-04-6e-ide-plus-lesson`): một pod chạy
+**đồng thời** Theia (client là trình duyệt thật) và bài `dlp-docker-basics`.
+
+| trạng thái | workingSet |
+|---|---:|
+| IDE bật, chưa có client | 290Mi |
+| + một client trình duyệt thật | 479Mi |
+| + bài Docker đang chạy | 582Mi |
+| **ổn định sau 1–3 lượt tải lại** | **633–660Mi** |
+| đỉnh quan sát (`memory.peak`) | 783Mi |
+
+⇒ `requests` **768Mi** ⇒ **7 pod**, KHÔNG phải 10. Ước lượng cộng thẳng
+(446 + 163 = 559Mi) thấp hơn thực tế 18%, và con số nó cho ra bằng đúng con số
+nó gán cho code-server — tức phép cộng thẳng đã xoá mất chính khoảng cách mà nó
+định đo. Chi tiết + phép tính min-của-năm: `infra/helm/platform/values.yaml`
+§ `sandbox.limitRange` → `ideProfile`.
+
+**Hai điều phép đo này KHÔNG nói:** (1) code-server + bài học **chưa được đo** —
+số 868Mi của nó vẫn là ước lượng cộng thẳng, nên đừng đọc "660 so với 868" như
+một so sánh đo được; (2) Theia có tăng theo lượt tải lại khi chạy cùng bài học
+(581 → 645–660), khác với lúc chạy một mình (446 → 447 ở 6.A) — nó **chững**, không
+rò, nhưng bản ghi cũ "Theia đứng yên qua mọi lượt tải lại" chỉ đúng cho IDE-một-mình.
+
+---
+
+⛔ **Bảng dưới đây là ƯỚC LƯỢNG, đã bị phép đo ở trên thay thế.** Nó lấy số của pod chạy **IDE và
 không chạy gì khác**. Người học thật chạy IDE **cộng** bài học; đỉnh đo được của
 bài Docker là 163Mi. Cộng thẳng hai số là giả định chúng không chồng lấn, mà điều
 đó chưa ai đo. Phép đo còn thiếu, và 6.E phải làm: **một pod chạy đồng thời bài

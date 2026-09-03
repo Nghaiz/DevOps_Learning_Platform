@@ -744,6 +744,51 @@ sandbox:
     maxCpu: '2'
     maxMemory: '2Gi'
 
+  # ── Profile RIÊNG cho bài có IDE (P6 / 6.E, đo 2026-09-04) ─────────────────
+  #
+  # ⛔ TÁCH PROFILE, KHÔNG NÂNG ĐỀU. `requests` ở trên (256Mi) đúng cho bài
+  # KHÔNG có IDE, và phần lớn giáo trình là loại đó. Nâng đều lên mức của IDE là
+  # bắt mọi bài trả tiền cho một thứ chúng không dùng: trần tụt 21 → 7 cho TẤT
+  # CẢ, mất 14 khe để phục vụ một nhóm bài nhỏ. Điều kiện "tụt quá nửa ⇒ tách
+  # profile" của 6.E task 17 đã kích hoạt bằng số thật, không phải phỏng đoán.
+  #
+  # ⚠ CHƯA ĐƯỢC NỐI DÂY. Orchestrator hiện dựng MỌI pod bằng LimitRange mặc
+  # định; nó chưa đọc `interfaceLayout` của scenario để chọn profile. Cho tới khi
+  # nối, khối này là một CON SỐ ĐÃ ĐO chứ chưa phải một hành vi — đừng đọc sự
+  # tồn tại của nó là "đã tách profile".
+  #
+  # ── Số đến từ đâu (harness 2026-09-04-6e-ide-plus-lesson) ─────────────────
+  # Đo một pod chạy ĐỒNG THỜI Theia (client là trình duyệt thật qua Playwright)
+  # và bài `dlp-docker-basics` (pull nginx qua mirror → run → build image riêng):
+  #   IDE bật, chưa có client                    290Mi
+  #   + một client trình duyệt thật              479Mi
+  #   + bài Docker đang chạy                     582Mi
+  #   ổn định sau 1–3 lượt tải lại trang     633–660Mi   ← số đặt requests
+  #   đỉnh quan sát (memory.peak)                783Mi   ← số đối chiếu limits
+  #
+  # ⛔ Bảng ước lượng cũ trong `docs/ide-choice.md` §3 nói ~559Mi và trần 10.
+  # SAI 18%: nó cộng thẳng 446Mi (IDE một mình) + 163Mi (bài một mình) và giả
+  # định hai thứ không chồng lấn. Đo thật ra 660Mi ⇒ trần **7**, đúng bằng con
+  # số mà chính bảng đó gán cho code-server. Đừng dùng lại phép cộng thẳng.
+  #
+  #   5500Mi ÷ 768Mi = 7.16 ⇒ 7 pod   (768Mi là nấc phủ được 660Mi + biên tải lại)
+  #   5400m  ÷ 250m  = 21             (CPU KHÔNG phải ràng buộc; giữ nguyên)
+  #   22Gi   ÷ 1Gi   = 22             (limits giữ 1Gi: đỉnh 783Mi = 76%)
+  # ⇒ min(7, 21, 22, 26) = **7 pod có IDE** nếu toàn bộ quota dùng cho bài IDE.
+  #
+  # Trong thực tế quota là NGÂN SÁCH DÙNG CHUNG, không phải một con số:
+  #   N_ide × 768Mi + N_thuong × 256Mi ≤ 5500Mi
+  # Vài điểm vận hành: 7 IDE + 0 thường · 5 IDE + 6 thường · 3 IDE + 12 thường.
+  #
+  # ⚠ `limits.memory` giữ 1Gi nhưng biên đã mỏng: đỉnh nhích 727 → 757 → 763 →
+  # 783Mi qua ba lượt tải lại (chậm dần, không tuyến tính). Một bài nặng hơn
+  # `dlp-docker-basics` PHẢI được đo lại trước khi mở cho người học thật.
+  ideProfile:
+    requestCpu: '250m'
+    requestMemory: '768Mi'
+    limitCpu: '2'
+    limitMemory: '1Gi'
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Registry mirror docker.io trong cụm (P3/3.I mắt 1).
 #

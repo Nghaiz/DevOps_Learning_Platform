@@ -1,0 +1,9 @@
+{"ts":"2026-09-04T01:45:12+07:00","nhan":"t0-ide-chua-co-client","workingSetMi":290,"peakMi":291,"memCurrentMi":290,"cpuSec":12.6,"nrThrottled":13,"load1":5.83}
+{"ts":"2026-09-04T01:48:13+07:00","nhan":"t1-mot-client-trinh-duyet-that","workingSetMi":479,"peakMi":480,"memCurrentMi":479,"cpuSec":26.9,"nrThrottled":23,"load1":8.32}
+{"ts":"2026-09-04T01:49:34+07:00","nhan":"t2-IDE-client-VA-bai-docker","workingSetMi":500,"peakMi":566,"memCurrentMi":501,"cpuSec":37.5,"nrThrottled":24,"load1":11.14}
+{"ts":"2026-09-04T01:50:13+07:00","nhan":"t3-1-dang-chay-bai","workingSetMi":582,"peakMi":727,"memCurrentMi":683,"cpuSec":60.5,"nrThrottled":40,"load1":12.12}
+{"ts":"2026-09-04T01:51:01+07:00","nhan":"t4-on-dinh-sau-bai-container-van-chay","workingSetMi":581,"peakMi":727,"memCurrentMi":682,"cpuSec":61.8,"nrThrottled":40,"load1":7.47}
+{"ts":"2026-09-04T01:52:01+07:00","nhan":"t5-sau-mot-luot-tai-lai","workingSetMi":654,"peakMi":757,"memCurrentMi":755,"cpuSec":70.8,"nrThrottled":48,"load1":5.94}
+{"ts":"2026-09-04T01:52:31+07:00","nhan":"t6-sau-tai-lai-on-dinh","workingSetMi":645,"peakMi":757,"memCurrentMi":745,"cpuSec":71.4,"nrThrottled":48,"load1":6.00}
+{"ts":"2026-09-04T01:53:41+07:00","nhan":"t7-tai-lai-lan-2","workingSetMi":660,"peakMi":763,"memCurrentMi":761,"cpuSec":79.7,"nrThrottled":56,"load1":5.27}
+{"ts":"2026-09-04T01:54:46+07:00","nhan":"t8-tai-lai-lan-3","workingSetMi":633,"peakMi":783,"memCurrentMi":733,"cpuSec":89.2,"nrThrottled":65,"load1":5.87}

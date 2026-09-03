@@ -1,0 +1,33 @@
+# 6.E — pod đo "IDE + bài học CÙNG LÚC". Phép đo mà docs/ide-choice.md §3 ghi là
+# còn thiếu: bảng trần 10/7 ở đó lấy số của pod chạy IDE và KHÔNG chạy gì khác,
+# rồi cộng thẳng 163Mi của bài Docker — một giả định không chồng lấn mà chưa ai đo.
+#
+# Sao nguyên spec của pod ấm THẬT (sandbox-3afada5c6642, đọc 2026-09-04):
+# runtimeClass sysbox-runc, hostUsers false, DLP_REGISTRY_MIRROR, 250m/256Mi–2/1Gi.
+#
+# ⛔ KHÔNG gắn nhãn `app=sandbox`. Orchestrator đếm warm-pool bằng đúng nhãn đó;
+# một pod đo mang nhãn ấy là đầu độc `pool:free` và làm lệch chính hệ đang đo.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ide-lesson-measure
+  namespace: dlp-sandbox
+  labels:
+    app: sandbox-ide-measure
+spec:
+  runtimeClassName: sysbox-runc
+  hostUsers: false
+  restartPolicy: Never
+  containers:
+    - name: sandbox
+      image: ghcr.io/nghaiz/dlp-sandbox-base:ide-probe
+      imagePullPolicy: Never
+      env:
+        - name: DLP_REGISTRY_MIRROR
+          value: http://platform-registry-mirror.dlp-registry.svc.cluster.local:5000
+      resources:
+        requests: {cpu: "250m", memory: "256Mi"}
+        # limits 1Gi GIỮ NGUYÊN của pod thật có chủ ý: nếu IDE + bài học vượt
+        # 1Gi thì pod phải bị OOMKill Ở ĐÂY, trong phép đo, chứ không phải lần
+        # đầu tiên một người học thật mở IDE.
+        limits:   {cpu: "2",    memory: "1Gi"}
