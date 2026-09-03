@@ -2,10 +2,14 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/k8s"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/envx"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/tlsx"
 )
@@ -107,6 +111,86 @@ type Config struct {
 	// mirror), còn image rỗng thì pod không dựng được. Ép một biến tuỳ chọn là
 	// chặn mọi cụm chưa cần mirror.
 	SandboxRegistryMirror string
+
+	// SandboxProfiles ánh xạ TÊN profile → resources/env TƯỜNG MINH cho pod
+	// (P7 7.C — ví dụ "k8s" cho lab Kubernetes-trong-pod, cần nhiều RAM hơn
+	// LimitRange mặc định). Đọc từ JSON trong env `SANDBOX_PROFILES`.
+	//
+	// RỖNG/không đặt ⇒ map rỗng ⇒ CHỈ profile mặc định ("") tồn tại — mọi
+	// CreateSessionRequest.profile khác rỗng bị lifecycle từ chối InvalidArgument
+	// (cùng nguyên tắc fail-closed với SandboxTier: server không tự suy ra một
+	// profile chưa được khai).
+	SandboxProfiles map[string]*k8s.SandboxProfile
+}
+
+// rawSandboxProfile là hình dạng JSON thô của MỘT profile trong
+// `SANDBOX_PROFILES` — bốn quantity dạng chuỗi (khớp cú pháp Kubernetes, ví dụ
+// "250m"/"768Mi") cộng env tuỳ chọn. Tách khỏi k8s.SandboxProfile (dùng
+// resource.Quantity đã phân giải) vì JSON tới từ bên ngoài — parse xong mới có
+// quyền tin.
+type rawSandboxProfile struct {
+	RequestsCPU    string            `json:"requestsCpu"`
+	RequestsMemory string            `json:"requestsMemory"`
+	LimitsCPU      string            `json:"limitsCpu"`
+	LimitsMemory   string            `json:"limitsMemory"`
+	Env            map[string]string `json:"env"`
+}
+
+// parseSandboxProfiles phân giải + validate `SANDBOX_PROFILES` NGAY LÚC khởi
+// động — fail-fast, cùng tinh thần với mọi biến bắt buộc khác trong file này.
+//
+// ⛔ VÌ SAO FAIL-FAST Ở ĐÂY CHỨ KHÔNG ĐỂ LỖI RƠI RA LÚC CreateSession: một
+// profile khai nửa vời (thiếu limitsMemory, hoặc "768M" gõ nhầm "768Mi") mà
+// không ai gọi tới nó cho tới lúc có sinh viên đầu tiên chọn nó — pod lên xanh,
+// mọi probe xanh, và CreateSession đầu tiên dùng profile đó mới lộ ra một lỗi
+// cấu hình, ngay trước mặt người dùng. Parse hết MỌI profile lúc Load() thì lỗi
+// nổ ra lúc `helm upgrade`, không phải lúc người học đầu tiên bấm Start.
+func parseSandboxProfiles(raw string) (map[string]*k8s.SandboxProfile, error) {
+	out := map[string]*k8s.SandboxProfile{}
+	if raw == "" {
+		return out, nil
+	}
+
+	var rawProfiles map[string]rawSandboxProfile
+	if err := json.Unmarshal([]byte(raw), &rawProfiles); err != nil {
+		return nil, fmt.Errorf("env SANDBOX_PROFILES: JSON không hợp lệ: %w", err)
+	}
+
+	for name, p := range rawProfiles {
+		if name == "" {
+			// "" đã có nghĩa cố định: profile MẶC ĐỊNH, không mang resources
+			// tường minh (xem session.proto). Một entry tên rỗng trong
+			// SANDBOX_PROFILES là mâu thuẫn với chính định nghĩa đó — chặn
+			// ngay thay vì để nó âm thầm không bao giờ khớp được (client
+			// không thể GỬI profile="" mà LẠI muốn nhận entry này, vì "" luôn
+			// đi vào nhánh mặc định trước khi map được tra).
+			return nil, fmt.Errorf("env SANDBOX_PROFILES: tên profile rỗng không hợp lệ — %q đã có nghĩa cố định là profile mặc định", "")
+		}
+		requestsCPU, err := resource.ParseQuantity(p.RequestsCPU)
+		if err != nil {
+			return nil, fmt.Errorf("env SANDBOX_PROFILES: profile %q requestsCpu=%q: %w", name, p.RequestsCPU, err)
+		}
+		requestsMemory, err := resource.ParseQuantity(p.RequestsMemory)
+		if err != nil {
+			return nil, fmt.Errorf("env SANDBOX_PROFILES: profile %q requestsMemory=%q: %w", name, p.RequestsMemory, err)
+		}
+		limitsCPU, err := resource.ParseQuantity(p.LimitsCPU)
+		if err != nil {
+			return nil, fmt.Errorf("env SANDBOX_PROFILES: profile %q limitsCpu=%q: %w", name, p.LimitsCPU, err)
+		}
+		limitsMemory, err := resource.ParseQuantity(p.LimitsMemory)
+		if err != nil {
+			return nil, fmt.Errorf("env SANDBOX_PROFILES: profile %q limitsMemory=%q: %w", name, p.LimitsMemory, err)
+		}
+		out[name] = &k8s.SandboxProfile{
+			RequestsCPU:    requestsCPU,
+			RequestsMemory: requestsMemory,
+			LimitsCPU:      limitsCPU,
+			LimitsMemory:   limitsMemory,
+			Env:            p.Env,
+		}
+	}
+	return out, nil
 }
 
 // Load đọc env và áp default.
@@ -204,6 +288,11 @@ func Load() (*Config, error) {
 			"Ready rồi mới hỏng lúc gateway exec vào)")
 	}
 
+	sandboxProfiles, err := parseSandboxProfiles(envx.String("SANDBOX_PROFILES", ""))
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		GRPCAddr:         envx.String("GRPC_ADDR", ":9090"),
 		HTTPAddr:         envx.String("HTTP_ADDR", ":8081"),
@@ -225,6 +314,7 @@ func Load() (*Config, error) {
 		SandboxImage:          sandboxImage,
 		SandboxRuntimeClass:   envx.String("SANDBOX_RUNTIME_CLASS", "sysbox-runc"),
 		SandboxRegistryMirror: envx.String("SANDBOX_REGISTRY_MIRROR", ""),
+		SandboxProfiles:       sandboxProfiles,
 	}, nil
 }
 
