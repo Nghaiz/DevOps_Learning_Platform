@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
@@ -224,15 +225,24 @@ func (f *fakePodDeleter) deletedNames() []string {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
+	return newHarnessWithProfiles(t, nil)
+}
+
+// newHarnessWithProfiles — mirror newHarness, cộng SANDBOX_PROFILES (P7 7.C).
+// Tách riêng thay vì thêm tham số biến đổi vào newHarness: mọi test hiện có
+// (không quan tâm profile) giữ nguyên chữ ký, không phải truyền nil ở khắp nơi.
+func newHarnessWithProfiles(t *testing.T, profiles map[string]*k8s.SandboxProfile) *harness {
+	t.Helper()
 	rdb := newTestRedis(t)
 	fp := &fakePool{rdb: rdb}
 	met := metrics.New(prometheus.NewRegistry())
 	pods := &fakePodDeleter{}
 	svc, err := NewService(rdb, fp, pods, nil, Config{
-		Namespace:     "dlp-sandbox",
-		SessionTTL:    time.Hour,
-		HardCap:       2 * time.Hour,
-		ExtendDefault: 5 * time.Minute,
+		Namespace:       "dlp-sandbox",
+		SessionTTL:      time.Hour,
+		HardCap:         2 * time.Hour,
+		ExtendDefault:   5 * time.Minute,
+		SandboxProfiles: profiles,
 	}, slog.New(slog.NewJSONHandler(io.Discard, nil)), met)
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
@@ -1143,4 +1153,137 @@ func TestClaimLaDuongDocLaiIdempotent(t *testing.T) {
 		SessionId: created.GetId(), UserId: "userB",
 	})
 	wantCode(t, err, codes.NotFound)
+}
+
+// ---------------------------------------------------------------- profile (P7 7.C)
+
+// createReqWithProfile — mirror createReq, cộng field profile.
+func createReqWithProfile(user, idem, profile string) *orchestratorv1.CreateSessionRequest {
+	req := createReq(user, idem)
+	req.Profile = profile
+	return req
+}
+
+// TestCreateProfileKhongTonTaiTraInvalidArgument — fail-closed theo ĐÚNG
+// nguyên tắc của SandboxTier (xem comment trong Create): một tên profile
+// KHÔNG khớp SANDBOX_PROFILES phải bị từ chối thẳng, KHÔNG BAO GIỜ tự rơi về
+// profile mặc định. Im lặng cấp mặc định cho một tên gõ sai nghĩa là một bài
+// K8s-trong-pod (cần ~2Gi) nhận đúng 1Gi LimitRange rồi OOM giữa chừng.
+func TestCreateProfileKhongTonTaiTraInvalidArgument(t *testing.T) {
+	// SANDBOX_PROFILES KHÔNG khai "k8s" — server chỉ biết "" (mặc định).
+	h := newHarnessWithProfiles(t, map[string]*k8s.SandboxProfile{
+		"gpu": {RequestsCPU: resource.MustParse("1")},
+	})
+	ctx := context.Background()
+
+	_, err := h.svc.Create(ctx, createReqWithProfile("u1", "k1", "k8s"))
+	wantCode(t, err, codes.InvalidArgument)
+
+	// Fail-closed nghĩa là KHÔNG một pod nào được tạo, dù profiled hay default —
+	// từ chối phải xảy ra TRƯỚC khi chạm tới pool.
+	if provisions, _ := h.pool.counts(); provisions != 0 {
+		t.Errorf("provisions = %d, cần 0 — từ chối phải xảy ra trước khi chạm pool", provisions)
+	}
+	h.pool.mu.Lock()
+	profileProvisions := h.pool.profileProvisions
+	h.pool.mu.Unlock()
+	if profileProvisions != 0 {
+		t.Errorf("profileProvisions = %d, cần 0 — profile lạ không được tạo pod nào", profileProvisions)
+	}
+
+	// Và không session nào được ghi — validate lỗi ở NGAY ĐẦU Create, trước cả
+	// khi khoá idempotency được đặt.
+	keys, err := h.rdb.Keys(ctx, "session:*").Result()
+	if err != nil {
+		t.Fatalf("KEYS: %v", err)
+	}
+	if len(keys) != 0 {
+		t.Fatalf("có %d key session:* sau một Create bị từ chối, cần 0: %v", len(keys), keys)
+	}
+}
+
+// TestCreateProfileHopLeProvisionDongBoVaGhiVaoSessionHash — vế KHẲNG ĐỊNH.
+//
+// Một profile ĐÃ khai trong SANDBOX_PROFILES phải: (a) rẽ NGAY sang nhánh
+// profiled — provision đồng bộ đúng MỘT lần qua ProvisionWithProfile, KHÔNG
+// đi qua Provision() default; (b) session trả về VÀ hash Redis phải mang tên
+// profile; (c) pool:free không hề bị chạm — pod profiled không có pha "free"
+// trung gian nào (xem comment của claimWithColdPath và ProvisionWithProfile).
+func TestCreateProfileHopLeProvisionDongBoVaGhiVaoSessionHash(t *testing.T) {
+	h := newHarnessWithProfiles(t, map[string]*k8s.SandboxProfile{
+		"k8s": {
+			RequestsCPU:    resource.MustParse("500m"),
+			RequestsMemory: resource.MustParse("1Gi"),
+			LimitsCPU:      resource.MustParse("2"),
+			LimitsMemory:   resource.MustParse("2Gi"),
+		},
+	})
+	ctx := context.Background()
+
+	sess, err := h.svc.Create(ctx, createReqWithProfile("u1", "k1", "k8s"))
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if sess.GetProfile() != "k8s" {
+		t.Errorf("session.profile = %q, cần %q", sess.GetProfile(), "k8s")
+	}
+	if sess.GetPodName() == "" {
+		t.Fatal("profiled session không gắn được pod")
+	}
+
+	// (a) đúng MỘT lượt provision profiled, KHÔNG lượt nào ở đường default.
+	h.pool.mu.Lock()
+	profileProvisions := h.pool.profileProvisions
+	h.pool.mu.Unlock()
+	if profileProvisions != 1 {
+		t.Fatalf("profileProvisions = %d, cần 1", profileProvisions)
+	}
+	if provisions, _ := h.pool.counts(); provisions != 0 {
+		t.Fatalf("provisions (đường default) = %d, cần 0 — profiled path không được rẽ qua Provision() default", provisions)
+	}
+
+	// (b) hash session:{id} mang đúng field "profile" — gateway/lifecycle đọc
+	// lại nó qua session.go fieldProfile.
+	sessionKey, err := rediskeys.Session(sess.GetId())
+	if err != nil {
+		t.Fatalf("rediskeys.Session: %v", err)
+	}
+	if got := h.rdb.HGet(ctx, sessionKey, "profile").Val(); got != "k8s" {
+		t.Fatalf("hash session field profile = %q, cần %q", got, "k8s")
+	}
+
+	// (c) pool:free KHÔNG hề bị chạm — bất biến quan trọng nhất của nhánh này.
+	if n, _ := h.rdb.LLen(ctx, rediskeys.PoolFree).Result(); n != 0 {
+		t.Fatalf("pool:free = %d, cần 0 — pod profiled không có pha free trung gian nào", n)
+	}
+}
+
+// TestCreateProfileRongVanDiDuongMacDinh — đối chứng: profile RỖNG (không
+// truyền) phải giữ NGUYÊN hành vi trước P7 7.C, kể cả khi SANDBOX_PROFILES có
+// khai profile khác. Thiếu vế này thì một service luôn rẽ nhánh profiled vẫn
+// làm hai test ở trên xanh.
+func TestCreateProfileRongVanDiDuongMacDinh(t *testing.T) {
+	h := newHarnessWithProfiles(t, map[string]*k8s.SandboxProfile{
+		"k8s": {RequestsCPU: resource.MustParse("500m")},
+	})
+	ctx := context.Background()
+	h.seedWarmPod(t, "sandbox-warm01")
+
+	sess, err := h.svc.Create(ctx, createReq("u1", "k1"))
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if sess.GetProfile() != "" {
+		t.Errorf("session.profile = %q, cần rỗng", sess.GetProfile())
+	}
+	if sess.GetPodName() != "sandbox-warm01" {
+		t.Errorf("pod_name = %q, cần sandbox-warm01 (đường warm mặc định)", sess.GetPodName())
+	}
+	h.pool.mu.Lock()
+	profileProvisions := h.pool.profileProvisions
+	h.pool.mu.Unlock()
+	if profileProvisions != 0 {
+		t.Errorf("profileProvisions = %d, cần 0 — profile rỗng không được rẽ nhánh profiled", profileProvisions)
+	}
 }
