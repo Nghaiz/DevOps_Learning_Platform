@@ -1,0 +1,73 @@
+{
+  "soMau": 122,
+  "mauHopLe": 119,
+  "mauBiLoai": 3,
+  "wsSong": 10,
+  "phutCuaSo": 118,
+  "daiLuong": {
+    "orch go_goroutines": {
+      "dau": 29,
+      "cuoi": 29,
+      "min": 25,
+      "max": 29,
+      "docPerHour": -0.9,
+      "nguong": 2,
+      "phang": true
+    },
+    "orch process_open_fds": {
+      "dau": 28,
+      "cuoi": 23,
+      "min": 21,
+      "max": 29,
+      "docPerHour": -3.33,
+      "nguong": 2,
+      "phang": true
+    },
+    "orch RSS (MiB)": {
+      "dau": 56.1640625,
+      "cuoi": 57.734375,
+      "min": 55.2890625,
+      "max": 57.7890625,
+      "docPerHour": 0.82,
+      "nguong": 5,
+      "phang": true
+    },
+    "orch dlp_pool_claimed_size": {
+      "dau": 11,
+      "cuoi": 10,
+      "min": 10,
+      "max": 11,
+      "docPerHour": -0.59,
+      "nguong": 0.5,
+      "phang": true
+    },
+    "gateway go_goroutines (tổng)": {
+      "dau": 309,
+      "cuoi": 300,
+      "min": 298,
+      "max": 311,
+      "docPerHour": -7.47,
+      "nguong": 2,
+      "phang": true
+    },
+    "gateway process_open_fds (tổng)": {
+      "dau": 49,
+      "cuoi": 49,
+      "min": 49,
+      "max": 49,
+      "docPerHour": 0,
+      "nguong": 2,
+      "phang": true
+    },
+    "gateway RSS (MiB, tổng)": {
+      "dau": 85.99609375,
+      "cuoi": 104.76171875,
+      "min": 85.99609375,
+      "max": 105.94140625,
+      "docPerHour": 4.96,
+      "nguong": 5,
+      "phang": true
+    }
+  },
+  "ketLuan": "KHÔNG RÒ RỈ (không đại lượng nào dốc lên quá ngưỡng)"
+}

@@ -1,0 +1,79 @@
+[1mreaper-verify[0m · ns=default sandbox=dlp-sandbox · 2026-09-04T23:32:37Z
+
+[1m── AC-C2 — reaper dọn session hết hạn (đối chứng âm: session chưa hết hạn)[0m
+     sandbox pod đang chạy: 3 · cần thêm 3 khe (trần 23)
+     scrape /metrics: 247 dòng
+     mốc counter: claimed_orphan=2 keyspace_events=226
+     session ngắn (ttl=45s): sandbox-ffe72d1d21d0 sandbox-530379c0972d
+     session dài  (ttl=900s): sandbox-922a566168e3 · hết hạn 2026-09-04T23:47:55Z
+  [32mPASS[0m t0: cả 3 pod đều SỐNG và nằm trong pool:claimed phép quan sát có khả năng thấy 'còn'
+     chờ tới 23:35:18Z (hết hạn muộn nhất 23:33:33Z + REAP_INTERVAL 60s + 45s biên)
+  [32mPASS[0m AC-C2 vế 1: 2/2 pod của session hết hạn đã bị XOÁ sau 1s kể từ mốc hết hạn muộn nhất (độ phân giải poll 5s)
+  [32mPASS[0m AC-C2 vế 1b: tên đã rời pool:claimed              index sạch — dlp_pool_claimed_size đếm đúng
+  [32mPASS[0m AC-C2 vế 2 (đối chứng âm): session CHƯA hết hạn còn nguyên pod=Running, trong pool:claimed
+     scrape /metrics: 247 dòng
+     counter sau: claimed_orphan=2→2 keyspace_events=226→228
+     (tầng 1 = keyspace event, xoá gần như tức thì; tầng 2c = lưới đỡ mỗi 60s)
+     dọn session unknown (pod sandbox-ffe72d1d21d0)
+     dọn session unknown (pod sandbox-530379c0972d)
+     dọn session 0ef4f1fef2285565ea24db9afbccffca (pod sandbox-922a566168e3)
+
+[1m── Chỗ rò session-ma — FAILED không được để lại tên trong pool:claimed[0m
+     sẽ thành ma: sandbox-b0ff675d1259 · đối chứng: sandbox-51a2e73fbf8f
+  [32mPASS[0m t0: cả hai pod nằm trong pool:claimed                phép quan sát thấy được 'có trong index'
+     đã xoá sandbox-b0ff675d1259 khỏi apiserver lúc 23:33:58Z
+  [32mPASS[0m tầng 2b nhận ra session ma                           status=FAILED
+  [32mPASS[0m session ma KHÔNG để lại tên trong pool:claimed    index sạch, hash pod:{name} đã xoá
+  [32mPASS[0m hash session ma VẪN còn (FE đọc được lý do)   EXISTS=1, status=FAILED
+  [32mPASS[0m đối chứng âm: session còn sống KHÔNG bị đụng pod=Running, vẫn trong pool:claimed
+     dọn session 1078eab30d51d874d5416d4b7133731a (pod sandbox-b0ff675d1259)
+     dọn session 1058b3bda6b9036e9db0fad58857ed7b (pod sandbox-51a2e73fbf8f)
+
+[1m── AC-C3 — session sống qua được một lần restart orchestrator[0m
+     session 72b9ac930aeff1fb01c7ad1e3e3c0fcd trên pod sandbox-3ced1c5512dd
+     khớp index/cụm trước restart: phantom=0:∅ orphan=0:∅
+  [32mPASS[0m trước restart: session đọc được VÀ ghi được GetSession + ExtendSession đều OK
+
+[1m── restart orchestrator[0m
+     rollout xong lúc 23:35:29Z
+  [32mPASS[0m AC-C3 vế 2: session cũ VẪN dùng được sau restart GetSession + ExtendSession đều OK
+  [32mPASS[0m AC-C3 vế 2b: ĐÚNG pod cũ còn chạy, không bị tạo lại startTime 2026-09-04T23:32:55Z không đổi
+     pool: free 2→3 (đổi theo POOL_TARGET là ĐÚNG), claimed 1→1
+     khớp index/cụm sau restart: phantom=0:∅ orphan=0:∅
+  [32mPASS[0m AC-C3 vế 1a: pod của session này vẫn trong pool:claimed claimed 1→1, sandbox-3ced1c5512dd còn trong index
+  [32mPASS[0m AC-C3 vế 1b: index Redis khớp cụm — 0 pod rò cả hai chiều phantom=0:∅ orphan=0:∅
+     dọn session 72b9ac930aeff1fb01c7ad1e3e3c0fcd (pod sandbox-3ced1c5512dd)
+
+[1m── 5.F — claim gặp pod đã chết: không giao, đánh FAILED, rút khỏi index[0m
+     scrape /metrics: 247 dòng
+     mốc counter: claim_dead_pod=0
+     đã bơm tên ma vào đầu pool:free: sandbox-64c41213f531
+  [32mPASS[0m claim KHÔNG giao pod đã chết                        pod trả về: '∅ (claim bị từ chối, đúng kỳ vọng)'
+     scrape /metrics: 247 dòng
+  [32mPASS[0m dlp_claim_dead_pod_total tăng đúng 1                  0 → 1
+  [32mPASS[0m tên ma bị rút khỏi pool:free + pool:claimed + hash pod cả ba sạch
+  [32mPASS[0m đối chứng dương: claim kế tiếp vẫn nhận pod SỐNG pod=sandbox-2bf3a5d858ce
+     dọn session c6f6ab0d997f1795f64ae44406dce326 (pod sandbox-2bf3a5d858ce)
+
+[1m── TỔNG[0m
+PASS | t0: cả 3 pod đều SỐNG và nằm trong pool:claimed | phép quan sát có khả năng thấy 'còn'
+PASS | AC-C2 vế 1: 2/2 pod của session hết hạn đã bị XOÁ | sau 1s kể từ mốc hết hạn muộn nhất (độ phân giải poll 5s)
+PASS | AC-C2 vế 1b: tên đã rời pool:claimed | index sạch — dlp_pool_claimed_size đếm đúng
+PASS | AC-C2 vế 2 (đối chứng âm): session CHƯA hết hạn còn nguyên | pod=Running, trong pool:claimed
+PASS | t0: cả hai pod nằm trong pool:claimed | phép quan sát thấy được 'có trong index'
+PASS | tầng 2b nhận ra session ma | status=FAILED
+PASS | session ma KHÔNG để lại tên trong pool:claimed | index sạch, hash pod:{name} đã xoá
+PASS | hash session ma VẪN còn (FE đọc được lý do) | EXISTS=1, status=FAILED
+PASS | đối chứng âm: session còn sống KHÔNG bị đụng | pod=Running, vẫn trong pool:claimed
+PASS | trước restart: session đọc được VÀ ghi được | GetSession + ExtendSession đều OK
+PASS | AC-C3 vế 2: session cũ VẪN dùng được sau restart | GetSession + ExtendSession đều OK
+PASS | AC-C3 vế 2b: ĐÚNG pod cũ còn chạy, không bị tạo lại | startTime 2026-09-04T23:32:55Z không đổi
+PASS | AC-C3 vế 1a: pod của session này vẫn trong pool:claimed | claimed 1→1, sandbox-3ced1c5512dd còn trong index
+PASS | AC-C3 vế 1b: index Redis khớp cụm — 0 pod rò cả hai chiều | phantom=0:∅ orphan=0:∅
+PASS | claim KHÔNG giao pod đã chết | pod trả về: '∅ (claim bị từ chối, đúng kỳ vọng)'
+PASS | dlp_claim_dead_pod_total tăng đúng 1 | 0 → 1
+PASS | tên ma bị rút khỏi pool:free + pool:claimed + hash pod | cả ba sạch
+PASS | đối chứng dương: claim kế tiếp vẫn nhận pod SỐNG | pod=sandbox-2bf3a5d858ce
+
+pass=18 fail=0
+KẾT QUẢ: PASS

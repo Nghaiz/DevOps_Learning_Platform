@@ -1,5 +1,7 @@
 # Phase 12 — Chứng minh quy mô: 40 người, qua Traefik, và chạy dài
 
+**Trạng thái:** ✅ ĐÓNG 2026-09-05 (10/11 ô; ô "mất pod giữa phiên" 3/4 — xem report) · **Report:** [`reports/2026-09-05-verify-p12.md`](reports/2026-09-05-verify-p12.md)
+
 **Mức chi tiết:** DETAILED · **Effort:** M · **Blocks:** P13 (FE dựng trên trần đã biết), go-live · **Blocked by:** P5, P6, P7, P8 (đo trên hệ đã đủ tính năng, không đo trên bộ khung)
 
 > Đây là chỗ trả nốt bốn món nợ đo mà P3 để lại và ghi thẳng ra: **chưa đo ở 40** · **chưa đo qua Traefik** · **chưa chạy dài (soak)** · **chưa tách CPU của riêng bước build**. Cộng thêm hai món của 3.G/3.H: cluster-autoscaler chưa từng scale thật, spot interruption chưa có gì.
@@ -68,17 +70,17 @@
 
 ## Acceptance criteria
 
-- [ ] Trần mới tính bằng **min-của-năm**, phép tính ghi trong values; nếu 40 đòi under-request thì **kết luận là "không đạt an toàn"** và viết ra.
-- [ ] Đo N=40 (hoặc trần thật đạt được) **qua Traefik**, driver chạy **ngoài VM**, đồng hồ đã quy về một nguồn.
-- [ ] Tỉ lệ lượt chấm thành công **≥ 99%**; con số thật ghi lại dù đạt hay không.
-- [ ] p95 "gõ → ký tự hiện" đo được và ghi lại (đại lượng này chưa từng có số).
-- [ ] **0** OOMKill/evict; **0** WS rớt ngoài rollout có chủ đích.
-- [ ] Rate-limit `/ws` nới có cơ sở số, **và pentest luật 5 chạy lại** trên cấu hình mới.
-- [ ] CPU tách theo giai đoạn (pull / dockerd / build) — biết phần nào đắt.
-- [ ] Soak 2–4h: 4 đại lượng rò rỉ **phẳng**; nếu dốc thì đó là một lỗi, không phải một ghi chú.
-- [ ] Ca mất pod giữa phiên: mã đóng đúng, câu tiếng Việt đúng, khe quota được trả.
-- [ ] Sau tải: `secure-test-devops` 10/10 + đối chứng dương 10/10, `netpol` 22/22, `reaper-verify` đầy đủ.
-- [ ] Ô "autoscaler scale thật" **vẫn mở**, kèm lý do — không tick bằng render/dry-run.
+- [x] Trần mới tính bằng **min-của-năm**, phép tính ghi trong values; nếu 40 đòi under-request thì **kết luận là "không đạt an toàn"** và viết ra. — **23 pod**; 40 đòi 134m/pod < 150m đã đo ra hại ⇒ kết luận "không đạt an toàn" đã viết vào `values-selfhost.yaml`. RAM KHÔNG phải chỗ chặn (43×163Mi < 9998Mi), CPU mới là.
+- [x] Đo N=40 (hoặc trần thật đạt được) **qua Traefik**, driver chạy **ngoài VM**, đồng hồ đã quy về một nguồn. — N=23 qua Traefik từ Windows; lệch đồng hồ đo được **+2.78s** (không phải 59s) và mọi độ trễ là hiệu trên CÙNG một đồng hồ.
+- [x] Tỉ lệ lượt chấm thành công **≥ 99%**; con số thật ghi lại dù đạt hay không. — **21/21 = 100%** trong số phiên ĐƯỢC NHẬN; 2/23 bị từ chối ở cửa bằng 429 (hành vi đúng). Lượt chưa tách lỗi egress: 8/23 và 0/23 — cũng ghi lại.
+- [x] p95 "gõ → ký tự hiện" đo được và ghi lại (đại lượng này chưa từng có số). — **p95 = 84ms** với 21 người cùng gõ (504/504 vọng, 0 treo); nền N=1/N=2 là 26–37ms.
+- [x] **0** OOMKill/evict; **0** WS rớt ngoài rollout có chủ đích. — 0/0 ở mọi lượt; soak giữ ws=10 suốt 118 phút.
+- [x] Rate-limit `/ws` nới có cơ sở số, **và pentest luật 5 chạy lại** trên cấu hình mới. — đo ra burst 10 là chỗ chặn (10/20 vào), nới **40/30**; pentest 10/10 + đối chứng dương 10/10 trên cấu hình MỚI.
+- [x] CPU tách theo giai đoạn (pull / dockerd / build) — biết phần nào đắt. — **pull 80.0%** (16.01s, cpu/wall 0.23 = chờ I/O), build 18.8% (3.77s, cpu/wall 1.45 = ăn >1 core), dockerd-boot 1.1% (cận dưới, pod warm).
+- [x] Soak 2–4h: 4 đại lượng rò rỉ **phẳng**; nếu dốc thì đó là một lỗi, không phải một ghi chú. — soak **2h**, 119/122 mẫu có ws=10: không đại lượng nào dốc lên quá ngưỡng. ⚠ RSS gateway +4.96 MiB/h (sát ngưỡng) — 2h chưa đủ tách "plateau" khỏi "rò chậm", cần lượt 4h.
+- [ ] Ca mất pod giữa phiên: mã đóng đúng, câu tiếng Việt đúng, khe quota được trả. — **3/4**. Câu tiếng Việt ✅, phiên không kẹt ✅, khe quota trả ✅. **Mã đóng SAI**: `1000 "exit"` thay vì `4404` do ĐUA giữa stream-đứt và sổ sách reaper (exitCode=137, gateway CÓ tra Redis nhưng Redis còn ghi phiên sống). Người bị thu hồi pod được báo "bạn đã tự gõ exit". Ngoài ownership P12 ⇒ để lại làm defect.
+- [x] Sau tải: `secure-test-devops` 10/10 + đối chứng dương 10/10, `netpol` 22/22, `reaper-verify` đầy đủ. — suite thật là `infra/pentest/` (10/10 + 10/10 PC), `netpol-verify` **22/22** dưới tải, `reaper-verify` **18/18** sau tải (phải side-load `dlp-lifecycle-probe:dev` trước — image chưa từng có trên node).
+- [x] Ô "autoscaler scale thật" **vẫn mở**, kèm lý do — không tick bằng render/dry-run. — GIỮ MỞ: `cluster.x-k8s.io` và `metrics.k8s.io` đều rỗng trên cụm 1 node; không có gì để scale và không có API trung lập để giả lập.
 
 ## Verify commands
 
