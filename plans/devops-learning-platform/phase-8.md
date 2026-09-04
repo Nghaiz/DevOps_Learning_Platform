@@ -63,15 +63,15 @@ Người học mở một lab, nhận N task độc lập, làm theo thứ tự 
 
 ## Acceptance criteria
 
-- [ ] `docs/lab-format.md` là SSOT; Zod strict từ chối field lạ kèm tên field.
-- [ ] Lab 4+ task: chấm từng task độc lập, kết quả từng task hiện riêng.
-- [ ] **Không cột nào suy ra được** trong 2 bảng mới (rà từng cột trong review, ghi lý do tồn tại của mỗi cột).
-- [ ] Điểm tổng, trạng thái đạt, thời gian làm đều **tính ở chỗ dùng**, có test cho hàm tính.
-- [ ] Script hỏng/hết hạn/pod chết ⇒ **lỗi**, không phải `passed:false` (test có cả ba ca).
-- [ ] Mỗi verify script của lab first-party có **cả ca pass và ca fail** chứng minh được.
-- [ ] Xếp hạng: mặc định tắt · mặc định ẩn danh · không lộ email · cap 100 · test IDOR có đối chứng dương.
-- [ ] Playground dựng được, TTL riêng hiện trên UI trước khi bắt đầu.
-- [ ] 10 luật §6 không suy giảm trên route mới (Zod strict, authz, cap, không token trong URL).
+- [x] `docs/lab-format.md` là SSOT; Zod strict từ chối field lạ kèm tên field. → `lab.json` + `task-<id>.md` + `task-<id>/verify.sh`; Zod strict từ chối field lạ kèm **đường dẫn chấm**, và `verifyScript` **không nullable** (task không chấm được bị từ chối NGAY LÚC NẠP, không phải lúc người học bấm Chấm). [report P7/P8](reports/2026-09-04-verify-p7-p8.md) §2 (8.A).
+- [x] Lab 4+ task: chấm từng task độc lập, kết quả từng task hiện riêng. → `dlp-k8s-broken-deploy` **5 task**, mỗi task một Deployment/Service RIÊNG; `labs.submit` chạy **0** verify script (chỉ đóng dấu rồi tính lại) — chấm N task tuần tự trong một lời gọi là thiết kế sai. Bảng 5 task × 2 vế (sau `setup` gieo lỗi ⇒ **EXIT=1**; sau khi sửa ⇒ EXIT=0, task cuối có **HTTP 200 thật qua Service**). Kiểm bằng trình duyệt 2026-09-04: thẻ lab hiện `5 nhiệm vụ`, tab `Nhiệm vụ (5)`. [report P7/P8](reports/2026-09-04-verify-p7-p8.md) §2 (8.B, 8.D).
+- [x] **Không cột nào suy ra được** trong 2 bảng mới. → rà từng cột: không `score`, không `status`, không `duration_seconds`, không `passed` (= `exit_code === 0`), không `attempt_no` (= đếm dòng trước đó). [report P7/P8](reports/2026-09-04-verify-p7-p8.md) §2 (8.B).
+- [x] Điểm tổng, trạng thái đạt, thời gian làm đều **tính ở chỗ dùng**, có test cho hàm tính. → `computeLabScore` / `computeLabStatus` / `computeAttemptDurationSeconds` + `latestResultPerTask` trong `packages/scenario/src/lab-score.ts`, có `lab-score.test.ts` đi kèm. Đây là mặt kia của ô ngay trên: không lưu cột suy được thì phải có chỗ TÍNH, và chỗ tính phải có test.
+- [x] Script hỏng/hết hạn/pod chết ⇒ **lỗi**, không phải `passed:false` (cả ba ca). → mỗi ca một test, và mỗi test khẳng định **số dòng ghi vào DB** chứ không chỉ mã lỗi: verify exit≠0 ⇒ `passed:false` **+1 dòng**; gateway 200 nhưng body sai hợp đồng ⇒ **NÉM, 0 dòng**; gateway 5xx / session không active ⇒ **NÉM, 0 dòng**. Vế *0 dòng* là vế quan trọng: một lỗi hạ tầng ghi thành `passed:false` là ghi vào hồ sơ học viên rằng họ làm sai. [report P7/P8](reports/2026-09-04-verify-p7-p8.md) §2.
+- [x] Mỗi verify script của lab first-party có **cả ca pass và ca fail** chứng minh được. → `dlp-k8s-broken-deploy` 5/5 task đo cả hai vế trên cụm thật (bảng ở [report P7/P8](reports/2026-09-04-verify-p7-p8.md) §2). Shellcheck 39 script `dlp-*` sạch ở ngưỡng CI (chạy lại 2026-09-04).
+- [x] Xếp hạng: mặc định tắt · mặc định ẩn danh · không lộ email · cap 100 · test IDOR có đối chứng dương. → cả năm vế; truy vấn **không nhận `userId`**, không select cột email; test IDOR có **đối chứng dương trên cả 5 procedure** — thiếu vế dương thì một hàm luôn trả rỗng cũng *xanh*. [report P7/P8](reports/2026-09-04-verify-p7-p8.md) §2 (8.C).
+- [x] Playground dựng được, TTL riêng hiện trên UI **trước** khi bắt đầu. → `content/playgrounds/*.json`, TTL 1800 s. **Kiểm bằng trình duyệt thật 2026-09-04** (lần đầu tiên): `/playgrounds` liệt kê 2 sân chơi, mỗi thẻ hiện `Tự đóng sau 30 phút` NGAY TRÊN DANH SÁCH — tức trước cả khi mở trang chi tiết, chứ không chỉ trước khi bấm Bắt đầu. [report đóng nợ](reports/2026-09-04-debt-closure.md) §1.
+- [x] 10 luật §6 không suy giảm trên route mới. → `labs-authz.test.ts` + `lessons-authz.test.ts` phủ authz/cap/Zod strict trên 9 procedure `labs.*`; `apps/web` **312/312 test xanh, 0 skip** (2026-09-04). ⚠ Mức UNIT + integration; vế trình duyệt của `/labs`, `/playgrounds` đã chạy 2026-09-04 ([report đóng nợ](reports/2026-09-04-debt-closure.md) §1), vế devtools-network vẫn thuộc P13.
 
 ## Verify commands
 

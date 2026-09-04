@@ -411,13 +411,28 @@ main() {
   local disk
   disk=$(inpod 'du -sm /var/lib/docker 2>/dev/null | cut -f1' 2>/dev/null | tr -dc '0-9')
 
+  # So lan container k3s phai KHOI DONG LAI (P7-bis mon "cluster con chet ngat
+  # quang luc khoi dong", do 2026-09-04).
+  #
+  # Vi sao phai do RIENG chu khong doc `readyVerdict`: ban va la
+  # `--restart=on-failure:3`, va khi no lam dung viec thi cluster VAN Ready —
+  # `readyVerdict` xanh o CA hai truong hop, nen no khong phan biet duoc "khong
+  # co su co" voi "co su co va da duoc cuu". Con so duy nhat noi ra dieu do la
+  # RestartCount cua chinh container.
+  #
+  # 0  = khong tai phat trong luot nay
+  # >0 = da tai phat, va restart policy da cuu duoc phien
+  local k3s_restarts
+  k3s_restarts=$(inpod 'docker inspect dlp-k3s --format "{{.RestartCount}}" 2>/dev/null' 2>/dev/null | tr -dc '0-9')
+
   jq -s --arg v "$variant" --arg ready "$ready" --argjson secs "$((t1-t0))" \
         --argjson tready "$(cat "$T_READY_FILE" 2>/dev/null || echo 0)" \
-        --arg disk "${disk:-0}" --arg log "$setup_log" '
+        --arg disk "${disk:-0}" --arg k3srs "${k3s_restarts:-}" --arg log "$setup_log" '
     { variant: $v,
       readyVerdict: $ready,
       secondsToReady: $secs,
       dockerDiskMB: ($disk | tonumber),
+      k3sRestartCount: ($k3srs | if . == "" then null else tonumber end),
       samples: length,
       workingSetPeakMiB:  ((map(.workingSet)  | max) / 1048576 * 100 | round / 100),
       workingSetFinalMiB: ((.[-1].workingSet)        / 1048576 * 100 | round / 100),

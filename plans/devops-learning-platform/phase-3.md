@@ -39,7 +39,9 @@
       p95 **9.0s** cho `session.create` đi cold path.
 - [x] NetworkPolicy: mọi chiều lateral + metadata bị chặn (test script).
       → 3.B, `netpol-verify.sh` **22/22** hai vế; lỗ thật nằm ở namespace NỀN TẢNG chứ không ở sandbox.
-- [ ] Autoscaler scale up/down theo tải; scale-to-zero off-peak hoạt động.
+- [~] ~~Autoscaler scale up/down theo tải; scale-to-zero off-peak hoạt động.~~ — **KHÔNG CHỨNG MINH ĐƯỢC TRÊN HẠ TẦNG NÀY**, và bản detailed đã chốt vậy từ đầu chứ không phải bỏ quên (rà lại 2026-09-04).
+      Lab là **một node** VMware; `cluster-autoscaler` cần một node pool mà nhà cung cấp cấp thêm máy được — thứ không tồn tại ở đây. `phase-3-detailed.md` §1 ghi phạm vi đúng như vậy: viết Helm/manifest **cloud-agnostic**, verify bằng `helm template` + `--dry-run=server` + kiểm schema, và **KHÔNG khẳng định đã scale thật**; bảng tổng của nó (dòng ~1305) đánh thẳng *hành vi scale up/down / scale-to-zero* là **❌ KHÔNG chứng minh**.
+      Giữ `[~]` chứ không tick: phần **manifest** đã xong và kiểm được, phần **hành vi** thì chưa ai quan sát và sẽ chỉ quan sát được khi lên cloud có node pool. Tick trọn ở đây là ghi vào sổ rằng ta đã thấy một thứ chưa ai thấy — cùng lỗi mà ô k6 ngay trên cố ý tránh.
       **KHÔNG đóng, và không đóng được ở đây.** Manifest cloud-agnostic đã ship và
       qua render + `kubeconform -strict` + `--dry-run=server` (3.G), nhưng hành vi
       scale KHÔNG chứng minh được: `cluster.x-k8s.io` và `metrics.k8s.io` đều RỖNG
