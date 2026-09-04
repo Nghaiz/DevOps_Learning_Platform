@@ -1,7 +1,12 @@
 import { TRPCError } from '@trpc/server';
 import { and, desc, eq, inArray, isNotNull, lt, or } from 'drizzle-orm';
 import { z } from 'zod';
-import { computeAttemptDurationSeconds, computeLabScore, computeLabStatus } from '@devops-platform/scenario';
+import {
+  computeAttemptDurationSeconds,
+  computeLabScore,
+  computeLabStatus,
+  InvalidCursorError,
+} from '@devops-platform/scenario';
 import {
   labTaskIdSchema,
   scenarioIdSchema,
@@ -10,14 +15,20 @@ import {
   type LabLeaderboardRow,
   type LabTaskResult,
 } from '@devops-platform/shared-types/lab';
-import { effectiveCapabilities } from '@devops-platform/shared-types/scenario';
+import {
+  effectiveCapabilities,
+  SANDBOX_TIER_NAMES,
+  SCENARIO_DIFFICULTIES,
+} from '@devops-platform/shared-types/scenario';
 import type { Database } from '../../db/client';
 import { labAttempts, labTaskResults, users, type LabAttemptRow, type LabTaskResultRow } from '../../db/schema';
+import { readUserPreferences } from '../../me/preferences';
 import { unsupportedCapabilities } from '../../lessons/catalog';
 import { runScriptInSession } from '../../lessons/validate';
 import { labSource, requireLab } from '../../labs/catalog';
 import { truncateLabOutput } from '../../labs/output';
 import { createSandboxSession, sessionExpiry } from '../../labs/session';
+import { applySessionPreferences } from '../../sessions/preferences';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
 /**
@@ -106,6 +117,14 @@ const IDEMPOTENCY_KEY_SCHEMA = z
   .string()
   .regex(/^[A-Za-z0-9_-]{1,64}$/, 'idempotencyKey chỉ nhận [A-Za-z0-9_-], tối đa 64 ký tự');
 
+/** D9 (phase-13) — bộ lọc SERVER, cùng khuôn `lessons.list`. */
+const listLabsInput = listInputSchema
+  .extend({
+    difficulty: z.enum(SCENARIO_DIFFICULTIES).optional(),
+    tier: z.enum(SANDBOX_TIER_NAMES).optional(),
+  })
+  .strict();
+
 const getInput = z.object({ labId: scenarioIdSchema }).strict();
 const startAttemptInput = z
   .object({ labId: scenarioIdSchema, idempotencyKey: IDEMPOTENCY_KEY_SCHEMA })
@@ -124,26 +143,27 @@ const leaderboardInput = listInputSchema.extend({ labId: scenarioIdSchema }).str
 // ---------------------------------------------------------------- router
 
 export const labsRouter = createTRPCRouter({
-  /** Danh sách lab cho trang `/labs`. Luật 4: `limit` bị ÉP về ≤100 (`listInputSchema`). */
-  list: protectedProcedure.input(listInputSchema).query(async ({ input }) => {
-    const all = await labSource().listLabs();
-
-    let start = 0;
-    if (input.cursor !== undefined) {
-      const at = all.findIndex((lab) => lab.id === input.cursor);
-      if (at < 0) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cursor không còn hợp lệ' });
+  /**
+   * Danh sách lab cho trang `/labs`. Luật 4: `limit` bị ÉP về ≤100
+   * (`listInputSchema`).
+   *
+   * D9 (phase-13) — cùng khuôn `lessons.list`: phân trang thật ở tầng nguồn
+   * qua `listLabsPage`, không còn `listLabs()` rồi cắt lát bằng TS.
+   */
+  list: protectedProcedure.input(listLabsInput).query(async ({ input }) => {
+    try {
+      const result = await labSource().listLabsPage({
+        limit: input.limit,
+        cursor: input.cursor,
+        filter: { difficulty: input.difficulty, tier: input.tier },
+      });
+      return { items: result.items, limit: input.limit, nextCursor: result.nextCursor };
+    } catch (cause) {
+      if (cause instanceof InvalidCursorError) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cursor không còn hợp lệ', cause });
       }
-      start = at + 1;
+      throw cause;
     }
-
-    const page = all.slice(start, start + input.limit);
-    const next = start + input.limit;
-    return {
-      items: page,
-      limit: input.limit,
-      nextCursor: next < all.length ? (page[page.length - 1]?.id ?? null) : null,
-    };
   }),
 
   /** Nội dung đầy đủ một lab. */
@@ -166,6 +186,14 @@ export const labsRouter = createTRPCRouter({
       capabilities: lab.capabilities,
     });
 
+    // Hồ sơ (P13 C4) — lựa chọn "hiện tên trên bảng xếp hạng" là mặc định
+    // TOÀN CỤC của người dùng; `setDisplayPreference` vẫn cho đổi ý SAU khi đã
+    // nộp cho TỪNG lần thử riêng (đọc lại ở mỗi lượt xem xếp hạng, không đóng
+    // băng — xem chú thích `labAttempts.displayNamePublic`). Đây chỉ là giá trị
+    // KHỞI TẠO, không phải ràng buộc.
+    const prefs = await readUserPreferences(ctx.db, ctx.user.id);
+    const { preferencesApplied } = await applySessionPreferences(ctx, session);
+
     const now = new Date();
     const attemptId = crypto.randomUUID();
     await ctx.db.insert(labAttempts).values({
@@ -175,12 +203,12 @@ export const labsRouter = createTRPCRouter({
       sessionId: session.id,
       startedAt: now,
       submittedAt: null,
-      displayNamePublic: false,
+      displayNamePublic: prefs.leaderboardNamePublic,
       createdAt: now,
       updatedAt: now,
     });
 
-    return { attemptId, sessionId: session.id };
+    return { attemptId, sessionId: session.id, preferencesApplied };
   }),
 
   /** Điểm + trạng thái của MỘT lần thử — chỉ chủ sở hữu (luật 5). */

@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray, or, sql } from 'drizzle-orm';
 import {
   ownDraftsAuthorId,
   visibleStates,
@@ -10,6 +10,7 @@ import type {
   ContentItemRow,
   ContentRepository,
   ContentStepRow,
+  ListPageOptions,
 } from '@devops-platform/scenario';
 import type { Database, DbOrTx } from '../db/client';
 import { contentItems, contentSteps, type ContentItemRecord } from '../db/schema';
@@ -136,6 +137,47 @@ export function contentRepository(db: Database): ContentRepository {
         .orderBy(asc(contentItems.id));
 
       return rows.map((row) => toItemRow(row.item, row.stepCount));
+    },
+
+    /**
+     * D9 (phase-13) — `WHERE id > cursor AND kind = … AND (state đã lọc theo
+     * tầm nhìn) [AND difficulty/tier] ORDER BY id LIMIT n+1` — chính là câu SQL
+     * mà `listItems` không có (nó đọc hết bảng, đúng cho `authoring.list` vốn
+     * hiếm khi có hàng trăm bài, sai cho một trang catalog thật).
+     *
+     * `filter.difficulty` bị bỏ qua khi `kind === 'playground'` — xem chú thích
+     * ở `ContentRepository.listItemsPage` (`db-source.ts`): cột đó luôn NULL
+     * cho playground, áp cứng sẽ luôn trả 0 dòng thay vì "bỏ qua vì không áp
+     * dụng được", khác hành vi nguồn đĩa (`matchesContentFilter`).
+     *
+     * `LIMIT options.limit + 1`: dòng thứ `limit+1` (nếu có) không được trả
+     * cho caller — nó chỉ tồn tại để `hasMore` biết còn trang sau mà không cần
+     * một `COUNT(*)` riêng.
+     */
+    async listItemsPage(kind: ContentKind, visibility: ContentVisibility, options: ListPageOptions) {
+      const conditions = [eq(contentItems.kind, kind), visibleWhere(visibility)];
+      if (options.cursor !== undefined) {
+        conditions.push(gt(contentItems.id, options.cursor));
+      }
+      if (options.filter?.tier !== undefined) {
+        conditions.push(eq(contentItems.tier, options.filter.tier));
+      }
+      if (options.filter?.difficulty !== undefined && kind !== 'playground') {
+        conditions.push(eq(contentItems.difficulty, options.filter.difficulty));
+      }
+
+      const counts = stepCountSubquery(db);
+      const rows = await db
+        .select({ item: contentItems, stepCount: stepCountOf(counts) })
+        .from(contentItems)
+        .leftJoin(counts, eq(counts.contentId, contentItems.id))
+        .where(and(...conditions))
+        .orderBy(asc(contentItems.id))
+        .limit(options.limit + 1);
+
+      const hasMore = rows.length > options.limit;
+      const page = hasMore ? rows.slice(0, options.limit) : rows;
+      return { items: page.map((row) => toItemRow(row.item, row.stepCount)), hasMore };
     },
 
     async getItem(id: string, kind: ContentKind, visibility: ContentVisibility) {

@@ -1,5 +1,5 @@
 // Specifier ".ts" — cùng lý do đã ghi ở packages/shared-types/src/index.ts.
-export { ScenarioError } from './errors.ts';
+export { InvalidCursorError, ScenarioError } from './errors.ts';
 export {
   BACKEND_IMAGE_MAPPING,
   KNOWN_BACKEND_IMAGE_IDS,
@@ -27,7 +27,12 @@ export {
 export { INDEX_FILENAME, SIDECAR_FILENAME, loadScenario, loadScenarios } from './loader.ts';
 export {
   filesystemScenarioSource,
+  matchesContentFilter,
+  paginateSorted,
+  type ContentListFilter,
+  type ContentPage,
   type ContentSource,
+  type ListPageOptions,
   type ScenarioSource,
 } from './source.ts';
 

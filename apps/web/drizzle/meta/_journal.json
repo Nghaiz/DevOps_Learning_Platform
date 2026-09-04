@@ -50,6 +50,13 @@
       "when": 1788516763015,
       "tag": "0006_tricky_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788527968883,
+      "tag": "0007_gigantic_gideon",
+      "breakpoints": true
     }
   ]
 }

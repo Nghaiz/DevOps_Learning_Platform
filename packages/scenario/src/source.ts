@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { ScenarioDifficulty, SandboxTierName } from '@devops-platform/shared-types/scenario';
 import {
   toScenarioSummary,
   type Scenario,
@@ -9,6 +10,92 @@ import type { Playground, PlaygroundSummary } from '@devops-platform/shared-type
 import { loadLabs } from './lab-loader.ts';
 import { loadScenarios } from './loader.ts';
 import { loadPlaygrounds } from './playground-loader.ts';
+
+/**
+ * Tham số phân trang ở TẦNG NGUỒN (D9, phase-13) — thay cho việc router nạp
+ * `list()` đầy đủ rồi tự cắt lát bằng TS.
+ *
+ * `filter` là tham số SERVER: áp trước khi merge/paginate, không phải một điều
+ * kiện client tự thêm sau khi đã có trang. `difficulty` không có ý nghĩa với
+ * playground (nó không có field đó — xem `playgroundSchema`); một nguồn không
+ * có field tương ứng bỏ qua field filter đó thay vì lỗi — lọc theo một field
+ * không tồn tại trên loại nội dung đó luôn trả tập rỗng nếu áp cứng, và đó
+ * không phải hành vi hữu ích hơn việc bỏ qua nó.
+ */
+/**
+ * `| undefined` tường minh trên cả hai field, KHÔNG chỉ `?:` — tsconfig của cả
+ * hai package tiêu thụ (`apps/web`, đây) bật `exactOptionalPropertyTypes`, và
+ * caller phổ biến nhất (router tRPC) build object này từ input Zod
+ * `.optional()`, tức luôn có dạng `{ difficulty: input.difficulty, tier:
+ * input.tier }` — hai field CÓ THỂ mang giá trị `undefined` tường minh (không
+ * phải vắng mặt). Thiếu `| undefined` ở đây thì MỌI router gọi `listPage` phải
+ * tự lọc key `undefined` ra khỏi object trước khi truyền, một việc thừa lặp ở
+ * ba router.
+ */
+export interface ContentListFilter {
+  readonly difficulty?: ScenarioDifficulty | undefined;
+  readonly tier?: SandboxTierName | undefined;
+}
+
+export interface ListPageOptions {
+  readonly limit: number;
+  /**
+   * `undefined` = trang đầu. Cursor là `id` CUỐI của trang trước (D9).
+   * `| undefined` tường minh — cùng lý do ở `ContentListFilter`:
+   * `listInputSchema.cursor` là `z.string().optional()`, nên router build
+   * object này từ `{ cursor: input.cursor }` với giá trị CÓ THỂ là `undefined`
+   * tường minh dưới `exactOptionalPropertyTypes`.
+   */
+  readonly cursor?: string | undefined;
+  readonly filter?: ContentListFilter;
+}
+
+export interface ContentPage<T> {
+  readonly items: readonly T[];
+  /** `null` = hết trang. */
+  readonly nextCursor: string | null;
+}
+
+/** Cắt một danh sách ĐÃ SẮP theo `id` thành một trang keyset (`id > cursor`). */
+export function paginateSorted<T extends { readonly id: string }>(
+  sortedAscById: readonly T[],
+  options: Pick<ListPageOptions, 'limit' | 'cursor'>,
+): ContentPage<T> {
+  const from =
+    options.cursor === undefined
+      ? sortedAscById
+      : sortedAscById.filter((item) => item.id > (options.cursor as string));
+  const page = from.slice(0, options.limit);
+  const hasMore = from.length > options.limit;
+  const last = page[page.length - 1];
+  return { items: page, nextCursor: hasMore && last !== undefined ? last.id : null };
+}
+
+/**
+ * Lọc theo `difficulty`/`tier` khi item có field tương ứng — bỏ qua field
+ * filter mà item không có.
+ *
+ * `item.difficulty`/`item.tier` gõ RỘNG (`string`), không hẹp theo
+ * `ScenarioDifficulty`/`SandboxTierName`: một hàng metadata thô đọc từ DB
+ * (`ContentItemRow`, trước khi qua `summarize*`/Zod validate) mang cột
+ * `difficulty text` chưa được ép kiểu — hàm này chỉ so bằng `!==`, không cần
+ * union hẹp để làm điều đó đúng.
+ */
+export function matchesContentFilter(
+  item: { readonly difficulty?: string | null; readonly tier?: string },
+  filter: ContentListFilter | undefined,
+): boolean {
+  if (filter === undefined) {
+    return true;
+  }
+  if (filter.difficulty !== undefined && 'difficulty' in item && item.difficulty !== filter.difficulty) {
+    return false;
+  }
+  if (filter.tier !== undefined && 'tier' in item && item.tier !== filter.tier) {
+    return false;
+  }
+  return true;
+}
 
 /**
  * Nguồn nội dung bài học — **seam** giữa "bài học tới từ đâu" và mọi thứ đọc nó.
@@ -47,6 +134,16 @@ export interface ScenarioSource {
   list(): Promise<ScenarioSummary[]>;
   /** `null` = không có bài đó. KHÔNG ném — "không tìm thấy" là câu trả lời hợp lệ, và caller (tRPC) mới biết nó phải thành 404 hay thành gì khác. */
   get(id: string): Promise<Scenario | null>;
+  /**
+   * D9 (phase-13) — phân trang Ở TẦNG NGUỒN, không phải `list()` rồi cắt lát ở
+   * router. Hiện thực DB (`db-source.ts`) đẩy `WHERE id > cursor … LIMIT n+1`
+   * xuống Postgres; hiện thực đĩa cắt lát trên mảng đã sắp trong bộ nhớ.
+   *
+   * KHÔNG validate sự tồn tại của `cursor` — xem `InvalidCursorError`. Chỉ
+   * `compositeContentSource` (hoặc caller gọi thẳng một nguồn không qua
+   * composite) mới ném khi cursor không tồn tại ở đâu cả.
+   */
+  listPage(options: ListPageOptions): Promise<ContentPage<ScenarioSummary>>;
 }
 
 /**
@@ -71,6 +168,10 @@ export interface ContentSource extends ScenarioSource {
   listPlaygrounds(): Promise<PlaygroundSummary[]>;
   /** `null` = không có playground đó — KHÔNG ném. */
   getPlayground(id: string): Promise<Playground | null>;
+  /** D9 — cùng khuôn `listPage`. */
+  listLabsPage(options: ListPageOptions): Promise<ContentPage<LabSummary>>;
+  /** D9 — cùng khuôn `listPage`. `filter.difficulty` bị BỎ QUA (playground không có field đó). */
+  listPlaygroundsPage(options: ListPageOptions): Promise<ContentPage<PlaygroundSummary>>;
 }
 
 /**
@@ -154,6 +255,13 @@ export function filesystemScenarioSource(
     async get(id: string) {
       return (await allScenarios()).get(id) ?? null;
     },
+    async listPage(options: ListPageOptions) {
+      const sorted = [...(await allScenarios()).values()]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map(toScenarioSummary)
+        .filter((s) => matchesContentFilter(s, options.filter));
+      return paginateSorted(sorted, options);
+    },
     async listLabs() {
       return [...(await allLabs()).values()]
         .sort((a, b) => a.id.localeCompare(b.id))
@@ -162,11 +270,24 @@ export function filesystemScenarioSource(
     async getLab(id: string) {
       return (await allLabs()).get(id) ?? null;
     },
+    async listLabsPage(options: ListPageOptions) {
+      const sorted = [...(await allLabs()).values()]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map(toLabSummary)
+        .filter((l) => matchesContentFilter(l, options.filter));
+      return paginateSorted(sorted, options);
+    },
     async listPlaygrounds() {
       return [...(await allPlaygrounds()).values()].sort((a, b) => a.id.localeCompare(b.id));
     },
     async getPlayground(id: string) {
       return (await allPlaygrounds()).get(id) ?? null;
+    },
+    async listPlaygroundsPage(options: ListPageOptions) {
+      const sorted = [...(await allPlaygrounds()).values()]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .filter((p) => matchesContentFilter(p, options.filter));
+      return paginateSorted(sorted, options);
     },
   };
 }

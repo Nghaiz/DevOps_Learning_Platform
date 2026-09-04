@@ -20,6 +20,17 @@ describe('luật 9 — security headers', () => {
     expect(csp).toContain('test-nonce');
   });
 
+  /**
+   * D8 (phase-13) — `frame-src 'self'` tường minh cho iframe IDE cùng origin
+   * (`/ide/session/{id}/`). Đối chứng dương thật (một iframe origin KHÁC bị
+   * trình duyệt chặn) là việc của `csp.spec.ts` (Playwright, chạy trên cụm,
+   * 13.H) — unit test này chỉ khẳng định directive có mặt trong chuỗi CSP.
+   */
+  it("buildCsp chứa frame-src 'self' — D8 (iframe IDE cùng origin)", () => {
+    const csp = buildCsp('test-nonce');
+    expect(csp).toContain("frame-src 'self'");
+  });
+
   it('applySecurityHeaders set đủ 6 header bắt buộc', () => {
     const headers = new Headers();
     applySecurityHeaders(headers, 'test-nonce');

@@ -7,6 +7,7 @@ import {
   type ContentRepository,
   type ContentSourceLogger,
 } from './db-source.ts';
+import { matchesContentFilter, paginateSorted } from './source.ts';
 
 function recorder(): ContentSourceLogger & { entries: { message: string; detail: Record<string, unknown> }[] } {
   const entries: { message: string; detail: Record<string, unknown> }[] = [];
@@ -83,6 +84,19 @@ function fakeRepo(
       const body = bodies.get(id);
       return body === undefined || body.item.kind !== kind ? null : body;
     },
+    // D9 (phase-13) — repository giả tối thiểu cho `listItemsPage`: cùng khuôn
+    // `listItems` (không đếm/không cache khác), dựng trên `paginateSorted` +
+    // `matchesContentFilter` thật (không phải một bản chép SQL-giả).
+    async listItemsPage(kind: ContentKind, visibility: ContentVisibility, options) {
+      calls.listItems += 1;
+      calls.visibilities.push(visibility);
+      const sorted = rows
+        .filter((r) => r.kind === kind)
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .filter((r) => matchesContentFilter(r, options.filter));
+      const page = paginateSorted(sorted, options);
+      return { items: page.items, hasMore: page.nextCursor !== null };
+    },
   };
 }
 
@@ -119,6 +133,9 @@ describe('dbContentSource — hợp đồng của seam', () => {
       },
       async getItem() {
         return null;
+      },
+      async listItemsPage() {
+        return { items: [itemRow({ title })], hasMore: false };
       },
     };
     const source = dbContentSource(repo);

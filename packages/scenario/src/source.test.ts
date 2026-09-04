@@ -130,3 +130,104 @@ describe('filesystemScenarioSource — ContentSource (lab + playground)', () => 
     expect(labs.map((l) => l.id)).toEqual(['dlp-k8s-broken-deploy', 'dlp-linux-triage']);
   });
 });
+
+/**
+ * D9 (phase-13) — `listPage` của nguồn ĐĨA: cắt lát trên mảng đã sắp trong bộ
+ * nhớ, KHÔNG validate sự tồn tại của cursor (đó là việc của composite — xem
+ * `composite-source.test.ts`).
+ */
+describe('filesystemScenarioSource — listPage (D9)', () => {
+  // Cùng danh sách ghim ở test `list()` phía trên, 8 bài — dùng lại nguyên vẹn
+  // để một trang limit=3 cắt đúng ba biên đã biết trước.
+  const ALL_IDS = [
+    'ckad-configmap-as-files',
+    'dlp-docker-basics',
+    'dlp-k8s-basics',
+    'dlp-k8s-multinode-scheduling',
+    'dlp-sandbox-basics',
+    'loki-quickstart',
+    'loxilb-tcp-load-balancing',
+    'prolug-linux-system-checking',
+  ];
+
+  it('trang đầu: đúng limit mục + nextCursor = id mục cuối trang', async () => {
+    const page = await filesystemScenarioSource(CONTENT_DIR).listPage({ limit: 3 });
+    expect(page.items.map((s) => s.id)).toEqual(ALL_IDS.slice(0, 3));
+    expect(page.nextCursor).toBe(ALL_IDS[2]);
+  });
+
+  it('trang giữa: cursor = mục cuối trang trước → trang kế tiếp không trùng, không sót', async () => {
+    const first = await filesystemScenarioSource(CONTENT_DIR).listPage({ limit: 3 });
+    expect(first.nextCursor).not.toBeNull();
+    const second = await filesystemScenarioSource(CONTENT_DIR).listPage({
+      limit: 3,
+      cursor: first.nextCursor as string,
+    });
+    expect(second.items.map((s) => s.id)).toEqual(ALL_IDS.slice(3, 6));
+    expect(second.nextCursor).toBe(ALL_IDS[5]);
+  });
+
+  it('trang cuối: ít hơn limit mục → nextCursor null', async () => {
+    const cursorId = ALL_IDS[5];
+    if (cursorId === undefined) {
+      throw new Error('ALL_IDS[5] phải tồn tại — fixture cố định 8 phần tử');
+    }
+    const last = await filesystemScenarioSource(CONTENT_DIR).listPage({
+      limit: 3,
+      cursor: cursorId,
+    });
+    expect(last.items.map((s) => s.id)).toEqual(ALL_IDS.slice(6));
+    expect(last.nextCursor).toBeNull();
+  });
+
+  it('cursor KHÔNG tồn tại → KHÔNG ném, chỉ lọc id > cursor (validate là việc của composite)', async () => {
+    // Đây chính là điểm khác `list()` cũ (findIndex-rồi-ném): `listPage` của
+    // MỘT nguồn không được ném cho một cursor hợp lệ ở nguồn KHÁC — semantics
+    // keyset thuần (`id > cursor`) hoạt động đúng dù `cursor` không tồn tại.
+    const page = await filesystemScenarioSource(CONTENT_DIR).listPage({
+      limit: 100,
+      cursor: 'khong-ton-tai-nhung-hop-le',
+    });
+    // 'khong-ton-tai-nhung-hop-le' > 'loki-quickstart' theo thứ tự chuỗi, nên
+    // chỉ hai bài sau nó còn lại.
+    expect(page.items.map((s) => s.id)).toEqual(
+      ALL_IDS.filter((id) => id > 'khong-ton-tai-nhung-hop-le'),
+    );
+  });
+
+  it('filter.tier áp TRƯỚC khi phân trang — limit đếm trên tập ĐÃ lọc', async () => {
+    const unfiltered = await filesystemScenarioSource(CONTENT_DIR).listPage({ limit: 100 });
+    // Cả 8 bài ghim đều `tier: 'sysbox'` (đúng thực trạng nội dung vendored
+    // hôm nay) — nên phép chứng tốt nhất KHÔNG phụ thuộc vào việc kho có đủ đa
+    // dạng tier hay không: lọc theo `sysbox` phải trả ĐÚNG TOÀN BỘ tập (đối
+    // chứng dương — filter không vô tình chặn cả những gì lẽ ra phải qua), và
+    // lọc theo một tier KHÔNG tồn tại trong kho (`gvisor`) phải trả RỖNG (đối
+    // chứng âm — nếu filter bị bỏ qua trong im lặng, phép lọc này sẽ trả về cả
+    // 8 bài thay vì 0).
+    const bySysbox = await filesystemScenarioSource(CONTENT_DIR).listPage({
+      limit: 100,
+      filter: { tier: 'sysbox' },
+    });
+    expect(bySysbox.items.map((s) => s.id).sort()).toEqual(
+      unfiltered.items.map((s) => s.id).sort(),
+    );
+
+    const byGvisor = await filesystemScenarioSource(CONTENT_DIR).listPage({
+      limit: 100,
+      filter: { tier: 'gvisor' },
+    });
+    expect(byGvisor.items).toHaveLength(0);
+    expect(byGvisor.nextCursor).toBeNull();
+  });
+
+  it('listLabsPage/listPlaygroundsPage phân trang cùng khuôn', async () => {
+    const labs = await filesystemScenarioSource(CONTENT_DIR).listLabsPage({ limit: 1 });
+    expect(labs.items).toHaveLength(1);
+
+    const playgrounds = await filesystemScenarioSource(CONTENT_DIR).listPlaygroundsPage({
+      limit: 1,
+    });
+    expect(playgrounds.items).toHaveLength(1);
+    expect(playgrounds.nextCursor).toBe('dlp-docker-playground');
+  });
+});

@@ -31,10 +31,23 @@ import { mintSandboxTokenFor } from './jwt';
  */
 export const SANDBOX_COOKIE_NAME = 'dlp_sandbox';
 
-export function buildSandboxCookie(token: string, maxAgeSeconds: number): string {
+/**
+ * D8 (phase-13) — HAI đường mang cookie này: `/ws` (WS terminal, P2) và `/ide`
+ * (iframe Theia, P13). `Set-Cookie` phân biệt theo CẶP `(name, path)`, nên hai
+ * cookie CÙNG TÊN nhưng khác `Path` sống độc lập trong trình duyệt — không
+ * cookie nào ghi đè cookie kia, và trình duyệt tự chọn đúng cookie theo path
+ * của request.
+ *
+ * ⛔ TUYỆT ĐỐI không gộp thành MỘT cookie `Path=/`: đó là lùi lại đúng lỗ hổng
+ * mà `Path=/ws` ban đầu đóng — token mở được shell sẽ tới cả `/`, `/api/*`,
+ * `/session`, mở rộng bề mặt rò header cho bất kỳ route nào trong tương lai.
+ */
+export const SANDBOX_COOKIE_PATHS = ['/ws', '/ide'] as const;
+
+export function buildSandboxCookie(token: string, maxAgeSeconds: number, path: string): string {
   return [
     `${SANDBOX_COOKIE_NAME}=${token}`,
-    'Path=/ws',
+    `Path=${path}`,
     `Max-Age=${maxAgeSeconds}`,
     'HttpOnly',
     'Secure',
@@ -85,5 +98,8 @@ export async function attachSandboxCookie(
   const nowSeconds = Math.floor(Date.now() / 1000);
   const expiresAtSeconds = Number(expiresAt.seconds);
   const token = await mintSandboxTokenFor(ownerUserId, sessionId, expiresAtSeconds);
-  ctx.resHeaders.append('Set-Cookie', buildSandboxCookie(token, expiresAtSeconds - nowSeconds));
+  const maxAge = expiresAtSeconds - nowSeconds;
+  for (const path of SANDBOX_COOKIE_PATHS) {
+    ctx.resHeaders.append('Set-Cookie', buildSandboxCookie(token, maxAge, path));
+  }
 }

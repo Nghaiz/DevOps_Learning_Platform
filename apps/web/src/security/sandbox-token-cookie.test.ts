@@ -188,9 +188,18 @@ describe('G12 phần B — Set-Cookie dlp_sandbox trên session.create', () => {
     return ctx.resHeaders.getSetCookie();
   }
 
-  it('tạo session cho chính mình → đúng MỘT cookie dlp_sandbox', async () => {
+  /**
+   * D8 (phase-13) — GIỜ có ĐÚNG HAI cookie `dlp_sandbox`, cùng token, khác
+   * `Path` (`/ws` giữ nguyên từ P2, `/ide` mới cho iframe Theia). Trình duyệt
+   * phân biệt Set-Cookie theo cặp `(name, path)`, nên hai dòng này KHÔNG đè
+   * lên nhau.
+   */
+  it('tạo session cho chính mình → đúng HAI cookie dlp_sandbox (Path=/ws và Path=/ide)', async () => {
     const cookies = await createAs({ id: 'user-a', role: 'user' }, 'user-a');
-    expect(cookies.filter((c) => c.startsWith('dlp_sandbox='))).toHaveLength(1);
+    const sandboxCookies = cookies.filter((c) => c.startsWith('dlp_sandbox='));
+    expect(sandboxCookies).toHaveLength(2);
+    expect(sandboxCookies.some((c) => c.includes('Path=/ws'))).toBe(true);
+    expect(sandboxCookies.some((c) => c.includes('Path=/ide'))).toBe(true);
   });
 
   it('cookie mang đủ 5 thuộc tính của contract §2 và KHÔNG có Domain', async () => {
@@ -206,6 +215,31 @@ describe('G12 phần B — Set-Cookie dlp_sandbox trên session.create', () => {
     // host-only là vế BẮT BUỘC: có `Domain` thì cookie rò sang mọi subdomain, và
     // ràng buộc "gateway phải cùng origin" (D1) mất luôn lý do tồn tại.
     expect(cookie?.toLowerCase()).not.toContain('domain=');
+  });
+
+  it('không cookie nào mang Path=/ — D8 chỉ mở rộng đúng /ws và /ide', async () => {
+    const cookies = await createAs({ id: 'user-a', role: 'user' }, 'user-a');
+    for (const cookie of cookies.filter((c) => c.startsWith('dlp_sandbox='))) {
+      expect(cookie).not.toMatch(/Path=\/;/);
+      expect(cookie.endsWith('Path=/')).toBe(false);
+    }
+  });
+
+  it('cookie thứ hai (Path=/ide) mang CÙNG token và CÙNG thuộc tính với cookie /ws', async () => {
+    const cookies = (await createAs({ id: 'user-a', role: 'user' }, 'user-a')).filter((c) =>
+      c.startsWith('dlp_sandbox='),
+    );
+    const wsCookie = cookies.find((c) => c.includes('Path=/ws'));
+    const ideCookie = cookies.find((c) => c.includes('Path=/ide'));
+    expect(wsCookie).toBeDefined();
+    expect(ideCookie).toBeDefined();
+
+    const tokenOf = (c: string | undefined) => /dlp_sandbox=([^;]+)/.exec(c ?? '')?.[1];
+    expect(tokenOf(ideCookie)).toBe(tokenOf(wsCookie));
+    for (const attr of ['HttpOnly', 'Secure', 'SameSite=Strict']) {
+      expect(ideCookie).toContain(attr);
+    }
+    expect(/Max-Age=(\d+)/.exec(ideCookie ?? '')?.[1]).toBe(/Max-Age=(\d+)/.exec(wsCookie ?? '')?.[1]);
   });
 
   it('Max-Age khớp thời gian còn lại của session (±2s), không phải TTL cố định', async () => {

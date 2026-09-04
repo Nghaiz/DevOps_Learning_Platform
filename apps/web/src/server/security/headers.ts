@@ -13,6 +13,11 @@ export function buildCsp(nonce: string): string {
     "img-src 'self' data:",
     "font-src 'self'",
     "connect-src 'self'",
+    // D8 (phase-13) — iframe IDE (`src="/ide/session/{id}/"`) là CÙNG ORIGIN;
+    // `default-src 'self'` đã phủ nó, nhưng khai TƯỜNG MINH để ai đọc CSP cũng
+    // thấy đây là quyết định có chủ ý, không phải một khoảng trống rơi về mặc
+    // định. `csp.spec.ts` (13.H) phải chứng minh một iframe origin KHÁC bị chặn.
+    "frame-src 'self'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",

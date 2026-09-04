@@ -20,7 +20,7 @@ import {
   type Playground,
   type PlaygroundSummary,
 } from '@devops-platform/shared-types/playground';
-import type { ContentSource } from './source.ts';
+import type { ContentPage, ContentSource, ListPageOptions } from './source.ts';
 
 /**
  * Hiện thực THỨ HAI của `ContentSource` — nội dung SOẠN TRÊN UI, nằm trong
@@ -130,6 +130,25 @@ export interface ContentRepository {
     kind: ContentKind,
     visibility: ContentVisibility,
   ): Promise<ContentBodyRow | null>;
+  /**
+   * D9 (phase-13) — trang metadata, đẩy `WHERE id > cursor … LIMIT n+1` xuống
+   * Postgres thay vì đọc hết bảng rồi cắt lát ở TS. `items` có thể dài tới
+   * `options.limit + 1` dòng — dòng thừa (nếu có) là tín hiệu "còn trang sau",
+   * KHÔNG được trả cho caller của `dbContentSource`; `hasMore` đã nói thay cho
+   * caller nên `db-source.ts` không cần tự đếm lại.
+   *
+   * `filter.difficulty` bị BỎ QUA khi `kind === 'playground'` — cột đó luôn
+   * `NULL` cho playground (`content_items.difficulty`, xem `schema.ts`), nên áp
+   * cứng điều kiện đó vào WHERE sẽ luôn trả 0 dòng thay vì hành vi "bỏ qua điều
+   * kiện không áp dụng được" mà nguồn đĩa đã chọn (`matchesContentFilter`) — hai
+   * nguồn phải khớp nhau, không thì kết quả composite phụ thuộc bài nằm ở đĩa
+   * hay ở DB.
+   */
+  listItemsPage(
+    kind: ContentKind,
+    visibility: ContentVisibility,
+    options: ListPageOptions,
+  ): Promise<{ readonly items: readonly ContentItemRow[]; readonly hasMore: boolean }>;
 }
 
 /** Nơi nhận cảnh báo. Cố ý là một field chứ không phải `console` chôn cứng — test phải đọc được. */
@@ -349,6 +368,27 @@ export function dbContentSource(
     return parsed.data;
   }
 
+  /**
+   * D9 — vế chung của ba `list*Page`: gọi `repo.listItemsPage`, ánh xạ+validate
+   * TỪNG dòng bằng đúng `summarize` (schema thật), rồi tính `nextCursor` từ
+   * dòng RAW cuối (không phải dòng đã summarize — một dòng bị lọc vì hỏng vẫn
+   * phải tính vào vị trí cursor, nếu không trang sau sẽ đọc lại đúng dòng hỏng
+   * đó mãi mãi).
+   */
+  async function pageOf<T extends { readonly id: string }>(
+    kind: ContentKind,
+    options: ListPageOptions,
+    summarize: (row: ContentItemRow) => T | null,
+  ): Promise<ContentPage<T>> {
+    const { items: rows, hasMore } = await repo.listItemsPage(kind, visibility, options);
+    const page = hasMore ? rows.slice(0, options.limit) : rows;
+    const lastRaw = page[page.length - 1];
+    return {
+      items: page.map(summarize).filter((s): s is T => s !== null),
+      nextCursor: hasMore && lastRaw !== undefined ? lastRaw.id : null,
+    };
+  }
+
   return {
     kind: `db:${visibility.kind}`,
 
@@ -365,6 +405,10 @@ export function dbContentSource(
       return body === null ? null : toScenario(body, logger);
     },
 
+    async listPage(options: ListPageOptions) {
+      return pageOf('lesson', options, summarizeScenario);
+    },
+
     async listLabs() {
       const rows = await repo.listItems('lab', visibility);
       return rows
@@ -376,6 +420,19 @@ export function dbContentSource(
     async getLab(id: string) {
       const body = await repo.getItem(id, 'lab', visibility);
       return body === null ? null : toLab(body, logger);
+    },
+
+    async listLabsPage(options: ListPageOptions) {
+      return pageOf('lab', options, summarizeLab);
+    },
+
+    async listPlaygroundsPage(options: ListPageOptions) {
+      return pageOf('playground', options, (row) =>
+        toPlayground(
+          { item: row, steps: [], intro: null, finish: null, setup: null, assets: [] },
+          logger,
+        ),
+      );
     },
 
     async listPlaygrounds() {

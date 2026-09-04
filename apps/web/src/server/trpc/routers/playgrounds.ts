@@ -1,9 +1,15 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { scenarioIdSchema } from '@devops-platform/shared-types/scenario';
+import { InvalidCursorError } from '@devops-platform/scenario';
+import {
+  SANDBOX_TIER_NAMES,
+  SCENARIO_DIFFICULTIES,
+  scenarioIdSchema,
+} from '@devops-platform/shared-types/scenario';
 import { unsupportedCapabilities } from '../../lessons/catalog';
 import { playgroundSource, requirePlayground } from '../../labs/catalog';
 import { createSandboxSession } from '../../labs/session';
+import { applySessionPreferences } from '../../sessions/preferences';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
 /**
@@ -24,27 +30,44 @@ const startInput = z
   .object({ playgroundId: scenarioIdSchema, idempotencyKey: IDEMPOTENCY_KEY_SCHEMA })
   .strict();
 
+/**
+ * D9 (phase-13) — bộ lọc SERVER, cùng khuôn `lessons.list`/`labs.list` (đối
+ * xứng FE: cả ba trang catalog cùng một bộ điều khiển lọc).
+ *
+ * ⚠ `difficulty` KHÔNG có tác dụng ở đây: `PlaygroundSummary` không có field
+ * đó (`playgroundSchema` cố ý không có độ khó — nó không có bài để khó/dễ).
+ * `listPlaygroundsPage` bỏ qua field filter này (xem chú thích ở
+ * `ContentSource.listPlaygroundsPage`); giữ ở input để form lọc dùng chung
+ * component với hai trang kia không phải rẽ nhánh theo loại nội dung.
+ */
+const listPlaygroundsInput = listInputSchema
+  .extend({
+    difficulty: z.enum(SCENARIO_DIFFICULTIES).optional(),
+    tier: z.enum(SANDBOX_TIER_NAMES).optional(),
+  })
+  .strict();
+
 export const playgroundsRouter = createTRPCRouter({
-  /** Danh sách playground cho trang `/playgrounds`. Luật 4: `limit` bị ÉP về ≤100. */
-  list: protectedProcedure.input(listInputSchema).query(async ({ input }) => {
-    const all = await playgroundSource().listPlaygrounds();
-
-    let start = 0;
-    if (input.cursor !== undefined) {
-      const at = all.findIndex((p) => p.id === input.cursor);
-      if (at < 0) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cursor không còn hợp lệ' });
+  /**
+   * Danh sách playground cho trang `/playgrounds`. Luật 4: `limit` bị ÉP về
+   * ≤100.
+   *
+   * D9 (phase-13) — cùng khuôn `lessons.list`.
+   */
+  list: protectedProcedure.input(listPlaygroundsInput).query(async ({ input }) => {
+    try {
+      const result = await playgroundSource().listPlaygroundsPage({
+        limit: input.limit,
+        cursor: input.cursor,
+        filter: { difficulty: input.difficulty, tier: input.tier },
+      });
+      return { items: result.items, limit: input.limit, nextCursor: result.nextCursor };
+    } catch (cause) {
+      if (cause instanceof InvalidCursorError) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cursor không còn hợp lệ', cause });
       }
-      start = at + 1;
+      throw cause;
     }
-
-    const page = all.slice(start, start + input.limit);
-    const next = start + input.limit;
-    return {
-      items: page,
-      limit: input.limit,
-      nextCursor: next < all.length ? (page[page.length - 1]?.id ?? null) : null,
-    };
   }),
 
   /** Nội dung đầy đủ một playground. */
@@ -73,6 +96,7 @@ export const playgroundsRouter = createTRPCRouter({
       idempotencyKey: input.idempotencyKey,
       capabilities: playground.capabilities,
     });
-    return { sessionId: session.id, ttlSeconds: playground.ttlSeconds };
+    const { preferencesApplied } = await applySessionPreferences(ctx, session);
+    return { sessionId: session.id, ttlSeconds: playground.ttlSeconds, preferencesApplied };
   }),
 });

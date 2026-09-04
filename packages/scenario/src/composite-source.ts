@@ -1,7 +1,8 @@
 import type { Scenario, ScenarioSummary } from '@devops-platform/shared-types/scenario';
 import type { Lab, LabSummary } from '@devops-platform/shared-types/lab';
 import type { Playground, PlaygroundSummary } from '@devops-platform/shared-types/playground';
-import type { ContentSource } from './source.ts';
+import { InvalidCursorError } from './errors.ts';
+import type { ContentPage, ContentSource, ListPageOptions } from './source.ts';
 import type { ContentSourceLogger } from './db-source.ts';
 
 /**
@@ -172,6 +173,107 @@ async function firstHit<T>(
   return null;
 }
 
+/**
+ * D9 (phase-13) — trang hợp nhất từ N nguồn phân trang độc lập.
+ *
+ * ## Vì sao validate cursor Ở ĐÂY, không ở từng nguồn
+ *
+ * Một `cursor` hợp lệ do NGUỒN A phát ra (đĩa) hoàn toàn có thể không tồn tại ở
+ * NGUỒN B (DB) — hai không-gian id độc lập, chuyện bình thường. Nếu từng nguồn
+ * tự ném khi không thấy id của MÌNH, mọi lượt phân trang bắc cầu qua ranh giới
+ * đĩa/DB sẽ 400 oan. Composite là chỗ DUY NHẤT biết "không nguồn nào nhận ra
+ * cursor này" — bằng cách hỏi `existsCall` (tái dùng `get`/`getLab`/
+ * `getPlayground`, cùng khuôn `firstHit`) trên MỌI nguồn trước khi mở trang.
+ * Chỉ khi TẤT CẢ đều trả `null`/lỗi thì cursor mới thật sự vô nghĩa.
+ *
+ * ## Vì sao KHÔNG over-fetch để xử lý tuyệt đối mọi ca trùng id ở biên trang
+ *
+ * Mỗi nguồn được hỏi ĐÚNG `options.limit` mục cho trang này (không hỏi thừa để
+ * bù phần bị "che" bởi trùng id). Với hai không-gian id gần như rời nhau (đĩa
+ * ghim theo commit upstream, DB là bài soạn trên UI — `docs/content-sources.md`)
+ * trùng id là ca HIẾM, có cảnh báo (`merge`), không phải đường đi thường. Trường
+ * hợp một trang bị trùng id đúng ở biên làm trang đó có ít hơn `limit` mục dù
+ * vẫn còn dữ liệu là một giới hạn đã biết, chấp nhận được cho việc phân trang
+ * catalog (không phải một luồng cần tính đúng số lượng tuyệt đối).
+ */
+async function collectPages<T extends { readonly id: string }>(
+  sources: readonly ContentSource[],
+  method: string,
+  call: (source: ContentSource, options: ListPageOptions) => Promise<ContentPage<T>>,
+  options: ListPageOptions,
+  logger: ContentSourceLogger,
+): Promise<readonly (readonly [string, ContentPage<T>])[]> {
+  const settled = await Promise.allSettled(sources.map(async (source) => call(source, options)));
+  const out: (readonly [string, ContentPage<T>])[] = [];
+  for (const [index, result] of settled.entries()) {
+    const source = sources[index];
+    if (source === undefined) {
+      continue;
+    }
+    if (result.status === 'rejected') {
+      logger.warn('[content:composite] một nguồn lỗi khi phân trang — trang trả về đang THIẾU', {
+        method,
+        sourceKind: source.kind,
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      });
+      continue;
+    }
+    out.push([source.kind, result.value]);
+  }
+  return out;
+}
+
+/** Gộp N trang đã-sắp-theo-id (mỗi nguồn tự sắp) thành MỘT trang, đĩa thắng khi trùng id. */
+function mergePages<T extends { readonly id: string }>(
+  pages: readonly (readonly [string, ContentPage<T>])[],
+  limit: number,
+  method: string,
+  logger: ContentSourceLogger,
+): ContentPage<T> {
+  const winners = new Map<string, { readonly value: T; readonly sourceKind: string }>();
+  for (const [sourceKind, page] of pages) {
+    for (const item of page.items) {
+      const existing = winners.get(item.id);
+      if (existing === undefined) {
+        winners.set(item.id, { value: item, sourceKind });
+        continue;
+      }
+      logger.warn('[content:composite] trùng id giữa hai nguồn — nguồn sau bị CHE', {
+        method,
+        id: item.id,
+        winnerSourceKind: existing.sourceKind,
+        shadowedSourceKind: sourceKind,
+      });
+    }
+  }
+  const merged = [...winners.values()]
+    .map((entry) => entry.value)
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  const page = merged.slice(0, limit);
+  // Còn trang sau khi: (a) hợp nhất ra nhiều hơn `limit` mục (một vài mục bị
+  // cắt bớt ở đây), HOẶC (b) BẤT KỲ nguồn nào tự báo nó còn (`nextCursor` khác
+  // null) — kể cả khi trang của riêng nguồn đó không đóng góp mục nào vào top
+  // `limit` (mọi mục của nó bị đĩa che), vì nguồn đó vẫn còn dữ liệu ở phía sau.
+  const anySourceHasMore = pages.some(([, p]) => p.nextCursor !== null);
+  const hasMore = merged.length > limit || anySourceHasMore;
+  const last = page[page.length - 1];
+  return { items: page, nextCursor: hasMore && last !== undefined ? last.id : null };
+}
+
+async function validateCursorExists<T>(
+  sources: readonly ContentSource[],
+  cursor: string,
+  existsCall: (source: ContentSource) => Promise<T | null>,
+  method: string,
+  logger: ContentSourceLogger,
+): Promise<void> {
+  const found = await firstHit(sources, `${method}:cursorExists`, existsCall, logger);
+  if (found === null) {
+    throw new InvalidCursorError(cursor);
+  }
+}
+
 export function compositeContentSource(
   sources: readonly ContentSource[],
   options: CompositeOptions = {},
@@ -198,6 +300,14 @@ export function compositeContentSource(
       return firstHit(sources, 'get', async (s) => s.get(id), logger);
     },
 
+    async listPage(options: ListPageOptions): Promise<ContentPage<ScenarioSummary>> {
+      if (options.cursor !== undefined) {
+        await validateCursorExists(sources, options.cursor, async (s) => s.get(options.cursor as string), 'listPage', logger);
+      }
+      const pages = await collectPages(sources, 'listPage', async (s, o) => s.listPage(o), options, logger);
+      return mergePages(pages, options.limit, 'listPage', logger);
+    },
+
     async listLabs(): Promise<LabSummary[]> {
       return merge(
         await collect(sources, 'listLabs', async (s) => s.listLabs(), logger),
@@ -210,6 +320,14 @@ export function compositeContentSource(
       return firstHit(sources, 'getLab', async (s) => s.getLab(id), logger);
     },
 
+    async listLabsPage(options: ListPageOptions): Promise<ContentPage<LabSummary>> {
+      if (options.cursor !== undefined) {
+        await validateCursorExists(sources, options.cursor, async (s) => s.getLab(options.cursor as string), 'listLabsPage', logger);
+      }
+      const pages = await collectPages(sources, 'listLabsPage', async (s, o) => s.listLabsPage(o), options, logger);
+      return mergePages(pages, options.limit, 'listLabsPage', logger);
+    },
+
     async listPlaygrounds(): Promise<PlaygroundSummary[]> {
       return merge(
         await collect(sources, 'listPlaygrounds', async (s) => s.listPlaygrounds(), logger),
@@ -220,6 +338,26 @@ export function compositeContentSource(
 
     async getPlayground(id: string): Promise<Playground | null> {
       return firstHit(sources, 'getPlayground', async (s) => s.getPlayground(id), logger);
+    },
+
+    async listPlaygroundsPage(options: ListPageOptions): Promise<ContentPage<PlaygroundSummary>> {
+      if (options.cursor !== undefined) {
+        await validateCursorExists(
+          sources,
+          options.cursor,
+          async (s) => s.getPlayground(options.cursor as string),
+          'listPlaygroundsPage',
+          logger,
+        );
+      }
+      const pages = await collectPages(
+        sources,
+        'listPlaygroundsPage',
+        async (s, o) => s.listPlaygroundsPage(o),
+        options,
+        logger,
+      );
+      return mergePages(pages, options.limit, 'listPlaygroundsPage', logger);
     },
   };
 }

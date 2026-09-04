@@ -985,6 +985,80 @@ export const quizAnswers = pgTable(
   ],
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// HỒ SƠ + QUẢN TRỊ (P13, contract §2 C4) — hai bảng mới của lane BE1.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Shell mặc định của terminal, theo lựa chọn của người dùng ở `/settings`.
+ *
+ * `bash` là mặc định vì đó là shell của ĐA SỐ ảnh hướng dẫn DevOps trên mạng —
+ * cùng lý lẽ `sudo` ở `images/sandbox-base/Dockerfile` E1. Ba giá trị khớp CHÍNH
+ * XÁC ba đường dẫn tuyệt đối cố định trong `apps/web/src/server/sessions/preferences.ts`
+ * (`SHELL_PATHS`) — enum thêm giá trị thì bảng đó phải thêm dòng CÙNG lúc,
+ * không thì D7 áp dụng một tuỳ chọn mà không có đường dẫn nào để chạy.
+ */
+export const defaultShellPref = pgEnum('default_shell_pref', ['bash', 'zsh', 'pwsh']);
+
+/**
+ * Tuỳ chọn cá nhân — MỘT dòng mỗi user, tạo LƯỜI (upsert lần đầu ghi, xem
+ * `server/me/preferences.ts`). Không có dòng nào là "chưa từng đặt tuỳ chọn",
+ * không phải "user không tồn tại" — mọi cột ở đây có default, nên vắng dòng và
+ * dòng-toàn-default là tương đương về ngữ nghĩa; ta chọn KHÔNG insert lúc user
+ * đăng ký để tránh một trigger/hook thứ hai phải giữ đồng bộ với bảng `users`.
+ *
+ * `terminal_theme` là `text` NULLABLE, không phải một `pgEnum` thứ hai ăn theo
+ * `ThemeName` của `packages/terminal`: theme sống ở một package KHÁC (không
+ * phải Drizzle schema của service này), và một `pgEnum` Postgres phải khớp
+ * BYTE-VỚI-BYTE với danh sách đó mãi mãi — thêm một theme mới ở `packages/terminal`
+ * sẽ đòi một migration ở service này mà không có lý do kỹ thuật nào bắt buộc.
+ * `null` = theo theme trang (suy từ `useTheme()`, xem D2/C5); giá trị hợp lệ
+ * được ép bởi `THEME_NAMES` (từ `@devops-platform/terminal`) ở biên ghi
+ * (`me.updatePreferences`), không phải bởi kiểu cột.
+ */
+export const userPreferences = pgTable('user_preferences', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  defaultShell: defaultShellPref('default_shell').notNull().default('bash'),
+  terminalTheme: text('terminal_theme'),
+  leaderboardNamePublic: boolean('leaderboard_name_public').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type UserPreferencesRow = typeof userPreferences.$inferSelect;
+export type NewUserPreferencesRow = typeof userPreferences.$inferInsert;
+
+/**
+ * Nhật ký hành động QUẢN TRỊ — append-only, cùng triết lý `sessions_audit`: một
+ * dòng là một sự kiện đã xảy ra, không phải trạng thái hiện tại.
+ *
+ * `actor_id` KHÔNG có foreign key — cùng lý lẽ `sessions_audit.user_id`: một
+ * admin bị xoá tài khoản (hoặc hạ quyền) không được kéo theo việc mất bằng
+ * chứng những gì họ đã làm lúc còn là admin.
+ *
+ * `target_type`/`target_id` là cặp text tự do (`'user'`/`'session'`/…) thay vì
+ * FK: mục tiêu của một hành động quản trị thuộc nhiều bảng khác nhau
+ * (`users`, phiên sandbox chỉ sống ở Redis) — một FK không trỏ được vào nhiều
+ * bảng, và một session id không có FK nào để trỏ tới (Postgres không giữ nó).
+ */
+export const adminAudit = pgTable(
+  'admin_audit',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actorId: text('actor_id').notNull(),
+    action: text('action').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id').notNull(),
+    detail: jsonb('detail'),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('admin_audit_occurred_at_idx').on(table.occurredAt)],
+);
+
+export type AdminAuditRow = typeof adminAudit.$inferSelect;
+export type NewAdminAuditRow = typeof adminAudit.$inferInsert;
+
 export type LearningPathRow = typeof learningPaths.$inferSelect;
 export type NewLearningPathRow = typeof learningPaths.$inferInsert;
 export type LearningPathItemRow = typeof learningPathItems.$inferSelect;

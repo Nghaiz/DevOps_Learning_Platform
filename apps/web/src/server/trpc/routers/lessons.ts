@@ -5,6 +5,8 @@ import { SandboxTier } from '@devops-platform/shared-types';
 import {
   effectiveCapabilities,
   scenarioIdSchema,
+  SANDBOX_TIER_NAMES,
+  SCENARIO_DIFFICULTIES,
   type Scenario,
   type SandboxTierName,
 } from '@devops-platform/shared-types/scenario';
@@ -14,7 +16,7 @@ import { attachSandboxCookie } from '../../auth/sandbox-cookie';
 import { mintAccessTokenFor } from '../../auth/jwt';
 import { callOrchestrator, orchestratorClient } from '../../grpc/orchestrator-client';
 import { toJsonSession } from '../../grpc/session-json';
-import { resolveScenarioAssets } from '@devops-platform/scenario';
+import { InvalidCursorError, resolveScenarioAssets } from '@devops-platform/scenario';
 import {
   profileForCapabilities,
   scenarioDir,
@@ -24,6 +26,7 @@ import {
 import { buildAssetPushScript, isAssetPushPhase } from '../../lessons/asset-push';
 import { phaseRefSchema, resolvePhase } from '../../lessons/phase';
 import { runScriptInSession } from '../../lessons/validate';
+import { applySessionPreferences } from '../../sessions/preferences';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
 /**
@@ -186,6 +189,17 @@ const runSetupInput = z
   .object({ scenarioId: scenarioIdSchema, sessionId: z.string().min(1), phase: phaseRefSchema })
   .strict();
 
+/**
+ * D9 (phase-13) — `lessons.list` nới thêm bộ lọc SERVER, áp TRƯỚC khi phân
+ * trang (không phải một điều kiện FE tự thêm sau khi đã có trang).
+ */
+const listLessonsInput = listInputSchema
+  .extend({
+    difficulty: z.enum(SCENARIO_DIFFICULTIES).optional(),
+    tier: z.enum(SANDBOX_TIER_NAMES).optional(),
+  })
+  .strict();
+
 const sessionStatusInput = z.object({ sessionId: z.string().min(1) }).strict();
 const endSessionInput = z.object({ sessionId: z.string().min(1) }).strict();
 const extendSessionInput = z
@@ -205,28 +219,32 @@ export const lessonsRouter = createTRPCRouter({
    * Danh sách bài cho trang `/lessons`.
    *
    * Luật 4: `limit` bị ÉP về ≤ 100 bởi `listInputSchema` (không phải bị reject).
-   * Phân trang trên danh sách đã sắp theo `id` — cursor LÀ id của mục cuối trang
-   * trước, không phải offset: offset nhảy mục khi nội dung thay đổi giữa hai
-   * trang, còn id thì không.
+   *
+   * D9 (phase-13): phân trang đi qua `scenarioSource().listPage()` — cursor
+   * thật ở tầng nguồn (đĩa cắt lát trong bộ nhớ, DB đẩy `WHERE id > cursor`
+   * xuống Postgres), không còn `list()` rồi cắt lát bằng TS ở đây. Cursor
+   * không tồn tại ở BẤT KỲ nguồn nào ⇒ `InvalidCursorError` từ
+   * `compositeContentSource` — dịch sang BAD_REQUEST ở đây, cùng thông điệp cũ.
    */
-  list: protectedProcedure.input(listInputSchema).query(async ({ ctx, input }) => {
-    const all = await scenarioSource().list();
-
-    let start = 0;
-    if (input.cursor !== undefined) {
-      const at = all.findIndex((s) => s.id === input.cursor);
-      if (at < 0) {
+  list: protectedProcedure.input(listLessonsInput).query(async ({ ctx, input }) => {
+    let result;
+    try {
+      result = await scenarioSource().listPage({
+        limit: input.limit,
+        cursor: input.cursor,
+        filter: { difficulty: input.difficulty, tier: input.tier },
+      });
+    } catch (cause) {
+      if (cause instanceof InvalidCursorError) {
         // Cursor trỏ vào một bài không còn tồn tại. NÉM chứ không lặng lẽ quay
         // về trang 1: một infinite-scroll nhận lại trang 1 sẽ nối nó vào cuối
         // danh sách và lặp vô hạn — lỗi hiện ra dưới dạng "danh sách bài lặp
         // lại mãi", không trỏ về một cursor cũ.
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cursor không còn hợp lệ' });
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cursor không còn hợp lệ', cause });
       }
-      start = at + 1;
+      throw cause;
     }
-
-    const page = all.slice(start, start + input.limit);
-    const next = start + input.limit;
+    const page = result.items;
 
     // Tiến độ CHỈ của người gọi, và CHỈ của các bài trên trang này. Một truy vấn
     // cho cả trang thay vì N truy vấn.
@@ -262,7 +280,7 @@ export const lessonsRouter = createTRPCRouter({
         progress: toProgressView(byLesson.get(scenario.id)),
       })),
       limit: input.limit,
-      nextCursor: next < all.length ? (page[page.length - 1]?.id ?? null) : null,
+      nextCursor: result.nextCursor,
     };
   }),
 
@@ -401,11 +419,13 @@ export const lessonsRouter = createTRPCRouter({
       ),
     );
     await attachSandboxCookie(ctx, ctx.user.id, response.session);
+    const { preferencesApplied } = await applySessionPreferences(ctx, response.session);
 
     return {
       session: toJsonSession(response.session),
       scenarioId: scenario.id,
       unsupportedCapabilities: unsupportedCapabilities(effectiveCapabilities(scenario)),
+      preferencesApplied,
     };
   }),
 

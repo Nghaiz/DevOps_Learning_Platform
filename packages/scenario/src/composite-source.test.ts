@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Scenario, ScenarioSummary } from '@devops-platform/shared-types/scenario';
 import { compositeContentSource } from './composite-source.ts';
 import type { ContentSourceLogger } from './db-source.ts';
-import type { ContentSource } from './source.ts';
+import { InvalidCursorError } from './errors.ts';
+import { matchesContentFilter, paginateSorted, type ContentSource } from './source.ts';
 
 /** Logger thu vào mảng — cảnh báo là một HÀNH VI được kiểm, không phải rác log. */
 function recorder(): ContentSourceLogger & { entries: { message: string; detail: Record<string, unknown> }[] } {
@@ -72,17 +73,33 @@ function fakeSource(
       const found = items.find((i) => i.id === id);
       return found === undefined ? null : scenario(found.id, found.title);
     },
+    // D9 (phase-13) — dựng trên chính `list()`/`get()` giả ở trên bằng đúng
+    // helper mà `filesystemScenarioSource` thật dùng, để test composite-level
+    // pagination không phải tự dựng lại logic keyset một lần nữa.
+    async listPage(options) {
+      const all = items
+        .map((i) => summary(i.id, i.title))
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .filter((s) => matchesContentFilter(s, options.filter));
+      return paginateSorted(all, options);
+    },
     async listLabs() {
       return [];
     },
     async getLab() {
       return null;
     },
+    async listLabsPage() {
+      return { items: [], nextCursor: null };
+    },
     async listPlaygrounds() {
       return [];
     },
     async getPlayground() {
       return null;
+    },
+    async listPlaygroundsPage() {
+      return { items: [], nextCursor: null };
     },
     ...overrides,
   };
@@ -189,5 +206,94 @@ describe('compositeContentSource — biên', () => {
     // Errors over silent fallbacks: một `/lessons` trắng trơn trông y hệt "chưa
     // có bài nào".
     expect(() => compositeContentSource([])).toThrow(/ít nhất một nguồn/);
+  });
+});
+
+/**
+ * D9 (phase-13) — trang hợp nhất từ hai nguồn ĐỘC LẬP (đĩa `a*`, DB giả `b*`).
+ * Đây là bài test trực tiếp cho vấn đề mà `errors.ts` § `InvalidCursorError`
+ * mô tả: một cursor do NGUỒN NÀY phát ra hoàn toàn hợp lệ khi bị hỏi lại ở
+ * NGUỒN KIA (không tồn tại ở đó), và điều đó KHÔNG được phép 400 oan.
+ */
+describe('compositeContentSource — listPage (D9)', () => {
+  it('phân trang bắc cầu qua ranh giới hai nguồn — cursor của nguồn A không làm nguồn B ném', async () => {
+    const a = fakeSource('a', [
+      { id: 'a1', title: 'A1' },
+      { id: 'a2', title: 'A2' },
+    ]);
+    const b = fakeSource('b', [
+      { id: 'b1', title: 'B1' },
+      { id: 'b2', title: 'B2' },
+    ]);
+    const composite = compositeContentSource([a, b]);
+
+    const page1 = await composite.listPage({ limit: 2 });
+    expect(page1.items.map((s) => s.id)).toEqual(['a1', 'a2']);
+    expect(page1.nextCursor).toBe('a2');
+
+    // Cursor 'a2' KHÔNG tồn tại ở nguồn `b` — nếu `b.listPage` tự validate và
+    // ném, đây sẽ là một 400 oan cho một lượt phân trang hoàn toàn hợp lệ.
+    const page2 = await composite.listPage({ limit: 2, cursor: page1.nextCursor as string });
+    expect(page2.items.map((s) => s.id)).toEqual(['b1', 'b2']);
+    expect(page2.nextCursor).toBeNull();
+  });
+
+  it('cursor không tồn tại ở BẤT KỲ nguồn nào ⇒ NÉM InvalidCursorError', async () => {
+    const a = fakeSource('a', [{ id: 'a1', title: 'A1' }]);
+    const b = fakeSource('b', [{ id: 'b1', title: 'B1' }]);
+    const composite = compositeContentSource([a, b]);
+
+    await expect(
+      composite.listPage({ limit: 10, cursor: 'khong-ton-tai-o-dau-ca' }),
+    ).rejects.toThrow(InvalidCursorError);
+  });
+
+  it('trùng id giữa hai nguồn ⇒ đĩa (nguồn đứng trước) thắng, WARN nêu đích danh cả hai', async () => {
+    const disk = fakeSource('disk', [{ id: 'trung-id', title: 'Bản trên đĩa' }]);
+    const db = fakeSource('db', [{ id: 'trung-id', title: 'Bản trong DB' }]);
+    const logger = recorder();
+    const composite = compositeContentSource([disk, db], { logger });
+
+    const page = await composite.listPage({ limit: 10 });
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]?.title).toBe('Bản trên đĩa');
+    expect(
+      logger.entries.some(
+        (e) => e.message.includes('trùng id') && e.detail['winnerSourceKind'] === 'disk',
+      ),
+    ).toBe(true);
+  });
+
+  it('một nguồn còn trang sau (nextCursor khác null) dù mọi mục của nó bị đĩa che ⇒ composite vẫn báo còn trang', async () => {
+    // `db` có 3 mục nhưng `limit: 1` chỉ hỏi 1 mục của MỖI nguồn — mục đó của
+    // `db` ('z1') trùng id với mục của `disk`, nên nó bị che hoàn toàn khỏi
+    // trang. Composite vẫn phải biết `db` còn dữ liệu phía sau.
+    const disk = fakeSource('disk', [{ id: 'z1', title: 'Đĩa thắng' }]);
+    const db = fakeSource('db', [
+      { id: 'z1', title: 'Bị che' },
+      { id: 'z2', title: 'Còn ở trang sau' },
+    ]);
+    const composite = compositeContentSource([disk, db]);
+
+    const page = await composite.listPage({ limit: 1 });
+    expect(page.items.map((s) => s.id)).toEqual(['z1']);
+    expect(page.nextCursor).not.toBeNull();
+  });
+
+  it('filter đi qua verbatim tới từng nguồn (áp trước khi merge)', async () => {
+    const a = fakeSource('a', [
+      { id: 'a1', title: 'A1' },
+      { id: 'a2', title: 'A2' },
+    ]);
+    const composite = compositeContentSource([a]);
+
+    // `summary()` helper của file này ghim `tier: 'sysbox'` cho MỌI mục giả —
+    // lọc theo một tier khác phải trả về rỗng, chứng minh filter thật sự chạm
+    // tới nguồn chứ không phải bị bỏ qua.
+    const filtered = await composite.listPage({ limit: 10, filter: { tier: 'gvisor' } });
+    expect(filtered.items).toHaveLength(0);
+
+    const unfiltered = await composite.listPage({ limit: 10, filter: { tier: 'sysbox' } });
+    expect(unfiltered.items).toHaveLength(2);
   });
 });
