@@ -106,7 +106,7 @@ message ListSessionsResponse {
 }
 ```
 
-Authz: cùng cơ chế header role/user hiện có trong `grpcserver/authz.go`. `GetCapacity` cho mọi user đã đăng nhập. Codegen: `pnpm proto` (buf) → `packages/shared-types/gen/**` + Go; `pnpm proto:check` phải xanh.
+Authz (**sửa 2026-09-04 sau khi lane Go đọc `authz.go`**): orchestrator KHÔNG có cơ chế header role/user — `authz.go` chỉ làm mTLS `PeerTrust` cho `ReapSession` system_component. `ListSessions` tin `user_id` trong request y như `GetSession`/`ClaimSession`/`ExtendSession`; `user_id` rỗng = mọi user. **BFF là ranh giới tin cậy:** `admin.sessions.list` (adminProcedure) mới được gọi với `user_id` rỗng; `me.activeSessions` luôn truyền `ctx.user.id`. Không thêm field role vào proto. `GetCapacity` cho mọi user đã đăng nhập (kiểm ở tRPC). Codegen: `pnpm proto` (buf) → `packages/shared-types/gen/**` + Go; `pnpm proto:check` phải xanh.
 
 ### C4 — tRPC mới (BE1 phát hành; FE lanes tiêu thụ)
 
@@ -137,6 +137,8 @@ admin.sessions.terminate: { sessionId } → { status }   // ReapSession reason '
 admin.audit.list: { limit?, cursor? } → { items: { id; actorId; action; targetType; targetId; detail: unknown; occurredAt: string }[]; nextCursor }
 admin.health: {} → { fetchedAt: string; capacity: GetCapacityResponse | null; sources: { name: 'orchestrator'|'gateway'; ok: boolean; error: string | null; series: { name: string; labels: Record<string,string>; value: number }[] }[] }
    // parse text /metrics, chỉ giữ tên bắt đầu 'dlp_'; URL từ env ORCHESTRATOR_METRICS_URL / GATEWAY_METRICS_URL
+   // ⚠ Trên cụm hardened: `platform-networkpolicy.yaml` khối 9 chặn web→orchestrator:8081, gateway 8083 KHÔNG có trong gateway-service.yaml và khối 12 chỉ mở cho ns monitoring.
+   //   ⇒ Đợt 3 (lead): mở netpol web→orchestrator:8081 + web→gateway:8083, thêm port 8083 vào gateway-service.yaml, đặt gatewayMetricsUrl trong values-selfhost. Tới lúc đó admin.health trả ok:false có lý do — đó là hành vi đúng, không giấu.
 Nội dung admin: dùng authoring.list (admin thấy tất cả) + authoring.archive. Không proc mới.
 ```
 
