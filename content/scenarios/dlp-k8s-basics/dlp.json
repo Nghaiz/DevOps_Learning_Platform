@@ -1,0 +1,8 @@
+{
+  "id": "dlp-k8s-basics",
+  "difficulty": "beginner",
+  "estimatedMinutes": 35,
+  "source": null,
+  "acknowledgedUnknownFields": [],
+  "notes": "Bai FIRST-PARTY (source: null) — soan tai repo nay, theo plan P7/7.E item 13: mot bai Kubernetes khong phu thuoc license upstream, dung lam bai CHUAN cho phep do ve sau (khac ckad-configmap-as-files, vendor tu ngoai va khong duoc sua). Di tu `kubectl get nodes` qua Pod -> Deployment -> ConfigMap -> Service tren cum k3s mot-node that chay trong sandbox (P7, do duoc 2026-09-04: Ready sau ~49s). Step cuoi day rieng gioi han mot-node — multi-node CO Y khong duoc mo (backend.imageid dung bien the CHI mang capability ['kubernetes'], khong keo theo 'multi-node')."
+}

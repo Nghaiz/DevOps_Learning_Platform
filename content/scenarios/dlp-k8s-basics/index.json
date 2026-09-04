@@ -1,0 +1,48 @@
+{
+  "title": "Kubernetes căn bản: Pod, Deployment, ConfigMap, Service",
+  "description": "Sáu bước với một cụm k3s một-node chạy thật bên trong sandbox của bạn: từ kubectl get nodes tới Pod, Deployment tự phục hồi, ConfigMap tách cấu hình khỏi image, Service với Endpoints làm bằng chứng khách quan, và vì sao cụm này chỉ có một node.",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "foreground": "intro/foreground.sh"
+    },
+    "steps": [
+      {
+        "title": "Làm quen với cụm của bạn",
+        "text": "step1.md",
+        "verify": "step1/verify.sh"
+      },
+      {
+        "title": "Pod — đơn vị nhỏ nhất",
+        "text": "step2.md",
+        "verify": "step2/verify.sh"
+      },
+      {
+        "title": "Deployment — Pod biết tự phục hồi",
+        "text": "step3.md",
+        "verify": "step3/verify.sh"
+      },
+      {
+        "title": "ConfigMap — tách cấu hình khỏi image",
+        "text": "step4.md",
+        "verify": "step4/verify.sh"
+      },
+      {
+        "title": "Service — gọi được từ trong cụm",
+        "text": "step5.md",
+        "verify": "step5/verify.sh"
+      },
+      {
+        "title": "Vì sao cụm này chỉ có một node",
+        "text": "step6.md",
+        "verify": "step6/verify.sh"
+      }
+    ],
+    "finish": {
+      "text": "finish.md"
+    }
+  },
+  "backend": {
+    "imageid": "kubernetes-kubeadm-1node-rapid"
+  }
+}
