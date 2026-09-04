@@ -155,6 +155,11 @@ spec:
               value: {{ .Values.orchestrator.env.extendDefault | quote }}
             - name: REAP_INTERVAL
               value: {{ .Values.orchestrator.env.reapInterval | quote }}
+            # BẮT BUỘC — internal/config.Load() từ chối khởi động nếu thiếu
+            # (P13 D5). Không `| default`: một mặc định ở tầng template sẽ che
+            # mất chính cổng fail-fast mà config.go dựng lên.
+            - name: CAPACITY_SOFT_LIMIT
+              value: {{ required "orchestrator.env.capacitySoftLimit là bắt buộc — orchestrator sẽ CrashLoopBackOff ngay lúc khởi động nếu thiếu (internal/config.Load fail-fast). Xem values.yaml § capacitySoftLimit cho phép đo 20 vs 23." .Values.orchestrator.env.capacitySoftLimit | quote }}
             {{- include "platform.mtlsEnv" (dict "context" . "cert" "server") | nindent 12 }}
             {{- if ne .Values.platform.grpcMtlsMode "off" }}
             {{- /*

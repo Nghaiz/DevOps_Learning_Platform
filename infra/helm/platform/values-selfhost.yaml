@@ -157,6 +157,14 @@ orchestrator:
     # (N=18), không phải tối ưu: đo `dlp_claim_total{path="cold"}` /
     # `dlp_claim_total` sau vài buổi học thật rồi mới chỉnh tiếp.
     poolTarget: '3'
+    # Ngưỡng "còn N chỗ" FE hiện (P13 D5) — khớp ĐÚNG phép đo ở khối
+    # `sandbox.quota` cuối file này (P12/12.A, 2026-09-04): 23 phiên là trần vật
+    # lý, 20 là trần "pool còn lành" (§ đó có phép đo đầy đủ, đừng gộp hai số
+    # này làm một). Trùng giá trị mặc định của values.yaml hôm nay, nhưng ghim
+    # TƯỜNG MINH ở đây như mọi số đã đo khác trong file này (sandboxImage ở
+    # trên) — để lần đo lại quota kế tiếp không lặng lẽ để capacitySoftLimit
+    # trôi khỏi số thật.
+    capacitySoftLimit: '20'
   resources:
     requests:
       cpu: 25m

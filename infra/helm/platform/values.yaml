@@ -61,6 +61,42 @@ web:
     # lượt bấm "Check" đi ra internet rồi vòng lại, và nó hỏng đúng lúc ingress
     # chưa sẵn sàng — trong khi bản thân cụm vẫn hoàn toàn khoẻ.
     gatewayInternalUrl: ''
+    # Đường BFF → orchestrator `/metrics` cho `admin.health` (P13 C4). Rỗng =
+    # template tự suy "http://<release>-orchestrator:<httpPort>/metrics" — cổng
+    # HTTP orchestrator (8081) ĐÃ lên Service (orchestrator-service.yaml) nên
+    # đường DNS này tồn tại thật, KHÁC hẳn gatewayMetricsUrl bên dưới.
+    #
+    # ⚠ CHƯA ĐỦ ĐỂ CHẠY ĐƯỢC TRÊN CLUSTER ĐÃ SIẾT NETWORKPOLICY. Khối 9 của
+    # platform-networkpolicy.yaml ghi rõ: "cổng HTTP {{ orchestrator.service.httpPort }}
+    # cố ý KHÔNG mở cho pod nào" — chỉ kubelet (khối 11) và namespace monitoring
+    # tuỳ chọn (khối 13) chạm được nó. Với `networkPolicy.platform.enabled=true`,
+    # BFF gọi URL này sẽ bị DROP ở tầng mạng dù DNS đúng và Service đúng. Mở
+    # thêm một chiều `web → orchestrator:{{ httpPort }}` trong netpol là việc
+    # NGOÀI phạm vi Helm lane của phase-13 — không lane Đợt 1 nào sở hữu
+    # platform-networkpolicy.yaml; xem báo cáo lane Go 13.Go cho chi tiết.
+    orchestratorMetricsUrl: ''
+    # Đường BFF → gateway `/metrics` cho `admin.health` (P13 C4).
+    #
+    # ⛔ KHÔNG CÓ DEFAULT SUY RA ĐƯỢC — và đây KHÔNG phải một field quên điền.
+    # Cổng admin của gateway (8083, phục vụ /healthz + /metrics) CỐ Ý không lên
+    # `gateway-service.yaml` (xem comment tại đó): /metrics không có authz, và
+    # đưa nó lên Service nghĩa là bất kỳ pod nào trong namespace cũng gọi được.
+    # Không có Service ⇒ không có tên DNS ổn định nào để tự suy — khác hẳn mọi
+    # field "rỗng = tự ghép DNS" khác trong file này. Ngay cả khi có Service,
+    # `platform-networkpolicy.yaml` khối 12 cũng chỉ mở chiều đó cho namespace
+    # `monitoring`, không phải cho `web`.
+    #
+    # Để rỗng: `admin.health` (C4) đã thiết kế sẵn cho ca này — response shape
+    # `sources: [{name, ok, error, series}]` cho phép nguồn gateway báo lỗi có
+    # kiểm soát thay vì sập cả trang. Bật thật cần MỘT trong hai, cả hai đều
+    # NGOÀI phạm vi Helm lane của Đợt 1 (không ai sở hữu gateway-service.yaml
+    # lẫn platform-networkpolicy.yaml trong bảng lane hiện tại):
+    #   (a) thêm port admin lên gateway-service.yaml + mở netpol web→gateway:8083
+    #       CHỈ cho namespace nền tảng (không mở cho mọi pod) — đổi mô hình bảo
+    #       mật đã ghim, cần quyết định của lead;
+    #   (b) chuyển admin.health sang đọc từ Prometheus (đã có đường scrape ở
+    #       khối 12) thay vì gọi thẳng gateway — không cần mở cổng mới.
+    gatewayMetricsUrl: ''
     # Thư mục nội dung bài học TRONG image (apps/web/Dockerfile `COPY content`).
     # Tuyệt đối vì cwd runtime là /repo. Chỉ đổi khi mount nội dung từ volume.
     scenariosDir: '/repo/content/scenarios'
@@ -171,6 +207,24 @@ orchestrator:
     # Nhịp sweep của reaper. Sweep là ĐƯỜNG CHÍNH (keyspace notification chỉ là
     # đường nhanh, best-effort và mất event khi reaper offline).
     reapInterval: '60s'
+
+    # Ngưỡng "còn N chỗ" mà GetCapacity trả cho FE (P13 D5). BẮT BUỘC — orchestrator
+    # từ chối khởi động nếu thiếu (internal/config.Load), cùng lý lẽ với
+    # SANDBOX_IMAGE: một mặc định đoán bừa sẽ hiện sai sức chứa cho MỌI cluster.
+    #
+    # ⛔ KHÔNG PHẢI trần cứng của quota — đó là `sandbox.quota.pods` phía dưới,
+    # do apiserver gác. Đây là ngưỡng THẤP HƠN trần vật lý: values-selfhost.yaml
+    # L303-318 đo được trên VM lab hôm nay là HAI trần khác nhau —
+    #   · 23 phiên = trần vật lý (quota thật sự cho vào, ĐO không suy).
+    #   · 20 phiên = trần "pool còn lành" — vượt mức này thì quota đã gần đầy nên
+    #     orchestrator không refill nổi warm-pool nữa; người thứ 21-23 vẫn vào
+    #     được nhưng đi cold path (chờ tạo pod) thay vì nhận pod ấm ngay.
+    # Con số FE hiện "còn N chỗ" PHẢI là 20 (trải nghiệm), không phải 23 (vật
+    # lý) — gộp hai số này làm một là hứa một trải nghiệm mà 3 phiên cuối không
+    # có. Giá trị mặc định ở values.yaml (cloud-shaped, chưa đo trên phần cứng
+    # cụ thể nào) để 20 làm sàn an toàn; values-selfhost.yaml ghim lại đúng 20
+    # cho VM lab — xem khối đó để đọc phép đo đầy đủ.
+    capacitySoftLimit: '20'
 
     # mTLS của cổng gRPC nay điều khiển bằng MỘT biến dùng chung cho cả ba
     # service: `platform.grpcMtlsMode` ở cuối file. Không còn cờ riêng ở đây —

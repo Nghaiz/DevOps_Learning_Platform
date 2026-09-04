@@ -128,6 +128,23 @@ spec:
               # content). Đường TUYỆT ĐỐI vì cwd runtime là /repo, khác cwd của
               # `next dev` mà default trong env.ts tính theo.
               value: {{ .Values.web.env.scenariosDir | quote }}
+            - name: ORCHESTRATOR_METRICS_URL
+              # `admin.health` (P13 C4). Rỗng = template tự suy DNS in-cluster —
+              # cổng HTTP orchestrator (8081) ĐÃ lên Service. Xem comment đầy đủ
+              # (kể cả cảnh báo NetworkPolicy khối 9 chặn chiều này khi
+              # networkPolicy.platform.enabled=true) tại values.yaml §
+              # web.env.orchestratorMetricsUrl.
+              value: {{ .Values.web.env.orchestratorMetricsUrl | default (printf "http://%s-orchestrator:%v/metrics" (include "platform.fullname" .) .Values.orchestrator.service.httpPort) | quote }}
+            {{- with .Values.web.env.gatewayMetricsUrl }}
+            # KHÔNG có nhánh `| default` tự suy — KHÔNG PHẢI thiếu sót. Cổng
+            # admin của gateway (8083) cố ý không lên Service (gateway-service.yaml),
+            # nên không có DNS nào để tự ghép. Xem values.yaml §
+            # web.env.gatewayMetricsUrl cho lý do đầy đủ + hai đường mở khoá.
+            # OMIT khi rỗng (mặc định hôm nay): `admin.health` đã thiết kế sẵn
+            # cho nguồn gateway báo lỗi có kiểm soát (`sources[].ok/error`).
+            - name: GATEWAY_METRICS_URL
+              value: {{ . | quote }}
+            {{- end }}
             {{- include "platform.mtlsEnv" (dict "context" . "cert" "web") | nindent 12 }}
             {{- if ne .Values.platform.grpcMtlsMode "off" }}
             - name: GRPC_TLS_SERVER_NAME

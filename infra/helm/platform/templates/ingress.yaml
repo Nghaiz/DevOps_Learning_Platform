@@ -197,6 +197,72 @@ spec:
                 port:
                   number: {{ .Values.gateway.service.publicPort }}
 {{- end }}
+{{- if .Values.gateway.enabled }}
+---
+{{/*
+Ingress `/ide` (P13 D8) — IDE trong iframe cùng origin: `src="/ide/session/{id}/"`.
+Cùng Service + cổng CÔNG KHAI với `-ws` ({{ .Values.gateway.service.publicPort }}):
+gateway là reverse-proxy DUY NHẤT ra ngoài cho cả hai đường; nó tự định tuyến
+`/ide/session/{id}/` xuống cổng IDE của pod sandbox (`gateway.ide.port`, mặc
+định 4000 — P6/6.C). Vì thế netpol Traefik→gateway của khối `-ws`
+(platform-networkpolicy.yaml § "allow-ingress-gateway") ĐÃ phủ đường này —
+cùng service, cùng cổng, không cần rule mới.
+
+⛔ MIDDLEWARE KHÁC `-ws`, VÀ ĐÂY LÀ QUYẾT ĐỊNH CÓ CHỦ Ý — không phải sao chép
+nhầm. Lý do `-ws` bỏ `bodylimit` (xem đầu file: "request nâng cấp WS KHÔNG có
+body để đệm") KHÔNG áp cho `/ide`: đây là một đường HTTP-PROXY THẬT (tải UI
+IDE, lưu file qua editor, …), có request body thật cần một trần — bỏ nó là mở
+đúng lỗ mà `bodylimit` tồn tại để đóng. `/ide` vì thế dùng CÙNG cặp middleware
+với `-web` (`bodylimit` + `ratelimit-web`), KHÔNG dùng `ratelimit-ws` (tier đó
+định giá cho một lượt handshake, không phải một phiên IDE kéo dài nhiều
+request). Chưa có tier `ratelimit-ide` riêng — `middleware-ratelimit.yaml`
+không thuộc sở hữu của lane Helm phase-13 Đợt 1; nếu traffic /ide cần một trần
+khác `-web`, đó là việc đo + thêm tier sau, không phải P13.
+
+Thứ tự path KHÔNG cần lo (như ghi chú đầu file): Traefik xếp ưu tiên router
+theo ĐỘ DÀI rule, và `/ide` không phải tiền tố của `/ws` hay ngược lại.
+*/}}
+{{- $annIde := $userAnn }}
+{{- if $mw.enabled }}
+{{- $annIde = merge (dict
+      "traefik.ingress.kubernetes.io/router.entrypoints" $mw.entrypoints.secure
+      "traefik.ingress.kubernetes.io/router.middlewares" (printf "%s-%s-bodylimit@kubernetescrd,%s-%s-ratelimit-web@kubernetescrd" $ns $fullname $ns $fullname)
+    ) $userAnn }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullname }}-ide
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
+  {{- with $annIde }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ required "ingress.host là bắt buộc khi ingress.tls.enabled" .Values.ingress.host | quote }}
+      secretName: {{ required "ingress.tls.secretName là bắt buộc khi ingress.tls.enabled" .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - {{- with .Values.ingress.host }}
+      host: {{ . | quote }}
+      {{- end }}
+      http:
+        paths:
+          - path: /ide
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-gateway
+                port:
+                  number: {{ .Values.gateway.service.publicPort }}
+{{- end }}
 {{- if and $mw.enabled $mw.redirectHttps.enabled }}
 ---
 {{- $annRedirect := merge (dict
