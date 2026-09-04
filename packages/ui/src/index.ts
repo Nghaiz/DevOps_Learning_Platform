@@ -1,8 +1,70 @@
 export { cn } from './cn.ts';
+
+// ── Theme (D2 / C1) ──────────────────────────────────────────────────────────
+export { ThemeProvider, useTheme, THEME_STORAGE_KEY, THEME_INIT_SCRIPT } from './theme/theme-provider.tsx';
+export type { ThemeChoice, ThemeProviderProps } from './theme/theme-provider.tsx';
+
+// ── Primitive form/action ───────────────────────────────────────────────────
 export { Button } from './button.tsx';
-export type { ButtonProps, ButtonVariant } from './button.tsx';
-export { Card, CardTitle, CardDescription } from './card.tsx';
+export type { ButtonProps, ButtonVariant, ButtonSize } from './button.tsx';
 export { Input } from './input.tsx';
+export type { InputProps } from './input.tsx';
+export { Textarea } from './textarea.tsx';
+export type { TextareaProps } from './textarea.tsx';
+export { Label } from './label.tsx';
+export type { LabelProps } from './label.tsx';
+export { Badge } from './badge.tsx';
+export type { BadgeProps, BadgeVariant } from './badge.tsx';
+
+// ── Card ─────────────────────────────────────────────────────────────────────
+export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './card.tsx';
+
+// ── Overlay (Radix) ──────────────────────────────────────────────────────────
+export {
+  Dialog,
+  DialogTrigger,
+  DialogClose,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from './dialog.tsx';
+export { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs.tsx';
+export { Select, SelectValue, SelectGroup, SelectTrigger, SelectContent, SelectItem } from './select.tsx';
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from './dropdown-menu.tsx';
+export { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from './tooltip.tsx';
+
+// ── Form controls (Radix) ────────────────────────────────────────────────────
+export { Switch } from './switch.tsx';
+export { Checkbox } from './checkbox.tsx';
+export { RadioGroup, RadioGroupItem } from './radio-group.tsx';
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+export { Toaster, useToast } from './toast.tsx';
+export type { ToastOptions, ToastVariant } from './toast.tsx';
+
+// ── Trạng thái / bố cục ──────────────────────────────────────────────────────
+export { Alert, AlertTitle, AlertDescription } from './alert.tsx';
+export type { AlertProps, AlertVariant } from './alert.tsx';
+export { Skeleton } from './skeleton.tsx';
+export { Spinner } from './spinner.tsx';
+export type { SpinnerProps, SpinnerSize } from './spinner.tsx';
+export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableCaption } from './table.tsx';
+export { CursorPager } from './cursor-pager.tsx';
+export type { CursorPagerProps } from './cursor-pager.tsx';
+export { EmptyState } from './empty-state.tsx';
+export type { EmptyStateProps } from './empty-state.tsx';
+export { ErrorState } from './error-state.tsx';
+export type { ErrorStateProps } from './error-state.tsx';
+export { Separator, Kbd } from './separator.tsx';
 
 // ── Bài học (P2 / 2.D) ───────────────────────────────────────────────────────
 // Đặt ở `packages/ui` chứ không ở `apps/web` vì P4 (Labs + CTF) tái dùng đúng bộ
