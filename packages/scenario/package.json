@@ -7,7 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./content-blocks": "./src/content-blocks.ts",
-    "./lab-score": "./src/lab-score.ts"
+    "./lab-score": "./src/lab-score.ts",
+    "./quiz-score": "./src/quiz-score.ts",
+    "./path-progress": "./src/path-progress.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

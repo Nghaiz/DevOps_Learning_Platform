@@ -43,6 +43,13 @@
       "when": 1788487136579,
       "tag": "0005_parched_jane_foster",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788516763015,
+      "tag": "0006_tricky_tyger_tiger",
+      "breakpoints": true
     }
   ]
 }
