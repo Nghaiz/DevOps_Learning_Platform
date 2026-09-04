@@ -23,6 +23,11 @@ NODE_IP=${NODE_IP:-$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[
 [ -n "${NODE_IP:-}" ] || NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
 MIRROR_HOST=${MIRROR_HOST:-platform-registry-mirror.dlp-registry.svc.cluster.local}
 TIMEOUT=${TIMEOUT:-6}
+# So node cua cluster con. Dat NODES=2 khi kiem mot phien multi-node.
+# Doi chung duong ben duoi dem THEO bien nay: mot cum 2 node ma chi 1 node
+# Ready van "co cluster con", va moi phep "phai truot" ben duoi van truot —
+# tuc bao cao se doc ra la cach ly hoan hao trong khi nua he thong chua len.
+NODES=${NODES:-1}
 
 POD=${1:-$(kubectl get pods -n "$NS" -l app=sandbox -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)}
 [ -n "$POD" ] || { echo "Khong tim thay pod sandbox nao trong namespace $NS"; exit 2; }
@@ -60,9 +65,10 @@ if outer "curl -sS -m$TIMEOUT -o /dev/null -w '%{http_code}' http://$MIRROR_HOST
 then ok "mirror docker.io van toi duoc tu pod"
 else bad "mirror tu pod" "egress hop phap da bi cluster con lam hong"; fi
 
-if outer 'kubectl get nodes 2>/dev/null | grep -qw Ready && echo inner-ready' | grep -q inner-ready
-then ok "cluster CON dang Ready (co that mot duong mang moi de kiem)"
-else bad "cluster con Ready" "khong co cluster con thi 7.F chua kiem duoc gi"; fi
+inner_ready_nodes=$(outer "kubectl get nodes --no-headers 2>/dev/null | awk '\$2 == \"Ready\"' | wc -l" | tr -dc '0-9')
+if [ "${inner_ready_nodes:-0}" -ge "$NODES" ]
+then ok "cluster CON dang Ready ($inner_ready_nodes/$NODES node — co that mot duong mang moi de kiem)"
+else bad "cluster con Ready" "moi co ${inner_ready_nodes:-0}/$NODES node — khong doc tiep"; fi
 echo
 
 # ── PHAI TRUOT — tu LOP NGOAI (pod sandbox) ─────────────────────────────────
@@ -103,6 +109,40 @@ case "$r" in *REACHED*) bad "apiserver CHU tu cluster con" "TOI DUOC";; *) ok "a
 #     cua pod sandbox -> DUOC.
 #   · pod NGUOI HOC tao ra -> di bang CNI cua cluster con -> cung ra duoc, nhung
 #     phai goi bang IP vi DNS la cua cluster con.
+# ── PHAI TRUOT — tu MOT POD TREN NODE 2 (chi khi NODES>=2) ──────────────────
+#
+# Vi sao khong du khi da kiem tu "mot pod cua cluster con": `kubectl run` khong
+# hua se dat pod o dau. Tren cum 2 node no co the roi vao node 1 ca chuc lan
+# lien, va bao cao se ghi "da kiem tu ben trong cluster con" trong khi node 2 —
+# mot container RIENG, tren mot mang docker RIENG do ta tu tao (dlp-k3s-net) —
+# chua he duoc cham toi. Do la mot be mat moi, khong phai mot ban sao cua node 1.
+#
+# Ghim bang nodeName, va lay ten node bang cach LOAI node control-plane thay vi
+# lay "dong thu hai": thu tu `kubectl get nodes` khong duoc dam bao.
+if [ "$NODES" -ge 2 ]; then
+  echo "Tu MOT POD TREN NODE 2 — moi muc PHAI truot:"
+  agent_node=$(outer "kubectl get nodes -l '!node-role.kubernetes.io/control-plane' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null" | tr -d '[:space:]')
+  if [ -z "$agent_node" ]; then
+    bad "tim node 2" "khong co node nao ngoai control-plane — NODES=2 nhung cum chi co 1 node"
+  else
+    ok "node 2 = $agent_node (doi chung: co that mot node de ghim vao)"
+    on_agent() {
+      outer "kubectl run p7probe2-\$RANDOM --rm -i --restart=Never --quiet \
+          --overrides='{\"spec\":{\"nodeName\":\"$agent_node\"}}' \
+          --image=busybox:1.36 --command -- sh -c '$1' 2>&1 | tail -3"
+    }
+    r=$(on_agent "wget -T $TIMEOUT -q -O- http://169.254.169.254/ >/dev/null 2>&1 && echo REACHED || echo blocked")
+    case "$r" in *REACHED*) bad "IMDS tu node 2" "TOI DUOC";; *) ok "IMDS tu node 2 bi chan";; esac
+
+    r=$(on_agent "wget -T $TIMEOUT -q --no-check-certificate -O- https://$NODE_IP:6443/version >/dev/null 2>&1 && echo REACHED || echo blocked")
+    case "$r" in *REACHED*) bad "apiserver CHU tu node 2" "TOI DUOC";; *) ok "apiserver CHU tu node 2 bi chan";; esac
+
+    r=$(on_agent "wget -T $TIMEOUT -q --no-check-certificate -O- https://10.96.0.1:443/version >/dev/null 2>&1 && echo REACHED || echo blocked")
+    case "$r" in *REACHED*) bad "apiserver CHU (ClusterIP) tu node 2" "TOI DUOC";; *) ok "apiserver CHU (10.96.0.1) tu node 2 bi chan";; esac
+  fi
+  echo
+fi
+
 MIRROR_IP=${MIRROR_IP:-$(kubectl get svc -n dlp-registry -o jsonpath='{.items[0].spec.clusterIP}' 2>/dev/null)}
 if [ -n "$MIRROR_IP" ]; then
   r=$(inner "wget -T $TIMEOUT -q -O- http://$MIRROR_IP:5000/v2/ >/dev/null 2>&1 && echo REACHED || echo blocked")

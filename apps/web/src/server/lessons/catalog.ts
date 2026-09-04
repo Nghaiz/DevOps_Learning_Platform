@@ -61,13 +61,31 @@ export function scenarioDir(id: string): string {
  *     `netpol-verify.sh` 22/22 cùng `p7-escape-verify.sh` 9/9 với một pod có
  *     cluster con đang chạy. Số đo đầy đủ: `docs/k8s-in-pod.md`.
  *
- * ⛔ `multi-node` VẪN KHÔNG nằm đây, và cố ý không mở kèm: cluster con là MỘT
- * node. Mở nó chỉ vì `kubernetes` đã mở sẽ là đúng cái lời hứa sai mà cả khối
- * chú thích này tồn tại để chặn.
+ * · `multi-node` — P7-bis (2026-09-04). Mở SAU khi có, và CHỈ khi có, những
+ *     thứ mà bản P7 đòi trước khi được phép mở nó: một cụm con HAI node dựng
+ *     được trên đường sản xuất (`DLP_K8S_NODES=2` → `start_k8s` dựng thêm một
+ *     container `k3s agent`; 2/2 node Ready sau 23 s, đo bằng `dlp-k8s-wait`);
+ *     một profile tài nguyên riêng (`sandbox.profiles.k8s-multinode`) đặt theo
+ *     đỉnh ĐO ĐƯỢC DƯỚI TẢI 1094.79 MiB, với trần đồng thời 3 ghi thẳng vào
+ *     values; và cách ly không tụt — `p7-escape-verify.sh` chạy với `NODES=2`,
+ *     gồm cả phép thử từ một pod GHIM TRÊN NODE 2 (một container riêng, trên
+ *     một mạng docker riêng — bề mặt mới, không phải bản sao của node 1).
+ *
+ * ⚠ NÓI THẲNG MỘT ĐIỀU KHÔNG DỄ CHỊU: hôm nay KHÔNG bài nào trong giáo trình
+ * thật sự cần hai node. `ckad-configmap-as-files` mang nhãn `multi-node` chỉ vì
+ * `backend.imageid` upstream của nó là `kubernetes-kubeadm-2nodes`; `verify.sh`
+ * của bài dùng đúng MỘT pod và MỘT ConfigMap, không chạm node/nodeSelector/
+ * taint/DaemonSet ở dòng nào. Nhãn ấy mô tả thứ backend upstream CUNG CẤP,
+ * không phải thứ bài học ĐÒI.
+ *
+ * Mở vì hai lý do đứng độc lập với bài đó: nội dung CKA/CKAD nhập về sau (drain,
+ * taint, nodeSelector, DaemonSet) cần 2 node thật; và phase-7 đã ghi sẵn điều
+ * kiện "multi-node vẫn chưa — TRỪ KHI ĐO ĐƯỢC", nay đã thoả bằng số.
  */
 export const RUNTIME_SUPPORTED_CAPABILITIES: readonly ScenarioCapability[] = [
   'docker',
   'kubernetes',
+  'multi-node',
 ];
 
 /**
@@ -86,6 +104,12 @@ export const RUNTIME_SUPPORTED_CAPABILITIES: readonly ScenarioCapability[] = [
  * mặc định — cùng kỷ luật fail-closed với `SandboxTier`.
  */
 export function profileForCapabilities(capabilities: readonly ScenarioCapability[]): string {
+  // Thứ tự KHÔNG hoán đổi được: `multi-node` phải xét TRƯỚC. Một bài
+  // multi-node cũng mang `kubernetes`, nên kiểm `kubernetes` trước sẽ trả
+  // `'k8s'` và bài hai node nhận một pod 1Gi chỉ đủ cho một node — node phụ
+  // đội trần rồi bị kubelet đuổi, và triệu chứng ("thỉnh thoảng chỉ thấy một
+  // node") không trỏ về dòng này ở đâu cả.
+  if (capabilities.includes('multi-node')) return 'k8s-multinode';
   return capabilities.includes('kubernetes') ? 'k8s' : '';
 }
 

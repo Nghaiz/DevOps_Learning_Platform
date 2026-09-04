@@ -767,7 +767,15 @@ sandbox:
     # KHÔNG cắt bớt xuống — một profile 4 core dưới `maxCpu: 2` không chạy chậm,
     # nó không được tạo, và lỗi hiện ra ở apiserver chứ không ở chỗ khai profile.
     maxCpu: '4'
-    maxMemory: '2Gi'
+    # `maxMemory: 3Gi` (nâng từ 2Gi ở P7-bis) — TRẦN của LimitRange, không phải
+    # mặc định. Pod thường vẫn nhận `defaultMemory: 1Gi`; con số này chỉ mở
+    # đường cho profile `k8s-multinode` khai `limitsMemory: '3Gi'`.
+    #
+    # Cùng cái bẫy đã dính với `maxCpu` ở 7.C, ghi lại vì nó không tự hiển
+    # nhiên: LimitRange TỪ CHỐI pod vượt `max`, KHÔNG cắt bớt xuống. Một profile
+    # 3Gi dưới `maxMemory: 2Gi` không chạy chậm — nó không được tạo, và lỗi hiện
+    # ra ở apiserver chứ không ở chỗ khai profile.
+    maxMemory: '3Gi'
 
   # ── Profile RIÊNG cho bài có IDE (P6 / 6.E, đo 2026-09-04) ─────────────────
   #
@@ -918,6 +926,66 @@ sandbox:
         # bài Linux/Docker, và dựng cluster cho tất cả là trả ~778Mi thường trực
         # cho thứ không ai dùng, kéo trần của MỌI người từ 20 xuống 4.
         DLP_K8S: '1'
+
+    # ── profile "k8s-multinode" — số ĐO ĐƯỢC (P7-bis, 2026-09-04) ───────────
+    #
+    # Cụm con HAI node: một `k3s server` + một `k3s agent`, mỗi node là một
+    # container Docker riêng trong cùng pod Sysbox, nối bằng một mạng docker do
+    # ta tạo (`dlp-k3s-net`). Xem `images/sandbox-base/k3s-boot.sh` (vai trò
+    # server|agent) và `start_k8s` của entrypoint.
+    #
+    # Đo trên ĐƯỜNG SẢN XUẤT, cùng tải với profile `k8s` (dlp-k8s-broken-deploy,
+    # 5 Deployment), harness `p7-measure.sh k3s-2node-lab`:
+    #
+    #             rỗng tải        + lab thật       đĩa
+    #   1 node    589    Mi       777.81Mi         998MB
+    #   2 node    803.34Mi      1094.79Mi         1498MB
+    #
+    # Lượt 2 node tách được hai phần nhờ mốc `workingSetAtReadyMiB`:
+    #   cluster 712.96Mi  +  tải 381.83Mi  =  đỉnh 1094.79Mi
+    #
+    # `requestsMemory: 1.5Gi` = 1094.79Mi + ~31% biên — CÙNG tỉ lệ với `k8s`.
+    # `limitsMemory: 3Gi` giữ tỉ lệ ~2× requests như `k8s` (1Gi/2Gi), và đòi
+    # `limitRange.maxMemory: 3Gi` ở trên.
+    #
+    # ── TRẦN ĐỒNG THỜI CỦA BÀI MULTI-NODE ──────────────────────────────────
+    #   requestsMemory  (5500 − 768)Mi   ÷ 1536Mi = 3.08 → 3   ← RÀNG BUỘC CHẶN
+    #   requestsCpu     (5400 − 750)m    ÷  500m  = 9
+    #   limitsCpu       (44 − 6)         ÷    4   = 9
+    #   limitsMemory    (22528 − 3072)Mi ÷ 3072Mi = 6
+    #   pods            (26 − 3)                  = 23
+    # ⇒ min = **3 phiên multi-node đồng thời** (so với 4 của `k8s`, 20 thường).
+    #
+    # ⚠ HÔM NAY KHÔNG BÀI NÀO TRONG GIÁO TRÌNH THẬT SỰ CẦN 2 NODE — nói thẳng
+    # để không ai đọc nhầm. `ckad-configmap-as-files` mang nhãn `multi-node`
+    # CHỈ vì `backend.imageid` upstream của nó là `kubernetes-kubeadm-2nodes`;
+    # `verify.sh` của bài dùng đúng MỘT pod + MỘT ConfigMap, không chạm node,
+    # nodeSelector, taint hay DaemonSet ở bất cứ dòng nào. Tức nhãn đó mô tả thứ
+    # backend upstream CUNG CẤP, không phải thứ bài HỌC CẦN.
+    #
+    # Vẫn mở, vì hai lý do đứng độc lập với bài đó: (1) nội dung CKA/CKAD nhập
+    # về sau (drain, taint, nodeSelector, DaemonSet) cần 2 node thật, và (2)
+    # phase-7 đã ghi sẵn điều kiện "multi-node vẫn chưa (TRỪ KHI ĐO ĐƯỢC)" —
+    # điều kiện đó nay đã thoả bằng số ở trên.
+    #
+    # Đường thu lại chỗ sau này, nếu cần: cho nội dung khai thứ nó THẬT SỰ đòi,
+    # tách khỏi thứ image upstream cung cấp. CHƯA làm hôm nay (YAGNI): nó là một
+    # field schema mới cho đúng một bài.
+    k8s-multinode:
+      requestsCpu: '500m'
+      # 1536Mi chu khong '1.5Gi': ParseQuantity nhan ca hai, nhung orchestrator
+      # phan giai SANDBOX_PROFILES LUC KHOI DONG va mot dinh dang lam no khong len
+      # se lam sap ca dich vu. Dang nguyen (integer) cung khop dung phep tinh tran
+      # o tren, nen doc so va doc phep tinh khong phai quy doi trong dau.
+      requestsMemory: '1536Mi'
+      limitsCpu: '4'
+      limitsMemory: '3Gi'
+      env:
+        DLP_K8S: '1'
+        # `start_k8s` đọc biến này để dựng node phụ, và `dlp-k8s-wait` đọc CÙNG
+        # biến để biết phải chờ mấy node. Một nguồn, hai phía — nên chúng không
+        # thể lệch nhau.
+        DLP_K8S_NODES: '2'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Registry mirror docker.io trong cụm (P3/3.I mắt 1).
