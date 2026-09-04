@@ -28,7 +28,7 @@ import { closeTestDb, ctxFor, testDb, uniqueId } from './test-helpers';
  *
  * | bài | step | verify ở step | verify ở intro | capabilities |
  * |---|---|---|---|---|
- * | `ckad-configmap-as-files` | **1** | có (kubectl thật) | không | `kubernetes`, `multi-node` |
+ * | `ckad-configmap-as-files` | **1** | có (kubectl thật) | không | `kubernetes`, `multi-node` (cả hai ĐÃ hỗ trợ từ P7-bis) |
  * | `loki-quickstart` | 2 | không | không | — |
  * | `loxilb-tcp-load-balancing` | 3 | **không** | **có** | — |
  * | `prolug-linux-system-checking` | 3 | có (`/bin/true`) | không | — |
@@ -398,27 +398,35 @@ describe('lessons — cảnh báo năng lực chưa hỗ trợ', () => {
     await closeTestDb();
   });
 
-  it('bài đòi kubernetes → `kubernetes` KHÔNG còn bị cảnh báo, `multi-node` thì CÒN', async () => {
-    // ⚠ Ca này ĐÃ ĐƯỢC LẬT ở P7 (2026-09-04), không phải "sửa cho xanh".
+  it('bài đòi kubernetes + multi-node → KHÔNG còn cảnh báo nào', async () => {
+    // ⚠ Ca này ĐÃ ĐƯỢC LẬT HAI LẦN, và cả hai lần đều vì khoảng trống được lấp
+    // thật — không lần nào là "sửa cho xanh".
     //
-    // Bản cũ ghim trạng thái ĐANG HỎNG (`toContain('kubernetes')`) kèm dặn dò
-    // "nếu đỏ vì danh sách hỗ trợ dài ra, kiểm lại rằng runtime THẬT SỰ đã
-    // dựng". Nó đã đỏ, và runtime thật sự đã dựng: k3s trong pod Sysbox, Ready
-    // sau 49 s, tạo được Deployment/ConfigMap/Service, kéo được `nginx:1.29.0`
-    // trong cluster con, `netpol-verify` 22/22 và `p7-escape-verify` 9/9 với
-    // pod có cluster con đang chạy. Số đo: `docs/k8s-in-pod.md`.
+    // Lần 1 (P7, 2026-09-04): bản gốc ghim `toContain('kubernetes')`. Runtime
+    // k3s-trong-pod dựng xong thì ô đó đỏ, và luật là LẬT chứ không ghim lại.
     //
-    // Nên điều kiện chấm dứt của cái ghim đã tới, và luật là LẬT chứ không ghim
-    // lại: từ đây `kubernetes` xuất hiện trong `unsupportedCapabilities` là một
-    // HỒI QUY (ai đó gỡ nó khỏi `RUNTIME_SUPPORTED_CAPABILITIES`), không phải
-    // trạng thái mong đợi.
+    // Lần 2 (P7-bis, cùng ngày): vế còn lại — `toContain('multi-node')` — kèm
+    // dặn dò "nếu ai đó mở multi-node cho tiện, ca này đỏ ngay". Nó đã đỏ, và
+    // đây là thứ đứng sau, đo trên cụm thật chứ không phải sự tiện tay:
     //
-    // `multi-node` vẫn được ghim ở trạng thái CHƯA hỗ trợ — cluster con là MỘT
-    // node. Giữ cả hai vế trong cùng một ca là có chủ ý: nếu ai đó mở
-    // `multi-node` kèm theo cho tiện, ca này đỏ ngay.
+    //   · cụm con 2 node dựng được trên ĐƯỜNG SẢN XUẤT (DLP_K8S_NODES=2 →
+    //     `start_k8s` dựng thêm một container `k3s agent`), 2/2 node Ready sau
+    //     23 s — `dlp-k8s-wait` đếm ĐỦ node chứ không dừng ở node đầu tiên;
+    //   · đỉnh workingSet DƯỚI TẢI THẬT 1094.79 MiB (lab dlp-k8s-broken-deploy,
+    //     5 Deployment), tách được: cluster 712.96 + tải 381.83;
+    //   · profile riêng `k8s-multinode` (1536Mi/3Gi) với trần đồng thời 3, ghi
+    //     thẳng vào values kèm cả năm ràng buộc;
+    //   · `p7-escape-verify.sh NODES=2` — gồm phép thử từ một pod GHIM TRÊN
+    //     NODE 2, vì `kubectl run` không hứa đặt pod ở đâu và node 2 là một
+    //     container riêng trên một mạng docker riêng.
+    //
+    // Từ đây, BẤT KỲ phần tử nào trong `unsupportedCapabilities` của bài này là
+    // một HỒI QUY (ai đó rút một dòng khỏi `RUNTIME_SUPPORTED_CAPABILITIES`),
+    // không phải trạng thái mong đợi. Khẳng định `toEqual([])` thay vì hai phép
+    // `not.toContain` rời: một năng lực THỨ BA lẻn vào nhãn của bài cũng phải
+    // làm ca này đỏ, chứ không im lặng trôi qua vì ta chỉ hỏi đúng hai cái tên.
     const out = await (await caller(user)).lessons.get({ scenarioId: SCENARIO_K8S });
-    expect(out.unsupportedCapabilities).not.toContain('kubernetes');
-    expect(out.unsupportedCapabilities).toContain('multi-node');
+    expect(out.unsupportedCapabilities).toEqual([]);
   });
 
   it('bài chỉ cần shell → không cảnh báo gì', async () => {

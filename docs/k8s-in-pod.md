@@ -148,36 +148,85 @@ cannot enter cgroupv2 "/sys/fs/cgroup/kubepods" with domain controllers
 
 Cách chữa cho k3s (`infra/host/p7-k3s-boot.sh`): đẩy mọi tiến trình xuống `/sys/fs/cgroup/init`, rồi bật controller ở `cgroup.subtree_control` của gốc — **từng controller một**, vì ghi cả chuỗi `"+cpuset +cpu +io +memory +pids"` một lượt bị kernel từ chối toàn bộ (`sed: write error`) khi chỉ một controller trong đó không uỷ quyền được.
 
+## Đo lại dưới TẢI THẬT (P7-bis, 2026-09-04) — và 768Mi hoá ra đã sai
+
+Mọi con số ở trên đo với cluster con vừa lên **cộng đúng một Deployment nginx**. Mục "Chưa đo" của bản trước tự ghi rằng đó là một khoảng trống. Đây là số lấp nó.
+
+Tải dùng để đo là lab first-party nặng nhất trong giáo trình — `dlp-k8s-broken-deploy`: 5 Deployment + Service + ConfigMap, gieo hỏng rồi áp lời giải cho tới khi cả 5 lên `1/1`. Đo trên **đường sản xuất** (`DLP_K8S=1`, entrypoint tự dựng cluster), không phải đường `docker run` tay của 7.B: con số này đi thẳng vào `sandbox.profiles`, nên nó phải đến từ đúng con đường người học đi.
+
+| topology | rỗng tải | **+ lab thật** | đĩa | CPU-giây | tới xong |
+|---|---|---|---|---|---|
+| 1 node | 589 MiB | **777.81 MiB** | 998 MB | 155 | 71 s |
+| 2 node | 803.34 MiB | **1094.79 MiB** | 1498 MB | 199 | 69 s |
+
+Lượt 2 node tách được hai phần nhờ mốc `workingSetAtReadyMiB`:
+
+```
+cluster 712.96 MiB  +  tải 381.83 MiB  =  đỉnh 1094.79 MiB
+```
+
+**777.81 MiB > 768 MiB.** Tức `requests` cũ nằm *dưới* đỉnh thật của một bài học **có thật trong giáo trình**. `requests` không phải trần nên không có OOM; thứ xảy ra tệ hơn và khó truy hơn: kubelet đuổi pod vượt `requests` khi node bị ép RAM — phiên của người học chết giữa bài, ngẫu nhiên, và **chỉ khi cụm đang đông**. Đúng loại lỗi không tái hiện được lúc ngồi gỡ.
+
 ## Trần đồng thời của bài K8s
 
-Profile `k8s` (`infra/helm/platform/values.yaml` → `sandbox.profiles.k8s`): requests `500m`/`768Mi`, limits `4`/`2Gi`. `768Mi` đặt theo **đỉnh đo được** (589 MiB) cộng ~30% biên — không theo trung vị (bài học `sandbox-quota-is-misconfigured-not-hardware`: đặt theo trung vị là thiết kế cho một nửa số lượt).
+Hai profile, vì hai topology tốn khác nhau (`infra/helm/platform/values.yaml` → `sandbox.profiles`):
 
-Min của năm ràng buộc, trên quota self-host:
+| profile | requests | limits | đặt theo |
+|---|---|---|---|
+| `k8s` | `500m` / `1Gi` | `4` / `2Gi` | đỉnh 777.81 MiB + ~31% biên |
+| `k8s-multinode` | `500m` / `1536Mi` | `4` / `3Gi` | đỉnh 1094.79 MiB + ~31% biên |
 
-```
-requestsCpu     5400m  ÷  500m   = 10
-requestsMemory  5500Mi ÷  768Mi  =  7   ← RÀNG BUỘC CHẶN
-limitsCpu          44  ÷    4    = 11
-limitsMemory   22528Mi ÷ 2048Mi  = 11
-pods               26             = 26
-⇒ min = 7 pod − POOL_TARGET 1 = 6 phiên K8s đồng thời
-```
+Biên ~31% là **cùng tỉ lệ** mà 589→768 đã dùng, không phải một tỉ lệ mới chọn cho vừa một mục tiêu trần. Vẫn đặt theo **đỉnh**, không theo trung vị (`sandbox-quota-is-misconfigured-not-hardware`: đặt theo trung vị là thiết kế cho một nửa số lượt).
 
-**6 phiên — thấp hơn 20 phiên thường đúng 14.** Nói thẳng con số đó, thay vì trung bình hoá nó vào một `requests` chung, là toàn bộ điểm của mục này: một bài K8s tốn gấp ba một bài Linux, và giấu điều đó sẽ làm người thứ bảy nhận 429 mà không hiểu vì sao.
-
-⚠ Quota là **chung** cho namespace, nên "6" chỉ đúng khi mọi phiên đều là K8s. Ràng buộc thật là tuyến tính:
+⚠ **Phép tính trần cũ sai ở MẪU SỐ, không chỉ ở con số.** Nó chia *cả* quota cho `requests` của K8s rồi trừ đi `POOL_TARGET` như thể pod warm pool cũng cỡ K8s. Chúng không: pool giữ 3 pod × 256Mi. Phải trừ phần pool **đang giữ** ra khỏi quota trước, rồi mới chia. Số pool đọc từ cụm thật (`kubectl get resourcequota -n dlp-sandbox`): 768Mi RAM · 750m CPU · 3Gi limits.memory · 6 limits.cpu · 3 pod.
 
 ```
-256Mi·n_thường + 768Mi·n_k8s ≤ 5500Mi     (và bốn bất đẳng thức còn lại)
+profile k8s (1Gi):
+  requestsMemory  (5500 − 768)Mi   ÷ 1024Mi = 4.62 → 4   ← RÀNG BUỘC CHẶN
+  requestsCpu     (5400 − 750)m    ÷  500m  = 9
+  limitsCpu       (44 − 6)         ÷    4   = 9
+  limitsMemory    (22528 − 3072)Mi ÷ 2048Mi = 9
+  pods            (26 − 3)                  = 23
+⇒ 4 phiên K8s đồng thời
+
+profile k8s-multinode (1536Mi):
+  requestsMemory  (5500 − 768)Mi   ÷ 1536Mi = 3.08 → 3   ← RÀNG BUỘC CHẶN
+  limitsMemory    (22528 − 3072)Mi ÷ 3072Mi = 6
+⇒ 3 phiên multi-node đồng thời
 ```
 
-Ví dụ: 10 phiên thường + 3 phiên K8s = 2560 + 2304 = 4864Mi ⇒ vừa.
+**4 phiên — thấp hơn 20 phiên thường đúng 16.** Nói thẳng con số đó, thay vì trung bình hoá nó vào một `requests` chung, là toàn bộ điểm của mục này: một bài K8s tốn gấp bốn một bài Linux, và giấu điều đó sẽ làm người thứ năm nhận 429 mà không hiểu vì sao.
+
+6 → 4 **không phải là hạ trần**. Trần cũ chưa bao giờ đúng — nó được tính từ một `requests` thấp hơn đỉnh thật.
+
+⚠ Quota là **chung** cho namespace, nên "4" chỉ đúng khi mọi phiên đều là K8s. Ràng buộc thật là tuyến tính:
+
+```
+256Mi·n_thường + 1024Mi·n_k8s + 1536Mi·n_multinode ≤ 5500Mi   (và bốn bất đẳng thức còn lại)
+```
+
+Ví dụ: 8 phiên thường + 3 phiên K8s = 2048 + 3072 = 5120Mi ⇒ vừa.
+
+## multi-node — mở, và nói rõ cái giá lẫn cái nó KHÔNG mua
+
+Cụm con hai node: một `k3s server` + một `k3s agent`, mỗi node là một container Docker riêng trong **cùng** pod Sysbox, nối bằng một mạng docker do ta tạo (`dlp-k3s-net`).
+
+Ba chỗ phải sửa, và mỗi chỗ là một cái bẫy riêng:
+
+1. **`k3s agent` cũng chạy một kubelet**, nên nó đâm vào *đúng* ràng buộc cgroup v2 "no internal process" đã giết lượt chạy đầu ở 7.B — không phải một biến thể nhẹ hơn. Phần sơ tán cgroup trong `k3s-boot.sh` vì thế chạy cho **cả hai** vai trò.
+2. **containerd của agent là một instance riêng**, và nó kéo image cho chính các pod được lịch lên node 2. Thiếu `registries.yaml` ở đó thì triệu chứng là *"pod nào rơi vào node 2 thì ImagePullBackOff"* — một lỗi ngắt quãng theo lịch, thứ khó chẩn đoán nhất trong cả họ.
+3. **Bridge mặc định của Docker không phân giải tên container**, nên agent không tìm được `dlp-k3s`. Mạng do ta định nghĩa có DNS nội bộ — đó là lý do duy nhất nó có mặt, và nó **chỉ** có mặt ở nhánh ≥2 node. Đường 1 node giữ nguyên xi, để đỉnh 589/777.81 MiB và trần 4 vẫn là số đo trên đúng cấu hình đang chạy.
+
+`dlp-k8s-wait` chờ **đủ** số node (`DLP_K8S_NODES`), không phải node đầu tiên. Phép kiểm cũ `grep -qw Ready` dừng ngay khi server Ready, nên trên cụm 2 node mọi bài dạy `nodeSelector`/taint/DaemonSet sẽ trượt ngắt quãng — và thứ đó đọc ra thành *"học viên làm sai"* chứ không thành *"môi trường chưa sẵn sàng"*.
+
+**Cái nó KHÔNG mua, nói thẳng:** hôm nay không bài nào trong giáo trình thật sự cần hai node. `ckad-configmap-as-files` mang nhãn `multi-node` **chỉ vì** `backend.imageid` upstream của nó là `kubernetes-kubeadm-2nodes`; `verify.sh` của bài dùng đúng một pod và một ConfigMap, không chạm node/`nodeSelector`/taint/DaemonSet ở dòng nào. Nhãn ấy mô tả thứ backend upstream **cung cấp**, không phải thứ bài học **đòi**.
+
+Vẫn mở, vì hai lý do đứng độc lập với bài đó: nội dung CKA/CKAD nhập về sau (drain, taint, `nodeSelector`, DaemonSet) cần 2 node thật; và `phase-7.md` đã ghi sẵn điều kiện *"multi-node vẫn chưa — trừ khi đo được"*, nay đã thoả bằng bảng số ở trên. Đường thu lại chỗ sau này là cho nội dung khai thứ nó **thật sự đòi**, tách khỏi thứ image cung cấp — chưa làm hôm nay, vì đó là một field schema mới cho đúng một bài.
 
 ## Chưa đo — nói thẳng
 
-- Đỉnh 589 MiB là với cluster con vừa lên **cộng một Deployment nginx**. Lab nặng hơn (nhiều Deployment, PVC, image lớn) **chưa có số**. `limits` 2Gi mới là thứ thật sự gác; `requests` chỉ là chỗ giữ khi xếp lịch.
-- **Chưa chạy thử 6 phiên K8s đồng thời.** Trần 6 là số suy từ quota, không phải số đã đo — đúng loại khoảng cách mà báo cáo tải 18-phiên trước đây phải đóng bằng một lượt chạy thật.
-- `multi-node` vẫn **chưa hỗ trợ**: cluster con là một node. Không mở kèm.
+- Lab nặng nhất **đã** đo là `dlp-k8s-broken-deploy` (5 Deployment nginx). Một bài dùng **PVC** hoặc **image vài trăm MB** vẫn chưa có số. `limits` (2Gi / 3Gi) mới là thứ thật sự gác; `requests` chỉ là chỗ giữ khi xếp lịch.
+- Đỉnh 2 node đo với **hai** node. `DLP_K8S_NODES` nhận số bất kỳ, nhưng chỉ `2` có số đo — và chỉ `2` được khai trong profile.
 
 ## vcluster — đo được, và bị loại vì lý do KHÔNG phải RAM
 

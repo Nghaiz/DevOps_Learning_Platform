@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import type { ContentKind } from '@devops-platform/shared-types/authoring';
 import type { ContentBodyRow } from '@devops-platform/scenario';
 import { mintAccessTokenFor } from '../auth/jwt';
@@ -248,6 +249,36 @@ async function runTrial(ctx: TrialContext, plan: readonly TrialStep[]): Promise<
  * KHÔNG ném: mọi lỗi thành `publishError` + trả bài về `draft`. Một promise
  * unhandled ở đây sẽ chỉ hiện trong log của pod, và bài vẫn kẹt `publishing`.
  */
+/**
+ * `published_at` cho lượt xuất bản: giữ mốc CŨ nếu đã có, nếu chưa thì là `now`.
+ *
+ * Tách thành hàm riêng vì hai lý do, và lý do thứ hai mới là lý do thật:
+ *
+ * 1. Hai call-site (xuất bản tại chỗ, và đường đổi ngôi trong transaction) phải
+ *    dùng CÙNG một biểu thức.
+ * 2. Nó TEST ĐƯỢC. Bug dưới đây chỉ lộ khi câu lệnh chạm Postgres thật, nên một
+ *    test dùng DB giả không thể bắt — và đó chính là cách nó lọt qua cả P9.
+ *
+ * ⛔ `${now}`, KHÔNG phải `${now}`.
+ *
+ * Bên trong một `sql` template, Drizzle bind giá trị THÔ — không qua mapper của
+ * cột, khác hẳn một phép gán cột thường như `updatedAt: now`. Một `Date` vì thế
+ * ra đường dây dưới dạng TEXT, và Postgres từ chối:
+ *
+ *     ERROR: COALESCE types timestamp with time zone and text cannot be matched
+ *
+ * Hậu quả trước khi sửa: **đường THÀNH CÔNG của publish chưa bao giờ chạy được.**
+ * Lượt chạy thử ĐẠT → update này ném → bài kẹt vĩnh viễn ở `publishing`. Đường
+ * THẤT BẠI thì chạy tốt (nó không có `coalesce`), nên mọi thứ *trông* như hoạt
+ * động: bài sai bị từ chối đúng, chỉ bài ĐÚNG là không bao giờ lên được.
+ *
+ * Đo trên cụm thật 2026-09-04, sau khi ô AC "publish chạy thử thật trong sandbox"
+ * cuối cùng cũng được chạy.
+ */
+export function publishedAtCoalesce(now: Date): SQL {
+  return sql`coalesce(${contentItems.publishedAt}, ${now.toISOString()}::timestamptz)`;
+}
+
 export async function runPublishTrial(
   db: Database,
   contentId: string,
@@ -300,7 +331,8 @@ export async function runPublishTrial(
           // `coalesce`: `publishedAt` là lần ĐẦU xuất bản. Ghi đè nó ở lần thứ
           // hai làm mất câu trả lời cho "bài này lên từ bao giờ" — `updatedAt`
           // đã trả lời câu còn lại.
-          publishedAt: sql`coalesce(${contentItems.publishedAt}, ${now})`,
+          // Câu chuyện đầy đủ của `::timestamptz` nằm ở doc của hàm dưới đây.
+          publishedAt: publishedAtCoalesce(now),
           updatedAt: now,
         })
         .where(eq(contentItems.id, contentId));
@@ -346,7 +378,8 @@ export async function runPublishTrial(
           state: 'published',
           publishError: null,
           publishStartedAt: null,
-          publishedAt: sql`coalesce(${contentItems.publishedAt}, ${now})`,
+          // Câu chuyện đầy đủ của `::timestamptz` nằm ở doc của hàm dưới đây.
+          publishedAt: publishedAtCoalesce(now),
           updatedAt: now,
         })
         .where(eq(contentItems.id, promoteTo));

@@ -32,6 +32,22 @@ import {
 // đo sinh ra — hai ô đỏ vì một mặc định của công cụ.
 const CREATE_TIMEOUT = __ENV.CREATE_TIMEOUT || '120s';
 
+// ⛔ TRẦN CỦA PROFILE NÀO? — `SCENARIO_ID` là câu trả lời, và nó phải là một BÀI,
+// không phải một tên profile (P7-bis, 2026-09-04).
+//
+// `session.create` KHÔNG nhận `profile`: nó được suy ra từ capabilities của
+// chính bài (`lessons.ts` → `profileForCapabilities`), cố ý, vì cho client tự
+// khai profile là cho họ tự khai mình đáng được cấp bao nhiêu RAM. Hệ quả cho
+// phép đo: một lượt `session.create` đo trần của profile MẶC ĐỊNH (256Mi) và
+// không bao giờ đo được trần của profile `k8s` (768Mi) — hai con số khác nhau
+// gấp ba, và lấy cái này báo cáo cho cái kia là sai lệch một mức độ lớn.
+//
+// Nên khi đặt `SCENARIO_ID`, kịch bản đi qua `lessons.startSession` — ĐÚNG
+// đường người học đi — và profile tới từ nội dung, không từ phép đo. Đó cũng là
+// lý do không thêm một tham số `PROFILE`: nó sẽ là một đường mà chỉ phép đo có,
+// và một phép đo đi con đường riêng của nó không đo hệ thống thật.
+const SCENARIO_ID = __ENV.SCENARIO_ID || '';
+
 // ⛔ `open()` chỉ chạy được ở init context, và nó NÉM nếu thiếu file. Bọc lại để
 // `k6 inspect` (cổng CI tĩnh) lint được kịch bản trên máy không có pool user.
 // Dung sai dừng ở ĐÂY: thiếu user vẫn phải hỏng TO ở runtime — xem guard trong
@@ -95,6 +111,11 @@ export const options = {
 };
 
 function createSession(user, idx) {
+  // Hai đường, một phép đo. `lessons.startSession` KHÔNG nhận `tier` lẫn
+  // `ttlSeconds` — cả hai là thuộc tính của NỘI DUNG, nên gửi kèm sẽ bị Zod
+  // `.strict()` từ chối 400, và 400 đó được đếm là `refused_other`, tức "phép
+  // đo hỏng". Đó là hành vi đúng: một tham số thừa ở đây PHẢI ồn ào.
+  const op = SCENARIO_ID === '' ? 'session.create' : 'lessons.startSession';
   const body = JSON.stringify({
     userId: user.userId,
     tier: 1, // SANDBOX_TIER_SYSBOX
@@ -104,11 +125,15 @@ function createSession(user, idx) {
     // chung key ⇒ replay idempotent ⇒ "N session" thật ra là một session lặp N lần.
     idempotencyKey: `k6c-${idx}-${__VU}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`.slice(0, 64),
   });
+  const scenarioBody = JSON.stringify({
+    scenarioId: SCENARIO_ID,
+    idempotencyKey: `k6c-${idx}-${__VU}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`.slice(0, 64),
+  });
   const t0 = Date.now();
-  const res = http.post(`${TARGET}/api/trpc/session.create`, body, {
+  const res = http.post(`${TARGET}/api/trpc/${op}`, SCENARIO_ID === '' ? body : scenarioBody, {
     headers: jsonHeaders(user.cookie),
     timeout: CREATE_TIMEOUT,
-    tags: { op: 'session.create' },
+    tags: { op },
   });
   mCreateMs.add(Date.now() - t0);
   return res;
@@ -184,6 +209,11 @@ export default function () {
     sleep(PACE_MS / 1000);
   }
 
+  console.log(
+    `##CEILING## profile do NOI DUNG quyet dinh; scenarioId = ${
+      SCENARIO_ID === '' ? '(khong dat) -> session.create, profile MAC DINH' : SCENARIO_ID
+    }`,
+  );
   console.log(`##CEILING## giữ ${held.length} session (id phân biệt = ${
     Object.keys(seenIds).length
   }), lượt từ chối đầu tiên = ${

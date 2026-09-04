@@ -1,5 +1,7 @@
 #!/bin/sh
-# Boot k3s ben trong mot container Docker dang chay TRONG mot pod Sysbox.
+# Boot mot NODE k3s ben trong mot container Docker dang chay TRONG mot pod Sysbox.
+#
+#   k3s-boot.sh [server|agent]     # mac dinh: server
 #
 # SSOT: file NAY. Harness do luong 7.B (`infra/host/p7-measure.sh`) scp chinh
 # file nay len VM roi mount vao container k3s — khong co ban sao thu hai, vi mot
@@ -19,7 +21,23 @@
 # dung): SO TAN goc — day moi tien trinh xuong mot cgroup con `/init`, roi bat
 # controller o `cgroup.subtree_control` cua goc. Sau do goc rong tien trinh va
 # hop le lam cha.
+#
+# ⚠ VI SAO PHAN SO TAN NAY CHAY CHO CA HAI VAI TRO (P7-bis, 2026-09-04):
+# `k3s agent` cung chay MOT kubelet. Node thu hai vi the dam vao DUNG rang buoc
+# cgroup v2 o tren — khong phai mot bien the nhe hon cua no. Viet mot nhanh
+# `agent` bo qua phan so tan la tai tao lai loi cu duoi mot cai ten khac, va
+# trieu chung se la "node 2 mai khong Ready" chu khong tro ve day.
 set -eu
+
+ROLE=${1:-server}
+
+case "$ROLE" in
+  server | agent) ;;
+  *)
+    echo "[k3s-boot] vai tro khong hop le: '$ROLE' (chi nhan server|agent)" >&2
+    exit 2
+    ;;
+esac
 
 if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
   mkdir -p /sys/fs/cgroup/init
@@ -51,7 +69,7 @@ if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
       echo "[k3s-boot] canh bao: khong uy quyen duoc controller '$c' xuong cgroup con" >&2
     fi
   done
-  echo "[k3s-boot] subtree_control = $(cat /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null)" >&2
+  echo "[k3s-boot] ($ROLE) subtree_control = $(cat /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null)" >&2
 fi
 
 # Mirror cho containerd CUA CLUSTER CON.
@@ -62,6 +80,11 @@ fi
 # registry-1.docker.io, dam vao NetworkPolicy deny-all, va treo cho den
 # ImagePullBackOff. Trieu chung ("pod cua toi khong bao gio Ready") khong tro ve
 # NetworkPolicy o bat cu dau.
+#
+# ⚠ Phai ghi tren CA HAI node: containerd cua agent la mot instance rieng, va
+# no keo image cho chinh cac pod duoc lich len node 2. Chi cau hinh o server thi
+# trieu chung la "pod nao roi vao node 2 thi ImagePullBackOff" — mot loi ngat
+# quang theo lich, thu kho chan doan nhat trong ca ho.
 if [ -n "${DLP_REGISTRY_MIRROR:-}" ]; then
   mkdir -p /etc/rancher/k3s
   cat > /etc/rancher/k3s/registries.yaml <<REG
@@ -76,11 +99,36 @@ configs:
 REG
 fi
 
-exec /bin/k3s server \
+if [ "$ROLE" = "agent" ]; then
+  # Token + URL la BAT BUOC voi agent. k3s tu doc `K3S_URL`/`K3S_TOKEN` tu env,
+  # nhung o day kiem tuong minh: mot agent thieu token khong bao loi ro rang —
+  # no lap vo han o buoc dang ky va nguoi doc log chi thay node 2 khong bao gio
+  # xuat hien, khong thay ly do.
+  : "${K3S_URL:?[k3s-boot] agent can K3S_URL}"
+  : "${K3S_TOKEN:?[k3s-boot] agent can K3S_TOKEN}"
+  exec /bin/k3s agent --server "$K3S_URL" --token "$K3S_TOKEN"
+fi
+
+# Token CO DINH thay vi de k3s sinh ngau nhien roi doc lai tu
+# /var/lib/rancher/k3s/server/node-token: doc file do la mot cuoc dua (agent
+# phai poll cho toi khi server ghi xong), va mot cuoc dua trong duong khoi dong
+# se hong ngat quang duoi tai — dung kieu loi khong tai hien duoc.
+set -- \
   --disable=traefik \
   --disable=metrics-server \
   --disable=servicelb \
   --disable-helm-controller \
   --tls-san=127.0.0.1 \
+  --tls-san=dlp-k3s \
   --write-kubeconfig=/output/kubeconfig.yaml \
   --write-kubeconfig-mode=644
+
+# Nhanh tuong minh thay vi mot dang mo rong ${K3S_TOKEN:+...} khong boc ngoac:
+# ket qua cua dang do BI TACH TRUONG. Hom nay token khong co khoang trang nen
+# no "chay dung", va do chinh la kieu hong se lo vao mot ngay nao do duoi mot
+# token khac chu khong lo hom nay.
+if [ -n "${K3S_TOKEN:-}" ]; then
+  set -- "$@" --token "$K3S_TOKEN"
+fi
+
+exec /bin/k3s server "$@"

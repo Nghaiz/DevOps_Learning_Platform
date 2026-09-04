@@ -3,6 +3,15 @@
 #
 #   dlp-k8s-wait [timeout-giay]        # mac dinh 240
 #
+# Cho DU SO node bao Ready, khong phai cho node dau tien. So node mong doi lay
+# tu `DLP_K8S_NODES` (mac dinh 1) — cung bien ma entrypoint dung de quyet dinh
+# co dung node thu hai hay khong, nen hai ben khong the lech nhau.
+#
+# ⚠ Vi sao khong giu phep kiem cu `grep -qw Ready`: no dung ngay khi MOT node
+# Ready. Tren cum 2 node, verify script se chay khi node 2 chua dang ky, va moi
+# bai day nodeSelector/taint/DaemonSet se truot mot cach ngat quang — thu se doc
+# ra thanh "hoc vien lam sai" chu khong thanh "moi truong chua san sang".
+#
 # Ma thoat:
 #   0  cluster Ready
 #   1  het gio ma chua Ready
@@ -27,6 +36,7 @@ if [ "${DLP_K8S:-0}" != "1" ]; then
   exit 2
 fi
 
+WANT_NODES=${DLP_K8S_NODES:-1}
 start=$(date +%s)
 while :; do
   # k3s ghi kubeconfig truoc khi apiserver phuc vu duoc, nen phai kiem CA HAI:
@@ -35,14 +45,15 @@ while :; do
     mkdir -p /root/.kube
     cp "$KUBECONFIG_SRC" /root/.kube/config 2>/dev/null || true
     chmod 0600 /root/.kube/config 2>/dev/null || true
-    if kubectl get nodes 2>/dev/null | grep -qw Ready; then
-      echo "Cluster con da san sang sau $(( $(date +%s) - start ))s."
+    ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 == "Ready"' | wc -l)
+    if [ "$ready" -ge "$WANT_NODES" ]; then
+      echo "Cluster con da san sang sau $(( $(date +%s) - start ))s ($ready/$WANT_NODES node Ready)."
       exit 0
     fi
   fi
 
   if [ $(( $(date +%s) - start )) -ge "$TIMEOUT" ]; then
-    echo "Cluster con chua san sang sau ${TIMEOUT}s. 20 dong cuoi cua log:" >&2
+    echo "Cluster con chua san sang sau ${TIMEOUT}s (${ready:-0}/$WANT_NODES node Ready). 20 dong cuoi cua log:" >&2
     tail -n 20 /var/log/dlp/k8s.log >&2 2>/dev/null || true
     exit 1
   fi

@@ -72,8 +72,8 @@ Người học mở một bài có `capabilities: ["kubernetes"]`, gõ `kubectl 
 - [ ] Trong pod: `kubectl get nodes` → Ready, tạo được Deployment + ConfigMap + Service.
 - [ ] Câu hỏi "có cần `registry.k8s.io` không" được trả lời bằng **quan sát** (treo hay không treo dưới deny-all), không bằng suy luận.
 - [ ] `requests`/`limits` profile K8s đặt theo **đỉnh** đo được; phép tính trần ghi trong values.
-- [ ] Trần đồng thời của bài K8s ghi rõ con số và **thấp hơn 18 bao nhiêu**.
-- [ ] `RUNTIME_SUPPORTED_CAPABILITIES` có `'kubernetes'`; `multi-node` vẫn chưa (trừ khi đo được).
+- [x] **ĐO ĐƯỢC, không suy ra** Trần đồng thời của bài K8s = **4** (thấp hơn 20 phiên thường 16). Chạy thật `infra/k6/ceiling.js` qua `lessons.startSession`: giữ 4 session id PHÂN BIỆT, lượt #5 bị từ chối `refused_quota` — kèm bốn ô chống-xanh-giả đều qua. `k8s-multinode` = 3 (suy từ quota, CHƯA chạy tải). Phép tính năm ràng buộc ghi trong values; cách tính cũ sai ở MẪU SỐ, xem `plans/devops-learning-platform/reports/2026-09-04-verify-p7bis-p9-debts.md` §2.
+- [x] **ĐÃ ĐO ⇒ MỞ** `RUNTIME_SUPPORTED_CAPABILITIES` có `'kubernetes'` **và `'multi-node'`** — điều kiện "trừ khi đo được" của luật 10 đã thoả: cụm con 2 node dựng được trên đường sản xuất (2/2 Ready sau 61 s), đỉnh dưới tải **1094.79 MiB**, profile riêng `k8s-multinode` (1536Mi/3Gi) trần 3, và cách ly kiểm lại `p7-escape-verify NODES=2` **13/13** gồm phép thử từ pod GHIM TRÊN NODE 2. ⚠ Hôm nay KHÔNG bài nào thật sự cần 2 node — `ckad-configmap-as-files` mang nhãn đó chỉ vì `backend.imageid` upstream. Xem `plans/devops-learning-platform/reports/2026-09-04-verify-p7bis-p9-debts.md` §3–§4.
 - [ ] `ckad-configmap-as-files`: verify **pass thật** ở bài đúng, **fail thật** ở bài sai (hai vế, không chỉ một).
 - [ ] `netpol-verify.sh` 22/22 với pod có cluster con; escape test tới apiserver chủ + metadata đều trượt.
 - [ ] Bài `dlp-k8s-basics` (first-party) chạy end-to-end và qua cổng shellcheck `dlp-*` của CI.
