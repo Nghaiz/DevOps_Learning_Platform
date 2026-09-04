@@ -32,6 +32,7 @@ function scenarioWith(overrides: Partial<Scenario>): Scenario {
     difficulty: 'beginner',
     estimatedMinutes: null,
     tier: 'sysbox',
+    requiresCapabilities: null,
     capabilities: [],
     backendImageId: 'ubuntu',
     interfaceLayout: null,

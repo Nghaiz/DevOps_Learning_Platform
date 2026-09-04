@@ -1,0 +1,12 @@
+{
+  "id": "dlp-k8s-multinode-scheduling",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 25,
+  "source": null,
+  "acknowledgedUnknownFields": [],
+  "requiresCapabilities": [
+    "kubernetes",
+    "multi-node"
+  ],
+  "notes": "Bai FIRST-PARTY (source: null), soan 2026-09-04 de dong mot lo hong that: P7-bis mo nang luc 'multi-node' va do duoc profile k8s-multinode, nhung KHONG bai nao trong giao trinh thuc su can hai node - ckad-configmap-as-files chi mang nhan do vi backend.imageid upstream. Nghia la mot nang luc da mo, da ton nguyen, va khong co nguoi dung; va tran dong thoi cua no khong the do duoi tai vi khong co gi de chay. Bai nay la nguoi dung that dau tien: ca ba buoc deu SAI KET QUA neu cum chi co mot node (buoc 1 dem node, buoc 2 ghim xuong node KHONG PHAI control-plane, buoc 3 doi DaemonSet desired=2). requiresCapabilities khai tuong minh du no trung capabilities - o day loi khai la mot KHANG DINH co chu dich: bai nay THAT SU doi hai node, khac han ckad."
+}

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  SCENARIO_CAPABILITIES,
   SCENARIO_DIFFICULTIES,
   scenarioIdSchema,
   scenarioSourceSchema,
@@ -20,6 +21,10 @@ import {
  *
  * Sidecar KHÔNG khai `tier`/`capabilities`: chúng suy trọn vẹn từ
  * `backend.imageid` qua `BACKEND_IMAGE_MAPPING` — xem `backend.ts`.
+ *
+ * Sidecar CÓ khai `requiresCapabilities`, và điều đó không mâu thuẫn với câu
+ * trên: `capabilities` là thứ image CUNG CẤP (suy được), `requiresCapabilities`
+ * là thứ bài ĐÒI (không suy được từ bất cứ đâu — chỉ người soạn biết).
  */
 export const scenarioSidecarSchema = z
   .object({
@@ -39,6 +44,16 @@ export const scenarioSidecarSchema = z
      * dẫn chấm (`details.intro.courseData`). Mặc định rỗng.
      */
     acknowledgedUnknownFields: z.array(z.string().min(1)).default([]),
+    /**
+     * Năng lực bài này THẬT SỰ đòi. Bỏ trống (mặc định `null`) = "giống thứ
+     * image cung cấp", tức hành vi trước 2026-09-04 — nên mọi sidecar cũ giữ
+     * nguyên nghĩa, không phải sửa file nào.
+     *
+     * Khai nó khi imageid upstream cung cấp NHIỀU HƠN thứ bài cần, để bài không
+     * phải trả tiền tài nguyên cho một năng lực nó không dùng. Loader ép TẬP
+     * CON của `capabilities`.
+     */
+    requiresCapabilities: z.array(z.enum(SCENARIO_CAPABILITIES)).nullable().default(null),
     /** Ghi chú cho người đọc — bắt buộc khi có field bỏ qua (loader kiểm). */
     notes: z.string().nullable().default(null),
   })

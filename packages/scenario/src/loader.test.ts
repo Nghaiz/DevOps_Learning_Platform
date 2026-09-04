@@ -225,3 +225,56 @@ describe('loadScenarios', () => {
     expect((await loadScenarios(root)).map((s) => s.id)).toEqual(['bai-a']);
   });
 });
+
+/**
+ * `requiresCapabilities` — thứ bài ĐÒI, tách khỏi thứ image CUNG CẤP.
+ *
+ * Hai ca dưới đây gác hai chế độ hỏng khác nhau: bỏ trống phải giữ NGUYÊN hành
+ * vi cũ (nếu không thì mọi sidecar đã vendor đổi nghĩa trong im lặng), và khai
+ * quá tay phải bị chặn Ở BIÊN NHẬP (nếu không thì bài chết ở terminal của người
+ * học giữa step 3, cách nguyên nhân ba tầng).
+ */
+const FULL_INDEX = (imageid: string) => ({
+  title: 'Demo',
+  details: { steps: [{ title: 'Bước 1', text: 'step1.md' }] },
+  backend: { imageid },
+});
+
+describe('requiresCapabilities', () => {
+  it('sidecar không khai ⇒ null, tức "giống thứ image cung cấp"', async () => {
+    const dir = await makeScenario({
+      id: 'req-mac-dinh',
+      sidecar: { source: null },
+      index: FULL_INDEX('kubernetes-kubeadm-2nodes'),
+    });
+    const s = await loadScenario(dir);
+    expect(s.requiresCapabilities).toBeNull();
+    expect(s.capabilities).toEqual(['kubernetes', 'multi-node']);
+  });
+
+  it('khai TẬP CON ⇒ nhận, và capabilities KHÔNG bị sửa theo', async () => {
+    const dir = await makeScenario({
+      id: 'req-tap-con',
+      sidecar: { source: null, requiresCapabilities: ['kubernetes'] },
+      index: FULL_INDEX('kubernetes-kubeadm-2nodes'),
+    });
+    const s = await loadScenario(dir);
+    expect(s.requiresCapabilities).toEqual(['kubernetes']);
+    // `capabilities` là sự thật về imageid — thu hẹp cái ĐÒI không được phép
+    // viết lại cái CUNG CẤP, vì hai câu hỏi đó vẫn khác nhau.
+    expect(s.capabilities).toEqual(['kubernetes', 'multi-node']);
+  });
+
+  it('đòi thứ image KHÔNG cung cấp ⇒ ném, và lỗi nêu CẢ HAI phía', async () => {
+    const dir = await makeScenario({
+      id: 'req-qua-tay',
+      sidecar: { source: null, requiresCapabilities: ['kubernetes', 'multi-node'] },
+      index: FULL_INDEX('kubernetes-kubeadm-1node'),
+    });
+    await expect(loadScenario(dir)).rejects.toThrow(/multi-node/);
+    // Lỗi phải nói cả thứ ĐÒI lẫn thứ imageid CUNG CẤP — nêu một phía thì người
+    // đọc không biết phải sửa dlp.json hay sửa index.json.
+    await expect(loadScenario(dir)).rejects.toThrow(/requiresCapabilities/);
+    await expect(loadScenario(dir)).rejects.toThrow(/kubernetes-kubeadm-1node/);
+  });
+});

@@ -10,6 +10,11 @@
     "licenseUrl": "https://raw.githubusercontent.com/omkar-shelke25/ckad-killercoda/54c573a3402139e5c307b82418e526d13c03bc54/LICENSE",
     "upstreamTitle": "CKAD: ConfigMap as Files (Mount into NGINX html)"
   },
-  "acknowledgedUnknownFields": ["details.intro.courseData"],
-  "notes": "details.intro.courseData=\"setup.sh\" là di sản Katacoda: trang docs của Killercoda creator (đọc 2026-08-13) liệt kê foreground/background/verify và KHÔNG có courseData, nên nhiều khả năng chính Killercoda cũng đang bỏ qua nó và setup.sh của bài này chưa từng chạy ở upstream. Ta cũng bỏ qua, và ghi lại ở Scenario.ignoredUpstreamFields để 2.C nhìn thấy. Bài vẫn tự đủ: step1 hướng dẫn tạo ConfigMap từ đầu, không phụ thuộc setup.sh. Khi 2.C có đường chạy script, cân nhắc map courseData -> background."
+  "acknowledgedUnknownFields": [
+    "details.intro.courseData"
+  ],
+  "requiresCapabilities": [
+    "kubernetes"
+  ],
+  "notes": "details.intro.courseData=\"setup.sh\" là di sản Katacoda: trang docs của Killercoda creator (đọc 2026-08-13) liệt kê foreground/background/verify và KHÔNG có courseData, nên nhiều khả năng chính Killercoda cũng đang bỏ qua nó và setup.sh của bài này chưa từng chạy ở upstream. Ta cũng bỏ qua, và ghi lại ở Scenario.ignoredUpstreamFields để 2.C nhìn thấy. Bài vẫn tự đủ: step1 hướng dẫn tạo ConfigMap từ đầu, không phụ thuộc setup.sh. Khi 2.C có đường chạy script, cân nhắc map courseData -> background. || requiresCapabilities=[kubernetes] (them 2026-09-04): backend.imageid upstream la kubernetes-kubeadm-2nodes nen bang BACKEND_IMAGE_MAPPING suy ra capabilities=[kubernetes, multi-node] — nhung verify.sh cua bai dung DUNG MOT pod + MOT ConfigMap, khong cham node/nodeSelector/taint/DaemonSet o dong nao. Nhan multi-node mo ta thu backend upstream CUNG CAP, khong phai thu bai DOI. Hau qua do duoc truoc khi sua: bai nhan profile k8s-multinode (requests 1536Mi) cho mot viec can 1Gi, tuc moi phien chiem cho cua 1.5 phien va tran dong thoi tut theo. Khai o day de profile den tu thu bai CAN."
 }

@@ -816,17 +816,22 @@ sandbox:
   # ⚠ `limits.memory` giữ 1Gi nhưng biên đã mỏng: đỉnh nhích 727 → 757 → 763 →
   # 783Mi qua ba lượt tải lại (chậm dần, không tuyến tính). Một bài nặng hơn
   # `dlp-docker-basics` PHẢI được đo lại trước khi mở cho người học thật.
-  ideProfile:
-    requestCpu: '250m'
-    requestMemory: '768Mi'
-    limitCpu: '2'
-    limitMemory: '1Gi'
+  # ⛔ KHỐI `ideProfile:` ĐÃ BỊ GỠ (2026-09-04). Nó tồn tại ở đây từ 6.E như một
+  # nhóm bốn con số mà KHÔNG MỘT TEMPLATE NÀO đọc — `grep -rn ideProfile
+  # templates/` trả về rỗng. Tức nó là số, chưa bao giờ là hành vi: một pod có
+  # IDE vẫn nhận LimitRange mặc định (256Mi requests) bất kể bốn dòng đó ghi gì.
+  #
+  # Bốn con số ấy nay nằm ở `profiles.ide` bên dưới — cùng cơ chế đã chứng minh
+  # là NỐI THẬT (SANDBOX_PROFILES → parseSandboxProfiles → PodConfig.Profile).
+  # Đừng dựng lại một đường thứ hai ở đây; một profile hai chỗ khai là hai chỗ
+  # để lệch nhau.
 
   # ── profiles — cơ chế P7 7.C (orchestrator/internal/k8s podspec.go
   # `PodConfig.Profile`), SHIP RỖNG CÓ CHỦ Ý ─────────────────────────────────
   #
-  # Đây là NỐI DÂY, khác hẳn `ideProfile` ở trên (đo được, CHƯA nối — xem chú
-  # thích của khối đó): mỗi key ở đây đi thẳng vào orchestrator qua env
+  # Đây là NỐI DÂY — và kể từ 2026-09-04 là đường DUY NHẤT: khối `ideProfile`
+  # từng ngồi cạnh đây với bốn con số không ai đọc đã được gộp xuống thành
+  # `profiles.ide`. Mỗi key ở đây đi thẳng vào orchestrator qua env
   # SANDBOX_PROFILES (JSON, xem templates/orchestrator-deployment.yaml) rồi
   # được `config.parseSandboxProfiles` phân giải NGAY LÚC khởi động
   # (resource.ParseQuantity — sai định dạng là orchestrator KHÔNG lên). Từ đó
@@ -971,6 +976,32 @@ sandbox:
     # Đường thu lại chỗ sau này, nếu cần: cho nội dung khai thứ nó THẬT SỰ đòi,
     # tách khỏi thứ image upstream cung cấp. CHƯA làm hôm nay (YAGNI): nó là một
     # field schema mới cho đúng một bài.
+    # ── profile "ide" — số ĐO ĐƯỢC ở 6.E (2026-09-04), nay ĐƯỢC NỐI ──────────
+    #
+    # Trước 2026-09-04 bốn số này nằm ở khối `sandbox.ideProfile` mà không
+    # template nào đọc. Chuyển xuống đây là biến chúng từ SỐ thành HÀNH VI.
+    #
+    #   IDE một mình                446Mi
+    #   bài một mình                163Mi
+    #   IDE + bài CÙNG LÚC (đo)     660Mi   ← KHÔNG phải 446+163=609
+    #   đỉnh qua 3 lượt tải lại     783Mi   ← số đối chiếu limits
+    #
+    # `requests` 768Mi là nấc phủ 660Mi + biên tải lại. `limits` 1Gi: đỉnh
+    # 783Mi = 76%, biên MỎNG — một bài nặng hơn `dlp-docker-basics` phải được
+    # đo lại trước khi mở cho người học thật.
+    #
+    # Trần: 5500Mi ÷ 768Mi = 7.16 ⇒ **7 pod có IDE** nếu toàn bộ quota dùng cho
+    # bài IDE. Thực tế quota là ngân sách chung: N_ide×768 + N_thường×256 ≤ 5500.
+    #
+    # ⛔ KHÔNG có `env:` ở đây. IDE bật bằng `INCLUDE_IDE` lúc DỰNG IMAGE, không
+    # bằng biến môi trường lúc chạy — đặt một env `DLP_IDE=1` ở đây sẽ là một
+    # công tắc không nối vào đâu cả, đúng thứ khối này vừa được sinh ra để sửa.
+    ide:
+      requestsCpu: '250m'
+      requestsMemory: '768Mi'
+      limitsCpu: '2'
+      limitsMemory: '1Gi'
+
     k8s-multinode:
       requestsCpu: '500m'
       # 1536Mi chu khong '1.5Gi': ParseQuantity nhan ca hai, nhung orchestrator

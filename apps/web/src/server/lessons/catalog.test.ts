@@ -35,6 +35,31 @@ describe('profileForCapabilities', () => {
     expect(profileForCapabilities(['kubernetes'])).toBe('k8s');
   });
 
+  it('layout ide ⇒ profile ide', () => {
+    // 6.E đo một pod có IDE đỉnh 660Mi (IDE + bài CÙNG LÚC), 783Mi qua ba lượt
+    // tải lại. Không có nhánh này thì pod IDE nhận LimitRange mặc định
+    // (256Mi requests) và kubelet đuổi nó khi node bị ép RAM — ngẫu nhiên, giữa
+    // buổi học, không có gì trong log trỏ về đây.
+    expect(profileForCapabilities([], 'ide')).toBe('ide');
+    expect(profileForCapabilities(['docker'], 'ide')).toBe('ide');
+  });
+
+  it('ide + kubernetes ⇒ k8s, và đó là một chỗ CHƯA ĐO chứ không phải một lựa chọn', () => {
+    // ⚠ Ô này ghim một GIỚI HẠN ĐÃ BIẾT, không ghim một hành vi mong muốn.
+    //
+    // `profiles.k8s` (1Gi) đo với cluster con + lab thật nhưng KHÔNG có IDE
+    // trong pod. `profiles.ide` (768Mi) đo với IDE + bài nhưng KHÔNG có cluster
+    // con. Cộng thẳng hai số là đúng phép tính đã sai 18% khi ước lượng trần
+    // IDE (609 ước lượng vs 660 đo được), nên ta KHÔNG cộng.
+    //
+    // Chọn `k8s` vì nó lớn hơn — thiếu RAM thì bị đuổi, thừa thì chỉ tốn chỗ.
+    // Điều kiện chấm dứt của ô này: có một bài vừa `ide` vừa `kubernetes` VÀ có
+    // số đo cho tổ hợp đó. Ca `không nội dung nào vừa ide vừa kubernetes` bên
+    // dưới là cái chuông báo lúc điều kiện ấy tới.
+    expect(profileForCapabilities(['kubernetes'], 'ide')).toBe('k8s');
+    expect(profileForCapabilities(['kubernetes', 'multi-node'], 'ide')).toBe('k8s-multinode');
+  });
+
   it('không đòi k8s ⇒ profile mặc định (chuỗi rỗng)', () => {
     // Rỗng có nghĩa CỐ ĐỊNH là "profile mặc định của namespace" (LimitRange lo),
     // không phải "chưa biết" — orchestrator TỪ CHỐI một tên lạ nhưng CHẤP NHẬN
@@ -76,11 +101,19 @@ describe('tên profile khớp giữa TypeScript và Helm values', () => {
     // một năng lực thứ tư thêm vào sau này sẽ tự động được phủ.
     const caps = RUNTIME_SUPPORTED_CAPABILITIES;
     const names = new Set<string>();
-    for (let mask = 0; mask < 1 << caps.length; mask++) {
-      const subset = caps.filter((_, i) => (mask & (1 << i)) !== 0);
-      const profile = profileForCapabilities(subset);
-      if (profile !== '') names.add(profile);
+    // Duyệt CẢ `interfaceLayout`, không chỉ capabilities: profile `ide` chỉ sinh
+    // ra qua tham số thứ hai, nên một vòng lặp chỉ duyệt capabilities sẽ bỏ sót
+    // đúng cái key vừa được thêm vào values.yaml — và cổng này im lặng.
+    for (const layout of [null, 'ide'] as const) {
+      for (let mask = 0; mask < 1 << caps.length; mask++) {
+        const subset = caps.filter((_, i) => (mask & (1 << i)) !== 0);
+        const profile = profileForCapabilities(subset, layout);
+        if (profile !== '') names.add(profile);
+      }
     }
+    // Đối chứng: vòng lặp phải sinh ra ĐÚNG bộ tên ta biết, không chỉ "một số
+    // tên nào đó" — thiếu vế này thì xoá nhánh `ide` khỏi hàm vẫn xanh.
+    expect([...names].sort()).toEqual(['ide', 'k8s', 'k8s-multinode']);
 
     // Đối chứng dương: phép duyệt phải thật sự sinh ra tên nào đó. Nếu
     // `profileForCapabilities` bị sửa thành luôn trả rỗng, `names` rỗng và vòng

@@ -165,6 +165,9 @@ export async function loadLab(labDir: string): Promise<Lab> {
     estimatedMinutes: file.estimatedMinutes,
     tier: backend.tier,
     capabilities: [...backend.capabilities],
+    // Lab first-party khai imageid của CHÍNH nó, nên "cung cấp" và "đòi" đã
+    // trùng nhau theo cấu tạo — không có gì để thu hẹp.
+    requiresCapabilities: null,
     backendImageId: file.backend.imageid,
     interfaceLayout: file.interface?.layout ?? null,
     // Không lab first-party nào trong repo này cần asset ngoài — xem docstring

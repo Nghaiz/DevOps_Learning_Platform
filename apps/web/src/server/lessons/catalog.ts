@@ -103,14 +103,29 @@ export const RUNTIME_SUPPORTED_CAPABILITIES: readonly ScenarioCapability[] = [
  * orchestrator TỪ CHỐI (`InvalidArgument`) một tên lạ thay vì lặng lẽ rơi về
  * mặc định — cùng kỷ luật fail-closed với `SandboxTier`.
  */
-export function profileForCapabilities(capabilities: readonly ScenarioCapability[]): string {
+export function profileForCapabilities(
+  capabilities: readonly ScenarioCapability[],
+  interfaceLayout: string | null = null,
+): string {
   // Thứ tự KHÔNG hoán đổi được: `multi-node` phải xét TRƯỚC. Một bài
   // multi-node cũng mang `kubernetes`, nên kiểm `kubernetes` trước sẽ trả
   // `'k8s'` và bài hai node nhận một pod 1Gi chỉ đủ cho một node — node phụ
   // đội trần rồi bị kubelet đuổi, và triệu chứng ("thỉnh thoảng chỉ thấy một
   // node") không trỏ về dòng này ở đâu cả.
+  //
+  // ⚠ K8s xét TRƯỚC ide, và tổ hợp ide+k8s CHƯA CÓ SỐ ĐO. `sandbox.profiles.k8s`
+  // (1Gi requests) đo với cluster con + lab thật nhưng KHÔNG có IDE trong pod;
+  // 6.E đo IDE + bài cùng lúc là 660Mi nhưng KHÔNG có cluster con. Cộng thẳng
+  // hai số là đúng phép tính đã sai 18% ở `ideProfile` — nên ở đây ta chọn
+  // profile lớn hơn (k8s) và ĐỂ NGỎ, có `TestNoContentIsBothIdeAndK8s` gác:
+  // bài đầu tiên vừa `ide` vừa `kubernetes` sẽ làm test đó đỏ, và lúc ấy việc
+  // phải làm là ĐO, không phải nới test.
   if (capabilities.includes('multi-node')) return 'k8s-multinode';
-  return capabilities.includes('kubernetes') ? 'k8s' : '';
+  if (capabilities.includes('kubernetes')) return 'k8s';
+  // 6.E: một pod có IDE đỉnh 660Mi (IDE + bài cùng lúc), 783Mi qua ba lượt tải
+  // lại. Không đặt profile ⇒ LimitRange mặc định (256Mi requests) ⇒ kubelet
+  // đuổi pod khi node bị ép RAM, ngẫu nhiên, giữa buổi học.
+  return interfaceLayout === 'ide' ? 'ide' : '';
 }
 
 /**

@@ -1,0 +1,33 @@
+{
+  "title": "Kubernetes hai node: nhan, nodeSelector va DaemonSet",
+  "description": "Ba buoc tren mot cum k3s HAI node chay that trong sandbox: nhin thay ca hai node, ghim mot Pod xuong dung node phu bang nhan + nodeSelector, roi dung DaemonSet de chung minh 'moi node mot ban sao' la mot con so quan sat duoc chu khong phai mot loi hua.",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "foreground": "intro/foreground.sh"
+    },
+    "steps": [
+      {
+        "title": "Hai node, khong phai mot",
+        "text": "step1.md",
+        "verify": "step1/verify.sh"
+      },
+      {
+        "title": "Nhan + nodeSelector - ghim Pod xuong node ban chon",
+        "text": "step2.md",
+        "verify": "step2/verify.sh"
+      },
+      {
+        "title": "DaemonSet - moi node mot ban sao",
+        "text": "step3.md",
+        "verify": "step3/verify.sh"
+      }
+    ],
+    "finish": {
+      "text": "finish.md"
+    }
+  },
+  "backend": {
+    "imageid": "kubernetes-kubeadm-2nodes-rapid"
+  }
+}

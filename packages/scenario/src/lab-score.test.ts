@@ -16,6 +16,7 @@ function makeLab(overrides: Partial<Lab> = {}): Lab {
     estimatedMinutes: 10,
     tier: 'sysbox',
     capabilities: [],
+    requiresCapabilities: null,
     backendImageId: 'ubuntu',
     interfaceLayout: null,
     assets: [],

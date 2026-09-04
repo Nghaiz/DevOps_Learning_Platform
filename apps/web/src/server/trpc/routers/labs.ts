@@ -10,6 +10,7 @@ import {
   type LabLeaderboardRow,
   type LabTaskResult,
 } from '@devops-platform/shared-types/lab';
+import { effectiveCapabilities } from '@devops-platform/shared-types/scenario';
 import type { Database } from '../../db/client';
 import { labAttempts, labTaskResults, users, type LabAttemptRow, type LabTaskResultRow } from '../../db/schema';
 import { unsupportedCapabilities } from '../../lessons/catalog';
@@ -148,7 +149,7 @@ export const labsRouter = createTRPCRouter({
   /** Nội dung đầy đủ một lab. */
   get: protectedProcedure.input(getInput).query(async ({ input }) => {
     const lab = await requireLab(input.labId);
-    return { lab, unsupportedCapabilities: unsupportedCapabilities(lab.capabilities) };
+    return { lab, unsupportedCapabilities: unsupportedCapabilities(effectiveCapabilities(lab)) };
   }),
 
   /**

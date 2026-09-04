@@ -171,6 +171,9 @@ function toScenario(body: ContentBodyRow, logger: ContentSourceLogger): Scenario
     estimatedMinutes: item.estimatedMinutes,
     tier: item.tier,
     capabilities: item.capabilities,
+    // UI soạn bài (P9) chưa có ô này ⇒ `null` = "giống thứ image cung cấp",
+    // đúng hành vi của mọi bài DB trước 2026-09-04.
+    requiresCapabilities: null,
     backendImageId: item.backendImageId,
     interfaceLayout: item.interfaceLayout,
     assets: body.assets ?? [],
@@ -216,6 +219,9 @@ function toLab(body: ContentBodyRow, logger: ContentSourceLogger): Lab | null {
     estimatedMinutes: item.estimatedMinutes,
     tier: item.tier,
     capabilities: item.capabilities,
+    // UI soạn bài (P9) chưa có ô này ⇒ `null` = "giống thứ image cung cấp",
+    // đúng hành vi của mọi bài DB trước 2026-09-04.
+    requiresCapabilities: null,
     backendImageId: item.backendImageId,
     interfaceLayout: item.interfaceLayout,
     assets: body.assets ?? [],

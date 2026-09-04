@@ -175,7 +175,34 @@ export const contentBaseSchema = z.object({
   estimatedMinutes: z.number().int().positive().nullable(),
 
   tier: z.enum(SANDBOX_TIER_NAMES),
+  /**
+   * Thứ sandbox CUNG CẤP, suy từ `backend.imageid` upstream.
+   *
+   * ⚠ Đây KHÔNG phải thứ bài học đòi — xem `requiresCapabilities`.
+   */
   capabilities: z.array(z.enum(SCENARIO_CAPABILITIES)),
+  /**
+   * Thứ bài học THẬT SỰ ĐÒI. `null` = chưa khai ⇒ dùng `capabilities`.
+   *
+   * ⛔ ĐÂY KHÔNG PHẢI DERIVED FIELD, dù trông giống. `capabilities` trả lời
+   * "image upstream cung cấp gì"; field này trả lời "bài học cần gì". P7-bis
+   * (2026-09-04) chứng minh hai câu đó khác nhau và việc gộp chúng có giá:
+   * `ckad-configmap-as-files` mang `multi-node` CHỈ vì imageid upstream của nó
+   * là `kubernetes-kubeadm-2nodes`, trong khi `verify.sh` của bài dùng đúng MỘT
+   * pod + MỘT ConfigMap. Hệ quả đo được: bài đó nhận profile `k8s-multinode`
+   * (1536Mi) cho một việc cần 1Gi — tức mỗi phiên chiếm chỗ của 1.5 phiên, và
+   * trần đồng thời tụt tương ứng.
+   *
+   * Loader ép nó là TẬP CON của `capabilities`: đòi thứ image không cung cấp là
+   * một bài không chạy được, và chỗ để phát hiện điều đó là lúc nhập, không
+   * phải giữa step 3 trong terminal của người học.
+   *
+   * `.default(null)` chứ không phải bắt buộc: "chưa khai" là trạng thái THƯỜNG
+   * và đúng nghĩa của mọi nội dung có trước 2026-09-04. Bắt buộc khai sẽ ép mọi
+   * sidecar và mọi hàng DB đã tồn tại phải nhắc lại một câu trả lời mặc định —
+   * tức là bắt cả kho nội dung trả giá cho một field mà đúng MỘT bài cần.
+   */
+  requiresCapabilities: z.array(z.enum(SCENARIO_CAPABILITIES)).nullable().default(null),
   /** Nguyên văn `backend.imageid` upstream — giữ để truy nguyên, KHÔNG để chạy. */
   backendImageId: z.string().min(1),
   /** `interface.layout` upstream (`ide`). `null` = terminal thường. */
@@ -185,6 +212,21 @@ export const contentBaseSchema = z.object({
   source: scenarioSourceSchema.nullable(),
 });
 export type ContentBase = z.infer<typeof contentBaseSchema>;
+
+/**
+ * Năng lực THẬT SỰ cần để chạy nội dung này.
+ *
+ * Là một HÀM, không phải một cột: `requiresCapabilities ?? capabilities` suy
+ * được trọn vẹn từ hai field đã lưu, nên lưu thêm kết quả là dựng derived field
+ * (`rules/code-conventions.md` § No Derived Fields). Mọi chỗ quyết định profile
+ * hoặc cảnh báo năng lực PHẢI đi qua đây — hai chỗ tự `??` lấy là hai chỗ để
+ * lệch nhau.
+ */
+export function effectiveCapabilities(
+  content: Pick<ContentBase, 'capabilities' | 'requiresCapabilities'>,
+): readonly ScenarioCapability[] {
+  return content.requiresCapabilities ?? content.capabilities;
+}
 
 export const scenarioSchema = contentBaseSchema
   .extend({

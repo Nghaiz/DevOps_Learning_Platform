@@ -3,6 +3,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { SandboxTier } from '@devops-platform/shared-types';
 import {
+  effectiveCapabilities,
   scenarioIdSchema,
   type Scenario,
   type SandboxTierName,
@@ -272,7 +273,7 @@ export const lessonsRouter = createTRPCRouter({
       scenario,
       progress: await readProgress(ctx.db, ctx.user.id, scenario.id),
       // FE (2.D) BẮT BUỘC hiện cảnh báo này — xem `catalog.unsupportedCapabilities`.
-      unsupportedCapabilities: unsupportedCapabilities(scenario.capabilities),
+      unsupportedCapabilities: unsupportedCapabilities(effectiveCapabilities(scenario)),
     };
   }),
 
@@ -391,7 +392,10 @@ export const lessonsRouter = createTRPCRouter({
           // Suy ra từ capabilities của CHÍNH bài, không phải từ input của client
           // — cùng lý do `userId` không nằm trong input: client không có chỗ nào
           // để tự khai mình đáng được cấp bao nhiêu tài nguyên.
-          profile: profileForCapabilities(scenario.capabilities),
+          profile: profileForCapabilities(
+            effectiveCapabilities(scenario),
+            scenario.interfaceLayout,
+          ),
         },
         { headers },
       ),
@@ -401,7 +405,7 @@ export const lessonsRouter = createTRPCRouter({
     return {
       session: toJsonSession(response.session),
       scenarioId: scenario.id,
-      unsupportedCapabilities: unsupportedCapabilities(scenario.capabilities),
+      unsupportedCapabilities: unsupportedCapabilities(effectiveCapabilities(scenario)),
     };
   }),
 

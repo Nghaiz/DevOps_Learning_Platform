@@ -64,6 +64,23 @@ export async function loadScenario(scenarioDir: string): Promise<Scenario> {
     );
   }
 
+  // Đòi thứ image không cung cấp = một bài KHÔNG CHẠY ĐƯỢC. Bắt ở biên nhập,
+  // vì chỗ còn lại để phát hiện nó là terminal của người học giữa step 3.
+  const requires = sidecar.requiresCapabilities;
+  if (requires !== null) {
+    const provided = new Set<string>(backend.capabilities);
+    const missing = requires.filter((c) => !provided.has(c));
+    if (missing.length > 0) {
+      throw new ScenarioError(
+        dir,
+        `dlp.json khai requiresCapabilities=[${requires.join(', ')}] nhưng ` +
+          `backend.imageid="${index.backend.imageid}" chỉ cung cấp ` +
+          `[${backend.capabilities.join(', ')}] — thiếu: ${missing.join(', ')}. ` +
+          `requiresCapabilities phải là TẬP CON của thứ image cung cấp.`,
+      );
+    }
+  }
+
   const upstreamSteps = index.details?.steps ?? [];
   if (upstreamSteps.length === 0) {
     throw new ScenarioError(
@@ -87,6 +104,7 @@ export async function loadScenario(scenarioDir: string): Promise<Scenario> {
     estimatedMinutes: sidecar.estimatedMinutes,
     tier: backend.tier,
     capabilities: [...backend.capabilities],
+    requiresCapabilities: requires,
     backendImageId: index.backend.imageid,
     interfaceLayout: index.interface?.layout ?? null,
     intro:

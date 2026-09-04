@@ -207,6 +207,22 @@ start_k8s() {
         # cấu hình ấy; đổi nó "cho đồng nhất" là làm mọi con số đã công bố hết
         # hiệu lực mà không ai đo lại.
         k3s_nodes=${DLP_K8S_NODES:-1}
+        # CHI 1 va 2 co so do. Truoc 2026-09-04 bien nay nhan BAT KY chuoi nao:
+        # `DLP_K8S_NODES=5` dung 4 agent tren mot pod co requests dat cho DUNG 2
+        # node, va `DLP_K8S_NODES=abc` lam `[ "$k3s_nodes" -ge 2 ]` bao loi cu
+        # phap roi di tiep nhu the la 1 node. Ca hai deu HONG NGAM: khong loi,
+        # khong canh bao, chi la mot phien te hon binh thuong.
+        #
+        # Fail-closed ve 1 chu KHONG exit: mot bien sai khong duoc lam mat ca
+        # phien cua nguoi hoc — ho van co mot cluster mot node dung duoc, kem
+        # mot dong log noi ro chuyen gi da xay ra.
+        case "$k3s_nodes" in
+            1 | 2) ;;
+            *)
+                echo "[dlp-k8s] DLP_K8S_NODES='$k3s_nodes' khong hop le (chi 1 hoac 2 co so do) — dung 1 node" >&2
+                k3s_nodes=1
+                ;;
+        esac
         # `--restart=on-failure:3` — mot cu truot luc khoi dong KHONG duoc lam
         # mat ca phien.
         #

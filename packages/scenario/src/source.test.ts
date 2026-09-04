@@ -17,6 +17,7 @@ describe('filesystemScenarioSource', () => {
       'ckad-configmap-as-files',
       'dlp-docker-basics',
       'dlp-k8s-basics',
+      'dlp-k8s-multinode-scheduling',
       'dlp-sandbox-basics',
       'loki-quickstart',
       'loxilb-tcp-load-balancing',

@@ -31,6 +31,12 @@ async function seedLesson(opts: {
   state: 'draft' | 'publishing' | 'published' | 'archived';
 }): Promise<void> {
   const db = testDb();
+  // Xoá trước khi chèn: `dlp-docker-basics` (ca va-chạm-id ở cuối file) là một
+  // id CỐ ĐỊNH, không phải `uniqueId`. Một lượt chạy bị ngắt giữa chừng —
+  // suite khác đỏ, Ctrl-C, máy sập — để lại hàng đó và MỌI lượt chạy sau đều
+  // đỏ ở đây với `duplicate key`, tức một lỗi hạ tầng đọc ra như một lỗi code.
+  // `contentSteps` có FK cascade nên xoá cha là đủ.
+  await db.delete(contentItems).where(eq(contentItems.id, opts.id));
   await db.insert(contentItems).values({
     id: opts.id,
     kind: 'lesson',

@@ -38,6 +38,7 @@ function scenario(id: string, title: string): Scenario {
     tier: 'sysbox',
     capabilities: [],
     backendImageId: 'ubuntu',
+    requiresCapabilities: null,
     interfaceLayout: null,
     assets: [],
     source: null,

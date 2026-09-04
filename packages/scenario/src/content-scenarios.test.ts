@@ -104,6 +104,39 @@ describe('content/scenarios — parse kho thật', () => {
 });
 
 /**
+ * CHUÔNG BÁO cho một tổ hợp CHƯA CÓ SỐ ĐO.
+ *
+ * `profileForCapabilities` chọn profile `k8s` khi một bài vừa `ide` vừa
+ * `kubernetes`, và ô test ở `apps/web/.../catalog.test.ts` ghim lựa chọn đó
+ * kèm lý do: `profiles.k8s` đo KHÔNG có IDE trong pod, `profiles.ide` đo KHÔNG
+ * có cluster con, và cộng thẳng hai số là phép tính đã sai 18% một lần rồi.
+ *
+ * Một ô ghim như thế mà không có gì báo khi điều kiện chấm dứt tới thì nó chỉ
+ * là một lời hứa tự quên. Đây là cái báo: bài đầu tiên vừa `ide` vừa đòi
+ * `kubernetes` sẽ làm ca này ĐỎ, và việc phải làm lúc ấy là ĐO tổ hợp đó rồi
+ * thêm một profile, KHÔNG phải nới ca này ra.
+ */
+describe('content/scenarios — tổ hợp ide + kubernetes chưa được đo', () => {
+  it('không nội dung nào vừa layout ide vừa đòi kubernetes', () => {
+    const offenders = scenarios
+      .filter((s) => s.interfaceLayout === 'ide')
+      .filter((s) => (s.requiresCapabilities ?? s.capabilities).includes('kubernetes'))
+      .map((s) => s.id);
+    expect(
+      offenders,
+      `Bài ${offenders.join(', ')} vừa dùng IDE vừa đòi cluster con. Tổ hợp này ` +
+        `CHƯA có số đo RAM — đo nó rồi thêm một profile, đừng nới test này.`,
+    ).toEqual([]);
+  });
+
+  it('đối chứng dương: phép lọc thật sự nhìn thấy nội dung', () => {
+    // Thiếu vế này thì `scenarios` rỗng cũng cho ra `[]` và ca trên xanh vĩnh
+    // viễn mà không kiểm gì — đúng loại xanh-không-chứng-minh-gì.
+    expect(scenarios.length).toBeGreaterThan(0);
+  });
+});
+
+/**
  * Đối chứng âm cho mỗi biến thể format. "Bốn scenario parse xanh" tự nó không
  * nói được gì nếu cả bốn cùng một hình dạng — mỗi `it` dưới đây khẳng định ĐÚNG
  * cái khác biệt mà scenario đó được chọn để mang.
@@ -114,9 +147,30 @@ describe('content/scenarios — từng biến thể format', () => {
     expect(s.ignoredUpstreamFields).toEqual(['details.intro.courseData']);
     expect(s.steps[0]?.verifyScript).toContain('kubectl');
     expect(s.backendImageId).toBe('kubernetes-kubeadm-2nodes');
+    // `capabilities` = thứ image upstream CUNG CẤP. Không đổi, và không được
+    // đổi: nó là sự thật về imageid, không phải về bài học.
     expect(s.capabilities).toEqual(['kubernetes', 'multi-node']);
+    // `requiresCapabilities` = thứ bài ĐÒI. Bài này dùng đúng MỘT pod + MỘT
+    // ConfigMap; `verify.sh` không chạm node/nodeSelector/taint/DaemonSet ở
+    // dòng nào. Trước 2026-09-04 hai khái niệm này bị gộp và bài nhận profile
+    // `k8s-multinode` (1536Mi) cho một việc cần 1Gi.
+    expect(s.requiresCapabilities).toEqual(['kubernetes']);
     expect(s.intro).not.toBeNull();
     expect(s.finish).not.toBeNull();
+  });
+
+  it('dlp-k8s-multinode-scheduling: bài đầu tiên THẬT SỰ đòi hai node', () => {
+    const s = get('dlp-k8s-multinode-scheduling');
+    expect(s.source).toBeNull(); // first-party
+    expect(s.backendImageId).toBe('kubernetes-kubeadm-2nodes-rapid');
+    // Ở bài này "cung cấp" và "đòi" TRÙNG nhau — và lời khai tường minh chính
+    // là điều phân biệt nó với ckad, nơi hai thứ đó khác nhau.
+    expect(s.capabilities).toEqual(['kubernetes', 'multi-node']);
+    expect(s.requiresCapabilities).toEqual(['kubernetes', 'multi-node']);
+    expect(s.steps).toHaveLength(3);
+    for (const step of s.steps) {
+      expect(step.verifyScript, `step ${step.index}`).not.toBeNull();
+    }
   });
 
   it('prolug: step nằm trong THƯ MỤC CON, intro dùng background chứ không foreground', () => {

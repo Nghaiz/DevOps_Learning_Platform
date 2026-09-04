@@ -37,6 +37,16 @@ if [ "${DLP_K8S:-0}" != "1" ]; then
 fi
 
 WANT_NODES=${DLP_K8S_NODES:-1}
+# Cung phep kiem nhu entrypoint, vi day doc CUNG mot bien. Lech nhau o day
+# nghia la cho mot so node ma phia kia khong bao gio dung — treo den het timeout
+# roi bao "cluster chua san sang", trong khi cluster da san sang tu lau.
+case "$WANT_NODES" in
+  1 | 2) ;;
+  *)
+    echo "[dlp-k8s-wait] DLP_K8S_NODES='$WANT_NODES' khong hop le (chi 1 hoac 2) — cho 1 node" >&2
+    WANT_NODES=1
+    ;;
+esac
 start=$(date +%s)
 while :; do
   # k3s ghi kubeconfig truoc khi apiserver phuc vu duoc, nen phai kiem CA HAI:

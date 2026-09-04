@@ -52,6 +52,9 @@ export const playgroundsRouter = createTRPCRouter({
     const playground = await requirePlayground(input.playgroundId);
     return {
       playground,
+      // Playground KHÔNG có `requiresCapabilities` (schema `.pick()` bỏ nó có
+      // chủ ý: không có bài nào để đòi ít hơn thứ image cung cấp), nên ở đây
+      // `capabilities` ĐÃ là tập hiệu lực.
       unsupportedCapabilities: unsupportedCapabilities(playground.capabilities),
     };
   }),
