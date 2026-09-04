@@ -843,9 +843,27 @@ sandbox:
   #   k3s                      workingSet đỉnh  589   Mi ·  729MB đĩa
   #   kind                     workingSet đỉnh  922.31Mi · 3553MB đĩa
   #
-  # `requestsMemory: 768Mi` đặt theo **ĐỈNH** (589Mi) cộng ~30% biên, KHÔNG theo
-  # trung vị — bài học `sandbox-quota-is-misconfigured-not-hardware`: đặt theo
-  # trung vị là thiết kế cho một nửa số lượt.
+  # ── ĐO LẠI DƯỚI TẢI THẬT (P7-bis, 2026-09-04) — 768Mi ĐÃ SAI ──────────────
+  #
+  # Con số 589Mi ở trên đo với cluster con vừa lên + ĐÚNG MỘT Deployment nginx.
+  # Khối này trước đây tự ghi rằng đó là món nợ ("⚠ CHƯA ĐO: một lab nặng hơn
+  # chưa có số"). Giờ có số, và nó lật chính dòng dưới nó:
+  #
+  #   k3s + lab THẬT (dlp-k8s-broken-deploy: 5 Deployment + Service +
+  #   ConfigMap, chạy trên ĐƯỜNG SẢN XUẤT — DLP_K8S=1, entrypoint tự dựng):
+  #       workingSet đỉnh  777.81Mi · 998MB đĩa · 155 CPU-giây · 71s tới xong
+  #
+  # **777.81Mi > 768Mi.** Tức `requests` cũ nằm DƯỚI đỉnh thật của một bài học
+  # có thật trong giáo trình. `requests` không phải trần nên không có OOM —
+  # điều xảy ra tệ hơn và khó truy hơn: kubelet đuổi pod vượt `requests` khi
+  # node bị ép RAM, nên phiên của người học chết giữa bài, ngẫu nhiên, và chỉ
+  # khi cụm đang đông. Đúng loại lỗi không tái hiện được lúc gỡ rối.
+  #
+  # `requestsMemory: 1Gi` = đỉnh 777.81Mi + ~31% biên — CÙNG tỉ lệ biên mà
+  # 589→768 đã dùng, không phải một tỉ lệ mới chọn cho vừa một mục tiêu trần.
+  # Vẫn đặt theo **ĐỈNH**, không theo trung vị (bài học
+  # `sandbox-quota-is-misconfigured-not-hardware`: đặt theo trung vị là thiết
+  # kế cho một nửa số lượt).
   #
   # `limitsCpu: '4'` chứ không 2, và nó MIỄN PHÍ về trần: đo được lúc dựng
   # cluster con có `nr_throttled 457 / throttled_usec 30.9s` ở trần 2 core, tức
@@ -855,37 +873,50 @@ sandbox:
   # bị apiserver từ chối chứ không bị cắt bớt.
   #
   # ── TRẦN ĐỒNG THỜI CỦA BÀI K8S — min của NĂM ràng buộc, quota self-host ────
-  #   requestsCpu     5400m  ÷  500m  = 10
-  #   requestsMemory  5500Mi ÷  768Mi =  7   ← RÀNG BUỘC CHẶN
-  #   limitsCpu          44  ÷    4   = 11
-  #   limitsMemory    22528Mi ÷ 2048Mi = 11
-  #   pods               26            = 26
-  # ⇒ min = 7 pod − POOL_TARGET 1 = **6 phiên K8s đồng thời**.
   #
-  # So với 20 phiên thường: **thấp hơn 14**. Nói thẳng con số đó thay vì trung
-  # bình hoá là toàn bộ điểm của mục này — một bài K8s tốn gấp 3 lần một bài
-  # Linux, và giấu điều đó sau một `requests` chung sẽ làm người thứ bảy nhận
+  # ⚠ CÁCH TÍNH CŨ SAI Ở MẪU SỐ, không chỉ ở con số. Nó chia CẢ quota cho
+  # `requests` của K8s rồi trừ đi POOL_TARGET như thể pod warm pool cũng cỡ
+  # K8s. Chúng không: warm pool giữ 3 pod × 256Mi. Phải trừ phần pool ĐANG GIỮ
+  # ra khỏi quota TRƯỚC, rồi mới chia.
+  #
+  # Đo trên cụm thật (`kubectl get resourcequota -n dlp-sandbox`), pool đang
+  # giữ: 768Mi RAM · 750m CPU · 3Gi limits.memory · 6 limits.cpu · 3 pod.
+  #
+  #   requestsMemory  (5500 − 768)Mi   ÷ 1024Mi = 4.62 → 4   ← RÀNG BUỘC CHẶN
+  #   requestsCpu     (5400 − 750)m    ÷  500m  = 9.30 → 9
+  #   limitsCpu       (44 − 6)         ÷    4   = 9.50 → 9
+  #   limitsMemory    (22528 − 3072)Mi ÷ 2048Mi = 9.50 → 9
+  #   pods            (26 − 3)                  = 23
+  # ⇒ min = **4 phiên K8s đồng thời**.
+  #
+  # So với 20 phiên thường: **thấp hơn 16**. Nói thẳng con số đó thay vì trung
+  # bình hoá là toàn bộ điểm của mục này — một bài K8s tốn gấp 4 lần một bài
+  # Linux, và giấu điều đó sau một `requests` chung sẽ làm người thứ năm nhận
   # 429 mà không hiểu vì sao.
+  #
+  # 6 → 4 là hệ quả TRỰC TIẾP của việc đo dưới tải thật. Trần cũ không "bị hạ";
+  # nó chưa bao giờ đúng — nó được tính từ một `requests` thấp hơn đỉnh thật.
   #
   # ⚠ Quota là CHUNG cho cả namespace, nên "6" chỉ đúng khi MỌI phiên là K8s.
   # Ràng buộc thật là tuyến tính, và đây là dạng dùng được:
-  #     256Mi·n_thường + 768Mi·n_k8s ≤ 5500Mi   (và bốn bất đẳng thức còn lại)
-  # Ví dụ: 10 phiên thường + 3 phiên K8s = 2560 + 2304 = 4864Mi ⇒ vừa.
+  #     256Mi·n_thường + 1024Mi·n_k8s ≤ 5500Mi  (và bốn bất đẳng thức còn lại)
+  # Ví dụ: 8 phiên thường + 3 phiên K8s = 2048 + 3072 = 5120Mi ⇒ vừa.
   #
-  # ⚠ CHƯA ĐO: đỉnh 589Mi là với cluster con vừa lên + MỘT Deployment nginx.
-  # Một lab nặng hơn (nhiều Deployment, PVC, image lớn) chưa có số. Trần `limits`
-  # 2Gi là thứ thật sự gác; `requests` chỉ là chỗ giữ khi xếp lịch.
+  # ⚠ CÒN CHƯA ĐO, ghi ra để không ai đọc nhầm phạm vi: lab nặng nhất ĐÃ đo là
+  # `dlp-k8s-broken-deploy` (5 Deployment nginx, không PVC, không image lớn).
+  # Một bài dùng PVC hoặc image vài trăm MB vẫn chưa có số. Trần `limits` 2Gi là
+  # thứ thật sự gác; `requests` chỉ là chỗ giữ khi xếp lịch.
   profiles:
     k8s:
       requestsCpu: '500m'
-      requestsMemory: '768Mi'
+      requestsMemory: '1Gi'
       limitsCpu: '4'
       limitsMemory: '2Gi'
       env:
         # Cờ mà `start_k8s` của entrypoint sandbox đọc. Không có nó thì image
         # vẫn có kubectl nhưng KHÔNG dựng cluster nào — cố ý: đại đa số phiên là
-        # bài Linux/Docker, và dựng cluster cho tất cả là trả 589Mi thường trực
-        # cho thứ không ai dùng, kéo trần của MỌI người từ 20 xuống 6.
+        # bài Linux/Docker, và dựng cluster cho tất cả là trả ~778Mi thường trực
+        # cho thứ không ai dùng, kéo trần của MỌI người từ 20 xuống 4.
         DLP_K8S: '1'
 
 # ─────────────────────────────────────────────────────────────────────────────

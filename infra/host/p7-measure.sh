@@ -47,7 +47,7 @@ MEM_LIMIT=${MEM_LIMIT:-6Gi}
 CPU_LIMIT=${CPU_LIMIT:-4}
 SAMPLE_SEC=${SAMPLE_SEC:-2}
 
-variant=${1:?usage: p7-measure.sh <baseline|k3s|k3s-lab|k3s-2node|kind> [ready-timeout-sec]}
+variant=${1:?usage: p7-measure.sh <baseline|k3s|k3s-lab|k3s-2node|k3s-2node-lab|kind> [ready-timeout-sec]}
 READY_TIMEOUT=${2:-600}
 POD="p7-$variant"
 mkdir -p "$OUT_DIR"
@@ -57,9 +57,18 @@ mkdir -p "$OUT_DIR"
 # Cac variant khac giu duong cu (docker run tay) vi chung can mount ban
 # k3s-boot.sh TU HOST de do code CHUA nam trong image.
 POD_EXTRA_ENV=""
-if [ "$variant" = "k3s-lab" ]; then
-  POD_EXTRA_ENV=$'\n        - name: DLP_K8S\n          value: "1"'
-fi
+case "$variant" in
+  k3s-lab)
+    POD_EXTRA_ENV=$'\n        - name: DLP_K8S\n          value: "1"'
+    ;;
+  k3s-2node-lab)
+    # 2 node DUOI TAI, tren duong san xuat. `dlp-k8s-wait` doc CHINH bien
+    # DLP_K8S_NODES nay, nen phep CHO va phep DUNG khong the lech nhau —
+    # neu chung lech, harness se bao READY luc moi co 1 node va con so tra
+    # ve la con so cua mot cum 1 node deo nhan 2 node.
+    POD_EXTRA_ENV=$'\n        - name: DLP_K8S\n          value: "1"\n        - name: DLP_K8S_NODES\n          value: "2"'
+    ;;
+esac
 
 # Moc "cluster vua Ready", de tach phan CLUSTER khoi phan TAI trong bao cao.
 # Khong co moc nay thi mot dinh 900 MiB khong noi duoc bao nhieu la cluster va
@@ -388,7 +397,8 @@ main() {
     baseline) setup_log=$(setup_baseline); sleep 60 ;;
     k3s)      setup_log=$(setup_k3s  2>&1); ready=$(ready_k3s  2>&1 | tail -1) ;;
     k3s-2node) setup_log=$(setup_k3s_2node 2>&1); ready=$(ready_k3s_2node 2>&1 | tail -1) ;;
-    k3s-lab)  setup_log=$(setup_k3s_lab 2>&1); ready=$(ready_k3s_lab 2>&1 | tail -1) ;;
+    k3s-lab | k3s-2node-lab)
+      setup_log=$(setup_k3s_lab 2>&1); ready=$(ready_k3s_lab 2>&1 | tail -1) ;;
     kind)     setup_log=$(setup_kind 2>&1); ready=$(ready_kind 2>&1 | tail -1) ;;
     *) log "variant la: $variant"; exit 2 ;;
   esac
