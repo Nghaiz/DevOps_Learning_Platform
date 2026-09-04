@@ -20,7 +20,18 @@ set -uo pipefail
 
 NS=${NS:-dlp-p7}
 SRC_NS=${SRC_NS:-dlp-sandbox}
-IMAGE=${IMAGE:-ghcr.io/nghaiz/dlp-sandbox-base:sha-2b79fd3}
+# ⚠ PHAI LA IMAGE MA ORCHESTRATOR THAT SU CAP CHO PHIEN.
+#
+# Doc no tu Helm, dung ghi tay:  helm get values platform -o yaml
+#   -> orchestrator.env.sandboxImage
+#
+# Mac dinh cu ghim `sha-2b79fd3`, mot tag CO TRUOC P7 va vi the KHONG co
+# `dlp-k8s-wait` lan `start_k8s`. Hau qua khong he on ao: pod len Ready,
+# moi lenh tra ve 0, harness lay mau du 2 giay mot lan va in ra mot bao cao
+# hoan chinh — cua MOT POD KHONG CO CLUSTER NAO. Da mat hai luot do vi dung
+# cai mac dinh nay (2026-09-04). Do la ly do co `assert_k8s_capable` ben
+# duoi: mot phep do phai chet to khi tien de cua no sai.
+IMAGE=${IMAGE:-ghcr.io/nghaiz/dlp-sandbox-base:p7-k8s3}
 MIRROR=${MIRROR:-http://platform-registry-mirror.dlp-registry.svc.cluster.local:5000}
 BIN_DIR=${BIN_DIR:-$HOME/p7}
 OUT_DIR=${OUT_DIR:-$HOME/p7/out}
@@ -36,10 +47,24 @@ MEM_LIMIT=${MEM_LIMIT:-6Gi}
 CPU_LIMIT=${CPU_LIMIT:-4}
 SAMPLE_SEC=${SAMPLE_SEC:-2}
 
-variant=${1:?usage: p7-measure.sh <baseline|k3s|k3s-2node|kind> [ready-timeout-sec]}
+variant=${1:?usage: p7-measure.sh <baseline|k3s|k3s-lab|k3s-2node|kind> [ready-timeout-sec]}
 READY_TIMEOUT=${2:-600}
 POD="p7-$variant"
 mkdir -p "$OUT_DIR"
+
+# `k3s-lab` do DUONG SAN XUAT: khong `docker run` tay, ma dat DLP_K8S=1 roi de
+# `start_k8s` cua entrypoint image tu dung cluster — dung nhu mot phien that.
+# Cac variant khac giu duong cu (docker run tay) vi chung can mount ban
+# k3s-boot.sh TU HOST de do code CHUA nam trong image.
+POD_EXTRA_ENV=""
+if [ "$variant" = "k3s-lab" ]; then
+  POD_EXTRA_ENV=$'\n        - name: DLP_K8S\n          value: "1"'
+fi
+
+# Moc "cluster vua Ready", de tach phan CLUSTER khoi phan TAI trong bao cao.
+# Khong co moc nay thi mot dinh 900 MiB khong noi duoc bao nhieu la cluster va
+# bao nhieu la bai hoc — tuc khong dat duoc profile tu no.
+T_READY=0
 
 log() { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
 
@@ -53,6 +78,44 @@ ensure_ns() {
               .metadata.generation,.metadata.managedFields,.metadata.annotations,
               .metadata.labels,.status)' \
     | kubectl apply -n "$NS" -f - >/dev/null
+}
+
+# ⚠ KHAC BIET DA KHAI BAO so voi production (xem docs/k8s-in-pod.md § 17-21).
+#
+# NetworkPolicy `platform-registry-mirror-allow-ingress-sandbox` o ns
+# `dlp-registry` chi nhan ingress tu namespace TEN LA `dlp-sandbox` (qua nhan
+# bat bien kubernetes.io/metadata.name). Namespace do vi the KHONG toi duoc
+# mirror, va hau qua khong tro ve netpol o dau ca: dockerd trong pod khong keo
+# duoc `rancher/k3s`, cluster con khong bao gio len, va harness do mot pod RONG
+# trong khi moi lenh deu tra ve 0. Da mat mot lan do vi dung bay nay
+# (2026-09-04).
+#
+# Netpol tam duoc CAP VA GO TU DONG o day thay vi bang tay: mot buoc don dep
+# thu cong la mot buoc se bi quen, va thu bi quen o day la mot lo hong ingress
+# vao registry cua cum.
+ensure_mirror_access() {
+  [ "$NS" = "$SRC_NS" ] && return 0
+  kubectl apply -f - >/dev/null <<NETPOL_EOF
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: p7-measure-temp-allow-ingress
+  namespace: dlp-registry
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: $NS
+NETPOL_EOF
+  log "cap netpol tam p7-measure-temp-allow-ingress (ns do = $NS -> mirror)"
+}
+
+drop_mirror_access() {
+  [ "$NS" = "$SRC_NS" ] && return 0
+  kubectl delete netpol -n dlp-registry p7-measure-temp-allow-ingress --ignore-not-found >/dev/null 2>&1
 }
 
 make_pod() {
@@ -85,7 +148,7 @@ spec:
       command: ["/usr/bin/tini", "--", "/usr/local/bin/dlp-entrypoint.sh", "sleep", "infinity"]
       env:
         - name: DLP_REGISTRY_MIRROR
-          value: "$MIRROR"
+          value: "$MIRROR"$POD_EXTRA_ENV
       resources:
         requests:
           cpu: "250m"
@@ -147,6 +210,11 @@ push_bins() {
     return 1
   fi
   inpod 'chmod +x /usr/local/bin/kubectl; kubectl version --client=true 2>&1 | head -1'
+  # Noi dung lab cho variant k3s-lab. Day tu host vi pod khong co internet.
+  if [ -d "$BIN_DIR/lab" ]; then
+    kubectl cp -n "$NS" "$BIN_DIR/lab" "$POD:/lab" >/dev/null 2>&1
+    inpod 'chmod +x /lab/*.sh 2>/dev/null; ls /lab | tr "\n" " "'
+  fi
 }
 
 wait_dockerd() {
@@ -233,6 +301,39 @@ ready_k3s_2node() {
       sleep 1; done; echo \"NOTREADY(\$n/2)\"; exit 1"
 }
 
+# ── TAI THAT (P7-bis, 2026-09-04) ───────────────────────────────────────────
+# Dinh 589 MiB cua 7.B do duoc voi DUNG MOT Deployment nginx. Cau hoi con treo:
+# mot lab that ton bao nhieu. Tai o day la `dlp-k8s-broken-deploy` — 5
+# Deployment + Service + ConfigMap, lab K8s nang nhat trong giao trinh.
+#
+# Do tren DUONG SAN XUAT (DLP_K8S=1, entrypoint tu dung cluster), khong phai
+# duong `docker run` tay cua cac variant khac: con so nay se di thang vao
+# `sandbox.profiles`, nen no phai den tu dung cai duong ma nguoi hoc di.
+# Tien de cua moi variant k3s: image CO phan k8s. Kiem TRUOC khi bam gio.
+assert_k8s_capable() {
+  if ! inpod 'test -x /usr/local/bin/dlp-k8s-wait && echo has-k8s' | grep -q has-k8s; then
+    log "IMAGE=$IMAGE KHONG co dlp-k8s-wait — image nay co truoc P7."
+    log "Lay tag dung: helm get values platform -o yaml | grep sandboxImage"
+    exit 3
+  fi
+}
+
+setup_k3s_lab() {
+  assert_k8s_capable
+  inpod "dlp-k8s-wait 420 2>&1 | tail -2"
+  T_READY=$(date +%s)
+  inpod "bash /lab/background.sh 2>&1 | tail -4"
+  inpod "bash /lab/solve.sh 2>&1 | tail -6"
+}
+
+ready_k3s_lab() {
+  inpod "for i in \$(seq 1 ${READY_TIMEOUT}); do
+      t=\$(kubectl get deploy --no-headers 2>/dev/null | wc -l)
+      n=\$(kubectl get deploy --no-headers 2>/dev/null | awk '\$2 == \"1/1\"' | wc -l)
+      [ \"\$t\" -ge 5 ] && [ \"\$n\" -ge 5 ] && { echo READY-5DEPLOY; exit 0; }
+      sleep 3; done; echo \"NOTREADY(\$n/\$t deploy san sang)\"; exit 1"
+}
+
 setup_kind() {
   inpod "kind create cluster --name lab --image ${KIND_NODE_IMAGE} --wait 0s 2>&1 | tail -6"
 }
@@ -245,6 +346,8 @@ ready_kind() {
 
 main() {
   ensure_ns
+  ensure_mirror_access
+  trap drop_mirror_access EXIT
   make_pod
   local cg
   cg=$(cgroup_dir)
@@ -266,6 +369,7 @@ main() {
     baseline) setup_log=$(setup_baseline); sleep 60 ;;
     k3s)      setup_log=$(setup_k3s  2>&1); ready=$(ready_k3s  2>&1 | tail -1) ;;
     k3s-2node) setup_log=$(setup_k3s_2node 2>&1); ready=$(ready_k3s_2node 2>&1 | tail -1) ;;
+    k3s-lab)  setup_log=$(setup_k3s_lab 2>&1); ready=$(ready_k3s_lab 2>&1 | tail -1) ;;
     kind)     setup_log=$(setup_kind 2>&1); ready=$(ready_kind 2>&1 | tail -1) ;;
     *) log "variant la: $variant"; exit 2 ;;
   esac
@@ -279,6 +383,7 @@ main() {
   disk=$(inpod 'du -sm /var/lib/docker 2>/dev/null | cut -f1' 2>/dev/null | tr -dc '0-9')
 
   jq -s --arg v "$variant" --arg ready "$ready" --argjson secs "$((t1-t0))" \
+        --argjson tready "${T_READY:-0}" \
         --arg disk "${disk:-0}" --arg log "$setup_log" '
     { variant: $v,
       readyVerdict: $ready,
@@ -287,6 +392,12 @@ main() {
       samples: length,
       workingSetPeakMiB:  ((map(.workingSet)  | max) / 1048576 * 100 | round / 100),
       workingSetFinalMiB: ((.[-1].workingSet)        / 1048576 * 100 | round / 100),
+      # Dinh TINH TOI luc cluster vua Ready = phan cua CLUSTER. Hieu so giua no
+      # va dinh tong la phan cua TAI. Khong tach thi mot con so tong khong dat
+      # duoc profile: khong biet phan nao co dinh, phan nao theo bai hoc.
+      workingSetAtReadyMiB: (if $tready > 0
+        then ([.[] | select(.ts <= $tready) | .workingSet] | max // 0) / 1048576 * 100 | round / 100
+        else null end),
       memCurrentPeakMiB:  ((map(.memCurrent)  | max) / 1048576 * 100 | round / 100),
       cpuSeconds: (((map(.cpuUsec) | max) - (map(.cpuUsec) | min)) / 1000000 * 100 | round / 100),
       setupLog: $log }' "$raw" | tee "$OUT_DIR/$variant.json"
