@@ -76,6 +76,48 @@ function toItemRow(record: ContentItemRecord, stepCount: number): ContentItemRow
 }
 
 /**
+ * `stepCount` TÍNH bằng `count(content_steps)`, không đọc từ cột (task 6 cấm cột đó).
+ *
+ * ## ⛔ Vì sao KHÔNG dùng subquery tương quan viết bằng `sql` template
+ *
+ * Bản đầu của hàm này viết:
+ *
+ * ```ts
+ * sql`(select count(*)::int from ${contentSteps}
+ *      where ${contentSteps.contentId} = ${contentItems.id})`
+ * ```
+ *
+ * và nó **luôn trả 0**. Lý do: với một `select` một-bảng, Drizzle render cột
+ * KHÔNG có tiền tố bảng, nên câu trên thành
+ * `where "content_id" = "id"` — và bên trong subquery, `"id"` phân giải thành
+ * `content_steps.id` chứ không phải `content_items.id`. Điều kiện không bao giờ
+ * đúng, `count` luôn 0, và **mọi lesson bị `scenarioSummarySchema` loại** vì nó
+ * đòi `stepCount` dương. Triệu chứng ở tầng trên là `/lessons` rỗng — không lỗi,
+ * không cảnh báo ngoài một dòng WARN "bỏ qua lesson không hợp lệ".
+ *
+ * Không unit test nào với repository giả bắt được: chúng cấp thẳng `stepCount`.
+ * Chỉ `repository.integration.test.ts` (SQL thật) mới thấy.
+ *
+ * Bản này dùng subquery CÓ ALIAS + `leftJoin`: alias buộc Postgres qualify cột,
+ * nên không còn chỗ cho nhập nhằng tên. Nó cũng tránh `GROUP BY` trên câu ngoài,
+ * thứ sẽ buộc mọi cột jsonb to vào mệnh đề đó.
+ *
+ * `list()` vẫn KHÔNG chạm `markdown`: subquery chỉ đếm dòng.
+ */
+function stepCountSubquery(db: DbOrTx) {
+  return db
+    .select({ contentId: contentSteps.contentId, n: count().as('n') })
+    .from(contentSteps)
+    .groupBy(contentSteps.contentId)
+    .as('step_counts');
+}
+
+/** `leftJoin` cho `null` khi bài chưa có bước nào — 0, không phải `null`. */
+function stepCountOf(counts: ReturnType<typeof stepCountSubquery>) {
+  return sql<number>`coalesce(${counts.n}, 0)::int`;
+}
+
+/**
  * Repository đọc — thứ `dbContentSource` dùng.
  *
  * `db` được truyền vào chứ không lấy từ `getDb()` bên trong: test dựng
@@ -85,24 +127,11 @@ function toItemRow(record: ContentItemRecord, stepCount: number): ContentItemRow
 export function contentRepository(db: Database): ContentRepository {
   return {
     async listItems(kind: ContentKind, visibility: ContentVisibility) {
-      /**
-       * `stepCount` TÍNH bằng một subquery `count`, không đọc từ cột.
-       *
-       * ⚠ Đây là nơi việc CẤM cột `stepCount` (task 6) phải trả giá đúng một
-       * lần, và nó phải trả đúng chỗ này chứ không phải bằng N truy vấn: một
-       * subquery tương quan chạy trong cùng câu SELECT. `LEFT JOIN` + `GROUP BY`
-       * cũng được, nhưng nó buộc mọi cột jsonb to vào `GROUP BY`.
-       *
-       * `list()` vẫn KHÔNG chạm `markdown`: subquery chỉ đếm dòng.
-       */
-      const stepCountExpr = sql<number>`(
-        select count(*)::int from ${contentSteps}
-        where ${contentSteps.contentId} = ${contentItems.id}
-      )`;
-
+      const counts = stepCountSubquery(db);
       const rows = await db
-        .select({ item: contentItems, stepCount: stepCountExpr })
+        .select({ item: contentItems, stepCount: stepCountOf(counts) })
         .from(contentItems)
+        .leftJoin(counts, eq(counts.contentId, contentItems.id))
         .where(and(eq(contentItems.kind, kind), visibleWhere(visibility)))
         .orderBy(asc(contentItems.id));
 
@@ -206,13 +235,11 @@ export async function listAuthoredBy(
   db: DbOrTx,
   authorId: string | null,
 ): Promise<readonly { record: ContentItemRecord; stepCount: number }[]> {
-  const stepCountExpr = sql<number>`(
-    select count(*)::int from ${contentSteps}
-    where ${contentSteps.contentId} = ${contentItems.id}
-  )`;
+  const counts = stepCountSubquery(db);
   const rows = await db
-    .select({ item: contentItems, stepCount: stepCountExpr })
+    .select({ item: contentItems, stepCount: stepCountOf(counts) })
     .from(contentItems)
+    .leftJoin(counts, eq(counts.contentId, contentItems.id))
     // `null` = admin, xem mọi bài. Không phải "không lọc vì quên": caller duy
     // nhất truyền `null` là nhánh admin của `authoring.list`.
     .where(authorId === null ? undefined : eq(contentItems.authorId, authorId))

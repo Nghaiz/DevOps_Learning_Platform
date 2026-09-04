@@ -71,16 +71,51 @@ Một người có vai trò author mở trang soạn, tạo bài mới, viết m
 
 ## Acceptance criteria
 
-- [ ] `docs/content-sources.md` trả lời **cả bốn** câu hỏi ở trên, kèm luật ưu tiên.
-- [ ] Router/`checkStep`/FE **không sửa** khi thêm nguồn DB (chứng minh bằng diff: 0 dòng ở 3 chỗ đó).
-- [ ] Bài `draft` **không** hiện cho người học; author thấy bài nháp của chính mình, không thấy của người khác.
-- [ ] Procedure ghi **không có field `authorId`** trong input (luật 1 dạng mạnh); test IDOR có đối chứng dương.
-- [ ] Trùng `id` giữa hai nguồn ⇒ luật ưu tiên đúng như tài liệu + log WARN nêu cả hai nguồn.
-- [ ] Sửa bài xong **thấy ngay** (không cache lỗi thời) — test có mốc thời gian.
-- [ ] Lưu bài sai format ⇒ từ chối kèm tên field (luật 3); script bẩn ⇒ cảnh báo, không chặn.
-- [ ] Upload: allowlist kiểu file, trần kích thước, `storageKey` sinh ra, thử `../` bị chặn.
-- [ ] `publish` chạy thử thật trong sandbox rồi mới đổi state; bài trượt không xuất bản được.
-- [ ] Sửa bài đã xuất bản không đổi nội dung dưới chân người đang học.
+> Trạng thái sau lượt kiểm 2026-09-04 (PR #99). **INT** = có test chạy trên
+> Postgres thật; **UNIT** = hàm thuần / repository giả; ô chưa tích ghi rõ vì sao.
+
+- [x] **INT** `docs/content-sources.md` trả lời **cả bốn** câu hỏi ở trên, kèm luật ưu tiên.
+- [x] Router/`checkStep`/FE **không sửa** khi thêm nguồn DB — `git diff --stat` trên
+      `routers/{lessons,labs,playgrounds}.ts` + `app/{lessons,labs,playgrounds}` +
+      `components/` trả về **rỗng**. (`app-router.ts` có đổi: đăng ký router mới.)
+- [x] **INT** Bài `draft` **không** hiện cho người học; author thấy nháp của chính mình,
+      không thấy của người khác — `repository.integration.test.ts` chạy trên SQL thật,
+      có đối chứng dương cả hai chiều (A↔B).
+- [x] **UNIT+INT** Procedure ghi **không có field `authorId`**; test IDOR duyệt CHÍNH input
+      schema đã đăng ký (+ đối chứng rằng phép duyệt không rỗng), và
+      `authoring.integration.test.ts` khẳng định ở tầng DỮ LIỆU rằng lượt ghi của
+      author khác không đổi được một byte nào.
+- [x] **UNIT** Trùng `id` giữa hai nguồn ⇒ đĩa thắng + WARN nêu cả hai `sourceKind`.
+      **INT** một bài DB trùng id với `dlp-docker-basics` trên đĩa bị che đúng như tài liệu.
+- [x] **INT** Sửa bài xong **thấy ngay** — UPDATE rồi đọc lại trong cùng tiến trình sau
+      một lượt `list()` "làm nóng"; mốc thời gian nằm trong chính tiêu đề ghi vào.
+- [x] **UNIT** Lưu bài sai format ⇒ từ chối kèm tên field; script bẩn ⇒ cảnh báo, không chặn.
+      ⚠ `shellcheck` KHÔNG có trong image `apps/web`, nên đường mặc định là
+      `available: false` — một giá trị RIÊNG, không phải "0 cảnh báo".
+- [x] **UNIT** Upload: allowlist kiểu file, trần 2 MiB, `storageKey` sinh ra, `../` bị chặn —
+      DB giả NÉM nếu bị chạm, nên mọi ca từ chối được chứng minh là chặn TRƯỚC khi ghi.
+- [ ] `publish` chạy thử thật trong sandbox rồi mới đổi state. **CHƯA CHỨNG MINH:**
+      `trialPlan` + `isPublishTrialStale` có test UNIT, nhưng `runTrial` gọi orchestrator
+      thật thì chưa từng chạy — nó cần cụm K8s, ngoài tầm một lượt kiểm trên máy dev.
+      Đây là ô DUY NHẤT của P9 còn nợ bằng chứng.
+- [x] **INT** Sửa bài đã xuất bản không đổi nội dung dưới chân người đang học — bản gốc
+      giữ nguyên title/state/markdown, bản nháp kế nhiệm `<id>__draft` mang nội dung mới;
+      sửa lần hai ghi đè bản nháp chứ không đẻ bản thứ ba.
+
+### Phát hiện ngoài danh sách, đã sửa trong cùng PR
+
+- **`parseContentBlocks` mất sạch nút `{{exec}}` với đầu vào CRLF.** Hai regex fence neo
+  bằng `[ 	]*$` nên không khớp khi còn ``; hàm trả một khối văn xuôi, không lỗi.
+  Vô hại trước P9 (nội dung chỉ tới từ đĩa LF) — P9 mở đường cho markdown người soạn nhập.
+  Đã chuẩn hoá trong parser + tại biên ghi, 5 test đỏ khi gỡ vá.
+- **Script CRLF chạy bằng `bash`** (`GATEWAY_EXEC_SHELL`) báo `$'': command not found`
+  mỗi dòng. `verifyScript`/`setup.*` KHÔNG đi qua parser nào, nên biên ghi phải tự chuẩn hoá.
+- **Subquery `stepCount` render cột KHÔNG có tiền tố bảng** ⇒ `where "content_id" = "id"`
+  so với `content_steps.id`, luôn sai, `stepCount` luôn 0, và **mọi lesson DB bị loại khỏi
+  `/lessons`** trong im lặng. Chỉ test tích hợp trên SQL thật bắt được; đã đổi sang
+  subquery có alias + `leftJoin`.
+- **`content/labs/**` + `content/playgrounds/**` thiếu luật `.gitattributes`** ⇒ CRLF trên
+  cây Windows, LF trên CI. Đã khoá `text eol=lf`.
 
 ## Verify commands
 

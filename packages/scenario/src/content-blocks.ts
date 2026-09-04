@@ -80,6 +80,48 @@ const FENCE_CLOSE = /^[ \t]*```(?:\{\{([^}]*)\}\})?[ \t]*$/;
 const INLINE_ACTION = /`([^`\n]+)`\{\{([^}\n]*)\}\}/g;
 
 /**
+ * Chuẩn hoá xuống dòng về `\n` TRƯỚC khi tách dòng.
+ *
+ * ## Vì sao đây không phải một dòng phòng thủ thừa
+ *
+ * `FENCE_OPEN` và `FENCE_CLOSE` đều neo bằng `[ \t]*$`. Với đầu vào CRLF, mỗi
+ * dòng còn lại một `\r` ở cuối sau `split('\n')`, nên KHÔNG fence nào khớp — và
+ * hàm không lỗi, không cảnh báo: nó trả về đúng MỘT khối văn xuôi chứa cả tài
+ * liệu, và **mọi nút `{{exec}}` / `{{copy}}` biến mất**. Đo được trên cùng một
+ * chuỗi: LF cho 3 khối kèm một action `exec`; CRLF cho 1 khối và không action
+ * nào.
+ *
+ * ## Vì sao nó chỉ lộ ra bây giờ
+ *
+ * Trước P9, markdown chỉ tới từ MỘT nguồn: đĩa, nướng vào image dựng trên Linux
+ * (LF), với `.gitattributes` còn khoá `content/scenarios/** -text` cho
+ * byte-exact. `\r` chưa bao giờ tới được hàm này trong production.
+ *
+ * P9 mở nguồn thứ hai: markdown do người soạn nhập, đi qua tRPC vào
+ * `content_steps.markdown`. Nội dung dán từ một file Windows, một API client
+ * gửi JSON có `\r\n`, một trình soạn thảo giữ CRLF — tất cả tới đây nguyên vẹn.
+ * Parser không được phép dựa vào việc tầng trên đã chuẩn hoá: chế độ hỏng của
+ * nó IM LẶNG, và một bài mất hết nút bấm trông y hệt một bài cố ý không có nút.
+ *
+ * `\r` đơn (Mac cổ) gộp luôn vào — cùng một regex, không tốn thêm gì.
+ *
+ * ## Vì sao nó được XUẤT ra
+ *
+ * Bản vá ở đây chỉ che đường ĐỌC markdown. Nó KHÔNG che `verifyScript` /
+ * `setup.*`, vốn không đi qua parser nào mà đi thẳng tới `GATEWAY_EXEC_SHELL`
+ * (mặc định **bash**). Một script CRLF chạy bằng bash báo `$'\r': command not
+ * found` ở MỖI dòng — đúng chế độ hỏng mà `.gitattributes` đã ghi cho `*.sh` và
+ * `images/sandbox-base/skel/**`.
+ *
+ * Nên biên GHI của trang soạn (`authoring.ts`) chuẩn hoá luôn lúc lưu, và nó
+ * dùng CHÍNH hàm này thay vì viết lại một `replace` thứ hai: hai bản của cùng
+ * một quy tắc sẽ lệch ở lần đầu tiên ai đó thêm một ca.
+ */
+export function normalizeNewlines(markdown: string): string {
+  return markdown.replace(/\r\n?/g, '\n');
+}
+
+/**
  * Tách theo DÒNG chứ không bằng một regex duy nhất.
  *
  * Một regex `` /```[\s\S]*?```\{\{…\}\}/ `` trông đủ dùng nhưng sai ở đúng ca hay
@@ -90,7 +132,7 @@ const INLINE_ACTION = /`([^`\n]+)`\{\{([^}\n]*)\}\}/g;
  */
 export function parseContentBlocks(markdown: string): ContentBlock[] {
   const blocks: ContentBlock[] = [];
-  const lines = markdown.split('\n');
+  const lines = normalizeNewlines(markdown).split('\n');
   let prose: string[] = [];
 
   const flushProse = (): void => {

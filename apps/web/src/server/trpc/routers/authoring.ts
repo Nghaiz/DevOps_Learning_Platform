@@ -16,6 +16,7 @@ import {
   scenarioIdSchema,
 } from '@devops-platform/shared-types/scenario';
 import { labTaskIdSchema } from '@devops-platform/shared-types/lab';
+import { normalizeNewlines } from '@devops-platform/scenario/content-blocks';
 import { assertContentOwner, visibilityFor } from '../../content/authz';
 import {
   deleteContentAsset,
@@ -60,31 +61,54 @@ import { authorProcedure, createTRPCRouter } from '../init';
  * mình *trông như* đã đủ, và đó chính là hình dạng của lỗi.
  */
 
+/**
+ * Text người soạn nhập, CHUẨN HOÁ về `
+` ngay tại biên ghi.
+ *
+ * ⛔ Không phải chuyện thẩm mỹ. Hai hậu quả cụ thể của việc để `` lọt vào DB:
+ *
+ * 1. **Script chạy bằng bash.** `verifyScript` / `setup.*` đi thẳng tới
+ *    `GATEWAY_EXEC_SHELL` (mặc định `bash`) mà không qua parser nào. CRLF ở đó
+ *    là `$'': command not found` ở MỖI dòng — cùng chế độ hỏng mà
+ *    `.gitattributes` đã ghi cho `*.sh` và `images/sandbox-base/skel/**`.
+ * 2. **Markdown mất sạch nút bấm.** `parseContentBlocks` đã tự chuẩn hoá nên
+ *    đường đọc an toàn, nhưng lưu bản CRLF nghĩa là byte trong DB khác byte mọi
+ *    consumer khác thấy — một phép so, một lượt tìm kiếm, hay một cổng đọc thô
+ *    sẽ lệch mà không ai biết vì sao.
+ *
+ * Dùng LẠI `normalizeNewlines` của `packages/scenario` (SSOT) thay vì một
+ * `replace` thứ hai ở đây.
+ */
+const lfText = z.string().transform(normalizeNewlines);
+
+/** Như `lfText` nhưng cho phép `null` (script/hint vắng mặt là hợp lệ). */
+const lfTextNullable = z.string().transform(normalizeNewlines).nullable().default(null);
+
 const stepInput = z
   .object({
     /** LAB: id BỀN của task. LESSON: `null` — vị trí LÀ định danh. */
     taskId: labTaskIdSchema.nullable().default(null),
     title: z.string().min(1).nullable().default(null),
-    markdown: z.string(),
-    setupForeground: z.string().nullable().default(null),
-    setupBackground: z.string().nullable().default(null),
-    verifyScript: z.string().nullable().default(null),
+    markdown: lfText,
+    setupForeground: lfTextNullable,
+    setupBackground: lfTextNullable,
+    verifyScript: lfTextNullable,
     weight: z.number().int().positive().nullable().default(null),
-    hint: z.string().nullable().default(null),
+    hint: lfTextNullable,
   })
   .strict();
 
 const phaseInput = z
   .object({
     title: z.string().nullable().default(null),
-    markdown: z.string(),
+    markdown: lfText,
     setup: z
       .object({
-        foreground: z.string().nullable().default(null),
-        background: z.string().nullable().default(null),
+        foreground: lfTextNullable,
+        background: lfTextNullable,
       })
       .strict(),
-    verifyScript: z.string().nullable().default(null),
+    verifyScript: lfTextNullable,
   })
   .strict();
 
@@ -125,8 +149,8 @@ const contentDraftInput = z
     finish: phaseInput.nullable().default(null),
     setup: z
       .object({
-        foreground: z.string().nullable().default(null),
-        background: z.string().nullable().default(null),
+        foreground: lfTextNullable,
+        background: lfTextNullable,
       })
       .strict()
       .nullable()

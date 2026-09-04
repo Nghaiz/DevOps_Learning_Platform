@@ -19,6 +19,7 @@ export {
   CODE_ACTIONS,
   ContentBlockError,
   executableCommands,
+  normalizeNewlines,
   parseContentBlocks,
   type CodeAction,
   type ContentBlock,

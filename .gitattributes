@@ -47,6 +47,25 @@ images/sandbox-base/skel/**  text eol=lf
 images/sandbox-base/etc/**   text eol=lf
 **/Dockerfile                text eol=lf
 
+# Nội dung FIRST-PARTY (dlp-*) của lab + playground. Khác `content/scenarios/**`
+# bên dưới ở chỗ nó KHÔNG có upstream để so byte, nên `eol=lf` (chuẩn hoá) là
+# đúng, không phải `-text` (giữ nguyên byte).
+#
+# Vì sao phải khoá: `parseContentBlocks` tách dòng bằng `split('\n')` và hai
+# regex fence neo bằng `[ \t]*$`. Với CRLF, mỗi dòng còn một `\r` ở cuối nên
+# KHÔNG fence nào khớp — hàm trả về một khối văn xuôi duy nhất và mọi nút
+# `{{exec}}` biến mất, không lỗi, không cảnh báo. Với `core.autocrlf=true`, một
+# lần clone trên Windows là đủ để `content-labs.test.ts` đỏ trên máy dev trong
+# khi CI (Linux, LF) vẫn xanh — đúng họ với năm sự cố EOL đã ghi ở trên, và một
+# lần nữa KHÔNG có cổng nào bắt được.
+#
+# Parser đã được vá để tự chuẩn hoá (đó mới là chỗ sửa thật, vì P9 cho markdown
+# tới từ người soạn chứ không chỉ từ đĩa). Dòng này là lớp thứ hai: nó giữ cho
+# cây làm việc trên mọi nền tảng giống nhau, nên một phép so byte hay một cổng
+# đọc file không lệch giữa dev và CI.
+content/labs/**        text eol=lf
+content/playgrounds/** text eol=lf
+
 # Mặc định: để git tự chuẩn hoá text, nhị phân giữ nguyên.
 * text=auto
 
