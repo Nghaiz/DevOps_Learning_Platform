@@ -64,7 +64,15 @@ fi
 # Moc "cluster vua Ready", de tach phan CLUSTER khoi phan TAI trong bao cao.
 # Khong co moc nay thi mot dinh 900 MiB khong noi duoc bao nhieu la cluster va
 # bao nhieu la bai hoc — tuc khong dat duoc profile tu no.
-T_READY=0
+#
+# ⚠ Ghi qua FILE, khong qua bien. `setup_log=$(setup_k3s_lab)` chay ham trong
+# mot SUBSHELL, nen mot phep gan bien ben trong khong bao gio ra toi main —
+# luot do dau tien (2026-09-04) vi the tra ve `workingSetAtReadyMiB: null`
+# trong khi moi thu khac deu dung. Mot truong null thi con de thay; cai dang so
+# la neu no da co gia tri mac dinh 0, bao cao se in ra mot con so SAI ma trong
+# nhu that.
+T_READY_FILE="$OUT_DIR/$variant.tready"
+rm -f "$T_READY_FILE"
 
 log() { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
 
@@ -321,7 +329,7 @@ assert_k8s_capable() {
 setup_k3s_lab() {
   assert_k8s_capable
   inpod "dlp-k8s-wait 420 2>&1 | tail -2"
-  T_READY=$(date +%s)
+  date +%s > "$T_READY_FILE"
   inpod "bash /lab/background.sh 2>&1 | tail -4"
   inpod "bash /lab/solve.sh 2>&1 | tail -6"
 }
@@ -347,7 +355,6 @@ ready_kind() {
 main() {
   ensure_ns
   ensure_mirror_access
-  trap drop_mirror_access EXIT
   make_pod
   local cg
   cg=$(cgroup_dir)
@@ -357,7 +364,19 @@ main() {
   local raw="$OUT_DIR/$variant.jsonl" sp
   sampler "$cg" "$raw" &
   sp=$!
-  trap 'kill $sp 2>/dev/null' EXIT
+  # ⛔ MOT trap EXIT duy nhat, lam CA HAI viec.
+  #
+  # `trap` KHONG cong don: dat trap thu hai cho cung mot tin hieu se THAY THE
+  # cai truoc. Ban dau `drop_mirror_access` duoc dat lam trap ngay sau
+  # `ensure_mirror_access`, va dong duoi day lang le xoa no — netpol tam o lai
+  # sau khi do xong, tuc mot lo hong ingress vao namespace registry ma khong
+  # loi nao bao. Da xay ra that (2026-09-04), phat hien bang `kubectl get
+  # netpol -n dlp-registry` chu khong bang bat ky dau hieu nao cua harness.
+  #
+  # `${sp:-}` chu khong `$sp`: duoi `set -u`, trap chay o duong thoat som (vi
+  # du `exit 3` cua assert_k8s_capable) khi `sp` chua duoc gan — va loi
+  # "unbound variable" ay se NUOT luon phan don dep dung sau no.
+  trap 'kill ${sp:-} 2>/dev/null; drop_mirror_access' EXIT
 
   wait_dockerd
   push_bins
@@ -383,7 +402,7 @@ main() {
   disk=$(inpod 'du -sm /var/lib/docker 2>/dev/null | cut -f1' 2>/dev/null | tr -dc '0-9')
 
   jq -s --arg v "$variant" --arg ready "$ready" --argjson secs "$((t1-t0))" \
-        --argjson tready "${T_READY:-0}" \
+        --argjson tready "$(cat "$T_READY_FILE" 2>/dev/null || echo 0)" \
         --arg disk "${disk:-0}" --arg log "$setup_log" '
     { variant: $v,
       readyVerdict: $ready,
