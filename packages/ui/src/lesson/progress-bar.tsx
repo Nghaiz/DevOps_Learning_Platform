@@ -21,16 +21,16 @@ export function ProgressBar(props: ProgressBarProps): ReactElement {
 
   return (
     <div className="w-full">
-      {label && <div className="mb-1 text-xs text-slate-500">{label}</div>}
+      {label && <div className="mb-1 text-xs text-muted-foreground">{label}</div>}
       <div
         role="progressbar"
         aria-valuenow={value}
         aria-valuemin={0}
         aria-valuemax={max}
-        className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100"
+        className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
       >
         <div
-          className="h-full rounded-full bg-slate-900 transition-[width]"
+          className="h-full rounded-full bg-primary transition-[width]"
           style={{ width: `${percent}%` }}
         />
       </div>

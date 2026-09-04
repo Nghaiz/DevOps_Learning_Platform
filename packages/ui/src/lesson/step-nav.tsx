@@ -36,7 +36,7 @@ export function StepNav(props: StepNavProps): ReactElement {
   };
 
   return (
-    <nav className="flex items-center gap-2 border-b border-slate-200 bg-white px-2 py-1.5">
+    <nav className="flex items-center gap-2 border-b border-border bg-background px-2 py-1.5">
       <Button variant="ghost" className="h-8 shrink-0 px-2" disabled={!canGoPrev} onClick={goPrev}>
         Trước
       </Button>
@@ -51,14 +51,16 @@ export function StepNav(props: StepNavProps): ReactElement {
               onClick={() => onSelect(item.key)}
               className={cn(
                 'flex shrink-0 items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400',
-                isActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isActive
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
               )}
             >
               {item.done && (
                 // aria-hidden để icon không lẫn vào tên hỗ trợ tiếp cận của nút
                 // (accessible name) — nút vẫn chỉ được gọi tên bằng nhãn text.
-                <span aria-hidden="true" className="text-emerald-500">
+                <span aria-hidden="true" className="text-success">
                   ✓
                 </span>
               )}

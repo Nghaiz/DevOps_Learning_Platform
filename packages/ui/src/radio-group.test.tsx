@@ -7,9 +7,13 @@ afterEach(() => {
   cleanup();
 });
 
-function Example(props: { onValueChange?: (value: string) => void }) {
+// `onValueChange` mặc định no-op (không `?:` trên tham số đã huỷ cấu trúc) —
+// xem chú thích tương đương ở `dropdown-menu.test.tsx` về lý do
+// `exactOptionalPropertyTypes: true` từ chối một giá trị `T | undefined` cho
+// prop optional-nhưng-kiểu-giá-trị-không-undefined của Radix.
+function Example({ onValueChange = () => {} }: { onValueChange?: (value: string) => void }) {
   return (
-    <RadioGroup aria-label="Shell mặc định" onValueChange={props.onValueChange} defaultValue="bash">
+    <RadioGroup aria-label="Shell mặc định" onValueChange={onValueChange} defaultValue="bash">
       <RadioGroupItem value="bash" aria-label="bash" />
       <RadioGroupItem value="zsh" aria-label="zsh" />
       <RadioGroupItem value="pwsh" aria-label="pwsh" disabled />

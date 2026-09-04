@@ -32,10 +32,16 @@ describe('Button — variant mới', () => {
 describe('Button — loading', () => {
   it('loading=true ⇒ disabled, aria-busy, hiện Spinner, vẫn giữ text con trong DOM (giữ bề rộng)', () => {
     render(<Button loading>Lưu</Button>);
+    // Tên hỗ trợ tiếp cận (accessible name) của nút PHẢI vẫn là "Lưu" — Spinner
+    // đè lên mang `aria-hidden` nên KHÔNG được gộp "Đang tải" vào tên nút.
+    // `aria-busy="true"` trên chính nút là tín hiệu bận dành cho trình đọc màn
+    // hình, không phải nhãn của Spinner con.
     const button = screen.getByRole('button', { name: 'Lưu' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     expect(button.getAttribute('aria-busy')).toBe('true');
-    expect(screen.getByRole('status', { name: 'Đang tải' })).toBeDefined();
+    // `hidden: true` vì Spinner đè bị `aria-hidden` — vẫn PHẢI có mặt trong DOM
+    // (giữ bề rộng nút), chỉ ẩn khỏi cây accessibility.
+    expect(screen.getByRole('status', { name: 'Đang tải', hidden: true })).toBeDefined();
     expect(button.textContent).toBe('Lưu');
   });
 

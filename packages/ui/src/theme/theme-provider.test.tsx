@@ -28,14 +28,12 @@ afterEach(() => {
 describe('THEME_INIT_SCRIPT', () => {
   it('localStorage có "dark" ⇒ thêm class dark vào <html> trước khi React chạy', () => {
     localStorage.setItem(THEME_STORAGE_KEY, 'dark');
-    // eslint-disable-next-line no-eval -- mô phỏng đúng cơ chế script inline chèn qua dangerouslySetInnerHTML
     eval(THEME_INIT_SCRIPT);
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 
   it('localStorage có "light" ⇒ KHÔNG thêm class dark', () => {
     localStorage.setItem(THEME_STORAGE_KEY, 'light');
-    // eslint-disable-next-line no-eval
     eval(THEME_INIT_SCRIPT);
     expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
@@ -47,7 +45,6 @@ describe('THEME_INIT_SCRIPT', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     } as unknown as MediaQueryList);
-    // eslint-disable-next-line no-eval
     eval(THEME_INIT_SCRIPT);
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
@@ -56,7 +53,6 @@ describe('THEME_INIT_SCRIPT', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('blocked');
     });
-    // eslint-disable-next-line no-eval
     expect(() => eval(THEME_INIT_SCRIPT)).not.toThrow();
     expect(document.documentElement.classList.contains('dark')).toBe(false);
   });

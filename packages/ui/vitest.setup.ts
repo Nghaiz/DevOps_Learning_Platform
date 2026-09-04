@@ -41,3 +41,28 @@ if (typeof Element.prototype.setPointerCapture !== 'function') {
 if (typeof Element.prototype.releasePointerCapture !== 'function') {
   Element.prototype.releasePointerCapture = () => {};
 }
+
+/**
+ * jsdom KHÔNG cài `window.matchMedia` — `ThemeProvider`/`THEME_INIT_SCRIPT`
+ * (`packages/ui/src/theme/theme-provider.tsx`) gọi nó để đọc
+ * `prefers-color-scheme` khi theme = 'system'. Thiếu polyfill thì không chỉ
+ * component ném lỗi lúc chạy — `vi.spyOn(window, 'matchMedia')` ở CHÍNH file
+ * test cũng ném "can only spy on a function. Received undefined" TRƯỚC khi
+ * kịp render bất cứ thứ gì, vì `vi.spyOn` cần một hàm thật để bọc. Polyfill ở
+ * đây trả `matches: false` mặc định (giống môi trường không đặt theme tối) —
+ * từng test cần giả lập theme tối tự `vi.spyOn(...).mockReturnValue(...)` đè
+ * lên hàm này.
+ */
+if (typeof window.matchMedia !== 'function') {
+  window.matchMedia = ((query: string): MediaQueryList =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList) as typeof window.matchMedia;
+}

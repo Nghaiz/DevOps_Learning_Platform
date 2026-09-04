@@ -7,9 +7,17 @@ afterEach(() => {
   cleanup();
 });
 
-function Example(props: { onValueChange?: (value: string) => void; disabled?: boolean }) {
+// Giá trị mặc định (không `?:` trên tham số đã huỷ cấu trúc) — xem chú thích ở
+// `dropdown-menu.test.tsx` về `exactOptionalPropertyTypes: true`.
+function Example({
+  onValueChange = () => {},
+  disabled = false,
+}: {
+  onValueChange?: (value: string) => void;
+  disabled?: boolean;
+}) {
   return (
-    <Select onValueChange={props.onValueChange} disabled={props.disabled}>
+    <Select onValueChange={onValueChange} disabled={disabled}>
       <SelectTrigger aria-label="Độ khó">
         <SelectValue placeholder="Chọn độ khó" />
       </SelectTrigger>

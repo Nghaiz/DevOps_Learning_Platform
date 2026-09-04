@@ -180,7 +180,7 @@ export function SplitPane(props: SplitPaneProps): ReactElement {
         aria-valuemax={Math.round(maxRatio * 100)}
         aria-label="Kéo để đổi tỉ lệ hai khoang"
         tabIndex={0}
-        className="w-1.5 shrink-0 grow-0 cursor-col-resize touch-none bg-slate-200 hover:bg-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+        className="w-1.5 shrink-0 grow-0 cursor-col-resize touch-none bg-border hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}

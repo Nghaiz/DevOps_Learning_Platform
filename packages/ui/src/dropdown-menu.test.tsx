@@ -15,7 +15,15 @@ afterEach(() => {
   cleanup();
 });
 
-function Example(props: { onSelectSettings?: () => void }) {
+/**
+ * `onSelectSettings` nhận giá trị mặc định (không `?:` trên tham số đã huỷ cấu
+ * trúc) để giá trị dùng bên trong luôn có kiểu `() => void` — KHÔNG
+ * `(() => void) | undefined`. Dưới `exactOptionalPropertyTypes: true`, gán một
+ * giá trị mang kiểu union-với-undefined vào prop `onSelect?` của Radix (kiểu
+ * giá trị không có `| undefined`) bị TypeScript từ chối dù runtime hoàn toàn
+ * hợp lệ — đây là cách né đúng chỗ, không phải nới lỏng kiểu.
+ */
+function Example({ onSelectSettings = () => {} }: { onSelectSettings?: () => void }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -24,7 +32,7 @@ function Example(props: { onSelectSettings?: () => void }) {
       <DropdownMenuContent>
         <DropdownMenuLabel>qa.theonestudio@gmail.com</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={props.onSelectSettings}>Hồ sơ & cài đặt</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onSelectSettings}>Hồ sơ & cài đặt</DropdownMenuItem>
         <DropdownMenuItem disabled>Quản trị (không có quyền)</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

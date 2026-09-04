@@ -33,7 +33,7 @@ export interface ContentViewProps {
  */
 export function ContentView({ blocks, resolveAssetUrl, onExec, execEnabled }: ContentViewProps) {
   return (
-    <div className="max-w-[70ch] text-sm text-slate-700">
+    <div className="max-w-[70ch] text-sm text-foreground">
       {blocks.map((block, index) =>
         block.kind === 'markdown' ? (
           <MarkdownView key={index} markdown={block.markdown} resolveAssetUrl={resolveAssetUrl} />

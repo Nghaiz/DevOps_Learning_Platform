@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import { Fragment, type ComponentProps } from 'react';
 import { Slot } from 'radix-ui';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from './cn.ts';
@@ -65,15 +65,36 @@ export function Button(props: ButtonProps) {
       aria-busy={loading || undefined}
       {...rest}
     >
-      {/* `!asChild` là bắt buộc: Radix `Slot` chỉ chấp nhận ĐÚNG MỘT children để
-          merge prop vào — thêm span này vô điều kiện sẽ ném lỗi "Slot expects
-          exactly one child" mỗi khi `asChild && loading` cùng true. */}
-      {loading && !asChild && (
-        <span className="absolute inset-0 flex items-center justify-center text-current">
-          <Spinner size="sm" />
-        </span>
+      {/*
+       * ĐÚNG MỘT expression con giữa `<Comp>`/`</Comp>` — bắt buộc khi
+       * `asChild`: Radix `Slot` yêu cầu `props.children` là MỘT React element
+       * duy nhất (`Children.only`), và JSX với HAI expression con trở lên
+       * (`{a}{b}`) luôn tạo MẢNG cho `props.children` dù một trong hai bằng
+       * `false`/`null` lúc runtime — Slot vẫn thấy mảng 2 phần tử và ném lỗi
+       * "expected a single React element child". Nhánh `asChild` vì vậy
+       * truyền thẳng `children`, không bọc gì thêm; nhánh nút thường gói
+       * Spinner overlay + `children` trong MỘT `<Fragment>` — vẫn là một
+       * expression con duy nhất, nhưng lần này giá trị của nó là Fragment
+       * (Slot không tham gia nhánh này nên không có ràng buộc single-child).
+       */}
+      {asChild ? (
+        children
+      ) : (
+        <Fragment>
+          {/* `aria-hidden` trên WRAPPER (không phải trong `Spinner` — cái đó
+              vẫn cần `role="status"`/`aria-label` khi dùng ĐỘC LẬP) chặn thuật
+              toán tính accessible-name của `<button>` gộp luôn "Đang tải" từ
+              `aria-label` của Spinner con vào tên nút — nếu không, tên nút
+              thành "Đang tảiTiếp" thay vì "Tiếp"; `aria-busy` ở `<Comp>` đã đủ
+              để báo trạng thái bận cho trình đọc màn hình. */}
+          {loading && (
+            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-current">
+              <Spinner size="sm" />
+            </span>
+          )}
+          {children}
+        </Fragment>
       )}
-      {children}
     </Comp>
   );
 }

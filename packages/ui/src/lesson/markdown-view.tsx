@@ -36,7 +36,7 @@ function isMidSentenceFragment(markdown: string): boolean {
 
 /** `<p>` render thật — dùng cho markdown khối bình thường (đoạn văn độc lập). */
 function BlockParagraph({ children }: { children?: ReactNode }) {
-  return <p className="text-sm leading-relaxed text-slate-700">{children}</p>;
+  return <p className="text-sm leading-relaxed text-foreground">{children}</p>;
 }
 
 /** `<p>` render rỗng (Fragment) — dùng cho mảnh giữa câu, không tạo hộp khối. */
@@ -75,13 +75,13 @@ function MarkdownImage({
     // một icon ảnh vỡ không lời giải thích. Vẽ placeholder tường minh + link
     // mở tab mới để họ vẫn xem được ảnh, chỉ là không nhúng trực tiếp.
     return (
-      <span className="my-2 flex flex-col gap-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+      <span className="my-2 flex flex-col gap-1 rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
         <span>Ảnh lưu trên máy chủ ngoài — chính sách bảo mật của nền tảng chặn hiển thị trực tiếp.</span>
         <a
           href={src}
           target="_blank"
           rel="noopener noreferrer"
-          className="w-fit text-slate-900 underline underline-offset-2 hover:text-slate-700"
+          className="w-fit text-primary underline underline-offset-2 hover:text-primary/80"
         >
           Mở ảnh trong tab mới{alt ? `: ${alt}` : ''}
         </a>
@@ -92,13 +92,13 @@ function MarkdownImage({
   const resolved = resolveAssetUrl(src);
   if (resolved === null) {
     return (
-      <span className="my-2 block rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+      <span className="my-2 block rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
         Không tải được ảnh{alt ? `: ${alt}` : ` (${src})`}.
       </span>
     );
   }
 
-  return <img src={resolved} alt={alt ?? ''} className="my-2 max-w-full rounded-md border border-slate-200" />;
+  return <img src={resolved} alt={alt ?? ''} className="my-2 max-w-full rounded-md border border-border" />;
 }
 
 /** Render markdown thành React element thật — KHÔNG dangerouslySetInnerHTML. */
@@ -107,37 +107,37 @@ export function MarkdownView({ markdown, resolveAssetUrl }: MarkdownViewProps) {
 
   const components: Components = {
     p: inline ? InlineParagraph : BlockParagraph,
-    h1: ({ children }) => <h1 className="mt-4 mb-2 text-xl font-semibold text-slate-900">{children}</h1>,
-    h2: ({ children }) => <h2 className="mt-4 mb-2 text-lg font-semibold text-slate-900">{children}</h2>,
-    h3: ({ children }) => <h3 className="mt-3 mb-1 text-base font-semibold text-slate-900">{children}</h3>,
-    ul: ({ children }) => <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">{children}</ul>,
-    ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">{children}</ol>,
+    h1: ({ children }) => <h1 className="mt-4 mb-2 text-xl font-semibold text-foreground">{children}</h1>,
+    h2: ({ children }) => <h2 className="mt-4 mb-2 text-lg font-semibold text-foreground">{children}</h2>,
+    h3: ({ children }) => <h3 className="mt-3 mb-1 text-base font-semibold text-foreground">{children}</h3>,
+    ul: ({ children }) => <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">{children}</ul>,
+    ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground">{children}</ol>,
     li: ({ children }) => <li className="leading-relaxed">{children}</li>,
     blockquote: ({ children }) => (
-      <blockquote className="border-l-2 border-slate-300 pl-3 text-slate-600 italic">{children}</blockquote>
+      <blockquote className="border-l-2 border-border pl-3 text-muted-foreground italic">{children}</blockquote>
     ),
     a: ({ href, children }) => (
-      <a href={href} className="text-slate-900 underline underline-offset-2 hover:text-slate-700">
+      <a href={href} className="text-primary underline underline-offset-2 hover:text-primary/80">
         {children}
       </a>
     ),
-    strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
-    hr: () => <hr className="my-4 border-slate-200" />,
+    strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+    hr: () => <hr className="my-4 border-border" />,
     table: ({ children }) => (
       <div className="my-2 overflow-x-auto">
         <table className="w-full border-collapse text-sm">{children}</table>
       </div>
     ),
     th: ({ children }) => (
-      <th className="border border-slate-200 bg-slate-50 px-2 py-1 text-left font-medium text-slate-900">
+      <th className="border border-border bg-muted px-2 py-1 text-left font-medium text-foreground">
         {children}
       </th>
     ),
-    td: ({ children }) => <td className="border border-slate-200 px-2 py-1 text-slate-700">{children}</td>,
+    td: ({ children }) => <td className="border border-border px-2 py-1 text-foreground">{children}</td>,
     // Fence THƯỜNG (không hậu tố hành động) — parseContentBlocks cố ý để nguyên
     // trong markdown. Vẫn phải hiển thị đẹp dù không có nút copy/chạy.
     pre: ({ children }) => (
-      <pre className="my-2 overflow-x-auto rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-100">
+      <pre className="my-2 overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground">
         {children}
       </pre>
     ),
@@ -153,7 +153,7 @@ export function MarkdownView({ markdown, resolveAssetUrl }: MarkdownViewProps) {
           {children}
         </code>
       ) : (
-        <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.85em] text-slate-800" {...rest}>
+        <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] text-foreground" {...rest}>
           {children}
         </code>
       ),

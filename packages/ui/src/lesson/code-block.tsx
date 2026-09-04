@@ -44,10 +44,10 @@ function ActionButton({
       disabled={disabled}
       title={title}
       className={cn(
-        'inline-flex h-6 shrink-0 items-center rounded px-2 text-xs font-medium text-slate-100',
-        'bg-slate-700 transition-colors hover:bg-slate-600',
-        'disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400',
+        'inline-flex h-6 shrink-0 items-center rounded px-2 text-xs font-medium',
+        'bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         className,
       )}
     >
@@ -101,8 +101,8 @@ export function CodeBlock({ code, language, action, inline, onExec, execEnabled 
   const codeEl = (
     <code
       className={cn(
-        'font-mono text-slate-800',
-        inline ? 'rounded bg-slate-100 px-1.5 py-0.5 text-[0.85em]' : 'block whitespace-pre text-slate-100',
+        'font-mono text-foreground',
+        inline ? 'rounded bg-muted px-1.5 py-0.5 text-[0.85em]' : 'block whitespace-pre',
       )}
     >
       {code}
@@ -116,7 +116,7 @@ export function CodeBlock({ code, language, action, inline, onExec, execEnabled 
       <span className="inline-flex items-center gap-1 align-middle">
         {codeEl}
         {showCopy && (
-          <ActionButton onClick={handleCopy} className="bg-slate-200 text-slate-700 hover:bg-slate-300">
+          <ActionButton onClick={handleCopy} className="bg-muted text-foreground hover:bg-accent">
             {COPY_LABEL[copyStatus]}
           </ActionButton>
         )}
@@ -125,7 +125,7 @@ export function CodeBlock({ code, language, action, inline, onExec, execEnabled 
             onClick={handleExec}
             disabled={!execEnabled}
             title={execTitle}
-            className="bg-slate-200 text-slate-700 hover:bg-slate-300"
+            className="bg-muted text-foreground hover:bg-accent"
           >
             {execLabel}
           </ActionButton>
@@ -135,9 +135,9 @@ export function CodeBlock({ code, language, action, inline, onExec, execEnabled 
   }
 
   return (
-    <div className="my-2 overflow-hidden rounded-md border border-slate-800 bg-slate-900">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-800 px-3 py-1.5">
-        <span className="text-xs text-slate-400">{language ?? 'text'}</span>
+    <div className="my-2 overflow-hidden rounded-md border border-border bg-muted">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+        <span className="text-xs text-muted-foreground">{language ?? 'text'}</span>
         <div className="flex gap-1.5">
           {showCopy && <ActionButton onClick={handleCopy}>{COPY_LABEL[copyStatus]}</ActionButton>}
           {showExec && (
