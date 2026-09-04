@@ -180,10 +180,51 @@ message ExtendSessionResponse {
   bool hard_cap_reached = 2;
 }
 
+// GetCapacity trả sức chứa nền tảng NGAY LÚC GỌI — không cache, không lưu lại
+// phía server. Sẵn cho MỌI user đã đăng nhập (không cần quyền admin) — xem
+// contract phase-13 §2 C3.
+message GetCapacityRequest {}
+message GetCapacityResponse {
+  int32 active_sessions = 1; // len(pool:claimed) — cùng nguồn với dlp_pool_claimed_size
+  int32 soft_capacity = 2; // env CAPACITY_SOFT_LIMIT (Helm: orchestrator.env.capacitySoftLimit = 20)
+  int32 pool_free = 3;
+  int32 pool_quarantine = 4;
+}
+
+// ListSessions liệt kê session ĐANG SỐNG (status < EXPIRED), lọc theo user_id.
+//
+// ⛔ KHÔNG CÓ INDEX RIÊNG THEO user_id — docs/redis-key-namespace.md chốt SSOT
+// của session là hash `session:{id}`, không có secondary index nào khác. Server
+// quét toàn bộ `session:*` bằng SCAN (cùng cơ chế reaper.sweepGhostSessions
+// đang dùng), lọc + sắp theo id tăng dần trong bộ nhớ rồi phân trang bằng
+// cursor = id cuối trang trước. Ở quy mô hiện tại (trần vài chục session đồng
+// thời, D16) đây là lựa chọn ĐÚNG — dựng thêm một index Redis cho vài chục
+// phần tử là phức tạp hoá đổi lấy thứ chưa cần.
+//
+// Authz: RPC này TIN user_id do caller gửi, giống mọi RPC khác của contract
+// này (GetSession, ClaimSession, ExtendSession, …) — orchestrator không tự xác
+// thực người dùng cuối, nó tin BFF (apps/web) đã làm việc đó trước khi gọi tới
+// đây. Quyết định "ai được gửi user_id RỖNG (mọi user) hay user_id của người
+// KHÁC mình" thuộc về tầng BFF (adminProcedure vs protected — xem phase-13 §2
+// C4), KHÔNG phải orchestrator: message này không mang field vai trò nào để tự
+// kiểm, và thêm field đó là phá tính additive của C3 — orchestrator không được
+// tự vẽ thêm shape ngoài hợp đồng đã chốt.
+message ListSessionsRequest {
+  string user_id = 1; // rỗng = mọi user (chỉ admin); khác rỗng = phải trùng caller trừ khi admin
+  int32 limit = 2; // 1..100, 0 = 20
+  string cursor = 3; // session id cuối trang trước; rỗng = từ đầu
+}
+message ListSessionsResponse {
+  repeated Session sessions = 1; // chỉ phiên KHÔNG ở trạng thái terminal (status < EXPIRED)
+  string next_cursor = 2; // rỗng = hết
+}
+
 service SessionService {
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
   rpc ClaimSession(ClaimSessionRequest) returns (ClaimSessionResponse);
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
   rpc ExtendSession(ExtendSessionRequest) returns (ExtendSessionResponse);
   rpc ReapSession(ReapSessionRequest) returns (ReapSessionResponse);
+  rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
 }

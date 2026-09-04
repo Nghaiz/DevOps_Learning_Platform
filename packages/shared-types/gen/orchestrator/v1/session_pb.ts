@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file orchestrator/v1/session.proto.
  */
 export const file_orchestrator_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxIqoCCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXISLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIcmV2aXNpb24YCSABKAMSDwoHcHJvZmlsZRgKIAEoCSKSAQoUQ3JlYXRlU2Vzc2lvblJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIqCgR0aWVyGAIgASgOMhwub3JjaGVzdHJhdG9yLnYxLlNhbmRib3hUaWVyEhMKC3R0bF9zZWNvbmRzGAMgASgFEhcKD2lkZW1wb3RlbmN5X2tleRgEIAEoCRIPCgdwcm9maWxlGAUgASgJIkIKFUNyZWF0ZVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOgoTQ2xhaW1TZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkiQQoUQ2xhaW1TZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIjgKEUdldFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSI/ChJHZXRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uInAKElJlYXBTZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg4KBnJlYXNvbhgCIAEoCRIRCgd1c2VyX2lkGAMgASgJSAASGgoQc3lzdGVtX2NvbXBvbmVudBgEIAEoCUgAQgcKBWFjdG9yIkAKE1JlYXBTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIm4KFEV4dGVuZFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCRIWCg5leHRlbmRfc2Vjb25kcxgDIAEoBRIZChFleHBlY3RlZF9yZXZpc2lvbhgEIAEoAyJcChVFeHRlbmRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uEhgKEGhhcmRfY2FwX3JlYWNoZWQYAiABKAgqdAoLU2FuZGJveFRpZXISHAoYU0FOREJPWF9USUVSX1VOU1BFQ0lGSUVEEAASFwoTU0FOREJPWF9USUVSX1NZU0JPWBABEhcKE1NBTkRCT1hfVElFUl9HVklTT1IQAhIVChFTQU5EQk9YX1RJRVJfS0FUQRADKu4BCg1TZXNzaW9uU3RhdHVzEh4KGlNFU1NJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWU0VTU0lPTl9TVEFUVVNfUEVORElORxABEhcKE1NFU1NJT05fU1RBVFVTX1dBUk0QAhIaChZTRVNTSU9OX1NUQVRVU19DTEFJTUVEEAMSGgoWU0VTU0lPTl9TVEFUVVNfUlVOTklORxAEEhoKFlNFU1NJT05fU1RBVFVTX0VYUElSRUQQBRIZChVTRVNTSU9OX1NUQVRVU19SRUFQRUQQBhIZChVTRVNTSU9OX1NUQVRVU19GQUlMRUQQBzLeAwoOU2Vzc2lvblNlcnZpY2USXgoNQ3JlYXRlU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVzcG9uc2USWwoMQ2xhaW1TZXNzaW9uEiQub3JjaGVzdHJhdG9yLnYxLkNsYWltU2Vzc2lvblJlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVzcG9uc2USVQoKR2V0U2Vzc2lvbhIiLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVxdWVzdBojLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVzcG9uc2USXgoNRXh0ZW5kU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVzcG9uc2USWAoLUmVhcFNlc3Npb24SIy5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLlJlYXBTZXNzaW9uUmVzcG9uc2VCWFpWZ2l0aHViLmNvbS9OZ2hhaXovRGV2T3BzX0xlYXJuaW5nX1BsYXRmb3JtL3Byb3RvL2dlbi9nby9vcmNoZXN0cmF0b3IvdjE7b3JjaGVzdHJhdG9ydjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxIqoCCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXISLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIcmV2aXNpb24YCSABKAMSDwoHcHJvZmlsZRgKIAEoCSKSAQoUQ3JlYXRlU2Vzc2lvblJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIqCgR0aWVyGAIgASgOMhwub3JjaGVzdHJhdG9yLnYxLlNhbmRib3hUaWVyEhMKC3R0bF9zZWNvbmRzGAMgASgFEhcKD2lkZW1wb3RlbmN5X2tleRgEIAEoCRIPCgdwcm9maWxlGAUgASgJIkIKFUNyZWF0ZVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOgoTQ2xhaW1TZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkiQQoUQ2xhaW1TZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIjgKEUdldFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSI/ChJHZXRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uInAKElJlYXBTZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg4KBnJlYXNvbhgCIAEoCRIRCgd1c2VyX2lkGAMgASgJSAASGgoQc3lzdGVtX2NvbXBvbmVudBgEIAEoCUgAQgcKBWFjdG9yIkAKE1JlYXBTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIm4KFEV4dGVuZFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCRIWCg5leHRlbmRfc2Vjb25kcxgDIAEoBRIZChFleHBlY3RlZF9yZXZpc2lvbhgEIAEoAyJcChVFeHRlbmRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uEhgKEGhhcmRfY2FwX3JlYWNoZWQYAiABKAgiFAoSR2V0Q2FwYWNpdHlSZXF1ZXN0InEKE0dldENhcGFjaXR5UmVzcG9uc2USFwoPYWN0aXZlX3Nlc3Npb25zGAEgASgFEhUKDXNvZnRfY2FwYWNpdHkYAiABKAUSEQoJcG9vbF9mcmVlGAMgASgFEhcKD3Bvb2xfcXVhcmFudGluZRgEIAEoBSJFChNMaXN0U2Vzc2lvbnNSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSDQoFbGltaXQYAiABKAUSDgoGY3Vyc29yGAMgASgJIlcKFExpc3RTZXNzaW9uc1Jlc3BvbnNlEioKCHNlc3Npb25zGAEgAygLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24SEwoLbmV4dF9jdXJzb3IYAiABKAkqdAoLU2FuZGJveFRpZXISHAoYU0FOREJPWF9USUVSX1VOU1BFQ0lGSUVEEAASFwoTU0FOREJPWF9USUVSX1NZU0JPWBABEhcKE1NBTkRCT1hfVElFUl9HVklTT1IQAhIVChFTQU5EQk9YX1RJRVJfS0FUQRADKu4BCg1TZXNzaW9uU3RhdHVzEh4KGlNFU1NJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWU0VTU0lPTl9TVEFUVVNfUEVORElORxABEhcKE1NFU1NJT05fU1RBVFVTX1dBUk0QAhIaChZTRVNTSU9OX1NUQVRVU19DTEFJTUVEEAMSGgoWU0VTU0lPTl9TVEFUVVNfUlVOTklORxAEEhoKFlNFU1NJT05fU1RBVFVTX0VYUElSRUQQBRIZChVTRVNTSU9OX1NUQVRVU19SRUFQRUQQBhIZChVTRVNTSU9OX1NUQVRVU19GQUlMRUQQBzKVBQoOU2Vzc2lvblNlcnZpY2USXgoNQ3JlYXRlU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVzcG9uc2USWwoMQ2xhaW1TZXNzaW9uEiQub3JjaGVzdHJhdG9yLnYxLkNsYWltU2Vzc2lvblJlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVzcG9uc2USVQoKR2V0U2Vzc2lvbhIiLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVxdWVzdBojLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVzcG9uc2USXgoNRXh0ZW5kU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVzcG9uc2USWAoLUmVhcFNlc3Npb24SIy5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLlJlYXBTZXNzaW9uUmVzcG9uc2USWAoLR2V0Q2FwYWNpdHkSIy5vcmNoZXN0cmF0b3IudjEuR2V0Q2FwYWNpdHlSZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLkdldENhcGFjaXR5UmVzcG9uc2USWwoMTGlzdFNlc3Npb25zEiQub3JjaGVzdHJhdG9yLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuTGlzdFNlc3Npb25zUmVzcG9uc2VCWFpWZ2l0aHViLmNvbS9OZ2hhaXovRGV2T3BzX0xlYXJuaW5nX1BsYXRmb3JtL3Byb3RvL2dlbi9nby9vcmNoZXN0cmF0b3IvdjE7b3JjaGVzdHJhdG9ydjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * Session là trạng thái quyền uy của một pod lab.
@@ -415,6 +415,137 @@ export const ExtendSessionResponseSchema: GenMessage<ExtendSessionResponse> = /*
   messageDesc(file_orchestrator_v1_session, 10);
 
 /**
+ * GetCapacity trả sức chứa nền tảng NGAY LÚC GỌI — không cache, không lưu lại
+ * phía server. Sẵn cho MỌI user đã đăng nhập (không cần quyền admin) — xem
+ * contract phase-13 §2 C3.
+ *
+ * @generated from message orchestrator.v1.GetCapacityRequest
+ */
+export type GetCapacityRequest = Message<"orchestrator.v1.GetCapacityRequest"> & {
+};
+
+/**
+ * Describes the message orchestrator.v1.GetCapacityRequest.
+ * Use `create(GetCapacityRequestSchema)` to create a new message.
+ */
+export const GetCapacityRequestSchema: GenMessage<GetCapacityRequest> = /*@__PURE__*/
+  messageDesc(file_orchestrator_v1_session, 11);
+
+/**
+ * @generated from message orchestrator.v1.GetCapacityResponse
+ */
+export type GetCapacityResponse = Message<"orchestrator.v1.GetCapacityResponse"> & {
+  /**
+   * len(pool:claimed) — cùng nguồn với dlp_pool_claimed_size
+   *
+   * @generated from field: int32 active_sessions = 1;
+   */
+  activeSessions: number;
+
+  /**
+   * env CAPACITY_SOFT_LIMIT (Helm: orchestrator.env.capacitySoftLimit = 20)
+   *
+   * @generated from field: int32 soft_capacity = 2;
+   */
+  softCapacity: number;
+
+  /**
+   * @generated from field: int32 pool_free = 3;
+   */
+  poolFree: number;
+
+  /**
+   * @generated from field: int32 pool_quarantine = 4;
+   */
+  poolQuarantine: number;
+};
+
+/**
+ * Describes the message orchestrator.v1.GetCapacityResponse.
+ * Use `create(GetCapacityResponseSchema)` to create a new message.
+ */
+export const GetCapacityResponseSchema: GenMessage<GetCapacityResponse> = /*@__PURE__*/
+  messageDesc(file_orchestrator_v1_session, 12);
+
+/**
+ * ListSessions liệt kê session ĐANG SỐNG (status < EXPIRED), lọc theo user_id.
+ *
+ * ⛔ KHÔNG CÓ INDEX RIÊNG THEO user_id — docs/redis-key-namespace.md chốt SSOT
+ * của session là hash `session:{id}`, không có secondary index nào khác. Server
+ * quét toàn bộ `session:*` bằng SCAN (cùng cơ chế reaper.sweepGhostSessions
+ * đang dùng), lọc + sắp theo id tăng dần trong bộ nhớ rồi phân trang bằng
+ * cursor = id cuối trang trước. Ở quy mô hiện tại (trần vài chục session đồng
+ * thời, D16) đây là lựa chọn ĐÚNG — dựng thêm một index Redis cho vài chục
+ * phần tử là phức tạp hoá đổi lấy thứ chưa cần.
+ *
+ * Authz: RPC này TIN user_id do caller gửi, giống mọi RPC khác của contract
+ * này (GetSession, ClaimSession, ExtendSession, …) — orchestrator không tự xác
+ * thực người dùng cuối, nó tin BFF (apps/web) đã làm việc đó trước khi gọi tới
+ * đây. Quyết định "ai được gửi user_id RỖNG (mọi user) hay user_id của người
+ * KHÁC mình" thuộc về tầng BFF (adminProcedure vs protected — xem phase-13 §2
+ * C4), KHÔNG phải orchestrator: message này không mang field vai trò nào để tự
+ * kiểm, và thêm field đó là phá tính additive của C3 — orchestrator không được
+ * tự vẽ thêm shape ngoài hợp đồng đã chốt.
+ *
+ * @generated from message orchestrator.v1.ListSessionsRequest
+ */
+export type ListSessionsRequest = Message<"orchestrator.v1.ListSessionsRequest"> & {
+  /**
+   * rỗng = mọi user (chỉ admin); khác rỗng = phải trùng caller trừ khi admin
+   *
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * 1..100, 0 = 20
+   *
+   * @generated from field: int32 limit = 2;
+   */
+  limit: number;
+
+  /**
+   * session id cuối trang trước; rỗng = từ đầu
+   *
+   * @generated from field: string cursor = 3;
+   */
+  cursor: string;
+};
+
+/**
+ * Describes the message orchestrator.v1.ListSessionsRequest.
+ * Use `create(ListSessionsRequestSchema)` to create a new message.
+ */
+export const ListSessionsRequestSchema: GenMessage<ListSessionsRequest> = /*@__PURE__*/
+  messageDesc(file_orchestrator_v1_session, 13);
+
+/**
+ * @generated from message orchestrator.v1.ListSessionsResponse
+ */
+export type ListSessionsResponse = Message<"orchestrator.v1.ListSessionsResponse"> & {
+  /**
+   * chỉ phiên KHÔNG ở trạng thái terminal (status < EXPIRED)
+   *
+   * @generated from field: repeated orchestrator.v1.Session sessions = 1;
+   */
+  sessions: Session[];
+
+  /**
+   * rỗng = hết
+   *
+   * @generated from field: string next_cursor = 2;
+   */
+  nextCursor: string;
+};
+
+/**
+ * Describes the message orchestrator.v1.ListSessionsResponse.
+ * Use `create(ListSessionsResponseSchema)` to create a new message.
+ */
+export const ListSessionsResponseSchema: GenMessage<ListSessionsResponse> = /*@__PURE__*/
+  messageDesc(file_orchestrator_v1_session, 14);
+
+/**
  * SandboxTier chọn mức cô lập của pod lab (design §5).
  * Tier1 = Sysbox (unprivileged user-ns). Tier2 = gVisor/Kata cho lab CTF.
  *
@@ -549,6 +680,22 @@ export const SessionService: GenService<{
     methodKind: "unary";
     input: typeof ReapSessionRequestSchema;
     output: typeof ReapSessionResponseSchema;
+  },
+  /**
+   * @generated from rpc orchestrator.v1.SessionService.GetCapacity
+   */
+  getCapacity: {
+    methodKind: "unary";
+    input: typeof GetCapacityRequestSchema;
+    output: typeof GetCapacityResponseSchema;
+  },
+  /**
+   * @generated from rpc orchestrator.v1.SessionService.ListSessions
+   */
+  listSessions: {
+    methodKind: "unary";
+    input: typeof ListSessionsRequestSchema;
+    output: typeof ListSessionsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_orchestrator_v1_session, 0);

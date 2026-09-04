@@ -28,6 +28,8 @@ const (
 	SessionService_GetSession_FullMethodName    = "/orchestrator.v1.SessionService/GetSession"
 	SessionService_ExtendSession_FullMethodName = "/orchestrator.v1.SessionService/ExtendSession"
 	SessionService_ReapSession_FullMethodName   = "/orchestrator.v1.SessionService/ReapSession"
+	SessionService_GetCapacity_FullMethodName   = "/orchestrator.v1.SessionService/GetCapacity"
+	SessionService_ListSessions_FullMethodName  = "/orchestrator.v1.SessionService/ListSessions"
 )
 
 // SessionServiceClient is the client API for SessionService service.
@@ -39,6 +41,8 @@ type SessionServiceClient interface {
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
 	ExtendSession(ctx context.Context, in *ExtendSessionRequest, opts ...grpc.CallOption) (*ExtendSessionResponse, error)
 	ReapSession(ctx context.Context, in *ReapSessionRequest, opts ...grpc.CallOption) (*ReapSessionResponse, error)
+	GetCapacity(ctx context.Context, in *GetCapacityRequest, opts ...grpc.CallOption) (*GetCapacityResponse, error)
+	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
 }
 
 type sessionServiceClient struct {
@@ -99,6 +103,26 @@ func (c *sessionServiceClient) ReapSession(ctx context.Context, in *ReapSessionR
 	return out, nil
 }
 
+func (c *sessionServiceClient) GetCapacity(ctx context.Context, in *GetCapacityRequest, opts ...grpc.CallOption) (*GetCapacityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCapacityResponse)
+	err := c.cc.Invoke(ctx, SessionService_GetCapacity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSessionsResponse)
+	err := c.cc.Invoke(ctx, SessionService_ListSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
@@ -108,6 +132,8 @@ type SessionServiceServer interface {
 	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
 	ExtendSession(context.Context, *ExtendSessionRequest) (*ExtendSessionResponse, error)
 	ReapSession(context.Context, *ReapSessionRequest) (*ReapSessionResponse, error)
+	GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error)
+	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
 }
 
@@ -132,6 +158,12 @@ func (UnimplementedSessionServiceServer) ExtendSession(context.Context, *ExtendS
 }
 func (UnimplementedSessionServiceServer) ReapSession(context.Context, *ReapSessionRequest) (*ReapSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReapSession not implemented")
+}
+func (UnimplementedSessionServiceServer) GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCapacity not implemented")
+}
+func (UnimplementedSessionServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSessions not implemented")
 }
 func (UnimplementedSessionServiceServer) mustEmbedUnimplementedSessionServiceServer() {}
 func (UnimplementedSessionServiceServer) testEmbeddedByValue()                        {}
@@ -244,6 +276,42 @@ func _SessionService_ReapSession_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_GetCapacity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCapacityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).GetCapacity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_GetCapacity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).GetCapacity(ctx, req.(*GetCapacityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_ListSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).ListSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_ListSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).ListSessions(ctx, req.(*ListSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SessionService_ServiceDesc is the grpc.ServiceDesc for SessionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -270,6 +338,14 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReapSession",
 			Handler:    _SessionService_ReapSession_Handler,
+		},
+		{
+			MethodName: "GetCapacity",
+			Handler:    _SessionService_GetCapacity_Handler,
+		},
+		{
+			MethodName: "ListSessions",
+			Handler:    _SessionService_ListSessions_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

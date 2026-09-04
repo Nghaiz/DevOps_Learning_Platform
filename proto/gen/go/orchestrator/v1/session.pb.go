@@ -914,6 +914,243 @@ func (x *ExtendSessionResponse) GetHardCapReached() bool {
 	return false
 }
 
+// GetCapacity trả sức chứa nền tảng NGAY LÚC GỌI — không cache, không lưu lại
+// phía server. Sẵn cho MỌI user đã đăng nhập (không cần quyền admin) — xem
+// contract phase-13 §2 C3.
+type GetCapacityRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCapacityRequest) Reset() {
+	*x = GetCapacityRequest{}
+	mi := &file_orchestrator_v1_session_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCapacityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCapacityRequest) ProtoMessage() {}
+
+func (x *GetCapacityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_orchestrator_v1_session_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCapacityRequest.ProtoReflect.Descriptor instead.
+func (*GetCapacityRequest) Descriptor() ([]byte, []int) {
+	return file_orchestrator_v1_session_proto_rawDescGZIP(), []int{11}
+}
+
+type GetCapacityResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ActiveSessions int32                  `protobuf:"varint,1,opt,name=active_sessions,json=activeSessions,proto3" json:"active_sessions,omitempty"` // len(pool:claimed) — cùng nguồn với dlp_pool_claimed_size
+	SoftCapacity   int32                  `protobuf:"varint,2,opt,name=soft_capacity,json=softCapacity,proto3" json:"soft_capacity,omitempty"`       // env CAPACITY_SOFT_LIMIT (Helm: orchestrator.env.capacitySoftLimit = 20)
+	PoolFree       int32                  `protobuf:"varint,3,opt,name=pool_free,json=poolFree,proto3" json:"pool_free,omitempty"`
+	PoolQuarantine int32                  `protobuf:"varint,4,opt,name=pool_quarantine,json=poolQuarantine,proto3" json:"pool_quarantine,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetCapacityResponse) Reset() {
+	*x = GetCapacityResponse{}
+	mi := &file_orchestrator_v1_session_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCapacityResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCapacityResponse) ProtoMessage() {}
+
+func (x *GetCapacityResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_orchestrator_v1_session_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCapacityResponse.ProtoReflect.Descriptor instead.
+func (*GetCapacityResponse) Descriptor() ([]byte, []int) {
+	return file_orchestrator_v1_session_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetCapacityResponse) GetActiveSessions() int32 {
+	if x != nil {
+		return x.ActiveSessions
+	}
+	return 0
+}
+
+func (x *GetCapacityResponse) GetSoftCapacity() int32 {
+	if x != nil {
+		return x.SoftCapacity
+	}
+	return 0
+}
+
+func (x *GetCapacityResponse) GetPoolFree() int32 {
+	if x != nil {
+		return x.PoolFree
+	}
+	return 0
+}
+
+func (x *GetCapacityResponse) GetPoolQuarantine() int32 {
+	if x != nil {
+		return x.PoolQuarantine
+	}
+	return 0
+}
+
+// ListSessions liệt kê session ĐANG SỐNG (status < EXPIRED), lọc theo user_id.
+//
+// ⛔ KHÔNG CÓ INDEX RIÊNG THEO user_id — docs/redis-key-namespace.md chốt SSOT
+// của session là hash `session:{id}`, không có secondary index nào khác. Server
+// quét toàn bộ `session:*` bằng SCAN (cùng cơ chế reaper.sweepGhostSessions
+// đang dùng), lọc + sắp theo id tăng dần trong bộ nhớ rồi phân trang bằng
+// cursor = id cuối trang trước. Ở quy mô hiện tại (trần vài chục session đồng
+// thời, D16) đây là lựa chọn ĐÚNG — dựng thêm một index Redis cho vài chục
+// phần tử là phức tạp hoá đổi lấy thứ chưa cần.
+//
+// Authz: RPC này TIN user_id do caller gửi, giống mọi RPC khác của contract
+// này (GetSession, ClaimSession, ExtendSession, …) — orchestrator không tự xác
+// thực người dùng cuối, nó tin BFF (apps/web) đã làm việc đó trước khi gọi tới
+// đây. Quyết định "ai được gửi user_id RỖNG (mọi user) hay user_id của người
+// KHÁC mình" thuộc về tầng BFF (adminProcedure vs protected — xem phase-13 §2
+// C4), KHÔNG phải orchestrator: message này không mang field vai trò nào để tự
+// kiểm, và thêm field đó là phá tính additive của C3 — orchestrator không được
+// tự vẽ thêm shape ngoài hợp đồng đã chốt.
+type ListSessionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // rỗng = mọi user (chỉ admin); khác rỗng = phải trùng caller trừ khi admin
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`                // 1..100, 0 = 20
+	Cursor        string                 `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`               // session id cuối trang trước; rỗng = từ đầu
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSessionsRequest) Reset() {
+	*x = ListSessionsRequest{}
+	mi := &file_orchestrator_v1_session_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSessionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSessionsRequest) ProtoMessage() {}
+
+func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_orchestrator_v1_session_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
+func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
+	return file_orchestrator_v1_session_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ListSessionsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ListSessionsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListSessionsRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+type ListSessionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sessions      []*Session             `protobuf:"bytes,1,rep,name=sessions,proto3" json:"sessions,omitempty"`                       // chỉ phiên KHÔNG ở trạng thái terminal (status < EXPIRED)
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"` // rỗng = hết
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSessionsResponse) Reset() {
+	*x = ListSessionsResponse{}
+	mi := &file_orchestrator_v1_session_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSessionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSessionsResponse) ProtoMessage() {}
+
+func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_orchestrator_v1_session_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
+func (*ListSessionsResponse) Descriptor() ([]byte, []int) {
+	return file_orchestrator_v1_session_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ListSessionsResponse) GetSessions() []*Session {
+	if x != nil {
+		return x.Sessions
+	}
+	return nil
+}
+
+func (x *ListSessionsResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
+}
+
 var File_orchestrator_v1_session_proto protoreflect.FileDescriptor
 
 const file_orchestrator_v1_session_proto_rawDesc = "" +
@@ -971,7 +1208,21 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\x11expected_revision\x18\x04 \x01(\x03R\x10expectedRevision\"u\n" +
 	"\x15ExtendSessionResponse\x122\n" +
 	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\x12(\n" +
-	"\x10hard_cap_reached\x18\x02 \x01(\bR\x0ehardCapReached*t\n" +
+	"\x10hard_cap_reached\x18\x02 \x01(\bR\x0ehardCapReached\"\x14\n" +
+	"\x12GetCapacityRequest\"\xa9\x01\n" +
+	"\x13GetCapacityResponse\x12'\n" +
+	"\x0factive_sessions\x18\x01 \x01(\x05R\x0eactiveSessions\x12#\n" +
+	"\rsoft_capacity\x18\x02 \x01(\x05R\fsoftCapacity\x12\x1b\n" +
+	"\tpool_free\x18\x03 \x01(\x05R\bpoolFree\x12'\n" +
+	"\x0fpool_quarantine\x18\x04 \x01(\x05R\x0epoolQuarantine\"\\\n" +
+	"\x13ListSessionsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06cursor\x18\x03 \x01(\tR\x06cursor\"m\n" +
+	"\x14ListSessionsResponse\x124\n" +
+	"\bsessions\x18\x01 \x03(\v2\x18.orchestrator.v1.SessionR\bsessions\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor*t\n" +
 	"\vSandboxTier\x12\x1c\n" +
 	"\x18SANDBOX_TIER_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13SANDBOX_TIER_SYSBOX\x10\x01\x12\x17\n" +
@@ -985,14 +1236,16 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\x16SESSION_STATUS_RUNNING\x10\x04\x12\x1a\n" +
 	"\x16SESSION_STATUS_EXPIRED\x10\x05\x12\x19\n" +
 	"\x15SESSION_STATUS_REAPED\x10\x06\x12\x19\n" +
-	"\x15SESSION_STATUS_FAILED\x10\a2\xde\x03\n" +
+	"\x15SESSION_STATUS_FAILED\x10\a2\x95\x05\n" +
 	"\x0eSessionService\x12^\n" +
 	"\rCreateSession\x12%.orchestrator.v1.CreateSessionRequest\x1a&.orchestrator.v1.CreateSessionResponse\x12[\n" +
 	"\fClaimSession\x12$.orchestrator.v1.ClaimSessionRequest\x1a%.orchestrator.v1.ClaimSessionResponse\x12U\n" +
 	"\n" +
 	"GetSession\x12\".orchestrator.v1.GetSessionRequest\x1a#.orchestrator.v1.GetSessionResponse\x12^\n" +
 	"\rExtendSession\x12%.orchestrator.v1.ExtendSessionRequest\x1a&.orchestrator.v1.ExtendSessionResponse\x12X\n" +
-	"\vReapSession\x12#.orchestrator.v1.ReapSessionRequest\x1a$.orchestrator.v1.ReapSessionResponseBXZVgithub.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1;orchestratorv1b\x06proto3"
+	"\vReapSession\x12#.orchestrator.v1.ReapSessionRequest\x1a$.orchestrator.v1.ReapSessionResponse\x12X\n" +
+	"\vGetCapacity\x12#.orchestrator.v1.GetCapacityRequest\x1a$.orchestrator.v1.GetCapacityResponse\x12[\n" +
+	"\fListSessions\x12$.orchestrator.v1.ListSessionsRequest\x1a%.orchestrator.v1.ListSessionsResponseBXZVgithub.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1;orchestratorv1b\x06proto3"
 
 var (
 	file_orchestrator_v1_session_proto_rawDescOnce sync.Once
@@ -1007,7 +1260,7 @@ func file_orchestrator_v1_session_proto_rawDescGZIP() []byte {
 }
 
 var file_orchestrator_v1_session_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_orchestrator_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_orchestrator_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_orchestrator_v1_session_proto_goTypes = []any{
 	(SandboxTier)(0),              // 0: orchestrator.v1.SandboxTier
 	(SessionStatus)(0),            // 1: orchestrator.v1.SessionStatus
@@ -1022,34 +1275,43 @@ var file_orchestrator_v1_session_proto_goTypes = []any{
 	(*ReapSessionResponse)(nil),   // 10: orchestrator.v1.ReapSessionResponse
 	(*ExtendSessionRequest)(nil),  // 11: orchestrator.v1.ExtendSessionRequest
 	(*ExtendSessionResponse)(nil), // 12: orchestrator.v1.ExtendSessionResponse
-	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
+	(*GetCapacityRequest)(nil),    // 13: orchestrator.v1.GetCapacityRequest
+	(*GetCapacityResponse)(nil),   // 14: orchestrator.v1.GetCapacityResponse
+	(*ListSessionsRequest)(nil),   // 15: orchestrator.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),  // 16: orchestrator.v1.ListSessionsResponse
+	(*timestamppb.Timestamp)(nil), // 17: google.protobuf.Timestamp
 }
 var file_orchestrator_v1_session_proto_depIdxs = []int32{
 	1,  // 0: orchestrator.v1.Session.status:type_name -> orchestrator.v1.SessionStatus
-	13, // 1: orchestrator.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	17, // 1: orchestrator.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: orchestrator.v1.Session.tier:type_name -> orchestrator.v1.SandboxTier
-	13, // 3: orchestrator.v1.Session.created_at:type_name -> google.protobuf.Timestamp
+	17, // 3: orchestrator.v1.Session.created_at:type_name -> google.protobuf.Timestamp
 	0,  // 4: orchestrator.v1.CreateSessionRequest.tier:type_name -> orchestrator.v1.SandboxTier
 	2,  // 5: orchestrator.v1.CreateSessionResponse.session:type_name -> orchestrator.v1.Session
 	2,  // 6: orchestrator.v1.ClaimSessionResponse.session:type_name -> orchestrator.v1.Session
 	2,  // 7: orchestrator.v1.GetSessionResponse.session:type_name -> orchestrator.v1.Session
 	2,  // 8: orchestrator.v1.ReapSessionResponse.session:type_name -> orchestrator.v1.Session
 	2,  // 9: orchestrator.v1.ExtendSessionResponse.session:type_name -> orchestrator.v1.Session
-	3,  // 10: orchestrator.v1.SessionService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
-	5,  // 11: orchestrator.v1.SessionService.ClaimSession:input_type -> orchestrator.v1.ClaimSessionRequest
-	7,  // 12: orchestrator.v1.SessionService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
-	11, // 13: orchestrator.v1.SessionService.ExtendSession:input_type -> orchestrator.v1.ExtendSessionRequest
-	9,  // 14: orchestrator.v1.SessionService.ReapSession:input_type -> orchestrator.v1.ReapSessionRequest
-	4,  // 15: orchestrator.v1.SessionService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
-	6,  // 16: orchestrator.v1.SessionService.ClaimSession:output_type -> orchestrator.v1.ClaimSessionResponse
-	8,  // 17: orchestrator.v1.SessionService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
-	12, // 18: orchestrator.v1.SessionService.ExtendSession:output_type -> orchestrator.v1.ExtendSessionResponse
-	10, // 19: orchestrator.v1.SessionService.ReapSession:output_type -> orchestrator.v1.ReapSessionResponse
-	15, // [15:20] is the sub-list for method output_type
-	10, // [10:15] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	2,  // 10: orchestrator.v1.ListSessionsResponse.sessions:type_name -> orchestrator.v1.Session
+	3,  // 11: orchestrator.v1.SessionService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
+	5,  // 12: orchestrator.v1.SessionService.ClaimSession:input_type -> orchestrator.v1.ClaimSessionRequest
+	7,  // 13: orchestrator.v1.SessionService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
+	11, // 14: orchestrator.v1.SessionService.ExtendSession:input_type -> orchestrator.v1.ExtendSessionRequest
+	9,  // 15: orchestrator.v1.SessionService.ReapSession:input_type -> orchestrator.v1.ReapSessionRequest
+	13, // 16: orchestrator.v1.SessionService.GetCapacity:input_type -> orchestrator.v1.GetCapacityRequest
+	15, // 17: orchestrator.v1.SessionService.ListSessions:input_type -> orchestrator.v1.ListSessionsRequest
+	4,  // 18: orchestrator.v1.SessionService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
+	6,  // 19: orchestrator.v1.SessionService.ClaimSession:output_type -> orchestrator.v1.ClaimSessionResponse
+	8,  // 20: orchestrator.v1.SessionService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
+	12, // 21: orchestrator.v1.SessionService.ExtendSession:output_type -> orchestrator.v1.ExtendSessionResponse
+	10, // 22: orchestrator.v1.SessionService.ReapSession:output_type -> orchestrator.v1.ReapSessionResponse
+	14, // 23: orchestrator.v1.SessionService.GetCapacity:output_type -> orchestrator.v1.GetCapacityResponse
+	16, // 24: orchestrator.v1.SessionService.ListSessions:output_type -> orchestrator.v1.ListSessionsResponse
+	18, // [18:25] is the sub-list for method output_type
+	11, // [11:18] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_orchestrator_v1_session_proto_init() }
@@ -1067,7 +1329,7 @@ func file_orchestrator_v1_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_orchestrator_v1_session_proto_rawDesc), len(file_orchestrator_v1_session_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   11,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
