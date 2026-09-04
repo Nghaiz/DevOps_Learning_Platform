@@ -65,7 +65,12 @@ if outer "curl -sS -m$TIMEOUT -o /dev/null -w '%{http_code}' http://$MIRROR_HOST
 then ok "mirror docker.io van toi duoc tu pod"
 else bad "mirror tu pod" "egress hop phap da bi cluster con lam hong"; fi
 
-inner_ready_nodes=$(outer "kubectl get nodes --no-headers 2>/dev/null | awk '\$2 == \"Ready\"' | wc -l" | tr -dc '0-9')
+# `grep -cw Ready` chu khong `awk '$2 == "Ready"'`: chuoi nay di qua BON tang
+# trich dan (bash tren host -> kubectl exec -> bash -lc -> awk), va mot dau
+# nhay bi nuot o tang nao cung ra `awk: syntax error` roi dem thanh 0 — tuc
+# doi chung duong bao "chua co node nao" trong khi cluster dang Ready.
+# `-w` khong khop "NotReady" (chu 'y' dung truoc 'Ready' la ky tu tu).
+inner_ready_nodes=$(outer 'kubectl get nodes --no-headers 2>/dev/null | grep -cw Ready' | tr -dc '0-9')
 if [ "${inner_ready_nodes:-0}" -ge "$NODES" ]
 then ok "cluster CON dang Ready ($inner_ready_nodes/$NODES node — co that mot duong mang moi de kiem)"
 else bad "cluster con Ready" "moi co ${inner_ready_nodes:-0}/$NODES node — khong doc tiep"; fi

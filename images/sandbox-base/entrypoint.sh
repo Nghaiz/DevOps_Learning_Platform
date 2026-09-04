@@ -207,7 +207,29 @@ start_k8s() {
         # cấu hình ấy; đổi nó "cho đồng nhất" là làm mọi con số đã công bố hết
         # hiệu lực mà không ai đo lại.
         k3s_nodes=${DLP_K8S_NODES:-1}
-        run_args=(-d --privileged --tmpfs /run --tmpfs /var/run)
+        # `--restart=on-failure:3` — mot cu truot luc khoi dong KHONG duoc lam
+        # mat ca phien.
+        #
+        # Do duoc 2026-09-04 tren cum that: 1 trong 2 phien co cluster con chet
+        # ~45 giay SAU khi node da dang ky, voi
+        #   Failed to start networking: unable to initialize network policy
+        #   controller: error getting node subnet: failed to get list of links
+        # Do la mot cuoc dua trong luc kube-router (netpol controller cua k3s)
+        # liet ke network link — ngat quang, khong tat dinh.
+        #
+        # Khong co restart policy thi cu truot ay la VINH VIEN: nguoi hoc thay
+        # cluster bien mat giua bai, va `dlp-k8s-wait` da tra ve 0 tu truoc do
+        # nen khong con ai bao gi. Co no thi k3s dung day va dung tiep tren
+        # data-dir cu.
+        #
+        # ⛔ KHONG chua bang `--disable-network-policy`. Tat kube-router lam
+        # NetworkPolicy TRONG cluster con khong con hieu luc, va moi bai day
+        # NetworkPolicy se "dat" ma khong chan gi — mot loi hua sai, dat hon han
+        # cai no chua.
+        #
+        # `:3` chu khong khong-gioi-han: mot k3s hong THAT phai dung lai de doc
+        # duoc log, khong phai quay vong dot CPU cua ca node.
+        run_args=(-d --restart=on-failure:3 --privileged --tmpfs /run --tmpfs /var/run)
         run_args+=(-e DLP_REGISTRY_MIRROR="${DLP_REGISTRY_MIRROR:-}")
         run_args+=(-v /usr/local/lib/dlp/k3s-boot.sh:/k3s-boot.sh:ro)
 
