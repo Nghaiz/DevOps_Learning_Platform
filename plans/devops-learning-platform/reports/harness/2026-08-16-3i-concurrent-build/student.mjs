@@ -190,15 +190,17 @@ async function main() {
   assert('dockerd sẵn sàng', ready, `${marks.dockerdReady}ms`);
   if (!ready) throw new Error('dockerd không lên');
 
-  // ── ĐO NỀN: gõ → ký tự hiện, lúc cụm CHƯA bị dồn tải ─────────────────────
+  // ── Pha gõ THỨ NHẤT: trước rào build ─────────────────────────────────────
   //
-  // Vì sao phải có vế nền: con số dưới tải một mình KHÔNG đọc được. "p95 180ms"
-  // là tốt hay tệ phụ thuộc nền là 20ms hay 150ms. Không có nền thì mọi kết
-  // luận về suy thoái đều là suy đoán.
+  // ⚠ ĐÂY KHÔNG PHẢI "NỀN RẢNH", và bản đầu đặt tên nó là `keystrokeIdle` —
+  // một cái tên khẳng định sai. Mọi worker khởi động CÙNG LÚC nên tất cả tới
+  // pha này trong cùng một cửa sổ, giữa lúc cả lớp đang `docker pull`. Đo được
+  // ở N=23 (2026-09-04): p95 của pha này là 177–400ms, trong khi nền THẬT
+  // (N=1 smoke, N=2) là 30–37ms. Gọi nó là nền thì con số dưới tải trông như
+  // "không tệ hơn nền" — một kết luận sai sinh ra từ một cái nhãn.
   //
-  // ⚠ Vế này chạy TRƯỚC rào chắn nên các worker không đồng bộ — đó là CHỦ ĐÍCH:
-  // nó đo đường đi khi hệ còn rảnh, không đo cảnh đông người.
-  marks.keystrokeIdle = await doKeystroke(sessionId, 'nền');
+  // Nền THẬT lấy từ lượt N=1/N=2, không lấy từ đây.
+  marks.keystrokePre = await doKeystroke(sessionId, 'trước rào — lớp đang pull/setup');
 
   // ── Setup: đẩy asset app.py ────────────────────────────────────────────────
   await trpcMutate('lessons.runSetup', { scenarioId: SCENARIO, sessionId, phase: { kind: 'intro' } });
@@ -215,7 +217,26 @@ async function main() {
   const pulled = inPod(pod, 'docker image inspect python:3.12-slim --format "{{.Id}}"', 30_000);
   assert('image nền có thật sau pull', pulled.trim().startsWith('sha256:'), `${marks.pull}ms`);
 
-  inPod(pod, 'docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/');
+  // ⚠ `docker run <image docker.io>` PHÁT MỘT LƯỢT OCI-REFERRERS trực tiếp tới
+  // `registry-1.docker.io`, KHÔNG qua registry-mirror (mirror chỉ proxy
+  // manifests/blobs của bước PULL, không proxy API referrers). Sandbox chặn
+  // egress trực tiếp (luật 10) nên lượt ấy TREO tới hết timeout rồi `docker run`
+  // thoát 125 — dù image đã pull xong và chạy được. Nó CHẬP CHỜN (đôi lúc bị bỏ
+  // qua/cache) nên số worker chết vì nó nhảy 3→15 giữa hai lượt đo, đầu độc đúng
+  // phép đo quy mô mà pha này chỉ là BƯỚC CHUẨN BỊ, không phải thứ đang đo.
+  //
+  // Đây cũng là một phát hiện THẬT của bài Docker (ghi trong report P12) — người
+  // học chạy `docker run nginx:alpine` gặp đúng treo này. Ở harness thì bọc retry
+  // để tách nhiễu ngoài-hệ khỏi tín hiệu bão-hoà-control-plane; KHÔNG che nó đi.
+  let nginxErr = null;
+  for (let k = 0; k < 3; k += 1) {
+    try {
+      inPod(pod, 'docker rm -f web >/dev/null 2>&1; docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/', 90_000);
+      nginxErr = null; break;
+    } catch (e) { nginxErr = String(e).slice(0, 120); }
+  }
+  marks.nginxRetries = nginxErr ? 3 : undefined;
+  if (nginxErr) throw new Error(`bước chuẩn bị nginx treo 3 lượt (referrers→docker.io bị chặn?): ${nginxErr}`);
   inPod(pod, `docker exec web sh -c 'echo "toi da o trong container" > /tmp/dlp-marker'`);
 
   // ── VẾ 1 của build: TRƯỚC khi build phải "chưa đạt" ───────────────────────

@@ -1,0 +1,742 @@
+{
+  "n": 23,
+  "wallAllMs": 91752,
+  "tGo": 1788524438226,
+  "rows": [
+    {
+      "sid": 0,
+      "sessionId": "b30b0e441936b2cea7a8327056cd1fc1",
+      "pod": "sandbox-bbef0a84ce8e",
+      "uid": "1b698505-56a3-41b1-a60e-ebc91bc372d3",
+      "marks": {
+        "claim": 55156,
+        "dockerdReady": 38575,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 239,
+          "p95": 429,
+          "max": 4947,
+          "min": 70,
+          "handshakeMs": 523,
+          "readyMs": 2569
+        },
+        "pull": 240059,
+        "build": 26344,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0,
+        "keystrokeLoad": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 46,
+          "p95": 83,
+          "max": 91,
+          "min": 18,
+          "handshakeMs": 295,
+          "readyMs": 2360
+        }
+      },
+      "fails": [],
+      "netRetries": 0,
+      "ok": true
+    },
+    {
+      "sid": 1,
+      "marks": {
+        "claim": 58076,
+        "dockerdReady": 38534,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 270,
+          "p95": 457,
+          "max": 4181,
+          "min": 154,
+          "handshakeMs": 153,
+          "readyMs": 2222
+        },
+        "pull": 377806
+      },
+      "fails": [
+        "HARNESS: Error: Command failed: kubectl exec -n dlp-sandbox sandbox-854f07f18dab -c sandbox -- bash -lc docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/\nUnable to find image 'nginx:alpine' locally\ndocker: Error response from daemon: failed to resolve "
+      ],
+      "ok": false
+    },
+    {
+      "sid": 2,
+      "marks": {
+        "claim": 49353,
+        "dockerdReady": 18518,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 104,
+          "p95": 228,
+          "max": 797,
+          "min": 34,
+          "handshakeMs": 81,
+          "readyMs": 2101
+        },
+        "pull": 241783
+      },
+      "fails": [
+        "HARNESS: Error: Command failed: kubectl exec -n dlp-sandbox sandbox-43933cb26a0e -c sandbox -- bash -lc docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/\nUnable to find image 'nginx:alpine' locally\nalpine: Pulling from library/nginx\n6636b9fc203c: Pulli"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 3,
+      "marks": {
+        "claim": 54851,
+        "dockerdReady": 37371,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 23,
+          "timeouts": 1,
+          "echoMismatch": 0,
+          "p50": 238,
+          "p95": 368,
+          "max": 463,
+          "min": 56,
+          "handshakeMs": 127,
+          "readyMs": 2163
+        },
+        "pull": 276007
+      },
+      "fails": [
+        "HARNESS: Error: Command failed: kubectl exec -n dlp-sandbox sandbox-fc362628c56f -c sandbox -- bash -lc docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/\nUnable to find image 'nginx:alpine' locally\nalpine: Pulling from library/nginx\n6636b9fc203c: Pulli"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 4,
+      "sessionId": "b0a1d32626e2ea09d2cbeb06b4ba2d2d",
+      "pod": "sandbox-ddfeeecc76cf",
+      "uid": "a0c42e1e-31ab-4d69-9613-17025214bd19",
+      "marks": {
+        "claim": 15158,
+        "dockerdReady": 3596,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 103,
+          "p95": 211,
+          "max": 244,
+          "min": 36,
+          "handshakeMs": 417,
+          "readyMs": 2426
+        },
+        "pull": 130984,
+        "build": 23108,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0,
+        "keystrokeLoad": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 49,
+          "p95": 77,
+          "max": 87,
+          "min": 24,
+          "handshakeMs": 248,
+          "readyMs": 2306
+        }
+      },
+      "fails": [],
+      "netRetries": 0,
+      "ok": true
+    },
+    {
+      "sid": 5,
+      "marks": {
+        "claim": 64974,
+        "dockerdReady": 32092,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 223,
+          "p95": 451,
+          "max": 4626,
+          "min": 101,
+          "handshakeMs": 199,
+          "readyMs": 2275
+        },
+        "pull": 273899
+      },
+      "fails": [
+        "HARNESS: Error: Command failed: kubectl exec -n dlp-sandbox sandbox-f32c73dcc685 -c sandbox -- bash -lc docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/\nUnable to find image 'nginx:alpine' locally\nalpine: Pulling from library/nginx\n6636b9fc203c: Pulli"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 6,
+      "sessionId": "6c933266e0dfabec7a08ee517c4b7e8a",
+      "pod": "sandbox-2dc98b12b645",
+      "uid": "49a7e895-8681-422b-9793-4741915138d6",
+      "marks": {
+        "claim": 54571,
+        "dockerdReady": 33305,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 214,
+          "p95": 320,
+          "max": 575,
+          "min": 66,
+          "handshakeMs": 111,
+          "readyMs": 2129
+        },
+        "pull": 336248,
+        "build": 22708,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0,
+        "keystrokeLoad": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 51,
+          "p95": 99,
+          "max": 119,
+          "min": 22,
+          "handshakeMs": 344,
+          "readyMs": 2123
+        }
+      },
+      "fails": [],
+      "netRetries": 0,
+      "ok": true
+    },
+    {
+      "sid": 7,
+      "marks": {},
+      "fails": [
+        "HARNESS: Error: lessons.startSession: HTTP 429 {\"message\":\"orchestrator gRPC: đã đạt trần số sandbox đồng thời của cluster; thử lại sau ít phút\",\"code\":-32029,\"data\":{\"code\":\"TOO_MANY_REQUESTS\",\"httpStatus\":429,\"path\":\"lessons.startSession\",\"zodEr"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 8,
+      "marks": {
+        "claim": 52858,
+        "dockerdReady": 29013,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 94,
+          "p95": 315,
+          "max": 484,
+          "min": 52,
+          "handshakeMs": 34,
+          "readyMs": 2045
+        },
+        "pull": 205550,
+        "build": 26800
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"orchestrator gRPC: Premature close\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 9,
+      "marks": {
+        "claim": 57407,
+        "dockerdReady": 36977,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 23,
+          "timeouts": 1,
+          "echoMismatch": 0,
+          "p50": 198,
+          "p95": 400,
+          "max": 628,
+          "min": 98,
+          "handshakeMs": 359,
+          "readyMs": 2378
+        },
+        "pull": 227171,
+        "build": 26913
+      },
+      "fails": [
+        "HARNESS: Error: lessons.checkStep: HTTP 500 {\"message\":\"orchestrator gRPC: Premature close\",\"code\":-32603,\"data\":{\"code\":\"INTERNAL_SERVER_ERROR\",\"httpStatus\":500,\"path\":\"lessons.checkStep\",\"zodError\":null}}"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 10,
+      "marks": {
+        "claim": 67334,
+        "dockerdReady": 35878,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 201,
+          "p95": 338,
+          "max": 4911,
+          "min": 93,
+          "handshakeMs": 157,
+          "readyMs": 2196
+        },
+        "pull": 278547
+      },
+      "fails": [
+        "HARNESS: Error: Command failed: kubectl exec -n dlp-sandbox sandbox-ad7e56a0ac1c -c sandbox -- bash -lc docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/\nUnable to find image 'nginx:alpine' locally\nalpine: Pulling from library/nginx\n6636b9fc203c: Pulli"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 11,
+      "sessionId": "822441cce6a9fa05c6979ac3b33ae689",
+      "pod": "sandbox-cae7c1eb850b",
+      "uid": "86b1a099-35b9-4f2a-b5db-8f9ccdbae7de",
+      "marks": {
+        "claim": 15200,
+        "dockerdReady": 4001,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 98,
+          "p95": 464,
+          "max": 1433,
+          "min": 35,
+          "handshakeMs": 41,
+          "readyMs": 2059
+        },
+        "pull": 129785,
+        "build": 26624,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0,
+        "keystrokeLoad": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 58,
+          "p95": 114,
+          "max": 116,
+          "min": 19,
+          "handshakeMs": 167,
+          "readyMs": 2212
+        }
+      },
+      "fails": [],
+      "netRetries": 0,
+      "ok": true
+    },
+    {
+      "sid": 12,
+      "marks": {
+        "claim": 14992,
+        "dockerdReady": 3579,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 87,
+          "p95": 386,
+          "max": 465,
+          "min": 38,
+          "handshakeMs": 322,
+          "readyMs": 2331
+        },
+        "pull": 224277
+      },
+      "fails": [
+        "HARNESS: Error: spawnSync kubectl ETIMEDOUT"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 13,
+      "sessionId": "9ab1c8f0fd499365cfdecefcaeeee867",
+      "pod": "sandbox-248f8f6dc636",
+      "uid": "00ec953d-4fe3-43ff-a2ef-ff51f4ced316",
+      "marks": {
+        "claim": 77174,
+        "dockerdReady": 36776,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 151,
+          "p95": 340,
+          "max": 3756,
+          "min": 41,
+          "handshakeMs": 340,
+          "readyMs": 2368
+        },
+        "pull": 244443,
+        "build": 25903,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0,
+        "keystrokeLoad": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 53,
+          "p95": 96,
+          "max": 102,
+          "min": 31,
+          "handshakeMs": 134,
+          "readyMs": 2194
+        }
+      },
+      "fails": [],
+      "netRetries": 0,
+      "ok": true
+    },
+    {
+      "sid": 14,
+      "marks": {
+        "claim": 80790,
+        "dockerdReady": 32932,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 183,
+          "p95": 361,
+          "max": 2574,
+          "min": 59,
+          "handshakeMs": 313,
+          "readyMs": 2380
+        },
+        "pull": 279473
+      },
+      "fails": [
+        "HARNESS: Error: Command failed: kubectl exec -n dlp-sandbox sandbox-14b980b8d917 -c sandbox -- bash -lc docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/\nUnable to find image 'nginx:alpine' locally\nalpine: Pulling from library/nginx\n6636b9fc203c: Pulli"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 15,
+      "sessionId": "3863a2917056411a9b11f9618949d59c",
+      "pod": "sandbox-9650dba41bec",
+      "uid": "2f6c4db5-0fbc-45f7-8ccc-a07c51cdd197",
+      "marks": {
+        "claim": 77114,
+        "dockerdReady": 33114,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 199,
+          "p95": 322,
+          "max": 3968,
+          "min": 63,
+          "handshakeMs": 173,
+          "readyMs": 2195
+        },
+        "pull": 286461,
+        "build": 26246,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0,
+        "keystrokeLoad": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 66,
+          "p95": 124,
+          "max": 125,
+          "min": 28,
+          "handshakeMs": 235,
+          "readyMs": 2268
+        }
+      },
+      "fails": [],
+      "netRetries": 0,
+      "ok": true
+    },
+    {
+      "sid": 16,
+      "marks": {
+        "claim": 70708,
+        "dockerdReady": 37967,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 231,
+          "p95": 415,
+          "max": 3376,
+          "min": 34,
+          "handshakeMs": 332,
+          "readyMs": 2354
+        },
+        "pull": 307844
+      },
+      "fails": [
+        "HARNESS: Error: Command failed: kubectl exec -n dlp-sandbox sandbox-4b5d18424d7d -c sandbox -- bash -lc docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/\nUnable to find image 'nginx:alpine' locally\nalpine: Pulling from library/nginx\n6636b9fc203c: Pulli"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 17,
+      "marks": {
+        "claim": 56177,
+        "dockerdReady": 34281,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 231,
+          "p95": 575,
+          "max": 4346,
+          "min": 114,
+          "handshakeMs": 120,
+          "readyMs": 2155
+        },
+        "pull": 309878
+      },
+      "fails": [
+        "HARNESS: Error: Command failed: kubectl exec -n dlp-sandbox sandbox-eb3e544fafc4 -c sandbox -- bash -lc docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/\nUnable to find image 'nginx:alpine' locally\nalpine: Pulling from library/nginx\n6636b9fc203c: Pulli"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 18,
+      "marks": {
+        "claim": 57668,
+        "dockerdReady": 40098,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 23,
+          "timeouts": 1,
+          "echoMismatch": 0,
+          "p50": 200,
+          "p95": 387,
+          "max": 912,
+          "min": 58,
+          "handshakeMs": 186,
+          "readyMs": 2236
+        }
+      },
+      "fails": [
+        "HARNESS: Error: Command failed: kubectl exec -n dlp-sandbox sandbox-2907edcea97a -c sandbox -- bash -lc docker pull python:3.12-slim\nfailed to do request: Get \"https://registry-1.docker.io/v2/library/python/referrers/sha256:a9b91c7367cdd316c3c3cf0ecdf8dca1bbf4894e269386846fe697c0ecd27c28\": dial tcp 18.209.13"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 19,
+      "marks": {
+        "claim": 67754,
+        "dockerdReady": 39021,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 183,
+          "p95": 350,
+          "max": 4666,
+          "min": 64,
+          "handshakeMs": 384,
+          "readyMs": 2458
+        },
+        "pull": 281859
+      },
+      "fails": [
+        "HARNESS: Error: Command failed: kubectl exec -n dlp-sandbox sandbox-cb22779c1855 -c sandbox -- bash -lc docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/\nUnable to find image 'nginx:alpine' locally\nalpine: Pulling from library/nginx\n6636b9fc203c: Pulli"
+      ],
+      "ok": false
+    },
+    {
+      "sid": 20,
+      "sessionId": "d6f0ec52833a90cd0cebb0ba91e41448",
+      "pod": "sandbox-064635d0e31d",
+      "uid": "1b8463b3-311c-4f84-a212-26bdbf02386e",
+      "marks": {
+        "claim": 53429,
+        "dockerdReady": 35827,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 198,
+          "p95": 394,
+          "max": 2383,
+          "min": 114,
+          "handshakeMs": 74,
+          "readyMs": 2095
+        },
+        "pull": 237413,
+        "build": 26963,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0,
+        "keystrokeLoad": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 58,
+          "p95": 116,
+          "max": 137,
+          "min": 31,
+          "handshakeMs": 135,
+          "readyMs": 1724
+        }
+      },
+      "fails": [],
+      "netRetries": 0,
+      "ok": true
+    },
+    {
+      "sid": 21,
+      "sessionId": "6d8e6286da01bfa462089197e9cc2e22",
+      "pod": "sandbox-01ece9329dbb",
+      "uid": "7f83bf24-f8e4-4ac1-97b1-60dd30c0d34e",
+      "marks": {
+        "claim": 53116,
+        "dockerdReady": 34570,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 205,
+          "p95": 423,
+          "max": 486,
+          "min": 98,
+          "handshakeMs": 235,
+          "readyMs": 2276
+        },
+        "pull": 210631,
+        "build": 23530,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0,
+        "keystrokeLoad": {
+          "samples": 24,
+          "received": 24,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 47,
+          "p95": 89,
+          "max": 92,
+          "min": 18,
+          "handshakeMs": 202,
+          "readyMs": 2274
+        }
+      },
+      "fails": [],
+      "netRetries": 0,
+      "ok": true
+    },
+    {
+      "sid": 22,
+      "marks": {
+        "claim": 68568,
+        "dockerdReady": 37444,
+        "keystrokePre": {
+          "samples": 24,
+          "received": 23,
+          "timeouts": 1,
+          "echoMismatch": 0,
+          "p50": 193,
+          "p95": 326,
+          "max": 327,
+          "min": 84,
+          "handshakeMs": 626,
+          "readyMs": 2729
+        },
+        "pull": 305238
+      },
+      "fails": [
+        "HARNESS: Error: Command failed: kubectl exec -n dlp-sandbox sandbox-3166a2596359 -c sandbox -- bash -lc docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/\nUnable to find image 'nginx:alpine' locally\nalpine: Pulling from library/nginx\n6636b9fc203c: Pulli"
+      ],
+      "ok": false
+    }
+  ],
+  "bad": [],
+  "viaTraefik": "https://dlp.192.168.94.130.sslip.io:30443",
+  "keystroke": {
+    "truocRao": {
+      "ten": "keystrokePre",
+      "n": 22,
+      "loi": 0,
+      "p95NguoiXauNhat": 575,
+      "p95Gop": 4346,
+      "p50Gop": 239,
+      "max": 4947,
+      "treo": 4,
+      "nhan": 524,
+      "gui": 528
+    },
+    "tai": {
+      "ten": "keystrokeLoad",
+      "n": 8,
+      "loi": 0,
+      "p95NguoiXauNhat": 124,
+      "p95Gop": 125,
+      "p50Gop": 77,
+      "max": 137,
+      "treo": 0,
+      "nhan": 192,
+      "gui": 192
+    }
+  },
+  "quota": {
+    "before": {
+      "hard": {
+        "limits.cpu": "48",
+        "limits.memory": "24Gi",
+        "pods": "28",
+        "requests.cpu": "5850m",
+        "requests.memory": "5952Mi"
+      },
+      "used": {
+        "limits.cpu": "6",
+        "limits.memory": "3Gi",
+        "pods": "3",
+        "requests.cpu": "750m",
+        "requests.memory": "768Mi"
+      }
+    },
+    "after": {
+      "hard": {
+        "limits.cpu": "48",
+        "limits.memory": "24Gi",
+        "pods": "28",
+        "requests.cpu": "5850m",
+        "requests.memory": "5952Mi"
+      },
+      "used": {
+        "limits.cpu": "6",
+        "limits.memory": "3Gi",
+        "pods": "3",
+        "requests.cpu": "750m",
+        "requests.memory": "768Mi"
+      }
+    }
+  }
+}

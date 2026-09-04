@@ -193,7 +193,21 @@ if (KS_ON) {
 }
 
 // ── Chờ xong ─────────────────────────────────────────────────────────────────
-await Promise.all(procs.map((p) => new Promise((r) => p.on('close', r))));
+//
+// ⛔ PHẢI KIỂM `exitCode` TRƯỚC KHI GẮN LISTENER. `close` là sự kiện MỘT LẦN:
+// worker nào đã thoát trước lúc gắn thì không phát lại, nên `new Promise` của
+// nó KHÔNG BAO GIỜ settle và `Promise.all` treo vĩnh viễn.
+//
+// Đây là một lỗi ĐO ĐƯỢC, không phải lo xa: lượt N=23 đầu tiên (2026-09-04) có
+// 3 worker thoát sớm, và cả lượt chạy — 20 người build thật, 20 lượt gõ, toàn
+// bộ số liệu — biến mất vì khối tổng hợp SAU dòng này không bao giờ chạy.
+// Node chỉ in "Detected unsettled top-level await" rồi thoát 0. Thoát 0.
+//
+// Trước khi có rào chắn GO2 thì lỗi này không lộ: `await` nằm ngay sau cờ GO,
+// lúc ấy chưa ai kịp chết. Thêm một pha vào giữa là đủ để nó cắn.
+await Promise.all(procs.map((p) => (p.exitCode !== null || p.signalCode !== null
+  ? Promise.resolve()
+  : new Promise((r) => p.on('close', r)))));
 const wallAll = Date.now() - tGo;
 
 // ── Gom kết quả ──────────────────────────────────────────────────────────────
@@ -268,12 +282,14 @@ const ksPha = (ten) => {
     gui: mau.reduce((s, k) => s + (k.samples ?? 0), 0),
   };
 };
-const ksNen = ksPha('keystrokeIdle');
+const ksNen = ksPha('keystrokePre');
 const ksTai = ksPha('keystrokeLoad');
 if (ksNen.n > 0 || ksTai.n > 0) {
   console.log('\n─── "gõ → ký tự hiện" (ngưỡng P12: p95 ≤ 250ms) ───');
   for (const k of [ksNen, ksTai]) {
-    const nhan = k.ten === 'keystrokeIdle' ? 'nền (trước rào)' : 'dưới tải (cả lớp cùng gõ)';
+    const nhan = k.ten === 'keystrokePre'
+      ? 'trước rào build (lớp đang pull/setup — KHÔNG phải nền rảnh)'
+      : 'dưới tải (cả lớp cùng gõ)';
     if (k.n === 0) { console.log(`  ${nhan}: KHÔNG ĐO ĐƯỢC (${k.loi} worker lỗi WS)`); continue; }
     const dat = k.p95Gop <= 250 ? '✅' : '❌';
     console.log(`  ${dat} ${nhan}: p50=${k.p50Gop}ms p95=${k.p95Gop}ms max=${k.max}ms ` +
@@ -293,7 +309,7 @@ console.log(`\nquota sau: pods=${quotaAfter.status.used.pods}/${quotaAfter.statu
 writeFileSync(join(HERE, `result-n${N}.json`), JSON.stringify({
   n: N, wallAllMs: wallAll, tGo, rows, bad,
   viaTraefik: VIA_TRAEFIK ?? null,
-  keystroke: { nen: ksNen, tai: ksTai },
+  keystroke: { truocRao: ksNen, tai: ksTai },
   quota: { before: quotaBefore.status, after: quotaAfter.status },
 }, null, 2));
 console.log(`\n→ result-n${N}.json`);
