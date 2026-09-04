@@ -128,16 +128,38 @@ export function openTerminal({ base, sessionId, cookie, origin, cols = 120, rows
           const listeners = [];
           let readyAt = null;
 
+          const closeCbs = [];
+          let closeInfo = null;
           const pump = () => {
             for (;;) {
               const f = readFrame(buf);
               if (!f) break;
               buf = buf.subarray(f.size);
-              if (f.opcode === 0x8) { socket.destroy(); return; } // close
+              if (f.opcode === 0x8) {
+                // ⛔ ĐỌC MÃ ĐÓNG, ĐỪNG CHỈ DESTROY. Bản đầu vứt frame close đi,
+                // và khi đó ca 12.E ("pod biến mất giữa phiên") KHÔNG kiểm được
+                // gì: 4404 (đúng) và 1000 (sai — FE hiểu thành "người dùng tự
+                // gõ exit") trông y hệt nhau khi chỉ thấy "socket đã đóng".
+                // RFC 6455 §5.5.1: 2 byte đầu là code, phần còn lại là reason.
+                const code = f.payload.length >= 2 ? f.payload.readUInt16BE(0) : null;
+                const reason = f.payload.length > 2 ? f.payload.subarray(2).toString('utf8') : '';
+                closeInfo = { code, reason };
+                for (const cb of closeCbs) cb(closeInfo);
+                socket.destroy();
+                return;
+              }
               if (f.opcode === 0x9) { socket.write(frame(f.payload, 0xa)); continue; } // ping→pong
               for (const cb of listeners) cb(f);
             }
           };
+          // Socket đứt mà KHÔNG có frame close (hạ tầng cắt giữa chừng) là một
+          // kết cục KHÁC với "server đóng có mã". Báo code=null để phân biệt,
+          // đừng lặng lẽ coi như đóng bình thường.
+          socket.on('close', () => {
+            if (closeInfo) return;
+            closeInfo = { code: null, reason: 'socket đứt, không có frame close' };
+            for (const cb of closeCbs) cb(closeInfo);
+          });
 
           socket.on('data', (c) => { buf = Buffer.concat([buf, c]); pump(); });
 
@@ -148,6 +170,13 @@ export function openTerminal({ base, sessionId, cookie, origin, cols = 120, rows
             onData: (cb) => { listeners.push(cb); return () => {
               const i = listeners.indexOf(cb); if (i >= 0) listeners.splice(i, 1);
             }; },
+            /** Chờ server đóng. Trả {code, reason}; code=null nghĩa là socket
+             * đứt không kèm frame close (hạ tầng), KHÁC với đóng có mã. */
+            waitClose: (timeoutMs = 120_000) => new Promise((res) => {
+              if (closeInfo) { res(closeInfo); return; }
+              const timer = setTimeout(() => res({ code: 'TIMEOUT', reason: `không đóng trong ${timeoutMs}ms` }), timeoutMs);
+              closeCbs.push((info) => { clearTimeout(timer); res(info); });
+            }),
             send: (payload, opcode = 0x2) => socket.write(frame(payload, opcode)),
             close: () => { try { socket.write(frame(Buffer.alloc(0), 0x8)); } catch { /* đã đóng */ }
               socket.destroy(); },

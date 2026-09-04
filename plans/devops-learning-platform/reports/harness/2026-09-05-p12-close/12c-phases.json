@@ -1,0 +1,42 @@
+{
+  "dockerd-boot": {
+    "cpuSec": 0.23,
+    "wallSec": 0.89,
+    "samples": 2,
+    "cpuPerWall": 0.26,
+    "load1_min_max": [
+      1.7,
+      1.7
+    ]
+  },
+  "pull": {
+    "cpuSec": 16.01,
+    "wallSec": 71.17,
+    "samples": 89,
+    "cpuPerWall": 0.23,
+    "load1_min_max": [
+      1.7,
+      2.28
+    ]
+  },
+  "build": {
+    "cpuSec": 3.77,
+    "wallSec": 2.59,
+    "samples": 4,
+    "cpuPerWall": 1.45,
+    "load1_min_max": [
+      2.65,
+      2.65
+    ]
+  },
+  "_throttle": {
+    "nrThrottled_delta": 8,
+    "throttledUsec_delta": 201229,
+    "ghi_chu": "nr_throttled chỉ đếm khi pod chạm cpu.max CỦA CHÍNH NÓ. Delta 0 KHÔNG có nghĩa là 'không đói CPU' — khi ràng buộc là dung lượng node thì nó im lặng. Đọc load1 và wall time."
+  },
+  "_tong": {
+    "cpuSecTong": 20.02,
+    "workingSetDinhMi": 150.8,
+    "soMau": 97
+  }
+}

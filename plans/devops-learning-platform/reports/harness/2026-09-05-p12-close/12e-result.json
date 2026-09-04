@@ -1,0 +1,57 @@
+{
+  "buoc": [
+    {
+      "ten": "phiên sống trước khi xoá (có tiếng vọng)",
+      "dat": true,
+      "chiTiet": "1 frame stdout"
+    },
+    {
+      "ten": "WS đóng bằng 4404 (SESSION_GONE), không phải 1000",
+      "dat": false,
+      "chiTiet": "code=1000 · exitCode gateway báo=137 ⇒ ĐUA: exit=137 nên isSignalExit() ĐÚNG là true và gateway CÓ tra Redis, nhưng lúc stream đứt (~350ms sau khi xoá) Redis vẫn ghi phiên còn sống, nên nhánh \"người dùng tự kill -9\" thắng. Redis chỉ đổi sang trạng thái kết thúc SAU đó."
+    },
+    {
+      "ten": "session-machine có câu tiếng Việt cho 4404",
+      "dat": true,
+      "chiTiet": "\"Phiên đã kết thúc và pod đã được thu hồi (hết hạn hoặc bị thu hồi).\""
+    },
+    {
+      "ten": "phiên không kẹt ở ACTIVE",
+      "dat": true,
+      "chiTiet": "redis session:{id} ⇒ FAILED"
+    },
+    {
+      "ten": "khe quota được trả",
+      "dat": true,
+      "chiTiet": "trước=13 giữa=14 sau=13 (cpu 3250m→3250m)"
+    }
+  ],
+  "tomTat": {
+    "closeCode": 1000,
+    "closeReason": "exit",
+    "msDongSauXoa": 330,
+    "exitCodeGatewayBao": 137,
+    "controlFrames": [
+      {
+        "type": "exit",
+        "exitCode": 137
+      }
+    ],
+    "cauTiengViet": "Phiên đã kết thúc và pod đã được thu hồi (hết hạn hoặc bị thu hồi).",
+    "quota": {
+      "truoc": {
+        "pods": 13,
+        "cpu": "3250m"
+      },
+      "giua": {
+        "pods": 14,
+        "cpu": "3500m"
+      },
+      "sau": {
+        "pods": 13,
+        "cpu": "3250m"
+      }
+    }
+  },
+  "dat": false
+}
