@@ -398,13 +398,27 @@ describe('lessons — cảnh báo năng lực chưa hỗ trợ', () => {
     await closeTestDb();
   });
 
-  it('bài đòi kubernetes → get trả unsupportedCapabilities cho FE cảnh báo', async () => {
-    // `ckad-configmap-as-files` chạy `kubernetes-kubeadm-2nodes`. P1 chứng minh
-    // DinD trong Sysbox, kubeadm-trong-pod thì CHƯA — nên nhãn này phải tới được
-    // FE. Nếu ca này đỏ vì danh sách hỗ trợ đã dài ra, kiểm lại rằng runtime
-    // tương ứng THẬT SỰ đã dựng, đừng sửa test cho xanh.
+  it('bài đòi kubernetes → `kubernetes` KHÔNG còn bị cảnh báo, `multi-node` thì CÒN', async () => {
+    // ⚠ Ca này ĐÃ ĐƯỢC LẬT ở P7 (2026-09-04), không phải "sửa cho xanh".
+    //
+    // Bản cũ ghim trạng thái ĐANG HỎNG (`toContain('kubernetes')`) kèm dặn dò
+    // "nếu đỏ vì danh sách hỗ trợ dài ra, kiểm lại rằng runtime THẬT SỰ đã
+    // dựng". Nó đã đỏ, và runtime thật sự đã dựng: k3s trong pod Sysbox, Ready
+    // sau 49 s, tạo được Deployment/ConfigMap/Service, kéo được `nginx:1.29.0`
+    // trong cluster con, `netpol-verify` 22/22 và `p7-escape-verify` 9/9 với
+    // pod có cluster con đang chạy. Số đo: `docs/k8s-in-pod.md`.
+    //
+    // Nên điều kiện chấm dứt của cái ghim đã tới, và luật là LẬT chứ không ghim
+    // lại: từ đây `kubernetes` xuất hiện trong `unsupportedCapabilities` là một
+    // HỒI QUY (ai đó gỡ nó khỏi `RUNTIME_SUPPORTED_CAPABILITIES`), không phải
+    // trạng thái mong đợi.
+    //
+    // `multi-node` vẫn được ghim ở trạng thái CHƯA hỗ trợ — cluster con là MỘT
+    // node. Giữ cả hai vế trong cùng một ca là có chủ ý: nếu ai đó mở
+    // `multi-node` kèm theo cho tiện, ca này đỏ ngay.
     const out = await (await caller(user)).lessons.get({ scenarioId: SCENARIO_K8S });
-    expect(out.unsupportedCapabilities).toContain('kubernetes');
+    expect(out.unsupportedCapabilities).not.toContain('kubernetes');
+    expect(out.unsupportedCapabilities).toContain('multi-node');
   });
 
   it('bài chỉ cần shell → không cảnh báo gì', async () => {

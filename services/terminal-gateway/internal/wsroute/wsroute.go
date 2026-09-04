@@ -392,15 +392,6 @@ func (h *handler) denyOf(w http.ResponseWriter, r *http.Request, d *sessionauth.
 	h.deny(w, r, d.Status, d.Code, d.Message, d.LogAttrs...)
 }
 
-func (h *handler) originAllowed(origin string) bool {
-	for _, allowed := range h.deps.AllowedOrigins {
-		if origin == allowed {
-			return true
-		}
-	}
-	return false
-}
-
 // clientOffers kiểm client có chào `want` trong Sec-WebSocket-Protocol không.
 //
 // Tự tách thay vì hỏi thư viện: `coder/websocket` không phơi hàm đọc danh sách

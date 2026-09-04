@@ -272,17 +272,54 @@ func (m *Manager) replenishOnce(ctx context.Context) error {
 	return nil
 }
 
-// Provision tạo MỘT pod, chờ nó Ready, rồi công bố vào pool:free. Trả tên pod.
+// Provision tạo MỘT pod default-profile, chờ nó Ready, rồi công bố vào
+// pool:free. Trả tên pod.
 //
 // Cũng là đường COLD PATH của B3: pool rỗng thì gọi hàm này rồi Claim lại. Dùng
 // chung một đường có chủ ý — hai đường "làm cho một pod dùng được" sẽ trôi khỏi
 // nhau, và cái trôi đi trước tiên luôn là thứ tự ghi ở publish().
 func (m *Manager) Provision(ctx context.Context) (string, error) {
+	name, err := m.createAndWaitReady(ctx, m.podCfg)
+	if err != nil {
+		return "", err
+	}
+
+	if err := m.publish(ctx, name); err != nil {
+		m.deleteAfterFailure(ctx, name, "công bố vào pool thất bại")
+		return "", err
+	}
+
+	m.log.Info("pod ấm đã vào pool", slog.String("pod", name))
+	return name, nil
+}
+
+// ProvisionWithProfile tạo MỘT pod mang profile resources khác mặc định (P7
+// 7.C), chờ Ready, rồi trả tên — KHÔNG công bố vào pool:free.
+//
+// ⛔ VÌ SAO KHÔNG publish(): pool:free chỉ được claim.lua tin là toàn
+// default-profile (xem podspec.go — LimitRange là nơi DUY NHẤT quyết định
+// resources cho pod ở đó). Đẩy một pod profiled vào cùng list là mời một
+// request default claim trúng nó và nhận resources SAI với thứ nó xin — hoặc
+// ngược lại, một request profiled claim trúng một pod default rồi OOM ngay bài
+// học đầu tiên. Caller (lifecycle.claimWithColdPath) tự ghi trạng thái CLAIMED
+// qua pool.ClaimDirect NGAY SAU khi hàm này trả về — pod không bao giờ có một
+// pha "free, chờ ai đó claim" nào cả.
+func (m *Manager) ProvisionWithProfile(ctx context.Context, profile *k8s.SandboxProfile) (string, error) {
+	cfg := m.podCfg
+	cfg.Profile = profile
+	return m.createAndWaitReady(ctx, cfg)
+}
+
+// createAndWaitReady tạo pod theo cfg, chờ Ready, trả tên — KHÔNG chạm Redis.
+// Dùng chung bởi Provision (cfg = m.podCfg mặc định) và ProvisionWithProfile
+// (cfg mang Profile khác mặc định), để hai đường "tạo pod, chờ ready" không
+// trôi khỏi nhau — chính bài học mà Provision từng ghi lại cho publish().
+func (m *Manager) createAndWaitReady(ctx context.Context, cfg k8s.PodConfig) (string, error) {
 	name, err := k8s.NewPodName()
 	if err != nil {
 		return "", err
 	}
-	pod, err := k8s.BuildSandboxPod(name, m.podCfg)
+	pod, err := k8s.BuildSandboxPod(name, cfg)
 	if err != nil {
 		return "", err
 	}
@@ -305,12 +342,6 @@ func (m *Manager) Provision(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	if err := m.publish(ctx, name); err != nil {
-		m.deleteAfterFailure(ctx, name, "công bố vào pool thất bại")
-		return "", err
-	}
-
-	m.log.Info("pod ấm đã vào pool", slog.String("pod", name))
 	return name, nil
 }
 

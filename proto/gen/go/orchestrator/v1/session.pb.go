@@ -174,7 +174,12 @@ type Session struct {
 	//
 	// Server-side là INCR của Redis trên chính hash session, đọc ra cùng lượt với
 	// các field khác nên không phải derived field.
-	Revision      int64 `protobuf:"varint,9,opt,name=revision,proto3" json:"revision,omitempty"`
+	Revision int64 `protobuf:"varint,9,opt,name=revision,proto3" json:"revision,omitempty"`
+	// Profile resources CÓ TÊN của pod (P7 7.C — ví dụ "k8s" cho lab
+	// Kubernetes-trong-pod cần nhiều RAM hơn LimitRange mặc định). RỖNG = profile
+	// MẶC ĐỊNH: pod không mang resources tường minh, LimitRange của namespace là
+	// nơi DUY NHẤT quyết định requests/limits — y hệt hành vi trước P7 7.C.
+	Profile       string `protobuf:"bytes,10,opt,name=profile,proto3" json:"profile,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -272,6 +277,13 @@ func (x *Session) GetRevision() int64 {
 	return 0
 }
 
+func (x *Session) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
 type CreateSessionRequest struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	UserId string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -285,8 +297,18 @@ type CreateSessionRequest struct {
 	// pod sandbox tốn tiền thật và ăn quota. Server dedupe qua Redis SETNX và trả
 	// lại đúng session cũ khi thấy key đã tồn tại.
 	IdempotencyKey string `protobuf:"bytes,4,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Profile resources CÓ TÊN cho pod (P7 7.C). RỖNG = profile MẶC ĐỊNH — pod
+	// đi qua warm-pool y hệt hôm nay, không mang resources tường minh.
+	//
+	// FAIL-CLOSED, CÙNG NGUYÊN TẮC VỚI SandboxTier: một tên KHÔNG khớp bất kỳ
+	// profile nào server biết (`SANDBOX_PROFILES`) bị từ chối bằng InvalidArgument
+	// — server KHÔNG BAO GIỜ tự rơi về profile mặc định. Client đánh máy sai tên
+	// profile mà server âm thầm cấp profile mặc định nghĩa là một bài K8s-trong-pod
+	// (cần ~2Gi) nhận đúng 1Gi LimitRange mặc định rồi OOM giữa chừng, và không
+	// lỗi nào ở phía client nói vì sao.
+	Profile       string `protobuf:"bytes,5,opt,name=profile,proto3" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateSessionRequest) Reset() {
@@ -343,6 +365,13 @@ func (x *CreateSessionRequest) GetTtlSeconds() int32 {
 func (x *CreateSessionRequest) GetIdempotencyKey() string {
 	if x != nil {
 		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *CreateSessionRequest) GetProfile() string {
+	if x != nil {
+		return x.Profile
 	}
 	return ""
 }
@@ -889,7 +918,7 @@ var File_orchestrator_v1_session_proto protoreflect.FileDescriptor
 
 const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\n" +
-	"\x1dorchestrator/v1/session.proto\x12\x0forchestrator.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe7\x02\n" +
+	"\x1dorchestrator/v1/session.proto\x12\x0forchestrator.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x81\x03\n" +
 	"\aSession\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x126\n" +
@@ -901,13 +930,16 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\x04tier\x18\a \x01(\x0e2\x1c.orchestrator.v1.SandboxTierR\x04tier\x129\n" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1a\n" +
-	"\brevision\x18\t \x01(\x03R\brevision\"\xab\x01\n" +
+	"\brevision\x18\t \x01(\x03R\brevision\x12\x18\n" +
+	"\aprofile\x18\n" +
+	" \x01(\tR\aprofile\"\xc5\x01\n" +
 	"\x14CreateSessionRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x120\n" +
 	"\x04tier\x18\x02 \x01(\x0e2\x1c.orchestrator.v1.SandboxTierR\x04tier\x12\x1f\n" +
 	"\vttl_seconds\x18\x03 \x01(\x05R\n" +
 	"ttlSeconds\x12'\n" +
-	"\x0fidempotency_key\x18\x04 \x01(\tR\x0eidempotencyKey\"K\n" +
+	"\x0fidempotency_key\x18\x04 \x01(\tR\x0eidempotencyKey\x12\x18\n" +
+	"\aprofile\x18\x05 \x01(\tR\aprofile\"K\n" +
 	"\x15CreateSessionResponse\x122\n" +
 	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\"M\n" +
 	"\x13ClaimSessionRequest\x12\x1d\n" +

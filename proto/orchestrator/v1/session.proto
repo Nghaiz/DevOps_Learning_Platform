@@ -60,6 +60,12 @@ message Session {
   // Server-side là INCR của Redis trên chính hash session, đọc ra cùng lượt với
   // các field khác nên không phải derived field.
   int64 revision = 9;
+
+  // Profile resources CÓ TÊN của pod (P7 7.C — ví dụ "k8s" cho lab
+  // Kubernetes-trong-pod cần nhiều RAM hơn LimitRange mặc định). RỖNG = profile
+  // MẶC ĐỊNH: pod không mang resources tường minh, LimitRange của namespace là
+  // nơi DUY NHẤT quyết định requests/limits — y hệt hành vi trước P7 7.C.
+  string profile = 10;
 }
 
 message CreateSessionRequest {
@@ -75,6 +81,17 @@ message CreateSessionRequest {
   // pod sandbox tốn tiền thật và ăn quota. Server dedupe qua Redis SETNX và trả
   // lại đúng session cũ khi thấy key đã tồn tại.
   string idempotency_key = 4;
+
+  // Profile resources CÓ TÊN cho pod (P7 7.C). RỖNG = profile MẶC ĐỊNH — pod
+  // đi qua warm-pool y hệt hôm nay, không mang resources tường minh.
+  //
+  // FAIL-CLOSED, CÙNG NGUYÊN TẮC VỚI SandboxTier: một tên KHÔNG khớp bất kỳ
+  // profile nào server biết (`SANDBOX_PROFILES`) bị từ chối bằng InvalidArgument
+  // — server KHÔNG BAO GIỜ tự rơi về profile mặc định. Client đánh máy sai tên
+  // profile mà server âm thầm cấp profile mặc định nghĩa là một bài K8s-trong-pod
+  // (cần ~2Gi) nhận đúng 1Gi LimitRange mặc định rồi OOM giữa chừng, và không
+  // lỗi nào ở phía client nói vì sao.
+  string profile = 5;
 }
 
 message CreateSessionResponse {

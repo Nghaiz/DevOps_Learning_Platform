@@ -66,10 +66,14 @@ func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
 // Provisioner là phần warm-pool mà lifecycle cần. Interface (không phải
 // *pool.Manager) để test đường cold-path không phải dựng cluster.
 type Provisioner interface {
-	// Provision tạo một pod, chờ Ready, công bố vào pool:free.
+	// Provision tạo một pod default-profile, chờ Ready, công bố vào pool:free.
 	Provision(ctx context.Context) (string, error)
 	// Trigger thúc replenish, không chặn.
 	Trigger()
+	// ProvisionWithProfile tạo một pod mang profile khác mặc định (P7 7.C),
+	// chờ Ready, KHÔNG công bố vào pool:free — caller tự claim bằng
+	// pool.ClaimDirect ngay sau đó. Xem pool.Manager.ProvisionWithProfile.
+	ProvisionWithProfile(ctx context.Context, profile *k8s.SandboxProfile) (string, error)
 }
 
 // Config là phần cấu hình lifecycle cần từ env.
@@ -85,6 +89,12 @@ type Config struct {
 	// (D11: 300s). Xem Extend() để biết vì sao con số này thực tế quyết định
 	// hạn của session sau lần gia hạn đầu tiên, chứ không phải SESSION_TTL.
 	ExtendDefault time.Duration
+
+	// SandboxProfiles ánh xạ TÊN profile → resources/env TƯỜNG MINH (P7 7.C),
+	// đọc từ SANDBOX_PROFILES (internal/config). Rỗng/nil ⇒ CHỈ profile mặc
+	// định ("") tồn tại — mọi CreateSessionRequest.profile khác rỗng bị Create
+	// từ chối InvalidArgument (fail-closed, cùng nguyên tắc với SandboxTier).
+	SandboxProfiles map[string]*k8s.SandboxProfile
 }
 
 // Service hiện thực CreateSession / ClaimSession / GetSession.
@@ -195,6 +205,22 @@ func (s *Service) Create(
 			"tier %s chưa được triển khai ở giai đoạn này; cluster mới cài RuntimeClass Sysbox", tier)
 	}
 
+	// Fail-closed theo đúng nguyên tắc của SandboxTier ở trên (xem session.proto):
+	// một tên profile KHÔNG khớp SANDBOX_PROFILES bị từ chối thẳng — server
+	// KHÔNG BAO GIỜ tự rơi về profile mặc định. Im lặng cấp mặc định cho một
+	// tên gõ sai nghĩa là một bài K8s-trong-pod (cần ~2Gi) nhận đúng 1Gi
+	// LimitRange rồi OOM giữa chừng, và phía client không có gì để nói vì sao.
+	profile := req.GetProfile()
+	var profileCfg *k8s.SandboxProfile
+	if profile != "" {
+		cfg, ok := s.cfg.SandboxProfiles[profile]
+		if !ok {
+			return nil, status.Errorf(codes.InvalidArgument,
+				"profile %q không tồn tại; SANDBOX_PROFILES của server không khai nó", profile)
+		}
+		profileCfg = cfg
+	}
+
 	// rediskeys.Idem validate CẢ HAI đoạn: userID và idempotency_key. Key thứ
 	// hai tới thẳng từ client và proto không ràng buộc nội dung, nên đây là bề
 	// mặt tấn công thật (`:` trong đó sẽ nhảy scope sang khoá của user khác).
@@ -222,7 +248,7 @@ func (s *Service) Create(
 		return s.replayIdempotent(ctx, idemKey, userID)
 	}
 
-	sess, claimErr := s.claimWithColdPath(ctx, sessionID, userID, tier, ttl)
+	sess, claimErr := s.claimWithColdPath(ctx, sessionID, userID, tier, ttl, profile, profileCfg)
 	if claimErr != nil {
 		// THỨ TỰ QUAN TRỌNG: quyết định nhả khoá đọc lỗi GỐC (còn nguyên chuỗi
 		// sentinel), rồi mới map sang mã gRPC. Map trước là cắt đứt chuỗi đó —
@@ -326,11 +352,19 @@ func (s *Service) replayIdempotent(
 }
 
 // claimWithColdPath claim từ pool; pool rỗng thì tạo pod đồng bộ rồi claim lại.
+//
+// `profile` != "" rẽ sang một nhánh HOÀN TOÀN KHÁC ngay từ đầu (xem dưới):
+// không warm, không cold-qua-pool:free — luôn tạo pod đồng bộ ĐÚNG PROFILE rồi
+// claim trực tiếp bằng pool.ClaimDirect. `profileCfg` là giá trị đã tra sẵn từ
+// SANDBOX_PROFILES (Create() đã từ chối tên lạ bằng InvalidArgument trước khi
+// gọi tới đây) — nil khi profile == "".
 func (s *Service) claimWithColdPath(
 	ctx context.Context,
 	sessionID, userID string,
 	tier orchestratorv1.SandboxTier,
 	ttl time.Duration,
+	profile string,
+	profileCfg *k8s.SandboxProfile,
 ) (*Session, error) {
 	// ⛔ ĐO TỪ ĐÂY, KHÔNG PHẢI TỪ BÊN TRONG attempt().
 	//
@@ -342,22 +376,22 @@ func (s *Service) claimWithColdPath(
 	// histogram, và số đo sẽ nói ngược lại chính comment ở metrics.go.
 	start := s.now()
 
-	// Đóng gói lại params ở MỖI lần thử, không tính một lần rồi dùng lại:
-	// TTL bắt đầu đếm từ lúc CLAIM, không phải lúc create (B4). Đường cold có
-	// thể mất hàng chục giây chờ pod Ready — dùng lại mốc thời gian cũ nghĩa là
+	// attempt() gói phần DÙNG CHUNG giữa mọi đường claim (warm/cold mặc định,
+	// và profiled): tính "now" mới cho MỖI lượt thử (TTL đếm từ lúc CLAIM,
+	// không phải create — xem chú thích cũ bên dưới), đếm metric theo path,
+	// Load() lại session, kiểm pod còn sống. `doClaim` là phần DUY NHẤT khác
+	// nhau giữa các đường — cách "ghi trạng thái CLAIMED vào Redis" cho một
+	// pod đã biết (claim.lua qua pool.ClaimIdempotent, hoặc claim_direct.lua
+	// qua pool.ClaimDirectIdempotent).
+	//
+	// Đóng gói lại params ở MỖI lần thử, không tính một lần rồi dùng lại: TTL
+	// bắt đầu đếm từ lúc CLAIM, không phải lúc create (B4). Đường cold có thể
+	// mất hàng chục giây chờ pod Ready — dùng lại mốc thời gian cũ nghĩa là
 	// session sinh ra đã mất sẵn ngần ấy giây, và ExpiresAtUnix có thể lùi về
 	// trước NowUnix làm chính validate() của pool từ chối.
-	attempt := func(path string) (*Session, error) {
+	attempt := func(path string, doClaim func(now time.Time) (string, error)) (*Session, error) {
 		now := s.now()
-		_, err := pool.ClaimIdempotent(ctx, s.rdb, pool.ClaimParams{
-			SessionID:     sessionID,
-			UserID:        userID,
-			Namespace:     s.cfg.Namespace,
-			Tier:          tier.String(),
-			NowUnix:       now.Unix(),
-			ExpiresAtUnix: now.Add(ttl).Unix(),
-			TTLSeconds:    int64(ttl / time.Second),
-		})
+		_, err := doClaim(now)
 		if err != nil {
 			// dlp_claim_total đếm MỖI lượt thử đúng một lần, ở ĐÚNG chỗ kết quả
 			// của lượt đó được biết — không phải ở nơi gọi attempt(). path="warm"
@@ -373,7 +407,9 @@ func (s *Service) claimWithColdPath(
 		}
 
 		// Thúc replenish NGAY sau khi claim thành công: pool vừa hụt một pod và
-		// người kế tiếp sẽ tới trước tick sau.
+		// người kế tiếp sẽ tới trước tick sau. Vô hại với đường profiled (nó
+		// không chạm pool:free) — gọi vô điều kiện để attempt() không phải
+		// biết đường nào vừa chạy.
 		s.pool.Trigger()
 
 		sess, err := Load(ctx, s.rdb, sessionID)
@@ -430,7 +466,63 @@ func (s *Service) claimWithColdPath(
 		return sess, nil
 	}
 
-	sess, err := attempt(metrics.PathWarm)
+	claimDefault := func(now time.Time) (string, error) {
+		return pool.ClaimIdempotent(ctx, s.rdb, pool.ClaimParams{
+			SessionID:     sessionID,
+			UserID:        userID,
+			Namespace:     s.cfg.Namespace,
+			Tier:          tier.String(),
+			NowUnix:       now.Unix(),
+			ExpiresAtUnix: now.Add(ttl).Unix(),
+			TTLSeconds:    int64(ttl / time.Second),
+		})
+	}
+
+	// ⛔ ĐƯỜNG PROFILED (P7 7.C) RẼ Ở ĐÂY, TRƯỚC BẤT KỲ LƯỢT CHẠM pool:free NÀO.
+	//
+	// pool:free chỉ chứa pod default-profile — claim.lua LMOVE bất kỳ tên nào
+	// nó thấy mà không hỏi "profile của caller là gì", nên nếu ta để profile !=
+	// "" đi qua attempt(warm) như bình thường, nó sẽ claim TRÚNG một pod
+	// default-size cho một request cần nhiều RAM hơn (ví dụ K8s-trong-pod cần
+	// ~2Gi mà pod default chỉ có 1Gi limit) — pod OOM giữa bài học, và triệu
+	// chứng không trỏ về nguyên nhân. Vì vậy: LUÔN tạo pod đồng bộ đúng profile
+	// (không có "may mắn trúng pool"), rồi claim trực tiếp bằng ClaimDirect —
+	// không có bước LMOVE/select nào để lẫn nhầm profile.
+	//
+	// KHÔNG retry ở đây như vòng coldPathAttempts bên dưới: pod profiled không
+	// bao giờ được công bố ở đâu (không pool:free, không index nào khác) cho
+	// tới khi CHÍNH lượt gọi này ghi xong session — không request đồng thời nào
+	// biết tên nó để "cướp mất" như ở cold path mặc định, nên một lượt là đủ.
+	if profile != "" {
+		s.met.ColdPathTotal.Inc()
+		podName, err := s.pool.ProvisionWithProfile(ctx, profileCfg)
+		if err != nil {
+			if errors.Is(err, pool.ErrPoolQuotaBlocked) {
+				s.met.ClaimTotal.WithLabelValues(metrics.PathCold, metrics.ResultQuotaBlocked).Inc()
+				return nil, status.Errorf(codes.ResourceExhausted,
+					"đã đạt trần số sandbox đồng thời của profile %q; thử lại sau ít phút", profile)
+			}
+			s.met.ClaimTotal.WithLabelValues(metrics.PathCold, metrics.ResultError).Inc()
+			return nil, status.Errorf(codes.Internal, "tạo pod cho profile %q: %v", profile, err)
+		}
+
+		return attempt(metrics.PathCold, func(now time.Time) (string, error) {
+			return pool.ClaimDirectIdempotent(ctx, s.rdb, podName, pool.ClaimParams{
+				SessionID:     sessionID,
+				UserID:        userID,
+				Namespace:     s.cfg.Namespace,
+				Tier:          tier.String(),
+				Profile:       profile,
+				NowUnix:       now.Unix(),
+				ExpiresAtUnix: now.Add(ttl).Unix(),
+				TTLSeconds:    int64(ttl / time.Second),
+			})
+		})
+	}
+
+	// ĐƯỜNG MẶC ĐỊNH — KHÔNG ĐỔI so với trước P7 7.C, chỉ đi qua attempt() đã
+	// tổng quát hoá ở trên (cùng logic, đóng gói lại thành doClaim).
+	sess, err := attempt(metrics.PathWarm, claimDefault)
 	if err == nil {
 		return sess, nil
 	}
@@ -456,7 +548,7 @@ func (s *Service) claimWithColdPath(
 			return nil, status.Errorf(codes.Internal, "tạo pod cho cold path: %v", err)
 		}
 
-		sess, err := attempt(metrics.PathCold)
+		sess, err := attempt(metrics.PathCold, claimDefault)
 		if err == nil {
 			return sess, nil
 		}

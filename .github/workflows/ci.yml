@@ -816,7 +816,7 @@ jobs:
           scandir: ./infra/k6
           severity: error
 
-      - name: 'shellcheck (content/scenarios/dlp-* — script bài first-party)'
+      - name: 'shellcheck (content/{scenarios,labs}/dlp-* — script first-party)'
         # Script của BÀI HỌC chạy bằng quyền root TRONG pod của người học, và
         # `verify.sh` quyết định một bước "đạt" hay "chưa đạt". Một lỗi cú pháp ở
         # đây cho ra đúng lớp hại tệ nhất: script chết trước khi kết luận, gateway
@@ -833,12 +833,21 @@ jobs:
         # Lọc bằng glob chứ không liệt kê tên: bài first-party thứ ba sẽ tự động
         # được gác mà không phải sửa file này.
         run: |
-          mapfile -t files < <(find content/scenarios -path 'content/scenarios/dlp-*' -name '*.sh' | sort)
+          # `content/labs` thêm ở P8. Lab dùng ĐÚNG đường chấm của lesson
+          # (`runScriptInSession` → gateway `/exec`), nên một `verify.sh` hỏng cú
+          # pháp ở đó gây ra y hệt cái hại: script chết trước khi kết luận, mã
+          # thoát khác 0, và người học thấy "chưa đạt" cho một task họ vừa làm
+          # ĐÚNG. Bỏ nhánh này ngoài cổng là để một nửa số script chấm không được
+          # gác — và nửa bị bỏ sót lại đúng là nửa mới nhất.
+          mapfile -t files < <(
+            find content/scenarios content/labs \
+              -path '*/dlp-*' -name '*.sh' | sort
+          )
           # Cổng đếm được 0 file sẽ XANH mà không kiểm gì — đúng hạng "0 vi phạm
           # vì không kiểm gì cả". Đổi tên thư mục bài là rơi thẳng vào ca đó, nên
           # nó phải ĐỎ chứ không được im lặng.
           if [ "${#files[@]}" -eq 0 ]; then
-            echo "::error::không tìm thấy script bài first-party nào (content/scenarios/dlp-*/**.sh) — cổng này sẽ xanh mà không kiểm gì. Sửa glob hoặc bỏ bước."
+            echo "::error::không tìm thấy script first-party nào (content/{scenarios,labs}/dlp-*/**.sh) — cổng này sẽ xanh mà không kiểm gì. Sửa glob hoặc bỏ bước."
             exit 1
           fi
           echo "soi ${#files[@]} script:"

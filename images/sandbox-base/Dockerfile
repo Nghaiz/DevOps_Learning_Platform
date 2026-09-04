@@ -263,6 +263,67 @@ RUN if [ "$INCLUDE_PWSH" = "1" ]; then \
     fi
 
 # ─────────────────────────────────────────────────────────────────────────────
+# E7 — `kubectl` qua `INCLUDE_K8S` (mặc định 1).
+#
+# ⚠ `kubectl` MỘT MÌNH KHÔNG mở được `capabilities: kubernetes`. Nó là một
+# client — nó cần một cluster để trỏ tới, và cluster đó là thứ 7.B/7.C dựng.
+# Ghi ở đây vì đó đúng là cách một lời hứa sai ra đời: thấy `kubectl` có trên
+# PATH rồi thêm `'kubernetes'` vào `RUNTIME_SUPPORTED_CAPABILITIES`, và người
+# học nhận về `The connection to the server localhost:8080 was refused`.
+#
+# ⛔ KHÔNG nướng `kind` vào đây, dù 7.B có đo nó.
+#
+# 7.B đo ba đường và chọn **k3s** (589Mi/729MB, so với 922Mi/3553MB của kind —
+# `docs/k8s-in-pod.md`). k3s chạy từ một image Docker, KHÔNG cần binary nào trên
+# PATH; `kind` thì cần. Nên sau khi chốt, `kind` không còn vai trò lúc chạy.
+#
+# Và nó không miễn phí: Trivy bắt `usr/local/bin/kind` mang **CVE-2025-68121**
+# (stdlib Go 1.25.5, xác thực chứng chỉ sai khi resume phiên TLS; vá ở 1.25.7).
+# Đó là CRITICAL **DUY NHẤT** mà P7 thêm vào image — ba cái còn lại
+# (dockerd/buildx/oh-my-posh, CVE-2026-56854) đã có từ trước và đã được ghi lý
+# do trong `.trivyignore`.
+#
+# Giữ binary của một đường ĐÃ BỊ LOẠI trong image của MỌI phiên, kèm một
+# CRITICAL, chỉ để "biết đâu cần" là không bảo vệ được. Muốn đo lại kind thì
+# harness `infra/host/p7-measure.sh` tự tải binary về máy chủ đo — nó không đi
+# qua image này.
+#
+# ⚠ Vì sao phải NƯỚNG VÀO IMAGE chứ không tải lúc chạy: pod sandbox nằm dưới
+# NetworkPolicy deny-all, egress duy nhất là DNS + registry mirror docker.io
+# (đã đo 2026-09-04: `curl https://github.com` và `https://registry.k8s.io` đều
+# TREO rồi timeout). Một `curl -LO .../kind` trong bài học sẽ treo 5 giây rồi
+# hỏng, và triệu chứng không trỏ về NetworkPolicy.
+#
+# `kubectl` GHIM THEO VERSION CỤM (v1.34.10, khớp `kubectl get nodes` của node
+# lab), không phải `stable.txt`: `stable.txt` hôm nay trả v1.37.0, và một client
+# lệch ba minor so với cluster con là thứ sẽ hỏng ở một field API ngẫu nhiên rồi
+# đổ lỗi cho bài học.
+#
+# sha256 của CẢ HAI lấy từ file checksum CỦA CHÍNH NHÀ PHÁT HÀNH
+# (`dl.k8s.io/.../kubectl.sha256`, `.../kind-linux-amd64.sha256sum`), không
+# phải digest ta tự tính — cùng chuẩn với E6, mạnh hơn trust-on-first-use.
+ARG INCLUDE_K8S=1
+ARG KUBECTL_VERSION=v1.34.10
+ARG KUBECTL_SHA256=95bd70842bd11a524d24acd5b68726899e3488e153e45e2b4ae846545beda050
+RUN if [ "$INCLUDE_K8S" = "1" ]; then \
+        set -eux; \
+        curl -fsSL -o /tmp/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"; \
+        echo "${KUBECTL_SHA256}  /tmp/kubectl" | sha256sum -c -; \
+        install -m 0755 /tmp/kubectl /usr/local/bin/kubectl; \
+        rm -f /tmp/kubectl; \
+        kubectl version --client=true >/dev/null; \
+    fi
+
+# Script boot cua cluster con + lenh cho. Chep KHONG DIEU KIEN (khong gac bang
+# INCLUDE_K8S): chung la vai KB text, va mot entrypoint di tim file khong co la
+# quat min hen gio y het truong hop `command -v dockerd` da chan o E8. Chinh
+# entrypoint moi la cho quyet dinh co dung cluster hay khong (DLP_K8S).
+COPY k3s-boot.sh /usr/local/lib/dlp/k3s-boot.sh
+COPY dlp-k8s-wait.sh /usr/local/bin/dlp-k8s-wait
+RUN chmod 0755 /usr/local/lib/dlp/k3s-boot.sh /usr/local/bin/dlp-k8s-wait
+
+# ─────────────────────────────────────────────────────────────────────────────
 # E8 — entrypoint: dockerd nền + nạp dotfiles qua allowlist.
 #
 # `chmod` tường minh vì repo được checkout trên Windows ở máy dev: bit thực thi

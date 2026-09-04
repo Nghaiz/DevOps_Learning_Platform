@@ -36,8 +36,37 @@ var ErrSessionNotFound = errors.New("lifecycle: session không tồn tại")
 // ở đây là làm authz của gateway so sánh trượt trong im lặng.
 const statusPrefix = "SESSION_STATUS_"
 
+// fieldProfile là field "profile" của hash session:{id} (P7 7.C).
+//
+// ⛔ CỐ Ý KHÔNG nằm trong rediskeys.SessionFields. Field đó là vector CROSS-
+// SERVICE — gateway (module Go RIÊNG) đọc nó cho authz per-session, và mọi
+// thay đổi ở đó buộc phải đi cùng docs/redis-key-vectors.json +
+// packages/shared-types/src/redis-keys.ts (test hai-bên-song-sinh). "profile"
+// KHÔNG phải dữ liệu gateway cần: gateway chỉ nối vào pod theo `podName`, và
+// resources của pod đã CHỐT lúc tạo (podspec.go) — biết "profile" thêm lần
+// nữa ở tầng authz không mở khả năng nào mới. Chỉ orchestrator tự đọc field
+// này (Load bên dưới), nên nó ở lại như một hằng CỤC BỘ của package này.
+//
+// Field VẮNG trên hash (mọi session đường mặc định — claim.lua không ghi nó)
+// ⇒ HMGET trả nil cho vị trí đó ⇒ Session.Profile = "" — đúng nghĩa "profile
+// mặc định" mà session.proto quy định. Không cần giá trị default nào khác.
+const fieldProfile = "profile"
+
+// sessionFieldsWithProfile = rediskeys.SessionFields + "profile", dựng MỘT
+// LẦN cho cả process. KHÔNG append() thẳng vào rediskeys.SessionFields (slice
+// export của package khác) — append có thể ghi đè lên mảng nền của slice đó
+// nếu capacity còn dư, và hai package dùng chung một mảng là đúng loại race âm
+// thầm mà "một biến, một chủ sở hữu" tồn tại để tránh.
+var sessionFieldsWithProfile = func() []string {
+	out := make([]string, 0, len(rediskeys.SessionFields)+1)
+	out = append(out, rediskeys.SessionFields...)
+	out = append(out, fieldProfile)
+	return out
+}()
+
 // Session là hash `session:{id}` đã giải mã. Tên field khớp
-// rediskeys.SessionFields — nguồn duy nhất cho cả Go lẫn TS.
+// rediskeys.SessionFields — nguồn duy nhất cho cả Go lẫn TS — CỘNG "profile",
+// field cục bộ của orchestrator (xem fieldProfile).
 type Session struct {
 	ID           string
 	UserID       string
@@ -49,6 +78,8 @@ type Session struct {
 	ExpiresAt    int64
 	Revision     int64
 	LastActiveAt int64
+	// Profile rỗng = profile mặc định (session.proto). Xem fieldProfile.
+	Profile string
 }
 
 // Load đọc hash session:{id}. Không tồn tại → ErrSessionNotFound.
@@ -61,7 +92,7 @@ func Load(ctx context.Context, rdb redis.Cmdable, sessionID string) (*Session, e
 		return nil, ErrSessionNotFound
 	}
 
-	vals, err := rdb.HMGet(ctx, key, rediskeys.SessionFields...).Result()
+	vals, err := rdb.HMGet(ctx, key, sessionFieldsWithProfile...).Result()
 	if err != nil {
 		return nil, fmt.Errorf("lifecycle: HMGET %s: %w", key, err)
 	}
@@ -86,6 +117,7 @@ func Load(ctx context.Context, rdb redis.Cmdable, sessionID string) (*Session, e
 		ExpiresAt:    num(6),
 		Revision:     num(7),
 		LastActiveAt: num(8),
+		Profile:      str(9),
 	}
 
 	// HMGET trên key không tồn tại trả về một mảng toàn nil — KHÔNG phải lỗi,
@@ -122,6 +154,7 @@ func (s *Session) ToProto() *orchestratorv1.Session {
 		Namespace: s.Namespace,
 		Tier:      parseTier(s.Tier),
 		Revision:  s.Revision,
+		Profile:   s.Profile,
 	}
 	if s.CreatedAt > 0 {
 		out.CreatedAt = timestamppb.New(time.Unix(s.CreatedAt, 0))

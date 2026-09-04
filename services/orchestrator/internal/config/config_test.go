@@ -18,7 +18,7 @@ func clearEnv(t *testing.T) {
 	for _, key := range []string{
 		"GRPC_ADDR", "HTTP_ADDR", "LOG_LEVEL", "GRPC_REFLECTION",
 		"DATABASE_URL", "REDIS_URL", "SESSION_TTL", "SHUTDOWN_GRACE", "SANDBOX_NAMESPACE",
-		"SANDBOX_IMAGE",
+		"SANDBOX_IMAGE", "SANDBOX_PROFILES",
 		"GRPC_MTLS_MODE", "GRPC_TLS_CERT_FILE", "GRPC_TLS_KEY_FILE", "GRPC_TLS_CA_FILE",
 		"GRPC_MTLS_SYSTEM_CNS",
 	} {
@@ -255,5 +255,108 @@ func TestReapIntervalKhongDuocLaZero(t *testing.T) {
 
 	if _, err := config.Load(); err == nil {
 		t.Fatal("Load() chấp nhận REAP_INTERVAL=0")
+	}
+}
+
+// TestSandboxProfilesRongLaHopLe — RỖNG (không đặt) phải ⇒ map rỗng, KHÔNG
+// phải lỗi. Đây là hành vi mặc định trước P7 7.C (chỉ profile mặc định tồn
+// tại) và phải giữ nguyên cho mọi cụm chưa cấu hình SANDBOX_PROFILES.
+func TestSandboxProfilesRongLaHopLe(t *testing.T) {
+	clearEnv(t)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() lỗi bất ngờ: %v", err)
+	}
+	if len(cfg.SandboxProfiles) != 0 {
+		t.Fatalf("SandboxProfiles = %v, muốn rỗng khi SANDBOX_PROFILES không đặt", cfg.SandboxProfiles)
+	}
+}
+
+// TestSandboxProfilesParseThanhCong — JSON hợp lệ ⇒ đúng bốn quantity phân
+// giải được, và env đi kèm profile được giữ nguyên.
+func TestSandboxProfilesParseThanhCong(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SANDBOX_PROFILES", `{
+		"k8s": {
+			"requestsCpu": "500m",
+			"requestsMemory": "2Gi",
+			"limitsCpu": "2",
+			"limitsMemory": "3Gi",
+			"env": {"DLP_K8S_ENABLE": "1"}
+		}
+	}`)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() lỗi bất ngờ: %v", err)
+	}
+	p, ok := cfg.SandboxProfiles["k8s"]
+	if !ok {
+		t.Fatalf("SandboxProfiles thiếu profile %q: %v", "k8s", cfg.SandboxProfiles)
+	}
+	if got := p.RequestsCPU.String(); got != "500m" {
+		t.Errorf("RequestsCPU = %q, muốn 500m", got)
+	}
+	if got := p.RequestsMemory.String(); got != "2Gi" {
+		t.Errorf("RequestsMemory = %q, muốn 2Gi", got)
+	}
+	if got := p.LimitsCPU.String(); got != "2" {
+		t.Errorf("LimitsCPU = %q, muốn 2", got)
+	}
+	if got := p.LimitsMemory.String(); got != "3Gi" {
+		t.Errorf("LimitsMemory = %q, muốn 3Gi", got)
+	}
+	if p.Env["DLP_K8S_ENABLE"] != "1" {
+		t.Errorf("Env[DLP_K8S_ENABLE] = %q, muốn %q", p.Env["DLP_K8S_ENABLE"], "1")
+	}
+}
+
+// TestSandboxProfilesJSONHongThiTuChoiKhoiDong — JSON không parse được phải
+// CHẶN khởi động, không được âm thầm coi như "không có profile nào".
+func TestSandboxProfilesJSONHongThiTuChoiKhoiDong(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SANDBOX_PROFILES", `{not-json`)
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("Load() chấp nhận SANDBOX_PROFILES là JSON hỏng")
+	}
+}
+
+// TestSandboxProfilesQuantityHongThiTuChoiKhoiDong — một field gõ sai
+// ("768M" thay vì "768Mi", hoặc thiếu hẳn) phải nổ ra LÚC KHỞI ĐỘNG, không phải
+// lúc CreateSession đầu tiên dùng profile đó (xem doc của parseSandboxProfiles).
+func TestSandboxProfilesQuantityHongThiTuChoiKhoiDong(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SANDBOX_PROFILES", `{
+		"k8s": {
+			"requestsCpu": "500m",
+			"requestsMemory": "khong-phai-quantity",
+			"limitsCpu": "2",
+			"limitsMemory": "3Gi"
+		}
+	}`)
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("Load() chấp nhận requestsMemory không parse được")
+	}
+}
+
+// TestSandboxProfilesTenRongBiTuChoi — "" đã có nghĩa cố định là profile mặc
+// định (session.proto); một entry tên rỗng trong SANDBOX_PROFILES là mâu
+// thuẫn và không bao giờ khớp được từ phía client.
+func TestSandboxProfilesTenRongBiTuChoi(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SANDBOX_PROFILES", `{
+		"": {
+			"requestsCpu": "500m",
+			"requestsMemory": "1Gi",
+			"limitsCpu": "1",
+			"limitsMemory": "1Gi"
+		}
+	}`)
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("Load() chấp nhận profile tên rỗng")
 	}
 }

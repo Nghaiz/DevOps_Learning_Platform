@@ -6,7 +6,13 @@ import { checkRateLimit } from './server/security/rate-limit';
 import { exceedsBodyLimit } from './server/security/body-limit';
 import { rateLimitTrustProxy } from './server/env';
 
-const PROTECTED_PATHS = ['/dashboard', '/session', '/lessons'];
+// `/labs` + `/playgrounds` thêm ở P8. Mỗi trang dưới hai nhánh đó ĐÃ tự gọi
+// `getAuth().api.getSession()` rồi `redirect('/login')`, nên thiếu chúng ở đây
+// không phải một lỗ hổng — nhưng để chúng ngoài danh sách thì lớp phòng thủ
+// sớm (chuyển hướng ngay khi vắng cookie) chỉ áp cho `/lessons` mà không áp cho
+// hai nhánh cùng loại, và sự bất đối xứng đó là thứ người sau sẽ đọc nhầm
+// thành "hai nhánh này cố ý công khai".
+const PROTECTED_PATHS = ['/dashboard', '/session', '/lessons', '/labs', '/playgrounds'];
 const AUTH_ONLY_PATHS = ['/login'];
 
 /**

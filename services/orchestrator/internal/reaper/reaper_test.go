@@ -770,6 +770,68 @@ func TestTang2cKhongDungPodCoSessionConSong(t *testing.T) {
 	}
 }
 
+// TestTang2cDonPodTaoBoiClaimDirectLua — CHỨNG MINH THẬT (không phải suy luận
+// từ đọc code) rằng RPUSH trong claim_direct.lua (P7 7.C) đóng đúng "điểm mù
+// thứ tư" cho nhánh session PROFILED, y hệt claim.lua đã đóng cho đường mặc
+// định.
+//
+// KHÁC TestTang2cDonPodClaimedMaSessionKhongCon: test đó dựng trạng thái
+// `pool:claimed` BẰNG TAY (seedClaimedPod) — nó kiểm sweepClaimedWithoutSession
+// đọc đúng, nhưng KHÔNG kiểm claim_direct.lua có THẬT SỰ ghi state đó hay
+// không. Test này gọi THẲNG pool.ClaimDirect (script Lua thật, Redis thật) rồi
+// mô phỏng tầng 1 lỡ event (DEL session:{id} mà không qua ReapExpired), và chỉ
+// tin vào state mà script THẬT để lại — đúng đường mà một session K8s-trong-pod
+// hết hạn lúc reaper offline sẽ đi qua trên cụm thật.
+func TestTang2cDonPodTaoBoiClaimDirectLua(t *testing.T) {
+	r, pods, sessions, rdb, met := newTestReaper(t)
+	ctx := context.Background()
+
+	const podName = "sandbox-direct2c-real1"
+	const sessionID = "sessiondirect2creal001"
+	now := time.Now()
+	p := pool.ClaimParams{
+		SessionID:     sessionID,
+		UserID:        "u1",
+		Namespace:     "dlp-sandbox",
+		Tier:          "SANDBOX_TIER_SYSBOX",
+		Profile:       "k8s",
+		NowUnix:       now.Unix(),
+		ExpiresAtUnix: now.Add(time.Hour).Unix(),
+		TTLSeconds:    3600,
+	}
+	if err := pool.ClaimDirect(ctx, rdb, podName, p); err != nil {
+		t.Fatalf("pool.ClaimDirect (script thật): %v", err)
+	}
+
+	// Pod TRẺ — tầng 2a (mồ côi) phải bỏ qua nó vì chưa tới orphanGrace, VÀ vì
+	// nó CÓ hash pod:{name} (claim_direct.lua vừa ghi).
+	pods.addPod(podName, time.Minute)
+
+	// Mô phỏng ĐÚNG chế độ hỏng mà tier 2c tồn tại để đỡ: tầng 1 lỡ event, hash
+	// session:{id} biến mất mà KHÔNG đi qua lifecycle.ReapExpired (không có
+	// dòng audit, không dọn pod) — chỉ còn state mà claim_direct.lua để lại.
+	sessionKey, err := rediskeys.Session(sessionID)
+	if err != nil {
+		t.Fatalf("rediskeys.Session: %v", err)
+	}
+	if err := rdb.Del(ctx, sessionKey).Err(); err != nil {
+		t.Fatalf("DEL session (mô phỏng tầng 1 lỡ event): %v", err)
+	}
+
+	if err := r.sweep(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	if got := sessions.reapedIDs(); len(got) != 1 || got[0] != sessionID {
+		t.Fatalf("ReapExpired nhận %v, cần [%s] — nếu rỗng thì RPUSH của claim_direct.lua "+
+			"KHÔNG đóng được điểm mù thứ tư cho nhánh profiled, và pod này rò VĨNH VIỄN", got, sessionID)
+	}
+	if v := testutil.ToFloat64(met.ReaperClaimedOrphanTotal); v != 1 {
+		t.Fatalf("dlp_reaper_claimed_orphan_total = %v, cần 1", v)
+	}
+	_ = pods
+}
+
 // TestSweepKhongDanhDauFAILEDOanChoSessionVuaClaim (H-1).
 //
 // ⛔ ĐUA THẬT. `livePods` được chụp TRƯỚC vòng SCAN, nên một session được claim

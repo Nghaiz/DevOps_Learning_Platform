@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/k8s"
@@ -31,6 +32,11 @@ type fakePods struct {
 
 	created []string
 	deleted []string
+
+	// createdPods giữ TOÀN BỘ pod object đã Create thành công — `created` chỉ
+	// giữ tên, không đủ để kiểm resources của profile (P7 7.C) đã được set
+	// đúng trên container hay chưa.
+	createdPods []*corev1.Pod
 
 	// createErr trả cho MỌI lời gọi Create khi khác nil.
 	createErr error
@@ -63,7 +69,19 @@ func (f *fakePods) Create(_ context.Context, pod *corev1.Pod) (*corev1.Pod, erro
 		return nil, fmt.Errorf("k8s: tạo pod %q: %w", pod.Name, f.createErr)
 	}
 	f.created = append(f.created, pod.Name)
+	f.createdPods = append(f.createdPods, pod)
 	return pod, nil
+}
+
+// lastCreatedPod trả pod ĐẦY ĐỦ của lượt Create thành công gần nhất — dùng để
+// kiểm resources/env đã được set đúng, thứ `createdNames()` không thấy được.
+func (f *fakePods) lastCreatedPod() *corev1.Pod {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.createdPods) == 0 {
+		return nil
+	}
+	return f.createdPods[len(f.createdPods)-1]
 }
 
 func (f *fakePods) Get(_ context.Context, name string) (*corev1.Pod, error) {
@@ -542,5 +560,101 @@ func TestBaGaugePoolKhongDauNoiNhamKhoa(t *testing.T) {
 		if c.got != c.want {
 			t.Errorf("%s = %v, cần %v — nếu số này bằng giá trị mong đợi của gauge KHÁC thì gauge đang đọc nhầm khoá Redis", c.ten, c.got, c.want)
 		}
+	}
+}
+
+// ---------------------------------------------------------------- ProvisionWithProfile (P7 7.C)
+
+// testSandboxProfile dựng một SandboxProfile với bốn số PHÂN BIỆT nhau và
+// phân biệt với LimitRange mặc định (250m/256Mi request, 2/1Gi limit) — nếu
+// ProvisionWithProfile lỡ bỏ qua profile và để container trống Resources (như
+// đường default), test dưới đây phải bắt được ngay chứ không phải trùng hợp
+// khớp bằng LimitRange.
+func testSandboxProfile() *k8s.SandboxProfile {
+	return &k8s.SandboxProfile{
+		RequestsCPU:    resource.MustParse("500m"),
+		RequestsMemory: resource.MustParse("1Gi"),
+		LimitsCPU:      resource.MustParse("2"),
+		LimitsMemory:   resource.MustParse("2Gi"),
+	}
+}
+
+// TestProvisionWithProfileTaoPodDungResourcesProfile — vế KHẲNG ĐỊNH: pod được
+// tạo phải mang ĐÚNG bốn số resources của profile, không phải resources trống
+// (LimitRange mặc định) như đường Provision() thường.
+func TestProvisionWithProfileTaoPodDungResourcesProfile(t *testing.T) {
+	pods := newFakePods()
+	m, _ := newTestManager(t, pods, 1)
+	ctx := context.Background()
+	profile := testSandboxProfile()
+
+	name, err := m.ProvisionWithProfile(ctx, profile)
+	if err != nil {
+		t.Fatalf("ProvisionWithProfile: %v", err)
+	}
+
+	pod := pods.lastCreatedPod()
+	if pod == nil || pod.Name != name {
+		t.Fatalf("pod đã tạo = %v, cần pod tên %q", pod, name)
+	}
+	if len(pod.Spec.Containers) != 1 {
+		t.Fatalf("pod có %d container, cần 1", len(pod.Spec.Containers))
+	}
+	res := pod.Spec.Containers[0].Resources
+
+	cases := []struct {
+		ten  string
+		got  resource.Quantity
+		want resource.Quantity
+	}{
+		{"requests.cpu", res.Requests[corev1.ResourceCPU], profile.RequestsCPU},
+		{"requests.memory", res.Requests[corev1.ResourceMemory], profile.RequestsMemory},
+		{"limits.cpu", res.Limits[corev1.ResourceCPU], profile.LimitsCPU},
+		{"limits.memory", res.Limits[corev1.ResourceMemory], profile.LimitsMemory},
+	}
+	for _, c := range cases {
+		if c.got.Cmp(c.want) != 0 {
+			t.Errorf("container.resources.%s = %s, cần %s (profile) — pod profiled đang nhận resources SAI kích cỡ",
+				c.ten, c.got.String(), c.want.String())
+		}
+	}
+}
+
+// TestProvisionWithProfileKhongCongBoVaoPoolFree — vế PHỦ ĐỊNH, và là bất
+// biến QUAN TRỌNG HƠN của hai vế: pool:free chỉ được claim.lua tin là toàn
+// default-profile (xem podspec.go + comment của ProvisionWithProfile). Một pod
+// profiled lọt vào đó là mời một request default claim TRÚNG resources SAI —
+// hoặc ngược lại một bài K8s-trong-pod claim trúng pod default rồi OOM.
+//
+// ⛔ Không chỉ pool:free phải rỗng: hash `pod:{name}` cũng KHÔNG được tồn tại,
+// vì publish() (đường duy nhất ghi state=free) chưa từng chạy — pod không có
+// pha "free" trung gian nào, đúng hợp đồng mà claim_direct.lua dựa vào.
+func TestProvisionWithProfileKhongCongBoVaoPoolFree(t *testing.T) {
+	pods := newFakePods()
+	m, _ := newTestManager(t, pods, 1)
+	ctx := context.Background()
+
+	name, err := m.ProvisionWithProfile(ctx, testSandboxProfile())
+	if err != nil {
+		t.Fatalf("ProvisionWithProfile: %v", err)
+	}
+
+	if n, _ := m.rdb.LLen(ctx, rediskeys.PoolFree).Result(); n != 0 {
+		t.Fatalf("pool:free có %d mục — pod profiled KHÔNG được công bố vào pool default, "+
+			"một request default sẽ claim trúng resources sai kích cỡ", n)
+	}
+	podKey, err := rediskeys.Pod(name)
+	if err != nil {
+		t.Fatalf("rediskeys.Pod: %v", err)
+	}
+	if n, _ := m.rdb.Exists(ctx, podKey).Result(); n != 0 {
+		t.Fatalf("hash %s tồn tại — ProvisionWithProfile không được chạm Redis, "+
+			"caller (lifecycle.claimWithColdPath) tự ghi state qua ClaimDirect", podKey)
+	}
+
+	// Và pod thật sự đã được TẠO trên cluster (không phải Provision() im lặng
+	// bỏ qua) — chỉ là chưa công bố ở đâu.
+	if got := pods.createdNames(); len(got) != 1 || got[0] != name {
+		t.Fatalf("createdNames = %v, cần đúng [%s]", got, name)
 	}
 }

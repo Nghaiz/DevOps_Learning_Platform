@@ -24,10 +24,50 @@ export {
   type ContentBlock,
 } from './content-blocks.ts';
 export { INDEX_FILENAME, SIDECAR_FILENAME, loadScenario, loadScenarios } from './loader.ts';
-export { filesystemScenarioSource, type ScenarioSource } from './source.ts';
+export {
+  filesystemScenarioSource,
+  type ContentSource,
+  type ScenarioSource,
+} from './source.ts';
 export {
   MAX_TOTAL_ASSET_BYTES,
   ScenarioAssetError,
   resolveScenarioAssets,
   type ResolvedAsset,
 } from './assets.ts';
+
+// Lab (P8 8.A) — file-format schema + loader + hàm tính điểm thuần.
+export {
+  contentBackendRefSchema,
+  contentInterfaceRefSchema,
+  labFileSchema,
+  labSetupFileSchema,
+  labTaskFileSchema,
+  type ContentBackendRef,
+  type ContentInterfaceRef,
+  type LabFile,
+  type LabSetupFile,
+  type LabTaskFile,
+} from './lab.ts';
+export {
+  LAB_FILENAME,
+  LabError,
+  formatContentIssues,
+  loadLab,
+  loadLabs,
+} from './lab-loader.ts';
+export {
+  computeAttemptDurationSeconds,
+  computeLabScore,
+  computeLabStatus,
+  latestResultPerTask,
+} from './lab-score.ts';
+
+// Playground (P8 8.E) — file-format schema + loader.
+export { playgroundFileSchema, type PlaygroundFile } from './playground.ts';
+export {
+  PLAYGROUND_EXTENSION,
+  PlaygroundError,
+  loadPlayground,
+  loadPlaygrounds,
+} from './playground-loader.ts';

@@ -1,3 +1,6 @@
+> Lab (giao việc, chấm điểm) và Playground (không bài) là hai loại nội dung
+> RIÊNG mượn phần lớn kỷ luật ở tài liệu này — xem [`docs/lab-format.md`](lab-format.md).
+
 # Format scenario — Killercoda upstream ⇄ DTO của nền tảng
 
 SSOT cho `packages/scenario`, `packages/shared-types/src/scenario.ts` và

@@ -297,15 +297,6 @@ func (h *handler) denyOf(w http.ResponseWriter, r *http.Request, d *sessionauth.
 	h.deny(w, r, d.Status, d.Code, d.Message, d.LogAttrs...)
 }
 
-func (h *handler) originAllowed(origin string) bool {
-	for _, allowed := range h.deps.AllowedOrigins {
-		if origin == allowed {
-			return true
-		}
-	}
-	return false
-}
-
 func (h *handler) deny(w http.ResponseWriter, r *http.Request, status int, code, message string, logAttrs ...string) {
 	h.deps.Metrics.ExecOneShotTotal.WithLabelValues(metrics.ResultDenied, code).Inc()
 
