@@ -24,6 +24,7 @@
 package ideroute
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
@@ -116,7 +117,7 @@ func Register(mux *http.ServeMux, deps Deps) {
 	mux.HandleFunc(pathPrefixPattern, h.serve)
 	// Không có dấu `/` cuối ⇒ redirect. Xem chú thích đầu package: thiếu nó là
 	// trang trắng, và trang trắng đọc y hệt "IDE hỏng".
-	mux.HandleFunc("/ide/session/{id}", h.redirectToSlash)
+	mux.HandleFunc(ideSessionPrefix+"{id}", h.redirectToSlash)
 }
 
 type handler struct {
@@ -127,10 +128,24 @@ type handler struct {
 	live map[string]int
 }
 
+// Tien to TINH cua route IDE. Mot hang, hai cho dung (dang ky route va dich
+// redirect) — de chung khong the lech nhau.
+const ideSessionPrefix = "/ide/session/"
+
 func (h *handler) redirectToSlash(w http.ResponseWriter, r *http.Request) {
-	// 308 chứ không 302: 302 cho phép client đổi POST thành GET, và Theia POST
-	// lên chính đường này.
-	http.Redirect(w, r, r.URL.Path+"/", http.StatusPermanentRedirect)
+	// Dung LAI dich den tu tien to TINH cua route + mot segment da escape, thay
+	// vi noi them "/" vao `r.URL.Path`.
+	//
+	// Ly do khong phai chieu long linter: `r.URL.Path` do client dieu khien, va
+	// mot duong dang `//evil.com` duoc TRINH DUYET doc la protocol-relative URL —
+	// nen mot redirect trong nhu "tuong doi" van day nguoi dung sang host khac.
+	// Route nay chi co MOT hinh dang (`/ide/session/{id}`), nen dich den suy ra
+	// duoc tron ven ma khong can cham vao duong do; va `url.PathEscape` bao dam
+	// segment id khong the chen them dau `/`. (gosec G710.)
+	target := ideSessionPrefix + url.PathEscape(r.PathValue("id")) + "/"
+	// 308 chu khong 302: 302 cho phep client doi POST thanh GET, va Theia POST
+	// len chinh duong nay.
+	http.Redirect(w, r, target, http.StatusPermanentRedirect)
 }
 
 func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
@@ -337,8 +352,18 @@ func (h *handler) fail(w http.ResponseWriter, r *http.Request, code, what string
 	writeJSON(w, status, code, "IDE chưa dùng được")
 }
 
+// writeJSON MARSHAL thật, không nối chuỗi.
+//
+// Bản cũ ghép `code`/`message` thẳng vào một literal JSON. Hôm nay cả hai đều là
+// hằng trong file này nên chưa vỡ, nhưng nó chỉ đúng chừng nào không ai truyền
+// vào một chuỗi có `"` hay `<` — và không có gì trong chữ ký hàm nói điều đó.
+// `json.Marshal` làm cho lớp lỗi ấy không tồn tại thay vì phụ thuộc vào kỷ luật
+// của người gọi. (gosec G705.)
 func writeJSON(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_, _ = w.Write([]byte(`{"code":"` + code + `","message":"` + message + `"}`))
+	_ = json.NewEncoder(w).Encode(struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}{Code: code, Message: message})
 }

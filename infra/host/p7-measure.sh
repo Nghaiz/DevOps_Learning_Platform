@@ -126,12 +126,23 @@ inpod() { kubectl exec -n "$NS" "$POD" -- bash -lc "$1"; }
 push_bins() {
   # Pod KHONG co internet (deny-all + chi mirror docker.io). Binary phai duoc
   # day vao tu host — day chinh la ly do 7.A phai nuong chung vao image.
+  # `kubectl` BAT BUOC (image cu chua co no). `kind` chi can cho variant kind —
+  # va no CO Y khong nam trong image: 7.B da chon k3s, va giu binary cua duong
+  # bi loai trong image cua moi phien keo theo mot CRITICAL (CVE-2025-68121).
+  # Muon do lai kind thi tai binary ve $BIN_DIR tren may chu do, khong qua image.
   local b
-  for b in kubectl kind; do
+  for b in kubectl; do
     [ -f "$BIN_DIR/$b" ] || { log "thieu $BIN_DIR/$b"; return 1; }
     kubectl cp -n "$NS" "$BIN_DIR/$b" "$POD:/usr/local/bin/$b" >/dev/null 2>&1
   done
-  inpod 'chmod +x /usr/local/bin/kubectl /usr/local/bin/kind; kubectl version --client=true 2>&1 | head -1'
+  if [ -f "$BIN_DIR/kind" ]; then
+    kubectl cp -n "$NS" "$BIN_DIR/kind" "$POD:/usr/local/bin/kind" >/dev/null 2>&1
+    inpod 'chmod +x /usr/local/bin/kind'
+  elif [ "$variant" = "kind" ]; then
+    log "thieu $BIN_DIR/kind — variant kind can no; tai tu github release roi chay lai"
+    return 1
+  fi
+  inpod 'chmod +x /usr/local/bin/kubectl; kubectl version --client=true 2>&1 | head -1'
 }
 
 wait_dockerd() {

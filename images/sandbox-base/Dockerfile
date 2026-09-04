@@ -263,7 +263,7 @@ RUN if [ "$INCLUDE_PWSH" = "1" ]; then \
     fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# E7 — `kubectl` + `kind` qua `INCLUDE_K8S` (mặc định 1).
+# E7 — `kubectl` qua `INCLUDE_K8S` (mặc định 1).
 #
 # ⚠ `kubectl` MỘT MÌNH KHÔNG mở được `capabilities: kubernetes`. Nó là một
 # client — nó cần một cluster để trỏ tới, và cluster đó là thứ 7.B/7.C dựng.
@@ -271,10 +271,22 @@ RUN if [ "$INCLUDE_PWSH" = "1" ]; then \
 # PATH rồi thêm `'kubernetes'` vào `RUNTIME_SUPPORTED_CAPABILITIES`, và người
 # học nhận về `The connection to the server localhost:8080 was refused`.
 #
-# MỘT arg chứ không hai (`INCLUDE_KUBECTL` + `INCLUDE_KIND`): hai arg đẻ ra bốn
-# tổ hợp mà ba trong số đó vô nghĩa — kind không có kubectl thì không ai đọc
-# được cluster vừa dựng, và kubectl không có gì để trỏ tới thì đúng như đoạn
-# trên. `kind` chỉ 9 MB nên tách ra không mua được gì.
+# ⛔ KHÔNG nướng `kind` vào đây, dù 7.B có đo nó.
+#
+# 7.B đo ba đường và chọn **k3s** (589Mi/729MB, so với 922Mi/3553MB của kind —
+# `docs/k8s-in-pod.md`). k3s chạy từ một image Docker, KHÔNG cần binary nào trên
+# PATH; `kind` thì cần. Nên sau khi chốt, `kind` không còn vai trò lúc chạy.
+#
+# Và nó không miễn phí: Trivy bắt `usr/local/bin/kind` mang **CVE-2025-68121**
+# (stdlib Go 1.25.5, xác thực chứng chỉ sai khi resume phiên TLS; vá ở 1.25.7).
+# Đó là CRITICAL **DUY NHẤT** mà P7 thêm vào image — ba cái còn lại
+# (dockerd/buildx/oh-my-posh, CVE-2026-56854) đã có từ trước và đã được ghi lý
+# do trong `.trivyignore`.
+#
+# Giữ binary của một đường ĐÃ BỊ LOẠI trong image của MỌI phiên, kèm một
+# CRITICAL, chỉ để "biết đâu cần" là không bảo vệ được. Muốn đo lại kind thì
+# harness `infra/host/p7-measure.sh` tự tải binary về máy chủ đo — nó không đi
+# qua image này.
 #
 # ⚠ Vì sao phải NƯỚNG VÀO IMAGE chứ không tải lúc chạy: pod sandbox nằm dưới
 # NetworkPolicy deny-all, egress duy nhất là DNS + registry mirror docker.io
@@ -293,21 +305,14 @@ RUN if [ "$INCLUDE_PWSH" = "1" ]; then \
 ARG INCLUDE_K8S=1
 ARG KUBECTL_VERSION=v1.34.10
 ARG KUBECTL_SHA256=95bd70842bd11a524d24acd5b68726899e3488e153e45e2b4ae846545beda050
-ARG KIND_VERSION=v0.31.0
-ARG KIND_SHA256=eb244cbafcc157dff60cf68693c14c9a75c4e6e6fedaf9cd71c58117cb93e3fa
 RUN if [ "$INCLUDE_K8S" = "1" ]; then \
         set -eux; \
         curl -fsSL -o /tmp/kubectl \
             "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"; \
         echo "${KUBECTL_SHA256}  /tmp/kubectl" | sha256sum -c -; \
         install -m 0755 /tmp/kubectl /usr/local/bin/kubectl; \
-        curl -fsSL -o /tmp/kind \
-            "https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-linux-amd64"; \
-        echo "${KIND_SHA256}  /tmp/kind" | sha256sum -c -; \
-        install -m 0755 /tmp/kind /usr/local/bin/kind; \
-        rm -f /tmp/kubectl /tmp/kind; \
+        rm -f /tmp/kubectl; \
         kubectl version --client=true >/dev/null; \
-        kind version >/dev/null; \
     fi
 
 # Script boot cua cluster con + lenh cho. Chep KHONG DIEU KIEN (khong gac bang
