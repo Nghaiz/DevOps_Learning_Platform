@@ -301,11 +301,12 @@ func buildSessionEngine(
 	}
 
 	svc, err := lifecycle.NewService(rdb, mgr, pods, auditDB, lifecycle.Config{
-		Namespace:       cfg.SandboxNamespace,
-		SessionTTL:      cfg.SessionTTL,
-		HardCap:         cfg.HardCap,
-		ExtendDefault:   cfg.ExtendDefault,
-		SandboxProfiles: cfg.SandboxProfiles,
+		Namespace:         cfg.SandboxNamespace,
+		SessionTTL:        cfg.SessionTTL,
+		HardCap:           cfg.HardCap,
+		ExtendDefault:     cfg.ExtendDefault,
+		SandboxProfiles:   cfg.SandboxProfiles,
+		CapacitySoftLimit: cfg.CapacitySoftLimit,
 	}, log, met)
 	if err != nil {
 		closeAll()

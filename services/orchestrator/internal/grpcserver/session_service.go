@@ -23,6 +23,12 @@ type Lifecycle interface {
 	Get(ctx context.Context, req *orchestratorv1.GetSessionRequest) (*orchestratorv1.Session, error)
 	Extend(ctx context.Context, req *orchestratorv1.ExtendSessionRequest) (*orchestratorv1.Session, bool, error)
 	Reap(ctx context.Context, sessionID string, actor lifecycle.ReapActor) (*orchestratorv1.Session, error)
+	// GetCapacity và ListSessions (P13 D5/D6) trả THẲNG message response của
+	// contract — không cần bọc lại như Create/Claim/Get/Extend (những RPC đó
+	// bọc Session vào một Response riêng ở tầng adapter; hai RPC này KHÔNG có
+	// gì để bọc, response proto CHÍNH LÀ shape lifecycle trả ra).
+	GetCapacity(ctx context.Context, req *orchestratorv1.GetCapacityRequest) (*orchestratorv1.GetCapacityResponse, error)
+	ListSessions(ctx context.Context, req *orchestratorv1.ListSessionsRequest) (*orchestratorv1.ListSessionsResponse, error)
 }
 
 // SessionService là adapter gRPC: nó dịch request/response và KHÔNG chứa logic.
@@ -144,6 +150,29 @@ func (s *SessionService) ReapSession(
 		return nil, err
 	}
 	return &orchestratorv1.ReapSessionResponse{Session: sess}, nil
+}
+
+// GetCapacity trả sức chứa nền tảng. Sẵn cho MỌI user đã đăng nhập — không có
+// authz thêm ở tầng này (session.proto), khác hẳn ReapSession/system_component.
+func (s *SessionService) GetCapacity(
+	ctx context.Context, req *orchestratorv1.GetCapacityRequest,
+) (*orchestratorv1.GetCapacityResponse, error) {
+	if err := s.ready("GetCapacity"); err != nil {
+		return nil, err
+	}
+	return s.lifecycle.GetCapacity(ctx, req)
+}
+
+// ListSessions liệt kê session ĐANG SỐNG, lọc theo user_id. Vai trò "ai được
+// gửi user_id rỗng hay user_id của người khác" là quyết định của BFF — xem
+// comment đầy đủ trong session.proto và trong lifecycle.Service.ListSessions.
+func (s *SessionService) ListSessions(
+	ctx context.Context, req *orchestratorv1.ListSessionsRequest,
+) (*orchestratorv1.ListSessionsResponse, error) {
+	if err := s.ready("ListSessions"); err != nil {
+		return nil, err
+	}
+	return s.lifecycle.ListSessions(ctx, req)
 }
 
 // resolveReapActor dịch `oneof actor` sang thứ lifecycle tin được.

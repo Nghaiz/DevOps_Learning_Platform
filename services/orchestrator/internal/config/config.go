@@ -4,6 +4,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -121,6 +122,18 @@ type Config struct {
 	// (cùng nguyên tắc fail-closed với SandboxTier: server không tự suy ra một
 	// profile chưa được khai).
 	SandboxProfiles map[string]*k8s.SandboxProfile
+
+	// CapacitySoftLimit là ngưỡng "còn N chỗ" FE dùng (P13 D5, GetCapacity RPC).
+	//
+	// ⛔ KHÔNG CÓ DEFAULT — cùng lý lẽ với SandboxImage ở trên: một mặc định đoán
+	// bừa (0, hoặc một hằng số ngẫu nhiên) sẽ hiện sai sức chứa cho MỌI cluster
+	// tới khi ai đó phát hiện ra, và triệu chứng ("còn N chỗ" sai) không tự lộ ra
+	// như một lỗi — trang vẫn render, chỉ con số sai. Đây KHÔNG phải trần cứng
+	// của quota (đại lượng đó do apiserver gác qua `sandbox.quota` trong Helm) —
+	// nó là ngưỡng "pool còn lành" thấp hơn trần vật lý (xem
+	// values-selfhost.yaml § sandbox.quota: 23 phiên là chỗ vật lý, 20 là chỗ
+	// còn giữ được trải nghiệm — CAPACITY_SOFT_LIMIT là 20, không phải 23).
+	CapacitySoftLimit int
 }
 
 // rawSandboxProfile là hình dạng JSON thô của MỘT profile trong
@@ -293,6 +306,24 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	// KHÔNG có default — cùng lý lẽ với SANDBOX_IMAGE ở trên. Đọc raw trước để
+	// phân biệt "chưa đặt" (envx.Int không phân biệt được: cả unset lẫn set="0"
+	// đều là số nguyên hợp lệ) khỏi "đặt nhưng sai định dạng" khỏi "đặt và hợp
+	// lệ nhưng <= 0" — ba thông báo lỗi khác nhau, cho người vận hành sửa đúng chỗ.
+	capacitySoftLimitRaw := envx.String("CAPACITY_SOFT_LIMIT", "")
+	if capacitySoftLimitRaw == "" {
+		return nil, fmt.Errorf("env CAPACITY_SOFT_LIMIT: bắt buộc nhưng chưa đặt " +
+			"(không có default — đây là ngưỡng \"còn N chỗ\" FE hiện cho người dùng; " +
+			"một mặc định đoán bừa sẽ hiện sai sức chứa cho mọi cluster)")
+	}
+	capacitySoftLimit, err := strconv.Atoi(capacitySoftLimitRaw)
+	if err != nil {
+		return nil, fmt.Errorf("env CAPACITY_SOFT_LIMIT: %q không phải số nguyên: %w", capacitySoftLimitRaw, err)
+	}
+	if capacitySoftLimit <= 0 {
+		return nil, fmt.Errorf("env CAPACITY_SOFT_LIMIT: phải > 0 (nhận %d)", capacitySoftLimit)
+	}
+
 	return &Config{
 		GRPCAddr:         envx.String("GRPC_ADDR", ":9090"),
 		HTTPAddr:         envx.String("HTTP_ADDR", ":8081"),
@@ -315,6 +346,7 @@ func Load() (*Config, error) {
 		SandboxRuntimeClass:   envx.String("SANDBOX_RUNTIME_CLASS", "sysbox-runc"),
 		SandboxRegistryMirror: envx.String("SANDBOX_REGISTRY_MIRROR", ""),
 		SandboxProfiles:       sandboxProfiles,
+		CapacitySoftLimit:     capacitySoftLimit,
 	}, nil
 }
 

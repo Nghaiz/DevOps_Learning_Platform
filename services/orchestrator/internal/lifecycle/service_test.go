@@ -238,11 +238,12 @@ func newHarnessWithProfiles(t *testing.T, profiles map[string]*k8s.SandboxProfil
 	met := metrics.New(prometheus.NewRegistry())
 	pods := &fakePodDeleter{}
 	svc, err := NewService(rdb, fp, pods, nil, Config{
-		Namespace:       "dlp-sandbox",
-		SessionTTL:      time.Hour,
-		HardCap:         2 * time.Hour,
-		ExtendDefault:   5 * time.Minute,
-		SandboxProfiles: profiles,
+		Namespace:         "dlp-sandbox",
+		SessionTTL:        time.Hour,
+		HardCap:           2 * time.Hour,
+		ExtendDefault:     5 * time.Minute,
+		SandboxProfiles:   profiles,
+		CapacitySoftLimit: 20,
 	}, slog.New(slog.NewJSONHandler(io.Discard, nil)), met)
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
@@ -301,9 +302,19 @@ func TestNewServiceTuChoiCauHinhMauThuan(t *testing.T) {
 	// Cấu hình đúng vẫn phải qua.
 	if _, err := NewService(nil, nil, nil, nil, Config{
 		Namespace: "ns", SessionTTL: time.Hour, HardCap: 2 * time.Hour,
-		ExtendDefault: 5 * time.Minute,
+		ExtendDefault: 5 * time.Minute, CapacitySoftLimit: 20,
 	}, log, met); err != nil {
 		t.Fatalf("cấu hình hợp lệ bị từ chối: %v", err)
+	}
+
+	// CapacitySoftLimit <= 0 phải bị từ chối, cùng lý lẽ với mọi field bắt
+	// buộc khác — một mặc định 0 âm thầm nghĩa là GetCapacity luôn trả
+	// soft_capacity=0 cho FE, tức "luôn đầy" dù pool còn trống.
+	if _, err := NewService(nil, nil, nil, nil, Config{
+		Namespace: "ns", SessionTTL: time.Hour, HardCap: 2 * time.Hour,
+		ExtendDefault: 5 * time.Minute, CapacitySoftLimit: 0,
+	}, log, met); err == nil {
+		t.Fatal("CapacitySoftLimit=0 được chấp nhận — GetCapacity sẽ luôn báo 'hết chỗ'")
 	}
 }
 

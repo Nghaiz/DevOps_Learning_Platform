@@ -18,7 +18,7 @@ func clearEnv(t *testing.T) {
 	for _, key := range []string{
 		"GRPC_ADDR", "HTTP_ADDR", "LOG_LEVEL", "GRPC_REFLECTION",
 		"DATABASE_URL", "REDIS_URL", "SESSION_TTL", "SHUTDOWN_GRACE", "SANDBOX_NAMESPACE",
-		"SANDBOX_IMAGE", "SANDBOX_PROFILES",
+		"SANDBOX_IMAGE", "SANDBOX_PROFILES", "CAPACITY_SOFT_LIMIT",
 		"GRPC_MTLS_MODE", "GRPC_TLS_CERT_FILE", "GRPC_TLS_KEY_FILE", "GRPC_TLS_CA_FILE",
 		"GRPC_MTLS_SYSTEM_CNS",
 	} {
@@ -30,6 +30,9 @@ func clearEnv(t *testing.T) {
 	// những default KHÁC, nên cấp cho chúng một giá trị hợp lệ; ca "để rỗng"
 	// có test riêng (TestSandboxImageBatBuoc).
 	t.Setenv("SANDBOX_IMAGE", "ghcr.io/nghaiz/dlp-sandbox-base:test")
+	// CAPACITY_SOFT_LIMIT là biến BẮT BUỘC không có default (P13 D5) — cùng lý
+	// lẽ với SANDBOX_IMAGE. Ca "để rỗng" có test riêng (TestCapacitySoftLimitBatBuoc).
+	t.Setenv("CAPACITY_SOFT_LIMIT", "20")
 }
 
 // SANDBOX_IMAGE rỗng phải CHẶN khởi động, không được rơi về một default chạy được.
@@ -48,6 +51,64 @@ func TestSandboxImageBatBuoc(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "SANDBOX_IMAGE") {
 		t.Fatalf("error phải nêu tên biến để người vận hành sửa được, nhận: %v", err)
+	}
+}
+
+// TestCapacitySoftLimitBatBuoc — rỗng phải CHẶN khởi động, không được rơi về
+// một default nào. Chế độ hỏng nếu để lọt: GetCapacity trả soft_capacity=0,
+// FE hiện "hết chỗ" vĩnh viễn dù pool còn trống — trang vẫn render bình
+// thường nên không ai đọc ra đó là một lỗi cấu hình.
+func TestCapacitySoftLimitBatBuoc(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("CAPACITY_SOFT_LIMIT", "")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("Load() muốn error khi CAPACITY_SOFT_LIMIT rỗng, nhận nil")
+	}
+	if !strings.Contains(err.Error(), "CAPACITY_SOFT_LIMIT") {
+		t.Fatalf("error phải nêu tên biến để người vận hành sửa được, nhận: %v", err)
+	}
+}
+
+// TestCapacitySoftLimitKhongPhaiSoNguyenThiTuChoi — gõ nhầm ("hai mươi") phải
+// nổ ra LÚC KHỞI ĐỘNG, không phải lúc GetCapacity đầu tiên đọc field 0 im lặng.
+func TestCapacitySoftLimitKhongPhaiSoNguyenThiTuChoi(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("CAPACITY_SOFT_LIMIT", "hai-mươi")
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("Load() chấp nhận CAPACITY_SOFT_LIMIT không phải số nguyên")
+	}
+}
+
+// TestCapacitySoftLimitPhaiDuong — 0 hoặc âm là cấu hình vô nghĩa cho một
+// ngưỡng sức chứa: cluster sẽ báo "hết chỗ" (0) hoặc một con số âm không nghĩa
+// gì với người dùng.
+func TestCapacitySoftLimitPhaiDuong(t *testing.T) {
+	for _, raw := range []string{"0", "-1", "-20"} {
+		t.Run(raw, func(t *testing.T) {
+			clearEnv(t)
+			t.Setenv("CAPACITY_SOFT_LIMIT", raw)
+
+			if _, err := config.Load(); err == nil {
+				t.Fatalf("Load() chấp nhận CAPACITY_SOFT_LIMIT=%s", raw)
+			}
+		})
+	}
+}
+
+// TestCapacitySoftLimitDuocDoc — giá trị hợp lệ đi nguyên vẹn vào Config.
+func TestCapacitySoftLimitDuocDoc(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("CAPACITY_SOFT_LIMIT", "23")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() lỗi bất ngờ: %v", err)
+	}
+	if cfg.CapacitySoftLimit != 23 {
+		t.Fatalf("CapacitySoftLimit = %d, cần 23", cfg.CapacitySoftLimit)
 	}
 }
 

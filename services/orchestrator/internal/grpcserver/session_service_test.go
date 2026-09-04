@@ -25,12 +25,31 @@ type fakeLifecycle struct {
 
 	hardCapReached bool
 
-	gotCreate *orchestratorv1.CreateSessionRequest
-	gotClaim  *orchestratorv1.ClaimSessionRequest
-	gotGet    *orchestratorv1.GetSessionRequest
-	gotExtend *orchestratorv1.ExtendSessionRequest
-	gotReapID string
-	gotActor  lifecycle.ReapActor
+	gotCreate       *orchestratorv1.CreateSessionRequest
+	gotClaim        *orchestratorv1.ClaimSessionRequest
+	gotGet          *orchestratorv1.GetSessionRequest
+	gotExtend       *orchestratorv1.ExtendSessionRequest
+	gotReapID       string
+	gotActor        lifecycle.ReapActor
+	gotGetCapacity  *orchestratorv1.GetCapacityRequest
+	gotListSessions *orchestratorv1.ListSessionsRequest
+
+	capacity *orchestratorv1.GetCapacityResponse
+	sessions *orchestratorv1.ListSessionsResponse
+}
+
+func (f *fakeLifecycle) GetCapacity(
+	_ context.Context, req *orchestratorv1.GetCapacityRequest,
+) (*orchestratorv1.GetCapacityResponse, error) {
+	f.gotGetCapacity = req
+	return f.capacity, f.err
+}
+
+func (f *fakeLifecycle) ListSessions(
+	_ context.Context, req *orchestratorv1.ListSessionsRequest,
+) (*orchestratorv1.ListSessionsResponse, error) {
+	f.gotListSessions = req
+	return f.sessions, f.err
 }
 
 func (f *fakeLifecycle) Extend(
@@ -165,6 +184,14 @@ func TestKhongCoDatastoreThiUnavailableChuKhongPanic(t *testing.T) {
 			_, err := svc.GetSession(ctx, &orchestratorv1.GetSessionRequest{SessionId: "s1"})
 			return err
 		},
+		"GetCapacity": func() error {
+			_, err := svc.GetCapacity(ctx, &orchestratorv1.GetCapacityRequest{})
+			return err
+		},
+		"ListSessions": func() error {
+			_, err := svc.ListSessions(ctx, &orchestratorv1.ListSessionsRequest{})
+			return err
+		},
 	}
 
 	for name, call := range calls {
@@ -222,6 +249,46 @@ func TestLoiCuaLifecycleDiRaNguyenVen(t *testing.T) {
 	}
 	if got := status.Code(err); got != codes.NotFound {
 		t.Fatalf("code = %v, muốn NotFound", got)
+	}
+}
+
+// TestGetCapacityListSessionsChiDinhTuyen — cùng tinh thần với
+// TestAdapterKhongDoiRequestVaBocResponse: tầng adapter CHỈ được định tuyến,
+// không được đổi request hay bọc lại response — hai RPC này không có Session
+// nào để bọc, response proto CHÍNH LÀ shape lifecycle trả ra (xem comment
+// trong Lifecycle interface).
+func TestGetCapacityListSessionsChiDinhTuyen(t *testing.T) {
+	wantCap := &orchestratorv1.GetCapacityResponse{ActiveSessions: 3, SoftCapacity: 20, PoolFree: 1}
+	wantList := &orchestratorv1.ListSessionsResponse{
+		Sessions:   []*orchestratorv1.Session{{Id: "s1"}},
+		NextCursor: "s1",
+	}
+	fake := &fakeLifecycle{capacity: wantCap, sessions: wantList}
+	svc := grpcserver.NewSessionService(discardLogger(), fake, nil)
+	ctx := context.Background()
+
+	capReq := &orchestratorv1.GetCapacityRequest{}
+	capResp, err := svc.GetCapacity(ctx, capReq)
+	if err != nil {
+		t.Fatalf("GetCapacity: %v", err)
+	}
+	if fake.gotGetCapacity != capReq {
+		t.Error("GetCapacity không truyền nguyên request xuống lifecycle")
+	}
+	if capResp != wantCap {
+		t.Error("GetCapacity không trả nguyên response của lifecycle")
+	}
+
+	listReq := &orchestratorv1.ListSessionsRequest{UserId: "u1", Limit: 5}
+	listResp, err := svc.ListSessions(ctx, listReq)
+	if err != nil {
+		t.Fatalf("ListSessions: %v", err)
+	}
+	if fake.gotListSessions != listReq {
+		t.Error("ListSessions không truyền nguyên request xuống lifecycle")
+	}
+	if listResp != wantList {
+		t.Error("ListSessions không trả nguyên response của lifecycle")
 	}
 }
 

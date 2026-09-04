@@ -95,6 +95,14 @@ type Config struct {
 	// định ("") tồn tại — mọi CreateSessionRequest.profile khác rỗng bị Create
 	// từ chối InvalidArgument (fail-closed, cùng nguyên tắc với SandboxTier).
 	SandboxProfiles map[string]*k8s.SandboxProfile
+
+	// CapacitySoftLimit là ngưỡng "còn N chỗ" mà GetCapacity trả cho FE (P13
+	// D5), đọc từ env CAPACITY_SOFT_LIMIT (internal/config — bắt buộc > 0,
+	// không có default an toàn: một mặc định đoán bừa sẽ hiện sai sức chứa cho
+	// mọi cluster). KHÔNG phải trần cứng của quota — đó là
+	// `sandbox.quota` trong Helm, một đại lượng khác hẳn và do apiserver gác,
+	// không phải orchestrator.
+	CapacitySoftLimit int
 }
 
 // Service hiện thực CreateSession / ClaimSession / GetSession.
@@ -162,6 +170,13 @@ func NewService(
 		// chạm trần cứng. Một giá trị vô nghĩa là thứ không ai phát hiện ra.
 		return nil, fmt.Errorf("lifecycle: EXTEND_DEFAULT (%s) > HARD_CAP (%s): mọi lần gia hạn đều chạm trần cứng",
 			cfg.ExtendDefault, cfg.HardCap)
+	}
+	if cfg.CapacitySoftLimit <= 0 {
+		// Cùng nguyên tắc với mọi field bắt buộc khác ở đây: config.Load() đã
+		// kiểm CAPACITY_SOFT_LIMIT > 0 trước khi map vào Config này, nhưng
+		// lifecycle không tin ngược lại caller — package này được test độc lập
+		// (service_test.go dựng lifecycle.Config tay, không qua config.Load).
+		return nil, fmt.Errorf("lifecycle: CapacitySoftLimit phải > 0 (nhận %d)", cfg.CapacitySoftLimit)
 	}
 
 	return &Service{
