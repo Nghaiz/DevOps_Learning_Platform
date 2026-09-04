@@ -1,6 +1,7 @@
 import { join } from 'node:path';
-import { filesystemScenarioSource, type ScenarioSource } from '@devops-platform/scenario';
+import type { ScenarioSource } from '@devops-platform/scenario';
 import type { ScenarioCapability } from '@devops-platform/shared-types/scenario';
+import { publishedContentSource } from '../content/source';
 import { scenariosDir } from '../env';
 
 /**
@@ -10,12 +11,20 @@ import { scenariosDir } from '../env';
  * Router tRPC gọi `scenarioSource()`, không gọi `loadScenarios()`. Đó là điều
  * làm bản DB-backed (soạn bài trên UI) thay được vào đây mà không sửa router,
  * `checkStep`, hay FE — xem `packages/scenario/src/source.ts`.
+ *
+ * ✅ P9 (2026-09-04): ngày đó đã tới, và lời hứa trên đứng vững — nguồn giờ là
+ * `composite([đĩa, DB])` và KHÔNG một dòng nào của `lessons.ts`/`checkStep`/FE
+ * phải sửa. Chữ ký zero-arg là vế còn lại của lời hứa đó, nên nó KHÔNG được
+ * nhận tham số: một `scenarioSource(ctx)` sẽ phá đúng ô AC này.
+ *
+ * Nguồn này chỉ trả bài `published`. Bài nháp sống ở `authoring.list`, nơi nguồn
+ * được dựng KÈM tầm nhìn (`content/source.ts` § `contentSourceFor`).
+ *
+ * ⚠ KHÔNG còn cache singleton ở đây: nguồn DB không được cache (một bài vừa sửa
+ * phải thấy ngay). Cache của phần ĐĨA vẫn còn, nằm trong `content/source.ts`.
  */
-let source: ScenarioSource | null = null;
-
 export function scenarioSource(): ScenarioSource {
-  source ??= filesystemScenarioSource(scenariosDir());
-  return source;
+  return publishedContentSource();
 }
 
 /**

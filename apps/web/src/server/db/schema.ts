@@ -1,7 +1,9 @@
 import {
   boolean,
+  customType,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -9,6 +11,10 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import {
+  CONTENT_KINDS,
+  CONTENT_STATES,
+} from '@devops-platform/shared-types/authoring';
 
 /**
  * Schema Postgres — Drizzle là owner DUY NHẤT của mọi bảng ở đây.
@@ -18,7 +24,15 @@ import {
  * để hai ORM cùng ghi một bảng.
  */
 
-export const userRole = pgEnum('user_role', ['user', 'admin']);
+/**
+ * `author` được NỐI VÀO CUỐI (P9 9.A task 1), không chèn giữa: Postgres không
+ * cho đổi chỗ giá trị enum mà không viết lại kiểu, và migration `ALTER TYPE …
+ * ADD VALUE` chỉ nối được vào cuối trong một câu lệnh không khoá bảng.
+ *
+ * Mọi user cũ giữ nguyên `user` — `default('user')` không đổi, và `ADD VALUE`
+ * không đụng tới dòng nào đang có.
+ */
+export const userRole = pgEnum('user_role', ['user', 'admin', 'author']);
 
 /** Khớp `SandboxTier` trong proto/orchestrator/v1/session.proto (bỏ UNSPECIFIED). */
 export const sandboxTier = pgEnum('sandbox_tier', ['sysbox', 'gvisor', 'kata']);
@@ -359,3 +373,314 @@ export type LabAttemptRow = typeof labAttempts.$inferSelect;
 export type NewLabAttemptRow = typeof labAttempts.$inferInsert;
 export type LabTaskResultRow = typeof labTaskResults.$inferSelect;
 export type NewLabTaskResultRow = typeof labTaskResults.$inferInsert;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Nội dung SOẠN TRÊN UI (P9) — ràng buộc dài hạn #4: "soạn bài trực tiếp trên
+// UI, không hardcode vào repo".
+//
+// ⚠ Ba bảng dưới đây là NGUỒN, không phải bản sao. Đây chính là điều kiện mà
+// `packages/scenario/src/source.ts` đặt ra khi CẤM dựng bảng `scenarios` ở P2:
+// *"bảng đó thuộc về ngày có UI soạn bài, và ngày đó nó là NGUỒN chứ không phải
+// bản sao."* Nội dung vendored trên đĩa KHÔNG được chép vào đây — hai nguồn
+// sống song song, luật gộp ở `docs/content-sources.md`.
+//
+// ⛔ Mỗi cột dưới đây phải có LÝ DO TỒN TẠI ghi ngay tại chỗ (task 6). Cột nào
+// tính được từ cột khác thì không được có mặt; review chặn.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const contentKind = pgEnum('content_kind', CONTENT_KINDS);
+export const contentState = pgEnum('content_state', CONTENT_STATES);
+
+/**
+ * `bytea` — Drizzle không có builder sẵn cho nó.
+ *
+ * `fromDriver`/`toDriver` để mặc định: node-postgres đã trả `bytea` dưới dạng
+ * `Buffer` và nhận `Buffer` khi ghi. Không đổi sang base64 ở tầng này — chuyển
+ * đổi ở đây làm mọi caller phải nhớ nó đã bị chuyển, và chỗ quên đầu tiên là
+ * chỗ ảnh hỏng.
+ */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return 'bytea';
+  },
+});
+
+/**
+ * Một đơn vị nội dung soạn trên UI — lesson, lab, hoặc playground.
+ *
+ * ## Vì sao MỘT bảng cho cả ba loại
+ *
+ * Ba DTO của chúng không phải ba cây song song: `labSchema` và
+ * `playgroundSchema` đều `extend`/`pick` từ `contentBaseSchema`
+ * (`packages/shared-types/src/scenario.ts`) — đúng mười field chung. Ba bảng sẽ
+ * chép mười cột đó ra ba chỗ, và chúng lệch ở lần đầu tiên ai đó thêm một tier
+ * hay một capability. Cột riêng-theo-loại được để `null`, và schema Zod của
+ * từng loại là thứ ép chúng có mặt (`server/content/validate.ts`) — kiểm ở biên
+ * ghi, không phải bằng một `CHECK` chép lại luật một lần nữa.
+ *
+ * ## Không có cột nào cho những thứ này, và đó là cố ý
+ *
+ * · `stepCount` / `taskCount` — `count(content_steps)`. Task 6 cấm đích danh.
+ * · `source` (repo/commit/license upstream) — bài soạn trên UI KHÔNG có
+ *   upstream; hằng `null`. Một cột luôn NULL nói dối về việc nó có thể khác.
+ * · `ignoredUpstreamFields` — cùng lý do; hằng `[]`.
+ * · trạng thái "đã xuất bản chưa" — `state` LÀ nó, không cần một boolean thứ hai.
+ */
+export const contentItems = pgTable(
+  'content_items',
+  {
+    /**
+     * Slug của bài (`scenarioIdSchema`), KHÔNG phải uuid: nó đi thẳng vào URL,
+     * vào `progress.lesson_id` và `lab_attempts.lab_id` — cùng không-gian định
+     * danh với nội dung trên đĩa. Đó cũng là lý do va chạm id giữa hai nguồn có
+     * thể xảy ra và phải có luật ưu tiên.
+     */
+    id: text('id').primaryKey(),
+    kind: contentKind('kind').notNull(),
+    /**
+     * ⚠ KHÔNG cascade khi xoá user, và KHÔNG phải sơ suất: xoá một tài khoản
+     * tác giả mà kéo theo mọi bài họ đã xuất bản sẽ làm tiến độ của người học
+     * trỏ vào hư không (`progress.lesson_id` là cột text không FK). Postgres
+     * mặc định NO ACTION ⇒ xoá tác giả khi còn bài sẽ LỖI, buộc người vận hành
+     * archive hoặc chuyển chủ trước. Ồn ào là đúng ở đây.
+     */
+    authorId: text('author_id')
+      .notNull()
+      .references(() => users.id),
+    state: contentState('state').notNull().default('draft'),
+
+    // ── contentBaseSchema, phần chung của cả ba loại ────────────────────────
+    title: text('title').notNull(),
+    description: text('description'),
+    /** `null` cho playground — nó cố ý không có độ khó (xem `playgroundSchema`). */
+    difficulty: text('difficulty'),
+    /**
+     * Người soạn NHẬP TAY, nên nó KHÔNG phải derived (task 6 nói rõ ngoại lệ
+     * này). Không có cách nào tính thời lượng từ markdown mà không bịa ra một
+     * hằng số "phút mỗi từ".
+     */
+    estimatedMinutes: integer('estimated_minutes'),
+    tier: sandboxTier('tier').notNull(),
+    /**
+     * `ScenarioCapability[]`. jsonb chứ không phải `text[]`: nó được đọc nguyên
+     * khối và đưa thẳng vào Zod, không có truy vấn nào lọc theo phần tử.
+     */
+    capabilities: jsonb('capabilities').notNull(),
+    /**
+     * Với bài vendored đây là `backend.imageid` nguyên văn upstream (giữ để
+     * truy nguyên). Với bài soạn trên UI không có upstream để dẫn — nó là lựa
+     * chọn image của người soạn, và `contentBaseSchema` đòi nó `min(1)`.
+     */
+    backendImageId: text('backend_image_id').notNull(),
+    /** `interface.layout` — `null` = terminal thường. */
+    interfaceLayout: text('interface_layout'),
+    /**
+     * `ScenarioAsset[]` — file ĐẨY VÀO SANDBOX lúc start (host/file/target/chmod).
+     *
+     * ⚠ KHÁC HẲN bảng `content_assets` bên dưới, và hai thứ này rất dễ lẫn:
+     * đây là *chỉ thị copy file vào pod*; bảng kia là *byte của ảnh minh hoạ
+     * phục vụ qua HTTP*. Upstream gọi cả hai là "assets".
+     */
+    assets: jsonb('assets').notNull(),
+
+    // ── riêng lesson ────────────────────────────────────────────────────────
+    /** `scenarioPhaseSchema | null` — phase mở đầu, không phải một bước có số. */
+    intro: jsonb('intro'),
+    /** `scenarioPhaseSchema | null` — phase kết, không phải một bước có số. */
+    finish: jsonb('finish'),
+
+    // ── riêng lab ───────────────────────────────────────────────────────────
+    /**
+     * `phaseScriptsSchema | null` — setup chạy MỘT lần khi dựng môi trường lab.
+     * Lab cố ý không có setup-per-task (xem `labSchema.setup`).
+     */
+    setup: jsonb('setup'),
+    /** Mốc ĐẠT theo % trọng số. Dữ liệu chính: trạng thái đạt/trượt được TÍNH từ nó. */
+    passThresholdPercent: integer('pass_threshold_percent'),
+    /** Bật xếp hạng — lựa chọn tường minh của người soạn, mặc định tắt. */
+    leaderboard: boolean('leaderboard'),
+
+    // ── riêng playground ────────────────────────────────────────────────────
+    /** TTL riêng, ngắn hơn lesson/lab. Trần 7200 khớp HARD_CAP của orchestrator. */
+    ttlSeconds: integer('ttl_seconds'),
+
+    // ── vòng đời ────────────────────────────────────────────────────────────
+    /**
+     * Mốc bắt đầu lượt chạy thử của `publish` (task 18). Tồn tại vì lượt đó
+     * chạy NGOÀI request: `web` có 2 replica và pod đang chạy thử có thể chết
+     * giữa chừng, để lại một bài kẹt ở `publishing` vĩnh viễn. Có mốc này thì
+     * "đang chạy thử" và "đã treo" phân biệt được bằng một phép trừ ở chỗ đọc —
+     * chứ không cần một cột `stale` thứ hai.
+     */
+    publishStartedAt: timestamp('publish_started_at', { withTimezone: true }),
+    /**
+     * Vì sao lượt xuất bản gần nhất TRƯỢT. `null` = chưa chạy, hoặc đã đạt.
+     * Không tính được từ đâu: nó là output của một lượt chạy thật đã kết thúc.
+     */
+    publishError: text('publish_error'),
+    /**
+     * Lần ĐẦU xuất bản thành công. KHÔNG cập nhật ở các lần xuất bản sau —
+     * "sửa đổi gần nhất" đã là `updatedAt`, và gộp hai câu hỏi vào một cột làm
+     * mất câu trả lời của cả hai.
+     */
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Vế mà `dbContentSource` KHÔNG cache dựa vào — sửa xong phải thấy ngay (task 11). */
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Truy vấn nóng nhất: `listItems(kind, visibility)` = lọc theo `(kind,
+    // state)` rồi sắp theo `id`. `id` là PK nên nó đã có cây riêng; index này
+    // phục vụ vế lọc.
+    index('content_items_kind_state_idx').on(table.kind, table.state),
+    // Trang soạn: "bài của TÔI", mọi state.
+    index('content_items_author_state_idx').on(table.authorId, table.state),
+  ],
+);
+
+/**
+ * Một BƯỚC của lesson, hoặc một TASK của lab. Cùng bảng, và đó là một khẳng
+ * định về hình dạng dữ liệu chứ không phải sự tiết kiệm.
+ *
+ * `scenarioStepSchema` và `labTaskSchema` khác nhau đúng bốn field
+ * (`weight`/`hint` có ở lab; `setup`/`index` có ở lesson) trên một thân chung
+ * là `(title, markdown, verifyScript)`. Hai bảng sẽ nhân đôi cột `markdown` —
+ * cột to nhất — và nhân đôi mọi truy vấn đếm.
+ *
+ * ⛔ Playground KHÔNG có dòng nào ở đây: nó là môi trường không có bài. Một
+ * playground có bước là một lesson bị gán nhầm loại.
+ */
+export const contentSteps = pgTable(
+  'content_steps',
+  {
+    /** Sinh ở tầng router (`crypto.randomUUID()`). */
+    id: text('id').primaryKey(),
+    contentId: text('content_id')
+      .notNull()
+      .references(() => contentItems.id, { onDelete: 'cascade' }),
+    /**
+     * Vị trí 0-based, liên tục.
+     *
+     * Với LESSON đây LÀ định danh của bước: nó khớp `progress.step_index` và
+     * `ScenarioStep.index`. Không có cột `index` thứ hai — đó sẽ là hai tên cho
+     * cùng một số.
+     */
+    ordinal: integer('ordinal').notNull(),
+    /**
+     * LAB: `LabTask.id` — ĐỊNH DANH BỀN, và nó tồn tại CHÍNH VÌ `ordinal` không
+     * đủ. `lab_task_results.task_id` trỏ vào giá trị này; chèn một task vào
+     * giữa mà id suy từ vị trí thì mọi kết quả đã lưu gắn sai việc, không lỗi,
+     * không cảnh báo (xem `labTaskIdSchema`).
+     *
+     * LESSON: `null` — ở đó vị trí LÀ định danh, và tiến độ đã lưu theo số.
+     */
+    taskId: text('task_id'),
+    /** `null` hợp lệ cho lesson (upstream `use-images` không có title). Lab đòi có. */
+    title: text('title'),
+    markdown: text('markdown').notNull(),
+    /**
+     * `setup.foreground` — script HIỆN trong terminal người học.
+     *
+     * ⚠ Hai cột `setup_*` chứ KHÔNG phải một cột `setup_script` như phase-9
+     * task 5 phác. Killercoda phân biệt hai loại và `runSetup` chạy chúng khác
+     * nhau: gộp lại là mất đúng thông tin quyết định UX ("terminal treo câm" vs
+     * "màn hình đang chạy gì đó"). Xem `phaseScriptsSchema`.
+     */
+    setupForeground: text('setup_foreground'),
+    /** `setup.background` — chạy ẩn. */
+    setupBackground: text('setup_background'),
+    /**
+     * `null` = bước này không chấm (hợp lệ cho lesson).
+     *
+     * ⛔ Với LAB thì `labTaskSchema` đòi `min(1)`: một task không chấm được
+     * luôn ở trạng thái "chưa đạt" mà không có cách nào đạt. Luật đó được ép ở
+     * biên ghi bằng chính Zod schema, không phải bằng một CHECK chép lại nó.
+     */
+    verifyScript: text('verify_script'),
+    /** LAB: trọng số khi tính điểm. `null` cho lesson. */
+    weight: integer('weight'),
+    /** LAB: gợi ý. `null` cho lesson, và `null` cho task không có gợi ý. */
+    hint: text('hint'),
+  },
+  (table) => [
+    // Thứ tự bước là dữ liệu, không phải may mắn: `get()` đọc theo `(contentId,
+    // ordinal)` và unique chặn hai bước cùng vị trí — thứ sẽ hiện ra dưới dạng
+    // "bài nhảy bước" tuỳ thứ tự trả về của Postgres.
+    uniqueIndex('content_steps_content_ordinal_key').on(table.contentId, table.ordinal),
+    // Task id phải duy nhất TRONG một lab — trùng nghĩa là hai task chia nhau
+    // một dòng điểm. Postgres coi mọi NULL là khác nhau, nên hàng lesson
+    // (`task_id IS NULL`) không va vào nhau ở index này.
+    uniqueIndex('content_steps_content_task_key').on(table.contentId, table.taskId),
+  ],
+);
+
+/**
+ * Ảnh minh hoạ người soạn TẢI LÊN — byte nằm ngay trong dòng.
+ *
+ * ## Vì sao trong Postgres, khi phase-9 task 15 nói "không lưu blob trong Postgres"
+ *
+ * Câu đó viết khi chưa đối chiếu với `infra/helm/platform/values.yaml`:
+ * `web.replicaCount: 2`, và storageclass duy nhất trên cụm là `local-path`,
+ * vốn **RWO**. Chart đã ghi đúng hệ quả cho registry-mirror: *"Recreate vì PVC
+ * là RWO: hai pod cùng mount một PV local-path không lên"*. Một asset ghi qua
+ * pod A sẽ 404 ở pod B trong khoảng nửa số lượt — một lỗi ngắt quãng, khó tin,
+ * và người soạn sẽ báo nó là "ảnh lúc có lúc không".
+ *
+ * Postgres là kho DÙNG CHUNG duy nhất đang có, nên nó là chỗ đúng cho tới khi
+ * có object store thật. Cái giá được giữ trong tầm bằng trần
+ * `MAX_CONTENT_ASSET_BYTES` (2 MiB) + allowlist chỉ ảnh raster.
+ * `docs/content-sources.md` § "Asset" ghi đường đi tới MinIO khi cần.
+ *
+ * ⛔ KHÔNG có `size_bytes` dù task 7 liệt kê: `octet_length(bytes)` cho nó,
+ * cùng dòng, không cần join. Tính ở chỗ dùng.
+ */
+export const contentAssets = pgTable(
+  'content_assets',
+  {
+    /** Sinh ở tầng router (`crypto.randomUUID()`). */
+    id: text('id').primaryKey(),
+    contentId: text('content_id')
+      .notNull()
+      .references(() => contentItems.id, { onDelete: 'cascade' }),
+    /**
+     * Định danh lưu trữ do SERVER sinh — và là thứ DUY NHẤT đi vào URL (task 16).
+     *
+     * ⚠ Tên file người dùng nhập KHÔNG BAO GIỜ chạm đường dẫn. Đó là toàn bộ
+     * cách chống path traversal ở tầng này: không phải bằng cách lọc `..` cho
+     * khéo, mà bằng cách không có đường dẫn nào để traverse. `E8` của image
+     * sandbox đã có guard `..`; tầng web không được yếu hơn.
+     */
+    storageKey: text('storage_key').notNull(),
+    /** Tên gốc — CHỈ để hiển thị cho người soạn. Không bao giờ nối vào đường dẫn. */
+    filename: text('filename').notNull(),
+    /** Lấy từ allowlist theo ĐUÔI, không từ `Content-Type` client gửi. */
+    contentType: text('content_type').notNull(),
+    /**
+     * sha256 tính LÚC NHẬN.
+     *
+     * Đây là ngoại lệ có lý do của luật no-derived-fields, và lý do phải nói rõ
+     * kẻo lần review sau xoá nhầm: tính lại nó từ chính `bytes` đang lưu rồi so
+     * với chính nó thì không chứng minh được gì. Giá trị này là *nhân chứng của
+     * thứ đã nhận ở biên*, nên nó phát hiện được hỏng ngầm — và nó làm được
+     * ETag mà không phải đọc cả blob lên.
+     */
+    sha256: text('sha256').notNull(),
+    bytes: bytea('bytes').notNull(),
+    uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // `storageKey` là khoá tra cứu của route phục vụ asset — unique TOÀN CỤC,
+    // không phải theo content: URL không mang contentId thì hai bài trùng key
+    // sẽ phục vụ lẫn ảnh của nhau.
+    uniqueIndex('content_assets_storage_key_key').on(table.storageKey),
+    index('content_assets_content_idx').on(table.contentId),
+  ],
+);
+
+export type ContentItemRecord = typeof contentItems.$inferSelect;
+export type NewContentItemRecord = typeof contentItems.$inferInsert;
+export type ContentStepRecord = typeof contentSteps.$inferSelect;
+export type NewContentStepRecord = typeof contentSteps.$inferInsert;
+export type ContentAssetRecord = typeof contentAssets.$inferSelect;
+export type NewContentAssetRecord = typeof contentAssets.$inferInsert;

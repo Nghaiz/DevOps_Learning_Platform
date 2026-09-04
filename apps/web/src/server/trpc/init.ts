@@ -7,7 +7,7 @@ import { checkRateLimit, RATE_LIMIT_WINDOW_MS } from '../security/rate-limit';
 
 export interface AuthedUser {
   id: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'author';
 }
 
 export interface TRPCContext {
@@ -40,13 +40,20 @@ export interface TRPCContext {
  */
 export async function createTRPCContext(opts: FetchCreateContextFnOptions): Promise<TRPCContext> {
   const session = await getAuth().api.getSession({ headers: opts.req.headers });
-  // Annotation tường minh: TS widen 'admin'/'user' về string khi ternary lồng
-  // trong conditional — annotation giữ literal type. Fail-closed: role lạ → 'user'.
-  const user: AuthedUser | null =
-    session === null
-      ? null
-      : { id: session.user.id, role: (session.user as { role?: string }).role === 'admin' ? 'admin' : 'user' };
+  // Fail-closed: role lạ → 'user'. Đây là chỗ P9 thêm `author`, và nó PHẢI
+  // được thêm ở đây chứ không chỉ ở pgEnum: một tác giả thật mà map về `user`
+  // sẽ bị `authorProcedure` từ chối, và triệu chứng ("tôi là author nhưng không
+  // soạn được bài") không trỏ về dòng này. Allowlist tường minh thay vì một
+  // chuỗi ternary dài — thêm role thứ tư chỉ là thêm một phần tử.
+  const user: AuthedUser | null = session === null ? null : { id: session.user.id, role: toRole(session.user) };
   return { db: getDb(), user, reqHeaders: opts.req.headers, resHeaders: opts.resHeaders };
+}
+
+const KNOWN_ROLES: readonly AuthedUser['role'][] = ['user', 'admin', 'author'];
+
+function toRole(user: { role?: unknown }): AuthedUser['role'] {
+  const raw = user.role;
+  return KNOWN_ROLES.find((known) => known === raw) ?? 'user';
 }
 
 const t = initTRPC.context<TRPCContext>().create({
@@ -132,6 +139,22 @@ export function assertOwnerOrAdmin(ctx: { user: AuthedUser }, ownerId: string): 
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Không có quyền trên resource này' });
   }
 }
+
+/**
+ * Chỉ `author` và `admin` — cổng của MỌI procedure soạn bài (P9 9.A task 2).
+ *
+ * ⚠ Đây là cổng THỨ NHẤT, không phải cổng duy nhất. Nó chỉ trả lời "người này
+ * có được soạn bài nói chung không"; câu hỏi "bài NÀY có phải của họ không" là
+ * `assertContentOwner` ở `server/content/authz.ts`, và nó chạy trên MỌI
+ * procedure động tới một bài cụ thể. Gộp hai câu hỏi vào một middleware là cách
+ * IDOR lọt: `author` nào cũng qua được cổng thứ nhất.
+ */
+export const authorProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== 'author' && ctx.user.role !== 'admin') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Cần quyền soạn bài' });
+  }
+  return next();
+});
 
 /**
  * Luật 4 — schema list-input dùng chung: `limit` bị ÉP về ≤ MAX_LIST_LIMIT thay vì
