@@ -18,3 +18,130 @@
  */
 @source "../../../../packages/ui/src";
 @source "../../../../packages/terminal/src";
+
+/*
+ * 13.A — hệ thiết kế (D1 token + D2 dark mode). Đây là NGUỒN DUY NHẤT của màu:
+ * JSX chỉ được dùng class ngữ nghĩa (`bg-background`, `text-muted-foreground`,
+ * …), không bao giờ `#hex` hay `slate-*`/`gray-*` trần — grep AC ở
+ * phase-13-exec.md §5 kiểm điều này trên `packages/ui/src` + `apps/web/src`.
+ *
+ * `:root` = sáng, `.dark` = tối. Tên biến khớp bảng C1 của
+ * `phase-13-exec.md` §2 — mọi lane tiêu thụ đúng các tên này, đổi tên ở đây là
+ * phá hợp đồng.
+ */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.546 0.215 262.881);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.446 0 0);
+  --accent: oklch(0.951 0.023 262.881);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.518 0.146 150.741);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.541 0.15 55.98);
+  --warning-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.546 0.215 262.881);
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.685 0.169 262.881);
+  --primary-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.145 0 0);
+  --success: oklch(0.696 0.17 150.741);
+  --success-foreground: oklch(0.145 0 0);
+  --warning: oklch(0.769 0.188 70.08);
+  --warning-foreground: oklch(0.145 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.685 0.169 262.881);
+}
+
+/*
+ * `@custom-variant dark` — Tailwind v4 không còn `darkMode: 'class'` trong
+ * config JS (không có `tailwind.config.*` — xem phase-13-exec.md §0). Cú pháp
+ * `&:where(.dark, .dark *)` khớp cả phần tử MANG class `.dark` lẫn hậu duệ của
+ * nó, nên `dark:bg-card` hoạt động dù `.dark` đặt trên `<html>` (layout.tsx)
+ * chứ không phải trên chính phần tử đó.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * `@theme inline` ánh xạ biến "vai trò" (`--background`, …) sang biến Tailwind
+ * chuẩn (`--color-background`, …) để `bg-background`, `text-foreground`, …
+ * sinh ra. `inline` (không phải `@theme` thường) vì giá trị bên phải phải
+ * TRỎ TỚI biến ở `:root`/`.dark` tại thời điểm dùng, không đóng băng giá trị
+ * lúc build — đó là cách duy nhất để `.dark` ghi đè hoạt động.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /*
+   * D3 — font. `--font-be-vietnam-pro` do `next/font/google` sinh ra thành
+   * biến CSS trên `<html>` (xem layout.tsx). Fallback stack thật, không chỉ
+   * mỗi biến font — nếu biến chưa kịp gắn (lỗi mạng lúc build, `next/font`
+   * fail) trang vẫn đọc được thay vì rơi về serif mặc định của trình duyệt.
+   */
+  --font-sans:
+    var(--font-be-vietnam-pro), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:
+    ui-monospace, 'Cascadia Code', 'Cascadia Mono', 'Segoe UI Mono', Consolas, 'Liberation Mono', monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground;
+  }
+}
