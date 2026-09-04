@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Lab, LabTaskResult } from '@devops-platform/shared-types/lab';
+import type { Lab } from '@devops-platform/shared-types/lab';
 import {
   computeAttemptDurationSeconds,
   computeLabScore,
@@ -31,7 +31,17 @@ function makeLab(overrides: Partial<Lab> = {}): Lab {
   };
 }
 
-function result(taskId: string, exitCode: number, checkedAt: Date): LabTaskResult {
+/**
+ * Trả về dạng DÒNG DB (`checkedAt: Date`) — đó là nguồn mà server thật sự gọi
+ * các hàm này với. Dạng đi qua dây (chuỗi ISO) được phủ riêng bởi test
+ * "nhận CẢ chuỗi ISO" bên dưới; hai dạng đều phải chạy đúng, và một test chỉ
+ * phủ một dạng sẽ xanh trong khi phía kia hỏng.
+ */
+function result(
+  taskId: string,
+  exitCode: number,
+  checkedAt: Date,
+): { taskId: string; exitCode: number; output: string; checkedAt: Date } {
   return { taskId, exitCode, output: '', checkedAt };
 }
 
@@ -152,5 +162,31 @@ describe('computeAttemptDurationSeconds', () => {
     const startedAt = new Date('2026-01-01T00:01:00Z');
     const submittedAt = new Date('2026-01-01T00:00:55Z');
     expect(computeAttemptDurationSeconds(startedAt, submittedAt)).toBe(0);
+  });
+});
+
+
+describe('mốc thời gian: nhận CẢ Date lẫn chuỗi ISO', () => {
+  it('latestResultPerTask xếp đúng thứ tự khi checkedAt là chuỗi ISO', () => {
+    const older = { taskId: 'a', exitCode: 1, output: '', checkedAt: '2026-01-01T00:00:00.000Z' };
+    const newer = { taskId: 'a', exitCode: 0, output: '', checkedAt: '2026-01-01T00:05:00.000Z' };
+    expect(latestResultPerTask([newer, older]).get('a')).toBe(newer);
+    expect(latestResultPerTask([older, newer]).get('a')).toBe(newer);
+  });
+
+  it('computeAttemptDurationSeconds cho cùng kết quả với Date và với chuỗi ISO', () => {
+    const start = new Date('2026-01-01T00:00:00Z');
+    const end = new Date('2026-01-01T00:02:30Z');
+    expect(computeAttemptDurationSeconds(start, end)).toBe(150);
+    expect(computeAttemptDurationSeconds(start.toISOString(), end.toISOString())).toBe(150);
+  });
+
+  it('computeLabScore chấm đúng khi kết quả mang chuỗi ISO', () => {
+    const lab = makeLab();
+    const score = computeLabScore(lab, [
+      { taskId: 'a', exitCode: 0, checkedAt: '2026-01-01T00:00:00.000Z' },
+      { taskId: 'b', exitCode: 1, checkedAt: '2026-01-01T00:00:00.000Z' },
+    ]);
+    expect(score.passedTaskIds).toEqual(['a']);
   });
 });

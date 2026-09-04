@@ -16,6 +16,7 @@ describe('filesystemScenarioSource', () => {
     expect(items.map((s) => s.id)).toEqual([
       'ckad-configmap-as-files',
       'dlp-docker-basics',
+      'dlp-k8s-basics',
       'dlp-sandbox-basics',
       'loki-quickstart',
       'loxilb-tcp-load-balancing',
@@ -73,7 +74,7 @@ describe('filesystemScenarioSource', () => {
 describe('filesystemScenarioSource — ContentSource (lab + playground)', () => {
   it('listLabs liệt kê bản rút gọn, sắp theo id, không mang task', async () => {
     const items = await filesystemScenarioSource(CONTENT_DIR).listLabs();
-    expect(items.map((l) => l.id)).toEqual(['dlp-linux-triage']);
+    expect(items.map((l) => l.id)).toEqual(['dlp-k8s-broken-deploy', 'dlp-linux-triage']);
     for (const item of items) {
       expect(item).not.toHaveProperty('tasks');
       expect(item.taskCount).toBeGreaterThan(0);
@@ -125,6 +126,6 @@ describe('filesystemScenarioSource — ContentSource (lab + playground)', () => 
       playgroundsRootDir: path.join(CONTENT_DIR, '..', 'playgrounds'),
     });
     const labs = await explicit.listLabs();
-    expect(labs.map((l) => l.id)).toEqual(['dlp-linux-triage']);
+    expect(labs.map((l) => l.id)).toEqual(['dlp-k8s-broken-deploy', 'dlp-linux-triage']);
   });
 });

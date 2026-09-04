@@ -146,7 +146,15 @@ export const labTaskResultSchema = z
     exitCode: z.number().int(),
     /** Đã cắt cỡ ở server trước khi lưu. */
     output: z.string(),
-    checkedAt: z.date(),
+    /**
+     * ISO 8601, KHÔNG phải `Date`.
+     *
+     * Client tRPC của app này cố ý KHÔNG có transformer, nên một `Date` trả về
+     * từ procedure tới trình duyệt dưới dạng CHUỖI trong khi kiểu suy ra vẫn
+     * nói `Date` — hợp đồng nói dối, và chỗ vỡ nằm ở call site đầu tiên gọi
+     * `.getTime()`. Cùng lý do `toJsonSession` đổi timestamp sang chuỗi.
+     */
+    checkedAt: z.string(),
   })
   .strict();
 export type LabTaskResult = z.infer<typeof labTaskResultSchema>;
@@ -181,8 +189,10 @@ export const labAttemptSchema = z
     id: z.string().min(1),
     labId: scenarioIdSchema,
     sessionId: z.string().min(1),
-    startedAt: z.date(),
-    submittedAt: z.date().nullable(),
+    /** ISO 8601 — xem ghi chú ở `labTaskResultSchema.checkedAt`. */
+    startedAt: z.string(),
+    /** ISO 8601, `null` khi chưa nộp. */
+    submittedAt: z.string().nullable(),
     /** Người học tự chọn; mặc định `false` (ẩn danh) — xem `labSchema.leaderboard`. */
     displayNamePublic: z.boolean(),
     results: z.array(labTaskResultSchema),
@@ -202,7 +212,8 @@ export const labLeaderboardRowSchema = z
     displayName: z.string().nullable(),
     percent: z.number().int().min(0).max(100),
     durationSeconds: z.number().int().min(0),
-    submittedAt: z.date(),
+    /** ISO 8601 — xem ghi chú ở `labTaskResultSchema.checkedAt`. */
+    submittedAt: z.string(),
     /** `true` khi dòng này là của chính người đang xem. */
     isSelf: z.boolean(),
   })

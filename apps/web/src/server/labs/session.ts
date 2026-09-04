@@ -1,6 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import { SandboxTier } from '@devops-platform/shared-types';
-import type { SandboxTierName } from '@devops-platform/shared-types/scenario';
+import type {
+  SandboxTierName,
+  ScenarioCapability,
+} from '@devops-platform/shared-types/scenario';
+
+import { profileForCapabilities } from '../lessons/catalog';
 import { mintAccessTokenFor } from '../auth/jwt';
 import { attachSandboxCookie } from '../auth/sandbox-cookie';
 import { callOrchestrator, orchestratorClient } from '../grpc/orchestrator-client';
@@ -64,7 +69,17 @@ export interface NewSandbox {
  */
 export async function createSandboxSession(
   ctx: { user: { id: string; role: string }; resHeaders: Headers },
-  params: { tier: SandboxTierName; ttlSeconds: number; idempotencyKey: string },
+  params: {
+    tier: SandboxTierName;
+    ttlSeconds: number;
+    idempotencyKey: string;
+    /**
+     * Năng lực mà NỘI DUNG khai (lab/playground). Dùng để chọn profile tài
+     * nguyên — KHÔNG lấy từ input của client: không ai được tự khai mình đáng
+     * được cấp bao nhiêu RAM, cùng lý do `userId` không nằm trong input.
+     */
+    capabilities: readonly ScenarioCapability[];
+  },
 ): Promise<NewSandbox> {
   const headers = await callHeaders(ctx.user.id, ctx.user.role);
   const response = await callOrchestrator(() =>
@@ -74,6 +89,7 @@ export async function createSandboxSession(
         tier: tierToProto(params.tier),
         ttlSeconds: params.ttlSeconds,
         idempotencyKey: params.idempotencyKey,
+        profile: profileForCapabilities(params.capabilities),
       },
       { headers },
     ),

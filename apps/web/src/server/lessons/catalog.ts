@@ -37,15 +37,48 @@ export function scenarioDir(id: string): string {
 }
 
 /**
- * Năng lực sandbox mà P1 ĐÃ CHỨNG MINH chạy được.
+ * Năng lực sandbox mà nền tảng ĐÃ CHỨNG MINH chạy được.
  *
  * ⛔ Đây là danh sách của những gì ĐÃ ĐO, không phải của những gì proto/DB có
- * tên. `docker` nằm đây vì 1.E-2 chạy thật DinD trong pod Sysbox. `kubernetes` /
- * `multi-node` KHÔNG nằm đây: kubeadm-trong-pod chưa từng chạy trên nền tảng
- * này (`packages/scenario/src/backend.ts` ghi rõ nhãn đó hôm nay là CẢNH BÁO,
- * không phải lời hứa).
+ * tên.
+ *
+ * · `docker` — 1.E-2 chạy thật DinD trong pod Sysbox.
+ * · `kubernetes` — P7/7.B–7.F (2026-09-04). Mở SAU khi có, theo đúng thứ tự:
+ *     một cluster k3s dựng được trong pod Sysbox (Ready sau 49 s, đo bằng
+ *     `dlp-k8s-wait`); một Deployment/ConfigMap/Service tạo được và
+ *     `nginx:1.29.0` KÉO ĐƯỢC trong cluster con; một profile tài nguyên
+ *     (`sandbox.profiles.k8s`) đặt theo đỉnh đo được 589 MiB, với trần đồng
+ *     thời tính ra 6 phiên và ghi thẳng vào values; và cách ly không tụt —
+ *     `netpol-verify.sh` 22/22 cùng `p7-escape-verify.sh` 9/9 với một pod có
+ *     cluster con đang chạy. Số đo đầy đủ: `docs/k8s-in-pod.md`.
+ *
+ * ⛔ `multi-node` VẪN KHÔNG nằm đây, và cố ý không mở kèm: cluster con là MỘT
+ * node. Mở nó chỉ vì `kubernetes` đã mở sẽ là đúng cái lời hứa sai mà cả khối
+ * chú thích này tồn tại để chặn.
  */
-export const RUNTIME_SUPPORTED_CAPABILITIES: readonly ScenarioCapability[] = ['docker'];
+export const RUNTIME_SUPPORTED_CAPABILITIES: readonly ScenarioCapability[] = [
+  'docker',
+  'kubernetes',
+];
+
+/**
+ * Tên profile tài nguyên mà orchestrator phải dùng cho một bài có các năng lực
+ * này. Rỗng = profile mặc định (LimitRange của namespace lo).
+ *
+ * ⚠ Đây là mắt xích khiến `'kubernetes'` ở trên KHÔNG phải một lời hứa suông.
+ * Một bài K8s chạy bằng pod mặc định (limit 1Gi, không có `DLP_K8S`) sẽ không
+ * có cluster nào để `kubectl` trỏ tới, và người học nhận
+ * `connection refused` — tức đúng chế độ hỏng mà việc mở năng lực lẽ ra phải
+ * kết thúc. Profile `k8s` vừa nâng trần RAM lên 2Gi vừa đặt `DLP_K8S=1`, và cờ
+ * đó là thứ `start_k8s` của entrypoint sandbox đọc để dựng cluster.
+ *
+ * Tên trả về phải khớp một key trong `sandbox.profiles` của Helm values;
+ * orchestrator TỪ CHỐI (`InvalidArgument`) một tên lạ thay vì lặng lẽ rơi về
+ * mặc định — cùng kỷ luật fail-closed với `SandboxTier`.
+ */
+export function profileForCapabilities(capabilities: readonly ScenarioCapability[]): string {
+  return capabilities.includes('kubernetes') ? 'k8s' : '';
+}
 
 /**
  * Năng lực bài này đòi mà nền tảng chưa chạy được.

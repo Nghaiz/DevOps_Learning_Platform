@@ -19,7 +19,7 @@ function result(over: Partial<LabTaskResult> = {}): LabTaskResult {
     taskId: 't1',
     exitCode: 0,
     output: '',
-    checkedAt: new Date('2026-01-01T00:00:00.000Z'),
+    checkedAt: '2026-01-01T00:00:00.000Z',
     ...over,
   };
 }
@@ -57,8 +57,8 @@ describe('buildTaskDisplays', () => {
   it('chỉ dòng MỚI NHẤT (checkedAt lớn nhất) quyết định trạng thái — chấm lại đạt sau khi trượt phải thành passed', () => {
     const lab: Pick<Lab, 'tasks'> = { tasks: [task({ id: 'a' })] };
     const displays = buildTaskDisplays(lab, [
-      result({ taskId: 'a', exitCode: 1, checkedAt: new Date('2026-01-01T00:00:00.000Z') }),
-      result({ taskId: 'a', exitCode: 0, checkedAt: new Date('2026-01-01T00:05:00.000Z') }),
+      result({ taskId: 'a', exitCode: 1, checkedAt: '2026-01-01T00:00:00.000Z' }),
+      result({ taskId: 'a', exitCode: 0, checkedAt: '2026-01-01T00:05:00.000Z' }),
     ]);
     expect(displays[0]?.state).toBe('passed');
   });

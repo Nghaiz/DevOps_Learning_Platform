@@ -14,7 +14,12 @@ import { mintAccessTokenFor } from '../../auth/jwt';
 import { callOrchestrator, orchestratorClient } from '../../grpc/orchestrator-client';
 import { toJsonSession } from '../../grpc/session-json';
 import { resolveScenarioAssets } from '@devops-platform/scenario';
-import { scenarioDir, scenarioSource, unsupportedCapabilities } from '../../lessons/catalog';
+import {
+  profileForCapabilities,
+  scenarioDir,
+  scenarioSource,
+  unsupportedCapabilities,
+} from '../../lessons/catalog';
 import { buildAssetPushScript, isAssetPushPhase } from '../../lessons/asset-push';
 import { phaseRefSchema, resolvePhase } from '../../lessons/phase';
 import { runScriptInSession } from '../../lessons/validate';
@@ -382,6 +387,11 @@ export const lessonsRouter = createTRPCRouter({
           // 0 = dùng TTL mặc định của server, đúng nghĩa proto.
           ttlSeconds: 0,
           idempotencyKey: input.idempotencyKey,
+          // Rỗng cho bài thường; 'k8s' cho bài đòi năng lực `kubernetes` (P7).
+          // Suy ra từ capabilities của CHÍNH bài, không phải từ input của client
+          // — cùng lý do `userId` không nằm trong input: client không có chỗ nào
+          // để tự khai mình đáng được cấp bao nhiêu tài nguyên.
+          profile: profileForCapabilities(scenario.capabilities),
         },
         { headers },
       ),

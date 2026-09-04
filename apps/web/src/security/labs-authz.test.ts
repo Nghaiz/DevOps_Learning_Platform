@@ -596,7 +596,9 @@ describe('labs.leaderboard', () => {
     expect(out.items[1]!.durationSeconds).toBeLessThanOrEqual(out.items[2]!.durationSeconds);
     // Hai dòng có duration BẰNG NHAU (trong khoảng làm tròn giây) phải sắp theo submittedAt.
     if (out.items[1]!.durationSeconds === out.items[2]!.durationSeconds) {
-      expect(out.items[1]!.submittedAt.getTime()).toBeLessThanOrEqual(out.items[2]!.submittedAt.getTime());
+      expect(new Date(out.items[1]!.submittedAt).getTime()).toBeLessThanOrEqual(
+        new Date(out.items[2]!.submittedAt).getTime(),
+      );
     }
   }, 20_000);
 });

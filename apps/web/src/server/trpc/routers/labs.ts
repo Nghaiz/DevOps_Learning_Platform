@@ -34,8 +34,21 @@ import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
 // ---------------------------------------------------------------- DTO
 
+/**
+ * Dòng DB → DTO đi qua dây.
+ *
+ * `toISOString()` KHÔNG phải trang trí: client tRPC của app này cố ý không có
+ * transformer, nên một `Date` trả thẳng ra sẽ tới trình duyệt dưới dạng CHUỖI
+ * trong khi kiểu suy ra vẫn nói `Date` — hợp đồng nói dối, và chỗ vỡ nằm ở call
+ * site đầu tiên gọi `.getTime()`. Cùng khuôn `toJsonSession` đã làm cho session.
+ */
 function toLabTaskResultDTO(row: LabTaskResultRow): LabTaskResult {
-  return { taskId: row.taskId, exitCode: row.exitCode, output: row.output, checkedAt: row.checkedAt };
+  return {
+    taskId: row.taskId,
+    exitCode: row.exitCode,
+    output: row.output,
+    checkedAt: row.checkedAt.toISOString(),
+  };
 }
 
 function toLabAttemptDTO(row: LabAttemptRow, results: LabTaskResultRow[]): LabAttempt {
@@ -43,8 +56,8 @@ function toLabAttemptDTO(row: LabAttemptRow, results: LabTaskResultRow[]): LabAt
     id: row.id,
     labId: row.labId,
     sessionId: row.sessionId,
-    startedAt: row.startedAt,
-    submittedAt: row.submittedAt,
+    startedAt: row.startedAt.toISOString(),
+    submittedAt: row.submittedAt === null ? null : row.submittedAt.toISOString(),
     displayNamePublic: row.displayNamePublic,
     results: results.map(toLabTaskResultDTO),
   };
@@ -149,6 +162,7 @@ export const labsRouter = createTRPCRouter({
       tier: lab.tier,
       ttlSeconds: 0,
       idempotencyKey: input.idempotencyKey,
+      capabilities: lab.capabilities,
     });
 
     const now = new Date();
@@ -420,7 +434,7 @@ export const labsRouter = createTRPCRouter({
       displayName: row.displayName,
       percent: row.percent,
       durationSeconds: row.durationSeconds,
-      submittedAt: row.submittedAt,
+      submittedAt: row.submittedAt.toISOString(),
       isSelf: row.userId === ctx.user.id,
     }));
     const next = start + input.limit;

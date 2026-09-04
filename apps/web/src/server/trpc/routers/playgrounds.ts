@@ -68,6 +68,7 @@ export const playgroundsRouter = createTRPCRouter({
       tier: playground.tier,
       ttlSeconds: playground.ttlSeconds,
       idempotencyKey: input.idempotencyKey,
+      capabilities: playground.capabilities,
     });
     return { sessionId: session.id, ttlSeconds: playground.ttlSeconds };
   }),

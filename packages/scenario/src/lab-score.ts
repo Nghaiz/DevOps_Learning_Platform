@@ -1,4 +1,4 @@
-import type { Lab, LabAttemptStatus, LabScore, LabTaskResult } from '@devops-platform/shared-types/lab';
+import type { Lab, LabAttemptStatus, LabScore } from '@devops-platform/shared-types/lab';
 
 /**
  * Bốn hàm THUẦN tính điểm một lần thử lab — KHÔNG chạm DB, KHÔNG chạm mạng.
@@ -25,13 +25,30 @@ import type { Lab, LabAttemptStatus, LabScore, LabTaskResult } from '@devops-pla
  * so sánh dùng `>=` khi duyệt THEO THỨ TỰ MẢNG, nên một dòng đứng sau với cùng
  * mốc thời gian luôn thắng dòng đứng trước.
  */
-export function latestResultPerTask(
-  results: readonly LabTaskResult[],
-): Map<string, LabTaskResult> {
-  const latest = new Map<string, LabTaskResult>();
+/**
+ * Mốc thời gian tới đây từ HAI nguồn có kiểu khác nhau, và cả hai đều hợp lệ:
+ *
+ * · dòng DB (Drizzle) → `Date`;
+ * · DTO đi qua dây tRPC → chuỗi ISO (client của app này cố ý không có
+ *   transformer — xem `labTaskResultSchema.checkedAt`).
+ *
+ * Nhận cả hai và chuẩn hoá tại chỗ, thay vì bắt mỗi phía tự đổi trước khi gọi:
+ * ép một phía đổi kiểu là mời đúng cái lỗi `"".getTime is not a function` mà
+ * chú thích này tồn tại để chặn.
+ */
+type Instant = Date | string;
+
+function ms(t: Instant): number {
+  return (t instanceof Date ? t : new Date(t)).getTime();
+}
+
+export function latestResultPerTask<T extends { taskId: string; checkedAt: Instant }>(
+  results: readonly T[],
+): Map<string, T> {
+  const latest = new Map<string, T>();
   for (const result of results) {
     const existing = latest.get(result.taskId);
-    if (existing === undefined || result.checkedAt.getTime() >= existing.checkedAt.getTime()) {
+    if (existing === undefined || ms(result.checkedAt) >= ms(existing.checkedAt)) {
       latest.set(result.taskId, result);
     }
   }
@@ -51,7 +68,10 @@ export function latestResultPerTask(
  * ghi trong shared-types: một lab mốc 80% mà người học đạt 79.6% phải hiện
  * "79%" và trượt, không phải "80%" rồi vẫn trượt.
  */
-export function computeLabScore(lab: Lab, results: readonly LabTaskResult[]): LabScore {
+export function computeLabScore(
+  lab: Lab,
+  results: readonly { taskId: string; exitCode: number; checkedAt: Instant }[],
+): LabScore {
   const latest = latestResultPerTask(results);
 
   let earnedWeight = 0;
@@ -101,12 +121,12 @@ export function computeLabStatus(
  * người học, đúng loại lỗi hiển thị mà không hàm nào nên tạo ra.
  */
 export function computeAttemptDurationSeconds(
-  startedAt: Date,
-  submittedAt: Date | null,
+  startedAt: Instant,
+  submittedAt: Instant | null,
 ): number | null {
   if (submittedAt === null) {
     return null;
   }
-  const diffMs = submittedAt.getTime() - startedAt.getTime();
+  const diffMs = ms(submittedAt) - ms(startedAt);
   return Math.max(0, Math.floor(diffMs / 1000));
 }
