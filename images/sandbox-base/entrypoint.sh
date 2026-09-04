@@ -201,14 +201,46 @@ start_k8s() {
         # định 10.96.0.0/16 của nó nuốt gọn kube-dns 10.96.0.10 của cụm CHỦ, và
         # pod mất DNS lẫn đường ra mirror. Bridge riêng + publish loopback giữ
         # kubeconfig trỏ 127.0.0.1 mà chỉ thêm một luật DNAT.
-        docker run -d --name dlp-k3s --privileged \
-            -p 127.0.0.1:6443:6443 \
-            --tmpfs /run --tmpfs /var/run \
-            -e DLP_REGISTRY_MIRROR="${DLP_REGISTRY_MIRROR:-}" \
-            -v "$K3S_KUBECONFIG_DIR":/output \
-            -v /usr/local/lib/dlp/k3s-boot.sh:/k3s-boot.sh:ro \
-            --entrypoint /bin/sh "$K3S_IMAGE" /k3s-boot.sh >/dev/null 2>&1 \
-            || { echo "[dlp-k8s] docker run thất bại" >&2; exit 0; }
+        #
+        # ĐƯỜNG 1 NODE GIỮ NGUYÊN XI (P7-bis, 2026-09-04): không mạng do ta định
+        # nghĩa, không token. Đỉnh 589 MiB và trần 6 phiên là số ĐO ĐƯỢC trên đúng
+        # cấu hình ấy; đổi nó "cho đồng nhất" là làm mọi con số đã công bố hết
+        # hiệu lực mà không ai đo lại.
+        k3s_nodes=${DLP_K8S_NODES:-1}
+        run_args=(-d --privileged --tmpfs /run --tmpfs /var/run)
+        run_args+=(-e DLP_REGISTRY_MIRROR="${DLP_REGISTRY_MIRROR:-}")
+        run_args+=(-v /usr/local/lib/dlp/k3s-boot.sh:/k3s-boot.sh:ro)
+
+        if [ "$k3s_nodes" -ge 2 ]; then
+            # Bridge mặc định của Docker KHÔNG phân giải tên container, nên agent
+            # không tìm được `dlp-k3s`. Mạng do ta định nghĩa có DNS nội bộ — đó là
+            # lý do duy nhất nó có mặt, và nó chỉ có mặt ở nhánh này.
+            docker network create dlp-k3s-net >/dev/null 2>&1 || true
+            # Token sinh tại chỗ, chỉ sống trong pod này. Không ghim hằng số: hai
+            # phiên dùng chung token nghĩa là agent của phiên A đăng ký được vào
+            # server của phiên B nếu hai mạng bao giờ đó thông nhau.
+            k3s_token=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d "[:space:]")
+            run_args+=(--network dlp-k3s-net -e K3S_TOKEN="$k3s_token")
+        fi
+
+        server_args=("${run_args[@]}")
+        server_args+=(--name dlp-k3s -p 127.0.0.1:6443:6443)
+        server_args+=(-v "$K3S_KUBECONFIG_DIR":/output)
+        server_args+=(--entrypoint /bin/sh "$K3S_IMAGE" /k3s-boot.sh server)
+        docker run "${server_args[@]}" >/dev/null 2>&1 || { echo "[dlp-k8s] docker run thất bại" >&2; exit 0; }
+
+        # Node phụ. Một agent không dựng được KHÔNG làm hỏng cả phiên: cluster 1
+        # node vẫn dùng được cho phần lớn nội dung, và `dlp-k8s-wait` sẽ hết giờ
+        # kèm SỐ NODE THỰC TẾ — tức người học nhận một thông điệp đúng thay vì một
+        # buổi học trắng.
+        i=2
+        while [ "$i" -le "$k3s_nodes" ]; do
+            agent_args=("${run_args[@]}")
+            agent_args+=(--name "dlp-k3s-agent$i" -e K3S_URL=https://dlp-k3s:6443)
+            agent_args+=(--entrypoint /bin/sh "$K3S_IMAGE" /k3s-boot.sh agent)
+            docker run "${agent_args[@]}" >/dev/null 2>&1 || echo "[dlp-k8s] không dựng được node $i" >&2
+            i=$((i + 1))
+        done
 
         # Chép kubeconfig ra chỗ `kubectl` tìm mặc định, ngay khi k3s ghi nó.
         mkdir -p /root/.kube

@@ -25,6 +25,10 @@ MIRROR=${MIRROR:-http://platform-registry-mirror.dlp-registry.svc.cluster.local:
 BIN_DIR=${BIN_DIR:-$HOME/p7}
 OUT_DIR=${OUT_DIR:-$HOME/p7/out}
 K3S_TAG=${K3S_TAG:-v1.34.1-k3s1}
+# Token chi song trong mot lan do. San xuat SINH token moi phien (xem
+# `start_k8s`); ghim mot hang so o day la chap nhan duoc VI day la harness do,
+# va viec ghim no lam lan do lap lai duoc.
+K3S_MEASURE_TOKEN=${K3S_MEASURE_TOKEN:-dlp-measure-token}
 KIND_NODE_IMAGE=${KIND_NODE_IMAGE:-kindest/node:v1.34.0}
 # Tran do CO Y rong (6Gi/4cpu): muc dich la tim DINH THAT roi moi dat profile.
 # Do duoi tran cua profile la do cai tran, khong phai do nhu cau.
@@ -32,7 +36,7 @@ MEM_LIMIT=${MEM_LIMIT:-6Gi}
 CPU_LIMIT=${CPU_LIMIT:-4}
 SAMPLE_SEC=${SAMPLE_SEC:-2}
 
-variant=${1:?usage: p7-measure.sh <baseline|k3s|kind> [ready-timeout-sec]}
+variant=${1:?usage: p7-measure.sh <baseline|k3s|k3s-2node|kind> [ready-timeout-sec]}
 READY_TIMEOUT=${2:-600}
 POD="p7-$variant"
 mkdir -p "$OUT_DIR"
@@ -188,6 +192,47 @@ ready_k3s() {
       sleep 1; done; echo NOTREADY; exit 1"
 }
 
+# ── 2 NODE (P7-bis, 2026-09-04) ──────────────────────────────────────────────
+# Do cai gia THAT cua nang luc `multi-node`, thay vi suy ra tu so 1 node.
+#
+# Ten container, ten mang va vai tro o day TRUNG KHIT voi `start_k8s` cua
+# `images/sandbox-base/entrypoint.sh`. Do la co y: mot harness do mot topology
+# KHAC voi topology se chay trong san xuat thi con so no tra ve khong noi ve
+# thu ta sap ship. Cu the la `dlp-k3s` — dung ten nam trong `--tls-san` ma
+# k3s-boot.sh cap cho cert server; doi ten container o day se lam agent bat tay
+# TLS voi mot SAN khong khop.
+setup_k3s_2node() {
+  kubectl cp -n "$NS" "$BIN_DIR/k3s-boot.sh" "$POD:/k3s-boot.sh" >/dev/null 2>&1
+  # Bridge mac dinh cua Docker KHONG phan giai ten container, nen agent khong
+  # tim duoc `dlp-k3s`. Mang do ta dinh nghia co DNS noi bo.
+  inpod "chmod +x /k3s-boot.sh && mkdir -p /k3s-out && docker network create dlp-k3s-net >/dev/null 2>&1; true"
+  inpod "docker run -d --name dlp-k3s --privileged --network dlp-k3s-net \
+    -p 127.0.0.1:6443:6443 \
+    --tmpfs /run --tmpfs /var/run \
+    -e DLP_REGISTRY_MIRROR=${MIRROR} -e K3S_TOKEN=${K3S_MEASURE_TOKEN} \
+    -v /k3s-out:/output -v /k3s-boot.sh:/k3s-boot.sh:ro \
+    --entrypoint /bin/sh rancher/k3s:${K3S_TAG} /k3s-boot.sh server 2>&1 | tail -3"
+  inpod "docker run -d --name dlp-k3s-agent2 --privileged --network dlp-k3s-net \
+    --tmpfs /run --tmpfs /var/run \
+    -e DLP_REGISTRY_MIRROR=${MIRROR} -e K3S_TOKEN=${K3S_MEASURE_TOKEN} \
+    -e K3S_URL=https://dlp-k3s:6443 \
+    -v /k3s-boot.sh:/k3s-boot.sh:ro \
+    --entrypoint /bin/sh rancher/k3s:${K3S_TAG} /k3s-boot.sh agent 2>&1 | tail -3"
+}
+
+# Cho DU HAI node, khong phai node dau tien.
+#
+# `grep -qw Ready` cua bien the 1 node dung ngay khi server Ready — tren cum 2
+# node no se bao READY truoc khi agent dang ky xong, va con so "giay toi Ready"
+# se la con so cua mot cum 1 node deo nhan 2 node.
+ready_k3s_2node() {
+  inpod "mkdir -p ~/.kube; for i in \$(seq 1 ${READY_TIMEOUT}); do
+      [ -s /k3s-out/kubeconfig.yaml ] && cp /k3s-out/kubeconfig.yaml ~/.kube/config 2>/dev/null
+      n=\$(kubectl get nodes --no-headers 2>/dev/null | awk '\$2 == \"Ready\"' | wc -l)
+      [ \"\$n\" -ge 2 ] && { echo READY-2NODE; exit 0; }
+      sleep 1; done; echo \"NOTREADY(\$n/2)\"; exit 1"
+}
+
 setup_kind() {
   inpod "kind create cluster --name lab --image ${KIND_NODE_IMAGE} --wait 0s 2>&1 | tail -6"
 }
@@ -220,6 +265,7 @@ main() {
   case "$variant" in
     baseline) setup_log=$(setup_baseline); sleep 60 ;;
     k3s)      setup_log=$(setup_k3s  2>&1); ready=$(ready_k3s  2>&1 | tail -1) ;;
+    k3s-2node) setup_log=$(setup_k3s_2node 2>&1); ready=$(ready_k3s_2node 2>&1 | tail -1) ;;
     kind)     setup_log=$(setup_kind 2>&1); ready=$(ready_kind 2>&1 | tail -1) ;;
     *) log "variant la: $variant"; exit 2 ;;
   esac
