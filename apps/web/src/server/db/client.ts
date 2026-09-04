@@ -7,6 +7,17 @@ import * as schema from './schema';
 // destructure rồi truyền instance trần; `sql` chỉ script một-lần cần để đóng pool.
 export type Database = ReturnType<typeof createDatabase>['db'];
 
+/**
+ * `Database` HOẶC một transaction của nó.
+ *
+ * Tồn tại vì Drizzle trao cho callback của `db.transaction` một kiểu KHÁC
+ * `Database` (transaction không có `.transaction()` lồng cùng chữ ký), nên một
+ * helper gõ `Database` không nhận được `tx` — và cách vá nhanh là `as`, thứ sẽ
+ * im lặng nuốt một lỗi thật vào lần đổi phiên bản Drizzle sau. Helper nào dùng
+ * được ở cả hai chỗ thì gõ kiểu này.
+ */
+export type DbOrTx = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
+
 let cachedDb: Database | null = null;
 
 /**

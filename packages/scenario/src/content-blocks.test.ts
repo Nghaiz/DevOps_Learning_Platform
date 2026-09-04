@@ -136,3 +136,63 @@ describe('executableCommands', () => {
     expect(executableCommands(markdown)).toEqual(['a', 'c']);
   });
 });
+
+/**
+ * CRLF — chế độ hỏng IM LẶNG, và nó chỉ trở nên với tới được ở P9.
+ *
+ * Trước P9 markdown chỉ tới từ đĩa (LF, nướng vào image dựng trên Linux). P9 mở
+ * nguồn thứ hai: người soạn nhập qua tRPC vào `content_steps.markdown`, nơi
+ * `\r\n` tới được nguyên vẹn từ một file Windows dán vào, hay một API client.
+ *
+ * ⛔ Từng đo được: với CRLF, hàm trả về ĐÚNG MỘT khối văn xuôi và KHÔNG action
+ * nào — không lỗi, không cảnh báo. Một bài mất sạch nút bấm trông y hệt một bài
+ * cố ý không có nút nào.
+ *
+ * Mỗi test dưới đây so CRLF với chính bản LF của cùng chuỗi, nên nó ĐỎ ngay khi
+ * `normalizeNewlines` bị gỡ — chứ không chỉ khẳng định một con số nào đó.
+ */
+describe('parseContentBlocks — xuống dòng CRLF', () => {
+  const LINES = ['# tiêu đề', '', '```bash', 'ps aux', '```{{exec}}', '', 'văn xuôi sau.'];
+
+  it('CRLF cho ra ĐÚNG kết quả của LF', () => {
+    const lf = LINES.join('\n');
+    expect(parseContentBlocks(lf.replaceAll('\n', '\r\n'))).toEqual(parseContentBlocks(lf));
+  });
+
+  it('fence + hậu tố {{exec}} vẫn nhận ra dưới CRLF', () => {
+    // Khẳng định TRỰC TIẾP, không qua phép so với LF: nếu cả hai nhánh cùng
+    // hỏng theo một kiểu thì test trên vẫn xanh. Đây là vế chặn ca đó.
+    const blocks = parseContentBlocks(LINES.join('\r\n'));
+    const code = blocks.filter((b) => b.kind === 'code');
+    expect(code).toHaveLength(1);
+    expect(code[0]).toMatchObject({ code: 'ps aux', language: 'bash', action: 'exec' });
+  });
+
+  it('`\r` đơn (Mac cổ) cũng được chuẩn hoá', () => {
+    const blocks = parseContentBlocks(LINES.join('\r'));
+    expect(blocks.filter((b) => b.kind === 'code')).toHaveLength(1);
+  });
+
+  it('`\r` KHÔNG còn sót lại trong văn xuôi trả về', () => {
+    // Nếu chỉ vá regex fence mà không chuẩn hoá, fence sẽ khớp nhưng mọi khối
+    // văn xuôi vẫn mang `\r` — và nó chui thẳng vào markdown render ở FE.
+    const blocks = parseContentBlocks(LINES.join('\r\n'));
+    for (const block of blocks) {
+      const text = block.kind === 'markdown' ? block.markdown : block.code;
+      expect(text).not.toContain('\r');
+    }
+  });
+
+  it('executableCommands lấy được lệnh trong FENCE dưới CRLF', () => {
+    // ⚠ Phải dùng FENCE, không phải code span. Bản đầu của test này viết
+    // ``executableCommands('`ls`{{exec}}\r\n…')`` và nó XANH cả khi đã gỡ
+    // `normalizeNewlines` — vì `INLINE_ACTION` không neo vào cuối dòng nên code
+    // span chưa bao giờ hỏng vì `\r`. Một test như vậy không gác gì cả; nó chỉ
+    // trông như đang gác (`rules/green-that-proves-nothing.md`).
+    //
+    // Fence thì hỏng, nên đây mới là phép kiểm thật — và `executableCommands`
+    // đáng có phép kiểm riêng vì nó QUYẾT ĐỊNH cái gì chạy trong sandbox.
+    const md = ['```bash', 'ls -la', '```{{exec}}', '', '```', 'khong chay', '```'].join('\r\n');
+    expect(executableCommands(md)).toEqual(['ls -la']);
+  });
+});

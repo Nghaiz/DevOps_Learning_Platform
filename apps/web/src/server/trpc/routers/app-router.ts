@@ -1,4 +1,5 @@
 import { createTRPCRouter } from '../init';
+import { authoringRouter } from './authoring';
 import { authRouter } from './auth';
 import { labsRouter } from './labs';
 import { lessonsRouter } from './lessons';
@@ -8,6 +9,7 @@ import { sessionRouter } from './session';
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
+  authoring: authoringRouter,
   labs: labsRouter,
   lessons: lessonsRouter,
   me: meRouter,

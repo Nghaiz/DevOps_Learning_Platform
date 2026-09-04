@@ -1,27 +1,26 @@
 import { TRPCError } from '@trpc/server';
-import { filesystemScenarioSource, type ContentSource } from '@devops-platform/scenario';
+import type { ContentSource } from '@devops-platform/scenario';
 import type { Lab, Playground } from '@devops-platform/shared-types';
-import { scenariosDir } from '../env';
+import { publishedContentSource } from '../content/source';
 
 /**
  * Nguồn nội dung lab + playground của BFF — mirror của
  * `server/lessons/catalog.ts#scenarioSource` cho trụ cột ② (P8).
  *
- * `filesystemScenarioSource(scenariosDir())` (8.A, `packages/scenario/src/source.ts`)
- * trả về `ContentSource` — MỘT object phục vụ cả ba loại nội dung
- * (scenario/lab/playground), suy `content/labs`/`content/playgrounds` là THƯ
- * MỤC ANH EM của `content/scenarios` theo đúng bố cục thật trên đĩa. Cache MỘT
- * instance ở đây thay vì gọi lại `scenarioSource()` của `lessons/catalog.ts`
- * (file đó không nằm trong quyền sở hữu của lane này) — cái giá là mỗi instance
- * tự nạp + giữ cache riêng (`filesystemScenarioSource` đã tự khử trùng lặp nạp
- * đồng thời bằng promise cache nội bộ của nó, xem `source.ts`), chấp nhận được
- * vì lab/playground chỉ có vài chục mục.
+ * `ContentSource` là MỘT object phục vụ cả ba loại nội dung
+ * (scenario/lab/playground) — nên lab và playground dùng chung một nguồn với
+ * lesson, không phải hai nguồn song song.
+ *
+ * ⚠ ĐỔI Ở P9: trước đây file này tự dựng `filesystemScenarioSource(scenariosDir())`
+ * và cache một instance riêng, vì `lessons/catalog.ts` không nằm trong quyền sở
+ * hữu file của lane P8. Hai instance đọc cùng một thư mục bất biến thì vô hại.
+ * Với nguồn DB thì KHÔNG còn vô hại: hai composite độc lập nghĩa là hai luật ưu
+ * tiên có thể trôi khỏi nhau, và câu hỏi "bài này tới từ đâu" có hai câu trả
+ * lời. Giờ cả hai catalog gọi vào `content/source.ts`, nơi giữ MỘT luật gộp và
+ * MỘT cache cho phần đĩa.
  */
-let cachedSource: ContentSource | null = null;
-
 function contentSource(): ContentSource {
-  cachedSource ??= filesystemScenarioSource(scenariosDir());
-  return cachedSource;
+  return publishedContentSource();
 }
 
 export function labSource(): ContentSource {

@@ -13,6 +13,11 @@ export * from './scenario.ts';
 export * from './lab.ts';
 export * from './playground.ts';
 
+// Từ vựng vòng đời + quyền sở hữu của nội dung SOẠN TRÊN UI (P9). Không phải
+// một cây DTO thứ tư — nội dung soạn trên UI vẫn dùng lại scenario/lab/
+// playground schema ở trên.
+export * from './authoring.ts';
+
 // Type sinh từ proto/orchestrator/v1/session.proto — SSOT của contract Next↔Go.
 export type {
   ClaimSessionRequest,

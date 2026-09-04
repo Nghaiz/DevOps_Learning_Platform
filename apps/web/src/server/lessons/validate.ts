@@ -64,10 +64,26 @@ export interface ScriptRequest {
   /**
    * Nội dung script, đọc từ `Scenario.steps[i].verifyScript`.
    *
-   * ⛔ TUYỆT ĐỐI KHÔNG nhận chuỗi này từ input của người dùng. Gateway không có
-   * cách nào phân biệt một script đến từ đĩa với một script đến từ form — ranh
-   * giới đó được giữ ở ĐÂY, bằng việc caller duy nhất (`lessons.checkStep`) tra
-   * script theo `(scenarioId, stepIndex)` trong catalog.
+   * ⛔ TUYỆT ĐỐI KHÔNG nhận chuỗi này từ **input của request**. Gateway không có
+   * cách nào phân biệt một script đến từ nội dung với một script đến từ form —
+   * ranh giới đó được giữ ở ĐÂY, bằng việc mọi caller tra script theo
+   * `(contentId, stepIndex)` trong nguồn nội dung, không đọc nó từ `input`.
+   *
+   * ⚠ ĐÍNH CHÍNH Ở P9 — câu cũ ở đây nói "một script đến từ đĩa", và điều đó
+   * không còn đúng: với trang soạn bài, script ĐẾN TỪ NGƯỜI DÙNG (một `author`)
+   * và nằm trong `content_steps`. Bảng rủi ro của phase-9 gọi đúng tên chuyện
+   * này — *"Đó là **thiết kế**, không phải lỗ hổng"* — và nó dựa trên ba vế,
+   * không phải một:
+   *
+   * 1. chỉ `author`/`admin` ghi được vào `content_steps` (`authorProcedure` +
+   *    `assertContentOwner`);
+   * 2. script chạy trong sandbox, vốn là ranh giới cô lập của nền tảng (luật 10)
+   *    — cùng ranh giới đang chứa script vendored do người lạ trên GitHub viết;
+   * 3. một request KHÔNG BAO GIỜ mang script tới đây, dù người gửi là author.
+   *
+   * Vế 3 là vế duy nhất file này giữ được, và nó vẫn nguyên vẹn. Để câu cũ nằm
+   * lại sẽ là một khẳng định sai mà người đọc sau tin — nên nó được sửa, không
+   * được xoá.
    */
   script: string;
 }

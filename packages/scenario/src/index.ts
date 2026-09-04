@@ -19,6 +19,7 @@ export {
   CODE_ACTIONS,
   ContentBlockError,
   executableCommands,
+  normalizeNewlines,
   parseContentBlocks,
   type CodeAction,
   type ContentBlock,
@@ -29,6 +30,19 @@ export {
   type ContentSource,
   type ScenarioSource,
 } from './source.ts';
+
+// Nguồn nội dung SOẠN TRÊN UI (P9) — hiện thực thứ hai của cùng `ContentSource`,
+// cộng luật gộp hai nguồn. Luật + bốn câu trả lời: `docs/content-sources.md`.
+export {
+  dbContentSource,
+  type ContentBodyRow,
+  type ContentItemRow,
+  type ContentRepository,
+  type ContentSourceLogger,
+  type ContentStepRow,
+  type DbContentSourceOptions,
+} from './db-source.ts';
+export { compositeContentSource, type CompositeOptions } from './composite-source.ts';
 export {
   MAX_TOTAL_ASSET_BYTES,
   ScenarioAssetError,

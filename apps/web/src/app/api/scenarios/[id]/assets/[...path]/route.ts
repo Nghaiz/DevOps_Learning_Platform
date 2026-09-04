@@ -3,7 +3,10 @@ import { resolve, sep } from 'node:path';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { scenarioIdSchema } from '@devops-platform/shared-types/scenario';
+import { contentStorageKeySchema } from '@devops-platform/shared-types/authoring';
 import { getAuth } from '../../../../../../server/auth/config';
+import { readContentAsset } from '../../../../../../server/content/assets';
+import { getDb } from '../../../../../../server/db/client';
 import { scenarioDir } from '../../../../../../server/lessons/catalog';
 
 /**
@@ -32,6 +35,22 @@ import { scenarioDir } from '../../../../../../server/lessons/catalog';
  * lộ bí mật nào (nội dung đã công khai trên GitHub upstream), nhưng nó biến một
  * route phục vụ ảnh thành một route phục vụ file tuỳ ý — và cái sau là thứ mà
  * lần mở rộng tiếp theo sẽ vô tình dựa vào. Allowlist theo ĐUÔI, không blocklist.
+ *
+ * ## P9 — nguồn DB, và vì sao nó KHÔNG dùng lại đường dẫn ở trên
+ *
+ * Bài soạn trên UI không có thư mục nào. Asset của nó nằm trong
+ * `content_assets`, tra bằng `storageKey` — 32 hex ký tự do server sinh.
+ * `scenarioDir()` đã ghi sẵn món nợ này: *"bản DB-backed sẽ không có thư mục nào
+ * để trả về."*
+ *
+ * Hai đường được phân biệt bằng HÌNH DẠNG của path, không bằng một tham số:
+ * một segment duy nhất khớp `^[0-9a-f]{32}$` là nguồn DB; mọi thứ khác là đĩa.
+ * Không có giao nhau — tên file trên đĩa upstream đều có đuôi, nên không tên
+ * nào khớp 32-hex-không-đuôi.
+ *
+ * ⛔ Kiểm quyền GIỮ NGUYÊN (task 17): cùng một `getSession` gác cả hai đường,
+ * chạy TRƯỚC khi phân nhánh. Thêm một nguồn không được là thêm một đường vòng
+ * quanh cổng.
  */
 
 const CONTENT_TYPES = new Map<string, string>([
@@ -59,6 +78,33 @@ export async function GET(
     return NextResponse.json({ error: 'BAD_REQUEST' }, { status: 400 });
   }
 
+  // ── Nguồn DB: một segment, 32 hex ────────────────────────────────────────
+  // Tra theo CẢ `(contentId, storageKey)` — xem `readContentAsset`: khoá unique
+  // toàn cục không đủ, vì URL mang contentId và bỏ nó khỏi câu tra sẽ phục vụ
+  // được asset của bài khác.
+  const onlySegment = segments.length === 1 ? segments[0] : undefined;
+  if (onlySegment !== undefined && contentStorageKeySchema.safeParse(onlySegment).success) {
+    const asset = await readContentAsset(getDb(), parsedId.data, onlySegment);
+    if (asset === null) {
+      return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
+    }
+    return new NextResponse(new Uint8Array(asset.bytes), {
+      status: 200,
+      headers: {
+        'content-type': asset.contentType,
+        // KHÁC nội dung vendored: bài soạn trên UI sửa được bất cứ lúc nào, nên
+        // không có `max-age` dài. Nhưng byte của MỘT `storageKey` thì bất biến
+        // (sửa ảnh = tải lên khoá mới), nên `ETag` cho phép 304 mà không cần
+        // đoán thời hạn.
+        etag: `"${asset.sha256}"`,
+        'cache-control': 'private, no-cache',
+        'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        'x-content-type-options': 'nosniff',
+      },
+    });
+  }
+
+  // ── Nguồn đĩa: đường dẫn tương đối trong `assets/` ────────────────────────
   const relative = segments.join('/');
   const extension = relative.slice(relative.lastIndexOf('.')).toLowerCase();
   const contentType = CONTENT_TYPES.get(extension);
