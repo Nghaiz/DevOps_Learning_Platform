@@ -188,6 +188,50 @@ for ov in "${EXTRA_OVERLAYS[@]:-}"; do
   REMOTE_EXTRA+=("-f ${REMOTE_DIR}/extra-${base}")
 done
 
+# ── CỔNG: mọi image chart RENDER ra phải CÓ TRÊN NODE ───────────────────────
+#
+# Cụm chạy `imagePullPolicy: Never` + side-load, nên một tag vắng mặt KHÔNG rơi
+# về pull — nó thành `ErrImageNeverPull`. Và vì `platform-migrate` là pre-upgrade
+# hook, một tag migrator sai làm HỎNG CẢ LƯỢT UPGRADE giữa chừng.
+#
+# ⛔ SỰ CỐ THẬT 2026-09-04 (P12/12.A) — cổng này sinh ra từ đó. `values-selfhost`
+# ghim `image.tag: sha-2b79fd3` (từ P5) trong khi P7/P9/P10 đã deploy `p7`/`p9`/
+# `p10a` bằng đường ngoài helm. `helm get values` in ra ĐÚNG `sha-2b79fd3` —
+# trùng repo, nên mọi lệnh helm đều xanh; chỗ lệch nằm ở `spec.template…image`
+# của Deployment, chỗ không lệnh helm nào so. Lượt upgrade kế tiếp lẽ ra hạ web
+# + orchestrator + mọi pod sandbox mới xuống một tag không tồn tại; thứ duy nhất
+# chặn được là hook migrate chết trước. Nền tảng sống nhờ một Job hỏng.
+#
+# Cổng so RENDER (thứ helm sắp áp) với `ctr images ls` (thứ node thật có) — hai
+# nguồn độc lập. So render-với-live thì không phát hiện được gì: cả hai cùng sai.
+echo "── cổng: đối chiếu image chart render ra với image có trên node"
+RENDERED_IMAGES="$(ssh "$VM_SSH" "helm template '${RELEASE}' '${REMOTE_DIR}/platform' -n '${NAMESPACE}' \
+    -f '${REMOTE_DIR}/platform/${SELFHOST_VALUES}' \
+    -f '${REMOTE_DIR}/live-values.json' \
+    ${REMOTE_EXTRA[*]:-} 2>/dev/null \
+  | grep -oE '${IMAGE_REGISTRY_RE:-ghcr\.io/[a-z0-9._-]+}/[a-z0-9._-]+:[A-Za-z0-9._-]+' | sort -u")"
+[[ -n "$RENDERED_IMAGES" ]] \
+  || loi "cổng image: render ra 0 image — nhiều khả năng template lỗi, KHÔNG phải 'không có image'"
+
+ON_NODE="$(ssh "$VM_SSH" "sudo ctr -n k8s.io images ls -q 2>/dev/null | sort -u")"
+[[ -n "$ON_NODE" ]] \
+  || loi "cổng image: 'ctr images ls' trả rỗng — không đọc được node, đừng đọc thành 'node trống'"
+
+MISSING=""
+while IFS= read -r img; do
+  [[ -n "$img" ]] || continue
+  grep -qxF "$img" <<<"$ON_NODE" || MISSING+="     · ${img}"$'\n'
+done <<<"$RENDERED_IMAGES"
+
+if [[ -n "$MISSING" ]]; then
+  echo "   image chart sẽ áp nhưng KHÔNG có trên node:" >&2
+  printf '%s' "$MISSING" >&2
+  echo "   có trên node (dlp-*):" >&2
+  grep -E 'dlp-' <<<"$ON_NODE" | sed 's/^/     · /' >&2
+  loi "cổng image: dừng TRƯỚC upgrade. Side-load tag còn thiếu (infra/host/11-sideload-images.sh) HOẶC sửa tag trong values-selfhost.yaml. Áp tiếp là tự hạ nền tảng xuống tag không tồn tại."
+fi
+echo "   OK — $(wc -l <<<"$RENDERED_IMAGES") image render ra, tất cả đều có trên node"
+
 echo "── helm upgrade từ chart tươi (values-selfhost → VM-only → overlay bổ sung)"
 ssh "$VM_SSH" "helm upgrade '${RELEASE}' '${REMOTE_DIR}/platform' -n '${NAMESPACE}' \
     -f '${REMOTE_DIR}/platform/${SELFHOST_VALUES}' \

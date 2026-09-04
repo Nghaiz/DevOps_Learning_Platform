@@ -36,6 +36,49 @@ global:
 image:
   tag: sha-2b79fd3
 
+# ⛔ TAG THEO TỪNG THÀNH PHẦN — SỬA Ở P12/12.A (2026-09-04) SAU MỘT SỰ CỐ THẬT.
+#
+# `image.tag` ở trên là tag CHUNG, lần cuối đổi ở P5 (`5575e09`, 2026-09-03).
+# Nhưng P7 / P9 / P10 sau đó xây và deploy `p7`, `p9`, `p10a` mà KHÔNG cập nhật
+# file này — chúng vào cụm bằng đường ngoài helm. Hậu quả đo được hôm nay:
+#
+#   repo nói (image.tag)        cụm chạy thật        có trên node?
+#   ─────────────────────       ──────────────       ─────────────
+#   dlp-web:sha-2b79fd3         dlp-web:p10a         KHÔNG
+#   dlp-orchestrator:sha-…      dlp-orchestrator:p7  KHÔNG
+#   dlp-migrator:sha-2b79fd3    (hook)               KHÔNG (chỉ có :p9)
+#   dlp-sandbox-base:sha-…      …:p10a               KHÔNG
+#   dlp-terminal-gateway:sha-2b79fd3  ← khớp         có
+#
+# Cụm này chạy `imagePullPolicy: Never` + side-load (`cluster-image-sideload`),
+# nên "tag không có trên node" KHÔNG rơi về pull — nó là `ErrImageNeverPull`.
+# Một `helm upgrade` thẳng từ repo sẽ hạ web + orchestrator + mọi pod sandbox
+# mới xuống một tag không tồn tại. Điều DUY NHẤT chặn được điều đó hôm nay là
+# pre-upgrade hook `platform-migrate` chết trước (`ErrImageNeverPull`,
+# `DeadlineExceeded`) và làm `helm upgrade` bỏ dở — tức nền tảng còn sống nhờ
+# một Job hỏng, không nhờ một cổng nào cả.
+#
+# ⚠ Vì sao `helm get values` KHÔNG lộ ra chuyện này: nó in đúng những gì `-f`
+# đưa vào (`image.tag: sha-2b79fd3`) — trùng khớp với repo, nên mọi lệnh helm
+# đều "xanh". Thứ lệch nằm ở `spec.template…image` của Deployment, chỗ không
+# lệnh helm nào so sánh. Cùng lớp bẫy với `helm-accepts-unknown-set-keys`:
+# công cụ in lại chính giả định của bạn và điều đó đọc ra như một xác nhận.
+#
+# Đặt tag TƯỜNG MINH cho từng thành phần ⇒ repo mô tả lại đúng cụm, và lần
+# deploy tới không gỡ mất P7/P9/P10. Đổi tag là bước BẮT BUỘC của mọi lượt build
+# image mới — cùng commit với image, không phải "sửa sau".
+#
+# ⛔ CHÚNG NẰM TRONG CÁC KHỐI `web:` / `orchestrator:` / `gateway:` CÓ SẴN Ở
+# DƯỚI, KHÔNG phải trong một khối mới ở đây. File này ĐÃ có `web:` hai lần
+# (dòng ~70 và ~103) và YAML lấy khối CUỐI — thêm một khối thứ ba ở trên sẽ bị
+# nuốt trong im lặng, không lỗi, không cảnh báo. `migrate:` ở ngay dưới là khối
+# DUY NHẤT của nó nên đặt được tại chỗ.
+migrate:
+  image:
+    # Bản duy nhất có trên node. Migrator chạy như pre-upgrade hook nên tag sai
+    # ở đây làm HỎNG CẢ LƯỢT UPGRADE, không chỉ hỏng một pod.
+    tag: p9
+
 # Ingress + TLS KHÔNG đặt ở đây, có chủ ý: `ingress.host`, `corsAllowedOrigins`
 # và `betterAuthUrl` đều chứa IP của node, mà IP đó khác nhau ở mỗi máy lab —
 # ghim một IP vào file commit trong git là đẻ ra một giá trị sai cho mọi người
@@ -49,6 +92,9 @@ image:
 #     --set web.env.betterAuthSecret="$(openssl rand -hex 32)"
 
 web:
+  # Tag tường minh — xem khối "TAG THEO TỪNG THÀNH PHẦN" ở đầu file.
+  image:
+    tag: p10a
   replicaCount: 1
   # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
   # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ
@@ -92,8 +138,15 @@ web:
       memory: 384Mi
 
 orchestrator:
+  # Tag tường minh — xem khối "TAG THEO TỪNG THÀNH PHẦN" ở đầu file.
+  image:
+    tag: p7
   replicaCount: 1
   env:
+    # Image pod lab: mặc định của template là `image.registry`+`image.tag`, tức
+    # nó SẼ trỏ sang sha-2b79fd3 nếu không ghim ⇒ mọi pod sandbox MỚI chết bằng
+    # ErrImageNeverPull trong khi web/gateway vẫn xanh. Ghim khớp bản side-load.
+    sandboxImage: ghcr.io/nghaiz/dlp-sandbox-base:p10a
     # 3 pod ấm, không 1 — đóng nợ của 3.I mắt 3–5 và 2026-08-16-concurrent-build-load.
     #
     # Số đo làm cơ sở (18 người vào cùng lúc, POOL_TARGET=1): 17/18 đi cold path,
@@ -113,6 +166,10 @@ orchestrator:
       memory: 128Mi
 
 gateway:
+  # Tag tường minh — trùng `image.tag` chung hôm nay, nhưng ghim để lần đổi tag
+  # chung kế tiếp không lặng lẽ kéo gateway theo.
+  image:
+    tag: sha-2b79fd3
   # 2 replica từ chặng 3.H. Gateway stateless đã được KIỂM CHỨNG chứ không chỉ
   # được khẳng định: không map/registry session→conn nào ở package-level hay
   # struct field; đích exec đọc từ Redis mỗi lần connect, và trần WS đồng thời
@@ -212,34 +269,90 @@ datastore:
 # Phép đo của mắt 3 BÁC BỎ kết luận đó: 451Mi là con số đã gộp cache; số phải
 # nhân lên là 163Mi ⇒ 21 × 163Mi ≈ 3.3GiB, node 11.6GiB thừa sức.
 #
-# ── Số dưới đây suy ra từ mục tiêu 20 phiên, không phải làm tròn ─────────────
-#   21 pod (20 phiên + POOL_TARGET=1) × 250m  = 5250m, + canary 100m → 5400m
-#   21 pod × 256Mi                            = 5376Mi, + canary 64Mi → 5500Mi
-#   21 pod × 2 (defaultCpu)                   = 42,    + canary      → 44
-#   21 pod × 1Gi (defaultMemory)              = 21Gi,  + canary      → 22Gi
-# ⇒ min(5400÷250, 5500÷256, 44÷2, 22528÷1024, 26) = min(21,21,22,22,26) = 21 pod
-#   − POOL_TARGET 1 = **20 phiên đồng thời**. Không khoá nào là ràng buộc lẻ loi.
+# ── ĐẶT LẠI Ở P12/12.A (2026-09-04): bộ cũ tính cho POOL_TARGET=1 ───────────
+# Bộ 2026-08-16 ghi "20 phiên đồng thời" và tính bằng `21 pod − POOL_TARGET 1`.
+# Nhưng `orchestrator.env.poolTarget` (§ trên, dòng ~106) đã lên **3** từ 5.B.
+# Trần hiệu lực do đó là 21 − 3 = **18**, không phải 20 — con số trong chú thích
+# đã sai lệch so với hành vi suốt từ lúc pool nới ra. Đây là lớp lỗi mà
+# `no-derived-fields` cảnh báo: trần phiên là ĐẠI LƯỢNG SUY RA từ (quota,
+# poolTarget); viết nó thành hằng số trong chú thích thì nó mục lặng lẽ khi một
+# trong hai vế đổi. Bộ dưới đây tính lại từ ngân sách THẬT của node.
 #
-# `pods: 26` chứ không 22: pod đang Terminating VẪN tính vào quota `pods` hàng
-# chục giây sau khi phiên đóng, và namespace này còn chạy CronJob canary. Đặt sát
-# 22 là mời một cơn từ chối giả đúng lúc đông người — cùng lớp lỗi mà chú thích
-# canary của bản cũ đã ghi.
+# ── Ngân sách node, đo chứ không suy (kubectl, 2026-09-04) ───────────────────
+#   allocatable                     = 8000m / 11830Mi
+#   requests của MỌI pod ngoài dlp-sandbox (31 pod, 6 namespace)
+#                                   = 1880m / 1832Mi
+#   ⇒ còn cho sandbox               = 6120m / 9998Mi
+#
+# Trừ tiếp **250m dự phòng rollout**: `maxSurge: 25%` trên cả 5 Deployment của
+# `default` ⇒ một `helm upgrade` toàn phần dựng thêm gateway 100m + web 50m +
+# postgres 50m + orchestrator 25m + redis 25m = 250m CÙNG LÚC. Không chừa chỗ
+# này thì lần deploy kế tiếp có pod Pending, và triệu chứng ("deploy treo") đọc
+# không giống nguyên nhân ("quota sandbox ăn hết ngân sách node").
+#   ⇒ ngân sách quota CPU           = 6120 − 250 = 5870m
+#
+# ── Số dưới đây suy ra từ ngân sách, không phải từ một mục tiêu tròn ─────────
+#   P × 250m + canary 100m ≤ 5870m  ⇒ P ≤ 23.08 ⇒ **P = 23 pod**
+#   23 pod × 250m  = 5750m, + canary 100m → 5850m   (còn 20m slack)
+#   23 pod × 256Mi = 5888Mi, + canary 64Mi → 5952Mi
+#   23 pod × 2 (defaultCpu)    = 46, + canary → 48
+#   23 pod × 1Gi (defaultMemory) = 23Gi, + canary → 24Gi
+# ⇒ min(5850÷250, 5952÷256, 48÷2, 24576÷1024, 28)
+#   = min(23.4, 23.25, 24, 24, 28) = **23 pod**
+#
+# ── HAI TRẦN, KHÔNG PHẢI MỘT — và phép trừ `− POOL_TARGET` là SAI ────────────
+# Chú thích cũ (và `values.yaml` dòng ~695) viết
+#   "trần session đồng thời = quota_hiệu_lực − POOL_TARGET".
+# ĐO ĐƯỢC 2026-09-04 (`ceiling.js`, TARGET qua ingress) thì KHÔNG phải vậy:
+#   ##CEILING## giữ 23 session (id phân biệt = 23), từ chối đầu = #24 (quota)
+#   refused_quota=1 · refused_other=0 · refused_5xx=0 · quota_reported_as_5xx=0
+# Pod warm pool KHÔNG bị mất khỏi ngân sách — chúng được CLAIM và TRỞ THÀNH
+# session. Pool chỉ chiếm chỗ khi đang RỖI, không chiếm vĩnh viễn.
+#
+#   · **Trần cứng = 23 phiên** — số quota thật sự cho vào. ĐO, không suy.
+#   · **Trần "pool còn lành" = 20 phiên** — vượt mức này thì quota đã đầy nên
+#     orchestrator KHÔNG refill nổi pool; người thứ 21–23 vẫn vào được nhưng đi
+#     cold path (chờ tạo pod) thay vì nhận pod ấm. Hệ vẫn phục vụ, chỉ chậm.
+#
+# Con số dùng cho "còn N chỗ" trên FE (P13) là **20**, không phải 23: 23 là chỗ
+# vật lý, 20 là chỗ còn giữ được trải nghiệm. Đừng gộp hai số này làm một.
+#
+# `pods: 28` = 23 + 5 khe hở: pod Terminating VẪN tính vào quota `pods` hàng
+# chục giây sau khi phiên đóng, và namespace này còn CronJob canary. Đặt sát 24
+# là mời một cơn từ chối giả đúng lúc đông người.
+#
+# ── VÌ SAO 40 KHÔNG ĐẠT ĐƯỢC AN TOÀN TRÊN NODE NÀY ──────────────────────────
+# Mục tiêu 40 phiên đòi 43 pod (40 + POOL_TARGET 3):
+#   43 × 250m + 100m = 10850m  >  5870m ngân sách  ⇒ **thiếu 4980m (85%)**
+# Nhét đủ 43 pod đòi hạ `requests.cpu` xuống (5870 − 100) ÷ 43 = **134m/pod**.
+# Mức ấy nằm DƯỚI 150m — và 150m là con số ĐÃ ĐO ra tác hại: nó làm mất 123ms
+# mỗi lượt attach (`cpu-throttle-looks-like-app-slowness`). Hạ xuống 134m là cố
+# ý mua lại một suy thoái đã biết, để đổi lấy một con số trên giấy.
+#
+# ⚠ RAM KHÔNG phải chỗ chặn, và đây là chỗ phase-12.md đoán khác kết quả đo.
+# Ô ⚠ của 12.A lo "hạ requests.memory để nhét 40 pod là cược vào eviction".
+# Số thật: 43 × 163Mi (đỉnh workingSet đo được) = 7009Mi < 9998Mi còn trống —
+# RAM thừa sức chứa 43 pod. Ràng buộc thật là **CPU**, và nó chặn ở 23.
+# ⇒ Kết luận của 12.A: **N=40 không đạt an toàn trên 1 node / 8 vCPU.** Không
+#   phải "chưa thử", mà là "đã tính, và cái giá là một suy thoái đã đo được".
+#   Nâng trần thật đòi thêm CPU vật lý (node thứ hai), không đòi sửa con số này.
 #
 # ── Chỗ CỐ Ý overcommit, khai thẳng ─────────────────────────────────────────
-# `limitsCpu: 44` và `limitsMemory: 22Gi` đều VƯỢT phần cứng (8 core / 11.6Gi).
+# `limitsCpu: 48` và `limitsMemory: 24Gi` đều VƯỢT phần cứng (8 core / 11.6Gi).
 # Đó là bản chất của `limits` — nó là TRẦN BURST, không phải chỗ giữ. Phần thật
-# sự gác an toàn node là `requests`: 5400m/5500Mi, cộng platform (1880m/1832Mi)
-# = 7280m/7332Mi trên 8000m/11830Mi ⇒ **91% CPU, 62% RAM** đã đặt chỗ.
-# Ván cược: nếu CẢ 21 pod cùng chạm 1Gi anon một lúc thì node hết RAM. Đo được
-# thì anon đỉnh chỉ 127Mi/pod (21 × 127Mi ≈ 2.6Gi), nên cược này rộng cửa —
-# nhưng nó LÀ một ván cược, và mọi lần nâng trần sau phải đo lại chứ đừng suy ra.
+# sự gác an toàn node là `requests`: 5850m/5952Mi, cộng platform (1880m/1832Mi)
+# = 7730m/7784Mi trên 8000m/11830Mi ⇒ **97% CPU, 66% RAM** đã đặt chỗ.
+# 97% là CỐ Ý sát trần, và 250m dự phòng rollout ở trên là thứ giữ cho nó an
+# toàn. Ván cược RAM: nếu CẢ 23 pod cùng chạm 1Gi anon một lúc thì node hết RAM.
+# Đo được thì anon đỉnh chỉ 127Mi/pod (23 × 127Mi ≈ 2.9Gi), nên cược này rộng
+# cửa — nhưng nó LÀ một ván cược, và mọi lần nâng trần sau phải đo lại.
 sandbox:
   quota:
-    pods: '26'
-    requestsCpu: '5400m'
-    requestsMemory: '5500Mi'
-    limitsCpu: '44'
-    limitsMemory: '22Gi'
+    pods: '28'
+    requestsCpu: '5850m'
+    requestsMemory: '5952Mi'
+    limitsCpu: '48'
+    limitsMemory: '24Gi'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Registry mirror docker.io (P3/3.I mắt 1) — BẬT trên self-host.

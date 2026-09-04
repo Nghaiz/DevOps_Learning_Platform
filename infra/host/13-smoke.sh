@@ -65,26 +65,49 @@ for d in web gateway orchestrator; do
   fi
 done
 
-# ── 2. Image ĐANG CHẠY khớp tag trong values ─────────────────────────────────
+# ── 2. Image ĐANG CHẠY khớp image chart RENDER ra ────────────────────────────
 #
 # Kiểm trên đối tượng SỐNG, không trên file: đây chính là chế độ hỏng của 3.H —
 # values đúng mà cụm chạy tag khác thì không có gì đỏ lên.
-step "2. Image đang chạy khớp values"
-TAG_VALUES="$(awk '
-  /^image:[[:space:]]*$/ { trong = 1; next }
-  trong && /^[^[:space:]]/ { trong = 0 }
-  trong && $1 == "tag:" { gsub(/^[[:space:]]*tag:[[:space:]]*/, ""); gsub(/['"'"'"]/, ""); print; exit }
-' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/infra/helm/platform/values-selfhost.yaml")"
-if [ -z "$TAG_VALUES" ]; then
-  khong_do_duoc "không đọc được image.tag từ values-selfhost.yaml"
+#
+# ⛔ SỬA Ở P12/12.A (2026-09-04). Bản cũ đọc DUY NHẤT `image.tag` (tag chung) rồi
+# đòi MỌI deployment mang đúng tag đó. Từ khi values-selfhost ghim tag theo từng
+# thành phần (web `p10a`, orchestrator `p7`, gateway tag chung), phép so ấy sai
+# theo hai chiều cùng lúc:
+#   · BÁO ĐỎ OAN — web/orchestrator chạy đúng tag chart định, vẫn bị đếm là lệch.
+#   · BỎ LỌT THẬT — nó không biết CHART định gì cho từng thành phần, nên một
+#     `web.image.tag` sai trong values sẽ khớp "cụm = values" và đi qua êm.
+# Bản mới so từng deployment với image CHART RENDER RA cho chính nó. Đó mới là
+# câu hỏi cần trả lời: "cụm có đang chạy thứ repo mô tả không?"
+step "2. Image đang chạy khớp chart"
+REPO_ROOT_SMOKE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Render trên VM, nơi chart tươi + live-values (bí mật) đã có sẵn. Chỉ lấy dòng
+# image; KHÔNG in manifest thô — nó chứa PKI/secret.
+RENDER_MAP="$(vm "helm get manifest '$RELEASE' -n '$NAMESPACE' 2>/dev/null" \
+  | awk '
+      /^kind:[[:space:]]*Deployment/ { la_deploy = 1 }
+      /^kind:/ && $2 != "Deployment"  { la_deploy = 0 }
+      la_deploy && $1 == "name:" && ten == "" { ten = $2 }
+      la_deploy && $1 == "image:" && ten != "" {
+        gsub(/['"'"'"]/, "", $2); print ten " " $2; ten = ""; la_deploy = 0
+      }
+    ' | grep "ghcr.io" | sort -u)"
+if [ -z "$RENDER_MAP" ]; then
+  khong_do_duoc "không đọc được image từ manifest của release (đừng đọc thành 'không có image')"
 fi
-info "tag trong values: ${TAG_VALUES}"
-LECH="$(vm "kubectl -n '$NAMESPACE' get deploy -o jsonpath='{range .items[*]}{.spec.template.spec.containers[0].image}{\"\\n\"}{end}'" \
-  | grep "ghcr.io" | grep -cv ":${TAG_VALUES}\$" || true)"
-if [ "${LECH:-1}" -eq 0 ]; then
-  ok "mọi image ghcr đang chạy đúng tag" "${TAG_VALUES}"
+LECH=0
+while read -r ten img_chart; do
+  [ -n "$ten" ] || continue
+  img_song="$(vm "kubectl -n '$NAMESPACE' get deploy '$ten' -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null" || true)"
+  if [ "$img_song" != "$img_chart" ]; then
+    info "LỆCH ${ten}: cụm=${img_song:-<không đọc được>} chart=${img_chart}"
+    LECH=$(( LECH + 1 ))
+  fi
+done <<< "$RENDER_MAP"
+if [ "$LECH" -eq 0 ]; then
+  ok "mọi deployment chạy đúng image chart định" "$(wc -l <<< "$RENDER_MAP" | tr -d ' ') deployment khớp"
 else
-  bad "mọi image ghcr đang chạy đúng tag" "${LECH} deployment chạy tag KHÁC ${TAG_VALUES}"
+  bad "mọi deployment chạy đúng image chart định" "${LECH} deployment lệch chart"
 fi
 
 # ── 3. Warm pool có pod THẬT ─────────────────────────────────────────────────
