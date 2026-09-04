@@ -195,6 +195,19 @@ export function openTerminal({ base, sessionId, cookie, origin, cols = 120, rows
             readyAt = Date.now() - t0;
             clearTimeout(timer);
             off();
+            // ⛔ TẮT TIMEOUT BẤT-HOẠT-ĐỘNG SAU KHI ĐÃ SẴN SÀNG.
+            // `socket.setTimeout(ms, cb)` ở dưới đặt cho HANDSHAKE, nhưng nó là
+            // timeout BẤT HOẠT ĐỘNG và sống suốt đời socket — không phải hạn một
+            // lần. Để nguyên thì mọi kết nối im lặng quá `timeoutMs` (mặc định
+            // 20s) bị CHÍNH CLIENT destroy.
+            //
+            // Đo được 2026-09-05: soak gõ mỗi 30s > 20s ⇒ 7/10 WS chết dần,
+            // `dlp_gateway_ws_active` tụt còn 3, và gateway ghi
+            // "failed to read frame header: EOF" — trông y hệt server đóng.
+            // Bốn đại lượng rò rỉ khi ấy vẫn "phẳng", nhưng phẳng vì KHÔNG CÒN
+            // GÌ KẾT NỐI. Phép đo gõ phím (200ms/phím) không bao giờ chạm bẫy
+            // này nên nó ẩn cho tới lượt chạy dài đầu tiên.
+            socket.setTimeout(0);
             resolve(api);
           });
 

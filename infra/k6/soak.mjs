@@ -68,15 +68,25 @@ async function scrape(url, keys) {
 }
 
 const GAUGES = ['go_goroutines', 'process_open_fds', 'process_resident_memory_bytes'];
+// ⛔ MẪU SỐ SỐNG. Bốn đại lượng rò rỉ "phẳng" KHÔNG có nghĩa gì nếu WS đã chết
+// hết — phẳng khi ấy chỉ nói "không còn gì kết nối". `dlp_gateway_ws_active` là
+// mẫu số biến mọi kết luận về độ phẳng thành có nghĩa.
+// Đo được 2026-09-05: một timeout bất-hoạt-động 20s trong client làm 7/10 WS
+// chết trong 10 phút mà MỌI đại lượng vẫn phẳng — đúng lớp green-that-proves-nothing.
+const GW_GAUGES = [...GAUGES, 'dlp_gateway_ws_active'];
 
 async function sample() {
   const orch = await scrape(ORCH, [...GAUGES, 'dlp_pool_claimed_size', 'dlp_pool_free_size']);
-  const gw = await Promise.all(GW.map((u, i) => scrape(u, GAUGES).then((v) => [`gw${i}`, v])));
+  const gw = await Promise.all(GW.map((u, i) => scrape(u, GW_GAUGES).then((v) => [`gw${i}`, v])));
   const row = { ts: new Date().toISOString(), t: Date.now(), orch, ...Object.fromEntries(gw) };
   appendFileSync(JSONL, JSON.stringify(row) + '\n');
+  const wsActive = Object.keys(row).filter((k) => k.startsWith('gw'))
+    .reduce((s2, k) => s2 + (row[k]?.dlp_gateway_ws_active ?? 0), 0);
+  row.wsActive = wsActive;
   const g = row.gw0 ?? {};
+  const canhBao = (moPhien && wsActive < mucTieuWs) ? `  ⚠ WS SỐNG ${wsActive}/${mucTieuWs}` : '';
   log(`orch{gr=${orch.go_goroutines} fd=${orch.process_open_fds} rss=${mb(orch.process_resident_memory_bytes)} claimed=${orch.dlp_pool_claimed_size}} ` +
-    `gw0{gr=${g.go_goroutines} fd=${g.process_open_fds} rss=${mb(g.process_resident_memory_bytes)}}`);
+    `gw{gr=${g.go_goroutines} ws=${wsActive}}${canhBao}`);
   return row;
 }
 const mb = (b) => (b == null ? '?' : `${Math.round(b / 1048576)}Mi`);
@@ -104,6 +114,9 @@ function mergeCookies(jar, setC) {
 }
 
 const sessions = [];
+// Số WS kỳ vọng còn sống; chỉ bật kiểm sau khi đã mở xong (trước đó = 0 là đúng).
+let mucTieuWs = 0;
+let moPhien = false;
 async function openOne(i) {
   let jar = users[i].cookie;
   const { data, setCookie } = await trpc(jar, 'lessons.startSession',
@@ -143,6 +156,7 @@ async function main() {
     catch (e) { log(`phiên ${i} KHÔNG mở được: ${String(e.message).slice(0, 100)}`); }
     await new Promise((r) => setTimeout(r, 500)); // giãn để không đấm rate-limit
   }
+  mucTieuWs = opened; moPhien = true;
   log(`đã mở ${opened}/${N} phiên có WS`);
 
   const deadline = Date.now() + HOURS * 3600_000;
@@ -151,7 +165,11 @@ async function main() {
 
   const stop = async () => {
     clearInterval(sampler); clearInterval(typer);
-    await sample(); // mốc SAU
+    const cuoi = await sample(); // mốc SAU
+    if (moPhien && cuoi.wsActive < mucTieuWs) {
+      log(`⛔ KHÔNG KẾT LUẬN ĐƯỢC ĐỘ PHẲNG: WS sống ${cuoi.wsActive}/${mucTieuWs} lúc kết thúc.`);
+      log('   Bốn đại lượng có thể phẳng chỉ vì kết nối đã rụng, không phải vì không rò rỉ.');
+    }
     await cleanup();
     log('xong.');
     process.exit(0);

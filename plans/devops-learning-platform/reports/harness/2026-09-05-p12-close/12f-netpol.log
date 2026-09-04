@@ -1,0 +1,28 @@
+OK   web → internet 1.1.1.1:443                   muốn=BLOCK được=BLOCK   3499ms
+
+════════════════════════════════════════════════════════════════════════
+OK   | web → gateway:8082 (chấm bài)             | PASS  | PASS  |    436ms
+OK   | web → orchestrator:9090 (gRPC session)       | PASS  | PASS  |    472ms
+OK   | web → postgres:5432 (Better Auth)            | PASS  | PASS  |    596ms
+OK   | web → redis:6379                             | PASS  | PASS  |    374ms
+OK   | gateway → web:3000 (JWKS)                    | PASS  | PASS  |    465ms
+OK   | gateway → orchestrator:9090 (extend)         | PASS  | PASS  |    465ms
+OK   | gateway → redis:6379 (authz phiên)          | PASS  | PASS  |    401ms
+OK   | gateway → apiserver (pods/exec)              | PASS  | PASS  |    435ms
+OK   | orchestrator → postgres:5432 (audit)         | PASS  | PASS  |    375ms
+OK   | orchestrator → redis:6379 (pool)             | PASS  | PASS  |    421ms
+OK   | orchestrator → apiserver (tạo/xoá pod)    | PASS  | PASS  |    344ms
+OK   | migrate → postgres:5432 (helm hook)          | PASS  | PASS  |    350ms
+OK   | gateway → apiserver QUA ClusterIP [tiền đề] | PASS  | PASS  |    420ms
+OK   | POD LẠ → postgres:5432   [AC-B2]           | BLOCK | BLOCK |   3453ms
+OK   | POD LẠ → redis:6379      [AC-B2]           | BLOCK | BLOCK |   3391ms
+OK   | POD LẠ → web:3000                          | BLOCK | BLOCK |   3375ms
+OK   | POD LẠ → apiserver                         | BLOCK | BLOCK |   3390ms
+OK   | gateway → postgres:5432 (không phận sự) | BLOCK | BLOCK |   3372ms
+OK   | migrate → redis:6379 (không phận sự)    | BLOCK | BLOCK |   3326ms
+OK   | orchestrator → web:3000 (không phận sự) | BLOCK | BLOCK |   3432ms
+OK   | web → apiserver (leo thang)                  | BLOCK | BLOCK |   3404ms
+OK   | web → internet 1.1.1.1:443                   | BLOCK | BLOCK |   3499ms
+════════════════════════════════════════════════════════════════════════
+PASS-đúng-mong-đợi: 22    LỆCH: 0
+Mọi chiều khớp mong đợi.

@@ -228,7 +228,18 @@ async function main() {
   // Đây cũng là một phát hiện THẬT của bài Docker (ghi trong report P12) — người
   // học chạy `docker run nginx:alpine` gặp đúng treo này. Ở harness thì bọc retry
   // để tách nhiễu ngoài-hệ khỏi tín hiệu bão-hoà-control-plane; KHÔNG che nó đi.
+  // ⛔ SKIP_NGINX=1 — TÁCH LỖI SẢN PHẨM RA KHỎI PHÉP ĐO NĂNG LỰC.
+  // Đo được 2026-09-05 ở N=23: **16/23 worker hỏng vì đúng bước này**, cả 3 lượt
+  // retry đều treo. Nó KHÔNG phải nhiễu nhất thời mà là lỗi thật của sandbox
+  // (referrers → registry-1.docker.io bị netpol nuốt im, không RST, nên treo hết
+  // timeout). Để nguyên thì lượt đo trả lời "sandbox có lỗi egress", KHÔNG trả
+  // lời "node chịu được bao nhiêu người cùng build" — mà câu sau mới là của P12.
+  // Bước này là PREP: harness chỉ chấm step 3 (build), nginx phục vụ các bước
+  // không được chấm ở đây. Bật cờ để đo năng lực; TẮT cờ để tái hiện lỗi.
   let nginxErr = null;
+  if (process.env.SKIP_NGINX === '1') {
+    marks.nginxSkipped = true;
+  } else
   for (let k = 0; k < 3; k += 1) {
     try {
       inPod(pod, 'docker rm -f web >/dev/null 2>&1; docker run -d --name web -p 8080:80 nginx:alpine && sleep 2 && curl -s -o /dev/null http://localhost:8080/', 90_000);
@@ -237,7 +248,9 @@ async function main() {
   }
   marks.nginxRetries = nginxErr ? 3 : undefined;
   if (nginxErr) throw new Error(`bước chuẩn bị nginx treo 3 lượt (referrers→docker.io bị chặn?): ${nginxErr}`);
-  inPod(pod, `docker exec web sh -c 'echo "toi da o trong container" > /tmp/dlp-marker'`);
+  if (process.env.SKIP_NGINX !== '1') {
+    inPod(pod, `docker exec web sh -c 'echo "toi da o trong container" > /tmp/dlp-marker'`);
+  }
 
   // ── VẾ 1 của build: TRƯỚC khi build phải "chưa đạt" ───────────────────────
   // Không có vế này thì một verify hỏng-luôn-đạt cũng cho kết quả xanh y hệt.
