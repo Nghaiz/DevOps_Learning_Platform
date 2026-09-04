@@ -21,7 +21,27 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..', '..', '..', '..');
 const N = Number(process.argv[2] ?? 21);
 const BARRIER_DIR = join(HERE, `.barrier-${N}`);
-const BASE_URL = process.env.BASE_URL ?? 'http://127.0.0.1:13000';
+
+/**
+ * `--via-traefik <url>` — P12/12.B: đi ĐÚNG ĐƯỜNG NGƯỜI DÙNG.
+ *
+ * Lượt N=18 (2026-08-16, 2026-09-03) đi ClusterIP qua port-forward CÓ CHỦ Ý, để
+ * né rate-limit ở biên và đo cho được phần tính toán. Nhưng vì thế nó KHÔNG nói
+ * gì về đường thật: Traefik, middleware, TLS, rate-limit, `externalTrafficPolicy`
+ * đều nằm ngoài phép đo ấy.
+ *
+ * ⚠ Cờ này chỉ có nghĩa khi driver chạy NGOÀI VM. Gọi từ chính VM thì gói đi qua
+ * SNAT: mọi worker chung một địa chỉ nguồn, nên vừa hỏng phép đo IP vừa dồn cả
+ * lớp vào MỘT bucket rate-limit — và kết quả sẽ đọc ra như "biên chặn tải" trong
+ * khi thứ gây ra nó là chỗ đứng của người đo.
+ */
+const traefikIdx = process.argv.indexOf('--via-traefik');
+const VIA_TRAEFIK = traefikIdx !== -1 ? process.argv[traefikIdx + 1] : null;
+if (traefikIdx !== -1 && !VIA_TRAEFIK) {
+  console.error('--via-traefik cần một URL, ví dụ --via-traefik https://dlp.<ip>.sslip.io:30443');
+  process.exit(2);
+}
+const BASE_URL = VIA_TRAEFIK ?? process.env.BASE_URL ?? 'http://127.0.0.1:13000';
 const ORIGIN = process.env.ORIGIN ?? 'https://dlp.192.168.94.130.sslip.io:30443';
 
 const users = JSON.parse(readFileSync(join(ROOT, 'infra', 'k6', '.users.json'), 'utf8'));
@@ -34,7 +54,9 @@ rmSync(BARRIER_DIR, { recursive: true, force: true });
 mkdirSync(BARRIER_DIR, { recursive: true });
 
 console.log(`\n═══ ${N} người học, rào chắn chung trước docker build ═══`);
-console.log(`đường: ${BASE_URL} (ClusterIP qua port-forward; origin giữ nguyên ⇒ origin-check của app vẫn chạy)\n`);
+console.log(VIA_TRAEFIK
+  ? `đường: ${BASE_URL} (QUA TRAEFIK — đúng đường người dùng: TLS, middleware, rate-limit đều nằm trong phép đo)\n`
+  : `đường: ${BASE_URL} (ClusterIP qua port-forward; origin giữ nguyên ⇒ origin-check của app vẫn chạy)\n`);
 
 // ── Đường hầm: driver TỰ dựng và TỰ canh ─────────────────────────────────────
 //
@@ -91,13 +113,26 @@ async function bảoĐảmĐườngHầm(nhãn) {
   console.error('  Có tiến trình lạ đang giữ cổng ⇒ giết theo PID rồi chạy lại.');
   return false;
 }
-if (!(await bảoĐảmĐườngHầm('trước khi spawn'))) {
+// Đi qua Traefik thì KHÔNG có đường hầm để canh — nhưng vẫn phải chứng minh
+// đường sống trước khi spawn, nếu không N worker cùng chết vì một lý do nằm
+// ngoài hệ đang đo (đúng chế độ hỏng mà khối port-forward ở trên sinh ra để gác).
+if (VIA_TRAEFIK) {
+  const ok = await fetch(`${BASE_URL}/api/health`, { signal: AbortSignal.timeout(8000) })
+    .then((r) => r.ok).catch(() => false);
+  if (!ok) {
+    console.error(`\n⛔ KHÔNG ĐO ĐƯỢC: ${BASE_URL}/api/health không trả 200 từ máy này.`);
+    console.error('  Kiểm: chứng chỉ lab đã nạp chưa (NODE_EXTRA_CA_CERTS), và máy này có tới được NodePort không.');
+    process.exit(2);
+  }
+  console.log(`  đường qua Traefik sống: ${BASE_URL}/api/health → 200`);
+} else if (!(await bảoĐảmĐườngHầm('trước khi spawn'))) {
   process.exit(2);
 }
 // Canh trong suốt lượt đo: 18 worker im lặng chết là triệu chứng của ống rụng.
-const pfCanh = setInterval(() => { void bảoĐảmĐườngHầm('giữa lượt'); }, 10_000);
+const pfCanh = VIA_TRAEFIK ? null
+  : setInterval(() => { void bảoĐảmĐườngHầm('giữa lượt'); }, 10_000);
 process.on('exit', () => {
-  clearInterval(pfCanh);
+  if (pfCanh) clearInterval(pfCanh);
   if (pfProc) pfProc.kill();
 });
 
@@ -132,6 +167,30 @@ while (Date.now() < deadline) {
 console.log(`\n\n▶ PHÁT CỜ GO — ${readyCount} người cùng build, ${new Date().toISOString()}\n`);
 const tGo = Date.now();
 writeFileSync(join(BARRIER_DIR, 'GO'), String(tGo));
+
+// ── Rào chắn 2: N người CÙNG GÕ (P12/12.B) ──────────────────────────────────
+//
+// Thời gian build của mỗi người khác nhau, nên nếu để ai xong trước gõ luôn thì
+// người ấy gõ lúc cụm đã rảnh — và con số thu được là con số của NỀN, đội lốt
+// con số dưới tải. Đồng bộ lại một lần nữa mới đo đúng cảnh "cả lớp cùng gõ".
+//
+// Rào này bỏ qua được bằng KEYSTROKE_SAMPLES=0 (giữ nguyên đường của lượt N=18
+// để so sánh hai lượt).
+const KS_ON = Number(process.env.KEYSTROKE_SAMPLES ?? 24) > 0;
+if (KS_ON) {
+  const dl2 = Date.now() + 900_000;
+  let ready2 = 0;
+  while (Date.now() < dl2) {
+    ready2 = readdirSync(BARRIER_DIR).filter((f) => f.startsWith('ready-GO2-')).length;
+    const dead = procs.filter((p) => p.exitCode !== null).length;
+    if (ready2 >= N) break;
+    if (ready2 + dead >= N) { console.log(`\n⚠ ${dead} worker đã thoát — phát GO2 cho ${ready2} còn lại`); break; }
+    process.stdout.write(`\r  build xong: ${ready2}/${N} tới rào gõ phím (${dead} đã thoát) — ${Math.round((Date.now() - tGo) / 1000)}s`);
+    await sleep(1000);
+  }
+  console.log(`\n\n▶ PHÁT CỜ GO2 — ${ready2} người cùng gõ, ${new Date().toISOString()}\n`);
+  writeFileSync(join(BARRIER_DIR, 'GO2'), String(Date.now()));
+}
 
 // ── Chờ xong ─────────────────────────────────────────────────────────────────
 await Promise.all(procs.map((p) => new Promise((r) => p.on('close', r))));
@@ -185,11 +244,56 @@ console.log('\n─── "chậm" — phân bố thời gian docker build ──
 console.log(`  n=${builds.length}  p50=${(pct(0.5) / 1000).toFixed(1)}s  p95=${(pct(0.95) / 1000).toFixed(1)}s  ` +
   `max=${(builds.at(-1) / 1000).toFixed(1)}s  min=${(builds[0] / 1000).toFixed(1)}s`);
 console.log(`  cả lớp build xong sau ${(wallAll / 1000).toFixed(1)}s kể từ cờ GO`);
+// ── "Gõ → ký tự hiện" — đại lượng người học CẢM được (P12/12.B) ─────────────
+//
+// In CẢ hai pha. Con số dưới tải một mình không đọc được: "p95 180ms" là tốt
+// hay tệ phụ thuộc nền là 20ms hay 150ms.
+const ksPha = (ten) => {
+  const mau = rows.map((r) => r?.marks?.[ten]).filter((k) => k && !k.error && !k.skipped);
+  const loi = rows.filter((r) => r?.marks?.[ten]?.error).length;
+  if (mau.length === 0) return { ten, n: 0, loi };
+  // p95 CỦA CẢ LỚP: gộp mọi mẫu rồi lấy phân vị, KHÔNG lấy trung bình các p95.
+  // Trung bình của phân vị không phải phân vị — nó làm phẳng đúng phần đuôi mà
+  // ngưỡng 250ms sinh ra để gác.
+  const tat = mau.flatMap((k) => (typeof k.p50 === 'number'
+    ? [k.p50, k.p95, k.max, k.min].filter((x) => typeof x === 'number') : []));
+  tat.sort((a, b) => a - b);
+  const q = (p) => tat[Math.min(tat.length - 1, Math.floor(p * tat.length))];
+  return {
+    ten, n: mau.length, loi,
+    p95NguoiXauNhat: Math.max(...mau.map((k) => k.p95 ?? 0)),
+    p95Gop: q(0.95), p50Gop: q(0.5), max: tat.at(-1),
+    treo: mau.reduce((s, k) => s + (k.timeouts ?? 0), 0),
+    nhan: mau.reduce((s, k) => s + (k.received ?? 0), 0),
+    gui: mau.reduce((s, k) => s + (k.samples ?? 0), 0),
+  };
+};
+const ksNen = ksPha('keystrokeIdle');
+const ksTai = ksPha('keystrokeLoad');
+if (ksNen.n > 0 || ksTai.n > 0) {
+  console.log('\n─── "gõ → ký tự hiện" (ngưỡng P12: p95 ≤ 250ms) ───');
+  for (const k of [ksNen, ksTai]) {
+    const nhan = k.ten === 'keystrokeIdle' ? 'nền (trước rào)' : 'dưới tải (cả lớp cùng gõ)';
+    if (k.n === 0) { console.log(`  ${nhan}: KHÔNG ĐO ĐƯỢC (${k.loi} worker lỗi WS)`); continue; }
+    const dat = k.p95Gop <= 250 ? '✅' : '❌';
+    console.log(`  ${dat} ${nhan}: p50=${k.p50Gop}ms p95=${k.p95Gop}ms max=${k.max}ms ` +
+      `· người tệ nhất p95=${k.p95NguoiXauNhat}ms · ${k.n} người · vọng ${k.nhan}/${k.gui} · treo ${k.treo}` +
+      (k.loi ? ` · ${k.loi} worker KHÔNG mở được WS` : ''));
+  }
+  // Vế bắt-nói-dối: gõ mà KHÔNG có tiếng vọng nào thì "p95 thấp" là vô nghĩa —
+  // nó chỉ nói rằng vài mẫu ít ỏi lọt qua, không nói hệ đang phục vụ ai.
+  if (ksTai.n > 0 && ksTai.nhan < ksTai.gui * 0.9) {
+    console.log(`  ⚠ chỉ ${ksTai.nhan}/${ksTai.gui} phím có tiếng vọng — p95 ở trên KHÔNG mô tả trải nghiệm thật`);
+  }
+}
+
 console.log(`\nquota sau: pods=${quotaAfter.status.used.pods}/${quotaAfter.status.hard.pods} ` +
   `cpu=${quotaAfter.status.used['requests.cpu']}/${quotaAfter.status.hard['requests.cpu']}`);
 
 writeFileSync(join(HERE, `result-n${N}.json`), JSON.stringify({
   n: N, wallAllMs: wallAll, tGo, rows, bad,
+  viaTraefik: VIA_TRAEFIK ?? null,
+  keystroke: { nen: ksNen, tai: ksTai },
   quota: { before: quotaBefore.status, after: quotaAfter.status },
 }, null, 2));
 console.log(`\n→ result-n${N}.json`);

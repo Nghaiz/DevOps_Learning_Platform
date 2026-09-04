@@ -20,6 +20,7 @@
 import { execFileSync } from 'node:child_process';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { openTerminal, measureKeystrokes } from './wsterm.mjs';
 
 const BASE = process.env.BASE_URL;
 const ORIGIN = process.env.ORIGIN;
@@ -28,6 +29,10 @@ const SID = process.env.SID ?? '0';
 const BARRIER = process.env.BARRIER_DIR ?? '';
 const SCENARIO = 'dlp-docker-basics';
 const NOBAR = process.env.NO_BARRIER === '1';
+// Số mẫu gõ phím mỗi pha. 0 = tắt hẳn pha gõ (giữ đường cũ của lượt N=18 để
+// so sánh được). Trần 52 do bảng chữ cái trong `wsterm.mjs` — xem lý do ở đó.
+const KS_SAMPLES = Number(process.env.KEYSTROKE_SAMPLES ?? 24);
+const KS_PACE_MS = Number(process.env.KEYSTROKE_PACE_MS ?? 200);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const t = () => Date.now();
@@ -51,19 +56,46 @@ function assert(name, ok, detail) {
  * nói dối đúng theo hướng làm hệ trông tệ hơn thực tế. Retry chỉ bọc lỗi MẠNG;
  * lỗi tầng ứng dụng (4xx/5xx có thân) vẫn nổi lên nguyên vẹn.
  */
+/**
+ * Kho cookie của worker. Bắt đầu từ cookie đăng nhập, rồi GOM thêm mọi
+ * Set-Cookie nhận được.
+ *
+ * ⛔ CẦN CHO `/ws`: handshake WebSocket đòi cookie `dlp_sandbox` (Path=/ws,
+ * HttpOnly) mà `lessons.startSession` phát ra. Chỉ mang cookie đăng nhập thì
+ * gateway trả **401** — và 401 ở đó đọc y hệt ca "token hết hạn", nên nó dẫn
+ * người đọc đi soi JWT thay vì soi cookie (đã mất thời gian đúng như vậy khi
+ * dựng `keystroke-smoke.mjs`).
+ *
+ * Giữ MỌI cookie, KHÔNG lọc theo tiền tố `dlp_`: cookie phiên Better Auth
+ * không mang tiền tố ấy nên lọc như thế sẽ vứt đúng cookie đăng nhập.
+ */
+let cookieJar = COOKIE;
+function soakCookies(response) {
+  for (const raw of response.headers.getSetCookie?.() ?? []) {
+    const pair = raw.split(';')[0];
+    if (!pair?.includes('=')) continue;
+    const name = pair.split('=')[0];
+    const kept = cookieJar.split('; ').filter((c) => c && !c.startsWith(`${name}=`));
+    kept.push(pair);
+    cookieJar = kept.join('; ');
+  }
+}
+
 async function http(path, init = {}) {
   let lastErr;
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      return await fetch(`${BASE}${path}`, {
+      const res = await fetch(`${BASE}${path}`, {
         ...init,
         headers: {
           'content-type': 'application/json',
           origin: ORIGIN,
-          cookie: COOKIE,
+          cookie: cookieJar,
           ...(init.headers ?? {}),
         },
       });
+      soakCookies(res);
+      return res;
     } catch (e) {
       lastErr = e;
       netRetries += 1;
@@ -83,6 +115,29 @@ async function trpcMutate(proc, input) {
   return body.result.data;
 }
 
+/**
+ * Một lượt đo "gõ → ký tự hiện" qua WS thật (không qua kubectl exec).
+ *
+ * ⛔ KHÔNG ném khi hỏng. Pha gõ phím là phép đo BỔ SUNG; một WS không mở được
+ * không được phép làm hỏng kết luận về build. Trả về object có `error` để báo
+ * cáo đọc được "không đo được" — khác hẳn với "đo được và chậm".
+ */
+async function doKeystroke(sessionId, nhan) {
+  if (KS_SAMPLES === 0) return { skipped: true };
+  let term = null;
+  try {
+    term = await openTerminal({ base: BASE, sessionId, cookie: cookieJar, origin: ORIGIN });
+    const r = await measureKeystrokes(term, { samples: KS_SAMPLES, paceMs: KS_PACE_MS });
+    log(`gõ (${nhan}): p50=${r.p50}ms p95=${r.p95}ms nhận=${r.received}/${r.samples} treo=${r.timeouts}`);
+    return { ...r, handshakeMs: term.handshakeMs, readyMs: term.readyMs };
+  } catch (e) {
+    log(`gõ (${nhan}) KHÔNG ĐO ĐƯỢC: ${String(e.message).slice(0, 120)}`);
+    return { error: String(e.message).slice(0, 200) };
+  } finally {
+    try { term?.close(); } catch { /* đã đóng */ }
+  }
+}
+
 function inPod(pod, script, timeoutMs = 600_000) {
   return execFileSync(
     'kubectl',
@@ -92,17 +147,22 @@ function inPod(pod, script, timeoutMs = 600_000) {
 }
 
 /** Rào chắn hai pha trên hệ tệp: báo sẵn sàng, rồi chờ cờ GO của driver. */
-async function barrier() {
+/**
+ * Rào chắn chung. `flag` cho phép NHIỀU rào trong một lượt chạy (P12/12.B thêm
+ * rào thứ hai cho pha gõ phím) — mỗi rào có cờ riêng và file `ready-` riêng,
+ * nếu không thì worker nhanh sẽ đọc lại cờ của rào TRƯỚC và vượt rào ngay.
+ */
+async function barrier(flag = 'GO') {
   if (NOBAR || !BARRIER) return;
   mkdirSync(BARRIER, { recursive: true });
-  writeFileSync(join(BARRIER, `ready-${SID}`), String(t()));
-  log('đã sẵn sàng, chờ cờ GO…');
+  writeFileSync(join(BARRIER, `ready${flag === 'GO' ? '' : `-${flag}`}-${SID}`), String(t()));
+  log(`đã sẵn sàng, chờ cờ ${flag}…`);
   const deadline = t() + 900_000;
   while (t() < deadline) {
-    if (existsSync(join(BARRIER, 'GO'))) return;
+    if (existsSync(join(BARRIER, flag))) return;
     await sleep(100);
   }
-  throw new Error('rào chắn quá hạn 15 phút — driver không phát cờ GO');
+  throw new Error(`rào chắn ${flag} quá hạn 15 phút — driver không phát cờ`);
 }
 
 async function main() {
@@ -129,6 +189,16 @@ async function main() {
   marks.dockerdReady = t() - tReady;
   assert('dockerd sẵn sàng', ready, `${marks.dockerdReady}ms`);
   if (!ready) throw new Error('dockerd không lên');
+
+  // ── ĐO NỀN: gõ → ký tự hiện, lúc cụm CHƯA bị dồn tải ─────────────────────
+  //
+  // Vì sao phải có vế nền: con số dưới tải một mình KHÔNG đọc được. "p95 180ms"
+  // là tốt hay tệ phụ thuộc nền là 20ms hay 150ms. Không có nền thì mọi kết
+  // luận về suy thoái đều là suy đoán.
+  //
+  // ⚠ Vế này chạy TRƯỚC rào chắn nên các worker không đồng bộ — đó là CHỦ ĐÍCH:
+  // nó đo đường đi khi hệ còn rảnh, không đo cảnh đông người.
+  marks.keystrokeIdle = await doKeystroke(sessionId, 'nền');
 
   // ── Setup: đẩy asset app.py ────────────────────────────────────────────────
   await trpcMutate('lessons.runSetup', { scenarioId: SCENARIO, sessionId, phase: { kind: 'intro' } });
@@ -184,6 +254,14 @@ async function main() {
   let runOut = '';
   try { runOut = inPod(pod, 'docker run --rm myapp:1', 120_000); } catch { /* rỗng */ }
   assert('myapp:1 chạy và in đúng chuỗi', runOut.includes('DLP docker lab'), JSON.stringify(runOut.trim().slice(0, 60)));
+
+  // ══ RÀO CHẮN 2 — N NGƯỜI CÙNG GÕ ═════════════════════════════════════════
+  //
+  // Đây là đại lượng người học CẢM được, và trước P12 chưa ai đo nó dưới tải.
+  // Rào riêng vì thời gian build của mỗi người khác nhau: không đồng bộ lại thì
+  // người xong sớm gõ lúc cụm đã rảnh, và con số thu được là con số của nền.
+  await barrier('GO2');
+  marks.keystrokeLoad = await doKeystroke(sessionId, 'dưới tải');
 
   // ── Kết quả máy đọc được ───────────────────────────────────────────────────
   const uid = execFileSync('kubectl',

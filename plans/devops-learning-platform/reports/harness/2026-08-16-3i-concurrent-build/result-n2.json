@@ -1,0 +1,151 @@
+{
+  "n": 2,
+  "wallAllMs": 19240,
+  "tGo": 1788521821366,
+  "rows": [
+    {
+      "sid": 0,
+      "sessionId": "77d0b91ebbafcf400c4b70484cced335",
+      "pod": "sandbox-c6a31947ca22",
+      "uid": "9b1f16bd-7f65-4691-832f-f274d807f34f",
+      "marks": {
+        "claim": 568,
+        "dockerdReady": 807,
+        "keystrokeIdle": {
+          "samples": 8,
+          "received": 8,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 19,
+          "p95": 37,
+          "max": 37,
+          "min": 13,
+          "handshakeMs": 31,
+          "readyMs": 597
+        },
+        "pull": 70390,
+        "build": 4467,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0,
+        "keystrokeLoad": {
+          "samples": 8,
+          "received": 8,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 10,
+          "p95": 13,
+          "max": 13,
+          "min": 8,
+          "handshakeMs": 21,
+          "readyMs": 429
+        }
+      },
+      "fails": [],
+      "netRetries": 0,
+      "ok": true
+    },
+    {
+      "sid": 1,
+      "sessionId": "584b4f9716c30def6860ec3e9f1a52ff",
+      "pod": "sandbox-8a806a57fb58",
+      "uid": "456cc2b7-b997-4508-8dba-2a7e484de701",
+      "marks": {
+        "claim": 377,
+        "dockerdReady": 891,
+        "keystrokeIdle": {
+          "samples": 8,
+          "received": 8,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 20,
+          "p95": 28,
+          "max": 28,
+          "min": 13,
+          "handshakeMs": 50,
+          "readyMs": 651
+        },
+        "pull": 72278,
+        "build": 4568,
+        "checkOutput": "Dat — myapp:1 da duoc dung va chay ra dung ket qua.\n",
+        "checkExit": 0,
+        "keystrokeLoad": {
+          "samples": 8,
+          "received": 8,
+          "timeouts": 0,
+          "echoMismatch": 0,
+          "p50": 11,
+          "p95": 13,
+          "max": 13,
+          "min": 8,
+          "handshakeMs": 14,
+          "readyMs": 390
+        }
+      },
+      "fails": [],
+      "netRetries": 0,
+      "ok": true
+    }
+  ],
+  "bad": [],
+  "viaTraefik": "https://dlp.192.168.94.130.sslip.io:30443",
+  "keystroke": {
+    "nen": {
+      "ten": "keystrokeIdle",
+      "n": 2,
+      "loi": 0,
+      "p95NguoiXauNhat": 37,
+      "p95Gop": 37,
+      "p50Gop": 28,
+      "max": 37,
+      "treo": 0,
+      "nhan": 16,
+      "gui": 16
+    },
+    "tai": {
+      "ten": "keystrokeLoad",
+      "n": 2,
+      "loi": 0,
+      "p95NguoiXauNhat": 13,
+      "p95Gop": 13,
+      "p50Gop": 13,
+      "max": 13,
+      "treo": 0,
+      "nhan": 16,
+      "gui": 16
+    }
+  },
+  "quota": {
+    "before": {
+      "hard": {
+        "limits.cpu": "48",
+        "limits.memory": "24Gi",
+        "pods": "28",
+        "requests.cpu": "5850m",
+        "requests.memory": "5952Mi"
+      },
+      "used": {
+        "limits.cpu": "6",
+        "limits.memory": "3Gi",
+        "pods": "3",
+        "requests.cpu": "750m",
+        "requests.memory": "768Mi"
+      }
+    },
+    "after": {
+      "hard": {
+        "limits.cpu": "48",
+        "limits.memory": "24Gi",
+        "pods": "28",
+        "requests.cpu": "5850m",
+        "requests.memory": "5952Mi"
+      },
+      "used": {
+        "limits.cpu": "6",
+        "limits.memory": "3Gi",
+        "pods": "3",
+        "requests.cpu": "750m",
+        "requests.memory": "768Mi"
+      }
+    }
+  }
+}
