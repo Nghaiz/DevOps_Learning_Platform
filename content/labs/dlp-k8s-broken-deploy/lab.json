@@ -1,0 +1,45 @@
+{
+  "id": "dlp-k8s-broken-deploy",
+  "title": "Sửa một Deployment Kubernetes hỏng",
+  "description": "Năm lỗi triển khai Kubernetes độc lập, đúng kiểu bạn gặp thật ngoài đời: tag image sai, ConfigMap thiếu, Service không chọn đúng Pod, readiness probe sai đường dẫn, và Service gõ nhầm cổng. Mỗi lỗi nằm trên một Deployment/Service RIÊNG — làm theo thứ tự tuỳ ý, trên cụm k3s một-node chạy thật trong sandbox của bạn (P7).",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 40,
+  "source": null,
+  "backend": {
+    "imageid": "kubernetes-kubeadm-1node-rapid"
+  },
+  "tasks": [
+    {
+      "id": "fix-image-tag",
+      "title": "Sửa tag image sai",
+      "hint": "`kubectl describe pod -l app=broken-image` de doc Events. Sua bang `kubectl set image deployment/broken-image web=nginx:1.29.0`."
+    },
+    {
+      "id": "fix-configmap-mount",
+      "title": "Tạo ConfigMap còn thiếu",
+      "hint": "Events cua Pod se noi ro ten ConfigMap con thieu va Deployment dang mount o dau. Tao ConfigMap voi dung key `index.html` roi `kubectl rollout restart deployment/broken-configmap`."
+    },
+    {
+      "id": "fix-service-selector",
+      "title": "Sửa selector của Service",
+      "hint": "`kubectl get endpoints broken-selector-svc` rong nghia la selector khong khop label Pod. So sanh `--show-labels` cua Pod voi `.spec.selector` cua Service roi `kubectl patch`."
+    },
+    {
+      "id": "fix-readiness-probe",
+      "title": "Sửa readiness probe sai đường dẫn",
+      "hint": "`READY 0/1` du `STATUS Running` la dau hieu readiness probe fail, khong phai container chet. Doc `.spec.template.spec.containers[0].readinessProbe` roi sua `path` ve `/`."
+    },
+    {
+      "id": "fix-service-port",
+      "title": "Sửa targetPort của Service",
+      "weight": 2,
+      "hint": "Endpoints o bai nay KHONG rong — khac bai selector. Loi nam o `targetPort` khong khop cong container that su lang nghe (80). `kubectl patch service` roi kiem lai bang mot ket noi that qua exec."
+    }
+  ],
+  "setup": {
+    "foreground": "setup/foreground.sh",
+    "background": "setup/background.sh"
+  },
+  "passThresholdPercent": 80,
+  "leaderboard": true
+}
