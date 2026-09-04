@@ -414,15 +414,34 @@ ingress:
       # một GET nhiều bậc. Trần D17=1 (một phiên một WS) KHÔNG chặn được việc một
       # IP mở liên tiếp nhiều handshake nhắm nhiều session khác nhau.
       #
-      # ⚠ CHƯA ĐO trên tải thật. Hai ca phải soi trước 3.E: (a) gateway restart ⇒
-      # mọi client nối lại cùng lúc, nếu client retry không có backoff nhiễu thì
-      # một người ăn hết burst; (b) một lớp học sau NAT chung vẫn dùng CHUNG một
-      # bucket dù `externalTrafficPolicy: Local` đã trả lại IP thật — NAT gộp N
-      # người vào một địa chỉ, và 20/phút chia cho cả lớp là quá chật.
+      # ── NỚI Ở P12/12.B (2026-09-04), CÓ SỐ ĐO ─────────────────────────────
+      # Bộ cũ `20/1m burst 10` là con số CHƯA ĐO ("⚠ CHƯA ĐO trên tải thật").
+      # Lượt N=23 qua Traefik từ MỘT máy Windows (một IP ⇒ một bucket, đúng ca
+      # "cả lớp sau NAT") đo thẳng ra giới hạn: 20 người cùng mở WS một lúc thì
+      # ĐÚNG 10 vào (= burst), 10 nhận `HTTP 429` ngay ở handshake. 10 người
+      # vào đều gõ được 24/24 phím — nên chính burst, không phải gì khác, là
+      # chỗ chặn.
+      #
+      # ── Nới tới đâu, và vì sao ────────────────────────────────────────────
+      # Đích: một lớp tới trần cứng (23 phiên) mở được terminal trong cửa sổ
+      # đầu, kể cả khi cả lớp sau MỘT NAT. Cộng biên cho reconnect: khi gateway
+      # rollout (2 replica, đã xảy ra 6 lần/17h — xem restart count), MỌI client
+      # nối lại gần như cùng lúc. Một người có thể phát vài handshake trong một
+      # phút (mở tab, reload, mạng chập chờn).
+      #   · burst 30  = 23 phiên đồng thời + 7 khe reconnect tức thời. Đủ cho cả
+      #     lớp mở một lần mà không ai chạm 429, và vẫn chặn một IP mở 50 phiên
+      #     liên tiếp (bề mặt tấn công thật mà D17=1 không đóng).
+      #   · average 40/1m = ~1.7 handshake/phiên/phút ở lớp 23 người — đủ cho
+      #     reconnect thưa mà không thành cửa cho một IP mở vô hạn qua thời gian.
+      #
+      # ⚠ ĐÂY LÀ NỚI BỀ MẶT TẤN CÔNG, KHÔNG PHẢI MỘT CON SỐ CẤU HÌNH. Sau khi
+      # đổi hai số này PHẢI chạy lại `infra/pentest/run-all.sh` — luật 5 (biên)
+      # đo trần WEB `/` chứ không phải `/ws`, nên nó KHÔNG tự bao con số này;
+      # một lượt pentest trên cấu hình CŨ không nói gì về cấu hình MỚI.
       ws:
-        average: 20
+        average: 40
         period: 1m
-        burst: 10
+        burst: 30
     redirectHttps:
       enabled: false
       # Cổng CÔNG KHAI của entrypoint HTTPS, khai TƯỜNG MINH. Rỗng = giữ nguyên
