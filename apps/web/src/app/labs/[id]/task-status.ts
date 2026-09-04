@@ -1,4 +1,8 @@
-import { latestResultPerTask } from '@devops-platform/scenario';
+// Subpath `./lab-score`, KHONG phai barrel `.` — file nay chay o CLIENT, va
+// barrel keo theo loader doc dia (`node:fs/promises`) roi lam `next build` do
+// voi "the chunking context does not support external modules". Cung ly do
+// `parseContentBlocks` phai vao qua `./content-blocks`.
+import { latestResultPerTask } from '@devops-platform/scenario/lab-score';
 import type { Lab, LabTask, LabTaskResult } from '@devops-platform/shared-types/lab';
 
 /**
