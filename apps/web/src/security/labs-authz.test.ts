@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
+import type { ListPageOptions } from '@devops-platform/scenario';
 import {
   labSchema,
   playgroundSchema,
@@ -55,17 +56,38 @@ vi.mock('../server/labs/catalog', () => ({
         .sort((a, b) => a.id.localeCompare(b.id));
     },
     getLab: async (id: string) => labFixtures.get(id) ?? null,
+    // D9 (phase-13) — mock TỐI GIẢN cho `labs.list`: dựng trên chính
+    // `listLabs()` giả ở trên + `paginateSorted`/`matchesContentFilter` THẬT
+    // (không phải một bản chép logic keyset thứ hai).
+    listLabsPage: async (options: ListPageOptions) => {
+      const { paginateSorted, matchesContentFilter } = await import('@devops-platform/scenario');
+      const { toLabSummary: toSummary } = await import('@devops-platform/shared-types');
+      const sorted = [...labFixtures.values()]
+        .map((lab) => toSummary(lab as never))
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .filter((l) => matchesContentFilter(l, options.filter as never));
+      return paginateSorted(sorted, options);
+    },
     listPlaygrounds: async () => [],
     getPlayground: async () => null,
+    listPlaygroundsPage: async () => ({ items: [], nextCursor: null }),
   }),
   playgroundSource: () => ({
     listLabs: async () => [],
     getLab: async () => null,
+    listLabsPage: async () => ({ items: [], nextCursor: null }),
     listPlaygrounds: async () =>
       [...playgroundFixtures.values()]
         .map((p) => p as { id: string })
         .sort((a, b) => a.id.localeCompare(b.id)),
     getPlayground: async (id: string) => playgroundFixtures.get(id) ?? null,
+    listPlaygroundsPage: async (options: ListPageOptions) => {
+      const { paginateSorted } = await import('@devops-platform/scenario');
+      const sorted = [...playgroundFixtures.values()]
+        .map((p) => p as { id: string })
+        .sort((a, b) => a.id.localeCompare(b.id));
+      return paginateSorted(sorted, options);
+    },
   }),
   requireLab: async (id: string) => {
     const lab = labFixtures.get(id);
@@ -121,6 +143,19 @@ vi.mock('../server/grpc/orchestrator-client', () => ({
     },
   }),
   callOrchestrator: <T>(fn: () => Promise<T>): Promise<T> => fn(),
+}));
+
+/**
+ * D7 (phase-13) — mock RIÊNG cho `applySessionPreferences`, KHÔNG chạm
+ * `runScriptInSession`/`fetch`. File này kiểm authz + contract điểm số của
+ * lab/playground — D7 (áp shell mặc định) là một mối quan tâm TRỰC GIAO, và
+ * nếu không mock riêng, MỌI `startAttempt`/`start` ở dưới sẽ kích hoạt thêm
+ * một lượt gọi gateway thật (`runScriptInSession` → `fetch`) mà `fetchSpy`
+ * bên dưới chặn cứng — làm sai lệch thứ tự `mockImplementationOnce` mà các ca
+ * `checkTask` ba lỗi (phía dưới) đang dựa vào.
+ */
+vi.mock('../server/sessions/preferences', () => ({
+  applySessionPreferences: async () => ({ preferencesApplied: false }),
 }));
 
 /**

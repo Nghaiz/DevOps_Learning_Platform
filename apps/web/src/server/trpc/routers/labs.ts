@@ -54,7 +54,7 @@ import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
  * trong khi kiểu suy ra vẫn nói `Date` — hợp đồng nói dối, và chỗ vỡ nằm ở call
  * site đầu tiên gọi `.getTime()`. Cùng khuôn `toJsonSession` đã làm cho session.
  */
-function toLabTaskResultDTO(row: LabTaskResultRow): LabTaskResult {
+export function toLabTaskResultDTO(row: LabTaskResultRow): LabTaskResult {
   return {
     taskId: row.taskId,
     exitCode: row.exitCode,
@@ -63,7 +63,8 @@ function toLabTaskResultDTO(row: LabTaskResultRow): LabTaskResult {
   };
 }
 
-function toLabAttemptDTO(row: LabAttemptRow, results: LabTaskResultRow[]): LabAttempt {
+/** Export (P13 — `me.listLabAttempts` dùng lại, xem SSOT bàn giao ở đầu file đó). */
+export function toLabAttemptDTO(row: LabAttemptRow, results: LabTaskResultRow[]): LabAttempt {
   return {
     id: row.id,
     labId: row.labId,
@@ -75,11 +76,11 @@ function toLabAttemptDTO(row: LabAttemptRow, results: LabTaskResultRow[]): LabAt
   };
 }
 
-async function loadResults(db: Database, attemptId: string): Promise<LabTaskResultRow[]> {
+export async function loadResults(db: Database, attemptId: string): Promise<LabTaskResultRow[]> {
   return db.select().from(labTaskResults).where(eq(labTaskResults.attemptId, attemptId));
 }
 
-function scoreAndStatus(lab: Lab, results: LabTaskResultRow[], submittedAt: Date | null) {
+export function scoreAndStatus(lab: Lab, results: LabTaskResultRow[], submittedAt: Date | null) {
   const score = computeLabScore(lab, results.map(toLabTaskResultDTO));
   const status = computeLabStatus(lab, score, submittedAt);
   return { score, status };

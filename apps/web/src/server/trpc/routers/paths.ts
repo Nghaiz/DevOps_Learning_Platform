@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { normalizeNewlines } from '@devops-platform/scenario/content-blocks';
 import {
@@ -191,10 +191,21 @@ export const pathsRouter = createTRPCRouter({
     const rows = await ctx.db
       .select()
       .from(learningPaths)
-      .where(eq(learningPaths.state, 'published'))
+      .where(
+        input.cursor === undefined
+          ? eq(learningPaths.state, 'published')
+          : and(eq(learningPaths.state, 'published'), gt(learningPaths.id, input.cursor)),
+      )
       .orderBy(asc(learningPaths.id))
-      .limit(input.limit);
-    return { items: await withItemCounts(ctx.db, rows), limit: input.limit };
+      .limit(input.limit + 1);
+
+    const hasMore = rows.length > input.limit;
+    const page = hasMore ? rows.slice(0, input.limit) : rows;
+    return {
+      items: await withItemCounts(ctx.db, page),
+      limit: input.limit,
+      nextCursor: hasMore && page.length > 0 ? (page[page.length - 1]?.id ?? null) : null,
+    };
   }),
 
   /** Chi tiết + trạng thái từng item của CHÍNH người gọi (task 5). */

@@ -20,7 +20,7 @@ import type { Database, DbOrTx } from '../../db/client';
 import { quizAnswers, quizAttempts, quizChoices, quizQuestions, quizzes } from '../../db/schema';
 import {
   findQuizForWrite,
-  listPublishedQuizzes,
+  listPublishedQuizzesPage,
   listQuizzesAuthoredBy,
   loadQuizFull,
   quizIdTaken,
@@ -209,7 +209,8 @@ function assertAnswersReferenceQuiz(quiz: QuizFull, answers: readonly QuizAnswer
 }
 
 /** Hàng DB → `QuizAnswerInput`. `selected_choice_ids` là jsonb, nên ép kiểu tại biên đọc. */
-function toAnswerInputs(
+/** Export (P13 — `me.listQuizAttempts` dùng lại). */
+export function toAnswerInputs(
   rows: readonly { questionId: string; selectedChoiceIds: unknown }[],
 ): readonly QuizAnswerInput[] {
   return rows.map((row) => ({
@@ -221,12 +222,18 @@ function toAnswerInputs(
 // ---------------------------------------------------------------- router
 
 export const quizRouter = createTRPCRouter({
-  /** Danh sách quiz đã xuất bản. Luật 4 — `limit` bị ÉP về ≤100. */
+  /**
+   * Danh sách quiz đã xuất bản. Luật 4 — `limit` bị ÉP về ≤100.
+   *
+   * D9 (phase-13) — `nextCursor` THẬT qua `listPublishedQuizzesPage`.
+   */
   list: protectedProcedure.input(listInputSchema).query(async ({ ctx, input }) => {
-    const rows = await listPublishedQuizzes(ctx.db, input.limit);
+    const { items: rows, hasMore } = await listPublishedQuizzesPage(ctx.db, input.limit, input.cursor);
+    const last = rows[rows.length - 1];
     return {
       items: rows.map(({ state: _state, ...summary }) => summary),
       limit: input.limit,
+      nextCursor: hasMore && last !== undefined ? last.id : null,
     };
   }),
 

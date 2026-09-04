@@ -147,6 +147,22 @@ export function microsoftClientSecret(): string {
 }
 
 /**
+ * URL `/metrics` (Prometheus text) của orchestrator/gateway — `admin.health`
+ * (P13 C4) đọc trực tiếp, KHÔNG qua một bộ thu thập trung gian nào. Bắt buộc
+ * (`requireEnv`): thiếu biến này thì trang `/admin` không có gì để hiện, và im
+ * lặng trả rỗng sẽ đọc như "hệ thống khoẻ, 0 chỉ số" thay vì "chưa cấu hình" —
+ * đúng chế độ hỏng mà `rules/green-that-proves-nothing.md` cảnh báo (rỗng
+ * KHÔNG được trông giống lành mạnh).
+ */
+export function orchestratorMetricsUrl(): string {
+  return requireEnv('ORCHESTRATOR_METRICS_URL');
+}
+
+export function gatewayMetricsUrl(): string {
+  return requireEnv('GATEWAY_METRICS_URL');
+}
+
+/**
  * Allowlist CORS (luật 2). Danh sách rỗng = không origin nào được phép — fail-closed,
  * không fallback về "cho phép hết" khi thiếu cấu hình.
  */

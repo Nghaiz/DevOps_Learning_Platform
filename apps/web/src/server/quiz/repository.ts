@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray } from 'drizzle-orm';
 import {
   QUIZ_MULTIPLE_ANSWER_RULE,
   type QuizFull,
@@ -91,18 +91,32 @@ export async function listQuizzesAuthoredBy(
   return withQuestionCounts(db, rows);
 }
 
-/** Danh sách quiz ĐÃ XUẤT BẢN (trang người học). */
-export async function listPublishedQuizzes(
+/**
+ * Danh sách quiz ĐÃ XUẤT BẢN (trang người học).
+ *
+ * D9/C4 (phase-13) — `nextCursor` THẬT: `WHERE id > cursor … LIMIT limit+1`,
+ * cùng khuôn `listItemsPage` của `content/repository.ts`. Trả `hasMore` để
+ * caller (`quiz.list`) không phải đếm lại.
+ */
+export async function listPublishedQuizzesPage(
   db: Database,
   limit: number,
-): Promise<readonly (QuizSummary & { state: QuizState })[]> {
+  cursor: string | undefined,
+): Promise<{ items: readonly (QuizSummary & { state: QuizState })[]; hasMore: boolean }> {
   const rows = await db
     .select()
     .from(quizzes)
-    .where(eq(quizzes.state, 'published'))
+    .where(
+      cursor === undefined
+        ? eq(quizzes.state, 'published')
+        : and(eq(quizzes.state, 'published'), gt(quizzes.id, cursor)),
+    )
     .orderBy(asc(quizzes.id))
-    .limit(limit);
-  return withQuestionCounts(db, rows);
+    .limit(limit + 1);
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  return { items: await withQuestionCounts(db, page), hasMore };
 }
 
 /**

@@ -157,6 +157,21 @@ export const authorProcedure = protectedProcedure.use(({ ctx, next }) => {
 });
 
 /**
+ * Chỉ `admin` — cổng của MỌI procedure trong `admin.*` (P13 C4).
+ *
+ * KHÔNG có nấc trung gian nào giữa `user`/`author` và `admin` ở đây — khác
+ * `authorProcedure` (cho cả `author` LẪN `admin` qua), quản trị là một quyền
+ * RIÊNG, không phải một cấp cao hơn `author` trên cùng một thang. Một tác giả
+ * KHÔNG tự động thấy được `admin.users.list`.
+ */
+export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== 'admin') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Cần quyền quản trị' });
+  }
+  return next();
+});
+
+/**
  * Luật 4 — schema list-input dùng chung: `limit` bị ÉP về ≤ MAX_LIST_LIMIT thay vì
  * bị reject, đúng nghĩa "ép về" trong acceptance criteria (không phải "từ chối").
  * `.strict()` (luật 3) — field lạ bị reject 400.
