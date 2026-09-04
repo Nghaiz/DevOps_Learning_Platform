@@ -331,18 +331,7 @@ export async function runPublishTrial(
           // `coalesce`: `publishedAt` là lần ĐẦU xuất bản. Ghi đè nó ở lần thứ
           // hai làm mất câu trả lời cho "bài này lên từ bao giờ" — `updatedAt`
           // đã trả lời câu còn lại.
-          // ⛔ `${now.toISOString()}::timestamptz`, KHONG phai `${now}`.
-          //
-          // Ben trong mot `sql` template, Drizzle bind gia tri THO — khong qua
-          // mapper cua cot, khac han `updatedAt: now` ngay duoi. Mot `Date` di
-          // ra duong day duoi dang TEXT, va Postgres tu choi:
-          //   COALESCE types timestamp with time zone and text cannot be matched
-          //
-          // Hau qua truoc khi sua: DUONG THANH CONG cua publish CHUA BAO GIO
-          // chay duoc. Luot chay thu DAT -> update nay nem -> bai ket vinh vien
-          // o `publishing`. Duong THAT BAI thi chay tot (no khong co coalesce),
-          // nen moi test co san — vốn chỉ kiểm vế trượt — đều xanh.
-          // Đo tren cum that 2026-09-04; xem plans/.../verify-p7bis-p9-debts.md.
+          // Câu chuyện đầy đủ của `::timestamptz` nằm ở doc của hàm dưới đây.
           publishedAt: publishedAtCoalesce(now),
           updatedAt: now,
         })
@@ -389,18 +378,7 @@ export async function runPublishTrial(
           state: 'published',
           publishError: null,
           publishStartedAt: null,
-          // ⛔ `${now.toISOString()}::timestamptz`, KHONG phai `${now}`.
-          //
-          // Ben trong mot `sql` template, Drizzle bind gia tri THO — khong qua
-          // mapper cua cot, khac han `updatedAt: now` ngay duoi. Mot `Date` di
-          // ra duong day duoi dang TEXT, va Postgres tu choi:
-          //   COALESCE types timestamp with time zone and text cannot be matched
-          //
-          // Hau qua truoc khi sua: DUONG THANH CONG cua publish CHUA BAO GIO
-          // chay duoc. Luot chay thu DAT -> update nay nem -> bai ket vinh vien
-          // o `publishing`. Duong THAT BAI thi chay tot (no khong co coalesce),
-          // nen moi test co san — vốn chỉ kiểm vế trượt — đều xanh.
-          // Đo tren cum that 2026-09-04; xem plans/.../verify-p7bis-p9-debts.md.
+          // Câu chuyện đầy đủ của `::timestamptz` nằm ở doc của hàm dưới đây.
           publishedAt: publishedAtCoalesce(now),
           updatedAt: now,
         })

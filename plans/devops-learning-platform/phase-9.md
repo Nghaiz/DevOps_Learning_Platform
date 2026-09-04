@@ -94,10 +94,18 @@ Một người có vai trò author mở trang soạn, tạo bài mới, viết m
       `available: false` — một giá trị RIÊNG, không phải "0 cảnh báo".
 - [x] **UNIT** Upload: allowlist kiểu file, trần 2 MiB, `storageKey` sinh ra, `../` bị chặn —
       DB giả NÉM nếu bị chạm, nên mọi ca từ chối được chứng minh là chặn TRƯỚC khi ghi.
-- [ ] `publish` chạy thử thật trong sandbox rồi mới đổi state. **CHƯA CHỨNG MINH:**
-      `trialPlan` + `isPublishTrialStale` có test UNIT, nhưng `runTrial` gọi orchestrator
-      thật thì chưa từng chạy — nó cần cụm K8s, ngoài tầm một lượt kiểm trên máy dev.
-      Đây là ô DUY NHẤT của P9 còn nợ bằng chứng.
+- [x] **E2E trên cụm thật** `publish` chạy thử thật trong sandbox rồi mới đổi state —
+      cả HAI vế, 8/8 (`plans/devops-learning-platform/reports/2026-09-04-verify-p7bis-p9-debts.md` §5):
+      verify ĐẠT → `published`; verify TRƯỢT → về lại `draft` kèm
+      `publishError: steps[0].verifyScript trượt (exit 7)`.
+      ⚠ Lượt chạy ĐẦU TIÊN tìm ra một bug P0: `publishedAt: sql\`coalesce(..., ${now})\``
+      bind `Date` thô nên Postgres từ chối
+      (`COALESCE types timestamp with time zone and text cannot be matched`) —
+      tức **đường THÀNH CÔNG của publish chưa bao giờ chạy được**, bài kẹt vĩnh viễn ở
+      `publishing`. Sống sót cả chặng vì đường THẤT BẠI không có `coalesce` nên chạy tốt:
+      bài sai bị từ chối đúng, chỉ bài ĐÚNG là không lên được. Đã sửa + cổng
+      `publish-timestamp.integration.test.ts` (chạm Postgres THẬT — DB giả không có hệ
+      thống kiểu nên không thể bắt).
 - [x] **INT** Sửa bài đã xuất bản không đổi nội dung dưới chân người đang học — bản gốc
       giữ nguyên title/state/markdown, bản nháp kế nhiệm `<id>__draft` mang nội dung mới;
       sửa lần hai ghi đè bản nháp chứ không đẻ bản thứ ba.
