@@ -47,7 +47,7 @@ MEM_LIMIT=${MEM_LIMIT:-6Gi}
 CPU_LIMIT=${CPU_LIMIT:-4}
 SAMPLE_SEC=${SAMPLE_SEC:-2}
 
-variant=${1:?usage: p7-measure.sh <baseline|k3s|k3s-lab|k3s-2node|k3s-2node-lab|kind> [ready-timeout-sec]}
+variant=${1:?usage: p7-measure.sh <baseline|k3s|k3s-lab|k3s-heavy-lab|k3s-2node|k3s-2node-lab|kind> [ready-timeout-sec]}
 READY_TIMEOUT=${2:-600}
 POD="p7-$variant"
 mkdir -p "$OUT_DIR"
@@ -58,7 +58,7 @@ mkdir -p "$OUT_DIR"
 # k3s-boot.sh TU HOST de do code CHUA nam trong image.
 POD_EXTRA_ENV=""
 case "$variant" in
-  k3s-lab)
+  k3s-lab | k3s-heavy-lab)
     POD_EXTRA_ENV=$'\n        - name: DLP_K8S\n          value: "1"'
     ;;
   k3s-2node-lab)
@@ -351,6 +351,77 @@ ready_k3s_lab() {
       sleep 3; done; echo \"NOTREADY(\$n/\$t deploy san sang)\"; exit 1"
 }
 
+# ── BAI NANG: PVC + image vai tram MB ────────────────────────────────────────
+#
+# Mon no P7-bis §7: "Lab nang nhat da do la 5 Deployment nginx. Mot bai dung PVC
+# hoac image vai tram MB van chua co so."
+#
+# Hai truc do CUNG MOT LUOT, vi mot bai that thuong co ca hai:
+#   · PVC   -> local-path-provisioner cua k3s phai cap volume that tren dia pod
+#   · image -> postgres:16 (~450 MB) keo QUA MIRROR, gap ~2.5x nginx:1.29.0
+#
+# Chay CHONG LEN tai 5-Deployment cua `k3s-lab`, khong thay the no: cau hoi la
+# "dinh cua mot bai NANG la bao nhieu", khong phai "dinh cua postgres mot minh".
+setup_k3s_heavy_lab() {
+  assert_k8s_capable
+  inpod "dlp-k8s-wait 420 2>&1 | tail -2"
+  date +%s > "$T_READY_FILE"
+  inpod "bash /lab/background.sh 2>&1 | tail -4"
+  inpod "bash /lab/solve.sh 2>&1 | tail -6"
+  inpod "cat <<'HEAVY_EOF' | kubectl apply -f - 2>&1 | tail -4
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: heavy-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: heavy-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: heavy-db }
+  template:
+    metadata:
+      labels: { app: heavy-db }
+    spec:
+      containers:
+        - name: db
+          image: postgres:16
+          env:
+            - name: POSTGRES_PASSWORD
+              value: heavy-local-only
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: heavy-data
+HEAVY_EOF"
+}
+
+ready_k3s_heavy_lab() {
+  # Ba dieu kien, khong phai mot. Chi doi 5 deploy nginx thi bai nang se bao
+  # READY truoc khi postgres keo xong image — va dinh do duoc se la dinh cua
+  # bai NHE, dung loai xanh gia ma harness nay da dinh mot lan (do mot pod
+  # khong co cluster).
+  inpod "for i in \$(seq 1 ${READY_TIMEOUT}); do
+      n=\$(kubectl get deploy --no-headers 2>/dev/null | awk '\$2 == \"1/1\"' | wc -l)
+      pvc=\$(kubectl get pvc heavy-data -o jsonpath='{.status.phase}' 2>/dev/null)
+      [ \"\$n\" -ge 6 ] && [ \"\$pvc\" = Bound ] && { echo READY-HEAVY; exit 0; }
+      sleep 3; done
+    echo \"NOTREADY(\$n/6 deploy, pvc=\${pvc:-none})\"; exit 1"
+}
+
 setup_kind() {
   inpod "kind create cluster --name lab --image ${KIND_NODE_IMAGE} --wait 0s 2>&1 | tail -6"
 }
@@ -399,6 +470,8 @@ main() {
     k3s-2node) setup_log=$(setup_k3s_2node 2>&1); ready=$(ready_k3s_2node 2>&1 | tail -1) ;;
     k3s-lab | k3s-2node-lab)
       setup_log=$(setup_k3s_lab 2>&1); ready=$(ready_k3s_lab 2>&1 | tail -1) ;;
+    k3s-heavy-lab)
+      setup_log=$(setup_k3s_heavy_lab 2>&1); ready=$(ready_k3s_heavy_lab 2>&1 | tail -1) ;;
     kind)     setup_log=$(setup_kind 2>&1); ready=$(ready_kind 2>&1 | tail -1) ;;
     *) log "variant la: $variant"; exit 2 ;;
   esac
