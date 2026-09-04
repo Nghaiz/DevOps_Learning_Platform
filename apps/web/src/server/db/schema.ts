@@ -15,6 +15,8 @@ import {
   CONTENT_KINDS,
   CONTENT_STATES,
 } from '@devops-platform/shared-types/authoring';
+import { LEARNING_PATH_STATES, PATH_ITEM_KINDS } from '@devops-platform/shared-types/path';
+import { QUIZ_QUESTION_KINDS, QUIZ_STATES } from '@devops-platform/shared-types/quiz';
 
 /**
  * Schema Postgres — Drizzle là owner DUY NHẤT của mọi bảng ở đây.
@@ -684,3 +686,316 @@ export type ContentStepRecord = typeof contentSteps.$inferSelect;
 export type NewContentStepRecord = typeof contentSteps.$inferInsert;
 export type ContentAssetRecord = typeof contentAssets.$inferSelect;
 export type NewContentAssetRecord = typeof contentAssets.$inferInsert;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LỘ TRÌNH + QUIZ (P10) — hai mục cuối lấy từ KodeKloud trong ràng buộc dài hạn.
+//
+// ⛔ RANH GIỚI, và đây là chỗ dễ trượt nhất của cả dự án: "khoá học" ở đây CHỈ
+// là cách nhóm nội dung — một danh sách có thứ tự. KHÔNG cột `price`, `sku`,
+// `entitlement`, `is_paid`, không bảng `enrollments` mang trạng thái thanh toán.
+// Quyền truy cập vẫn chỉ là ĐĂNG NHẬP. Một migration sau này thêm cột như thế
+// là dấu hiệu phạm vi đã trượt sang thương mại — dừng và hỏi chủ dự án.
+//
+// ⛔ Mỗi cột dưới đây có LÝ DO TỒN TẠI ghi ngay tại chỗ (AC #2). Cột nào tính
+// được từ cột khác thì không có mặt; review chặn.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const learningPathState = pgEnum('learning_path_state', LEARNING_PATH_STATES);
+export const pathItemKind = pgEnum('path_item_kind', PATH_ITEM_KINDS);
+export const quizState = pgEnum('quiz_state', QUIZ_STATES);
+export const quizQuestionKind = pgEnum('quiz_question_kind', QUIZ_QUESTION_KINDS);
+
+/**
+ * Một lộ trình — danh sách nội dung CÓ THỨ TỰ.
+ *
+ * ⛔ CẤM ở bảng này (AC #2, cả ba đếm/cộng được từ `learning_path_items` và từ
+ * tiến độ từng item): `item_count`, `total_minutes`, `completion_percent`.
+ * Chúng vẫn xuất hiện trong DTO — tính ở chỗ truy vấn, cùng khuôn
+ * `authoringItemSchema.stepCount`. Cấm là cấm LƯU, không phải cấm tính.
+ */
+export const learningPaths = pgTable(
+  'learning_paths',
+  {
+    /**
+     * Slug, không phải uuid — nó đi thẳng vào URL `/paths/<id>`, cùng không-gian
+     * định danh với `content_items.id` và với nội dung trên đĩa.
+     */
+    id: text('id').primaryKey(),
+    /**
+     * KHÔNG cascade, cùng lý lẽ `content_items.author_id`: xoá một tài khoản tác
+     * giả mà kéo theo lộ trình họ đã xuất bản sẽ làm tiến độ người học trỏ vào
+     * hư không. NO ACTION ⇒ xoá tác giả khi còn lộ trình sẽ LỖI, buộc người vận
+     * hành archive hoặc chuyển chủ trước. Ồn ào là đúng ở đây.
+     */
+    authorId: text('author_id')
+      .notNull()
+      .references(() => users.id),
+    state: learningPathState('state').notNull().default('draft'),
+    title: text('title').notNull(),
+    description: text('description'),
+    /**
+     * Task 4 — khoá tuần tự là TUỲ CHỌN, mặc định TẮT (học tự do).
+     *
+     * Dữ liệu chính: lựa chọn của người soạn, không suy được từ đâu. Luật mở
+     * ("item N mở khi N−1 đạt") sống ở `packages/scenario/src/path-progress.ts`
+     * và được kiểm Ở SERVER — cột này chỉ nói luật đó CÓ áp dụng hay không.
+     */
+    sequential: boolean('sequential').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('learning_paths_author_state_idx').on(table.authorId, table.state)],
+);
+
+/**
+ * Một mắt xích của lộ trình.
+ *
+ * ⛔ CẤM `title`: nó thuộc về bài, và tác giả bài sửa được nó. Chép vào đây là
+ * dựng bản sao thứ hai không có cách nào biết mình đã cũ — tiêu đề được nạp từ
+ * nguồn nội dung lúc đọc.
+ *
+ * ⛔ CẤM một cột `passed`/`completed`: tiến độ thuộc về CẶP (người học, item),
+ * không thuộc về mắt xích. Nó đã có nguồn — `progress` cho lesson,
+ * `lab_attempts` cho lab, `quiz_attempts` cho quiz.
+ */
+export const learningPathItems = pgTable(
+  'learning_path_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pathId: text('path_id')
+      .notNull()
+      .references(() => learningPaths.id, { onDelete: 'cascade' }),
+    /**
+     * Vị trí trong lộ trình. Dữ liệu chính — thứ tự LÀ nội dung của lộ trình,
+     * không suy được từ gì khác.
+     */
+    ordinal: integer('ordinal').notNull(),
+    itemKind: pathItemKind('item_kind').notNull(),
+    /**
+     * KHÔNG FK, và có ba lý do độc lập: (a) `lesson` có thể tới từ ĐĨA
+     * (`content/scenarios/**`) chứ không phải bảng nào; (b) `quiz` nằm ở bảng
+     * `quizzes` còn `lab` ở `content_items` — một FK không trỏ được vào hai
+     * bảng; (c) bài bị archive vẫn phải giữ được mắt xích để người soạn thấy lộ
+     * trình đang thủng. Cái giá: một id gõ sai không bị DB chặn, nên nó hiện ra
+     * ở DTO với `title: null` thay vì bị lọc đi im lặng.
+     */
+    itemId: text('item_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    /**
+     * Hai item cùng `ordinal` trong một lộ trình là một thứ tự không xác định,
+     * và luật `sequential` khi đó phụ thuộc vào thứ tự Postgres trả về — tức là
+     * vào may rủi. Chặn ở DB, không ở tầng ứng dụng.
+     */
+    uniqueIndex('learning_path_items_path_ordinal_key').on(table.pathId, table.ordinal),
+    /**
+     * Cùng một item được phép xuất hiện ở NHIỀU lộ trình (task 2) — nên KHÔNG
+     * có unique trên `item_id` toàn cục. Nhưng lặp lại chính nó trong CÙNG một
+     * lộ trình thì vô nghĩa: người học "đạt" nó một lần là đạt cả hai chỗ.
+     */
+    uniqueIndex('learning_path_items_path_item_key').on(
+      table.pathId,
+      table.itemKind,
+      table.itemId,
+    ),
+  ],
+);
+
+/**
+ * Một quiz — BẢNG RIÊNG, không phải một `content_items.kind` thứ tư (task 12).
+ *
+ * ## Lý do, và nó là bằng chứng chứ không phải sở thích
+ *
+ * `content_items.tier` và `content_items.backend_image_id` đều `NOT NULL`. Một
+ * quiz không có tier và không có image: nó không dựng pod nào. Nhét quiz vào
+ * bảng đó buộc phải nới cả hai cột thành nullable — tức là làm YẾU ràng buộc
+ * cho ba loại nội dung thật sự cần chúng, để chứa một loại không cần. Cộng thêm
+ * `content_steps` (step/script/asset) sẽ toàn `null` cho quiz, đúng thứ task 12
+ * dự đoán.
+ *
+ * Cái giá của bảng riêng: vòng đời nháp→xuất bản không dùng lại được
+ * `content_states`. Trả giá đó một lần ở đây, có ý thức — xem `QUIZ_STATES` về
+ * việc vì sao quiz KHÔNG có `publishing`.
+ */
+export const quizzes = pgTable(
+  'quizzes',
+  {
+    /** Slug — đi vào URL `/quiz/<id>` và vào `learning_path_items.item_id`. */
+    id: text('id').primaryKey(),
+    /** KHÔNG cascade — cùng lý lẽ `learning_paths.author_id`. */
+    authorId: text('author_id')
+      .notNull()
+      .references(() => users.id),
+    state: quizState('state').notNull().default('draft'),
+    title: text('title').notNull(),
+    description: text('description'),
+    /**
+     * Mốc ĐẠT theo % số câu đúng. Dữ liệu chính (người soạn nhập) và là thứ
+     * `sequential` đọc để trả lời "item này đã đạt chưa" — đối xứng với
+     * `content_items.pass_threshold_percent` của lab.
+     */
+    passThresholdPercent: integer('pass_threshold_percent').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('quizzes_author_state_idx').on(table.authorId, table.state)],
+);
+
+/**
+ * Một câu hỏi.
+ *
+ * ⛔ CẤM `choice_count` và `correct_count` — đếm được từ `quiz_choices`.
+ */
+export const quizQuestions = pgTable(
+  'quiz_questions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    quizId: text('quiz_id')
+      .notNull()
+      .references(() => quizzes.id, { onDelete: 'cascade' }),
+    /**
+     * Định danh BỀN trong phạm vi quiz — đi vào `quiz_answers.question_id`.
+     * KHÁC `id` (uuid của dòng) và KHÁC `ordinal` (vị trí): chèn một câu vào
+     * giữa hoặc đổi thứ tự KHÔNG được làm câu trả lời đã lưu trỏ nhầm câu hỏi.
+     * Cùng lý lẽ `content_steps.task_id` của lab.
+     */
+    questionId: text('question_id').notNull(),
+    /** Vị trí hiển thị. Dữ liệu chính — thứ tự là lựa chọn của người soạn. */
+    ordinal: integer('ordinal').notNull(),
+    kind: quizQuestionKind('kind').notNull(),
+    markdown: text('markdown').notNull(),
+    /** Hiện SAU khi nộp. `null` = tác giả không viết giải thích cho câu này. */
+    explanation: text('explanation'),
+  },
+  (table) => [
+    uniqueIndex('quiz_questions_quiz_question_key').on(table.quizId, table.questionId),
+    uniqueIndex('quiz_questions_quiz_ordinal_key').on(table.quizId, table.ordinal),
+  ],
+);
+
+/**
+ * Một lựa chọn.
+ *
+ * ⚠ `is_correct` sống ở ĐÂY và chỉ ở đây. Nó KHÔNG được đi vào bất kỳ DTO nào
+ * người học nhận trước khi nộp — rào compile ở
+ * `packages/shared-types/src/quiz.ts` (`QuizChoiceForLearner`) và bằng chứng ở
+ * `quiz-dto-leak.test.ts`.
+ */
+export const quizChoices = pgTable(
+  'quiz_choices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    questionRowId: uuid('question_row_id')
+      .notNull()
+      .references(() => quizQuestions.id, { onDelete: 'cascade' }),
+    /** Định danh BỀN trong phạm vi câu hỏi — đi vào `quiz_answers.selected_choice_ids`. */
+    choiceId: text('choice_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    markdown: text('markdown').notNull(),
+    isCorrect: boolean('is_correct').notNull(),
+  },
+  (table) => [
+    uniqueIndex('quiz_choices_question_choice_key').on(table.questionRowId, table.choiceId),
+    uniqueIndex('quiz_choices_question_ordinal_key').on(table.questionRowId, table.ordinal),
+  ],
+);
+
+/**
+ * Một lượt LÀM quiz.
+ *
+ * ⛔ CẤM `score` / `percent` / `passed` — tính 100% từ `quiz_answers` so với
+ * `quiz_choices.is_correct` (task 8). ⛔ CẤM `attempt_no`: nó là "đếm số dòng
+ * trước đó của cùng `(user_id, quiz_id)` cộng một", đúng loại cột mà chú thích
+ * của `lab_task_results` đã cấm bằng tên. Bản phác của phase-10 có nhắc "lần
+ * thử thứ mấy" ở task 8 — nó là thứ được TÍNH và trả trong
+ * `quizAttemptResultSchema.attemptNumber`, không phải một cột.
+ */
+export const quizAttempts = pgTable(
+  'quiz_attempts',
+  {
+    /** Sinh ở tầng router (`crypto.randomUUID()`). */
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /**
+     * FK KHÔNG cascade (khác `lab_attempts.lab_id`, vốn không có FK vì lab có
+     * thể nằm trên đĩa). Quiz chỉ sống trong DB, nên ràng buộc thật là làm được
+     * — và NO ACTION biến "xoá một quiz đang có người làm" thành một lỗi ồn ào
+     * thay vì một lịch sử trỏ vào hư không. Đường đúng là `archive`.
+     */
+    quizId: text('quiz_id')
+      .notNull()
+      .references(() => quizzes.id),
+    /**
+     * Mốc NỘP. Một dòng ở đây LUÔN là một lượt đã nộp — `quiz.submit` ghi
+     * attempt và answers trong CÙNG một transaction, nên không có trạng thái
+     * "đang làm dở" nào tồn tại ở tầng này.
+     *
+     * Khác `lab_attempts.submitted_at` (nullable, vì lab mở sandbox trước rồi
+     * mới nộp): quiz không dựng gì cả, nên không có gì để mở trước.
+     */
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('quiz_attempts_user_quiz_submitted_idx').on(
+      table.userId,
+      table.quizId,
+      table.submittedAt,
+    ),
+  ],
+);
+
+/**
+ * Người học đã CHỌN GÌ, ở câu nào, trong lượt nào.
+ *
+ * ⛔ CẤM `is_correct` — so `selected_choice_ids` với `quiz_choices.is_correct`
+ * là ra (task 8). Đây là dữ liệu chính duy nhất của việc chấm; mọi thứ khác suy
+ * ra từ nó.
+ *
+ * ⚠ Hệ quả đã cân nhắc: chấm LẠI một lượt cũ dùng đáp án HIỆN TẠI, nên tác giả
+ * sửa đáp án sau khi có người nộp sẽ đổi điểm lịch sử. Cùng tính chất mà
+ * `computeLabScore` đã có (nó chấm theo `lab` hiện tại), và cùng lý do: đóng
+ * băng đáp án vào từng lượt nộp là chép `quiz_choices` vào đây — bản sao thứ
+ * hai, đúng thứ luật no-derived-fields cấm. Ghi lại ở `docs/quiz-format.md`.
+ */
+export const quizAnswers = pgTable(
+  'quiz_answers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    attemptId: text('attempt_id')
+      .notNull()
+      .references(() => quizAttempts.id, { onDelete: 'cascade' }),
+    /** Khớp `quiz_questions.question_id` — định danh BỀN, KHÔNG phải uuid dòng. */
+    questionId: text('question_id').notNull(),
+    /**
+     * `string[]` — id các lựa chọn đã chọn. jsonb chứ không phải `text[]`: nó
+     * được đọc nguyên khối và đưa thẳng vào `gradeQuiz`, không có truy vấn nào
+     * lọc theo phần tử.
+     *
+     * MẢNG cho cả `single` lẫn `multiple` — `single` chỉ là ràng buộc "đúng một
+     * phần tử", kiểm khi chấm. Hai hình dạng khác nhau sẽ bắt mọi consumer viết
+     * một nhánh `typeof`, và nhánh đó là chỗ đầu tiên có người quên.
+     */
+    selectedChoiceIds: jsonb('selected_choice_ids').notNull(),
+  },
+  (table) => [
+    uniqueIndex('quiz_answers_attempt_question_key').on(table.attemptId, table.questionId),
+  ],
+);
+
+export type LearningPathRow = typeof learningPaths.$inferSelect;
+export type NewLearningPathRow = typeof learningPaths.$inferInsert;
+export type LearningPathItemRow = typeof learningPathItems.$inferSelect;
+export type NewLearningPathItemRow = typeof learningPathItems.$inferInsert;
+export type QuizRow = typeof quizzes.$inferSelect;
+export type NewQuizRow = typeof quizzes.$inferInsert;
+export type QuizQuestionRow = typeof quizQuestions.$inferSelect;
+export type NewQuizQuestionRow = typeof quizQuestions.$inferInsert;
+export type QuizChoiceRow = typeof quizChoices.$inferSelect;
+export type NewQuizChoiceRow = typeof quizChoices.$inferInsert;
+export type QuizAttemptRow = typeof quizAttempts.$inferSelect;
+export type NewQuizAttemptRow = typeof quizAttempts.$inferInsert;
+export type QuizAnswerRow = typeof quizAnswers.$inferSelect;
+export type NewQuizAnswerRow = typeof quizAnswers.$inferInsert;

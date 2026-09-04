@@ -58,22 +58,79 @@ Nếu một task trong phase này bắt đầu cần bảng `enrollments` với 
 
 ## Acceptance criteria
 
-- [ ] Lộ trình gom lesson + lab + quiz theo thứ tự; một item nằm được ở nhiều lộ trình.
-- [ ] **Không cột derived nào** trong 6 bảng mới; mỗi cột có lý do ghi trong migration.
-- [ ] `sequential: true` ⇒ item N khoá tới khi N−1 đạt, **kiểm ở server**; gọi thẳng API item bị khoá vẫn bị từ chối.
-- [ ] DTO quiz gửi client **không có** `isCorrect` — và đó là điều **compile** chặn (có test type hoặc một `Omit` tường minh), không phải một `if`.
-- [ ] Nộp quiz ⇒ chấm server-side, trả kết quả từng câu + giải thích.
-- [ ] Quy tắc chấm câu nhiều đáp án hiện trên UI **trước khi** người học làm.
-- [ ] Rate-limit đường nộp (luật 5); dò đáp án bằng cách nộp liên tục bị chặn.
-- [ ] Validate lúc lưu quiz: ≥2 lựa chọn, ≥1 đúng, không phải tất cả đều đúng.
-- [ ] Trang "của tôi": mọi con số tính lúc đọc; nhãn không khẳng định thứ không lưu.
-- [ ] **Không có** bảng/cột/route nào liên quan giá, thanh toán, gói cước, entitlement (grep chứng minh).
+> Tích từ bằng chứng của phiên 2026-09-04 — báo cáo:
+> `reports/2026-09-04-verify-p10.md`. Ô nào KHÔNG đóng được thì ghi rõ vì sao,
+> không tích.
+
+- [x] Lộ trình gom lesson + lab + quiz theo thứ tự; một item nằm được ở nhiều lộ trình.
+      — `paths-quiz-authz.test.ts` (SQL thật): cùng quiz nằm ở cả `PATH_SEQ` lẫn
+      `PATH_FREE`, thứ tự `['lesson','quiz']` giữ nguyên. ⚠ Nhánh **lab** đúng
+      về kiểu và dùng lại `computeLabScore`/`computeLabStatus` (đã test kỹ ở P8)
+      nhưng CHƯA chạy end-to-end trong một lộ trình — xem §nợ của báo cáo.
+- [x] **Không cột derived nào** trong 6 bảng mới; mỗi cột có lý do ghi trong migration.
+      — lý do từng cột ở `schema.ts` § "LỘ TRÌNH + QUIZ"; `0006_*.sql` mang header
+      liệt kê CỘT KHÔNG TỒN TẠI và trỏ về đó (chép lý do sang .sql sẽ là bản sao
+      thứ hai trôi khỏi bản gốc ở lần `db:generate` kế).
+- [x] `sequential: true` ⇒ item N khoá tới khi N−1 đạt, **kiểm ở server**; gọi thẳng API item bị khoá vẫn bị từ chối.
+      — `paths.openItem` trên item khoá → FORBIDDEN; **đối chứng dương**: item
+      `available` cho qua. Đạt item trước ⇒ item sau mở ra, tính lại từ tiến độ
+      thật. Tiến độ của A không mở khoá cho B.
+- [x] DTO quiz gửi client **không có** `isCorrect` — và đó là điều **compile** chặn.
+      — `isCorrect?: never`/`explanation?: never` + `@ts-expect-error` ×5.
+      **Đối chứng âm đã chạy:** gỡ rào ⇒ `tsc` ĐỎ (`TS2578 Unused '@ts-expect-error'`)
+      ở đúng hai dòng lựa chọn. Cổng tự báo khi chính nó bị tháo.
+- [x] Nộp quiz ⇒ chấm server-side, trả kết quả từng câu + giải thích.
+      — `quiz.submit` trả `correctChoiceIds` + `explanation`; id lựa chọn bịa bị
+      TỪ CHỐI (không âm thầm chấm sai).
+- [~] Quy tắc chấm câu nhiều đáp án hiện trên UI **trước khi** người học làm.
+      — **Nửa hợp đồng đóng:** `quiz.get` mang `multipleAnswerRule` trong payload
+      (test khẳng định), và `quiz-client.tsx` render nó TRÊN câu hỏi đầu tiên, câu
+      chữ lấy TỪ payload chứ không viết cứng ở FE. **Nửa còn lại chưa đóng:**
+      trang chưa ai bấm bằng trình duyệt — cùng loại nợ mà `/labs` của P8 mang
+      cho tới phiên debt-closure.
+- [x] Rate-limit đường nộp (luật 5); dò đáp án bằng cách nộp liên tục bị chặn.
+      — bucket RIÊNG `quiz:submit:<userId>`, `QUIZ_SUBMIT_LIMIT_PER_MIN = 6`;
+      test nộp liên tục chạm trần và nhận TOO_MANY_REQUESTS.
+- [x] Validate lúc lưu quiz: ≥2 lựa chọn, ≥1 đúng, không phải tất cả đều đúng.
+      — `quiz/validate.test.ts`, kèm **đối chứng dương** (quiz hợp lệ không bị từ
+      chối) và một luật thứ tư mà phép chấm bắt buộc: câu `single` chỉ được có
+      ĐÚNG một đáp án đúng.
+- [~] Trang "của tôi": mọi con số tính lúc đọc; nhãn không khẳng định thứ không lưu.
+      — `paths.mine` tính `passedCount`/`itemCount`/`nextItemId` lúc đọc, không
+      cột nào lưu chúng; `me-client.tsx` chỉ hiện ba con số đó. **Chưa bấm bằng
+      trình duyệt** (cùng nợ với ô trên).
+- [x] **Không có** bảng/cột/route nào liên quan giá, thanh toán, gói cước, entitlement (grep chứng minh).
+      — 0 dòng trong mã THỰC THI và 0 trong mọi migration. ⚠ Lệnh grep gốc ở
+      dưới KHÔNG BAO GIỜ rỗng và đã không rỗng TỪ TRƯỚC P10: `checkout` khớp
+      `checkOutcomes` (13 dòng ở lesson/lab client, P2/P8). Lệnh đã sửa ở dưới.
 
 ## Verify commands
 
 ```bash
+# Cần Postgres: docker compose up -d postgres && pnpm --filter web db:migrate
 pnpm --filter web test -- paths quiz
-grep -rniE 'price|sku|billing|entitlement|checkout|subscription' apps/web/src packages | grep -v node_modules   # phải rỗng
+npx turbo run typecheck lint test build          # 20/20 tasks
+
+# ⛔ Lệnh grep trong bản phác KHÔNG dùng được — `checkout` khớp `checkOutcomes`
+# (13 dòng ở lesson/lab client, có TỪ TRƯỚC P10), nên nó không bao giờ rỗng và
+# một lượt chạy đỏ ở đó không nói lên điều gì. Bản đã sửa — bỏ chú thích, bỏ
+# test gác, dùng ranh giới từ:
+grep -rnE '\b(price|sku|billing|entitlement|checkout|subscription|isPaid|is_paid|enrollment)\b' \
+  apps/web/src packages --include='*.ts' --include='*.tsx' \
+  | grep -v node_modules \
+  | grep -vE '\.test\.tsx?:' \
+  | grep -vE ':[0-9]+: *(//|\*|/\*)'          # phải rỗng
+
+# Migration là nguồn sự thật của schema — kiểm riêng, bỏ dòng chú thích SQL:
+grep -rniE 'price|sku|billing|entitlement|is_paid|enrollment' apps/web/drizzle/*.sql \
+  | grep -v ':--'                              # phải rỗng
+
+# Đối chứng ÂM của rào compile — gỡ `isCorrect?: never` khỏi QuizChoiceForLearner
+# rồi chạy typecheck; PHẢI đỏ:
+#   TS2578 Unused '@ts-expect-error' directive — src/quiz-dto-leak.test.ts
+
+# Payload thật (khi có server chạy). Bản không cần server đã nằm trong
+# quiz-dto-leak.test.ts + paths-quiz-authz.test.ts:
 curl -s .../trpc/quiz.get?input=... | jq '..|.isCorrect? // empty'   # phải rỗng
 ```
 

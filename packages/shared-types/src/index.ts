@@ -18,6 +18,13 @@ export * from './playground.ts';
 // playground schema ở trên.
 export * from './authoring.ts';
 
+// Lộ trình + quiz (P10 — hai mục cuối lấy từ KodeKloud trong ràng buộc dài hạn).
+// Quiz KHÔNG dùng lại `contentBaseSchema`: nó là loại nội dung duy nhất không
+// cần sandbox, nên `tier`/`backendImageId` (NOT NULL ở `content_items`) không
+// có giá trị thật để điền. Lý do đầy đủ: `docs/quiz-format.md`.
+export * from './quiz.ts';
+export * from './path.ts';
+
 // Type sinh từ proto/orchestrator/v1/session.proto — SSOT của contract Next↔Go.
 export type {
   ClaimSessionRequest,

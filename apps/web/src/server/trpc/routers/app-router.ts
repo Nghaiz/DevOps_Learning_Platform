@@ -4,7 +4,9 @@ import { authRouter } from './auth';
 import { labsRouter } from './labs';
 import { lessonsRouter } from './lessons';
 import { meRouter } from './me';
+import { pathsRouter } from './paths';
 import { playgroundsRouter } from './playgrounds';
+import { quizRouter } from './quiz';
 import { sessionRouter } from './session';
 
 export const appRouter = createTRPCRouter({
@@ -13,7 +15,9 @@ export const appRouter = createTRPCRouter({
   labs: labsRouter,
   lessons: lessonsRouter,
   me: meRouter,
+  paths: pathsRouter,
   playgrounds: playgroundsRouter,
+  quiz: quizRouter,
   session: sessionRouter,
 });
 
