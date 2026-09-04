@@ -1,0 +1,224 @@
+# Phase 13 — Kế hoạch thực thi (exec plan)
+
+**Ngày:** 2026-09-04 · **Nhánh:** `feat/p13-frontend` (chồng lên `feat/p12-scale-proof`, vì P12 chưa merge và các fix hạ tầng của nó đang chạy trên cụm) · **Plan gốc:** [`phase-13.md`](phase-13.md)
+
+Tài liệu này là **hợp đồng** giữa các lane chạy song song. Mọi sub-agent đọc đúng
+mục lane của mình + §2 (hợp đồng) + §4 (kỷ luật git). Không lane nào được sửa
+hợp đồng; thấy hợp đồng sai thì **báo lead**, không tự đổi.
+
+## 0. Hiện trạng đo được (scout 2026-09-04, khác với giả định của plan gốc)
+
+| Plan gốc nói | Thực tế |
+|---|---|
+| "6 route, 7 component" | **13 route** đã có: `/`, `/login`, `/dashboard`, `/session`, `/lessons`, `/lessons/[id]`, `/labs`, `/labs/[id]`, `/playgrounds`, `/playgrounds/[id]`, `/paths`, `/paths/[id]`, `/quiz/[id]`, `/me`. **Chưa có:** `/author/**`, `/admin/**`, `/settings`. |
+| `apps/web/tailwind.config.*` | **Không tồn tại.** Tailwind v4 CSS-first: `globals.css` = `@import 'tailwindcss'` + 2 `@source`. Token sẽ là `@theme` trong `globals.css`. |
+| Hệ thiết kế | 0 token, 0 dark mode, 0 `next/font`, 0 shadcn/radix/cva/lucide. Bảng màu là `slate-*` trần. |
+| e2e "khuôn 2.D" | Là **script Node thuần** (`reports/harness/2026-08-13-2d-lessons-e2e/e2e-lessons.mjs`), không phải Playwright. `apps/web/e2e/`, `playwright.config`, `@playwright/test`, axe: **đều chưa có**. |
+| `interfaceLayout === 'ide'` | FE **chưa đọc** field này. Route IDE của gateway là `/ide/session/{id}/` nhưng (a) ingress chưa có path `/ide`, (b) cookie `dlp_sandbox` có `Path=/ws` nên trình duyệt sẽ không gửi tới `/ide`. |
+| "còn N chỗ" | Không có endpoint. Chỉ có gauge Prometheus `dlp_pool_claimed_size`. Mẫu số **20** (không phải 23) — `values-selfhost.yaml` L317-318. |
+| Quản trị | Không có `admin` router, `adminProcedure`, bảng audit hành động user, cách liệt kê phiên đang chạy (state chỉ ở Redis). |
+| Hồ sơ | Không có bảng tuỳ chọn; theme terminal chỉ ở localStorage và chỉ trên `/session`; hiện tên leaderboard là per-attempt (`lab_attempts.display_name_public`). |
+| Chọn shell | `GATEWAY_EXEC_COMMAND` là **hằng phía server theo hợp đồng bảo mật §3c** (client không được chọn lệnh). Không mở đường client→gateway. |
+
+## 1. Quyết định kiến trúc (chốt trước khi fan-out)
+
+- **D1 Token.** CSS variables (oklch) trong `apps/web/src/app/globals.css`: `:root` (sáng) + `.dark` (tối) + `@theme inline` ánh xạ sang `--color-*`, `--radius-*`, `--font-*`. `@custom-variant dark (&:where(.dark, .dark *))`. Một nguồn; JSX chỉ dùng class ngữ nghĩa (`bg-background`, `text-muted-foreground`, …). Grep AC: không `#hex` và không `slate-|gray-|zinc-` trong JSX sau 13.A.
+- **D2 Dark mode.** Class `dark` trên `<html>`; giá trị `'light'|'dark'|'system'` lưu `localStorage['dlp.theme']`; script inline **có nonce** trong `layout.tsx` đặt class trước paint (CSP đã có nonce + `strict-dynamic`). `ThemeProvider`/`useTheme()` export từ `packages/ui`. Terminal đi theo: `resolved === 'dark' ? 'dlp-dark' : 'dlp-light'` trừ khi người dùng đã chọn theme terminal riêng (hồ sơ 13.E).
+- **D3 Font.** `next/font/google` `Be_Vietnam_Pro` subsets `['latin','vietnamese']` weights 400/500/600/700, biến `--font-be-vietnam-pro`; mono giữ stack hệ thống + `DLPTerminalNF` trong terminal. `next/font` tự host ⇒ `font-src 'self'` không đổi. Build cần internet để tải font (CI và máy build image đều có).
+- **D4 Component.** `packages/ui` theo shadcn/ui trên `radix-ui` (gói hợp nhất) + `class-variance-authority` + `lucide-react`. Toast dùng Radix Toast (không thêm sonner). Mỗi component có trạng thái loading/empty/error/disabled **khi áp dụng được** và bảng checklist trong `docs/design-system.md`.
+- **D5 Sức chứa.** RPC mới `GetCapacity` ở orchestrator (đọc `pool:claimed` + env `CAPACITY_SOFT_LIMIT`), tRPC `capacity.get`. FE tự tính `còn = max(0, soft − active)`; không lưu, không cache riêng.
+- **D6 Phiên đang chạy (me + admin).** RPC mới `ListSessions` ở orchestrator (lọc theo `user_id` tuỳ chọn; admin không lọc). Cùng RPC phục vụ `/me` (phiên của tôi) và `/admin` (mọi phiên).
+- **D7 Shell mặc định.** KHÔNG cho client chọn lệnh. BFF áp dụng tuỳ chọn **server-validated** (enum → đường dẫn cố định) bằng one-shot script qua đường `runScriptInSession` đã có, **trước khi** trả kết quả start về FE (tmux tạo session ở lần attach đầu, attach xảy ra sau khi FE nhận response). Pod chưa được cấp lúc start (cold path) ⇒ bỏ qua có log + `preferencesApplied:false` trong response; UI hồ sơ nói rõ điều này.
+- **D8 IDE trong iframe.** Cùng origin: `src="/ide/session/{id}/"`. Cần (a) ingress path `/ide` → gateway (Helm), (b) cookie thứ hai cùng tên `dlp_sandbox` với `Path=/ide` (cookie phân biệt theo (name, path); token vẫn KHÔNG tới `/`, `/api`). CSP: `default-src 'self'` đã phủ `frame-src` cùng origin — **thêm `frame-src 'self'` tường minh** để ai đọc CSP cũng thấy quyết định, và đối chứng dương phải chứng minh iframe origin khác BỊ chặn.
+- **D9 Phân trang ở tầng nguồn.** `ScenarioSource.listPage`/`ContentSource.listLabsPage`/`listPlaygroundsPage` với cursor = `id` cuối, thứ tự `id asc` ổn định ở mọi nguồn. DB: `WHERE id > $cursor … ORDER BY id LIMIT n+1`. Composite: k-way merge theo `id`, đĩa thắng DB khi trùng. Lọc `difficulty`/`tier` là **tham số server**, áp trước khi merge. `list()` cũ giữ cho `paths`/`authoring`.
+- **D10 Thoát terminal bằng bàn phím.** `Esc` đơn là phím thật của terminal (vim). Quy ước: **`Esc` hai lần trong ≤500ms** rời focus ra phần tử kế tiếp; khi terminal có focus hiện gợi ý "Esc Esc để rời terminal". Container: `role="application"`, `aria-label`, `tabIndex=0`, vùng `aria-live="polite"` cho đổi pha phiên.
+- **D11 Playwright.** `@playwright/test` + `@axe-core/playwright` trong `apps/web`. Env: `E2E_BASE_URL` (mặc định `https://dlp.192.168.94.130.sslip.io:30443`), `E2E_ORIGIN` (= `betterAuthUrl`), `ignoreHTTPSErrors`. Tài khoản: đăng ký mới mỗi lượt qua `/api/auth/sign-up/email` **kèm header `Origin`** (khuôn 2.D); tài khoản author/admin: promote bằng SQL trên VM (`kubectl exec postgres`) qua script `apps/web/e2e/scripts/promote-role.sh` — chỉ chạy tay/CI cụm, không có API. CI: job `web-a11y` chạy axe + đối chứng CSP trên `next start` local (Postgres+Redis, không sandbox) cho mọi route không cần phiên; 6 luồng `@flow` chạy trên cụm bằng tay và ghi vào report.
+- **D12 Phạm vi màn hình chốt** (thêm màn hình ngoài danh sách phải hỏi chủ dự án): `/`, `/login`, `/lessons`, `/lessons/[id]`, `/labs`, `/labs/[id]`, `/playgrounds`, `/playgrounds/[id]`, `/paths`, `/paths/[id]`, `/quiz`, `/quiz/[id]`, `/me`, `/settings`, `/author`, `/author/[id]`, `/author/new`, `/admin`, `/admin/users`, `/admin/sessions`, `/admin/content`, `/admin/audit`. `/dashboard` và `/session` **gộp vào `/me`** (redirect 308). ⛔ Không màn hình/chuỗi nào về giá/gói/thanh toán.
+
+## 2. Hợp đồng tích hợp (verbatim — không lane nào được đổi)
+
+### C1 — Token & theme (13.A phát hành, mọi lane tiêu thụ)
+
+Tên biến CSS (`:root` và `.dark` đều định nghĩa đủ): `--background --foreground --card --card-foreground --popover --popover-foreground --primary --primary-foreground --secondary --secondary-foreground --muted --muted-foreground --accent --accent-foreground --destructive --destructive-foreground --success --success-foreground --warning --warning-foreground --border --input --ring --radius`. Class Tailwind tương ứng: `bg-background text-foreground bg-card border-border ring-ring text-muted-foreground bg-primary text-primary-foreground bg-destructive … rounded-lg (=var(--radius))`.
+
+```ts
+// packages/ui — export
+export type ThemeChoice = 'light' | 'dark' | 'system';
+export function ThemeProvider(props: { children: React.ReactNode; storageKey?: string }): JSX.Element; // storageKey mặc định 'dlp.theme'
+export function useTheme(): { choice: ThemeChoice; resolved: 'light' | 'dark'; setChoice(c: ThemeChoice): void };
+export const THEME_STORAGE_KEY = 'dlp.theme';
+export const THEME_INIT_SCRIPT: string; // nội dung script inline đặt class trước paint; layout.tsx nhúng với nonce
+```
+
+### C2 — Component `packages/ui` (13.A phát hành)
+
+Tất cả export từ `packages/ui/src/index.ts`. Tên và prop tối thiểu:
+
+| Component | Prop bắt buộc / đáng chú ý |
+|---|---|
+| `Button` | `variant: 'primary'\|'secondary'\|'outline'\|'ghost'\|'destructive'\|'link'` · `size: 'sm'\|'md'\|'lg'\|'icon'` · `loading?: boolean` (disabled + spinner, giữ chiều rộng) · `asChild?` |
+| `Input`, `Textarea` | `invalid?: boolean` → `aria-invalid` + viền destructive |
+| `Label` | `htmlFor` |
+| `Badge` | `variant: 'default'\|'secondary'\|'success'\|'warning'\|'destructive'\|'outline'` |
+| `Card` + `CardHeader/CardTitle/CardDescription/CardContent/CardFooter` | giữ tương thích 3 export cũ |
+| `Dialog` + `DialogTrigger/DialogContent/DialogHeader/DialogTitle/DialogDescription/DialogFooter/DialogClose` | Radix |
+| `Tabs` + `TabsList/TabsTrigger/TabsContent` | Radix |
+| `Select` + `SelectTrigger/SelectValue/SelectContent/SelectItem` | Radix |
+| `DropdownMenu` + `…Trigger/…Content/…Item/…Separator/…Label` | Radix |
+| `Tooltip` + `TooltipProvider/TooltipTrigger/TooltipContent` | Radix |
+| `Switch`, `Checkbox`, `RadioGroup`+`RadioGroupItem` | Radix |
+| `Toaster` + `useToast(): { toast(o: { title: string; description?: string; variant?: 'default'\|'success'\|'destructive' }): void }` | Radix Toast; `Toaster` đặt một lần ở shell |
+| `Alert` + `AlertTitle/AlertDescription` | `variant: 'default'\|'warning'\|'destructive'\|'success'` · `role="alert"` cho destructive |
+| `Skeleton` | `className` (kích thước) |
+| `Spinner` | `size` |
+| `Table` + `TableHeader/TableBody/TableRow/TableHead/TableCell/TableCaption` | bọc `overflow-x-auto` |
+| `CursorPager` | `{ hasNext: boolean; onNext(): void; onReset(): void; page: number; loading?: boolean }` (cursor chỉ đi tới; "Về đầu" thay cho "Trước") |
+| `EmptyState` | `{ icon?: ReactNode; title: string; description?: string; action?: ReactNode }` |
+| `ErrorState` | `{ title?: string; message: string; onRetry?(): void; retrying?: boolean }` |
+| `Separator`, `Kbd` | — |
+| `ContentView`, `SplitPane`, `StepNav`, `ProgressBar` | giữ nguyên API, chuyển màu sang token |
+
+Mỗi component có file test (vitest + RTL, jsdom) kiểm hành vi + trạng thái. `docs/design-system.md` có bảng checklist 4 trạng thái cho từng component.
+
+### C3 — Proto (13.Go phát hành; BE1 tiêu thụ sau khi codegen commit)
+
+Thêm vào `proto/orchestrator/v1/session.proto` (additive, buf breaking phải xanh):
+
+```proto
+rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
+rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+
+message GetCapacityRequest {}
+message GetCapacityResponse {
+  int32 active_sessions = 1;   // len(pool:claimed) — cùng nguồn với dlp_pool_claimed_size
+  int32 soft_capacity   = 2;   // env CAPACITY_SOFT_LIMIT (Helm: orchestrator.env.capacitySoftLimit = 20)
+  int32 pool_free       = 3;
+  int32 pool_quarantine = 4;
+}
+message ListSessionsRequest {
+  string user_id = 1;  // rỗng = mọi user (chỉ admin); khác rỗng = phải trùng caller trừ khi admin
+  int32  limit   = 2;  // 1..100, 0 = 20
+  string cursor  = 3;  // session id cuối trang trước; rỗng = từ đầu
+}
+message ListSessionsResponse {
+  repeated Session sessions = 1;  // chỉ phiên KHÔNG ở trạng thái terminal (status < EXPIRED)
+  string next_cursor = 2;         // rỗng = hết
+}
+```
+
+Authz: cùng cơ chế header role/user hiện có trong `grpcserver/authz.go`. `GetCapacity` cho mọi user đã đăng nhập. Codegen: `pnpm proto` (buf) → `packages/shared-types/gen/**` + Go; `pnpm proto:check` phải xanh.
+
+### C4 — tRPC mới (BE1 phát hành; FE lanes tiêu thụ)
+
+Mọi input `.strict()`. Mọi list có cursor thật: `{ items, nextCursor: string | null }`, `limit` clamp 100 (luật 4).
+
+```ts
+capacity.get: query, protected, input {} → { activeSessions: number; softCapacity: number; poolFree: number; fetchedAt: string }
+
+me.get: query, protected → { id, name, email, role, preferences: { defaultShell: 'bash'|'zsh'|'pwsh'; terminalTheme: 'dlp-dark'|'dlp-light'|'dlp-contrast'|null; leaderboardNamePublic: boolean }, hasPassword: boolean }
+me.updateProfile: mutation, { name: string(1..80) } → { id, name }
+me.updatePreferences: mutation, { defaultShell?, terminalTheme?, leaderboardNamePublic? } → preferences
+me.activeSessions: query, { limit?, cursor? } → { items: JsonSession[]; nextCursor }        // ListSessions(user_id = tôi)
+me.endSession: mutation, { sessionId } → { status: number | null }                          // reap reason 'user_ended'
+me.listLabAttempts: query, { limit?, cursor? } → { items: { attempt: LabAttempt; labId; labTitle: string | null; score: LabScore; status; durationSeconds }[]; nextCursor }
+me.listQuizAttempts: query, { limit?, cursor? } → { items: { attemptId; quizId; quizTitle: string | null; submittedAt; score: QuizScore }[]; nextCursor }
+me.listProgress: giữ, thêm nextCursor thật (keyset (updatedAt desc, lessonId))
+
+lessons.list / labs.list / playgrounds.list: input thêm { difficulty?: enum của schema; tier?: enum của schema }; output giữ { items, limit, nextCursor }; đi qua listPage (D9)
+lessons.startSession / labs.startAttempt / playgrounds.start: output thêm { preferencesApplied: boolean }
+paths.list, quiz.list, me.listProgress: nextCursor thật (keyset theo id)
+quiz.list: giữ; thêm { state }? KHÔNG — chỉ published
+
+admin.* (adminProcedure — role === 'admin'; 403 nếu không):
+admin.users.list: { limit?, cursor?, q?: string(≤80) } → { items: { id; name; email; role; createdAt: string }[]; nextCursor }  // keyset id asc; q = ILIKE trên email/name
+admin.users.setRole: { userId; role: 'user'|'author'|'admin' } → { id; role }   // cấm tự hạ vai admin của chính mình; ghi admin_audit
+admin.sessions.list: { limit?, cursor? } → { items: JsonSession[]; nextCursor }   // ListSessions(user_id = '')
+admin.sessions.terminate: { sessionId } → { status }   // ReapSession reason 'admin_terminated'; ghi admin_audit
+admin.audit.list: { limit?, cursor? } → { items: { id; actorId; action; targetType; targetId; detail: unknown; occurredAt: string }[]; nextCursor }
+admin.health: {} → { fetchedAt: string; capacity: GetCapacityResponse | null; sources: { name: 'orchestrator'|'gateway'; ok: boolean; error: string | null; series: { name: string; labels: Record<string,string>; value: number }[] }[] }
+   // parse text /metrics, chỉ giữ tên bắt đầu 'dlp_'; URL từ env ORCHESTRATOR_METRICS_URL / GATEWAY_METRICS_URL
+Nội dung admin: dùng authoring.list (admin thấy tất cả) + authoring.archive. Không proc mới.
+```
+
+Bảng mới (drizzle migration, áp qua hook `platform-migrate` — image `dlp-migrator:p13`):
+- `user_preferences { user_id text pk fk users(id) on delete cascade; default_shell enum('bash','zsh','pwsh') not null default 'bash'; terminal_theme text null; leaderboard_name_public boolean not null default false; updated_at timestamptz default now() }`
+- `admin_audit { id uuid pk; actor_id text not null (KHÔNG fk — audit sống lâu hơn user); action text; target_type text; target_id text; detail jsonb null; occurred_at timestamptz default now() }` + index `(occurred_at)`.
+
+Cookie: `attachSandboxCookie` phát **hai** `Set-Cookie` cùng tên `dlp_sandbox`: `Path=/ws` (giữ) và `Path=/ide` (mới, cùng token, cùng thuộc tính). Test khẳng định KHÔNG có cookie `Path=/`.
+
+### C5 — Khung phiên dùng chung (D1 phát hành; D2 tiêu thụ)
+
+`apps/web/src/components/session/index.ts` export đúng các tên sau:
+
+```ts
+export type SessionActions = { start(): void; end(): void; extend(): void };
+export function SessionControls(props: {
+  session: SandboxSession;              // từ apps/web/src/lib/use-sandbox-session.ts (giữ nguyên hook)
+  actions: SessionActions;
+  ttlSeconds?: number | null;           // hiện "Phiên kéo dài N phút" TRƯỚC khi bắt đầu (playground bắt buộc)
+  capacity?: { activeSessions: number; softCapacity: number } | null;  // hiện "còn N chỗ" cạnh nút Bắt đầu; 0 ⇒ nút vẫn bấm được nhưng cảnh báo trước
+  startLabel?: string;                  // mặc định 'Bắt đầu'
+  canStart?: boolean;                   // mặc định true
+  compact?: boolean;
+}): JSX.Element;   // gồm: badge pha, thông báo lý do (session.state.message), Bắt đầu / Kết thúc / Thêm giờ, đồng hồ TTL (<10 phút), cảnh báo hardCap (nút Thêm giờ disabled + tooltip)
+export function TerminalPane(props: {
+  session: SandboxSession;
+  theme?: ThemeName;                    // mặc định theo useTheme() + tuỳ chọn hồ sơ
+  placeholder?: ReactNode;              // khi chưa có phiên
+}): JSX.Element;  // bọc dynamic import terminal, ssr:false; KHÔNG viết máy trạng thái thứ hai
+export function useResolvedTerminalTheme(pref: ThemeName | null | undefined): ThemeName;
+```
+
+`packages/terminal` `TerminalSurface` thêm prop `ariaLabel?: string` và `onEscapeFocus?(): void` (gọi khi Esc-Esc), container có `role="application"` + `tabIndex=0`.
+
+### C6 — Điều hướng (13.B phát hành)
+
+Route chính: `Bài học /lessons · Lab /labs · Playground /playgrounds · Lộ trình /paths · Quiz /quiz · Của tôi /me`. Menu người dùng: `Hồ sơ & cài đặt /settings`, `Soạn bài /author` (author|admin), `Quản trị /admin` (admin), `Đăng xuất`. `proxy.ts` `PROTECTED_PATHS` thêm `/paths /quiz /me /settings /author /admin`. Vai trò cho `/author`, `/admin` kiểm ở `layout.tsx` server (`getSession` + role) → `redirect('/me')`. Breakpoint: `≥1280px` đầy đủ; `≤768px` nav thu vào Sheet/Drawer, terminal thay bằng `Alert` "Cần màn hình rộng hơn (≥1024px) để mở terminal".
+
+## 3. Lane, sở hữu file, thứ tự
+
+### Đợt 1 (song song, 3 lane)
+
+| Lane | Agent | Sở hữu (CHỈ được sửa các path này) | Deliverable |
+|---|---|---|---|
+| **A** 13.A hệ thiết kế | `t1k-web-ui-developer` | `packages/ui/**` · `apps/web/src/app/globals.css` · `apps/web/src/app/layout.tsx` (font + ThemeProvider + THEME_INIT_SCRIPT + Toaster + TooltipProvider; KHÔNG dựng nav) · `apps/web/package.json` + `pnpm-lock.yaml` · `docs/design-system.md` | C1, C2, test component, doc checklist. Không đụng route nào khác. |
+| **Go** proto + orchestrator | `t1k-web-core-developer` | `proto/**` · `packages/shared-types/gen/**` · `services/orchestrator/**` · `infra/helm/platform/{values.yaml,values-selfhost.yaml,templates/orchestrator-deployment.yaml,templates/ingress.yaml}` | **Bước 1 (commit riêng, sớm nhất có thể):** proto + codegen (`pnpm proto`). Bước 2: handler `GetCapacity`, `ListSessions` (+ test), env `CAPACITY_SOFT_LIMIT`, Helm `orchestrator.env.capacitySoftLimit: 20`, ingress path `/ide` → gateway (cùng middleware với `/ws` trừ bodylimit — đọc chú thích ingress.yaml). |
+| **BE1** tRPC + DB + nguồn | `t1k-web-core-developer` | `apps/web/src/server/**` · `apps/web/drizzle/**` (migration) · `packages/scenario/src/**` · `apps/web/src/security/**` (test authz mới) · `infra/helm/platform/templates/web-deployment.yaml` (env metrics URL) | D7, D9, C4, cookie `Path=/ide`, `adminProcedure`, 2 bảng + migration, test (unit + integration DB + authz IDOR cho admin.*). `capacity.*`/`me.activeSessions`/`admin.sessions.*` viết SAU khi lane Go commit codegen (poll `git log -- proto`). |
+
+### Đợt 2 (song song, tối đa 8 lane, bắt đầu khi A đã commit và lead đã chạy `pnpm --filter web typecheck` xanh)
+
+| Lane | Agent | Sở hữu | Deliverable |
+|---|---|---|---|
+| **B** 13.B vỏ | `t1k-web-ui-developer` | `apps/web/src/components/shell/**` · `apps/web/src/app/layout.tsx` · `apps/web/src/app/page.tsx` · `apps/web/src/app/login/**` · `apps/web/src/app/dashboard/**` (→ redirect `/me`) · `apps/web/src/app/(session)/**` (→ redirect `/me`) · `apps/web/src/proxy.ts` | C6, chỉ báo sức chứa (`capacity.get`, refetch 15s, hiện "còn N chỗ"/"đang đầy"), theme toggle, user menu, responsive, trang chủ + đăng nhập theo hệ mới. |
+| **C** 13.C danh mục | `t1k-web-ui-developer` | `apps/web/src/app/{lessons,labs,playgrounds,paths,quiz}/page.tsx` + `*-client.tsx` + `layout.tsx` của các thư mục đó (KHÔNG `[id]`) · `apps/web/src/components/catalog/**` | Lọc server-side (difficulty/tier/capability), sắp xếp, `CursorPager`, EmptyState có ích (author thấy link Soạn bài), Skeleton/ErrorState, `/quiz` index mới. Tuân bẫy `useInfiniteQuery` (dùng `useQuery` + cursor tay). |
+| **D1** trình học 1 | `t1k-web-core-developer` | `apps/web/src/components/session/**` · `apps/web/src/lib/use-sandbox-session.ts`, `use-lesson-session.ts` (nếu cần) · `apps/web/src/app/lessons/[id]/**` · `apps/web/src/app/playgrounds/[id]/**` · `packages/terminal/src/**` | C5, layout `ide` (3 pane, iframe `/ide/session/{id}/`, trạng thái "IDE đang khởi động" + timeout có thông báo), tỉ lệ pane nhớ localStorage, terminal a11y (D10), playground hiện TTL trước khi bắt đầu, câu lý do phiên chết. |
+| **D2** trình học 2 | `t1k-web-core-developer` | `apps/web/src/app/labs/[id]/**` · `apps/web/src/app/quiz/[id]/**` · `apps/web/src/app/paths/[id]/**` | Lab: bảng task | terminal, chấm từng task, nhãn đúng dữ liệu (hàm thuần + test như `summarizeProgress`), điểm tổng tính lúc hiển thị, leaderboard. Quiz: một câu/màn hoặc danh sách, chấm sau nộp, giải thích; KHÔNG chạm type `*ForLearner`. Path detail: ổ khoá, nút mở item qua `paths.openItem`. Dùng `SessionControls`/`TerminalPane` theo C5 (nếu D1 chưa commit, viết theo hợp đồng và ghi rõ trong report). |
+| **E** 13.E của tôi | `t1k-web-ui-developer` | `apps/web/src/app/me/**` · `apps/web/src/app/settings/**` | `/me`: đang học, phiên đang mở (kết thúc được), lịch sử lab/quiz, tiến độ lộ trình — mọi số tính lúc đọc. `/settings`: tên, đổi mật khẩu (`authClient.changePassword`, ẩn khi `hasPassword=false`), shell, theme terminal, hiện tên leaderboard. |
+| **F** 13.F soạn bài | `t1k-web-core-developer` | `apps/web/src/app/author/**` · `apps/web/src/components/author/**` | Danh sách theo trạng thái, tạo/sửa (form theo `contentDraftInput` — đọc `authoring.ts` + `docs/scenario-format.md`, `lab-format.md`), xem trước bằng **cùng** `ContentView`, `check` trước publish, publish → poll `authoring.list` hiện `publishing` → kết quả/`publishError` (chạy thử thật), lưu trữ, asset upload (base64). |
+| **G** 13.G quản trị | `t1k-web-core-developer` | `apps/web/src/app/admin/**` · `apps/web/src/components/admin/**` | `/admin` (health từ `admin.health` + capacity), `/admin/users` (bảng, đổi vai trò có Dialog xác nhận), `/admin/sessions` (kết thúc), `/admin/content` (`authoring.list` + archive), `/admin/audit`. |
+| **H** 13.H chất lượng | `t1k-web-testing-tester` | `apps/web/e2e/**` · `apps/web/playwright.config.ts` · `apps/web/package.json` (thêm `@playwright/test`, `@axe-core/playwright`, script `e2e`, `e2e:a11y`) · `pnpm-lock.yaml` · `turbo.json` (task e2e, không cache) · `.github/workflows/ci.yml` (job `web-a11y` + thêm vào `ci-ok.needs`) | Fixture đăng ký (D11), promote-role script, `a11y.spec.ts` (axe mọi route, 0 serious/critical), `csp.spec.ts` (thu `securitypolicyviolation` + **đối chứng dương** inject inline script không nonce và iframe origin khác → phải ghi nhận vi phạm), `keyboard.spec.ts` (đi hết luồng chính bằng Tab/Enter, Esc-Esc rời terminal), 6 spec `@flow`, `perf.spec.ts` (LCP `/lessons` qua PerformanceObserver). Spec viết theo hợp đồng + màn hình chốt D12; chạy trên cụm ở đợt 3. |
+
+### Đợt 3 (lead + agent kiểm)
+
+1. Lead: `pnpm turbo run lint typecheck build test` một lượt, gom toàn bộ lỗi, chia fix song song, chạy lại.
+2. Build image `dlp-web:p13`, `dlp-orchestrator:p13`, `dlp-migrator:p13` (gateway giữ tag cũ nếu không đổi) → side-load (`docker save | scp | ctr import`) → cập nhật `values-selfhost.yaml` tag → `infra/host/12-helm-deploy.sh` (cổng render-vs-ctr của P12 phải xanh; migration chạy qua hook `platform-migrate`).
+3. Chạy e2e trên cụm: `@flow` ×6, axe, CSP (kèm đối chứng), keyboard, perf. Ảnh chụp vào `reports/harness/2026-09-04-p13-e2e/`.
+4. `t1k-code-reviewer` (adversarial) + `t1k-tester` (suite) → sửa → 5 artifact cook → `reports/2026-09-0X-verify-p13.md` → tích AC `phase-13.md` → commit → PR (base `feat/p12-scale-proof`).
+
+## 4. Kỷ luật git & xác minh cho MỌI sub-agent
+
+- Một nhánh, một working tree dùng chung. **CẤM** `git add .`/`-A`, `git commit -a`, `git checkout`/`switch`/`stash`, `git pull`, `git push`. Commit bằng **pathspec**: `git add <đường dẫn tường minh>` cho file mới rồi `git commit -m "<type>(p13): …" -- <đường dẫn…>`. Commit nhỏ, thường xuyên; commit trước khi báo cáo.
+- Chỉ sửa file trong cột "Sở hữu". Cần sửa file của lane khác ⇒ **báo lead** trong report, kèm patch đề xuất; không tự sửa.
+- Xác minh cục bộ: `pnpm --filter <package> typecheck|lint|test`. **CẤM `next build` ở đợt 2** (`.next/` dùng chung; lead build một lượt). Lỗi typecheck nằm ngoài path sở hữu ⇒ ghi vào report, không sửa.
+- Không hardcode màu; không `useReducer` mới quanh WS; không `useInfiniteQuery`; không chuỗi giá/thanh toán; tiếng Việt một giọng, thông báo lỗi nói "chuyện gì + làm gì tiếp".
+- Kết thúc bằng **Status** `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`, danh sách commit (SHA đọc lại từ `git log`), file đã đụng, và những chỗ hợp đồng bị nghi sai.
+
+## 5. Verify (đợt 3)
+
+```bash
+pnpm turbo run lint typecheck build test
+pnpm --filter web exec playwright test --grep @flow          # E2E_BASE_URL=https://dlp.192.168.94.130.sslip.io:30443
+pnpm --filter web exec playwright test a11y csp keyboard perf
+grep -rnE '#[0-9a-fA-F]{3,8}|\b(slate|gray|zinc|neutral)-[0-9]{2,3}' apps/web/src packages/ui/src --include=*.tsx | grep -v node_modules   # rỗng (trừ themes.ts của terminal)
+grep -rniE 'price|pricing|checkout|subscribe|billing' apps/web/src | grep -v node_modules   # rỗng
+```
