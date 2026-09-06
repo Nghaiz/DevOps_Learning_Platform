@@ -25,6 +25,7 @@ import {
   authorProcedure,
   createTRPCRouter,
   listInputSchema,
+  noCursorListInputSchema,
   protectedProcedure,
   MAX_LIST_LIMIT,
 } from '../init';
@@ -259,7 +260,7 @@ export const pathsRouter = createTRPCRouter({
    * có bảng `enrollments` nào — và nếu một ngày cần một bảng như thế, hãy đọc
    * lại phần ranh giới ở đầu file.
    */
-  mine: protectedProcedure.input(listInputSchema).query(async ({ ctx, input }) => {
+  mine: protectedProcedure.input(noCursorListInputSchema).query(async ({ ctx, input }) => {
     const rows = await ctx.db
       .select()
       .from(learningPaths)
@@ -287,7 +288,7 @@ export const pathsRouter = createTRPCRouter({
 
   // ─────────────────────────────────────────────── soạn lộ trình
 
-  listMine: authorProcedure.input(listInputSchema).query(async ({ ctx, input }) => {
+  listMine: authorProcedure.input(noCursorListInputSchema).query(async ({ ctx, input }) => {
     const rows = await ctx.db
       .select()
       .from(learningPaths)

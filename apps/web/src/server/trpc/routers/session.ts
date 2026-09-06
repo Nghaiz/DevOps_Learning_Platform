@@ -6,7 +6,12 @@ import { mintAccessTokenFor } from '../../auth/jwt';
 import { attachSandboxCookie } from '../../auth/sandbox-cookie';
 import { callOrchestrator, orchestratorClient } from '../../grpc/orchestrator-client';
 import { toJsonSession } from '../../grpc/session-json';
-import { assertOwnerOrAdmin, createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
+import {
+  assertOwnerOrAdmin,
+  createTRPCRouter,
+  noCursorListInputSchema,
+  protectedProcedure,
+} from '../init';
 
 /**
  * `session.*` gọi thẳng services/orchestrator qua gRPC (proto/orchestrator/v1) —
@@ -178,7 +183,7 @@ export const sessionRouter = createTRPCRouter({
    * (sessions_audit, 0.C). Luôn lọc theo chính ctx.user.id (không nhận userId từ
    * input) nên không cần assertOwnerOrAdmin ở đây. Luật 4: limit ép về ≤100.
    */
-  history: protectedProcedure.input(listInputSchema).query(async ({ ctx, input }) => {
+  history: protectedProcedure.input(noCursorListInputSchema).query(async ({ ctx, input }) => {
     const rows = await ctx.db
       .select()
       .from(sessionsAudit)

@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { and, desc, eq, lt, or } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { adminAudit, type AdminAuditRow } from '../db/schema';
+import { assertUuidCursor } from '../trpc/init';
 
 /**
  * Ghi MỘT dòng vào `admin_audit` — SSOT của mọi lời gọi ghi audit (P13 C4).
@@ -68,7 +69,8 @@ export async function listAdminAuditPage(
     const rows = await db
       .select({ occurredAt: adminAudit.occurredAt, id: adminAudit.id })
       .from(adminAudit)
-      .where(eq(adminAudit.id, cursor))
+      // `admin_audit.id` là `uuid` — cùng bẫy 22P02 với `me.listProgress`.
+      .where(eq(adminAudit.id, assertUuidCursor(cursor)))
       .limit(1);
     cursorRow = rows[0];
     if (cursorRow === undefined) {

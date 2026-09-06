@@ -190,3 +190,57 @@ export const listInputSchema = z
     cursor: z.string().optional(),
   })
   .strict();
+
+/**
+ * Danh sách CHƯA có phân trang cursor — `limit` giữ nguyên luật 4, nhưng
+ * `cursor` bị **TỪ CHỐI** (400 `unrecognized_keys` nhờ `.strict()` mà `.omit()`
+ * giữ lại), không phải nhận-rồi-bỏ-qua.
+ *
+ * ⛔ Vì sao từ chối chứ không im lặng: một procedure NHẬN `cursor` rồi PHỚT LỜ
+ * nó trả về TRANG 1 mãi mãi. Client phân trang thấy một trang hợp lệ, không lỗi,
+ * không dấu hiệu — rồi hoặc dừng sớm (mất dữ liệu) hoặc nối trang 1 vào cuối
+ * danh sách và lặp vô hạn. Đó đúng là chế độ hỏng mà luật `green-that-proves-
+ * nothing` đặt tên: một câu trả lời không thể đỏ. Một 400 thì ồn ào và sửa được
+ * ngay ở lần gọi đầu tiên.
+ *
+ * Đây KHÔNG phải "bỏ phân trang": C4 (phase-13) liệt kê ĐÍCH DANH những
+ * procedure phải có `nextCursor` thật (`me.listProgress`, `paths.list`,
+ * `quiz.list`, `me.listLabAttempts`, `me.listQuizAttempts`) và tất cả đã có.
+ * Những procedure dùng schema này nằm NGOÀI danh sách đó; khi một trong số
+ * chúng cần phân trang thật, đổi lại `listInputSchema` và hiện thực keyset —
+ * đừng chỉ mở lại field.
+ *
+ * ⚠ `paths.mine` còn một lý do riêng: nó LỌC SAU khi DB đã cắt `limit`
+ * (`passedCount > 0 && < itemCount`), nên một keyset ở tầng SQL sẽ sinh những
+ * trang vơi bất định. Phân trang đúng cho nó là một quyết định thiết kế, không
+ * phải một dòng `gt()`.
+ */
+export const noCursorListInputSchema = listInputSchema.omit({ cursor: true });
+
+/**
+ * Cursor trỏ vào một bảng có khoá chính `uuid` — PHẢI qua đây trước khi vào
+ * `eq(col, cursor)`.
+ *
+ * ⛔ ĐÃ ĐO, không phải phòng xa: `cursor` là chuỗi do CLIENT gửi, và Postgres
+ * từ chối một chuỗi không phải uuid ngay ở tầng kiểu (`22P02 invalid input
+ * syntax for type uuid`) — tức truy vấn NÉM thay vì trả 0 dòng. Hệ quả có hai
+ * vế, cả hai đều tệ hơn "cursor sai":
+ *
+ *  1. **500 thay vì 400.** Một input hỏng của client đọc ra như một sự cố máy
+ *     chủ; nó vào log lỗi, vào cảnh báo, và không nói cho ai biết phải sửa gì.
+ *  2. **Rò truy vấn ra trình duyệt.** `errorFormatter` không xoá `message`, nên
+ *     `TRPCError.message` của lỗi Drizzle — nguyên văn câu SQL kèm `params`,
+ *     trong đó có `user_id` của người gọi — đi thẳng vào response.
+ *
+ * Trả về cùng lỗi mà một cursor KHÔNG TỒN TẠI nhận được (`BAD_REQUEST` +
+ * "Cursor không còn hợp lệ"): với người gọi, "cursor sai định dạng" và "cursor
+ * đã biến mất" là cùng một việc phải làm — bắt đầu lại từ trang đầu.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function assertUuidCursor(cursor: string): string {
+  if (!UUID_RE.test(cursor)) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cursor không còn hợp lệ' });
+  }
+  return cursor;
+}

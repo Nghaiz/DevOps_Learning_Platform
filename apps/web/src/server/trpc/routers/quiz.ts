@@ -32,6 +32,7 @@ import {
   authorProcedure,
   createTRPCRouter,
   listInputSchema,
+  noCursorListInputSchema,
   protectedProcedure,
   type AuthedUser,
 } from '../init';
@@ -139,7 +140,7 @@ const idInput = z.object({ quizId: scenarioIdSchema }).strict();
 const submitInput = z
   .object({ quizId: scenarioIdSchema, answers: z.array(quizAnswerInputSchema) })
   .strict();
-const listAttemptsInput = listInputSchema.extend({ quizId: scenarioIdSchema }).strict();
+const listAttemptsInput = noCursorListInputSchema.extend({ quizId: scenarioIdSchema }).strict();
 const attemptIdInput = z.object({ attemptId: z.string().min(1) }).strict();
 
 // ---------------------------------------------------------------- helper
@@ -392,7 +393,7 @@ export const quizRouter = createTRPCRouter({
   // ─────────────────────────────────────────────── soạn quiz (10.D)
 
   /** Quiz của CHÍNH tác giả đang đăng nhập. */
-  listMine: authorProcedure.input(listInputSchema).query(async ({ ctx, input }) => {
+  listMine: authorProcedure.input(noCursorListInputSchema).query(async ({ ctx, input }) => {
     const rows = await listQuizzesAuthoredBy(ctx.db, ctx.user.id, input.limit);
     return { items: rows, limit: input.limit };
   }),

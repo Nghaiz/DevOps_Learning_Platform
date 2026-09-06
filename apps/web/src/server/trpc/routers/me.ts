@@ -11,7 +11,7 @@ import { endSessionAs, listSessionsPage } from '../../sessions/list';
 import { loadResults, scoreAndStatus } from './labs';
 import { loadQuizFull, type QuizVisibility } from '../../quiz/repository';
 import { toAnswerInputs } from './quiz';
-import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
+import { assertUuidCursor, createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
 /**
  * `me.*` — trang "của tôi" (P13 C4). Mọi procedure ở đây đọc/ghi resource của
@@ -287,7 +287,10 @@ export const meRouter = createTRPCRouter({
       const rows = await ctx.db
         .select({ updatedAt: progress.updatedAt, id: progress.id })
         .from(progress)
-        .where(and(eq(progress.id, input.cursor), eq(progress.userId, ctx.user.id)))
+        // `progress.id` là `uuid` — cursor PHẢI qua `assertUuidCursor` trước,
+        // xem chú thích của helper (một chuỗi lạ làm Postgres NÉM 22P02 ⇒ 500
+        // + rò nguyên câu SQL kèm user_id ra trình duyệt).
+        .where(and(eq(progress.id, assertUuidCursor(input.cursor)), eq(progress.userId, ctx.user.id)))
         .limit(1);
       cursorRow = rows[0];
       if (cursorRow === undefined) {
