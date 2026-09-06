@@ -554,7 +554,14 @@ function TaskDetail({
         {disabledReason !== null && (
           <span className="text-xs text-muted-foreground">{disabledReason}</span>
         )}
-        {display.lastExitCode !== null && outcome === undefined && (
+        {/*
+          `outcome === null` (KHÔNG phải `undefined`): nơi gọi truyền
+          `checkOutcomes[id] ?? null`, nên `undefined` không bao giờ tới đây và
+          điều kiện cũ làm dòng này chết hẳn — nhắc "lần chấm gần nhất" của một
+          phiên trước sẽ không bao giờ hiện. `tsc` không bắt được vì cả hai đều
+          là phép so sánh hợp lệ trên `CheckOutcome | null`.
+        */}
+        {display.lastExitCode !== null && outcome === null && (
           <span className="text-xs text-muted-foreground">
             Lần chấm gần nhất kết thúc với exit {display.lastExitCode}.
           </span>
