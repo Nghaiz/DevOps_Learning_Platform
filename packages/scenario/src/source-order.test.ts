@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { Scenario, ScenarioSummary } from '@devops-platform/shared-types/scenario';
+import type {
+  Scenario,
+  ScenarioSummary,
+  SCENARIO_DIFFICULTIES,
+} from '@devops-platform/shared-types/scenario';
 import { compositeContentSource } from './composite-source.ts';
 import type { ContentSourceLogger } from './db-source.ts';
 import { InvalidCursorError } from './errors.ts';
@@ -46,11 +50,9 @@ import {
  * chữ vừa không mất dòng ở ranh giới đĩa/DB.
  */
 
-const DIFFICULTIES = ['beginner', 'intermediate', 'advanced'] as const;
-
 interface Fixture {
   readonly id: string;
-  readonly difficulty: (typeof DIFFICULTIES)[number];
+  readonly difficulty: (typeof SCENARIO_DIFFICULTIES)[number];
   readonly estimatedMinutes: number | null;
   readonly capabilities: readonly ('docker' | 'kubernetes' | 'multi-node')[];
 }
