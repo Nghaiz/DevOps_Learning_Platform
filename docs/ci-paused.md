@@ -18,6 +18,19 @@
 **Quét secret (`gitleaks`) vẫn chạy mọi push** — tách sang
 `.github/workflows/secret-scan.yml`.
 
+**Cổng cấm thương mại vẫn chạy mọi push** (thêm 2026-09-06) — tách sang
+`.github/workflows/no-commerce.yml`, chạy `scripts/check-no-commerce.mjs`.
+
+⚠ Cổng này **KHÔNG đạt** tiêu chí "bật lại CI không cứu được" ở dưới: một chuỗi
+giá lọt vào repo thì xoá được, khác hẳn secret đã vào lịch sử git. Nó ở đây vì
+một lý do khác, chủ dự án quyết: "hệ thống không có liên quan gì tới bán khoá
+học" là ràng buộc SẢN PHẨM, và nó đã trượt một lần rồi — chuỗi
+`price`/`billing`/`subscribe` từng lọt vào việc đang làm và phải nhắc hai lần.
+Thứ đã trượt một lần thì không nên chỉ dựa vào trí nhớ để giữ.
+
+Giá: ~20s mỗi push. Script là Node thuần, không phụ thuộc, nên job không cần
+`pnpm install`.
+
 Vì bảy cổng kia gác những thứ hỏng-thì-sửa-được-sau. Cổng này gác thứ duy nhất
 mà bật lại CI ở phase 14 **không cứu được**: một secret đã nằm trong lịch sử git
 thì phải xoay khoá và rewrite history. Nó chỉ **báo**, không chặn push.
