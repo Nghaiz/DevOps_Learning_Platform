@@ -143,6 +143,8 @@ func (h *handler) redirectToSlash(w http.ResponseWriter, r *http.Request) {
 	// duoc tron ven ma khong can cham vao duong do; va `url.PathEscape` bao dam
 	// segment id khong the chen them dau `/`. (gosec G710.)
 	target := ideSessionPrefix + url.PathEscape(r.PathValue("id")) + "/"
+	// Nhanh nay KHONG di qua serve(), nen no phai tu dat header (P13 S1).
+	setSecurityHeaders(w.Header())
 	// 308 chu khong 302: 302 cho phep client doi POST thanh GET, va Theia POST
 	// len chinh duong nay.
 	http.Redirect(w, r, target, http.StatusPermanentRedirect)
@@ -150,6 +152,12 @@ func (h *handler) redirectToSlash(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.PathValue("id")
+
+	// Header an ninh đặt TRƯỚC mọi nhánh, kể cả nhánh từ chối (P13 S1 — xem
+	// secheaders.go). Body JSON của một lượt 401/403 cũng phát ra trên origin
+	// của app, nên `nosniff` cần cho nó y như cho response của Theia. Đặt ở đây
+	// một lần thay vì rải vào từng nhánh: mỗi `return` sớm là một chỗ quên.
+	setSecurityHeaders(w.Header())
 
 	chain := sessionauth.Deps{
 		Verifier:       h.deps.Verifier,
@@ -255,6 +263,14 @@ func (h *handler) proxy(podIP, ns, pod string) *httputil.ReverseProxy {
 			pr.Out.Header.Del("Cookie")
 
 			// X-Forwarded-* do SetURL đặt; giữ nguyên.
+		},
+		ModifyResponse: func(res *http.Response) error {
+			// Chạy TRƯỚC `copyHeader(rw.Header(), res.Header)` của
+			// ReverseProxy, và `copyHeader` dùng `Add` — nên không xoá ở đây
+			// thì header của Theia nằm CẠNH header của ta, không đè lên nó.
+			// Chi tiết chế độ hỏng: secheaders.go § dropUpstreamSecurityHeaders.
+			dropUpstreamSecurityHeaders(res.Header)
+			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			// Đẩy IP ra khỏi cache NGAY ở lượt hỏng đầu tiên thay vì chờ hết

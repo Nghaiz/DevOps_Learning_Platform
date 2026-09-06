@@ -113,14 +113,34 @@ type harness struct {
 	logs     *bytes.Buffer
 }
 
-func newHarness(t *testing.T, sessions *spySessions, maxPerSession int) *harness {
+// harnessOpt chinh harness truoc khi dung. Bien the duy nhat hom nay la cho
+// upstream gia tu phat header — can cho doi chung "khong nhan doi header".
+type harnessOpt func(*harnessCfg)
+
+type harnessCfg struct{ upstreamHeaders map[string]string }
+
+// withUpstreamHeaders bat upstream gia phat dung bo header ma ta cung dat, de
+// chung minh client chi nhan MOT gia tri chu khong phai hai.
+func withUpstreamHeaders(m map[string]string) harnessOpt {
+	return func(c *harnessCfg) { c.upstreamHeaders = m }
+}
+
+func newHarness(t *testing.T, sessions *spySessions, maxPerSession int, opts ...harnessOpt) *harness {
 	t.Helper()
+
+	cfg := &harnessCfg{}
+	for _, o := range opts {
+		o(cfg)
+	}
 
 	rec := &upstreamRecord{}
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec.hits.Add(1)
 		rec.path = r.URL.Path
 		rec.cookie = r.Header.Get("Cookie")
+		for k, v := range cfg.upstreamHeaders {
+			w.Header().Set(k, v)
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("theia-index"))
 	}))
@@ -161,6 +181,7 @@ func newHarness(t *testing.T, sessions *spySessions, maxPerSession int) *harness
 type result struct {
 	Status int
 	Body   []byte
+	Header http.Header
 }
 
 func (r *result) code(t *testing.T) string {
@@ -195,7 +216,7 @@ func (h *harness) get(t *testing.T, sessionID, suffix string, mutate ...func(*ht
 	if err != nil {
 		t.Fatalf("đọc body: %v", err)
 	}
-	return &result{Status: resp.StatusCode, Body: body}
+	return &result{Status: resp.StatusCode, Body: body, Header: resp.Header.Clone()}
 }
 
 func withCookie(raw string) func(*http.Request) {
@@ -438,3 +459,132 @@ var errBadPort = errorString("port không phải số")
 type errorString string
 
 func (e errorString) Error() string { return string(e) }
+
+// ─────────────────────────────────────── P13 S1: header an ninh cho `/ide`
+
+// wantSecurityHeaders là bộ ĐÍCH, viết TAY chứ không đọc lại
+// `ideroute.securityHeaders`.
+//
+// Cố ý chép giá trị: một test đọc chính hằng nó gác sẽ xanh kể cả khi ai đó đổi
+// hằng đó thành `X-Frame-Options: ALLOWALL` — nó chỉ khẳng định "mã bằng chính
+// mã", một tautology. Đổi giá trị ở đây phải là một quyết định có người đọc.
+var wantSecurityHeaders = map[string]string{
+	"X-Content-Type-Options": "nosniff",
+	"X-Frame-Options":        "SAMEORIGIN",
+	"Referrer-Policy":        "same-origin",
+}
+
+// assertSecurityHeaders kiểm CẢ giá trị LẪN số lượng giá trị.
+//
+// Đếm là nửa quan trọng hơn: `httputil.copyHeader` dùng `Add`, nên chế độ hỏng
+// thật không phải "thiếu header" mà là "hai header mâu thuẫn" — và một phép
+// kiểm chỉ gọi `Header.Get()` (trả về giá trị ĐẦU) đọc ra XANH trên đúng ca đó.
+func assertSecurityHeaders(t *testing.T, h http.Header, ctx string) {
+	t.Helper()
+	for name, want := range wantSecurityHeaders {
+		got := h.Values(name)
+		if len(got) == 0 {
+			t.Errorf("%s: thiếu header %s (muốn %q)", ctx, name, want)
+			continue
+		}
+		if len(got) != 1 {
+			t.Errorf("%s: %s có %d giá trị %q — trình duyệt xử lý cặp mâu thuẫn mỗi bản một kiểu", ctx, name, len(got), got)
+			continue
+		}
+		if got[0] != want {
+			t.Errorf("%s: %s = %q, muốn %q", ctx, name, got[0], want)
+		}
+	}
+}
+
+func TestIDESetsSecurityHeadersOnProxiedResponse(t *testing.T) {
+	h := newHarness(t, &spySessions{sess: activeSession()}, 8)
+
+	res := h.get(t, testSession, "")
+	if res.Status != http.StatusOK {
+		t.Fatalf("status %d, muốn 200 (body %q)", res.Status, string(res.Body))
+	}
+	assertSecurityHeaders(t, res.Header, "response proxy của Theia")
+}
+
+// Đối chứng ÂM cho lớp lỗi THẬT: Theia tự phát cùng bộ header.
+//
+// Không có `dropUpstreamSecurityHeaders`, client nhận `SAMEORIGIN, DENY` — và
+// nhánh "trình duyệt chọn cái chặt hơn" làm TRẮNG iframe của D8. Test này là thứ
+// duy nhất trong suite bắt được nó; mọi test còn lại đi qua một upstream không
+// phát header nên chúng xanh dù bug có mặt.
+func TestIDEDoesNotDuplicateSecurityHeadersFromUpstream(t *testing.T) {
+	h := newHarness(t, &spySessions{sess: activeSession()}, 8, withUpstreamHeaders(map[string]string{
+		"X-Frame-Options":        "DENY",
+		"X-Content-Type-Options": "nosniff",
+		"Referrer-Policy":        "unsafe-url",
+	}))
+
+	res := h.get(t, testSession, "")
+	if res.Status != http.StatusOK {
+		t.Fatalf("status %d, muốn 200", res.Status)
+	}
+	assertSecurityHeaders(t, res.Header, "upstream cũng phát cùng bộ header")
+}
+
+// Nhánh từ chối cũng phát JSON trên origin của app — `nosniff` cần cho nó y hệt.
+func TestIDESetsSecurityHeadersOnDenial(t *testing.T) {
+	h := newHarness(t, &spySessions{sess: activeSession()}, 8)
+
+	res := h.get(t, testSession, "", func(r *http.Request) {
+		r.Header.Set("Origin", "https://evil.example")
+	})
+	if res.Status != http.StatusForbidden {
+		t.Fatalf("status %d, muốn 403", res.Status)
+	}
+	assertSecurityHeaders(t, res.Header, "nhánh từ chối 403")
+}
+
+// `redirectToSlash` KHÔNG đi qua `serve`, nên nó là chỗ dễ quên nhất.
+func TestIDESetsSecurityHeadersOnRedirect(t *testing.T) {
+	h := newHarness(t, &spySessions{sess: activeSession()}, 8)
+
+	// Client KHÔNG đi theo redirect: ta cần đọc chính response 308, không phải
+	// response ở đích.
+	client := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	r, err := http.NewRequest(http.MethodGet, h.srv.URL+"/ide/session/"+testSession, nil)
+	if err != nil {
+		t.Fatalf("dựng request: %v", err)
+	}
+	r.Header.Set("Origin", testOrigin)
+	r.AddCookie(&http.Cookie{Name: sessionauth.CookieName, Value: h.signer.Mint(validClaims())}) //nolint:gosec
+	resp, err := client.Do(r)
+	if err != nil {
+		t.Fatalf("gọi ide: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusPermanentRedirect {
+		t.Fatalf("status %d, muốn 308", resp.StatusCode)
+	}
+	assertSecurityHeaders(t, resp.Header, "redirect 308 thiếu dấu / cuối")
+}
+
+// CSP CỐ Ý VẮNG — ghim điều đó lại để nó là một quyết định, không phải một chỗ
+// quên.
+//
+// ⚠ ĐÂY LÀ MỘT PINNED BASELINE: nó khẳng định trạng thái CHƯA-XONG. Khi đợt 3 đo
+// được CSP Theia chịu được và đặt header đó, test này ĐỎ — và cách xử lý đúng là
+// ĐẢO nó (khẳng định CSP có mặt + đúng giá trị đo được), KHÔNG phải nới nó ra
+// hay xoá đi. Đỏ ở đây nghĩa là "việc đã xong", không phải "có hồi quy".
+func TestIDEHasNoCSPYet_KnownGap(t *testing.T) {
+	h := newHarness(t, &spySessions{sess: activeSession()}, 8)
+
+	res := h.get(t, testSession, "")
+	if res.Status != http.StatusOK {
+		t.Fatalf("status %d, muốn 200", res.Status)
+	}
+	for _, name := range []string{"Content-Security-Policy", "Content-Security-Policy-Report-Only"} {
+		if v := res.Header.Values(name); len(v) != 0 {
+			t.Fatalf("%s = %q đã được đặt — nếu đợt 3 vừa đo xong CSP thì ĐẢO test này "+
+				"(khẳng định giá trị đo được), đừng xoá nó; xem secheaders.go § CSP", name, v)
+		}
+	}
+}
