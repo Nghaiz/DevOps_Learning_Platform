@@ -110,6 +110,24 @@ func (s *Service) Reap(
 ) (*orchestratorv1.Session, error) {
 	label := actor.label()
 
+	// ⛔ ACTOR RỖNG LÀ LỖI, KHÔNG PHẢI "hệ thống" — và mặc định của Go đẩy nó
+	// đúng vào hướng nguy hiểm.
+	//
+	// `scriptUser` rỗng nghĩa là reap.lua BỎ kiểm chủ sở hữu. Một `ReapActor{}`
+	// (không UserID, không System, không AdminUserID) cho `scriptUser` rỗng qua
+	// đường mặc định chứ không qua `bypassOwnerCheck()` — tức một struct rỗng
+	// vô tình lại mang quyền CAO NHẤT của cả đường reap, im lặng. Hôm nay không
+	// call-site nào dựng nó (resolveReapActor từ chối cả ba nhánh rỗng trước
+	// khi tới đây), nên đây là tuyến phòng thủ thứ hai — nhưng nhánh
+	// `admin_user_id` vừa thêm một field nữa vào struct này, và mỗi field mới
+	// là một cách nữa để quên gán.
+	if actor.UserID == "" && !actor.bypassOwnerCheck() {
+		s.met.ReapTotal.WithLabelValues(label, "error").Inc()
+		return nil, status.Error(codes.InvalidArgument,
+			"ReapActor rỗng: phải có UserID, AdminUserID, hoặc System=true — "+
+				"struct rỗng sẽ bỏ kiểm chủ sở hữu, đó là lỗi lập trình chứ không phải quyền hệ thống")
+	}
+
 	sessionKey, err := rediskeys.Session(sessionID)
 	if err != nil {
 		s.met.ReapTotal.WithLabelValues(label, "not_found").Inc()

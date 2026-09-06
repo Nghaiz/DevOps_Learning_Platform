@@ -20,7 +20,12 @@ import (
 type fakeAuditDB struct {
 	mu     sync.Mutex
 	events []string
-	err    error
+	// rows giữ TOÀN BỘ args của mỗi lần Exec, theo đúng thứ tự cột trong câu
+	// INSERT của audit.go: session_id, user_id, event, tier, pod_name,
+	// namespace, expires_at, detail. `events` một mình chỉ trả lời "sự kiện gì
+	// đã xảy ra"; P13 D15 còn phải trả lời "AI làm", và câu đó nằm ở `detail`.
+	rows [][]any
+	err  error
 }
 
 func (f *fakeAuditDB) Exec(_ context.Context, _ string, args ...any) (pgconn.CommandTag, error) {
@@ -29,6 +34,7 @@ func (f *fakeAuditDB) Exec(_ context.Context, _ string, args ...any) (pgconn.Com
 	if f.err != nil {
 		return pgconn.CommandTag{}, f.err
 	}
+	f.rows = append(f.rows, append([]any(nil), args...))
 	if len(args) >= 3 {
 		if ev, ok := args[2].(string); ok {
 			f.events = append(f.events, ev)
@@ -41,6 +47,21 @@ func (f *fakeAuditDB) recorded() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]string(nil), f.events...)
+}
+
+// rowsFor trả các dòng audit của MỘT loại sự kiện, đã sao chép ra ngoài khoá.
+func (f *fakeAuditDB) rowsFor(event string) [][]any {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out [][]any
+	for _, r := range f.rows {
+		if len(r) >= 3 {
+			if ev, ok := r[2].(string); ok && ev == event {
+				out = append(out, append([]any(nil), r...))
+			}
+		}
+	}
+	return out
 }
 
 // withAudit gắn một AuditDB giả vào harness có sẵn.

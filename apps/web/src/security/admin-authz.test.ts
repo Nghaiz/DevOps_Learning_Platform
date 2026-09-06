@@ -26,7 +26,14 @@ import { closeTestDb, ctxFor, testDb, uniqueId } from './test-helpers';
  * định duy nhất chứng minh ranh giới tin cậy C3.
  */
 type ListSessionsReq = { userId: string; limit: number; cursor: string };
-type ReapReq = { sessionId: string; reason: string; actor: { case: 'userId'; value: string } };
+type ReapReq = {
+  sessionId: string;
+  reason: string;
+  // HAI nhánh, và chính việc phân biệt chúng là điều P13 D15 phải chứng minh:
+  // `me.endSession` gửi `userId` (bị reap.lua kiểm chủ sở hữu),
+  // `admin.sessions.terminate` gửi `adminUserId` (CỐ Ý bỏ kiểm).
+  actor: { case: 'userId' | 'adminUserId'; value: string };
+};
 
 const { getCapacitySpy, listSessionsSpy, reapSessionSpy } = vi.hoisted(() => ({
   getCapacitySpy: vi.fn((_req: Record<string, never>, _opts?: unknown) =>
@@ -35,7 +42,12 @@ const { getCapacitySpy, listSessionsSpy, reapSessionSpy } = vi.hoisted(() => ({
   listSessionsSpy: vi.fn((_req: ListSessionsReq, _opts?: unknown) =>
     Promise.resolve({ sessions: [], nextCursor: '' }),
   ),
-  reapSessionSpy: vi.fn((_req: ReapReq, _opts?: unknown) => Promise.resolve({ session: undefined })),
+  // Trả một session THẬT: `admin.sessions.terminate` đọc `session.userId` từ
+  // response để ghi `targetUserId` vào `admin_audit`. Với `undefined` thì khẳng
+  // định đó không thể đỏ, tức nó không gác gì.
+  reapSessionSpy: vi.fn((_req: ReapReq, _opts?: unknown) =>
+    Promise.resolve({ session: { userId: 'chu-phien-bi-ket-thuc', status: 5 } }),
+  ),
 }));
 
 vi.mock('../server/grpc/orchestrator-client', () => ({
@@ -210,19 +222,47 @@ describe('admin.sessions.terminate', () => {
     ).rejects.toSatisfy(isTRPCCode('FORBIDDEN'));
   });
 
-  it('admin → không FORBIDDEN + ghi admin_audit (giới hạn: reap dùng actor = admin, xem chú thích admin.ts)', async () => {
+  it('admin → gửi actor.adminUserId = ID CỦA ADMIN (P13 D15) + ghi admin_audit đủ bốn vế', async () => {
     const admin = await makeUser('admin-sessions-term-adm', 'admin');
     reapSessionSpy.mockClear();
     const sessionId = uniqueId('sess-terminate');
     const out = await (await caller(admin)).admin.sessions.terminate({ sessionId });
-    expect(out).toEqual({ status: null });
+    expect(out).toEqual({ status: 5 });
     expect(reapSessionSpy).toHaveBeenCalledTimes(1);
+
+    // ⛔ KHẲNG ĐỊNH TRUNG TÂM CỦA D15. Nhánh `userId` sẽ khiến orchestrator kiểm
+    // chủ sở hữu và trả NOT_FOUND cho phiên của người khác — đúng cái no-op câm
+    // mà chặng này sinh ra để vá. Và `value` phải là id của ADMIN: truyền id chủ
+    // phiên vào đây thì lời gọi VẪN chạy, chỉ audit là sai — hỏng im lặng.
+    const sent = reapSessionSpy.mock.calls[0]?.[0];
+    expect(sent?.actor).toEqual({ case: 'adminUserId', value: admin.id });
+    expect(sent?.reason).toBe('admin_terminated');
+    expect(sent?.sessionId).toBe(sessionId);
 
     const rows = await testDb().select().from(adminAudit).where(eq(adminAudit.targetId, sessionId));
     const row = rows.find((r) => r.action === 'session.terminate');
     expect(row).toBeDefined();
     expect(row?.actorId).toBe(admin.id);
     expect(row?.targetType).toBe('session');
+    // `targetUserId`: `targetId` một mình là id phiên, mà id phiên rụng theo TTL
+    // — vài ngày sau không tra ngược ra được đó là phiên của ai.
+    expect(row?.detail).toEqual({ reason: 'admin_terminated', targetUserId: 'chu-phien-bi-ket-thuc' });
+  });
+});
+
+/**
+ * Vế "không nới cái gì khác" của D15: nhánh `adminUserId` được mở ở
+ * `admin.sessions.terminate` và CHỈ ở đó. `me.endSession` phải vẫn gửi `userId`
+ * — nếu nó trôi sang nhánh admin thì mọi người dùng thường kết thúc được phiên
+ * của bất kỳ ai, và KHÔNG test chức năng nào của đường `me.*` sẽ đỏ vì lời gọi
+ * vẫn thành công y hệt.
+ */
+describe('me.endSession KHÔNG được chạm nhánh admin', () => {
+  it('user thường → actor.userId = chính mình', async () => {
+    const u = await makeUser('me-endsession-u', 'user');
+    reapSessionSpy.mockClear();
+    await (await caller(u)).me.endSession({ sessionId: uniqueId('sess-me-end') });
+    expect(reapSessionSpy.mock.calls[0]?.[0].actor).toEqual({ case: 'userId', value: u.id });
   });
 });
 
