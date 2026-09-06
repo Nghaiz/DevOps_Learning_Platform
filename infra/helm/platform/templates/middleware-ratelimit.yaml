@@ -85,4 +85,32 @@ spec:
     average: {{ .Values.ingress.middleware.rateLimit.static.average }}
     period: {{ .Values.ingress.middleware.rateLimit.static.period | quote }}
     burst: {{ .Values.ingress.middleware.rateLimit.static.burst }}
+---
+{{/*
+Trần RIÊNG cho `/ide` (P13 D8) — và lý do là NGÂN SÁCH, không phải con số.
+
+Bản đầu của P13 gắn `ratelimit-web` cho Ingress `-ide`. Sai ở chỗ: Theia phục vụ
+toàn bộ tài nguyên của nó bằng đường TƯƠNG ĐỐI dưới `/ide/session/{id}/`
+(`ideroute.go` — đo trên pod `ide-verify` 2026-09-04), nên mọi asset IDE đi qua
+đúng router đó và tiêu vào CÙNG bucket 120/1m với tRPC/API của trang bài học.
+Traefik đếm theo IP nguồn mà P12 (12.B) đã đo: cả lớp sau MỘT NAT dùng chung một
+bucket — 20 người cùng mở WS thì đúng `burst` người vào, phần còn lại 429 ngay ở
+handshake. Ghép chung nghĩa là mở IDE có thể 429 chính lời gọi API của người
+đang mở nó, và 429 rơi trúng một asset thì trình duyệt báo trang trắng chứ không
+báo "bị giới hạn" — đúng chế độ hỏng mà tier `static` đã được tách ra để tránh.
+
+⚠ CON SỐ CHƯA ĐO (xem values.yaml § rateLimit.ide cho phép đo còn nợ). Tách
+bucket là thứ ĐÚNG bất kể con số; con số thì phải đo trên cụm ở đợt 3.
+*/}}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "platform.fullname" . }}-ratelimit-ide
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "ingress") | nindent 4 }}
+spec:
+  rateLimit:
+    average: {{ .Values.ingress.middleware.rateLimit.ide.average }}
+    period: {{ .Values.ingress.middleware.rateLimit.ide.period | quote }}
+    burst: {{ .Values.ingress.middleware.rateLimit.ide.burst }}
 {{- end }}

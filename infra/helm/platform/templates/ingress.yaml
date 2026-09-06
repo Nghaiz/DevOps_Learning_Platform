@@ -208,25 +208,43 @@ gateway là reverse-proxy DUY NHẤT ra ngoài cho cả hai đường; nó tự 
 (platform-networkpolicy.yaml § "allow-ingress-gateway") ĐÃ phủ đường này —
 cùng service, cùng cổng, không cần rule mới.
 
-⛔ MIDDLEWARE KHÁC `-ws`, VÀ ĐÂY LÀ QUYẾT ĐỊNH CÓ CHỦ Ý — không phải sao chép
-nhầm. Lý do `-ws` bỏ `bodylimit` (xem đầu file: "request nâng cấp WS KHÔNG có
-body để đệm") KHÔNG áp cho `/ide`: đây là một đường HTTP-PROXY THẬT (tải UI
-IDE, lưu file qua editor, …), có request body thật cần một trần — bỏ nó là mở
-đúng lỗ mà `bodylimit` tồn tại để đóng. `/ide` vì thế dùng CÙNG cặp middleware
-với `-web` (`bodylimit` + `ratelimit-web`), KHÔNG dùng `ratelimit-ws` (tier đó
-định giá cho một lượt handshake, không phải một phiên IDE kéo dài nhiều
-request). Chưa có tier `ratelimit-ide` riêng — `middleware-ratelimit.yaml`
-không thuộc sở hữu của lane Helm phase-13 Đợt 1; nếu traffic /ide cần một trần
-khác `-web`, đó là việc đo + thêm tier sau, không phải P13.
+⛔ MIDDLEWARE KHÁC CẢ `-ws` LẪN `-web`, và cả hai khác biệt đều có lý do riêng.
+
+`bodylimit` — GIỮ. Lý do `-ws` bỏ nó (xem đầu file: "request nâng cấp WS KHÔNG
+có body để đệm") KHÔNG áp cho `/ide`: đây là một đường HTTP-PROXY THẬT, có
+request body thật cần một trần; bỏ nó là mở đúng lỗ mà `bodylimit` tồn tại để
+đóng, và mở nó thẳng vào pod sandbox của người học.
+
+  ⚠ CÁI GIÁ CỦA VIỆC GIỮ, ghi ra vì nó CHƯA ĐO: `bodylimit` là MỘT object dùng
+  chung với `-web`, trần 1 MiB (khớp MAX_JSON_BODY_BYTES của apps/web). Mọi
+  POST/PUT của Theia vượt 1 MiB sẽ nhận 413 từ Traefik — upload file vào IDE là
+  ứng viên rõ nhất. Đường lưu file chính của Theia đi qua WebSocket JSON-RPC nên
+  KHÔNG chạm trần này, và một lượt nâng cấp WS đã được đo là không bị
+  `bodylimit` ảnh hưởng (đối chứng âm AC-A6, 2026-08-14, chạy trên `/ws`) — nên
+  rủi ro nằm ở đường upload HTTP, không ở phiên IDE. Chưa đo vì `/ide` chưa bao
+  giờ đi qua Traefik (6.A/6.B/6.E đều đo qua port-forward).
+  NẾU đợt 3 thấy upload hỏng: cách đúng là thêm một object `bodylimit-ide`
+  RIÊNG, KHÔNG phải nâng `ingress.middleware.bodyLimit.maxRequestBodyBytes` —
+  con số đó cố ý bằng trần của apps/web, và nâng nó là nới trần cho cả `/`.
+
+`ratelimit-ide` (KHÔNG phải `ratelimit-web`) — Theia phục vụ mọi tài nguyên bằng
+đường TƯƠNG ĐỐI dưới `/ide/session/{id}/` (`ideroute.go`, đo 2026-09-04), nên
+chúng đi qua đúng router này. Dùng chung bucket với `-web` nghĩa là mở IDE tiêu
+vào ngân sách API của chính người học, và P12 (12.B) đã đo cả lớp sau một NAT
+dùng CHUNG một bucket. Xem middleware-ratelimit.yaml § ratelimit-ide.
+`ratelimit-ws` cũng không đúng: tier đó định giá một lượt handshake, không phải
+một phiên IDE kéo dài nhiều request.
 
 Thứ tự path KHÔNG cần lo (như ghi chú đầu file): Traefik xếp ưu tiên router
-theo ĐỘ DÀI rule, và `/ide` không phải tiền tố của `/ws` hay ngược lại.
+theo ĐỘ DÀI rule, nên `Host(…) && PathPrefix(`/ide`)` thắng
+`Host(…) && PathPrefix(`/`)` của `-web`; và `/ide` không phải tiền tố của `/ws`
+hay ngược lại.
 */}}
 {{- $annIde := $userAnn }}
 {{- if $mw.enabled }}
 {{- $annIde = merge (dict
       "traefik.ingress.kubernetes.io/router.entrypoints" $mw.entrypoints.secure
-      "traefik.ingress.kubernetes.io/router.middlewares" (printf "%s-%s-bodylimit@kubernetescrd,%s-%s-ratelimit-web@kubernetescrd" $ns $fullname $ns $fullname)
+      "traefik.ingress.kubernetes.io/router.middlewares" (printf "%s-%s-bodylimit@kubernetescrd,%s-%s-ratelimit-ide@kubernetescrd" $ns $fullname $ns $fullname)
     ) $userAnn }}
 {{- end }}
 apiVersion: networking.k8s.io/v1

@@ -262,6 +262,20 @@ spec:
       ports:
         - protocol: TCP
           port: {{ include "platform.orchestratorGrpcContainerPort" . }}
+    {{- /*
+      · orchestrator:{{ include "platform.orchestratorHttpContainerPort" . }}  `admin.health` (P13 C4) đọc /metrics của orchestrator.
+        CỔNG HTTP, KHÔNG phải cổng gRPC — hai chiều tách bạch có chủ ý: chiều
+        gRPC là chiều ĐIỀU KHIỂN (tạo/xoá pod), chiều này chỉ ĐỌC.
+        Nửa còn lại của cạnh nằm ở khối 13b (ingress vào orchestrator). Thiếu
+        một trong hai nửa thì admin.health báo ok:false — KHÔNG im lặng xanh,
+        vì health.ts tách `reached` khỏi `ok` (apps/web/src/server/admin/health.ts).
+    */}}
+    - to:
+        - podSelector:
+            {{- include "platform.netpolComponent" (dict "context" . "component" "orchestrator") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "platform.orchestratorHttpContainerPort" . }}
     {{- include "platform.netpolDatastoreEgress" (dict "context" . "stores" (list "postgres" "redis")) | nindent 4 }}
 {{- if $np.webExternalEgress.enabled }}
     # ── Egress RA NGOÀI CỤM cho web — MẶC ĐỊNH TẮT ──────────────────────────
@@ -664,6 +678,56 @@ spec:
         - protocol: TCP
           port: {{ include "platform.orchestratorHttpContainerPort" . }}
 {{- end }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 13b. INGRESS vào /metrics của orchestrator TỪ WEB — cho `admin.health` (P13 C4).
+#
+# ⛔ KHỐI RIÊNG, KHÔNG NỚI KHỐI 9 — và khối 9 đã tự dặn đúng điều đó ("Nếu sau
+# này có Prometheus thì chiều scrape là một rule MỚI … đừng nới rule này"). Nới
+# khối 9 nghĩa là thêm cổng HTTP vào một rule đã mở cổng gRPC, và gRPC là chiều
+# TẠO/XOÁ POD. Ở đây ta chỉ muốn cho web ĐỌC một trang text.
+#
+# ⛔ VÀ VÌ SAO CHỈ ORCHESTRATOR, KHÔNG PHẢI GATEWAY — quyết định có chủ ý, ghi
+# ra để không ai đọc sự vắng mặt của rule gateway là một chỗ quên:
+#   · cổng HTTP orchestrator ({{ include "platform.orchestratorHttpContainerPort" . }}) ĐÃ nằm trên Service
+#     (orchestrator-service.yaml), nên mở chiều này không đổi bề mặt tấn công —
+#     chỉ đổi ai được đi qua nó;
+#   · cổng admin gateway (8083) CỐ Ý không nằm trên Service nào (xem
+#     gateway-service.yaml + khối 12). Mở chiều web→gateway:8083 sẽ đòi thêm
+#     port đó lên Service, và Service là một tên DNS ổn định cho MỌI pod trong
+#     namespace — trong khi `networkPolicy.platform.enabled` MẶC ĐỊNH TẮT
+#     (values.yaml § networkPolicy), nên trên một cụm chưa siết netpol thì
+#     Service một mình đã là chỗ nới. `/metrics` của gateway KHÔNG có authz.
+#     Đổi một quyết định bảo mật đã cân để một trang quản trị có thêm vài dòng
+#     số là một đánh đổi tồi.
+#   Hệ quả nhìn thấy được: `admin.health` trả nguồn `gateway` với
+#   `reached:false, ok:false, error:<lý do>` — health.ts tách `reached` khỏi
+#   `ok` đúng vì ca này, và test của nó ghim rằng CẢ HAI nguồn vẫn xuất hiện
+#   trong `sources` khi không có URL. Người vận hành thấy "không đọc được",
+#   KHÔNG thấy một dấu xanh cho thứ chưa ai đo.
+#   Muốn có số của gateway thì đường đã dựng sẵn là scrape qua namespace
+#   monitoring (khối 12, PodMonitor theo IP pod) rồi đọc từ Prometheus — không
+#   cần mở cổng mới nào.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-ingress-metrics-orchestrator-web
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "orchestrator") | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            {{- include "platform.netpolComponent" (dict "context" . "component" "web") | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "platform.orchestratorHttpContainerPort" . }}
 {{- if $np.denyEnabled }}
 ---
 # ─────────────────────────────────────────────────────────────────────────────

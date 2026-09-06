@@ -66,14 +66,13 @@ web:
     # HTTP orchestrator (8081) ĐÃ lên Service (orchestrator-service.yaml) nên
     # đường DNS này tồn tại thật, KHÁC hẳn gatewayMetricsUrl bên dưới.
     #
-    # ⚠ CHƯA ĐỦ ĐỂ CHẠY ĐƯỢC TRÊN CLUSTER ĐÃ SIẾT NETWORKPOLICY. Khối 9 của
-    # platform-networkpolicy.yaml ghi rõ: "cổng HTTP {{ orchestrator.service.httpPort }}
-    # cố ý KHÔNG mở cho pod nào" — chỉ kubelet (khối 11) và namespace monitoring
-    # tuỳ chọn (khối 13) chạm được nó. Với `networkPolicy.platform.enabled=true`,
-    # BFF gọi URL này sẽ bị DROP ở tầng mạng dù DNS đúng và Service đúng. Mở
-    # thêm một chiều `web → orchestrator:{{ httpPort }}` trong netpol là việc
-    # NGOÀI phạm vi Helm lane của phase-13 — không lane Đợt 1 nào sở hữu
-    # platform-networkpolicy.yaml; xem báo cáo lane Go 13.Go cho chi tiết.
+    # ✅ CHIỀU MẠNG ĐÃ MỞ (P13, khối 13b của platform-networkpolicy.yaml). Bản
+    # đầu của P13 để URL này trỏ đúng nhưng chiều mạng thì đóng: khối 9 giữ cổng
+    # HTTP {{ orchestrator.service.httpPort }} không mở cho pod nào, nên với
+    # `networkPolicy.platform.enabled=true` thì BFF gọi URL này bị DROP dù DNS
+    # đúng và Service đúng. Nay có một rule RIÊNG cho đúng chiều đọc này (không
+    # nới khối 9 — nới nó là mở luôn cổng gRPC tạo/xoá pod), cộng nửa egress
+    # tương ứng trong `allow-egress-web`.
     orchestratorMetricsUrl: ''
     # Đường BFF → gateway `/metrics` cho `admin.health` (P13 C4).
     #
@@ -86,11 +85,22 @@ web:
     # `platform-networkpolicy.yaml` khối 12 cũng chỉ mở chiều đó cho namespace
     # `monitoring`, không phải cho `web`.
     #
-    # Để rỗng: `admin.health` (C4) đã thiết kế sẵn cho ca này — response shape
-    # `sources: [{name, ok, error, series}]` cho phép nguồn gateway báo lỗi có
-    # kiểm soát thay vì sập cả trang. Bật thật cần MỘT trong hai, cả hai đều
-    # NGOÀI phạm vi Helm lane của Đợt 1 (không ai sở hữu gateway-service.yaml
-    # lẫn platform-networkpolicy.yaml trong bảng lane hiện tại):
+    # ⛔ ĐỂ RỖNG LÀ MỘT QUYẾT ĐỊNH ĐÃ CÂN Ở P13, KHÔNG PHẢI MỘT VIỆC CÒN NỢ.
+    # Mở đường này đòi đưa cổng admin 8083 lên `gateway-service.yaml`, tức tạo
+    # một tên DNS ổn định tới một endpoint `/metrics` KHÔNG CÓ AUTHZ cho mọi pod
+    # trong namespace — và `networkPolicy.platform.enabled` MẶC ĐỊNH TẮT, nên
+    # trên cụm chưa siết netpol thì riêng Service đã là chỗ nới. Đổi một quyết
+    # định bảo mật đã cân để trang quản trị có thêm vài dòng số là đánh đổi tồi.
+    #
+    # Người vận hành THẤY GÌ: `admin.health` trả nguồn `gateway` với
+    # `reached:false, ok:false, error:<lý do>` — `apps/web/src/server/admin/health.ts`
+    # tách `reached` khỏi `ok` đúng vì ca này, và test của nó ghim rằng CẢ HAI
+    # nguồn vẫn nằm trong `sources` khi thiếu URL. Tức là "không đọc được", chứ
+    # KHÔNG phải một dấu xanh cho thứ chưa ai đo.
+    #
+    # Muốn có số của gateway: đường đã dựng sẵn là scrape qua namespace
+    # monitoring (khối 12, PodMonitor theo IP pod) rồi đọc từ Prometheus — không
+    # mở cổng mới nào. Hai đường (a)/(b) dưới đây giữ lại để ghi lại lựa chọn:
     #   (a) thêm port admin lên gateway-service.yaml + mở netpol web→gateway:8083
     #       CHỈ cho namespace nền tảng (không mở cho mọi pod) — đổi mô hình bảo
     #       mật đã ghim, cần quyết định của lead;
@@ -473,6 +483,33 @@ ingress:
       # nhau, font và ảnh; trang bài học nguội còn nặng hơn. Vẫn có trần chứ không
       # thả tự do — asset rẻ nhưng không miễn phí.
       static:
+        average: 600
+        period: 1m
+        burst: 300
+      # Reverse-proxy IDE (`/ide/session/{id}/…`, P13 D8).
+      #
+      # ⛔ TIER RIÊNG VÌ NGÂN SÁCH PHẢI TÁCH, KHÔNG VÌ CON SỐ. Bản đầu của P13
+      # gắn `ratelimit-web` cho `/ide`, tức mọi asset IDE tiêu vào CÙNG bucket
+      # với tRPC/API của chính người học. Traefik đếm theo IP nguồn, và P12 đo
+      # được cả lớp sau MỘT NAT dùng chung một bucket (12.B: 20 người mở WS ⇒
+      # đúng 10 vào = burst). Ghép chung nghĩa là một lượt mở IDE có thể 429
+      # chính lời gọi API của trang bài học bên cạnh — và 429 rơi trúng một
+      # asset thì trình duyệt báo trang trắng, không báo "bị giới hạn" (đúng
+      # chế độ hỏng mà tier `static` được tách ra để tránh).
+      #
+      # ⚠ HAI CON SỐ DƯỚI ĐÂY CHƯA ĐO — nói thẳng ra để không ai đọc chúng như
+      # một phép đo. Chúng lấy hình dạng của tier `static` (nhiều GET nhỏ trong
+      # một lượt tải trang) vì đó là hình dạng traffic gần nhất đã ĐƯỢC đo.
+      # Thứ ĐÃ đo về Theia mới chỉ là: index dùng 3 đường tương đối, 0 đường
+      # tuyệt đối (`ideroute.go`, pod `ide-verify` 2026-09-04) — nó nói tiền tố
+      # path chạy được, KHÔNG nói một lượt tải nguội tốn bao nhiêu request.
+      #
+      # PHÉP ĐO CÒN NỢ (đợt 3, trên cụm): mở `/ide/session/{id}/` bằng trình
+      # duyệt thật, đếm số request tới `/ide` trong một lượt tải NGUỘI (R), rồi
+      # đặt burst >= R × (số người mở IDE cùng lúc sau một NAT) và average >=
+      # R × (số lượt mở/phút). Triệu chứng nếu quá chặt KHÔNG phải một thông
+      # báo rate-limit: IDE hiện trắng hoặc thiếu panel.
+      ide:
         average: 600
         period: 1m
         burst: 300
