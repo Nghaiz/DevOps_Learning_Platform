@@ -60,9 +60,19 @@ async function seed(): Promise<void> {
       // `d` mang difficulty KHÁC — để chứng minh filter được áp TRƯỚC `LIMIT`,
       // không phải lọc sau khi trang đã cắt.
       difficulty: id === 'zzz-p13sql-d' ? 'advanced' : 'beginner',
-      estimatedMinutes: null,
+      // `a` có thời lượng, `b`/`c`/`d` KHÔNG — để ca `orderBy: 'duration'` thật
+      // sự đi qua nhánh `coalesce`, chứ không phải một cột toàn giá trị.
+      estimatedMinutes: id === 'zzz-p13sql-a' ? 5 : null,
       tier: 'sysbox',
-      capabilities: [],
+      // `a` mang HAI năng lực, `b` một, `c`/`d` không. Đây là điều kiện để phép
+      // kiểm `@>` (chứa) phân biệt được với `=` (bằng): một phép so bằng sẽ
+      // trượt `a` khi hỏi `docker`, và bộ test sẽ thấy.
+      capabilities:
+        id === 'zzz-p13sql-a'
+          ? ['docker', 'kubernetes']
+          : id === 'zzz-p13sql-b'
+            ? ['docker']
+            : [],
       backendImageId: 'ubuntu',
       interfaceLayout: null,
       assets: [],
@@ -190,5 +200,136 @@ describe('repository.listItemsPage — hành vi keyset trên Postgres THẬT', (
       filter: { difficulty: 'advanced' },
     });
     expect(lastContentItemsQuery()).not.toMatch(/"difficulty"\s*=\s*\$\d+/i);
+  });
+});
+
+/**
+ * Sắp xếp phía server (phase-13) — **trên SQL SINH RA và trên Postgres THẬT**.
+ *
+ * Vì sao phần này không thừa dù `source-order.test.ts` đã đi hết trang ở ba mức
+ * limit: bộ kia chạy trên `paginateSorted` (bộ nhớ). Câu khẳng định "DB đẩy
+ * `ORDER BY <khoá>, id` và `(<khoá>, id) > (cv, ci)` xuống Postgres" chỉ đúng
+ * nếu `listItemsPage` thật sự sinh ra câu đó — cùng lý lẽ đã dựng nên chính file
+ * này. Và nó gác một chế độ hỏng mà không test bộ nhớ nào thấy được: `ORDER BY`
+ * và vị từ keyset dùng HAI biểu thức khác nhau (ví dụ sắp theo `CASE` nhưng lọc
+ * theo `difficulty` thô) — SQL vẫn chạy, vẫn trả dòng, chỉ là mất dòng ở biên.
+ */
+describe('listItemsPage — orderBy đẩy xuống Postgres', () => {
+  it('orderBy=difficulty ⇒ ORDER BY <case>, id VÀ vị từ keyset theo HÀNG', async () => {
+    captured.length = 0;
+    await repo.listItemsPage('lesson', { kind: 'published-only' }, {
+      limit: 2,
+      orderBy: 'difficulty',
+      cursor: 'd:0:zzz-p13sql-a',
+    });
+    const query = lastContentItemsQuery();
+
+    expect(query.toLowerCase()).toContain('case');
+    // Vị từ so sánh THEO HÀNG — `(case…, "id") > ($n::int, $n::text)`.
+    expect(query).toMatch(/\)\s*,\s*"content_items"\."id"\)\s*>\s*\(\$\d+::int/i);
+    // …và `ORDER BY` phải kết thúc bằng `id asc` (vế phá hoà). Thiếu nó thì
+    // khoá không duy nhất và cursor mất nghĩa ở mọi nhóm cùng độ khó.
+    expect(query).toMatch(/order by\s+.*"content_items"\."id"\s+asc/i);
+    expect(query.toLowerCase()).not.toContain('offset');
+  });
+
+  it('orderBy=duration ⇒ coalesce(estimated_minutes, 2147483647), KHÔNG để NULL vào so sánh', async () => {
+    captured.length = 0;
+    await repo.listItemsPage('lesson', { kind: 'published-only' }, {
+      limit: 2,
+      orderBy: 'duration',
+      cursor: 'm:5:zzz-p13sql-a',
+    });
+    const query = lastContentItemsQuery();
+    // Một `ORDER BY estimated_minutes` trần + `(estimated_minutes, id) > (…)`
+    // sẽ cho vị từ NULL trên mọi bài chưa khai thời lượng ⇒ chúng biến mất khỏi
+    // MỌI trang. `coalesce` là thứ chặn điều đó.
+    expect(query.toLowerCase()).toContain('coalesce');
+    expect(query).toContain('2147483647');
+  });
+
+  it('orderBy=id (mặc định) KHÔNG sinh case/coalesce — đường cũ không đổi', async () => {
+    captured.length = 0;
+    await repo.listItemsPage('lesson', { kind: 'published-only' }, { limit: 2 });
+    const query = lastContentItemsQuery().toLowerCase();
+    expect(query).not.toContain('case');
+    expect(query).not.toContain('2147483647');
+  });
+
+  /**
+   * Đi HẾT trang trên Postgres THẬT, ở ba mức `limit` — cùng bất biến với
+   * `source-order.test.ts` nhưng qua SQL: hợp của mọi trang = đúng tập đầy đủ,
+   * không lặp, đúng thứ tự.
+   *
+   * Fixture có `a`/`b`/`c` cùng `beginner` và `d` là `advanced`, tức khoá sắp
+   * xếp KHÔNG duy nhất — điều kiện để một cursor thiếu vế `id` lộ ra.
+   */
+  it.each([1, 2, 3])('đi hết trang trên Postgres thật · orderBy=difficulty · limit=%i', async (limit) => {
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let guard = 0; guard <= IDS.length * 4 + 8; guard += 1) {
+      const page = await repo.listItemsPage('lesson', { kind: 'published-only' }, {
+        limit,
+        orderBy: 'difficulty',
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      seen.push(...page.items.map((row) => row.id).filter((id) => id.startsWith('zzz-p13sql-')));
+      if (!page.hasMore) {
+        break;
+      }
+      const last = page.items[page.items.length - 1];
+      if (last === undefined) {
+        break;
+      }
+      cursor = `d:${String(last.difficulty === 'advanced' ? 2 : 0)}:${last.id}`;
+    }
+
+    // `d` là `advanced` (hạng 2) nên nó phải xuống CUỐI, sau a/b/c dù id lớn hơn.
+    expect(new Set(seen).size).toBe(seen.length);
+    expect([...seen].sort()).toEqual([...IDS].sort());
+    expect(seen).toEqual(['zzz-p13sql-a', 'zzz-p13sql-b', 'zzz-p13sql-c', 'zzz-p13sql-d']);
+  });
+});
+
+describe('listItemsPage — lọc capability đẩy xuống Postgres', () => {
+  it('sinh phép CHỨA jsonb `@>`, không phải so bằng', async () => {
+    captured.length = 0;
+    await repo.listItemsPage('lesson', { kind: 'published-only' }, {
+      limit: 10,
+      filter: { capability: 'docker' },
+    });
+    const query = lastContentItemsQuery();
+    expect(query).toMatch(/"capabilities"\s*@>\s*\$\d+::jsonb/i);
+    // Một `=` ở đây sẽ chỉ khớp mảng GIỐNG HỆT `["docker"]`, tức trượt mọi bài
+    // mang thêm năng lực khác.
+    expect(query).not.toMatch(/"capabilities"\s*=\s*\$\d+/i);
+  });
+
+  it('mục mang NHIỀU năng lực khớp khi hỏi MỘT — và đối chứng ÂM cho năng lực không ai có', async () => {
+    // `zzz-p13sql-a` mang ['docker','kubernetes'] (xem seed), `-b` chỉ ['docker'].
+    const docker = await repo.listItemsPage('lesson', { kind: 'published-only' }, {
+      limit: 50,
+      filter: { capability: 'docker' },
+    });
+    const ids = docker.items.map((r) => r.id).filter((id) => id.startsWith('zzz-p13sql-'));
+    expect(ids).toEqual(['zzz-p13sql-a', 'zzz-p13sql-b']);
+
+    // Đối chứng ÂM: nếu vị từ `@>` bị bỏ qua, câu này trả về cả bốn mục.
+    const none = await repo.listItemsPage('lesson', { kind: 'published-only' }, {
+      limit: 50,
+      filter: { capability: 'multi-node' },
+    });
+    expect(none.items.map((r) => r.id).filter((id) => id.startsWith('zzz-p13sql-'))).toEqual([]);
+  });
+
+  it('`limit` đếm dòng SAU lọc capability — trang đầy chứ không vơi', async () => {
+    const page = await repo.listItemsPage('lesson', { kind: 'published-only' }, {
+      limit: 1,
+      cursor: 'zzz-p13sql-a',
+      filter: { capability: 'docker' },
+    });
+    // Sau cursor `a`, chỉ `b` mang `docker` (`c`/`d` không) ⇒ đúng 1 dòng, hết.
+    expect(page.items.map((r) => r.id)).toEqual(['zzz-p13sql-b']);
+    expect(page.hasMore).toBe(false);
   });
 });
