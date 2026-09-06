@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
-import { Badge, CursorPager } from '@devops-platform/ui';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
@@ -11,6 +10,8 @@ import { CatalogCard, CatalogGrid, CatalogGridSkeleton } from '../../components/
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
 import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
 import { CatalogError } from '../../components/catalog/catalog-error';
+import { CatalogPager } from '../../components/catalog/catalog-pager';
+import { TIER_LABEL } from '../../components/catalog/catalog-labels';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
 import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
 import {
@@ -57,13 +58,17 @@ export function PlaygroundsClient({ canAuthor }: { readonly canAuthor: boolean }
       description="Sandbox trống, không bài, không chấm điểm — thử lệnh trước khi vào một bài học hoặc lab thật."
     >
       <CatalogToolbar
+        kind="playgrounds"
         fields={['tier']}
         filters={controls.filters}
         onDifficulty={controls.setDifficulty}
         onTier={controls.setTier}
+        onClearFilters={controls.clearFilters}
         sortKey={controls.sortKey}
         sortOptions={SORT_OPTIONS}
         onSort={controls.setSortKey}
+        shown={query.isSuccess ? items.length : null}
+        hasNext={hasNext}
         disabled={query.isPending}
       />
 
@@ -101,16 +106,11 @@ export function PlaygroundsClient({ canAuthor }: { readonly canAuthor: boolean }
                 href={`/playgrounds/${item.id}`}
                 title={item.title}
                 description={item.description}
-                meta={
-                  <>
-                    <Badge variant="secondary">Tự đóng sau {Math.round(item.ttlSeconds / 60)} phút</Badge>
-                    {item.capabilities.map((capability) => (
-                      <Badge key={capability} variant="outline">
-                        {capability}
-                      </Badge>
-                    ))}
-                  </>
-                }
+                meta={[
+                  { icon: 'ttl', label: `Tự đóng sau ${Math.round(item.ttlSeconds / 60)} phút` },
+                  { icon: 'sandbox', label: TIER_LABEL[item.tier] },
+                ]}
+                tags={item.capabilities}
               />
             ))}
           </CatalogGrid>
@@ -123,7 +123,7 @@ export function PlaygroundsClient({ canAuthor }: { readonly canAuthor: boolean }
             sortKey={controls.sortKey}
           />
 
-          <CursorPager
+          <CatalogPager
             hasNext={hasNext}
             onNext={() => controls.goNext(query.data.nextCursor)}
             onReset={controls.goFirst}

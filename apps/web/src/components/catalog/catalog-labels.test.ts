@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { SCENARIO_DIFFICULTIES } from '@devops-platform/shared-types/scenario';
 import {
+  DIFFICULTY_CHIP,
+  DIFFICULTY_ACCENT,
+  PROGRESS_STATUS_ICON,
+  PROGRESS_STATUS_LABEL,
+  PROGRESS_STATUS_STYLE,
   describeCatalogEmpty,
+  describeResultCount,
   describePageScope,
   describeSortScope,
-  progressBadgeVariant,
   type CatalogKind,
 } from './catalog-labels';
 
@@ -123,13 +129,87 @@ describe('describeCatalogEmpty — bốn ca, bốn việc phải làm khác nhau
   });
 });
 
-describe('progressBadgeVariant', () => {
-  it.each([
-    ['completed', 'success'],
-    ['in-progress', 'warning'],
-    ['not-started', 'secondary'],
-    ['trang-thai-la', 'secondary'],
-  ])('%s ⇒ %s', (status, variant) => {
-    expect(progressBadgeVariant(status)).toBe(variant);
+describe('token hình thức — tiện ích phải khớp hợp đồng 13.A', () => {
+  /*
+   * Vì sao khẳng định trên CHUỖI CLASS chứ không phải trên pixel: một tên token
+   * sai (`difficulty-beginner` thay vì `difficulty-basic` — hai từ vựng lệch
+   * nhau, xem `DIFFICULTY_ACCENT`) không ném lỗi và không cảnh báo build.
+   * Tailwind chỉ đơn giản KHÔNG sinh ra class đó, nên thuộc tính biến mất và ba
+   * mức độ khó về cùng một màu — đúng thứ lane này sinh ra để sửa. Không phép
+   * kiểm nào ở tầng cao hơn thấy được điều đó: typecheck chỉ thấy `string`, và
+   * suite này chạy ở môi trường node nên không có DOM để đo. Vậy nó phải bị đóng
+   * đinh ở đây, ngay tại chỗ chuỗi được viết ra.
+   */
+  it.each(SCENARIO_DIFFICULTIES)('%s dùng tiện ích difficulty-* hợp lệ', (level) => {
+    const token = level === 'beginner' ? 'basic' : level;
+    expect(DIFFICULTY_ACCENT[level]).toBe(`bg-difficulty-${token}`);
+    expect(DIFFICULTY_CHIP[level]).toBe(`bg-difficulty-${token} text-difficulty-${token}-foreground`);
+  });
+
+  it('KHÔNG nơi nào sinh ra difficulty-beginner (token không tồn tại)', () => {
+    const all = [...Object.values(DIFFICULTY_ACCENT), ...Object.values(DIFFICULTY_CHIP)].join(' ');
+    expect(all).not.toContain('difficulty-beginner');
+  });
+
+  it('KHÔNG dùng dạng arbitrary — màu phải đi qua bảng theme', () => {
+    /*
+     * `bg-[var(--difficulty-basic)]` và `bg-difficulty-basic` cho ra CÙNG một
+     * màu hôm nay, nên khác biệt chỉ lộ về sau: dạng arbitrary đi vòng qua bảng
+     * theme của Tailwind, thoát khỏi tầm của mọi phép đổi tên và mọi phép đo tập
+     * trung — kể cả `tokens.contract.test.ts`. Bản đầu của lane này viết dạng
+     * arbitrary vì token chưa tồn tại; `95efe1f` đã đưa chúng vào `@theme
+     * inline`, và phép kiểm này chặn đường lùi.
+     *
+     * Bóng cũng vậy: `shadow-elevation-2`, không `shadow-[var(--elevation-2)]` —
+     * ba bậc nâng nền sinh ra để mỗi chỗ gọi KHÔNG tự chọn bậc riêng.
+     */
+    const classes = [
+      ...Object.values(DIFFICULTY_ACCENT),
+      ...Object.values(DIFFICULTY_CHIP),
+      ...Object.values(PROGRESS_STATUS_STYLE),
+    ];
+    expect(classes).not.toHaveLength(0);
+    for (const cls of classes) {
+      expect(cls).not.toContain('var(');
+      expect(cls).not.toContain('[');
+    }
+  });
+
+  /*
+   * Hai chiều, theo kỷ luật pinned-baseline: thiếu key thì trạng thái mới mất
+   * hình thức trong im lặng; thừa key thì bảng thành nghĩa địa không ai rà lại.
+   */
+  it('mỗi trạng thái tiến độ có ĐỦ nhãn + màu + icon, và không dư key nào', () => {
+    const labels = Object.keys(PROGRESS_STATUS_LABEL).sort();
+    expect(Object.keys(PROGRESS_STATUS_STYLE).sort()).toEqual(labels);
+    expect(Object.keys(PROGRESS_STATUS_ICON).sort()).toEqual(labels);
+  });
+
+  it('ba trạng thái mang ba icon KHÁC NHAU — màu không phải kênh duy nhất', () => {
+    const icons = Object.values(PROGRESS_STATUS_ICON);
+    expect(new Set(icons).size).toBe(icons.length);
+  });
+});
+
+describe('describeResultCount — đếm cái ĐANG HIỆN, không đoán tổng kho', () => {
+  it('còn trang sau thì nói rõ phạm vi là trang này', () => {
+    expect(describeResultCount({ kind: 'lessons', shown: 12, hasNext: true, hasActiveFilter: false })).toBe(
+      '12 bài học trong trang này',
+    );
+  });
+
+  it('hết danh sách thì bỏ mệnh đề phạm vi', () => {
+    expect(describeResultCount({ kind: 'labs', shown: 3, hasNext: false, hasActiveFilter: false })).toBe('3 lab');
+  });
+
+  it('đang lọc thì nói ra, để "ít kết quả" không bị đọc thành "kho ít"', () => {
+    expect(describeResultCount({ kind: 'quiz', shown: 1, hasNext: false, hasActiveFilter: true })).toBe(
+      '1 bộ câu hỏi khớp bộ lọc',
+    );
+  });
+
+  it.each(KINDS)('%s — không câu nào chứa dấu gạch chéo kiểu "N/M"', (kind) => {
+    const text = describeResultCount({ kind, shown: 5, hasNext: true, hasActiveFilter: true });
+    expect(text).not.toMatch(/\d+\s*\/\s*\d+/);
   });
 });

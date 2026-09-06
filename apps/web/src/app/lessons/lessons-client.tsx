@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
-import { Badge, CursorPager } from '@devops-platform/ui';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
@@ -11,6 +10,9 @@ import { CatalogCard, CatalogGrid, CatalogGridSkeleton } from '../../components/
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
 import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
 import { CatalogError } from '../../components/catalog/catalog-error';
+import { CatalogPager } from '../../components/catalog/catalog-pager';
+import { TIER_LABEL } from '../../components/catalog/catalog-labels';
+import type { CatalogMetaItem } from '../../components/catalog/catalog-grid';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
 import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
 import {
@@ -22,11 +24,6 @@ import {
   sortPage,
   type SortOption,
 } from '../../components/catalog/catalog-sort';
-import {
-  DIFFICULTY_LABEL,
-  PROGRESS_STATUS_LABEL,
-  progressBadgeVariant,
-} from '../../components/catalog/catalog-labels';
 
 type LessonRow = inferRouterOutputs<AppRouter>['lessons']['list']['items'][number];
 
@@ -36,6 +33,23 @@ const SORT_OPTIONS: readonly SortOption<LessonRow>[] = [
   { key: 'duration', label: 'Ngắn đến dài', compare: compareMinutes },
   { key: 'steps', label: 'Ít bước đến nhiều', compare: compareCount((item) => item.stepCount) },
 ];
+
+/**
+ * Ba ô thông tin của thẻ bài học: số bước, thời lượng, loại sandbox.
+ *
+ * Là một HÀM chứ không phải mảng dựng thẳng trong JSX vì `estimatedMinutes` có
+ * thể `null` — nội suy `~null phút` vào chuỗi thì TypeScript không kêu (template
+ * literal nuốt mọi thứ) và người dùng nhận đúng chữ đó trên màn hình. Bỏ hẳn ô
+ * ấy là cách duy nhất đúng; một ô "chưa rõ" cũng chỉ là rác chiếm chỗ.
+ */
+function lessonMeta(item: LessonRow): readonly CatalogMetaItem[] {
+  const meta: CatalogMetaItem[] = [{ icon: 'steps', label: `${item.stepCount} bước` }];
+  if (item.estimatedMinutes !== null) {
+    meta.push({ icon: 'duration', label: `~${item.estimatedMinutes} phút` });
+  }
+  meta.push({ icon: 'sandbox', label: TIER_LABEL[item.tier] });
+  return meta;
+}
 
 /**
  * Trang danh sách `/lessons` (13.C).
@@ -93,13 +107,17 @@ export function LessonsClient({ canAuthor }: { readonly canAuthor: boolean }): R
       description="Mỗi bài mở một sandbox riêng. Tiến độ chỉ mình bạn thấy."
     >
       <CatalogToolbar
+        kind="lessons"
         fields={['difficulty', 'tier']}
         filters={controls.filters}
         onDifficulty={controls.setDifficulty}
         onTier={controls.setTier}
+        onClearFilters={controls.clearFilters}
         sortKey={controls.sortKey}
         sortOptions={SORT_OPTIONS}
         onSort={controls.setSortKey}
+        shown={query.isSuccess ? items.length : null}
+        hasNext={hasNext}
         disabled={query.isPending}
       />
 
@@ -137,25 +155,10 @@ export function LessonsClient({ canAuthor }: { readonly canAuthor: boolean }): R
                 href={`/lessons/${item.id}`}
                 title={item.title}
                 description={item.description}
-                badge={
-                  <Badge variant={progressBadgeVariant(item.progress.status)}>
-                    {PROGRESS_STATUS_LABEL[item.progress.status] ?? item.progress.status}
-                  </Badge>
-                }
-                meta={
-                  <>
-                    <Badge variant="secondary">{DIFFICULTY_LABEL[item.difficulty]}</Badge>
-                    <Badge variant="secondary">{item.stepCount} bước</Badge>
-                    {item.estimatedMinutes !== null && (
-                      <Badge variant="secondary">~{item.estimatedMinutes} phút</Badge>
-                    )}
-                    {item.capabilities.map((capability) => (
-                      <Badge key={capability} variant="outline">
-                        {capability}
-                      </Badge>
-                    ))}
-                  </>
-                }
+                difficulty={item.difficulty}
+                status={item.progress.status}
+                meta={lessonMeta(item)}
+                tags={item.capabilities}
               />
             ))}
           </CatalogGrid>
@@ -168,7 +171,7 @@ export function LessonsClient({ canAuthor }: { readonly canAuthor: boolean }): R
             sortKey={controls.sortKey}
           />
 
-          <CursorPager
+          <CatalogPager
             hasNext={hasNext}
             onNext={() => controls.goNext(query.data.nextCursor)}
             onReset={controls.goFirst}

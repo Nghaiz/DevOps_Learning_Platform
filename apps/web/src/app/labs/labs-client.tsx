@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
-import { Badge, CursorPager } from '@devops-platform/ui';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
@@ -11,6 +10,8 @@ import { CatalogCard, CatalogGrid, CatalogGridSkeleton } from '../../components/
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
 import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
 import { CatalogError } from '../../components/catalog/catalog-error';
+import { CatalogPager } from '../../components/catalog/catalog-pager';
+import type { CatalogMetaItem } from '../../components/catalog/catalog-grid';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
 import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
 import {
@@ -22,7 +23,20 @@ import {
   sortPage,
   type SortOption,
 } from '../../components/catalog/catalog-sort';
-import { DIFFICULTY_LABEL } from '../../components/catalog/catalog-labels';
+import { TIER_LABEL } from '../../components/catalog/catalog-labels';
+
+/** Bốn ô thông tin của thẻ lab. `estimatedMinutes` có thể `null` — xem ghi chú cùng tên ở `lessons-client.tsx`. */
+function labMeta(item: LabRow): readonly CatalogMetaItem[] {
+  const meta: CatalogMetaItem[] = [
+    { icon: 'tasks', label: `${item.taskCount} nhiệm vụ` },
+    { icon: 'threshold', label: `Đạt từ ${item.passThresholdPercent}%` },
+  ];
+  if (item.estimatedMinutes !== null) {
+    meta.push({ icon: 'duration', label: `~${item.estimatedMinutes} phút` });
+  }
+  meta.push({ icon: 'sandbox', label: TIER_LABEL[item.tier] });
+  return meta;
+}
 
 type LabRow = inferRouterOutputs<AppRouter>['labs']['list']['items'][number];
 
@@ -61,13 +75,17 @@ export function LabsClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
       description="Mỗi lab giao một tập nhiệm vụ độc lập — làm theo thứ tự bất kỳ, tự chấm từng nhiệm vụ rồi nộp bài khi sẵn sàng."
     >
       <CatalogToolbar
+        kind="labs"
         fields={['difficulty', 'tier']}
         filters={controls.filters}
         onDifficulty={controls.setDifficulty}
         onTier={controls.setTier}
+        onClearFilters={controls.clearFilters}
         sortKey={controls.sortKey}
         sortOptions={SORT_OPTIONS}
         onSort={controls.setSortKey}
+        shown={query.isSuccess ? items.length : null}
+        hasNext={hasNext}
         disabled={query.isPending}
       />
 
@@ -105,22 +123,10 @@ export function LabsClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
                 href={`/labs/${item.id}`}
                 title={item.title}
                 description={item.description}
-                badge={item.leaderboard ? <Badge variant="default">Có xếp hạng</Badge> : undefined}
-                meta={
-                  <>
-                    <Badge variant="secondary">{DIFFICULTY_LABEL[item.difficulty]}</Badge>
-                    <Badge variant="secondary">{item.taskCount} nhiệm vụ</Badge>
-                    <Badge variant="secondary">Đạt từ {item.passThresholdPercent}%</Badge>
-                    {item.estimatedMinutes !== null && (
-                      <Badge variant="secondary">~{item.estimatedMinutes} phút</Badge>
-                    )}
-                    {item.capabilities.map((capability) => (
-                      <Badge key={capability} variant="outline">
-                        {capability}
-                      </Badge>
-                    ))}
-                  </>
-                }
+                difficulty={item.difficulty}
+                {...(item.leaderboard ? { flag: { icon: 'leaderboard' as const, label: 'Có xếp hạng' } } : {})}
+                meta={labMeta(item)}
+                tags={item.capabilities}
               />
             ))}
           </CatalogGrid>
@@ -133,7 +139,7 @@ export function LabsClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
             sortKey={controls.sortKey}
           />
 
-          <CursorPager
+          <CatalogPager
             hasNext={hasNext}
             onNext={() => controls.goNext(query.data.nextCursor)}
             onReset={controls.goFirst}

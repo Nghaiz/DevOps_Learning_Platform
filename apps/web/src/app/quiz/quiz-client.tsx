@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
-import { Badge, CursorPager } from '@devops-platform/ui';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
@@ -11,6 +10,7 @@ import { CatalogCard, CatalogGrid, CatalogGridSkeleton } from '../../components/
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
 import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
 import { CatalogError } from '../../components/catalog/catalog-error';
+import { CatalogPager } from '../../components/catalog/catalog-pager';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
 import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
 import {
@@ -56,13 +56,17 @@ export function QuizClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
       description="Bộ câu hỏi tự chấm. Nộp xong mới thấy điểm và giải thích — trong lúc làm bài, đáp án không nằm trong dữ liệu trình duyệt nhận."
     >
       <CatalogToolbar
+        kind="quiz"
         fields={[]}
         filters={controls.filters}
         onDifficulty={controls.setDifficulty}
         onTier={controls.setTier}
+        onClearFilters={controls.clearFilters}
         sortKey={controls.sortKey}
         sortOptions={SORT_OPTIONS}
         onSort={controls.setSortKey}
+        shown={query.isSuccess ? items.length : null}
+        hasNext={hasNext}
         disabled={query.isPending}
       />
 
@@ -100,12 +104,10 @@ export function QuizClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
                 href={`/quiz/${item.id}`}
                 title={item.title}
                 description={item.description}
-                meta={
-                  <>
-                    <Badge variant="secondary">{item.questionCount} câu</Badge>
-                    <Badge variant="secondary">Đạt từ {item.passThresholdPercent}%</Badge>
-                  </>
-                }
+                meta={[
+                  { icon: 'questions', label: `${item.questionCount} câu` },
+                  { icon: 'threshold', label: `Đạt từ ${item.passThresholdPercent}%` },
+                ]}
               />
             ))}
           </CatalogGrid>
@@ -118,7 +120,7 @@ export function QuizClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
             sortKey={controls.sortKey}
           />
 
-          <CursorPager
+          <CatalogPager
             hasNext={hasNext}
             onNext={() => controls.goNext(query.data.nextCursor)}
             onReset={controls.goFirst}

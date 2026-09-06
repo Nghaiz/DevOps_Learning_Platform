@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
-import { Badge, CursorPager } from '@devops-platform/ui';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
@@ -11,6 +10,7 @@ import { CatalogCard, CatalogGrid, CatalogGridSkeleton } from '../../components/
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
 import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
 import { CatalogError } from '../../components/catalog/catalog-error';
+import { CatalogPager } from '../../components/catalog/catalog-pager';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
 import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
 import {
@@ -56,13 +56,17 @@ export function PathsClient({ canAuthor }: { readonly canAuthor: boolean }): Rea
       description="Nhiều bài gom theo thứ tự. Mở lộ trình để thấy phần nào đã mở khoá và phần nào còn chờ."
     >
       <CatalogToolbar
+        kind="paths"
         fields={[]}
         filters={controls.filters}
         onDifficulty={controls.setDifficulty}
         onTier={controls.setTier}
+        onClearFilters={controls.clearFilters}
         sortKey={controls.sortKey}
         sortOptions={SORT_OPTIONS}
         onSort={controls.setSortKey}
+        shown={query.isSuccess ? items.length : null}
+        hasNext={hasNext}
         disabled={query.isPending}
       />
 
@@ -100,8 +104,8 @@ export function PathsClient({ canAuthor }: { readonly canAuthor: boolean }): Rea
                 href={`/paths/${item.id}`}
                 title={item.title}
                 description={item.description}
-                badge={item.sequential ? <Badge variant="outline">Học tuần tự</Badge> : undefined}
-                meta={<Badge variant="secondary">{item.itemCount} phần</Badge>}
+                {...(item.sequential ? { flag: { icon: 'sequential' as const, label: 'Học tuần tự' } } : {})}
+                meta={[{ icon: 'parts', label: `${item.itemCount} phần` }]}
               />
             ))}
           </CatalogGrid>
@@ -114,7 +118,7 @@ export function PathsClient({ canAuthor }: { readonly canAuthor: boolean }): Rea
             sortKey={controls.sortKey}
           />
 
-          <CursorPager
+          <CatalogPager
             hasNext={hasNext}
             onNext={() => controls.goNext(query.data.nextCursor)}
             onReset={controls.goFirst}

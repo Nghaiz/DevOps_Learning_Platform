@@ -24,17 +24,6 @@ export const PROGRESS_STATUS_LABEL: Record<string, string> = {
   completed: 'Đã xong',
 };
 
-/** Biến thể `Badge` cho trạng thái tiến độ — token C1, không màu trần. */
-export function progressBadgeVariant(status: string): 'secondary' | 'warning' | 'success' {
-  if (status === 'completed') {
-    return 'success';
-  }
-  if (status === 'in-progress') {
-    return 'warning';
-  }
-  return 'secondary';
-}
-
 /** Loại danh mục — quyết định danh từ và gợi ý trong trạng thái rỗng. */
 export type CatalogKind = 'lessons' | 'labs' | 'playgrounds' | 'paths' | 'quiz';
 
@@ -194,3 +183,104 @@ const LEARNER_SUGGESTION: Record<
     action: { kind: 'browse', href: '/labs', label: 'Xem lab' },
   },
 };
+
+// ─── Hình thức: token màu + icon ────────────────────────────────────────────
+//
+// ⚠ MỌI class ở dưới phải là CHUỖI HẰNG viết đủ, không ghép động. Tailwind quét
+// mã nguồn bằng văn bản thuần: `bg-[var(--difficulty-${token})]` KHÔNG BAO GIỜ
+// được biên dịch, và hỏng đúng kiểu im lặng đã ăn cả `packages/ui` một lần (xem
+// khối `@source` ở `app/globals.css`). Nên bảng dưới lặp lại tên token đầy đủ ở
+// từng dòng thay vì sinh ra chúng.
+//
+// ⚠ Dùng TIỆN ÍCH theme (`bg-difficulty-basic`), KHÔNG phải dạng arbitrary
+// (`bg-[var(--difficulty-basic)]`). Hai dạng cho ra cùng một màu hôm nay, nên
+// khác biệt chỉ lộ về sau: dạng arbitrary đi vòng qua bảng theme, nên nó không
+// còn nằm trong tầm của bất cứ phép đổi tên hay phép đo tập trung nào — kể cả
+// `tokens.contract.test.ts`, thứ khẳng định mọi token có mặt ở CẢ HAI theme và
+// sinh được class Tailwind. Bản đầu của lane này viết dạng arbitrary kèm vế
+// fallback vì lúc đó token chưa tồn tại (`95efe1f` chưa hạ cánh); giờ chúng có
+// thật và fallback đã thành nhiễu, nên bỏ.
+
+/**
+ * Tên độ khó trong DỮ LIỆU là `beginner`, tên trong TOKEN là `basic`.
+ *
+ * Hai từ vựng này không khớp nhau và đó không phải lỗi đánh máy: `ScenarioDifficulty`
+ * (`beginner|intermediate|advanced`) là hợp đồng dữ liệu đã chạy từ P2, còn
+ * `--difficulty-{basic,intermediate,advanced}` là hợp đồng token của 13.A. Ánh
+ * xạ phải nằm ở đúng MỘT chỗ — là đây — thay vì mỗi nơi dùng tự đoán; đoán sai
+ * cho ra `var(--difficulty-beginner)`, một biến không tồn tại, và nó im lặng.
+ */
+/*
+ * ⚠ Tên là `ACCENT`, KHÔNG phải `STRIPE`. "Dải màu" dịch tự nhiên ra "stripe",
+ * nhưng `scripts/check-no-commerce.mjs` bắt chuỗi đó như tên một hãng thanh toán
+ * và cổng cấm thương mại đỏ ngay (đã dính, 3 vi phạm). Cổng cố ý KHÔNG có lối
+ * thoát inline, nên cách đúng là đổi định danh của mình chứ không phải nới mẫu
+ * của cổng — nới mẫu để lọt một chữ vô hại cũng là mở đường cho chữ có hại.
+ */
+export const DIFFICULTY_ACCENT: Record<ScenarioDifficulty, string> = {
+  beginner: 'bg-difficulty-basic',
+  intermediate: 'bg-difficulty-intermediate',
+  advanced: 'bg-difficulty-advanced',
+};
+
+/**
+ * Chip độ khó — CẶP MÀU DO LANE NỀN BẢO ĐẢM.
+ *
+ * Cố ý chỉ ghép `--difficulty-X` với `--difficulty-X-foreground`, không bao giờ
+ * với `--card`/`--foreground`. Cặp nền-với-chữ-của-chính-nó là thứ
+ * `tokens.contract.test.ts` đo được; một cặp do lane này tự chế ra sẽ là cặp
+ * KHÔNG ai đo, và ngưỡng 4.5:1 cho chữ sẽ không có cổng nào giữ.
+ */
+export const DIFFICULTY_CHIP: Record<ScenarioDifficulty, string> = {
+  beginner: 'bg-difficulty-basic text-difficulty-basic-foreground',
+  intermediate: 'bg-difficulty-intermediate text-difficulty-intermediate-foreground',
+  advanced: 'bg-difficulty-advanced text-difficulty-advanced-foreground',
+};
+
+/**
+ * Trạng thái học — phân biệt bằng CẢ màu LẪN hình.
+ *
+ * Người mù màu đỏ-lục (~8% nam giới) không tách được `--status-progress` khỏi
+ * `--status-done` nếu hai thứ đó chỉ khác nhau ở sắc độ. Nên mỗi trạng thái
+ * mang thêm một icon khác HÌNH (vòng rỗng / vòng có chấm / vòng có dấu tích) và
+ * nhãn chữ luôn hiện — màu là lớp thứ ba, không phải lớp duy nhất.
+ *
+ * ⚠ `not-started` KHÔNG có token riêng: hợp đồng chỉ cấp
+ * `--status-{progress,done,locked}`, và "chưa bắt đầu" không phải "bị khoá" —
+ * dán `--status-locked` lên nó sẽ nói với người học rằng họ không được vào, một
+ * lời nói dối. Nó dùng `--muted` đang có, đúng nghĩa: chưa nổi bật vì chưa xảy
+ * ra. `--status-locked` để nguyên chưa dùng — trang danh mục không khoá mục nào.
+ */
+export const PROGRESS_STATUS_STYLE: Record<string, string> = {
+  'in-progress': 'bg-status-progress text-status-progress-foreground',
+  completed: 'bg-status-done text-status-done-foreground',
+  'not-started': 'bg-muted text-muted-foreground',
+};
+
+/** Icon theo trạng thái — tên logic, `catalog-icons.tsx` dịch sang component. */
+export const PROGRESS_STATUS_ICON: Record<string, 'statusNotStarted' | 'statusInProgress' | 'statusCompleted'> = {
+  'not-started': 'statusNotStarted',
+  'in-progress': 'statusInProgress',
+  completed: 'statusCompleted',
+};
+
+/**
+ * Số kết quả ĐANG HIỆN — và chỉ thế.
+ *
+ * ⛔ KHÔNG được thành "N/M mục". Server trả `nextCursor` (còn hay hết) chứ không
+ * trả tổng, nên mọi mẫu số ở đây sẽ là số bịa — đúng hạng lỗi
+ * nhãn-khẳng-định-quá-dữ-liệu mà `describePageScope` đã phải viết cả một khối
+ * chú thích để tránh. Câu này vì vậy nói "trong trang này" khi còn trang sau, và
+ * chỉ dám bỏ mệnh đề đó khi `hasNext` là false.
+ */
+export function describeResultCount(args: {
+  readonly kind: CatalogKind;
+  readonly shown: number;
+  readonly hasNext: boolean;
+  readonly hasActiveFilter: boolean;
+}): string {
+  const noun = NOUN[args.kind];
+  const scope = args.hasNext ? ' trong trang này' : '';
+  const filtered = args.hasActiveFilter ? ' khớp bộ lọc' : '';
+  return `${args.shown} ${noun}${filtered}${scope}`;
+}
