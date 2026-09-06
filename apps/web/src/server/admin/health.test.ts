@@ -173,6 +173,33 @@ describe('fetchAdminHealth — ba trạng thái phân biệt được bằng MÁ
     expect(source.series).toEqual([]);
   });
 
+  it('GATEWAY_METRICS_URL VẮNG MẶT (mặc định của chart hôm nay) ⇒ nguồn đó ok:false, KHÔNG giết cả admin.health', async () => {
+    // ⛔ Đây là CẤU HÌNH MẶC ĐỊNH trên cụm, không phải một ca hiếm:
+    // `web-deployment.yaml` OMIT hẳn biến khi `web.env.gatewayMetricsUrl` rỗng,
+    // và rỗng là mặc định (cổng admin 8083 của gateway cố ý không lên Service).
+    // `gatewayMetricsUrl()` là `requireEnv` nên nó NÉM — nếu lời gọi đó không
+    // được bọc, cả trang quản trị trả 500 thay vì hiện một nguồn hỏng.
+    const saved = process.env['GATEWAY_METRICS_URL'];
+    delete process.env['GATEWAY_METRICS_URL'];
+    try {
+      stubFetch({ orchestrator: ok200(REAL_METRICS) });
+      const health = await fetchAdminHealth(ctx);
+
+      const gateway = sourceNamed(health.sources, 'gateway');
+      expect(gateway.reached).toBe(false);
+      expect(gateway.ok).toBe(false);
+      expect(gateway.error).toContain('chưa cấu hình');
+
+      // Vế còn lại: nguồn KIA vẫn phải chạy bình thường — một nguồn thiếu cấu
+      // hình không được kéo theo nguồn còn lại.
+      expect(sourceNamed(health.sources, 'orchestrator').ok).toBe(true);
+    } finally {
+      if (saved !== undefined) {
+        process.env['GATEWAY_METRICS_URL'] = saved;
+      }
+    }
+  });
+
   it('CẢ HAI nguồn bị chặn (đúng hiện trạng cụm hardened) ⇒ không nguồn nào ok, và nói rõ vì sao', async () => {
     stubFetch({ orchestrator: refused('fetch failed'), gateway: refused('fetch failed') });
     const health = await fetchAdminHealth(ctx);

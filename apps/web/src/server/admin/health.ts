@@ -94,7 +94,42 @@ export function parsePrometheusText(text: string): MetricSeries[] {
 
 const METRICS_FETCH_TIMEOUT_MS = 10_000;
 
-async function fetchSource(name: HealthSource['name'], url: string): Promise<HealthSource> {
+/**
+ * URL của một nguồn, hoặc `null` khi CHƯA ĐƯỢC CẤU HÌNH.
+ *
+ * ⛔ ĐÃ ĐO trên chart thật, không phải phòng xa: `web-deployment.yaml` **OMIT**
+ * hẳn biến `GATEWAY_METRICS_URL` khi `web.env.gatewayMetricsUrl` rỗng — và rỗng
+ * LÀ mặc định hôm nay, vì cổng admin 8083 của gateway cố ý không lên Service.
+ * Chú thích ngay tại chỗ omit đó khẳng định: *"`admin.health` đã thiết kế sẵn
+ * cho nguồn gateway báo lỗi có kiểm soát (`sources[].ok/error`)"*.
+ *
+ * Khẳng định ấy KHÔNG đúng nếu ta gọi thẳng `gatewayMetricsUrl()`: nó là
+ * `requireEnv`, tức nó NÉM khi biến vắng mặt — và vì lời gọi nằm ngoài `try`
+ * của `fetchSource`, cú ném đó giết CẢ `admin.health` (500), thay vì hiện một
+ * nguồn `ok:false` cạnh một nguồn `ok:true`. Nói cách khác: đúng cấu hình mặc
+ * định của cụm hôm nay sẽ làm trang quản trị trắng.
+ *
+ * Nên "chưa cấu hình" là một TRẠNG THÁI, không phải một lỗi hệ thống — và nó
+ * phải nói rõ mình là gì, để không ai đọc nhầm thành "gateway chết".
+ */
+function resolveUrl(read: () => string): string | null {
+  try {
+    return read();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchSource(name: HealthSource['name'], url: string | null): Promise<HealthSource> {
+  if (url === null) {
+    return {
+      name,
+      reached: false,
+      ok: false,
+      error: 'chưa cấu hình URL /metrics cho nguồn này (biến môi trường vắng mặt)',
+      series: [],
+    };
+  }
   let response: Response;
   try {
     response = await fetch(url, { signal: AbortSignal.timeout(METRICS_FETCH_TIMEOUT_MS) });
@@ -158,8 +193,8 @@ export async function fetchAdminHealth(ctx: {
       });
       return null;
     }),
-    fetchSource('orchestrator', orchestratorMetricsUrl()),
-    fetchSource('gateway', gatewayMetricsUrl()),
+    fetchSource('orchestrator', resolveUrl(orchestratorMetricsUrl)),
+    fetchSource('gateway', resolveUrl(gatewayMetricsUrl)),
   ]);
   return {
     fetchedAt: new Date().toISOString(),
