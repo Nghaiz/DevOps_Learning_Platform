@@ -73,3 +73,14 @@ plans/devops-learning-platform/reports/harness/*/.barrier-*/
 # infra/k6 — cookie phiên thật + log lượt chạy (P3/3.F)
 infra/k6/.users.json
 infra/k6/out/
+
+# Báo cáo và bằng chứng chạy — CỤC BỘ, cố ý không lên git.
+#
+# `git ls-files reports` = 0: chưa chặng nào đưa report lên remote. Nhưng trước
+# 2026-09-06 đó chỉ là QUY ƯỚC, không phải hàng rào — `git check-ignore` trên
+# một file report trả exit 1, tức `git add` sẽ THÀNH CÔNG, và một `git add -A`
+# của bất kỳ ai sẽ kéo cả thư mục lên. Report chứa chi tiết cụm (tên pod, IP nội
+# bộ, số đo hạ tầng), nên đó là thứ nên chặn bằng luật chứ không bằng trí nhớ.
+#
+# Muốn đưa một report cụ thể lên thì `git add -f <đường dẫn>` sau khi đã ĐỌC nó.
+reports/
