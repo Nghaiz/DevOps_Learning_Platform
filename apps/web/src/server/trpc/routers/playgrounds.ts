@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { InvalidCursorError } from '@devops-platform/scenario';
 import {
   SANDBOX_TIER_NAMES,
-  SCENARIO_DIFFICULTIES,
+  SCENARIO_CAPABILITIES,
   scenarioIdSchema,
 } from '@devops-platform/shared-types/scenario';
 import { unsupportedCapabilities } from '../../lessons/catalog';
@@ -31,19 +31,34 @@ const startInput = z
   .strict();
 
 /**
- * D9 (phase-13) — bộ lọc SERVER, cùng khuôn `lessons.list`/`labs.list` (đối
- * xứng FE: cả ba trang catalog cùng một bộ điều khiển lọc).
+ * D9 (phase-13) — bộ lọc SERVER. Chỉ nhận những gì playground THẬT SỰ CÓ.
  *
- * ⚠ `difficulty` KHÔNG có tác dụng ở đây: `PlaygroundSummary` không có field
- * đó (`playgroundSchema` cố ý không có độ khó — nó không có bài để khó/dễ).
- * `listPlaygroundsPage` bỏ qua field filter này (xem chú thích ở
- * `ContentSource.listPlaygroundsPage`); giữ ở input để form lọc dùng chung
- * component với hai trang kia không phải rẽ nhánh theo loại nội dung.
+ * ⛔ **`difficulty` đã bị GỠ (2026-09-06), và không được thêm lại.** Bản trước
+ * nhận nó rồi bỏ qua, với lý do "để form lọc dùng chung component với hai trang
+ * kia không phải rẽ nhánh". Đó là đổi một lời nói dối trong API lấy một câu
+ * `if` ở một component. Một tham số server NHẬN rồi PHỚT LỜ là đúng chế độ hỏng
+ * mà `noCursorListInputSchema` đã đặt tên và từ chối: câu trả lời trông hợp lệ,
+ * không lỗi, không dấu hiệu — người dùng chọn "Nâng cao" và nhận lại nguyên
+ * danh sách cũ, rồi kết luận là bộ lọc hỏng chứ không phải không áp dụng được.
+ *
+ * `.strict()` biến nó thành 400 `unrecognized_keys`, đúng cách `paths.list` và
+ * `quiz.list` từ chối bộ lọc chúng không đáp ứng được. `PlaygroundSummary`
+ * không có độ khó (`playgroundSchema` cố ý không có — không có bài để khó/dễ),
+ * nên ở đây không có "ý nghĩa thật" nào để gán cho tham số này.
+ *
+ * ⚠ Hệ quả cho FE (lane C): `/playgrounds` KHÔNG được gửi `difficulty` — hôm
+ * nay nó không gửi (`playgrounds-client.tsx` truyền `fields={['tier']}`), nên
+ * thay đổi này không phá màn hình nào. Nó CÓ phá `catalog-input.test.ts`, chỗ
+ * `playgrounds.list` còn nằm trong nhóm `FILTERABLE` — xem report.
+ *
+ * ⛔ Cũng KHÔNG có `orderBy`, cùng một lý lẽ: playground không có độ khó lẫn
+ * thời lượng, nên hai thứ tự server hỗ trợ đều vô nghĩa với nó. Thứ tự duy nhất
+ * nó có là `id` — thứ đã là mặc định, không cần một tham số để nói ra.
  */
 const listPlaygroundsInput = listInputSchema
   .extend({
-    difficulty: z.enum(SCENARIO_DIFFICULTIES).optional(),
     tier: z.enum(SANDBOX_TIER_NAMES).optional(),
+    capability: z.enum(SCENARIO_CAPABILITIES).optional(),
   })
   .strict();
 
@@ -59,7 +74,7 @@ export const playgroundsRouter = createTRPCRouter({
       const result = await playgroundSource().listPlaygroundsPage({
         limit: input.limit,
         cursor: input.cursor,
-        filter: { difficulty: input.difficulty, tier: input.tier },
+        filter: { tier: input.tier, capability: input.capability },
       });
       return { items: result.items, limit: input.limit, nextCursor: result.nextCursor };
     } catch (cause) {

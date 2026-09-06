@@ -26,12 +26,24 @@ export {
 } from './content-blocks.ts';
 export { INDEX_FILENAME, SIDECAR_FILENAME, loadScenario, loadScenarios } from './loader.ts';
 export {
+  CONTENT_ORDER_KEYS,
+  NO_DURATION_SORT_VALUE,
+  UNKNOWN_DIFFICULTY_RANK,
+  compareContent,
+  compareCursors,
+  contentSortValue,
+  decodeContentCursor,
+  encodeContentCursor,
   filesystemScenarioSource,
+  isAfterCursor,
   matchesContentFilter,
   paginateSorted,
   type ContentListFilter,
+  type ContentOrderKey,
   type ContentPage,
+  type ContentSortable,
   type ContentSource,
+  type DecodedContentCursor,
   type ListPageOptions,
   type ScenarioSource,
 } from './source.ts';

@@ -5,6 +5,7 @@ import {
   computeAttemptDurationSeconds,
   computeLabScore,
   computeLabStatus,
+  CONTENT_ORDER_KEYS,
   InvalidCursorError,
 } from '@devops-platform/scenario';
 import {
@@ -18,6 +19,7 @@ import {
 import {
   effectiveCapabilities,
   SANDBOX_TIER_NAMES,
+  SCENARIO_CAPABILITIES,
   SCENARIO_DIFFICULTIES,
 } from '@devops-platform/shared-types/scenario';
 import type { Database } from '../../db/client';
@@ -118,11 +120,17 @@ const IDEMPOTENCY_KEY_SCHEMA = z
   .string()
   .regex(/^[A-Za-z0-9_-]{1,64}$/, 'idempotencyKey chỉ nhận [A-Za-z0-9_-], tối đa 64 ký tự');
 
-/** D9 (phase-13) — bộ lọc SERVER, cùng khuôn `lessons.list`. */
+/**
+ * D9 (phase-13) — bộ lọc SERVER + thứ tự SERVER, cùng khuôn `lessons.list`.
+ * `orderBy` không nhận `'title'`; lý do đo được nằm ở `CONTENT_ORDER_KEYS`
+ * (`packages/scenario/src/source.ts`).
+ */
 const listLabsInput = listInputSchema
   .extend({
     difficulty: z.enum(SCENARIO_DIFFICULTIES).optional(),
     tier: z.enum(SANDBOX_TIER_NAMES).optional(),
+    capability: z.enum(SCENARIO_CAPABILITIES).optional(),
+    orderBy: z.enum(CONTENT_ORDER_KEYS).optional(),
   })
   .strict();
 
@@ -156,7 +164,12 @@ export const labsRouter = createTRPCRouter({
       const result = await labSource().listLabsPage({
         limit: input.limit,
         cursor: input.cursor,
-        filter: { difficulty: input.difficulty, tier: input.tier },
+        orderBy: input.orderBy,
+        filter: {
+          difficulty: input.difficulty,
+          tier: input.tier,
+          capability: input.capability,
+        },
       });
       return { items: result.items, limit: input.limit, nextCursor: result.nextCursor };
     } catch (cause) {

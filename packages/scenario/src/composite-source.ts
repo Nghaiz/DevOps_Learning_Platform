@@ -2,7 +2,17 @@ import type { Scenario, ScenarioSummary } from '@devops-platform/shared-types/sc
 import type { Lab, LabSummary } from '@devops-platform/shared-types/lab';
 import type { Playground, PlaygroundSummary } from '@devops-platform/shared-types/playground';
 import { InvalidCursorError } from './errors.ts';
-import type { ContentPage, ContentSource, ListPageOptions } from './source.ts';
+import {
+  compareContent,
+  compareCursors,
+  decodeContentCursor,
+  encodeContentCursor,
+  type ContentOrderKey,
+  type ContentPage,
+  type ContentSource,
+  type ContentSortable,
+  type ListPageOptions,
+} from './source.ts';
 import type { ContentSourceLogger } from './db-source.ts';
 
 /**
@@ -223,12 +233,13 @@ async function collectPages<T extends { readonly id: string }>(
   return out;
 }
 
-/** Gộp N trang đã-sắp-theo-id (mỗi nguồn tự sắp) thành MỘT trang, đĩa thắng khi trùng id. */
-function mergePages<T extends { readonly id: string }>(
+/** Gộp N trang đã-sắp (mỗi nguồn tự sắp theo cùng `orderBy`) thành MỘT trang, đĩa thắng khi trùng id. */
+function mergePages<T extends ContentSortable>(
   pages: readonly (readonly [string, ContentPage<T>])[],
   limit: number,
   method: string,
   logger: ContentSourceLogger,
+  orderBy: ContentOrderKey,
 ): ContentPage<T> {
   const winners = new Map<string, { readonly value: T; readonly sourceKind: string }>();
   for (const [sourceKind, page] of pages) {
@@ -246,9 +257,11 @@ function mergePages<T extends { readonly id: string }>(
       });
     }
   }
-  const merged = [...winners.values()]
-    .map((entry) => entry.value)
-    .sort((a, b) => a.id.localeCompare(b.id));
+  // Sắp bằng CHÍNH comparator mà mỗi nguồn đã dùng. Một `.sort(id)` cứng ở đây
+  // là cách âm thầm nhất để mất dòng: mỗi nguồn trả trang đúng theo `orderBy`,
+  // composite xếp lại theo `id`, rồi phát `nextCursor` từ mục cuối của thứ tự
+  // SAI — lượt sau bỏ qua tất cả những gì nằm giữa hai mốc.
+  const merged = [...winners.values()].map((entry) => entry.value).sort(compareContent(orderBy));
 
   const page = merged.slice(0, limit);
   // Còn trang sau khi: (a) hợp nhất ra nhiều hơn `limit` mục (một vài mục bị
@@ -264,7 +277,7 @@ function mergePages<T extends { readonly id: string }>(
     return { items: page, nextCursor: null };
   }
   if (last !== undefined) {
-    return { items: page, nextCursor: last.id };
+    return { items: page, nextCursor: encodeContentCursor(orderBy, last) };
   }
 
   /**
@@ -277,16 +290,44 @@ function mergePages<T extends { readonly id: string }>(
    * để chặn.
    *
    * Lấy cursor NHỎ NHẤT trong các nguồn: mọi nguồn cùng một thứ tự toàn phần
-   * `id` tăng dần, nên `id > min` không thể bỏ qua mục nào của bất kỳ nguồn
-   * nào. Nó là một id THẬT do một nguồn vừa phát ra, nên vòng lặp vẫn tiến
-   * (lượt sau bắt đầu sau nó), không quay lại.
+   * `(khoá sắp xếp, id)` tăng dần, nên "sau min" không thể bỏ qua mục nào của
+   * bất kỳ nguồn nào. Nó là một cursor THẬT do một nguồn vừa phát ra, nên vòng
+   * lặp vẫn tiến (lượt sau bắt đầu sau nó), không quay lại.
+   *
+   * ⛔ So sánh bằng KHOÁ ĐÃ GIẢI MÃ, không bằng chuỗi. Với `orderBy` khác
+   * `'id'` cursor có dạng `'d:2:abc'`, và `'d:10:abc' < 'd:2:abc'` theo chuỗi —
+   * tức "min" theo chuỗi có thể là mốc LỚN hơn, và lượt sau nhảy qua dữ liệu.
    */
-  const smallest = sourceCursors.reduce((a, b) => (a < b ? a : b));
+  const smallest = sourceCursors.reduce((a, b) => (compareCursors(orderBy, a, b) <= 0 ? a : b));
   logger.warn('[content:composite] trang hợp nhất RỖNG nhưng nguồn còn dữ liệu — đi tiếp bằng cursor nhỏ nhất', {
     method,
     nextCursor: smallest,
   });
   return { items: page, nextCursor: smallest };
+}
+
+/**
+ * Giải mã cursor MỘT LẦN, ở composite, TRƯỚC khi phát tán cho các nguồn — rồi
+ * khẳng định `id` của nó tồn tại ở đâu đó.
+ *
+ * ⛔ Thứ tự hai bước này quan trọng. `collectPages` chạy `Promise.allSettled`,
+ * nên một `InvalidCursorError` ném ra TỪ BÊN TRONG một nguồn sẽ bị nuốt thành
+ * WARN "một nguồn lỗi — trang trả về đang THIẾU" và client nhận một trang vơi
+ * kèm 200 thay vì 400. Giải mã ở đây làm cursor sai định dạng (hoặc cursor của
+ * một `orderBy` khác) nổ ra đúng chỗ nó là lỗi của người gọi.
+ *
+ * Trả về `id` để bước kiểm-tồn-tại dùng — với `orderBy` khác `'id'`, cursor
+ * KHÔNG phải một id nên `get(cursor)` sẽ luôn trả `null` và mọi lượt sang trang
+ * hai thành 400.
+ */
+function decodeCursorForPage(
+  options: ListPageOptions,
+  orderBy: ContentOrderKey,
+): string | undefined {
+  if (options.cursor === undefined) {
+    return undefined;
+  }
+  return decodeContentCursor(options.cursor, orderBy).id;
 }
 
 async function validateCursorExists<T>(
@@ -329,11 +370,13 @@ export function compositeContentSource(
     },
 
     async listPage(options: ListPageOptions): Promise<ContentPage<ScenarioSummary>> {
-      if (options.cursor !== undefined) {
-        await validateCursorExists(sources, options.cursor, async (s) => s.get(options.cursor as string), 'listPage', logger);
+      const orderBy = options.orderBy ?? 'id';
+      const cursorId = decodeCursorForPage(options, orderBy);
+      if (options.cursor !== undefined && cursorId !== undefined) {
+        await validateCursorExists(sources, options.cursor, async (s) => s.get(cursorId), 'listPage', logger);
       }
       const pages = await collectPages(sources, 'listPage', async (s, o) => s.listPage(o), options, logger);
-      return mergePages(pages, options.limit, 'listPage', logger);
+      return mergePages(pages, options.limit, 'listPage', logger, orderBy);
     },
 
     async listLabs(): Promise<LabSummary[]> {
@@ -349,11 +392,13 @@ export function compositeContentSource(
     },
 
     async listLabsPage(options: ListPageOptions): Promise<ContentPage<LabSummary>> {
-      if (options.cursor !== undefined) {
-        await validateCursorExists(sources, options.cursor, async (s) => s.getLab(options.cursor as string), 'listLabsPage', logger);
+      const orderBy = options.orderBy ?? 'id';
+      const cursorId = decodeCursorForPage(options, orderBy);
+      if (options.cursor !== undefined && cursorId !== undefined) {
+        await validateCursorExists(sources, options.cursor, async (s) => s.getLab(cursorId), 'listLabsPage', logger);
       }
       const pages = await collectPages(sources, 'listLabsPage', async (s, o) => s.listLabsPage(o), options, logger);
-      return mergePages(pages, options.limit, 'listLabsPage', logger);
+      return mergePages(pages, options.limit, 'listLabsPage', logger, orderBy);
     },
 
     async listPlaygrounds(): Promise<PlaygroundSummary[]> {
@@ -369,11 +414,13 @@ export function compositeContentSource(
     },
 
     async listPlaygroundsPage(options: ListPageOptions): Promise<ContentPage<PlaygroundSummary>> {
-      if (options.cursor !== undefined) {
+      const orderBy = options.orderBy ?? 'id';
+      const cursorId = decodeCursorForPage(options, orderBy);
+      if (options.cursor !== undefined && cursorId !== undefined) {
         await validateCursorExists(
           sources,
           options.cursor,
-          async (s) => s.getPlayground(options.cursor as string),
+          async (s) => s.getPlayground(cursorId),
           'listPlaygroundsPage',
           logger,
         );
@@ -385,7 +432,7 @@ export function compositeContentSource(
         options,
         logger,
       );
-      return mergePages(pages, options.limit, 'listPlaygroundsPage', logger);
+      return mergePages(pages, options.limit, 'listPlaygroundsPage', logger, orderBy);
     },
   };
 }

@@ -6,6 +6,7 @@ import {
   effectiveCapabilities,
   scenarioIdSchema,
   SANDBOX_TIER_NAMES,
+  SCENARIO_CAPABILITIES,
   SCENARIO_DIFFICULTIES,
   type Scenario,
   type SandboxTierName,
@@ -16,7 +17,11 @@ import { attachSandboxCookie } from '../../auth/sandbox-cookie';
 import { mintAccessTokenFor } from '../../auth/jwt';
 import { callOrchestrator, orchestratorClient } from '../../grpc/orchestrator-client';
 import { toJsonSession } from '../../grpc/session-json';
-import { InvalidCursorError, resolveScenarioAssets } from '@devops-platform/scenario';
+import {
+  CONTENT_ORDER_KEYS,
+  InvalidCursorError,
+  resolveScenarioAssets,
+} from '@devops-platform/scenario';
 import {
   profileForCapabilities,
   scenarioDir,
@@ -192,11 +197,25 @@ const runSetupInput = z
 /**
  * D9 (phase-13) — `lessons.list` nới thêm bộ lọc SERVER, áp TRƯỚC khi phân
  * trang (không phải một điều kiện FE tự thêm sau khi đã có trang).
+ *
+ * `orderBy` (phase-13 13.C task 9) chỉ nhận những thứ tự mà **keyset giữ được**
+ * — `'id'`, `'difficulty'`, `'duration'`. ⛔ KHÔNG có `'title'`: xem chú thích
+ * dài ở `CONTENT_ORDER_KEYS` (`packages/scenario/src/source.ts`) — Postgres và
+ * `localeCompare('vi')` cho hai thứ tự KHÁC NHAU trên tiêu đề tiếng Việt (đã đo
+ * 2026-09-06), nên một keyset theo `title` vừa sai bảng chữ vừa mất dòng ở biên
+ * trang. Sắp theo tiêu đề ở lại phía client, trong trang, với nhãn nói đúng
+ * phạm vi.
+ *
+ * Đổi `orderBy` làm cursor cũ vô nghĩa và server NÓI RA điều đó (400 "Cursor
+ * không còn hợp lệ") thay vì đọc nó theo khoá mới — client phải quay về trang
+ * đầu khi đổi cách sắp.
  */
 const listLessonsInput = listInputSchema
   .extend({
     difficulty: z.enum(SCENARIO_DIFFICULTIES).optional(),
     tier: z.enum(SANDBOX_TIER_NAMES).optional(),
+    capability: z.enum(SCENARIO_CAPABILITIES).optional(),
+    orderBy: z.enum(CONTENT_ORDER_KEYS).optional(),
   })
   .strict();
 
@@ -232,7 +251,12 @@ export const lessonsRouter = createTRPCRouter({
       result = await scenarioSource().listPage({
         limit: input.limit,
         cursor: input.cursor,
-        filter: { difficulty: input.difficulty, tier: input.tier },
+        orderBy: input.orderBy,
+        filter: {
+          difficulty: input.difficulty,
+          tier: input.tier,
+          capability: input.capability,
+        },
       });
     } catch (cause) {
       if (cause instanceof InvalidCursorError) {

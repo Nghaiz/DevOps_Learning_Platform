@@ -1,16 +1,21 @@
-import { and, asc, count, eq, gt, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray, or, sql, type SQL } from 'drizzle-orm';
 import {
   ownDraftsAuthorId,
   visibleStates,
   type ContentKind,
   type ContentVisibility,
 } from '@devops-platform/shared-types/authoring';
-import type {
-  ContentBodyRow,
-  ContentItemRow,
-  ContentRepository,
-  ContentStepRow,
-  ListPageOptions,
+import { SCENARIO_DIFFICULTIES } from '@devops-platform/shared-types/scenario';
+import {
+  NO_DURATION_SORT_VALUE,
+  UNKNOWN_DIFFICULTY_RANK,
+  decodeContentCursor,
+  type ContentBodyRow,
+  type ContentItemRow,
+  type ContentOrderKey,
+  type ContentRepository,
+  type ContentStepRow,
+  type ListPageOptions,
 } from '@devops-platform/scenario';
 import type { Database, DbOrTx } from '../db/client';
 import { contentItems, contentSteps, type ContentItemRecord } from '../db/schema';
@@ -119,6 +124,44 @@ function stepCountOf(counts: ReturnType<typeof stepCountSubquery>) {
 }
 
 /**
+ * Biểu thức KHOÁ SẮP XẾP của một `orderBy` — `null` nghĩa là "khoá LÀ `id`".
+ *
+ * ⛔ Biểu thức này xuất hiện ở HAI chỗ trong cùng một câu (`ORDER BY` và vị từ
+ * keyset) và chúng **phải giống hệt nhau**. Đó là lý do nó là một hàm chứ không
+ * phải hai chuỗi viết tay: hai bản chép sẽ trôi khỏi nhau và triệu chứng không
+ * phải một lỗi — chỉ là vài dòng biến mất ở biên trang.
+ *
+ * Cả hai biểu thức đều **không bao giờ NULL**, có chủ ý. So sánh theo hàng
+ * (`(a,b) > (c,d)`) mà một vế là NULL cho ra NULL, và một vị từ NULL loại dòng
+ * đó khỏi mọi trang — tức những bài chưa khai thời lượng sẽ không bao giờ đọc
+ * tới được. `case … else` và `coalesce` biến "chưa biết" thành một hạng THẬT,
+ * đứng cuối, thay vì một khoảng trống nuốt dòng.
+ *
+ * Hằng số hạng lấy TỪ `packages/scenario` (`UNKNOWN_DIFFICULTY_RANK`,
+ * `NO_DURATION_SORT_VALUE`) và thứ tự độ khó lấy từ `SCENARIO_DIFFICULTIES` —
+ * cùng một nguồn mà nguồn ĐĨA dùng. Hai nguồn xếp khác nhau thì cursor của
+ * nguồn này vô nghĩa với nguồn kia, và composite sẽ trộn ra một dãy không đơn
+ * điệu.
+ *
+ * `sql.raw` cho các SỐ: chúng là hằng biên dịch (chỉ số mảng, hằng đã export),
+ * không có input người dùng nào chạm vào — và bind chúng làm tham số khiến
+ * Postgres không suy được kiểu bên trong `CASE` (`could not determine data type
+ * of parameter`).
+ */
+function sortKeyExpr(orderBy: ContentOrderKey): SQL | null {
+  if (orderBy === 'id') {
+    return null;
+  }
+  if (orderBy === 'duration') {
+    return sql`coalesce(${contentItems.estimatedMinutes}, ${sql.raw(String(NO_DURATION_SORT_VALUE))})`;
+  }
+  const whens = SCENARIO_DIFFICULTIES.map(
+    (level, index) => sql`when ${level} then ${sql.raw(String(index))}`,
+  );
+  return sql`(case ${contentItems.difficulty} ${sql.join(whens, sql` `)} else ${sql.raw(String(UNKNOWN_DIFFICULTY_RANK))} end)`;
+}
+
+/**
  * Repository đọc — thứ `dbContentSource` dùng.
  *
  * `db` được truyền vào chứ không lấy từ `getDb()` bên trong: test dựng
@@ -155,15 +198,45 @@ export function contentRepository(db: Database): ContentRepository {
      * một `COUNT(*)` riêng.
      */
     async listItemsPage(kind: ContentKind, visibility: ContentVisibility, options: ListPageOptions) {
+      const orderBy = options.orderBy ?? 'id';
+      const keyExpr = sortKeyExpr(orderBy);
       const conditions = [eq(contentItems.kind, kind), visibleWhere(visibility)];
       if (options.cursor !== undefined) {
-        conditions.push(gt(contentItems.id, options.cursor));
+        const cursor = decodeContentCursor(options.cursor, orderBy);
+        if (keyExpr === null) {
+          conditions.push(gt(contentItems.id, cursor.id));
+        } else {
+          /**
+           * So sánh THEO HÀNG, không phải `key > cv OR (key = cv AND id > ci)`
+           * viết tay. Hai dạng tương đương về nghĩa; dạng hàng ngắn hơn, và
+           * quan trọng hơn là nó không có chỗ để viết sai `>=` ở một trong hai
+           * vế — lỗi đó trả lại mục cuối của trang trước một lần nữa, và một
+           * danh sách lặp một mục trông y hệt một danh sách đúng.
+           *
+           * Ép kiểu tường minh (`::int`, `::text`): trong so sánh theo hàng,
+           * Postgres không suy được kiểu của tham số từ vế bên kia.
+           */
+          conditions.push(
+            sql`(${keyExpr}, ${contentItems.id}) > (${cursor.sortValue ?? 0}::int, ${cursor.id}::text)`,
+          );
+        }
       }
       if (options.filter?.tier !== undefined) {
         conditions.push(eq(contentItems.tier, options.filter.tier));
       }
       if (options.filter?.difficulty !== undefined && kind !== 'playground') {
         conditions.push(eq(contentItems.difficulty, options.filter.difficulty));
+      }
+      if (options.filter?.capability !== undefined) {
+        /**
+         * `capabilities` là `jsonb` mảng ⇒ phép CHỨA (`@>`), không phải `=`.
+         * Áp ở đây (trong `WHERE`, trước `LIMIT`) chứ không lọc mảng sau khi
+         * trang đã cắt — nếu không, `limit` đếm dòng TRƯỚC lọc và một trang
+         * đầy mục không khớp sẽ trả về rỗng trong khi kho còn dữ liệu.
+         */
+        conditions.push(
+          sql`${contentItems.capabilities} @> ${JSON.stringify([options.filter.capability])}::jsonb`,
+        );
       }
 
       const counts = stepCountSubquery(db);
@@ -172,7 +245,7 @@ export function contentRepository(db: Database): ContentRepository {
         .from(contentItems)
         .leftJoin(counts, eq(counts.contentId, contentItems.id))
         .where(and(...conditions))
-        .orderBy(asc(contentItems.id))
+        .orderBy(...(keyExpr === null ? [asc(contentItems.id)] : [asc(keyExpr), asc(contentItems.id)]))
         .limit(options.limit + 1);
 
       const hasMore = rows.length > options.limit;

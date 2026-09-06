@@ -20,7 +20,12 @@ import {
   type Playground,
   type PlaygroundSummary,
 } from '@devops-platform/shared-types/playground';
-import type { ContentPage, ContentSource, ListPageOptions } from './source.ts';
+import {
+  encodeContentCursor,
+  type ContentPage,
+  type ContentSource,
+  type ListPageOptions,
+} from './source.ts';
 
 /**
  * Hiện thực THỨ HAI của `ContentSource` — nội dung SOẠN TRÊN UI, nằm trong
@@ -143,6 +148,14 @@ export interface ContentRepository {
    * kiện không áp dụng được" mà nguồn đĩa đã chọn (`matchesContentFilter`) — hai
    * nguồn phải khớp nhau, không thì kết quả composite phụ thuộc bài nằm ở đĩa
    * hay ở DB.
+   *
+   * `filter.capability` KHÔNG có ngoại lệ nào như thế: cột `capabilities` có
+   * mặt ở mọi `kind`, nên phép chứa áp cho cả ba.
+   *
+   * `options.orderBy` (phase-13) đổi CẢ HAI vế cùng lúc và chúng phải khớp
+   * nhau: `ORDER BY <khoá>, id` và vị từ keyset `(<khoá>, id) > (cv, ci)`. Đổi
+   * một vế mà quên vế kia không sinh lỗi nào — nó chỉ làm trang bỏ sót hoặc lặp
+   * dòng ở đúng chỗ nối, thứ chỉ một phép đi-hết-trang mới thấy.
    */
   listItemsPage(
     kind: ContentKind,
@@ -385,7 +398,15 @@ export function dbContentSource(
     const lastRaw = page[page.length - 1];
     return {
       items: page.map(summarize).filter((s): s is T => s !== null),
-      nextCursor: hasMore && lastRaw !== undefined ? lastRaw.id : null,
+      // Cursor dựng từ hàng THÔ (`ContentItemRow`) chứ không từ DTO đã
+      // summarize — cùng lý do đã ghi ở trên, cộng một lý do mới: với `orderBy`
+      // khác `'id'`, khoá sắp xếp nằm ở `difficulty`/`estimatedMinutes` của
+      // hàng thô, và một hàng rớt schema (bị `summarize` trả `null`) vẫn phải
+      // đóng góp vị trí của nó vào cursor.
+      nextCursor:
+        hasMore && lastRaw !== undefined
+          ? encodeContentCursor(options.orderBy ?? 'id', lastRaw)
+          : null,
     };
   }
 
