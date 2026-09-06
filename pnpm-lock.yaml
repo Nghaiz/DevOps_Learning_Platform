@@ -83,6 +83,9 @@ importers:
       ioredis:
         specifier: ^6.0.0
         version: 6.0.0
+      lucide-react:
+        specifier: ^1.38.0
+        version: 1.40.0(react@19.2.8)
       next:
         specifier: ^16.3.3
         version: 16.3.4(@types/node@26.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
