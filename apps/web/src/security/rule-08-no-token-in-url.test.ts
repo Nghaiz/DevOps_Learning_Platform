@@ -35,24 +35,67 @@ function collectSourceFiles(dir: string, out: string[] = []): string[] {
 
 describe('luật 8 — token không bao giờ đi qua URL/query string', () => {
   const srcRoot = path.resolve(import.meta.dirname, '..');
-  const files = collectSourceFiles(srcRoot);
+
+  /**
+   * Đọc MỘT lượt cho cả ba phép kiểm, ở thân `describe` (pha thu thập) chứ không
+   * trong thân `it`.
+   *
+   * Bản trước đọc TOÀN BỘ cây nguồn ba lần — mỗi `it` một lượt `readFileSync`
+   * trên cùng tập file. Đo dưới `turbo run` với năm gói song song trên Windows:
+   * 5332ms cho 4 test, tức mỗi lượt quét ~1777ms và mỗi lượt nằm TRONG một thân
+   * `it` do `testTimeout` 5000ms gác. Cây nguồn đang lớn lên theo từng đợt, nên
+   * đó là một cổng an ninh sẽ đỏ vì tranh I/O — và một cổng chớp tắt là một cổng
+   * sẽ bị tắt. Cùng hình dạng đã cắn `landmark-contract.test.ts` (đỏ thật ở
+   * 5136ms) và `packages/scenario/src/source.test.ts`; xem
+   * [[turbo-parallel-load-times-out-io-tests]].
+   *
+   * Ba biểu thức đều không mang cờ `g`, nên gộp chung một lượt không dính bẫy
+   * `lastIndex` của `RegExp.test` (cờ `g` sẽ làm `.test` trong `.filter` bỏ qua
+   * cách một file).
+   */
+  const sources = collectSourceFiles(srcRoot).map((file) => {
+    const content = readFileSync(file, 'utf8');
+    return {
+      file,
+      readsFromSearchParams: TOKEN_QUERY_KEY_PATTERN.test(content),
+      readsFromReqQuery: REQ_QUERY_TOKEN_PATTERN.test(content),
+      buildsUrlWithToken: QUERY_TOKEN_ASSIGN_PATTERN.test(content),
+    };
+  });
 
   it('quét được ít nhất vài chục file nguồn (sanity — grep không chạy trên tập rỗng)', () => {
-    expect(files.length).toBeGreaterThan(10);
+    expect(sources.length).toBeGreaterThan(10);
+  });
+
+  /**
+   * ĐỐI CHỨNG DƯƠNG — bắt buộc, không phải làm đẹp.
+   *
+   * Ba `it` bên dưới đều khẳng định "không có vi phạm nào". Tập file khác rỗng
+   * (đã kiểm ở trên) nhưng điều đó KHÔNG chứng minh ba biểu thức còn bắt được gì:
+   * một dấu `\` lạc chỗ hay một nhóm bắt viết hỏng làm cả ba luôn trả `false`,
+   * và cổng an ninh này chuyển sang xanh vĩnh viễn mà không ai biết. Đóng đúng
+   * cái lỗ đó bằng cách bắt mỗi biểu thức nhận diện một mẫu vi phạm đã biết.
+   */
+  it('ba biểu thức BIẾT KÊU trên mẫu vi phạm đã biết (nếu không, ba phép kiểm dưới là xanh rỗng)', () => {
+    expect(TOKEN_QUERY_KEY_PATTERN.test("searchParams.get('access_token')")).toBe(true);
+    expect(REQ_QUERY_TOKEN_PATTERN.test('req.query.token')).toBe(true);
+    expect(QUERY_TOKEN_ASSIGN_PATTERN.test('/ws?token=abc')).toBe(true);
+
+    // …và KHÔNG kêu bừa trên mã sạch, nếu không cổng sẽ đỏ vĩnh viễn rồi bị tắt.
+    expect(TOKEN_QUERY_KEY_PATTERN.test("searchParams.get('cursor')")).toBe(false);
+    expect(REQ_QUERY_TOKEN_PATTERN.test('req.query.limit')).toBe(false);
+    expect(QUERY_TOKEN_ASSIGN_PATTERN.test('/lessons?cursor=abc')).toBe(false);
   });
 
   it('không file nào đọc token từ searchParams.get(...)', () => {
-    const offenders = files.filter((file) => TOKEN_QUERY_KEY_PATTERN.test(readFileSync(file, 'utf8')));
-    expect(offenders).toEqual([]);
+    expect(sources.filter((source) => source.readsFromSearchParams).map((source) => source.file)).toEqual([]);
   });
 
   it('không file nào đọc token từ req.query...', () => {
-    const offenders = files.filter((file) => REQ_QUERY_TOKEN_PATTERN.test(readFileSync(file, 'utf8')));
-    expect(offenders).toEqual([]);
+    expect(sources.filter((source) => source.readsFromReqQuery).map((source) => source.file)).toEqual([]);
   });
 
   it('không file nào build URL có ?token=/&token=/&access_token=', () => {
-    const offenders = files.filter((file) => QUERY_TOKEN_ASSIGN_PATTERN.test(readFileSync(file, 'utf8')));
-    expect(offenders).toEqual([]);
+    expect(sources.filter((source) => source.buildsUrlWithToken).map((source) => source.file)).toEqual([]);
   });
 });
