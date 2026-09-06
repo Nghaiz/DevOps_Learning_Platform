@@ -60,12 +60,23 @@ export async function listAdminUsersPage(
  * xuống `user` sẽ khoá luôn trang `/admin` mà không còn ai mở lại được (không
  * có đường "cấp lại quyền admin" nào khác ngoài SQL tay).
  */
+/**
+ * `previousRole` KHÔNG phải field trang trí: một dòng audit chỉ ghi vai trò MỚI
+ * không trả lời được câu hỏi duy nhất người đọc audit đặt ra — "cái gì đã đổi".
+ * Vai trò cũ chỉ tồn tại TRONG lượt gọi này (hàng `before` đọc trước khi
+ * update); không trả nó ra thì call-site không còn cách nào lấy lại, và đọc lại
+ * bảng `users` sau đó chỉ cho ra giá trị MỚI.
+ */
+export interface SetRoleResult extends AdminUserView {
+  readonly previousRole: User['role'];
+}
+
 export async function setUserRole(
   db: Database,
   actor: { readonly id: string },
   targetUserId: string,
   role: User['role'],
-): Promise<AdminUserView> {
+): Promise<SetRoleResult> {
   if (actor.id === targetUserId && role !== 'admin') {
     throw new TRPCError({
       code: 'FORBIDDEN',
@@ -86,5 +97,5 @@ export async function setUserRole(
   if (updated === undefined) {
     throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Không cập nhật được vai trò' });
   }
-  return toView(updated);
+  return { ...toView(updated), previousRole: before.role };
 }

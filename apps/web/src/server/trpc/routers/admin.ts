@@ -48,7 +48,9 @@ export const adminRouter = createTRPCRouter({
         action: 'user.setRole',
         targetType: 'user',
         targetId: input.userId,
-        detail: { to: updated.role },
+        // `from` VÀ `to`: một dòng audit chỉ có `to` không nói được cái gì đã
+        // đổi — nó chỉ lặp lại trạng thái hiện tại của bảng `users`.
+        detail: { from: updated.previousRole, to: updated.role },
       });
       return { id: updated.id, role: updated.role };
     }),

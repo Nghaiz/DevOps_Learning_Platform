@@ -154,6 +154,10 @@ describe('admin.users.setRole', () => {
     expect(row).toBeDefined();
     expect(row?.actorId).toBe(admin.id);
     expect(row?.targetType).toBe('user');
+    // `from` VÀ `to`: một dòng audit chỉ có `to` chỉ lặp lại trạng thái hiện
+    // tại của bảng `users` — nó không nói được CÁI GÌ đã đổi, tức không trả lời
+    // được câu hỏi duy nhất khiến bảng audit tồn tại.
+    expect(row?.detail).toEqual({ from: 'user', to: 'author' });
   });
 
   it('admin tự hạ vai của chính mình → từ chối (không có đường cấp lại)', async () => {
