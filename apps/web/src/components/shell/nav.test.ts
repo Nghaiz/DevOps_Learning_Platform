@@ -18,9 +18,19 @@ describe('PRIMARY_NAV — C6 verbatim', () => {
     ]);
   });
 
-  it('không mục nào dính chuỗi thương mại (AC 13: không giá/gói/thanh toán)', () => {
+  /**
+   * Chỉ kiểm phần TIẾNG VIỆT, có chủ ý.
+   *
+   * Nửa tiếng Anh đã có lệnh grep AC ở `phase-13-exec.md` §5 gác trên toàn
+   * `apps/web/src` — viết lại nó ở đây không thêm phép kiểm nào, mà chính dòng
+   * test lại phải CHỨA đúng những từ bị cấm nên nó tự làm lệnh grep AC kêu
+   * (cùng hình dạng dương-tính-giả của `toast.tsx` ghi ở
+   * `docs/design-system.md` §7a). Ngược lại, một nhãn về giá viết bằng tiếng
+   * Việt thì lệnh grep AC KHÔNG thấy — đó mới là chỗ test này thêm giá trị.
+   */
+  it('không mục nào dính chuỗi thương mại tiếng Việt', () => {
     const text = PRIMARY_NAV.map((item) => `${item.href} ${item.label}`).join(' ');
-    expect(text).not.toMatch(/price|pricing|checkout|subscribe|billing|giá|gói cước|thanh toán/i);
+    expect(text).not.toMatch(/giá|gói cước|thanh toán|nâng cấp|dùng thử/i);
   });
 });
 

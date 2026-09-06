@@ -70,11 +70,19 @@ describe('describeCapacity — câu hiển thị', () => {
     }
   });
 
-  it('không chứa chuỗi thương mại nào', () => {
+  /**
+   * "Hết chỗ" là đúng chỗ một sản phẩm thương mại sẽ chèn "nâng cấp gói để có
+   * thêm sandbox". Nền tảng này KHÔNG có phần đó (ràng buộc chủ dự án), nên câu
+   * hết chỗ phải chỉ sang việc kết thúc một phiên, không sang việc mua thêm.
+   *
+   * Chỉ kiểm tiếng Việt — nửa tiếng Anh do lệnh grep AC ở `phase-13-exec.md` §5
+   * gác; xem chú thích cùng lý do ở `nav.test.ts`.
+   */
+  it('không chứa lối thoát thương mại nào', () => {
     const all = [describeCapacity(view(0, 20)), describeCapacity(view(20, 20))]
       .flatMap((reading) => [reading.label, reading.detail])
       .join(' ');
-    expect(all).not.toMatch(/price|pricing|checkout|subscribe|billing|nâng cấp gói|thanh toán/i);
+    expect(all).not.toMatch(/giá|gói cước|thanh toán|nâng cấp|dùng thử/i);
   });
 });
 
