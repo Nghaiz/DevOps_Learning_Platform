@@ -142,6 +142,25 @@ function applyCreated(state: SessionState, session: CreatedSession): SessionStat
   };
 }
 
+/**
+ * Contract §5 — mã `error` nào của server có nghĩa **phiên đã kết thúc**.
+ *
+ * Gateway phát đúng bốn mã (`services/terminal-gateway/internal/podexec/bridge.go`):
+ * `SESSION_GONE` + `HARD_CAP_REACHED` là "phiên hết, pod không còn"; `EXEC_FAILED`
+ * + `RATE_LIMITED` là "kết nối NÀY hỏng, phiên vẫn còn". `SESSION_EXPIRED` giữ
+ * lại vì contract liệt kê nó dù gateway hôm nay chưa phát.
+ *
+ * ⛔ Bản trước chỉ so `code === 'SESSION_EXPIRED'` — một mã gateway KHÔNG BAO GIỜ
+ * gửi — nên trong thực tế mọi phán quyết đều rơi vào `error`, gộp "phiên đã
+ * chết" chung một rọ với "stream vừa đứt, thử lại đi". Chốt chặn của
+ * `applyClosed` cần đúng sự phân biệt đó để biết khi nào được phép nối lại.
+ */
+const SESSION_OVER_CODES: ReadonlySet<string> = new Set<string>([
+  'SESSION_EXPIRED',
+  'SESSION_GONE',
+  'HARD_CAP_REACHED',
+]);
+
 function applyControl(state: SessionState, message: ServerControl): SessionState {
   switch (message.type) {
     case 'ready':
@@ -174,9 +193,15 @@ function applyControl(state: SessionState, message: ServerControl): SessionState
     case 'error':
       // `message` là tiếng Việt của server — hiển thị, KHÔNG parse (contract §5).
       // Phân loại đi theo `code` (enum ổn định), đúng thứ contract bảo switch.
+      //
+      // `retryDelayMs`/`needsReasonLookup` bị xoá cùng lúc: một phán quyết vừa
+      // tới từ server thay thế MỌI hiệu ứng đang treo từ lần đóng trước — để
+      // lại một lịch hẹn cũ là nối lại vào một phiên server vừa nói là đã chết.
       return {
         ...state,
-        phase: message.code === 'SESSION_EXPIRED' ? 'expired' : 'error',
+        phase: SESSION_OVER_CODES.has(message.code) ? 'expired' : 'error',
+        retryDelayMs: null,
+        needsReasonLookup: false,
         message: message.message,
       };
 
@@ -224,19 +249,67 @@ function closeMessage(code: number): { phase: SessionPhase; message: string } {
   }
 }
 
+/**
+ * Với MỖI pha: một `CLOSED` còn quyết định thêm được gì không?
+ *
+ * ## Vì sao là bảng phủ CẢ HỌ, không phải hai `if` rời
+ *
+ * Bản trước có đúng hai chốt — `idle`, và `exited` kèm ĐÚNG mã `1000` — tức
+ * cùng một mẫu hình được nhận ra hai lần và bỏ sót ở phần còn lại của họ. Cái
+ * bỏ sót đắt nhất: gateway gửi `error`/`SESSION_GONE` rồi kết nối đứt trước khi
+ * close frame kịp tới, trình duyệt tự phát `1006`, và `1006` "retry được" nên
+ * nó ghi đè phán quyết thành `reconnecting` + `message: null`. Người dùng nhìn
+ * "Đang nối lại…" quay vòng tới trần 15s cho một pod đã biến mất.
+ *
+ * `Record<SessionPhase, boolean>` chứ không phải `Set`: thêm một pha vào
+ * `SessionPhase` mà quên khai ở đây là ĐỎ typecheck, còn một `Set` thiếu phần
+ * tử thì im lặng thừa hưởng hành vi "close cứ việc quyết".
+ *
+ * ## Vì sao `error` là ngoại lệ DUY NHẤT và nó có chủ ý
+ *
+ * `error` không phải phán quyết về PHIÊN, nó là "kết nối này hỏng" — sau khi
+ * `SESSION_OVER_CODES` tách hai nghĩa đó ra. Gateway phát `EXEC_FAILED` kèm
+ * đúng mã `4500`, mà `4500` nằm trong bảng RETRYABLE của contract §6: server
+ * đang nói "thử lại đi". Gác luôn `error` sẽ khoá người dùng ở một sự cố hạ
+ * tầng thoáng qua mà chính server bảo là nối lại được — nên nó ở lại `true`,
+ * và `session-machine.test.ts` giữ điều đó bằng một đối chứng dương.
+ */
+const CLOSE_STILL_DECIDES: Record<SessionPhase, boolean> = {
+  // Không có phiên nào để đóng. Xảy ra thật sau `ENDED`: BFF reap xong, máy
+  // trạng thái về idle, RỒI gateway mới đóng WS với 4404 — không có chốt này
+  // thì cái đuôi đó hiện một phiên người dùng vừa CHỦ ĐỘNG kết thúc ra như bị
+  // hệ thống giết.
+  idle: false,
+  creating: true,
+  connecting: true,
+  ready: true,
+  reconnecting: true,
+  // `exit` đã tới trước và đã quyết định pha (contract §5: "`exit` … kèm ngay
+  // sau là close `1000`"). Chốt cũ chỉ bắt đúng mã `1000`, nên một `exit` mà
+  // close frame thất lạc (⇒ `1006`) rơi thẳng vào nhánh retry.
+  exited: false,
+  // Phiên đã kết thúc — dù biết bằng ctrl `error`, bằng mã đóng, hay bằng
+  // `session.get`. Không mã đóng nào nói thêm được gì.
+  expired: false,
+  error: true,
+};
+
+/**
+ * Từ lần thử lại thứ mấy thì một `1006` sau khi ĐÃ ready cũng đáng một
+ * round-trip `session.get`.
+ *
+ * Contract §7 chỉ đòi hỏi khi CHƯA TỪNG ready, với lý lẽ: "sau một lần ready
+ * thành công, mọi 1006 về sau đều có mã lỗi thật đi kèm qua `error`". Tiền đề
+ * đó chỉ đúng khi close frame TỚI NƠI — gateway bị giết giữa chừng thì không có
+ * frame nào cả, và máy trạng thái quay vòng tới tận `expiresAt` (có thể ~50
+ * phút) mà không hỏi ai câu nào. Lần rớt ĐẦU vẫn không tốn round-trip (rớt mạng
+ * lẻ tẻ là ca phổ biến nhất); từ lần thứ hai thì một lượt hỏi rẻ hơn nhiều so
+ * với việc để người dùng ngồi nhìn "Đang nối lại…".
+ */
+const REASON_LOOKUP_FROM_ATTEMPT = 2;
+
 function applyClosed(state: SessionState, code: number, nowMs: number): SessionState {
-  if (state.phase === 'idle') {
-    // Không có phiên nào để đóng. Xảy ra thật sau `ENDED`: BFF reap xong, máy
-    // trạng thái về idle, RỒI gateway mới đóng WS với 4404 — không có guard
-    // này thì cái đuôi đó ghi đè idle thành `expired` với câu "pod đã bị thu
-    // hồi", tức một phiên người dùng vừa CHỦ ĐỘNG kết thúc hiện ra như bị hệ
-    // thống giết.
-    return state;
-  }
-  if (code === CloseCode.NORMAL && state.phase === 'exited') {
-    // `exit` đã tới trước và đã quyết định phase — close 1000 chỉ là đuôi của nó
-    // (contract §5: "`exit` … kèm ngay sau là close `1000`"). Ghi đè ở đây sẽ
-    // xoá mất câu thông báo mà `applyControl` vừa đặt.
+  if (!CLOSE_STILL_DECIDES[state.phase]) {
     return state;
   }
 
@@ -253,8 +326,11 @@ function applyClosed(state: SessionState, code: number, nowMs: number): SessionS
       // số thứ ba sẽ nhận nhầm CHỈ SỐ mảng làm nguồn ngẫu nhiên). Nơi hẹn giờ
       // gọi `backoffDelayMsJittered(state.attempt)` — xem backoff.ts § AC-H6.
       retryDelayMs: backoffDelayMs(attempt),
-      // Contract §7 — chỉ hỏi lý do thật khi CHƯA TỪNG ready và đúng mã 1006.
-      needsReasonLookup: code === CLOSE_ABNORMAL && !state.everReady,
+      // Contract §7 — đúng mã 1006, VÀ (chưa từng ready, HOẶC đã rớt lặp lại
+      // đủ để tiền đề "sau ready thì luôn có mã lỗi thật" hết đứng vững).
+      // Xem `REASON_LOOKUP_FROM_ATTEMPT`.
+      needsReasonLookup:
+        code === CLOSE_ABNORMAL && (!state.everReady || attempt >= REASON_LOOKUP_FROM_ATTEMPT),
       message: null,
     };
   }

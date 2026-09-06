@@ -325,3 +325,138 @@ describe('START dọn sạch trạng thái cũ', () => {
     expect(fresh).toEqual({ ...initialState, phase: 'creating' });
   });
 });
+
+/**
+ * F3 — MỘT close frame không được lật ngược phán quyết server đã nói ra.
+ *
+ * Chế độ hỏng đo được (2026-09-06): gateway gửi `error`/`SESSION_GONE` rồi kết
+ * nối đứt trước khi close frame kịp tới, nên trình duyệt tự phát `1006`. Máy
+ * trạng thái nhận `1006`, thấy nó "retry được", và ghi đè cả pha lẫn câu lý do:
+ *
+ *   after ctrl error : error        | "Pod của phiên đã biến mất."
+ *   after close 1006 : reconnecting | retryDelayMs=1000 | message=null
+ *
+ * Người dùng thấy "Đang nối lại…" quay vòng tới trần 15s cho một pod đã biến
+ * mất. Hai chốt chặn cũ (`idle`, và `exited` + đúng mã `1000`) là CÙNG một mẫu
+ * hình bắt được hai lần và bỏ sót ở phần còn lại của họ — nên bộ này gác CẢ HỌ
+ * "phiên đã kết thúc", không phải thêm một `case`.
+ */
+describe('F3 — close frame không lật ngược phán quyết của server', () => {
+  function ctrlError(code: string, message: string) {
+    return { type: 'CONTROL' as const, message: { type: 'error' as const, code, message } };
+  }
+
+  const GONE = ctrlError('SESSION_GONE', 'Pod của phiên đã biến mất.');
+  const LIVE = [{ type: 'START' as const }, CREATED, READY];
+
+  describe('mã `error` của server phân loại "phiên đã hết" ↔ "kết nối này hỏng"', () => {
+    // Gateway chỉ phát ĐÚNG bốn mã (bridge.go): SESSION_GONE + HARD_CAP_REACHED
+    // là phiên đã hết; EXEC_FAILED + RATE_LIMITED là sự cố của kết nối này.
+    // Gộp cả bốn vào `error` làm mất đúng thứ chốt chặn dưới cần để quyết định.
+    it.each([
+      ['SESSION_GONE', 'expired'],
+      ['HARD_CAP_REACHED', 'expired'],
+      ['SESSION_EXPIRED', 'expired'],
+      ['EXEC_FAILED', 'error'],
+      ['RATE_LIMITED', 'error'],
+    ])('%s ⇒ pha %s', (code, phase) => {
+      const state = run([...LIVE, ctrlError(code, 'câu của server')]);
+      expect(state.phase).toBe(phase);
+      expect(state.message).toBe('câu của server');
+    });
+  });
+
+  it('ctrl error SESSION_GONE rồi 1006 ⇒ GIỮ phán quyết, không quay vòng nối lại', () => {
+    const settled = run([...LIVE, GONE]);
+    expect(settled.phase).toBe('expired');
+
+    const after = reduce(settled, { type: 'CLOSED', code: CLOSE_ABNORMAL, nowMs: NOW });
+    expect(after.phase).toBe('expired');
+    expect(after.message).toBe('Pod của phiên đã biến mất.');
+    expect(after.retryDelayMs).toBeNull();
+    // Không cần round-trip nào: lý do THẬT đã nằm sẵn trong state.
+    expect(after.needsReasonLookup).toBe(false);
+  });
+
+  it('`exited` giữ nguyên với MỌI mã đóng, không chỉ 1000', () => {
+    // Chốt cũ chỉ bắt `code === 1000`. Một `exit` mà close frame thất lạc (⇒
+    // 1006) rơi thẳng vào nhánh retry và xoá mất câu "Shell đã thoát".
+    const exited = run([...LIVE, { type: 'CONTROL', message: { type: 'exit', exitCode: 0 } }]);
+    expect(exited.phase).toBe('exited');
+
+    const after = reduce(exited, { type: 'CLOSED', code: CLOSE_ABNORMAL, nowMs: NOW });
+    expect(after.phase).toBe('exited');
+    expect(after.message).toContain('Shell đã thoát');
+    expect(after.retryDelayMs).toBeNull();
+  });
+
+  it('REASON_RESOLVED gone=true rồi 1006 ⇒ vẫn expired', () => {
+    // Cùng một họ: `session.get` vừa nói phiên đã chết, một 1006 đến sau sẽ
+    // khởi động lại đúng vòng lặp mà lượt hỏi đó tồn tại để dừng.
+    const resolved = run([
+      { type: 'START' },
+      CREATED,
+      { type: 'CLOSED', code: CLOSE_ABNORMAL, nowMs: NOW },
+      { type: 'REASON_RESOLVED', message: 'Phiên đã bị thu hồi.', gone: true },
+      { type: 'CLOSED', code: CLOSE_ABNORMAL, nowMs: NOW },
+    ]);
+    expect(resolved.phase).toBe('expired');
+    expect(resolved.message).toBe('Phiên đã bị thu hồi.');
+    expect(resolved.retryDelayMs).toBeNull();
+  });
+
+  it.each([
+    ['idle (sau ENDED)', [...LIVE, { type: 'ENDED' as const }], 'idle'],
+    ['exited', [...LIVE, { type: 'CONTROL' as const, message: { type: 'exit' as const, exitCode: 0 } }], 'exited'],
+    ['expired (ctrl error)', [...LIVE, GONE], 'expired'],
+    ['expired (close 4404)', [...LIVE, { type: 'CLOSED' as const, code: CloseCode.SESSION_GONE, nowMs: NOW }], 'expired'],
+  ])('cả họ: %s + MỌI mã đóng vẫn đứng yên', (_label, events, phase) => {
+    const settled = run(events);
+    expect(settled.phase).toBe(phase);
+
+    for (const code of [
+      CLOSE_ABNORMAL,
+      CloseCode.NORMAL,
+      CloseCode.SERVICE_RESTART,
+      CloseCode.INTERNAL,
+      CloseCode.SESSION_GONE,
+      CloseCode.HARD_CAP_REACHED,
+    ]) {
+      const after = reduce(settled, { type: 'CLOSED', code, nowMs: NOW });
+      expect(after).toEqual(settled);
+    }
+  });
+
+  it('ĐỐI CHỨNG DƯƠNG: `error` của EXEC_FAILED + close 4500 VẪN nối lại', () => {
+    // Chốt chặn cố ý KHÔNG gác `error`. Gateway phát EXEC_FAILED kèm đúng mã
+    // `4500` — nằm trong bảng RETRYABLE của contract §6 — tức nó đang nói
+    // "thử lại đi". Gác cả `error` sẽ khoá người dùng ở một sự cố hạ tầng
+    // thoáng qua mà chính server bảo là nối lại được.
+    const faulted = run([...LIVE, ctrlError('EXEC_FAILED', 'phiên tới pod bị gián đoạn')]);
+    expect(faulted.phase).toBe('error');
+
+    const after = reduce(faulted, { type: 'CLOSED', code: CloseCode.INTERNAL, nowMs: NOW });
+    expect(after.phase).toBe('reconnecting');
+    expect(after.retryDelayMs).toBe(1_000);
+  });
+
+  it('ĐỐI CHỨNG DƯƠNG: phiên đang sống + 1006 vẫn nối lại như cũ', () => {
+    const after = run([...LIVE, { type: 'CLOSED', code: CLOSE_ABNORMAL, nowMs: NOW }]);
+    expect(after.phase).toBe('reconnecting');
+  });
+
+  it('phanh thứ hai: 1006 lặp lại sau khi đã ready thì ĐI HỎI lý do thật', () => {
+    // `everReady` một mình không đủ làm phanh: tiền đề "sau ready thì mọi 1006
+    // đều kèm mã lỗi thật" chỉ đúng khi close frame TỚI NƠI. Gateway bị giết
+    // giữa chừng thì không có frame nào cả, và không có chốt này máy trạng thái
+    // quay vòng tới tận `expiresAt` (có thể ~50 phút) mà không hỏi ai câu nào.
+    let state = run([...LIVE, { type: 'CLOSED', code: CLOSE_ABNORMAL, nowMs: NOW }]);
+    expect(state.attempt).toBe(1);
+    expect(state.needsReasonLookup).toBe(false); // lần rớt đầu = rớt mạng, không tốn round-trip
+
+    state = reduce(state, { type: 'RETRY_NOW' });
+    state = reduce(state, { type: 'CLOSED', code: CLOSE_ABNORMAL, nowMs: NOW });
+    expect(state.attempt).toBe(2);
+    expect(state.needsReasonLookup).toBe(true);
+  });
+});
