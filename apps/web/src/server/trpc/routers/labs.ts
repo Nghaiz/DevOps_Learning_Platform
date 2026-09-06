@@ -6,7 +6,6 @@ import {
   computeLabScore,
   computeLabStatus,
   CONTENT_ORDER_KEYS,
-  InvalidCursorError,
 } from '@devops-platform/scenario';
 import {
   labTaskIdSchema,
@@ -28,6 +27,7 @@ import { readUserPreferences } from '../../me/preferences';
 import { unsupportedCapabilities } from '../../lessons/catalog';
 import { runScriptInSession } from '../../lessons/validate';
 import { labSource, requireLab } from '../../labs/catalog';
+import { rethrowContentSourceError } from '../../content/source-errors';
 import { truncateLabOutput } from '../../labs/output';
 import { createSandboxSession, sessionExpiry } from '../../labs/session';
 import { applySessionPreferences } from '../../sessions/preferences';
@@ -208,10 +208,10 @@ export const labsRouter = createTRPCRouter({
       });
       return { items: result.items, limit: input.limit, nextCursor: result.nextCursor };
     } catch (cause) {
-      if (cause instanceof InvalidCursorError) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cursor không còn hợp lệ', cause });
-      }
-      throw cause;
+      // SSOT cho cả ba router phân trang nội dung — `source-errors.ts` giải
+      // thích vì sao khối này không được chép tay lần thứ ba, và vì sao câu 503
+      // phải là câu TỰ SOẠN chứ không chuyển tiếp `cause.message`.
+      rethrowContentSourceError(cause);
     }
   }),
 
