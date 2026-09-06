@@ -1,4 +1,4 @@
-# CI xanh mới merge. Sáu cổng chạy SONG SONG, gom về một check duy nhất `ci-ok`:
+# CI xanh mới merge. Bảy cổng chạy SONG SONG, gom về một check duy nhất `ci-ok`:
 #
 #   proto ───────────┐
 #   ts               │
@@ -6,7 +6,8 @@
 #   infra            ├─► ci-ok ─► images (chỉ push main / tag v*)
 #   secret-scan      │
 #   sandbox-image    │
-#   terminal-browser ┘
+#   terminal-browser │
+#   web-a11y        ┘
 #
 # (`dependency-review` từng nằm ở đây, ĐÃ XOÁ — xem khối lý do ngay trên job
 #  `sandbox-image`. Sơ đồ này lệch suốt từ lúc đó tới 1.E-2; sửa cùng lúc với
@@ -16,7 +17,7 @@
 # workflow run. Tách sang file khác thì phải đi đường workflow_run, vốn phải chạy
 # lại toàn bộ cổng một lần nữa mới gate được.
 #
-# VÌ SAO `ci-ok`: branch protection chỉ nhận tên check cố định. Khai 6 job làm 6
+# VÌ SAO `ci-ok`: branch protection chỉ nhận tên check cố định. Khai 7 job làm 7
 # required check nghĩa là mỗi lần thêm/đổi tên job phải vào Settings sửa tay và
 # quên là mất cổng trong im lặng. `ci-ok` là một cái tên, không bao giờ đổi.
 #
@@ -1295,12 +1296,145 @@ jobs:
       - name: 'vitest browser mode (gpu-on + gpu-off)'
         run: pnpm --filter @devops-platform/terminal test:browser
 
+  # ──────────────────────────────────────────────────── a11y + CSP (13.H / P13)
+  web-a11y:
+    name: 'Web (axe + CSP trên next start)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # ⛔ TUYỆT ĐỐI KHÔNG thêm `paths:` cho job này — nó nằm trong `ci-ok.needs`,
+    # mà một job required bị skip-by-paths được GitHub báo `Expected — Waiting`
+    # VĨNH VIỄN ⇒ deadlock merge (rules/ci-cd-trigger-design.md §3). Cùng lý do
+    # đã ghi ở `terminal-browser`.
+    #
+    # VÌ SAO JOB RIÊNG chứ không nhét vào `ts`: job này phải BUILD rồi CHẠY
+    # `next start` rồi lái một Chromium thật. Nhét vào `ts` là bắt mọi lượt chạy
+    # TypeScript trả giá tải trình duyệt, và khi đỏ thì không đọc ngay được là
+    # hỏng typecheck hay hỏng trình duyệt.
+    #
+    # PHẠM VI: chỉ `a11y.spec.ts` + `csp.spec.ts` (script `e2e:a11y`). KHÔNG chạy
+    # `@flow`, `keyboard`, `perf` — cả ba cần phiên sandbox thật (orchestrator +
+    # gateway + pod k8s) mà runner không có, hoặc một phép đo thời gian mà một
+    # runner chia sẻ CPU không đo nổi. Chúng chạy tay trên cụm ở đợt 3.
+    services:
+      postgres:
+        # Giá trị khớp .github/ci.env — credential GIẢ, sống vài phút trong runner.
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dlp
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: dlp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dlp -d dlp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: 'Nạp .github/ci.env vào môi trường job'
+        run: grep -E '^[A-Z][A-Z0-9_]*=' .github/ci.env >> "$GITHUB_ENV"
+
+      - name: 'Start Redis (requirepass — services: không cho đặt CMD)'
+        run: |
+          docker run -d --name ci-redis-a11y -p 6379:6379 redis:7-alpine \
+            redis-server --requirepass "$REDIS_PASSWORD"
+          ok=""
+          for _ in $(seq 1 30); do
+            if docker exec ci-redis-a11y redis-cli -a "$REDIS_PASSWORD" ping 2>/dev/null | grep -q PONG; then
+              ok=1; break
+            fi
+            sleep 1
+          done
+          if [ -z "$ok" ]; then
+            echo "Redis không PONG sau 30s"; docker logs ci-redis-a11y; exit 1
+          fi
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: 'Bật cache pnpm (sau action-setup — cần pnpm trên PATH)'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      # Khoá cache theo ĐÚNG version playwright trong lockfile — cùng khuôn với
+      # job `terminal-browser`. `@playwright/test` của apps/web được ghim CHÍNH
+      # XÁC 1.62.1 để trùng `playwright` của packages/terminal, nên hai job DÙNG
+      # CHUNG một cache trình duyệt thay vì tải hai bản.
+      - name: 'Đọc version playwright (SSOT = lockfile đã cài)'
+        id: pw
+        run: |
+          v=$(pnpm --filter @devops-platform/web exec playwright --version | awk '{print $2}')
+          test -n "$v" || { echo "::error::không đọc được version playwright"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: 'Cache trình duyệt Playwright'
+        id: pw-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: 'Cài chromium (cache trượt)'
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @devops-platform/web exec playwright install --with-deps chromium
+
+      - name: 'Cài thư viện hệ thống chromium (cache trúng)'
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @devops-platform/web exec playwright install-deps chromium
+
+      - name: DB migrate (Drizzle)
+        run: pnpm --filter @devops-platform/web db:migrate
+
+      # `next start` đòi một bản build có sẵn. Playwright tự spawn `pnpm start`
+      # (webServer, chỉ bật khi E2E_START_SERVER=1) nên bước build phải đứng
+      # trước — thiếu nó thì server chết ngay và triệu chứng là "spec timeout".
+      - name: Build web
+        run: pnpm turbo run build --filter=@devops-platform/web
+
+      # E2E_BASE_URL phải là localhost: playwright.config.ts TỪ CHỐI chạy khi
+      # E2E_START_SERVER=1 mà URL trỏ ra ngoài máy (dựng server cục bộ rồi đo
+      # một cụm khác là cái sai không dòng log nào nói ra).
+      #
+      # E2E_ORIGIN = BETTER_AUTH_URL trong .github/ci.env. Ở đây hai giá trị
+      # TÌNH CỜ bằng nhau; chúng vẫn là hai biến vì Origin là thứ Better Auth
+      # đối chiếu, còn base là nơi ta điều hướng tới (xem apps/web/e2e/env.ts).
+      - name: 'axe + CSP (a11y.spec.ts, csp.spec.ts)'
+        env:
+          E2E_START_SERVER: '1'
+          E2E_BASE_URL: http://localhost:3000
+          E2E_ORIGIN: http://localhost:3000
+        run: pnpm --filter @devops-platform/web e2e:a11y
+
+      # Chẩn đoán cho lượt đỏ, in THẲNG vào log job.
+      #
+      # CỐ Ý KHÔNG dùng actions/upload-artifact: mọi action trong file này được
+      # ghim theo SHA (xem khối đầu file), và thêm một action mới đòi một SHA đã
+      # xác minh. Dán một SHA chưa kiểm là đúng thứ mà luật ghim-SHA sinh ra để
+      # ngăn. Bản dưới không cần action nào; nâng lên upload-artifact khi có SHA
+      # đã xác minh là một thay đổi một dòng.
+      - name: 'Chẩn đoán khi đỏ'
+        if: failure()
+        run: |
+          ls -R apps/web/e2e/.artifacts/ 2>/dev/null || echo '(không có .artifacts/)'
+          echo '--- results.json (200 dòng đầu) ---'
+          head -c 20000 apps/web/e2e/.artifacts/results.json 2>/dev/null || echo '(không có results.json)'
+
   ci-ok:
     name: ci-ok
     # `always()` để job vẫn chạy KHI CÓ need thất bại/bị skip — nếu không, nó bị
     # skip theo và branch protection thấy một check "chưa chạy", treo PR mãi mãi.
     if: always()
-    needs: [proto, ts, go, infra, secret-scan, sandbox-image, terminal-browser]
+    needs: [proto, ts, go, infra, secret-scan, sandbox-image, terminal-browser, web-a11y]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
