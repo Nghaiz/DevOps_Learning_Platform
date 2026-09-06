@@ -1,0 +1,68 @@
+{
+  "id": "dlp-quiz-linux-cho-devops",
+  "title": "Kiểm tra: Linux cho DevOps",
+  "description": "Năm câu về tiến trình, quyền tệp, nhóm user và cổng container — đúng những thứ lab \"Truy vết sự cố Linux\" bắt bạn làm bằng tay.",
+  "passThresholdPercent": 60,
+  "questions": [
+    {
+      "id": "tim-tien-trinh",
+      "kind": "single",
+      "markdown": "Một tiến trình lạ đang ngốn gần hết một lõi CPU. Lệnh nào đưa nó lên đầu danh sách nhanh nhất?",
+      "explanation": "`ps aux --sort=-%cpu` sắp giảm dần theo phần trăm CPU, `head -10` cắt lấy mười dòng đầu. `ps aux` trần không sắp gì cả; `pgrep runaway` chỉ đúng khi bạn **đã biết** tên cần tìm.",
+      "choices": [
+        { "id": "a", "markdown": "`ps aux --sort=-%cpu | head -10`", "correct": true },
+        { "id": "b", "markdown": "`ps aux | head -10`", "correct": false },
+        { "id": "c", "markdown": "`ls -l /proc | head -10`", "correct": false },
+        { "id": "d", "markdown": "`kill -9 -1`", "correct": false }
+      ]
+    },
+    {
+      "id": "pid-hay-ten",
+      "kind": "single",
+      "markdown": "Vì sao runbook vận hành nên mô tả tiến trình cần dừng bằng **tên** (`pkill -f runaway-worker`) thay vì bằng **PID**?",
+      "explanation": "PID chỉ đúng cho đúng một lần chạy — lần khởi động sau nó là một số khác. Tên tiến trình (hoặc một phần dòng lệnh, qua `-f`) là thứ ổn định để nói \"tiến trình nào\" trong tài liệu, runbook, hay một câu hỏi gửi đồng nghiệp.",
+      "choices": [
+        { "id": "a", "markdown": "PID chỉ đúng cho một lần chạy; tên là thứ ổn định qua mọi lần khởi động lại.", "correct": true },
+        { "id": "b", "markdown": "`kill` theo PID cần quyền root, còn `pkill` thì không.", "correct": false },
+        { "id": "c", "markdown": "PID luôn thay đổi mỗi giây trong khi tiến trình đang chạy.", "correct": false },
+        { "id": "d", "markdown": "Linux không cho phép gửi tín hiệu theo PID kể từ kernel 5.x.", "correct": false }
+      ]
+    },
+    {
+      "id": "usermod-thieu-a",
+      "kind": "single",
+      "markdown": "Bạn muốn thêm user `deploy` vào nhóm `docker` mà giữ nguyên mọi nhóm phụ nó đang có. Lệnh nào đúng?",
+      "explanation": "`-a` (append) là phần quyết định. `usermod -G docker deploy` **thay thế** toàn bộ danh sách nhóm phụ bằng đúng một nhóm — user vẫn vào được `docker` nên nhìn qua tưởng đã xong, trong khi mọi nhóm cũ đã biến mất im lặng. Kiểm lại bằng `groups deploy`.",
+      "choices": [
+        { "id": "a", "markdown": "`usermod -aG docker deploy`", "correct": true },
+        { "id": "b", "markdown": "`usermod -G docker deploy`", "correct": false },
+        { "id": "c", "markdown": "`useradd -G docker deploy`", "correct": false },
+        { "id": "d", "markdown": "`chown deploy:docker /usr/bin/docker`", "correct": false }
+      ]
+    },
+    {
+      "id": "quyen-600",
+      "kind": "single",
+      "markdown": "Một file chứa bí mật đang có quyền `644`. Sau `chmod 600 service.secret`, ai còn đọc được nó?",
+      "explanation": "`600` = chủ sở hữu đọc-ghi, nhóm và \"người khác\" không có quyền nào. `644` cho **mọi** user trên máy đọc được — nguy hiểm ngay khi bạn vừa tạo thêm một user như `deploy`. Lưu ý `root` vẫn đọc được mọi file bất kể quyền, đó là bản chất của root chứ không phải lỗ hổng của `chmod`.",
+      "choices": [
+        { "id": "a", "markdown": "Chỉ chủ sở hữu file (và `root`, vốn bỏ qua mọi kiểm tra quyền).", "correct": true },
+        { "id": "b", "markdown": "Chủ sở hữu và mọi user cùng nhóm.", "correct": false },
+        { "id": "c", "markdown": "Mọi user trên máy, chỉ khác là không ai ghi được.", "correct": false },
+        { "id": "d", "markdown": "Không ai cả, kể cả chủ sở hữu — `600` chỉ cho phép thực thi.", "correct": false }
+      ]
+    },
+    {
+      "id": "chmod-x-vs-bash",
+      "kind": "single",
+      "markdown": "`./healthcheck.sh` báo `Permission denied`, nhưng `bash healthcheck.sh` chạy ngon. Cách sửa đúng là gì, và vì sao?",
+      "explanation": "`bash healthcheck.sh` chạy được vì bạn khởi động **bash** rồi đưa file vào như dữ liệu — bit thực thi của file không được kiểm. Nhưng cron, systemd và mọi thứ gọi script qua đường dẫn đều cần bit đó. `chmod +x` sửa đúng nguyên nhân; đổi cách gọi chỉ giấu nó đi.",
+      "choices": [
+        { "id": "a", "markdown": "`chmod +x healthcheck.sh` — vì cron/systemd gọi script qua đường dẫn và cần bit thực thi.", "correct": true },
+        { "id": "b", "markdown": "Đổi mọi chỗ gọi thành `bash healthcheck.sh` — kết quả như nhau, không cần đụng quyền.", "correct": false },
+        { "id": "c", "markdown": "`chown root:root healthcheck.sh` — lỗi là do sai chủ sở hữu.", "correct": false },
+        { "id": "d", "markdown": "Thêm `#!/bin/bash` vào đầu file — thiếu shebang gây `Permission denied`.", "correct": false }
+      ]
+    }
+  ]
+}

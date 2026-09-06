@@ -1,0 +1,81 @@
+{
+  "id": "dlp-quiz-kubernetes-co-ban",
+  "title": "Kiểm tra: Kubernetes căn bản",
+  "description": "Sáu câu về Pod, Deployment, ConfigMap và Service — kèm chẩn đoán lỗi hay gặp nhất khi Service không trỏ tới đâu.",
+  "passThresholdPercent": 70,
+  "questions": [
+    {
+      "id": "pod-tran-bien-mat",
+      "kind": "single",
+      "markdown": "Bạn tạo một Pod trần bằng `kubectl run solo-pod --image=nginx:1.29.0`, rồi xoá nó. Chuyện gì xảy ra?",
+      "explanation": "Không có controller nào đứng sau một Pod trần, nên không có gì tạo lại nó — nó biến mất vĩnh viễn. Đó chính là lý do trong công việc thật người ta hiếm khi gõ `kubectl run`.",
+      "choices": [
+        { "id": "a", "markdown": "Pod biến mất vĩnh viễn — không có controller nào tạo lại nó.", "correct": true },
+        { "id": "b", "markdown": "kubelet tự tạo lại Pod sau vài giây.", "correct": false },
+        { "id": "c", "markdown": "Pod chuyển sang `Pending` rồi được scheduler đặt lại lên node.", "correct": false },
+        { "id": "d", "markdown": "`kubectl delete` bị từ chối vì Pod không thuộc Deployment nào.", "correct": false }
+      ]
+    },
+    {
+      "id": "cay-deployment",
+      "kind": "single",
+      "markdown": "Deployment giữ đúng số Pod bạn muốn bằng cách nào?",
+      "explanation": "Deployment không tự chạy container. Nó tạo ra một **ReplicaSet**, và ReplicaSet mới là thứ giữ đúng số Pod luôn tồn tại. Xoá một Pod của Deployment thì một Pod **mới, tên khác** xuất hiện ngay — do ReplicaSet làm, không phải bạn.",
+      "choices": [
+        { "id": "a", "markdown": "Deployment tạo ReplicaSet, và ReplicaSet giữ đúng số Pod.", "correct": true },
+        { "id": "b", "markdown": "Deployment trực tiếp chạy container, không qua object trung gian nào.", "correct": false },
+        { "id": "c", "markdown": "Deployment ghi số lượng vào etcd và kubelet tự đọc ra để bù Pod.", "correct": false },
+        { "id": "d", "markdown": "Deployment tạo Service, và Service tạo Pod khi có lưu lượng tới.", "correct": false }
+      ]
+    },
+    {
+      "id": "endpoints-rong",
+      "kind": "single",
+      "markdown": "`kubectl get endpoints web-svc` trả về cột `ENDPOINTS` **rỗng**, dù Pod đang `Running` và `Ready`. Nguyên nhân thường gặp nhất là gì?",
+      "explanation": "Kubernetes nối Service với Pod bằng **nhãn**. `selector` của Service không khớp `label` của Pod thì Service vẫn tồn tại nhưng không trỏ tới đâu cả. So hai bên bằng `kubectl get pods --show-labels` và `kubectl get service web-svc -o jsonpath='{.spec.selector}'`.",
+      "choices": [
+        { "id": "a", "markdown": "`selector` của Service không khớp `label` của Pod.", "correct": true },
+        { "id": "b", "markdown": "Service được tạo trước Pod nên phải xoá đi tạo lại.", "correct": false },
+        { "id": "c", "markdown": "`CLUSTER-IP` chưa được cấp phát xong.", "correct": false },
+        { "id": "d", "markdown": "Cụm chỉ có một node nên Service không có gì để cân bằng tải.", "correct": false }
+      ]
+    },
+    {
+      "id": "goi-cluster-ip",
+      "kind": "single",
+      "markdown": "Service kiểu `ClusterIP` có `CLUSTER-IP` là `10.43.12.7`. Gọi được từ đâu?",
+      "explanation": "`ClusterIP` là địa chỉ **nội bộ cụm** — ổn định, nhưng chỉ tới được từ bên trong. Muốn kiểm chứng thật thì `kubectl exec` vào một Pod rồi gọi qua **tên** Service (`web-svc`), qua đó kiểm luôn cả DNS nội bộ.",
+      "choices": [
+        { "id": "a", "markdown": "Chỉ từ bên trong cụm — ví dụ `kubectl exec` vào một Pod rồi gọi.", "correct": true },
+        { "id": "b", "markdown": "Từ shell của sandbox, vì sandbox và cụm cùng một máy.", "correct": false },
+        { "id": "c", "markdown": "Từ mọi nơi — `ClusterIP` là địa chỉ định tuyến được ra ngoài.", "correct": false },
+        { "id": "d", "markdown": "Chỉ từ node control-plane, không từ Pod.", "correct": false }
+      ]
+    },
+    {
+      "id": "configmap-thieu",
+      "kind": "single",
+      "markdown": "Một Deployment mount ConfigMap `missing-html-config` vào `/usr/share/nginx/html`, nhưng ConfigMap đó chưa tồn tại. Pod sẽ ở trạng thái nào, và tìm nguyên nhân ở đâu?",
+      "explanation": "Pod kẹt ở `ContainerCreating` vì kubelet không dựng nổi volume. `kubectl describe pod` ghi thẳng lý do trong phần `Events`. Thêm một cái bẫy đáng nhớ: Pod **không** tự khởi động lại khi ConfigMap xuất hiện muộn — phải kích nó restart.",
+      "choices": [
+        { "id": "a", "markdown": "`ContainerCreating`, và `kubectl describe pod` ghi lý do trong phần `Events`.", "correct": true },
+        { "id": "b", "markdown": "`CrashLoopBackOff`, và lý do nằm trong `kubectl logs`.", "correct": false },
+        { "id": "c", "markdown": "`Running` nhưng thư mục mount rỗng, không có cảnh báo nào.", "correct": false },
+        { "id": "d", "markdown": "`Error`, và Deployment tự tạo ConfigMap rỗng để bù.", "correct": false }
+      ]
+    },
+    {
+      "id": "configmap-thanh-file",
+      "kind": "multiple",
+      "markdown": "Bạn cần đưa hai khoá `index.html` và `error.html` của ConfigMap `html-config` **thành file** trong `/usr/share/nginx/html` của Pod. Những gì dưới đây là bắt buộc?\n\n*(chọn mọi đáp án đúng)*",
+      "explanation": "Mount ConfigMap dạng file cần đúng hai mảnh khớp tên nhau: một `volume` kiểu `configMap` trỏ tới ConfigMap, và một `volumeMounts` trong container trỏ tới `mountPath`. Mỗi khoá của ConfigMap thành một file cùng tên. `envFrom` thì đưa dữ liệu vào **biến môi trường**, không tạo file — đó là cách khác cho nhu cầu khác.",
+      "choices": [
+        { "id": "a", "markdown": "Một mục `volumes` kiểu `configMap` trỏ tới `html-config`.", "correct": true },
+        { "id": "b", "markdown": "Một mục `volumeMounts` trong container với `mountPath: /usr/share/nginx/html`.", "correct": true },
+        { "id": "c", "markdown": "`envFrom.configMapRef` trỏ tới `html-config`.", "correct": false },
+        { "id": "d", "markdown": "Tên trong `volumeMounts.name` phải khớp tên trong `volumes.name`.", "correct": true },
+        { "id": "e", "markdown": "Một PersistentVolumeClaim để giữ nội dung ConfigMap.", "correct": false }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "id": "dlp-quiz-docker-co-ban",
+  "title": "Kiểm tra: Docker căn bản",
+  "description": "Sáu câu về image, container, ánh xạ cổng, và giới hạn mạng thật của sandbox. Làm sau khi xong bài \"Docker căn bản: kéo, chạy, dựng image\".",
+  "passThresholdPercent": 70,
+  "questions": [
+    {
+      "id": "image-va-container",
+      "kind": "single",
+      "markdown": "Khác biệt giữa **image** và **container** là gì?",
+      "explanation": "Image là bản đóng gói bất biến; container là một lần chạy của image đó. Một image chạy được nhiều container cùng lúc, mỗi cái có lớp ghi riêng. `docker images` liệt kê image, `docker ps` liệt kê container.",
+      "choices": [
+        { "id": "a", "markdown": "Image là bản đóng gói nằm yên; container là một lần chạy của image đó.", "correct": true },
+        { "id": "b", "markdown": "Container là bản đóng gói; image là tiến trình đang chạy của nó.", "correct": false },
+        { "id": "c", "markdown": "Hai tên gọi khác nhau cho cùng một thứ.", "correct": false },
+        { "id": "d", "markdown": "Image chỉ chạy được trên Linux, container chạy được mọi nơi.", "correct": false }
+      ]
+    },
+    {
+      "id": "anh-xa-cong",
+      "kind": "single",
+      "markdown": "Trong `docker run -d --name web -p 8080:80 nginx:alpine`, phần `-p 8080:80` nói điều gì?",
+      "explanation": "Thứ tự là `<cổng máy chủ>:<cổng trong container>`. Nginx nghe cổng 80 bên trong container; `curl http://localhost:8080/` từ sandbox đi qua đúng ánh xạ này. Bỏ `-p` thì container vẫn chạy, chỉ là không ai gọi tới được.",
+      "choices": [
+        { "id": "a", "markdown": "Cổng 8080 bên trong container được nối ra cổng 80 của sandbox.", "correct": false },
+        { "id": "b", "markdown": "Cổng 8080 của sandbox được nối vào cổng 80 bên trong container.", "correct": true },
+        { "id": "c", "markdown": "Container chỉ nhận tối đa 8080 kết nối đồng thời.", "correct": false },
+        { "id": "d", "markdown": "Container khởi động chậm lại 8080 mili-giây để cổng 80 kịp sẵn sàng.", "correct": false }
+      ]
+    },
+    {
+      "id": "ps-khong-thay",
+      "kind": "single",
+      "markdown": "Bạn vừa chạy một container, nó làm xong việc rồi thoát. `docker ps` giờ không thấy nó nữa. Vì sao?",
+      "explanation": "`docker ps` chỉ liệt kê container **đang chạy**. Container đã dừng vẫn nằm trên đĩa cho tới khi bị `docker rm` — thêm `-a` để thấy chúng, kèm cột `STATUS` ghi `Exited (0)`.",
+      "choices": [
+        { "id": "a", "markdown": "Container đã bị xoá khỏi đĩa ngay khi tiến trình chính thoát.", "correct": false },
+        { "id": "b", "markdown": "`docker ps` chỉ hiện container đang chạy; container đã dừng cần `docker ps -a`.", "correct": true },
+        { "id": "c", "markdown": "Cần quyền root mới thấy được container của chính mình.", "correct": false },
+        { "id": "d", "markdown": "Image đã bị dọn nên container biến mất theo.", "correct": false }
+      ]
+    },
+    {
+      "id": "chi-thi-bi-chan",
+      "kind": "multiple",
+      "markdown": "Sandbox của nền tảng này **không nối thẳng ra Internet**. Chỉ thị nào dưới đây trong một `Dockerfile` sẽ KHÔNG lấy được thứ nó cần?\n\n*(chọn mọi đáp án đúng)*",
+      "explanation": "Cánh cửa mạng duy nhất của sandbox mở về registry mirror của Docker Hub. `FROM` kéo image qua mirror nên chạy được; `COPY` lấy file từ ngữ cảnh build, không đụng mạng. Ba lệnh còn lại cần PyPI, kho Debian, và npm registry — cả ba đều nằm ngoài cánh cửa đó.",
+      "choices": [
+        { "id": "a", "markdown": "`RUN pip install requests`", "correct": true },
+        { "id": "b", "markdown": "`RUN apt-get install -y curl`", "correct": true },
+        { "id": "c", "markdown": "`COPY app.py /app/app.py`", "correct": false },
+        { "id": "d", "markdown": "`RUN npm install express`", "correct": true },
+        { "id": "e", "markdown": "`FROM python:3.12-slim`", "correct": false }
+      ]
+    },
+    {
+      "id": "apt-update-thoat-0",
+      "kind": "single",
+      "markdown": "`RUN apt-get update` chạy trong một môi trường **không** tới được kho Debian. Điều gì xảy ra?",
+      "explanation": "Nó in `W: Failed to fetch…` rồi kết thúc với mã 0, nên `docker build` đi tiếp và cho ra một image mà apt không biết gói nào tồn tại. Lỗi chỉ nổ ở `apt-get install` phía sau, cách chỗ sai vài dòng. Bài học chung: **mã thoát 0 nghĩa là \"lệnh chạy xong\", không nghĩa là \"việc đã làm được\"**.",
+      "choices": [
+        { "id": "a", "markdown": "Thoát khác 0, nên `docker build` dừng ngay tại dòng đó.", "correct": false },
+        { "id": "b", "markdown": "Thoát 0 dù không tải được gì — build vẫn thành công, lỗi nổ muộn ở bước cài sau.", "correct": true },
+        { "id": "c", "markdown": "Treo vô hạn cho tới khi hết thời gian build.", "correct": false },
+        { "id": "d", "markdown": "Docker nhận ra không có mạng và tự bỏ qua dòng đó.", "correct": false }
+      ]
+    },
+    {
+      "id": "vi-sao-pull-duoc",
+      "kind": "single",
+      "markdown": "Nếu sandbox không có Internet, vì sao `docker pull python:3.12-slim` vẫn chạy được?",
+      "explanation": "Cụm chạy một **registry mirror** của Docker Hub bên trong, và `NetworkPolicy` của sandbox mở đúng một chiều tới nó. Tự nhìn thấy bằng `docker info | grep -A1 'Registry Mirrors'`. Lưu ý: mirror chỉ trong suốt với `docker.io` — kéo từ một registry khác vẫn không đi qua nó.",
+      "choices": [
+        { "id": "a", "markdown": "Image đã được nạp sẵn vào sandbox trước khi phiên bắt đầu.", "correct": false },
+        { "id": "b", "markdown": "Cụm chạy một registry mirror của Docker Hub bên trong, và sandbox chỉ được mở đường tới đó.", "correct": true },
+        { "id": "c", "markdown": "Docker tải image qua DNS nên không cần đường mạng nào khác.", "correct": false },
+        { "id": "d", "markdown": "Sandbox có Internet đầy đủ, chỉ HTTPS ra ngoài bị chặn.", "correct": false }
+      ]
+    }
+  ]
+}
