@@ -4,9 +4,6 @@ import {
   Check,
   ChevronRight,
   ChevronsLeft,
-  Circle,
-  CircleCheck,
-  CircleDot,
   CircleQuestionMark,
   Clock,
   Funnel,
@@ -40,6 +37,15 @@ import { cn } from '@devops-platform/ui';
  * nghĩa (không có chữ đi kèm) phải nằm trong một control có `aria-label` riêng —
  * `catalog-pager.tsx` làm đúng thế, và đó là lý do nút ở đó vẫn có chữ.
  *
+ * ## Cái KHÔNG có ở đây: icon độ khó và icon trạng thái
+ *
+ * Bản đầu có `statusNotStarted`/`statusInProgress`/`statusCompleted`. Lane
+ * primitive (`d636356`) đã đưa chúng vào chính `Badge` làm icon MẶC ĐỊNH theo
+ * biến thể (vòng rỗng → nút play → dấu tích → ổ khoá; và sóng tín hiệu 1/2/3
+ * vạch cho độ khó). Giữ bản của lane này song song sẽ là hai nguồn sự thật cho
+ * cùng một bảo đảm WCAG 1.4.1, và tệ hơn: bản ở đây là OPT-IN nên nó biến một
+ * bảo đảm-theo-mặc-định thành bảo đảm-nếu-nhớ.
+ *
  * ## Vì sao lucide, và vì sao phải tra tên trên gói ĐÃ CÀI
  *
  * `lucide-react` có sẵn trong `apps/web/package.json` (`^1.38.0`) nhưng trước
@@ -61,9 +67,6 @@ const ICONS = {
   ttl: Timer,
   leaderboard: Trophy,
   sequential: Milestone,
-  statusNotStarted: Circle,
-  statusInProgress: CircleDot,
-  statusCompleted: CircleCheck,
   filter: Funnel,
   sort: SlidersHorizontal,
   selected: Check,

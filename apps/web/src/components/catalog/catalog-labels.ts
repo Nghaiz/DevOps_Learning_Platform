@@ -1,3 +1,4 @@
+import type { BadgeVariant } from '@devops-platform/ui';
 import type { SandboxTierName, ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
 
 export const DIFFICULTY_LABEL: Record<ScenarioDifficulty, string> = {
@@ -184,95 +185,72 @@ const LEARNER_SUGGESTION: Record<
   },
 };
 
-// ─── Hình thức: token màu + icon ────────────────────────────────────────────
+// ─── Hình thức: ánh xạ miền dữ liệu → hệ thiết kế ───────────────────────────
 //
-// ⚠ MỌI class ở dưới phải là CHUỖI HẰNG viết đủ, không ghép động. Tailwind quét
-// mã nguồn bằng văn bản thuần: `bg-[var(--difficulty-${token})]` KHÔNG BAO GIỜ
-// được biên dịch, và hỏng đúng kiểu im lặng đã ăn cả `packages/ui` một lần (xem
-// khối `@source` ở `app/globals.css`). Nên bảng dưới lặp lại tên token đầy đủ ở
-// từng dòng thay vì sinh ra chúng.
+// Ở đây KHÔNG còn chuỗi class Tailwind nào. Bản đầu của lane này tự dựng chip
+// độ khó và huy hiệu trạng thái bằng `bg-*`/`text-*` viết tay, vì lúc đó
+// `packages/ui` chưa có gì để dùng. Lane primitive đã hạ cánh (`d636356` badge,
+// `c3b92c4` card) và nay SỞ HỮU cả màu lẫn hình của hai thứ đó: `Badge` có bảy
+// biến thể ngữ nghĩa kèm icon mặc định, `Card` có `accent` cho dải độ khó.
 //
-// ⚠ Dùng TIỆN ÍCH theme (`bg-difficulty-basic`), KHÔNG phải dạng arbitrary
-// (`bg-[var(--difficulty-basic)]`). Hai dạng cho ra cùng một màu hôm nay, nên
-// khác biệt chỉ lộ về sau: dạng arbitrary đi vòng qua bảng theme, nên nó không
-// còn nằm trong tầm của bất cứ phép đổi tên hay phép đo tập trung nào — kể cả
-// `tokens.contract.test.ts`, thứ khẳng định mọi token có mặt ở CẢ HAI theme và
-// sinh được class Tailwind. Bản đầu của lane này viết dạng arbitrary kèm vế
-// fallback vì lúc đó token chưa tồn tại (`95efe1f` chưa hạ cánh); giờ chúng có
-// thật và fallback đã thành nhiễu, nên bỏ.
+// Giữ bản viết tay song song với chúng là dựng hai nguồn sự thật cho cùng một
+// quyết định thị giác, rồi hai cái trôi khác nhau ở lần sửa đầu tiên. Nên thứ
+// còn lại dưới đây đúng bằng phần lane primitive CỐ Ý không làm: nối tên miền
+// dữ liệu vào tên token.
 
 /**
- * Tên độ khó trong DỮ LIỆU là `beginner`, tên trong TOKEN là `basic`.
+ * `beginner` (miền) → `basic` (token). Hai từ vựng lệch nhau, và cả hai lane
+ * đều cố ý không đổi tên bên mình: `ScenarioDifficulty` là hợp đồng dữ liệu
+ * chạy từ P2, `--difficulty-basic` là hợp đồng token 13.A. `badge.tsx` ghi rõ
+ * việc nối hai tên đó thuộc về NƠI GỌI — tức là đây, đúng một chỗ.
  *
- * Hai từ vựng này không khớp nhau và đó không phải lỗi đánh máy: `ScenarioDifficulty`
- * (`beginner|intermediate|advanced`) là hợp đồng dữ liệu đã chạy từ P2, còn
- * `--difficulty-{basic,intermediate,advanced}` là hợp đồng token của 13.A. Ánh
- * xạ phải nằm ở đúng MỘT chỗ — là đây — thay vì mỗi nơi dùng tự đoán; đoán sai
- * cho ra `var(--difficulty-beginner)`, một biến không tồn tại, và nó im lặng.
- */
-/*
  * ⚠ Tên là `ACCENT`, KHÔNG phải `STRIPE`. "Dải màu" dịch tự nhiên ra "stripe",
- * nhưng `scripts/check-no-commerce.mjs` bắt chuỗi đó như tên một hãng thanh toán
- * và cổng cấm thương mại đỏ ngay (đã dính, 3 vi phạm). Cổng cố ý KHÔNG có lối
- * thoát inline, nên cách đúng là đổi định danh của mình chứ không phải nới mẫu
- * của cổng — nới mẫu để lọt một chữ vô hại cũng là mở đường cho chữ có hại.
+ * nhưng `scripts/check-no-commerce.mjs` bắt chuỗi đó như tên một hãng thanh
+ * toán và cổng cấm thương mại đỏ ngay (đã dính, 3 vi phạm). Cổng cố ý không có
+ * lối thoát inline, nên đổi định danh của mình chứ không nới mẫu của cổng.
+ *
+ * ⚠ `satisfies` chứ không phải `Record<ScenarioDifficulty, CardAccent>`:
+ * `CardAccent` KHÔNG được `packages/ui/src/index.ts` export (chỉ có
+ * `BadgeProps`/`BadgeVariant`). Dạng này giữ được kiểu chữ nghĩa đen, nên nếu
+ * lane primitive đổi tên một mức thì lỗi vẫn nổ — ở chỗ gọi `accent={...}`,
+ * không phải im lặng.
  */
-export const DIFFICULTY_ACCENT: Record<ScenarioDifficulty, string> = {
-  beginner: 'bg-difficulty-basic',
-  intermediate: 'bg-difficulty-intermediate',
-  advanced: 'bg-difficulty-advanced',
+export const DIFFICULTY_ACCENT = {
+  beginner: 'basic',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const satisfies Record<ScenarioDifficulty, string>;
+
+/** `beginner` → biến thể badge `difficulty-basic`. Cùng chỗ lệch tên như trên. */
+export const DIFFICULTY_BADGE: Record<ScenarioDifficulty, BadgeVariant> = {
+  beginner: 'difficulty-basic',
+  intermediate: 'difficulty-intermediate',
+  advanced: 'difficulty-advanced',
 };
 
 /**
- * Chip độ khó — CẶP MÀU DO LANE NỀN BẢO ĐẢM.
+ * Trạng thái tiến độ → biến thể badge.
  *
- * Cố ý chỉ ghép `--difficulty-X` với `--difficulty-X-foreground`, không bao giờ
- * với `--card`/`--foreground`. Cặp nền-với-chữ-của-chính-nó là thứ
- * `tokens.contract.test.ts` đo được; một cặp do lane này tự chế ra sẽ là cặp
- * KHÔNG ai đo, và ngưỡng 4.5:1 cho chữ sẽ không có cổng nào giữ.
+ * `Badge` đã gắn sẵn icon riêng cho từng biến thể (vòng rỗng → nút play → dấu
+ * tích → ổ khoá), nên bảng này KHÔNG chọn icon: yêu cầu "phân biệt bằng cả màu
+ * lẫn hình" được bảo đảm ở tầng primitive, mặc định chứ không opt-in. Chọn lại
+ * icon ở đây là lấy một bảo đảm-theo-mặc-định đổi lấy một bảo đảm-nếu-nhớ.
+ *
+ * ⚠ `not-started` → `status-todo`, KHÔNG phải `status-locked`. Hợp đồng token
+ * chỉ có progress/done/locked trong khi miền có bốn giá trị; `status-todo` là
+ * biến thể trung tính (`--muted`) mà `badge.tsx` dựng riêng cho ca này. Dán
+ * `locked` lên "chưa bắt đầu" là nói với người học rằng họ không được vào — sai
+ * nghĩa, và sai theo hướng chặn người ta lại.
+ *
+ * `status-locked` để nguyên chưa dùng: trang danh mục không khoá mục nào. Nó
+ * dành cho lộ trình tuần tự, thuộc `app/paths/[id]` — ngoài lane này.
  */
-export const DIFFICULTY_CHIP: Record<ScenarioDifficulty, string> = {
-  beginner: 'bg-difficulty-basic text-difficulty-basic-foreground',
-  intermediate: 'bg-difficulty-intermediate text-difficulty-intermediate-foreground',
-  advanced: 'bg-difficulty-advanced text-difficulty-advanced-foreground',
+export const PROGRESS_STATUS_BADGE: Record<string, BadgeVariant> = {
+  'not-started': 'status-todo',
+  'in-progress': 'status-progress',
+  completed: 'status-done',
 };
 
-/**
- * Trạng thái học — phân biệt bằng CẢ màu LẪN hình.
- *
- * Người mù màu đỏ-lục (~8% nam giới) không tách được `--status-progress` khỏi
- * `--status-done` nếu hai thứ đó chỉ khác nhau ở sắc độ. Nên mỗi trạng thái
- * mang thêm một icon khác HÌNH (vòng rỗng / vòng có chấm / vòng có dấu tích) và
- * nhãn chữ luôn hiện — màu là lớp thứ ba, không phải lớp duy nhất.
- *
- * ⚠ `not-started` KHÔNG có token riêng: hợp đồng chỉ cấp
- * `--status-{progress,done,locked}`, và "chưa bắt đầu" không phải "bị khoá" —
- * dán `--status-locked` lên nó sẽ nói với người học rằng họ không được vào, một
- * lời nói dối. Nó dùng `--muted` đang có, đúng nghĩa: chưa nổi bật vì chưa xảy
- * ra. `--status-locked` để nguyên chưa dùng — trang danh mục không khoá mục nào.
- */
-export const PROGRESS_STATUS_STYLE: Record<string, string> = {
-  'in-progress': 'bg-status-progress text-status-progress-foreground',
-  completed: 'bg-status-done text-status-done-foreground',
-  'not-started': 'bg-muted text-muted-foreground',
-};
-
-/** Icon theo trạng thái — tên logic, `catalog-icons.tsx` dịch sang component. */
-export const PROGRESS_STATUS_ICON: Record<string, 'statusNotStarted' | 'statusInProgress' | 'statusCompleted'> = {
-  'not-started': 'statusNotStarted',
-  'in-progress': 'statusInProgress',
-  completed: 'statusCompleted',
-};
-
-/**
- * Số kết quả ĐANG HIỆN — và chỉ thế.
- *
- * ⛔ KHÔNG được thành "N/M mục". Server trả `nextCursor` (còn hay hết) chứ không
- * trả tổng, nên mọi mẫu số ở đây sẽ là số bịa — đúng hạng lỗi
- * nhãn-khẳng-định-quá-dữ-liệu mà `describePageScope` đã phải viết cả một khối
- * chú thích để tránh. Câu này vì vậy nói "trong trang này" khi còn trang sau, và
- * chỉ dám bỏ mệnh đề đó khi `hasNext` là false.
- */
 export function describeResultCount(args: {
   readonly kind: CatalogKind;
   readonly shown: number;

@@ -1,15 +1,14 @@
 import type { ReactElement, ReactNode } from 'react';
 import Link from 'next/link';
 import type { ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
-import { Card, Skeleton, cn } from '@devops-platform/ui';
+import { Badge, Card, Skeleton } from '@devops-platform/ui';
 import { CatalogIcon, type CatalogIconName } from './catalog-icons';
 import {
-  DIFFICULTY_CHIP,
-  DIFFICULTY_LABEL,
   DIFFICULTY_ACCENT,
-  PROGRESS_STATUS_ICON,
+  DIFFICULTY_BADGE,
+  DIFFICULTY_LABEL,
+  PROGRESS_STATUS_BADGE,
   PROGRESS_STATUS_LABEL,
-  PROGRESS_STATUS_STYLE,
 } from './catalog-labels';
 
 /** Lưới thẻ. `<ul role="list">` tường minh vì `list-style: none` của Tailwind gỡ vai trò list ở Safari/VoiceOver. */
@@ -27,20 +26,10 @@ export interface CatalogMetaItem {
   readonly label: string;
 }
 
-/** Nhãn góc thẻ cho thuộc tính chỉ một số mục có (xếp hạng, học tuần tự). */
+/** Nhãn cho thuộc tính chỉ một số mục có (xếp hạng, học tuần tự). */
 export interface CatalogCardFlag {
   readonly icon: CatalogIconName;
   readonly label: string;
-}
-
-/** Chip thông tin — icon nói LOẠI, chữ nói GIÁ TRỊ. Icon không bao giờ đứng một mình. */
-function MetaChip(props: { readonly icon: CatalogIconName; readonly label: string }): ReactElement {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-      <CatalogIcon name={props.icon} />
-      {props.label}
-    </span>
-  );
 }
 
 /**
@@ -56,6 +45,19 @@ function MetaChip(props: { readonly icon: CatalogIconName; readonly label: strin
  * và thứ bậc; giữ `ReactNode` thì "icon cho từng loại thông tin" phải đúng ở năm
  * chỗ và sẽ lệch ngay ở lần sửa thứ hai.
  *
+ * ## Màu và hình đều do `packages/ui` sở hữu, không dựng lại ở đây
+ *
+ * `interactive` PHẢI được truyền: `Card` mặc định `false` vì hiệu ứng nhấc là
+ * tín hiệu "bấm được" và không được hứa suông trên một tấm bảng tĩnh. Bỏ sót nó
+ * KHÔNG đỏ ở đâu cả — lưới chỉ đơn giản mất hover, và trông y như trước khi
+ * sửa. Thẻ này nằm trong `<Link>` nên nó là chỗ hợp lệ để bật.
+ *
+ * `accent` cho dải độ khó (một `border-l-4` thật, không phải khối tuyệt đối tự
+ * kê), và `Badge` cho chip độ khó + huy hiệu trạng thái. Cả hai đã mang sẵn
+ * icon riêng theo biến thể, nên ràng buộc "phân biệt bằng cả màu lẫn hình" được
+ * giữ ở tầng primitive theo MẶC ĐỊNH — không phụ thuộc vào việc chỗ gọi có nhớ
+ * hay không.
+ *
  * ## Thứ bậc: tiêu đề → chỉ dấu → mô tả
  *
  * Chỉ dấu (độ khó, trạng thái học) đứng TRƯỚC mô tả, không lẫn vào hàng nhãn
@@ -69,19 +71,6 @@ function MetaChip(props: { readonly icon: CatalogIconName; readonly label: strin
  * thôi không đủ: lưới "rách" trong ảnh chụp là do thẻ mô tả NGẮN, không phải thẻ
  * mô tả dài. `mt-auto` ở khối dưới lo phần đáy; hai thứ cộng lại cho các thẻ
  * cùng hàng một đường đáy chung.
- *
- * ## Dải màu độ khó là TRANG TRÍ, có chủ ý
- *
- * Dải bên trái không phải kênh thông tin duy nhất — ngay dưới nó là chip độ khó
- * mang đúng chữ đó. Nên nó thuộc ngoại lệ "pure decoration" của WCAG SC 1.4.11:
- * dù dải có tàng hình hoàn toàn thì không thông tin nào mất đi.
- *
- * Điều đó vẫn đáng ghi lại kể cả khi `95efe1f` đã đo và chốt cả sáu token ở hai
- * chế độ, vì hai câu hỏi khác nhau: lane nền bảo đảm cặp `--difficulty-X` với
- * `--difficulty-X-foreground` (nền-với-chữ-của-chính-nó), còn dải này nằm trên
- * `--card` — một cặp KHÁC. Lane này cố ý không tự phong cho mình một con số
- * chưa tự đo; nó dựa vào tính dư thừa, thứ đúng bất kể con số là bao nhiêu.
- * Thông tin thật đi qua chip.
  */
 export function CatalogCard(props: {
   readonly href: string;
@@ -97,9 +86,11 @@ export function CatalogCard(props: {
 }): ReactElement {
   const status = props.status;
   const statusLabel = status === undefined ? null : (PROGRESS_STATUS_LABEL[status] ?? status);
-  const statusIcon = status === undefined ? undefined : PROGRESS_STATUS_ICON[status];
-  const statusStyle =
-    status === undefined ? undefined : (PROGRESS_STATUS_STYLE[status] ?? PROGRESS_STATUS_STYLE['not-started']);
+
+  // Spread có điều kiện, không `accent={... : undefined}`: repo bật
+  // `exactOptionalPropertyTypes`, nên truyền tường minh `undefined` vào một prop
+  // khai `accent?: CardAccent` là lỗi kiểu, không phải "bỏ prop".
+  const accent = props.difficulty === undefined ? {} : { accent: DIFFICULTY_ACCENT[props.difficulty] };
 
   return (
     <li>
@@ -107,52 +98,23 @@ export function CatalogCard(props: {
         href={props.href}
         className="group block h-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
-        <Card
-          className={cn(
-            'relative flex h-full flex-col gap-3 overflow-hidden p-5 pl-6 shadow-elevation-1',
-            'transition-[box-shadow,transform,border-color] duration-(--motion-fast) ease-out',
-            'group-hover:-translate-y-0.5 group-hover:border-input group-hover:shadow-elevation-2',
-          )}
-        >
-          {props.difficulty !== undefined && (
-            <span
-              aria-hidden="true"
-              className={cn('absolute inset-y-0 left-0 w-1', DIFFICULTY_ACCENT[props.difficulty])}
-            />
-          )}
-
+        <Card interactive {...accent} className="flex h-full flex-col gap-3 p-5">
           <div className="flex items-start justify-between gap-3">
             <h3 className="text-base leading-snug font-semibold text-foreground">{props.title}</h3>
-            {statusLabel !== null && statusIcon !== undefined && (
-              <span
-                className={cn(
-                  'inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
-                  statusStyle,
-                )}
-              >
-                <CatalogIcon name={statusIcon} />
-                {statusLabel}
-              </span>
+            {statusLabel !== null && status !== undefined && (
+              <Badge variant={PROGRESS_STATUS_BADGE[status] ?? 'status-todo'}>{statusLabel}</Badge>
             )}
           </div>
 
           {(props.difficulty !== undefined || props.flag !== undefined) && (
             <div className="flex flex-wrap items-center gap-2">
               {props.difficulty !== undefined && (
-                <span
-                  className={cn(
-                    'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
-                    DIFFICULTY_CHIP[props.difficulty],
-                  )}
-                >
-                  {DIFFICULTY_LABEL[props.difficulty]}
-                </span>
+                <Badge variant={DIFFICULTY_BADGE[props.difficulty]}>{DIFFICULTY_LABEL[props.difficulty]}</Badge>
               )}
               {props.flag !== undefined && (
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground">
-                  <CatalogIcon name={props.flag.icon} />
+                <Badge variant="outline" icon={<CatalogIcon name={props.flag.icon} />}>
                   {props.flag.label}
-                </span>
+                </Badge>
               )}
             </div>
           )}
@@ -164,20 +126,18 @@ export function CatalogCard(props: {
               {props.meta !== undefined && props.meta.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {props.meta.map((item) => (
-                    <MetaChip key={item.label} icon={item.icon} label={item.label} />
+                    <Badge key={item.label} variant="secondary" icon={<CatalogIcon name={item.icon} />}>
+                      {item.label}
+                    </Badge>
                   ))}
                 </div>
               )}
               {props.tags !== undefined && props.tags.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {props.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-0.5 text-xs text-foreground"
-                    >
-                      <CatalogIcon name="topic" />
+                    <Badge key={tag} variant="outline" icon={<CatalogIcon name="topic" />}>
                       {tag}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               )}
@@ -196,11 +156,19 @@ export function CatalogCard(props: {
  * `Skeleton` cố ý `aria-hidden` (xem chú thích của nó) chính là để chỗ này phát
  * đúng một thông báo thay vì sáu.
  *
- * Các khối dưới đây lặp lại đúng bố cục thẻ mới: dải độ khó bên trái, hàng tiêu
- * đề + huy hiệu trạng thái, hàng chỉ dấu, hai dòng mô tả (đúng `min-h-10` mà thẻ
- * thật giữ chỗ), rồi hàng chip dưới đáy. Một khối chữ nhật trơn thì lúc dữ liệu
- * về, bố cục nhảy — và cú nhảy đó là thứ người dùng đọc thành "trang bị giật",
- * không phải "trang tải xong".
+ * Các khối dưới đây lặp lại đúng bố cục thẻ mới: viền trái 4px thế chỗ `accent`,
+ * hàng tiêu đề + huy hiệu trạng thái, hàng chỉ dấu, hai dòng mô tả (đúng
+ * `min-h-10` mà thẻ thật giữ chỗ), rồi hàng chip dưới đáy. Một khối chữ nhật
+ * trơn thì lúc dữ liệu về, bố cục nhảy — và cú nhảy đó là thứ người dùng đọc
+ * thành "trang bị giật", không phải "trang tải xong".
+ *
+ * ⚠ KHÔNG truyền `interactive` ở đây: khung chờ không bấm được, và một thẻ nhấc
+ * lên khi rê chuột lại chẳng dẫn tới đâu là đúng lời hứa suông mà mặc định
+ * `false` của `Card` sinh ra để chặn.
+ *
+ * Viền trái dùng `border-l-muted` chứ không phải một `--difficulty-*` cụ thể:
+ * lúc chưa có dữ liệu thì độ khó là thứ CHƯA BIẾT, và tô sẵn một màu độ khó là
+ * đoán — người dùng sẽ thấy màu đổi khi dữ liệu về.
  */
 export function CatalogGridSkeleton({ count = 6 }: { readonly count?: number }): ReactElement {
   return (
@@ -211,8 +179,7 @@ export function CatalogGridSkeleton({ count = 6 }: { readonly count?: number }):
       className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
     >
       {Array.from({ length: count }, (_unused, index) => (
-        <Card key={index} className="relative flex h-full flex-col gap-3 overflow-hidden p-5 pl-6">
-          <Skeleton className="absolute inset-y-0 left-0 w-1 rounded-none" />
+        <Card key={index} className="flex h-full flex-col gap-3 border-l-4 border-l-muted p-5">
           <div className="flex items-start justify-between gap-3">
             <Skeleton className="h-5 w-3/5" />
             <Skeleton className="h-5 w-20 shrink-0" />

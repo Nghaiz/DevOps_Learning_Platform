@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { SCENARIO_DIFFICULTIES } from '@devops-platform/shared-types/scenario';
 import {
-  DIFFICULTY_CHIP,
   DIFFICULTY_ACCENT,
-  PROGRESS_STATUS_ICON,
+  DIFFICULTY_BADGE,
+  PROGRESS_STATUS_BADGE,
   PROGRESS_STATUS_LABEL,
-  PROGRESS_STATUS_STYLE,
   describeCatalogEmpty,
   describeResultCount,
   describePageScope,
@@ -129,49 +128,37 @@ describe('describeCatalogEmpty — bốn ca, bốn việc phải làm khác nhau
   });
 });
 
-describe('token hình thức — tiện ích phải khớp hợp đồng 13.A', () => {
+describe('ánh xạ miền dữ liệu → hệ thiết kế', () => {
   /*
-   * Vì sao khẳng định trên CHUỖI CLASS chứ không phải trên pixel: một tên token
-   * sai (`difficulty-beginner` thay vì `difficulty-basic` — hai từ vựng lệch
-   * nhau, xem `DIFFICULTY_ACCENT`) không ném lỗi và không cảnh báo build.
-   * Tailwind chỉ đơn giản KHÔNG sinh ra class đó, nên thuộc tính biến mất và ba
-   * mức độ khó về cùng một màu — đúng thứ lane này sinh ra để sửa. Không phép
-   * kiểm nào ở tầng cao hơn thấy được điều đó: typecheck chỉ thấy `string`, và
-   * suite này chạy ở môi trường node nên không có DOM để đo. Vậy nó phải bị đóng
-   * đinh ở đây, ngay tại chỗ chuỗi được viết ra.
+   * Đây là phần lane primitive CỐ Ý không làm (xem `badge.tsx`): nối tên miền
+   * (`beginner`) vào tên token (`basic`). Một ánh xạ sai không ném lỗi và không
+   * cảnh báo build — `Badge` vẫn render, chỉ là không luật CSS nào khớp, hoặc
+   * tệ hơn, khớp NHẦM biến thể. typecheck chỉ thấy `BadgeVariant`, còn suite này
+   * chạy ở môi trường node nên không có DOM để đo. Vậy nó phải bị đóng đinh ở
+   * đây, ngay tại chỗ ánh xạ được viết ra.
    */
-  it.each(SCENARIO_DIFFICULTIES)('%s dùng tiện ích difficulty-* hợp lệ', (level) => {
+  it.each(SCENARIO_DIFFICULTIES)('%s ánh xạ đúng sang tên token', (level) => {
     const token = level === 'beginner' ? 'basic' : level;
-    expect(DIFFICULTY_ACCENT[level]).toBe(`bg-difficulty-${token}`);
-    expect(DIFFICULTY_CHIP[level]).toBe(`bg-difficulty-${token} text-difficulty-${token}-foreground`);
+    expect(DIFFICULTY_ACCENT[level]).toBe(token);
+    expect(DIFFICULTY_BADGE[level]).toBe(`difficulty-${token}`);
   });
 
-  it('KHÔNG nơi nào sinh ra difficulty-beginner (token không tồn tại)', () => {
-    const all = [...Object.values(DIFFICULTY_ACCENT), ...Object.values(DIFFICULTY_CHIP)].join(' ');
-    expect(all).not.toContain('difficulty-beginner');
+  it('KHÔNG nơi nào sinh ra tên `beginner` phía token', () => {
+    const all = [...Object.values(DIFFICULTY_ACCENT), ...Object.values(DIFFICULTY_BADGE)].join(' ');
+    expect(all).not.toContain('beginner');
   });
 
-  it('KHÔNG dùng dạng arbitrary — màu phải đi qua bảng theme', () => {
+  it('bảng chỉ chứa TÊN BIẾN THỂ, không chứa class Tailwind', () => {
     /*
-     * `bg-[var(--difficulty-basic)]` và `bg-difficulty-basic` cho ra CÙNG một
-     * màu hôm nay, nên khác biệt chỉ lộ về sau: dạng arbitrary đi vòng qua bảng
-     * theme của Tailwind, thoát khỏi tầm của mọi phép đổi tên và mọi phép đo tập
-     * trung — kể cả `tokens.contract.test.ts`. Bản đầu của lane này viết dạng
-     * arbitrary vì token chưa tồn tại; `95efe1f` đã đưa chúng vào `@theme
-     * inline`, và phép kiểm này chặn đường lùi.
-     *
-     * Bóng cũng vậy: `shadow-elevation-2`, không `shadow-[var(--elevation-2)]` —
-     * ba bậc nâng nền sinh ra để mỗi chỗ gọi KHÔNG tự chọn bậc riêng.
+     * Bản đầu của lane này tự dựng chip bằng `bg-difficulty-basic …` viết tay.
+     * Lane primitive nay sở hữu cả màu lẫn hình, nên class rò ngược vào đây là
+     * dấu hiệu ai đó đang dựng lại `Badge` một lần nữa — hai nguồn sự thật cho
+     * cùng một quyết định, và chúng sẽ trôi khác nhau.
      */
-    const classes = [
-      ...Object.values(DIFFICULTY_ACCENT),
-      ...Object.values(DIFFICULTY_CHIP),
-      ...Object.values(PROGRESS_STATUS_STYLE),
-    ];
-    expect(classes).not.toHaveLength(0);
-    for (const cls of classes) {
-      expect(cls).not.toContain('var(');
-      expect(cls).not.toContain('[');
+    for (const value of [...Object.values(DIFFICULTY_BADGE), ...Object.values(PROGRESS_STATUS_BADGE)]) {
+      for (const prefix of ['bg-', 'text-', 'border-']) {
+        expect(value).not.toContain(prefix);
+      }
     }
   });
 
@@ -179,15 +166,24 @@ describe('token hình thức — tiện ích phải khớp hợp đồng 13.A', 
    * Hai chiều, theo kỷ luật pinned-baseline: thiếu key thì trạng thái mới mất
    * hình thức trong im lặng; thừa key thì bảng thành nghĩa địa không ai rà lại.
    */
-  it('mỗi trạng thái tiến độ có ĐỦ nhãn + màu + icon, và không dư key nào', () => {
-    const labels = Object.keys(PROGRESS_STATUS_LABEL).sort();
-    expect(Object.keys(PROGRESS_STATUS_STYLE).sort()).toEqual(labels);
-    expect(Object.keys(PROGRESS_STATUS_ICON).sort()).toEqual(labels);
+  it('mỗi trạng thái tiến độ có ĐỦ nhãn + biến thể, và không dư key nào', () => {
+    expect(Object.keys(PROGRESS_STATUS_BADGE).sort()).toEqual(Object.keys(PROGRESS_STATUS_LABEL).sort());
   });
 
-  it('ba trạng thái mang ba icon KHÁC NHAU — màu không phải kênh duy nhất', () => {
-    const icons = Object.values(PROGRESS_STATUS_ICON);
-    expect(new Set(icons).size).toBe(icons.length);
+  it('"chưa bắt đầu" là status-todo, KHÔNG phải status-locked', () => {
+    /*
+     * Hợp đồng token chỉ có progress/done/locked trong khi miền có bốn giá trị,
+     * nên `locked` là chỗ trống gần nhất và là cái bẫy. Nó sai NGHĨA và sai theo
+     * hướng nguy hiểm: nói với người học rằng bài họ chưa mở là bài họ không
+     * được vào.
+     */
+    expect(PROGRESS_STATUS_BADGE['not-started']).toBe('status-todo');
+    expect(Object.values(PROGRESS_STATUS_BADGE)).not.toContain('status-locked');
+  });
+
+  it('ba trạng thái mang ba biến thể KHÁC NHAU — nếu trùng thì màu lẫn hình đều trùng', () => {
+    const variants = Object.values(PROGRESS_STATUS_BADGE);
+    expect(new Set(variants).size).toBe(variants.length);
   });
 });
 
