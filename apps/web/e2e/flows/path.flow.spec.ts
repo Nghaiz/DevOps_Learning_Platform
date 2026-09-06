@@ -34,9 +34,6 @@ test.describe('luồng 4 — lộ trình', { tag: '@flow' }, () => {
     // ── 1. Trang chi tiết có tiến độ và danh sách phần ──────────────────────
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
-    const items = page.getByRole('listitem').filter({ has: page.getByRole('button') }).or(
-      page.locator('ol > li'),
-    );
     const itemCount = await page.locator('ol > li').count();
     expect(
       itemCount,
@@ -44,7 +41,6 @@ test.describe('luồng 4 — lộ trình', { tag: '@flow' }, () => {
         'nên 0 phần ở đây nghĩa là lộ trình trên cụm chưa có mắt xích nào — một ' +
         'vấn đề nội dung thật.',
     ).toBeGreaterThan(0);
-    void items;
 
     // ── 2. Ổ khoá — chiều (b) ───────────────────────────────────────────────
     // "Còn khoá" là `stateLabel` của `path-view.ts` cho `state: 'locked'`. Item
