@@ -27,7 +27,7 @@ export function CheckResultPanel({
     return (
       <div
         role="alert"
-        className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+        className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground"
       >
         <p className="font-medium">Không chấm được</p>
         <p className="mt-1">{outcome.message}</p>
@@ -35,19 +35,22 @@ export function CheckResultPanel({
     );
   }
 
+  // Token C1, không màu trần: `success` cho ĐẠT, `warning` cho CHƯA ĐẠT.
+  // Chưa-đạt cố ý KHÔNG dùng `destructive` — nó là kết quả bình thường của một
+  // lượt chấm, không phải một lỗi hệ thống; nhánh `error` ở trên mới là.
   const tone = outcome.passed
-    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-    : 'border-amber-200 bg-amber-50 text-amber-900';
+    ? 'border-success/30 bg-success/10'
+    : 'border-warning/30 bg-warning/10';
 
   return (
-    <div role="status" className={`mt-3 rounded-md border p-3 text-sm ${tone}`}>
+    <div role="status" className={`mt-3 rounded-md border p-3 text-sm text-foreground ${tone}`}>
       <p className="font-medium">
         {outcome.passed ? 'Đạt' : `Chưa đạt (exit ${String(outcome.exitCode)})`}
       </p>
       {outcome.output.trim() !== '' && (
         // `overflow-x-auto` chứ không bọc dòng: output là văn bản terminal, và
         // bẻ dòng một bảng `kubectl get` làm nó không đọc được.
-        <pre className="mt-2 max-h-48 overflow-auto rounded bg-white/60 p-2 font-mono text-xs">
+        <pre className="mt-2 max-h-48 overflow-auto rounded bg-background/60 p-2 font-mono text-xs">
           {outcome.output}
         </pre>
       )}

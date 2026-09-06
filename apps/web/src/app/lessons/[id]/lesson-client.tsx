@@ -1,33 +1,46 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
-import { DEFAULT_THEME } from '@devops-platform/terminal';
-import { Button, ContentView, ProgressBar, SplitPane, StepNav } from '@devops-platform/ui';
+import { Alert, AlertDescription, Button, ContentView, ProgressBar, SplitPane, StepNav } from '@devops-platform/ui';
+import {
+  SessionControls,
+  TerminalPane,
+  shouldShowIdePane,
+  useResolvedTerminalTheme,
+} from '../../../components/session';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
+import { IdePane } from './ide-pane';
 import { buildPhases, canCheck, phaseKeyForStepIndex } from './phases';
 import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
 import { CheckResultPanel, type CheckOutcome } from './check-result-panel';
 
-/**
- * ⛔ `ssr: false` phải nằm trong một CLIENT component — Next 16 ném khi thấy nó
- * trong Server Component. Ba lớp: `page.tsx` (server) → file này (client) →
- * `terminal-pane` (client, đụng `document`, nạp động). Cùng lý do và cùng hình
- * dạng với `/session`; xem chú thích ở `session-client.tsx`.
- */
-const TerminalPane = dynamic(() => import('./terminal-pane'), {
-  ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse bg-slate-900/40" />,
-});
-
 export function LessonClient({ scenarioId }: { scenarioId: string }): React.ReactElement {
   const utils = api.useUtils();
   const query = api.lessons.get.useQuery({ scenarioId });
   const session = useLessonSession(scenarioId);
+
+  // Theme terminal: tuỳ chọn hồ sơ thắng, không có thì đi theo theme ứng dụng
+  // (C1/D2). Trước đây chốt cứng `DEFAULT_THEME` nên bật dark mode ở vỏ không
+  // đụng gì tới terminal.
+  const me = api.me.get.useQuery({});
+  const terminalTheme = useResolvedTerminalTheme(me.data?.preferences.terminalTheme ?? null);
+
+  /*
+    Sức chứa cho nhãn "còn N chỗ" (C5). CHỈ hỏi khi chưa có phiên: sau khi phiên
+    mở, con số không còn quyết định gì và một nhịp poll 15s trên mọi trang bài
+    học đang mở là tải thừa.
+
+    ⛔ KHÔNG lưu vào state rồi khẳng định — `SessionControls` đọc thẳng
+    `data`, và "chưa biết" (`undefined`) khác "biết là 0" (xem `describeCapacity`).
+  */
+  const capacity = api.capacity.get.useQuery(
+    {},
+    { refetchInterval: 15_000, enabled: session.state.sessionId === null },
+  );
 
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckOutcome | null>(null);
@@ -253,10 +266,52 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
     completed,
   });
 
+  const showIde = shouldShowIdePane(scenario.interfaceLayout);
+
+  const contentPane = (
+    <div className="flex h-full flex-col bg-background">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <ContentView
+          blocks={blocks}
+          resolveAssetUrl={resolveAssetUrl}
+          onExec={onExec}
+          execEnabled={terminal !== null}
+        />
+      </div>
+
+      {canCheck(active) && (
+        <div className="border-t border-border px-5 py-3">
+          <Button
+            onClick={onCheck}
+            disabled={sessionId === null || check?.kind === 'running'}
+            loading={check?.kind === 'running'}
+            title={sessionId === null ? 'Hãy bắt đầu phiên trước' : undefined}
+          >
+            Kiểm tra
+          </Button>
+          <CheckResultPanel outcome={check} />
+        </div>
+      )}
+    </div>
+  );
+
+  const terminalPane = (
+    <TerminalPane
+      session={session}
+      theme={terminalTheme}
+      placeholder={
+        <span>
+          Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng sandbox và
+          mở terminal.
+        </span>
+      }
+    />
+  );
+
   return (
-    <main className="flex h-screen flex-col bg-white">
-      <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-2">
-        <Link href="/lessons" className="text-sm text-slate-500 hover:text-slate-900">
+    <main className="flex h-screen flex-col bg-background text-foreground">
+      <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
+        <Link href="/lessons" className="text-sm text-muted-foreground hover:text-foreground">
           ← Bài học
         </Link>
         <h1 className="text-sm font-semibold">{scenario.title}</h1>
@@ -265,84 +320,18 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
           <ProgressBar value={progress.value} max={progress.max} label={progress.label} />
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-            {SESSION_PHASE_LABEL[session.state.phase] ?? session.state.phase}
-          </span>
-          {/*
-            Lý do thật, khi máy trạng thái đã hỏi được (contract §7).
-
-            Không có dòng này thì lượt hỏi lý do chỉ đổi state chứ không đổi màn
-            hình: nhãn phase nói "Đang kết nối…" trong khi phiên đã chết hẳn, và
-            phase `error` thì nói đúng một chữ "Lỗi". Đó là nửa còn lại của lỗi
-            mà đối chứng âm ở lượt này bắt được — sửa hook mà quên chỗ hiển thị
-            thì người học vẫn ngồi nhìn một cái nhãn không nói gì.
-          */}
-          {session.state.message !== null && (
-            <span
-              role="status"
-              className={
-                session.state.phase === 'error' || session.state.phase === 'expired'
-                  ? 'text-xs text-red-700'
-                  : 'text-xs text-slate-500'
-              }
-            >
-              {session.state.message}
-            </span>
-          )}
-          {session.state.sessionId === null && (
-            <Button onClick={session.start} disabled={session.starting}>
-              {session.starting ? 'Đang tạo phiên…' : 'Bắt đầu'}
-            </Button>
-          )}
-          {/*
-            Trả pod ngay khi học xong thay vì để reaper dọn sau 1h. Hiện ở MỌI
-            phase có sessionId (kể cả reconnecting/error): một phiên đang hỏng
-            vẫn đang giữ khe quota, và "kết thúc" là cách duy nhất người học tự
-            nhả nó ra mà không đợi TTL.
-          */}
-          {/*
-            Đồng hồ + nút "Thêm giờ".
-
-            Chỉ hiện khi còn DƯỚI 10 phút: một cái đồng hồ chạy suốt buổi học là
-            nhiễu, còn mười phút cuối là lúc nó thật sự nói được điều gì.
-
-            ⛔ Chạm `hardCap` thì DISABLE kèm lý do, KHÔNG ẩn đi. Một nút biến
-            mất không nói được vì sao nó biến mất, và người học sẽ đọc ra là
-            trang hỏng chứ không phải "đã hết thời lượng tối đa".
-          */}
-          {session.state.sessionId !== null &&
-            session.remainingMs !== null &&
-            session.remainingMs < 10 * 60_000 && (
-              <>
-                <span
-                  className={
-                    session.remainingMs < 2 * 60_000
-                      ? 'text-xs font-semibold text-red-700'
-                      : 'text-xs text-amber-700'
-                  }
-                >
-                  Còn {Math.ceil(session.remainingMs / 60_000)} phút
-                </span>
-                <Button
-                  variant="secondary"
-                  onClick={session.extend}
-                  disabled={session.extending || session.state.hardCapReached}
-                  title={
-                    session.state.hardCapReached
-                      ? 'Đã dùng hết thời lượng tối đa cho phiên này — hãy kết thúc và mở phiên mới.'
-                      : undefined
-                  }
-                >
-                  {session.extending ? 'Đang thêm giờ…' : 'Thêm giờ'}
-                </Button>
-              </>
-            )}
-          {session.state.sessionId !== null && (
-            <Button variant="secondary" onClick={session.end} disabled={session.ending}>
-              {session.ending ? 'Đang kết thúc…' : 'Kết thúc phiên'}
-            </Button>
-          )}
+        {/*
+          C5 — badge pha, câu lý do phiên chết, Bắt đầu/Kết thúc/Thêm giờ, đồng
+          hồ TTL, cảnh báo hardCap, "còn N chỗ". Trước đây cả khối này được chép
+          tay ở ba trang; ba bản chép đã bắt đầu lệch nhau (playground thiếu
+          nhãn TTL sau khi phiên mở, lab thiếu tooltip hardCap).
+        */}
+        <div className="ml-auto">
+          <SessionControls
+            session={session}
+            actions={{ start: session.start, end: session.end, extend: session.extend }}
+            capacity={capacity.data ?? null}
+          />
         </div>
       </header>
 
@@ -353,20 +342,19 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
         thích nào, và một đánh đổi đã cân nhắc trở thành một lỗi im lặng.
       */}
       {unsupported.length > 0 && (
-        <div
-          role="alert"
-          className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"
-        >
-          Bài này cần <strong>{unsupported.join(', ')}</strong> — nền tảng chưa chạy được
-          những năng lực đó, nên một số lệnh trong bài sẽ báo lỗi. Bạn vẫn mở được để đọc
-          nội dung.
-        </div>
+        <Alert variant="warning" className="rounded-none border-x-0 border-t-0">
+          <AlertDescription className="text-foreground">
+            Bài này cần <strong>{unsupported.join(', ')}</strong> — nền tảng chưa chạy được
+            những năng lực đó, nên một số lệnh trong bài sẽ báo lỗi. Bạn vẫn mở được để đọc
+            nội dung.
+          </AlertDescription>
+        </Alert>
       )}
 
       {session.startError !== null && (
-        <div role="alert" className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
-          {session.startError}
-        </div>
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
+          <AlertDescription className="text-foreground">{session.startError}</AlertDescription>
+        </Alert>
       )}
 
       {/*
@@ -375,88 +363,57 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
         trông bình thường, còn bài thì lặng lẽ không chạy được.
       */}
       {setupError !== null && (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center gap-3 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800"
-        >
-          <span>Không chuẩn bị được môi trường bài học: {setupError}</span>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setSetupError(null);
-              setSetupAttempt((n) => n + 1);
-            }}
-          >
-            Thử lại
-          </Button>
-        </div>
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
+          <AlertDescription className="flex flex-wrap items-center gap-3 text-foreground">
+            <span>Không chuẩn bị được môi trường bài học: {setupError}</span>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setSetupError(null);
+                setSetupAttempt((n) => n + 1);
+              }}
+            >
+              Thử lại
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
-      <div className="border-b border-slate-200 px-4 py-2">
+      <div className="border-b border-border px-4 py-2">
         <StepNav items={navItems} activeKey={active.key} onSelect={onSelect} />
       </div>
 
       <div className="min-h-0 flex-1">
-        <SplitPane
-          storageKey="dlp-lesson-split"
-          left={
-            <div className="flex h-full flex-col">
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-                <ContentView
-                  blocks={blocks}
-                  resolveAssetUrl={resolveAssetUrl}
-                  onExec={onExec}
-                  execEnabled={terminal !== null}
-                />
-              </div>
-
-              {canCheck(active) && (
-                <div className="border-t border-slate-200 px-5 py-3">
-                  <Button
-                    onClick={onCheck}
-                    disabled={sessionId === null || check?.kind === 'running'}
-                    title={sessionId === null ? 'Hãy bắt đầu phiên trước' : undefined}
-                  >
-                    {check?.kind === 'running' ? 'Đang chấm…' : 'Kiểm tra'}
-                  </Button>
-                  <CheckResultPanel outcome={check} />
-                </div>
-              )}
-            </div>
-          }
-          right={
-            session.state.sessionId === null ? (
-              <div className="flex h-full items-center justify-center bg-slate-950 px-6 text-center text-sm text-slate-400">
-                Bấm <span className="mx-1 font-semibold text-slate-200">Bắt đầu</span> để dựng
-                sandbox và mở terminal.
-              </div>
-            ) : (
-              <TerminalPane
-                wsUrl={session.wsUrl}
-                connectionKey={session.connectionKey}
-                theme={DEFAULT_THEME}
-                onControl={session.onControl}
-                onClose={session.onClose}
-                onReady={session.onTerminalReady}
+        {/*
+          D8 — ba khoang (nội dung | editor | terminal) CHỈ khi bài khai
+          `interface.layout: ide`. Khoá localStorage riêng cho từng bố cục:
+          dùng chung một khoá thì tỉ lệ "nội dung vs terminal" của bài thường
+          bị áp lên "nội dung vs (editor+terminal)" của bài IDE, và người học
+          mở bài IDE đầu tiên thấy một khoang phải bị bóp một nửa.
+        */}
+        {showIde ? (
+          <SplitPane
+            storageKey="dlp-lesson-split-ide"
+            defaultRatio={0.32}
+            left={contentPane}
+            right={
+              <SplitPane
+                storageKey="dlp-lesson-ide-terminal"
+                defaultRatio={0.58}
+                left={<IdePane sessionId={session.state.sessionId} />}
+                right={terminalPane}
               />
-            )
-          }
-        />
+            }
+          />
+        ) : (
+          <SplitPane storageKey="dlp-lesson-split" left={contentPane} right={terminalPane} />
+        )}
       </div>
     </main>
   );
 }
 
-const SESSION_PHASE_LABEL: Record<string, string> = {
-  idle: 'Chưa có phiên',
-  creating: 'Đang tạo phiên…',
-  connecting: 'Đang kết nối…',
-  ready: 'Sandbox sẵn sàng',
-  reconnecting: 'Mất kết nối — đang thử lại…',
-  exited: 'Shell đã thoát',
-  expired: 'Phiên đã kết thúc',
-  error: 'Lỗi',
-};
 
 function Centered({
   children,
@@ -467,7 +424,7 @@ function Centered({
 }): React.ReactElement {
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
-      <p className={tone === 'error' ? 'text-sm text-red-700' : 'text-sm text-slate-500'}>
+      <p className={tone === 'error' ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
         {children}
       </p>
     </main>
