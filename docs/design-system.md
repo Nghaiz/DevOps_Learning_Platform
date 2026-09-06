@@ -219,6 +219,28 @@ loading?: boolean; // disabled + Spinner đè giữa, giữ nguyên bề rộng 
 `variant`/`size` cũ (`'primary'|'secondary'|'ghost'`, không `size`) **vẫn hoạt
 động không đổi** — API mở rộng, không phá lời gọi hiện có.
 
+#### `asChild` đổi CÁCH biểu đạt disabled/loading, không đổi ý nghĩa
+
+Thuộc tính HTML `disabled` chỉ có tác dụng trên phần tử form. `asChild` hầu như
+luôn bọc một `<a>` (nút-trông-như-link), và ở đó `disabled` được in ra nhưng
+trình duyệt bỏ qua hoàn toàn: liên kết vẫn bấm được, vẫn nhận focus, và cả
+`disabled:pointer-events-none` lẫn `disabled:opacity-50` đều không khớp vì
+pseudo-class `:disabled` không bao giờ đúng với anchor.
+
+Nên khi `asChild`, `Button` chuyển sang `aria-disabled="true"` +
+`pointer-events-none opacity-50` **không điều kiện**. Đồng thời `loading` ở
+nhánh này **không** áp `text-transparent`: Spinner đè chỉ render được ở nhánh
+`<button>` (Radix `Slot` chỉ nhận một phần tử con), nên giấu nhãn sẽ để lại một
+liên kết chữ tàng hình không có gì thay thế — `tailwind-merge` còn nuốt luôn
+`text-primary-foreground` khi hai class cùng nhóm màu chữ gặp nhau.
+
+| | `<button>` (mặc định) | `asChild` (vd. `<a>`) |
+|---|---|---|
+| `disabled` | thuộc tính `disabled` native | `aria-disabled` + `pointer-events-none opacity-50` |
+| `loading` | Spinner đè + `text-transparent` + `aria-busy` | nhãn giữ nguyên hiển thị + `aria-busy` + khoá như trên |
+
+Cả bốn đường đều có test hồi quy trong `button.test.tsx` § "Button — asChild".
+
 ## 5. Quy tắc dùng màu
 
 1. **Không bao giờ** `#hex` hay `slate-*`/`gray-*`/`zinc-*`/`neutral-*` trong JSX

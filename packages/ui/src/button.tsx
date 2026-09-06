@@ -56,13 +56,43 @@ export interface ButtonProps
 export function Button(props: ButtonProps) {
   const { variant, size, asChild = false, loading = false, disabled, className, children, ...rest } = props;
   const Comp = asChild ? Slot.Root : 'button';
+  const isDisabled = disabled === true || loading;
 
   return (
     <Comp
       data-slot="button"
-      className={cn(buttonVariants({ variant, size }), loading && 'relative text-transparent', className)}
-      disabled={disabled === true || loading}
+      className={cn(
+        buttonVariants({ variant, size }),
+        /*
+         * `text-transparent` CHỈ ở nhánh nút thường. Nó tồn tại để giấu nhãn
+         * ĐẰNG SAU Spinner đè lên — mà Spinner chỉ được render ở nhánh đó
+         * (xem chú thích single-child bên dưới). Áp nó khi `asChild` cho ra
+         * một liên kết chữ tàng hình KHÔNG có gì thay thế: đo được bằng
+         * `tailwind-merge` nuốt mất `text-primary-foreground`, và
+         * `document.querySelectorAll('svg.animate-spin').length === 0`.
+         */
+        !asChild && loading && 'relative text-transparent',
+        /*
+         * `disabled` là THUỘC TÍNH CHỈ CÓ TÁC DỤNG trên các phần tử form
+         * (`<button>`, `<input>`, …). Khi `asChild` bọc một `<a>` — đúng cách
+         * dùng phổ biến nhất của `asChild` — React vẫn in ra `disabled=""`
+         * nhưng trình duyệt bỏ qua: liên kết vẫn bấm được, vẫn nhận focus, và
+         * cả hai class `disabled:pointer-events-none` / `disabled:opacity-50`
+         * đều KHÔNG khớp (pseudo-class `:disabled` không bao giờ đúng với
+         * `<a>`). Tức là nút "bị khoá" trông y hệt nút bình thường và vẫn điều
+         * hướng được. Ở nhánh này phải diễn đạt bằng `aria-disabled` +
+         * class không điều kiện.
+         */
+        asChild && isDisabled && 'pointer-events-none opacity-50',
+        className,
+      )}
+      disabled={isDisabled}
       aria-busy={loading || undefined}
+      /*
+       * Chỉ khi `asChild`: với `<button>` thật thì thuộc tính `disabled` ở trên
+       * đã nói đủ cho trình đọc màn hình, thêm `aria-disabled` là thừa.
+       */
+      aria-disabled={asChild && isDisabled ? true : undefined}
       {...rest}
     >
       {/*

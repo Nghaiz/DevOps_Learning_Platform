@@ -22,11 +22,64 @@ describe('Button — tương thích ngược', () => {
   });
 });
 
-describe('Button — variant mới', () => {
-  it.each(['outline', 'destructive', 'link'] as const)('variant=%s render được', (variant) => {
+/**
+ * ⚠ Ở đây KHÔNG chỉ khẳng định "render được". Một `render()` + `getByRole()`
+ * cho một biến thể là phép kiểm không bao giờ đỏ được: nó chỉ hỏng nếu `cva`
+ * ném lỗi, mà `cva` không ném — biến thể lạ chỉ lặng lẽ trả về class rỗng.
+ * Tức là xoá `destructive` khỏi bảng variant vẫn để test cũ xanh, và nút
+ * "Kết thúc phiên" chuyển sang trông y hệt nút thường.
+ *
+ * Thứ thực sự là hợp đồng ở tầng này là ÁNH XẠ biến thể → class token. Khẳng
+ * định lên `className` là khẳng định lên đúng thứ đó, và cũng là cách duy nhất
+ * đo được trong jsdom (không có CSSOM thật để đọc màu đã tính).
+ */
+describe('Button — variant ánh xạ đúng class token', () => {
+  it.each([
+    ['primary', 'bg-primary'],
+    ['secondary', 'bg-secondary'],
+    ['outline', 'border-input'],
+    ['ghost', 'hover:bg-accent'],
+    ['destructive', 'bg-destructive'],
+    ['link', 'text-primary'],
+  ] as const)('variant=%s có class %s', (variant, expectedClass) => {
     render(<Button variant={variant}>Nút</Button>);
-    expect(screen.getByRole('button', { name: 'Nút' })).toBeDefined();
+    const button = screen.getByRole('button', { name: 'Nút' });
+    expect(button.className.split(/\s+/)).toContain(expectedClass);
   });
+
+  it.each([
+    ['sm', 'h-8'],
+    ['md', 'h-10'],
+    ['lg', 'h-11'],
+    ['icon', 'size-10'],
+  ] as const)('size=%s có class %s', (size, expectedClass) => {
+    render(<Button size={size}>Nút</Button>);
+    expect(screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/)).toContain(expectedClass);
+  });
+
+  it('mặc định là primary/md khi không truyền variant/size', () => {
+    render(<Button>Nút</Button>);
+    const classes = screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/);
+    expect(classes).toContain('bg-primary');
+    expect(classes).toContain('h-10');
+  });
+
+  /**
+   * Quy tắc §5.1 của `docs/design-system.md` ("không bao giờ `#hex` hay
+   * `slate-*`/`gray-*`/…") được gác bằng một lệnh grep ở Đợt 3. Grep đó đọc
+   * MÃ NGUỒN; test này đọc class THỰC SỰ ĐI RA DOM sau khi qua `cva` +
+   * `tailwind-merge`, nên nó còn bắt được màu lọt vào qua `className` của nơi
+   * gọi hoặc qua một biến thể sinh động.
+   */
+  it.each(['primary', 'secondary', 'outline', 'ghost', 'destructive', 'link'] as const)(
+    'variant=%s không phát ra màu hardcode (#hex / slate-* / gray-* / zinc-* / neutral-*)',
+    (variant) => {
+      render(<Button variant={variant}>Nút</Button>);
+      const { className } = screen.getByRole('button', { name: 'Nút' });
+      expect(className).not.toMatch(/#[0-9a-fA-F]{3,8}/);
+      expect(className).not.toMatch(/\b(slate|gray|zinc|neutral)-[0-9]{2,3}\b/);
+    },
+  );
 });
 
 describe('Button — loading', () => {
@@ -79,5 +132,77 @@ describe('Button — asChild', () => {
     const link = screen.getByRole('link', { name: 'Đi tới bài học' });
     expect(link.tagName).toBe('A');
     expect(link.getAttribute('href')).toBe('/lessons');
+  });
+
+  /**
+   * Hồi quy cho lỗi Radix `Slot` yêu cầu `Children.only`: JSX có HAI biểu thức
+   * con luôn tạo MẢNG cho `props.children`, kể cả khi một trong hai bằng
+   * `false` lúc runtime — nên `asChild && loading` từng ném "Slot failed to
+   * slot onto its children". Đã sửa (nhánh ternary một biểu thức) nhưng chưa
+   * từng có test ghim lại; hình dạng lỗi này quay lại rất dễ khi ai đó thêm
+   * một `{icon}` cạnh `{children}`.
+   */
+  it('asChild + loading KHÔNG ném lỗi Slot single-child', () => {
+    expect(() =>
+      render(
+        <Button asChild loading>
+          <a href="/lessons">Đi tới bài học</a>
+        </Button>,
+      ),
+    ).not.toThrow();
+    expect(screen.getByRole('link', { name: 'Đi tới bài học' })).toBeDefined();
+  });
+
+  /**
+   * `disabled` là thuộc tính chỉ có tác dụng trên phần tử form. Với `<a>` nó
+   * được in ra nhưng bị bỏ qua hoàn toàn, và `disabled:pointer-events-none` /
+   * `disabled:opacity-50` không khớp vì `:disabled` không bao giờ đúng với
+   * anchor. Trước bản sửa: liên kết "bị khoá" vẫn bấm được, vẫn nhận focus, và
+   * trông y hệt liên kết bình thường.
+   */
+  it('asChild + disabled: khoá bằng aria-disabled + pointer-events-none, không dựa vào thuộc tính disabled', () => {
+    render(
+      <Button asChild disabled>
+        <a href="/admin">Quản trị</a>
+      </Button>,
+    );
+    const link = screen.getByRole('link', { name: 'Quản trị' });
+    expect(link.getAttribute('aria-disabled')).toBe('true');
+    const classes = link.className.split(/\s+/);
+    expect(classes).toContain('pointer-events-none');
+    expect(classes).toContain('opacity-50');
+  });
+
+  /**
+   * Nhánh `asChild` KHÔNG render Spinner (Slot chỉ nhận một phần tử con), nên
+   * `text-transparent` ở đây sẽ giấu nhãn mà không có gì thay thế — chữ tàng
+   * hình, không spinner. `tailwind-merge` còn nuốt luôn
+   * `text-primary-foreground` khi hai class cùng nhóm `text-color` gặp nhau,
+   * nên hỏng này không thể tự lộ bằng mắt trong jsdom.
+   */
+  it('asChild + loading: giữ nhãn NHÌN THẤY ĐƯỢC (không text-transparent khi không có Spinner)', () => {
+    render(
+      <Button asChild loading>
+        <a href="/lessons">Đi tới bài học</a>
+      </Button>,
+    );
+    const link = screen.getByRole('link', { name: 'Đi tới bài học' });
+    const classes = link.className.split(/\s+/);
+    expect(classes).not.toContain('text-transparent');
+    expect(classes).toContain('text-primary-foreground');
+    expect(link.getAttribute('aria-busy')).toBe('true');
+    expect(link.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('asChild KHÔNG loading/disabled: không dính pointer-events-none (liên kết vẫn bấm được)', () => {
+    render(
+      <Button asChild>
+        <a href="/lessons">Đi tới bài học</a>
+      </Button>,
+    );
+    const classes = screen.getByRole('link', { name: 'Đi tới bài học' }).className.split(/\s+/);
+    expect(classes).not.toContain('pointer-events-none');
+    expect(classes).not.toContain('opacity-50');
+    expect(screen.getByRole('link', { name: 'Đi tới bài học' }).getAttribute('aria-disabled')).toBeNull();
   });
 });
