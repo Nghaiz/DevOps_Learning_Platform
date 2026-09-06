@@ -245,6 +245,12 @@ const C2_EXPORTS = [
 const NON_C2_EXPORTS = [
   'cn', // tiện ích nội bộ, mọi component dùng; không phải component nên C2 không liệt kê
   'SelectGroup', // sub-part Radix thêm vào, C2 chỉ liệt kê 5 phần bắt buộc
+  // Hằng CHUỖI class, không phải component — bảng C2 khẳng định mọi mục là
+  // hàm/đối tượng gọi được, nên đặt nó ở đó làm cổng đỏ đúng (đã đo). Nó được
+  // export vì `apps/web` cũng có vùng cuộn cần đúng cách xử lý focus này
+  // (`check-result-panel.tsx`), và chép lại chuỗi class là để hai bản trôi khỏi
+  // nhau — lúc đó khối output của trang chấm bài lặng lẽ mất viền focus.
+  'SCROLL_REGION_FOCUS',
 ] as const;
 
 describe('C2 — bề mặt export của packages/ui', () => {

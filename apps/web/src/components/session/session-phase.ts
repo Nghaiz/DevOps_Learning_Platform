@@ -24,8 +24,26 @@ export const SESSION_PHASE_LABEL: Record<SessionPhase, string> = {
   error: 'Lỗi',
 };
 
+/**
+ * Tập biến thể badge mà MỘT PHA phiên có thể sinh ra — hẹp hơn `BadgeVariant`.
+ *
+ * Vì sao không trả thẳng `BadgeVariant`: bảng màu của `Badge` nay có 13 biến
+ * thể (thêm `difficulty-*` và `status-*` cho danh mục), mà một pha phiên không
+ * bao giờ là "độ khó trung cấp". Khai rộng buộc mọi bảng tra khoá theo kiểu trả
+ * về phải liệt kê đủ 13 dòng, trong đó 9 dòng không thể xảy ra — và một bảng
+ * đầy dòng chết thì không ai đọc nữa.
+ *
+ * Hẹp lại giữ đúng cái bảo đảm cần giữ: thêm một PHA mới trả về một biến thể
+ * chưa có trong tập này ⇒ đỏ typecheck tại `TONE_CLASS` của `session-status`,
+ * đúng chỗ cần đỏ. Thêm một biến thể badge cho danh mục thì không đụng gì ở đây.
+ */
+export type PhaseBadgeVariant = Extract<
+  BadgeVariant,
+  'success' | 'warning' | 'destructive' | 'secondary'
+>;
+
 /** Màu badge theo pha. Chỉ dùng token C1 (qua variant của `Badge`). */
-export function phaseBadgeVariant(phase: SessionPhase): BadgeVariant {
+export function phaseBadgeVariant(phase: SessionPhase): PhaseBadgeVariant {
   switch (phase) {
     case 'ready':
       return 'success';

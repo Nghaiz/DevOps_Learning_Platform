@@ -73,6 +73,7 @@ export { Separator, Kbd } from './separator.tsx';
 // ở `apps/web/src/app/lessons/**` và KHÔNG được kéo xuống đây.
 export { ContentView } from './lesson/content-view.tsx';
 export type { ContentViewProps } from './lesson/content-view.tsx';
+export { SCROLL_REGION_FOCUS } from './lesson/scroll-region.ts';
 export { SplitPane } from './lesson/split-pane.tsx';
 export type { SplitPaneProps } from './lesson/split-pane.tsx';
 export { StepNav } from './lesson/step-nav.tsx';
