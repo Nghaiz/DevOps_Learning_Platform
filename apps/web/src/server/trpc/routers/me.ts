@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { and, desc, eq, lt, or } from 'drizzle-orm';
 import { z } from 'zod';
+import { THEME_NAMES } from '@devops-platform/terminal/themes';
 import { computeAttemptDurationSeconds } from '@devops-platform/scenario';
 import { gradeQuiz } from '@devops-platform/scenario/quiz-score';
 import { contentSourceFor } from '../../content/source';
@@ -41,32 +42,28 @@ async function hasCredentialAccount(db: Database, userId: string): Promise<boole
 const updateProfileInput = z.object({ name: z.string().min(1).max(80) }).strict();
 
 /**
- * `terminalTheme` — DÙNG LẠI danh sách ba theme của `packages/terminal/src/themes.ts`
- * (`THEME_NAMES`), nhưng CHÉP TAY thành hằng cục bộ thay vì `import` gói đó.
+ * `terminalTheme` — danh sách theme đến TỪ `packages/terminal`, không chép tay.
  *
- * ⛔ ĐÃ ĐO, KHÔNG PHẢI SỞ THÍCH: `@devops-platform/terminal` chỉ có MỘT subpath
- * export (`"."` → `src/index.ts`), và file đó re-export luôn `terminal-surface.tsx`
- * + `terminal-core.ts` — hai file kéo theo `@xterm/*` (browser-only, dùng
- * `self`/`window`). `import { THEME_NAMES } from '@devops-platform/terminal'`
- * ở CODE PHÍA SERVER làm toàn bộ `appRouter` (và mọi test import nó) ném
- * `ReferenceError: self is not defined` ngay lúc import — đo được: thêm dòng
- * import đó khiến 9/12 file test của `apps/web` báo "0 test" vì module load
- * chết trước khi có bài test nào đăng ký được.
+ * Trước 2026-09-06 đây là một hằng cục bộ chép tay ba giá trị, vì lúc đó
+ * `@devops-platform/terminal` chỉ có MỘT subpath export (`"."`) và file đó
+ * re-export `terminal-surface.tsx` + `terminal-core.ts` — hai file kéo theo
+ * `@xterm/*` (browser-only, chạm `self`/`window` NGAY lúc nạp module). Import
+ * gói đó từ code phía server làm cả `appRouter` ném `ReferenceError: self is
+ * not defined` tại thời điểm import, tức 9/12 file test báo "0 test" — một
+ * con số đọc lẫn với thành công nếu chỉ nhìn số ca đỏ.
  *
- * Sửa ĐÚNG là `packages/terminal` mở thêm subpath export server-an-toàn (vd
- * `"./themes": "./src/themes.ts"`) — nhưng file đó nằm ngoài quyền sở hữu của
- * lane này (`packages/terminal/**` thuộc lane D1/13.A). Đã báo lead kèm patch
- * đề xuất trong report; ĐÂY LÀ CHỖ DUY NHẤT chép tay ba giá trị, và nếu
- * `themes.ts` đổi danh sách mà quên sửa ở đây, `me.updatePreferences` sẽ từ
- * chối một theme hợp lệ — chấp nhận được tạm thời, không chấp nhận được vĩnh
- * viễn.
+ * Lane D1 đã mở subpath `"./themes" → "./src/themes.ts"`, và `themes.ts` không
+ * có phụ thuộc runtime nào (`ITheme` là `import type`, bị xoá lúc biên dịch)
+ * nên nó nạp sạch ở node. Cổng giữ điều đó:
+ * `apps/web/src/components/session/terminal-theme.test.ts`.
+ *
+ * Xuất `updatePreferencesInput` để test khẳng định được rằng schema này CHẤP
+ * NHẬN đúng `THEME_NAMES` — cùng lý do file này đã xuất `DEFAULT_PREFERENCES`.
  */
-const TERMINAL_THEME_NAMES = ['dlp-dark', 'dlp-light', 'dlp-contrast'] as const;
-
-const updatePreferencesInput = z
+export const updatePreferencesInput = z
   .object({
     defaultShell: z.enum(['bash', 'zsh', 'pwsh']).optional(),
-    terminalTheme: z.enum(TERMINAL_THEME_NAMES).nullable().optional(),
+    terminalTheme: z.enum(THEME_NAMES).nullable().optional(),
     leaderboardNamePublic: z.boolean().optional(),
   })
   .strict();
