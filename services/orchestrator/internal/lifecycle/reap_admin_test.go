@@ -115,7 +115,11 @@ func TestReapAdminKetThucDuocPhienCuaNguoiKhac(t *testing.T) {
 
 	got, err := h.svc.Reap(ctx, sess.GetId(), ReapActor{AdminUserID: "adm-1"})
 	if err != nil {
-		t.Fatalf("admin reap phiên của u1: %v — đây CHÍNH LÀ NOT_FOUND mà D15 sinh ra để vá", err)
+		// Không khẳng định MÃ lỗi ở đây: trước D15 chỗ này trả NOT_FOUND, còn một
+		// bản vá hỏng có thể trả mã khác. Điều phải đỏ là "đường admin lại đóng",
+		// không phải "đóng bằng đúng mã cũ" — dán nhãn sai vào một lượt đỏ là cách
+		// người triage đi nhầm hướng.
+		t.Fatalf("admin reap phiên của u1 THẤT BẠI (%v) — đường mà D15 mở đã đóng lại", err)
 	}
 	if got.GetStatus() != orchestratorv1.SessionStatus_SESSION_STATUS_REAPED {
 		t.Fatalf("status = %v, cần REAPED", got.GetStatus())
