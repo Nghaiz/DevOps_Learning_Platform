@@ -3,8 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "//exports": "`./themes` là subpath AN TOÀN CHO SERVER, không phải tiện nghi. Export `.` re-export `terminal-surface.tsx` + `terminal-core.ts`, hai file import `@xterm/*` — thư viện chỉ chạy được trong trình duyệt (chạm `self`/`window` ngay lúc nạp module). Mã phía server import gói này qua `.` sẽ ném `ReferenceError: self is not defined` TẠI THỜI ĐIỂM IMPORT, tức chết trước khi có test nào đăng ký được (đo: 9/12 file test của apps/web báo `0 test`). `themes.ts` không có phụ thuộc runtime nào — `ITheme` là `import type`, bị xoá lúc biên dịch — nên nó nạp sạch ở node. Xem `apps/web/src/components/session/terminal-theme.test.ts` để biết cổng giữ điều này.",
   "exports": {
     ".": "./src/index.ts",
+    "./themes": "./src/themes.ts",
     "./style.css": "./src/style.css"
   },
   "scripts": {

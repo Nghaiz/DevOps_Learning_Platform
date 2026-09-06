@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { openConnection, type Connection } from './connection.ts';
+import { createEscapeFocusDetector } from './escape-focus.ts';
 import { createTerminalCore, waitForFonts, type TerminalCore } from './terminal-core.ts';
 import type { ServerControl } from './protocol.ts';
 import type { ThemeName } from './themes.ts';
@@ -55,6 +56,21 @@ export interface TerminalSurfaceProps {
    * nối lại là một handle mới. Một ref bền vững sẽ che mất chuyển tiếp đó.
    */
   readonly onReady?: (handle: TerminalHandle | null) => void;
+  /**
+   * Nhãn a11y cho container (D10). Container mang `role="application"`, và một
+   * `application` KHÔNG có tên là một nút thắt cho trình đọc màn hình: nó vừa
+   * tắt điều hướng thông thường vừa không nói mình là cái gì.
+   */
+  readonly ariaLabel?: string;
+  /**
+   * D10 — gọi khi người dùng nhấn `Esc` **hai lần trong 500ms**.
+   *
+   * `TerminalSurface` chỉ PHÁT HIỆN, không tự chuyển focus: "rời đi đâu" là
+   * quyết định của trang (khoang kế tiếp, thanh công cụ, …), còn "khi nào là
+   * cử chỉ rời đi" là quyết định của terminal. Người tiêu thụ mặc định
+   * (`components/session/TerminalPane` ở apps/web) dùng `focusNextAfter`.
+   */
+  readonly onEscapeFocus?: () => void;
 }
 
 export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement {
@@ -69,11 +85,13 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
     onControl: props.onControl,
     onClose: props.onClose,
     onReady: props.onReady,
+    onEscapeFocus: props.onEscapeFocus,
   });
   handlersRef.current = {
     onControl: props.onControl,
     onClose: props.onClose,
     onReady: props.onReady,
+    onEscapeFocus: props.onEscapeFocus,
   };
 
   // ── Vòng đời TERMINAL: mount một lần, sống qua mọi lần nối lại ──────────────
@@ -130,6 +148,54 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
     coreRef.current?.setTheme(props.theme);
   }, [props.theme]);
 
+  // ── D10: Esc-Esc rời focus ─────────────────────────────────────────────────
+  //
+  // ⛔ Vị trí của listener này là phần ĐÚNG-SAI, không phải phần phong cách.
+  //
+  // Đo từ `@xterm/xterm@6.0.0/lib/xterm.js`: `_keyDown` kết thúc bằng
+  // `this.cancel(e, true)`, và `cancel` là
+  // `e.preventDefault(), e.stopPropagation()`. Nghĩa là **Escape bị chặn ngay
+  // tại `<textarea>` nội bộ của xterm** — một `onKeyDown` React trên container
+  // (pha bubble) sẽ KHÔNG BAO GIỜ thấy nó, và tính năng sẽ "im lặng không chạy"
+  // đúng theo kiểu khó chẩn đoán nhất: không lỗi, không cảnh báo, chỉ là Esc-Esc
+  // không làm gì cả.
+  //
+  // Nên: listener NATIVE ở pha CAPTURE trên container. Pha capture đi từ
+  // window xuống, nên nó chạy TRƯỚC listener của xterm ở textarea.
+  //
+  // Và vì nó chạy trước, nó tuyệt đối KHÔNG được gọi `preventDefault()` hay
+  // `stopPropagation()`: làm vậy là nuốt mất phím Esc ĐƠN mà vim đang cần. Đó
+  // là lý do `createEscapeFocusDetector` chỉ nhận `(key, atMs)` chứ không nhận
+  // `Event` — nó không cầm cái để nuốt. Kể cả lần Esc thứ hai cũng được thả cho
+  // xterm: một `\x1b` thừa vào PTY là vô hại ở mọi TUI (vim normal mode bỏ qua),
+  // còn một nhánh code có quyền huỷ sự kiện thì sớm muộn sẽ huỷ nhầm.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container === null) {
+      return;
+    }
+    const detector = createEscapeFocusDetector();
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      // `event.timeStamp` chứ không `Date.now()`: một nguồn thời gian duy nhất
+      // (xem chú thích `press`), và nó là mốc của chính lần nhấn phím.
+      if (detector.press(event.key, event.timeStamp)) {
+        handlersRef.current.onEscapeFocus?.();
+      }
+    };
+    // Rời khỏi terminal bằng chuột/Tab thì quên lần Esc đang treo — nếu không,
+    // một Esc từ mười phút trước còn treo và lần Esc đầu tiên khi quay lại sẽ
+    // đá người dùng ra ngay lập tức.
+    const handleBlur = (): void => {
+      detector.reset();
+    };
+    container.addEventListener('keydown', handleKeyDown, true);
+    container.addEventListener('focusout', handleBlur);
+    return () => {
+      container.removeEventListener('keydown', handleKeyDown, true);
+      container.removeEventListener('focusout', handleBlur);
+    };
+  }, []);
+
   // ── Vòng đời KẾT NỐI: mở lại mỗi khi connectionKey đổi ──────────────────────
   useEffect(() => {
     if (props.connectionKey === null) {
@@ -170,5 +236,25 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
     };
   }, [props.connectionKey, props.wsUrl]);
 
-  return <div ref={containerRef} className="h-full w-full" data-testid="dlp-terminal" />;
+  return (
+    <div
+      ref={containerRef}
+      /*
+        `role="application"` — xterm nuốt gần như mọi phím, nên trình đọc màn
+        hình PHẢI ngừng chế độ duyệt và giao thẳng bàn phím cho widget. Cặp đôi
+        bắt buộc của nó là `aria-label` (một `application` vô danh không nói
+        được mình là gì) và một đường THOÁT bằng bàn phím — chính là Esc-Esc ở
+        effect trên. Thiếu đường thoát thì `role="application"` biến terminal
+        thành bẫy focus, tức đổi một lỗi a11y lấy một lỗi a11y nặng hơn.
+
+        `tabIndex={0}` để Tab tới được container ngay cả trước khi xterm dựng
+        xong textarea nội bộ của nó.
+      */
+      role="application"
+      tabIndex={0}
+      aria-label={props.ariaLabel}
+      className="h-full w-full"
+      data-testid="dlp-terminal"
+    />
+  );
 }

@@ -44,5 +44,12 @@ export type { TerminalCore, TerminalCoreOptions, TerminalDimensions } from './te
 export { DEFAULT_THEME, THEMES, THEME_NAMES, loadThemeName, saveThemeName } from './themes.ts';
 export type { ThemeName } from './themes.ts';
 
+export {
+  ESCAPE_FOCUS_WINDOW_MS,
+  createEscapeFocusDetector,
+  focusNextAfter,
+} from './escape-focus.ts';
+export type { EscapeFocusDetector } from './escape-focus.ts';
+
 export { TerminalSurface } from './terminal-surface.tsx';
 export type { TerminalHandle, TerminalSurfaceProps } from './terminal-surface.tsx';
