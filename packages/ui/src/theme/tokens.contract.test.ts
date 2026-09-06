@@ -125,7 +125,7 @@ const root = declarations(blockBody(css, ':root'));
 const dark = declarations(blockBody(css, '.dark'));
 const themeInline = declarations(blockBody(css, '@theme inline'));
 
-// ─── oklch → sRGB tuyến tính → độ chói tương đối (WCAG 2.1) ──────────────────
+// ─── oklch → sRGB → độ chói tương đối (WCAG 2.1) ──────────────────────────────
 
 interface Oklch {
   readonly l: number;
@@ -144,6 +144,13 @@ function parseOklch(value: string): Oklch {
 
 type LinearRgb = readonly [number, number, number];
 
+/**
+ * sRGB **đã mã hoá gamma** (0..1 mỗi kênh). Hai không gian mang type RIÊNG cố ý:
+ * trộn nhầm chúng chính là lỗi được sửa ngày 2026-09-06 (xem `composite`), và
+ * TypeScript là thứ duy nhất bắt được lần sau — cả hai đều là bộ ba số.
+ */
+type Srgb = readonly [number, number, number];
+
 /** Oklab → LMS³ → sRGB tuyến tính (ma trận chuẩn của Björn Ottosson). */
 function toLinearRgb({ l: lightness, c: chroma, h: hue }: Oklch): LinearRgb {
   const rad = (hue * Math.PI) / 180;
@@ -161,38 +168,111 @@ function toLinearRgb({ l: lightness, c: chroma, h: hue }: Oklch): LinearRgb {
 
 const clamp = (x: number): number => Math.min(1, Math.max(0, x));
 
-function relativeLuminance(rgb: LinearRgb): number {
-  return 0.2126 * clamp(rgb[0]) + 0.7152 * clamp(rgb[1]) + 0.0722 * clamp(rgb[2]);
+/** sRGB tuyến tính → sRGB mã hoá gamma (IEC 61966-2-1). Nghịch đảo `decodeGamma`. */
+function encodeGamma(channel: number): number {
+  const x = clamp(channel);
+  return x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055;
+}
+
+/** sRGB mã hoá gamma → tuyến tính. Đúng hàm WCAG 2.1 định nghĩa cho độ chói. */
+function decodeGamma(channel: number): number {
+  const x = clamp(channel);
+  return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+}
+
+function toSrgb(color: Oklch): Srgb {
+  const linear = toLinearRgb(color);
+  return [encodeGamma(linear[0]), encodeGamma(linear[1]), encodeGamma(linear[2])];
+}
+
+function relativeLuminance(rgb: Srgb): number {
+  return 0.2126 * decodeGamma(rgb[0]) + 0.7152 * decodeGamma(rgb[1]) + 0.0722 * decodeGamma(rgb[2]);
 }
 
 function contrastRatio(a: number, b: number): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
+/** `#rrggbb` 8-bit — để đối chứng đối chiếu được với số học làm tay. */
+function toHex(rgb: Srgb): string {
+  return `#${rgb.map((channel) => Math.round(clamp(channel) * 255).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Đè một màu (có thể trong suốt) lên nền.
+ *
+ * ⚠ TRỘN ALPHA PHẢI LÀM TRONG sRGB **ĐÃ MÃ HOÁ GAMMA**, không phải trong
+ * linear-light. Bản trước của file này trộn trên giá trị TUYẾN TÍNH, trong khi
+ * trình duyệt composite `background-color`/`border-color` trong không gian
+ * hiển thị đã mã hoá gamma (CSS Color 4 §12 — simple alpha compositing chạy
+ * SAU khi màu đã chuyển sang không gian đích).
+ *
+ * Sai lệch không nhỏ, và nó LẬT NGƯỢC kết luận. `oklch(1 0 0 / 16%)` (giá trị
+ * `--input` cũ ở `.dark`) trên nền `oklch(0.145 0 0)`:
+ *
+ *   • đúng (gamma):  255×0.16 + 10×0.84 = 49.2  ⇒ #313131 ⇒ **1.53:1**  ✗ dưới 3
+ *   • sai (linear):  1×0.16 + 0.00305×0.84 = 0.1626 ⇒ #707070 ⇒ **4.01:1** ✓ "đạt"
+ *
+ * Tức cổng này ĐÃ CHỨNG NHẬN cho đúng thứ nó sinh ra để chặn. Hai con số sai
+ * 4.01 (trên `--background`) và 3.71 (trên `--card`) còn được chép sang chú
+ * thích `apps/web/src/app/globals.css` và bảng `docs/design-system.md` §1a —
+ * cả ba nơi sai cùng một kiểu, sửa cùng ngày 2026-09-06.
+ *
+ * Đối chứng dương ghim cả hai con số nằm ở cuối file, để lần sau ai đổi lại
+ * sang linear-light thì test đỏ chứ không phải "đẹp lên".
+ */
+function composite(color: Oklch, backdrop: Srgb | undefined): Srgb {
+  const rgb = toSrgb(color);
+  if (color.alpha >= 1) return rgb;
+  if (backdrop === undefined) throw new Error('Màu trong suốt — cần nền để đè lên');
+  const a = color.alpha;
+  return [
+    rgb[0] * a + backdrop[0] * (1 - a),
+    rgb[1] * a + backdrop[1] * (1 - a),
+    rgb[2] * a + backdrop[2] * (1 - a),
+  ];
+}
+
 /**
  * Token trong suốt (`oklch(1 0 0 / 12%)` — `--border`/`--input` ở `.dark`) phải
  * được ĐÈ LÊN nền trước khi đo. Đo màu trong suốt như thể nó đục sẽ cho một
  * con số đẹp hơn thực tế: `oklch(1 0 0)` trên nền đen ra 21:1 trong khi cái
- * người dùng thật sự nhìn thấy là 12% của nó.
+ * người dùng thật sự nhìn thấy là 12% của nó. Thiếu nền thì NÉM LỖI, không im
+ * lặng bỏ qua alpha.
  */
-function resolve(theme: Record<string, string>, token: ColorToken, backdrop?: LinearRgb): LinearRgb {
+function resolve(theme: Record<string, string>, token: ColorToken, backdrop?: Srgb): Srgb {
   const raw = theme[token] ?? root[token];
   if (raw === undefined) throw new Error(`Token ${token} không có ở cả theme lẫn :root`);
   const parsed = parseOklch(raw);
-  const rgb = toLinearRgb(parsed);
-  if (parsed.alpha >= 1) return rgb;
-  if (backdrop === undefined) throw new Error(`${token} trong suốt — cần nền để đè lên`);
-  return [
-    clamp(rgb[0]) * parsed.alpha + clamp(backdrop[0]) * (1 - parsed.alpha),
-    clamp(rgb[1]) * parsed.alpha + clamp(backdrop[1]) * (1 - parsed.alpha),
-    clamp(rgb[2]) * parsed.alpha + clamp(backdrop[2]) * (1 - parsed.alpha),
-  ];
+  if (parsed.alpha < 1 && backdrop === undefined) throw new Error(`${token} trong suốt — cần nền để đè lên`);
+  return composite(parsed, backdrop);
 }
 
 function measure(theme: Record<string, string>, foreground: ColorToken, background: ColorToken): number {
   const bg = resolve(theme, background);
   const fg = resolve(theme, foreground, bg);
   return contrastRatio(relativeLuminance(fg), relativeLuminance(bg));
+}
+
+/**
+ * Đo `foreground` cạnh `middle`, khi CHÍNH `middle` là lớp trong suốt nằm trên
+ * `base`. `measure()` không diễn đạt được ca này: nó gọi `resolve(background)`
+ * không kèm nền, nên một `middle` trong suốt sẽ ném lỗi.
+ *
+ * Ca thật: Switch lúc TẮT ở chế độ tối — núm (`bg-background`, đục) nằm trên
+ * rãnh (`bg-input`, trắng 16%…38%), mà rãnh lại đang phủ lên nền trang hoặc
+ * nền card. Ba lớp, và cặp cần đo là núm↔rãnh chứ không phải núm↔nền.
+ */
+function measureLayered(
+  theme: Record<string, string>,
+  foreground: ColorToken,
+  middle: ColorToken,
+  base: ColorToken,
+): number {
+  const baseRgb = resolve(theme, base);
+  const middleRgb = resolve(theme, middle, baseRgb);
+  const foregroundRgb = resolve(theme, foreground, middleRgb);
+  return contrastRatio(relativeLuminance(foregroundRgb), relativeLuminance(middleRgb));
 }
 
 // ─── Kiểm ────────────────────────────────────────────────────────────────────
@@ -274,8 +354,14 @@ const TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
 const NON_TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
   ['--input', '--background'],
   ['--input', '--card'],
+  // `--input` cũng là viền ô nhập nằm TRONG khối `bg-muted` (code block, hàng
+  // bảng hover). Nền đó sáng/tối hơn `--background`, nên nó là một ràng buộc
+  // RIÊNG chứ không suy ra được từ hai dòng trên.
+  ['--input', '--muted'],
   ['--ring', '--background'],
   ['--ring', '--card'],
+  ['--ring', '--primary'],
+  ['--ring', '--destructive'],
   ['--primary', '--background'],
   ['--destructive', '--background'],
 ];
@@ -294,29 +380,89 @@ describe.each([
 });
 
 /**
- * Đối chứng ÂM cho chính phép đo. Không có nó, cả khối trên có thể xanh vì
- * `measure()` hỏng theo hướng trả số lớn — một cổng không bao giờ đỏ được thì
- * không gác gì cả (`rules/green-that-proves-nothing.md`).
+ * Switch lúc TẮT là HAI thành phần đồ hoạ chồng lên nhau, và SC 1.4.11 áp cho
+ * cả hai: rãnh (`bg-input`) phải phân biệt được với nền trang — cặp đó đã nằm
+ * trong `NON_TEXT_PAIRS` — VÀ núm (`bg-background`) phải phân biệt được với
+ * chính cái rãnh nó nằm trên.
+ *
+ * Cặp thứ hai không đo được bằng `measure()`: ở chế độ tối rãnh là lớp trắng
+ * TRONG SUỐT, nên nó vừa đóng vai "nền" của núm vừa là "tiền cảnh" trên nền
+ * trang. Ba lớp ⇒ `measureLayered()`.
  */
-describe('đối chứng — phép đo contrast biết kêu', () => {
+describe.each([
+  ['sáng (:root)', root],
+  ['tối (.dark)', dark],
+])('Switch lúc TẮT — SC 1.4.11, theme %s', (_label, theme) => {
+  it.each(['--background', '--card'] as const)(
+    'núm (--background) trên rãnh (--input) đặt trên %s ≥ 3:1',
+    (base) => {
+      expect(measureLayered(theme, '--background', '--input', base)).toBeGreaterThanOrEqual(3);
+    },
+  );
+});
+
+/**
+ * Đối chứng cho CHÍNH PHÉP ĐO — cả hai chiều.
+ *
+ * Chiều ÂM (phép đo biết kêu) một mình là không đủ: bản trước của khối này chỉ
+ * khẳng định `4.01 < 9.48`, tức nó xác nhận một con số SAI nhỏ hơn một con số
+ * khác, và đã đứng xanh suốt thời gian `measure()` trộn alpha nhầm không gian
+ * màu (`rules/green-that-proves-nothing.md`).
+ *
+ * Nên ở đây có thêm chiều DƯƠNG: phép đo phải ra ĐÚNG những giá trị biết trước
+ * độc lập, tính tay được, và KHÔNG phụ thuộc token hiện tại.
+ */
+describe('đối chứng — phép đo contrast ra đúng số đã biết, và biết kêu', () => {
   it('cùng một màu với chính nó = 1.00:1 (không phải một số lớn nào đó)', () => {
     expect(measure(root, '--background', '--background')).toBeCloseTo(1, 5);
   });
 
-  it('đen trên trắng = 21:1, đúng trần lý thuyết của WCAG', () => {
-    const white = toLinearRgb({ l: 1, c: 0, h: 0, alpha: 1 });
-    const black = toLinearRgb({ l: 0, c: 0, h: 0, alpha: 1 });
+  it('trắng trên đen = 21.00:1 — trần lý thuyết WCAG, đi qua TRỌN đường oklch→sRGB→độ chói', () => {
+    const white = toSrgb({ l: 1, c: 0, h: 0, alpha: 1 });
+    const black = toSrgb({ l: 0, c: 0, h: 0, alpha: 1 });
+    // Ghim luôn hai đầu thang ở dạng hex: nếu ma trận oklch→sRGB hay hàm gamma
+    // lệch, tỉ lệ 21 vẫn có thể đúng do đối xứng, còn hex thì không.
+    expect(toHex(white)).toBe('#ffffff');
+    expect(toHex(black)).toBe('#000000');
     expect(contrastRatio(relativeLuminance(white), relativeLuminance(black))).toBeCloseTo(21, 2);
   });
 
-  it('alpha ĐƯỢC đè lên nền, không bị bỏ qua — 12% trắng trên nền tối tối hơn hẳn 100% trắng', () => {
-    const bg = resolve(dark, '--background');
-    const opaqueWhite = contrastRatio(
-      relativeLuminance(toLinearRgb({ l: 1, c: 0, h: 0, alpha: 1 })),
-      relativeLuminance(bg),
-    );
-    const translucent = measure(dark, '--border', '--background');
-    expect(translucent).toBeLessThan(opaqueWhite / 2);
+  it('nền tối `oklch(0.145 0 0)` ra đúng #0a0a0a (mốc 8-bit để số học dưới đây kiểm được bằng tay)', () => {
+    expect(toHex(toSrgb({ l: 0.145, c: 0, h: 0, alpha: 1 }))).toBe('#0a0a0a');
+  });
+
+  /**
+   * ĐỐI CHỨNG DƯƠNG then chốt: nó ghim KHÔNG GIAN trộn alpha, thứ đã sai.
+   *
+   * Số học 8-bit làm tay: trắng 16% trên #0a0a0a ⇒ 255×0.16 + 10×0.84 = 49.2
+   * ⇒ #313131 ⇒ 1.53:1. Công thức linear-light cũ cho #707070 ⇒ 4.01:1 — và
+   * 4.01 chính là con số từng được chép vào globals.css + design-system.md.
+   *
+   * Hai vế được tính SONG SONG ở đây, nên đổi `composite()` về linear-light là
+   * test đỏ ngay, không phải "đẹp lên rồi đi tiếp".
+   */
+  it('trộn alpha trong sRGB gamma: 16% trắng trên #0a0a0a ⇒ #313131 / 1.53:1 (KHÔNG phải #707070 / 4.01:1)', () => {
+    const base = toSrgb({ l: 0.145, c: 0, h: 0, alpha: 1 });
+    const actual = composite({ l: 1, c: 0, h: 0, alpha: 0.16 }, base);
+    expect(toHex(actual)).toBe('#313131');
+    expect(contrastRatio(relativeLuminance(actual), relativeLuminance(base))).toBeCloseTo(1.53, 2);
+
+    // Cùng đầu vào, chạy qua ĐÚNG công thức sai cũ — để con số 4.01 có mặt
+    // trong repo dưới dạng "đây là cái sai", không phải dưới dạng chỉ tiêu.
+    const whiteLinear = toLinearRgb({ l: 1, c: 0, h: 0, alpha: 1 });
+    const baseLinear = toLinearRgb({ l: 0.145, c: 0, h: 0, alpha: 1 });
+    const wrong: Srgb = [
+      encodeGamma(whiteLinear[0] * 0.16 + baseLinear[0] * 0.84),
+      encodeGamma(whiteLinear[1] * 0.16 + baseLinear[1] * 0.84),
+      encodeGamma(whiteLinear[2] * 0.16 + baseLinear[2] * 0.84),
+    ];
+    expect(toHex(wrong)).toBe('#707070');
+    expect(contrastRatio(relativeLuminance(wrong), relativeLuminance(base))).toBeCloseTo(4.01, 2);
+  });
+
+  it('token trong suốt KHÔNG BAO GIỜ đo được như thể đục — thiếu nền là NÉM LỖI, không im lặng bỏ alpha', () => {
+    expect(() => resolve(dark, '--border')).toThrow(/trong suốt/);
+    expect(() => resolve(dark, '--input')).toThrow(/trong suốt/);
   });
 
   it('giá trị `--input` sáng ĐÃ TỪNG hỏng: 0.922 cho 1.26:1, dưới ngưỡng 3:1', () => {
@@ -324,8 +470,9 @@ describe('đối chứng — phép đo contrast biết kêu', () => {
     // khối `NON_TEXT_PAIRS` ở trên đỏ; test này giải thích vì sao con số cũ
     // sai, để lần sau không có ai "khôi phục giá trị shadcn gốc" trong yên
     // lặng.
-    const old = toLinearRgb({ l: 0.922, c: 0, h: 0, alpha: 1 });
-    const white = toLinearRgb({ l: 1, c: 0, h: 0, alpha: 1 });
-    expect(contrastRatio(relativeLuminance(old), relativeLuminance(white))).toBeLessThan(3);
+    const old = toSrgb({ l: 0.922, c: 0, h: 0, alpha: 1 });
+    const white = toSrgb({ l: 1, c: 0, h: 0, alpha: 1 });
+    expect(toHex(old)).toBe('#e5e5e5');
+    expect(contrastRatio(relativeLuminance(old), relativeLuminance(white))).toBeCloseTo(1.26, 2);
   });
 });
