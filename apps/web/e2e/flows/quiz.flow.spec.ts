@@ -40,8 +40,8 @@ test.describe('luồng 3 — quiz', { tag: '@flow' }, () => {
     const count = await controls.count();
     expect(
       count,
-      'Quiz render 0 ô lựa chọn. Một trang quiz không có lựa chọn nào vẫn "hiện " +
-        "ra" và mọi phép kiểm hình thức vẫn xanh trên nó.',
+      'Quiz render 0 ô lựa chọn. Một trang quiz không có lựa chọn nào vẫn hiện ra, ' +
+        'và mọi phép kiểm hình thức vẫn xanh trên nó.',
     ).toBeGreaterThan(0);
 
     // Chọn ô đầu tiên của mỗi câu. `QuestionCard` gom lựa chọn theo `Card`, nên
