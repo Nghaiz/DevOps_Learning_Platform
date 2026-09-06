@@ -25,6 +25,12 @@ import { summarizeLabAttempt, summarizeQuizAttempt } from './attempt-summary';
 import { summarizeLessonProgress } from './lesson-progress';
 import { formatMoment } from '../../lib/format-moment';
 import { useCursorPages } from './use-cursor-pages';
+import {
+  describeEmptyPage,
+  shouldShowPager,
+  type HistoryNotice,
+  type HistoryPageState,
+} from './history-page-notice';
 
 /**
  * Lịch sử học: bài học · lab · quiz.
@@ -79,12 +85,15 @@ function LessonHistory(): ReactElement {
   return (
     <HistoryFrame
       state={progress}
-      empty={
-        <EmptyState
-          title="Chưa có bài học nào"
-          description="Mở một bài học và tiến độ của bạn sẽ hiện ở đây."
-        />
-      }
+      blank={{
+        title: 'Chưa có bài học nào',
+        description: 'Mở một bài học và tiến độ của bạn sẽ hiện ở đây.',
+      }}
+      page={{
+        page: pages.page,
+        itemCount: progress.data?.items.length ?? 0,
+        hasNext: progress.data?.nextCursor != null,
+      }}
       pager={
         <CursorPager
           hasNext={progress.data?.nextCursor != null}
@@ -96,7 +105,6 @@ function LessonHistory(): ReactElement {
           loading={progress.isFetching}
         />
       }
-      isEmpty={progress.data?.items.length === 0}
     >
       <Table>
         <TableHeader>
@@ -149,12 +157,18 @@ function LabHistory(): ReactElement {
   return (
     <HistoryFrame
       state={attempts}
-      empty={
-        <EmptyState
-          title="Chưa có lần thử lab nào"
-          description="Bắt đầu một lab và mọi lần thử của bạn sẽ được ghi lại ở đây."
-        />
-      }
+      blank={{
+        title: 'Chưa có lần thử lab nào',
+        description: 'Bắt đầu một lab và mọi lần thử của bạn sẽ được ghi lại ở đây.',
+      }}
+      page={{
+        page: pages.page,
+        itemCount: attempts.data?.items.length ?? 0,
+        hasNext: attempts.data?.nextCursor != null,
+        // `me.listLabAttempts` bỏ dòng có lab đã bị gỡ — trang có thể sạch trơn
+        // trong khi lịch sử vẫn còn ở trang sau. Xem `history-page-notice.ts`.
+        skipped: attempts.data?.skipped ?? 0,
+      }}
       pager={
         <CursorPager
           hasNext={attempts.data?.nextCursor != null}
@@ -166,7 +180,6 @@ function LabHistory(): ReactElement {
           loading={attempts.isFetching}
         />
       }
-      isEmpty={attempts.data?.items.length === 0}
     >
       <Table>
         <TableHeader>
@@ -221,12 +234,15 @@ function QuizHistory(): ReactElement {
   return (
     <HistoryFrame
       state={attempts}
-      empty={
-        <EmptyState
-          title="Chưa có lượt làm quiz nào"
-          description="Làm một quiz và kết quả từng lượt sẽ hiện ở đây."
-        />
-      }
+      blank={{
+        title: 'Chưa có lượt làm quiz nào',
+        description: 'Làm một quiz và kết quả từng lượt sẽ hiện ở đây.',
+      }}
+      page={{
+        page: pages.page,
+        itemCount: attempts.data?.items.length ?? 0,
+        hasNext: attempts.data?.nextCursor != null,
+      }}
       pager={
         <CursorPager
           hasNext={attempts.data?.nextCursor != null}
@@ -238,7 +254,6 @@ function QuizHistory(): ReactElement {
           loading={attempts.isFetching}
         />
       }
-      isEmpty={attempts.data?.items.length === 0}
     >
       <Table>
         <TableHeader>
@@ -282,6 +297,12 @@ function QuizHistory(): ReactElement {
  * Bốn trạng thái dùng chung của một tab lịch sử: đang tải · lỗi · rỗng · có dữ
  * liệu. Gom vào một chỗ để ba tab không trôi khỏi nhau về cách báo lỗi — và để
  * không tab nào "quên" trạng thái rỗng rồi hiện một cái bảng không có dòng nào.
+ *
+ * ⚠ Trạng thái rỗng KHÔNG còn là một `ReactNode` cố định do tab truyền xuống.
+ * Câu đúng phụ thuộc vào trang hiện tại (`page`), còn trang sau hay không
+ * (`hasNext`) và tầng đọc đã bỏ bao nhiêu dòng (`skipped`) — `describeEmptyPage`
+ * là nơi duy nhất biết ba thứ đó ghép lại thành câu nào. Tab chỉ đưa `blank`,
+ * tức câu cho ca "thật sự chưa có gì".
  */
 function HistoryFrame(props: {
   readonly state: {
@@ -291,12 +312,12 @@ function HistoryFrame(props: {
     readonly error: unknown;
     readonly refetch: () => unknown;
   };
-  readonly isEmpty: boolean;
-  readonly empty: ReactNode;
+  readonly page: HistoryPageState;
+  readonly blank: HistoryNotice;
   readonly pager: ReactNode;
   readonly children: ReactNode;
 }): ReactElement {
-  const { state, isEmpty, empty, pager, children } = props;
+  const { state, page, blank, pager, children } = props;
 
   if (state.isPending) {
     return <Skeleton className="mt-4 h-40 w-full" />;
@@ -314,14 +335,19 @@ function HistoryFrame(props: {
     );
   }
 
-  if (isEmpty) {
-    return <div className="mt-4">{empty}</div>;
-  }
+  const notice = describeEmptyPage(page, blank);
+  // Pager đi kèm CẢ hai nhánh: giấu nó ở trang rỗng là cắt luôn đường sang
+  // trang sau và đường về trang đầu — xem `shouldShowPager`.
+  const nav = shouldShowPager(page) ? pager : null;
 
   return (
     <div className="mt-4 flex flex-col gap-3">
-      {children}
-      {pager}
+      {notice === null ? (
+        children
+      ) : (
+        <EmptyState title={notice.title} description={notice.description} />
+      )}
+      {nav}
     </div>
   );
 }

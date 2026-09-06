@@ -33,6 +33,7 @@ import {
 } from './session-summary';
 import { formatMoment } from '../../lib/format-moment';
 import { useCursorPages } from './use-cursor-pages';
+import { describeEmptyPage, shouldShowPager, type HistoryPageState } from './history-page-notice';
 
 /**
  * "Phiên đang mở" — `me.activeSessions` + kết thúc sớm bằng `me.endSession`.
@@ -86,6 +87,23 @@ export function ActiveSessions(): ReactElement {
   const reading = capacity.data === null ? null : describeCapacity(capacity.data);
   const now = Date.now();
 
+  /**
+   * Cùng luật với ba tab lịch sử (`history-page-notice.ts`): một trang rỗng
+   * KHÔNG được nuốt pager. `ListSessions` không lọc dòng nào nên `skipped` luôn
+   * 0 ở đây — nhưng ca "đang ở trang 2, vừa kết thúc nốt phiên cuối" thì trang
+   * rỗng mà vẫn cần đường VỀ trang đầu, và luật cũ đã cắt mất đường đó.
+   */
+  const shape: HistoryPageState = {
+    page: pages.page,
+    itemCount: sessions.data?.items.length ?? 0,
+    hasNext: sessions.data?.nextCursor != null,
+  };
+  const emptyNotice = describeEmptyPage(shape, {
+    title: 'Bạn không có phiên nào đang mở',
+    description:
+      'Phiên được tạo khi bạn bắt đầu một bài học, lab hoặc playground, và tự hết hạn khi tới giờ.',
+  });
+
   return (
     <section aria-labelledby="phien-dang-mo" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -125,14 +143,11 @@ export function ActiveSessions(): ReactElement {
         />
       )}
 
-      {sessions.isSuccess &&
-        (sessions.data.items.length === 0 ? (
-          <EmptyState
-            title="Bạn không có phiên nào đang mở"
-            description="Phiên được tạo khi bạn bắt đầu một bài học, lab hoặc playground, và tự hết hạn khi tới giờ."
-          />
-        ) : (
-          <>
+      {sessions.isSuccess && (
+        <>
+          {emptyNotice !== null ? (
+            <EmptyState title={emptyNotice.title} description={emptyNotice.description} />
+          ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -177,7 +192,9 @@ export function ActiveSessions(): ReactElement {
                 })}
               </TableBody>
             </Table>
+          )}
 
+          {shouldShowPager(shape) && (
             <CursorPager
               hasNext={sessions.data.nextCursor !== null}
               onNext={() => {
@@ -187,8 +204,9 @@ export function ActiveSessions(): ReactElement {
               page={pages.page}
               loading={sessions.isFetching}
             />
-          </>
-        ))}
+          )}
+        </>
+      )}
 
       <Dialog
         open={pendingId !== null}

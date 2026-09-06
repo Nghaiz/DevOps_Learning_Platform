@@ -178,6 +178,16 @@ export const meRouter = createTRPCRouter({
    * không có `Lab` thì không tính được `score`/`status` (`computeLabScore` cần
    * `tasks[]`), và bịa một điểm 0 giả sẽ nói dối nặng hơn việc thiếu một dòng
    * lịch sử hiếm gặp.
+   *
+   * ⚠ Nhưng việc bỏ qua phải NÓI RA: trả về `skipped` cùng `items`/`nextCursor`.
+   * Một trang lọc sạch trông y hệt một trang hết dữ liệu nếu chỉ nhìn `items`,
+   * và cái nhìn đó làm client giấu luôn nút Trang sau. Xem `skipped` bên dưới
+   * và `me-history-skipped.test.ts`.
+   *
+   * `listQuizAttempts` KHÔNG có trường này và không cần: `quiz_attempts.quiz_id`
+   * có FK thật vào `quizzes` (NO ACTION), nên một lượt quiz không thể trỏ vào
+   * một quiz không tồn tại — khác `lab_attempts.lab_id`, vốn không có FK vì nội
+   * dung lab nằm trên đĩa.
    */
   listLabAttempts: protectedProcedure.input(listInputSchema).query(async ({ ctx, input }) => {
     let cursorRow: { startedAt: Date; id: string } | undefined;
@@ -222,9 +232,22 @@ export const meRouter = createTRPCRouter({
     const labs = new Map(labEntries);
 
     const items = [];
+    /**
+     * Số dòng của CHÍNH trang này bị bỏ vì lab không còn đọc được.
+     *
+     * ⛔ KHÔNG suy ra được từ `items` — những dòng bị bỏ không đi qua dây, nên
+     * client chỉ thấy một danh sách ngắn hơn và không có cách nào biết vì sao.
+     * Đây là thông tin THẬT mà tầng đọc đang có sẵn, không phải derived field.
+     *
+     * Không có nó, `items: []` + `nextCursor != null` đọc y hệt "chưa từng thử
+     * lab nào", và giao diện nói một câu SAI SỰ THẬT rồi giấu luôn nút Trang
+     * sau — toàn bộ lịch sử phía sau mất đường tới.
+     */
+    let skipped = 0;
     for (const row of page) {
       const lab = labs.get(row.labId) ?? null;
       if (lab === null) {
+        skipped += 1;
         continue;
       }
       const results = await loadResults(ctx.db, row.id);
@@ -246,7 +269,11 @@ export const meRouter = createTRPCRouter({
       });
     }
 
-    return { items, nextCursor: hasMore && page.length > 0 ? (page[page.length - 1]?.id ?? null) : null };
+    return {
+      items,
+      skipped,
+      nextCursor: hasMore && page.length > 0 ? (page[page.length - 1]?.id ?? null) : null,
+    };
   }),
 
   /**
