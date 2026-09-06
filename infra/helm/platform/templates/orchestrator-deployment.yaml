@@ -155,11 +155,30 @@ spec:
               value: {{ .Values.orchestrator.env.extendDefault | quote }}
             - name: REAP_INTERVAL
               value: {{ .Values.orchestrator.env.reapInterval | quote }}
+            {{- /*
+              ⛔ BẪY KHOÁ CŨ — PHẢI NỔ, KHÔNG ĐƯỢC BỎ QUA.
+
+              `capacitySoftLimit` đã ĐỔI THÀNH `capacityHardLimit` (P13: trần mềm
+              nay được orchestrator TÍNH = hard − poolTarget, xem values.yaml).
+              Helm KHÔNG cảnh báo về key lạ trong `-f` hay `--set`: một values
+              file cũ, hay một `--set orchestrator.env.capacitySoftLimit=25` gõ
+              theo trí nhớ, sẽ được nhận và LẶNG LẼ không có tác dụng gì — đúng
+              bẫy `helm-accepts-unknown-set-keys`, nơi `helm get values` in lại
+              chính khoá sai đó nên mọi lệnh đều đọc ra như đã xác nhận.
+
+              Ở đây thì hậu quả còn tệ hơn im lặng: `helm upgrade` vẫn thành
+              công, orchestrator vẫn lên xanh, và trần FE hiện là giá trị của
+              `capacityHardLimit` — có thể là mặc định cloud-shaped 8 của
+              values.yaml — trong khi người vận hành tin mình vừa đặt 25.
+            */}}
+            {{- if hasKey .Values.orchestrator.env "capacitySoftLimit" }}
+            {{- fail "[orchestrator:E-CAPACITY-KEY-RENAMED] `orchestrator.env.capacitySoftLimit` KHÔNG CÒN ĐƯỢC ĐỌC — đổi tên thành `orchestrator.env.capacityHardLimit` (P13). Trần mềm mà FE hiện (\"còn N chỗ\") nay được orchestrator TÍNH = capacityHardLimit − poolTarget, nên KHÔNG khai nó nữa: khai cả hai là hai nguồn cho một sự thật và chúng sẽ trôi khỏi nhau khi poolTarget đổi. Đặt `capacityHardLimit` = TRẦN VẬT LÝ đã đo của cụm (lab: 23 — xem values-selfhost.yaml § sandbox.quota) rồi BỎ HẲN capacitySoftLimit. Nếu bạn tới đây qua `helm upgrade --reuse-values`, key cũ đến từ values ĐÃ TÍNH của release trước: dùng --reset-then-reuse-values." }}
+            {{- end }}
             # BẮT BUỘC — internal/config.Load() từ chối khởi động nếu thiếu
             # (P13 D5). Không `| default`: một mặc định ở tầng template sẽ che
             # mất chính cổng fail-fast mà config.go dựng lên.
-            - name: CAPACITY_SOFT_LIMIT
-              value: {{ required "orchestrator.env.capacitySoftLimit là bắt buộc — orchestrator sẽ CrashLoopBackOff ngay lúc khởi động nếu thiếu (internal/config.Load fail-fast). Xem values.yaml § capacitySoftLimit cho phép đo 20 vs 23." .Values.orchestrator.env.capacitySoftLimit | quote }}
+            - name: CAPACITY_HARD_LIMIT
+              value: {{ required "orchestrator.env.capacityHardLimit là bắt buộc — orchestrator sẽ CrashLoopBackOff ngay lúc khởi động nếu thiếu (internal/config.Load fail-fast). Đây là TRẦN VẬT LÝ đã ĐO của quota sandbox; trần mềm FE hiện được TÍNH = giá trị này − poolTarget. Xem values.yaml § capacityHardLimit." .Values.orchestrator.env.capacityHardLimit | quote }}
             {{- include "platform.mtlsEnv" (dict "context" . "cert" "server") | nindent 12 }}
             {{- if ne .Values.platform.grpcMtlsMode "off" }}
             {{- /*

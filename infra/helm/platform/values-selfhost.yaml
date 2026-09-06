@@ -162,14 +162,18 @@ orchestrator:
     # (N=18), không phải tối ưu: đo `dlp_claim_total{path="cold"}` /
     # `dlp_claim_total` sau vài buổi học thật rồi mới chỉnh tiếp.
     poolTarget: '3'
-    # Ngưỡng "còn N chỗ" FE hiện (P13 D5) — khớp ĐÚNG phép đo ở khối
-    # `sandbox.quota` cuối file này (P12/12.A, 2026-09-04): 23 phiên là trần vật
-    # lý, 20 là trần "pool còn lành" (§ đó có phép đo đầy đủ, đừng gộp hai số
-    # này làm một). Trùng giá trị mặc định của values.yaml hôm nay, nhưng ghim
-    # TƯỜNG MINH ở đây như mọi số đã đo khác trong file này (sandboxImage ở
-    # trên) — để lần đo lại quota kế tiếp không lặng lẽ để capacitySoftLimit
-    # trôi khỏi số thật.
-    capacitySoftLimit: '20'
+    # Trần VẬT LÝ đã ĐO của cụm này — khớp ĐÚNG phép tính ở khối `sandbox.quota`
+    # cuối file (P12/12.A, 2026-09-04) và ĐÚNG số `ceiling.js` đo được: giữ 23
+    # phiên đồng thời, lượt từ chối đầu tiên ở #24.
+    #
+    # ⛔ KHÔNG PHẢI con số FE hiện. FE hiện TRẦN MỀM = 23 − poolTarget 3 = 20,
+    # và orchestrator TÍNH nó (không có env riêng nữa). Đổi `poolTarget` ở trên
+    # thì trần mềm tự đổi theo — đó chính là điểm của bản này: bản trước ghim
+    # `capacitySoftLimit: '20'` nên hai vế trôi khỏi nhau trong im lặng, đúng ca
+    # `no-derived-fields` mà báo cáo P12 §2.4 ghi lại.
+    #
+    # Đo lại con số này mỗi lần đổi `sandbox.quota` hoặc `sandbox.limitRange`.
+    capacityHardLimit: '23'
   resources:
     requests:
       cpu: 25m

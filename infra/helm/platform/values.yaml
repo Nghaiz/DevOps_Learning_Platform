@@ -208,23 +208,35 @@ orchestrator:
     # đường nhanh, best-effort và mất event khi reaper offline).
     reapInterval: '60s'
 
-    # Ngưỡng "còn N chỗ" mà GetCapacity trả cho FE (P13 D5). BẮT BUỘC — orchestrator
-    # từ chối khởi động nếu thiếu (internal/config.Load), cùng lý lẽ với
-    # SANDBOX_IMAGE: một mặc định đoán bừa sẽ hiện sai sức chứa cho MỌI cluster.
+    # TRẦN VẬT LÝ của quota sandbox: số phiên đồng thời apiserver thật sự cho
+    # vào. BẮT BUỘC — orchestrator từ chối khởi động nếu thiếu
+    # (internal/config.Load), cùng lý lẽ với SANDBOX_IMAGE: một mặc định đoán
+    # bừa sẽ hiện sai sức chứa cho MỌI cluster, và triệu chứng là một trang
+    # render bình thường với một con số sai, không phải một lỗi.
     #
-    # ⛔ KHÔNG PHẢI trần cứng của quota — đó là `sandbox.quota.pods` phía dưới,
-    # do apiserver gác. Đây là ngưỡng THẤP HƠN trần vật lý: values-selfhost.yaml
-    # L303-318 đo được trên VM lab hôm nay là HAI trần khác nhau —
-    #   · 23 phiên = trần vật lý (quota thật sự cho vào, ĐO không suy).
-    #   · 20 phiên = trần "pool còn lành" — vượt mức này thì quota đã gần đầy nên
-    #     orchestrator không refill nổi warm-pool nữa; người thứ 21-23 vẫn vào
-    #     được nhưng đi cold path (chờ tạo pod) thay vì nhận pod ấm ngay.
-    # Con số FE hiện "còn N chỗ" PHẢI là 20 (trải nghiệm), không phải 23 (vật
-    # lý) — gộp hai số này làm một là hứa một trải nghiệm mà 3 phiên cuối không
-    # có. Giá trị mặc định ở values.yaml (cloud-shaped, chưa đo trên phần cứng
-    # cụ thể nào) để 20 làm sàn an toàn; values-selfhost.yaml ghim lại đúng 20
-    # cho VM lab — xem khối đó để đọc phép đo đầy đủ.
-    capacitySoftLimit: '20'
+    # ⛔ ĐÂY LÀ CHỖ ĐỔI SO VỚI BẢN TRƯỚC — ĐỌC TRƯỚC KHI GÕ LẠI `capacitySoftLimit`.
+    # Bản đầu của P13 khai `capacitySoftLimit: '20'` ở đây. Con số 20 đó là ĐẠI
+    # LƯỢNG SUY RA (= 23 trần cứng − 3 pod ấm), nên ghim nó thành hằng nghĩa là
+    # đổi `poolTarget` sẽ để con số FE hiện MỤC LẶNG LẼ — đúng lớp lỗi mà chính
+    # báo cáo P12 §2.4 gọi tên (`no-derived-fields`) khi phát hiện chú thích cũ
+    # còn ghi 20 trong lúc pool đã lên 3 và trần thật là 18. Nay orchestrator
+    # TÍNH trần mềm = capacityHardLimit − poolTarget tại chỗ đọc.
+    #
+    # HAI TRẦN, ĐỪNG GỘP (values-selfhost.yaml § sandbox.quota có phép đo đủ):
+    #   · trần CỨNG = con số dưới đây — quota thật sự cho vào. ĐO, không suy;
+    #     lab 2026-09-04 (`infra/k6/ceiling.js`): giữ 23 phiên, từ chối đầu ở #24.
+    #   · trần MỀM  = hard − poolTarget — vượt mức này thì quota đã đầy nên
+    #     orchestrator không refill nổi warm-pool; người sau vẫn vào được nhưng
+    #     đi cold path (chờ tạo pod) thay vì nhận pod ấm ngay. Đây là con số FE
+    #     hiện "còn N chỗ", và nó KHÔNG khai ở đây.
+    #
+    # PHẢI > poolTarget: hiệu hai số là trần mềm, nên hard <= pool cho ra "còn 0
+    # chỗ" trên một cụm khoẻ. config.Load từ chối khởi động ở ca đó.
+    #
+    # Mặc định 8 là con số CLOUD-SHAPED CHƯA ĐO trên phần cứng cụ thể nào — nó ở
+    # đây để chart cài được, không phải để tin. Mọi cụm thật ghim lại giá trị đã
+    # đo của mình (xem values-selfhost.yaml).
+    capacityHardLimit: '8'
 
     # mTLS của cổng gRPC nay điều khiển bằng MỘT biến dùng chung cho cả ba
     # service: `platform.grpcMtlsMode` ở cuối file. Không còn cờ riêng ở đây —
