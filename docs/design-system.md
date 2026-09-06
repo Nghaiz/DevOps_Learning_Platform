@@ -52,8 +52,8 @@ Tên biến CSS = tên trong hợp đồng C1, không đổi được mà không
 | `--warning` | `bg-warning` | Cảnh báo (chạm hardCap, sức chứa thấp) | `0.541 0.15 55.98` (hổ phách) | `0.769 0.188 70.08` |
 | `--warning-foreground` | `text-warning-foreground` | Chữ trên nền warning | `0.985 0 0` | `0.145 0 0` |
 | `--border` | `border-border` | Viền mặc định | `0.922 0 0` | `1 0 0 / 12%` |
-| `--input` | `border-input`, `bg-input` (Switch off) | Viền ô nhập, nền Switch tắt | `0.63 0 0` (**không** bằng `--border` — xem §1a) | `1 0 0 / 16%` |
-| `--ring` | `ring-ring`, `focus-visible:ring-ring` | Vòng focus | `0.546 0.215 262.881` (= primary) | `0.685 0.169 262.881` (= primary tối) |
+| `--input` | `border-input`, `bg-input` (Switch off) | Viền ô nhập, nền Switch tắt | `0.63 0 0` (**không** bằng `--border` — xem §1a) | `1 0 0 / 38%` (**cũng** không bằng `--border` — xem §1a) |
+| `--ring` | `focus-visible:ring-ring` **+ `ring-offset-2 ring-offset-background`** | Vòng focus — bằng primary, nên KHÔNG được vẽ sát mặt nút (§1a) | `0.546 0.215 262.881` (= primary) | `0.685 0.169 262.881` (= primary tối) |
 | `--radius` | `rounded-lg` (= `--radius-lg`) | Bo góc gốc | `0.625rem` | (không đổi theo theme) |
 
 `--radius-sm`/`--radius-md`/`--radius-lg`/`--radius-xl` suy ra từ `--radius` trong
@@ -69,8 +69,34 @@ nghĩa đủ" của hợp đồng C1, và nó được gác bằng một test t�
 ### 1a. Contrast — số đo, không phải cảm nhận
 
 Mọi con số dưới đây tính từ chính `globals.css` bằng `tokens.contract.test.ts`
-(oklch → sRGB tuyến tính → độ chói tương đối WCAG 2.1), và được **gác lại** ở
-đó: hạ một token xuống dưới ngưỡng làm suite `packages/ui` đỏ.
+(oklch → sRGB **mã hoá gamma** → độ chói tương đối WCAG 2.1), và được **gác
+lại** ở đó: hạ một token xuống dưới ngưỡng làm suite `packages/ui` đỏ.
+
+> **⚠ Đính chính 2026-09-06 — bảng cũ có hai con số SAI, và chúng sai theo
+> hướng nguy hiểm nhất: chúng chứng nhận cho đúng thứ cần chặn.**
+>
+> `tokens.contract.test.ts` trộn alpha trong **linear-light**, còn trình duyệt
+> composite `border-color`/`background-color` trong **sRGB đã mã hoá gamma**
+> (CSS Color 4 §12 — compositing chạy SAU khi màu chuyển sang không gian đích).
+> Sai lệch không nhỏ; nó lật ngược kết luận. Với `--input` tối cũ
+> (`oklch(1 0 0 / 16%)`) trên nền `oklch(0.145 0 0)`:
+>
+> | | phép trộn | kết quả | trên `--background` | trên `--card` |
+> |---|---|---|---|---|
+> | ĐÚNG | `255×0.16 + 10×0.84 = 49.2` | `#313131` | **1.53** ✗ | **1.63** ✗ |
+> | SAI (cũ) | `1×0.16 + 0.00305×0.84` | `#707070` | 4.01 "đạt" | 3.71 "đạt" |
+>
+> Hai con số 4.01 / 3.71 đã được chép sang **ba nơi**: bảng này, chú thích
+> `--input` trong `globals.css`, và chính test. Cả ba sai cùng một kiểu, sửa
+> cùng ngày. Chỉ các cặp có token TRONG SUỐT bị ảnh hưởng (`--input` tối,
+> `--border` tối) — cặp đục không đi qua phép trộn nên số của chúng không đổi.
+>
+> Đối chứng cũ của test không cứu được: nó chỉ khẳng định `4.01 < 9.48`, tức
+> xác nhận một con số sai nhỏ hơn một con số khác. Nay thay bằng đối chứng
+> **dương**, tính tay được và độc lập với token hiện tại: trắng/đen = 21.00:1
+> kèm hex hai đầu thang, `oklch(0.145 0 0)` = `#0a0a0a`, và phép trộn 16% ra
+> `#313131` / 1.53:1 chạy SONG SONG với vế linear-light `#707070` / 4.01:1 —
+> đổi lại công thức là đỏ, không phải "đẹp lên".
 
 **Vì sao phải đo tay.** `axe-core` — cổng a11y của 13.H — chỉ có rule contrast
 cho **chữ**. Nó không có rule nào cho viền hay ranh giới control, nên
@@ -82,32 +108,98 @@ chứng minh viền đủ tương phản.
 | `--foreground` / `--background` | 4.5 (SC 1.4.3) | 19.79 | 18.96 |
 | `--muted-foreground` / `--background` | 4.5 | 7.57 | 7.63 |
 | `--muted-foreground` / `--muted` | 4.5 | 6.94 | 5.83 |
+| `--muted-foreground` / `--card` | 4.5 | 7.57 | 6.91 |
 | `--primary-foreground` / `--primary` | 4.5 | 4.95 | 6.85 |
+| `--secondary-foreground` / `--secondary` | 4.5 | 16.42 | 14.48 |
 | `--destructive-foreground` / `--destructive` | 4.5 | 4.56 | 6.84 |
 | `--success-foreground` / `--success` | 4.5 | 4.95 | 7.82 |
 | `--warning-foreground` / `--warning` | 4.5 | 5.06 | 9.23 |
-| `--input` / `--background` | 3.0 (SC 1.4.11) | **3.50** | 4.01 |
+| `--input` / `--background` | 3.0 (SC 1.4.11) | **3.50** | **3.51** |
+| `--input` / `--card` | 3.0 | 3.50 | **3.58** |
+| `--input` / `--muted` | 3.0 | 3.21 | **3.45** |
+| núm Switch / rãnh Switch (trên `--background`) | 3.0 | 3.50 | **3.51** |
+| núm Switch / rãnh Switch (trên `--card`) | 3.0 | 3.50 | **3.95** |
 | `--ring` / `--background` | 3.0 | 5.17 | 6.85 |
-| `--border` / `--background` | — (trang trí) | **1.26** | 3.26 |
+| `--ring` / `--card` | 3.0 | 5.17 | 6.20 |
+| `--primary` / `--background` | 3.0 | 5.17 | 6.85 |
+| `--destructive` / `--background` | 3.0 | 4.76 | 6.84 |
+| `--ring` / `--primary` | miễn trừ có chứng minh | **1.00** | **1.00** |
+| `--ring` / `--destructive` | miễn trừ có chứng minh | **1.09** | **1.00** |
+| `--border` / `--background` | — (trang trí) | **1.26** | **1.33** |
+| `--border` / `--card` | — (trang trí) | **1.26** | **1.42** |
+
+Ô **đậm** = giá trị từng nằm dưới ngưỡng, hoặc cố ý nằm dưới ngưỡng kèm lý do.
 
 **`--input` ≠ `--border`, khác với shadcn/ui gốc.** shadcn để hai token bằng
-nhau ở `0.922`; giá trị đó cho **1.26:1** trên nền trắng. `--input` là ranh
-giới **nhận dạng** của control — `border-input` là viền duy nhất của `Input`,
-`Textarea`, `SelectTrigger`, `Checkbox`, `RadioGroupItem` và `Button
-variant="outline"` (cả sáu đều `bg-background`, tức cùng màu nền trang), còn
-`bg-input` là rãnh `Switch` lúc tắt. Ở 1.26:1 một ô nhập trên trang sáng gần
-như **vô hình** cho tới khi được focus. Nâng lên `0.63` (#898989) cho 3.50:1,
-dư ~0.5 so với ngưỡng để sai số chuyển oklch→sRGB giữa các trình duyệt không
-kéo tụt xuống dưới. Nhánh tối giữ nguyên `1 0 0 / 16%` — đã 4.01:1, không cần
-đụng.
+nhau; giá trị đó cho **1.26:1** trên nền trắng. `--input` là ranh giới **nhận
+dạng** của control — `border-input` là viền duy nhất của `Input`, `Textarea`,
+`SelectTrigger`, `Checkbox`, `RadioGroupItem` và `Button variant="outline"`,
+còn `bg-input` là rãnh `Switch` lúc tắt. Ở 1.26:1 một ô nhập trên trang sáng
+gần như **vô hình** cho tới khi được focus.
 
-**`--border` ở 1.26:1 là quyết định, không phải chỗ bỏ sót.** Nó chỉ vẽ ranh
-giới **trang trí**: viền card, kẻ dòng bảng, viền đứt `EmptyState`, `Separator`
-(mặc định `decorative`, tức `role="none"`). SC 1.4.11 loại trừ tường minh phần
-trang trí thuần và phần không mang thông tin — nội dung trong card, không phải
-đường kẻ quanh nó, mới là thứ người dùng cần đọc. Ranh giới nào **nhận dạng
-một control** thì dùng `--input`, không dùng `--border`. Thêm một component
-tương tác mà lấy `border-border` làm viền duy nhất ⇒ đổi sang `border-input`.
+- **Sáng:** `0.63` (#898989) cho 3.50:1, dư ~0.5 so với ngưỡng để sai số
+  chuyển oklch→sRGB giữa các trình duyệt không kéo tụt xuống dưới.
+- **Tối:** `1 0 0 / 38%`, KHÔNG phải 16% (2026-09-06). Ở 16% lớp trắng này ra
+  `#313131` trên nền trang ⇒ 1.53:1 — cùng một hỏng như nhánh sáng, chỉ khác
+  là bảng cũ báo 4.01 nên nó không lộ ra. 38% cho 3.51 / 3.58 / 3.45.
+  Giữ dạng **trong suốt** thay vì đổi sang oklch đục là có chủ đích: alpha là
+  thứ kéo ba con số sát nhau (chênh 0.13), còn một giá trị đục vừa đủ 3.0 trên
+  `--muted` (`oklch(0.545 0 0)`) sẽ vọt lên 3.99 trên `--background` — chênh
+  0.94, tức viền đậm nhạt khác hẳn nhau tuỳ nó nằm trong khối nào.
+
+**`--border` ở 1.26–1.42:1 là quyết định, không phải chỗ bỏ sót.** Nó chỉ vẽ
+ranh giới **trang trí**: viền card, kẻ dòng bảng, viền đứt `EmptyState`,
+`Separator` (mặc định `decorative`, tức `role="none"`). SC 1.4.11 loại trừ
+tường minh phần trang trí thuần và phần không mang thông tin — nội dung trong
+card, không phải đường kẻ quanh nó, mới là thứ người dùng cần đọc. Ranh giới
+nào **nhận dạng một control** thì dùng `--input`, không dùng `--border`. Thêm
+một component tương tác mà lấy `border-border` làm viền duy nhất ⇒ đổi sang
+`border-input`.
+
+**Vòng focus: `--ring` = `--primary`, nên nó KHÔNG được vẽ sát mặt nút.**
+Đây là hệ quả trực tiếp của việc `--ring` cố ý bằng `--primary`: mọi vòng focus
+nằm sát một mặt tô `bg-primary` đều bằng **1.00:1** — vô hình, ở cả hai theme
+(nút `destructive`: 1.09 sáng / 1.00 tối). Nó phá luôn phép kiểm bàn phím của
+13.H, vì thứ phép kiểm đó cần thấy thì không hiển thị.
+
+**Không có nghiệm token.** Ở chế độ tối `--primary` chỉ cách `--card` 6.20:1,
+mà nhét vừa hai bậc 3:1 thì cần khe ≥9:1. Quét vét cạn thang độ chói cho đúng
+**0 nghiệm**; hai đầu mút nói rõ vì sao: trắng tinh chỉ được 2.89:1 với
+`--primary`, còn đen tuyền chỉ được 1.17:1 với `--card`. Nới `--primary` ra xa
+hơn thì phá `--primary-foreground` và cả bảng màu mọi lane đang tiêu thụ. Cách
+sửa vì vậy nằm ở **hình học**, không nằm ở màu:
+
+| Cơ chế | Dùng ở | Màu KỀ vòng focus khi đó |
+|---|---|---|
+| `ring-offset-2` + `ring-offset-background` | `Button`, `Switch`, `Checkbox` | `--background` / `--card` — 5.17 sáng / 6.85 tối |
+| `ring-current` | `StepNav`, nút đóng `Toast` | `text-*-foreground` của chính bề mặt — đã gác ở ≥4.5:1 |
+
+Hai class của cơ chế thứ nhất **bắt buộc đi cùng nhau**: thiếu
+`ring-offset-background` thì Tailwind rơi về mặc định của chính nó
+(`--tw-ring-offset-color: #fff`), tức một khe **trắng** trên nền tối. Cơ chế
+thứ hai dành cho hai chỗ mà offset là SAI chứ không phải thiếu — hàng bước nằm
+trong `overflow-x-auto` nên vòng đẩy ra ngoài bị **cắt** ở mép cuộn, còn nút
+đóng toast thì màu nền trang không hề kề nó.
+
+Miễn trừ hai cặp `--ring`/`--primary` và `--ring`/`--destructive` khỏi bảng đo
+chỉ đứng vững chừng nào offset **thật sự có mặt**, nên nó được gác bằng class
+render ra DOM ở `button.test.tsx`, `switch.test.tsx`, `checkbox.test.tsx`,
+`toast.test.tsx`, `lesson/step-nav.test.tsx` — cộng một đối chứng ghim khe
+6.20:1: nếu ai nới `--primary` quá 9:1 thì test đỏ và miễn trừ phải bị **gỡ**,
+không phải chỉnh lại con số.
+
+**Spinner trong nút `loading` lấy màu từ token, không từ `currentColor`.**
+`Button loading` đặt `text-transparent` lên chính `<button>` để giấu nhãn phía
+sau Spinner đè lên — nhưng `currentColor` khi đó là trong suốt, mà
+`lucide-react` vẽ icon bằng `stroke="currentColor"` + `fill="none"`, nên
+spinner **cũng** biến mất. Lớp bọc Spinner vì vậy đặt màu theo biến thể
+(`SPINNER_TONE` trong `button.tsx`): mỗi giá trị là màu **chữ** của chính biến
+thể đó, nên tương phản với mặt nút đã nằm trong bảng ≥4.5:1 ở trên, dư so với
+mức 3:1 mà SC 1.4.11 đòi. `outline`/`ghost` phải nói rõ `text-foreground` vì
+hai biến thể đó không đặt `text-*` nào, `currentColor` của chúng là màu thừa
+kế bất kỳ. jsdom không tính computed style nên phép gác ở đây là **class**
+quyết định màu, không phải sự tồn tại phần tử — kiểm sự tồn tại là một test
+không bao giờ đỏ được.
 
 **`--success`/`--warning` KHÔNG có trong bảng chuẩn shadcn/ui** (bản gốc chỉ có
 `destructive`) — thêm hai token này vì sản phẩm cần phân biệt "đạt/thành công"
