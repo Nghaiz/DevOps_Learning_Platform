@@ -209,6 +209,65 @@ khác dùng CÙNG một hằng số, và để CI có một tên cụ thể đ�
 {{- define "platform.orchestratorGrpcContainerPort" -}}9090{{- end -}}
 
 {{/*
+platform.gatewayAdminOnService — vị từ DUY NHẤT trả lời "cổng admin 8083 của
+gateway có lên Service không". Chuỗi rỗng = KHÔNG.
+
+BỐN nơi phải đồng ý với nhau, nên phải là MỘT biểu thức:
+  · gateway-service.yaml         port `admin` trên Service
+  · platform-networkpolicy.yaml  khối 3 (egress của web) + khối 12b (ingress gateway)
+  · web-deployment.yaml          `GATEWAY_METRICS_URL` tự suy ra
+Bốn `if` viết rời là bốn cơ hội để MỘT NỬA của một cạnh biến mất trong im lặng —
+và nửa mất đi thì không có gì đỏ: pod Running, helm xanh, chỉ `admin.health` báo
+`reached:false` mà không chỉ ra nửa nào thiếu. Repo này đã dính đúng chế độ đó một
+lần ở P13 (URL orchestrator trỏ đúng trong khi netpol khối 9 đóng).
+
+`gateway.service.exposeAdminPort` — BA giá trị, không phải boolean:
+  · 'auto' (mặc định) → lên Service KHI VÀ CHỈ KHI networkPolicy.platform.enabled
+  · true              → lên Service; FAIL nếu netpol tắt
+  · false             → không bao giờ lên Service
+
+⛔ VÌ SAO NETPOL LÀ ĐIỀU KIỆN. `/metrics` KHÔNG có authz (`httpx.NewObservability`
+gắn `promhttp` trần). Hai cấu hình cho hai hệ quả khác hẳn nhau:
+  · netpol BẬT → khối 8 đã chọn trúng pod gateway kèm `policyTypes: Ingress`, nên
+    ingress của pod đó ĐÃ bị thu về đúng danh sách rule (đúng cả khi denyEnabled
+    còn false — xem đầu file netpol). NetworkPolicy chặn ở POD chứ không ở Service,
+    nên thêm port lên Service KHÔNG mở thêm đường vào nào: nó chỉ ĐẶT TÊN cho một
+    đường mà khối 12/12b mới là thứ quyết định ai đi được.
+  · netpol TẮT → không gì thu hẹp ingress của gateway; port trên Service LÀ một tên
+    DNS ổn định tới `/metrics` không xác thực cho mọi pod trong namespace.
+    (`dlp_build_info` lộ version chính xác để tra CVE; `dlp_gateway_ws_active` và
+    `go_goroutines` cho đếm số phiên đang chạy.)
+Nên "an toàn hay không" KHÔNG phải thuộc tính của cái port — nó là thuộc tính của
+CẶP (port, netpol). Buộc render theo netpol là viết cặp đó ra thành mã, thay vì
+viết một chú thích rồi mong người sau đọc.
+
+⛔ VÌ SAO MẶC ĐỊNH LÀ 'auto' CHỨ KHÔNG PHẢI một cờ opt-in bật bằng `--set`:
+`infra/host/12-helm-deploy.sh` lọc values live bằng DANH SÁCH CHO PHÉP — chỉ mang
+sang các subtree `ingress`/`networkPolicy`/`platform` cộng vài leaf `web.env.*`.
+Khối `gateway:` thì git có khai, nên luật của script là "git thắng": một
+`--set gateway.service.exposeAdminPort=true` sống đúng MỘT lượt deploy rồi bị bỏ
+trong im lặng ở lượt sau, và trang quản trị tối trở lại mà không ai đổi gì.
+`auto` không thêm khoá nào để bị bỏ — nó bám vào `networkPolicy`, subtree ĐÃ nằm
+trong danh sách cho phép.
+*/}}
+{{- define "platform.gatewayAdminOnService" -}}
+{{- $mode := .Values.gateway.service.exposeAdminPort -}}
+{{- $netpol := (((.Values.networkPolicy).platform).enabled) -}}
+{{- if kindIs "bool" $mode -}}
+  {{- if $mode -}}
+    {{- if not $netpol -}}
+      {{- fail "[gateway:E-ADMIN-PORT-NO-NETPOL] `gateway.service.exposeAdminPort: true` nhưng `networkPolicy.platform.enabled` KHÔNG bật. Đưa cổng admin (8083) lên Service khi không có NetworkPolicy nghĩa là tạo một tên DNS ổn định tới `/metrics` KHÔNG CÓ AUTHZ cho MỌI pod trong namespace — `dlp_build_info` lộ version chính xác (tra CVE), `dlp_gateway_ws_active`/`go_goroutines` cho phép đếm số phiên đang chạy. Hỏng theo hướng NỚI LỎNG: helm xanh, pod xanh, không có gì đỏ để nhìn. Ba đường đi tiếp: (1) bật netpol nền tảng trong CÙNG lượt deploy — cần networkPolicy.platform.{enabled,apiServerEndpoints,nodeCidrs}; (2) để nguyên mặc định auto, chart tự mở cổng đúng lúc netpol bật và không mở khi netpol tắt; (3) đặt false rồi đọc metric gateway qua Prometheus (PodMonitor theo IP pod, khối 12) — `admin.health` khi đó báo nguồn gateway reached:false kèm lý do, đó là hành vi đúng chứ không phải hỏng." -}}
+    {{- end -}}
+    {{- if .Values.gateway.enabled -}}true{{- end -}}
+  {{- end -}}
+{{- else if eq (toString $mode) "auto" -}}
+  {{- if and .Values.gateway.enabled $netpol -}}true{{- end -}}
+{{- else -}}
+  {{- fail (printf "[gateway:E-ADMIN-PORT-BAD-MODE] `gateway.service.exposeAdminPort` = %q không hợp lệ. Nhận đúng ba giá trị: auto (mặc định — theo networkPolicy.platform.enabled), true, false. Một giá trị lạ ở đây sẽ bị đọc thành \"không mở\" và trang quản trị tối vĩnh viễn mà không có gì báo, nên nó phải chết lúc render." (toString $mode)) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Tên Secret chứa CA + 3 cert mTLS gRPC (1.C-4).
 */}}
 {{- define "platform.mtlsSecretName" -}}

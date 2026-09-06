@@ -65,6 +65,19 @@ Cổng CI khẳng định các hằng số này khớp `containerPort` trong dep
 {{- $ns := .Release.Namespace }}
 {{- $np := .Values.networkPolicy.platform }}
 {{- /*
+  $gwAdmin: web có được đọc `/metrics` của gateway không. CÙNG vị từ dựng port
+  `admin` trên Service (gateway-service.yaml) và dựng `GATEWAY_METRICS_URL`
+  (web-deployment.yaml) — xem `platform.gatewayAdminOnService` trong _helpers.tpl
+  cho lý do đầy đủ. Dùng chung helper thay vì lặp biểu thức vì hai nửa của một
+  cạnh mà lệch nhau thì KHÔNG có gì đỏ: pod Running, helm xanh, chỉ `admin.health`
+  báo `reached:false` mà không chỉ ra nửa nào thiếu.
+
+  Lưu ý: cả file này nằm trong `if networkPolicy.platform.enabled`, nên bên trong
+  đây vế netpol của helper LUÔN đúng. Vẫn gọi helper (không rút gọn) để bốn nơi
+  đọc đúng một biểu thức — rút gọn ở đây là mở lại đúng khe trôi vừa bịt.
+*/}}
+{{- $gwAdmin := include "platform.gatewayAdminOnService" . }}
+{{- /*
 ─── Cổng chặn cấu hình: nổ lúc RENDER thay vì hỏng lúc CHẠY ──────────────────
 Cả ba giá trị dưới đây phụ thuộc cụm. Thiếu chúng, policy vẫn render HỢP LỆ
 (kubeconform xanh), `helm upgrade` vẫn xanh, apiserver vẫn nhận — và hệ hỏng
@@ -256,6 +269,18 @@ spec:
       ports:
         - protocol: TCP
           port: {{ include "platform.gatewayPublicContainerPort" . }}
+{{- if $gwAdmin }}
+        {{- /*
+          · gateway:{{ include "platform.gatewayAdminContainerPort" . }}  `admin.health` (P13 C4) đọc /metrics của gateway.
+            CỔNG ADMIN, KHÔNG phải cổng công khai — cùng lối tách bạch như cạnh
+            web→orchestrator ngay bên dưới: cổng kia là chiều ĐIỀU KHIỂN (exec chấm
+            bài), cổng này chỉ ĐỌC. Nửa còn lại của cạnh nằm ở khối 12b.
+            CHỈ mở khi `gateway.service.exposeAdminPort=true` — cùng một khoá dựng
+            port trên Service, nên không có trạng thái "URL đúng, mạng đóng".
+        */}}
+        - protocol: TCP
+          port: {{ include "platform.gatewayAdminContainerPort" . }}
+{{- end }}
     - to:
         - podSelector:
             {{- include "platform.netpolComponent" (dict "context" . "component" "orchestrator") | nindent 14 }}
@@ -677,6 +702,53 @@ spec:
       ports:
         - protocol: TCP
           port: {{ include "platform.orchestratorHttpContainerPort" . }}
+{{- end }}
+{{- if $gwAdmin }}
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 12b. INGRESS vào /metrics của gateway TỪ WEB — cho `admin.health` (P13 C4).
+#
+# Khối SONG ĐỐI với 13b (orchestrator), và cả hai chỉ mở đúng một chiều ĐỌC.
+#
+# ⛔ KHỐI RIÊNG, KHÔNG NỚI KHỐI 12 — dù khối 12 cũng chỉ mang cổng admin. Lý do
+# KHÔNG phải "sợ mở nhầm cổng" (khối 12 không mang cổng nào khác), mà là ĐIỀU KIỆN
+# RENDER: khối 12 nằm trong `if $np.metricsScrape.enabled` — một cụm không chạy
+# Prometheus vẫn hợp lệ. Thêm `from: web` vào đó nghĩa là chiều web→gateway biến
+# mất khi ai đó tắt scrape Prometheus, và triệu chứng sẽ là `admin.health` báo
+# `reached:false` cho một khoá (`exposeAdminPort`) vẫn đang bật — một cạnh chết vì
+# một cờ chẳng liên quan. Hai mục đích ⇒ hai vòng đời ⇒ hai policy.
+#
+# ⛔ VÀ ĐÂY LÀ NỬA THỨ HAI CỦA MỘT CẠNH. Nửa kia (egress của web) ở khối 3, cùng
+# gác bởi `$gwAdmin`. Thiếu một nửa thì không có gì đỏ — pod Running, helm xanh,
+# chỉ trang quản trị nói "không với tới" mà không chỉ ra nửa nào thiếu.
+#
+# Vì sao mở được mà khối 13b từng từ chối: 13b viết lúc cổng admin của gateway
+# KHÔNG lên Service trong MỌI cấu hình, nên "mở chiều này" đồng nghĩa "tạo tên DNS
+# tới /metrics không authz cho mọi pod, kể cả khi netpol tắt". Nay việc lên Service
+# có công tắc riêng (`gateway.service.exposeAdminPort`) và công tắc đó `fail` nếu
+# netpol tắt (`[gateway:E-ADMIN-PORT-NO-NETPOL]`), nên điều kiện làm 13b từ chối
+# không còn đúng: tới được đây nghĩa là netpol ĐANG bật, và khi netpol bật thì port
+# trên Service không thêm đường nào — chính rule này mới quyết định ai vào được.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform.fullname" . }}-allow-ingress-metrics-gateway-web
+  namespace: {{ $ns }}
+  labels:
+    {{- include "platform.componentLabels" (dict "context" . "component" "platform-networkpolicy") | nindent 4 }}
+spec:
+  podSelector:
+    {{- include "platform.netpolComponent" (dict "context" . "component" "gateway") | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            {{- include "platform.netpolComponent" (dict "context" . "component" "web") | nindent 12 }}
+      ports:
+        - protocol: TCP
+          port: {{ include "platform.gatewayAdminContainerPort" . }}
 {{- end }}
 ---
 # ─────────────────────────────────────────────────────────────────────────────

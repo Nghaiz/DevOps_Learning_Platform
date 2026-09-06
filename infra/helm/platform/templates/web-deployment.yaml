@@ -135,13 +135,32 @@ spec:
               # networkPolicy.platform.enabled=true) tại values.yaml §
               # web.env.orchestratorMetricsUrl.
               value: {{ .Values.web.env.orchestratorMetricsUrl | default (printf "http://%s-orchestrator:%v/metrics" (include "platform.fullname" .) .Values.orchestrator.service.httpPort) | quote }}
-            {{- with .Values.web.env.gatewayMetricsUrl }}
-            # KHÔNG có nhánh `| default` tự suy — KHÔNG PHẢI thiếu sót. Cổng
-            # admin của gateway (8083) cố ý không lên Service (gateway-service.yaml),
-            # nên không có DNS nào để tự ghép. Xem values.yaml §
-            # web.env.gatewayMetricsUrl cho lý do đầy đủ + hai đường mở khoá.
-            # OMIT khi rỗng (mặc định hôm nay): `admin.health` đã thiết kế sẵn
-            # cho nguồn gateway báo lỗi có kiểm soát (`sources[].ok/error`).
+            {{- /*
+              GATEWAY_METRICS_URL — nhánh "tự ghép DNS" CÓ ĐIỀU KIỆN, khác mọi
+              field khác trong file này.
+
+              Tên `<release>-gateway:8083` chỉ TỒN TẠI khi cổng admin lên Service,
+              và điều đó do `platform.gatewayAdminOnService` quyết định (_helpers.tpl):
+              mặc định `exposeAdminPort: auto` ⇒ theo `networkPolicy.platform.enabled`.
+              Suy ra URL vô điều kiện là hứa một tên DNS có thể không tồn tại.
+
+              Ba nhánh, và cả ba đều là trạng thái hợp lệ:
+                · cổng admin lên Service, không đặt tay → tự ghép DNS in-cluster
+                · đặt tay (bất kể vị từ trên)           → dùng đúng giá trị đó
+                    (dành cho nguồn NGOÀI Service của chart: sidecar, proxy, cụm khác;
+                     nếu đích nằm TRONG cụm này thì vẫn cần netpol khối 12b, nếu không
+                     chiều mạng đóng và `admin.health` báo `reached:false`)
+                · không nhánh nào                       → OMIT hẳn biến
+                    ⇒ `resolveUrl` trả null ⇒ nguồn gateway `reached:false, ok:false,
+                      error:"chưa cấu hình URL"`. Một trạng thái NÓI RA, không phải
+                      một dấu xanh cho thứ chưa ai đo, và KHÔNG giết cả admin.health
+                      (health.ts bọc `requireEnv`).
+            */}}
+            {{- $gatewayMetricsUrl := .Values.web.env.gatewayMetricsUrl }}
+            {{- if and (not $gatewayMetricsUrl) (include "platform.gatewayAdminOnService" .) }}
+            {{- $gatewayMetricsUrl = printf "http://%s-gateway:%s/metrics" (include "platform.fullname" .) (include "platform.gatewayAdminContainerPort" .) }}
+            {{- end }}
+            {{- with $gatewayMetricsUrl }}
             - name: GATEWAY_METRICS_URL
               value: {{ . | quote }}
             {{- end }}

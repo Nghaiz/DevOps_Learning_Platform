@@ -1,4 +1,19 @@
 {{- if .Values.gateway.enabled }}
+{{- /*
+⛔ CỔNG ADMIN (8083) LÊN SERVICE LÀ MỘT QUYẾT ĐỊNH CÓ ĐIỀU KIỆN, KHÔNG PHẢI HẰNG.
+
+Vị từ nằm ở MỘT chỗ: helper `platform.gatewayAdminOnService` (_helpers.tpl), nơi
+ghi đầy đủ vì sao điều kiện là `networkPolicy.platform.enabled` và vì sao mặc định
+là 'auto'. Đọc ở đó trước khi sửa bất cứ dòng nào dưới đây.
+
+Tóm tắt một câu: `/metrics` của gateway KHÔNG có authz, nên port trên Service chỉ
+an toàn khi netpol đang thu ingress của pod gateway về đúng danh sách rule. Với
+netpol BẬT, port này không mở thêm đường nào (policy chặn ở POD, không ở Service)
+— nó chỉ đặt TÊN cho đường mà khối 12/12b quyết định. Với netpol TẮT, nó là một
+tên DNS ổn định tới endpoint không xác thực cho mọi pod trong namespace, nên chart
+không render nó (mode 'auto') hoặc chết hẳn (mode `true`).
+*/}}
+{{- $adminOnService := include "platform.gatewayAdminOnService" . }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -8,11 +23,21 @@ metadata:
 spec:
   type: {{ .Values.gateway.service.type | default "ClusterIP" }}
   ports:
-    # CHỈ port public — 8083 (admin, /healthz + /metrics) cố ý KHÔNG lên đây.
-    # Xem values.yaml § gateway.service để biết vì sao.
     - name: public
       port: {{ .Values.gateway.service.publicPort }}
       targetPort: public
+{{- if $adminOnService }}
+    # Cổng admin (/healthz + /metrics). Chỉ tới được đây khi netpol nền tảng đang
+    # bật — xem helper `platform.gatewayAdminOnService`.
+    #
+    # Số cổng lấy từ helper chứ KHÔNG khai một `service.adminPort` riêng: netpol
+    # (khối 11/12/12b) và `containerPort` của deployment đều đọc CÙNG helper này,
+    # và CI đối chiếu helper với containerPort. Một khoá values thứ hai cho cùng
+    # con số là một trục trôi mà không cổng nào đang gác.
+    - name: admin
+      port: {{ include "platform.gatewayAdminContainerPort" . }}
+      targetPort: admin
+{{- end }}
   selector:
     {{- include "platform.selectorLabels" (dict "context" . "component" "gateway") | nindent 4 }}
 {{- end }}

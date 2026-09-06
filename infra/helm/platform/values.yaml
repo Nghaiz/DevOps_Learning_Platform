@@ -76,36 +76,31 @@ web:
     orchestratorMetricsUrl: ''
     # Đường BFF → gateway `/metrics` cho `admin.health` (P13 C4).
     #
-    # ⛔ KHÔNG CÓ DEFAULT SUY RA ĐƯỢC — và đây KHÔNG phải một field quên điền.
-    # Cổng admin của gateway (8083, phục vụ /healthz + /metrics) CỐ Ý không lên
-    # `gateway-service.yaml` (xem comment tại đó): /metrics không có authz, và
-    # đưa nó lên Service nghĩa là bất kỳ pod nào trong namespace cũng gọi được.
-    # Không có Service ⇒ không có tên DNS ổn định nào để tự suy — khác hẳn mọi
-    # field "rỗng = tự ghép DNS" khác trong file này. Ngay cả khi có Service,
-    # `platform-networkpolicy.yaml` khối 12 cũng chỉ mở chiều đó cho namespace
-    # `monitoring`, không phải cho `web`.
+    # RỖNG = tự suy ra "http://<release>-gateway:8083/metrics" KHI VÀ CHỈ KHI
+    # `gateway.service.exposeAdminPort=true`; ngược lại biến bị OMIT hẳn khỏi
+    # web-deployment. Đây là field DUY NHẤT trong file này mà nhánh "tự ghép DNS"
+    # phụ thuộc một khoá khác — vì tên DNS ấy chỉ tồn tại khi cổng admin lên
+    # Service, và việc đó có công tắc riêng (xem § gateway.service.exposeAdminPort).
     #
-    # ⛔ ĐỂ RỖNG LÀ MỘT QUYẾT ĐỊNH ĐÃ CÂN Ở P13, KHÔNG PHẢI MỘT VIỆC CÒN NỢ.
-    # Mở đường này đòi đưa cổng admin 8083 lên `gateway-service.yaml`, tức tạo
-    # một tên DNS ổn định tới một endpoint `/metrics` KHÔNG CÓ AUTHZ cho mọi pod
-    # trong namespace — và `networkPolicy.platform.enabled` MẶC ĐỊNH TẮT, nên
-    # trên cụm chưa siết netpol thì riêng Service đã là chỗ nới. Đổi một quyết
-    # định bảo mật đã cân để trang quản trị có thêm vài dòng số là đánh đổi tồi.
+    # Đặt tường minh CHỈ khi `/metrics` của gateway tới từ chỗ khác Service của
+    # chart này (sidecar, proxy, cụm khác). Lưu ý: đặt tường minh KHÔNG tự mở
+    # netpol khối 12b — nếu đích nằm trong cụm này thì vẫn phải bật exposeAdminPort,
+    # nếu không `admin.health` sẽ báo `reached:false` vì chiều mạng đóng.
     #
-    # Người vận hành THẤY GÌ: `admin.health` trả nguồn `gateway` với
-    # `reached:false, ok:false, error:<lý do>` — `apps/web/src/server/admin/health.ts`
-    # tách `reached` khỏi `ok` đúng vì ca này, và test của nó ghim rằng CẢ HAI
-    # nguồn vẫn nằm trong `sources` khi thiếu URL. Tức là "không đọc được", chứ
-    # KHÔNG phải một dấu xanh cho thứ chưa ai đo.
+    # ⛔ BA TRẠNG THÁI, ĐỌC ĐƯỢC BẰNG MÁY (apps/web/src/server/admin/health.ts):
+    #   · biến vắng mặt      → reached:false, ok:false, error "chưa cấu hình URL"
+    #   · có URL, mạng chặn  → reached:false, ok:false, error là lỗi kết nối thật
+    #   · có URL, đọc được   → reached:true,  ok = có ít nhất một series dlp_*
+    # Không trạng thái nào render giống trạng thái nào — một nguồn không đọc được
+    # KHÔNG bao giờ hiện thành dấu xanh.
     #
-    # Muốn có số của gateway: đường đã dựng sẵn là scrape qua namespace
-    # monitoring (khối 12, PodMonitor theo IP pod) rồi đọc từ Prometheus — không
-    # mở cổng mới nào. Hai đường (a)/(b) dưới đây giữ lại để ghi lại lựa chọn:
-    #   (a) thêm port admin lên gateway-service.yaml + mở netpol web→gateway:8083
-    #       CHỈ cho namespace nền tảng (không mở cho mọi pod) — đổi mô hình bảo
-    #       mật đã ghim, cần quyết định của lead;
-    #   (b) chuyển admin.health sang đọc từ Prometheus (đã có đường scrape ở
-    #       khối 12) thay vì gọi thẳng gateway — không cần mở cổng mới.
+    # ⚠ `gateway.replicaCount` mặc định là 2. Đọc qua Service là đọc ĐÚNG MỘT
+    # replica do kube-proxy chọn, nên các số trong `series` là mẫu của một replica
+    # chứ không phải tổng của cả deployment, và có thể đổi giữa hai lần refresh.
+    # `reached`/`ok` thì không bị ảnh hưởng (replica nào trả lời cũng chứng minh
+    # deployment đang phục vụ). Cần con số cộng dồn cả fleet thì dùng Prometheus
+    # (PodMonitor khối 12 scrape TỪNG pod) — orchestrator cũng có tính chất này
+    # với `orchestrator.replicaCount: 2`, nên đây không phải điểm riêng của gateway.
     gatewayMetricsUrl: ''
     # Thư mục nội dung bài học TRONG image (apps/web/Dockerfile `COPY content`).
     # Tuyệt đối vì cwd runtime là /repo. Chỉ đổi khi mount nội dung từ volume.
@@ -281,10 +276,36 @@ gateway:
   service:
     type: ClusterIP
     publicPort: 8082
-    # KHÔNG có adminPort ở đây — /healthz + /metrics (8083) cố ý không lên
-    # Service: /metrics không có authz, lộ version + số goroutine (đếm được
-    # session đang chạy). kubelet probe vẫn chạm được vì probe đánh thẳng pod IP,
-    # không qua Service. Xem services/terminal-gateway/internal/config/config.go.
+    # exposeAdminPort — cổng admin (8083: /healthz + /metrics) có lên Service không.
+    # BA giá trị, không phải boolean:
+    #
+    #   auto  (mặc định)  lên Service KHI VÀ CHỈ KHI networkPolicy.platform.enabled
+    #   true              lên Service; chart FAIL nếu netpol tắt
+    #                     (`[gateway:E-ADMIN-PORT-NO-NETPOL]`)
+    #   false             không bao giờ lên Service
+    #
+    # Bật (bằng đường nào cũng vậy) đổi BA thứ trong CÙNG một lượt render, cả ba
+    # từ đúng một vị từ `platform.gatewayAdminOnService` (_helpers.tpl):
+    #   1. port `admin` trên Service gateway
+    #   2. netpol khối 12b + nửa egress ở khối 3: CHỈ pod web vào được cổng đó
+    #   3. `GATEWAY_METRICS_URL` của web tự suy ra ⇒ `admin.health` đọc được nguồn
+    #      gateway, thay vì báo "chưa cấu hình" vĩnh viễn
+    # Ba nửa của một cạnh, một khoá — khai lẻ từng nửa là cách chắc chắn nhất để
+    # có một trang quản trị báo "không với tới" mà không ai biết nửa nào thiếu.
+    #
+    # ⛔ VÌ SAO ĐIỀU KIỆN LÀ NETPOL. `/metrics` KHÔNG có authz. netpol BẬT ⇒ khối 8
+    # đã thu ingress của pod gateway về đúng danh sách rule, và NetworkPolicy chặn
+    # ở POD chứ không ở Service, nên port này KHÔNG mở thêm đường nào — nó chỉ đặt
+    # TÊN cho đường mà khối 12/12b quyết định. netpol TẮT ⇒ port là tên DNS ổn định
+    # tới endpoint không xác thực cho mọi pod trong namespace (`dlp_build_info` lộ
+    # version chính xác để tra CVE; `dlp_gateway_ws_active`/`go_goroutines` cho
+    # đếm số phiên đang chạy). Lập luận đầy đủ ở helper.
+    #
+    # kubelet probe KHÔNG cần khoá này — probe đánh thẳng pod IP, không qua Service.
+    # Không muốn/không bật được netpol? Metric gateway vẫn có đường: Prometheus
+    # scrape theo IP pod (PodMonitor, khối 12). `admin.health` khi đó báo nguồn
+    # gateway `reached:false` kèm lý do — hành vi đúng, không phải hỏng.
+    exposeAdminPort: auto
   resources:
     requests:
       cpu: 100m
