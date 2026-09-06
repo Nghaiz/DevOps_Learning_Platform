@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { and, desc, eq, inArray, isNotNull, lt, or } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, lt, or } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   computeAttemptDurationSeconds,
@@ -108,6 +108,41 @@ async function requireOwnAttempt(
 }
 
 /** `attemptId` là khoá duy nhất thật sự; `labId` trong input chỉ để đối chiếu — lệch cũng NOT_FOUND, không lộ thêm gì. */
+/**
+ * Một dòng đã chấm điểm của bảng xếp hạng, ở dạng tối thiểu mà THỨ TỰ cần.
+ * `leaderboard` mang thêm `userId`/`displayName`, nhưng chúng không tham gia
+ * xếp hạng nên không nằm trong kiểu này.
+ */
+export interface LeaderboardEntry {
+  readonly attemptId: string;
+  readonly percent: number;
+  readonly durationSeconds: number;
+  readonly submittedAt: Date;
+}
+
+/**
+ * Điểm cao trước, rồi nhanh hơn, rồi nộp sớm hơn — và cuối cùng `attemptId`.
+ *
+ * ⛔ VẾ PHÁ HOÀ KHÔNG PHẢI TRANG TRÍ. Không có nó, comparator trả `0` cho hai
+ * dòng hoà nhau tuyệt đối, `Array.prototype.sort` (ổn định) giữ nguyên thứ tự
+ * ĐẦU VÀO, và thứ tự đầu vào là thứ Postgres trả về — vốn không xác định. Hai
+ * lượt F5 giống hệt nhau ra hai thứ hạng khác nhau, và vì `cursor` được tra
+ * bằng `findIndex` trên chính mảng này, trang 2 còn nhảy dòng theo.
+ *
+ * So sánh chuỗi bằng `<`/`>` chứ KHÔNG `localeCompare`: collation của
+ * `localeCompare` phụ thuộc ICU/locale của tiến trình, tức cùng một dữ liệu có
+ * thể ra hai thứ tự trên hai máy — đúng cái bệnh đang chữa. Điểm mã là tất
+ * định ở mọi nơi, và `attemptId` là uuid nên thứ tự "đẹp" không có nghĩa gì.
+ */
+export function compareLeaderboardEntries(a: LeaderboardEntry, b: LeaderboardEntry): number {
+  if (b.percent !== a.percent) return b.percent - a.percent;
+  if (a.durationSeconds !== b.durationSeconds) return a.durationSeconds - b.durationSeconds;
+  const theoLucNop = a.submittedAt.getTime() - b.submittedAt.getTime();
+  if (theoLucNop !== 0) return theoLucNop;
+  if (a.attemptId === b.attemptId) return 0;
+  return a.attemptId < b.attemptId ? -1 : 1;
+}
+
 function assertAttemptBelongsToLab(attempt: LabAttemptRow, labId: string): void {
   if (attempt.labId !== labId) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Không tìm thấy lần thử này' });
@@ -420,7 +455,13 @@ export const labsRouter = createTRPCRouter({
       })
       .from(labAttempts)
       .innerJoin(users, eq(users.id, labAttempts.userId))
-      .where(and(eq(labAttempts.labId, input.labId), isNotNull(labAttempts.submittedAt)));
+      .where(and(eq(labAttempts.labId, input.labId), isNotNull(labAttempts.submittedAt)))
+      // Thứ tự đọc TẤT ĐỊNH. `compareLeaderboardEntries` mới là thứ bảo đảm
+      // thứ hạng (nó là thứ tự toàn phần, nên độc lập với đầu vào) — dòng này
+      // là lớp thứ hai: một câu SELECT không `ORDER BY` trả dòng theo plan,
+      // theo VACUUM, theo seq-scan song song, nên mọi thứ dựng trên nó đều khó
+      // tái hiện khi có sự cố. Rẻ: `lab_attempts.id` là khoá chính.
+      .orderBy(asc(labAttempts.id));
 
     if (attemptRows.length === 0) {
       return { items: [] as LabLeaderboardRow[], nextCursor: null };
@@ -456,11 +497,7 @@ export const labsRouter = createTRPCRouter({
       };
     });
 
-    scored.sort((a, b) => {
-      if (b.percent !== a.percent) return b.percent - a.percent;
-      if (a.durationSeconds !== b.durationSeconds) return a.durationSeconds - b.durationSeconds;
-      return a.submittedAt.getTime() - b.submittedAt.getTime();
-    });
+    scored.sort(compareLeaderboardEntries);
 
     let start = 0;
     if (input.cursor !== undefined) {
