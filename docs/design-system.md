@@ -278,3 +278,51 @@ Cả bốn đường đều có test hồi quy trong `button.test.tsx` § "Butto
 6. **Cập nhật bảng §4a** trong tài liệu này ở CÙNG COMMIT — checklist trạng
    thái là một phần của định nghĩa "xong", không phải việc làm sau.
 7. Chạy `pnpm --filter @devops-platform/ui typecheck lint test` trước khi commit.
+
+## 7. Hai cổng hợp đồng (chạy trong suite `packages/ui`)
+
+Bảng C1/C2 ở `phase-13-exec.md` §2 là hợp đồng giữa 13.A và **tám lane Đợt 2**
+viết song song trong context riêng. Một hợp đồng chỉ được kiểm bằng mắt thì mục
+ruỗng theo thời gian, và hỏng của nó xuất hiện muộn — ở lane khác, trông như
+lỗi của họ. Hai file dưới đây biến nó thành cổng:
+
+| File | Gác gì | Đỏ ở đâu |
+|---|---|---|
+| `src/theme/tokens.contract.test.ts` | Token C1 có ở **cả** `:root` lẫn `.dark`; mọi token có `--color-*` trong `@theme inline`; contrast WCAG của 12 cặp chữ + 6 cặp phi-chữ ở cả hai theme | `pnpm test` |
+| `src/exports.contract.test.ts` | 68 tên C1/C2 được export; prop bắt buộc vẫn bắt buộc; mọi giá trị union variant/size còn nguyên; không có export lạ ngoài hợp đồng | `pnpm typecheck` **và** `pnpm test` |
+
+Ba hỏng chúng bắt được mà không cổng nào khác thấy:
+
+1. **Token thiếu ở một theme.** Không lỗi CSS, không cảnh báo build — chế độ
+   tối chỉ kế thừa màu sáng và hiện sai.
+2. **Thiếu map `@theme inline`.** Class `bg-x` không được Tailwind sinh ra;
+   JSX vẫn biên dịch, thuộc tính `class` vẫn có trong HTML, chỉ là không luật
+   CSS nào khớp. Cùng hình dạng với lỗi `@source` đo ngày 2026-08-13 (xem đầu
+   `globals.css`).
+3. **Contrast tụt dưới WCAG.** `axe-core` (cổng 13.H) chỉ đo contrast của
+   **chữ** — không có rule nào cho viền. Một cổng axe xanh không nói gì về
+   SC 1.4.11.
+
+Cả hai file mang **đối chứng âm**: phép đo contrast tự kiểm bằng 1:1 với chính
+nó, 21:1 đen-trắng và một khẳng định alpha thật sự được đè lên nền; kiểm export
+có test chặn tên lạ. Một cổng không bao giờ đỏ được thì không gác gì cả.
+
+**Khi một cổng đỏ, sửa TOKEN/EXPORT — không hạ ngưỡng, không thêm tên vào danh
+sách miễn trừ** trừ khi đó thật sự là một quyết định mới, và khi đó phải sửa
+C1/C2 ở `phase-13-exec.md` trong cùng commit.
+
+### 7a. Hai dương tính giả đã biết của lệnh grep AC
+
+Lệnh grep ở §0 và ở `phase-13-exec.md` §5 giới hạn `--include=*.tsx`, và ở dạng
+đó nó **rỗng** trên `packages/ui/src`. Nới phạm vi ra thì gặp hai thứ vô hại —
+ghi ở đây để lần kiểm sau không mất thời gian truy lại:
+
+1. **`globals.css` chứa `slate-*` và `#hex` trong CHÚ THÍCH.** Đó là bằng chứng
+   đo được: tên class của lỗi `@source` 2026-08-13, và hai giá trị sRGB của lần
+   sửa contrast `--input` (§1a). Không dòng nào là màu đang dùng. Một file CSS
+   token đương nhiên chứa giá trị màu — nó nằm ngoài phạm vi grep có chủ ý.
+2. **`toast.tsx` khớp grep thương mại vì chữ `subscribe`.** Đó là
+   `useSyncExternalStore(subscribe, …)` của React, không phải gói cước. Grep AC
+   `price|pricing|checkout|subscribe|billing` chạy trên `apps/web/src`, không
+   phủ `packages/ui`, nên nó không đỏ ở Đợt 3 — nhưng ai chạy bản nới rộng sẽ
+   gặp.

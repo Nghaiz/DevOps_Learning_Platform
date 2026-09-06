@@ -64,3 +64,45 @@ describe('Toaster / useToast', () => {
     expect(screen.queryByText('Đã lưu hồ sơ')).toBeNull();
   });
 });
+
+/**
+ * Bảng 4 trạng thái §4a khai `Toaster`/`useToast` → error = `variant:
+ * 'destructive'`. Trước test này chỉ có đường `success` được chạy, nên cột
+ * "Error" của bảng là một lời khai chưa ai kiểm — đúng dạng mà kiểm toán 13.A
+ * đi tìm.
+ */
+describe('Toast — trạng thái error (§4a)', () => {
+  function ErrorTrigger() {
+    const { toast } = useToast();
+    return (
+      <button
+        onClick={() =>
+          toast({ title: 'Không kết thúc được phiên', description: 'Thử lại sau vài giây.', variant: 'destructive' })
+        }
+      >
+        Kết thúc
+      </button>
+    );
+  }
+
+  it('variant="destructive" hiện nội dung và dùng class token destructive', async () => {
+    render(
+      <div>
+        <ErrorTrigger />
+        <Toaster />
+      </div>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Kết thúc' }));
+
+    const title = await screen.findByText('Không kết thúc được phiên');
+    expect(screen.getByText('Thử lại sau vài giây.')).toBeDefined();
+
+    // Class nằm trên `Toast.Root` — tổ tiên gần nhất của title mang data-slot
+    // của Radix Toast.
+    const root = title.closest('[role="status"], li, [data-state]');
+    expect(root).not.toBeNull();
+    const classes = (root as HTMLElement).className.split(/\s+/);
+    expect(classes).toContain('bg-destructive');
+    expect(classes).toContain('text-destructive-foreground');
+  });
+});
