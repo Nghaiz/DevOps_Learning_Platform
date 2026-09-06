@@ -39,7 +39,6 @@ function readUrl(name: string, fallback: string): string {
   const raw = process.env[name]?.trim();
   const value = raw === undefined || raw === '' ? fallback : raw;
   try {
-    // eslint-disable-next-line no-new -- chỉ để ném sớm trên chuỗi rác
     new URL(value);
   } catch {
     throw new Error(

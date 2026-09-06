@@ -146,7 +146,9 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
   writeFileSync(ACCOUNT_FILE, `${JSON.stringify(account, null, 2)}\n`, 'utf8');
   await api.dispose();
 
-  console.log(
+  // Banner ra stderr qua console.warn: no-console chỉ cho warn/error, và một
+  // dòng chẩn đoán của harness KHÔNG nên trộn vào stdout mà reporter đang ghi.
+  console.warn(
     `[e2e] base=${E2E_BASE_URL} origin=${E2E_ORIGIN} account=${email} ` +
       `role=${account.role} (${account.fresh ? 'mới đăng ký' : 'đăng nhập lại'})`,
   );

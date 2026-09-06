@@ -1,0 +1,23 @@
+{
+  // Vì sao có file này thay vì thêm `e2e/**` vào `apps/web/tsconfig.json`:
+  // tsconfig.json của app KHÔNG thuộc đường sở hữu của lane 13.H (§3 exec plan),
+  // và sáu lane khác đang ghi cùng cây. Một tsconfig riêng đạt đúng cùng kết quả
+  // — mã e2e ĐƯỢC typecheck — mà không chạm file của lane khác.
+  //
+  // Không có nó thì `tsc --noEmit` của app bỏ qua toàn bộ `e2e/**` (include chỉ
+  // liệt kê `src/**`), tức harness đo chất lượng lại là phần mã DUY NHẤT không
+  // ai typecheck. Script `typecheck` trong package.json gọi cả hai lượt.
+  //
+  // ⚠ `.next/types/**` KHÔNG được kế thừa vào đây: nó chỉ tồn tại sau
+  // `next build`, và đợt 2 cấm build (`.next/` dùng chung). Danh sách `include`
+  // dưới đây ghi đè hoàn toàn của bản cha.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    // Bản cha bật `incremental`. Hai lượt tsc cùng ghi một `.tsbuildinfo` sẽ đè
+    // nhau và cho kết quả phụ thuộc thứ tự chạy — tắt hẳn ở lượt này.
+    "incremental": false,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"]
+}
