@@ -954,13 +954,55 @@ func (*GetCapacityRequest) Descriptor() ([]byte, []int) {
 }
 
 type GetCapacityResponse struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	ActiveSessions int32                  `protobuf:"varint,1,opt,name=active_sessions,json=activeSessions,proto3" json:"active_sessions,omitempty"` // len(pool:claimed) — cùng nguồn với dlp_pool_claimed_size
-	SoftCapacity   int32                  `protobuf:"varint,2,opt,name=soft_capacity,json=softCapacity,proto3" json:"soft_capacity,omitempty"`       // env CAPACITY_SOFT_LIMIT (Helm: orchestrator.env.capacitySoftLimit = 20)
-	PoolFree       int32                  `protobuf:"varint,3,opt,name=pool_free,json=poolFree,proto3" json:"pool_free,omitempty"`
-	PoolQuarantine int32                  `protobuf:"varint,4,opt,name=pool_quarantine,json=poolQuarantine,proto3" json:"pool_quarantine,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// active_sessions = `LLEN pool:claimed` ĐỌC TRỰC TIẾP lúc gọi.
+	//
+	// ⛔ ĐỌC KỸ NGHĨA — nó KHÔNG phải "số session đang sống". Nó là SỐ POD ĐANG
+	// Ở TRẠNG THÁI CLAIMED. Ba chỗ hai đại lượng đó lệch nhau, ghi ra để không ai
+	// đọc con số này chặt hơn thứ nó bảo đảm:
+	//
+	//	· session PENDING (đã tạo, CHƯA claim được pod) KHÔNG được đếm — nó chưa
+	//	  ăn khe pod nào, nên với câu hỏi "còn bao nhiêu chỗ" thì không đếm là
+	//	  ĐÚNG;
+	//	· session mà pod đã biến mất VẪN được đếm cho tới khi `MarkFailed`/reaper
+	//	  gỡ tên pod khỏi index. Đo được trên cụm 2026-08-15: `pool:claimed` giữ
+	//	  6 tên trong khi namespace chỉ có 1 pod thật — xem lifecycle/reap.go
+	//	  § MarkFailed. Chiều lệch này là AN TOÀN cho FE (báo ít chỗ hơn thực
+	//	  tế), nhưng nó có thật và nó KHÔNG tự lành trong vài giây;
+	//	· pod đang Terminating vẫn nằm trong index tới khi bước dọn chạy xong
+	//	  (k8s.IsDoomed — pha `Running` che pod đã bị xoá).
+	//
+	// CÙNG KEY REDIS với gauge `dlp_pool_claimed_size`, nhưng ĐỌC LIVE chứ không
+	// đọc gauge: gauge chỉ được `pool.Manager.observeSizes` ghi mỗi vòng
+	// replenish (mặc định 10s), nên hai con số LỆCH NHAU HỢP LỆ tới một nhịp
+	// tick ngay sau một lượt claim/reap — đúng lúc "còn N chỗ" cần đúng nhất.
+	ActiveSessions int32 `protobuf:"varint,1,opt,name=active_sessions,json=activeSessions,proto3" json:"active_sessions,omitempty"`
+	// soft_capacity = `hard_capacity − POOL_TARGET`, TÍNH LÚC ĐỌC.
+	//
+	// ⛔ KHÔNG CÓ ENV `CAPACITY_SOFT_LIMIT` NỮA — và việc bỏ nó là có lý do đo
+	// được. Trần "pool còn lành" là ĐẠI LƯỢNG SUY RA: khi N session giữ N pod,
+	// pool chỉ còn giữ đủ POOL_TARGET pod ấm chừng nào `N + POOL_TARGET ≤ trần
+	// cứng`, tức N ≤ hard − POOL_TARGET. Ghim nó thành một hằng số trong Helm
+	// nghĩa là đổi `poolTarget` sẽ để con số FE hiện MỤC LẶNG LẼ — đúng lớp lỗi
+	// mà báo cáo P12 §2.4 tự gọi tên (`no-derived-fields`) khi phát hiện chú
+	// thích cũ còn ghi trần 20 trong lúc pool đã lên 3 và trần thật là 18.
+	//
+	// Với cụm lab hôm nay: hard 23 − poolTarget 3 = 20 — khớp đúng con số P12 đo.
+	SoftCapacity   int32 `protobuf:"varint,2,opt,name=soft_capacity,json=softCapacity,proto3" json:"soft_capacity,omitempty"`
+	PoolFree       int32 `protobuf:"varint,3,opt,name=pool_free,json=poolFree,proto3" json:"pool_free,omitempty"`
+	PoolQuarantine int32 `protobuf:"varint,4,opt,name=pool_quarantine,json=poolQuarantine,proto3" json:"pool_quarantine,omitempty"`
+	// hard_capacity = env `CAPACITY_HARD_LIMIT` — TRẦN VẬT LÝ đã ĐO: số session
+	// đồng thời mà ResourceQuota thật sự cho vào (`ceiling.js`, 2026-09-04: giữ
+	// 23, từ chối đầu tiên ở #24). Đây là con số DUY NHẤT phải khai bằng tay, vì
+	// nó suy ra từ ngân sách CPU/RAM của node + LimitRange + CronJob canary —
+	// những thứ orchestrator không nhìn thấy. Xem values-selfhost.yaml
+	// § sandbox.quota cho phép tính đầy đủ.
+	//
+	// Phơi ra cho FE/admin để hai trần KHÔNG bị gộp lại thành một: "còn N chỗ"
+	// dùng soft, còn trang quản trị đọc được cả "20/23" và thấy phần đệm.
+	HardCapacity  int32 `protobuf:"varint,5,opt,name=hard_capacity,json=hardCapacity,proto3" json:"hard_capacity,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetCapacityResponse) Reset() {
@@ -1017,6 +1059,13 @@ func (x *GetCapacityResponse) GetPoolFree() int32 {
 func (x *GetCapacityResponse) GetPoolQuarantine() int32 {
 	if x != nil {
 		return x.PoolQuarantine
+	}
+	return 0
+}
+
+func (x *GetCapacityResponse) GetHardCapacity() int32 {
+	if x != nil {
+		return x.HardCapacity
 	}
 	return 0
 }
@@ -1209,12 +1258,13 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\x15ExtendSessionResponse\x122\n" +
 	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\x12(\n" +
 	"\x10hard_cap_reached\x18\x02 \x01(\bR\x0ehardCapReached\"\x14\n" +
-	"\x12GetCapacityRequest\"\xa9\x01\n" +
+	"\x12GetCapacityRequest\"\xce\x01\n" +
 	"\x13GetCapacityResponse\x12'\n" +
 	"\x0factive_sessions\x18\x01 \x01(\x05R\x0eactiveSessions\x12#\n" +
 	"\rsoft_capacity\x18\x02 \x01(\x05R\fsoftCapacity\x12\x1b\n" +
 	"\tpool_free\x18\x03 \x01(\x05R\bpoolFree\x12'\n" +
-	"\x0fpool_quarantine\x18\x04 \x01(\x05R\x0epoolQuarantine\"\\\n" +
+	"\x0fpool_quarantine\x18\x04 \x01(\x05R\x0epoolQuarantine\x12#\n" +
+	"\rhard_capacity\x18\x05 \x01(\x05R\fhardCapacity\"\\\n" +
 	"\x13ListSessionsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +

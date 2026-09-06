@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file orchestrator/v1/session.proto.
  */
 export const file_orchestrator_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxIqoCCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXISLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIcmV2aXNpb24YCSABKAMSDwoHcHJvZmlsZRgKIAEoCSKSAQoUQ3JlYXRlU2Vzc2lvblJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIqCgR0aWVyGAIgASgOMhwub3JjaGVzdHJhdG9yLnYxLlNhbmRib3hUaWVyEhMKC3R0bF9zZWNvbmRzGAMgASgFEhcKD2lkZW1wb3RlbmN5X2tleRgEIAEoCRIPCgdwcm9maWxlGAUgASgJIkIKFUNyZWF0ZVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOgoTQ2xhaW1TZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkiQQoUQ2xhaW1TZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIjgKEUdldFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSI/ChJHZXRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uInAKElJlYXBTZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg4KBnJlYXNvbhgCIAEoCRIRCgd1c2VyX2lkGAMgASgJSAASGgoQc3lzdGVtX2NvbXBvbmVudBgEIAEoCUgAQgcKBWFjdG9yIkAKE1JlYXBTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIm4KFEV4dGVuZFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCRIWCg5leHRlbmRfc2Vjb25kcxgDIAEoBRIZChFleHBlY3RlZF9yZXZpc2lvbhgEIAEoAyJcChVFeHRlbmRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uEhgKEGhhcmRfY2FwX3JlYWNoZWQYAiABKAgiFAoSR2V0Q2FwYWNpdHlSZXF1ZXN0InEKE0dldENhcGFjaXR5UmVzcG9uc2USFwoPYWN0aXZlX3Nlc3Npb25zGAEgASgFEhUKDXNvZnRfY2FwYWNpdHkYAiABKAUSEQoJcG9vbF9mcmVlGAMgASgFEhcKD3Bvb2xfcXVhcmFudGluZRgEIAEoBSJFChNMaXN0U2Vzc2lvbnNSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSDQoFbGltaXQYAiABKAUSDgoGY3Vyc29yGAMgASgJIlcKFExpc3RTZXNzaW9uc1Jlc3BvbnNlEioKCHNlc3Npb25zGAEgAygLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24SEwoLbmV4dF9jdXJzb3IYAiABKAkqdAoLU2FuZGJveFRpZXISHAoYU0FOREJPWF9USUVSX1VOU1BFQ0lGSUVEEAASFwoTU0FOREJPWF9USUVSX1NZU0JPWBABEhcKE1NBTkRCT1hfVElFUl9HVklTT1IQAhIVChFTQU5EQk9YX1RJRVJfS0FUQRADKu4BCg1TZXNzaW9uU3RhdHVzEh4KGlNFU1NJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWU0VTU0lPTl9TVEFUVVNfUEVORElORxABEhcKE1NFU1NJT05fU1RBVFVTX1dBUk0QAhIaChZTRVNTSU9OX1NUQVRVU19DTEFJTUVEEAMSGgoWU0VTU0lPTl9TVEFUVVNfUlVOTklORxAEEhoKFlNFU1NJT05fU1RBVFVTX0VYUElSRUQQBRIZChVTRVNTSU9OX1NUQVRVU19SRUFQRUQQBhIZChVTRVNTSU9OX1NUQVRVU19GQUlMRUQQBzKVBQoOU2Vzc2lvblNlcnZpY2USXgoNQ3JlYXRlU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVzcG9uc2USWwoMQ2xhaW1TZXNzaW9uEiQub3JjaGVzdHJhdG9yLnYxLkNsYWltU2Vzc2lvblJlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVzcG9uc2USVQoKR2V0U2Vzc2lvbhIiLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVxdWVzdBojLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVzcG9uc2USXgoNRXh0ZW5kU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVzcG9uc2USWAoLUmVhcFNlc3Npb24SIy5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLlJlYXBTZXNzaW9uUmVzcG9uc2USWAoLR2V0Q2FwYWNpdHkSIy5vcmNoZXN0cmF0b3IudjEuR2V0Q2FwYWNpdHlSZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLkdldENhcGFjaXR5UmVzcG9uc2USWwoMTGlzdFNlc3Npb25zEiQub3JjaGVzdHJhdG9yLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuTGlzdFNlc3Npb25zUmVzcG9uc2VCWFpWZ2l0aHViLmNvbS9OZ2hhaXovRGV2T3BzX0xlYXJuaW5nX1BsYXRmb3JtL3Byb3RvL2dlbi9nby9vcmNoZXN0cmF0b3IvdjE7b3JjaGVzdHJhdG9ydjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxIqoCCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXISLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIcmV2aXNpb24YCSABKAMSDwoHcHJvZmlsZRgKIAEoCSKSAQoUQ3JlYXRlU2Vzc2lvblJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIqCgR0aWVyGAIgASgOMhwub3JjaGVzdHJhdG9yLnYxLlNhbmRib3hUaWVyEhMKC3R0bF9zZWNvbmRzGAMgASgFEhcKD2lkZW1wb3RlbmN5X2tleRgEIAEoCRIPCgdwcm9maWxlGAUgASgJIkIKFUNyZWF0ZVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOgoTQ2xhaW1TZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkiQQoUQ2xhaW1TZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIjgKEUdldFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSI/ChJHZXRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uInAKElJlYXBTZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg4KBnJlYXNvbhgCIAEoCRIRCgd1c2VyX2lkGAMgASgJSAASGgoQc3lzdGVtX2NvbXBvbmVudBgEIAEoCUgAQgcKBWFjdG9yIkAKE1JlYXBTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIm4KFEV4dGVuZFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCRIWCg5leHRlbmRfc2Vjb25kcxgDIAEoBRIZChFleHBlY3RlZF9yZXZpc2lvbhgEIAEoAyJcChVFeHRlbmRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uEhgKEGhhcmRfY2FwX3JlYWNoZWQYAiABKAgiFAoSR2V0Q2FwYWNpdHlSZXF1ZXN0IogBChNHZXRDYXBhY2l0eVJlc3BvbnNlEhcKD2FjdGl2ZV9zZXNzaW9ucxgBIAEoBRIVCg1zb2Z0X2NhcGFjaXR5GAIgASgFEhEKCXBvb2xfZnJlZRgDIAEoBRIXCg9wb29sX3F1YXJhbnRpbmUYBCABKAUSFQoNaGFyZF9jYXBhY2l0eRgFIAEoBSJFChNMaXN0U2Vzc2lvbnNSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSDQoFbGltaXQYAiABKAUSDgoGY3Vyc29yGAMgASgJIlcKFExpc3RTZXNzaW9uc1Jlc3BvbnNlEioKCHNlc3Npb25zGAEgAygLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24SEwoLbmV4dF9jdXJzb3IYAiABKAkqdAoLU2FuZGJveFRpZXISHAoYU0FOREJPWF9USUVSX1VOU1BFQ0lGSUVEEAASFwoTU0FOREJPWF9USUVSX1NZU0JPWBABEhcKE1NBTkRCT1hfVElFUl9HVklTT1IQAhIVChFTQU5EQk9YX1RJRVJfS0FUQRADKu4BCg1TZXNzaW9uU3RhdHVzEh4KGlNFU1NJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWU0VTU0lPTl9TVEFUVVNfUEVORElORxABEhcKE1NFU1NJT05fU1RBVFVTX1dBUk0QAhIaChZTRVNTSU9OX1NUQVRVU19DTEFJTUVEEAMSGgoWU0VTU0lPTl9TVEFUVVNfUlVOTklORxAEEhoKFlNFU1NJT05fU1RBVFVTX0VYUElSRUQQBRIZChVTRVNTSU9OX1NUQVRVU19SRUFQRUQQBhIZChVTRVNTSU9OX1NUQVRVU19GQUlMRUQQBzKVBQoOU2Vzc2lvblNlcnZpY2USXgoNQ3JlYXRlU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVzcG9uc2USWwoMQ2xhaW1TZXNzaW9uEiQub3JjaGVzdHJhdG9yLnYxLkNsYWltU2Vzc2lvblJlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVzcG9uc2USVQoKR2V0U2Vzc2lvbhIiLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVxdWVzdBojLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVzcG9uc2USXgoNRXh0ZW5kU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVzcG9uc2USWAoLUmVhcFNlc3Npb24SIy5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLlJlYXBTZXNzaW9uUmVzcG9uc2USWAoLR2V0Q2FwYWNpdHkSIy5vcmNoZXN0cmF0b3IudjEuR2V0Q2FwYWNpdHlSZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLkdldENhcGFjaXR5UmVzcG9uc2USWwoMTGlzdFNlc3Npb25zEiQub3JjaGVzdHJhdG9yLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuTGlzdFNlc3Npb25zUmVzcG9uc2VCWFpWZ2l0aHViLmNvbS9OZ2hhaXovRGV2T3BzX0xlYXJuaW5nX1BsYXRmb3JtL3Byb3RvL2dlbi9nby9vcmNoZXN0cmF0b3IvdjE7b3JjaGVzdHJhdG9ydjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * Session là trạng thái quyền uy của một pod lab.
@@ -436,14 +436,44 @@ export const GetCapacityRequestSchema: GenMessage<GetCapacityRequest> = /*@__PUR
  */
 export type GetCapacityResponse = Message<"orchestrator.v1.GetCapacityResponse"> & {
   /**
-   * len(pool:claimed) — cùng nguồn với dlp_pool_claimed_size
+   * active_sessions = `LLEN pool:claimed` ĐỌC TRỰC TIẾP lúc gọi.
+   *
+   * ⛔ ĐỌC KỸ NGHĨA — nó KHÔNG phải "số session đang sống". Nó là SỐ POD ĐANG
+   * Ở TRẠNG THÁI CLAIMED. Ba chỗ hai đại lượng đó lệch nhau, ghi ra để không ai
+   * đọc con số này chặt hơn thứ nó bảo đảm:
+   *
+   *   · session PENDING (đã tạo, CHƯA claim được pod) KHÔNG được đếm — nó chưa
+   *     ăn khe pod nào, nên với câu hỏi "còn bao nhiêu chỗ" thì không đếm là
+   *     ĐÚNG;
+   *   · session mà pod đã biến mất VẪN được đếm cho tới khi `MarkFailed`/reaper
+   *     gỡ tên pod khỏi index. Đo được trên cụm 2026-08-15: `pool:claimed` giữ
+   *     6 tên trong khi namespace chỉ có 1 pod thật — xem lifecycle/reap.go
+   *     § MarkFailed. Chiều lệch này là AN TOÀN cho FE (báo ít chỗ hơn thực
+   *     tế), nhưng nó có thật và nó KHÔNG tự lành trong vài giây;
+   *   · pod đang Terminating vẫn nằm trong index tới khi bước dọn chạy xong
+   *     (k8s.IsDoomed — pha `Running` che pod đã bị xoá).
+   *
+   * CÙNG KEY REDIS với gauge `dlp_pool_claimed_size`, nhưng ĐỌC LIVE chứ không
+   * đọc gauge: gauge chỉ được `pool.Manager.observeSizes` ghi mỗi vòng
+   * replenish (mặc định 10s), nên hai con số LỆCH NHAU HỢP LỆ tới một nhịp
+   * tick ngay sau một lượt claim/reap — đúng lúc "còn N chỗ" cần đúng nhất.
    *
    * @generated from field: int32 active_sessions = 1;
    */
   activeSessions: number;
 
   /**
-   * env CAPACITY_SOFT_LIMIT (Helm: orchestrator.env.capacitySoftLimit = 20)
+   * soft_capacity = `hard_capacity − POOL_TARGET`, TÍNH LÚC ĐỌC.
+   *
+   * ⛔ KHÔNG CÓ ENV `CAPACITY_SOFT_LIMIT` NỮA — và việc bỏ nó là có lý do đo
+   * được. Trần "pool còn lành" là ĐẠI LƯỢNG SUY RA: khi N session giữ N pod,
+   * pool chỉ còn giữ đủ POOL_TARGET pod ấm chừng nào `N + POOL_TARGET ≤ trần
+   * cứng`, tức N ≤ hard − POOL_TARGET. Ghim nó thành một hằng số trong Helm
+   * nghĩa là đổi `poolTarget` sẽ để con số FE hiện MỤC LẶNG LẼ — đúng lớp lỗi
+   * mà báo cáo P12 §2.4 tự gọi tên (`no-derived-fields`) khi phát hiện chú
+   * thích cũ còn ghi trần 20 trong lúc pool đã lên 3 và trần thật là 18.
+   *
+   * Với cụm lab hôm nay: hard 23 − poolTarget 3 = 20 — khớp đúng con số P12 đo.
    *
    * @generated from field: int32 soft_capacity = 2;
    */
@@ -458,6 +488,21 @@ export type GetCapacityResponse = Message<"orchestrator.v1.GetCapacityResponse">
    * @generated from field: int32 pool_quarantine = 4;
    */
   poolQuarantine: number;
+
+  /**
+   * hard_capacity = env `CAPACITY_HARD_LIMIT` — TRẦN VẬT LÝ đã ĐO: số session
+   * đồng thời mà ResourceQuota thật sự cho vào (`ceiling.js`, 2026-09-04: giữ
+   * 23, từ chối đầu tiên ở #24). Đây là con số DUY NHẤT phải khai bằng tay, vì
+   * nó suy ra từ ngân sách CPU/RAM của node + LimitRange + CronJob canary —
+   * những thứ orchestrator không nhìn thấy. Xem values-selfhost.yaml
+   * § sandbox.quota cho phép tính đầy đủ.
+   *
+   * Phơi ra cho FE/admin để hai trần KHÔNG bị gộp lại thành một: "còn N chỗ"
+   * dùng soft, còn trang quản trị đọc được cả "20/23" và thấy phần đệm.
+   *
+   * @generated from field: int32 hard_capacity = 5;
+   */
+  hardCapacity: number;
 };
 
 /**
