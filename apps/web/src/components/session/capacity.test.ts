@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { describeCapacity } from './capacity';
+import {
+  LOW_CAPACITY_RATIO,
+  describeCapacity as describeShellCapacity,
+} from '../shell/capacity';
 
 /**
  * Ô AC 13.B/13.D: *"'Còn N chỗ' phản ánh trần thật của P12; chạm trần thì báo
@@ -59,5 +63,62 @@ describe('describeCapacity', () => {
     // Nếu ai đó chép "20" vào FE thì ca này đỏ — đó là cả lý do nó tồn tại.
     expect(describeCapacity({ activeSessions: 5, softCapacity: 20 })?.label).toBe('Còn 15 chỗ');
     expect(describeCapacity({ activeSessions: 5, softCapacity: 8 })?.label).toBe('Còn 3 chỗ');
+  });
+});
+
+/**
+ * Cổng CHỐNG-LỆCH giữa hai chỗ hiển thị.
+ *
+ * Đây là ca đã hỏng thật: vỏ dùng ngưỡng tỉ lệ 20% trần mềm, khung phiên dùng
+ * ngưỡng cố định `LOW_REMAINING = 3`. Với trần 20 và 16 phiên đang chạy, badge
+ * trên thanh đầu trang đọc "sắp hết chỗ" còn nhãn cạnh nút Bắt đầu ngay bên
+ * dưới đọc "còn 4 chỗ" bình thường — cùng dữ liệu, cùng màn hình.
+ *
+ * Kiểm bằng CẢ HAI hàm thật, không kiểm "hằng số này bằng hằng số kia": một
+ * phép kiểm so hai hằng vẫn xanh khi ai đó thêm một nhánh `if` chỉ ở một bên.
+ */
+describe('vỏ và khung phiên nói cùng một mức', () => {
+  const cases: ReadonlyArray<{ activeSessions: number; softCapacity: number }> = [
+    { activeSessions: 0, softCapacity: 20 },
+    { activeSessions: 15, softCapacity: 20 },
+    // Ca đã hỏng: còn 4/20 = đúng ngưỡng 20%; ngưỡng cố định 3 đọc ra 'ok'.
+    { activeSessions: 16, softCapacity: 20 },
+    { activeSessions: 18, softCapacity: 20 },
+    { activeSessions: 20, softCapacity: 20 },
+    { activeSessions: 25, softCapacity: 20 },
+    { activeSessions: 7, softCapacity: 10 },
+    { activeSessions: 8, softCapacity: 10 },
+    { activeSessions: 4, softCapacity: 30 },
+    { activeSessions: 0, softCapacity: 0 },
+  ];
+
+  it.each(cases)('cùng tone và cùng số còn lại tại $activeSessions/$softCapacity', (snapshot) => {
+    const hint = describeCapacity(snapshot);
+    const reading = describeShellCapacity({
+      ...snapshot,
+      hardCapacity: snapshot.softCapacity + 3,
+      fetchedAt: '2026-09-06T10:00:00.000Z',
+    });
+    expect(hint).not.toBeNull();
+    expect(hint?.tone).toBe(reading.tone);
+    expect(hint?.remaining).toBe(reading.remaining);
+  });
+
+  it('ngưỡng "sắp hết" co giãn theo trần, không phải một số phiên cố định', () => {
+    // 20% của 20 = 4 ⇒ còn 4 là "sắp hết", còn 5 thì chưa.
+    expect(describeCapacity({ activeSessions: 16, softCapacity: 20 })?.tone).toBe('low');
+    expect(describeCapacity({ activeSessions: 15, softCapacity: 20 })?.tone).toBe('ok');
+    // Trần đổi ⇒ ngưỡng đổi theo, không cần sửa dòng nào ở FE.
+    expect(describeCapacity({ activeSessions: 8, softCapacity: 10 })?.tone).toBe('low');
+    expect(describeCapacity({ activeSessions: 7, softCapacity: 10 })?.tone).toBe('ok');
+    expect(LOW_CAPACITY_RATIO).toBe(0.2);
+  });
+
+  it('"chưa biết" vẫn là null SAU khi gộp — không rơi về 0 rồi đọc thành "đầy"', () => {
+    // Ca dễ mất nhất khi gộp: vỏ vốn nhận đầu vào không-null, nên một bản gộp
+    // cẩu thả sẽ bỏ mất cổng này và biến một lỗi mạng thành "Sandbox đang đầy".
+    for (const unknown of [null, undefined, { activeSessions: Number.NaN, softCapacity: 20 }]) {
+      expect(describeCapacity(unknown)).toBeNull();
+    }
   });
 });

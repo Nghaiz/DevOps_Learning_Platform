@@ -1,11 +1,17 @@
 /**
  * C5 — "còn N chỗ" cho khung phiên dùng chung.
  *
- * ⛔ KHÔNG có hằng số 20 hay 23 ở đâu trong file này, và đó là điểm.
- * `softCapacity` được orchestrator TÍNH lúc đọc (`hard − poolTarget`, xem
- * `apps/web/src/server/capacity/get-capacity.ts`); chép nó thành hằng ở FE là
- * dựng đúng cái derived field mà P8/P10 đã cấm — sửa Helm một vế thì vế kia mục
- * trong im lặng và nhãn "còn N chỗ" nói dối về trần thật.
+ * ⛔ **Ngưỡng KHÔNG nằm ở đây.** Số học (số còn lại, mức `ok`/`low`/`full`,
+ * ngữ nghĩa "chưa biết") sống ở `components/shell/capacity.ts` và file này chỉ
+ * là lớp CHỮ: nhãn cạnh nút Bắt đầu + câu cảnh báo trước khi bấm.
+ *
+ * Trước 2026-09-06 file này có ngưỡng riêng (`LOW_REMAINING = 3`) trong khi vỏ
+ * dùng tỉ lệ 20% trần mềm. Với trần 20 và 16 phiên đang chạy, badge trên thanh
+ * đầu trang đọc "sắp hết chỗ" còn nhãn cạnh nút Bắt đầu ngay bên dưới đọc
+ * "còn 4 chỗ" bình thường — cùng dữ liệu, cùng màn hình, hai câu ngược nhau.
+ * Ngưỡng cố định cũng mục đúng kiểu hằng `capacitySoftLimit` viết tay mà D5 đã
+ * gỡ khỏi orchestrator, nên bản gộp giữ tỉ lệ của vỏ. Chiều phụ thuộc là
+ * session → shell: vỏ nằm trên tất cả và không kéo theo phụ thuộc terminal nào.
  *
  * Hàm THUẦN, tách khỏi React, vì thứ cần gác ở đây là NGỮ NGHĨA của con số —
  * đặc biệt là ranh giới "chưa biết" vs "biết là 0". `apps/web` chạy vitest ở
@@ -13,13 +19,13 @@
  * phải sống được ngoài cây component.
  */
 
-export interface CapacitySnapshot {
-  readonly activeSessions: number;
-  readonly softCapacity: number;
-}
+import { readCapacity } from '../shell/capacity';
 
-/** Mức để tô màu, KHÔNG phải để quyết định chặn — nút Bắt đầu luôn bấm được. */
-export type CapacityTone = 'ok' | 'low' | 'full';
+// Cùng MỘT kiểu, không phải hai kiểu trùng hình dạng: C5 giữ tên, vỏ giữ định
+// nghĩa. Khai lại ở đây là mở lại đúng khe hở vừa bịt.
+export type { CapacitySnapshot, CapacityTone } from '../shell/capacity';
+
+import type { CapacityTone } from '../shell/capacity';
 
 export interface CapacityHint {
   readonly remaining: number;
@@ -31,39 +37,26 @@ export interface CapacityHint {
   readonly warning: string | null;
 }
 
-/** Dưới ngưỡng này thì đổi màu — "còn 2 chỗ" là thông tin, "còn 9 chỗ" là nhiễu. */
-const LOW_REMAINING = 3;
-
 /**
  * `null` = **CHƯA BIẾT**, và nó KHÁC "biết là đã đầy".
  *
  * Query lỗi / chưa chạy / đang tắt đều cho `undefined`, và vẽ chúng thành
  * "Sandbox đang đầy" là bịa ra một sự thật hạ tầng từ một lỗi mạng. Người gọi
- * nhận `null` thì KHÔNG hiện gì cả — im lặng đúng hơn là sai.
+ * nhận `null` thì KHÔNG hiện gì cả — im lặng đúng hơn là sai. Cổng này nằm
+ * trong `readCapacity` (vỏ) để vỏ và khung phiên không thể lệch nhau về nó.
  */
 export function describeCapacity(
-  snapshot: CapacitySnapshot | null | undefined,
+  snapshot: Parameters<typeof readCapacity>[0],
 ): CapacityHint | null {
-  if (snapshot == null) {
+  const level = readCapacity(snapshot);
+  if (level === null) {
     return null;
   }
-  const { activeSessions, softCapacity } = snapshot;
-  // Số không hữu hạn (JSON hỏng, field vắng) cũng là "chưa biết", không phải 0.
-  if (!Number.isFinite(activeSessions) || !Number.isFinite(softCapacity)) {
-    return null;
-  }
-
-  // `max(0, …)` vì `soft = hard − poolTarget` có thể ÂM khi ai đó đặt poolTarget
-  // lớn hơn trần cứng. "Còn −2 chỗ" là một con số không có nghĩa với người học.
-  const remaining = Math.max(0, Math.trunc(softCapacity) - Math.trunc(activeSessions));
-  const exhausted = remaining === 0;
 
   return {
-    remaining,
-    exhausted,
-    tone: exhausted ? 'full' : remaining < LOW_REMAINING ? 'low' : 'ok',
-    label: exhausted ? 'Sandbox đang đầy' : `Còn ${remaining} chỗ`,
-    warning: exhausted
+    ...level,
+    label: level.exhausted ? 'Sandbox đang đầy' : `Còn ${String(level.remaining)} chỗ`,
+    warning: level.exhausted
       ? 'Sandbox đang đầy — mọi chỗ đều đang có người dùng. Bạn vẫn bấm Bắt đầu được, ' +
         'nhưng nhiều khả năng sẽ bị từ chối. Hãy thử lại sau vài phút, hoặc kết thúc một ' +
         'phiên khác bạn đang mở ở trang Của tôi.'
