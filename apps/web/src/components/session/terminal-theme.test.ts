@@ -1,6 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_THEME, THEME_NAMES, type ThemeName } from '@devops-platform/terminal/themes';
 import { resolveTerminalTheme } from './terminal-theme';
+
+const TERMINAL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../packages/terminal');
 
 /**
  * D14 — cổng giữ subpath **server-an-toàn** `@devops-platform/terminal/themes`.
@@ -23,15 +28,35 @@ describe('subpath ./themes — nạp sạch ở node', () => {
     expect(DEFAULT_THEME).toBe('dlp-dark');
   });
 
-  it('ĐỐI CHỨNG DƯƠNG: subpath `.` VẪN chết ở node — vấn đề là thật, không phải giả định', async () => {
-    // ⛔ Ô này là nửa chứng minh còn lại. Không có nó, ca trên chỉ nói "import
-    // này chạy được" mà không nói được rằng nó chạy được VÌ subpath mới — một
-    // ngày nào đó `index.ts` ngừng kéo `@xterm/*` thì cả hai đường đều sạch, và
-    // ta sẽ không còn biết vì sao subpath này tồn tại.
-    //
-    // `await import()` chứ không `import` tĩnh: một import tĩnh hỏng sẽ giết cả
-    // FILE trước khi có bài test nào đăng ký được.
-    await expect(import('@devops-platform/terminal')).rejects.toThrow(/self is not defined/);
+  it('ĐỐI CHỨNG TĨNH: subpath tồn tại, và themes.ts KHÔNG có import giá trị nào từ @xterm', () => {
+    // ⛔ Bản đầu của ô này là `await expect(import('@devops-platform/terminal'))
+    //    .rejects.toThrow(/self is not defined/)` — nó XANH khi chạy một mình
+    //    và ĐỎ khi chạy cả suite. Lý do: vite pre-bundle dependency, và sau lần
+    //    tối ưu đầu tiên `@devops-platform/terminal` phân giải sang bản ESM
+    //    (`xterm.mjs`, không đụng `self`) thay vì bản UMD (`xterm.js`, có đụng).
+    //    Một cổng đổi màu theo cache của bundler không gác được gì cả — nó chỉ
+    //    thêm nhiễu. Thay bằng phép kiểm TĨNH, xác định, đọc thẳng file nguồn.
+    const pkg = JSON.parse(
+      readFileSync(resolve(TERMINAL_ROOT, 'package.json'), 'utf8'),
+    ) as { exports: Record<string, string> };
+    expect(pkg.exports['./themes']).toBe('./src/themes.ts');
+
+    // Vế thật sự đáng gác: `themes.ts` chỉ được phép chạm `@xterm` bằng
+    // `import type` (bị xoá lúc biên dịch). Thêm một import GIÁ TRỊ vào đây là
+    // subpath "an toàn cho server" lặng lẽ hết an toàn, và triệu chứng sẽ nổ ra
+    // ở `appRouter` chứ không ở file này.
+    const themesSource = readFileSync(resolve(TERMINAL_ROOT, 'src/themes.ts'), 'utf8');
+    const xtermImports = themesSource.match(/^import .*@xterm.*$/gm) ?? [];
+    expect(xtermImports.length).toBeGreaterThan(0);
+    for (const line of xtermImports) {
+      expect(line).toMatch(/^import type /);
+    }
+
+    // Và vế giải thích vì sao subpath phải tồn tại: `"."` re-export đúng hai
+    // file browser-only đó.
+    const indexSource = readFileSync(resolve(TERMINAL_ROOT, 'src/index.ts'), 'utf8');
+    expect(indexSource).toContain("from './terminal-core.ts'");
+    expect(indexSource).toContain("from './terminal-surface.tsx'");
   });
 });
 
