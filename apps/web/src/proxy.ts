@@ -12,8 +12,42 @@ import { rateLimitTrustProxy } from './server/env';
 // sớm (chuyển hướng ngay khi vắng cookie) chỉ áp cho `/lessons` mà không áp cho
 // hai nhánh cùng loại, và sự bất đối xứng đó là thứ người sau sẽ đọc nhầm
 // thành "hai nhánh này cố ý công khai".
-const PROTECTED_PATHS = ['/dashboard', '/session', '/lessons', '/labs', '/playgrounds'];
+// 13.B/C6 thêm `/paths /quiz /me /settings /author /admin`. `/dashboard` và
+// `/session` ở lại dù nay chỉ còn là redirect 308 sang `/me` (D12): bỏ chúng ra
+// thì một khách chưa đăng nhập gõ `/dashboard` sẽ đi qua 308 rồi mới bị `/me`
+// đẩy về `/login` — hai lượt điều hướng, và lượt đầu tiết lộ rằng đường đó tồn
+// tại. Giữ lại là chặn ngay từ lượt đầu.
+//
+// ⛔ **Vai trò KHÔNG gác ở đây.** `/author` và `/admin` nằm trong danh sách này
+// chỉ để chặn khách vãng lai; phân biệt user/author/admin là việc của
+// `layout.tsx` phía server của chính hai nhánh đó (`getSession` + role →
+// `redirect('/me')`, hợp đồng C6). Lý do: proxy chạy trên MỌI request và cố ý
+// KHÔNG đụng DB (xem chú thích ở đoạn session-gate bên dưới), mà vai trò thì
+// chỉ có ở DB — kiểm vai trò tại đây sẽ hoặc là phải đọc DB mỗi request, hoặc
+// là phải tin một giá trị nằm trong cookie do client giữ.
+const PROTECTED_PATHS = [
+  '/dashboard',
+  '/session',
+  '/lessons',
+  '/labs',
+  '/playgrounds',
+  '/paths',
+  '/quiz',
+  '/me',
+  '/settings',
+  '/author',
+  '/admin',
+];
 const AUTH_ONLY_PATHS = ['/login'];
+
+/**
+ * Nơi đưa người đã đăng nhập tới khi họ mở `/login`.
+ *
+ * D12 gộp `/dashboard` vào `/me`. Trỏ thẳng `/me` chứ không để `/dashboard` tự
+ * 308 tiếp: một chuỗi hai lần chuyển hướng cho mỗi lần mở nhầm trang đăng nhập,
+ * và cái đích thật thì không đọc được từ đoạn mã này.
+ */
+const SIGNED_IN_HOME = '/me';
 
 /**
  * Khớp chính đường đó HOẶC đường con của nó.
@@ -27,7 +61,7 @@ const AUTH_ONLY_PATHS = ['/login'];
  * Nối `/` trước khi so tiền tố là phần bắt buộc: `startsWith('/lessons')` trần
  * sẽ nuốt cả `/lessons-public` hay `/lessonsfoo` — gác nhầm thứ không định gác.
  */
-function matchesProtected(pathname: string): boolean {
+export function matchesProtected(pathname: string): boolean {
   return PROTECTED_PATHS.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
@@ -123,7 +157,7 @@ export function proxy(request: NextRequest): NextResponse {
   // session thật qua auth.api.getSession làm phòng thủ lớp hai (dashboard/page.tsx).
   const hasSession = getSessionCookie(request) !== null;
   if (hasSession && AUTH_ONLY_PATHS.includes(pathname)) {
-    return secured(NextResponse.redirect(new URL('/dashboard', request.url)));
+    return secured(NextResponse.redirect(new URL(SIGNED_IN_HOME, request.url)));
   }
   if (!hasSession && matchesProtected(pathname)) {
     return secured(NextResponse.redirect(new URL('/login', request.url)));
