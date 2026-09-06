@@ -85,9 +85,14 @@ export function describeCatalogError(args: {
       kind: 'retryable',
       canRetry: true,
       canGoFirstPage: false,
+      // Trang 1: KHÔNG thêm câu nào. Chính `message` của server đã nói
+      // "Chưa đọc được kho nội dung…" (`server/content/source-errors.ts`) và nút
+      // Thử lại đã là bước tiếp theo — một dòng nữa ở đây chỉ chép lại câu ngay
+      // phía trên nó. Việc phân biệt "không đọc được" với "kho trống" ở trang 1
+      // do CẤU TRÚC gánh (ErrorState chứ không EmptyState), không cần nói thêm.
       hint: midway
         ? `Chỗ đang đọc được giữ nguyên — Thử lại sẽ nạp lại đúng trang ${args.page}, không đưa bạn về đầu.`
-        : 'Không đọc được kho nội dung ở lần tải này. Bấm Thử lại khi kết nối ổn lại.',
+        : null,
     };
   }
 
