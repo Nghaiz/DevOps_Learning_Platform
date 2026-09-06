@@ -59,7 +59,9 @@ export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="max-w-40">
+        {/* `max-w-24` ở màn hẹp: một tên dài không được đẩy nút Giao diện và
+            nút Menu tràn xuống dòng thứ hai của thanh đầu trang. */}
+        <Button variant="ghost" size="sm" className="max-w-24 sm:max-w-40">
           <span className="truncate">{viewer.name === '' ? viewer.email : viewer.name}</span>
         </Button>
       </DropdownMenuTrigger>

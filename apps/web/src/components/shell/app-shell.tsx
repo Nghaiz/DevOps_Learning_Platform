@@ -93,11 +93,23 @@ function ShellHeader({ viewer }: { readonly viewer: Viewer | null }) {
       <div className="flex h-14 items-center gap-2 px-4 min-[769px]:gap-4 min-[769px]:px-6">
         {viewer === null ? null : <MobileNav viewer={viewer} pathname={pathname} />}
 
+        {/*
+          Ở 360px thanh đầu trang phải chứa Menu + tên + Giao diện + tài khoản.
+          Tên rút thành "DLP" dưới `sm` để bốn thứ đó không đẩy nhau tràn dòng —
+          nhãn đầy đủ vẫn nằm trong `sr-only` nên trình đọc màn hình và phép
+          kiểm a11y luôn nghe "DevOps Learning Platform", không nghe ba chữ cái.
+        */}
         <Link
           href="/"
           className="rounded-md text-sm font-semibold whitespace-nowrap text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          DevOps Learning
+          <span aria-hidden="true" className="sm:hidden">
+            DLP
+          </span>
+          <span aria-hidden="true" className="hidden sm:inline">
+            DevOps Learning
+          </span>
+          <span className="sr-only">DevOps Learning Platform — về trang chủ</span>
         </Link>
 
         {viewer === null ? null : (
