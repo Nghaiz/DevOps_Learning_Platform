@@ -27,13 +27,25 @@ import { ViewerProvider } from './viewer-context';
 /**
  * Vỏ ứng dụng (13.B) — hợp đồng **C6**.
  *
- * ## Vì sao vỏ KHÔNG render `<main>`
+ * ## Vỏ sở hữu `<main>` — trang KHÔNG được render `<main>` của riêng mình
  *
- * MỌI trang route trong `apps/web/src/app` hiện đã tự render `<main>` (đếm được
- * 17 chỗ, 2026-09-06). Thêm một `<main>` ở đây là hai landmark `main` trong cùng
- * một tài liệu — axe báo `landmark-unique` mức **serious**, đúng hạng mà AC 13.H
- * đặt ngưỡng 0. Nên vỏ chỉ bọc một `<div id="noi-dung">`, và **quy ước cho mọi
- * lane: trang giữ nguyên `<main>` của mình.**
+ * Đây là **hợp đồng**, và nó đã đổi một lần trong Đợt 2 nên đáng ghi lại đầy đủ:
+ * bản đầu của vỏ (28dbca4) cố ý chỉ bọc một `<div>`, vì lúc đó cả 17 trang route
+ * đều tự render `<main>` và thêm cái thứ hai là trùng landmark. Lane C sau đó
+ * viết lại `lessons/labs/playgrounds-client.tsx` (ed8c346, 1c5b333) và **bỏ
+ * `<main>`** — hợp lý, vì họ đọc vỏ và cho rằng vỏ cấp landmark. Kết quả tạm
+ * thời: ba trang danh mục không có landmark nào.
+ *
+ * Chốt theo hướng lane C, vì chỉ ở đây mới **bảo đảm được đúng một** `<main>`:
+ * một trang không thể biết trang khác làm gì, còn vỏ thì bọc tất cả.
+ *
+ * ⚠ Sáu file còn render `<main>` của riêng chúng (2026-09-06) và phải đổi sang
+ * `<div>`/`<section>` — nếu không sẽ có hai landmark `main` lồng nhau, thứ vừa
+ * sai HTML vừa làm axe của 13.H kêu: `me/me-client.tsx`,
+ * `lessons/[id]/lesson-client.tsx`, `labs/[id]/lab-client.tsx`,
+ * `playgrounds/[id]/playground-client.tsx`, `paths/[id]/path-client.tsx`,
+ * `quiz/[id]/quiz-client.tsx`. Chúng thuộc lane D1/D2/E — đã ghi vào report cho
+ * lead, lane này không tự sửa file của lane khác.
  *
  * ## Vì sao vỏ nằm ở root layout chứ không ở từng layout route
  *
@@ -64,9 +76,9 @@ export function AppShell({
           </a>
           <ShellHeader viewer={viewer} />
           {viewer === null ? null : <CapacityFullBanner />}
-          <div id="noi-dung" tabIndex={-1} className="flex min-h-0 flex-1 flex-col outline-none">
+          <main id="noi-dung" tabIndex={-1} className="flex min-h-0 flex-1 flex-col outline-none">
             {children}
-          </div>
+          </main>
         </div>
       </CapacityProvider>
     </ViewerProvider>
