@@ -27,6 +27,7 @@ import {
   type FieldIssue,
 } from '../../../components/author/draft-form';
 import { draftFromPreview } from '../../../components/author/draft-from-preview';
+import { AssetManager } from '../../../components/author/asset-manager';
 import { PreviewPanel } from '../../../components/author/preview-panel';
 import { PublishPanel } from '../../../components/author/publish-panel';
 import {
@@ -256,6 +257,7 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
         <TabsList>
           <TabsTrigger value="soan">Soạn</TabsTrigger>
           <TabsTrigger value="xem-truoc">Xem trước</TabsTrigger>
+          <TabsTrigger value="tep">Tệp đính kèm</TabsTrigger>
           <TabsTrigger value="xuat-ban">Xuất bản</TabsTrigger>
         </TabsList>
 
@@ -373,6 +375,10 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
             Xem trước dựng từ bản ĐÃ LƯU, không từ ô nhập đang gõ. Lưu trước rồi mở lại tab này để thấy thay
             đổi.
           </p>
+        </TabsContent>
+
+        <TabsContent value="tep" className="pt-4">
+          <AssetManager contentId={contentId} />
         </TabsContent>
 
         <TabsContent value="xuat-ban" className="pt-4">
