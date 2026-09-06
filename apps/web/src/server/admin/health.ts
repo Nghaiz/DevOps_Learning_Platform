@@ -31,6 +31,22 @@ export interface MetricSeries {
  * `dlp_*` (orchestrator: `dlp_pool_*`; gateway: `dlp_gateway_*`, đều đăng ký
  * lúc khởi động, không đợi request đầu tiên), nên "0 series" là một khẳng định
  * có nội dung, không phải một trạng thái trung tính.
+ *
+ * ⚠ PHẠM VI CỦA `series`: MỘT REPLICA, KHÔNG PHẢI CẢ DEPLOYMENT.
+ * Cả hai nguồn đều đọc qua Service (ClusterIP), mà Service cân bằng tải — nên
+ * `series` là ảnh chụp của đúng một pod do kube-proxy chọn, và có thể đổi pod
+ * giữa hai lần refresh. Đo trên cụm lab 2026-09-06: `gateway.replicaCount: 2`
+ * (values-selfhost) và `orchestrator.replicaCount: 2` (values.yaml mặc định),
+ * nên đây là tính chất của CẢ HAI nguồn, không phải điểm riêng của gateway.
+ *
+ * Điều đó KHÔNG làm `reached`/`ok` sai: replica nào trả lời cũng chứng minh
+ * deployment đang phục vụ, và không replica nào trả lời thì `reached:false`.
+ * Nhưng nó làm mọi GIÁ TRỊ trong `series` là một MẪU: `dlp_gateway_ws_active`
+ * đọc ra 0 không có nghĩa cả fleet đang rảnh. Cần con số cộng dồn thì nguồn đúng
+ * là Prometheus — PodMonitor `dlp-gateway` scrape TỪNG pod theo IP (đo được
+ * 2026-09-06: job `monitoring/dlp-gateway` có 2 target, đều `up`), và
+ * ServiceMonitor `dlp-orchestrator` cho nửa còn lại. UI đọc `series` phải trình
+ * bày chúng như số của một instance, không như tổng của hệ.
  */
 export interface HealthSource {
   readonly name: 'orchestrator' | 'gateway';
@@ -98,16 +114,21 @@ const METRICS_FETCH_TIMEOUT_MS = 10_000;
  * URL của một nguồn, hoặc `null` khi CHƯA ĐƯỢC CẤU HÌNH.
  *
  * ⛔ ĐÃ ĐO trên chart thật, không phải phòng xa: `web-deployment.yaml` **OMIT**
- * hẳn biến `GATEWAY_METRICS_URL` khi `web.env.gatewayMetricsUrl` rỗng — và rỗng
- * LÀ mặc định hôm nay, vì cổng admin 8083 của gateway cố ý không lên Service.
- * Chú thích ngay tại chỗ omit đó khẳng định: *"`admin.health` đã thiết kế sẵn
- * cho nguồn gateway báo lỗi có kiểm soát (`sources[].ok/error`)"*.
+ * hẳn biến `GATEWAY_METRICS_URL` khi không có URL nào để đặt.
  *
- * Khẳng định ấy KHÔNG đúng nếu ta gọi thẳng `gatewayMetricsUrl()`: nó là
- * `requireEnv`, tức nó NÉM khi biến vắng mặt — và vì lời gọi nằm ngoài `try`
- * của `fetchSource`, cú ném đó giết CẢ `admin.health` (500), thay vì hiện một
- * nguồn `ok:false` cạnh một nguồn `ok:true`. Nói cách khác: đúng cấu hình mặc
- * định của cụm hôm nay sẽ làm trang quản trị trắng.
+ * Khi nào thì không có: cổng admin 8083 của gateway chỉ lên Service khi
+ * `platform.gatewayAdminOnService` đúng — mặc định `exposeAdminPort: auto`, tức
+ * THEO `networkPolicy.platform.enabled`. Nên trên một cụm CHƯA siết netpol (mặc
+ * định của chart) biến này vắng mặt, và đó là một cấu hình hợp lệ chứ không phải
+ * một cụm hỏng. `ORCHESTRATOR_METRICS_URL` thì luôn có (cổng HTTP 8081 nằm sẵn
+ * trên Service), nên hai nguồn KHÔNG cùng vắng cùng có — đúng lý do `sources`
+ * phải mang trạng thái riêng cho từng nguồn.
+ *
+ * Khẳng định "báo lỗi có kiểm soát" KHÔNG tự đúng nếu ta gọi thẳng
+ * `gatewayMetricsUrl()`: nó là `requireEnv`, tức nó NÉM khi biến vắng mặt — và
+ * vì lời gọi nằm ngoài `try` của `fetchSource`, cú ném đó giết CẢ `admin.health`
+ * (500) thay vì hiện một nguồn `ok:false` cạnh một nguồn `ok:true`. Nói cách
+ * khác: đúng cấu hình mặc định của chart sẽ làm trang quản trị trắng.
  *
  * Nên "chưa cấu hình" là một TRẠNG THÁI, không phải một lỗi hệ thống — và nó
  * phải nói rõ mình là gì, để không ai đọc nhầm thành "gateway chết".
@@ -134,10 +155,17 @@ async function fetchSource(name: HealthSource['name'], url: string | null): Prom
   try {
     response = await fetch(url, { signal: AbortSignal.timeout(METRICS_FETCH_TIMEOUT_MS) });
   } catch (cause) {
-    // KHÔNG với tới được. Trên cụm hardened đây là nhánh sẽ CHẠY THẬT
-    // (`platform-networkpolicy.yaml` khối 9 chặn web→orchestrator:8081, và
-    // gateway chưa mở port 8083) — nên nó phải nói đúng "không với tới", không
-    // được lẫn với "với tới rồi nhưng hỏng".
+    // KHÔNG với tới được — DNS, timeout, connection refused, hoặc NetworkPolicy
+    // drop gói. Đây không phải nhánh phòng xa: mỗi nửa cạnh mạng còn thiếu đều
+    // rơi vào đây, và nó phải nói đúng "không với tới" chứ không được lẫn với
+    // "với tới rồi nhưng hỏng" — hai nhánh đó đòi hai hành động khác hẳn nhau.
+    //
+    // Hai cạnh phải mở, mỗi cạnh HAI nửa (`platform-networkpolicy.yaml`):
+    //   web → orchestrator:8081   egress khối 3 + ingress khối 13b
+    //   web → gateway:8083        egress khối 3 + ingress khối 12b
+    // Cả hai đều gác bởi cùng một vị từ trong chart, nên thiếu nửa là chuyện
+    // chart không cho xảy ra — nhưng netpol áp ngoài chart (CNI, cụm khác) thì
+    // vẫn rơi vào đây, và đó chính là lúc `reached:false` phải nói ra.
     return {
       name,
       reached: false,

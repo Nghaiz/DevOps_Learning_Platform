@@ -5,11 +5,14 @@ import { fetchAdminHealth, parsePrometheusText, type HealthSource } from './heal
  * `admin.health` (C4, phase-13) — bộ này tồn tại vì MỘT lý do: một trang health
  * báo XANH khi không với tới được nguồn nào thì tệ hơn không có trang health.
  *
- * ⚠ Trên cụm hardened HÔM NAY, **cả hai** nguồn metrics đều bị chặn mạng
- * (`platform-networkpolicy.yaml` khối 9 chặn web→orchestrator:8081; gateway
- * chưa mở 8083). Nghĩa là nhánh "không với tới" KHÔNG phải nhánh hiếm cần
- * phòng xa — nó là nhánh sẽ CHẠY THẬT cho tới khi lead mở netpol ở đợt 3. Nó
- * phải được kiểm KỸ HƠN nhánh khoẻ, không phải ít hơn.
+ * ⚠ Nhánh "không với tới" KHÔNG phải nhánh hiếm cần phòng xa. Chart chỉ dựng
+ * đường cho từng nguồn khi đủ điều kiện — `ORCHESTRATOR_METRICS_URL` luôn có
+ * (cổng HTTP 8081 nằm sẵn trên Service) còn `GATEWAY_METRICS_URL` chỉ có khi cổng
+ * admin 8083 lên Service, mà điều đó theo `networkPolicy.platform.enabled`
+ * (`platform.gatewayAdminOnService`). Nên MỘT nguồn thiếu trong khi nguồn kia
+ * khoẻ là cấu hình BÌNH THƯỜNG của chart mặc định, không phải một cụm hỏng — và
+ * netpol áp ngoài chart vẫn có thể chặn cả hai. Nhánh này phải được kiểm KỸ HƠN
+ * nhánh khoẻ, không phải ít hơn.
  *
  * Bốn ca bắt buộc: (1) `/metrics` thật, (2) 404, (3) không kết nối được,
  * (4) 200 với body hợp lệ nhưng KHÔNG có series `dlp_*`. Ca (4) là ca dễ trượt
@@ -173,12 +176,13 @@ describe('fetchAdminHealth — ba trạng thái phân biệt được bằng MÁ
     expect(source.series).toEqual([]);
   });
 
-  it('GATEWAY_METRICS_URL VẮNG MẶT (mặc định của chart hôm nay) ⇒ nguồn đó ok:false, KHÔNG giết cả admin.health', async () => {
-    // ⛔ Đây là CẤU HÌNH MẶC ĐỊNH trên cụm, không phải một ca hiếm:
-    // `web-deployment.yaml` OMIT hẳn biến khi `web.env.gatewayMetricsUrl` rỗng,
-    // và rỗng là mặc định (cổng admin 8083 của gateway cố ý không lên Service).
-    // `gatewayMetricsUrl()` là `requireEnv` nên nó NÉM — nếu lời gọi đó không
-    // được bọc, cả trang quản trị trả 500 thay vì hiện một nguồn hỏng.
+  it('GATEWAY_METRICS_URL VẮNG MẶT (mặc định của chart khi netpol tắt) ⇒ nguồn đó ok:false, KHÔNG giết cả admin.health', async () => {
+    // ⛔ Đây là CẤU HÌNH MẶC ĐỊNH của chart, không phải một ca hiếm:
+    // `web-deployment.yaml` OMIT hẳn biến khi cổng admin 8083 không lên Service,
+    // và nó không lên Service khi `networkPolicy.platform.enabled` tắt — mặc định
+    // của cả ba bộ values. `gatewayMetricsUrl()` là `requireEnv` nên nó NÉM — nếu
+    // lời gọi đó không được bọc, cả trang quản trị trả 500 thay vì hiện một
+    // nguồn hỏng cạnh một nguồn khoẻ.
     const saved = process.env['GATEWAY_METRICS_URL'];
     delete process.env['GATEWAY_METRICS_URL'];
     try {
@@ -200,7 +204,39 @@ describe('fetchAdminHealth — ba trạng thái phân biệt được bằng MÁ
     }
   });
 
-  it('CẢ HAI nguồn bị chặn (đúng hiện trạng cụm hardened) ⇒ không nguồn nào ok, và nói rõ vì sao', async () => {
+  it('CHỈ gateway bị chặn ⇒ đúng nguồn đó đỏ, orchestrator vẫn xanh (hình dạng của "một nửa cạnh rơi")', async () => {
+    // Ca này gác đúng chế độ hỏng mà thay đổi P13 vừa đóng, theo chiều NGƯỢC với
+    // ca ECONNREFUSED ở trên (ca kia chặn orchestrator). Hai cạnh mạng của
+    // `admin.health` được dựng bởi hai khối netpol khác nhau (12b cho gateway,
+    // 13b cho orchestrator) cộng hai nửa egress; nếu nửa của gateway rơi — netpol
+    // ngoài chart, CNI khác, ai đó gỡ nhầm rule — thì cụm hiện ra ĐÚNG hình dạng
+    // dưới đây. Nó phải đọc ra "gateway không với tới", KHÔNG được đọc ra
+    // "admin.health hỏng" và tuyệt đối không được biến mất thành một dấu xanh.
+    stubFetch({
+      orchestrator: ok200(REAL_METRICS),
+      gateway: refused('connect ETIMEDOUT 10.244.211.92:8083'),
+    });
+    const health = await fetchAdminHealth(ctx);
+    const gateway = sourceNamed(health.sources, 'gateway');
+    const orchestrator = sourceNamed(health.sources, 'orchestrator');
+
+    expect(gateway.reached).toBe(false);
+    expect(gateway.ok).toBe(false);
+    expect(gateway.error).toContain('ETIMEDOUT');
+    expect(gateway.series).toEqual([]);
+
+    // Vế còn lại — nguồn KIA không được kéo theo. Thiếu vế này thì một `catch`
+    // đặt sai tầng (bọc cả `Promise.all` thay vì bọc từng nguồn) vẫn qua cổng.
+    expect(orchestrator.reached).toBe(true);
+    expect(orchestrator.ok).toBe(true);
+    expect(orchestrator.series.length).toBeGreaterThan(0);
+
+    // `capacity` đi đường gRPC riêng, không qua `/metrics` — một nguồn metrics
+    // chết KHÔNG được làm mất luôn khối capacity của trang.
+    expect(health.capacity).not.toBeNull();
+  });
+
+  it('CẢ HAI nguồn bị chặn ⇒ không nguồn nào ok, và nói rõ vì sao', async () => {
     stubFetch({ orchestrator: refused('fetch failed'), gateway: refused('fetch failed') });
     const health = await fetchAdminHealth(ctx);
     expect(health.sources).toHaveLength(2);
