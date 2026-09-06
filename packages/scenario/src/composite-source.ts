@@ -255,10 +255,38 @@ function mergePages<T extends { readonly id: string }>(
   // cắt bớt ở đây), HOẶC (b) BẤT KỲ nguồn nào tự báo nó còn (`nextCursor` khác
   // null) — kể cả khi trang của riêng nguồn đó không đóng góp mục nào vào top
   // `limit` (mọi mục của nó bị đĩa che), vì nguồn đó vẫn còn dữ liệu ở phía sau.
-  const anySourceHasMore = pages.some(([, p]) => p.nextCursor !== null);
-  const hasMore = merged.length > limit || anySourceHasMore;
+  const sourceCursors = pages
+    .map(([, p]) => p.nextCursor)
+    .filter((cursor): cursor is string => cursor !== null);
+  const hasMore = merged.length > limit || sourceCursors.length > 0;
   const last = page[page.length - 1];
-  return { items: page, nextCursor: hasMore && last !== undefined ? last.id : null };
+  if (!hasMore) {
+    return { items: page, nextCursor: null };
+  }
+  if (last !== undefined) {
+    return { items: page, nextCursor: last.id };
+  }
+
+  /**
+   * Trang hợp nhất RỖNG nhưng có nguồn báo còn dữ liệu — không phải ca giả
+   * định: `dbContentSource.pageOf` trả `items: []` kèm `nextCursor` khác null
+   * khi MỌI dòng của trang đó rớt schema (`summarize*` trả `null`, ví dụ một
+   * lesson đã publish mà 0 bước). Lấy `last.id` là bất khả (không có `last`),
+   * và trả `null` ở đây sẽ nói với client "hết rồi" trong khi phía sau còn
+   * nguyên dữ liệu HỢP LỆ — mất mát IM LẶNG, đúng chế độ hỏng mà D9 tồn tại
+   * để chặn.
+   *
+   * Lấy cursor NHỎ NHẤT trong các nguồn: mọi nguồn cùng một thứ tự toàn phần
+   * `id` tăng dần, nên `id > min` không thể bỏ qua mục nào của bất kỳ nguồn
+   * nào. Nó là một id THẬT do một nguồn vừa phát ra, nên vòng lặp vẫn tiến
+   * (lượt sau bắt đầu sau nó), không quay lại.
+   */
+  const smallest = sourceCursors.reduce((a, b) => (a < b ? a : b));
+  logger.warn('[content:composite] trang hợp nhất RỖNG nhưng nguồn còn dữ liệu — đi tiếp bằng cursor nhỏ nhất', {
+    method,
+    nextCursor: smallest,
+  });
+  return { items: page, nextCursor: smallest };
 }
 
 async function validateCursorExists<T>(

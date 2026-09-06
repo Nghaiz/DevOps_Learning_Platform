@@ -280,6 +280,33 @@ describe('compositeContentSource — listPage (D9)', () => {
     expect(page.nextCursor).not.toBeNull();
   });
 
+  it('trang hợp nhất RỖNG nhưng một nguồn còn dữ liệu ⇒ nextCursor KHÔNG null (không mất trang sau)', async () => {
+    // Tái hiện chính xác `dbContentSource.pageOf` khi mọi dòng của trang rớt
+    // schema: `items: []` NHƯNG `nextCursor` khác null (cursor tính từ dòng
+    // RAW, không phải từ dòng đã summarize). Trả `null` ở composite khi đó nói
+    // với client "hết rồi" trong khi phía sau còn dữ liệu hợp lệ.
+    const empty = fakeSource('db-hong', [], {
+      async listPage() {
+        return { items: [], nextCursor: 'moc-cua-nguon' };
+      },
+    });
+    const logger = recorder();
+    const composite = compositeContentSource([empty], { logger });
+
+    const page = await composite.listPage({ limit: 10 });
+    expect(page.items).toEqual([]);
+    expect(page.nextCursor).toBe('moc-cua-nguon');
+    expect(logger.entries.some((e) => e.message.includes('trang hợp nhất RỖNG'))).toBe(true);
+  });
+
+  it('trang rỗng và KHÔNG nguồn nào còn ⇒ nextCursor null (không bịa cursor)', async () => {
+    const empty = fakeSource('db-rong', []);
+    const composite = compositeContentSource([empty]);
+    const page = await composite.listPage({ limit: 10 });
+    expect(page.items).toEqual([]);
+    expect(page.nextCursor).toBeNull();
+  });
+
   it('filter đi qua verbatim tới từng nguồn (áp trước khi merge)', async () => {
     const a = fakeSource('a', [
       { id: 'a1', title: 'A1' },
