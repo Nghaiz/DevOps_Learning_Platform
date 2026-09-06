@@ -30,7 +30,7 @@ function lab(over: Partial<Lab> = {}): Lab {
     description: null,
     difficulty: 'beginner',
     estimatedMinutes: null,
-    tier: 'standard',
+    tier: 'gvisor',
     capabilities: [],
     requiresCapabilities: null,
     backendImageId: 'ubuntu',
