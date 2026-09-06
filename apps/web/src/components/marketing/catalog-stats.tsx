@@ -1,0 +1,135 @@
+import { BookOpen, FlaskConical, ListChecks, SquareTerminal, type LucideIcon } from 'lucide-react';
+import { Skeleton } from '@devops-platform/ui';
+import { HomeSection } from './home-section';
+import { readCatalogCounts, type CatalogKind } from './catalog-stats.server';
+
+/**
+ * "Trong nền tảng có gì" — bốn con số ĐỌC TỪ SERVER.
+ *
+ * Mô tả từng loại lấy lại nguyên ý các chuỗi đang hiện ở chính trang danh mục
+ * tương ứng (`lessons-client.tsx`, `labs-client.tsx`, `playgrounds-client.tsx`,
+ * `quiz-client.tsx`) — cùng một giọng, và người dùng gặp lại đúng câu đó khi
+ * bấm vào.
+ *
+ * Bốn ô KHÔNG phải liên kết, cố ý: mọi đường danh mục đều sau cổng đăng nhập
+ * (`proxy.ts` đẩy khách qua `/login`), nên một ô trông bấm được mà bấm vào lại
+ * ra màn hình đăng nhập là hứa sai — đúng cái bẫy `home-cta.tsx` đã tránh khi
+ * đổi nhãn nút thành "Đăng nhập để bắt đầu". Ở đây bốn ô làm việc của chúng:
+ * nói nền tảng có gì.
+ */
+const TILES: readonly {
+  readonly kind: CatalogKind;
+  readonly label: string;
+  readonly note: string;
+  readonly icon: LucideIcon;
+}[] = [
+  {
+    kind: 'lessons',
+    label: 'Bài học',
+    note: 'Từng bước có hướng dẫn, mỗi bài mở một sandbox riêng.',
+    icon: BookOpen,
+  },
+  {
+    kind: 'labs',
+    label: 'Lab',
+    note: 'Một tập nhiệm vụ độc lập — tự chấm rồi nộp khi sẵn sàng.',
+    icon: FlaskConical,
+  },
+  {
+    kind: 'playgrounds',
+    label: 'Playground',
+    note: 'Sandbox trống, không bài, không chấm — để thử lệnh.',
+    icon: SquareTerminal,
+  },
+  {
+    kind: 'quizzes',
+    label: 'Quiz',
+    note: 'Bộ câu hỏi tự chấm, nộp xong mới thấy điểm và giải thích.',
+    icon: ListChecks,
+  },
+];
+
+const GRID = 'grid gap-4 sm:grid-cols-2 min-[769px]:grid-cols-4';
+const TILE = 'flex flex-col gap-2 rounded-lg border border-border bg-card p-5 shadow-elevation-1';
+
+export async function CatalogStats() {
+  const counts = await readCatalogCounts();
+
+  // Cả bốn lượt đọc đều hỏng ⇒ ẩn hẳn dải. Bốn dấu gạch ngang cạnh nhau không
+  // nói được gì cho người đọc và trông như trang bị vỡ; sự cố đã nằm trong
+  // `console.error` của tầng server, đúng nơi người vận hành nhìn.
+  if (TILES.every((tile) => counts[tile.kind] === null)) {
+    return null;
+  }
+
+  const somethingMissing = TILES.some((tile) => counts[tile.kind] === null);
+
+  return (
+    <HomeSection labelledBy="co-gi" innerClassName="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h2 id="co-gi" className="text-xl font-semibold text-foreground">
+          Trong nền tảng có gì
+        </h2>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Đếm từ nội dung đã xuất bản, ngay lúc bạn mở trang.
+        </p>
+      </div>
+
+      <div className={GRID}>
+        {TILES.map(({ kind, label, note, icon: Icon }) => (
+          <div key={kind} className={TILE}>
+            <Icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
+            <p className="text-3xl font-bold tabular-nums text-foreground">
+              {counts[kind] === null ? (
+                <>
+                  <span aria-hidden="true">–</span>
+                  <span className="sr-only">chưa đọc được số lượng</span>
+                </>
+              ) : (
+                counts[kind]
+              )}
+            </p>
+            <p className="text-sm font-medium text-foreground">{label}</p>
+            <p className="text-xs text-pretty text-muted-foreground">{note}</p>
+          </div>
+        ))}
+      </div>
+
+      {somethingMissing ? (
+        <p className="text-sm text-muted-foreground">
+          Một vài con số chưa đọc được vì máy chủ nội dung không trả lời. Phần còn lại của trang
+          vẫn dùng được — tải lại sau ít phút để thấy đủ.
+        </p>
+      ) : null}
+    </HomeSection>
+  );
+}
+
+/**
+ * Khung chờ trong lúc lượt đọc server chạy.
+ *
+ * Có `<Suspense>` bọc dải này (xem `app/page.tsx`) nên phần hero hiện NGAY,
+ * không phải đợi một lượt đọc DB. Khung chờ giữ đúng chiều cao của dải thật để
+ * nội dung phía dưới không nhảy khi số về.
+ */
+export function CatalogStatsSkeleton() {
+  return (
+    <HomeSection innerClassName="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-7 w-56" />
+        <Skeleton className="h-5 w-80 max-w-full" />
+      </div>
+      <div className={GRID}>
+        {TILES.map(({ kind }) => (
+          <div key={kind} className={TILE}>
+            <Skeleton className="size-5" />
+            <Skeleton className="h-9 w-16" />
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ))}
+      </div>
+      <span className="sr-only">Đang đọc số lượng nội dung.</span>
+    </HomeSection>
+  );
+}
