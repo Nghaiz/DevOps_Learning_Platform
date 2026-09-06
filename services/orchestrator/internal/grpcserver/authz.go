@@ -49,6 +49,19 @@ type PeerTrust struct {
 	// Addr chỉ để log/chẩn đoán. TUYỆT ĐỐI không dùng làm căn cứ authz: địa chỉ
 	// nguồn giả được, và trong cluster thì mọi thứ đều nằm trong dải pod CIDR.
 	Addr string
+	// MTLSEnabled nói CỔNG CÓ BẬT hay không — tức server có ở vị thế chứng minh
+	// được điều gì về peer hay không. KHÔNG phải một lời khẳng định về peer.
+	//
+	// ⛔ VÌ SAO CẦN MỘT FIELD RIÊNG, KHÔNG SUY TỪ `InCluster`. `InCluster=false`
+	// gộp HAI tình huống khác hẳn nhau: (a) cổng tắt, server không có cách nào
+	// biết gì về ai; (b) cổng bật, peer này KHÔNG trình được cert hợp lệ. Nhánh
+	// `system_component` không cần phân biệt vì nó từ chối cả hai. Nhánh
+	// `admin_user_id` (P13 D15) thì có: nó phải từ chối (b) — có cổng thì phải
+	// qua cổng — mà vẫn đi tiếp ở (a), nơi mọi RPC khác của contract cũng đang
+	// tin `user_id` client tự khai. Suy ngược từ `InCluster` sẽ biến
+	// `GRPC_MTLS_MODE=off` thành "admin không kết thúc được phiên", tức dựng lại
+	// đúng chỗ hỏng im lặng mà D15 sinh ra để vá.
+	MTLSEnabled bool
 }
 
 // TrustFromContext đọc kết luận của interceptor.
@@ -95,7 +108,7 @@ func NewAuthInterceptor(log *slog.Logger, mode tlsx.Mode) grpc.UnaryServerInterc
 		_ *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (interface{}, error) {
-		trust := PeerTrust{}
+		trust := PeerTrust{MTLSEnabled: mode.Enabled()}
 		p, hasPeer := peer.FromContext(ctx)
 		if hasPeer {
 			trust.Addr = p.Addr.String()

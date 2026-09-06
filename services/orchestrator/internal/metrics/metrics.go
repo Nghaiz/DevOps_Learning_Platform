@@ -96,7 +96,7 @@ type Metrics struct {
 	// tăng đều là dấu hiệu hai tiến trình đang tranh cùng một session — chính
 	// cái race mà `revision` sinh ra để chặn, nên nó phải nhìn thấy được.
 	ExtendTotal *prometheus.CounterVec
-	// ReapTotal tách theo ai gọi (`user` / `system`) và kết quả.
+	// ReapTotal tách theo ai gọi (`user` / `system` / `admin`) và kết quả.
 	ReapTotal *prometheus.CounterVec
 
 	// ReaperOrphanPodsTotal đếm pod mang label app=sandbox mà không có hash
@@ -316,7 +316,10 @@ func New(reg prometheus.Registerer) *Metrics {
 	for _, r := range []string{"ok", "not_found", "revision_mismatch", "bad_state", "hard_cap", "error"} {
 		m.ExtendTotal.WithLabelValues(r)
 	}
-	for _, actor := range []string{"user", "system"} {
+	// "admin" (P13 D15): thiếu nó thì `dlp_reap_total{actor="admin"}` trả
+	// NO-DATA cho tới lần admin đầu tiên bấm nút — không phân biệt được với
+	// "tính năng chưa deploy".
+	for _, actor := range []string{"user", "system", "admin"} {
 		for _, r := range []string{"ok", "already_reaped", "not_found", "error"} {
 			m.ReapTotal.WithLabelValues(actor, r)
 		}

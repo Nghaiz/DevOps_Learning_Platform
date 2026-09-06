@@ -48,6 +48,54 @@ type ReapActor struct {
 	System bool
 	// Component ghi vào audit khi System = true.
 	Component string
+	// AdminUserID khác rỗng ⇒ một ADMIN kết thúc phiên của NGƯỜI KHÁC (P13
+	// D15). Giá trị là id của ADMIN, không phải của chủ phiên — đó là điểm của
+	// nó: `sessions_audit` phải trả lời được "ai đã giết phiên này", và một
+	// dòng ghi tên chủ phiên là một dòng SAI, tệ hơn một dòng thiếu.
+	//
+	// ⛔ Cũng như `System`, chỉ tầng vận chuyển được đặt field này, và chỉ sau
+	// khi đối chiếu với PeerTrust. `resolveReapActor` là call-site sản phẩm DUY
+	// NHẤT dựng ReapActor — grep trước khi thêm cái thứ hai.
+	AdminUserID string
+}
+
+// bypassOwnerCheck: khi nào script Lua bỏ kiểm `session.userId == actor`.
+//
+// MỘT hàm, không phải một điều kiện chép ở hai chỗ: đây là cổng quyền của cả
+// đường reap, và một bản sao lệch pha là cách nó hỏng mà không ai thấy.
+// `System` thắng khi (không thể xảy ra qua `oneof`) cả hai cùng được đặt —
+// hướng an toàn, vì `System` chỉ đặt được sau allowlist CN.
+func (a ReapActor) bypassOwnerCheck() bool {
+	return a.System || a.AdminUserID != ""
+}
+
+// label là nhãn `actor` của `dlp_reap_total`. Ba giá trị, và cả ba phải được
+// zero-init trong metrics.New — một tổ hợp chưa từng xuất hiện đọc ra NO-DATA
+// trên dashboard, trông y hệt "chưa bao giờ có chuyện gì".
+func (a ReapActor) label() string {
+	switch {
+	case a.System:
+		return "system"
+	case a.AdminUserID != "":
+		return "admin"
+	default:
+		return "user"
+	}
+}
+
+// auditDetail là câu ghi vào `sessions_audit.detail`.
+//
+// Với admin, id ĐI KÈM: "reap bởi admin" mà không nói admin NÀO thì vẫn không
+// trả lời được câu hỏi duy nhất khiến bảng này tồn tại.
+func (a ReapActor) auditDetail() string {
+	switch {
+	case a.System:
+		return "reap bởi hệ thống: " + a.Component
+	case a.AdminUserID != "":
+		return "reap bởi admin " + a.AdminUserID
+	default:
+		return "reap bởi user"
+	}
 }
 
 // Reap kết thúc một session và xoá pod của nó. Idempotent.
@@ -60,10 +108,7 @@ type ReapActor struct {
 func (s *Service) Reap(
 	ctx context.Context, sessionID string, actor ReapActor,
 ) (*orchestratorv1.Session, error) {
-	label := "user"
-	if actor.System {
-		label = "system"
-	}
+	label := actor.label()
 
 	sessionKey, err := rediskeys.Session(sessionID)
 	if err != nil {
@@ -76,9 +121,12 @@ func (s *Service) Reap(
 		return nil, status.Error(codes.NotFound, "session không tồn tại")
 	}
 
-	// Chuỗi rỗng = "hệ thống, đã xác thực ở tầng trên". Script không tự quyết.
+	// Chuỗi rỗng = "người gọi đã được tầng trên xác thực là KHÔNG phải khớp chủ
+	// sở hữu" — hệ thống (reaper, drain) hoặc admin (P13 D15). Script không tự
+	// quyết điều đó: tin một cờ trong ARGV thì ai gọi được RPC cũng tự phong
+	// mình là hệ thống.
 	scriptUser := actor.UserID
-	if actor.System {
+	if actor.bypassOwnerCheck() {
 		scriptUser = ""
 	}
 
@@ -131,10 +179,7 @@ func (s *Service) Reap(
 	// nó vào nhật ký là làm mọi truy vấn "session này bị reap mấy lần" trả lời
 	// sai về số lần thật sự có chuyện xảy ra.
 	if !alreadyReaped {
-		detail := "reap bởi user"
-		if actor.System {
-			detail = "reap bởi hệ thống: " + actor.Component
-		}
+		detail := actor.auditDetail()
 		s.audit(ctx, auditEvent{
 			SessionID: sess.ID,
 			UserID:    sess.UserID,
@@ -150,6 +195,10 @@ func (s *Service) Reap(
 		slog.String("session_id", sessionID),
 		slog.String("pod", podName),
 		slog.String("actor", label),
+		// AI reap phiên CỦA AI — dòng log phải nói được điều đó mà không phải
+		// join sang Postgres. Rỗng cho hai nhánh kia nên không gây nhiễu.
+		slog.String("admin_user_id", actor.AdminUserID),
+		slog.String("session_user_id", sess.UserID),
 		slog.Bool("already_reaped", alreadyReaped))
 
 	return sess.ToProto(), nil

@@ -221,11 +221,50 @@ func (s *SessionService) resolveReapActor(
 		}
 		return lifecycle.ReapActor{System: true, Component: a.SystemComponent}, nil
 
+	case *orchestratorv1.ReapSessionRequest_AdminUserId:
+		if a.AdminUserId == "" {
+			return lifecycle.ReapActor{}, status.Error(codes.InvalidArgument, "actor.admin_user_id rỗng")
+		}
+		trust := TrustFromContext(ctx)
+		// ⛔ CỔNG Ở ĐÂY HẸP HƠN `system_component` MỘT CÁCH CÓ CHỦ Ý — hai bậc,
+		// và cả hai bậc đều phải giải thích được:
+		//
+		//  · KHÔNG đòi allowlist CN. Đòi nó nghĩa là phải nhét apps/web vào
+		//    `GRPC_MTLS_SYSTEM_CNS`, mà làm thế là cấp bypass chủ-sở-hữu cho MỌI
+		//    lời gọi reap của apps/web — kể cả `me.endSession` của người dùng
+		//    thường. Đổi một nút quản trị lấy một lỗ hổng ở đường đông người
+		//    nhất là một cuộc đổi chác tồi (orchestrator-deployment.yaml nói
+		//    thẳng điều này ngay chỗ khai biến).
+		//
+		//  · NHƯNG có cổng thì phải qua cổng. `MTLSEnabled && !InCluster` là ca
+		//    "server ĐANG kiểm cert mà peer này không trình được cái hợp lệ" —
+		//    từ chối. Với `GRPC_MTLS_MODE=off` server không kiểm gì cả và
+		//    `user_id` của mọi RPC khác cũng là field client tự khai, nên chặn
+		//    riêng nhánh này chỉ làm nút admin chết trong khi đường vòng
+		//    `ListSessions("") → reap theo user_id` vẫn mở: bịt cửa sổ, để ngỏ
+		//    cửa chính.
+		//
+		// Hệ quả vận hành cần biết: ở nấc `permissive`, một apps/web CHƯA gắn
+		// cert sẽ mất nút này trong khi mọi thứ khác vẫn chạy. Đó là hỏng ỒN ÀO
+		// (PermissionDenied kèm lý do), không phải NOT_FOUND câm như trước D15.
+		if trust.MTLSEnabled && !trust.InCluster {
+			s.log.Warn("từ chối actor=admin_user_id: cổng mTLS đang bật nhưng peer không có client certificate hợp lệ",
+				slog.String("admin_user_id", a.AdminUserId),
+				slog.String("peer", trust.Addr))
+			return lifecycle.ReapActor{}, status.Error(codes.PermissionDenied,
+				"actor.admin_user_id chỉ chấp nhận trên kết nối đã xác thực khi mTLS bật; xem GRPC_MTLS_MODE")
+		}
+		// ⚠ Tới đây server KHÔNG chứng minh được id này thuộc về một admin — nó
+		// chỉ chứng minh được người gọi là một peer đã xác thực (hoặc cổng đang
+		// tắt). Vai trò là quyết định của BFF (`adminProcedure`), đúng ranh giới
+		// tin cậy §2 C3. Khối lý lẽ đầy đủ nằm trong session.proto.
+		return lifecycle.ReapActor{AdminUserID: a.AdminUserId}, nil
+
 	default:
 		// Comment trong proto nói rõ: thiếu actor thì server trả InvalidArgument.
 		// Không có nhánh "đoán hộ" — đó là cả điểm của việc field này bắt buộc.
 		return lifecycle.ReapActor{}, status.Error(codes.InvalidArgument,
-			"actor bắt buộc: đặt user_id hoặc system_component")
+			"actor bắt buộc: đặt user_id, admin_user_id hoặc system_component")
 	}
 }
 
