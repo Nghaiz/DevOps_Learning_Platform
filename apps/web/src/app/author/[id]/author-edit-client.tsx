@@ -27,6 +27,7 @@ import {
   type FieldIssue,
 } from '../../../components/author/draft-form';
 import { draftFromPreview } from '../../../components/author/draft-from-preview';
+import { PreviewPanel } from '../../../components/author/preview-panel';
 import { describeSaveOutcome } from '../../../components/author/save-outcome';
 import {
   describeItem,
@@ -194,6 +195,7 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="soan">Soạn</TabsTrigger>
+          <TabsTrigger value="xem-truoc">Xem trước</TabsTrigger>
         </TabsList>
 
         <TabsContent value="soan" className="flex flex-col gap-6 pt-4">
@@ -284,6 +286,32 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
               </div>
             </>
           )}
+        </TabsContent>
+
+        <TabsContent value="xem-truoc" className="flex flex-col gap-4 pt-4">
+          {previewQuery.isPending && <Loading />}
+          {previewQuery.isError && (
+            <ErrorState
+              title="Không xem trước được"
+              message={describeTrpcError(previewQuery.error)}
+              onRetry={() => void previewQuery.refetch()}
+              retrying={previewQuery.isFetching}
+            />
+          )}
+          {previewData !== null && <PreviewPanel contentId={contentId} payload={previewData} />}
+          {previewRejected && (
+            <Alert variant="warning">
+              <AlertTitle>Bản nháp chưa qua schema xuất bản</AlertTitle>
+              <AlertDescription>
+                Nguồn nội dung từ chối bản nháp này nên không có gì để dựng. Chạy Kiểm tra ở tab Xuất bản để
+                biết field nào còn thiếu.
+              </AlertDescription>
+            </Alert>
+          )}
+          <p className="text-sm text-muted-foreground">
+            Xem trước dựng từ bản ĐÃ LƯU, không từ ô nhập đang gõ. Lưu trước rồi mở lại tab này để thấy thay
+            đổi.
+          </p>
         </TabsContent>
       </Tabs>
     </Shell>
