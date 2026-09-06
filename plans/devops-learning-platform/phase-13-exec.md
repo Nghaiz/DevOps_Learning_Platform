@@ -414,6 +414,25 @@ khai, và script theme chưa mang nonce. Cụm đang chạy image trước P13 n
 và tier `ratelimit-ide` 600/1m burst 300 cho `/ide` (đường này CHƯA từng đi qua
 Traefik lần nào), và `capacityHardLimit: '8'` mặc định dạng cloud.
 
+**11. `netpol_render_gate.py` đọc manifest từ STDIN.** Gọi trần không pipe thì nó
+báo "thiếu 14 policy" — **đỏ giả**, và rất dễ đọc thành "bản vá của ai đó làm hỏng
+netpol". Pipe `helm template` vào nó. Và **đừng nối `| tail` rồi đọc `$?`**: khi ấy
+`$?` là mã thoát của `tail`, không phải của lệnh bạn quan tâm. (Tôi đã tự dính đúng
+bẫy này ở một chỗ khác trong phiên — xem ghi chú `.gitignore` ở §4.)
+
+**12. Bản vá header `/ide` chỉ có hiệu lực SAU khi side-load `dlp-terminal-gateway:p13`,
+và tới lúc đó KHÔNG có gì đỏ lên.** Lỗ S1 là một header VẮNG MẶT: với ảnh
+`:p12fix` đang chạy, `rollout status` vẫn xanh và pod vẫn `Running 1/1`. Không có
+phép kiểm nào trên cụm phát hiện, nên đây là thứ phải nhớ chứ không phải thứ sẽ
+được nhắc. Khác cặp web↔orchestrator, ảnh gateway **không** có ràng buộc thứ tự —
+nó chỉ thêm header response, không đụng wire-protocol.
+
+**13. Nợ đã biết, ghi để khỏi tưởng là mới:** `/ws` và `/exec` cũng phát JSON trên
+origin app mà không có `nosniff`. Rủi ro thấp hơn hẳn `/ide` (không proxy nội dung
+do người dùng điều khiển) nên lượt này cố ý không mở rộng phạm vi. Muốn đóng thì đó
+là một lời gọi `setSecurityHeaders` trong `wsroute`/`execroute` — cùng ảnh gateway,
+không thêm bước deploy nào.
+
 ## 4. Kỷ luật git & xác minh cho MỌI sub-agent
 
 - **`reports/` là QUY ƯỚC cục bộ, KHÔNG phải hàng rào — `git add` sẽ THÀNH CÔNG.** Đừng commit report; nhưng biết đúng lý do: `git ls-files reports` trả **0** (chưa từng có file report nào lên git), trong khi `git check-ignore` trên file report thật trả **exit 1**, tức không luật ignore nào khớp. Bản đầu của dòng này ghi "bị `.gitignore` dòng 72 chặn" — **SAI**: dòng 72 là `plans/devops-learning-platform/reports/harness/*/.barrier-*/`, một đường khác hẳn. (`git check-ignore -v reports/` có in ra dòng 72 với ô pattern RỖNG; đó là hành vi lạ của git khi đối số là thư mục, không phải một luật khớp thật. Kiểm trên FILE, đừng kiểm trên thư mục — và đừng nối `| head` rồi đọc `$?`, vì khi ấy `$?` là mã thoát của `head`.) Hệ quả: một `git add -A` của bất kỳ ai sẽ kéo cả `reports/` lên — thêm một lý do nữa để giữ lệnh cấm `git add -A`. Muốn thành hàng rào thật thì phải thêm `reports/` vào `.gitignore`; **chưa làm, chờ chủ dự án quyết**. Hệ quả cho lane: file trên đĩa LÀ deliverable, và vì nó không lên git nên phát hiện quan trọng phải được nhắc lại trong tin nhắn báo cáo chứ không chỉ nằm trong file.
