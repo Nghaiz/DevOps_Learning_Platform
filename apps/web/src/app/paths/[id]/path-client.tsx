@@ -1,39 +1,63 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import type { LearningPathItemView, PathItemKind } from '@devops-platform/shared-types/path';
-import { Button, Card } from '@devops-platform/ui';
+import { useRouter } from 'next/navigation';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Skeleton,
+} from '@devops-platform/ui';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
+import {
+  buildPathItemViews,
+  summarizePathProgress,
+  type PathItemViewModel,
+} from './path-view';
 
 /**
- * Chi tiết lộ trình — GIÀN GIÁO (P10 10.A). Bản đầy đủ ở P13 (13.C).
+ * Chi tiết lộ trình (13.C / 13.D) — ổ khoá, và nút mở đi QUA `paths.openItem`.
  *
  * ⚠ Ổ khoá vẽ ở đây là HÌNH ẢNH của một luật chạy ở SERVER, không phải chính
- * luật đó. `state` tới từ `paths.get` (tính lại từ tiến độ thật mỗi lần đọc), và
- * cổng thi hành là `paths.openItem` — bỏ qua giao diện mà gọi thẳng API vẫn bị
- * từ chối (AC #3). Không có nhánh nào ở file này quyết định mở hay khoá.
+ * luật đó. `state` tới từ `paths.get` (server tính lại từ tiến độ thật mỗi lượt
+ * đọc) và cổng thi hành là `paths.openItem` — bỏ qua giao diện mà gọi thẳng API
+ * vẫn bị từ chối `FORBIDDEN` (AC #3). Không nhánh nào ở file này quyết định mở
+ * hay khoá.
+ *
+ * Vì sao nút "Mở" gọi `openItem` rồi mới điều hướng, thay vì dựng thẳng một
+ * `<Link>`: `state` là ảnh chụp lúc `paths.get` chạy. Người học mở hai tab, làm
+ * xong một phần ở tab kia, rồi bấm ở tab này — hoặc ngược lại, tiến độ chưa kịp
+ * như họ tưởng. Đi qua cổng nghĩa là câu trả lời luôn là câu trả lời HÔM NAY của
+ * server, và khi nó là "không" thì người học đọc được lý do thay vì rơi vào một
+ * trang trống.
  */
-
-const KIND_LABEL: Record<PathItemKind, string> = {
-  lesson: 'Bài học',
-  lab: 'Lab',
-  quiz: 'Quiz',
-};
-
-const KIND_HREF: Record<PathItemKind, string> = {
-  lesson: '/lessons',
-  lab: '/labs',
-  quiz: '/quiz',
-};
 
 export function PathClient({ pathId }: { pathId: string }): React.ReactElement {
   const query = api.paths.get.useQuery({ pathId });
+  const router = useRouter();
+
+  /** Item đang chờ server trả lời — để chỉ nút ĐÓ hiện spinner. */
+  const [openingKey, setOpeningKey] = useState<string | null>(null);
+  /** Lỗi mở, gắn theo từng item: một lỗi chung ở đầu trang không nói được item nào. */
+  const [openError, setOpenError] = useState<{ key: string; message: string } | null>(null);
+
+  const openItem = api.paths.openItem.useMutation();
 
   if (query.isPending) {
     return (
       <PageShell title="Đang tải…">
-        <p className="text-sm text-slate-500">Đang tải lộ trình…</p>
+        <div role="status" aria-busy="true" className="flex flex-col gap-3">
+          <span className="sr-only">Đang tải lộ trình…</span>
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
+        </div>
       </PageShell>
     );
   }
@@ -41,109 +65,164 @@ export function PathClient({ pathId }: { pathId: string }): React.ReactElement {
   if (query.isError) {
     return (
       <PageShell title="Lộ trình">
-        <p className="text-sm text-red-700" role="alert">
-          {describeTrpcError(query.error)}
-        </p>
-        <Button variant="secondary" onClick={() => void query.refetch()}>
-          Thử lại
-        </Button>
+        <ErrorState
+          title="Không mở được lộ trình này"
+          message={describeTrpcError(query.error)}
+          onRetry={() => void query.refetch()}
+          retrying={query.isFetching}
+        />
       </PageShell>
     );
   }
 
   const path = query.data;
+  const progress = summarizePathProgress(path);
+  const views = buildPathItemViews(path.items);
 
+  const onOpen = (view: PathItemViewModel): void => {
+    if (view.href === null) {
+      return;
+    }
+    const href = view.href;
+    setOpenError(null);
+    setOpeningKey(view.key);
+    openItem.mutate(
+      { pathId, kind: view.item.kind, itemId: view.item.itemId },
+      {
+        onSuccess: () => {
+          router.push(href);
+        },
+        onError: (error) => {
+          setOpeningKey(null);
+          // Server đã nói cả "chuyện gì" lẫn "làm gì tiếp" ("Item còn khoá —
+          // hoàn thành item trước đó đã"); thêm một câu về việc tải lại vì
+          // trạng thái trên màn hình lúc này đã CŨ so với server.
+          setOpenError({
+            key: view.key,
+            message: `${describeTrpcError(error)} Bấm "Tải lại" để xem trạng thái mới nhất.`,
+          });
+        },
+      },
+    );
+  };
+
+  // ⛔ KHÔNG `<main>` ở đây (C6bis): vỏ ứng dụng sở hữu landmark đó.
   return (
     <PageShell title={path.title}>
-      {path.description !== null && <p className="text-sm text-slate-600">{path.description}</p>}
+      {path.description !== null && (
+        <p className="text-sm text-muted-foreground">{path.description}</p>
+      )}
 
       {/*
         Task 15 — nhãn nói ĐÚNG thứ hệ thống biết. Nó biết "đã đạt bao nhiêu
-        phần trên bao nhiêu"; nó KHÔNG biết người học đã bỏ ra bao lâu, nên
-        không có nhãn thời lượng nào ở đây. Bẫy đã trả giá ở P2: một nhãn từng
-        nói "4/4 bước" từ đúng một lượt chấm.
+        phần trên bao nhiêu" và "phần nào nên làm tiếp"; nó KHÔNG biết người học
+        đã bỏ ra bao lâu, nên không có nhãn thời lượng nào ở đây. Bẫy đã trả giá
+        ở P2: một nhãn từng nói "4/4 bước" từ đúng một lượt chấm.
       */}
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="rounded bg-slate-100 px-2 py-1 text-slate-700">
-          Đã đạt {path.passedCount}/{path.itemCount} phần
-        </span>
+      <div role="status" className="flex flex-wrap items-center gap-3">
+        <Badge variant={progress.finished ? 'success' : 'secondary'}>{progress.label}</Badge>
         {path.sequential && (
-          <span className="rounded bg-amber-100 px-2 py-1 text-amber-800">
-            Học tuần tự — phần sau mở khi phần trước đạt
-          </span>
+          <Badge variant="outline">Học tuần tự — phần sau mở khi phần trước đạt</Badge>
         )}
-        {path.nextItemId !== null && (
-          <span className="text-slate-500">Nên làm tiếp: {path.nextItemId}</span>
+        {progress.nextLabel !== null && (
+          <span className="text-sm text-muted-foreground">{progress.nextLabel}</span>
         )}
       </div>
 
-      <ol className="flex flex-col gap-3">
-        {path.items.map((item) => (
-          <li key={`${item.kind}:${item.itemId}`}>
-            <PathItemCard item={item} />
-          </li>
-        ))}
-      </ol>
+      {views.length === 0 ? (
+        <EmptyState
+          title="Lộ trình này chưa có phần nào"
+          description="Người soạn chưa xếp nội dung vào đây. Bạn có thể học tự do ở danh mục bài học."
+          action={
+            <Button variant="outline" asChild>
+              <Link href="/lessons">Xem danh mục bài học</Link>
+            </Button>
+          }
+        />
+      ) : (
+        <ol className="flex flex-col gap-3">
+          {views.map((view) => (
+            <li key={view.key}>
+              <PathItemCard
+                view={view}
+                opening={openingKey === view.key}
+                error={openError?.key === view.key ? openError.message : null}
+                onOpen={() => {
+                  onOpen(view);
+                }}
+                onReload={() => {
+                  setOpenError(null);
+                  void query.refetch();
+                }}
+              />
+            </li>
+          ))}
+        </ol>
+      )}
     </PageShell>
   );
 }
 
-function PathItemCard({ item }: { item: LearningPathItemView }): React.ReactElement {
-  const label = item.title ?? item.itemId;
-  const body = (
-    <Card className="flex items-center justify-between gap-3">
-      <div className="flex flex-col gap-1">
-        <span className="text-xs text-slate-500">
-          {item.ordinal + 1}. {KIND_LABEL[item.kind]}
-        </span>
-        <span className="font-medium text-slate-900">{label}</span>
-        {/*
-          `title === null` = mắt xích trỏ tới bài không còn nạp được. Hiện ra
-          thay vì lọc đi — một lộ trình thủng là chuyện người soạn phải thấy.
-        */}
-        {item.title === null && (
-          <span className="text-xs text-red-700">Không nạp được nội dung này</span>
-        )}
-      </div>
-      <StateBadge state={item.state} />
-    </Card>
-  );
-
-  if (item.state === 'locked' || item.title === null) {
-    return <div className="opacity-60">{body}</div>;
-  }
+function PathItemCard({
+  view,
+  opening,
+  error,
+  onOpen,
+  onReload,
+}: {
+  view: PathItemViewModel;
+  opening: boolean;
+  error: string | null;
+  onOpen: () => void;
+  onReload: () => void;
+}): React.ReactElement {
+  const openable = view.openability === 'open';
 
   return (
-    <Link
-      href={`${KIND_HREF[item.kind]}/${item.itemId}`}
-      className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-    >
-      {body}
-    </Link>
-  );
-}
+    <Card className={`flex flex-col gap-3 p-4 ${openable ? '' : 'opacity-80'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">{view.ordinalLabel}</span>
+          <span className="font-medium text-foreground">{view.title}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={view.stateVariant}>{view.stateLabel}</Badge>
+          {openable && (
+            <Button size="sm" onClick={onOpen} loading={opening}>
+              Mở
+            </Button>
+          )}
+        </div>
+      </div>
 
-function StateBadge({ state }: { state: LearningPathItemView['state'] }): React.ReactElement {
-  switch (state) {
-    case 'passed':
-      return (
-        <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">
-          Đã đạt
-        </span>
-      );
-    case 'locked':
-      return (
-        <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
-          Còn khoá
-        </span>
-      );
-    case 'available':
-      return (
-        <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-800">
-          Mở
-        </span>
-      );
-  }
+      {/*
+        `title === null` = mắt xích trỏ tới nội dung không còn nạp được (đã lưu
+        trữ, hoặc mã sai). Hiện ra thay vì lọc đi — một lộ trình thủng là chuyện
+        người soạn phải thấy (`docs/learning-path.md`). Câu này ĐỘC LẬP với ổ
+        khoá: một item vừa khoá vừa thủng vẫn phải hiện cả hai.
+      */}
+      {view.missingContent && (
+        <p className="text-xs text-destructive">
+          Không nạp được nội dung này (đã lưu trữ hoặc sai mã) — hãy báo người soạn lộ trình.
+        </p>
+      )}
+
+      {!openable && !view.missingContent && view.note !== null && (
+        <p className="text-xs text-muted-foreground">{view.note}</p>
+      )}
+
+      {error !== null && (
+        <Alert variant="destructive">
+          <AlertDescription className="flex flex-wrap items-center gap-3 text-foreground">
+            <span>{error}</span>
+            <Button size="sm" variant="secondary" onClick={onReload}>
+              Tải lại
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+    </Card>
+  );
 }
 
 function PageShell({
@@ -154,12 +233,12 @@ function PageShell({
   children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
       <header className="flex flex-col gap-1">
-        <Link href="/paths" className="text-sm text-slate-500 hover:underline">
+        <Link href="/paths" className="text-sm text-muted-foreground hover:text-foreground">
           ← Lộ trình
         </Link>
-        <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
+        <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
       </header>
       {children}
     </div>
