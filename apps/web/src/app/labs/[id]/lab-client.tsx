@@ -1,25 +1,15 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
-import { DEFAULT_THEME } from '@devops-platform/terminal';
 import { Button, Card, CardDescription, CardTitle, ContentView, SplitPane } from '@devops-platform/ui';
+import { TerminalPane } from '../../../components/session';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { useLabSession } from './use-lab-session';
 import { CheckResultPanel, type CheckOutcome } from '../../lessons/[id]/check-result-panel';
 import { buildTaskDisplays, uncheckedTaskCount, type TaskCheckState } from './task-status';
-
-/**
- * ⛔ `ssr: false` phải nằm trong một CLIENT component — cùng lý lẽ đã ghi ở
- * `lessons/[id]/lesson-client.tsx` và `(session)/session/session-client.tsx`.
- */
-const TerminalPane = dynamic(() => import('./terminal-pane'), {
-  ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse bg-slate-900/40" />,
-});
 
 const SESSION_PHASE_LABEL: Record<string, string> = {
   idle: 'Chưa có phiên',
@@ -389,21 +379,15 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
             )
           }
           right={
-            session.state.sessionId === null ? (
-              <div className="flex h-full items-center justify-center bg-slate-950 px-6 text-center text-sm text-slate-400">
-                Bấm <span className="mx-1 font-semibold text-slate-200">Bắt đầu</span> để dựng
-                sandbox và mở terminal.
-              </div>
-            ) : (
-              <TerminalPane
-                wsUrl={session.wsUrl}
-                connectionKey={session.connectionKey}
-                theme={DEFAULT_THEME}
-                onControl={session.onControl}
-                onClose={session.onClose}
-                onReady={session.onTerminalReady}
-              />
-            )
+            <TerminalPane
+              session={session}
+              placeholder={
+                <span>
+                  Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng sandbox
+                  và mở terminal.
+                </span>
+              }
+            />
           }
         />
       </div>
