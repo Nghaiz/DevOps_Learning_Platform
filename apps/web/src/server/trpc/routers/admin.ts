@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { fetchAdminHealth } from '../../admin/health';
 import { listAdminAuditPage, writeAdminAudit } from '../../admin/audit';
 import { listAdminUsersPage, setUserRole } from '../../admin/users';
-import { endSessionAs, listSessionsPage } from '../../sessions/list';
+import { terminateSessionAsAdmin } from '../../admin/terminate';
+import { listSessionsPage } from '../../sessions/list';
 import { userRole as userRoleEnum } from '../../db/schema';
 import { adminProcedure, createTRPCRouter, listInputSchema } from '../init';
 
@@ -13,20 +14,26 @@ import { adminProcedure, createTRPCRouter, listInputSchema } from '../init';
  * `visibilityFor({role:'admin'})` trả `{kind:'admin'}` — thấy MỌI state của
  * MỌI người); không có procedure `admin.content.*` nào ở đây, đúng contract.
  *
- * ⚠ `admin.sessions.terminate` — GIỚI HẠN ĐÃ BIẾT, đọc trước khi dùng: RPC
- * `ReapSession` của orchestrator (`services/orchestrator/internal/lifecycle/
- * reap.lua`) kiểm CỨNG `actor.userId === session.userId` cho nhánh `user_id`,
- * và nhánh `system_component` (đường DUY NHẤT bỏ qua kiểm đó) đòi mTLS
- * in-cluster VÀ CommonName nằm trong allowlist `GRPC_MTLS_SYSTEM_CNS` —
- * `session_service.go` viết THẲNG: "apps/web sẽ reap được session của bất kỳ
- * ai qua nhánh system_component… việc của nó chỉ là reap phiên của chính người
- * đang đăng nhập". Nói cách khác: **orchestrator hôm nay KHÔNG có đường cho
- * admin kết thúc session của người KHÁC** — gọi `admin.sessions.terminate`
- * trên một session không phải của chính admin sẽ nhận `NOT_FOUND` từ
- * orchestrator (cùng mã với "không tồn tại", theo đúng thiết kế chống dò id
- * của `reap.lua`). Đây là hợp đồng bên `services/orchestrator/**` (Lane Go),
- * NGOÀI quyền sở hữu file của lane này — đã báo lead trong report, không tự
- * sửa.
+ * `admin.sessions.terminate` — GIỚI HẠN CŨ ĐÃ ĐƯỢC GỠ (P13 D15). Bản trước của
+ * chú thích này ghi: orchestrator chốt cứng `actor.userId === session.userId`,
+ * nhánh `system_component` đòi mTLS + CN trong allowlist, nên admin bấm nút chỉ
+ * nhận `NOT_FOUND` — một no-op đội lốt "không tìm thấy". Nay `ReapSession` có
+ * nhánh actor thứ ba, `admin_user_id`, và đường đi là
+ * `admin/terminate.ts → ReapSession(actor.admin_user_id = id của admin)`.
+ *
+ * Hai điều PHẢI giữ khi sửa chỗ này:
+ *
+ *  · Nhánh `admin_user_id` KHÔNG được rò sang bất kỳ procedure nào khác. Nó có
+ *    đúng một call-site (`terminateSessionAsAdmin`); `me.endSession` vẫn đi
+ *    `endSessionAs` với `actor.user_id` và vẫn bị kiểm chủ sở hữu.
+ *  · Orchestrator KHÔNG chứng minh được người gọi là admin — nó tin BFF, y hệt
+ *    cách nó tin `user_id` ở mọi RPC khác (§2 C3: BFF là ranh giới tin cậy).
+ *    `adminProcedure` Ở ĐÂY là phép kiểm vai trò DUY NHẤT trên đường này.
+ *
+ * Audit đi HAI ĐẦU, cố ý: orchestrator ghi `sessions_audit` ("reap bởi admin
+ * <id>", cạnh chủ phiên và pod), BFF ghi `admin_audit` (actor, phiên, chủ
+ * phiên, lý do). Một đầu thôi là không đủ — `sessions_audit` không biết tới vai
+ * trò, còn `admin_audit` không biết phiên đó thật sự có chết hay không.
  */
 
 const listUsersInput = listInputSchema.extend({ q: z.string().max(80).optional() }).strict();
@@ -62,16 +69,21 @@ export const adminRouter = createTRPCRouter({
       return listSessionsPage(ctx, { userId: '', limit: input.limit, cursor: input.cursor });
     }),
 
-    /** Xem chú thích ĐẦU FILE — giới hạn đã biết với session của người khác. */
+    /** Xem chú thích ĐẦU FILE — đường admin, KHÔNG dùng chung với `me.endSession`. */
     terminate: adminProcedure.input(sessionIdInput).mutation(async ({ ctx, input }) => {
-      const result = await endSessionAs(ctx, input.sessionId, 'admin_terminated');
+      const result = await terminateSessionAsAdmin(ctx, input.sessionId);
       await writeAdminAudit(ctx.db, {
         actorId: ctx.user.id,
         action: 'session.terminate',
         targetType: 'session',
         targetId: input.sessionId,
+        // `targetUserId` + `reason`: `targetId` một mình chỉ là id phiên, mà id
+        // phiên rụng theo TTL — vài ngày sau không ai tra ngược ra được đó là
+        // phiên của ai. `reason` ghi lại chuỗi ĐÃ gửi xuống orchestrator, để
+        // hai bảng audit đối chiếu được với nhau.
+        detail: { reason: 'admin_terminated', targetUserId: result.targetUserId },
       });
-      return result;
+      return { status: result.status };
     }),
   }),
 
