@@ -427,6 +427,29 @@ phép kiểm nào trên cụm phát hiện, nên đây là thứ phải nhớ ch
 được nhắc. Khác cặp web↔orchestrator, ảnh gateway **không** có ràng buộc thứ tự —
 nó chỉ thêm header response, không đụng wire-protocol.
 
+**15. ⚠ `grep -iF` BỎ SÓT chuỗi tiếng Việt, trong im lặng.** Đo trên máy này
+2026-09-06, file `narrow-screen-notice.tsx` có thật chuỗi `học phí` (byte thô, nằm
+trong `bài học phía trên`):
+
+| lệnh | kết quả |
+|---|---|
+| `grep -F 'học phí'` | 1 ✅ |
+| `grep -i 'học phí'` | 1 ✅ |
+| `grep -iF 'học phí'` | **0** ❌ |
+
+`-i` một mình đúng, `-F` một mình đúng, **gộp lại thì hỏng** — nhánh so-sánh
+không-phân-biệt-hoa-thường của đường `-F` hạ chữ theo BYTE và làm hỏng UTF-8 nhiều
+byte. Không lỗi, chỉ 0 hit, nên nó đọc y hệt "không có". **Mọi kết luận "0 hit" cho
+chuỗi tiếng Việt rút ra bằng `grep -iF` là chưa chứng minh được gì** — soát lại
+bằng Node hoặc bỏ `-F`. (Đã tưởng nhầm nguyên nhân một lần là "shell nuốt tham số
+UTF-8"; sai, hai cờ riêng lẻ đều đi qua shell nguyên vẹn.)
+
+**16. ⚠ `ci.yml` ĐANG TẠM DỪNG** — `on:` chỉ còn `workflow_dispatch` (từ
+2026-09-04, xem `docs/ci-paused.md`). Nên mọi job trong đó, kể cả `no-commerce` vừa
+thêm và `web-a11y`, **chỉ chạy khi gọi tay**. Một job nằm đúng trong `ci-ok.needs`
+vẫn không chạy nếu workflow không có trigger — kiểm `on:` trước khi kết luận một
+cổng "đã nối dây". Quyết định mở rộng tập cổng always-on là của chủ dự án.
+
 **14. ⚠ `postgres:16-alpine` ĐANG GIỮ phân trang keyset chạy đúng, và `datcollate` NÓI DỐI về lý do.**
 Keyset cursor trộn sắp xếp của Postgres với sắp xếp của JS, nên hai bên phải đồng
 ý về thứ tự. Chúng đang đồng ý — nhưng **không** vì cấu hình nói thế. Đo trên cụm
