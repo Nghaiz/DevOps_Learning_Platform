@@ -427,6 +427,31 @@ phép kiểm nào trên cụm phát hiện, nên đây là thứ phải nhớ ch
 được nhắc. Khác cặp web↔orchestrator, ảnh gateway **không** có ràng buộc thứ tự —
 nó chỉ thêm header response, không đụng wire-protocol.
 
+**14. ⚠ `postgres:16-alpine` ĐANG GIỮ phân trang keyset chạy đúng, và `datcollate` NÓI DỐI về lý do.**
+Keyset cursor trộn sắp xếp của Postgres với sắp xếp của JS, nên hai bên phải đồng
+ý về thứ tự. Chúng đang đồng ý — nhưng **không** vì cấu hình nói thế. Đo trên cụm
+2026-09-06:
+
+```
+datcollate = en_US.utf8        ← khai báo
+'A'<'B' = t, 'B'<'a' = t       ← hành vi THẬT: thứ tự C, không phải en_US
+```
+
+`'B' < 'a'` đúng là hành vi collation **C**; glibc `en_US.utf8` sẽ trả `f`. Ảnh
+alpine dùng musl, mà musl không cài đặt locale, nên nó âm thầm rơi về thứ tự byte
+BẤT KỂ `datcollate` khai gì. JS so sánh theo mã UTF-16 (`'B'`=66 < `'a'`=97), nên
+hai bên khớp — **do trùng hợp của ảnh, không do thiết kế**.
+
+Hệ quả: đổi `infra/helm/platform/values.yaml:609` sang `postgres:16` (glibc) là
+cursor phát sai vị trí ⇒ mất/lặp dòng ở biên trang. **Không test nào đỏ, không
+cổng nào chặn** — CI cũng ghim `postgres:16-alpine` (`ci.yml:124`, `:1322`) nên
+cả CI lẫn cụm cùng sai một kiểu và cùng im lặng. Và ai đi kiểm `datcollate` để
+xác nhận sẽ đọc ra `en_US.utf8` rồi kết luận ngược.
+
+Đừng đổi ảnh Postgres trong P13. Nếu phase sau cần glibc thì phải khai
+`LC_COLLATE=C` tường minh lúc `initdb` (đổi ảnh không thôi KHÔNG đủ vì database
+đã tồn tại), và thêm một test khẳng định `'B' < 'a'` ở tầng DB.
+
 **13. Nợ đã biết, ghi để khỏi tưởng là mới:** `/ws` và `/exec` cũng phát JSON trên
 origin app mà không có `nosniff`. Rủi ro thấp hơn hẳn `/ide` (không proxy nội dung
 do người dùng điều khiển) nên lượt này cố ý không mở rộng phạm vi. Muốn đóng thì đó
