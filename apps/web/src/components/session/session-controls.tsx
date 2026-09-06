@@ -1,14 +1,18 @@
 'use client';
 
+import type { ReactElement } from 'react';
+import { AlarmClock, Clock, Play, Square, TimerReset } from 'lucide-react';
 import {
   Badge,
   Button,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  cn,
 } from '@devops-platform/ui';
 import type { SandboxSession } from '../../lib/use-sandbox-session';
 import { describeCapacity, type CapacitySnapshot } from './capacity';
+import { PhaseIcon } from './session-status';
 import {
   SESSION_PHASE_LABEL,
   TTL_URGENT_MS,
@@ -47,6 +51,43 @@ export interface SessionControlsProps {
   readonly compact?: boolean;
 }
 
+/**
+ * Đồng hồ TTL. Chỉ hiện dưới 10 phút, và ĐỔI TRỌNG LƯỢNG ở mốc 2 phút.
+ *
+ * Vì sao chỉ tới phút, không tới giây: `useSandboxSession` nhịp đồng hồ 15 giây
+ * một lần (có chủ ý — thứ nó điều khiển là một cái nhãn và một cái nút). Hiện
+ * số giây từ một nguồn cập nhật 15s/lần là in ra một con số SAI trong 14 giây
+ * mỗi 15 giây. Muốn có giây thì phải sửa nhịp ở `lib/use-sandbox-session.ts`,
+ * ngoài phạm vi file này.
+ *
+ * `tabular-nums` để con số không nhảy ngang khi đổi từ "10" xuống "9".
+ */
+function TtlClock({ remainingMs, urgent }: { remainingMs: number; urgent: boolean }): ReactElement {
+  const minutes = Math.ceil(remainingMs / 60_000);
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold tabular-nums',
+        'text-foreground',
+        urgent ? 'border-destructive/50 bg-destructive/10' : 'border-warning/40 bg-warning/10',
+      )}
+    >
+      {/*
+        Icon đổi HÌNH ở mốc khẩn, không chỉ đổi màu: đồng hồ báo thức khác đồng
+        hồ thường ngay cả khi in đen trắng (SC 1.4.1). `animate-pulse` chỉ đặt
+        trên icon — nhấp nháy cả viên chữ suốt hai phút cuối là quấy rối, và
+        `prefers-reduced-motion` đã được `globals.css` hạ xuống 0.01ms.
+      */}
+      {urgent ? (
+        <AlarmClock aria-hidden="true" className="size-4 animate-pulse text-destructive" />
+      ) : (
+        <Clock aria-hidden="true" className="size-4 text-warning" />
+      )}
+      Còn {minutes} phút
+    </span>
+  );
+}
+
 export function SessionControls({
   session,
   actions,
@@ -55,7 +96,7 @@ export function SessionControls({
   startLabel = 'Bắt đầu',
   canStart = true,
   compact = false,
-}: SessionControlsProps): React.ReactElement {
+}: SessionControlsProps): ReactElement {
   const { state, remainingMs } = session;
   const hasSession = state.sessionId !== null;
   const hint = describeCapacity(capacity);
@@ -71,7 +112,16 @@ export function SessionControls({
         vùng sống.
       */}
       <div aria-live="polite" className="flex flex-wrap items-center gap-2">
-        <Badge variant={phaseBadgeVariant(state.phase)}>{SESSION_PHASE_LABEL[state.phase]}</Badge>
+        {/*
+          Icon `aria-hidden` bên trong badge: pha đã có nhãn chữ ngay cạnh, nên
+          icon chỉ được nói với MẮT. Nó mang thông tin thật — vòng quay cho
+          "đang tạo/đang kết nối", dấu kiểm cho "sẵn sàng", tam giác cho lỗi —
+          nên hai pha cùng màu vẫn phân biệt được (SC 1.4.1).
+        */}
+        <Badge variant={phaseBadgeVariant(state.phase)} className="gap-1.5 px-2 py-1">
+          <PhaseIcon phase={state.phase} />
+          {SESSION_PHASE_LABEL[state.phase]}
+        </Badge>
         {state.message !== null && (
           <span
             className={
@@ -90,7 +140,10 @@ export function SessionControls({
         lâu trước khi bỏ công dựng nó, không phải sau.
       */}
       {!hasSession && ttlSeconds != null && ttlSeconds > 0 && (
-        <Badge variant="outline">Phiên kéo dài {Math.round(ttlSeconds / 60)} phút</Badge>
+        <Badge variant="outline" className="gap-1.5">
+          <Clock aria-hidden="true" className="size-3.5" />
+          Phiên kéo dài {Math.round(ttlSeconds / 60)} phút
+        </Badge>
       )}
 
       {!hasSession && hint !== null && (
@@ -106,7 +159,12 @@ export function SessionControls({
           người dùng vừa bấm. Câu chữ vẫn có: badge pha bên trái chuyển sang
           "Đang tạo phiên…" trong cùng nhịp, và nó nằm trong vùng aria-live.
         */
-        <Button onClick={actions.start} disabled={!canStart} loading={session.starting}>
+        <Button
+          iconLeft={<Play aria-hidden="true" className="size-4" />}
+          onClick={actions.start}
+          disabled={!canStart}
+          loading={session.starting}
+        >
           {startLabel}
         </Button>
       )}
@@ -115,15 +173,7 @@ export function SessionControls({
         Đồng hồ + "Thêm giờ" chỉ hiện dưới 10 phút: một đồng hồ chạy suốt buổi
         học là nhiễu, mười phút cuối mới là lúc nó nói được điều gì.
       */}
-      {showClock && (
-        <span
-          className={
-            urgent ? 'text-xs font-semibold text-destructive' : 'text-xs text-warning'
-          }
-        >
-          Còn {Math.ceil((remainingMs ?? 0) / 60_000)} phút
-        </span>
-      )}
+      {showClock && <TtlClock remainingMs={remainingMs ?? 0} urgent={urgent} />}
 
       {showClock &&
         (state.hardCapReached ? (
@@ -143,7 +193,7 @@ export function SessionControls({
           <Tooltip>
             <TooltipTrigger asChild>
               <span tabIndex={0} title={HARD_CAP_REASON} className="inline-flex">
-                <Button variant="secondary" disabled>
+                <Button variant="secondary" iconLeft={<TimerReset aria-hidden="true" className="size-4" />} disabled>
                   Thêm giờ
                 </Button>
               </span>
@@ -151,7 +201,12 @@ export function SessionControls({
             <TooltipContent>{HARD_CAP_REASON}</TooltipContent>
           </Tooltip>
         ) : (
-          <Button variant="secondary" onClick={actions.extend} loading={session.extending}>
+          <Button
+            variant="secondary"
+            iconLeft={<TimerReset aria-hidden="true" className="size-4" />}
+            onClick={actions.extend}
+            loading={session.extending}
+          >
             Thêm giờ
           </Button>
         ))}
@@ -162,7 +217,12 @@ export function SessionControls({
         người học tự nhả nó ra mà không đợi hết TTL.
       */}
       {hasSession && (
-        <Button variant="secondary" onClick={actions.end} loading={session.ending}>
+        <Button
+          variant="secondary"
+          iconLeft={<Square aria-hidden="true" className="size-4" />}
+          onClick={actions.end}
+          loading={session.ending}
+        >
           Kết thúc phiên
         </Button>
       )}

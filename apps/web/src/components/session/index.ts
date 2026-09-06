@@ -13,6 +13,15 @@ export type { TerminalPaneProps } from './terminal-pane.tsx';
 
 export { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
 
+// Khung khoang + trạng thái phiên dùng chung cho màn hình học. Bốn trình học
+// vẽ cùng một thanh nhãn và cùng một viên trạng thái, nên chúng sống ở đây
+// chứ không ở từng route — ba bản chép tay của khối C5 cũ đã lệch nhau một
+// lần rồi (playground thiếu nhãn TTL, lab thiếu tooltip hardCap).
+export { PaneHeader } from './pane-header.tsx';
+export type { PaneHeaderProps } from './pane-header.tsx';
+export { PhaseIcon, SessionStatusPill, phaseToneClass } from './session-status.tsx';
+export type { PhaseIconProps, SessionStatusPillProps } from './session-status.tsx';
+
 // Phần phụ trợ — không nằm trong C5 nhưng bốn lane tiêu thụ đều cần, và chép
 // tay chúng ở mỗi trang là cách bốn trang bắt đầu nói bốn thứ khác nhau về
 // cùng một pha phiên.

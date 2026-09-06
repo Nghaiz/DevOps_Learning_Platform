@@ -112,8 +112,13 @@ export function StepNav(props: StepNavProps): ReactElement {
         / "Tiếp" — chuỗi mà cả `step-nav.test.tsx` lẫn
         `e2e/flows/lesson.flow.spec.ts` (name: Tiếp, exact: true) neo vào.
       */}
-      <Button variant="ghost" className="h-8 shrink-0 gap-1 px-2" disabled={!canGoPrev} onClick={goPrev}>
-        <ChevronLeft aria-hidden="true" className="size-4" />
+      <Button
+        variant="ghost"
+        className="h-8 shrink-0 px-2"
+        iconLeft={<ChevronLeft aria-hidden="true" className="size-4" />}
+        disabled={!canGoPrev}
+        onClick={goPrev}
+      >
         Trước
       </Button>
 
@@ -183,9 +188,14 @@ export function StepNav(props: StepNavProps): ReactElement {
         </span>
       )}
 
-      <Button variant="ghost" className="h-8 shrink-0 gap-1 px-2" disabled={!canGoNext} onClick={goNext}>
+      <Button
+        variant="ghost"
+        className="h-8 shrink-0 px-2"
+        iconRight={<ChevronRight aria-hidden="true" className="size-4" />}
+        disabled={!canGoNext}
+        onClick={goNext}
+      >
         Tiếp
-        <ChevronRight aria-hidden="true" className="size-4" />
       </Button>
     </nav>
   );

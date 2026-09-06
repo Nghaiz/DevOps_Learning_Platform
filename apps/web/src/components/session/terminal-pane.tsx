@@ -1,11 +1,47 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
+import { LoaderCircle, Terminal } from 'lucide-react';
 import type { ThemeName } from '@devops-platform/terminal/themes';
 import { Kbd } from '@devops-platform/ui';
 import type { SandboxSession } from '../../lib/use-sandbox-session';
+import { PaneHeader } from './pane-header';
+import { SessionStatusPill } from './session-status';
 import { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
+
+/**
+ * Khung chờ trong lúc bundle xterm được nạp động.
+ *
+ * Bản trước là `animate-pulse bg-card` trần — một ô xám nhấp nháy không nói gì.
+ * Nạp xterm lần đầu là một chunk thật, và trên mạng chậm nó đủ lâu để đọc ra
+ * là "trang hỏng". Ba dòng giả lập dấu nhắc shell cho thấy CÁI GÌ sắp hiện ra,
+ * còn dòng chữ nói ta đang chờ ai.
+ *
+ * `aria-hidden` trên phần trang trí + `role="status"` trên đúng câu chữ: trình
+ * đọc màn hình cần một thông báo, không cần ba thanh xám.
+ */
+function TerminalBootFrame(): ReactElement {
+  return (
+    <div className="flex h-full w-full flex-col justify-center gap-4 bg-card px-6">
+      <div aria-hidden="true" className="flex flex-col gap-2 font-mono text-xs text-muted-foreground">
+        <span className="h-3 w-2/5 animate-pulse rounded bg-muted" />
+        <span className="h-3 w-3/5 animate-pulse rounded bg-muted" />
+        <span className="h-3 w-1/4 animate-pulse rounded bg-muted" />
+      </div>
+      {/*
+        `LoaderCircle` trần chứ không `<Spinner>` của C2: Spinner tự mang
+        `role="status"` + `aria-label`, nên đặt nó trong `<p role="status">` là
+        vùng sống LỒNG vùng sống — đúng lỗi mà `session-controls.tsx` đã ghi
+        chú và tránh. Ở đây cần đúng MỘT thông báo, và nó là câu chữ.
+      */}
+      <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+        <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+        Đang mở terminal…
+      </p>
+    </div>
+  );
+}
 
 /**
  * ⛔ `ssr: false` PHẢI nằm trong một Client Component — Next 16 ném khi thấy nó
@@ -14,7 +50,7 @@ import { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
  */
 const TerminalSurfaceLazy = dynamic(() => import('./terminal-surface-lazy'), {
   ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse bg-card" />,
+  loading: () => <TerminalBootFrame />,
 });
 
 /**
@@ -32,29 +68,53 @@ export interface TerminalPaneProps {
   readonly placeholder?: ReactNode;
 }
 
-export function TerminalPane({
-  session,
-  theme,
-  placeholder,
-}: TerminalPaneProps): React.ReactElement {
+export function TerminalPane({ session, theme, placeholder }: TerminalPaneProps): ReactElement {
   // Hook luôn được gọi (không rẽ nhánh): `theme` truyền vào chỉ ghi đè kết quả.
   const followedTheme = useResolvedTerminalTheme(undefined);
   const resolvedTheme = theme ?? followedTheme;
 
+  const header = (
+    <PaneHeader icon={<Terminal />} title="Terminal">
+      <SessionStatusPill phase={session.state.phase} />
+    </PaneHeader>
+  );
+
   if (session.state.sessionId === null) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-card px-6 text-center text-sm text-muted-foreground">
-        {placeholder ?? <span>Bấm Bắt đầu để dựng sandbox và mở terminal.</span>}
+      <div className="flex h-full w-full flex-col bg-card">
+        {header}
+        {/*
+          Trạng thái RỖNG, không phải trạng thái lỗi: chưa có phiên là điểm khởi
+          đầu bình thường của mọi bài. Icon trong đĩa `bg-muted` cho khoang một
+          trọng tâm thị giác thay vì một dòng chữ trôi giữa khoảng trắng — thứ
+          đọc ra là "đang tải mãi không xong".
+        */}
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+          <span
+            aria-hidden="true"
+            className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
+          >
+            <Terminal className="size-6" />
+          </span>
+          <div className="max-w-sm text-sm text-muted-foreground">
+            {placeholder ?? <span>Bấm Bắt đầu để dựng sandbox và mở terminal.</span>}
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    // `group` + `group-focus-within:` — gợi ý Esc-Esc đậm lên khi terminal có
+    // `group` + `group-focus-within:` — gợi ý Esc-Esc ĐẬM LÊN khi terminal có
     // focus, KHÔNG xuất hiện/biến mất. Một dòng chữ nhảy ra lúc focus sẽ đổi
     // chiều cao khoang, `ResizeObserver` của xterm bắn, và terminal fit lại
     // ngay giây người dùng vừa bấm vào nó.
-    <div className="group flex h-full w-full flex-col">
+    //
+    // Thanh nhãn ở trên thì AN TOÀN với cùng lo ngại đó: nó cao cố định và có
+    // mặt ở CẢ hai nhánh, nên nó không bao giờ xuất hiện/biến mất trong lúc
+    // terminal đang sống.
+    <div className="group flex h-full w-full flex-col bg-card">
+      {header}
       <div className="min-h-0 flex-1">
         <TerminalSurfaceLazy
           wsUrl={session.wsUrl}
@@ -66,7 +126,13 @@ export function TerminalPane({
           onReady={session.onTerminalReady}
         />
       </div>
-      <p className="shrink-0 border-t border-border bg-card px-3 py-1 text-[11px] text-muted-foreground group-focus-within:text-foreground">
+      <p
+        className={
+          'flex shrink-0 items-center gap-1.5 border-t border-border bg-card px-3 py-1 text-[11px] ' +
+          'text-muted-foreground transition-colors duration-[var(--motion-fast)] ease-out ' +
+          'group-focus-within:border-status-progress group-focus-within:text-foreground'
+        }
+      >
         Nhấn <Kbd>Esc</Kbd> <Kbd>Esc</Kbd> để rời khỏi terminal
       </p>
     </div>
