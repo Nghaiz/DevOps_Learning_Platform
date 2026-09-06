@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { LogOut } from 'lucide-react';
 import {
   Button,
   DropdownMenu,
@@ -14,6 +15,8 @@ import {
   useToast,
 } from '@devops-platform/ui';
 import { userMenuItems, type Viewer } from './nav';
+import { USER_MENU_ICONS } from './nav-icons';
+import { avatarInitials } from './initials';
 
 export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
   const router = useRouter();
@@ -59,10 +62,29 @@ export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {/* `max-w-24` ở màn hẹp: một tên dài không được đẩy nút Giao diện và
-            nút Menu tràn xuống dòng thứ hai của thanh đầu trang. */}
-        <Button variant="ghost" size="sm" className="max-w-24 sm:max-w-40">
-          <span className="truncate">{viewer.name === '' ? viewer.email : viewer.name}</span>
+        {/*
+          Avatar chữ cái thay cho chuỗi tên/email in thẳng ra thanh nav.
+
+          Bản cũ `max-w-24 … truncate` giải đúng bài toán CHỖ, nhưng giải bằng
+          cách cắt cụt: tên dài thành "Nguyễn Thị B…", và khi `name` rỗng thì
+          nó in cả địa chỉ email — dữ liệu cá nhân nằm thường trực trên mọi màn
+          hình được chia sẻ hay chiếu lên máy chiếu. Hai chữ cái không cắt được
+          nữa, và tên + email đầy đủ vẫn nằm trong menu khi người dùng chủ động
+          mở ra.
+
+          `aria-hidden` cho hình tròn, tên khả truy cập do `sr-only` cấp: chuỗi
+          hai chữ cái đọc lên là vô nghĩa với trình đọc màn hình.
+        */}
+        <Button variant="ghost" size="sm" className="w-8 px-0">
+          <span
+            aria-hidden="true"
+            className="flex size-7 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground"
+          >
+            {avatarInitials(viewer.name, viewer.email)}
+          </span>
+          <span className="sr-only">
+            Tài khoản{viewer.name === '' ? '' : ` của ${viewer.name}`}
+          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
@@ -75,11 +97,19 @@ export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {items.map((item) => (
-          <DropdownMenuItem key={item.href} asChild>
-            <Link href={item.href}>{item.label}</Link>
-          </DropdownMenuItem>
-        ))}
+        {items.map((item) => {
+          const Icon = USER_MENU_ICONS[item.href];
+          return (
+            <DropdownMenuItem key={item.href} asChild>
+              <Link href={item.href} className="flex items-center gap-2">
+                {Icon === undefined ? null : (
+                  <Icon aria-hidden="true" className="size-4 shrink-0" />
+                )}
+                {item.label}
+              </Link>
+            </DropdownMenuItem>
+          );
+        })}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={signingOut}
@@ -90,7 +120,10 @@ export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
             void onSignOut();
           }}
         >
-          {signingOut ? 'Đang đăng xuất…' : 'Đăng xuất'}
+          <span className="flex items-center gap-2">
+            <LogOut aria-hidden="true" className="size-4 shrink-0" />
+            {signingOut ? 'Đang đăng xuất…' : 'Đăng xuất'}
+          </span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

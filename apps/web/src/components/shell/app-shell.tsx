@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Menu, Terminal, type LucideIcon } from 'lucide-react';
 import {
   Alert,
   AlertDescription,
@@ -14,9 +15,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  Separator,
   cn,
 } from '@devops-platform/ui';
 import { PRIMARY_NAV, isActiveNav, userMenuItems, type NavItem, type Viewer } from './nav';
+import { NAV_ICONS, USER_MENU_ICONS } from './nav-icons';
 import { CapacityIndicator } from './capacity-indicator';
 import { CapacityProvider, useCapacity } from './use-capacity';
 import { describeCapacity } from './capacity';
@@ -89,7 +92,22 @@ function ShellHeader({ viewer }: { readonly viewer: Viewer | null }) {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background">
+    /*
+      `shadow-elevation-1` — bậc "nghỉ" của thang nâng nền (13.A). Thanh đầu
+      trang dính (`sticky`) trôi ĐÈ LÊN nội dung khi cuộn; trước đây chỉ một
+      đường `border-b` phân tách, nên ở giữa trang không đọc ra được thanh này
+      nổi trên hay nằm cùng mặt phẳng với nội dung.
+
+      Dạng TIỆN ÍCH, không phải `shadow-[var(--elevation-1)]`: dạng arbitrary
+      bỏ qua bảng theme, nên mỗi chỗ gọi lại tự chọn bậc — đúng thứ ba bậc ngữ
+      nghĩa sinh ra để chặn (xem `app/globals.css` khối `--shadow-*`).
+    */
+    <header
+      className={cn(
+        'sticky top-0 z-40 border-b border-border bg-background',
+        'shadow-elevation-1',
+      )}
+    >
       <div className="flex h-14 items-center gap-2 px-4 min-[769px]:gap-4 min-[769px]:px-6">
         {viewer === null ? null : <MobileNav viewer={viewer} pathname={pathname} />}
 
@@ -101,8 +119,20 @@ function ShellHeader({ viewer }: { readonly viewer: Viewer | null }) {
         */}
         <Link
           href="/"
-          className="rounded-md text-sm font-semibold whitespace-nowrap text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(
+            'flex items-center gap-2 rounded-md text-sm font-semibold whitespace-nowrap',
+            'text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          )}
         >
+          {/* Dấu nhận diện. `aria-hidden` vì tên khả truy cập đã do `sr-only`
+              bên dưới cấp — gắn nhãn cho icon nữa là bắt trình đọc màn hình
+              đọc hai lần cùng một thứ. */}
+          <span
+            aria-hidden="true"
+            className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground"
+          >
+            <Terminal className="size-4" />
+          </span>
           <span aria-hidden="true" className="sm:hidden">
             DLP
           </span>
@@ -112,6 +142,14 @@ function ShellHeader({ viewer }: { readonly viewer: Viewer | null }) {
           <span className="sr-only">DevOps Learning Platform — về trang chủ</span>
         </Link>
 
+        {/* Ngăn thị giác giữa thương hiệu và điều hướng — thanh cũ để sáu chữ
+            trôi cạnh tên sản phẩm nên không đọc ra đâu là nhãn, đâu là mục bấm
+            được. `Separator` mặc định `decorative`: không thêm landmark, không
+            vào vòng Tab (`e2e/keyboard.spec.ts` cho ngân sách 30 lần Tab). */}
+        {viewer === null ? null : (
+          <Separator orientation="vertical" className="hidden h-6 min-[769px]:block" />
+        )}
+
         {viewer === null ? null : (
           <nav
             aria-label="Điều hướng chính"
@@ -120,7 +158,12 @@ function ShellHeader({ viewer }: { readonly viewer: Viewer | null }) {
             className="hidden min-w-0 flex-1 items-center gap-1 min-[769px]:flex"
           >
             {PRIMARY_NAV.map((item) => (
-              <NavLink key={item.href} item={item} pathname={pathname} />
+              <NavLink
+                key={item.href}
+                item={item}
+                icon={NAV_ICONS[item.href]}
+                pathname={pathname}
+              />
             ))}
           </nav>
         )}
@@ -149,10 +192,20 @@ function ShellHeader({ viewer }: { readonly viewer: Viewer | null }) {
 
 function NavLink({
   item,
+  icon: Icon,
   pathname,
   className,
 }: {
   readonly item: NavItem;
+  /**
+   * `undefined` = đường này chưa có icon. `nav-icons.test.ts` gác hai chiều.
+   *
+   * `| undefined` viết TƯỜNG MINH, không chỉ `?`: `tsconfig` bật
+   * `exactOptionalPropertyTypes`, nên `icon?: LucideIcon` nghĩa là "được phép
+   * VẮNG MẶT" chứ không phải "được phép là `undefined`" — mà `NAV_ICONS[href]`
+   * (dưới `noUncheckedIndexedAccess`) trả ra đúng `LucideIcon | undefined`.
+   */
+  readonly icon?: LucideIcon | undefined;
   readonly pathname: string;
   readonly className?: string;
 }) {
@@ -162,14 +215,28 @@ function NavLink({
       href={item.href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors outline-none',
-        'focus-visible:ring-2 focus-visible:ring-ring',
+        'inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap',
+        // Thời lượng lấy từ thang chuyển động (13.A) thay cho mặc định 150ms
+        // của Tailwind, để nav đổi màu cùng nhịp với phần còn lại của giao diện.
+        //
+        // KHÔNG kèm `motion-reduce:transition-none`: `globals.css` đã khai
+        // `prefers-reduced-motion` MỘT LẦN bằng bộ chọn phổ quát + `!important`
+        // (`transition-duration: 0.01ms`), và nó thắng cả tiện ích lẫn
+        // shorthand. Thêm biến thể ở đây là khai lại cùng một luật ở chỗ thứ
+        // hai — hai nơi rồi sẽ lệch nhau.
+        'transition-colors duration-(--motion-fast)',
+        'outline-none focus-visible:ring-2 focus-visible:ring-ring',
         active
           ? 'bg-accent text-accent-foreground'
           : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
         className,
       )}
     >
+      {/* Icon ĐI KÈM CHỮ ⇒ `aria-hidden`. Tên khả truy cập phải còn đúng bằng
+          `item.label`: `e2e/keyboard.spec.ts` tìm liên kết bằng
+          `{ name: item.label, exact: true }`, nên một nhãn thừa trên icon làm
+          đỏ cả sáu ô điều hướng bằng bàn phím. */}
+      {Icon === undefined ? null : <Icon aria-hidden="true" className="size-4 shrink-0" />}
       {item.label}
     </Link>
   );
@@ -197,8 +264,9 @@ function MobileNav({ viewer, pathname }: { readonly viewer: Viewer; readonly pat
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="min-[769px]:hidden">
-          Menu
+        <Button variant="outline" size="sm" className="w-8 px-0 min-[769px]:hidden">
+          <Menu aria-hidden="true" className="size-4" />
+          <span className="sr-only">Mở điều hướng</span>
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -217,13 +285,27 @@ function MobileNav({ viewer, pathname }: { readonly viewer: Viewer; readonly pat
         >
           {PRIMARY_NAV.map((item) => (
             <DialogClose asChild key={item.href}>
-              <NavLink item={item} pathname={pathname} className="px-3 py-2.5" />
+              <NavLink
+                item={item}
+                icon={NAV_ICONS[item.href]}
+                pathname={pathname}
+                className="px-3 py-2.5"
+              />
             </DialogClose>
           ))}
-          <hr className="my-2 border-border" />
+          <Separator className="my-2" />
+          {/* Nhóm thứ hai là TÀI KHOẢN, không phải điều hướng nội dung. Trước
+              đây một đường `<hr>` trần ngăn hai nhóm mà không nói nhóm dưới là
+              gì — và trên màn hẹp đây là nơi DUY NHẤT các mục đó xuất hiện. */}
+          <p className="px-3 pt-1 pb-2 text-xs font-medium text-muted-foreground">Tài khoản</p>
           {userMenuItems(viewer.role).map((item) => (
             <DialogClose asChild key={item.href}>
-              <NavLink item={item} pathname={pathname} className="px-3 py-2.5" />
+              <NavLink
+                item={item}
+                icon={USER_MENU_ICONS[item.href]}
+                pathname={pathname}
+                className="px-3 py-2.5"
+              />
             </DialogClose>
           ))}
           <div className="px-3 py-2">
