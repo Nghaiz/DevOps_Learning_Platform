@@ -400,6 +400,7 @@ Traefik lần nào), và `capacityHardLimit: '8'` mặc định dạng cloud.
 
 ## 4. Kỷ luật git & xác minh cho MỌI sub-agent
 
+- **`reports/` bị `.gitignore` chặn (dòng 72) — report là file CỤC BỘ, cố ý.** Ghi report vào `reports/…` như thường (các chặng trước đều để ở đó, và memory của dự án dặn đọc report chặng trước), nhưng ĐỪNG `git add`/`git commit` nó: lệnh sẽ báo `ignored by .gitignore`. **CẤM `git add -f`** để lách — quy ước cục-bộ-only là cố ý. Hệ quả cho lane: file trên đĩa CHÍNH LÀ deliverable, nên phát hiện quan trọng phải được nhắc lại trong tin nhắn báo cáo, không chỉ nằm trong file.
 - Một nhánh, một working tree dùng chung. **CẤM** `git add .`/`-A`, `git commit -a`, `git checkout`/`switch`/`stash`, `git pull`, `git push`. Commit bằng **pathspec**: `git add <đường dẫn tường minh>` cho file mới rồi `git commit -m "<type>(p13): …" -- <đường dẫn…>`. Commit nhỏ, thường xuyên; commit trước khi báo cáo.
 - Chỉ sửa file trong cột "Sở hữu". Cần sửa file của lane khác ⇒ **báo lead** trong report, kèm patch đề xuất; không tự sửa.
 - Xác minh cục bộ: `pnpm --filter <package> typecheck|lint|test`. **CẤM `next build` ở đợt 2** (`.next/` dùng chung; lead build một lượt). Lỗi typecheck nằm ngoài path sở hữu ⇒ ghi vào report, không sửa.
