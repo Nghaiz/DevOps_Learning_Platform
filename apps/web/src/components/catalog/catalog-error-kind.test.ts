@@ -86,10 +86,12 @@ describe('phân loại lỗi tải trang danh mục', () => {
 
     for (const code of codes) {
       for (const page of [1, 3]) {
-        const hint = describeCatalogError({ code, page }).hint ?? '';
+        // So khớp trên bản THƯỜNG HOÁ: `toContain('Chưa có')` phân biệt hoa
+        // thường, nên nó bỏ lọt đúng cách viết dễ xảy ra nhất (giữa câu).
+        const hint = (describeCatalogError({ code, page }).hint ?? '').toLowerCase();
         expect(hint).not.toContain('rỗng');
         expect(hint).not.toContain('trống');
-        expect(hint).not.toContain('Chưa có');
+        expect(hint).not.toContain('chưa có');
       }
     }
   });
