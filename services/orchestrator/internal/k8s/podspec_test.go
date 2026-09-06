@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -194,6 +195,13 @@ func buildSandboxPodPreProfile(name string, cfg PodConfig) (*corev1.Pod, error) 
 			},
 		},
 		Spec: corev1.PodSpec{
+			// ⚠ HostAliases là bổ sung CÓ CHỦ Ý ngày 2026-09-06 (chặn nhanh
+			// Docker Hub — xem hostAliasesDockerHub). Nó được MIRROR vào bản
+			// tham chiếu, không chép lại logic: cổng này gác đường
+			// resources/env của D16, và để nó đỏ cho MỌI thay đổi pod spec là
+			// biến nó thành "cấm sửa pod spec" chứ không phải "cấm đổi trần
+			// đồng thời". Hành vi của chính hàm ấy có test riêng bên dưới.
+			HostAliases:                  hostAliasesDockerHub(cfg.RegistryMirror),
 			RuntimeClassName:             &cfg.RuntimeClassName,
 			HostUsers:                    falsePtr(),
 			HostNetwork:                  false,
@@ -330,6 +338,68 @@ func TestPodSpecProfileDatKhaiResourcesVaEnv(t *testing.T) {
 				i, e.Name, wantEnvNames[i])
 		}
 	}
+}
+
+// TestHostAliasesDockerHub — vá lỗi "docker run treo vì OCI referrers" (P12 §5b,
+// sửa 2026-09-06).
+//
+// Vế RỖNG là vế chống hồi quy: cụm chưa bật mirror thì pod KHÔNG mang hostAliases
+// nào — nếu không, một cụm có egress internet thật sẽ bị ta tự tay cắt Docker Hub.
+func TestHostAliasesDockerHub(t *testing.T) {
+	mirror := "http://platform-registry-mirror.dlp-registry.svc.cluster.local:5000"
+
+	t.Run("không có mirror ⇒ không có alias", func(t *testing.T) {
+		name, _ := NewPodName()
+		pod, err := BuildSandboxPod(name, testConfig())
+		if err != nil {
+			t.Fatalf("BuildSandboxPod: %v", err)
+		}
+		if len(pod.Spec.HostAliases) != 0 {
+			t.Fatalf("RegistryMirror rỗng nhưng pod mang %d hostAliases — cụm không có mirror "+
+				"thì đây là tự cắt đường ra Docker Hub", len(pod.Spec.HostAliases))
+		}
+	})
+
+	t.Run("có mirror ⇒ bốn host Docker Hub trỏ loopback", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.RegistryMirror = mirror
+		name, _ := NewPodName()
+		pod, err := BuildSandboxPod(name, cfg)
+		if err != nil {
+			t.Fatalf("BuildSandboxPod: %v", err)
+		}
+		if len(pod.Spec.HostAliases) != 1 {
+			t.Fatalf("muốn đúng 1 hostAlias, có %d", len(pod.Spec.HostAliases))
+		}
+		ha := pod.Spec.HostAliases[0]
+		if ha.IP != "127.0.0.1" {
+			t.Fatalf("IP = %q, muốn 127.0.0.1 — đích phải là thứ TỪ CHỐI ngay, "+
+				"không phải một địa chỉ khác cũng bị DROP im lặng", ha.IP)
+		}
+		for _, want := range []string{"registry-1.docker.io", "index.docker.io", "auth.docker.io"} {
+			if !slices.Contains(ha.Hostnames, want) {
+				t.Fatalf("thiếu host %q trong %v", want, ha.Hostnames)
+			}
+		}
+	})
+
+	// ⛔ ĐỐI CHỨNG: chính HOST CỦA MIRROR không bao giờ được nằm trong danh sách.
+	// Trỏ nó về loopback là cắt đứt đường pull DUY NHẤT còn lại của sandbox —
+	// một lỗi im lặng, vì triệu chứng ("docker pull hỏng") giống hệt lỗi đang vá.
+	t.Run("host của mirror KHÔNG bị chặn", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.RegistryMirror = mirror
+		name, _ := NewPodName()
+		pod, err := BuildSandboxPod(name, cfg)
+		if err != nil {
+			t.Fatalf("BuildSandboxPod: %v", err)
+		}
+		for _, h := range pod.Spec.HostAliases[0].Hostnames {
+			if strings.Contains(mirror, h) {
+				t.Fatalf("host %q của chính mirror bị trỏ về loopback — sandbox mất luôn đường pull", h)
+			}
+		}
+	})
 }
 
 // TestRegistryMirrorEnv — P3/3.I mắt 1.

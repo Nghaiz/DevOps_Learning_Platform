@@ -68,18 +68,80 @@ doc_tag() {
   ' "$VALUES"
 }
 
-TAG="$(doc_tag)"
-[[ -n "$TAG" ]] || loi "không đọc được image.tag từ $VALUES — sửa hàm doc_tag hoặc cài yq"
-[[ "$TAG" != "dev" ]] || loi "image.tag đang là 'dev' — đó là tag build tay ở máy dev, không phải tag đã publish. Ghim một tag sha-<short> vào $VALUES trước."
+# ─────────────────────────────────────────────────────────────────────────────
+# doc_tag_thanh_phan — tag của MỘT image, đọc từ khối riêng của thành phần đó.
+#
+# ⛔ VÌ SAO KHÔNG DÙNG CHUNG MỘT `image.tag` NỮA. Sau khi P12 ghim tag theo từng
+# thành phần (web=p10a, orchestrator=p7, migrate=p9, gateway=…), `image.tag` ở
+# gốc KHÔNG còn mô tả cái gì đang chạy. Script đọc mỗi nó sẽ side-load cả 5 image
+# ở MỘT tag mà 4 trong 5 deployment không hề dùng — rồi báo "✓ có trên node" cho
+# đúng những image không ai chạy, trong khi tag đang chạy thì vắng mặt.
+#
+# Đó là ĐÚNG lớp lỗi script này sinh ra để diệt (xem khối đầu file), chỉ khác là
+# nguồn lệch nay nằm giữa hai chỗ trong CÙNG một file thay vì giữa file và ngón
+# tay người gõ. Nên phép đọc phải đi theo tag mà chart thật sự dùng.
+#
+# `dlp-sandbox-base` KHÔNG có khối image riêng: orchestrator nhận cả REF ĐẦY ĐỦ
+# qua `orchestrator.env.sandboxImage`, nên tag của nó là phần sau dấu `:` cuối.
+duong_khoi() {
+  case "$1" in
+    dlp-web)              echo "web" ;;
+    dlp-terminal-gateway) echo "gateway" ;;
+    dlp-orchestrator)     echo "orchestrator" ;;
+    dlp-migrator)         echo "migrate" ;;
+    *)                    echo "" ;;
+  esac
+}
+
+doc_tag_thanh_phan() {
+  local ten="$1" khoi
+  if [[ "$ten" == "dlp-sandbox-base" ]]; then
+    local ref
+    ref="$(awk '$1 == "sandboxImage:" { print $2; exit }' "$VALUES" | tr -d "\"'")"
+    [[ -n "$ref" ]] && printf '%s\n' "${ref##*:}"
+    return
+  fi
+
+  khoi="$(duong_khoi "$ten")"
+  [[ -n "$khoi" ]] || return
+
+  # Trong khối `^<khoi>:` (tới key top-level kế tiếp), lấy `tag:` ĐẦU TIÊN nằm
+  # SAU một dòng `image:`. Ràng buộc "sau image:" là cần: các khối này còn chứa
+  # key khác, và một `tag:` trần bắt được ở đâu đó khác là sai âm thầm.
+  awk -v khoi="$khoi" '
+    $0 ~ "^" khoi ":[[:space:]]*$" { trong = 1; next }
+    trong && /^[^[:space:]#]/      { exit }
+    trong && $1 == "image:"        { thay_image = 1; next }
+    trong && thay_image && $1 == "tag:" {
+      gsub(/^[[:space:]]*tag:[[:space:]]*/, ""); gsub(/['"'"'"]/, "");
+      sub(/[[:space:]]*#.*$/, ""); print; exit
+    }
+  ' "$VALUES"
+}
+
+TAG_GOC="$(doc_tag)"
+[[ -n "$TAG_GOC" ]] || loi "không đọc được image.tag từ $VALUES — sửa hàm doc_tag hoặc cài yq"
 
 DANH_SACH=("${MOI_IMAGE[@]}")
 if [[ $# -gt 0 ]]; then
   DANH_SACH=("$@")
 fi
 
+# Phân giải tag cho từng image TRƯỚC khi làm gì — để một tag sai dừng script ở
+# đây, chứ không dừng sau khi đã truyền vài trăm MB.
+declare -A TAG_CUA
+for ten in "${DANH_SACH[@]}"; do
+  t="$(doc_tag_thanh_phan "$ten")"
+  [[ -n "$t" ]] || t="$TAG_GOC"   # không có khối riêng ⇒ kế thừa tag gốc
+  [[ "$t" != "dev" ]] || loi "${ten}: tag đang là 'dev' — đó là tag build tay ở máy dev. Ghim một tag tường minh vào $VALUES trước."
+  TAG_CUA["$ten"]="$t"
+done
+
 echo "── side-load image vào ${VM_SSH}"
-echo "   tag  : ${TAG}   (đọc từ values-selfhost.yaml, KHÔNG từ dòng lệnh)"
-echo "   image: ${DANH_SACH[*]}"
+echo "   nguồn: values-selfhost.yaml (tag theo TỪNG thành phần, KHÔNG từ dòng lệnh)"
+for ten in "${DANH_SACH[@]}"; do
+  printf '   %-24s %s\n' "$ten" "${TAG_CUA[$ten]}"
+done
 echo
 
 command -v docker >/dev/null 2>&1 || loi "cần docker trên máy này để pull + save"
@@ -158,7 +220,7 @@ Thử theo thứ tự này:
 
        ssh ${VM_SSH} 'sudo ctr -n k8s.io images pull \\
          --user <github-user>:<token-có-read:packages> \\
-         ${REGISTRY}/${ten}:${TAG}'
+         ${REGISTRY}/${ten}:${TAG_CUA[$ten]}'
 
      ⚠ token nằm trong argv nên hiện ra ở \`ps\` của VM — chỉ dùng trên máy lab
      một người, và thu hồi token nếu VM có người khác dùng chung.
@@ -167,7 +229,7 @@ HET
   exit 1
 }
 for ten in "${DANH_SACH[@]}"; do
-  ref="${REGISTRY}/${ten}:${TAG}"
+  ref="${REGISTRY}/${ten}:${TAG_CUA[$ten]}"
   echo "── ${ten}"
 
   # Đã có sẵn ở local thì khỏi pull — chạy lại script không nên tốn băng thông.
@@ -200,7 +262,7 @@ echo
 echo "── khẳng định trên NODE (không tin bước import báo thành công)"
 thieu=0
 for ten in "${DANH_SACH[@]}"; do
-  ref="${REGISTRY}/${ten}:${TAG}"
+  ref="${REGISTRY}/${ten}:${TAG_CUA[$ten]}"
   if ssh "$VM_SSH" "sudo ctr -n k8s.io images ls -q | grep -qx '${ref}'"; then
     echo "   ✓ ${ref}"
   else

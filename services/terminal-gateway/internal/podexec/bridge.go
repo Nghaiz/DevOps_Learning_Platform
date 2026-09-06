@@ -180,7 +180,19 @@ type Bridge struct {
 	// nil ⇒ không có drain (đường test cũ, và `make(chan)` nil chặn vĩnh viễn
 	// nên nhánh select không bao giờ bắn — đúng hành vi muốn có).
 	drain *drain.Coordinator
+
+	// podGone hỏi apiserver "pod còn không?" khi Redis nói phiên CÒN SỐNG mà
+	// exit code lại là mã tín hiệu. Xem PodGoneFunc để biết cuộc đua nó gỡ.
+	//
+	// nil ⇒ giữ nguyên hành vi trước 2026-09-06 (kết luận chỉ bằng Redis). Mọi
+	// test cũ chạy ở nhánh đó, nên field này KHÔNG được đưa vào `New`: thêm một
+	// tham số bắt buộc là bắt vài chục call-site test khai một thứ chúng không
+	// quan tâm, và làm loãng đúng chỗ đáng đọc kỹ.
+	podGone PodGoneFunc
 }
+
+// SetPodProbe gắn phép hỏi apiserver. Gọi TRƯỚC lời gọi Serve đầu tiên.
+func (b *Bridge) SetPodProbe(p PodGoneFunc) { b.podGone = p }
 
 // SetDrain gắn coordinator drain. Gọi TRƯỚC lời gọi Serve đầu tiên.
 func (b *Bridge) SetDrain(d *drain.Coordinator) { b.drain = d }
@@ -710,8 +722,23 @@ func (b *Bridge) finish(ctx context.Context, c *websocket.Conn, t Target, stream
 	}
 
 	if isExit {
-		// Session còn sống ⇒ tín hiệu đến từ BÊN TRONG pod, tức người dùng tự
-		// giết tiến trình của mình. Đó là thoát thật.
+		// Tới đây `code` CHẮC CHẮN ∈ {137,143} — nhánh không-phải-tín-hiệu đã
+		// return ở trên.
+		//
+		// ⛔ REDIS NÓI "CÒN SỐNG" LÀ CHƯA ĐỦ ĐỂ KẾT LUẬN "TỰ GÕ EXIT". Redis là
+		// SỔ SÁCH và nó đi SAU sự kiện: pod bị evict/OOMKill/xoá tay chết
+		// TRƯỚC, reaper cập nhật Redis SAU. Trong cửa sổ đó (đo được 330–385ms
+		// ở P12 §8) mọi cái chết ngoài ý muốn đều đọc ra y hệt `kill -9` hợp lệ.
+		// Apiserver không đua với ai — hỏi nó trước khi đổ lỗi cho người dùng.
+		if b.podBienMat(ctx, t) {
+			b.log.Info("pod đã biến mất trong khi Redis còn ghi phiên sống — đây KHÔNG phải người dùng tự thoát",
+				slog.String("session_id", t.SessionID), slog.String("pod", t.PodName), slog.Int("exit_code", code))
+			b.closeTerminal(ctx, c, t, st)
+			return
+		}
+
+		// Session còn sống VÀ pod còn đó ⇒ tín hiệu đến từ BÊN TRONG pod, tức
+		// người dùng tự giết tiến trình của mình. Đó là thoát thật.
 		b.sendControl(ctx, c, ControlOut{Type: "exit", ExitCode: &code})
 		_ = c.Close(websocket.StatusNormalClosure, "exit")
 		return
@@ -765,6 +792,33 @@ func (b *Bridge) sessionGone(ctx context.Context, sessionID string) bool {
 		return false
 	}
 	return !alive
+}
+
+// podBienMat hỏi apiserver xem pod của phiên còn phục vụ được không.
+//
+// FAIL-OPEN, và chiều fail-open ở đây NGƯỢC với trực giác "an toàn thì đóng":
+// hỏi lỗi ⇒ trả false ⇒ giữ nguyên kết luận cũ (`1000 exit`). Vì `4404` nói với
+// FE "phiên hết rồi, ĐỪNG retry" — đoán sai theo hướng đó là khoá người dùng
+// khỏi một phiên vẫn còn hạn chỉ vì apiserver trục trặc một nhịp. Đoán sai
+// hướng còn lại chỉ là giữ đúng cái bug hôm nay trong đúng lượt apiserver hỏng.
+// Cùng chiều với `sessionGone`, và cùng lý do.
+//
+// `podGone == nil` (không gắn probe) ⇒ false: hành vi trước 2026-09-06.
+func (b *Bridge) podBienMat(ctx context.Context, t Target) bool {
+	if b.podGone == nil {
+		return false
+	}
+	probeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), closeProbeTimeout)
+	defer cancel()
+
+	gone, err := b.podGone(probeCtx, t.Namespace, t.PodName)
+	if err != nil {
+		b.log.Warn("không hỏi được apiserver về pod trên đường đóng — giữ nguyên kết luận từ Redis",
+			slog.String("session_id", t.SessionID), slog.String("pod", t.PodName),
+			slog.String("err", err.Error()))
+		return false
+	}
+	return gone
 }
 
 // sendControl gửi một control message dạng text.

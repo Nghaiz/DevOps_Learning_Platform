@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -101,6 +102,9 @@ type bridgeOpts struct {
 	// timing rút nhịp heartbeat xuống mức test chờ được. 0 = giữ nhịp production
 	// (20s/10s/60s), tức heartbeat không bao giờ tick trong một ca test ngắn.
 	pingEvery, pongWait, extendEvery time.Duration
+	// podGone là phép hỏi apiserver trên đường đóng. nil = KHÔNG gắn probe, tức
+	// hành vi trước 2026-09-06 — mọi ca test cũ chạy ở nhánh đó.
+	podGone podexec.PodGoneFunc
 }
 
 // newBridge dựng một server WS chạy Bridge thật, và trả kết nối phía CLIENT.
@@ -130,6 +134,9 @@ func newBridge(t *testing.T, exec *fakeExecutor, alive podexec.SessionAliveFunc,
 	)
 	if o.pingEvery > 0 {
 		b.SetHeartbeatTiming(o.pingEvery, o.pongWait, o.extendEvery)
+	}
+	if o.podGone != nil {
+		b.SetPodProbe(o.podGone)
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -541,6 +548,98 @@ func TestExit137_SessionConSong_Dong1000(t *testing.T) {
 	}
 	if _, ok := findControl(controls, "exit"); !ok {
 		t.Fatalf("thiếu control `exit`: %+v", controls)
+	}
+}
+
+// ⛔ BỘ BA DƯỚI ĐÂY GÁC CUỘC ĐUA REDIS-ĐI-SAU (P12 §8, sửa 2026-09-06).
+//
+// Cả ba có ĐÚNG cùng input phía Redis (`alwaysAlive`) và cùng exit code 137 —
+// thứ duy nhất khác là apiserver trả lời gì. Không có cả ba thì một implement
+// bỏ hẳn lượt hỏi apiserver, hoặc hỏi rồi kết luận sai chiều lúc lỗi, vẫn xanh.
+func TestExit137_SessionConSong_PodDaMat_Dong4404(t *testing.T) {
+	exec := &fakeExecutor{fn: func(_ context.Context, o remotecommand.StreamOptions) error {
+		_, _ = o.Stdout.Write([]byte("x"))
+		return codeExitError{code: 137}
+	}}
+	h := newBridge(t, exec, alwaysAlive, bridgeOpts{
+		podGone: func(context.Context, string, string) (bool, error) { return true, nil },
+	})
+	h.sendInit(t, 80, 24)
+
+	controls, _, code := h.readUntilClose(t)
+	if code != 4404 {
+		t.Fatalf("close code = %d, muốn 4404 — pod biến mất trong khi Redis chưa kịp "+
+			"cập nhật KHÔNG phải 'người dùng tự gõ exit'", code)
+	}
+	if e, ok := findControl(controls, "error"); !ok || e.Code != "SESSION_GONE" {
+		t.Fatalf("thiếu control error SESSION_GONE: %+v", controls)
+	}
+}
+
+func TestExit137_SessionConSong_PodConDo_Dong1000(t *testing.T) {
+	exec := &fakeExecutor{fn: func(_ context.Context, o remotecommand.StreamOptions) error {
+		_, _ = o.Stdout.Write([]byte("x"))
+		return codeExitError{code: 137}
+	}}
+	h := newBridge(t, exec, alwaysAlive, bridgeOpts{
+		podGone: func(context.Context, string, string) (bool, error) { return false, nil },
+	})
+	h.sendInit(t, 80, 24)
+
+	controls, _, code := h.readUntilClose(t)
+	if code != websocket.StatusNormalClosure {
+		t.Fatalf("close code = %d, muốn 1000 — pod CÒN ĐÓ và session còn sống nghĩa là "+
+			"tín hiệu đến từ bên trong pod, đó là thoát thật", code)
+	}
+	if _, ok := findControl(controls, "exit"); !ok {
+		t.Fatalf("thiếu control `exit`: %+v", controls)
+	}
+}
+
+// Apiserver trả lỗi ⇒ GIỮ NGUYÊN kết luận từ Redis (1000), KHÔNG suy diễn.
+// `4404` bảo FE "đừng retry"; phát nó vì một lượt apiserver hỏng là khoá người
+// dùng khỏi phiên còn hạn. Chiều fail-open này phải được gác tường minh.
+func TestExit137_HoiApiserverLoi_GiuNguyen1000(t *testing.T) {
+	exec := &fakeExecutor{fn: func(_ context.Context, o remotecommand.StreamOptions) error {
+		_, _ = o.Stdout.Write([]byte("x"))
+		return codeExitError{code: 137}
+	}}
+	h := newBridge(t, exec, alwaysAlive, bridgeOpts{
+		podGone: func(context.Context, string, string) (bool, error) {
+			return false, errors.New("apiserver 503")
+		},
+	})
+	h.sendInit(t, 80, 24)
+
+	if _, _, code := h.readUntilClose(t); code != websocket.StatusNormalClosure {
+		t.Fatalf("close code = %d, muốn 1000 — hỏi apiserver lỗi thì không được đổi kết luận", code)
+	}
+}
+
+// Thoát BÌNH THƯỜNG (exit 0) KHÔNG được chạm apiserver.
+//
+// Không có ca này thì một implement hỏi pod ở mọi lần đóng vẫn xanh — và nó sẽ
+// đóng `4404` cho người vừa tự gõ `exit` đúng lúc pod đang bị thu hồi, tức dựng
+// lại chính cái bug này ở chiều ngược lại. Kèm luôn vế "không tốn lượt gọi".
+func TestExit0_KhongHoiApiserver(t *testing.T) {
+	var hoi atomic.Int32
+	exec := &fakeExecutor{fn: func(_ context.Context, o remotecommand.StreamOptions) error {
+		_, _ = o.Stdout.Write([]byte("x"))
+		return nil
+	}}
+	h := newBridge(t, exec, alwaysAlive, bridgeOpts{
+		podGone: func(context.Context, string, string) (bool, error) {
+			hoi.Add(1)
+			return true, nil // nếu BỊ hỏi thì trả "mất" để ca sai lộ ra thành 4404
+		},
+	})
+	h.sendInit(t, 80, 24)
+
+	if _, _, code := h.readUntilClose(t); code != websocket.StatusNormalClosure {
+		t.Fatalf("close code = %d, muốn 1000", code)
+	}
+	if n := hoi.Load(); n != 0 {
+		t.Fatalf("apiserver bị hỏi %d lần ở đường thoát bình thường, muốn 0", n)
 	}
 }
 

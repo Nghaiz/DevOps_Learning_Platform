@@ -118,6 +118,10 @@ func run() error {
 		met,
 	)
 	bridge.SetDrain(drainer)
+	// Dùng CHUNG `clientset` với đường exec — một client, một ngân sách QPS.
+	// Chỉ chạy trên đường đóng và chỉ khi exit ∈ {137,143}, nên không thêm tải
+	// thường trực lên apiserver (thứ đã restart 41 lần trên cụm này).
+	bridge.SetPodProbe(podexec.NewPodGoneProbe(clientset))
 
 	publicMux := http.NewServeMux()
 	wsroute.Register(publicMux, wsroute.Deps{

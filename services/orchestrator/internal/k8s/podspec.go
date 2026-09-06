@@ -233,6 +233,10 @@ func BuildSandboxPod(name string, cfg PodConfig) (*corev1.Pod, error) {
 				// sandbox ở P1 chưa mount gì. Dotfiles (1.E E8) sẽ là volume
 				// KHÔNG-hostPath khi tới lượt nó.
 			}},
+			// Trỏ các host Docker Hub về loopback KHI VÀ CHỈ KHI cụm có mirror.
+			// Xem hostAliasesDockerHub — đây là điểm DUY NHẤT đọc quyết định đó.
+			HostAliases: hostAliasesDockerHub(cfg.RegistryMirror),
+
 			// CEL #7 — không initContainer nào. Để nil thay vì slice rỗng:
 			// `!has(object.spec.initContainers)` là nhánh rẻ nhất của CEL.
 			InitContainers: nil,
@@ -240,6 +244,71 @@ func BuildSandboxPod(name string, cfg PodConfig) (*corev1.Pod, error) {
 			Volumes: nil,
 		},
 	}, nil
+}
+
+// hostDockerHub là các host của Docker Hub mà pod sandbox KHÔNG BAO GIỜ được
+// phép chạm tới trực tiếp: egress ra internet đã bị netpol chặn (luật 10), và
+// mọi thứ docker.io mà sandbox thật sự cần đều đi qua registry-mirror trong cụm.
+//
+// `production.cloudflare.docker.com` là CDN blob của Hub — nó nằm đây vì cùng
+// một lý do, không phải vì đã quan sát thấy nó treo.
+var hostDockerHub = []string{
+	"registry-1.docker.io",
+	"index.docker.io",
+	"auth.docker.io",
+	"production.cloudflare.docker.com",
+}
+
+// hostAliasesDockerHub trỏ các host Docker Hub về loopback trong pod sandbox.
+//
+// ── VÌ SAO CẦN, VÀ VÌ SAO KHÔNG PHẢI "CHẶN CHO CHẮC" ────────────────────────
+// Đo được 2026-09-06 trên cụm lab (P12 §5b, và tái hiện lại lần này với
+// `dockerd --debug`): `docker pull nginx:alpine` trong sandbox đi đúng ba nhịp
+//
+//  1. HEAD  <mirror>/v2/library/nginx/manifests/alpine?ns=docker.io   → 200
+//  2. GET   <mirror>/v2/library/nginx/referrers/<digest>?ns=docker.io → 404
+//  3. GET   https://registry-1.docker.io/v2/library/nginx/referrers/… → TREO
+//
+// `registry:2` (và cả `registry:3` — đã thử, cùng 404 với body `404 page not
+// found`) KHÔNG phục vụ OCI referrers API ở chế độ pull-through. Nhịp 2 trả 404
+// nên containerd làm đúng thứ nó được thiết kế để làm: **fallback sang upstream**.
+// Upstream thì netpol DROP IM LẶNG — không RST, không ICMP — nên socket nằm
+// SYN_SENT tới hết timeout của client. Mọi layer đã tải xong từ nhịp 1 mà lệnh
+// vẫn treo rồi thoát 125.
+//
+// Hệ quả đã đo: 16/23 worker hỏng đúng bước này ở lượt tải P12, cả ba lượt retry
+// đều treo. Và cái nó ĐỂ LẠI mới nguy: tiến trình treo sống lâu hơn cả pod, kéo
+// theo `FailedKillPod` → sysbox-fs wedge → node mất khả năng tạo pod trong khi
+// `/api/health` vẫn 200.
+//
+// ⛔ ĐÂY KHÔNG PHẢI THÊM MỘT LỚP CHẶN. Egress đã bị chặn rồi; thứ duy nhất thay
+// đổi là **cách nó hỏng**: TREO 45s+ → TỪ CHỐI TỨC THÌ (không có gì nghe
+// 127.0.0.1:443 trong netns của pod ⇒ RST ngay). containerd ghi "error fetching
+// referrers" rồi ĐI TIẾP — referrers là metadata tuỳ chọn, không có nó thì pull
+// vẫn đúng. Đây chính là khuyến nghị "trả RST thay vì DROP" của report P12 §10,
+// đặt vào chỗ ta sở hữu thay vì đi sửa Calico.
+//
+// ⚠ PHẠM VI, nói trước để không ai đọc quá: chỉ bốn host của Docker Hub. Một
+// `docker pull ghcr.io/...` trong sandbox VẪN treo y như cũ, vì mirror chỉ trong
+// suốt với docker.io ([[dockerd-mirror-only-docker-hub]]) và không có tên nào để
+// alias. Đóng CẢ LỚP đó cần luật REJECT cho egress ngoài cụm — việc của netpol/
+// CNI, không phải của pod spec.
+//
+// ⚠ Cạnh đã biết: containerd thử `127.0.0.1:80` (đo được 2026-09-06, không phải
+// suy đoán — nó hạ scheme khi host phân giải về loopback), nên nếu người học tự
+// `docker run -p 80:80 …` thì lượt referrers chạm container của chính họ thay vì
+// bị từ chối. Container ấy trả 404 cho `/v2/…/referrers/…`, containerd ghi
+// "not found" rồi đi tiếp — vẫn là hỏng NHANH, hành vi mong muốn không đổi.
+//
+// RỖNG ⇒ nil: cụm không có mirror thì sandbox chạy y hệt hôm nay.
+func hostAliasesDockerHub(mirror string) []corev1.HostAlias {
+	if mirror == "" {
+		return nil
+	}
+	return []corev1.HostAlias{{
+		IP:        "127.0.0.1",
+		Hostnames: append([]string(nil), hostDockerHub...),
+	}}
 }
 
 // profileResources trả ResourceRequirements cho container sandbox.

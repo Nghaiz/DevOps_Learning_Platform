@@ -139,8 +139,13 @@ web:
 
 orchestrator:
   # Tag tường minh — xem khối "TAG THEO TỪNG THÀNH PHẦN" ở đầu file.
+  #
+  # p12fix (2026-09-06): pod sandbox mang `hostAliases` trỏ bốn host Docker Hub
+  # về loopback khi cụm có registry-mirror. Vá "docker run treo vì OCI referrers"
+  # — xem k8s.hostAliasesDockerHub. Bản này xây TAY ở máy dev rồi side-load, KHÔNG
+  # phải CI publish; nói ra vì `p12fix` tự nó không phân biệt được hai đường ấy.
   image:
-    tag: p7
+    tag: p12fix
   replicaCount: 1
   env:
     # Image pod lab: mặc định của template là `image.registry`+`image.tag`, tức
@@ -174,10 +179,15 @@ orchestrator:
       memory: 128Mi
 
 gateway:
-  # Tag tường minh — trùng `image.tag` chung hôm nay, nhưng ghim để lần đổi tag
-  # chung kế tiếp không lặng lẽ kéo gateway theo.
+  # Tag tường minh — ghim để lần đổi `image.tag` chung kế tiếp không lặng lẽ kéo
+  # gateway theo.
+  #
+  # p12fix (2026-09-06): trên đường đóng, exit ∈ {137,143} + Redis nói phiên còn
+  # sống thì hỏi THÊM apiserver xem pod còn không, rồi mới chọn 1000 hay 4404.
+  # Vá cuộc đua "Redis đi sau" của P12 §8 — xem podexec.PodGoneFunc. Xây TAY ở
+  # máy dev rồi side-load, KHÔNG phải CI publish.
   image:
-    tag: sha-2b79fd3
+    tag: p12fix
   # 2 replica từ chặng 3.H. Gateway stateless đã được KIỂM CHỨNG chứ không chỉ
   # được khẳng định: không map/registry session→conn nào ở package-level hay
   # struct field; đích exec đọc từ Redis mỗi lần connect, và trần WS đồng thời
