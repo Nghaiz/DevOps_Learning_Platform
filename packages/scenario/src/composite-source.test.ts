@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Scenario, ScenarioSummary } from '@devops-platform/shared-types/scenario';
 import { compositeContentSource } from './composite-source.ts';
 import type { ContentSourceLogger } from './db-source.ts';
-import { InvalidCursorError } from './errors.ts';
+import { ContentSourcesUnavailableError, InvalidCursorError } from './errors.ts';
 import { matchesContentFilter, paginateSorted, type ContentSource } from './source.ts';
 
 /** Logger thu vào mảng — cảnh báo là một HÀNH VI được kiểm, không phải rác log. */
@@ -402,5 +402,168 @@ describe('compositeContentSource — một nguồn hỏng MỘT NHỊP không đ
     );
 
     expect(await walkAllPages(composite)).toEqual(allIds);
+  });
+});
+
+/**
+ * Cân với ca `get: MỌI nguồn hỏng ⇒ NÉM` ở trên. Cùng một sự cố hạ tầng mà
+ * `/lessons/[id]` trả 5xx còn `/lessons` nói "chưa có bài nào" (kèm HTTP 200)
+ * là một sự bất nhất tự nó đã sai — và người học đọc vế sau thành "kho trống".
+ */
+describe('compositeContentSource — MỌI nguồn hỏng ở list*: NÉM, không trả rỗng', () => {
+  /** Nguồn hỏng ở đúng một method, khoẻ ở các method còn lại. */
+  const down = (kind: string, overrides: Partial<ContentSource>): ContentSource =>
+    fakeSource(kind, [], overrides);
+
+  const boom = async (): Promise<never> => {
+    throw new Error('Postgres sập');
+  };
+
+  it('list: NÉM chứ không trả [] — "kho rỗng" là một khẳng định vừa mất cơ sở', async () => {
+    const source = compositeContentSource([down('a', { list: boom }), down('b', { list: boom })], {
+      logger: recorder(),
+    });
+    await expect(source.list()).rejects.toBeInstanceOf(ContentSourcesUnavailableError);
+  });
+
+  it('listPage: NÉM chứ không trả { items: [], nextCursor: null } — đó là "rỗng VÀ hết rồi"', async () => {
+    const source = compositeContentSource(
+      [down('a', { listPage: boom }), down('b', { listPage: boom })],
+      { logger: recorder() },
+    );
+    await expect(source.listPage({ limit: 10 })).rejects.toBeInstanceOf(
+      ContentSourcesUnavailableError,
+    );
+  });
+
+  it('listLabs / listPlaygrounds / listLabsPage / listPlaygroundsPage đi qua CÙNG hai helper nên cùng chốt', async () => {
+    // Sáu method list* dùng chung `collect`/`collectPages`; kiểm bốn method còn
+    // lại để chốt là của HELPER, không phải một cành `if` chép ba lần.
+    const source = compositeContentSource(
+      [
+        down('a', {
+          listLabs: boom,
+          listPlaygrounds: boom,
+          listLabsPage: boom,
+          listPlaygroundsPage: boom,
+        }),
+        down('b', {
+          listLabs: boom,
+          listPlaygrounds: boom,
+          listLabsPage: boom,
+          listPlaygroundsPage: boom,
+        }),
+      ],
+      { logger: recorder() },
+    );
+
+    await expect(source.listLabs()).rejects.toBeInstanceOf(ContentSourcesUnavailableError);
+    await expect(source.listPlaygrounds()).rejects.toBeInstanceOf(ContentSourcesUnavailableError);
+    await expect(source.listLabsPage({ limit: 10 })).rejects.toBeInstanceOf(
+      ContentSourcesUnavailableError,
+    );
+    await expect(source.listPlaygroundsPage({ limit: 10 })).rejects.toBeInstanceOf(
+      ContentSourcesUnavailableError,
+    );
+  });
+});
+
+describe('compositeContentSource — MỘT nguồn hỏng: list suy biến, listPage NÉM', () => {
+  const diskOnly = [{ id: 'd1', title: 'd1' }];
+  const dbDown: Partial<ContentSource> = {
+    list: async () => {
+      throw new Error('DB timeout');
+    },
+    listPage: async () => {
+      throw new Error('DB timeout');
+    },
+  };
+
+  it('hai luật khác nhau là CỐ Ý, và ranh giới là `nextCursor`', async () => {
+    const composite = compositeContentSource(
+      [fakeSource('disk', diskOnly), fakeSource('db', [], dbDown)],
+      { logger: recorder() },
+    );
+
+    // `list()` không phát mốc nào ⇒ một danh sách thiếu là ảnh chụp thiếu, lượt
+    // sau hỏi lại toàn bộ nên nó tự lành. Giữ nguyên kỷ luật cũ.
+    expect((await composite.list()).map((s) => s.id)).toEqual(['d1']);
+
+    // `listPage()` phát mốc ⇒ trả trang thiếu nghĩa là phát ra một mốc không có
+    // cơ sở, và client đi qua nó KHÔNG BAO GIỜ quay lại.
+    await expect(composite.listPage({ limit: 10 })).rejects.toBeInstanceOf(
+      ContentSourcesUnavailableError,
+    );
+  });
+
+  it('cursor nằm ở nguồn ĐANG HỎNG ⇒ không kết luận "cursor vô nghĩa"', async () => {
+    // 'd2' CÓ THẬT, nhưng chỉ nguồn đang hỏng biết. `InvalidCursorError` ở đây
+    // thành một 400 đổ lỗi cho người gọi về một sự cố hạ tầng — và
+    // `catalog-error.tsx` nói với họ rằng "thử lại bao nhiêu lần cũng ra đúng
+    // lỗi", trong khi thử lại chính là việc đúng cần làm.
+    const composite = compositeContentSource(
+      [
+        fakeSource('disk', diskOnly),
+        fakeSource('db', [{ id: 'd2', title: 'd2' }], {
+          get: async () => {
+            throw new Error('Postgres sập');
+          },
+          listPage: async () => {
+            throw new Error('Postgres sập');
+          },
+        }),
+      ],
+      { logger: recorder() },
+    );
+
+    const err = await composite.listPage({ limit: 2, cursor: 'd2' }).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(err).toBeInstanceOf(ContentSourcesUnavailableError);
+    expect(err).not.toBeInstanceOf(InvalidCursorError);
+  });
+});
+
+describe('compositeContentSource — lỗi ném ra đi thẳng tới client', () => {
+  it('nói việc-gì-xảy-ra + làm-gì-tiếp, và KHÔNG lộ chi tiết tầng dưới', async () => {
+    const leaky = (kind: string): ContentSource =>
+      fakeSource(kind, [], {
+        listPage: async () => {
+          throw new Error(
+            'select id from content_items where id > $1 — connect ECONNREFUSED 10.0.0.5:5432',
+          );
+        },
+      });
+    const log = recorder();
+    const composite = compositeContentSource(
+      [leaky('filesystem:/srv/content/scenarios'), leaky('db:published-only')],
+      { logger: log },
+    );
+
+    const err = await composite.listPage({ limit: 10 }).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(err).toBeInstanceOf(ContentSourcesUnavailableError);
+    const { message, cause } = err as Error;
+
+    // Câu SQL, host/port, đường dẫn đĩa, `kind` của nguồn — không thứ nào được
+    // đi ra ngoài, kể cả qua `cause` (tRPC có thể serialize nó).
+    expect(message).not.toMatch(/select|ECONNREFUSED|5432/i);
+    expect(message).not.toContain('/srv/content');
+    expect(message).not.toContain('db:published-only');
+    expect(cause).toBeUndefined();
+
+    // Việc-gì-xảy-ra + làm-gì-tiếp, bằng tiếng Việt.
+    expect(message).toMatch(/nguồn nội dung/i);
+    expect(message).toMatch(/thử lại/i);
+
+    // Và chi tiết chẩn đoán KHÔNG bị mất — nó nằm ở log, đúng chỗ của nó.
+    expect(log.entries.map((e) => e.detail['sourceKind'])).toEqual([
+      'filesystem:/srv/content/scenarios',
+      'db:published-only',
+    ]);
+    expect(String(log.entries[0]?.detail['error'])).toContain('ECONNREFUSED');
   });
 });
