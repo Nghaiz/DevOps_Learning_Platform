@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import {
   contentItems,
@@ -178,21 +178,34 @@ async function seedOnce(): Promise<void> {
   seeded = true;
 }
 
+/**
+ * Gieo ở `beforeAll` với timeout RIÊNG, không gọi trong từng `it`.
+ *
+ * ⚠ ĐÃ ĐO: gọi `seedOnce()` bên trong test đầu tiên làm test đó gánh cả phần
+ * gieo LẪN lượt nạp nguồn nội dung đầu tiên (`contentSourceFor` đọc
+ * `content/labs/**` trên đĩa). Chạy một mình thì kịp; chạy CẢ SUITE song song
+ * thì vượt 5s mặc định và test đỏ vì HẠ TẦNG, không vì hành vi nó gác — đúng
+ * kiểu flaky làm người đọc mất niềm tin vào một ô AC thật.
+ */
+beforeAll(async () => {
+  await seedOnce();
+}, 60_000);
+
 afterAll(async () => {
   await closeTestDb();
 });
 
 describe('me.* — lịch sử của NGƯỜI KHÁC không lọt vào danh sách của tôi', () => {
   it('me.listLabAttempts: chỉ lượt của tôi (cùng labId, khác userId)', async () => {
-    await seedOnce();
     const out = await (await caller(ME)).me.listLabAttempts({ limit: 100 });
     const ids = out.items.map((item) => item.attempt.id);
     expect(ids).toContain(`attempt-${ME.id}`);
     expect(ids).not.toContain(`attempt-${OTHER.id}`);
-  });
+    // Trần rộng CHỈ ở ca này: nó trả giá cho lượt nạp `contentSourceFor` đầu
+    // tiên (đọc content/labs/** trên đĩa), một chi phí một-lần của tiến trình.
+  }, 30_000);
 
   it('me.listQuizAttempts: chỉ lượt của tôi (cùng quizId, khác userId)', async () => {
-    await seedOnce();
     const out = await (await caller(ME)).me.listQuizAttempts({ limit: 100 });
     const ids = out.items.map((item) => item.attemptId);
     expect(ids).toContain(`qattempt-${ME.id}`);
@@ -200,7 +213,6 @@ describe('me.* — lịch sử của NGƯỜI KHÁC không lọt vào danh sách
   });
 
   it('me.listProgress: chỉ tiến độ của tôi (cùng lessonId, khác userId)', async () => {
-    await seedOnce();
     const db = testDb();
     const otherRows = await db.select().from(progress).where(eq(progress.userId, OTHER.id));
     const otherId = otherRows[0]?.id;
@@ -214,7 +226,6 @@ describe('me.* — lịch sử của NGƯỜI KHÁC không lọt vào danh sách
   });
 
   it('me.listProgress: cursor của NGƯỜI KHÁC không mở được trang của họ', async () => {
-    await seedOnce();
     const db = testDb();
     const otherRows = await db.select().from(progress).where(eq(progress.userId, OTHER.id));
     const otherCursor = otherRows[0]?.id;
@@ -228,7 +239,6 @@ describe('me.* — lịch sử của NGƯỜI KHÁC không lọt vào danh sách
   });
 
   it('me.get / me.updatePreferences chỉ chạm hồ sơ của chính tôi', async () => {
-    await seedOnce();
     await (await caller(ME)).me.updatePreferences({ defaultShell: 'pwsh' });
 
     const mine = await (await caller(ME)).me.get({});
@@ -249,7 +259,6 @@ describe('me.* — lịch sử của NGƯỜI KHÁC không lọt vào danh sách
 
 describe('me.activeSessions — ranh giới tin cậy C3 nằm ở THAM SỐ của lời gọi', () => {
   it('truyền ctx.user.id làm user_id — KHÔNG bao giờ chuỗi rỗng (rỗng = mọi user)', async () => {
-    await seedOnce();
     listSessionsSpy.mockClear();
     await (await caller(ME)).me.activeSessions({ limit: 10 });
 
@@ -262,14 +271,12 @@ describe('me.activeSessions — ranh giới tin cậy C3 nằm ở THAM SỐ c�
   });
 
   it('người khác gọi thì user_id đổi theo NGƯỜI GỌI, không phải một hằng nào đó', async () => {
-    await seedOnce();
     listSessionsSpy.mockClear();
     await (await caller(OTHER)).me.activeSessions({ limit: 10 });
     expect(listSessionsSpy.mock.calls[0]?.[0]?.userId).toBe(OTHER.id);
   });
 
   it('me.endSession reap với actor = NGƯỜI GỌI và reason = user_ended', async () => {
-    await seedOnce();
     reapSessionSpy.mockClear();
     await (await caller(ME)).me.endSession({ sessionId: 'sess-bat-ky' });
 
