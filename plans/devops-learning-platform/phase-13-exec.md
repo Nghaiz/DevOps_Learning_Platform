@@ -338,6 +338,66 @@ truyền đúng bộ `--set` mà `08-tls-entrypoint.sh` in ra.
 Hệ quả người vận hành thấy: `gateway: reached:false, ok:false, error:<lý do>` — đúng
 thiết kế, không phải hỏng.
 
+## 3ter. Runbook đợt 3 — gom từ báo cáo của mười lane
+
+Thứ tự dưới đây có ràng buộc thật, không phải cho gọn.
+
+**1. Cây phải sạch cú pháp TRƯỚC khi tin bất kỳ lượt typecheck nào.** Một lỗi
+`TS1xxx` ở file bất kỳ làm `tsc` bỏ luôn pha ngữ nghĩa cho TOÀN chương trình. Đã
+đo: trong lúc một file mang comment chưa đóng, hai lượt typecheck chỉ in đúng lỗi
+ấy và **giấu** một lỗi kiểu thật ở lane khác. "Chỉ thấy lỗi của lane khác" đọc ra
+thành "phần mình sạch" và sai.
+
+**2. Chạy lệnh xác minh TÁCH RA.** `pnpm --filter web typecheck lint test` không
+chạy ba script — pnpm đẩy `lint test` thành argv của `tsc` và chết ở `TS5112`,
+nên `lint` với `test` KHÔNG hề chạy. Dùng `pnpm turbo run lint typecheck build test`
+(turbo nhận nhiều task) hoặc ba lệnh riêng.
+
+**3. Đọc `Tasks: X/Y` trước khi trích bất kỳ con số test nào.** turbo dừng sau
+task đỏ, nên một lượt in ra `15/19` nghĩa là bốn task sau CHƯA CHẠY.
+
+**4. Build ba image và bump tag TRONG CÙNG một thay đổi.** `dlp-web:p13`,
+`dlp-orchestrator:p13`, `dlp-migrator:p13`. Hai ràng buộc, cả hai đều làm hỏng
+cụm nếu lệch:
+- orchestrator `:p12fix` đòi `CAPACITY_SOFT_LIMIT`, mà chart nay chỉ đặt
+  `CAPACITY_HARD_LIMIT` ⇒ deploy chart mới với image cũ là CrashLoopBackOff.
+- D15 thêm nhánh `admin_user_id` vào `ReapSession`. Web `:p13` gửi nhánh đó; nếu
+  orchestrator còn `:p12fix` thì nó decode ra `oneof` chưa đặt ⇒ mọi lượt admin
+  kết thúc phiên trả `InvalidArgument`. **Web và orchestrator lên cùng lượt.**
+
+**5. Side-load, đừng pull.** `docker save | scp | ctr -n k8s.io images import`.
+`11-sideload-images.sh` chỉ đọc `image.tag` CHUNG, không đọc tag từng thành phần
+— cổng render-vs-`ctr images ls` trong `12-helm-deploy.sh` mới là thứ bắt lệch.
+
+**6. Không cần `--set` gì thêm cho metric.** `gateway.service.exposeAdminPort: auto`
+bám theo `networkPolicy.platform.enabled`, mà release đang chạy đã bật, và
+`12-helm-deploy.sh` giữ nguyên subtree `networkPolicy`. Xác nhận bằng ĐÚNG một
+lệnh, chạy TỪ TRONG pod web (nó kiểm cả ba nửa cùng lúc và nói rõ nửa nào thiếu):
+
+```bash
+kubectl exec -n default deploy/platform-web -c web -- node -e 'const u=process.env.GATEWAY_METRICS_URL;if(!u){console.log("FAIL: chua render env");process.exit(1)}fetch(u).then(r=>r.text()).then(t=>{const n=t.split("
+").filter(l=>l.startsWith("dlp_gateway_")).length;console.log(n>0?"PASS "+n+" series":"FAIL: voi toi nhung khong co series");process.exit(n>0?0:1)}).catch(e=>{console.log("FAIL: co URL nhung KHONG voi toi — "+e.message);process.exit(1)})'
+```
+Cả ba nhánh của lệnh này đã được chứng trên cụm, nên nó không phải phép kiểm chỉ
+biết kêu một chiều.
+
+**7. e2e phải khai `E2E_REQUIRE_ROLES=1`.** Không có cờ đó, một lượt mà cả năm màn
+quản trị đều SKIP trông y hệt một lượt chúng PASS. Tài khoản author/admin chỉ đến
+từ SQL qua `apps/web/e2e/scripts/promote-role.sh`, và `global-setup` đọc vai trò
+MỘT lần lúc bắt đầu nên phải promote TRƯỚC khi chạy.
+
+**8. Hai ô e2e đang ĐỎ ĐÚNG và phải xanh sau deploy:** `frame-src 'self'` chưa
+khai, và script theme chưa mang nonce. Cụm đang chạy image trước P13 nên đỏ là
+đúng; nếu sau deploy vẫn đỏ thì đó là lỗi thật, không phải môi trường.
+
+**9. Chạy lại pentest 3.E.** Phase này nới CSP (`frame-src`) và phát cookie
+`dlp_sandbox` thêm `Path=/ide`. Nới bề mặt thì phải chạy lại đối chứng, theo
+`zero-violation-needs-negative-control`.
+
+**10. Ba con số CHƯA ĐO, đừng tích ô nghiệm thu dựa vào chúng:** trần body 1 MiB
+và tier `ratelimit-ide` 600/1m burst 300 cho `/ide` (đường này CHƯA từng đi qua
+Traefik lần nào), và `capacityHardLimit: '8'` mặc định dạng cloud.
+
 ## 4. Kỷ luật git & xác minh cho MỌI sub-agent
 
 - Một nhánh, một working tree dùng chung. **CẤM** `git add .`/`-A`, `git commit -a`, `git checkout`/`switch`/`stash`, `git pull`, `git push`. Commit bằng **pathspec**: `git add <đường dẫn tường minh>` cho file mới rồi `git commit -m "<type>(p13): …" -- <đường dẫn…>`. Commit nhỏ, thường xuyên; commit trước khi báo cáo.
