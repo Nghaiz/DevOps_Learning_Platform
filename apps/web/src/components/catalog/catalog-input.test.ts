@@ -29,7 +29,22 @@ function inputSchemaOf(path: string): ZodLike {
   return schema as ZodLike;
 }
 
-const FILTERABLE = ['lessons.list', 'labs.list', 'playgrounds.list'] as const;
+/**
+ * Ba nhóm, không phải hai — `playgrounds.list` đứng riêng từ 2026-09-06.
+ *
+ * Playground KHÔNG có độ khó (`playgroundSchema` cố ý không khai: không có bài
+ * thì không có gì để dễ hay khó), nên lane BE2 đã GỠ `difficulty` khỏi input
+ * của nó. Bản trước NHẬN rồi PHỚT LỜ tham số ấy, để form lọc dùng chung một
+ * component mà không phải rẽ nhánh — tức đổi một lời nói dối trong API lấy một
+ * câu `if` ở FE. Người dùng chọn "Nâng cao", nhận nguyên danh sách cũ, không
+ * lỗi, không dấu hiệu, và kết luận bộ lọc hỏng.
+ *
+ * `.strict()` nay trả 400 `unrecognized_keys`, đúng cách `paths.list` và
+ * `quiz.list` từ chối bộ lọc chúng không đáp ứng được. `playgrounds-client.tsx`
+ * đã chỉ gửi `fields={['tier']}` nên không màn hình nào vỡ.
+ */
+const FILTERABLE = ['lessons.list', 'labs.list'] as const;
+const TIER_ONLY = ['playgrounds.list'] as const;
 const CURSOR_ONLY = ['paths.list', 'quiz.list'] as const;
 
 describe('buildCatalogListInput — hình dạng gửi lên khớp schema server', () => {
@@ -61,7 +76,24 @@ describe('buildCatalogListInput — hình dạng gửi lên khớp schema server
     expect(inputSchemaOf(path).safeParse({ difficulty: 'all' }).success).toBe(false);
   });
 
-  it.each([...FILTERABLE, ...CURSOR_ONLY])('%s: `direction` bị TỪ CHỐI — bẫy useInfiniteQuery', (path) => {
+  it.each(TIER_ONLY)('%s chỉ nhận tier — `difficulty` bị TỪ CHỐI, không im lặng bỏ qua', (path) => {
+    // Đối chứng dương: `tier` một mình PHẢI qua, nếu không thì khẳng định dưới
+    // chỉ chứng minh schema từ chối tất cả chứ không chứng minh nó từ chối ĐÚNG
+    // `difficulty`.
+    expect(inputSchemaOf(path).safeParse({ tier: 'gvisor' }).success).toBe(true);
+    expect(inputSchemaOf(path).safeParse({ difficulty: 'intermediate' }).success).toBe(false);
+    expect(inputSchemaOf(path).safeParse({ difficulty: 'intermediate', tier: 'gvisor' }).success).toBe(
+      false,
+    );
+  });
+
+  it.each([...FILTERABLE, ...TIER_ONLY])('%s: không lọc ⇒ key VẮNG MẶT ở mọi nhóm', (path) => {
+    expect(inputSchemaOf(path).safeParse(buildCatalogListInput(NO_FILTER, undefined)).success).toBe(
+      true,
+    );
+  });
+
+  it.each([...FILTERABLE, ...TIER_ONLY, ...CURSOR_ONLY])('%s: `direction` bị TỪ CHỐI — bẫy useInfiniteQuery', (path) => {
     // Bẫy đo được ngày 2026-08-13: `useInfiniteQuery` nhét `direction` vào input
     // và trang trắng với 400 `unrecognized_keys`, trong khi e2e mức API xanh
     // 14/14. Giữ phép đo này để lần sau ai đó "sửa" bằng cách nới schema thì
