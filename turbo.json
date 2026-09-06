@@ -47,7 +47,9 @@
         "GRPC_TLS_CERT_FILE",
         "GRPC_TLS_KEY_FILE",
         "GRPC_TLS_CA_FILE",
-        "GRPC_TLS_SERVER_NAME"
+        "GRPC_TLS_SERVER_NAME",
+        "ORCHESTRATOR_METRICS_URL",
+        "GATEWAY_METRICS_URL"
       ]
     }
   }
