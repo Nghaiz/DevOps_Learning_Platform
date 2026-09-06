@@ -9,6 +9,11 @@
 # SNAT/rate-limit làm hỏng phép đo. Cần NODE_EXTRA_CA_CERTS trỏ tới CA lab để WS
 # qua ingress verify được TLS.
 #
+# ⛔ KHÔNG DÙNG CHO LƯỢT ≥2h. Port-forward chết theo phiên ssh/kubectl, nên một
+# lượt dài sẽ mất metric giữa chừng mà soak vẫn chạy tiếp — cho ra file jsonl
+# đầy `null` ở đúng nửa sau, tức đúng nửa quan trọng. Lượt dài dùng
+# `soak-vm-detached.sh` (chạy trên VM, scrape thẳng pod-IP, tách rời ssh).
+#
 # Dùng:
 #   NODE_EXTRA_CA_CERTS=/path/lab-ca.crt WS_TLS_STRICT=1 \
 #     bash infra/k6/soak-run.sh --n 10 --hours 2

@@ -1,6 +1,14 @@
 /**
  * analyze-soak.mjs — kết luận độ PHẲNG của 4 đại lượng rò rỉ (P12/12.D).
  *
+ * ⛔ HIỆN VẬT CỦA LƯỢT 2h — ĐỪNG SỬA, ĐỪNG DÙNG CHO LƯỢT MỚI.
+ * Nó ghim cứng tên file `12d-soak.jsonl` và ở lại đây như bằng chứng của
+ * report ngày 2026-09-05. Công cụ SỐNG là `infra/k6/analyze-soak.mjs`:
+ * nhận đường dẫn làm tham số, và thêm ba phép đọc mà bản này thiếu —
+ * tách NỬA ĐẦU/NỬA SAU (phân biệt plateau với rò rỉ chậm), phát hiện
+ * KHOẢNG TRỐNG mẫu (VM ngủ), phát hiện TỤT ĐỘT NGỘT (pod restart reset
+ * gauge). Bản mới tái tạo đúng cả bảy con số của bản này trên cùng dữ liệu.
+ *
  * ⛔ CHỈ XÉT CỬA SỔ CÓ ĐỦ WS SỐNG. Một mẫu lấy lúc WS đã rụng thì "phẳng" chỉ
  * nói "không còn gì kết nối" — đúng lớp green-that-proves-nothing. Cửa sổ hợp lệ
  * = các mẫu có `wsActive == max(wsActive)`; hai mẫu cuối (phiên chạm hard-cap

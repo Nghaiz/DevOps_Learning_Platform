@@ -78,7 +78,7 @@ const GW_GAUGES = [...GAUGES, 'dlp_gateway_ws_active'];
 async function sample() {
   const orch = await scrape(ORCH, [...GAUGES, 'dlp_pool_claimed_size', 'dlp_pool_free_size']);
   const gw = await Promise.all(GW.map((u, i) => scrape(u, GW_GAUGES).then((v) => [`gw${i}`, v])));
-  const row = { ts: new Date().toISOString(), t: Date.now(), orch, ...Object.fromEntries(gw) };
+  const row = { ts: new Date().toISOString(), t: Date.now(), wsMucTieu: mucTieuWs, moLai: soLanMoLai, orch, ...Object.fromEntries(gw) };
   appendFileSync(JSONL, JSON.stringify(row) + '\n');
   const wsActive = Object.keys(row).filter((k) => k.startsWith('gw'))
     .reduce((s2, k) => s2 + (row[k]?.dlp_gateway_ws_active ?? 0), 0);
@@ -113,18 +113,65 @@ function mergeCookies(jar, setC) {
   return out;
 }
 
+// `sessions` là các Ô THEO CHỈ SỐ, không phải danh sách đẩy vào. Lượt mở lại
+// phải trả đúng ô của user đó — dùng push thì sau vài lượt churn, chỉ số i và
+// user không còn khớp nhau và log "phiên 3" nói về một người khác.
 const sessions = [];
 // Số WS kỳ vọng còn sống; chỉ bật kiểm sau khi đã mở xong (trước đó = 0 là đúng).
 let mucTieuWs = 0;
 let moPhien = false;
+let soLanMoLai = 0;
+const maDong = [];
 async function openOne(i) {
   let jar = users[i].cookie;
   const { data, setCookie } = await trpc(jar, 'lessons.startSession',
     { scenarioId: SCENARIO, idempotencyKey: `soak-${i}-${Date.now()}` });
   jar = mergeCookies(jar, setCookie);
   const term = await openTerminal({ base: BASE, sessionId: data.session.id, cookie: jar, origin: ORIGIN });
-  sessions.push({ i, sessionId: data.session.id, term, jar });
+  const s = { i, sessionId: data.session.id, term, jar, song: true };
+  sessions[i] = s;
+
+  // Timeout PHẢI dài hơn cả lượt soak: `waitClose` mặc định 120s và trả
+  // `code:'TIMEOUT'` khi hết giờ — dùng mặc định thì mọi phiên còn sống bị đánh
+  // dấu chết sau 2 phút, và vòng mở-lại sẽ churn liên tục một hệ hoàn toàn lành.
+  void term.waitClose(HOURS * 3600_000 + 900_000).then((info) => {
+    s.song = false;
+    maDong.push({ i, code: info?.code ?? null, reason: String(info?.reason ?? ''), t: Date.now() });
+    log(`phiên ${i} đóng: code=${info?.code} reason="${String(info?.reason ?? '').slice(0, 60)}"`);
+  });
   return data.session.id;
+}
+
+// ⛔ VÌ SAO SOAK DÀI HƠN 2h BẮT BUỘC PHẢI CÓ HÀM NÀY.
+//
+// `hardCap` của orchestrator là **2h** và nó KHÔNG gia hạn được. Một lượt soak
+// 4h vì thế mất SẠCH phiên ở đúng mốc giữa: từ đó `dlp_gateway_ws_active` về 0
+// và hai giờ còn lại đo một hệ KHÔNG CÓ TẢI. Bốn đại lượng sẽ phẳng tuyệt đối,
+// và "phẳng" ấy chỉ nói "không còn gì kết nối" — đúng lớp bẫy đã làm hỏng lượt
+// soak đầu tiên của 12.D, chỉ khác nguyên nhân.
+//
+// Sửa ở HARNESS chứ không nâng `hardCap` của cụm: nâng hard-cap là đổi cấu hình
+// production cho một phép đo, rồi phải nhớ trả lại — thứ mà một lượt chạy đêm
+// không nên phụ thuộc vào. Mở lại phiên cũng gần với thực tế hơn: một lớp học 4
+// tiếng vốn dĩ là nhiều phiên nối nhau, không phải một phiên bất tử.
+//
+// ⚠ ĐÁNH ĐỔI PHẢI KHAI: churn ở mốc 2h là một BIẾN MỚI so với lượt 2h (vốn
+// không churn). Nên phần phân tích phải đọc cả hai nửa RIÊNG, đừng chỉ đọc một
+// con dốc trải suốt 4h.
+async function moLai() {
+  if (!moPhien) return;
+  for (let i = 0; i < N; i += 1) {
+    const s = sessions[i];
+    if (s && s.song) continue;
+    if (s) {
+      try { s.term.close(); } catch { /* đã đóng */ }
+      try { await trpc(s.jar, 'lessons.endSession', { sessionId: s.sessionId }); } catch { /* phiên có thể đã bị reap */ }
+    }
+    sessions[i] = null;
+    try { await openOne(i); soLanMoLai += 1; log(`mở lại phiên ${i} (lần thứ ${soLanMoLai})`); }
+    catch (e) { log(`mở lại phiên ${i} THẤT BẠI: ${String(e.message).slice(0, 90)}`); }
+    await new Promise((r) => setTimeout(r, 500));
+  }
 }
 
 const ALPHA = 'abcdefghijklmnopqrstuvwxyz';
@@ -132,6 +179,7 @@ let typeSeq = 0;
 async function typeRound() {
   const ch = ALPHA[typeSeq++ % ALPHA.length];
   for (const s of sessions) {
+    if (!s || !s.song) continue;
     try { s.term.send(Buffer.from(ch, 'utf8'), 0x2); } catch { /* socket có thể đã rớt */ }
   }
 }
@@ -139,6 +187,7 @@ async function typeRound() {
 async function cleanup() {
   log('dọn phiên…');
   for (const s of sessions) {
+    if (!s) continue;
     try { s.term.close(); } catch { /* rồi */ }
     try { await trpc(s.jar, 'lessons.endSession', { sessionId: s.sessionId }); } catch { /* rồi */ }
   }
@@ -162,14 +211,19 @@ async function main() {
   const deadline = Date.now() + HOURS * 3600_000;
   const sampler = setInterval(() => { void sample(); }, SAMPLE_MS);
   const typer = setInterval(() => { void typeRound(); }, TYPE_MS);
+  // Nhịp 60s: đủ nhanh để cửa sổ "WS chết" không nuốt mất một mẫu nào đáng kể,
+  // đủ chậm để không đấm rate-limit khi cả 10 phiên chạm hard-cap CÙNG LÚC.
+  const boSung = setInterval(() => { void moLai(); }, 60_000);
 
   const stop = async () => {
-    clearInterval(sampler); clearInterval(typer);
+    clearInterval(sampler); clearInterval(typer); clearInterval(boSung);
     const cuoi = await sample(); // mốc SAU
     if (moPhien && cuoi.wsActive < mucTieuWs) {
       log(`⛔ KHÔNG KẾT LUẬN ĐƯỢC ĐỘ PHẲNG: WS sống ${cuoi.wsActive}/${mucTieuWs} lúc kết thúc.`);
       log('   Bốn đại lượng có thể phẳng chỉ vì kết nối đã rụng, không phải vì không rò rỉ.');
     }
+    log(`mở lại tổng cộng ${soLanMoLai} lượt; mã đóng đã thấy: ` +
+      (maDong.length ? [...new Set(maDong.map((m) => String(m.code)))].join(',') : 'không có'));
     await cleanup();
     log('xong.');
     process.exit(0);
