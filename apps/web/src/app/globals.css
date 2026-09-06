@@ -51,8 +51,33 @@
   --warning: oklch(0.541 0.15 55.98);
   --warning-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  /*
+   * ⚠ KHÔNG bằng `--border`, dù shadcn/ui gốc để hai cái giống nhau. `--input`
+   * là RANH GIỚI NHẬN DẠNG của control (`border-input` ở input.tsx,
+   * textarea.tsx, select.tsx, checkbox.tsx, radio-group.tsx, Button
+   * variant="outline"; `bg-input` là rãnh Switch lúc tắt) — WCAG 2.1 SC 1.4.11
+   * Non-text Contrast đòi 3:1 cho đúng thứ đó. Giá trị cũ `0.922` = #e5e5e5
+   * cho **1.26:1** trên nền trắng: ô nhập trên trang sáng gần như VÔ HÌNH cho
+   * tới khi được focus.
+   *
+   * Nó không tự lộ ra: axe-core KHÔNG có rule nào đo contrast của viền (chỉ đo
+   * chữ), nên cổng axe của 13.H sẽ xanh trên đúng lỗi này. Số đo phải tính tay
+   * — `packages/ui/src/theme/tokens.contract.test.ts` giữ phép đo đó lại.
+   *
+   * `0.63` = #898989 → 3.50:1 trên `--background` trắng (dư ~0.5 so với ngưỡng
+   * 3.0 để sai số chuyển oklch→sRGB giữa các trình duyệt không kéo tụt xuống
+   * dưới). Nhánh `.dark` giữ nguyên 16%: nó đã cho 4.01:1 trên `--background`
+   * và 3.71:1 trên `--card` — đạt sẵn, không cần đụng.
+   */
+  --input: oklch(0.63 0 0);
   --ring: oklch(0.546 0.215 262.881);
+  /*
+   * `--radius` CỐ Ý chỉ khai ở `:root`, không lặp trong `.dark` — nó là số đo
+   * hình học, không phải màu, và không đổi theo theme. `.dark` đặt trên
+   * `<html>` nên `:root` vẫn khớp cùng phần tử: giá trị này luôn phân giải
+   * được ở cả hai theme. Lặp lại nó ở `.dark` sẽ tạo ĐÚNG một nguy cơ mới —
+   * sửa một chỗ quên chỗ kia — để đổi lấy con số không.
+   */
   --radius: 0.625rem;
 }
 

@@ -52,12 +52,62 @@ Tên biến CSS = tên trong hợp đồng C1, không đổi được mà không
 | `--warning` | `bg-warning` | Cảnh báo (chạm hardCap, sức chứa thấp) | `0.541 0.15 55.98` (hổ phách) | `0.769 0.188 70.08` |
 | `--warning-foreground` | `text-warning-foreground` | Chữ trên nền warning | `0.985 0 0` | `0.145 0 0` |
 | `--border` | `border-border` | Viền mặc định | `0.922 0 0` | `1 0 0 / 12%` |
-| `--input` | `border-input`, `bg-input` (Switch off) | Viền ô nhập, nền Switch tắt | `0.922 0 0` | `1 0 0 / 16%` |
+| `--input` | `border-input`, `bg-input` (Switch off) | Viền ô nhập, nền Switch tắt | `0.63 0 0` (**không** bằng `--border` — xem §1a) | `1 0 0 / 16%` |
 | `--ring` | `ring-ring`, `focus-visible:ring-ring` | Vòng focus | `0.546 0.215 262.881` (= primary) | `0.685 0.169 262.881` (= primary tối) |
 | `--radius` | `rounded-lg` (= `--radius-lg`) | Bo góc gốc | `0.625rem` | (không đổi theo theme) |
 
 `--radius-sm`/`--radius-md`/`--radius-lg`/`--radius-xl` suy ra từ `--radius` trong
 `@theme inline` (`calc(var(--radius) ± Npx)`) — KHÔNG khai lại số cứng ở component.
+
+`--radius` **cố ý chỉ khai ở `:root`**, không lặp ở `.dark`: nó là số đo hình học,
+không phải màu, và `.dark` nằm trên `<html>` nên `:root` vẫn khớp cùng phần tử —
+giá trị luôn phân giải được ở cả hai theme. Lặp lại nó chỉ tạo thêm một chỗ để
+quên đồng bộ. Đây là điểm lệch DUY NHẤT so với câu "`:root` và `.dark` đều định
+nghĩa đủ" của hợp đồng C1, và nó được gác bằng một test tường minh
+(`tokens.contract.test.ts` → "`--radius` khai ở :root (CỐ Ý không lặp ở .dark)").
+
+### 1a. Contrast — số đo, không phải cảm nhận
+
+Mọi con số dưới đây tính từ chính `globals.css` bằng `tokens.contract.test.ts`
+(oklch → sRGB tuyến tính → độ chói tương đối WCAG 2.1), và được **gác lại** ở
+đó: hạ một token xuống dưới ngưỡng làm suite `packages/ui` đỏ.
+
+**Vì sao phải đo tay.** `axe-core` — cổng a11y của 13.H — chỉ có rule contrast
+cho **chữ**. Nó không có rule nào cho viền hay ranh giới control, nên
+SC 1.4.11 hoặc được đo ở đây, hoặc không ở đâu cả. Một cổng axe xanh **không**
+chứng minh viền đủ tương phản.
+
+| Cặp | Ngưỡng | Sáng | Tối |
+|---|---|---|---|
+| `--foreground` / `--background` | 4.5 (SC 1.4.3) | 19.79 | 18.96 |
+| `--muted-foreground` / `--background` | 4.5 | 7.57 | 7.63 |
+| `--muted-foreground` / `--muted` | 4.5 | 6.94 | 5.83 |
+| `--primary-foreground` / `--primary` | 4.5 | 4.95 | 6.85 |
+| `--destructive-foreground` / `--destructive` | 4.5 | 4.56 | 6.84 |
+| `--success-foreground` / `--success` | 4.5 | 4.95 | 7.82 |
+| `--warning-foreground` / `--warning` | 4.5 | 5.06 | 9.23 |
+| `--input` / `--background` | 3.0 (SC 1.4.11) | **3.50** | 4.01 |
+| `--ring` / `--background` | 3.0 | 5.17 | 6.85 |
+| `--border` / `--background` | — (trang trí) | **1.26** | 3.26 |
+
+**`--input` ≠ `--border`, khác với shadcn/ui gốc.** shadcn để hai token bằng
+nhau ở `0.922`; giá trị đó cho **1.26:1** trên nền trắng. `--input` là ranh
+giới **nhận dạng** của control — `border-input` là viền duy nhất của `Input`,
+`Textarea`, `SelectTrigger`, `Checkbox`, `RadioGroupItem` và `Button
+variant="outline"` (cả sáu đều `bg-background`, tức cùng màu nền trang), còn
+`bg-input` là rãnh `Switch` lúc tắt. Ở 1.26:1 một ô nhập trên trang sáng gần
+như **vô hình** cho tới khi được focus. Nâng lên `0.63` (#898989) cho 3.50:1,
+dư ~0.5 so với ngưỡng để sai số chuyển oklch→sRGB giữa các trình duyệt không
+kéo tụt xuống dưới. Nhánh tối giữ nguyên `1 0 0 / 16%` — đã 4.01:1, không cần
+đụng.
+
+**`--border` ở 1.26:1 là quyết định, không phải chỗ bỏ sót.** Nó chỉ vẽ ranh
+giới **trang trí**: viền card, kẻ dòng bảng, viền đứt `EmptyState`, `Separator`
+(mặc định `decorative`, tức `role="none"`). SC 1.4.11 loại trừ tường minh phần
+trang trí thuần và phần không mang thông tin — nội dung trong card, không phải
+đường kẻ quanh nó, mới là thứ người dùng cần đọc. Ranh giới nào **nhận dạng
+một control** thì dùng `--input`, không dùng `--border`. Thêm một component
+tương tác mà lấy `border-border` làm viền duy nhất ⇒ đổi sang `border-input`.
 
 **`--success`/`--warning` KHÔNG có trong bảng chuẩn shadcn/ui** (bản gốc chỉ có
 `destructive`) — thêm hai token này vì sản phẩm cần phân biệt "đạt/thành công"
