@@ -3,36 +3,82 @@
 import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
-import { Button, Card, CardDescription, CardTitle, ContentView, SplitPane } from '@devops-platform/ui';
-import { TerminalPane } from '../../../components/session';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  CardDescription,
+  CardTitle,
+  Checkbox,
+  ContentView,
+  ErrorState,
+  Label,
+  Skeleton,
+  SplitPane,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  type BadgeVariant,
+} from '@devops-platform/ui';
+import { SessionControls, TerminalPane, useResolvedTerminalTheme } from '../../../components/session';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { useLabSession } from './use-lab-session';
 import { CheckResultPanel, type CheckOutcome } from '../../lessons/[id]/check-result-panel';
-import { buildTaskDisplays, uncheckedTaskCount, type TaskCheckState } from './task-status';
+import { summarizeLabScore } from './score-summary';
+import type { TaskCheckState, TaskDisplay } from './task-status';
 
-const SESSION_PHASE_LABEL: Record<string, string> = {
-  idle: 'Chưa có phiên',
-  creating: 'Đang tạo phiên…',
-  connecting: 'Đang kết nối…',
-  ready: 'Sandbox sẵn sàng',
-  reconnecting: 'Mất kết nối — đang thử lại…',
-  exited: 'Shell đã thoát',
-  expired: 'Phiên đã kết thúc',
-  error: 'Lỗi',
-};
+/**
+ * Trình học LAB (13.D task 13) — bảng nhiệm vụ cạnh terminal, chấm từng nhiệm
+ * vụ, trạng thái từng nhiệm vụ, điểm tổng **tính lúc hiển thị**.
+ *
+ * Ba thứ ở file này là hợp đồng, không phải lựa chọn giao diện:
+ *
+ * 1. **Khung phiên là của C5** (`components/session`, item 16). Bắt đầu / Kết
+ *    thúc / Thêm giờ, đồng hồ TTL, cảnh báo `hardCap`, câu lý do phiên chết,
+ *    "còn N chỗ" — tất cả sống ở `SessionControls`. Trước đây trang này chép
+ *    tay cả khối đó và bản chép đã lệch: nó thiếu tooltip giải thích vì sao nút
+ *    "Thêm giờ" bị khoá, nên người học chỉ thấy một nút chết.
+ * 2. **Không có máy trạng thái thứ hai quanh WebSocket.** Vòng đời phiên sống ở
+ *    `session-machine.ts` (`packages/terminal`) đi qua `useSandboxSession` →
+ *    `useLabSession`. Đây là hàng rủi ro số 2 của bảng Risk P13.
+ * 3. **Mọi nhãn điểm ra từ `summarizeLabScore`** — hàm thuần có test. Xem
+ *    `score-summary.ts` để biết bẫy P2 lặp lại ở lab dưới hình dạng nào.
+ */
 
 const TASK_STATE_LABEL: Record<TaskCheckState, string> = {
-  'not-attempted': 'Chưa làm',
+  'not-attempted': 'Chưa chấm',
   passed: 'Đạt',
   failed: 'Chưa đạt',
 };
 
-const TASK_STATE_CLASS: Record<TaskCheckState, string> = {
-  'not-attempted': 'bg-slate-100 text-slate-600',
-  passed: 'bg-emerald-100 text-emerald-800',
-  failed: 'bg-amber-100 text-amber-800',
+/**
+ * `failed` dùng `warning` chứ KHÔNG dùng `destructive` — cùng lý lẽ đã ghi ở
+ * `CheckResultPanel`: một nhiệm vụ chưa đạt là kết quả bình thường của một lượt
+ * chấm, không phải lỗi hệ thống. Tô nó đỏ như lỗi làm người học đọc một bài
+ * đang làm dở thành một trang hỏng.
+ */
+const TASK_STATE_VARIANT: Record<TaskCheckState, BadgeVariant> = {
+  'not-attempted': 'secondary',
+  passed: 'success',
+  failed: 'warning',
 };
+
+const SCORE_TONE_CLASS = {
+  neutral: 'border-border bg-card',
+  success: 'border-success/30 bg-success/10',
+  warning: 'border-warning/30 bg-warning/10',
+} as const;
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -46,7 +92,23 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   const session = useLabSession(labId, userId);
   const attemptId = session.attemptId;
 
-  const [tab, setTab] = useState<'tasks' | 'leaderboard'>('tasks');
+  // Theme terminal: tuỳ chọn hồ sơ thắng, không có thì đi theo theme ứng dụng
+  // (C1/D2) — cùng khuôn `lessons/[id]`.
+  const me = api.me.get.useQuery({});
+  const terminalTheme = useResolvedTerminalTheme(me.data?.preferences.terminalTheme ?? null);
+
+  /*
+    "Còn N chỗ" (C5). CHỈ hỏi khi chưa có phiên: sau khi phiên mở, con số không
+    quyết định gì nữa và một nhịp poll 15s trên mọi tab lab đang mở là tải thừa.
+    KHÔNG lưu vào state — `SessionControls` đọc thẳng `data`, vì "chưa biết"
+    (`undefined`) khác "biết là 0" (xem `describeCapacity`).
+  */
+  const capacity = api.capacity.get.useQuery(
+    {},
+    { refetchInterval: 15_000, enabled: session.state.sessionId === null },
+  );
+
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [checkOutcomes, setCheckOutcomes] = useState<Record<string, CheckOutcome>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -78,6 +140,8 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
                 output: result.output,
               },
             }));
+            // Nạp lại lần thử: bảng trạng thái VÀ điểm tổng đều suy từ mảng
+            // `results` này, nên một lượt invalidate cập nhật cả hai cùng nhịp.
             void utils.labs.getAttempt.invalidate({ attemptId });
           },
           // ⛔ Lỗi hạ tầng (phiên hết hạn, pod bị thu hồi, apiserver trục trặc)
@@ -114,6 +178,8 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
       if (terminal === null) {
         return;
       }
+      // `exec-interrupt` = Ctrl+C rồi mới tới lệnh (contract Killercoda). Gửi
+      // `\x03` riêng chứ không nối vào chuỗi: chúng là hai sự kiện bàn phím.
       if (interrupt) {
         terminal.sendInput('\x03');
       }
@@ -124,263 +190,232 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   );
 
   if (labQuery.isPending) {
-    return <Centered>Đang tải lab…</Centered>;
+    return <LabSkeleton />;
   }
   if (labQuery.isError) {
-    return <Centered tone="error">{describeTrpcError(labQuery.error)}</Centered>;
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+        <ErrorState
+          title="Không mở được lab này"
+          message={describeTrpcError(labQuery.error)}
+          onRetry={() => void labQuery.refetch()}
+          retrying={labQuery.isFetching}
+          className="max-w-lg"
+        />
+      </div>
+    );
   }
 
   const { lab, unsupportedCapabilities } = labQuery.data;
   const attemptData = attemptQuery.data;
-  const results = attemptData?.attempt.results ?? [];
-  const taskDisplays = buildTaskDisplays(lab, results);
-  const unchecked = uncheckedTaskCount(taskDisplays);
-  const submitted = attemptData?.attempt.submittedAt !== null && attemptData !== undefined;
+
+  /*
+    Điểm + mọi nhãn ra từ MỘT lượt suy trên MỘT mảng (`score-summary.ts`).
+    `attemptData === undefined` (chưa bắt đầu lần thử nào) vẫn suy được: mảng
+    rỗng cho "0/N nhiệm vụ", đúng thứ ta biết — chứ không phải một ô trống.
+  */
+  const summary = summarizeLabScore({
+    lab,
+    results: attemptData?.attempt.results ?? [],
+    submittedAt: attemptData?.attempt.submittedAt ?? null,
+  });
+  const submitted = summary.submitted;
+
+  const selected =
+    summary.displays.find((display) => display.task.id === selectedTaskId) ?? summary.displays[0];
+
+  const taskPane = (
+    <div className="flex h-full flex-col overflow-y-auto bg-background px-4 py-4">
+      {lab.description !== null && (
+        <p className="mb-4 text-sm text-muted-foreground">{lab.description}</p>
+      )}
+
+      {/*
+        Bảng điểm — MỘT chỗ duy nhất khẳng định điểm trong cả trang. Hai chỗ
+        (một ở thanh đầu trang, một ở đây) là hai chỗ để lệch nhau giữa lúc
+        `getAttempt` đang được nạp lại.
+      */}
+      <div
+        role="status"
+        className={`mb-4 rounded-lg border px-4 py-3 ${SCORE_TONE_CLASS[summary.tone]}`}
+      >
+        <p className="text-sm font-medium text-foreground">{summary.headline}</p>
+        {summary.caveat !== null && (
+          <p className="mt-1 text-xs text-muted-foreground">{summary.caveat}</p>
+        )}
+      </div>
+
+      <TaskTable
+        displays={summary.displays}
+        weighted={summary.weighted}
+        selectedTaskId={selected?.task.id ?? null}
+        onSelect={setSelectedTaskId}
+      />
+
+      {selected !== undefined && (
+        <TaskDetail
+          display={selected}
+          outcome={checkOutcomes[selected.task.id] ?? null}
+          canCheck={attemptId !== null && !submitted}
+          disabledReason={
+            attemptId === null
+              ? 'Hãy bấm Bắt đầu ở trên để dựng sandbox trước khi chấm.'
+              : submitted
+                ? 'Lần thử này đã nộp — không chấm lại được. Bấm Bắt đầu để mở lần thử mới.'
+                : null
+          }
+          onCheck={() => {
+            onCheckTask(selected.task.id);
+          }}
+          onExec={onExec}
+          execEnabled={session.terminal !== null}
+        />
+      )}
+
+      {attemptId !== null && !submitted && (
+        <div className="mt-6 border-t border-border pt-4">
+          {submitError !== null && (
+            <Alert variant="destructive" className="mb-3">
+              <AlertDescription className="text-foreground">{submitError}</AlertDescription>
+            </Alert>
+          )}
+          <Button onClick={onSubmit} loading={submit.isPending}>
+            Nộp bài
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Nộp bài chốt điểm từ các lượt chấm đã có — nó KHÔNG chạy lại lượt chấm nào.
+          </p>
+        </div>
+      )}
+
+      {submitted && attemptData !== undefined && (
+        <Card className="mt-6">
+          <CardTitle>{summary.headline}</CardTitle>
+          <CardDescription>
+            {attemptData.durationSeconds !== null
+              ? `Thời gian làm bài: ${formatDuration(attemptData.durationSeconds)}.`
+              : 'Chưa tính được thời gian làm bài cho lần thử này.'}
+          </CardDescription>
+          {lab.leaderboard && (
+            <div className="mt-4 flex items-center gap-2">
+              <Checkbox
+                id="dlp-lab-leaderboard-optin"
+                checked={attemptData.attempt.displayNamePublic}
+                disabled={setDisplayPreference.isPending}
+                onCheckedChange={(next) => {
+                  const attempt = attemptId;
+                  if (attempt === null) {
+                    return;
+                  }
+                  setDisplayPreference.mutate(
+                    { attemptId: attempt, displayNamePublic: next === true },
+                    {
+                      onSuccess: () =>
+                        void utils.labs.getAttempt.invalidate({ attemptId: attempt }),
+                    },
+                  );
+                }}
+              />
+              <Label htmlFor="dlp-lab-leaderboard-optin" className="font-normal">
+                Hiện tên tôi trên bảng xếp hạng (mặc định ẨN DANH)
+              </Label>
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
 
   // Gốc trang KHÔNG mang `h-screen`/`min-h-screen`: vỏ ứng dụng đã dựng
   // `<main class="flex min-h-0 flex-1 flex-col">` BÊN DƯỚI một thanh đầu trang,
   // nên 100vh ở đây cao hơn phần còn lại đúng bằng chiều cao thanh đó và đẻ ra
-  // một thanh cuộn thừa trên mọi trang có terminal. `flex-1 min-h-0` lấy đúng
-  // phần còn lại — không con số nào phải khớp tay với chiều cao thanh đầu trang.
+  // một thanh cuộn thừa trên mọi trang có terminal. Và KHÔNG có `<main>` ở đây:
+  // vỏ sở hữu landmark đó (C6bis) — hai `<main>` lồng nhau làm axe của 13.H đỏ.
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-white">
-      <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-2">
-        <Link href="/labs" className="text-sm text-slate-500 hover:text-slate-900">
+    <div className="flex min-h-0 flex-1 flex-col bg-background text-foreground">
+      <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
+        <Link href="/labs" className="text-sm text-muted-foreground hover:text-foreground">
           ← Lab
         </Link>
         <h1 className="text-sm font-semibold">{lab.title}</h1>
 
-        {attemptData !== undefined && (
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs ${
-              attemptData.status === 'passed'
-                ? 'bg-emerald-100 text-emerald-800'
-                : attemptData.status === 'failed'
-                  ? 'bg-red-100 text-red-800'
-                  : 'bg-slate-100 text-slate-600'
-            }`}
-          >
-            {attemptData.score.percent}% —{' '}
-            {attemptData.status === 'passed'
-              ? 'Đạt'
-              : attemptData.status === 'failed'
-                ? 'Chưa đạt'
-                : 'Đang làm'}
-          </span>
-        )}
-
-        <div className="ml-auto flex items-center gap-2">
-          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-            {SESSION_PHASE_LABEL[session.state.phase] ?? session.state.phase}
-          </span>
-          {session.state.message !== null && (
-            <span
-              role="status"
-              className={
-                session.state.phase === 'error' || session.state.phase === 'expired'
-                  ? 'text-xs text-red-700'
-                  : 'text-xs text-slate-500'
-              }
-            >
-              {session.state.message}
-            </span>
-          )}
-          {session.state.sessionId === null && (
-            <Button onClick={session.start} disabled={session.starting}>
-              {session.starting ? 'Đang tạo phiên…' : 'Bắt đầu'}
-            </Button>
-          )}
-          {session.state.sessionId !== null &&
-            session.remainingMs !== null &&
-            session.remainingMs < 10 * 60_000 && (
-              <>
-                <span
-                  className={
-                    session.remainingMs < 2 * 60_000
-                      ? 'text-xs font-semibold text-red-700'
-                      : 'text-xs text-amber-700'
-                  }
-                >
-                  Còn {Math.ceil(session.remainingMs / 60_000)} phút
-                </span>
-                <Button
-                  variant="secondary"
-                  onClick={session.extend}
-                  disabled={session.extending || session.state.hardCapReached}
-                  title={
-                    session.state.hardCapReached
-                      ? 'Đã dùng hết thời lượng tối đa cho phiên này — hãy kết thúc và mở lần thử mới.'
-                      : undefined
-                  }
-                >
-                  {session.extending ? 'Đang thêm giờ…' : 'Thêm giờ'}
-                </Button>
-              </>
-            )}
-          {session.state.sessionId !== null && (
-            <Button variant="secondary" onClick={session.end} disabled={session.ending}>
-              {session.ending ? 'Đang kết thúc…' : 'Kết thúc phiên'}
-            </Button>
-          )}
+        <div className="ml-auto">
+          <SessionControls
+            session={session}
+            actions={{ start: session.start, end: session.end, extend: session.extend }}
+            capacity={capacity.data ?? null}
+            startLabel={attemptId === null ? 'Bắt đầu' : 'Làm lại'}
+          />
         </div>
       </header>
 
+      {/*
+        Cảnh báo năng lực — BẮT BUỘC hiện (2.B §2.2). Bỏ nó đi thì người học mở
+        một lab CKAD và gặp `kubectl: command not found` mà không có lời giải
+        thích nào, và một đánh đổi đã cân nhắc trở thành một lỗi im lặng.
+      */}
       {unsupportedCapabilities.length > 0 && (
-        <div
-          role="alert"
-          className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"
-        >
-          Lab này cần <strong>{unsupportedCapabilities.join(', ')}</strong> — nền tảng chưa chạy
-          được những năng lực đó, nên một số lệnh trong lab sẽ báo lỗi. Bạn vẫn mở được để đọc
-          nội dung.
-        </div>
+        <Alert variant="warning" className="rounded-none border-x-0 border-t-0">
+          <AlertDescription className="text-foreground">
+            Lab này cần <strong>{unsupportedCapabilities.join(', ')}</strong> — nền tảng chưa chạy
+            được những năng lực đó, nên một số lệnh trong lab sẽ báo lỗi. Bạn vẫn mở được để đọc
+            nội dung và làm các nhiệm vụ còn lại.
+          </AlertDescription>
+        </Alert>
       )}
 
       {session.startError !== null && (
-        <div role="alert" className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
-          {session.startError}
-        </div>
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
+          <AlertDescription className="text-foreground">{session.startError}</AlertDescription>
+        </Alert>
       )}
 
-      <div className="border-b border-slate-200 px-4 py-2">
-        <div className="flex gap-2">
-          <TabButton active={tab === 'tasks'} onClick={() => setTab('tasks')}>
-            Nhiệm vụ ({lab.tasks.length})
-          </TabButton>
-          {lab.leaderboard && (
-            <TabButton active={tab === 'leaderboard'} onClick={() => setTab('leaderboard')}>
-              Bảng xếp hạng
-            </TabButton>
-          )}
-        </div>
-      </div>
+      {attemptQuery.isError && (
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
+          <AlertDescription className="flex flex-wrap items-center gap-3 text-foreground">
+            <span>
+              Không đọc được kết quả lần thử này: {describeTrpcError(attemptQuery.error)} — bảng
+              nhiệm vụ bên dưới đang hiện trạng thái cũ.
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void attemptQuery.refetch()}
+              loading={attemptQuery.isFetching}
+            >
+              Tải lại
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="min-h-0 flex-1">
         <SplitPane
           storageKey="dlp-lab-split"
           left={
-            tab === 'leaderboard' ? (
-              <LeaderboardPanel labId={labId} />
+            lab.leaderboard ? (
+              <Tabs defaultValue="tasks" className="flex h-full flex-col">
+                <div className="border-b border-border bg-card px-4 py-2">
+                  <TabsList>
+                    <TabsTrigger value="tasks">Nhiệm vụ ({lab.tasks.length})</TabsTrigger>
+                    <TabsTrigger value="leaderboard">Bảng xếp hạng</TabsTrigger>
+                  </TabsList>
+                </div>
+                <TabsContent value="tasks" className="mt-0 min-h-0 flex-1">
+                  {taskPane}
+                </TabsContent>
+                <TabsContent value="leaderboard" className="mt-0 min-h-0 flex-1 overflow-y-auto">
+                  <LeaderboardPanel labId={labId} />
+                </TabsContent>
+              </Tabs>
             ) : (
-              <div className="flex h-full flex-col overflow-y-auto px-4 py-4">
-                {lab.description !== null && (
-                  <p className="mb-4 text-sm text-slate-600">{lab.description}</p>
-                )}
-
-                <ul className="flex flex-col gap-3">
-                  {taskDisplays.map(({ task, state, lastExitCode }) => (
-                    <li key={task.id}>
-                      <details className="rounded-lg border border-slate-200 bg-white" open>
-                        <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">
-                          <span>{task.title}</span>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${TASK_STATE_CLASS[state]}`}
-                          >
-                            {TASK_STATE_LABEL[state]}
-                          </span>
-                        </summary>
-                        <div className="border-t border-slate-200 px-4 py-3">
-                          <ContentView
-                            blocks={parseContentBlocks(task.markdown)}
-                            resolveAssetUrl={() => null}
-                            onExec={onExec}
-                            execEnabled={session.terminal !== null}
-                          />
-                          {task.hint !== null && (
-                            <details className="mt-3 text-xs text-slate-500">
-                              <summary className="cursor-pointer font-medium">Gợi ý</summary>
-                              <p className="mt-1">{task.hint}</p>
-                            </details>
-                          )}
-                          <div className="mt-3 flex flex-wrap items-center gap-3">
-                            <Button
-                              variant="secondary"
-                              onClick={() => onCheckTask(task.id)}
-                              disabled={
-                                attemptId === null ||
-                                submitted ||
-                                checkOutcomes[task.id]?.kind === 'running'
-                              }
-                              title={
-                                attemptId === null
-                                  ? 'Hãy bắt đầu phiên trước'
-                                  : submitted
-                                    ? 'Lần thử này đã nộp — không chấm lại được'
-                                    : undefined
-                              }
-                            >
-                              {checkOutcomes[task.id]?.kind === 'running' ? 'Đang chấm…' : 'Chấm'}
-                            </Button>
-                            {lastExitCode !== null && checkOutcomes[task.id] === undefined && (
-                              <span className="text-xs text-slate-500">
-                                Lần chấm gần nhất: exit {lastExitCode}
-                              </span>
-                            )}
-                          </div>
-                          <CheckResultPanel outcome={checkOutcomes[task.id] ?? null} />
-                        </div>
-                      </details>
-                    </li>
-                  ))}
-                </ul>
-
-                {attemptId !== null && !submitted && (
-                  <div className="mt-4 border-t border-slate-200 pt-4">
-                    {unchecked > 0 && (
-                      <p role="status" className="mb-2 text-xs text-amber-700">
-                        Còn {unchecked} nhiệm vụ chưa được chấm lần nào — nếu nộp bây giờ, các
-                        nhiệm vụ đó tính là chưa đạt.
-                      </p>
-                    )}
-                    {submitError !== null && (
-                      <p role="alert" className="mb-2 text-xs text-red-700">
-                        {submitError}
-                      </p>
-                    )}
-                    <Button onClick={onSubmit} disabled={submit.isPending}>
-                      {submit.isPending ? 'Đang nộp…' : 'Nộp bài'}
-                    </Button>
-                  </div>
-                )}
-
-                {submitted && attemptData !== undefined && (
-                  <Card className="mt-4">
-                    <CardTitle>
-                      {attemptData.status === 'passed' ? 'Đạt' : 'Chưa đạt'} —{' '}
-                      {attemptData.score.percent}% (mốc {lab.passThresholdPercent}%)
-                    </CardTitle>
-                    <CardDescription>
-                      {attemptData.durationSeconds !== null &&
-                        `Thời gian làm bài: ${formatDuration(attemptData.durationSeconds)}.`}
-                    </CardDescription>
-                    {lab.leaderboard && (
-                      <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={attemptData.attempt.displayNamePublic}
-                          disabled={setDisplayPreference.isPending}
-                          onChange={(event) => {
-                            const attempt = attemptId;
-                            if (attempt === null) {
-                              return;
-                            }
-                            setDisplayPreference.mutate(
-                              { attemptId: attempt, displayNamePublic: event.target.checked },
-                              { onSuccess: () => void utils.labs.getAttempt.invalidate({ attemptId: attempt }) },
-                            );
-                          }}
-                        />
-                        Hiện tên tôi trên bảng xếp hạng (mặc định ẨN DANH)
-                      </label>
-                    )}
-                  </Card>
-                )}
-              </div>
+              taskPane
             )
           }
           right={
             <TerminalPane
               session={session}
+              theme={terminalTheme}
               placeholder={
                 <span>
                   Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng sandbox
@@ -395,92 +430,214 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   );
 }
 
+/**
+ * Bảng nhiệm vụ (task 13: *"bảng task bên cạnh terminal"*).
+ *
+ * Ô tiêu đề là một `<button>` thật chứ không phải `onClick` trên `<tr>`: một
+ * hàng bấm được mà không focus được là một hàng người dùng bàn phím không mở
+ * được, và đó là một ô AC của 13.H chứ không phải một chi tiết đẹp-xấu.
+ */
+function TaskTable({
+  displays,
+  weighted,
+  selectedTaskId,
+  onSelect,
+}: {
+  displays: readonly TaskDisplay[];
+  weighted: boolean;
+  selectedTaskId: string | null;
+  onSelect: (taskId: string) => void;
+}): React.ReactElement {
+  return (
+    <Table>
+      <TableCaption>Bấm một nhiệm vụ để đọc đề và chấm riêng nhiệm vụ đó.</TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-10">#</TableHead>
+          <TableHead>Nhiệm vụ</TableHead>
+          {/* Cột trọng số chỉ hiện khi nó THÊM thông tin — xem `score-summary.ts`. */}
+          {weighted && <TableHead className="w-24 text-right">Trọng số</TableHead>}
+          <TableHead className="w-28">Trạng thái</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {displays.map((display, index) => {
+          const isSelected = display.task.id === selectedTaskId;
+          return (
+            <TableRow key={display.task.id} className={isSelected ? 'bg-muted' : undefined}>
+              <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+              <TableCell>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelect(display.task.id);
+                  }}
+                  aria-current={isSelected ? 'true' : undefined}
+                  className="w-full rounded text-left text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                >
+                  {display.task.title}
+                </button>
+              </TableCell>
+              {weighted && (
+                <TableCell className="text-right text-muted-foreground">
+                  {display.task.weight}
+                </TableCell>
+              )}
+              <TableCell>
+                <Badge variant={TASK_STATE_VARIANT[display.state]}>
+                  {TASK_STATE_LABEL[display.state]}
+                </Badge>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+}
+
+/** Đề bài + gợi ý + nút chấm của MỘT nhiệm vụ đang chọn. */
+function TaskDetail({
+  display,
+  outcome,
+  canCheck,
+  disabledReason,
+  onCheck,
+  onExec,
+  execEnabled,
+}: {
+  display: TaskDisplay;
+  outcome: CheckOutcome | null;
+  canCheck: boolean;
+  disabledReason: string | null;
+  onCheck: () => void;
+  onExec: (command: string, interrupt: boolean) => void;
+  execEnabled: boolean;
+}): React.ReactElement {
+  return (
+    <section className="mt-4 rounded-lg border border-border bg-card p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-semibold text-foreground">{display.task.title}</h2>
+        <Badge variant={TASK_STATE_VARIANT[display.state]}>
+          {TASK_STATE_LABEL[display.state]}
+        </Badge>
+      </div>
+
+      <ContentView
+        blocks={parseContentBlocks(display.task.markdown)}
+        resolveAssetUrl={() => null}
+        onExec={onExec}
+        execEnabled={execEnabled}
+      />
+
+      {display.task.hint !== null && (
+        <details className="mt-3 text-xs text-muted-foreground">
+          <summary className="cursor-pointer font-medium">Gợi ý</summary>
+          <p className="mt-1">{display.task.hint}</p>
+        </details>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button
+          variant="secondary"
+          onClick={onCheck}
+          disabled={!canCheck}
+          loading={outcome?.kind === 'running'}
+        >
+          Chấm nhiệm vụ này
+        </Button>
+        {/*
+          Lý do bị khoá hiện thành CHỮ, không chỉ `title`: một nút disabled không
+          nhận focus nên tooltip/`title` của nó là thứ người dùng bàn phím không
+          đọc được bằng cách nào cả.
+        */}
+        {disabledReason !== null && (
+          <span className="text-xs text-muted-foreground">{disabledReason}</span>
+        )}
+        {display.lastExitCode !== null && outcome === undefined && (
+          <span className="text-xs text-muted-foreground">
+            Lần chấm gần nhất kết thúc với exit {display.lastExitCode}.
+          </span>
+        )}
+      </div>
+
+      <CheckResultPanel outcome={outcome} />
+    </section>
+  );
+}
+
 function LeaderboardPanel({ labId }: { labId: string }): React.ReactElement {
   const query = api.labs.leaderboard.useQuery({ labId });
 
   if (query.isPending) {
-    return <p className="p-4 text-sm text-slate-500">Đang tải bảng xếp hạng…</p>;
+    return (
+      <div role="status" aria-busy="true" className="flex flex-col gap-2 p-4">
+        <span className="sr-only">Đang tải bảng xếp hạng…</span>
+        <Skeleton className="h-6 w-full" />
+        <Skeleton className="h-6 w-full" />
+        <Skeleton className="h-6 w-2/3" />
+      </div>
+    );
   }
   if (query.isError) {
     return (
-      <p role="alert" className="p-4 text-sm text-red-700">
-        {describeTrpcError(query.error)}
-      </p>
+      <div className="p-4">
+        <ErrorState
+          title="Không tải được bảng xếp hạng"
+          message={describeTrpcError(query.error)}
+          onRetry={() => void query.refetch()}
+          retrying={query.isFetching}
+        />
+      </div>
     );
   }
   if (query.data.items.length === 0) {
-    return <p className="p-4 text-sm text-slate-500">Chưa có ai nộp bài lab này.</p>;
+    return (
+      <p className="p-4 text-sm text-muted-foreground">
+        Chưa có ai nộp bài lab này. Nộp bài xong, bạn sẽ là người đầu tiên trên bảng.
+      </p>
+    );
   }
 
   return (
-    <div className="overflow-x-auto p-4">
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="text-xs text-slate-500">
-            <th className="py-1 pr-3">#</th>
-            <th className="py-1 pr-3">Người học</th>
-            <th className="py-1 pr-3">Điểm</th>
-            <th className="py-1 pr-3">Thời gian</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className="p-4">
+      <Table>
+        <TableCaption>
+          Chỉ hiện tên của người đã tự bật — mặc định là ẩn danh.
+        </TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-10">#</TableHead>
+            <TableHead>Người học</TableHead>
+            <TableHead className="w-20 text-right">Điểm</TableHead>
+            <TableHead className="w-32 text-right">Thời gian</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {query.data.items.map((row) => (
-            <tr
-              key={row.rank}
-              className={row.isSelf ? 'bg-slate-100 font-medium' : undefined}
-            >
-              <td className="py-1 pr-3">{row.rank}</td>
-              <td className="py-1 pr-3">
-                {row.displayName ?? <span className="italic text-slate-400">Ẩn danh</span>}
+            <TableRow key={row.rank} className={row.isSelf ? 'bg-muted font-medium' : undefined}>
+              <TableCell>{row.rank}</TableCell>
+              <TableCell>
+                {row.displayName ?? <span className="text-muted-foreground italic">Ẩn danh</span>}
                 {row.isSelf && ' (bạn)'}
-              </td>
-              <td className="py-1 pr-3">{row.percent}%</td>
-              <td className="py-1 pr-3">{formatDuration(row.durationSeconds)}</td>
-            </tr>
+              </TableCell>
+              <TableCell className="text-right">{row.percent}%</TableCell>
+              <TableCell className="text-right">{formatDuration(row.durationSeconds)}</TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}): React.ReactElement {
+function LabSkeleton(): React.ReactElement {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`rounded-full px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
-        active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Centered({
-  children,
-  tone,
-}: {
-  children: React.ReactNode;
-  tone?: 'error';
-}): React.ReactElement {
-  // `flex-1 min-h-0` chứ không `min-h-screen`: căn giữa theo phần vỏ chừa lại,
-  // không theo cả màn hình (xem chú thích ở gốc trang).
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center px-6">
-      <p className={tone === 'error' ? 'text-sm text-red-700' : 'text-sm text-slate-500'}>
-        {children}
-      </p>
+    <div role="status" aria-busy="true" className="flex min-h-0 flex-1 flex-col gap-4 p-6">
+      <span className="sr-only">Đang tải lab…</span>
+      <Skeleton className="h-8 w-64" />
+      <Skeleton className="h-20 w-full" />
+      <Skeleton className="min-h-0 flex-1 w-full" />
     </div>
   );
 }

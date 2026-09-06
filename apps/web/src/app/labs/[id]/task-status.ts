@@ -39,7 +39,7 @@ export interface TaskDisplay {
  * với thứ thật sự tới: `useQuery().data` có `checkedAt: string`. `tsc` đã bắt
  * đúng lệch này ở call site (`lab-client.tsx`) trước khi có commit nào.
  */
-type WireLabTaskResult = Omit<LabTaskResult, 'checkedAt'> & { checkedAt: Date | string };
+export type WireLabTaskResult = Omit<LabTaskResult, 'checkedAt'> & { checkedAt: Date | string };
 
 export function buildTaskDisplays(
   lab: Pick<Lab, 'tasks'>,
