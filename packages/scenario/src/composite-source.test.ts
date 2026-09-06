@@ -324,3 +324,83 @@ describe('compositeContentSource — listPage (D9)', () => {
     expect(unfiltered.items).toHaveLength(2);
   });
 });
+
+/**
+ * Chế độ hỏng NẶNG NHẤT của file này: một nguồn sập ĐÚNG MỘT NHỊP làm mất dòng
+ * VĨNH VIỄN.
+ *
+ * `nextCursor` không phải một gợi ý — nó là một KHẲNG ĐỊNH gửi cho client: "mọi
+ * mục có khoá ≤ mốc này đã được giao". Một trang lắp ráp thiếu một nguồn không
+ * còn cơ sở nào để đưa ra khẳng định đó cho BẤT KỲ mốc nào, vì phần chưa đọc
+ * được của nguồn hỏng bắt đầu ngay sau cursor vào. Client tin mốc ấy, đi tiếp,
+ * và không bao giờ quay lại — khác hẳn `list()` (không có mốc, mỗi lượt hỏi lại
+ * toàn bộ, nên một danh sách thiếu tự lành ở lượt sau).
+ *
+ * Kịch bản: đĩa giữ `d1,d3,d5,d7,d9`, DB giữ `d2,d4,d6,d8`, `limit=2`, DB
+ * timeout đúng lần `listPage` thứ hai.
+ */
+describe('compositeContentSource — một nguồn hỏng MỘT NHỊP không được làm mất dòng', () => {
+  // Dựng ở thân `describe`, không trong `it`: gói này đã có tiền sử đỏ vì hết
+  // giờ khi chạy song song dưới turbo, và dữ liệu này bất biến giữa các ca.
+  const diskItems = ['d1', 'd3', 'd5', 'd7', 'd9'].map((id) => ({ id, title: id }));
+  const dbItems = ['d2', 'd4', 'd6', 'd8'].map((id) => ({ id, title: id }));
+  const allIds = ['d1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9'];
+
+  /** DB khoẻ ở mọi lần `listPage` TRỪ lần thứ `failOnCall`. `get` luôn khoẻ. */
+  function flakyDb(failOnCall: number): ContentSource {
+    const healthy = fakeSource('db', dbItems);
+    let calls = 0;
+    return fakeSource('db', dbItems, {
+      async listPage(options) {
+        calls += 1;
+        if (calls === failOnCall) {
+          throw new Error('DB timeout');
+        }
+        return healthy.listPage(options);
+      },
+    });
+  }
+
+  /**
+   * Đi hết các trang đúng như một client thật: lỗi thì refetch CÙNG mốc (nguồn
+   * đã khoẻ lại ở nhịp sau), không tự nhảy mốc.
+   */
+  async function walkAllPages(composite: ContentSource): Promise<string[]> {
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let guard = 0; guard < 20; guard += 1) {
+      let page;
+      try {
+        page = await composite.listPage({ limit: 2, cursor });
+      } catch {
+        continue;
+      }
+      seen.push(...page.items.map((s) => s.id));
+      if (page.nextCursor === null) {
+        return seen;
+      }
+      cursor = page.nextCursor;
+    }
+    throw new Error(`phân trang không kết thúc sau 20 lượt — đã thấy: ${seen.join(',')}`);
+  }
+
+  it('d4 KHÔNG được biến mất: trang thiếu dữ liệu không được phát cursor như thể nó đầy đủ', async () => {
+    const composite = compositeContentSource(
+      [fakeSource('disk', diskItems), flakyDb(2)],
+      { logger: recorder() },
+    );
+
+    expect(await walkAllPages(composite)).toEqual(allIds);
+  });
+
+  it('đối chứng: KHÔNG nguồn nào hỏng ⇒ cùng vòng lặp đó trả đủ chín dòng', async () => {
+    // Nếu ca trên đỏ, ca này phải xanh — nếu cả hai cùng đỏ thì lỗi nằm ở vòng
+    // lặp/dữ liệu của chính test, không phải ở `collectPages`.
+    const composite = compositeContentSource(
+      [fakeSource('disk', diskItems), fakeSource('db', dbItems)],
+      { logger: recorder() },
+    );
+
+    expect(await walkAllPages(composite)).toEqual(allIds);
+  });
+});

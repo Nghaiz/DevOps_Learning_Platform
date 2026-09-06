@@ -1,5 +1,5 @@
 // Specifier ".ts" — cùng lý do đã ghi ở packages/shared-types/src/index.ts.
-export { InvalidCursorError, ScenarioError } from './errors.ts';
+export { ContentSourcesUnavailableError, InvalidCursorError, ScenarioError } from './errors.ts';
 export {
   BACKEND_IMAGE_MAPPING,
   KNOWN_BACKEND_IMAGE_IDS,

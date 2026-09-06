@@ -1,7 +1,7 @@
 import type { Scenario, ScenarioSummary } from '@devops-platform/shared-types/scenario';
 import type { Lab, LabSummary } from '@devops-platform/shared-types/lab';
 import type { Playground, PlaygroundSummary } from '@devops-platform/shared-types/playground';
-import { InvalidCursorError } from './errors.ts';
+import { ContentSourcesUnavailableError, InvalidCursorError } from './errors.ts';
 import {
   compareContent,
   compareCursors,
@@ -53,16 +53,45 @@ import type { ContentSourceLogger } from './db-source.ts';
  * đơn điệu, và cursor trên dãy đó sẽ bỏ sót hoặc lặp mục ở đúng chỗ nối. Nên
  * gộp xong sắp lại toàn bộ, một lần.
  *
- * ## Lỗi của một nguồn không được giết cả danh sách
+ * ## Lỗi của một nguồn: `list()` SUY BIẾN, `list*Page()` NÉM
  *
- * Cùng kỷ luật mà `filesystemScenarioSource` đã áp cho ba loại nội dung: nếu
- * nguồn DB ném (Postgres sập), `list()` vẫn trả nội dung trên đĩa kèm WARN,
- * chứ không làm `/lessons` trắng trang. Chiều ngược lại cũng vậy.
+ * Hai luật khác nhau cho hai method nghe rất giống nhau, và điểm khác nhau nằm
+ * đúng ở `nextCursor` chứ không ở khẩu vị.
  *
- * ⚠ Đánh đổi, ghi thẳng ra: một danh sách THIẾU trông y hệt một danh sách ĐỦ.
- * Người học không phân biệt được "hôm nay ít bài" với "một nguồn đang chết".
- * Đó là lý do WARN ở đây phải mang `kind` của nguồn hỏng và phải đi vào log —
- * nó là tín hiệu duy nhất của chế độ hỏng này.
+ * `list()` không phát ra mốc nào. Một danh sách thiếu là một ẢNH CHỤP thiếu:
+ * lượt sau hỏi lại TOÀN BỘ mọi nguồn, nên nguồn hồi phục là dữ liệu quay về —
+ * không mất gì vĩnh viễn. Giữ nguyên kỷ luật cũ mà `filesystemScenarioSource`
+ * đã áp: nguồn DB ném (Postgres sập) thì `list()` vẫn trả nội dung trên đĩa kèm
+ * WARN, chứ không làm `/lessons` trắng trang.
+ *
+ * `list*Page()` thì phát ra `nextCursor`, và cursor là một KHẲNG ĐỊNH gửi cho
+ * client: *"mọi mục có khoá ≤ mốc này đã được giao"*. Một trang lắp ráp thiếu
+ * một nguồn không còn cơ sở cho khẳng định đó ở BẤT KỲ mốc nào — phần chưa đọc
+ * được của nguồn hỏng bắt đầu ngay sau cursor vào, và ta không biết trong đó có
+ * gì. Client tin mốc ấy, đi tiếp, và KHÔNG BAO GIỜ quay lại.
+ *
+ * Đã ĐO, không phải suy luận (`composite-source.test.ts` § "một nguồn hỏng MỘT
+ * NHỊP"): đĩa giữ `d1,d3,d5,d7,d9`, DB giữ `d2,d4,d6,d8`, `limit=2`, DB timeout
+ * đúng ở trang 2 ⇒ `d4` KHÔNG xuất hiện lại ở bất kỳ trang nào sau đó.
+ *
+ * Và không tồn tại một mốc vừa suy biến vừa trung thực: mốc duy nhất chắc chắn
+ * không bỏ sót gì là CHÍNH cursor vào, mà trả lại nó là một vòng lặp đứng yên.
+ * Nên `list*Page()` NÉM `ContentSourcesUnavailableError`. Đắt về khả dụng
+ * (`/lessons` 5xx dù đĩa vẫn phục vụ được) — đó là cái giá ĐÃ BIẾT, đổi lấy
+ * việc không mất dòng trong im lặng. Muốn `/lessons` vẫn hiện phần đọc được thì
+ * quyết định đó thuộc về CALLER (bắt lỗi, dựng lại composite chỉ-đĩa, và NÓI
+ * với người dùng rằng đang hiện một phần), không thuộc về tầng này — tầng này
+ * không có cách nào nói điều đó qua một `ContentPage`.
+ *
+ * ⛔ MỌI nguồn cùng hỏng thì cả hai đều NÉM, cùng lý do `firstHit` đã ném:
+ * `{ items: [], nextCursor: null }` nói "kho rỗng, và hết rồi" — đúng hai khẳng
+ * định ta vừa mất sạch cơ sở để đưa ra. Cùng một sự cố hạ tầng mà `/lessons/[id]`
+ * trả 5xx còn `/lessons` nói "chưa có bài nào" là một sự bất nhất tự nó đã sai.
+ *
+ * ⚠ Đánh đổi CÒN LẠI, ghi thẳng ra: với `list()`, một danh sách THIẾU vẫn trông
+ * y hệt một danh sách ĐỦ. Người học không phân biệt được "hôm nay ít bài" với
+ * "một nguồn đang chết". Đó là lý do WARN ở đây phải mang `kind` của nguồn hỏng
+ * và phải đi vào log — nó là tín hiệu duy nhất của chế độ hỏng này.
  */
 
 export interface CompositeOptions {
@@ -81,11 +110,15 @@ interface Identified {
 }
 
 /**
- * Gọi cùng một method trên mọi nguồn, bỏ qua nguồn ném lỗi.
+ * Gọi cùng một method trên mọi nguồn, bỏ qua nguồn ném lỗi — TRỪ khi hỏng hết.
  *
  * Trả về cặp `(kind, giá trị)` để bước gộp phía sau nêu được đích danh nguồn
  * trong WARN trùng id — không có `kind` thì thông điệp chỉ nói "trùng id" và
  * người đọc vẫn phải tự đi tìm hai nguồn đó là ai.
+ *
+ * ⛔ MỌI nguồn hỏng ⇒ NÉM, không trả `[]`. Đây là cùng một chốt mà `firstHit`
+ * đã có, chỉ khác vế: `[]` ở đây thành một `/lessons` nói "chưa có bài nào" kèm
+ * HTTP 200, trong khi `/lessons/[id]` của cùng sự cố đó trả 5xx.
  */
 async function collect<T>(
   sources: readonly ContentSource[],
@@ -95,12 +128,14 @@ async function collect<T>(
 ): Promise<readonly (readonly [string, readonly T[]])[]> {
   const settled = await Promise.allSettled(sources.map(async (source) => call(source)));
   const out: (readonly [string, readonly T[]])[] = [];
+  let failures = 0;
   for (const [index, result] of settled.entries()) {
     const source = sources[index];
     if (source === undefined) {
       continue;
     }
     if (result.status === 'rejected') {
+      failures += 1;
       logger.warn('[content:composite] một nguồn lỗi — danh sách trả về đang THIẾU', {
         method,
         sourceKind: source.kind,
@@ -109,6 +144,9 @@ async function collect<T>(
       continue;
     }
     out.push([source.kind, result.value]);
+  }
+  if (failures > 0 && failures === sources.length) {
+    throw new ContentSourcesUnavailableError(method, failures, sources.length);
   }
   return out;
 }
@@ -152,18 +190,18 @@ function merge<T extends Identified>(
  * thành 404, và trả 404 vì Postgres sập là nói với người học rằng bài của họ
  * đã biến mất.
  */
-async function firstHit<T>(
+async function firstHitWithFailures<T>(
   sources: readonly ContentSource[],
   method: string,
   call: (source: ContentSource) => Promise<T | null>,
   logger: ContentSourceLogger,
-): Promise<T | null> {
+): Promise<{ readonly value: T | null; readonly failures: number }> {
   let failures = 0;
   for (const source of sources) {
     try {
       const found = await call(source);
       if (found !== null) {
-        return found;
+        return { value: found, failures };
       }
     } catch (cause) {
       failures += 1;
@@ -174,13 +212,23 @@ async function firstHit<T>(
       });
     }
   }
-  if (failures > 0 && failures === sources.length) {
+  return { value: null, failures };
+}
+
+async function firstHit<T>(
+  sources: readonly ContentSource[],
+  method: string,
+  call: (source: ContentSource) => Promise<T | null>,
+  logger: ContentSourceLogger,
+): Promise<T | null> {
+  const { value, failures } = await firstHitWithFailures(sources, method, call, logger);
+  if (value === null && failures > 0 && failures === sources.length) {
     // MỌI nguồn đều hỏng: đây KHÔNG phải "không tìm thấy". Trả `null` ở đây sẽ
     // thành 404, và 404 nói rằng bài không tồn tại — một khẳng định ta vừa mất
     // hết cơ sở để đưa ra. Ném để router dịch thành 5xx.
-    throw new Error(`Mọi nguồn nội dung đều lỗi ở ${method} — không kết luận được`);
+    throw new ContentSourcesUnavailableError(method, failures, sources.length);
   }
-  return null;
+  return value;
 }
 
 /**
@@ -197,6 +245,13 @@ async function firstHit<T>(
  * Chỉ khi TẤT CẢ đều trả `null`/lỗi thì cursor mới thật sự vô nghĩa.
  *
  * ## Vì sao KHÔNG over-fetch để xử lý tuyệt đối mọi ca trùng id ở biên trang
+ *
+ * ## Vì sao MỘT nguồn hỏng ở đây là NÉM, khác hẳn `collect`
+ *
+ * Vì trang này phát ra `nextCursor`, và cursor là khẳng định "mọi mục ≤ mốc này
+ * đã được giao" — thứ mà một trang thiếu nguồn không có cơ sở để nói ở BẤT KỲ
+ * mốc nào (luật đầy đủ + kịch bản `d4` đã đo: đầu file). Không có mốc suy biến
+ * nào trung thực, nên lựa chọn chỉ là NÉM hoặc mất dòng vĩnh viễn trong im lặng.
  *
  * Mỗi nguồn được hỏi ĐÚNG `options.limit` mục cho trang này (không hỏi thừa để
  * bù phần bị "che" bởi trùng id). Với hai không-gian id gần như rời nhau (đĩa
@@ -215,13 +270,18 @@ async function collectPages<T extends { readonly id: string }>(
 ): Promise<readonly (readonly [string, ContentPage<T>])[]> {
   const settled = await Promise.allSettled(sources.map(async (source) => call(source, options)));
   const out: (readonly [string, ContentPage<T>])[] = [];
+  let failures = 0;
   for (const [index, result] of settled.entries()) {
     const source = sources[index];
     if (source === undefined) {
       continue;
     }
     if (result.status === 'rejected') {
-      logger.warn('[content:composite] một nguồn lỗi khi phân trang — trang trả về đang THIẾU', {
+      failures += 1;
+      // WARN vẫn ghi cho TỪNG nguồn hỏng dù sắp ném: đây là chỗ DUY NHẤT còn
+      // biết nguồn nào hỏng vì lý do gì, và lỗi ném ra cố ý KHÔNG mang những
+      // chi tiết đó (nó đi thẳng ra client).
+      logger.warn('[content:composite] một nguồn lỗi khi phân trang — KHÔNG trả trang thiếu', {
         method,
         sourceKind: source.kind,
         error: result.reason instanceof Error ? result.reason.message : String(result.reason),
@@ -229,6 +289,9 @@ async function collectPages<T extends { readonly id: string }>(
       continue;
     }
     out.push([source.kind, result.value]);
+  }
+  if (failures > 0) {
+    throw new ContentSourcesUnavailableError(method, failures, sources.length);
   }
   return out;
 }
@@ -337,10 +400,24 @@ async function validateCursorExists<T>(
   method: string,
   logger: ContentSourceLogger,
 ): Promise<void> {
-  const found = await firstHit(sources, `${method}:cursorExists`, existsCall, logger);
-  if (found === null) {
-    throw new InvalidCursorError(cursor);
+  const { value, failures } = await firstHitWithFailures(
+    sources,
+    `${method}:cursorExists`,
+    existsCall,
+    logger,
+  );
+  if (value !== null) {
+    return;
   }
+  if (failures > 0) {
+    // Không nguồn nào NHẬN RA cursor, nhưng có nguồn KHÔNG TRẢ LỜI ĐƯỢC — và
+    // cursor này hoàn toàn có thể đang nằm đúng ở nguồn đó. `InvalidCursorError`
+    // ở đây thành một 400 đổ lỗi cho người gọi về một sự cố hạ tầng, và bảo họ
+    // vứt mốc phân trang đi (`catalog-error.tsx`: "thử lại bao nhiêu lần cũng ra
+    // đúng lỗi") — trong khi thử lại chính là việc đúng cần làm.
+    throw new ContentSourcesUnavailableError(`${method}:cursorExists`, failures, sources.length);
+  }
+  throw new InvalidCursorError(cursor);
 }
 
 export function compositeContentSource(
