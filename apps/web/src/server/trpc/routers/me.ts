@@ -27,6 +27,48 @@ import { assertUuidCursor, createTRPCRouter, listInputSchema, protectedProcedure
  * được phép biến mất chỉ vì tác giả đã archive bài sau đó.
  */
 
+/**
+ * Một dòng `progress` ở dạng ĐI ĐƯỢC QUA DÂY.
+ *
+ * ⛔ VÌ SAO KHÔNG TRẢ THẲNG DÒNG DRIZZLE: dây tRPC của app này cố ý không có
+ * transformer (`server/trpc/init.ts`), nên payload đi qua `JSON.stringify` trần.
+ * Một cột `timestamp` là `Date` trong TS nhưng là **chuỗi ISO** sau khi qua dây
+ * — nghĩa là kiểu mà `api.me.listProgress` suy ra cho client NÓI `Date` trong
+ * khi trình duyệt nhận `string`. Không typecheck nào bắt được: cả hai phía tự
+ * nhất quán với chính mình, chỉ có sự thật lúc chạy là khác.
+ *
+ * Cùng lớp lỗi với `bigint` từng làm 500 thật ở P2 (`lab-score.ts`), và với
+ * chú thích ⚠ mà `components/me/session-summary.ts` phải viết để `formatMoment`
+ * chịu được CẢ HAI kiểu. Chỗ sửa đúng là ở đây, không phải ở chỗ gọi.
+ *
+ * `lessons.ts` đã làm đúng việc này từ P2 với `toProgressView`; hàm đó KHÔNG
+ * dùng lại được nguyên bản ở đây vì nó bỏ `id` (cursor keyset cần) và `lessonId`
+ * (trang "Của tôi" cần để dựng link), lại thêm một trường `status` suy-ra-được
+ * mà `summarizeLessonProgress` phía client đã tự tính — trả cả hai là dựng
+ * nguồn sự thật thứ hai.
+ */
+export interface ProgressRowDTO {
+  readonly id: string;
+  readonly userId: string;
+  readonly lessonId: string;
+  readonly stepIndex: number;
+  readonly completedAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export function toProgressRowDTO(row: typeof progress.$inferSelect): ProgressRowDTO {
+  return {
+    id: row.id,
+    userId: row.userId,
+    lessonId: row.lessonId,
+    stepIndex: row.stepIndex,
+    completedAt: row.completedAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 /** Bracket ADMIN THEO NGHĨA "thấy mọi state", KHÔNG cấp quyền ghi — chỉ dùng để đọc lại lịch sử. */
 const HISTORY_QUIZ_VISIBILITY: QuizVisibility = { authorId: null, isAdmin: true };
 
@@ -316,7 +358,7 @@ export const meRouter = createTRPCRouter({
     const hasMore = rows.length > input.limit;
     const page = hasMore ? rows.slice(0, input.limit) : rows;
     return {
-      items: page,
+      items: page.map(toProgressRowDTO),
       limit: input.limit,
       nextCursor: hasMore && page.length > 0 ? (page[page.length - 1]?.id ?? null) : null,
     };
