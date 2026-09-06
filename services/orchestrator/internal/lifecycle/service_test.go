@@ -243,7 +243,8 @@ func newHarnessWithProfiles(t *testing.T, profiles map[string]*k8s.SandboxProfil
 		HardCap:           2 * time.Hour,
 		ExtendDefault:     5 * time.Minute,
 		SandboxProfiles:   profiles,
-		CapacitySoftLimit: 20,
+		CapacityHardLimit: 23,
+		PoolTarget:        3,
 	}, slog.New(slog.NewJSONHandler(io.Discard, nil)), met)
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
@@ -302,19 +303,30 @@ func TestNewServiceTuChoiCauHinhMauThuan(t *testing.T) {
 	// Cấu hình đúng vẫn phải qua.
 	if _, err := NewService(nil, nil, nil, nil, Config{
 		Namespace: "ns", SessionTTL: time.Hour, HardCap: 2 * time.Hour,
-		ExtendDefault: 5 * time.Minute, CapacitySoftLimit: 20,
+		ExtendDefault: 5 * time.Minute, CapacityHardLimit: 23, PoolTarget: 3,
 	}, log, met); err != nil {
 		t.Fatalf("cấu hình hợp lệ bị từ chối: %v", err)
 	}
 
-	// CapacitySoftLimit <= 0 phải bị từ chối, cùng lý lẽ với mọi field bắt
-	// buộc khác — một mặc định 0 âm thầm nghĩa là GetCapacity luôn trả
-	// soft_capacity=0 cho FE, tức "luôn đầy" dù pool còn trống.
-	if _, err := NewService(nil, nil, nil, nil, Config{
-		Namespace: "ns", SessionTTL: time.Hour, HardCap: 2 * time.Hour,
-		ExtendDefault: 5 * time.Minute, CapacitySoftLimit: 0,
-	}, log, met); err == nil {
-		t.Fatal("CapacitySoftLimit=0 được chấp nhận — GetCapacity sẽ luôn báo 'hết chỗ'")
+	// CapacityHardLimit <= PoolTarget phải bị từ chối. Trần mềm FE hiện là
+	// HIỆU hai số này, nên cấu hình này cho ra "còn 0 chỗ" trên cụm khoẻ — và
+	// cả hai field RIÊNG LẺ đều hợp lệ, chỉ quan hệ là sai.
+	for _, tc := range []struct {
+		name string
+		cfg  Config
+	}{
+		{"hard == pool", Config{Namespace: "ns", SessionTTL: time.Hour, HardCap: 2 * time.Hour,
+			ExtendDefault: 5 * time.Minute, CapacityHardLimit: 3, PoolTarget: 3}},
+		{"hard < pool", Config{Namespace: "ns", SessionTTL: time.Hour, HardCap: 2 * time.Hour,
+			ExtendDefault: 5 * time.Minute, CapacityHardLimit: 2, PoolTarget: 3}},
+		{"hard = 0", Config{Namespace: "ns", SessionTTL: time.Hour, HardCap: 2 * time.Hour,
+			ExtendDefault: 5 * time.Minute, CapacityHardLimit: 0, PoolTarget: 3}},
+		{"pool = 0 (manager ép về 1, tầng này phải từ chối)", Config{Namespace: "ns", SessionTTL: time.Hour,
+			HardCap: 2 * time.Hour, ExtendDefault: 5 * time.Minute, CapacityHardLimit: 23, PoolTarget: 0}},
+	} {
+		if _, err := NewService(nil, nil, nil, nil, tc.cfg, log, met); err == nil {
+			t.Errorf("%s được chấp nhận — GetCapacity sẽ trả trần mềm sai", tc.name)
+		}
 	}
 }
 

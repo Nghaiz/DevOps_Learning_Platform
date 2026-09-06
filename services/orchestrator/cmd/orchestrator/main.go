@@ -306,7 +306,8 @@ func buildSessionEngine(
 		HardCap:           cfg.HardCap,
 		ExtendDefault:     cfg.ExtendDefault,
 		SandboxProfiles:   cfg.SandboxProfiles,
-		CapacitySoftLimit: cfg.CapacitySoftLimit,
+		CapacityHardLimit: cfg.CapacityHardLimit,
+		PoolTarget:        cfg.PoolTarget,
 	}, log, met)
 	if err != nil {
 		closeAll()

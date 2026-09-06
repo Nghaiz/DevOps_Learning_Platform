@@ -21,6 +21,11 @@ import (
 // dưới đây là ĐÚNG NGUỒN mà observeSizes cũng đọc (rediskeys.PoolFree/
 // PoolClaimed/PoolQuarantine), chỉ khác là đọc trực tiếp thay vì qua gauge đã
 // cache.
+//
+// ⛔ VÀ MỘT LỖI ĐỌC SỐ ĐÃ ĐƯỢC GHI THẲNG VÀO PROTO, ĐỪNG ĐỂ NÓ QUAY LẠI:
+// `active_sessions` là số POD ĐANG CLAIMED, không phải số session. Session
+// PENDING chưa ăn khe nào nên không đếm; session mất pod thì VẪN đếm tới khi
+// MarkFailed/reaper gỡ tên khỏi index. Xem comment field trong session.proto.
 func (s *Service) GetCapacity(
 	ctx context.Context, _ *orchestratorv1.GetCapacityRequest,
 ) (*orchestratorv1.GetCapacityResponse, error) {
@@ -39,8 +44,31 @@ func (s *Service) GetCapacity(
 
 	return &orchestratorv1.GetCapacityResponse{
 		ActiveSessions: int32(claimed),
-		SoftCapacity:   int32(s.cfg.CapacitySoftLimit),
+		SoftCapacity:   int32(s.softCapacity()),
 		PoolFree:       int32(free),
 		PoolQuarantine: int32(quarantine),
+		HardCapacity:   int32(s.cfg.CapacityHardLimit),
 	}, nil
+}
+
+// softCapacity TÍNH trần "pool còn lành" tại chỗ đọc — KHÔNG đọc một env riêng.
+//
+// Suy luận, không phải quy ước: khi N session giữ N pod, warm-pool còn giữ nổi
+// đủ PoolTarget pod ấm chừng nào `N + PoolTarget <= CapacityHardLimit`. Vượt
+// mức đó thì quota đầy, replenish bị ResourceQuota chặn, và người tiếp theo đi
+// cold path (vẫn vào được — trần CỨNG vẫn là CapacityHardLimit, đo được ở
+// ceiling.js) nhưng phải chờ tạo pod. Đó đúng là ranh giới FE muốn nói
+// "còn N chỗ".
+//
+// ⛔ config.Load đã chặn CapacityHardLimit <= PoolTarget lúc khởi động, nên
+// hàm này không bao giờ trả <= 0 trên một process đã lên được. Kẹp max(…,0) vẫn
+// giữ lại: nó rẻ, và nó chặn ca một Config dựng bằng tay trong test/embed đi
+// vòng qua Load rồi phát ra một int32 âm cho FE, nơi `max(0, soft − active)`
+// sẽ đọc thành một con số vô nghĩa thay vì một lỗi.
+func (s *Service) softCapacity() int {
+	soft := s.cfg.CapacityHardLimit - s.cfg.PoolTarget
+	if soft < 0 {
+		return 0
+	}
+	return soft
 }

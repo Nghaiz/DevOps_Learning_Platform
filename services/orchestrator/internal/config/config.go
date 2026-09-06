@@ -123,17 +123,25 @@ type Config struct {
 	// profile chưa được khai).
 	SandboxProfiles map[string]*k8s.SandboxProfile
 
-	// CapacitySoftLimit là ngưỡng "còn N chỗ" FE dùng (P13 D5, GetCapacity RPC).
+	// CapacityHardLimit là TRẦN VẬT LÝ đã ĐO: số session đồng thời mà
+	// ResourceQuota của namespace sandbox thật sự cho vào (P13 D5, GetCapacity).
 	//
 	// ⛔ KHÔNG CÓ DEFAULT — cùng lý lẽ với SandboxImage ở trên: một mặc định đoán
 	// bừa (0, hoặc một hằng số ngẫu nhiên) sẽ hiện sai sức chứa cho MỌI cluster
 	// tới khi ai đó phát hiện ra, và triệu chứng ("còn N chỗ" sai) không tự lộ ra
-	// như một lỗi — trang vẫn render, chỉ con số sai. Đây KHÔNG phải trần cứng
-	// của quota (đại lượng đó do apiserver gác qua `sandbox.quota` trong Helm) —
-	// nó là ngưỡng "pool còn lành" thấp hơn trần vật lý (xem
-	// values-selfhost.yaml § sandbox.quota: 23 phiên là chỗ vật lý, 20 là chỗ
-	// còn giữ được trải nghiệm — CAPACITY_SOFT_LIMIT là 20, không phải 23).
-	CapacitySoftLimit int
+	// như một lỗi — trang vẫn render, chỉ con số sai.
+	//
+	// ⛔ VÀ VÌ SAO KHÔNG CÒN `CAPACITY_SOFT_LIMIT`. Trần "pool còn lành" (con số
+	// FE thật sự hiện) là ĐẠI LƯỢNG SUY RA: pool chỉ giữ nổi POOL_TARGET pod ấm
+	// chừng nào `N + POOL_TARGET <= CapacityHardLimit`, tức trần mềm =
+	// CapacityHardLimit − PoolTarget. Khai nó thành env riêng nghĩa là có HAI
+	// nguồn cho một sự thật, và đổi POOL_TARGET sẽ để con số FE mục lặng lẽ —
+	// đúng ca mà báo cáo P12 §2.4 tự gọi tên là `no-derived-fields` (chú thích cũ
+	// ghi trần 20 trong khi pool đã lên 3 và trần thật là 18). Trần mềm nay tính
+	// tại chỗ đọc, trong lifecycle.GetCapacity.
+	//
+	// Lab hôm nay: 23 (ceiling.js 2026-09-04 giữ 23 session, từ chối đầu ở #24).
+	CapacityHardLimit int
 }
 
 // rawSandboxProfile là hình dạng JSON thô của MỘT profile trong
@@ -310,18 +318,31 @@ func Load() (*Config, error) {
 	// phân biệt "chưa đặt" (envx.Int không phân biệt được: cả unset lẫn set="0"
 	// đều là số nguyên hợp lệ) khỏi "đặt nhưng sai định dạng" khỏi "đặt và hợp
 	// lệ nhưng <= 0" — ba thông báo lỗi khác nhau, cho người vận hành sửa đúng chỗ.
-	capacitySoftLimitRaw := envx.String("CAPACITY_SOFT_LIMIT", "")
-	if capacitySoftLimitRaw == "" {
-		return nil, fmt.Errorf("env CAPACITY_SOFT_LIMIT: bắt buộc nhưng chưa đặt " +
-			"(không có default — đây là ngưỡng \"còn N chỗ\" FE hiện cho người dùng; " +
-			"một mặc định đoán bừa sẽ hiện sai sức chứa cho mọi cluster)")
+	capacityHardLimitRaw := envx.String("CAPACITY_HARD_LIMIT", "")
+	if capacityHardLimitRaw == "" {
+		return nil, fmt.Errorf("env CAPACITY_HARD_LIMIT: bắt buộc nhưng chưa đặt " +
+			"(không có default — đây là trần vật lý ĐÃ ĐO của quota sandbox; FE suy ra " +
+			"\"còn N chỗ\" từ nó, và một mặc định đoán bừa sẽ hiện sai sức chứa cho mọi cluster). " +
+			"Nếu bạn vừa nâng cấp từ bản có CAPACITY_SOFT_LIMIT: biến đó ĐÃ BỎ — trần mềm nay " +
+			"được TÍNH = CAPACITY_HARD_LIMIT − POOL_TARGET, xem Config.CapacityHardLimit")
 	}
-	capacitySoftLimit, err := strconv.Atoi(capacitySoftLimitRaw)
+	capacityHardLimit, err := strconv.Atoi(capacityHardLimitRaw)
 	if err != nil {
-		return nil, fmt.Errorf("env CAPACITY_SOFT_LIMIT: %q không phải số nguyên: %w", capacitySoftLimitRaw, err)
+		return nil, fmt.Errorf("env CAPACITY_HARD_LIMIT: %q không phải số nguyên: %w", capacityHardLimitRaw, err)
 	}
-	if capacitySoftLimit <= 0 {
-		return nil, fmt.Errorf("env CAPACITY_SOFT_LIMIT: phải > 0 (nhận %d)", capacitySoftLimit)
+	if capacityHardLimit <= 0 {
+		return nil, fmt.Errorf("env CAPACITY_HARD_LIMIT: phải > 0 (nhận %d)", capacityHardLimit)
+	}
+	// ⛔ RÀNG BUỘC LIÊN BIẾN, KIỂM LÚC KHỞI ĐỘNG chứ không lúc đọc: trần mềm =
+	// hard − POOL_TARGET, nên hard <= POOL_TARGET cho ra trần mềm <= 0, tức FE
+	// hiện "còn 0 chỗ" VĨNH VIỄN trên một cụm hoàn toàn khoẻ. Nổ ở đây thì người
+	// vận hành thấy ngay lúc rollout; để nó chạy tiếp thì triệu chứng là "không
+	// ai bắt đầu được phiên" và nguyên nhân nằm cách đó ba tầng.
+	if capacityHardLimit <= poolTarget {
+		return nil, fmt.Errorf(
+			"env CAPACITY_HARD_LIMIT (%d) phải LỚN HƠN POOL_TARGET (%d): trần mềm mà FE hiện "+
+				"được tính bằng hiệu hai số này, nên cấu hình này cho ra \"còn %d chỗ\" trên một "+
+				"cụm khoẻ mạnh", capacityHardLimit, poolTarget, capacityHardLimit-poolTarget)
 	}
 
 	return &Config{
@@ -346,7 +367,7 @@ func Load() (*Config, error) {
 		SandboxRuntimeClass:   envx.String("SANDBOX_RUNTIME_CLASS", "sysbox-runc"),
 		SandboxRegistryMirror: envx.String("SANDBOX_REGISTRY_MIRROR", ""),
 		SandboxProfiles:       sandboxProfiles,
-		CapacitySoftLimit:     capacitySoftLimit,
+		CapacityHardLimit:     capacityHardLimit,
 	}, nil
 }
 

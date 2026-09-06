@@ -96,13 +96,21 @@ type Config struct {
 	// từ chối InvalidArgument (fail-closed, cùng nguyên tắc với SandboxTier).
 	SandboxProfiles map[string]*k8s.SandboxProfile
 
-	// CapacitySoftLimit là ngưỡng "còn N chỗ" mà GetCapacity trả cho FE (P13
-	// D5), đọc từ env CAPACITY_SOFT_LIMIT (internal/config — bắt buộc > 0,
-	// không có default an toàn: một mặc định đoán bừa sẽ hiện sai sức chứa cho
-	// mọi cluster). KHÔNG phải trần cứng của quota — đó là
-	// `sandbox.quota` trong Helm, một đại lượng khác hẳn và do apiserver gác,
-	// không phải orchestrator.
-	CapacitySoftLimit int
+	// CapacityHardLimit là TRẦN VẬT LÝ đã ĐO của quota sandbox (số session đồng
+	// thời apiserver thật sự cho vào), đọc từ env CAPACITY_HARD_LIMIT. Nó KHÔNG
+	// do orchestrator gác — apiserver gác qua `sandbox.quota` trong Helm; đây chỉ
+	// là con số ĐÃ ĐO khai lại cho tầng này để tính trần mềm.
+	CapacityHardLimit int
+
+	// PoolTarget là số pod ấm warm-pool giữ sẵn — CÙNG giá trị truyền cho
+	// pool.NewManager.
+	//
+	// ⛔ Ở ĐÂY VÌ TRẦN MỀM ĐƯỢC TÍNH, KHÔNG ĐƯỢC KHAI. GetCapacity trả
+	// `soft = CapacityHardLimit − PoolTarget` (xem capacity.go § softCapacity),
+	// nên lifecycle phải biết PoolTarget. Trước bản này trần mềm là một env
+	// riêng, và hai nguồn cho một sự thật đúng là ca `no-derived-fields` mà báo
+	// cáo P12 §2.4 ghi lại.
+	PoolTarget int
 }
 
 // Service hiện thực CreateSession / ClaimSession / GetSession.
@@ -171,12 +179,24 @@ func NewService(
 		return nil, fmt.Errorf("lifecycle: EXTEND_DEFAULT (%s) > HARD_CAP (%s): mọi lần gia hạn đều chạm trần cứng",
 			cfg.ExtendDefault, cfg.HardCap)
 	}
-	if cfg.CapacitySoftLimit <= 0 {
+	if cfg.PoolTarget < 1 {
+		// pool.NewManager ÉP target < 1 về 1 (xem doc ở đó). Nếu tầng này chấp
+		// nhận 0 thì trần mềm tính ra hard − 0 = hard, trong khi pool thật sự
+		// giữ 1 pod ⇒ FE hiện nhiều hơn một chỗ so với thực tế, vĩnh viễn và
+		// không có gì đỏ. Từ chối ở đây thay vì im lặng lệch với manager.
+		return nil, fmt.Errorf("lifecycle: PoolTarget phải >= 1 (nhận %d) — pool.NewManager ép < 1 về 1, "+
+			"nên nhận 0 ở đây là để trần mềm lệch với số pod ấm thật", cfg.PoolTarget)
+	}
+	if cfg.CapacityHardLimit <= cfg.PoolTarget {
 		// Cùng nguyên tắc với mọi field bắt buộc khác ở đây: config.Load() đã
-		// kiểm CAPACITY_SOFT_LIMIT > 0 trước khi map vào Config này, nhưng
-		// lifecycle không tin ngược lại caller — package này được test độc lập
-		// (service_test.go dựng lifecycle.Config tay, không qua config.Load).
-		return nil, fmt.Errorf("lifecycle: CapacitySoftLimit phải > 0 (nhận %d)", cfg.CapacitySoftLimit)
+		// kiểm quan hệ này trước khi map vào Config này, nhưng lifecycle không
+		// tin ngược lại caller — package này được test độc lập (service_test.go
+		// dựng lifecycle.Config tay, không qua config.Load).
+		//
+		// Điều kiện là `<=` chứ không phải `<= 0`: trần mềm = hard − poolTarget,
+		// nên hard == poolTarget cho ra 0 và FE hiện "hết chỗ" trên cụm khoẻ.
+		return nil, fmt.Errorf("lifecycle: CapacityHardLimit (%d) phải > PoolTarget (%d) — "+
+			"trần mềm FE hiện là hiệu hai số này", cfg.CapacityHardLimit, cfg.PoolTarget)
 	}
 
 	return &Service{

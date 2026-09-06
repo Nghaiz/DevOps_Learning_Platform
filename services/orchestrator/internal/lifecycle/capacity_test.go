@@ -45,9 +45,40 @@ func TestGetCapacityDocLLENThat(t *testing.T) {
 	if resp.GetPoolQuarantine() != 1 {
 		t.Errorf("PoolQuarantine = %d, cần 1", resp.GetPoolQuarantine())
 	}
+	if resp.GetHardCapacity() != 23 {
+		// newHarnessWithProfiles ghim CapacityHardLimit=23 (xem service_test.go).
+		t.Errorf("HardCapacity = %d, cần 23 (env CAPACITY_HARD_LIMIT của harness)", resp.GetHardCapacity())
+	}
 	if resp.GetSoftCapacity() != 20 {
-		// newHarnessWithProfiles ghim CapacitySoftLimit=20 (xem service_test.go).
-		t.Errorf("SoftCapacity = %d, cần 20 (env CAPACITY_SOFT_LIMIT của harness)", resp.GetSoftCapacity())
+		// 23 − PoolTarget 3 = 20. TÍNH, không phải một env riêng.
+		t.Errorf("SoftCapacity = %d, cần 20 (= HardCapacity 23 − PoolTarget 3)", resp.GetSoftCapacity())
+	}
+}
+
+// TestSoftCapacityLaHieuChuKhongPhaiHangSo — CỔNG CHÍNH của quyết định
+// no-derived-fields ở P13.
+//
+// Đổi PoolTarget mà trần mềm KHÔNG đổi theo nghĩa nó đã bị ghim lại thành hằng
+// số ở đâu đó, và đó chính xác là chế độ hỏng mà báo cáo P12 §2.4 ghi lại: chú
+// thích cũ nói trần 20 trong khi pool đã lên 3 và trần thật là 18. Ô này đỏ
+// ngay khi ai đó "đơn giản hoá" softCapacity() thành một field đọc thẳng.
+//
+// Ba cặp, KHÔNG phải một: một cặp duy nhất thoả mãn được bằng một hằng số may
+// mắn trùng, ba cặp thì không.
+func TestSoftCapacityLaHieuChuKhongPhaiHangSo(t *testing.T) {
+	for _, tc := range []struct {
+		hard, pool, wantSoft int
+	}{
+		{23, 3, 20}, // cấu hình lab hôm nay
+		{23, 1, 22}, // pool nhỏ hơn ⇒ trần mềm CAO hơn
+		{23, 8, 15}, // pool lớn hơn ⇒ trần mềm THẤP hơn
+		{10, 3, 7},  // trần cứng khác hẳn
+	} {
+		svc := &Service{cfg: Config{CapacityHardLimit: tc.hard, PoolTarget: tc.pool}}
+		if got := svc.softCapacity(); got != tc.wantSoft {
+			t.Errorf("softCapacity(hard=%d, pool=%d) = %d, cần %d",
+				tc.hard, tc.pool, got, tc.wantSoft)
+		}
 	}
 }
 
@@ -62,8 +93,8 @@ func TestGetCapacityPoolRong(t *testing.T) {
 	if resp.GetActiveSessions() != 0 || resp.GetPoolFree() != 0 || resp.GetPoolQuarantine() != 0 {
 		t.Errorf("pool rỗng nhưng resp = %+v", resp)
 	}
-	if resp.GetSoftCapacity() != 20 {
-		t.Errorf("SoftCapacity = %d, cần 20 ngay cả khi pool rỗng — đây là cấu hình, không phải đo đạc",
-			resp.GetSoftCapacity())
+	if resp.GetSoftCapacity() != 20 || resp.GetHardCapacity() != 23 {
+		t.Errorf("Soft/Hard = %d/%d, cần 20/23 ngay cả khi pool rỗng — hai số này tới từ cấu hình, "+
+			"không phải từ phép đo pool", resp.GetSoftCapacity(), resp.GetHardCapacity())
 	}
 }
