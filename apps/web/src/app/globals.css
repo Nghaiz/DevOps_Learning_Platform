@@ -66,8 +66,15 @@
    *
    * `0.63` = #898989 → 3.50:1 trên `--background` trắng (dư ~0.5 so với ngưỡng
    * 3.0 để sai số chuyển oklch→sRGB giữa các trình duyệt không kéo tụt xuống
-   * dưới). Nhánh `.dark` giữ nguyên 16%: nó đã cho 4.01:1 trên `--background`
-   * và 3.71:1 trên `--card` — đạt sẵn, không cần đụng.
+   * dưới).
+   *
+   * ⚠ 2026-09-06 — bốn dòng ở đây từng khẳng định nhánh `.dark` "giữ nguyên
+   * 16%: đã cho 4.01:1 trên `--background` và 3.71:1 trên `--card`, đạt sẵn,
+   * không cần đụng". SAI — và sai vì PHÉP ĐO, không phải vì token:
+   * `tokens.contract.test.ts` trộn alpha trong linear-light thay vì trong sRGB
+   * đã mã hoá gamma (không gian trình duyệt thật sự composite). Số đúng của
+   * 16% là 1.53:1 và 1.63:1 — DƯỚI ngưỡng, không phải trên. Cùng hai con số
+   * sai đó còn nằm ở `docs/design-system.md` §1a; cả ba nơi sửa cùng ngày.
    */
   --input: oklch(0.63 0 0);
   --ring: oklch(0.546 0.215 262.881);
@@ -103,7 +110,25 @@
   --warning: oklch(0.769 0.188 70.08);
   --warning-foreground: oklch(0.145 0 0);
   --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
+  /*
+   * 38%, KHÔNG phải 16%. Ở 16% lớp trắng này composite ra #313131 trên nền
+   * trang (số học 8-bit: 255×0.16 + 10×0.84 = 49.2) ⇒ **1.53:1** — viền ô nhập
+   * và rãnh Switch lúc tắt gần như VÔ HÌNH ở chế độ tối, đúng cùng một hỏng đã
+   * sửa cho nhánh sáng. Nó sống sót lâu vì cổng contrast tự tính sai công thức
+   * và báo 4.01:1 (xem chú thích `--input` ở `:root`).
+   *
+   * 38% cho 3.51:1 trên `--background`, 3.58:1 trên `--card`, 3.45:1 trên
+   * `--muted` — dư ~0.5 so với ngưỡng, cùng biên an toàn như nhánh sáng.
+   *
+   * GIỮ dạng trong suốt thay vì đổi sang oklch đục: chính alpha là thứ kéo ba
+   * con số sát nhau (chênh 0.13). Một giá trị đục vừa đủ 3.0 trên `--muted`
+   * (`oklch(0.545 0 0)`) sẽ vọt lên 3.99 trên `--background` — chênh 0.94, tức
+   * viền đậm nhạt khác hẳn nhau tuỳ nó nằm trong khối nào.
+   *
+   * `--border` ngay trên CỐ Ý vẫn 12%: nó là ranh giới TRANG TRÍ, ngoại lệ
+   * tường minh của SC 1.4.11 — lý do đầy đủ ở `docs/design-system.md` §1a.
+   */
+  --input: oklch(1 0 0 / 38%);
   --ring: oklch(0.685 0.169 262.881);
 }
 
