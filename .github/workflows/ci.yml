@@ -3,11 +3,12 @@
 #   proto ───────────┐
 #   ts               │
 #   go               │
-#   infra            ├─► ci-ok ─► images (chỉ push main / tag v*)
-#   secret-scan      │
+#   infra            │
+#   secret-scan      ├─► ci-ok ─► images (chỉ push main / tag v*)
 #   sandbox-image    │
 #   terminal-browser │
-#   web-a11y        ┘
+#   web-a11y         │
+#   no-commerce     ┘
 #
 # (`dependency-review` từng nằm ở đây, ĐÃ XOÁ — xem khối lý do ngay trên job
 #  `sandbox-image`. Sơ đồ này lệch suốt từ lúc đó tới 1.E-2; sửa cùng lúc với
@@ -1429,12 +1430,48 @@ jobs:
           echo '--- results.json (200 dòng đầu) ---'
           head -c 20000 apps/web/e2e/.artifacts/results.json 2>/dev/null || echo '(không có results.json)'
 
+  # ──────────────────────────────────────────────── lệnh cấm thương mại (13.H)
+  #
+  # Nền tảng này KHÔNG bán khoá học. Ràng buộc nặng nhất của dự án, chủ dự án
+  # nêu hai lần. Cổng này là phép kiểm duy nhất gác nó.
+  #
+  # TRƯỚC ĐÂY CỔNG NÀY KHÔNG TỒN TẠI. Phép kiểm là một chuỗi `grep` dài dán
+  # trong `plans/devops-learning-platform/phase-13-exec.md` §5, và grep toàn bộ
+  # `.github/workflows/` cho ra 0 kết quả — tức nó chỉ chạy khi có người nhớ
+  # chạy. Ngoài ra chính mẫu bắt của nó cũng lọt 4 hình dạng paywall tiếng Việt
+  # (đo 2026-09-06). Cả hai lỗ được vá cùng lúc bởi `scripts/check-no-commerce.mjs`.
+  #
+  # KHÔNG `paths:` Ở ĐÂY, và cũng không được thêm về sau. `no-commerce` nằm
+  # trong `ci-ok.needs`, mà `ci-ok` là required check duy nhất của branch
+  # protection. GitHub báo một required check bị skip-by-paths là
+  # `Expected — Waiting` VĨNH VIỄN ⇒ khoá merge. Muốn bỏ qua có điều kiện thì
+  # dùng `if:` ở mức step, đừng đụng `paths:` (rules/ci-cd-trigger-design.md #3).
+  #
+  # Không `pnpm install`: script không có dependency nào, chỉ cần Node. Job này
+  # là job rẻ nhất trong workflow (~20s), nên không có lý do gì để lọc nó.
+  no-commerce:
+    name: 'Lệnh cấm thương mại (không bán khoá học)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      # Script tự chạy đối chứng dương TRƯỚC khi quét: nếu nó không còn bắt
+      # được tập mẫu vi phạm đã biết thì thoát 2 và không quét gì cả. Nghĩa là
+      # job này không thể xanh trong tình trạng "cổng đã hỏng nhưng cây sạch".
+      - name: 'Quét chuỗi giá / gói cước / thanh toán / paywall'
+        run: node scripts/check-no-commerce.mjs
+
   ci-ok:
     name: ci-ok
     # `always()` để job vẫn chạy KHI CÓ need thất bại/bị skip — nếu không, nó bị
     # skip theo và branch protection thấy một check "chưa chạy", treo PR mãi mãi.
     if: always()
-    needs: [proto, ts, go, infra, secret-scan, sandbox-image, terminal-browser, web-a11y]
+    needs: [proto, ts, go, infra, secret-scan, sandbox-image, terminal-browser, web-a11y, no-commerce]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
