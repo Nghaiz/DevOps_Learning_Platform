@@ -226,9 +226,19 @@ bọc `children`. **Không route nào, không component chung nào được dự
 riêng mình** — dùng `<div>` hoặc `<section>`.
 
 Lý do chốt về phía vỏ: một trang không thể biết trang khác làm gì, còn vỏ thì bọc tất
-cả, nên chỉ ở đó mới **bảo đảm được đúng một** landmark. Hai `<main>` lồng nhau vừa sai
-HTML vừa làm axe của 13.H đỏ `landmark-unique` — tức một ô AC của 13.H sẽ đỏ vì việc
-của lane khác.
+cả, nên chỉ ở đó mới **bảo đảm được đúng một** landmark.
+
+⚠ **SỬA 2026-09-06 — cơ chế tôi nêu ban đầu SAI, và tôi đã lặp lại nó trong bốn brief.**
+Tôi viết rằng hai `<main>` lồng nhau "làm axe của 13.H đỏ". Lane H đo lại: axe xếp
+`landmark-unique` và `landmark-no-duplicate-main` ở mức **moderate**, còn ô AC item 25
+chỉ chặn **serious/critical** — nên cổng axe sẽ KHÔNG bao giờ đỏ vì chuyện này. Quyết
+định C6bis vẫn đúng (HTML sai là HTML sai, và trình đọc màn hình nhảy landmark sẽ lạc),
+nhưng nó KHÔNG tự có ai gác. Lane H đã thêm một danh sách `MUST_NOT_FIRE` trong e2e để
+điều khoản này có thứ thực sự enforce nó.
+
+Bài học chung: khi viện dẫn một cổng để biện minh cho một quyết định, phải kiểm cổng đó
+có thật sự bắt trường hợp này không. Một lý lẽ đúng kết luận nhưng sai cơ chế sẽ đẻ ra
+niềm tin rằng "đã có ai đó gác", và niềm tin đó tồn tại lâu hơn cái sai.
 
 Đây là một va chạm THẬT đã xảy ra, không phải phòng xa: lane B và lane C chạy song song
 trong hai ngữ cảnh cô lập, mỗi bên đọc hiện trạng ở một thời điểm khác nhau và đi tới
