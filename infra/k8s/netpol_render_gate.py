@@ -56,6 +56,13 @@ EXPECTED_ALLOW_BASE = {
     "allow-ingress-gateway",
     "allow-ingress-orchestrator",
     "allow-ingress-kubelet-probes",
+    # P13 — `admin.health` đọc /metrics của hai service từ pod web. Hai policy này
+    # thuộc tập NỀN (render ngay khi netpol bật), KHÔNG thuộc `METRICS_SCRAPE`
+    # bên dưới: tập đó là chiều Prometheus-từ-namespace-monitoring và chỉ render
+    # khi `metricsScrape.enabled`. Hai chiều khác nguồn, khác cờ, khác tên —
+    # gộp chúng lại sẽ làm `--metrics-scrape` xanh cho cả thứ nó không gác.
+    "allow-ingress-metrics-orchestrator-web",
+    "allow-ingress-metrics-gateway-web",
 }
 
 # Ingress của datastore chỉ render khi store đó chạy TRONG cụm — với RDS/

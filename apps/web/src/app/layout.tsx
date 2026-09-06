@@ -4,7 +4,7 @@ import { headers } from 'next/headers';
 import { Be_Vietnam_Pro } from 'next/font/google';
 import { THEME_INIT_SCRIPT, ThemeProvider, Toaster, TooltipProvider } from '@devops-platform/ui';
 import { appUrl } from '../server/env';
-import { getAuth } from '../server/auth/config';
+import { readRequestSession } from '../server/auth/config';
 import { AppShell } from '../components/shell/app-shell';
 import { normalizeRole, type Viewer } from '../components/shell/nav';
 import './globals.css';
@@ -65,7 +65,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
    * này KHÔNG sửa; đã ghi vào report. Không có cách nào để layout con nhận prop
    * từ layout cha trong App Router, nên "chỉ gọi ở root" không phải lựa chọn.
    */
-  const session = await getAuth().api.getSession({ headers: requestHeaders });
+  const session = await readRequestSession();
   const viewer: Viewer | null =
     session === null
       ? null

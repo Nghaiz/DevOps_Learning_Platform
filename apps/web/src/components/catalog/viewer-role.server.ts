@@ -1,6 +1,4 @@
-import { cache } from 'react';
-import { headers } from 'next/headers';
-import { getAuth } from '../../server/auth/config';
+import { readRequestSession } from '../../server/auth/config';
 
 /**
  * ⛔ MODULE PHÍA MÁY CHỦ. Chỉ `page.tsx`/`layout.tsx` (Server Component) được
@@ -16,16 +14,18 @@ import { getAuth } from '../../server/auth/config';
 /**
  * Phiên đăng nhập của lượt render hiện tại, **dedupe trong một request**.
  *
- * `cache()` của React memo hoá theo lượt render phía server, nên `layout.tsx`
- * và `page.tsx` của cùng một route gọi hàm này hai lần vẫn chỉ đụng DB MỘT
- * lần. Đó là điều kiện để `/lessons` vừa gác auth ở layout (theo nhận xét sẵn
- * có: "lặp lại sẽ là hai lượt getSession") vừa đọc được vai trò ở page.
+ * Đây là BÍ DANH của `readRequestSession`, không phải một bản bọc thứ hai.
+ * `cache()` memo hoá theo THAM CHIẾU HÀM: bọc `getSession` hai lần là hai khoá
+ * khác nhau, nên hai lượt DB vẫn xảy ra trong khi mọi kết quả đều đúng và
+ * không có gì đỏ. Bản trước của file này đúng là một bọc thứ hai như vậy.
  *
- * ⚠ Lợi ích này chỉ có khi CẢ HAI phía đi qua đúng hàm này. Gọi thẳng
- * `getAuth().api.getSession(...)` ở một trong hai chỗ là quay lại hai lượt DB —
- * âm thầm, vì kết quả vẫn đúng.
+ * ⚠ Lợi ích chỉ có khi MỌI phía đi qua cùng một hàm. Gọi thẳng
+ * `getAuth().api.getSession(...)` ở bất kỳ đâu là quay lại nhiều lượt DB, âm
+ * thầm. Và `cache()` chỉ memo hoá dưới điều kiện `react-server` (Server
+ * Component); ở bản dựng client nó là hàm rỗng, nên đừng đo nó bằng vitest
+ * thường rồi kết luận cache hỏng.
  */
-export const readViewerSession = cache(async () => getAuth().api.getSession({ headers: await headers() }));
+export const readViewerSession = readRequestSession;
 
 /**
  * Người đang xem có soạn được nội dung không — dùng để chọn câu chữ cho trạng
