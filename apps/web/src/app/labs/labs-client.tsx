@@ -5,7 +5,7 @@ import type { inferRouterOutputs } from '@trpc/server';
 import { Badge, CursorPager } from '@devops-platform/ui';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
-import { describeTrpcError } from '../../lib/trpc';
+import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
 import { CatalogPage, CatalogScopeNotes } from '../../components/catalog/catalog-page';
 import { CatalogCard, CatalogGrid, CatalogGridSkeleton } from '../../components/catalog/catalog-grid';
 import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
@@ -77,6 +77,7 @@ export function LabsClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
         <CatalogError
           title="Không tải được danh sách lab"
           message={describeTrpcError(query.error)}
+          errorCode={trpcErrorCode(query.error)}
           retrying={query.isFetching}
           page={controls.page}
           onRetry={() => void query.refetch()}
