@@ -277,8 +277,8 @@ phải "bỏ quên".
 | `Button` | `loading` prop → Spinner đè giữa + `aria-busy`, giữ nguyên bề rộng | n/a (không có "rỗng" cho một nút) | n/a (lỗi hành động là việc của caller, hiện qua Toast/ErrorState) | `disabled` (native) |
 | `Input` / `Textarea` | n/a (ô nhập không có trạng thái tải) | n/a | `invalid` → `aria-invalid` + viền destructive | `disabled` (native) |
 | `Label` | n/a | n/a | n/a | theo `peer-disabled` của control liên kết |
-| `Badge` | n/a | n/a | `variant="destructive"` | n/a (không tương tác) |
-| `Card` (+Header/Title/Description/Content/Footer) | nơi gọi đặt `<Skeleton>` bên trong `CardContent` | nơi gọi đặt `<EmptyState>` bên trong | nơi gọi đặt `<ErrorState>` bên trong | n/a |
+| `Badge` | n/a | n/a | `variant="destructive"`; trạng thái bị chặn dùng `status-locked` (§4c) | n/a (không tương tác — không nhận focus, không có handler) |
+| `Card` (+Header/Title/Description/Content/Footer) | nơi gọi đặt `<Skeleton>` bên trong `CardContent`; khung chờ KHÔNG đặt `interactive` (§4d) | nơi gọi đặt `<EmptyState>` bên trong | nơi gọi đặt `<ErrorState>` bên trong | n/a (thẻ không phải control; `interactive` chỉ đổi phản hồi hover, không phải trạng thái bật/tắt) |
 | `Dialog` (+Trigger/Content/Header/Footer/Title/Description/Close) | nội dung bên trong tự quản (Skeleton nếu cần) | n/a | n/a | `DialogTrigger asChild` nhận `disabled` từ control con |
 | `Tabs` (+List/Trigger/Content) | mỗi `TabsContent` tự quản loading riêng | n/a | n/a | `TabsTrigger disabled` |
 | `Select` (+Trigger/Content/Item/Value/Group) | n/a (đóng/mở tức thời, không tải danh sách bất đồng bộ ở tầng primitive) | danh sách item rỗng thì nơi gọi tự không render `SelectContent` | n/a | `Select disabled` (toàn bộ) hoặc `SelectItem disabled` (từng mục) |
@@ -293,19 +293,21 @@ phải "bỏ quên".
 | `Spinner` | CHÍNH LÀ chỉ báo loading (`role="status"`) | n/a | n/a | n/a |
 | `Table` (+Header/Body/Row/Head/Cell/Caption) | nơi gọi render hàng `<Skeleton>` trong `TableBody` | nơi gọi render `<EmptyState>` thay `TableBody` (ngoài `<table>`, hoặc một hàng span đủ cột) | nơi gọi render `<ErrorState>` thay bảng | n/a |
 | `CursorPager` | `loading` → nút Tiếp ở trạng thái `Button loading` | n/a (không phân trang được thì `hasNext=false`) | n/a (lỗi tải trang tiếp là việc của nơi gọi qua `ErrorState`) | `hasNext=false` → nút Tiếp disable; `page<=1` → nút Về đầu disable |
-| `EmptyState` | CHÍNH LÀ trạng thái empty | — | n/a | n/a |
+| `EmptyState` | n/a (không tự tải gì — nơi gọi quyết định lúc nào đổi `Skeleton` sang `EmptyState`) | CHÍNH LÀ trạng thái empty | n/a | n/a |
 | `ErrorState` | n/a | n/a | CHÍNH LÀ trạng thái error (`role="alert"`) | `retrying` → nút Thử lại `Button loading` |
 | `Separator` | n/a (ranh giới thuần thị giác) | n/a | n/a | n/a |
 | `Kbd` | n/a | n/a | n/a | n/a |
-| `ContentView`/`SplitPane`/`StepNav`/`ProgressBar` | giữ API cũ (P2/2.D) — nơi gọi (trang bài học) quản loading/error qua `ErrorState`/`Skeleton` bọc ngoài | — | — | `StepNav` tự tính disable nút Trước/Tiếp theo vị trí `activeKey` |
+| `ContentView`/`SplitPane`/`StepNav`/`ProgressBar` | giữ API cũ (P2/2.D) — nơi gọi (trang bài học) bọc `Skeleton` NGOÀI cụm | n/a (bài học luôn có ít nhất một bước; danh sách rỗng là lỗi dữ liệu, chặn từ trước khi render) | nơi gọi bọc `ErrorState` NGOÀI cụm — tầng primitive không có trạng thái lỗi riêng | `StepNav` tự tính disable nút Trước/Tiếp theo vị trí `activeKey` |
 
-### 4b. `Button` — biến thể + `asChild`/`loading`
+### 4b. `Button` — biến thể, `asChild`/`loading`, icon
 
 ```ts
 variant: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link'; // mặc định 'primary'
 size: 'sm' | 'md' | 'lg' | 'icon'; // mặc định 'md'
 asChild?: boolean; // Radix Slot — render root là phần tử con (vd. <a>) thay vì <button>
 loading?: boolean; // disabled + Spinner đè giữa, giữ nguyên bề rộng nút
+iconLeft?: ReactNode;  // icon TRƯỚC nhãn — BỊ BỎ QUA khi asChild (xem dưới)
+iconRight?: ReactNode; // icon SAU nhãn — cùng ràng buộc
 ```
 
 `variant`/`size` cũ (`'primary'|'secondary'|'ghost'`, không `size`) **vẫn hoạt
@@ -333,7 +335,171 @@ liên kết chữ tàng hình không có gì thay thế — `tailwind-merge` cò
 
 Cả bốn đường đều có test hồi quy trong `button.test.tsx` § "Button — asChild".
 
+#### `iconLeft`/`iconRight` — icon TRANG TRÍ, và `asChild` không nhận được chúng
+
+Hai prop này nhận `ReactNode`, đặt icon ở hai đầu nhãn. Icon ở đây là **trang
+trí**: nó đứng cạnh chữ đã nói đủ nghĩa, nên node truyền vào **tự mang
+`aria-hidden`** — `Button` cố ý không `cloneElement` để nhét thuộc tính vào node
+của nơi gọi. Nút chỉ-có-icon là ca khác hẳn: dùng `size="icon"` + `aria-label`
+trên chính nút, vì lúc đó icon là thứ DUY NHẤT mang nghĩa.
+
+**`asChild` bỏ qua cả hai prop, và đó là hành vi đã khai — không phải bug.**
+Radix `Slot` gọi `Children.only`, tức `props.children` phải là **đúng một** React
+element. Thêm một node anh em (icon) vào nhánh đó làm Slot ném thẳng *"expected a
+single React element child"*. Nên nhánh `asChild` truyền `children` nguyên vẹn,
+và icon là việc của element con:
+
+```tsx
+<Button asChild>
+  <Link href="/lessons"><Play aria-hidden />Bắt đầu</Link>
+</Button>
+```
+
+Bỏ qua trong im lặng là điều đáng ngại, nên nó **được ghim bằng test** ở
+`button.test.tsx` — một lần "dọn dẹp" sau này biến nó thành sự bỏ qua tình cờ sẽ
+làm suite đỏ, chứ không trôi qua.
+
+Khi `loading`, icon nằm CÙNG nhánh với nhãn nên `text-transparent` của nút nuốt
+luôn màu nét của chúng. Đúng ý: cả cụm icon + nhãn mờ đi sau Spinner đè lên, thay
+vì icon còn nổi lên cạnh một cái nhãn đã tàng hình.
+
+### 4c. `Badge` — bảy biến thể NGỮ NGHĨA, mỗi cái một hình riêng
+
+Sáu biến thể trình bày (`default`, `secondary`, `success`, `warning`,
+`destructive`, `outline`) nói về **sắc thái**. Bảy biến thể dưới đây nói về
+**trạng thái có thật trong miền dữ liệu** — độ khó của bài, tiến độ của người
+học — nên mỗi cái mang một icon `lucide-react` riêng, **mặc định**:
+
+| Biến thể | Nhãn tiếng Việt | Icon | Hình |
+|---|---|---|---|
+| `difficulty-basic` | Cơ bản | `SignalLow` | sóng tín hiệu **1 vạch** |
+| `difficulty-intermediate` | Trung cấp | `SignalMedium` | sóng tín hiệu **2 vạch** |
+| `difficulty-advanced` | Nâng cao | `SignalHigh` | sóng tín hiệu **3 vạch** |
+| `status-todo` | Chưa bắt đầu | `Circle` | vòng tròn **rỗng** |
+| `status-progress` | Đang học | `CirclePlay` | vòng tròn có **nút play** |
+| `status-done` | Đã xong | `CircleCheck` | vòng tròn có **dấu tích** |
+| `status-locked` | Bị khoá | `Lock` | **ổ khoá** |
+
+**Vì sao mỗi trạng thái phải có hình riêng, không chỉ màu riêng.** WCAG 1.4.1
+(Use of Color) cấm màu là phương tiện DUY NHẤT truyền đạt thông tin, và ở đây có
+hai người đọc cụ thể bị bỏ lại nếu chỉ dựa vào màu:
+
+- **In đen trắng.** Bảy nền tô đặc đổ về bảy sắc xám; "Đã xong" và "Đang học"
+  thành hai ô xám gần bằng nhau. Số vạch và dấu tích thì sống sót qua máy in.
+- **Người mù màu.** Ca phổ biến nhất (deuteranopia, khoảng 6% nam giới) làm xanh
+  lá và đỏ chập lại — đúng cặp `status-done` / `destructive`, tức cặp mà đọc nhầm
+  gây hại nhất: "đã xong" và "hỏng" trông như nhau.
+
+Hai thang hình được chọn để **bản thân thứ tự cũng đọc được**, không chỉ khác
+nhau: độ khó là **số vạch tăng dần** (1 → 2 → 3, nhìn là biết cái nào nặng hơn),
+tiến độ là một **hành trình** rỗng → play → tích → khoá. Ba icon khác nhau nhưng
+không xếp được thứ tự thì vẫn thoả 1.4.1 mà mất thông tin thứ bậc.
+
+**Icon là MẶC ĐỊNH, không phải opt-in.** Nếu nơi gọi phải tự truyền icon thì bảo
+đảm 1.4.1 phụ thuộc vào việc MỌI nơi gọi đều nhớ — tức là không có bảo đảm nào.
+Nơi gọi vẫn đè được bằng `icon={<... />}`, và tắt hẳn bằng `icon={null}`. Sáu
+biến thể trình bày cố ý KHÔNG có icon mặc định: chúng không mang một trạng thái
+cố định nào để mà vẽ.
+
+**Hai chỗ lệch tên, cả hai đều cố ý** (chi tiết ở `badge.tsx`):
+
+1. `basic` ≠ `beginner`. Token là `--difficulty-basic`; enum miền
+   (`ScenarioDifficulty`) là `beginner`. Việc nối hai từ vựng thuộc về **nơi
+   gọi** — đúng một chỗ: `DIFFICULTY_BADGE` trong
+   `apps/web/src/components/catalog/catalog-labels.ts`.
+2. `status-todo` **không có token riêng**. Hợp đồng token chỉ có
+   `progress`/`done`/`locked`, còn miền tiến độ có bốn giá trị. `status-todo` vì
+   vậy mượn `--muted`/`--muted-foreground` (đã được gác ≥4.5:1) thay vì mint token
+   mới — trung tính là màu ĐÚNG cho "chưa bắt đầu", và thứ phân biệt nó khỏi ba
+   trạng thái kia là HÌNH.
+
+`status-locked` hiện **chưa có nơi gọi**: trang danh mục không khoá mục nào. Nó
+dành cho lộ trình tuần tự (`app/paths/[id]`). Ghi ra để lần đọc sau không kết
+luận nhầm rằng nó thừa.
+
+### 4d. `Card` — `interactive` và `accent`
+
+```ts
+interactive?: boolean;                            // mặc định FALSE
+accent?: 'basic' | 'intermediate' | 'advanced';   // dải màu độ khó ở viền trái
+```
+
+`interactive` bật hover: đổi viền sang `border-input`, nâng bóng lên
+`shadow-elevation-2`, và nhấc thẻ `-translate-y-0.5` (dưới `motion-safe:`).
+
+**Mặc định `false` là một quyết định, không phải sự dè dặt.** Hiệu ứng nhấc là
+tín hiệu "bấm được". Đặt nó lên một tấm bảng tĩnh — thẻ "Sức chứa" ở trang quản
+trị, khung đăng nhập — là **hứa một hành động không tồn tại**: người dùng rê
+chuột, thấy thẻ phản hồi, bấm, và không có gì xảy ra. Mặc định phải là cái KHÔNG
+hứa gì; thẻ nào thật sự bấm được thì tự nói ra.
+
+Nên quy tắc là: **bật `interactive` khi và chỉ khi thẻ nằm trong một `<Link>` hoặc
+có handler bấm.** Hiện có đúng một nơi — `CatalogCard`
+(`apps/web/src/components/catalog/catalog-grid.tsx`), và nó **đã truyền** (kiểm
+2026-09-06). Khung chờ (skeleton) trong cùng file cố ý KHÔNG truyền: một ô đang
+tải thì chưa bấm được.
+
+`accent` vẽ dải `border-l-4` màu độ khó ở viền trái. Hậu tố khớp token
+`--difficulty-*`, nên nó mang **cùng chỗ lệch `basic`/`beginner`** ở §4c —
+`DIFFICULTY_ACCENT` trong `catalog-labels.ts` là chỗ nối. Dải màu một mình KHÔNG
+đủ cho 1.4.1; nó đi kèm `Badge` độ khó có icon trong cùng thẻ, và đó mới là thứ
+mang nghĩa.
+
+### 4e. Ba bậc bóng — `shadow-elevation-1|2|3`
+
+Ba **bậc ngữ nghĩa**, không phải ba kích cỡ tuỳ ý. Dùng sai bậc thì phân cấp thị
+giác nói dối về thứ đang thật sự nổi lên trên:
+
+| Class | Bậc | Dùng cho |
+|---|---|---|
+| `shadow-elevation-1` | nền | thẻ lúc **nghỉ**, thanh đầu trang, ô thống kê |
+| `shadow-elevation-2` | nhấc | thẻ lúc **hover** (chỉ khi `interactive`) |
+| `shadow-elevation-3` | nổi | **popover / dialog** — lớp nằm trên toàn trang |
+
+Tiện ích sinh từ namespace `--shadow-*` trong `@theme inline`. **KHÔNG** viết
+`shadow-[var(--elevation-1)]`: dạng arbitrary vẫn đổi theo theme nhưng bỏ qua
+bảng theme, nên mỗi chỗ gọi lại tự chọn bậc — đúng thứ mà ba bậc sinh ra để chặn.
+
+> **Trạng thái thật của bậc 3 (đo 2026-09-06): chưa có nơi gọi nào.** Token
+> `--elevation-3` đã khai ở cả hai theme và `shadow-elevation-3` đã sinh ra, nhưng
+> bốn lớp nổi hiện vẫn dùng thang dựng sẵn của Tailwind — `Dialog` và `Toaster` ở
+> `shadow-lg`, `SelectContent`/`DropdownMenuContent`/`TooltipContent` ở
+> `shadow-md`. Đây là **nợ chưa trả**, không phải quyết định; ghi ra để lần đọc
+> sau không tưởng bậc 3 đã được dùng ở đâu đó rồi.
+
+#### ⚠ `tailwind-merge` KHÔNG khử `shadow-elevation-*` với thang dựng sẵn
+
+Đo trực tiếp bằng `twMerge` của bản đang cài:
+
+```
+twMerge('shadow-sm shadow-elevation-1')          → 'shadow-sm shadow-elevation-1'     ← CẢ HAI sống
+twMerge('shadow-elevation-1 shadow-none')        → 'shadow-elevation-1 shadow-none'   ← CẢ HAI sống
+twMerge('shadow-elevation-1 shadow-elevation-2') → 'shadow-elevation-2'               ← khử ĐƯỢC
+```
+
+Dòng thứ ba là chỗ dễ đọc nhầm thành "vậy là nó vẫn hoạt động". Cấu hình mặc định
+của `tailwind-merge` chỉ biết thang bóng dựng sẵn (`sm`/`md`/`lg`/…);
+`elevation-1` không phải cỡ áo phông nên nó bị xếp vào nhóm *shadow-**color***.
+Hai class **cùng** rơi vào nhóm đó thì khử nhau bình thường — nên bậc 1 với bậc 2
+sạch sẽ. Nhưng một "màu" thì **không xung đột** với một "bóng", nên `shadow-none`
+và `shadow-sm` đi xuyên qua.
+
+Hệ quả thực dụng: **đừng trông vào `className="shadow-none"` để tắt bóng của
+`Card`** — cả hai luật cùng tồn tại và THỨ TỰ NGUỒN CSS quyết định, không phải ý
+định của nơi gọi. Muốn một bậc khác thì truyền `shadow-elevation-*` khác (khử
+được, dòng ba ở trên), đừng truyền `shadow-none`.
+
+Sửa tận gốc là dạy `cn.ts` biết nhóm này:
+
+```ts
+extendTailwindMerge({ extend: { classGroups: { shadow: [{ shadow: ['elevation-1', 'elevation-2', 'elevation-3'] }] } } })
+```
+
+Chưa làm — `cn.ts` là SSOT của mọi component, đổi nó là việc riêng có test riêng,
+không phải phần đuôi của một lane giao diện.
+
 ## 5. Quy tắc dùng màu
+
 
 1. **Không bao giờ** `#hex` hay `slate-*`/`gray-*`/`zinc-*`/`neutral-*` trong JSX
    — dùng class ngữ nghĩa ở bảng §1.
@@ -368,20 +534,38 @@ Cả bốn đường đều có test hồi quy trong `button.test.tsx` § "Butto
    (`ResizeObserver`, `scrollIntoView`, Pointer Capture) — polyfill đã có sẵn ở
    `packages/ui/vitest.setup.ts`, không định nghĩa lại trong file test.
 6. **Cập nhật bảng §4a** trong tài liệu này ở CÙNG COMMIT — checklist trạng
-   thái là một phần của định nghĩa "xong", không phải việc làm sau.
-7. Chạy `pnpm --filter @devops-platform/ui typecheck lint test` trước khi commit.
+   thái là một phần của định nghĩa "xong", không phải việc làm sau. Bước này
+   **được gác bằng máy** từ 2026-09-06 (`src/design-system.contract.test.ts`,
+   §7): export một component mà không thêm dòng vào §4a làm suite đỏ, nên nó
+   không còn là một lời nhắc trông chờ vào trí nhớ.
+7. Chạy ba lệnh **RIÊNG** trước khi commit:
 
-## 7. Hai cổng hợp đồng (chạy trong suite `packages/ui`)
+   ```bash
+   pnpm --filter @devops-platform/ui typecheck
+   pnpm --filter @devops-platform/ui lint
+   pnpm --filter @devops-platform/ui test
+   ```
+
+   ⚠ **KHÔNG gộp** thành `pnpm --filter … typecheck lint test`. `pnpm run` chỉ
+   nhận MỘT tên script; hai chữ còn lại bị truyền tiếp làm **đối số** cho
+   script đầu, nên lệnh thật chạy ra là `tsc --noEmit "lint" "test"` và chết ở
+   `error TS5112: tsconfig.json is present but will not be loaded if files are
+   specified on commandline` (đo 2026-09-06). Hỏng này đọc như một lỗi kiểu
+   của repo, trong khi `lint` và `test` **chưa từng chạy** — nguy hiểm đúng ở
+   chỗ đó.
+
+## 7. Ba cổng hợp đồng (chạy trong suite `packages/ui`)
 
 Bảng C1/C2 ở `phase-13-exec.md` §2 là hợp đồng giữa 13.A và **tám lane Đợt 2**
 viết song song trong context riêng. Một hợp đồng chỉ được kiểm bằng mắt thì mục
 ruỗng theo thời gian, và hỏng của nó xuất hiện muộn — ở lane khác, trông như
-lỗi của họ. Hai file dưới đây biến nó thành cổng:
+lỗi của họ. Ba file dưới đây biến nó thành cổng:
 
 | File | Gác gì | Đỏ ở đâu |
 |---|---|---|
 | `src/theme/tokens.contract.test.ts` | Token C1 có ở **cả** `:root` lẫn `.dark`; mọi token có `--color-*` trong `@theme inline`; contrast WCAG của 12 cặp chữ + 6 cặp phi-chữ ở cả hai theme | `pnpm test` |
 | `src/exports.contract.test.ts` | 68 tên C1/C2 được export; prop bắt buộc vẫn bắt buộc; mọi giá trị union variant/size còn nguyên; không có export lạ ngoài hợp đồng | `pnpm typecheck` **và** `pnpm test` |
+| `src/design-system.contract.test.tsx` | **Chính tài liệu này**: mọi component export có dòng ở bảng §4a và khai đủ 4 trạng thái; không dòng nào trỏ tới component đã xoá; bảng icon §4c khớp DOM thật | `pnpm test` |
 
 Ba hỏng chúng bắt được mà không cổng nào khác thấy:
 
@@ -395,9 +579,12 @@ Ba hỏng chúng bắt được mà không cổng nào khác thấy:
    **chữ** — không có rule nào cho viền. Một cổng axe xanh không nói gì về
    SC 1.4.11.
 
-Cả hai file mang **đối chứng âm**: phép đo contrast tự kiểm bằng 1:1 với chính
-nó, 21:1 đen-trắng và một khẳng định alpha thật sự được đè lên nền; kiểm export
-có test chặn tên lạ. Một cổng không bao giờ đỏ được thì không gác gì cả.
+Cả ba file mang **đối chứng dương**: phép đo contrast tự kiểm bằng 1:1 với
+chính nó, 21:1 đen-trắng và một khẳng định alpha thật sự được đè lên nền; kiểm
+export có test chặn tên lạ; cổng tài liệu chạy phép kiểm của nó trên các bản
+markdown **đã bị bẻ gãy có chủ đích** (thêm một component ma, xoá một dòng thật,
+làm rỗng một ô trạng thái) và đòi cả ba lượt đó phải đỏ. Một cổng không bao giờ
+đỏ được thì không gác gì cả.
 
 **Khi một cổng đỏ, sửa TOKEN/EXPORT — không hạ ngưỡng, không thêm tên vào danh
 sách miễn trừ** trừ khi đó thật sự là một quyết định mới, và khi đó phải sửa
