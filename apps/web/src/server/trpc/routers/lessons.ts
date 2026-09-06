@@ -17,11 +17,8 @@ import { attachSandboxCookie } from '../../auth/sandbox-cookie';
 import { mintAccessTokenFor } from '../../auth/jwt';
 import { callOrchestrator, orchestratorClient } from '../../grpc/orchestrator-client';
 import { toJsonSession } from '../../grpc/session-json';
-import {
-  CONTENT_ORDER_KEYS,
-  InvalidCursorError,
-  resolveScenarioAssets,
-} from '@devops-platform/scenario';
+import { CONTENT_ORDER_KEYS, resolveScenarioAssets } from '@devops-platform/scenario';
+import { rethrowContentSourceError } from '../../content/source-errors';
 import {
   profileForCapabilities,
   scenarioDir,
@@ -242,8 +239,9 @@ export const lessonsRouter = createTRPCRouter({
    * D9 (phase-13): phân trang đi qua `scenarioSource().listPage()` — cursor
    * thật ở tầng nguồn (đĩa cắt lát trong bộ nhớ, DB đẩy `WHERE id > cursor`
    * xuống Postgres), không còn `list()` rồi cắt lát bằng TS ở đây. Cursor
-   * không tồn tại ở BẤT KỲ nguồn nào ⇒ `InvalidCursorError` từ
-   * `compositeContentSource` — dịch sang BAD_REQUEST ở đây, cùng thông điệp cũ.
+   * không tồn tại ở BẤT KỲ nguồn nào ⇒ `InvalidCursorError`; nguồn không đọc
+   * được ⇒ `ContentSourcesUnavailableError`. Cả hai dịch sang mã tRPC ở
+   * `server/content/source-errors.ts` (SSOT dùng chung với `playgrounds`/`labs`).
    */
   list: protectedProcedure.input(listLessonsInput).query(async ({ ctx, input }) => {
     let result;
@@ -259,14 +257,10 @@ export const lessonsRouter = createTRPCRouter({
         },
       });
     } catch (cause) {
-      if (cause instanceof InvalidCursorError) {
-        // Cursor trỏ vào một bài không còn tồn tại. NÉM chứ không lặng lẽ quay
-        // về trang 1: một infinite-scroll nhận lại trang 1 sẽ nối nó vào cuối
-        // danh sách và lặp vô hạn — lỗi hiện ra dưới dạng "danh sách bài lặp
-        // lại mãi", không trỏ về một cursor cũ.
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cursor không còn hợp lệ', cause });
-      }
-      throw cause;
+      // Gồm cả `ContentSourcesUnavailableError` → 503 ("không đọc được" KHÁC
+      // "kho trống"). Lý lẽ + vì sao không chuyển tiếp `cause.message`:
+      // `server/content/source-errors.ts`.
+      rethrowContentSourceError(cause);
     }
     const page = result.items;
 

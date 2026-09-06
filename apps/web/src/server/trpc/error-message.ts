@@ -54,6 +54,11 @@ const SAFE_MESSAGE_BY_CODE: Partial<Record<TRPCError['code'], string>> = {
   PAYLOAD_TOO_LARGE: 'Dữ liệu gửi lên quá lớn. Hãy giảm kích thước rồi gửi lại.',
   TOO_MANY_REQUESTS: 'Bạn thao tác quá nhanh. Hãy chờ một lát rồi thử lại.',
   NOT_IMPLEMENTED: 'Chức năng này chưa sẵn sàng.',
+  // Hàng này KHÔNG phải thứ khiến `rethrowContentSourceError` hoạt động — câu ở
+  // đó là câu tự soạn nên nó đi qua bộ lọc bằng `isAuthored()`, không cần hàng
+  // nào ở đây. Hàng này là lưới đỡ cho một `SERVICE_UNAVAILABLE` ném TRỐNG
+  // message ở nơi khác, để nó không rơi xuống câu chung chung.
+  SERVICE_UNAVAILABLE: 'Dịch vụ tạm thời không sẵn sàng. Hãy thử lại sau ít phút.',
 };
 
 /**

@@ -1,6 +1,5 @@
-import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { InvalidCursorError } from '@devops-platform/scenario';
+import { rethrowContentSourceError } from '../../content/source-errors';
 import {
   SANDBOX_TIER_NAMES,
   SCENARIO_CAPABILITIES,
@@ -78,10 +77,8 @@ export const playgroundsRouter = createTRPCRouter({
       });
       return { items: result.items, limit: input.limit, nextCursor: result.nextCursor };
     } catch (cause) {
-      if (cause instanceof InvalidCursorError) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cursor không còn hợp lệ', cause });
-      }
-      throw cause;
+      // Cùng khuôn `lessons.list` — gồm `ContentSourcesUnavailableError` → 503.
+      rethrowContentSourceError(cause);
     }
   }),
 
