@@ -66,6 +66,9 @@ Ba việc, theo thứ tự:
 # 1) Đảo commit đã tắt (phục hồi on:, hook pre-push; xoá secret-scan.yml tách rời)
 git revert <sha-của-commit "chore(ci): tạm tắt cổng CI">
 rm -f .github/workflows/secret-scan.yml     # nếu revert chưa xoá — tránh quét trùng
+rm -f .github/workflows/no-commerce.yml    # thêm 2026-09-06; job `no-commerce` vẫn
+                                           # còn trong ci.yml + ci-ok.needs, giữ cả
+                                           # hai là chạy trùng hai lượt
 git config core.hooksPath scripts/git-hooks # nếu chưa trỏ
 
 # 2) Khôi phục branch protection từ bản sao lưu nguyên trạng
