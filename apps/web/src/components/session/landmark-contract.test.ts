@@ -61,23 +61,38 @@ function countMainOpenTags(source: string): number {
 
 describe('C6bis — đúng một landmark <main> trong toàn app', () => {
   const srcRoot = path.resolve(import.meta.dirname, '..', '..');
-  const files = collectSourceFiles(srcRoot);
+
+  /**
+   * Đọc MỘT lượt cho cả ba phép kiểm, ở thân `describe` (pha thu thập) chứ không
+   * trong thân `it`.
+   *
+   * Không phải tối ưu: quét 89 file `.tsx` bằng `readFileSync` mất 5136ms khi
+   * turbo chạy năm gói song song trên Windows, vượt `testTimeout` mặc định
+   * 5000ms ⇒ đỏ vì tranh I/O, không phải vì hợp đồng bị vi phạm. Nâng timeout
+   * chỉ giấu triệu chứng và làm mất luôn khả năng bắt một test treo thật.
+   * Chuyển sang pha thu thập thì cả ba `it` chỉ còn khẳng định trên dữ liệu đã
+   * có trong bộ nhớ. Xem [[turbo-parallel-load-times-out-io-tests]].
+   */
+  const sources = collectSourceFiles(srcRoot).map((file) => ({
+    relative: path.relative(srcRoot, file),
+    isShell: file.endsWith(SHELL_OWNER),
+    mainOpenTags: countMainOpenTags(readFileSync(file, 'utf8')),
+  }));
 
   it('quét được một số lượng file .tsx đáng kể (đối chứng: grep không chạy trên tập rỗng)', () => {
-    expect(files.length).toBeGreaterThan(10);
+    expect(sources.length).toBeGreaterThan(10);
   });
 
   it('vỏ ứng dụng VẪN dựng <main> (đối chứng dương — nếu mất, cả trang không còn landmark nào)', () => {
-    const shell = files.find((file) => file.endsWith(SHELL_OWNER));
+    const shell = sources.find((source) => source.isShell);
     expect(shell, `không tìm thấy ${SHELL_OWNER}`).toBeDefined();
-    expect(countMainOpenTags(readFileSync(shell as string, 'utf8'))).toBe(1);
+    expect(shell?.mainOpenTags).toBe(1);
   });
 
   it('không file nào NGOÀI vỏ dựng <main> của riêng nó', () => {
-    const offenders = files
-      .filter((file) => !file.endsWith(SHELL_OWNER))
-      .filter((file) => countMainOpenTags(readFileSync(file, 'utf8')) > 0)
-      .map((file) => path.relative(srcRoot, file));
+    const offenders = sources
+      .filter((source) => !source.isShell && source.mainOpenTags > 0)
+      .map((source) => source.relative);
     expect(offenders).toEqual([]);
   });
 });
