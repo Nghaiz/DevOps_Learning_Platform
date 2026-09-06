@@ -1,5 +1,12 @@
 /**
- * Sổ ghi cursor của một trang danh mục.
+ * Sổ ghi cursor của MỘT danh sách phân trang — bất kỳ danh sách nào.
+ *
+ * Module này từng nằm ở `components/catalog/catalog-cursor.ts`, và cái tên đó
+ * là thứ duy nhất nói tới danh mục: bốn hàm dưới đây không mang khái niệm nào
+ * của `/lessons`, `/labs` hay `/playgrounds`. Sáu chỗ gọi nó — ba client
+ * `/admin`, `use-catalog-controls`, và `components/me/use-cursor-pages` — nên
+ * ba trong số đó đang import xuyên qua một biên tính năng chỉ để lấy một ngăn
+ * xếp chuỗi. Đặt ở `lib/` thì không ai phải mượn tên miền của ai.
  *
  * Phân trang cursor (D9) CHỈ đi tới: server trả `nextCursor` = id của mục cuối
  * trang, và không có phép toán nào cho "trang trước". Nên client phải TỰ nhớ

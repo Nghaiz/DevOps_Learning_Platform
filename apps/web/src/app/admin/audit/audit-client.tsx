@@ -33,7 +33,7 @@ import {
   pageNumber,
   pushCursor,
   type CursorStack,
-} from '../../../components/catalog/catalog-cursor';
+} from '../../../lib/cursor-stack';
 
 /**
  * `/admin/audit` (13.G mục 24) — nhật ký hành động quản trị, mới nhất trước.

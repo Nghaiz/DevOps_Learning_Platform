@@ -39,7 +39,7 @@ import {
   pageNumber,
   pushCursor,
   type CursorStack,
-} from '../../../components/catalog/catalog-cursor';
+} from '../../../lib/cursor-stack';
 
 type AdminSession = inferRouterOutputs<AppRouter>['admin']['sessions']['list']['items'][number];
 

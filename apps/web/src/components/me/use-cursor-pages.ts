@@ -7,7 +7,7 @@ import {
   pageNumber,
   pushCursor,
   type CursorStack,
-} from '../catalog/catalog-cursor';
+} from '../../lib/cursor-stack';
 
 /**
  * Ngăn xếp cursor cho MỘT danh sách trên `/me`. Trang này có bốn danh sách phân
@@ -20,12 +20,10 @@ import {
  * vẫn xanh (đo 2026-08-13 — xem chú thích đầy đủ ở `app/lessons/lessons-client.tsx`).
  * Đường đúng là `useQuery` + cursor thủ công + `CursorPager`.
  *
- * Phần TÍNH TOÁN mượn nguyên `components/catalog/catalog-cursor.ts` thay vì
- * chép lại: đó là bốn hàm thuần, không mang khái niệm nào của danh mục, và bản
- * chép thứ hai sẽ trôi ở đúng chỗ khó thấy nhất (`pushCursor(stack, null)` —
- * đẩy `null` vào làm trang sau nạp lại trang 1 dưới nhãn "trang N").
- * ⚠ Chỗ đúng cho module đó là `apps/web/src/lib/`, nhưng `lib/**` không thuộc
- * path sở hữu của lane E — đã ghi vào report kèm đề xuất dời.
+ * Phần TÍNH TOÁN mượn nguyên `lib/cursor-stack.ts` thay vì chép lại: đó là bốn
+ * hàm thuần, không mang khái niệm nào của danh mục, và bản chép thứ hai sẽ trôi
+ * ở đúng chỗ khó thấy nhất (`pushCursor(stack, null)` — đẩy `null` vào làm
+ * trang sau nạp lại trang 1 dưới nhãn "trang N").
  */
 export interface CursorPages {
   /** Cursor để nạp trang đang xem; `undefined` = trang 1. */

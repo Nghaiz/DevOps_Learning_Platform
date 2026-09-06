@@ -44,7 +44,7 @@ import {
   pageNumber,
   pushCursor,
   type CursorStack,
-} from '../../../components/catalog/catalog-cursor';
+} from '../../../lib/cursor-stack';
 import { formatDay } from '../../../lib/format-moment';
 
 type AdminUser = inferRouterOutputs<AppRouter>['admin']['users']['list']['items'][number];
@@ -58,7 +58,7 @@ type AdminUser = inferRouterOutputs<AppRouter>['admin']['users']['list']['items'
  * lên, và `listUsersInput` là `.strict()` — request thật của trình duyệt trả
  * 400 `unrecognized_keys` trong khi mọi test mức API vẫn xanh (đã xảy ra ở
  * 13.C, xem chú thích dài trong `app/lessons/lessons-client.tsx`). Ngăn xếp
- * cursor dùng lại `components/catalog/catalog-cursor.ts` — hàm thuần đã có test,
+ * cursor dùng lại `lib/cursor-stack.ts` — hàm thuần đã có test,
  * không viết bản thứ hai.
  *
  * ## Tìm kiếm bằng SUBMIT, không phải theo từng phím

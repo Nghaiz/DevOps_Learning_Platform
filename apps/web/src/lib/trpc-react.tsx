@@ -35,7 +35,7 @@ import type { AppRouter } from '../server/trpc/routers/app-router';
  * trang không render gì. E2E mức API xanh 14/14 suốt lúc đó vì nó gọi thẳng
  * procedure, không đi qua tầng nào chèn `direction`.
  *
- * Cách đúng là `useQuery` + tự giữ cursor (`components/catalog/catalog-cursor.ts`),
+ * Cách đúng là `useQuery` + tự giữ cursor (`lib/cursor-stack.ts`),
  * và cổng chặn là `catalog-input.test.ts` — nó khẳng định `direction` bị TỪ
  * CHỐI bằng chính schema Zod đang chạy. ⛔ Nếu `useInfiniteQuery` lại có vẻ hấp
  * dẫn: đừng nới `.strict()` để nhận `direction`. Nới một cổng bảo mật để nó
