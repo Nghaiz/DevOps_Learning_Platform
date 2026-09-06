@@ -61,6 +61,26 @@ AC P13 đòi "còn N chỗ phản ánh trần THẬT". Kết luận của lane G
 - **D11 Playwright.** `@playwright/test` + `@axe-core/playwright` trong `apps/web`. Env: `E2E_BASE_URL` (mặc định `https://dlp.192.168.94.130.sslip.io:30443`), `E2E_ORIGIN` (= `betterAuthUrl`), `ignoreHTTPSErrors`. Tài khoản: đăng ký mới mỗi lượt qua `/api/auth/sign-up/email` **kèm header `Origin`** (khuôn 2.D); tài khoản author/admin: promote bằng SQL trên VM (`kubectl exec postgres`) qua script `apps/web/e2e/scripts/promote-role.sh` — chỉ chạy tay/CI cụm, không có API. CI: job `web-a11y` chạy axe + đối chứng CSP trên `next start` local (Postgres+Redis, không sandbox) cho mọi route không cần phiên; 6 luồng `@flow` chạy trên cụm bằng tay và ghi vào report.
 - **D12 Phạm vi màn hình chốt** (thêm màn hình ngoài danh sách phải hỏi chủ dự án): `/`, `/login`, `/lessons`, `/lessons/[id]`, `/labs`, `/labs/[id]`, `/playgrounds`, `/playgrounds/[id]`, `/paths`, `/paths/[id]`, `/quiz`, `/quiz/[id]`, `/me`, `/settings`, `/author`, `/author/[id]`, `/author/new`, `/admin`, `/admin/users`, `/admin/sessions`, `/admin/content`, `/admin/audit`. `/dashboard` và `/session` **gộp vào `/me`** (redirect 308). ⛔ Không màn hình/chuỗi nào về giá/gói/thanh toán.
 
+## 1bis. Ba quyết định chốt sau đợt 1 (2026-09-06, chủ dự án duyệt)
+
+- **D13 Đợt 2 tách làm hai.** **2a** = B (vỏ) · C (danh mục) · D1 (khung phiên C5 +
+  lesson/playground + `packages/terminal`) · **Go2** (đường admin kết thúc phiên).
+  **2b**, mở sau khi D1 đã commit C5 = D2 · E · F · G · H. Lý do: tám lane cùng ghi
+  một cây là rủi ro va chạm, và bốn trình học đều đứng trên C5 — để D2/E/F/G viết theo
+  hợp đồng trên giấy là mời một lượt tích hợp sai.
+- **D14 `packages/terminal` thuộc lane D1**, làm ngay ở 2a, gồm cả **subpath export
+  an toàn cho server**. Hiện `TerminalSurface` KHÔNG có `ariaLabel`, KHÔNG có
+  `onEscapeFocus`, container không `role`/`tabIndex` — tức D10 chưa có nền nào. Và
+  `apps/web/src/server/trpc/routers/me.ts` đang **chép tay** `THEME_NAMES` vì import
+  package này từ mã server chết bằng `ReferenceError: self is not defined` (export `"."`
+  kéo theo `@xterm/*`). Thêm `"./themes"` trỏ thẳng `src/themes.ts` rồi cho `me.ts` dùng
+  lại — bỏ bản chép tay, vì nó sẽ mục lặng lẽ khi `themes.ts` đổi.
+- **D15 Admin PHẢI kết thúc được phiên của người khác.** Hôm nay không:
+  `reap.lua` chốt cứng `actor.userId === session.userId`, đường vòng `system_component`
+  đòi mTLS với CN trong allowlist, nên admin bấm nhận `NOT_FOUND`. Lane **Go2** mở đường
+  ở orchestrator (lua + handler), ghi audit **cả hai đầu** (orchestrator và `admin_audit`
+  của BFF). Ô AC 13.G "phiên đang chạy (kết thúc được)" giữ nguyên, không hạ.
+
 ## 2. Hợp đồng tích hợp (verbatim — không lane nào được đổi)
 
 ### C1 — Token & theme (13.A phát hành, mọi lane tiêu thụ)
