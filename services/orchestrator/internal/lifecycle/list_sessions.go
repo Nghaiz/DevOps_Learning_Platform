@@ -22,9 +22,24 @@ const (
 
 	// listSessionsHardCeiling chặn MỘT lượt gọi ListSessions khỏi phải giữ vô
 	// hạn session id trong bộ nhớ nếu cluster lệch hẳn quy mô thiết kế (D16:
-	// tối đa vài chục session sống cùng lúc). Vượt trần này thì trang ĐẦU vẫn
-	// đúng (ta dừng SCAN sớm, không mất id đã thấy) — chỉ những id ở rất xa mới
-	// không vào được kết quả của LƯỢT NÀY; gọi lại với cursor sẽ tiếp tục quét.
+	// tối đa vài chục session sống cùng lúc — trần cứng đo được là 23 pod).
+	//
+	// ⛔ CHẠM TRẦN NÀY LÀ LỖI, KHÔNG PHẢI MỘT TRANG NGẮN HƠN. Bản đầu cắt SCAN
+	// rồi trả về phần đã thấy kèm chú thích "trang ĐẦU vẫn đúng". Chú thích đó
+	// SAI, và sai theo kiểu im lặng:
+	//
+	//   · SCAN trả key theo thứ tự KHÔNG xác định, còn phân trang thì sắp id
+	//     tăng dần SAU KHI quét. Cắt ở 5000 nghĩa là bộ 5000 id giữ lại là một
+	//     tập TUỲ Ý — id nhỏ nhất của cụm có thể nằm trong phần chưa quét, nên
+	//     trang "đầu" hoàn toàn có thể thiếu đúng những dòng phải đứng đầu;
+	//   · "gọi lại với cursor sẽ quét tiếp" cũng sai: lượt sau quét lại TỪ ĐẦU
+	//     với một thứ tự SCAN khác, nên những id < cursor mà lượt trước bỏ lỡ
+	//     không bao giờ vào được kết quả nữa.
+	//
+	// Hai chế độ hỏng đó đều là "danh sách thiếu dòng mà không ai biết". Với
+	// trần 23 pod, chạm 5000 session SỐNG nghĩa là Redis đang giữ rác — một sự
+	// cố cần người nhìn, chứ không phải một trang để render. Nên: lỗi, có thông
+	// báo nói rõ phải làm gì.
 	listSessionsHardCeiling = 5000
 
 	// defaultListSessionsLimit khớp `limit = 0` của contract (C3).
@@ -66,9 +81,16 @@ func (s *Service) ListSessions(
 	// chọn ĐÚNG; listSessionsHardCeiling chặn ca lệch quy mô.
 	ids, err := s.scanLiveSessionIDs(ctx, userID)
 	if err != nil {
+		if errors.Is(err, errListSessionsTooMany) {
+			return nil, status.Errorf(codes.ResourceExhausted,
+				"quét được hơn %d session đang sống — vượt xa trần thiết kế của cụm (vài chục). "+
+					"Phân trang KHÔNG còn đúng ở quy mô này (xem listSessionsHardCeiling), nên RPC từ chối "+
+					"thay vì trả một trang thiếu dòng. Nhiều khả năng Redis đang giữ session rác: kiểm "+
+					"`SCAN session:*` và reaper trước khi nâng trần.", listSessionsHardCeiling)
+		}
 		return nil, status.Errorf(codes.Unavailable, "quét session: %v", err)
 	}
-	sort.Strings(ids)
+	ids = sortAndDedupe(ids)
 
 	start := 0
 	if cursor != "" {
@@ -84,7 +106,11 @@ func (s *Service) ListSessions(
 	page := ids[start:end]
 
 	nextCursor := ""
-	if end < len(ids) {
+	// `len(page) > 0` là thừa với `limit >= 1` (end > start bất cứ khi nào
+	// end < len(ids)) — giữ lại vì nhánh sai duy nhất ở đây là một panic index
+	// -1 trong một RPC chỉ ĐỌC, và ai đó bỏ nhánh `limit == 0` phía trên sẽ mở
+	// đúng cửa đó.
+	if end < len(ids) && len(page) > 0 {
 		nextCursor = page[len(page)-1]
 	}
 
@@ -148,7 +174,7 @@ func (s *Service) scanLiveSessionIDs(ctx context.Context, userID string) ([]stri
 
 			ids = append(ids, id)
 			if len(ids) >= listSessionsHardCeiling {
-				return ids, nil
+				return nil, errListSessionsTooMany
 			}
 		}
 
@@ -170,4 +196,38 @@ func isTerminalSessionStatus(short string) bool {
 	default:
 		return false
 	}
+}
+
+// errListSessionsTooMany là sentinel cho "vượt listSessionsHardCeiling".
+//
+// Sentinel chứ không phải một *status.Error dựng thẳng trong scanLiveSessionIDs:
+// hàm đó không biết gì về gRPC, và trộn tầng vận chuyển vào một helper quét
+// Redis là cách một package bắt đầu phải import grpc ở mọi nơi.
+var errListSessionsTooMany = errors.New("lifecycle: quá nhiều session sống cho một lượt ListSessions")
+
+// sortAndDedupe sắp id tăng dần VÀ bỏ trùng.
+//
+// ⛔ KHỬ TRÙNG LÀ BẮT BUỘC, KHÔNG PHẢI PHÒNG XA. `SCAN` của Redis chỉ bảo đảm
+// mỗi phần tử tồn tại suốt lượt quét được trả về ÍT NHẤT MỘT LẦN — nó ĐƯỢC PHÉP
+// trả cùng một key nhiều lần khi bảng hash bị rehash giữa chừng (thêm/bớt key
+// trong lúc quét, đúng thứ xảy ra liên tục trên `session:*`). Không khử thì một
+// trang có thể hiện CÙNG một phiên hai lần trong "phiên đang mở" của /me, và
+// TestListSessionsPhanTrangCursor không bắt được vì nó chỉ kiểm trùng GIỮA các
+// trang.
+//
+// Tách thành hàm riêng để có chỗ gác được: ép Redis trả trùng một cách xác định
+// là không làm được, nhưng bất biến "đầu ra tăng dần nghiêm ngặt" thì kiểm trực
+// tiếp được (TestSortAndDedupe).
+func sortAndDedupe(ids []string) []string {
+	if len(ids) < 2 {
+		return ids
+	}
+	sort.Strings(ids)
+	out := ids[:1]
+	for _, id := range ids[1:] {
+		if id != out[len(out)-1] {
+			out = append(out, id)
+		}
+	}
+	return out
 }
