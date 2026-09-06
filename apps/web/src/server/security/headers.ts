@@ -9,7 +9,29 @@ export function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
-    "style-src 'self' 'unsafe-inline'", // Tailwind/Next inject style tag lúc build, chưa nonce hoá ở P0.
+    /*
+     * ⚠ NỢ KỸ THUẬT ĐÃ BIẾT — 'unsafe-inline' còn ở đây, và S3 (P13) đã soi lại
+     * chứ không bỏ qua. Nó là vế thứ hai của chuỗi tấn công mà S3 cắt vế thứ
+     * nhất: với 'unsafe-inline', một lỗ chèn HTML KHÔNG CẦN script vẫn nhét được
+     * <style> để dò dữ liệu qua CSS attribute selector + background:url. Bỏ được
+     * nó thì lớp phòng thủ dày hẳn lên.
+     *
+     * VÌ SAO CHƯA BỎ ĐƯỢC — hai chỗ dùng style ATTRIBUTE với giá trị tính lúc
+     * chạy, không chuyển sang class Tailwind được:
+     *   - packages/ui/src/lesson/progress-bar.tsx:34  → style={{ width: `${percent}%` }}
+     *   - packages/ui/src/lesson/split-pane.tsx:171   → style={{ flexBasis: `${percent}%`, … }}
+     * `style-src 'unsafe-inline'` chi phối CẢ <style> lẫn thuộc tính style="",
+     * và một thuộc tính style KHÔNG BAO GIỜ nonce hoá được. Bỏ thẳng ⇒ thanh
+     * tiến độ bài học về 0% và khung chia đôi của lab sập layout.
+     *
+     * ĐƯỜNG ĐI TIẾP (chưa làm, cần đo trước): tách `style-src-attr 'unsafe-inline'`
+     * (giữ đúng cho hai chỗ trên) khỏi `style-src-elem 'self' 'nonce-…'` (siết
+     * <style>). Vế sau phụ thuộc việc Next/React có gắn nonce vào MỌI style tag
+     * chúng tự chèn hay không — chưa kiểm chứng được ở lane này (không có build
+     * để đo), và một CSP siết nhầm làm trắng trang. Phải xác nhận trên HTML THẬT
+     * (`e2e/csp.spec.ts`) trước khi đổi, đừng đổi rồi hi vọng.
+     */
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
     "connect-src 'self'",
