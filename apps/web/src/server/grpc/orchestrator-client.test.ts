@@ -62,6 +62,51 @@ describe('callOrchestrator — ánh xạ ConnectError → TRPCError', () => {
     expect(await codeFor(Code.DataLoss)).toBe('INTERNAL_SERVER_ERROR');
   });
 
+  /**
+   * S2 — thêm ở lượt bịt rò, KHÔNG thay ô nào ở trên.
+   *
+   * Ô "giữ nguyên câu dành cho người dùng" phía trên vẫn xanh, nhưng nay vì một
+   * lý do KHÁC và cần nói rõ: ta không còn CHUYỂN TIẾP chuỗi trên dây nữa — ta
+   * tự viết một câu mang cùng nghĩa ("đã đạt trần số sandbox đồng thời"). Ràng
+   * buộc mà ô ấy gác (người dùng phải biết là hết chỗ và nên chờ) vẫn được giữ;
+   * đường tin cậy thì không còn. Hai ô dưới đây gác nửa còn lại.
+   */
+  async function messageFor(grpcCode: Code, rawMessage: string): Promise<string> {
+    try {
+      await callOrchestrator(() => Promise.reject(new ConnectError(rawMessage, grpcCode)));
+    } catch (e) {
+      return (e as TRPCError).message;
+    }
+    throw new Error('callOrchestrator KHÔNG ném — test vô nghĩa nếu vế này chạy');
+  }
+
+  it('KHÔNG chuyển tiếp chuỗi chẩn đoán của tầng dưới ra thông điệp client', async () => {
+    // Hình dạng thật của một `Unavailable` từ connect-node: địa chỉ dial + errno.
+    const raw = 'connect ECONNREFUSED 10.42.0.7:9090 (orchestrator.dlp-system.svc)';
+    const message = await messageFor(Code.Unavailable, raw);
+
+    expect(message).not.toContain('ECONNREFUSED');
+    expect(message).not.toContain('10.42.0.7');
+    expect(message).not.toContain('dlp-system');
+    expect(message).not.toContain('orchestrator gRPC:');
+    // Không phải rỗng: `describeTrpcError` hiển thị thẳng chuỗi này cho người dùng.
+    expect(message.length).toBeGreaterThan(10);
+  });
+
+  it('câu gốc KHÔNG bị mất — nó nằm trong `cause` cho log/điều tra', async () => {
+    // "Errors Over Silent Fallbacks": cắt đường ra trình duyệt, không cắt đường
+    // tới người vận hành. Mất hẳn câu gốc thì sự cố mạng thành không chẩn đoán được.
+    const raw = 'connect ECONNREFUSED 10.42.0.7:9090';
+    try {
+      await callOrchestrator(() => Promise.reject(new ConnectError(raw, Code.Unavailable)));
+      throw new Error('không ném');
+    } catch (e) {
+      const cause = (e as TRPCError).cause;
+      expect(cause).toBeInstanceOf(ConnectError);
+      expect((cause as ConnectError).rawMessage).toContain('ECONNREFUSED');
+    }
+  });
+
   it('lỗi KHÔNG phải ConnectError được ném nguyên trạng', async () => {
     const boom = new Error('không phải lỗi gRPC');
     await expect(callOrchestrator(() => Promise.reject(boom))).rejects.toBe(boom);

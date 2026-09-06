@@ -32,6 +32,7 @@ import {
 } from '../../content/repository';
 import { contentSourceFor } from '../../content/source';
 import { validateForPublish } from '../../content/validate';
+import { isUniqueViolation } from '../../db/pg-errors';
 import { contentItems, contentSteps, type ContentItemRecord } from '../../db/schema';
 import { authorProcedure, createTRPCRouter } from '../init';
 
@@ -65,11 +66,13 @@ import { authorProcedure, createTRPCRouter } from '../init';
  * Text người soạn nhập, CHUẨN HOÁ về `
 ` ngay tại biên ghi.
  *
- * ⛔ Không phải chuyện thẩm mỹ. Hai hậu quả cụ thể của việc để `` lọt vào DB:
+ * ⛔ Không phải chuyện thẩm mỹ. Hai hậu quả cụ thể của việc để `
+` lọt vào DB:
  *
  * 1. **Script chạy bằng bash.** `verifyScript` / `setup.*` đi thẳng tới
  *    `GATEWAY_EXEC_SHELL` (mặc định `bash`) mà không qua parser nào. CRLF ở đó
- *    là `$'': command not found` ở MỖI dòng — cùng chế độ hỏng mà
+ *    là `$'
+': command not found` ở MỖI dòng — cùng chế độ hỏng mà
  *    `.gitattributes` đã ghi cho `*.sh` và `images/sandbox-base/skel/**`.
  * 2. **Markdown mất sạch nút bấm.** `parseContentBlocks` đã tự chuẩn hoá nên
  *    đường đọc an toàn, nhưng lưu bản CRLF nghĩa là byte trong DB khác byte mọi
@@ -84,6 +87,25 @@ const lfText = z.string().transform(normalizeNewlines);
 /** Như `lfText` nhưng cho phép `null` (script/hint vắng mặt là hợp lệ). */
 const lfTextNullable = z.string().transform(normalizeNewlines).nullable().default(null);
 
+/**
+ * Trần của `integer` Postgres (32-bit có dấu).
+ *
+ * ⛔ Đây KHÔNG phải một giới hạn biên tập, mà là hợp đồng LƯU TRỮ. `weight` và
+ * `estimatedMinutes` đều là cột `integer` (`db/schema.ts`), và một số lớn hơn
+ * trần này không bị Zod chặn (`.positive()` không có cận trên) nên đi thẳng tới
+ * Postgres, nơi nó nổ `22003 value out of range for type integer`. Lỗi ấy KHÔNG
+ * phải `TRPCError`, nên tRPC bọc nó thành 500 và — trước S2 — đẩy nguyên câu SQL
+ * kèm `params` (có `user_id` người gọi) ra trình duyệt.
+ *
+ * Chặn ở đây biến nó thành 400 với chỗ sai được chỉ đích danh, đúng tầng. Nhưng
+ * đây là bản vá CHỖ ĐÚNG, không phải BẢN VÁ: chốt chặn rò là `errorFormatter`
+ * (`trpc/error-message.ts`) — đường thứ tư sẽ luôn xuất hiện.
+ *
+ * Một trần biên tập chặt hơn (kiểu "một bài không quá 8 tiếng") là quyết định
+ * sản phẩm, không phải của lane này — đã ghi vào report.
+ */
+const PG_INT4_MAX = 2_147_483_647;
+
 const stepInput = z
   .object({
     /** LAB: id BỀN của task. LESSON: `null` — vị trí LÀ định danh. */
@@ -93,7 +115,7 @@ const stepInput = z
     setupForeground: lfTextNullable,
     setupBackground: lfTextNullable,
     verifyScript: lfTextNullable,
-    weight: z.number().int().positive().nullable().default(null),
+    weight: z.number().int().positive().max(PG_INT4_MAX).nullable().default(null),
     hint: lfTextNullable,
   })
   .strict();
@@ -127,7 +149,7 @@ const contentDraftInput = z
     title: z.string().min(1),
     description: z.string().nullable().default(null),
     difficulty: z.enum(SCENARIO_DIFFICULTIES).nullable().default(null),
-    estimatedMinutes: z.number().int().positive().nullable().default(null),
+    estimatedMinutes: z.number().int().positive().max(PG_INT4_MAX).nullable().default(null),
     tier: z.enum(SANDBOX_TIER_NAMES),
     capabilities: z.array(z.enum(SCENARIO_CAPABILITIES)).default([]),
     backendImageId: z.string().min(1),
@@ -346,13 +368,26 @@ export const authoringRouter = createTRPCRouter({
     // bị che, và composite ghi WARN. Chặn ở đây sẽ là một luật thứ hai, và nó sẽ
     // lệch khỏi luật thứ nhất khi nội dung vendored thêm/bớt bài. `publish` là
     // chỗ cảnh báo người soạn (xem dưới).
-    await ctx.db.insert(contentItems).values({
-      id: input.id,
-      kind: input.kind,
-      authorId: ctx.user.id,
-      state: 'draft',
-      ...itemColumns(input),
-    });
+    // ⚠ TOCTOU: `contentIdTaken` ở trên và `insert` ở đây là HAI câu lệnh, và
+    // không có khoá nào giữa chúng. Bấm "Tạo" hai lần — hoặc hai tác giả chọn
+    // cùng id — thì lượt thứ hai qua được phép kiểm rồi đụng PRIMARY KEY, ném
+    // `23505`. Đó KHÔNG phải `TRPCError`, nên nó thành 500 kèm câu SQL rò ra
+    // ngoài (trước S2). Phép kiểm trước vẫn giữ: nó cho câu lỗi tốt trong ca
+    // thường; `catch` này là thứ đóng cửa sổ đua mà phép kiểm ấy không đóng được.
+    try {
+      await ctx.db.insert(contentItems).values({
+        id: input.id,
+        kind: input.kind,
+        authorId: ctx.user.id,
+        state: 'draft',
+        ...itemColumns(input),
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new TRPCError({ code: 'CONFLICT', message: `Id "${input.id}" đã có` });
+      }
+      throw error;
+    }
     if (input.steps.length > 0) {
       await ctx.db.insert(contentSteps).values(stepRows(input.id, input.steps));
     }

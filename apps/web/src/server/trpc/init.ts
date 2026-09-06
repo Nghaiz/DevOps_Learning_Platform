@@ -4,6 +4,7 @@ import { z, ZodError } from 'zod';
 import { getAuth } from '../auth/config';
 import { getDb, type Database } from '../db/client';
 import { checkRateLimit, RATE_LIMIT_WINDOW_MS } from '../security/rate-limit';
+import { toClientSafeMessage } from './error-message';
 
 export interface AuthedUser {
   id: string;
@@ -57,12 +58,41 @@ function toRole(user: { role?: unknown }): AuthedUser['role'] {
 }
 
 const t = initTRPC.context<TRPCContext>().create({
+  /**
+   * S2 — chốt chặn rò thông điệp tầng dưới. Lý lẽ đầy đủ: `./error-message.ts`.
+   *
+   * Ba việc, theo đúng thứ tự:
+   *  1. Thay `message` khi câu đó không do ta soạn (SQL của Drizzle, mã lỗi
+   *     Postgres, chuỗi `code` trần) bằng một câu tiếng Việt nói được phải làm gì.
+   *  2. GHI LOG nguyên văn câu gốc ở SERVER kèm `path` của procedure — thay câu
+   *     mà không log là nuốt lỗi ("Errors Over Silent Fallbacks"); đây là chỗ
+   *     duy nhất còn cả `error` lẫn `path`.
+   *  3. Bỏ `data.stack` cho ĐÚNG những lỗi bị thay. `getErrorShape` gắn `stack`
+   *     khi `isDev` (tức mọi lúc `NODE_ENV !== 'production'`), và stack của
+   *     `DrizzleQueryError` MỞ ĐẦU bằng chính câu SQL — bịt `message` mà để lại
+   *     `stack` là bịt một nửa. Lỗi ta tự soạn vẫn giữ stack: dev cần nó, và nó
+   *     không mang gì của tầng dưới.
+   */
   errorFormatter(opts) {
-    const { shape, error } = opts;
+    const { shape, error, path } = opts;
+    const safe = toClientSafeMessage(error);
+
+    if (safe.redacted) {
+      console.error('[trpc] chặn thông điệp tầng dưới không cho ra client', {
+        path: path ?? '(không rõ procedure)',
+        code: error.code,
+        original: error.message,
+        cause: error.cause instanceof Error ? error.cause.message : undefined,
+      });
+    }
+
+    const { stack: _stack, ...dataWithoutStack } = shape.data;
+
     return {
       ...shape,
+      message: safe.message,
       data: {
-        ...shape.data,
+        ...(safe.redacted ? dataWithoutStack : shape.data),
         zodError:
           error.code === 'BAD_REQUEST' && error.cause instanceof ZodError
             ? error.cause.flatten()
@@ -114,7 +144,14 @@ export const TRPC_MUTATION_LIMIT_PER_MIN = 20;
 export const protectedProcedure = t.procedure
   .use(({ ctx, next }) => {
     if (ctx.user === null) {
-      throw new TRPCError({ code: 'UNAUTHORIZED' });
+      // `message` là BẮT BUỘC, không phải trang trí: constructor của tRPC v11 rơi
+      // về `opts.code` khi thiếu nó, nên người dùng nhận đúng chuỗi `UNAUTHORIZED`
+      // — tiếng Anh, viết hoa, không nói phải làm gì. Đây là chỗ DUY NHẤT trong
+      // 94 lượt `new TRPCError` của repo từng thiếu `message`.
+      throw new TRPCError({
+        code: 'UNAUTHORIZED',
+        message: 'Bạn chưa đăng nhập hoặc phiên đã hết hạn. Hãy đăng nhập lại rồi thử lại.',
+      });
     }
     return next({ ctx: { ...ctx, user: ctx.user } });
   })
