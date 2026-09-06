@@ -23,6 +23,7 @@ import type { AuthedUser } from '../server/trpc/init';
 const AUTHORING_PROCEDURES = [
   'list',
   'preview',
+  'get',
   'create',
   'update',
   'check',
@@ -86,6 +87,27 @@ describe('luật 1 dạng mạnh — không procedure soạn bài nào NHẬN au
     expect(inputFieldsOf('create')).toContain('id');
     expect(inputFieldsOf('create')).toContain('kind');
     expect(inputFieldsOf('create')).toContain('title');
+  });
+});
+
+describe('authoring.get — bề mặt IDOR mới, kiểm được KHÔNG cần DB', () => {
+  it('input đúng MỘT field `id` — không có đường khai chủ sở hữu hay tầm nhìn', () => {
+    // `get` trả THÂN của một bài theo id, nên mọi field thêm vào input của nó
+    // đều là một field kẻ tấn công điền được. Một `authorId`/`visibility` ở đây
+    // sẽ biến cổng thứ hai thành phép tự-so-với-chính-mình.
+    expect(inputFieldsOf('get')).toEqual(['id']);
+  });
+
+  it('input là .strict() — field lạ bị TỪ CHỐI, không bị nuốt', async () => {
+    const procedures = (appRouter._def as { procedures: Record<string, unknown> }).procedures;
+    const schema = (
+      procedures['authoring.get'] as { _def?: { inputs?: unknown[] } } | undefined
+    )?._def?.inputs?.[0] as { safeParse: (v: unknown) => { success: boolean } } | undefined;
+    expect(schema).toBeDefined();
+    // ĐỐI CHỨNG DƯƠNG trước: id hợp lệ PHẢI qua, nếu không thì vế "từ chối"
+    // dưới đây chỉ chứng minh schema từ chối tất cả.
+    expect(schema?.safeParse({ id: 'bai-hop-le' }).success).toBe(true);
+    expect(schema?.safeParse({ id: 'bai-hop-le', authorId: 'nan-nhan' }).success).toBe(false);
   });
 });
 

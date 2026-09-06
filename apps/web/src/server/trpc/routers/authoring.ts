@@ -32,7 +32,7 @@ import {
 } from '../../content/repository';
 import { contentSourceFor } from '../../content/source';
 import { validateForPublish } from '../../content/validate';
-import { contentItems, contentSteps } from '../../db/schema';
+import { contentItems, contentSteps, type ContentItemRecord } from '../../db/schema';
 import { authorProcedure, createTRPCRouter } from '../init';
 
 /**
@@ -212,6 +212,30 @@ function stepRows(contentId: string, steps: readonly z.infer<typeof stepInput>[]
   }));
 }
 
+/**
+ * State ĐỂ BÁO CÁO của một bài — `publishing` đã treo được kể là `draft`.
+ *
+ * Đó là trạng thái THẬT của nó (không có ai đang chạy thử), và hiện "đang xuất
+ * bản" mãi mãi là nói dối người soạn. Trạng thái treo được TÍNH lúc đọc, KHÔNG
+ * lưu thành cột (`rules/code-conventions.md` → "No Derived Fields"): nó là hàm
+ * của `publishStartedAt` và đồng hồ, nên một cột sẽ đúng đúng một lần rồi sai
+ * mãi.
+ *
+ * ⚠ Là HÀM chứ không phải một biểu thức chép hai lần, vì `list` và `get` phải
+ * trả CÙNG một câu trả lời. Hai chỗ tính riêng nghĩa là danh sách nói "nháp"
+ * trong khi form soạn nói "đang xuất bản" — và nếu form khoá theo state đó thì
+ * tác giả bị nhốt ngoài chính bài của mình, đúng chế độ hỏng mà `get` sinh ra
+ * để đóng.
+ */
+function reportedState(
+  record: Pick<ContentItemRecord, 'state' | 'publishStartedAt'>,
+  now: Date,
+): ContentItemRecord['state'] {
+  return record.state === 'publishing' && isPublishTrialStale(record.publishStartedAt, now)
+    ? 'draft'
+    : record.state;
+}
+
 export const authoringRouter = createTRPCRouter({
   /**
    * Bài của CHÍNH tôi (admin: mọi bài), mọi state.
@@ -226,13 +250,7 @@ export const authoringRouter = createTRPCRouter({
     return rows.map(({ record, stepCount }) => ({
       id: record.id,
       kind: record.kind,
-      // Một bài `publishing` đã treo được BÁO CÁO là `draft`: đó là trạng thái
-      // thật của nó (không có ai đang chạy thử), và hiện "đang xuất bản" mãi
-      // mãi là nói dối người soạn. Trạng thái treo được TÍNH, không lưu.
-      state:
-        record.state === 'publishing' && isPublishTrialStale(record.publishStartedAt, now)
-          ? ('draft' as const)
-          : record.state,
+      state: reportedState(record, now),
       authorId: record.authorId,
       title: record.title,
       stepCount,
@@ -259,6 +277,58 @@ export const authoringRouter = createTRPCRouter({
       case 'playground':
         return { kind: 'playground' as const, playground: await source.getPlayground(input.id) };
     }
+  }),
+
+  /**
+   * Đọc bản nháp ĐỂ SỬA — chính thứ `preview` không làm được.
+   *
+   * ## Cái lỗ này có thật, và nó khoá tác giả ra khỏi bài của họ
+   *
+   * `preview` đọc qua nguồn hợp nhất, và nguồn DB `safeParse` bằng CHÍNH schema
+   * xuất bản rồi trả `null` khi trượt (`packages/scenario/src/db-source.ts` —
+   * "hàng hỏng bị BỎ QUA kèm WARN"). Đúng cho người học: một bài soạn dở không
+   * được phép hiện ra dưới dạng một thẻ bấm vào là trang trắng.
+   *
+   * Sai cho người soạn, vì đường GHI cho phép lưu đúng những bản nháp đó:
+   * `create`/`update` mặc định `steps: []`, còn `stepInput` mặc định
+   * `taskId`/`weight`/`verifyScript` = `null`. `scenarioSchema` đòi
+   * `steps.min(1)`; `labTaskSchema` đòi `verifyScript.min(1)` + `weight` dương
+   * + `id` bền. Nên NGAY khi tác giả bấm lưu một bản nháp còn dở, `preview` trả
+   * `null` và form soạn không mở lại được bài của chính họ nữa — một bản nháp
+   * ghi được nhưng không đọc được.
+   *
+   * Nên `get` đọc bằng `loadBodyForWrite` — CÙNG đường mà `check`/`publish` đã
+   * đi, không qua schema xuất bản. Bài chưa hợp lệ vẫn mở được; phán quyết "đã
+   * đủ để xuất bản chưa" là việc của `check`, không phải của một lượt đọc.
+   *
+   * ## Hai cổng, y hệt `preview`/`update`
+   *
+   * Procedure này trả THÂN của một bài theo id, nên nó là bề mặt IDOR ngang
+   * hàng chúng: `findContentForWrite` để đọc `author_id` TỪ DB (không từ
+   * input), rồi `assertContentOwner`. `security/authoring-get-draft.test.ts`
+   * khẳng định cả hai vế lúc chạy, kèm đối chứng dương.
+   */
+  get: authorProcedure.input(idInput).query(async ({ ctx, input }) => {
+    const record = await findContentForWrite(ctx.db, input.id);
+    if (record === null) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Không có bài đó' });
+    }
+    assertContentOwner(ctx.user, record.authorId);
+
+    const body = await loadBodyForWrite(ctx.db, input.id);
+    if (body === null) {
+      // Hàng biến mất giữa hai truy vấn (một lượt xoá chạy song song). Người
+      // gọi không làm gì sai, nhưng câu trả lời đúng vẫn là "không có bài đó".
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Không có bài đó' });
+    }
+
+    // ⛔ Ba message NOT_FOUND ở đây — hai cái trên và cái mà `assertContentOwner`
+    // ném — phải GIỐNG NHAU TỪNG BYTE, và đó là lý do không cái nào nói thêm
+    // "kiểm tra lại id" hay bất cứ gợi ý nào khác. Message khác nhau tức là
+    // "id không tồn tại" phân biệt được với "id tồn tại nhưng không phải của
+    // bạn", tức là đúng thứ mà cả router này chọn NOT_FOUND thay vì FORBIDDEN
+    // để giấu. Test khẳng định phép giống-nhau đó, không phải chỉ mã lỗi.
+    return { kind: record.kind, state: reportedState(record, new Date()), body };
   }),
 
   /**
