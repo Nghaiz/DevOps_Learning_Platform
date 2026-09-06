@@ -32,15 +32,23 @@ export async function listSessionsPage(
 }
 
 /**
- * `me.endSession`/`admin.sessions.terminate` dùng chung — `ReapSession` với
- * `actor` là NGƯỜI GỌI THẬT (không phải chủ session, khi actor là admin kết
- * thúc hộ). `reason` khác nhau ở hai router (`'user_ended'` vs
- * `'admin_terminated'`) nên KHÔNG được cố định ở đây — truyền vào từ caller.
+ * Đường TỰ PHỤC VỤ: người dùng kết thúc phiên CỦA CHÍNH MÌNH (`me.endSession`).
+ *
+ * ⛔ KHÔNG phải đường của admin, và `reason` cố ý chỉ nhận `'user_ended'`.
+ * Bản trước mở thêm `'admin_terminated'` cho `admin.sessions.terminate` dùng
+ * chung, nhưng nhánh đó gửi `actor: { case: 'userId' }` — tức orchestrator ghi
+ * nhật ký như thể CHỦ phiên tự bấm, trong khi người bấm là admin. Đó không phải
+ * thiếu một dòng audit mà là một dòng audit SAI.
+ *
+ * D15 tách hẳn hai đường: admin đi qua `../admin/terminate.ts` với nhánh actor
+ * riêng `admin_user_id` (xem `session.proto`). Thu hẹp union ở đây để lần sau
+ * không ai nối lại đường cũ bằng cách truyền một chuỗi khác — trình biên dịch
+ * chặn trước.
  */
 export async function endSessionAs(
   ctx: { user: { id: string; role: string } },
   sessionId: string,
-  reason: 'user_ended' | 'admin_terminated',
+  reason: 'user_ended',
 ): Promise<{ status: number | null }> {
   const headers = await callHeaders(ctx.user.id, ctx.user.role);
   const response = await callOrchestrator(() =>
