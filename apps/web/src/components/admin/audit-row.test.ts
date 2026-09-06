@@ -4,7 +4,6 @@ import {
   describeAuditActor,
   describeAuditDetail,
   describeAuditTarget,
-  formatAuditMoment,
 } from './audit-row';
 
 describe('describeAuditActor — id không còn tra ngược được', () => {
@@ -110,15 +109,5 @@ describe('describeAuditDetail', () => {
     circular['self'] = circular;
     expect(() => describeAuditDetail('la', circular)).not.toThrow();
     expect(describeAuditDetail('la', circular)).toContain('không đọc được');
-  });
-});
-
-describe('formatAuditMoment', () => {
-  it('chuỗi hỏng thành "không rõ", không phải Invalid Date', () => {
-    expect(formatAuditMoment('hôm kia')).toBe('không rõ');
-  });
-
-  it('thời điểm hợp lệ cho một chuỗi thật', () => {
-    expect(formatAuditMoment('2026-09-06T10:00:00.000Z')).not.toBe('không rõ');
   });
 });

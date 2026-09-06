@@ -115,15 +115,6 @@ export function shortId(id: string): string {
   return id.length <= 12 ? id : `${id.slice(0, 12)}…`;
 }
 
-/** Thời điểm dạng ngày-giờ địa phương; `null`/chuỗi hỏng thành "không rõ", không phải "Invalid Date". */
-export function formatMoment(iso: string | null): string {
-  if (iso === null) {
-    return 'không rõ';
-  }
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? 'không rõ' : at.toLocaleString('vi-VN');
-}
-
 /**
  * Còn bao lâu tới hạn.
  *

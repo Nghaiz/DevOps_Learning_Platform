@@ -40,7 +40,7 @@ import {
   orderContent,
   planArchive,
 } from '../../../components/admin/content-row';
-import { formatMoment } from '../../../components/admin/session-row';
+import { formatMoment } from '../../../lib/format-moment';
 
 type ContentItem = inferRouterOutputs<AppRouter>['authoring']['list'][number];
 

@@ -30,9 +30,9 @@ import {
   describeSessionOwner,
   describeSessionStatus,
   describeTerminateError,
-  formatMoment,
   planTerminate,
 } from '../../../components/admin/session-row';
+import { formatMoment } from '../../../lib/format-moment';
 import {
   FIRST_PAGE,
   currentCursor,

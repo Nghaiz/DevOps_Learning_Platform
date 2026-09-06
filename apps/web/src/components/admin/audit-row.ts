@@ -143,9 +143,3 @@ function stringifyDetail(detail: unknown): string {
     return 'chi tiết không đọc được (dữ liệu không chuyển được sang JSON)';
   }
 }
-
-/** Thời điểm dạng ngày-giờ địa phương; chuỗi hỏng thành "không rõ", không phải "Invalid Date". */
-export function formatAuditMoment(iso: string): string {
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? 'không rõ' : at.toLocaleString('vi-VN');
-}

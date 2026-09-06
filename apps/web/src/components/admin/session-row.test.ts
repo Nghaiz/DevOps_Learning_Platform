@@ -6,7 +6,6 @@ import {
   describeSessionOwner,
   describeSessionStatus,
   describeTerminateError,
-  formatMoment,
   planTerminate,
   shortId,
 } from './session-row';
@@ -136,16 +135,7 @@ describe('describeExpiry', () => {
   });
 });
 
-describe('formatMoment + shortId', () => {
-  it('null và chuỗi hỏng thành "không rõ", không phải Invalid Date', () => {
-    expect(formatMoment(null)).toBe('không rõ');
-    expect(formatMoment('không-phải-ngày')).toBe('không rõ');
-  });
-
-  it('thời điểm hợp lệ cho một chuỗi thật', () => {
-    expect(formatMoment('2026-09-06T10:00:00.000Z')).not.toBe('không rõ');
-  });
-
+describe('shortId', () => {
   it('id ngắn giữ nguyên; id dài cắt nhưng vẫn còn phần phân biệt được', () => {
     expect(shortId('sess_123')).toBe('sess_123');
     expect(shortId('sess_abcdefghijklmnop')).toBe('sess_abcdefg…');

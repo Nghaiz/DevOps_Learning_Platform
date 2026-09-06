@@ -5,7 +5,6 @@ import {
   describeEndSessionError,
   describeMySessionStatus,
   describeSessionExpiry,
-  formatMoment,
   shortSessionId,
 } from './session-summary';
 
@@ -68,17 +67,6 @@ describe('describeSessionExpiry', () => {
   it('thiếu hạn hoặc chuỗi hỏng: nói không rõ, không hiện Invalid Date', () => {
     expect(describeSessionExpiry(null, now)).toBe('không rõ hạn');
     expect(describeSessionExpiry('không-phải-ngày', now)).toBe('không rõ hạn');
-  });
-});
-
-describe('formatMoment', () => {
-  it('null và chuỗi hỏng thành "không rõ", không phải "Invalid Date"', () => {
-    expect(formatMoment(null)).toBe('không rõ');
-    expect(formatMoment('bậy bạ')).toBe('không rõ');
-  });
-
-  it('chuỗi ISO hợp lệ ra một chuỗi có nội dung', () => {
-    expect(formatMoment('2026-09-06T10:00:00.000Z')).not.toBe('không rõ');
   });
 });
 

@@ -88,32 +88,6 @@ export function describeSessionExpiry(expiresAt: string | null, now: number): st
   return 'đã quá hạn, đang được dọn';
 }
 
-/**
- * Thời điểm dạng ngày-giờ địa phương.
- *
- * ⚠ Bản thứ TƯ của cùng bốn dòng này trong `apps/web` (ba bản kia ở
- * `components/admin/session-row.ts`, `components/admin/audit-row.ts`,
- * `app/admin/users/users-client.tsx`). Chỗ đúng cho nó là
- * `apps/web/src/lib/format-moment.ts`, nhưng `lib/**` không thuộc path sở hữu
- * của lane E — đã ghi vào report kèm đề xuất gộp. Chép ở đây thay vì import
- * `components/admin/**` vào một trang của người học: một module tên `admin`
- * không phải chỗ trang `/me` nên phụ thuộc vào, và lane G còn đang sửa nó.
- *
- * ⚠ Nhận cả `Date` chứ không chỉ `string`, và đó KHÔNG phải phòng xa: dây tRPC
- * của app này cố ý không có transformer, nhưng `me.listProgress` trả thẳng dòng
- * Drizzle nên KIỂU của nó nói `Date` trong khi JSON qua dây là một chuỗi ISO.
- * Ép một phía đổi kiểu ở chỗ gọi là mời đúng lỗi `.getTime is not a function`
- * mà `lab-score.ts` đã ghi lại. Đã báo lead: chỗ sửa đúng là router (thêm
- * `toISOString()` như `lessons.ts` đã làm), nằm ngoài path sở hữu của lane E.
- */
-export function formatMoment(iso: string | Date | null): string {
-  if (iso === null) {
-    return 'không rõ';
-  }
-  const at = iso instanceof Date ? iso : new Date(iso);
-  return Number.isNaN(at.getTime()) ? 'không rõ' : at.toLocaleString('vi-VN');
-}
-
 /** Id rút gọn cho tiêu đề hộp thoại. Danh sách vẫn hiện id ĐẦY ĐỦ. */
 export function shortSessionId(id: string): string {
   return id.length <= 12 ? id : `${id.slice(0, 12)}…`;

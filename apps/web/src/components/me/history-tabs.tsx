@@ -23,7 +23,7 @@ import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
 import { summarizeLabAttempt, summarizeQuizAttempt } from './attempt-summary';
 import { summarizeLessonProgress } from './lesson-progress';
-import { formatMoment } from './session-summary';
+import { formatMoment } from '../../lib/format-moment';
 import { useCursorPages } from './use-cursor-pages';
 
 /**

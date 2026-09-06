@@ -45,6 +45,7 @@ import {
   pushCursor,
   type CursorStack,
 } from '../../../components/catalog/catalog-cursor';
+import { formatDay } from '../../../lib/format-moment';
 
 type AdminUser = inferRouterOutputs<AppRouter>['admin']['users']['list']['items'][number];
 
@@ -353,10 +354,4 @@ function UserRow({
 /** Gợi ý mặc định trong ô chọn: một vai trò KHÁC vai trò hiện tại, để hộp thoại không mở ra ở trạng thái vô nghĩa. */
 function firstOtherRole(current: string): ViewerRole {
   return ASSIGNABLE_ROLES.find((role) => role !== current) ?? 'user';
-}
-
-/** Ngày tạo tài khoản; chuỗi không đọc được thì nói "không rõ" thay vì "Invalid Date". */
-function formatDay(iso: string): string {
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? 'không rõ' : at.toLocaleDateString('vi-VN');
 }

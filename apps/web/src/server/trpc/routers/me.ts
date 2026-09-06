@@ -37,9 +37,11 @@ import { assertUuidCursor, createTRPCRouter, listInputSchema, protectedProcedure
  * khi trình duyệt nhận `string`. Không typecheck nào bắt được: cả hai phía tự
  * nhất quán với chính mình, chỉ có sự thật lúc chạy là khác.
  *
- * Cùng lớp lỗi với `bigint` từng làm 500 thật ở P2 (`lab-score.ts`), và với
- * chú thích ⚠ mà `components/me/session-summary.ts` phải viết để `formatMoment`
- * chịu được CẢ HAI kiểu. Chỗ sửa đúng là ở đây, không phải ở chỗ gọi.
+ * Cùng lớp lỗi với `bigint` từng làm 500 thật ở P2 (`lab-score.ts`). Trước khi
+ * router được sửa, `formatMoment` phải nhận CẢ `string` LẪN `Date` để chịu được
+ * dòng thô này; nay `lib/format-moment.ts` chỉ nhận `string | null`, nên kiểu
+ * hẹp đó là cổng: trả thẳng một cột `timestamp` ra dây sẽ đỏ typecheck ở chỗ
+ * gọi. Chỗ sửa đúng là ở đây, không phải ở chỗ gọi.
  *
  * `lessons.ts` đã làm đúng việc này từ P2 với `toProgressView`; hàm đó KHÔNG
  * dùng lại được nguyên bản ở đây vì nó bỏ `id` (cursor keyset cần) và `lessonId`

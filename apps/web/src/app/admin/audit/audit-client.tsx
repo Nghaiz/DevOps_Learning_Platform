@@ -25,8 +25,8 @@ import {
   describeAuditActor,
   describeAuditDetail,
   describeAuditTarget,
-  formatAuditMoment,
 } from '../../../components/admin/audit-row';
+import { formatMoment } from '../../../lib/format-moment';
 import {
   FIRST_PAGE,
   currentCursor,
@@ -104,7 +104,7 @@ export function AdminAuditClient(): ReactElement {
                 return (
                   <TableRow key={row.id}>
                     <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
-                      {formatAuditMoment(row.occurredAt)}
+                      {formatMoment(row.occurredAt)}
                     </TableCell>
                     <TableCell className="font-mono text-xs" title={actor.note}>
                       {actor.text}

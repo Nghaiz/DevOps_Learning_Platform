@@ -29,9 +29,9 @@ import {
   describeEndSessionError,
   describeMySessionStatus,
   describeSessionExpiry,
-  formatMoment,
   shortSessionId,
 } from './session-summary';
+import { formatMoment } from '../../lib/format-moment';
 import { useCursorPages } from './use-cursor-pages';
 
 /**
