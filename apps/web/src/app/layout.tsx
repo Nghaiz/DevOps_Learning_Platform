@@ -4,6 +4,9 @@ import { headers } from 'next/headers';
 import { Be_Vietnam_Pro } from 'next/font/google';
 import { THEME_INIT_SCRIPT, ThemeProvider, Toaster, TooltipProvider } from '@devops-platform/ui';
 import { appUrl } from '../server/env';
+import { getAuth } from '../server/auth/config';
+import { AppShell } from '../components/shell/app-shell';
+import { normalizeRole, type Viewer } from '../components/shell/nav';
 import './globals.css';
 
 const base = appUrl();
@@ -45,7 +48,32 @@ const beVietnamPro = Be_Vietnam_Pro({
  * React hydrate `<body>` để không nháy màu (FOUC) giữa theme sáng/tối.
  */
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const nonce = (await headers()).get('x-nonce') ?? undefined;
+  const requestHeaders = await headers();
+  const nonce = requestHeaders.get('x-nonce') ?? undefined;
+
+  /*
+   * 13.B — vai trò cho vỏ ứng dụng lấy từ **session phía server**, không từ bất
+   * kỳ thứ gì client tự khai. Ở đây nó chỉ quyết định ẨN/HIỆN liên kết; cổng
+   * thật là `layout.tsx` server của `/author` và `/admin` (`getSession` + role →
+   * `redirect('/me')`, hợp đồng C6) — giấu một mục menu không chặn được ai gõ
+   * thẳng đường dẫn.
+   *
+   * ⚠ Đây là lượt `getSession` THỨ HAI trên mỗi request của các nhánh đã có
+   * layout gác auth riêng (`/lessons`, `/labs`, `/me`, …) — hai lượt đụng DB
+   * cho cùng một câu trả lời. Gỡ được bằng cách bọc `getSession` trong `cache()`
+   * của React ở `server/auth/config.ts`, nhưng file đó thuộc lane BE1 nên lane
+   * này KHÔNG sửa; đã ghi vào report. Không có cách nào để layout con nhận prop
+   * từ layout cha trong App Router, nên "chỉ gọi ở root" không phải lựa chọn.
+   */
+  const session = await getAuth().api.getSession({ headers: requestHeaders });
+  const viewer: Viewer | null =
+    session === null
+      ? null
+      : {
+          name: session.user.name,
+          email: session.user.email,
+          role: normalizeRole(session.user.role),
+        };
 
   return (
     <html lang="vi" className={beVietnamPro.variable} suppressHydrationWarning>
@@ -55,7 +83,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body className="min-h-screen bg-background text-foreground antialiased" data-nonce={nonce}>
         <ThemeProvider>
           <TooltipProvider delayDuration={300}>
-            {children}
+            <AppShell viewer={viewer}>{children}</AppShell>
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>
