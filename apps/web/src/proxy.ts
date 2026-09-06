@@ -173,5 +173,13 @@ export function proxy(request: NextRequest): NextResponse {
 }
 
 export const config = {
+  // ⚠ Matcher này KHỚP `/ide/...` về mặt chuỗi, nhưng middleware KHÔNG BAO GIỜ
+  // chạy cho đường đó — và lý do là ĐỊNH TUYẾN, không phải matcher: Traefik đưa
+  // `Host(…) && PathPrefix('/ide')` thẳng sang Service của gateway, nên request
+  // không tới Next. Đọc matcher rồi kết luận "/ide đã được `applySecurityHeaders`
+  // phủ" là sai, và đó là kết luận tự nhiên nhất khi nhìn đúng dòng này.
+  //
+  // Header an ninh của `/ide` do gateway đặt:
+  // `services/terminal-gateway/internal/ideroute/secheaders.go` (P13, lỗ S1).
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
