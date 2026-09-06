@@ -38,9 +38,9 @@
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(0.546 0.215 262.881);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(0.97 0.005 262.881);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
+  --muted: oklch(0.97 0.005 262.881);
   --muted-foreground: oklch(0.446 0 0);
   --accent: oklch(0.951 0.023 262.881);
   --accent-foreground: oklch(0.205 0 0);
@@ -78,6 +78,101 @@
    */
   --input: oklch(0.63 0 0);
   --ring: oklch(0.546 0.215 262.881);
+
+  /*
+   * ── Độ khó ────────────────────────────────────────────────────────────────
+   * Cặp đặc/chữ theo đúng quy ước shadcn (`--x` là NỀN, `--x-foreground` là chữ
+   * trên nền đó). MỘT token phục vụ ba chỗ: nền badge, viền trái thẻ, chấm chỉ
+   * mục — nên nó chịu ĐỒNG THỜI hai ngưỡng: ≥4.5 cho chữ nằm trên nó (SC 1.4.3)
+   * và ≥3.0 khi chính nó là đồ hoạ trên `--background`/`--card`/`--muted`
+   * (SC 1.4.11).
+   *
+   * Ràng buộc thứ hai là thứ CẤM biến badge thành chip pastel: một nền nhạt
+   * `oklch(0.85 …)` đọc chữ tối rất tốt nhưng chỉ được ~1.6:1 so với nền trang,
+   * tức viền trái và chấm chỉ mục sẽ VÔ HÌNH. Vì vậy chip phải ĐẶC và đủ tối để
+   * chữ trắng đạt 4.5 — đó là lý do thang sáng nằm quanh L≈0.52, không phải một
+   * lựa chọn thẩm mỹ.
+   *
+   * Ba hue là thang NÓNG DẦN (lam-lục → hổ phách → tím), CỐ Ý không có lục: lục
+   * để dành riêng cho `--status-done`. Nếu độ khó "cơ bản" cũng lục thì badge
+   * độ-khó và chấm trạng-thái trông như nhau trên cùng một thẻ.
+   *
+   * Mọi giá trị đều TRONG gamut sRGB, gác bằng test `gamut` ở
+   * `tokens.contract.test.ts`. Ngoài gamut thì trình duyệt gamut-map (giảm
+   * chroma, giữ L/H) trong khi phép đo lại clamp từng kênh — số đo khi đó không
+   * còn tả đúng thứ hiển thị.
+   */
+  --difficulty-basic: oklch(0.514 0.085 195);
+  --difficulty-basic-foreground: oklch(0.985 0 0);
+  --difficulty-intermediate: oklch(0.53 0.11 65);
+  --difficulty-intermediate-foreground: oklch(0.985 0 0);
+  --difficulty-advanced: oklch(0.547 0.2 305);
+  --difficulty-advanced-foreground: oklch(0.985 0 0);
+
+  /*
+   * ── Trạng thái học ────────────────────────────────────────────────────────
+   * `--status-progress` dùng ĐÚNG hue thương hiệu (262.881), không phải một màu
+   * lam gần giống: "đang học" là trạng thái hoạt động nên nó thuộc họ màu chính
+   * một cách có chủ ý. Chọn 245 hay 250 sẽ lệch 13–18° so với `--primary` — đủ
+   * để mắt thấy khác nhưng không đủ để thấy là CỐ Ý, tức trông như lỗi.
+   *
+   * `--status-locked` gần trung tính (chroma 0.012) chứ không xám tuyệt đối: nó
+   * vẫn phải đạt 3:1 khi làm chấm/viền nên không được phép nhạt đi; hạ chroma
+   * là cách duy nhất còn lại để nó lùi về sau về mặt thị giác.
+   */
+  --status-progress: oklch(0.533 0.2 262.881);
+  --status-progress-foreground: oklch(0.985 0 0);
+  --status-done: oklch(0.509 0.13 150);
+  --status-done-foreground: oklch(0.985 0 0);
+  --status-locked: oklch(0.523 0.012 262.881);
+  --status-locked-foreground: oklch(0.985 0 0);
+
+  /*
+   * ── Nâng nền ──────────────────────────────────────────────────────────────
+   * BÓNG ĐỔ, không phải màu — đây là thứ tách "thẻ" khỏi "hình chữ nhật viền
+   * mảnh". Bóng mang sắc độ lạnh cùng hue nền thay vì đen thuần: bóng đen tuyệt
+   * đối trên nền trắng ngả xám bẩn, bóng cùng hue thì đọc như bóng thật.
+   *
+   * Mỗi bậc là HAI lớp — một lớp sát (nét tiếp xúc) và một lớp toả (khối) — vì
+   * một lớp duy nhất luôn phải chọn giữa "sắc nét nhưng phẳng" và "mềm nhưng
+   * nhoè".
+   *
+   * Đây là ba BẬC ngữ nghĩa, không phải ba kích cỡ tuỳ ý: 1 = thẻ lúc nghỉ,
+   * 2 = thẻ lúc hover, 3 = popover/dialog. Dùng sai bậc thì phân cấp thị giác
+   * nói dối về thứ đang thật sự nổi lên trên.
+   */
+  --elevation-1:
+    0 1px 2px -1px oklch(0.145 0.012 262.881 / 0.1),
+    0 1px 3px 0 oklch(0.145 0.012 262.881 / 0.08);
+  --elevation-2:
+    0 2px 4px -2px oklch(0.145 0.012 262.881 / 0.12),
+    0 6px 16px -4px oklch(0.145 0.012 262.881 / 0.12);
+  --elevation-3:
+    0 4px 8px -4px oklch(0.145 0.012 262.881 / 0.16),
+    0 16px 40px -8px oklch(0.145 0.012 262.881 / 0.2);
+
+  /*
+   * ── Chuyển động ───────────────────────────────────────────────────────────
+   * KHÔNG lặp ở `.dark`, cùng lý do đã ghi cho `--radius` ngay dưới: thời lượng
+   * và đường cong không đổi theo theme, nên lặp lại chỉ tạo thêm một chỗ để
+   * quên đồng bộ. `tokens.contract.test.ts` khẳng định chúng VẮNG ở `.dark`, để
+   * đây là quyết định có cổng gác chứ không phải một chỗ bỏ sót.
+   *
+   * ⚠ `--ease-out` TRÙNG TÊN với biến theme sẵn có của Tailwind v4. Vì
+   * `@import 'tailwindcss'` nằm ở đầu file, khai báo này thắng theo thứ tự
+   * nguồn, nên tiện ích `ease-out` cũng nhận đường cong này — chủ ý, một đường
+   * cong cho cả hệ. Đo ngày 2026-09-06: `ease-out` có 0 lần dùng trong
+   * `packages/ui/src` + `apps/web/src`, nên việc đổi KHÔNG âm thầm sửa chỗ nào
+   * đang chạy.
+   *
+   * Đường cong giảm tốc mạnh (0.16, 1, 0.3, 1): nhanh lúc đầu rồi dừng êm, nên
+   * chuyển động cảm thấy "phản hồi tức thì" thay vì "trôi".
+   */
+  --motion-fast: 150ms;
+  --motion-base: 220ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
   /*
    * `--radius` CỐ Ý chỉ khai ở `:root`, không lặp trong `.dark` — nó là số đo
    * hình học, không phải màu, và không đổi theo theme. `.dark` đặt trên
@@ -89,19 +184,30 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  /*
+   * Thang trung tính tối mang chroma 0.012 ở hue thương hiệu (262.881) thay vì
+   * xám tuyệt đối. Xám 0-chroma đọc ra "chưa ai chọn màu này"; một chút lạnh
+   * làm nền trông được thiết kế mà mắt vẫn nhận là trung tính.
+   *
+   * ĐO TRƯỚC KHI ĐỔI, vì đây là nền của mọi phép đo khác. Ở oklch, thêm chroma
+   * trong khi giữ nguyên L gần như không đụng tới độ chói tương đối, nên toàn
+   * bộ tỉ lệ đang đạt giữ nguyên tới hai chữ số — kể cả ô `--primary`↔`--card`
+   * đang bị GHIM ở 6.20 bởi khối "miễn trừ CÓ CHỨNG MINH" cuối
+   * `tokens.contract.test.ts` (đo lại sau khi tô sắc độ: 6.197, y hệt trước).
+   */
+  --background: oklch(0.145 0.012 262.881);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.205 0.012 262.881);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --popover: oklch(0.205 0.012 262.881);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.685 0.169 262.881);
   --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.269 0 0);
+  --secondary: oklch(0.269 0.012 262.881);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
+  --muted: oklch(0.269 0.012 262.881);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --accent: oklch(0.269 0.012 262.881);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.145 0 0);
@@ -130,6 +236,49 @@
    */
   --input: oklch(1 0 0 / 38%);
   --ring: oklch(0.685 0.169 262.881);
+
+  /*
+   * Cùng ba hue của nhánh sáng nhưng ĐẢO vai: nền tối ⇒ chip phải SÁNG, chữ
+   * trên nó phải tối.
+   *
+   * L=0.7 đồng nhất cho cả sáu chip — bằng nhau về độ sáng nên không chip nào
+   * tự nhiên "hét" to hơn chip khác. Chroma thì BUỘC phải khác nhau: gamut sRGB
+   * cho phép độ bão hoà rất khác nhau theo hue ở cùng một L (tại L=0.7, lam-lục
+   * tối đa 0.119 còn lục tới 0.193). Ép chung một chroma sẽ đẩy vài màu ra
+   * ngoài gamut, và khi đó số đo không còn tả thứ hiển thị.
+   *
+   * Mặt nền khó nhất KHÔNG phải `--background` mà là `--muted` (0.269 — sáng
+   * nhất trong ba mặt tối), nên nó mới là ràng buộc quyết định. Đo cả ba.
+   */
+  --difficulty-basic: oklch(0.7 0.115 195);
+  --difficulty-basic-foreground: oklch(0.145 0 0);
+  --difficulty-intermediate: oklch(0.7 0.145 65);
+  --difficulty-intermediate-foreground: oklch(0.145 0 0);
+  --difficulty-advanced: oklch(0.7 0.175 305);
+  --difficulty-advanced-foreground: oklch(0.145 0 0);
+
+  --status-progress: oklch(0.7 0.145 262.881);
+  --status-progress-foreground: oklch(0.145 0 0);
+  --status-done: oklch(0.7 0.18 150);
+  --status-done-foreground: oklch(0.145 0 0);
+  --status-locked: oklch(0.7 0.012 262.881);
+  --status-locked-foreground: oklch(0.145 0 0);
+
+  /*
+   * Bóng ở chế độ tối là ĐEN THUẦN và đậm hơn hẳn nhánh sáng. Bóng "cùng hue
+   * nền" của nhánh sáng vô dụng ở đây: nền vốn đã tối, một bóng chỉ hơi tối hơn
+   * nền thì không nhìn thấy gì. Alpha cao (0.4–0.7) là thứ duy nhất còn tạo
+   * được cảm giác nâng lên.
+   */
+  --elevation-1:
+    0 1px 2px -1px oklch(0 0 0 / 0.5),
+    0 1px 3px 0 oklch(0 0 0 / 0.4);
+  --elevation-2:
+    0 2px 4px -2px oklch(0 0 0 / 0.6),
+    0 6px 16px -4px oklch(0 0 0 / 0.5);
+  --elevation-3:
+    0 4px 8px -4px oklch(0 0 0 / 0.7),
+    0 16px 40px -8px oklch(0 0 0 / 0.6);
 }
 
 /*
@@ -172,6 +321,29 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-difficulty-basic: var(--difficulty-basic);
+  --color-difficulty-basic-foreground: var(--difficulty-basic-foreground);
+  --color-difficulty-intermediate: var(--difficulty-intermediate);
+  --color-difficulty-intermediate-foreground: var(--difficulty-intermediate-foreground);
+  --color-difficulty-advanced: var(--difficulty-advanced);
+  --color-difficulty-advanced-foreground: var(--difficulty-advanced-foreground);
+  --color-status-progress: var(--status-progress);
+  --color-status-progress-foreground: var(--status-progress-foreground);
+  --color-status-done: var(--status-done);
+  --color-status-done-foreground: var(--status-done-foreground);
+  --color-status-locked: var(--status-locked);
+  --color-status-locked-foreground: var(--status-locked-foreground);
+
+  /*
+   * Namespace `--shadow-*` ⇒ Tailwind sinh `shadow-elevation-1|2|3`. Bóng PHẢI
+   * đi qua đây, không dùng `shadow-[var(--elevation-1)]`: dạng arbitrary đọc
+   * thẳng biến tại chỗ dùng nên vẫn đổi theo theme, nhưng nó bỏ qua bảng theme
+   * nên không có class nào để lane khác tái dùng nhất quán — và mỗi chỗ gọi lại
+   * tự chọn bậc, đúng thứ mà ba BẬC ngữ nghĩa sinh ra để chặn.
+   */
+  --shadow-elevation-1: var(--elevation-1);
+  --shadow-elevation-2: var(--elevation-2);
+  --shadow-elevation-3: var(--elevation-3);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -193,5 +365,35 @@
 @layer base {
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/*
+ * `prefers-reduced-motion` — khai MỘT LẦN ở đây để mọi lane thừa hưởng; không
+ * lane nào phải tự nhớ.
+ *
+ * Vì sao là bộ chọn phổ quát + `!important` chứ không phải gán lại `--motion-*`
+ * về 0: phần lớn chuyển động đang chạy đến từ tiện ích Tailwind
+ * (`transition-colors`, `transition-transform`, `transition-opacity` — 18 chỗ
+ * đo ngày 2026-09-06) vốn KHÔNG đọc `--motion-*`, nên hạ mấy biến đó xuống 0 sẽ
+ * bỏ sót đúng những chỗ ấy. Ngược lại `transition-duration` dạng longhand kèm
+ * `!important` thắng cả shorthand `transition` lẫn tiện ích, nên nó phủ được
+ * CẢ HAI nguồn.
+ *
+ * Dùng 0.01ms thay vì 0s: thời lượng 0 khiến `transitionend` không bao giờ bắn,
+ * làm chết mọi logic chờ sự kiện đó; 0.01ms thì tức thì với mắt người mà sự kiện
+ * vẫn bắn.
+ *
+ * `scroll-behavior` nằm trong này vì cuộn mượt cũng là chuyển động tiền đình —
+ * đúng thứ gây khó chịu mà người dùng bật cờ này để tránh.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

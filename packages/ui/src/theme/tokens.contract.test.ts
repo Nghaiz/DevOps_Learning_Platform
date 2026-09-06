@@ -78,9 +78,41 @@ const C1_COLOR_TOKENS = [
   '--border',
   '--input',
   '--ring',
+
+  // Độ khó + trạng thái học. Mỗi cặp `--x`/`--x-foreground` chịu HAI ngưỡng
+  // khác nhau vì cùng một token vừa làm nền badge vừa làm viền/chấm — xem chú
+  // thích ở `globals.css`.
+  '--difficulty-basic',
+  '--difficulty-basic-foreground',
+  '--difficulty-intermediate',
+  '--difficulty-intermediate-foreground',
+  '--difficulty-advanced',
+  '--difficulty-advanced-foreground',
+  '--status-progress',
+  '--status-progress-foreground',
+  '--status-done',
+  '--status-done-foreground',
+  '--status-locked',
+  '--status-locked-foreground',
 ] as const;
 
 type ColorToken = (typeof C1_COLOR_TOKENS)[number];
+
+/**
+ * Bóng đổ. Phải có ở CẢ HAI theme và giá trị BẮT BUỘC khác nhau: nhánh sáng
+ * dùng bóng mang sắc độ lạnh, nhánh tối dùng đen thuần alpha cao. Chép nguyên
+ * bóng của nhánh sáng sang nhánh tối là hỏng câm — bóng chỉ hơi tối hơn một nền
+ * vốn đã tối thì không nhìn thấy gì, mà CSS vẫn hợp lệ và test vẫn xanh nếu chỉ
+ * kiểm "có mặt".
+ */
+const C1_ELEVATION_TOKENS = ['--elevation-1', '--elevation-2', '--elevation-3'] as const;
+
+/**
+ * Thời lượng + đường cong. CỐ Ý chỉ khai ở `:root`, KHÔNG lặp ở `.dark` — cùng
+ * lập luận đã dùng cho `--radius`: đây là số đo thời gian, không phải màu, và
+ * không đổi theo theme. Lặp lại chỉ tạo thêm một chỗ để quên đồng bộ.
+ */
+const C1_MOTION_TOKENS = ['--motion-fast', '--motion-base', '--motion-slow', '--ease-out'] as const;
 
 /**
  * Cắt khối top-level theo độ sâu ngoặc thay vì regex `\{([\s\S]*?)\}` — khối
@@ -185,6 +217,27 @@ function toSrgb(color: Oklch): Srgb {
   return [encodeGamma(linear[0]), encodeGamma(linear[1]), encodeGamma(linear[2])];
 }
 
+/**
+ * Màu có nằm trong gamut sRGB không — tức mọi kênh TUYẾN TÍNH đều thuộc [0,1]
+ * trước khi bị `clamp`.
+ *
+ * Vì sao phải gác: `toSrgb()` clamp TỪNG KÊNH, còn trình duyệt gamut-map theo
+ * CSS Color 4 §13 — giảm chroma, giữ nguyên L và H. Hai phép chiếu khác nhau ra
+ * hai màu khác nhau, nên với một token ngoài gamut thì con số đo được ở đây
+ * KHÔNG còn tả đúng thứ người dùng nhìn thấy.
+ *
+ * Đo ngày 2026-09-06 trên 7 token ngoài gamut đang có: gamut-map luôn cho tỉ lệ
+ * BẰNG hoặc CAO HƠN clamp (lệch nhiều nhất +0.12 ở `--destructive` nhánh sáng).
+ * Nghĩa là cổng hiện tại sai theo hướng AN TOÀN — nó báo thấp hơn thực tế, chứ
+ * không chứng nhận nhầm cho màu không đạt. Đó là lý do 7 token đó được ghi nợ
+ * thay vì phải sửa ngay; nó KHÔNG phải lý do để thêm token mới ngoài gamut, vì
+ * biên +0.12 ấy là số đo của riêng 7 màu này, không phải một bảo đảm.
+ */
+function inSrgbGamut(value: string): boolean {
+  const linear = toLinearRgb(parseOklch(value));
+  return linear.every((channel) => channel >= -0.0005 && channel <= 1.0005);
+}
+
 function relativeLuminance(rgb: Srgb): number {
   return 0.2126 * decodeGamma(rgb[0]) + 0.7152 * decodeGamma(rgb[1]) + 0.0722 * decodeGamma(rgb[2]);
 }
@@ -286,14 +339,40 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
     expect(dark[token], `${token} thiếu trong .dark — chế độ tối sẽ kế thừa màu sáng trong im lặng`).toBeDefined();
   });
 
-  it('`--radius` khai ở :root (CỐ Ý không lặp ở .dark — số đo hình học, không đổi theo theme)', () => {
-    expect(root['--radius']).toBeDefined();
-    expect(dark['--radius']).toBeUndefined();
+  it.each(C1_ELEVATION_TOKENS)('%s khai ở CẢ HAI theme', (token) => {
+    expect(root[token], `${token} thiếu trong :root`).toBeDefined();
+    expect(dark[token], `${token} thiếu trong .dark — thẻ ở chế độ tối sẽ đeo bóng của nhánh sáng`).toBeDefined();
   });
 
-  it('không có token màu THỪA ngoài hợp đồng C1 (thêm token = phải sửa C1 + docs/design-system.md)', () => {
-    const declared = Object.keys(root).filter((name) => name !== '--radius');
-    expect(declared.toSorted()).toEqual([...C1_COLOR_TOKENS].toSorted());
+  it('bóng của .dark KHÁC bóng của :root (chép nguyên sang là hỏng câm)', () => {
+    for (const token of C1_ELEVATION_TOKENS) {
+      expect(dark[token], `${token} ở .dark trùng y hệt :root — bóng lạnh nhạt vô hình trên nền tối`).not.toBe(
+        root[token],
+      );
+    }
+  });
+
+  it.each([...C1_MOTION_TOKENS, '--radius'] as const)(
+    '%s khai ở :root và CỐ Ý vắng ở .dark (số đo, không phải màu — không đổi theo theme)',
+    (token) => {
+      expect(root[token]).toBeDefined();
+      expect(dark[token], `${token} bị lặp ở .dark — thêm một chỗ để quên đồng bộ, đổi lấy con số không`).toBeUndefined();
+    },
+  );
+
+  it('không có token THỪA ngoài hợp đồng C1 (thêm token = phải sửa C1 + docs/design-system.md)', () => {
+    const expected = [...C1_COLOR_TOKENS, ...C1_ELEVATION_TOKENS, ...C1_MOTION_TOKENS, '--radius'];
+    expect(Object.keys(root).toSorted()).toEqual(expected.toSorted());
+  });
+
+  /**
+   * Nửa còn lại của cùng một cổng. Chỉ kiểm `:root` là bỏ lọt token chỉ tồn tại
+   * ở `.dark`: nó không kế thừa từ đâu cả, nên ở nhánh sáng mọi chỗ dùng nó rơi
+   * về `unset` — im lặng y hệt ca ngược lại.
+   */
+  it('.dark không khai token nào NGOÀI hợp đồng, và không thiếu token nào của nó', () => {
+    const expected = [...C1_COLOR_TOKENS, ...C1_ELEVATION_TOKENS];
+    expect(Object.keys(dark).toSorted()).toEqual(expected.toSorted());
   });
 });
 
@@ -301,6 +380,13 @@ describe('C1 — `@theme inline` sinh được class Tailwind cho mọi token', 
   it.each(C1_COLOR_TOKENS)('%s có `--color-*` trỏ đúng về nó', (token) => {
     const mapped = themeInline[`--color${token.slice(1)}`];
     expect(mapped, `thiếu --color${token.slice(1)} ⇒ class bg/text/border tương ứng KHÔNG được sinh ra`).toBe(
+      `var(${token})`,
+    );
+  });
+
+  it.each(C1_ELEVATION_TOKENS)('%s có `--shadow-*` trỏ đúng về nó', (token) => {
+    const mapped = themeInline[`--shadow${token.slice(1)}`];
+    expect(mapped, `thiếu --shadow${token.slice(1)} ⇒ class shadow-elevation-* KHÔNG được sinh ra`).toBe(
       `var(${token})`,
     );
   });
@@ -340,6 +426,13 @@ const TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
   ['--destructive-foreground', '--destructive'],
   ['--success-foreground', '--success'],
   ['--warning-foreground', '--warning'],
+  // Chữ TRÊN chip độ khó / trạng thái.
+  ['--difficulty-basic-foreground', '--difficulty-basic'],
+  ['--difficulty-intermediate-foreground', '--difficulty-intermediate'],
+  ['--difficulty-advanced-foreground', '--difficulty-advanced'],
+  ['--status-progress-foreground', '--status-progress'],
+  ['--status-done-foreground', '--status-done'],
+  ['--status-locked-foreground', '--status-locked'],
 ];
 
 /**
@@ -364,6 +457,29 @@ const NON_TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
   // chứng minh, xem khối "miễn trừ CÓ CHỨNG MINH" ở cuối file.
   ['--primary', '--background'],
   ['--destructive', '--background'],
+
+  // Chip độ khó / trạng thái CÒN LÀ đồ hoạ: viền trái thẻ và chấm chỉ mục, nơi
+  // không có chữ nào để dựa vào. Đo trên cả ba mặt vì cả ba đều xuất hiện thật
+  // và KHÔNG suy ra được từ nhau — ở chế độ tối `--muted` (0.269) sáng hơn
+  // `--card` (0.205), nên nó mới là ràng buộc chặt nhất, không phải `--background`.
+  ['--difficulty-basic', '--background'],
+  ['--difficulty-basic', '--card'],
+  ['--difficulty-basic', '--muted'],
+  ['--difficulty-intermediate', '--background'],
+  ['--difficulty-intermediate', '--card'],
+  ['--difficulty-intermediate', '--muted'],
+  ['--difficulty-advanced', '--background'],
+  ['--difficulty-advanced', '--card'],
+  ['--difficulty-advanced', '--muted'],
+  ['--status-progress', '--background'],
+  ['--status-progress', '--card'],
+  ['--status-progress', '--muted'],
+  ['--status-done', '--background'],
+  ['--status-done', '--card'],
+  ['--status-done', '--muted'],
+  ['--status-locked', '--background'],
+  ['--status-locked', '--card'],
+  ['--status-locked', '--muted'],
 ];
 
 describe.each([
@@ -532,5 +648,118 @@ describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặ
   it('khe `--primary` ↔ `--card` tối = 6.20:1, dưới mức 9:1 mà hai bậc 3:1 đòi', () => {
     expect(measure(dark, '--primary', '--card')).toBeCloseTo(6.2, 1);
     expect(measure(dark, '--primary', '--card')).toBeLessThan(9);
+  });
+});
+
+/**
+ * Gamut sRGB — nợ kỹ thuật CÓ TÊN, không phải một con số làm tròn.
+ *
+ * Danh sách dưới đây liệt kê ĐÍCH DANH từng token đang ngoài gamut. Một con số
+ * đếm ("7 token ngoài gamut") sẽ vẫn xanh khi 7 màu này được sửa và 7 màu KHÁC
+ * hỏng ra — đúng kiểu cổng tự chứng nhận cho chính thứ nó sinh ra để chặn
+ * (`rules/pinned-baseline-test-companion.md`).
+ *
+ * Cổng chạy HAI CHIỀU, và cả hai đều cần thiết:
+ *   • chiều lên  — token ngoài gamut mà KHÔNG có trong danh sách ⇒ đỏ. Đây là
+ *     cái chặn token MỚI đi ra ngoài gamut, tức giữ cho mọi số đo mới là số
+ *     thật.
+ *   • chiều xuống — token trong danh sách mà nay ĐÃ vào gamut ⇒ cũng đỏ. Thiếu
+ *     chiều này thì danh sách biến thành nghĩa địa không ai rà lại.
+ *
+ * ⚠ Khi chiều xuống đỏ, việc phải làm là XOÁ dòng đó khỏi danh sách — tuyệt đối
+ * không sửa lại giá trị token cho "khớp danh sách". Đỏ ở chiều xuống là TIN
+ * MỪNG: một màu vừa được sửa.
+ */
+const KNOWN_OUT_OF_GAMUT: Readonly<Record<string, string>> = {
+  // Bảy token này có TỪ TRƯỚC lane nền thị giác (13.x) và không thuộc phạm vi
+  // sửa của nó: đổi màu thương hiệu sẽ đụng cả năm lane đang chạy song song, và
+  // `.dark --primary` còn đang bị ghim ở 6.20 bởi khối "miễn trừ CÓ CHỨNG MINH"
+  // ngay dưới. Ghi nợ tại đây, sửa ở một thay đổi riêng.
+  ':root --destructive': 'oklch(0.577 0.245 27.325) — chroma 0.245 vượt gamut ở L=0.577',
+  ':root --success': 'oklch(0.518 0.146 150.741) — chroma 0.146 vượt gamut ở L=0.518',
+  ':root --warning': 'oklch(0.541 0.15 55.98) — chroma 0.15 vượt gamut ở L=0.541',
+  '.dark --primary': 'oklch(0.685 0.169 262.881) — chroma 0.169 vượt gamut ở L=0.685',
+  '.dark --destructive': 'oklch(0.704 0.191 22.216) — chroma 0.191 vượt gamut ở L=0.704',
+  '.dark --warning': 'oklch(0.769 0.188 70.08) — chroma 0.188 vượt gamut ở L=0.769',
+  '.dark --ring': 'oklch(0.685 0.169 262.881) — bằng --primary theo thiết kế, nên thừa hưởng y hệt',
+};
+
+describe('gamut sRGB — số đo chỉ đúng khi màu nằm trong gamut', () => {
+  /** Đối chứng: nếu `inSrgbGamut` luôn trả `true` thì cả khối dưới vô nghĩa. */
+  it('phép kiểm gamut PHÂN BIỆT được hai phía (nếu không, mọi dòng dưới đây là trang trí)', () => {
+    expect(inSrgbGamut('oklch(0.546 0.215 262.881)')).toBe(true);
+    expect(inSrgbGamut('oklch(0.7 0.4 262.881)')).toBe(false);
+  });
+
+  const entries = ([
+    [':root', root],
+    ['.dark', dark],
+  ] as const).flatMap(([label, theme]) =>
+    Object.entries(theme)
+      .filter(([, value]) => value.startsWith('oklch('))
+      .map(([token, value]) => ({ key: `${label} ${token}`, value })),
+  );
+
+  it('CHIỀU LÊN — không token nào ngoài gamut mà chưa được ghi nợ', () => {
+    const undeclared = entries.filter((e) => !inSrgbGamut(e.value) && KNOWN_OUT_OF_GAMUT[e.key] === undefined);
+    expect(
+      undeclared.map((e) => `${e.key} = ${e.value}`),
+      'token ngoài gamut MỚI: trình duyệt sẽ gamut-map nó khác với clamp của phép đo, nên tỉ lệ đo được ' +
+        'không còn tả đúng màu hiển thị. Hạ chroma cho vào gamut — KHÔNG ghi thêm vào KNOWN_OUT_OF_GAMUT ' +
+        'trừ khi có lý do bằng văn bản như bảy dòng đang có.',
+    ).toEqual([]);
+  });
+
+  it('CHIỀU XUỐNG — không dòng ghi nợ nào đã hết hạn', () => {
+    const known = new Set(entries.filter((e) => !inSrgbGamut(e.value)).map((e) => e.key));
+    const stale = Object.keys(KNOWN_OUT_OF_GAMUT).filter((key) => !known.has(key));
+    expect(
+      stale,
+      'dòng ghi nợ này đã VÀO gamut (hoặc token đã bị xoá/đổi tên). Đó là tin mừng: XOÁ dòng đó khỏi ' +
+        'KNOWN_OUT_OF_GAMUT. Tuyệt đối không chỉnh token ngược lại cho khớp danh sách.',
+    ).toEqual([]);
+  });
+
+  it('token độ khó / trạng thái đều TRONG gamut (số đo của chúng là số thật)', () => {
+    const semantic = entries.filter((e) => /--(difficulty|status)-/.test(e.key));
+    // Nếu bộ lọc hụt, khối này xanh vì rỗng — ghim số lượng để không xanh khống.
+    expect(semantic).toHaveLength(24);
+    expect(semantic.filter((e) => !inSrgbGamut(e.value)).map((e) => e.key)).toEqual([]);
+  });
+});
+
+/**
+ * `prefers-reduced-motion` được khai MỘT LẦN ở `globals.css` để cả năm lane
+ * thừa hưởng. Gác ở đây vì đây là thứ không lane nào tự kiểm được, và khi thiếu
+ * thì nó hỏng IM LẶNG: trang vẫn chạy, chỉ là người bật cờ giảm chuyển động
+ * không được tôn trọng — không lỗi build, không lỗi runtime.
+ */
+describe('D4 — prefers-reduced-motion khai một lần, dùng chung', () => {
+  const block = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*?)\n\}/.exec(css)?.[1];
+
+  it('có khối @media (prefers-reduced-motion: reduce)', () => {
+    expect(block, 'thiếu khối reduced-motion ⇒ mọi lane phải tự nhớ, tức sẽ có lane quên').toBeDefined();
+  });
+
+  it('phủ bằng bộ chọn phổ quát — tiện ích Tailwind KHÔNG đọc --motion-*', () => {
+    // `transition-colors` & co. sinh ra `transition-duration` riêng; hạ
+    // `--motion-*` về 0 sẽ bỏ sót đúng những chỗ đó.
+    expect(block).toMatch(/\*::before/);
+    expect(block).toMatch(/\*::after/);
+  });
+
+  it('tắt được CẢ transition lẫn animation, và bằng !important', () => {
+    expect(block).toMatch(/transition-duration:[^;]*!important/);
+    expect(block).toMatch(/animation-duration:[^;]*!important/);
+  });
+
+  /**
+   * 0.01ms chứ không phải 0s: thời lượng 0 khiến `transitionend` KHÔNG BAO GIỜ
+   * bắn, làm chết mọi logic chờ sự kiện đó (menu không đóng, dialog không dọn).
+   * 0.01ms tức thì với mắt người mà sự kiện vẫn bắn.
+   */
+  it('dùng 0.01ms, KHÔNG dùng 0s (0s làm transitionend không bao giờ bắn)', () => {
+    expect(block).toMatch(/0\.01ms/);
+    expect(block).not.toMatch(/duration:\s*0s/);
   });
 });
