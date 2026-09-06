@@ -28,6 +28,13 @@ import {
 } from '../../../components/author/draft-form';
 import { draftFromPreview } from '../../../components/author/draft-from-preview';
 import { PreviewPanel } from '../../../components/author/preview-panel';
+import { PublishPanel } from '../../../components/author/publish-panel';
+import {
+  PUBLISH_POLL_INTERVAL_MS,
+  publishPhase,
+  shouldKeepPolling,
+} from '../../../components/author/publish-machine';
+import { basePublishedIdOf } from '../../../components/author/draft-id';
 import { describeSaveOutcome } from '../../../components/author/save-outcome';
 import {
   describeItem,
@@ -65,7 +72,16 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
   const { toast } = useToast();
   const utils = api.useUtils();
 
-  const listQuery = api.authoring.list.useQuery();
+  // `started` phải sống qua các lượt render: nó phân biệt "nháp sạch vì chưa
+  // ai bấm gì" với "nháp sạch vì lượt chạy thử biến mất không kết quả".
+  const [publishStarted, setPublishStarted] = useState(false);
+  const [pollingOn, setPollingOn] = useState(false);
+
+  const listQuery = api.authoring.list.useQuery(undefined, {
+    // Hỏi lại CHỈ khi đang có lượt chạy thử. Một `refetchInterval` cố định là
+    // một vòng lặp gọi API vĩnh viễn trên một trang người soạn mở cả buổi.
+    ...(pollingOn ? { refetchInterval: PUBLISH_POLL_INTERVAL_MS } : {}),
+  });
   const previewQuery = api.authoring.preview.useQuery({ id: contentId }, { retry: false });
 
   const [form, setForm] = useState<DraftFormState | null>(null);
@@ -82,6 +98,13 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
 
   const item: AuthoredItem | null = listQuery.data?.find((row) => row.id === contentId) ?? null;
   const previewData = previewQuery.data ?? null;
+
+  // Bài GỐC khi id đang mở là một bản nháp kế nhiệm. Cần nó để đọc được lượt
+  // xuất bản ĐẠT: đường đổi ngôi XOÁ bản nháp, nên hàng ta theo dõi biến mất và
+  // bằng chứng duy nhất còn lại nằm ở hàng bài gốc.
+  const baseId = basePublishedIdOf(contentId);
+  const baseRow: AuthoredItem | null =
+    baseId === null ? null : (listQuery.data?.find((row) => row.id === baseId) ?? null);
 
   /**
    * Nạp MỘT lần cho mỗi id.
@@ -118,6 +141,43 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
       setServerError(describeTrpcError(error));
     },
   });
+
+  const checkQuery = api.authoring.check.useQuery({ id: contentId }, { enabled: false, retry: false });
+
+  const publish = api.authoring.publish.useMutation({
+    onSuccess: () => {
+      setPublishStarted(true);
+      setPollingOn(true);
+      void utils.authoring.list.invalidate();
+    },
+    onError: (error) => {
+      setServerError(describeTrpcError(error));
+    },
+  });
+
+  const archive = api.authoring.archive.useMutation({
+    onSuccess: () => {
+      void utils.authoring.list.invalidate();
+      toast({ title: 'Đã lưu trữ', description: 'Bài biến khỏi danh mục người học; tiến độ đã có vẫn còn.' });
+    },
+    onError: (error) => {
+      setServerError(describeTrpcError(error));
+    },
+  });
+
+  const phase = publishPhase({
+    started: publishStarted,
+    submitting: publish.isPending,
+    row: item,
+    baseRow,
+  });
+
+  // Tắt polling ngay khi có kết quả — để nó chạy tiếp là gọi API mãi mãi.
+  useEffect(() => {
+    if (pollingOn && !shouldKeepPolling(phase)) {
+      setPollingOn(false);
+    }
+  }, [pollingOn, phase]);
 
   const onSave = (): void => {
     if (form === null || item === null) {
@@ -196,6 +256,7 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
         <TabsList>
           <TabsTrigger value="soan">Soạn</TabsTrigger>
           <TabsTrigger value="xem-truoc">Xem trước</TabsTrigger>
+          <TabsTrigger value="xuat-ban">Xuất bản</TabsTrigger>
         </TabsList>
 
         <TabsContent value="soan" className="flex flex-col gap-6 pt-4">
@@ -312,6 +373,27 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
             Xem trước dựng từ bản ĐÃ LƯU, không từ ô nhập đang gõ. Lưu trước rồi mở lại tab này để thấy thay
             đổi.
           </p>
+        </TabsContent>
+
+        <TabsContent value="xuat-ban" className="pt-4">
+          <PublishPanel
+            phase={phase}
+            preview={previewData}
+            publishError={item.publishError}
+            checkResult={checkQuery.data ?? null}
+            checking={checkQuery.isFetching}
+            onCheck={() => void checkQuery.refetch()}
+            onPublish={() => {
+              setServerError(null);
+              publish.mutate({ id: contentId });
+            }}
+            onArchive={() => {
+              setServerError(null);
+              archive.mutate({ id: contentId });
+            }}
+            archiving={archive.isPending}
+            canArchive={item.state !== 'archived'}
+          />
         </TabsContent>
       </Tabs>
     </Shell>
