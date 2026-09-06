@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applySessionPreferences, type SessionForPreferences } from './preferences';
 import type { ScriptOutcome, ScriptRequest } from '../lessons/validate';
 import type { PreferencesView } from '../me/preferences';
@@ -160,5 +164,88 @@ describe('applySessionPreferences — runner thất bại', () => {
     expect(logger.warn).toHaveBeenCalledTimes(1);
     const [, detail] = logger.warn.mock.calls[0] as [string, Record<string, unknown>];
     expect(detail).toMatchObject({ sessionId: 'sess-fixture', exitCode: 17 });
+  });
+});
+
+/**
+ * Idempotency — CHẠY THẬT script sinh ra, không đọc chuỗi rồi tin.
+ *
+ * ⛔ Vì sao phải chạy: tính idempotent KHÔNG nằm trong TypeScript, nó nằm trong
+ * NỘI DUNG script (`grep -qxF` thoát sớm + `sed -i` xoá dòng cũ trước khi ghi).
+ * Một assertion kiểu `expect(script).toContain('grep -qxF')` chỉ chứng minh
+ * chuỗi có mặt — nó xanh y hệt khi mẫu `sed` sai một ký tự và file phình thêm
+ * một dòng mỗi lần mở bài.
+ *
+ * `bash` chứ không `sh`: gateway chạy script bằng `GATEWAY_EXEC_SHELL` (mặc
+ * định `bash`, và Helm `gateway.env.execShell: 'bash'`), truyền qua **stdin**
+ * (`podexec/oneshot.go` đặt `Stdin: true`, `Command: shell`) — script KHÔNG bao
+ * giờ nằm trên argv. `set -euo pipefail` ở đầu script hợp lệ ĐÚNG VÌ vậy; chạy
+ * nó bằng `sh`/dash sẽ chết ngay dòng đầu.
+ */
+describe('script áp shell — idempotent khi CHẠY THẬT bằng bash', () => {
+  let home = '';
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'dlp-prefs-'));
+    // Trạng thái BAN ĐẦU thật của pod: dòng skel `set -g default-shell
+    // /usr/bin/zsh` (images/sandbox-base/skel/.tmux.conf), KHÔNG phải file rỗng.
+    writeFileSync(join(home, '.tmux.conf'), 'set -g status off\nset -g default-shell /usr/bin/zsh\n');
+  });
+
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  function runScript(script: string): void {
+    const result = spawnSync('bash', ['-s'], { input: script, env: { ...process.env, HOME: home }, encoding: 'utf8' });
+    if (result.status !== 0) {
+      throw new Error(`script thoát ${String(result.status)}: ${result.stderr}`);
+    }
+  }
+
+  function confLines(): string[] {
+    return readFileSync(join(home, '.tmux.conf'), 'utf8').split('\n').filter((line) => line !== '');
+  }
+
+  async function scriptFor(shell: 'bash' | 'zsh' | 'pwsh'): Promise<string> {
+    readPrefsSpy.mockResolvedValue({ defaultShell: shell, terminalTheme: null, leaderboardNamePublic: false });
+    await applySessionPreferences(ctx, fixtureSession(), fakeLogger());
+    return lastRunScriptRequest().script;
+  }
+
+  it('chạy HAI LẦN cùng giá trị ⇒ ĐÚNG MỘT dòng set-option (không nối thêm)', async () => {
+    const script = await scriptFor('pwsh');
+    runScript(script);
+    const afterFirst = confLines();
+    runScript(script);
+    const afterSecond = confLines();
+
+    expect(afterSecond).toEqual(afterFirst);
+    expect(afterSecond.filter((line) => line.startsWith('set-option -g default-shell'))).toEqual([
+      'set-option -g default-shell /usr/bin/pwsh',
+    ]);
+  });
+
+  it('ĐỔI giá trị ⇒ dòng cũ bị XOÁ, không tích luỹ theo số lần mở bài', async () => {
+    runScript(await scriptFor('pwsh'));
+    runScript(await scriptFor('bash'));
+    runScript(await scriptFor('zsh'));
+
+    expect(confLines().filter((line) => line.startsWith('set-option -g default-shell'))).toEqual([
+      'set-option -g default-shell /usr/bin/zsh',
+    ]);
+  });
+
+  it('dòng skel gốc và các dòng khác KHÔNG bị đụng tới', async () => {
+    runScript(await scriptFor('bash'));
+    const lines = confLines();
+    expect(lines).toContain('set -g status off');
+    // Dòng skel `set -g default-shell` vẫn còn — script ghi ĐÈ bằng cách nối
+    // SAU nó (tmux áp dòng cuối), không sửa file gốc của image.
+    expect(lines).toContain('set -g default-shell /usr/bin/zsh');
+    // …và dòng của ta phải nằm SAU dòng skel, nếu không tmux sẽ dùng skel.
+    expect(lines.indexOf('set-option -g default-shell /bin/bash')).toBeGreaterThan(
+      lines.indexOf('set -g default-shell /usr/bin/zsh'),
+    );
   });
 });
