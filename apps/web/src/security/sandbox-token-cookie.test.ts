@@ -219,10 +219,18 @@ describe('G12 phần B — Set-Cookie dlp_sandbox trên session.create', () => {
 
   it('không cookie nào mang Path=/ — D8 chỉ mở rộng đúng /ws và /ide', async () => {
     const cookies = await createAs({ id: 'user-a', role: 'user' }, 'user-a');
-    for (const cookie of cookies.filter((c) => c.startsWith('dlp_sandbox='))) {
-      expect(cookie).not.toMatch(/Path=\/;/);
-      expect(cookie.endsWith('Path=/')).toBe(false);
-    }
+    const paths = cookies
+      .filter((c) => c.startsWith('dlp_sandbox='))
+      .map((c) => /;\s*Path=([^;]*)/.exec(c)?.[1]);
+    // Khẳng định theo TẬP GIÁ TRỊ, không theo "không chứa chuỗi X".
+    //
+    // ⚠ Dòng cũ ở đây là `expect(cookie.endsWith('Path=/')).toBe(false)` — nó
+    // KHÔNG BAO GIỜ đỏ được: `buildSandboxCookie` luôn nối `Max-Age`/`HttpOnly`/
+    // `Secure`/`SameSite` SAU `Path`, nên không cookie nào có thể kết thúc bằng
+    // `Path=/` dù `Path` là gì. Một assertion không thể thất bại đọc y hệt một
+    // assertion đang bảo vệ điều gì đó.
+    expect(paths.every((path) => path !== undefined)).toBe(true);
+    expect([...new Set(paths)].sort()).toEqual(['/ide', '/ws']);
   });
 
   it('cookie thứ hai (Path=/ide) mang CÙNG token và CÙNG thuộc tính với cookie /ws', async () => {
