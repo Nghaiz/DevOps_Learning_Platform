@@ -150,16 +150,31 @@ describe('filesystemScenarioSource — listPage (D9)', () => {
     'prolug-linux-system-checking',
   ];
 
+  // MỘT nguồn dùng chung cho cả khối, không dựng lại mỗi lượt.
+  //
+  // ⚠ Không phải tối ưu cho vui: `filesystemScenarioSource` memo hoá theo TỪNG
+  // INSTANCE, nên chín lời gọi `filesystemScenarioSource(CONTENT_DIR)` rời rạc
+  // ở khối này đọc và parse lại TOÀN BỘ catalog chín lần. Chạy riêng thì không
+  // ai thấy (2.5s cả file); chạy trong `turbo run test` cùng bốn package khác
+  // và `next build` thì mỗi lượt nạp mất 2.6-5.0s và ba test chạm hạn 5s mặc
+  // định của vitest — ĐỎ vì hết giờ, không vì sai khẳng định, và turbo dừng cả
+  // pipeline sau đó nên bốn task phía sau KHÔNG chạy.
+  //
+  // Dùng chung an toàn ở đây vì `listPage` chỉ đọc, và khối này KHÔNG kiểm hành
+  // vi cache (hai test đó nằm ở khối trên, mỗi test tự dựng nguồn riêng với
+  // thư mục riêng — đừng gộp chúng vào đây).
+  const source = filesystemScenarioSource(CONTENT_DIR);
+
   it('trang đầu: đúng limit mục + nextCursor = id mục cuối trang', async () => {
-    const page = await filesystemScenarioSource(CONTENT_DIR).listPage({ limit: 3 });
+    const page = await source.listPage({ limit: 3 });
     expect(page.items.map((s) => s.id)).toEqual(ALL_IDS.slice(0, 3));
     expect(page.nextCursor).toBe(ALL_IDS[2]);
   });
 
   it('trang giữa: cursor = mục cuối trang trước → trang kế tiếp không trùng, không sót', async () => {
-    const first = await filesystemScenarioSource(CONTENT_DIR).listPage({ limit: 3 });
+    const first = await source.listPage({ limit: 3 });
     expect(first.nextCursor).not.toBeNull();
-    const second = await filesystemScenarioSource(CONTENT_DIR).listPage({
+    const second = await source.listPage({
       limit: 3,
       cursor: first.nextCursor as string,
     });
@@ -172,7 +187,7 @@ describe('filesystemScenarioSource — listPage (D9)', () => {
     if (cursorId === undefined) {
       throw new Error('ALL_IDS[5] phải tồn tại — fixture cố định 8 phần tử');
     }
-    const last = await filesystemScenarioSource(CONTENT_DIR).listPage({
+    const last = await source.listPage({
       limit: 3,
       cursor: cursorId,
     });
@@ -184,7 +199,7 @@ describe('filesystemScenarioSource — listPage (D9)', () => {
     // Đây chính là điểm khác `list()` cũ (findIndex-rồi-ném): `listPage` của
     // MỘT nguồn không được ném cho một cursor hợp lệ ở nguồn KHÁC — semantics
     // keyset thuần (`id > cursor`) hoạt động đúng dù `cursor` không tồn tại.
-    const page = await filesystemScenarioSource(CONTENT_DIR).listPage({
+    const page = await source.listPage({
       limit: 100,
       cursor: 'khong-ton-tai-nhung-hop-le',
     });
@@ -196,7 +211,7 @@ describe('filesystemScenarioSource — listPage (D9)', () => {
   });
 
   it('filter.tier áp TRƯỚC khi phân trang — limit đếm trên tập ĐÃ lọc', async () => {
-    const unfiltered = await filesystemScenarioSource(CONTENT_DIR).listPage({ limit: 100 });
+    const unfiltered = await source.listPage({ limit: 100 });
     // Cả 8 bài ghim đều `tier: 'sysbox'` (đúng thực trạng nội dung vendored
     // hôm nay) — nên phép chứng tốt nhất KHÔNG phụ thuộc vào việc kho có đủ đa
     // dạng tier hay không: lọc theo `sysbox` phải trả ĐÚNG TOÀN BỘ tập (đối
@@ -204,7 +219,7 @@ describe('filesystemScenarioSource — listPage (D9)', () => {
     // lọc theo một tier KHÔNG tồn tại trong kho (`gvisor`) phải trả RỖNG (đối
     // chứng âm — nếu filter bị bỏ qua trong im lặng, phép lọc này sẽ trả về cả
     // 8 bài thay vì 0).
-    const bySysbox = await filesystemScenarioSource(CONTENT_DIR).listPage({
+    const bySysbox = await source.listPage({
       limit: 100,
       filter: { tier: 'sysbox' },
     });
@@ -212,7 +227,7 @@ describe('filesystemScenarioSource — listPage (D9)', () => {
       unfiltered.items.map((s) => s.id).sort(),
     );
 
-    const byGvisor = await filesystemScenarioSource(CONTENT_DIR).listPage({
+    const byGvisor = await source.listPage({
       limit: 100,
       filter: { tier: 'gvisor' },
     });
@@ -221,10 +236,10 @@ describe('filesystemScenarioSource — listPage (D9)', () => {
   });
 
   it('listLabsPage/listPlaygroundsPage phân trang cùng khuôn', async () => {
-    const labs = await filesystemScenarioSource(CONTENT_DIR).listLabsPage({ limit: 1 });
+    const labs = await source.listLabsPage({ limit: 1 });
     expect(labs.items).toHaveLength(1);
 
-    const playgrounds = await filesystemScenarioSource(CONTENT_DIR).listPlaygroundsPage({
+    const playgrounds = await source.listPlaygroundsPage({
       limit: 1,
     });
     expect(playgrounds.items).toHaveLength(1);
