@@ -6,6 +6,7 @@ import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
 import { Alert, AlertDescription, Button, ContentView, ProgressBar, SplitPane, StepNav } from '@devops-platform/ui';
 import {
   SessionControls,
+  ShellFallbackNotice,
   TerminalPane,
   shouldShowIdePane,
   useResolvedTerminalTheme,
@@ -361,6 +362,17 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
           <AlertDescription className="text-foreground">{session.startError}</AlertDescription>
         </Alert>
       )}
+
+      {/*
+        D7 — `preferencesApplied` là thứ DUY NHẤT nói cho người học biết phiên
+        này bỏ qua shell họ đã chọn. Không có băng này, đường "cold" (pool cạn,
+        pod chưa cấp lúc start trả lời) im lặng đưa họ về shell mặc định của máy.
+      */}
+      <ShellFallbackNotice
+        sessionId={session.state.sessionId}
+        preferencesApplied={session.preferencesApplied}
+        shell={me.data?.preferences.defaultShell ?? null}
+      />
 
       {/*
         Setup hỏng KHÔNG được im lặng. Không có khối này, một lượt đẩy asset lỗi

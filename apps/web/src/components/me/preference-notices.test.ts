@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   POD_FALLBACK_SHELL,
+  SHELL_LABEL,
   describeLeaderboardPreference,
+  describeSessionShellFallback,
   describeShellPreference,
   describeTerminalThemePreference,
 } from './preference-notices';
@@ -100,5 +102,34 @@ describe('describeTerminalThemePreference', () => {
     const text = describeTerminalThemePreference('dlp-contrast').lines.join(' ');
     expect(text).toContain('Tương phản cao');
     expect(text).toContain('kể cả khi bạn đổi giao diện trang');
+  });
+});
+
+describe('describeSessionShellFallback', () => {
+  it('nói ra CHUYỆN ĐÃ XẢY RA, không chỉ chuyện có thể xảy ra', () => {
+    const notice = describeSessionShellFallback('pwsh');
+
+    expect(notice).not.toBeNull();
+    expect(notice?.tone).toBe('warning');
+    expect(notice?.lines[0]).toContain('Phiên này đang chạy');
+    expect(notice?.lines[0]).toContain(SHELL_LABEL[POD_FALLBACK_SHELL]);
+    expect(notice?.lines[0]).toContain(SHELL_LABEL.pwsh);
+  });
+
+  it('nói LÀM GÌ TIẾP — và mượn nguyên câu chữ của /settings, không viết bản thứ hai', () => {
+    const notice = describeSessionShellFallback('pwsh');
+    const shared = describeShellPreference({ shell: 'pwsh', activeSessionCount: null });
+
+    // Khẳng định QUAN HỆ giữa hai chỗ, không khẳng định lại nội dung: nếu ai đó
+    // sửa câu ở `/settings` mà quên trang bài học, ca này đỏ.
+    expect(notice?.lines).toEqual([notice?.lines[0], ...shared.lines]);
+    expect(notice?.lines.join(' ')).toContain('mở lại phiên là áp được');
+  });
+
+  it('shell đã chọn TRÙNG mặc định của máy: im lặng, vì không có gì để báo', () => {
+    // Người dùng vẫn nhận đúng thứ họ chọn — chỉ là nhờ mặc định của image chứ
+    // không nhờ script. Một băng "phiên này dùng zsh chứ không phải zsh" là câu
+    // vô nghĩa đặt đúng chỗ người đọc cần một câu rõ ràng.
+    expect(describeSessionShellFallback(POD_FALLBACK_SHELL)).toBeNull();
   });
 });

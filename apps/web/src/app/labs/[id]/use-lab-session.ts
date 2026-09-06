@@ -22,10 +22,19 @@ import { useSandboxSession, type SandboxSession } from '../../../lib/use-sandbox
 export interface LabSession extends SandboxSession {
   /** `null` cho tới khi `start()` xong `labs.startAttempt`. */
   readonly attemptId: string | null;
+  /**
+   * Server có áp được tuỳ chọn shell của hồ sơ vào máy không.
+   *
+   * `null` = CHƯA mở lần thử nào trong lượt xem này, không phải "áp được". Xem
+   * `components/session/shell-fallback-notice.tsx`: một lượt "chưa biết" không
+   * được đọc thành một lượt hỏng, cũng không được đọc thành một lượt thành công.
+   */
+  readonly preferencesApplied: boolean | null;
 }
 
 export function useLabSession(labId: string, userId: string): LabSession {
   const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [preferencesApplied, setPreferencesApplied] = useState<boolean | null>(null);
   const startAttempt = api.labs.startAttempt.useMutation();
 
   const actions = useMemo(
@@ -33,11 +42,14 @@ export function useLabSession(labId: string, userId: string): LabSession {
       // Key mới mỗi lần bấm = "cho tôi một lần thử MỚI" — cùng lý lẽ
       // `lessons.startSession`.
       start: async (): Promise<CreatedSession> => {
+        // Về `null` TRƯỚC mỗi lượt: cờ của lần thử trước không nói gì về lượt này.
+        setPreferencesApplied(null);
         const result = await startAttempt.mutateAsync({
           labId,
           idempotencyKey: globalThis.crypto.randomUUID(),
         });
         setAttemptId(result.attemptId);
+        setPreferencesApplied(result.preferencesApplied);
 
         const statusResult = await trpc.session.get.query({
           sessionId: result.sessionId,
@@ -62,9 +74,9 @@ export function useLabSession(labId: string, userId: string): LabSession {
       fetchStatus: async (sessionId: string) =>
         (await trpc.session.get.query({ sessionId, userId })).session?.status ?? null,
     }),
-    [labId, userId, startAttempt],
+    [labId, userId, startAttempt, setPreferencesApplied],
   );
 
   const session = useSandboxSession(actions);
-  return { ...session, attemptId };
+  return { ...session, attemptId, preferencesApplied };
 }

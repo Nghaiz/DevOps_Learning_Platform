@@ -144,3 +144,39 @@ export function describeTerminalThemePreference(choice: TerminalThemeChoice): Pr
     ],
   };
 }
+
+/**
+ * ## Phiên VỪA MỞ đã bỏ qua tuỳ chọn shell — nói ra, thay vì im lặng
+ *
+ * `preferencesApplied` đi kèm response của `lessons.startSession` /
+ * `labs.startAttempt` / `playgrounds.start` cho đúng ba ca hỏng kể ở
+ * `describeShellPreference`. Tới trước P13 nó KHÔNG tới được giao diện nào —
+ * `grep -rn preferencesApplied apps/web/src` chỉ trúng file server — nên chế độ
+ * hỏng mà chú thích trên mô tả là chế độ hỏng THẬT của sản phẩm: chọn `pwsh`,
+ * mở bài, nhận `zsh`, và không có gì nói cho người học biết.
+ *
+ * Hàm này KHÔNG viết lại lời giải thích. Nó GỌI `describeShellPreference` để
+ * lấy đúng câu chữ trang `/settings` đang dùng, rồi thêm MỘT câu mà trang cài
+ * đặt không thể nói: chuyện đó đã xảy ra rồi, ở phiên này. Bốn chỗ nói về cùng
+ * một sự thật thì phải nói bằng cùng một nguồn chữ, không thì chúng sẽ lệch
+ * nhau ở lần sửa đầu tiên.
+ *
+ * ⚠ Trả `null` khi shell đã chọn TRÙNG `POD_FALLBACK_SHELL`. Lúc đó phiên vẫn
+ * chạy đúng thứ người dùng chọn — chỉ là nhờ mặc định của image chứ không nhờ
+ * script — nên không có gì để báo. Câu "phiên này dùng zsh chứ không phải zsh"
+ * là câu vô nghĩa đặt đúng vào chỗ người đọc đang cần một câu rõ ràng.
+ */
+export function describeSessionShellFallback(shell: ShellName): PreferenceNotice | null {
+  if (shell === POD_FALLBACK_SHELL) {
+    return null;
+  }
+  const shared = describeShellPreference({ shell, activeSessionCount: null });
+  return {
+    tone: 'warning',
+    lines: [
+      `Phiên này đang chạy ${SHELL_LABEL[POD_FALLBACK_SHELL]} mặc định của máy, ` +
+        `không phải ${SHELL_LABEL[shell]} bạn đã chọn.`,
+      ...shared.lines,
+    ],
+  };
+}

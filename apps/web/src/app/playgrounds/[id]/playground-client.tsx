@@ -2,7 +2,12 @@
 
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@devops-platform/ui';
-import { SessionControls, TerminalPane, useResolvedTerminalTheme } from '../../../components/session';
+import {
+  SessionControls,
+  ShellFallbackNotice,
+  TerminalPane,
+  useResolvedTerminalTheme,
+} from '../../../components/session';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { usePlaygroundSession } from './use-playground-session';
@@ -84,6 +89,17 @@ export function PlaygroundClient({
           <AlertDescription className="text-foreground">{session.startError}</AlertDescription>
         </Alert>
       )}
+
+      {/*
+        D7 — `preferencesApplied` là thứ DUY NHẤT nói cho người học biết phiên
+        này bỏ qua shell họ đã chọn. Không có băng này, đường "cold" (pool cạn,
+        pod chưa cấp lúc start trả lời) im lặng đưa họ về shell mặc định của máy.
+      */}
+      <ShellFallbackNotice
+        sessionId={session.state.sessionId}
+        preferencesApplied={session.preferencesApplied}
+        shell={me.data?.preferences.defaultShell ?? null}
+      />
 
       <div className="min-h-0 flex-1">
         <TerminalPane

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { CreatedSession } from '@devops-platform/terminal';
 import { api } from '../../../lib/trpc-react';
 import { trpc } from '../../../lib/trpc';
@@ -15,16 +15,31 @@ import { useSandboxSession, type SandboxSession } from '../../../lib/use-sandbox
  * field cho sự kiện `CREATED`, rồi dùng router `session.*` chung cho gia hạn/
  * kết thúc/hỏi trạng thái (playground router không có các procedure đó riêng).
  */
-export function usePlaygroundSession(playgroundId: string, userId: string): SandboxSession {
+export interface PlaygroundSession extends SandboxSession {
+  /**
+   * Server có áp được tuỳ chọn shell của hồ sơ vào máy không.
+   *
+   * `null` = CHƯA mở phiên nào trong lượt xem này, không phải "áp được". Xem
+   * `components/session/shell-fallback-notice.tsx`: một lượt "chưa biết" không
+   * được đọc thành một lượt hỏng, cũng không được đọc thành một lượt thành công.
+   */
+  readonly preferencesApplied: boolean | null;
+}
+
+export function usePlaygroundSession(playgroundId: string, userId: string): PlaygroundSession {
   const start = api.playgrounds.start.useMutation();
+  const [preferencesApplied, setPreferencesApplied] = useState<boolean | null>(null);
 
   const actions = useMemo(
     () => ({
       start: async (): Promise<CreatedSession> => {
+        // Về `null` TRƯỚC mỗi lượt: cờ của lượt mở trước không nói gì về lượt này.
+        setPreferencesApplied(null);
         const result = await start.mutateAsync({
           playgroundId,
           idempotencyKey: globalThis.crypto.randomUUID(),
         });
+        setPreferencesApplied(result.preferencesApplied);
 
         const statusResult = await trpc.session.get.query({
           sessionId: result.sessionId,
@@ -49,8 +64,8 @@ export function usePlaygroundSession(playgroundId: string, userId: string): Sand
       fetchStatus: async (sessionId: string) =>
         (await trpc.session.get.query({ sessionId, userId })).session?.status ?? null,
     }),
-    [playgroundId, userId, start],
+    [playgroundId, userId, start, setPreferencesApplied],
   );
 
-  return useSandboxSession(actions);
+  return { ...useSandboxSession(actions), preferencesApplied };
 }

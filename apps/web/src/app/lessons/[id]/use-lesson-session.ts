@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { CreatedSession } from '@devops-platform/terminal';
 import { api } from '../../../lib/trpc-react';
 import { trpc } from '../../../lib/trpc';
@@ -26,10 +26,20 @@ import { useSandboxSession, type SandboxSession } from '../../../lib/use-sandbox
  * `lessons.startSession` (tier suy từ nội dung bài, KHÔNG nhận từ client) thay vì
  * `session.create`.
  */
-export type LessonSession = SandboxSession;
+export interface LessonSession extends SandboxSession {
+  /**
+   * Server có áp được tuỳ chọn shell của hồ sơ vào máy không.
+   *
+   * `null` = CHƯA mở phiên nào trong lượt xem này, không phải "áp được". Xem
+   * `components/session/shell-fallback-notice.tsx`: một lượt "chưa biết" không
+   * được đọc thành một lượt hỏng, cũng không được đọc thành một lượt thành công.
+   */
+  readonly preferencesApplied: boolean | null;
+}
 
 export function useLessonSession(scenarioId: string): LessonSession {
   const startSession = api.lessons.startSession.useMutation();
+  const [preferencesApplied, setPreferencesApplied] = useState<boolean | null>(null);
   const endSession = api.lessons.endSession.useMutation();
   const extendSession = api.lessons.extendSession.useMutation();
 
@@ -44,6 +54,8 @@ export function useLessonSession(scenarioId: string): LessonSession {
       // Key mới mỗi lần bấm = "cho tôi một phiên MỚI". Dùng lại key cũ sẽ trả về
       // phiên cũ (guard SET NX EX của B3) và nút trông như hỏng trong 10 phút.
       start: async (): Promise<CreatedSession> => {
+        // Về `null` TRƯỚC mỗi lượt: cờ của lượt mở trước không nói gì về lượt này.
+        setPreferencesApplied(null);
         const result = await startSession.mutateAsync({
           scenarioId,
           idempotencyKey: globalThis.crypto.randomUUID(),
@@ -52,6 +64,7 @@ export function useLessonSession(scenarioId: string): LessonSession {
         if (session === null || session === undefined) {
           throw new Error('Máy chủ không trả về phiên nào.');
         }
+        setPreferencesApplied(result.preferencesApplied);
         return session;
       },
       end: async (sessionId: string): Promise<void> => {
@@ -65,8 +78,8 @@ export function useLessonSession(scenarioId: string): LessonSession {
       },
       fetchStatus,
     }),
-    [scenarioId, startSession, endSession, extendSession, fetchStatus],
+    [scenarioId, startSession, endSession, extendSession, fetchStatus, setPreferencesApplied],
   );
 
-  return useSandboxSession(actions);
+  return { ...useSandboxSession(actions), preferencesApplied };
 }

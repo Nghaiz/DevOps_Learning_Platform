@@ -30,7 +30,12 @@ import {
   TabsTrigger,
   type BadgeVariant,
 } from '@devops-platform/ui';
-import { SessionControls, TerminalPane, useResolvedTerminalTheme } from '../../../components/session';
+import {
+  SessionControls,
+  ShellFallbackNotice,
+  TerminalPane,
+  useResolvedTerminalTheme,
+} from '../../../components/session';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { useLabSession } from './use-lab-session';
@@ -369,6 +374,17 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
           <AlertDescription className="text-foreground">{session.startError}</AlertDescription>
         </Alert>
       )}
+
+      {/*
+        D7 — `preferencesApplied` là thứ DUY NHẤT nói cho người học biết phiên
+        này bỏ qua shell họ đã chọn. Không có băng này, đường "cold" (pool cạn,
+        pod chưa cấp lúc start trả lời) im lặng đưa họ về shell mặc định của máy.
+      */}
+      <ShellFallbackNotice
+        sessionId={session.state.sessionId}
+        preferencesApplied={session.preferencesApplied}
+        shell={me.data?.preferences.defaultShell ?? null}
+      />
 
       {attemptQuery.isError && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">

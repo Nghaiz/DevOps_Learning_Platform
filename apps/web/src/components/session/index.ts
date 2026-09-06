@@ -21,3 +21,7 @@ export { describeCapacity } from './capacity';
 export type { CapacityHint, CapacitySnapshot, CapacityTone } from './capacity';
 export { IDE_BOOT_TIMEOUT_MS, IDE_LAYOUT, ideSessionUrl, shouldShowIdePane } from './ide-layout';
 export { resolveTerminalTheme } from './terminal-theme';
+export { ShellFallbackNotice } from './shell-fallback-notice.tsx';
+export type { ShellFallbackNoticeProps } from './shell-fallback-notice.tsx';
+export { resolveShellFallbackNotice } from './shell-fallback';
+export type { ShellFallbackInput } from './shell-fallback';
