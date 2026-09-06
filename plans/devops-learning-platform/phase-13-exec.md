@@ -451,17 +451,25 @@ pnpm --filter web exec playwright test a11y csp keyboard perf
 grep -rnE '#[0-9a-fA-F]{3,8}|\b(slate|gray|zinc|neutral)-[0-9]{2,3}' apps/web/src packages/ui/src --include=*.tsx | grep -v node_modules   # rỗng (trừ themes.ts của terminal)
 # Không màn hình/chuỗi nào về giá, gói cước, thanh toán (AC cuối 13.H).
 #
-# ⚠ Lệnh cũ `grep -rniE 'price|pricing|checkout|subscribe|billing' apps/web/src`
-# KHÔNG BAO GIỜ RỖNG ĐƯỢC, kể cả trên cây hoàn toàn sạch — đo 2026-09-06, nó trả
-# 15 dòng: `checkout` khớp trong `CheckOutcome`/`checkOutcomes` (kiểu KẾT QUẢ CHẤM
-# BÀI của P2), `subscribe` khớp callback `useSyncExternalStore` của React trong
-# `packages/ui/src/toast.tsx`, còn `price`/`billing` khớp chính những chú thích và
-# test dựng ra để CẤM thương mại. Một ô AC mà phép kiểm không thể xanh thì hoặc bị
-# bỏ qua, hoặc làm người đọc hoảng vì tưởng đã lỡ dựng phần bán khoá học.
+# Phép kiểm này TỪNG là một chuỗi `grep` dài dán ngay tại đây. Bỏ đi vì hai lý
+# do đo được ngày 2026-09-06:
 #
-# Bản dưới: bắt rộng (không dùng `` — biên từ không nhận ra `MONTHLY_PRICE_VND`
-# vì `_` cũng là ký tự từ), rồi TRỪ đúng ba nhóm đã hiểu rõ: định danh chấm bài,
-# file test (chúng PHẢI chứa từ cấm để gác), và dòng chú thích (chỗ ghi lại lệnh
-# cấm). Đã đối chứng dương bốn hình dạng — SNAKE_CASE, camelCase, hằng, đường dẫn.
-grep -rniE 'price|pricing|paywall|checkout|billing|invoice|stripe|paddle|sepay|entitlement|sku|subscription|is_paid|ispaid|gói cước|thanh toán|nâng cấp gói'      apps/web/src packages/ui/src packages/scenario/src packages/shared-types/src   | grep -viE 'checkoutcome|checkresultpanel'   | grep -vE '\.test\.tsx?:'   | grep -vE ':[0-9]+: *(\*|//|#)'      # rỗng (exit 1)
+#   1. Không job CI nào chạy nó (grep `.github/workflows/`: 0 kết quả). Một
+#      lệnh dán trong plan chỉ chạy khi có người nhớ chạy — tức là không chạy.
+#   2. Mẫu bắt lọt. Bơm 9 dòng paywall giả qua đúng chuỗi lệnh đó thì 4 LỌT:
+#      "Nâng cấp để mở khoá — 199.000đ/tháng", "Học phí trọn gói 1.500.000đ",
+#      "Mua khoá học", "Bản Pro — 99k/tháng". Ba bộ lọc trừ KHÔNG nuốt dương
+#      tính thật nào, nên lỗ nằm ở mẫu bắt: nó thiếu chữ tiếng Việt có dấu và
+#      thiếu hẳn ĐỊNH DẠNG TIỀN VIỆT (con số kèm đơn vị tiền là dấu hiệu mạnh
+#      và độc lập với từ khoá).
+#
+# Script thay thế cũng mở rộng vùng quét sang `content/`, `e2e/`, `drizzle/`,
+# `packages/terminal/src`, và tự chạy ĐỐI CHỨNG DƯƠNG trước mỗi lượt quét: nếu
+# nó không còn bắt được tập mẫu vi phạm đã biết thì thoát 2 và không quét gì cả.
+# Vì vậy nó không thể xanh trong tình trạng "cổng đã hỏng nhưng cây sạch".
+#
+# Đã nối vào CI: job `no-commerce` trong `ci.yml`, nằm trong `ci-ok.needs`.
+# ⚠ `ci.yml` đang tạm dừng (`docs/ci-paused.md`) nên tới phase 14 job đó chỉ
+#   chạy khi gọi tay — trong giai đoạn này PHẢI chạy lệnh dưới bằng tay.
+node scripts/check-no-commerce.mjs   # exit 0; đối chứng + quét, không cần cài gì
 ```
