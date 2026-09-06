@@ -8,17 +8,18 @@ import {
   type ScenarioDifficulty,
 } from '@devops-platform/shared-types/scenario';
 import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn } from '@devops-platform/ui';
-import { DIFFICULTY_LABEL, TIER_LABEL } from './catalog-labels.ts';
-import type { SortOption } from './catalog-sort.ts';
-import { DEFAULT_SORT_KEY } from './catalog-sort.ts';
-import type { CatalogFilterState } from './catalog-input.ts';
+import { DIFFICULTY_LABEL, TIER_LABEL } from './catalog-labels';
+import type { SortOption } from './catalog-sort';
+import { DEFAULT_SORT_KEY } from './catalog-sort';
+import type { CatalogFilterState } from './catalog-input';
 
 /**
  * Nút lọc dạng chip.
  *
  * Trước 13.C mỗi trang danh mục tự chép một `FilterButton` giống hệt (lessons,
- * labs) với `bg-slate-900`/`bg-slate-100` trần. Gom về đây là điều kiện để câu
- * "không màu hardcode" đúng ở một chỗ thay vì phải đúng ở ba chỗ.
+ * labs), mỗi bản mang một cặp class màu trần của Tailwind. Gom về đây là điều
+ * kiện để câu "không màu hardcode" đúng ở MỘT chỗ thay vì phải đúng ở ba chỗ —
+ * và để grep AC (`phase-13-exec.md` §5) không phải bỏ qua ngoại lệ nào.
  *
  * `aria-pressed` chứ không phải một class `active` thuần thị giác: trạng thái
  * lọc phải đọc được bằng trình đọc màn hình, và đây là thứ `keyboard.spec.ts`

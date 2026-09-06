@@ -1,94 +1,136 @@
 'use client';
 
 import { useMemo } from 'react';
-import Link from 'next/link';
-import { Button, Card, CardDescription, CardTitle } from '@devops-platform/ui';
+import type { inferRouterOutputs } from '@trpc/server';
+import { Badge, CursorPager } from '@devops-platform/ui';
+import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
+import { CatalogPage, CatalogScopeNotes } from '../../components/catalog/catalog-page';
+import { CatalogCard, CatalogGrid, CatalogGridSkeleton } from '../../components/catalog/catalog-grid';
+import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
+import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
+import { CatalogError } from '../../components/catalog/catalog-error';
+import { buildCatalogListInput } from '../../components/catalog/catalog-input';
+import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
+import {
+  compareCount,
+  compareTitle,
+  findSortOption,
+  sortPage,
+  type SortOption,
+} from '../../components/catalog/catalog-sort';
+
+type PlaygroundRow = inferRouterOutputs<AppRouter>['playgrounds']['list']['items'][number];
+
+const SORT_OPTIONS: readonly SortOption<PlaygroundRow>[] = [
+  { key: 'title', label: 'Tên A→Z', compare: compareTitle },
+  { key: 'ttl', label: 'TTL ngắn đến dài', compare: compareCount((item) => item.ttlSeconds) },
+];
 
 /**
- * Trang danh sách `/playgrounds` — cùng khuôn `lessons-client.tsx`/`labs-client.tsx`:
- * `useQuery` (không `useInfiniteQuery`, lý lẽ đầy đủ ở bản gốc), KHÔNG gửi
- * `limit` (luật 4). Playground không có độ khó/tiến độ nên không có bộ lọc.
+ * Trang danh sách `/playgrounds` (13.C) — cùng khuôn `lessons-client.tsx`
+ * (`useQuery`, không `useInfiniteQuery`; lọc ở server; không gửi `limit`).
+ *
+ * ⚠ **Không có ô lọc độ khó ở đây, và đó là chủ ý.** `playgrounds.list` NHẬN
+ * `difficulty` nhưng bỏ qua nó: `PlaygroundSummary` không có field độ khó
+ * (`playgroundSchema` cố ý không có — không có bài thì không có gì để khó/dễ),
+ * và `listPlaygroundsPage` không đọc field filter đó. Hiện một ô lọc mà server
+ * không bao giờ áp dụng là một điều khiển nói dối: người dùng bấm, danh sách
+ * không đổi, và không có gì trên màn hình giải thích vì sao.
  *
  * TTL hiện NGAY ở đây (đơn vị phút) — AC 8.E đòi người học biết môi trường tự
  * đóng sau bao lâu TRƯỚC KHI bấm vào, không chỉ trước khi bấm "Bắt đầu" bên
  * trong `/playgrounds/[id]`.
  */
-export function PlaygroundsClient(): React.ReactElement {
-  const query = api.playgrounds.list.useQuery({});
-  const items = useMemo(() => query.data?.items ?? [], [query.data]);
+export function PlaygroundsClient({ canAuthor }: { readonly canAuthor: boolean }): React.ReactElement {
+  const controls = useCatalogControls();
+  const query = api.playgrounds.list.useQuery(buildCatalogListInput(controls.filters, controls.cursor));
 
-  if (query.isPending) {
-    return <PageShell>{<p className="text-sm text-slate-500">Đang tải danh sách sân chơi…</p>}</PageShell>;
-  }
-
-  if (query.isError) {
-    return (
-      <PageShell>
-        <p className="text-sm text-red-700" role="alert">
-          {describeTrpcError(query.error)}
-        </p>
-        <Button variant="secondary" onClick={() => void query.refetch()}>
-          Thử lại
-        </Button>
-      </PageShell>
-    );
-  }
+  const sortOption = findSortOption(SORT_OPTIONS, controls.sortKey);
+  const items = useMemo(() => sortPage(query.data?.items ?? [], sortOption), [query.data, sortOption]);
+  const hasNext = query.data?.nextCursor != null;
 
   return (
-    <PageShell>
-      {items.length === 0 ? (
-        <p className="text-sm text-slate-500">Chưa có sân chơi nào.</p>
-      ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((item) => (
-            <li key={item.id}>
-              <Link
+    <CatalogPage
+      title="Sân chơi"
+      description="Sandbox trống, không bài, không chấm điểm — thử lệnh trước khi vào một bài học hoặc lab thật."
+    >
+      <CatalogToolbar
+        fields={['tier']}
+        filters={controls.filters}
+        onDifficulty={controls.setDifficulty}
+        onTier={controls.setTier}
+        sortKey={controls.sortKey}
+        sortOptions={SORT_OPTIONS}
+        onSort={controls.setSortKey}
+        disabled={query.isPending}
+      />
+
+      {query.isPending && <CatalogGridSkeleton />}
+
+      {query.isError && (
+        <CatalogError
+          title="Không tải được danh sách sân chơi"
+          message={describeTrpcError(query.error)}
+          retrying={query.isFetching}
+          page={controls.page}
+          onRetry={() => void query.refetch()}
+          onFirstPage={controls.goFirst}
+        />
+      )}
+
+      {query.isSuccess && items.length === 0 && (
+        <CatalogEmptyState
+          kind="playgrounds"
+          page={controls.page}
+          hasActiveFilter={controls.hasActiveFilter}
+          canAuthor={canAuthor}
+          onClearFilters={controls.clearFilters}
+          onFirstPage={controls.goFirst}
+        />
+      )}
+
+      {query.isSuccess && items.length > 0 && (
+        <>
+          <CatalogGrid>
+            {items.map((item) => (
+              <CatalogCard
+                key={item.id}
                 href={`/playgrounds/${item.id}`}
-                className="block h-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-              >
-                <Card className="flex h-full flex-col gap-3">
-                  <CardTitle>{item.title}</CardTitle>
-                  {item.description !== null && <CardDescription>{item.description}</CardDescription>}
-                  <div className="mt-auto flex flex-wrap gap-2 text-xs text-slate-500">
-                    <span className="rounded bg-slate-100 px-2 py-0.5">
-                      Tự đóng sau {Math.round(item.ttlSeconds / 60)} phút
-                    </span>
+                title={item.title}
+                description={item.description}
+                meta={
+                  <>
+                    <Badge variant="secondary">Tự đóng sau {Math.round(item.ttlSeconds / 60)} phút</Badge>
                     {item.capabilities.map((capability) => (
-                      <span key={capability} className="rounded bg-amber-50 px-2 py-0.5 text-amber-700">
+                      <Badge key={capability} variant="outline">
                         {capability}
-                      </span>
+                      </Badge>
                     ))}
-                  </div>
-                </Card>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+                  </>
+                }
+              />
+            ))}
+          </CatalogGrid>
 
-      {query.data?.nextCursor != null && (
-        <p role="status" className="text-sm text-amber-700">
-          Kho sân chơi đã vượt {query.data.limit} mục — trang này mới hiện {items.length} mục
-          đầu. Giao diện phân trang chưa được dựng.
-        </p>
-      )}
-    </PageShell>
-  );
-}
+          <CatalogScopeNotes
+            kind="playgrounds"
+            page={controls.page}
+            shown={items.length}
+            hasNext={hasNext}
+            sortKey={controls.sortKey}
+          />
 
-function PageShell({ children }: { children: React.ReactNode }): React.ReactElement {
-  return (
-    <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-6 py-12">
-      <div>
-        <h1 className="text-2xl font-bold">Sân chơi</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Sandbox trống, không bài, không chấm điểm — thử lệnh trước khi vào một bài học hoặc
-          lab thật.
-        </p>
-      </div>
-      {children}
-    </main>
+          <CursorPager
+            hasNext={hasNext}
+            onNext={() => controls.goNext(query.data.nextCursor)}
+            onReset={controls.goFirst}
+            page={controls.page}
+            loading={query.isFetching}
+          />
+        </>
+      )}
+    </CatalogPage>
   );
 }

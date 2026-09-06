@@ -7,7 +7,7 @@ import {
   findSortOption,
   sortPage,
   type SortOption,
-} from './catalog-sort.ts';
+} from './catalog-sort';
 
 describe('compareTitle — bảng chữ tiếng Việt, không phải code point', () => {
   it('"Ánh" đứng TRƯỚC "Bình"', () => {

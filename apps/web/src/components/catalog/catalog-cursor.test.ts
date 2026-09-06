@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { FIRST_PAGE, currentCursor, pageNumber, pushCursor, type CursorStack } from './catalog-cursor.ts';
-import { buildCatalogListInput } from './catalog-input.ts';
-import { NO_FILTER } from './catalog-input.ts';
+import { FIRST_PAGE, currentCursor, pageNumber, pushCursor, type CursorStack } from './catalog-cursor';
+import { buildCatalogListInput } from './catalog-input';
+import { NO_FILTER } from './catalog-input';
 
 describe('ngăn xếp cursor', () => {
   it('trang đầu: không cursor, số trang 1', () => {

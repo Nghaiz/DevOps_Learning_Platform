@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
+import { describePageScope, describeSortScope, type CatalogKind } from './catalog-labels';
 
 /**
  * Khung chung của năm trang danh mục.
@@ -29,10 +30,10 @@ export function CatalogPage(props: {
 }
 
 /**
- * Câu tự đính chính phạm vi (`describePageScope` / `describeSortScope`).
+ * Một câu tự đính chính phạm vi.
  *
  * `role="status"` chứ không `role="alert"`: đây là thông tin, không phải lỗi —
- * `alert` ngắt lời trình đọc màn hình giữa chừng và dùng nó cho một dòng "còn
+ * `alert` ngắt lời trình đọc màn hình giữa chừng, và dùng nó cho một dòng "còn
  * trang sau" là đúng loại lạm dụng làm người dùng tắt hẳn thông báo.
  */
 export function CatalogNote({ children }: { readonly children: ReactNode }): ReactElement {
@@ -40,5 +41,44 @@ export function CatalogNote({ children }: { readonly children: ReactNode }): Rea
     <p role="status" className="text-sm text-muted-foreground">
       {children}
     </p>
+  );
+}
+
+/**
+ * Hai câu tự đính chính của mọi trang danh mục — danh sách còn tiếp không, và
+ * thứ tự đang xem có phạm vi tới đâu.
+ *
+ * Cả hai câu là hàm THUẦN có test (`catalog-labels.test.ts`), và cả hai có thể
+ * trả `null`: một dòng ghi chú luôn hiện sẽ thành nhiễu, và người ta ngừng đọc
+ * đúng lúc nó bắt đầu mang tin.
+ */
+export function CatalogScopeNotes(props: {
+  readonly kind: CatalogKind;
+  readonly page: number;
+  readonly shown: number;
+  readonly hasNext: boolean;
+  readonly sortKey: string;
+}): ReactElement | null {
+  const pageNote = describePageScope({
+    kind: props.kind,
+    page: props.page,
+    shown: props.shown,
+    hasNext: props.hasNext,
+  });
+  const sortNote = describeSortScope({
+    sortKey: props.sortKey,
+    shown: props.shown,
+    hasNext: props.hasNext,
+  });
+
+  if (pageNote === null && sortNote === null) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      {pageNote !== null && <CatalogNote>{pageNote}</CatalogNote>}
+      {sortNote !== null && <CatalogNote>{sortNote}</CatalogNote>}
+    </div>
   );
 }

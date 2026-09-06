@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { readCanAuthor } from '../../components/catalog/viewer-role.server';
 import { LessonsClient } from './lessons-client';
 
 export const metadata: Metadata = {
@@ -6,9 +7,14 @@ export const metadata: Metadata = {
 };
 
 /**
- * Auth đã do `layout.tsx` gác, nên page này không lặp lại phép kiểm — lặp lại sẽ
- * là hai lượt `getSession` (hai lượt đụng DB) cho mỗi lần mở trang.
+ * Auth đã do `layout.tsx` gác, nên page này không lặp lại phép kiểm.
+ *
+ * Nó vẫn ĐỌC phiên — nhưng qua `readCanAuthor`, tức qua cùng
+ * `readViewerSession` mà layout dùng, nên `cache()` của React gộp cả hai về một
+ * lượt đụng DB. Giá trị này chỉ chọn CÂU CHỮ cho trạng thái rỗng ("mở trang
+ * Soạn bài" cho author, một gợi ý học tiếp cho người học); nó không gác quyền
+ * gì cả — cổng thật là `authorProcedure` và layout của `/author`.
  */
-export default function LessonsPage() {
-  return <LessonsClient />;
+export default async function LessonsPage() {
+  return <LessonsClient canAuthor={await readCanAuthor()} />;
 }

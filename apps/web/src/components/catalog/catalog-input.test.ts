@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { appRouter } from '../../server/trpc/routers/app-router';
-import { NO_FILTER, buildCatalogListInput, hasActiveFilter } from './catalog-input.ts';
+import { NO_FILTER, buildCatalogListInput, hasActiveFilter } from './catalog-input';
 
 /**
  * Bộ test này khẳng định một điều DUY NHẤT nhưng là điều hay hỏng nhất ở lane

@@ -2,9 +2,9 @@
 
 import { useCallback, useState } from 'react';
 import type { SandboxTierName, ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
-import { NO_FILTER, hasActiveFilter, type CatalogFilterState } from './catalog-input.ts';
-import { FIRST_PAGE, currentCursor, pageNumber, pushCursor, type CursorStack } from './catalog-cursor.ts';
-import { DEFAULT_SORT_KEY } from './catalog-sort.ts';
+import { NO_FILTER, hasActiveFilter, type CatalogFilterState } from './catalog-input';
+import { FIRST_PAGE, currentCursor, pageNumber, pushCursor, type CursorStack } from './catalog-cursor';
+import { DEFAULT_SORT_KEY } from './catalog-sort';
 
 export interface CatalogControls {
   readonly filters: CatalogFilterState;

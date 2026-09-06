@@ -3,7 +3,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import Link from 'next/link';
 import { Button, EmptyState } from '@devops-platform/ui';
-import { describeCatalogEmpty, type CatalogKind } from './catalog-labels.ts';
+import { describeCatalogEmpty, type CatalogKind } from './catalog-labels';
 
 /**
  * Trạng thái rỗng của trang danh mục.

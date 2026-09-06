@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
-import { getAuth } from '../../server/auth/config';
+import { readCanAuthor, readViewerSession } from '../../components/catalog/viewer-role.server';
 import { LabsClient } from './labs-client';
 
 export const metadata: Metadata = {
@@ -9,17 +8,19 @@ export const metadata: Metadata = {
 };
 
 /**
- * Server Component — kiểm auth THẬT qua `auth.api.getSession` (đụng DB), cùng
- * khuôn với `/dashboard` và `/session`: `proxy.ts` chỉ kiểm SỰ TỒN TẠI của
- * cookie, page này là nguồn sự thật, chặn cả ca cookie còn nhưng session đã bị
- * revoke ở DB. `LabsClient` không cần `userId` (danh sách không mở phiên nào).
+ * Server Component — kiểm auth THẬT (đụng DB), cùng khuôn `/playgrounds` và
+ * `/paths`: `proxy.ts` chỉ kiểm SỰ TỒN TẠI của cookie, page này là nguồn sự
+ * thật, chặn cả ca cookie còn nhưng session đã bị revoke ở DB.
+ *
+ * Hai lời gọi bên dưới đi qua cùng một `readViewerSession` memo hoá bằng
+ * `cache()` ⇒ MỘT lượt đụng DB, không phải hai.
  */
 export default async function LabsPage() {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  const session = await readViewerSession();
 
   if (session === null) {
     redirect('/login');
   }
 
-  return <LabsClient />;
+  return <LabsClient canAuthor={await readCanAuthor()} />;
 }

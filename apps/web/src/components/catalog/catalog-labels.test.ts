@@ -5,7 +5,7 @@ import {
   describeSortScope,
   progressBadgeVariant,
   type CatalogKind,
-} from './catalog-labels.ts';
+} from './catalog-labels';
 
 const KINDS: readonly CatalogKind[] = ['lessons', 'labs', 'playgrounds', 'paths', 'quiz'];
 
