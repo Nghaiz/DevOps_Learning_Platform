@@ -265,6 +265,26 @@ orchestrator CrashLoopBackOff.** Thông báo lỗi có nêu tên biến thiếu 
 và bump tag TRONG CÙNG một thay đổi. Lane Go cố ý KHÔNG ghim sẵn `:p13` — cổng
 render-vs-`ctr images ls` của P12 sẽ (đúng đắn) từ chối một tag chưa có trên node.
 
+**Web và orchestrator phải bump CÙNG một lượt deploy, không cái nào đi trước.**
+D15 thêm nhánh `admin_user_id` vào `ReapSession`. Binary `:p12fix` đang chạy không có
+field đó, nên nếu `dlp-web:p13` lên trước thì mọi lượt admin kết thúc phiên decode ra
+`oneof` chưa đặt ⇒ `InvalidArgument`. Ngược lại orchestrator lên trước thì nút chưa tồn tại.
+Cùng lượt, hoặc không lượt nào.
+
+**Bảng theo dõi:** `dlp_reap_total` nay có nhãn `actor="admin"` (khởi tạo 0 nên đọc ra 0
+chứ không NO-DATA). Panel/alert nào liệt kê giá trị `actor` cần thêm nhãn thứ ba.
+
+**⚠ Một phơi bày CÓ TỪ ĐỢT 1, không phải do D15 sinh ra.** `ListSessions(user_id = "")`
+trả về MỌI phiên đang sống kèm `Session.user_id`, và orchestrator KHÔNG kiểm vai trò ở
+tầng đó — nên một caller chạm được cổng gRPC vốn đã reap được bất kỳ ai trong **hai** lời
+gọi qua nhánh `user_id`. D15 rút xuống một lời gọi và đổi lại được một dòng audit gọi đúng
+tên hành động. Thứ thật sự chặn là **mTLS** (`platform.grpcMtlsMode: 'require'` là mặc
+định — cần cert ký bởi CA của ta), KHÔNG phải NetworkPolicy: `networkPolicy.platform.enabled`
+mặc định `false`, và kể cả bật thì nó phân biệt bằng NHÃN pod, nên một pod tự gắn nhãn
+`app=<fullname>-web` là qua. Coi CA là ranh giới, và đừng thêm apps/web vào
+`GRPC_MTLS_SYSTEM_CNS` (làm thế là cấp bypass chủ-sở-hữu cho MỌI lượt reap của BFF, gồm cả
+`me.endSession`).
+
 **Ba con số CHƯA ĐO, đừng đọc thành đã đo:**
 - `/ide` chưa bao giờ đi qua Traefik (6.A/6.B/6.E đều dùng `port-forward`). Cả trần
   body 1 MiB lẫn tier `ratelimit-ide` 600/1m burst 300 là SUY LUẬN. Triệu chứng nếu
