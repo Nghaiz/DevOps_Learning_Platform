@@ -3,6 +3,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
 import { cn } from '../cn.ts';
+import { SCROLL_REGION_FOCUS } from './scroll-region.ts';
 
 export interface MarkdownViewProps {
   readonly markdown: string;
@@ -123,8 +124,16 @@ export function MarkdownView({ markdown, resolveAssetUrl }: MarkdownViewProps) {
     ),
     strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
     hr: () => <hr className="my-4 border-border" />,
+    // Bọc cuộn ngang PHẢI vào được bằng bàn phím — xem `scroll-region.ts`.
+    // Bảng markdown thường không có ô nào focus được, nên thiếu `tabIndex` thì
+    // phần cột tràn ra ngoài là không đọc nổi nếu chỉ có bàn phím.
     table: ({ children }) => (
-      <div className="my-2 overflow-x-auto">
+      <div
+        tabIndex={0}
+        role="group"
+        aria-label="Bảng — cuộn ngang bằng phím mũi tên"
+        className={cn('my-2 overflow-x-auto', SCROLL_REGION_FOCUS)}
+      >
         <table className="w-full border-collapse text-sm">{children}</table>
       </div>
     ),
@@ -137,7 +146,15 @@ export function MarkdownView({ markdown, resolveAssetUrl }: MarkdownViewProps) {
     // Fence THƯỜNG (không hậu tố hành động) — parseContentBlocks cố ý để nguyên
     // trong markdown. Vẫn phải hiển thị đẹp dù không có nút copy/chạy.
     pre: ({ children }) => (
-      <pre className="my-2 overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground">
+      <pre
+        tabIndex={0}
+        role="group"
+        aria-label="Khối mã — cuộn ngang bằng phím mũi tên"
+        className={cn(
+          'my-2 overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground',
+          SCROLL_REGION_FOCUS,
+        )}
+      >
         {children}
       </pre>
     ),

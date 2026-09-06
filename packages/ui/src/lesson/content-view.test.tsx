@@ -170,3 +170,59 @@ describe('ContentView — markdown thường', () => {
     expect(screen.getByText(/\{\{TRAFFIC_HOST1_80\}\}/)).toBeDefined();
   });
 });
+
+/**
+ * Cổng cho lỗi axe `scrollable-region-focusable` mức **serious** mà lượt e2e
+ * ngày 2026-09-06 bắt được ở CẢ `/lessons/:id` lẫn `/labs/:id`.
+ *
+ * ⚠ Đây KHÔNG phải một lượt chạy axe. axe quyết định "có cuộn được không" bằng
+ * `scrollHeight`/`clientHeight`, mà jsdom trả 0 cho mọi phép đo bố cục — chạy
+ * axe ở đây sẽ XANH cả trước lẫn sau bản vá, tức chứng minh đúng con số không
+ * (`green-that-proves-nothing`). Cái test này gác BIỆN PHÁP KHẮC PHỤC — ba
+ * thuộc tính trên đúng phần tử có `overflow` — chứ không giả vờ gác luật axe.
+ * Phép đo thật vẫn là lượt e2e trên cụm.
+ *
+ * Ba đường render đi qua đây: trang bài học, trang lab, và xem trước của trang
+ * soạn bài. Cả ba dùng chung `ContentView`, nên cả ba được vá cùng lúc.
+ */
+describe('ContentView — vùng cuộn vào được bằng bàn phím', () => {
+  function assertScrollRegion(el: Element | null, what: string): void {
+    expect(el, `không tìm thấy ${what}`).not.toBeNull();
+    expect(el?.getAttribute('tabindex'), `${what} thiếu tabindex ⇒ bàn phím không cuộn được`).toBe('0');
+    // `tabIndex` một mình để lại một điểm dừng Tab KHÔNG TÊN. `role="group"`
+    // (không phải `region` — xem `scroll-region.ts`) là thứ cho phép `aria-label`
+    // mà không tạo landmark trùng tên.
+    expect(el?.getAttribute('role'), `${what} thiếu role ⇒ aria-label bị cấm trên vai trò generic`).toBe(
+      'group',
+    );
+    expect((el?.getAttribute('aria-label') ?? '').length, `${what} thiếu aria-label`).toBeGreaterThan(0);
+  }
+
+  it('khối mã CÓ hành động (CodeBlock) cuộn được bằng bàn phím', () => {
+    const blocks: ContentBlock[] = [
+      { kind: 'code', code: 'kubectl get pods -A', language: 'bash', action: 'copy', inline: false },
+    ];
+    const { container } = render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
+    assertScrollRegion(container.querySelector('pre'), 'pre của CodeBlock');
+  });
+
+  it('fence markdown THƯỜNG (MarkdownView) cuộn được bằng bàn phím', () => {
+    const blocks: ContentBlock[] = [{ kind: 'markdown', markdown: '```\nmot lenh rat dai\n```' }];
+    const { container } = render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
+    assertScrollRegion(container.querySelector('pre'), 'pre của MarkdownView');
+  });
+
+  it('bảng markdown (bọc overflow-x-auto) cuộn được bằng bàn phím', () => {
+    const blocks: ContentBlock[] = [
+      { kind: 'markdown', markdown: '| Cot A | Cot B |\n| --- | --- |\n| 1 | 2 |' },
+    ];
+    const { container } = render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
+    assertScrollRegion(container.querySelector('div.overflow-x-auto'), 'bọc cuộn của bảng');
+  });
+
+  it('nội dung KHÔNG cuộn được thì KHÔNG có tabindex nào — không rải điểm dừng Tab vô nghĩa', () => {
+    const blocks: ContentBlock[] = [{ kind: 'markdown', markdown: 'Mot doan van thuong.' }];
+    const { container } = render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
+    expect(container.querySelectorAll('[tabindex]').length).toBe(0);
+  });
+});

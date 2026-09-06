@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { CodeAction } from '@devops-platform/scenario/content-blocks';
 import { cn } from '../cn.ts';
+import { SCROLL_REGION_FOCUS } from './scroll-region.ts';
 
 export interface CodeBlockProps {
   readonly code: string;
@@ -147,7 +148,18 @@ export function CodeBlock({ code, language, action, inline, onExec, execEnabled 
           )}
         </div>
       </div>
-      <pre className="overflow-x-auto px-3 py-2 text-sm">{codeEl}</pre>
+      {/*
+        `tabIndex`/`role`/`aria-label`: vùng cuộn phải vào được bằng bàn phím —
+        lý do đầy đủ + phép đo tương phản ở `scroll-region.ts`.
+      */}
+      <pre
+        tabIndex={0}
+        role="group"
+        aria-label={`Khối mã ${language ?? 'text'} — cuộn ngang bằng phím mũi tên`}
+        className={cn('overflow-x-auto px-3 py-2 text-sm', SCROLL_REGION_FOCUS)}
+      >
+        {codeEl}
+      </pre>
     </div>
   );
 }
