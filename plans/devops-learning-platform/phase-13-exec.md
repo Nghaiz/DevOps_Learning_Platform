@@ -233,6 +233,36 @@ Route chính: `Bài học /lessons · Lab /labs · Playground /playgrounds · L�
 3. Chạy e2e trên cụm: `@flow` ×6, axe, CSP (kèm đối chứng), keyboard, perf. Ảnh chụp vào `reports/harness/2026-09-04-p13-e2e/`.
 4. `t1k-code-reviewer` (adversarial) + `t1k-tester` (suite) → sửa → 5 artifact cook → `reports/2026-09-0X-verify-p13.md` → tích AC `phase-13.md` → commit → PR (base `feat/p12-scale-proof`).
 
+## 3bis. Bẫy deploy đợt 3 — ĐỌC TRƯỚC KHI CHẠY `12-helm-deploy.sh`
+
+**Chart và image đã lệch nhau có chủ ý.** Lane Go đổi `CAPACITY_SOFT_LIMIT` →
+`CAPACITY_HARD_LIMIT` (trần mềm nay được TÍNH = hard − poolTarget, không khai tay).
+Binary đang chạy trên cụm là `dlp-orchestrator:p12fix`, và nó ĐÒI biến cũ.
+
+⇒ **Deploy chart mới mà chưa build + side-load `dlp-orchestrator:p13` sẽ làm
+orchestrator CrashLoopBackOff.** Thông báo lỗi có nêu tên biến thiếu nên chẩn
+đoán mất vài giây, nhưng nền tảng nằm đó tới khi image lên. Đợt 3 phải build image
+và bump tag TRONG CÙNG một thay đổi. Lane Go cố ý KHÔNG ghim sẵn `:p13` — cổng
+render-vs-`ctr images ls` của P12 sẽ (đúng đắn) từ chối một tag chưa có trên node.
+
+**Ba con số CHƯA ĐO, đừng đọc thành đã đo:**
+- `/ide` chưa bao giờ đi qua Traefik (6.A/6.B/6.E đều dùng `port-forward`). Cả trần
+  body 1 MiB lẫn tier `ratelimit-ide` 600/1m burst 300 là SUY LUẬN. Triệu chứng nếu
+  sai: IDE trắng hoặc nạp nửa chừng, KHÔNG phải một thông báo rate-limit.
+- `capacityHardLimit: '8'` trong `values.yaml` (mặc định dạng cloud) chưa đo.
+
+**Ingress không render từ hai file values.** `values-selfhost.yaml` không khai khối
+`ingress:`; `ingress.*`/`networkPolicy.*`/`platform.*` là phụ thuộc máy và chỉ sống
+trong release trên VM (`12-helm-deploy.sh` L83-90). Muốn xem `/ide` render thì phải
+truyền đúng bộ `--set` mà `08-tls-entrypoint.sh` in ra.
+
+**Netpol metrics:** đã mở `web → orchestrator:8081` (khối 13b riêng, không nới khối 9).
+`web → gateway:8083` bị TỪ CHỐI có lý do: phải đưa cổng admin vào Service, tạo tên DNS
+ổn định tới `/metrics` không xác thực cho mọi pod cùng namespace, trong khi
+`networkPolicy.platform.enabled` mặc định `false`. Metric gateway đọc qua Prometheus.
+Hệ quả người vận hành thấy: `gateway: reached:false, ok:false, error:<lý do>` — đúng
+thiết kế, không phải hỏng.
+
 ## 4. Kỷ luật git & xác minh cho MỌI sub-agent
 
 - Một nhánh, một working tree dùng chung. **CẤM** `git add .`/`-A`, `git commit -a`, `git checkout`/`switch`/`stash`, `git pull`, `git push`. Commit bằng **pathspec**: `git add <đường dẫn tường minh>` cho file mới rồi `git commit -m "<type>(p13): …" -- <đường dẫn…>`. Commit nhỏ, thường xuyên; commit trước khi báo cáo.
