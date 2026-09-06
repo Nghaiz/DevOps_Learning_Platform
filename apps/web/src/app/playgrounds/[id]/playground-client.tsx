@@ -1,28 +1,11 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { DEFAULT_THEME } from '@devops-platform/terminal';
-import { Button } from '@devops-platform/ui';
+import { Alert, AlertDescription } from '@devops-platform/ui';
+import { SessionControls, TerminalPane, useResolvedTerminalTheme } from '../../../components/session';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { usePlaygroundSession } from './use-playground-session';
-
-const TerminalPane = dynamic(() => import('./terminal-pane'), {
-  ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse bg-slate-900/40" />,
-});
-
-const SESSION_PHASE_LABEL: Record<string, string> = {
-  idle: 'Chưa có phiên',
-  creating: 'Đang tạo phiên…',
-  connecting: 'Đang kết nối…',
-  ready: 'Sandbox sẵn sàng',
-  reconnecting: 'Mất kết nối — đang thử lại…',
-  exited: 'Shell đã thoát',
-  expired: 'Phiên đã kết thúc',
-  error: 'Lỗi',
-};
 
 export function PlaygroundClient({
   playgroundId,
@@ -33,6 +16,16 @@ export function PlaygroundClient({
 }): React.ReactElement {
   const query = api.playgrounds.get.useQuery({ playgroundId });
   const session = usePlaygroundSession(playgroundId, userId);
+
+  const me = api.me.get.useQuery({});
+  const terminalTheme = useResolvedTerminalTheme(me.data?.preferences.terminalTheme ?? null);
+
+  // Chỉ hỏi khi chưa có phiên — sau khi phiên mở, "còn N chỗ" không quyết định
+  // gì nữa. Đọc thẳng `data`, không lưu vào state (no-derived-fields).
+  const capacity = api.capacity.get.useQuery(
+    {},
+    { refetchInterval: 15_000, enabled: session.state.sessionId === null },
+  );
 
   if (query.isPending) {
     return <Centered>Đang tải sân chơi…</Centered>;
@@ -45,115 +38,63 @@ export function PlaygroundClient({
   const ttlMinutes = Math.round(playground.ttlSeconds / 60);
 
   return (
-    <main className="flex h-screen flex-col bg-white">
-      <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-2">
-        <Link href="/playgrounds" className="text-sm text-slate-500 hover:text-slate-900">
+    <main className="flex h-screen flex-col bg-background text-foreground">
+      <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
+        <Link href="/playgrounds" className="text-sm text-muted-foreground hover:text-foreground">
           ← Sân chơi
         </Link>
         <h1 className="text-sm font-semibold">{playground.title}</h1>
 
         {/*
-          AC 8.E — người học phải biết con số này TRƯỚC KHI bấm "Bắt đầu", không
-          phải sau. Hiện LUÔN ở đây (không gói trong nhánh "chưa có phiên") để nó
-          không biến mất giữa chừng và vẫn là lời nhắc đúng sau khi phiên đã mở.
-        */}
-        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">
-          Tự đóng sau {ttlMinutes} phút
-        </span>
+          AC 8.E — người học phải biết phiên sống bao lâu TRƯỚC KHI bấm "Bắt
+          đầu", không phải sau. Con số đi qua `ttlSeconds` của C5 (badge "Phiên
+          kéo dài N phút") chứ không còn là một badge chép tay ở trang này: bốn
+          trình học phải nói cùng một câu về cùng một thứ.
 
-        <div className="ml-auto flex items-center gap-2">
-          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-            {SESSION_PHASE_LABEL[session.state.phase] ?? session.state.phase}
-          </span>
-          {session.state.message !== null && (
-            <span
-              role="status"
-              className={
-                session.state.phase === 'error' || session.state.phase === 'expired'
-                  ? 'text-xs text-red-700'
-                  : 'text-xs text-slate-500'
-              }
-            >
-              {session.state.message}
-            </span>
-          )}
-          {session.state.sessionId === null && (
-            <Button onClick={session.start} disabled={session.starting}>
-              {session.starting ? 'Đang tạo phiên…' : 'Bắt đầu'}
-            </Button>
-          )}
-          {session.state.sessionId !== null &&
-            session.remainingMs !== null &&
-            session.remainingMs < 10 * 60_000 && (
-              <>
-                <span
-                  className={
-                    session.remainingMs < 2 * 60_000
-                      ? 'text-xs font-semibold text-red-700'
-                      : 'text-xs text-amber-700'
-                  }
-                >
-                  Còn {Math.ceil(session.remainingMs / 60_000)} phút
-                </span>
-                <Button
-                  variant="secondary"
-                  onClick={session.extend}
-                  disabled={session.extending || session.state.hardCapReached}
-                  title={
-                    session.state.hardCapReached
-                      ? 'Đã dùng hết thời lượng tối đa cho phiên này — hãy kết thúc và mở phiên mới.'
-                      : undefined
-                  }
-                >
-                  {session.extending ? 'Đang thêm giờ…' : 'Thêm giờ'}
-                </Button>
-              </>
-            )}
-          {session.state.sessionId !== null && (
-            <Button variant="secondary" onClick={session.end} disabled={session.ending}>
-              {session.ending ? 'Đang kết thúc…' : 'Kết thúc phiên'}
-            </Button>
-          )}
+          Sau khi phiên mở, đồng hồ THẬT của `SessionControls` thay chỗ nó (hiện
+          dưới 10 phút) — con số của nội dung khi đó không còn là sự thật, vì
+          "Thêm giờ" đã có thể đẩy hạn đi rồi.
+        */}
+        <div className="ml-auto">
+          <SessionControls
+            session={session}
+            actions={{ start: session.start, end: session.end, extend: session.extend }}
+            ttlSeconds={playground.ttlSeconds}
+            capacity={capacity.data ?? null}
+          />
         </div>
       </header>
 
       {unsupportedCapabilities.length > 0 && (
-        <div
-          role="alert"
-          className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"
-        >
-          Sân chơi này cần <strong>{unsupportedCapabilities.join(', ')}</strong> — nền tảng chưa
-          chạy được những năng lực đó, nên một số lệnh sẽ báo lỗi.
-        </div>
+        <Alert variant="warning" className="rounded-none border-x-0 border-t-0">
+          <AlertDescription className="text-foreground">
+            Sân chơi này cần <strong>{unsupportedCapabilities.join(', ')}</strong> — nền tảng
+            chưa chạy được những năng lực đó, nên một số lệnh sẽ báo lỗi.
+          </AlertDescription>
+        </Alert>
       )}
 
       {session.startError !== null && (
-        <div role="alert" className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
-          {session.startError}
-        </div>
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
+          <AlertDescription className="text-foreground">{session.startError}</AlertDescription>
+        </Alert>
       )}
 
       <div className="min-h-0 flex-1">
-        {session.state.sessionId === null ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 bg-slate-950 px-6 text-center">
-            {playground.description !== null && (
-              <p className="max-w-md text-sm text-slate-400">{playground.description}</p>
-            )}
-            <p className="text-sm text-slate-400">
-              Bấm <span className="mx-1 font-semibold text-slate-200">Bắt đầu</span> để dựng
-              sandbox và mở terminal — phiên tự đóng sau <strong>{ttlMinutes} phút</strong>.
-            </p>
-          </div>
-        ) : (
-          <TerminalPane
-            wsUrl={session.wsUrl}
-            connectionKey={session.connectionKey}
-            theme={DEFAULT_THEME}
-            onControl={session.onControl}
-            onClose={session.onClose}
-            onReady={session.onTerminalReady}
-          />
-        )}
+        <TerminalPane
+          session={session}
+          theme={terminalTheme}
+          placeholder={
+            <span className="flex max-w-md flex-col gap-3">
+              {playground.description !== null && <span>{playground.description}</span>}
+              <span>
+                Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng
+                sandbox và mở terminal — phiên tự đóng sau{' '}
+                <strong className="text-foreground">{ttlMinutes} phút</strong>.
+              </span>
+            </span>
+          }
+        />
       </div>
     </main>
   );
@@ -167,8 +108,8 @@ function Centered({
   tone?: 'error';
 }): React.ReactElement {
   return (
-    <main className="flex min-h-screen items-center justify-center px-6">
-      <p className={tone === 'error' ? 'text-sm text-red-700' : 'text-sm text-slate-500'}>
+    <main className="flex min-h-screen items-center justify-center bg-background px-6">
+      <p className={tone === 'error' ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
         {children}
       </p>
     </main>
