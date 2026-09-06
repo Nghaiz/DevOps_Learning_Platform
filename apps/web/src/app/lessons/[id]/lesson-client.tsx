@@ -308,8 +308,13 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
     />
   );
 
+  // Gốc trang KHÔNG mang `h-screen`/`min-h-screen`: vỏ ứng dụng đã dựng
+  // `<main class="flex min-h-0 flex-1 flex-col">` BÊN DƯỚI một thanh đầu trang,
+  // nên 100vh ở đây cao hơn phần còn lại đúng bằng chiều cao thanh đó và đẻ ra
+  // một thanh cuộn thừa trên mọi trang có terminal. `flex-1 min-h-0` lấy đúng
+  // phần còn lại — không con số nào phải khớp tay với chiều cao thanh đầu trang.
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
+    <div className="flex min-h-0 flex-1 flex-col bg-background text-foreground">
       <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
         <Link href="/lessons" className="text-sm text-muted-foreground hover:text-foreground">
           ← Bài học
@@ -422,8 +427,10 @@ function Centered({
   children: React.ReactNode;
   tone?: 'error';
 }): React.ReactElement {
+  // `flex-1 min-h-0` chứ không `min-h-screen`: căn giữa theo phần vỏ chừa lại,
+  // không theo cả màn hình (xem chú thích ở gốc trang).
   return (
-    <div className="flex min-h-screen items-center justify-center px-6">
+    <div className="flex min-h-0 flex-1 items-center justify-center px-6">
       <p className={tone === 'error' ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
         {children}
       </p>
