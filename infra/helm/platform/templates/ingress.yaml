@@ -235,6 +235,27 @@ dùng CHUNG một bucket. Xem middleware-ratelimit.yaml § ratelimit-ide.
 `ratelimit-ws` cũng không đúng: tier đó định giá một lượt handshake, không phải
 một phiên IDE kéo dài nhiều request.
 
+⛔ HEADER AN NINH KHÔNG NẰM Ở ĐÂY, VÀ ĐÓ LÀ QUYẾT ĐỊNH (P13 S1) — ĐỪNG "SỬA".
+Nếu bạn vừa nhận ra `/ide` phục vụ trên chính origin của app và định thêm một
+`Middleware` kiểu `headers.customResponseHeaders`: nó ĐÃ ĐƯỢC ĐÓNG, ở
+`services/terminal-gateway/internal/ideroute/secheaders.go`. Thêm ở đây nữa là
+tạo nguồn sự thật THỨ HAI cho cùng một bộ header, và Traefik sẽ ĐÈ bản của
+gateway — nên hai bản lệch nhau sẽ không đỏ ở đâu cả, chỉ âm thầm lấy bản nào
+sửa sau.
+
+Lý do chọn gateway chứ không chọn chỗ này (đầy đủ ở secheaders.go):
+`ingress.middleware.enabled` mặc định **false** — có chủ ý, vì `traefik.io`
+Middleware là CRD riêng của Traefik và bật nó trên nginx/HAProxy là chết ở bước
+apply. Đặt một kiểm soát AN NINH sau cờ đó nghĩa là cụm non-Traefik, hoặc một
+lượt `helm upgrade --reuse-values` đánh rơi khối `ingress`, mất sạch header
+trong khi `helm upgrade` vẫn STATUS: deployed. Đó đúng là chế độ hỏng im lặng
+mà `required` ở đầu file này được dựng lên để chặn — chỉ khác là với `bodylimit`
+/`ratelimit` ta mất một trần DoS, còn ở đây ta sẽ mất `nosniff` trên một đường
+phục vụ FILE DO NGƯỜI HỌC tạo ra.
+
+Hệ quả cho vận hành: image gateway phải theo kịp. `dlp-terminal-gateway:p12fix`
+đang chạy KHÔNG có ba header đó — xem values-selfhost.yaml § gateway.image.tag.
+
 Thứ tự path KHÔNG cần lo (như ghi chú đầu file): Traefik xếp ưu tiên router
 theo ĐỘ DÀI rule, nên `Host(…) && PathPrefix(`/ide`)` thắng
 `Host(…) && PathPrefix(`/`)` của `-web`; và `/ide` không phải tiền tố của `/ws`

@@ -190,6 +190,25 @@ gateway:
   # sống thì hỏi THÊM apiserver xem pod còn không, rồi mới chọn 1000 hay 4404.
   # Vá cuộc đua "Redis đi sau" của P12 §8 — xem podexec.PodGoneFunc. Xây TAY ở
   # máy dev rồi side-load, KHÔNG phải CI publish.
+  #
+  # ⛔ TAG NÀY ĐÃ CŨ SO VỚI NHÁNH (P13 S1, 2026-09-06) — ĐỢT 3 PHẢI XÂY LẠI.
+  # `internal/ideroute/secheaders.go` thêm ba header an ninh cho MỌI response
+  # dưới `/ide` (`nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`).
+  # Binary `p12fix` KHÔNG có chúng, nên deploy chart này với ảnh cũ để nguyên lỗ
+  # S1 — và không có gì đỏ lên: lỗ là một header VẮNG MẶT, `rollout status` vẫn
+  # xanh, pod vẫn `Running 1/1`.
+  #
+  # Nghĩa là đợt 3 xây bốn ảnh, không phải ba như §3ter mục 4 liệt kê:
+  # `dlp-web:p13`, `dlp-orchestrator:p13`, `dlp-migrator:p13`, và
+  # `dlp-terminal-gateway:p13`.
+  #
+  # KHÁC với cặp web↔orchestrator, ảnh này KHÔNG có ràng buộc thứ tự: nó chỉ
+  # thêm header response, không đụng wire-protocol nào — nên nó không nối dài
+  # chuỗi "cùng lượt hoặc không lượt nào" của D15, chỉ thêm một bước xây.
+  #
+  # CỐ Ý KHÔNG ghim sẵn `:p13` ở đây, cùng lý do lane Go không ghim: cổng
+  # render-vs-`ctr images ls` của `12-helm-deploy.sh` sẽ (đúng đắn) từ chối một
+  # tag chưa có trên node. Bump tag TRONG CÙNG thay đổi với lượt build+side-load.
   image:
     tag: p12fix
   # 2 replica từ chặng 3.H. Gateway stateless đã được KIỂM CHỨNG chứ không chỉ
