@@ -53,6 +53,36 @@ const buttonVariants = cva(
   },
 );
 
+/**
+ * Màu Spinner lúc `loading` phải ĐỘC LẬP với `currentColor`.
+ *
+ * Nhánh nút thường đặt `text-transparent` lên chính `<button>` để giấu nhãn
+ * đằng sau Spinner đè lên. Nhưng khi đó `currentColor` = trong suốt, mà
+ * `lucide-react` vẽ icon bằng `stroke="currentColor"` + `fill="none"` — không
+ * còn NÉT nào để nhìn. Nút "đang tải" thành một nút trống trơn: nhãn bị giấu
+ * đúng ý đồ, spinner biến mất ngoài ý đồ. 37 nơi gọi đang dựa vào nó, gồm cả
+ * "Đăng nhập" và "Bắt đầu phiên".
+ *
+ * jsdom không tính được màu đã tính (computed style) nên KHÔNG test nào đỏ
+ * được vì chuyện này: `getByRole('status')` vẫn thấy phần tử, nó chỉ vô hình.
+ * Vì vậy thứ được gác ở button.test.tsx là CLASS quyết định màu, không phải sự
+ * tồn tại của phần tử — một test kiểm sự tồn tại là test không thể đỏ.
+ *
+ * Mỗi giá trị dưới đây là màu CHỮ của chính biến thể đó, nên tương phản với
+ * mặt nút đã được `TEXT_PAIRS` (≥4.5:1) trong `theme/tokens.contract.test.ts`
+ * gác sẵn — dư so với mức 3:1 mà SC 1.4.11 đòi cho một thành phần đồ hoạ.
+ * `outline`/`ghost` không đặt `text-*` nào ở biến thể của chúng, nên phải nói
+ * rõ `text-foreground` chứ không được để thừa kế từ cây cha.
+ */
+const SPINNER_TONE = {
+  primary: 'text-primary-foreground',
+  secondary: 'text-secondary-foreground',
+  outline: 'text-foreground',
+  ghost: 'text-foreground',
+  destructive: 'text-destructive-foreground',
+  link: 'text-primary',
+} as const satisfies Record<ButtonVariant, string>;
+
 export interface ButtonProps
   extends Omit<ComponentProps<'button'>, 'color'>,
     VariantProps<typeof buttonVariants> {
@@ -135,7 +165,16 @@ export function Button(props: ButtonProps) {
               thành "Đang tảiTiếp" thay vì "Tiếp"; `aria-busy` ở `<Comp>` đã đủ
               để báo trạng thái bận cho trình đọc màn hình. */}
           {loading && (
-            <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-current">
+            <span
+              aria-hidden="true"
+              className={cn(
+                'absolute inset-0 flex items-center justify-center',
+                // KHÔNG `text-current`: nút đang mang `text-transparent` ở ngay
+                // trên, nên thừa kế màu là thừa kế đúng sự trong suốt đã giết
+                // spinner. Xem SPINNER_TONE.
+                SPINNER_TONE[variant ?? 'primary'],
+              )}
+            >
               <Spinner size="sm" />
             </span>
           )}

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { Button } from './button.tsx';
+import { Spinner } from './spinner.tsx';
 
 afterEach(() => {
   cleanup();
@@ -234,5 +235,61 @@ describe('Button — vòng focus tách khỏi mặt nút (miễn trừ SC 1.4.11
     expect(screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/)).not.toContain(
       'focus-visible:ring-offset-0',
     );
+  });
+});
+
+/**
+ * Spinner của `loading` TỪNG VÔ HÌNH ở mọi biến thể nút thường.
+ *
+ * `text-transparent` trên `<button>` (để giấu nhãn phía sau) làm
+ * `currentColor` thành trong suốt, mà `lucide-react` vẽ icon bằng
+ * `stroke="currentColor"` + `fill="none"` — không còn nét nào. Lớp bọc Spinner
+ * lại khai đúng `text-current`, tức nó thừa kế chính sự trong suốt đó.
+ *
+ * ⚠ Vì sao test cũ không thể bắt: jsdom KHÔNG tính computed style, nên
+ * `getByRole('status')` vẫn thấy phần tử — nó chỉ không nhìn thấy được. Một
+ * test khẳng định phần tử CÓ MẶT là test không bao giờ đỏ được. Thứ khẳng định
+ * ở đây vì vậy là CLASS quyết định màu.
+ */
+describe('Button — Spinner lúc loading phải có màu riêng, không thừa kế currentColor', () => {
+  it.each([
+    ['primary', 'text-primary-foreground'],
+    ['secondary', 'text-secondary-foreground'],
+    ['outline', 'text-foreground'],
+    ['ghost', 'text-foreground'],
+    ['destructive', 'text-destructive-foreground'],
+    ['link', 'text-primary'],
+  ] as const)('variant=%s: lớp bọc Spinner đặt màu %s', (variant, tone) => {
+    render(
+      <Button variant={variant} loading>
+        Lưu
+      </Button>,
+    );
+    const spinner = screen.getByRole('status', { name: 'Đang tải', hidden: true });
+    const wrapper = spinner.parentElement;
+    expect(wrapper).not.toBeNull();
+    const classes = (wrapper as HTMLElement).className.split(/\s+/);
+    expect(classes).toContain(tone);
+    expect(classes, '`text-current` chính là thứ đã làm Spinner vô hình').not.toContain('text-current');
+  });
+
+  /**
+   * Tiền đề của test trên. Nếu một ngày `text-transparent` bị bỏ khỏi nút thì
+   * `text-current` lại vô hại, và khẳng định `not.toContain('text-current')` ở
+   * trên mất ý nghĩa mà vẫn xanh. Test này giữ cho tiền đề đó tường minh.
+   */
+  it('nút loading VẪN mang `text-transparent` — nên lớp bọc buộc phải tự có màu', () => {
+    render(<Button loading>Lưu</Button>);
+    expect(screen.getByRole('button', { name: 'Lưu' }).className.split(/\s+/)).toContain('text-transparent');
+  });
+
+  /**
+   * `Spinner` độc lập thì `text-current` là ĐÚNG (nó theo màu chữ của chỗ đặt
+   * nó — ErrorState, nút đang thử lại…). Ghim lại để không ai "sửa" luôn cả
+   * component gốc khi đọc test ở trên.
+   */
+  it('`Spinner` dùng độc lập vẫn giữ `text-current` — chỉ lớp bọc trong Button mới cần màu riêng', () => {
+    render(<Spinner />);
+    expect(screen.getByRole('status', { name: 'Đang tải' }).getAttribute('class')).toContain('text-current');
   });
 });
