@@ -21,30 +21,30 @@ import {
   type SortOption,
 } from '../../components/catalog/catalog-sort';
 
-type PathRow = inferRouterOutputs<AppRouter>['paths']['list']['items'][number];
+type QuizRow = inferRouterOutputs<AppRouter>['quiz']['list']['items'][number];
 
-const SORT_OPTIONS: readonly SortOption<PathRow>[] = [
+const SORT_OPTIONS: readonly SortOption<QuizRow>[] = [
   { key: 'title', label: 'Tên A→Z', compare: compareTitle },
-  { key: 'items', label: 'Ít phần đến nhiều', compare: compareCount((item) => item.itemCount) },
+  { key: 'questions', label: 'Ít câu đến nhiều', compare: compareCount((item) => item.questionCount) },
 ];
 
 /**
- * Trang danh sách `/paths` (13.C) — cùng khuôn `lessons-client.tsx` (`useQuery`,
- * không `useInfiniteQuery`; không gửi `limit`).
+ * Trang danh sách `/quiz` (13.C) — **màn hình mới**, trước phase này chỉ có
+ * `/quiz/[id]`, tức không có đường nào từ giao diện đi tới một bộ câu hỏi ngoài
+ * việc gõ tay id vào thanh địa chỉ.
  *
- * ⚠ **Không có ô lọc nào ở đây, và đó là ràng buộc của API chứ không phải một
- * bước làm dở.** `paths.list` nhận đúng `listInputSchema` (`limit` + `cursor`)
- * và `.strict()` TỪ CHỐI `difficulty`/`tier` bằng 400 — thứ mà
- * `catalog-input.test.ts` khẳng định lại. Điều đó cũng hợp lý về dữ liệu: một
- * lộ trình gom nhiều bài có độ khó khác nhau, nên "độ khó của lộ trình" không
- * phải một field bị quên mà là một khái niệm chưa được định nghĩa.
+ * Cùng khuôn `paths-client.tsx`: `quiz.list` nhận đúng `listInputSchema`
+ * (`limit` + `cursor`) và `.strict()` từ chối mọi field lọc, nên trang này chỉ
+ * có phần sắp xếp. `nextCursor` là cursor THẬT (keyset theo `id` qua
+ * `listPublishedQuizzesPage`), không phải một `null` cố định.
  *
- * `CatalogToolbar` vì vậy chỉ còn phần sắp xếp — vẫn dùng chung component để
- * năm trang danh mục không trôi khỏi nhau về bố cục và về nhãn.
+ * ⛔ Danh sách chỉ có `QuizSummary` — không câu hỏi, không đáp án. Ranh giới đó
+ * do server giữ (`quiz.get` khai tường minh `QuizForLearner`; `quiz.list` bỏ cả
+ * `state`), và trang này không được đi vòng qua nó bằng một lời gọi khác.
  */
-export function PathsClient({ canAuthor }: { readonly canAuthor: boolean }): React.ReactElement {
+export function QuizClient({ canAuthor }: { readonly canAuthor: boolean }): React.ReactElement {
   const controls = useCatalogControls();
-  const query = api.paths.list.useQuery(buildCatalogListInput(controls.filters, controls.cursor));
+  const query = api.quiz.list.useQuery(buildCatalogListInput(controls.filters, controls.cursor));
 
   const sortOption = findSortOption(SORT_OPTIONS, controls.sortKey);
   const items = useMemo(() => sortPage(query.data?.items ?? [], sortOption), [query.data, sortOption]);
@@ -52,8 +52,8 @@ export function PathsClient({ canAuthor }: { readonly canAuthor: boolean }): Rea
 
   return (
     <CatalogPage
-      title="Lộ trình"
-      description="Nhiều bài gom theo thứ tự. Mở lộ trình để thấy phần nào đã mở khoá và phần nào còn chờ."
+      title="Quiz"
+      description="Bộ câu hỏi tự chấm. Nộp xong mới thấy điểm và giải thích — trong lúc làm bài, đáp án không nằm trong dữ liệu trình duyệt nhận."
     >
       <CatalogToolbar
         fields={[]}
@@ -70,7 +70,7 @@ export function PathsClient({ canAuthor }: { readonly canAuthor: boolean }): Rea
 
       {query.isError && (
         <CatalogError
-          title="Không tải được danh sách lộ trình"
+          title="Không tải được danh sách quiz"
           message={describeTrpcError(query.error)}
           retrying={query.isFetching}
           page={controls.page}
@@ -81,7 +81,7 @@ export function PathsClient({ canAuthor }: { readonly canAuthor: boolean }): Rea
 
       {query.isSuccess && items.length === 0 && (
         <CatalogEmptyState
-          kind="paths"
+          kind="quiz"
           page={controls.page}
           hasActiveFilter={controls.hasActiveFilter}
           canAuthor={canAuthor}
@@ -96,17 +96,21 @@ export function PathsClient({ canAuthor }: { readonly canAuthor: boolean }): Rea
             {items.map((item) => (
               <CatalogCard
                 key={item.id}
-                href={`/paths/${item.id}`}
+                href={`/quiz/${item.id}`}
                 title={item.title}
                 description={item.description}
-                badge={item.sequential ? <Badge variant="outline">Học tuần tự</Badge> : undefined}
-                meta={<Badge variant="secondary">{item.itemCount} phần</Badge>}
+                meta={
+                  <>
+                    <Badge variant="secondary">{item.questionCount} câu</Badge>
+                    <Badge variant="secondary">Đạt từ {item.passThresholdPercent}%</Badge>
+                  </>
+                }
               />
             ))}
           </CatalogGrid>
 
           <CatalogScopeNotes
-            kind="paths"
+            kind="quiz"
             page={controls.page}
             shown={items.length}
             hasNext={hasNext}
