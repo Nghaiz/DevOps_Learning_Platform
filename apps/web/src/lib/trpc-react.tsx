@@ -24,7 +24,22 @@ import type { AppRouter } from '../server/trpc/routers/app-router';
  *   trong `/lessons/[id]`. `checkStep` sửa nó. Không có cache dùng chung thì hai
  *   màn hình cùng một sự thật trôi khỏi nhau, và triệu chứng ("quay ra danh sách
  *   thấy tiến độ cũ") là loại lỗi người dùng báo còn dev không tái hiện được.
- * - Danh sách bài có phân trang bằng cursor — đúng hình dạng của `useInfiniteQuery`.
+ * - Danh sách bài có phân trang bằng cursor, nên `invalidate` phải chạm được
+ *   mọi trang đang mở cùng lúc.
+ *
+ * ⛔ **Cursor ở đây KHÔNG có nghĩa là dùng `useInfiniteQuery`.** Dòng này trước
+ * đây viết "đúng hình dạng của `useInfiniteQuery`" và câu đó đã mời đúng con
+ * bug làm trắng `/lessons` ngày 2026-08-13: `@trpc/react-query` TỰ CHÈN một
+ * field `direction` vào input của mỗi lượt gọi infinite, mọi input list của
+ * repo này khai `.strict()`, nên trình duyệt nhận `400 unrecognized_keys` và
+ * trang không render gì. E2E mức API xanh 14/14 suốt lúc đó vì nó gọi thẳng
+ * procedure, không đi qua tầng nào chèn `direction`.
+ *
+ * Cách đúng là `useQuery` + tự giữ cursor (`components/catalog/catalog-cursor.ts`),
+ * và cổng chặn là `catalog-input.test.ts` — nó khẳng định `direction` bị TỪ
+ * CHỐI bằng chính schema Zod đang chạy. ⛔ Nếu `useInfiniteQuery` lại có vẻ hấp
+ * dẫn: đừng nới `.strict()` để nhận `direction`. Nới một cổng bảo mật để nó
+ * nuốt được rác của client là đổi một lỗi ồn ào lấy một lỗ hổng im lặng.
  * - `invalidate` sau mutation là thứ thay cho việc tự truyền hàm refetch xuống
  *   ba tầng component.
  *

@@ -1,3 +1,5 @@
+import { cache } from 'react';
+import { headers } from 'next/headers';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { jwt } from 'better-auth/plugins';
@@ -130,3 +132,53 @@ export function getAuth(): Auth {
   cachedAuth ??= buildAuth();
   return cachedAuth;
 }
+
+/**
+ * Phiên đăng nhập của REQUEST hiện tại — **dedupe trong một lượt render**.
+ *
+ * ## Vấn đề nó gỡ
+ *
+ * App Router không có cách nào để `layout.tsx` con nhận prop từ `layout.tsx`
+ * cha, nên mọi nhánh vừa gác auth ở layout riêng vừa cần vai trò ở vỏ ứng dụng
+ * đều gọi `getSession` HAI lần cho cùng một câu trả lời — hai lượt đụng
+ * Postgres mỗi request trên `/lessons`, `/labs`, `/me`, `/author`, `/admin`.
+ * `app/layout.tsx` đã ghi lại đúng món nợ này bằng chữ và chỉ sang file này.
+ *
+ * ## Vì sao là hàm KHÔNG THAM SỐ
+ *
+ * `cache()` của React khoá theo **định danh của từng đối số**. Bọc thẳng
+ * `getSession` rồi gọi `cached({ headers })` sẽ KHÔNG dedupe được gì: mỗi
+ * call-site dựng một object literal mới, tức một khoá cache mới, mỗi lượt — đã
+ * đo, xem `security/session-dedupe.test.ts` (ca `calls: 3`). Hàm zero-arg không
+ * có đối số nào để lệch khoá, và nó tự lấy `headers()` — thứ vốn đã thuộc về
+ * request hiện tại.
+ *
+ * ## ⚠ `cache()` chỉ memo hoá ở build `react-server`
+ *
+ * Đo 2026-09-06 (react 19.2.8): build **client** — thứ vitest, jsdom và mọi
+ * Client Component nạp — có `cache()` là hàm RỖNG, gọi thẳng hàm gốc. Chỉ build
+ * `react-server`, thứ Next nạp cho Server Component, mới memo thật. Nên:
+ *
+ * - Hàm này chỉ được gọi từ Server Component (`layout.tsx`/`page.tsx`).
+ * - `server/trpc/init.ts` vẫn gọi `getSession({ headers: opts.req.headers })`
+ *   thẳng, đúng: lượt tRPC là một request HTTP riêng, không có gì để dedupe
+ *   cùng, và nó không chạy trong một lượt render.
+ * - Một bài test chạy trong vitest sẽ đếm ra "không dedupe" — đó là phép đo
+ *   sai, không phải một phát hiện.
+ *
+ * ⚠ Lợi ích chỉ có khi **mọi** call-site đi qua ĐÚNG hàm này. Một
+ * `getAuth().api.getSession(...)` còn sót, hoặc một `cache()` thứ hai bọc lại ở
+ * chỗ khác, là hai khoá khác nhau ⇒ vẫn hai lượt đụng DB — âm thầm, vì kết quả
+ * vẫn đúng.
+ *
+ * ## Không có gì phụ thuộc một phiên "tươi" giữa request
+ *
+ * Đã rà: mọi call-site trong một lượt render chỉ ĐỌC (`user.id`, `user.role`,
+ * `user.name`) để gác quyền hoặc vẽ vỏ. Đường GHI phiên (`signIn`/`signOut`/
+ * `refresh`) là các route handler riêng, mỗi cái một request — không lượt render
+ * nào vừa đổi phiên vừa đọc lại nó. Nếu một ngày có, chỗ đó phải gọi thẳng
+ * `getAuth().api.getSession` và ghi rõ lý do.
+ */
+export const readRequestSession = cache(
+  async () => getAuth().api.getSession({ headers: await headers() }),
+);
