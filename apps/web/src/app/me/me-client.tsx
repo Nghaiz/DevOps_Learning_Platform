@@ -26,7 +26,7 @@ export function MeClient(): React.ReactElement {
   const progress = api.me.listProgress.useQuery({});
 
   return (
-    <main className="mx-auto flex max-w-4xl flex-col gap-8 p-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-8 p-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-slate-900">Của tôi</h1>
         <p className="text-sm text-slate-500">Lộ trình đang học và lịch sử bài học.</p>
@@ -118,6 +118,6 @@ export function MeClient(): React.ReactElement {
             </ul>
           ))}
       </section>
-    </main>
+    </div>
   );
 }

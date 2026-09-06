@@ -148,7 +148,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   const submitted = attemptData?.attempt.submittedAt !== null && attemptData !== undefined;
 
   return (
-    <main className="flex h-screen flex-col bg-white">
+    <div className="flex h-screen flex-col bg-white">
       <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-2">
         <Link href="/labs" className="text-sm text-slate-500 hover:text-slate-900">
           ← Lab
@@ -402,7 +402,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
           }
         />
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -486,10 +486,10 @@ function Centered({
   tone?: 'error';
 }): React.ReactElement {
   return (
-    <main className="flex min-h-screen items-center justify-center px-6">
+    <div className="flex min-h-screen items-center justify-center px-6">
       <p className={tone === 'error' ? 'text-sm text-red-700' : 'text-sm text-slate-500'}>
         {children}
       </p>
-    </main>
+    </div>
   );
 }

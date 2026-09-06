@@ -229,7 +229,7 @@ function PageShell({
   children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <header className="flex flex-col gap-1">
         <Link href="/paths" className="text-sm text-slate-500 hover:underline">
           ← Lộ trình
@@ -237,6 +237,6 @@ function PageShell({
         <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
       </header>
       {children}
-    </main>
+    </div>
   );
 }

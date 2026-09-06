@@ -309,7 +309,7 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
   );
 
   return (
-    <main className="flex h-screen flex-col bg-background text-foreground">
+    <div className="flex h-screen flex-col bg-background text-foreground">
       <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
         <Link href="/lessons" className="text-sm text-muted-foreground hover:text-foreground">
           ← Bài học
@@ -410,7 +410,7 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
           <SplitPane storageKey="dlp-lesson-split" left={contentPane} right={terminalPane} />
         )}
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -423,10 +423,10 @@ function Centered({
   tone?: 'error';
 }): React.ReactElement {
   return (
-    <main className="flex min-h-screen items-center justify-center px-6">
+    <div className="flex min-h-screen items-center justify-center px-6">
       <p className={tone === 'error' ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
         {children}
       </p>
-    </main>
+    </div>
   );
 }
