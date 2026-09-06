@@ -1,4 +1,4 @@
-import { Fragment, type ComponentProps } from 'react';
+import { Fragment, type ComponentProps, type ReactNode } from 'react';
 import { Slot } from 'radix-ui';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from './cn.ts';
@@ -31,6 +31,21 @@ const buttonVariants = cva(
     'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
     'disabled:pointer-events-none disabled:opacity-50',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0',
+    /*
+     * Cỡ icon MẶC ĐỊNH, nhưng nhường cho cỡ khai tường minh.
+     *
+     * `lucide-react` vẽ ở 24px nếu không ai nói gì — to lộ liễu trong một nút
+     * cao 32–44px. `[&_svg]:size-4` trần thì sửa được cỡ mặc định nhưng SINH RA
+     * một lỗi khác: luật đó là `.nút svg { … }` (độ đặc hiệu 0,1,1) còn class
+     * `size-5` của chính icon là (0,1,0), nên nơi gọi KHÔNG tài nào phóng to
+     * icon được nữa — và thất bại đó im lặng.
+     *
+     * `:not([class*='size-'])` để luật mặc định tự lùi ngay khi icon có bất kỳ
+     * class `size-*` nào của riêng nó. Cũng chính vì vậy `Spinner` (luôn mang
+     * `size-4`/`size-5`/`size-8` từ `SIZE_CLASSES`) nằm ngoài tầm với của luật
+     * này — nhánh `loading` bên dưới không bị đụng tới.
+     */
+    "[&_svg:not([class*='size-'])]:size-4",
   ].join(' '),
   {
     variants: {
@@ -90,6 +105,23 @@ export interface ButtonProps
   readonly asChild?: boolean;
   /** `true` ⇒ disable + hiện Spinner đè giữa, GIỮ NGUYÊN bề rộng nút (children vẫn render, chỉ ẩn màu). */
   readonly loading?: boolean;
+  /**
+   * Icon trước nhãn. Icon TRANG TRÍ — nó đứng cạnh chữ, nên node truyền vào
+   * phải tự mang `aria-hidden` (component không `cloneElement` node của nơi
+   * gọi). Nút chỉ-có-icon thì dùng `size="icon"` + `aria-label` trên nút.
+   *
+   * ⚠ BỊ BỎ QUA khi `asChild`, và không thể khác: Radix `Slot` đòi
+   * `props.children` là ĐÚNG MỘT React element (`Children.only`), nên thêm bất
+   * kỳ node anh em nào cũng ném "expected a single React element child" —
+   * xem chú thích single-child ở thân component. Ở nhánh đó nơi gọi tự đặt
+   * icon BÊN TRONG element con của mình:
+   * `<Button asChild><Link><Play aria-hidden />Bắt đầu</Link></Button>`.
+   * Hành vi này được ghim ở `button.test.tsx` để nó không trôi thành một sự
+   * bỏ qua tình cờ.
+   */
+  readonly iconLeft?: ReactNode;
+  /** Icon sau nhãn. Cùng ràng buộc `aria-hidden` + `asChild` như `iconLeft`. */
+  readonly iconRight?: ReactNode;
 }
 
 /**
@@ -101,7 +133,18 @@ export interface ButtonProps
  * (Radix `Slot` khi `asChild` cũng merge ref theo đúng cơ chế này).
  */
 export function Button(props: ButtonProps) {
-  const { variant, size, asChild = false, loading = false, disabled, className, children, ...rest } = props;
+  const {
+    variant,
+    size,
+    asChild = false,
+    loading = false,
+    iconLeft,
+    iconRight,
+    disabled,
+    className,
+    children,
+    ...rest
+  } = props;
   const Comp = asChild ? Slot.Root : 'button';
   const isDisabled = disabled === true || loading;
 
@@ -178,7 +221,13 @@ export function Button(props: ButtonProps) {
               <Spinner size="sm" />
             </span>
           )}
+          {/* Icon nằm TRONG nhánh này nên khi `loading`, `text-transparent`
+              của nút cũng nuốt luôn màu nét của chúng — đúng ý: cả cụm
+              icon+nhãn mờ đi sau Spinner đè lên, thay vì icon còn nổi lên
+              cạnh một cái nhãn đã tàng hình. */}
+          {iconLeft}
           {children}
+          {iconRight}
         </Fragment>
       )}
     </Comp>

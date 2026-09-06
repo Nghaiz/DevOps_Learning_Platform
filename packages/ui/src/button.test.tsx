@@ -293,3 +293,87 @@ describe('Button — Spinner lúc loading phải có màu riêng, không thừa 
     expect(screen.getByRole('status', { name: 'Đang tải' }).getAttribute('class')).toContain('text-current');
   });
 });
+/**
+ * Khe icon trái/phải. KHÔNG đụng tới nhánh `loading`/Spinner hay `ring-offset`
+ * — hai thứ đó có cổng riêng ở trên và vừa được sửa.
+ */
+describe('Button — khe icon', () => {
+  it('`iconLeft` render TRƯỚC nhãn, `iconRight` render SAU', () => {
+    render(
+      <Button iconLeft={<svg data-testid="trái" aria-hidden="true" />} iconRight={<svg data-testid="phải" aria-hidden="true" />}>
+        Bắt đầu
+      </Button>,
+    );
+    const button = screen.getByRole('button', { name: 'Bắt đầu' });
+    const order = Array.from(button.querySelectorAll('[data-testid]')).map((node) =>
+      node.getAttribute('data-testid'),
+    );
+    expect(order).toEqual(['trái', 'phải']);
+    // Nhãn phải nằm GIỮA hai icon, không phải trước cả hai.
+    expect(button.textContent).toBe('Bắt đầu');
+  });
+
+  it('icon KHÔNG chen vào accessible name của nút', () => {
+    render(
+      <Button iconLeft={<svg aria-hidden="true" />}>Lưu</Button>,
+    );
+    // Tìm được bằng đúng tên "Lưu" nghĩa là icon không đóng góp chữ nào.
+    expect(screen.getByRole('button', { name: 'Lưu' })).toBeDefined();
+  });
+
+  it('cỡ icon mặc định nhường cho cỡ khai tường minh', () => {
+    render(<Button>Nút</Button>);
+    const classes = screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/);
+    /*
+     * `[&_svg]:size-4` trần sẽ là `.nút svg` (0,1,1) và thắng class `size-5`
+     * (0,1,0) của chính icon — nơi gọi mất khả năng phóng to icon, một cách IM
+     * LẶNG. `:not([class*='size-'])` là thứ trả lại quyền đó, nên nó được ghim
+     * ở đây chứ không chỉ nằm trong chú thích.
+     */
+    expect(classes).toContain("[&_svg:not([class*='size-'])]:size-4");
+  });
+
+  /**
+   * Ghim GIỚI HẠN, không phải tính năng: Radix `Slot` đòi `props.children` là
+   * ĐÚNG MỘT React element, nên nhánh `asChild` không thể chèn thêm node anh
+   * em. Không có test này thì việc icon biến mất đọc ra như một con bug ngẫu
+   * nhiên; có nó thì đó là một hành vi đã khai báo, và ai đổi ý sẽ thấy dòng
+   * này đỏ chứ không phải người dùng thấy nút vỡ.
+   */
+  it('`asChild`: icon bị BỎ QUA (Slot chỉ nhận một element con) — nhãn vẫn nguyên', () => {
+    render(
+      <Button asChild iconLeft={<svg data-testid="trái" aria-hidden="true" />}>
+        <a href="/bai-hoc">Đi tới bài học</a>
+      </Button>,
+    );
+    const link = screen.getByRole('link', { name: 'Đi tới bài học' });
+    expect(link.textContent).toBe('Đi tới bài học');
+    expect(screen.queryByTestId('trái'), 'Slot không thể nhận node anh em — xem chú thích single-child').toBeNull();
+  });
+
+  it('nút đang `loading` vẫn giữ nguyên icon trong luồng (bề rộng không nhảy)', () => {
+    render(
+      <Button loading iconLeft={<svg data-testid="trái" aria-hidden="true" />}>
+        Lưu
+      </Button>,
+    );
+    // Icon vẫn render — `text-transparent` của nút làm mờ cả cụm icon+nhãn
+    // phía sau Spinner, thay vì gỡ icon ra khỏi luồng làm nút co lại.
+    expect(screen.getByTestId('trái')).toBeDefined();
+    /*
+     * Tìm Spinner bằng DOM chứ KHÔNG bằng `getByRole('status')`: trong nút,
+     * Spinner nằm trong lớp bọc `aria-hidden="true"` (cố ý — nếu không, tên
+     * nút bị gộp thành "Đang tảiLưu"), nên nó KHÔNG có mặt trong cây trợ năng
+     * và `getByRole` không thể thấy. Chỉ `<Spinner>` dùng ĐỘC LẬP mới giữ
+     * `role="status"` — đó là ca mà test ở khối trên kiểm.
+     */
+    const spinner = document.querySelector('svg.animate-spin');
+    expect(spinner, 'nhánh loading phải còn Spinner đè giữa').not.toBeNull();
+    expect(spinner?.closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('không truyền icon ⇒ nút không tự sinh svg nào (Spinner chỉ xuất hiện khi loading)', () => {
+    const { container } = render(<Button>Nút</Button>);
+    expect(container.querySelectorAll('svg')).toHaveLength(0);
+  });
+});
