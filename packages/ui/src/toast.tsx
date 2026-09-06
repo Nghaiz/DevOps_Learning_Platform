@@ -92,7 +92,18 @@ export function Toaster() {
               <RadixToast.Description className="text-sm opacity-90">{item.description}</RadixToast.Description>
             )}
           </div>
-          <RadixToast.Close aria-label="Đóng thông báo" className="rounded-xs opacity-70 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring">
+          {/*
+            `ring-current` chứ không `ring-ring`: nút đóng nằm TRÊN mặt toast đã
+            tô đặc, và `--ring` (xanh dương) cạnh `bg-destructive` chỉ được
+            1.09:1 sáng / 1.00:1 tối — vòng focus vô hình đúng trên cái toast
+            báo lỗi. `ring-offset` cũng không đúng ở đây: khe offset sẽ mang màu
+            NỀN TRANG, thứ không hề kề nút này.
+
+            `currentColor` là `text-{variant}-foreground` do `VARIANT_CLASSES`
+            đặt ở Root — 4.56/6.84 (destructive), 4.95/7.82 (success),
+            19.79/17.16 (default) — cả ba đã được `TEXT_PAIRS` gác ở ≥4.5:1.
+          */}
+          <RadixToast.Close aria-label="Đóng thông báo" className="rounded-xs opacity-70 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-current">
             <X className="size-4" />
           </RadixToast.Close>
         </RadixToast.Root>

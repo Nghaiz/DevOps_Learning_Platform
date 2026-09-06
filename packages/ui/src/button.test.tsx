@@ -206,3 +206,33 @@ describe('Button — asChild', () => {
     expect(screen.getByRole('link', { name: 'Đi tới bài học' }).getAttribute('aria-disabled')).toBeNull();
   });
 });
+
+/**
+ * Đây là chỗ GÁC miễn trừ SC 1.4.11 mà `theme/tokens.contract.test.ts` khai ở
+ * khối "miễn trừ CÓ CHỨNG MINH": cặp `--ring`/`--primary` được rút khỏi bảng
+ * đo với lý do "vòng focus đã tách khỏi mặt nút bằng offset". Không có test
+ * này thì miễn trừ đó là một đoạn văn không thể sai — tức không gác gì cả.
+ *
+ * Hai class phải đi CÙNG NHAU. `ring-offset-2` một mình để Tailwind rơi về
+ * mặc định của nó, `--tw-ring-offset-color: #fff` — khe TRẮNG trên nền tối.
+ */
+describe('Button — vòng focus tách khỏi mặt nút (miễn trừ SC 1.4.11)', () => {
+  it.each(['primary', 'destructive', 'secondary', 'outline', 'ghost', 'link'] as const)(
+    'variant=%s có ĐỦ CẢ HAI class offset',
+    (variant) => {
+      render(<Button variant={variant}>Nút</Button>);
+      const classes = screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/);
+      expect(classes).toContain('focus-visible:ring-offset-2');
+      expect(classes, 'thiếu ring-offset-background ⇒ khe offset màu #fff, trắng trên nền tối').toContain(
+        'focus-visible:ring-offset-background',
+      );
+    },
+  );
+
+  it('KHÔNG quay lại `ring-offset-0` — vòng focus sát mặt nút primary chỉ 1.00:1, vô hình', () => {
+    render(<Button variant="primary">Nút</Button>);
+    expect(screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/)).not.toContain(
+      'focus-visible:ring-offset-0',
+    );
+  });
+});

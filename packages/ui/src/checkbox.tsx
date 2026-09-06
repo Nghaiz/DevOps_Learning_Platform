@@ -12,7 +12,14 @@ export function Checkbox({ className, ...props }: ComponentProps<typeof RadixChe
       className={cn(
         'peer flex size-4 shrink-0 items-center justify-center rounded-sm border border-input bg-background',
         'transition-colors outline-none',
-        'focus-visible:ring-2 focus-visible:ring-ring',
+        /*
+         * Lúc TÍCH, ô là `bg-primary` — mà `--ring` = `--primary`, nên vòng
+         * focus sát mặt ô cho 1.00:1: hộp kiểm đang được chọn là hộp kiểm KHÔNG
+         * thấy được focus. Cùng cách sửa như Button (`ring-offset` đẩy vòng ra
+         * khe màu nền); `ring-current` không dùng được ở đây vì lúc CHƯA tích ô
+         * không đặt `text-*` nào, `currentColor` khi đó là màu thừa kế bất kỳ.
+         */
+        'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground',
         className,

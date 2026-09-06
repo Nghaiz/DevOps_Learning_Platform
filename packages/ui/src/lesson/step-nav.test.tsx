@@ -83,3 +83,26 @@ describe('ProgressBar', () => {
     expect(fill.style.width).not.toContain('NaN');
   });
 });
+
+/**
+ * Gác nửa còn lại của miễn trừ SC 1.4.11 (`theme/tokens.contract.test.ts`,
+ * khối "miễn trừ CÓ CHỨNG MINH"). Bước đang chọn là `bg-primary` = `--ring`
+ * ⇒ vòng focus 1.00:1.
+ *
+ * `ring-offset` KHÔNG dùng được ở đây: hàng bước nằm trong `overflow-x-auto`,
+ * nên một vòng đẩy thêm ra ngoài sẽ bị cắt ở mép cuộn — cắt vòng focus cũng là
+ * một lỗi a11y, chỉ khác hình dạng. `ring-current` lấy chữ của chính nút:
+ * `--primary-foreground` khi đang chọn, `--muted-foreground` khi không, cả hai
+ * đã nằm trong `TEXT_PAIRS` ≥4.5:1.
+ */
+describe('StepNav — vòng focus của mục bước không dùng --ring', () => {
+  it.each([
+    ['đang chọn', 'intro', 'Giới thiệu'],
+    ['không chọn', 'intro', 'Bước 1'],
+  ] as const)('mục %s dùng `ring-current`, KHÔNG dùng `ring-ring`', (_label, activeKey, name) => {
+    render(<StepNav items={ITEMS} activeKey={activeKey} onSelect={vi.fn()} />);
+    const classes = screen.getByRole('button', { name }).className.split(/\s+/);
+    expect(classes).toContain('focus-visible:ring-current');
+    expect(classes).not.toContain('focus-visible:ring-ring');
+  });
+});

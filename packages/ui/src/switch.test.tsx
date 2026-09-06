@@ -37,3 +37,19 @@ describe('Switch', () => {
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false');
   });
 });
+
+/**
+ * Gác miễn trừ SC 1.4.11 — xem `theme/tokens.contract.test.ts` khối "miễn trừ
+ * CÓ CHỨNG MINH". Lúc BẬT rãnh là `bg-primary` = `--ring`, nên không có offset
+ * thì vòng focus của một Switch đang bật là 1.00:1.
+ */
+describe('Switch — vòng focus tách khỏi mặt rãnh (miễn trừ SC 1.4.11)', () => {
+  it('có ĐỦ CẢ HAI class offset, ở cả trạng thái tắt lẫn bật', () => {
+    render(<Switch aria-label="Bật" defaultChecked />);
+    const classes = screen.getByRole('switch').className.split(/\s+/);
+    expect(classes).toContain('focus-visible:ring-offset-2');
+    expect(classes, 'thiếu ring-offset-background ⇒ khe offset màu #fff, trắng trên nền tối').toContain(
+      'focus-visible:ring-offset-background',
+    );
+  });
+});

@@ -360,8 +360,8 @@ const NON_TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
   ['--input', '--muted'],
   ['--ring', '--background'],
   ['--ring', '--card'],
-  ['--ring', '--primary'],
-  ['--ring', '--destructive'],
+  // `--ring` cạnh `--primary`/`--destructive` KHÔNG có ở đây — miễn trừ có
+  // chứng minh, xem khối "miễn trừ CÓ CHỨNG MINH" ở cuối file.
   ['--primary', '--background'],
   ['--destructive', '--background'],
 ];
@@ -474,5 +474,63 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
     const white = toSrgb({ l: 1, c: 0, h: 0, alpha: 1 });
     expect(toHex(old)).toBe('#e5e5e5');
     expect(contrastRatio(relativeLuminance(old), relativeLuminance(white))).toBeCloseTo(1.26, 2);
+  });
+});
+
+/**
+ * `--ring` KHÔNG được đo cạnh `--primary`/`--destructive`, và đó là một QUYẾT
+ * ĐỊNH CÓ CHỨNG MINH, không phải một chỗ bỏ sót.
+ *
+ * Đo thô thì hai cặp đó bằng 1.00:1 (`--ring` = `--primary` theo đúng thiết
+ * kế) — vòng focus vô hình trên chính nút chính, ở CẢ HAI theme. Nhưng không
+ * một màu nào sửa được cặp đó ở chế độ tối: `--primary` tối chỉ cách `--card`
+ * 6.20:1, mà nhét vừa HAI bậc 3:1 thì cần khe ≥9:1. Quét vét cạn thang độ chói
+ * cho ĐÚNG 0 nghiệm — hai đầu mút nói rõ vì sao: trắng tinh chỉ được 2.89:1
+ * với `--primary`, còn đen tuyền chỉ được 1.17:1 với `--card`.
+ *
+ * Cách sửa đúng là TÁCH vòng focus khỏi mặt nút bằng `ring-offset-2` +
+ * `ring-offset-background`: màu KỀ vòng focus khi đó là màu của khe, tức
+ * `--background` — cặp đã nằm sẵn trong `NON_TEXT_PAIRS` ở trên (5.17 / 6.85).
+ * Chỗ nào không dùng được offset (hàng bước trong `overflow-x-auto` sẽ CẮT mất
+ * vòng; nút đóng nằm trên mặt toast tô đặc, nơi màu nền trang không hề kề nó)
+ * thì chuyển sang `ring-current`, và bảo đảm khi ấy do `TEXT_PAIRS` cấp.
+ *
+ * ⚠ Miễn trừ chỉ đứng vững chừng nào offset THẬT SỰ có mặt. Nó được gác bằng
+ * class render ra DOM ở `button.test.tsx`, `switch.test.tsx`,
+ * `checkbox.test.tsx`, `toast.test.tsx`, `lesson/step-nav.test.tsx` — nếu chỉ
+ * có mỗi đoạn văn này thì đây là một miễn trừ không thể sai, tức không gác gì.
+ */
+describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặc', () => {
+  /** Bước quét: 1001 điểm phủ trọn miền giá trị của độ chói tương đối. */
+  const LUMINANCE_STEPS = 1000;
+
+  it.each(['--primary', '--destructive'] as const)(
+    'chế độ tối: KHÔNG tồn tại độ chói nào đạt ≥3:1 với CẢ `--card` lẫn %s',
+    (fill) => {
+      const fillLuminance = relativeLuminance(resolve(dark, fill));
+      const cardLuminance = relativeLuminance(resolve(dark, '--card'));
+      const solutions: number[] = [];
+      for (let step = 0; step <= LUMINANCE_STEPS; step += 1) {
+        const candidate = step / LUMINANCE_STEPS;
+        if (contrastRatio(candidate, cardLuminance) >= 3 && contrastRatio(candidate, fillLuminance) >= 3) {
+          solutions.push(candidate);
+        }
+      }
+      expect(solutions).toEqual([]);
+      // Hai đầu mút, ghim lại để lần đọc sau không phải tự chạy vòng lặp mới hiểu.
+      expect(contrastRatio(1, fillLuminance)).toBeLessThan(3);
+      expect(contrastRatio(0, cardLuminance)).toBeLessThan(3);
+    },
+  );
+
+  /**
+   * ĐỐI CHỨNG của chính miễn trừ. Nếu ai đó kéo `--primary` tối ra xa `--card`
+   * quá 9:1 thì test này ĐỎ — và lúc đó miễn trừ hết cần thiết, phải đưa cặp
+   * `--ring`/`--primary` trở lại `NON_TEXT_PAIRS` chứ KHÔNG phải chỉnh lại con
+   * số ở đây.
+   */
+  it('khe `--primary` ↔ `--card` tối = 6.20:1, dưới mức 9:1 mà hai bậc 3:1 đòi', () => {
+    expect(measure(dark, '--primary', '--card')).toBeCloseTo(6.2, 1);
+    expect(measure(dark, '--primary', '--card')).toBeLessThan(9);
   });
 });

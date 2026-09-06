@@ -106,3 +106,30 @@ describe('Toast — trạng thái error (§4a)', () => {
     expect(classes).toContain('text-destructive-foreground');
   });
 });
+
+/**
+ * Gác nửa còn lại của miễn trừ SC 1.4.11 (`theme/tokens.contract.test.ts`,
+ * khối "miễn trừ CÓ CHỨNG MINH"). Nút đóng nằm TRÊN mặt toast đã tô đặc, nên
+ * `--ring` xanh dương cạnh `bg-destructive` chỉ 1.09:1 sáng / 1.00:1 tối —
+ * vòng focus vô hình đúng trên cái toast báo lỗi.
+ *
+ * Ở đây `ring-offset` là sai chứ không phải thiếu: khe offset mang màu NỀN
+ * TRANG, thứ không hề kề nút này. `ring-current` lấy `text-{variant}-
+ * foreground` do `VARIANT_CLASSES` đặt, và cặp đó đã được `TEXT_PAIRS` gác ở
+ * ≥4.5:1.
+ */
+describe('Toaster — vòng focus của nút đóng không dùng --ring', () => {
+  it('nút đóng dùng `ring-current`, KHÔNG dùng `ring-ring` (1.00:1 trên mặt destructive tối)', async () => {
+    render(
+      <div>
+        <Trigger />
+        <Toaster />
+      </div>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    const close = await screen.findByRole('button', { name: 'Đóng thông báo' });
+    const classes = close.className.split(/\s+/);
+    expect(classes).toContain('focus-visible:ring-current');
+    expect(classes).not.toContain('focus-visible:ring-ring');
+  });
+});

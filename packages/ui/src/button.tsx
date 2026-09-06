@@ -11,7 +11,24 @@ const buttonVariants = cva(
   [
     'inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap',
     'transition-colors outline-none',
-    'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0',
+    /*
+     * `ring-offset-2` và `ring-offset-background` đi CÙNG NHAU, không tách được.
+     *
+     * Offset tồn tại vì `--ring` = `--primary` theo đúng thiết kế, nên vòng
+     * focus vẽ SÁT mặt nút primary cho đúng 1.00:1 — vô hình, ở cả hai theme
+     * (nút destructive: 1.09 sáng / 1.00 tối). Và KHÔNG màu nào sửa được bằng
+     * token: ở chế độ tối `--primary` chỉ cách `--card` 6.20:1, mà đạt 3:1 với
+     * CẢ HAI thì cần khe ≥9:1 — quét vét cạn thang độ chói cho 0 nghiệm (trắng
+     * tinh chỉ được 2.89:1 với `--primary` tối). Offset đẩy vòng focus ra ngoài
+     * một khe 2px màu nền, nên màu KỀ nó là `--background`/`--card` — cặp đã
+     * được gác sẵn ở `theme/tokens.contract.test.ts` (5.17 sáng / 6.85 tối).
+     *
+     * Thiếu `ring-offset-background` thì Tailwind rơi về mặc định của chính nó,
+     * `--tw-ring-offset-color: #fff` (đo trong tailwindcss/dist/lib.js): khe
+     * TRẮNG trên nền tối — vừa sai màu, vừa tự đẻ ra một ranh giới không ai
+     * chọn. Hai class này vì vậy được gác CÙNG NHAU ở button.test.tsx.
+     */
+    'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
     'disabled:pointer-events-none disabled:opacity-50',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0',
   ].join(' '),

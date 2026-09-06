@@ -51,7 +51,21 @@ export function StepNav(props: StepNavProps): ReactElement {
               onClick={() => onSelect(item.key)}
               className={cn(
                 'flex shrink-0 items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                /*
+                 * `ring-current`, KHÔNG phải `ring-ring`. Bước đang chọn là
+                 * `bg-primary`, mà `--ring` = `--primary` ⇒ vòng focus 1.00:1,
+                 * vô hình. Cách sửa của Button (`ring-offset`) không dùng được
+                 * ở đây: hàng bước nằm trong `overflow-x-auto` ngay bên ngoài,
+                 * nên một vòng đẩy thêm 2px ra ngoài sẽ bị CẮT ở mép cuộn.
+                 *
+                 * `currentColor` thì luôn là chữ của chính nút — `--primary-
+                 * foreground` khi đang chọn (4.95 sáng / 6.85 tối trên
+                 * `--primary`), `--muted-foreground` khi không (7.57 / 7.63
+                 * trên `--background`). Cả hai cặp đã nằm sẵn trong khối
+                 * `TEXT_PAIRS` ≥4.5:1 của `theme/tokens.contract.test.ts`, tức
+                 * bảo đảm này được gác chứ không phải được hứa.
+                 */
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current',
                 isActive
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
