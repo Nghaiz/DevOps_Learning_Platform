@@ -427,6 +427,25 @@ phép kiểm nào trên cụm phát hiện, nên đây là thứ phải nhớ ch
 được nhắc. Khác cặp web↔orchestrator, ảnh gateway **không** có ràng buộc thứ tự —
 nó chỉ thêm header response, không đụng wire-protocol.
 
+**17. ⚠ D15 KHÔNG có luồng `@flow` nào phủ — phải đo TAY ở đợt 3.** Luồng 6 (quản
+trị) cố ý mở dialog xác nhận rồi bấm Huỷ, không bấm nút phá: một spec tự động kết
+thúc phiên của người khác trên cụm dùng chung là tác dụng phụ không hoàn tác được,
+và nó sẽ chạy mỗi lượt CI. Nên đường admin-kết-thúc-phiên-người-khác — chính là
+thứ D15 dựng ra, với nhánh actor `admin_user_id` riêng để dòng audit không ghi
+nhầm thành "chủ phiên tự bấm" — **chưa có gì chứng minh nó chạy**.
+
+Phép đo tay ở đợt 3, làm SAU khi web và orchestrator cùng lên `:p13`:
+1. Mở một phiên bằng tài khoản thường.
+2. Tài khoản admin vào `/admin/sessions`, kết thúc đúng phiên đó.
+3. Khẳng định người dùng thường thấy lý do phiên chết (không phải "Đang nối lại…").
+4. **Đọc `admin_audit`**: dòng vừa ghi phải mang id của ADMIN, không phải id chủ
+   phiên. Đây là nửa quan trọng hơn — bước 3 xanh mà bước 4 sai thì D15 vẫn hỏng,
+   chỉ là hỏng ở chỗ không ai nhìn.
+
+⛔ Với image `:p12fix`, bước 2 trả `InvalidArgument` (orchestrator cũ decode nhánh
+`admin_user_id` ra `oneof` chưa đặt). Thất bại ở đó là **lệch phiên bản**, không
+phải lỗi D15 — đừng ghi nhầm vào report.
+
 **15. ⚠ `grep -iF` BỎ SÓT chuỗi tiếng Việt, trong im lặng.** Đo trên máy này
 2026-09-06, file `narrow-screen-notice.tsx` có thật chuỗi `học phí` (byte thô, nằm
 trong `bài học phía trên`):
