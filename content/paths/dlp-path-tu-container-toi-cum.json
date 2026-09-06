@@ -1,0 +1,14 @@
+{
+  "id": "dlp-path-tu-container-toi-cum",
+  "title": "Từ container tới cụm",
+  "description": "Chặng dài nhất, và là chặng trả lời câu hỏi \"vì sao cần Kubernetes\" bằng thứ tự bạn tự đi qua: một container do bạn chạy tay, rồi một Deployment tự phục hồi thay bạn, rồi lịch đặt Pod khi cụm có nhiều hơn một node. Kết bằng một lab chữa lỗi. Khoảng 2 giờ.",
+  "sequential": true,
+  "items": [
+    { "kind": "lesson", "itemId": "dlp-sandbox-basics" },
+    { "kind": "lesson", "itemId": "dlp-docker-basics" },
+    { "kind": "lesson", "itemId": "dlp-k8s-basics" },
+    { "kind": "quiz", "itemId": "dlp-quiz-tu-container-toi-cum" },
+    { "kind": "lesson", "itemId": "dlp-k8s-multinode-scheduling" },
+    { "kind": "lab", "itemId": "dlp-k8s-broken-deploy" }
+  ]
+}

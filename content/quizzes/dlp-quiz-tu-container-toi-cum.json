@@ -1,0 +1,80 @@
+{
+  "id": "dlp-quiz-tu-container-toi-cum",
+  "title": "Kiểm tra: từ container tới cụm",
+  "description": "Sáu câu nối cả chặng đường — container đơn lẻ, rồi Deployment thay bạn giữ nó sống, rồi lịch đặt Pod khi cụm có nhiều hơn một node.",
+  "passThresholdPercent": 70,
+  "questions": [
+    {
+      "id": "docker-run-vs-deployment",
+      "kind": "single",
+      "markdown": "`docker run -d --restart=always nginx` và một `Deployment` chạy nginx đều giữ container sống. Khác biệt căn bản là gì?",
+      "explanation": "`--restart=always` chỉ khởi động lại container **trên đúng máy đó**; máy chết thì dịch vụ chết. Deployment giữ *số Pod mong muốn* ở mức cụm — Pod mất vì bất kỳ lý do gì (node hỏng, bị xoá, bị đuổi) thì ReplicaSet tạo Pod mới, có thể trên node khác.",
+      "choices": [
+        { "id": "a", "markdown": "Docker khởi động lại container trên đúng máy đó; Deployment giữ số Pod mong muốn ở mức cụm, có thể đặt lại lên node khác.", "correct": true },
+        { "id": "b", "markdown": "Không khác gì — Deployment chỉ là cách viết `--restart=always` bằng YAML.", "correct": false },
+        { "id": "c", "markdown": "Docker khởi động lại nhanh hơn vì không cần qua scheduler, còn lại giống hệt nhau.", "correct": false },
+        { "id": "d", "markdown": "Deployment chỉ khởi động lại khi tiến trình thoát khác 0; Docker thì mọi trường hợp.", "correct": false }
+      ]
+    },
+    {
+      "id": "image-dung-chung",
+      "kind": "single",
+      "markdown": "Bài Docker `docker pull python:3.12-slim` chạy được nhờ registry mirror của cụm. Cụm k3s bên trong sandbox kéo `nginx:1.29.0` thì sao?",
+      "explanation": "Mirror của cụm chỉ trong suốt với `docker.io` và nó phải được khai ở **tầng của chính runtime đang kéo**. Một cụm con chạy bên trong sandbox có containerd riêng, không đọc `daemon.json` của dockerd bên ngoài — nên cấu hình mirror phải lặp lại ở tầng đó. Đây là lý do một image \"vẫn kéo được bằng docker\" mà `kubectl` lại kẹt ở `ImagePullBackOff`.",
+      "choices": [
+        { "id": "a", "markdown": "Runtime của cụm con là một tiến trình khác, phải được khai mirror ở tầng của chính nó — cấu hình của dockerd bên ngoài không áp cho nó.", "correct": true },
+        { "id": "b", "markdown": "Mọi tiến trình trong sandbox dùng chung một cấu hình mirror, nên không cần làm gì thêm.", "correct": false },
+        { "id": "c", "markdown": "k3s luôn kéo image qua dockerd của sandbox nên thừa hưởng mirror tự động.", "correct": false },
+        { "id": "d", "markdown": "Kubernetes không kéo image từ registry, nó dùng image đã có trên đĩa.", "correct": false }
+      ]
+    },
+    {
+      "id": "nodeselector-mot-node",
+      "kind": "single",
+      "markdown": "Vì sao `nodeSelector` gần như vô nghĩa trên cụm **một** node, nhưng đáng học trên cụm hai node?",
+      "explanation": "`nodeSelector` thu hẹp tập node ứng viên. Một node thì tập đó vốn đã có đúng một phần tử — dòng YAML không đổi kết quả nào. Từ hai node trở lên nó mới thật sự quyết định Pod nằm ở đâu, và mới có thể sai: chưa node nào mang nhãn thì Pod kẹt `Pending`, và `kubectl describe pod` nói thẳng `didn't match Pod's node affinity/selector`.",
+      "choices": [
+        { "id": "a", "markdown": "Một node thì chỉ có một chỗ để đặt, nên điều kiện lọc không đổi kết quả nào.", "correct": true },
+        { "id": "b", "markdown": "`nodeSelector` bị Kubernetes bỏ qua khi cụm chỉ có một node.", "correct": false },
+        { "id": "c", "markdown": "Cụm một node không cho phép gán nhãn cho node.", "correct": false },
+        { "id": "d", "markdown": "Trên cụm một node, `nodeSelector` luôn làm Pod kẹt ở `Pending`.", "correct": false }
+      ]
+    },
+    {
+      "id": "daemonset-so-ban-sao",
+      "kind": "single",
+      "markdown": "Số bản sao của một `DaemonSet` do cái gì quyết định?",
+      "explanation": "Deployment nói *\"cho tôi N bản sao, ở đâu cũng được\"*; DaemonSet nói *\"đúng một bản sao trên **mỗi** node đủ điều kiện\"*. Nên nó không có trường `replicas`, và thêm một node vào cụm là tự có thêm một Pod. Đó cũng là lý do DaemonSet chỉ chứng minh được điều gì đó trên cụm nhiều node.",
+      "choices": [
+        { "id": "a", "markdown": "Số node đủ điều kiện trong cụm — DaemonSet không có trường `replicas`.", "correct": true },
+        { "id": "b", "markdown": "Trường `spec.replicas`, giống hệt Deployment.", "correct": false },
+        { "id": "c", "markdown": "Số CPU khả dụng, mỗi lõi một bản sao.", "correct": false },
+        { "id": "d", "markdown": "Luôn là một, bất kể cụm có bao nhiêu node.", "correct": false }
+      ]
+    },
+    {
+      "id": "chan-doan-pending",
+      "kind": "multiple",
+      "markdown": "Một Pod kẹt ở `Pending`. Lệnh nào cho bạn **lý do** scheduler chưa đặt được nó?\n\n*(chọn mọi đáp án đúng)*",
+      "explanation": "`Pending` nghĩa là container chưa hề khởi động, nên **chưa có log nào để đọc** — `kubectl logs` sẽ báo chính điều đó. Lý do nằm trong phần `Events` mà `describe` in ra (`didn't match Pod's node affinity/selector`, `Insufficient cpu`, …); `get events` cho cùng thông tin ở dạng dòng thời gian. `get pod -o wide` chỉ cho biết Pod chưa có node, không nói vì sao.",
+      "choices": [
+        { "id": "a", "markdown": "`kubectl describe pod <ten>` — đọc phần `Events` ở cuối.", "correct": true },
+        { "id": "b", "markdown": "`kubectl logs <ten>`", "correct": false },
+        { "id": "c", "markdown": "`kubectl get events --field-selector involvedObject.name=<ten>`", "correct": true },
+        { "id": "d", "markdown": "`kubectl get pod <ten> -o wide`", "correct": false }
+      ]
+    },
+    {
+      "id": "toleration-control-plane",
+      "kind": "single",
+      "markdown": "DaemonSet trong bài dùng `tolerations: [{ operator: Exists }]`. Bỏ dòng đó đi thì chuyện gì xảy ra trên cụm hai node?",
+      "explanation": "Node control-plane thường mang một **taint** để workload thường không bị đặt lên đó. `operator: Exists` không kèm gì khác là chấp nhận **mọi** taint, nên DaemonSet phủ được cả control-plane. Bỏ nó thì Pod chỉ mọc trên node không bị taint — với cụm này là một Pod thay vì hai, và đó không phải \"mỗi node một bản sao\" nữa.",
+      "choices": [
+        { "id": "a", "markdown": "DaemonSet bỏ qua node control-plane vì node đó mang taint — số Pod ít hơn số node.", "correct": true },
+        { "id": "b", "markdown": "Không có gì đổi; taint chỉ áp cho Deployment chứ không áp cho DaemonSet.", "correct": false },
+        { "id": "c", "markdown": "DaemonSet bị từ chối lúc `kubectl apply` vì thiếu trường bắt buộc.", "correct": false },
+        { "id": "d", "markdown": "Mọi Pod của DaemonSet dồn hết lên node control-plane.", "correct": false }
+      ]
+    }
+  ]
+}

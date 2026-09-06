@@ -1,0 +1,11 @@
+{
+  "id": "dlp-path-docker-tu-so-0",
+  "title": "Docker từ số 0",
+  "description": "Chưa từng gõ `docker` bao giờ cũng bắt đầu được. Làm quen sandbox trước, rồi kéo image thật từ Docker Hub, chạy container, mở cổng và dựng image của riêng bạn — cuối cùng là một bài kiểm tra ngắn. Khoảng 40 phút.",
+  "sequential": true,
+  "items": [
+    { "kind": "lesson", "itemId": "dlp-sandbox-basics" },
+    { "kind": "lesson", "itemId": "dlp-docker-basics" },
+    { "kind": "quiz", "itemId": "dlp-quiz-docker-co-ban" }
+  ]
+}

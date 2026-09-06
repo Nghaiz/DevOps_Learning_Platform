@@ -65,6 +65,8 @@ images/sandbox-base/etc/**   text eol=lf
 # đọc file không lệch giữa dev và CI.
 content/labs/**        text eol=lf
 content/playgrounds/** text eol=lf
+content/paths/**       text eol=lf
+content/quizzes/**     text eol=lf
 
 # Mặc định: để git tự chuẩn hoá text, nhị phân giữ nguyên.
 * text=auto

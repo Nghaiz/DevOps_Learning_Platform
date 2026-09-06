@@ -1,0 +1,12 @@
+{
+  "id": "dlp-path-kubernetes-can-ban",
+  "title": "Kubernetes căn bản",
+  "description": "Pod, Deployment, ConfigMap, Service — học trên một cụm k3s chạy thật bên trong sandbox của riêng bạn. Xong lý thuyết thì tự mount ConfigMap thành file, rồi chữa một Deployment hỏng năm chỗ. Khoảng 1 giờ 30 phút.",
+  "sequential": true,
+  "items": [
+    { "kind": "lesson", "itemId": "dlp-k8s-basics" },
+    { "kind": "quiz", "itemId": "dlp-quiz-kubernetes-co-ban" },
+    { "kind": "lesson", "itemId": "ckad-configmap-as-files" },
+    { "kind": "lab", "itemId": "dlp-k8s-broken-deploy" }
+  ]
+}

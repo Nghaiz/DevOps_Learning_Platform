@@ -1,0 +1,11 @@
+{
+  "id": "dlp-path-linux-cho-devops",
+  "title": "Linux cho DevOps",
+  "description": "Năm việc một quản trị viên Linux thật sự làm: truy vết tiến trình ngốn CPU, sửa quyền thực thi, tạo user đúng nhóm, siết quyền file nhạy cảm, chạy container công bố đúng cổng. Không cần Kubernetes — chỉ shell và Docker. Học tự do, làm theo thứ tự nào cũng được.",
+  "sequential": false,
+  "items": [
+    { "kind": "lesson", "itemId": "dlp-sandbox-basics" },
+    { "kind": "lab", "itemId": "dlp-linux-triage" },
+    { "kind": "quiz", "itemId": "dlp-quiz-linux-cho-devops" }
+  ]
+}
