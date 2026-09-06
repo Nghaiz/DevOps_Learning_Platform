@@ -4,10 +4,12 @@ import { describePageScope, describeSortScope, type CatalogKind } from './catalo
 /**
  * Khung chung của năm trang danh mục.
  *
- * ⚠ `<main>` nằm Ở ĐÂY, không ở vỏ ứng dụng (13.B) — đó là quy ước có sẵn của
- * mọi route trong `apps/web` từ trước phase này. Nếu vỏ 13.B cũng dựng
- * `<main>`, hai landmark lồng nhau sẽ làm axe đỏ (`landmark-unique`) và cần
- * gỡ đúng MỘT trong hai; ghi ở đây để lượt tích hợp đợt 3 biết chỗ nhìn.
+ * ⛔ KHÔNG dựng `<main>` ở đây. Vỏ ứng dụng (`components/shell/app-shell.tsx`)
+ * sở hữu landmark đó và bọc mọi trang — xem hợp đồng C6bis trong
+ * `plans/devops-learning-platform/phase-13-exec.md`. Bản đầu của file này có
+ * `<main>` vì lúc viết, vỏ chưa dựng; khi vỏ đổi thì mỗi trang danh mục có HAI
+ * landmark lồng nhau, thứ làm axe của 13.H đỏ `landmark-unique`. Chốt về phía
+ * vỏ vì chỉ ở đó mới bảo đảm được đúng MỘT.
  *
  * KHÔNG `min-h-screen`: `<body>` (root layout) đã mang nó, và khi vỏ 13.B thêm
  * thanh điều hướng phía trên thì `min-h-screen` ở đây làm trang cao hơn màn
@@ -19,13 +21,13 @@ export function CatalogPage(props: {
   readonly children: ReactNode;
 }): ReactElement {
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">{props.title}</h1>
         <p className="text-sm text-muted-foreground">{props.description}</p>
       </header>
       {props.children}
-    </main>
+    </div>
   );
 }
 

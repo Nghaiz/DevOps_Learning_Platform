@@ -99,7 +99,7 @@ Một sản phẩm dùng được: người lạ vào, đăng nhập, tìm bài,
 - [ ] Playwright 6 luồng chính xanh trên cụm thật.
 - [ ] 0 vi phạm CSP mới, **có đối chứng dương** chứng minh phép kiểm biết kêu.
 - [ ] Responsive: ≤768px đọc được nội dung, terminal báo rõ thay vì vỡ.
-- [ ] **Không** màn hình/route/chuỗi nào liên quan giá, gói cước, thanh toán (grep chứng minh).
+- [ ] **Không** màn hình/route/chuỗi nào liên quan giá, gói cước, thanh toán. Chứng bằng BA lớp, không chỉ một lệnh grep: (1) lệnh grep ở § Verify commands — **đã sửa 2026-09-06**, bản cũ không thể rỗng nên không chứng được gì; (2) test tiếng Việt trên chuỗi UI (`components/shell/{nav,capacity}.test.ts`) vì grep tiếng Anh không thấy nhãn giá viết bằng tiếng Việt; (3) test khẳng định mọi procedure TỪ CHỐI field thanh toán (`quiz-paths-input.test.ts`) và schema không có cột `price`/`sku`/`entitlement`.
 
 ## Verify commands
 
@@ -107,7 +107,21 @@ Một sản phẩm dùng được: người lạ vào, đăng nhập, tìm bài,
 pnpm --filter web build && pnpm --filter web test
 pnpm --filter web exec playwright test --grep @flow
 npx @axe-core/cli https://dlp.<ip>.sslip.io/lessons --exit
-grep -rniE 'price|pricing|checkout|subscribe|billing' apps/web/src | grep -v node_modules   # rỗng
+# Không màn hình/chuỗi nào về giá, gói cước, thanh toán (AC cuối 13.H).
+#
+# ⚠ Lệnh cũ `grep -rniE 'price|pricing|checkout|subscribe|billing' apps/web/src`
+# KHÔNG BAO GIỜ RỖNG ĐƯỢC, kể cả trên cây hoàn toàn sạch — đo 2026-09-06, nó trả
+# 15 dòng: `checkout` khớp trong `CheckOutcome`/`checkOutcomes` (kiểu KẾT QUẢ CHẤM
+# BÀI của P2), `subscribe` khớp callback `useSyncExternalStore` của React trong
+# `packages/ui/src/toast.tsx`, còn `price`/`billing` khớp chính những chú thích và
+# test dựng ra để CẤM thương mại. Một ô AC mà phép kiểm không thể xanh thì hoặc bị
+# bỏ qua, hoặc làm người đọc hoảng vì tưởng đã lỡ dựng phần bán khoá học.
+#
+# Bản dưới: bắt rộng (không dùng `` — biên từ không nhận ra `MONTHLY_PRICE_VND`
+# vì `_` cũng là ký tự từ), rồi TRỪ đúng ba nhóm đã hiểu rõ: định danh chấm bài,
+# file test (chúng PHẢI chứa từ cấm để gác), và dòng chú thích (chỗ ghi lại lệnh
+# cấm). Đã đối chứng dương bốn hình dạng — SNAKE_CASE, camelCase, hằng, đường dẫn.
+grep -rniE 'price|pricing|paywall|checkout|billing|invoice|stripe|paddle|sepay|entitlement|sku|subscription|is_paid|ispaid|gói cước|thanh toán|nâng cấp gói'      apps/web/src packages/ui/src packages/scenario/src packages/shared-types/src   | grep -viE 'checkoutcome|checkresultpanel'   | grep -vE '\.test\.tsx?:'   | grep -vE ':[0-9]+: *(\*|//|#)'      # rỗng (exit 1)
 ```
 
 ## Risk Assessment (P13)

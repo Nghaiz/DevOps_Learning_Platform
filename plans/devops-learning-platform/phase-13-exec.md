@@ -219,6 +219,31 @@ export function useResolvedTerminalTheme(pref: ThemeName | null | undefined): Th
 
 `packages/terminal` `TerminalSurface` thêm prop `ariaLabel?: string` và `onEscapeFocus?(): void` (gọi khi Esc-Esc), container có `role="application"` + `tabIndex=0`.
 
+### C6bis — `<main>` THUỘC VỀ VỎ, trang không được dựng cái thứ hai (chốt 2026-09-06)
+
+Vỏ ứng dụng (`components/shell/app-shell.tsx`) dựng **một** `<main id="noi-dung">`
+bọc `children`. **Không route nào, không component chung nào được dựng `<main>` của
+riêng mình** — dùng `<div>` hoặc `<section>`.
+
+Lý do chốt về phía vỏ: một trang không thể biết trang khác làm gì, còn vỏ thì bọc tất
+cả, nên chỉ ở đó mới **bảo đảm được đúng một** landmark. Hai `<main>` lồng nhau vừa sai
+HTML vừa làm axe của 13.H đỏ `landmark-unique` — tức một ô AC của 13.H sẽ đỏ vì việc
+của lane khác.
+
+Đây là một va chạm THẬT đã xảy ra, không phải phòng xa: lane B và lane C chạy song song
+trong hai ngữ cảnh cô lập, mỗi bên đọc hiện trạng ở một thời điểm khác nhau và đi tới
+hai kết luận ngược nhau — bản đầu của vỏ cố ý KHÔNG dựng `<main>` (vì 17 route đang tự
+dựng), lane C bỏ `<main>` khỏi ba client danh mục (vì đọc vỏ và tưởng vỏ cấp landmark)
+nhưng vẫn giữ trong `CatalogPage`, rồi vỏ đổi sang tự dựng. Kết quả: mỗi trang danh mục
+có hai landmark, và cả hai lane đều xanh ở test của chính mình. Đúng lớp lỗi mà
+`contract-first-integration` mô tả.
+
+**Bảy file phải đổi `<main>` → `<div>`/`<section>`** (kiểm bằng `grep -rn "<main" apps/web/src`,
+chỉ được còn đúng một kết quả là `app-shell.tsx`): `components/catalog/catalog-page.tsx` ✅ (lead
+sửa) · `lessons/[id]/lesson-client.tsx` + `playgrounds/[id]/playground-client.tsx` (lane D1) ·
+`labs/[id]/lab-client.tsx` + `quiz/[id]/quiz-client.tsx` + `paths/[id]/path-client.tsx` (lane D2,
+đợt 2b) · `me/me-client.tsx` (lane E, đợt 2b).
+
 ### C6 — Điều hướng (13.B phát hành)
 
 Route chính: `Bài học /lessons · Lab /labs · Playground /playgrounds · Lộ trình /paths · Quiz /quiz · Của tôi /me`. Menu người dùng: `Hồ sơ & cài đặt /settings`, `Soạn bài /author` (author|admin), `Quản trị /admin` (admin), `Đăng xuất`. `proxy.ts` `PROTECTED_PATHS` thêm `/paths /quiz /me /settings /author /admin`. Vai trò cho `/author`, `/admin` kiểm ở `layout.tsx` server (`getSession` + role) → `redirect('/me')`. Breakpoint: `≥1280px` đầy đủ; `≤768px` nav thu vào Sheet/Drawer, terminal thay bằng `Alert` "Cần màn hình rộng hơn (≥1024px) để mở terminal".
@@ -318,5 +343,19 @@ pnpm turbo run lint typecheck build test
 pnpm --filter web exec playwright test --grep @flow          # E2E_BASE_URL=https://dlp.192.168.94.130.sslip.io:30443
 pnpm --filter web exec playwright test a11y csp keyboard perf
 grep -rnE '#[0-9a-fA-F]{3,8}|\b(slate|gray|zinc|neutral)-[0-9]{2,3}' apps/web/src packages/ui/src --include=*.tsx | grep -v node_modules   # rỗng (trừ themes.ts của terminal)
-grep -rniE 'price|pricing|checkout|subscribe|billing' apps/web/src | grep -v node_modules   # rỗng
+# Không màn hình/chuỗi nào về giá, gói cước, thanh toán (AC cuối 13.H).
+#
+# ⚠ Lệnh cũ `grep -rniE 'price|pricing|checkout|subscribe|billing' apps/web/src`
+# KHÔNG BAO GIỜ RỖNG ĐƯỢC, kể cả trên cây hoàn toàn sạch — đo 2026-09-06, nó trả
+# 15 dòng: `checkout` khớp trong `CheckOutcome`/`checkOutcomes` (kiểu KẾT QUẢ CHẤM
+# BÀI của P2), `subscribe` khớp callback `useSyncExternalStore` của React trong
+# `packages/ui/src/toast.tsx`, còn `price`/`billing` khớp chính những chú thích và
+# test dựng ra để CẤM thương mại. Một ô AC mà phép kiểm không thể xanh thì hoặc bị
+# bỏ qua, hoặc làm người đọc hoảng vì tưởng đã lỡ dựng phần bán khoá học.
+#
+# Bản dưới: bắt rộng (không dùng `` — biên từ không nhận ra `MONTHLY_PRICE_VND`
+# vì `_` cũng là ký tự từ), rồi TRỪ đúng ba nhóm đã hiểu rõ: định danh chấm bài,
+# file test (chúng PHẢI chứa từ cấm để gác), và dòng chú thích (chỗ ghi lại lệnh
+# cấm). Đã đối chứng dương bốn hình dạng — SNAKE_CASE, camelCase, hằng, đường dẫn.
+grep -rniE 'price|pricing|paywall|checkout|billing|invoice|stripe|paddle|sepay|entitlement|sku|subscription|is_paid|ispaid|gói cước|thanh toán|nâng cấp gói'      apps/web/src packages/ui/src packages/scenario/src packages/shared-types/src   | grep -viE 'checkoutcome|checkresultpanel'   | grep -vE '\.test\.tsx?:'   | grep -vE ':[0-9]+: *(\*|//|#)'      # rỗng (exit 1)
 ```
