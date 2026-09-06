@@ -21,12 +21,11 @@ import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { DraftFormView } from '../../../components/author/draft-form-view';
 import {
-  emptyDraft,
   toDraftInput,
   type DraftFormState,
   type FieldIssue,
 } from '../../../components/author/draft-form';
-import { draftFromPreview } from '../../../components/author/draft-from-preview';
+import { draftFromBody, draftFromPreview } from '../../../components/author/draft-from-preview';
 import { AssetManager } from '../../../components/author/asset-manager';
 import { PreviewPanel } from '../../../components/author/preview-panel';
 import { PublishPanel } from '../../../components/author/publish-panel';
@@ -47,24 +46,30 @@ import {
 /**
  * `/author/[id]` — sửa một bài.
  *
- * ## Vì sao trang này đọc `list` chứ không đọc một `get`
+ * ## Ba query, ba câu hỏi khác nhau — cố ý không gộp
  *
- * Router soạn bài KHÔNG có procedure trả về một bài theo id. Có `list` (tóm tắt
- * mọi bài của tôi) và `preview` (DTO đầy đủ, đi qua nguồn nội dung). Nên trạng
- * thái + loại của bài này được LỌC RA từ `list`, và thân bài nạp từ `preview`.
+ * - `authoring.get` — **thân bài để SỬA**. Đọc qua `loadBodyForWrite`, KHÔNG
+ *   qua schema xuất bản, nên nó mở lại được mọi bản nháp mà `authoring.create`
+ *   cho lưu: bài học 0 bước, lab chưa có script chấm, chưa chọn độ khó. Đây là
+ *   đường nạp DUY NHẤT của form.
+ * - `authoring.preview` — **thứ NGƯỜI HỌC sẽ thấy**. Đi qua nguồn nội dung hợp
+ *   nhất, và trả `null` cho bản nháp chưa qua schema xuất bản. Đó là câu trả
+ *   lời ĐÚNG cho câu hỏi của nó, nên tab Xem trước và tab Xuất bản vẫn hỏi nó.
+ * - `authoring.list` — **trạng thái + siêu dữ liệu** (`state`, `stepCount`,
+ *   `publishError`, `publishedAt`), và là query DUY NHẤT được `refetchInterval`
+ *   trong lúc chạy thử.
  *
- * ## Giới hạn phải nói ra: bản nháp chưa hợp lệ không nạp lại được
+ * ## Vì sao trạng thái vẫn đọc từ `list` dù `get` cũng trả `state`
  *
- * `preview` đi qua `dbContentSource`, và nguồn đó `safeParse` bằng chính schema
- * xuất bản rồi trả `null` khi trượt. Một bản nháp viết dở (bài học 0 bước, lab
- * thiếu script chấm) vì thế không nạp được vào form.
+ * Hai chỗ đó KHÔNG tự tính lại luật "publishing đã treo kể là draft" — cả hai
+ * gọi cùng `reportedState` ở server (06510f6), nên chúng không thể lệch nhau.
+ * Chính vì thế trang này không cần lấy `state` từ cả hai: `list` là query đang
+ * poll trong lúc xuất bản, nên nó luôn mới hơn, và đọc thêm `get.state` chỉ
+ * dựng thêm một nguồn thứ hai cho cùng một sự thật trên cùng một màn hình.
  *
- * Cách xử lý ở đây là **không** hiện một form trống rồi để người soạn bấm Lưu:
- * `update` thay TOÀN BỘ nội dung, nên một lượt lưu như vậy xoá sạch bản nháp
- * đang có, im lặng và không hoàn tác được. Thay vào đó trang nói rõ chuyện gì
- * xảy ra, chỉ sang tab Xuất bản (nơi `check` chạy được trên MỌI bản nháp và nêu
- * đúng field thiếu), và chỉ mở form sau khi người soạn bấm một nút xác nhận
- * rằng họ muốn soạn lại từ đầu.
+ * ⛔ Tuyệt đối không tự suy lại luật treo đó ở client: nó là hàm của
+ * `publishStartedAt` và đồng hồ, và một bản chép ở đây sẽ nói "đang xuất bản"
+ * trong khi danh sách nói "nháp" — rồi khoá tác giả ra khỏi chính bài của họ.
  *
  * ⛔ Không dựng `<main>` (C6bis). ⛔ Không `useInfiniteQuery`.
  */
@@ -84,11 +89,11 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
     ...(pollingOn ? { refetchInterval: PUBLISH_POLL_INTERVAL_MS } : {}),
   });
   const previewQuery = api.authoring.preview.useQuery({ id: contentId }, { retry: false });
+  const bodyQuery = api.authoring.get.useQuery({ id: contentId }, { retry: false });
 
   const [form, setForm] = useState<DraftFormState | null>(null);
   const [issues, setIssues] = useState<readonly FieldIssue[]>([]);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [rebuildFromScratch, setRebuildFromScratch] = useState(false);
   const [tab, setTab] = useState('soan');
 
   const keyCounter = useRef(0);
@@ -99,6 +104,7 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
 
   const item: AuthoredItem | null = listQuery.data?.find((row) => row.id === contentId) ?? null;
   const previewData = previewQuery.data ?? null;
+  const bodyData = bodyQuery.data ?? null;
 
   // Bài GỐC khi id đang mở là một bản nháp kế nhiệm. Cần nó để đọc được lượt
   // xuất bản ĐẠT: đường đổi ngôi XOÁ bản nháp, nên hàng ta theo dõi biến mất và
@@ -110,24 +116,29 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
   /**
    * Nạp MỘT lần cho mỗi id.
    *
-   * `form !== null` là cổng chặn: `preview` được `invalidate` sau mỗi lượt lưu,
-   * và nếu effect này chạy lại thì nó ghi đè những gì người soạn đang gõ bằng
-   * bản vừa lưu — mọi thay đổi sau lượt lưu biến mất khi query trả về.
+   * `form !== null` là cổng chặn: `get` được `invalidate` sau mỗi lượt lưu, và
+   * nếu effect này chạy lại thì nó ghi đè những gì người soạn đang gõ bằng bản
+   * vừa lưu — mọi thay đổi sau lượt lưu biến mất khi query trả về.
+   *
+   * Không còn nhánh "nạp không được": `get` trả thân của MỌI bài tồn tại, và
+   * câu hỏi "bài này có tồn tại không" đã được trả lời trước đó bằng
+   * `NOT_FOUND`. Field còn thiếu là ô trống điền được, không phải lý do đóng
+   * form.
    */
   useEffect(() => {
-    if (form !== null || previewData === null) {
+    if (form !== null || bodyData === null) {
       return;
     }
-    const loaded = draftFromPreview(previewData);
-    if (loaded !== null) {
-      setForm(loaded);
-    }
-  }, [previewData, form]);
+    setForm(draftFromBody(bodyData.body));
+  }, [bodyData, form]);
 
   const update = api.authoring.update.useMutation({
     onSuccess: (result) => {
       void utils.authoring.list.invalidate();
       void utils.authoring.preview.invalidate();
+      // `get` cũng phải hết hạn: một lượt lưu ĐẠT làm thân trong cache khác thân
+      // trong DB, và bản cũ đó là thứ form nạp lại nếu người soạn mở lại trang.
+      void utils.authoring.get.invalidate();
       const outcome = describeSaveOutcome(result, contentId);
       toast({
         title: outcome.title,
@@ -223,9 +234,11 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
     );
   }
 
+  // Chỉ còn tab Xem trước dùng cờ này. `draftFromPreview(...) === null` LÀ định
+  // nghĩa của "nguồn nội dung từ chối bản nháp" (xem docstring của hàm đó), nên
+  // dùng lại nó thay vì chép một `switch` thứ hai trên `PreviewPayload` ở đây.
   const previewRejected =
     previewQuery.isSuccess && previewData !== null && draftFromPreview(previewData) === null;
-  const editable = form !== null;
 
   return (
     <Shell>
@@ -262,51 +275,15 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
         </TabsList>
 
         <TabsContent value="soan" className="flex flex-col gap-6 pt-4">
-          {previewQuery.isPending && <Loading />}
+          {bodyQuery.isPending && <Loading />}
 
-          {previewQuery.isError && (
+          {bodyQuery.isError && (
             <ErrorState
               title="Không nạp được nội dung bài"
-              message={describeTrpcError(previewQuery.error)}
-              onRetry={() => void previewQuery.refetch()}
-              retrying={previewQuery.isFetching}
+              message={describeTrpcError(bodyQuery.error)}
+              onRetry={() => void bodyQuery.refetch()}
+              retrying={bodyQuery.isFetching}
             />
-          )}
-
-          {previewRejected && !editable && (
-            <Alert variant="warning">
-              <AlertTitle>Không nạp lại được bản nháp này vào form</AlertTitle>
-              <AlertDescription>
-                <p>
-                  Nguồn nội dung chỉ trả về bài đã qua schema xuất bản, còn bản nháp này thì chưa. Đây là giới
-                  hạn của API hiện tại, không phải mất dữ liệu — nội dung của bạn vẫn nằm nguyên trong cơ sở dữ
-                  liệu.
-                </p>
-                <p className="mt-2">
-                  Chạy <strong>Kiểm tra</strong> ở tab Xuất bản để biết chính xác field nào còn thiếu. Nếu muốn
-                  soạn lại từ đầu, bấm nút dưới đây — lưu ý là lượt lưu kế tiếp sẽ THAY TOÀN BỘ nội dung hiện có.
-                </p>
-                <Button
-                  variant="destructive"
-                  className="mt-3"
-                  onClick={() => {
-                    setRebuildFromScratch(true);
-                    setForm(emptyDraft());
-                  }}
-                >
-                  Soạn lại từ đầu (ghi đè bản nháp)
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {rebuildFromScratch && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                Bạn đang soạn lại từ đầu. Bấm Lưu sẽ thay thế toàn bộ nội dung của{' '}
-                <code className="font-mono">{item.id}</code>.
-              </AlertDescription>
-            </Alert>
           )}
 
           {form !== null && (

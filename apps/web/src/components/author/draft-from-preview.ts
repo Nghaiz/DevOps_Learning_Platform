@@ -230,14 +230,27 @@ export interface DraftBodyStep {
   readonly hint: string | null;
 }
 
-/** `authoring.get().body` — bốn field jsonb là `unknown` THẬT, không phải kiểu bị lười. */
+/**
+ * `authoring.get().body` — bốn field jsonb là `unknown` THẬT, không phải kiểu bị lười.
+ *
+ * ⚠ Bốn field đó là **optional (`?`), không phải bắt buộc**, và đó là hình dạng
+ * tRPC suy ra chứ không phải một lựa chọn ở đây: `unknown` gồm cả `undefined`,
+ * nên kiểu output của procedure đánh dấu khoá là có thể VẮNG MẶT. Khai chúng
+ * bắt buộc làm `typecheck` đỏ ngay tại chỗ gọi — đo 2026-09-06, TS2345
+ * *"Property 'intro' is optional … but required in type 'DraftBody'"*.
+ *
+ * Đây chính là chỗ một phép `as ContentBodyRow` sẽ nuốt: nó biên dịch được, rồi
+ * mọi hàm đọc bốn field này chạy trên một khoá không tồn tại. Mấy hàm parse
+ * dưới đây nhận `undefined` y như nhận `null` nên hành vi lúc chạy không đổi —
+ * cái đổi là trình biên dịch được nói thật.
+ */
 export interface DraftBody {
   readonly item: DraftBodyItem;
   readonly steps: readonly DraftBodyStep[];
-  readonly intro: unknown;
-  readonly finish: unknown;
-  readonly setup: unknown;
-  readonly assets: unknown;
+  readonly intro?: unknown;
+  readonly finish?: unknown;
+  readonly setup?: unknown;
+  readonly assets?: unknown;
 }
 
 /**

@@ -321,6 +321,18 @@ describe('jsonb được PARSE, không bị ép kiểu', () => {
     expect(new Set(form.assets.map((a) => a.key)).size).toBe(2);
   });
 
+  it('khoá jsonb VẮNG MẶT (không phải null) vẫn nạp được', () => {
+    // Đây KHÔNG phải một ca giả định: `unknown` gồm cả `undefined`, nên kiểu
+    // output của `authoring.get` đánh dấu bốn khoá jsonb là optional. Chính
+    // TS2345 tại chỗ gọi đã nói ra điều đó (2026-09-06); một phép `as` sẽ nuốt
+    // nó, rồi mọi hàm ở đây chạy trên một khoá không tồn tại.
+    const form = draftFromBody({ item: itemRow(), steps: [] });
+    expect(form.hasIntro).toBe(false);
+    expect(form.hasFinish).toBe(false);
+    expect(form.setupForeground).toBe('');
+    expect(form.assets).toEqual([]);
+  });
+
   it('assets không phải mảng ⇒ rỗng, không ném', () => {
     expect(draftFromBody(bodyRow({ assets: { host: 'host01' } })).assets).toEqual([]);
     expect(draftFromBody(bodyRow({ assets: null })).assets).toEqual([]);
