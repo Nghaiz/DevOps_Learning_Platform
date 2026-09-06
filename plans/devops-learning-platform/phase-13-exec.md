@@ -52,7 +52,7 @@ AC P13 đòi "còn N chỗ phản ánh trần THẬT". Kết luận của lane G
 - **D2 Dark mode.** Class `dark` trên `<html>`; giá trị `'light'|'dark'|'system'` lưu `localStorage['dlp.theme']`; script inline **có nonce** trong `layout.tsx` đặt class trước paint (CSP đã có nonce + `strict-dynamic`). `ThemeProvider`/`useTheme()` export từ `packages/ui`. Terminal đi theo: `resolved === 'dark' ? 'dlp-dark' : 'dlp-light'` trừ khi người dùng đã chọn theme terminal riêng (hồ sơ 13.E).
 - **D3 Font.** `next/font/google` `Be_Vietnam_Pro` subsets `['latin','vietnamese']` weights 400/500/600/700, biến `--font-be-vietnam-pro`; mono giữ stack hệ thống + `DLPTerminalNF` trong terminal. `next/font` tự host ⇒ `font-src 'self'` không đổi. Build cần internet để tải font (CI và máy build image đều có).
 - **D4 Component.** `packages/ui` theo shadcn/ui trên `radix-ui` (gói hợp nhất) + `class-variance-authority` + `lucide-react`. Toast dùng Radix Toast (không thêm sonner). Mỗi component có trạng thái loading/empty/error/disabled **khi áp dụng được** và bảng checklist trong `docs/design-system.md`.
-- **D5 Sức chứa.** RPC mới `GetCapacity` ở orchestrator (đọc `pool:claimed` + env `CAPACITY_SOFT_LIMIT`), tRPC `capacity.get`. FE tự tính `còn = max(0, soft − active)`; không lưu, không cache riêng.
+- **D5 Sức chứa.** RPC mới `GetCapacity` ở orchestrator (đọc `pool:claimed` + env **`CAPACITY_HARD_LIMIT`**), tRPC `capacity.get`. FE tự tính `còn = max(0, soft − active)`; không lưu, không cache riêng. ⚠ **Đã sửa 2026-09-06:** dòng này từng ghi `CAPACITY_SOFT_LIMIT`, biến đã BỎ. Trần mềm nay được TÍNH (`hard − POOL_TARGET`), không khai tay — ai làm theo bản cũ sẽ đặt một biến mà chart không còn nhận, và orchestrator fail-fast.
 - **D6 Phiên đang chạy (me + admin).** RPC mới `ListSessions` ở orchestrator (lọc theo `user_id` tuỳ chọn; admin không lọc). Cùng RPC phục vụ `/me` (phiên của tôi) và `/admin` (mọi phiên).
 - **D7 Shell mặc định.** KHÔNG cho client chọn lệnh. BFF áp dụng tuỳ chọn **server-validated** (enum → đường dẫn cố định) bằng one-shot script qua đường `runScriptInSession` đã có, **trước khi** trả kết quả start về FE (tmux tạo session ở lần attach đầu, attach xảy ra sau khi FE nhận response). Pod chưa được cấp lúc start (cold path) ⇒ bỏ qua có log + `preferencesApplied:false` trong response; UI hồ sơ nói rõ điều này.
 - **D8 IDE trong iframe.** Cùng origin: `src="/ide/session/{id}/"`. Cần (a) ingress path `/ide` → gateway (Helm), (b) cookie thứ hai cùng tên `dlp_sandbox` với `Path=/ide` (cookie phân biệt theo (name, path); token vẫn KHÔNG tới `/`, `/api`). CSP: `default-src 'self'` đã phủ `frame-src` cùng origin — **thêm `frame-src 'self'` tường minh** để ai đọc CSP cũng thấy quyết định, và đối chứng dương phải chứng minh iframe origin khác BỊ chặn.
@@ -137,10 +137,14 @@ rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
 message GetCapacityRequest {}
 message GetCapacityResponse {
   int32 active_sessions = 1;   // len(pool:claimed) — cùng nguồn với dlp_pool_claimed_size
-  int32 soft_capacity   = 2;   // env CAPACITY_SOFT_LIMIT (Helm: orchestrator.env.capacitySoftLimit = 20)
+  int32 soft_capacity   = 2;   // TÍNH LÚC ĐỌC = hard_capacity − POOL_TARGET. KHÔNG phải env.
   int32 pool_free       = 3;
   int32 pool_quarantine = 4;
+  int32 hard_capacity   = 5;   // env CAPACITY_HARD_LIMIT — trần vật lý ĐÃ ĐO
 }
+// ⚠ Sửa 2026-09-06: bản cũ ghi BỐN field và ghi soft_capacity = env
+// CAPACITY_SOFT_LIMIT. Cả hai đều sai so với proto thật (`proto/orchestrator/v1/
+// session.proto` §GetCapacityResponse). SSOT là file proto, không phải bảng này.
 message ListSessionsRequest {
   string user_id = 1;  // rỗng = mọi user (chỉ admin); khác rỗng = phải trùng caller trừ khi admin
   int32  limit   = 2;  // 1..100, 0 = 20
@@ -356,8 +360,10 @@ nên `lint` với `test` KHÔNG hề chạy. Dùng `pnpm turbo run lint typechec
 **3. Đọc `Tasks: X/Y` trước khi trích bất kỳ con số test nào.** turbo dừng sau
 task đỏ, nên một lượt in ra `15/19` nghĩa là bốn task sau CHƯA CHẠY.
 
-**4. Build ba image và bump tag TRONG CÙNG một thay đổi.** `dlp-web:p13`,
-`dlp-orchestrator:p13`, `dlp-migrator:p13`. Hai ràng buộc, cả hai đều làm hỏng
+**4. Build BỐN image và bump tag TRONG CÙNG một thay đổi.** `dlp-web:p13`,
+`dlp-orchestrator:p13`, `dlp-migrator:p13`, và **`dlp-terminal-gateway:p13`** (thêm
+2026-09-06: gateway có `podprobe.go` mới + `bridge.go`; không phải phụ thuộc cứng,
+nhưng bỏ qua thì người bị thu hồi pod vẫn đọc được "bạn đã tự gõ exit"). Hai ràng buộc, cả hai đều làm hỏng
 cụm nếu lệch:
 - orchestrator `:p12fix` đòi `CAPACITY_SOFT_LIMIT`, mà chart nay chỉ đặt
   `CAPACITY_HARD_LIMIT` ⇒ deploy chart mới với image cũ là CrashLoopBackOff.
@@ -366,8 +372,11 @@ cụm nếu lệch:
   kết thúc phiên trả `InvalidArgument`. **Web và orchestrator lên cùng lượt.**
 
 **5. Side-load, đừng pull.** `docker save | scp | ctr -n k8s.io images import`.
-`11-sideload-images.sh` chỉ đọc `image.tag` CHUNG, không đọc tag từng thành phần
-— cổng render-vs-`ctr images ls` trong `12-helm-deploy.sh` mới là thứ bắt lệch.
+⚠ **Sửa 2026-09-06:** bản cũ ghi `11-sideload-images.sh` "chỉ đọc `image.tag` CHUNG".
+SAI — nó CÓ đọc tag từng thành phần (`:96-120`; chạy lại đúng đoạn `awk` đó cho ra
+`p10a/p12fix/p12fix/p9`, khớp chart render). Cổng render-vs-`ctr images ls` trong
+`12-helm-deploy.sh` gác *tag có mặt trên node*, KHÔNG gác *tag đúng đời* — nên nó
+xanh cả khi bạn quên bump. Thứ bắt lệch đời là bước 3 dưới đây, làm bằng tay.
 
 **6. Không cần `--set` gì thêm cho metric.** `gateway.service.exposeAdminPort: auto`
 bám theo `networkPolicy.platform.enabled`, mà release đang chạy đã bật, và
