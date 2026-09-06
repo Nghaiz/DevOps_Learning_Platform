@@ -631,6 +631,7 @@ type ReapSessionRequest struct {
 	//
 	//	*ReapSessionRequest_UserId
 	//	*ReapSessionRequest_SystemComponent
+	//	*ReapSessionRequest_AdminUserId
 	Actor         isReapSessionRequest_Actor `protobuf_oneof:"actor"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -705,6 +706,15 @@ func (x *ReapSessionRequest) GetSystemComponent() string {
 	return ""
 }
 
+func (x *ReapSessionRequest) GetAdminUserId() string {
+	if x != nil {
+		if x, ok := x.Actor.(*ReapSessionRequest_AdminUserId); ok {
+			return x.AdminUserId
+		}
+	}
+	return ""
+}
+
 type isReapSessionRequest_Actor interface {
 	isReapSessionRequest_Actor()
 }
@@ -720,9 +730,59 @@ type ReapSessionRequest_SystemComponent struct {
 	SystemComponent string `protobuf:"bytes,4,opt,name=system_component,json=systemComponent,proto3,oneof"`
 }
 
+type ReapSessionRequest_AdminUserId struct {
+	// Admin kết thúc phiên của NGƯỜI KHÁC (P13 D15). Giá trị là id của chính
+	// ADMIN — không phải chủ phiên — và nó đi thẳng vào `sessions_audit.detail`
+	// để câu hỏi "ai đã giết phiên này" trả lời được từ phía orchestrator,
+	// không phải chỉ từ bảng `admin_audit` của BFF.
+	//
+	// ⛔ VÌ SAO LÀ MỘT NHÁNH `actor` RIÊNG, KHÔNG PHẢI BA ĐƯỜNG KIA.
+	//
+	// (a) KHÔNG dùng lại `user_id` với id của CHỦ PHIÊN. Đó là đường "rẻ nhất"
+	//
+	//	(không đổi proto, không đổi lua) và nó SAI ở đúng chỗ D15 sinh ra để
+	//	vá: orchestrator sẽ ghi audit như thể chính chủ phiên tự bấm kết
+	//	thúc. Một hành động quản trị không để lại dấu vết nào ở phía
+	//	orchestrator — và tệ hơn, để lại một dấu vết SAI. Nó còn buộc BFF
+	//	phải tra chủ phiên trước (thêm một RPC, thêm một cửa sổ TOCTOU).
+	//
+	// (b) KHÔNG dùng `reason` làm cờ authz ("reason == admin_terminated thì bỏ
+	//
+	//	kiểm chủ sở hữu"). `reason` là chuỗi tự do dùng cho nhật ký; buộc
+	//	quyết định authz vào nó nghĩa là bất kỳ ai GÕ ĐÚNG chuỗi đó cũng
+	//	được bỏ kiểm — và người viết caller tiếp theo không có cách nào biết
+	//	mình vừa chạm vào một cổng quyền khi chỉ đang sửa một dòng log.
+	//
+	// (c) KHÔNG mở rộng `system_component` cho apps/web. Allowlist CN
+	//
+	//	(`GRPC_MTLS_SYSTEM_CNS`) hôm nay CHỈ có gateway, và chú thích ở
+	//	orchestrator-deployment.yaml nói rõ vì sao: cho apps/web vào đó là
+	//	cấp bypass cho MỌI lời gọi reap của nó, kể cả đường `me.endSession`
+	//	của người dùng thường — một lỗi lẫn actor ở BFF sẽ thành "ai cũng
+	//	reap được phiên người khác". Nó còn khiến nút của admin CHỈ chạy khi
+	//	`GRPC_MTLS_MODE != off`, tức tính năng lại phụ thuộc một cờ triển
+	//	khai — đúng kiểu hỏng mà D15 muốn chấm dứt.
+	//
+	// ⚠ RỦI RO CÒN LẠI, NÓI THẲNG: server KHÔNG chứng minh được người gửi
+	// nhánh này thật sự là admin — y hệt cách nó không chứng minh được
+	// `user_id`. BFF là ranh giới tin cậy (§2 C3). Nhưng nhánh này KHÔNG tạo ra
+	// một quyền mới: `ListSessions(user_id = "")` (cùng contract này) đã trả về
+	// mọi phiên KÈM `user_id` của chủ, nên ai gọi được cổng gRPC thì hôm nay đã
+	// reap được phiên bất kỳ bằng HAI lời gọi qua nhánh `user_id`. Nhánh này
+	// rút hai lời gọi xuống một, và đổi lại làm hành động ấy GỌI ĐÚNG TÊN trong
+	// audit. Thứ thật sự đứng giữa kẻ gọi và cổng này là mTLS
+	// (`platform.grpcMtlsMode: 'require'` mặc định ⇒ phải có client cert do CA
+	// của ta ký) — NetworkPolicy khối 9 chỉ là tuyến hai và mặc định TẮT
+	// (`networkPolicy.platform.enabled: false`), lại phân biệt bằng nhãn pod
+	// nên nó không chặn được một pod tự gắn nhãn `app=...-web`.
+	AdminUserId string `protobuf:"bytes,5,opt,name=admin_user_id,json=adminUserId,proto3,oneof"`
+}
+
 func (*ReapSessionRequest_UserId) isReapSessionRequest_Actor() {}
 
 func (*ReapSessionRequest_SystemComponent) isReapSessionRequest_Actor() {}
+
+func (*ReapSessionRequest_AdminUserId) isReapSessionRequest_Actor() {}
 
 type ReapSessionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1239,13 +1299,14 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"H\n" +
 	"\x12GetSessionResponse\x122\n" +
-	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\"\x9c\x01\n" +
+	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\"\xc2\x01\n" +
 	"\x12ReapSessionRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x19\n" +
 	"\auser_id\x18\x03 \x01(\tH\x00R\x06userId\x12+\n" +
-	"\x10system_component\x18\x04 \x01(\tH\x00R\x0fsystemComponentB\a\n" +
+	"\x10system_component\x18\x04 \x01(\tH\x00R\x0fsystemComponent\x12$\n" +
+	"\radmin_user_id\x18\x05 \x01(\tH\x00R\vadminUserIdB\a\n" +
 	"\x05actor\"I\n" +
 	"\x13ReapSessionResponse\x122\n" +
 	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\"\xa2\x01\n" +
@@ -1372,6 +1433,7 @@ func file_orchestrator_v1_session_proto_init() {
 	file_orchestrator_v1_session_proto_msgTypes[7].OneofWrappers = []any{
 		(*ReapSessionRequest_UserId)(nil),
 		(*ReapSessionRequest_SystemComponent)(nil),
+		(*ReapSessionRequest_AdminUserId)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

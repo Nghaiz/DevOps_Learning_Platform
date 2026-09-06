@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file orchestrator/v1/session.proto.
  */
 export const file_orchestrator_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxIqoCCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXISLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIcmV2aXNpb24YCSABKAMSDwoHcHJvZmlsZRgKIAEoCSKSAQoUQ3JlYXRlU2Vzc2lvblJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIqCgR0aWVyGAIgASgOMhwub3JjaGVzdHJhdG9yLnYxLlNhbmRib3hUaWVyEhMKC3R0bF9zZWNvbmRzGAMgASgFEhcKD2lkZW1wb3RlbmN5X2tleRgEIAEoCRIPCgdwcm9maWxlGAUgASgJIkIKFUNyZWF0ZVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOgoTQ2xhaW1TZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkiQQoUQ2xhaW1TZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIjgKEUdldFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSI/ChJHZXRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uInAKElJlYXBTZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg4KBnJlYXNvbhgCIAEoCRIRCgd1c2VyX2lkGAMgASgJSAASGgoQc3lzdGVtX2NvbXBvbmVudBgEIAEoCUgAQgcKBWFjdG9yIkAKE1JlYXBTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIm4KFEV4dGVuZFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCRIWCg5leHRlbmRfc2Vjb25kcxgDIAEoBRIZChFleHBlY3RlZF9yZXZpc2lvbhgEIAEoAyJcChVFeHRlbmRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uEhgKEGhhcmRfY2FwX3JlYWNoZWQYAiABKAgiFAoSR2V0Q2FwYWNpdHlSZXF1ZXN0IogBChNHZXRDYXBhY2l0eVJlc3BvbnNlEhcKD2FjdGl2ZV9zZXNzaW9ucxgBIAEoBRIVCg1zb2Z0X2NhcGFjaXR5GAIgASgFEhEKCXBvb2xfZnJlZRgDIAEoBRIXCg9wb29sX3F1YXJhbnRpbmUYBCABKAUSFQoNaGFyZF9jYXBhY2l0eRgFIAEoBSJFChNMaXN0U2Vzc2lvbnNSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSDQoFbGltaXQYAiABKAUSDgoGY3Vyc29yGAMgASgJIlcKFExpc3RTZXNzaW9uc1Jlc3BvbnNlEioKCHNlc3Npb25zGAEgAygLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24SEwoLbmV4dF9jdXJzb3IYAiABKAkqdAoLU2FuZGJveFRpZXISHAoYU0FOREJPWF9USUVSX1VOU1BFQ0lGSUVEEAASFwoTU0FOREJPWF9USUVSX1NZU0JPWBABEhcKE1NBTkRCT1hfVElFUl9HVklTT1IQAhIVChFTQU5EQk9YX1RJRVJfS0FUQRADKu4BCg1TZXNzaW9uU3RhdHVzEh4KGlNFU1NJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWU0VTU0lPTl9TVEFUVVNfUEVORElORxABEhcKE1NFU1NJT05fU1RBVFVTX1dBUk0QAhIaChZTRVNTSU9OX1NUQVRVU19DTEFJTUVEEAMSGgoWU0VTU0lPTl9TVEFUVVNfUlVOTklORxAEEhoKFlNFU1NJT05fU1RBVFVTX0VYUElSRUQQBRIZChVTRVNTSU9OX1NUQVRVU19SRUFQRUQQBhIZChVTRVNTSU9OX1NUQVRVU19GQUlMRUQQBzKVBQoOU2Vzc2lvblNlcnZpY2USXgoNQ3JlYXRlU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVzcG9uc2USWwoMQ2xhaW1TZXNzaW9uEiQub3JjaGVzdHJhdG9yLnYxLkNsYWltU2Vzc2lvblJlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVzcG9uc2USVQoKR2V0U2Vzc2lvbhIiLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVxdWVzdBojLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVzcG9uc2USXgoNRXh0ZW5kU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVzcG9uc2USWAoLUmVhcFNlc3Npb24SIy5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLlJlYXBTZXNzaW9uUmVzcG9uc2USWAoLR2V0Q2FwYWNpdHkSIy5vcmNoZXN0cmF0b3IudjEuR2V0Q2FwYWNpdHlSZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLkdldENhcGFjaXR5UmVzcG9uc2USWwoMTGlzdFNlc3Npb25zEiQub3JjaGVzdHJhdG9yLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuTGlzdFNlc3Npb25zUmVzcG9uc2VCWFpWZ2l0aHViLmNvbS9OZ2hhaXovRGV2T3BzX0xlYXJuaW5nX1BsYXRmb3JtL3Byb3RvL2dlbi9nby9vcmNoZXN0cmF0b3IvdjE7b3JjaGVzdHJhdG9ydjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxIqoCCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXISLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIcmV2aXNpb24YCSABKAMSDwoHcHJvZmlsZRgKIAEoCSKSAQoUQ3JlYXRlU2Vzc2lvblJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIqCgR0aWVyGAIgASgOMhwub3JjaGVzdHJhdG9yLnYxLlNhbmRib3hUaWVyEhMKC3R0bF9zZWNvbmRzGAMgASgFEhcKD2lkZW1wb3RlbmN5X2tleRgEIAEoCRIPCgdwcm9maWxlGAUgASgJIkIKFUNyZWF0ZVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOgoTQ2xhaW1TZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkiQQoUQ2xhaW1TZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIjgKEUdldFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSI/ChJHZXRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIokBChJSZWFwU2Vzc2lvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIOCgZyZWFzb24YAiABKAkSEQoHdXNlcl9pZBgDIAEoCUgAEhoKEHN5c3RlbV9jb21wb25lbnQYBCABKAlIABIXCg1hZG1pbl91c2VyX2lkGAUgASgJSABCBwoFYWN0b3IiQAoTUmVhcFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24ibgoURXh0ZW5kU2Vzc2lvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIPCgd1c2VyX2lkGAIgASgJEhYKDmV4dGVuZF9zZWNvbmRzGAMgASgFEhkKEWV4cGVjdGVkX3JldmlzaW9uGAQgASgDIlwKFUV4dGVuZFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24SGAoQaGFyZF9jYXBfcmVhY2hlZBgCIAEoCCIUChJHZXRDYXBhY2l0eVJlcXVlc3QiiAEKE0dldENhcGFjaXR5UmVzcG9uc2USFwoPYWN0aXZlX3Nlc3Npb25zGAEgASgFEhUKDXNvZnRfY2FwYWNpdHkYAiABKAUSEQoJcG9vbF9mcmVlGAMgASgFEhcKD3Bvb2xfcXVhcmFudGluZRgEIAEoBRIVCg1oYXJkX2NhcGFjaXR5GAUgASgFIkUKE0xpc3RTZXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRINCgVsaW1pdBgCIAEoBRIOCgZjdXJzb3IYAyABKAkiVwoUTGlzdFNlc3Npb25zUmVzcG9uc2USKgoIc2Vzc2lvbnMYASADKAsyGC5vcmNoZXN0cmF0b3IudjEuU2Vzc2lvbhITCgtuZXh0X2N1cnNvchgCIAEoCSp0CgtTYW5kYm94VGllchIcChhTQU5EQk9YX1RJRVJfVU5TUEVDSUZJRUQQABIXChNTQU5EQk9YX1RJRVJfU1lTQk9YEAESFwoTU0FOREJPWF9USUVSX0dWSVNPUhACEhUKEVNBTkRCT1hfVElFUl9LQVRBEAMq7gEKDVNlc3Npb25TdGF0dXMSHgoaU0VTU0lPTl9TVEFUVVNfVU5TUEVDSUZJRUQQABIaChZTRVNTSU9OX1NUQVRVU19QRU5ESU5HEAESFwoTU0VTU0lPTl9TVEFUVVNfV0FSTRACEhoKFlNFU1NJT05fU1RBVFVTX0NMQUlNRUQQAxIaChZTRVNTSU9OX1NUQVRVU19SVU5OSU5HEAQSGgoWU0VTU0lPTl9TVEFUVVNfRVhQSVJFRBAFEhkKFVNFU1NJT05fU1RBVFVTX1JFQVBFRBAGEhkKFVNFU1NJT05fU1RBVFVTX0ZBSUxFRBAHMpUFCg5TZXNzaW9uU2VydmljZRJeCg1DcmVhdGVTZXNzaW9uEiUub3JjaGVzdHJhdG9yLnYxLkNyZWF0ZVNlc3Npb25SZXF1ZXN0GiYub3JjaGVzdHJhdG9yLnYxLkNyZWF0ZVNlc3Npb25SZXNwb25zZRJbCgxDbGFpbVNlc3Npb24SJC5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVxdWVzdBolLm9yY2hlc3RyYXRvci52MS5DbGFpbVNlc3Npb25SZXNwb25zZRJVCgpHZXRTZXNzaW9uEiIub3JjaGVzdHJhdG9yLnYxLkdldFNlc3Npb25SZXF1ZXN0GiMub3JjaGVzdHJhdG9yLnYxLkdldFNlc3Npb25SZXNwb25zZRJeCg1FeHRlbmRTZXNzaW9uEiUub3JjaGVzdHJhdG9yLnYxLkV4dGVuZFNlc3Npb25SZXF1ZXN0GiYub3JjaGVzdHJhdG9yLnYxLkV4dGVuZFNlc3Npb25SZXNwb25zZRJYCgtSZWFwU2Vzc2lvbhIjLm9yY2hlc3RyYXRvci52MS5SZWFwU2Vzc2lvblJlcXVlc3QaJC5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXNwb25zZRJYCgtHZXRDYXBhY2l0eRIjLm9yY2hlc3RyYXRvci52MS5HZXRDYXBhY2l0eVJlcXVlc3QaJC5vcmNoZXN0cmF0b3IudjEuR2V0Q2FwYWNpdHlSZXNwb25zZRJbCgxMaXN0U2Vzc2lvbnMSJC5vcmNoZXN0cmF0b3IudjEuTGlzdFNlc3Npb25zUmVxdWVzdBolLm9yY2hlc3RyYXRvci52MS5MaXN0U2Vzc2lvbnNSZXNwb25zZUJYWlZnaXRodWIuY29tL05naGFpei9EZXZPcHNfTGVhcm5pbmdfUGxhdGZvcm0vcHJvdG8vZ2VuL2dvL29yY2hlc3RyYXRvci92MTtvcmNoZXN0cmF0b3J2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * Session là trạng thái quyền uy của một pod lab.
@@ -303,6 +303,54 @@ export type ReapSessionRequest = Message<"orchestrator.v1.ReapSessionRequest"> &
      */
     value: string;
     case: "systemComponent";
+  } | {
+    /**
+     * Admin kết thúc phiên của NGƯỜI KHÁC (P13 D15). Giá trị là id của chính
+     * ADMIN — không phải chủ phiên — và nó đi thẳng vào `sessions_audit.detail`
+     * để câu hỏi "ai đã giết phiên này" trả lời được từ phía orchestrator,
+     * không phải chỉ từ bảng `admin_audit` của BFF.
+     *
+     * ⛔ VÌ SAO LÀ MỘT NHÁNH `actor` RIÊNG, KHÔNG PHẢI BA ĐƯỜNG KIA.
+     *
+     * (a) KHÔNG dùng lại `user_id` với id của CHỦ PHIÊN. Đó là đường "rẻ nhất"
+     *     (không đổi proto, không đổi lua) và nó SAI ở đúng chỗ D15 sinh ra để
+     *     vá: orchestrator sẽ ghi audit như thể chính chủ phiên tự bấm kết
+     *     thúc. Một hành động quản trị không để lại dấu vết nào ở phía
+     *     orchestrator — và tệ hơn, để lại một dấu vết SAI. Nó còn buộc BFF
+     *     phải tra chủ phiên trước (thêm một RPC, thêm một cửa sổ TOCTOU).
+     *
+     * (b) KHÔNG dùng `reason` làm cờ authz ("reason == admin_terminated thì bỏ
+     *     kiểm chủ sở hữu"). `reason` là chuỗi tự do dùng cho nhật ký; buộc
+     *     quyết định authz vào nó nghĩa là bất kỳ ai GÕ ĐÚNG chuỗi đó cũng
+     *     được bỏ kiểm — và người viết caller tiếp theo không có cách nào biết
+     *     mình vừa chạm vào một cổng quyền khi chỉ đang sửa một dòng log.
+     *
+     * (c) KHÔNG mở rộng `system_component` cho apps/web. Allowlist CN
+     *     (`GRPC_MTLS_SYSTEM_CNS`) hôm nay CHỈ có gateway, và chú thích ở
+     *     orchestrator-deployment.yaml nói rõ vì sao: cho apps/web vào đó là
+     *     cấp bypass cho MỌI lời gọi reap của nó, kể cả đường `me.endSession`
+     *     của người dùng thường — một lỗi lẫn actor ở BFF sẽ thành "ai cũng
+     *     reap được phiên người khác". Nó còn khiến nút của admin CHỈ chạy khi
+     *     `GRPC_MTLS_MODE != off`, tức tính năng lại phụ thuộc một cờ triển
+     *     khai — đúng kiểu hỏng mà D15 muốn chấm dứt.
+     *
+     * ⚠ RỦI RO CÒN LẠI, NÓI THẲNG: server KHÔNG chứng minh được người gửi
+     * nhánh này thật sự là admin — y hệt cách nó không chứng minh được
+     * `user_id`. BFF là ranh giới tin cậy (§2 C3). Nhưng nhánh này KHÔNG tạo ra
+     * một quyền mới: `ListSessions(user_id = "")` (cùng contract này) đã trả về
+     * mọi phiên KÈM `user_id` của chủ, nên ai gọi được cổng gRPC thì hôm nay đã
+     * reap được phiên bất kỳ bằng HAI lời gọi qua nhánh `user_id`. Nhánh này
+     * rút hai lời gọi xuống một, và đổi lại làm hành động ấy GỌI ĐÚNG TÊN trong
+     * audit. Thứ thật sự đứng giữa kẻ gọi và cổng này là mTLS
+     * (`platform.grpcMtlsMode: 'require'` mặc định ⇒ phải có client cert do CA
+     * của ta ký) — NetworkPolicy khối 9 chỉ là tuyến hai và mặc định TẮT
+     * (`networkPolicy.platform.enabled: false`), lại phân biệt bằng nhãn pod
+     * nên nó không chặn được một pod tự gắn nhãn `app=...-web`.
+     *
+     * @generated from field: string admin_user_id = 5;
+     */
+    value: string;
+    case: "adminUserId";
   } | { case: undefined; value?: undefined };
 };
 
