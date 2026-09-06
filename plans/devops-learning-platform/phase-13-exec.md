@@ -20,6 +20,32 @@ hợp đồng; thấy hợp đồng sai thì **báo lead**, không tự đổi.
 | Hồ sơ | Không có bảng tuỳ chọn; theme terminal chỉ ở localStorage và chỉ trên `/session`; hiện tên leaderboard là per-attempt (`lab_attempts.display_name_public`). |
 | Chọn shell | `GATEWAY_EXEC_COMMAND` là **hằng phía server theo hợp đồng bảo mật §3c** (client không được chọn lệnh). Không mở đường client→gateway. |
 
+## 0bis. Nhánh đã đổi dưới chân đợt 1 (cập nhật 2026-09-06)
+
+**P12 đã ĐÓNG (2026-09-05/06) và năm commit kết thúc nó nằm CHỒNG LÊN chính nhánh
+`feat/p13-frontend`**, phía trên đợt 1 P13 — không phải trên `feat/p12-scale-proof`
+(nhánh đó nay đi sau). Nghĩa là nhánh này mang cả P12 hoàn chỉnh lẫn P13 đợt 1.
+
+Giao nhau giữa hai khối chỉ đúng **một** file, `infra/helm/platform/values-selfhost.yaml`
+(P12 đổi image tag orchestrator/gateway sang `p12fix`); các key P13 (`capacitySoftLimit`,
+`orchestratorMetricsUrl`, `gatewayMetricsUrl`) và ingress `/ide` đều còn nguyên — đã kiểm.
+
+P12 cũng thêm thứ đợt 2/3 phải biết: `services/orchestrator/internal/k8s/podspec.go`
+(hostAliases vá treo OCI-referrers) và `services/terminal-gateway/internal/podexec/`
+(podprobe + sửa mã đóng WS khi mất pod giữa phiên). Image đang chạy trên cụm là
+`p12fix`, **xây tay ở máy dev rồi side-load**, không phải CI publish.
+
+**Đợt 1 làm lại bằng Opus 5 xhigh (2026-09-06).** Bản đợt 1 đầu tiên chạy bằng Sonnet,
+cả ba lane chạm trần lượt và commit không đều; chủ dự án yêu cầu rà soát lại toàn bộ
+bằng model mạnh hơn trước khi mở đợt 2. Ba lane audit-rồi-sửa, cùng ranh giới sở hữu
+file như bảng §3.
+
+⚠ **Một số của D5 đang treo, chờ lane Go phán.** Report P12 §2.4 tự mâu thuẫn: vế (a)
+bác công thức `trần = quota − poolTarget` rồi chốt FE dùng **20**; vế (b) lại dùng đúng
+công thức đó ra **18** và gọi tên `no-derived-fields`. `capacitySoftLimit: '20'` hiện là
+hằng số viết tay cạnh `poolTarget: '3'` — đổi một vế thì vế kia mục trong im lặng, mà
+AC P13 đòi "còn N chỗ phản ánh trần THẬT". Kết luận của lane Go sẽ ghi đè mục D5 bên dưới.
+
 ## 1. Quyết định kiến trúc (chốt trước khi fan-out)
 
 - **D1 Token.** CSS variables (oklch) trong `apps/web/src/app/globals.css`: `:root` (sáng) + `.dark` (tối) + `@theme inline` ánh xạ sang `--color-*`, `--radius-*`, `--font-*`. `@custom-variant dark (&:where(.dark, .dark *))`. Một nguồn; JSX chỉ dùng class ngữ nghĩa (`bg-background`, `text-muted-foreground`, …). Grep AC: không `#hex` và không `slate-|gray-|zinc-` trong JSX sau 13.A.
