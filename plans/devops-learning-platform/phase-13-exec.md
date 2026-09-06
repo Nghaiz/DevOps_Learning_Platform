@@ -57,7 +57,7 @@ AC P13 đòi "còn N chỗ phản ánh trần THẬT". Kết luận của lane G
 - **D7 Shell mặc định.** KHÔNG cho client chọn lệnh. BFF áp dụng tuỳ chọn **server-validated** (enum → đường dẫn cố định) bằng one-shot script qua đường `runScriptInSession` đã có, **trước khi** trả kết quả start về FE (tmux tạo session ở lần attach đầu, attach xảy ra sau khi FE nhận response). Pod chưa được cấp lúc start (cold path) ⇒ bỏ qua có log + `preferencesApplied:false` trong response; UI hồ sơ nói rõ điều này.
 - **D8 IDE trong iframe.** Cùng origin: `src="/ide/session/{id}/"`. Cần (a) ingress path `/ide` → gateway (Helm), (b) cookie thứ hai cùng tên `dlp_sandbox` với `Path=/ide` (cookie phân biệt theo (name, path); token vẫn KHÔNG tới `/`, `/api`). CSP: `default-src 'self'` đã phủ `frame-src` cùng origin — **thêm `frame-src 'self'` tường minh** để ai đọc CSP cũng thấy quyết định, và đối chứng dương phải chứng minh iframe origin khác BỊ chặn.
 - **D9 Phân trang ở tầng nguồn.** `ScenarioSource.listPage`/`ContentSource.listLabsPage`/`listPlaygroundsPage` với cursor = `id` cuối, thứ tự `id asc` ổn định ở mọi nguồn. DB: `WHERE id > $cursor … ORDER BY id LIMIT n+1`. Composite: k-way merge theo `id`, đĩa thắng DB khi trùng. Lọc `difficulty`/`tier` là **tham số server**, áp trước khi merge. `list()` cũ giữ cho `paths`/`authoring`.
-- **D10 Thoát terminal bằng bàn phím.** `Esc` đơn là phím thật của terminal (vim). Quy ước: **`Esc` hai lần trong ≤500ms** rời focus ra phần tử kế tiếp; khi terminal có focus hiện gợi ý "Esc Esc để rời terminal". Container: `role="application"`, `aria-label`, `tabIndex=0`, vùng `aria-live="polite"` cho đổi pha phiên.
+- **D10 Thoát terminal bằng bàn phím.** `Esc` đơn là phím thật của terminal (vim). Quy ước: **`Esc` hai lần trong ≤500ms** rời focus ra phần tử kế tiếp; gợi ý "Esc Esc để rời khỏi terminal" hiện **luôn**, chỉ ĐẬM LÊN khi terminal có focus (`group-focus-within:`) — ĐÃ SỬA 2026-09-06 cho khớp mã. Bản cũ ghi "khi focus thì hiện", tức chữ nhảy ra lúc focus: việc đó đổi chiều cao khoang, `ResizeObserver` của xterm bắn, và terminal fit lại đúng giây người dùng vừa bấm vào. Mã cố ý làm khác plan và có lý do ghi tại chỗ (`terminal-pane.tsx`); đừng đọc nó thành hồi quy. Container: `role="application"`, `aria-label`, `tabIndex=0`, vùng `aria-live="polite"` cho đổi pha phiên.
 - **D11 Playwright.** `@playwright/test` + `@axe-core/playwright` trong `apps/web`. Env: `E2E_BASE_URL` (mặc định `https://dlp.192.168.94.130.sslip.io:30443`), `E2E_ORIGIN` (= `betterAuthUrl`), `ignoreHTTPSErrors`. Tài khoản: đăng ký mới mỗi lượt qua `/api/auth/sign-up/email` **kèm header `Origin`** (khuôn 2.D); tài khoản author/admin: promote bằng SQL trên VM (`kubectl exec postgres`) qua script `apps/web/e2e/scripts/promote-role.sh` — chỉ chạy tay/CI cụm, không có API. CI: job `web-a11y` chạy axe + đối chứng CSP trên `next start` local (Postgres+Redis, không sandbox) cho mọi route không cần phiên; 6 luồng `@flow` chạy trên cụm bằng tay và ghi vào report.
 - **D12 Phạm vi màn hình chốt** (thêm màn hình ngoài danh sách phải hỏi chủ dự án): `/`, `/login`, `/lessons`, `/lessons/[id]`, `/labs`, `/labs/[id]`, `/playgrounds`, `/playgrounds/[id]`, `/paths`, `/paths/[id]`, `/quiz`, `/quiz/[id]`, `/me`, `/settings`, `/author`, `/author/[id]`, `/author/new`, `/admin`, `/admin/users`, `/admin/sessions`, `/admin/content`, `/admin/audit`. `/dashboard` và `/session` **gộp vào `/me`** (redirect 308). ⛔ Không màn hình/chuỗi nào về giá/gói/thanh toán.
 
@@ -208,7 +208,7 @@ export function SessionControls(props: {
   startLabel?: string;                  // mặc định 'Bắt đầu'
   canStart?: boolean;                   // mặc định true
   compact?: boolean;
-}): JSX.Element;   // gồm: badge pha, thông báo lý do (session.state.message), Bắt đầu / Kết thúc / Thêm giờ, đồng hồ TTL (<10 phút), cảnh báo hardCap (nút Thêm giờ disabled + tooltip)
+}): JSX.Element;   // gồm: badge pha, thông báo lý do (session.state.message), Bắt đầu / Kết thúc phiên / Thêm giờ, đồng hồ TTL (<10 phút), cảnh báo hardCap (nút Thêm giờ disabled + tooltip)
 export function TerminalPane(props: {
   session: SandboxSession;
   theme?: ThemeName;                    // mặc định theo useTheme() + tuỳ chọn hồ sơ
@@ -256,7 +256,7 @@ sửa) · `lessons/[id]/lesson-client.tsx` + `playgrounds/[id]/playground-client
 
 ### C6 — Điều hướng (13.B phát hành)
 
-Route chính: `Bài học /lessons · Lab /labs · Playground /playgrounds · Lộ trình /paths · Quiz /quiz · Của tôi /me`. Menu người dùng: `Hồ sơ & cài đặt /settings`, `Soạn bài /author` (author|admin), `Quản trị /admin` (admin), `Đăng xuất`. `proxy.ts` `PROTECTED_PATHS` thêm `/paths /quiz /me /settings /author /admin`. Vai trò cho `/author`, `/admin` kiểm ở `layout.tsx` server (`getSession` + role) → `redirect('/me')`. Breakpoint: `≥1280px` đầy đủ; `≤768px` nav thu vào Sheet/Drawer, terminal thay bằng `Alert` "Cần màn hình rộng hơn (≥1024px) để mở terminal".
+Route chính: `Bài học /lessons · Lab /labs · Playground /playgrounds · Lộ trình /paths · Quiz /quiz · Của tôi /me`. Menu người dùng: `Hồ sơ & cài đặt /settings`, `Soạn bài /author` (author|admin), `Quản trị /admin` (admin), `Đăng xuất`. `proxy.ts` `PROTECTED_PATHS` thêm `/paths /quiz /me /settings /author /admin`. Vai trò cho `/author`, `/admin` kiểm ở `layout.tsx` server (`getSession` + role) → `redirect('/me')`. Breakpoint: `≥1280px` đầy đủ; `≤768px` nav thu vào một Radix `Dialog` bám mép trái (**không** phải `Sheet`/`Drawer` — `packages/ui` chưa có primitive đó; đã sửa 2026-09-06 cho khớp `app-shell.tsx`), terminal thay bằng `Alert` "Cần màn hình rộng hơn (≥1024px) để mở terminal".
 
 ## 3. Lane, sở hữu file, thứ tự
 
@@ -381,10 +381,17 @@ kubectl exec -n default deploy/platform-web -c web -- node -e 'const u=process.e
 Cả ba nhánh của lệnh này đã được chứng trên cụm, nên nó không phải phép kiểm chỉ
 biết kêu một chiều.
 
-**7. e2e phải khai `E2E_REQUIRE_ROLES=1`.** Không có cờ đó, một lượt mà cả năm màn
+**7. e2e phải khai `E2E_REQUIRE_ROLES=1` VÀ `E2E_REQUIRE_SESSION=1`.** Không có cờ đó, một lượt mà cả năm màn
 quản trị đều SKIP trông y hệt một lượt chúng PASS. Tài khoản author/admin chỉ đến
 từ SQL qua `apps/web/e2e/scripts/promote-role.sh`, và `global-setup` đọc vai trò
 MỘT lần lúc bắt đầu nên phải promote TRƯỚC khi chạy.
+
+`E2E_REQUIRE_SESSION=1` là cờ THỨ HAI, thêm 2026-09-06 và trước đó KHÔNG hề có
+trong runbook: ba ô D10 (Esc-Esc rời terminal) cần một phiên sandbox THẬT, nên ở
+mọi nơi không có orchestrator chúng lặng lẽ `skip` — và một lượt nghiệm thu mà ba
+ô đều SKIP trông y hệt một lượt chúng PASS, đúng cái bẫy mà cờ đầu dựng ra để
+chặn. Cờ này đọc thẳng `process.env` trong `keyboard.spec.ts`, không khai ở
+`e2e/env.ts`, nên grep `env.ts` sẽ KHÔNG thấy nó.
 
 **8. Hai ô e2e đang ĐỎ ĐÚNG và phải xanh sau deploy:** `frame-src 'self'` chưa
 khai, và script theme chưa mang nonce. Cụm đang chạy image trước P13 nên đỏ là
