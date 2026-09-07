@@ -7,6 +7,32 @@ metadata:
     {{- include "platform.componentLabels" (dict "context" . "component" "orchestrator") | nindent 4 }}
 spec:
   replicas: {{ .Values.orchestrator.replicaCount }}
+  # ⛔ maxSurge: 0 — KHÔNG bao giờ để hai orchestrator cùng sống.
+  #
+  # Orchestrator là manager của warm pool: nó dựng pod sandbox từ `SANDBOX_IMAGE`
+  # rồi đẩy vào `pool:free`. Mặc định của Deployment là `maxSurge: 25%`, mà 25%
+  # của `replicas: 1` LÀM TRÒN LÊN thành 1 — nên trong lúc `helm upgrade`, replica
+  # CŨ (mang SANDBOX_IMAGE cũ) và replica MỚI cùng sống và cùng ghi vào MỘT pool.
+  #
+  # Đã đo trên cụm lab 2026-09-08, log orchestrator sau khi đổi p10a → p13ide:
+  # ba pod ảnh cũ bị rút lúc 07:37:35, rồi một pod ảnh cũ THỨ TƯ xuất hiện lúc
+  # 07:38:34 — tức +59s, SAU vòng sweep khởi động của replica mới. Nguồn của nó
+  # chỉ có thể là replica cũ còn sống. Ai claim trong cửa sổ đó nhận pod ảnh cũ,
+  # và triệu chứng là `/ide` trả 503 chứ không phải một lỗi rollout.
+  #
+  # ⚠ Bảo đảm "không bao giờ hai SANDBOX_IMAGE" chỉ đúng ở `replicas: 1`. Với
+  # replicas > 1, maxSurge 0 vẫn cuộn từng pod nên hai đời VẪN cùng sống, chỉ ít
+  # hơn. Muốn nhiều replica thì phải khoá việc dựng pod về một leader, không phải
+  # chỉnh chiến lược rollout.
+  #
+  # Cái giá: orchestrator ngưng vài chục giây giữa lượt nâng cấp (pod cũ tắt trước
+  # khi pod mới Ready). Đổi một khoảng hỏng NGẮN và ỒN (start phiên trả lỗi ngay)
+  # lấy một pod sai ảnh nằm im trong pool tới khi có người trúng nó.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       {{- include "platform.selectorLabels" (dict "context" . "component" "orchestrator") | nindent 6 }}
