@@ -35,6 +35,20 @@ export interface ContentValidation {
   readonly issues: readonly ContentIssue[];
   /** Cảnh báo shellcheck theo từng script. KHÔNG chặn (task 13). */
   readonly scriptWarnings: readonly ScriptWarning[];
+  /**
+   * SỐ script mà lượt kiểm này đã soi — kể cả script sạch và script không kiểm
+   * được, tức KHÔNG suy ra được từ `scriptWarnings` (nó chỉ giữ script có gì để
+   * nói).
+   *
+   * ⚠ Trường này tồn tại vì `summarizeScriptChecks` cần phân biệt "bài không có
+   * script nào" với "có script nhưng chưa kiểm được", và hai chuyện đó cùng cho
+   * ra `scriptWarnings` KHÔNG rỗng / rỗng theo cách không phân biệt nổi. Đo trên
+   * cụm 2026-09-07: panel hiện "Bài này không có script nào để kiểm" trong khi
+   * ngay dưới nó liệt kê `steps[0].verifyScript — chưa kiểm được (ENOENT)`.
+   * Nguồn số cũ là `trialPlanFor(preview).length`, mà `preview` là null trước
+   * khi xuất bản — một con số của MỘT PHA KHÁC bị dùng cho pha này.
+   */
+  readonly scriptCount: number;
 }
 
 export interface ScriptWarning {
@@ -181,7 +195,7 @@ export async function validateForPublish(
       scriptWarnings.push({ path: script.path, report });
     }
   }
-  return { issues, scriptWarnings };
+  return { issues, scriptWarnings, scriptCount: scripts.length };
 }
 
 /** Ném BAD_REQUEST kèm ĐÚNG tên field sai — AC "từ chối kèm tên field". */

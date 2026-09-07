@@ -32,7 +32,6 @@ import { PublishPanel } from '../../../components/author/publish-panel';
 import {
   PUBLISH_POLL_INTERVAL_MS,
   publishPhase,
-  shouldKeepPolling,
 } from '../../../components/author/publish-machine';
 import { basePublishedIdOf } from '../../../components/author/draft-id';
 import { describeSaveOutcome } from '../../../components/author/save-outcome';
@@ -81,12 +80,43 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
   // `started` phải sống qua các lượt render: nó phân biệt "nháp sạch vì chưa
   // ai bấm gì" với "nháp sạch vì lượt chạy thử biến mất không kết quả".
   const [publishStarted, setPublishStarted] = useState(false);
-  const [pollingOn, setPollingOn] = useState(false);
 
+  /**
+   * Hỏi lại `list` CHỈ khi bài đang chạy thử — quyết định từ CHÍNH dữ liệu vừa
+   * về, không từ một `useState` chạy song song.
+   *
+   * ## Vì sao không còn `pollingOn` + `useEffect`
+   *
+   * Bản trước giữ `const [pollingOn, setPollingOn]`, bật ở `onSuccess` của
+   * mutation và tắt trong một effect `if (pollingOn && !shouldKeepPolling(phase))`.
+   * Effect đó chỉ biết TẮT, không biết BẬT lại — và có đúng một khoảnh khắc nó
+   * tắt nhầm:
+   *
+   *   1. mutation `publish` trả về ⇒ `isPending` false, `publishStarted` true;
+   *   2. render kế tiếp vẫn đọc CACHE CŨ, ở đó `row.state === 'draft'`;
+   *   3. `publishPhase` với `draft` + `started` ⇒ `{ kind: 'lost' }`;
+   *   4. `shouldKeepPolling('lost')` false ⇒ effect tắt polling;
+   *   5. lượt refetch của `invalidate` về sau đó với `publishing` ⇒ phase
+   *      `running` — nhưng không ai bật lại.
+   *
+   * Đo trên cụm 2026-09-07 bằng trình duyệt thật: sau lượt `invalidate` là
+   * **không còn một request `authoring.list` nào** trong hơn 60 giây, trong khi
+   * DB đã `published` từ giây thứ ~4. Người soạn ngồi nhìn "Đang chạy thử trong
+   * sandbox" vĩnh viễn cho tới khi tự tải lại trang; luồng 5 của e2e đỏ sau 10
+   * phút chờ đúng vì vậy.
+   *
+   * Dạng hàm phá được vòng phụ thuộc (options cần `phase`, `phase` cần dữ liệu)
+   * và không thể kẹt ở trạng thái sai: mỗi lượt fetch tự hỏi lại "còn
+   * `publishing` không?". Nó cũng làm đúng điều `publish-machine.ts` đã hứa ở
+   * `case 'publishing'` — thấy được lượt chạy thử do TAB KHÁC hoặc admin bấm,
+   * chuyện bản cũ không làm nổi vì tab này chưa từng bấm nút nên chưa bao giờ
+   * bật `pollingOn`.
+   */
   const listQuery = api.authoring.list.useQuery(undefined, {
-    // Hỏi lại CHỈ khi đang có lượt chạy thử. Một `refetchInterval` cố định là
-    // một vòng lặp gọi API vĩnh viễn trên một trang người soạn mở cả buổi.
-    ...(pollingOn ? { refetchInterval: PUBLISH_POLL_INTERVAL_MS } : {}),
+    refetchInterval: (query) => {
+      const row = query.state.data?.find((r) => r.id === contentId) ?? null;
+      return row?.state === 'publishing' ? PUBLISH_POLL_INTERVAL_MS : false;
+    },
   });
   const previewQuery = api.authoring.preview.useQuery({ id: contentId }, { retry: false });
   const bodyQuery = api.authoring.get.useQuery({ id: contentId }, { retry: false });
@@ -159,7 +189,9 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
   const publish = api.authoring.publish.useMutation({
     onSuccess: () => {
       setPublishStarted(true);
-      setPollingOn(true);
+      // `invalidate` là lượt hỏi lại ĐẦU TIÊN. Nhịp sau đó do `refetchInterval`
+      // lo, và nó tự bật vì `phase` sẽ là `running` (server đã lật `publishing`
+      // TRƯỚC khi trả về mutation này — xem `authoring.ts`).
       void utils.authoring.list.invalidate();
     },
     onError: (error) => {
@@ -184,12 +216,6 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
     baseRow,
   });
 
-  // Tắt polling ngay khi có kết quả — để nó chạy tiếp là gọi API mãi mãi.
-  useEffect(() => {
-    if (pollingOn && !shouldKeepPolling(phase)) {
-      setPollingOn(false);
-    }
-  }, [pollingOn, phase]);
 
   const onSave = (): void => {
     if (form === null || item === null) {

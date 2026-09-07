@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AuthoredItem } from './content-state';
-import { publishPhase, shouldKeepPolling, type PublishInput } from './publish-machine';
+import { publishPhase, type PublishInput } from './publish-machine';
 
 function row(over: Partial<AuthoredItem> = {}): AuthoredItem {
   return {
@@ -97,20 +97,5 @@ describe('publishPhase — lượt chạy thử treo được list chuẩn hoá 
 describe('publishPhase — lưu trữ', () => {
   it('bài archived có pha riêng, không đội lốt draft', () => {
     expect(publishPhase(input({ row: row({ state: 'archived' }) })).kind).toBe('archived');
-  });
-});
-
-describe('shouldKeepPolling', () => {
-  it('chỉ hỏi lại khi còn đang chạy hoặc đang gửi', () => {
-    expect(shouldKeepPolling({ kind: 'running' })).toBe(true);
-    expect(shouldKeepPolling({ kind: 'submitting' })).toBe(true);
-  });
-
-  it('DỪNG hỏi ở mọi pha kết thúc — kể cả lost, nếu không thì trang hỏi mãi', () => {
-    expect(shouldKeepPolling({ kind: 'passed', promotedTo: null })).toBe(false);
-    expect(shouldKeepPolling({ kind: 'failed', error: 'x' })).toBe(false);
-    expect(shouldKeepPolling({ kind: 'lost' })).toBe(false);
-    expect(shouldKeepPolling({ kind: 'idle' })).toBe(false);
-    expect(shouldKeepPolling({ kind: 'archived' })).toBe(false);
   });
 });

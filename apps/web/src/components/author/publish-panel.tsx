@@ -42,7 +42,12 @@ export function PublishPanel(props: {
   readonly phase: PublishPhase;
   readonly preview: PreviewPayload | null;
   readonly publishError: string | null;
-  readonly checkResult: { issues: readonly { path: string; message: string }[]; scriptWarnings: readonly ScriptWarningView[] } | null;
+  readonly checkResult: {
+    issues: readonly { path: string; message: string }[];
+    scriptWarnings: readonly ScriptWarningView[];
+    /** Số script LƯỢT KIỂM đã soi — xem chú thích ở chỗ truyền xuống `CheckReport`. */
+    scriptCount: number;
+  } | null;
   readonly checking: boolean;
   readonly onCheck: () => void;
   readonly onPublish: () => void;
@@ -72,7 +77,20 @@ export function PublishPanel(props: {
           <CheckReport
             issues={props.checkResult.issues}
             warnings={props.checkResult.scriptWarnings}
-            scriptCount={plan.length}
+            // ⚠ Số này đến từ CHÍNH lượt kiểm, không từ `plan.length`.
+            //
+            // `plan` là kế hoạch của lượt CHẠY THỬ và nó dựng từ `preview`, mà
+            // `preview` là `null` cho tới khi bài được xuất bản — nên trước đó
+            // `plan.length` luôn bằng 0. Hệ quả đo được trên cụm 2026-09-07:
+            // tóm tắt hiện "Bài này không có script nào để kiểm" trong khi ngay
+            // dưới nó liệt kê `steps[0].verifyScript — chưa kiểm được (ENOENT
+            // spawn shellcheck)". Hai dòng cạnh nhau nói ngược nhau, và dòng
+            // SAI là dòng to hơn.
+            //
+            // `script-warning.ts` đã ghi rõ vì sao `scriptCount` là tham số bắt
+            // buộc ("bài không có script nào cũng ra mảng rỗng, và hai chuyện đó
+            // khác nhau") — cổng đúng, nhưng đầu vào của nó lấy từ nhầm pha.
+            scriptCount={props.checkResult.scriptCount}
           />
         )}
       </section>

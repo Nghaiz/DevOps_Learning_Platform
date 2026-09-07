@@ -87,10 +87,5 @@ export function publishPhase(input: PublishInput): PublishPhase {
   }
 }
 
-/** Còn phải hỏi lại `list` nữa không — dùng cho `refetchInterval`. */
-export function shouldKeepPolling(phase: PublishPhase): boolean {
-  return phase.kind === 'running' || phase.kind === 'submitting';
-}
-
 /** Nhịp hỏi lại, ms. Lượt chạy thử mất tới ~49 s chỉ để dựng sandbox (đo ở P7). */
 export const PUBLISH_POLL_INTERVAL_MS = 4_000;

@@ -245,7 +245,46 @@ describe('validateForPublish — shellcheck CẢNH BÁO, không chặn', () => {
   });
 
   it('bài không có script nào ⇒ không cảnh báo nào', async () => {
-    const { scriptWarnings } = await validateForPublish('lesson', body());
+    const { scriptWarnings, scriptCount } = await validateForPublish('lesson', body());
     expect(scriptWarnings).toEqual([]);
+    // `scriptCount` là thứ PHÂN BIỆT ca này với ca "có script nhưng chưa kiểm
+    // được" — cả hai đều có thể cho `scriptWarnings` rỗng ở đường sạch.
+    expect(scriptCount).toBe(0);
+  });
+
+  /**
+   * `scriptCount` đếm MỌI script lượt kiểm đã soi, kể cả script sạch — nên nó
+   * KHÔNG suy ra được từ `scriptWarnings.length` (mảng đó chỉ giữ script có gì
+   * để nói).
+   *
+   * Vì sao cần một test riêng: panel xuất bản từng lấy số này từ
+   * `trialPlanFor(preview).length`, mà `preview` là `null` trước khi xuất bản,
+   * nên nó LUÔN bằng 0. Trên cụm 2026-09-07 điều đó hiện ra thành hai dòng cạnh
+   * nhau nói ngược nhau: tiêu đề "Bài này không có script nào để kiểm" ngay
+   * trên danh sách `steps[0].verifyScript — chưa kiểm được`. Test này khẳng
+   * định nguồn số ĐÚNG có tồn tại và đếm đúng.
+   */
+  it('scriptCount đếm cả script sạch, không chỉ script có cảnh báo', async () => {
+    const withScripts = body({
+      steps: [
+        {
+          ordinal: 0,
+          taskId: null,
+          title: null,
+          markdown: '#',
+          setupForeground: null,
+          // Script SẠCH theo shellcheck — nó sẽ không vào `scriptWarnings` ở
+          // máy CÓ shellcheck, nhưng vẫn phải được ĐẾM.
+          setupBackground: 'echo "xin chao"',
+          verifyScript: 'true',
+          weight: null,
+          hint: null,
+        },
+      ],
+    });
+    const { scriptWarnings, scriptCount } = await validateForPublish('lesson', withScripts);
+
+    expect(scriptCount).toBe(2);
+    expect(scriptCount).toBeGreaterThanOrEqual(scriptWarnings.length);
   });
 });
