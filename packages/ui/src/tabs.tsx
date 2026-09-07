@@ -56,7 +56,24 @@ export function TabsContent({ className, ...props }: ComponentProps<typeof Radix
       // overflow-y-auto` trong một khoang flex, nên một vòng đẩy ra NGOÀI mép sẽ
       // bị cắt — đúng lý do `scroll-region.ts` chọn outline, và ở đó cũng có
       // phép đo tương phản của `--ring`.
-      className={cn('mt-2 outline-none', SCROLL_REGION_FOCUS, className)}
+      //
+      // ⛔ KHÔNG `outline-none` ở đây — nó VÔ HIỆU HOÁ chính dấu focus bên dưới.
+      //
+      // Tailwind v4: `outline-none` đặt `--tw-outline-style: none`, còn
+      // `outline-2` chỉ đặt ĐỘ DÀY và lấy style từ đúng biến đó. Hai lớp cạnh
+      // nhau cho ra một viền rộng 2px với `outline-style: none`, tức không vẽ gì.
+      // Không lớp nào bị tailwind-merge loại (chúng khác variant), nên `class`
+      // TRÔNG như đã có dấu focus.
+      //
+      // Đo trên cụm 2026-09-07: bản đầu giữ `outline-none`, đã deploy trong
+      // `dlp-web:p13a`, và `keyboard.spec.ts` VẪN đỏ đúng một ô — `/me`, cùng
+      // phần tử, cùng thông báo. Test đơn vị thì xanh vì nó chỉ khẳng định lớp
+      // CÓ MẶT; jsdom không tính bố cục nên nó không thể thấy khác biệt. Đó là
+      // lý do test ấy tự ghi rằng phép đo thật nằm ở e2e.
+      //
+      // `code-block.tsx` và `markdown-view.tsx` dùng CÙNG hằng này mà hiện đúng
+      // — vì chúng không kèm `outline-none`.
+      className={cn('mt-2', SCROLL_REGION_FOCUS, className)}
       {...props}
     />
   );

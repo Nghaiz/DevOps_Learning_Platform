@@ -82,5 +82,22 @@ describe('Tabs', () => {
       cls.includes('focus-visible:outline-2'),
       `panel không có lớp dấu focus — class hiện tại: ${cls}`,
     ).toBe(true);
+
+    // ⛔ `outline-none` VÔ HIỆU HOÁ chính dấu focus ở trên, trong im lặng.
+    //
+    // Tailwind v4: `outline-none` đặt `--tw-outline-style: none`, còn `outline-2`
+    // chỉ đặt ĐỘ DÀY rồi lấy style từ đúng biến đó ⇒ viền 2px với
+    // `outline-style: none`, tức không vẽ gì. tailwind-merge KHÔNG loại lớp nào
+    // (khác variant), nên `class` trông vẫn "đã có dấu focus".
+    //
+    // Bản đầu của bản vá này giữ `outline-none`, đã deploy trong `dlp-web:p13a`,
+    // và `keyboard.spec.ts` trên cụm VẪN đỏ đúng một ô: `/me`, cùng phần tử,
+    // cùng thông báo. Khẳng định "có lớp" ở trên xanh suốt — đó là lý do phải có
+    // thêm dòng dưới.
+    expect(
+      cls.includes('outline-none'),
+      `panel còn 'outline-none' — nó tắt outline-style nên dấu focus 2px không vẽ ra gì. ` +
+        `class hiện tại: ${cls}`,
+    ).toBe(false);
   });
 });

@@ -38,6 +38,20 @@
  * Màu: `outline-ring` = `--ring`, đo được 5.17:1 (sáng) / 6.85:1 (tối) trên
  * `--background` và 4.74:1 / 5.23:1 trên `--muted` — nền của cả hai khối mã.
  * Cả bốn đều trên ngưỡng 3:1 của SC 1.4.11 cho đồ hoạ.
+ *
+ * ## ⛔ ĐỪNG kèm `outline-none` trên cùng phần tử
+ *
+ * Tailwind v4: `outline-none` đặt `--tw-outline-style: none`, còn `outline-2`
+ * chỉ đặt ĐỘ DÀY rồi lấy style từ đúng biến đó. Hai lớp cạnh nhau cho ra một
+ * viền rộng 2px với `outline-style: none` — không vẽ gì. tailwind-merge không
+ * loại lớp nào (chúng khác variant), nên chuỗi `class` TRÔNG như đã có dấu focus
+ * và mọi test đọc-class đều xanh.
+ *
+ * Đã cắn một lần: `TabsContent` giữ `'mt-2 outline-none'` khi nhận hằng này,
+ * deploy trong `dlp-web:p13a`, và `keyboard.spec.ts` trên cụm vẫn báo đúng một
+ * điểm dừng Tab không có dấu focus trên `/me`. Cần dấu focus dạng RING cạnh
+ * `outline-none` thì dùng `focus-visible:ring-2 focus-visible:ring-ring` —
+ * ring là box-shadow nên `outline-style` không đụng tới nó.
  */
 export const SCROLL_REGION_FOCUS =
   'focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2';
