@@ -334,3 +334,76 @@ renderer của xterm vẽ vào canvas. Ảnh `p13-90-B1.png` đọc được b�
 **Kết luận P13:90 — vế canvas ĐẠT.** Câu "editor của Theia mang theme RIÊNG, độc lập với dark
 mode của app" là giới hạn đã chấp nhận và tôi KHÔNG đụng tới — lượt này không đo nó.
 
+---
+
+## P5:197 — nút "Thêm giờ" → vế GIA HẠN **ĐẠT**; vế `hardCap` xem mục kế
+
+`plans/devops-learning-platform/phase-5.md:197`
+
+Phiên: `80009d28d93a1527033f8e758704834b` (playground, TTL 1800s) ·
+`createdAt=1788808035` · `expiresAt` ban đầu `1788809835`.
+
+### Vì sao phải chờ 27 phút thật, không rút ngắn được
+
+Đọc mã trước khi đo (`use-lesson-session.ts`, `use-sandbox-session.ts`): client chỉ nhận
+`expiresAt` từ **đúng hai chỗ** — phản hồi `startSession` và phản hồi `extendSession`. Không có
+đường đọc lại; tải lại trang thì phiên KHÔNG được khôi phục (trang hiện "Chưa có phiên" trong
+khi server vẫn giữ chỗ). Nên:
+
+- Sửa `expiresAt` trong Redis **không** làm nút hiện ra — nút bám `remainingMs` mà client tự
+  tính từ giá trị nó đã nhớ. Đã thử: hạ `expiresAt` rồi tải lại ⇒ mất luôn phiên ở client.
+- Làm giả `Date.now()` cũng **không** cứu được. Công thức server là
+  `expires = max(hiện tại, min(now + 300, created + HARD_CAP))`, neo vào giờ THẬT của server.
+  Đặt độ lệch đồng hồ client là `F`: giá trị "trước" mà client hiển thị là `3600−A−F` và giá trị
+  "sau" là `300−F` — `F` triệt tiêu, nên điều kiện để thấy đồng hồ TĂNG luôn là tuổi phiên
+  `A > TTL − 300`, bất kể làm giả bao nhiêu. Kéo đồng hồ chỉ làm nút hiện ra sớm rồi cho một
+  đồng hồ ÂM sau khi bấm.
+
+Kết luận: hoặc chờ thật, hoặc không đo được vế này. Đã chọn chờ thật, và chọn **playground
+(TTL 1800s)** thay vì lesson (3600s) để cửa sổ đến sau ~25 phút thay vì ~55.
+
+### Đối chứng nhiễu nền — chạy TRƯỚC, và chạy suốt
+
+Gateway cũng gọi `Extend` theo nhịp traffic, nên một thay đổi `expiresAt` có thể KHÔNG phải do
+cú bấm. Hai lượt kiểm:
+
+- Đo 3 lần cách nhau 20s trên một phiên rảnh: `revision` đứng yên, `expiresAt` không nhích.
+- Suốt 27 phút chờ (terminal không gõ gì): `revision` vẫn **2**, `expiresAt` vẫn **đúng
+  `createdAt + 1800`**. Không có gì đẩy hạn trong cả cửa sổ đo.
+
+### Nút xuất hiện đúng ngưỡng thiết kế
+
+Trong suốt phần đầu phiên, thanh công cụ chỉ có `Sandbox sẵn sàng` + `Kết thúc phiên` — **không
+đồng hồ, không "Thêm giờ"**. Đúng lúc còn dưới 10 phút thì cả hai hiện ra:
+
+```
+now=1788809326  con 509s  =>  "Còn 9 phút" + nút "Thêm giờ"
+```
+
+### Cú bấm, và hai nguồn số
+
+Bấm thật bằng `browser_click` vào nút "Thêm giờ" (`p5-197-a-truoc-khi-bam.png` →
+`p5-197-b-sau-khi-bam.png`).
+
+| Nguồn | Trước | Sau | Chênh |
+|---|---|---|---|
+| Redis `expiresAt` | `1788809835` | `1788810048` | **+213s** |
+| Redis `revision` | `2` | `3` | **+1 (đúng một lượt gia hạn)** |
+| Redis `lastActiveAt` | `1788808098` | `1788809748` | nhảy tới đúng giây bấm |
+| Đồng hồ trên UI | `Còn 3 phút` | `Còn 5 phút` | +2 phút |
+
+⚠ Đồng hồ UI **một mình không chứng minh gì** — nó tự đếm lùi nên "đổi" kể cả khi server đứng
+yên. Vế chứng minh là hai dòng Redis đầu, và chúng khớp KHÍT với hợp đồng:
+
+```
+hop dong : expires = max(cu, min(luc_bam + 300, created + 7200))
+do duoc  : lastActiveAt(luc bam) = 1788809748
+           1788809748 + 300      = 1788810048   = expiresAt moi   ✓ khop tuyet doi
+           tran cung 1788808035 + 7200 = 1788815235   (chua cham, nen khong bi cat)
+```
+
+`revision +1` (không phải +2, +3) nói rằng đúng một lượt `Extend` chạy trong cửa sổ đó — cú bấm
+của tôi, không phải một nhịp heartbeat chen vào.
+
+**Kết luận vế "gia hạn thật" — ĐẠT.**
+
