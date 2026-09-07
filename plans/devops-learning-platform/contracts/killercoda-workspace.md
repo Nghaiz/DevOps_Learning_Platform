@@ -163,8 +163,22 @@ vẫn có thật và dùng được, nên lượt `\x02 N` ngay sau chọn đún
 ⛔ Đừng thêm `-k`: nó GIẾT window đang chiếm chỗ, tức xoá phiên làm việc người dùng tự
 mở — đổi một lỗi im lặng lấy mất dữ liệu.
 
-Nút `×` đóng tab vẫn ẩn: đóng được thì còn vế tái dùng chỉ số, và vế đó chưa có phép
-kiểm nào.
+~~Nút `×` đóng tab vẫn ẩn: đóng được thì còn vế tái dùng chỉ số, và vế đó chưa có phép
+kiểm nào.~~
+
+⛔ **ĐOẠN GẠCH TRÊN ĐÃ BỊ THU HỒI — đừng nhận việc từ nó.** SỬA ĐỔI 2 §Y4/§Y5
+(2026-09-07, thực thi ở `867c55e`) đã XOÁ nút `×`, nút `+`, tab `terminal-2`,
+bảng ánh xạ tab→window, `isClosableTab`, và cả `tmux-control.ts` mà hai đoạn
+ngay dưới còn trỏ tới. `WorkspaceTabId` nay là `'editor' | 'terminal'`.
+
+**Không còn chỉ số nào để tái dùng**, và `{{exec T<n>}}` nay NÉM
+`ContentBlockError` (§Y2) — nên cả ba vế lo ngại của §C6 đã đóng bằng cách GỠ
+BỎ, không phải bằng cách gác thêm.
+
+Ngày 2026-09-08 một lượt giao việc đã đọc đúng đoạn bị gạch trên rồi giao lại
+nhiệm vụ đã chết ấy cho một lane. Từ nay mặt tiếp xúc đa terminal được gác bởi
+`apps/web/src/components/session/single-terminal-contract.test.ts`; muốn khôi
+phục đa terminal thì **thu hồi §Y2/§Y4/§Y5 trước**, đừng nới phép kiểm đó.
 
 Chuỗi điều khiển tmux là **hằng số phía client**, đặt tại một chỗ duy nhất trong
 `apps/web/src/components/session/tmux-control.ts` (Lane E sở hữu).

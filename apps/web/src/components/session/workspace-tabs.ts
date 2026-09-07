@@ -5,9 +5,18 @@
  * vào khoá nào" nằm ở đây dưới dạng hàm THUẦN. `workspace-panel.tsx` chỉ vẽ ra
  * kết quả.
  *
- * Vì sao tách: `apps/web` chạy vitest ở `environment: 'node'` (không jsdom,
- * không RTL — xem chú thích đầu `landmark-contract.test.ts`). Một quyết định
- * nằm lẫn trong thân component ở đây là một quyết định KHÔNG test được.
+ * Vì sao tách — ⚠ LÝ DO ĐÃ ĐỔI, kết luận thì không. Bản trước ghi "`apps/web`
+ * chạy vitest ở `environment: 'node'`, không jsdom, không RTL", tức là một
+ * quyết định nằm trong thân component là quyết định KHÔNG test được. Vế đó hết
+ * đúng từ 2026-09-08: `node` nay chỉ còn là MẶC ĐỊNH của gói (phần lớn test ở
+ * đây đi Postgres thật), còn file nào cần DOM thì tự bật jsdom + RTL bằng
+ * docblock `// @vitest-environment jsdom` ở dòng 1 — xem
+ * `workspace-panel.dom.test.tsx`.
+ *
+ * Tách vẫn đúng, chỉ đổi lý do: một quyết định là hàm THUẦN thì khẳng định
+ * được thẳng bằng bảng vào/ra, không phải suy ngược từ cây DOM, và không phải
+ * trả giá dựng một jsdom cho mỗi ca. Việc *dây nối* giữa các hàm này với DOM
+ * thì đã có file DOM ở trên gác.
  *
  * ## Mô hình sau SỬA ĐỔI 2 — MỘT terminal, hiện ở CẢ HAI tab
  *

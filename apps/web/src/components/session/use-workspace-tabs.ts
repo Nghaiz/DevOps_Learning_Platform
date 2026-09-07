@@ -9,7 +9,10 @@ import type { TerminalHandle } from '@devops-platform/terminal';
   cùng `@devops-platform/terminal/style.css`. Hai thứ ta cần ở đây
   (`ideSessionUrl`, một kiểu) đều là module thuần. Đi qua barrel là kéo cả xterm
   vào — chính bẫy mà chú thích đầu `terminal-pane.tsx` đã ghi, và ở đây nó còn
-  làm file này không import được từ test chạy ở env `node`.
+  làm file này không import được từ test chạy ở env `node` (env MẶC ĐỊNH của
+  gói; từ 2026-09-08 một file test có thể tự bật jsdom bằng docblock
+  `// @vitest-environment jsdom`, nhưng đó là lựa chọn của từng file chứ không
+  phải nền chung — nên ràng buộc "đừng đi qua barrel" vẫn nguyên).
 */
 import { ideSessionUrl } from './ide-layout';
 import { EDITOR_TAB, TERMINAL_TAB, resolveActiveTab, type WorkspaceTabId } from './workspace-tabs';

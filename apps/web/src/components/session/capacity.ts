@@ -14,9 +14,12 @@
  * session → shell: vỏ nằm trên tất cả và không kéo theo phụ thuộc terminal nào.
  *
  * Hàm THUẦN, tách khỏi React, vì thứ cần gác ở đây là NGỮ NGHĨA của con số —
- * đặc biệt là ranh giới "chưa biết" vs "biết là 0". `apps/web` chạy vitest ở
- * `environment: 'node'` (không jsdom, không RTL), nên mọi thứ đáng khẳng định
- * phải sống được ngoài cây component.
+ * đặc biệt là ranh giới "chưa biết" vs "biết là 0". `apps/web` để vitest ở
+ * `environment: 'node'` cho MẶC ĐỊNH; từ 2026-09-08 jsdom + RTL bật được cho
+ * TỪNG file bằng docblock `// @vitest-environment jsdom`, nên "không test được
+ * ngoài hàm thuần" không còn là ràng buộc. Ngữ nghĩa của một con số thì vẫn
+ * nên khẳng định thẳng: đọc ngược nó ra từ DOM là đo qua một lớp trung gian
+ * không liên quan.
  */
 
 import { readCapacity } from '../shell/capacity';

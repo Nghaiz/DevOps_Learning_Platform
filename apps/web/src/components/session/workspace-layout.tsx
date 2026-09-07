@@ -80,10 +80,15 @@ export const animationFrameScheduler: FitScheduler = (run) => {
 /**
  * THÂN của effect fit-sau-khi-đổi-cỡ, tách ra thành hàm thuần.
  *
- * Tách vì `apps/web` chạy vitest ở env `node`: không jsdom thì không render nổi
- * hook để quan sát. Đây không phải một hàm bọc lấy lệ — nó là TOÀN BỘ phần thân
- * effect, nên test nó là test đúng thứ chạy thật (thứ duy nhất còn ngoài tầm
- * test là mảng deps, xem `useFitOnLayoutChange`).
+ * Tách để thân effect khẳng định được thẳng bằng bảng vào/ra. Đây không phải
+ * một hàm bọc lấy lệ — nó là TOÀN BỘ phần thân effect, nên test nó là test đúng
+ * thứ chạy thật (thứ duy nhất còn ngoài tầm test là mảng deps, xem
+ * `useFitOnLayoutChange`).
+ *
+ * ⚠ Lý do CŨ chép ở đây là "`apps/web` chạy env `node`, không jsdom thì không
+ * render nổi hook để quan sát" — hết đúng từ 2026-09-08: `node` chỉ còn là mặc
+ * định của gói, và file cần DOM tự bật jsdom + RTL bằng docblock
+ * `// @vitest-environment jsdom` (xem `workspace-panel.dom.test.tsx`).
  *
  * ⚠ KHÔNG còn tham số `visible`. Ở mô hình mới terminal không bao giờ bị ẩn, và
  * một lượt fit "thừa" cũng vô hại: `TerminalHandle.fit()` của §C3 tự no-op khi

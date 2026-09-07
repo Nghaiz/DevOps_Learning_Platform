@@ -6,17 +6,22 @@ import { runFitAfterLayout, type FitScheduler } from './workspace-layout';
  *
  * ## Mức test và giới hạn của nó, nói thẳng
  *
- * `apps/web` chạy vitest ở `environment: 'node'` (không jsdom, không RTL — xem
- * chú thích đầu `landmark-contract.test.ts`), nên KHÔNG render nổi hook để quan
- * sát. `runFitAfterLayout` không phải một hàm bọc lấy lệ để né chuyện đó: nó là
- * TOÀN BỘ thân của `useEffect` trong `useFitOnLayoutChange`, nên test dưới đây
- * chạy đúng mã chạy thật.
+ * File này ở mức hàm THUẦN. `runFitAfterLayout` không phải một hàm bọc lấy lệ:
+ * nó là TOÀN BỘ thân của `useEffect` trong `useFitOnLayoutChange`, nên test
+ * dưới đây chạy đúng mã chạy thật.
  *
  * ⚠ Thứ DUY NHẤT còn ngoài tầm test ở đây là mảng deps `[handle, layout,
  * schedule]`. Nửa quan trọng của nó — "chuỗi `layout` có ĐỔI khi tab đổi và khi
  * kéo thanh chia không" — được gác riêng ở `workspace-tabs.test.ts`
- * (`workspaceLayoutToken`); phần còn lại (React thật sự chạy lại effect khi deps
- * đổi) cần jsdom + RTL trong `apps/web`, đã ghi vào report.
+ * (`workspaceLayoutToken`).
+ *
+ * ⚠ Chú thích cũ ở đây ghi "`apps/web` không có jsdom/RTL nên KHÔNG render nổi
+ * hook để quan sát", và ghi nợ nửa còn lại (React thật sự chạy lại effect khi
+ * deps đổi) vào report. **Nợ đó đã trả từ 2026-09-08**: jsdom + RTL bật được
+ * cho từng file bằng docblock `// @vitest-environment jsdom`, và
+ * `workspace-panel.dom.test.tsx` đang quan sát lượt reconcile thật (§Y1 — node
+ * terminal giữ nguyên qua chuyển tab). Đừng chép lại câu "không có jsdom" ấy
+ * sang file mới.
  */
 
 /**
