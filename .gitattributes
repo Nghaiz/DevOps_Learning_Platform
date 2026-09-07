@@ -92,3 +92,10 @@ content/quizzes/**     text eol=lf
 # là commit X") thành sai. CI (Linux) vẫn LF nên vẫn xanh — tức lỗi này KHÔNG có
 # cổng nào bắt được, y hệt bốn sự cố EOL ở trên.
 content/scenarios/** -text
+
+# Nội dung bài học — BẮT BUỘC LF. `core.autocrlf=true` là mặc định phổ biến trên
+# máy dev Windows, và một `step*.md` checkout ra CRLF làm parser nội dung NUỐT
+# SẠCH nút `{{exec}}` trong im lặng: không lỗi, không test đỏ, chỉ là các khối
+# lệnh mất nút bấm. `*.sh` ở trên đã khoá vì cùng một họ bẫy; `.md` thì chưa,
+# và nó là thứ người học nhìn thấy.
+content/**/*.md text eol=lf

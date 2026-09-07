@@ -11,11 +11,17 @@ describe('filesystemScenarioSource', () => {
 
     // Danh sách ghim CỨNG có chủ ý: nó là cổng "kho nội dung vừa đổi" — thêm hoặc
     // mất một bài phải là một sửa đổi CÓ Ý THỨC ở đây, không phải một con số tự
-    // trôi. Hai bài `dlp-*` là first-party (source: null), xen giữa các bài
+    // trôi. Các bài `dlp-*` là first-party (source: null), xen giữa các bài
     // vendored vì thứ tự là theo id chứ không theo xuất xứ.
+    //
+    // `dlp-ide-config-edit` thêm 2026-09-07: bài ĐẦU TIÊN khai
+    // `interface.layout: ide`. Trước nó, nhánh IDE của nền tảng (P6 Theia, D8
+    // của P13) không có nội dung nào đi qua, nên ô AC 6 không đo được — một
+    // tính năng không ai dùng thì không ai biết nó hỏng.
     expect(items.map((s) => s.id)).toEqual([
       'ckad-configmap-as-files',
       'dlp-docker-basics',
+      'dlp-ide-config-edit',
       'dlp-k8s-basics',
       'dlp-k8s-multinode-scheduling',
       'dlp-sandbox-basics',
@@ -137,11 +143,12 @@ describe('filesystemScenarioSource — ContentSource (lab + playground)', () => 
  * `composite-source.test.ts`).
  */
 describe('filesystemScenarioSource — listPage (D9)', () => {
-  // Cùng danh sách ghim ở test `list()` phía trên, 8 bài — dùng lại nguyên vẹn
+  // Cùng danh sách ghim ở test `list()` phía trên, 9 bài — dùng lại nguyên vẹn
   // để một trang limit=3 cắt đúng ba biên đã biết trước.
   const ALL_IDS = [
     'ckad-configmap-as-files',
     'dlp-docker-basics',
+    'dlp-ide-config-edit',
     'dlp-k8s-basics',
     'dlp-k8s-multinode-scheduling',
     'dlp-sandbox-basics',
@@ -212,13 +219,13 @@ describe('filesystemScenarioSource — listPage (D9)', () => {
 
   it('filter.tier áp TRƯỚC khi phân trang — limit đếm trên tập ĐÃ lọc', async () => {
     const unfiltered = await source.listPage({ limit: 100 });
-    // Cả 8 bài ghim đều `tier: 'sysbox'` (đúng thực trạng nội dung vendored
+    // Cả 9 bài ghim đều `tier: 'sysbox'` (đúng thực trạng nội dung vendored
     // hôm nay) — nên phép chứng tốt nhất KHÔNG phụ thuộc vào việc kho có đủ đa
     // dạng tier hay không: lọc theo `sysbox` phải trả ĐÚNG TOÀN BỘ tập (đối
     // chứng dương — filter không vô tình chặn cả những gì lẽ ra phải qua), và
     // lọc theo một tier KHÔNG tồn tại trong kho (`gvisor`) phải trả RỖNG (đối
     // chứng âm — nếu filter bị bỏ qua trong im lặng, phép lọc này sẽ trả về cả
-    // 8 bài thay vì 0).
+    // 9 bài thay vì 0).
     const bySysbox = await source.listPage({
       limit: 100,
       filter: { tier: 'sysbox' },

@@ -1,0 +1,31 @@
+{
+  "title": "Sửa cấu hình bằng editor",
+  "description": "Bài đầu tiên dùng khoang editor (Theia) cạnh terminal: mở một file cấu hình, sửa nó bằng editor, rồi kiểm chứng bằng lệnh.",
+  "details": {
+    "intro": {
+      "text": "intro.md",
+      "background": "intro/background.sh"
+    },
+    "steps": [
+      {
+        "title": "Sửa một giá trị trong file cấu hình",
+        "text": "step1.md",
+        "verify": "step1/verify.sh"
+      },
+      {
+        "title": "Tạo file mới từ editor",
+        "text": "step2.md",
+        "verify": "step2/verify.sh"
+      }
+    ],
+    "finish": {
+      "text": "finish.md"
+    }
+  },
+  "backend": {
+    "imageid": "ubuntu"
+  },
+  "interface": {
+    "layout": "ide"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "dlp-ide-config-edit",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "source": null,
+  "acknowledgedUnknownFields": [],
+  "notes": "Bài FIRST-PARTY, và là bài ĐẦU TIÊN trong repo khai `interface.layout: ide`. Lý do tồn tại: nền tảng có cả một khoang editor (P6 Theia, D8 của P13) mà không nội dung nào dùng tới — nên đường `interfaceLayout === 'ide'` không có gì chứng minh nó chạy, và ô AC 6 của P13 không đo được. `backend.imageid: ubuntu` là CÓ CHỦ Ý: profile sandbox chọn theo `profileForCapabilities`, và tổ hợp ide+kubernetes CHƯA CÓ SỐ ĐO (test `TestNoContentIsBothIdeAndK8s` gác đúng điều đó) — bài này phải ở lại nhánh không-k8s. Nội dung chỉ dùng bash + coreutils, tức năng lực đã đo từ P1."
+}
