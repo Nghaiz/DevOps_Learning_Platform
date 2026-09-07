@@ -154,10 +154,35 @@ describe('ContentView — markdown thường', () => {
 
     const { container } = render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
 
-    expect(screen.getByRole('heading', { level: 2, name: 'Bước 1' })).toBeDefined();
+    // Mức 3, không phải 2 — xem test "nội dung nhúng không tranh h1" bên dưới:
+    // markdown hạ MỘT bậc vì TRANG đã giữ `h1`.
+    expect(screen.getByRole('heading', { level: 3, name: 'Bước 1' })).toBeDefined();
     const strong = container.querySelector('strong');
     expect(strong).not.toBeNull();
     expect(strong?.textContent).toBe('kubectl');
+  });
+
+  /**
+   * Trang (`lesson-client.tsx`, `path-client.tsx`, …) sở hữu `<h1>`. Nội dung do
+   * tác giả viết nằm BÊN TRONG trang đó, nên `#` của họ là mức hai.
+   *
+   * Đo trên cụm 2026-09-07, luồng 4 đỏ vì đúng chuyện này:
+   *     strict mode violation: getByRole('heading', { level: 1 }) resolved to 2
+   * — một `h1` của trang, một `h1` sinh từ `# Tạo tệp đầu tiên` trong bài học.
+   * 39/40 file nội dung mở đầu bằng `#`, nên đây là đường THƯỜNG GẶP chứ không
+   * phải một ca biên.
+   *
+   * Test khẳng định cả hai chiều: `#` KHÔNG còn ra `h1`, VÀ nó ra đúng `h2`.
+   * Chỉ khẳng định "không có h1" thì một ánh xạ hỏng biến nó thành `<p>` cũng
+   * xanh, mà như thế là mất cấu trúc chứ không phải sửa được nó.
+   */
+  it('nội dung nhúng không tranh h1 với trang: `#` ra h2', () => {
+    const blocks: ContentBlock[] = [{ kind: 'markdown', markdown: '# Tạo tệp đầu tiên' }];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
+
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'Tạo tệp đầu tiên' })).toBeDefined();
   });
 
   it('placeholder {{TRAFFIC_HOST1_80}} giữ nguyên dạng text — không có tầng thay thế', () => {

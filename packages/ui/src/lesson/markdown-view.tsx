@@ -108,9 +108,28 @@ export function MarkdownView({ markdown, resolveAssetUrl }: MarkdownViewProps) {
 
   const components: Components = {
     p: inline ? InlineParagraph : BlockParagraph,
-    h1: ({ children }) => <h1 className="mt-4 mb-2 text-xl font-semibold text-foreground">{children}</h1>,
-    h2: ({ children }) => <h2 className="mt-4 mb-2 text-lg font-semibold text-foreground">{children}</h2>,
-    h3: ({ children }) => <h3 className="mt-3 mb-1 text-base font-semibold text-foreground">{children}</h3>,
+    // ⚠ HẠ MỘT BẬC: `#` của markdown thành `<h2>`, không phải `<h1>`.
+    //
+    // TRANG đã có `<h1>` của nó (tiêu đề bài học / lab / lộ trình). Nội dung do
+    // tác giả viết là phần NHÚNG bên trong trang đó, nên `#` của họ là mức hai
+    // của tài liệu, không phải mức một. Ánh xạ thẳng `h1 → <h1>` cho ra HAI `h1`
+    // trên một trang ngay khi bài học nào mở đầu bằng `# …` — và đó là hầu hết.
+    //
+    // Đo trên cụm 2026-09-07, luồng 4 (lộ trình → mở item) đỏ với:
+    //     strict mode violation: getByRole('heading', { level: 1 }) resolved to 2:
+    //       <h1 class="text-sm …">Làm quen sandbox DevOps</h1>      ← trang
+    //       <h1 class="mt-4 mb-2 text-xl …">Tạo tệp đầu tiên</h1>   ← markdown
+    // Chú ý cả nghịch lý thị giác trong chính hai dòng đó: `h1` của TRANG là
+    // `text-sm`, còn `h1` của NỘI DUNG là `text-xl` — người đọc thấy tiêu đề
+    // phụ to hơn tiêu đề chính.
+    //
+    // Lớp CSS giữ NGUYÊN theo từng mức, nên giao diện không đổi một pixel; chỉ
+    // thẻ đổi. `####` trở đi vẫn rơi về mặc định của react-markdown như trước —
+    // cố ý không đụng, vì nội dung sâu tới mức đó chưa xuất hiện và một ánh xạ
+    // bịa ra sẽ là mã chưa ai dùng.
+    h1: ({ children }) => <h2 className="mt-4 mb-2 text-xl font-semibold text-foreground">{children}</h2>,
+    h2: ({ children }) => <h3 className="mt-4 mb-2 text-lg font-semibold text-foreground">{children}</h3>,
+    h3: ({ children }) => <h4 className="mt-3 mb-1 text-base font-semibold text-foreground">{children}</h4>,
     ul: ({ children }) => <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">{children}</ul>,
     ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground">{children}</ol>,
     li: ({ children }) => <li className="leading-relaxed">{children}</li>,
