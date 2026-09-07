@@ -404,7 +404,93 @@ test tích hợp thật sự chạy chứ không lặng lẽ bỏ qua.
 ⇒ Nghi ngờ ban đầu (phụ thuộc Postgres, `0 skip ↔ 25 skip`) **phù hợp với dữ liệu
 nhưng chưa được chứng minh**. Ghi lại như một flake CHƯA đóng, không ghi là đã sửa.
 
-_(phần còn lại sau deploy)_
+### 3.6 Deploy — XANH, không phải lùi
+
+`14-deploy-rollback.sh` với `MIGRATION_OK=1`. Năm ảnh lên `p14a` cùng một lượt;
+smoke **7/7 PASS** nên đường lùi không kích hoạt.
+
+Mốc TRƯỚC deploy cũng 7/7 — có mốc thì một ô đỏ sau deploy mới quy được về lượt
+deploy thay vì về một món nợ có sẵn.
+
+Bốn thứ chỉ ảnh mới trả lời được, đo ngay sau khi pod Ready:
+
+| Đo | Trước | Sau |
+|---|---|---|
+| `/favicon.ico` | 404 | **200** `image/x-icon` |
+| `/icon.svg` | — | **200** `image/svg+xml` |
+| migration đã áp | 8/9 | **9/9**, cột `content_items.toolset` có mặt |
+| RBAC `resourcequotas`/`limitranges` | không có | `can-i` = **yes**, 0 lỗi quota trong log |
+
+### 3.7 Ô AC sức chứa — đóng bằng số thật
+
+`capacity.get` trên cụm sau deploy:
+
+```
+quotaReadable: true
+profileCapacity: ""      → 20/23
+                 ide     → 6/7
+                 k8s     → 5/5
+                 k8s-multinode → 3/3
+```
+
+Kiểm chéo bằng số học trên quota SỐNG (`hard 5952Mi`, `used 768Mi`): ide
+`(5952−768)/768 = 6.75 → 6`; mặc định `(5952−768)/256 = 20.25 → 20`, chặn thêm bởi
+`pods 28−3 = 25`. Khớp từng con số — nên đây không phải một con số đẹp tình cờ.
+
+Lỗi gốc là giao diện in "Còn 14 chỗ" cho một bài IDE trong lúc server trả 429. Nay
+bài IDE và bài thường cho **hai con số khác nhau trên cùng một trạng thái quota** —
+đúng điều công thức cũ không thể làm.
+
+⚠ Cảnh `ide = 0` trong khi mặc định `> 0` **chưa dựng trực tiếp** (đòi mở 6 phiên IDE
+trên cụm dùng chung). Nó được phủ bằng ca tái hiện trong `session-controls.dom.test.tsx`
+với đúng payload 576Mi của sự cố.
+
+### 3.8 P12:81 — đo lại thay vì tin report cũ
+
+`12e-pod-loss.mjs` trên ảnh `p14a`: WS đóng `code=4404 reason="session gone"` sau
+330ms · control frame cuối `SESSION_GONE` · câu tiếng Việt khớp nhánh 4404 · Redis
+`session:{id}` ⇒ `FAILED` · quota `pods 3 → 4 → 3`.
+
+Vế khó là vế mã đóng: xoá pod cho `exitCode=137` **y hệt** một `kill -9` hợp lệ do
+chính người học gõ. Bridge nào coi mọi `CodeExitError` là "thoát bình thường" sẽ đóng
+`1000`, và FE đọc thành "đừng retry".
+
+### 3.9 e2e trên cụm — và cái bẫy 429
+
+Lượt đầu chạy một mạch: **31 pass / 63 ĐỎ**. Phân loại từng thông báo lỗi: **toàn bộ
+63 là `HTTP 429` / `too_many_requests`**, KHÔNG một lỗi sản phẩm nào. Phân loại lại
+hai lần nữa trên hai lượt riêng: **9/9** rồi **6/6** — 15/15 mẫu đều là 429.
+
+Sau khi chia mẻ đúng cách, phần đã chạy thật:
+
+| Nhóm | Kết quả |
+|---|---|
+| 7 luồng `@flow` | **7/7 xanh** (gồm `author` đỏ ở lượt trước) |
+| `responsive` | **7/7** |
+| `perf` | **3/3**, gồm đối chứng dương "làm chậm tài liệu thì LCP phải tăng" |
+| `csp` đối chứng dương | **3/3** — máy thu CSP biết kêu |
+| `csp` nonce | **2/2** |
+| `csp` 0 vi phạm | 21/22 |
+| `keyboard` D10 Esc-Esc | **3/3** (cần phiên sandbox THẬT) |
+| `a11y` công khai | **2/2** |
+
+**Ba cái bẫy đo, ghi lại vì cả ba đọc ra ngược sự thật:**
+
+1. **429 đỏ NHIỀU HƠN khi cụm KHOẺ HƠN.** Cụm nhanh làm các lượt gọi dồn sát nhau,
+   mất phần giãn nhịp tình cờ mà cụm chậm vô tình cấp. "Hôm nay đỏ nhiều hơn hôm qua"
+   có thể nghĩa là "hôm nay hạ tầng nhanh hơn".
+2. **`--shard` chia theo FILE** khi `fullyParallel: false`. Với MỘT file, `--shard=1/3`
+   nhận trọn 25 ô còn `2/3` và `3/3` chạy **0 ô rồi thoát 0** — đọc mã thoát thôi thì
+   2/3 số mẻ "pass" trong khi chúng chưa chạy gì. Phải cắt bằng `--grep` trên tên khối.
+3. **Hai trần chồng nhau, mỗi cái đòi một cách chữa ngược nhau.** Query `120/phút`
+   khoá theo **`userId`** ⇒ chữa bằng ĐỔI TÀI KHOẢN, nghỉ vô ích. Đăng ký khoá theo
+   **IP** ⇒ chữa bằng NGHỈ, đổi tài khoản vô ích. Mỗi bản vá đơn lẻ chỉ đúng một nửa:
+   bản nghỉ-75s vẫn đỏ, bản xoay-tài-khoản chết từ mẻ thứ ba.
+
+⛔ KHÔNG nới rate-limit (đổi cấu hình sản xuất cho tiện việc đo) và KHÔNG bật `retries`
+(làm suite trông xanh trong khi nó không xanh).
+
+_(phần cuối sau lượt e2e đầy đủ)_
 
 ## 4. Còn lại — nói thẳng
 
