@@ -98,7 +98,7 @@ Một sản phẩm dùng được: người lạ vào, đăng nhập, tìm bài,
 - [x] axe **25/25 xanh**, 0 lỗi serious/critical trên 22 màn + đối chứng; `keyboard` **25/25**, gồm ba ô D10 Esc-Esc rời terminal (cần phiên sandbox THẬT, chạy với `E2E_REQUIRE_SESSION=1`).
 - [x] Playwright **6/6 luồng xanh** trên cụm thật, cổng đếm khớp `đã chạy 6 / 6`. Đúng MỘT annotation `chua-do` (D15) — và D15 đã được đo TAY riêng.
 - [x] CSP **27/27 xanh**, 0 vi phạm. Ba đối chứng dương (inline script · ảnh khác origin · iframe khác origin) nằm TRONG cùng lượt 27 đó. Trước bản vá: 9 ô đỏ, cả 9 là phép dò JIT của Zod.
-- [ ] Responsive ≤768px — CHƯA ĐO.
+- [x] Responsive ≤768px — **7/7 xanh** trên cụm (`responsive.spec.ts`), và nửa "terminal hạ cấp" vốn là MÃ CHẾT cho tới lượt này: `NarrowScreenNotice` không có một call-site nào, `TerminalPane` chưa bao giờ đọc bề rộng khung nhìn. Đã nối, rồi mới đo. Mỗi khẳng định-hẹp có đối chứng âm ở cùng route cùng lượt: 375·768 thu nav ↔ **769 nav ngang trở lại**; 1023 hiện cảnh báo ↔ **1024 cảnh báo biến mất**; 1280 đủ nav + khoang terminal. Đo ĐÚNG biên vì một cặp 375/1280 sẽ xanh cả với `md:` (min-width 768) — chính cái lệch một pixel mà `breakpoints.ts` dựng chú thích để tránh.
 - [ ] **Không** màn hình/route/chuỗi nào liên quan giá, gói cước, thanh toán. Chứng bằng BA lớp, không chỉ một lệnh grep: (1) lệnh grep ở § Verify commands — **đã sửa 2026-09-06**, bản cũ không thể rỗng nên không chứng được gì; (2) test tiếng Việt trên chuỗi UI (`components/shell/{nav,capacity}.test.ts`) vì grep tiếng Anh không thấy nhãn giá viết bằng tiếng Việt; (3) test khẳng định mọi procedure TỪ CHỐI field thanh toán (`quiz-paths-input.test.ts`) và schema không có cột `price`/`sku`/`entitlement`.
 
 ## Verify commands
