@@ -235,7 +235,7 @@ gateway:
   # Theia từ chối mọi lượt nâng cấp socket thiếu token đó — nên `/ide` dựng được
   # vỏ (200) mà `socket.io` trả 403: IDE không có backend. Không có gì trên cụm
   # phát hiện được: `rollout status` xanh, pod `Running 1/1`, trang gốc 200.
-    tag: p13b
+    tag: p13e
   # 2 replica từ chặng 3.H. Gateway stateless đã được KIỂM CHỨNG chứ không chỉ
   # được khẳng định: không map/registry session→conn nào ở package-level hay
   # struct field; đích exec đọc từ Redis mỗi lần connect, và trần WS đồng thời

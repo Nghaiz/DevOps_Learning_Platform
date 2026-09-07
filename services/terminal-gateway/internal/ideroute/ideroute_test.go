@@ -605,17 +605,53 @@ func TestIDESetsSecurityHeadersOnRedirect(t *testing.T) {
 // được CSP Theia chịu được và đặt header đó, test này ĐỎ — và cách xử lý đúng là
 // ĐẢO nó (khẳng định CSP có mặt + đúng giá trị đo được), KHÔNG phải nới nó ra
 // hay xoá đi. Đỏ ở đây nghĩa là "việc đã xong", không phải "có hồi quy".
-func TestIDEHasNoCSPYet_KnownGap(t *testing.T) {
+// TestIDECSPIsEnforced thay cho `TestIDEHasNoCSPYet_KnownGap`.
+//
+// Ô ghim cũ khẳng định "chưa có CSP nào" và nó đã ĐỎ đúng như thiết kế khi đợt 3
+// đặt bản chỉ-báo. Cách xử lý mà chú thích của chính nó yêu cầu là ĐẢO, không
+// phải nới hay xoá — nên nó thành ô này.
+//
+// Ô ghim đi qua HAI lần đảo, đúng như chú thích của bản gốc yêu cầu: "chưa có
+// CSP" → "có, nhưng chỉ-báo" → "đã ép". Lần đảo thứ hai chỉ được làm sau khi một
+// vòng dùng IDE thật không sinh vi phạm chỉ-báo nào VÀ đối chứng âm chứng minh
+// chính sách được đánh giá — xem `secheaders.go` § ideCSP.
+//
+// Hai vế của test là hai chuyện `curl` đọc ra gần y hệt nhau: "có CSP" và "có một
+// CSP không chặn gì".
+func TestIDECSPIsEnforced(t *testing.T) {
 	h := newHarness(t, &spySessions{sess: activeSession()}, 8)
 
 	res := h.get(t, testSession, "")
 	if res.Status != http.StatusOK {
 		t.Fatalf("status %d, muốn 200", res.Status)
 	}
-	for _, name := range []string{"Content-Security-Policy", "Content-Security-Policy-Report-Only"} {
-		if v := res.Header.Values(name); len(v) != 0 {
-			t.Fatalf("%s = %q đã được đặt — nếu đợt 3 vừa đo xong CSP thì ĐẢO test này "+
-				"(khẳng định giá trị đo được), đừng xoá nó; xem secheaders.go § CSP", name, v)
+
+	got := res.Header.Get("Content-Security-Policy")
+	if got == "" {
+		t.Fatal("thiếu Content-Security-Policy — đợt 3 đã ÉP nó sau một vòng chỉ-báo " +
+			"sạch; xem secheaders.go § ideCSP")
+	}
+	for _, want := range []string{
+		"default-src 'self'",
+		"style-src 'self' 'unsafe-inline'",
+		"worker-src 'self' blob:",
+		// `data:` trong CẢ HAI directive dưới là BẮT BUỘC và đến từ vòng ÉP, không
+		// phải vòng chỉ-báo: Theia nhúng icon codicon dạng `data:font/*` và tải
+		// engine grammar TextMate từ `data:application/wasm`. Thiếu chúng thì IDE
+		// mất icon và mất tô màu cú pháp — mà lỗi hiện ra chỉ là `Failed to fetch`.
+		"font-src 'self' data:",
+		"connect-src 'self' ws: wss: data:",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("CSP chỉ-báo thiếu %q; đang là %q", want, got)
 		}
+	}
+
+	// VẾ CÒN LẠI: KHÔNG còn ở chế độ chỉ-báo. Thiếu nó thì một lượt lùi về
+	// `Report-Only` — tức mất sạch khả năng chặn trong khi `curl` đọc ra gần y
+	// hệt — vẫn xanh.
+	if v := res.Header.Get("Content-Security-Policy-Report-Only"); v != "" {
+		t.Fatalf("vẫn còn Content-Security-Policy-Report-Only = %q — một CSP chỉ-báo "+
+			"KHÔNG chặn gì; nếu đây là lượt lùi có chủ ý thì đảo test này và ghi lý do", v)
 	}
 }
