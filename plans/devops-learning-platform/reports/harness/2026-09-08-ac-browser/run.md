@@ -9,13 +9,20 @@ Lượt này lái Chrome thật (Playwright MCP) trên cụm đang chạy để 
 |---|---|
 | URL | `https://dlp.192.168.94.130.sslip.io:30443` (chứng chỉ tự ký, đã bỏ qua lỗi TLS) |
 | Ảnh đang chạy | web `p13d` · gateway `p13e` · orchestrator `p13` · sandbox `p13ide` |
-| Tài khoản | `AC613 Probe` — đã đăng nhập sẵn trong profile trình duyệt, **lịch sử RỖNG lúc bắt đầu** |
+| Tài khoản | `AC613 Probe` — đã đăng nhập sẵn trong profile trình duyệt |
 | Ngày | 2026-09-07/08 (giờ UTC trong ảnh chụp) |
 
-⚠ **Vì sao tài khoản rỗng là điều kiện, không phải tình cờ.** `/me` của một tài khoản trống
-hiện đúng "chưa có gì" và cái đó không chứng minh trang chạy. Bắt đầu từ RỖNG rồi tự tạo
-lịch sử nghĩa là mọi con số trên `/me` ở cuối lượt đều truy được về một thao tác cụ thể
-trong lượt này — không phải rác của lane khác.
+⛔ **SỬA LẠI MỘT KHẲNG ĐỊNH CỦA CHÍNH TÔI.** Bản đầu của mục này ghi tài khoản có
+"lịch sử RỖNG lúc bắt đầu". **Sai.** Lúc đó tôi mới nhìn khối "Lộ trình đang dở" (trống) và
+tab "Bài học" (trống) rồi suy ra cả trang trống — chưa mở tab **Lab** và tab **Quiz**. Khi mở
+ra ở phần P10:98 thì có hai dòng CŨ từ 7/9: một lượt lab `Chưa đạt` (16:55:10) và một lượt
+quiz `Chưa đạt` (16:57:39). Không phải của lượt này.
+
+Điều đó KHÔNG làm hỏng phép đo nào, và lý do đáng ghi hơn bản thân lỗi: cả hai lượt cũ đều
+**Chưa đạt**, nên chúng không sinh tiến độ lộ trình — đó chính là vì sao khối "Lộ trình đang
+dở" trống trước lượt này. Cú chuyển **0 lộ trình → 1 lộ trình (1/6)** vẫn quy được về đúng
+một nguyên nhân: lượt quiz mà tôi vừa làm. Nhưng "trang này trống" là một khẳng định về
+những gì tôi đã NHÌN, và tôi đã nhìn thiếu hai tab.
 
 Tham số cụm liên quan (đọc từ env của `platform-orchestrator`):
 `SESSION_TTL=1h` · `HARD_CAP=2h` · `EXTEND_DEFAULT=300s` · `CAPACITY_HARD_LIMIT=23`.
