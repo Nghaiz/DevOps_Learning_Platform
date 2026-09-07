@@ -40,34 +40,36 @@ import { openScreen } from './fixtures/nav';
 const TARGET_PATH = '/lessons';
 
 /**
- * Ngân sách LCP — **TẠM, chưa có cơ sở đo trên cụm lab.**
+ * Ngân sách LCP cho `/lessons` trên cụm lab — **đã đo 2026-09-07**.
  *
- * Nói thẳng cơ sở của con số này, vì một ngưỡng bịa mà trình bày như đã đo là
- * thứ tồn tại lâu hơn cả người bịa ra nó:
+ * Sáu mẫu liên tiếp trên `dlp.192.168.94.130.sslip.io` (node 12 vCPU, load ~1.3,
+ * ảnh `dlp-web:p13a`), lấy từ chính `perf-lcp-lessons.json` của ô này:
  *
- *   - 4000ms là biên "poor" của Core Web Vitals (dưới 2500ms = good,
- *     2500–4000ms = needs improvement). Đây là một mốc NGOÀI, trích được, chứ
- *     không phải một số tôi tự nghĩ ra.
- *   - Nó **KHÔNG** đến từ phép đo nào trên `dlp.192.168.94.130.sslip.io`. Số
- *     duy nhất đang có về cụm này là 12s cho lượt tải NGUỘI đầu tiên
- *     (`playwright.config.ts`, đo 2026-09-06) — mà đó là thời gian tải cả
- *     trang lúc lạnh, không phải LCP lúc ấm, nên nó không suy ra được ngưỡng.
- *   - Cụm lab là MỘT node VM chạy cả control-plane lẫn sandbox. Một phần lớn
- *     con số đo được nằm ngoài tầm kiểm soát của mã frontend, nên siết ngưỡng
- *     lúc chưa có phân bố thật chỉ đẻ ra một ô đỏ vì hạ tầng
- *     (`ac-on-a-total-can-be-blind`).
+ *   | lượt | LCP (ms) | TTFB (ms) |
+ *   |------|---------:|----------:|
+ *   | 1 (NGUỘI) | 1496 | 739 |
+ *   | 2 |  800 | 134 |
+ *   | 3 |  732 |  62 |
+ *   | 4 |  760 |  35 |
+ *   | 5 |  544 |  35 |
+ *   | 6 |  648 |  37 |
  *
- * ⇒ **Việc của đợt 3:** chạy ô này vài lượt trên cụm, đọc
- *   `perf-lcp-lessons.json` trong artifact, rồi ĐẶT LẠI con số theo phân bố
- *   thật (đề xuất: p95 quan sát được + biên). Khi làm việc đó, xoá luôn đoạn
- *   chú thích này và ghi ngày đo — đừng để nó thành di sản mà ai đọc cũng tưởng
- *   là đã có người đo.
+ * Lượt đầu là lượt NGUỘI và nó phải nằm trong ngân sách: một pod vừa rollout
+ * luôn phục vụ lượt đầu tiên ở trạng thái đó, nên đặt ngưỡng theo riêng các lượt
+ * ấm là dựng một cổng đỏ sau mỗi lần deploy.
  *
- * Điều kiện kết thúc của cái "tạm" này: khi `observedRatio` trong artifact
- * liên tục dưới ~0.25, ngân sách đang là trang trí và PHẢI siết lại. Ô này tự
- * ghi cảnh báo đó vào annotation của lượt chạy để đợt 3 không phải nhớ.
+ * **2500ms** vì đó là con số của CHÍNH ô nghiệm thu (`phase-13.md` 13.H mục 29:
+ * "LCP ≤ 2.5s trên trang danh mục ở cấu hình lab") — nên cổng này đo đúng thứ
+ * bản kế hoạch hứa, không phải một ngưỡng song song do harness tự đặt. Nó cũng
+ * là biên "good" của Core Web Vitals, và bằng 1.67× lượt tệ nhất quan sát được,
+ * đủ biên để không đỏ vì một lượt nguội mà vẫn bắt được hồi quy thật.
+ *
+ * ⚠ Số này đo trên một cụm RẢNH. Sáng cùng ngày, node từng ở load 72 / PSI cpu
+ * 93.5% và web pod bị liveness giết — ở trạng thái đó mọi con số dưới đây vô
+ * nghĩa. Một lượt đỏ phải đọc `ttfbMs` trong artifact TRƯỚC khi kết luận là hồi
+ * quy frontend.
  */
-const LCP_BUDGET_MS = 4000;
+const LCP_BUDGET_MS = 2500;
 
 /**
  * Ngưỡng dưới, để "ngân sách quá thưa" thành một thứ đọc được trong report chứ
@@ -322,7 +324,7 @@ test(`LCP ${TARGET_PATH}`, async ({ page }, testInfo) => {
     // Phần LCP nằm SAU byte đầu tiên — xấp xỉ phần mã frontend có tiếng nói.
     afterTtfbMs: lcp === null ? null : Math.round(lcp.startTime - nav.responseStart),
     budgetMs: LCP_BUDGET_MS,
-    budgetIsProvisional: true,
+    budgetIsProvisional: false,
     observedRatio: lcp === null ? null : Number((lcp.startTime / LCP_BUDGET_MS).toFixed(3)),
   });
 
@@ -349,9 +351,10 @@ test(`LCP ${TARGET_PATH}`, async ({ page }, testInfo) => {
       type: 'ngân-sách-quá-thưa',
       description:
         `LCP đo được ${Math.round(value)}ms, chỉ bằng ` +
-        `${Math.round((value / LCP_BUDGET_MS) * 100)}% ngân sách tạm ${LCP_BUDGET_MS}ms. ` +
-        `Đợt 3: siết LCP_BUDGET_MS xuống theo phân bố thật (p95 + biên) và xoá ` +
-        `chú thích "chưa đo" trong perf.spec.ts.`,
+        `${Math.round((value / LCP_BUDGET_MS) * 100)}% ngân sách ${LCP_BUDGET_MS}ms. ` +
+        `Ngân sách đã đo (2026-09-07, 6 mẫu, tệ nhất 1496ms lúc nguội) và bằng ` +
+        `đúng ô AC 13.H mục 29 — nên "thưa" ở đây nghĩa là trang đang nhanh hơn ` +
+        `yêu cầu, KHÔNG phải ngưỡng cần siết. Chỉ siết nếu ô AC đổi.`,
     });
   }
 
@@ -362,7 +365,8 @@ test(`LCP ${TARGET_PATH}`, async ({ page }, testInfo) => {
       `${Math.round(nav.responseStart)}ms. Nếu TTFB đã chiếm phần lớn con số thì ` +
       `đây là cụm chậm, không phải trang chậm — đọc perf-lcp-lessons.json trong ` +
       `artifact rồi mới kết luận.\n` +
-      `⚠ Và ngân sách ${LCP_BUDGET_MS}ms là TẠM, chưa đo trên cụm này (xem chú ` +
-      `thích LCP_BUDGET_MS). Một lượt đỏ ở đây chưa chắc là hồi quy.`,
+      `⚠ Ngân sách ${LCP_BUDGET_MS}ms ĐÃ đo trên chính cụm này (6 mẫu 2026-09-07, ` +
+      `tệ nhất 1496ms lúc nguội) và bằng đúng ô AC 13.H mục 29. Nhưng nó đo trên ` +
+      `một cụm RẢNH — kiểm load/PSI của node trước khi kết luận là hồi quy.`,
   ).toBeLessThan(LCP_BUDGET_MS);
 });
