@@ -80,13 +80,42 @@ plans/devops-learning-platform/reports/harness/*/.barrier-*/
 infra/k6/.users.json
 infra/k6/out/
 
-# Báo cáo và bằng chứng chạy — CỤC BỘ, cố ý không lên git.
+# Báo cáo và bằng chứng chạy.
 #
-# `git ls-files reports` = 0: chưa chặng nào đưa report lên remote. Nhưng trước
-# 2026-09-06 đó chỉ là QUY ƯỚC, không phải hàng rào — `git check-ignore` trên
-# một file report trả exit 1, tức `git add` sẽ THÀNH CÔNG, và một `git add -A`
-# của bất kỳ ai sẽ kéo cả thư mục lên. Report chứa chi tiết cụm (tên pod, IP nội
-# bộ, số đo hạ tầng), nên đó là thứ nên chặn bằng luật chứ không bằng trí nhớ.
+# ⚠ ĐỔI 2026-09-08 (chủ dự án quyết): report VĂN BẢN nay LÊN git; chỉ HIỆN VẬT
+# thô ở lại máy. Lý do đổi: luật `reports/` trần đã ăn mất chính thứ nó định
+# bảo vệ — report nghiệm thu P13 của phiên 2026-09-07 chỉ tồn tại trên một ổ
+# đĩa, và tới phiên sau thì KHÔNG CÒN. Một bằng chứng không sống sót qua lần
+# clone kế tiếp thì không phải bằng chứng, nó là trí nhớ.
 #
-# Muốn đưa một report cụ thể lên thì `git add -f <đường dẫn>` sau khi đã ĐỌC nó.
-reports/
+# Lằn ranh là ĐUÔI FILE, không phải thư mục. Bản đầu của khối này chặn cả
+# `reports/harness/` và lập tức chặn luôn `harness/…/RESULTS.md` — đúng cái file
+# mang bằng chứng P13. Git KHÔNG cho gỡ chặn một file khi thư mục cha đã bị
+# chặn, nên không có cách nào cứu nó bằng một dòng `!`; phải chặn theo đuôi.
+#
+# Chặn = hiện vật sinh lại được (ảnh chụp, log thô, dump dòng, kho nén).
+# Giữ  = văn xuôi và số liệu đọc được (.md .txt .json .mjs .sh .yml).
+# Tổng reports/ lúc quyết định: 3.2 MB, file to nhất 205 KB.
+#
+# ⚠ `**/` là BẮT BUỘC. Một pattern có dấu `/` ở GIỮA được git neo vào thư mục
+# chứa .gitignore, nên `reports/harness/` trần chỉ khớp `/reports/harness/` ở
+# gốc repo — mà thư mục thật là `plans/devops-learning-platform/reports/…`.
+# Luật `reports/` cũ khớp ở mọi độ sâu vì nó KHÔNG có dấu `/` ở giữa. Đo
+# 2026-09-08: bản đầu của khối này KHÔNG chặn gì cả, và chỉ lộ ra vì kiểm CẢ
+# HAI chiều thay vì chiều mong đợi.
+#
+# Report vẫn có thể mang tên pod, IP nội bộ, số đo hạ tầng. Lên git nghĩa là
+# ĐỌC TRƯỚC KHI COMMIT — thêm một lý do giữ lệnh cấm `git add -A` ở §4 exec plan.
+**/reports/**/*.png
+**/reports/**/*.jpg
+**/reports/**/*.jpeg
+**/reports/**/*.gif
+**/reports/**/*.webm
+**/reports/**/*.mp4
+**/reports/**/*.jsonl
+**/reports/**/*.log
+**/reports/**/*.har
+**/reports/**/*.tar
+**/reports/**/*.tar.gz
+**/reports/**/*.tgz
+**/reports/**/*.zip
