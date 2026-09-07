@@ -285,6 +285,75 @@ Vế "chưa bao giờ đi qua Traefik" nay đã sai; vế **trần body 1 MiB** 
 `ratelimit-ide` 600/1m burst 300** thì vẫn CHƯA đo (cần một phiên thật và một payload
 đủ lớn).
 
+### 3.2 P5:185 — ô AC này BẤT KHẢ về số học, không phải "chưa làm"
+
+Chủ dự án chọn đuổi ô `claim p95 3.9s so với đích 1s`. Đuổi xong thì câu trả lời là:
+**không tới được bằng lever mà plan đề xuất**, và lever đó còn nhắm sai chỗ nghẽn.
+
+**Cold path đo được** (apply → `condition=Ready`), n=7, pod thăm dò là bản sao spec
+pod sandbox thật (sysbox, `p13ide`), label riêng để reaper không đụng:
+
+```
+6072  6760  7002  7223  7312  8223  40211   (ms)
+min 6.07s · median 7.22s · 6/7 trong [6.1, 8.2] · 1/7 = 40.2s
+```
+
+⚠ **Điều kiện đo:** cụm KHÔNG rảnh — load average **9.9–10.4 trên 12 vCPU** suốt 15
+phút. Và **n=7 không tính được p95**; con số 40.2s là 14% số mẫu, tức một đuôi thật
+chứ không phải nhiễu.
+
+**Mô hình.** N người bấm Start rải trong cửa sổ W giây; pool phục vụ ấm được
+`P + W/7.2`. Ràng buộc vật lý `P + N ≤ 23` (quota 5952Mi ÷ 256Mi). Trần phiên hiển
+thị = `23 − P`.
+
+| N | W | P cần | Trần phiên `23−P` | Khả thi (`P ≤ 23−N`)? |
+|---|---|---|---|---|
+| 18 | 0s | 18 | 5 | ✗ |
+| 18 | 30s | 13 | 10 | ✗ |
+| 18 | 60s | 9 | 14 | ✗ |
+| 18 | 90s | 5 | 18 | ✓ |
+| 10 | 30s | 6 | 17 | ✓ |
+
+⇒ **N=18 đồng loạt cần `P ≥ 17`, mà trần vật lý chỉ cho `P ≤ 5`.** Nâng `poolTarget`
+không tới được, và mỗi pod ấm còn ăn mất một khe phiên.
+
+**Và cách đặt vấn đề của ô AC cũng sai một nửa.** Nó ghi *"15/18 đi cold path vì warm
+pool chỉ có 3 pod"* — nhưng P5 đo **ba người ĐẦU**, đáng lẽ ấm, cũng mất
+**3.7 / 3.9 / 3.9s**. Đường claim ấm có một lượt gọi apiserver ĐỒNG BỘ
+(`service.go:488` → `podAlive` → `pods.Get`; đo 75ms ở load 5.8, tệ hơn nhiều dưới
+tải). Nghẽn nằm ở apiserver, không ở kích thước pool.
+
+**Bốn lever thật, rẻ dần — CHỜ CHỦ DỰ ÁN QUYẾT, không tự chọn:**
+
+1. **Prewarm khi người dùng mở trang bài** — 0 RAM thường trực, tấn công đúng biến
+   `W` mà công thức nhạy nhất. Rẻ nhất.
+2. **Replenish song song 2–3** — 0 RAM, ~15 dòng, nhưng **lật một quyết định thiết kế
+   đã ghi lý do** (`pool/manager.go` tuần tự có chủ ý, tránh hai `Create` cùng đâm
+   quota).
+3. **`poolTarget` 3 → 5** — mất 2 khe phiên (20 → 18). Chỉ đủ cho N=18 khi W ≥ 87s.
+4. **Thu nhỏ image** — lever DUY NHẤT chạm vào chính 7.2s. Chưa đo.
+
+Pod sandbox **không có `readinessProbe`**, nên Ready = container đã start: 6s đó là
+chi phí tạo container của Sysbox, không phải dockerd. "Làm app nhẹ hơn" không cắt
+được nó.
+
+### 3.3 A7 — CEL #8 KHÔNG chặn dotfiles
+
+Bảng nợ ghi *"`/mnt/dotfiles` chưa có ai mount — CEL #8 cấm `hostPath`"*, đọc ra như
+một ràng buộc an ninh cần xin ngoại lệ. Nguyên văn CEL:
+`!has(object.spec.volumes) || object.spec.volumes.all(v, !has(v.hostPath))` — nó cấm
+**đúng một kiểu** volume. `configMap` / `secret` / `emptyDir` / `projected` / PVC đều
+qua. **Không có ngoại lệ nào cần xin.**
+
+Thứ chặn thật là **warm pool**: pod tạo trước khi biết ai claim, nên `BuildSandboxPod`
+không có `userId` để đặt tên ConfigMap riêng. Mount theo người dùng ⇒ phải tạo pod lúc
+claim ⇒ cold path 6–8s, đúng thứ §3.2 đang cố tránh.
+
+Đường đúng là đẩy nội dung sau claim qua `pods/exec` — cùng kênh `dlp-session-deadline`.
+**Cố ý CHƯA dựng**: không tính năng nào đang *sản xuất* nội dung dotfiles (không bảng,
+không màn hình, không API). Thêm volume vào MỌI pod spec để chở một thư mục luôn rỗng
+là YAGNI. Việc cần làm trước là chọn nơi người dùng **nhập** dotfiles.
+
 _(phần còn lại sau deploy)_
 
 ## 4. Còn lại — nói thẳng
