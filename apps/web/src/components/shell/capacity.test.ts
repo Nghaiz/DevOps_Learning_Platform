@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PROFILE,
@@ -221,6 +223,172 @@ describe('describeProfileCapacity — bản vá mâu thuẫn 2026-09-07', () => 
       .flatMap((reading) => [reading?.label ?? '', reading?.detail ?? ''])
       .join(' ');
     expect(all).not.toMatch(/giá|gói cước|thanh toán|nâng cấp|dùng thử/i);
+  });
+});
+
+/**
+ * CÁCH LY `describeCapacity` (công thức cũ) — phép kiểm TĨNH, quét mã nguồn.
+ *
+ * Sau 2026-09-08 hàm đó KHÔNG còn call-site sản phẩm nào; nó sống tiếp vì đúng
+ * hai lý do đã ghi tại chỗ (`capacity.ts`): nó là đối chứng của các ô
+ * `describeProfileCapacity` ngay phía trên, và xoá hẳn còn phải gỡ một dòng ở
+ * `components/shell/index.ts` — barrel, ngoài sở hữu của lượt dọn nợ này.
+ *
+ * "Còn sống nhưng không ai gọi" là trạng thái tự mục: lần sau ai đó cần một câu
+ * "còn N chỗ" sẽ thấy nó trong gợi ý của barrel, gọi nó, và in lại đúng con số
+ * đã nói dối ngày 2026-09-07. Nên nó bị cách ly bằng một danh sách miễn trừ
+ * ĐÍCH DANH, và phép kiểm chạy theo CẢ HAI CHIỀU:
+ *
+ *   · file MỚI import nó ⇒ ĐỎ. Việc phải làm là dùng `describeProfileCapacity`,
+ *     KHÔNG phải thêm tên file vào danh sách dưới đây.
+ *   · một mục trong danh sách hết import nó ⇒ CŨNG ĐỎ. Đặc biệt khi mục đó là
+ *     `components/shell/index.ts`: lúc ấy rào chắn duy nhất của việc xoá đã tự
+ *     rơi, và việc phải làm là XOÁ hàm + xoá cả khối này, không phải sửa danh
+ *     sách cho nó xanh lại.
+ *
+ * ⚠ Chỉ tính `describeCapacity` CỦA VỎ, và phải phân giải ĐƯỜNG DẪN MODULE của
+ * từng lệnh import chứ không grep theo tên. `components/session/capacity.ts` có
+ * một hàm TRÙNG TÊN (nhận thêm `profile`, đọc `profile_capacity`) đang được
+ * `session-controls.tsx` dùng thật. Bản đầu của khối này đếm theo tên và ĐỎ NGAY
+ * trên cây đúng, gọi tám file lành là vi phạm — trong đó có cả hai trang vừa
+ * được vá. Một phép kiểm luôn đỏ là một phép kiểm sẽ bị tắt, nên chính sự phân
+ * biệt đó có một ô gác riêng ("phân biệt được hàm trùng tên của khung phiên").
+ */
+const QUARANTINE_DEFINITION = 'components/shell/capacity.ts';
+
+const QUARANTINE_ALLOW = [
+  'components/shell/capacity.test.ts', // đối chứng của chính file này
+  'components/shell/index.ts', // dòng re-export — thứ chặn việc xoá hẳn
+] as const;
+
+const SKIP_DIRS = new Set(['node_modules', '.next', '.turbo']);
+
+function collectTsFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    if (SKIP_DIRS.has(entry)) {
+      continue;
+    }
+    const full = path.join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      collectTsFiles(full, out);
+    } else if (entry.endsWith('.ts') || entry.endsWith('.tsx')) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+/**
+ * `<file>` + `<specifier>` → khoá module, chuẩn hoá về dạng posix tương đối
+ * `src/`. Bỏ đuôi và bỏ `/index` để `'../shell'`, `'../shell/index'` và
+ * `'../../components/shell/index.ts'` cùng đọc ra một khoá.
+ */
+function moduleKey(fromFile: string, specifier: string, srcRoot: string): string | null {
+  if (!specifier.startsWith('.')) {
+    return null;
+  }
+  const resolved = path.resolve(path.dirname(fromFile), specifier);
+  const rel = path.relative(srcRoot, resolved).split(path.sep).join('/');
+  return rel.replace(/\.tsx?$/, '').replace(/\/index$/, '');
+}
+
+/** Khoá module trỏ tới `describeCapacity` CỦA VỎ (file thật hoặc qua barrel). */
+const SHELL_CAPACITY_KEYS = new Set(['components/shell/capacity', 'components/shell']);
+
+/** Mọi `import {…} from '…'` / `export {…} from '…'`, kể cả bản `type`. */
+const NAMED_FROM = /(?:import|export)\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"]([^'"]+)['"]/g;
+
+function importsShellDescribeCapacity(source: string, file: string, srcRoot: string): boolean {
+  for (const match of source.matchAll(NAMED_FROM)) {
+    const [, bindings = '', specifier = ''] = match;
+    const names = bindings
+      .split(',')
+      // `describeCapacity as legacy` ⇒ vẫn là cùng một hàm; lấy vế TRÁI.
+      .map((raw) => raw.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0]?.trim() ?? '');
+    if (!names.includes('describeCapacity')) {
+      continue;
+    }
+    const key = moduleKey(file, specifier, srcRoot);
+    if (key !== null && SHELL_CAPACITY_KEYS.has(key)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+describe('describeCapacity — cách ly (công thức cũ, không call-site sản phẩm)', () => {
+  const srcRoot = path.resolve(import.meta.dirname, '..', '..');
+
+  /*
+    Đọc MỘT lượt ở pha thu thập, không trong thân `it` — quét vài trăm file bằng
+    `readFileSync` khi turbo chạy nhiều gói song song trên Windows đủ vượt
+    `testTimeout` 5000ms, và lúc đó ô đỏ vì tranh I/O chứ không vì hợp đồng bị
+    phá. Cùng lý do đã ghi ở `components/session/landmark-contract.test.ts`.
+  */
+  const files = collectTsFiles(srcRoot).map((file) => {
+    const source = readFileSync(file, 'utf8');
+    return {
+      relative: path.relative(srcRoot, file).split(path.sep).join('/'),
+      mentions: source.includes('describeCapacity'),
+      definesIt: /export function describeCapacity\b/.test(source),
+      importsShell: importsShellDescribeCapacity(source, file, srcRoot),
+    };
+  });
+
+  it('quét được một tập đáng kể, và VẪN thấy hàm bị cách ly (đối chứng dương)', () => {
+    expect(files.length).toBeGreaterThan(50);
+    // Regex/phân giải đường dẫn còn chạy: nếu hỏng, danh sách này rỗng và mọi ô
+    // dưới xanh vì không đo gì.
+    expect(files.filter((f) => f.importsShell).length).toBeGreaterThan(0);
+    // Và hàm vẫn còn ở chỗ nó phải ở. Mất dòng này ⇒ ai đó đã xoá hàm rồi, và
+    // việc phải làm là xoá luôn cả khối cách ly này chứ không sửa nó cho xanh.
+    const dinhNghia = files.find((f) => f.relative === QUARANTINE_DEFINITION);
+    expect(dinhNghia?.definesIt, `${QUARANTINE_DEFINITION} không còn định nghĩa describeCapacity`).toBe(
+      true,
+    );
+  });
+
+  /**
+   * ĐỐI CHỨNG PHÂN BIỆT — ô đắt nhất của khối này.
+   *
+   * `components/session/capacity.ts` export một hàm TRÙNG TÊN (nhận thêm
+   * `profile`), và `session-controls.tsx` import nó THẬT, mỗi lần render. Một
+   * phép kiểm đếm theo TÊN sẽ gọi hai file đó là vi phạm — tức đỏ ở đúng bản
+   * ĐÚNG, và rồi bị tắt. Ô này ghim rằng hai file đó nhắc tên nhưng KHÔNG nối
+   * vào module của vỏ.
+   */
+  it('phân biệt được hàm trùng tên của khung phiên', () => {
+    for (const relative of ['components/session/session-controls.tsx', 'components/session/capacity.ts']) {
+      const f = files.find((x) => x.relative === relative);
+      expect(f, `không tìm thấy ${relative}`).toBeDefined();
+      expect(f?.mentions).toBe(true);
+      expect(f?.importsShell, `${relative} bị tính nhầm là dùng describeCapacity của VỎ`).toBe(false);
+    }
+  });
+
+  it('không file nào ngoài danh sách miễn trừ import nó', () => {
+    const allow = new Set<string>(QUARANTINE_ALLOW);
+    const offenders = files
+      .filter((f) => f.importsShell && !allow.has(f.relative))
+      .map((f) => f.relative);
+    expect(
+      offenders,
+      'dùng `describeProfileCapacity` (đọc ResourceQuota theo từng profile) — ' +
+        '`describeCapacity` tính `soft − active`, chính con số đã in "Còn 14 chỗ" ' +
+        'trong lúc startSession trả 429. KHÔNG thêm file vào QUARANTINE_ALLOW.',
+    ).toEqual([]);
+  });
+
+  it('không mục miễn trừ nào đã cũ (hết import ⇒ XOÁ hàm, không sửa danh sách)', () => {
+    const stale = QUARANTINE_ALLOW.filter(
+      (relative) => files.find((f) => f.relative === relative)?.importsShell !== true,
+    );
+    expect(
+      stale,
+      'mục này không còn import `describeCapacity` của vỏ. Nếu là ' +
+        '`components/shell/index.ts` thì rào chắn duy nhất của việc xoá đã rơi: xoá ' +
+        'hàm ở capacity.ts và xoá luôn khối cách ly này.',
+    ).toEqual([]);
   });
 });
 

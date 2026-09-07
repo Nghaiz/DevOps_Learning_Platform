@@ -154,16 +154,37 @@ export function readCapacity(
  * `startSession` trả 429 cho một bài IDE. Vỏ ứng dụng ĐÃ chuyển sang
  * `describeProfileCapacity` (đọc ResourceQuota thật, theo từng profile).
  *
- * Hàm này còn sống vì ba chỗ gọi nằm NGOÀI sở hữu của lượt vá này:
- * `app/admin/overview-client.tsx`, `components/me/active-sessions.tsx`, và
- * `components/session/capacity.ts` (qua `readCapacity`). Chúng vẫn hiện con số
- * cũ. Đổi chúng là việc còn lại, không phải một chi tiết đã xong.
+ * @deprecated
  *
- * ⚠ Chữ ký nhận `CapacityView` KHÔNG-null có chủ ý: cả hai chỗ gọi
- * (`capacity-indicator.tsx`, `app-shell.tsx`) đã tự chặn `data === null` và
- * hiện Skeleton/không hiện gì — tức ngữ nghĩa "chưa biết ⇒ không vẽ" đã được
- * giữ ở đó. Muốn dời cổng đó vào đây thì kiểu trả về phải thành
- * `CapacityReading | null` và HAI file kia phải sửa theo.
+ * ## KHÔNG CÒN CALL-SITE SẢN PHẨM NÀO (đo lại 2026-09-08)
+ *
+ * Ba chỗ gọi mà đoạn trên nói tới đều đã chuyển sang `describeProfileCapacity`:
+ * `app/admin/overview-client.tsx`, `components/me/active-sessions.tsx`,
+ * `components/session/capacity.ts`. Hai chỗ vẽ của vỏ (`capacity-indicator.tsx`,
+ * `app-shell.tsx`) cũng vậy. Còn đúng ba file nhắc tên hàm này: chính nó, dòng
+ * re-export ở `components/shell/index.ts`, và `capacity.test.ts`.
+ *
+ * ## Vì sao nó chưa bị xoá, và cái leash thay chỗ việc xoá
+ *
+ * Hai lý do, cả hai đều nói ra chứ không giấu:
+ *
+ * 1. Nó là ĐỐI CHỨNG của `describeProfileCapacity` trong `capacity.test.ts` —
+ *    ô "đường mới KHÔNG rơi về số cũ" so con số mới với con số mà CÔNG THỨC CŨ
+ *    tính ra TỪ CÙNG MỘT PAYLOAD. Thay bằng hằng số `14` viết tay thì ô đó không
+ *    còn chứng minh "cùng payload, hai công thức, hai kết quả" nữa.
+ * 2. Xoá hẳn còn phải gỡ dòng `describeCapacity,` ở `components/shell/index.ts`
+ *    — file barrel, NGOÀI sở hữu của lượt này (lượt này chỉ có `capacity*.ts*`),
+ *    và barrel là đúng loại file mà hai lane song song ghi đè nhau trong im lặng.
+ *
+ * Một hàm chỉ còn test của chính nó gọi là một cổng không gác gì. Nên thay vì để
+ * yên, nó bị CÁCH LY bằng một phép kiểm tĩnh trong `capacity.test.ts`
+ * (`describeCapacity — cách ly`) chạy theo CẢ HAI CHIỀU: một file sản phẩm mới
+ * import nó ⇒ ĐỎ (ai đó vừa nối lại công thức đã nói dối); một mục trong danh
+ * sách miễn trừ hết nhắc tới nó ⇒ cũng ĐỎ, và lúc ấy việc phải làm là XOÁ hàm
+ * này chứ không phải sửa danh sách.
+ *
+ * ⚠ Chữ ký nhận `CapacityView` KHÔNG-null giữ nguyên: đổi nó là đổi bề mặt công
+ * khai đang được barrel export, tức lại phải sửa file ngoài sở hữu.
  */
 export function describeCapacity(view: CapacityView): CapacityReading {
   const level = levelOf(view.activeSessions, view.softCapacity);
