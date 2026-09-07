@@ -94,6 +94,14 @@ migrate:
 web:
   # Tag tường minh — xem khối "TAG THEO TỪNG THÀNH PHẦN" ở đầu file.
   #
+  # p13d (2026-09-07): `IdePane` THĂM DÒ `/ide` rồi mới gắn iframe.
+  #   Đo trên p13c: phiên trả về ở t+8s, Theia bind cổng 4000 ở ~t+20s, và
+  #   iframe chỉ nạp MỘT lần — log gateway có đúng một dòng
+  #   `connection refused` rồi im. Thân 503 vẫn bắn `load` nên lớp phủ "đang
+  #   khởi động" biến mất và người học nhìn JSON thô, vĩnh viễn. Tức IDE hỏng ở
+  #   gần như MỌI lần mở đầu, dù gateway + ảnh sandbox + cờ layout đều đúng.
+  #   Chỉ tầng web đổi ⇒ không ràng buộc thứ tự với orchestrator.
+  #
   # p13c (2026-09-07): ba thay đổi tầng web + MỘT thay đổi nội dung ẢNH.
   #   1. Ảnh nay CÀI `shellcheck` (+17 MiB). Cho tới p13b, bước kiểm script của
   #      trang soạn bài trả `spawn shellcheck ENOENT` ở MỌI lượt — UI nói đúng
@@ -117,7 +125,7 @@ web:
   # JIT của Zod. KHÔNG đụng proto nên KHÔNG có ràng buộc "web và orchestrator lên
   # cùng lượt" của §3bis; orchestrator/gateway/migrator giữ nguyên `p13`.
   image:
-    tag: p13c
+    tag: p13d
   replicaCount: 1
   # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
   # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ
