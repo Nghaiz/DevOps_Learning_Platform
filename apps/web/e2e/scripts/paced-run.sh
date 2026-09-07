@@ -40,7 +40,7 @@
 set -uo pipefail
 
 GOC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-NGHI="${NGHI:-75}"   # > cửa sổ 60s của rate-limit, cộng biên
+NGHI="${NGHI:-5}"   # chi de cum tho; bucket giai bang DOI TAI KHOAN, khong bang cho
 
 # Mỗi mẻ là một lượt `playwright test` riêng. Bảy luồng tách rời nhau vì mỗi
 # luồng tự dựng một phiên sandbox thật; gộp chúng là dồn cả bucket vào một phút.
@@ -60,36 +60,75 @@ MAC_DINH=(
 )
 read -r -a ME <<< "${ME:-${MAC_DINH[*]}}"
 
-for c in E2E_EMAIL E2E_PASSWORD; do
-  [[ -n "${!c:-}" ]] || { echo "LỖI: thiếu env $c" >&2; exit 2; }
-done
-: "${E2E_REQUIRE_ROLES:?bắt buộc =1 — xem chú thích đầu file}"
-: "${E2E_REQUIRE_SESSION:?bắt buộc =1 — xem chú thích đầu file}"
-
-# MOT SPEC CUNG CO THE TU VUOT TRAN. `a11y` (25 o), `csp` (27) va `keyboard` (25)
-# moi o mo mot man hinh day du, nen mot me duy nhat da qua 120 request/60s.
-# Do 2026-09-08: chia me theo FILE thoi van cho a11y 11 do / csp 13 / keyboard 13,
-# va phan loai lai thi 9/9 loi a11y la 429, KHONG mot loi nao khac. Nen ba file do
-# phai cat tiep bang `--shard`, moi phan nghi nhu mot me rieng.
+# ⛔ KHOA RATE-LIMIT LA `trpc:{type}:{userId}` — THEO NGUOI DUNG, khong theo IP
+# (`apps/web/src/server/trpc/init.ts:161`). Query 120/phut, mutation 20/phut.
 #
-# `--shard` chia theo thu tu on dinh, KHONG ngau nhien, nen mot o do van tai hien
-# duoc o dung phan do.
-so_phan() {
+# Nen cach dung khong phai la NGHI cho bucket hoi, ma la DOI TAI KHOAN moi me:
+# moi me bat dau voi mot bucket day. Do 2026-09-08: nghi 75s giua cac me van cho
+# a11y 6/6 do vi 429 — mot me 12 o da vuot 120 query. Xoay tai khoan thi khong
+# con me nao cham tran.
+#
+# Moi tai khoan deu duoc promote len admin, vi mot so o doi vai tro; tat ca bi ha
+# ve `user` o cuoi (trap EXIT). Bo buoc do la de lai dung thu ma C16 vua don.
+
+TAIKHOAN=()
+don_tai_khoan() {
+  [[ ${#TAIKHOAN[@]} -eq 0 ]] && return 0
+  printf '
+[paced] ha %d tai khoan tam ve user…
+' "${#TAIKHOAN[@]}"
+  for e in "${TAIKHOAN[@]}"; do
+    ssh -o BatchMode=yes "$VM_SSH" "/tmp/paced-promote.sh '$e' user" >/dev/null 2>&1 || true
+  done
+  ssh -o BatchMode=yes "$VM_SSH" 'rm -f /tmp/paced-promote.sh' >/dev/null 2>&1 || true
+}
+trap don_tai_khoan EXIT
+
+VM_SSH="${VM_SSH:-nghaiz@192.168.94.130}"
+scp -q -o BatchMode=yes "$GOC/apps/web/e2e/scripts/promote-role.sh" "$VM_SSH:/tmp/paced-promote.sh"   && ssh -o BatchMode=yes "$VM_SSH" 'chmod +x /tmp/paced-promote.sh'   || { echo "KHONG DO DUOC: khong dua duoc promote-role.sh len VM" >&2; exit 2; }
+
+# Tao mot tai khoan admin moi, in email ra stdout.
+tai_khoan_moi() {
+  local e="paced-$(date +%s)-$RANDOM@dlp.local"
+  local ma
+  ma="$(curl -sk -o /dev/null -w '%{http_code}' -X POST "$E2E_BASE_URL/api/auth/sign-up/email"         -H 'Content-Type: application/json' -H "Origin: $E2E_ORIGIN"         -d "{\"email\":\"$e\",\"password\":\"$E2E_PASSWORD\",\"name\":\"paced\"}" --max-time 30)"
+  [[ "$ma" == "200" ]] || { echo "signup that bai ($ma)" >&2; return 1; }
+  ssh -o BatchMode=yes "$VM_SSH" "/tmp/paced-promote.sh '$e' admin" >/dev/null 2>&1 || return 1
+  TAIKHOAN+=("$e")
+  printf '%s' "$e"
+}
+
+: "${E2E_PASSWORD:?bat buoc}"
+: "${E2E_BASE_URL:?bat buoc}"
+: "${E2E_ORIGIN:?bat buoc}"
+: "${E2E_REQUIRE_ROLES:?bat buoc =1 — xem chu thich dau file}"
+: "${E2E_REQUIRE_SESSION:?bat buoc =1 — xem chu thich dau file}"
+
+# Khoi `test.describe` cua ba spec lon. Cat theo TEN KHOI chu khong theo --shard:
+# `--shard` chia theo FILE khi `fullyParallel: false`, nen voi mot file thi
+# `--shard=1/3` nhan TRON bo va hai phan con lai chay 0 o roi thoat 0 — mot cach
+# "xanh" khong chung minh gi. Do 2026-09-08.
+khoi_cua() {
   case "$1" in
-    a11y.spec.ts | csp.spec.ts | keyboard.spec.ts) echo 3 ;;
-    *) echo 1 ;;
+    a11y.spec.ts)     printf '%s
+' 'a11y — công khai' 'a11y — đã đăng nhập' 'a11y — theo vai trò' ;;
+    csp.spec.ts)      printf '%s
+' 'đối chứng dương' 'nonce' '0 vi phạm CSP' ;;
+    keyboard.spec.ts) printf '%s
+' 'thứ tự và dấu focus' 'đi hết luồng chính' 'D10' ;;
+    *) : ;;
   esac
 }
 
 DO=()
 MEBAT=()
 for spec in "${ME[@]}"; do
-  n="$(so_phan "$spec")"
-  if [[ "$n" -eq 1 ]]; then
-    MEBAT+=("$spec|")
-  else
-    for k in $(seq 1 "$n"); do MEBAT+=("$spec|$k/$n"); done
-  fi
+  co_khoi=0
+  while IFS= read -r k; do
+    [[ -z "$k" ]] && continue
+    MEBAT+=("$spec|$k"); co_khoi=1
+  done < <(khoi_cua "$spec")
+  [[ "$co_khoi" -eq 1 ]] || MEBAT+=("$spec|")
 done
 
 TONG=${#MEBAT[@]}
@@ -98,9 +137,12 @@ for muc in "${MEBAT[@]}"; do
   i=$((i + 1))
   spec="${muc%%|*}"; shard="${muc##*|}"
   nhan="$spec"; doi=()
-  if [[ -n "$shard" ]]; then nhan="$spec (phan $shard)"; doi=(--shard="$shard"); fi
+  if [[ -n "$shard" ]]; then nhan="$spec :: $shard"; doi=(--grep "$shard"); fi
   printf '\n===== [paced] me %d/%d : %s  (%s) =====\n' "$i" "$TONG" "$nhan" "$(date -Is)"
-  ( cd "$GOC" && pnpm --filter web exec playwright test "e2e/$spec" "${doi[@]}" ) 2>&1 | tail -20
+  # Tai khoan MOI cho moi me: bucket rate-limit theo userId, nen me nay khong
+  # thua huong gi tu me truoc.
+  EM="$(tai_khoan_moi)" || { DO+=("$nhan (khong tao duoc tai khoan)"); continue; }
+  ( cd "$GOC" && E2E_EMAIL="$EM" pnpm --filter web exec playwright test "e2e/$spec" "${doi[@]}" ) 2>&1 | tail -20
   MA=${PIPESTATUS[0]}
   [[ "$MA" -eq 0 ]] || DO+=("$nhan")
   printf '[paced] me %d exit=%d\n' "$i" "$MA"
