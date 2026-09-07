@@ -15,8 +15,21 @@ export { NarrowScreenNotice } from './narrow-screen-notice';
 export { useMinWidth } from './use-min-width';
 export { useCapacity, CAPACITY_REFETCH_MS } from './use-capacity';
 export type { CapacityState } from './use-capacity';
-export { describeCapacity, formatFetchedAt, LOW_CAPACITY_RATIO } from './capacity';
-export type { CapacityView, CapacityReading, CapacityTone } from './capacity';
+export {
+  describeCapacity,
+  describeProfileCapacity,
+  readProfileCapacity,
+  formatFetchedAt,
+  DEFAULT_PROFILE,
+  LOW_CAPACITY_RATIO,
+} from './capacity';
+export type {
+  CapacityView,
+  ProfileCapacityView,
+  ProfileCapacity,
+  CapacityReading,
+  CapacityTone,
+} from './capacity';
 export { useViewer } from './viewer-context';
 export { PRIMARY_NAV, userMenuItems, isActiveNav, normalizeRole } from './nav';
 export type { NavItem, Viewer, ViewerRole } from './nav';

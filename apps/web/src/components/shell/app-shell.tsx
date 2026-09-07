@@ -23,7 +23,7 @@ import { PRIMARY_NAV, isActiveNav, userMenuItems, type NavItem, type Viewer } fr
 import { NAV_ICONS, USER_MENU_ICONS } from './nav-icons';
 import { CapacityIndicator } from './capacity-indicator';
 import { CapacityProvider, useCapacity } from './use-capacity';
-import { describeCapacity } from './capacity';
+import { describeProfileCapacity } from './capacity';
 import { ThemeToggle } from './theme-toggle';
 import { UserMenu } from './user-menu';
 import { ViewerProvider } from './viewer-context';
@@ -337,8 +337,11 @@ function CapacityFullBanner() {
   if (data === null) {
     return null;
   }
-  const reading = describeCapacity(data);
-  if (reading.tone !== 'full') {
+  // `null` = CHƯA BIẾT còn mấy chỗ (quota không đọc được, hoặc server không
+  // khai profile mặc định). Không vẽ dải cảnh báo: "chưa rõ" KHÔNG phải "đã
+  // kín", và dựng một cảnh báo hạ tầng từ một 403 RBAC là bịa.
+  const reading = describeProfileCapacity(data);
+  if (reading === null || reading.tone !== 'full') {
     return null;
   }
   return (

@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge, Skeleton, Tooltip, TooltipContent, TooltipTrigger, cn } from '@devops-platform/ui';
-import { describeCapacity, formatFetchedAt, type CapacityTone } from './capacity';
+import { describeProfileCapacity, formatFetchedAt, type CapacityTone } from './capacity';
 import { useCapacity } from './use-capacity';
 
 /**
@@ -46,6 +46,20 @@ const TONE_DOT: Record<CapacityTone, string> = {
  *
  * Hiện ở VỎ chứ không chỉ cạnh nút Bắt đầu, vì AC đòi báo TRƯỚC khi người dùng
  * chạm 429 — mà lúc họ nhìn thấy nút Bắt đầu thì đã đi hết một chuỗi chọn bài.
+ *
+ * ## Con số này là của BÀI THƯỜNG, và nhãn nói ra điều đó
+ *
+ * Vỏ ứng dụng không biết người dùng sắp mở bài nào, nên nó chỉ nói được trần
+ * của profile MẶC ĐỊNH — và `describeProfileCapacity` dán "cho bài thường" vào
+ * câu, cộng một dòng nhắc rằng bài có IDE hoặc lab Kubernetes có trần riêng,
+ * thấp hơn.
+ *
+ * Bản trước KHÔNG nói ra điều đó và đã sai vì chính chỗ ấy: ngày 2026-09-07 nó
+ * in "Đang chạy 6/20 phiên (trần cứng 23) → Còn 14 chỗ" đúng lúc
+ * `lessons.startSession` trả 429 cho một bài IDE. Trần cứng 23 là
+ * `requests.memory 5952Mi ÷ 256Mi` — đúng cho bài thường, sai cho mọi profile
+ * khác. Nhãn khẳng định nhiều hơn dữ liệu là cái bẫy đã lặp nhiều lần ở dự án
+ * này; ở đây nó được đóng bằng cách thu hẹp lời hứa, không phải bằng số to hơn.
  */
 export function CapacityIndicator() {
   const { data, error, loading } = useCapacity();
@@ -70,8 +84,38 @@ export function CapacityIndicator() {
     );
   }
 
-  const reading = describeCapacity(data);
+  const reading = describeProfileCapacity(data);
   const at = formatFetchedAt(data.fetchedAt);
+
+  // Đọc được payload nhưng KHÔNG biết còn mấy chỗ — quota không đọc được (ca
+  // thật: Role sandbox thiếu quyền `resourcequotas`, một 403 im lặng), hoặc
+  // server không khai profile mặc định.
+  //
+  // ⛔ KHÔNG rơi về `softCapacity`. Chính con số đó đã in "Còn 14 chỗ" ngày
+  // 2026-09-07 đúng lúc `startSession` trả 429 cho một bài IDE: nó bằng
+  // `CAPACITY_HARD_LIMIT − POOL_TARGET`, một hằng số mã hoá giả định "mọi phiên
+  // đều là bài thường". Nói "chưa rõ" là kém vui hơn nhưng ĐÚNG, và người học
+  // không bấm Bắt đầu để đổi lấy một 429.
+  if (reading === null) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="outline">Chưa rõ sức chứa</Badge>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          <p>
+            Máy chủ chưa đọc được hạn mức tài nguyên của cụm, nên số chỗ trống chưa tính
+            được. Bạn vẫn bấm Bắt đầu được — nếu hết chỗ thật thì phiên sẽ bị từ chối kèm
+            lý do.
+          </p>
+          {data.quotaError === '' ? null : (
+            <p className="mt-1 text-xs opacity-80">Lý do: {data.quotaError}</p>
+          )}
+          {at === null ? null : <p className="mt-1 text-xs opacity-80">Đọc lúc {at}.</p>}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
 
   return (
     <Tooltip>

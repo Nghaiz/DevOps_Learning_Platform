@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { describeTrpcError, trpc } from '../../lib/trpc';
-import type { CapacityView } from './capacity';
+import type { ProfileCapacityView } from './capacity';
 
 /**
  * Nhịp đọc lại sức chứa. 15s là mức hợp đồng §3 lane B chốt: đủ nhanh để con số
@@ -22,7 +22,7 @@ export const CAPACITY_REFETCH_MS = 15_000;
 
 export interface CapacityState {
   /** Số liệu mới nhất ĐỌC ĐƯỢC — giữ nguyên qua một lượt lỗi, xem chú thích ở `load`. */
-  readonly data: CapacityView | null;
+  readonly data: ProfileCapacityView | null;
   /** Câu lỗi của lượt đọc gần nhất, `null` khi lượt đó thành công. */
   readonly error: string | null;
   readonly loading: boolean;
@@ -54,7 +54,7 @@ export function CapacityProvider({
   readonly children: ReactNode;
 }) {
   const [snapshot, setSnapshot] = useState<{
-    data: CapacityView | null;
+    data: ProfileCapacityView | null;
     error: string | null;
     loading: boolean;
   }>({ data: null, error: null, loading: enabled });
