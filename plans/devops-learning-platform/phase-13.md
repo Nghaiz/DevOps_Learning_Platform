@@ -86,19 +86,19 @@ Một sản phẩm dùng được: người lạ vào, đăng nhập, tìm bài,
 
 ## Acceptance criteria
 
-- [ ] Token là **một** nguồn; grep không thấy mã màu hardcode trong JSX.
-- [ ] Dark mode chạy trên **mọi** trang, gồm cả terminal và editor.
-- [ ] Mọi component mới có đủ 4 trạng thái loading/empty/error/disabled (checklist trong `docs/design-system.md`).
-- [ ] Font phủ đủ dấu tiếng Việt; kiểm bằng một chuỗi có đủ dấu nặng/ngã/ơ/ư.
-- [ ] 4 trình học chạy end-to-end **trên cụm thật**, không phải mock.
-- [ ] Layout `ide` hiện đúng khi `interfaceLayout === 'ide'`, và **không** hiện khi không có cờ.
-- [ ] "Còn N chỗ" phản ánh trần thật của P12; chạm trần thì báo trước, không để người dùng gặp 429 trần trụi.
-- [ ] `lessons.list` phân trang **ở tầng nguồn**, không nạp cả catalog (đóng nợ P2).
-- [ ] Đáp án quiz không có trong payload FE nhận (kiểm bằng network trace).
-- [ ] axe: **0** lỗi serious/critical trên mọi route; đi hết luồng chính bằng bàn phím; Esc thoát khỏi terminal.
-- [ ] Playwright 6 luồng chính xanh trên cụm thật.
-- [ ] 0 vi phạm CSP mới, **có đối chứng dương** chứng minh phép kiểm biết kêu.
-- [ ] Responsive: ≤768px đọc được nội dung, terminal báo rõ thay vì vỡ.
+- [x] Token là **một** nguồn; grep không thấy mã màu hardcode trong JSX. — lệnh lọc rỗng, **có đối chứng dương** (bơm `bg-slate-700` giả ⇒ kêu). Lệnh trong § Verify commands cũ không thể rỗng vì khớp chú thích + chuỗi test.
+- [~] Dark mode: vỏ trang ĐẠT cả hai chiều trên cụm (`lab(100 0 0)` ↔ `lab(2.72357 …)`). Terminal bám `useTheme()` + có test, nhưng canvas xterm CHƯA nhìn thấy đổi màu. Editor của Theia mang theme RIÊNG, độc lập với dark mode của app — nói ra chứ không tích.
+- [x] Mọi component mới có đủ 4 trạng thái — `design-system.contract.test.tsx` gác HAI chiều (mọi export có dòng · không dòng nào trỏ tới component đã xoá · không ô trống · danh sách miễn trừ có đối ứng).
+- [x] Font phủ đủ dấu tiếng Việt — đo trên cụm: `fonts.check('32px "Be Vietnam Pro"', 'Đặng Kiều Nữ ạ ã ơ ư ợ ữ ẫ ặ')` → true, và **0/18** ký tự có dấu rơi về bề rộng fallback.
+- [~] 3/4 trình học end-to-end trên cụm thật (lesson · lab · quiz, qua luồng `@flow`). **Playground** chỉ được a11y + csp quét, chưa có phép đo mở-sandbox-rồi-kết-thúc riêng.
+- [ ] Layout `ide` theo cờ `interfaceLayout` — CHƯA ĐO. Vật cản đã gỡ: `/ide` nay chạy được (ảnh sandbox có Theia + gateway thôi xoá cookie của Theia), nhưng chưa ai kiểm chính cái cờ.
+- [~] "Còn N chỗ" hiện đúng mẫu số đã chốt — quan sát trên cụm: **"Còn 20 chỗ"**. Nhánh chạm-trần (báo trước thay vì 429 trần trụi) chưa dựng được cảnh để đo.
+- [x] `lessons.list` phân trang ở tầng nguồn — client dùng `useQuery` + cursor (KHÔNG `useInfiniteQuery`), router gọi `listPage()`, `db-source` đẩy `WHERE id > cursor … LIMIT n+1` xuống Postgres, và `repository-page-sql.integration.test.ts` chạy trên Postgres thật.
+- [x] Đáp án quiz không có trong payload — `isCorrect?: never` / `explanation?: never` là rào COMPILE, và pentest luật 1 + 3 (IDOR, strict input) SAFE với đối chứng dương ĐỎ trên cụm.
+- [x] axe **25/25 xanh**, 0 lỗi serious/critical trên 22 màn + đối chứng; `keyboard` **25/25**, gồm ba ô D10 Esc-Esc rời terminal (cần phiên sandbox THẬT, chạy với `E2E_REQUIRE_SESSION=1`).
+- [x] Playwright **6/6 luồng xanh** trên cụm thật, cổng đếm khớp `đã chạy 6 / 6`. Đúng MỘT annotation `chua-do` (D15) — và D15 đã được đo TAY riêng.
+- [x] CSP **27/27 xanh**, 0 vi phạm. Ba đối chứng dương (inline script · ảnh khác origin · iframe khác origin) nằm TRONG cùng lượt 27 đó. Trước bản vá: 9 ô đỏ, cả 9 là phép dò JIT của Zod.
+- [ ] Responsive ≤768px — CHƯA ĐO.
 - [ ] **Không** màn hình/route/chuỗi nào liên quan giá, gói cước, thanh toán. Chứng bằng BA lớp, không chỉ một lệnh grep: (1) lệnh grep ở § Verify commands — **đã sửa 2026-09-06**, bản cũ không thể rỗng nên không chứng được gì; (2) test tiếng Việt trên chuỗi UI (`components/shell/{nav,capacity}.test.ts`) vì grep tiếng Anh không thấy nhãn giá viết bằng tiếng Việt; (3) test khẳng định mọi procedure TỪ CHỐI field thanh toán (`quiz-paths-input.test.ts`) và schema không có cột `price`/`sku`/`entitlement`.
 
 ## Verify commands
