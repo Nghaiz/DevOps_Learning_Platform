@@ -188,3 +188,149 @@ không kết luận nhầm là đường ghi hỏng.
 (`cat` trong terminal · script chấm của bài · `kubectl exec` từ host · Explorer/editor),
 với đối chứng âm chạy trước.
 
+---
+
+## P10:98 — trang "của tôi" → **ĐẠT**
+
+`plans/devops-learning-platform/phase-10.md:98`
+
+Câu chữ của ô: *"mọi con số tính lúc đọc; nhãn không khẳng định thứ không lưu."*
+
+### 1. Bốn khối đều có dữ liệu THẬT, và số khớp với thứ tôi vừa tạo
+
+Ảnh: `p10-98-a-me-lab-tab.png`, `p10-98-b-me-sau-khi-ket-thuc-phien.png`.
+
+| Khối | Hiển thị | Truy về đâu |
+|---|---|---|
+| Lộ trình đang dở | "Từ container tới cụm" · `Đã đạt 1/6 phần` · `Phần tiếp theo: dlp-sandbox-basics` | lượt quiz tôi vừa nộp; TRƯỚC đó khối này ghi "Chưa có lộ trình nào đang dở" |
+| Phiên đang mở | `d9f09e24b7de9db1c73168fae3e765c3` · `Máy đã sẵn sàng` · `Mở lúc 01:54:42 8/9/2026` · `còn 60 phút` | phiên tôi vừa dựng: Redis `createdAt=1788807282` = 01:54:42 (+07) — KHỚP TỪNG GIÂY; `expiresAt-createdAt = 3600` = "60 phút" |
+| Lịch sử → Bài học | `dlp-ide-config-edit · Đang học · Đang ở bước 2 · 01:44:17 8/9/2026` | đúng lúc tôi bấm "Kiểm tra" ở P6:99 (18:44Z), bước 1 đã đạt |
+| Lịch sử → Quiz | `Kiểm tra: từ container tới cụm · Đạt · 5/6 câu đúng · 83% · 01:34:28 8/9/2026` | đúng lượt nộp ở P10:85 (18:34Z), đúng điểm |
+
+`1/6` không phải "có hiện gì đó": lộ trình có đúng 6 mục
+(`content/paths/dlp-path-tu-container-toi-cum.json`), mục thứ 4 là chính quiz tôi vừa đạt, và
+`Phần tiếp theo` trỏ về `dlp-sandbox-basics` — mục ĐẦU TIÊN chưa đạt, không phải mục kế sau
+quiz. Đó là dấu hiệu của một phép tính lúc đọc, không phải một con trỏ đã lưu.
+
+Hai dòng còn lại (lab 7/9, quiz thứ hai 7/9) là dữ liệu CŨ của tài khoản, không phải của lượt
+này — xem ghi chú sửa lỗi ở đầu báo cáo.
+
+### 2. Vế "tính lúc đọc" — chứng minh ở tầng SCHEMA, không phải ở tầng quan sát UI
+
+UI hiện đúng số chỉ chứng minh UI hiện đúng số. Câu hỏi thật là: có cột nào để nó ĐỌC RA
+không? Truy vấn `information_schema` trên Postgres của cụm, lọc tên cột theo
+`/passed|progress|item_count|next_item|percent|score/`:
+
+```
+content_items.pass_threshold_percent
+quizzes.pass_threshold_percent
+```
+
+Cả hai là **ngưỡng do tác giả đặt**, không phải kết quả của ai. Không có
+`passed_count`, `item_count`, `next_item_id`, `percent_complete`, `score`.
+
+⚠ Truy vấn CÓ trả về hai dòng, nên nó không phải một phép đo rỗng khớp-không-gì
+(đối chứng dương cho chính regex).
+
+Các bảng lưu lượt làm:
+
+```
+quiz_attempts :: id, user_id, quiz_id, submitted_at
+lab_attempts  :: id, user_id, lab_id, session_id, started_at, submitted_at,
+                 display_name_public, created_at, updated_at
+progress      :: id, user_id, lesson_id, step_index, completed_at, created_at, updated_at
+learning_path_items :: id, path_id, ordinal, item_kind, item_id, created_at
+```
+
+`quiz_attempts` **không có cột điểm nào**. Nên `5/6 câu đúng · 83%` và `Đạt` không thể được
+đọc ra từ đâu — chúng phải được tính lúc đọc từ đáp án đã lưu, đối chiếu với nội dung.
+Tương tự: `lab_attempts` không có cột kết quả (`0% · đạt 0 task`, `Chưa đạt` là tính ra), và
+`19 giây` là `submitted_at - started_at` chứ không phải một cột thời lượng.
+
+Đây là vế mạnh nhất của lượt đo, và nó đóng luôn câu *"mọi con số tiến độ tính lúc đọc"* của
+13.E chứ không riêng ô này.
+
+### 3. "Kết thúc được từ đây" — bấm thật, và ĐÚNG phiên đó
+
+Dựng phiên thứ hai (playground `89facea5657a7cdec3d67c66efb0cee6`) để có hai dòng, rồi kết
+thúc ĐÚNG một dòng:
+
+```
+truoc : 2 dong (89facea5... con 24 phut | d9f09e24... con 49 phut)   ·  "Con 18 cho"
+        -> bam "Ket thuc" o dong 89facea5
+        -> hop thoai: "Ket thuc phien 89facea5657a...?"   (neu DICH DANH phien)
+        -> bam "Ket thuc phien"
+sau   : 1 dong (d9f09e24... con 49 phut)                             ·  "Con 19 cho"
+```
+
+Ba vế cùng nói một chuyện, mỗi vế ở một tầng khác nhau:
+
+- **UI**: dòng biến mất, dòng KIA còn nguyên (không phải "kết thúc tất cả").
+- **Sức chứa**: 18 → 19 chỗ. Một chỗ được trả lại đúng như hộp thoại hứa.
+- **Server**: Redis `status` của `89facea5` = `REAPED` (revision 2→3), pod
+  `sandbox-c6627e8f4457` **biến mất khỏi `kubectl get pods`**; phiên `d9f09e24` vẫn
+  `CLAIMED`.
+
+⚠ Hash `session:89facea5...` vẫn `EXISTS=1` sau khi kết thúc, TTL 248s. Đó KHÔNG phải rò rỉ:
+`status=REAPED` + pod đã xoá + chỗ đã trả, tức nó là bia mộ ngắn hạn (để client nối lại nhận
+được "phiên đã kết thúc" thay vì "không tìm thấy"). Ghi lại vì `EXISTS=1` đọc thoáng qua rất
+giống một phiên chưa chết.
+
+⚠ **Bẫy đo:** nút "Kết thúc" ở bảng chỉ MỞ hộp thoại, không gửi lệnh. Lần bấm đầu tôi tưởng
+nó hỏng vì bảng không đổi — `browser_network_requests` cho thấy **không lời gọi nào** được
+phát, và snapshot `main` không thấy hộp thoại vì nó render qua portal. Cú bấm thứ hai còn
+treo 30s do chính lớp phủ modal chắn nút phía sau. Đọc mạng trước khi kết luận "nút chết".
+
+**Kết luận P10:98 — ĐẠT.**
+
+---
+
+## P13:90 — dark mode: canvas xterm ĐỔI MÀU THẬT → **ĐẠT** (vế còn thiếu đã đo)
+
+`plans/devops-learning-platform/phase-13.md:90` (ô ngoài bốn ô ban đầu, giao thêm giữa lượt)
+
+Vỏ trang đã ĐẠT cả hai chiều từ trước; vế thiếu là *"canvas xterm CHƯA nhìn thấy đổi màu"*.
+
+### Phép đo
+
+Canvas không đọc được bằng DOM (`getComputedStyle` không nói gì về thứ đang được vẽ), nên đo
+bằng pixel: in nội dung ổn định vào terminal (`DLP-THEME-PROBE` + 8 dòng), rồi chụp vùng
+terminal ở từng theme và so ảnh.
+
+`toDataURL` KHÔNG được dùng: xterm chạy renderer WebGL, và không có `preserveDrawingBuffer`
+thì nó trả ảnh trong suốt — một ảnh trống ở đó sẽ là **hạn chế của phép đo**, rất dễ đọc nhầm
+thành "màu không đổi". Chụp màn hình tránh hẳn cái bẫy đó.
+
+### Kết quả — đối chứng trước, phép đo sau
+
+```
+                                        sai lech tb/kenh    pixel khac ro (>8/255)
+DOI CHUNG  A1 vs A2  (cung theme toi)        0.000                 0.00%
+DOI CHUNG  B1 vs B2  (cung theme sang)       0.000                 0.00%
+PHEP DO    A1 vs B1  (toi <-> sang)        210.626                96.02%
+PHEP DO    A2 vs B2  (toi <-> sang)        210.626                96.02%
+CHIEU VE   A1 vs A3  (toi->sang->toi)        0.149                 0.23%
+```
+
+Đối chứng cùng-theme ra **0.000 tuyệt đối**: không con trỏ nhấp nháy, không hoạt ảnh nào. Nên
+96.02% ở dòng dưới không thể là nhiễu. Chiều về cũng đóng: đổi ngược lại thì pixel TRỞ LẠI gần
+như y hệt (0.23% dư chính là đồng hồ trên prompt đã nhảy vài giây).
+
+### Quy kết: canvas, không phải nền CSS của khung
+
+96% pixel đổi mới chỉ chứng minh *vùng terminal* đổi màu — nền CSS phía sau một canvas trong
+suốt cũng cho đúng kết quả đó. Vế quy kết nằm ở **pixel của CHỮ**:
+
+```
+theme toi  (A1): rat toi(<60) 97.97%   trung gian 1.38%   rat sang(>195)  0.65%
+theme sang (B1): rat toi(<60)  4.60%   trung gian 1.62%   rat sang(>195) 93.78%
+```
+
+Ở theme tối, 0.65% pixel rất sáng = chữ sáng trên nền tối. Ở theme sáng, 4.60% pixel rất tối
+= **chữ đã đổi thành màu tối**. Một thay đổi nền thuần CSS không thể đảo màu chữ — chữ do
+renderer của xterm vẽ vào canvas. Ảnh `p13-90-B1.png` đọc được bằng mắt: nền trắng, chữ xanh
+đậm, rõ ràng — không phải chữ sáng vô hình trên nền sáng.
+
+**Kết luận P13:90 — vế canvas ĐẠT.** Câu "editor của Theia mang theme RIÊNG, độc lập với dark
+mode của app" là giới hạn đã chấp nhận và tôi KHÔNG đụng tới — lượt này không đo nó.
+
