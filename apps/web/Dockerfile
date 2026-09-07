@@ -116,6 +116,32 @@ ENV HOSTNAME=0.0.0.0
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
+# `shellcheck` — NĂNG LỰC, không phải tiện nghi. Ngoại lệ CÓ CHỦ Ý với chính
+# sách cắt-bề-mặt ở khối trên; đọc cả hai cùng nhau.
+#
+# `server/content/shellcheck.ts` gọi binary này lúc người soạn lưu nháp (P9 9.D
+# task 13). Cho tới bản này ảnh KHÔNG có nó, nên mọi lượt kiểm trả
+# `available:false, unavailableReason: "spawn shellcheck ENOENT"` — trang soạn
+# bài in đúng câu "1/1 script CHƯA kiểm được", tức nó thành thật về một năng lực
+# chưa từng tồn tại. Đo trên cụm 2026-09-07 (`reports/2026-09-07-verify-p13.md`
+# §3.2b).
+#
+# VÌ SAO NGOẠI LỆ NÀY KHÁC npm/corepack (chủ dự án chốt 2026-09-07): thứ vừa bị
+# gỡ ở trên là một bộ TẢI-VÀ-CHẠY mã tuỳ ý từ registry. `shellcheck` là một bộ
+# phân tích tĩnh đọc stdin và in JSON — không mạng, không thực thi thứ nó đọc,
+# không ghi đĩa (`shellcheck.ts` truyền script qua stdin bằng `-`, cố ý không
+# tạo file tạm). Nó thêm bề mặt, nhưng không thêm ĐÚNG loại bề mặt mà khối trên
+# dựng ra để cắt.
+#
+# Giá: +17 MiB trên một ảnh 307 MB (~6%). Đã cân nhắc phương án chạy trong
+# sandbox pod thay vì pod BFF — đúng hơn về kiến trúc, nhưng `sandbox-base` cũng
+# chưa có shellcheck (đã kiểm) và người soạn có thể không có phiên sống lúc lưu
+# nháp, nên nó là một việc lớn hơn hẳn, để dành cho phase sau nếu cần.
+#
+# ⚠ Ghim `--no-cache` chứ không `apk update` riêng: không để lại chỉ mục apk
+# trong ảnh chạy thật.
+RUN apk add --no-cache shellcheck
+
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001 -G nodejs
 
 # `output: 'standalone'` (next.config.ts) + outputFileTracingRoot=repo root: cây

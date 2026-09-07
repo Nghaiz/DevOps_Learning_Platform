@@ -21,9 +21,15 @@ import { spawn } from 'node:child_process';
  *
  * ## Khi không có `shellcheck` trên máy
  *
- * Image `apps/web` không cài `shellcheck` (đã kiểm: `Dockerfile` không có).
- * Nên đường mặc định trên cụm là **không chạy được**, và câu trả lời phải nói
- * đúng điều đó thay vì trả về "0 cảnh báo".
+ * ⚠ **Sửa 2026-09-07 — bản cũ của khối này đã hết đúng.** Nó ghi "image
+ * `apps/web` không cài `shellcheck`", và điều đó đúng cho tới khi
+ * `apps/web/Dockerfile` thêm `apk add --no-cache shellcheck` ở stage `runner`
+ * (chủ dự án duyệt cùng ngày). Trên cụm, đường mặc định nay là **chạy được**.
+ *
+ * Nhánh `available: false` KHÔNG vì thế mà thành mã chết — nó vẫn là đường thật
+ * ở ba chỗ: máy dev không cài shellcheck (`next dev` trên Windows/macOS), timeout,
+ * và script vượt `MAX_SCRIPT_BYTES`. Nên phân biệt "không kiểm được" với "sạch"
+ * vẫn là bắt buộc, và FE vẫn phải hiện hai thứ đó khác nhau.
  *
  * ⚠ Đây chính là chế độ hỏng mà `rules/green-that-proves-nothing.md` mô tả:
  * "không có cảnh báo nào" và "không kiểm được" render giống hệt nhau nếu ta
