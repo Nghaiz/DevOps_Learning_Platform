@@ -46,7 +46,13 @@ export default tseslint.config(
     // `no-console` tắt hẳn ở đây (khác mặc định chỉ cho warn/error): với một CLI
     // thì stdout CHÍNH LÀ sản phẩm, và ép nó dùng `console.warn` là đẩy output
     // sang stderr — hỏng mọi lần ai đó pipe kết quả đi chỗ khác.
-    files: ['scripts/**/*.mjs'],
+    // Glob `**/scripts/**/*.mjs` chứ không `scripts/**/*.mjs`: bản hẹp chỉ khớp
+    // thư mục `scripts/` ở GỐC package, nên `apps/web/e2e/scripts/*.mjs` (công
+    // cụ của harness e2e) rơi ra ngoài và ăn nguyên bộ `no-undef` — đo
+    // 2026-09-07, 16 lỗi cho một file 70 dòng. Nới ra là thay đổi CỘNG THÊM:
+    // nó chỉ khai thêm globals cho các file vốn đang đỏ, không nới lỏng gì cho
+    // file nào đang xanh.
+    files: ['**/scripts/**/*.mjs'],
     languageOptions: {
       globals: {
         Buffer: 'readonly',
