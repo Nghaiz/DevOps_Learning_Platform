@@ -92,6 +92,42 @@ export async function trpcQuery<T>(
  * 404 đó, và ô AC xanh — trong khi trang thật chưa từng được mở.
  */
 export async function firstItemId(api: APIRequestContext, proc: string): Promise<string | null> {
-  const data = await trpcQuery<{ items: { id: string }[] }>(api, proc, { limit: 1 });
-  return data.items[0]?.id ?? null;
+  const data = await trpcQuery<unknown>(api, proc, { limit: 1 });
+
+  // ⚠ HAI HÌNH DẠNG, không phải một. Đo trên cụm 2026-09-06 bằng curl:
+  //
+  //     lessons.list     → {"items":[…]}
+  //     labs.list        → {"items":[…]}
+  //     playgrounds.list → {"items":[…]}
+  //     paths.list       → {"items":[],"limit":1,"nextCursor":null}
+  //     quiz.list        → {"items":[],"limit":1,"nextCursor":null}
+  //     authoring.list   → []                      ← MẢNG TRẦN
+  //
+  // Bản trước ép kiểu `{items:[…]}` cho cả sáu, nên `firstItemId(api,
+  // 'authoring.list')` ném `TypeError: Cannot read properties of undefined
+  // (reading '0')` — LUÔN LUÔN, kể cả khi danh mục đầy. Cái giá không phải là
+  // một ô đỏ: nó là một ô đỏ MANG THÔNG BÁO SAI, che mất câu đúng
+  // ("authoring.list trả 0 mục") bằng một TypeError không ai lần ra được.
+  //
+  // Nhận dạng theo HÌNH DẠNG THẬT thay vì theo tên procedure: một bảng
+  // tên→hình-dạng sẽ lệch ngay lần kế tiếp ai đó chuyển `authoring.list` sang
+  // phân trang (`paths.list` đã đi đúng đường đó rồi, xem §1 D9).
+  const items = Array.isArray(data)
+    ? (data as { id?: string }[])
+    : isItemsEnvelope(data)
+      ? data.items
+      : null;
+
+  if (items === null) {
+    throw new Error(
+      `${proc}: không nhận ra hình dạng phản hồi — không phải mảng trần, cũng ` +
+        `không phải {items:[…]}. Nhận được: ${JSON.stringify(data).slice(0, 200)}`,
+    );
+  }
+
+  return items[0]?.id ?? null;
+}
+
+function isItemsEnvelope(v: unknown): v is { items: { id?: string }[] } {
+  return typeof v === 'object' && v !== null && Array.isArray((v as { items?: unknown }).items);
 }

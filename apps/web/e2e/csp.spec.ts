@@ -31,11 +31,24 @@ import { expect, test } from './fixtures/api';
 import { openScreen, resolvePath, settle } from './fixtures/nav';
 import { SCREENS, roleSatisfies, screenLabel } from './routes';
 
-type Violation = { source: 'dom' | 'cdp-log' | 'console'; directive: string; detail: string };
+type Violation = {
+  source: 'dom' | 'cdp-log' | 'console';
+  directive: string;
+  detail: string;
+  /** `file:line:col` của script gây vi phạm; rỗng khi nguồn không phải script. */
+  at?: string;
+};
 
 declare global {
   interface Window {
-    __cspViolations?: { directive: string; blockedURI: string; sample: string }[];
+    __cspViolations?: {
+      directive: string;
+      blockedURI: string;
+      sample: string;
+      sourceFile: string;
+      lineNumber: number;
+      columnNumber: number;
+    }[];
     __cspPwned?: boolean;
   }
 }
@@ -57,6 +70,22 @@ async function installCollector(page: Page): Promise<{ cdp: CDPSession; seen: Vi
         directive: e.effectiveDirective || e.violatedDirective,
         blockedURI: e.blockedURI,
         sample: e.sample ?? '',
+        // ⚠ TOẠ ĐỘ NGUỒN — thêm 2026-09-07, và nó KHÔNG phải trang trí.
+        //
+        // Lượt 09-06 bắt được `script-src: eval` trên 8 màn danh mục và KHÔNG
+        // truy được nguồn, vì máy thu chỉ giữ `blockedURI` + `sample`. Với
+        // `eval` thì `blockedURI` là chuỗi hằng `"eval"` và `sample` là 40 ký
+        // tự đầu của mã bị chặn — cả hai đều KHÔNG nói file nào gọi. Kết quả:
+        // một ô AC đỏ mà không ai lần được về dòng mã, nên nó đọc ra như một
+        // bí ẩn thay vì một địa chỉ.
+        //
+        // Ba trường này có sẵn trên `SecurityPolicyViolationEvent` từ đầu; chỉ
+        // là bản trước không đọc. Chúng trỏ vào bundle đã minify, nên còn phải
+        // đối chiếu sourcemap — nhưng "chunk nào, dòng nào" đã đủ để thu hẹp từ
+        // 'ở đâu đó trong 8 màn' xuống một file.
+        sourceFile: e.sourceFile ?? '',
+        lineNumber: e.lineNumber ?? 0,
+        columnNumber: e.columnNumber ?? 0,
       });
     });
   });
@@ -97,6 +126,10 @@ async function collect(page: Page, seen: Violation[]): Promise<Violation[]> {
       source: 'dom',
       directive: v.directive,
       detail: `${v.blockedURI} ${v.sample}`.trim(),
+      // Chỉ ghép toạ độ khi CÓ file. `securitypolicyviolation` để `sourceFile`
+      // rỗng cho vi phạm không đến từ một script (ví dụ `img-src`), và một
+      // chuỗi ` @ :0:0` dán vào mọi dòng làm nhiễu đúng thứ ta đang đọc.
+      at: v.sourceFile === '' ? '' : `${v.sourceFile}:${v.lineNumber}:${v.columnNumber}`,
     })),
     ...seen,
   ];
@@ -296,7 +329,10 @@ test.describe('0 vi phạm CSP trên màn hình chốt', () => {
 
       const found = await collect(page, seen);
       expect(
-        found.map((v) => `${v.source}/${v.directive}: ${v.detail}`),
+        // `at` đi vào CHÍNH chuỗi so sánh, không phải một log phụ: Playwright chỉ
+        // in mảng được so sánh khi đỏ, nên một toạ độ nằm ngoài mảng là một toạ độ
+        // không ai đọc.
+        found.map((v) => `${v.source}/${v.directive}: ${v.detail}${v.at ? ` @ ${v.at}` : ''}`),
         `${found.length} vi phạm CSP trên ${path}`,
       ).toEqual([]);
     });

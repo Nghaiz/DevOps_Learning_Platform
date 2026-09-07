@@ -129,6 +129,21 @@ for f in "$WORK"/batch-*; do
   RAN=$((RAN + N))
   cp "$PWD/e2e/.artifacts/results.json" "$WORK/results-$BATCH_NO.json" 2>/dev/null || true
 
+  if [ "$N" -eq 0 ]; then
+    # ⚠ HAI nguyên nhân cho `0 test`, và chúng đòi hai việc khác hẳn nhau:
+    #   - `globalSetup` chết (thường là `sign-in` trả 429 — Better Auth chặn
+    #     ~2-3 lượt/phút theo IP, và MỖI mẻ trả một lượt đăng nhập);
+    #   - `--grep` không khớp gì.
+    # Bản đầu của script này in thẳng "--grep khớp sai" cho cả hai, và lần đầu
+    # nó bắn thì nguyên nhân thật là 429 — tức phép kiểm chỉ ra sai hướng, tệ
+    # hơn không có. Dừng luôn: một setup hỏng sẽ hỏng ở mọi mẻ sau và chỉ đốt
+    # thêm ngân sách rate-limit.
+    echo "[paced] mẻ $BATCH_NO chạy 0/$WANT test — ĐỌC LỖI Ở TRÊN TRƯỚC." >&2
+    echo "[paced] 'sign-in trả 429' ⇒ chờ vài phút rồi chạy lại, KHÔNG phải lỗi --grep." >&2
+    echo "[paced] Chỉ khi setup xanh mà vẫn 0 test thì mới nghi --grep." >&2
+    exit 2
+  fi
+
   if [ "$N" -ne "$WANT" ]; then
     echo "[paced] mẻ $BATCH_NO khai $WANT test nhưng CHẠY $N — --grep khớp sai." >&2
     FAILED=2
