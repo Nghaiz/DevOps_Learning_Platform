@@ -109,6 +109,15 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("dựng client Kubernetes cho exec: %w", err)
 	}
+	// Runner one-shot — MỘT instance cho HAI người dùng: nút "Check" của Lessons
+	// (execroute) và lượt ghi mốc hết hạn vào pod cho dòng "Phiên" của màn chào
+	// (A6, podexec/deadline.go). Nó không giữ state theo phiên (G9), nên dựng
+	// bản thứ hai chỉ để mở thêm một ngân sách QPS thứ hai lên cùng apiserver.
+	oneShot := podexec.NewOneShotRunner(
+		podexec.NewOneShotFactory(restCfg, clientset, cfg.ExecShell),
+		cfg.ExecMaxOutput,
+	)
+
 	drainer := drain.New()
 	bridge := podexec.New(
 		podexec.NewExecutorFactory(restCfg, clientset, cfg.ExecCommand),
@@ -122,6 +131,11 @@ func run() error {
 	// Chỉ chạy trên đường đóng và chỉ khi exit ∈ {137,143}, nên không thêm tải
 	// thường trực lên apiserver (thứ đã restart 41 lần trên cụm này).
 	bridge.SetPodProbe(podexec.NewPodGoneProbe(clientset))
+	// ⚠ KHÔNG BỎ DÒNG NÀY. `deadline.go` có mặt trong binary không đủ: thiếu lời
+	// gọi này thì `deadlineRunner` là nil, tính năng tắt lặng, và dòng "Phiên"
+	// trống y như trước — không lỗi, không log, không cách nào phân biệt với
+	// "ảnh sandbox chưa có script".
+	bridge.SetDeadlineRunner(oneShot)
 
 	publicMux := http.NewServeMux()
 	wsroute.Register(publicMux, wsroute.Deps{
@@ -143,13 +157,10 @@ func run() error {
 	// thời gian của lượt chấm do `cfg.ExecTimeout` áp qua context, tức nó cắt
 	// đúng một lượt chạy chứ không cắt cả kết nối dùng chung.
 	execroute.Register(publicMux, execroute.Deps{
-		Log:      log,
-		Verifier: verifier,
-		Sessions: store,
-		Runner: podexec.NewOneShotRunner(
-			podexec.NewOneShotFactory(restCfg, clientset, cfg.ExecShell),
-			cfg.ExecMaxOutput,
-		),
+		Log:            log,
+		Verifier:       verifier,
+		Sessions:       store,
+		Runner:         oneShot,
 		Metrics:        met,
 		AllowedOrigins: cfg.AllowedOrigins,
 		Timeout:        cfg.ExecTimeout,
