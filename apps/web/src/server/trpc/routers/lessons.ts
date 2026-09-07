@@ -111,6 +111,24 @@ async function requireScenario(scenarioId: string): Promise<Scenario> {
 }
 
 /**
+ * Profile tài nguyên mà pod của bài này THẬT SỰ xin.
+ *
+ * ⛔ MỘT biểu thức, HAI chỗ đọc — `get` (để FE nói "còn N chỗ cho bài NÀY") và
+ * `startSession` (để orchestrator cấp đúng ngần ấy RAM). Trước lượt này hai vế
+ * đó là hai lời gọi chép tay ở hai chỗ; chúng tình cờ trùng nhau, nhưng một bên
+ * đổi đối số mà bên kia không đổi là con số trên màn hình lại nói về một pod
+ * khác với pod sắp được tạo — đúng chế độ hỏng ngày 2026-09-07 ("Còn 14 chỗ"
+ * cạnh một `startSession` trả 429).
+ *
+ * Cả hai đối số đều bắt buộc: `interfaceLayout` là thứ tách bài IDE (768Mi) khỏi
+ * bài thường (256Mi), và bỏ nó đi thì hàm vẫn chạy, vẫn trả một chuỗi hợp lệ,
+ * chỉ là chuỗi sai.
+ */
+function profileForScenario(scenario: Scenario): string {
+  return profileForCapabilities(effectiveCapabilities(scenario), scenario.interfaceLayout);
+}
+
+/**
  * `SandboxTierName` (DTO) → `SandboxTier` (enum proto).
  *
  * Bảng tường minh, KHÔNG phải `SandboxTier[name.toUpperCase()]`: phép tra động đó
@@ -309,6 +327,19 @@ export const lessonsRouter = createTRPCRouter({
     const scenario = await requireScenario(input.scenarioId);
     return {
       scenario,
+      /**
+       * Profile tài nguyên của CHÍNH bài này — cùng `profileForScenario` mà
+       * `startSession` dùng, nên nhãn "còn N chỗ" cạnh nút Bắt đầu nói về đúng
+       * cái pod sắp được tạo.
+       *
+       * ⛔ Trả từ ĐÂY chứ không để FE tự suy: bảng ánh xạ `capabilities →
+       * profile` quyết định pod thật xin bao nhiêu RAM, và một bản chép ở FE là
+       * hai bảng sẽ trôi khỏi nhau. Cũng không để Server Component của trang
+       * giải lại (bản 2026-09-08 làm thế): đó là lượt đọc nội dung THỨ HAI cho
+       * cùng một trang — gần như miễn phí với bài trên đĩa, nhưng là một truy
+       * vấn thật mỗi lần mở trang với bài soạn trên DB.
+       */
+      profile: profileForScenario(scenario),
       progress: await readProgress(ctx.db, ctx.user.id, scenario.id),
       // FE (2.D) BẮT BUỘC hiện cảnh báo này — xem `catalog.unsupportedCapabilities`.
       unsupportedCapabilities: unsupportedCapabilities(effectiveCapabilities(scenario)),
@@ -430,10 +461,9 @@ export const lessonsRouter = createTRPCRouter({
           // Suy ra từ capabilities của CHÍNH bài, không phải từ input của client
           // — cùng lý do `userId` không nằm trong input: client không có chỗ nào
           // để tự khai mình đáng được cấp bao nhiêu tài nguyên.
-          profile: profileForCapabilities(
-            effectiveCapabilities(scenario),
-            scenario.interfaceLayout,
-          ),
+          //
+          // CÙNG hàm mà `get` trả cho FE — xem `profileForScenario`.
+          profile: profileForScenario(scenario),
         },
         { headers },
       ),

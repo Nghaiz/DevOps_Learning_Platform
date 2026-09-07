@@ -23,19 +23,7 @@ import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
 import { CheckResultPanel, type CheckOutcome } from './check-result-panel';
 
-export function LessonClient({
-  scenarioId,
-  profile = null,
-}: {
-  readonly scenarioId: string;
-  /**
-   * Profile tài nguyên của CHÍNH bài này, do Server Component giải bằng
-   * `profileForCapabilities` (xem `page.tsx`). `null` = chưa giải được (bài
-   * không tồn tại) ⇒ rơi về profile mặc định, và lúc đó `lessons.get` cũng đang
-   * hiện lỗi nên không có nhãn sức chứa nào để nói sai.
-   */
-  readonly profile?: string | null;
-}): React.ReactElement {
+export function LessonClient({ scenarioId }: { readonly scenarioId: string }): React.ReactElement {
   const utils = api.useUtils();
   const query = api.lessons.get.useQuery({ scenarioId });
   const session = useLessonSession(scenarioId);
@@ -358,12 +346,18 @@ export function LessonClient({
             thường". Thiếu nó, trang bài IDE in con số của profile mặc định —
             đúng lỗi 2026-09-07: "Còn 14 chỗ" trong lúc `startSession` trả 429
             vì quota còn 576Mi mà pod IDE cần 768Mi.
+
+            Nguồn là `lessons.get` (CÙNG hàm `profileForScenario` mà
+            `startSession` dùng), không phải một phép suy ở FE và cũng không
+            phải một lượt đọc nội dung riêng ở Server Component. `??
+            DEFAULT_PROFILE` là lưới an toàn cho lượt render trước khi có
+            payload: lúc đó `capacity` cũng chưa có nên chưa vẽ nhãn nào.
           */}
           <SessionControls
             session={session}
             actions={{ start: session.start, end: session.end, extend: session.extend }}
             capacity={capacity.data ?? null}
-            profile={profile ?? DEFAULT_PROFILE}
+            profile={query.data?.profile ?? DEFAULT_PROFILE}
           />
         </div>
       </header>
