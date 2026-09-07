@@ -393,14 +393,25 @@ describe('đối chứng dương — cổng đỏ khi tài liệu sai', () => {
     expect(auditChecklist(broken, exported).malformedRows.join('\n')).toContain('KhôngHềTồnTại');
   });
 
+  /**
+   * ⚠ `\r?` KHÔNG thừa — bỏ nó đi là ca này ĐỎ trên mọi checkout Windows.
+   *
+   * `.` trong regex JS không khớp `\r` (nó là line terminator), nên `.*\n` dừng
+   * trước `\r` rồi đòi `\n` và không bao giờ khớp trên file CRLF. Khi đó
+   * `replace` không xoá gì, `broken === DOC`, và ô đỏ là chính ĐỐI CHỨNG DƯƠNG —
+   * đọc ra như "tài liệu sai" trong khi tài liệu hoàn toàn đúng.
+   *
+   * Git chuyển LF→CRLF lúc checkout trên Windows, nên lỗi này vô hình trên CI
+   * Linux và chỉ cắn máy dev. Đo 2026-09-07: 593 xanh / 2 đỏ, cả hai ở đây.
+   */
   it('xoá một dòng THẬT ⇒ báo component thiếu tài liệu', () => {
-    const broken = DOC.replace(/^\| `Badge` \|.*\n/m, '');
+    const broken = DOC.replace(/^\| `Badge` \|.*\r?\n/m, '');
     expect(broken).not.toBe(DOC);
     expect(auditChecklist(broken, exported).missingFromDoc).toContain('Badge');
   });
 
   it('xoá một dòng GỘP ⇒ báo thiếu CẢ sub-part, không chỉ tên gốc', () => {
-    const broken = DOC.replace(/^\| `Alert` \(\+Title\/Description\).*\n/m, '');
+    const broken = DOC.replace(/^\| `Alert` \(\+Title\/Description\).*\r?\n/m, '');
     expect(broken).not.toBe(DOC);
     const { missingFromDoc } = auditChecklist(broken, exported);
     expect(missingFromDoc).toEqual(expect.arrayContaining(['Alert', 'AlertTitle', 'AlertDescription']));

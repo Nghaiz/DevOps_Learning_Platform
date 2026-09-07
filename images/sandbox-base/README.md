@@ -332,3 +332,192 @@ trỏ sai hướng, và không cổng nào bắt được.
 - Cả hai file rc gác `[[ -t 0 ]]` quanh phần fzf: `zsh -lic` / `bash -ic` là
   interactive nhưng KHÔNG có tty, và zle/readline sẽ in cảnh báo vào đúng
   output mà acceptance đang đọc.
+
+## Bộ công cụ theo bài + màn chào (2026-09-07, khung KillerCoda §C4)
+
+### Cài hết, gác bằng PATH
+
+Tám công cụ của hợp đồng §C4 (`btop tldr ripgrep fd duf ncdu delta yq`) đều
+**nằm sẵn trong image** tại `/opt/dlp/tools/<tool>/`, một thư mục **không** có
+trên `PATH`. Bật bằng symlink:
+
+```bash
+dlp-tools enable btop yq     # symlink vào /usr/local/dlp-bin (đã ở trên PATH)
+dlp-tools list               # danh mục + trạng thái
+dlp-tools list --enabled     # chỉ tên các tool đang bật (dlp-motd đọc cái này)
+dlp-tools disable btop
+```
+
+Hai ràng buộc đẩy tới kiến trúc này, không phải khẩu vị:
+
+- **Không tải lúc chạy được.** Sandbox dưới NetworkPolicy deny-all, egress chỉ
+  DNS + mirror docker.io (đo 2026-09-04: `curl https://github.com` treo rồi
+  timeout). Nên mọi thứ phải nằm sẵn trong image.
+- **Không truyền được qua env lúc tạo pod.** Pod đến từ **warm pool** — sinh ra
+  TRƯỚC khi biết bài nào claim nó. Nên việc bật phải xảy ra lúc **setup phiên**,
+  đi cùng đường `buildAssetPushScript` trong `lessons.runSetup`.
+
+Danh mục là SSOT ở `etc/toolset.catalog`: Dockerfile sinh danh sách `apt-get
+install` **và** vòng lặp dời binary từ chính file đó, `dlp-tools` cũng đọc nó.
+Thêm một công cụ = thêm một dòng. Tool lạ ⇒ `dlp-tools` thoát **1** kèm danh mục
+hợp lệ (im lặng bỏ qua sẽ hiện ra ở phía người học thành "bài bảo dùng btop mà
+command not found", cách nguyên nhân đúng hai thành phần).
+
+`PATH` được đặt ở **tầng image** (`ENV PATH` trong Dockerfile), **không** trong
+`.zshrc`/`.bashrc`. Lý do quyết định: lượt chấm bài chạy qua
+`gateway.env.execShell` = **bash không tương tác**, mà bash không tương tác
+không đọc `.bashrc`. PATH đặt trong rc sẽ có ở terminal của sinh viên nhưng
+vắng ở `verify.sh` ⇒ bài bật `yq` rồi dùng `yq` trong verify sẽ chấm sai, với
+triệu chứng không trỏ về PATH. Đã đo 2026-09-07 trên `ubuntu:24.04`: `ENV PATH`
+sống qua cả `bash -l`, `bash -c`, `zsh -l`, `zsh -c` (24.04 không gán lại PATH
+cho root trong `/etc/profile`), nên không cần `/etc/profile.d`.
+
+⛔ Đánh đổi đã chấp nhận: dời binary khỏi `/usr/bin` làm **cơ sở dữ liệu dpkg
+nói sai** về vị trí file. Vô hại với một image bất biến, nhưng một
+`apt-get install --reinstall` trong pod sẽ dựng lại `/usr/bin/<binary>` và mở
+toang cửa gác **trong im lặng**.
+
+### Bốn cái bẫy gói được giao — và cái thứ năm tự lộ ra lúc build
+
+| Bẫy | Thực tế | Xử lý |
+|---|---|---|
+| `fd` | gói là `fd-find`, binary là **`fdfind`** | dời thành `/opt/dlp/tools/fd/fd`, symlink tên `fd` |
+| `delta` | gói là `git-delta`, binary là `delta` | chỉ khác tên gói, binary đúng |
+| `yq` | gói `yq` của Ubuntu là **3.1.0 — wrapper Python quanh `jq`**, KHÔNG phải mikefarah/yq | tải binary Go, ghim `YQ_VERSION` + `YQ_SHA256`, và build khẳng định `yq --version` có chuỗi `mikefarah` |
+| `tldr` | client cần **tải cache** lần đầu, mà sandbox không có internet | seed cache lúc build + smoke test ngay tại build |
+
+`yq` là cái tệ nhất trong bốn: ba cái kia sai **tên**, cái này sai **cả chương
+trình** — nó nhận cú pháp khác hẳn và sẽ hỏng ở đúng lệnh đầu tiên mà một bài
+học copy từ tài liệu Kubernetes upstream. Alias trong shell không cứu được cái
+nào trong bốn: `verify.sh`, `make`, `ansible` không đi qua alias.
+
+**Bẫy thứ năm, không nằm trong bốn cái được giao — `/usr/bin/fdfind` là một
+symlink TƯƠNG ĐỐI** (`../lib/cargo/bin/fd`, lối đóng gói Rust của Debian). `mv`
+một symlink tương đối sang thư mục khác giữ nguyên đích tương đối ⇒ **link
+chết**, và `mv` vẫn thoát **0**. Build 2026-09-07 đỏ đúng ở
+`test -x /opt/dlp/tools/fd/fd`. Nếu khối RUN không có phần khẳng định ở cuối,
+image đã **xanh** với một `fd` hỏng, và triệu chứng chỉ hiện ra khi một bài học
+bật `fd` — nghĩa là ở phòng máy, trước mặt sinh viên. Cách dời đúng là
+`readlink -f` để lấy đích thật, `mv` đích đó, rồi `rm -f` cái symlink còn lại.
+
+### tldr — vì sao phải seed, và vì sao checksum ở đây yếu hơn chỗ khác
+
+Client là **tealdeer** (gói `tealdeer`, binary `tldr`). Không dùng gói `tldr`
+của Ubuntu: nó chỉ là metapackage phụ thuộc `tldr-hs` (Haskell).
+
+`tldr --update` **không bao giờ** chạy được, vì hai lý do độc lập:
+
+1. Sandbox deny-all egress.
+2. Kể cả có mạng: tealdeer 1.6.1 tải từ `https://tldr.sh/assets/tldr.zip`, mà
+   URL đó nay trả **HTML** (đo 2026-09-07: 301 → 200 `text/html`), nên nó chết
+   với `invalid Zip archive: Could not find central directory end`. Bản trong
+   repo Ubuntu **vĩnh viễn** không tự cập nhật được.
+
+Nên cache được trải tay lúc build vào `/opt/dlp/tldr-cache/tldr-pages/pages/`
+(chỉ `common/` + `linux/`; bỏ android/osx/windows/bsd…). Bố cục đó là chi tiết
+nội bộ của tealdeer, nên Dockerfile **smoke test** `tldr tar` ngay tại build —
+một lần nâng version đổi bố cục sẽ làm build **ĐỎ** thay vì cho image xanh mà
+`tldr tar` báo "Page not found in cache" ở phòng máy.
+
+⚠ **Checksum của tldr-pages yếu hơn mọi chỗ khác trong file này, có chủ ý.**
+Asset nằm dưới tag cố định `v2.3` nhưng được **tải lại mỗi ngày**, nên một hằng
+số `sha256` sẽ làm build đỏ trong vòng 24 giờ. Thay vào đó ta tải kèm
+`tldr.sha256sums` của cùng release rồi đối chiếu — đó là **toàn vẹn đường
+truyền**, KHÔNG phải tái lập được: nó chặn tải hỏng/đứt, không chặn nội dung
+đổi. Chấp nhận ở đúng chỗ này vì payload là markdown được render, không phải mã
+chạy. **Đừng nới cùng lý lẽ đó cho một binary** — E3/E6/E7 vẫn ghim hằng.
+
+⚠ tealdeer 1.6.1 cảnh báo ra stderr khi cache quá **30 ngày** tuổi, kèm lời
+khuyên `tldr --update` bất khả thi. Ngưỡng đó là **hằng số biên dịch**:
+`[updates] auto_update_interval_hours` KHÔNG tắt được (đã đo: đặt 876000 giờ,
+cảnh báo vẫn in). Thứ tắt nó là `touch` mtime của đúng một thư mục —
+`$CACHE_DIR/tldr-pages` — và `dlp-tools enable tldr` làm việc đó một lần mỗi
+phiên. Touch thư mục cache **cha** thì không ăn thua; đã đo cả hai.
+
+### Màn chào `dlp-motd`
+
+In **đúng một lần cho mỗi phiên tmux**, không phải mỗi shell và không phải mỗi
+pane. Cờ đánh dấu là một thư mục trong `/tmp` khoá theo `$TMUX`
+(`<socket>,<server_pid>,<session_idx>` → lấy hai trường sau).
+
+- ⛔ **Không dùng `$TMUX_PANE`**: nó đổi theo từng pane, tức khoá theo nó là
+  quay lại đúng cái nó định chặn. Mở "Terminal 2" của §C6 (`Ctrl-B c`) là một
+  window mới ⇒ shell mới ⇒ rc chạy lại.
+- Dùng `mkdir` (một syscall nguyên tử) chứ không `[ -e ]` rồi `touch`: chế độ
+  tách đôi của §C5 mở hai khoang trong một nhịp, và cặp test-rồi-tạo có cửa sổ
+  đua ở giữa.
+- Attach lại sau mất mạng không in lại — và điều đó **không** nhờ cờ:
+  `tmux new-session -A` trên nhánh attach không sinh shell mới nên rc không
+  chạy. tmux server chết rồi lên lại thì `server_pid` đổi ⇒ in lại, đúng, vì đó
+  thật sự là phiên mới.
+- **Ngoài tmux thì im lặng tuyệt đối.** `execShell` (bash) là đường chấm bài:
+  một màn chào lọt vào stdout của lượt đó làm hỏng phép so `passed`, và triệu
+  chứng ("bài đúng báo sai") là hạng lỗi tốn giờ nhất.
+
+Dòng **"Phiên"** (thời hạn còn lại) đọc `/run/dlp/session-deadline`, sau đó mới
+tới env `DLP_SESSION_DEADLINE`. Thứ tự đó không tuỳ tiện: pod đến từ warm pool
+nên env của PID 1 không thể mang mốc hết hạn riêng cho phiên — cùng lý lẽ với
+`dlp-tools`. ⚠ **Hôm nay chưa có ai ghi file đó**: `podspec.go` không truyền mốc
+hết hạn nào xuống pod và `runSetup` chưa ghi nó, nên dòng "Phiên" hiện **không
+xuất hiện**. Đó là nhánh degrade có chủ ý (module `command` của fastfetch bỏ
+hẳn dòng khi output rỗng), không phải lỗi. Muốn bật: ghi epoch-giây hoặc
+RFC3339 vào `/run/dlp/session-deadline` lúc setup phiên.
+
+`etc/fastfetch.jsonc` **cố ý bỏ** `PublicIp`/`LocalIp`: module đó gọi ra
+internet, và dưới deny-all nó sẽ **treo tới timeout** ngay đầu mỗi phiên. Cũng
+bỏ `Host`/`BIOS` vì trong container chúng là thông số của **node**, không phải
+của phiên — in ra là dạy sai về ranh giới cách ly.
+
+### Logo PTIT: ANSI art, KHÔNG phải ảnh
+
+`etc/ptit.ansi` là block character (`█ ▀ ▄`) + escape màu 24-bit, 16 dòng × 34
+cột, dùng qua `fastfetch --logo-type file-raw`.
+
+**Vì sao không PNG/sixel:** đường ảnh thật còn phải đo. tmux 3.4 có chuỗi
+`sixel` trong binary, nhưng `infocmp tmux-256color` **không** khai capability
+sixel, và `TERM` ngoài tmux là `xterm-256color` cũng không. Thêm nữa xterm.js ở
+FE cần addon riêng cho sixel. Đó là việc của một chặng khác — **không phải là
+quên**. ANSI art chạy ở mọi terminal, không qua cổng nào.
+
+- `file-raw` chứ không `file`: nội dung đã mang escape 24-bit của chính nó, và
+  `file` sẽ diễn giải lại chuỗi màu (thay các placeholder màu của fastfetch) —
+  tức bảng màu của `dlp.omp.json` bị một tầng thứ hai ghi đè.
+- `logo.width`/`logo.height` phải khai **tay** cho `*-raw`: fastfetch không
+  phân tích nội dung raw nên không đoán được kích thước, và thiếu hai số này
+  thì mọi dòng thông tin bên phải in đè lên logo. Sửa logo ⇒ sửa cả hai số.
+- Màu lấy từ `etc/dlp.omp.json` (`#38bdf8` / `#64748b` / `#e5e7eb`) để đồng bộ
+  với prompt. **Không** dùng đỏ thương hiệu thật của PTIT: nó lệch khỏi bảng màu
+  terminal đang có. Đổi là ba dòng trong file.
+- File chứa **byte ESC thật** (0x1B). Đừng "dọn dẹp" nó bằng editor tự động —
+  một lần lưu sai encoding là logo thành ô vuông, cùng hạng bẫy với ghi chú
+  `_comment` trong `dlp.omp.json`.
+
+### Verify (bổ sung cho khối Verify ở trên)
+
+```bash
+# Cửa gác PHẢI đóng khi chưa enable — vế âm bắt buộc, nếu không "bật được"
+# chỉ chứng minh binary tồn tại chứ không chứng minh nó từng bị giấu.
+docker run --rm dlp-sandbox-base:<tag> bash -lc 'command -v btop rg fd yq; echo "rc=$?"'
+# → không in gì, rc=1
+
+docker run --rm dlp-sandbox-base:<tag> bash -lc \
+  'dlp-tools enable ripgrep yq >/dev/null && rg --version | head -1 && yq --version'
+# → ripgrep 14.1.0 ... / yq (https://github.com/mikefarah/yq/) version v4.53.6
+
+# Tool lạ phải NỔ, không im lặng
+docker run --rm dlp-sandbox-base:<tag> dlp-tools enable khong-ton-tai; echo "rc=$?"
+# → thông báo + danh mục hợp lệ, rc=1
+
+# tldr offline (không mạng) — vế quan trọng nhất của cả khối này
+docker run --rm --network none dlp-sandbox-base:<tag> bash -lc \
+  'dlp-tools enable tldr >/dev/null && tldr tar | head -3'
+
+# Màn chào: ngoài tmux phải IM LẶNG (đường chấm bài)
+docker run --rm dlp-sandbox-base:<tag> bash -lc 'dlp-motd; echo "rc=$? (khong co dong nao o tren)"'
+
+# Màn chào: trong tmux in ĐÚNG MỘT LẦN dù mở thêm window
+docker run --rm -t dlp-sandbox-base:<tag> bash -lc \
+  'tmux new-session -d -s t "sleep 5"; tmux new-window -t t "sleep 5"; sleep 1; \
+   ls -d /tmp/.dlp-motd-* | wc -l'
+# → 1
+```

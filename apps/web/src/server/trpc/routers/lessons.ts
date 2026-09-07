@@ -26,7 +26,9 @@ import {
   unsupportedCapabilities,
 } from '../../lessons/catalog';
 import { buildAssetPushScript, isAssetPushPhase } from '../../lessons/asset-push';
-import { phaseRefSchema, resolvePhase } from '../../lessons/phase';
+import { isFirstPhase, phaseRefSchema, resolvePhase } from '../../lessons/phase';
+import { buildToolsEnableScript } from '../../lessons/tools-enable';
+import { setupScriptPlan } from '../../lessons/setup-plan';
 import { runScriptInSession } from '../../lessons/validate';
 import { applySessionPreferences } from '../../sessions/preferences';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
@@ -473,52 +475,62 @@ export const lessonsRouter = createTRPCRouter({
       : [];
     const pushScript = buildAssetPushScript(pushable);
 
-    if (phase.setup.background === null && pushScript === null) {
+    /*
+      Một lần cho mỗi phiên, ở phase ĐẦU — cùng phép suy với asset
+      (`isFirstPhase`), vì `dlp-tools enable` cài gói thật: chạy lại nó ở mỗi
+      phase là mỗi lần chuyển step lại tốn một lượt exec cho việc đã xong.
+    */
+    const toolsScript = isFirstPhase(scenario, input.phase)
+      ? buildToolsEnableScript(scenario.toolset)
+      : null;
+
+    /*
+      Thứ tự công cụ → asset → background là ĐIỀU KIỆN ĐÚNG-SAI, và nó sống ở
+      `setup-plan.ts` dưới dạng dữ liệu chứ không dưới dạng ba khối `if` ở đây.
+      Lý do: dạng dữ liệu có phép kiểm được (`setup-plan.test.ts`); ba khối `if`
+      trong một procedure cần orchestrator + Postgres + phiên thật thì không, và
+      một ô AC không kiểm được vẫn xanh sau khi ai đó đảo hai khối.
+    */
+    const steps = setupScriptPlan({
+      tools: toolsScript,
+      assets: pushScript,
+      background: phase.setup.background,
+    });
+
+    if (steps.length === 0) {
       return { ran: false, assetsPushed: 0, foreground: phase.setup.foreground };
     }
 
     const expiresAtSeconds = await sessionExpiry(ctx, input.sessionId);
 
-    if (pushScript !== null) {
-      const push = await runScriptInSession({
+    for (const step of steps) {
+      const outcome = await runScriptInSession({
         sessionId: input.sessionId,
         userId: ctx.user.id,
         expiresAtSeconds,
-        script: pushScript,
+        script: step.script,
       });
-      if (!push.passed) {
+
+      // Bước setup hỏng KHÔNG được im lặng: mọi step sau đó sẽ sai, và triệu
+      // chứng ("lệnh trong bài không có tác dụng") không trỏ về một script thoát
+      // non-zero từ ba phút trước. Mỗi bước có câu lỗi RIÊNG vì ba nguyên nhân
+      // ứng với ba việc phải làm khác nhau.
+      if (!outcome.passed) {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: `Đẩy file kèm bài học thất bại (exit ${String(push.exitCode)}). Hãy khởi động lại phiên.`,
+          message: step.failureMessage(outcome.exitCode),
         });
       }
     }
 
-    if (phase.setup.background === null) {
-      return {
-        ran: false,
-        assetsPushed: pushable.length,
-        foreground: phase.setup.foreground,
-      };
-    }
-
-    const outcome = await runScriptInSession({
-      sessionId: input.sessionId,
-      userId: ctx.user.id,
-      expiresAtSeconds,
-      script: phase.setup.background,
-    });
-
-    // Script setup hỏng KHÔNG được im lặng: mọi step sau đó sẽ sai, và triệu
-    // chứng ("lệnh trong bài không có tác dụng") không trỏ về một script setup
-    // thoát non-zero từ ba phút trước.
-    if (!outcome.passed) {
-      throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: `Script chuẩn bị môi trường thất bại (exit ${outcome.exitCode}). Hãy khởi động lại phiên.`,
-      });
-    }
-    return { ran: true, assetsPushed: pushable.length, foreground: phase.setup.foreground };
+    // `ran` = script `background` CÓ chạy hay không — không phải "có bước nào
+    // chạy không". Một phase chỉ đẩy asset vẫn là `ran: false`, đúng như bản
+    // trước: FE đọc cờ này để biết môi trường bài đã được dựng chưa.
+    return {
+      ran: phase.setup.background !== null,
+      assetsPushed: pushable.length,
+      foreground: phase.setup.foreground,
+    };
   }),
 
   /**

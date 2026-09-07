@@ -57,6 +57,13 @@
       "when": 1788527968883,
       "tag": "0007_gigantic_gideon",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788783088696,
+      "tag": "0008_nervous_skullbuster",
+      "breakpoints": true
     }
   ]
 }

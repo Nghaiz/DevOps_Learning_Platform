@@ -1,0 +1,31 @@
+# Danh mục công cụ theo bài — SSOT dùng chung.
+#
+# Hợp đồng §C4 chốt danh sách TÊN CÔNG CỤ (`SANDBOX_TOOLS` bên packages/scenario
+# do Lane B sở hữu). File này là bản cài của Lane A: mỗi dòng nói tên đó ánh xạ
+# sang LỆNH nào, đến từ GÓI nào, và binary gốc nằm ở đâu trước khi bị dời.
+#
+# ⛔ ĐỌC BỞI HAI NƠI, đừng nhân bản sang chỗ thứ ba:
+#   · Dockerfile  — sinh danh sách `apt-get install` và vòng lặp dời binary
+#   · dlp-tools   — hợp lệ hoá tên tool + biết symlink lệnh nào
+# Thêm một công cụ = thêm MỘT dòng ở đây. Nếu phải sửa Dockerfile để thêm tool
+# (ngoài ca tải binary rời như yq), tức là bảng này đã hết vai trò SSOT.
+#
+# Tách trường bằng KHOẢNG TRẮNG (awk mặc định), không phải TAB: file này được
+# checkout trên Windows, và một editor "dọn dẹp" TAB thành space sẽ âm thầm làm
+# vỡ mọi `IFS=$'\t'` mà không có dòng lỗi nào.
+#
+# tool     lệnh    gói-apt      binary-gốc-trên-PATH
+# ---------------------------------------------------------------------------
+# `-` ở cột 3/4 = KHÔNG đến từ apt (tải binary rời, Dockerfile xử lý riêng).
+#
+# ⚠ BA CÁI BẪY TÊN — cả ba đều là "gói tên A, binary tên B", cùng hạng với
+# `bat`/`batcat` mà E1 đã dính. Alias trong shell KHÔNG đủ: script, `make`,
+# `verify.sh` không đi qua alias. Phải là symlink thật.
+btop       btop    btop         /usr/bin/btop
+tldr       tldr    tealdeer     /usr/bin/tldr
+ripgrep    rg      ripgrep      /usr/bin/rg
+fd         fd      fd-find      /usr/bin/fdfind
+duf        duf     duf          /usr/bin/duf
+ncdu       ncdu    ncdu         /usr/bin/ncdu
+delta      delta   git-delta    /usr/bin/delta
+yq         yq      -            -

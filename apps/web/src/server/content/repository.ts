@@ -60,6 +60,26 @@ function capabilitiesOf(record: ContentItemRecord): readonly string[] {
   return Array.isArray(raw) ? (raw as string[]) : [];
 }
 
+/**
+ * Cột `toolset` là `text` chứa CHUỖI JSON của mảng (hợp đồng C4), khác hẳn
+ * `capabilities` (`jsonb`, driver tự parse). Nên nó cần một lượt `JSON.parse`
+ * ở đúng MỘT chỗ — đây — thay vì ở mỗi call-site.
+ *
+ * Parse hỏng ⇒ `[]`, KHÔNG ném. Giá trị này tới từ một cột `text` mà một lượt
+ * seed hay một bản vá SQL tay ghi được bất cứ thứ gì vào; ném ở đây nghĩa là
+ * một hàng hỏng làm CẢ TRANG danh sách bài học không tải được. Mảng rỗng có
+ * nghĩa xác định sẵn ("không bật công cụ nào") và nó hiện ra dưới dạng một
+ * công cụ thiếu trong pod, không phải một trang trắng.
+ */
+function toolsetOf(record: ContentItemRecord): readonly string[] {
+  try {
+    const parsed: unknown = JSON.parse(record.toolset);
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 function toItemRow(record: ContentItemRecord, stepCount: number): ContentItemRow {
   return {
     id: record.id,
@@ -74,6 +94,7 @@ function toItemRow(record: ContentItemRecord, stepCount: number): ContentItemRow
     capabilities: capabilitiesOf(record),
     backendImageId: record.backendImageId,
     interfaceLayout: record.interfaceLayout,
+    toolset: toolsetOf(record),
     passThresholdPercent: record.passThresholdPercent,
     leaderboard: record.leaderboard,
     ttlSeconds: record.ttlSeconds,

@@ -368,6 +368,11 @@ export async function runPublishTrial(
           capabilities: body.item.capabilities.filter(isCapability),
           backendImageId: body.item.backendImageId,
           interfaceLayout: body.item.interfaceLayout,
+          // `JSON.stringify` vì cột là `text`, không phải `jsonb` (C4) —
+          // `capabilities` ngay trên KHÔNG cần bước này, và đó chính là chỗ dễ
+          // chép nhầm sang. Nguồn là `ContentItemRow.toolset`, đã được
+          // `repository.toolsetOf` parse về mảng lúc đọc.
+          toolset: JSON.stringify(body.item.toolset),
           assets: body.assets,
           intro: body.intro,
           finish: body.finish,

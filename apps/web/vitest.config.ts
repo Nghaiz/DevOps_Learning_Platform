@@ -48,4 +48,27 @@ export default defineConfig({
      */
     testTimeout: 15_000,
   },
+
+  /**
+   * ⛔ BẮT BUỘC — nếu không, mọi test render component ở gói này ĐỎ lúc chạy
+   * trong khi typecheck vẫn XANH.
+   *
+   * `tsconfig.json` khai `"jsx": "preserve"` vì trong bản dựng thật Next tự
+   * dịch JSX bằng SWC. Nhưng vitest không đi qua SWC — nó transform bằng
+   * esbuild, và esbuild ĐỌC `tsconfig.json`. Thấy `preserve`, nó rơi về runtime
+   * JSX **cổ điển** và sinh `React.createElement(...)`, trong khi mã nguồn theo
+   * quy ước React 17+ không hề `import React`. Kết quả: `ReferenceError: React
+   * is not defined` — ném lúc RENDER, không phải lúc biên dịch.
+   *
+   * Đó là lý do bẫy này khó truy: `pnpm --filter web typecheck` sạch tuyệt đối,
+   * nên mọi cổng kiểu đều nói "không sao", và chỉ ô test đỏ, với một thông báo
+   * không hề nhắc tới JSX hay tsconfig.
+   *
+   * Phát hiện 2026-09-07 khi thêm test đầu tiên cho một component của `apps/web`
+   * (`workspace-panel`). Trước đó gói này gần như không có test render component
+   * nào, nên cấu hình thiếu không gây triệu chứng — nó nằm đó chờ lane đầu tiên
+   * viết một test như vậy. Bản vá tạm là pragma `@jsxRuntime automatic` rải trên
+   * từng file; đặt ở đây thì mọi file sau này khỏi phải nhớ.
+   */
+  esbuild: { jsx: 'automatic' },
 });

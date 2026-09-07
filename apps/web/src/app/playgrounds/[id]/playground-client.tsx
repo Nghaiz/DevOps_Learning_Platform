@@ -6,8 +6,10 @@ import {
   SessionControls,
   ShellFallbackNotice,
   TerminalPane,
+  WorkspacePanel,
   useResolvedTerminalTheme,
 } from '../../../components/session';
+import { buildTerminalTabs, useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { usePlaygroundSession } from './use-playground-session';
@@ -31,6 +33,21 @@ export function PlaygroundClient({
     {},
     { refetchInterval: 15_000, enabled: session.state.sessionId === null },
   );
+
+  /*
+    ⚠ TRÊN mọi `return` sớm bên dưới — đặt sau chúng là số hook đổi giữa hai
+    lượt render.
+
+    Sân chơi không có tab Editor: nó không có `ContentView`, không có `onExec`,
+    và chưa bao giờ wire `IdePane`. Cái nó nhận từ `WorkspacePanel` là thanh tab
+    terminal (C6) + nút mở ra cửa sổ riêng (C7) — `execTo` ở đây không có
+    call-site nào, và đó là đúng, không phải thiếu sót.
+  */
+  const tabs = useWorkspaceTabs({
+    terminal: session.terminal,
+    hasEditor: false,
+    sessionId: session.state.sessionId,
+  });
 
   if (query.isPending) {
     return <Centered>Đang tải sân chơi…</Centered>;
@@ -102,19 +119,39 @@ export function PlaygroundClient({
       />
 
       <div className="min-h-0 flex-1">
-        <TerminalPane
-          session={session}
-          theme={terminalTheme}
-          placeholder={
-            <span className="flex max-w-md flex-col gap-3">
-              {playground.description !== null && <span>{playground.description}</span>}
-              <span>
-                Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng
-                sandbox và mở terminal — phiên tự đóng sau{' '}
-                <strong className="text-foreground">{ttlMinutes} phút</strong>.
-              </span>
-            </span>
-          }
+        {/*
+          C5/C6 — không `WorkspaceSplit` ở đây: sân chơi không có khoang nội
+          dung nào để chia đôi với, nên panel chiếm trọn bề rộng. Nhánh hẹp vẫn
+          được lo: `TerminalPane` tự đổi thành `NarrowScreenNotice` dưới 768px.
+
+          Không `editor`, không `onCloseTerminal` — cùng lý do đã ghi ở
+          `lab-client.tsx`.
+        */}
+        <WorkspacePanel
+          terminals={buildTerminalTabs(
+            tabs.openTerminals,
+            <TerminalPane
+              session={session}
+              theme={terminalTheme}
+              placeholder={
+                <span className="flex max-w-md flex-col gap-3">
+                  {playground.description !== null && <span>{playground.description}</span>}
+                  <span>
+                    Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng
+                    sandbox và mở terminal — phiên tự đóng sau{' '}
+                    <strong className="text-foreground">{ttlMinutes} phút</strong>.
+                  </span>
+                </span>
+              }
+            />,
+          )}
+          activeTab={tabs.activeTab}
+          onActivate={tabs.onActivate}
+          {...(tabs.onAddTerminal === null ? {} : { onAddTerminal: tabs.onAddTerminal })}
+          split={tabs.split}
+          onToggleSplit={tabs.onToggleSplit}
+          popOutUrl={tabs.popOutUrl}
+          storageKey="dlp-playground-workspace"
         />
       </div>
     </div>

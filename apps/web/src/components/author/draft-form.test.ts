@@ -118,6 +118,7 @@ const scenario: Scenario = {
   requiresCapabilities: null,
   backendImageId: 'ubuntu',
   interfaceLayout: 'ide',
+  toolset: ['btop', 'yq'],
   assets: [{ host: 'host01', file: 'a.sh', target: '/tmp', chmod: '0755' }],
   source: null,
   intro: {
@@ -193,6 +194,7 @@ const lab: Lab = {
   requiresCapabilities: null,
   backendImageId: 'ubuntu',
   interfaceLayout: null,
+  toolset: [],
   assets: [],
   source: null,
   setup: { foreground: null, background: 'echo chuan-bi' },
@@ -239,6 +241,7 @@ const playground: Playground = {
   capabilities: ['kubernetes'],
   backendImageId: 'kubernetes-kubeadm-2nodes',
   interfaceLayout: null,
+  toolset: [],
   ttlSeconds: 3600,
 };
 

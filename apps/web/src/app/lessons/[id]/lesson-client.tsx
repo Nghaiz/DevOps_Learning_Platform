@@ -3,15 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
-import { Alert, AlertDescription, Button, ContentView, ProgressBar, SplitPane, StepNav } from '@devops-platform/ui';
+import { Alert, AlertDescription, Button, ContentView, ProgressBar, StepNav } from '@devops-platform/ui';
 import {
   SessionControls,
   ShellFallbackNotice,
   TerminalPane,
+  WorkspacePanel,
   WorkspaceSplit,
   shouldShowIdePane,
   useResolvedTerminalTheme,
 } from '../../../components/session';
+import { buildTerminalTabs, useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { IdePane } from './ide-pane';
@@ -92,6 +94,15 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
   const setupDone = useRef(new Set<string>());
   const terminal = session.terminal;
   const sessionId = session.state.sessionId;
+
+  /*
+    ⚠ Gọi ở ĐÂY, TRÊN mọi `return` sớm bên dưới — `scenario` lúc này còn có thể
+    là `null` và điều đó không sao (bài chưa tải xong thì chưa có tab Editor).
+    Đặt xuống cạnh phần JSX dùng nó sẽ thành một hook nằm sau
+    `if (query.isPending) return …`, tức số hook đổi giữa hai lượt render.
+  */
+  const showIde = shouldShowIdePane(scenario?.interfaceLayout ?? null);
+  const tabs = useWorkspaceTabs({ terminal, hasEditor: showIde, sessionId });
 
   useEffect(() => {
     if (active === null || sessionId === null || terminal === null || phases.length === 0) {
@@ -217,21 +228,17 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
     [scenarioId],
   );
 
-  const onExec = useCallback(
-    (command: string, interrupt: boolean) => {
-      if (terminal === null) {
-        return;
-      }
-      // `exec-interrupt` = Ctrl+C rồi mới tới lệnh (contract Killercoda). Gửi
-      // \x03 riêng chứ không nối vào chuỗi: chúng là hai sự kiện bàn phím.
-      if (interrupt) {
-        terminal.sendInput('\x03');
-      }
-      terminal.sendInput(`${command}\r`);
-      terminal.focus();
-    },
-    [terminal],
-  );
+  /*
+    C2 — `onExec(command, { interrupt, target })`. Chữ ký cũ
+    `(command, interrupt)` bị THAY chứ không giữ song song: hai chữ ký cùng
+    tồn tại là chỗ để một call-site cũ lọt qua im lặng, và triệu chứng của nó
+    là một lệnh `{{exec T2}}` chạy nhầm terminal — không lỗi, không cảnh báo.
+
+    Phần định tuyến (chuyển tab TRƯỚC, tạo window nếu tab đích chưa có, giữ
+    `\x03` là một sự kiện bàn phím RIÊNG) nằm trong `useWorkspaceTabs` vì cả ba
+    trang học cần đúng một bản của quyết định đó.
+  */
+  const onExec = tabs.execTo;
 
   if (query.isPending) {
     return <Centered>Đang tải bài học…</Centered>;
@@ -267,8 +274,6 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
     passedInSession: passedSteps.size,
     completed,
   });
-
-  const showIde = shouldShowIdePane(scenario.interfaceLayout);
 
   const contentPane = (
     <div className="flex h-full flex-col bg-background">
@@ -404,37 +409,66 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
 
       <div className="min-h-0 flex-1">
         {/*
-          D8 — ba khoang (nội dung | editor | terminal) CHỈ khi bài khai
-          `interface.layout: ide`. Khoá localStorage riêng cho từng bố cục:
-          dùng chung một khoá thì tỉ lệ "nội dung vs terminal" của bài thường
-          bị áp lên "nội dung vs (editor+terminal)" của bài IDE, và người học
-          mở bài IDE đầu tiên thấy một khoang phải bị bóp một nửa.
+          D8 + C5 — khoang phải là `WorkspacePanel`: tab Editor (chỉ khi bài khai
+          `interface.layout: ide`) + tab terminal, với '+' mở terminal thứ hai.
+
+          `WorkspaceSplit` GIỮ NGUYÊN và vẫn bọc ngoài: nó trả lời một câu khác
+          hẳn — chia trái/phải bao nhiêu, và gập thế nào dưới 768px. Thay nó
+          bằng panel sẽ làm mất nhánh hẹp, tức mất đúng nửa "≤768px hạ cấp có
+          chủ ý" mà `TerminalPane`/`NarrowScreenNotice` đã trả giá để có.
+
+          Khoá localStorage vẫn tách theo bố cục: dùng chung một khoá thì tỉ lệ
+          "nội dung vs terminal" của bài thường bị áp lên "nội dung vs
+          (editor+terminal)" của bài IDE, và người học mở bài IDE đầu tiên thấy
+          một khoang phải bị bóp một nửa.
         */}
-        {showIde ? (
-          <WorkspaceSplit
-            storageKey="dlp-lesson-split-ide"
-            defaultRatio={0.32}
-            content={contentPane}
-            side={
-              <SplitPane
-                storageKey="dlp-lesson-ide-terminal"
-                defaultRatio={0.58}
-                left={<IdePane sessionId={session.state.sessionId} />}
-                right={terminalPane}
-              />
-            }
-            /* Khi hẹp: bỏ hẳn khoang editor, chỉ còn nội dung + cảnh báo.
-               Theia trong một khung 768px không thao tác được, và nạp nguội nó
-               ~20s để rồi không dùng nổi là tệ hơn việc không mở. */
-            narrowSide={terminalPane}
-          />
-        ) : (
-          <WorkspaceSplit
-            storageKey="dlp-lesson-split"
-            content={contentPane}
-            side={terminalPane}
-          />
-        )}
+        <WorkspaceSplit
+          storageKey={showIde ? 'dlp-lesson-split-ide' : 'dlp-lesson-split'}
+          {...(showIde ? { defaultRatio: 0.32 } : {})}
+          content={contentPane}
+          side={
+            <WorkspacePanel
+              /*
+                Bài không khai `layout: ide` ⇒ KHÔNG truyền `editor` (spread có
+                điều kiện, không phải `editor={undefined}`: `exactOptional-
+                PropertyTypes` đang bật nên truyền tường minh `undefined` cho một
+                prop `?:` là lỗi kiểu). Vắng prop = panel không vẽ tab Editor.
+              */
+              {...(showIde ? { editor: <IdePane sessionId={sessionId} /> } : {})}
+              terminals={buildTerminalTabs(tabs.openTerminals, terminalPane)}
+              activeTab={tabs.activeTab}
+              onActivate={tabs.onActivate}
+              {...(tabs.onAddTerminal === null ? {} : { onAddTerminal: tabs.onAddTerminal })}
+              /*
+                ⛔ KHÔNG truyền `onCloseTerminal`, và đây là một quyết định chứ
+                không phải một chỗ còn thiếu. Hai lý do, cả hai đều hỏng im lặng:
+
+                1. Đóng `terminal-1` là unmount cái xterm THẬT ⇒ đóng WebSocket
+                   ⇒ mất phiên đang học.
+                2. `.tmux.conf` đặt `base-index 1`, nên id tab của ta khớp SỐ
+                   window của tmux. Đóng tab 2 ở client mà không giết window 2
+                   trong tmux thì lần bấm '+' kế tiếp tạo window 3, trong khi ta
+                   vẫn gọi nó là `terminal-2` và gõ `Ctrl-B 2` — tức từ đó mọi
+                   lệnh đi nhầm chỗ. Lane E hiện chưa export chuỗi kill-window,
+                   nên đóng tab ĐÚNG là chưa làm được; ẩn nút còn hơn làm sai.
+              */
+              split={tabs.split}
+              onToggleSplit={tabs.onToggleSplit}
+              popOutUrl={tabs.popOutUrl}
+              /*
+                MỘT khoá gốc, không phải hai. `workspace-tabs.ts` của Lane E tự
+                nối hậu tố `:ide` / `:plain` (`workspaceStorageKey`) — truyền
+                sẵn hai khoá ở đây là để hậu tố đó nối lên một khoá đã phân
+                nhánh, tức bốn khoá cho hai bố cục.
+              */
+              storageKey="dlp-lesson-workspace"
+            />
+          }
+          /* Khi hẹp: bỏ hẳn khoang editor VÀ thanh tab, chỉ còn nội dung +
+             terminal. Theia trong một khung 768px không thao tác được, và nạp
+             nguội nó ~20s để rồi không dùng nổi là tệ hơn việc không mở. */
+          narrowSide={terminalPane}
+        />
       </div>
     </div>
   );

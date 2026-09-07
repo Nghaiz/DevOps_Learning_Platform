@@ -45,6 +45,7 @@ function itemRow(over: Partial<ContentItemRow> = {}): ContentItemRow {
     capabilities: [],
     backendImageId: 'ubuntu',
     interfaceLayout: null,
+    toolset: [],
     passThresholdPercent: null,
     leaderboard: null,
     ttlSeconds: null,

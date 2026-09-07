@@ -2,10 +2,12 @@ import type { Lab } from '@devops-platform/shared-types/lab';
 import type { Playground } from '@devops-platform/shared-types/playground';
 import {
   SANDBOX_TIER_NAMES,
+  SANDBOX_TOOLS,
   SCENARIO_CAPABILITIES,
   SCENARIO_DIFFICULTIES,
   type Scenario,
   type ScenarioCapability,
+  type SandboxTool,
   type ScenarioPhase,
 } from '@devops-platform/shared-types/scenario';
 import {
@@ -98,6 +100,7 @@ export function draftFromScenario(scenario: Scenario): DraftFormState {
     capabilities: scenario.capabilities,
     backendImageId: scenario.backendImageId,
     interfaceLayout: scenario.interfaceLayout === 'ide' ? 'ide' : '',
+    toolset: toolsetForm(scenario.toolset),
     assets: assetForms(scenario.assets),
     // `hasIntro`/`hasFinish` suy TỪ dữ liệu, không phải một cờ lưu riêng: một
     // phase vắng mặt là `null` trong DTO, và đó đã là câu trả lời đầy đủ.
@@ -107,6 +110,19 @@ export function draftFromScenario(scenario: Scenario): DraftFormState {
     finish: phaseForm(scenario.finish),
     steps,
   };
+}
+
+/**
+ * `readonly string[]` (DTO / hàng DB) → `readonly SandboxTool[]` (form).
+ *
+ * Lọc theo HÀNG chứ không theo hằng — cùng lý do đã ghi cho `capabilities` ở
+ * `draftFromBody`: thứ tự người soạn lưu phải giữ nguyên, vì `update` ghi lại
+ * đúng mảng này và đảo thứ tự là một thay đổi byte trong DB mà không ai ra lệnh.
+ * Tên lạ bị bỏ: ô chọn không có chỗ hiện nó, và giữ lại một giá trị không hiện
+ * được nghĩa là lượt Lưu kế tiếp âm thầm xoá nó.
+ */
+function toolsetForm(toolset: readonly string[]): readonly SandboxTool[] {
+  return toolset.flatMap<SandboxTool>((raw) => SANDBOX_TOOLS.filter((known) => known === raw));
 }
 
 export function draftFromLab(lab: Lab): DraftFormState {
@@ -133,6 +149,7 @@ export function draftFromLab(lab: Lab): DraftFormState {
     capabilities: lab.capabilities,
     backendImageId: lab.backendImageId,
     interfaceLayout: lab.interfaceLayout === 'ide' ? 'ide' : '',
+    toolset: toolsetForm(lab.toolset),
     assets: assetForms(lab.assets),
     setupForeground: lab.setup.foreground ?? '',
     setupBackground: lab.setup.background ?? '',
@@ -152,6 +169,7 @@ export function draftFromPlayground(playground: Playground): DraftFormState {
     capabilities: playground.capabilities,
     backendImageId: playground.backendImageId,
     interfaceLayout: playground.interfaceLayout === 'ide' ? 'ide' : '',
+    toolset: toolsetForm(playground.toolset),
     ttlSeconds: String(playground.ttlSeconds),
   };
 }
@@ -206,6 +224,12 @@ export interface DraftBodyItem {
   readonly capabilities: readonly string[];
   readonly backendImageId: string;
   readonly interfaceLayout: string | null;
+  /**
+   * `readonly string[]`, KHÔNG phải chuỗi JSON: `repository.toolsetOf` đã parse
+   * cột `text` về mảng trước khi hàng này rời tầng DB (C4). Khai `string` ở đây
+   * sẽ làm mapper dưới `JSON.parse` một lần thứ hai trên một mảng.
+   */
+  readonly toolset: readonly string[];
   /** Lab. `null` trên một bản nháp còn dở — ĐÓ LÀ ĐIỂM của `get`, không phải lỗi. */
   readonly passThresholdPercent: number | null;
   /** Lab. */
@@ -392,6 +416,7 @@ export function draftFromBody(body: DraftBody): DraftFormState {
     ),
     backendImageId: item.backendImageId,
     interfaceLayout: item.interfaceLayout === 'ide' ? 'ide' : '',
+    toolset: toolsetForm(item.toolset),
     assets: assetsFromJson(body.assets),
     // `hasIntro`/`hasFinish` suy TỪ dữ liệu, giống `draftFromScenario`: một
     // phase vắng mặt là `null` trong cột, và đó đã là câu trả lời đầy đủ.

@@ -36,6 +36,7 @@ function scenarioWith(overrides: Partial<Scenario>): Scenario {
     capabilities: [],
     backendImageId: 'ubuntu',
     interfaceLayout: null,
+    toolset: [],
     intro: null,
     finish: null,
     steps: [{ ...PHASE, index: 0 }],

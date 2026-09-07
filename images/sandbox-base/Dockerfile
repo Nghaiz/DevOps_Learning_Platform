@@ -324,6 +324,171 @@ COPY dlp-k8s-wait.sh /usr/local/bin/dlp-k8s-wait
 RUN chmod 0755 /usr/local/lib/dlp/k3s-boot.sh /usr/local/bin/dlp-k8s-wait
 
 # ─────────────────────────────────────────────────────────────────────────────
+# §C4 — BỘ CÔNG CỤ THEO BÀI: cài hết vào image, GÁC bằng PATH.
+#
+# Hợp đồng chốt 8 công cụ (btop tldr ripgrep fd duf ncdu delta yq). Chúng KHÔNG
+# nằm trên PATH mặc định: binary ở /opt/dlp/tools/<tool>/, và `dlp-tools enable`
+# symlink sang /usr/local/dlp-bin (thư mục duy nhất được thêm vào PATH dưới đây).
+#
+# ⚠ Vì sao cài sẵn thay vì tải lúc chạy: sandbox dưới NetworkPolicy deny-all,
+# egress chỉ DNS + mirror docker.io. Không có đường nào tải lúc chạy.
+# ⚠ Vì sao gác thay vì để hết trên PATH: pod đến từ WARM POOL — sinh ra trước
+# khi biết bài nào dùng nó — nên không truyền được danh sách qua env lúc tạo pod;
+# và một bài dạy `grep` mà sẵn `rg` là bài đã bị trả lời hộ.
+#
+# ⛔ `mv` binary ra khỏi /usr/bin làm CƠ SỞ DỮ LIỆU dpkg nói sai về vị trí file.
+# Chấp nhận có chủ ý: image là bất biến, không ai `apt-get upgrade` trong pod.
+# Nhưng nếu một ngày có, `--reinstall` sẽ dựng lại /usr/bin/<binary> và cửa gác
+# mở toang trong im lặng. Đó là cái giá của đường này; đường thay thế (tải 7
+# binary tĩnh rời + 7 checksum) đắt hơn nhiều mà chỉ mua lại đúng điểm đó.
+#
+# Danh sách gói + ánh xạ tên đọc từ etc/toolset.catalog (SSOT, xem đầu file đó)
+# — KHÔNG gõ lại ở đây, vì hai bản danh sách sẽ lệch nhau đúng vào lần thêm tool
+# thứ ba, và triệu chứng là `dlp-tools enable <x>` báo "thiếu trong image".
+COPY etc/toolset.catalog /etc/dlp/toolset.catalog
+COPY etc/tealdeer.toml /etc/dlp/tealdeer/config.toml
+COPY etc/fastfetch.jsonc /etc/dlp/fastfetch.jsonc
+COPY etc/ptit.ansi /etc/dlp/ptit.ansi
+
+# yq — GHIM VERSION + SHA256, tải binary Go từ GitHub release.
+#
+# ⛔ TUYỆT ĐỐI KHÔNG `apt-get install yq`. Gói `yq` của Ubuntu 24.04 là **3.1.0**
+# — một wrapper Python quanh `jq`, KHÁC HẲN mikefarah/yq mà mọi tài liệu
+# Kubernetes giả định. Nó nhận cú pháp khác và sẽ hỏng ở đúng lệnh đầu tiên mà
+# một bài học copy từ tài liệu upstream, với thông báo không gợi ý gì về nguyên
+# nhân ("Error: unknown flag"). Cùng hạng bẫy với bat/batcat và fd-find/fdfind,
+# nhưng tệ hơn: hai cái kia sai TÊN, cái này sai CẢ CHƯƠNG TRÌNH.
+#
+# sha256 lấy từ file `checksums` CỦA CHÍNH RELEASE (cột thứ 18 theo
+# `checksums_hashes_order` — file đó liệt kê ~20 loại hash mỗi dòng), tức chuẩn
+# nhà phát hành, cùng mức với E6/E7 và mạnh hơn trust-on-first-use của fastfetch.
+ARG YQ_VERSION=v4.53.6
+ARG YQ_SHA256=c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385
+
+# tldr — CACHE PHẢI SEED LÚC BUILD, không có đường nào khác.
+#
+# Client là `tealdeer` (gói apt `tealdeer`, binary `tldr`). KHÔNG dùng gói
+# `tldr` của Ubuntu: nó chỉ là metapackage phụ thuộc `tldr-hs` (Haskell).
+#
+# ⛔ `tldr --update` KHÔNG BAO GIỜ chạy được ở đây, vì HAI lý do độc lập:
+#   (a) sandbox deny-all egress — đã đo 2026-09-04;
+#   (b) kể cả có mạng: tealdeer 1.6.1 tải từ https://tldr.sh/assets/tldr.zip, mà
+#       URL đó nay trả **HTML** (đã đo 2026-09-07: 301 → 200 text/html), nên nó
+#       chết với "invalid Zip archive: Could not find central directory end".
+#       Bản trong repo Ubuntu vĩnh viễn không tự cập nhật được.
+# Nên ta tự trải cache theo đúng bố cục mà tealdeer đọc, rồi SMOKE TEST ngay tại
+# build. Bố cục đó là chi tiết nội bộ của tealdeer nên nó CÓ THỂ đổi khi nâng
+# version — smoke test biến ca đó từ "im lặng hỏng ở phòng máy" thành "build ĐỎ".
+#
+# ⚠ KHÔNG GHIM ĐƯỢC SHA256 THÀNH HẰNG. Asset của tldr-pages nằm dưới tag cố định
+# `v2.3` nhưng được **tải lại mỗi ngày** (đã kiểm: `created_at` của
+# tldr-pages.en.zip là chính hôm nay), nên một hằng số checksum sẽ làm build ĐỎ
+# trong vòng 24 giờ. Thay vào đó ta tải kèm `tldr.sha256sums` của cùng release
+# và đối chiếu. Đọc đúng bản chất: đây là **toàn vẹn đường truyền**, KHÔNG phải
+# tái lập được (reproducibility) — nó chặn tải hỏng/đứt, không chặn nội dung
+# đổi. Chấp nhận được ở ĐÚNG chỗ này vì payload là markdown tài liệu được
+# render, không phải mã chạy; đừng nới cùng lý lẽ đó cho một binary.
+ARG TLDR_PAGES_TAG=v2.3
+
+# ⚠ ĐẶT PATH TRƯỚC RUN có chủ ý: khối kiểm ở cuối RUN khẳng định các lệnh
+# KHÔNG thấy được khi chưa `enable`, và phép khẳng định đó chỉ có giá trị nếu nó
+# chạy dưới đúng PATH của lúc chạy thật.
+#
+# ⛔ Ở TẦNG IMAGE, KHÔNG phải trong .zshrc/.bashrc. Lý do quyết định: `verify.sh`
+# chạy qua `gateway.env.execShell` = **bash KHÔNG tương tác**, mà bash không
+# tương tác không đọc .bashrc (file đó còn `return` sớm ở đầu). PATH đặt trong rc
+# sẽ có ở terminal của sinh viên nhưng KHÔNG có ở lượt chấm — nên một bài bật
+# `yq` rồi dùng `yq` trong verify.sh sẽ chấm sai, và triệu chứng ("bài đúng báo
+# sai") không trỏ về PATH. Cùng lý lẽ với COLORTERM ở E2.
+#
+# Đã đo 2026-09-07 trên ubuntu:24.04: PATH sống qua cả bốn đường
+# (`bash -l`, `bash -c`, `zsh -l`, `zsh -c`) — /etc/profile của 24.04 KHÔNG gán
+# lại PATH cho root, nên không cần thêm /etc/profile.d.
+ENV PATH="/usr/local/dlp-bin:${PATH}" \
+    TEALDEER_CONFIG_DIR=/etc/dlp/tealdeer
+
+RUN set -eux; \
+    mkdir -p /usr/local/dlp-bin /opt/dlp/tools; \
+    \
+    pkgs=$(awk '!/^[[:space:]]*#/ && NF >= 3 && $3 != "-" { print $3 }' /etc/dlp/toolset.catalog | sort -u); \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $pkgs; \
+    \
+    # Dời binary ra khỏi PATH. `mv` chứ không `cp`: một bản sao còn lại ở
+    # /usr/bin là cửa gác mở toang mà `dlp-tools list` vẫn báo "tắt".
+    #
+    # ⚠ BẪY THỨ NĂM, ngoài bốn cái đã biết — `readlink -f` là BẮT BUỘC.
+    # Debian đóng gói công cụ Rust theo lối cargo: `/usr/bin/fdfind` KHÔNG phải
+    # binary mà là **symlink TƯƠNG ĐỐI** `../lib/cargo/bin/fd`. `mv` một symlink
+    # tương đối sang thư mục khác giữ nguyên đích tương đối ⇒ link CHẾT, và
+    # `mv` vẫn thoát 0. Build 2026-09-07 đỏ đúng ở `test -x /opt/dlp/tools/fd/fd`;
+    # không có khối kiểm ở cuối RUN thì image đã xanh với một `fd` hỏng, và
+    # triệu chứng chỉ hiện ra khi một bài học bật `fd`.
+    # Dời ĐÍCH THẬT rồi mới gỡ symlink: `readlink -f` trên file thật trả về chính
+    # nó (nên nhánh này đúng cho cả hai loại), và `rm -f` sau đó là no-op khi
+    # $origin vốn không phải symlink. Cách này cũng không để lại bản sao thứ hai
+    # trong /usr/lib/cargo/bin.
+    awk '!/^[[:space:]]*#/ && NF >= 4 && $4 != "-" { print $1, $2, $4 }' /etc/dlp/toolset.catalog \
+    | while read -r tool cmd origin; do \
+        mkdir -p "/opt/dlp/tools/$tool"; \
+        real=$(readlink -f "$origin"); \
+        test -x "$real"; \
+        mv "$real" "/opt/dlp/tools/$tool/$cmd"; \
+        rm -f "$origin"; \
+      done; \
+    \
+    # yq — tải + kiểm checksum TRƯỚC khi cài (E3: verify đứng GIỮA tải và cài).
+    mkdir -p /opt/dlp/tools/yq; \
+    curl -fsSL -o /tmp/yq \
+        "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"; \
+    echo "${YQ_SHA256}  /tmp/yq" | sha256sum -c -; \
+    install -m 0755 /tmp/yq /opt/dlp/tools/yq/yq; \
+    rm -f /tmp/yq; \
+    # Khẳng định đúng CHƯƠNG TRÌNH, không chỉ đúng tên file — đây là toàn bộ
+    # điểm của việc không dùng gói apt.
+    /opt/dlp/tools/yq/yq --version | grep -q 'mikefarah'; \
+    \
+    # tldr — seed cache. Chỉ `common/` + `linux/`; bỏ android/osx/windows/bsd…
+    # (~7.485 file cho cả bộ tiếng Anh). Sandbox là Linux, và mỗi trang là một
+    # file nhỏ nên chi phí thật nằm ở SỐ FILE chứ không ở byte.
+    cd /tmp; \
+    curl -fsSL -o /tmp/tldr-pages.en.zip \
+        "https://github.com/tldr-pages/tldr/releases/download/${TLDR_PAGES_TAG}/tldr-pages.en.zip"; \
+    curl -fsSL -o /tmp/tldr.sha256sums \
+        "https://github.com/tldr-pages/tldr/releases/download/${TLDR_PAGES_TAG}/tldr.sha256sums"; \
+    grep ' tldr-pages\.en\.zip$' /tmp/tldr.sha256sums | sha256sum -c -; \
+    mkdir -p /opt/dlp/tldr-cache/tldr-pages/pages; \
+    unzip -q /tmp/tldr-pages.en.zip -d /opt/dlp/tldr-cache/tldr-pages/pages 'common/*' 'linux/*'; \
+    rm -f /tmp/tldr-pages.en.zip /tmp/tldr.sha256sums; \
+    # SMOKE TEST bố cục cache. Thiếu bước này, một lần nâng tealdeer đổi bố cục
+    # sẽ cho image XANH mà `tldr tar` trả "Page not found in cache" ở phòng máy.
+    out=$(/opt/dlp/tools/tldr/tldr tar 2>&1); \
+    test -n "$out"; \
+    if printf '%s\n' "$out" | grep -q 'not found in cache'; then \
+        echo "LOI: bo cuc cache tldr khong khop voi tealdeer nay" >&2; exit 1; \
+    fi; \
+    \
+    # Cửa gác phải THẬT SỰ đóng: sau khi dời, không lệnh nào được thấy trên PATH.
+    # `dlp-tools` chưa symlink gì nên mọi `command -v` phải rỗng.
+    awk '!/^[[:space:]]*#/ && NF >= 2 { print $1, $2 }' /etc/dlp/toolset.catalog \
+    | while read -r tool cmd; do \
+        test -x "/opt/dlp/tools/$tool/$cmd"; \
+        if command -v "$cmd" >/dev/null 2>&1; then \
+            echo "LOI: $cmd van nam tren PATH sau khi doi (cua gac ho)" >&2; exit 1; \
+        fi; \
+      done; \
+    \
+    rm -rf /var/lib/apt/lists/*
+
+# `chmod` tường minh — cùng lý do với entrypoint bên dưới: bit thực thi KHÔNG
+# sống sót qua NTFS ở máy dev Windows, và một `dlp-tools` mất bit x chỉ lộ ra
+# lúc `runSetup` chạy trong pod ("Permission denied"), tức cách xa build.
+COPY bin/dlp-tools /usr/local/bin/dlp-tools
+COPY bin/dlp-motd /usr/local/bin/dlp-motd
+RUN chmod 0755 /usr/local/bin/dlp-tools /usr/local/bin/dlp-motd && \
+    dlp-tools list >/dev/null
+
+# ─────────────────────────────────────────────────────────────────────────────
 # E8 — entrypoint: dockerd nền + nạp dotfiles qua allowlist.
 #
 # `chmod` tường minh vì repo được checkout trên Windows ở máy dev: bit thực thi

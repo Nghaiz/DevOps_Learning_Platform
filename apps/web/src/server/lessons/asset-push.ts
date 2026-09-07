@@ -1,6 +1,6 @@
 import type { ResolvedAsset } from '@devops-platform/scenario';
 import type { Scenario } from '@devops-platform/shared-types/scenario';
-import type { PhaseRef } from './phase';
+import { isFirstPhase, type PhaseRef } from './phase';
 
 /**
  * Sinh script shell đẩy asset của scenario vào pod sandbox (P2 / 2.D — task 0.6).
@@ -40,9 +40,7 @@ export function isAssetPushPhase(scenario: Scenario, phase: PhaseRef): boolean {
   if (scenario.assets.length === 0) {
     return false;
   }
-  return scenario.intro !== null
-    ? phase.kind === 'intro'
-    : phase.kind === 'step' && phase.index === 0;
+  return isFirstPhase(scenario, phase);
 }
 
 /** Dấu kết heredoc. An toàn vì bảng chữ base64 không chứa `_` và chữ hoa liền mạch này. */

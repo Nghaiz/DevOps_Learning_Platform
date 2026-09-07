@@ -144,10 +144,27 @@ là khởi động nguội Theia lại ~20 giây.
 WebSocket mới. Nó gửi vào WS đang có:
 
 ```
-Terminal 1  →  \x02 1     (prefix Ctrl-B, rồi phím '1')
+Terminal 1  →  \x02 1                    (prefix Ctrl-B, rồi phím '1')
 Terminal 2  →  \x02 2
-tạo tab mới →  \x02 c
+tạo tab N   →  \x02 :new-window -t N\r   (dấu nhắc lệnh tmux + Enter)
 ```
+
+⛔ **Việc TẠO window phải NÊU chỉ số.** Bản đầu của hợp đồng này ghi `\x02 c`; đó là
+một lỗi, hai lane độc lập tìm ra và không lane nào tự sửa (đúng §C0). `c` không chọn
+chỉ số — tmux lấy chỗ trống kế tiếp — trong khi bảng tab ánh xạ CỨNG `terminal-2 → 2`.
+Người học chỉ cần tự gõ `Ctrl-B c` (một phím tắt tmux bình thường, không ai chặn) là
+tmux đã có window 2, nên nút '+' tạo window **3** dưới tên `terminal-2`, và từ đó mọi
+`{{exec T2}}` chạy trong một window vô hình. Không lỗi, không cảnh báo.
+
+Nêu chỉ số giữ được hợp đồng ở cả hai nhánh: chỉ số trống thì tmux tạo đúng chỗ; chỉ
+số đã bị chiếm thì lệnh lỗi (`index in use`, vô hình vì `status off`) nhưng window N
+vẫn có thật và dùng được, nên lượt `\x02 N` ngay sau chọn đúng nó.
+
+⛔ Đừng thêm `-k`: nó GIẾT window đang chiếm chỗ, tức xoá phiên làm việc người dùng tự
+mở — đổi một lỗi im lặng lấy mất dữ liệu.
+
+Nút `×` đóng tab vẫn ẩn: đóng được thì còn vế tái dùng chỉ số, và vế đó chưa có phép
+kiểm nào.
 
 Chuỗi điều khiển tmux là **hằng số phía client**, đặt tại một chỗ duy nhất trong
 `apps/web/src/components/session/tmux-control.ts` (Lane E sở hữu).

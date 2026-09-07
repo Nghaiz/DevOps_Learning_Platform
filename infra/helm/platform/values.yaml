@@ -406,7 +406,28 @@ gateway:
     # attach sinh tiến trình MỚI, nên không có tmux thì "mất mạng rồi vào lại" là
     # một shell trắng, không phải phiên cũ. Image sandbox-base đã cài sẵn tmux 3.4
     # và tắt status bar (E4) để stty size khớp chính xác cols/rows FE gửi.
-    execCommand: 'tmux new-session -A -s dlp'
+    #
+    # `-c /root` — SỬA LỖI ĐÃ ĐO trên cụm 2026-09-07 (pod sandbox-9fdfcce925b6):
+    # terminal và IDE nhìn hai thư mục khác nhau. Theia mở workspace `/root`
+    # (entrypoint.sh gọi `node main.js "${HOME:-/root}"`), còn `pods/exec` vào
+    # pod cho cwd = **`/`** (image không đặt WORKDIR), nên tmux thừa hưởng `/` và
+    # `ls` đầu phiên liệt kê `bin boot dev etc home lib…`. Asset bài học thì nằm
+    # ở `/root` (`buildAssetPushScript` nở `target: "~/"` thành `$HOME/`), tức
+    # người học mở terminal ra là đứng SAI chỗ so với cả IDE lẫn nội dung bài.
+    #
+    # ⚠ `-c` chỉ áp lúc TẠO session. `-A` là "attach nếu đã có", và trên nhánh
+    # attach thì tmux giữ nguyên cwd của session cũ — nên giá trị này ăn ở lượt
+    # exec ĐẦU TIÊN của mỗi pod, không phải mọi lượt. Pod đến từ warm-pool và
+    # session `dlp` chỉ sinh một lần cho mỗi pod, nên trong thực tế là "mọi
+    # phiên" — nhưng đừng đọc nó thành "tmux luôn ép cwd".
+    #
+    # ⚠ Vì sao là helm value chứ không phải `WORKDIR /root` trong Dockerfile:
+    # `WORKDIR` đúng về mặt ngữ nghĩa hơn (nó sửa cwd cho MỌI đường vào, kể cả
+    # `execShell` chấm bài), nhưng nó là một dòng phải trả bằng một lượt build
+    # image + `docker save`/`scp`/`ctr import` xuống node lab. Ở đây `helm
+    # upgrade --set` là đủ và tức thì. Đánh đổi đã chấp nhận: cwd của lượt CHẤM
+    # BÀI vẫn là `/` — xem `execShell` ngay dưới.
+    execCommand: 'tmux new-session -A -s dlp -c /root'
 
     # --- exec ONE-SHOT: chấm step của Lessons (P2 / 2.C) ---------------------
     #
@@ -428,6 +449,21 @@ gateway:
     # Bẫy nguy hiểm hơn cả lỗi: lượt chấm đó vẫn trả `passed:false` — đúng cái
     # nhãn mà một bài CHƯA LÀM cũng nhận. Ô AC "vế fail" vì thế XANH VÌ LÝ DO
     # SAI, và không ai đọc `output` để thấy nó chưa từng chạy dòng nào.
+    # ⚠ BẤT ĐỐI XỨNG CÓ CHỦ Ý (2026-09-07): `execCommand` ở trên nay mở tmux tại
+    # `/root`, còn lượt chấm này vẫn chạy ở cwd **`/`** — pods/exec không kế thừa
+    # cwd của tmux, và không có cờ nào đặt cwd cho một lượt exec.
+    #
+    # Đã grep toàn bộ `content/**/*.sh` (61 file) trước khi đổi: KHÔNG script nào
+    # dựa vào cwd `/`. Mọi đường dẫn trong verify/setup đều tuyệt đối (`/root/...`),
+    # bộ duy nhất dùng đường tương đối là `loxilb-tcp-load-balancing`, và nó tự
+    # neo bằng `cd ~/` ở dòng đầu `intro/background.sh` trước khi gọi `./start.sh`.
+    # Nên bất đối xứng này hôm nay vô hại.
+    #
+    # ⛔ Thứ nó KHÔNG an toàn với: một bài học tương lai bảo người dùng tạo file
+    # bằng đường TƯƠNG ĐỐI trong terminal rồi để verify.sh đọc lại cũng bằng
+    # đường tương đối. Trước 2026-09-07 hai bên cùng ở `/` nên trùng nhau; nay
+    # thì không. Quy tắc cho người viết bài: verify.sh LUÔN dùng đường tuyệt đối,
+    # hoặc tự `cd` tới thư mục nó cần.
     execShell: 'bash'
     # Trần MỘT lượt chấm. Vượt → 502 (lỗi), KHÔNG phải "bài sai": một script treo
     # không phải một bài làm sai, và trả "fail" cho nó sẽ bắt người học đi sửa

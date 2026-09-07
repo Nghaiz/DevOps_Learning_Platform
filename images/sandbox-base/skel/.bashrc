@@ -54,3 +54,13 @@ if command -v bat >/dev/null 2>&1; then
 fi
 
 export EDITOR=vi
+
+# ── Màn chào một lần mỗi phiên tmux (§C4 / dlp-motd) ─────────────────────────
+# File này đã `return` ở đầu khi shell không tương tác, nên tới được đây tức là
+# đã ở nhánh tương tác. `dlp-motd` vẫn tự gác thêm ($TMUX + TTY + cờ một lần).
+if command -v dlp-motd >/dev/null 2>&1; then
+  dlp-motd
+fi
+
+# ⚠ CỐ Ý KHÔNG đặt PATH cho /usr/local/dlp-bin ở đây — xem chú thích cùng nội
+# dung ở cuối .zshrc. PATH đến từ `ENV PATH` trong Dockerfile.
