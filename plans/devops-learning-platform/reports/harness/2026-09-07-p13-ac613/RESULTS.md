@@ -104,6 +104,24 @@ giờ phát `onResize`** (chỉ nhánh ResizeObserver phát, mà `fit()` không 
 container nên RO không bắn). Nếu phép đo trước-font khác sau-font thì server giữ kích
 thước cũ vĩnh viễn. Đo được là latent — cả 7 lượt hai phép đo ra cùng số.
 
+> ⚠ **SỬA 2026-09-08 — đoạn trên MÔ TẢ THIẾU MỘT VẾ, và ai vá theo nó sẽ vá vào chỗ**
+> **không bao giờ chạy.** Lỗi có HAI vế lồng nhau:
+> 
+> - **vế 1** (đoạn trên): `measure()` không phát `onResize`. Đúng, tái hiện được.
+> - **vế 2** (thiếu): thường **không có số mới để phát**. `proposeDimensions()` chia
+>   kích thước hộp cho metric ô chữ **đã cache từ `terminal.open()`**, và bản dist
+>   xterm 6.0.0 không có một tham chiếu nào tới `document.fonts` (grep: 0 kết quả).
+>   Gán lại `options.fontFamily`/`fontSize` cùng giá trị cũ cũng vô ích — xterm dedup
+>   theo giá trị. Chỉ `_charSizeService.measure()` mới cập nhật (7.7 → 8.2).
+> 
+> Và **"7/7 lượt trùng số" gần như chắc chắn KHÔNG phải trùng hợp**: `TERMINAL_FONT_FAMILY`
+> cố ý để `"Cascadia Mono"` ngay sau webfont, nên mọi máy Windows có Windows Terminal
+> cho metric trước-font bằng sau-font. Cộng thêm việc renderer WebGL làm tròn bề rộng ô
+> về số nguyên px, chênh lệch dưới 1px bị nuốt trọn ở dpr 1.
+> 
+> Bản vá: `12a8e3b`. Cổng đã chứng minh biết đỏ (hạ cấp về hành vi cũ ⇒ ô đỏ).
+> **Vẫn chưa đo trên cụm** ở dpr thật, trên máy không cài Cascadia.
+
 ## 5. Chỉ báo sức chứa — đo được, và nó SAI
 
 Giao diện in **"Đang chạy 6/20 phiên (trần cứng 23)" → "Còn 14 chỗ"** đúng lúc
