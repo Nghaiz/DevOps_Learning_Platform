@@ -407,3 +407,72 @@ của tôi, không phải một nhịp heartbeat chen vào.
 
 **Kết luận vế "gia hạn thật" — ĐẠT.**
 
+### Vế `hardCap` — nút disable KÈM LÝ DO → **ĐẠT**
+
+⚠ **Phần dựng cảnh, nói thẳng ra:** trần cứng là `HARD_CAP=2h`, nên chờ tự nhiên cần ~1.5 giờ
+gia hạn liên tiếp — không nằm trong ngân sách. Tôi **lùi `createdAt` trong Redis** để trần bám
+vào (`createdAt = now − 7000` ⇒ trần `= createdAt + 7200 = now + 200`). Thứ bị làm giả là
+**tuổi phiên**, đúng một trường. Quyết định cắt là của server, cờ `hardCapReached` là của
+server, và cách client vẽ lại là thật.
+
+Bấm "Thêm giờ" lần thứ hai (`p5-197-c-hardcap-disable-kem-ly-do.png`):
+
+**Phía server** — trần thực sự cắt, không phải client tự đoán:
+
+```
+createdAt   = 1788802861        (da lui)
+tran cung   = createdAt + 7200  = 1788810061
+expiresAt   = 1788810061        <- BANG DUNG tran cung
+neu khong bi cat thi da la now+300 = 1788810216   (xa hon 155s)
+revision    3 -> 4              (dung mot luot gia han nua)
+status      CLAIMED             (khong loi, phien van song)
+```
+
+**Phía UI** — ba vế, đo riêng:
+
+```
+nut "Them gio"  : disabled = true
+thuoc tinh title: "Da dung het thoi luong toi da cho phien nay — hay ket thuc roi mo phien moi."
+tooltip (hover) : role=tooltip mo ra, cung cau chu do
+```
+
+Nút **không biến mất** mà bị vô hiệu hoá kèm câu giải thích, và câu đó đến được cả hai đường:
+`title` (lưới an toàn) lẫn Radix Tooltip mở thật khi hover. Lý do câu chữ phải nằm trên
+`<span tabIndex=0>` bọc ngoài chứ không trên `<button disabled>` đã được ghi sẵn trong
+`session-controls.tsx` — lượt đo này xác nhận nó hoạt động đúng như comment nói: tên khả truy
+cập của phần tử bọc CHÍNH LÀ câu lý do, nên người dùng bàn phím cũng đọc được.
+
+**Kết luận P5:197 — ĐẠT cả hai vế**, với ghi chú: vế gia hạn đo hoàn toàn tự nhiên (không đụng
+gì vào Redis, chờ 27 phút thật); vế `hardCap` có dựng cảnh đúng một trường `createdAt`.
+
+---
+
+## Tổng kết
+
+| Ô | Kết luận | Số đo chốt |
+|---|---|---|
+| **P5:197** | **ĐẠT** | `expiresAt` +213s, `revision` +1, hạn mới = đúng `lúc_bấm+300`; chạm trần: `expiresAt` = đúng `createdAt+7200`, nút `disabled` + tooltip mở thật |
+| **P6:99** | **ĐẠT** | marker gõ trong Theia đọc được bằng `cat`; marker thứ ba chưa từng gõ thì VẮNG; 4 nguồn đọc độc lập |
+| **P10:85** | **ĐẠT** | thẻ "Cách chấm" trước câu 1 ở trạng thái `0/6`; grep rò đáp án 0 hit trên `quiz.get` / 12 hit trên `quiz.submit` |
+| **P10:98** | **ĐẠT** | `1/6 phần` + `Phần tiếp theo` khớp nội dung; schema KHÔNG có cột điểm nào; kết thúc đúng 1 phiên, sức chứa 18→19 |
+| **P13:90** | **ĐẠT** (vế canvas) | cùng theme `0.000 / 0.00%`; khác theme `210.6 / 96.02%`; pixel chữ đảo `0.65% → 4.60%` |
+
+### Ô nào chỉ có bằng chứng một chiều / có dựng cảnh
+
+- **P5:197 vế `hardCap`** — có dựng cảnh (`createdAt` lùi 7000s). Vế gia hạn thì không.
+- **P13:90** — chỉ đo vế **canvas xterm**. Câu "editor của Theia mang theme RIÊNG" giữ nguyên,
+  KHÔNG đo.
+- **P10:98** — khối "Lịch sử → Lab" hiện dòng CŨ của tài khoản (7/9), không phải lượt tôi tạo.
+  Ba khối kia đều có dòng của chính lượt này. Tôi không chạy lab mới, nên đường ghi lịch sử LAB
+  chưa được lượt này chứng minh — chỉ đường ĐỌC của nó.
+
+### Quan sát kèm theo (không phải lỗi, không tự vá)
+
+1. **Tải lại trang thì mất phiên ở client** trong khi server vẫn giữ chỗ — trang hiện "Chưa có
+   phiên" + nút "Bắt đầu" dù phiên còn sống. Đường thu hồi là `/me` (khối "Phiên đang mở"), tức
+   có vẻ là thiết kế; nhưng người học tải lại trang giữa buổi sẽ tưởng phiên đã mất.
+2. **Theia tự lưu**, nên `step1.md` dặn `Ctrl+S` là thừa (không sai).
+3. `/favicon.ico` trả **404** trên mọi trang (lỗi console duy nhất trong cả lượt).
+
+Ba mục này chỉ ghi lại; tôi không sở hữu các file đó và không sửa gì.
+
