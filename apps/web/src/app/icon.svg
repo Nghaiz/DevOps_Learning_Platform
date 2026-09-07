@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img"
+     aria-label="DevOps Learning Platform">
+  <!--
+    Dấu nhắc trong một CỬA SỔ TERMINAL — hình dạng thật của sản phẩm: người học
+    được cấp một terminal thật trong sandbox, không phải xem video.
+
+    Vì sao có dải tiêu đề mà không phải mỗi glyph dấu nhắc: một dấu nhắc trần
+    trên nền bo góc là icon terminal chung chung (PowerShell, iTerm, hàng chục
+    app khác). Dải trên biến nó thành một CỬA SỔ, và đó là chỗ khác biệt duy
+    nhất còn đọc được ở 16px. Đã loại hai phương án khác vì lý do đo được, không
+    phải khẩu vị: dấu nhắc kèm con trỏ khối đọc thành nút "next"; bố cục hai
+    khoang bỏ mất gạch dưới nên chevron đơn độc đọc thành nút "play".
+
+    MÀU — lấy từ hai nguồn bản sắc có sẵn, không tự chế:
+      #38BDF8  dải tiêu đề — đúng sky của logo ANSI PTIT
+               (images/sandbox-base/etc/ptit.ansi, rgb 56,189,248).
+      #2563EB  thân — đúng token màu `primary` chế độ sáng của app, khai trong
+               globals.css bằng oklch(0.546 0.215 262.881), quy đổi sang sRGB.
+
+    ⚠ NỀN SÁNG LẪN NỀN TỐI: nền badge là màu ĐẶC và bão hoà, glyph trắng nằm
+    trên nó — nên hình đọc được ở cả hai chế độ mà KHÔNG cần media query
+    prefers-color-scheme. Cố ý không dùng media query: nó đòi một phần tử style
+    bên trong SVG, mà file này được phục vụ như tài nguyên riêng dưới CSP của
+    app — thêm một câu hỏi không cần hỏi để đổi lấy thứ mà một badge đặc đã giải
+    quyết. Một glyph đơn sắc (đen tuyền hay trắng tuyền, không nền) mới là thứ
+    biến mất trên một trong hai nền.
+
+    ⛔ CHÚ THÍCH XML KHÔNG ĐƯỢC CHỨA HAI DẤU GẠCH NỐI LIỀN NHAU. Đã dính một
+    lần ở chính khối này khi trích tên biến CSS nguyên văn: XML cấm cụm đó, cả
+    file hỏng phân tích, và trình duyệt vẽ ra icon "ảnh hỏng" xám-xanh-lá. Bẫy
+    nằm ở chỗ nó hỏng IM LẶNG với mọi phép kiểm rẻ tiền — file vẫn tồn tại, vẫn
+    không rỗng, `next build` vẫn xanh vì Next chỉ chép file chứ không phân tích
+    nội dung SVG. Chỉ có phép giải nén PIXEL mới bắt được.
+  -->
+  <defs>
+    <clipPath id="dlp-icon-clip">
+      <rect x="1" y="1" width="30" height="30" rx="7.5"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#dlp-icon-clip)">
+    <rect x="1" y="1" width="30" height="30" fill="#2563EB"/>
+    <rect x="1" y="1" width="30" height="7.6" fill="#38BDF8"/>
+  </g>
+  <g fill="none" stroke="#FFFFFF" stroke-width="3.3"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9.5 15.4 L13.9 19.8 L9.5 24.2"/>
+    <path d="M17.1 24.2 H22.5"/>
+  </g>
+</svg>
