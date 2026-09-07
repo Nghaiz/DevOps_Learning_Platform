@@ -189,6 +189,20 @@ async function seedOnce(): Promise<void> {
  */
 beforeAll(async () => {
   await seedOnce();
+
+  // ⚠ HÂM NÓNG nguồn nội dung Ở ĐÂY, không để nó rơi vào test đầu tiên.
+  //
+  // Bản trước chỉ gieo dữ liệu ở đây và để `contentSourceFor` (đọc
+  // `content/labs/**` trên đĩa) nạp lười trong test đầu chạm tới nó — kèm một
+  // trần 30s riêng cho đúng test đó. Trần ấy KHÔNG đủ khi máy đang bận: đo
+  // 2026-09-07, `me.listLabAttempts` mất **34.6s** và đỏ, nhưng chỉ khi turbo
+  // chạy `build` (next build) trong cùng lượt; chạy suite một mình thì
+  // 1089/1089 xanh, và `turbo run test` một mình cũng 9/9.
+  //
+  // Một ô AN NINH đỏ vì máy bận là cách nhanh nhất làm người đọc thôi tin nó.
+  // Chi phí một-lần thuộc về `beforeAll` — nơi ngân sách 60s đã có sẵn và
+  // KHÔNG ai đọc nhầm thành "phép kiểm này chậm".
+  await (await caller(ME)).me.listLabAttempts({ limit: 1 });
 }, 60_000);
 
 afterAll(async () => {
@@ -201,9 +215,9 @@ describe('me.* — lịch sử của NGƯỜI KHÁC không lọt vào danh sách
     const ids = out.items.map((item) => item.attempt.id);
     expect(ids).toContain(`attempt-${ME.id}`);
     expect(ids).not.toContain(`attempt-${OTHER.id}`);
-    // Trần rộng CHỈ ở ca này: nó trả giá cho lượt nạp `contentSourceFor` đầu
-    // tiên (đọc content/labs/** trên đĩa), một chi phí một-lần của tiến trình.
-  }, 30_000);
+    // Không còn trần riêng: chi phí một-lần của `contentSourceFor` đã chuyển
+    // sang `beforeAll`. Test này nay chỉ đo đúng thứ nó gác.
+  });
 
   it('me.listQuizAttempts: chỉ lượt của tôi (cùng quizId, khác userId)', async () => {
     const out = await (await caller(ME)).me.listQuizAttempts({ limit: 100 });
