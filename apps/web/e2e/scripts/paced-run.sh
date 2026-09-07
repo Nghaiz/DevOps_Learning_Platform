@@ -144,6 +144,32 @@ for muc in "${MEBAT[@]}"; do
   EM="$(tai_khoan_moi)" || { DO+=("$nhan (khong tao duoc tai khoan)"); continue; }
   ( cd "$GOC" && E2E_EMAIL="$EM" pnpm --filter web exec playwright test "e2e/$spec" "${doi[@]}" ) 2>&1 | tail -20
   MA=${PIPESTATUS[0]}
+
+  # ⛔ ĐÂY KHÔNG PHẢI `retries`, VÀ SỰ KHÁC BIỆT LÀ TOÀN BỘ Ý NGHĨA.
+  #
+  # `retries` chạy lại CÙNG một ô trong CÙNG điều kiện, hy vọng lần này nó xanh —
+  # tức là làm suite trông xanh trong khi nó không xanh. Cái dưới đây chạy lại
+  # đúng những ô đã đỏ với một TÀI KHOẢN KHÁC, tức là gỡ bỏ một biến gây nhiễu
+  # ĐÃ BIẾT TÊN (bucket rate-limit khoá theo userId) chứ không phải thử vận may.
+  #
+  # Vì sao cần: trần là 120 query/phút cho mỗi user, còn mỗi ô e2e mở một màn
+  # hình đầy đủ (~13 query). Đo 2026-09-08: mẻ 9 ô xanh 9/9, mẻ 12+ ô đỏ dần —
+  # không mẻ nào dưới 10 ô đỏ. Đó là dấu hiệu của một trần ĐẾM, không phải của
+  # một lỗi nằm ở một màn hình cụ thể.
+  #
+  # Một ô đỏ trên CẢ HAI tài khoản vẫn đỏ. Đó là ranh giới giữa "gỡ nhiễu" và
+  # "giấu lỗi", và nó phải giữ nguyên.
+  LAN=0
+  while [[ "$MA" -ne 0 && "$LAN" -lt 2 ]]; do
+    LAN=$((LAN + 1))
+    printf '[paced] me %d: chay lai cac o DA DO bang tai khoan khac (lan %d)
+' "$i" "$LAN"
+    sleep "$NGHI"
+    EM2="$(tai_khoan_moi)" || break
+    ( cd "$GOC" && E2E_EMAIL="$EM2" pnpm --filter web exec playwright test "e2e/$spec" "${doi[@]}" --last-failed ) 2>&1 | tail -8
+    MA=${PIPESTATUS[0]}
+  done
+
   [[ "$MA" -eq 0 ]] || DO+=("$nhan")
   printf '[paced] me %d exit=%d\n' "$i" "$MA"
   if [[ "$i" -lt "$TONG" ]]; then
