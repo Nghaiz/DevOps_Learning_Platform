@@ -264,9 +264,10 @@ warm-pool ImagePullBackOff.
 > và cùng bơm vào một `pool:free`. Replica cũ dựng pod image cũ SAU vòng sweep
 > khởi động của replica mới — đó chính là pod ở dòng thứ tư.
 >
-> ⇒ Muốn đóng hẳn: đặt `maxSurge: 0` (hoặc `strategy: Recreate`) cho
-> orchestrator, để không bao giờ có hai manager mang hai `SANDBOX_IMAGE` khác
-> nhau cùng ghi vào một pool. Đây là thay đổi Helm, không phải thay đổi code.
+> ✅ **ĐÃ ĐÓNG** ở `207f999`: Deployment orchestrator nay khai `maxSurge: 0`, nên
+> không bao giờ có hai manager mang hai `SANDBOX_IMAGE` khác nhau cùng ghi vào một
+> pool. Giới hạn **1** (cửa sổ `REAP_INTERVAL`) thì VẪN CÒN — nó chỉ không còn
+> nguồn nào bơm pod lệch vào pool sau vòng sweep khởi động nữa.
 >
 > ### Nhịp xoá (từ 2026-09-08)
 >
