@@ -77,7 +77,7 @@ migrate:
   image:
     # Bản duy nhất có trên node. Migrator chạy như pre-upgrade hook nên tag sai
     # ở đây làm HỎNG CẢ LƯỢT UPGRADE, không chỉ hỏng một pod.
-    tag: p13
+    tag: p14a
 
 # Ingress + TLS KHÔNG đặt ở đây, có chủ ý: `ingress.host`, `corsAllowedOrigins`
 # và `betterAuthUrl` đều chứa IP của node, mà IP đó khác nhau ở mỗi máy lab —
@@ -125,7 +125,7 @@ web:
   # JIT của Zod. KHÔNG đụng proto nên KHÔNG có ràng buộc "web và orchestrator lên
   # cùng lượt" của §3bis; orchestrator/gateway/migrator giữ nguyên `p13`.
   image:
-    tag: p13d
+    tag: p14a
   replicaCount: 1
   # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
   # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ
@@ -176,7 +176,7 @@ orchestrator:
   # — xem k8s.hostAliasesDockerHub. Bản này xây TAY ở máy dev rồi side-load, KHÔNG
   # phải CI publish; nói ra vì `p12fix` tự nó không phân biệt được hai đường ấy.
   image:
-    tag: p13
+    tag: p14a
   replicaCount: 1
   env:
     # Image pod lab: mặc định của template là `image.registry`+`image.tag`, tức
@@ -190,7 +190,7 @@ orchestrator:
     # `connect: connection refused` ⇒ mọi request `/ide` là 503. Tức đường IDE
     # chưa từng phục vụ được gì trên cụm này, và ô AC 6 (layout `ide`) lẫn phép
     # đo CSP cho `/ide` đều bị chặn ở đó chứ không ở mã.
-    sandboxImage: ghcr.io/nghaiz/dlp-sandbox-base:p13ide
+    sandboxImage: ghcr.io/nghaiz/dlp-sandbox-base:p14a
     # 3 pod ấm, không 1 — đóng nợ của 3.I mắt 3–5 và 2026-08-16-concurrent-build-load.
     #
     # Số đo làm cơ sở (18 người vào cùng lúc, POOL_TARGET=1): 17/18 đi cold path,
@@ -255,7 +255,7 @@ gateway:
   # Theia từ chối mọi lượt nâng cấp socket thiếu token đó — nên `/ide` dựng được
   # vỏ (200) mà `socket.io` trả 403: IDE không có backend. Không có gì trên cụm
   # phát hiện được: `rollout status` xanh, pod `Running 1/1`, trang gốc 200.
-    tag: p13e
+    tag: p14a
   # 2 replica từ chặng 3.H. Gateway stateless đã được KIỂM CHỨNG chứ không chỉ
   # được khẳng định: không map/registry session→conn nào ở package-level hay
   # struct field; đích exec đọc từ Redis mỗi lần connect, và trần WS đồng thời
