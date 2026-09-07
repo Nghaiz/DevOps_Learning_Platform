@@ -134,9 +134,17 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
       if (cancelled) {
         return;
       }
-      // F4 — chỉ đo SAU khi font đã load, nếu không FitAddon chia theo metric
-      // của font fallback và prompt vẽ sai bề rộng ngay lần đầu.
-      core.measure();
+      // F4 — đo lại SAU khi font đã load; trước đó FitAddon chia theo metric của
+      // font fallback và prompt vẽ sai bề rộng ngay lần đầu.
+      //
+      // ⛔ KHÔNG dùng `core.measure()` ở đây — đó chính là lỗi A5, và nó hỏng ở
+      // CẢ HAI vế: `measure()` không phát `onResize` nên server không bao giờ
+      // biết số mới, VÀ nó đọc metric ô chữ đã cache từ lúc `terminal.open()`
+      // nên cũng chẳng có số mới để biết (xterm 6.0.0 không theo dõi
+      // `document.fonts` — grep bản dist: 0 kết quả). Vá một vế là vá vào chỗ
+      // không bao giờ chạy. `refitAfterFontLoad()` ép đo lại metric TRƯỚC rồi
+      // mới fit, và chỉ phát `resize` khi số cột/hàng thật sự đổi.
+      core.refitAfterFontLoad();
       core.focus();
     });
 

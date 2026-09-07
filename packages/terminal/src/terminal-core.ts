@@ -52,6 +52,19 @@ export interface TerminalCore {
    * terminal đã `dispose()` ⇒ no-op im lặng. Lý do đầy đủ ở chỗ hiện thực.
    */
   fit(): void;
+  /**
+   * F4 — đo lại SAU KHI FONT TẢI XONG. Ép xterm bỏ metric ô chữ đã cache từ lúc
+   * `terminal.open()`, fit lại, và phát `resize` CHỈ KHI số cột/hàng thật sự đổi.
+   *
+   * BẮT BUỘC gọi sau `waitForFonts()`, và `measure()` KHÔNG thay thế được: xterm
+   * không theo dõi `document.fonts` (grep bản dist 6.0.0: 0 kết quả), nên không
+   * gọi thì terminal giữ số cột tính theo metric FONT FALLBACK vĩnh viễn — đo
+   * được là 81×18 thay vì 76×20 ở khung 640×320.
+   *
+   * An toàn khi gọi hớ: đã `dispose()` ⇒ no-op; container 0×0 ⇒ KHÔNG phát;
+   * kích thước không đổi ⇒ KHÔNG phát.
+   */
+  refitAfterFontLoad(): void;
   setTheme(name: ThemeName): void;
   search(query: string): void;
   write(chunk: Uint8Array): void;
@@ -216,6 +229,47 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
     return lastSize;
   }
 
+  /**
+   * Ép xterm ĐO LẠI bề rộng ô chữ.
+   *
+   * ⛔ Đây là API NỘI BỘ của xterm, và nó là cần câu DUY NHẤT còn lại. Bảng đo
+   * trên `@xterm/xterm@6.0.0` (Chromium headless, 2026-09-08), container
+   * 640×320, fontFamily `"DLPTerminalNF", monospace`, fontSize 14:
+   *
+   *   mở terminal TRƯỚC khi FontFace có      cell 7.7 → 81×18  (metric fallback)
+   *   nạp FontFace xong, KHÔNG làm gì        cell 7.7 → 81×18  ← xterm không tự đo lại
+   *   gán lại CÙNG `options.fontFamily`      cell 7.7          ← options dedup theo giá trị
+   *   gán lại CÙNG `options.fontSize`        cell 7.7          ← như trên
+   *   `_core._charSizeService.measure()`     cell 8.2 → 76×20
+   *   đối chứng: terminal MỚI mở SAU đó      cell 8.2 → 76×20  ← trùng khớp
+   *
+   * Bản dist 6.0.0 không có một tham chiếu nào tới `document.fonts` /
+   * `onloadingdone` (grep: 0 kết quả), nên nó KHÔNG bao giờ tự biết font đã đổi.
+   * Không API công khai nào ép được: cả hai đường `options.*` đều bị chính xterm
+   * dedup theo giá trị, nên gán lại giá trị cũ là no-op — đã đo, không suy đoán.
+   *
+   * Rủi ro đã cân: bản xterm sau đổi tên trường nội bộ ⇒ `measure` biến mất ⇒ ta
+   * CẢNH BÁO rồi đi tiếp (fit vẫn chạy, chỉ bằng metric cũ), không ném và không
+   * nuốt im lặng. `terminal-font-refit.browser.test.tsx` ghim đúng bảng trên, nên
+   * lần đổi đó đỏ ở test chứ không hỏng im lặng trên cụm.
+   */
+  function remeasureCharSize(): void {
+    const charSizeService = (
+      terminal as unknown as {
+        _core?: { _charSizeService?: { measure?: () => void } };
+      }
+    )._core?._charSizeService;
+    if (typeof charSizeService?.measure !== 'function') {
+      console.warn(
+        '[dlp-terminal] không ép được xterm đo lại bề rộng ô sau khi font tải xong ' +
+          '(_core._charSizeService.measure vắng mặt). Terminal vẫn chạy nhưng số cột ' +
+          'tính theo metric font fallback.',
+      );
+      return;
+    }
+    charSizeService.measure();
+  }
+
   function measure(): TerminalDimensions {
     return tryMeasure() ?? lastSize;
   }
@@ -309,6 +363,47 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
       // (đổi tab), không phải chuỗi `ResizeObserver` bắn liên tục lúc kéo cửa
       // sổ. Đổi hiển thị cũng làm RO bắn, nhưng phép dedup theo giá trị trong
       // `notifyResize` đã đủ để lượt đó không phát trùng.
+      notifyResize(size);
+    },
+
+    /**
+     * F4 — đo lại sau khi font tải xong, phát `resize` nếu số cột/hàng đổi.
+     *
+     * Vì sao KHÔNG dùng `measure()` ở đây (đây là lỗi A5, và nó có HAI vế chứ
+     * không phải một như bản ghi 2026-09-07 mô tả):
+     *
+     *   vế 1 — `measure()` không bao giờ phát `onResize`. Chỉ nhánh
+     *          `ResizeObserver` phát, mà RO theo dõi CÁI HỘP còn `fit()` chỉ đổi
+     *          số cột/hàng BÊN TRONG hộp, nên RO không có cớ bắn.
+     *   vế 2 — và kể cả có phát thì cũng KHÔNG CÓ GÌ ĐỂ PHÁT: `measure()` gọi
+     *          `fitAddon.fit()`, mà `proposeDimensions()` chia kích thước hộp cho
+     *          `_renderService.dimensions.css.cell` — tức metric ĐÃ CACHE từ lúc
+     *          `terminal.open()`. Font tải xong không chạm vào con số đó.
+     *
+     * Nên vá vế 1 một mình là vá vào chỗ không bao giờ chạy — và đó mới là lý do
+     * thật khiến lỗi này latent, chứ không phải "7/7 lượt tình cờ trùng số".
+     * Thứ tự dưới bắt buộc: đo lại metric TRƯỚC, rồi mới fit.
+     *
+     * So với `terminal.cols/rows` NGAY TRƯỚC lượt đo lại, không so với
+     * `lastNotified`: con số đó chính là thứ frame `init` vừa mang đi (contract
+     * §3 — `initialSize` là kết quả `measure()`, mà `measure()` đã fit). Phát vô
+     * điều kiện thì mỗi lần mount với font nằm sẵn trong cache trình duyệt sẽ đẻ
+     * một frame `resize` thừa mang đúng con số `init` vừa gửi, và mỗi frame
+     * control thừa là một lần chạm rate-limit của G8 mà không mang tin gì.
+     */
+    refitAfterFontLoad(): void {
+      if (disposed) {
+        return;
+      }
+      const beforeRemeasure: TerminalDimensions = { cols: terminal.cols, rows: terminal.rows };
+      remeasureCharSize();
+      const size = tryMeasure();
+      if (size === null) {
+        return;
+      }
+      if (size.cols === beforeRemeasure.cols && size.rows === beforeRemeasure.rows) {
+        return;
+      }
       notifyResize(size);
     },
 
