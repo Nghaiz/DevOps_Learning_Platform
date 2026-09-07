@@ -17,6 +17,17 @@
  * | ```` ```…```{{copy}} ```` | khối nhiều dòng, bấm để copy |
  * | ```` ```…```{{exec}} ```` | khối nhiều dòng, bấm để chạy |
  *
+ * Đó là TOÀN BỘ tập hợp lệ. Bản trước có thêm một mở rộng chọn terminal đích
+ * (`{{exec T1}}` / `{{exec T2}}`, hợp đồng §C1); sửa đổi 2 của hợp đồng (§Y2)
+ * rút xuống MỘT terminal duy nhất hiện ở cả hai tab, nên không còn quyết định
+ * định tuyến nào để mã hoá vào cú pháp.
+ *
+ * ⛔ `{{exec T2}}` vì vậy NÉM như mọi token lạ — KHÔNG được lặng lẽ bỏ phần
+ * `T2` rồi chạy như `{{exec}}`. Một bài viết `{{exec T2}}` đang mong đợi hai
+ * terminal; nhận nó rồi chạy ở terminal duy nhất là đúng cú pháp và sai ý định
+ * người soạn, mà sai kiểu đó thì không có gì đỏ ở bất cứ đâu — người học chỉ
+ * thấy hai lệnh lẽ ra phải chạy song song lại chen nhau trong một shell.
+ *
  * ⚠ `{{TRAFFIC_HOST1_80}}` / `{{TRAFFIC_SELECTOR}}` dùng CÙNG cặp ngoặc nhưng
  * KHÔNG phải hành động — chúng là biến thay thế trong văn xuôi. Thứ phân biệt
  * chúng là vị trí: hành động phải DÍNH LIỀN ngay sau dấu backtick đóng. Biến
@@ -46,6 +57,9 @@ export class ContentBlockError extends Error {
   }
 }
 
+/** Hình dạng hợp lệ, liệt kê trong thông báo lỗi — một nguồn, không chép tay. */
+const VALID_SUFFIXES = ['{{}}', '{{copy}}', '{{exec}}', '{{exec interrupt}}'].join(', ');
+
 /**
  * Nội dung bên trong `{{…}}` → hành động.
  *
@@ -53,24 +67,29 @@ export class ContentBlockError extends Error {
  * `{{open}}` giữa bài học, còn coi nó như `copy` thì nút làm sai việc. Ta kiểm
  * soát nội dung nào được vendor về, nên chặt ở đây là chi phí một lần lúc nhập,
  * đổi lấy việc không bao giờ có nút sai chức năng trước mặt người học.
+ *
+ * ⚠ Phép so `tokens.length` là thứ từ chối mọi token THỪA — `{{exec T2}}`,
+ * `{{exec interrupt T2}}`, `{{exec foo}}`. Không có nhánh nào "tiêu thụ được
+ * bao nhiêu thì tiêu thụ", vì đúng nhánh đó là chỗ một hậu tố cũ sẽ lọt qua.
  */
-function toAction(rawVerb: string): CodeAction {
+function parseActionSuffix(rawVerb: string): CodeAction {
   const verb = rawVerb.trim().replace(/\s+/g, ' ');
-  switch (verb) {
-    case '':
-      return 'none';
-    case 'copy':
-      return 'copy';
-    case 'exec':
-      return 'exec';
-    case 'exec interrupt':
-      return 'exec-interrupt';
-    default:
-      throw new ContentBlockError(
-        `hậu tố code action không nhận ra: {{${rawVerb}}}. ` +
-          `Chỉ hỗ trợ: {{}}, {{copy}}, {{exec}}, {{exec interrupt}}.`,
-      );
+  if (verb === '') {
+    return 'none';
   }
+  if (verb === 'copy') {
+    return 'copy';
+  }
+  if (verb === 'exec') {
+    return 'exec';
+  }
+  if (verb === 'exec interrupt') {
+    return 'exec-interrupt';
+  }
+
+  throw new ContentBlockError(
+    `hậu tố code action không nhận ra: {{${rawVerb}}}. Chỉ hỗ trợ: ${VALID_SUFFIXES}.`,
+  );
 }
 
 const FENCE_OPEN = /^([ \t]*)```([A-Za-z0-9_+-]*)[ \t]*$/;
@@ -187,7 +206,7 @@ export function parseContentBlocks(markdown: string): ContentBlock[] {
       kind: 'code',
       code: lines.slice(i + 1, close).join('\n'),
       language,
-      action: toAction(verb),
+      action: parseActionSuffix(verb),
       inline: false,
     });
     i = close;
@@ -212,7 +231,7 @@ function pushProse(blocks: ContentBlock[], text: string): void {
       kind: 'code',
       code: match[1] ?? '',
       language: null,
-      action: toAction(match[2] ?? ''),
+      action: parseActionSuffix(match[2] ?? ''),
       inline: true,
     });
     cursor = match.index + match[0].length;

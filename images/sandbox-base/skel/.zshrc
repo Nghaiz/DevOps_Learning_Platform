@@ -61,3 +61,19 @@ if command -v bat >/dev/null 2>&1; then
 fi
 
 export EDITOR=vi
+
+# ── Màn chào một lần mỗi phiên tmux (§C4 / dlp-motd) ─────────────────────────
+# Đặt CUỐI file có chủ ý: nó nằm sau khối oh-my-posh (prompt phải sẵn sàng
+# trước) và sau khối alias, vì màn chào có in gợi ý công cụ đang bật.
+#
+# `dlp-motd` tự gác ba lớp bên trong (phải có $TMUX, phải có TTY, một lần mỗi
+# phiên tmux) nên nhánh dưới đây chỉ cần chặn ca rẻ nhất. Xem đầu file
+# bin/dlp-motd để biết vì sao khoá theo $TMUX chứ không phải $TMUX_PANE.
+if [[ -o interactive ]] && command -v dlp-motd >/dev/null 2>&1; then
+  dlp-motd
+fi
+
+# ⚠ CỐ Ý KHÔNG đặt PATH cho /usr/local/dlp-bin ở đây. Nó được đặt ở TẦNG IMAGE
+# (`ENV PATH` trong Dockerfile) vì lượt CHẤM BÀI chạy `bash` KHÔNG tương tác,
+# mà bash không tương tác không đọc rc — PATH đặt trong rc sẽ có ở terminal của
+# sinh viên nhưng vắng ở verify.sh. Đừng "sửa thiếu sót" này.

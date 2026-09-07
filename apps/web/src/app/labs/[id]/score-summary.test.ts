@@ -35,6 +35,7 @@ function lab(over: Partial<Lab> = {}): Lab {
     requiresCapabilities: null,
     backendImageId: 'ubuntu',
     interfaceLayout: null,
+    toolset: [],
     assets: [],
     source: null,
     tasks: [task()],

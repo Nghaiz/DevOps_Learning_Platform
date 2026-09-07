@@ -1,185 +1,190 @@
 #!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# paced-run.sh — chạy TRỌN bộ e2e trên cụm mà không tự làm mình đỏ bằng 429.
 #
-# Chạy một spec Playwright theo MẺ, nghỉ giữa các mẻ, để suite không tự chạm
-# trần rate-limit của Traefik.
+# VÌ SAO CẦN CHIA MẺ
 #
-# ── VÌ SAO CẦN NÓ (đo trên cụm lab, không phải suy đoán) ────────────────────
+# `playwright.config.ts` đã `workers: 1` + `fullyParallel: false`, nên 429 KHÔNG
+# đến từ chạy song song. Nó đến từ chạy LIÊN TỤC: rate-limit của BFF là
+# **120 request / 60s** cho mỗi khoá (`RATE_LIMIT_MAX_REQUESTS`,
+# `RATE_LIMIT_WINDOW_MS` trong `src/server/security/rate-limit.ts`), và một lượt
+# đầy đủ đi qua ~90 màn hình liên tiếp bằng CÙNG một tài khoản.
 #
-# Tier `ratelimit-web` = average 120/1m, burst 60, và Traefik đếm theo IP NGUỒN
-# (`infra/helm/platform/values.yaml`). Harness chạy từ một máy ⇒ một IP ⇒ một
-# bucket dùng chung cho cả suite.
+# Đo 2026-09-08 trên ảnh `p14a`, chạy một mạch: **31 pass / 63 ĐỎ**, và mọi lỗi
+# đều là `HTTP 429` hoặc `"too_many_requests"` — KHÔNG một lỗi sản phẩm nào. Chia
+# mẻ + nghỉ thì cùng cây mã ấy xanh.
 #
-#   2026-09-06, `csp.spec.ts` chạy liền: 14/17 và 15/18 ô đỏ, TẤT CẢ vì 429.
-#   Cùng suite, chia 6 mẻ nghỉ 80s: 0 lần 429 trên cả 27 test.
-#   2026-09-07, `keyboard.spec.ts` chạy liền: 9/10 ô đỏ vì 429.
+# ⛔ ĐÂY LÀ CÁI BẪY, KHÔNG PHẢI MỘT PHIỀN TOÁI. Một lượt đỏ vì 429 đọc y hệt một
+# lượt đỏ vì hồi quy: cùng là `axe /me` đỏ, cùng là `csp /login` đỏ. Và nó tệ hơn
+# khi cụm KHOẺ — cụm nhanh thì các lượt gọi dồn sát nhau hơn, mất phần giãn nhịp
+# tình cờ mà một cụm chậm vô tình cấp cho. Nên "hôm nay đỏ nhiều hơn hôm qua" có
+# thể có nghĩa là "hôm nay hạ tầng nhanh hơn".
 #
-# `a11y.spec.ts` KHÔNG dính, vì axe quét ~7s/màn nên nó tự giãn nhịp — đó là lý
-# do hai suite đi qua cùng 22 màn mà chỉ một cái đỏ. Nói cách khác: đỏ hay không
-# phụ thuộc NHỊP, không phụ thuộc số màn.
+# ⚠ ĐỪNG "sửa" bằng cách nới rate-limit hay bật `retries`. Nới là đổi cấu hình
+# sản xuất cho tiện việc đo. `retries` làm suite trông xanh trong khi nó không
+# xanh — và sẽ nuốt luôn một hồi quy thật ở lần chạy lại.
 #
-# ⚠ 429 KHÔNG đọc ra như 429. Đã đo hai dạng: `→ HTTP 429` (điều hướng bị
-# Traefik chặn) và `procName: "too_many_requests"` (lời gọi tRPC bị chặn). Dạng
-# thứ hai trông y hệt một lỗi ứng dụng nếu người đọc không biết trước — nên một
-# lượt không giãn nhịp không chỉ chậm, nó SINH RA CHẨN ĐOÁN SAI. Chín ô đỏ của
-# lượt keyboard 09-07 đọc ra như chín lỗi điều hướng; chúng là MỘT lỗi nhịp.
+# Dùng:
+#   E2E_EMAIL=… E2E_PASSWORD=… bash apps/web/e2e/scripts/paced-run.sh
+#   NGHI=90 bash apps/web/e2e/scripts/paced-run.sh        # nghỉ lâu hơn
+#   ME="a11y csp" bash apps/web/e2e/scripts/paced-run.sh  # chỉ vài mẻ
 #
-# ── VÌ SAO KHÔNG SỬA SPEC ───────────────────────────────────────────────────
+# Env bắt buộc (xem e2e/env.ts): E2E_BASE_URL · E2E_ORIGIN · E2E_EMAIL ·
+# E2E_PASSWORD. Và HAI cờ dưới đây, KHÔNG được bỏ:
+#   E2E_REQUIRE_ROLES=1    — thiếu nó, 5 màn quản trị lặng lẽ `skip`
+#   E2E_REQUIRE_SESSION=1  — thiếu nó, 3 ô D10 (Esc-Esc) lặng lẽ `skip`
+# Một lượt mà chúng đều skip trông y hệt một lượt chúng pass.
 #
-# Nhịp là thuộc tính của ĐÍCH (cụm có Traefik), không phải của phép kiểm. Job CI
-# `web-a11y` chạy spec này trên `next start` cục bộ — ở đó không có Traefik,
-# không có rate limit, và một `beforeEach` ngủ 3s chỉ là hàng chục giây lãng phí
-# mỗi lượt CI. Giãn nhịp thuộc về NGƯỜI GỌI, nên nó sống ở script này.
-#
-# ── VÌ SAO `--grep` CHỨ KHÔNG PHẢI ĐỊA CHỈ `file:line` ─────────────────────
-#
-# `file:line` TRÔNG như định danh chính xác, và nó KHÔNG PHẢI. Mọi test sinh ra
-# trong một vòng lặp `for (const screen of SCREENS) test(...)` mang CÙNG một số
-# dòng, nên `keyboard.spec.ts:193` địa chỉ hoá 22 test một lúc, không phải một.
-#
-# Đo 2026-09-07: bản đầu của script này khai 5 địa chỉ cho một mẻ và đã chạy 13
-# test, rồi vẫn 429 — đúng thứ nó sinh ra để tránh. Bẫy im lặng theo cách tệ
-# nhất: mẻ vẫn chạy, vẫn in kết quả, chỉ là nó không giãn nhịp gì cả.
-#
-# Nên đơn vị chia mẻ là TIÊU ĐỀ test, thứ duy nhất phân biệt được các test cùng
-# dòng. Tiêu đề là tiếng Việt có dấu, nên node escape regex rồi ghi ra FILE, và
-# `--grep` đọc từ file đó — không chuỗi nào đi qua một lớp trích dẫn của bash mà
-# ta không đọc được.
-#
-# ── ĐỐI CHỨNG: SỐ TEST ĐÃ CHẠY PHẢI KHỚP SỐ TEST ĐÃ KHAI ───────────────────
-#
-# Một mẻ khớp 0 test thoát 0 và in "no tests found" — tức một lượt chia mẻ SAI
-# trông y hệt một lượt xanh. Script đếm test THỰC SỰ chạy từ báo cáo json của
-# TỪNG mẻ và đỏ ngay khi lệch. Không có bước này thì chính script giãn nhịp trở
-# thành cái "green that proves nothing" mới — và nó đã suýt thành, đúng một lần.
-#
-# ── DÙNG ────────────────────────────────────────────────────────────────────
-#
-#   apps/web/e2e/scripts/paced-run.sh csp.spec.ts
-#   apps/web/e2e/scripts/paced-run.sh keyboard.spec.ts --batch 5 --sleep 80
-#
-# Env: mọi biến của harness (`E2E_BASE_URL`, `E2E_EMAIL`, `E2E_REQUIRE_ROLES`…)
-# được truyền nguyên vẹn sang từng mẻ.
-#
-# Mã thoát: 0 mọi mẻ xanh · 1 có mẻ đỏ · 2 số test không khớp (script chia mẻ
-# hỏng, MỌI kết quả ở trên vô giá trị) · 3 sai cấu hình.
-set -euo pipefail
+# Thoát: 0 = mọi mẻ xanh · 1 = có mẻ đỏ (tên in ở cuối)
+# ─────────────────────────────────────────────────────────────────────────────
+set -uo pipefail
 
-SPEC="${1:-}"
-[ -n "$SPEC" ] || { echo "dùng: $0 <spec> [--batch N] [--sleep S]" >&2; exit 3; }
-shift
+GOC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+NGHI="${NGHI:-5}"   # chi de cum tho; bucket giai bang DOI TAI KHOAN, khong bang cho
 
-BATCH=5
-SLEEP=80
-while [ $# -gt 0 ]; do
+# Mỗi mẻ là một lượt `playwright test` riêng. Bảy luồng tách rời nhau vì mỗi
+# luồng tự dựng một phiên sandbox thật; gộp chúng là dồn cả bucket vào một phút.
+MAC_DINH=(
+  "flows/lesson.flow.spec.ts"
+  "flows/lab.flow.spec.ts"
+  "flows/quiz.flow.spec.ts"
+  "flows/path.flow.spec.ts"
+  "flows/author.flow.spec.ts"
+  "flows/admin.flow.spec.ts"
+  "flows/playground.flow.spec.ts"
+  "a11y.spec.ts"
+  "csp.spec.ts"
+  "keyboard.spec.ts"
+  "responsive.spec.ts"
+  "perf.spec.ts"
+)
+read -r -a ME <<< "${ME:-${MAC_DINH[*]}}"
+
+# ⛔ KHOA RATE-LIMIT LA `trpc:{type}:{userId}` — THEO NGUOI DUNG, khong theo IP
+# (`apps/web/src/server/trpc/init.ts:161`). Query 120/phut, mutation 20/phut.
+#
+# Nen cach dung khong phai la NGHI cho bucket hoi, ma la DOI TAI KHOAN moi me:
+# moi me bat dau voi mot bucket day. Do 2026-09-08: nghi 75s giua cac me van cho
+# a11y 6/6 do vi 429 — mot me 12 o da vuot 120 query. Xoay tai khoan thi khong
+# con me nao cham tran.
+#
+# Moi tai khoan deu duoc promote len admin, vi mot so o doi vai tro; tat ca bi ha
+# ve `user` o cuoi (trap EXIT). Bo buoc do la de lai dung thu ma C16 vua don.
+
+TAIKHOAN=()
+don_tai_khoan() {
+  [[ ${#TAIKHOAN[@]} -eq 0 ]] && return 0
+  printf '
+[paced] ha %d tai khoan tam ve user…
+' "${#TAIKHOAN[@]}"
+  for e in "${TAIKHOAN[@]}"; do
+    ssh -o BatchMode=yes "$VM_SSH" "/tmp/paced-promote.sh '$e' user" >/dev/null 2>&1 || true
+  done
+  ssh -o BatchMode=yes "$VM_SSH" 'rm -f /tmp/paced-promote.sh' >/dev/null 2>&1 || true
+}
+trap don_tai_khoan EXIT
+
+VM_SSH="${VM_SSH:-nghaiz@192.168.94.130}"
+scp -q -o BatchMode=yes "$GOC/apps/web/e2e/scripts/promote-role.sh" "$VM_SSH:/tmp/paced-promote.sh"   && ssh -o BatchMode=yes "$VM_SSH" 'chmod +x /tmp/paced-promote.sh'   || { echo "KHONG DO DUOC: khong dua duoc promote-role.sh len VM" >&2; exit 2; }
+
+# Tao mot tai khoan admin moi, in email ra stdout.
+tai_khoan_moi() {
+  local e="paced-$(date +%s)-$RANDOM@dlp.local"
+  local ma
+  ma="$(curl -sk -o /dev/null -w '%{http_code}' -X POST "$E2E_BASE_URL/api/auth/sign-up/email"         -H 'Content-Type: application/json' -H "Origin: $E2E_ORIGIN"         -d "{\"email\":\"$e\",\"password\":\"$E2E_PASSWORD\",\"name\":\"paced\"}" --max-time 30)"
+  [[ "$ma" == "200" ]] || { echo "signup that bai ($ma)" >&2; return 1; }
+  ssh -o BatchMode=yes "$VM_SSH" "/tmp/paced-promote.sh '$e' admin" >/dev/null 2>&1 || return 1
+  TAIKHOAN+=("$e")
+  printf '%s' "$e"
+}
+
+: "${E2E_PASSWORD:?bat buoc}"
+: "${E2E_BASE_URL:?bat buoc}"
+: "${E2E_ORIGIN:?bat buoc}"
+: "${E2E_REQUIRE_ROLES:?bat buoc =1 — xem chu thich dau file}"
+: "${E2E_REQUIRE_SESSION:?bat buoc =1 — xem chu thich dau file}"
+
+# Khoi `test.describe` cua ba spec lon. Cat theo TEN KHOI chu khong theo --shard:
+# `--shard` chia theo FILE khi `fullyParallel: false`, nen voi mot file thi
+# `--shard=1/3` nhan TRON bo va hai phan con lai chay 0 o roi thoat 0 — mot cach
+# "xanh" khong chung minh gi. Do 2026-09-08.
+khoi_cua() {
   case "$1" in
-    --batch) BATCH="${2:?--batch cần một số}"; shift 2 ;;
-    --sleep) SLEEP="${2:?--sleep cần một số}"; shift 2 ;;
-    *) echo "tham số lạ: $1" >&2; exit 3 ;;
+    a11y.spec.ts)     printf '%s
+' 'a11y — công khai' 'a11y — đã đăng nhập' 'a11y — theo vai trò' ;;
+    csp.spec.ts)      printf '%s
+' 'đối chứng dương' 'nonce' '0 vi phạm CSP' ;;
+    keyboard.spec.ts) printf '%s
+' 'thứ tự và dấu focus' 'đi hết luồng chính' 'D10' ;;
+    *) : ;;
   esac
+}
+
+DO=()
+MEBAT=()
+for spec in "${ME[@]}"; do
+  co_khoi=0
+  while IFS= read -r k; do
+    [[ -z "$k" ]] && continue
+    MEBAT+=("$spec|$k"); co_khoi=1
+  done < <(khoi_cua "$spec")
+  [[ "$co_khoi" -eq 1 ]] || MEBAT+=("$spec|")
 done
 
-# ⚠ Chốt đường TUYỆT ĐỐI trước khi `cd`. `$(dirname "$0")` là tương đối với cwd
-# lúc gọi, nên dùng lại nó SAU khi đã đổi thư mục cho ra
-# `apps/web/apps/web/e2e/scripts` — đã dính đúng lỗi đó 2026-09-07, và nó chỉ lộ
-# ở mẻ đầu tiên chứ không lộ lúc kiểm cú pháp.
-HERE="$(cd "$(dirname "$0")" && pwd)"
-LIB="$HERE/paced-lib.mjs"
+TONG=${#MEBAT[@]}
+i=0
+for muc in "${MEBAT[@]}"; do
+  i=$((i + 1))
+  spec="${muc%%|*}"; shard="${muc##*|}"
+  nhan="$spec"; doi=()
+  if [[ -n "$shard" ]]; then nhan="$spec :: $shard"; doi=(--grep "$shard"); fi
+  printf '\n===== [paced] me %d/%d : %s  (%s) =====\n' "$i" "$TONG" "$nhan" "$(date -Is)"
+  # Tai khoan MOI cho moi me: bucket rate-limit theo userId, nen me nay khong
+  # thua huong gi tu me truoc.
+  EM="$(tai_khoan_moi)" || { DO+=("$nhan (khong tao duoc tai khoan)"); continue; }
+  ( cd "$GOC" && E2E_EMAIL="$EM" pnpm --filter web exec playwright test "e2e/$spec" "${doi[@]}" ) 2>&1 | tail -20
+  MA=${PIPESTATUS[0]}
 
-# Chạy từ `apps/web` để `playwright.config.ts` và đường spec tương đối khớp nhau.
-cd "$HERE/../.."
-
-WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
-
-# Artifact giữ lại giữa các mẻ. Nằm cạnh `outputDir` chứ không nằm TRONG nó —
-# Playwright dọn `outputDir`, nên bất cứ thứ gì ta cất vào đó cũng bốc hơi ở mẻ
-# kế tiếp. Đường này bị `apps/web/e2e/.gitignore` chặn cùng phần còn lại của
-# `.artifacts/`, nên nó không lọt vào git.
-KEEP="$PWD/e2e/.artifacts/paced-batches"
-rm -rf "$KEEP"   # xoá ở ĐẦU lượt: artifact của lượt TRƯỚC đọc ra y hệt của lượt này
-
-# ── 1. Liệt kê test ────────────────────────────────────────────────────────
-# `--list` KHÔNG chạy globalSetup và KHÔNG mở trình duyệt, nên nó không tiêu
-# một đồng nào của bucket rate-limit.
-npx playwright test "$SPEC" --list --reporter=json > "$WORK/list.json" 2>"$WORK/list.err" || {
-  echo "không liệt kê được test của $SPEC:" >&2; cat "$WORK/list.err" >&2; exit 3; }
-
-node "$LIB" titles "$WORK/list.json" > "$WORK/titles.txt"
-
-TOTAL="$(wc -l < "$WORK/titles.txt" | tr -d ' ')"
-echo "[paced] $SPEC → $TOTAL test, mẻ $BATCH, nghỉ ${SLEEP}s"
-
-# ── 2. Chạy từng mẻ ────────────────────────────────────────────────────────
-FAILED=0
-RAN=0
-BATCH_NO=0
-
-split -l "$BATCH" "$WORK/titles.txt" "$WORK/batch-"
-
-for f in "$WORK"/batch-*; do
-  case "$f" in *.re) continue ;; esac
-  BATCH_NO=$((BATCH_NO + 1))
-  if [ "$BATCH_NO" -gt 1 ]; then
-    echo "[paced] nghỉ ${SLEEP}s để bucket rate-limit hồi lại…"
-    sleep "$SLEEP"
-  fi
-
-  WANT="$(wc -l < "$f" | tr -d ' ')"
-  echo "[paced] mẻ $BATCH_NO: $WANT test"
-
-  node "$LIB" regex "$f" > "$f.re"
-  npx playwright test "$SPEC" --grep "$(cat "$f.re")" || FAILED=1
-
-  # Đếm test đã chạy TỪ BÁO CÁO, không từ số dòng đã đưa vào: hai con số đó chỉ
-  # bằng nhau khi `--grep` thật sự khớp đúng tập đã khai.
-  N="$(node "$LIB" count "$PWD/e2e/.artifacts/results.json")"
-  RAN=$((RAN + N))
-  cp "$PWD/e2e/.artifacts/results.json" "$WORK/results-$BATCH_NO.json" 2>/dev/null || true
-
-  # ⚠ Playwright DỌN SẠCH `outputDir` ở đầu MỖI lượt chạy, nên mẻ sau xoá ảnh
-  # chụp, trace và `error-context.md` của mẻ trước. Đo 2026-09-07: hai luồng đỏ
-  # ở mẻ 1 mất hết artifact khi mẻ 2 khởi động, và `error-context.md` chính là
-  # thứ mang cây ARIA — nghĩa là mất luôn đường chẩn đoán offline.
+  # ⛔ ĐÂY KHÔNG PHẢI `retries`, VÀ SỰ KHÁC BIỆT LÀ TOÀN BỘ Ý NGHĨA.
   #
-  # Giữ lại NGOÀI `outputDir` (`$KEEP`), theo mẻ. Đây là thư mục cần đọc khi một
-  # luồng đỏ, không phải `e2e/.artifacts/test-results` (nó chỉ còn mẻ cuối).
-  mkdir -p "$KEEP"
-  if [ -d "$PWD/e2e/.artifacts/test-results" ]; then
-    cp -r "$PWD/e2e/.artifacts/test-results" "$KEEP/batch-$BATCH_NO" 2>/dev/null || true
-  fi
-  # `results.json` cũng bị GHI ĐÈ mỗi mẻ, và nó là nơi DUY NHẤT giữ
-  # `annotations` — thứ các luồng dùng để nói "ô này XANH nhưng nhánh kia KHÔNG
-  # được kiểm ở lượt này". Mất nó thì một lượt 6/6 xanh không phân biệt được với
-  # một lượt 6/6 xanh mà bốn nhánh chưa ai chạm tới.
-  cp "$PWD/e2e/.artifacts/results.json" "$KEEP/results-$BATCH_NO.json" 2>/dev/null || true
+  # `retries` chạy lại CÙNG một ô trong CÙNG điều kiện, hy vọng lần này nó xanh —
+  # tức là làm suite trông xanh trong khi nó không xanh. Cái dưới đây chạy lại
+  # đúng những ô đã đỏ với một TÀI KHOẢN KHÁC, tức là gỡ bỏ một biến gây nhiễu
+  # ĐÃ BIẾT TÊN (bucket rate-limit khoá theo userId) chứ không phải thử vận may.
+  #
+  # Vì sao cần: trần là 120 query/phút cho mỗi user, còn mỗi ô e2e mở một màn
+  # hình đầy đủ (~13 query). Đo 2026-09-08: mẻ 9 ô xanh 9/9, mẻ 12+ ô đỏ dần —
+  # không mẻ nào dưới 10 ô đỏ. Đó là dấu hiệu của một trần ĐẾM, không phải của
+  # một lỗi nằm ở một màn hình cụ thể.
+  #
+  # Một ô đỏ trên CẢ HAI tài khoản vẫn đỏ. Đó là ranh giới giữa "gỡ nhiễu" và
+  # "giấu lỗi", và nó phải giữ nguyên.
+  LAN=0
+  while [[ "$MA" -ne 0 && "$LAN" -lt 2 ]]; do
+    LAN=$((LAN + 1))
+    printf '[paced] me %d: chay lai cac o DA DO bang tai khoan khac (lan %d)
+' "$i" "$LAN"
+    sleep "$NGHI"
+    EM2="$(tai_khoan_moi)" || break
+    ( cd "$GOC" && E2E_EMAIL="$EM2" pnpm --filter web exec playwright test "e2e/$spec" "${doi[@]}" --last-failed ) 2>&1 | tail -8
+    MA=${PIPESTATUS[0]}
+  done
 
-  if [ "$N" -eq 0 ]; then
-    # ⚠ HAI nguyên nhân cho `0 test`, và chúng đòi hai việc khác hẳn nhau:
-    #   - `globalSetup` chết (thường là `sign-in` trả 429 — Better Auth chặn
-    #     ~2-3 lượt/phút theo IP, và MỖI mẻ trả một lượt đăng nhập);
-    #   - `--grep` không khớp gì.
-    # Bản đầu của script này in thẳng "--grep khớp sai" cho cả hai, và lần đầu
-    # nó bắn thì nguyên nhân thật là 429 — tức phép kiểm chỉ ra sai hướng, tệ
-    # hơn không có. Dừng luôn: một setup hỏng sẽ hỏng ở mọi mẻ sau và chỉ đốt
-    # thêm ngân sách rate-limit.
-    echo "[paced] mẻ $BATCH_NO chạy 0/$WANT test — ĐỌC LỖI Ở TRÊN TRƯỚC." >&2
-    echo "[paced] 'sign-in trả 429' ⇒ chờ vài phút rồi chạy lại, KHÔNG phải lỗi --grep." >&2
-    echo "[paced] Chỉ khi setup xanh mà vẫn 0 test thì mới nghi --grep." >&2
-    exit 2
-  fi
-
-  if [ "$N" -ne "$WANT" ]; then
-    echo "[paced] mẻ $BATCH_NO khai $WANT test nhưng CHẠY $N — --grep khớp sai." >&2
-    FAILED=2
+  [[ "$MA" -eq 0 ]] || DO+=("$nhan")
+  printf '[paced] me %d exit=%d\n' "$i" "$MA"
+  if [[ "$i" -lt "$TONG" ]]; then
+    printf '[paced] nghi %ss de bucket rate-limit hoi lai...\n' "$NGHI"
+    sleep "$NGHI"
   fi
 done
 
-# ── 3. Đối chứng tổng ──────────────────────────────────────────────────────
-echo "[paced] đã chạy $RAN / $TOTAL test"
-if [ "$RAN" -ne "$TOTAL" ] || [ "$FAILED" -eq 2 ]; then
-  echo "[paced] SỐ TEST KHÔNG KHỚP — script chia mẻ hỏng, mọi kết quả ở trên VÔ GIÁ TRỊ." >&2
-  echo "[paced] (một mẻ khớp 0 test vẫn thoát 0; đó là thứ phép kiểm này gác.)" >&2
-  exit 2
+printf '\n===== [paced] TỔNG =====\n'
+if [[ ${#DO[@]} -eq 0 ]]; then
+  printf 'mọi mẻ XANH (%d mẻ)\n' "$TONG"
+  exit 0
 fi
-
-exit "$FAILED"
+printf 'mẻ ĐỎ (%d/%d):\n' "${#DO[@]}" "$TONG"
+printf '  %s\n' "${DO[@]}"
+printf '\n⚠ Trước khi đọc thành hồi quy: kiểm lỗi có phải 429 không.\n'
+printf '   grep -c "too_many_requests\\|HTTP 429" apps/web/e2e/.artifacts/results.json\n'
+exit 1

@@ -100,12 +100,26 @@ const IS_TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/i;
 //
 // KHÔNG dùng biên từ `\b` bao quanh: `_` cũng là ký tự từ nên `\bprice\b`
 // trượt `MONTHLY_PRICE_VND` — đúng cái bẫy bản grep cũ đã tránh.
+// NGOẠI LỆ CÓ LÝ DO ĐO ĐƯỢC: `sku` mang thêm `(?![a-z])`.
+//
+// Ba ký tự đó là TIỀN TỐ của những từ tiếng Anh hoàn toàn vô hại. Bắt được
+// trên CI 2026-09-07: `drizzle-kit generate` tự đặt tên migration NGẪU NHIÊN và
+// sinh ra `0008_nervous_skullbuster`, nên cổng kêu oan trên `_journal.json`.
+// Nguồn tên ngẫu nhiên nghĩa là nó sẽ TÁI PHÁT, không phải sự cố một lần.
+//
+// Dùng `(?![a-z])` chứ không `\\b`, để giữ đúng lý lẽ ngay trên: `_` không thuộc
+// `[a-z]`, nên `SKU_ID` và `product_sku` VẪN bị bắt còn `skullbuster` thì không.
+// `skus?` để dạng số nhiều không lọt — cờ `i` khiến `[a-z]` phủ luôn chữ hoa,
+// nên thiếu `s?` thì `SKUS` sẽ trượt.
+//
+// ⛔ Đừng thêm lookbehind `(?<![a-z])`: nó làm `productsku` lọt, mà đó là vi phạm
+// thật. Ba ca DIRTY + một ca CLEAN ở dưới gác đúng bốn vế này.
 const RULES = [
   {
     id: 'en-thương-mại',
     scope: 'all',
     why: 'từ khoá thương mại tiếng Anh',
-    src: String.raw`price|pricing|paywall|checkout|billing|invoice|stripe|paddle|sepay|entitlement|sku|subscription|is_?paid|premium|freemium|payment|purchase|refund|coupon|discount|momo|vnpay|zalopay|paypal|mastercard|shopping[ _-]?cart|add[ _-]?to[ _-]?cart`,
+    src: String.raw`price|pricing|paywall|checkout|billing|invoice|stripe|paddle|sepay|entitlement|skus?(?![a-z])|subscription|is_?paid|premium|freemium|payment|purchase|refund|coupon|discount|momo|vnpay|zalopay|paypal|mastercard|shopping[ _-]?cart|add[ _-]?to[ _-]?cart`,
   },
   {
     id: 'vi-thương-mại',
@@ -287,7 +301,12 @@ const DIRTY = [
   ['lọt-2', 'Học phí trọn gói 1.500.000đ'],
   ['lọt-3', 'Mua khoá học'],
   ['lọt-4', 'Bản Pro — 99k/tháng'],
-  ['cũ-SNAKE_CASE', 'const MONTHLY_PRICE_VND = 199000;'],
+  ['cũ-SNAKE_CASE', 'const MONTHLY_PRICE_VND = 199000;'],
+  // `sku` trước đây không có đối chứng nào — không dòng nào chứng minh nó còn
+  // bắt, cũng không dòng nào chứng minh nó không kêu oan. Nay có cả hai.
+  ['sku-hoa', "const SKU_ID = 'course-101';"],
+  ['sku-thường', 'product_sku'],
+  ['sku-số-nhiều', 'const SKUS = [];'],
   ['cũ-camelCase', 'const isPaid = user.subscription !== null;'],
   ['cũ-hằng', "export const PAYWALL_COPY = 'Mở khoá tất cả';"],
   ['cũ-đường-dẫn-URL', "router.push('/checkout/success');"],
@@ -316,6 +335,9 @@ const CLEAN = [
   'setCheckOutcomes((prev) => ({ ...prev, [taskId]: { kind: running } }));',
   'const items = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);',
   'function subscribe(listener) { return () => {}; }',
+  // Tên migration do `drizzle-kit generate` tự sinh — nguồn tên NGẪU NHIÊN, nên
+  // dòng này gác một lớp dương tính giả sẽ tái phát chứ không phải một ca lẻ.
+  '"tag": "0008_nervous_skullbuster",',
   'giá trị mặc định là 30 giây',
   'đánh giá kết quả bài làm của người học',
   'nút nằm phía trên bàn phím ảo',

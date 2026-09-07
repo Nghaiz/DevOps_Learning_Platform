@@ -278,3 +278,51 @@ describe('requiresCapabilities', () => {
     await expect(loadScenario(dir)).rejects.toThrow(/kubernetes-kubeadm-1node/);
   });
 });
+
+describe('toolset — thu hẹp TẠI BIÊN dựng DTO', () => {
+  // Ba ca này gác đúng chỗ mà typecheck KHÔNG gác được. `tsc` chỉ khẳng định
+  // field `toolset` tồn tại trên DTO; nó không nói gì về việc giá trị đi vào đó
+  // đã qua `sanitizeToolset` hay chưa. Bỏ lượt lọc ở biên thì cả ba ca dưới vẫn
+  // biên dịch được, và một tên lạ sẽ đi thẳng tới `dlp-tools enable` rồi hỏng
+  // lúc setup phiên — trước mặt người học, xa nhất có thể khỏi dòng code sai.
+
+  it('khoá vắng mặt ⇒ mảng rỗng, KHÔNG phải undefined', async () => {
+    const dir = await makeScenario();
+    const scenario = await loadScenario(dir);
+    // Mảng rỗng chứ không `undefined`/`null`: hợp đồng §C4 chọn MỘT cách viết
+    // cho "không bật gì", nếu không thì `?? []` sẽ mọc ở mọi call-site.
+    expect(scenario.toolset).toEqual([]);
+  });
+
+  it('giữ đúng công cụ hợp lệ, đúng thứ tự người soạn viết', async () => {
+    const dir = await makeScenario({
+      index: {
+        title: 'Demo',
+        details: { steps: [{ title: 'Bước 1', text: 'step1.md' }] },
+        backend: { imageid: 'ubuntu' },
+        toolset: ['yq', 'btop'],
+      },
+    });
+    const scenario = await loadScenario(dir);
+    // KHÔNG sắp xếp lại: một hàm lặng lẽ đổi thứ tự người soạn viết là thứ khó
+    // truy hơn nhiều so với một danh sách chưa đẹp.
+    expect(scenario.toolset).toEqual(['yq', 'btop']);
+  });
+
+  it('tên ngoài danh mục bị LOẠI, và bài vẫn nạp được', async () => {
+    const dir = await makeScenario({
+      index: {
+        title: 'Demo',
+        details: { steps: [{ title: 'Bước 1', text: 'step1.md' }] },
+        backend: { imageid: 'ubuntu' },
+        toolset: ['btop', 'khong-ton-tai', 'yq'],
+      },
+    });
+    // Lọc bỏ chứ KHÔNG ném: một công cụ đã bị gỡ khỏi danh mục chỉ được phép làm
+    // mất công cụ đó, không được làm mất cả bài. Đây là điểm khác có chủ ý so với
+    // `toAction` của content-blocks (verb lạ ⇒ ném), vì nút bấm sai chức năng là
+    // thứ người học TƯƠNG TÁC, còn tiện ích vắng mặt thì không.
+    const scenario = await loadScenario(dir);
+    expect(scenario.toolset).toEqual(['btop', 'yq']);
+  });
+});

@@ -11,6 +11,7 @@ import { mapBackendImage, KNOWN_BACKEND_IMAGE_IDS } from './backend.ts';
 import { ScenarioError } from './errors.ts';
 import { parseKillercodaIndex, type KillercodaIndex, type KillercodaPhase } from './killercoda.ts';
 import { scenarioSidecarSchema, type ScenarioSidecar } from './sidecar.ts';
+import { sanitizeToolset } from './toolset.ts';
 
 export const SIDECAR_FILENAME = 'dlp.json';
 export const INDEX_FILENAME = 'index.json';
@@ -107,6 +108,11 @@ export async function loadScenario(scenarioDir: string): Promise<Scenario> {
     requiresCapabilities: requires,
     backendImageId: index.backend.imageid,
     interfaceLayout: index.interface?.layout ?? null,
+    // Thu hẹp NGAY TẠI BIÊN dựng DTO, không tin pipeline phía trên đã lọc:
+    // `sanitizeToolset` thuần và idempotent, nên gọi thừa là vô hại, còn thiếu
+    // một lượt gọi thì một tên lạ đi thẳng tới `dlp-tools enable` và hỏng trước
+    // mặt người học lúc setup phiên.
+    toolset: [...sanitizeToolset(index.toolset).toolset],
     intro:
       index.details?.intro === undefined
         ? null

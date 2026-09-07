@@ -10,7 +10,10 @@ export interface CodeBlockProps {
   readonly language: string | null;
   readonly action: CodeAction;
   readonly inline: boolean;
-  /** `undefined` = ẩn hẳn nút chạy (khác với `execEnabled: false` = hiện nhưng disable). */
+  /**
+   * `undefined` = ẩn hẳn nút chạy (khác với `execEnabled: false` = hiện nhưng
+   * disable). Tham số thứ hai là `interrupt` — CHỈ một `boolean`, xem §Y3.
+   */
   readonly onExec?: ((command: string, interrupt: boolean) => void) | undefined;
   /** Mặc định `true`. */
   readonly execEnabled?: boolean | undefined;
@@ -63,7 +66,14 @@ function ActionButton({
  * hậu tố) không bao giờ tới đây — chúng ở lại trong `ContentBlock.kind ===
  * 'markdown'` và do MarkdownView vẽ (không nút, không tương tác).
  */
-export function CodeBlock({ code, language, action, inline, onExec, execEnabled = true }: CodeBlockProps) {
+export function CodeBlock({
+  code,
+  language,
+  action,
+  inline,
+  onExec,
+  execEnabled = true,
+}: CodeBlockProps) {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle');
 
   // Tự reset sau ~2s để nút không kẹt mãi ở "Đã chép"/"Chép thất bại".

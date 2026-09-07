@@ -2,12 +2,63 @@
 
 **SSOT của luật gộp.** Mã nguồn trỏ về file này; file này không lặp lại mã nguồn.
 
-Từ P9, nền tảng có **hai** nguồn nội dung cùng sống:
+Từ P9, nội dung **lesson / lab / playground** có **hai** nguồn cùng sống:
 
 | Nguồn | Ở đâu | Ai ghi | Đổi khi nào |
 |---|---|---|---|
 | **Đĩa** | `content/{scenarios,labs,playgrounds}/**` | `vendor-scenarios.mjs`, ghim byte theo commit upstream | Chỉ khi build lại image |
 | **DB** | `content_items` / `content_steps` / `content_assets` | Người có vai trò `author` qua trang soạn | Bất cứ lúc nào |
+
+## Ngoài bảng trên: lộ trình và quiz chỉ có DB
+
+Bảng hai nguồn ở trên **không phủ hết** nội dung của nền tảng. Nó nói về
+`content_items` — tức lesson, lab, playground. Hai loại còn lại nằm ngoài nó:
+
+| Loại | Bảng | Đọc bởi |
+|---|---|---|
+| **Lộ trình** | `learning_paths` / `learning_path_items` | `paths.list`, `paths.get` |
+| **Quiz** | `quizzes` / `quiz_questions` / `quiz_choices` | `quiz.list`, `quiz.get` |
+
+Cả hai **chỉ có Postgres, không có nguồn đĩa**. Không có
+`filesystemLearningPathSource` nào, và `compositeContentSource` không đụng tới
+chúng. Hệ quả là một cụm vừa dựng có `/lessons` + `/labs` đầy đủ (nội dung đã
+nướng vào image) trong khi `/paths` + `/quiz` rỗng trơn — đo trên cụm thật ngày
+2026-09-06: `learning_paths = 0`, `quizzes = 0`.
+
+### Đường nạp: `scripts/seed-content.mjs`
+
+`content/paths/*.json` và `content/quizzes/*.json` là **đầu vào của lượt nạp**,
+không phải một nguồn đọc thứ ba: sau khi seed, SSOT lúc đọc vẫn là Postgres —
+đúng những bảng mà trang soạn ghi vào. Chúng được phiên bản hoá trong git để một
+cụm dựng lại từ đầu có cùng thư viện.
+
+```
+node scripts/seed-content.mjs --check   # kiểm nội dung, không cần DB
+node scripts/seed-content.mjs --print   # in SQL (cụm không lộ Postgres ra ngoài)
+DATABASE_URL=... node scripts/seed-content.mjs
+```
+
+Idempotent theo cấu trúc, và từ chối ghi đè bài thuộc một `author_id` khác. Chi
+tiết ở đầu chính script.
+
+**Phải gọi nó ở mọi nơi dựng một Postgres mới** — cụm mới, **và mọi job CI chạy
+E2E**. `db:migrate` tạo bảng; nó không nạp gì cả.
+
+### Thiếu bước seed thì triệu chứng KHÔNG nêu tên nguyên nhân
+
+Đây là lý do mục này tồn tại, chứ không phải một ghi chú vận hành. Danh mục rỗng
+**không ném lỗi ở đâu cả**: `paths.list` trả `items: []` hoàn toàn hợp lệ, trang
+`/paths` vẽ một danh sách trống, và thứ đỏ lên là một test cách đó vài tầng với
+câu *"paths.list trả 0 mục nên không mở được /paths/:id"* — một câu mô tả hậu
+quả, không phải nguyên nhân. Cùng lớp với `rules/green-that-proves-nothing.md`,
+chỉ ngược chiều: ở đây cái đỏ nói đúng là có chuyện, nhưng nói sai chỗ.
+
+Đo được ở CI run 34130030953 — lượt chạy **đầu tiên** của job `web-a11y`: bốn ô
+(`axe` + `csp`, mỗi cái cho `/paths/:id` và `/quiz/:id`) đỏ vì job chỉ chạy
+`db:migrate`. Tái hiện tại chỗ rồi chạy lại với **biến duy nhất** là lệnh seed:
+4 đỏ / 31 xanh → **0 đỏ / 35 xanh**, không đổi một dòng mã sản phẩm nào.
+
+---
 
 Seam `ContentSource` (`packages/scenario/src/source.ts`) được dựng ở 2.B để đón
 nguồn thứ hai này. Điều seam **chưa** nói là chuyện gì xảy ra khi hai nguồn cùng

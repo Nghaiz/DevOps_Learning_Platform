@@ -164,6 +164,10 @@ func validClaims() testjwt.Claims {
 
 type result struct {
 	Status int
+	// Header giữ NGUYÊN header response — cần cho A3: bộ header an ninh phải
+	// kiểm được cả GIÁ TRỊ lẫn SỐ LƯỢNG giá trị, mà `Header.Get()` chỉ trả cái
+	// đầu tiên nên nó đọc ra xanh trên ca "hai header mâu thuẫn".
+	Header http.Header
 	Body   []byte
 }
 
@@ -206,7 +210,7 @@ func (h *harness) post(t *testing.T, sessionID, rawBody string, mutate ...func(*
 	if err != nil {
 		t.Fatalf("đọc body: %v", err)
 	}
-	return &result{Status: resp.StatusCode, Body: body}
+	return &result{Status: resp.StatusCode, Header: resp.Header, Body: body}
 }
 
 // withCookie thay cookie mặc định bằng token khác (hoặc bỏ hẳn nếu raw rỗng).
@@ -647,5 +651,103 @@ func TestLuat8_LogKiemToanKhongChuaToken(t *testing.T) {
 
 	if m := jwtLike.FindString(h.logs.String()); m != "" {
 		t.Fatalf("log chứa chuỗi giống JWT: %q\n--- log ---\n%s", m, h.logs.String())
+	}
+}
+
+// ─────────────────────── A3: header an ninh cho MỌI response của `/exec`
+
+// wantSecurityHeaders là bộ ĐÍCH, viết TAY chứ không đọc lại `secheaders`.
+//
+// Cố ý chép giá trị: một test đọc chính hằng nó gác sẽ xanh kể cả khi ai đó đổi
+// hằng đó thành `X-Frame-Options: ALLOWALL` — nó chỉ khẳng định "mã bằng chính
+// mã", một tautology. Đổi giá trị ở đây phải là một quyết định có người đọc.
+var wantSecurityHeaders = map[string]string{
+	"X-Content-Type-Options":  "nosniff",
+	"X-Frame-Options":         "SAMEORIGIN",
+	"Referrer-Policy":         "same-origin",
+	"Content-Security-Policy": "default-src 'none'",
+}
+
+// assertSecurityHeaders kiểm CẢ giá trị LẪN số lượng giá trị.
+//
+// Đếm là nửa dễ quên hơn: chế độ hỏng của một bộ header đặt hai chỗ không phải
+// "thiếu header" mà là "hai header mâu thuẫn", và một phép kiểm chỉ gọi
+// `Header.Get()` (trả về giá trị ĐẦU) đọc ra XANH trên đúng ca đó.
+func assertSecurityHeaders(t *testing.T, h http.Header, ctx string) {
+	t.Helper()
+	for name, want := range wantSecurityHeaders {
+		got := h.Values(name)
+		if len(got) == 0 {
+			t.Errorf("%s: thiếu header %s (muốn %q)", ctx, name, want)
+			continue
+		}
+		if len(got) != 1 {
+			t.Errorf("%s: %s có %d giá trị %q — trình duyệt xử lý cặp mâu thuẫn mỗi bản một kiểu", ctx, name, len(got), got)
+			continue
+		}
+		if got[0] != want {
+			t.Errorf("%s: %s = %q, muốn %q", ctx, name, got[0], want)
+		}
+	}
+	if v := h.Get("Content-Security-Policy-Report-Only"); v != "" {
+		t.Errorf("%s: có Content-Security-Policy-Report-Only = %q — bản chỉ-báo KHÔNG chặn gì", ctx, v)
+	}
+}
+
+// Mọi `return` của handler, không chỉ đường hạnh phúc. Nhánh 4xx/5xx cũng phát
+// JSON trên origin của app, nên `nosniff` cần cho nó y như cho một lượt 200 —
+// và mỗi `return` sớm là một chỗ quên riêng.
+func TestExecDatHeaderAnNinhTrenMoiNhanh(t *testing.T) {
+	cases := []struct {
+		ten        string
+		sessions   *spySessions
+		runner     *fakeRunner
+		body       string
+		wantStatus int
+		mutate     []func(*http.Request)
+	}{
+		{
+			ten: "thành công (200)", wantStatus: http.StatusOK, body: defaultBody(),
+			sessions: &spySessions{sess: activeSession()},
+			runner:   &fakeRunner{result: podexec.OneShotResult{ExitCode: 0, Output: "ok"}},
+		},
+		{
+			ten: "bước a — Origin lạ (403)", wantStatus: http.StatusForbidden, body: defaultBody(),
+			sessions: &spySessions{sess: activeSession()}, runner: &fakeRunner{},
+			mutate: []func(*http.Request){
+				func(r *http.Request) { r.Header.Set("Origin", "https://evil.example") },
+			},
+		},
+		{
+			ten: "bước c — thiếu cookie (401)", wantStatus: http.StatusUnauthorized, body: defaultBody(),
+			sessions: &spySessions{sess: activeSession()}, runner: &fakeRunner{},
+			mutate: []func(*http.Request){withCookie("")},
+		},
+		{
+			ten: "thân request sai (400)", wantStatus: http.StatusBadRequest, body: `{"script":"x","lung":1}`,
+			sessions: &spySessions{sess: activeSession()}, runner: &fakeRunner{},
+		},
+		{
+			// Nhánh `fail` với 502: gateway đúng, pod/apiserver hỏng. Nó đi qua một
+			// hàm ghi response KHÁC `deny`, nên là một chỗ quên riêng.
+			ten: "runner hỏng (502)", wantStatus: http.StatusBadGateway, body: defaultBody(),
+			sessions: &spySessions{sess: activeSession()},
+			runner:   &fakeRunner{err: errors.New("apiserver từ chối")},
+		},
+		{
+			ten: "Redis chết (500)", wantStatus: http.StatusInternalServerError, body: defaultBody(),
+			sessions: &spySessions{getErr: errors.New("redis chết")}, runner: &fakeRunner{},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.ten, func(t *testing.T) {
+			h := newHarness(t, tc.sessions, tc.runner)
+			res := h.post(t, testSession, tc.body, tc.mutate...)
+			if res.Status != tc.wantStatus {
+				t.Fatalf("status = %d, muốn %d (body: %s)", res.Status, tc.wantStatus, res.Body)
+			}
+			assertSecurityHeaders(t, res.Header, tc.ten)
+		})
 	}
 }

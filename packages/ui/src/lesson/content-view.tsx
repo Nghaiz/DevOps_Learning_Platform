@@ -9,7 +9,12 @@ export interface ContentViewProps {
    * URL tải được. Trả `null` = không phục vụ được ảnh đó.
    */
   readonly resolveAssetUrl: (relative: string) => string | null;
-  /** Bấm nút chạy trên code block. `interrupt` = gửi Ctrl+C trước. `undefined` = ẩn hẳn nút chạy. */
+  /**
+   * Bấm nút chạy trên code block. `undefined` = ẩn hẳn nút chạy.
+   *
+   * `interrupt` = gửi Ctrl+C trước. Chỉ hai tham số: sửa đổi 2 của hợp đồng
+   * (§Y3) rút xuống MỘT terminal, nên không còn đích nào để mang theo.
+   */
   readonly onExec?: (command: string, interrupt: boolean) => void;
   /** `false` = nút chạy vẫn hiện nhưng bị disable (terminal chưa sẵn sàng). Mặc định `true`. */
   readonly execEnabled?: boolean;

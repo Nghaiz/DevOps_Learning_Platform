@@ -34,6 +34,7 @@ function scenario(id: string, title: string): Scenario {
     id,
     title,
     description: null,
+    toolset: [],
     difficulty: 'beginner',
     estimatedMinutes: null,
     tier: 'sysbox',

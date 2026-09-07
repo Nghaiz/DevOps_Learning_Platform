@@ -33,9 +33,11 @@ import {
   SessionControls,
   ShellFallbackNotice,
   TerminalPane,
+  WorkspacePanel,
   WorkspaceSplit,
   useResolvedTerminalTheme,
 } from '../../../components/session';
+import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { useLabSession } from './use-lab-session';
@@ -177,22 +179,26 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
     );
   }, [attemptId, labId, submit, utils]);
 
-  const onExec = useCallback(
-    (command: string, interrupt: boolean) => {
-      const terminal = session.terminal;
-      if (terminal === null) {
-        return;
-      }
-      // `exec-interrupt` = Ctrl+C rồi mới tới lệnh (contract Killercoda). Gửi
-      // `\x03` riêng chứ không nối vào chuỗi: chúng là hai sự kiện bàn phím.
-      if (interrupt) {
-        terminal.sendInput('\x03');
-      }
-      terminal.sendInput(`${command}\r`);
-      terminal.focus();
-    },
-    [session.terminal],
-  );
+  /*
+    C5 — lab KHÔNG có tab Editor: không bài lab nào wire `IdePane` (chỉ trang
+    bài học có), nên `hasEditor: false` là mô tả đúng hiện trạng chứ không phải
+    một lựa chọn. Khi nào lab cần IDE thì `IdePane` phải ra khỏi
+    `app/lessons/[id]/` trước đã.
+  */
+  const tabs = useWorkspaceTabs({
+    terminal: session.terminal,
+    hasEditor: false,
+    sessionId: session.state.sessionId,
+  });
+
+  /*
+    §Y3 — `onExec(command, interrupt)`, HAI tham số. `ExecOptions`/`ExecTarget`
+    bị gỡ cùng terminal thứ hai; exec KHÔNG chuyển tab nữa vì terminal hiện ở cả
+    hai tab. Việc giữ `\x03` là một sự kiện bàn phím riêng nằm trong
+    `useWorkspaceTabs` — cùng một bản với trang bài học, để `{{exec}}` không
+    chạy khác nhau ở hai chỗ.
+  */
+  const onExec = tabs.exec;
 
   if (labQuery.isPending) {
     return <LabSkeleton />;
@@ -211,7 +217,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
     );
   }
 
-  const { lab, unsupportedCapabilities } = labQuery.data;
+  const { lab, profile, unsupportedCapabilities } = labQuery.data;
   const attemptData = attemptQuery.data;
 
   /*
@@ -228,6 +234,19 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
 
   const selected =
     summary.displays.find((display) => display.task.id === selectedTaskId) ?? summary.displays[0];
+
+  const terminalPane = (
+    <TerminalPane
+      session={session}
+      theme={terminalTheme}
+      placeholder={
+        <span>
+          Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng sandbox
+          và mở terminal.
+        </span>
+      }
+    />
+  );
 
   const taskPane = (
     <div className="flex h-full flex-col overflow-y-auto bg-background px-4 py-4">
@@ -345,10 +364,18 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
         <h1 className="text-sm font-semibold">{lab.title}</h1>
 
         <div className="ml-auto">
+          {/*
+            `profile` tới từ `labs.get` — cùng năng lực mà `startAttempt` đưa cho
+            `createSandboxSession`, tức cùng cái pod sắp được tạo. Thiếu nó,
+            trang lab Kubernetes (1024Mi, trần 5) in con số của bài thường
+            (256Mi, trần 23): prop này TUỲ CHỌN nên chỗ thiếu biên dịch sạch
+            trong khi màn hình nói sai — đúng hạng lỗi đã cắn hai PR liên tiếp.
+          */}
           <SessionControls
             session={session}
             actions={{ start: session.start, end: session.end, extend: session.extend }}
             capacity={capacity.data ?? null}
+            profile={profile}
             startLabel={attemptId === null ? 'Bắt đầu' : 'Làm lại'}
           />
         </div>
@@ -429,17 +456,29 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
             )
           }
           side={
-            <TerminalPane
-              session={session}
-              theme={terminalTheme}
-              placeholder={
-                <span>
-                  Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng sandbox
-                  và mở terminal.
-                </span>
-              }
+            <WorkspacePanel
+              /*
+                Không truyền `editor`: lab chưa có khoang IDE nào (xem chú thích
+                ở `useWorkspaceTabs` phía trên). Vắng prop = panel không vẽ tab
+                Editor, và vì khi đó chỉ còn MỘT mục thì nó bỏ luôn thanh
+                tablist — một tablist một mục là nhiễu thị giác chứ không phải
+                chức năng (§Y4). Nút mở-ra-cửa-sổ-riêng vẫn còn trên thanh.
+
+                ⛔ MỘT node terminal, truyền THẲNG. `terminals` (Map),
+                `onAddTerminal`, `onCloseTerminal`, `split` đã biến mất cùng
+                terminal thứ hai (§Y4).
+              */
+              terminal={terminalPane}
+              activeTab={tabs.activeTab}
+              onActivate={tabs.onActivate}
+              popOutUrl={tabs.popOutUrl}
+              storageKey="dlp-lab-workspace"
             />
           }
+          /* Hẹp: chỉ nội dung + terminal, không thanh tab — cùng quyết định với
+             trang bài học, và cùng lý do `TerminalPane` tự đổi thành
+             `NarrowScreenNotice` dưới 768px. */
+          narrowSide={terminalPane}
         />
       </div>
     </div>
@@ -527,6 +566,14 @@ function TaskDetail({
   canCheck: boolean;
   disabledReason: string | null;
   onCheck: () => void;
+  /*
+    §Y3 — chữ ký HAI tham số, khớp `ContentViewProps['onExec']`.
+
+    ⚠ Phải sửa ở CẢ HAI chỗ: `useCallback` phía trên VÀ kiểu prop này. Lượt
+    trước chỉ sửa một chỗ và nửa còn lại lọt qua im lặng, vì `TaskDetail` chỉ
+    chuyển tiếp hàm xuống `ContentView` — không call-site nào trong file gọi nó
+    với đủ tham số để TypeScript có chỗ mà kêu.
+  */
   onExec: (command: string, interrupt: boolean) => void;
   execEnabled: boolean;
 }): React.ReactElement {

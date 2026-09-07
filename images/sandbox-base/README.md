@@ -231,22 +231,60 @@ nên đổi `image.tag` một chỗ là pod lab đi theo. Đánh đổi: **mỗi
 `image.tag` đều phải side-load thêm tarball sandbox lên node**, nếu không thì
 warm-pool ImagePullBackOff.
 
-> ⛔ **Đổi `SANDBOX_IMAGE` KHÔNG tự thay pod đang ấm.** Warm-pool giữ đủ
-> `POOL_TARGET` pod và không có logic rollout theo image: pod ấm dựng từ image
-> CŨ nằm lại trong `pool:free` vô thời hạn, `Running`/`Ready` nên nhìn không có
-> gì sai, và người claim tiếp theo nhận đúng pod đó. Đây là **món nợ**, chưa có
-> task nào sở hữu. Rút tay theo đúng thứ tự sau:
+> ✅ **Đổi `SANDBOX_IMAGE` CÓ tự thay pod đang ấm** — reaper tầng 4 lo việc này
+> (`internal/reaper/reaper.go`, `sweepDeadFreePods`). Mỗi vòng sweep nó đối chiếu
+> `pod.spec.containers[sandbox].image` của từng pod trong `pool:free` với
+> `SANDBOX_IMAGE` hiện hành; lệch thì `LREM` khỏi `pool:free` rồi xoá, kèm
+> `dlp_reaper_stale_image_pods_total` và một dòng WARN in CẢ HAI image.
 >
-> ```bash
-> # 1) Rút khỏi LIST TRƯỚC — sau bước này không claim nào grab được nó nữa.
-> #    ⛔ LREM PHẢI trả về 1. Trả 0 nghĩa là claim.lua vừa LMOVE nó sang
-> #    pool:claimed cho một sinh viên — ĐI TIẾP LÀ XOÁ POD CỦA PHIÊN ĐANG CHẠY.
-> redis-cli LREM pool:free 0 "$POD"      # phải in: (integer) 1
-> redis-cli HGET "pod:$POD" state        # kiểm lại: phải là "free"
-> # 2) rồi mới xoá hash, 3) rồi mới xoá Pod
-> redis-cli DEL "pod:$POD"
-> kubectl -n dlp-sandbox delete pod "$POD" --grace-period=0 --force
+> ⚠ **Đoạn "rút tay" từng nằm ở đây đã bị xoá** vì nó là văn bản cũ hơn code:
+> nó viết ở `d09db86` (2026-08-12 12:52) và cơ chế vào ở `ea73912` (2026-08-12
+> 22:05) — cách nhau chín tiếng trong cùng một ngày, nên bản README không được
+> cập nhật theo. Ai đọc nó năm 2026-09 sẽ kết luận A8 chưa có chủ, đi dựng lại
+> một cơ chế thứ hai, và có HAI thành phần cùng mutate `pool:free`. Đã xảy ra:
+> đó là lý do có mục này.
+>
+> Bằng chứng cơ chế chạy thật, log orchestrator trên cụm lab:
+>
 > ```
+> 2026-09-07T07:37:35.038Z WARN pod ấm chạy image CŨ — đã rút …
+>   image_dang_chay=…:p10a  image_muon=…:p13ide  pod=sandbox-6a02e800a9e9
+> ```
+>
+> ### Hai giới hạn CÒN LẠI, đọc trước khi deploy
+>
+> **1. Cửa sổ `REAP_INTERVAL`.** Phép so image chạy theo nhịp sweep (lab: `60s`),
+> KHÔNG chạy ở đường claim. Một pod lệch vào `pool:free` ngay sau một vòng sweep
+> sẽ được phát cho tới vòng kế. Đo được cùng ngày: dòng thứ TƯ ở
+> `07:38:34.856Z` — một pod `p10a` nữa, đúng **59 giây** sau ba dòng đầu.
+>
+> **2. Nguồn của pod lệch đó là chính lượt rollout.** `platform-orchestrator`
+> chạy `replicas: 1` với `strategy.rollingUpdate.maxSurge: 25%` ⇒ trong lúc
+> `helm upgrade`, replica CŨ (mang `SANDBOX_IMAGE` cũ) và replica MỚI cùng sống
+> và cùng bơm vào một `pool:free`. Replica cũ dựng pod image cũ SAU vòng sweep
+> khởi động của replica mới — đó chính là pod ở dòng thứ tư.
+>
+> ✅ **ĐÃ ĐÓNG** ở `207f999`: Deployment orchestrator nay khai `maxSurge: 0`, nên
+> không bao giờ có hai manager mang hai `SANDBOX_IMAGE` khác nhau cùng ghi vào một
+> pool. Giới hạn **1** (cửa sổ `REAP_INTERVAL`) thì VẪN CÒN — nó chỉ không còn
+> nguồn nào bơm pod lệch vào pool sau vòng sweep khởi động nữa.
+>
+> ### Nhịp xoá (từ 2026-09-08)
+>
+> Rút khỏi `pool:free` là **vô điều kiện** — mọi pod lệch ra khỏi vòng phục vụ
+> trong CÙNG một vòng sweep. Xoá khỏi cluster thì **có trần**
+> (`maxStaleEvictPerSweep`); phần vượt trần được đẩy sang `pool:quarantine` và
+> tầng 3 dọn ở vòng sau. Lý do là số đo ở trên: ba dòng WARN nằm trong 30 mili-
+> giây tức ba lượt teardown đồng thời trên một node Sysbox — đúng hình dạng đã
+> dẫn tới `FailedKillPod` → sysbox-fs wedge ở P12 §5b.
+>
+> ⚠ Trần này KHÔNG hứa "pool không bao giờ rỗng". Nếu cả pool đều lệch image thì
+> pool rỗng là kết quả ĐÚNG (mọi pod trong đó đều không dùng được) và người claim
+> tiếp theo đi cold path. Nó chỉ chặn cơn bão teardown.
+>
+> ⛔ Pod đang **CLAIMED** không bao giờ bị đụng tới: tầng 4 chỉ đọc `pool:free`.
+> Một lượt deploy không được cướp phiên của người đang học. Cổng:
+> `TestTang4KhongDungPodLechImageDangClaimed`.
 
 ## E6–E9 (chặng 1.E-2, 2026-08-12)
 
@@ -295,9 +333,47 @@ hai là image ~1.1 GB, tức mỗi lần bump `image.tag` phải side-load thêm
 lên node. Bật khi có bài lab thật cần PowerShell, không bật "cho đủ".
 
 **Còn nợ, có chủ ý:** `/mnt/dotfiles` **chưa có ai mount**. `podspec.go` đặt
-`Volumes: nil` và CEL #8 cấm `hostPath`, và P1 cũng chưa có tính năng nào cấp
-nội dung dotfiles. Nhánh E8 vì thế được kiểm ở **tầng image** (`docker run -v`),
-chưa từng chạy qua đường người dùng thật. Đừng đọc AC dotfiles mạnh hơn thế.
+`Volumes: nil`, và P1 chưa có tính năng nào cấp nội dung dotfiles. Nhánh E8 vì thế
+được kiểm ở **tầng image** (`docker run -v`), chưa từng chạy qua đường người
+dùng thật. Đừng đọc AC dotfiles mạnh hơn thế.
+
+⛔ **KHÔNG phải CEL #8 chặn.** Câu trước ở đây viết "CEL #8 cấm `hostPath`" cạnh
+"chưa ai mount" nên bị đọc thành "policy cấm mount". Đọc nguyên văn biểu thức
+(`infra/helm/platform/templates/sandbox-admissionpolicy.yaml`):
+
+```
+!has(object.spec.volumes) || object.spec.volumes.all(v, !has(v.hostPath))
+```
+
+Nó cấm ĐÚNG MỘT kiểu volume. `configMap`, `secret`, `emptyDir`, `projected`,
+`persistentVolumeClaim` đều qua được. **Không có ngoại lệ an ninh nào cần xin.**
+
+### Thứ thật sự chặn: warm pool
+
+Pod được tạo **trước khi biết ai sẽ claim nó** — đó là toàn bộ điểm của warm
+pool, và là thứ giữ claim dưới 1s. `BuildSandboxPod` vì vậy không có `userId` để
+đặt tên một ConfigMap/Secret riêng cho người dùng. Ba hệ quả, tất cả đều cứng:
+
+1. **Mount theo người dùng ⇒ phải tạo pod lúc claim** (cold path cho mọi ai có
+   dotfiles). Đo được: cold path là 3.7–3.9s so với AC 1s. Đánh đổi sai.
+2. **Một ConfigMap TÊN CỐ ĐỊNH dùng chung cho mọi pod** thì mount được ngay hôm
+   nay, nhưng nội dung là chung ⇒ dotfiles của A đi vào pod của B. **Không bàn
+   tiếp.**
+3. **Đẩy nội dung sau khi claim, qua `pods/exec`** — đúng kênh mà
+   `dlp-session-deadline` dùng. Không cần volume, không chạm CEL, sống chung được
+   với warm pool. **Đây là đường đúng.**
+
+Khoảng cách còn lại của đường (3): vòng chép dotfiles nằm trong `entrypoint.sh`,
+tức chạy ở **PID 1 lúc pod khởi động** — trước claim, nên lúc đó
+`/mnt/dotfiles` còn rỗng và nó chép 0 file. Muốn đi đường (3) thì phải tách vòng
+chép đó ra một lệnh gọi lại được (ví dụ `bin/dlp-dotfiles-load`), rồi gọi nó sau
+khi đẩy nội dung. `DLP_DOTFILES_SRC` đã là env nên thư mục nguồn không cần cố định.
+
+⚠ **Chưa làm, có chủ ý.** Không có tính năng nào đang **sản xuất** nội dung
+dotfiles: không bảng, không màn hình, không API. Dựng sẵn đường mount bây giờ là
+thêm một volume vào MỌI pod spec (và làm đổ `TestPodSpecProfileNilByteIdenticalToDefault`)
+để chở một thư mục luôn rỗng. Việc cần làm trước là chọn nơi người dùng NHẬP
+dotfiles, không phải ống dẫn.
 
 Nhưng nó **đã được kiểm với cả hai kiểu volume sẽ gặp**: thư mục thật (emptyDir,
 bind mount) và layout atomic-writer của kubelet (ConfigMap / Secret / projected)
@@ -332,3 +408,246 @@ trỏ sai hướng, và không cổng nào bắt được.
 - Cả hai file rc gác `[[ -t 0 ]]` quanh phần fzf: `zsh -lic` / `bash -ic` là
   interactive nhưng KHÔNG có tty, và zle/readline sẽ in cảnh báo vào đúng
   output mà acceptance đang đọc.
+
+## Bộ công cụ theo bài + màn chào (2026-09-07, khung KillerCoda §C4)
+
+### Cài hết, gác bằng PATH
+
+Tám công cụ của hợp đồng §C4 (`btop tldr ripgrep fd duf ncdu delta yq`) đều
+**nằm sẵn trong image** tại `/opt/dlp/tools/<tool>/`, một thư mục **không** có
+trên `PATH`. Bật bằng symlink:
+
+```bash
+dlp-tools enable btop yq     # symlink vào /usr/local/dlp-bin (đã ở trên PATH)
+dlp-tools list               # danh mục + trạng thái
+dlp-tools list --enabled     # chỉ tên các tool đang bật (dlp-motd đọc cái này)
+dlp-tools disable btop
+```
+
+Hai ràng buộc đẩy tới kiến trúc này, không phải khẩu vị:
+
+- **Không tải lúc chạy được.** Sandbox dưới NetworkPolicy deny-all, egress chỉ
+  DNS + mirror docker.io (đo 2026-09-04: `curl https://github.com` treo rồi
+  timeout). Nên mọi thứ phải nằm sẵn trong image.
+- **Không truyền được qua env lúc tạo pod.** Pod đến từ **warm pool** — sinh ra
+  TRƯỚC khi biết bài nào claim nó. Nên việc bật phải xảy ra lúc **setup phiên**,
+  đi cùng đường `buildAssetPushScript` trong `lessons.runSetup`.
+
+Danh mục là SSOT ở `etc/toolset.catalog`: Dockerfile sinh danh sách `apt-get
+install` **và** vòng lặp dời binary từ chính file đó, `dlp-tools` cũng đọc nó.
+Thêm một công cụ = thêm một dòng. Tool lạ ⇒ `dlp-tools` thoát **1** kèm danh mục
+hợp lệ (im lặng bỏ qua sẽ hiện ra ở phía người học thành "bài bảo dùng btop mà
+command not found", cách nguyên nhân đúng hai thành phần).
+
+`PATH` được đặt ở **tầng image** (`ENV PATH` trong Dockerfile), **không** trong
+`.zshrc`/`.bashrc`. Lý do quyết định: lượt chấm bài chạy qua
+`gateway.env.execShell` = **bash không tương tác**, mà bash không tương tác
+không đọc `.bashrc`. PATH đặt trong rc sẽ có ở terminal của sinh viên nhưng
+vắng ở `verify.sh` ⇒ bài bật `yq` rồi dùng `yq` trong verify sẽ chấm sai, với
+triệu chứng không trỏ về PATH. Đã đo 2026-09-07 trên `ubuntu:24.04`: `ENV PATH`
+sống qua cả `bash -l`, `bash -c`, `zsh -l`, `zsh -c` (24.04 không gán lại PATH
+cho root trong `/etc/profile`), nên không cần `/etc/profile.d`.
+
+⛔ Đánh đổi đã chấp nhận: dời binary khỏi `/usr/bin` làm **cơ sở dữ liệu dpkg
+nói sai** về vị trí file. Vô hại với một image bất biến, nhưng một
+`apt-get install --reinstall` trong pod sẽ dựng lại `/usr/bin/<binary>` và mở
+toang cửa gác **trong im lặng**.
+
+### Bốn cái bẫy gói được giao — và cái thứ năm tự lộ ra lúc build
+
+| Bẫy | Thực tế | Xử lý |
+|---|---|---|
+| `fd` | gói là `fd-find`, binary là **`fdfind`** | dời thành `/opt/dlp/tools/fd/fd`, symlink tên `fd` |
+| `delta` | gói là `git-delta`, binary là `delta` | chỉ khác tên gói, binary đúng |
+| `yq` | gói `yq` của Ubuntu là **3.1.0 — wrapper Python quanh `jq`**, KHÔNG phải mikefarah/yq | tải binary Go, ghim `YQ_VERSION` + `YQ_SHA256`, và build khẳng định `yq --version` có chuỗi `mikefarah` |
+| `tldr` | client cần **tải cache** lần đầu, mà sandbox không có internet | seed cache lúc build + smoke test ngay tại build |
+
+`yq` là cái tệ nhất trong bốn: ba cái kia sai **tên**, cái này sai **cả chương
+trình** — nó nhận cú pháp khác hẳn và sẽ hỏng ở đúng lệnh đầu tiên mà một bài
+học copy từ tài liệu Kubernetes upstream. Alias trong shell không cứu được cái
+nào trong bốn: `verify.sh`, `make`, `ansible` không đi qua alias.
+
+**Bẫy thứ năm, không nằm trong bốn cái được giao — `/usr/bin/fdfind` là một
+symlink TƯƠNG ĐỐI** (`../lib/cargo/bin/fd`, lối đóng gói Rust của Debian). `mv`
+một symlink tương đối sang thư mục khác giữ nguyên đích tương đối ⇒ **link
+chết**, và `mv` vẫn thoát **0**. Build 2026-09-07 đỏ đúng ở
+`test -x /opt/dlp/tools/fd/fd`. Nếu khối RUN không có phần khẳng định ở cuối,
+image đã **xanh** với một `fd` hỏng, và triệu chứng chỉ hiện ra khi một bài học
+bật `fd` — nghĩa là ở phòng máy, trước mặt sinh viên. Cách dời đúng là
+`readlink -f` để lấy đích thật, `mv` đích đó, rồi `rm -f` cái symlink còn lại.
+
+### tldr — vì sao phải seed, và vì sao checksum ở đây yếu hơn chỗ khác
+
+Client là **tealdeer** (gói `tealdeer`, binary `tldr`). Không dùng gói `tldr`
+của Ubuntu: nó chỉ là metapackage phụ thuộc `tldr-hs` (Haskell).
+
+`tldr --update` **không bao giờ** chạy được, vì hai lý do độc lập:
+
+1. Sandbox deny-all egress.
+2. Kể cả có mạng: tealdeer 1.6.1 tải từ `https://tldr.sh/assets/tldr.zip`, mà
+   URL đó nay trả **HTML** (đo 2026-09-07: 301 → 200 `text/html`), nên nó chết
+   với `invalid Zip archive: Could not find central directory end`. Bản trong
+   repo Ubuntu **vĩnh viễn** không tự cập nhật được.
+
+Nên cache được trải tay lúc build vào `/opt/dlp/tldr-cache/tldr-pages/pages/`
+(chỉ `common/` + `linux/`; bỏ android/osx/windows/bsd…). Bố cục đó là chi tiết
+nội bộ của tealdeer, nên Dockerfile **smoke test** `tldr tar` ngay tại build —
+một lần nâng version đổi bố cục sẽ làm build **ĐỎ** thay vì cho image xanh mà
+`tldr tar` báo "Page not found in cache" ở phòng máy.
+
+⚠ **Checksum của tldr-pages yếu hơn mọi chỗ khác trong file này, có chủ ý.**
+Asset nằm dưới tag cố định `v2.3` nhưng được **tải lại mỗi ngày**, nên một hằng
+số `sha256` sẽ làm build đỏ trong vòng 24 giờ. Thay vào đó ta tải kèm
+`tldr.sha256sums` của cùng release rồi đối chiếu — đó là **toàn vẹn đường
+truyền**, KHÔNG phải tái lập được: nó chặn tải hỏng/đứt, không chặn nội dung
+đổi. Chấp nhận ở đúng chỗ này vì payload là markdown được render, không phải mã
+chạy. **Đừng nới cùng lý lẽ đó cho một binary** — E3/E6/E7 vẫn ghim hằng.
+
+⚠ tealdeer 1.6.1 cảnh báo ra stderr khi cache quá **30 ngày** tuổi, kèm lời
+khuyên `tldr --update` bất khả thi. Ngưỡng đó là **hằng số biên dịch**:
+`[updates] auto_update_interval_hours` KHÔNG tắt được (đã đo: đặt 876000 giờ,
+cảnh báo vẫn in). Thứ tắt nó là `touch` mtime của đúng một thư mục —
+`$CACHE_DIR/tldr-pages` — và `dlp-tools enable tldr` làm việc đó một lần mỗi
+phiên. Touch thư mục cache **cha** thì không ăn thua; đã đo cả hai.
+
+### Màn chào `dlp-motd`
+
+In **đúng một lần cho mỗi phiên tmux**, không phải mỗi shell và không phải mỗi
+pane. Cờ đánh dấu là một thư mục trong `/tmp` khoá theo `$TMUX`
+(`<socket>,<server_pid>,<session_idx>` → lấy hai trường sau).
+
+- ⛔ **Không dùng `$TMUX_PANE`**: nó đổi theo từng pane, tức khoá theo nó là
+  quay lại đúng cái nó định chặn. Mở "Terminal 2" của §C6 (`Ctrl-B c`) là một
+  window mới ⇒ shell mới ⇒ rc chạy lại.
+- Dùng `mkdir` (một syscall nguyên tử) chứ không `[ -e ]` rồi `touch`: chế độ
+  tách đôi của §C5 mở hai khoang trong một nhịp, và cặp test-rồi-tạo có cửa sổ
+  đua ở giữa.
+- Attach lại sau mất mạng không in lại — và điều đó **không** nhờ cờ:
+  `tmux new-session -A` trên nhánh attach không sinh shell mới nên rc không
+  chạy. tmux server chết rồi lên lại thì `server_pid` đổi ⇒ in lại, đúng, vì đó
+  thật sự là phiên mới.
+- **Ngoài tmux thì im lặng tuyệt đối.** `execShell` (bash) là đường chấm bài:
+  một màn chào lọt vào stdout của lượt đó làm hỏng phép so `passed`, và triệu
+  chứng ("bài đúng báo sai") là hạng lỗi tốn giờ nhất.
+
+Dòng **"Phiên"** (thời hạn còn lại) đọc `/run/dlp/session-deadline`, sau đó mới
+tới env `DLP_SESSION_DEADLINE`. Thứ tự đó không tuỳ tiện: pod đến từ warm pool
+nên env của PID 1 không thể mang mốc hết hạn riêng cho phiên — cùng lý lẽ với
+`dlp-tools`. ✅ **Nay đã có người ghi**: `bin/dlp-session-deadline`. Gateway gọi nó qua
+`pods/exec` ở **HAI** chỗ — lúc dựng phiên, và sau **mỗi** lượt
+`ExtendSession` thành công. Thiếu chỗ thứ hai thì người học bấm "Thêm giờ"
+xong vẫn thấy mốc cũ.
+
+Script tự giữ một **luật không-lùi**: nó từ chối ghi một mốc sớm hơn mốc đang
+có. Vòng đời phiên chỉ đẩy hạn về sau (extend cộng thêm, `HARD_CAP` chặn trần;
+kết thúc sớm thì pod bị xoá luôn), nên bất biến đó mua được một tính chất đáng
+giá: **giá trị hiển thị không bao giờ MUỘN hơn sự thật**. Nếu một lượt ghi sau
+extend bị lỡ, banner báo THIẾU giờ — sai, nhưng sai về phía người học không mất
+bài giữa chừng.
+
+⚠ **Chưa chứng minh được**: hai lượt gọi ở phía gateway thuộc lane khác
+(`services/terminal-gateway/**`) và CHƯA được nối. Cái đã chạy thật là vòng
+ghi→đọc của hai script (7 ca, gồm luật không-lùi và RFC3339). Dòng "Phiên"
+chưa hiện trên cụm cho tới khi lane đó nối xong.
+
+Khi file vẫn vắng (pod dựng bởi bản gateway cũ, hoặc một lượt exec setup hỏng),
+nhánh degrade ở lại nguyên: module `command` của fastfetch bỏ hẳn dòng khi output
+rỗng. Thà không có dòng "Phiên" còn hơn một đồng hồ đoán bừa.
+
+`etc/fastfetch.jsonc` **cố ý bỏ** `PublicIp`/`LocalIp`: module đó gọi ra
+internet, và dưới deny-all nó sẽ **treo tới timeout** ngay đầu mỗi phiên. Cũng
+bỏ `Host`/`BIOS` vì trong container chúng là thông số của **node**, không phải
+của phiên — in ra là dạy sai về ranh giới cách ly.
+
+### Logo PTIT: ANSI art, KHÔNG phải ảnh
+
+`etc/ptit.ansi` là block character (`█ ▀ ▄`) + escape màu 24-bit, 16 dòng × 34
+cột, dùng qua `fastfetch --logo-type file-raw`.
+
+**Vì sao không PNG/sixel:** đường ảnh thật còn phải đo. tmux 3.4 có chuỗi
+`sixel` trong binary, nhưng `infocmp tmux-256color` **không** khai capability
+sixel, và `TERM` ngoài tmux là `xterm-256color` cũng không. Thêm nữa xterm.js ở
+FE cần addon riêng cho sixel. Đó là việc của một chặng khác — **không phải là
+quên**. ANSI art chạy ở mọi terminal, không qua cổng nào.
+
+- `file-raw` chứ không `file`: nội dung đã mang escape 24-bit của chính nó, và
+  `file` sẽ diễn giải lại chuỗi màu (thay các placeholder màu của fastfetch) —
+  tức bảng màu của `dlp.omp.json` bị một tầng thứ hai ghi đè.
+- `logo.width`/`logo.height` phải khai **tay** cho `*-raw`: fastfetch không
+  phân tích nội dung raw nên không đoán được kích thước, và thiếu hai số này
+  thì mọi dòng thông tin bên phải in đè lên logo. Sửa logo ⇒ sửa cả hai số.
+- Màu lấy từ `etc/dlp.omp.json` (`#38bdf8` / `#64748b` / `#e5e7eb`) để đồng bộ
+  với prompt. **Không** dùng đỏ thương hiệu thật của PTIT: nó lệch khỏi bảng màu
+  terminal đang có. Đổi là ba dòng trong file.
+- File chứa **byte ESC thật** (0x1B). Đừng "dọn dẹp" nó bằng editor tự động —
+  một lần lưu sai encoding là logo thành ô vuông, cùng hạng bẫy với ghi chú
+  `_comment` trong `dlp.omp.json`.
+
+### Verify (bổ sung cho khối Verify ở trên)
+
+```bash
+# Cửa gác PHẢI đóng khi chưa enable — vế âm bắt buộc, nếu không "bật được"
+# chỉ chứng minh binary tồn tại chứ không chứng minh nó từng bị giấu.
+docker run --rm dlp-sandbox-base:<tag> bash -lc 'command -v btop rg fd yq; echo "rc=$?"'
+# → không in gì, rc=1
+
+docker run --rm dlp-sandbox-base:<tag> bash -lc \
+  'dlp-tools enable ripgrep yq >/dev/null && rg --version | head -1 && yq --version'
+# → ripgrep 14.1.0 ... / yq (https://github.com/mikefarah/yq/) version v4.53.6
+
+# Tool lạ phải NỔ, không im lặng
+docker run --rm dlp-sandbox-base:<tag> dlp-tools enable khong-ton-tai; echo "rc=$?"
+# → thông báo + danh mục hợp lệ, rc=1
+
+# tldr offline (không mạng) — vế quan trọng nhất của cả khối này
+docker run --rm --network none dlp-sandbox-base:<tag> bash -lc \
+  'dlp-tools enable tldr >/dev/null && tldr tar | head -3'
+
+# Màn chào: ngoài tmux phải IM LẶNG (đường chấm bài)
+docker run --rm dlp-sandbox-base:<tag> bash -lc 'dlp-motd; echo "rc=$? (khong co dong nao o tren)"'
+
+# Màn chào: trong tmux in ĐÚNG MỘT LẦN dù mở thêm window
+docker run --rm -t dlp-sandbox-base:<tag> bash -lc \
+  'tmux new-session -d -s t "sleep 5"; tmux new-window -t t "sleep 5"; sleep 1; \
+   ls -d /tmp/.dlp-motd-* | wc -l'
+# → 1
+```
+
+## ⚠ Nợ đã biết: terminal tích hợp của Theia KHÔNG tắt được
+
+Mô hình giao diện chốt cuối là **1 tab Editor + 1 tab Terminal, dùng CHUNG một
+phiên terminal của nền tảng**. Nhưng Theia mang theo terminal riêng của nó, và
+nút bấm-để-chạy trong bài học **không** điều khiển được terminal đó.
+
+**Không tắt được bằng cấu hình — đã đo trên Theia IDE 1.74.100, không suy luận:**
+
+| Preference thử | Số lần khớp trong bundle |
+|---|---|
+| `terminal.integrated.enabled` | 0 |
+| `terminal.enabled` | 0 |
+| `terminal.visible` | 0 |
+| `workbench.view.terminal` | 0 |
+| `terminal.integrated.showOnStartup` | 0 |
+
+Đọc hết danh sách option CLI của backend cũng không có gì về layout hay tắt
+terminal. Bề mặt cấu hình được hỗ trợ (`--set-preference`, `--session-preference`,
+`~/.theia-ide/settings.json`) không phủ việc này.
+
+**Đường duy nhất còn lại đã bị từ chối có chủ ý:** seed sẵn file layout nội bộ của
+Theia. Bố cục shell là state do chính ứng dụng quản, không có hợp đồng nào bảo
+đảm hình dạng của nó — nhét sẵn một file như vậy sẽ vỡ IM LẶNG ở bản nâng Theia
+kế tiếp, đúng lúc không ai còn nhớ vì sao file đó ở đó.
+
+**Mức độ thật của nợ:** panel terminal mặc định đang THU (`lm-mod-hidden`), nên
+sinh viên phải cố ý mở nó (menu `Terminal`, hoặc nút toggle) mới gặp. Widget
+`terminal-0` có sẵn trong layout và tab "Terminal 0" hiện ra khi mở.
+
+**Đường sửa đã cân và KHÔNG chọn (2026-09-07):** đặt
+`terminal.integrated.defaultProfile.linux` trỏ vào `tmux new-session -A -s dlp`.
+Khi đó terminal Theia LÀ chính phiên của nền tảng, hết chuyện "terminal thứ ba".
+Bị loại vì cái giá rơi sai chỗ: hai client tmux trên một phiên thì tmux co cửa sổ
+về kích thước client NHỎ NHẤT, nên một panel Theia hẹp sẽ bóp terminal chính của
+MỌI phiên. Đổi một rủi ro hiếm (phải cố ý mở) lấy một rủi ro thường trực.
+
+Muốn làm lại đường đó thì phải ĐO trước: dựng hai client trên cùng phiên và xem
+kích thước có bị co thật không, thay vì tin vào suy luận ở trên.

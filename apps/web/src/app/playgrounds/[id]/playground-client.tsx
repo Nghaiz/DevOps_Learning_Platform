@@ -6,8 +6,10 @@ import {
   SessionControls,
   ShellFallbackNotice,
   TerminalPane,
+  WorkspacePanel,
   useResolvedTerminalTheme,
 } from '../../../components/session';
+import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { usePlaygroundSession } from './use-playground-session';
@@ -32,6 +34,24 @@ export function PlaygroundClient({
     { refetchInterval: 15_000, enabled: session.state.sessionId === null },
   );
 
+  /*
+    ⚠ TRÊN mọi `return` sớm bên dưới — đặt sau chúng là số hook đổi giữa hai
+    lượt render.
+
+    Sân chơi không có tab Editor: nó không có `ContentView`, không có `onExec`,
+    và chưa bao giờ wire `IdePane`. Cái nó nhận từ `WorkspacePanel` là khung
+    khoang + nút mở ra cửa sổ riêng (§C7) — `exec` ở đây không có call-site nào,
+    và đó là đúng, không phải thiếu sót.
+
+    Vì chỉ còn MỘT mục, panel bỏ hẳn thanh tablist (§Y4) và thanh trên cùng chỉ
+    còn một nhãn tĩnh + nút mở-ra-cửa-sổ-riêng.
+  */
+  const tabs = useWorkspaceTabs({
+    terminal: session.terminal,
+    hasEditor: false,
+    sessionId: session.state.sessionId,
+  });
+
   if (query.isPending) {
     return <Centered>Đang tải sân chơi…</Centered>;
   }
@@ -39,7 +59,7 @@ export function PlaygroundClient({
     return <Centered tone="error">{describeTrpcError(query.error)}</Centered>;
   }
 
-  const { playground, unsupportedCapabilities } = query.data;
+  const { playground, profile, unsupportedCapabilities } = query.data;
   const ttlMinutes = Math.round(playground.ttlSeconds / 60);
 
   // Gốc trang KHÔNG mang `h-screen`/`min-h-screen`: vỏ ứng dụng đã dựng
@@ -65,12 +85,19 @@ export function PlaygroundClient({
           dưới 10 phút) — con số của nội dung khi đó không còn là sự thật, vì
           "Thêm giờ" đã có thể đẩy hạn đi rồi.
         */}
+        {/*
+          `profile` tới từ `playgrounds.get` — cùng `playground.capabilities` mà
+          `start` đưa cho `createSandboxSession`, tức cùng cái pod sắp tạo. Thiếu
+          nó thì một sân chơi Kubernetes đếm theo trần của bài thường, và prop
+          này TUỲ CHỌN nên chỗ thiếu biên dịch sạch trong khi màn hình nói sai.
+        */}
         <div className="ml-auto">
           <SessionControls
             session={session}
             actions={{ start: session.start, end: session.end, extend: session.extend }}
             ttlSeconds={playground.ttlSeconds}
             capacity={capacity.data ?? null}
+            profile={profile}
           />
         </div>
       </header>
@@ -102,19 +129,34 @@ export function PlaygroundClient({
       />
 
       <div className="min-h-0 flex-1">
-        <TerminalPane
-          session={session}
-          theme={terminalTheme}
-          placeholder={
-            <span className="flex max-w-md flex-col gap-3">
-              {playground.description !== null && <span>{playground.description}</span>}
-              <span>
-                Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng
-                sandbox và mở terminal — phiên tự đóng sau{' '}
-                <strong className="text-foreground">{ttlMinutes} phút</strong>.
-              </span>
-            </span>
+        {/*
+          §Y4 — không `WorkspaceSplit` ở đây: sân chơi không có khoang nội dung
+          nào để chia đôi với, nên panel chiếm trọn bề rộng. Nhánh hẹp vẫn được
+          lo: `TerminalPane` tự đổi thành `NarrowScreenNotice` dưới 768px.
+
+          Không `editor` — cùng lý do đã ghi ở `lab-client.tsx`.
+        */}
+        <WorkspacePanel
+          terminal={
+            <TerminalPane
+              session={session}
+              theme={terminalTheme}
+              placeholder={
+                <span className="flex max-w-md flex-col gap-3">
+                  {playground.description !== null && <span>{playground.description}</span>}
+                  <span>
+                    Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng
+                    sandbox và mở terminal — phiên tự đóng sau{' '}
+                    <strong className="text-foreground">{ttlMinutes} phút</strong>.
+                  </span>
+                </span>
+              }
+            />
           }
+          activeTab={tabs.activeTab}
+          onActivate={tabs.onActivate}
+          popOutUrl={tabs.popOutUrl}
+          storageKey="dlp-playground-workspace"
         />
       </div>
     </div>

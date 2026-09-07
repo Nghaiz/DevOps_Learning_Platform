@@ -5,7 +5,7 @@ import {
   SCENARIO_CAPABILITIES,
   scenarioIdSchema,
 } from '@devops-platform/shared-types/scenario';
-import { unsupportedCapabilities } from '../../lessons/catalog';
+import { profileForCapabilities, unsupportedCapabilities } from '../../lessons/catalog';
 import { playgroundSource, requirePlayground } from '../../labs/catalog';
 import { createSandboxSession } from '../../labs/session';
 import { applySessionPreferences } from '../../sessions/preferences';
@@ -87,6 +87,20 @@ export const playgroundsRouter = createTRPCRouter({
     const playground = await requirePlayground(input.playgroundId);
     return {
       playground,
+      /**
+       * Profile tài nguyên của CHÍNH sân chơi này.
+       *
+       * ⛔ Đối số phải KHỚP với thứ `start` đưa cho `createSandboxSession`
+       * (`capabilities: playground.capabilities`) — đó là chỗ quyết định RAM pod
+       * thật. Lệch đối số là màn hình đếm chỗ cho một pod khác pod sắp tạo, đúng
+       * chế độ hỏng 2026-09-07.
+       *
+       * ⚠ MỘT đối số, cố ý: `createSandboxSession` không chuyển `interfaceLayout`
+       * xuống `profileForCapabilities`, nên `interface.layout: ide` của một sân
+       * chơi hôm nay KHÔNG nâng profile. Thêm nó ở đây là hứa một profile mà pod
+       * không xin — xem chú thích cùng nội dung ở `routers/labs.ts`.
+       */
+      profile: profileForCapabilities(playground.capabilities),
       // Playground KHÔNG có `requiresCapabilities` (schema `.pick()` bỏ nó có
       // chủ ý: không có bài nào để đòi ít hơn thứ image cung cấp), nên ở đây
       // `capabilities` ĐÃ là tập hiệu lực.

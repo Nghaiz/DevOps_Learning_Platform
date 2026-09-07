@@ -50,7 +50,13 @@ describe('ContentView — code block hành động', () => {
   it('nút chạy của block exec-interrupt gọi onExec với interrupt=true', () => {
     const onExec = vi.fn();
     const blocks: ContentBlock[] = [
-      { kind: 'code', code: 'tail -f app.log', language: 'bash', action: 'exec-interrupt', inline: false },
+      {
+        kind: 'code',
+        code: 'tail -f app.log',
+        language: 'bash',
+        action: 'exec-interrupt',
+        inline: false,
+      },
     ];
 
     render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={onExec} />);
@@ -110,6 +116,31 @@ describe('ContentView — code block hành động', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Chép' }));
 
     expect(await screen.findByRole('button', { name: 'Chép thất bại' })).toBeDefined();
+  });
+});
+
+/**
+ * Đường render INLINE của CodeBlock.
+ *
+ * CodeBlock có HAI đường render (span inline giữa câu, và card khối) và mỗi
+ * đường dựng nút riêng. Mọi ca ở nhóm trên đều `inline: false`, nên một bản vá
+ * chỉ chạm đường khối trông xanh hoàn toàn ở tất cả chúng.
+ *
+ * Ca này là phần còn lại của nhóm "đích thực thi (§C2)" đã bị gỡ theo §Y3 —
+ * giữ vì vế nó gác (đường inline cũng dựng được nút và gọi đúng `onExec`) độc
+ * lập với đích thực thi.
+ */
+describe('ContentView — đường render inline', () => {
+  it('block inline cũng dựng nút chạy và gọi onExec với hai tham số', () => {
+    const onExec = vi.fn();
+    const blocks: ContentBlock[] = [
+      { kind: 'code', code: 'q', language: null, action: 'exec', inline: true },
+    ];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={onExec} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Chạy' }));
+
+    expect(onExec).toHaveBeenCalledWith('q', false);
   });
 });
 
@@ -225,7 +256,13 @@ describe('ContentView — vùng cuộn vào được bằng bàn phím', () => {
 
   it('khối mã CÓ hành động (CodeBlock) cuộn được bằng bàn phím', () => {
     const blocks: ContentBlock[] = [
-      { kind: 'code', code: 'kubectl get pods -A', language: 'bash', action: 'copy', inline: false },
+      {
+        kind: 'code',
+        code: 'kubectl get pods -A',
+        language: 'bash',
+        action: 'copy',
+        inline: false,
+      },
     ];
     const { container } = render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
     assertScrollRegion(container.querySelector('pre'), 'pre của CodeBlock');

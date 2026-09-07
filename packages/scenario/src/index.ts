@@ -24,6 +24,17 @@ export {
   type CodeAction,
   type ContentBlock,
 } from './content-blocks.ts';
+
+// Bộ công cụ theo bài (hợp đồng §C4). ⚠ Chưa nối tới DTO — xem
+// `toolset.ts` § "CHƯA NỐI TỚI DTO".
+export {
+  SANDBOX_TOOLS,
+  isSandboxTool,
+  parseToolsetColumn,
+  sanitizeToolset,
+  type SandboxTool,
+  type ToolsetParseResult,
+} from './toolset.ts';
 export { INDEX_FILENAME, SIDECAR_FILENAME, loadScenario, loadScenarios } from './loader.ts';
 export {
   CONTENT_ORDER_KEYS,

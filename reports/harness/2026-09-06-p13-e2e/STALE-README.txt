@@ -1,0 +1,1 @@
+STALE_JSON_NOTE: hai file *.STALE-reporter-override là kết quả của lượt chạy có --reporter=list (ghi đè reporter json trong config) nên chúng là bản CŨ 21:28, KHÔNG phải kết quả lượt này. Số dùng được nằm ở csp-b*-results.json và trong a11y.log.

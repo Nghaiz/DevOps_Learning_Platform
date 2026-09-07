@@ -82,12 +82,15 @@ Nếu một task trong phase này bắt đầu cần bảng `enrollments` với 
 - [x] Nộp quiz ⇒ chấm server-side, trả kết quả từng câu + giải thích.
       — `quiz.submit` trả `correctChoiceIds` + `explanation`; id lựa chọn bịa bị
       TỪ CHỐI (không âm thầm chấm sai).
-- [~] Quy tắc chấm câu nhiều đáp án hiện trên UI **trước khi** người học làm.
+- [x] Quy tắc chấm câu nhiều đáp án hiện trên UI **trước khi** người học làm.
       — **Nửa hợp đồng đóng:** `quiz.get` mang `multipleAnswerRule` trong payload
       (test khẳng định), và `quiz-client.tsx` render nó TRÊN câu hỏi đầu tiên, câu
-      chữ lấy TỪ payload chứ không viết cứng ở FE. **Nửa còn lại chưa đóng:**
-      trang chưa ai bấm bằng trình duyệt — cùng loại nợ mà `/labs` của P8 mang
-      cho tới phiên debt-closure.
+      chữ lấy TỪ payload chứ không viết cứng ở FE. **Nửa còn lại đóng 2026-09-08** bằng
+      Chrome thật: thẻ "Cách chấm" đứng TRƯỚC câu hỏi đầu tiên ở trạng thái
+      `0/6 câu` chưa chọn; đối chứng per-question cùng trang (5 câu `single`
+      mang nhãn "Chọn một đáp án" + `radiogroup`, câu `multiple` mang "Chọn
+      nhiều đáp án" + checkbox). Luật hiển thị ĐÚNG LÀ luật được áp: chọn 1
+      trong 2 đáp án đúng ⇒ "Chưa đúng", 5/6 = 83%. [đo 2026-09-08](reports/harness/2026-09-08-ac-browser/run.md).
 - [x] Rate-limit đường nộp (luật 5); dò đáp án bằng cách nộp liên tục bị chặn.
       — bucket RIÊNG `quiz:submit:<userId>`, `QUIZ_SUBMIT_LIMIT_PER_MIN = 6`;
       test nộp liên tục chạm trần và nhận TOO_MANY_REQUESTS.
@@ -95,10 +98,18 @@ Nếu một task trong phase này bắt đầu cần bảng `enrollments` với 
       — `quiz/validate.test.ts`, kèm **đối chứng dương** (quiz hợp lệ không bị từ
       chối) và một luật thứ tư mà phép chấm bắt buộc: câu `single` chỉ được có
       ĐÚNG một đáp án đúng.
-- [~] Trang "của tôi": mọi con số tính lúc đọc; nhãn không khẳng định thứ không lưu.
+- [x] Trang "của tôi": mọi con số tính lúc đọc; nhãn không khẳng định thứ không lưu.
       — `paths.mine` tính `passedCount`/`itemCount`/`nextItemId` lúc đọc, không
-      cột nào lưu chúng; `me-client.tsx` chỉ hiện ba con số đó. **Chưa bấm bằng
-      trình duyệt** (cùng nợ với ô trên).
+      cột nào lưu chúng; `me-client.tsx` chỉ hiện ba con số đó. **Đóng 2026-09-08**
+      bằng Chrome thật, và vế "tính lúc đọc" chứng minh ở tầng SCHEMA chứ
+      không ở tầng nhìn UI: `quiz_attempts` chỉ có `id,user_id,quiz_id,
+      submitted_at` — **không cột điểm nào**, `lab_attempts` không cột kết
+      quả, và toàn schema không có `passed_count`/`item_count`/`next_item_id`
+      (truy vấn vẫn trả 2 dòng `pass_threshold_percent` nên không phải phép
+      đo rỗng). Số trên UI khớp từng giây với Redis (`createdAt` = "Mở lúc").
+      "Kết thúc được từ đây" bấm thật qua hộp thoại: đúng MỘT phiên biến mất,
+      phiên kia còn nguyên, sức chứa 18→19, server `status=REAPED` + pod đã
+      xoá. [đo 2026-09-08](reports/harness/2026-09-08-ac-browser/run.md).
 - [x] **Không có** bảng/cột/route nào liên quan giá, thanh toán, gói cước, entitlement (grep chứng minh).
       — 0 dòng trong mã THỰC THI và 0 trong mọi migration. ⚠ Lệnh grep gốc ở
       dưới KHÔNG BAO GIỜ rỗng và đã không rỗng TỪ TRƯỚC P10: `checkout` khớp

@@ -477,6 +477,21 @@ export const contentItems = pgTable(
     /** `interface.layout` — `null` = terminal thường. */
     interfaceLayout: text('interface_layout'),
     /**
+     * `SandboxTool[]` — bộ công cụ bật thêm trong pod cho RIÊNG bài này
+     * (`dlp-tools enable …` lúc setup phiên).
+     *
+     * ⚠ `text` chứa **chuỗi JSON của mảng**, KHÔNG phải `jsonb` như
+     * `capabilities` ngay trên — và đó là hợp đồng C4 chốt sẵn cho sáu lane,
+     * không phải sơ suất sao chép. Hệ quả phải nhớ ở mọi call-site: đọc thì
+     * `JSON.parse`, ghi thì `JSON.stringify`. Cột `capabilities` không cần hai
+     * bước đó vì driver tự parse `jsonb`.
+     *
+     * `notNull().default('[]')` chứ không nullable: "không bật công cụ nào" là
+     * một mảng rỗng, và một `null` thứ hai mang cùng nghĩa là hai cách viết
+     * cùng một sự thật — chỗ để hai call-site xử lý khác nhau.
+     */
+    toolset: text('toolset').notNull().default('[]'),
+    /**
      * `ScenarioAsset[]` — file ĐẨY VÀO SANDBOX lúc start (host/file/target/chmod).
      *
      * ⚠ KHÁC HẲN bảng `content_assets` bên dưới, và hai thứ này rất dễ lẫn:

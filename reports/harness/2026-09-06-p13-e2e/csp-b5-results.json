@@ -1,0 +1,319 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "csp.spec.ts",
+      "--grep",
+      "csp /author"
+    ],
+    "configFile": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\playwright.config.ts",
+    "rootDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\global-setup.ts",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e/.artifacts/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "csp.spec.ts",
+      "file": "csp.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "0 vi phạm CSP trên màn hình chốt",
+          "file": "csp.spec.ts",
+          "line": 282,
+          "column": 6,
+          "specs": [
+            {
+              "title": "csp /author [author]",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 3448,
+                      "error": {
+                        "message": "Error: 1 vi phạm CSP trên /author\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[32m- Array []\u001b[39m\n\u001b[31m+ Array [\u001b[39m\n\u001b[31m+   \"dom/script-src: eval\",\u001b[39m\n\u001b[31m+ ]\u001b[39m",
+                        "stack": "Error: 1 vi phạm CSP trên /author\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[32m- Array []\u001b[39m\n\u001b[31m+ Array [\u001b[39m\n\u001b[31m+   \"dom/script-src: eval\",\u001b[39m\n\u001b[31m+ ]\u001b[39m\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts:301:9",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts",
+                          "column": 9,
+                          "line": 301
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 299 |\u001b[39m         found\u001b[33m.\u001b[39mmap((v) \u001b[33m=>\u001b[39m \u001b[32m`${v.source}/${v.directive}: ${v.detail}`\u001b[39m)\u001b[33m,\u001b[39m\n \u001b[90m 300 |\u001b[39m         \u001b[32m`${found.length} vi phạm CSP trên ${path}`\u001b[39m\u001b[33m,\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 301 |\u001b[39m       )\u001b[33m.\u001b[39mtoEqual([])\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m         \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 302 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 303 |\u001b[39m   }\n \u001b[90m 304 |\u001b[39m })\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts",
+                            "column": 9,
+                            "line": 301
+                          },
+                          "message": "Error: 1 vi phạm CSP trên /author\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[32m- Array []\u001b[39m\n\u001b[31m+ Array [\u001b[39m\n\u001b[31m+   \"dom/script-src: eval\",\u001b[39m\n\u001b[31m+ ]\u001b[39m\n\n  299 |         found.map((v) => `${v.source}/${v.directive}: ${v.detail}`),\n  300 |         `${found.length} vi phạm CSP trên ${path}`,\n> 301 |       ).toEqual([]);\n      |         ^\n  302 |     });\n  303 |   }\n  304 | });\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts:301:9"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:13:33.150Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\csp-0-vi-phạm-CSP-trên-màn-hình-chốt-csp-author-author--chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\csp-0-vi-phạm-CSP-trên-màn-hình-chốt-csp-author-author--chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\csp-0-vi-phạm-CSP-trên-màn-hình-chốt-csp-author-author--chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts",
+                        "column": 9,
+                        "line": 301
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-1af1b1eeef089c7f2f4f",
+              "file": "csp.spec.ts",
+              "line": 284,
+              "column": 5
+            },
+            {
+              "title": "csp /author/new [author]",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 3552,
+                      "error": {
+                        "message": "Error: 1 vi phạm CSP trên /author/new\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[32m- Array []\u001b[39m\n\u001b[31m+ Array [\u001b[39m\n\u001b[31m+   \"dom/script-src: eval\",\u001b[39m\n\u001b[31m+ ]\u001b[39m",
+                        "stack": "Error: 1 vi phạm CSP trên /author/new\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[32m- Array []\u001b[39m\n\u001b[31m+ Array [\u001b[39m\n\u001b[31m+   \"dom/script-src: eval\",\u001b[39m\n\u001b[31m+ ]\u001b[39m\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts:301:9",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts",
+                          "column": 9,
+                          "line": 301
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 299 |\u001b[39m         found\u001b[33m.\u001b[39mmap((v) \u001b[33m=>\u001b[39m \u001b[32m`${v.source}/${v.directive}: ${v.detail}`\u001b[39m)\u001b[33m,\u001b[39m\n \u001b[90m 300 |\u001b[39m         \u001b[32m`${found.length} vi phạm CSP trên ${path}`\u001b[39m\u001b[33m,\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 301 |\u001b[39m       )\u001b[33m.\u001b[39mtoEqual([])\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m         \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 302 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 303 |\u001b[39m   }\n \u001b[90m 304 |\u001b[39m })\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts",
+                            "column": 9,
+                            "line": 301
+                          },
+                          "message": "Error: 1 vi phạm CSP trên /author/new\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[32m- Array []\u001b[39m\n\u001b[31m+ Array [\u001b[39m\n\u001b[31m+   \"dom/script-src: eval\",\u001b[39m\n\u001b[31m+ ]\u001b[39m\n\n  299 |         found.map((v) => `${v.source}/${v.directive}: ${v.detail}`),\n  300 |         `${found.length} vi phạm CSP trên ${path}`,\n> 301 |       ).toEqual([]);\n      |         ^\n  302 |     });\n  303 |   }\n  304 | });\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts:301:9"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:13:37.382Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\csp-0-vi-phạm-CSP-trên-màn-hình-chốt-csp-author-new-author--chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\csp-0-vi-phạm-CSP-trên-màn-hình-chốt-csp-author-new-author--chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\csp-0-vi-phạm-CSP-trên-màn-hình-chốt-csp-author-new-author--chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts",
+                        "column": 9,
+                        "line": 301
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-664ad629e1d3f2e280a3",
+              "file": "csp.spec.ts",
+              "line": 284,
+              "column": 5
+            },
+            {
+              "title": "csp /author/:id [author]",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 279,
+                      "error": {
+                        "message": "TypeError: Cannot read properties of undefined (reading '0')",
+                        "stack": "TypeError: Cannot read properties of undefined (reading '0')\n    at firstItemId (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts:96:20)\n    at resolvePath (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:18:14)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts:294:59",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts",
+                          "column": 20,
+                          "line": 96
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures\\api.ts:96\n\n\u001b[0m \u001b[90m 94 |\u001b[39m \u001b[36mexport\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m firstItemId(api\u001b[33m:\u001b[39m \u001b[33mAPIRequestContext\u001b[39m\u001b[33m,\u001b[39m proc\u001b[33m:\u001b[39m string)\u001b[33m:\u001b[39m \u001b[33mPromise\u001b[39m\u001b[33m<\u001b[39m\u001b[33mstring\u001b[39m \u001b[33m|\u001b[39m \u001b[36mnull\u001b[39m\u001b[33m>\u001b[39m {\n \u001b[90m 95 |\u001b[39m   \u001b[36mconst\u001b[39m data \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m trpcQuery\u001b[33m<\u001b[39m{ items\u001b[33m:\u001b[39m { id\u001b[33m:\u001b[39m string }[] }\u001b[33m>\u001b[39m(api\u001b[33m,\u001b[39m proc\u001b[33m,\u001b[39m { limit\u001b[33m:\u001b[39m \u001b[35m1\u001b[39m })\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 96 |\u001b[39m   \u001b[36mreturn\u001b[39m data\u001b[33m.\u001b[39mitems[\u001b[35m0\u001b[39m]\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mid \u001b[33m?\u001b[39m\u001b[33m?\u001b[39m \u001b[36mnull\u001b[39m\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                    \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 97 |\u001b[39m }\n \u001b[90m 98 |\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts",
+                            "column": 20,
+                            "line": 96
+                          },
+                          "message": "TypeError: Cannot read properties of undefined (reading '0')\n\n   at fixtures\\api.ts:96\n\n  94 | export async function firstItemId(api: APIRequestContext, proc: string): Promise<string | null> {\n  95 |   const data = await trpcQuery<{ items: { id: string }[] }>(api, proc, { limit: 1 });\n> 96 |   return data.items[0]?.id ?? null;\n     |                    ^\n  97 | }\n  98 |\n    at firstItemId (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts:96:20)\n    at resolvePath (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:18:14)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\csp.spec.ts:294:59"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:13:41.734Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\csp-0-vi-phạm-CSP-trên-màn-hình-chốt-csp-author-id-author--chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\csp-0-vi-phạm-CSP-trên-màn-hình-chốt-csp-author-id-author--chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\csp-0-vi-phạm-CSP-trên-màn-hình-chốt-csp-author-id-author--chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts",
+                        "column": 20,
+                        "line": 96
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-c2062971fc5340e353f5",
+              "file": "csp.spec.ts",
+              "line": 284,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-06T16:13:31.886Z",
+    "duration": 10333.557999999999,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 3,
+    "flaky": 0
+  }
+}

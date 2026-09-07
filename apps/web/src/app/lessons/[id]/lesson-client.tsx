@@ -3,15 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
-import { Alert, AlertDescription, Button, ContentView, ProgressBar, SplitPane, StepNav } from '@devops-platform/ui';
+import { Alert, AlertDescription, Button, ContentView, ProgressBar, StepNav } from '@devops-platform/ui';
 import {
+  DEFAULT_PROFILE,
   SessionControls,
   ShellFallbackNotice,
   TerminalPane,
+  WorkspacePanel,
   WorkspaceSplit,
   shouldShowIdePane,
   useResolvedTerminalTheme,
 } from '../../../components/session';
+import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { IdePane } from './ide-pane';
@@ -20,7 +23,7 @@ import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
 import { CheckResultPanel, type CheckOutcome } from './check-result-panel';
 
-export function LessonClient({ scenarioId }: { scenarioId: string }): React.ReactElement {
+export function LessonClient({ scenarioId }: { readonly scenarioId: string }): React.ReactElement {
   const utils = api.useUtils();
   const query = api.lessons.get.useQuery({ scenarioId });
   const session = useLessonSession(scenarioId);
@@ -92,6 +95,15 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
   const setupDone = useRef(new Set<string>());
   const terminal = session.terminal;
   const sessionId = session.state.sessionId;
+
+  /*
+    ⚠ Gọi ở ĐÂY, TRÊN mọi `return` sớm bên dưới — `scenario` lúc này còn có thể
+    là `null` và điều đó không sao (bài chưa tải xong thì chưa có tab Editor).
+    Đặt xuống cạnh phần JSX dùng nó sẽ thành một hook nằm sau
+    `if (query.isPending) return …`, tức số hook đổi giữa hai lượt render.
+  */
+  const showIde = shouldShowIdePane(scenario?.interfaceLayout ?? null);
+  const tabs = useWorkspaceTabs({ terminal, hasEditor: showIde, sessionId });
 
   useEffect(() => {
     if (active === null || sessionId === null || terminal === null || phases.length === 0) {
@@ -217,21 +229,18 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
     [scenarioId],
   );
 
-  const onExec = useCallback(
-    (command: string, interrupt: boolean) => {
-      if (terminal === null) {
-        return;
-      }
-      // `exec-interrupt` = Ctrl+C rồi mới tới lệnh (contract Killercoda). Gửi
-      // \x03 riêng chứ không nối vào chuỗi: chúng là hai sự kiện bàn phím.
-      if (interrupt) {
-        terminal.sendInput('\x03');
-      }
-      terminal.sendInput(`${command}\r`);
-      terminal.focus();
-    },
-    [terminal],
-  );
+  /*
+    §Y3 — `onExec(command, interrupt)`, HAI tham số. `ExecOptions`/`ExecTarget`
+    của bản trước bị gỡ cùng terminal thứ hai: một terminal thì không còn quyết
+    định định tuyến nào để mang, nên một `options` object chỉ còn một trường là
+    một lớp bọc không nói thêm gì.
+
+    Exec KHÔNG chuyển tab nữa — terminal hiện ở cả hai tab, nên không có gì để
+    chuyển tới; chỉ gõ rồi `focus()`. Việc giữ `\x03` là một sự kiện bàn phím
+    RIÊNG (không nối vào chuỗi lệnh) nằm trong `useWorkspaceTabs` vì cả ba trang
+    học cần đúng một bản của quyết định đó.
+  */
+  const onExec = tabs.exec;
 
   if (query.isPending) {
     return <Centered>Đang tải bài học…</Centered>;
@@ -267,8 +276,6 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
     passedInSession: passedSteps.size,
     completed,
   });
-
-  const showIde = shouldShowIdePane(scenario.interfaceLayout);
 
   const contentPane = (
     <div className="flex h-full flex-col bg-background">
@@ -334,10 +341,23 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
           nhãn TTL sau khi phiên mở, lab thiếu tooltip hardCap).
         */}
         <div className="ml-auto">
+          {/*
+            `profile` là mảnh làm nhãn nói về ĐÚNG bài này thay vì về "bài
+            thường". Thiếu nó, trang bài IDE in con số của profile mặc định —
+            đúng lỗi 2026-09-07: "Còn 14 chỗ" trong lúc `startSession` trả 429
+            vì quota còn 576Mi mà pod IDE cần 768Mi.
+
+            Nguồn là `lessons.get` (CÙNG hàm `profileForScenario` mà
+            `startSession` dùng), không phải một phép suy ở FE và cũng không
+            phải một lượt đọc nội dung riêng ở Server Component. `??
+            DEFAULT_PROFILE` là lưới an toàn cho lượt render trước khi có
+            payload: lúc đó `capacity` cũng chưa có nên chưa vẽ nhãn nào.
+          */}
           <SessionControls
             session={session}
             actions={{ start: session.start, end: session.end, extend: session.extend }}
             capacity={capacity.data ?? null}
+            profile={query.data?.profile ?? DEFAULT_PROFILE}
           />
         </div>
       </header>
@@ -404,37 +424,59 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
 
       <div className="min-h-0 flex-1">
         {/*
-          D8 — ba khoang (nội dung | editor | terminal) CHỈ khi bài khai
-          `interface.layout: ide`. Khoá localStorage riêng cho từng bố cục:
-          dùng chung một khoá thì tỉ lệ "nội dung vs terminal" của bài thường
-          bị áp lên "nội dung vs (editor+terminal)" của bài IDE, và người học
-          mở bài IDE đầu tiên thấy một khoang phải bị bóp một nửa.
+          D8 + §Y1 — khoang phải là `WorkspacePanel`: tab Editor (chỉ khi bài khai
+          `interface.layout: ide`) + tab Terminal, và MỘT terminal duy nhất hiện
+          ở CẢ HAI tab (neo đáy ~40% ở tab Editor, toàn khoang ở tab Terminal).
+
+          `WorkspaceSplit` GIỮ NGUYÊN và vẫn bọc ngoài: nó trả lời một câu khác
+          hẳn — chia trái/phải bao nhiêu, và gập thế nào dưới 768px. Thay nó
+          bằng panel sẽ làm mất nhánh hẹp, tức mất đúng nửa "≤768px hạ cấp có
+          chủ ý" mà `TerminalPane`/`NarrowScreenNotice` đã trả giá để có.
+
+          Khoá localStorage vẫn tách theo bố cục: dùng chung một khoá thì tỉ lệ
+          "nội dung vs terminal" của bài thường bị áp lên "nội dung vs
+          (editor+terminal)" của bài IDE, và người học mở bài IDE đầu tiên thấy
+          một khoang phải bị bóp một nửa.
         */}
-        {showIde ? (
-          <WorkspaceSplit
-            storageKey="dlp-lesson-split-ide"
-            defaultRatio={0.32}
-            content={contentPane}
-            side={
-              <SplitPane
-                storageKey="dlp-lesson-ide-terminal"
-                defaultRatio={0.58}
-                left={<IdePane sessionId={session.state.sessionId} />}
-                right={terminalPane}
-              />
-            }
-            /* Khi hẹp: bỏ hẳn khoang editor, chỉ còn nội dung + cảnh báo.
-               Theia trong một khung 768px không thao tác được, và nạp nguội nó
-               ~20s để rồi không dùng nổi là tệ hơn việc không mở. */
-            narrowSide={terminalPane}
-          />
-        ) : (
-          <WorkspaceSplit
-            storageKey="dlp-lesson-split"
-            content={contentPane}
-            side={terminalPane}
-          />
-        )}
+        <WorkspaceSplit
+          storageKey={showIde ? 'dlp-lesson-split-ide' : 'dlp-lesson-split'}
+          {...(showIde ? { defaultRatio: 0.32 } : {})}
+          content={contentPane}
+          side={
+            <WorkspacePanel
+              /*
+                Bài không khai `layout: ide` ⇒ KHÔNG truyền `editor` (spread có
+                điều kiện, không phải `editor={undefined}`: `exactOptional-
+                PropertyTypes` đang bật nên truyền tường minh `undefined` cho một
+                prop `?:` là lỗi kiểu). Vắng prop = panel không vẽ tab Editor —
+                và khi đó panel bỏ luôn thanh tablist một mục (§Y4).
+              */
+              {...(showIde ? { editor: <IdePane sessionId={sessionId} /> } : {})}
+              /*
+                ⛔ MỘT node terminal, truyền THẲNG. `terminals` (Map) của bản
+                trước đã biến mất cùng terminal thứ hai — kéo theo nút '+', nút
+                '×' và nút tách đôi. Tab Editor ĐÃ LÀ bố cục hai khoang (editor
+                trên, chính cái terminal này neo đáy ~40%), nên không còn gì để
+                tách và không còn tab nào để đóng.
+              */
+              terminal={terminalPane}
+              activeTab={tabs.activeTab}
+              onActivate={tabs.onActivate}
+              popOutUrl={tabs.popOutUrl}
+              /*
+                MỘT khoá gốc, không phải hai. `workspace-tabs.ts` của Lane E tự
+                nối hậu tố `:ide` / `:plain` (`workspaceStorageKey`) — truyền
+                sẵn hai khoá ở đây là để hậu tố đó nối lên một khoá đã phân
+                nhánh, tức bốn khoá cho hai bố cục.
+              */
+              storageKey="dlp-lesson-workspace"
+            />
+          }
+          /* Khi hẹp: bỏ hẳn khoang editor VÀ thanh tab, chỉ còn nội dung +
+             terminal. Theia trong một khung 768px không thao tác được, và nạp
+             nguội nó ~20s để rồi không dùng nổi là tệ hơn việc không mở. */
+          narrowSide={terminalPane}
+        />
       </div>
     </div>
   );

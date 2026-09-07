@@ -1,0 +1,135 @@
+#!/bin/bash
+# dlp-motd — màn chào ĐÚNG MỘT LẦN cho mỗi phiên tmux.
+#
+# ── VÌ SAO KHOÁ THEO PHIÊN TMUX, KHÔNG PHẢI THEO SHELL/PANE ──────────────────
+#
+# `.zshrc`/`.bashrc` chạy lại cho MỖI shell tương tác: mỗi pane mới, mỗi window
+# mới (`Ctrl-B c` — chính là đường mà C6 của hợp đồng dùng để mở "Terminal 2"),
+# mỗi lần sinh viên gõ `bash`. In fastfetch ở mỗi lần đó là biến màn chào thành
+# rác. Nên cờ đánh dấu phải khoá theo **phiên tmux**, không theo shell.
+#
+# ⛔ KHÔNG dùng `$TMUX_PANE`: nó đổi theo TỪNG pane, nên khoá theo nó là quay lại
+# đúng cái nó định chặn. `$TMUX` có dạng `<socket>,<server_pid>,<session_idx>` —
+# lấy hai trường sau là được một khoá bền đúng bằng tuổi thọ của tmux server.
+#
+# Attach lại sau mất mạng KHÔNG in lại, và điều đó đến miễn phí chứ không nhờ cờ:
+# `tmux new-session -A` trên nhánh attach không sinh shell mới nên rc không chạy
+# lại. Cờ ở đây gánh ca pane/window/`bash` thủ công. tmux server chết rồi lên lại
+# thì `server_pid` đổi ⇒ in lại — ĐÚNG, vì đó thật sự là một phiên mới.
+#
+# ── VÌ SAO NGOÀI TMUX PHẢI IM LẶNG TUYỆT ĐỐI ────────────────────────────────
+#
+# `execShell` (bash) là đường CHẤM BÀI: gateway bơm verify script qua stdin rồi
+# so `passed` bằng exit code + đọc `output`. Một màn chào lọt vào stdout của lượt
+# đó làm hỏng phép so, và triệu chứng sẽ là "bài đúng mà báo sai" — hạng lỗi tốn
+# nhiều giờ nhất vì nó trông như lỗi nội dung. Bash không tương tác vốn không đọc
+# `.bashrc`, nhưng đây là lớp chặn thứ hai và nó rẻ.
+#
+# `docker run img zsh -lic '…'` (khuôn mà AC COLORTERM dùng) là shell TƯƠNG TÁC
+# nhưng không có `$TMUX` ⇒ cũng im lặng.
+
+set -u
+
+FASTFETCH_CONFIG=/etc/dlp/fastfetch.jsonc
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mốc hết hạn phiên.
+#
+# Đọc từ FILE trước, env sau. Thứ tự đó không tuỳ tiện: pod sandbox đến từ
+# **warm pool** — nó được tạo TRƯỚC khi biết phiên nào sẽ claim nó — nên env của
+# PID 1 (và của tmux server sinh ra từ đó) KHÔNG THỂ mang một mốc hết hạn riêng
+# cho phiên. Cùng lý lẽ với `dlp-tools` trong hợp đồng §C4. File thì ghi được
+# lúc setup phiên, đi chung đường với `buildAssetPushScript`.
+#
+# Người GHI file này là `dlp-session-deadline` (cùng thư mục), do gateway gọi qua
+# `pods/exec` lúc dựng phiên và sau MỖI lượt ExtendSession. Script đó chuẩn hoá về
+# epoch-giây và TỪ CHỐI ghi lùi, nên giá trị đọc ở đây không bao giờ MUỘN hơn sự
+# thật — cùng lắm là sớm hơn (báo thiếu giờ), nếu lượt gọi sau extend bị lỡ.
+#
+# ⚠ File VẪN có thể vắng: pod dựng bởi bản gateway cũ hơn, hoặc một lượt exec
+# setup hỏng. Nhánh degrade bên dưới (`return 0` ⇒ output rỗng ⇒ module `command`
+# của fastfetch bỏ hẳn dòng) là CÓ CHỦ Ý và phải ở lại: thà không có dòng "Phiên"
+# còn hơn một đồng hồ đoán bừa.
+DEADLINE_FILE=/run/dlp/session-deadline
+
+# Còn lại bao lâu, dạng người đọc được. Rỗng ⇒ không biết.
+session_remaining() {
+    local raw='' epoch now left h m
+    if [ -r "$DEADLINE_FILE" ]; then
+        raw=$(head -c 64 "$DEADLINE_FILE" 2>/dev/null | tr -d '[:space:]')
+    fi
+    [ -n "$raw" ] || raw="${DLP_SESSION_DEADLINE:-}"
+    [ -n "$raw" ] || return 0
+
+    if [[ "$raw" =~ ^[0-9]+$ ]]; then
+        epoch="$raw"
+    else
+        # RFC3339 → epoch. `date -d` hỏng thì coi như không biết, KHÔNG đoán bừa.
+        epoch=$(date -d "$raw" +%s 2>/dev/null) || return 0
+        [ -n "$epoch" ] || return 0
+    fi
+
+    now=$(date +%s)
+    left=$(( epoch - now ))
+    if [ "$left" -le 0 ]; then
+        printf 'đã hết hạn'
+        return 0
+    fi
+    h=$(( left / 3600 ))
+    m=$(( (left % 3600) / 60 ))
+    if [ "$h" -gt 0 ]; then
+        printf 'còn %dh%02dm' "$h" "$m"
+    else
+        printf 'còn %dm' "$m"
+    fi
+}
+
+# Gợi ý công cụ — CHỈ những cái đang bật. In danh mục đầy đủ ở đây là dạy sai:
+# gõ `btop` khi bài chưa khai nó sẽ ra `command not found`, và người học sẽ nghĩ
+# image hỏng chứ không nghĩ "bài này không bật".
+enabled_tools() {
+    command -v dlp-tools >/dev/null 2>&1 || return 0
+    dlp-tools list --enabled 2>/dev/null | paste -sd' ' -
+}
+
+# `dlp-motd --field <tên>` là đường mà /etc/dlp/fastfetch.jsonc gọi ngược lại
+# (module `command`). Tách ra khỏi nhánh chính để nó KHÔNG bị cờ một-lần chặn.
+if [ "${1:-}" = '--field' ]; then
+    case "${2:-}" in
+        session) session_remaining ;;
+        tools)   enabled_tools ;;
+        *)       exit 2 ;;
+    esac
+    exit 0
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ba cổng, theo thứ tự rẻ → đắt.
+
+# 1. Ngoài tmux ⇒ im lặng tuyệt đối (xem đầu file).
+[ -n "${TMUX:-}" ] || exit 0
+
+# 2. Không có TTY ⇒ không ai đọc, và escape sequence sẽ đi vào một pipe nào đó.
+[ -t 1 ] || exit 0
+
+# 3. fastfetch vắng mặt (build tối giản) ⇒ không phải lỗi, chỉ là không có màn chào.
+command -v fastfetch >/dev/null 2>&1 || exit 0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cờ một-lần.
+#
+# `mkdir` chứ không phải `[ -e ] && touch`: hai pane sinh ra cùng lúc (chế độ
+# tách đôi của C5 mở Editor + terminal trong một nhịp) chạy hai bản dlp-motd
+# song song, và cặp test-rồi-tạo có cửa sổ đua ở giữa. `mkdir` là một syscall
+# nguyên tử — đúng một bên thắng.
+tmux_key="${TMUX#*,}"                 # bỏ đường socket → "<server_pid>,<session_idx>"
+tmux_key="${tmux_key//,/-}"           # "<server_pid>-<session_idx>"
+tmux_key="${tmux_key//[^0-9-]/}"      # chỉ giữ số và gạch — $TMUX đến từ tmux, nhưng
+                                      # nó vẫn là biến môi trường và biến này đi vào
+                                      # một đường dẫn.
+[ -n "$tmux_key" ] || exit 0
+
+flag="/tmp/.dlp-motd-${tmux_key}"
+mkdir "$flag" 2>/dev/null || exit 0
+
+exec fastfetch --config "$FASTFETCH_CONFIG"

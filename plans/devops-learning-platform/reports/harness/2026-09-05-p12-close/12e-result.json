@@ -3,7 +3,7 @@
     {
       "ten": "phiên sống trước khi xoá (có tiếng vọng)",
       "dat": true,
-      "chiTiet": "1 frame stdout"
+      "chiTiet": "9 frame stdout"
     },
     {
       "ten": "WS đóng bằng 4404 (SESSION_GONE), không phải 1000",
@@ -29,7 +29,7 @@
   "tomTat": {
     "closeCode": 4404,
     "closeReason": "session gone",
-    "msDongSauXoa": 517,
+    "msDongSauXoa": 330,
     "exitCodeGatewayBao": null,
     "controlFrames": [
       {

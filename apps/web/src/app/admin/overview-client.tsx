@@ -17,7 +17,7 @@ import {
 } from '@devops-platform/ui';
 import { AdminSection } from '../../components/admin/admin-section';
 import { HealthPanel } from '../../components/admin/health-panel';
-import { describeCapacity, formatFetchedAt } from '../../components/shell/capacity';
+import { describeProfileCapacity, formatFetchedAt } from '../../components/shell/capacity';
 import { useCapacity } from '../../components/shell/use-capacity';
 
 /**
@@ -90,8 +90,27 @@ function CapacityCard(): ReactElement {
     );
   }
 
-  const reading = describeCapacity(data);
+  /*
+    Đọc `profile_capacity` (trần TÍNH TỪ ResourceQuota lúc gọi), KHÔNG còn
+    `softCapacity` = `CAPACITY_HARD_LIMIT − POOL_TARGET`. Hằng số cũ mã hoá giả
+    định "mọi phiên đều 256Mi" và đã in "Còn 14 chỗ" ngày 2026-09-07 đúng lúc
+    `startSession` trả 429 cho một bài IDE (768Mi).
+
+    Không truyền profile ⇒ profile MẶC ĐỊNH, và đó là câu trả lời đúng cho một
+    trang tổng quan: người trực hỏi "cụm còn chỗ cho bài thường không", không
+    hỏi về một bài cụ thể. Câu chữ của vỏ đã tự ghi rõ "cho bài thường" và nhắc
+    bài IDE/K8s có trần riêng — nên con số này không hứa rộng hơn thứ nó biết.
+
+    `null` = CHƯA BIẾT (quota đọc lỗi), và nó khác hẳn 0. ⛔ Không lấp bằng
+    `softCapacity`: một con số sai ở trang quản trị là một quyết định vận hành
+    sai.
+  */
+  const reading = describeProfileCapacity(data);
   const at = formatFetchedAt(data.fetchedAt);
+  const unknownDetail =
+    data.quotaError === ''
+      ? 'Orchestrator không đọc được ResourceQuota của namespace sandbox, nên không có trần nào để trừ. Xem quyền của Role sandbox (`resourcequotas`, `limitranges`).'
+      : `Orchestrator không đọc được ResourceQuota của namespace sandbox: ${data.quotaError}`;
 
   return (
     <Card>
@@ -104,14 +123,22 @@ function CapacityCard(): ReactElement {
         </div>
         <Badge
           variant={
-            reading.tone === 'full' ? 'destructive' : reading.tone === 'low' ? 'warning' : 'success'
+            reading === null
+              ? 'outline'
+              : reading.tone === 'full'
+                ? 'destructive'
+                : reading.tone === 'low'
+                  ? 'warning'
+                  : 'success'
           }
         >
-          {reading.label}
+          {reading === null ? 'Chưa rõ sức chứa' : reading.label}
         </Badge>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        <p className="text-sm text-foreground">{reading.detail}</p>
+        <p className="text-sm text-foreground">
+          {reading === null ? unknownDetail : reading.detail}
+        </p>
         {/*
           Lỗi ở lượt đọc GẦN NHẤT khi vẫn còn số cũ: `use-capacity.tsx` cố ý giữ
           `data` qua một lượt hỏng để badge không nhấp nháy. Số cũ mà không nói

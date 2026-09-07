@@ -14,6 +14,7 @@ const lesson: Scenario = {
   requiresCapabilities: null,
   backendImageId: 'ubuntu',
   interfaceLayout: null,
+  toolset: [],
   assets: [],
   source: null,
   intro: {
@@ -86,6 +87,7 @@ const lab: Lab = {
   requiresCapabilities: null,
   backendImageId: 'ubuntu',
   interfaceLayout: null,
+  toolset: [],
   assets: [],
   source: null,
   setup: { foreground: null, background: 'echo chuan-bi' },

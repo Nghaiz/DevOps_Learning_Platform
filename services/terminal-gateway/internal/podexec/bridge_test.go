@@ -105,7 +105,20 @@ type bridgeOpts struct {
 	// podGone là phép hỏi apiserver trên đường đóng. nil = KHÔNG gắn probe, tức
 	// hành vi trước 2026-09-06 — mọi ca test cũ chạy ở nhánh đó.
 	podGone podexec.PodGoneFunc
+	// deadline ghi mốc hết hạn vào pod (A6). nil = KHÔNG gắn runner, tức tính
+	// năng tắt — hành vi của mọi ca test cũ.
+	deadline podexec.DeadlineRunner
+	// logs nhận log của cầu. nil = io.Discard như mọi ca cũ. Ca nào khẳng định
+	// "hỏng mà KHÔNG nuốt im lặng" thì phải đọc được chúng.
+	logs io.Writer
+	// expiresAt ghi đè mốc hết hạn của Target. nil = mốc mặc định dưới đây.
+	// Con trỏ chứ không phải int64 vì 0 là một giá trị CẦN TEST (hash hỏng), nên
+	// nó không dùng được làm sentinel "chưa đặt".
+	expiresAt *int64
 }
+
+// defaultExpiresAt là mốc hết hạn mà mọi ca test cũ trông đợi ở `ready`.
+var defaultExpiresAt = time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC).Unix()
 
 // newBridge dựng một server WS chạy Bridge thật, và trả kết nối phía CLIENT.
 func newBridge(t *testing.T, exec *fakeExecutor, alive podexec.SessionAliveFunc, opts ...bridgeOpts) *bridgeHarness {
@@ -124,12 +137,17 @@ func newBridge(t *testing.T, exec *fakeExecutor, alive podexec.SessionAliveFunc,
 	reg := prometheus.NewRegistry()
 	met := metrics.New(reg)
 
+	logDst := io.Writer(io.Discard)
+	if o.logs != nil {
+		logDst = o.logs
+	}
+
 	h := &bridgeHarness{served: make(chan struct{}), met: met, reg: reg}
 	b := podexec.New(
 		func(podexec.Target) (remotecommand.Executor, error) { return exec, nil },
 		alive,
 		o.extender,
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		slog.New(slog.NewTextHandler(logDst, nil)),
 		met,
 	)
 	if o.pingEvery > 0 {
@@ -137,6 +155,14 @@ func newBridge(t *testing.T, exec *fakeExecutor, alive podexec.SessionAliveFunc,
 	}
 	if o.podGone != nil {
 		b.SetPodProbe(o.podGone)
+	}
+	if o.deadline != nil {
+		b.SetDeadlineRunner(o.deadline)
+	}
+
+	expiresAt := defaultExpiresAt
+	if o.expiresAt != nil {
+		expiresAt = *o.expiresAt
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +179,7 @@ func newBridge(t *testing.T, exec *fakeExecutor, alive podexec.SessionAliveFunc,
 			SessionID: "sess-a",
 			PodName:   "sandbox-deadbeef",
 			Namespace: "dlp-sandbox",
-			ExpiresAt: time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC).Unix(),
+			ExpiresAt: expiresAt,
 			UserID:    "user-a",
 		})
 	}))

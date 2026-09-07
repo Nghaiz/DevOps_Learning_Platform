@@ -1,0 +1,105 @@
+#!/bin/bash
+# dlp-session-deadline — ghi mốc hết hạn của phiên vào /run/dlp/session-deadline.
+#
+# Đây là NỬA KIA của dòng "Phiên" trong màn chào (`dlp-motd --field session`).
+# Trước script này chỉ có phía ĐỌC: file không ai ghi, nên dòng "Phiên" chưa từng
+# hiện ra một lần nào kể từ khi được viết (A6).
+#
+# ── VÌ SAO PHẢI LÀ FILE, KHÔNG THỂ LÀ ENV CỦA POD ────────────────────────────
+#
+# Pod sandbox đến từ **warm pool**: nó được tạo TRƯỚC khi biết phiên nào sẽ claim
+# nó, và có thể nằm trong `pool:free` hàng phút. Nên env của PID 1 không thể mang
+# một mốc hết hạn riêng cho phiên, và `podStart + SESSION_TTL` cũng KHÔNG phải
+# mốc thật — nó sai đúng bằng khoảng thời gian pod nằm chờ trong pool. Một đồng
+# hồ sai lệch vài phút còn tệ hơn không có đồng hồ, vì người học sẽ tin nó.
+#
+# Cùng lý lẽ với `dlp-tools` (hợp đồng §C4) và với thứ tự đọc file-trước-env của
+# `dlp-motd`.
+#
+# ── AI GỌI ───────────────────────────────────────────────────────────────────
+#
+# Gateway, qua `pods/exec`, ở HAI chỗ — và thiếu chỗ thứ hai là dòng "Phiên" nói
+# dối:
+#
+#   1. Lúc dựng phiên (sau khi claim xong, trước khi attach tmux):
+#        dlp-session-deadline "$expiresAtUnix"
+#   2. Sau MỖI lần ExtendSession thành công:
+#        dlp-session-deadline "$expiresAtUnixMoi"
+#
+# ⚠ Không có (2) thì banner báo THIẾU giờ sau khi người học bấm "Thêm giờ". Sai
+# về hướng an toàn (báo ít hơn thực tế) nhưng vẫn là sai — xem luật không-lùi.
+#
+# ── LUẬT KHÔNG-LÙI, VÀ VÌ SAO NÓ Ở ĐÂY CHỨ KHÔNG Ở PHÍA GỌI ──────────────────
+#
+# Script TỪ CHỐI ghi một mốc SỚM HƠN mốc đang có. Vòng đời phiên chỉ đẩy hạn về
+# sau (`ExtendSession` cộng thêm, `HARD_CAP` chặn trần); không đường nào rút ngắn
+# hạn của một phiên đang sống — kết thúc sớm thì pod bị xoá luôn, không còn ai
+# đọc file này nữa.
+#
+# Vì vậy "mốc chỉ tiến, không lùi" là một BẤT BIẾN của sản phẩm, và ép nó ở đây
+# cho một tính chất đáng giá: giá trị hiển thị KHÔNG BAO GIỜ muộn hơn sự thật.
+# Người học có thể bị báo thiếu giờ (rồi thấy nhiều hơn), chứ không bao giờ bị
+# báo thừa giờ rồi mất bài giữa chừng. Một lượt gọi lạc hậu (retry của gateway
+# đến sau lượt extend) là ca THẬT, không phải giả định — và nó bị chặn ở đây,
+# một chỗ, thay vì phải đúng ở mọi chỗ gọi.
+#
+# ── ĐỊNH DẠNG ────────────────────────────────────────────────────────────────
+#
+# Nhận epoch-giây (`1789456789`) hoặc RFC3339 (`2026-09-08T12:34:56Z`); ghi ra
+# LUÔN LUÔN epoch-giây. `dlp-motd` đọc được cả hai, nhưng chuẩn hoá ở đây nghĩa là
+# phép so không-lùi không phải phân tích lại chuỗi mỗi lần, và file không mang
+# múi giờ để mà đọc nhầm.
+
+set -uo pipefail
+
+# `DLP_RUN_DIR` CHỈ để test chạy được ngoài container (đường /run của host là
+# của host). Sản phẩm không đặt biến này ⇒ luôn /run/dlp, cùng đường mà
+# `dlp-motd` đọc cứng. Không có nó thì luật không-lùi và phép ghi nguyên tử ở
+# dưới là hai mệnh đề chưa ai chạy thử lần nào.
+DEADLINE_DIR="${DLP_RUN_DIR:-/run/dlp}"
+DEADLINE_FILE="$DEADLINE_DIR/session-deadline"
+
+die() { printf 'dlp-session-deadline: %s\n' "$1" >&2; exit 1; }
+
+[ "$#" -eq 1 ] || die "cần đúng 1 tham số: <epoch-giây | RFC3339>. Nhận $# tham số."
+
+raw="${1//[[:space:]]/}"
+[ -n "$raw" ] || die "mốc rỗng"
+
+if [[ "$raw" =~ ^[0-9]+$ ]]; then
+    want="$raw"
+else
+    # `date -d` hỏng ⇒ DỪNG, không đoán. Ghi một mốc đoán bừa là đúng thứ dòng
+    # "Phiên" tồn tại để tránh.
+    want=$(date -d "$raw" +%s 2>/dev/null) || die "không phân giải được mốc $raw"
+    [ -n "$want" ] || die "không phân giải được mốc $raw"
+fi
+
+# Chặn giá trị vô nghĩa. `date -d "abc"` đã bị bắt ở trên, nhưng `date -d 0`
+# cho ra 0 — một mốc năm 1970 sẽ hiện thành "đã hết hạn" ngay ở màn chào đầu tiên.
+[ "$want" -gt 0 ] 2>/dev/null || die "mốc phải > 0 (nhận $want)"
+
+mkdir -p "$DEADLINE_DIR" 2>/dev/null || die "không tạo được $DEADLINE_DIR"
+
+# LUẬT KHÔNG-LÙI — xem đầu file.
+if [ -r "$DEADLINE_FILE" ]; then
+    cur=$(head -c 64 "$DEADLINE_FILE" 2>/dev/null | tr -d '[:space:]')
+    if [[ "$cur" =~ ^[0-9]+$ ]] && [ "$want" -lt "$cur" ]; then
+        # Thoát 0: đây KHÔNG phải lỗi của người gọi, chỉ là một lượt ghi đến
+        # muộn. Trả mã lỗi ở đây sẽ làm đường dựng phiên của gateway đỏ vì một
+        # chuyện hoàn toàn lành.
+        printf 'dlp-session-deadline: bỏ qua %s vì đang giữ %s (mốc chỉ tiến, không lùi)\n' \
+            "$want" "$cur" >&2
+        exit 0
+    fi
+fi
+
+# Ghi nguyên tử: `dlp-motd` có thể đang đọc ở đúng nhịp này (hai pane mở cùng
+# lúc ở chế độ tách đôi §C5). `>` cắt file về 0 byte TRƯỚC khi ghi, nên một lượt
+# đọc rơi vào giữa sẽ thấy chuỗi rỗng và dòng "Phiên" biến mất trong một nhịp —
+# hỏng nhẹ, nhưng hỏng theo kiểu không ai chẩn đoán được. `mv` trong cùng
+# filesystem là rename(2), nguyên tử.
+tmp="$DEADLINE_FILE.$$"
+printf '%s\n' "$want" > "$tmp" 2>/dev/null || die "không ghi được $tmp"
+chmod 0644 "$tmp" 2>/dev/null
+mv -f "$tmp" "$DEADLINE_FILE" 2>/dev/null || { rm -f "$tmp"; die "không đổi tên được sang $DEADLINE_FILE"; }

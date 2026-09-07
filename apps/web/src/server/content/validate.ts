@@ -83,6 +83,7 @@ export function validateContentBody(kind: ContentKind, body: ContentBodyRow): re
     capabilities: item.capabilities,
     backendImageId: item.backendImageId,
     interfaceLayout: item.interfaceLayout,
+    toolset: item.toolset,
   };
 
   switch (kind) {

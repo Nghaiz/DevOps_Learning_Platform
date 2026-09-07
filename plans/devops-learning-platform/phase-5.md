@@ -194,8 +194,18 @@ nhân phỏng đoán.
       → **thí nghiệm tự nhiên** của chính lượt deploy 5.A: `stale_image=1` (đúng 1 pod
       ấm cũ, vì `POOL_TARGET` trước đó là 1), `dead_free_pods=0` (chứng minh nó bị rút
       vì IMAGE CŨ chứ không vì chết), `pool_free_size=3` (pool tự đủ lại theo target mới).
-- [~] Nút "Thêm giờ" gia hạn thật; chạm `hardCap` thì disable kèm lý do.
-      **Mã xong, đường server đã chứng minh, THAO TÁC NGƯỜI DÙNG THÌ CHƯA.**
+- [x] Nút "Thêm giờ" gia hạn thật; chạm `hardCap` thì disable kèm lý do.
+      **Đóng 2026-09-08 bằng cú bấm thật trên cụm** ([đo](reports/harness/2026-09-08-ac-browser/run.md)):
+      chờ 27 phút để đồng hồ CLIENT xuống dưới ngưỡng 10 phút (không rút ngắn được —
+      client chỉ nhận `expiresAt` từ `startSession`/`extendSession`, và làm giả
+      `Date.now()` cũng vô ích vì độ lệch triệt tiêu giữa hai vế so sánh). Bấm ⇒ Redis
+      `expiresAt` **+213s**, `revision` **+1** (đúng một lượt), hạn mới bằng CHÍNH XÁC
+      `lúc_bấm + 300`; đồng hồ UI 3→5 phút. **Đối chứng nhiễu nền:** suốt 27 phút chờ với
+      terminal rảnh, `revision` đứng yên và `expiresAt` không nhích — nên thay đổi trên là
+      do cú bấm, không do heartbeat. Chạm trần: `expiresAt` = đúng `createdAt+7200` (không
+      bị cắt thì đã là `now+300`), nút `disabled` + `title` + tooltip Radix MỞ THẬT khi
+      hover, câu chữ đọc được ở cả hai đường. ⚠ Vế trần cứng có **dựng cảnh**: lùi
+      `createdAt` 7000s để trần 2h bám vào; vế gia hạn thì hoàn toàn tự nhiên.
       Đã có: `lessons.extendSession` · sự kiện `EXTENDED` (nhận `expiresAt` SERVER trả,
       không tự cộng ở client) · đồng hồ đếm ngược 15s/nhịp · nút hiện khi còn <10 phút,
       **disable kèm `title` giải thích** khi `hardCapReached` (không ẩn — một nút biến mất

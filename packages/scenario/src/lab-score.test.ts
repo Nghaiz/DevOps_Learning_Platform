@@ -12,6 +12,7 @@ function makeLab(overrides: Partial<Lab> = {}): Lab {
     id: 'demo-lab',
     title: 'Demo',
     description: null,
+    toolset: [],
     difficulty: 'beginner',
     estimatedMinutes: 10,
     tier: 'sysbox',

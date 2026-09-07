@@ -4,6 +4,7 @@ import type { z } from 'zod';
 import { labSchema, type Lab, type LabTask } from '@devops-platform/shared-types/lab';
 import { mapBackendImage, KNOWN_BACKEND_IMAGE_IDS } from './backend.ts';
 import { labFileSchema, type LabFile, type LabTaskFile } from './lab.ts';
+import { sanitizeToolset } from './toolset.ts';
 
 export const LAB_FILENAME = 'lab.json';
 
@@ -170,6 +171,11 @@ export async function loadLab(labDir: string): Promise<Lab> {
     requiresCapabilities: null,
     backendImageId: file.backend.imageid,
     interfaceLayout: file.interface?.layout ?? null,
+    // Thu hẹp NGAY TẠI BIÊN dựng DTO, không tin pipeline phía trên đã lọc:
+    // `sanitizeToolset` thuần và idempotent, nên gọi thừa là vô hại, còn thiếu
+    // một lượt gọi thì một tên lạ đi thẳng tới `dlp-tools enable` và hỏng trước
+    // mặt người học lúc setup phiên.
+    toolset: [...sanitizeToolset(file.toolset).toolset],
     // Không lab first-party nào trong repo này cần asset ngoài — xem docstring
     // `labFileSchema` trong lab.ts. `[]` là hình dạng DUY NHẤT loader này sinh ra.
     assets: [],

@@ -2,6 +2,7 @@ import type { ContentKind } from '@devops-platform/shared-types/authoring';
 import { labTaskIdSchema } from '@devops-platform/shared-types/lab';
 import type {
   SandboxTierName,
+  SandboxTool,
   ScenarioCapability,
   ScenarioDifficulty,
 } from '@devops-platform/shared-types/scenario';
@@ -64,6 +65,14 @@ export interface DraftFormState {
   capabilities: readonly ScenarioCapability[];
   backendImageId: string;
   interfaceLayout: '' | 'ide';
+  /**
+   * Bộ công cụ bật thêm trong pod cho riêng bài này (C4).
+   *
+   * `SandboxTool[]` chứ không `string[]`: ô chọn dựng TỪ `SANDBOX_TOOLS`, nên
+   * một giá trị ngoài danh mục không có đường vào form — và kiểu ở đây là thứ
+   * giữ cho điều đó đúng khi ai đó thêm một đường nạp thứ hai.
+   */
+  toolset: readonly SandboxTool[];
   assets: readonly AssetDirectiveFormState[];
   hasIntro: boolean;
   intro: PhaseFormState;
@@ -119,6 +128,11 @@ export function emptyDraft(): DraftFormState {
     capabilities: [],
     backendImageId: 'ubuntu',
     interfaceLayout: '',
+    // ⛔ RỖNG là mặc định, không phải "bật hết". Mỗi công cụ là một lượt cài
+    // gói thật trong pod lúc setup phiên; bật sẵn cả tám cho mọi bài là bắt
+    // MỌI người học trả thời gian khởi động cho thứ bài họ mở không dùng.
+    // Người soạn chọn theo bài — đó là chính điểm của field này.
+    toolset: [],
     assets: [],
     hasIntro: false,
     intro: emptyPhase(),
@@ -264,6 +278,9 @@ export function toDraftInput(kind: ContentKind, form: DraftFormState): DraftInpu
       capabilities: [...form.capabilities],
       backendImageId: form.backendImageId,
       interfaceLayout: form.interfaceLayout === '' ? null : form.interfaceLayout,
+      // Sao chép thành mảng ghi được: payload đi qua tRPC, và trả về CHÍNH mảng
+      // trong state là để một chỗ khác sửa được state của form từ xa.
+      toolset: [...form.toolset],
       assets:
         kind === 'playground'
           ? []

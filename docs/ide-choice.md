@@ -276,3 +276,42 @@ Pod đối chứng không có socket nào — đối chứng âm cho chính phé
 - **Node lúc đo không rảnh cũng không tải nặng** (load 1.3–1.95, 3 pod warm thật
   đang chạy). Đây không phải điều kiện "cụm đầy" — bài học của 5.B là số đo trên
   node rảnh không chứng minh được hành vi dưới tải.
+
+## ⚠ Nợ đã biết: terminal tích hợp của Theia KHÔNG tắt được
+
+Mô hình giao diện chốt cuối là **1 tab Editor + 1 tab Terminal, dùng CHUNG một
+phiên terminal của nền tảng**. Nhưng Theia mang theo terminal riêng của nó, và
+nút bấm-để-chạy trong bài học **không** điều khiển được terminal đó.
+
+**Không tắt được bằng cấu hình — đã đo trên Theia IDE 1.74.100, không suy luận:**
+
+| Preference thử | Số lần khớp trong bundle |
+|---|---|
+| `terminal.integrated.enabled` | 0 |
+| `terminal.enabled` | 0 |
+| `terminal.visible` | 0 |
+| `workbench.view.terminal` | 0 |
+| `terminal.integrated.showOnStartup` | 0 |
+
+Đọc hết danh sách option CLI của backend cũng không có gì về layout hay tắt
+terminal. Bề mặt cấu hình được hỗ trợ (`--set-preference`, `--session-preference`,
+`~/.theia-ide/settings.json`) không phủ việc này.
+
+**Đường duy nhất còn lại đã bị từ chối có chủ ý:** seed sẵn file layout nội bộ của
+Theia. Bố cục shell là state do chính ứng dụng quản, không có hợp đồng nào bảo
+đảm hình dạng của nó — nhét sẵn một file như vậy sẽ vỡ IM LẶNG ở bản nâng Theia
+kế tiếp, đúng lúc không ai còn nhớ vì sao file đó ở đó.
+
+**Mức độ thật của nợ:** panel terminal mặc định đang THU (`lm-mod-hidden`), nên
+sinh viên phải cố ý mở nó (menu `Terminal`, hoặc nút toggle) mới gặp. Widget
+`terminal-0` có sẵn trong layout và tab "Terminal 0" hiện ra khi mở.
+
+**Đường sửa đã cân và KHÔNG chọn (2026-09-07):** đặt
+`terminal.integrated.defaultProfile.linux` trỏ vào `tmux new-session -A -s dlp`.
+Khi đó terminal Theia LÀ chính phiên của nền tảng, hết chuyện "terminal thứ ba".
+Bị loại vì cái giá rơi sai chỗ: hai client tmux trên một phiên thì tmux co cửa sổ
+về kích thước client NHỎ NHẤT, nên một panel Theia hẹp sẽ bóp terminal chính của
+MỌI phiên. Đổi một rủi ro hiếm (phải cố ý mở) lấy một rủi ro thường trực.
+
+Muốn làm lại đường đó thì phải ĐO trước: dựng hai client trên cùng phiên và xem
+kích thước có bị co thật không, thay vì tin vào suy luận ở trên.

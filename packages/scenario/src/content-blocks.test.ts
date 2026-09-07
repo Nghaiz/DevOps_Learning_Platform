@@ -81,7 +81,13 @@ describe('parseContentBlocks — các bẫy', () => {
         .join('\n'),
     ).toContain('Đoạn văn ở giữa PHẢI còn.');
     expect(codeBlocks(markdown)).toEqual([
-      { kind: 'code', code: 'co-hau-to', language: null, action: 'exec', inline: false },
+      {
+        kind: 'code',
+        code: 'co-hau-to',
+        language: null,
+        action: 'exec',
+        inline: false,
+      },
     ]);
   });
 
@@ -194,5 +200,85 @@ describe('parseContentBlocks — xuống dòng CRLF', () => {
     // đáng có phép kiểm riêng vì nó QUYẾT ĐỊNH cái gì chạy trong sandbox.
     const md = ['```bash', 'ls -la', '```{{exec}}', '', '```', 'khong chay', '```'].join('\r\n');
     expect(executableCommands(md)).toEqual(['ls -la']);
+  });
+});
+/**
+ * Cú pháp chọn terminal đích (`{{exec T1}}` / `{{exec T2}}`) — ĐÃ GỠ, §Y2.
+ *
+ * Nhóm này toàn vế ÂM, và đó là điểm của nó: sau khi một cú pháp bị gỡ, thứ
+ * duy nhất chứng minh nó biến mất THẬT là một ca khẳng định nó bị TỪ CHỐI.
+ * Không có ca nào ở đây thì `{{exec T2}}` có thể vẫn được nhận ở một nhánh
+ * không ai đi qua — parser đọc `T2` rồi bỏ, nút chạy hiện ra bình thường, và
+ * một bài viết cho HAI terminal lặng lẽ chạy chen nhau trong MỘT shell.
+ *
+ * ⚠ Cùng chỗ này gác luôn bất biến quan trọng nhất của file: hành động phải
+ * DÍNH LIỀN sau backtick đóng, nên `{{TRAFFIC_*}}` trong văn xuôi không bao
+ * giờ là hành động.
+ */
+describe('parseContentBlocks — cú pháp terminal đích đã bị gỡ (§Y2)', () => {
+  it('{{exec T1}} và {{exec T2}} bị NÉM, KHÔNG được lặng lẽ bỏ phần T<n>', () => {
+    // Vế "lặng lẽ bỏ" mới là vế nguy: nó đúng cú pháp và sai ý định người soạn,
+    // và không có gì đỏ ở bất cứ đâu để ai đó nhận ra.
+    expect(() => parseContentBlocks('`a`{{exec T1}}')).toThrow(ContentBlockError);
+    expect(() => parseContentBlocks('`b`{{exec T2}}')).toThrow(/không nhận ra/);
+  });
+
+  it('{{exec T2 interrupt}} và {{exec interrupt T2}} đều NÉM — cả hai thứ tự', () => {
+    // Hai thứ tự vì bản cũ nhận thứ tự thứ nhất và từ chối thứ tự thứ hai. Chỉ
+    // kiểm một cái thì một bản vá gỡ nửa vời vẫn xanh.
+    expect(() => parseContentBlocks('`c`{{exec T2 interrupt}}')).toThrow(ContentBlockError);
+    expect(() => parseContentBlocks('`d`{{exec interrupt T2}}')).toThrow(ContentBlockError);
+  });
+
+  it('{{copy T1}} bị NÉM — copy chưa bao giờ có đích để nhắm', () => {
+    expect(() => parseContentBlocks('`x`{{copy T1}}')).toThrow(ContentBlockError);
+  });
+
+  it('fence cũng NÉM, không chỉ code span', () => {
+    // Hai đường vào parser dùng hai regex khác nhau và gọi `parseActionSuffix`
+    // ở hai chỗ. Một bản gỡ chạm đúng một đường trông xanh ở mọi ca inline.
+    expect(() => parseContentBlocks(['```bash', 'kubectl get pod', '```{{exec T2}}'].join('\n'))).toThrow(
+      ContentBlockError,
+    );
+  });
+
+  it('thông báo lỗi liệt kê BỐN dạng còn lại và KHÔNG nhắc T1/T2 nữa', () => {
+    // Vế "không nhắc" là vế chống hồi quy tài liệu: một thông báo còn quảng cáo
+    // `{{exec T1}}` sẽ dạy người soạn viết đúng thứ parser vừa từ chối.
+    let message = '';
+    try {
+      parseContentBlocks('`x`{{open}}');
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain('{{}}');
+    expect(message).toContain('{{copy}}');
+    expect(message).toContain('{{exec}}');
+    expect(message).toContain('{{exec interrupt}}');
+    expect(message).not.toContain('T1');
+    expect(message).not.toContain('T2');
+  });
+
+  it('khoảng trắng thừa trong hậu tố vẫn được chuẩn hoá', () => {
+    // Chuẩn hoá `\s+` → một dấu cách là thứ độc lập với việc gỡ đích; ca này ở
+    // nhóm cũ và được giữ lại vì không nhóm nào khác gác nó.
+    expect(codeBlocks('`e`{{  exec   interrupt  }}').map((b) => b.action)).toEqual([
+      'exec-interrupt',
+    ]);
+  });
+
+  it('{{TRAFFIC_HOST1_80}} trong văn xuôi vẫn KHÔNG phải hành động', () => {
+    const markdown = [
+      'Mở {{TRAFFIC_HOST1_80}} hoặc [bấm đây]({{TRAFFIC_HOST1_8080}}).',
+      'Rồi chạy `ls`{{exec}} ở terminal.',
+    ].join('\n');
+
+    expect(codeBlocks(markdown).map((b) => [b.code, b.action])).toEqual([['ls', 'exec']]);
+    expect(
+      parseContentBlocks(markdown)
+        .filter((b) => b.kind === 'markdown')
+        .map((b) => b.markdown)
+        .join(''),
+    ).toContain('{{TRAFFIC_HOST1_80}}');
   });
 });

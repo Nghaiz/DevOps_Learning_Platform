@@ -14,8 +14,10 @@ import {
 import type { ContentKind } from '@devops-platform/shared-types/authoring';
 import {
   SANDBOX_TIER_NAMES,
+  SANDBOX_TOOLS,
   SCENARIO_CAPABILITIES,
   SCENARIO_DIFFICULTIES,
+  type SandboxTool,
   type ScenarioCapability,
 } from '@devops-platform/shared-types/scenario';
 import type { DraftFormState, FieldIssue } from './draft-form';
@@ -168,6 +170,45 @@ export function DraftMetaFields(props: {
         </Field>
       </div>
 
+      {/*
+        Bộ công cụ — nhóm chọn NHIỀU, mặc định KHÔNG chọn gì.
+
+        `fieldset`/`legend` chứ không `Field`: `Field` cấp đúng một `id` cho đúng
+        một control (nó dựng cho `Select` ngay trên). Một nhóm 8 ô kiểm cần một
+        nhãn NHÓM, và `legend` là thứ trình đọc màn hình đọc trước mỗi ô con —
+        `aria-label` trên một `div` thì không. Cùng khuôn với nhóm capability
+        ngay dưới, nên hai nhóm trên cùng form không hành xử khác nhau.
+
+        Mỗi công cụ có một dòng mô tả, không chỉ cái tên: `duf`, `fd`, `delta`
+        không tự nói ra chúng làm gì, và người soạn đoán theo tên sẽ chọn thừa
+        (mỗi lượt chọn là một lượt cài gói trong pod của MỌI người học bài đó)
+        hoặc chọn thiếu.
+      */}
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium text-foreground">Bộ công cụ thêm cho bài này</legend>
+        <p className="text-xs text-muted-foreground">
+          Mặc định không bật gì — sandbox đã có sẵn bộ lệnh thường dùng. Chỉ chọn thứ nội dung bài
+          thật sự gõ tới: mỗi công cụ là một lượt cài trong pod lúc mở phiên.
+        </p>
+        <div className="grid gap-x-6 gap-y-3 pt-1 sm:grid-cols-2">
+          {SANDBOX_TOOLS.map((tool) => (
+            <ToolBox
+              key={tool}
+              tool={tool}
+              checked={value.toolset.includes(tool)}
+              disabled={disabled}
+              onToggle={(checked) => {
+                patch({
+                  toolset: checked
+                    ? [...value.toolset, tool]
+                    : value.toolset.filter((item) => item !== tool),
+                });
+              }}
+            />
+          ))}
+        </div>
+      </fieldset>
+
       <TextField
         label="Backend image id"
         value={value.backendImageId}
@@ -258,6 +299,61 @@ const DIFFICULTY_LABELS: Readonly<Record<(typeof SCENARIO_DIFFICULTIES)[number],
   intermediate: 'Trung cấp',
   advanced: 'Nâng cao',
 };
+
+/**
+ * Một dòng mô tả cho mỗi công cụ, bằng TIẾNG VIỆT và nói CÔNG DỤNG.
+ *
+ * Không phải trang trí: `duf` / `fd` / `delta` / `yq` là tên không tự giải
+ * thích, và một danh sách tám cái tên trần buộc người soạn chọn bằng cách đoán.
+ * Nêu luôn tên LỆNH khi nó khác tên gói (`ripgrep` → `rg`) — đó là thứ họ sẽ
+ * thật sự gõ vào nội dung bài, và là chỗ lệch dễ mất thời gian nhất.
+ */
+const TOOL_DESCRIPTIONS: Readonly<Record<SandboxTool, string>> = {
+  btop: 'Theo dõi CPU, RAM và tiến trình theo thời gian thực — bản dễ nhìn của top.',
+  tldr: 'Ví dụ dùng nhanh cho một lệnh, thay cho việc đọc hết trang man.',
+  ripgrep: 'Tìm chuỗi trong cả cây thư mục, rất nhanh. Lệnh gõ là rg.',
+  fd: 'Tìm file theo tên với cú pháp ngắn hơn find. Lệnh gõ là fd.',
+  duf: 'Xem dung lượng đĩa còn trống theo từng phân vùng, dạng bảng.',
+  ncdu: 'Duyệt thư mục theo dung lượng để tìm chỗ đang chiếm đĩa.',
+  delta: 'Tô màu và canh cột cho git diff, dễ đọc phần khác biệt hơn.',
+  yq: 'Đọc và sửa YAML/JSON từ dòng lệnh — hay dùng với manifest Kubernetes.',
+};
+
+function ToolBox(props: {
+  readonly tool: SandboxTool;
+  readonly checked: boolean;
+  readonly disabled?: boolean | undefined;
+  readonly onToggle: (checked: boolean) => void;
+}): ReactElement {
+  const id = `toolset-${props.tool}`;
+  // Mô tả nối vào ô kiểm bằng `aria-describedby`: đọc bằng mắt thì nó nằm ngay
+  // dưới nhãn, còn trình đọc màn hình chỉ nghe được nó nếu có liên kết này —
+  // thiếu nó thì người dùng screen reader nhận đúng tám cái tên trần, tức đúng
+  // vấn đề mà dòng mô tả sinh ra để giải quyết.
+  const describedBy = `${id}-hint`;
+  return (
+    <div className="flex items-start gap-2">
+      <Checkbox
+        id={id}
+        checked={props.checked}
+        disabled={props.disabled}
+        aria-describedby={describedBy}
+        className="mt-0.5"
+        onCheckedChange={(state) => {
+          props.onToggle(state === true);
+        }}
+      />
+      <div className="flex flex-col gap-0.5">
+        <Label htmlFor={id} className="font-mono font-normal">
+          {props.tool}
+        </Label>
+        <p id={describedBy} className="text-xs text-muted-foreground">
+          {TOOL_DESCRIPTIONS[props.tool]}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function CapabilityBox(props: {
   readonly capability: ScenarioCapability;

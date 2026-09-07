@@ -26,7 +26,9 @@ import {
   unsupportedCapabilities,
 } from '../../lessons/catalog';
 import { buildAssetPushScript, isAssetPushPhase } from '../../lessons/asset-push';
-import { phaseRefSchema, resolvePhase } from '../../lessons/phase';
+import { isFirstPhase, phaseRefSchema, resolvePhase } from '../../lessons/phase';
+import { buildToolsEnableScript } from '../../lessons/tools-enable';
+import { setupScriptPlan } from '../../lessons/setup-plan';
 import { runScriptInSession } from '../../lessons/validate';
 import { applySessionPreferences } from '../../sessions/preferences';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
@@ -106,6 +108,24 @@ async function requireScenario(scenarioId: string): Promise<Scenario> {
     throw new TRPCError({ code: 'NOT_FOUND', message: `Không có bài học "${scenarioId}"` });
   }
   return scenario;
+}
+
+/**
+ * Profile tài nguyên mà pod của bài này THẬT SỰ xin.
+ *
+ * ⛔ MỘT biểu thức, HAI chỗ đọc — `get` (để FE nói "còn N chỗ cho bài NÀY") và
+ * `startSession` (để orchestrator cấp đúng ngần ấy RAM). Trước lượt này hai vế
+ * đó là hai lời gọi chép tay ở hai chỗ; chúng tình cờ trùng nhau, nhưng một bên
+ * đổi đối số mà bên kia không đổi là con số trên màn hình lại nói về một pod
+ * khác với pod sắp được tạo — đúng chế độ hỏng ngày 2026-09-07 ("Còn 14 chỗ"
+ * cạnh một `startSession` trả 429).
+ *
+ * Cả hai đối số đều bắt buộc: `interfaceLayout` là thứ tách bài IDE (768Mi) khỏi
+ * bài thường (256Mi), và bỏ nó đi thì hàm vẫn chạy, vẫn trả một chuỗi hợp lệ,
+ * chỉ là chuỗi sai.
+ */
+function profileForScenario(scenario: Scenario): string {
+  return profileForCapabilities(effectiveCapabilities(scenario), scenario.interfaceLayout);
 }
 
 /**
@@ -307,6 +327,19 @@ export const lessonsRouter = createTRPCRouter({
     const scenario = await requireScenario(input.scenarioId);
     return {
       scenario,
+      /**
+       * Profile tài nguyên của CHÍNH bài này — cùng `profileForScenario` mà
+       * `startSession` dùng, nên nhãn "còn N chỗ" cạnh nút Bắt đầu nói về đúng
+       * cái pod sắp được tạo.
+       *
+       * ⛔ Trả từ ĐÂY chứ không để FE tự suy: bảng ánh xạ `capabilities →
+       * profile` quyết định pod thật xin bao nhiêu RAM, và một bản chép ở FE là
+       * hai bảng sẽ trôi khỏi nhau. Cũng không để Server Component của trang
+       * giải lại (bản 2026-09-08 làm thế): đó là lượt đọc nội dung THỨ HAI cho
+       * cùng một trang — gần như miễn phí với bài trên đĩa, nhưng là một truy
+       * vấn thật mỗi lần mở trang với bài soạn trên DB.
+       */
+      profile: profileForScenario(scenario),
       progress: await readProgress(ctx.db, ctx.user.id, scenario.id),
       // FE (2.D) BẮT BUỘC hiện cảnh báo này — xem `catalog.unsupportedCapabilities`.
       unsupportedCapabilities: unsupportedCapabilities(effectiveCapabilities(scenario)),
@@ -428,10 +461,9 @@ export const lessonsRouter = createTRPCRouter({
           // Suy ra từ capabilities của CHÍNH bài, không phải từ input của client
           // — cùng lý do `userId` không nằm trong input: client không có chỗ nào
           // để tự khai mình đáng được cấp bao nhiêu tài nguyên.
-          profile: profileForCapabilities(
-            effectiveCapabilities(scenario),
-            scenario.interfaceLayout,
-          ),
+          //
+          // CÙNG hàm mà `get` trả cho FE — xem `profileForScenario`.
+          profile: profileForScenario(scenario),
         },
         { headers },
       ),
@@ -473,52 +505,62 @@ export const lessonsRouter = createTRPCRouter({
       : [];
     const pushScript = buildAssetPushScript(pushable);
 
-    if (phase.setup.background === null && pushScript === null) {
+    /*
+      Một lần cho mỗi phiên, ở phase ĐẦU — cùng phép suy với asset
+      (`isFirstPhase`), vì `dlp-tools enable` cài gói thật: chạy lại nó ở mỗi
+      phase là mỗi lần chuyển step lại tốn một lượt exec cho việc đã xong.
+    */
+    const toolsScript = isFirstPhase(scenario, input.phase)
+      ? buildToolsEnableScript(scenario.toolset)
+      : null;
+
+    /*
+      Thứ tự công cụ → asset → background là ĐIỀU KIỆN ĐÚNG-SAI, và nó sống ở
+      `setup-plan.ts` dưới dạng dữ liệu chứ không dưới dạng ba khối `if` ở đây.
+      Lý do: dạng dữ liệu có phép kiểm được (`setup-plan.test.ts`); ba khối `if`
+      trong một procedure cần orchestrator + Postgres + phiên thật thì không, và
+      một ô AC không kiểm được vẫn xanh sau khi ai đó đảo hai khối.
+    */
+    const steps = setupScriptPlan({
+      tools: toolsScript,
+      assets: pushScript,
+      background: phase.setup.background,
+    });
+
+    if (steps.length === 0) {
       return { ran: false, assetsPushed: 0, foreground: phase.setup.foreground };
     }
 
     const expiresAtSeconds = await sessionExpiry(ctx, input.sessionId);
 
-    if (pushScript !== null) {
-      const push = await runScriptInSession({
+    for (const step of steps) {
+      const outcome = await runScriptInSession({
         sessionId: input.sessionId,
         userId: ctx.user.id,
         expiresAtSeconds,
-        script: pushScript,
+        script: step.script,
       });
-      if (!push.passed) {
+
+      // Bước setup hỏng KHÔNG được im lặng: mọi step sau đó sẽ sai, và triệu
+      // chứng ("lệnh trong bài không có tác dụng") không trỏ về một script thoát
+      // non-zero từ ba phút trước. Mỗi bước có câu lỗi RIÊNG vì ba nguyên nhân
+      // ứng với ba việc phải làm khác nhau.
+      if (!outcome.passed) {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: `Đẩy file kèm bài học thất bại (exit ${String(push.exitCode)}). Hãy khởi động lại phiên.`,
+          message: step.failureMessage(outcome.exitCode),
         });
       }
     }
 
-    if (phase.setup.background === null) {
-      return {
-        ran: false,
-        assetsPushed: pushable.length,
-        foreground: phase.setup.foreground,
-      };
-    }
-
-    const outcome = await runScriptInSession({
-      sessionId: input.sessionId,
-      userId: ctx.user.id,
-      expiresAtSeconds,
-      script: phase.setup.background,
-    });
-
-    // Script setup hỏng KHÔNG được im lặng: mọi step sau đó sẽ sai, và triệu
-    // chứng ("lệnh trong bài không có tác dụng") không trỏ về một script setup
-    // thoát non-zero từ ba phút trước.
-    if (!outcome.passed) {
-      throw new TRPCError({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: `Script chuẩn bị môi trường thất bại (exit ${outcome.exitCode}). Hãy khởi động lại phiên.`,
-      });
-    }
-    return { ran: true, assetsPushed: pushable.length, foreground: phase.setup.foreground };
+    // `ran` = script `background` CÓ chạy hay không — không phải "có bước nào
+    // chạy không". Một phase chỉ đẩy asset vẫn là `ran: false`, đúng như bản
+    // trước: FE đọc cờ này để biết môi trường bài đã được dựng chưa.
+    return {
+      ran: phase.setup.background !== null,
+      assetsPushed: pushable.length,
+      foreground: phase.setup.foreground,
+    };
   }),
 
   /**

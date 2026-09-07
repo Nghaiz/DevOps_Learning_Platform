@@ -2,6 +2,14 @@
 # Có CRLF là bash báo '\r': command not found và cả script chết. Khoá về LF để dù
 # edit trên Windows rồi scp sang VM, file vẫn luôn là LF.
 *.sh   text eol=lf
+
+# Script shell KHÔNG CÓ ĐUÔI — `*.sh` ở trên không phủ chúng. Đo bằng
+# `git check-attr -a`: `entrypoint.sh` ra `eol: lf`, còn `bin/dlp-motd` chỉ ra
+# `text: auto` (không luật eol nào). Nghĩa là checkout trên Windows cho CRLF, và
+# một script CRLF trong container hỏng TỪNG DÒNG với `: command not found` —
+# xa nhất có thể khỏi nguyên nhân. Cùng lý lẽ với `*.sh`, chỉ khác là phải gọi
+# tên vì không có đuôi để khớp.
+images/sandbox-base/bin/* text eol=lf
 *.yaml text eol=lf
 *.yml  text eol=lf
 

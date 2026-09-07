@@ -47,5 +47,59 @@ export default defineConfig({
      * lại cho tới khi xanh, và lúc đó một ô đỏ THẬT cũng bị chạy lại y hệt.
      */
     testTimeout: 15_000,
+
+    /**
+     * ⛔ KHÔNG đặt `environment: 'jsdom'` ở đây. Gói này KHÔNG phải một gói UI
+     * thuần: phần lớn test của nó là test TÍCH HỢP chạy trên Postgres/Node thật
+     * (`server/**` authz, `repository-page-sql`, `proxy.test.ts`…). Đổi env toàn
+     * cục là đổi nền dưới chân chúng — jsdom thay `fetch`/`Request`/`Response`,
+     * dựng một `window` không ai cần, và làm mỗi file test phải trả giá dựng
+     * một DOM (đo 2026-09-08: ~5s riêng cho pha `environment` ở một lượt chạy
+     * chỉ có 2 file jsdom).
+     *
+     * File nào CẦN DOM thì tự khai ở dòng 1 của chính nó:
+     *
+     *     // @vitest-environment jsdom
+     *
+     * Đã kiểm bằng ĐỐI CHỨNG ÂM trong cùng một lượt chạy (không suy từ tài
+     * liệu): file có docblock thấy `document`, file không có docblock vẫn thấy
+     * `typeof document === 'undefined'`. Docblock ăn, và nó KHÔNG rò sang file
+     * bên cạnh. Xem `components/session/workspace-panel.dom.test.tsx`.
+     *
+     * ⚠ `environmentMatchGlobs` — khuôn mà mọi ví dụ vitest 1/2 trên mạng dạy —
+     * KHÔNG còn tồn tại ở vitest 4. Đo 2026-09-08 trên `vitest@4.1.11` đã cài:
+     * grep toàn bộ package ra ĐÚNG 0 kết quả, kể cả trong `.d.ts`. Đặt nó vào
+     * đây thì TypeScript báo lỗi thừa key, còn nếu lọt qua thì nó im lặng không
+     * làm gì — tức mọi test DOM chạy ở env `node` và đỏ với `document is not
+     * defined`, một thông báo không hề nhắc tới cấu hình. Hai đường còn sống là
+     * docblock (đang dùng) và `test.projects`.
+     *
+     * Chọn docblock vì nó không bắt tái cấu trúc cả file cấu hình này — và vì
+     * `projects` sẽ nhân đôi chỗ khai `include`/`testTimeout`/`esbuild` ở trên,
+     * mỗi chỗ là một chỗ để trôi.
+     */
   },
+
+  /**
+   * ⛔ BẮT BUỘC — nếu không, mọi test render component ở gói này ĐỎ lúc chạy
+   * trong khi typecheck vẫn XANH.
+   *
+   * `tsconfig.json` khai `"jsx": "preserve"` vì trong bản dựng thật Next tự
+   * dịch JSX bằng SWC. Nhưng vitest không đi qua SWC — nó transform bằng
+   * esbuild, và esbuild ĐỌC `tsconfig.json`. Thấy `preserve`, nó rơi về runtime
+   * JSX **cổ điển** và sinh `React.createElement(...)`, trong khi mã nguồn theo
+   * quy ước React 17+ không hề `import React`. Kết quả: `ReferenceError: React
+   * is not defined` — ném lúc RENDER, không phải lúc biên dịch.
+   *
+   * Đó là lý do bẫy này khó truy: `pnpm --filter web typecheck` sạch tuyệt đối,
+   * nên mọi cổng kiểu đều nói "không sao", và chỉ ô test đỏ, với một thông báo
+   * không hề nhắc tới JSX hay tsconfig.
+   *
+   * Phát hiện 2026-09-07 khi thêm test đầu tiên cho một component của `apps/web`
+   * (`workspace-panel`). Trước đó gói này gần như không có test render component
+   * nào, nên cấu hình thiếu không gây triệu chứng — nó nằm đó chờ lane đầu tiên
+   * viết một test như vậy. Bản vá tạm là pragma `@jsxRuntime automatic` rải trên
+   * từng file; đặt ở đây thì mọi file sau này khỏi phải nhớ.
+   */
+  esbuild: { jsx: 'automatic' },
 });

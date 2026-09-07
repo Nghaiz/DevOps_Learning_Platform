@@ -212,6 +212,24 @@ func (b *Bridge) extendOnce(
 		return false
 	}
 
+	// ---- dòng "Phiên" của màn chào (A6) -----------------------------------
+	//
+	// Thiếu lượt ghi này thì người học bấm "Thêm giờ" xong vẫn thấy mốc cũ — sai
+	// về hướng an toàn (banner báo THIẾU giờ, không báo thừa), nhưng vẫn là sai.
+	//
+	// Cổng `>` KHÔNG phải vì đúng-sai: script trong pod tự chặn ghi lùi, nên ghi
+	// lại cùng một giá trị là vô hại. Nó là cổng GIÁ. Mỗi lượt là một
+	// `pods/exec`, `extendLoop` tick mỗi 60s khi có traffic, và
+	// `max(current, …)` của `extend.lua` giữ hạn ĐỨNG YÊN gần hết `SESSION_TTL`
+	// — tức phần lớn tick trả về đúng con số cũ. Không có cổng này là hàng chục
+	// lượt exec mỗi phút lên một apiserver đã restart 41 lần, để ghi lại thứ
+	// không đổi.
+	//
+	// Đọc `*announced` TRƯỚC `sendExpiring` vì hàm đó ghi đè nó.
+	if res.ExpiresAt > *announced {
+		b.pushDeadline(ctx, t, res.ExpiresAt)
+	}
+
 	b.sendExpiring(ctx, c, st, res, announced, hardCapAnnounced)
 	return true
 }

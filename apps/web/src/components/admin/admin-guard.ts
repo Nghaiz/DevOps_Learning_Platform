@@ -4,7 +4,10 @@ import { normalizeRole, type ViewerRole } from '../shell/nav';
  * Quyết định vào được `/admin` hay không — hàm THUẦN, để `layout.tsx` chỉ còn
  * một dòng `redirect(...)`.
  *
- * Tách ra vì `apps/web` chạy vitest ở `environment: 'node'` (không jsdom): một
+ * Tách ra vì `apps/web` chạy vitest ở `environment: 'node'` theo MẶC ĐỊNH (không
+ * jsdom) — ⚠ từ `727af45` mặc định đó bật được theo TỪNG FILE bằng docblock
+ * `// @vitest-environment jsdom`, nên đây là lựa chọn thiết kế chứ không còn là
+ * ràng buộc. Một
  * cổng phân quyền phải kiểm được bằng test, và cách duy nhất kiểm nó mà không
  * dựng cả Next là để nhánh quyết định nằm ngoài component. `role-gate.test.ts`
  * gọi CẢ hàm này LẪN chính `AdminLayout` (mock `next/navigation`) — hàm thuần

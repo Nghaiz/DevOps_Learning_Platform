@@ -189,6 +189,13 @@ type Bridge struct {
 	// tham số bắt buộc là bắt vài chục call-site test khai một thứ chúng không
 	// quan tâm, và làm loãng đúng chỗ đáng đọc kỹ.
 	podGone PodGoneFunc
+
+	// deadlineRunner ghi mốc hết hạn vào pod cho dòng "Phiên" của màn chào (A6).
+	// Xem deadline.go — kể cả vì sao nó chạy NỀN và cái giá của lựa chọn đó.
+	//
+	// nil ⇒ tắt hẳn, cùng khuôn nil-able với `podGone` và cùng lý do: không bắt
+	// vài chục call-site test khai một thứ chúng không quan tâm.
+	deadlineRunner DeadlineRunner
 }
 
 // SetPodProbe gắn phép hỏi apiserver. Gọi TRƯỚC lời gọi Serve đầu tiên.
@@ -344,6 +351,16 @@ func (b *Bridge) Serve(ctx context.Context, c *websocket.Conn, t Target) {
 
 	c.SetReadLimit(MaxFrameBytes)
 	st := &connState{}
+
+	// ---- dòng "Phiên" của màn chào (A6) -----------------------------------
+	//
+	// Bắn ở DÒNG SỚM NHẤT có thể, và đó là toàn bộ thứ ta làm được cho cuộc đua
+	// này: lượt ghi phải xong TRƯỚC khi `.bashrc` trong pod chạy `dlp-motd`, mà
+	// hai đường đi qua cùng một `pods/exec` với chi phí bắt tay tương đương. Đặt
+	// ở đây cho nó lợi thế xuất phát bằng đúng `readInit` (chờ tới 3s) cộng lượt
+	// dial exec của terminal — nhiều nhất có thể mà KHÔNG thêm một mili-giây nào
+	// vào đường attach. Xem `pushDeadline` để biết vì sao không chờ nó.
+	b.pushDeadline(ctx, t, t.ExpiresAt)
 
 	// ---- drain (3.H) ------------------------------------------------------
 	//

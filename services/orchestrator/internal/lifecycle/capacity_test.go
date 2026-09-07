@@ -2,9 +2,16 @@ package lifecycle
 
 import (
 	"context"
+	"io"
+	"log/slog"
+	"math"
 	"testing"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 
 	orchestratorv1 "github.com/Nghaiz/DevOps_Learning_Platform/proto/gen/go/orchestrator/v1"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/orchestrator/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/shared/rediskeys"
 )
 
@@ -96,5 +103,77 @@ func TestGetCapacityPoolRong(t *testing.T) {
 	if resp.GetSoftCapacity() != 20 || resp.GetHardCapacity() != 23 {
 		t.Errorf("Soft/Hard = %d/%d, cần 20/23 ngay cả khi pool rỗng — hai số này tới từ cấu hình, "+
 			"không phải từ phép đo pool", resp.GetSoftCapacity(), resp.GetHardCapacity())
+	}
+}
+
+// TestClampInt32 — biên của phép hạ kiểu xuống int32 của proto.
+//
+// Ô quan trọng nhất là hai dòng "vượt MaxInt32": ép thẳng `int32(v)` cho ra số
+// ÂM ở đúng hai dòng đó, và số âm là thứ FE không có cách nào phân biệt với
+// một cụm đang hỏng thật.
+func TestClampInt32(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   int64
+		want int32
+	}{
+		{"pool rỗng", 0, 0},
+		{"giá trị thường (trần lab)", 23, 23},
+		{"đúng MaxInt32 — vẫn đi nguyên vẹn", math.MaxInt32, math.MaxInt32},
+		{"MaxInt32+1 — biên dưới của vùng cắt vòng", math.MaxInt32 + 1, math.MaxInt32},
+		{"CAPACITY_HARD_LIMIT thừa một chữ số", 3_000_000_000, math.MaxInt32},
+		{"MaxInt64", math.MaxInt64, math.MaxInt32},
+		{"âm (Config dựng tay, không qua Load)", -1, 0},
+		{"MinInt64", math.MinInt64, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := clampInt32(tc.in); got != tc.want {
+				t.Errorf("clampInt32(%d) = %d, cần %d", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestGetCapacityKhongPhatSoAmKhiHardLimitVoLy — CỔNG CALL-SITE.
+//
+// TestClampInt32 ở trên chỉ chứng minh cái hàm đúng; nó vẫn xanh nguyên vẹn
+// nếu ai đó đổi GetCapacity về `int32(…)` thẳng và bỏ hàm lại đó làm mã chết.
+// Ô này gọi ĐÚNG đường thật và đỏ ngay khi call-site mất clamp.
+//
+// 3_000_000_000 không phải số bịa cho vui: `CAPACITY_HARD_LIMIT` đọc bằng
+// `strconv.Atoi` và chỉ bị kiểm `> 0` + `> POOL_TARGET` (config.Load, và
+// NewService lặp lại đúng hai điều kiện đó) — KHÔNG có trần trên. Thừa một chữ
+// số trong Helm values là qua sạch mọi cổng khởi động. Không clamp thì FE nhận
+// −1294967296.
+func TestGetCapacityKhongPhatSoAmKhiHardLimitVoLy(t *testing.T) {
+	rdb := newTestRedis(t)
+	svc, err := NewService(rdb, &fakePool{rdb: rdb}, &fakePodDeleter{}, nil, nil, Config{
+		Namespace:         "dlp-sandbox",
+		SessionTTL:        time.Hour,
+		HardCap:           2 * time.Hour,
+		ExtendDefault:     5 * time.Minute,
+		CapacityHardLimit: 3_000_000_000,
+		PoolTarget:        3,
+	}, slog.New(slog.NewJSONHandler(io.Discard, nil)), metrics.New(prometheus.NewRegistry()))
+	if err != nil {
+		t.Fatalf("NewService với CAPACITY_HARD_LIMIT=3e9: %v — nếu đây là lỗi CHẶN TRÊN mới thêm "+
+			"thì test này đã hết lý do tồn tại, xoá nó đi thay vì nới số", err)
+	}
+
+	resp, err := svc.GetCapacity(context.Background(), &orchestratorv1.GetCapacityRequest{})
+	if err != nil {
+		t.Fatalf("GetCapacity: %v", err)
+	}
+	if resp.GetHardCapacity() < 0 || resp.GetSoftCapacity() < 0 {
+		t.Fatalf("Hard/Soft = %d/%d — ÂM. Call-site đã mất clampInt32 và int32(…) cắt vòng",
+			resp.GetHardCapacity(), resp.GetSoftCapacity())
+	}
+	if resp.GetHardCapacity() != math.MaxInt32 {
+		t.Errorf("HardCapacity = %d, cần MaxInt32 (%d) — kẹp ở trần, không phải một số khác",
+			resp.GetHardCapacity(), int32(math.MaxInt32))
+	}
+	if resp.GetSoftCapacity() != math.MaxInt32 {
+		// 3e9 − 3 vẫn vượt MaxInt32 nên trần mềm cũng chạm trần kẹp.
+		t.Errorf("SoftCapacity = %d, cần MaxInt32 (%d)", resp.GetSoftCapacity(), int32(math.MaxInt32))
 	}
 }

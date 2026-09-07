@@ -19,6 +19,29 @@ export { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
 export { WorkspaceSplit } from './workspace-split.tsx';
 export type { WorkspaceSplitProps } from './workspace-split.tsx';
 
+// §Y1/§Y4 — khoang phải kiểu KillerCoda: MỘT terminal, hiện ở CẢ HAI tab (neo
+// đáy ~40% ở tab Editor, toàn khoang ở tab Terminal). ⛔ Bất biến của nó:
+// terminal KHÔNG đổi cha và KHÔNG BAO GIỜ bị ẩn — đọc chú thích đầu
+// `workspace-panel.tsx` trước khi sửa.
+export { WorkspacePanel } from './workspace-panel.tsx';
+export type { WorkspacePanelProps } from './workspace-panel.tsx';
+export {
+  EDITOR_TAB,
+  TERMINAL_TAB,
+  WORKSPACE_TAB_LABEL,
+  listWorkspaceTabs,
+  workspaceStorageKey,
+} from './workspace-tabs';
+export type { WorkspaceTabId } from './workspace-tabs';
+
+// Kênh "hình học khoang terminal vừa đổi" + hệ quả `fit()` của nó (§C3/§Y1).
+// `TerminalPane` đã tự dùng — trang tiêu thụ KHÔNG cần gọi gì thêm.
+export {
+  WorkspaceLayoutProvider,
+  useFitOnLayoutChange,
+  useWorkspaceLayout,
+} from './workspace-layout.tsx';
+
 // Khung khoang + trạng thái phiên dùng chung cho màn hình học. Bốn trình học
 // vẽ cùng một thanh nhãn và cùng một viên trạng thái, nên chúng sống ở đây
 // chứ không ở từng route — ba bản chép tay của khối C5 cũ đã lệch nhau một
@@ -32,8 +55,16 @@ export type { PhaseIconProps, SessionStatusPillProps } from './session-status.ts
 // tay chúng ở mỗi trang là cách bốn trang bắt đầu nói bốn thứ khác nhau về
 // cùng một pha phiên.
 export { SESSION_PHASE_LABEL, phaseBadgeVariant, TTL_URGENT_MS, TTL_VISIBLE_MS } from './session-phase';
-export { describeCapacity } from './capacity';
-export type { CapacityHint, CapacitySnapshot, CapacityTone } from './capacity';
+export { describeCapacity, DEFAULT_PROFILE } from './capacity';
+export type {
+  CapacityHint,
+  CapacitySnapshot,
+  CapacityTone,
+  KnownCapacityHint,
+  ProfileCapacity,
+  ProfileCapacityView,
+  UnknownCapacityHint,
+} from './capacity';
 export { IDE_BOOT_TIMEOUT_MS, IDE_LAYOUT, ideSessionUrl, shouldShowIdePane } from './ide-layout';
 export { resolveTerminalTheme } from './terminal-theme';
 export { ShellFallbackNotice } from './shell-fallback-notice.tsx';

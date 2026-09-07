@@ -494,15 +494,32 @@ xác nhận sẽ đọc ra `en_US.utf8` rồi kết luận ngược.
 `LC_COLLATE=C` tường minh lúc `initdb` (đổi ảnh không thôi KHÔNG đủ vì database
 đã tồn tại), và thêm một test khẳng định `'B' < 'a'` ở tầng DB.
 
-**13. Nợ đã biết, ghi để khỏi tưởng là mới:** `/ws` và `/exec` cũng phát JSON trên
-origin app mà không có `nosniff`. Rủi ro thấp hơn hẳn `/ide` (không proxy nội dung
-do người dùng điều khiển) nên lượt này cố ý không mở rộng phạm vi. Muốn đóng thì đó
-là một lời gọi `setSecurityHeaders` trong `wsroute`/`execroute` — cùng ảnh gateway,
-không thêm bước deploy nào.
+**13. ĐÃ ĐÓNG 2026-09-08 (`64be7bc`).** Nợ cũ: `/ws` và `/exec` phát JSON trên
+origin app mà không có `nosniff`. Đóng bằng một package SSOT `internal/secheaders`
+dùng chung cho cả ba route: `SetAPI` (nền + `default-src 'none'`) ở `/ws` và `/exec`,
+`SetBase` + CSP riêng ở `/ide`. 15 ô test mới phủ TỪNG nhánh `return` sớm — mỗi nhánh
+là một chỗ quên riêng — và đối chứng dương chạy thật cho 15 ô đỏ.
+
+Hai điều đo được lúc đóng, đáng giữ lại:
+
+- **Header SỐNG được qua handshake 101.** `coder/websocket@v1.8.15` gọi
+  `WriteHeader(101)` ở `accept.go:151` RỒI mới `Hijack()` ở `:159`, và `net/http`
+  flush chunkWriter ngay trong `Hijack()` khi `wroteHeader` đã bật. Nên lời gọi phải
+  nằm ở dòng ĐẦU của `serve`, trước `websocket.Accept`: sau hijack thì
+  `ResponseWriter` vô dụng. Đây là hành vi của hai thư viện NGOÀI ở hai version có
+  thể đổi, nên có test đọc thẳng `resp.Header` của chính response 101.
+- **CHƯA phủ response do `http.ServeMux` tự sinh** (404 path lạ, 405 sai method) —
+  chúng không đi qua route nào nên không lời gọi nào chạm tới. Chấp nhận có ý thức:
+  body của chúng là hằng `text/plain` của thư viện chuẩn, không mang nội dung do
+  người dùng điều khiển. Đóng nốt = một middleware bọc `publicMux`, không phải
+  "một lời gọi nữa".
+
+⛔ Bản vá chỉ có hiệu lực SAU khi side-load ảnh gateway mới. Với ảnh đang chạy,
+KHÔNG có gì đỏ lên — cùng hạng im lặng với lỗ S1 ở mục 12.
 
 ## 4. Kỷ luật git & xác minh cho MỌI sub-agent
 
-- **`reports/` là QUY ƯỚC cục bộ, KHÔNG phải hàng rào — `git add` sẽ THÀNH CÔNG.** Đừng commit report; nhưng biết đúng lý do: `git ls-files reports` trả **0** (chưa từng có file report nào lên git), trong khi `git check-ignore` trên file report thật trả **exit 1**, tức không luật ignore nào khớp. Bản đầu của dòng này ghi "bị `.gitignore` dòng 72 chặn" — **SAI**: dòng 72 là `plans/devops-learning-platform/reports/harness/*/.barrier-*/`, một đường khác hẳn. (`git check-ignore -v reports/` có in ra dòng 72 với ô pattern RỖNG; đó là hành vi lạ của git khi đối số là thư mục, không phải một luật khớp thật. Kiểm trên FILE, đừng kiểm trên thư mục — và đừng nối `| head` rồi đọc `$?`, vì khi ấy `$?` là mã thoát của `head`.) Hệ quả: một `git add -A` của bất kỳ ai sẽ kéo cả `reports/` lên — thêm một lý do nữa để giữ lệnh cấm `git add -A`. Muốn thành hàng rào thật thì phải thêm `reports/` vào `.gitignore`; **chưa làm, chờ chủ dự án quyết**. Hệ quả cho lane: file trên đĩa LÀ deliverable, và vì nó không lên git nên phát hiện quan trọng phải được nhắc lại trong tin nhắn báo cáo chứ không chỉ nằm trong file.
+- **`reports/` là QUY ƯỚC cục bộ, KHÔNG phải hàng rào — `git add` sẽ THÀNH CÔNG.** Đừng commit report; nhưng biết đúng lý do: `git ls-files reports` trả **0** (chưa từng có file report nào lên git), trong khi `git check-ignore` trên file report thật trả **exit 1**, tức không luật ignore nào khớp. Bản đầu của dòng này ghi "bị `.gitignore` dòng 72 chặn" — **SAI**: dòng 72 là `plans/devops-learning-platform/reports/harness/*/.barrier-*/`, một đường khác hẳn. (`git check-ignore -v reports/` có in ra dòng 72 với ô pattern RỖNG; đó là hành vi lạ của git khi đối số là thư mục, không phải một luật khớp thật. Kiểm trên FILE, đừng kiểm trên thư mục — và đừng nối `| head` rồi đọc `$?`, vì khi ấy `$?` là mã thoát của `head`.) Hệ quả: một `git add -A` của bất kỳ ai sẽ kéo cả `reports/` lên — thêm một lý do nữa để giữ lệnh cấm `git add -A`. ⚠ **ĐÃ QUYẾT 2026-09-08, và quyết KHÁC hướng dòng này đề xuất.** `fdd6d6e` từng thêm `reports/` trần, nhưng luật đó ăn mất chính thứ nó bảo vệ: `RESULTS.md` của lượt nghiệm thu P13 chưa bao giờ vào git. Nay chặn theo **ĐUÔI FILE** (`dddb0cf`): `.md`/`.txt`/`.json` LÊN git, ảnh/log/jsonl/kho nén ở lại máy. Hai bẫy đo được lúc làm — (a) pattern có `/` ở GIỮA bị git neo vào thư mục chứa `.gitignore`, nên `reports/harness/` trần KHÔNG khớp `plans/…/reports/harness/`; phải `**/`. (b) `git check-ignore` BỎ QUA file đã tracked, nên nó trả "không chặn" cho một luật thật ra có khớp; phải thêm `--no-index`. Và một đính chính cho chính dòng này: `git ls-files reports` **không** trả 0 — 236 file report đã nằm trong git từ trước, vì `.gitignore` không bao giờ gỡ file đã tracked. Hệ quả cho lane: file trên đĩa LÀ deliverable, và vì nó không lên git nên phát hiện quan trọng phải được nhắc lại trong tin nhắn báo cáo chứ không chỉ nằm trong file.
 - Một nhánh, một working tree dùng chung. **CẤM** `git add .`/`-A`, `git commit -a`, `git checkout`/`switch`/`stash`, `git pull`, `git push`. Commit bằng **pathspec**: `git add <đường dẫn tường minh>` cho file mới rồi `git commit -m "<type>(p13): …" -- <đường dẫn…>`. Commit nhỏ, thường xuyên; commit trước khi báo cáo.
 - Chỉ sửa file trong cột "Sở hữu". Cần sửa file của lane khác ⇒ **báo lead** trong report, kèm patch đề xuất; không tự sửa.
 - Xác minh cục bộ: `pnpm --filter <package> typecheck|lint|test`. **CẤM `next build` ở đợt 2** (`.next/` dùng chung; lead build một lượt). Lỗi typecheck nằm ngoài path sở hữu ⇒ ghi vào report, không sửa.

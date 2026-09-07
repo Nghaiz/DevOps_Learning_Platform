@@ -24,6 +24,7 @@ import (
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/drain"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/secheaders"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionauth"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"github.com/coder/websocket"
@@ -163,6 +164,19 @@ type handler struct {
 func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	sessionID := r.PathValue("id")
+
+	// ---- header an ninh: TRƯỚC mọi nhánh, kể cả nhánh từ chối và kể cả 101 ---
+	//
+	// Đặt ở đây một lần thay vì rải vào từng nhánh: handler này có tám `return`
+	// sớm, và mỗi cái là một chỗ quên. Một header an ninh chỉ có trên đường
+	// hạnh phúc là một header không có.
+	//
+	// ⚠ VỊ TRÍ NÀY LÀ BẮT BUỘC, KHÔNG PHẢI PHONG CÁCH. `websocket.Accept` ở dưới
+	// gọi `w.WriteHeader(101)` rồi HIJACK kết nối; sau lượt hijack đó
+	// `http.ResponseWriter` không còn dùng được, nên mọi header phải đã nằm
+	// trong `w.Header()` từ trước. Vế "header vẫn ra được trong response 101"
+	// KHÔNG suy luận — nó được ghim bằng `TestWSDatHeaderAnNinhTrenHandshake101`.
+	secheaders.SetAPI(w.Header())
 
 	// ---- drain: đếm TRỌN handler, kể cả các defer ------------------------
 	//

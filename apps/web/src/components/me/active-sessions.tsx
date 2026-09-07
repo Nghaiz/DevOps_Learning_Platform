@@ -24,7 +24,7 @@ import {
 } from '@devops-platform/ui';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
-import { describeCapacity, useCapacity } from '../shell';
+import { describeProfileCapacity, useCapacity } from '../shell';
 import {
   describeEndSessionError,
   describeMySessionStatus,
@@ -84,7 +84,18 @@ export function ActiveSessions(): ReactElement {
     },
   });
 
-  const reading = capacity.data === null ? null : describeCapacity(capacity.data);
+  /*
+    Trần đọc từ ResourceQuota theo profile (`5135cf9`), không còn
+    `softCapacity` viết tay. Không truyền profile ⇒ profile MẶC ĐỊNH: trang này
+    liệt kê phiên của mọi loại bài nên không có một profile nào để nói riêng, và
+    câu chữ của vỏ đã tự thu hẹp về "cho bài thường".
+
+    Hai ca `null` gộp làm một ở đây, có chủ ý: chưa có payload (`capacity.data
+    === null`) và có payload nhưng quota đọc lỗi đều nghĩa là ta KHÔNG biết —
+    khác nhau ở nguyên nhân, giống nhau ở việc không được bịa một con số.
+  */
+  const reading = capacity.data === null ? null : describeProfileCapacity(capacity.data);
+  const capacityUnknown = capacity.data !== null && reading === null;
   const now = Date.now();
 
   /**
@@ -111,12 +122,22 @@ export function ActiveSessions(): ReactElement {
           Phiên đang mở
         </h2>
         {/*
-          `null` = CHƯA BIẾT, khác hẳn "biết là đã đầy" (xem `readCapacity`).
-          Không vẽ gì khi chưa biết, thay vì bịa một con số.
+          `null` = CHƯA BIẾT, khác hẳn "biết là đã đầy" (xem `readProfileCapacity`).
+          Chưa có payload thì không vẽ gì; có payload mà quota đọc lỗi thì NÓI RA
+          là chưa rõ — ⛔ không lấp bằng `softCapacity`, chính con số đó đã in
+          "Còn 14 chỗ" trong lúc server trả 429.
         */}
         {reading !== null && (
           <Badge variant={capacityBadgeVariant(reading.tone)} title={reading.detail}>
             {reading.label}
+          </Badge>
+        )}
+        {capacityUnknown && (
+          <Badge
+            variant="outline"
+            title="Máy chủ chưa đọc được hạn mức của cụm, nên không nói được còn mấy chỗ."
+          >
+            Chưa rõ sức chứa
           </Badge>
         )}
       </div>

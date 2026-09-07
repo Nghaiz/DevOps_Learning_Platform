@@ -23,6 +23,24 @@ export const phaseRefSchema = z.discriminatedUnion('kind', [
 export type PhaseRef = z.infer<typeof phaseRefSchema>;
 
 /**
+ * Phase ĐẦU TIÊN của bài — chỗ duy nhất "một lần cho mỗi phiên" được chạy.
+ *
+ * ⛔ KHÔNG chốt cứng `kind === 'intro'`: `intro` là **tuỳ chọn** trong
+ * `index.json`, nên một bài không có intro sẽ không bao giờ khớp và phần việc
+ * gắn vào phase đầu im lặng không bao giờ chạy. Suy phase đầu từ chính scenario.
+ *
+ * Tách ra khỏi `isAssetPushPhase` khi `toolset` (C4) cần ĐÚNG cùng phép suy
+ * này: hai bản chép của cùng một quyết định là hai bản sẽ lệch, và triệu chứng
+ * của lần lệch đó ("công cụ bật ở bài có intro, không bật ở bài không có") sẽ
+ * không trỏ về đâu cả.
+ */
+export function isFirstPhase(scenario: Scenario, phase: PhaseRef): boolean {
+  return scenario.intro !== null
+    ? phase.kind === 'intro'
+    : phase.kind === 'step' && phase.index === 0;
+}
+
+/**
  * Lấy phase theo ref, hoặc ném `NOT_FOUND` kèm thông điệp nói rõ bài có gì.
  *
  * ⚠ Tách khỏi router và export vì một lý do cụ thể: nhánh `intro === null` /

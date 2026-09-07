@@ -27,6 +27,8 @@ export const playgroundFileSchema = z
     backend: contentBackendRefSchema,
     interface: contentInterfaceRefSchema.optional(),
     ttlSeconds: z.number().int().min(300).max(7200),
+    /** Hợp đồng §C4 — xem `labFileSchema.toolset`, cùng hình dạng, cùng lý do. */
+    toolset: z.array(z.string()).default([]),
   })
   .strict();
 export type PlaygroundFile = z.infer<typeof playgroundFileSchema>;

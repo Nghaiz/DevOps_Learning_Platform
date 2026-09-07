@@ -42,6 +42,16 @@
  * và KHÔNG ghi gì cả. Một script seed âm thầm đè lên bài người thật vừa soạn là
  * cách mất nội dung mà không ai biết là đã mất.
  *
+ * AI PHẢI GỌI NÓ, VÀ KHI NÀO
+ * ---------------------------
+ * Mọi nơi dựng một Postgres mới: cụm mới, VÀ mọi job CI chạy E2E. `db:migrate`
+ * tạo bảng — nó không nạp gì cả. Bỏ bước này thì `/paths` + `/quiz` rỗng trong
+ * khi `/lessons` + `/labs` đầy đủ, và triệu chứng KHÔNG nêu tên nguyên nhân:
+ * `paths.list` trả `items: []` hoàn toàn hợp lệ, không log lỗi nào, và thứ đỏ
+ * lên là một test cách đó vài tầng với câu "paths.list trả 0 mục". Đã xảy ra
+ * thật ở CI run 34130030953 — lượt chạy đầu tiên của job `web-a11y`, bốn ô đỏ.
+ * Ghi lại ở `docs/content-sources.md` § "Ngoài bảng trên".
+ *
  * DÙNG
  * ----
  *   node scripts/seed-content.mjs --check           # chỉ kiểm nội dung, không cần DB

@@ -1060,9 +1060,31 @@ type GetCapacityResponse struct {
 	//
 	// Phơi ra cho FE/admin để hai trần KHÔNG bị gộp lại thành một: "còn N chỗ"
 	// dùng soft, còn trang quản trị đọc được cả "20/23" và thấy phần đệm.
-	HardCapacity  int32 `protobuf:"varint,5,opt,name=hard_capacity,json=hardCapacity,proto3" json:"hard_capacity,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HardCapacity int32 `protobuf:"varint,5,opt,name=hard_capacity,json=hardCapacity,proto3" json:"hard_capacity,omitempty"`
+	// quota_readable = false ⇒ `profile_capacity` VÔ NGHĨA (rỗng), và client
+	// PHẢI nói "chưa rõ sức chứa" chứ KHÔNG được rơi về `soft_capacity`.
+	//
+	// Một "còn 14 chỗ" sai tệ hơn một "chưa rõ": người học bấm Bắt đầu rồi ăn
+	// 429, đúng chế độ hỏng mà ô AC này tồn tại để diệt.
+	QuotaReadable bool `protobuf:"varint,6,opt,name=quota_readable,json=quotaReadable,proto3" json:"quota_readable,omitempty"`
+	// quota_error là lý do đọc quota thất bại — chỉ để hiển thị/truy ngược, RỖNG
+	// khi quota_readable = true. Nội dung là lỗi RBAC/API của apiserver (ví dụ
+	// 403 thiếu quyền `resourcequotas`), không mang dữ liệu người dùng.
+	QuotaError string `protobuf:"bytes,7,opt,name=quota_error,json=quotaError,proto3" json:"quota_error,omitempty"`
+	// profile_capacity: TÊN profile → sức chứa cho riêng profile đó.
+	//
+	// Khoá "" (chuỗi RỖNG) là profile MẶC ĐỊNH — cùng quy ước với
+	// `CreateSessionRequest.profile`, nơi rỗng nghĩa là "không khai profile".
+	// Dùng đúng một quy ước ở cả hai chiều để client không phải ánh xạ
+	// ""↔"default", vì một ánh xạ như thế là chỗ để lệch.
+	//
+	// ⛔ KHOÁ VẮNG MẶT = CHƯA BIẾT cho profile đó, KHÔNG phải 0. Ca thật: profile
+	// mặc định biến mất khỏi map khi namespace không có LimitRange cấp
+	// defaultRequest/default (pod mặc định không khai resources, nên chi phí của
+	// nó do LimitRange quyết định — orchestrator không được đoán hộ).
+	ProfileCapacity map[string]*ProfileCapacity `protobuf:"bytes,8,rep,name=profile_capacity,json=profileCapacity,proto3" json:"profile_capacity,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *GetCapacityResponse) Reset() {
@@ -1130,6 +1152,107 @@ func (x *GetCapacityResponse) GetHardCapacity() int32 {
 	return 0
 }
 
+func (x *GetCapacityResponse) GetQuotaReadable() bool {
+	if x != nil {
+		return x.QuotaReadable
+	}
+	return false
+}
+
+func (x *GetCapacityResponse) GetQuotaError() string {
+	if x != nil {
+		return x.QuotaError
+	}
+	return ""
+}
+
+func (x *GetCapacityResponse) GetProfileCapacity() map[string]*ProfileCapacity {
+	if x != nil {
+		return x.ProfileCapacity
+	}
+	return nil
+}
+
+// ProfileCapacity là sức chứa còn lại cho MỘT profile, TÍNH LÚC ĐỌC từ
+// ResourceQuota của namespace sandbox.
+//
+// Cả hai số là `min` qua CẢ NĂM đại lượng quota gác (`pods`, `requests.cpu`,
+// `requests.memory`, `limits.cpu`, `limits.memory`) — xem
+// `k8s.quotaKeys`/`k8s.Slots`. Chỉ chia RAM là đúng trên cụm hôm nay và SAI
+// trên cụm nhiều RAM ít pod, nơi `pods` mới là vế chặn.
+type ProfileCapacity struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// slots_free = số pod MỚI còn tạo thêm được cho profile này, từ
+	// `hard − used` của quota tại thời điểm gọi.
+	//
+	// ⚠ Đây là CẬN DƯỚI có chủ ý: nó KHÔNG cộng pod ấm đang nằm sẵn trong
+	// `pool:free` (những pod đó đã nằm trong `used` của quota, và một phiên
+	// profile mặc định có thể claim ngay một trong số chúng mà không tạo pod
+	// mới). Chọn cận dưới vì hai lẽ: báo ÍT hơn thì người dùng bấm Bắt đầu vẫn
+	// vào được, còn báo NHIỀU hơn thì họ ăn 429 — chính lỗi đang vá; và
+	// `pool:free` là một index Redis có thể giữ tên pod đã chết (xem chú thích
+	// `active_sessions`), nên cộng nó vào là mượn thêm một nguồn sai.
+	SlotsFree int32 `protobuf:"varint,1,opt,name=slots_free,json=slotsFree,proto3" json:"slots_free,omitempty"`
+	// slots_total = trần của profile này khi quota TRỐNG HOÀN TOÀN (`hard ÷ chi
+	// phí một pod`). Mẫu số để client nói "còn 6/7" và để quyết định ngưỡng "sắp
+	// hết" theo TỈ LỆ thay vì một hằng số viết tay.
+	//
+	// Với quota cụm lab: mặc định 23 · ide 7 · k8s 5 · k8s-multinode 3.
+	//
+	// ⚠ NỢ ĐÃ BIẾT: `slots_total` của profile mặc định và `hard_capacity` (env)
+	// trả lời CÙNG một câu hỏi từ HAI nguồn — env là nguồn thừa. Không gỡ env
+	// trong bản này vì `soft_capacity`, `config.Load` và trang quản trị đều đang
+	// đọc nó; ghi ra đây để lần sau không ai coi sự tồn tại của cả hai là bình
+	// thường.
+	SlotsTotal    int32 `protobuf:"varint,2,opt,name=slots_total,json=slotsTotal,proto3" json:"slots_total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProfileCapacity) Reset() {
+	*x = ProfileCapacity{}
+	mi := &file_orchestrator_v1_session_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProfileCapacity) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProfileCapacity) ProtoMessage() {}
+
+func (x *ProfileCapacity) ProtoReflect() protoreflect.Message {
+	mi := &file_orchestrator_v1_session_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProfileCapacity.ProtoReflect.Descriptor instead.
+func (*ProfileCapacity) Descriptor() ([]byte, []int) {
+	return file_orchestrator_v1_session_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ProfileCapacity) GetSlotsFree() int32 {
+	if x != nil {
+		return x.SlotsFree
+	}
+	return 0
+}
+
+func (x *ProfileCapacity) GetSlotsTotal() int32 {
+	if x != nil {
+		return x.SlotsTotal
+	}
+	return 0
+}
+
 // ListSessions liệt kê session ĐANG SỐNG (status < EXPIRED), lọc theo user_id.
 //
 // ⛔ KHÔNG CÓ INDEX RIÊNG THEO user_id — docs/redis-key-namespace.md chốt SSOT
@@ -1159,7 +1282,7 @@ type ListSessionsRequest struct {
 
 func (x *ListSessionsRequest) Reset() {
 	*x = ListSessionsRequest{}
-	mi := &file_orchestrator_v1_session_proto_msgTypes[13]
+	mi := &file_orchestrator_v1_session_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1171,7 +1294,7 @@ func (x *ListSessionsRequest) String() string {
 func (*ListSessionsRequest) ProtoMessage() {}
 
 func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_orchestrator_v1_session_proto_msgTypes[13]
+	mi := &file_orchestrator_v1_session_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1184,7 +1307,7 @@ func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
 func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_orchestrator_v1_session_proto_rawDescGZIP(), []int{13}
+	return file_orchestrator_v1_session_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListSessionsRequest) GetUserId() string {
@@ -1218,7 +1341,7 @@ type ListSessionsResponse struct {
 
 func (x *ListSessionsResponse) Reset() {
 	*x = ListSessionsResponse{}
-	mi := &file_orchestrator_v1_session_proto_msgTypes[14]
+	mi := &file_orchestrator_v1_session_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1230,7 +1353,7 @@ func (x *ListSessionsResponse) String() string {
 func (*ListSessionsResponse) ProtoMessage() {}
 
 func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_orchestrator_v1_session_proto_msgTypes[14]
+	mi := &file_orchestrator_v1_session_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1243,7 +1366,7 @@ func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
 func (*ListSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_orchestrator_v1_session_proto_rawDescGZIP(), []int{14}
+	return file_orchestrator_v1_session_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListSessionsResponse) GetSessions() []*Session {
@@ -1319,13 +1442,25 @@ const file_orchestrator_v1_session_proto_rawDesc = "" +
 	"\x15ExtendSessionResponse\x122\n" +
 	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\x12(\n" +
 	"\x10hard_cap_reached\x18\x02 \x01(\bR\x0ehardCapReached\"\x14\n" +
-	"\x12GetCapacityRequest\"\xce\x01\n" +
+	"\x12GetCapacityRequest\"\xe2\x03\n" +
 	"\x13GetCapacityResponse\x12'\n" +
 	"\x0factive_sessions\x18\x01 \x01(\x05R\x0eactiveSessions\x12#\n" +
 	"\rsoft_capacity\x18\x02 \x01(\x05R\fsoftCapacity\x12\x1b\n" +
 	"\tpool_free\x18\x03 \x01(\x05R\bpoolFree\x12'\n" +
 	"\x0fpool_quarantine\x18\x04 \x01(\x05R\x0epoolQuarantine\x12#\n" +
-	"\rhard_capacity\x18\x05 \x01(\x05R\fhardCapacity\"\\\n" +
+	"\rhard_capacity\x18\x05 \x01(\x05R\fhardCapacity\x12%\n" +
+	"\x0equota_readable\x18\x06 \x01(\bR\rquotaReadable\x12\x1f\n" +
+	"\vquota_error\x18\a \x01(\tR\n" +
+	"quotaError\x12d\n" +
+	"\x10profile_capacity\x18\b \x03(\v29.orchestrator.v1.GetCapacityResponse.ProfileCapacityEntryR\x0fprofileCapacity\x1ad\n" +
+	"\x14ProfileCapacityEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x126\n" +
+	"\x05value\x18\x02 \x01(\v2 .orchestrator.v1.ProfileCapacityR\x05value:\x028\x01\"Q\n" +
+	"\x0fProfileCapacity\x12\x1d\n" +
+	"\n" +
+	"slots_free\x18\x01 \x01(\x05R\tslotsFree\x12\x1f\n" +
+	"\vslots_total\x18\x02 \x01(\x05R\n" +
+	"slotsTotal\"\\\n" +
 	"\x13ListSessionsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
@@ -1371,7 +1506,7 @@ func file_orchestrator_v1_session_proto_rawDescGZIP() []byte {
 }
 
 var file_orchestrator_v1_session_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_orchestrator_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_orchestrator_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_orchestrator_v1_session_proto_goTypes = []any{
 	(SandboxTier)(0),              // 0: orchestrator.v1.SandboxTier
 	(SessionStatus)(0),            // 1: orchestrator.v1.SessionStatus
@@ -1388,41 +1523,45 @@ var file_orchestrator_v1_session_proto_goTypes = []any{
 	(*ExtendSessionResponse)(nil), // 12: orchestrator.v1.ExtendSessionResponse
 	(*GetCapacityRequest)(nil),    // 13: orchestrator.v1.GetCapacityRequest
 	(*GetCapacityResponse)(nil),   // 14: orchestrator.v1.GetCapacityResponse
-	(*ListSessionsRequest)(nil),   // 15: orchestrator.v1.ListSessionsRequest
-	(*ListSessionsResponse)(nil),  // 16: orchestrator.v1.ListSessionsResponse
-	(*timestamppb.Timestamp)(nil), // 17: google.protobuf.Timestamp
+	(*ProfileCapacity)(nil),       // 15: orchestrator.v1.ProfileCapacity
+	(*ListSessionsRequest)(nil),   // 16: orchestrator.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),  // 17: orchestrator.v1.ListSessionsResponse
+	nil,                           // 18: orchestrator.v1.GetCapacityResponse.ProfileCapacityEntry
+	(*timestamppb.Timestamp)(nil), // 19: google.protobuf.Timestamp
 }
 var file_orchestrator_v1_session_proto_depIdxs = []int32{
 	1,  // 0: orchestrator.v1.Session.status:type_name -> orchestrator.v1.SessionStatus
-	17, // 1: orchestrator.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	19, // 1: orchestrator.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: orchestrator.v1.Session.tier:type_name -> orchestrator.v1.SandboxTier
-	17, // 3: orchestrator.v1.Session.created_at:type_name -> google.protobuf.Timestamp
+	19, // 3: orchestrator.v1.Session.created_at:type_name -> google.protobuf.Timestamp
 	0,  // 4: orchestrator.v1.CreateSessionRequest.tier:type_name -> orchestrator.v1.SandboxTier
 	2,  // 5: orchestrator.v1.CreateSessionResponse.session:type_name -> orchestrator.v1.Session
 	2,  // 6: orchestrator.v1.ClaimSessionResponse.session:type_name -> orchestrator.v1.Session
 	2,  // 7: orchestrator.v1.GetSessionResponse.session:type_name -> orchestrator.v1.Session
 	2,  // 8: orchestrator.v1.ReapSessionResponse.session:type_name -> orchestrator.v1.Session
 	2,  // 9: orchestrator.v1.ExtendSessionResponse.session:type_name -> orchestrator.v1.Session
-	2,  // 10: orchestrator.v1.ListSessionsResponse.sessions:type_name -> orchestrator.v1.Session
-	3,  // 11: orchestrator.v1.SessionService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
-	5,  // 12: orchestrator.v1.SessionService.ClaimSession:input_type -> orchestrator.v1.ClaimSessionRequest
-	7,  // 13: orchestrator.v1.SessionService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
-	11, // 14: orchestrator.v1.SessionService.ExtendSession:input_type -> orchestrator.v1.ExtendSessionRequest
-	9,  // 15: orchestrator.v1.SessionService.ReapSession:input_type -> orchestrator.v1.ReapSessionRequest
-	13, // 16: orchestrator.v1.SessionService.GetCapacity:input_type -> orchestrator.v1.GetCapacityRequest
-	15, // 17: orchestrator.v1.SessionService.ListSessions:input_type -> orchestrator.v1.ListSessionsRequest
-	4,  // 18: orchestrator.v1.SessionService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
-	6,  // 19: orchestrator.v1.SessionService.ClaimSession:output_type -> orchestrator.v1.ClaimSessionResponse
-	8,  // 20: orchestrator.v1.SessionService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
-	12, // 21: orchestrator.v1.SessionService.ExtendSession:output_type -> orchestrator.v1.ExtendSessionResponse
-	10, // 22: orchestrator.v1.SessionService.ReapSession:output_type -> orchestrator.v1.ReapSessionResponse
-	14, // 23: orchestrator.v1.SessionService.GetCapacity:output_type -> orchestrator.v1.GetCapacityResponse
-	16, // 24: orchestrator.v1.SessionService.ListSessions:output_type -> orchestrator.v1.ListSessionsResponse
-	18, // [18:25] is the sub-list for method output_type
-	11, // [11:18] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	18, // 10: orchestrator.v1.GetCapacityResponse.profile_capacity:type_name -> orchestrator.v1.GetCapacityResponse.ProfileCapacityEntry
+	2,  // 11: orchestrator.v1.ListSessionsResponse.sessions:type_name -> orchestrator.v1.Session
+	15, // 12: orchestrator.v1.GetCapacityResponse.ProfileCapacityEntry.value:type_name -> orchestrator.v1.ProfileCapacity
+	3,  // 13: orchestrator.v1.SessionService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
+	5,  // 14: orchestrator.v1.SessionService.ClaimSession:input_type -> orchestrator.v1.ClaimSessionRequest
+	7,  // 15: orchestrator.v1.SessionService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
+	11, // 16: orchestrator.v1.SessionService.ExtendSession:input_type -> orchestrator.v1.ExtendSessionRequest
+	9,  // 17: orchestrator.v1.SessionService.ReapSession:input_type -> orchestrator.v1.ReapSessionRequest
+	13, // 18: orchestrator.v1.SessionService.GetCapacity:input_type -> orchestrator.v1.GetCapacityRequest
+	16, // 19: orchestrator.v1.SessionService.ListSessions:input_type -> orchestrator.v1.ListSessionsRequest
+	4,  // 20: orchestrator.v1.SessionService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
+	6,  // 21: orchestrator.v1.SessionService.ClaimSession:output_type -> orchestrator.v1.ClaimSessionResponse
+	8,  // 22: orchestrator.v1.SessionService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
+	12, // 23: orchestrator.v1.SessionService.ExtendSession:output_type -> orchestrator.v1.ExtendSessionResponse
+	10, // 24: orchestrator.v1.SessionService.ReapSession:output_type -> orchestrator.v1.ReapSessionResponse
+	14, // 25: orchestrator.v1.SessionService.GetCapacity:output_type -> orchestrator.v1.GetCapacityResponse
+	17, // 26: orchestrator.v1.SessionService.ListSessions:output_type -> orchestrator.v1.ListSessionsResponse
+	20, // [20:27] is the sub-list for method output_type
+	13, // [13:20] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_orchestrator_v1_session_proto_init() }
@@ -1441,7 +1580,7 @@ func file_orchestrator_v1_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_orchestrator_v1_session_proto_rawDesc), len(file_orchestrator_v1_session_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

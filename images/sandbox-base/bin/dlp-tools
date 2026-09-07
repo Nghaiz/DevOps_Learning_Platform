@@ -1,0 +1,173 @@
+#!/bin/bash
+# dlp-tools — bật/tắt bộ công cụ theo bài (hợp đồng §C4).
+#
+# ── KIẾN TRÚC: CÀI HẾT, GÁC BẰNG PATH ───────────────────────────────────────
+#
+# Mọi công cụ trong danh mục đều NẰM SẴN trong image, tại /opt/dlp/tools/<tool>/
+# — một thư mục KHÔNG có trên PATH. `enable` chỉ tạo symlink vào
+# /usr/local/dlp-bin (thư mục ĐÃ nằm trên PATH, đặt bằng `ENV PATH` trong
+# Dockerfile). Không tải gì lúc chạy, không apt lúc chạy.
+#
+# ⚠ Vì sao không truyền danh sách công cụ qua env lúc TẠO POD: pod đến từ warm
+# pool, sinh ra TRƯỚC khi biết bài nào sẽ dùng nó. Env đã cố định từ lúc đó.
+# Nên việc bật phải xảy ra lúc **setup phiên**, cùng đường với
+# `buildAssetPushScript` trong `lessons.runSetup`.
+#
+# ⚠ Vì sao gác bằng PATH chứ không phải "không cài": sandbox nằm dưới
+# NetworkPolicy deny-all (egress chỉ DNS + mirror docker.io — đã đo 2026-09-04:
+# `curl https://github.com` treo rồi timeout). Không cài sẵn thì không có đường
+# nào cài lúc chạy. Nên câu hỏi không phải "cài hay không" mà "cho thấy hay không".
+#
+# ── VÌ SAO PHẢI GÁC, THAY VÌ ĐỂ HẾT TRÊN PATH ───────────────────────────────
+#
+# Một bài dạy `du`/`df` mà sinh viên có sẵn `duf`, hoặc bài dạy `grep` mà có sẵn
+# `rg`, là bài đã bị trả lời hộ. Danh mục theo bài để tác giả nội dung quyết định
+# công cụ nào thuộc về bài mình.
+
+set -u
+
+CATALOG=/etc/dlp/toolset.catalog
+TOOLS_ROOT=/opt/dlp/tools
+BIN_DIR=/usr/local/dlp-bin
+
+# Cache tldr — xem khối tldr trong Dockerfile. `enable tldr` phải chạm vào mtime
+# của thư mục này (lý do ở hàm post_enable bên dưới).
+TLDR_PAGES_DIR=/opt/dlp/tldr-cache/tldr-pages
+
+die() { printf 'dlp-tools: %s\n' "$1" >&2; exit "${2:-1}"; }
+
+usage() {
+    cat >&2 <<'EOF'
+dlp-tools — bật/tắt công cụ theo bài trong sandbox.
+
+  dlp-tools enable  <tool>...   bật (symlink vào PATH)
+  dlp-tools disable <tool>...   tắt
+  dlp-tools list                liệt kê danh mục + trạng thái
+  dlp-tools list --enabled      chỉ in tên các tool đang bật, mỗi dòng một tool
+
+Danh mục hợp lệ:
+EOF
+    printf '  %s\n' "$(catalog_names | paste -sd' ' -)" >&2
+}
+
+# Đọc danh mục. Bỏ dòng trống + dòng bắt đầu bằng '#'.
+catalog_rows() {
+    [ -r "$CATALOG" ] || die "không đọc được danh mục $CATALOG (image dựng thiếu?)" 3
+    awk '!/^[[:space:]]*#/ && NF >= 2 { print $1, $2 }' "$CATALOG"
+}
+
+catalog_names() { catalog_rows | awk '{print $1}'; }
+
+# Lệnh mà một tool cung cấp. Rỗng ⇒ tool không có trong danh mục.
+cmd_of() {
+    catalog_rows | awk -v t="$1" '$1 == t { print $2; exit }'
+}
+
+is_enabled() {
+    local cmd
+    cmd=$(cmd_of "$1")
+    [ -n "$cmd" ] && [ -e "$BIN_DIR/$cmd" ]
+}
+
+# ⚠ Tool lạ phải NỔ, không được im lặng bỏ qua. Một `enable` im lặng nuốt tên
+# sai hiện ra ở phía người học dưới dạng "bài bảo dùng btop mà command not
+# found" — cách xa nguyên nhân đúng hai thành phần (scenario JSON → runSetup →
+# pod), và không có dòng log nào trỏ về đây.
+#
+# ⛔ HÀM NÀY CHỈ ĐƯỢC GỌI TRỰC TIẾP, KHÔNG BAO GIỜ TRONG `$( )`.
+# Bản đầu viết `cmd=$(resolve_or_die "$tool")` và nó SAI: `exit 1` bên trong
+# command substitution chỉ thoát SUBSHELL, script cha đi tiếp với `cmd` rỗng rồi
+# chết muộn hơn ở nhánh "thiếu binary" — tức tên tool sai bị báo thành **lỗi
+# image** (rc=3) thay vì lỗi người gọi (rc=1). Đã đo 2026-09-07 trước khi sửa.
+# Phân biệt hai mã đó là toàn bộ giá trị của khối này: một cái bảo "sửa scenario
+# JSON", cái kia bảo "dựng lại image".
+assert_known() {
+    local tool="$1"
+    [ -n "$(cmd_of "$tool")" ] && return 0
+    printf 'dlp-tools: không có công cụ "%s" trong danh mục.\n' "$tool" >&2
+    printf 'Danh mục hợp lệ: %s\n' "$(catalog_names | paste -sd' ' -)" >&2
+    exit 1
+}
+
+# Việc phải làm THÊM sau khi symlink xong, theo từng tool.
+post_enable() {
+    case "$1" in
+    tldr)
+        # tealdeer 1.6.1 cảnh báo ra stderr khi cache quá 30 ngày tuổi:
+        #   "The cache hasn't been updated for N days. You should probably run
+        #    `tldr --update` soon."
+        # Ngưỡng 30 ngày là HẰNG SỐ BIÊN DỊCH trong binary — `[updates]
+        # auto_update_interval_hours` trong config.toml KHÔNG tắt được nó (đã đo
+        # 2026-09-07: đặt 876000 giờ, cảnh báo vẫn in).
+        #
+        # Cảnh báo đó ở đây là dối trá về mặt vận hành: `tldr --update` KHÔNG
+        # THỂ chạy trong sandbox (deny-all egress), và kể cả có mạng thì URL mà
+        # 1.6.1 gọi — https://tldr.sh/assets/tldr.zip — nay trả về HTML chứ
+        # không phải zip (đã đo: 301 → 200 text/html), nên nó hỏng với
+        # "invalid Zip archive". Tuổi cache = tuổi image, nên sau ~1 tháng kể từ
+        # lần build, MỌI sinh viên sẽ thấy một lời khuyên bất khả thi.
+        #
+        # `last_update` của tealdeer đọc mtime của ĐÚNG một thư mục:
+        # $CACHE_DIR/tldr-pages (đã đo: touch thư mục cache cha thì cảnh báo vẫn
+        # còn; touch tldr-pages thì hết). Một syscall, một lần mỗi phiên.
+        [ -d "$TLDR_PAGES_DIR" ] && touch "$TLDR_PAGES_DIR" 2>/dev/null
+        ;;
+    esac
+    return 0
+}
+
+cmd_enable() {
+    [ "$#" -gt 0 ] || { usage; exit 2; }
+    mkdir -p "$BIN_DIR" || die "không tạo được $BIN_DIR" 3
+    local tool cmd src
+    for tool in "$@"; do
+        assert_known "$tool"
+        cmd=$(cmd_of "$tool")
+        src="$TOOLS_ROOT/$tool/$cmd"
+        # Thiếu binary = image dựng sai, KHÔNG phải người gọi sai. Tách exit code
+        # để phía gọi phân biệt được "tên tool sai" (1) với "image thiếu đồ" (3).
+        [ -x "$src" ] || die "image không có $src — danh mục và bản dựng lệch nhau" 3
+        ln -sfn "$src" "$BIN_DIR/$cmd" || die "không symlink được $cmd" 3
+        post_enable "$tool"
+        printf 'bật %s (lệnh: %s)\n' "$tool" "$cmd"
+    done
+}
+
+cmd_disable() {
+    [ "$#" -gt 0 ] || { usage; exit 2; }
+    local tool cmd
+    for tool in "$@"; do
+        assert_known "$tool"
+        cmd=$(cmd_of "$tool")
+        # `-f` nên gỡ một tool chưa bật là no-op thành công — `disable` phải
+        # idempotent, vì `runSetup` có thể chạy lại trên cùng một pod.
+        rm -f "$BIN_DIR/$cmd"
+        printf 'tắt %s\n' "$tool"
+    done
+}
+
+cmd_list() {
+    if [ "${1:-}" = '--enabled' ]; then
+        local tool
+        for tool in $(catalog_names); do
+            is_enabled "$tool" && printf '%s\n' "$tool"
+        done
+        return 0
+    fi
+    local tool cmd state
+    printf '%-10s %-8s %s\n' 'CÔNG CỤ' 'LỆNH' 'TRẠNG THÁI'
+    while read -r tool cmd; do
+        if [ -e "$BIN_DIR/$cmd" ]; then state='bật'
+        elif [ -x "$TOOLS_ROOT/$tool/$cmd" ]; then state='tắt'
+        else state='THIẾU TRONG IMAGE'; fi
+        printf '%-10s %-8s %s\n' "$tool" "$cmd" "$state"
+    done < <(catalog_rows)
+}
+
+case "${1:-}" in
+    enable)  shift; cmd_enable  "$@" ;;
+    disable) shift; cmd_disable "$@" ;;
+    list)    shift; cmd_list    "$@" ;;
+    ''|-h|--help|help) usage; exit 2 ;;
+    *)       printf 'dlp-tools: lệnh con lạ "%s"\n' "$1" >&2; usage; exit 2 ;;
+esac

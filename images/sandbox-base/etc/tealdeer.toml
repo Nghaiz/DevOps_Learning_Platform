@@ -1,0 +1,27 @@
+# Cấu hình tealdeer (gói `tealdeer`, binary `tldr`) — đi tới
+# /etc/dlp/tealdeer/config.toml, tìm thấy nhờ `ENV TEALDEER_CONFIG_DIR`.
+#
+# ⚠ VÌ SAO LÀ FILE CONFIG CHỨ KHÔNG PHẢI `TEALDEER_CACHE_DIR`:
+# biến môi trường đó VẪN hoạt động ở 1.6.1, nhưng nó in
+#   "Warning: The $TEALDEER_CACHE_DIR env variable is deprecated..."
+# ra stderr ở MỖI lần gọi (đã đo 2026-09-07). Trên một nền tảng dạy học, mỗi
+# `tldr <lệnh>` kèm một dòng cảnh báo là dạy sinh viên bỏ qua cảnh báo.
+#
+# ⚠ VÌ SAO CACHE DÙNG CHUNG Ở /opt CHỨ KHÔNG PHẢI ~/.cache:
+# mặc định tealdeer đọc ~/.cache/tealdeer. Cache đã seed nặng ~27 MB / 6.690
+# file, và Dockerfile chép /etc/skel → /root, nên để cache ở $HOME là nhân đôi
+# nó trong image. /opt nằm ngoài mọi đường sao chép dotfiles của E8.
+[directories]
+cache_dir = "/opt/dlp/tldr-cache"
+
+# `auto_update = false` là BẮT BUỘC, không phải khẩu vị. Sandbox nằm dưới
+# NetworkPolicy deny-all; một lần tự cập nhật sẽ treo tới khi timeout ngay giữa
+# lượt tra cứu của sinh viên, rồi vẫn hỏng.
+#
+# ⚠ Hai khoá dưới KHÔNG tắt được dòng cảnh báo "cache hasn't been updated for N
+# days": ngưỡng 30 ngày là hằng số biên dịch trong tealdeer 1.6.1 (đã đo: đặt
+# interval 876000 giờ, cảnh báo vẫn in). Thứ tắt nó là `touch` mtime của
+# $CACHE_DIR/tldr-pages — `dlp-tools enable tldr` làm việc đó, xem post_enable().
+[updates]
+auto_update = false
+auto_update_interval_hours = 876000

@@ -11,6 +11,7 @@ import {
 } from '@devops-platform/shared-types/authoring';
 import {
   SANDBOX_TIER_NAMES,
+  SANDBOX_TOOLS,
   SCENARIO_CAPABILITIES,
   SCENARIO_DIFFICULTIES,
   scenarioIdSchema,
@@ -154,6 +155,20 @@ const contentDraftInput = z
     capabilities: z.array(z.enum(SCENARIO_CAPABILITIES)).default([]),
     backendImageId: z.string().min(1),
     interfaceLayout: z.string().nullable().default(null),
+    /**
+     * Bộ công cụ bật thêm trong pod cho riêng bài này (C4).
+     *
+     * `z.enum(SANDBOX_TOOLS)` chứ không `z.string()`, cùng kỷ luật với
+     * `capabilities` ngay trên — nhưng ở đây nó còn là một hàng rào an toàn:
+     * giá trị này về sau được nội suy vào dòng lệnh `dlp-tools enable …` chạy
+     * trong pod (`server/lessons/tools-enable.ts`). Nhận chuỗi tự do ở đây là
+     * mở một đường cho `; rm -rf /` đi từ form soạn bài tới shell.
+     *
+     * `.default([])` — "không bật gì" là trạng thái THƯỜNG, và phần lớn bài sẽ
+     * ở đó. Bắt buộc khai sẽ ép mọi bản nháp đã tồn tại nhắc lại một câu trả
+     * lời mặc định.
+     */
+    toolset: z.array(z.enum(SANDBOX_TOOLS)).default([]),
     /** `ScenarioAsset[]` — chỉ thị copy file vào pod. KHÁC asset tải lên. */
     assets: z
       .array(
@@ -205,6 +220,9 @@ function itemColumns(input: DraftInput) {
     capabilities: input.capabilities,
     backendImageId: input.backendImageId,
     interfaceLayout: input.interfaceLayout,
+    // Cột `text` chứa chuỗi JSON (C4) — xem chú thích ở `schema.ts`. `assets`
+    // ngay dưới là `jsonb` và đi thẳng, nên hai dòng cạnh nhau CỐ Ý khác nhau.
+    toolset: JSON.stringify(input.toolset),
     assets: input.assets,
     intro: input.intro,
     finish: input.finish,

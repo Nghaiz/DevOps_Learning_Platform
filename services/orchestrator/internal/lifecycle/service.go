@@ -123,6 +123,10 @@ type Service struct {
 	rdb  redis.UniversalClient
 	pool Provisioner
 	pods PodAccess
+	// quota có thể là nil: chạy ngoài cluster (dev, test) là chế độ hợp lệ, và
+	// KHÔNG đường session nào cần nó — chỉ GetCapacity đọc. nil ⇒ GetCapacity
+	// nói thẳng "chưa rõ sức chứa theo profile" thay vì bịa một con số.
+	quota k8s.QuotaAccess
 	// db có thể là nil: chạy không Postgres là chế độ hợp lệ ở giai đoạn này
 	// (audit là B8, và không đường session nào ĐỌC Postgres). Xem audit().
 	db  AuditDB
@@ -143,10 +147,16 @@ type Service struct {
 // CreateSession chết bằng một lỗi 5xx-class nói về "TTLSeconds", không nói gì
 // về HARD_CAP. Đo được: `SESSION_TTL=30h HARD_CAP=48h` → `Unavailable: pool:
 // TTLSeconds phải trong (0, 86400] (nhận 108000)`.
+//
+// `quota` được phép nil — xem field cùng tên trong Service. KHÔNG validate nó ở
+// đây: một orchestrator không đọc được quota vẫn phục vụ được MỌI đường session,
+// và chặn khởi động vì một tính năng chỉ-hiển-thị là đổi một con số mờ lấy một
+// dịch vụ chết.
 func NewService(
 	rdb redis.UniversalClient,
 	provisioner Provisioner,
 	pods PodAccess,
+	quota k8s.QuotaAccess,
 	db AuditDB,
 	cfg Config,
 	log *slog.Logger,
@@ -203,6 +213,7 @@ func NewService(
 		rdb:          rdb,
 		pool:         provisioner,
 		pods:         pods,
+		quota:        quota,
 		db:           db,
 		cfg:          cfg,
 		log:          log,
