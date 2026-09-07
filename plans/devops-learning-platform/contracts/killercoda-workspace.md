@@ -184,3 +184,122 @@ kế cho nó.
 | `/session/<id>/terminal` | MỚI — trang Next chỉ có xterm, không vỏ, không nav |
 
 Lane E sở hữu route mới.
+
+---
+
+# SỬA ĐỔI 2 (2026-09-07) — MỘT terminal duy nhất, hiện ở CẢ HAI tab
+
+Người dùng chốt sau khi bản đầu đã land. Phần này **GHI ĐÈ** §C1, §C2, §C5, §C6.
+Chỗ nào mâu thuẫn, phần này thắng.
+
+## Mô hình
+
+Hai tab, và **một** phiên terminal:
+
+```
+TAB EDITOR                      TAB TERMINAL
+┌──────────────────┐            ┌──────────────────┐
+│ Theia (iframe)   │            │                  │
+│ cây file+editor  │            │  CÙNG terminal   │
+├──────────────────┤            │  toàn khoang     │
+│ CÙNG terminal    │            │                  │
+│ (neo đáy, ~40%)  │            │                  │
+└──────────────────┘            └──────────────────┘
+```
+
+Tab Editor **đã là** bố cục hai khoang, nên nút "tách đôi" của bản đầu bị xoá —
+nó chỉ còn là một cách thứ hai để làm đúng thứ tab Editor đang làm.
+
+## Y1 — ⛔ Terminal KHÔNG được đổi cha trong cây React
+
+Đây là điều kiện đúng-sai của cả sửa đổi, không phải một tối ưu.
+
+Dời một component giữa hai cha là **unmount + mount lại** — WebSocket đóng, phiên
+làm việc của người học mất. Nên khoang phải là MỘT ngăn xếp dọc cố định:
+
+- hàng 1: iframe Theia — `hidden` khi đang ở tab Terminal
+- hàng 2: terminal — **LUÔN hiện**, chỉ đổi chiều cao
+
+Terminal không bao giờ rời vị trí DOM của nó. Chuyển tab chỉ đổi hai thứ: iframe
+ẩn/hiện, và chiều cao hàng 2 (≈40% → 100%).
+
+⚠ Đổi chiều cao là đổi kích thước ⇒ **phải gọi `handle.fit()`** sau khi trình
+duyệt layout xong (qua `requestAnimationFrame`, không phải ngay trong nhịp
+render). Bỏ nó thì terminal giữ số cột của bố cục cũ.
+
+⚠ Bẫy CSS còn nguyên: `[hidden]{display:none}` là luật trình duyệt,
+`.flex{display:flex}` là luật tác giả — cùng độ đặc hiệu thì tác giả thắng, nên
+`<div hidden className="flex">` VẪN HIỆN và không báo gì. Giữ ca test quét mọi
+thẻ ở cả hai tab.
+
+⚠ Hàng 1 phải LUÔN được render kể cả khi bài không có Editor (chỉ `hidden`), vì
+React so trùng con tĩnh theo VỊ TRÍ: bỏ hẳn hàng 1 sẽ đẩy hàng 2 lên khớp vị trí
+của nó và unmount xterm.
+
+## Y2 — GỠ `ExecTarget` (ghi đè §C1)
+
+Một terminal thì không còn quyết định định tuyến. Xoá `EXEC_TARGETS`,
+`ExecTarget`, và trường `target` trên biến thể `'code'` của `ContentBlock`.
+
+Cú pháp về tập cũ: `{{}}`, `{{copy}}`, `{{exec}}`, `{{exec interrupt}}`.
+
+⛔ `{{exec T1}}` / `{{exec T2}}` nay phải **NÉM** `ContentBlockError` như mọi
+token lạ — KHÔNG lặng lẽ bỏ qua phần `T2`. Một bài viết `{{exec T2}}` đang mong
+đợi hai terminal; chấp nhận rồi chạy ở terminal duy nhất là đúng cú pháp và sai
+ý định người soạn. Giữ **một ca test** khẳng định nó ném.
+
+## Y3 — `onExec` về hai tham số (ghi đè §C2)
+
+```ts
+readonly onExec?: (command: string, interrupt: boolean) => void;
+```
+
+Xoá `ExecOptions` (gồm `index.ts` + `exports.contract.test.ts`) và badge `T1`/`T2`
+trên nút chạy cùng nhãn a11y đi kèm.
+
+**Exec KHÔNG chuyển tab.** Terminal luôn hiện ở cả hai tab, nên không có gì để
+chuyển tới — chỉ gõ rồi `focus()`. Đây là chỗ sửa đổi này rẻ hơn bản đầu: bản đầu
+phải chuyển tab trước rồi mới gõ, và nhánh "tab chưa tồn tại" còn phải chờ một
+khoảng phỏng đoán.
+
+## Y4 — Props (ghi đè §C5)
+
+```ts
+export type WorkspaceTabId = 'editor' | 'terminal';
+
+export interface WorkspacePanelProps {
+  /** Vắng mặt ⇒ không có tab Editor (bài không khai layout ide). */
+  readonly editor?: ReactNode;
+  readonly terminal: ReactNode;
+  readonly activeTab: WorkspaceTabId;
+  readonly onActivate: (tab: WorkspaceTabId) => void;
+  /** URL mở tab hiện tại ra cửa sổ trình duyệt riêng. null ⇒ ẩn nút. */
+  readonly popOutUrl: string | null;
+  readonly storageKey?: string;
+}
+```
+
+Xoá `terminals` (Map), `onAddTerminal`, `onCloseTerminal`, `split`,
+`onToggleSplit`, nút `+`, nút `×`, `isClosableTab`.
+
+**Bài không khai `layout: ide`:** không truyền `editor` ⇒ không có tab Editor ⇒
+thanh tab chỉ còn một mục. Cân nhắc ẩn hẳn thanh tab khi chỉ có một tab — một
+tablist một mục là nhiễu thị giác, không phải chức năng.
+
+## Y5 — XOÁ HẲN `tmux-control.ts` (ghi đè §C6)
+
+Không đổi window nữa ⇒ `tmux-control.ts` + `tmux-control.test.ts` không còn
+call-site. Xoá cả hai và export khỏi `components/session/index.ts`.
+`NEW_WINDOW_SETTLE_MS` biến mất theo — và **cái đua nó che cũng biến mất**, chứ
+không phải bị giấu: không tạo window mới thì không có `stty` nào xả input đang
+chờ trong pty.
+
+⚠ `.tmux.conf` trong image GIỮ NGUYÊN. tmux vẫn là cơ chế reconnect (D3):
+`tmux new-session -A -s dlp` cho phép mất mạng rồi vào lại attach đúng phiên cũ.
+Đó là thứ khác hẳn với thứ vừa bỏ.
+
+## Y6 — Chiều cao khoang terminal ở tab Editor
+
+Người dùng kéo được, nhớ theo `storageKey`. Mặc định ~40%. Dùng `SplitPane` dọc
+sẵn có nếu nó hỗ trợ; nếu không thì một handle kéo tối giản — ⛔ nhưng tuyệt đối
+không dựng bằng cách render terminal ở hai nhánh khác nhau (xem §Y1).

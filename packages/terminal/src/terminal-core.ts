@@ -2,7 +2,6 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebglAddon } from '@xterm/addon-webgl';
-import { ImageAddon } from '@xterm/addon-image';
 import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
@@ -32,12 +31,6 @@ export interface TerminalCoreOptions {
   readonly onData: (data: string) => void;
   /** Gọi sau debounce khi kích thước đổi. KHÔNG gọi cho lần đo đầu tiên. */
   readonly onResize: (size: TerminalDimensions) => void;
-  /**
-   * Ảnh nội tuyến (sixel + IIP). MẶC ĐỊNH TẮT — đọc khối lý do ở chỗ nạp
-   * `ImageAddon` trong `createTerminalCore` TRƯỚC khi bật, ở đó có điều kiện
-   * cụ thể phải xong trước (CSP `script-src` cần `'wasm-unsafe-eval'`).
-   */
-  readonly enableImages?: boolean;
 }
 
 /** Contract §4 — "FE debounce ~50ms". SSOT là contract, không phải plan (bản plan cũ ghi 100ms). */
@@ -140,29 +133,30 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
     webgl = null;
   }
 
-  // Ảnh nội tuyến (sixel + IIP) — nạp SAU webgl, và MẶC ĐỊNH TẮT.
+  // ⛔ KHÔNG nạp `@xterm/addon-image`. Đường ảnh nội tuyến (sixel) đã được ĐO là
+  // không đi được, ở BA tầng độc lập — mỗi tầng tự nó đủ chặn:
   //
-  // ⛔ MẶC ĐỊNH TẮT là một phép đo, không phải sự dè dặt. `ImageAddon.activate()`
-  // dựng `SixelHandler`, và constructor của handler đó gọi `DecoderAsync(...)`
-  // ⇒ `new WebAssembly.Module(...)` NGAY lúc nạp addon (đọc từ
-  // `@xterm/addon-image@0.9.0/src/SixelHandler.ts`; `terminal-image.browser.test.tsx`
-  // đo lại điều đó bằng đối chứng âm). CSP của apps/web là
-  // `script-src 'self' 'nonce-…' 'strict-dynamic'`
-  // (apps/web/src/server/security/headers.ts) — KHÔNG có `'wasm-unsafe-eval'`,
-  // nên trình duyệt CHẶN lượt biên dịch đó.
+  //   1. `fastfetch --logo-type sixel` KHÔNG phát byte sixel nào. Đo trên cụm
+  //      2026-09-07, KHÔNG có tmux trong đường đi: 0 chuỗi mở DCS (`ESC P`),
+  //      output là ASCII art, và **stderr rỗng** — nó rơi về im lặng.
+  //   2. tmux nuốt DCS. Cùng lượt đo, payload sixel hợp lệ gõ thủ công: 1 chuỗi
+  //      `ESC P` khi không qua tmux, **0** khi qua tmux, trong khi text thường
+  //      vẫn tới nơi (nên không phải đường bắt byte hỏng).
+  //   3. CSP chặn WASM. `ImageAddon.activate()` dựng `SixelHandler`, mà
+  //      constructor của nó gọi `DecoderAsync(...)` ⇒ `new WebAssembly.Module(...)`
+  //      NGAY lúc nạp addon, không phải lúc gặp sixel đầu tiên. `script-src` của
+  //      apps/web (`'self' 'nonce-…' 'strict-dynamic'`) không có `'wasm-unsafe-eval'`.
+  //      Chuỗi `.then()` trong `SixelHandler` lại không có `.catch`, nên bật mù sẽ
+  //      đẻ một unhandled rejection ở MỖI lần mount — mà harness test không có CSP
+  //      nên mọi test vẫn xanh.
   //
-  // Bật mù thì hỏng theo kiểu khó thấy nhất: chuỗi `.then()` trong
-  // `SixelHandler` không có `.catch`, nên mỗi lần mount terminal đẻ một
-  // unhandled promise rejection và sixel chết câm — trong khi harness test
-  // KHÔNG có CSP nên mọi test vẫn xanh.
+  // Giá của việc giữ nó: **+20 KB gzip trả ở MỌI lượt tải**, kể cả khi cờ tắt —
+  // `if (cờ)` là điều kiện lúc chạy nên không bundler nào tree-shake được một
+  // import tĩnh. Trả 20 KB cho một đường bị chặn ở ba chỗ là không mua được gì.
   //
-  // ĐIỀU KIỆN BẬT: `script-src` có `'wasm-unsafe-eval'`. Bật rồi thì kèm hai
-  // đổi hành vi cần biết trước — DA1 trả `\x1b[?62;4;9;22c` (khai có sixel) và
-  // `windowOptions` bật ba báo cáo CSI t (14/16/18), tức terminal tự gửi byte
-  // lên PTY khi ứng dụng hỏi kích thước.
-  if (options.enableImages === true) {
-    terminal.loadAddon(new ImageAddon());
-  }
+  // Muốn mở lại thì phải gỡ CẢ BA, theo thứ tự: (1) một nguồn phát sixel thật,
+  // (2) tmux chuyển tiếp được DCS, (3) CSP cho phép biên dịch WASM. Gỡ một hoặc
+  // hai tầng không đủ, và mỗi tầng đều hỏng IM LẶNG.
 
   const searchAddon = new SearchAddon();
   terminal.loadAddon(searchAddon);
