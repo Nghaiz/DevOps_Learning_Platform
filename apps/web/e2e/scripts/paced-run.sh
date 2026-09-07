@@ -82,7 +82,11 @@ don_tai_khoan() {
   done
   ssh -o BatchMode=yes "$VM_SSH" 'rm -f /tmp/paced-promote.sh' >/dev/null 2>&1 || true
 }
-trap don_tai_khoan EXIT
+# ⚠ PHAI bat ca INT/TERM, khong chi EXIT. Do 2026-09-08: bon luot chay bi cat
+# bang `timeout` (SIGTERM) khong chay trap, va de lai 13 tai khoan admin tren cum
+# — dung thu ma C16 vua don sang hom do. Mot co che don chi chay o duong hanh phuc
+# la mot co che khong chay.
+trap don_tai_khoan EXIT INT TERM
 
 VM_SSH="${VM_SSH:-nghaiz@192.168.94.130}"
 scp -q -o BatchMode=yes "$GOC/apps/web/e2e/scripts/promote-role.sh" "$VM_SSH:/tmp/paced-promote.sh"   && ssh -o BatchMode=yes "$VM_SSH" 'chmod +x /tmp/paced-promote.sh'   || { echo "KHONG DO DUOC: khong dua duoc promote-role.sh len VM" >&2; exit 2; }
