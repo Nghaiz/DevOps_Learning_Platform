@@ -143,10 +143,15 @@ for f in "$WORK"/batch-*; do
   #
   # Giữ lại NGOÀI `outputDir` (`$KEEP`), theo mẻ. Đây là thư mục cần đọc khi một
   # luồng đỏ, không phải `e2e/.artifacts/test-results` (nó chỉ còn mẻ cuối).
+  mkdir -p "$KEEP"
   if [ -d "$PWD/e2e/.artifacts/test-results" ]; then
-    mkdir -p "$KEEP"
     cp -r "$PWD/e2e/.artifacts/test-results" "$KEEP/batch-$BATCH_NO" 2>/dev/null || true
   fi
+  # `results.json` cũng bị GHI ĐÈ mỗi mẻ, và nó là nơi DUY NHẤT giữ
+  # `annotations` — thứ các luồng dùng để nói "ô này XANH nhưng nhánh kia KHÔNG
+  # được kiểm ở lượt này". Mất nó thì một lượt 6/6 xanh không phân biệt được với
+  # một lượt 6/6 xanh mà bốn nhánh chưa ai chạm tới.
+  cp "$PWD/e2e/.artifacts/results.json" "$KEEP/results-$BATCH_NO.json" 2>/dev/null || true
 
   if [ "$N" -eq 0 ]; then
     # ⚠ HAI nguyên nhân cho `0 test`, và chúng đòi hai việc khác hẳn nhau:
