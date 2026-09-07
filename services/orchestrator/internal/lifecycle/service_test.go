@@ -237,7 +237,7 @@ func newHarnessWithProfiles(t *testing.T, profiles map[string]*k8s.SandboxProfil
 	fp := &fakePool{rdb: rdb}
 	met := metrics.New(prometheus.NewRegistry())
 	pods := &fakePodDeleter{}
-	svc, err := NewService(rdb, fp, pods, nil, Config{
+	svc, err := NewService(rdb, fp, pods, nil, nil, Config{
 		Namespace:         "dlp-sandbox",
 		SessionTTL:        time.Hour,
 		HardCap:           2 * time.Hour,
@@ -290,7 +290,7 @@ func TestNewServiceTuChoiCauHinhMauThuan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewService(nil, nil, nil, nil, tt.cfg, log, met)
+			_, err := NewService(nil, nil, nil, nil, nil, tt.cfg, log, met)
 			if err == nil {
 				t.Fatalf("cần lỗi chứa %q, nhận nil — cấu hình này sẽ làm mọi CreateSession thất bại", tt.wantErr)
 			}
@@ -301,7 +301,7 @@ func TestNewServiceTuChoiCauHinhMauThuan(t *testing.T) {
 	}
 
 	// Cấu hình đúng vẫn phải qua.
-	if _, err := NewService(nil, nil, nil, nil, Config{
+	if _, err := NewService(nil, nil, nil, nil, nil, Config{
 		Namespace: "ns", SessionTTL: time.Hour, HardCap: 2 * time.Hour,
 		ExtendDefault: 5 * time.Minute, CapacityHardLimit: 23, PoolTarget: 3,
 	}, log, met); err != nil {
@@ -324,7 +324,7 @@ func TestNewServiceTuChoiCauHinhMauThuan(t *testing.T) {
 		{"pool = 0 (manager ép về 1, tầng này phải từ chối)", Config{Namespace: "ns", SessionTTL: time.Hour,
 			HardCap: 2 * time.Hour, ExtendDefault: 5 * time.Minute, CapacityHardLimit: 23, PoolTarget: 0}},
 	} {
-		if _, err := NewService(nil, nil, nil, nil, tc.cfg, log, met); err == nil {
+		if _, err := NewService(nil, nil, nil, nil, nil, tc.cfg, log, met); err == nil {
 			t.Errorf("%s được chấp nhận — GetCapacity sẽ trả trần mềm sai", tc.name)
 		}
 	}

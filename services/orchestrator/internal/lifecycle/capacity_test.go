@@ -147,7 +147,7 @@ func TestClampInt32(t *testing.T) {
 // −1294967296.
 func TestGetCapacityKhongPhatSoAmKhiHardLimitVoLy(t *testing.T) {
 	rdb := newTestRedis(t)
-	svc, err := NewService(rdb, &fakePool{rdb: rdb}, &fakePodDeleter{}, nil, Config{
+	svc, err := NewService(rdb, &fakePool{rdb: rdb}, &fakePodDeleter{}, nil, nil, Config{
 		Namespace:         "dlp-sandbox",
 		SessionTTL:        time.Hour,
 		HardCap:           2 * time.Hour,

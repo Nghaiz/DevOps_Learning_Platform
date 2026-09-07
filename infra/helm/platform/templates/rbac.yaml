@@ -64,6 +64,26 @@ rules:
   - apiGroups: [""]
     resources: ["pods/status"]
     verbs: ["get"]
+  # ĐỌC ngân sách quota để GetCapacity trả lời "còn mấy chỗ cho bài NÀY"
+  # (P13, vá 2026-09-08). Trước bản này Role chỉ có `pods` + `pods/status`, nên
+  # orchestrator KHÔNG có cách nào biết trần thật và phải tin hằng số
+  # `CAPACITY_HARD_LIMIT` — chính hằng số đã in "còn 14 chỗ" trong lúc
+  # apiserver trả 429.
+  #
+  # ⛔ THIẾU HAI DÒNG NÀY HỎNG Ở RUNTIME, KHÔNG Ở COMPILE. Go build xanh, pod
+  # lên xanh, mọi probe xanh — chỉ `GetCapacity` trả `quota_readable=false` kèm
+  # 403, và giao diện lặng lẽ chuyển sang "chưa rõ sức chứa".
+  #
+  # `limitranges` cần cùng lúc chứ không phải thừa: pod profile MẶC ĐỊNH không
+  # tự khai `resources`, nên chi phí quota của nó do LimitRange quyết định.
+  # Không đọc được LimitRange thì trần của profile mặc định là ẩn số — ba
+  # profile có tên vẫn tính được, riêng bài thường thì không.
+  #
+  # KHÔNG có `watch`: đọc một lần mỗi lời gọi GetCapacity (nhịp 15s từ FE) là
+  # đủ, và một quyền không ai dùng chỉ nới bề mặt của token.
+  - apiGroups: [""]
+    resources: ["resourcequotas", "limitranges"]
+    verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

@@ -276,6 +276,79 @@ message GetCapacityResponse {
   // Phơi ra cho FE/admin để hai trần KHÔNG bị gộp lại thành một: "còn N chỗ"
   // dùng soft, còn trang quản trị đọc được cả "20/23" và thấy phần đệm.
   int32 hard_capacity = 5;
+
+  // ── Trần THEO PROFILE, đọc từ ResourceQuota LÚC GỌI (P13, vá 2026-09-08) ──
+  //
+  // ⛔ VÌ SAO NĂM FIELD TRÊN LÀ KHÔNG ĐỦ, VÀ ĐÃ NÓI DỐI THẬT. `hard_capacity`
+  // (env CAPACITY_HARD_LIMIT = 23) đúng bằng `requests.memory 5952Mi ÷ 256Mi`,
+  // tức hằng số đó MÃ HOÁ giả định "mọi phiên đều là profile mặc định". Ngày
+  // 2026-09-07 giao diện in "Đang chạy 6/20 phiên (trần cứng 23) → còn 14 chỗ"
+  // ĐÚNG LÚC `startSession` trả 429: quota lúc đó ở 5376/5952Mi — còn 576Mi,
+  // không đủ 768Mi cho một pod `ide`. Hai bên đếm hai thứ khác nhau.
+  //
+  // Trần thật KHÁC NHAU theo profile, và nó là ĐẠI LƯỢNG SUY RA từ quota chia
+  // chi phí một pod — đúng thứ `no-derived-fields` cấm lưu lại. Nên nó được
+  // TÍNH tại chỗ đọc, từ ResourceQuota + LimitRange thật của namespace, và
+  // KHÔNG có env `CAPACITY_IDE_LIMIT` nào cả.
+
+  // quota_readable = false ⇒ `profile_capacity` VÔ NGHĨA (rỗng), và client
+  // PHẢI nói "chưa rõ sức chứa" chứ KHÔNG được rơi về `soft_capacity`.
+  //
+  // Một "còn 14 chỗ" sai tệ hơn một "chưa rõ": người học bấm Bắt đầu rồi ăn
+  // 429, đúng chế độ hỏng mà ô AC này tồn tại để diệt.
+  bool quota_readable = 6;
+
+  // quota_error là lý do đọc quota thất bại — chỉ để hiển thị/truy ngược, RỖNG
+  // khi quota_readable = true. Nội dung là lỗi RBAC/API của apiserver (ví dụ
+  // 403 thiếu quyền `resourcequotas`), không mang dữ liệu người dùng.
+  string quota_error = 7;
+
+  // profile_capacity: TÊN profile → sức chứa cho riêng profile đó.
+  //
+  // Khoá "" (chuỗi RỖNG) là profile MẶC ĐỊNH — cùng quy ước với
+  // `CreateSessionRequest.profile`, nơi rỗng nghĩa là "không khai profile".
+  // Dùng đúng một quy ước ở cả hai chiều để client không phải ánh xạ
+  // ""↔"default", vì một ánh xạ như thế là chỗ để lệch.
+  //
+  // ⛔ KHOÁ VẮNG MẶT = CHƯA BIẾT cho profile đó, KHÔNG phải 0. Ca thật: profile
+  // mặc định biến mất khỏi map khi namespace không có LimitRange cấp
+  // defaultRequest/default (pod mặc định không khai resources, nên chi phí của
+  // nó do LimitRange quyết định — orchestrator không được đoán hộ).
+  map<string, ProfileCapacity> profile_capacity = 8;
+}
+
+// ProfileCapacity là sức chứa còn lại cho MỘT profile, TÍNH LÚC ĐỌC từ
+// ResourceQuota của namespace sandbox.
+//
+// Cả hai số là `min` qua CẢ NĂM đại lượng quota gác (`pods`, `requests.cpu`,
+// `requests.memory`, `limits.cpu`, `limits.memory`) — xem
+// `k8s.quotaKeys`/`k8s.Slots`. Chỉ chia RAM là đúng trên cụm hôm nay và SAI
+// trên cụm nhiều RAM ít pod, nơi `pods` mới là vế chặn.
+message ProfileCapacity {
+  // slots_free = số pod MỚI còn tạo thêm được cho profile này, từ
+  // `hard − used` của quota tại thời điểm gọi.
+  //
+  // ⚠ Đây là CẬN DƯỚI có chủ ý: nó KHÔNG cộng pod ấm đang nằm sẵn trong
+  // `pool:free` (những pod đó đã nằm trong `used` của quota, và một phiên
+  // profile mặc định có thể claim ngay một trong số chúng mà không tạo pod
+  // mới). Chọn cận dưới vì hai lẽ: báo ÍT hơn thì người dùng bấm Bắt đầu vẫn
+  // vào được, còn báo NHIỀU hơn thì họ ăn 429 — chính lỗi đang vá; và
+  // `pool:free` là một index Redis có thể giữ tên pod đã chết (xem chú thích
+  // `active_sessions`), nên cộng nó vào là mượn thêm một nguồn sai.
+  int32 slots_free = 1;
+
+  // slots_total = trần của profile này khi quota TRỐNG HOÀN TOÀN (`hard ÷ chi
+  // phí một pod`). Mẫu số để client nói "còn 6/7" và để quyết định ngưỡng "sắp
+  // hết" theo TỈ LỆ thay vì một hằng số viết tay.
+  //
+  // Với quota cụm lab: mặc định 23 · ide 7 · k8s 5 · k8s-multinode 3.
+  //
+  // ⚠ NỢ ĐÃ BIẾT: `slots_total` của profile mặc định và `hard_capacity` (env)
+  // trả lời CÙNG một câu hỏi từ HAI nguồn — env là nguồn thừa. Không gỡ env
+  // trong bản này vì `soft_capacity`, `config.Load` và trang quản trị đều đang
+  // đọc nó; ghi ra đây để lần sau không ai coi sự tồn tại của cả hai là bình
+  // thường.
+  int32 slots_total = 2;
 }
 
 // ListSessions liệt kê session ĐANG SỐNG (status < EXPIRED), lọc theo user_id.

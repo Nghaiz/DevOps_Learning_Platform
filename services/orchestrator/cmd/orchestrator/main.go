@@ -275,6 +275,12 @@ func buildSessionEngine(
 		return degraded, fmt.Errorf("dựng client Kubernetes: %w", err)
 	}
 	pods := k8s.NewPodClient(clientset, cfg.SandboxNamespace)
+	// Đọc ResourceQuota/LimitRange của namespace sandbox để GetCapacity tính
+	// được trần THEO PROFILE lúc gọi (P13, vá 2026-09-08). Đòi thêm quyền
+	// `resourcequotas` + `limitranges` trong Role sandbox — thiếu quyền thì
+	// đây KHÔNG lỗi lúc khởi động, nó hiện ra ở GetCapacity dưới dạng
+	// `quota_readable=false` kèm nguyên văn 403.
+	quota := k8s.NewQuotaClient(clientset, cfg.SandboxNamespace)
 
 	mgr := pool.NewManager(rdb, pods, k8s.PodConfig{
 		Namespace:        cfg.SandboxNamespace,
@@ -300,7 +306,7 @@ func buildSessionEngine(
 		closers = append(closers, pgPool.Close)
 	}
 
-	svc, err := lifecycle.NewService(rdb, mgr, pods, auditDB, lifecycle.Config{
+	svc, err := lifecycle.NewService(rdb, mgr, pods, quota, auditDB, lifecycle.Config{
 		Namespace:         cfg.SandboxNamespace,
 		SessionTTL:        cfg.SessionTTL,
 		HardCap:           cfg.HardCap,

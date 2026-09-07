@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file orchestrator/v1/session.proto.
  */
 export const file_orchestrator_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxIqoCCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXISLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIcmV2aXNpb24YCSABKAMSDwoHcHJvZmlsZRgKIAEoCSKSAQoUQ3JlYXRlU2Vzc2lvblJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIqCgR0aWVyGAIgASgOMhwub3JjaGVzdHJhdG9yLnYxLlNhbmRib3hUaWVyEhMKC3R0bF9zZWNvbmRzGAMgASgFEhcKD2lkZW1wb3RlbmN5X2tleRgEIAEoCRIPCgdwcm9maWxlGAUgASgJIkIKFUNyZWF0ZVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOgoTQ2xhaW1TZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkiQQoUQ2xhaW1TZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIjgKEUdldFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSI/ChJHZXRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIokBChJSZWFwU2Vzc2lvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIOCgZyZWFzb24YAiABKAkSEQoHdXNlcl9pZBgDIAEoCUgAEhoKEHN5c3RlbV9jb21wb25lbnQYBCABKAlIABIXCg1hZG1pbl91c2VyX2lkGAUgASgJSABCBwoFYWN0b3IiQAoTUmVhcFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24ibgoURXh0ZW5kU2Vzc2lvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIPCgd1c2VyX2lkGAIgASgJEhYKDmV4dGVuZF9zZWNvbmRzGAMgASgFEhkKEWV4cGVjdGVkX3JldmlzaW9uGAQgASgDIlwKFUV4dGVuZFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24SGAoQaGFyZF9jYXBfcmVhY2hlZBgCIAEoCCIUChJHZXRDYXBhY2l0eVJlcXVlc3QiiAEKE0dldENhcGFjaXR5UmVzcG9uc2USFwoPYWN0aXZlX3Nlc3Npb25zGAEgASgFEhUKDXNvZnRfY2FwYWNpdHkYAiABKAUSEQoJcG9vbF9mcmVlGAMgASgFEhcKD3Bvb2xfcXVhcmFudGluZRgEIAEoBRIVCg1oYXJkX2NhcGFjaXR5GAUgASgFIkUKE0xpc3RTZXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRINCgVsaW1pdBgCIAEoBRIOCgZjdXJzb3IYAyABKAkiVwoUTGlzdFNlc3Npb25zUmVzcG9uc2USKgoIc2Vzc2lvbnMYASADKAsyGC5vcmNoZXN0cmF0b3IudjEuU2Vzc2lvbhITCgtuZXh0X2N1cnNvchgCIAEoCSp0CgtTYW5kYm94VGllchIcChhTQU5EQk9YX1RJRVJfVU5TUEVDSUZJRUQQABIXChNTQU5EQk9YX1RJRVJfU1lTQk9YEAESFwoTU0FOREJPWF9USUVSX0dWSVNPUhACEhUKEVNBTkRCT1hfVElFUl9LQVRBEAMq7gEKDVNlc3Npb25TdGF0dXMSHgoaU0VTU0lPTl9TVEFUVVNfVU5TUEVDSUZJRUQQABIaChZTRVNTSU9OX1NUQVRVU19QRU5ESU5HEAESFwoTU0VTU0lPTl9TVEFUVVNfV0FSTRACEhoKFlNFU1NJT05fU1RBVFVTX0NMQUlNRUQQAxIaChZTRVNTSU9OX1NUQVRVU19SVU5OSU5HEAQSGgoWU0VTU0lPTl9TVEFUVVNfRVhQSVJFRBAFEhkKFVNFU1NJT05fU1RBVFVTX1JFQVBFRBAGEhkKFVNFU1NJT05fU1RBVFVTX0ZBSUxFRBAHMpUFCg5TZXNzaW9uU2VydmljZRJeCg1DcmVhdGVTZXNzaW9uEiUub3JjaGVzdHJhdG9yLnYxLkNyZWF0ZVNlc3Npb25SZXF1ZXN0GiYub3JjaGVzdHJhdG9yLnYxLkNyZWF0ZVNlc3Npb25SZXNwb25zZRJbCgxDbGFpbVNlc3Npb24SJC5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVxdWVzdBolLm9yY2hlc3RyYXRvci52MS5DbGFpbVNlc3Npb25SZXNwb25zZRJVCgpHZXRTZXNzaW9uEiIub3JjaGVzdHJhdG9yLnYxLkdldFNlc3Npb25SZXF1ZXN0GiMub3JjaGVzdHJhdG9yLnYxLkdldFNlc3Npb25SZXNwb25zZRJeCg1FeHRlbmRTZXNzaW9uEiUub3JjaGVzdHJhdG9yLnYxLkV4dGVuZFNlc3Npb25SZXF1ZXN0GiYub3JjaGVzdHJhdG9yLnYxLkV4dGVuZFNlc3Npb25SZXNwb25zZRJYCgtSZWFwU2Vzc2lvbhIjLm9yY2hlc3RyYXRvci52MS5SZWFwU2Vzc2lvblJlcXVlc3QaJC5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXNwb25zZRJYCgtHZXRDYXBhY2l0eRIjLm9yY2hlc3RyYXRvci52MS5HZXRDYXBhY2l0eVJlcXVlc3QaJC5vcmNoZXN0cmF0b3IudjEuR2V0Q2FwYWNpdHlSZXNwb25zZRJbCgxMaXN0U2Vzc2lvbnMSJC5vcmNoZXN0cmF0b3IudjEuTGlzdFNlc3Npb25zUmVxdWVzdBolLm9yY2hlc3RyYXRvci52MS5MaXN0U2Vzc2lvbnNSZXNwb25zZUJYWlZnaXRodWIuY29tL05naGFpei9EZXZPcHNfTGVhcm5pbmdfUGxhdGZvcm0vcHJvdG8vZ2VuL2dvL29yY2hlc3RyYXRvci92MTtvcmNoZXN0cmF0b3J2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("Ch1vcmNoZXN0cmF0b3IvdjEvc2Vzc2lvbi5wcm90bxIPb3JjaGVzdHJhdG9yLnYxIqoCCgdTZXNzaW9uEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSLgoGc3RhdHVzGAMgASgOMh4ub3JjaGVzdHJhdG9yLnYxLlNlc3Npb25TdGF0dXMSEAoIcG9kX25hbWUYBCABKAkSEQoJbmFtZXNwYWNlGAUgASgJEi4KCmV4cGlyZXNfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEioKBHRpZXIYByABKA4yHC5vcmNoZXN0cmF0b3IudjEuU2FuZGJveFRpZXISLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIcmV2aXNpb24YCSABKAMSDwoHcHJvZmlsZRgKIAEoCSKSAQoUQ3JlYXRlU2Vzc2lvblJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIqCgR0aWVyGAIgASgOMhwub3JjaGVzdHJhdG9yLnYxLlNhbmRib3hUaWVyEhMKC3R0bF9zZWNvbmRzGAMgASgFEhcKD2lkZW1wb3RlbmN5X2tleRgEIAEoCRIPCgdwcm9maWxlGAUgASgJIkIKFUNyZWF0ZVNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24iOgoTQ2xhaW1TZXNzaW9uUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkiQQoUQ2xhaW1TZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIjgKEUdldFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCSI/ChJHZXRTZXNzaW9uUmVzcG9uc2USKQoHc2Vzc2lvbhgBIAEoCzIYLm9yY2hlc3RyYXRvci52MS5TZXNzaW9uIokBChJSZWFwU2Vzc2lvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIOCgZyZWFzb24YAiABKAkSEQoHdXNlcl9pZBgDIAEoCUgAEhoKEHN5c3RlbV9jb21wb25lbnQYBCABKAlIABIXCg1hZG1pbl91c2VyX2lkGAUgASgJSABCBwoFYWN0b3IiQAoTUmVhcFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24ibgoURXh0ZW5kU2Vzc2lvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIPCgd1c2VyX2lkGAIgASgJEhYKDmV4dGVuZF9zZWNvbmRzGAMgASgFEhkKEWV4cGVjdGVkX3JldmlzaW9uGAQgASgDIlwKFUV4dGVuZFNlc3Npb25SZXNwb25zZRIpCgdzZXNzaW9uGAEgASgLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24SGAoQaGFyZF9jYXBfcmVhY2hlZBgCIAEoCCIUChJHZXRDYXBhY2l0eVJlcXVlc3Qi5AIKE0dldENhcGFjaXR5UmVzcG9uc2USFwoPYWN0aXZlX3Nlc3Npb25zGAEgASgFEhUKDXNvZnRfY2FwYWNpdHkYAiABKAUSEQoJcG9vbF9mcmVlGAMgASgFEhcKD3Bvb2xfcXVhcmFudGluZRgEIAEoBRIVCg1oYXJkX2NhcGFjaXR5GAUgASgFEhYKDnF1b3RhX3JlYWRhYmxlGAYgASgIEhMKC3F1b3RhX2Vycm9yGAcgASgJElMKEHByb2ZpbGVfY2FwYWNpdHkYCCADKAsyOS5vcmNoZXN0cmF0b3IudjEuR2V0Q2FwYWNpdHlSZXNwb25zZS5Qcm9maWxlQ2FwYWNpdHlFbnRyeRpYChRQcm9maWxlQ2FwYWNpdHlFbnRyeRILCgNrZXkYASABKAkSLwoFdmFsdWUYAiABKAsyIC5vcmNoZXN0cmF0b3IudjEuUHJvZmlsZUNhcGFjaXR5OgI4ASI6Cg9Qcm9maWxlQ2FwYWNpdHkSEgoKc2xvdHNfZnJlZRgBIAEoBRITCgtzbG90c190b3RhbBgCIAEoBSJFChNMaXN0U2Vzc2lvbnNSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSDQoFbGltaXQYAiABKAUSDgoGY3Vyc29yGAMgASgJIlcKFExpc3RTZXNzaW9uc1Jlc3BvbnNlEioKCHNlc3Npb25zGAEgAygLMhgub3JjaGVzdHJhdG9yLnYxLlNlc3Npb24SEwoLbmV4dF9jdXJzb3IYAiABKAkqdAoLU2FuZGJveFRpZXISHAoYU0FOREJPWF9USUVSX1VOU1BFQ0lGSUVEEAASFwoTU0FOREJPWF9USUVSX1NZU0JPWBABEhcKE1NBTkRCT1hfVElFUl9HVklTT1IQAhIVChFTQU5EQk9YX1RJRVJfS0FUQRADKu4BCg1TZXNzaW9uU3RhdHVzEh4KGlNFU1NJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWU0VTU0lPTl9TVEFUVVNfUEVORElORxABEhcKE1NFU1NJT05fU1RBVFVTX1dBUk0QAhIaChZTRVNTSU9OX1NUQVRVU19DTEFJTUVEEAMSGgoWU0VTU0lPTl9TVEFUVVNfUlVOTklORxAEEhoKFlNFU1NJT05fU1RBVFVTX0VYUElSRUQQBRIZChVTRVNTSU9OX1NUQVRVU19SRUFQRUQQBhIZChVTRVNTSU9OX1NUQVRVU19GQUlMRUQQBzKVBQoOU2Vzc2lvblNlcnZpY2USXgoNQ3JlYXRlU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5DcmVhdGVTZXNzaW9uUmVzcG9uc2USWwoMQ2xhaW1TZXNzaW9uEiQub3JjaGVzdHJhdG9yLnYxLkNsYWltU2Vzc2lvblJlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuQ2xhaW1TZXNzaW9uUmVzcG9uc2USVQoKR2V0U2Vzc2lvbhIiLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVxdWVzdBojLm9yY2hlc3RyYXRvci52MS5HZXRTZXNzaW9uUmVzcG9uc2USXgoNRXh0ZW5kU2Vzc2lvbhIlLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVxdWVzdBomLm9yY2hlc3RyYXRvci52MS5FeHRlbmRTZXNzaW9uUmVzcG9uc2USWAoLUmVhcFNlc3Npb24SIy5vcmNoZXN0cmF0b3IudjEuUmVhcFNlc3Npb25SZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLlJlYXBTZXNzaW9uUmVzcG9uc2USWAoLR2V0Q2FwYWNpdHkSIy5vcmNoZXN0cmF0b3IudjEuR2V0Q2FwYWNpdHlSZXF1ZXN0GiQub3JjaGVzdHJhdG9yLnYxLkdldENhcGFjaXR5UmVzcG9uc2USWwoMTGlzdFNlc3Npb25zEiQub3JjaGVzdHJhdG9yLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaJS5vcmNoZXN0cmF0b3IudjEuTGlzdFNlc3Npb25zUmVzcG9uc2VCWFpWZ2l0aHViLmNvbS9OZ2hhaXovRGV2T3BzX0xlYXJuaW5nX1BsYXRmb3JtL3Byb3RvL2dlbi9nby9vcmNoZXN0cmF0b3IvdjE7b3JjaGVzdHJhdG9ydjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * Session là trạng thái quyền uy của một pod lab.
@@ -551,6 +551,43 @@ export type GetCapacityResponse = Message<"orchestrator.v1.GetCapacityResponse">
    * @generated from field: int32 hard_capacity = 5;
    */
   hardCapacity: number;
+
+  /**
+   * quota_readable = false ⇒ `profile_capacity` VÔ NGHĨA (rỗng), và client
+   * PHẢI nói "chưa rõ sức chứa" chứ KHÔNG được rơi về `soft_capacity`.
+   *
+   * Một "còn 14 chỗ" sai tệ hơn một "chưa rõ": người học bấm Bắt đầu rồi ăn
+   * 429, đúng chế độ hỏng mà ô AC này tồn tại để diệt.
+   *
+   * @generated from field: bool quota_readable = 6;
+   */
+  quotaReadable: boolean;
+
+  /**
+   * quota_error là lý do đọc quota thất bại — chỉ để hiển thị/truy ngược, RỖNG
+   * khi quota_readable = true. Nội dung là lỗi RBAC/API của apiserver (ví dụ
+   * 403 thiếu quyền `resourcequotas`), không mang dữ liệu người dùng.
+   *
+   * @generated from field: string quota_error = 7;
+   */
+  quotaError: string;
+
+  /**
+   * profile_capacity: TÊN profile → sức chứa cho riêng profile đó.
+   *
+   * Khoá "" (chuỗi RỖNG) là profile MẶC ĐỊNH — cùng quy ước với
+   * `CreateSessionRequest.profile`, nơi rỗng nghĩa là "không khai profile".
+   * Dùng đúng một quy ước ở cả hai chiều để client không phải ánh xạ
+   * ""↔"default", vì một ánh xạ như thế là chỗ để lệch.
+   *
+   * ⛔ KHOÁ VẮNG MẶT = CHƯA BIẾT cho profile đó, KHÔNG phải 0. Ca thật: profile
+   * mặc định biến mất khỏi map khi namespace không có LimitRange cấp
+   * defaultRequest/default (pod mặc định không khai resources, nên chi phí của
+   * nó do LimitRange quyết định — orchestrator không được đoán hộ).
+   *
+   * @generated from field: map<string, orchestrator.v1.ProfileCapacity> profile_capacity = 8;
+   */
+  profileCapacity: { [key: string]: ProfileCapacity };
 };
 
 /**
@@ -559,6 +596,59 @@ export type GetCapacityResponse = Message<"orchestrator.v1.GetCapacityResponse">
  */
 export const GetCapacityResponseSchema: GenMessage<GetCapacityResponse> = /*@__PURE__*/
   messageDesc(file_orchestrator_v1_session, 12);
+
+/**
+ * ProfileCapacity là sức chứa còn lại cho MỘT profile, TÍNH LÚC ĐỌC từ
+ * ResourceQuota của namespace sandbox.
+ *
+ * Cả hai số là `min` qua CẢ NĂM đại lượng quota gác (`pods`, `requests.cpu`,
+ * `requests.memory`, `limits.cpu`, `limits.memory`) — xem
+ * `k8s.quotaKeys`/`k8s.Slots`. Chỉ chia RAM là đúng trên cụm hôm nay và SAI
+ * trên cụm nhiều RAM ít pod, nơi `pods` mới là vế chặn.
+ *
+ * @generated from message orchestrator.v1.ProfileCapacity
+ */
+export type ProfileCapacity = Message<"orchestrator.v1.ProfileCapacity"> & {
+  /**
+   * slots_free = số pod MỚI còn tạo thêm được cho profile này, từ
+   * `hard − used` của quota tại thời điểm gọi.
+   *
+   * ⚠ Đây là CẬN DƯỚI có chủ ý: nó KHÔNG cộng pod ấm đang nằm sẵn trong
+   * `pool:free` (những pod đó đã nằm trong `used` của quota, và một phiên
+   * profile mặc định có thể claim ngay một trong số chúng mà không tạo pod
+   * mới). Chọn cận dưới vì hai lẽ: báo ÍT hơn thì người dùng bấm Bắt đầu vẫn
+   * vào được, còn báo NHIỀU hơn thì họ ăn 429 — chính lỗi đang vá; và
+   * `pool:free` là một index Redis có thể giữ tên pod đã chết (xem chú thích
+   * `active_sessions`), nên cộng nó vào là mượn thêm một nguồn sai.
+   *
+   * @generated from field: int32 slots_free = 1;
+   */
+  slotsFree: number;
+
+  /**
+   * slots_total = trần của profile này khi quota TRỐNG HOÀN TOÀN (`hard ÷ chi
+   * phí một pod`). Mẫu số để client nói "còn 6/7" và để quyết định ngưỡng "sắp
+   * hết" theo TỈ LỆ thay vì một hằng số viết tay.
+   *
+   * Với quota cụm lab: mặc định 23 · ide 7 · k8s 5 · k8s-multinode 3.
+   *
+   * ⚠ NỢ ĐÃ BIẾT: `slots_total` của profile mặc định và `hard_capacity` (env)
+   * trả lời CÙNG một câu hỏi từ HAI nguồn — env là nguồn thừa. Không gỡ env
+   * trong bản này vì `soft_capacity`, `config.Load` và trang quản trị đều đang
+   * đọc nó; ghi ra đây để lần sau không ai coi sự tồn tại của cả hai là bình
+   * thường.
+   *
+   * @generated from field: int32 slots_total = 2;
+   */
+  slotsTotal: number;
+};
+
+/**
+ * Describes the message orchestrator.v1.ProfileCapacity.
+ * Use `create(ProfileCapacitySchema)` to create a new message.
+ */
+export const ProfileCapacitySchema: GenMessage<ProfileCapacity> = /*@__PURE__*/
+  messageDesc(file_orchestrator_v1_session, 13);
 
 /**
  * ListSessions liệt kê session ĐANG SỐNG (status < EXPIRED), lọc theo user_id.
@@ -610,7 +700,7 @@ export type ListSessionsRequest = Message<"orchestrator.v1.ListSessionsRequest">
  * Use `create(ListSessionsRequestSchema)` to create a new message.
  */
 export const ListSessionsRequestSchema: GenMessage<ListSessionsRequest> = /*@__PURE__*/
-  messageDesc(file_orchestrator_v1_session, 13);
+  messageDesc(file_orchestrator_v1_session, 14);
 
 /**
  * @generated from message orchestrator.v1.ListSessionsResponse
@@ -636,7 +726,7 @@ export type ListSessionsResponse = Message<"orchestrator.v1.ListSessionsResponse
  * Use `create(ListSessionsResponseSchema)` to create a new message.
  */
 export const ListSessionsResponseSchema: GenMessage<ListSessionsResponse> = /*@__PURE__*/
-  messageDesc(file_orchestrator_v1_session, 14);
+  messageDesc(file_orchestrator_v1_session, 15);
 
 /**
  * SandboxTier chọn mức cô lập của pod lab (design §5).
