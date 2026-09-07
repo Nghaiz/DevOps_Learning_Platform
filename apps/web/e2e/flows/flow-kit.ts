@@ -107,18 +107,19 @@ export async function signInThroughForm(
   // (Không có rò rỉ kèm theo: các `Input` không khai `name`, nên lượt submit
   // native đi tới `/login` KHÔNG mang tham số nào — mật khẩu không lên URL.)
   //
-  // Dấu hiệu hydrate: React 18+ gắn khoá `__reactFiber$…` lên node DOM mà nó đã
-  // nhận. Đây là chi tiết cài đặt, và dùng nó ở đây là có chủ ý: lựa chọn còn
-  // lại là `waitForTimeout` — một con số chọn cho máy nhanh, tức đúng loại
-  // "timeout chọn cho cụm rảnh" mà P12 đã trả giá. Nếu React đổi cách gắn, phép
-  // chờ này hết hạn và ĐỎ, chứ không âm thầm quay lại bấm sớm.
-  await page.waitForFunction(
-    () => {
-      const form = document.querySelector('form');
-      return form !== null && Object.keys(form).some((k) => k.startsWith('__reactFiber$'));
-    },
-    { timeout: 30_000 },
-  );
+  // ⚠ SỬA 2026-09-07 — nay chờ một dấu hiệu CÔNG KHAI, không phải nội tạng React.
+  //
+  // `login-form.tsx` khoá nút cho tới khi `useEffect` chạy, nên `enabled` LÀ
+  // định nghĩa của "đã hydrate" ở trang này. Bản trước dò khoá `__reactFiber$…`
+  // trên node DOM — đúng việc, nhưng là chi tiết cài đặt của React và nó chờ
+  // đúng thứ mà người dùng thật KHÔNG thấy.
+  //
+  // Đổi này còn làm phép chờ thành một cổng hai chiều: nếu ai đó gỡ `disabled`
+  // khỏi nút, câu lệnh dưới trả về NGAY (nút luôn enabled) và ta quay lại bấm
+  // sớm — nhưng khi ấy chính lỗi cũ tái xuất và các luồng đỏ lại. Còn nếu khoá
+  // không bao giờ mở (hydrate hỏng), nó đỏ ở ĐÂY với một câu đọc được, thay vì
+  // đỏ 30s sau ở `waitForResponse` với một câu nói dối về nguyên nhân.
+  await expect(submit).toBeEnabled({ timeout: 30_000 });
 
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Mật khẩu').fill(password);

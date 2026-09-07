@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Alert,
@@ -36,6 +36,35 @@ export function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  /**
+   * ⚠ MỌI nút trong form này khoá cho tới khi React gắn xong handler.
+   *
+   * Trước bản này, `<form onSubmit>` + `<button type="submit">` do server render
+   * nên nút bấm được NGAY — nhưng cho tới lúc hydrate, một cú bấm chạy đường
+   * submit NATIVE của trình duyệt: GET `/login`, trang tải lại, chữ vừa gõ mất,
+   * và không một request `sign-in` nào. Người dùng thấy đúng một thứ: trang tự
+   * tải lại, không lý do. Đo 2026-09-07 (`reports/2026-09-07-verify-p13.md` §3.4a)
+   * — đó là nguyên nhân thật của cả hai lần đỏ luồng 1, và cả hai đều nói dối
+   * về nguyên nhân.
+   *
+   * Ba nút còn lại (đổi chế độ, hai nút OAuth) là `type="button"` + `onClick`,
+   * nên bấm sớm KHÔNG mất dữ liệu — nó chỉ **không làm gì cả**, im lặng. Cùng
+   * một lớp lỗi ("nút hiện ra không có nghĩa là nó chạy"), nên cùng một khoá.
+   *
+   * Không rò rỉ khi bấm sớm ở bản cũ (đã kiểm): các `Input` không khai `name`,
+   * nên lượt submit native tới `/login` không mang tham số nào — mật khẩu không
+   * lên URL. Bản vá này đóng phần **mất dữ liệu và mất lòng tin**, không phải
+   * một lỗ bảo mật.
+   *
+   * Đánh đổi đã cân: với JS tắt hẳn, nút nay không bấm được. Trước đó nó bấm
+   * được nhưng chỉ nạp lại chính trang đó — tức chưa bao giờ đăng nhập được.
+   * Không mất năng lực nào, chỉ thôi giả vờ có.
+   */
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const signingIn = mode === 'sign-in';
 
@@ -142,7 +171,10 @@ export function LoginForm() {
             </Alert>
           )}
 
-          <Button type="submit" loading={pending}>
+          {/* `disabled` chứ không `loading`: một spinner ngay lúc trang vừa mở
+              đọc ra là "đang gửi gì đó", trong khi sự thật là "chưa sẵn sàng
+              nhận". Khoảng khoá này dài đúng bằng thời gian hydrate. */}
+          <Button type="submit" loading={pending} disabled={!hydrated}>
             {signingIn ? 'Đăng nhập' : 'Đăng ký'}
           </Button>
 
@@ -150,6 +182,7 @@ export function LoginForm() {
             type="button"
             variant="link"
             size="sm"
+            disabled={!hydrated}
             onClick={() => {
               setMode(signingIn ? 'sign-up' : 'sign-in');
               setError(null);
@@ -163,10 +196,20 @@ export function LoginForm() {
       <Separator className="my-4" />
 
       <div className="flex flex-col gap-2">
-        <Button type="button" variant="outline" onClick={() => onOAuth('google')}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!hydrated}
+          onClick={() => onOAuth('google')}
+        >
           Đăng nhập với Google
         </Button>
-        <Button type="button" variant="outline" onClick={() => onOAuth('microsoft')}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!hydrated}
+          onClick={() => onOAuth('microsoft')}
+        >
           Đăng nhập với Microsoft
         </Button>
       </div>
