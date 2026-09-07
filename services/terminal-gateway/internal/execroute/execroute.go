@@ -29,6 +29,7 @@ import (
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/authz"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/metrics"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/podexec"
+	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/secheaders"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionauth"
 	"github.com/Nghaiz/DevOps_Learning_Platform/services/terminal-gateway/internal/sessionstore"
 	"golang.org/x/time/rate"
@@ -148,6 +149,14 @@ type execResponse struct {
 func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	sessionID := r.PathValue("id")
+
+	// ---- header an ninh: TRƯỚC mọi nhánh, kể cả nhánh từ chối ---------------
+	//
+	// Body JSON của một lượt 400/403/502 cũng phát ra trên origin của app, nên
+	// `nosniff` cần cho nó y như cho một lượt 200. Đặt ở đây một lần thay vì
+	// rải vào từng nhánh: handler này có bảy `return` sớm, và mỗi cái là một
+	// chỗ quên.
+	secheaders.SetAPI(w.Header())
 
 	// ---- a. Origin ------------------------------------------------------
 	//

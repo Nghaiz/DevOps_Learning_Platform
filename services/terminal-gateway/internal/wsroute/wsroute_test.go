@@ -610,3 +610,141 @@ func TestWSKhongGhiKiemToanKhiHandshakeBiTuChoi(t *testing.T) {
 			logs.String())
 	}
 }
+
+// ───────────────────────── A3: header an ninh cho MỌI response của `/ws`
+
+// wantSecurityHeaders là bộ ĐÍCH, viết TAY chứ không đọc lại `secheaders`.
+//
+// Cố ý chép giá trị: một test đọc chính hằng nó gác sẽ xanh kể cả khi ai đó đổi
+// hằng đó thành `X-Frame-Options: ALLOWALL` — nó chỉ khẳng định "mã bằng chính
+// mã", một tautology. Đổi giá trị ở đây phải là một quyết định có người đọc.
+var wantSecurityHeaders = map[string]string{
+	"X-Content-Type-Options":  "nosniff",
+	"X-Frame-Options":         "SAMEORIGIN",
+	"Referrer-Policy":         "same-origin",
+	"Content-Security-Policy": "default-src 'none'",
+}
+
+// assertSecurityHeaders kiểm CẢ giá trị LẪN số lượng giá trị.
+//
+// Đếm là nửa dễ quên hơn: chế độ hỏng của một bộ header đặt hai chỗ không phải
+// "thiếu header" mà là "hai header mâu thuẫn", và một phép kiểm chỉ gọi
+// `Header.Get()` (trả về giá trị ĐẦU) đọc ra XANH trên đúng ca đó.
+func assertSecurityHeaders(t *testing.T, h http.Header, ctx string) {
+	t.Helper()
+	for name, want := range wantSecurityHeaders {
+		got := h.Values(name)
+		if len(got) == 0 {
+			t.Errorf("%s: thiếu header %s (muốn %q)", ctx, name, want)
+			continue
+		}
+		if len(got) != 1 {
+			t.Errorf("%s: %s có %d giá trị %q — trình duyệt xử lý cặp mâu thuẫn mỗi bản một kiểu", ctx, name, len(got), got)
+			continue
+		}
+		if got[0] != want {
+			t.Errorf("%s: %s = %q, muốn %q", ctx, name, got[0], want)
+		}
+	}
+	// Một endpoint JSON không có gì để đo dần, nên bản CHỈ-BÁO không được có mặt:
+	// "có CSP" và "có một CSP không chặn gì" đọc ra gần y hệt nhau ở `curl -I`.
+	if v := h.Get("Content-Security-Policy-Report-Only"); v != "" {
+		t.Errorf("%s: có Content-Security-Policy-Report-Only = %q — bản chỉ-báo KHÔNG chặn gì", ctx, v)
+	}
+}
+
+// ⚠ ĐÂY LÀ CÂU HỎI KHÔNG SUY LUẬN ĐƯỢC TỪ MÃ CỦA CHÍNH TA: header đặt TRƯỚC
+// `websocket.Accept` có sống qua response 101 không?
+//
+// Đường đi lý thuyết: `coder/websocket` v1.8.15 gọi `w.WriteHeader(101)` RỒI mới
+// `hj.Hijack()` (accept.go:151 rồi :159); `net/http` flush chunkWriter ngay bên
+// trong `Hijack()` khi `wroteHeader` đã bật, nên status line + toàn bộ
+// `w.Header()` đã ra dây TRƯỚC lượt hijack. Nhưng đó là hành vi của hai thư
+// viện bên ngoài, ở hai version có thể đổi — nên nó phải được ĐO, và test này
+// là phép đo. Nó đỏ ngay lượt nâng version nào phá vế đó, tức trước khi một
+// bản deploy phát ra 101 trần.
+func TestWSDatHeaderAnNinhTrenHandshake101(t *testing.T) {
+	spy := &spySessions{sess: &sessionstore.Session{UserID: "user-a", Status: sessionstore.StatusRunning,
+		ExpiresAt: time.Now().Add(time.Hour).Unix()}}
+	h := newHarness(t, spy)
+
+	res := h.req(t, "sess-a", h.cookie(t, testjwt.SandboxClaims("user-a", "sess-a")))
+	if res.Status != http.StatusSwitchingProtocols {
+		t.Fatalf("status = %d, muốn 101 (body: %s)", res.Status, res.Body)
+	}
+	assertSecurityHeaders(t, res.Header, "handshake 101")
+}
+
+// Mọi `return` sớm của handler, không chỉ đường hạnh phúc. Một header an ninh
+// chỉ có trên đường hạnh phúc là một header không có: nhánh từ chối cũng phát
+// JSON, cũng trên origin của app.
+func TestWSDatHeaderAnNinhTrenMoiNhanhTuChoi(t *testing.T) {
+	active := func() *sessionstore.Session {
+		return &sessionstore.Session{UserID: "user-a", Status: sessionstore.StatusRunning,
+			ExpiresAt: time.Now().Add(time.Hour).Unix()}
+	}
+	cases := []struct {
+		ten        string
+		spy        *spySessions
+		wantStatus int
+		mutate     func(t *testing.T, h *harness) []func(*http.Request)
+	}{
+		{
+			ten: "bước a — Origin lạ (403)", spy: &spySessions{}, wantStatus: http.StatusForbidden,
+			mutate: func(t *testing.T, h *harness) []func(*http.Request) {
+				return []func(*http.Request){
+					func(r *http.Request) { r.Header.Set("Origin", "https://evil.example") },
+					h.cookie(t, testjwt.SandboxClaims("user-a", "sess-a")),
+				}
+			},
+		},
+		{
+			ten: "bước b — thiếu subprotocol (400)", spy: &spySessions{}, wantStatus: http.StatusBadRequest,
+			mutate: func(t *testing.T, h *harness) []func(*http.Request) {
+				return []func(*http.Request){
+					func(r *http.Request) { r.Header.Del("Sec-WebSocket-Protocol") },
+					h.cookie(t, testjwt.SandboxClaims("user-a", "sess-a")),
+				}
+			},
+		},
+		{
+			ten: "bước c — thiếu cookie (401)", spy: &spySessions{}, wantStatus: http.StatusUnauthorized,
+			mutate: func(*testing.T, *harness) []func(*http.Request) { return nil },
+		},
+		{
+			ten: "bước h — session không chạy được (409)", wantStatus: http.StatusConflict,
+			spy: &spySessions{sess: &sessionstore.Session{UserID: "user-a", Status: "EXPIRED",
+				ExpiresAt: time.Now().Add(time.Hour).Unix()}},
+			mutate: func(t *testing.T, h *harness) []func(*http.Request) {
+				return []func(*http.Request){h.cookie(t, testjwt.SandboxClaims("user-a", "sess-a"))}
+			},
+		},
+		{
+			ten: "bước i — trần WS (429)", wantStatus: http.StatusTooManyRequests,
+			spy: &spySessions{sess: active(), acquireErr: sessionstore.ErrWSLimitReached},
+			mutate: func(t *testing.T, h *harness) []func(*http.Request) {
+				return []func(*http.Request){h.cookie(t, testjwt.SandboxClaims("user-a", "sess-a"))}
+			},
+		},
+		{
+			// Nhánh `fail`, không phải `deny`: Redis chết là lỗi của gateway. Nó đi
+			// qua một hàm ghi response KHÁC, nên nó là một chỗ quên riêng.
+			ten: "Redis chết (500)", wantStatus: http.StatusInternalServerError,
+			spy: &spySessions{getErr: context.DeadlineExceeded},
+			mutate: func(t *testing.T, h *harness) []func(*http.Request) {
+				return []func(*http.Request){h.cookie(t, testjwt.SandboxClaims("user-a", "sess-a"))}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.ten, func(t *testing.T) {
+			h := newHarness(t, tc.spy)
+			res := h.req(t, "sess-a", tc.mutate(t, h)...)
+			if res.Status != tc.wantStatus {
+				t.Fatalf("status = %d, muốn %d (body: %s)", res.Status, tc.wantStatus, res.Body)
+			}
+			assertSecurityHeaders(t, res.Header, tc.ten)
+		})
+	}
+}
