@@ -59,7 +59,21 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     // tới thứ đang được kiểm.
     await page.getByRole('button', { name: /^Thêm bước$/ }).click();
 
-    const stepCard = page.locator('div').filter({ hasText: /^Bước 1$/ }).last();
+    // ⚠ Thẻ bước là một `Card`, và chữ "Bước 1" nằm trong một `<h3>` — KHÔNG
+    // phải một `<div>` có text đúng bằng "Bước 1". Bản đầu dùng
+    // `locator('div').filter({ hasText: /^Bước 1$/ })` và khớp 0 phần tử trên
+    // cụm 2026-09-07: `hasText` đối chiếu với TOÀN BỘ text của phần tử, mà div
+    // bọc gần nhất còn chứa ba nút "Lên"/"Xuống"/"Xoá" nên text của nó là
+    // "Bước 1LênXuốngXoá". Triệu chứng đọc ra rất lạc hướng — một
+    // `locator.fill: Timeout` ở dòng NGAY SAU, tức trông như ô nhập không nhận
+    // chữ chứ không như thẻ bước không tồn tại.
+    //
+    // Neo bằng chính heading rồi lấy `Card` chứa nó: `data-slot="card"` là hook
+    // ổn định `packages/ui/src/card.tsx` cố ý phát ra, còn `h3` là cấu trúc
+    // ngữ nghĩa thật của thẻ bước.
+    const stepCard = page
+      .locator('[data-slot="card"]')
+      .filter({ has: page.getByRole('heading', { name: 'Bước 1', exact: true }) });
     await stepCard.getByLabel('Tiêu đề').fill('Bước kiểm thử tự động');
     await stepCard.getByLabel('Nội dung (Markdown)').fill(
       'Bước này do harness e2e sinh ra để đi hết luồng soạn bài. Không có gì phải làm.',

@@ -91,6 +91,13 @@ cd "$HERE/../.."
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
+# Artifact giữ lại giữa các mẻ. Nằm cạnh `outputDir` chứ không nằm TRONG nó —
+# Playwright dọn `outputDir`, nên bất cứ thứ gì ta cất vào đó cũng bốc hơi ở mẻ
+# kế tiếp. Đường này bị `apps/web/e2e/.gitignore` chặn cùng phần còn lại của
+# `.artifacts/`, nên nó không lọt vào git.
+KEEP="$PWD/e2e/.artifacts/paced-batches"
+rm -rf "$KEEP"   # xoá ở ĐẦU lượt: artifact của lượt TRƯỚC đọc ra y hệt của lượt này
+
 # ── 1. Liệt kê test ────────────────────────────────────────────────────────
 # `--list` KHÔNG chạy globalSetup và KHÔNG mở trình duyệt, nên nó không tiêu
 # một đồng nào của bucket rate-limit.
@@ -128,6 +135,18 @@ for f in "$WORK"/batch-*; do
   N="$(node "$LIB" count "$PWD/e2e/.artifacts/results.json")"
   RAN=$((RAN + N))
   cp "$PWD/e2e/.artifacts/results.json" "$WORK/results-$BATCH_NO.json" 2>/dev/null || true
+
+  # ⚠ Playwright DỌN SẠCH `outputDir` ở đầu MỖI lượt chạy, nên mẻ sau xoá ảnh
+  # chụp, trace và `error-context.md` của mẻ trước. Đo 2026-09-07: hai luồng đỏ
+  # ở mẻ 1 mất hết artifact khi mẻ 2 khởi động, và `error-context.md` chính là
+  # thứ mang cây ARIA — nghĩa là mất luôn đường chẩn đoán offline.
+  #
+  # Giữ lại NGOÀI `outputDir` (`$KEEP`), theo mẻ. Đây là thư mục cần đọc khi một
+  # luồng đỏ, không phải `e2e/.artifacts/test-results` (nó chỉ còn mẻ cuối).
+  if [ -d "$PWD/e2e/.artifacts/test-results" ]; then
+    mkdir -p "$KEEP"
+    cp -r "$PWD/e2e/.artifacts/test-results" "$KEEP/batch-$BATCH_NO" 2>/dev/null || true
+  fi
 
   if [ "$N" -eq 0 ]; then
     # ⚠ HAI nguyên nhân cho `0 test`, và chúng đòi hai việc khác hẳn nhau:

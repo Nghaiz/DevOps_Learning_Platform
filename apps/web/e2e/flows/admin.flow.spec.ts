@@ -106,8 +106,20 @@ test.describe('luồng 6 — quản trị', { tag: '@flow' }, () => {
 
     // Cột phải có mặt kể cả khi chưa hành động nào được ghi — bảng rỗng là
     // trạng thái hợp lệ của một cụm sạch, bảng KHÔNG TỒN TẠI thì không.
+    //
+    // ⚠ Nhánh thứ hai là `[data-slot="empty-state"]`, KHÔNG phải `role="status"`.
+    // Bản đầu tìm `role="status"` và đỏ trên cụm 2026-09-07 — nhưng `EmptyState`
+    // (`packages/ui/src/empty-state.tsx`) chưa từng khai vai trò đó, nên phép
+    // kiểm đang khẳng định một điều không đúng về sản phẩm chứ không phát hiện
+    // ra lỗi nào. `role="status"` là một live region: gắn nó vào MỌI trạng thái
+    // rỗng nghĩa là trình đọc màn hình xướng lên ở mỗi trang danh mục trống, một
+    // thay đổi hành vi rộng — không đáng đánh đổi để một locator khớp.
+    // `data-slot` là hook ổn định mà component đã cố ý phát ra.
     await expect(
-      page.getByRole('columnheader', { name: 'Hành động' }).or(page.getByRole('status')).first(),
+      page
+        .getByRole('columnheader', { name: 'Hành động' })
+        .or(page.locator('[data-slot="empty-state"]'))
+        .first(),
       'Trang nhật ký không có bảng lẫn trạng thái rỗng — không đọc được gì.',
     ).toBeVisible();
   });
