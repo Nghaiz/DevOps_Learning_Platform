@@ -205,9 +205,87 @@ Chạy lại với Redis dev xác thực (`redis://:…@127.0.0.1:6379/15`), `-c
 cố chạy trên Windows), không phải lỗi mã. `GOOS=linux` chỉ dùng cho `go build` để phủ
 file mang build tag `_unix.go`.
 
+### 2.9 A8 — cơ chế ĐÃ CÓ, và README lạc hậu 9 tiếng (`0853697`)
+
+Bảng nợ trích `images/sandbox-base/README.md`: *"chưa có task nào sở hữu"*. Sai —
+cơ chế rollout-theo-image có từ `ea73912` (2026-08-12 **22:05**, tầng 4
+`sweepDeadFreePods`). Dòng README đó viết ở `d09db86` **cùng ngày, 12:52** — sớm hơn
+chín tiếng, và không ai cập nhật lại. Ai đọc nó sẽ đi dựng một cơ chế THỨ HAI cùng
+mutate `pool:free`.
+
+Đây là **lần thứ hai** trong phiên một brief của tôi trích tài liệu lạc hậu (lần đầu:
+A9, §1.4). Cùng một hình dạng: số dòng đúng, nội dung vẫn ở đó, và nó vẫn sai.
+
+Nhưng lượt kiểm ấy lộ ra **hai lỗ thật**, đọc từ log orchestrator trên cụm sau khi
+đổi `SANDBOX_IMAGE` p10a → p13ide:
+
+```
+07:37:35.038Z / .053Z / .067Z   WARN pod ấm chạy image CŨ — đã rút …
+07:38:34.856Z                   WARN (pod p10a thứ tư)
+```
+
+1. **Ba lượt teardown trong 30 mili-giây** trên một node Sysbox — đúng hình dạng đã
+   dẫn tới `FailedKillPod` → sysbox-fs wedge ở P12 §5b. Với `POOL_TARGET` lớn hơn thì
+   là hàng chục. Đã vá: rút khỏi `pool:free` là vô điều kiện, nhưng **xoá khỏi cluster
+   có trần** (`maxStaleEvictPerSweep`); phần vượt trần sang `pool:quarantine`.
+2. **Dòng thứ tư ở +59s**: replica orchestrator CŨ còn sống và bơm pod ảnh cũ vào cùng
+   pool SAU vòng sweep của replica mới. Ai claim trong cửa sổ đó nhận pod cũ, và triệu
+   chứng là `/ide` trả 503 — không ai truy về chiến lược rollout. Đã vá ở `207f999`
+   (`maxSurge: 0`), xem §2.10.
+
+### 2.10 `maxSurge: 0` cho orchestrator (`207f999`)
+
+Deployment không khai `strategy:` nên nhận mặc định `maxSurge: 25%`, mà **25% của
+`replicas: 1` làm tròn LÊN thành 1**. Đó là nguồn của lỗ (2) ở trên.
+
+Cái giá: orchestrator ngưng vài chục giây giữa lượt nâng cấp. Đổi một khoảng hỏng
+**ngắn và ồn** (start phiên trả lỗi ngay) lấy một pod sai ảnh **nằm im** trong pool
+tới khi có người trúng nó.
+
+⚠ Bảo đảm "không bao giờ hai `SANDBOX_IMAGE`" chỉ đúng ở `replicas: 1`. Với
+`replicas > 1`, `maxSurge: 0` vẫn cuộn từng pod nên hai đời VẪN cùng sống.
+
+### 2.11 A4 favicon (`52ccd60`) — và một bẫy đáng nhớ
+
+Bản nháp SVG trích nguyên văn tên biến CSS vào chú thích, mà **XML cấm hai dấu gạch
+nối liền nhau** ⇒ cả file hỏng phân tích, Chromium vẽ ra icon "ảnh hỏng".
+
+**File vẫn tồn tại, vẫn không rỗng.** Một test kiểu "có file và khác rỗng" sẽ XANH
+trên đúng cái file hỏng đó. Chỉ phép giải nén pixel mới bắt được — và đó là phép đo
+đã dùng: 16×16 có 244px đục / 8px trắng, màu chủ đạo khớp hai mã màu định dùng.
+
+`.ico` raster hoá **từ chính `icon.svg`** nên hai file không thể lệch nhau.
+
+### 2.12 A5 — hai vế lồng nhau (`12a8e3b`)
+
+Xem §"SỬA 2026-09-08" trong `reports/harness/2026-09-07-p13-ac613/RESULTS.md`. Tóm
+tắt: vá vế "không phát `onResize`" một mình là **vá vào nhánh không bao giờ chạy**, vì
+thường không có số mới để phát — `proposeDimensions()` chia cho metric ô chữ đã cache
+từ `terminal.open()`, và xterm 6.0.0 không có tham chiếu nào tới `document.fonts`.
+
+Và "7/7 lượt trùng số" gần như chắc chắn không phải ngẫu nhiên: `TERMINAL_FONT_FAMILY`
+để `"Cascadia Mono"` ngay sau webfont, nên mọi máy Windows có Windows Terminal cho
+metric trước-font bằng sau-font.
+
 ## 3. Đo trên cụm
 
-_(sau deploy)_
+### 3.1 `/ide` qua Traefik — đo được, và nó KHÁC điều plan ghi
+
+`phase-13-exec.md` §3ter mục 10 ghi: *"`/ide` chưa bao giờ đi qua Traefik (6.A/6.B/6.E
+đều dùng `port-forward`)"*. Đo 2026-09-08 trên cụm, ảnh CŨ (`p13e`):
+
+| Đường | status |
+|---|---:|
+| `/ide/session/khong-ton-tai/` | **401** (0.032s) |
+| đường không có thật | 308 |
+| `/ws/session/x` | 400 |
+
+401 chứ không 404 ⇒ ingress **có** route `/ide` và gateway từ chối vì thiếu cookie.
+Vế "chưa bao giờ đi qua Traefik" nay đã sai; vế **trần body 1 MiB** và **tier
+`ratelimit-ide` 600/1m burst 300** thì vẫn CHƯA đo (cần một phiên thật và một payload
+đủ lớn).
+
+_(phần còn lại sau deploy)_
 
 ## 4. Còn lại — nói thẳng
 
