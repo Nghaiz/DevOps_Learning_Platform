@@ -266,8 +266,39 @@ func TestIDEDoesNotForwardSessionCookieToPod(t *testing.T) {
 	if res := h.get(t, testSession, ""); res.Status != http.StatusOK {
 		t.Fatalf("status %d, muốn 200", res.Status)
 	}
-	if h.rec.cookie != "" {
+	if strings.Contains(h.rec.cookie, sessionauth.CookieName) {
 		t.Fatalf("pod nhận được Cookie %q — token phiên đã rò vào tiến trình của người học", h.rec.cookie)
+	}
+}
+
+// TestIDEForwardsOtherCookiesToPod là VẾ CÒN LẠI của test trên, và thiếu nó thì
+// cách sửa "an toàn" nhất cho test kia là xoá sạch header Cookie — đúng cái bug
+// này sinh ra.
+//
+// Theia tự phát `theia-connection-token` ở lượt tải trang gốc và TỪ CHỐI mọi lượt
+// nâng cấp socket thiếu nó (`allowWsUpgrade` trong bản dựng Theia: không token ⇒
+// `return false`). Bản trước gọi `Header.Del("Cookie")` nên xoá luôn token ấy, và
+// IDE dựng được vỏ rồi kẹt: trang gốc 200, `socket.io` 403 — không backend, không
+// terminal, không file.
+//
+// Đo trên cụm 2026-09-07, TRONG pod qua loopback (loại hẳn proxy/Traefik/CSP khỏi
+// diện nghi): có cookie → 200, không cookie → 403.
+func TestIDEForwardsOtherCookiesToPod(t *testing.T) {
+	sessions := &spySessions{sess: activeSession()}
+	h := newHarness(t, sessions, 8)
+
+	res := h.get(t, testSession, "", func(r *http.Request) {
+		r.AddCookie(&http.Cookie{Name: "theia-connection-token", Value: "tok-123"})
+	})
+	if res.Status != http.StatusOK {
+		t.Fatalf("status %d, muốn 200", res.Status)
+	}
+	if !strings.Contains(h.rec.cookie, "theia-connection-token=tok-123") {
+		t.Fatalf("pod KHÔNG nhận được cookie của Theia (Cookie=%q) — socket.io sẽ trả 403 "+
+			"và IDE mất backend, trong khi trang gốc vẫn 200", h.rec.cookie)
+	}
+	if strings.Contains(h.rec.cookie, sessionauth.CookieName) {
+		t.Fatalf("cookie phiên của ta vẫn lọt vào pod: %q", h.rec.cookie)
 	}
 }
 

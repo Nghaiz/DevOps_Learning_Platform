@@ -260,7 +260,32 @@ func (h *handler) proxy(podIP, ns, pod string) *httputil.ReverseProxy {
 			// được là trao cho họ chính thứ chứng minh danh tính của họ ở
 			// gateway. Luật 8 nói không có token trong URL; đây là cùng một luật
 			// ở một cửa khác.
-			pr.Out.Header.Del("Cookie")
+			//
+			// ⚠ Bỏ ĐÚNG cookie của ta, KHÔNG bỏ cả header.
+			//
+			// Bản trước gọi `pr.Out.Header.Del("Cookie")`, và câu đó xoá MỌI
+			// cookie — kể cả `theia-connection-token` mà chính Theia vừa phát ra
+			// ở lượt tải trang gốc. Theia đòi token đó trên mọi lượt nâng cấp
+			// socket:
+			//
+			//     allowWsUpgrade: token := getTokenFromCookie(req)
+			//                     if token != "" { return isTokenValid(token) }
+			//                     return false
+			//
+			// nên IDE dựng được vỏ rồi kẹt ở đó: `/ide/session/{id}/` trả 200,
+			// còn `/ide/session/{id}/socket.io/…` trả 403 `{"code":4,"message":
+			// "Forbidden"}` — không backend, không terminal, không file.
+			//
+			// Đo trên cụm 2026-09-07, TRONG chính pod sandbox qua loopback (nên
+			// loại hẳn proxy, Traefik và CSP khỏi diện nghi):
+			//
+			//     socket.io CÓ cookie theia-connection-token → 200
+			//     socket.io KHÔNG cookie                     → 403
+			//
+			// Ba biến thể `Origin` và ba biến thể `Host` đều 403 như nhau, nên
+			// đây KHÔNG phải lệch origin — một giả thuyết đã thử và bị bác bỏ
+			// trước khi tìm ra dòng trên.
+			forwardCookiesExceptOurs(pr)
 
 			// X-Forwarded-* do SetURL đặt; giữ nguyên.
 		},
@@ -283,6 +308,28 @@ func (h *handler) proxy(podIP, ns, pod string) *httputil.ReverseProxy {
 			}
 			h.fail(w, r, codeIDEUnavail, "proxy tới IDE", err)
 		},
+	}
+}
+
+// forwardCookiesExceptOurs dựng lại header `Cookie` đi tới Theia, bỏ đúng cookie
+// phiên của ta và giữ nguyên phần còn lại.
+//
+// Vì sao không `Del` rồi thôi: Theia tự phát `theia-connection-token` và TỪ CHỐI
+// mọi lượt nâng cấp socket thiếu nó (`allowWsUpgrade`). Xoá cả header là xoá luôn
+// token ấy, và IDE mất backend trong khi trang gốc vẫn 200 — một chế độ hỏng
+// không có gì trên cụm phát hiện được, vì `rollout status` xanh và pod `Running`.
+//
+// Vì sao vẫn bỏ `dlp_sandbox`: nó chứng minh danh tính của người học ở GATEWAY,
+// còn tiến trình bên trong sandbox thì chính người học điều khiển. Đưa nó vào là
+// tự tay trao cho họ thứ ta dùng để nhận ra họ.
+func forwardCookiesExceptOurs(pr *httputil.ProxyRequest) {
+	cookies := pr.In.Cookies()
+	pr.Out.Header.Del("Cookie")
+	for _, c := range cookies {
+		if c.Name == sessionauth.CookieName {
+			continue
+		}
+		pr.Out.AddCookie(c)
 	}
 }
 
