@@ -94,6 +94,18 @@ migrate:
 web:
   # Tag tường minh — xem khối "TAG THEO TỪNG THÀNH PHẦN" ở đầu file.
   #
+  # p13c (2026-09-07): ba thay đổi tầng web + MỘT thay đổi nội dung ẢNH.
+  #   1. Ảnh nay CÀI `shellcheck` (+17 MiB). Cho tới p13b, bước kiểm script của
+  #      trang soạn bài trả `spawn shellcheck ENOENT` ở MỌI lượt — UI nói đúng
+  #      ("1/1 script CHƯA kiểm được") nhưng năng lực chưa từng tồn tại.
+  #   2. `NarrowScreenNotice` nay có call-site (trước đó là mã chết, nên nửa
+  #      "terminal hạ cấp ≤768px" của ô AC 13 chưa từng chạy).
+  #   3. Nút Đăng nhập khoá tới khi hydrate.
+  # Và nội dung: bài `dlp-ide-config-edit` — bài ĐẦU TIÊN khai
+  # `interface.layout: ide`, thứ ô AC 6 cần để đo được. Nội dung nằm TRONG ảnh
+  # (`COPY content ./content`), nên nó chỉ xuất hiện sau lượt bump này.
+  # KHÔNG đụng proto ⇒ không có ràng buộc "web và orchestrator lên cùng lượt".
+  #
   # p13b (2026-09-07): p13a + hai bản vá a11y tìm được SAU khi deploy p13a —
   # `/author` bọc danh sách vào `TabsContent` (trước đó tablist không có panel
   # nào ⇒ axe critical), và gỡ `outline-none` khỏi `TabsContent` (nó vô hiệu hoá
@@ -105,7 +117,7 @@ web:
   # JIT của Zod. KHÔNG đụng proto nên KHÔNG có ràng buộc "web và orchestrator lên
   # cùng lượt" của §3bis; orchestrator/gateway/migrator giữ nguyên `p13`.
   image:
-    tag: p13b
+    tag: p13c
   replicaCount: 1
   # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
   # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ
