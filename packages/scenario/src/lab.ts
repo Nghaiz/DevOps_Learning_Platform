@@ -101,6 +101,14 @@ export const labFileSchema = z
     passThresholdPercent: z.number().int().min(1).max(100).optional(),
     /** Optional — loader áp default `false` (TẮT, xem `labSchema.leaderboard`). */
     leaderboard: z.boolean().optional(),
+    /**
+     * Công cụ bật thêm trong sandbox (hợp đồng §C4) — cùng hình dạng khoá
+     * `toolset` của `index.json` mở rộng, xem `killercodaIndexSchema.toolset`
+     * để biết vì sao là `z.string()` chứ không phải `z.enum(SANDBOX_TOOLS)`.
+     *
+     * `.default([])` cho "vắng mặt ⇒ `[]`": mảng rỗng = không bật gì, KHÔNG null.
+     */
+    toolset: z.array(z.string()).default([]),
   })
   .strict();
 export type LabFile = z.infer<typeof labFileSchema>;

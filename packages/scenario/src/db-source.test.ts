@@ -33,6 +33,8 @@ function itemRow(over: Partial<ContentItemRow> = {}): ContentItemRow {
     capabilities: [],
     backendImageId: 'ubuntu',
     interfaceLayout: null,
+    // §C4 — đã parse ở phía repository, port mang mảng chứ không mang chuỗi JSON.
+    toolset: [],
     passThresholdPercent: null,
     leaderboard: null,
     ttlSeconds: null,

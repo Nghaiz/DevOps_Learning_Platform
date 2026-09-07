@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { sanitizeToolset } from './toolset.ts';
+
 /**
  * Schema của `index.json` UPSTREAM (Katacoda/Killercoda) — không phải DTO của ta.
  *
@@ -75,6 +77,19 @@ export const killercodaIndexSchema = z
       })
       .strict()
       .optional(),
+    /**
+     * MỞ RỘNG CỦA TA (hợp đồng §C4) — công cụ bật thêm trong sandbox cho bài
+     * này. KHÔNG có trong `index.json` upstream của Killercoda.
+     *
+     * `z.string()` chứ không phải `z.enum(SANDBOX_TOOLS)`, và đó là một khẳng
+     * định: enum ở đây sẽ NÉM khi gặp một tên đã bị gỡ khỏi danh mục, tức biến
+     * việc dọn danh mục thành sự cố "cả catalog không parse được". Phép thu hẹp
+     * về danh mục nằm ở `sanitizeToolset` — lọc bỏ kèm cảnh báo (xem docstring
+     * của nó để biết vì sao ở đây lọc còn `toAction` thì ném).
+     *
+     * `.default([])` cho "vắng mặt ⇒ `[]`" của §C4 — mảng rỗng, KHÔNG null.
+     */
+    toolset: z.array(z.string()).default([]),
   })
   .strict();
 
@@ -85,6 +100,15 @@ export interface KillercodaParseResult {
   index: KillercodaIndex;
   /** Đường dẫn chấm của field lạ đã được sidecar khai và ta cố ý bỏ qua. */
   ignoredFields: string[];
+  /**
+   * Chuyện KHÔNG làm hỏng bài nhưng cần đọc được — hiện chỉ có tên công cụ
+   * ngoài danh mục bị lọc bỏ. Rỗng là trường hợp thường.
+   *
+   * Là GIÁ TRỊ TRẢ VỀ chứ không phải `console.warn` chôn trong hàm: hàm này
+   * thuần và loader/CI phải khẳng định được nội dung cảnh báo trong test —
+   * cùng lý do `dbContentSource` nhận `ContentSourceLogger` qua field.
+   */
+  warnings: string[];
 }
 
 /** Lỗi thuần về FORMAT — loader bọc lại thành `ScenarioError` kèm thư mục. */
@@ -159,7 +183,7 @@ export function parseKillercodaIndex(
           `nhưng index.json không còn field lạ nào — upstream đã dọn, hãy xoá lời khai đã cũ.`,
       );
     }
-    return { index: first.data, ignoredFields: [] };
+    return { ...withSanitizedToolset(first.data), ignoredFields: [] };
   }
 
   const unknownPaths: string[] = [];
@@ -208,5 +232,20 @@ export function parseKillercodaIndex(
     );
   }
 
-  return { index: second.data, ignoredFields: unknownPaths.sort() };
+  return { ...withSanitizedToolset(second.data), ignoredFields: unknownPaths.sort() };
+}
+
+/**
+ * Thu hẹp `toolset` về danh mục sandbox, giữ nguyên phần còn lại của index.
+ *
+ * Trả về một object MỚI thay vì gán đè `index.toolset`: `second.data` là dữ
+ * liệu zod vừa dựng, nhưng thói quen "parser sửa tại chỗ" là đúng thứ đoạn
+ * `structuredClone` phía trên đã phải dựng lên để tránh.
+ */
+function withSanitizedToolset(index: KillercodaIndex): {
+  index: KillercodaIndex;
+  warnings: string[];
+} {
+  const { toolset, warnings } = sanitizeToolset(index.toolset);
+  return { index: { ...index, toolset: [...toolset] }, warnings: [...warnings] };
 }

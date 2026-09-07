@@ -37,32 +37,39 @@ describe('ContentView — code block hành động', () => {
   it('nút chạy của block exec gọi onExec đúng lệnh, interrupt=false', () => {
     const onExec = vi.fn();
     const blocks: ContentBlock[] = [
-      { kind: 'code', code: 'kubectl get pods', language: null, action: 'exec', inline: false },
+      { kind: 'code', code: 'kubectl get pods', language: null, action: 'exec', inline: false, target: null },
     ];
 
     render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={onExec} />);
     fireEvent.click(screen.getByRole('button', { name: 'Chạy' }));
 
     expect(onExec).toHaveBeenCalledTimes(1);
-    expect(onExec).toHaveBeenCalledWith('kubectl get pods', false);
+    expect(onExec).toHaveBeenCalledWith('kubectl get pods', { interrupt: false, target: null });
   });
 
   it('nút chạy của block exec-interrupt gọi onExec với interrupt=true', () => {
     const onExec = vi.fn();
     const blocks: ContentBlock[] = [
-      { kind: 'code', code: 'tail -f app.log', language: 'bash', action: 'exec-interrupt', inline: false },
+      {
+        kind: 'code',
+        code: 'tail -f app.log',
+        language: 'bash',
+        action: 'exec-interrupt',
+        inline: false,
+        target: null,
+      },
     ];
 
     render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={onExec} />);
     fireEvent.click(screen.getByRole('button', { name: 'Ngắt & chạy' }));
 
     expect(onExec).toHaveBeenCalledTimes(1);
-    expect(onExec).toHaveBeenCalledWith('tail -f app.log', true);
+    expect(onExec).toHaveBeenCalledWith('tail -f app.log', { interrupt: true, target: null });
   });
 
   it('onExec undefined ⇒ không render nút chạy nào', () => {
     const blocks: ContentBlock[] = [
-      { kind: 'code', code: 'kubectl get pods', language: null, action: 'exec', inline: false },
+      { kind: 'code', code: 'kubectl get pods', language: null, action: 'exec', inline: false, target: null },
     ];
 
     render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
@@ -72,7 +79,7 @@ describe('ContentView — code block hành động', () => {
 
   it('execEnabled=false ⇒ nút chạy vẫn hiện nhưng bị disable', () => {
     const blocks: ContentBlock[] = [
-      { kind: 'code', code: 'kubectl get pods', language: null, action: 'exec', inline: false },
+      { kind: 'code', code: 'kubectl get pods', language: null, action: 'exec', inline: false, target: null },
     ];
 
     render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={vi.fn()} execEnabled={false} />);
@@ -86,7 +93,7 @@ describe('ContentView — code block hành động', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     stubClipboard(writeText);
     const blocks: ContentBlock[] = [
-      { kind: 'code', code: 'echo hello', language: null, action: 'copy', inline: false },
+      { kind: 'code', code: 'echo hello', language: null, action: 'copy', inline: false, target: null },
     ];
 
     render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
@@ -103,13 +110,184 @@ describe('ContentView — code block hành động', () => {
   it('clipboard reject ⇒ nút hiện trạng thái lỗi, không nuốt lỗi trong im lặng', async () => {
     stubClipboard(() => Promise.reject(new Error('permission denied')));
     const blocks: ContentBlock[] = [
-      { kind: 'code', code: 'echo hello', language: null, action: 'copy', inline: false },
+      { kind: 'code', code: 'echo hello', language: null, action: 'copy', inline: false, target: null },
     ];
 
     render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
     fireEvent.click(screen.getByRole('button', { name: 'Chép' }));
 
     expect(await screen.findByRole('button', { name: 'Chép thất bại' })).toBeDefined();
+  });
+});
+
+/**
+ * Hợp đồng §C2 — `onExec` nhận `(command, { interrupt, target })`.
+ *
+ * `target` KHÔNG phải chi tiết nội bộ của tầng nối dây: bài học viết
+ * `{{exec T2}}` là một quyết định sư phạm ("lệnh này thuộc về terminal kia"),
+ * nên nó phải đi được cả hai chặng — tới hàm gọi, VÀ tới mắt người học trước
+ * khi họ bấm. Hai nhóm test dưới gác đúng hai chặng đó.
+ */
+describe('ContentView — đích thực thi (exec target)', () => {
+  const noop = (): void => {};
+
+  it('block khai T2 ⇒ onExec nhận target terminal-2, interrupt=false', () => {
+    const onExec = vi.fn();
+    const blocks: ContentBlock[] = [
+      {
+        kind: 'code',
+        code: 'kubectl logs -f deploy/api',
+        language: null,
+        action: 'exec',
+        inline: false,
+        target: 'terminal-2',
+      },
+    ];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={onExec} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Chạy ở Terminal 2' }));
+
+    expect(onExec).toHaveBeenCalledTimes(1);
+    expect(onExec).toHaveBeenCalledWith('kubectl logs -f deploy/api', {
+      interrupt: false,
+      target: 'terminal-2',
+    });
+  });
+
+  it('block khai T2 + interrupt ⇒ hai trường độc lập, không cái nào nuốt cái nào', () => {
+    const onExec = vi.fn();
+    const blocks: ContentBlock[] = [
+      {
+        kind: 'code',
+        code: 'tail -f /var/log/syslog',
+        language: 'bash',
+        action: 'exec-interrupt',
+        inline: false,
+        target: 'terminal-2',
+      },
+    ];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={onExec} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Ngắt & chạy ở Terminal 2' }));
+
+    expect(onExec).toHaveBeenCalledWith('tail -f /var/log/syslog', {
+      interrupt: true,
+      target: 'terminal-2',
+    });
+  });
+
+  it('block KHÔNG khai đích ⇒ target null (terminal đang hoạt), không phải terminal-1', () => {
+    const onExec = vi.fn();
+    const blocks: ContentBlock[] = [
+      { kind: 'code', code: 'ls -la', language: null, action: 'exec', inline: false, target: null },
+    ];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={onExec} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Chạy' }));
+
+    // `null` ≠ `'terminal-1'`: tầng nối dây phải tự do gửi vào tab người dùng
+    // đang xem. Chốt cứng thành terminal-1 ở đây thì mọi lệnh không khai đích
+    // sẽ nhảy về tab 1 kể cả khi người học đang gõ ở tab 2.
+    expect(onExec).toHaveBeenCalledWith('ls -la', { interrupt: false, target: null });
+  });
+
+  it('badge đích in TRÊN NÚT — người học thấy trước khi bấm, không phải sau', () => {
+    const blocks: ContentBlock[] = [
+      { kind: 'code', code: 'htop', language: null, action: 'exec', inline: false, target: 'terminal-2' },
+    ];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={noop} />);
+
+    expect(screen.getByRole('button', { name: 'Chạy ở Terminal 2' }).textContent).toContain('T2');
+  });
+
+  it('T1 ra badge T1 — hai đích không dùng chung một nhãn', () => {
+    const blocks: ContentBlock[] = [
+      { kind: 'code', code: 'exit', language: null, action: 'exec', inline: false, target: 'terminal-1' },
+    ];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={noop} />);
+
+    const button = screen.getByRole('button', { name: 'Chạy ở Terminal 1' });
+    expect(button.textContent).toContain('T1');
+    expect(button.textContent).not.toContain('T2');
+  });
+
+  it('không khai đích ⇒ KHÔNG có badge, nhãn nút y như trước', () => {
+    const blocks: ContentBlock[] = [
+      { kind: 'code', code: 'ls -la', language: null, action: 'exec', inline: false, target: null },
+    ];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={noop} />);
+
+    // Bằng ĐÚNG, không phải `toContain`: một badge rỗng hay một khoảng trắng
+    // thừa lọt qua `toContain('Chạy')` mà vẫn là badge in ra khi không nên.
+    expect(screen.getByRole('button', { name: 'Chạy' }).textContent).toBe('Chạy');
+  });
+
+  /**
+   * "T2" là KÝ HIỆU NHÌN BẰNG MẮT. Trình đọc màn hình phát nó ra thành hai ký
+   * tự rời, không phải một đích — nên tên trợ năng của nút phải nói đủ chữ.
+   *
+   * Khẳng định hai chiều: tên MỚI có mặt, VÀ tên cũ trần trụi ("Chạy") KHÔNG
+   * còn khớp. Chỉ khẳng định chiều thứ nhất thì một nút mang aria-label
+   * "Chạy" + badge vẫn xanh, mà đó đúng là ca hỏng đang gác.
+   */
+  it('tên trợ năng nói đủ chữ đích, không bỏ mặc cho badge', () => {
+    const blocks: ContentBlock[] = [
+      { kind: 'code', code: 'htop', language: null, action: 'exec', inline: false, target: 'terminal-2' },
+    ];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={noop} />);
+
+    const button = screen.getByRole('button', { name: 'Chạy ở Terminal 2' });
+    expect(button.getAttribute('aria-label')).toBe('Chạy ở Terminal 2');
+    expect(screen.queryByRole('button', { name: 'Chạy' })).toBeNull();
+  });
+
+  it('badge bị ẩn khỏi cây trợ năng — aria-label đã nói, đọc thêm "T2" là đọc thừa', () => {
+    const blocks: ContentBlock[] = [
+      { kind: 'code', code: 'htop', language: null, action: 'exec', inline: false, target: 'terminal-2' },
+    ];
+
+    const { container } = render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={noop} />);
+
+    const badge = container.querySelector('button span');
+    expect(badge?.textContent).toBe('T2');
+    expect(badge?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('execEnabled=false KHÔNG đổi hành vi disabled, kể cả khi có đích', () => {
+    const blocks: ContentBlock[] = [
+      { kind: 'code', code: 'htop', language: null, action: 'exec', inline: false, target: 'terminal-2' },
+    ];
+
+    render(
+      <ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={noop} execEnabled={false} />,
+    );
+
+    const button = screen.getByRole('button', { name: 'Chạy ở Terminal 2' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('title')).not.toBeNull();
+  });
+
+  /**
+   * CodeBlock có HAI đường render (span inline giữa câu, và card khối) và mỗi
+   * đường dựng nút riêng. Một bản vá chỉ chạm đường khối trông xanh hoàn toàn
+   * ở mọi test trên — tất cả chúng đều `inline: false`.
+   */
+  it('đường render inline cũng mang badge và tên trợ năng', () => {
+    const onExec = vi.fn();
+    const blocks: ContentBlock[] = [
+      { kind: 'code', code: 'q', language: null, action: 'exec', inline: true, target: 'terminal-2' },
+    ];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} onExec={onExec} />);
+    const button = screen.getByRole('button', { name: 'Chạy ở Terminal 2' });
+    expect(button.textContent).toContain('T2');
+
+    fireEvent.click(button);
+    expect(onExec).toHaveBeenCalledWith('q', { interrupt: false, target: 'terminal-2' });
   });
 });
 
@@ -225,7 +403,14 @@ describe('ContentView — vùng cuộn vào được bằng bàn phím', () => {
 
   it('khối mã CÓ hành động (CodeBlock) cuộn được bằng bàn phím', () => {
     const blocks: ContentBlock[] = [
-      { kind: 'code', code: 'kubectl get pods -A', language: 'bash', action: 'copy', inline: false },
+      {
+        kind: 'code',
+        code: 'kubectl get pods -A',
+        language: 'bash',
+        action: 'copy',
+        inline: false,
+        target: null,
+      },
     ];
     const { container } = render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
     assertScrollRegion(container.querySelector('pre'), 'pre của CodeBlock');

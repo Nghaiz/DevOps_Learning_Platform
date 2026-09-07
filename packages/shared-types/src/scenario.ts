@@ -41,6 +41,36 @@ export const SANDBOX_TIER_NAMES = ['sysbox', 'gvisor', 'kata'] as const;
 export type SandboxTierName = (typeof SANDBOX_TIER_NAMES)[number];
 
 /**
+ * Công cụ dòng lệnh bật thêm theo TỪNG bài (`toolset`) — hợp đồng §C4.
+ *
+ * Nhà ở ĐÂY chứ không ở `packages/scenario`, vì hai lý do kiểm được:
+ * `packages/scenario` import shared-types và không có chiều ngược lại (nên nếu
+ * `contentBaseSchema.toolset` có ngày siết thành `z.enum(SANDBOX_TOOLS)` thì hằng
+ * số BẮT BUỘC nằm ở đây), và ba call-site của `apps/web` đã import nó từ đây,
+ * cạnh `SANDBOX_TIER_NAMES` / `SCENARIO_CAPABILITIES` — nhà quen của mọi từ vựng
+ * đóng trong repo này. `packages/scenario/src/toolset.ts` RE-EXPORT lại chứ
+ * không khai bản thứ hai: hai danh mục cho cùng một thứ sẽ lệch nhau ở lần thêm
+ * công cụ đầu tiên, và cái lệch đó hiện ra thành "ô chọn trên UI soạn bài có
+ * tool mà sandbox không bật được".
+ *
+ * ⚠ Mỗi tên ở đây phải ứng với một gói ĐÃ nướng sẵn trong image sandbox. Sandbox
+ * không có internet, nên một tên không có trong image không phải "chưa cài" mà
+ * là "không có đường nào cài được" — và nó hỏng lúc setup phiên, trước mặt
+ * người học.
+ */
+export const SANDBOX_TOOLS = [
+  'btop',
+  'tldr',
+  'ripgrep',
+  'fd',
+  'duf',
+  'ncdu',
+  'delta',
+  'yq',
+] as const;
+export type SandboxTool = (typeof SANDBOX_TOOLS)[number];
+
+/**
  * `id` đi thẳng vào `progress.lesson_id` (cột text, unique cùng `user_id`). Vì
  * vậy nó là một ĐỊNH DANH BỀN, không phải tên thư mục: đổi tên thư mục mà id
  * suy ra từ đó thì mọi dòng progress cũ trở thành mồ côi trong im lặng — không
@@ -207,6 +237,22 @@ export const contentBaseSchema = z.object({
   backendImageId: z.string().min(1),
   /** `interface.layout` upstream (`ide`). `null` = terminal thường. */
   interfaceLayout: z.string().nullable(),
+  /**
+   * Công cụ bài này muốn bật thêm trong sandbox (§C4).
+   *
+   * `z.array(z.string())` chứ KHÔNG `z.enum(SANDBOX_TOOLS)`, có chủ ý: DTO này
+   * cũng được dựng từ hàng DB đã lưu, và một bài cũ khai công cụ mà nay ta đã GỠ
+   * khỏi danh mục sẽ làm `z.enum` từ chối CẢ HÀNG. Ở `dbContentSource` phép từ
+   * chối đó là "bỏ qua hàng kèm warn" — tức bài biến mất khỏi `/lessons` trong
+   * im lặng, vì một tiện ích phụ. Phép thu hẹp về danh mục là `sanitizeToolset`
+   * (`packages/scenario/src/toolset.ts`), chạy ở biên dựng DTO, nơi một tên lạ
+   * chỉ làm mất đúng một công cụ.
+   *
+   * `.default([])` — mảng rỗng, KHÔNG dùng `null`: "không bật gì" là trạng thái
+   * thường của gần như mọi bài, và hai cách viết cho cùng một trạng thái là chỗ
+   * đẻ ra `?? []` rải khắp nơi.
+   */
+  toolset: z.array(z.string()).default([]),
 
   assets: z.array(scenarioAssetSchema),
   source: scenarioSourceSchema.nullable(),

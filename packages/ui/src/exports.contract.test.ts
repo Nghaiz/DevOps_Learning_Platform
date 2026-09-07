@@ -156,6 +156,33 @@ const _themeStorageKey: string = UI.THEME_STORAGE_KEY;
  * qua chỗ này trước.
  */
 const _contentViewHasProps: PropsOf<typeof UI.ContentView> extends UI.ContentViewProps ? true : never = true;
+
+/**
+ * `onExec` — hợp đồng §C2 của khung KillerCoda. Chữ ký cũ
+ * `(command: string, interrupt: boolean)` bị THAY, không giữ song song: hai
+ * chữ ký cùng tồn tại là chỗ để một call-site cũ truyền `boolean` lọt qua im
+ * lặng, và một object `ExecOptions` đọc như `boolean` thì luôn truthy — nút
+ * "Chạy" âm thầm hoá thành "Ngắt & chạy".
+ *
+ * Khẳng định bằng cách GÁN một hàm đúng chữ ký mới vào prop: sai kiểu tham số
+ * thứ hai thì đỏ ngay dòng này, kèm tên prop.
+ */
+const _contentViewExec: UI.ContentViewProps['onExec'] = (command: string, options: UI.ExecOptions) => {
+  const _command: string = command;
+  const _interrupt: boolean = options.interrupt;
+  // `target` là `ExecTarget | null` — `null` được phép, nên phép gán này phải
+  // biên dịch. Nếu ai đó siết nó thành non-nullable, dòng dưới đỏ.
+  const _target: UI.ExecOptions['target'] = null;
+  void _command;
+  void _interrupt;
+  void _target;
+};
+
+/** Cả hai trường của `ExecOptions` phải BẮT BUỘC — không được nới thành tuỳ chọn. */
+const _execOptionsRequired: Requires<UI.ExecOptions, 'interrupt' | 'target'> = {
+  interrupt: true,
+  target: true,
+};
 const _splitPaneHasProps: PropsOf<typeof UI.SplitPane> extends UI.SplitPaneProps ? true : never = true;
 const _stepNavHasProps: PropsOf<typeof UI.StepNav> extends UI.StepNavProps ? true : never = true;
 const _progressBarHasProps: PropsOf<typeof UI.ProgressBar> extends UI.ProgressBarProps ? true : never = true;

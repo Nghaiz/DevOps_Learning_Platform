@@ -20,6 +20,7 @@ import {
   type Playground,
   type PlaygroundSummary,
 } from '@devops-platform/shared-types/playground';
+import { sanitizeToolset } from './toolset.ts';
 import {
   encodeContentCursor,
   type ContentPage,
@@ -74,6 +75,21 @@ export interface ContentItemRow {
   readonly capabilities: readonly string[];
   readonly backendImageId: string;
   readonly interfaceLayout: string | null;
+  /**
+   * Công cụ bật thêm trong sandbox (hợp đồng §C4) — ĐÃ PARSE thành mảng.
+   *
+   * ⚠ Cột DB là `text` chứa chuỗi JSON (`'[]'` mặc định), nhưng lượt
+   * `JSON.parse` xảy ra ở phía BÊN KIA port (`repository.toolsetOf` trong
+   * `apps/web/src/server/content/repository.ts`), đúng như `capabilities` —
+   * port này mang dữ liệu miền, không mang cách lưu trữ. Để chuỗi JSON lọt qua
+   * đây sẽ bắt mọi call-site tự parse lại, và bản parse thứ hai là chỗ hai bên
+   * lệch nhau về "JSON hỏng thì sao".
+   *
+   * `readonly string[]` chứ không `readonly SandboxTool[]`: cùng lý do `tier` là
+   * `string` ở port này — một tên đã bị gỡ khỏi danh mục không được phép làm
+   * trượt cả hàng. Phép thu hẹp về danh mục là `sanitizeToolset` (`toolset.ts`).
+   */
+  readonly toolset: readonly string[];
   /** Lab. */
   readonly passThresholdPercent: number | null;
   /** Lab. */
@@ -192,6 +208,14 @@ export interface DbContentSourceOptions {
  * `filesystemScenarioSource` (ba cache tách rời "vì ba loại nội dung có thể
  * hỏng ĐỘC LẬP"): một bài soạn sai không được phép làm `/lessons` ngừng phục
  * vụ. Ném ở đây biến một dòng dữ liệu xấu thành một sự cố toàn nền tảng.
+ *
+ * ⚠ Chính vì cơ chế "bỏ qua kèm WARN" đó mà `toolset` phải đi vào `candidate`
+ * dưới dạng ĐÃ THU HẸP (`sanitizeToolset`), không phải nguyên văn từ cột DB.
+ * Các schema đều `.strict()`: một field thừa hay một giá trị sai kiểu không báo
+ * lỗi cho ai — nó làm MỌI hàng trượt `safeParse` và `/lessons` rỗng đi trong im
+ * lặng. Đó cũng là lý do `contentBaseSchema.toolset` là `z.array(z.string())`
+ * chứ không `z.enum(SANDBOX_TOOLS)`: một bài cũ khai công cụ đã bị gỡ khỏi danh
+ * mục chỉ được phép mất công cụ đó, không được mất cả bài.
  */
 function toScenario(body: ContentBodyRow, logger: ContentSourceLogger): Scenario | null {
   const { item } = body;
@@ -208,6 +232,7 @@ function toScenario(body: ContentBodyRow, logger: ContentSourceLogger): Scenario
     requiresCapabilities: null,
     backendImageId: item.backendImageId,
     interfaceLayout: item.interfaceLayout,
+    toolset: [...sanitizeToolset(item.toolset).toolset],
     assets: body.assets ?? [],
     // ⛔ KHÔNG có cột `source`, và đó là một khẳng định chứ không phải thiếu
     // sót: `scenarioSourceSchema` mô tả một bài NHẬP TỪ upstream (repo, commit
@@ -256,6 +281,7 @@ function toLab(body: ContentBodyRow, logger: ContentSourceLogger): Lab | null {
     requiresCapabilities: null,
     backendImageId: item.backendImageId,
     interfaceLayout: item.interfaceLayout,
+    toolset: [...sanitizeToolset(item.toolset).toolset],
     assets: body.assets ?? [],
     source: null,
     setup: body.setup ?? { foreground: null, background: null },
@@ -296,6 +322,7 @@ function toPlayground(body: ContentBodyRow, logger: ContentSourceLogger): Playgr
     capabilities: item.capabilities,
     backendImageId: item.backendImageId,
     interfaceLayout: item.interfaceLayout,
+    toolset: [...sanitizeToolset(item.toolset).toolset],
     ttlSeconds: item.ttlSeconds,
   };
 

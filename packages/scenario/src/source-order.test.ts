@@ -92,6 +92,7 @@ function summaryOf(fixture: Fixture): ScenarioSummary {
 function scenarioOf(fixture: Fixture): Scenario {
   return {
     ...summaryOf(fixture),
+    toolset: [],
     requiresCapabilities: null,
     backendImageId: 'ubuntu',
     interfaceLayout: null,

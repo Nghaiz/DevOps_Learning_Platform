@@ -2,6 +2,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { ImageAddon } from '@xterm/addon-image';
 import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
@@ -31,6 +32,12 @@ export interface TerminalCoreOptions {
   readonly onData: (data: string) => void;
   /** Gọi sau debounce khi kích thước đổi. KHÔNG gọi cho lần đo đầu tiên. */
   readonly onResize: (size: TerminalDimensions) => void;
+  /**
+   * Ảnh nội tuyến (sixel + IIP). MẶC ĐỊNH TẮT — đọc khối lý do ở chỗ nạp
+   * `ImageAddon` trong `createTerminalCore` TRƯỚC khi bật, ở đó có điều kiện
+   * cụ thể phải xong trước (CSP `script-src` cần `'wasm-unsafe-eval'`).
+   */
+  readonly enableImages?: boolean;
 }
 
 /** Contract §4 — "FE debounce ~50ms". SSOT là contract, không phải plan (bản plan cũ ghi 100ms). */
@@ -43,6 +50,15 @@ export interface TerminalCore {
    * đang có kích thước 0 (trả về kích thước cũ thay vì 0×0).
    */
   measure(): TerminalDimensions;
+  /**
+   * Contract §C3 — đo lại kích thước và fit. BẮT BUỘC gọi khi tab chứa terminal
+   * chuyển từ ẩn sang hiện: xterm đo được 0×0 trên phần tử `display:none`, nên
+   * nếu không gọi thì terminal hiện ra với số cột sai.
+   *
+   * An toàn khi gọi hớ: container còn 0×0 ⇒ KHÔNG ném và KHÔNG phát `resize`;
+   * terminal đã `dispose()` ⇒ no-op im lặng. Lý do đầy đủ ở chỗ hiện thực.
+   */
+  fit(): void;
   setTheme(name: ThemeName): void;
   search(query: string): void;
   write(chunk: Uint8Array): void;
@@ -51,7 +67,8 @@ export interface TerminalCore {
 }
 
 /**
- * F2 — nạp addon theo thứ tự fit → unicode11 → webgl → search/web-links/clipboard.
+ * F2 — nạp addon theo thứ tự fit → unicode11 → webgl → image (tuỳ chọn, mặc
+ * định TẮT) → search/web-links/clipboard.
  *
  * Thứ tự KHÔNG tuỳ tiện:
  * - `fit` trước để `proposeDimensions()` có sẵn khi ai đó đo sớm.
@@ -60,6 +77,9 @@ export interface TerminalCore {
  *   Unicode 6 cũ và glyph Nerd Font (rộng 2 ô) vẽ đè lên ký tự bên cạnh.
  * - `webgl` trước các addon phụ để `onContextLoss` gắn được ngay, không lỡ mất
  *   sự kiện mất context xảy ra trong lúc còn đang nạp addon khác.
+ * - `image` SAU `webgl`: nó vá `_renderService.setRenderer` để gỡ canvas layer
+ *   của mình mỗi lần renderer bị đổi, và lượt đổi có thật ở file này chính là
+ *   `onContextLoss` → `webgl.dispose()` → xterm quay về DOM renderer.
  */
 export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
   const terminal = new Terminal({
@@ -120,6 +140,30 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
     webgl = null;
   }
 
+  // Ảnh nội tuyến (sixel + IIP) — nạp SAU webgl, và MẶC ĐỊNH TẮT.
+  //
+  // ⛔ MẶC ĐỊNH TẮT là một phép đo, không phải sự dè dặt. `ImageAddon.activate()`
+  // dựng `SixelHandler`, và constructor của handler đó gọi `DecoderAsync(...)`
+  // ⇒ `new WebAssembly.Module(...)` NGAY lúc nạp addon (đọc từ
+  // `@xterm/addon-image@0.9.0/src/SixelHandler.ts`; `terminal-image.browser.test.tsx`
+  // đo lại điều đó bằng đối chứng âm). CSP của apps/web là
+  // `script-src 'self' 'nonce-…' 'strict-dynamic'`
+  // (apps/web/src/server/security/headers.ts) — KHÔNG có `'wasm-unsafe-eval'`,
+  // nên trình duyệt CHẶN lượt biên dịch đó.
+  //
+  // Bật mù thì hỏng theo kiểu khó thấy nhất: chuỗi `.then()` trong
+  // `SixelHandler` không có `.catch`, nên mỗi lần mount terminal đẻ một
+  // unhandled promise rejection và sixel chết câm — trong khi harness test
+  // KHÔNG có CSP nên mọi test vẫn xanh.
+  //
+  // ĐIỀU KIỆN BẬT: `script-src` có `'wasm-unsafe-eval'`. Bật rồi thì kèm hai
+  // đổi hành vi cần biết trước — DA1 trả `\x1b[?62;4;9;22c` (khai có sixel) và
+  // `windowOptions` bật ba báo cáo CSI t (14/16/18), tức terminal tự gửi byte
+  // lên PTY khi ứng dụng hỏi kích thước.
+  if (options.enableImages === true) {
+    terminal.loadAddon(new ImageAddon());
+  }
+
   const searchAddon = new SearchAddon();
   terminal.loadAddon(searchAddon);
   terminal.loadAddon(new WebLinksAddon());
@@ -128,19 +172,84 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
   const dataListener = terminal.onData(options.onData);
 
   let lastSize: TerminalDimensions = { cols: terminal.cols, rows: terminal.rows };
+  /** `null` = chưa phát lượt `resize` nào. Xem khối lý do trong callback dưới. */
+  let lastNotified: TerminalDimensions | null = null;
+  let disposed = false;
 
-  function measure(): TerminalDimensions {
-    // `proposeDimensions()` trả `undefined` khi container chưa có kích thước
-    // (display:none, hoặc mount trước layout). `fit()` trong trạng thái đó ép
-    // terminal về kích thước rác rồi gửi `resize` sai lên PTY — nên đọc trước,
-    // chỉ fit khi có số thật.
+  /**
+   * Đo THẬT, hoặc `null` khi container chưa có kích thước dùng được
+   * (`display:none`, mount trước layout).
+   *
+   * Vế `null` là phần đúng-sai, không phải kiểu trả về cho đẹp: `measure()` trả
+   * KÍCH THƯỚC CŨ khi đo hỏng, nên hai ca "đo hỏng" và "đo được, trùng số cũ"
+   * không phân biệt được từ giá trị trả về. `fit()` bắt buộc phải phân biệt —
+   * ca đầu phải im lặng, ca sau có thể phát.
+   *
+   * Fit ở trạng thái không đo được là ép terminal về kích thước rác rồi gửi
+   * `resize` sai lên PTY — nên đọc trước, chỉ `fit()` khi có số thật. Cách nhận
+   * biết 'không đo được' KHÔNG hiển nhiên: xem khối lý do trong thân hàm.
+   */
+  function tryMeasure(): TerminalDimensions | null {
+    // Đo cái HỘP trước, và ĐỪNG tin con số `proposeDimensions()` trả về để phát
+    // hiện "chưa có kích thước".
+    //
+    // Đọc từ `@xterm/addon-fit@0.11.0/src/FitAddon.ts`: nó kẹp SÀN
+    // `MINIMUM_COLS = 2` / `MINIMUM_ROWS = 1` bằng `Math.max`. Nên một container
+    // 0×0 KHÔNG trả về 0×0 — nó trả về **2×1**, một cặp số hợp lệ về hình thức
+    // mà mọi guard kiểu `cols < 1` không bao giờ bắt được. Hậu quả nếu tin nó:
+    // terminal bị ép về 2 cột và frame `resize` 2×1 đó đi thẳng lên PTY của pod.
+    // `terminal-fit.browser.test.tsx` có đối chứng đo lại đúng cặp 2×1 này.
+    const { clientWidth, clientHeight } = options.container;
+    if (clientWidth < 1 || clientHeight < 1) {
+      return null;
+    }
     const proposed = fitAddon.proposeDimensions();
-    if (proposed === undefined || proposed.cols < 1 || proposed.rows < 1) {
-      return lastSize;
+    // `undefined` = terminal chưa mở, hoặc chưa đo được bề rộng ô. NaN = hộp cha
+    // có `display:none` mà bề rộng ô vẫn còn cache: FitAddon `parseInt` một giá
+    // trị computed không phải pixel ⇒ NaN, rồi `Math.max(2, NaN)` **cũng là NaN**
+    // — và `NaN < 1` là `false`, tức một guard chỉ so sánh sẽ cho nó lọt.
+    if (
+      proposed === undefined ||
+      !Number.isFinite(proposed.cols) ||
+      !Number.isFinite(proposed.rows) ||
+      proposed.cols < 1 ||
+      proposed.rows < 1
+    ) {
+      return null;
     }
     fitAddon.fit();
     lastSize = { cols: terminal.cols, rows: terminal.rows };
     return lastSize;
+  }
+
+  function measure(): TerminalDimensions {
+    return tryMeasure() ?? lastSize;
+  }
+
+  /**
+   * ĐƯỜNG PHÁT `resize` DUY NHẤT — cả `ResizeObserver` lẫn `fit()` đi qua đây.
+   *
+   * Gộp lại chứ không để mỗi bên tự phát: `ResizeObserver` bắn cả khi chỉ đổi
+   * chiều cao vài pixel dưới một hàng, nên phép dedup theo GIÁ TRỊ là bắt buộc
+   * (mỗi frame control thừa là một lần chạm rate-limit của G8 mà không mang tin
+   * gì). Hai đường phát song song là chỗ để một bên quên phép dedup đó.
+   *
+   * Chưa từng phát lần nào (`lastNotified === null`) thì PHÁT. Vế này chỉ với
+   * tới từ `fit()`: đường RO tự chặn lượt đo đầu tiên tại call-site của nó (xem
+   * khối lý do dưới), còn `fit()` là hành động tường minh của người vừa mở tab —
+   * nuốt nó thì kích thước mới không bao giờ tới PTY, đúng thứ `fit()` sinh ra
+   * để tránh.
+   */
+  function notifyResize(size: TerminalDimensions): void {
+    if (
+      lastNotified !== null &&
+      size.cols === lastNotified.cols &&
+      size.rows === lastNotified.rows
+    ) {
+      return;
+    }
+    lastNotified = size;
+    options.onResize(size);
   }
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -168,25 +277,46 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
         lastNotified = size;
         return;
       }
-      if (size.cols === lastNotified.cols && size.rows === lastNotified.rows) {
-        // Không phát `resize` khi số không đổi: `ResizeObserver` bắn cả khi chỉ
-        // đổi chiều cao vài pixel dưới một hàng, và mỗi frame control thừa là
-        // một lần chạm rate-limit của G8 mà không mang tin gì.
-        return;
-      }
-      lastNotified = size;
-      options.onResize(size);
+      notifyResize(size);
     }, RESIZE_DEBOUNCE_MS);
   });
 
-  /** `null` = chưa có lượt đo nào. Xem khối lý do trong callback trên. */
-  let lastNotified: TerminalDimensions | null = null;
   resizeObserver.observe(options.container);
 
   return {
     terminal,
 
     measure,
+
+    /**
+     * Contract §C3. Đo lại + fit + phát `resize` nếu số cột/hàng thật sự đổi.
+     *
+     * Người gọi: tab chứa terminal vừa từ ẩn sang hiện. Không gọi thì xterm giữ
+     * nguyên số cột đo được lúc còn `display:none` và prompt vẽ sai bề rộng.
+     *
+     * Hai vế an toàn, cả hai đều đúng-sai chứ không phải phòng thủ thừa:
+     *
+     * 1. Đã `dispose()` ⇒ no-op. Ca có thật: tab đóng trong lúc hiệu ứng chuyển
+     *    tab còn chạy, lượt fit bay tới sau khi terminal đã bị huỷ.
+     * 2. Container vẫn 0×0 ⇒ KHÔNG phát `resize`. Không có gì chặn hộ ở tầng
+     *    dưới: `clampDimension` kéo 0 LÊN `MIN_DIMENSION` = 1 (protocol.ts), nên
+     *    frame đó tới `ioctl(TIOCSWINSZ)` của pod thành terminal RỘNG 1 CỘT và
+     *    mọi TUI đang chạy vỡ layout tới tận lần resize sau.
+     */
+    fit(): void {
+      if (disposed) {
+        return;
+      }
+      const size = tryMeasure();
+      if (size === null) {
+        return;
+      }
+      // Cố ý KHÔNG đi qua debounce: lượt này là hệ quả của một hành động rời rạc
+      // (đổi tab), không phải chuỗi `ResizeObserver` bắn liên tục lúc kéo cửa
+      // sổ. Đổi hiển thị cũng làm RO bắn, nhưng phép dedup theo giá trị trong
+      // `notifyResize` đã đủ để lượt đó không phát trùng.
+      notifyResize(size);
+    },
 
     setTheme(name: ThemeName): void {
       terminal.options.theme = THEMES[name];
@@ -208,6 +338,9 @@ export function createTerminalCore(options: TerminalCoreOptions): TerminalCore {
     },
 
     dispose(): void {
+      // Cờ bật TRƯỚC mọi thứ khác: một `fit()` bay tới sau lượt này phải no-op
+      // chứ không được chạm `fitAddon` của terminal đã huỷ.
+      disposed = true;
       // Thứ tự: gỡ nguồn sự kiện TRƯỚC, huỷ terminal SAU. Ngược lại thì một
       // callback đang bay có thể chạm terminal đã dispose và ném trong lúc
       // unmount — đúng ca StrictMode dev chạy effect hai lần.

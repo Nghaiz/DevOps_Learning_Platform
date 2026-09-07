@@ -4,6 +4,7 @@ import { playgroundSchema, type Playground } from '@devops-platform/shared-types
 import { mapBackendImage, KNOWN_BACKEND_IMAGE_IDS } from './backend.ts';
 import { formatContentIssues } from './lab-loader.ts';
 import { playgroundFileSchema, type PlaygroundFile } from './playground.ts';
+import { sanitizeToolset } from './toolset.ts';
 
 export const PLAYGROUND_EXTENSION = '.json';
 
@@ -85,6 +86,11 @@ export async function loadPlayground(filePath: string): Promise<Playground> {
     capabilities: [...backend.capabilities],
     backendImageId: data.backend.imageid,
     interfaceLayout: data.interface?.layout ?? null,
+    // Thu hẹp NGAY TẠI BIÊN dựng DTO, không tin pipeline phía trên đã lọc:
+    // `sanitizeToolset` thuần và idempotent, nên gọi thừa là vô hại, còn thiếu
+    // một lượt gọi thì một tên lạ đi thẳng tới `dlp-tools enable` và hỏng trước
+    // mặt người học lúc setup phiên.
+    toolset: [...sanitizeToolset(data.toolset).toolset],
     ttlSeconds: data.ttlSeconds,
   };
 

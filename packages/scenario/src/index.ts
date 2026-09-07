@@ -18,12 +18,25 @@ export { scenarioSidecarSchema, type ScenarioSidecar } from './sidecar.ts';
 export {
   CODE_ACTIONS,
   ContentBlockError,
+  EXEC_TARGETS,
   executableCommands,
   normalizeNewlines,
   parseContentBlocks,
   type CodeAction,
   type ContentBlock,
+  type ExecTarget,
 } from './content-blocks.ts';
+
+// Bộ công cụ theo bài (hợp đồng §C4). ⚠ Chưa nối tới DTO — xem
+// `toolset.ts` § "CHƯA NỐI TỚI DTO".
+export {
+  SANDBOX_TOOLS,
+  isSandboxTool,
+  parseToolsetColumn,
+  sanitizeToolset,
+  type SandboxTool,
+  type ToolsetParseResult,
+} from './toolset.ts';
 export { INDEX_FILENAME, SIDECAR_FILENAME, loadScenario, loadScenarios } from './loader.ts';
 export {
   CONTENT_ORDER_KEYS,

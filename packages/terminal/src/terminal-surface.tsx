@@ -33,6 +33,19 @@ export interface TerminalHandle {
   /** Gõ chuỗi vào PTY. Muốn Enter thì tự kèm `'\r'` — hàm này không tự thêm. */
   sendInput(data: string): void;
   focus(): void;
+  /**
+   * Đo lại kích thước và fit. BẮT BUỘC gọi khi tab chứa terminal chuyển từ ẩn
+   * sang hiện: xterm đo được 0×0 trên phần tử `display:none`, nên nếu không gọi
+   * thì terminal hiện ra với số cột sai.
+   *
+   * Vì sao không có đường nào khác: tab không hoạt PHẢI giữ mounted (contract
+   * §C5 — unmount là đóng WebSocket, mất phiên), nên terminal không có cách nào
+   * tự biết mình vừa được nhìn thấy ngoài lượt gọi này.
+   *
+   * An toàn khi gọi hớ: container còn 0×0 ⇒ no-op, KHÔNG phát `resize`; terminal
+   * đã bị huỷ (component unmount) ⇒ no-op im lặng. Không ném ở ca nào.
+   */
+  fit(): void;
 }
 
 export interface TerminalSurfaceProps {
@@ -222,9 +235,19 @@ export function TerminalSurface(props: TerminalSurfaceProps): React.ReactElement
     // nên một handle cũ mà consumer lỡ giữ lại sau khi nối lại sẽ ghi vào socket
     // đã đóng (no-op), chứ KHÔNG lén ghi vào phiên mới. Ghi nhầm phiên là lỗi
     // im lặng tệ hơn nhiều so với một lệnh bị rơi.
+    // `focus`/`fit` đọc `coreRef` thay vì đóng kín quanh `connection`: terminal
+    // chỉ có MỘT và sống qua mọi lần nối lại. Khác `sendInput`, một `resize` rơi
+    // vào phiên MỚI không phải là ghi nhầm phiên — kích thước là thuộc tính của
+    // khung nhìn, không phải của phiên, nên nó đúng ở cả hai phiên.
+    //
+    // `fit` KHÔNG tự gửi frame: nó gọi `core.fit()`, và lượt phát `resize` đi ra
+    // bằng đúng đường mà `ResizeObserver` vẫn đi (`onResize` ở effect terminal →
+    // `connectionRef.current.sendResize`). Một đường phát thứ hai ở đây sẽ vượt
+    // mặt phép dedup theo giá trị trong `terminal-core.ts`.
     handlersRef.current.onReady?.({
       sendInput: (data) => connection.sendInput(data),
       focus: () => coreRef.current?.focus(),
+      fit: () => coreRef.current?.fit(),
     });
 
     return () => {
