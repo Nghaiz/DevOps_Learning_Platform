@@ -8,6 +8,7 @@ import {
   SessionControls,
   ShellFallbackNotice,
   TerminalPane,
+  WorkspaceSplit,
   shouldShowIdePane,
   useResolvedTerminalTheme,
 } from '../../../components/session';
@@ -410,11 +411,11 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
           mở bài IDE đầu tiên thấy một khoang phải bị bóp một nửa.
         */}
         {showIde ? (
-          <SplitPane
+          <WorkspaceSplit
             storageKey="dlp-lesson-split-ide"
             defaultRatio={0.32}
-            left={contentPane}
-            right={
+            content={contentPane}
+            side={
               <SplitPane
                 storageKey="dlp-lesson-ide-terminal"
                 defaultRatio={0.58}
@@ -422,9 +423,17 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
                 right={terminalPane}
               />
             }
+            /* Khi hẹp: bỏ hẳn khoang editor, chỉ còn nội dung + cảnh báo.
+               Theia trong một khung 768px không thao tác được, và nạp nguội nó
+               ~20s để rồi không dùng nổi là tệ hơn việc không mở. */
+            narrowSide={terminalPane}
           />
         ) : (
-          <SplitPane storageKey="dlp-lesson-split" left={contentPane} right={terminalPane} />
+          <WorkspaceSplit
+            storageKey="dlp-lesson-split"
+            content={contentPane}
+            side={terminalPane}
+          />
         )}
       </div>
     </div>

@@ -13,6 +13,12 @@ export type { TerminalPaneProps } from './terminal-pane.tsx';
 
 export { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
 
+// Bố cục "nội dung cạnh terminal" + cách nó gập lại dưới `TERMINAL_MIN_WIDTH_PX`
+// (13.B mục 8). Thêm 2026-09-07: hai trang có split (lesson, lab) cần đúng một
+// quyết định gập, và bản chép thứ hai là bản sẽ trôi.
+export { WorkspaceSplit } from './workspace-split.tsx';
+export type { WorkspaceSplitProps } from './workspace-split.tsx';
+
 // Khung khoang + trạng thái phiên dùng chung cho màn hình học. Bốn trình học
 // vẽ cùng một thanh nhãn và cùng một viên trạng thái, nên chúng sống ở đây
 // chứ không ở từng route — ba bản chép tay của khối C5 cũ đã lệch nhau một

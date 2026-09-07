@@ -16,7 +16,6 @@ import {
   ErrorState,
   Label,
   Skeleton,
-  SplitPane,
   Table,
   TableBody,
   TableCaption,
@@ -34,6 +33,7 @@ import {
   SessionControls,
   ShellFallbackNotice,
   TerminalPane,
+  WorkspaceSplit,
   useResolvedTerminalTheme,
 } from '../../../components/session';
 import { api } from '../../../lib/trpc-react';
@@ -406,9 +406,9 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
       )}
 
       <div className="min-h-0 flex-1">
-        <SplitPane
+        <WorkspaceSplit
           storageKey="dlp-lab-split"
-          left={
+          content={
             lab.leaderboard ? (
               <Tabs defaultValue="tasks" className="flex h-full flex-col">
                 <div className="border-b border-border bg-card px-4 py-2">
@@ -428,7 +428,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
               taskPane
             )
           }
-          right={
+          side={
             <TerminalPane
               session={session}
               theme={terminalTheme}

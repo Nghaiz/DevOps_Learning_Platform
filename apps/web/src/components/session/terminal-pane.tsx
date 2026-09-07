@@ -5,6 +5,12 @@ import type { ReactElement, ReactNode } from 'react';
 import { LoaderCircle, Terminal } from 'lucide-react';
 import type { ThemeName } from '@devops-platform/terminal/themes';
 import { Kbd } from '@devops-platform/ui';
+// Import THẲNG từng file, không qua barrel '../shell': barrel đó kéo theo
+// 'use-capacity' (tRPC) và 'viewer-context', thứ khoang terminal không cần —
+// cùng lý do 'app/layout.tsx' đã ghi trong chú thích của barrel.
+import { TERMINAL_MIN_WIDTH_PX } from '../shell/breakpoints';
+import { NarrowScreenNotice } from '../shell/narrow-screen-notice';
+import { useMinWidth } from '../shell/use-min-width';
 import type { SandboxSession } from '../../lib/use-sandbox-session';
 import { PaneHeader } from './pane-header';
 import { SessionStatusPill } from './session-status';
@@ -73,11 +79,43 @@ export function TerminalPane({ session, theme, placeholder }: TerminalPaneProps)
   const followedTheme = useResolvedTerminalTheme(undefined);
   const resolvedTheme = theme ?? followedTheme;
 
+  /**
+   * 13.B mục 8 — dưới `TERMINAL_MIN_WIDTH_PX` thì KHÔNG mở terminal.
+   *
+   * Đây là chỗ DUY NHẤT quyết định điều đó, nên ba trang có terminal (lesson,
+   * lab, playground) không thể lệch nhau. `NarrowScreenNotice` đã tồn tại từ
+   * đợt 2 nhưng **không có một call-site nào** cho tới bản này (đo 2026-09-07:
+   * `grep -rn NarrowScreenNotice` chỉ ra `index.ts` và chính nó) — tức nửa
+   * "terminal hiện cảnh báo thay vì vỡ" của ô AC 13 là mã chết. Đúng lớp lỗi
+   * `check-call-site-before-declaring-done`: component có thật, test của nó
+   * xanh, và không ai từng thấy nó.
+   *
+   * `null` = chưa đo được (SSR + frame đầu). Ở đây `null` KHÔNG rơi vào nhánh
+   * hẹp: nhánh hẹp là khẳng định "máy bạn quá nhỏ", và khẳng định đó khi chưa
+   * đo là nói dối một nửa số lượt mở. Nó rơi xuống nhánh dưới, nơi
+   * `TerminalSurfaceLazy` vẫn đang nạp chunk — tức khung chờ vốn đã hiện.
+   */
+  const wideEnough = useMinWidth(TERMINAL_MIN_WIDTH_PX);
+
   const header = (
     <PaneHeader icon={<Terminal />} title="Terminal">
       <SessionStatusPill phase={session.state.phase} />
     </PaneHeader>
   );
+
+  if (wideEnough === false) {
+    // Xét TRƯỚC nhánh "chưa có phiên": trên máy hẹp, câu đúng không phải "bấm
+    // Bắt đầu để mở terminal" — bấm xong vẫn không có terminal. Nói thẳng lý do
+    // còn hơn mời người ta làm một việc vô ích rồi im lặng.
+    return (
+      <div className="flex h-full w-full flex-col bg-card">
+        {header}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <NarrowScreenNotice />
+        </div>
+      </div>
+    );
+  }
 
   if (session.state.sessionId === null) {
     return (
