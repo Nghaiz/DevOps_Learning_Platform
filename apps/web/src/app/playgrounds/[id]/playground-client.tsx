@@ -59,7 +59,7 @@ export function PlaygroundClient({
     return <Centered tone="error">{describeTrpcError(query.error)}</Centered>;
   }
 
-  const { playground, unsupportedCapabilities } = query.data;
+  const { playground, profile, unsupportedCapabilities } = query.data;
   const ttlMinutes = Math.round(playground.ttlSeconds / 60);
 
   // Gốc trang KHÔNG mang `h-screen`/`min-h-screen`: vỏ ứng dụng đã dựng
@@ -85,12 +85,19 @@ export function PlaygroundClient({
           dưới 10 phút) — con số của nội dung khi đó không còn là sự thật, vì
           "Thêm giờ" đã có thể đẩy hạn đi rồi.
         */}
+        {/*
+          `profile` tới từ `playgrounds.get` — cùng `playground.capabilities` mà
+          `start` đưa cho `createSandboxSession`, tức cùng cái pod sắp tạo. Thiếu
+          nó thì một sân chơi Kubernetes đếm theo trần của bài thường, và prop
+          này TUỲ CHỌN nên chỗ thiếu biên dịch sạch trong khi màn hình nói sai.
+        */}
         <div className="ml-auto">
           <SessionControls
             session={session}
             actions={{ start: session.start, end: session.end, extend: session.extend }}
             ttlSeconds={playground.ttlSeconds}
             capacity={capacity.data ?? null}
+            profile={profile}
           />
         </div>
       </header>

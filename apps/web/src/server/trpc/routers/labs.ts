@@ -24,7 +24,7 @@ import {
 import type { Database } from '../../db/client';
 import { labAttempts, labTaskResults, users, type LabAttemptRow, type LabTaskResultRow } from '../../db/schema';
 import { readUserPreferences } from '../../me/preferences';
-import { unsupportedCapabilities } from '../../lessons/catalog';
+import { profileForCapabilities, unsupportedCapabilities } from '../../lessons/catalog';
 import { runScriptInSession } from '../../lessons/validate';
 import { labSource, requireLab } from '../../labs/catalog';
 import { rethrowContentSourceError } from '../../content/source-errors';
@@ -105,6 +105,42 @@ async function requireOwnAttempt(
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Không tìm thấy lần thử này' });
   }
   return row;
+}
+
+// ---------------------------------------------------------------- profile tài nguyên
+
+/**
+ * Năng lực mà pod của lab này được dựng theo — SSOT trong file này.
+ *
+ * ⛔ MỘT biểu thức, HAI chỗ đọc: `startAttempt` đưa nó cho `createSandboxSession`
+ * (quyết định RAM pod thật), `get` đưa nó qua `profileForCapabilities` để FE nói
+ * "còn N chỗ cho bài NÀY". Hai lời gọi chép tay ở hai chỗ là chế độ hỏng ngày
+ * 2026-09-07: màn hình in một con số của pod KHÁC với pod sắp tạo.
+ *
+ * ⚠ `lab.capabilities` THÔ, KHÔNG phải `effectiveCapabilities(lab)` — và đó là
+ * chép theo hiện trạng chứ không phải một lựa chọn: `startAttempt` hôm nay đưa
+ * đúng `lab.capabilities`. Sự lệch với `lessons.*` (dùng `effectiveCapabilities`)
+ * là NỢ CÓ THẬT — một lab khai `requiresCapabilities` hẹp hơn image sẽ nhận
+ * profile lớn hơn mức nó cần. Sửa nó là đổi RAM pod, cần số đo trên cụm, nên nó
+ * KHÔNG được sửa lén ở đây; ghi ra để lần sau ai đó "dọn cho nhất quán" thì biết
+ * mình đang đổi cái gì.
+ */
+function sandboxCapabilities(lab: Lab): Lab['capabilities'] {
+  return lab.capabilities;
+}
+
+/**
+ * Profile mà pod của lab này xin.
+ *
+ * ⚠ MỘT đối số, cố ý: `createSandboxSession` (`server/labs/session.ts`) gọi
+ * `profileForCapabilities(params.capabilities)` và KHÔNG chuyển `interfaceLayout`
+ * xuống. Nên với lab, `interface.layout: ide` hôm nay KHÔNG nâng profile. Thêm
+ * đối số thứ hai ở đây sẽ làm nhãn hứa một profile mà pod không xin — tức đổi
+ * một lời nói dối lấy một lời nói dối khác. Đường đúng là sửa
+ * `createSandboxSession` rồi sửa CẢ HAI cùng lúc; file đó ngoài sở hữu lượt này.
+ */
+function profileForLab(lab: Lab): string {
+  return profileForCapabilities(sandboxCapabilities(lab));
 }
 
 /** `attemptId` là khoá duy nhất thật sự; `labId` trong input chỉ để đối chiếu — lệch cũng NOT_FOUND, không lộ thêm gì. */
@@ -218,7 +254,16 @@ export const labsRouter = createTRPCRouter({
   /** Nội dung đầy đủ một lab. */
   get: protectedProcedure.input(getInput).query(async ({ input }) => {
     const lab = await requireLab(input.labId);
-    return { lab, unsupportedCapabilities: unsupportedCapabilities(effectiveCapabilities(lab)) };
+    return {
+      lab,
+      // Profile tài nguyên của CHÍNH lab này — cùng nguồn với `startAttempt`
+      // (xem `sandboxCapabilities`). Thiếu field này, trang lab đếm theo profile
+      // mặc định: một lab Kubernetes (1024Mi, trần 5) hiện con số của bài thường
+      // (256Mi, trần 23). Prop `profile` của `SessionControls` là TUỲ CHỌN, nên
+      // chỗ thiếu đó biên dịch sạch trong khi màn hình nói sai.
+      profile: profileForLab(lab),
+      unsupportedCapabilities: unsupportedCapabilities(effectiveCapabilities(lab)),
+    };
   }),
 
   /**
@@ -232,7 +277,8 @@ export const labsRouter = createTRPCRouter({
       tier: lab.tier,
       ttlSeconds: 0,
       idempotencyKey: input.idempotencyKey,
-      capabilities: lab.capabilities,
+      // CÙNG biểu thức mà `get` đưa cho `profileForLab` — xem `sandboxCapabilities`.
+      capabilities: sandboxCapabilities(lab),
     });
 
     // Hồ sơ (P13 C4) — lựa chọn "hiện tên trên bảng xếp hạng" là mặc định

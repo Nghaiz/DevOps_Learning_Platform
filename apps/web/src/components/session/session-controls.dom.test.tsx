@@ -114,3 +114,91 @@ describe('SessionControls — nhãn sức chứa nói về ĐÚNG bài đang m�
     expect(screen.getByRole('button', { name: 'Bắt đầu' })).toBeDefined();
   });
 });
+
+/**
+ * Cụm CÒN CHỖ — cảnh của trang lab/sân chơi Kubernetes, và là ca đắt giá hơn ca
+ * IDE ở trên.
+ *
+ * Ở cảnh 2026-09-07 bài IDE ra `Hết chỗ` còn bài thường ra một con số, nên hai
+ * câu trả lời khác nhau cả về MỨC — một hiện thực chỉ đúng "tình cờ" (ví dụ:
+ * luôn báo hết chỗ khi `slotsFree` vắng) vẫn đi qua được. Ở đây cả hai profile
+ * đều `ok`, cùng màu, cùng khuôn câu; **chỉ CON SỐ khác nhau**. Muốn xanh thì
+ * `profile` phải thật sự được đọc.
+ *
+ * Số liệu suy từ cùng một quota: 5952Mi trần, đã dùng 2048Mi ⇒ còn 3904Mi.
+ *   · bài thường 256Mi/pod ⇒ còn 15, trần 23;
+ *   · lab K8s   1024Mi/pod ⇒ còn  3, trần  5.
+ */
+const CON_CHO_LAB_K8S: ProfileCapacityView = {
+  activeSessions: 8,
+  softCapacity: 20,
+  hardCapacity: 23,
+  fetchedAt: '2026-09-08T10:00:00.000Z',
+  quotaReadable: true,
+  quotaError: '',
+  profileCapacity: {
+    '': { slotsFree: 15, slotsTotal: 23 },
+    k8s: { slotsFree: 3, slotsTotal: 5 },
+  },
+};
+
+describe('SessionControls — lab/sân chơi Kubernetes đếm theo trần CỦA CHÍNH NÓ', () => {
+  it('profile k8s ⇒ "Còn 3 chỗ" (trần 5), KHÔNG phải "Còn 15 chỗ" của bài thường', () => {
+    render(
+      <SessionControls
+        session={CHUA_MO}
+        actions={KHONG_LAM_GI}
+        capacity={CON_CHO_LAB_K8S}
+        profile="k8s"
+        startLabel="Bắt đầu"
+      />,
+    );
+
+    const badge = screen.getByText('Còn 3 chỗ');
+    expect(badge.getAttribute('title')).toContain('Còn 3/5 chỗ cho bài này');
+    expect(screen.queryByText('Còn 15 chỗ')).toBeNull();
+    // Không dán ghi chú "bài IDE/K8s có trần riêng": trên trang một bài cụ thể
+    // thì con số ĐÃ là của bài đó, nhắc thêm chỉ làm người đọc nghi ngờ nó.
+    expect(badge.getAttribute('title')).not.toContain('trần riêng');
+    // Còn chỗ ⇒ không có câu cảnh báo nào.
+    expect(screen.queryByText(/nhiều khả năng sẽ bị từ chối/)).toBeNull();
+  });
+
+  /**
+   * ĐỐI CHỨNG — chỗ này VIẾT RA chế độ hỏng mà ô trên gác.
+   *
+   * `profile` là prop TUỲ CHỌN, nên một trang quên truyền vẫn biên dịch sạch và
+   * vẫn vẽ một badge trông bình thường. Ô này khẳng định badge đó mang con số
+   * của bài thường: bỏ `profile="k8s"` ở trang lab là đổi "Còn 3 chỗ" thành
+   * "Còn 15 chỗ" — sai gấp năm lần, không một dấu hiệu nào.
+   *
+   * Cổng chặn việc đó nằm ở `capacity-call-sites.test.ts` (quét mã nguồn của cả
+   * ba trang); ô này chỉ chứng minh hậu quả là có thật, để cổng kia không phải
+   * một luật gõ suông.
+   */
+  it('QUÊN truyền profile ⇒ vẫn vẽ badge, nhưng là con số của bài thường', () => {
+    render(<SessionControls session={CHUA_MO} actions={KHONG_LAM_GI} capacity={CON_CHO_LAB_K8S} />);
+
+    const badge = screen.getByText('Còn 15 chỗ');
+    expect(badge.getAttribute('title')).toContain('cho bài thường');
+    expect(screen.queryByText('Còn 3 chỗ')).toBeNull();
+  });
+
+  it('server chưa khai profile k8s ⇒ "Chưa rõ sức chứa", KHÔNG mượn số bài thường', () => {
+    render(
+      <SessionControls
+        session={CHUA_MO}
+        actions={KHONG_LAM_GI}
+        capacity={{
+          ...CON_CHO_LAB_K8S,
+          profileCapacity: { '': { slotsFree: 15, slotsTotal: 23 } },
+        }}
+        profile="k8s"
+      />,
+    );
+
+    expect(screen.getByText('Chưa rõ sức chứa')).toBeDefined();
+    expect(screen.queryByText('Còn 15 chỗ')).toBeNull();
+    expect(document.body.textContent).not.toContain('15');
+  });
+});

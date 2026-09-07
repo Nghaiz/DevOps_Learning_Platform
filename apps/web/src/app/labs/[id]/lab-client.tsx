@@ -217,7 +217,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
     );
   }
 
-  const { lab, unsupportedCapabilities } = labQuery.data;
+  const { lab, profile, unsupportedCapabilities } = labQuery.data;
   const attemptData = attemptQuery.data;
 
   /*
@@ -364,10 +364,18 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
         <h1 className="text-sm font-semibold">{lab.title}</h1>
 
         <div className="ml-auto">
+          {/*
+            `profile` tới từ `labs.get` — cùng năng lực mà `startAttempt` đưa cho
+            `createSandboxSession`, tức cùng cái pod sắp được tạo. Thiếu nó,
+            trang lab Kubernetes (1024Mi, trần 5) in con số của bài thường
+            (256Mi, trần 23): prop này TUỲ CHỌN nên chỗ thiếu biên dịch sạch
+            trong khi màn hình nói sai — đúng hạng lỗi đã cắn hai PR liên tiếp.
+          */}
           <SessionControls
             session={session}
             actions={{ start: session.start, end: session.end, extend: session.extend }}
             capacity={capacity.data ?? null}
+            profile={profile}
             startLabel={attemptId === null ? 'Bắt đầu' : 'Làm lại'}
           />
         </div>
