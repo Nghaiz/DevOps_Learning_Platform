@@ -93,8 +93,13 @@ migrate:
 
 web:
   # Tag tường minh — xem khối "TAG THEO TỪNG THÀNH PHẦN" ở đầu file.
+  #
+  # p13a (2026-09-07): bốn bản vá chỉ ở tầng web — dấu focus cho `TabsContent`,
+  # markdown hạ một bậc heading, đường polling của trang soạn bài, và tắt phép dò
+  # JIT của Zod. KHÔNG đụng proto nên KHÔNG có ràng buộc "web và orchestrator lên
+  # cùng lượt" của §3bis; orchestrator/gateway/migrator giữ nguyên `p13`.
   image:
-    tag: p13
+    tag: p13a
   replicaCount: 1
   # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
   # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ
