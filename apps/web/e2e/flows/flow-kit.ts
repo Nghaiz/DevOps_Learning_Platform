@@ -91,6 +91,35 @@ export async function signInThroughForm(
   const submit = page.getByRole('button', { name: 'Đăng nhập', exact: true });
   await expect(submit).toBeVisible();
 
+  // ⚠ CHỜ HYDRATE TRƯỚC KHI BẤM — nút hiện ra KHÔNG có nghĩa là nó đã hoạt động.
+  //
+  // Trang đăng nhập là `<form onSubmit={…}>` + `<button type="submit">`. HTML đó
+  // do server render, nên nút bấm được ngay; nhưng cho tới khi React gắn handler,
+  // một cú bấm chạy đường SUBMIT NATIVE của trình duyệt: GET `/login`, trang tải
+  // lại, chữ đã nhập mất, và KHÔNG có một request `sign-in` nào.
+  //
+  // Đo 2026-09-07: đó chính là hai lần đỏ của luồng 1, và cả hai đều nói dối về
+  // nguyên nhân — lần đầu là `waitForURL` timeout 60s với log
+  // `navigated to ".../login"`, lần sau là `waitForResponse` timeout 30s. Cả hai
+  // đọc ra như "nút Đăng nhập hỏng", trong khi làm tay bằng trình duyệt thật thì
+  // vào thẳng `/me`. Khác biệt duy nhất là NHỊP TAY.
+  //
+  // (Không có rò rỉ kèm theo: các `Input` không khai `name`, nên lượt submit
+  // native đi tới `/login` KHÔNG mang tham số nào — mật khẩu không lên URL.)
+  //
+  // Dấu hiệu hydrate: React 18+ gắn khoá `__reactFiber$…` lên node DOM mà nó đã
+  // nhận. Đây là chi tiết cài đặt, và dùng nó ở đây là có chủ ý: lựa chọn còn
+  // lại là `waitForTimeout` — một con số chọn cho máy nhanh, tức đúng loại
+  // "timeout chọn cho cụm rảnh" mà P12 đã trả giá. Nếu React đổi cách gắn, phép
+  // chờ này hết hạn và ĐỎ, chứ không âm thầm quay lại bấm sớm.
+  await page.waitForFunction(
+    () => {
+      const form = document.querySelector('form');
+      return form !== null && Object.keys(form).some((k) => k.startsWith('__reactFiber$'));
+    },
+    { timeout: 30_000 },
+  );
+
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Mật khẩu').fill(password);
 

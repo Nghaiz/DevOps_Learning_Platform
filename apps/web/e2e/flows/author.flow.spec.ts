@@ -122,7 +122,17 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     // ── 6. Thấy kết quả ─────────────────────────────────────────────────────
     // Chờ một trong hai TRẠNG THÁI KẾT THÚC, không chờ một khoảng thời gian.
     // "Đang chạy thử trong sandbox" là pha giữa và nó có thể kéo dài vài phút.
-    const published = page.getByText('Đã xuất bản');
+    // ⚠ Neo vào TIÊU ĐỀ ALERT, không phải chuỗi trần. "Đã xuất bản" có ở HAI
+    // chỗ trên trang này: badge trạng thái ở đầu trang (`<span data-slot="badge">`)
+    // và tiêu đề của alert kết quả (`<h5 data-slot="alert-title">`). Bản trước
+    // dùng `getByText` nên đỏ với `strict mode violation … resolved to 2 elements`
+    // — đo 2026-09-07, và chỉ lộ ra SAU khi bản vá polling làm trang thật sự tới
+    // được trạng thái kết thúc (trước đó nó kẹt ở "Đang chạy thử" nên không bao
+    // giờ có hai phần tử cùng lúc).
+    //
+    // Alert là thứ ta đang đo (kết quả của lượt chạy thử); badge chỉ nói trạng
+    // thái hàng. Lấy nhầm badge sẽ xanh cả khi lượt chạy thử chưa báo gì.
+    const published = page.getByRole('heading', { name: 'Đã xuất bản', exact: true });
     const failed = page.getByText('Lượt chạy thử trượt — bài quay về Nháp');
 
     await expect(async () => {
