@@ -41,10 +41,15 @@ FASTFETCH_CONFIG=/etc/dlp/fastfetch.jsonc
 # cho phiên. Cùng lý lẽ với `dlp-tools` trong hợp đồng §C4. File thì ghi được
 # lúc setup phiên, đi chung đường với `buildAssetPushScript`.
 #
-# ⚠ TRUNG THỰC: hôm nay CHƯA CÓ AI GHI file này. `podspec.go` không truyền mốc
-# hết hạn nào xuống pod, và `lessons.runSetup` chưa ghi nó. Nên dòng "Phiên"
-# hiện đang KHÔNG hiện ra — đó là nhánh degrade, không phải lỗi. Muốn bật:
-# ghi epoch-giây (hoặc RFC3339) vào /run/dlp/session-deadline lúc setup phiên.
+# Người GHI file này là `dlp-session-deadline` (cùng thư mục), do gateway gọi qua
+# `pods/exec` lúc dựng phiên và sau MỖI lượt ExtendSession. Script đó chuẩn hoá về
+# epoch-giây và TỪ CHỐI ghi lùi, nên giá trị đọc ở đây không bao giờ MUỘN hơn sự
+# thật — cùng lắm là sớm hơn (báo thiếu giờ), nếu lượt gọi sau extend bị lỡ.
+#
+# ⚠ File VẪN có thể vắng: pod dựng bởi bản gateway cũ hơn, hoặc một lượt exec
+# setup hỏng. Nhánh degrade bên dưới (`return 0` ⇒ output rỗng ⇒ module `command`
+# của fastfetch bỏ hẳn dòng) là CÓ CHỦ Ý và phải ở lại: thà không có dòng "Phiên"
+# còn hơn một đồng hồ đoán bừa.
 DEADLINE_FILE=/run/dlp/session-deadline
 
 # Còn lại bao lâu, dạng người đọc được. Rỗng ⇒ không biết.

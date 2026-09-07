@@ -494,11 +494,26 @@ pane. Cờ đánh dấu là một thư mục trong `/tmp` khoá theo `$TMUX`
 Dòng **"Phiên"** (thời hạn còn lại) đọc `/run/dlp/session-deadline`, sau đó mới
 tới env `DLP_SESSION_DEADLINE`. Thứ tự đó không tuỳ tiện: pod đến từ warm pool
 nên env của PID 1 không thể mang mốc hết hạn riêng cho phiên — cùng lý lẽ với
-`dlp-tools`. ⚠ **Hôm nay chưa có ai ghi file đó**: `podspec.go` không truyền mốc
-hết hạn nào xuống pod và `runSetup` chưa ghi nó, nên dòng "Phiên" hiện **không
-xuất hiện**. Đó là nhánh degrade có chủ ý (module `command` của fastfetch bỏ
-hẳn dòng khi output rỗng), không phải lỗi. Muốn bật: ghi epoch-giây hoặc
-RFC3339 vào `/run/dlp/session-deadline` lúc setup phiên.
+`dlp-tools`. ✅ **Nay đã có người ghi**: `bin/dlp-session-deadline`. Gateway gọi nó qua
+`pods/exec` ở **HAI** chỗ — lúc dựng phiên, và sau **mỗi** lượt
+`ExtendSession` thành công. Thiếu chỗ thứ hai thì người học bấm "Thêm giờ"
+xong vẫn thấy mốc cũ.
+
+Script tự giữ một **luật không-lùi**: nó từ chối ghi một mốc sớm hơn mốc đang
+có. Vòng đời phiên chỉ đẩy hạn về sau (extend cộng thêm, `HARD_CAP` chặn trần;
+kết thúc sớm thì pod bị xoá luôn), nên bất biến đó mua được một tính chất đáng
+giá: **giá trị hiển thị không bao giờ MUỘN hơn sự thật**. Nếu một lượt ghi sau
+extend bị lỡ, banner báo THIẾU giờ — sai, nhưng sai về phía người học không mất
+bài giữa chừng.
+
+⚠ **Chưa chứng minh được**: hai lượt gọi ở phía gateway thuộc lane khác
+(`services/terminal-gateway/**`) và CHƯA được nối. Cái đã chạy thật là vòng
+ghi→đọc của hai script (7 ca, gồm luật không-lùi và RFC3339). Dòng "Phiên"
+chưa hiện trên cụm cho tới khi lane đó nối xong.
+
+Khi file vẫn vắng (pod dựng bởi bản gateway cũ, hoặc một lượt exec setup hỏng),
+nhánh degrade ở lại nguyên: module `command` của fastfetch bỏ hẳn dòng khi output
+rỗng. Thà không có dòng "Phiên" còn hơn một đồng hồ đoán bừa.
 
 `etc/fastfetch.jsonc` **cố ý bỏ** `PublicIp`/`LocalIp`: module đó gọi ra
 internet, và dưới deny-all nó sẽ **treo tới timeout** ngay đầu mỗi phiên. Cũng

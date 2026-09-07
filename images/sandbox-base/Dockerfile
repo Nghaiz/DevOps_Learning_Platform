@@ -485,7 +485,12 @@ RUN set -eux; \
 # lúc `runSetup` chạy trong pod ("Permission denied"), tức cách xa build.
 COPY bin/dlp-tools /usr/local/bin/dlp-tools
 COPY bin/dlp-motd /usr/local/bin/dlp-motd
-RUN chmod 0755 /usr/local/bin/dlp-tools /usr/local/bin/dlp-motd && \
+# Nửa GHI của dòng "Phiên" (A6). Gateway gọi nó qua pods/exec lúc dựng phiên và
+# sau mỗi lượt ExtendSession; không có nó thì `dlp-motd --field session` đọc một
+# file KHÔNG AI GHI và dòng đó không bao giờ hiện ra.
+COPY bin/dlp-session-deadline /usr/local/bin/dlp-session-deadline
+RUN chmod 0755 /usr/local/bin/dlp-tools /usr/local/bin/dlp-motd \
+        /usr/local/bin/dlp-session-deadline && \
     dlp-tools list >/dev/null
 
 # ─────────────────────────────────────────────────────────────────────────────
