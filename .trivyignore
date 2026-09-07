@@ -20,3 +20,29 @@
 # RÀ LẠI 2026-10-01: bump docker-ce/buildx/OMP khi release mới mang x/crypto
 # ≥ 0.55.0, rồi XOÁ mục này để cổng đóng lại như cũ.
 CVE-2026-56854
+
+# CVE-2024-24790 + CVE-2025-68121 — stdlib Go 1.22.2 trong /opt/dlp/tools/duf/duf.
+#
+# `duf` là công cụ MỚI của đợt toolset-theo-bài (etc/toolset.catalog). Nó đến từ
+# apt noble (0.8.1-1ubuntu0.24.04.3), và Ubuntu dựng nó bằng Go 1.22.2.
+#
+# CVE-2024-24790 nằm ở `net/netip`: các hàm `Is*` trả kết quả sai cho địa chỉ
+# IPv4-mapped-IPv6. CVE-2025-68121 nằm ở `crypto/tls`: xác thực chứng chỉ sai khi
+# RESUME một phiên TLS.
+#
+# `duf` đọc bảng mount rồi in dung lượng đĩa. Nó KHÔNG mở kết nối mạng nào, không
+# bắt tay TLS, không phân giải địa chỉ IP — nên cả hai code path đều không chạy.
+# Trong sandbox nó còn chạy dưới NetworkPolicy deny-all (egress chỉ DNS + mirror
+# docker.io), và nó chỉ có mặt khi bài học khai `duf` trong `toolset`.
+#
+# ⚠ NÂNG VERSION KHÔNG ĐÓNG ĐƯỢC CỔNG — đã đo, không suy: tải upstream duf
+# v0.9.1 (bản mới nhất, 2025-09-08) và quét riêng ra `Total: 1 (CRITICAL: 1)` —
+# stdlib v1.25.1, CVE-2025-68121 VẪN CÒN (vá ở 1.25.7). Không có bản dựng
+# upstream nào của duf với Go đủ mới, nên ghim binary theo khuôn `yq` cũng vô ích.
+#
+# RÀ LẠI 2026-10-01: nếu upstream duf có bản dựng với Go ≥ 1.25.7 thì ghim binary
+# đó (khuôn `yq` trong Dockerfile) và XOÁ hai dòng dưới. Nếu tới lúc đó vẫn chưa
+# có, cân nhắc bỏ `duf` khỏi toolset — `ncdu` phủ phần lớn công dụng dạy học của
+# nó và là gói C, không mang stdlib Go.
+CVE-2024-24790
+CVE-2025-68121
