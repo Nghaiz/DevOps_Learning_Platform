@@ -18,6 +18,7 @@ import {
   Separator,
   cn,
 } from '@devops-platform/ui';
+import { ZOD_JITLESS_APPLIED } from '../../lib/zod-jitless';
 import { PRIMARY_NAV, isActiveNav, userMenuItems, type NavItem, type Viewer } from './nav';
 import { NAV_ICONS, USER_MENU_ICONS } from './nav-icons';
 import { CapacityIndicator } from './capacity-indicator';
@@ -64,6 +65,12 @@ export function AppShell({
   readonly viewer: Viewer | null;
   readonly children: ReactNode;
 }) {
+  // Tham chiếu để bundler KHÔNG cắt `lib/zod-jitless` — module đó tắt phép dò
+  // `Function("")` của Zod, thứ sinh ra vi phạm `script-src: eval` trên 9 màn
+  // hình (đo 2026-09-07). Nó phải chạy TRƯỚC lời `parse` đầu tiên của client,
+  // và `AppShell` nằm trong cây của mọi trang nên đây là chỗ sớm nhất chắc chắn.
+  void ZOD_JITLESS_APPLIED;
+
   return (
     <ViewerProvider viewer={viewer}>
       <CapacityProvider enabled={viewer !== null}>
