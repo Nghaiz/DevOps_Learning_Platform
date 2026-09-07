@@ -96,3 +96,88 @@ trước khi người học chạm vào bất cứ thứ gì.
 **Kết luận P10:85 — ĐẠT.** Bấm thật bằng `browser_click` (7 cú: 6 lựa chọn + Nộp bài),
 không dùng `evaluate` để giả lập.
 
+---
+
+## P6:99 — cùng filesystem, CHIỀU GHI (editor → terminal) → **ĐẠT**
+
+`plans/devops-learning-platform/phase-6.md:99`
+
+Bài: `/lessons/dlp-ide-config-edit` (`interface.layout: ide`, ba khoang: nội dung | Theia | terminal).
+Phiên: `e26b9159895067021d7f18aef07ddfcd` · pod `sandbox-dd3adc83bb2a`.
+
+Ô cũ đã chứng minh chiều ĐỌC (ghi bằng `kubectl exec` ⇒ Explorer của Theia thấy).
+Lượt này đóng chiều GHI, là chiều khó hơn và quan trọng hơn.
+
+### Ba mốc, và chúng phải theo đúng thứ tự này
+
+**Mốc 1 — nền, chạy TRƯỚC khi gõ gì** (`p6-99-b-terminal-baseline.png`, 18:37:38Z):
+
+```
+--- BASELINE 2026-09-07T18:37:38Z ---
+name=dlp-demo
+port=0
+log_level=info
+0                      ← grep -c 'DLP-WRITE-OK-a7f3c1d9'
+MARKER-A-ABSENT-OK
+```
+
+⚠ Đối chứng âm chạy **trước**, không phải sau. Đó là điều làm mốc 3 có nghĩa: chuỗi mốc
+không tồn tại trong file trước khi tôi gõ nó, nên khi nó xuất hiện thì nó không thể đến
+từ chỗ nào khác.
+
+**Mốc 2 — gõ trong Theia** (`p6-99-c-theia-file-opened.png`, `p6-99-d-theia-edited-unsaved.png`):
+
+Mở `/root/lab/app.conf` bằng quick-open (Ctrl+P → `app.conf` → Enter); editor hiện đúng
+ba dòng mà terminal vừa in. Sửa `port=0` → `port=8080` và thêm dòng
+`marker=DLP-WRITE-OK-a7f3c1d9`.
+
+⚠ **Gõ bằng sự kiện phím thật, không phải `fill()` vào DOM.** Lần đầu tôi nhắm
+`browser_type` vào một `textarea` trong cây a11y của Theia — nội dung editor KHÔNG đổi,
+chỉ focus đổi. Monaco có hai textarea và cái lộ ra trong snapshot không phải cái nhận
+phím. Đường đúng là `page.keyboard.type()` (sự kiện phím qua CDP, cùng cơ chế mà
+`browser_type` dùng) sau khi click vào chính dòng văn bản. Ghi lại vì một `fill()` không
+báo lỗi khi nó không tới đích — nó "thành công" và không đổi gì.
+
+**Mốc 3 — `cat` ở terminal** (`p6-99-g-terminal-doi-chung-am.png`, 18:43:49Z):
+
+```
+name=dlp-demo
+port=8080
+log_level=info
+marker=DLP-WRITE-OK-a7f3c1d9
+marker2=DLP-WRITE-SAVE-c4d5e6f7
+--- ket qua grep ---
+CO    DLP-WRITE-OK-a7f3c1d9        ← gõ trong editor, tự lưu
+CO    DLP-WRITE-SAVE-c4d5e6f7      ← gõ trong editor rồi Ctrl+S ngay
+VANG  DLP-WRITE-NO-b2e8f04c        ← ĐỐI CHỨNG ÂM: chưa từng gõ vào editor
+inode=939963 mtime=2026-09-07 18:43:23.930898009 +0000
+```
+
+Marker thứ ba cùng hình dạng, cùng tiền tố, chỉ khác hậu tố — **vắng**. Nên phép `grep`
+của tôi đang khớp đúng thứ nó định khớp, không khớp bừa.
+
+### Hai xác nhận độc lập nữa
+
+**(a) Phép kiểm của chính bài.** Bấm nút **Kiểm tra** ⇒ `Đạt — port=8080, phần còn lại của
+file vẫn nguyên` (`p6-99-h-ba-khoang-kiem-tra-dat.png`). Script chấm chạy trong sandbox,
+đọc file mà editor đã ghi — không đi qua `cat` của tôi.
+
+**(b) Đọc từ NGOÀI trình duyệt.** `kubectl exec` trên host (18:45:29Z) in ra cùng nội dung.
+Không mảnh nào của trình duyệt tham gia lượt đọc này, nên không có đường nào để nó giả.
+
+### Phát hiện kèm theo — Theia TỰ LƯU, `Ctrl+S` không bắt buộc
+
+Đo chứ không đoán: gõ `marker3=DLP-WRITE-NOSAVE-e9a0b1c2`, **không** bấm Ctrl+S và
+**không** rời focus khỏi iframe, rồi đọc đĩa bằng `kubectl exec` từ host ⇒ marker3 **đã có
+trên đĩa**. Vậy là `files.autoSave` theo độ trễ, không phải `onFocusChange` (nếu là
+onFocusChange thì lượt đo này phải thấy vắng).
+
+Hệ quả: `step1.md` dặn *"lưu bằng `Ctrl+S`"* — câu đó không SAI (Ctrl+S vẫn lưu, mốc 2 đã
+dùng nó), nhưng file cũng tự lưu nếu người học không bấm. Đây là quan sát về nội dung, KHÔNG
+phải lỗi, và không đụng tới ô AC này. Ghi lại để lần sau ai đo "chưa lưu thì đĩa chưa đổi"
+không kết luận nhầm là đường ghi hỏng.
+
+**Kết luận P6:99 — ĐẠT.** Chiều GHI đã chứng minh bằng bốn nguồn đọc độc lập
+(`cat` trong terminal · script chấm của bài · `kubectl exec` từ host · Explorer/editor),
+với đối chứng âm chạy trước.
+
