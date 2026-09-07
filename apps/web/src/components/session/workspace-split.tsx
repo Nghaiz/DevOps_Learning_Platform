@@ -69,10 +69,15 @@ export function WorkspaceSplit({
     );
   }
 
+  // ⚠ Spread có điều kiện, không phải `storageKey={storageKey}`. `apps/web` bật
+  // `exactOptionalPropertyTypes`, nên với `storageKey?: string` thì truyền
+  // tường minh một `undefined` là LỖI KIỂU — "vắng mặt" và "có mặt với giá trị
+  // undefined" là hai thứ khác nhau ở cờ đó. Đây là chỗ duy nhất trong bản vá
+  // này mà `pnpm --filter web typecheck` bắt được còn `vitest` thì không.
   return (
     <SplitPane
-      storageKey={storageKey}
-      defaultRatio={defaultRatio}
+      {...(storageKey === undefined ? {} : { storageKey })}
+      {...(defaultRatio === undefined ? {} : { defaultRatio })}
       left={content}
       right={side}
     />
