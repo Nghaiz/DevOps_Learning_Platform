@@ -1,9 +1,13 @@
 /**
  * Quyết định của khối "Tài khoản" trên `/settings` — HÀM THUẦN.
  *
- * `apps/web` chạy vitest ở `environment: 'node'`, không render nổi cây
- * component, nên mọi quyết định đáng gác phải nằm ngoài JSX để test bám vào
- * được — cùng khuôn `summarizeProgress` (P2) và `components/admin/session-row.ts`.
+ * `apps/web` chạy vitest ở `environment: 'node'` theo MẶC ĐỊNH, nên mọi quyết
+ * định đáng gác phải nằm ngoài JSX để test bám vào được — cùng khuôn
+ * `summarizeProgress` (P2) và `components/admin/session-row.ts`.
+ *
+ * ⚠ Từ `727af45`, jsdom + RTL bật được theo TỪNG FILE bằng docblock
+ * `// @vitest-environment jsdom`. Khuôn hàm-thuần vẫn là mặc định nên dùng, chỉ
+ * là nó không còn bắt buộc.
  */
 
 /** Khớp `minLength={8}` của form đăng ký và mặc định của Better Auth (không có override trong `auth/config.ts`). */

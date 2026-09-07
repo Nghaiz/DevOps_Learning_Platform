@@ -32,7 +32,12 @@ import {
  *
  * Tách thành hàm thuần để phép kiểm bám được vào: một chuỗi nội suy nằm giữa
  * JSX chỉ kiểm được bằng cách render cả trang, mà `apps/web` chạy vitest ở
- * `environment: 'node'` (không jsdom, không RTL) — tức là không kiểm được.
+ * `environment: 'node'` theo MẶC ĐỊNH (không jsdom, không RTL).
+ *
+ * ⚠ Từ `727af45` mặc định đó không còn là ràng buộc cứng — jsdom bật được theo
+ * TỪNG FILE bằng docblock `// @vitest-environment jsdom`. Tách hàm thuần vẫn là
+ * lựa chọn đúng ở đây (rẻ hơn, ổn định hơn một lượt render), chỉ là đừng đọc câu
+ * trên thành "không kiểm được".
  *
  * ## Vì sao FE tính lại điểm mà server cũng trả về `score`
  *

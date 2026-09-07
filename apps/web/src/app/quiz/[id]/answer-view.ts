@@ -7,8 +7,13 @@ import type {
 /**
  * Mô hình hiển thị của trang làm quiz — hàm THUẦN, tách khỏi cây component.
  *
- * `apps/web` chạy vitest ở `environment: 'node'` (không jsdom, không RTL), nên
- * thứ gì đáng khẳng định phải sống được ngoài JSX. Hai thứ ở file này đáng
+ * `apps/web` chạy vitest ở `environment: 'node'` theo MẶC ĐỊNH, nên thứ gì đáng
+ * khẳng định phải sống được ngoài JSX.
+ *
+ * ⚠ Từ `727af45` mặc định đó KHÔNG còn là ràng buộc cứng: jsdom + RTL bật được
+ * theo TỪNG FILE bằng docblock `// @vitest-environment jsdom` (`environmentMatchGlobs`
+ * đã bị bỏ ở vitest 4, đừng dùng). Việc tách hàm thuần ở đây vẫn đúng — nó rẻ và
+ * ổn định hơn một lượt render — nhưng đừng đọc câu trên thành "không kiểm được". Hai thứ ở file này đáng
  * khẳng định, và cả hai đều là ô AC chứ không phải lựa chọn giao diện:
  *
  * 1. **Trước khi nộp, client KHÔNG có gì để tô đúng/sai.** `choiceReveal` nhận
