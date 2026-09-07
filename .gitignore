@@ -17,6 +17,12 @@ coverage/
 
 # Go
 bin/
+# ⚠ Luật `bin/` ở trên là luật RỘNG (khớp mọi thư mục tên bin ở mọi độ sâu) và
+# nó đã nuốt mất script của image sandbox trong im lặng: `git add -A` không kêu,
+# build local vẫn chạy vì file có trên đĩa, và chỉ CI mới đỏ với
+# `"/bin/dlp-motd": not found`. Đây là mã NGUỒN, không phải sản phẩm biên dịch.
+!images/sandbox-base/bin/
+!images/sandbox-base/bin/*
 *.exe
 *.test
 *.out
