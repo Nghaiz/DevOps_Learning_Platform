@@ -94,12 +94,18 @@ migrate:
 web:
   # Tag tường minh — xem khối "TAG THEO TỪNG THÀNH PHẦN" ở đầu file.
   #
+  # p13b (2026-09-07): p13a + hai bản vá a11y tìm được SAU khi deploy p13a —
+  # `/author` bọc danh sách vào `TabsContent` (trước đó tablist không có panel
+  # nào ⇒ axe critical), và gỡ `outline-none` khỏi `TabsContent` (nó vô hiệu hoá
+  # chính dấu focus vừa thêm ở p13a — Tailwind v4 `outline-none` đặt
+  # `--tw-outline-style: none`).
+  #
   # p13a (2026-09-07): bốn bản vá chỉ ở tầng web — dấu focus cho `TabsContent`,
   # markdown hạ một bậc heading, đường polling của trang soạn bài, và tắt phép dò
   # JIT của Zod. KHÔNG đụng proto nên KHÔNG có ràng buộc "web và orchestrator lên
   # cùng lượt" của §3bis; orchestrator/gateway/migrator giữ nguyên `p13`.
   image:
-    tag: p13a
+    tag: p13b
   replicaCount: 1
   # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
   # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ
@@ -156,7 +162,15 @@ orchestrator:
     # Image pod lab: mặc định của template là `image.registry`+`image.tag`, tức
     # nó SẼ trỏ sang sha-2b79fd3 nếu không ghim ⇒ mọi pod sandbox MỚI chết bằng
     # ErrImageNeverPull trong khi web/gateway vẫn xanh. Ghim khớp bản side-load.
-    sandboxImage: ghcr.io/nghaiz/dlp-sandbox-base:p10a
+    # p13ide (2026-09-07): CÙNG nội dung `p10a` nhưng build với `INCLUDE_IDE=1`.
+    #
+    # Ảnh `p10a` build mặc định `INCLUDE_IDE=0`, nên trong pod KHÔNG có
+    # `/opt/theia` và không ai nghe cổng 4000. Đo trên cụm: gateway định tuyến
+    # `/ide` đúng và đủ ba header an ninh, nhưng upstream trả
+    # `connect: connection refused` ⇒ mọi request `/ide` là 503. Tức đường IDE
+    # chưa từng phục vụ được gì trên cụm này, và ô AC 6 (layout `ide`) lẫn phép
+    # đo CSP cho `/ide` đều bị chặn ở đó chứ không ở mã.
+    sandboxImage: ghcr.io/nghaiz/dlp-sandbox-base:p13ide
     # 3 pod ấm, không 1 — đóng nợ của 3.I mắt 3–5 và 2026-08-16-concurrent-build-load.
     #
     # Số đo làm cơ sở (18 người vào cùng lúc, POOL_TARGET=1): 17/18 đi cold path,
@@ -215,7 +229,13 @@ gateway:
   # render-vs-`ctr images ls` của `12-helm-deploy.sh` sẽ (đúng đắn) từ chối một
   # tag chưa có trên node. Bump tag TRONG CÙNG thay đổi với lượt build+side-load.
   image:
-    tag: p13
+  #
+  # p13b (2026-09-07): `ideroute` chỉ bỏ cookie `dlp_sandbox` thay vì xoá CẢ header
+  # `Cookie`. Bản trước xoá luôn `theia-connection-token` mà Theia tự phát, và
+  # Theia từ chối mọi lượt nâng cấp socket thiếu token đó — nên `/ide` dựng được
+  # vỏ (200) mà `socket.io` trả 403: IDE không có backend. Không có gì trên cụm
+  # phát hiện được: `rollout status` xanh, pod `Running 1/1`, trang gốc 200.
+    tag: p13b
   # 2 replica từ chặng 3.H. Gateway stateless đã được KIỂM CHỨNG chứ không chỉ
   # được khẳng định: không map/registry session→conn nào ở package-level hay
   # struct field; đích exec đọc từ Redis mỗi lần connect, và trần WS đồng thời
