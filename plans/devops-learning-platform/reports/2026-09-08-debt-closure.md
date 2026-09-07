@@ -354,6 +354,56 @@ claim ⇒ cold path 6–8s, đúng thứ §3.2 đang cố tránh.
 không màn hình, không API). Thêm volume vào MỌI pod spec để chở một thư mục luôn rỗng
 là YAGNI. Việc cần làm trước là chọn nơi người dùng **nhập** dotfiles.
 
+### 3.4 Sức chứa theo profile — phủ hết ba trang học (`e1b14ef`, `32ab09a`, `404fa48`)
+
+`profile` nay về từ router (`lessons.get` / `labs.get` / `playgrounds.get`) thay vì
+được Server Component tính lại — bỏ được một lượt đọc nội dung thứ hai mỗi lần mở
+trang, mà với bài soạn trên DB là một truy vấn thật.
+
+⛔ **Bảng ánh xạ profile KHÔNG được chép sang FE.** `profileForCapabilities` sống ở
+`server/lessons/catalog.ts` (chạm `node:path` + DB nên không import được vào
+`'use client'`). Phương án "chuyển nó sang `packages/shared-types`" đã được cân và
+LOẠI: nó đẩy chính sách cấp phát RAM vào bundle trình duyệt.
+
+Đo trên nội dung THẬT trong kho:
+
+```
+LAB dlp-k8s-broken-deploy  caps=[kubernetes]  ⇒ profile="k8s"  (trần 5)
+LAB dlp-linux-triage       caps=[]            ⇒ profile=""     (trần 23)
+SC  dlp-ide-config-edit    layout=ide         ⇒ profile="ide"  (trần 7)
+```
+
+Sáu đột biến chạy thật. Ô đáng giá nhất gác hạng lỗi **"hàm đúng, có test, mà không
+call-site nào truyền đúng tham số"**: bỏ `profile={profile}` ở lab + sân chơi ⇒ cổng
+kêu **đích danh hai file**.
+
+**Một lỗ hổng lane tự tìm ra và tự nói:** đột biến M7 — cho `labs.get` trả profile
+SAI (`''`) — **suite vẫn xanh 109/1252**. Không ô nào gác GIÁ TRỊ profile mà router
+trả về; chỗ đúng để đặt (`security/labs-authz.test.ts`) nằm ngoài sở hữu của lane.
+Hiện chỉ có phép đo tay ở trên, chạy một lần, không tái lặp.
+
+**`describeCapacity` của vỏ nay là mã chết** (cả năm call-site đã sang
+`describeProfileCapacity`) nhưng **giữ lại có chủ ý**: nó là đối chứng thật của công
+thức mới ("cùng payload, hai công thức, hai kết quả"); thay bằng hằng `14` gõ tay là
+mất tính chất đó. Bù lại nó bị cách ly bằng một cổng tĩnh **hai chiều** — file mới
+import ⇒ ĐỎ; mục miễn trừ hết import ⇒ CŨNG ĐỎ.
+
+⚠ Bản đầu của cổng cách ly ấy **đếm theo TÊN và đỏ ngay trên cây đúng**: nó gọi tám
+file lành là vi phạm vì `components/session/capacity.ts` có hàm trùng tên. Bản commit
+phân giải đường dẫn module.
+
+### 3.5 Suite `apps/web` — một flake chưa bắt được
+
+Lane 6 báo: cùng một cây, lượt này `2 failed / 107 passed / 25 skipped`, lượt NGAY SAU
+`109 passed / 1252 / 0 skipped`. Nó không bắt được tên hai ô đó.
+
+Tôi chạy lại **hai lượt liên tiếp**: cả hai `109 file / 1252 ô / 0 skip`. **Không tái
+hiện.** Postgres + Redis dev đang chạy trong suốt hai lượt, và `0 skipped` chứng minh
+test tích hợp thật sự chạy chứ không lặng lẽ bỏ qua.
+
+⇒ Nghi ngờ ban đầu (phụ thuộc Postgres, `0 skip ↔ 25 skip`) **phù hợp với dữ liệu
+nhưng chưa được chứng minh**. Ghi lại như một flake CHƯA đóng, không ghi là đã sửa.
+
 _(phần còn lại sau deploy)_
 
 ## 4. Còn lại — nói thẳng
