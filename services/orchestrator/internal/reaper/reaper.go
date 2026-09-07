@@ -75,6 +75,30 @@ const (
 	// Contract giữa Lua và Go — đổi một bên là tầng 2c mù trong im lặng.
 	fieldPodSessionID = "sessionId"
 
+	// maxStaleEvictPerSweep là số pod lệch-image được XOÁ KHỎI CLUSTER trong
+	// MỘT vòng sweep. Pod lệch VƯỢT trần này vẫn bị rút khỏi `pool:free` ngay
+	// trong cùng vòng — chỉ lượt `Delete` là hoãn.
+	//
+	// ⛔ HAI VIỆC KHÁC NHAU, VÀ TÁCH CHÚNG LÀ TOÀN BỘ NỘI DUNG CỦA TRẦN NÀY:
+	//
+	//	(a) RÚT KHỎI VÒNG PHỤC VỤ — `LREM pool:free`. Không giới hạn, không thể
+	//	    giới hạn: một pod lệch image KHÔNG dùng được, để lại một cái trong
+	//	    pool nghĩa là người kế tiếp nhận đúng nó. Đây là vế mà A8 tồn tại vì nó.
+	//	(b) XOÁ KHỎI CLUSTER — `pods.Delete`. Cái này CÓ nhịp.
+	//
+	// Vì sao (b) cần nhịp, đo được trên cụm lab 2026-09-07T07:37:35Z: sau khi
+	// đổi `SANDBOX_IMAGE` p10a → p13ide, ba dòng "pod ấm chạy image CŨ" nằm
+	// trong **30 mili-giây** (…35.038 / …35.053 / …35.067) — ba lượt teardown
+	// đồng thời trên MỘT node Sysbox. Đó chính là hình dạng đã dẫn tới
+	// `FailedKillPod` → sysbox-fs wedge trong P12 §5b. Với `POOL_TARGET=3` là ba;
+	// một cụm chạy `POOL_TARGET` lớn hơn sẽ là hàng chục.
+	//
+	// ⚠ KHÔNG hứa "pool không bao giờ rỗng". Nếu CẢ pool đều lệch image thì pool
+	// rỗng là kết quả ĐÚNG — mọi pod trong đó đều không dùng được. Trần này chỉ
+	// giữ cho lượt dọn không biến thành một cơn bão teardown; nó không, và không
+	// thể, giữ cho warm-pool còn hàng.
+	maxStaleEvictPerSweep = 2
+
 	// sessionScanCount là gợi ý COUNT cho SCAN. SCAN chứ không KEYS: KEYS chặn
 	// Redis đơn luồng cho tới khi duyệt hết không gian khoá, và Redis này đang
 	// phục vụ đường claim của người dùng.
@@ -279,12 +303,23 @@ func (r *Reaper) sweep(ctx context.Context) error {
 	// thì session ma không được xử lý và `pool:quarantine` không được dọn. Lỗi
 	// tạm thời chỉ tốn 60s, nhưng một lỗi DAI DẲNG ở đúng một tên pod sẽ khiến
 	// ba tầng còn lại KHÔNG BAO GIỜ chạy nữa, im lặng.
+	// ⛔ `drainQuarantine` CHẠY TRƯỚC `sweepDeadFreePods` — THỨ TỰ NÀY LÀ LUẬT
+	// KỂ TỪ KHI TẦNG 4 BIẾT HOÃN.
+	//
+	// Go tính đối số trái-sang-phải, nên đây là thứ tự chạy thật. Tầng 4 đẩy pod
+	// lệch-image VƯỢT `maxStaleEvictPerSweep` sang `pool:quarantine` để tầng 3
+	// xoá; nếu tầng 3 chạy SAU trong cùng vòng thì nó dọn luôn phần vừa hoãn và
+	// cái trần kia thành trang trí — đúng cơn bão teardown mà nó tồn tại để chặn.
+	// Đảo lên trước nghĩa là phần hoãn chờ đúng một chu kỳ, như đã hứa.
+	//
+	// Không tầng nào ở đây phụ thuộc ngược lại vào thứ tự cũ: trước bản này chỉ
+	// `claim.lua` ghi vào `pool:quarantine`, và nó ghi bất đồng bộ với sweep.
 	return errors.Join(
 		r.sweepOrphanPods(ctx, pods),
 		r.sweepGhostSessions(ctx, live),
 		r.sweepClaimedWithoutSession(ctx),
-		r.sweepDeadFreePods(ctx),
 		r.drainQuarantine(ctx),
+		r.sweepDeadFreePods(ctx),
 	)
 }
 
@@ -342,6 +377,9 @@ func (r *Reaper) sweepDeadFreePods(ctx context.Context) error {
 	}
 
 	var errs []error
+	// Ngân sách XOÁ của riêng nhánh lệch-image trong vòng này. Xem
+	// maxStaleEvictPerSweep: nó chặn lượt `Delete`, KHÔNG chặn lượt `LREM`.
+	staleDeleted := 0
 	for _, name := range names {
 		pod, getErr := r.pods.Get(ctx, name)
 
@@ -393,7 +431,41 @@ func (r *Reaper) sweepDeadFreePods(ctx context.Context) error {
 
 		if stale {
 			got, _ := sandboxImageOf(pod)
+			// Đếm ở đây, KHÔNG đếm ở chỗ Delete: counter này trả lời "bao nhiêu
+			// pod đã bị loại khỏi vòng phục vụ vì lệch image". Một pod hoãn xoá
+			// đã HẾT phục vụ kể từ lệnh LREM ở trên — dời phép đếm xuống nhánh
+			// xoá là để tổng của nó thấp hơn sự thật đúng bằng phần đang hoãn,
+			// và số đó lại dao động theo trần nhịp chứ không theo hiện tượng.
 			r.met.ReaperStaleImagePodsTotal.Inc()
+
+			if staleDeleted >= maxStaleEvictPerSweep {
+				// HOÃN XOÁ. Pod đã ra khỏi `pool:free` nên không claim nào chạm
+				// được nó nữa; đẩy sang `pool:quarantine` để tầng 3 xoá ở vòng
+				// sau (xem thứ tự trong sweep()).
+				//
+				// ⛔ KHÔNG `DEL pod:{name}` ở đây. Xoá hash mà chưa xoá Pod là
+				// đúng ca "pod có label, không hash, không list" — tầng 2a chỉ
+				// chạm nó SAU orphanGrace (5 phút), tức giữ một khe quota lâu
+				// hơn hẳn so với việc để tầng 3 dọn ở vòng sweep kế tiếp.
+				if pushErr := r.rdb.RPush(ctx, rediskeys.PoolQuarantine, name).Err(); pushErr != nil {
+					// Không đẩy được thì pod thành rác không tầng nào phủ (đã ra
+					// khỏi pool:free, hash còn, không session). Nói thẳng, và
+					// xoá luôn ở đây thay vì bỏ lại im lặng — vượt trần nhịp
+					// vẫn tốt hơn rò một khe quota vĩnh viễn.
+					errs = append(errs, fmt.Errorf("reaper: RPUSH %s %q (hoãn xoá pod lệch image): %w",
+						rediskeys.PoolQuarantine, name, pushErr))
+					r.deletePodAndIndex(ctx, name)
+					continue
+				}
+				r.log.Warn("pod ấm chạy image CŨ — đã RÚT khỏi pool, HOÃN xoá sang vòng sweep sau",
+					slog.String("pod", name),
+					slog.String("image_dang_chay", got),
+					slog.String("image_muon", r.wantImage),
+					slog.Int("tran_xoa_moi_vong", maxStaleEvictPerSweep))
+				continue
+			}
+
+			staleDeleted++
 			// Cả hai image trong cùng một dòng log: "lệch" mà không nói lệch
 			// khỏi cái gì thì người trực phải đi tra hai nơi mới đọc được.
 			r.log.Warn("pod ấm chạy image CŨ — đã rút để warm-pool dựng lại bằng image hiện hành",
@@ -667,7 +739,12 @@ func (r *Reaper) drainQuarantine(ctx context.Context) error {
 		return nil
 	}
 
-	r.log.Warn("dọn pod bị cách ly — mỗi mục là −1 trên trần đồng thời, và list dài ra nghĩa là có nguồn ghi sai vào pool:free",
+	// HAI nguồn ghi vào list này, và người trực phải phân biệt được: (a)
+	// `claim.lua` cách ly một pod hỏng — list dài ra nghĩa là có nguồn ghi sai
+	// vào `pool:free`; (b) tầng 4 HOÃN xoá pod lệch image sau một lần đổi
+	// `SANDBOX_IMAGE` — bình thường, xảy ra một lần, tự hết. Câu cũ chỉ nói (a)
+	// nên mỗi lần rollout image sẽ đọc ra như một sự cố.
+	r.log.Warn("dọn pod bị cách ly — mỗi mục là −1 trên trần đồng thời. Nguồn: claim.lua cách ly pod hỏng, HOẶC tầng 4 hoãn xoá pod lệch image sau khi đổi SANDBOX_IMAGE",
 		slog.Int("count", len(names)))
 
 	for _, name := range names {

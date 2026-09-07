@@ -231,22 +231,59 @@ nên đổi `image.tag` một chỗ là pod lab đi theo. Đánh đổi: **mỗi
 `image.tag` đều phải side-load thêm tarball sandbox lên node**, nếu không thì
 warm-pool ImagePullBackOff.
 
-> ⛔ **Đổi `SANDBOX_IMAGE` KHÔNG tự thay pod đang ấm.** Warm-pool giữ đủ
-> `POOL_TARGET` pod và không có logic rollout theo image: pod ấm dựng từ image
-> CŨ nằm lại trong `pool:free` vô thời hạn, `Running`/`Ready` nên nhìn không có
-> gì sai, và người claim tiếp theo nhận đúng pod đó. Đây là **món nợ**, chưa có
-> task nào sở hữu. Rút tay theo đúng thứ tự sau:
+> ✅ **Đổi `SANDBOX_IMAGE` CÓ tự thay pod đang ấm** — reaper tầng 4 lo việc này
+> (`internal/reaper/reaper.go`, `sweepDeadFreePods`). Mỗi vòng sweep nó đối chiếu
+> `pod.spec.containers[sandbox].image` của từng pod trong `pool:free` với
+> `SANDBOX_IMAGE` hiện hành; lệch thì `LREM` khỏi `pool:free` rồi xoá, kèm
+> `dlp_reaper_stale_image_pods_total` và một dòng WARN in CẢ HAI image.
 >
-> ```bash
-> # 1) Rút khỏi LIST TRƯỚC — sau bước này không claim nào grab được nó nữa.
-> #    ⛔ LREM PHẢI trả về 1. Trả 0 nghĩa là claim.lua vừa LMOVE nó sang
-> #    pool:claimed cho một sinh viên — ĐI TIẾP LÀ XOÁ POD CỦA PHIÊN ĐANG CHẠY.
-> redis-cli LREM pool:free 0 "$POD"      # phải in: (integer) 1
-> redis-cli HGET "pod:$POD" state        # kiểm lại: phải là "free"
-> # 2) rồi mới xoá hash, 3) rồi mới xoá Pod
-> redis-cli DEL "pod:$POD"
-> kubectl -n dlp-sandbox delete pod "$POD" --grace-period=0 --force
+> ⚠ **Đoạn "rút tay" từng nằm ở đây đã bị xoá** vì nó là văn bản cũ hơn code:
+> nó viết ở `d09db86` (2026-08-12 12:52) và cơ chế vào ở `ea73912` (2026-08-12
+> 22:05) — cách nhau chín tiếng trong cùng một ngày, nên bản README không được
+> cập nhật theo. Ai đọc nó năm 2026-09 sẽ kết luận A8 chưa có chủ, đi dựng lại
+> một cơ chế thứ hai, và có HAI thành phần cùng mutate `pool:free`. Đã xảy ra:
+> đó là lý do có mục này.
+>
+> Bằng chứng cơ chế chạy thật, log orchestrator trên cụm lab:
+>
 > ```
+> 2026-09-07T07:37:35.038Z WARN pod ấm chạy image CŨ — đã rút …
+>   image_dang_chay=…:p10a  image_muon=…:p13ide  pod=sandbox-6a02e800a9e9
+> ```
+>
+> ### Hai giới hạn CÒN LẠI, đọc trước khi deploy
+>
+> **1. Cửa sổ `REAP_INTERVAL`.** Phép so image chạy theo nhịp sweep (lab: `60s`),
+> KHÔNG chạy ở đường claim. Một pod lệch vào `pool:free` ngay sau một vòng sweep
+> sẽ được phát cho tới vòng kế. Đo được cùng ngày: dòng thứ TƯ ở
+> `07:38:34.856Z` — một pod `p10a` nữa, đúng **59 giây** sau ba dòng đầu.
+>
+> **2. Nguồn của pod lệch đó là chính lượt rollout.** `platform-orchestrator`
+> chạy `replicas: 1` với `strategy.rollingUpdate.maxSurge: 25%` ⇒ trong lúc
+> `helm upgrade`, replica CŨ (mang `SANDBOX_IMAGE` cũ) và replica MỚI cùng sống
+> và cùng bơm vào một `pool:free`. Replica cũ dựng pod image cũ SAU vòng sweep
+> khởi động của replica mới — đó chính là pod ở dòng thứ tư.
+>
+> ⇒ Muốn đóng hẳn: đặt `maxSurge: 0` (hoặc `strategy: Recreate`) cho
+> orchestrator, để không bao giờ có hai manager mang hai `SANDBOX_IMAGE` khác
+> nhau cùng ghi vào một pool. Đây là thay đổi Helm, không phải thay đổi code.
+>
+> ### Nhịp xoá (từ 2026-09-08)
+>
+> Rút khỏi `pool:free` là **vô điều kiện** — mọi pod lệch ra khỏi vòng phục vụ
+> trong CÙNG một vòng sweep. Xoá khỏi cluster thì **có trần**
+> (`maxStaleEvictPerSweep`); phần vượt trần được đẩy sang `pool:quarantine` và
+> tầng 3 dọn ở vòng sau. Lý do là số đo ở trên: ba dòng WARN nằm trong 30 mili-
+> giây tức ba lượt teardown đồng thời trên một node Sysbox — đúng hình dạng đã
+> dẫn tới `FailedKillPod` → sysbox-fs wedge ở P12 §5b.
+>
+> ⚠ Trần này KHÔNG hứa "pool không bao giờ rỗng". Nếu cả pool đều lệch image thì
+> pool rỗng là kết quả ĐÚNG (mọi pod trong đó đều không dùng được) và người claim
+> tiếp theo đi cold path. Nó chỉ chặn cơn bão teardown.
+>
+> ⛔ Pod đang **CLAIMED** không bao giờ bị đụng tới: tầng 4 chỉ đọc `pool:free`.
+> Một lượt deploy không được cướp phiên của người đang học. Cổng:
+> `TestTang4KhongDungPodLechImageDangClaimed`.
 
 ## E6–E9 (chặng 1.E-2, 2026-08-12)
 
