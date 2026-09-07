@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
 import { Alert, AlertDescription, Button, ContentView, ProgressBar, StepNav } from '@devops-platform/ui';
 import {
+  DEFAULT_PROFILE,
   SessionControls,
   ShellFallbackNotice,
   TerminalPane,
@@ -22,7 +23,19 @@ import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
 import { CheckResultPanel, type CheckOutcome } from './check-result-panel';
 
-export function LessonClient({ scenarioId }: { scenarioId: string }): React.ReactElement {
+export function LessonClient({
+  scenarioId,
+  profile = null,
+}: {
+  readonly scenarioId: string;
+  /**
+   * Profile tài nguyên của CHÍNH bài này, do Server Component giải bằng
+   * `profileForCapabilities` (xem `page.tsx`). `null` = chưa giải được (bài
+   * không tồn tại) ⇒ rơi về profile mặc định, và lúc đó `lessons.get` cũng đang
+   * hiện lỗi nên không có nhãn sức chứa nào để nói sai.
+   */
+  readonly profile?: string | null;
+}): React.ReactElement {
   const utils = api.useUtils();
   const query = api.lessons.get.useQuery({ scenarioId });
   const session = useLessonSession(scenarioId);
@@ -340,10 +353,17 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
           nhãn TTL sau khi phiên mở, lab thiếu tooltip hardCap).
         */}
         <div className="ml-auto">
+          {/*
+            `profile` là mảnh làm nhãn nói về ĐÚNG bài này thay vì về "bài
+            thường". Thiếu nó, trang bài IDE in con số của profile mặc định —
+            đúng lỗi 2026-09-07: "Còn 14 chỗ" trong lúc `startSession` trả 429
+            vì quota còn 576Mi mà pod IDE cần 768Mi.
+          */}
           <SessionControls
             session={session}
             actions={{ start: session.start, end: session.end, extend: session.extend }}
             capacity={capacity.data ?? null}
+            profile={profile ?? DEFAULT_PROFILE}
           />
         </div>
       </header>

@@ -11,7 +11,7 @@ import {
   cn,
 } from '@devops-platform/ui';
 import type { SandboxSession } from '../../lib/use-sandbox-session';
-import { describeCapacity, type CapacitySnapshot } from './capacity';
+import { DEFAULT_PROFILE, describeCapacity, type ProfileCapacityView } from './capacity';
 import { PhaseIcon } from './session-status';
 import {
   SESSION_PHASE_LABEL,
@@ -44,8 +44,19 @@ export interface SessionControlsProps {
    * AC 8.E). Sau khi phiên mở thì đồng hồ thật thay chỗ nó.
    */
   readonly ttlSeconds?: number | null;
-  /** `null` = chưa biết ⇒ không hiện gì. Xem `describeCapacity`. */
-  readonly capacity?: CapacitySnapshot | null;
+  /** `null` = chưa có payload ⇒ không hiện gì. Xem `describeCapacity`. */
+  readonly capacity?: ProfileCapacityView | null;
+  /**
+   * Profile tài nguyên của CHÍNH bài đang mở (`''` · `ide` · `k8s` ·
+   * `k8s-multinode`), do máy chủ tính bằng `profileForCapabilities`.
+   *
+   * ⚠ Bỏ trống ⇒ **profile mặc định**, và khi đó câu chữ tự thu hẹp về "cho bài
+   * thường" (xem `describeProfileCapacity` ở vỏ). Đó là mặc định AN TOÀN chứ
+   * không phải mặc định đúng: một trang truyền thiếu prop này sẽ hiện con số
+   * của bài thường kèm ghi chú rằng bài IDE/K8s có trần riêng — không hứa sai,
+   * nhưng cũng chưa trả lời được câu "còn mấy chỗ cho bài NÀY".
+   */
+  readonly profile?: string;
   readonly startLabel?: string;
   readonly canStart?: boolean;
   readonly compact?: boolean;
@@ -93,13 +104,14 @@ export function SessionControls({
   actions,
   ttlSeconds = null,
   capacity = null,
+  profile = DEFAULT_PROFILE,
   startLabel = 'Bắt đầu',
   canStart = true,
   compact = false,
 }: SessionControlsProps): ReactElement {
   const { state, remainingMs } = session;
   const hasSession = state.sessionId !== null;
-  const hint = describeCapacity(capacity);
+  const hint = describeCapacity(capacity, profile);
   const showClock = hasSession && remainingMs !== null && remainingMs < TTL_VISIBLE_MS;
   const urgent = remainingMs !== null && remainingMs < TTL_URGENT_MS;
 
@@ -146,11 +158,32 @@ export function SessionControls({
         </Badge>
       )}
 
-      {!hasSession && hint !== null && (
-        <Badge variant={hint.tone === 'full' ? 'destructive' : hint.tone === 'low' ? 'warning' : 'secondary'}>
-          {hint.label}
-        </Badge>
-      )}
+      {/*
+        Ba trạng thái, không phải hai. `hint === null` (chưa có payload) không
+        vẽ gì; `known: false` vẽ "Chưa rõ sức chứa" bằng biến thể TRUNG TÍNH —
+        ⛔ tuyệt đối không mượn con số của profile mặc định để lấp chỗ trống,
+        vì đúng con số đó đã in "Còn 14 chỗ" trong lúc server trả 429.
+
+        `title` mang câu đầy đủ ("Còn 6/7 chỗ cho bài này." / lý do chưa rõ):
+        badge chỉ đủ chỗ cho vài chữ, còn phạm vi của con số — "bài này" hay
+        "bài thường" — là thứ quyết định nó có phải một lời hứa đúng hay không.
+      */}
+      {!hasSession &&
+        hint !== null &&
+        (hint.known ? (
+          <Badge
+            title={hint.detail}
+            variant={
+              hint.tone === 'full' ? 'destructive' : hint.tone === 'low' ? 'warning' : 'secondary'
+            }
+          >
+            {hint.label}
+          </Badge>
+        ) : (
+          <Badge title={hint.detail} variant="outline">
+            {hint.label}
+          </Badge>
+        ))}
 
       {!hasSession && (
         /*
@@ -229,11 +262,14 @@ export function SessionControls({
 
       {/*
         Cảnh báo hết chỗ đứng ở đây — TRƯỚC khi bấm, không phải sau khi ăn 429.
-        Nút Bắt đầu vẫn bấm được (C5): trần mềm là ước lượng đọc lúc `fetchedAt`,
-        và chặn cứng theo một con số có thể đã cũ vài giây là từ chối nhầm người
-        học trong khi chỗ vừa trống ra.
+        Nút Bắt đầu vẫn bấm được (C5): `slots_free` là CẬN DƯỚI (orchestrator
+        không cộng pod đang ấm trong `pool:free`) và nó đọc lúc `fetchedAt`, nên
+        chặn cứng theo con số đó là từ chối nhầm người học trong khi chỗ đang có.
+
+        ⛔ Và "chưa rõ" KHÔNG sinh cảnh báo: nhánh `known === false` không có
+        `warning`, nên một lỗi đọc quota không biến thành một câu doạ màu đỏ.
       */}
-      {!hasSession && hint?.warning != null && (
+      {!hasSession && hint !== null && hint.known && hint.warning !== null && (
         <p className={compact ? 'text-xs text-destructive' : 'basis-full text-xs text-destructive'}>
           {hint.warning}
         </p>

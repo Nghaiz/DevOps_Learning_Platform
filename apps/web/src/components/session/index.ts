@@ -55,8 +55,16 @@ export type { PhaseIconProps, SessionStatusPillProps } from './session-status.ts
 // tay chúng ở mỗi trang là cách bốn trang bắt đầu nói bốn thứ khác nhau về
 // cùng một pha phiên.
 export { SESSION_PHASE_LABEL, phaseBadgeVariant, TTL_URGENT_MS, TTL_VISIBLE_MS } from './session-phase';
-export { describeCapacity } from './capacity';
-export type { CapacityHint, CapacitySnapshot, CapacityTone } from './capacity';
+export { describeCapacity, DEFAULT_PROFILE } from './capacity';
+export type {
+  CapacityHint,
+  CapacitySnapshot,
+  CapacityTone,
+  KnownCapacityHint,
+  ProfileCapacity,
+  ProfileCapacityView,
+  UnknownCapacityHint,
+} from './capacity';
 export { IDE_BOOT_TIMEOUT_MS, IDE_LAYOUT, ideSessionUrl, shouldShowIdePane } from './ide-layout';
 export { resolveTerminalTheme } from './terminal-theme';
 export { ShellFallbackNotice } from './shell-fallback-notice.tsx';
