@@ -54,4 +54,33 @@ describe('Tabs', () => {
     await user.keyboard('{ArrowRight}');
     expect(screen.getByText('Nội dung Quiz')).toBeDefined();
   });
+
+  /**
+   * Panel là điểm dừng Tab (Radix đặt `tabIndex=0` cùng `role="tabpanel"`), nên
+   * nó PHẢI có dấu focus. Đo trên cụm 2026-09-07, `/me` báo "1 điểm dừng Tab
+   * KHÔNG đổi gì trên màn hình khi nhận focus" — chính panel này.
+   *
+   * ⚠ Test khẳng định CẢ HAI nửa: panel focus được, VÀ nó mang lớp vẽ dấu focus.
+   * Nửa đầu một mình vô dụng — `tabIndex` đến từ Radix nên nó xanh kể cả khi ta
+   * xoá sạch style. Nửa sau một mình cũng vô dụng: một lớp focus trên phần tử
+   * không focus được thì không bao giờ vẽ ra gì.
+   *
+   * jsdom không tính bố cục nên nó KHÔNG chứng minh được dấu focus thật sự nhìn
+   * thấy; phép đo đó là `keyboard.spec.ts` trên cụm (chụp trước/sau focus rồi so
+   * pixel). Test này gác chuyện lớp bị gỡ mất trong một lượt refactor — thứ mà
+   * lượt e2e chỉ bắt được sau khi đã deploy.
+   */
+  it('panel nhận được focus và mang lớp dấu focus (regression /me 2026-09-07)', () => {
+    render(<Example />);
+    const panel = screen.getByRole('tabpanel');
+
+    panel.focus();
+    expect(document.activeElement).toBe(panel);
+
+    const cls = panel.getAttribute('class') ?? '';
+    expect(
+      cls.includes('focus-visible:outline-2'),
+      `panel không có lớp dấu focus — class hiện tại: ${cls}`,
+    ).toBe(true);
+  });
 });
