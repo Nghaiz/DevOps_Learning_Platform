@@ -158,6 +158,28 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     // người học nhìn thấy.
     await page.getByRole('button', { name: 'Lưu trữ', exact: true }).first().click();
     await page.getByRole('button', { name: 'Lưu trữ', exact: true }).last().click();
-    await expect(page.getByText('Đã lưu trữ')).toBeVisible({ timeout: 60_000 });
+
+    // ⚠ Neo vào TOAST, không phải chuỗi trần — cùng bẫy đã sửa cho "Đã xuất bản"
+    // ở dòng 125, và nó cắn lại ở đây (đo 2026-09-07, `EXIT_author=1`):
+    //
+    //   strict mode violation: getByText('Đã lưu trữ') resolved to 2 elements:
+    //     1) <div class="text-sm font-medium">Đã lưu trữ</div>        ← tiêu đề toast
+    //     2) <span role="status" aria-live="assertive">Notification Đã lưu trữBài…
+    //
+    // Phần tử thứ hai là vùng PHÁT LẠI của Radix Toast: nó đọc lại nội dung toast
+    // cho trình đọc màn hình, nên mọi chuỗi trong toast tồn tại ĐÚNG HAI LẦN
+    // trong cây a11y. Đây là hành vi đúng của thư viện, không phải lỗi — spec
+    // phải nói rõ nó muốn cái nào.
+    //
+    // Radix dựng toast theo mẫu WAI-ARIA: viewport là một `list`, mỗi toast là
+    // một `listitem`, còn vùng phát lại nằm NGOÀI list đó. Nên `listitem` tách
+    // được hai thứ. Dùng `.first()` thì cũng hết đỏ, nhưng nó GIẤU sự mơ hồ:
+    // lượt sau khớp nhầm phần tử nào cũng vẫn xanh.
+    //
+    // Sản phẩm lúc đó KHÔNG sai — đối chứng bằng DB cho thấy mục đã `archived`.
+    // Một phép kiểm đỏ trên một thao tác đã thành công là phép kiểm nói dối.
+    await expect(
+      page.getByRole('listitem').filter({ hasText: 'Đã lưu trữ' }),
+    ).toBeVisible({ timeout: 60_000 });
   });
 });
