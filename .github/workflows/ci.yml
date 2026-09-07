@@ -484,8 +484,13 @@ jobs:
           echo "Middleware được định nghĩa:"; printf '%s\n' "$defined"
           # `printf` chứ không phải chuỗi nhiều dòng: trong block scalar của YAML,
           # một dòng bắt đầu ở cột 0 sẽ THOÁT khỏi khối `run:` và làm hỏng workflow.
+          # `platform-ratelimit-ide` là tier RIÊNG cho `/ide` (P13 D8): Theia phục vụ
+          # mọi asset của nó dưới `/ide/session/{id}/`, nên ghép chung bucket với
+          # `ratelimit-web` thì mở IDE tự 429 chính lời gọi API của trang bài học.
+          # Xem middleware-ratelimit.yaml § ratelimit-ide.
           want_defined=$(printf '%s\n' \
             platform-bodylimit \
+            platform-ratelimit-ide \
             platform-ratelimit-static \
             platform-ratelimit-web \
             platform-ratelimit-ws \
@@ -521,6 +526,7 @@ jobs:
           ' | sed 's/@kubernetescrd//g; s/default-//g' | sort)
           echo "Ingress thực tế (tên|entrypoint|middlewares):"; printf '%s\n' "$actual"
           want_actual=$(printf '%s\n' \
+            'platform-ide|websecure|platform-bodylimit,platform-ratelimit-ide' \
             'platform-redirect|web|platform-redirect-https' \
             'platform-static|websecure|platform-ratelimit-static' \
             'platform-web|websecure|platform-bodylimit,platform-ratelimit-web' \
@@ -546,15 +552,26 @@ jobs:
           need '^    memRequestBodyBytes: '
           need '^    scheme: https$'
           need '^    port: '
-          # average/burst phải là SỐ TRẦN (3 middleware × 2 field = 6 dòng). Một giá
-          # trị lỡ thành chuỗi (`average: "120"`) bị apiserver từ chối vì lệch kiểu
-          # — ồn ào, khác hẳn ca prune im lặng ở trên, nhưng vẫn là một lượt deploy
-          # hỏng nên bắt sớm ở đây rẻ hơn.
+          # average/burst phải là SỐ TRẦN. Một giá trị lỡ thành chuỗi
+          # (`average: "120"`) bị apiserver từ chối vì lệch kiểu — ồn ào, khác hẳn ca
+          # prune im lặng ở trên, nhưng vẫn là một lượt deploy hỏng nên bắt sớm ở đây
+          # rẻ hơn.
+          # ⚠ SỐ MONG ĐỢI SUY RA TỪ `want_defined`, KHÔNG gõ tay. Trước 2026-09-07
+          # đây là hằng `6`/`3` chép theo 3 tier rate-limit. Khi P13 thêm tier `ide` thì
+          # chốt `want_defined` ở trên đỏ TRƯỚC và hai hằng này không bao giờ được nhìn
+          # tới — nên chúng lặng lẽ sai theo, và người sửa chốt trên rất dễ dừng ở đó
+          # rồi đỏ tiếp một lượt nữa. Một pin ĐẾM chép tay đứng cạnh một pin DANH
+          # SÁCH là hai SSOT cho cùng một sự thật.
+          rl=$(printf '%s\n' "$want_defined" | grep -c '^platform-ratelimit-') || rl=0
+          [ "$rl" -gt 0 ] \
+            || { echo "want_defined không còn tier ratelimit nào — hai phép kiểm dưới đây sẽ xanh mà không gác gì"; exit 1; }
           n=$(printf '%s\n' "$out" | grep -cE '^    (average|burst): [0-9]+$')
-          [ "$n" -eq 6 ] || { echo "muốn 6 dòng average/burst dạng SỐ TRẦN (web/static/ws), thấy $n"; exit 1; }
+          [ "$n" -eq $((rl * 2)) ] \
+            || { echo "muốn $((rl * 2)) dòng average/burst dạng SỐ TRẦN ($rl tier × 2 field), thấy $n"; exit 1; }
           n=$(printf '%s\n' "$out" | grep -cE '^    period: "[^"]+"$')
-          [ "$n" -eq 3 ] || { echo "muốn 3 dòng period dạng chuỗi có nháy, thấy $n"; exit 1; }
-          echo 'OK: 5 Middleware, 4 Ingress khớp CHÍNH XÁC tập middleware + entrypoint, spec có đủ field và đúng kiểu.'
+          [ "$n" -eq "$rl" ] \
+            || { echo "muốn $rl dòng period dạng chuỗi có nháy (1 mỗi tier), thấy $n"; exit 1; }
+          echo "OK: $(printf '%s\n' "$want_defined" | wc -l) Middleware, $(printf '%s\n' "$want_actual" | wc -l) Ingress khớp CHÍNH XÁC tập middleware + entrypoint, spec có đủ field và đúng kiểu."
 
       - name: 'helm template — trustProxy KHÔNG được bật khi không có proxy (P3/3.A)'
         # Vế NGƯỢC: `web.env.rateLimitTrustProxy=1` khi `ingress.enabled=false`
@@ -1395,6 +1412,14 @@ jobs:
 
       - name: DB migrate (Drizzle)
         run: pnpm --filter @devops-platform/web db:migrate
+
+      # `paths.*` + `quiz.*` đọc THẲNG Postgres — hai loại nội dung duy nhất KHÔNG
+      # có nguồn đĩa (lesson/lab/playground đi qua `filesystemScenarioSource` nên có
+      # mặt ngay sau build). Thiếu bước này thì `learning_paths`/`quizzes` rỗng và
+      # `/paths/:id` + `/quiz/:id` đỏ với "trả 0 mục" — đo ở run 34130030953:
+      # 4 failed sau `db:migrate`, 0 failed sau khi seed, biến duy nhất là lệnh này.
+      - name: 'Nạp lộ trình + quiz (không có nguồn đĩa)'
+        run: node scripts/seed-content.mjs
 
       # `next start` đòi một bản build có sẵn. Playwright tự spawn `pnpm start`
       # (webServer, chỉ bật khi E2E_START_SERVER=1) nên bước build phải đứng
