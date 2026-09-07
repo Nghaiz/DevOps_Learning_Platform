@@ -1,60 +1,34 @@
-/*
- * ⚠ Pragma trên là BẮT BUỘC để `pnpm --filter web test` chạy được file này, và
- * nó KHÔNG thừa dù Next đã dùng runtime tự động.
- *
- * `apps/web/tsconfig.json` khai `"jsx": "preserve"` (Next tự dịch JSX bằng SWC
- * của nó). vitest thì dịch bằng esbuild, và esbuild đọc đúng khoá đó: thấy
- * `preserve` nó rơi về runtime CỔ ĐIỂN, tức sinh ra `React.createElement` trong
- * một file không import `React`. Triệu chứng là `ReferenceError: React is not
- * defined` ném lúc RENDER — không phải lúc biên dịch, nên `typecheck` xanh còn
- * test đỏ ở mọi ô có render.
- *
- * Sửa đúng ở tầng cấu hình là `esbuild: { jsx: 'automatic' }` trong
- * `apps/web/vitest.config.ts`, nhưng file đó không thuộc đường sở hữu của lane
- * này (đã ghi vào report). Pragma theo từng file là cách vá không đụng file của
- * lane khác. Bỏ nó ra khi vitest.config đã khai — lúc đó nó thành thừa thật.
- */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { WorkspacePanel, type WorkspacePanelProps } from './workspace-panel';
-import type { WorkspaceTabId } from './workspace-tabs';
 
 /**
- * C5 — các bất biến của `WorkspacePanel`, kiểm trên MARKUP THẬT.
+ * §Y1/§Y4/§Y6 — các bất biến của `WorkspacePanel`, kiểm trên MARKUP THẬT.
  *
  * ## Mức test và giới hạn của nó, nói thẳng
  *
  * `apps/web` chạy vitest ở `environment: 'node'`: không jsdom, không RTL (xem
  * chú thích đầu `landmark-contract.test.ts`). Nên đây là `renderToStaticMarkup`
  * — render THẬT của React, đủ để khẳng định về cây DOM sinh ra (ai có mặt, ai
- * mang `hidden`, aria nào ở đâu), KHÔNG đủ để bấm chuột hay chạy effect.
+ * mang `hidden`, style nào ở đâu, aria nào trỏ đi đâu), KHÔNG đủ để bấm chuột,
+ * kéo thanh chia, hay chạy effect.
  *
  * Phần hành vi tương ứng nằm ở hai file khác và ĐƯỢC phủ ở đó:
- * `workspace-tabs.test.ts` (quyết định: hiện gì, phím đi đâu, lưu khoá nào) và
- * `workspace-visibility.test.ts` (thân effect gọi `fit()`). Thứ không file nào
- * phủ được là dây nối giữa chúng với DOM sự kiện — cần jsdom + RTL trong
- * `apps/web`, đã ghi vào report.
+ * `workspace-tabs.test.ts` (quyết định: hàng 1 hiện không, phím đi đâu, chuỗi
+ * hình học đổi lúc nào, lưu khoá nào) và `workspace-layout.test.ts` (thân effect
+ * gọi `fit()`). Thứ không file nào phủ được là dây nối giữa chúng với DOM sự
+ * kiện — cần jsdom + RTL trong `apps/web`, đã ghi vào report.
  */
 
 const EDITOR_MARK = 'MARKER_EDITOR';
-const T1_MARK = 'MARKER_TERMINAL_1';
-const T2_MARK = 'MARKER_TERMINAL_2';
-
-function terminalsWithBoth(): ReadonlyMap<WorkspaceTabId, React.ReactNode> {
-  return new Map<WorkspaceTabId, React.ReactNode>([
-    ['terminal-1', <span key="1">{T1_MARK}</span>],
-    ['terminal-2', <span key="2">{T2_MARK}</span>],
-  ]);
-}
+const TERMINAL_MARK = 'MARKER_TERMINAL';
 
 function render(overrides: Partial<WorkspacePanelProps> = {}): string {
   const props: WorkspacePanelProps = {
     editor: <span>{EDITOR_MARK}</span>,
-    terminals: terminalsWithBoth(),
+    terminal: <span>{TERMINAL_MARK}</span>,
     activeTab: 'editor',
     onActivate: () => undefined,
-    onToggleSplit: () => undefined,
-    split: false,
     popOutUrl: null,
     ...overrides,
   };
@@ -85,62 +59,85 @@ function classOf(tag: string): string {
   return /class="([^"]*)"/.exec(tag)?.[1] ?? '';
 }
 
-// ── Bất biến sống-chết: KHÔNG unmount ───────────────────────────────────────
+function styleOf(tag: string): string {
+  return /style="([^"]*)"/.exec(tag)?.[1] ?? '';
+}
 
-describe('mọi tab giữ MOUNTED, ẩn bằng `hidden`', () => {
+/**
+ * Một hàng của ngăn xếp dọc, tìm theo THUỘC TÍNH `id`.
+ *
+ * ⚠ KHÔNG dùng `tag.includes('-panel-editor')`: nút tab mang
+ * `aria-controls="…-panel-editor"` nên nó khớp TRƯỚC hàng thật, và `find` trả
+ * về cái nút. Ô "hàng editor có ẩn không" khi ấy đọc trạng thái của một cái nút
+ * không bao giờ ẩn — đỏ ở trạng thái có tab, xanh ở trạng thái không tab, tức
+ * một locator mơ hồ đội lốt một lỗi sản phẩm.
+ */
+function rowById(html: string, suffix: string): string {
+  const row = openTags(html).find((tag) => new RegExp(`\\sid="[^"]*${suffix}"`).test(tag));
+  expect(row, `không tìm thấy hàng có id kết thúc bằng ${suffix}`).toBeDefined();
+  return row ?? '';
+}
+
+/** Hàng 2 của ngăn xếp dọc — nơi terminal sống và không bao giờ rời. */
+function terminalRow(html: string): string {
+  expect(html, 'markup không chứa node terminal').toContain(TERMINAL_MARK);
+  return rowById(html, '-panel-terminal');
+}
+
+const ALL_STATES: readonly Partial<WorkspacePanelProps>[] = [
+  { activeTab: 'editor' },
+  { activeTab: 'terminal' },
+  { activeTab: 'editor', editor: undefined },
+  { activeTab: 'terminal', editor: undefined },
+];
+
+// ── Bất biến sống-chết §Y1 ──────────────────────────────────────────────────
+
+describe('§Y1 — terminal KHÔNG đổi cha, KHÔNG bị ẩn', () => {
   /**
-   * ⛔ Đây là ô AC quan trọng nhất của Lane E.
+   * ⛔ Đây là ô AC quan trọng nhất của lane này.
    *
-   * Unmount vùng terminal = đóng WebSocket = mất phiên làm việc của người học.
-   * Unmount iframe IDE = khởi động nguội Theia lại ~20 giây (P6). Cả hai đều
-   * KHÔNG có thông báo lỗi nào — người dùng chỉ thấy công việc biến mất.
+   * Ẩn hoặc dời hàng terminal = unmount xterm = đóng WebSocket = mất phiên làm
+   * việc của người học, không có thông báo lỗi nào. Ô này quét MỌI tổ hợp
+   * (hai tab × có/không editor).
    */
-  it('đang ở tab Editor: nội dung của CẢ HAI terminal vẫn nằm trong DOM', () => {
-    const html = render({ activeTab: 'editor' });
+  it('hàng terminal KHÔNG BAO GIỜ mang `hidden`, ở mọi tổ hợp', () => {
+    for (const state of ALL_STATES) {
+      const html = render(state);
+      expect(html, JSON.stringify(state)).toContain(TERMINAL_MARK);
+      expect(isHidden(terminalRow(html)), JSON.stringify(state)).toBe(false);
+    }
+  });
+
+  it('hàng terminal luôn ở CÙNG vị trí con trong ngăn xếp (con thứ 3)', () => {
+    // React so trùng con tĩnh theo VỊ TRÍ. Nếu ở một trạng thái nào đó ngăn xếp
+    // chỉ còn 2 con thì hàng terminal trượt lên khớp vị trí của thanh kéo — tức
+    // React unmount cái xterm và mount lại một `<div>` rỗng. Đếm số con của
+    // ngăn xếp là cách gần nhất mà markup tĩnh cho phép để gác điều đó.
+    for (const state of ALL_STATES) {
+      const html = render(state);
+      // Ngăn xếp = thẻ mang `flex-col` thứ hai (thẻ đầu là gốc panel).
+      const columns = openTags(html).filter((tag) => classOf(tag).split(/\s+/).includes('flex-col'));
+      expect(columns.length, JSON.stringify(state)).toBeGreaterThanOrEqual(2);
+      // Ba con tĩnh: hàng editor (tabpanel/id), thanh kéo (separator), hàng
+      // terminal (style nội tuyến). Cả ba phải có mặt ở MỌI trạng thái.
+      expect(html, JSON.stringify(state)).toContain('-panel-editor');
+      expect(tagsWithRole(html, 'separator'), JSON.stringify(state)).toHaveLength(1);
+      expect(html, JSON.stringify(state)).toContain('-panel-terminal');
+    }
+  });
+
+  it('hàng editor luôn được render kể cả khi bài KHÔNG có editor (chỉ `hidden`)', () => {
+    const html = render({ editor: undefined, activeTab: 'terminal' });
+    expect(isHidden(rowById(html, '-panel-editor'))).toBe(true);
+  });
+
+  it('ở tab Terminal, hàng editor ẩn nhưng nội dung editor VẪN trong DOM', () => {
+    // Unmount iframe IDE = khởi động nguội Theia lại ~20 giây (số đo P6).
+    const html = render({ activeTab: 'terminal' });
     expect(html).toContain(EDITOR_MARK);
-    expect(html).toContain(T1_MARK);
-    expect(html).toContain(T2_MARK);
-  });
-
-  it('đang ở tab Terminal 1: nội dung Editor vẫn nằm trong DOM', () => {
-    const html = render({ activeTab: 'terminal-1' });
-    expect(html).toContain(EDITOR_MARK);
-    expect(html).toContain(T1_MARK);
-  });
-
-  it('đang ở tab Terminal 2: node của terminal-1 KHÔNG bị ẩn (§C6 — dùng chung một xterm)', () => {
-    // Cả phiên chỉ có một WebSocket. Bấm "Terminal 2" gửi `\x02 2` vào chính
-    // cái PTY đang mở, nên nội dung window 2 hiện ra TRONG cái xterm đó — ẩn nó
-    // đi là ẩn đúng thứ vừa được yêu cầu hiện.
-    const html = render({ activeTab: 'terminal-2' });
-    const panels = tagsWithRole(html, 'tabpanel');
-    expect(panels).toHaveLength(2);
-    expect(isHidden(panels[0] ?? '')).toBe(true); // editor
-    expect(isHidden(panels[1] ?? '')).toBe(false); // terminal (dùng chung)
-    expect(html).toContain(T1_MARK);
-  });
-
-  it('tab terminal chỉ khai KHOÁ (giá trị null) vẫn có nút trên thanh tab', () => {
-    // Đây là hình dạng Lane F dùng: một `TerminalPane` thật ở `terminal-1`,
-    // `null` ở `terminal-2`.
-    const html = render({
-      activeTab: 'terminal-2',
-      terminals: new Map<WorkspaceTabId, React.ReactNode>([
-        ['terminal-1', <span key="1">{T1_MARK}</span>],
-        ['terminal-2', null],
-      ]),
-    });
-    expect(tagsWithRole(html, 'tab')).toHaveLength(3);
-    expect(html).toContain('Terminal 2');
-    expect(html).toContain(T1_MARK);
-  });
-
-  it('vùng editor luôn được render kể cả khi bài KHÔNG có editor', () => {
-    // React so trùng con tĩnh theo VỊ TRÍ. Bỏ hẳn vùng editor sẽ đẩy vùng
-    // terminal lên khớp với gạch phân cách ⇒ unmount xterm ⇒ đóng WebSocket.
-    const html = render({ editor: undefined, activeTab: 'terminal-1' });
-    expect(tagsWithRole(html, 'tabpanel')).toHaveLength(2);
-    expect(tagsWithRole(html, 'tab')).toHaveLength(2); // chỉ 2 tab terminal
+    expect(html).toContain(TERMINAL_MARK);
+    expect(isHidden(rowById(html, '-panel-editor'))).toBe(true);
   });
 });
 
@@ -166,63 +163,103 @@ describe('bẫy CSS: phần tử mang `hidden` không được mang tiện ích 
   ]);
 
   it('không thẻ nào vừa có `hidden` vừa có class display', () => {
-    for (const activeTab of ['editor', 'terminal-1', 'terminal-2'] as const) {
-      for (const split of [false, true]) {
-        const html = render({ activeTab, split });
-        const offenders = openTags(html)
-          .filter(isHidden)
-          .filter((tag) => classOf(tag).split(/\s+/).some((c) => DISPLAY_UTILITIES.has(c)));
-        expect(offenders, `activeTab=${activeTab} split=${String(split)}`).toEqual([]);
-      }
+    for (const state of ALL_STATES) {
+      const offenders = openTags(render(state))
+        .filter(isHidden)
+        .filter((tag) => classOf(tag).split(/\s+/).some((c) => DISPLAY_UTILITIES.has(c)));
+      expect(offenders, JSON.stringify(state)).toEqual([]);
     }
   });
 
-  it('có ít nhất MỘT thẻ mang `hidden` ở trạng thái không tách — đối chứng dương', () => {
+  it('có ít nhất MỘT thẻ mang `hidden` ở tab Terminal — đối chứng dương', () => {
     // Không có ô này thì ô trên xanh một cách vô nghĩa khi `hidden` biến mất
     // hoàn toàn khỏi markup vì một lý do khác.
-    expect(openTags(render({ activeTab: 'editor', split: false })).filter(isHidden).length)
-      .toBeGreaterThan(0);
+    expect(openTags(render({ activeTab: 'terminal' })).filter(isHidden).length).toBeGreaterThan(0);
+  });
+});
+
+// ── §Y6 — chiều cao khoang terminal ─────────────────────────────────────────
+
+describe('§Y6 — chiều cao khoang terminal', () => {
+  it('tab Editor: hàng terminal là một dải CỐ ĐỊNH ~40%', () => {
+    const style = styleOf(terminalRow(render({ activeTab: 'editor' })));
+    expect(style).toContain('flex-basis:40%');
+    expect(style).toContain('flex-grow:0');
+  });
+
+  it('tab Terminal: hàng terminal GIÃN ra chiếm trọn khoang', () => {
+    // Giữ `flex-basis: 40%` ở đây thì hàng editor `display:none` không chiếm
+    // chỗ, terminal vẫn chỉ 40%, và 60% còn lại là một mảng trống.
+    const style = styleOf(terminalRow(render({ activeTab: 'terminal' })));
+    expect(style).toContain('flex-grow:1');
+    expect(style).not.toContain('flex-basis:40%');
+  });
+
+  it('thanh kéo là một `separator` NGANG, kéo được bằng bàn phím', () => {
+    const separator = tagsWithRole(render({ activeTab: 'editor' }), 'separator')[0] ?? '';
+    expect(separator).toContain('aria-orientation="horizontal"');
+    expect(separator).toContain('tabindex="0"');
+    expect(separator).toContain('aria-valuenow="40"');
+    expect(classOf(separator).split(/\s+/)).toContain('cursor-row-resize');
+  });
+
+  it('thanh kéo ẩn và RỜI vòng Tab khi hàng editor không hiện', () => {
+    // Một thanh kéo `hidden` mà vẫn `tabindex="0"` là một chặng Tab chết —
+    // `e2e/keyboard.spec.ts` gác ngân sách 30 lần Tab.
+    const separator = tagsWithRole(render({ activeTab: 'terminal' }), 'separator')[0] ?? '';
+    expect(isHidden(separator)).toBe(true);
+    expect(separator).toContain('tabindex="-1"');
   });
 });
 
 // ── Thanh tab ───────────────────────────────────────────────────────────────
 
 describe('thanh tab', () => {
-  it('có role tablist và đúng một tab cho mỗi khoang', () => {
+  it('bài có editor: tablist với ĐÚNG hai tab', () => {
     const html = render();
     expect(tagsWithRole(html, 'tablist')).toHaveLength(1);
-    expect(tagsWithRole(html, 'tab')).toHaveLength(3);
+    expect(tagsWithRole(html, 'tab')).toHaveLength(2);
     expect(html).toContain('Editor');
-    expect(html).toContain('Terminal 1');
-    expect(html).toContain('Terminal 2');
+    expect(html).toContain('Terminal');
   });
 
-  it('cao CỐ ĐỊNH và có mặt kể cả khi chỉ có một tab', () => {
+  /**
+   * §Y4 — bài không khai `layout: ide` chỉ còn MỘT mục, và một tablist một mục
+   * là nhiễu thị giác chứ không phải chức năng: người dùng không chuyển đi đâu
+   * được, còn trình đọc màn hình thì nghe "tab 1 trên 1".
+   */
+  it('bài không có editor: KHÔNG có tablist, nhưng thanh và nút pop-out vẫn còn', () => {
+    const html = render({ editor: undefined, activeTab: 'terminal', popOutUrl: '/session/abc/terminal' });
+    expect(tagsWithRole(html, 'tablist')).toHaveLength(0);
+    expect(tagsWithRole(html, 'tab')).toHaveLength(0);
+    expect(tagsWithRole(html, 'tabpanel')).toHaveLength(0);
+    // Nút mở-ra-cửa-sổ-riêng (§C7) là chức năng thật, không phải trang trí —
+    // bỏ cả thanh đi là mất nó.
+    expect(html).toContain('href="/session/abc/terminal"');
+    expect(html).toContain('Terminal');
+  });
+
+  it('cao CỐ ĐỊNH và có mặt ở CẢ HAI hình dạng', () => {
     // Bất cứ thứ gì xuất hiện/biến mất quanh terminal đều làm `ResizeObserver`
     // của xterm bắn và fit lại đúng lúc người dùng đang gõ — cùng lo ngại đã
     // ghi ở `terminal-pane.tsx` quanh gợi ý Esc-Esc.
-    const html = render({
-      editor: undefined,
-      activeTab: 'terminal-1',
-      terminals: new Map<WorkspaceTabId, React.ReactNode>([['terminal-1', <span key="1">{T1_MARK}</span>]]),
-    });
-    const bar = openTags(html).find((tag) => classOf(tag).split(/\s+/).includes('h-9'));
-    expect(bar).toBeDefined();
-    expect(classOf(bar ?? '').split(/\s+/)).toContain('shrink-0');
+    for (const state of [{}, { editor: undefined, activeTab: 'terminal' as const }]) {
+      const bar = openTags(render(state)).find((tag) => classOf(tag).split(/\s+/).includes('h-9'));
+      expect(bar, JSON.stringify(state)).toBeDefined();
+      expect(classOf(bar ?? '').split(/\s+/)).toContain('shrink-0');
+    }
   });
 
   it('đúng MỘT tab có aria-selected="true"', () => {
-    const html = render({ activeTab: 'terminal-1' });
+    const html = render({ activeTab: 'terminal' });
     const tabs = tagsWithRole(html, 'tab');
     expect(tabs.filter((t) => t.includes('aria-selected="true"'))).toHaveLength(1);
   });
 
   it('roving tabindex — đúng MỘT tab trong vòng Tab', () => {
-    // Khuôn ARIA APG. Không có nó thì thanh 3 tab ngốn 3 lần Tab của ngân sách
-    // 30 lần mà `e2e/keyboard.spec.ts` gác.
-    const tabs = tagsWithRole(render({ activeTab: 'terminal-2' }), 'tab');
+    const tabs = tagsWithRole(render({ activeTab: 'terminal' }), 'tab');
     expect(tabs.filter((t) => t.includes('tabindex="0"'))).toHaveLength(1);
-    expect(tabs.filter((t) => t.includes('tabindex="-1"'))).toHaveLength(2);
+    expect(tabs.filter((t) => t.includes('tabindex="-1"'))).toHaveLength(1);
   });
 
   it('mỗi tab trỏ aria-controls tới một id tabpanel CÓ THẬT', () => {
@@ -236,95 +273,30 @@ describe('thanh tab', () => {
     }
   });
 
-  it('không aria-labelledby nào trỏ vào id không tồn tại (bài không có Editor)', () => {
-    // Vùng editor vẫn được render khi bài không có editor (xem test ở trên),
-    // nhưng nút tab của nó thì không — nên `aria-labelledby` phải bỏ hẳn.
-    // Trỏ vào id trống là vi phạm `aria-valid-attr-value` của axe.
-    const html = render({ editor: undefined, activeTab: 'terminal-1' });
-    const ids = new Set([...html.matchAll(/\sid="([^"]*)"/g)].map((m) => m[1] ?? ''));
-    for (const m of html.matchAll(/aria-labelledby="([^"]*)"/g)) {
-      expect(ids.has(m[1] ?? ''), `aria-labelledby=${m[1] ?? ''}`).toBe(true);
+  it('không aria-labelledby nào trỏ vào id không tồn tại', () => {
+    // Trỏ vào một id trống là vi phạm `aria-valid-attr-value` của axe. Ca đáng
+    // ngờ nhất: bài không có editor — hai hàng vẫn được render (§Y1) nhưng nút
+    // tab thì không, nên `aria-labelledby` phải bỏ HẲN, không để rỗng.
+    for (const state of ALL_STATES) {
+      const html = render(state);
+      const ids = new Set([...html.matchAll(/\sid="([^"]*)"/g)].map((m) => m[1] ?? ''));
+      for (const m of html.matchAll(/aria-labelledby="([^"]*)"/g)) {
+        expect(ids.has(m[1] ?? ''), `${JSON.stringify(state)} aria-labelledby=${m[1] ?? ''}`).toBe(
+          true,
+        );
+      }
     }
   });
 
-  it('chỉ Terminal 2 có nút đóng, và chỉ khi cha truyền onCloseTerminal', () => {
-    const withClose = tagsWithRole(
-      renderToStaticMarkup(
-        <WorkspacePanel
-          editor={<span>{EDITOR_MARK}</span>}
-          terminals={terminalsWithBoth()}
-          activeTab="terminal-2"
-          onActivate={() => undefined}
-          onCloseTerminal={() => undefined}
-          onToggleSplit={() => undefined}
-          split={false}
-          popOutUrl={null}
-        />,
-      ),
-      'tab',
-    );
-    expect(withClose).toHaveLength(3);
-    // `×` chỉ nằm trong tab Terminal 2. Terminal 1 là window đầu của tmux —
-    // đóng nó là kết thúc phiên shell, không phải đóng một tab giao diện.
-    const html = renderToStaticMarkup(
-      <WorkspacePanel
-        editor={<span>{EDITOR_MARK}</span>}
-        terminals={terminalsWithBoth()}
-        activeTab="terminal-2"
-        onActivate={() => undefined}
-        onCloseTerminal={() => undefined}
-        onToggleSplit={() => undefined}
-        split={false}
-        popOutUrl={null}
-      />,
-    );
-    expect((html.match(/×/g) ?? []).length).toBe(1);
-    expect(html).toContain('nhấn Delete để đóng');
-
-    // Không truyền onCloseTerminal ⇒ không có nút đóng nào.
-    expect(render({ activeTab: 'terminal-2' })).not.toContain('×');
-  });
-});
-
-// ── Nút tách ────────────────────────────────────────────────────────────────
-
-describe('nút tách đôi', () => {
-  it('bấm được khi có cả Editor lẫn terminal', () => {
-    const html = render();
-    expect(html).toContain('aria-disabled="false"');
-    expect(html).toContain('Tách đôi: Editor cạnh terminal đang hoạt');
-  });
-
-  it('vô hiệu KÈM LÝ DO trong title khi bài không có Editor', () => {
-    const html = render({ editor: undefined, activeTab: 'terminal-1' });
-    const splitButton = openTags(html).find((tag) => tag.includes('aria-disabled="true"'));
-    expect(splitButton).toBeDefined();
-    const title = /title="([^"]*)"/.exec(splitButton ?? '')?.[1] ?? '';
-    expect(title).toContain('Editor');
-    expect(title).toContain('một kết nối');
-  });
-
-  it('lý do cũng đến được trình đọc màn hình, không chỉ nằm trong title', () => {
-    // `title` của một nút không phải lúc nào cũng được đọc; `aria-describedby`
-    // thì có. Và nút dùng `aria-disabled` (không phải thuộc tính `disabled`)
-    // đúng để nó còn vào được vòng Tab mà nghe câu lý do đó.
-    const html = render({ editor: undefined, activeTab: 'terminal-1' });
-    const described = /aria-describedby="([^"]*)"/.exec(html)?.[1] ?? '';
-    expect(described).not.toBe('');
-    expect(html).toContain(`id="${described}"`);
-  });
-
-  it('split=true ở bài không có Editor KHÔNG mở được hai vùng', () => {
-    const html = render({ editor: undefined, activeTab: 'terminal-1', split: true });
-    const panels = tagsWithRole(html, 'tabpanel');
-    expect(isHidden(panels[0] ?? '')).toBe(true); // vùng editor rỗng, vẫn ẩn
-    expect(isHidden(panels[1] ?? '')).toBe(false);
-  });
-
-  it('split=true ở bài có Editor ⇒ cả hai vùng cùng hiện', () => {
-    const panels = tagsWithRole(render({ activeTab: 'terminal-1', split: true }), 'tabpanel');
-    expect(isHidden(panels[0] ?? '')).toBe(false);
-    expect(isHidden(panels[1] ?? '')).toBe(false);
+  it('KHÔNG còn nút "+", nút "×", hay nút tách đôi', () => {
+    // §Y4 gỡ cả ba. Ô này là lưới an toàn cho một lượt revert nửa vời: ba nút
+    // đó chỉ có nghĩa khi có terminal thứ hai, và terminal thứ hai không còn.
+    for (const state of ALL_STATES) {
+      const html = render(state);
+      expect(html, JSON.stringify(state)).not.toContain('Mở thêm một terminal');
+      expect(html, JSON.stringify(state)).not.toContain('Tách đôi');
+      expect(html, JSON.stringify(state)).not.toContain('×');
+    }
   });
 });
 

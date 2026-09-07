@@ -13,7 +13,7 @@ import {
   shouldShowIdePane,
   useResolvedTerminalTheme,
 } from '../../../components/session';
-import { buildTerminalTabs, useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
+import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { IdePane } from './ide-pane';
@@ -229,16 +229,17 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
   );
 
   /*
-    C2 — `onExec(command, { interrupt, target })`. Chữ ký cũ
-    `(command, interrupt)` bị THAY chứ không giữ song song: hai chữ ký cùng
-    tồn tại là chỗ để một call-site cũ lọt qua im lặng, và triệu chứng của nó
-    là một lệnh `{{exec T2}}` chạy nhầm terminal — không lỗi, không cảnh báo.
+    §Y3 — `onExec(command, interrupt)`, HAI tham số. `ExecOptions`/`ExecTarget`
+    của bản trước bị gỡ cùng terminal thứ hai: một terminal thì không còn quyết
+    định định tuyến nào để mang, nên một `options` object chỉ còn một trường là
+    một lớp bọc không nói thêm gì.
 
-    Phần định tuyến (chuyển tab TRƯỚC, tạo window nếu tab đích chưa có, giữ
-    `\x03` là một sự kiện bàn phím RIÊNG) nằm trong `useWorkspaceTabs` vì cả ba
-    trang học cần đúng một bản của quyết định đó.
+    Exec KHÔNG chuyển tab nữa — terminal hiện ở cả hai tab, nên không có gì để
+    chuyển tới; chỉ gõ rồi `focus()`. Việc giữ `\x03` là một sự kiện bàn phím
+    RIÊNG (không nối vào chuỗi lệnh) nằm trong `useWorkspaceTabs` vì cả ba trang
+    học cần đúng một bản của quyết định đó.
   */
-  const onExec = tabs.execTo;
+  const onExec = tabs.exec;
 
   if (query.isPending) {
     return <Centered>Đang tải bài học…</Centered>;
@@ -409,8 +410,9 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
 
       <div className="min-h-0 flex-1">
         {/*
-          D8 + C5 — khoang phải là `WorkspacePanel`: tab Editor (chỉ khi bài khai
-          `interface.layout: ide`) + tab terminal, với '+' mở terminal thứ hai.
+          D8 + §Y1 — khoang phải là `WorkspacePanel`: tab Editor (chỉ khi bài khai
+          `interface.layout: ide`) + tab Terminal, và MỘT terminal duy nhất hiện
+          ở CẢ HAI tab (neo đáy ~40% ở tab Editor, toàn khoang ở tab Terminal).
 
           `WorkspaceSplit` GIỮ NGUYÊN và vẫn bọc ngoài: nó trả lời một câu khác
           hẳn — chia trái/phải bao nhiêu, và gập thế nào dưới 768px. Thay nó
@@ -432,28 +434,20 @@ export function LessonClient({ scenarioId }: { scenarioId: string }): React.Reac
                 Bài không khai `layout: ide` ⇒ KHÔNG truyền `editor` (spread có
                 điều kiện, không phải `editor={undefined}`: `exactOptional-
                 PropertyTypes` đang bật nên truyền tường minh `undefined` cho một
-                prop `?:` là lỗi kiểu). Vắng prop = panel không vẽ tab Editor.
+                prop `?:` là lỗi kiểu). Vắng prop = panel không vẽ tab Editor —
+                và khi đó panel bỏ luôn thanh tablist một mục (§Y4).
               */
               {...(showIde ? { editor: <IdePane sessionId={sessionId} /> } : {})}
-              terminals={buildTerminalTabs(tabs.openTerminals, terminalPane)}
+              /*
+                ⛔ MỘT node terminal, truyền THẲNG. `terminals` (Map) của bản
+                trước đã biến mất cùng terminal thứ hai — kéo theo nút '+', nút
+                '×' và nút tách đôi. Tab Editor ĐÃ LÀ bố cục hai khoang (editor
+                trên, chính cái terminal này neo đáy ~40%), nên không còn gì để
+                tách và không còn tab nào để đóng.
+              */
+              terminal={terminalPane}
               activeTab={tabs.activeTab}
               onActivate={tabs.onActivate}
-              {...(tabs.onAddTerminal === null ? {} : { onAddTerminal: tabs.onAddTerminal })}
-              /*
-                ⛔ KHÔNG truyền `onCloseTerminal`, và đây là một quyết định chứ
-                không phải một chỗ còn thiếu. Hai lý do, cả hai đều hỏng im lặng:
-
-                1. Đóng `terminal-1` là unmount cái xterm THẬT ⇒ đóng WebSocket
-                   ⇒ mất phiên đang học.
-                2. `.tmux.conf` đặt `base-index 1`, nên id tab của ta khớp SỐ
-                   window của tmux. Đóng tab 2 ở client mà không giết window 2
-                   trong tmux thì lần bấm '+' kế tiếp tạo window 3, trong khi ta
-                   vẫn gọi nó là `terminal-2` và gõ `Ctrl-B 2` — tức từ đó mọi
-                   lệnh đi nhầm chỗ. Lane E hiện chưa export chuỗi kill-window,
-                   nên đóng tab ĐÚNG là chưa làm được; ẩn nút còn hơn làm sai.
-              */
-              split={tabs.split}
-              onToggleSplit={tabs.onToggleSplit}
               popOutUrl={tabs.popOutUrl}
               /*
                 MỘT khoá gốc, không phải hai. `workspace-tabs.ts` của Lane E tự

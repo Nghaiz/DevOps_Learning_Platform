@@ -9,7 +9,7 @@ import {
   WorkspacePanel,
   useResolvedTerminalTheme,
 } from '../../../components/session';
-import { buildTerminalTabs, useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
+import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { usePlaygroundSession } from './use-playground-session';
@@ -39,9 +39,12 @@ export function PlaygroundClient({
     lượt render.
 
     Sân chơi không có tab Editor: nó không có `ContentView`, không có `onExec`,
-    và chưa bao giờ wire `IdePane`. Cái nó nhận từ `WorkspacePanel` là thanh tab
-    terminal (C6) + nút mở ra cửa sổ riêng (C7) — `execTo` ở đây không có
-    call-site nào, và đó là đúng, không phải thiếu sót.
+    và chưa bao giờ wire `IdePane`. Cái nó nhận từ `WorkspacePanel` là khung
+    khoang + nút mở ra cửa sổ riêng (§C7) — `exec` ở đây không có call-site nào,
+    và đó là đúng, không phải thiếu sót.
+
+    Vì chỉ còn MỘT mục, panel bỏ hẳn thanh tablist (§Y4) và thanh trên cùng chỉ
+    còn một nhãn tĩnh + nút mở-ra-cửa-sổ-riêng.
   */
   const tabs = useWorkspaceTabs({
     terminal: session.terminal,
@@ -120,16 +123,14 @@ export function PlaygroundClient({
 
       <div className="min-h-0 flex-1">
         {/*
-          C5/C6 — không `WorkspaceSplit` ở đây: sân chơi không có khoang nội
-          dung nào để chia đôi với, nên panel chiếm trọn bề rộng. Nhánh hẹp vẫn
-          được lo: `TerminalPane` tự đổi thành `NarrowScreenNotice` dưới 768px.
+          §Y4 — không `WorkspaceSplit` ở đây: sân chơi không có khoang nội dung
+          nào để chia đôi với, nên panel chiếm trọn bề rộng. Nhánh hẹp vẫn được
+          lo: `TerminalPane` tự đổi thành `NarrowScreenNotice` dưới 768px.
 
-          Không `editor`, không `onCloseTerminal` — cùng lý do đã ghi ở
-          `lab-client.tsx`.
+          Không `editor` — cùng lý do đã ghi ở `lab-client.tsx`.
         */}
         <WorkspacePanel
-          terminals={buildTerminalTabs(
-            tabs.openTerminals,
+          terminal={
             <TerminalPane
               session={session}
               theme={terminalTheme}
@@ -143,13 +144,10 @@ export function PlaygroundClient({
                   </span>
                 </span>
               }
-            />,
-          )}
+            />
+          }
           activeTab={tabs.activeTab}
           onActivate={tabs.onActivate}
-          {...(tabs.onAddTerminal === null ? {} : { onAddTerminal: tabs.onAddTerminal })}
-          split={tabs.split}
-          onToggleSplit={tabs.onToggleSplit}
           popOutUrl={tabs.popOutUrl}
           storageKey="dlp-playground-workspace"
         />

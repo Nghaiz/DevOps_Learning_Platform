@@ -1,53 +1,23 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import type { CodeAction, ExecTarget } from '@devops-platform/scenario/content-blocks';
+import type { CodeAction } from '@devops-platform/scenario/content-blocks';
 import { cn } from '../cn.ts';
 import { SCROLL_REGION_FOCUS } from './scroll-region.ts';
-
-/**
- * Tuỳ chọn đi kèm một lượt bấm nút chạy (hợp đồng §C2).
- *
- * Đây là THAY THẾ của tham số thứ hai kiểu `boolean` cũ, không phải một dạng
- * song song. Giữ cả hai chữ ký là để một call-site cũ — vốn đọc tham số thứ
- * hai như `interrupt` — nhận nguyên một object và coi nó là truthy: nút "Chạy"
- * thường lặng lẽ gửi Ctrl+C trước mỗi lệnh, và không có gì đỏ ở bất cứ đâu.
- */
-export interface ExecOptions {
-  readonly interrupt: boolean;
-  /** null = terminal đang hoạt (Terminal 1 nếu người dùng đang ở tab Editor). */
-  readonly target: ExecTarget | null;
-}
 
 export interface CodeBlockProps {
   readonly code: string;
   readonly language: string | null;
   readonly action: CodeAction;
   readonly inline: boolean;
-  /** Đích thực thi bài học khai tường minh (`{{exec T2}}`). `null` = terminal đang hoạt. */
-  readonly target: ExecTarget | null;
-  /** `undefined` = ẩn hẳn nút chạy (khác với `execEnabled: false` = hiện nhưng disable). */
-  readonly onExec?: ((command: string, options: ExecOptions) => void) | undefined;
+  /**
+   * `undefined` = ẩn hẳn nút chạy (khác với `execEnabled: false` = hiện nhưng
+   * disable). Tham số thứ hai là `interrupt` — CHỈ một `boolean`, xem §Y3.
+   */
+  readonly onExec?: ((command: string, interrupt: boolean) => void) | undefined;
   /** Mặc định `true`. */
   readonly execEnabled?: boolean | undefined;
 }
-
-/**
- * Nhãn NGẮN in trên nút, và tên ĐẦY ĐỦ cho trình đọc màn hình.
- *
- * `Record<ExecTarget, …>` chứ không phải `Record<string, …>`: khi Lane B thêm
- * `'terminal-3'` vào union, hai bảng này đỏ ngay ở `tsc` thay vì lặng lẽ trả
- * `undefined` rồi in ra một nút không có đích.
- */
-const TARGET_BADGE: Record<ExecTarget, string> = {
-  'terminal-1': 'T1',
-  'terminal-2': 'T2',
-};
-
-const TARGET_NAME: Record<ExecTarget, string> = {
-  'terminal-1': 'Terminal 1',
-  'terminal-2': 'Terminal 2',
-};
 
 type CopyStatus = 'idle' | 'success' | 'error';
 
@@ -62,19 +32,12 @@ function ActionButton({
   onClick,
   disabled,
   title,
-  ariaLabel,
   className,
   children,
 }: {
   onClick: () => void;
   disabled?: boolean;
   title?: string | undefined;
-  /**
-   * Đè TÊN TRỢ NĂNG của nút. Bỏ trống ⇒ tên đến từ chữ bên trong nút, đúng như
-   * trước. Chỉ truyền khi chữ bên trong CHƯA nói đủ — ví dụ badge "T2" là ký
-   * hiệu nhìn bằng mắt, đọc lên nghe như "tê hai".
-   */
-  ariaLabel?: string | undefined;
   className?: string;
   children: ReactNode;
 }) {
@@ -84,7 +47,6 @@ function ActionButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      aria-label={ariaLabel}
       className={cn(
         'inline-flex h-6 shrink-0 items-center rounded px-2 text-xs font-medium',
         'bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80',
@@ -109,7 +71,6 @@ export function CodeBlock({
   language,
   action,
   inline,
-  target,
   onExec,
   execEnabled = true,
 }: CodeBlockProps) {
@@ -136,7 +97,7 @@ export function CodeBlock({
   };
 
   const handleExec = (): void => {
-    onExec?.(code, { interrupt: action === 'exec-interrupt', target });
+    onExec?.(code, action === 'exec-interrupt');
   };
 
   const showCopy = action === 'copy';
@@ -147,33 +108,6 @@ export function CodeBlock({
   const showExec = (action === 'exec' || action === 'exec-interrupt') && onExec !== undefined;
   const execTitle = execEnabled ? undefined : 'Terminal chưa sẵn sàng — đợi terminal kết nối rồi thử lại.';
   const execLabel = action === 'exec-interrupt' ? 'Ngắt & chạy' : 'Chạy';
-
-  /*
-    Bài học viết `{{exec T2}}` là có CHỦ Ý SƯ PHẠM: lệnh này phải chạy ở một
-    terminal khác cái đang nhìn. Người học cần biết điều đó TRƯỚC khi bấm —
-    bấm rồi mới thấy màn hình nhảy sang tab khác là mất mạch, và tệ hơn là họ
-    không nối được "vì sao nó chạy ở đằng kia" với nội dung bài.
-
-    Vì vậy đích hiện ở HAI kênh song song, không phải một:
-
-    - badge "T1"/"T2" in trên nút — kênh nhìn bằng mắt;
-    - `aria-label` đầy đủ ("Chạy ở Terminal 2") — kênh trợ năng. Không thể
-      trông vào badge cho kênh này: `aria-label` mặc định của nút sẽ là chữ
-      ghép "Chạy T2", mà "T2" đọc lên là hai ký tự rời, không phải một đích.
-
-    Badge dùng `border-current` — cùng màu với chữ của nút, nên nó không giới
-    thiệu một cặp màu MỚI cần đo tương phản: chữ badge nằm trên đúng nền của
-    nút, cặp đã được `theme/tokens.contract.test.ts` gác sẵn.
-  */
-  const targetBadge = target === null ? null : (
-    <span
-      aria-hidden
-      className="ml-1 rounded-sm border border-current px-1 font-mono text-[0.9em] leading-none"
-    >
-      {TARGET_BADGE[target]}
-    </span>
-  );
-  const execAriaLabel = target === null ? undefined : `${execLabel} ở ${TARGET_NAME[target]}`;
 
   const codeEl = (
     <code
@@ -202,11 +136,9 @@ export function CodeBlock({
             onClick={handleExec}
             disabled={!execEnabled}
             title={execTitle}
-            ariaLabel={execAriaLabel}
             className="bg-muted text-foreground hover:bg-accent"
           >
             {execLabel}
-            {targetBadge}
           </ActionButton>
         )}
       </span>
@@ -220,14 +152,8 @@ export function CodeBlock({
         <div className="flex gap-1.5">
           {showCopy && <ActionButton onClick={handleCopy}>{COPY_LABEL[copyStatus]}</ActionButton>}
           {showExec && (
-            <ActionButton
-              onClick={handleExec}
-              disabled={!execEnabled}
-              title={execTitle}
-              ariaLabel={execAriaLabel}
-            >
+            <ActionButton onClick={handleExec} disabled={!execEnabled} title={execTitle}>
               {execLabel}
-              {targetBadge}
             </ActionButton>
           )}
         </div>

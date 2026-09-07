@@ -18,13 +18,11 @@ export { scenarioSidecarSchema, type ScenarioSidecar } from './sidecar.ts';
 export {
   CODE_ACTIONS,
   ContentBlockError,
-  EXEC_TARGETS,
   executableCommands,
   normalizeNewlines,
   parseContentBlocks,
   type CodeAction,
   type ContentBlock,
-  type ExecTarget,
 } from './content-blocks.ts';
 
 // Bộ công cụ theo bài (hợp đồng §C4). ⚠ Chưa nối tới DTO — xem

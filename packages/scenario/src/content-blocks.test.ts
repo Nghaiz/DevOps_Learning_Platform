@@ -21,13 +21,11 @@ describe('parseContentBlocks — hậu tố hành động', () => {
       '`echo hi`{{copy}}',
     ].join('\n\n');
 
-    // `target` nằm trong phép so: bốn hậu tố CŨ phải cho `null`, và vế đó là
-    // thứ chặn một bản mở rộng lỡ tay đặt mặc định thành `'terminal-1'`.
-    expect(codeBlocks(markdown).map((b) => [b.code, b.action, b.inline, b.target])).toEqual([
-      ['copying disabled', 'none', true, null],
-      ['ls -lh', 'exec', true, null],
-      ['whoami', 'exec-interrupt', true, null],
-      ['echo hi', 'copy', true, null],
+    expect(codeBlocks(markdown).map((b) => [b.code, b.action, b.inline])).toEqual([
+      ['copying disabled', 'none', true],
+      ['ls -lh', 'exec', true],
+      ['whoami', 'exec-interrupt', true],
+      ['echo hi', 'copy', true],
     ]);
   });
 
@@ -40,7 +38,6 @@ describe('parseContentBlocks — hậu tố hành động', () => {
         language: 'yaml',
         action: 'copy',
         inline: false,
-        target: null,
       },
     ]);
   });
@@ -90,7 +87,6 @@ describe('parseContentBlocks — các bẫy', () => {
         language: null,
         action: 'exec',
         inline: false,
-        target: null,
       },
     ]);
   });
@@ -127,7 +123,7 @@ describe('parseContentBlocks — các bẫy', () => {
     const blocks = parseContentBlocks('Trước `ls`{{exec}} sau.');
     expect(blocks).toEqual([
       { kind: 'markdown', markdown: 'Trước ' },
-      { kind: 'code', code: 'ls', language: null, action: 'exec', inline: true, target: null },
+      { kind: 'code', code: 'ls', language: null, action: 'exec', inline: true },
       { kind: 'markdown', markdown: ' sau.' },
     ]);
   });
@@ -206,110 +202,78 @@ describe('parseContentBlocks — xuống dòng CRLF', () => {
     expect(executableCommands(md)).toEqual(['ls -la']);
   });
 });
-
 /**
- * Terminal đích (`{{exec T1}}` / `{{exec T2}}`) — mở rộng của ta, hợp đồng §C1.
+ * Cú pháp chọn terminal đích (`{{exec T1}}` / `{{exec T2}}`) — ĐÃ GỠ, §Y2.
  *
- * Vế quan trọng nhất của nhóm này KHÔNG phải là "T1/T2 chạy đúng" mà là hai vế
- * âm: cú pháp CŨ không đổi hành vi, và `{{TRAFFIC_*}}` trong văn xuôi vẫn không
- * bị hiểu thành hành động. Một bản mở rộng làm hỏng một trong hai vế đó sẽ hỏng
- * IM LẶNG trên toàn bộ nội dung đã vendor về.
+ * Nhóm này toàn vế ÂM, và đó là điểm của nó: sau khi một cú pháp bị gỡ, thứ
+ * duy nhất chứng minh nó biến mất THẬT là một ca khẳng định nó bị TỪ CHỐI.
+ * Không có ca nào ở đây thì `{{exec T2}}` có thể vẫn được nhận ở một nhánh
+ * không ai đi qua — parser đọc `T2` rồi bỏ, nút chạy hiện ra bình thường, và
+ * một bài viết cho HAI terminal lặng lẽ chạy chen nhau trong MỘT shell.
+ *
+ * ⚠ Cùng chỗ này gác luôn bất biến quan trọng nhất của file: hành động phải
+ * DÍNH LIỀN sau backtick đóng, nên `{{TRAFFIC_*}}` trong văn xuôi không bao
+ * giờ là hành động.
  */
-describe('parseContentBlocks — terminal đích (§C1)', () => {
-  it('{{exec T1}} và {{exec T2}} gán đúng target, action vẫn là exec', () => {
-    const markdown = ['`a`{{exec T1}}', '`b`{{exec T2}}'].join('\n\n');
-    expect(codeBlocks(markdown).map((b) => [b.code, b.action, b.target])).toEqual([
-      ['a', 'exec', 'terminal-1'],
-      ['b', 'exec', 'terminal-2'],
-    ]);
+describe('parseContentBlocks — cú pháp terminal đích đã bị gỡ (§Y2)', () => {
+  it('{{exec T1}} và {{exec T2}} bị NÉM, KHÔNG được lặng lẽ bỏ phần T<n>', () => {
+    // Vế "lặng lẽ bỏ" mới là vế nguy: nó đúng cú pháp và sai ý định người soạn,
+    // và không có gì đỏ ở bất cứ đâu để ai đó nhận ra.
+    expect(() => parseContentBlocks('`a`{{exec T1}}')).toThrow(ContentBlockError);
+    expect(() => parseContentBlocks('`b`{{exec T2}}')).toThrow(/không nhận ra/);
   });
 
-  it('{{exec T2 interrupt}} gộp CẢ HAI: exec-interrupt + terminal-2', () => {
-    expect(codeBlocks('`c`{{exec T2 interrupt}}').map((b) => [b.action, b.target])).toEqual([
-      ['exec-interrupt', 'terminal-2'],
-    ]);
+  it('{{exec T2 interrupt}} và {{exec interrupt T2}} đều NÉM — cả hai thứ tự', () => {
+    // Hai thứ tự vì bản cũ nhận thứ tự thứ nhất và từ chối thứ tự thứ hai. Chỉ
+    // kiểm một cái thì một bản vá gỡ nửa vời vẫn xanh.
+    expect(() => parseContentBlocks('`c`{{exec T2 interrupt}}')).toThrow(ContentBlockError);
+    expect(() => parseContentBlocks('`d`{{exec interrupt T2}}')).toThrow(ContentBlockError);
   });
 
-  it('{{exec T1 interrupt}} cũng hợp lệ — ngữ pháp là T<n> rồi interrupt, không phải một ca riêng', () => {
-    expect(codeBlocks('`d`{{exec T1 interrupt}}').map((b) => [b.action, b.target])).toEqual([
-      ['exec-interrupt', 'terminal-1'],
-    ]);
-  });
-
-  it('target đi qua được cả FENCE, không chỉ code span', () => {
-    const markdown = ['```bash', 'kubectl get pod', '```{{exec T2}}'].join('\n');
-    expect(codeBlocks(markdown)).toEqual([
-      {
-        kind: 'code',
-        code: 'kubectl get pod',
-        language: 'bash',
-        action: 'exec',
-        inline: false,
-        target: 'terminal-2',
-      },
-    ]);
-  });
-
-  it('khoảng trắng thừa trong hậu tố được chuẩn hoá', () => {
-    expect(codeBlocks('`e`{{  exec   T2   interrupt  }}').map((b) => [b.action, b.target])).toEqual(
-      [['exec-interrupt', 'terminal-2']],
-    );
-  });
-
-  it('CRLF không làm mất target trong fence', () => {
-    // Cùng bẫy mà `normalizeNewlines` tồn tại để chặn: với CRLF, `FENCE_CLOSE`
-    // không khớp và cả khối biến thành văn xuôi — nút bấm biến mất, không lỗi.
-    const md = ['```bash', 'ps aux', '```{{exec T2}}'].join('\r\n');
-    expect(codeBlocks(md).map((b) => [b.action, b.target])).toEqual([['exec', 'terminal-2']]);
-  });
-});
-
-describe('parseContentBlocks — terminal đích, các vế PHẢI từ chối', () => {
-  it('thứ tự sai ({{exec interrupt T2}}) bị NÉM, không được đoán bừa', () => {
-    // Hai cách viết cho cùng một nghĩa là hai cách viết sẽ lệch nhau ở lần mở
-    // rộng sau — nên ngữ pháp cố định `exec → T<n> → interrupt`.
-    expect(() => parseContentBlocks('`x`{{exec interrupt T2}}')).toThrow(ContentBlockError);
-  });
-
-  it('terminal không tồn tại ({{exec T9}}) bị NÉM', () => {
-    expect(() => parseContentBlocks('`x`{{exec T9}}')).toThrow(/không nhận ra/);
-  });
-
-  it('{{copy T1}} bị NÉM — copy không có terminal nào để nhắm', () => {
+  it('{{copy T1}} bị NÉM — copy chưa bao giờ có đích để nhắm', () => {
     expect(() => parseContentBlocks('`x`{{copy T1}}')).toThrow(ContentBlockError);
   });
 
-  it('token thừa sau target ({{exec T2 foo}}) bị NÉM', () => {
-    expect(() => parseContentBlocks('`x`{{exec T2 foo}}')).toThrow(ContentBlockError);
+  it('fence cũng NÉM, không chỉ code span', () => {
+    // Hai đường vào parser dùng hai regex khác nhau và gọi `parseActionSuffix`
+    // ở hai chỗ. Một bản gỡ chạm đúng một đường trông xanh ở mọi ca inline.
+    expect(() => parseContentBlocks(['```bash', 'kubectl get pod', '```{{exec T2}}'].join('\n'))).toThrow(
+      ContentBlockError,
+    );
   });
 
-  it('thông báo lỗi LIỆT KÊ dạng hợp lệ, gồm cả dạng T1/T2 mới', () => {
-    // Không chỉ khẳng định "có ném": một thông báo không nói được cách viết đúng
-    // biến một lỗi chính tả thành một buổi đọc source.
+  it('thông báo lỗi liệt kê BỐN dạng còn lại và KHÔNG nhắc T1/T2 nữa', () => {
+    // Vế "không nhắc" là vế chống hồi quy tài liệu: một thông báo còn quảng cáo
+    // `{{exec T1}}` sẽ dạy người soạn viết đúng thứ parser vừa từ chối.
     let message = '';
     try {
       parseContentBlocks('`x`{{open}}');
     } catch (error) {
       message = (error as Error).message;
     }
+    expect(message).toContain('{{}}');
+    expect(message).toContain('{{copy}}');
     expect(message).toContain('{{exec}}');
     expect(message).toContain('{{exec interrupt}}');
-    expect(message).toContain('{{exec T1}}');
-    expect(message).toContain('{{exec T2 interrupt}}');
+    expect(message).not.toContain('T1');
+    expect(message).not.toContain('T2');
   });
 
-  /**
-   * Vế chống hồi quy cho bất biến quan trọng nhất của file: hành động phải DÍNH
-   * LIỀN sau backtick đóng. `{{TRAFFIC_*}}` dùng cùng cặp ngoặc, và một parser
-   * đi tìm `{{…}}` trần trụi sẽ nuốt chúng.
-   */
-  it('{{TRAFFIC_HOST1_80}} trong văn xuôi vẫn KHÔNG phải hành động sau khi thêm target', () => {
+  it('khoảng trắng thừa trong hậu tố vẫn được chuẩn hoá', () => {
+    // Chuẩn hoá `\s+` → một dấu cách là thứ độc lập với việc gỡ đích; ca này ở
+    // nhóm cũ và được giữ lại vì không nhóm nào khác gác nó.
+    expect(codeBlocks('`e`{{  exec   interrupt  }}').map((b) => b.action)).toEqual([
+      'exec-interrupt',
+    ]);
+  });
+
+  it('{{TRAFFIC_HOST1_80}} trong văn xuôi vẫn KHÔNG phải hành động', () => {
     const markdown = [
       'Mở {{TRAFFIC_HOST1_80}} hoặc [bấm đây]({{TRAFFIC_HOST1_8080}}).',
-      'Rồi chạy `ls`{{exec T2}} ở tab hai.',
+      'Rồi chạy `ls`{{exec}} ở terminal.',
     ].join('\n');
 
-    expect(codeBlocks(markdown).map((b) => [b.code, b.target])).toEqual([['ls', 'terminal-2']]);
+    expect(codeBlocks(markdown).map((b) => [b.code, b.action])).toEqual([['ls', 'exec']]);
     expect(
       parseContentBlocks(markdown)
         .filter((b) => b.kind === 'markdown')

@@ -1,148 +1,162 @@
 /**
- * C5 — mô hình tab của khoang làm việc, tách khỏi React.
+ * §Y1/§Y4 — mô hình khoang làm việc, tách khỏi React.
  *
- * Mọi quyết định "tab nào hiện, phím nào đi đâu, nút tách có bấm được không,
- * lưu vào khoá nào" nằm ở đây dưới dạng hàm THUẦN. `workspace-panel.tsx` chỉ
- * vẽ ra kết quả.
+ * Mọi quyết định "hàng nào hiện, terminal cao bao nhiêu, phím nào đi đâu, lưu
+ * vào khoá nào" nằm ở đây dưới dạng hàm THUẦN. `workspace-panel.tsx` chỉ vẽ ra
+ * kết quả.
  *
  * Vì sao tách: `apps/web` chạy vitest ở `environment: 'node'` (không jsdom,
  * không RTL — xem chú thích đầu `landmark-contract.test.ts`). Một quyết định
- * nằm lẫn trong thân component ở đây là một quyết định KHÔNG test được. Tách ra
- * là cách duy nhất để các bất biến của C5 có phép kiểm thật, thay vì một dòng
- * "đã kiểm bằng mắt" trong report.
+ * nằm lẫn trong thân component ở đây là một quyết định KHÔNG test được.
+ *
+ * ## Mô hình sau SỬA ĐỔI 2 — MỘT terminal, hiện ở CẢ HAI tab
+ *
+ * Trước đây có ba tab (`editor` + hai tab terminal ánh xạ sang tmux window) và
+ * một nút "tách đôi". Nay chỉ còn hai tab và MỘT phiên terminal:
+ *
+ * - tab `editor`   ⇒ hàng 1 (Theia) hiện, hàng 2 (terminal) neo đáy ~40%
+ * - tab `terminal` ⇒ hàng 1 ẩn, hàng 2 chiếm trọn khoang
+ *
+ * ⛔ Terminal KHÔNG BAO GIỜ bị ẩn và không bao giờ đổi cha (§Y1) — nên ở đây
+ * không có hàm nào trả về "terminal có hiện không". Câu hỏi duy nhất còn lại là
+ * *hàng 1 có hiện không* và *hàng 2 cao bao nhiêu*.
  */
 
-export type WorkspaceTabId = 'editor' | 'terminal-1' | 'terminal-2';
+export type WorkspaceTabId = 'editor' | 'terminal';
 
 export const EDITOR_TAB = 'editor';
-
-/** Thứ tự hiển thị cố định trên thanh tab. */
-export const TERMINAL_TAB_ORDER = ['terminal-1', 'terminal-2'] as const;
-
-export type TerminalTabId = (typeof TERMINAL_TAB_ORDER)[number];
+export const TERMINAL_TAB = 'terminal';
 
 export const WORKSPACE_TAB_LABEL: Readonly<Record<WorkspaceTabId, string>> = {
   editor: 'Editor',
-  'terminal-1': 'Terminal 1',
-  'terminal-2': 'Terminal 2',
+  terminal: 'Terminal',
 };
 
-export function isTerminalTab(tab: string): tab is TerminalTabId {
-  return (TERMINAL_TAB_ORDER as readonly string[]).includes(tab);
-}
-
 export function isWorkspaceTab(value: unknown): value is WorkspaceTabId {
-  return typeof value === 'string' && (value === EDITOR_TAB || isTerminalTab(value));
+  return value === EDITOR_TAB || value === TERMINAL_TAB;
 }
 
 /**
- * Tab nào ĐÓNG ĐƯỢC.
+ * Thứ tự tab trên thanh. Bài không khai `layout: ide` ⇒ đúng MỘT mục.
  *
- * `terminal-1` không đóng được: nó là window đầu của tmux, và đóng nó là kết
- * thúc phiên shell chứ không phải đóng một tab giao diện. `editor` cũng không —
- * bài khai `interface.layout: ide` thì khoang editor là một phần của bài, không
- * phải thứ người học tự thêm vào.
+ * Panel dùng độ dài của mảng này để quyết định có vẽ `role="tablist"` hay
+ * không: một tablist một mục là nhiễu thị giác chứ không phải chức năng (§Y4).
  */
-export function isClosableTab(tab: WorkspaceTabId): boolean {
-  return tab !== EDITOR_TAB && tab !== 'terminal-1';
+export function listWorkspaceTabs(hasEditor: boolean): readonly WorkspaceTabId[] {
+  return hasEditor ? [EDITOR_TAB, TERMINAL_TAB] : [TERMINAL_TAB];
 }
 
 /**
- * Thứ tự tab trên thanh: Editor (nếu có) rồi các terminal theo
- * `TERMINAL_TAB_ORDER` — KHÔNG theo thứ tự chèn vào `Map`.
+ * Kẹp `activeTab` về một tab CÓ THẬT.
  *
- * Cố ý bỏ qua thứ tự của map: nếu Lane F dựng map theo thứ tự khác nhau giữa
- * hai lần render (ví dụ rebuild từ một object sau khi thêm terminal-2), thanh
- * tab sẽ nhảy chỗ dưới tay người dùng. Thứ tự phải là một hằng số, không phải
- * một hệ quả của cách dựng dữ liệu.
+ * Cần vì `activeTab` do cha điều khiển (§Y4), và cha có thể yêu cầu `editor` ở
+ * một bài không có editor — ví dụ một giá trị đọc lại từ `localStorage` của bài
+ * IDE trước đó. Không kẹp thì hàng 1 rỗng chiếm chỗ và người học nhìn một mảng
+ * trắng bên trên terminal.
  */
-export function listWorkspaceTabs(
-  hasEditor: boolean,
-  terminalTabs: Iterable<string>,
-): readonly WorkspaceTabId[] {
-  const present = new Set<string>(terminalTabs);
-  const tabs: WorkspaceTabId[] = [];
-  if (hasEditor) {
-    tabs.push(EDITOR_TAB);
+export function resolveActiveTab(requested: WorkspaceTabId, hasEditor: boolean): WorkspaceTabId {
+  if (!hasEditor) {
+    return TERMINAL_TAB;
   }
-  for (const tab of TERMINAL_TAB_ORDER) {
-    if (present.has(tab)) {
-      tabs.push(tab);
-    }
-  }
-  return tabs;
+  return requested;
 }
 
 /**
- * Kẹp `activeTab` về một tab CÓ THẬT; `null` khi không còn tab nào.
- *
- * Cần vì `activeTab` do cha điều khiển (C5), và cha có thể đóng đúng cái tab
- * đang hoạt — giữa hai lần render sẽ có một nhịp `activeTab` trỏ vào hư không.
- * Không kẹp thì nhịp đó không vùng nào hiện, và người dùng thấy một khoang
- * trắng ngay sau khi bấm nút `×`.
+ * Hàng 1 (Theia) có hiện không. Đây là biến DUY NHẤT mà việc chuyển tab đổi —
+ * cùng với chiều cao hàng 2.
  */
-export function resolveActiveTab(
-  requested: WorkspaceTabId,
-  tabs: readonly WorkspaceTabId[],
-): WorkspaceTabId | null {
-  if (tabs.includes(requested)) {
-    return requested;
-  }
-  return tabs[0] ?? null;
+export function isEditorVisible(activeTab: WorkspaceTabId, hasEditor: boolean): boolean {
+  return hasEditor && activeTab === EDITOR_TAB;
 }
 
-export interface RegionVisibility {
-  readonly editor: boolean;
-  readonly terminal: boolean;
+// ── Chiều cao khoang terminal ở tab Editor (§Y6) ─────────────────────────────
+
+/** Mặc định ~40% chiều cao khoang, theo §Y6. */
+export const TERMINAL_PERCENT_DEFAULT = 40;
+
+/**
+ * Trần/sàn của thanh kéo.
+ *
+ * Sàn 15% chứ không 0: một terminal cao 0 vẫn MOUNTED (đúng §Y1) nhưng người
+ * dùng không nhìn thấy gì và cũng không còn chỗ nào để nắm mà kéo ngược lại —
+ * tức một cách vô tình tự khoá mình ra khỏi terminal. Trần 85% giữ lại một dải
+ * editor đủ để nhận ra nó vẫn ở đó.
+ */
+export const TERMINAL_PERCENT_MIN = 15;
+export const TERMINAL_PERCENT_MAX = 85;
+
+/** Mỗi lần nhấn mũi tên đổi 4 điểm phần trăm — thô đủ để cảm nhận, mịn đủ để chỉnh. */
+export const TERMINAL_PERCENT_STEP = 4;
+
+/**
+ * Kẹp về [MIN, MAX] và làm tròn.
+ *
+ * `NaN` (giá trị rác trong storage, hoặc một phép chia cho chiều cao 0) trả về
+ * MẶC ĐỊNH chứ không kẹp: `Math.min`/`Math.max` với NaN lan NaN ra ngoài, và
+ * một `flexBasis: "NaN%"` là khai báo CSS không hợp lệ — trình duyệt bỏ qua nó
+ * trong im lặng và khoang trở về kích thước tự nhiên, không có gì báo.
+ */
+export function clampTerminalPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return TERMINAL_PERCENT_DEFAULT;
+  }
+  return Math.round(Math.min(TERMINAL_PERCENT_MAX, Math.max(TERMINAL_PERCENT_MIN, value)));
 }
 
 /**
- * ⛔ BẤT BIẾN SỐNG-CHẾT của C5 sống ở đây.
+ * Phần trăm mới khi nhấn phím trên thanh kéo, `null` cho phím ngoài khuôn.
  *
- * Hàm này trả về AI ĐANG HIỆN — nó không bao giờ trả về "ai được mount". Mọi
- * vùng luôn mount; panel chỉ đặt thuộc tính `hidden` theo kết quả này. Unmount
- * vùng terminal là đóng WebSocket (mất phiên làm việc của người học); unmount
- * vùng editor là khởi động nguội Theia lại ~20 giây (số đo P6).
+ * `null` để call-site biết KHÔNG được `preventDefault()` — nuốt mọi phím ở đây
+ * sẽ chặn cả `Tab` (đường thoát khỏi thanh kéo) lẫn phím tắt của trình duyệt.
  *
- * ## Chỉ có HAI vùng, không phải ba
- *
- * Mọi tab terminal DÙNG CHUNG một vùng. Theo C6 cả phiên chỉ có một WebSocket
- * và một xterm: khi người dùng bấm sang "Terminal 2", tmux đổi window và nội
- * dung mới xuất hiện TRONG CHÍNH cái xterm đang hiện. Ẩn nó đi để hiện một
- * vùng "terminal-2" riêng là ẩn đúng thứ vừa được yêu cầu hiện.
+ * Mũi tên LÊN làm terminal CAO THÊM: thanh kéo đi lên thì phần dưới nó rộng ra.
  */
-export function computeRegionVisibility(input: {
+export function nextTerminalPercentOnKey(key: string, percent: number): number | null {
+  switch (key) {
+    case 'ArrowUp':
+      return clampTerminalPercent(percent + TERMINAL_PERCENT_STEP);
+    case 'ArrowDown':
+      return clampTerminalPercent(percent - TERMINAL_PERCENT_STEP);
+    case 'Home':
+      return TERMINAL_PERCENT_MIN;
+    case 'End':
+      return TERMINAL_PERCENT_MAX;
+    default:
+      return null;
+  }
+}
+
+/**
+ * ⛔ §Y1 — dấu hiệu "hình học của khoang terminal vừa đổi", để `TerminalPane`
+ * biết phải gọi `handle.fit()`.
+ *
+ * Vì sao là một CHUỖI chứ không phải một cờ "đang hiện": ở mô hình mới terminal
+ * không bao giờ bị ẩn, nên một cờ hiện/ẩn đứng yên mãi mãi và effect fit sẽ
+ * KHÔNG BAO GIỜ chạy lại. Thứ thật sự đổi là kích thước — chuyển tab (40% →
+ * 100%) và kéo thanh chia. Chuỗi này đổi đúng ở hai lúc đó.
+ *
+ * ⚠ Khi hàng 1 đang ẩn, phần trăm KHÔNG được vào chuỗi: người dùng ở tab
+ * Terminal thì terminal chiếm trọn khoang bất kể phần trăm đã lưu là bao nhiêu.
+ * Nhét nó vào sẽ đẻ ra một lượt fit thừa mỗi lần khôi phục giá trị từ storage —
+ * một lần đo lại xterm không mang tin gì mới.
+ */
+export function workspaceLayoutToken(input: {
+  readonly activeTab: WorkspaceTabId;
   readonly hasEditor: boolean;
-  readonly hasTerminal: boolean;
-  readonly activeTab: WorkspaceTabId | null;
-  readonly split: boolean;
-}): RegionVisibility {
-  const { hasEditor, hasTerminal, activeTab, split } = input;
-
-  // Tách đôi CHỈ có nghĩa khi có cả hai vế. Một `split: true` đọc lại từ
-  // localStorage của bài trước (bài đó có editor, bài này không) không được
-  // phép làm gì cả.
-  const splitOn = split && hasEditor && hasTerminal;
-
-  const editor = hasEditor && (activeTab === EDITOR_TAB || splitOn);
-  const terminal = hasTerminal && ((activeTab !== null && isTerminalTab(activeTab)) || splitOn);
-
-  if (!editor && !terminal) {
-    // Lưới an toàn: `activeTab` trỏ vào một tab vừa biến mất và cha chưa kịp
-    // gọi `onActivate`. Thà hiện sai vùng còn hơn hiện một khoang trắng.
-    return { editor: hasEditor, terminal: hasTerminal && !hasEditor };
+  readonly terminalPercent: number;
+}): string {
+  const { activeTab, hasEditor, terminalPercent } = input;
+  if (!isEditorVisible(activeTab, hasEditor)) {
+    return 'terminal-full';
   }
-
-  return { editor, terminal };
+  return `editor-split:${String(clampTerminalPercent(terminalPercent))}`;
 }
 
 /**
  * Điều hướng bàn phím theo khuôn `tablist` NGANG của ARIA APG: mũi tên
  * trái/phải có VÒNG LẠI, `Home`/`End` nhảy về hai đầu.
  *
- * Trả `null` khi phím không thuộc khuôn — call-site dùng `null` để biết KHÔNG
- * được gọi `preventDefault()`. Nuốt mọi phím ở đây sẽ chặn cả `Tab` (đường
- * thoát khỏi thanh tab) lẫn phím tắt của trình duyệt.
+ * Trả `null` khi phím không thuộc khuôn — cùng lý do như `nextTerminalPercentOnKey`.
  */
 export function nextTabOnKey(
   key: string,
@@ -169,35 +183,12 @@ export function nextTabOnKey(
   }
 }
 
-/**
- * Lý do nút "tách" bị vô hiệu, hoặc `null` khi bấm được.
- *
- * Trả về CÂU CHỮ chứ không phải boolean: một nút disabled không nói lý do là
- * một ngõ cụt — người dùng bấm, không có gì xảy ra, và không có gì để đọc.
- * Chuỗi này đi thẳng vào `title` của nút.
- */
-export function splitDisabledReason(hasEditor: boolean, hasTerminal: boolean): string | null {
-  if (!hasEditor) {
-    // §C6: chế độ tách là "Editor | terminal đang hoạt". Không có Editor thì vế
-    // trái không tồn tại — và hai terminal cạnh nhau là BẤT KHẢ với một
-    // WebSocket + tmux window, nên đây không phải giới hạn nới ra được sau này.
-    return (
-      'Bài này không có khoang Editor nên không tách đôi được. ' +
-      'Hai terminal cạnh nhau là bất khả: cả phiên chỉ có một kết nối, ' +
-      'các tab terminal dùng chung một cửa sổ.'
-    );
-  }
-  if (!hasTerminal) {
-    return 'Chưa có terminal nào để đặt cạnh Editor.';
-  }
-  return null;
-}
-
 // ── Ghi nhớ giữa các lần vào ────────────────────────────────────────────────
 
 export interface StoredWorkspaceState {
   readonly activeTab: WorkspaceTabId;
-  readonly split: boolean;
+  /** Chiều cao khoang terminal ở tab Editor, tính bằng phần trăm (§Y6). */
+  readonly terminalPercent: number;
 }
 
 export interface StorageLike {
@@ -211,17 +202,25 @@ export interface StorageLike {
  * Repo đã dính đúng lớp lỗi này một lần ở tỉ lệ `SplitPane`: dùng chung một
  * khoá thì tỉ lệ của bài thường bị áp lên bài IDE (xem chú thích quanh
  * `dlp-lesson-split-ide` trong `app/lessons/[id]/lesson-client.tsx`). Ở đây còn
- * khó thấy hơn tỉ lệ: một `activeTab: 'editor'` lưu từ bài IDE, đọc lại ở bài
- * thường, là một tab KHÔNG TỒN TẠI — `resolveActiveTab` kẹp nó, nên triệu chứng
- * là "tab đã lưu không có tác dụng" chứ không phải một lỗi ai đó đi tìm.
+ * khó thấy hơn: một `activeTab: 'editor'` lưu từ bài IDE, đọc lại ở bài thường,
+ * bị `resolveActiveTab` kẹp im lặng — nên triệu chứng là "tab đã lưu không có
+ * tác dụng" chứ không phải một lỗi ai đó đi tìm. Và phần trăm chiều cao thì
+ * hoàn toàn vô nghĩa ở bài không có editor.
  *
- * Hậu tố sinh ở đây thay vì bắt Lane F truyền hai khoá: một call-site quên là
- * một lần trộn, và trộn thì không có gì báo.
+ * Hậu tố sinh ở đây thay vì bắt call-site truyền hai khoá: một call-site quên
+ * là một lần trộn, và trộn thì không có gì báo.
  */
 export function workspaceStorageKey(base: string, hasEditor: boolean): string {
   return `${base}:${hasEditor ? 'ide' : 'plain'}`;
 }
 
+/**
+ * ⚠ Hình dạng lưu ĐÃ ĐỔI ở SỬA ĐỔI 2 (`split` → `terminalPercent`, và
+ * `terminal-1` không còn là một tab hợp lệ). Bản ghi cũ vì thế trả `null` và
+ * người dùng nhận lại mặc định — đúng ý: một `{"activeTab":"terminal-1"}` đọc
+ * theo luật mới là một tab không tồn tại, và im lặng chấp nhận nó sẽ mở bài ở
+ * một trạng thái không ai chọn.
+ */
 export function parseWorkspaceState(raw: string | null): StoredWorkspaceState | null {
   if (raw === null) {
     return null;
@@ -238,11 +237,11 @@ export function parseWorkspaceState(raw: string | null): StoredWorkspaceState | 
   }
   const record = parsed as Record<string, unknown>;
   const tab = record['activeTab'];
-  const split = record['split'];
-  if (!isWorkspaceTab(tab) || typeof split !== 'boolean') {
+  const percent = record['terminalPercent'];
+  if (!isWorkspaceTab(tab) || typeof percent !== 'number' || !Number.isFinite(percent)) {
     return null;
   }
-  return { activeTab: tab, split };
+  return { activeTab: tab, terminalPercent: clampTerminalPercent(percent) };
 }
 
 /**

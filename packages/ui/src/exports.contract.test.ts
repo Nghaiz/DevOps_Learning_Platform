@@ -158,30 +158,24 @@ const _themeStorageKey: string = UI.THEME_STORAGE_KEY;
 const _contentViewHasProps: PropsOf<typeof UI.ContentView> extends UI.ContentViewProps ? true : never = true;
 
 /**
- * `onExec` — hợp đồng §C2 của khung KillerCoda. Chữ ký cũ
- * `(command: string, interrupt: boolean)` bị THAY, không giữ song song: hai
- * chữ ký cùng tồn tại là chỗ để một call-site cũ truyền `boolean` lọt qua im
- * lặng, và một object `ExecOptions` đọc như `boolean` thì luôn truthy — nút
- * "Chạy" âm thầm hoá thành "Ngắt & chạy".
+ * `onExec` — hợp đồng §Y3. Chữ ký là `(command: string, interrupt: boolean)`,
+ * ĐÚNG HAI tham số.
  *
- * Khẳng định bằng cách GÁN một hàm đúng chữ ký mới vào prop: sai kiểu tham số
- * thứ hai thì đỏ ngay dòng này, kèm tên prop.
+ * Bản trước ở đây gác chiều ngược lại: tham số thứ hai là một object
+ * `ExecOptions` mang thêm `target`, và ca này tồn tại để một call-site cũ
+ * truyền `boolean` không lọt qua im lặng. §Y2 gỡ đích thực thi nên chữ ký quay
+ * về hai tham số — nhưng cái bẫy thì ĐỔI CHIỀU chứ không biến mất: một
+ * call-site còn truyền `{ interrupt, target }` sẽ được đọc như một `boolean`,
+ * và mọi object đều truthy, nên nút "Chạy" âm thầm hoá thành "Ngắt & chạy".
+ *
+ * Khẳng định bằng cách GÁN một hàm đúng chữ ký vào prop: sai kiểu tham số thứ
+ * hai thì đỏ ngay dòng này, kèm tên prop.
  */
-const _contentViewExec: UI.ContentViewProps['onExec'] = (command: string, options: UI.ExecOptions) => {
+const _contentViewExec: UI.ContentViewProps['onExec'] = (command: string, interrupt: boolean) => {
   const _command: string = command;
-  const _interrupt: boolean = options.interrupt;
-  // `target` là `ExecTarget | null` — `null` được phép, nên phép gán này phải
-  // biên dịch. Nếu ai đó siết nó thành non-nullable, dòng dưới đỏ.
-  const _target: UI.ExecOptions['target'] = null;
+  const _interrupt: boolean = interrupt;
   void _command;
   void _interrupt;
-  void _target;
-};
-
-/** Cả hai trường của `ExecOptions` phải BẮT BUỘC — không được nới thành tuỳ chọn. */
-const _execOptionsRequired: Requires<UI.ExecOptions, 'interrupt' | 'target'> = {
-  interrupt: true,
-  target: true,
 };
 const _splitPaneHasProps: PropsOf<typeof UI.SplitPane> extends UI.SplitPaneProps ? true : never = true;
 const _stepNavHasProps: PropsOf<typeof UI.StepNav> extends UI.StepNavProps ? true : never = true;

@@ -1,98 +1,116 @@
-/*
- * ⚠ Pragma trên là BẮT BUỘC để `pnpm --filter web test` chạy được file này, và
- * nó KHÔNG thừa dù Next đã dùng runtime tự động.
- *
- * `apps/web/tsconfig.json` khai `"jsx": "preserve"` (Next tự dịch JSX bằng SWC
- * của nó). vitest thì dịch bằng esbuild, và esbuild đọc đúng khoá đó: thấy
- * `preserve` nó rơi về runtime CỔ ĐIỂN, tức sinh ra `React.createElement` trong
- * một file không import `React`. Triệu chứng là `ReferenceError: React is not
- * defined` ném lúc RENDER — không phải lúc biên dịch, nên `typecheck` xanh còn
- * test đỏ ở mọi ô có render.
- *
- * Sửa đúng ở tầng cấu hình là `esbuild: { jsx: 'automatic' }` trong
- * `apps/web/vitest.config.ts`, nhưng file đó không thuộc đường sở hữu của lane
- * này (đã ghi vào report). Pragma theo từng file là cách vá không đụng file của
- * lane khác. Bỏ nó ra khi vitest.config đã khai — lúc đó nó thành thừa thật.
- */
 'use client';
 
-import { useCallback, useEffect, useId, useRef, type KeyboardEvent, type ReactElement, type ReactNode } from 'react';
-import { Columns2, ExternalLink, Plus, SquareTerminal, FileCode2 } from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
+import { ExternalLink, SquareTerminal, FileCode2 } from 'lucide-react';
 import { cn } from '@devops-platform/ui';
-import { WorkspaceRegionVisibleProvider } from './workspace-visibility';
+import { WorkspaceLayoutProvider } from './workspace-layout';
 import {
   EDITOR_TAB,
+  TERMINAL_PERCENT_DEFAULT,
+  TERMINAL_PERCENT_MAX,
+  TERMINAL_PERCENT_MIN,
+  TERMINAL_TAB,
   WORKSPACE_TAB_LABEL,
   browserStorage,
-  computeRegionVisibility,
-  isClosableTab,
-  isTerminalTab,
+  clampTerminalPercent,
+  isEditorVisible,
   listWorkspaceTabs,
   nextTabOnKey,
+  nextTerminalPercentOnKey,
   readWorkspaceState,
   resolveActiveTab,
-  splitDisabledReason,
+  workspaceLayoutToken,
   workspaceStorageKey,
   writeWorkspaceState,
   type WorkspaceTabId,
 } from './workspace-tabs';
 
 /**
- * C5 — khoang phải kiểu KillerCoda: **tab ở trên, mỗi lúc một tab chiếm trọn**.
+ * §Y1/§Y4/§Y6 — khoang phải kiểu KillerCoda: **MỘT terminal, hiện ở CẢ HAI tab**.
  *
- * ## Cái này thay thế cái gì
+ * ```
+ * TAB EDITOR                      TAB TERMINAL
+ * ┌──────────────────┐            ┌──────────────────┐
+ * │ Theia (iframe)   │            │                  │
+ * │ cây file+editor  │            │  CÙNG terminal   │
+ * ├──────────────────┤            │  toàn khoang     │
+ * │ CÙNG terminal    │            │                  │
+ * │ (neo đáy, ~40%)  │            │                  │
+ * └──────────────────┘            └──────────────────┘
+ * ```
  *
- * Bản trước dựng `SplitPane` LỒNG trong `WorkspaceSplit` cho bố cục `ide`, nên
- * màn hình chia BA và editor chỉ còn ~1/3 bề rộng — một khoang soạn mã rộng
- * 400px trên màn 1280px. Ở đây khoang phải là một cái duy nhất, và tab quyết
- * định ai chiếm nó.
+ * ## ⛔ BẤT BIẾN SỐNG-CHẾT: terminal KHÔNG đổi cha, KHÔNG bị ẩn
  *
- * ## ⛔ BẤT BIẾN SỐNG-CHẾT: mọi vùng giữ MOUNTED, ẩn bằng `hidden`
+ * Đây là điều kiện đúng-sai của cả sửa đổi, không phải một tối ưu. Dời một
+ * component giữa hai cha là **unmount + mount lại** — WebSocket đóng, phiên làm
+ * việc của người học mất, và không có thông báo lỗi nào.
  *
- * TUYỆT ĐỐI không `{active === 'editor' && <Editor/>}`. Unmount vùng terminal
- * là đóng WebSocket, tức mất phiên làm việc của người học. Unmount iframe IDE là
- * khởi động nguội Theia lại ~20 giây (số đo P6). Cả hai đều KHÔNG có thông báo
- * lỗi nào — người dùng chỉ thấy công việc của mình biến mất.
+ * Nên khoang là MỘT ngăn xếp dọc CỐ ĐỊNH với ba con tĩnh, luôn ở đúng vị trí:
+ *
+ * 1. hàng 1 — editor (Theia). `hidden` khi ở tab Terminal.
+ * 2. thanh kéo — `hidden` khi hàng 1 ẩn.
+ * 3. hàng 2 — terminal. **KHÔNG BAO GIỜ `hidden`**, chỉ đổi chiều cao.
+ *
+ * Chuyển tab đổi đúng hai thứ: hàng 1 ẩn/hiện, và `flex` của hàng 2 (một dải
+ * ~40% neo đáy ⇄ chiếm trọn khoang).
+ *
+ * ⚠ Hàng 1 phải LUÔN được render kể cả khi bài không có Editor (chỉ `hidden`),
+ * vì React so trùng các con tĩnh theo VỊ TRÍ: bỏ hẳn hàng 1 sẽ đẩy thanh kéo và
+ * hàng 2 lên một bậc, khớp hàng 2 với vị trí của thanh kéo — tức unmount cái
+ * xterm, tức đóng WebSocket.
  *
  * ⚠ Hệ quả CSS phải nhớ: phần tử mang thuộc tính `hidden` KHÔNG được mang một
  * tiện ích `display` nào (`flex`, `grid`, `block`…). Luật `[hidden]{display:none}`
- * đến từ stylesheet của trình duyệt, còn `.flex{display:flex}` đến từ
- * stylesheet của tác giả — cùng độ đặc hiệu thì tác giả THẮNG, và `hidden` trở
- * thành một thuộc tính không có tác dụng gì. Vùng ở dưới chỉ mang `flex-1` +
- * `min-h-0` (không phải thuộc tính `display`), phần bố cục nằm ở lớp con.
+ * đến từ stylesheet của trình duyệt, còn `.flex{display:flex}` đến từ stylesheet
+ * của tác giả — cùng độ đặc hiệu thì tác giả THẮNG, và `hidden` trở thành một
+ * thuộc tính không có tác dụng gì, không báo gì. `workspace-panel.test.tsx` quét
+ * mọi thẻ ở cả hai tab để giữ điều này.
  *
- * ## Chỉ có HAI vùng cho BA tab
+ * ⚠ Đổi chiều cao là đổi kích thước ⇒ xterm phải `fit()` lại. Panel không cầm
+ * `TerminalHandle` (nó chỉ nhận `ReactNode`), nên nó phát một chuỗi mô tả hình
+ * học qua `WorkspaceLayoutProvider`; `TerminalPane` nghe chuỗi đó và fit sau
+ * `requestAnimationFrame`. Xem `workspace-layout.tsx`.
  *
- * Mọi tab terminal dùng chung MỘT vùng. Theo §C6 cả phiên chỉ có một WebSocket
- * và một xterm; bấm "Terminal 2" là gửi `\x02 2` vào chính cái PTY đang mở, nên
- * nội dung window 2 hiện ra TRONG CÙNG cái xterm. Xem `tmux-control.ts`.
+ * ## Thanh tab: cao CỐ ĐỊNH, và không có tablist khi chỉ có một mục
  *
- * ⚠ Ràng buộc cho người tiêu thụ (Lane F): trong `terminals`, nhiều nhất MỘT
- * giá trị được là một `TerminalSurface` thật; các tab còn lại truyền `null` —
- * khoá của chúng vẫn vẽ ra nút trên thanh tab. Panel KHÔNG gác được điều này
- * (nó chỉ thấy `ReactNode`); truyền hai cái thật thì cả hai cùng vẽ chồng lên
- * nhau, và đó là vi phạm §C6 chứ không phải lỗi của panel.
+ * Chiều cao cố định không phải để cho đẹp: bất cứ thứ gì xuất hiện/biến mất
+ * quanh terminal đều làm `ResizeObserver` của xterm bắn và fit lại đúng lúc
+ * người dùng đang gõ — cùng lo ngại đã ghi ở `terminal-pane.tsx` quanh gợi ý
+ * Esc-Esc. `h-9 shrink-0` ở MỌI trạng thái.
  *
- * ## Thanh tab cao CỐ ĐỊNH và luôn có mặt
+ * Nhưng khi bài không khai `layout: ide` thì chỉ còn MỘT tab, và một
+ * `role="tablist"` một mục là nhiễu thị giác chứ không phải chức năng (§Y4) —
+ * người dùng không chuyển đi đâu được, còn trình đọc màn hình thì nghe "tab 1
+ * trên 1". Ở trạng thái đó thanh này vẫn còn (nó mang nút mở-ra-cửa-sổ-riêng
+ * của §C7, một chức năng thật), nhưng phần trái là một nhãn tĩnh và hai hàng
+ * KHÔNG mang `role="tabpanel"` — không có tab thì không có tabpanel, và trỏ
+ * `aria-labelledby` vào một id không tồn tại là vi phạm `aria-valid-attr-value`
+ * của axe.
  *
- * Không phải để cho đẹp: bất cứ thứ gì xuất hiện/biến mất quanh terminal đều
- * làm `ResizeObserver` của xterm bắn và fit lại đúng lúc người dùng đang gõ —
- * cùng lo ngại đã ghi ở `terminal-pane.tsx` quanh gợi ý Esc-Esc. `h-9 shrink-0`
- * ở MỌI trạng thái, kể cả khi chỉ có một tab.
+ * ⚠ Điều đã cân nhắc và chấp nhận: khi ở tab Editor, hàng 2 (`role="tabpanel"`
+ * của tab Terminal) VẪN hiện dù tab Terminal không được chọn. Đó là đúng mô
+ * hình — tab ở đây quyết định *editor có chiếm chỗ không*, chứ terminal thì
+ * luôn có mặt — nhưng nó lệch khuôn tabpanel thông thường. Đổi hàng 2 thành
+ * `role="region"` sẽ làm tab Terminal không còn `aria-controls` hợp lệ, tức đổi
+ * một chỗ lệch nhỏ lấy một chỗ lệch to hơn.
  */
 export interface WorkspacePanelProps {
   /** Vắng mặt ⇒ không có tab Editor (bài không khai layout ide). */
   readonly editor?: ReactNode;
-  /** Nội dung mỗi tab terminal, theo id. */
-  readonly terminals: ReadonlyMap<WorkspaceTabId, ReactNode>;
+  readonly terminal: ReactNode;
   readonly activeTab: WorkspaceTabId;
   readonly onActivate: (tab: WorkspaceTabId) => void;
-  /** Bấm '+' — vắng mặt ⇒ ẩn nút. */
-  readonly onAddTerminal?: () => void;
-  readonly onCloseTerminal?: (tab: WorkspaceTabId) => void;
-  /** Chế độ tách đôi: Editor | terminal đang hoạt. */
-  readonly split: boolean;
-  readonly onToggleSplit: () => void;
   /** URL mở tab hiện tại ra cửa sổ trình duyệt riêng. null ⇒ ẩn nút. */
   readonly popOutUrl: string | null;
   readonly storageKey?: string;
@@ -100,65 +118,41 @@ export interface WorkspacePanelProps {
 
 const TAB_ICON = {
   editor: FileCode2,
-  'terminal-1': SquareTerminal,
-  'terminal-2': SquareTerminal,
+  terminal: SquareTerminal,
 } as const;
 
 export function WorkspacePanel({
   editor,
-  terminals,
+  terminal,
   activeTab,
   onActivate,
-  onAddTerminal,
-  onCloseTerminal,
-  split,
-  onToggleSplit,
   popOutUrl,
   storageKey,
 }: WorkspacePanelProps): ReactElement {
   const hasEditor = editor !== undefined;
-  const hasTerminal = terminals.size > 0;
-  const tabs = listWorkspaceTabs(hasEditor, terminals.keys());
-  const resolvedActive = resolveActiveTab(activeTab, tabs);
-  const visibility = computeRegionVisibility({ hasEditor, hasTerminal, activeTab: resolvedActive, split });
-  const bothVisible = visibility.editor && visibility.terminal;
+  const tabs = listWorkspaceTabs(hasEditor);
+  const resolvedActive = resolveActiveTab(activeTab, hasEditor);
+  const editorVisible = isEditorVisible(resolvedActive, hasEditor);
 
   const domId = useId();
   const tabDomId = (tab: WorkspaceTabId): string => `${domId}-tab-${tab}`;
   const editorPanelId = `${domId}-panel-editor`;
   const terminalPanelId = `${domId}-panel-terminal`;
-  const splitReasonId = `${domId}-split-reason`;
 
-  const splitReason = splitDisabledReason(hasEditor, hasTerminal);
-  const splitDisabled = splitReason !== null;
+  const { terminalPercent, setTerminalPercent, persistTerminalPercent } = useWorkspaceMemory({
+    storageKey,
+    hasEditor,
+    activeTab: resolvedActive,
+    onActivate,
+  });
 
-  // Vùng terminal DÙNG CHUNG cho mọi tab terminal, nên nhãn của nó là tab
-  // terminal đang hoạt — hoặc tab terminal đầu tiên khi người dùng đang ở
-  // Editor. `null` khi bài không có terminal nào (bỏ hẳn `aria-labelledby`).
-  const labelTerminalTab: WorkspaceTabId | null =
-    resolvedActive !== null && isTerminalTab(resolvedActive)
-      ? resolvedActive
-      : (tabs.find((tab) => isTerminalTab(tab)) ?? null);
+  const stackRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
 
-  useWorkspaceMemory({ storageKey, hasEditor, tabs, activeTab: resolvedActive, split, onActivate, onToggleSplit, splitDisabled });
+  const layout = workspaceLayoutToken({ activeTab: resolvedActive, hasEditor, terminalPercent });
 
   const handleTablistKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
-      if (resolvedActive === null) {
-        return;
-      }
-      // `Delete`/`Backspace` đóng tab đang hoạt — khuôn "deletable tabs" của
-      // ARIA APG. Đây là đường DUY NHẤT để đóng bằng bàn phím: nút `×` bên
-      // trong tab là một `<span>` không vào được vòng Tab (một `<button>` lồng
-      // trong `role="tab"` là con có vai không hợp lệ của `tablist`, thứ axe
-      // bắt ở luật `aria-required-children`).
-      if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (onCloseTerminal !== undefined && isClosableTab(resolvedActive)) {
-          event.preventDefault();
-          onCloseTerminal(resolvedActive);
-        }
-        return;
-      }
       const next = nextTabOnKey(event.key, tabs, resolvedActive);
       if (next === null) {
         // Phím ngoài khuôn (`Tab`, phím tắt trình duyệt) — KHÔNG nuốt.
@@ -167,95 +161,133 @@ export function WorkspacePanel({
       event.preventDefault();
       onActivate(next);
     },
-    [resolvedActive, tabs, onActivate, onCloseTerminal],
+    [tabs, resolvedActive, onActivate],
   );
+
+  // ── Thanh kéo chiều cao (§Y6) ─────────────────────────────────────────────
+  //
+  // ⛔ Tuyệt đối KHÔNG dựng bằng cách render terminal ở hai nhánh khác nhau —
+  // đó là đúng thứ §Y1 cấm. Ở đây chỉ có một hàng terminal, và thanh kéo đổi
+  // `flexBasis` của chính nó.
+  //
+  // Không dùng `SplitPane` của `packages/ui`: nó chia NGANG và chỉ chia ngang
+  // (flex-row, đọc `event.clientX`, `cursor-col-resize`,
+  // `aria-orientation="vertical"`). Nới nó ra thành hai chiều là sửa file của
+  // lane khác; một thanh kéo dọc tối giản ở đây rẻ hơn và không đụng ai.
+
+  const commitPercentFromPointer = useCallback(
+    (clientY: number) => {
+      const stack = stackRef.current;
+      if (stack === null) {
+        return;
+      }
+      const rect = stack.getBoundingClientRect();
+      if (rect.height <= 0) {
+        return;
+      }
+      // Đo từ ĐÁY lên: hàng 2 nằm dưới, nên kéo thanh lên là terminal cao thêm.
+      setTerminalPercent(((rect.bottom - clientY) / rect.height) * 100);
+    },
+    [setTerminalPercent],
+  );
+
+  const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    // `setPointerCapture` thay vì listener trên `window`: giữ được luồng kéo cả
+    // khi con trỏ rời khỏi thanh lúc kéo nhanh, và chạy luôn cho cảm ứng.
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragging(true);
+  }, []);
+
+  const handlePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!dragging) {
+        return;
+      }
+      commitPercentFromPointer(event.clientY);
+    },
+    [dragging, commitPercentFromPointer],
+  );
+
+  const endDrag = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!dragging) {
+        return;
+      }
+      setDragging(false);
+      // Ghi `localStorage` ĐÚNG một lần lúc thả — `pointermove` bắn hàng chục
+      // lần/giây, ghi ở mỗi lần là I/O đồng bộ thừa vô ích (cùng quyết định với
+      // `SplitPane`).
+      persistTerminalPercent();
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // Đã tự nhả (phần tử unmount giữa chừng khi đang kéo) — bỏ qua.
+      }
+    },
+    [dragging, persistTerminalPercent],
+  );
+
+  const handleSeparatorKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      const next = nextTerminalPercentOnKey(event.key, terminalPercent);
+      if (next === null) {
+        return;
+      }
+      event.preventDefault();
+      setTerminalPercent(next);
+      // Mỗi lần nhấn phím là một bước "chốt" rời rạc (khác `pointermove` liên
+      // tục), nên ghi ngay — không cần đợi một sự kiện "thả" riêng.
+      persistTerminalPercent(next);
+    },
+    [terminalPercent, setTerminalPercent, persistTerminalPercent],
+  );
+
+  /*
+    Hàng 2 ở tab Editor: một dải cố định `terminalPercent`% neo đáy (hàng 1 mang
+    `flex-1` nên nó nuốt phần còn lại). Ở tab Terminal: hàng 1 `display:none`
+    nên không chiếm chỗ, và hàng 2 phải GIÃN ra — `flexBasis` giữ nguyên % thì
+    khoang chỉ đầy 40% và 60% còn lại là một mảng trống.
+  */
+  const terminalRowStyle: CSSProperties = editorVisible
+    ? { flexBasis: `${String(terminalPercent)}%`, flexGrow: 0, flexShrink: 0 }
+    : { flexBasis: 'auto', flexGrow: 1, flexShrink: 1 };
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col bg-card">
       {/* Thanh tab — cao cố định, có mặt ở mọi trạng thái. Xem chú thích đầu file. */}
       <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border bg-card px-2">
-        <div
-          role="tablist"
-          aria-label="Khoang làm việc"
-          aria-orientation="horizontal"
-          className="flex min-w-0 items-center gap-1 overflow-x-auto"
-          onKeyDown={handleTablistKeyDown}
-        >
-          {tabs.map((tab) => (
-            <WorkspaceTabButton
-              key={tab}
-              tab={tab}
-              id={tabDomId(tab)}
-              controls={tab === EDITOR_TAB ? editorPanelId : terminalPanelId}
-              active={tab === resolvedActive}
-              onActivate={onActivate}
-              {...(onCloseTerminal === undefined ? {} : { onClose: onCloseTerminal })}
-            />
-          ))}
-        </div>
-
-        {/*
-          Nút '+' nằm NGOÀI `role="tablist"` có chủ ý: `tablist` chỉ được sở hữu
-          các phần tử `role="tab"`, và một `<button>` lẫn vào trong là vi phạm
-          `aria-required-children` — luật mà `e2e/a11y.spec.ts` chạy axe sẽ bắt.
-          Về mặt thị giác nó vẫn nằm ngay sau tab cuối.
-        */}
-        {onAddTerminal === undefined ? null : (
-          <button
-            type="button"
-            onClick={onAddTerminal}
-            title="Mở thêm một terminal (tmux window mới)"
-            className={cn(
-              'flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground',
-              'transition-colors duration-(--motion-fast) hover:bg-accent hover:text-accent-foreground',
-              'outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            )}
+        {tabs.length > 1 ? (
+          <div
+            role="tablist"
+            aria-label="Khoang làm việc"
+            aria-orientation="horizontal"
+            className="flex min-w-0 items-center gap-1 overflow-x-auto"
+            onKeyDown={handleTablistKeyDown}
           >
-            <Plus aria-hidden="true" className="size-4" />
-            <span className="sr-only">Mở thêm một terminal</span>
-          </button>
+            {tabs.map((tab) => (
+              <WorkspaceTabButton
+                key={tab}
+                tab={tab}
+                id={tabDomId(tab)}
+                controls={tab === EDITOR_TAB ? editorPanelId : terminalPanelId}
+                active={tab === resolvedActive}
+                onActivate={onActivate}
+              />
+            ))}
+          </div>
+        ) : (
+          /*
+            Một tab ⇒ nhãn tĩnh, không `role="tab"`. Vẫn giữ icon + chữ để thanh
+            này đọc ra là "đây là khoang terminal" chứ không phải một dải trống
+            có mỗi một nút ở góc phải.
+          */
+          <span className="flex h-7 shrink-0 items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground">
+            <SquareTerminal aria-hidden="true" className="size-3.5 shrink-0" />
+            {WORKSPACE_TAB_LABEL[TERMINAL_TAB]}
+          </span>
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
-          {/*
-            `aria-disabled` chứ KHÔNG phải thuộc tính `disabled`: một nút
-            `disabled` không nhận sự kiện chuột, nên trình duyệt không bao giờ
-            hiện `title` của nó — người dùng gặp một nút chết không kèm lý do,
-            đúng thứ mà "kèm lý do trong title" sinh ra để tránh. Giữ nút vào
-            được vòng Tab, có `aria-describedby` trỏ tới câu lý do, và chặn hành
-            động ở handler.
-          */}
-          <button
-            type="button"
-            aria-pressed={split && !splitDisabled}
-            aria-disabled={splitDisabled}
-            {...(splitDisabled ? { 'aria-describedby': splitReasonId } : {})}
-            title={splitReason ?? 'Tách đôi: Editor cạnh terminal đang hoạt'}
-            onClick={() => {
-              if (splitDisabled) {
-                return;
-              }
-              onToggleSplit();
-            }}
-            className={cn(
-              'flex size-6 items-center justify-center rounded transition-colors duration-(--motion-fast)',
-              'outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              splitDisabled
-                ? 'cursor-not-allowed text-muted-foreground/40'
-                : split
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-            )}
-          >
-            <Columns2 aria-hidden="true" className="size-4" />
-            <span className="sr-only">Tách đôi khoang làm việc</span>
-          </button>
-          {splitDisabled ? (
-            <span id={splitReasonId} className="sr-only">
-              {splitReason}
-            </span>
-          ) : null}
-
           {popOutUrl === null ? null : (
             <a
               href={popOutUrl}
@@ -275,75 +307,76 @@ export function WorkspacePanel({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        {/*
-          ⛔ KHÔNG có tiện ích `display` trên phần tử mang `hidden` — xem chú
-          thích đầu file. `flex-1`/`min-h-0`/`min-w-0` không phải `display`.
-        */}
-        {/*
-          Ba phần tử dưới đây LUÔN được render, kể cả khi bài không có Editor.
-          Không phải thừa: React so trùng các con tĩnh theo VỊ TRÍ, nên bỏ hẳn
-          vùng editor sẽ đẩy vùng terminal lên khớp với gạch phân cách — tức
-          unmount cái xterm, tức đóng WebSocket. Vùng không dùng thì rỗng và ẩn.
+      {/*
+        ⛔ NGĂN XẾP DỌC CỐ ĐỊNH — ba con tĩnh, luôn ở đúng vị trí này. Đọc chú
+        thích đầu file trước khi thêm/bớt bất cứ gì ở đây.
 
-          `aria-labelledby` mới là thứ phải có điều kiện: trỏ tới một id không
-          tồn tại là vi phạm `aria-valid-attr-value` của axe.
+        `select-none` lúc kéo: không có nó thì con trỏ quét qua nội dung editor
+        và bôi đen chữ trong lúc người dùng chỉ định đổi chiều cao.
+      */}
+      <div
+        ref={stackRef}
+        className={cn('flex min-h-0 flex-1 flex-col', dragging && 'select-none')}
+      >
+        {/*
+          Hàng 1 — editor. ⛔ KHÔNG có tiện ích `display` trên phần tử mang
+          `hidden`; `flex-1`/`min-h-0`/`min-w-0` không phải `display`.
         */}
         <div
-          role="tabpanel"
+          {...(tabs.length > 1
+            ? { role: 'tabpanel', 'aria-labelledby': tabDomId(EDITOR_TAB) }
+            : {})}
           id={editorPanelId}
-          {...(hasEditor ? { 'aria-labelledby': tabDomId(EDITOR_TAB) } : {})}
-          hidden={!visibility.editor}
+          hidden={!editorVisible}
           className="min-h-0 min-w-0 flex-1 overflow-hidden"
         >
-          <WorkspaceRegionVisibleProvider visible={visibility.editor}>
-            <div className="h-full w-full">{editor}</div>
-          </WorkspaceRegionVisibleProvider>
+          <div className="h-full w-full">{editor}</div>
         </div>
 
-        {/* Gạch phân cách chỉ có nghĩa khi hai vùng cùng hiện. `hidden` chứ
-            không render có điều kiện: cùng một lý do như hai vùng — đổi cấu
-            trúc cây quanh terminal là mời React so trùng lại và unmount. */}
-        <div aria-hidden="true" hidden={!bothVisible} className="w-px shrink-0 bg-border" />
-
+        {/*
+          Thanh kéo. `hidden` chứ không render có điều kiện: cùng một lý do như
+          hai hàng — đổi cấu trúc cây quanh terminal là mời React so trùng lại.
+        */}
         <div
-          role="tabpanel"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Kéo để đổi chiều cao khoang terminal"
+          aria-valuenow={terminalPercent}
+          aria-valuemin={TERMINAL_PERCENT_MIN}
+          aria-valuemax={TERMINAL_PERCENT_MAX}
+          tabIndex={editorVisible ? 0 : -1}
+          hidden={!editorVisible}
+          className={cn(
+            'h-1.5 shrink-0 grow-0 cursor-row-resize touch-none bg-border',
+            'hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+          )}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onKeyDown={handleSeparatorKeyDown}
+        />
+
+        {/*
+          Hàng 2 — TERMINAL. ⛔ KHÔNG BAO GIỜ mang `hidden`, không bao giờ rời
+          vị trí này. Nếu bạn đang định thêm `hidden={...}` ở đây thì hãy đọc lại
+          §Y1: đó là đóng WebSocket của người học.
+        */}
+        <div
+          {...(tabs.length > 1
+            ? { role: 'tabpanel', 'aria-labelledby': tabDomId(TERMINAL_TAB) }
+            : {})}
           id={terminalPanelId}
-          {...(labelTerminalTab === null ? {} : { 'aria-labelledby': tabDomId(labelTerminalTab) })}
-          hidden={!visibility.terminal}
-          className="min-h-0 min-w-0 flex-1 overflow-hidden"
+          className="min-h-0 min-w-0 overflow-hidden"
+          style={terminalRowStyle}
         >
-          <WorkspaceRegionVisibleProvider visible={visibility.terminal}>
-            {/*
-              MỌI node terminal nằm ở đây cùng lúc và KHÔNG cái nào bị ẩn so với
-              cái nào — theo §C6 nhiều nhất một cái là surface thật, những cái
-              còn lại là `null`. Ẩn `terminal-1` khi người dùng bấm sang
-              `terminal-2` chính là ẩn cái xterm mà tmux vừa đổi window bên trong.
-            */}
-            <div className="h-full w-full">
-              {tabs
-                .filter((tab): tab is Exclude<WorkspaceTabId, 'editor'> => isTerminalTab(tab))
-                .map((tab) => (
-                  <TerminalSlot key={tab} node={terminals.get(tab)} />
-                ))}
-            </div>
-          </WorkspaceRegionVisibleProvider>
+          <WorkspaceLayoutProvider layout={layout}>
+            <div className="h-full w-full">{terminal}</div>
+          </WorkspaceLayoutProvider>
         </div>
       </div>
     </div>
   );
-}
-
-/**
- * Bọc một node terminal. `null`/`undefined` (tab dùng chung vùng với tab khác,
- * §C6) không dựng lớp DOM nào — nếu không, một `<div class="h-full">` rỗng sẽ
- * chia đôi chiều cao với cái xterm thật.
- */
-function TerminalSlot({ node }: { readonly node: ReactNode }): ReactElement | null {
-  if (node === null || node === undefined) {
-    return null;
-  }
-  return <div className="h-full w-full">{node}</div>;
 }
 
 function WorkspaceTabButton({
@@ -352,17 +385,14 @@ function WorkspaceTabButton({
   controls,
   active,
   onActivate,
-  onClose,
 }: {
   readonly tab: WorkspaceTabId;
   readonly id: string;
   readonly controls: string;
   readonly active: boolean;
   readonly onActivate: (tab: WorkspaceTabId) => void;
-  readonly onClose?: (tab: WorkspaceTabId) => void;
 }): ReactElement {
   const Icon = TAB_ICON[tab];
-  const closable = onClose !== undefined && isClosableTab(tab);
 
   return (
     <button
@@ -372,7 +402,7 @@ function WorkspaceTabButton({
       aria-controls={controls}
       aria-selected={active}
       /* Roving tabindex: đúng MỘT tab trong vòng Tab, mũi tên đi giữa các tab.
-         Đây là khuôn ARIA APG — không có nó thì một thanh 3 tab ngốn 3 lần Tab
+         Đây là khuôn ARIA APG — không có nó thì thanh tab ngốn thêm một lần Tab
          của ngân sách 30 lần mà `e2e/keyboard.spec.ts` gác. */
       tabIndex={active ? 0 : -1}
       onClick={() => {
@@ -389,44 +419,30 @@ function WorkspaceTabButton({
     >
       <Icon aria-hidden="true" className="size-3.5 shrink-0" />
       {WORKSPACE_TAB_LABEL[tab]}
-      {closable ? (
-        <>
-          {/*
-            `<span>` chứ không `<button>`: một `<button>` lồng trong
-            `role="tab"` biến nó thành con có vai không hợp lệ của `tablist`
-            (axe: `aria-required-children`). Đây đúng là khuôn "deletable tabs"
-            của ARIA APG — chuột bấm `×`, bàn phím nhấn `Delete`.
-
-            `stopPropagation` để cú bấm `×` không leo lên `onClick` của tab và
-            KÍCH HOẠT đúng cái tab vừa đóng.
-          */}
-          <span
-            aria-hidden="true"
-            onClick={(event) => {
-              event.stopPropagation();
-              onClose(tab);
-            }}
-            className="ml-0.5 rounded px-1 leading-none hover:bg-background/60"
-          >
-            ×
-          </span>
-          <span className="sr-only">— nhấn Delete để đóng</span>
-        </>
-      ) : null}
     </button>
   );
 }
 
+interface WorkspaceMemory {
+  readonly terminalPercent: number;
+  /** Đổi giá trị đang hiển thị. KHÔNG ghi storage — dùng lúc đang kéo. */
+  readonly setTerminalPercent: (percent: number) => void;
+  /** Chốt vào storage. Truyền `percent` khi giá trị mới chưa kịp vào state. */
+  readonly persistTerminalPercent: (percent?: number) => void;
+}
+
 /**
- * Ghi nhớ (tab đang hoạt + tách on/off) qua `localStorage`.
+ * Ghi nhớ (tab đang hoạt + chiều cao khoang terminal) qua `localStorage`.
  *
- * ## Vì sao khôi phục bằng `onActivate`/`onToggleSplit` chứ không bằng state
+ * ## Vì sao tab khôi phục bằng `onActivate` còn chiều cao thì bằng state
  *
- * C5 khai `activeTab` và `split` là prop ĐIỀU KHIỂN — cha giữ sự thật. Nên
- * panel không thể tự "đặt" trạng thái đã lưu; nó chỉ có thể YÊU CẦU cha đổi,
- * đúng một lần, ngay sau khi mount. Cách này giữ nguyên một nguồn sự thật thay
- * vì tạo bản sao thứ hai bên trong panel (thứ sẽ lệch với cha ngay lần cha đổi
- * `activeTab` vì lý do của riêng nó — ví dụ khối `{{exec T2}}` trong bài).
+ * §Y4 khai `activeTab` là prop ĐIỀU KHIỂN — cha giữ sự thật, nên panel chỉ có
+ * thể YÊU CẦU cha đổi, đúng một lần ngay sau khi mount. Giữ một bản sao thứ hai
+ * bên trong panel sẽ lệch với cha ngay lần cha đổi `activeTab` vì lý do riêng
+ * của nó.
+ *
+ * Chiều cao thì ngược lại: §Y4 KHÔNG khai nó là prop, nên panel là chủ sở hữu
+ * duy nhất và một `useState` ở đây chính là nguồn sự thật, không phải bản sao.
  *
  * ## Vì sao đọc trong effect, không đọc trong `useState(() => …)`
  *
@@ -440,23 +456,51 @@ function WorkspaceTabButton({
 function useWorkspaceMemory(input: {
   readonly storageKey?: string | undefined;
   readonly hasEditor: boolean;
-  readonly tabs: readonly WorkspaceTabId[];
-  readonly activeTab: WorkspaceTabId | null;
-  readonly split: boolean;
+  readonly activeTab: WorkspaceTabId;
   readonly onActivate: (tab: WorkspaceTabId) => void;
-  readonly onToggleSplit: () => void;
-  readonly splitDisabled: boolean;
-}): void {
-  const { storageKey, hasEditor, tabs, activeTab, split, onActivate, onToggleSplit, splitDisabled } = input;
+}): WorkspaceMemory {
+  const { storageKey, hasEditor, activeTab, onActivate } = input;
+  const [terminalPercent, setPercentState] = useState(TERMINAL_PERCENT_DEFAULT);
   const restoredRef = useRef(false);
 
-  // Callback mới nhất trong ref — effect khôi phục chỉ được chạy ĐÚNG MỘT LẦN,
-  // nên nó không được phụ thuộc vào danh tính hàm của cha (cha re-render mỗi
-  // giây vì đồng hồ đếm ngược TTL; xem `use-sandbox-session.ts`).
-  const latest = useRef({ tabs, activeTab, split, onActivate, onToggleSplit, splitDisabled });
-  latest.current = { tabs, activeTab, split, onActivate, onToggleSplit, splitDisabled };
-
   const key = storageKey === undefined ? null : workspaceStorageKey(storageKey, hasEditor);
+
+  /*
+    ⚠ `percentRef` là BẢN SAO ĐỒNG BỘ của `terminalPercent`, và nó không thừa.
+
+    Effect khôi phục và effect ghi chạy trong CÙNG một lượt commit. Nếu effect
+    ghi đọc `terminalPercent` từ state thì nó đọc giá trị của lượt render VỪA
+    RỒI — tức mặc định 40 — và ghi đè đúng con số vừa khôi phục được. Triệu
+    chứng: kéo lên 70%, phiên này vẫn 70%, lần vào sau về 40%. Không có gì báo.
+  */
+  const percentRef = useRef(TERMINAL_PERCENT_DEFAULT);
+
+  // Callback + tab mới nhất trong ref — effect khôi phục chỉ được chạy ĐÚNG MỘT
+  // LẦN, nên nó không được phụ thuộc vào danh tính hàm của cha (cha re-render
+  // mỗi giây vì đồng hồ đếm ngược TTL; xem `use-sandbox-session.ts`).
+  const latest = useRef({ activeTab, onActivate, key });
+  latest.current = { activeTab, onActivate, key };
+
+  const setTerminalPercent = useCallback((percent: number) => {
+    const clamped = clampTerminalPercent(percent);
+    percentRef.current = clamped;
+    setPercentState(clamped);
+  }, []);
+
+  const persistTerminalPercent = useCallback((percent?: number) => {
+    const current = latest.current;
+    if (current.key === null || !restoredRef.current) {
+      return;
+    }
+    writeWorkspaceState(
+      current.key,
+      {
+        activeTab: current.activeTab,
+        terminalPercent: clampTerminalPercent(percent ?? percentRef.current),
+      },
+      browserStorage(),
+    );
+  }, []);
 
   useEffect(() => {
     if (restoredRef.current) {
@@ -471,18 +515,21 @@ function useWorkspaceMemory(input: {
       return;
     }
     const current = latest.current;
-    if (saved.activeTab !== current.activeTab && current.tabs.includes(saved.activeTab)) {
+    setTerminalPercent(saved.terminalPercent);
+    if (saved.activeTab !== current.activeTab) {
       current.onActivate(saved.activeTab);
     }
-    if (saved.split !== current.split && !current.splitDisabled) {
-      current.onToggleSplit();
-    }
-  }, [key]);
+  }, [key, setTerminalPercent]);
 
+  // Tab đổi là một sự kiện RỜI RẠC (một cú bấm), nên ghi ngay ở đây. Chiều cao
+  // thì KHÔNG nằm trong deps: nó đổi hàng chục lần/giây lúc kéo, và
+  // `persistTerminalPercent` mới là chỗ chốt nó.
   useEffect(() => {
-    if (!restoredRef.current || key === null || activeTab === null) {
+    if (!restoredRef.current || key === null) {
       return;
     }
-    writeWorkspaceState(key, { activeTab, split }, browserStorage());
-  }, [key, activeTab, split]);
+    writeWorkspaceState(key, { activeTab, terminalPercent: percentRef.current }, browserStorage());
+  }, [key, activeTab]);
+
+  return { terminalPercent, setTerminalPercent, persistTerminalPercent };
 }

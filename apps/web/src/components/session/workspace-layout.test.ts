@@ -1,21 +1,22 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
-import { runFitOnReveal, type FitScheduler } from './workspace-visibility';
+import { runFitAfterLayout, type FitScheduler } from './workspace-layout';
 
 /**
- * C3/C5 — `fit()` khi tab chuyển từ ẩn sang hiện.
+ * §C3/§Y1 — `fit()` sau khi hình học khoang terminal đổi.
  *
  * ## Mức test và giới hạn của nó, nói thẳng
  *
  * `apps/web` chạy vitest ở `environment: 'node'` (không jsdom, không RTL — xem
  * chú thích đầu `landmark-contract.test.ts`), nên KHÔNG render nổi hook để quan
- * sát. `runFitOnReveal` không phải một hàm bọc lấy lệ để né chuyện đó: nó là
- * TOÀN BỘ thân của `useEffect` trong `useFitOnReveal`, nên test dưới đây chạy
- * đúng mã chạy thật.
+ * sát. `runFitAfterLayout` không phải một hàm bọc lấy lệ để né chuyện đó: nó là
+ * TOÀN BỘ thân của `useEffect` trong `useFitOnLayoutChange`, nên test dưới đây
+ * chạy đúng mã chạy thật.
  *
- * ⚠ Thứ DUY NHẤT còn ngoài tầm test ở đây là mảng deps `[visible, handle,
- * schedule]`. Đã ghi vào report — đóng được nó cần jsdom + RTL trong
- * `apps/web/package.json`, thứ lane này không tự thêm (lockfile là file dùng
- * chung của sáu lane).
+ * ⚠ Thứ DUY NHẤT còn ngoài tầm test ở đây là mảng deps `[handle, layout,
+ * schedule]`. Nửa quan trọng của nó — "chuỗi `layout` có ĐỔI khi tab đổi và khi
+ * kéo thanh chia không" — được gác riêng ở `workspace-tabs.test.ts`
+ * (`workspaceLayoutToken`); phần còn lại (React thật sự chạy lại effect khi deps
+ * đổi) cần jsdom + RTL trong `apps/web`, đã ghi vào report.
  */
 
 /**
@@ -54,21 +55,21 @@ function manualScheduler(): {
   };
 }
 
-describe('runFitOnReveal', () => {
+describe('runFitAfterLayout', () => {
   it('KHÔNG gọi fit() ngay trong nhịp render — phải qua scheduler', () => {
     /**
      * Đây là ô quan trọng nhất của file.
      *
      * Effect của React chạy sau khi DOM đã đổi nhưng TRƯỚC khi trình duyệt tính
-     * xong bố cục. Gọi `fit()` ngay lúc đó là bắt xterm đo một phần tử vừa mới
-     * thôi `display:none`: `getBoundingClientRect()` còn 0×0, `FitAddon` chốt
-     * số cột tối thiểu, và người dùng thấy terminal hiện ra với dòng gãy rồi
-     * mới tự sửa một nhịp sau. Đây là lỗi dễ thấy nhất của cả tính năng.
+     * xong bố cục. Gọi `fit()` ngay lúc đó là bắt xterm đo một phần tử mà chiều
+     * cao MỚI còn chưa được áp: `getBoundingClientRect()` trả kích thước cũ (hoặc
+     * 0×0 nếu vừa thôi `display:none`), `FitAddon` chốt số cột/hàng sai, và người
+     * dùng thấy terminal hiện ra với dòng gãy rồi mới tự sửa một nhịp sau.
      */
     const handle = fakeHandle();
     const sched = manualScheduler();
 
-    runFitOnReveal(true, handle, sched.schedule);
+    runFitAfterLayout(handle, sched.schedule);
 
     expect(handle.fit).not.toHaveBeenCalled();
     expect(sched.pending()).not.toBeNull();
@@ -77,31 +78,9 @@ describe('runFitOnReveal', () => {
     expect(handle.fit).toHaveBeenCalledTimes(1);
   });
 
-  it('gọi fit() khi vùng đang HIỆN và đã có handle', () => {
-    const handle = fakeHandle();
-    const sched = manualScheduler();
-    runFitOnReveal(true, handle, sched.schedule);
-    sched.flush();
-    expect(handle.fit).toHaveBeenCalledTimes(1);
-  });
-
-  it('KHÔNG gọi fit() khi vùng đang ẩn', () => {
-    // xterm đo được 0×0 trên `display:none`; một `fit()` ở trạng thái đó ghi đè
-    // số cột đang ĐÚNG bằng số cột tối thiểu.
-    const handle = fakeHandle();
-    const sched = manualScheduler();
-
-    const cleanup = runFitOnReveal(false, handle, sched.schedule);
-
-    expect(cleanup).toBeUndefined();
-    expect(sched.pending()).toBeNull();
-    sched.flush();
-    expect(handle.fit).not.toHaveBeenCalled();
-  });
-
   it('KHÔNG lên lịch gì khi chưa có handle (terminal chưa nối)', () => {
     const sched = manualScheduler();
-    expect(runFitOnReveal(true, null, sched.schedule)).toBeUndefined();
+    expect(runFitAfterLayout(null, sched.schedule)).toBeUndefined();
     expect(sched.pending()).toBeNull();
   });
 
@@ -111,7 +90,7 @@ describe('runFitOnReveal', () => {
     const handle = fakeHandle();
     const sched = manualScheduler();
 
-    const cleanup = runFitOnReveal(true, handle, sched.schedule);
+    const cleanup = runFitAfterLayout(handle, sched.schedule);
     expect(cleanup).toBeTypeOf('function');
 
     cleanup?.();
@@ -121,20 +100,37 @@ describe('runFitOnReveal', () => {
     expect(handle.fit).not.toHaveBeenCalled();
   });
 
-  it('handle MỚI (nối lại) trong lúc đang hiện ⇒ fit lại cái mới, không cái cũ', () => {
+  it('handle MỚI (nối lại) ⇒ fit cái mới, không cái cũ', () => {
     // Handle gắn với ĐÚNG một `Connection` (xem `onReady` ở
     // `packages/terminal/src/terminal-surface.tsx`), nên nối lại là một handle
-    // mới. Đó là lý do `handle` nằm trong deps của `useFitOnReveal`, không chỉ
-    // `visible`.
+    // mới. Đó là lý do `handle` nằm trong deps của `useFitOnLayoutChange`, không
+    // chỉ `layout`.
     const first = fakeHandle();
     const second = fakeHandle();
     const sched = manualScheduler();
 
-    runFitOnReveal(true, first, sched.schedule)?.();
-    runFitOnReveal(true, second, sched.schedule);
+    runFitAfterLayout(first, sched.schedule)?.();
+    runFitAfterLayout(second, sched.schedule);
     sched.flush();
 
     expect(first.fit).not.toHaveBeenCalled();
     expect(second.fit).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * ⚠ KHÔNG còn tham số `visible`, và đó là điểm khác lớn nhất so với bản trước.
+   *
+   * Bản trước không fit khi vùng đang ẩn, vì xterm đo 0×0 trên `display:none` và
+   * một `fit()` lúc đó ghi đè số cột đang đúng. Ở mô hình mới terminal KHÔNG BAO
+   * GIỜ bị ẩn (§Y1), nên nhánh ấy là mã chết — và vế an toàn vẫn còn nguyên ở
+   * tầng dưới: `TerminalHandle.fit()` của §C3 tự no-op khi terminal đã
+   * `dispose()` hoặc container còn 0×0 (`terminal-core.ts`).
+   */
+  it('luôn lên lịch khi có handle — không có cửa "đang ẩn thì thôi" nữa', () => {
+    const handle = fakeHandle();
+    const sched = manualScheduler();
+    expect(runFitAfterLayout(handle, sched.schedule)).toBeTypeOf('function');
+    sched.flush();
+    expect(handle.fit).toHaveBeenCalledTimes(1);
   });
 });

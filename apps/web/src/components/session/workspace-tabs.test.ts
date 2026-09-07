@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
-  computeRegionVisibility,
-  isClosableTab,
+  TERMINAL_PERCENT_DEFAULT,
+  TERMINAL_PERCENT_MAX,
+  TERMINAL_PERCENT_MIN,
+  clampTerminalPercent,
+  isEditorVisible,
   listWorkspaceTabs,
   nextTabOnKey,
+  nextTerminalPercentOnKey,
   parseWorkspaceState,
   readWorkspaceState,
   resolveActiveTab,
-  splitDisabledReason,
+  workspaceLayoutToken,
   workspaceStorageKey,
   writeWorkspaceState,
   type StorageLike,
@@ -26,142 +30,161 @@ function fakeStorage(seed: Record<string, string> = {}): StorageLike & { readonl
   };
 }
 
-describe('listWorkspaceTabs — thứ tự là HẰNG SỐ, không theo thứ tự chèn map', () => {
-  it('Editor đứng trước, terminal theo thứ tự cố định', () => {
-    expect(listWorkspaceTabs(true, ['terminal-2', 'terminal-1'])).toEqual([
-      'editor',
-      'terminal-1',
-      'terminal-2',
-    ]);
+describe('listWorkspaceTabs — bài không có editor chỉ còn MỘT mục', () => {
+  it('có editor ⇒ Editor đứng trước, Terminal sau', () => {
+    expect(listWorkspaceTabs(true)).toEqual(['editor', 'terminal']);
   });
 
-  it('không có Editor ⇒ chỉ terminal', () => {
-    expect(listWorkspaceTabs(false, ['terminal-1'])).toEqual(['terminal-1']);
-  });
-
-  it('bỏ qua khoá lạ trong map', () => {
-    expect(listWorkspaceTabs(false, ['terminal-1', 'terminal-9'])).toEqual(['terminal-1']);
-  });
-});
-
-describe('isClosableTab', () => {
-  it('chỉ Terminal 2 đóng được', () => {
-    // Terminal 1 là window đầu của tmux — đóng nó là kết thúc phiên shell, chứ
-    // không phải đóng một tab giao diện.
-    expect(isClosableTab('terminal-2')).toBe(true);
-    expect(isClosableTab('terminal-1')).toBe(false);
-    expect(isClosableTab('editor')).toBe(false);
-  });
-});
-
-describe('computeRegionVisibility — HAI vùng cho BA tab (§C6)', () => {
-  const base = { hasEditor: true, hasTerminal: true } as const;
-
-  it('tab Editor, không tách ⇒ chỉ vùng editor hiện', () => {
-    expect(computeRegionVisibility({ ...base, activeTab: 'editor', split: false })).toEqual({
-      editor: true,
-      terminal: false,
-    });
-  });
-
-  it('tab Terminal 1 ⇒ chỉ vùng terminal hiện', () => {
-    expect(computeRegionVisibility({ ...base, activeTab: 'terminal-1', split: false })).toEqual({
-      editor: false,
-      terminal: true,
-    });
-  });
-
-  /**
-   * ⛔ Bất biến §C6, đây là ô quan trọng nhất của cả file.
-   *
-   * Cả phiên chỉ có MỘT WebSocket và MỘT xterm. Bấm sang "Terminal 2" là gửi
-   * `\x02 2` vào chính cái PTY đang mở, nên nội dung window 2 hiện ra TRONG cái
-   * xterm đang có. Nếu vùng terminal bị ẩn khi tab hoạt là `terminal-2` thì ta
-   * vừa ẩn đúng thứ người dùng vừa yêu cầu hiện.
-   */
-  it('tab Terminal 2 vẫn hiện ĐÚNG cái vùng terminal đang chứa xterm', () => {
-    expect(computeRegionVisibility({ ...base, activeTab: 'terminal-2', split: false })).toEqual({
-      editor: false,
-      terminal: true,
-    });
-  });
-
-  it('tách ⇒ cả hai vùng cùng hiện, bất kể tab nào đang hoạt', () => {
-    for (const activeTab of ['editor', 'terminal-1', 'terminal-2'] as const) {
-      expect(computeRegionVisibility({ ...base, activeTab, split: true })).toEqual({
-        editor: true,
-        terminal: true,
-      });
-    }
-  });
-
-  it('split:true từ localStorage của bài IDE KHÔNG có tác dụng ở bài không có editor', () => {
-    expect(
-      computeRegionVisibility({
-        hasEditor: false,
-        hasTerminal: true,
-        activeTab: 'terminal-1',
-        split: true,
-      }),
-    ).toEqual({ editor: false, terminal: true });
-  });
-
-  it('activeTab trỏ vào tab đã biến mất ⇒ vẫn có một vùng hiện, không phải khoang trắng', () => {
-    // Nhịp giữa "cha gọi onCloseTerminal" và "cha đổi activeTab".
-    const v = computeRegionVisibility({
-      hasEditor: true,
-      hasTerminal: false,
-      activeTab: 'terminal-2',
-      split: false,
-    });
-    expect(v.editor || v.terminal).toBe(true);
+  it('không có editor ⇒ đúng một mục', () => {
+    // §Y4: panel dùng độ dài này để quyết định có vẽ `role="tablist"` không —
+    // một tablist một mục là nhiễu thị giác chứ không phải chức năng.
+    expect(listWorkspaceTabs(false)).toEqual(['terminal']);
   });
 });
 
 describe('resolveActiveTab', () => {
-  const tabs: readonly WorkspaceTabId[] = ['editor', 'terminal-1'];
-
   it('giữ nguyên tab có thật', () => {
-    expect(resolveActiveTab('terminal-1', tabs)).toBe('terminal-1');
+    expect(resolveActiveTab('editor', true)).toBe('editor');
+    expect(resolveActiveTab('terminal', true)).toBe('terminal');
   });
 
-  it('kẹp về tab đầu khi tab yêu cầu không tồn tại', () => {
-    expect(resolveActiveTab('terminal-2', tabs)).toBe('editor');
+  it('kẹp `editor` về `terminal` ở bài không có editor', () => {
+    // Ca thật: một `activeTab: 'editor'` đọc lại từ localStorage của bài IDE
+    // trước đó. Không kẹp thì hàng 1 rỗng chiếm chỗ bên trên terminal.
+    expect(resolveActiveTab('editor', false)).toBe('terminal');
+  });
+});
+
+describe('isEditorVisible — biến DUY NHẤT mà chuyển tab đổi', () => {
+  it('chỉ hiện ở tab Editor của bài có editor', () => {
+    expect(isEditorVisible('editor', true)).toBe(true);
+    expect(isEditorVisible('terminal', true)).toBe(false);
+    expect(isEditorVisible('editor', false)).toBe(false);
+    expect(isEditorVisible('terminal', false)).toBe(false);
   });
 
-  it('null khi không còn tab nào', () => {
-    expect(resolveActiveTab('editor', [])).toBeNull();
+  /*
+    ⚠ Nửa "âm" của bất biến §Y1 KHÔNG được gác ở file này, và đó là có chủ ý:
+    ở đây không có hàm nào trả lời "terminal có hiện không" vì câu trả lời là
+    LUÔN LUÔN CÓ. Ô gác thật nằm ở `workspace-panel.test.tsx` ("hàng terminal
+    KHÔNG BAO GIỜ mang `hidden`"), nơi có markup thật để khẳng định. Một ô ở đây
+    chỉ có thể khẳng định về chính danh sách export của mình — tức một phép kiểm
+    tự-đúng, xanh kể cả khi panel ẩn terminal.
+  */
+});
+
+describe('clampTerminalPercent', () => {
+  it('kẹp về [MIN, MAX] và làm tròn', () => {
+    expect(clampTerminalPercent(40.4)).toBe(40);
+    expect(clampTerminalPercent(0)).toBe(TERMINAL_PERCENT_MIN);
+    expect(clampTerminalPercent(-30)).toBe(TERMINAL_PERCENT_MIN);
+    expect(clampTerminalPercent(100)).toBe(TERMINAL_PERCENT_MAX);
+  });
+
+  it('NaN/Infinity ⇒ MẶC ĐỊNH, không lan ra ngoài', () => {
+    // `Math.min`/`Math.max` với NaN lan NaN, và `flexBasis: "NaN%"` là khai báo
+    // CSS không hợp lệ — trình duyệt bỏ qua trong im lặng và khoang trở về kích
+    // thước tự nhiên, không có gì báo. Ca thật: chia cho một `rect.height` = 0.
+    expect(clampTerminalPercent(Number.NaN)).toBe(TERMINAL_PERCENT_DEFAULT);
+    expect(clampTerminalPercent(Number.POSITIVE_INFINITY)).toBe(TERMINAL_PERCENT_DEFAULT);
+  });
+});
+
+describe('nextTerminalPercentOnKey — bàn phím trên thanh kéo', () => {
+  it('mũi tên LÊN làm terminal cao thêm, XUỐNG thì thấp đi', () => {
+    // Thanh kéo đi lên ⇒ phần dưới nó (terminal) rộng ra.
+    expect(nextTerminalPercentOnKey('ArrowUp', 40)).toBeGreaterThan(40);
+    expect(nextTerminalPercentOnKey('ArrowDown', 40)).toBeLessThan(40);
+  });
+
+  it('Home/End nhảy về hai đầu', () => {
+    expect(nextTerminalPercentOnKey('Home', 40)).toBe(TERMINAL_PERCENT_MIN);
+    expect(nextTerminalPercentOnKey('End', 40)).toBe(TERMINAL_PERCENT_MAX);
+  });
+
+  it('không vượt biên khi đã ở sát mép', () => {
+    expect(nextTerminalPercentOnKey('ArrowUp', TERMINAL_PERCENT_MAX)).toBe(TERMINAL_PERCENT_MAX);
+    expect(nextTerminalPercentOnKey('ArrowDown', TERMINAL_PERCENT_MIN)).toBe(TERMINAL_PERCENT_MIN);
+  });
+
+  it('null cho phím ngoài khuôn — call-site KHÔNG được preventDefault', () => {
+    // Nuốt mọi phím ở đây sẽ chặn cả `Tab` (đường thoát khỏi thanh kéo) lẫn
+    // phím tắt của trình duyệt.
+    expect(nextTerminalPercentOnKey('Tab', 40)).toBeNull();
+    expect(nextTerminalPercentOnKey('ArrowLeft', 40)).toBeNull();
+    expect(nextTerminalPercentOnKey('a', 40)).toBeNull();
+  });
+});
+
+describe('workspaceLayoutToken — dấu hiệu "phải fit() lại" (§Y1)', () => {
+  /**
+   * ⛔ Ô quan trọng nhất của file.
+   *
+   * `TerminalPane` gọi `handle.fit()` mỗi khi chuỗi này đổi. Nếu chuyển tab
+   * KHÔNG đổi chuỗi thì terminal giữ số cột/hàng của bố cục cũ sau khi khoang
+   * đã cao gấp đôi — dòng gãy cho tới lần resize sau, và không có gì báo.
+   */
+  it('chuyển tab ĐỔI chuỗi', () => {
+    const split = workspaceLayoutToken({ activeTab: 'editor', hasEditor: true, terminalPercent: 40 });
+    const full = workspaceLayoutToken({ activeTab: 'terminal', hasEditor: true, terminalPercent: 40 });
+    expect(split).not.toBe(full);
+  });
+
+  it('kéo thanh chia ĐỔI chuỗi', () => {
+    // §Y6: đổi chiều cao cũng là đổi kích thước, nên nó cũng phải kéo theo một
+    // lượt fit — không chỉ lúc chuyển tab.
+    const a = workspaceLayoutToken({ activeTab: 'editor', hasEditor: true, terminalPercent: 40 });
+    const b = workspaceLayoutToken({ activeTab: 'editor', hasEditor: true, terminalPercent: 70 });
+    expect(a).not.toBe(b);
+  });
+
+  it('cùng hình học ⇒ CÙNG chuỗi (không fit thừa)', () => {
+    const a = workspaceLayoutToken({ activeTab: 'editor', hasEditor: true, terminalPercent: 40 });
+    const b = workspaceLayoutToken({ activeTab: 'editor', hasEditor: true, terminalPercent: 40.2 });
+    expect(a).toBe(b);
+  });
+
+  it('ở tab Terminal, phần trăm KHÔNG vào chuỗi', () => {
+    // Terminal chiếm trọn khoang bất kể phần trăm đã lưu là bao nhiêu. Nhét nó
+    // vào sẽ đẻ ra một lượt fit thừa mỗi lần khôi phục giá trị từ storage.
+    const a = workspaceLayoutToken({ activeTab: 'terminal', hasEditor: true, terminalPercent: 20 });
+    const b = workspaceLayoutToken({ activeTab: 'terminal', hasEditor: true, terminalPercent: 80 });
+    expect(a).toBe(b);
+  });
+
+  it('bài không có editor luôn là "toàn khoang"', () => {
+    expect(workspaceLayoutToken({ activeTab: 'editor', hasEditor: false, terminalPercent: 40 })).toBe(
+      workspaceLayoutToken({ activeTab: 'terminal', hasEditor: false, terminalPercent: 40 }),
+    );
   });
 });
 
 describe('nextTabOnKey — khuôn tablist ngang của ARIA APG', () => {
-  const tabs: readonly WorkspaceTabId[] = ['editor', 'terminal-1', 'terminal-2'];
+  const tabs: readonly WorkspaceTabId[] = ['editor', 'terminal'];
 
   it('mũi tên phải đi tới, có VÒNG LẠI', () => {
-    expect(nextTabOnKey('ArrowRight', tabs, 'editor')).toBe('terminal-1');
-    expect(nextTabOnKey('ArrowRight', tabs, 'terminal-2')).toBe('editor');
+    expect(nextTabOnKey('ArrowRight', tabs, 'editor')).toBe('terminal');
+    expect(nextTabOnKey('ArrowRight', tabs, 'terminal')).toBe('editor');
   });
 
   it('mũi tên trái đi lui, có VÒNG LẠI', () => {
-    expect(nextTabOnKey('ArrowLeft', tabs, 'terminal-1')).toBe('editor');
-    expect(nextTabOnKey('ArrowLeft', tabs, 'editor')).toBe('terminal-2');
+    expect(nextTabOnKey('ArrowLeft', tabs, 'terminal')).toBe('editor');
+    expect(nextTabOnKey('ArrowLeft', tabs, 'editor')).toBe('terminal');
   });
 
   it('Home/End nhảy hai đầu', () => {
-    expect(nextTabOnKey('Home', tabs, 'terminal-2')).toBe('editor');
-    expect(nextTabOnKey('End', tabs, 'editor')).toBe('terminal-2');
+    expect(nextTabOnKey('Home', tabs, 'terminal')).toBe('editor');
+    expect(nextTabOnKey('End', tabs, 'editor')).toBe('terminal');
   });
 
   it('null cho phím ngoài khuôn — call-site KHÔNG được preventDefault', () => {
-    // Nuốt mọi phím ở đây sẽ chặn cả `Tab` (đường thoát khỏi thanh tab) lẫn
-    // phím tắt của trình duyệt.
     expect(nextTabOnKey('Tab', tabs, 'editor')).toBeNull();
     expect(nextTabOnKey('a', tabs, 'editor')).toBeNull();
     expect(nextTabOnKey('ArrowDown', tabs, 'editor')).toBeNull();
   });
 
   it('không ném khi activeTab không nằm trong danh sách', () => {
-    expect(nextTabOnKey('ArrowRight', ['terminal-1'], 'editor')).toBe('terminal-1');
+    expect(nextTabOnKey('ArrowRight', ['terminal'], 'editor')).toBe('terminal');
   });
 
   it('null khi không có tab nào', () => {
@@ -169,33 +192,7 @@ describe('nextTabOnKey — khuôn tablist ngang của ARIA APG', () => {
   });
 });
 
-describe('splitDisabledReason — nút tách phải nói vì sao nó chết', () => {
-  it('có editor + có terminal ⇒ bấm được', () => {
-    expect(splitDisabledReason(true, true)).toBeNull();
-  });
-
-  it('không có editor ⇒ vô hiệu, và lý do nói rõ đây là giới hạn của C6', () => {
-    const reason = splitDisabledReason(false, true);
-    expect(reason).not.toBeNull();
-    expect(reason).toContain('Editor');
-    // Câu chữ phải nói ra ràng buộc thật (một kết nối, dùng chung một cửa sổ),
-    // không chỉ "không khả dụng" — nếu không người dùng sẽ đi tìm cách bật nó.
-    expect(reason).toContain('một kết nối');
-  });
-
-  it('có editor nhưng chưa có terminal ⇒ vô hiệu với lý do khác', () => {
-    expect(splitDisabledReason(true, false)).toContain('terminal');
-  });
-});
-
 describe('workspaceStorageKey — bố cục ide và bố cục thường KHÔNG dùng chung khoá', () => {
-  /**
-   * Bài học đã có sẵn trong repo ở tỉ lệ `SplitPane` (xem chú thích quanh
-   * `dlp-lesson-split-ide` trong `app/lessons/[id]/lesson-client.tsx`). Ở tab
-   * còn khó thấy hơn: `activeTab: 'editor'` lưu từ bài IDE, đọc lại ở bài
-   * thường, là một tab không tồn tại — bị kẹp im lặng, nên triệu chứng là "lưu
-   * không có tác dụng" chứ không phải một lỗi ai đó đi tìm.
-   */
   it('cùng base sinh hai khoá khác nhau', () => {
     expect(workspaceStorageKey('dlp-lesson-ws', true)).not.toBe(
       workspaceStorageKey('dlp-lesson-ws', false),
@@ -209,12 +206,16 @@ describe('workspaceStorageKey — bố cục ide và bố cục thường KHÔNG
 
   it('trạng thái lưu ở bố cục ide KHÔNG đọc được từ bố cục thường', () => {
     const storage = fakeStorage();
-    writeWorkspaceState(workspaceStorageKey('lesson', true), { activeTab: 'editor', split: true }, storage);
+    writeWorkspaceState(
+      workspaceStorageKey('lesson', true),
+      { activeTab: 'editor', terminalPercent: 70 },
+      storage,
+    );
 
     expect(readWorkspaceState(workspaceStorageKey('lesson', false), storage)).toBeNull();
     expect(readWorkspaceState(workspaceStorageKey('lesson', true), storage)).toEqual({
       activeTab: 'editor',
-      split: true,
+      terminalPercent: 70,
     });
   });
 });
@@ -222,8 +223,19 @@ describe('workspaceStorageKey — bố cục ide và bố cục thường KHÔNG
 describe('parseWorkspaceState — giá trị rác không được làm sập bố cục', () => {
   it('đọc lại đúng thứ đã ghi', () => {
     const storage = fakeStorage();
-    writeWorkspaceState('k', { activeTab: 'terminal-2', split: false }, storage);
-    expect(readWorkspaceState('k', storage)).toEqual({ activeTab: 'terminal-2', split: false });
+    writeWorkspaceState('k', { activeTab: 'terminal', terminalPercent: 55 }, storage);
+    expect(readWorkspaceState('k', storage)).toEqual({ activeTab: 'terminal', terminalPercent: 55 });
+  });
+
+  /**
+   * ⚠ Bản ghi của mô hình CŨ phải trả `null`, không được đọc "một nửa".
+   *
+   * `terminal-1` không còn là tab hợp lệ, và `split` không còn là chiều cao. Im
+   * lặng chấp nhận một trong hai sẽ mở bài ở một trạng thái không ai chọn.
+   */
+  it('bản ghi mô hình cũ (terminal-1 / split) ⇒ null, người dùng nhận mặc định', () => {
+    expect(parseWorkspaceState('{"activeTab":"terminal-1","split":false}')).toBeNull();
+    expect(parseWorkspaceState('{"activeTab":"editor","split":true}')).toBeNull();
   });
 
   it('null cho JSON hỏng, hình dạng sai, hoặc tab lạ', () => {
@@ -231,9 +243,18 @@ describe('parseWorkspaceState — giá trị rác không được làm sập b�
     expect(parseWorkspaceState('{')).toBeNull();
     expect(parseWorkspaceState('"chuỗi"')).toBeNull();
     expect(parseWorkspaceState('null')).toBeNull();
-    expect(parseWorkspaceState('{"activeTab":"terminal-9","split":true}')).toBeNull();
+    expect(parseWorkspaceState('{"activeTab":"terminal-9","terminalPercent":40}')).toBeNull();
     expect(parseWorkspaceState('{"activeTab":"editor"}')).toBeNull();
-    expect(parseWorkspaceState('{"activeTab":"editor","split":"true"}')).toBeNull();
+    expect(parseWorkspaceState('{"activeTab":"editor","terminalPercent":"40"}')).toBeNull();
+  });
+
+  it('phần trăm ngoài biên bị KẸP lúc đọc, không bị vứt', () => {
+    // Khác với một trường sai KIỂU: 999 vẫn là một con số người dùng từng kéo
+    // tới (hoặc một bản ghi từ máy có biên khác), nên kẹp còn hơn trả mặc định.
+    expect(parseWorkspaceState('{"activeTab":"editor","terminalPercent":999}')).toEqual({
+      activeTab: 'editor',
+      terminalPercent: TERMINAL_PERCENT_MAX,
+    });
   });
 
   it('storage ném (chế độ riêng tư) ⇒ trả null / không ném ra ngoài', () => {
@@ -247,14 +268,14 @@ describe('parseWorkspaceState — giá trị rác không được làm sập b�
     };
     expect(readWorkspaceState('k', throwing)).toBeNull();
     expect(() => {
-      writeWorkspaceState('k', { activeTab: 'editor', split: false }, throwing);
+      writeWorkspaceState('k', { activeTab: 'editor', terminalPercent: 40 }, throwing);
     }).not.toThrow();
   });
 
   it('storage null (SSR) ⇒ không đọc, không ghi, không ném', () => {
     expect(readWorkspaceState('k', null)).toBeNull();
     expect(() => {
-      writeWorkspaceState('k', { activeTab: 'editor', split: false }, null);
+      writeWorkspaceState('k', { activeTab: 'editor', terminalPercent: 40 }, null);
     }).not.toThrow();
   });
 });

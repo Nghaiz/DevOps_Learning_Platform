@@ -17,18 +17,16 @@
  * | ```` ```…```{{copy}} ```` | khối nhiều dòng, bấm để copy |
  * | ```` ```…```{{exec}} ```` | khối nhiều dòng, bấm để chạy |
  *
- * MỞ RỘNG CỦA TA (hợp đồng §C1, không có trong Killercoda gốc) — chọn TERMINAL
- * đích khi bài dùng nhiều tab:
+ * Đó là TOÀN BỘ tập hợp lệ. Bản trước có thêm một mở rộng chọn terminal đích
+ * (`{{exec T1}}` / `{{exec T2}}`, hợp đồng §C1); sửa đổi 2 của hợp đồng (§Y2)
+ * rút xuống MỘT terminal duy nhất hiện ở cả hai tab, nên không còn quyết định
+ * định tuyến nào để mã hoá vào cú pháp.
  *
- * | Viết | action | target |
- * |---|---|---|
- * | `` `cmd`{{exec T1}} ``           | `exec`           | `terminal-1` |
- * | `` `cmd`{{exec T2}} ``           | `exec`           | `terminal-2` |
- * | `` `cmd`{{exec T2 interrupt}} `` | `exec-interrupt` | `terminal-2` |
- *
- * Thứ tự token CỐ ĐỊNH: `exec` → `T<n>` (tuỳ chọn) → `interrupt` (tuỳ chọn).
- * Cố định để `{{exec interrupt T2}}` bị TỪ CHỐI thay vì được đoán bừa: hai cách
- * viết cho cùng một nghĩa là hai cách viết sẽ lệch nhau ở lần mở rộng sau.
+ * ⛔ `{{exec T2}}` vì vậy NÉM như mọi token lạ — KHÔNG được lặng lẽ bỏ phần
+ * `T2` rồi chạy như `{{exec}}`. Một bài viết `{{exec T2}}` đang mong đợi hai
+ * terminal; nhận nó rồi chạy ở terminal duy nhất là đúng cú pháp và sai ý định
+ * người soạn, mà sai kiểu đó thì không có gì đỏ ở bất cứ đâu — người học chỉ
+ * thấy hai lệnh lẽ ra phải chạy song song lại chen nhau trong một shell.
  *
  * ⚠ `{{TRAFFIC_HOST1_80}}` / `{{TRAFFIC_SELECTOR}}` dùng CÙNG cặp ngoặc nhưng
  * KHÔNG phải hành động — chúng là biến thay thế trong văn xuôi. Thứ phân biệt
@@ -40,10 +38,6 @@
 export const CODE_ACTIONS = ['none', 'copy', 'exec', 'exec-interrupt'] as const;
 export type CodeAction = (typeof CODE_ACTIONS)[number];
 
-/** Tab terminal đích. Hợp đồng §C1 — khớp `WorkspaceTabId` của §C5. */
-export const EXEC_TARGETS = ['terminal-1', 'terminal-2'] as const;
-export type ExecTarget = (typeof EXEC_TARGETS)[number];
-
 export type ContentBlock =
   | { kind: 'markdown'; markdown: string }
   | {
@@ -54,15 +48,6 @@ export type ContentBlock =
       action: CodeAction;
       /** `true` khi nguồn là code span một dấu backtick, `false` khi là fence. */
       inline: boolean;
-      /**
-       * `null` = "terminal đang hoạt" — mặc định, và là giá trị của MỌI nội dung
-       * viết trước §C1. Chỉ khác `null` khi bài khai `T1`/`T2` tường minh.
-       *
-       * ⚠ `null` KHÔNG phải "terminal-1". Bài không khai gì thì lệnh phải chạy ở
-       * tab người học đang nhìn; ép về tab 1 sẽ gửi lệnh vào một terminal khuất
-       * màn hình và người học thấy nút bấm "không có tác dụng".
-       */
-      target: ExecTarget | null;
     };
 
 export class ContentBlockError extends Error {
@@ -72,63 +57,34 @@ export class ContentBlockError extends Error {
   }
 }
 
-/**
- * Token `T<n>` → `ExecTarget`, SUY từ `EXEC_TARGETS` chứ không phải một bảng
- * chép tay thứ hai: thêm `terminal-3` vào hằng số trên là có ngay `{{exec T3}}`,
- * và không có cách nào để hai danh sách lệch nhau.
- */
-const TARGET_BY_TOKEN: ReadonlyMap<string, ExecTarget> = new Map(
-  EXEC_TARGETS.map((target) => [`T${target.slice('terminal-'.length)}`, target] as const),
-);
-
 /** Hình dạng hợp lệ, liệt kê trong thông báo lỗi — một nguồn, không chép tay. */
-const VALID_SUFFIXES = ['{{}}', '{{copy}}', '{{exec}}', '{{exec interrupt}}']
-  .concat([...TARGET_BY_TOKEN.keys()].flatMap((t) => [`{{exec ${t}}}`, `{{exec ${t} interrupt}}`]))
-  .join(', ');
+const VALID_SUFFIXES = ['{{}}', '{{copy}}', '{{exec}}', '{{exec interrupt}}'].join(', ');
 
 /**
- * Nội dung bên trong `{{…}}` → hành động + terminal đích.
+ * Nội dung bên trong `{{…}}` → hành động.
  *
  * Verb lạ ⇒ NÉM. Cân nhắc đã có: bỏ qua nó thì hậu tố hiện nguyên văn
  * `{{open}}` giữa bài học, còn coi nó như `copy` thì nút làm sai việc. Ta kiểm
  * soát nội dung nào được vendor về, nên chặt ở đây là chi phí một lần lúc nhập,
  * đổi lấy việc không bao giờ có nút sai chức năng trước mặt người học.
  *
- * ⚠ Cùng lý do đó, `{{copy T1}}` cũng NÉM: `copy` chép vào clipboard, nó không
- * có terminal nào để nhắm. Nhận nó rồi lờ đi phần `T1` là hứa một điều không
- * xảy ra.
+ * ⚠ Phép so `tokens.length` là thứ từ chối mọi token THỪA — `{{exec T2}}`,
+ * `{{exec interrupt T2}}`, `{{exec foo}}`. Không có nhánh nào "tiêu thụ được
+ * bao nhiêu thì tiêu thụ", vì đúng nhánh đó là chỗ một hậu tố cũ sẽ lọt qua.
  */
-function parseActionSuffix(rawVerb: string): { action: CodeAction; target: ExecTarget | null } {
+function parseActionSuffix(rawVerb: string): CodeAction {
   const verb = rawVerb.trim().replace(/\s+/g, ' ');
   if (verb === '') {
-    return { action: 'none', target: null };
+    return 'none';
   }
   if (verb === 'copy') {
-    return { action: 'copy', target: null };
+    return 'copy';
   }
-
-  const tokens = verb.split(' ');
-  if (tokens[0] === 'exec') {
-    let cursor = 1;
-    let target: ExecTarget | null = null;
-
-    const mapped = TARGET_BY_TOKEN.get(tokens[cursor] ?? '');
-    if (mapped !== undefined) {
-      target = mapped;
-      cursor += 1;
-    }
-
-    let action: CodeAction = 'exec';
-    if (tokens[cursor] === 'interrupt') {
-      action = 'exec-interrupt';
-      cursor += 1;
-    }
-
-    // Chỉ nhận khi đã tiêu thụ HẾT token. Vế này là thứ từ chối
-    // `{{exec interrupt T2}}` (đúng token, sai thứ tự) và `{{exec T2 foo}}`.
-    if (cursor === tokens.length) {
-      return { action, target };
-    }
+  if (verb === 'exec') {
+    return 'exec';
+  }
+  if (verb === 'exec interrupt') {
+    return 'exec-interrupt';
   }
 
   throw new ContentBlockError(
@@ -246,14 +202,12 @@ export function parseContentBlocks(markdown: string): ContentBlock[] {
 
     flushProse();
     const language = open[2] === undefined || open[2] === '' ? null : open[2];
-    const suffix = parseActionSuffix(verb);
     blocks.push({
       kind: 'code',
       code: lines.slice(i + 1, close).join('\n'),
       language,
-      action: suffix.action,
+      action: parseActionSuffix(verb),
       inline: false,
-      target: suffix.target,
     });
     i = close;
   }
@@ -273,14 +227,12 @@ function pushProse(blocks: ContentBlock[], text: string): void {
     if (before.trim() !== '') {
       blocks.push({ kind: 'markdown', markdown: before });
     }
-    const suffix = parseActionSuffix(match[2] ?? '');
     blocks.push({
       kind: 'code',
       code: match[1] ?? '',
       language: null,
-      action: suffix.action,
+      action: parseActionSuffix(match[2] ?? ''),
       inline: true,
-      target: suffix.target,
     });
     cursor = match.index + match[0].length;
   }
@@ -291,15 +243,7 @@ function pushProse(blocks: ContentBlock[], text: string): void {
   }
 }
 
-/**
- * Mọi lệnh người học bấm chạy được trong một markdown — dùng cho smoke/audit.
- *
- * ⚠ Cố ý KHÔNG trả `target`: câu hỏi mà hàm này trả lời là *"những lệnh nào sẽ
- * chạy trong sandbox"*, và một lệnh chạy ở tab 1 hay tab 2 vẫn là cùng một lệnh
- * chạy trong cùng một pod. Thêm `target` vào đây sẽ đổi chữ ký của một hàm audit
- * để mang thông tin không ai audit — còn chỗ CẦN `target` là `onExec` (§C2), nơi
- * nó đã có sẵn trên chính `ContentBlock`.
- */
+/** Mọi lệnh người học bấm chạy được trong một markdown — dùng cho smoke/audit. */
 export function executableCommands(markdown: string): string[] {
   return parseContentBlocks(markdown)
     .filter(

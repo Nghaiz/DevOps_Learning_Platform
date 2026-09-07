@@ -19,39 +19,28 @@ export { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
 export { WorkspaceSplit } from './workspace-split.tsx';
 export type { WorkspaceSplitProps } from './workspace-split.tsx';
 
-// C5 — khoang phải kiểu KillerCoda: tab ở trên, mỗi lúc một tab chiếm trọn.
-// Thay cho `SplitPane` LỒNG mà bố cục `ide` từng dùng (màn chia ba, editor còn
-// ~1/3 bề rộng). ⛔ Bất biến của nó: mọi tab giữ MOUNTED, ẩn bằng `hidden` —
-// đọc chú thích đầu `workspace-panel.tsx` trước khi sửa.
+// §Y1/§Y4 — khoang phải kiểu KillerCoda: MỘT terminal, hiện ở CẢ HAI tab (neo
+// đáy ~40% ở tab Editor, toàn khoang ở tab Terminal). ⛔ Bất biến của nó:
+// terminal KHÔNG đổi cha và KHÔNG BAO GIỜ bị ẩn — đọc chú thích đầu
+// `workspace-panel.tsx` trước khi sửa.
 export { WorkspacePanel } from './workspace-panel.tsx';
 export type { WorkspacePanelProps } from './workspace-panel.tsx';
 export {
   EDITOR_TAB,
-  TERMINAL_TAB_ORDER,
+  TERMINAL_TAB,
   WORKSPACE_TAB_LABEL,
-  isClosableTab,
-  isTerminalTab,
   listWorkspaceTabs,
   workspaceStorageKey,
 } from './workspace-tabs';
-export type { TerminalTabId, WorkspaceTabId } from './workspace-tabs';
+export type { WorkspaceTabId } from './workspace-tabs';
 
-// C6 — chuỗi điều khiển tmux. Người tiêu thụ gọi qua
-// `session.terminal?.sendInput(tmuxSelectForTab(tab) ?? '')`; ⛔ đừng rải `\x02`.
+// Kênh "hình học khoang terminal vừa đổi" + hệ quả `fit()` của nó (§C3/§Y1).
+// `TerminalPane` đã tự dùng — trang tiêu thụ KHÔNG cần gọi gì thêm.
 export {
-  TMUX_WINDOW_BY_TAB,
-  tmuxNewWindowAt,
-  tmuxSelectForTab,
-  tmuxSelectWindow,
-} from './tmux-control';
-
-// Kênh "vùng của bạn đang hiện hay ẩn" + hệ quả `fit()` của nó (C3).
-// `TerminalPane` đã tự dùng — Lane F KHÔNG cần gọi gì thêm.
-export {
-  WorkspaceRegionVisibleProvider,
-  useFitOnReveal,
-  useWorkspaceRegionVisible,
-} from './workspace-visibility.tsx';
+  WorkspaceLayoutProvider,
+  useFitOnLayoutChange,
+  useWorkspaceLayout,
+} from './workspace-layout.tsx';
 
 // Khung khoang + trạng thái phiên dùng chung cho màn hình học. Bốn trình học
 // vẽ cùng một thanh nhãn và cùng một viên trạng thái, nên chúng sống ở đây

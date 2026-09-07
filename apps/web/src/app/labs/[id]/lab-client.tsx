@@ -37,11 +37,7 @@ import {
   WorkspaceSplit,
   useResolvedTerminalTheme,
 } from '../../../components/session';
-import {
-  buildTerminalTabs,
-  useWorkspaceTabs,
-  type WorkspaceExecOptions,
-} from '../../../components/session/use-workspace-tabs';
+import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { useLabSession } from './use-lab-session';
@@ -196,12 +192,13 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   });
 
   /*
-    C2 — `onExec(command, { interrupt, target })` thay hẳn `(command, interrupt)`.
-    Định tuyến (chuyển tab TRƯỚC khi gõ, tạo window khi tab đích chưa có, giữ
-    `\x03` là một sự kiện bàn phím riêng) nằm trong `useWorkspaceTabs` — cùng
-    một bản với trang bài học, để `{{exec T2}}` không chạy khác nhau ở hai chỗ.
+    §Y3 — `onExec(command, interrupt)`, HAI tham số. `ExecOptions`/`ExecTarget`
+    bị gỡ cùng terminal thứ hai; exec KHÔNG chuyển tab nữa vì terminal hiện ở cả
+    hai tab. Việc giữ `\x03` là một sự kiện bàn phím riêng nằm trong
+    `useWorkspaceTabs` — cùng một bản với trang bài học, để `{{exec}}` không
+    chạy khác nhau ở hai chỗ.
   */
-  const onExec = tabs.execTo;
+  const onExec = tabs.exec;
 
   if (labQuery.isPending) {
     return <LabSkeleton />;
@@ -455,19 +452,17 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
               /*
                 Không truyền `editor`: lab chưa có khoang IDE nào (xem chú thích
                 ở `useWorkspaceTabs` phía trên). Vắng prop = panel không vẽ tab
-                Editor, đúng luật C5.
+                Editor, và vì khi đó chỉ còn MỘT mục thì nó bỏ luôn thanh
+                tablist — một tablist một mục là nhiễu thị giác chứ không phải
+                chức năng (§Y4). Nút mở-ra-cửa-sổ-riêng vẫn còn trên thanh.
 
-                Cũng không truyền `onCloseTerminal` — cùng hai lý do đã ghi ở
-                `lesson-client.tsx`: đóng `terminal-1` là mất WebSocket, và đóng
-                `terminal-2` ở client mà tmux vẫn giữ window 2 sẽ làm id tab
-                lệch số window ngay ở lần bấm '+' kế tiếp.
+                ⛔ MỘT node terminal, truyền THẲNG. `terminals` (Map),
+                `onAddTerminal`, `onCloseTerminal`, `split` đã biến mất cùng
+                terminal thứ hai (§Y4).
               */
-              terminals={buildTerminalTabs(tabs.openTerminals, terminalPane)}
+              terminal={terminalPane}
               activeTab={tabs.activeTab}
               onActivate={tabs.onActivate}
-              {...(tabs.onAddTerminal === null ? {} : { onAddTerminal: tabs.onAddTerminal })}
-              split={tabs.split}
-              onToggleSplit={tabs.onToggleSplit}
               popOutUrl={tabs.popOutUrl}
               storageKey="dlp-lab-workspace"
             />
@@ -563,8 +558,15 @@ function TaskDetail({
   canCheck: boolean;
   disabledReason: string | null;
   onCheck: () => void;
-  /* C2 — chữ ký mới. Giữ chữ ký cũ ở đây sẽ là đúng cái call-site lọt qua im lặng. */
-  onExec: (command: string, options: WorkspaceExecOptions) => void;
+  /*
+    §Y3 — chữ ký HAI tham số, khớp `ContentViewProps['onExec']`.
+
+    ⚠ Phải sửa ở CẢ HAI chỗ: `useCallback` phía trên VÀ kiểu prop này. Lượt
+    trước chỉ sửa một chỗ và nửa còn lại lọt qua im lặng, vì `TaskDetail` chỉ
+    chuyển tiếp hàm xuống `ContentView` — không call-site nào trong file gọi nó
+    với đủ tham số để TypeScript có chỗ mà kêu.
+  */
+  onExec: (command: string, interrupt: boolean) => void;
   execEnabled: boolean;
 }): React.ReactElement {
   return (

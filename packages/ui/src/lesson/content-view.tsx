@@ -1,13 +1,6 @@
 import type { ContentBlock } from '@devops-platform/scenario/content-blocks';
-import { CodeBlock, type ExecOptions } from './code-block.tsx';
+import { CodeBlock } from './code-block.tsx';
 import { MarkdownView } from './markdown-view.tsx';
-
-/**
- * Định nghĩa ở `code-block.tsx` (nơi gọi `onExec`), tái xuất ở đây vì
- * `ContentViewProps` mới là bề mặt công khai — nơi tiêu thụ đọc hai kiểu này
- * cùng một chỗ. Đây là TÁI XUẤT, không phải bản định nghĩa thứ hai.
- */
-export type { ExecOptions } from './code-block.tsx';
 
 export interface ContentViewProps {
   readonly blocks: readonly ContentBlock[];
@@ -19,10 +12,10 @@ export interface ContentViewProps {
   /**
    * Bấm nút chạy trên code block. `undefined` = ẩn hẳn nút chạy.
    *
-   * `options.interrupt` = gửi Ctrl+C trước; `options.target` = terminal đích
-   * bài học khai tường minh (`{{exec T2}}`), `null` = terminal đang hoạt.
+   * `interrupt` = gửi Ctrl+C trước. Chỉ hai tham số: sửa đổi 2 của hợp đồng
+   * (§Y3) rút xuống MỘT terminal, nên không còn đích nào để mang theo.
    */
-  readonly onExec?: (command: string, options: ExecOptions) => void;
+  readonly onExec?: (command: string, interrupt: boolean) => void;
   /** `false` = nút chạy vẫn hiện nhưng bị disable (terminal chưa sẵn sàng). Mặc định `true`. */
   readonly execEnabled?: boolean;
 }
@@ -56,7 +49,6 @@ export function ContentView({ blocks, resolveAssetUrl, onExec, execEnabled }: Co
             language={block.language}
             action={block.action}
             inline={block.inline}
-            target={block.target}
             onExec={onExec}
             execEnabled={execEnabled}
           />

@@ -15,7 +15,7 @@ import type { SandboxSession } from '../../lib/use-sandbox-session';
 import { PaneHeader } from './pane-header';
 import { SessionStatusPill } from './session-status';
 import { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
-import { useFitOnReveal, useWorkspaceRegionVisible } from './workspace-visibility';
+import { useFitOnLayoutChange, useWorkspaceLayout } from './workspace-layout';
 
 /**
  * Khung chờ trong lúc bundle xterm được nạp động.
@@ -81,20 +81,25 @@ export function TerminalPane({ session, theme, placeholder }: TerminalPaneProps)
   const resolvedTheme = theme ?? followedTheme;
 
   /**
-   * C3/C5 — fit lại khi khoang chứa chuyển từ ẩn sang hiện.
+   * §C3/§Y1 — fit lại khi HÌNH HỌC của khoang chứa đổi.
    *
-   * Khoang này có thể nằm trong một tab của `WorkspacePanel`, và tab không hoạt
-   * bị ẩn bằng `hidden` (KHÔNG unmount — unmount là đóng WebSocket). Trên phần
-   * tử `display:none`, xterm đo được 0×0: không gọi lại `fit()` thì terminal
-   * hiện ra với số cột sai và dòng bị gãy cho tới lần resize sau.
+   * Khoang này có thể nằm ở hàng 2 của `WorkspacePanel`, nơi terminal LUÔN hiện
+   * nhưng đổi chiều cao: ~40% neo đáy ở tab Editor, toàn khoang ở tab Terminal,
+   * cộng thanh kéo của §Y6. Không gọi lại `fit()` thì xterm giữ số cột/hàng của
+   * bố cục cũ và dòng bị gãy cho tới lần resize sau.
    *
-   * Ngoài panel (nhánh hẹp của `WorkspaceSplit`, trang lab, trang playground)
-   * context mặc định là "đang hiện", nên hook này không đổi gì ở đó.
+   * ⚠ Đây KHÔNG còn là chuyện ẩn/hiện. Bản trước nghe một cờ boolean "vùng đang
+   * hiện"; ở mô hình mới cờ đó đứng yên `true` mãi mãi, nên effect sẽ không bao
+   * giờ chạy lại — một đường dây trông vẫn còn nguyên mà không dẫn điện. Chuỗi
+   * `layout` đổi đúng vào hai lúc kích thước thật sự đổi.
+   *
+   * Ngoài panel (nhánh hẹp của `WorkspaceSplit`, hoặc một trang dựng thẳng nó)
+   * giá trị mặc định là một hằng, nên hook này chỉ chạy một lần lúc mount.
    *
    * ⚠ Cả hai hook gọi VÔ ĐIỀU KIỆN, trước mọi nhánh `return` bên dưới.
    */
-  const regionVisible = useWorkspaceRegionVisible();
-  useFitOnReveal(session.terminal, regionVisible);
+  const layout = useWorkspaceLayout();
+  useFitOnLayoutChange(session.terminal, layout);
 
   /**
    * 13.B mục 8 — dưới `TERMINAL_MIN_WIDTH_PX` thì KHÔNG mở terminal.

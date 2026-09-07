@@ -72,7 +72,7 @@ export { Separator, Kbd } from './separator.tsx';
 // nhận dữ liệu và callback qua props. Phần có dây nối (gọi API, gõ vào PTY) nằm
 // ở `apps/web/src/app/lessons/**` và KHÔNG được kéo xuống đây.
 export { ContentView } from './lesson/content-view.tsx';
-export type { ContentViewProps, ExecOptions } from './lesson/content-view.tsx';
+export type { ContentViewProps } from './lesson/content-view.tsx';
 export { SCROLL_REGION_FOCUS } from './lesson/scroll-region.ts';
 export { SplitPane } from './lesson/split-pane.tsx';
 export type { SplitPaneProps } from './lesson/split-pane.tsx';
