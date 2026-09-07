@@ -5,9 +5,18 @@ import { describe, expect, it } from 'vitest';
 /**
  * C6bis — vỏ ứng dụng dựng ĐÚNG MỘT `<main>`, không trang nào dựng cái thứ hai.
  *
- * Mức test: STATIC. `apps/web` chạy vitest ở `environment: 'node'` (không jsdom,
- * không RTL), nên không render nổi cây component để đếm landmark. Thay vào đó
- * quét mã nguồn — cùng cách `security/rule-08-no-token-in-url.test.ts` làm.
+ * Mức test: STATIC — quét mã nguồn, cùng cách `security/rule-08-no-token-in-url.test.ts`
+ * làm.
+ *
+ * ⚠ Lý do đã ĐỔI, kết luận thì không. Trước 2026-09-08 lý do là "`apps/web`
+ * không có jsdom/RTL nên không render nổi cây component"; nay jsdom + RTL đã có
+ * và bật được per-file bằng docblock `@vitest-environment` (xem
+ * `vitest.config.ts`). Nhưng phép kiểm này VẪN phải static, vì mệnh đề nó gác
+ * là "KHÔNG route nào trong repo dựng cái `<main>` thứ hai" — một mệnh đề về
+ * TOÀN BỘ cây mã, không phải về một component. Render từng route để đếm thì
+ * phải dựng được mọi provider, mọi query, mọi lớp server của từng trang; và một
+ * route mới quên thêm vào danh sách render sẽ lọt qua trong im lặng — đúng lỗ
+ * hổng mà bản static không có.
  *
  * Vì sao cần một phép kiểm chứ không chỉ một lệnh grep trong report: đây là một
  * va chạm ĐÃ xảy ra một lần (lane B và lane C đọc hiện trạng ở hai thời điểm

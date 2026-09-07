@@ -7,17 +7,25 @@ import { WorkspacePanel, type WorkspacePanelProps } from './workspace-panel';
  *
  * ## Mức test và giới hạn của nó, nói thẳng
  *
- * `apps/web` chạy vitest ở `environment: 'node'`: không jsdom, không RTL (xem
- * chú thích đầu `landmark-contract.test.ts`). Nên đây là `renderToStaticMarkup`
- * — render THẬT của React, đủ để khẳng định về cây DOM sinh ra (ai có mặt, ai
- * mang `hidden`, style nào ở đâu, aria nào trỏ đi đâu), KHÔNG đủ để bấm chuột,
- * kéo thanh chia, hay chạy effect.
+ * `apps/web` chạy vitest ở `environment: 'node'` cho MẶC ĐỊNH (xem lý lẽ ở
+ * `vitest.config.ts`). Nên đây là `renderToStaticMarkup` — render THẬT của
+ * React, đủ để khẳng định về cây DOM sinh ra (ai có mặt, ai mang `hidden`,
+ * style nào ở đâu, aria nào trỏ đi đâu), KHÔNG đủ để bấm chuột, kéo thanh chia,
+ * hay chạy effect.
  *
- * Phần hành vi tương ứng nằm ở hai file khác và ĐƯỢC phủ ở đó:
+ * Phần hành vi tương ứng nằm ở ba file khác và ĐƯỢC phủ ở đó:
  * `workspace-tabs.test.ts` (quyết định: hàng 1 hiện không, phím đi đâu, chuỗi
- * hình học đổi lúc nào, lưu khoá nào) và `workspace-layout.test.ts` (thân effect
- * gọi `fit()`). Thứ không file nào phủ được là dây nối giữa chúng với DOM sự
- * kiện — cần jsdom + RTL trong `apps/web`, đã ghi vào report.
+ * hình học đổi lúc nào, lưu khoá nào), `workspace-layout.test.ts` (thân effect
+ * gọi `fit()`), và — từ 2026-09-08 — `workspace-panel.dom.test.tsx`, chạy trên
+ * jsdom + RTL qua một docblock `@vitest-environment` per-file: nó phủ DÂY NỐI
+ * với DOM sự kiện (bấm/gõ → gọi đúng hàm đúng tham số → DOM đổi thật) mà file
+ * này không với tới được.
+ *
+ * ⚠ Hai file KHÔNG trùng nhau, và file này KHÔNG bị thay thế. `renderToStaticMarkup`
+ * kiểm markup SSR — đúng thứ trình duyệt nhận ở lượt tải đầu, trước hydrate —
+ * còn file DOM kiểm lượt render THỨ HAI trở đi. Chỉ file này nói được "chuỗi
+ * `hidden=""` có thật trong markup gửi đi"; chỉ file kia nói được "React giữ
+ * nguyên node terminal qua một lượt reconcile".
  */
 
 const EDITOR_MARK = 'MARKER_EDITOR';

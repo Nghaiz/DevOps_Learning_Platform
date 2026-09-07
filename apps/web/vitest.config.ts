@@ -47,6 +47,37 @@ export default defineConfig({
      * lại cho tới khi xanh, và lúc đó một ô đỏ THẬT cũng bị chạy lại y hệt.
      */
     testTimeout: 15_000,
+
+    /**
+     * ⛔ KHÔNG đặt `environment: 'jsdom'` ở đây. Gói này KHÔNG phải một gói UI
+     * thuần: phần lớn test của nó là test TÍCH HỢP chạy trên Postgres/Node thật
+     * (`server/**` authz, `repository-page-sql`, `proxy.test.ts`…). Đổi env toàn
+     * cục là đổi nền dưới chân chúng — jsdom thay `fetch`/`Request`/`Response`,
+     * dựng một `window` không ai cần, và làm mỗi file test phải trả giá dựng
+     * một DOM (đo 2026-09-08: ~5s riêng cho pha `environment` ở một lượt chạy
+     * chỉ có 2 file jsdom).
+     *
+     * File nào CẦN DOM thì tự khai ở dòng 1 của chính nó:
+     *
+     *     // @vitest-environment jsdom
+     *
+     * Đã kiểm bằng ĐỐI CHỨNG ÂM trong cùng một lượt chạy (không suy từ tài
+     * liệu): file có docblock thấy `document`, file không có docblock vẫn thấy
+     * `typeof document === 'undefined'`. Docblock ăn, và nó KHÔNG rò sang file
+     * bên cạnh. Xem `components/session/workspace-panel.dom.test.tsx`.
+     *
+     * ⚠ `environmentMatchGlobs` — khuôn mà mọi ví dụ vitest 1/2 trên mạng dạy —
+     * KHÔNG còn tồn tại ở vitest 4. Đo 2026-09-08 trên `vitest@4.1.11` đã cài:
+     * grep toàn bộ package ra ĐÚNG 0 kết quả, kể cả trong `.d.ts`. Đặt nó vào
+     * đây thì TypeScript báo lỗi thừa key, còn nếu lọt qua thì nó im lặng không
+     * làm gì — tức mọi test DOM chạy ở env `node` và đỏ với `document is not
+     * defined`, một thông báo không hề nhắc tới cấu hình. Hai đường còn sống là
+     * docblock (đang dùng) và `test.projects`.
+     *
+     * Chọn docblock vì nó không bắt tái cấu trúc cả file cấu hình này — và vì
+     * `projects` sẽ nhân đôi chỗ khai `include`/`testTimeout`/`esbuild` ở trên,
+     * mỗi chỗ là một chỗ để trôi.
+     */
   },
 
   /**
