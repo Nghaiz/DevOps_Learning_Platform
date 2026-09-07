@@ -57,6 +57,20 @@ test.describe('luồng 5 — soạn bài', { tag: '@flow' }, () => {
     // đường soạn-kiểm-xuất-bản, không đo khả năng viết đề của harness. Một
     // script phức tạp sẽ làm lượt chạy thử trượt vì lý do không liên quan gì
     // tới thứ đang được kiểm.
+    // ⚠ `difficulty` BẮT BUỘC khi xuất bản, và bản nháp mới ra đời với ô đó
+    // TRỐNG. Hai schema khác nhau: `toDraftInput` (tạo nháp) chỉ đòi
+    // title + backendImageId, còn schema XUẤT BẢN đòi thêm độ khó. Ghi chú ở
+    // bước 2 nói về schema thứ nhất và đã bị đọc nhầm thành "không còn ô bắt
+    // buộc nào nữa".
+    //
+    // Bỏ bước này thì lượt kiểm tra đỏ với
+    //     difficulty — Invalid option: expected one of "beginner"|"intermediate"|"advanced"
+    // và nút "Xuất bản" bị khoá, nên luồng dừng ở giữa — đo được 2026-09-07.
+    // Đây KHÔNG phải lỗi sản phẩm: một bản nháp mới chưa đủ điều kiện xuất bản
+    // là đúng định nghĩa của bản nháp.
+    await page.getByLabel('Độ khó').click();
+    await page.getByRole('option', { name: 'Cơ bản' }).click();
+
     await page.getByRole('button', { name: /^Thêm bước$/ }).click();
 
     // ⚠ Thẻ bước là một `Card`, và chữ "Bước 1" nằm trong một `<h3>` — KHÔNG

@@ -93,7 +93,40 @@ export async function signInThroughForm(
 
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Mật khẩu').fill(password);
+
+  // ⚠ ĐỌC MÃ TRẠNG THÁI CỦA CHÍNH LƯỢT ĐĂNG NHẬP, đừng chỉ chờ điều hướng.
+  //
+  // Better Auth chặn đăng nhập ở **3 lượt/phút theo IP** (đo 2026-09-07:
+  // 200,200,200,429,429,429 trên sáu lượt liên tiếp). Harness tiêu HAI lượt cho
+  // mỗi mẻ — `global-setup` đăng nhập bằng API, rồi luồng này đăng nhập lại qua
+  // form — nên một lượt chạy chia mẻ dày sẽ tự đá vào chân mình.
+  //
+  // Khi ấy `waitForURL('**/me')` chết bằng một timeout 60s chỉ nói
+  // "navigated to /login", và không có gì trên trang để đọc ra nguyên nhân:
+  // form nhận `authError` nhưng lượt đo tiếp theo lại thấy trang sạch. Hai lượt
+  // 09-07 đỏ đúng như vậy và đọc ra như "nút Đăng nhập hỏng" — trong khi đăng
+  // nhập bằng chính bộ thông tin đó, làm tay, đi thẳng vào `/me`.
+  //
+  // Bắt response ngay tại nguồn thì 429 nói ra tên của nó.
+  const signIn = page.waitForResponse(
+    (res) => res.url().includes('/api/auth/sign-in/email') && res.request().method() === 'POST',
+    { timeout: 30_000 },
+  );
   await submit.click();
+  const res = await signIn;
+
+  if (res.status() === 429) {
+    throw new Error(
+      'Đăng nhập qua form trả 429 — RATE LIMIT của Better Auth (3 lượt/phút theo IP), ' +
+        'KHÔNG phải form hỏng. Harness tiêu 2 lượt mỗi mẻ (global-setup dùng API, luồng ' +
+        'này dùng form). Giãn nhịp thưa hơn: `paced-run.sh flows --batch 1 --sleep 120`.',
+    );
+  }
+  if (!res.ok()) {
+    throw new Error(
+      `Đăng nhập qua form trả HTTP ${String(res.status())}: ${(await res.text()).slice(0, 200)}`,
+    );
+  }
 
   // `login-form.tsx` đẩy sang `/me` sau khi Better Auth trả phiên. Chờ ĐÍCH,
   // không chờ một khoảng thời gian: cụm rảnh và cụm bận cho hai con số khác
