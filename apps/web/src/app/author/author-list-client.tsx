@@ -14,6 +14,7 @@ import {
   ErrorState,
   Skeleton,
   Tabs,
+  TabsContent,
   TabsList,
   TabsTrigger,
 } from '@devops-platform/ui';
@@ -115,22 +116,45 @@ export function AuthorListClient() {
                 </TabsTrigger>
               ))}
             </TabsList>
-          </Tabs>
+            {/*
+              ⚠ DANH SÁCH PHẢI NẰM TRONG `TabsContent`, không phải ngoài `Tabs`.
 
-          {shown.length === 0 ? (
-            <EmptyState
-              title={`Không có bài nào ở trạng thái "${filterLabel(filter)}"`}
-              description="Đổi bộ lọc phía trên để xem các bài khác."
-            />
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {shown.map((item) => (
-                <li key={item.id}>
-                  <ItemCard item={item} now={now} />
-                </li>
-              ))}
-            </ul>
-          )}
+              Radix đặt `aria-controls={contentId}` lên MỌI `TabsTrigger`, kể cả
+              khi panel tương ứng chưa mount. axe miễn trừ một `aria-controls`
+              treo khi trigger mang `aria-selected="false"` — nên các tab KHÔNG
+              active không bao giờ bị bắt, và một trang dùng `Tabs` đúng cách chỉ
+              cần panel của tab đang chọn có thật.
+
+              Bản trước đóng `</Tabs>` ngay sau `TabsList` rồi render danh sách
+              BÊN NGOÀI, tức không có một panel nào. Trigger ĐANG active vì thế
+              trỏ vào hư không, và axe báo mức **critical**:
+
+                [critical] aria-valid-attr-value — #radix-_r_0_-trigger-all
+
+              (đo trên cụm 2026-09-07, `/author`; các trang `Tabs` khác — `/me`,
+              `/labs/:id` — xanh đúng vì chúng CÓ khai `TabsContent`.)
+
+              Bọc bằng đúng MỘT `TabsContent` mang `value={filter}`: nó luôn khớp
+              tab đang chọn nên luôn mount, và giao diện không đổi một pixel —
+              `Tabs` không tự vẽ gì quanh panel.
+            */}
+            <TabsContent value={filter}>
+              {shown.length === 0 ? (
+                <EmptyState
+                  title={`Không có bài nào ở trạng thái "${filterLabel(filter)}"`}
+                  description="Đổi bộ lọc phía trên để xem các bài khác."
+                />
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {shown.map((item) => (
+                    <li key={item.id}>
+                      <ItemCard item={item} now={now} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </div>
