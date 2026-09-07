@@ -332,9 +332,47 @@ hai là image ~1.1 GB, tức mỗi lần bump `image.tag` phải side-load thêm
 lên node. Bật khi có bài lab thật cần PowerShell, không bật "cho đủ".
 
 **Còn nợ, có chủ ý:** `/mnt/dotfiles` **chưa có ai mount**. `podspec.go` đặt
-`Volumes: nil` và CEL #8 cấm `hostPath`, và P1 cũng chưa có tính năng nào cấp
-nội dung dotfiles. Nhánh E8 vì thế được kiểm ở **tầng image** (`docker run -v`),
-chưa từng chạy qua đường người dùng thật. Đừng đọc AC dotfiles mạnh hơn thế.
+`Volumes: nil`, và P1 chưa có tính năng nào cấp nội dung dotfiles. Nhánh E8 vì thế
+được kiểm ở **tầng image** (`docker run -v`), chưa từng chạy qua đường người
+dùng thật. Đừng đọc AC dotfiles mạnh hơn thế.
+
+⛔ **KHÔNG phải CEL #8 chặn.** Câu trước ở đây viết "CEL #8 cấm `hostPath`" cạnh
+"chưa ai mount" nên bị đọc thành "policy cấm mount". Đọc nguyên văn biểu thức
+(`infra/helm/platform/templates/sandbox-admissionpolicy.yaml`):
+
+```
+!has(object.spec.volumes) || object.spec.volumes.all(v, !has(v.hostPath))
+```
+
+Nó cấm ĐÚNG MỘT kiểu volume. `configMap`, `secret`, `emptyDir`, `projected`,
+`persistentVolumeClaim` đều qua được. **Không có ngoại lệ an ninh nào cần xin.**
+
+### Thứ thật sự chặn: warm pool
+
+Pod được tạo **trước khi biết ai sẽ claim nó** — đó là toàn bộ điểm của warm
+pool, và là thứ giữ claim dưới 1s. `BuildSandboxPod` vì vậy không có `userId` để
+đặt tên một ConfigMap/Secret riêng cho người dùng. Ba hệ quả, tất cả đều cứng:
+
+1. **Mount theo người dùng ⇒ phải tạo pod lúc claim** (cold path cho mọi ai có
+   dotfiles). Đo được: cold path là 3.7–3.9s so với AC 1s. Đánh đổi sai.
+2. **Một ConfigMap TÊN CỐ ĐỊNH dùng chung cho mọi pod** thì mount được ngay hôm
+   nay, nhưng nội dung là chung ⇒ dotfiles của A đi vào pod của B. **Không bàn
+   tiếp.**
+3. **Đẩy nội dung sau khi claim, qua `pods/exec`** — đúng kênh mà
+   `dlp-session-deadline` dùng. Không cần volume, không chạm CEL, sống chung được
+   với warm pool. **Đây là đường đúng.**
+
+Khoảng cách còn lại của đường (3): vòng chép dotfiles nằm trong `entrypoint.sh`,
+tức chạy ở **PID 1 lúc pod khởi động** — trước claim, nên lúc đó
+`/mnt/dotfiles` còn rỗng và nó chép 0 file. Muốn đi đường (3) thì phải tách vòng
+chép đó ra một lệnh gọi lại được (ví dụ `bin/dlp-dotfiles-load`), rồi gọi nó sau
+khi đẩy nội dung. `DLP_DOTFILES_SRC` đã là env nên thư mục nguồn không cần cố định.
+
+⚠ **Chưa làm, có chủ ý.** Không có tính năng nào đang **sản xuất** nội dung
+dotfiles: không bảng, không màn hình, không API. Dựng sẵn đường mount bây giờ là
+thêm một volume vào MỌI pod spec (và làm đổ `TestPodSpecProfileNilByteIdenticalToDefault`)
+để chở một thư mục luôn rỗng. Việc cần làm trước là chọn nơi người dùng NHẬP
+dotfiles, không phải ống dẫn.
 
 Nhưng nó **đã được kiểm với cả hai kiểu volume sẽ gặp**: thư mục thật (emptyDir,
 bind mount) và layout atomic-writer của kubelet (ConfigMap / Secret / projected)
