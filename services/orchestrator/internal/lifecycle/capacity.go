@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"context"
+	"math"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -42,12 +43,15 @@ func (s *Service) GetCapacity(
 		return nil, status.Errorf(codes.Unavailable, "đọc %s: %v", rediskeys.PoolQuarantine, err)
 	}
 
+	// clampInt32 chứ không phải `int32(…)` thẳng — xem lý do dưới hàm đó: cả
+	// LLEN lẫn CAPACITY_HARD_LIMIT đều KHÔNG bị chặn trên, và một lần cắt vòng
+	// im lặng ở đây phát ra số ÂM cho FE.
 	return &orchestratorv1.GetCapacityResponse{
-		ActiveSessions: int32(claimed),
-		SoftCapacity:   int32(s.softCapacity()),
-		PoolFree:       int32(free),
-		PoolQuarantine: int32(quarantine),
-		HardCapacity:   int32(s.cfg.CapacityHardLimit),
+		ActiveSessions: clampInt32(claimed),
+		SoftCapacity:   clampInt32(int64(s.softCapacity())),
+		PoolFree:       clampInt32(free),
+		PoolQuarantine: clampInt32(quarantine),
+		HardCapacity:   clampInt32(int64(s.cfg.CapacityHardLimit)),
 	}, nil
 }
 
@@ -71,4 +75,38 @@ func (s *Service) softCapacity() int {
 		return 0
 	}
 	return soft
+}
+
+// clampInt32 kẹp một số đếm sức chứa về `[0, math.MaxInt32]` TRƯỚC khi hạ
+// xuống int32 mà proto khai (session.proto: cả năm field đều `int32`).
+//
+// ⛔ ĐÂY KHÔNG PHẢI MỘT DÒNG DỖ LINTER. `int32(v)` thẳng CẮT VÒNG trong im
+// lặng, và không nguồn nào trong hai nguồn số của GetCapacity bị chặn trên:
+//
+//   - CAPACITY_HARD_LIMIT đọc bằng `strconv.Atoi` rồi chỉ kiểm `> 0` và
+//     `> POOL_TARGET` (config.Load) — KHÔNG có trần. `int` trên linux/amd64 là
+//     64-bit, nên `CAPACITY_HARD_LIMIT=3000000000` (thừa một chữ số trong Helm
+//     values) qua sạch mọi cổng khởi động rồi tới FE thành −1294967296.
+//   - LLEN trả `int64`; một list Redis chứa tới 2^32−1 phần tử, vượt int32.
+//
+// Vì vậy KHÔNG dùng `#nosec` được ở đây: `#nosec` là lời khẳng định "miền giá
+// trị không thể tràn", mà hai gạch đầu dòng trên nói ngược lại.
+//
+// Kẹp thay vì trả lỗi, và kẹp cả đầu dưới về 0: GetCapacity là đường FE hỏi
+// "còn mấy chỗ". Số bị kẹp vẫn là câu trả lời dùng được và vô lý một cách LỘ
+// LIỄU nên dễ truy ngược; số âm thì `max(0, soft − active)` phía FE nuốt gọn
+// thành một con số trông hoàn toàn bình thường. Cùng đúng một lý lẽ với
+// `max(…, 0)` trong softCapacity ở trên.
+//
+// Nhận int64 (không phải generic) vì đó là kiểu RỘNG NHẤT trong hai nguồn:
+// `int64(x)` từ một `int` là phép nới, không bao giờ đổi giá trị trên bất kỳ
+// nền nào Go hỗ trợ.
+func clampInt32(v int64) int32 {
+	if v < 0 {
+		return 0
+	}
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int32(v)
 }

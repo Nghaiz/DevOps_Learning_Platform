@@ -1,8 +1,10 @@
 package config_test
 
 import (
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -126,6 +128,50 @@ func TestCapacityHardLimitPhaiDuong(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCapacityHardLimitCoTranTren — trường gửi cho FE là int32.
+//
+// `int` trên linux/amd64 là 64-bit, nên một giá trị vượt MaxInt32 TRÀN khi ép
+// kiểu và đi ra ngoài dưới dạng SỐ ÂM. Đo được 2026-09-07 bằng cách tạm gỡ clamp
+// ở một call-site của `lifecycle`: `Hard/Soft = -1294967296/2147483647`. FE nuốt
+// gọn số âm đó qua `max(0, soft − active)` và hiện một con số trông bình thường,
+// nên KHÔNG có ai ở phía sau bắt được.
+//
+// Trước bản vá, đường vào chỉ có `> 0` và `> POOL_TARGET` — thừa một chữ số
+// trong Helm values đi qua sạch cả hai.
+//
+// Ô này gác BIÊN, không gác một con số đẹp: `MaxInt32` phải ĐƯỢC NHẬN (nó vẫn
+// biểu diễn được), `MaxInt32+1` phải bị TỪ CHỐI. Chỉ kiểm vế từ chối thì một bản
+// vá lỡ tay dùng `>=` vẫn xanh, và nó sẽ từ chối một cấu hình hợp lệ.
+func TestCapacityHardLimitCoTranTren(t *testing.T) {
+	t.Run("vượt trần thì từ chối", func(t *testing.T) {
+		clearEnv(t)
+		t.Setenv("POOL_TARGET", "2")
+		t.Setenv("CAPACITY_HARD_LIMIT", strconv.Itoa(math.MaxInt32)+"0")
+
+		_, err := config.Load()
+		if err == nil {
+			t.Fatal("Load() chấp nhận CAPACITY_HARD_LIMIT vượt MaxInt32")
+		}
+		if !strings.Contains(err.Error(), "CAPACITY_HARD_LIMIT") {
+			t.Fatalf("thông báo lỗi không nêu tên biến: %v", err)
+		}
+	})
+
+	t.Run("đúng MaxInt32 thì NHẬN", func(t *testing.T) {
+		clearEnv(t)
+		t.Setenv("POOL_TARGET", "2")
+		t.Setenv("CAPACITY_HARD_LIMIT", strconv.Itoa(math.MaxInt32))
+
+		cfg, err := config.Load()
+		if err != nil {
+			t.Fatalf("Load() từ chối MaxInt32, giá trị này biểu diễn được: %v", err)
+		}
+		if cfg.CapacityHardLimit != math.MaxInt32 {
+			t.Fatalf("CapacityHardLimit = %d, muốn %d", cfg.CapacityHardLimit, math.MaxInt32)
+		}
+	})
 }
 
 // TestCapacityHardLimitPhaiLonHonPoolTarget — RÀNG BUỘC LIÊN BIẾN.

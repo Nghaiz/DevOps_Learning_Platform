@@ -288,7 +288,13 @@ func TestIDEForwardsOtherCookiesToPod(t *testing.T) {
 	h := newHarness(t, sessions, 8)
 
 	res := h.get(t, testSession, "", func(r *http.Request) {
-		r.AddCookie(&http.Cookie{Name: "theia-connection-token", Value: "tok-123"})
+		// G124 (Secure/HttpOnly/SameSite) là DƯƠNG TÍNH GIẢ ở phía REQUEST:
+		// `Request.AddCookie` chỉ ghép `Name=Value` vào header `Cookie:` —
+		// đọc net/http/request.go, ba thuộc tính kia không được chạm tới. Đặt
+		// chúng ở đây là cấu hình CHẾT, và tệ hơn là làm người đọc sau tưởng
+		// test có gửi chúng đi thật. Chúng chỉ có nghĩa ở phía RESPONSE
+		// (`http.SetCookie`), nơi ideroute đặt cookie phiên thật.
+		r.AddCookie(&http.Cookie{Name: "theia-connection-token", Value: "tok-123"}) //nolint:gosec // xem trên: thuộc tính cookie không tồn tại ở chiều request
 	})
 	if res.Status != http.StatusOK {
 		t.Fatalf("status %d, muốn 200", res.Status)

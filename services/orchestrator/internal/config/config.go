@@ -4,6 +4,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -332,6 +333,24 @@ func Load() (*Config, error) {
 	}
 	if capacityHardLimit <= 0 {
 		return nil, fmt.Errorf("env CAPACITY_HARD_LIMIT: phải > 0 (nhận %d)", capacityHardLimit)
+	}
+	// TRẦN TRÊN, và nó không phải phòng xa: `int` trên linux/amd64 là 64-bit còn
+	// trường protobuf `HardCapacity` là int32, nên một giá trị vượt MaxInt32 TRÀN
+	// khi ép kiểu và đi ra ngoài dưới dạng SỐ ÂM. Đo được 2026-09-07 bằng cách tạm
+	// gỡ clamp ở một call-site: `Hard/Soft = -1294967296/2147483647`. FE nuốt gọn
+	// số âm đó qua `max(0, soft − active)` và hiện một con số trông bình thường.
+	//
+	// `lifecycle.clampInt32` đã chặn ở BIÊN PHÁT, nên đây không phải bản vá trùng:
+	// clamp giữ đúng kiểu dữ liệu, còn dòng này TỪ CHỐI một cấu hình vô nghĩa ngay
+	// lúc khởi động thay vì im lặng chạy tiếp với một con số không phải thứ người
+	// vận hành gõ vào. Thừa một chữ số trong Helm values trước đây đi qua sạch mọi
+	// cổng: chỉ có `> 0` và `> POOL_TARGET`, không có gì chặn phía trên.
+	if capacityHardLimit > math.MaxInt32 {
+		return nil, fmt.Errorf(
+			"env CAPACITY_HARD_LIMIT (%d) vượt trần %d: trường sức chứa gửi cho FE là int32, "+
+				"nên giá trị này TRÀN thành số âm và FE hiện một con số không phải thứ bạn "+
+				"cấu hình. Con số thực tế nên ở hàng chục tới hàng nghìn phiên",
+			capacityHardLimit, math.MaxInt32)
 	}
 	// ⛔ RÀNG BUỘC LIÊN BIẾN, KIỂM LÚC KHỞI ĐỘNG chứ không lúc đọc: trần mềm =
 	// hard − POOL_TARGET, nên hard <= POOL_TARGET cho ra trần mềm <= 0, tức FE
