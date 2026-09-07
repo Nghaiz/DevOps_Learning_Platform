@@ -1,0 +1,357 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "csp.spec.ts",
+      "--grep",
+      "đối chứng dương|nonce|csp / |csp /login"
+    ],
+    "configFile": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\playwright.config.ts",
+    "rootDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\global-setup.ts",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e/.artifacts/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "csp.spec.ts",
+      "file": "csp.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "đối chứng dương — máy thu CSP phải biết kêu",
+          "file": "csp.spec.ts",
+          "line": 107,
+          "column": 6,
+          "specs": [
+            {
+              "title": "script-src: script inline chèn vào HTML THẬT bị chặn",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4464,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:06:58.915Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "csp-positive-control.json",
+                          "contentType": "application/json",
+                          "body": "WwogIHsKICAgICJzb3VyY2UiOiAiZG9tIiwKICAgICJkaXJlY3RpdmUiOiAic2NyaXB0LXNyYy1lbGVtIiwKICAgICJkZXRhaWwiOiAiaW5saW5lIgogIH0sCiAgewogICAgInNvdXJjZSI6ICJjb25zb2xlIiwKICAgICJkaXJlY3RpdmUiOiAidW5rbm93biIsCiAgICAiZGV0YWlsIjogIkV4ZWN1dGluZyBpbmxpbmUgc2NyaXB0IHZpb2xhdGVzIHRoZSBmb2xsb3dpbmcgQ29udGVudCBTZWN1cml0eSBQb2xpY3kgZGlyZWN0aXZlICdzY3JpcHQtc3JjICdzZWxmJyAnbm9uY2UtWldSak1qWXhOMll0Wm1VMVlTMDBOVFZqTFRoa05UQXRPRGxrWlRReE56VTNPR0UxJyAnc3RyaWN0LWR5bmFtaWMnJy4gRWl0aGVyIHRoZSAndW5zYWZlLWlubGluZScga2V5d29yZCwgYSBoYXNoICgnc2hhMjU2LXRsNGU1MWQvYnJuNEZDRnFSL0FpMDZsRHlXU3U5dXZrMDZBU2RZSkQ5NFU9JyksIG9yIGEgbm9uY2UgKCdub25jZS0uLi4nKSIKICB9LAogIHsKICAgICJzb3VyY2UiOiAiY2RwLWxvZyIsCiAgICAiZGlyZWN0aXZlIjogInVua25vd24iLAogICAgImRldGFpbCI6ICJFeGVjdXRpbmcgaW5saW5lIHNjcmlwdCB2aW9sYXRlcyB0aGUgZm9sbG93aW5nIENvbnRlbnQgU2VjdXJpdHkgUG9saWN5IGRpcmVjdGl2ZSAnc2NyaXB0LXNyYyAnc2VsZicgJ25vbmNlLVpXUmpNall4TjJZdFptVTFZUzAwTlRWakxUaGtOVEF0T0Rsa1pUUXhOelUzT0dFMScgJ3N0cmljdC1keW5hbWljJycuIEVpdGhlciB0aGUgJ3Vuc2FmZS1pbmxpbmUnIGtleXdvcmQsIGEgaGFzaCAoJ3NoYTI1Ni10bDRlNTFkL2JybjRGQ0ZxUi9BaTA2bER5V1N1OXV2azA2QVNkWUpEOTRVPScpLCBvciBhIG5vbmNlICgnbm9uY2UtLi4uJykiCiAgfQpd"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-4e7adcf80f6a0390a541",
+              "file": "csp.spec.ts",
+              "line": 133,
+              "column": 3
+            },
+            {
+              "title": "img-src: ảnh origin khác bị chặn",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3430,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:07:03.521Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-4cbe3321b435bf124d8b",
+              "file": "csp.spec.ts",
+              "line": 173,
+              "column": 3
+            },
+            {
+              "title": "iframe origin KHÁC bị chặn (D8: frame-src)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3923,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:07:06.966Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-4a8c2cf6cca654d0836e",
+              "file": "csp.spec.ts",
+              "line": 201,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "nonce",
+          "file": "csp.spec.ts",
+          "line": 227,
+          "column": 6,
+          "specs": [
+            {
+              "title": "script khởi tạo theme mang ĐÚNG nonce của header CSP",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1014,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:07:10.904Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-cc0239d54d6699393fea",
+              "file": "csp.spec.ts",
+              "line": 230,
+              "column": 3
+            },
+            {
+              "title": "CSP khai frame-src tường minh (D8)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 959,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:07:11.933Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-c2853107a42e01edfe7b",
+              "file": "csp.spec.ts",
+              "line": 269,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "0 vi phạm CSP trên màn hình chốt",
+          "file": "csp.spec.ts",
+          "line": 282,
+          "column": 6,
+          "specs": [
+            {
+              "title": "csp / [anon]",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2103,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:07:12.907Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-af9f8fd05821f445f1c4",
+              "file": "csp.spec.ts",
+              "line": 284,
+              "column": 5
+            },
+            {
+              "title": "csp /login [anon]",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1754,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:07:15.027Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-1d34e57fe618e9cdb558",
+              "file": "csp.spec.ts",
+              "line": 284,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-06T16:06:57.519Z",
+    "duration": 19428.134000000002,
+    "expected": 7,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

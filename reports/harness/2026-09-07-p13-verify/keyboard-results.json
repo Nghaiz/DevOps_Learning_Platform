@@ -1,0 +1,1362 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "keyboard.spec.ts"
+    ],
+    "configFile": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\playwright.config.ts",
+    "rootDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\global-setup.ts",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e/.artifacts/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "keyboard.spec.ts",
+      "file": "keyboard.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "danh sách màn hình bàn phím không bị rút ngắn",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 9,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-07T03:57:42.844Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "866d5cea7c69e902a1e2-05606a1fbe8ec3eb3789",
+          "file": "keyboard.spec.ts",
+          "line": 184,
+          "column": 1
+        }
+      ],
+      "suites": [
+        {
+          "title": "bàn phím — thứ tự và dấu focus",
+          "file": "keyboard.spec.ts",
+          "line": 191,
+          "column": 6,
+          "specs": [
+            {
+              "title": "không có tabindex dương trên /login",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7793,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:57:42.897Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-57c548e5719d2943889d",
+              "file": "keyboard.spec.ts",
+              "line": 193,
+              "column": 5
+            },
+            {
+              "title": "mọi điểm dừng Tab trên /login có dấu focus nhìn thấy được",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6282,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:57:52.781Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-df9ea96a9ce361042b17",
+              "file": "keyboard.spec.ts",
+              "line": 211,
+              "column": 5
+            },
+            {
+              "title": "không có bẫy bàn phím trên /login",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4707,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:57:59.094Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-889b47a5081cdf99bc3f",
+              "file": "keyboard.spec.ts",
+              "line": 268,
+              "column": 5
+            },
+            {
+              "title": "không có tabindex dương trên /lessons",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 10064,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:58:03.829Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-f1957c6c16b6c1692651",
+              "file": "keyboard.spec.ts",
+              "line": 193,
+              "column": 5
+            },
+            {
+              "title": "mọi điểm dừng Tab trên /lessons có dấu focus nhìn thấy được",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 19419,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:58:13.921Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-0df8cfa3668a603e9364",
+              "file": "keyboard.spec.ts",
+              "line": 211,
+              "column": 5
+            },
+            {
+              "title": "không có bẫy bàn phím trên /lessons",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 10947,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:58:33.365Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-8dc7b4488ae9ef240e1b",
+              "file": "keyboard.spec.ts",
+              "line": 268,
+              "column": 5
+            },
+            {
+              "title": "không có tabindex dương trên /me",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12449,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:58:44.336Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-a6c135e7363aed64d0ea",
+              "file": "keyboard.spec.ts",
+              "line": 193,
+              "column": 5
+            },
+            {
+              "title": "mọi điểm dừng Tab trên /me có dấu focus nhìn thấy được",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 9499,
+                      "error": {
+                        "message": "Error: 1 điểm dừng Tab trên /me KHÔNG đổi gì trên màn hình khi nhận focus — người dùng bàn phím không biết mình đang ở đâu. (đo mẫu 18 điểm đầu; 0 điểm không đo được: không có)\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[32m- Array []\u001b[39m\n\u001b[31m+ Array [\u001b[39m\n\u001b[31m+   \"div «Chưa có bài học nàoMở một bài học và tiến độ của bạn sẽ hiện» (html>body:1>div:1>main:2>div:0>section:3>div:1>div:1)\",\u001b[39m\n\u001b[31m+ ]\u001b[39m",
+                        "stack": "Error: 1 điểm dừng Tab trên /me KHÔNG đổi gì trên màn hình khi nhận focus — người dùng bàn phím không biết mình đang ở đâu. (đo mẫu 18 điểm đầu; 0 điểm không đo được: không có)\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[32m- Array []\u001b[39m\n\u001b[31m+ Array [\u001b[39m\n\u001b[31m+   \"div «Chưa có bài học nàoMở một bài học và tiến độ của bạn sẽ hiện» (html>body:1>div:1>main:2>div:0>section:3>div:1>div:1)\",\u001b[39m\n\u001b[31m+ ]\u001b[39m\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:265:9",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts",
+                          "column": 9,
+                          "line": 265
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 263 |\u001b[39m           \u001b[32m`(đo mẫu ${MAX_TAB_STOPS_CHECKED} điểm đầu; ${unmeasurable.length} điểm không đo được: `\u001b[39m \u001b[33m+\u001b[39m\n \u001b[90m 264 |\u001b[39m           \u001b[32m`${unmeasurable.join(', ') || 'không có'})`\u001b[39m\u001b[33m,\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 265 |\u001b[39m       )\u001b[33m.\u001b[39mtoEqual([])\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m         \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 266 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 267 |\u001b[39m\n \u001b[90m 268 |\u001b[39m     test(\u001b[32m`không có bẫy bàn phím trên ${screen.path}`\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts",
+                            "column": 9,
+                            "line": 265
+                          },
+                          "message": "Error: 1 điểm dừng Tab trên /me KHÔNG đổi gì trên màn hình khi nhận focus — người dùng bàn phím không biết mình đang ở đâu. (đo mẫu 18 điểm đầu; 0 điểm không đo được: không có)\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // deep equality\u001b[22m\n\n\u001b[32m- Expected  - 1\u001b[39m\n\u001b[31m+ Received  + 3\u001b[39m\n\n\u001b[32m- Array []\u001b[39m\n\u001b[31m+ Array [\u001b[39m\n\u001b[31m+   \"div «Chưa có bài học nàoMở một bài học và tiến độ của bạn sẽ hiện» (html>body:1>div:1>main:2>div:0>section:3>div:1>div:1)\",\u001b[39m\n\u001b[31m+ ]\u001b[39m\n\n  263 |           `(đo mẫu ${MAX_TAB_STOPS_CHECKED} điểm đầu; ${unmeasurable.length} điểm không đo được: ` +\n  264 |           `${unmeasurable.join(', ') || 'không có'})`,\n> 265 |       ).toEqual([]);\n      |         ^\n  266 |     });\n  267 |\n  268 |     test(`không có bẫy bàn phím trên ${screen.path}`, async ({ page }) => {\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:265:9"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:58:56.806Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-thứ-tự-d3960-có-dấu-focus-nhìn-thấy-được-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-thứ-tự-d3960-có-dấu-focus-nhìn-thấy-được-chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-thứ-tự-d3960-có-dấu-focus-nhìn-thấy-được-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts",
+                        "column": 9,
+                        "line": 265
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-d274e839c6695313b13a",
+              "file": "keyboard.spec.ts",
+              "line": 211,
+              "column": 5
+            },
+            {
+              "title": "không có bẫy bàn phím trên /me",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6248,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:59:08.141Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-696fb3351995b3efb1d9",
+              "file": "keyboard.spec.ts",
+              "line": 268,
+              "column": 5
+            },
+            {
+              "title": "không có tabindex dương trên /settings",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8120,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:59:14.619Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-61ba1d81579cac60552b",
+              "file": "keyboard.spec.ts",
+              "line": 193,
+              "column": 5
+            },
+            {
+              "title": "mọi điểm dừng Tab trên /settings có dấu focus nhìn thấy được",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9350,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:59:22.757Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-b185209a24c768487458",
+              "file": "keyboard.spec.ts",
+              "line": 211,
+              "column": 5
+            },
+            {
+              "title": "không có bẫy bàn phím trên /settings",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5915,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:59:32.119Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-b798ca74c026ec41021e",
+              "file": "keyboard.spec.ts",
+              "line": 268,
+              "column": 5
+            },
+            {
+              "title": "đối chứng dương — tắt hết dấu focus thì phép kiểm PHẢI báo \"identical\"",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3792,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:59:38.051Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-375fe96e38f76402473e",
+              "file": "keyboard.spec.ts",
+              "line": 304,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "bàn phím — đi hết luồng chính",
+          "file": "keyboard.spec.ts",
+          "line": 336,
+          "column": 6,
+          "specs": [
+            {
+              "title": "liên kết \"Bỏ qua điều hướng\" là điểm dừng Tab đầu tiên và Enter đưa focus vào <main>",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5152,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:59:41.855Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-463f8934fdd1144bdd42",
+              "file": "keyboard.spec.ts",
+              "line": 337,
+              "column": 3
+            },
+            {
+              "title": "điều hướng tới /lessons chỉ bằng bàn phím",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5851,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:59:47.021Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-f8512baadf601c2a165d",
+              "file": "keyboard.spec.ts",
+              "line": 384,
+              "column": 5
+            },
+            {
+              "title": "điều hướng tới /labs chỉ bằng bàn phím",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 351,
+                      "error": {
+                        "message": "Error: /me → HTTP 429",
+                        "stack": "Error: /me → HTTP 429\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:385:7",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                          "column": 11,
+                          "line": 52
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures\\nav.ts:52\n\n\u001b[0m \u001b[90m 50 |\u001b[39m   }\n \u001b[90m 51 |\u001b[39m   \u001b[36mif\u001b[39m (res\u001b[33m.\u001b[39mstatus() \u001b[33m>=\u001b[39m \u001b[35m400\u001b[39m) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 52 |\u001b[39m     \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m`${path} → HTTP ${res.status()}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 53 |\u001b[39m   }\n \u001b[90m 54 |\u001b[39m\n \u001b[90m 55 |\u001b[39m   \u001b[36mconst\u001b[39m landed \u001b[33m=\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mURL\u001b[39m(page\u001b[33m.\u001b[39murl())\u001b[33m.\u001b[39mpathname\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                            "column": 11,
+                            "line": 52
+                          },
+                          "message": "Error: /me → HTTP 429\n\n   at fixtures\\nav.ts:52\n\n  50 |   }\n  51 |   if (res.status() >= 400) {\n> 52 |     throw new Error(`${path} → HTTP ${res.status()}`);\n     |           ^\n  53 |   }\n  54 |\n  55 |   const landed = new URL(page.url()).pathname;\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:385:7"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:59:52.894Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-72cfc--tới-labs-chỉ-bằng-bàn-phím-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-72cfc--tới-labs-chỉ-bằng-bàn-phím-chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-72cfc--tới-labs-chỉ-bằng-bàn-phím-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                        "column": 11,
+                        "line": 52
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-532549561b3dd0f57a65",
+              "file": "keyboard.spec.ts",
+              "line": 384,
+              "column": 5
+            },
+            {
+              "title": "điều hướng tới /playgrounds chỉ bằng bàn phím",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 512,
+                      "error": {
+                        "message": "Error: /me → HTTP 429",
+                        "stack": "Error: /me → HTTP 429\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:385:7",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                          "column": 11,
+                          "line": 52
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures\\nav.ts:52\n\n\u001b[0m \u001b[90m 50 |\u001b[39m   }\n \u001b[90m 51 |\u001b[39m   \u001b[36mif\u001b[39m (res\u001b[33m.\u001b[39mstatus() \u001b[33m>=\u001b[39m \u001b[35m400\u001b[39m) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 52 |\u001b[39m     \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m`${path} → HTTP ${res.status()}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 53 |\u001b[39m   }\n \u001b[90m 54 |\u001b[39m\n \u001b[90m 55 |\u001b[39m   \u001b[36mconst\u001b[39m landed \u001b[33m=\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mURL\u001b[39m(page\u001b[33m.\u001b[39murl())\u001b[33m.\u001b[39mpathname\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                            "column": 11,
+                            "line": 52
+                          },
+                          "message": "Error: /me → HTTP 429\n\n   at fixtures\\nav.ts:52\n\n  50 |   }\n  51 |   if (res.status() >= 400) {\n> 52 |     throw new Error(`${path} → HTTP ${res.status()}`);\n     |           ^\n  53 |   }\n  54 |\n  55 |   const landed = new URL(page.url()).pathname;\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:385:7"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:59:54.416Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-6e09c-aygrounds-chỉ-bằng-bàn-phím-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-6e09c-aygrounds-chỉ-bằng-bàn-phím-chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-6e09c-aygrounds-chỉ-bằng-bàn-phím-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                        "column": 11,
+                        "line": 52
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-7fc639d9770034399496",
+              "file": "keyboard.spec.ts",
+              "line": 384,
+              "column": 5
+            },
+            {
+              "title": "điều hướng tới /paths chỉ bằng bàn phím",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 358,
+                      "error": {
+                        "message": "Error: /me → HTTP 429",
+                        "stack": "Error: /me → HTTP 429\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:385:7",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                          "column": 11,
+                          "line": 52
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures\\nav.ts:52\n\n\u001b[0m \u001b[90m 50 |\u001b[39m   }\n \u001b[90m 51 |\u001b[39m   \u001b[36mif\u001b[39m (res\u001b[33m.\u001b[39mstatus() \u001b[33m>=\u001b[39m \u001b[35m400\u001b[39m) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 52 |\u001b[39m     \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m`${path} → HTTP ${res.status()}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 53 |\u001b[39m   }\n \u001b[90m 54 |\u001b[39m\n \u001b[90m 55 |\u001b[39m   \u001b[36mconst\u001b[39m landed \u001b[33m=\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mURL\u001b[39m(page\u001b[33m.\u001b[39murl())\u001b[33m.\u001b[39mpathname\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                            "column": 11,
+                            "line": 52
+                          },
+                          "message": "Error: /me → HTTP 429\n\n   at fixtures\\nav.ts:52\n\n  50 |   }\n  51 |   if (res.status() >= 400) {\n> 52 |     throw new Error(`${path} → HTTP ${res.status()}`);\n     |           ^\n  53 |   }\n  54 |\n  55 |   const landed = new URL(page.url()).pathname;\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:385:7"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T03:59:59.252Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-dac54-tới-paths-chỉ-bằng-bàn-phím-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-dac54-tới-paths-chỉ-bằng-bàn-phím-chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-dac54-tới-paths-chỉ-bằng-bàn-phím-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                        "column": 11,
+                        "line": 52
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-1956aac37e42f0738764",
+              "file": "keyboard.spec.ts",
+              "line": 384,
+              "column": 5
+            },
+            {
+              "title": "điều hướng tới /quiz chỉ bằng bàn phím",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 394,
+                      "error": {
+                        "message": "Error: /me → HTTP 429",
+                        "stack": "Error: /me → HTTP 429\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:385:7",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                          "column": 11,
+                          "line": 52
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures\\nav.ts:52\n\n\u001b[0m \u001b[90m 50 |\u001b[39m   }\n \u001b[90m 51 |\u001b[39m   \u001b[36mif\u001b[39m (res\u001b[33m.\u001b[39mstatus() \u001b[33m>=\u001b[39m \u001b[35m400\u001b[39m) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 52 |\u001b[39m     \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m`${path} → HTTP ${res.status()}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 53 |\u001b[39m   }\n \u001b[90m 54 |\u001b[39m\n \u001b[90m 55 |\u001b[39m   \u001b[36mconst\u001b[39m landed \u001b[33m=\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mURL\u001b[39m(page\u001b[33m.\u001b[39murl())\u001b[33m.\u001b[39mpathname\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                            "column": 11,
+                            "line": 52
+                          },
+                          "message": "Error: /me → HTTP 429\n\n   at fixtures\\nav.ts:52\n\n  50 |   }\n  51 |   if (res.status() >= 400) {\n> 52 |     throw new Error(`${path} → HTTP ${res.status()}`);\n     |           ^\n  53 |   }\n  54 |\n  55 |   const landed = new URL(page.url()).pathname;\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:385:7"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T04:00:00.656Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-3d0d3--tới-quiz-chỉ-bằng-bàn-phím-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-3d0d3--tới-quiz-chỉ-bằng-bàn-phím-chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-3d0d3--tới-quiz-chỉ-bằng-bàn-phím-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                        "column": 11,
+                        "line": 52
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-0c5ecc8b3298dc10c7ad",
+              "file": "keyboard.spec.ts",
+              "line": 384,
+              "column": 5
+            },
+            {
+              "title": "điều hướng tới /me chỉ bằng bàn phím",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 435,
+                      "error": {
+                        "message": "Error: /me → HTTP 429",
+                        "stack": "Error: /me → HTTP 429\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:385:7",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                          "column": 11,
+                          "line": 52
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures\\nav.ts:52\n\n\u001b[0m \u001b[90m 50 |\u001b[39m   }\n \u001b[90m 51 |\u001b[39m   \u001b[36mif\u001b[39m (res\u001b[33m.\u001b[39mstatus() \u001b[33m>=\u001b[39m \u001b[35m400\u001b[39m) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 52 |\u001b[39m     \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m`${path} → HTTP ${res.status()}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 53 |\u001b[39m   }\n \u001b[90m 54 |\u001b[39m\n \u001b[90m 55 |\u001b[39m   \u001b[36mconst\u001b[39m landed \u001b[33m=\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mURL\u001b[39m(page\u001b[33m.\u001b[39murl())\u001b[33m.\u001b[39mpathname\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                            "column": 11,
+                            "line": 52
+                          },
+                          "message": "Error: /me → HTTP 429\n\n   at fixtures\\nav.ts:52\n\n  50 |   }\n  51 |   if (res.status() >= 400) {\n> 52 |     throw new Error(`${path} → HTTP ${res.status()}`);\n     |           ^\n  53 |   }\n  54 |\n  55 |   const landed = new URL(page.url()).pathname;\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:385:7"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T04:00:02.053Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-abe2f-ng-tới-me-chỉ-bằng-bàn-phím-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-abe2f-ng-tới-me-chỉ-bằng-bàn-phím-chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-abe2f-ng-tới-me-chỉ-bằng-bàn-phím-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                        "column": 11,
+                        "line": 52
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-660f58e5b3104a9ea6dd",
+              "file": "keyboard.spec.ts",
+              "line": 384,
+              "column": 5
+            },
+            {
+              "title": "mở bài học đầu tiên từ /lessons chỉ bằng bàn phím",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 404,
+                      "error": {
+                        "message": "Error: /lessons → HTTP 429",
+                        "stack": "Error: /lessons → HTTP 429\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:415:5",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                          "column": 11,
+                          "line": 52
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures\\nav.ts:52\n\n\u001b[0m \u001b[90m 50 |\u001b[39m   }\n \u001b[90m 51 |\u001b[39m   \u001b[36mif\u001b[39m (res\u001b[33m.\u001b[39mstatus() \u001b[33m>=\u001b[39m \u001b[35m400\u001b[39m) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 52 |\u001b[39m     \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m`${path} → HTTP ${res.status()}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 53 |\u001b[39m   }\n \u001b[90m 54 |\u001b[39m\n \u001b[90m 55 |\u001b[39m   \u001b[36mconst\u001b[39m landed \u001b[33m=\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mURL\u001b[39m(page\u001b[33m.\u001b[39murl())\u001b[33m.\u001b[39mpathname\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                            "column": 11,
+                            "line": 52
+                          },
+                          "message": "Error: /lessons → HTTP 429\n\n   at fixtures\\nav.ts:52\n\n  50 |   }\n  51 |   if (res.status() >= 400) {\n> 52 |     throw new Error(`${path} → HTTP ${res.status()}`);\n     |           ^\n  53 |   }\n  54 |\n  55 |   const landed = new URL(page.url()).pathname;\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:415:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T04:00:03.498Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-10e16-ừ-lessons-chỉ-bằng-bàn-phím-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-10e16-ừ-lessons-chỉ-bằng-bàn-phím-chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-bàn-phím-—-đi-hết-10e16-ừ-lessons-chỉ-bằng-bàn-phím-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                        "column": 11,
+                        "line": 52
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-521fad6087e14084b80f",
+              "file": "keyboard.spec.ts",
+              "line": 414,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "D10 — thoát terminal bằng Esc Esc",
+          "file": "keyboard.spec.ts",
+          "line": 464,
+          "column": 6,
+          "specs": [
+            {
+              "title": "tiền đề: phím do Playwright gõ là phím THẬT, và timeStamp của nó đo được",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 391,
+                      "error": {
+                        "message": "Error: /login → HTTP 429",
+                        "stack": "Error: /login → HTTP 429\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:503:5",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                          "column": 11,
+                          "line": 52
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures\\nav.ts:52\n\n\u001b[0m \u001b[90m 50 |\u001b[39m   }\n \u001b[90m 51 |\u001b[39m   \u001b[36mif\u001b[39m (res\u001b[33m.\u001b[39mstatus() \u001b[33m>=\u001b[39m \u001b[35m400\u001b[39m) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 52 |\u001b[39m     \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m`${path} → HTTP ${res.status()}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 53 |\u001b[39m   }\n \u001b[90m 54 |\u001b[39m\n \u001b[90m 55 |\u001b[39m   \u001b[36mconst\u001b[39m landed \u001b[33m=\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mURL\u001b[39m(page\u001b[33m.\u001b[39murl())\u001b[33m.\u001b[39mpathname\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                            "column": 11,
+                            "line": 52
+                          },
+                          "message": "Error: /login → HTTP 429\n\n   at fixtures\\nav.ts:52\n\n  50 |   }\n  51 |   if (res.status() >= 400) {\n> 52 |     throw new Error(`${path} → HTTP ${res.status()}`);\n     |           ^\n  53 |   }\n  54 |\n  55 |   const landed = new URL(page.url()).pathname;\n    at openScreen (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts:52:11)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:503:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T04:00:04.834Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-D10-—-thoát-termi-c4515-và-timeStamp-của-nó-đo-được-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-D10-—-thoát-termi-c4515-và-timeStamp-của-nó-đo-được-chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-D10-—-thoát-termi-c4515-và-timeStamp-của-nó-đo-được-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\nav.ts",
+                        "column": 11,
+                        "line": 52
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-197485f32d2610725435",
+              "file": "keyboard.spec.ts",
+              "line": 484,
+              "column": 3
+            },
+            {
+              "title": "Esc ĐƠN vẫn tới PTY, và Esc Esc rời khỏi terminal",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 364,
+                      "error": {
+                        "message": "Error: playgrounds.list: \"too_many_requests\"",
+                        "stack": "Error: playgrounds.list: \"too_many_requests\"\n    at trpcQuery (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts:79:11)\n    at firstItemId (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts:95:16)\n    at openTerminal (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:547:16)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:594:20",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts",
+                          "column": 11,
+                          "line": 79
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures\\api.ts:79\n\n\u001b[0m \u001b[90m 77 |\u001b[39m   }\u001b[33m;\u001b[39m\n \u001b[90m 78 |\u001b[39m   \u001b[36mif\u001b[39m (body\u001b[33m.\u001b[39merror \u001b[33m!==\u001b[39m undefined) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 79 |\u001b[39m     \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m`${proc}: ${body.error.message ?? JSON.stringify(body.error)}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 80 |\u001b[39m   }\n \u001b[90m 81 |\u001b[39m   \u001b[36mif\u001b[39m (body\u001b[33m.\u001b[39mresult \u001b[33m===\u001b[39m undefined) {\n \u001b[90m 82 |\u001b[39m     \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m`${proc}: HTTP ${res.status()} nhưng không có result`\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts",
+                            "column": 11,
+                            "line": 79
+                          },
+                          "message": "Error: playgrounds.list: \"too_many_requests\"\n\n   at fixtures\\api.ts:79\n\n  77 |   };\n  78 |   if (body.error !== undefined) {\n> 79 |     throw new Error(`${proc}: ${body.error.message ?? JSON.stringify(body.error)}`);\n     |           ^\n  80 |   }\n  81 |   if (body.result === undefined) {\n  82 |     throw new Error(`${proc}: HTTP ${res.status()} nhưng không có result`);\n    at trpcQuery (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts:79:11)\n    at firstItemId (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts:95:16)\n    at openTerminal (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:547:16)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:594:20"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T04:00:06.125Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-D10-—-thoát-termi-07688-à-Esc-Esc-rời-khỏi-terminal-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-D10-—-thoát-termi-07688-à-Esc-Esc-rời-khỏi-terminal-chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-D10-—-thoát-termi-07688-à-Esc-Esc-rời-khỏi-terminal-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts",
+                        "column": 11,
+                        "line": 79
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-f685d741669b9e721f1f",
+              "file": "keyboard.spec.ts",
+              "line": 575,
+              "column": 3
+            },
+            {
+              "title": "Esc … hơn 500ms … Esc thì KHÔNG rời terminal",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 9,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 439,
+                      "error": {
+                        "message": "Error: playgrounds.list: \"too_many_requests\"",
+                        "stack": "Error: playgrounds.list: \"too_many_requests\"\n    at trpcQuery (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts:79:11)\n    at firstItemId (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts:95:16)\n    at openTerminal (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:547:16)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:691:20",
+                        "location": {
+                          "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts",
+                          "column": 11,
+                          "line": 79
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures\\api.ts:79\n\n\u001b[0m \u001b[90m 77 |\u001b[39m   }\u001b[33m;\u001b[39m\n \u001b[90m 78 |\u001b[39m   \u001b[36mif\u001b[39m (body\u001b[33m.\u001b[39merror \u001b[33m!==\u001b[39m undefined) {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 79 |\u001b[39m     \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m`${proc}: ${body.error.message ?? JSON.stringify(body.error)}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m           \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 80 |\u001b[39m   }\n \u001b[90m 81 |\u001b[39m   \u001b[36mif\u001b[39m (body\u001b[33m.\u001b[39mresult \u001b[33m===\u001b[39m undefined) {\n \u001b[90m 82 |\u001b[39m     \u001b[36mthrow\u001b[39m \u001b[36mnew\u001b[39m \u001b[33mError\u001b[39m(\u001b[32m`${proc}: HTTP ${res.status()} nhưng không có result`\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts",
+                            "column": 11,
+                            "line": 79
+                          },
+                          "message": "Error: playgrounds.list: \"too_many_requests\"\n\n   at fixtures\\api.ts:79\n\n  77 |   };\n  78 |   if (body.error !== undefined) {\n> 79 |     throw new Error(`${proc}: ${body.error.message ?? JSON.stringify(body.error)}`);\n     |           ^\n  80 |   }\n  81 |   if (body.result === undefined) {\n  82 |     throw new Error(`${proc}: HTTP ${res.status()} nhưng không có result`);\n    at trpcQuery (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts:79:11)\n    at firstItemId (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts:95:16)\n    at openTerminal (D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:547:16)\n    at D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\keyboard.spec.ts:691:20"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-07T04:00:07.406Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-D10-—-thoát-termi-ed1ac--Esc-thì-KHÔNG-rời-terminal-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-D10-—-thoát-termi-ed1ac--Esc-thì-KHÔNG-rời-terminal-chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\keyboard-D10-—-thoát-termi-ed1ac--Esc-thì-KHÔNG-rời-terminal-chromium\\trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\fixtures\\api.ts",
+                        "column": 11,
+                        "line": 79
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "866d5cea7c69e902a1e2-f71fa97c8bab9bed3960",
+              "file": "keyboard.spec.ts",
+              "line": 688,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-07T03:57:38.534Z",
+    "duration": 149590.57,
+    "expected": 15,
+    "skipped": 0,
+    "unexpected": 10,
+    "flaky": 0
+  }
+}

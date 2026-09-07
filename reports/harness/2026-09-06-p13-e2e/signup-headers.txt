@@ -1,0 +1,16 @@
+HTTP/1.1 200 OK
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Origin: https://dlp.192.168.94.130.sslip.io:30443
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-ODllMmM5MjgtZDFhZi00NDNmLTllNmMtNjZiYTQ3OTEzMDY5' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests
+Content-Type: application/json
+Date: Sun, 06 Sep 2026 15:53:38 GMT
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+Referrer-Policy: strict-origin-when-cross-origin
+Set-Cookie: __Secure-better-auth.session_token=<redacted>; Max-Age=604800; Path=/; HttpOnly; Secure; SameSite=Lax
+Strict-Transport-Security: max-age=63072000; includeSubDomains
+Vary: Origin
+Vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Content-Length: 287
+

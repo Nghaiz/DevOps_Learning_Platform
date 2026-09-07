@@ -1,0 +1,293 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "csp.spec.ts",
+      "--grep",
+      "csp /admin"
+    ],
+    "configFile": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\playwright.config.ts",
+    "rootDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\global-setup.ts",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e/.artifacts/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "D:/NCKH/DevOps_Learning_Platform/apps/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "csp.spec.ts",
+      "file": "csp.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "0 vi phạm CSP trên màn hình chốt",
+          "file": "csp.spec.ts",
+          "line": 282,
+          "column": 6,
+          "specs": [
+            {
+              "title": "csp /admin [admin]",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4804,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:15:09.598Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-df5ca12c321521205878",
+              "file": "csp.spec.ts",
+              "line": 284,
+              "column": 5
+            },
+            {
+              "title": "csp /admin/users [admin]",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6972,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:15:14.545Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-b67e14825eae9422884e",
+              "file": "csp.spec.ts",
+              "line": 284,
+              "column": 5
+            },
+            {
+              "title": "csp /admin/sessions [admin]",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 50,
+                      "error": {
+                        "message": "Error: browserContext.newPage: Target crashed ",
+                        "stack": "Error: browserContext.newPage: Target crashed "
+                      },
+                      "errors": [
+                        {
+                          "message": "Error: browserContext.newPage: Target crashed "
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:15:21.530Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\csp-0-vi-phạm-CSP-trên-màn-969fb-t-csp-admin-sessions-admin--chromium\\error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "D:\\NCKH\\DevOps_Learning_Platform\\apps\\web\\e2e\\.artifacts\\test-results\\csp-0-vi-phạm-CSP-trên-màn-969fb-t-csp-admin-sessions-admin--chromium\\trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-44a411445e8a8088cbc4",
+              "file": "csp.spec.ts",
+              "line": 284,
+              "column": 5
+            },
+            {
+              "title": "csp /admin/content [admin]",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": -1,
+                      "parallelIndex": -1,
+                      "status": "failed",
+                      "duration": 0,
+                      "error": {
+                        "message": "Error: worker process exited unexpectedly (code=3221225794, signal=null)"
+                      },
+                      "errors": [
+                        {
+                          "message": "Error: worker process exited unexpectedly (code=3221225794, signal=null)"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:15:21.744Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-3b4ff2dd526f02f31c77",
+              "file": "csp.spec.ts",
+              "line": 284,
+              "column": 5
+            },
+            {
+              "title": "csp /admin/audit [admin]",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": -1,
+                      "parallelIndex": -1,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-06T16:15:21.744Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "7ddd34f8774fe467a796-df03a252f33e7807d087",
+              "file": "csp.spec.ts",
+              "line": 284,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-06T16:15:07.845Z",
+    "duration": 13901.523000000001,
+    "expected": 2,
+    "skipped": 1,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}

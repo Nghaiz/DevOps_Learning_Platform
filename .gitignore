@@ -36,6 +36,23 @@ bin/
 .env.*
 !.env.example
 !.env.*.example
+
+# ⚠ THÊM 2026-09-08. `.env` và `.env.*` khớp TRỌN TÊN FILE, nên chúng KHÔNG bắt
+# `account.env`, `sandbox.env`, `creds.env` — bất kỳ tên nào có đuôi `.env` mà
+# không mở đầu bằng `.env`. Lỗ này vô hại chừng nào còn luật `reports/` trần
+# chặn cả thư mục; gỡ luật đó ra (cùng ngày, ngay bên dưới) là lộ ngay một file
+# `reports/harness/2026-09-06-p13-e2e/account.env` chứa EMAIL + PASSWORD của tài
+# khoản e2e. Nó chưa từng vào git, và không được vào.
+#
+# Bài học: nới một luật rộng thì phải liệt kê thứ luật đó đang GÁNH HỘ, không
+# chỉ thứ nó đang chặn nhầm. Ở đây luật `reports/` đang gánh hộ một lỗ của luật
+# `.env.*`, và không ai biết cho tới lúc gỡ.
+*.env
+# Ngoại lệ đã có chủ ý từ trước: credential GIẢ của CI, cố ý sống ngoài namespace
+# `.env.*` để hook `secret-guard` không chặn. `*.env` mới sẽ nuốt nó nếu không
+# negate — file đang tracked nên .gitignore không gỡ được, nhưng để mặc là để lại
+# một mâu thuẫn cho người sau.
+!.github/ci.env
 #
 # KHÔNG negate thêm `.env.<gì đó>` nào nữa. Hook `secret-guard` chặn cứng mọi tên
 # khớp `.env.*` khi `git add`, nên một file env CÓ CHỦ Ý commit (credential giả của
