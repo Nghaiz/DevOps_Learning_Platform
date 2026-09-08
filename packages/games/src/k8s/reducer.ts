@@ -20,6 +20,7 @@
 
 import type { GameAction, Level, ResourceRef } from './contract.ts';
 import type { ClusterState, K8sObject } from './model.ts';
+import { seedIncidents } from './incidents.ts';
 import {
   addObject,
   allocateUid,
@@ -90,7 +91,24 @@ export function countHints(actions: readonly GameAction[]): number {
 }
 
 export function initialState(level: Level, seed: number): ClusterState {
-  return createCluster(level.initialState, seed);
+  /*
+   * ⚠ `seedIncidents` PHẢI được gọi ở đây và chỉ ở đây.
+   *
+   * Đây là điểm nghẽn duy nhất mà CẢ HAI đường đi qua: phiên chơi thật
+   * (`session.ts` → `initialState`) và phát lại để xác minh (`replay` ngay bên
+   * dưới). Gieo ở một đường mà quên đường kia thì mọi lượt chơi THẬT THÀ đều
+   * trượt xác minh, vì trạng thái đầu đã khác nhau trước cả action đầu tiên.
+   *
+   * Vì sao không nằm trong `createCluster`: `incidents.ts` import `model.ts`,
+   * nên `model.ts` gọi ngược lại là vòng tròn.
+   *
+   * Bug đã sửa 2026-09-08: `seedIncidents` được export nhưng KHÔNG AI GỌI, nên
+   * `state.incidents` luôn rỗng. Hệ quả im lặng: vị từ `no-incident-active`
+   * đúng một cách RỖNG NGHĨA, và bảy level qua được mục tiêu đó trong khi sự cố
+   * chưa từng tồn tại. Không test nào đỏ — hàm có mặt, có test riêng, chỉ là
+   * không nằm trên đường chạy nào.
+   */
+  return seedIncidents(createCluster(level.initialState, seed), level.initialState.resources);
 }
 
 /** Tua mô phỏng tới `tick` rồi áp hành động. Xem chú thích đầu file về tua lùi. */
