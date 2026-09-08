@@ -205,7 +205,22 @@ export default function K8sSceneLazy({
     // đúng 1.0 một phòng điều khiển tối đọc ra là "ảnh bị thiếu sáng".
     renderer.toneMappingExposure = 1.08;
     renderer.shadowMap.enabled = features.shadows;
-    renderer.shadowMap.type = features.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    /*
+     * ⚠ **KHÔNG dùng `PCFSoftShadowMap`** — §9.1 mục 2 gọi đích danh nó, nhưng
+     * three 0.185 đã BỎ nó và âm thầm thay bằng `PCFShadowMap`:
+     *
+     *   WebGLShadowMap.js — `if ( this.type === PCFSoftShadowMap ) { warn(…);
+     *   this.type = PCFShadowMap; }`
+     *
+     * Nó chỉ cảnh báo trong console rồi ghi đè `this.type`, nên bậc "cao" vẫn
+     * chạy nhưng KHÔNG hề có bóng mềm — đúng loại hỏng hóc im lặng mà §4.6 bắt
+     * phải chạy thật mới kết luận. Phát hiện 2026-09-08 khi mở `/games/k8s`
+     * trên `next start`: console in đúng dòng cảnh báo trên.
+     *
+     * `VSMShadowMap` là đường bóng mềm còn sống ở bản này, và là đường DUY NHẤT
+     * mà `shadow.radius` còn có tác dụng (với PCF thường, `radius` bị bỏ qua).
+     */
+    renderer.shadowMap.type = features.softShadows ? THREE.VSMShadowMap : THREE.PCFShadowMap;
     // §11.1 mục 4 — cảnh gần như tĩnh; chỉ vẽ lại shadow map khi topology đổi.
     renderer.shadowMap.autoUpdate = false;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, features.maxPixelRatio));
@@ -239,6 +254,13 @@ export default function K8sSceneLazy({
     key.shadow.camera.bottom = -14;
     key.shadow.bias = -0.0012;
     key.shadow.normalBias = 0.02;
+    if (features.softShadows) {
+      // Chỉ VSM đọc hai giá trị này. `radius` là độ nhoè mép bóng — thứ tạo ra
+      // "bóng mềm"; `blurSamples` là số mẫu làm mờ. Để mặc định thì VSM cho ra
+      // bóng gần như cứng, tức đổi API mà không đổi kết quả.
+      key.shadow.radius = 4;
+      key.shadow.blurSamples = 12;
+    }
     scene.add(key);
 
     // ⚠ Hai vế của hemisphere light CÓ khác nhau lúc chạy, dù dòng khởi tạo dưới
@@ -270,13 +292,19 @@ export default function K8sSceneLazy({
 
     // ── Môi trường sinh tại chỗ (§9.1 mục 3) ────────────────────────────────
     let envTexture: THREE.Texture | null = null;
-    let pmrem: THREE.PMREMGenerator | null = null;
     if (features.environment) {
-      pmrem = new THREE.PMREMGenerator(renderer);
+      // `pmrem` là biến CỤC BỘ trong khối này, không phải biến của cả effect:
+      // nó chết ngay sau khi sinh xong texture, nên không có gì để dọn lúc
+      // unmount và không có biến sống thừa để ai đó dùng nhầm về sau.
+      const pmrem = new THREE.PMREMGenerator(renderer);
       const room = new RoomEnvironment();
       envTexture = pmrem.fromScene(room, 0.04).texture;
       scene.environment = envTexture;
       room.dispose();
+      // Giải phóng bộ sinh NGAY: nó giữ render target và material làm mờ chỉ
+      // dùng một lần, còn texture kết quả sống độc lập. Giữ tới lúc unmount là
+      // chiếm bộ nhớ GPU suốt phiên chơi để đổi lấy không gì cả.
+      pmrem.dispose();
     }
 
     // ── Màu từ design token ─────────────────────────────────────────────────
@@ -908,7 +936,6 @@ export default function K8sSceneLazy({
       dashedMaterial.dispose();
       particleMaterial.dispose();
       envTexture?.dispose();
-      pmrem?.dispose();
       composer?.dispose();
       renderer.dispose();
       renderer.domElement.remove();
