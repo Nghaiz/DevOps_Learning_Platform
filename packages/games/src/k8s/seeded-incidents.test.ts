@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { Level } from './contract.ts';
+
 import { CHALLENGES } from './challenges.ts';
 import { LEVELS } from './levels/index.ts';
 import { createCluster } from './model.ts';
@@ -55,11 +57,18 @@ describe('sự cố gieo sẵn phải THẬT SỰ được gieo', () => {
   });
 
   it('challenge cũng vậy — cùng engine, cùng mối nối', () => {
+    const template = LEVELS[0];
+    expect(template).toBeDefined();
+    if (template === undefined) return;
+
     const withSeed = CHALLENGES.filter((c) =>
       c.initialState.resources.some((r) => r.seededIncident !== undefined),
     );
     for (const challenge of withSeed) {
-      const level = { ...LEVELS[0], initialState: challenge.initialState };
+      /* Mượn vỏ của một level thật rồi thay `initialState`: `initialState()` chỉ
+       * đọc đúng field đó, và làm vậy tránh phải dựng một `Level` giả mà mọi
+       * field bắt buộc đều là số liệu bịa. */
+      const level: Level = { ...template, initialState: challenge.initialState };
       expect(initialState(level, 1).incidents.length).toBeGreaterThan(0);
     }
   });
