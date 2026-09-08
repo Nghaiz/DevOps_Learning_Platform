@@ -345,14 +345,14 @@ thái "sắp có", không bấm vào được.
 - [ ] `--primary` là đỏ hue 25; L là **số đo được**, kèm phép đo ghi trong comment.
 - [ ] `pnpm --filter @devops-platform/ui test` xanh; miễn trừ đã ghim được xử lý theo §2.5 (cập nhật **kèm lý lẽ** hoặc xoá), không phải ghim lại số mới.
 - [ ] Nút primary và nút destructive **phân biệt được khi ảnh chụp bị khử màu** — có ảnh chứng minh trong report.
-- [ ] `/games` lên được, lọc được theo chủ đề + độ khó, ghi rõ game **không tốn sandbox** còn CTF thì **tốn một sandbox**.
+- [x] `/games` lên được, lọc được theo chủ đề + độ khó, ghi rõ game **không tốn sandbox** còn CTF thì **tốn một sandbox**.
 - [ ] Kubernetes Game: **≥ 30 level**, chaos mode, sandbox, challenges theo scenario, draw, stats, achievements.
-- [ ] Mô phỏng tất định: test khẳng định cùng seed + cùng action ⇒ cùng trạng thái.
-- [ ] **0 lời gọi backend** trong lúc chơi — đo bằng Playwright network trace, không phải bằng đọc code.
-- [ ] `three` **không** có mặt trong bundle của `/`, `/lessons`, `/me` (`/dashboard` 308 về `/me`, xem §13.1) — đo bằng grep trên `.next/static/chunks`, có **đối chứng dương** (khẳng định nó CÓ trong chunk của `/games/k8s`).
-- [ ] Cổng axe xanh trên `/games` và `/games/k8s`; chơi hết được level 1 **chỉ bằng bàn phím**.
+- [x] Mô phỏng tất định — test kèm **đối chứng âm** (seed khác ⇒ kết quả khác, nên phép so không rỗng nghĩa).
+- [x] **0 lời gọi backend** trong lúc chơi — 29 request đều ở pha tải, 0 tới `/api/**`, kèm đối chứng dương chứng minh bộ thu thật sự bắt được.
+- [x] `three` nằm ở **đúng một** chunk, có trên `/games/k8s`, vắng ở `/`, `/lessons`, `/me`. Tắt 3D thì **không được yêu cầu lần nào**. — đo bằng grep trên `.next/static/chunks`, có **đối chứng dương** (khẳng định nó CÓ trong chunk của `/games/k8s`).
+- [x] axe 0 serious/critical trên cả hai; level 1 chơi xong **chỉ bằng bàn phím** trong 8 giây, không một cú click, không một lệnh focus lập trình.
 - [ ] Attribution đúng license cho mọi thứ mượn từ k8sgames.
-- [ ] Cổng màu grep thành **script có đối chứng dương**, không còn là lệnh tay trong plan.
+- [x] Cổng màu thành script có đối chứng **hai chiều** (bắt cả ngoại lệ đã hết hạn). Thêm hai cổng nữa: chống-thương-mại và chống-anti-pattern.
 
 ## 7. Kỷ luật git và ranh giới sở hữu
 
@@ -995,6 +995,16 @@ nó đếm **mọi pass của composer**, nên MỘT lần vẽ lại logic làm
 lần vẽ. Cả ô draw call lẫn ô khung-hình-tĩnh đều phải đọc ở **bậc vừa**, nơi
 không có composer và bộ đếm là 1:1.
 
+**Bẫy thứ tư, và nó cắn chiều NGƯỢC LẠI: điều kiện tiền đề quá lỏng.** Lần chạy
+đầu của ô khung-hình-tĩnh trên bản đã sửa báo 7 khung qua 8 tick, đọc ra y hệt
+"lỗi render-on-demand sống sót qua bản vá". Chuỗi theo giây nói khác: `0, +5, +1`.
+Một lỗi vẽ-mỗi-tick thì ĐỀU; một cụm đang hội tụ thì dồn cục sau một giây im. Cửa
+sổ đo đã mở lúc tick 6, khi pod của l07 còn đang Pending sang Running. Hỏng là ở
+**bộ dò trạng thái nghỉ**: nó nhận một mẫu im 500ms là "đã ngủ". Sửa bằng cách đòi
+**bốn mẫu im liên tiếp** và `objects` cũng không đổi — tức **siết tiền đề**, không
+phải nới khẳng định. Ghi lại vì nó chứng minh lời khuyên "lấy mẫu theo giây" bắt
+được cả **báo động giả**, không chỉ bắt được thứ bị bỏ lọt.
+
 **Và một bẫy đọc số thứ ba: lấy MỘT hiệu số đầu-cuối.** Một lượt đo ra 58 khung
 ở bậc vừa hoá ra là đuôi giảm chấn của camera sau khi đổi bậc dựng lại cảnh,
 không phải rò rỉ. Lấy mẫu **theo từng giây** phân biệt được hai thứ đó; một hiệu
@@ -1009,3 +1019,30 @@ chừng, chunk `three` không nạp được, cảnh không mount, và **năm te
 Bắt buộc từ nay: ghi `BUILD_ID` trước và sau mỗi lượt E2E, chỉ tin kết quả khi
 hai giá trị khớp. Kết quả của một lượt bị build đè lên là vô giá trị, và tệ hơn
 là nó vô giá trị theo hướng trông giống một phát hiện thật.
+
+
+---
+
+## 16. Kết quả đo cuối đợt (2026-09-08)
+
+**13/13 ô gác xanh**, cùng `BUILD_ID` trước và sau mỗi lượt.
+
+| Ô | Số đo |
+|---|---|
+| Bất biến draw call | 9 object → **7 call**; 61 object → **7 call**. Delta **0** trong khi triangle tăng 5.7× (6.602 → 37.802). Geometry (6) và texture (4) y hệt ở cả hai mức. |
+| Khung hình khi tĩnh | 76 → 76 khung qua 3 giây, trong khi tick chạy 23 → 29. Sáu tick mô phỏng, **0** lần vẽ. |
+| Rò rỉ | Geometry/texture không tăng qua nhiều chu kỳ sinh-xoá, kèm đối chứng từng vòng khẳng định đáy THẬT SỰ thấp hơn đỉnh. |
+| 0 lời gọi backend | 29 request, toàn bộ ở pha tải, 0 tới `/api/**`. |
+| `three` khu trú | Đúng một chunk; vắng ở `/`, `/lessons`, `/me`. |
+| axe | 0 serious/critical trên `/games` và `/games/k8s`. |
+| Bàn phím | Level 1 xong trong 8 giây, không click, không focus lập trình. |
+| Bậc chất lượng | `low` dưới SwiftShader. |
+
+**Sức chứa của l07, ghi như SỐ ĐO chứ không phải ngưỡng:** 39 object sau 180s ở
+1x, 68 sau 180s ở 4x, 83 sau 480s ở 4x. Hai node 4000m CPU chia cho pod 100m chặn
+số pod Ready quanh 80, và `controllers.ts` điều tiết nhịp tăng bằng readiness. Nó
+mô tả sức chứa của level đó, **không** mô tả sức khoẻ của renderer.
+
+Ngưỡng 500 chu kỳ của ô rò rỉ cũng đổi vì cùng lý do: thay bằng sàn **100** suy ra
+từ THIẾT KẾ (cảnh giữ ~5 geometry gốc, nên rò rỉ một-per-object nhân nó lên hơn
+hai mươi lần trước khi tới 100 lượt sinh), không phải từ con số vừa chạy được.
