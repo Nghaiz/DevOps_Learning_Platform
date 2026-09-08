@@ -12,6 +12,14 @@ export interface LevelCardProps {
   readonly level: Level;
   readonly status: SessionStatus;
   readonly onRevealHint: (index: number) => void;
+  /**
+   * Vị trí do VỎ quyết định, không phải thẻ.
+   *
+   * Thẻ không biết rail rộng bao nhiêu, cũng không biết màn hình đang rộng hay
+   * hẹp — mà đúng hai thứ đó quyết định nó phải đứng ở đâu. Bản trước neo cứng
+   * `left-3` ngay trong thẻ và nó chui xuống dưới rail, mất hẳn mép trái.
+   */
+  readonly className?: string;
 }
 
 /**
@@ -26,7 +34,7 @@ export interface LevelCardProps {
  * là thứ tự DOM, và §12.4 đòi thứ tự đó theo trình tự ĐỌC — người dùng bàn phím
  * phải gặp cái công tắc trước cái mà nó đóng/mở, y như người dùng chuột.
  */
-export function LevelCard({ level, status, onRevealHint }: LevelCardProps): ReactElement {
+export function LevelCard({ level, status, onRevealHint, className }: LevelCardProps): ReactElement {
   const [open, setOpen] = useState(true);
   const required = level.objectives.filter((o) => o.required);
   const met = new Set(status.objectivesMet);
@@ -35,7 +43,7 @@ export function LevelCard({ level, status, onRevealHint }: LevelCardProps): Reac
   return (
     <section
       aria-labelledby="k8s-level-heading"
-      className={cn('absolute top-16 left-3 z-20 w-[min(20rem,calc(100vw-1.5rem))]', HUD_PANEL)}
+      className={cn('absolute', HUD_PANEL, className)}
     >
       <div className="flex items-start gap-2 p-2">
         <button
@@ -62,7 +70,12 @@ export function LevelCard({ level, status, onRevealHint }: LevelCardProps): Reac
         </div>
       </div>
 
-      <div id="k8s-level-body" hidden={!open} className="max-h-[52vh] overflow-y-auto border-t border-border/60 px-3 py-2">
+      {/*
+        `max-h-[38vh]` chứ không phải 52vh: ở 1080px, 52vh là 561px và thẻ chiếm
+        hơn nửa chiều cao màn hình — nhìn ra một tài liệu, không phải một HUD.
+        Primer vẫn đọc hết được bằng cách cuộn; thứ bị cắt là sự CHIẾM CHỖ.
+      */}
+      <div id="k8s-level-body" hidden={!open} className="max-h-[38vh] overflow-y-auto border-t border-border/60 px-3 py-2">
         <TeachingPanel teaching={level.teaching} />
         <div className="mt-2 border-t border-border/60">
           <ObjectivesPanel level={level} status={status} onRevealHint={onRevealHint} />

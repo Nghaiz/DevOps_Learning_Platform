@@ -372,7 +372,9 @@ export default function K8sSceneLazy({
     const groundGeometry = new THREE.PlaneGeometry(90, 90);
 
     const objectMaterial = new THREE.MeshStandardMaterial({ roughness: 0.38, metalness: 0.12 });
-    const platformMaterial = new THREE.MeshStandardMaterial({ roughness: 0.22, metalness: 0.55 });
+    // Mặt trên hơi phản chiếu (§9.2). `envMapIntensity` cao là thứ làm bệ bắt được
+    // môi trường sinh tại chỗ thay vì trông như bìa các-tông xám.
+    const platformMaterial = new THREE.MeshStandardMaterial({ roughness: 0.18, metalness: 0.7, envMapIntensity: 1.4 });
     // Hào quang: `MeshBasicMaterial` ở đây KHÔNG vi phạm lệnh cấm của §9.1 mục 3
     // ("cấm cho vật thể chính") — nó không phải vật thể, nó là ánh sáng. Cộng
     // dồn + không ghi depth để nó chồng lên nhau như quầng sáng thật, và đây
@@ -611,7 +613,9 @@ export default function K8sSceneLazy({
     }
 
     function writeInstances(elapsed: number, dt: number, bobActive: boolean): void {
-      ensureCapacity(entries.size);
+      // Sức chứa phải phủ CẢ hào quang của bệ node, không chỉ của object — nếu
+      // không, bệ cuối cùng ghi ra ngoài mảng instance và biến mất lặng lẽ.
+      ensureCapacity(entries.size + nodeEntries.length);
       const selected = selectedRef.current;
       let index = 0;
       let animating = false;
@@ -674,8 +678,32 @@ export default function K8sSceneLazy({
         index += 1;
       }
 
+      /*
+       * Viền phát sáng yếu quanh mỗi bệ node (§9.2).
+       *
+       * Thiếu nó, bệ chỉ là một tấm xám trên nền xám — đúng thứ trông ra trong
+       * ảnh chụp bị bác: "không màu, không hiệu ứng". Hào quang mới là thứ cho
+       * bệ một mép sáng và cho bloom cái gì đó để bắt.
+       *
+       * Node `NotReady` MẤT phần phát sáng (§9.2: "mất sức sống", không đổi màu)
+       * — nên nó tự động chìm đi so với node còn sống mà không cần một màu cảnh
+       * báo thứ hai tranh chấp với màu đỏ của pod đang lỗi.
+       */
+      let glowIndex = index;
+      for (const node of nodeEntries) {
+        TMP_POS.set(node.x, 0, 0);
+        TMP_SCALE.set(PLATFORM_WIDTH * 1.02, PLATFORM_HEIGHT * 1.9, PLATFORM_DEPTH * 1.02);
+        TMP_MATRIX.compose(TMP_POS, IDENTITY_QUAT, TMP_SCALE);
+        glowMesh.setMatrixAt(glowIndex, TMP_MATRIX);
+        TMP_COLOR.copy(node.ready ? tokenColors.primary : tokenColors['status-locked']).multiplyScalar(
+          node.ready ? 0.16 + node.load * 0.22 : 0.03,
+        );
+        glowMesh.setColorAt(glowIndex, TMP_COLOR);
+        glowIndex += 1;
+      }
+
       objectMesh.count = index;
-      glowMesh.count = index;
+      glowMesh.count = glowIndex;
       objectMesh.instanceMatrix.needsUpdate = true;
       glowMesh.instanceMatrix.needsUpdate = true;
       if (objectMesh.instanceColor !== null) {
@@ -757,7 +785,20 @@ export default function K8sSceneLazy({
       void elapsed;
     }
 
+    /**
+     * Ô lưới đã bị một nhãn chiếm, tính theo frame.
+     *
+     * `Set<number>` chứ không phải `Set<string>`: khoá chuỗi phải GHÉP chuỗi mỗi
+     * nhãn mỗi frame, tức cấp phát trong vòng lặp — đúng thứ §11.1 mục 2 cấm.
+     * Số nguyên nhỏ không cấp phát, và `.clear()` giữ nguyên bộ nhớ đã có.
+     */
+    const labelCells = new Set<number>();
+    /** Bề rộng/cao trung bình một nhãn, dùng làm bước lưới chống chồng. */
+    const LABEL_CELL_W = 118;
+    const LABEL_CELL_H = 20;
+
     function writeLabels(): void {
+      labelCells.clear();
       let shown = 0;
       for (const entry of entries.values()) {
         if (shown >= MAX_LABELS || entry.doomed) {
@@ -776,6 +817,23 @@ export default function K8sSceneLazy({
         // vòng lặp không bao giờ gọi `getBoundingClientRect` (§11.1 mục 6).
         const x = (TMP_PROJECT.x * 0.5 + 0.5) * width;
         const y = (-TMP_PROJECT.y * 0.5 + 0.5) * height;
+
+        /*
+         * Bỏ nhãn rơi vào ô lưới đã có nhãn khác.
+         *
+         * Không có bước này, hai pod cạnh nhau trên cùng một bệ cho ra hai nhãn
+         * đè lên nhau và đọc thành một chuỗi vô nghĩa
+         * ("d/api-10b319-8t pod/api-10b319-t96w5"). Thà thiếu một nhãn còn hơn
+         * hai nhãn cùng không đọc được — và tên đầy đủ vẫn luôn có ở rail, thứ
+         * mới là giao diện chính thức.
+         */
+        const cell = Math.round(x / LABEL_CELL_W) * 1024 + Math.round(y / LABEL_CELL_H);
+        if (labelCells.has(cell)) {
+          span.style.display = 'none';
+          continue;
+        }
+        labelCells.add(cell);
+
         if (span.textContent !== entry.label) {
           span.textContent = entry.label;
         }

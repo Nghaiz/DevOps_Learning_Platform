@@ -70,6 +70,9 @@ function makeHarness(initial: ClusterView): Harness {
       actions.push(action);
     },
     getLog: () => ({ levelId: 'k8s-01-pod-dau-tien', seed: 1, actions }),
+    // `setSpeed` đổi nhịp ĐỒNG HỒ TREO TƯỜNG, không đổi chuỗi tick — nên bản giả
+    // không cần ghi lại gì: không có gì của nó đi vào `RunLog`.
+    setSpeed: () => undefined,
     dispose: () => undefined,
   };
 
@@ -463,11 +466,40 @@ describe('K8sGame — công tắc hiệu ứng 3D', () => {
 });
 
 describe('K8sGame — chưa có engine', () => {
-  it('nói thẳng là chưa chơi được thay vì hiện một giao diện chết', async () => {
-    render(<K8sGame levels={[LEVEL]} />);
-    expect(await screen.findByText(/Bộ máy mô phỏng chưa sẵn sàng/)).toBeDefined();
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: /Chờ một nhịp/ }).disabled).toBe(true);
-    expect(screen.getByLabelText<HTMLInputElement>('Thanh lệnh kubectl').disabled).toBe(true);
+  /**
+   * Ô này THAY một ô cũ đòi thấy thông báo "Bộ máy mô phỏng chưa sẵn sàng".
+   *
+   * Thông báo đó nay KHÔNG THỂ xuất hiện, và đó là điều đúng: `createSession`
+   * mặc định là bản THẬT từ barrel, nên `<K8sGame />` trần cũng dựng được một
+   * phiên chơi. Giữ ô cũ lại thì nó đo một trạng thái không còn tồn tại.
+   *
+   * Đây chính là lỗi số 1 trên ảnh chụp bị bác: "không có cảnh 3D nào" vì cụm
+   * rỗng vì engine chưa nối. Ô này gác đúng chỗ đó — nếu ai gỡ mặc định
+   * `createSession` ra, nó đỏ.
+   */
+  it('không props ⇒ vẫn dựng phiên chơi thật và cụm có tài nguyên', async () => {
+    render(<K8sGame />);
+
+    // Level thật từ LEVELS, không phải fixture.
+    expect(await screen.findByRole('heading', { level: 1, name: 'Kubernetes Game' })).toBeDefined();
+
+    // Engine thật đã chạy ⇒ ô lệnh mở khoá và rail có tài nguyên.
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Thanh lệnh kubectl').disabled).toBe(false);
+    });
+    /*
+     * Đo bộ đếm NODE, không đo rail tài nguyên.
+     *
+     * Ô này thoạt đầu đòi rail phải có mục và ĐỎ — vì level 1 cố ý bắt đầu với
+     * cụm rỗng: việc của người chơi là tạo pod đầu tiên. Rail rỗng ở đó là ĐÚNG
+     * sản phẩm, nên nới ô cho xanh mới là sai.
+     *
+     * Node thì khác: chúng đến từ `initialState` của level, nên `nodesTotal > 0`
+     * chứng minh engine đã dựng một `ClusterView` thật chứ không phải trả về
+     * `EMPTY_VIEW`.
+     */
+    const nodes = screen.getByText('Nodes').parentElement?.textContent ?? '';
+    expect(nodes, 'bộ đếm node lấy từ ClusterView thật').toMatch(/[1-9]/);
   });
 
   it('vẫn dựng đủ tiêu đề cấp một cho cổng axe', async () => {

@@ -21,6 +21,31 @@ const PANEL = 'rounded-lg border border-border/60 bg-card/80 shadow-elevation-2 
 
 export { PANEL as HUD_PANEL };
 
+/** Panel dính vào mép màn hình — bỏ bo góc phía mép, theo đúng quy tắc của bản gốc. */
+export const HUD_PANEL_FLUSH = 'border-border/60 bg-card/80 shadow-elevation-2 backdrop-blur-md';
+
+/**
+ * Thang z — SÁU nấc, đặt tên theo VAI TRÒ chứ không theo số.
+ *
+ * Lấy nguyên ý tưởng của bản gốc (nghiên cứu §3): rất ít nấc, mỗi nấc một nghĩa
+ * rõ. §12 trước đây không có thang nào và các vùng tự chọn `z-20`/`z-30`/`z-40`
+ * rời rạc — đó là chỗ vỡ đầu tiên khi có tám overlay, và nó đã vỡ thật (thẻ level
+ * chui xuống dưới rail, mất hẳn mép trái).
+ *
+ * Số ở đây nằm TRONG lớp overlay (bản thân lớp đó là `z-10` so với canvas), nên
+ * chúng chỉ so với nhau, không so với phần còn lại của trang.
+ */
+export const Z = {
+  /** Trang trí thụ động — che được, không sao. */
+  decoration: 'z-20',
+  /** Panel làm việc: rail, thẻ level, inspector. */
+  panel: 'z-30',
+  /** HUD luôn nằm trên panel. */
+  hud: 'z-40',
+  /** Thứ chiếm bàn phím: ô lệnh, lớp phủ thắng. */
+  input: 'z-50',
+} as const;
+
 function Meter({ label, value }: { readonly label: string; readonly value: number }): ReactElement {
   const pct = percent(value);
   return (
@@ -51,30 +76,33 @@ function Counter({ label, value }: { readonly label: string; readonly value: str
   );
 }
 
+export const SPEEDS: readonly number[] = [1, 2, 4];
+
 export interface TopBarProps {
   readonly view: ClusterView;
   readonly level: Level | null;
+  readonly speed: number;
+  readonly onSpeed: (multiplier: number) => void;
   readonly settings: ReactNode;
 }
 
 /**
  * Thanh trên — mỏng, tràn ngang, nổi.
  *
- * ⚠ **Không có điều khiển tốc độ 1x/2x/4x**, dù §12.5 liệt kê nó. Đó là một
- * khoảng trống CÓ Ý THỨC, không phải chỗ quên: `GameAction` trong `contract.ts`
- * không có action nào đổi tốc độ, và `K8sSession` không có phương thức nào nhận
- * nó. Dựng ba cái nút không nối vào đâu là dựng đồ trang trí, và đồ trang trí
- * trông y hệt tính năng cho tới lúc ai đó bấm. Đã báo lead — cần một action mới
- * trong hợp đồng trước khi vùng này có gì để hiện.
+ * Điều khiển tốc độ 1x/2x/4x gọi `session.setSpeed()`, KHÔNG phát một
+ * `GameAction`. Đó là quyết định của hợp đồng và nó đúng: tốc độ đổi nhịp đồng
+ * hồ treo tường chứ không đổi chuỗi tick, nên cùng chuỗi action ở 1x và 4x cho ra
+ * đúng một trạng thái. Ghi nó vào `RunLog` sẽ nhét vào bản phát lại một chỉ thị
+ * vô nghĩa — phát lại chạy nhanh hết mức có thể, không theo đồng hồ nào.
+ *
+ * Bản trước KHÔNG dựng vùng này, vì lúc đó `setSpeed` chưa tồn tại và ba cái nút
+ * không nối vào đâu là đồ trang trí.
  */
-export function TopBar({ view, level, settings }: TopBarProps): ReactElement {
+export function TopBar({ view, level, speed, onSpeed, settings }: TopBarProps): ReactElement {
   const s = summarize(view);
   return (
     <header
-      className={cn(
-        'absolute inset-x-0 top-0 z-30 flex h-12 items-center gap-3 px-3',
-        'border-x-0 border-t-0 rounded-none border-b border-border/60 bg-card/80 backdrop-blur-md',
-      )}
+      className={cn('absolute inset-x-0 top-0 flex h-12 items-center gap-3 border-b px-3', Z.hud, HUD_PANEL_FLUSH)}
     >
       <Button asChild variant="ghost" size="sm" className="shrink-0">
         <Link href="/games">
@@ -99,6 +127,28 @@ export function TopBar({ view, level, settings }: TopBarProps): ReactElement {
         ) : null}
       </div>
 
+      <div
+        role="group"
+        aria-label="Tốc độ mô phỏng"
+        className="flex shrink-0 items-center gap-0.5 rounded-md border border-border/60 p-0.5"
+      >
+        {SPEEDS.map((multiplier) => (
+          <button
+            key={multiplier}
+            type="button"
+            aria-pressed={speed === multiplier}
+            onClick={() => onSpeed(multiplier)}
+            className={cn(
+              'rounded px-1.5 py-0.5 font-mono text-[11px] transition-colors duration-[var(--motion-fast)]',
+              'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              speed === multiplier ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
+            )}
+          >
+            {multiplier}x
+          </button>
+        ))}
+      </div>
+
       <div className="flex shrink-0 items-center gap-2">{settings}</div>
     </header>
   );
@@ -108,6 +158,8 @@ export interface MiniMapProps {
   readonly view: ClusterView;
   readonly focusedNode: string | null;
   readonly onFocusNode: (name: string) => void;
+  /** Vỏ quyết định vị trí — nó biết inspector đang mở hay không, bản đồ thì không. */
+  readonly className?: string;
 }
 
 /**
@@ -118,12 +170,12 @@ export interface MiniMapProps {
  * context là mất cả cảnh chính); và DOM thì bấm được bằng bàn phím, còn hình vẽ
  * trong canvas thì không — §12.4 không cho phép một vùng chỉ dùng được bằng chuột.
  */
-export function MiniMap({ view, focusedNode, onFocusNode }: MiniMapProps): ReactElement | null {
+export function MiniMap({ view, focusedNode, onFocusNode, className }: MiniMapProps): ReactElement | null {
   if (view.nodes.length === 0) {
     return null;
   }
   return (
-    <section aria-labelledby="k8s-minimap-heading" className={cn('absolute right-3 bottom-32 z-20 p-2', PANEL)}>
+    <section aria-labelledby="k8s-minimap-heading" className={cn('absolute p-2', Z.decoration, PANEL, className)}>
       <h2 id="k8s-minimap-heading" className="sr-only">
         Bản đồ thu nhỏ của cluster
       </h2>
@@ -138,7 +190,7 @@ export function MiniMap({ view, focusedNode, onFocusNode }: MiniMapProps): React
                 onClick={() => onFocusNode(node.name)}
                 aria-pressed={focused}
                 className={cn(
-                  'flex w-12 flex-col items-center gap-1 rounded px-1 py-1 transition-colors',
+                  'flex w-20 flex-col items-center gap-1 rounded px-1 py-1 transition-colors',
                   'duration-[var(--motion-fast)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                   focused ? 'bg-accent' : 'hover:bg-muted',
                 )}
@@ -165,7 +217,13 @@ export function MiniMap({ view, focusedNode, onFocusNode }: MiniMapProps): React
                 <span className="sr-only">
                   Đưa góc nhìn tới node {node.name}, {node.ready ? 'đang sẵn sàng' : 'NotReady'}, {pods.length} pod
                 </span>
-                <span aria-hidden="true" className="max-w-full truncate font-mono text-[9px] text-muted-foreground">
+                {/*
+                  Tên node cắt cụt đọc ra như một lỗi vẽ ("may-ch…"), nên ô rộng
+                  hơn (80px) và chữ được phép xuống dòng. Tên node tiếng Việt dài
+                  hơn hẳn "node-1" của bản gốc — đây là chỗ chép nguyên kích thước
+                  của họ sẽ hỏng.
+                */}
+                <span aria-hidden="true" className="w-full text-center font-mono text-[9px] leading-tight break-all text-muted-foreground">
                   {node.name}
                 </span>
               </button>
@@ -201,7 +259,8 @@ export function WinOverlay({ status, level, onDismiss }: WinOverlayProps): React
     <section
       aria-labelledby="k8s-win-heading"
       className={cn(
-        'absolute top-1/2 left-1/2 z-40 w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 p-5',
+        'absolute top-1/2 left-1/2 w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 p-5',
+        Z.input,
         PANEL,
       )}
     >
