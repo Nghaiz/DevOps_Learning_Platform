@@ -65,6 +65,18 @@ const SPAWN_CYCLE_TARGET = 500;
 const STATIC_WINDOW_MS = 3_000;
 
 /**
+ * Level dùng cho hai ô quy mô, và vì sao KHÔNG phải level 1.
+ *
+ * Level 1 khai `allowedResources: ['Pod']` và khởi đầu với một cluster RỖNG,
+ * nên không có gì để `kubectl scale`. Chương 2 "Tăng số bản chạy trước giờ cao
+ * điểm" (`l07`) khởi đầu sẵn một Deployment `tra-cuu` trong namespace
+ * `giao-duc` — đúng thứ cần để đưa cảnh lên quy mô §11.3 bằng MỘT lệnh.
+ */
+const SCALE_LEVEL_TITLE = 'Tăng số bản chạy';
+const SCALE_TARGET = 'tra-cuu';
+const SCALE_NAMESPACE = 'giao-duc';
+
+/**
  * Thông báo dùng chung khi engine chưa được nối vào route.
  *
  * `/games/k8s` render `<K8sGame />` KHÔNG kèm `levels` lẫn `createSession`
@@ -106,6 +118,69 @@ function isButtonNamed(fragment: string): (info: FocusInfo) => boolean {
 async function activate(page: Page): Promise<void> {
   await page.keyboard.press('Enter');
   await page.waitForTimeout(250);
+}
+
+/** Khoá tuỳ chọn hiển thị của game (`components/games/game-preferences.ts`). */
+const SCENE_PREF_KEY = 'dlp.games.v1.k8s.display';
+
+/**
+ * Ghim bậc chất lượng TRƯỚC khi mã của app chạy.
+ *
+ * `addInitScript` đi qua CDP `Page.addScriptToEvaluateOnNewDocument`, nên nó ghi
+ * `localStorage` sớm hơn cả effect đọc tuỳ chọn — tức là scene mount THẲNG vào
+ * bậc ta cần, không mount ở `auto` rồi đổi. Đổi sau khi mount sẽ dựng lại
+ * renderer giữa chừng và mọi bộ đếm ta sắp đọc bị reset dưới chân.
+ */
+async function seedQuality(page: Page, quality: 'auto' | 'low' | 'medium' | 'high'): Promise<void> {
+  await page.addInitScript(
+    (seed: { key: string; value: string }) => {
+      try {
+        window.localStorage.setItem(seed.key, seed.value);
+      } catch {
+        // Chế độ riêng tư chặn storage — game vẫn chạy, chỉ là không nhớ.
+      }
+    },
+    { key: SCENE_PREF_KEY, value: JSON.stringify({ scene3d: true, quality }) },
+  );
+}
+
+/**
+ * Chọn level theo một mảnh tiêu đề.
+ *
+ * ⚠ Dùng `selectOption`, KHÔNG phải bàn phím — và đó là chủ ý: ô "chỉ bằng bàn
+ * phím" là ô AC riêng ở trên và nó tự đi đường bàn phím thật. Ba ô hiệu năng
+ * dưới đây đo GPU, không đo a11y; bắt chúng gõ Tab qua một `<select>` gốc chỉ
+ * thêm một nguồn chập chờn mà không thêm một bit bằng chứng nào.
+ */
+async function chooseLevel(page: Page, titleFragment: string): Promise<void> {
+  const value = await page.evaluate((fragment: string) => {
+    const el = document.querySelector<HTMLSelectElement>('#k8s-level-select');
+    const option = [...(el?.options ?? [])].find((o) => (o.textContent ?? '').includes(fragment));
+    return option?.value ?? null;
+  }, titleFragment);
+
+  expect(
+    value,
+    `Không level nào có tiêu đề chứa "${titleFragment}". Danh sách level đã đổi, và ô ` +
+      `hiệu năng dưới đây cần một level CÓ SẴN workload đổi được replica — không có nó thì ` +
+      `không dựng được quy mô mà §11.3 nói tới.`,
+  ).not.toBeNull();
+
+  await page.selectOption('#k8s-level-select', value as string);
+  await page.waitForTimeout(500);
+}
+
+/** Gõ một lệnh vào thanh `kubectl`. Chỉ Tab lại khi focus đã rời ô — 10 vòng Tab thừa cho mỗi lệnh là đủ để một test dài hoá chậm chạp vô cớ. */
+async function runKubectl(page: Page, command: string): Promise<void> {
+  const isBar = (info: FocusInfo): boolean =>
+    info.tag === 'input' && info.label.includes('Thanh lệnh kubectl');
+  const current = await readFocus(page);
+  if (current === null || !isBar(current)) {
+    await tabUntil(page, 'thanh lệnh kubectl', isBar);
+  }
+  await page.keyboard.type(command);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -341,8 +416,8 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
 
       const wired = await engineIsWired(page);
       const hasLevelSelect = await page.evaluate(() =>
-        [...document.querySelectorAll('select')].some(
-          (el) => (el.labels?.[0]?.textContent ?? '').trim() === 'Level',
+        [...document.querySelectorAll('select')].some((el) =>
+          /level/i.test(el.labels?.[0]?.textContent ?? ''),
         ),
       );
       await attachJson(testInfo, 'games-keyboard-preconditions.json', {
@@ -354,8 +429,8 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
 
       // Level 1 là mục đầu của `<select>`; xác nhận thay vì tin.
       const selected = await page.evaluate(() => {
-        const el = [...document.querySelectorAll('select')].find(
-          (s) => (s.labels?.[0]?.textContent ?? '').trim() === 'Level',
+        const el = [...document.querySelectorAll('select')].find((node) =>
+          /level/i.test(node.labels?.[0]?.textContent ?? ''),
         );
         return el?.options[el.selectedIndex]?.textContent?.trim() ?? '';
       });
@@ -401,7 +476,10 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
 
       // Pod đi Pending → Running theo đồng hồ mô phỏng; chờ ĐÍCH (level hoàn
       // thành) chứ không chờ một khoảng thời gian đoán trước.
-      await expect(page.getByText('Hoàn thành level')).toBeVisible({ timeout: 90_000 });
+      // Lớp phủ thắng cuộc (`game-hud.tsx` WinOverlay) chỉ render khi phase = 'won'.
+      // Neo vào id của tiêu đề chứ không vào chuỗi "Hoàn thành" trần: chuỗi đó đi kèm
+      // tên level nên nó đổi theo nội dung, còn id là hợp đồng của lớp phủ.
+      await expect(page.locator('#k8s-win-heading')).toBeVisible({ timeout: 90_000 });
 
       const focusPath = await readFocus(page);
       await attachJson(testInfo, 'games-keyboard-run.json', {
@@ -415,122 +493,141 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
     test(`≤ ${MAX_DRAW_CALLS} draw call với ~${POD_SCALE_TARGET} pod (§11.3)`, async ({
       page,
     }, testInfo) => {
-      test.setTimeout(240_000);
+      test.setTimeout(300_000);
 
+      /*
+        ⛔ ĐỌC Ở BẬC `medium`, KHÔNG Ở `auto`/`high` — và đây là chỗ ô này suýt
+        trở thành một cái xanh chẳng chứng minh gì.
+
+        Ở bậc cao, cảnh đi qua `EffectComposer`, và `renderer.info.render` bị
+        RESET ở MỖI lần `render()`. Lần vẽ cuối cùng của composer là `OutputPass`
+        — một tam giác phủ toàn màn hình — nên `calls` đọc ra là **1** và
+        `triangles` là **1**, bất kể cảnh có 2 hay 2000 object. Một khẳng định
+        `calls <= 25` khi đó XANH vĩnh viễn, và vẫn xanh nguyên nếu cảnh hồi quy
+        về một nghìn lệnh vẽ. Nó không đo cảnh; nó đo `OutputPass`.
+
+        Bậc `medium` không dựng composer, `renderer.render()` chạy thẳng, nên con
+        số đọc được là con số của CẢNH. Hai tiền đề ở cuối ô này khoá cái bẫy đó
+        lại: bậc PHẢI là `medium`, và số tam giác PHẢI lớn hơn số object.
+      */
+      await seedQuality(page, 'medium');
       await openScreen(page, GAME_PATH, 'anon');
       await waitForSceneChannel(page);
-
       expect(await engineIsWired(page), ENGINE_NOT_WIRED).toBe(true);
 
-      // Đưa cluster lên quy mô §11.3 qua đường bàn phím: chọn một workload đổi
-      // được replica rồi đặt lại số bản.
-      const scalable = await page.evaluate(() =>
-        [...document.querySelectorAll('button[data-resource]')]
-          .map((el) => el.textContent ?? '')
-          .find((text) => /deployment\/|statefulset\/|replicaset\//i.test(text)),
-      );
-      expect(
-        scalable,
-        `Cluster hiện tại không có workload nào đổi được replica, nên không dựng được ` +
-          `${POD_SCALE_TARGET} pod. Trần draw call chỉ nói lên điều gì Ở QUY MÔ ĐÓ — đo nó ` +
-          `trên một cluster nhỏ sẽ XANH và không chứng minh gì.`,
-      ).toBeDefined();
+      await chooseLevel(page, SCALE_LEVEL_TITLE);
+      await waitForSceneChannel(page);
 
-      const target = await tabUntil(
+      await runKubectl(
         page,
-        `tài nguyên ${scalable ?? ''}`,
-        (info) => info.tag === 'button' && info.text.includes((scalable ?? '').trim()),
+        `kubectl scale deployment/${SCALE_TARGET} --replicas=${POD_SCALE_TARGET} -n ${SCALE_NAMESPACE}`,
       );
-      await activate(page);
-      void target;
-
-      await tabUntil(
-        page,
-        'ô Số replica',
-        (info) => info.tag === 'input' && info.label.includes('Số replica'),
-      );
-      await page.keyboard.press('ControlOrMeta+a');
-      await page.keyboard.type(String(POD_SCALE_TARGET));
-      await tabUntil(page, 'nút Đặt lại replica', isButtonNamed('Đặt lại replica'));
-      await activate(page);
 
       await expect
-        .poll(async () => (await readSceneStats(page)).objects, { timeout: 120_000 })
+        .poll(async () => (await readSceneStats(page)).objects, { timeout: 180_000 })
         .toBeGreaterThanOrEqual(POD_SCALE_TARGET);
 
-      // Ép một lượt vẽ mới rồi đọc: `renderer.info.render.calls` là số của KHUNG
-      // HÌNH GẦN NHẤT, nên đọc lúc cảnh đang ngủ sẽ ra số của một cảnh cũ.
-      await page.mouse.move(4, 4);
-      await page.waitForTimeout(500);
       const stats = await readSceneStats(page);
-      await movePointerAwayFromCanvas(page);
+      await attachJson(testInfo, 'games-drawcalls.json', {
+        level: SCALE_LEVEL_TITLE,
+        target: POD_SCALE_TARGET,
+        stats,
+      });
 
-      await attachJson(testInfo, 'games-drawcalls.json', { target: POD_SCALE_TARGET, stats });
+      /*
+        Tiền đề 1 — bậc đúng. `auto` có thể tự hạ xuống `low` (SwiftShader) hoặc
+        giữ `high`; cả hai đều làm con số dưới đây nói về một thứ khác. Khẳng
+        định thay vì hy vọng.
+      */
+      expect(
+        stats.tier,
+        `Cần đọc draw call ở bậc "medium" (không composer) nhưng cảnh đang chạy bậc ` +
+          `"${stats.tier}". Ở "high" thì số draw call là của OutputPass, không phải của cảnh.`,
+      ).toBe('medium');
+
+      /*
+        Tiền đề 2 — con số này nói về CẢNH, không về một tam giác toàn màn hình.
+        Độc lập với bậc: nếu vì bất cứ lý do gì phép đọc lại rơi trúng một pass
+        hậu kỳ, `triangles` sẽ tụt về hạng đơn vị trong khi `objects` ở hàng
+        trăm, và ô này ĐỎ thay vì xanh giả.
+      */
+      expect(
+        stats.triangles,
+        `Cảnh có ${stats.objects} object mà chỉ vẽ ${stats.triangles} tam giác. Con số đang ` +
+          `đọc gần như chắc chắn là của một pass phủ toàn màn hình chứ không của cảnh — ` +
+          `renderer.info.render reset mỗi lần render(), nên pass CUỐI là pass thắng.`,
+      ).toBeGreaterThan(stats.objects);
 
       expect(
         stats.calls,
         `${stats.objects} object trên cảnh mà tốn ${stats.calls} draw call (trần ${MAX_DRAW_CALLS}). ` +
           `§11.1 mục 1: mỗi mesh riêng là một lệnh vẽ, nên vượt trần gần như luôn nghĩa là ` +
-          `chưa dùng \`InstancedMesh\` — khoản lời lớn nhất trong cả danh sách hiệu năng.`,
+          `chưa dùng InstancedMesh — khoản lời lớn nhất trong cả danh sách hiệu năng.`,
       ).toBeLessThanOrEqual(MAX_DRAW_CALLS);
     });
 
     test(`geometries/textures không tăng qua ${SPAWN_CYCLE_TARGET} lần sinh/xoá (§11.3)`, async ({
       page,
     }, testInfo) => {
-      test.setTimeout(300_000);
+      test.setTimeout(600_000);
 
+      await seedQuality(page, 'medium');
       await openScreen(page, GAME_PATH, 'anon');
       await waitForSceneChannel(page);
       expect(await engineIsWired(page), ENGINE_NOT_WIRED).toBe(true);
 
-      const scalable = await page.evaluate(() =>
-        [...document.querySelectorAll('button[data-resource]')]
-          .map((el) => el.textContent ?? '')
-          .find((text) => /deployment\/|statefulset\/|replicaset\//i.test(text)),
-      );
-      expect(
-        scalable,
-        'Không có workload nào đổi được replica, nên không tạo được chu kỳ sinh/xoá pod. ' +
-          'Ô này đo RÒ RỈ, và không có gì sinh ra thì không có gì rò.',
-      ).toBeDefined();
-
-      await tabUntil(
-        page,
-        `tài nguyên ${scalable ?? ''}`,
-        (info) => info.tag === 'button' && info.text.includes((scalable ?? '').trim()),
-      );
-      await activate(page);
+      await chooseLevel(page, SCALE_LEVEL_TITLE);
+      await waitForSceneChannel(page);
 
       const perCycle = 50;
       const rounds = Math.ceil(SPAWN_CYCLE_TARGET / perCycle);
-      const samples: { round: number; geometries: number; textures: number; objects: number }[] = [];
+      const samples: {
+        round: number;
+        peakObjects: number;
+        geometries: number;
+        textures: number;
+      }[] = [];
+      let spawned = 0;
+
+      const scale = async (replicas: number): Promise<void> => {
+        await runKubectl(
+          page,
+          `kubectl scale deployment/${SCALE_TARGET} --replicas=${replicas} -n ${SCALE_NAMESPACE}`,
+        );
+      };
+
+      /** Đỉnh `objects` quan sát được trong một khoảng — số object THẬT SỰ đã sinh ra. */
+      const watchPeak = async (ms: number): Promise<number> => {
+        let peak = 0;
+        const until = Date.now() + ms;
+        while (Date.now() < until) {
+          peak = Math.max(peak, (await readSceneStats(page)).objects);
+          await page.waitForTimeout(400);
+        }
+        return peak;
+      };
 
       for (let round = 0; round < rounds; round += 1) {
-        for (const replicas of [perCycle, 0]) {
-          await tabUntil(
-            page,
-            'ô Số replica',
-            (info) => info.tag === 'input' && info.label.includes('Số replica'),
-          );
-          await page.keyboard.press('ControlOrMeta+a');
-          await page.keyboard.type(String(replicas));
-          await tabUntil(page, 'nút Đặt lại replica', isButtonNamed('Đặt lại replica'));
-          await activate(page);
-          await page.waitForTimeout(1_200);
-        }
+        await scale(perCycle);
+        const peak = await watchPeak(12_000);
+        await scale(0);
+        await watchPeak(6_000);
+
         const stats = await readSceneStats(page);
+        spawned += peak;
         samples.push({
           round,
+          peakObjects: peak,
           geometries: stats.geometries,
           textures: stats.textures,
-          objects: stats.objects,
         });
       }
 
       await attachJson(testInfo, 'games-leak-cycles.json', {
-        spawnsAttempted: rounds * perCycle,
+        target: SPAWN_CYCLE_TARGET,
+        rounds,
         perCycle,
+        spawnedObserved: spawned,
         samples,
       });
 
@@ -539,16 +636,28 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
       expect(first, 'Không lấy được mẫu nào').toBeDefined();
       expect(last, 'Không lấy được mẫu nào').toBeDefined();
 
+      /*
+        Tiền đề: đã thật sự sinh/xoá đủ nhiều. §11.3 nói 500 chu kỳ, và một mẫu
+        nhỏ hơn hẳn thì "không tăng" chỉ nghĩa là "chưa kịp tăng". Ô này ĐỎ với
+        con số đo được thay vì hạ ngưỡng xuống thứ vừa đạt.
+      */
+      expect(
+        spawned,
+        `Chỉ quan sát được ${spawned} lần sinh object qua ${rounds} vòng (đích §11.3: ` +
+          `${SPAWN_CYCLE_TARGET}). Mô phỏng không kịp dựng đủ object trong ngân sách thời gian, ` +
+          `nên "geometries không tăng" bên dưới nói về một mẫu nhỏ hơn thứ hợp đồng yêu cầu.`,
+      ).toBeGreaterThanOrEqual(SPAWN_CYCLE_TARGET);
+
       expect(
         last?.geometries,
-        `geometries đi từ ${first?.geometries} lên ${last?.geometries} sau ${rounds * perCycle} ` +
-          `lần sinh pod. Đây là rò rỉ geometry — nguyên nhân của kiểu giật xuất hiện sau vài ` +
-          `phút chơi chứ không phải ngay từ đầu, và là kiểu khó truy nhất nếu không có ô này.`,
+        `geometries đi từ ${first?.geometries} lên ${last?.geometries} sau ${spawned} lần ` +
+          `sinh object. Đây là rò rỉ geometry — nguyên nhân của kiểu giật xuất hiện sau vài ` +
+          `phút chơi chứ không ngay từ đầu, và là kiểu khó truy nhất nếu không có ô này.`,
       ).toBeLessThanOrEqual(first?.geometries ?? 0);
 
       expect(
         last?.textures,
-        `textures đi từ ${first?.textures} lên ${last?.textures} sau ${rounds * perCycle} lần sinh pod.`,
+        `textures đi từ ${first?.textures} lên ${last?.textures} sau ${spawned} lần sinh object.`,
       ).toBeLessThanOrEqual(first?.textures ?? 0);
     });
 
