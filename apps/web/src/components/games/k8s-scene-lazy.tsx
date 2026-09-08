@@ -9,7 +9,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import type { ClusterView } from '@devops-platform/games';
-import { PLATFORM_DEPTH, PLATFORM_HEIGHT, PLATFORM_WIDTH, computeLayout } from './scene-layout';
+import { PLATFORM_DEPTH, PLATFORM_HEIGHT, PLATFORM_WIDTH, computeLayout, type SceneLayout } from './scene-layout';
 import {
   DEATH_DURATION_S,
   SPAWN_DURATION_S,
@@ -142,6 +142,16 @@ export interface SceneStats {
   frames: number;
   tier: QualityTier;
   objects: number;
+  /**
+   * Tick của mô phỏng — ĐỐI CHỨNG ÂM cho cổng "0 frame khi cảnh tĩnh".
+   *
+   * Không có nó, cổng đó không phân biệt được "render theo yêu cầu đang chạy
+   * đúng" với "mô phỏng đã chết nên chẳng có gì để vẽ". Bản đo đầu tiên của lane
+   * E rơi đúng vào vế thứ hai: nó xanh, nó thành thật, và nó đo trên một trang
+   * chưa có phiên chơi nào. Cổng đúng phải khẳng định CẢ HAI — tick TĂNG trong
+   * khi frames ĐỨNG YÊN.
+   */
+  tick: number;
 }
 
 declare global {
@@ -487,6 +497,8 @@ export default function K8sSceneLazy({
     let nodeEntries: NodeEntry[] = [];
     let topologyDirty = true;
     let needsRender = true;
+    /** Chữ ký của khung hình ĐANG hiển thị. `null` = chưa vẽ lần nào. */
+    let lastSignature: string | null = null;
     let pointerInside = false;
     let width = 1;
     let height = 1;
@@ -595,8 +607,64 @@ export default function K8sSceneLazy({
       // và giấu mất phần bo góc — chính chỗ bắt rim light của §9.1.
       cameraGoal.set(0, distance * 0.46, distance);
 
-      topologyDirty = true;
-      needsRender = true;
+      /*
+       * ⛔ KHÔNG đặt `needsRender = true` vô điều kiện ở đây.
+       *
+       * `syncFromView` LÀ hàm nghe của phiên chơi, và phiên bắn `notify()` MỖI
+       * TICK: `session.ts` gọi `commit(advance(state, 1))`, `advance` tăng
+       * `state.tick` nên luôn trả một object mới, nên phép so tham chiếu trong
+       * `commit` không bao giờ chặn được gì. Đặt cờ ở đây tức là vẽ 60 lần một
+       * giây suốt ván chơi, kể cả khi trên màn hình không có gì đổi — đúng thứ
+       * §11.2 sinh ra để cấm.
+       *
+       * Đây là lần thứ ba trong phiên làm việc này một lỗi ẩn sau CỤM RỖNG: phép
+       * đo "0 frame trong 3 giây tĩnh" của bản trước thành thật và vẫn xanh, chỉ
+       * vì lúc đó chưa có phiên chơi nào nên chưa có tick nào.
+       *
+       * Nên: so CHỮ KÝ THỊ GIÁC của view mới với view đang vẽ, và chỉ vẽ lại khi
+       * khác thật. `tick` cố ý KHÔNG nằm trong chữ ký — nó đổi mỗi lần và nó
+       * chính là thứ đang gây ra vấn đề.
+       */
+      const signature = visualSignature(layout, view);
+      if (signature !== lastSignature) {
+        lastSignature = signature;
+        topologyDirty = true;
+        needsRender = true;
+      }
+    }
+
+    /**
+     * Chữ ký của MỌI THỨ NHÌN THẤY ĐƯỢC trong một khung hình, và không gì khác.
+     *
+     * Cấp phát chuỗi ở đây là chấp nhận được: hàm này chạy theo nhịp TICK (vài
+     * lần một giây), không phải trong vòng lặp render — luật "không cấp phát"
+     * của §11.1 mục 2 nói về `frame()`, nơi nó chạy 60 lần một giây.
+     *
+     * ⚠ `cpuUsed`/`memoryUsed` được LÀM TRÒN xuống 1/32. Chúng trôi một chút mỗi
+     * tick, và so bằng số thực đầy đủ sẽ làm chữ ký đổi liên tục — tức khôi phục
+     * đúng cái lỗi này dưới một cái tên khác. 1/32 vẫn đủ mịn cho cường độ phát
+     * sáng của bệ node.
+     */
+    function visualSignature(layout: SceneLayout, view: ClusterView): string {
+      const parts: string[] = [];
+      for (const node of layout.nodes) {
+        const load = Math.round(Math.max(node.cpuUsed, node.memoryUsed) * 32);
+        parts.push(`n:${node.name}:${node.ready ? '1' : '0'}:${String(load)}`);
+      }
+      const status = new Map(view.objects.map((o) => [o.uid, o]));
+      for (const placement of layout.objects) {
+        const object = status.get(placement.uid);
+        parts.push(
+          `o:${placement.uid}:${placement.zone}:${placement.position.x.toFixed(2)}:` +
+            `${placement.position.y.toFixed(2)}:${placement.position.z.toFixed(2)}:` +
+            `${placement.size.toFixed(2)}:${object?.statusToken ?? ''}:${object?.phase ?? ''}:` +
+            `${object?.reason ?? ''}`,
+        );
+      }
+      for (const edge of layout.edges) {
+        parts.push(`e:${edge.fromUid}>${edge.toUid}:${edge.healthy ? '1' : '0'}`);
+      }
+      return parts.join('|');
     }
 
     function ensureCapacity(needed: number): void {
@@ -994,6 +1062,7 @@ export default function K8sSceneLazy({
       frames: renderer.info.render.frame,
       tier,
       objects: objectMesh.count,
+      tick: getViewRef.current().tick,
     });
 
     return () => {

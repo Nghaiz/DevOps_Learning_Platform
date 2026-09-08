@@ -39,7 +39,7 @@ export interface EventLogProps {
  * các bộ đọc.
  */
 export function EventLog({ events }: EventLogProps): ReactElement {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLOListElement>(null);
   const pinnedRef = useRef(true);
 
   const recent = events.length > MAX_LINES ? events.slice(events.length - MAX_LINES) : events;
@@ -54,20 +54,31 @@ export function EventLog({ events }: EventLogProps): ReactElement {
   }, [recent.length]);
 
   return (
-    <div
-      ref={scrollRef}
-      onScroll={(event) => {
-        const el = event.currentTarget;
-        pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-      }}
-      className="h-full min-h-0 overflow-y-auto px-3 py-2"
-    >
+    <div className="flex h-full min-h-0 flex-col">
+      {/*
+        ⚠ `tabIndex={0}` trên CHÍNH vùng cuộn — axe `scrollable-region-focusable`.
+        
+        Một khối cuộn được mà không focus được thì người chỉ dùng bàn phím không
+        bao giờ đọc tới được phần dưới của nó, và nhật ký chính là chỗ người chơi
+        chẩn đoán sự cố (§12.4). Luật này chỉ bắn khi vùng THẬT SỰ tràn, nên nó
+        im lặng suốt thời gian cụm còn rỗng — cùng một lớp lỗi với `objects: 0`.
+        
+        Đặt `overflow` + `tabIndex` lên chính `<ol role="log">` chứ không lên một
+        div bọc ngoài: `<ol>` đã có tên khả truy sẵn, nên không phải bịa thêm một
+        vai và một nhãn thứ hai chỉ để làm hài lòng luật.
+      */}
       <ol
+        ref={scrollRef}
+        tabIndex={0}
+        onScroll={(event) => {
+          const el = event.currentTarget;
+          pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+        }}
         role="log"
         aria-live="polite"
         aria-relevant="additions text"
         aria-label="Nhật ký sự kiện của cluster"
-        className="flex flex-col gap-1"
+        className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         {recent.map((event, index) => (
           // Khoá gồm cả chỉ số: hai sự kiện cùng tick với cùng nội dung là
@@ -83,7 +94,7 @@ export function EventLog({ events }: EventLogProps): ReactElement {
           </li>
         ))}
       </ol>
-      {recent.length === 0 ? <p className="text-xs text-muted-foreground">Chưa có sự kiện nào.</p> : null}
+      {recent.length === 0 ? <p className="px-3 py-2 text-xs text-muted-foreground">Chưa có sự kiện nào.</p> : null}
     </div>
   );
 }
