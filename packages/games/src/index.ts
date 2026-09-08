@@ -40,3 +40,6 @@ export type {
   ResourceSpec,
   RunLog,
 } from './k8s/contract.ts';
+
+export type { PredicateName } from './k8s/predicate-names.ts';
+export { PREDICATE_NAMES } from './k8s/predicate-names.ts';
