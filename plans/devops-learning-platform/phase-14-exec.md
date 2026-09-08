@@ -535,3 +535,87 @@ Không gì được nhảy cóc. Mọi thay đổi trạng thái là một chuy�
 - Không asset ngoài: không HDRI, không texture tải về, không font 3D. Cần texture thì sinh bằng canvas lúc chạy.
 - `import 'three'` vẫn chỉ được nằm trong đúng một file lazy (§4.3). Import từ `three/examples/jsm` cũng tính là ở trong ranh giới đó.
 - Đẹp không được đổi bằng a11y. Lớp DOM ở §4.4 là giao diện chính thức; canvas vẫn `aria-hidden`.
+
+---
+
+## 10. Sửa hợp đồng sau khi đo (2026-09-08, sau báo cáo lane A)
+
+Lane A đo và tìm ra §2.4 lẫn §2.5 viết trên một cách đọc thiếu. Ghi lại ở đây thay
+vì sửa tại chỗ, để người đọc sau thấy được *vì sao* hợp đồng đổi.
+
+### 10.1 §2.5 sai chỗ nào
+
+§2.5 nói cái cổng là con số 6.20 và cho hai nhánh theo ngưỡng 9. **Cả hai nhánh đều
+không dùng được.** Cổng thật là một phép **quét vét cạn** khẳng định KHÔNG tồn tại
+độ chói nào cho `--ring` đạt 3:1 với đồng thời `--card` và `--primary` ở theme tối.
+
+| | lam (cũ) | đỏ (mới) |
+|---|---|---|
+| số nghiệm ring hợp lệ | **0** | **317** |
+| trắng ↔ primary (tối) | 2.8922 | 4.2972 |
+| primary ↔ card (tối) | 6.20 | 4.1690 |
+
+Con số vẫn `< 9`, nên nhánh thứ nhất của §2.5 sẽ bảo cập nhật 6.20 → 4.17 — trong
+khi **lời chứng minh bên cạnh nó nay đã SAI**. Đó đúng là "ghi lại hiện tại rồi gọi
+nó là kỳ vọng" mà `pinned-baseline-test-companion.md` cấm. Nhánh thứ hai (≥ 9 thì
+xoá miễn trừ, trả cặp về `NON_TEXT_PAIRS`) cũng không tới được: §2.2 giữ
+`--ring` = `--primary` nên cặp đó đo ra 1.00:1, đỏ vĩnh viễn.
+
+**Chốt:** xoá nửa `--primary` của phép quét và xoá luôn cái ghim 6.20 — **không**
+ghim lại thành 4.17. Giữ nguyên nửa `--destructive` (vẫn 0 nghiệm, vẫn đúng, vẫn
+đo được). Thay lý lẽ của primary bằng thứ nay mới đúng: định danh
+`--ring` = `--primary` của §2.2, khẳng định bằng một test **có thể đỏ**, để ngày
+nào ai đó cho `--ring` giá trị riêng thì cặp ấy quay về `NON_TEXT_PAIRS`.
+
+⚠ Comment thay thế **bắt buộc ghi con số 317** và nói rõ: ring-bằng-primary nay là
+một **lựa chọn**, không còn là điều bất khả kháng. Bản cũ nói được câu "không màu
+nào sửa được"; bản mới thì không, và nếu chỉ khẳng định định danh mà bỏ bối cảnh
+thì người đọc sau sẽ tưởng ràng buộc vẫn là vật lý và không bao giờ xem lại.
+
+**Đã cân nhắc và từ chối:** cho `--ring` một giá trị riêng (nay khả thi, 317 ứng
+viên). Nó xoá hẳn được miễn trừ, tốt hơn thật. Nhưng `--ring` là vòng focus của
+**mọi** phần tử focus được, nên đổi hue của nó là sửa cả hệ thống focus chứ không
+phải đổi màu thương hiệu. Ngoài phạm vi đợt này; nếu sau khi đỏ vào rồi vẫn thấy
+đáng thì mở thành một thay đổi riêng.
+
+### 10.2 §2.4 — chữ destructive trượt contrast ở theme sáng
+
+Đo được: `text-destructive` trên `bg-destructive/10` cho **3.9875** ở sáng (hover
+`/20` còn tệ hơn: 3.3133), trong khi tối đạt 5.4743. Nguyên nhân là **trần**, không
+phải chỉnh chưa khéo: `--destructive` sáng chỉ đạt 4.7647:1 trên trắng tinh, nên
+đặt lên một nền hồng nhạt thì không còn đường nào chạm 4.5. Hạ alpha không cứu được
+— phải xuống `/03` (4.520) tức là gần như không còn nền.
+
+**Chốt: KHÔNG thêm token.** Thứ tự ưu tiên:
+
+1. **Bỏ nền lúc nghỉ.** `bg-transparent` + `text-destructive` + `border-destructive`
+   + icon. Chữ đỏ trên nền trang đo 4.7647 — đạt. Hover thì đảo sang nền đặc
+   (`hover:bg-destructive hover:text-destructive-foreground`), một cặp vốn đã hợp lệ.
+   Ưu tiên phương án này vì nhãn **đỏ thật** là tín hiệu mạnh hơn nhãn màu chữ
+   thường, và việc tách hình dạng vẫn nguyên vẹn: cái phân biệt nằm ở trạng thái
+   NGHỈ, nơi primary đặc còn destructive viền. Nền đặc lúc hover không đụng primary,
+   vì primary đặc ngay lúc nghỉ và đó mới là trạng thái người ta quét mắt qua.
+2. Nếu (1) không đạt ở cả hai theme thì dùng khuôn `alert.tsx` đang có: nhãn
+   `text-foreground` (16.56 sáng / 15.16 tối), icon `text-destructive` (đồ hoạ
+   không-phải-chữ nên ngưỡng 3.0), viền + nền nhạt giữ nguyên.
+
+`--destructive-strong` `oklch(0.52 0.19 27.325)` (5.083 trên nền nhạt) là một lối
+thoát có thật, nhưng nó kéo theo C1 + `docs/design-system.md` + test hợp đồng, mà
+cả hai phương án trên đều không cần.
+
+### 10.3 §2.3 — kiểm hue láng giềng: không xung đột
+
+Sáng: `--warning` lệch 31°, `--difficulty-intermediate` lệch 40° — mắt đọc ra nâu và
+hổ phách cạnh `#e31029`, không cùng họ. Tối: lệch 45° và 40°, rõ ràng là cam.
+Màu thật sự sát là `--destructive` (lệch 2.3°) — và đó chính là lý do quyết định #1
+tách bằng hình dạng chứ không bằng hue. Đúng như thiết kế, không phải việc cần sửa.
+
+### 10.4 Giá trị thương hiệu đã duyệt
+
+| | giá trị | hex | phép đo |
+|---|---|---|---|
+| `:root --primary` | `oklch(0.58 0.23 25)` | `#e31029` | trắng 0.985 trên nó = **4.6144** (L lớn nhất còn ≥ 4.6) |
+| `.dark --primary` | `oklch(0.609 0.242 25)` | `#f2102c` | `#0a0a0a` trên nó = **4.6060** (L nhỏ nhất còn ≥ 4.6) |
+
+Cả hai trong gamut, chừa ~0.005 chroma. L gần như không đổi theo biên chroma
+(0.581 sát mép so với 0.577 ở biên 0.03), nên biên an toàn gần như miễn phí.
