@@ -89,4 +89,59 @@ nhưng nó nằm ở một chỗ mà lệnh log mặc định không nhìn tới
     'container command',
     'entrypoint',
   ],
+  teaching: {
+    primer: `Level trước pod chết ở bước kéo image. Lần này nó đi xa hơn: container **đã được
+tạo và đã chạy**, rồi chết. Cột RESTARTS tăng là dấu hiệu duy nhất phân biệt hai
+tình huống đó, và nó đáng tin hơn cột STATUS.
+
+Khi container trong pod chết, kubelet dựng lại nó theo mặc định
+(\`restartPolicy: Always\`). Nếu nó chết ngay lần nào cũng vậy, kubelet chuyển
+sang chờ lâu dần trước mỗi lần thử: 10 giây, 20, 40, tối đa 5 phút. Trạng thái
+đó tên là \`CrashLoopBackOff\`. Nó **không** phải một lỗi riêng, nó chỉ nói
+"container này chết liên tục" mà chưa nói vì sao.
+
+Ở đây có một cái bẫy về công cụ. \`kubectl logs\` đọc log của container **đang
+chạy**. Ngay sau một lần restart, container hiện tại vừa mới sinh ra và chưa kịp
+ghi gì, nên lệnh đó thường trả về gần như trống. Log của lần chạy đã chết nằm ở
+chỗ khác, và cờ \`--previous\` là thứ lấy nó ra.
+
+Ba nguyên nhân gốc phổ biến của một container chết ngay lúc khởi động: sai lệnh
+khởi động (\`command\`), thiếu cấu hình bắt buộc, hoặc hết bộ nhớ. Level này là
+loại thứ nhất.
+
+Nhìn vào đâu: RESTARTS, rồi \`logs --previous\`, rồi đối chiếu \`command\` với
+đường dẫn thật trong image.`,
+    cheatsheet: [
+      {
+        command: 'kubectl logs bao-cao -n van-hanh --previous',
+        explain: 'Đọc log của LẦN CHẠY TRƯỚC, tức là lần đã chết. Không có cờ này thì log gần như trống.',
+      },
+      {
+        command: 'kubectl get pods -n van-hanh -w',
+        explain: 'Theo dõi RESTARTS tăng theo thời gian thực, xác nhận đây là vòng lặp chứ không phải một lần chết.',
+      },
+      {
+        command: 'kubectl describe pod bao-cao -n van-hanh',
+        explain: 'Phần Last State cho exit code của lần chết gần nhất. Số khác 0 nghĩa là container tự thoát trong lỗi.',
+      },
+      {
+        command: 'kubectl get pod bao-cao -n van-hanh -o jsonpath="{.spec.containers[*].command}"',
+        explain: 'In chính xác lệnh khởi động đang khai, để so từng ký tự với đường dẫn thật.',
+      },
+    ],
+    takeaways: [
+      'RESTARTS lớn hơn 0 phân biệt "chạy rồi chết" với "chưa bao giờ chạy", và hai loại đó chẩn đoán khác hẳn nhau.',
+      'CrashLoopBackOff là mô tả triệu chứng, không phải nguyên nhân: nó nói container chết liên tục chứ không nói vì sao.',
+      '`kubectl logs --previous` là công cụ đọc lời trăng trối của container đã chết.',
+      'Trường `command` ghi đè entrypoint của image, nên sai một ký tự ở đó là container không bao giờ khởi động nổi.',
+    ],
+    proTips: [
+      'Khoảng cách giữa hai lần restart dài dần là backoff đang hoạt động bình thường, không phải cluster bị treo.',
+      'Nếu `--previous` báo không có container trước, pod vừa được tạo lại từ đầu: chờ nó chết thêm một lần rồi đọc lại.',
+    ],
+    pitfalls: [
+      '`kubectl logs` trả về trống và bạn kết luận ứng dụng không ghi log. Lệnh chạy đúng, chỉ là nó đang đọc một container vừa sinh ra chứ không phải container đã chết.',
+      'Tăng số replica để "có cái nào chạy được thì tốt". Mọi replica dùng chung một template nên chúng chết y hệt nhau, chỉ nhanh hơn.',
+    ],
+  },
 };

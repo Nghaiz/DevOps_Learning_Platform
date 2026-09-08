@@ -94,4 +94,61 @@ khi nó cố tạo container và thất bại.`,
     'image tag',
     'container registry',
   ],
+  teaching: {
+    primer: `Để một pod chạy được, kubelet trên node làm ba việc theo thứ tự: **kéo image**
+về máy, **tạo container** từ image đó, rồi **chạy** nó. Mỗi bước hỏng cho một
+triệu chứng khác nhau, và biết pod chết ở bước nào là một nửa việc chẩn đoán.
+
+Level này dừng ở bước một. \`ImagePullBackOff\` nghĩa là kubelet đã thử kéo image
+và thất bại, nên chưa có container nào tồn tại. Hệ quả rất thực tế: **không có
+log để đọc**. Ứng dụng còn chưa khởi động thì không có gì để ghi ra.
+
+Thứ có ghi lại là **Events** của pod. Kubelet ghi vào đó từng lần thử và từng
+lỗi, và \`kubectl describe pod\` in chúng ở cuối. Chữ *BackOff* nghĩa là nó vẫn
+đang thử lại, mỗi lần chờ lâu hơn lần trước, nên trạng thái này không tự khỏi.
+
+Một chuỗi image gồm ba phần: \`registry/repository:tag\`. Ba nguyên nhân thường
+gặp là tag không tồn tại, registry không với tới được, và registry riêng tư mà
+pod không có thông tin đăng nhập. Ở đây node vẫn kéo được image cho pod khác
+trong cùng namespace, nên hai nguyên nhân sau đã tự loại trừ.
+
+Nhìn vào đâu: Events của pod, rồi chuỗi image mà pod đang khai, rồi một thứ đang
+chạy được để đối chiếu.`,
+    cheatsheet: [
+      {
+        command: 'kubectl describe pod api -n nen-tang',
+        explain: 'Events ở cuối là nhật ký kubelet. Lỗi kéo image nằm ở đó, không nằm trong log.',
+      },
+      {
+        command: 'kubectl get pod api -n nen-tang -o jsonpath="{.spec.containers[*].image}"',
+        explain: 'In đúng chuỗi image pod đang khai, tránh đọc nhầm bằng mắt.',
+      },
+      {
+        command: 'kubectl get pods -n nen-tang -o wide',
+        explain: 'So pod hỏng với pod đang chạy cạnh nó: cùng node thì loại trừ được lỗi mạng của node.',
+      },
+      {
+        command: 'kubectl get events -n nen-tang --sort-by=.lastTimestamp',
+        explain: 'Xem mọi sự kiện trong namespace theo thứ tự thời gian khi chưa biết pod nào có lỗi.',
+      },
+      {
+        command: 'kubectl set image pod/api api=ghcr.io/dlp/api:1.4.2 -n nen-tang',
+        explain: 'Đổi image của một container đã khai, không phải viết lại cả pod.',
+      },
+    ],
+    takeaways: [
+      'Pod chưa từng có container thì chưa từng có log: chỗ đọc là Events, không phải `kubectl logs`.',
+      'ImagePullBackOff là chuyện giữa kubelet và registry, xảy ra trước khi ứng dụng của bạn được đụng tới.',
+      'Tag là một phần của tên image, nên sai tag là sai tên chứ không phải sai phiên bản.',
+      'Một pod đang chạy cùng ứng dụng là nguồn đáng tin để tra ra tag có thật, đáng tin hơn trí nhớ.',
+    ],
+    proTips: [
+      'Phân biệt hai lỗi hay bị gộp: `ErrImagePull` là lần thử vừa hỏng, `ImagePullBackOff` là kubelet đang chờ trước khi thử lại.',
+      'Đọc Events ngay cả khi bạn đã đoán ra nguyên nhân. Nó tốn hai giây và loại bỏ được cả một nhánh phỏng đoán sai.',
+    ],
+    pitfalls: [
+      'Chạy `kubectl logs` đầu tiên vì đó là phản xạ quen. Log trống làm nhiều người tưởng ứng dụng im lặng, trong khi thật ra nó chưa bao giờ được khởi động.',
+      'Xoá pod rồi tạo lại y hệt. Bộ đếm BackOff về không nên trạng thái trông khá hơn trong vài giây, nhưng chuỗi image vẫn sai và pod hỏng lại đúng như cũ.',
+    ],
+  },
 };

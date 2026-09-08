@@ -62,4 +62,62 @@ Running — sáu level tới đều dựa trên việc bạn đọc được cá
   ],
   parMoves: 1,
   teaches: ['pod', 'container', 'image', 'namespace', 'kubectl apply', 'pod phase'],
+  teaching: {
+    primer: `Kubernetes không chạy container trực tiếp. Đơn vị nhỏ nhất mà nó xếp lên
+node là **pod**: một lớp bọc quanh một hoặc nhiều container, chia nhau một địa
+chỉ IP và một vùng lưu trữ tạm.
+
+Cách làm việc với Kubernetes là **khai báo**, không phải ra lệnh từng bước. Bạn
+không nói "hãy chạy container này"; bạn ghi ra trạng thái mong muốn, rồi cluster
+liên tục so mong muốn với thực tế và tự đóng khoảng cách. Mọi thứ ở các chương
+sau đều là biến thể của ý này.
+
+Một pod tối thiểu cần bốn thứ: tên, namespace, tên container, và image.
+**Namespace** là ranh giới đặt tên: hai namespace chứa được hai pod cùng tên
+\`web\` mà không đụng nhau, và lệnh \`kubectl\` nào không ghi \`-n\` thì làm việc
+với namespace \`default\`.
+
+Sau khi được tạo, pod đi qua vài **phase**. \`Pending\` nghĩa là API server đã
+nhận bản khai nhưng container chưa chạy: pod đang chờ được xếp lên node, hoặc
+node đang kéo image về. \`Running\` nghĩa là ít nhất một container đã khởi động.
+
+Nhìn vào đâu: \`kubectl get pods\` cho bạn phase, \`kubectl describe pod\` cho
+bạn từng bước kubelet đã làm và lý do nó dừng lại.`,
+    cheatsheet: [
+      {
+        command: 'kubectl get pods -n hoc-tap',
+        explain: 'Liệt kê pod trong namespace. Cột STATUS chính là phase bạn đang chờ đổi.',
+      },
+      {
+        command: 'kubectl get pods -n hoc-tap -o wide',
+        explain: 'Thêm cột IP và NODE, cho biết pod đã được xếp lên máy nào.',
+      },
+      {
+        command: 'kubectl describe pod web -n hoc-tap',
+        explain: 'Chi tiết pod kèm Events ở cuối. Đây là nơi kubelet kể nó đã làm gì.',
+      },
+      {
+        command: 'kubectl get namespaces',
+        explain: 'Xem cluster có những namespace nào, phòng khi bạn gõ nhầm tên.',
+      },
+      {
+        command: 'kubectl apply -f pod.yaml',
+        explain: 'Đưa một bản khai báo vào cluster. Chạy lại nhiều lần vẫn ra cùng kết quả.',
+      },
+    ],
+    takeaways: [
+      'Pod là đơn vị Kubernetes xếp lịch, không phải container: một pod chứa được nhiều container.',
+      'Bạn khai báo trạng thái mong muốn chứ không ra lệnh, và cluster tự đưa thực tế về khớp.',
+      'Pending nghĩa là chưa có container chạy, Running nghĩa là đã có ít nhất một container khởi động.',
+      'Namespace là ranh giới đặt tên, nên thiếu cờ `-n` là bạn đang nhìn nhầm chỗ.',
+    ],
+    proTips: [
+      'Thêm `-w` vào `kubectl get pods` để xem trạng thái đổi theo thời gian thực thay vì gõ lại lệnh.',
+      '`kubectl run web --image=nginx:1.27-alpine --dry-run=client -o yaml` sinh sẵn khung YAML để bạn sửa, nhanh hơn gõ từ đầu.',
+    ],
+    pitfalls: [
+      'Quên `-n` rồi kết luận pod chưa được tạo. Lệnh chạy đúng, chỉ là nó đang nhìn namespace `default` trong khi pod nằm ở chỗ khác.',
+      'Coi pod và container là một. Cách hiểu đó chạy được ở level này và sẽ hỏng ngay ở level sidecar, nơi một pod có hai container.',
+    ],
+  },
 };

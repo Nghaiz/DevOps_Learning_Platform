@@ -82,4 +82,62 @@ không nhìn thấy gì. Chia sẻ chỉ có thật khi cả hai bên cùng moun
     'shared network namespace',
     'localhost',
   ],
+  teaching: {
+    primer: `Level 1 nói pod là một lớp bọc quanh container. Level này là chỗ định nghĩa đó
+trở thành thứ dùng được: pod là một **ranh giới chia sẻ**.
+
+Mọi container trong cùng một pod dùng chung hai thứ:
+
+- **Mạng.** Chung một địa chỉ IP, gọi nhau qua \`localhost\`. Hệ quả kèm theo: hai
+  container trong cùng pod không được nghe cùng một cổng, vì chúng chia nhau đúng
+  một bộ cổng.
+- **Volume.** Volume khai ở **cấp pod**, rồi mỗi container tự khai \`volumeMounts\`
+  để gắn nó vào một đường dẫn bên trong mình.
+
+Hai bước đó là hai bước riêng, và đây là chỗ hay hỏng: khai volume mà chỉ một
+container mount thì không có chia sẻ nào cả, chỉ có một container nhìn thấy thư
+mục còn container kia mở ra khoảng trống.
+
+Loại volume đơn giản nhất là \`emptyDir\`: một thư mục rỗng sinh ra khi pod được
+xếp lên node và biến mất khi pod bị xoá. Nó hợp cho việc trao đổi tạm giữa các
+container, không hợp cho dữ liệu cần sống lâu hơn pod.
+
+**Sidecar** là tên của khuôn mẫu bạn đang dựng: một container phụ thêm năng lực
+cho container chính (thu log, đẩy metric, làm proxy) mà không phải sửa image của
+ứng dụng.
+
+Nhìn vào đâu: phần Mounts trong \`describe\` của **từng** container.`,
+    cheatsheet: [
+      {
+        command: 'kubectl logs don-hang -c sidecar -n ban-hang',
+        explain: 'Pod nhiều container thì bắt buộc chỉ tên container bằng `-c`, không thì kubectl hỏi lại.',
+      },
+      {
+        command: 'kubectl describe pod don-hang -n ban-hang',
+        explain: 'Mỗi container có phần Mounts riêng. So hai phần đó là cách thấy volume có thật sự chung hay không.',
+      },
+      {
+        command: 'kubectl exec -it don-hang -c sidecar -n ban-hang -- ls /var/log/app',
+        explain: 'Đứng từ trong sidecar nhìn ra thư mục chung, bằng chứng trực tiếp nhất.',
+      },
+      {
+        command: 'kubectl get pod don-hang -n ban-hang -o jsonpath="{.spec.volumes[*].name}"',
+        explain: 'Liệt kê volume đang khai ở cấp pod, trước khi đi kiểm từng container.',
+      },
+    ],
+    takeaways: [
+      'Pod là ranh giới chia sẻ mạng và volume, không phải một cái tên khác của container.',
+      'Volume khai ở cấp pod còn mount khai ở cấp container: thiếu một trong hai thì không có chia sẻ.',
+      'Sidecar thêm năng lực cho ứng dụng mà không cần sửa image của nó.',
+      'emptyDir sống và chết cùng pod, nên nó là chỗ trao đổi tạm chứ không phải chỗ lưu dữ liệu.',
+    ],
+    proTips: [
+      'Đặt tên container rõ vai trò (`app`, `log-sidecar`), vì mọi lệnh logs và exec sau này đều phải gọi đúng tên đó.',
+      'Cần một việc chạy XONG trước khi ứng dụng khởi động thì đó là `initContainers`, không phải sidecar. Sidecar chạy song song, init chạy trước.',
+    ],
+    pitfalls: [
+      'Chỉ mount volume ở container chính, vì nghe hợp lý rằng log là của ứng dụng. Pod vẫn lên Running bình thường và sidecar mở ra một thư mục rỗng, nên lỗi này im lặng.',
+      'Cho hai container cùng nghe cổng 8080. Chúng chia nhau một không gian mạng nên cái thứ hai sẽ không bind được, dù trong hai pod riêng thì việc đó hoàn toàn hợp lệ.',
+    ],
+  },
 };

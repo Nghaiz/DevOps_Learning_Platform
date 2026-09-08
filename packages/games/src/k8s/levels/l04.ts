@@ -109,4 +109,62 @@ bản ghi thành công là điểm thưởng, không bắt buộc.`,
     'restartPolicy',
     'kubectl delete',
   ],
+  teaching: {
+    primer: `Pod có đúng **năm phase**, và chỉ hai trong số đó nghĩa là "đang có gì đó chạy".
+
+- \`Pending\`: API server đã nhận, container chưa chạy.
+- \`Running\`: ít nhất một container đang chạy.
+- \`Succeeded\`: mọi container đã kết thúc với mã 0 và sẽ không chạy lại.
+- \`Failed\`: mọi container đã kết thúc, ít nhất một cái với mã khác 0.
+- \`Terminating\`: pod đang bị xoá, còn trong thời gian ân hạn.
+
+\`Succeeded\` và \`Failed\` là **trạng thái kết thúc**. Pod ở đó không còn tốn CPU
+hay bộ nhớ; nó chỉ còn là một bản ghi trong API, giữ lại để bạn đọc log và exit
+code. Kubernetes cố ý không tự dọn chúng, vì bản ghi đó thường là bằng chứng duy
+nhất về một công việc vừa chạy đêm qua.
+
+Một pod chỉ kết thúc được khi \`restartPolicy\` của nó không phải \`Always\`. Với
+\`Never\` hoặc \`OnFailure\` (loại dùng cho công việc chạy một lần), container
+chết là pod chốt sổ. Với \`Always\` (mặc định, dùng cho dịch vụ), kubelet dựng
+lại mãi nên pod không bao giờ tới được \`Succeeded\`.
+
+Nhìn vào đâu: cột STATUS cho phase, và \`describe\` cho exit code. Exit code là
+thứ phân biệt "xong tốt" với "xong hỏng", còn phase chỉ nói "đã xong".`,
+    cheatsheet: [
+      {
+        command: 'kubectl get pods -n bao-cao',
+        explain: 'Cột STATUS là phase. Đọc nó trước khi quyết định xoá bất cứ thứ gì.',
+      },
+      {
+        command: 'kubectl describe pod xuat-thang-07 -n bao-cao',
+        explain: 'Phần State cho Exit Code và Reason của container đã kết thúc.',
+      },
+      {
+        command: 'kubectl get pods -n bao-cao --field-selector status.phase=Failed',
+        explain: 'Lọc thẳng theo phase, hữu ích khi namespace có hàng trăm pod.',
+      },
+      {
+        command: 'kubectl logs xuat-thang-07 -n bao-cao',
+        explain: 'Pod đã kết thúc vẫn đọc được log. Đọc trước khi xoá, vì xoá là mất.',
+      },
+      {
+        command: 'kubectl delete pod xuat-thang-07 -n bao-cao',
+        explain: 'Xoá đúng một pod theo tên. Đây là việc vệ sinh, không phải việc sửa lỗi.',
+      },
+    ],
+    takeaways: [
+      'Không phải Running thì chưa chắc là hỏng: Succeeded là kết quả tốt của một công việc chạy một lần.',
+      'Phase nói công việc đã kết thúc hay chưa, exit code nói nó kết thúc tốt hay xấu. Cần cả hai.',
+      'Pod ở trạng thái kết thúc không tiêu tài nguyên tính toán, nó chỉ giữ lại log và kết quả.',
+      'restartPolicy quyết định pod có bao giờ tới được trạng thái kết thúc hay không.',
+    ],
+    proTips: [
+      'Đọc log rồi mới xoá. Trong sự cố thật, pod Failed thường là bản ghi duy nhất còn lại của lần chạy hỏng.',
+      'Ở cụm thật, dùng `ttlSecondsAfterFinished` trên Job để tự dọn thay vì xoá tay, nhưng nhớ rằng nó xoá cả Job hỏng chứ không chỉ Job thành công.',
+    ],
+    pitfalls: [
+      '`kubectl delete pod --all` cho gọn bảng. Nó làm bảng sạch thật, và xoá luôn mọi bằng chứng bạn cần cho lần điều tra tiếp theo.',
+      'Thấy Failed rồi tưởng pod vẫn đang chạy hỏng và đang ăn tài nguyên. Nó đã dừng từ lâu; cái đang chảy máu là thứ khác.',
+    ],
+  },
 };
