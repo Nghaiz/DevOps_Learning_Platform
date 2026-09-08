@@ -12,6 +12,7 @@ import { useDisplayPreference } from './game-preferences';
 import { InspectorPanel } from './inspector-panel';
 import { ObjectivesPanel } from './objectives-panel';
 import { ResourceList } from './resource-list';
+import { TeachingPanel } from './teaching-panel';
 import { QUALITY_CHOICES, QUALITY_LABEL, type QualityChoice, type QualityTier } from './scene-quality';
 
 /**
@@ -307,6 +308,15 @@ export function K8sGame({ levels = [], initialLevelId, createSession, seed = DEF
         </section>
 
         <aside className="flex min-h-0 flex-col gap-4">
+          {level !== null ? (
+            <section aria-labelledby="k8s-teaching-heading" className="rounded-lg border border-border bg-card">
+              <h2 id="k8s-teaching-heading" className="border-b border-border px-3 py-2 text-sm font-semibold text-foreground">
+                Tìm hiểu
+              </h2>
+              <TeachingPanel level={level} phase={status.phase} />
+            </section>
+          ) : null}
+
           <section aria-labelledby="k8s-objectives-heading" className="rounded-lg border border-border bg-card">
             <h2 id="k8s-objectives-heading" className="border-b border-border px-3 py-2 text-sm font-semibold text-foreground">
               Mục tiêu{level !== null ? ` — ${level.title}` : ''}
