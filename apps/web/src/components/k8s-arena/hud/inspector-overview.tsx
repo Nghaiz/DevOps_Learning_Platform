@@ -77,7 +77,7 @@ export function InspectorOverview({ object, node, tick }: InspectorOverviewProps
     <dl className="divide-y divide-border">
       <Row label="Trạng thái">
         <span className="flex flex-wrap items-center gap-1.5">
-          <Badge variant={STATUS_BADGE[object.statusToken]}>{object.phase ?? object.kind}</Badge>
+          <Badge variant={STATUS_BADGE[object.statusToken]}>{object.phase ?? (object.kind === 'Node' ? (node?.ready ? 'Ready' : 'NotReady') : object.statusToken === 'success' ? 'Sẵn sàng' : object.statusToken === 'warning' ? 'Cần kiểm tra' : 'Đang xử lý')}</Badge>
           {object.ready === true ? <Badge variant="outline">Ready</Badge> : null}
           {object.ready === false ? <Badge variant="outline">Chưa Ready</Badge> : null}
         </span>
@@ -95,7 +95,7 @@ export function InspectorOverview({ object, node, tick }: InspectorOverviewProps
         <span className="font-mono">{object.namespace === '' ? 'phạm vi cụm' : object.namespace}</span>
       </Row>
 
-      <Row label="Node">
+      {object.kind === 'Pod' ? <Row label="Node">
         {object.nodeName === null ? (
           <span className="text-muted-foreground">chưa được xếp lịch</span>
         ) : (
@@ -109,8 +109,10 @@ export function InspectorOverview({ object, node, tick }: InspectorOverviewProps
             )}
           </span>
         )}
-      </Row>
+      </Row> : null}
 
+      {object.kind === 'Node' && node !== null ? <Row label="Mức sử dụng">CPU {percent(node.cpuUsed)} · RAM {percent(node.memoryUsed)}</Row> : null}
+      <Row label="UID"><span className="font-mono">{object.uid}</span></Row>
       {object.restartCount === undefined ? null : (
         <Row label="Khởi động lại">
           <span className="font-mono">{object.restartCount}</span>

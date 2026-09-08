@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactElement } from 'react';
+import { type ReactElement } from 'react';
 import { Clock, LogOut, Pause, Settings, ShieldAlert, Star } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from '@devops-platform/ui';
 import type { Objective } from '@devops-platform/games';
@@ -62,6 +62,7 @@ export interface TopBarProps {
   readonly guardIds: readonly string[];
   /** `Date.now()` lúc vào bài. Thanh tự đếm từ đó, không nhận một con số đổi mỗi giây qua prop. */
   readonly startedAt: number;
+  readonly simulationTick?: number;
   /** 0..3. Điểm sao do tầng chấm điểm tính, thanh chỉ hiển thị. */
   readonly stars: number;
   /** Nhịp hiện tại; `0` = đang tạm dừng. */
@@ -91,27 +92,13 @@ export function TopBar({
   objectives,
   metIds,
   guardIds,
-  startedAt,
+  simulationTick = 0,
   stars,
   speed,
   onSpeedChange,
   onExit,
   onSettings,
 }: TopBarProps): ReactElement {
-  const [now, setNow] = useState(startedAt);
-
-  /*
-   * Đồng hồ đếm theo ĐỒNG HỒ TREO TƯỜNG, kể cả lúc mô phỏng tạm dừng — và đó là
-   * lựa chọn, không phải sót. Dừng mô phỏng để ngồi nghĩ vẫn là thời gian đã
-   * tiêu; một đồng hồ đứng lại lúc tạm dừng biến "tạm dừng" thành nước đi tối ưu
-   * để ăn điểm thời gian.
-   */
-  useEffect(() => {
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [startedAt]);
-
   const met = new Set(metIds);
   const guard = new Set(guardIds);
   const required = objectives.filter(
@@ -168,9 +155,9 @@ export function TopBar({
           ))}
         </div>
 
-        <span className="arena-clock flex items-center gap-1 font-mono text-xs text-muted-foreground">
+        <span title="Thời gian mô phỏng" className="arena-clock flex items-center gap-1 font-mono text-xs text-muted-foreground">
           <Clock className="size-3.5" aria-hidden />
-          {formatElapsed(now - startedAt)}
+          {formatElapsed(simulationTick * 500)}
         </span>
 
         <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5" role="group" aria-label="Tốc độ mô phỏng">

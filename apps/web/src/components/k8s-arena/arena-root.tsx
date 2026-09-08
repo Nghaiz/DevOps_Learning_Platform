@@ -200,6 +200,7 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
       {/* Cảnh 3D nằm DƯỚI cùng và chiếm trọn khung. */}
       <div className="absolute inset-0">
         <ArenaScene
+          simulationSpeed={engine.paused ? 0 : engine.speed}
           subscribe={engine.sceneSubscribe}
           getView={engine.sceneGetView}
           selectedUid={selectedUid}

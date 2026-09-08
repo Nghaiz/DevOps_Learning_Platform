@@ -41,12 +41,14 @@ describe('computeLayout', () => {
     expect(computeLayout(b)).toEqual(computeLayout(a));
   });
 
-  it('pod đứng TRÊN mặt bệ, không lún vào trong', () => {
+  it('pod đứng sát sàn và ở cạnh node', () => {
     const layout = computeLayout(clusterView());
-    const floor = PLATFORM_HEIGHT / 2 + POD_SIZE / 2;
+    const floor = -PLATFORM_HEIGHT / 2 + POD_SIZE / 2;
     for (const object of layout.objects) {
       if (object.zone === 'node') {
         expect(object.position.y).toBeGreaterThan(floor);
+        expect(object.position.y).toBeLessThan(0.35);
+        expect(object.position.z).toBeGreaterThan(0.6);
       }
     }
   });

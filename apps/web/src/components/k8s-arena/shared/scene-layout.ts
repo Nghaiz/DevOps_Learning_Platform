@@ -93,12 +93,12 @@ export const POD_HOVER = 0.06;
 
 const SHELF_Z = -3.6;
 const SHELF_SPACING = 1.35;
-const SHELF_Y = 0.95;
+const SHELF_Y = 0.23;
 const SHELF_SIZE = 0.52;
 
 const PENDING_Z = 3.7;
 const PENDING_SPACING = 0.92;
-const PENDING_Y = 0.42;
+const PENDING_Y = 0.23;
 const PENDING_SIZE = 0.52;
 
 /**
@@ -147,8 +147,8 @@ export function podGrid(count: number): { readonly cols: number; readonly rows: 
 }
 
 function placePodsOnPlatform(pods: readonly ObjectView[], platformCenterX: number): ObjectPlacement[] {
-  const { cols, rows, pitch } = podGrid(pods.length);
-  const top = PLATFORM_HEIGHT / 2 + POD_SIZE / 2 + POD_HOVER;
+  const { cols, pitch } = podGrid(pods.length);
+  const top = 0.27;
   return pods.map((pod, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
@@ -158,7 +158,7 @@ function placePodsOnPlatform(pods: readonly ObjectView[], platformCenterX: numbe
       position: {
         x: platformCenterX + (col - (cols - 1) / 2) * pitch,
         y: top,
-        z: (row - (rows - 1) / 2) * pitch,
+        z: 1.3 + row * pitch,
       },
       size: POD_SIZE,
     };
@@ -208,7 +208,7 @@ export function computeLayout(view: ClusterView): SceneLayout {
   const nodeX = new Map(nodes.map((n) => [n.name, n.position.x]));
 
   const pods = [...view.objects.filter((o) => o.kind === 'Pod')].sort(byUid);
-  const others = [...view.objects.filter((o) => o.kind !== 'Pod')].sort(byUid);
+  const others = [...view.objects.filter((o) => o.kind !== 'Pod' && o.kind !== 'Node')].sort(byUid);
 
   const scheduled = new Map<string, ObjectView[]>();
   const pending: ObjectView[] = [];
@@ -233,6 +233,9 @@ export function computeLayout(view: ClusterView): SceneLayout {
   }
 
   const objects: ObjectPlacement[] = [];
+  for (const object of view.objects.filter(object => object.kind === 'Node')) {
+    objects.push({ uid: object.uid, zone: 'node', position: { x: nodeX.get(object.name) ?? 0, y: 0.43, z: -0.6 }, size: 0.95 });
+  }
   for (const node of nodes) {
     objects.push(...placePodsOnPlatform(scheduled.get(node.name) ?? [], node.position.x));
   }

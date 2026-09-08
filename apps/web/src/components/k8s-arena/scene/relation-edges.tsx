@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, type ReactElement, type RefObject } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
+import type { ArenaSceneProps } from '../arena-contract';
 import type { SceneRuntime } from './scene-entry';
 import type { ArenaColors } from './use-arena-colors';
 
@@ -17,6 +18,8 @@ import type { ArenaColors } from './use-arena-colors';
  * không làm gì cả — và đó là điều đúng: một cạnh không tự chuyển động.
  */
 export interface RelationEdgesProps {
+  readonly propsRef: RefObject<ArenaSceneProps>;
+  readonly reducedMotion: boolean;
   readonly runtime: SceneRuntime;
   readonly colors: ArenaColors;
   readonly colorsVersion: number;
@@ -29,8 +32,19 @@ export function RelationEdges({
   colors,
   colorsVersion,
   visible,
+  propsRef,
+  reducedMotion,
 }: RelationEdgesProps): ReactElement {
   const builtRef = useRef(-1);
+  const invalidate = useThree(s => s.invalidate);
+  const phase = useRef(0);
+  const markerGeometry = useMemo(() => new THREE.SphereGeometry(0.045, 8, 6), []);
+  const markerMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: '#9de7ff', toneMapped: false }), []);
+  const markers = useMemo(() => { const mesh = new THREE.InstancedMesh(markerGeometry, markerMaterial, 256); mesh.frustumCulled = false; mesh.count = 0; return mesh; }, [markerGeometry, markerMaterial]);
+  const matrix = useMemo(() => new THREE.Matrix4(), []);
+  useEffect(() => () => { markers.dispose(); }, [markers]);
+  useEffect(() => () => markerGeometry.dispose(), [markerGeometry]);
+  useEffect(() => () => markerMaterial.dispose(), [markerMaterial]);
 
   const solidGeometry = useMemo(() => new THREE.BufferGeometry(), []);
   const dashedGeometry = useMemo(() => new THREE.BufferGeometry(), []);
@@ -73,15 +87,33 @@ export function RelationEdges({
     dashedMaterial.color.copy(colors.edgeBroken);
   }, [solidMaterial, dashedMaterial, colors, colorsVersion]);
 
-  useFrame(() => {
+  useFrame((_state, dt) => {
+    const speed = propsRef.current.simulationSpeed ?? 1;
+    markers.visible = visible && !reducedMotion;
+    markers.count = Math.min(256, runtime.edges.solid.length / 144);
+    if (visible && !reducedMotion && speed > 0 && document.visibilityState === 'visible') {
+      phase.current += Math.min(dt, 0.1) * speed * 0.32;
+      const points = runtime.edges.solid;
+      markers.count = Math.min(256, points.length / (24 * 6));
+      for (let i = 0; i < markers.count; i++) {
+        const t = ((phase.current + i * 0.37) % 1) * 24;
+        const offset = i * 144 + Math.floor(t) * 6;
+        const mix = t % 1;
+        const x = points[offset] ?? 0, y = points[offset+1] ?? 0, z = points[offset+2] ?? 0;
+        matrix.makeTranslation(x + ((points[offset+3] ?? x)-x)*mix, y + ((points[offset+4] ?? y)-y)*mix, z + ((points[offset+5] ?? z)-z)*mix);
+        markers.setMatrixAt(i, matrix);
+      }
+      markers.instanceMatrix.needsUpdate = true;
+      if (markers.count > 0) invalidate();
+    }
     solid.visible = visible;
     dashed.visible = visible;
     if (builtRef.current === runtime.structureVersion) {
       return;
     }
     builtRef.current = runtime.structureVersion;
-    solidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(runtime.edges.solid, 3));
-    dashedGeometry.setAttribute('position', new THREE.Float32BufferAttribute(runtime.edges.dashed, 3));
+    writePositions(solidGeometry, runtime.edges.solid);
+    writePositions(dashedGeometry, runtime.edges.dashed);
     solidGeometry.computeBoundingSphere();
     dashedGeometry.computeBoundingSphere();
     // `LineDashedMaterial` đọc thuộc tính `lineDistance`; thiếu nó thì nét đứt
@@ -91,8 +123,21 @@ export function RelationEdges({
 
   return (
     <>
+      <primitive object={markers} />
       <primitive object={solid} />
       <primitive object={dashed} />
     </>
   );
+}
+
+/** Reuse GPU buffers while dragging; release the old allocation when edge count changes. */
+function writePositions(geometry: THREE.BufferGeometry, points: number[]): void {
+  const attribute = geometry.getAttribute('position');
+  if (attribute instanceof THREE.BufferAttribute && attribute.array.length === points.length) {
+    attribute.array.set(points);
+    attribute.needsUpdate = true;
+  } else {
+    geometry.dispose();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+  }
 }

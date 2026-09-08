@@ -35,6 +35,27 @@ function toggleable(controls: unknown): Toggleable | null {
     : null;
 }
 
+/**
+ * Trạng thái của cú kéo đang diễn ra.
+ *
+ * ⛔ Phải sống NGOÀI effect. Xem luật 4 trong khối tài liệu của `PointerPicking`
+ * — đây là chỗ sửa lỗi "kéo được một lúc rồi vật trượt khỏi con trỏ".
+ */
+interface DragState {
+  /** uid dưới con trỏ lúc nhấn. Không `null` ⇒ cú rê sắp tới là KÉO VẬT. */
+  grabbed: string | null;
+  dragging: boolean;
+  /** Lệch giữa tâm vật và điểm chuột chạm mặt phẳng kéo, giữ nguyên suốt cú kéo. */
+  offsetX: number;
+  offsetZ: number;
+  /** Điểm nhấn, theo toạ độ client. Dùng để đo ngưỡng vượt. */
+  downX: number;
+  downY: number;
+  /** Điểm nhấn, theo toạ độ canvas. Mặt phẳng kéo được dựng từ đúng điểm này. */
+  pressX: number;
+  pressY: number;
+}
+
 export interface PointerPickingProps {
   readonly runtime: SceneRuntime;
   readonly propsRef: RefObject<ArenaSceneProps>;
@@ -45,29 +66,57 @@ export interface PointerPickingProps {
 /**
  * Chuột trên cảnh 3D: rê, chọn, KÉO, và chuột phải.
  *
- * ## Ba luật, và mỗi luật đến từ một lỗi đo được (2026-09-08)
+ * ## Bốn luật, và mỗi luật đến từ một lỗi đo được
  *
  * 1. **Tia bắn vào hình bao, không vào mô hình.** Mô hình của mỗi loại tài
  *    nguyên rỗng ở giữa, nên bắn tia thẳng vào nó cho ra một vùng bấm thủng lỗ
  *    chỗ — người chơi bấm trúng vật mà không trúng gì. Lý do và bản đồ đo được:
  *    `hit-proxy.tsx`.
  * 2. **Chuột phải LUÔN trả lời.** Bản trước chỉ `preventDefault` khi tia trúng
- *    một vật; trượt thì menu của TRÌNH DUYỆT bật lên giữa cảnh 3D. Cộng với lỗi
- *    (1), chuột phải hầu như không bao giờ trúng — đúng thứ chủ dự án báo là
- *    *"right click chưa có gì"*. Giờ trượt cũng có menu, chỉ là menu của CẢNH.
+ *    một vật; trượt thì menu của TRÌNH DUYỆT bật lên giữa cảnh 3D.
  * 3. **Kéo vật ≠ xoay camera.** Nhấn giữ trên một vật rồi rê là KÉO VẬT; nhấn
  *    giữ chỗ trống rồi rê là xoay camera. Phân biệt bằng "tia lúc nhấn có trúng
  *    gì không", nên hai thao tác không bao giờ tranh nhau.
+ * 4. **Trạng thái kéo sống NGOÀI effect, và effect không phụ thuộc vào `size`.**
+ *
+ * ### Luật 4 — lỗi "kéo tầm 1 giây rồi vật trượt khỏi con trỏ" (2026-09-09)
+ *
+ * Bản trước giữ `dragging` / `grabbed` / `grabOffset*` làm biến cục bộ trong
+ * closure của effect, và mảng phụ thuộc của effect có `size` lấy từ
+ * `useThree((s) => s.size)`. `size` là một OBJECT MỚI mỗi lần `ResizeObserver`
+ * của R3F bắn — và nó bắn cả khi kích thước không đổi (bảng thông số trượt vào,
+ * dock đổi bố cục, trình duyệt gộp một lượt layout). Giữa một cú kéo, effect bị
+ * gỡ và dựng lại: closure mới có `dragging === false`, cleanup bật lại
+ * `orbit.enabled`, và vật đứng lại tại chỗ trong khi chuột vẫn đang giữ. Đó
+ * chính xác là triệu chứng "khựng lại, không đi theo con trỏ, tầm 1 giây là nhả".
+ *
+ * Hai nửa của bản sửa, cả hai đều cần:
+ *
+ * - Trạng thái kéo chuyển sang `dragRef` (ngoài effect), nên một lượt dựng lại
+ *   không đánh rơi cú kéo đang dở — listener mới đọc tiếp đúng trạng thái cũ.
+ * - `size` ra khỏi mảng phụ thuộc, đọc qua `sizeRef`. Effect chỉ dựng lại khi
+ *   canvas / camera / controls thật sự đổi, tức là gần như không bao giờ.
+ *
+ * ### Vì sao không còn gọi `getBoundingClientRect()` trong `pointermove`
+ *
+ * Bản trước gọi nó **sáu lần cho mỗi sự kiện rê** — mỗi lần là một lượt ép trình
+ * duyệt tính lại bố cục, ngay trong đường đi nóng nhất của thao tác. Đó là nửa
+ * còn lại của cảm giác "khựng". Nay hình chữ nhật được nhớ trong `rectRef` và
+ * chỉ tính lại khi canvas đổi kích thước hoặc trang cuộn.
  *
  * ⚠ Tia chỉ bắn khi CẢNH DƯỚI CON TRỎ thật sự đổi, và không quá ~30 lần/giây.
  * "Cảnh dưới con trỏ đổi" có HAI nguyên nhân: con trỏ dời chỗ, và CAMERA dời
  * chỗ trong khi con trỏ đứng yên. Bản đầu chỉ bắt nguyên nhân thứ nhất và nó
  * hỏng thật — pod trôi qua dưới con trỏ trong lúc camera đang bay mà không hề
- * sáng lên. Quét lưới (mỗi ô một lần rê) thì lại xanh, nên lỗi đó ẩn được sau
- * đúng loại phép thử người ta hay viết.
+ * sáng lên.
  *
  * ⛔ KHÔNG dùng hệ sự kiện có sẵn của R3F: nó gắn handler lên từng object và bắn
  * tia theo MỌI sự kiện chuột của DOM, không có cửa nào để tiết chế.
+ *
+ * ⛔ File này là NGƯỜI SỞ HỮU DUY NHẤT của `controls.enabled`. `camera-rig.tsx`
+ * từng ghi cùng thuộc tính đó mỗi khung hình; hai người ghi một cờ nghĩa là sau
+ * một lượt gỡ effect giữa cú kéo, `runtime.draggingUid` còn sót lại khác `null`
+ * và CameraRig tắt camera vĩnh viễn mà không có gì nói tại sao.
  */
 export function PointerPicking({ runtime, propsRef, proxyRef }: PointerPickingProps): null {
   const gl = useThree((s) => s.gl);
@@ -75,40 +124,67 @@ export function PointerPicking({ runtime, propsRef, proxyRef }: PointerPickingPr
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
   const controls = useThree((s) => s.controls);
+
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+
+  const dragRef = useRef<DragState>({
+    grabbed: null,
+    dragging: false,
+    offsetX: 0,
+    offsetZ: 0,
+    downX: 0,
+    downY: 0,
+    pressX: 0,
+    pressY: 0,
+  });
+
   /**
    * Móc cho vòng lặp vẽ gọi ngược vào trong effect.
    *
-   * Toàn bộ trạng thái dò nằm TRONG một effect chứ không tách ra thành các
+   * Toàn bộ trạng thái DÒ nằm trong một effect chứ không tách ra thành các
    * `useCallback`: bản tách ra đã được đo là hỏng — con trỏ không bao giờ đổi
-   * dù sự kiện vẫn tới canvas và đường bấm chọn vẫn chạy đúng — nên cấu trúc
-   * một-effect này là cấu trúc DUY NHẤT đã có bằng chứng hoạt động.
+   * dù sự kiện vẫn tới canvas — nên cấu trúc một-effect này là cấu trúc DUY
+   * NHẤT đã có bằng chứng hoạt động. (Trạng thái KÉO thì ngược lại: nó phải ra
+   * ngoài, xem luật 4.)
    */
   const pokeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const canvas = gl.domElement;
     const orbit = toggleable(controls);
+    const drag = dragRef.current;
     const lastCamera = new THREE.Matrix4();
     let lastX = Number.NaN;
     let lastY = Number.NaN;
     let inside = false;
     let castAt = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let downX = 0;
-    let downY = 0;
     let hovered: string | null = null;
 
-    /** uid dưới con trỏ lúc nhấn. Không `null` ⇒ cú rê sắp tới là KÉO VẬT. */
-    let grabbed: string | null = null;
-    let dragging = false;
-    /** Lệch giữa tâm vật và điểm chuột chạm mặt phẳng kéo, giữ nguyên suốt cú kéo. */
-    let grabOffsetX = 0;
-    let grabOffsetZ = 0;
+    /*
+     * Hình chữ nhật của canvas, nhớ sẵn. `getBoundingClientRect()` ép trình
+     * duyệt tính lại bố cục, nên gọi nó trong `pointermove` là tự bắn vào chân.
+     */
+    let rectLeft = 0;
+    let rectTop = 0;
+
+    function refreshRect(): void {
+      const rect = canvas.getBoundingClientRect();
+      rectLeft = rect.left;
+      rectTop = rect.top;
+    }
+
+    refreshRect();
+
+    const localX = (event: { clientX: number }): number => event.clientX - rectLeft;
+    const localY = (event: { clientY: number }): number => event.clientY - rectTop;
 
     /** `uid` dưới một điểm màn hình, hoặc `null`. Không cấp phát: mảng kết quả ở tầm module. */
     function pick(offsetX: number, offsetY: number): string | null {
       const proxy = proxyRef.current;
-      if (proxy === null || proxy.mesh.count === 0 || size.width === 0 || size.height === 0) {
+      const { width, height } = sizeRef.current;
+      if (proxy === null || proxy.mesh.count === 0 || width === 0 || height === 0) {
         return null;
       }
       aim(offsetX, offsetY);
@@ -121,7 +197,8 @@ export function PointerPicking({ runtime, propsRef, proxyRef }: PointerPickingPr
 
     /** Nạp `RAY` cho một điểm màn hình. Tách ra vì cả bấm chọn lẫn kéo đều cần. */
     function aim(offsetX: number, offsetY: number): void {
-      NDC.set((offsetX / size.width) * 2 - 1, -(offsetY / size.height) * 2 + 1);
+      const { width, height } = sizeRef.current;
+      NDC.set((offsetX / width) * 2 - 1, -(offsetY / height) * 2 + 1);
       RAY.setFromCamera(NDC, camera);
     }
 
@@ -162,7 +239,7 @@ export function PointerPicking({ runtime, propsRef, proxyRef }: PointerPickingPr
      * camera đứng yên thì không tốn một tia nào.
      */
     pokeRef.current = () => {
-      if (inside && !dragging && !lastCamera.equals(camera.matrixWorld)) {
+      if (inside && !drag.dragging && !lastCamera.equals(camera.matrixWorld)) {
         requestCast();
       }
     };
@@ -192,31 +269,33 @@ export function PointerPicking({ runtime, propsRef, proxyRef }: PointerPickingPr
        * trỏ ngay khi cú kéo bắt đầu — một cú giật thấy rõ, và người chơi mất
        * đúng cái điểm neo mà họ vừa nhắm vào.
        */
-      grabOffsetX = entry.x - PLANE_POINT.x;
-      grabOffsetZ = entry.z - PLANE_POINT.z;
-      dragging = true;
+      drag.offsetX = entry.x - PLANE_POINT.x;
+      drag.offsetZ = entry.z - PLANE_POINT.z;
+      drag.dragging = true;
       canvas.style.cursor = 'grabbing';
     }
 
     function moveDrag(offsetX: number, offsetY: number): void {
-      if (grabbed === null) {
+      const uid = drag.grabbed;
+      if (uid === null) {
         return;
       }
       aim(offsetX, offsetY);
       if (!planeHit()) {
         return;
       }
-      runtime.moveTo(grabbed, PLANE_POINT.x + grabOffsetX, PLANE_POINT.z + grabOffsetZ);
+      runtime.moveTo(uid, PLANE_POINT.x + drag.offsetX, PLANE_POINT.z + drag.offsetZ);
       // Kéo không sinh ra hoạt ảnh nào nên không có ai khác xin khung hình hộ.
       invalidate();
     }
 
     function endDrag(): void {
-      if (dragging) {
-        dragging = false;
+      if (drag.dragging) {
+        drag.dragging = false;
         canvas.style.cursor = hovered === null ? '' : 'pointer';
       }
-      grabbed = null;
+      drag.grabbed = null;
+      runtime.draggingUid = null;
       /*
        * Bật lại VÔ ĐIỀU KIỆN, không chỉ khi vừa kéo xong. Bộ điều khiển bị tắt
        * ngay lúc NHẤN (xem `onDown`), kể cả với một cú bấm không kéo — nên nếu
@@ -226,26 +305,29 @@ export function PointerPicking({ runtime, propsRef, proxyRef }: PointerPickingPr
       if (orbit !== null) {
         orbit.enabled = true;
       }
+      invalidate();
     }
 
     const onMove = (event: PointerEvent): void => {
+      const x = localX(event);
+      const y = localY(event);
       // Trình duyệt bắn `pointermove` cả khi con trỏ đứng yên (cuộn trang, đổi bố
       // cục). Không lọc thì "chỉ bắn khi di chuyển" là một lời nói suông.
-      if (event.offsetX === lastX && event.offsetY === lastY) {
+      if (x === lastX && y === lastY) {
         return;
       }
       inside = true;
-      lastX = event.offsetX;
-      lastY = event.offsetY;
+      lastX = x;
+      lastY = y;
 
-      if (dragging) {
-        moveDrag(event.offsetX, event.offsetY);
+      if (drag.dragging) {
+        moveDrag(x, y);
         return;
       }
-      if (grabbed !== null && beyond(event, DRAG_START_PX)) {
-        startDrag(grabbed, event.offsetX, event.offsetY);
-        if (dragging) {
-          moveDrag(event.offsetX, event.offsetY);
+      if (drag.grabbed !== null && beyond(event, DRAG_START_PX)) {
+        startDrag(drag.grabbed, drag.pressX, drag.pressY);
+        if (drag.dragging) {
+          moveDrag(x, y);
         }
         return;
       }
@@ -253,6 +335,11 @@ export function PointerPicking({ runtime, propsRef, proxyRef }: PointerPickingPr
     };
 
     const onLeave = (): void => {
+      // Giữa một cú kéo, con trỏ đi ra ngoài khung là chuyện BÌNH THƯỜNG (đã bắt
+      // con trỏ về canvas). Xoá trạng thái rê ở đây sẽ làm cú kéo mất điểm cuối.
+      if (drag.dragging) {
+        return;
+      }
       window.clearTimeout(timer);
       timer = undefined;
       inside = false;
@@ -262,27 +349,30 @@ export function PointerPicking({ runtime, propsRef, proxyRef }: PointerPickingPr
     };
 
     const onDown = (event: PointerEvent): void => {
-      downX = event.clientX;
-      downY = event.clientY;
+      // Bố cục có thể đã đổi kể từ lần đo trước (bảng thông số mở, cửa sổ cuộn).
+      // Một lượt đo mỗi cú nhấn thì rẻ; một lượt đo mỗi cú rê thì không.
+      refreshRect();
+      drag.downX = event.clientX;
+      drag.downY = event.clientY;
+      drag.pressX = localX(event);
+      drag.pressY = localY(event);
       /*
        * Chỉ nút TRÁI mới cầm được vật. Nút phải là kéo camera (xem
        * `CameraRig.mouseButtons`) và nút giữa là phóng — cầm vật bằng chúng sẽ
        * cướp mất hai thao tác camera mà người chơi đang dùng.
        */
-      grabbed = event.button === 0 ? pick(event.offsetX, event.offsetY) : null;
-      if (grabbed !== null) {
+      drag.grabbed = event.button === 0 ? pick(drag.pressX, drag.pressY) : null;
+      if (drag.grabbed !== null) {
+        event.stopImmediatePropagation();
+        runtime.draggingUid = drag.grabbed;
+        invalidate();
         /*
          * Tắt bộ điều khiển camera NGAY TỪ LÚC NHẤN, không đợi vượt ngưỡng kéo.
          *
          * ⚠ Đây là một lỗi đã đo được, không phải đề phòng. `OrbitControls` bắt
          * đầu xoay ngay ở `pointerdown` của chính nó; nếu ta chỉ tắt nó khi cú
          * kéo đã vượt `DRAG_START_PX` thì mấy pixel đầu tiên đã kịp xoay camera
-         * rồi. Đo trực tiếp 2026-09-08: kéo một pod đi thì camera vừa xoay vừa
-         * lao vào, cả hai bệ node phóng to và khung hình lệch hẳn — trông như
-         * cảnh tự nhảy chứ không như một cú kéo.
-         *
-         * Tắt sớm cũng đúng cho một cú BẤM thường: nhấn lên một tài nguyên rồi
-         * nhả ra không được phép xoay camera một chút nào.
+         * rồi.
          */
         if (orbit !== null) {
           orbit.enabled = false;
@@ -298,35 +388,49 @@ export function PointerPicking({ runtime, propsRef, proxyRef }: PointerPickingPr
     };
 
     const onUp = (event: PointerEvent): void => {
+      if (drag.dragging && event.type !== 'pointercancel') {
+        moveDrag(localX(event), localY(event));
+      }
       if (canvas.hasPointerCapture(event.pointerId)) {
         canvas.releasePointerCapture(event.pointerId);
       }
       endDrag();
     };
 
+    /*
+     * Con trỏ bị TƯỚC khỏi ta (trình duyệt thu hồi capture, cử chỉ hệ điều hành
+     * chen ngang, một phần tử khác gọi `setPointerCapture`). Không đóng cú kéo ở
+     * đây thì `dragging` kẹt ở `true` và mọi cú rê sau đó dời vật một cách ma quái.
+     */
+    const onLostCapture = (): void => {
+      if (drag.grabbed !== null) {
+        endDrag();
+      }
+    };
+
     /** Con trỏ đã rời quá `slop` pixel kể từ lúc nhấn. */
     const beyond = (event: MouseEvent, slop: number): boolean =>
-      Math.abs(event.clientX - downX) > slop || Math.abs(event.clientY - downY) > slop;
+      Math.abs(event.clientX - drag.downX) > slop || Math.abs(event.clientY - drag.downY) > slop;
 
     const onClick = (event: MouseEvent): void => {
       // Rê quá ngưỡng giữa nhấn và nhả là thao tác camera hoặc một cú kéo vật,
       // không phải một cú bấm chọn.
       if (!beyond(event, CLICK_SLOP_PX)) {
-        propsRef.current.onSelect(pick(event.offsetX, event.offsetY));
+        propsRef.current.onSelect(pick(localX(event), localY(event)));
       }
     };
 
     const onContextMenu = (event: MouseEvent): void => {
-      if (beyond(event, CLICK_SLOP_PX)) {
-        // Vừa kéo camera bằng nút phải — mở menu ở cuối cú kéo là ngoài ý muốn.
-        return;
-      }
       /*
        * `preventDefault` VÔ ĐIỀU KIỆN. Bản trước chỉ chặn khi trúng một vật, nên
        * mọi cú chuột phải trượt đều bật menu của trình duyệt lên giữa cảnh 3D.
        */
       event.preventDefault();
-      const uid = pick(event.offsetX, event.offsetY);
+      if (beyond(event, CLICK_SLOP_PX)) {
+        // Vừa kéo camera bằng nút phải — mở menu ở cuối cú kéo là ngoài ý muốn.
+        return;
+      }
+      const uid = pick(localX(event), localY(event));
       const at = { x: event.clientX, y: event.clientY };
       if (uid === null) {
         propsRef.current.onSceneContextMenu(at);
@@ -335,31 +439,54 @@ export function PointerPicking({ runtime, propsRef, proxyRef }: PointerPickingPr
       }
     };
 
+    /*
+     * Hình chữ nhật chỉ đổi khi canvas đổi kích thước hoặc trang cuộn. Bắt đúng
+     * hai nguồn đó thì không cần đo lại trong đường đi nóng.
+     */
+    const observer = new ResizeObserver(refreshRect);
+    observer.observe(canvas);
+    window.addEventListener('scroll', refreshRect, { passive: true, capture: true });
+    window.addEventListener('resize', refreshRect, { passive: true });
+
     canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerleave', onLeave);
-    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointerdown', onDown, true);
     canvas.addEventListener('pointerup', onUp);
     canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('lostpointercapture', onLostCapture);
     canvas.addEventListener('click', onClick);
     canvas.addEventListener('contextmenu', onContextMenu);
     return () => {
       window.clearTimeout(timer);
       pokeRef.current = null;
-      // Bộ điều khiển phải được bật lại kể cả khi effect bị gỡ giữa một cú kéo,
-      // nếu không camera đứng chết trong phiên chơi tiếp theo.
-      if (orbit !== null) {
+      observer.disconnect();
+      window.removeEventListener('scroll', refreshRect, true);
+      window.removeEventListener('resize', refreshRect);
+      /*
+       * ⛔ KHÔNG đóng cú kéo đang dở ở đây, và KHÔNG bật lại `orbit.enabled` vô
+       * điều kiện. Effect này có thể bị dựng lại giữa một cú kéo; trạng thái
+       * nằm trong `dragRef` nên lượt dựng mới sẽ kéo tiếp, và bật camera lên
+       * giữa chừng là đúng cái lỗi luật 4 nói tới. Cú kéo được đóng bởi
+       * `pointerup` / `pointercancel` / `lostpointercapture`, hoặc bởi
+       * `arena-scene` khi cả cảnh bị gỡ.
+       */
+      if (orbit !== null && drag.grabbed === null) {
         orbit.enabled = true;
       }
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerleave', onLeave);
-      canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointerdown', onDown, true);
       canvas.removeEventListener('pointerup', onUp);
       canvas.removeEventListener('pointercancel', onUp);
+      canvas.removeEventListener('lostpointercapture', onLostCapture);
       canvas.removeEventListener('click', onClick);
       canvas.removeEventListener('contextmenu', onContextMenu);
       canvas.style.cursor = '';
     };
-  }, [gl, camera, size, invalidate, controls, runtime, propsRef, proxyRef]);
+    // ⛔ `size` KHÔNG có trong mảng này — xem luật 4. Nó đổi danh tính mỗi lần
+    // `ResizeObserver` bắn, kể cả khi kích thước không đổi, và một lượt dựng lại
+    // giữa cú kéo là đúng lỗi mà luật đó sửa. Kích thước đọc qua `sizeRef`.
+  }, [gl, camera, invalidate, controls, runtime, propsRef, proxyRef]);
 
   useFrame(() => {
     pokeRef.current?.();

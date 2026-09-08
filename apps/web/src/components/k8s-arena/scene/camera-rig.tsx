@@ -61,7 +61,11 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
   /** Khoảng cách đủ ôm trọn cụm mà vẫn chừa lề. Mọi hệ số lấy từ hợp đồng. */
   function frameDistance(): number {
     const aspectMargin = Math.max(1, size.height / Math.max(1, size.width - 80));
-    return Math.min(CAMERA_TUNING.maxDistance * 0.75, Math.max(CAMERA_TUNING.minFrameDistance, runtime.radius * CAMERA_TUNING.frameFillFactor) * aspectMargin);
+    return Math.min(
+      CAMERA_TUNING.maxDistance * 0.75,
+      Math.max(CAMERA_TUNING.minFrameDistance, runtime.radius * CAMERA_TUNING.frameFillFactor) *
+        aspectMargin,
+    );
   }
 
   /** Ghi `GOAL_*` cho một điểm ngắm, giữ nguyên hướng nhìn hiện tại. */
@@ -114,7 +118,12 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
       if (entry === undefined) {
         return;
       }
-      aimAt(entry.x, entry.drawY, entry.z, Math.max(CAMERA_TUNING.minDistance + 1, CAMERA_TUNING.focusDistance));
+      aimAt(
+        entry.x,
+        entry.drawY,
+        entry.z,
+        Math.max(CAMERA_TUNING.minDistance + 1, CAMERA_TUNING.focusDistance),
+      );
     }
 
     framedRef.current = true;
@@ -139,6 +148,20 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
   }, []);
 
   useFrame((_state, dt) => {
+    /*
+     * ⛔ KHÔNG ghi `controls.enabled` ở đây. `pointer-picking.tsx` là người sở
+     * hữu duy nhất của cờ đó (luật 4 trong khối tài liệu của nó). Bản trước ghi
+     * nó MỖI KHUNG HÌNH theo `runtime.draggingUid`; hai người ghi một cờ nghĩa là
+     * khi effect dò chuột bị dựng lại giữa cú kéo, `draggingUid` còn sót khác
+     * `null` và vòng lặp này tắt camera vĩnh viễn.
+     *
+     * Cú kéo vẫn phải HUỶ lệnh bay: camera bay trong lúc người chơi đang kéo thì
+     * mặt phẳng kéo trượt dưới tay họ.
+     */
+    if (runtime.draggingUid !== null) {
+      flyingRef.current = false;
+      return;
+    }
     /*
      * Đóng khung lần đầu ngay khi cụm có hình dạng thật — không làm lúc mount,
      * vì khi đó chưa có lần `sync()` nào nên `radius` còn là giá trị khởi tạo và
@@ -170,7 +193,7 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
     <OrbitControls
       ref={controlsRef}
       makeDefault
-      enableDamping
+      enableDamping={false}
       dampingFactor={CAMERA_TUNING.dampingFactor}
       minPolarAngle={CAMERA_TUNING.minPolarAngle}
       maxPolarAngle={CAMERA_TUNING.maxPolarAngle}

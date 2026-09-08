@@ -80,6 +80,7 @@ export interface FrameOptions {
 }
 
 export interface SceneRuntime {
+  draggingUid: string | null;
   readonly entries: Map<string, SceneEntry>;
   /**
    * Thứ tự duyệt ổn định của MỌI entry còn sống, sắp theo `uid`.

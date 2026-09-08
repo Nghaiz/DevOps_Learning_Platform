@@ -87,6 +87,8 @@ export function SceneContent({
         colors={colors}
         colorsVersion={colorsVersion}
         visible={showEdges}
+        propsRef={propsRef}
+        reducedMotion={reducedMotion}
       />
       <SelectionHalo
         runtime={runtime}

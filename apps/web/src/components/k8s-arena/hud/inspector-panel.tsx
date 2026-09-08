@@ -170,6 +170,7 @@ export function InspectorPanel({
 
         <TabsContent value="overview" className={cn('min-h-0 flex-1 px-3 py-2', HIDDEN_SCROLL)}>
           <InspectorOverview object={shown} node={node} tick={tick} />
+          <button type="button" className="mt-4 w-full rounded-lg border border-sky-400/30 bg-sky-400/10 p-2 text-sm text-sky-300 hover:bg-sky-400/20" onClick={() => setTab('yaml')}>Chỉnh sửa cấu hình YAML</button>
         </TabsContent>
 
         <TabsContent value="yaml" className="flex min-h-0 flex-1 flex-col px-3 py-2">

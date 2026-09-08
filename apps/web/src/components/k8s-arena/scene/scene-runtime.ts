@@ -42,6 +42,7 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
   let signature: string | null = null;
 
   const runtime: SceneRuntime = {
+    draggingUid: null,
     entries,
     order,
     visible,
@@ -59,6 +60,7 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
       overrides.set(uid, { x, z });
       entry.x = x;
       entry.z = z;
+      runtime.radius = Math.max(runtime.radius, Math.hypot(x, z) + entry.size);
       /*
        * Dựng lại cạnh NGAY, không đợi lần `sync` sau. Chữ ký hình ảnh được tính
        * từ `computeLayout` — nó không biết gì về vị trí kéo tay — nên `sync` kết
@@ -173,7 +175,7 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
       }
       rebuildEdges();
 
-      runtime.radius = layout.radius;
+      runtime.radius = Math.max(layout.radius, ...[...entries.values()].map(entry => Math.hypot(entry.x, entry.z) + entry.size));
       runtime.structureVersion += 1;
       rebuildOrder();
       return true;
@@ -207,7 +209,16 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
         continue;
       }
       const target = link.healthy ? edges.solid : edges.dashed;
-      target.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      const distance = Math.hypot(b.x - a.x, b.z - a.z);
+      const height = Math.min(2, 0.4 + distance * 0.22);
+      const bend = Math.min(0.65, distance * 0.12);
+      const point = (t: number): number[] => {
+        const arc = 4 * t * (1 - t);
+        return [a.x + (b.x-a.x)*t - (b.z-a.z)/Math.max(distance,0.01)*bend*arc,
+          a.y + (b.y-a.y)*t + height*arc,
+          a.z + (b.z-a.z)*t + (b.x-a.x)/Math.max(distance,0.01)*bend*arc];
+      };
+      for (let segment = 0; segment < 24; segment++) target.push(...point(segment/24), ...point((segment+1)/24));
     }
   }
 

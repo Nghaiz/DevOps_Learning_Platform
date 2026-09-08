@@ -23,7 +23,7 @@ import type {
   ResourceAmountView,
 } from './contract.ts';
 import type { ClusterState, K8sObject } from './model.ts';
-import { podRuntime } from './model.ts';
+import { podRuntime, infrastructureObjects } from './model.ts';
 import {
   livePods,
   matchLabels,
@@ -101,6 +101,8 @@ function workloadToken(state: ClusterState, object: K8sObject): ObjectView['stat
 
 function statusToken(state: ClusterState, object: K8sObject): ObjectView['statusToken'] {
   switch (object.kind) {
+    case 'Node':
+      return state.nodes.find(node => node.name === object.name)?.ready ? 'success' : 'destructive';
     case 'Pod':
       return podToken(object);
     case 'Deployment':
@@ -278,6 +280,11 @@ function toNodeViews(state: ClusterState): readonly NodeView[] {
  */
 function toEdges(state: ClusterState): readonly EdgeView[] {
   const edges: EdgeView[] = [];
+  const infrastructure = [...state.objects, ...infrastructureObjects(state)];
+  for (const object of livePods(state)) {
+    const node = infrastructure.find(item => item.kind === 'Node' && item.name === podRuntime(object)?.nodeName);
+    if (node) edges.push({ fromUid: node.uid, toUid: object.uid, kind: 'runs-on', healthy: true });
+  }
   const byName = new Map(
     state.objects.map((object) => [`${object.kind}/${object.namespace}/${object.name}`, object]),
   );
@@ -378,9 +385,7 @@ function toEvents(state: ClusterState): readonly EventView[] {
 export function toView(state: ClusterState): ClusterView {
   // Tài nguyên phạm vi cluster mà giao diện không vẽ như một "object" (Node đã
   // có mục riêng, Namespace là cái hộp chứ không phải thứ nằm trong hộp).
-  const drawable = state.objects.filter(
-    (object) => object.kind !== 'Node' && object.kind !== 'Namespace',
-  );
+  const drawable = [...state.objects, ...infrastructureObjects(state)];
   return {
     tick: state.tick,
     nodes: toNodeViews(state),
@@ -405,6 +410,6 @@ export function toView(state: ClusterState): ClusterView {
 }
 
 /** Export để test khẳng định danh sách loại vẽ được khớp bảng `KINDS`. */
-export const NON_DRAWABLE_KINDS: readonly string[] = ['Node', 'Namespace'].filter(
+export const NON_DRAWABLE_KINDS: readonly string[] = [].filter(
   (kind) => kind in KINDS,
 );

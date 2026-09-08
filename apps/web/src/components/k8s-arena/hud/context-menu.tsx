@@ -78,7 +78,7 @@ export function ArenaContextMenu({
     // So sánh trước khi ghi: `setState` vô điều kiện trong `useLayoutEffect` là
     // một vòng lặp vẽ vô tận, và nó biểu hiện thành treo tab chứ không thành lỗi.
     setPlaced((current) => (current?.x === next.x && current.y === next.y ? current : next));
-  }, [anchor, object]);
+  }, [anchor, object?.uid]);
 
   // Đóng khi bấm ra ngoài. Nghe `pointerdown` chứ không `click`: người dùng bấm
   // chuột phải chỗ khác sẽ mở menu mới, và `click` không bắn cho nút phải nên
@@ -97,14 +97,14 @@ export function ArenaContextMenu({
     return () => {
       document.removeEventListener('pointerdown', onPointerDown, true);
     };
-  }, [object, onClose]);
+  }, [object?.uid, onClose]);
 
   // Đưa tiêu điểm vào mục đầu để người dùng bàn phím đi tiếp được ngay.
   useEffect(() => {
     if (object !== null) {
       menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
     }
-  }, [object, anchor]);
+  }, [object?.uid, anchor]);
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {

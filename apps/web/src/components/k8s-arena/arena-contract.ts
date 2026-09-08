@@ -133,6 +133,7 @@ export interface CameraCommand {
  * chiếu, scene bị tháo dựng liên tục và kết quả là *không có cảnh 3D nào*.
  */
 export interface ArenaSceneProps {
+  readonly simulationSpeed?: number;
   readonly subscribe: (onStructuralChange: () => void) => () => void;
   readonly getView: () => ClusterView;
   readonly selectedUid: string | null;

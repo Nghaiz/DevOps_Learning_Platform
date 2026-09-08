@@ -20,6 +20,7 @@
  * nào* xuất hiện. Đó là lý do chúng đọc engine qua ref chứ không đọc biến state.
  */
 
+import { useToast } from '@devops-platform/ui';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type {
   ClusterView,
@@ -101,6 +102,7 @@ export interface ArenaSessionHandle {
 }
 
 export function useArenaSession(level: Level): ArenaSessionHandle {
+  const { toast } = useToast();
   const [session, setSession] = useState<K8sEngineSession | null>(null);
   const sessionRef = useRef<K8sEngineSession | null>(null);
   /*
@@ -153,8 +155,9 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
   const status = useMemo(() => session?.getStatus() ?? EMPTY_STATUS, [session, view]);
 
   const dispatch = useCallback((action: GameAction) => {
-    sessionRef.current?.dispatch(action);
-  }, []);
+    const result = sessionRef.current?.dispatchDetailed(action);
+    if (result && !result.accepted) toast({ title: 'Không thực hiện được', description: result.output, variant: 'destructive' });
+  }, [toast]);
 
   const editResource = useCallback((target: ResourceRef, yaml: string): DispatchOutcome => {
     const current = sessionRef.current;
@@ -210,15 +213,10 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
     if (current === null) {
       return;
     }
-    setPaused((wasPaused) => {
-      if (wasPaused) {
-        current.resume();
-      } else {
-        current.pause();
-      }
-      return !wasPaused;
-    });
-  }, []);
+    if (paused) current.resume();
+    else current.pause();
+    setPaused(!paused);
+  }, [paused]);
 
   return {
     sceneSubscribe,

@@ -3,9 +3,8 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import { PLATFORM_DEPTH, PLATFORM_HEIGHT, PLATFORM_WIDTH } from '../shared/scene-layout';
 import type { ArenaSceneProps } from '../arena-contract';
-import { layoutLabels, nodeLabelAnchor, type LabelBox } from './label-layout';
+import { layoutLabels, type LabelBox } from './label-layout';
 import {
   LABEL_CHAR_WIDTH,
   LABEL_HALF_HEIGHT,
@@ -24,7 +23,6 @@ const MAX_TEXT = 26;
 
 const PRIORITY_SELECTED = 1000;
 const PRIORITY_HOVERED = 900;
-const PRIORITY_NODE = 700;
 const PRIORITY_FAILING = 600;
 const PRIORITY_OTHER_KIND = 400;
 const PRIORITY_POD = 200;
@@ -121,16 +119,6 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
       count += 1;
     };
 
-    for (const node of runtime.nodes) {
-      const anchor = nodeLabelAnchor(
-        node.x,
-        camera.position.x,
-        camera.position.z,
-        PLATFORM_DEPTH / 2 + 0.4,
-        PLATFORM_WIDTH / 2 + 0.4,
-      );
-      push(`node:${node.name}`, node.name, anchor.x, PLATFORM_HEIGHT / 2 + 0.05, anchor.z, PRIORITY_NODE);
-    }
     // Hai lượt: lượt đầu lấy thứ QUAN TRỌNG (đang chọn, đang rê, đang lỗi, và
     // mọi tài nguyên không phải Pod), lượt sau mới lấp bằng Pod bình thường.
     // Không có bước này thì 200 pod khoẻ mạnh chiếm hết chỗ và pod đang hỏng —
