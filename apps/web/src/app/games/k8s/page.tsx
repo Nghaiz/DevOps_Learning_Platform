@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-// ⛔ MỐI NỐI LANE E — đổi đúng hai dòng (import + thẻ render) rồi xoá
-// `k8s-game-placeholder.tsx`. Hướng dẫn đầy đủ + lý do vì sao KHÔNG dùng `@/`
-// nằm ở đầu chính file đó.
-import { K8sGamePlaceholder } from './k8s-game-placeholder';
+// Đường dẫn TƯƠNG ĐỐI, không phải `@/components/...`: repo này không khai
+// `paths` ở tsconfig nào và không đặt alias webpack, nên dạng `@/` sẽ đỏ ở cả
+// typecheck lẫn `next build`.
+import { K8sGame } from '../../../components/games/k8s-game';
 
 export const metadata: Metadata = {
   title: 'Kubernetes Game — DevOps Learning Platform',
@@ -25,5 +25,5 @@ export const metadata: Metadata = {
  * trang (`components/session/landmark-contract.test.ts` quét tĩnh việc này).
  */
 export default function K8sGamePage() {
-  return <K8sGamePlaceholder />;
+  return <K8sGame />;
 }
