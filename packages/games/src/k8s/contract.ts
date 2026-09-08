@@ -268,6 +268,19 @@ export interface ObjectView {
   /** Chỉ có ở Pod. */
   readonly phase?: PodPhase;
   readonly reason?: PodReason;
+  /**
+   * Đã qua readiness probe. Trục RIÊNG, không suy ra được từ `phase`.
+   *
+   * Đây là chỗ giá trị sư phạm nằm: một pod `Running` mà `ready: false` vẫn đứng
+   * ngoài Endpoints của Service, nên `kubectl get pods` trông hoàn toàn bình
+   * thường trong khi traffic không tới nơi. Không đưa trục này ra tới renderer
+   * thì người chơi không có cách nào NHÌN ra nguyên nhân, và bài học biến mất.
+   *
+   * `undefined` cho tài nguyên không phải Pod.
+   */
+  readonly ready?: boolean;
+  /** Cột RESTARTS của `kubectl get`. Số lần restart nói lên chuyện `phase` giấu đi. */
+  readonly restartCount?: number;
   /** Tên node đang chạy; `null` = chưa được xếp lịch. */
   readonly nodeName: string | null;
   /** uid của chủ sở hữu (ReplicaSet của Pod, Deployment của ReplicaSet…). */
