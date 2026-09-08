@@ -877,3 +877,62 @@ xanh và không gác gì cả. Ô đó ở trạng thái ĐỎ có lý do, khôn
 Cùng lý do, ô "0 frame khi cảnh tĩnh" đã đo được (74 → 74 qua 3 giây) nhưng phạm vi
 của nó là **cảnh rỗng đang nghỉ**, không phải cảnh đông pod. Ghi đúng phạm vi thay
 vì ghi "đã đạt".
+
+---
+
+## 14. Hợp đồng C9 — giao diện phải ĐƯỢC NHÌN, không chỉ được đo
+
+> Lane E sở hữu. Chủ dự án bác bản dựng lần hai 2026-09-08 kèm ảnh chụp: trắng
+> xoá, không màu, không hiệu ứng, panel chồng lên nhau và chữ bị cắt cụt.
+
+### 14.1 Bài học quy trình, trước khi nói tới lỗi cụ thể
+
+Bản dựng bị bác **đã qua mọi phép đo mà lane tự đặt ra**: canvas đúng
+`1552×765 at 0,0`, `scrollHeight` bằng chiều cao viewport, `ShellHeader` thật sự
+vắng khỏi DOM, 81 test xanh, typecheck xanh, CSP 0 lỗi. Mọi con số đều đúng, và
+màn hình vẫn hỏng.
+
+⛔ **Từ nay, mọi thay đổi bố cục phải kèm một ẢNH CHỤP đã được nhìn.** Playwright
+đã có sẵn; `page.screenshot()` là một dòng. Một bố cục qua hết assertion cấu trúc
+mà trông vỡ là chuyện xảy ra thường xuyên, vì assertion cấu trúc đo *sự tồn tại
+và vị trí*, không đo *sự chồng lấn, sự cắt chữ, hay màu*.
+
+Đây cùng họ với `green-that-proves-nothing`: phép đo đúng, nhưng nó không thể
+chứa bằng chứng cho câu hỏi đang được hỏi.
+
+### 14.2 Game CHỐT theme tối, không theo theme của ứng dụng
+
+Nguyên nhân của "trắng xoá, không màu": app đang ở theme sáng, và game thừa hưởng
+nó. §9.2 nói "phòng điều khiển tối, tương phản cao" nhưng **chưa bao giờ chốt
+rằng game không theo theme người dùng** — đó là chỗ hổng của hợp đồng, không phải
+của lane.
+
+Chốt: **trang game luôn tối.** Bọc toàn bộ vùng game trong `<div className="dark">`.
+Cách này KHÔNG phá hợp đồng token: `.dark` là biến thể theo class (`@custom-variant`
+ở `globals.css`), nên mọi token bên trong tự phân giải sang nhánh tối. Không hex,
+không giá trị cứng, không token mới.
+
+Vì sao chốt thay vì để tuỳ người dùng: đây là trải nghiệm toàn màn hình có canvas
+3D. Bloom, phát sáng emissive, sương mù và bóng đổ đều được thiết kế cho nền tối
+và đều **không đọc được** trên nền trắng. Một game 3D sáng trưng không phải một
+lựa chọn phong cách, nó là cùng cảnh đó bị hỏng. Trang `/games` (catalog) thì
+vẫn theo theme người dùng như mọi trang khác — chỉ `/games/k8s` chốt tối.
+
+### 14.3 Bốn lỗi thấy trên ảnh chụp, theo thứ tự nghiêm trọng
+
+1. **Không có cảnh 3D nào.** Cụm rỗng vì `createSession` chưa được nối — nay đã
+   export ở barrel. Nối vào là điều kiện cần cho ba lỗi còn lại có ý nghĩa.
+2. **Panel chồng lên nhau và chữ bị cắt cụt.** Thẻ level nằm dưới rail tài nguyên,
+   mất hẳn mép trái ("…ainer trực", "…ếp lên node"). Đây là lỗi bố cục thật, không
+   phải hệ quả của cụm rỗng.
+3. **Trắng xoá** — §14.2.
+4. **Thông báo "chưa sẵn sàng" chiếm giữa màn hình** trong khi ba panel khác cũng
+   đang tranh chỗ. Khi engine đã nối thì nó biến mất, nhưng trạng thái rỗng vẫn
+   cần một bố cục tử tế chứ không phải bốn hộp đè nhau.
+
+### 14.4 Bằng chứng bắt buộc cho lần giao tới
+
+- Ảnh chụp `/games/k8s` **có cụm đã nạp** (engine nối rồi), theme tối, ở 1920×1080.
+- Ảnh chụp thứ hai ở 1280×720 — chứng minh panel không chồng ở màn hẹp hơn.
+- Ảnh chụp thứ ba với 3D tắt, chứng minh lớp DOM vẫn dùng được.
+- Cả ba **được nhìn** trước khi báo xong, không chỉ được lưu ra file.
