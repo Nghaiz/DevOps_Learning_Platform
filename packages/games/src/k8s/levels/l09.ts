@@ -16,7 +16,7 @@ export const l09: Level = {
   chapter: 2,
   title: 'Rollout dừng giữa chừng lúc 2 giờ sáng',
   brief: `Pipeline CI vừa đẩy một bản lên production rồi báo đỏ. Bạn mở cluster ra và thấy
-một cảnh khó hiểu: Deployment \`api\` trong \`thanh-toan\` có **7 pod** dù nó chỉ
+một cảnh khó hiểu: Deployment \`api\` trong \`nen-tang\` có **7 pod** dù nó chỉ
 khai 6 replica, trong đó một số Running và một số kẹt không bao giờ Ready.
 
 Trang trạng thái của công ty vẫn xanh. Khách hàng không phàn nàn. Đó không phải
@@ -37,12 +37,12 @@ hạ về 0 pod. Lịch sử đó nằm ngay trong cluster.`,
       { name: 'may-chu-1', cpu: 4000, memory: 8192, ready: true },
       { name: 'may-chu-2', cpu: 4000, memory: 8192, ready: true },
     ],
-    namespaces: ['thanh-toan'],
+    namespaces: ['nen-tang'],
     resources: [
       {
         kind: 'ReplicaSet',
         name: 'api-6b4c7d',
-        namespace: 'thanh-toan',
+        namespace: 'nen-tang',
         spec: {
           replicas: 0,
           revision: 4,
@@ -58,7 +58,7 @@ hạ về 0 pod. Lịch sử đó nằm ngay trong cluster.`,
       {
         kind: 'Deployment',
         name: 'api',
-        namespace: 'thanh-toan',
+        namespace: 'nen-tang',
         spec: {
           replicas: 6,
           revision: 5,
@@ -89,7 +89,7 @@ hạ về 0 pod. Lịch sử đó nằm ngay trong cluster.`,
       id: 'sau-replica-san-sang',
       label: 'Deployment `api` có đủ 6 replica sẵn sàng',
       check: 'deployment-ready',
-      args: { name: 'api', namespace: 'thanh-toan', replicas: 6 },
+      args: { name: 'api', namespace: 'nen-tang', replicas: 6 },
       required: true,
     },
     {
@@ -99,7 +99,7 @@ hạ về 0 pod. Lịch sử đó nằm ngay trong cluster.`,
       args: {
         kind: 'Deployment',
         name: 'api',
-        namespace: 'thanh-toan',
+        namespace: 'nen-tang',
         image: 'ghcr.io/dlp/api:1.5.0',
       },
       required: true,
@@ -108,14 +108,14 @@ hạ về 0 pod. Lịch sử đó nằm ngay trong cluster.`,
       id: 'khong-con-pod-loi',
       label: 'Không pod `app=api` nào còn mang lý do lỗi',
       check: 'pod-no-reason',
-      args: { namespace: 'thanh-toan', labelSelector: 'app=api' },
+      args: { namespace: 'nen-tang', labelSelector: 'app=api' },
       required: true,
     },
   ],
   hints: [
-    '7 pod cho 6 replica là dấu vết của hai thế hệ cùng sống: `maxSurge: 1` cho phép tạo thừa đúng một pod, và pod thừa đó chính là pod mới đang kẹt. `kubectl get rs -n thanh-toan` cho bạn thấy cả hai ReplicaSet.',
-    '`kubectl rollout status deployment/api -n thanh-toan` sẽ treo chứ không trả về — đó là xác nhận. `kubectl rollout history deployment/api -n thanh-toan` liệt kê các revision đã đi qua; thêm `--revision=4` để xem template của thế hệ trước.',
-    'Revision 4 dùng image `ghcr.io/dlp/api:1.5.0`. Quay về nó bằng `kubectl rollout undo deployment/api -n thanh-toan`, hoặc sửa thẳng image trong Deployment về đúng tag đó. Cách nào cũng được — điều quan trọng là bạn đã ĐỌC ra tag đó từ cluster chứ không đoán.',
+    '7 pod cho 6 replica là dấu vết của hai thế hệ cùng sống: `maxSurge: 1` cho phép tạo thừa đúng một pod, và pod thừa đó chính là pod mới đang kẹt. `kubectl get rs -n nen-tang` cho bạn thấy cả hai ReplicaSet.',
+    '`kubectl rollout status deployment/api -n nen-tang` sẽ treo chứ không trả về — đó là xác nhận. `kubectl rollout history deployment/api -n nen-tang` liệt kê các revision đã đi qua; thêm `--revision=4` để xem template của thế hệ trước.',
+    'Revision 4 dùng image `ghcr.io/dlp/api:1.5.0`. Quay về nó bằng `kubectl rollout undo deployment/api -n nen-tang`, hoặc sửa thẳng image trong Deployment về đúng tag đó. Cách nào cũng được — điều quan trọng là bạn đã ĐỌC ra tag đó từ cluster chứ không đoán.',
   ],
   parMoves: 2,
   teaches: [

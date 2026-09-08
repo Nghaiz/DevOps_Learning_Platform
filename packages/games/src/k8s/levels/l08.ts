@@ -13,7 +13,7 @@ export const l08: Level = {
   chapter: 2,
   title: 'Đổi phiên bản mà không tắt dịch vụ',
   brief: `Bản \`1.5.0\` của API đã qua kiểm thử và cần lên production. Deployment \`api\`
-trong namespace \`thanh-toan\` hiện chạy 4 replica ở bản \`1.4.2\`, và đang phục
+trong namespace \`nen-tang\` hiện chạy 4 replica ở bản \`1.4.2\`, và đang phục
 vụ khách hàng thật ngay lúc này.
 
 Cách làm sai kinh điển là xoá Deployment cũ rồi tạo cái mới. Nó chạy được, và nó
@@ -37,12 +37,12 @@ pod đang chạy tụt xuống dưới 4** trong lúc chuyển.`,
       { name: 'may-chu-1', cpu: 4000, memory: 8192, ready: true },
       { name: 'may-chu-2', cpu: 4000, memory: 8192, ready: true },
     ],
-    namespaces: ['thanh-toan'],
+    namespaces: ['nen-tang'],
     resources: [
       {
         kind: 'Deployment',
         name: 'api',
-        namespace: 'thanh-toan',
+        namespace: 'nen-tang',
         spec: {
           replicas: 4,
           selector: { matchLabels: { app: 'api' } },
@@ -74,7 +74,7 @@ pod đang chạy tụt xuống dưới 4** trong lúc chuyển.`,
       args: {
         kind: 'Deployment',
         name: 'api',
-        namespace: 'thanh-toan',
+        namespace: 'nen-tang',
         image: 'ghcr.io/dlp/api:1.5.0',
       },
       required: true,
@@ -83,21 +83,21 @@ pod đang chạy tụt xuống dưới 4** trong lúc chuyển.`,
       id: 'du-bon-replica',
       label: 'Deployment `api` có đủ 4 replica sẵn sàng sau khi chuyển xong',
       check: 'deployment-ready',
-      args: { name: 'api', namespace: 'thanh-toan', replicas: 4 },
+      args: { name: 'api', namespace: 'nen-tang', replicas: 4 },
       required: true,
     },
     {
       id: 'khong-dut-dich-vu',
       label: 'Luôn có ít nhất 4 pod `app=api` đang chạy',
       check: 'pod-count-running',
-      args: { namespace: 'thanh-toan', labelSelector: 'app=api', min: 4 },
+      args: { namespace: 'nen-tang', labelSelector: 'app=api', min: 4 },
       required: true,
     },
   ],
   hints: [
     'Bạn không cần xoá gì cả. Deployment nhận nhiệm vụ đưa thực tế về khớp mong muốn — nên hãy đổi mong muốn: sửa image trong template của nó.',
-    'Theo dõi tiến trình bằng `kubectl rollout status deployment/api -n thanh-toan`. Lệnh này chỉ trả về khi rollout hoàn tất, nên nó cũng là cách viết script chờ đúng cách.',
-    '`kubectl set image deployment/api api=ghcr.io/dlp/api:1.5.0 -n thanh-toan` (hoặc sửa thẳng field image). Cấu hình sẵn của Deployment là `maxUnavailable: 0`, nên nó tự giữ đủ 4 pod suốt quá trình — bạn không phải làm gì thêm.',
+    'Theo dõi tiến trình bằng `kubectl rollout status deployment/api -n nen-tang`. Lệnh này chỉ trả về khi rollout hoàn tất, nên nó cũng là cách viết script chờ đúng cách.',
+    '`kubectl set image deployment/api api=ghcr.io/dlp/api:1.5.0 -n nen-tang` (hoặc sửa thẳng field image). Cấu hình sẵn của Deployment là `maxUnavailable: 0`, nên nó tự giữ đủ 4 pod suốt quá trình — bạn không phải làm gì thêm.',
   ],
   parMoves: 1,
   teaches: [
