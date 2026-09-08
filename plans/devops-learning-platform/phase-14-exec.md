@@ -27,9 +27,9 @@ nào được sửa hợp đồng; thấy hợp đồng sai thì **báo lead**, 
 | # | Câu hỏi | Chốt | Ghi chú |
 |---|---|---|---|
 | 1 | Primary đỏ đụng `--destructive` (cũng đỏ) | **Tách bằng HÌNH DẠNG** | Primary nền đặc; destructive đổi sang viền + nền nhạt + chữ đỏ đậm + icon. Không tốn thêm hue, không hỏng khi in đen trắng hay với người mù màu đỏ-lục. |
-| 2 | K8s Game vẽ bằng gì | **Three.js 3D** | Chủ dự án chọn, *ngược* với khuyến nghị 2D của lead. Hai hệ quả bắt buộc xử lý: §4.3 (nạp có điều kiện) và §4.4 (lớp DOM song song để qua axe). |
+| 2 | Kubernetes Game vẽ bằng gì | **Three.js 3D** | Chủ dự án chọn, *ngược* với khuyến nghị 2D của lead. Hai hệ quả bắt buộc xử lý: §4.3 (nạp có điều kiện) và §4.4 (lớp DOM song song để qua axe). |
 | 3 | Ba game còn lại | Đường ống (CI/CD graph) · Mê cung mạng (NetworkPolicy) · Lò rèn Image (Dockerfile) | |
-| 4 | Độ sâu | **Chỉ hiện thực K8s Game đợt này.** Ba game kia: thiết kế + khung, chưa code. | Mục `/games` sẽ có 3 ô "sắp có" — đó là lựa chọn có ý thức, không phải thiếu sót. |
+| 4 | Độ sâu | **Chỉ hiện thực Kubernetes Game đợt này.** Ba game kia: thiết kế + khung, chưa code. | Mục `/games` sẽ có 3 ô "sắp có" — đó là lựa chọn có ý thức, không phải thiếu sót. |
 | 5 | Lưu tiến độ | **`localStorage`, không DB** — lead chốt, lý do dưới. | |
 
 **Vì sao `localStorage` chứ không DB** (phase gốc §14.A.3 bắt chốt một và ghi lý do):
@@ -335,7 +335,7 @@ Bản ghi của repo cho biết CSP hiện chặn WASM. `three` bản dựng th�
 
 Lane F viết `docs/games/` một file cho mỗi game: cơ chế chơi, mô hình trạng thái,
 15 level đầu (tiêu đề + mục tiêu, chưa cần nội dung đầy đủ), cách chấm điểm, và
-**cái nó dạy được mà K8s Game không dạy được**. Ba ô này hiện trên `/games` ở trạng
+**cái nó dạy được mà Kubernetes Game không dạy được**. Ba ô này hiện trên `/games` ở trạng
 thái "sắp có", không bấm vào được.
 
 ---
@@ -346,7 +346,7 @@ thái "sắp có", không bấm vào được.
 - [ ] `pnpm --filter @devops-platform/ui test` xanh; miễn trừ đã ghim được xử lý theo §2.5 (cập nhật **kèm lý lẽ** hoặc xoá), không phải ghim lại số mới.
 - [ ] Nút primary và nút destructive **phân biệt được khi ảnh chụp bị khử màu** — có ảnh chứng minh trong report.
 - [ ] `/games` lên được, lọc được theo chủ đề + độ khó, ghi rõ game **không tốn sandbox** còn CTF thì **tốn một sandbox**.
-- [ ] K8s Game: **≥ 30 level**, chaos mode, sandbox, challenges theo scenario, draw, stats, achievements.
+- [ ] Kubernetes Game: **≥ 30 level**, chaos mode, sandbox, challenges theo scenario, draw, stats, achievements.
 - [ ] Mô phỏng tất định: test khẳng định cùng seed + cùng action ⇒ cùng trạng thái.
 - [ ] **0 lời gọi backend** trong lúc chơi — đo bằng Playwright network trace, không phải bằng đọc code.
 - [ ] `three` **không** có mặt trong bundle của `/`, `/lessons`, `/dashboard` — đo bằng grep trên `.next/static/chunks`, có **đối chứng dương** (khẳng định nó CÓ trong chunk của `/games/k8s`).

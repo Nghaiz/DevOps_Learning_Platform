@@ -1,6 +1,6 @@
 # Mê cung mạng (`netpol`) — thiết kế
 
-**Trạng thái:** thiết kế, **chưa code**. Đợt P14.1 chỉ hiện thực K8s Game
+**Trạng thái:** thiết kế, **chưa code**. Đợt P14.1 chỉ hiện thực Kubernetes Game
 (`phase-14-exec.md` §1 quyết định 4).
 
 **`GameId`:** `'netpol'` (đã có sẵn trong `packages/games/src/core/types.ts`).
@@ -31,7 +31,7 @@ Người chơi qua level khi ma trận không còn ô nào ở hai loại sau. K
 
 ### Khác ba game kia ở đâu
 
-Đây là game duy nhất chấm bằng một **phép so tập hợp chính xác**. K8s Game chấm sức khoẻ
+Đây là game duy nhất chấm bằng một **phép so tập hợp chính xác**. Kubernetes Game chấm sức khoẻ
 của một hệ đang chạy: pod xanh là đủ. Lò rèn Image chấm ba con số có đánh đổi lẫn nhau.
 Đường ống chấm một phân bố. Ở đây chỉ có đúng và sai, và điều đáng nói là **hai loại sai
 không giống nhau chút nào**:
@@ -40,22 +40,22 @@ không giống nhau chút nào**:
 - Ô **thừa** không tạo ra triệu chứng gì cả. Không có gì đỏ. Hệ chạy hoàn hảo. Cách duy
   nhất để biết nó tồn tại là **liệt kê ra thứ đáng lẽ phải bị chặn và đi thử từng cái**.
 
-Toàn bộ giá trị sư phạm của game nằm ở vế thứ hai, và §7 nói vì sao K8s Game không với tới
+Toàn bộ giá trị sư phạm của game nằm ở vế thứ hai, và §7 nói vì sao Kubernetes Game không với tới
 được nó.
 
 ---
 
-## 2. Chồng lấn với K8s Game, và ranh giới
+## 2. Chồng lấn với Kubernetes Game, và ranh giới
 
 Nói trước vì nó là câu hỏi đầu tiên bất kỳ ai cũng hỏi.
 
 `packages/games/src/k8s/predicate-names.ts` **đã có** `netpol-allows` và `netpol-denies`,
 và `k8s/contract.ts` **đã có** `IncidentKind` là `networkpolicy-chan-nham` cùng
-`dns-khong-phan-giai`. Vậy K8s Game đã chạm tới NetworkPolicy.
+`dns-khong-phan-giai`. Vậy Kubernetes Game đã chạm tới NetworkPolicy.
 
 Nó chạm tới đúng một nửa:
 
-| | K8s Game | Mê cung mạng |
+| | Kubernetes Game | Mê cung mạng |
 |---|---|---|
 | Chế độ hỏng dạy được | policy **chặn nhầm** một luồng hợp lệ (có triệu chứng) | policy **cho phép thừa** (không triệu chứng) |
 | Phạm vi kiểm | vài luồng nêu tên trong `objectives` | toàn bộ ma trận (nguồn × đích × cổng) |
@@ -67,7 +67,7 @@ khác trong danh sách đó. Không mục nào trong 32 mục là *"một thứ 
 không nên chạy được"*, và không thể thêm vào, vì một game chẩn đoán không có cách nào
 hiển thị sự vắng mặt của một triệu chứng.
 
-Ranh giới thực thi: level của K8s Game giữ tối đa **một** NetworkPolicy và không bao giờ
+Ranh giới thực thi: level của Kubernetes Game giữ tối đa **một** NetworkPolicy và không bao giờ
 chấm trên toàn ma trận. Mọi bài về ma trận thuộc về game này.
 
 ---
@@ -83,7 +83,7 @@ chấm trên toàn ma trận. Mọi bài về ma trận thuộc về game này.
 
 ⚠ `RunLog` và `GameAction` nằm ở `k8s/contract.ts` chứ không ở `core/`, và
 `GameAction.kind` không có tên nào cho "viết một policy". Cùng vấn đề mà `pipeline.md`
-§2.2 nêu: cơ chế xác minh của `phase-14-exec.md` §8.3 hiện chỉ áp cho K8s Game. **Báo
+§2.2 nêu: cơ chế xác minh của `phase-14-exec.md` §8.3 hiện chỉ áp cho Kubernetes Game. **Báo
 lead** trước khi hiện thực, đừng tự sửa file lead sở hữu.
 
 Riêng game này có một lối thoát mà hai game kia không có: đáp án của nó là **một tập
@@ -321,10 +321,10 @@ chủ ý.
 
 ---
 
-## 8. Cái nó dạy được mà K8s Game không dạy được
+## 8. Cái nó dạy được mà Kubernetes Game không dạy được
 
 **Một chế độ hỏng không có triệu chứng.** Đây là điểm mạnh thật, và nó mang tính cấu trúc
-chứ không phải mức độ. Toàn bộ vòng lặp của K8s Game là *tìm cái đang đỏ*: mọi mục trong
+chứ không phải mức độ. Toàn bộ vòng lặp của Kubernetes Game là *tìm cái đang đỏ*: mọi mục trong
 `IncidentKind` là một triệu chứng quan sát được, mọi vị từ trong `predicate-names.ts` hỏi
 "cái này có đang hoạt động không". Một cửa mở sai không đỏ ở đâu cả, không làm pod nào
 `CrashLoopBackOff`, không làm `service-has-endpoints` trả `false`. Nó chỉ nhìn thấy được
@@ -335,7 +335,7 @@ Thói quen đó là toàn bộ nội dung của an ninh vận hành, và một g
 **Ngữ nghĩa cộng dồn của danh sách trắng.** Người học mang trực giác từ firewall: có thứ
 tự luật, có luật deny, luật sau ghi đè luật trước. NetworkPolicy không có thứ nào trong ba
 thứ đó. Một game chấm trên toàn ma trận phạt trực giác sai đó ngay tại ô đầu tiên, mỗi
-lần, không thương lượng. K8s Game với một policy trên màn hình không bao giờ tạo được tình
+lần, không thương lượng. Kubernetes Game với một policy trên màn hình không bao giờ tạo được tình
 huống hai policy cộng dồn, nên nó không thể phát hiện được rằng người chơi đang hiểu sai.
 
 **Chứng minh sự vắng mặt.** Ma trận đầy đủ dạy một tư duy hiếm: câu *"tôi đã kiểm và không

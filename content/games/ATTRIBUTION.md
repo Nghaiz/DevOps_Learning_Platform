@@ -102,9 +102,9 @@ quyết định sai dựa trên đó.
 Điều khoản 6 của Apache-2.0 **không** cấp quyền dùng tên thương mại. Luật nhãn hiệu là
 một trục độc lập với license: license mở không đồng nghĩa với tên mở.
 
-Kế hoạch đang gọi game Kubernetes là **"K8s Game"** (`phase-14-exec.md` §1 quyết định 2,
+Kế hoạch đang gọi game Kubernetes là **"Kubernetes Game"** (`phase-14-exec.md` §1 quyết định 2,
 §6), và route là `/games/k8s`. Báo cáo nghiên cứu §1.3 khuyến nghị ngược lại: *"Tránh
-đặt tên sản phẩm gần 'K8s Games' / 'k8sgames'"*. Hai tài liệu mâu thuẫn nhau và **lane
+đặt tên sản phẩm gần 'Kubernetes Games' / 'k8sgames'"*. Hai tài liệu mâu thuẫn nhau và **lane
 viết tài liệu này không có thẩm quyền đổi tên sản phẩm**, nên nó được ghi lại ở đây
 thay vì được sửa lặng lẽ.
 

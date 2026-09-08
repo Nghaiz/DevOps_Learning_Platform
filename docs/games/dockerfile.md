@@ -1,6 +1,6 @@
 # Lò rèn Image (`dockerfile`) — thiết kế
 
-**Trạng thái:** thiết kế, **chưa code**. Đợt P14.1 chỉ hiện thực K8s Game
+**Trạng thái:** thiết kế, **chưa code**. Đợt P14.1 chỉ hiện thực Kubernetes Game
 (`phase-14-exec.md` §1 quyết định 4).
 
 **`GameId`:** `'dockerfile'` (đã có sẵn trong `packages/games/src/core/types.ts`).
@@ -46,7 +46,7 @@ Hệ quả kiến trúc dễ chịu: reducer của game này gần như là mộ
 
 ⚠ `RunLog` và `GameAction` nằm ở `k8s/contract.ts`, và `GameAction.kind` không có tên nào
 cho "sửa một dòng Dockerfile" (gần nhất là `'edit'`, nhưng `payload` của nó là hợp đồng
-của K8s Game). Cùng vấn đề mà `pipeline.md` §2.2 và `netpol.md` §3.1 nêu: **báo lead**
+của Kubernetes Game). Cùng vấn đề mà `pipeline.md` §2.2 và `netpol.md` §3.1 nêu: **báo lead**
 trước khi hiện thực. Giống game netpol, game này có lối thoát riêng vì trạng thái cuối
 (chính `DockerfileSpec`) đủ để chấm lại từ số không, không cần phát lại chuỗi hành động.
 
@@ -289,18 +289,18 @@ thứ tự và nội dung lệnh. Base image mở ra từ level 8, multi-stage t
 
 ---
 
-## 7. Cái nó dạy được mà K8s Game không dạy được
+## 7. Cái nó dạy được mà Kubernetes Game không dạy được
 
 **Mô hình layer.** Image là một chồng diff bất biến có thứ tự, và một layer sau không xoá
 được byte của layer trước. Từ mô hình đó suy ra bốn thứ mà người học thường phải học bằng
 cách bị đau: xoá file không làm image nhỏ đi, bí mật ở giữa chồng không biến mất, thứ tự
 lệnh quyết định thời gian dựng, và gộp lệnh đánh đổi kích thước lấy cache.
 
-K8s Game bắt đầu **sau khi image đã tồn tại**. Trong 32 mục của `IncidentKind` ở
+Kubernetes Game bắt đầu **sau khi image đã tồn tại**. Trong 32 mục của `IncidentKind` ở
 `k8s/contract.ts`, image xuất hiện đúng ba lần và cả ba đều coi nó là một chuỗi mờ đục:
 `image-tag-sai`, `image-registry-khong-toi-duoc`, `thieu-imagepullsecret`. Cluster không
 có khái niệm layer, không có khái niệm cache dựng, không có khái niệm build context. Đây
-không phải chuyện K8s Game chưa dạy; là chuyện nó không có ngôn ngữ để dạy.
+không phải chuyện Kubernetes Game chưa dạy; là chuyện nó không có ngôn ngữ để dạy.
 
 **An toàn của artifact, tách khỏi an toàn của runtime.** Mê cung mạng dạy an toàn của
 đường đi. Game này dạy an toàn của **thứ đang chạy**: chạy bằng root hay không, có shell

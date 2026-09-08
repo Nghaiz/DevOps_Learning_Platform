@@ -5,12 +5,12 @@ import type { Metadata } from 'next';
 import { K8sGamePlaceholder } from './k8s-game-placeholder';
 
 export const metadata: Metadata = {
-  title: 'K8s Game — DevOps Learning Platform',
+  title: 'Kubernetes Game — DevOps Learning Platform',
   description: 'Dựng và cứu một cluster Kubernetes qua từng level, ngay trong trình duyệt.',
 };
 
 /**
- * `/games/k8s` — vỏ route của K8s Game.
+ * `/games/k8s` — vỏ route của Kubernetes Game.
  *
  * Server Component **rỗng nghiệp vụ**, có chủ ý. Nó không tạo phiên, không
  * import `@devops-platform/games`, không giữ state game, và không đọc session:

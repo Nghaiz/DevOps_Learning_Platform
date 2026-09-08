@@ -1,6 +1,6 @@
 # Đường ống (`pipeline`) — thiết kế
 
-**Trạng thái:** thiết kế, **chưa code**. Đợt P14.1 chỉ hiện thực K8s Game
+**Trạng thái:** thiết kế, **chưa code**. Đợt P14.1 chỉ hiện thực Kubernetes Game
 (`phase-14-exec.md` §1 quyết định 4). Tài liệu này là thứ người hiện thực sau này làm việc từ đó.
 
 **`GameId`:** `'pipeline'` (đã có sẵn trong `packages/games/src/core/types.ts`).
@@ -31,7 +31,7 @@ Ba thứ định hình mọi level:
 
 | Game | Câu hỏi trung tâm | Đối tượng |
 |---|---|---|
-| K8s Game | *"Cái gì đang hỏng, và sửa thế nào?"* | một hệ đang chạy |
+| Kubernetes Game | *"Cái gì đang hỏng, và sửa thế nào?"* | một hệ đang chạy |
 | **Đường ống** | *"Việc nào chờ việc nào, và bao giờ xong?"* | một kế hoạch |
 | Mê cung mạng | *"Tập được phép có đúng bằng tập cần phép không?"* | một tập hợp |
 | Lò rèn Image | *"Cái artifact này gồm những gì?"* | một vật thể |
@@ -62,7 +62,7 @@ Khoá lưu: `dlp.games.v1.pipeline`. Không field suy ra được: `passed`, `pe
 thật của nó (thêm stage, nối cạnh, đổi retry) thì không có tên nào.
 
 Hệ quả: **cơ chế xác minh chống gian lận ở `phase-14-exec.md` §8.3 hiện chỉ dùng được
-cho K8s Game.** Muốn nó áp cho Đường ống thì `RunLog` phải chuyển lên `core/` và
+cho Kubernetes Game.** Muốn nó áp cho Đường ống thì `RunLog` phải chuyển lên `core/` và
 `GameAction` phải mở ra theo game. Cả hai file đều do lead sở hữu, nên đây là **việc báo
 lead**, không phải việc người hiện thực tự làm. Ghi ở đây để người đó không đọc §8.3 rồi
 tưởng cơ chế đã sẵn.
@@ -152,7 +152,7 @@ thêm `docs/` vào `ROOTS` thì cần một `MASK`, không phải sửa câu nà
 khi script được viết nên nó rơi ra ngoài. Không phải việc của lane tài liệu để sửa
 `scripts/`, nhưng cần có người sửa.
 
-`Objective.check` là **tên vị từ dạng chuỗi**, y hệt ràng buộc của K8s Game và vì đúng
+`Objective.check` là **tên vị từ dạng chuỗi**, y hệt ràng buộc của Kubernetes Game và vì đúng
 lý do đó: level phải serialize được để lưu replay và so bằng `toEqual` trong test. Từ
 vựng vị từ riêng của game này nằm ở `pipeline/predicate-names.ts`, gợi ý ban đầu:
 `stage-exists` · `stage-depends-on` · `stage-not-depends-on` · `graph-acyclic` ·
@@ -287,26 +287,26 @@ bài là một hệ chấm nói dối, và nó nói dối khác nhau ở mỗi b
 | 15 | Ngân sách mười phút | Đồ thị 14 stage, ba stage flaky, hai runner: đạt cùng lúc p50 dưới ngân sách, `reliability ≥ 0.9`, và runner-tick dưới mốc. |
 
 Level 1 đến 4 chỉ mở `editable: ['edges']`. Cache mở từ level 5, retry từ level 7, thêm
-stage từ level 10. Đây là cùng cơ chế `allowedResources` mà K8s Game dùng để kiểm soát
+stage từ level 10. Đây là cùng cơ chế `allowedResources` mà Kubernetes Game dùng để kiểm soát
 nhịp dạy.
 
 ---
 
-## 7. Cái nó dạy được mà K8s Game không dạy được
+## 7. Cái nó dạy được mà Kubernetes Game không dạy được
 
 Ba thứ, và cả ba đều **không có đường nào để xuất hiện** trong một mô phỏng cluster.
 
-**1. Khác biệt giữa tổng công việc và thời gian trôi qua.** K8s Game có trục thời gian
+**1. Khác biệt giữa tổng công việc và thời gian trôi qua.** Kubernetes Game có trục thời gian
 (tick), nhưng thời gian ở đó là *thứ trôi qua trong lúc người chơi sửa*, không phải thứ
 người chơi tối ưu. Không mục tiêu nào của nó thưởng cho việc hiểu rằng hai việc có thể
 xảy ra cùng lúc. Đường ống thì toàn bộ đáp án nằm ở đó: cùng một tập stage, cùng một tổng
 `durationTicks`, hai đồ thị khác nhau cho ra hai p50 chênh nhau hai lần. Khái niệm đường
 găng không diễn đạt được bằng ngôn ngữ của cluster.
 
-**2. Đọc một phân bố thay vì một kết quả.** Hợp đồng của K8s Game *bắt buộc* tất định
+**2. Đọc một phân bố thay vì một kết quả.** Hợp đồng của Kubernetes Game *bắt buộc* tất định
 (`contract.ts`, khối chú thích của `GameAction`): mỗi level có đúng một trạng thái đích và
 người chơi hoặc tới đó hoặc không. Đó là thiết kế đúng cho một game chẩn đoán, và nó khiến
-K8s Game **về mặt cấu trúc** không thể dạy được rằng một hệ có thể vừa đúng vừa hỏng 14%
+Kubernetes Game **về mặt cấu trúc** không thể dạy được rằng một hệ có thể vừa đúng vừa hỏng 14%
 số lần. Flaky test là vấn đề tốn nhiều giờ nhất của kỹ sư CI thật, và nó chỉ nhìn thấy
 được khi có nhiều lượt để so.
 
@@ -318,7 +318,7 @@ kết quả của một lần build khác. Không có `IncidentKind` nào trong 
 ### Vế yếu nhất trong ba vế, nói trước khi ai đó chỉ ra
 
 Vế 2 là vế gần bị chồng lấn nhất, và câu trả lời của nó mỏng hơn hai vế kia. Chaos mode
-của K8s Game **cũng** có ngẫu nhiên: sự cố bốc theo `ChaosWave` từ một hạt giống, nên
+của Kubernetes Game **cũng** có ngẫu nhiên: sự cố bốc theo `ChaosWave` từ một hạt giống, nên
 người chơi cũng phải xử lý thứ mình không đoán trước được. Ai đó đọc lướt sẽ kết luận là
 hai game dạy cùng một thứ.
 
@@ -340,7 +340,7 @@ không phải một lần tối giản vô tình.
 
 **Rào a11y là rào cao nhất, và nó có thể giết game.** `phase-14-exec.md` §4.4 bắt **mọi
 hành động chơi được phải làm xong bằng bàn phím**. Một trình soạn đồ thị kéo-thả đầy đủ
-bàn phím là việc lớn hơn nhiều so với panel danh sách tài nguyên của K8s Game: phải có
+bàn phím là việc lớn hơn nhiều so với panel danh sách tài nguyên của Kubernetes Game: phải có
 cách chọn stage, cách "nối từ A sang B" mà không cần chuột, và cách đọc được cấu trúc đồ
 thị bằng trình đọc màn hình. Đường đi duy nhất mà tài liệu này thấy khả thi là **đồ thị
 có một biểu diễn danh sách tương đương và bình đẳng** (bảng stage với cột "phụ thuộc vào",
@@ -362,7 +362,7 @@ Ba đối trọng phải có mặt, không phải tuỳ chọn: level 8 (phải 
 thật với đỏ giả), level 10 (vị trí của stage quét chỉ đúng nếu hiểu nó quét cái gì), level
 13 (thứ tự staging trước prod là một luật về hậu quả, không phải về thời gian).
 
-**Chồng lấn với `deploy-staging`/`deploy-prod` của K8s Game là có thật nhưng nông.** K8s
+**Chồng lấn với `deploy-staging`/`deploy-prod` của Kubernetes Game là có thật nhưng nông.** K8s
 Game có `IncidentKind` là `image-tag-sai`, tức nó chạm tới hậu quả của một lần deploy hỏng.
 Đường ống chạm tới *quyết định* dẫn tới lần deploy đó. Hai đầu của cùng một sợi dây, và
 không đầu nào nói được phần của đầu kia.

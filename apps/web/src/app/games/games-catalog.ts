@@ -61,14 +61,14 @@ export interface GameEntry {
  * Bốn game của đợt này: một chơi được, ba ở trạng thái "sắp có".
  *
  * Ba ô "sắp có" là **lựa chọn có ý thức** (quyết định #4 của phase), không phải
- * chỗ còn thiếu: đợt này chỉ hiện thực K8s Game, ba game kia mới có thiết kế
+ * chỗ còn thiếu: đợt này chỉ hiện thực Kubernetes Game, ba game kia mới có thiết kế
  * (`docs/games/`, lane F). Hiện chúng ở trạng thái không bấm được là cách nói
  * ra kế hoạch mà không hứa một đường link dẫn tới trang trắng.
  */
 export const GAMES: readonly GameEntry[] = [
   {
     id: 'k8s',
-    title: 'K8s Game',
+    title: 'Kubernetes Game',
     href: '/games/k8s',
     description:
       'Dựng rồi cứu một cluster: tạo pod, phơi service, chịu sự cố ngẫu nhiên. Mỗi level là một cluster hỏng theo một kiểu khác nhau.',

@@ -22,7 +22,7 @@ Ba ô "sắp có" trên `/games` là **lựa chọn có ý thức, không phải
 ([`phase-14-exec.md`](../../plans/devops-learning-platform/phase-14-exec.md) §1 quyết
 định 4): một game hoàn chỉnh có giá trị hơn bốn game dở dang.
 
-Mỗi tài liệu thiết kế có một mục **"cái nó dạy được mà K8s Game không dạy được"** và một
+Mỗi tài liệu thiết kế có một mục **"cái nó dạy được mà Kubernetes Game không dạy được"** và một
 mục **"chỗ ý tưởng này yếu"**. Mục thứ hai không phải khiêm tốn theo phép lịch sự: nó là
 thứ người hiện thực đọc trước khi bắt đầu, để biết chỗ nào sẽ đau.
 
@@ -87,7 +87,7 @@ thái rỗng kèm một cảnh báo.
 'hint' | 'wait'`, tức là từ vựng của Kubernetes.
 
 Hệ quả: **cơ chế xác minh chống gian lận mô tả ở `phase-14-exec.md` §8.3 hiện chỉ dùng
-được cho K8s Game.** Ba game còn lại không có chỗ để ghi hành động của chúng.
+được cho Kubernetes Game.** Ba game còn lại không có chỗ để ghi hành động của chúng.
 
 Hai đường ra, cả hai đều là **quyết định của lead** vì cả hai file đều do lead sở hữu:
 
