@@ -126,4 +126,63 @@ hạ về 0 pod. Lịch sử đó nằm ngay trong cluster.`,
     'maxUnavailable',
     'ReplicaSet history',
   ],
+  teaching: {
+    primer: `Một rollout **treo** không giống một rollout **hỏng**. Đây là chỗ hai khái niệm
+đó tách ra, và tách được chúng là toàn bộ giá trị của level.
+
+Deployment với \`maxUnavailable: 0\` không được phép hạ pod cũ trước khi pod mới
+sẵn sàng. Nếu pod mới không bao giờ sẵn sàng, quy tắc đó biến thành một cái phanh:
+rollout đứng yên vô thời hạn, pod cũ vẫn phục vụ, và người dùng không thấy gì.
+Đây là hành vi **đúng**, không phải một lỗi cần dập gấp.
+
+Dấu vết nhận ra nó: số pod nhiều hơn số replica. \`maxSurge: 1\` cho phép tạo
+thừa đúng một pod, và pod thừa đó chính là pod mới đang kẹt.
+
+Mỗi lần \`template\` đổi, Kubernetes giữ lại ReplicaSet của thế hệ trước, nguyên
+vẹn, kể cả sau khi đã hạ nó về 0 pod. Đó là **lịch sử revision**, và nó nằm ngay
+trong cluster chứ không nằm trong pipeline CI. Nghĩa là bạn không phải đoán bản
+lành là bản nào: đọc ra được.
+
+\`kubectl rollout undo\` đọc chính lịch sử đó và đưa template về thế hệ trước.
+Sửa tay image về đúng tag cũ cũng ra kết quả tương đương.
+
+Nhìn vào đâu: \`get rs\` để thấy hai thế hệ, \`rollout history\` để đọc template
+của thế hệ lành.`,
+    cheatsheet: [
+      {
+        command: 'kubectl rollout status deployment/api -n nen-tang',
+        explain: 'Không trả về nghĩa là rollout đang treo. Bản thân việc treo đã là một kết luận.',
+      },
+      {
+        command: 'kubectl get rs -n nen-tang -o wide',
+        explain: 'Cột IMAGES của từng ReplicaSet cho biết thế hệ nào chạy image nào.',
+      },
+      {
+        command: 'kubectl rollout history deployment/api -n nen-tang --revision=4',
+        explain: 'In template đầy đủ của một revision cũ, nơi đọc ra tag lành mà không phải đoán.',
+      },
+      {
+        command: 'kubectl rollout undo deployment/api -n nen-tang',
+        explain: 'Quay về revision liền trước. Thêm --to-revision=N để nhắm một thế hệ cụ thể.',
+      },
+      {
+        command: 'kubectl describe pod -n nen-tang -l app=api',
+        explain: 'Xem pod kẹt kẹt vì lý do gì, để biết sửa image hay quay lui là đúng.',
+      },
+    ],
+    takeaways: [
+      'Rollout treo với maxUnavailable bằng 0 là cơ chế bảo vệ đang hoạt động, không phải sự cố mất dịch vụ.',
+      'Số pod nhiều hơn số replica là dấu vết của hai thế hệ ReplicaSet cùng sống.',
+      'Lịch sử revision nằm trong chính cluster, dưới dạng các ReplicaSet cũ đã hạ về 0 pod.',
+      '`rollout undo` chỉ là cách đọc lịch sử đó và ghi lại vào template, nên hiểu lịch sử quan trọng hơn thuộc lệnh.',
+    ],
+    proTips: [
+      'Trong sự cố thật, quay lui trước rồi điều tra sau. Bản lành đã được kiểm chứng còn nguyên nhân thì chưa.',
+      '`revisionHistoryLimit` quyết định giữ lại bao nhiêu thế hệ. Đặt về 0 nghĩa là tự tay vứt đường lùi của mình.',
+    ],
+    pitfalls: [
+      'Xoá các pod đang kẹt cho bảng trạng thái sạch. ReplicaSet mới vẫn giữ số lượng mong muốn nên chúng mọc lại ngay, và rollout vẫn treo y như cũ.',
+      'Đoán tag lành theo trí nhớ hoặc theo tên nghe hợp lý. Cluster đang giữ câu trả lời chính xác, và đoán là bỏ qua bằng chứng có sẵn.',
+    ],
+  },
 };

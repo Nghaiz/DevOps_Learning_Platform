@@ -75,4 +75,65 @@ cũng là thứ đáng nhớ nhất trong nó.`,
     'reconciliation loop',
     'self-healing',
   ],
+  teaching: {
+    primer: `Trung tâm của Kubernetes là **reconciliation loop**: một vòng lặp không ngừng so
+sánh *trạng thái mong muốn* (thứ bạn khai) với *trạng thái thực tế* (thứ đang
+chạy), rồi làm việc để thu hẹp khoảng cách. Pod trần không có ai chạy vòng lặp
+đó cho nó, nên pod chết là hết.
+
+**Deployment** là nơi bạn ghi trạng thái mong muốn của một dịch vụ. Nó cần ba
+thứ mà pod trần không cần:
+
+- \`replicas\`: bao nhiêu bản chạy.
+- \`selector\`: nhận diện pod nào thuộc về nó, bằng **label**.
+- \`template\`: khuôn để tạo pod mới khi thiếu.
+
+Deployment không đếm pod trực tiếp. Nó tạo một **ReplicaSet**, và ReplicaSet mới
+là thứ giữ đúng số lượng. Ba tầng nghe thừa một tầng, nhưng chính tầng giữa cho
+phép hai thế hệ pod cùng sống trong lúc đổi phiên bản, và đó là nội dung của
+level 8.
+
+Điểm dễ sai nhất nằm ở chỗ nối: \`selector\` và label trong \`template\` phải khớp
+nhau. Không khớp thì Deployment tạo pod xong không nhận ra con mình, thấy vẫn
+thiếu, và tạo tiếp.
+
+Nhìn vào đâu: \`kubectl get deploy,rs,pods\` trong một lệnh cho bạn thấy cả ba
+tầng cùng lúc và quan hệ giữa chúng.`,
+    cheatsheet: [
+      {
+        command: 'kubectl get deploy,rs,pods -n san-pham',
+        explain: 'Ba tầng trong một lệnh. Tên ReplicaSet là tên Deployment cộng một hậu tố băm.',
+      },
+      {
+        command: 'kubectl describe deployment web -n san-pham',
+        explain: 'Cho biết Selector, số replica mong muốn/thực tế, và Events về việc scale ReplicaSet.',
+      },
+      {
+        command: 'kubectl delete pod <ten-pod> -n san-pham',
+        explain: 'Xoá thử một pod để nhìn vòng lặp tự dựng lại. Đây là bằng chứng của tự phục hồi.',
+      },
+      {
+        command: 'kubectl get pods -n san-pham -w',
+        explain: 'Xem pod thay thế được tạo ra ngay sau khi bạn xoá, thay vì gõ lại lệnh liên tục.',
+      },
+      {
+        command: 'kubectl create deployment web --image=nginx:1.27-alpine --replicas=3 --dry-run=client -o yaml',
+        explain: 'Sinh khung YAML đã khớp sẵn selector với label, tránh lỗi lệch label khi gõ tay.',
+      },
+    ],
+    takeaways: [
+      'Deployment không tạo pod trực tiếp: nó tạo ReplicaSet, và ReplicaSet giữ số lượng pod.',
+      'Reconciliation loop nghĩa là bạn khai mong muốn một lần, cluster giữ nó đúng mãi về sau.',
+      'Xoá một pod của Deployment không làm mất dịch vụ; xoá một pod trần thì mất hẳn.',
+      'Selector và label trong template phải khớp nhau, vì mọi quan hệ giữa các tầng đều đi qua label.',
+    ],
+    proTips: [
+      'Ở cụm thật, gần như không ai tạo pod trần. Pod trần chỉ dùng để thử nhanh rồi xoá.',
+      'Selector của Deployment là bất biến sau khi tạo. Chọn kỹ ngay từ đầu, vì đổi nó sau này nghĩa là xoá và tạo lại.',
+    ],
+    pitfalls: [
+      'Sửa label của một pod đang chạy để "vá nhanh". Pod đó rơi ra khỏi selector, Deployment thấy thiếu nên tạo pod bù, và bạn còn lại một pod mồ côi không ai quản.',
+      'Đặt selector rộng kiểu `app=web` cho nhiều workload khác nhau. Nó chạy được cho tới khi có workload thứ hai dùng đúng label đó, và level 10 là chỗ bạn thấy hậu quả.',
+    ],
+  },
 };

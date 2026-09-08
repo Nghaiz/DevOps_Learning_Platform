@@ -108,4 +108,65 @@ pod đang chạy tụt xuống dưới 4** trong lúc chuyển.`,
     'maxUnavailable',
     'ReplicaSet generation',
   ],
+  teaching: {
+    primer: `Đổi phiên bản mà không đứt dịch vụ là việc Deployment sinh ra để làm.
+
+Khi bạn sửa \`template\` (thường là image), Deployment không sửa pod đang chạy.
+Pod là bất biến: đổi image nghĩa là **thay pod**. Deployment tạo một
+**ReplicaSet mới** cho thế hệ mới, rồi vừa cho ReplicaSet mới lên từng bậc vừa
+hạ ReplicaSet cũ xuống, đúng nhịp mà hai tham số này quy định:
+
+- \`maxSurge\`: được phép có bao nhiêu pod **vượt** số mong muốn trong lúc chuyển.
+- \`maxUnavailable\`: được phép **thiếu** bao nhiêu pod so với số mong muốn.
+
+\`maxUnavailable: 0\` là một cái phanh an toàn: Deployment không được hạ pod cũ
+trước khi pod mới sẵn sàng. Đổi lại, nó cần chỗ trống cho pod thứ 5 tạm thời tồn
+tại, nên \`maxSurge\` phải lớn hơn 0.
+
+Đây cũng là lý do tầng ReplicaSet tồn tại. Nếu Deployment quản pod trực tiếp thì
+không có cách nào giữ hai thế hệ cùng sống trong lúc chuyển giao, và không có
+cách nào quay lại thế hệ trước.
+
+Thứ đo tiến trình là \`kubectl rollout status\`: nó chỉ trả về khi rollout xong,
+nên nó vừa là cách theo dõi vừa là cách chờ đúng trong script.
+
+Nhìn vào đâu: \`kubectl get rs\` để thấy hai ReplicaSet cùng tồn tại trong lúc
+chuyển, một cái đang lên và một cái đang xuống.`,
+    cheatsheet: [
+      {
+        command: 'kubectl set image deployment/api api=ghcr.io/dlp/api:1.5.0 -n nen-tang',
+        explain: 'Đổi image trong template. Cú pháp là ten-container=image, không phải ten-deployment.',
+      },
+      {
+        command: 'kubectl rollout status deployment/api -n nen-tang',
+        explain: 'Chờ tới khi rollout hoàn tất. Lệnh treo nghĩa là rollout chưa xong, không phải lệnh hỏng.',
+      },
+      {
+        command: 'kubectl get rs -n nen-tang',
+        explain: 'Trong lúc chuyển sẽ thấy hai ReplicaSet: thế hệ cũ đang giảm, thế hệ mới đang tăng.',
+      },
+      {
+        command: 'kubectl rollout history deployment/api -n nen-tang',
+        explain: 'Liệt kê các revision đã đi qua, tức là đường lùi nếu bản mới hỏng.',
+      },
+      {
+        command: 'kubectl get pods -n nen-tang -w',
+        explain: 'Đếm pod đang chạy suốt quá trình để tự chứng minh dịch vụ không đứt.',
+      },
+    ],
+    takeaways: [
+      'Pod là bất biến: đổi image nghĩa là thay pod, và Deployment thay bằng cách dựng một thế hệ ReplicaSet mới.',
+      'maxSurge và maxUnavailable quy định nhịp chuyển; maxUnavailable bằng 0 là cam kết không bao giờ thiếu bản chạy.',
+      '`kubectl rollout status` là cách chờ đúng trong script, thay cho việc ngủ một khoảng rồi đoán.',
+      'ReplicaSet cũ được giữ lại chứ không bị xoá, và đó là thứ cho phép quay về sau này.',
+    ],
+    proTips: [
+      'Xoá Deployment rồi tạo lại cũng ra kết quả đúng, nhưng để lại một khoảng không ai phục vụ. Đường có sẵn đã tránh được khoảng đó.',
+      'maxUnavailable 0 kèm maxSurge 0 là cấu hình bế tắc: không được thiếu, cũng không được thừa, nên rollout không nhúc nhích được.',
+    ],
+    pitfalls: [
+      'Dùng tag `latest` cho tiện, vì như thế không phải sửa Deployment mỗi lần ra bản mới. Hệ quả là template không đổi nên Deployment không thấy có gì để rollout, và mỗi pod có thể đang chạy một bản khác nhau mà không ai biết.',
+      'Thấy `rollout status` treo và bấm Ctrl-C rồi coi như xong. Lệnh treo chính là câu trả lời: rollout chưa hoàn tất, và level sau nói về đúng tình huống đó.',
+    ],
+  },
 };
