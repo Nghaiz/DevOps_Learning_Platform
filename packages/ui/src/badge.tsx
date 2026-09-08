@@ -5,6 +5,7 @@ import {
   CircleCheck,
   CirclePlay,
   Lock,
+  Signal,
   SignalHigh,
   SignalLow,
   SignalMedium,
@@ -22,6 +23,7 @@ export type BadgeVariant =
   | 'difficulty-basic'
   | 'difficulty-intermediate'
   | 'difficulty-advanced'
+  | 'difficulty-expert'
   | 'status-todo'
   | 'status-progress'
   | 'status-done'
@@ -83,6 +85,7 @@ const badgeVariants = cva(
         'difficulty-intermediate':
           'border-transparent bg-difficulty-intermediate text-difficulty-intermediate-foreground',
         'difficulty-advanced': 'border-transparent bg-difficulty-advanced text-difficulty-advanced-foreground',
+        'difficulty-expert': 'border-transparent bg-difficulty-expert text-difficulty-expert-foreground',
         'status-todo': 'border-border bg-muted text-muted-foreground',
         'status-progress': 'border-transparent bg-status-progress text-status-progress-foreground',
         'status-done': 'border-transparent bg-status-done text-status-done-foreground',
@@ -128,6 +131,7 @@ const DEFAULT_ICON: Partial<Record<BadgeVariant, BadgeIcon>> = {
   'difficulty-basic': SignalLow,
   'difficulty-intermediate': SignalMedium,
   'difficulty-advanced': SignalHigh,
+  'difficulty-expert': Signal,
   'status-todo': Circle,
   'status-progress': CirclePlay,
   'status-done': CircleCheck,

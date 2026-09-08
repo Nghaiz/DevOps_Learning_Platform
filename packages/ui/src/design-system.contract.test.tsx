@@ -337,11 +337,12 @@ afterEach(() => {
 describe('§4c — bảng icon của Badge khớp DOM thật', () => {
   const documented = documentedIcons(DOC);
 
-  it('bảng liệt kê đủ bảy biến thể ngữ nghĩa', () => {
+  it('bảng liệt kê đủ tám biến thể ngữ nghĩa', () => {
     expect(documented.map((row) => row.variant)).toEqual([
       'difficulty-basic',
       'difficulty-intermediate',
       'difficulty-advanced',
+      'difficulty-expert',
       'status-todo',
       'status-progress',
       'status-done',

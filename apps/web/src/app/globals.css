@@ -155,6 +155,8 @@
   --difficulty-intermediate-foreground: oklch(0.985 0 0);
   --difficulty-advanced: oklch(0.547 0.2 305);
   --difficulty-advanced-foreground: oklch(0.985 0 0);
+  --difficulty-expert: oklch(0.5 0.19 18);
+  --difficulty-expert-foreground: oklch(0.985 0 0);
 
   /*
    * ── Trạng thái học ────────────────────────────────────────────────────────
@@ -344,6 +346,8 @@
   --difficulty-intermediate-foreground: oklch(0.145 0 0);
   --difficulty-advanced: oklch(0.7 0.175 305);
   --difficulty-advanced-foreground: oklch(0.145 0 0);
+  --difficulty-expert: oklch(0.7 0.16 18);
+  --difficulty-expert-foreground: oklch(0.145 0 0);
 
   --status-progress: oklch(0.7 0.145 262.881);
   --status-progress-foreground: oklch(0.145 0 0);
@@ -415,6 +419,8 @@
   --color-difficulty-intermediate-foreground: var(--difficulty-intermediate-foreground);
   --color-difficulty-advanced: var(--difficulty-advanced);
   --color-difficulty-advanced-foreground: var(--difficulty-advanced-foreground);
+  --color-difficulty-expert: var(--difficulty-expert);
+  --color-difficulty-expert-foreground: var(--difficulty-expert-foreground);
   --color-status-progress: var(--status-progress);
   --color-status-progress-foreground: var(--status-progress-foreground);
   --color-status-done: var(--status-done);

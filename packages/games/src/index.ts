@@ -82,3 +82,58 @@ export { SCORE_MAX, checkPlausibility, checkSave, checksum, stampSave } from './
  */
 export { LEVELS } from './k8s/levels/index.ts';
 export { createSession } from './k8s/session.ts';
+
+// ── Hệ bài tập kiểu OJ ──────────────────────────────────────────────────────
+/*
+ * Mở export ngay từ commit đầu của hệ này, và đó là bài học rút từ `CHALLENGES`
+ * ngay bên trên: 10 challenge nằm trong `k8s/challenges.ts` từ lâu, đầy đủ
+ * `initialState` và `objectives` chạy được, nhưng KHÔNG bao giờ được thêm vào
+ * barrel — nên không component nào import được, và người dùng cuối chưa từng
+ * nhìn thấy chúng. Mã chết không hề đỏ ở đâu cả: nó qua typecheck, qua lint, và
+ * còn có ba file test tham chiếu tới nên trông vẫn "sống".
+ *
+ * Một kiểu mà không ai ngoài package này với tới được là một kiểu chưa tồn tại.
+ */
+export type {
+  Problem,
+  ProblemDifficulty,
+  ProblemFilter,
+  ProblemForSolver,
+  ProblemHint,
+  ProblemHintTeaser,
+  ProblemListOptions,
+  ProblemOrderKey,
+  ProblemPage,
+  ProblemState,
+  ProblemStats,
+  ProblemSubmission,
+  ProblemTopic,
+  ProblemViewerStatus,
+  ProblemWithStats,
+} from './k8s/problem.ts';
+export {
+  PROBLEM_CODE_PATTERN,
+  PROBLEM_DIFFICULTIES,
+  PROBLEM_DIFFICULTY_LABELS,
+  PROBLEM_ORDER_KEYS,
+  PROBLEM_STATES,
+  PROBLEM_TOPICS,
+  PROBLEM_TOPIC_LABELS,
+  isProblemCode,
+} from './k8s/problem.ts';
+
+// ── Chấm điểm ───────────────────────────────────────────────────────────────
+/*
+ * Mở export 2026-09-08 theo yêu cầu của tầng máy chủ OJ, và lý do đáng ghi lại.
+ *
+ * `sessionReplayEngine(createSession, level, scoreRun)` nhận hàm chấm điểm dưới
+ * dạng tham số tiêm vào, nhưng trong cả package KHÔNG có adapter nào nối
+ * `computeScore` vào chỗ đó — ngoài `scoring.test.ts` thì `computeScore` không
+ * có một chỗ gọi nào. Máy chủ phải tự dựng `scoreRun` khi phát lại nhật ký để
+ * chấm, và nếu nó không với tới được `computeScore` thì lựa chọn duy nhất còn
+ * lại là chép công thức sang `apps/web`. Lúc đó có hai nơi cùng định nghĩa cách
+ * tính điểm, và chúng sẽ lệch nhau — người chơi thấy một số lúc chơi, một số
+ * khác sau khi máy chủ chấm lại.
+ */
+export type { ScoreInput } from './k8s/scoring.ts';
+export { MAX_SCORE, computeScore, scoreCeiling } from './k8s/scoring.ts';

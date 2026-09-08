@@ -18,7 +18,7 @@
  * tới khi 10 bài cũ được chuyển hết sang đây; xem `problem-migration.md`.
  */
 
-import type { ClusterSpec, Objective, ResourceKind } from './contract.js';
+import type { ClusterSpec, Objective, ResourceKind } from './contract.ts';
 
 // ── Phân loại ───────────────────────────────────────────────────────────────
 
@@ -184,9 +184,50 @@ export interface ProblemStats {
   readonly acceptanceRate: number;
 }
 
+// ── Bài đã che gợi ý ────────────────────────────────────────────────────────
+
+/**
+ * Gợi ý ở dạng NGƯỜI HỌC được phép thấy: biết nó tồn tại, biết mở thì mất bao
+ * nhiêu điểm, nhưng chưa thấy nội dung.
+ *
+ * ⚠ Lỗ hổng được vá ở đây, do lane E phát hiện khi dựng trang bài (2026-09-08).
+ * `Problem.hints[].text` là trường bắt buộc, nên một API trả thẳng `Problem` cho
+ * người học sẽ gửi kèm toàn bộ nội dung gợi ý xuống trình duyệt — và lúc đó
+ * `revealHint` chỉ còn là một hoạt cảnh: điểm vẫn bị trừ, nhưng ai mở tab công
+ * cụ nhà phát triển đều đọc được gợi ý miễn phí. Che ở tầng giao diện không cứu
+ * được, vì dữ liệu đã nằm trong phản hồi rồi.
+ *
+ * Cách chặn duy nhất có hiệu lực là để kiểu dữ liệu ngăn chuyện đó: đường của
+ * người học trả `ProblemForSolver`, và kiểu này KHÔNG có chỗ nào chứa `text`
+ * của gợi ý chưa mở.
+ */
+export interface ProblemHintTeaser {
+  readonly id: string;
+  readonly penaltyPoints: number;
+  readonly revealed: boolean;
+  /** Chỉ khác `null` khi `revealed` là `true`. Máy chủ quyết, không phải client. */
+  readonly text: string | null;
+}
+
+/**
+ * Bài ở dạng gửi cho người học. Khác `Problem` đúng một chỗ: gợi ý đã che.
+ *
+ * `objectives` thì KHÔNG che, và đó là chủ ý: nhãn mục tiêu chính là đề bài
+ * ("đưa 3 pod lên 2 node khác nhau"), giấu đi thì người ta không biết phải làm
+ * gì. Tham số vị từ đi kèm có hé lộ con số cụ thể, nhưng nhãn vốn đã nói ra con
+ * số đó rồi — không có gì để giấu thêm.
+ */
+export type ProblemForSolver = Omit<Problem, 'hints'> & {
+  readonly hints: readonly ProblemHintTeaser[];
+};
+
 /** Bài kèm số liệu — hình dạng mà trang danh sách và trang chi tiết nhận. */
 export interface ProblemWithStats {
-  readonly problem: Problem;
+  /**
+   * Dạng ĐÃ CHE. Trang soạn bài cần bản đầy đủ thì dùng `Problem` qua đường
+   * riêng của người soạn, đường đó đã kiểm quyền.
+   */
+  readonly problem: ProblemForSolver;
   readonly stats: ProblemStats;
   /** Trạng thái của NGƯỜI ĐANG XEM. `null` khi chưa đăng nhập. */
   readonly viewerStatus: ProblemViewerStatus | null;

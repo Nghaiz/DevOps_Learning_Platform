@@ -31,6 +31,42 @@
 
 import type { ClusterView, GameAction, ResourceKind } from '@devops-platform/games';
 
+// ── Chế độ chơi ─────────────────────────────────────────────────────────────
+
+/**
+ * Đấu trường chạy được hai chế độ trên cùng một engine.
+ *
+ * - `level` — chế độ dạy. Nội dung lấy từ `LEVELS`, có ngăn tra cứu, gợi ý miễn
+ *   phí, không tính giờ trừ khi level tự đặt.
+ * - `problem` — chế độ làm bài. Nội dung lấy từ hệ OJ theo mã bài, gợi ý CÓ GIÁ,
+ *   không có ngăn tra cứu (bài OJ không dạy), và kết thúc thì nộp nhật ký hành
+ *   động lên máy chủ để chấm lại.
+ *
+ * Đường vào chốt là `/games/k8s?problem=<mã>`; thiếu tham số đó thì là chế độ
+ * `level`. Lead đọc tham số này ở `app/games/k8s/page.tsx` và truyền xuống, KHÔNG
+ * lane nào tự đọc `useSearchParams` cho việc này — hai chỗ cùng đọc một tham số
+ * là hai chỗ có thể bất đồng về việc đang ở chế độ nào.
+ *
+ * ⚠ Chế độ KHÔNG được suy từ việc "có mã bài hay không" ở từng component. Một
+ * component thấy `problemCode == null` rồi tự kết luận đang ở chế độ level sẽ
+ * hiểu sai ngay khi bài đang tải. Đọc `mode`, đừng đoán.
+ */
+export type ArenaMode = 'level' | 'problem';
+
+export interface ArenaModeContext {
+  readonly mode: ArenaMode;
+  /** Chỉ khác `null` khi `mode === 'problem'`. */
+  readonly problemCode: string | null;
+  /**
+   * Ngăn tra cứu chỉ có ở chế độ `level`. Ở chế độ `problem` thì phím mở nó
+   * không làm gì, và nút mở nó không được render — một nút bấm không phản ứng
+   * tệ hơn là không có nút.
+   */
+  readonly codexAvailable: boolean;
+  /** Gợi ý có trừ điểm hay không. `true` ở chế độ `problem`. */
+  readonly hintsCostPoints: boolean;
+}
+
 // ── Chất lượng hiển thị ─────────────────────────────────────────────────────
 
 /**

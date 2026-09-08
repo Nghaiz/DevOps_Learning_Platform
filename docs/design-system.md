@@ -483,6 +483,7 @@ học — nên mỗi cái mang một icon `lucide-react` riêng, **mặc định
 | `difficulty-basic` | Cơ bản | `SignalLow` | sóng tín hiệu **1 vạch** |
 | `difficulty-intermediate` | Trung cấp | `SignalMedium` | sóng tín hiệu **2 vạch** |
 | `difficulty-advanced` | Nâng cao | `SignalHigh` | sóng tín hiệu **3 vạch** |
+| `difficulty-expert` | Rất khó | `Signal` | sóng tín hiệu **4 vạch đầy** |
 | `status-todo` | Chưa bắt đầu | `Circle` | vòng tròn **rỗng** |
 | `status-progress` | Đang học | `CirclePlay` | vòng tròn có **nút play** |
 | `status-done` | Đã xong | `CircleCheck` | vòng tròn có **dấu tích** |
