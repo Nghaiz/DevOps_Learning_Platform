@@ -106,11 +106,21 @@ describe('LEVELS — hình dạng và thứ tự', () => {
     }
   });
 
-  it('số thứ tự trong id khớp vị trí trong mảng', () => {
-    LEVELS.forEach((level, i) => {
-      const so = Number(level.id.slice(4, 6));
-      expect(so, level.id).toBe(i + 1);
-    });
+  /**
+   * TỪNG là "số trong id khớp vị trí trong mảng". Bỏ khẳng định đó 2026-09-08 vì
+   * `contract.ts` (SSOT, ô `Level.id`) đã CỐ Ý từ bỏ nó: số trong id là ĐỊNH DANH,
+   * không phải vị trí chơi. `RunResult.levelId` nằm trong localStorage của người
+   * chơi, nên đánh số lại các level đang có sẽ xoá sổ tiến độ đã lưu của họ trong
+   * im lặng. Vì vậy level chèn vào giữa mạch học lấy số ở CUỐI dãy (l36) rồi được
+   * đặt vào đúng chỗ trong mảng.
+   *
+   * Thay bằng một bất biến mạnh hơn và vẫn đúng sau khi sắp xếp lại: tập số trong
+   * id phải là một hoán vị của 1..N. Nó bắt được cả số trùng lẫn số nhảy cóc —
+   * hai lỗi đánh số thật — mà không cấm việc chèn.
+   */
+  it('số trong id là một hoán vị của 1..N (không trùng, không nhảy cóc)', () => {
+    const so = LEVELS.map((l) => Number(l.id.slice(4, 6))).sort((a, b) => a - b);
+    expect(so).toEqual(LEVELS.map((_, i) => i + 1));
   });
 
   it('chapter tăng dần (không giảm) dọc theo mảng', () => {
