@@ -170,6 +170,25 @@ async function chooseLevel(page: Page, titleFragment: string): Promise<void> {
   await page.waitForTimeout(500);
 }
 
+/**
+ * Bấm tốc độ mô phỏng lên mức cao nhất (`game-hud.tsx` SPEEDS = [1, 2, 4]).
+ *
+ * KHÔNG phải để "test nhanh hơn cho tiện": ở 1x, `kubectl scale --replicas=200`
+ * mới dựng được 39 object sau 180 giây (đo 2026-09-08), tức quy mô mà §11.3 nêu
+ * không bao giờ tới trong một ngân sách hợp lý. Tăng tốc đồng hồ mô phỏng đổi
+ * TỐC ĐỘ ĐẠT TỚI quy mô đó, không đổi thứ được đo — draw call ở 200 object là
+ * draw call ở 200 object, bất kể mất bao lâu mới có 200 object.
+ */
+async function setMaxSpeed(page: Page): Promise<void> {
+  const found = await tabUntil(
+    page,
+    'nút tốc độ 4x',
+    (info) => info.tag === 'button' && !info.disabled && info.text.trim() === '4x',
+  );
+  await activate(page);
+  void found;
+}
+
 /** Gõ một lệnh vào thanh `kubectl`. Chỉ Tab lại khi focus đã rời ô — 10 vòng Tab thừa cho mỗi lệnh là đủ để một test dài hoá chậm chạp vô cớ. */
 async function runKubectl(page: Page, command: string): Promise<void> {
   const isBar = (info: FocusInfo): boolean =>
@@ -493,7 +512,7 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
     test(`≤ ${MAX_DRAW_CALLS} draw call với ~${POD_SCALE_TARGET} pod (§11.3)`, async ({
       page,
     }, testInfo) => {
-      test.setTimeout(300_000);
+      test.setTimeout(600_000);
 
       /*
         ⛔ ĐỌC Ở BẬC `medium`, KHÔNG Ở `auto`/`high` — và đây là chỗ ô này suýt
@@ -517,14 +536,25 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
 
       await chooseLevel(page, SCALE_LEVEL_TITLE);
       await waitForSceneChannel(page);
+      await setMaxSpeed(page);
 
       await runKubectl(
         page,
         `kubectl scale deployment/${SCALE_TARGET} --replicas=${POD_SCALE_TARGET} -n ${SCALE_NAMESPACE}`,
       );
 
+      /*
+        Ngân sách 8 phút, và nó KHÔNG phải sự hào phóng vô cớ.
+
+        Deployment không sinh 200 pod một nhịp: `controllers.ts` giới hạn theo
+        surge — `target = min(desired, max(currentReplicas, currentReady + maxSurge))`
+        — nên nhịp dựng bị PHỤ THUỘC VÀO SỐ POD ĐÃ READY, không phụ thuộc số tick.
+        Đo 2026-09-08: 39 object sau 180s ở 1x, 68 object sau 180s ở 4x. Cắt ngắn
+        ở đây sẽ biến "mô phỏng ramp chậm" thành "cảnh không đạt quy mô", hai
+        chuyện khác hẳn nhau.
+      */
       await expect
-        .poll(async () => (await readSceneStats(page)).objects, { timeout: 180_000 })
+        .poll(async () => (await readSceneStats(page)).objects, { timeout: 480_000 })
         .toBeGreaterThanOrEqual(POD_SCALE_TARGET);
 
       const stats = await readSceneStats(page);
@@ -578,6 +608,7 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
 
       await chooseLevel(page, SCALE_LEVEL_TITLE);
       await waitForSceneChannel(page);
+      await setMaxSpeed(page);
 
       const perCycle = 50;
       const rounds = Math.ceil(SPAWN_CYCLE_TARGET / perCycle);
