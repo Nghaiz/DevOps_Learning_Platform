@@ -793,20 +793,44 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
         đứng yên rồi thì có ngừng vẽ không", nên trước hết phải chờ nó đứng yên;
         và nếu nó KHÔNG BAO GIỜ đứng yên thì đó chính là hỏng hóc ô này săn.
       */
-      let previous = -1;
+      let quiet = 0;
+      let previous: SceneStats | null = null;
       let settled: SceneStats | null = null;
-      for (let i = 0; i < 40; i += 1) {
+      for (let i = 0; i < 90; i += 1) {
         await page.waitForTimeout(500);
         const current = await readSceneStats(page);
-        if (current.frames === previous) {
-          settled = current;
-          break;
+        /*
+          BỐN mẫu lặng liên tiếp (2 giây), không phải một.
+
+          Một mẫu lặng duy nhất bắt trúng khoảng nghỉ GIỮA hai chuyển tiếp của
+          cluster và gọi đó là "đã ngủ". Đo 2026-09-08 trên l07: cửa sổ mở ở
+          tick 6 — cluster mới sống 3 giây, pod còn đang Pending → Running — và
+          chuỗi mẫu ra 0, +5, +1: một cụm chuyển tiếp HỢP LỆ, đọc thành 7 frame
+          "thừa". Đó là cùng lớp lỗi với cái đuôi giảm chấn: một mẫu quá ngắn
+          không phân biệt được "đang lặng" với "đã xong".
+
+          `objects` cũng phải đứng yên: số object còn đổi nghĩa là cluster còn
+          đang hội tụ, và mọi frame vẽ ra trong lúc đó là đúng việc.
+        */
+        if (
+          previous !== null &&
+          current.frames === previous.frames &&
+          current.objects === previous.objects
+        ) {
+          quiet += 1;
+          if (quiet >= 4) {
+            settled = current;
+            break;
+          }
+        } else {
+          quiet = 0;
         }
-        previous = current.frames;
+        previous = current;
       }
       expect(
         settled,
-        'Cảnh không bao giờ ngừng vẽ trong 20 giây dù con trỏ ở ngoài khung và không có ' +
+        'Cảnh không bao giờ lặng đủ 2 giây liên tiếp trong 45 giây dù con trỏ ở ngoài khung ' +
+          'và cluster đã hội tụ. ' +
           'gì thay đổi. §11.2 nói vòng lặp phải DỪNG khi không có thứ gì động — một vòng ' +
           'lặp quay vô ích là pin, là quạt, và là ngân sách 16.6ms bị tiêu vào việc vẽ lại ' +
           'đúng cái vừa vẽ.',
