@@ -1,6 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactElement,
+} from 'react';
 import { SquareTerminal, X } from 'lucide-react';
 import { Kbd, cn } from '@devops-platform/ui';
 import type { ObjectView } from '@devops-platform/games';
@@ -20,6 +27,18 @@ import { useCommandHistory } from './terminal-history.ts';
 export interface TerminalInsert {
   readonly command: string;
   readonly issuedAt: number;
+  /**
+   * `true` ⇒ CHẠY luôn, không chỉ điền vào ô.
+   *
+   * Đây là đường đi của các nút hành động trong bảng thông số (Xem log, Mô tả
+   * chi tiết…). Chúng phải hiện KẾT QUẢ, và terminal là chỗ duy nhất trong arena
+   * có chỗ in kết quả — xem khối tài liệu đầu `inspector-action-list.ts` về lý
+   * do chúng không thể đi qua `dispatch`.
+   *
+   * Điền-mà-không-chạy vẫn giữ nguyên cho ngăn tra cứu: ở đó mục đích là mời
+   * người học ĐỌC rồi tự bấm Enter, tức chính cú bấm đó là phần bài học.
+   */
+  readonly autoRun?: boolean;
 }
 
 export interface TerminalPanelProps {
@@ -73,27 +92,39 @@ export function TerminalPanel({
     }
   }, [open]);
 
-  useEffect(() => {
-    if (insert !== null && insert.issuedAt !== appliedInsertRef.current) {
-      appliedInsertRef.current = insert.issuedAt;
-      setInput(insert.command);
+  const execute = useCallback(
+    (command: string): void => {
+      history.push(command);
+      const output = onRun(command);
+      setLines((previous) =>
+        [...previous, { id: nextIdRef.current++, command, output }].slice(-TRANSCRIPT_LIMIT),
+      );
+      setInput('');
       setHighlight(0);
-      inputRef.current?.focus();
+    },
+    [history, onRun],
+  );
+
+  useEffect(() => {
+    if (insert === null || insert.issuedAt === appliedInsertRef.current) {
+      return;
     }
-  }, [insert]);
+    appliedInsertRef.current = insert.issuedAt;
+    setHighlight(0);
+    if (insert.autoRun === true) {
+      execute(insert.command);
+    } else {
+      setInput(insert.command);
+    }
+    inputRef.current?.focus();
+  }, [insert, execute]);
 
   const run = (): void => {
     const command = input.trim();
     if (command === '') {
       return;
     }
-    history.push(command);
-    const output = onRun(command);
-    setLines((previous) =>
-      [...previous, { id: nextIdRef.current++, command, output }].slice(-TRANSCRIPT_LIMIT),
-    );
-    setInput('');
-    setHighlight(0);
+    execute(command);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {

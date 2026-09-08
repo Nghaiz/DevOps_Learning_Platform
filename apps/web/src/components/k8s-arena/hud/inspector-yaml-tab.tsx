@@ -5,8 +5,8 @@ import { Check, Copy, RotateCcw, Save } from 'lucide-react';
 import { Button, cn } from '@devops-platform/ui';
 import type { ObjectView } from '@devops-platform/games';
 import type { ArenaEdit } from '../arena-contract.ts';
-import { HIDDEN_SCROLL_BOTH } from './inspector-frame.tsx';
 import { refOf } from './inspector-action-list.ts';
+import { YamlEditor } from './yaml-editor.tsx';
 
 /** Bao lâu nút giữ trạng thái "Đã chép" trước khi trở lại. */
 const COPIED_MS = 2000;
@@ -148,29 +148,23 @@ export function InspectorYamlTab({ object, yaml, onEdit }: InspectorYamlTabProps
       </div>
 
       {/*
-        `<textarea>` chứ không một ô soạn thảo có tô màu cú pháp: nội dung phải
-        chép ra được nguyên vẹn, đọc tuần tự được bằng trình đọc màn hình, và
-        `spellCheck={false}` để trình duyệt không gạch đỏ mọi khoá YAML.
+        Vẫn là một `<textarea>` THẬT, chỉ thêm một lớp màu nằm dưới nó — xem
+        `yaml-editor.tsx`. Ba lý do của bản trước (chép nguyên vẹn, trình đọc màn
+        hình đọc tuần tự, không gạch đỏ chính tả) được giữ nguyên vì phần tử soạn
+        thảo không hề đổi; chỉ chữ của nó trong suốt và màu do lớp dưới vẽ.
 
         `whitespace-pre` + cuộn ngang: YAML là nội dung căn cột, và bẻ dòng phá
         đúng cái thẳng hàng làm nó đọc được (`NO_VISIBLE_SCROLLBARS` cấm THANH
         TRƯỢT hiện ra, không cấm khả năng cuộn).
       */}
-      <textarea
+      <YamlEditor
         value={draft}
-        onChange={(event) => {
-          setDraft(event.target.value);
+        ariaLabel={`YAML của ${object.kind.toLowerCase()}/${object.name}`}
+        onChange={(next) => {
+          setDraft(next);
           setDirty(true);
           setMessage(null);
         }}
-        spellCheck={false}
-        autoComplete="off"
-        aria-label={`YAML của ${object.kind.toLowerCase()}/${object.name}`}
-        className={cn(
-          'min-h-0 flex-1 resize-none rounded-md bg-muted p-2 font-mono text-xs whitespace-pre text-foreground',
-          'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-          HIDDEN_SCROLL_BOTH,
-        )}
       />
 
       {message === null ? null : (

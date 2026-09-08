@@ -130,6 +130,22 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
     [overlays],
   );
 
+  /**
+   * Mở terminal và CHẠY LUÔN một câu lệnh.
+   *
+   * Đường đi của các nút hành động sinh-ra-chữ (Xem log, Mô tả chi tiết, Trạng
+   * thái phát hành…). Trước đây chúng đi qua `engine.dispatch`, mà `dispatch`
+   * vứt kết quả đi trừ khi engine từ chối — nên bấm "Xem log" không có gì xảy
+   * ra: log được in ra rồi ném thẳng vào thùng rác.
+   */
+  const runCommand = useCallback(
+    (command: string) => {
+      overlays.show('terminal');
+      setInsert({ command, issuedAt: performance.now(), autoRun: true });
+    },
+    [overlays],
+  );
+
   const selectedNode = useMemo<NodeView | null>(() => {
     if (selectedObject === null) {
       return null;
@@ -262,6 +278,7 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
         describeText={props.describeText}
         manifestYaml={manifestYaml}
         dispatch={engine.dispatch}
+        onRunCommand={runCommand}
         onEdit={engine.editResource}
         onClose={() => onSelect(null)}
       />
@@ -271,6 +288,7 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
         anchor={props.menuAnchor}
         tick={engine.view.tick}
         dispatch={engine.dispatch}
+        onRunCommand={runCommand}
         onClose={props.onCloseMenu}
         onInspect={onSelect}
         onFocus={props.onFocusObject}

@@ -61,6 +61,8 @@ export interface InspectorPanelProps {
    */
   readonly manifestYaml: string | null;
   readonly dispatch: ArenaDispatch;
+  /** Chạy một câu `kubectl` trong terminal — đường của mọi hành động sinh ra chữ. */
+  readonly onRunCommand: (command: string) => void;
   /** Lưu manifest đã sửa ở tab YAML, và trả lại đúng câu engine nói. */
   readonly onEdit: ArenaEdit;
   /** Bỏ chọn. Cha đặt `selectedUid = null`, và bảng tự trượt ra rồi biến mất. */
@@ -89,6 +91,7 @@ export function InspectorPanel({
   describeText,
   manifestYaml,
   dispatch,
+  onRunCommand,
   onEdit,
   onClose,
 }: InspectorPanelProps): ReactElement | null {
@@ -175,10 +178,15 @@ export function InspectorPanel({
         </TabsList>
 
         <TabsContent value="overview" className={cn('min-h-0 flex-1 px-3 py-2', HIDDEN_SCROLL)}>
-          <InspectorOverview object={shown} node={node} tick={tick} />
+          <InspectorOverview object={shown} node={node} tick={tick} manifestYaml={manifestYaml} />
+          {/*
+            Token ngữ nghĩa, KHÔNG phải thang màu Tailwind. Ba lớp `sky-400` ở
+            đây trước kia là màu cứng duy nhất còn sót trong bảng — thứ mà
+            `check-design-tokens.mjs` cấm, và thứ không đổi theo theme sáng/tối.
+          */}
           <button
             type="button"
-            className="mt-4 w-full rounded-lg border border-sky-400/30 bg-sky-400/10 p-2 text-sm text-sky-300 hover:bg-sky-400/20"
+            className="mt-4 w-full rounded-lg border border-status-progress/30 bg-status-progress/10 p-2 text-sm text-status-progress transition-colors hover:bg-status-progress/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             onClick={() => setTab('yaml')}
           >
             Chỉnh sửa cấu hình YAML
@@ -198,7 +206,7 @@ export function InspectorPanel({
         </TabsContent>
 
         <TabsContent value="events" className={cn('min-h-0 flex-1 px-3 py-2', HIDDEN_SCROLL)}>
-          <InspectorEvents events={ownEvents} />
+          <InspectorEvents events={ownEvents} tick={tick} />
         </TabsContent>
 
         {describeText === null ? null : (
@@ -212,7 +220,12 @@ export function InspectorPanel({
         )}
       </Tabs>
 
-      <InspectorActions object={shown} tick={tick} dispatch={dispatch} />
+      <InspectorActions
+        object={shown}
+        tick={tick}
+        dispatch={dispatch}
+        onRunCommand={onRunCommand}
+      />
     </PanelFrame>
   );
 }

@@ -98,6 +98,20 @@ export type { DispatchOutcome, K8sEngineSession } from './k8s/session.ts';
 export { toManifestYaml } from './k8s/manifest-yaml.ts';
 
 /*
+ * Bộ ĐỌC manifest, cặp với `toManifestYaml` ở trên.
+ *
+ * Mở ra vì tầng trình bày cần đọc được `spec` — bảng Tổng quan hiện tên và
+ * image của container, thứ `ObjectView` cố ý không mang (hợp đồng giữ view
+ * mỏng: `ObjectView` chỉ có những gì `kubectl get` in ra).
+ *
+ * ⛔ Đây KHÔNG phải lời mời viết một bộ đọc YAML thứ hai ở tầng giao diện. Bảng
+ * Tổng quan phải dùng ĐÚNG bộ đọc mà engine dùng để áp manifest; hai bộ đọc
+ * khác nhau nghĩa là bảng có thể hiện một image mà engine không hề thấy.
+ */
+export { parseManifests } from './k8s/yaml.ts';
+export type { Manifest, ManifestResult } from './k8s/yaml.ts';
+
+/*
  * Phân loại mục tiêu "phải làm" / "phải giữ".
  *
  * Mở export vì tầng giao diện KHÔNG được tự suy ra: nó sẽ phải gọi
