@@ -78,12 +78,36 @@ từ một lần lệch, hai thứ đó không phân biệt được. Nên:
 - lượt chơi không xác minh được vẫn nằm nguyên trong bản lưu, chỉ hiện nhãn
   *"không xác minh được"*;
 - trang thống kê tách hai cột **đã xác minh** / **tất cả**;
-- achievement chỉ tính trên cột đã xác minh;
+- achievement chỉ tính trên cột đã xác minh (xem §3.1 — điều này ràng buộc cả
+  thiết kế achievement, không chỉ cách hiển thị);
 - **không nhãn nào nói "gian lận"** — có một test khẳng định điều đó, vì buộc
   tội người dùng dựa trên một tín hiệu không phân biệt được hai nguyên nhân là
   sai.
 
 Xoá dữ liệu người dùng vì nghi ngờ tệ hơn chính vấn đề đang chống.
+
+### 3.1 "Chỉ tính trên lượt đã xác minh" ràng buộc luôn thiết kế achievement
+
+Điều này nghe như một chi tiết hiển thị, nhưng nó quyết định achievement nào
+**làm được**.
+
+Achievement ẩn nay mang `teaser` bắt buộc và nhắm vào **khám phá và phong cách
+chơi** thay vì khối lượng (`Achievement` trong `core/types.ts`, chỉ đạo
+2026-09-08). Điều đó hợp với cơ chế xác minh chứ không phải tình cờ:
+
+- Một điều kiện kiểu **khám phá / phong cách** — "giải mà không mở gợi ý nào",
+  "chẩn đoán đúng sự cố ngay lần thử đầu", "dùng tới ba loại tài nguyên khác
+  nhau" — quyết định được **bên trong một lượt chơi đã phát lại**. Nhật ký của
+  chính lượt đó chứa đủ dữ kiện, nên mở khoá là thứ **kiểm lại được**.
+- Một điều kiện kiểu **cày** — "chơi 100 lượt", "tích luỹ 50.000 điểm" — là một
+  bộ đếm **cộng dồn qua nhiều lượt**. Muốn kiểm nó thì phải giữ (và phát lại)
+  cả 100 nhật ký; còn nếu chỉ lưu một con số đếm thì con số đó là thứ dễ sửa
+  nhất trong toàn bộ bản lưu, và không có gì để đối chiếu nó.
+
+Nên hướng "tò mò thay vì cày" vừa là quyết định thiết kế game vừa là thứ giữ
+cho achievement nằm trong tầm xác minh. Nếu sau này có achievement cộng dồn,
+phải nói rõ nó **không** được xác minh như lượt chơi, chứ đừng để nó lẫn vào
+cùng một huy hiệu với những cái được.
 
 ### Lỗi của người chơi và lỗi của chúng ta là hai chuyện khác nhau
 

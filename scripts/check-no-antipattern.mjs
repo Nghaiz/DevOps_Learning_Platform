@@ -287,29 +287,88 @@ function scanTree() {
 
 // ─────────────────────────────────────────────────────────── đối chứng
 //
-// BẨN: phải bị bắt. Đây là những hình dạng THẬT lấy từ các bài "chặn F12" phổ
-// biến trên mạng — chính là thứ một người làm theo yêu cầu "chặn F12" sẽ dán vào.
+// BẨN: phải bị bắt, VÀ phải bị bắt BỞI ĐÚNG LUẬT ghi ở cột giữa.
+//
+// ⚠ Cột giữa (rule id) không phải trang trí. Không có nó thì một mẫu bị luật
+// KHÁC bắt hộ vẫn làm đối chứng xanh, và luật đáng lẽ gác nó có thể đã hỏng từ
+// lâu mà không ai biết — cổng mất một lớp gác TRONG IM LẶNG. Đây đúng là hình
+// dạng "green that proves nothing": phép kiểm vẫn chạy, chỉ là không còn kiểm
+// cái nó tưởng đang kiểm.
+//
+// Đây là những hình dạng THẬT lấy từ các bài "chặn F12" phổ biến trên mạng —
+// chính là thứ một người làm theo yêu cầu "chặn F12" sẽ dán vào.
 const DIRTY = [
-  ['kích-thước-cửa-sổ', 'if (window.outerWidth - window.innerWidth > 160) location.reload();'],
-  ['kích-thước-chiều-cao', 'const open = window.outerHeight - window.innerHeight > 200;'],
-  ['thư-viện-dò', "import devtoolsDetect from 'devtools-detect';"],
-  ['thư-viện-tắt', "disableDevtool({ ondevtoolopen: () => location.replace('/') });"],
-  ['hàm-dò', 'if (isDevToolsOpen()) { document.body.innerHTML = san; }'],
-  ['cờ-dò', 'const devtoolsOpen = checkDevtoolsOpen();'],
-  ['contextmenu-listener', "document.addEventListener('contextmenu', (e) => e.preventDefault());"],
-  ['contextmenu-thuộc-tính', 'document.oncontextmenu = () => false;'],
-  ['contextmenu-jsx', '<div onContextMenu={(e) => e.preventDefault()}>'],
-  ['phím-F12', "if (e.key === 'F12') e.preventDefault();"],
-  ['phím-keyCode-123', 'if (event.keyCode === 123) return false;'],
-  ['tổ-hợp-ctrl-shift-I', "if (e.ctrlKey && e.shiftKey && e.key === 'I') e.preventDefault();"],
-  ['tổ-hợp-cmd-shift-J', "if (e.metaKey && e.shiftKey && e.key === 'J') return false;"],
-  ['tổ-hợp-ngược-thứ-tự', "if (e.shiftKey && e.ctrlKey && e.key === 'i') block();"],
-  ['câu-lệnh-gỡ-lỗi', 'debugger;'],
-  ['vòng-lặp-gỡ-lỗi', 'setInterval(() => { debugger; }, 50);'],
-  ['gỡ-lỗi-qua-Function', "new Function('debugger')();"],
-  ['làm-rối-thư-viện', "import JavaScriptObfuscator from 'javascript-obfuscator';"],
-  ['làm-rối-định-danh', "const _0x4f2ab1 = ['getElementById', 'querySelector'];"],
-  ['làm-rối-động-từ', 'export function obfuscateBundle(code) { return code; }'],
+  [
+    'kích-thước-cửa-sổ',
+    'do-devtools',
+    'if (window.outerWidth - window.innerWidth > 160) location.reload();',
+  ],
+  [
+    'kích-thước-chiều-cao',
+    'do-devtools',
+    'const open = window.outerHeight - window.innerHeight > 200;',
+  ],
+  ['thư-viện-dò', 'do-devtools', "import devtoolsDetect from 'devtools-detect';"],
+  [
+    'thư-viện-tắt',
+    'do-devtools',
+    "disableDevtool({ ondevtoolopen: () => location.replace('/') });",
+  ],
+  ['hàm-dò', 'do-devtools', 'if (isDevToolsOpen()) { document.body.innerHTML = san; }'],
+  ['cờ-dò', 'do-devtools', 'const devtoolsOpen = checkDevtoolsOpen();'],
+  [
+    'contextmenu-listener',
+    'chan-contextmenu',
+    "document.addEventListener('contextmenu', (e) => e.preventDefault());",
+  ],
+  ['contextmenu-thuộc-tính', 'chan-contextmenu', 'document.oncontextmenu = () => false;'],
+  ['contextmenu-jsx', 'chan-contextmenu', '<div onContextMenu={(e) => e.preventDefault()}>'],
+  ['phím-F12', 'chan-phim-tat', "if (e.key === 'F12') e.preventDefault();"],
+  ['phím-keyCode-123', 'chan-phim-tat', 'if (event.keyCode === 123) return false;'],
+  [
+    'tổ-hợp-ctrl-shift-I',
+    'chan-phim-tat',
+    "if (e.ctrlKey && e.shiftKey && e.key === 'I') e.preventDefault();",
+  ],
+  [
+    'tổ-hợp-cmd-shift-J',
+    'chan-phim-tat',
+    "if (e.metaKey && e.shiftKey && e.key === 'J') return false;",
+  ],
+  [
+    'tổ-hợp-ngược-thứ-tự',
+    'chan-phim-tat',
+    "if (e.shiftKey && e.ctrlKey && e.key === 'i') block();",
+  ],
+  ['câu-lệnh-gỡ-lỗi', 'vong-lap-go-loi', 'debugger;'],
+  ['vòng-lặp-gỡ-lỗi', 'vong-lap-go-loi', 'setInterval(() => { debugger; }, 50);'],
+  ['gỡ-lỗi-qua-Function', 'vong-lap-go-loi', "new Function('debugger')();"],
+  ['làm-rối-thư-viện', 'lam-roi-ma', "import JavaScriptObfuscator from 'javascript-obfuscator';"],
+  ['làm-rối-định-danh', 'lam-roi-ma', "const _0x4f2ab1 = ['getElementById', 'querySelector'];"],
+  ['làm-rối-động-từ', 'lam-roi-ma', 'export function obfuscateBundle(code) { return code; }'],
+];
+
+// Từ khoá mà một dòng SẠCH phải chạm tới thì mới có ý nghĩa gác.
+//
+// Một dòng sạch tồn tại vì nó TỪNG (hoặc suýt) bị kêu oan. Nếu nó không chứa
+// nổi một từ nào mà luật quan tâm, thì không cách nào nó bị kêu — nó không gác
+// gì cả, chỉ làm con số "18 mẫu sạch" trông to ra. Đó là bia mộ, không phải
+// hàng rào: một danh sách miễn trừ không ai rà lại sẽ đầy dần những dòng như
+// thế, và con số ở dòng tổng kết trở thành lời nói dối.
+const CLEAN_ANCHORS = [
+  'devtool',
+  'width',
+  'height',
+  'keycode',
+  'which',
+  'key',
+  'menu',
+  'addeventlistener',
+  'preventdefault',
+  'debugger',
+  'obfusc',
+  'jscrambler',
+  '0x',
 ];
 
 // SẠCH: KHÔNG được kêu. Phần lớn là dòng thật (hoặc dòng sắp thật) trong repo.
@@ -344,32 +403,89 @@ const CLEAN = [
   'let hash = 0x811c9dc5;',
 ];
 
+/**
+ * Đối chứng HAI CHIỀU, và chiều thứ hai có hai nửa.
+ *
+ *   1. BẨN phải bị bắt — bởi ĐÚNG luật đã khai, không phải bởi luật nào cũng được.
+ *   2. SẠCH không được kêu.
+ *   3. Không luật nào được đứng đó mà KHÔNG có mẫu bẩn chứng minh nó biết kêu.
+ *   4. Không dòng sạch nào được đứng đó mà KHÔNG gác gì (mục miễn trừ ôi).
+ *
+ * (3) và (4) là phần dễ bị bỏ qua nhất. Một luật không có mẫu bẩn có thể là một
+ * regex gõ sai không bao giờ khớp — cổng vẫn xanh, vẫn báo "đã quét N file", và
+ * lớp gác đó đã chết từ lâu. Một dòng sạch không gác gì thì thổi phồng con số
+ * tổng kết mà không mua thêm được sự an toàn nào.
+ */
 function selfTest() {
   const fails = [];
+  const exercised = new Set();
 
-  for (const [tag, line] of DIRTY) {
-    if (scanText(line, { ext: '.tsx' }).length === 0) {
+  for (const [tag, expectedRule, line] of DIRTY) {
+    const hits = scanText(line, { ext: '.tsx' });
+    if (hits.length === 0) {
       fails.push(`BẨN KHÔNG BỊ BẮT  [${tag}]  ${line}`);
+      continue;
+    }
+    const byExpected = hits.filter((h) => h.rule === expectedRule);
+    if (byExpected.length === 0) {
+      fails.push(
+        `BẨN BỊ BẮT NHẦM LUẬT  [${tag}] chờ "${expectedRule}" ` +
+          `nhưng chỉ có "${[...new Set(hits.map((h) => h.rule))].join(', ')}" kêu  ${line}`,
+      );
+      continue;
+    }
+    exercised.add(expectedRule);
+  }
+
+  // (3) luật không có mẫu bẩn nào — không chứng minh được là nó biết kêu.
+  for (const rule of COMPILED) {
+    if (!exercised.has(rule.id)) {
+      fails.push(
+        `LUẬT KHÔNG CÓ ĐỐI CHỨNG  [${rule.id}] không mẫu bẩn nào chứng minh nó bắt được gì. ` +
+          `Thêm một dòng vào DIRTY, hoặc bỏ luật.`,
+      );
     }
   }
+
+  // Mẫu bẩn khai một luật không tồn tại — thường là dấu vết của một lần đổi tên
+  // luật mà quên đổi ở đây; nó làm (3) báo động ở chỗ khác nên phải nói riêng.
+  const ruleIds = new Set(COMPILED.map((r) => r.id));
+  for (const [tag, expectedRule] of DIRTY) {
+    if (!ruleIds.has(expectedRule)) {
+      fails.push(`MẪU BẨN KHAI LUẬT KHÔNG TỒN TẠI  [${tag}] -> "${expectedRule}"`);
+    }
+  }
+
   for (const line of CLEAN) {
     const hits = scanText(line, { ext: '.tsx' });
     if (hits.length) {
       fails.push(`SẠCH BỊ KÊU OAN  [${hits[0].rule} khớp "${hits[0].match}"]  ${line}`);
+      continue;
+    }
+    // (4) mục miễn trừ ôi: không chạm từ khoá nào của bất kỳ luật nào.
+    const lower = line.toLowerCase();
+    if (!CLEAN_ANCHORS.some((anchor) => lower.includes(anchor))) {
+      fails.push(
+        `SẠCH ĐÃ ÔI  dòng này không chạm từ khoá nào của luật nào nên không cách gì bị kêu — ` +
+          `nó không gác gì cả, bỏ đi hoặc thay bằng dòng thật sự suýt bị bắt:  ${line}`,
+      );
     }
   }
 
-  const total = DIRTY.length + CLEAN.length;
+  const total = DIRTY.length + CLEAN.length + COMPILED.length;
   if (fails.length) {
     console.error('✗ ĐỐI CHỨNG HỎNG — cổng không chứng minh được là nó biết kêu:\n');
     for (const f of fails) console.error(`   ${f}`);
-    console.error(`\n${fails.length}/${total} mẫu sai. Sửa RULES trong ${relative(REPO, SELF)}.`);
+    console.error(
+      `\n${fails.length}/${total} phép đối chứng sai. Sửa RULES trong ${relative(REPO, SELF)}.`,
+    );
     console.error('KHÔNG nới mẫu để dập báo động — nếu là dương tính giả thì thêm dòng vào CLEAN.');
     return false;
   }
   console.log(
-    `✓ đối chứng: bắt đủ ${DIRTY.length} mẫu vi phạm (5 kỹ thuật bị cấm ở §8.1), ` +
-      `không kêu trên ${CLEAN.length} mẫu sạch.`,
+    `✓ đối chứng: bắt đủ ${DIRTY.length} mẫu vi phạm ĐÚNG LUẬT, ` +
+      `im lặng trên ${CLEAN.length} mẫu sạch, ` +
+      `và cả ${COMPILED.length}/${COMPILED.length} luật đều có mẫu chứng minh biết kêu.`,
   );
   return true;
 }
