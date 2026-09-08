@@ -73,7 +73,12 @@ export { SCORE_MAX, checkPlausibility, checkSave, checksum, stampSave } from './
  * chọn level và cụm luôn rỗng, vì `page.tsx` render `<K8sGame />` không có
  * `levels` — mà package cũng chưa export danh sách nào để truyền vào.
  *
- * Đây là NỬA của chỗ hổng đó. Nửa còn lại là `createSession`, đang chờ
- * `k8s/session.ts` của lane B.
+ * Nửa còn lại — `createSession` — mở export 2026-09-08 khi `k8s/session.ts` và
+ * `k8s/incidents.ts` cùng landed, tức package hết đỏ.
+ *
+ * ⚠ `K8sGame` phải TỰ IMPORT cả hai. Không truyền được từ `page.tsx` xuống dưới
+ * dạng prop: đó là server component, và hàm không serialize qua ranh giới
+ * server-client.
  */
 export { LEVELS } from './k8s/levels/index.ts';
+export { createSession } from './k8s/session.ts';

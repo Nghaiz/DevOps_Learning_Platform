@@ -121,6 +121,12 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
   let statusFrom: ClusterState = state;
   let disposed = false;
   let timer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * Hệ số nhịp phát. KHÔNG nằm trong `ClusterState` và KHÔNG vào `RunLog`: nó
+   * đổi đồng hồ treo tường, không đổi chuỗi tick. Cùng chuỗi action ở 1x và 4x
+   * cho ra đúng cùng một trạng thái — xem chú thích `setSpeed` ở `contract.ts`.
+   */
+  let speed = 1;
 
   function notify(): void {
     for (const listener of [...listeners]) {
@@ -146,7 +152,14 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
         return;
       }
       commit(advance(state, 1));
-    }, TICK_MS);
+    }, Math.max(1, Math.round(TICK_MS / speed)));
+  }
+
+  function stopTimer(): void {
+    if (timer !== null) {
+      clearInterval(timer);
+      timer = null;
+    }
   }
 
   startTimer();
@@ -216,6 +229,21 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
       return state;
     },
 
+    setSpeed(multiplier: number): void {
+      /*
+       * Kẹp và làm sạch đầu vào ngay tại đây thay vì tin người gọi: giá trị 0
+       * hay âm sẽ cho ra chu kỳ `setInterval` bằng 0 hoặc âm, mà trình duyệt
+       * diễn giải thành "nhanh nhất có thể" — tức treo tab, không phải báo lỗi.
+       */
+      const next = Number.isFinite(multiplier) ? Math.min(8, Math.max(0.25, multiplier)) : 1;
+      if (next === speed) {
+        return;
+      }
+      speed = next;
+      // Đổi nhịp = dựng lại timer; `setInterval` không sửa chu kỳ được sau khi tạo.
+      stopTimer();
+      startTimer();
+    },
     dispose(): void {
       disposed = true;
       if (timer !== null) {

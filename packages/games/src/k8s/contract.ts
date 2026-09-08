@@ -488,6 +488,18 @@ export interface K8sSession {
   dispatch(action: GameAction): void;
   /** Nhật ký đầy đủ để phát lại — nền tảng của xác minh chống gian lận (§8.3). */
   getLog(): RunLog;
+  /**
+   * Đổi nhịp phát của mô phỏng (1 = thường, 2 = gấp đôi, …).
+   *
+   * ⛔ CỐ Ý là một method của phiên, KHÔNG phải một `GameAction`. Tốc độ đổi
+   * nhịp ĐỒNG HỒ TREO TƯỜNG, không đổi chuỗi tick — cùng chuỗi action ở 1x và ở
+   * 4x cho ra đúng cùng một trạng thái. Đưa nó vào `GameAction` sẽ ghi nó vào
+   * `RunLog`, và lúc phát lại để xác minh thì "chạy gấp bốn" là một chỉ thị vô
+   * nghĩa: phát lại chạy nhanh hết mức có thể, không theo đồng hồ nào.
+   *
+   * Nói cách khác: tốc độ là thứ NGƯỜI CHƠI nhìn, không phải thứ MÔ PHỎNG làm.
+   */
+  setSpeed(multiplier: number): void;
   /** Dừng vòng lặp thời gian. Lane E gọi lúc unmount. */
   dispose(): void;
 }

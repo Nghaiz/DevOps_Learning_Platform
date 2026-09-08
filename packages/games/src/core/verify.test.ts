@@ -480,6 +480,9 @@ function makeFakeCreateSession(spy: SessionSpy, viewDrift = false) {
         else if (action.kind !== 'wait') moves++;
       },
       getLog: () => genuineLog,
+      /* Nhịp phát không đụng tới phát lại: xác minh chạy nhanh hết mức, không
+       * theo đồng hồ. Fixture để rỗng là ĐÚNG, không phải chỗ chưa làm. */
+      setSpeed: () => {},
       dispose: () => {
         spy.disposeCount++;
       },
