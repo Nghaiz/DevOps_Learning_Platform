@@ -77,7 +77,10 @@ export function CodexDrawer({
           <TabsTrigger value="bay">Bẫy</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="khai-niem" className={cn('min-h-0 flex-1 overflow-y-auto px-3 pb-4', HUD_SCROLL_HIDDEN)}>
+        <TabsContent
+          value="khai-niem"
+          className={cn('min-h-0 flex-1 overflow-y-auto px-3 pb-4', HUD_SCROLL_HIDDEN)}
+        >
           {/* Không có ảnh trong primer của level — trả `null` để component tự vẽ placeholder thay vì chế một URL. */}
           <MarkdownView markdown={teaching.primer} resolveAssetUrl={() => null} />
           {showTakeaways && teaching.takeaways.length > 0 ? (
@@ -96,7 +99,10 @@ export function CodexDrawer({
           ) : null}
         </TabsContent>
 
-        <TabsContent value="lenh-mau" className={cn('min-h-0 flex-1 overflow-y-auto px-3 pb-4', HUD_SCROLL_HIDDEN)}>
+        <TabsContent
+          value="lenh-mau"
+          className={cn('min-h-0 flex-1 overflow-y-auto px-3 pb-4', HUD_SCROLL_HIDDEN)}
+        >
           <ul className="flex flex-col gap-2">
             {teaching.cheatsheet.map((item) => (
               <CheatRow key={item.command} item={item} onInsert={onInsertCommand} />
@@ -104,7 +110,10 @@ export function CodexDrawer({
           </ul>
         </TabsContent>
 
-        <TabsContent value="bay" className={cn('min-h-0 flex-1 overflow-y-auto px-3 pb-4', HUD_SCROLL_HIDDEN)}>
+        <TabsContent
+          value="bay"
+          className={cn('min-h-0 flex-1 overflow-y-auto px-3 pb-4', HUD_SCROLL_HIDDEN)}
+        >
           <NoteList title="Sai lầm phổ biến" items={pitfalls} tone="warning" />
           <NoteList title="Mẹo thực chiến" items={proTips} tone="muted" />
           {pitfalls.length === 0 && proTips.length === 0 ? (
@@ -166,7 +175,9 @@ function NoteList({
   }
   return (
     <section className="mb-4">
-      <h3 className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
+      <h3 className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        {title}
+      </h3>
       <ul className="flex flex-col gap-1.5">
         {items.map((item) => (
           <li

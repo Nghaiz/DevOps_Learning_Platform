@@ -32,7 +32,12 @@ export function TerminalSuggestionList({
   }
   const index = Math.min(highlight, suggestions.length - 1);
   return (
-    <ul className={cn('max-h-40 overflow-y-auto border-t border-border bg-muted px-1 py-1', HUD_SCROLL_HIDDEN)}>
+    <ul
+      className={cn(
+        'max-h-40 overflow-y-auto border-t border-border bg-muted px-1 py-1',
+        HUD_SCROLL_HIDDEN,
+      )}
+    >
       {suggestions.map((item, position) => (
         <li
           key={item.value}

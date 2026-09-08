@@ -1,7 +1,16 @@
 'use client';
 
 import { useState, type ReactElement } from 'react';
-import { BookOpen, Check, ChevronDown, ChevronUp, Lightbulb, ShieldAlert, ShieldCheck, Target } from 'lucide-react';
+import {
+  BookOpen,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Lightbulb,
+  ShieldAlert,
+  ShieldCheck,
+  Target,
+} from 'lucide-react';
 import { Button, MarkdownView, cn } from '@devops-platform/ui';
 import type { Objective } from '@devops-platform/games';
 import type { ArenaDispatch } from '../arena-contract.ts';
@@ -219,10 +228,17 @@ function ObjectiveRow({
       >
         {done ? <Check className="size-3" /> : null}
       </span>
-      <span className={cn('leading-snug', done ? 'text-muted-foreground line-through' : 'text-foreground')}>
+      <span
+        className={cn(
+          'leading-snug',
+          done ? 'text-muted-foreground line-through' : 'text-foreground',
+        )}
+      >
         {objective.label}
         {objective.required ? null : (
-          <span className="ml-1 rounded bg-muted px-1 text-[10px] text-muted-foreground">thưởng</span>
+          <span className="ml-1 rounded bg-muted px-1 text-[10px] text-muted-foreground">
+            thưởng
+          </span>
         )}
       </span>
       <span className="sr-only">{done ? 'đã đạt' : 'chưa đạt'}</span>
@@ -245,7 +261,12 @@ function GuardRow({
   readonly held: boolean;
 }): ReactElement {
   return (
-    <li className={cn('flex items-start gap-2 text-xs', held ? 'text-muted-foreground' : 'text-destructive')}>
+    <li
+      className={cn(
+        'flex items-start gap-2 text-xs',
+        held ? 'text-muted-foreground' : 'text-destructive',
+      )}
+    >
       {held ? (
         <ShieldCheck aria-hidden className="mt-0.5 size-3.5 shrink-0 opacity-70" />
       ) : (
@@ -256,4 +277,3 @@ function GuardRow({
     </li>
   );
 }
-

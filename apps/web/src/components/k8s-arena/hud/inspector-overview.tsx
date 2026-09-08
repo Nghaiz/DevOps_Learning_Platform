@@ -33,7 +33,13 @@ export interface InspectorOverviewProps {
   readonly tick: number;
 }
 
-function Row({ label, children }: { readonly label: string; readonly children: ReactNode }): ReactElement {
+function Row({
+  label,
+  children,
+}: {
+  readonly label: string;
+  readonly children: ReactNode;
+}): ReactElement {
   return (
     <div className="grid grid-cols-[7.5rem_1fr] gap-2 py-1 text-xs">
       <dt className="text-muted-foreground">{label}</dt>
@@ -77,7 +83,18 @@ export function InspectorOverview({ object, node, tick }: InspectorOverviewProps
     <dl className="divide-y divide-border">
       <Row label="Trạng thái">
         <span className="flex flex-wrap items-center gap-1.5">
-          <Badge variant={STATUS_BADGE[object.statusToken]}>{object.phase ?? (object.kind === 'Node' ? (node?.ready ? 'Ready' : 'NotReady') : object.statusToken === 'success' ? 'Sẵn sàng' : object.statusToken === 'warning' ? 'Cần kiểm tra' : 'Đang xử lý')}</Badge>
+          <Badge variant={STATUS_BADGE[object.statusToken]}>
+            {object.phase ??
+              (object.kind === 'Node'
+                ? node?.ready
+                  ? 'Ready'
+                  : 'NotReady'
+                : object.statusToken === 'success'
+                  ? 'Sẵn sàng'
+                  : object.statusToken === 'warning'
+                    ? 'Cần kiểm tra'
+                    : 'Đang xử lý')}
+          </Badge>
           {object.ready === true ? <Badge variant="outline">Ready</Badge> : null}
           {object.ready === false ? <Badge variant="outline">Chưa Ready</Badge> : null}
         </span>
@@ -92,27 +109,37 @@ export function InspectorOverview({ object, node, tick }: InspectorOverviewProps
       )}
 
       <Row label="Namespace">
-        <span className="font-mono">{object.namespace === '' ? 'phạm vi cụm' : object.namespace}</span>
+        <span className="font-mono">
+          {object.namespace === '' ? 'phạm vi cụm' : object.namespace}
+        </span>
       </Row>
 
-      {object.kind === 'Pod' ? <Row label="Node">
-        {object.nodeName === null ? (
-          <span className="text-muted-foreground">chưa được xếp lịch</span>
-        ) : (
-          <span className="flex flex-wrap items-baseline gap-2">
-            <span className="font-mono">{object.nodeName}</span>
-            {node === null ? null : (
-              <span className="text-muted-foreground">
-                CPU {percent(node.cpuUsed)} · RAM {percent(node.memoryUsed)}
-                {node.ready ? '' : ' · NotReady'}
-              </span>
-            )}
-          </span>
-        )}
-      </Row> : null}
+      {object.kind === 'Pod' ? (
+        <Row label="Node">
+          {object.nodeName === null ? (
+            <span className="text-muted-foreground">chưa được xếp lịch</span>
+          ) : (
+            <span className="flex flex-wrap items-baseline gap-2">
+              <span className="font-mono">{object.nodeName}</span>
+              {node === null ? null : (
+                <span className="text-muted-foreground">
+                  CPU {percent(node.cpuUsed)} · RAM {percent(node.memoryUsed)}
+                  {node.ready ? '' : ' · NotReady'}
+                </span>
+              )}
+            </span>
+          )}
+        </Row>
+      ) : null}
 
-      {object.kind === 'Node' && node !== null ? <Row label="Mức sử dụng">CPU {percent(node.cpuUsed)} · RAM {percent(node.memoryUsed)}</Row> : null}
-      <Row label="UID"><span className="font-mono">{object.uid}</span></Row>
+      {object.kind === 'Node' && node !== null ? (
+        <Row label="Mức sử dụng">
+          CPU {percent(node.cpuUsed)} · RAM {percent(node.memoryUsed)}
+        </Row>
+      ) : null}
+      <Row label="UID">
+        <span className="font-mono">{object.uid}</span>
+      </Row>
       {object.restartCount === undefined ? null : (
         <Row label="Khởi động lại">
           <span className="font-mono">{object.restartCount}</span>
@@ -137,7 +164,9 @@ export function InspectorOverview({ object, node, tick }: InspectorOverviewProps
         {/* Tuổi TÍNH tại đây từ `tick - createdTick`, không lưu — đúng luật
             "không lưu trường suy ra được", và chính hợp đồng cũng nói vậy. */}
         <span className="font-mono">t{object.createdTick}</span>
-        <span className="ml-2 text-muted-foreground">{Math.max(0, tick - object.createdTick)} tick trước</span>
+        <span className="ml-2 text-muted-foreground">
+          {Math.max(0, tick - object.createdTick)} tick trước
+        </span>
       </Row>
 
       {labels.length === 0 ? null : (

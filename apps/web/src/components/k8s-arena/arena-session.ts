@@ -154,10 +154,18 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
   const view = useThrottledView(session);
   const status = useMemo(() => session?.getStatus() ?? EMPTY_STATUS, [session, view]);
 
-  const dispatch = useCallback((action: GameAction) => {
-    const result = sessionRef.current?.dispatchDetailed(action);
-    if (result && !result.accepted) toast({ title: 'Không thực hiện được', description: result.output, variant: 'destructive' });
-  }, [toast]);
+  const dispatch = useCallback(
+    (action: GameAction) => {
+      const result = sessionRef.current?.dispatchDetailed(action);
+      if (result && !result.accepted)
+        toast({
+          title: 'Không thực hiện được',
+          description: result.output,
+          variant: 'destructive',
+        });
+    },
+    [toast],
+  );
 
   const editResource = useCallback((target: ResourceRef, yaml: string): DispatchOutcome => {
     const current = sessionRef.current;
@@ -190,7 +198,6 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
     () => classifyObjectives(level, seedRef.current).guards,
     [level],
   );
-
 
   const applySpeed = useCallback((multiplier: number) => {
     const current = sessionRef.current;

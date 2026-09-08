@@ -85,7 +85,9 @@ export function LevelPicker({ levels, onPick }: LevelPickerProps): ReactElement 
   );
 }
 
-function groupByChapter(levels: readonly Level[]): readonly (readonly [number, readonly Level[]])[] {
+function groupByChapter(
+  levels: readonly Level[],
+): readonly (readonly [number, readonly Level[]])[] {
   const map = new Map<number, Level[]>();
   for (const level of levels) {
     const bucket = map.get(level.chapter);

@@ -90,7 +90,11 @@ describe('readSceneColors', () => {
    * `development-principles.md` § "Errors Over Silent Fallbacks" cấm.
    */
   it('báo degraded khi không phân giải được màu nào', () => {
-    const result = readSceneColors(probeStub(), () => 'oklch(0.5 0.1 25)', () => null);
+    const result = readSceneColors(
+      probeStub(),
+      () => 'oklch(0.5 0.1 25)',
+      () => null,
+    );
     expect(result.degraded).toBe(true);
     for (const name of SCENE_TOKEN_NAMES) {
       const c: Rgb = result.colors[name];

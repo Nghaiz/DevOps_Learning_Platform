@@ -161,7 +161,10 @@ function poolFor(
  * Trả mảng rỗng khi không có gì đáng gợi — bảng gợi ý rỗng phải BIẾN MẤT, không
  * phải hiện ra một khung trống.
  */
-export function suggestTokens(input: string, objects: readonly ObjectView[]): readonly Suggestion[] {
+export function suggestTokens(
+  input: string,
+  objects: readonly ObjectView[],
+): readonly Suggestion[] {
   const atNewToken = input === '' || /\s$/.test(input);
   const tokens = input.split(/\s+/).filter((token) => token !== '');
   const prefix = atNewToken ? '' : (tokens.at(-1) ?? '');

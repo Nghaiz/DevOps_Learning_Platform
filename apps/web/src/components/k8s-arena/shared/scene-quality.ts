@@ -58,7 +58,9 @@ export function tierFromRenderer(renderer: string | null): QualityTier {
  * `tierFromRenderer(null)` cho `high`, rồi phép đo khung hình mới là thứ nói
  * lời cuối. Đó là đúng thứ tự: đo hơn đoán.
  */
-export function detectRendererString(gl: WebGLRenderingContext | WebGL2RenderingContext): string | null {
+export function detectRendererString(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+): string | null {
   try {
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
     if (ext !== null) {
@@ -99,7 +101,9 @@ function median(values: readonly number[]): number {
   if (sorted.length === 0) {
     return 0;
   }
-  return sorted.length % 2 === 0 ? ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2 : (sorted[mid] ?? 0);
+  return sorted.length % 2 === 0
+    ? ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
+    : (sorted[mid] ?? 0);
 }
 
 /**
@@ -195,4 +199,3 @@ export const TIER_FEATURES: Readonly<Record<QualityTier, TierFeatures>> = {
     particles: false,
   },
 };
-

@@ -30,11 +30,16 @@ export function SceneEffects({ tier }: SceneEffectsProps): ReactElement | null {
   }
   return (
     <EffectComposer multisampling={4} enableNormalPass={false}>
-      <Bloom mipmapBlur luminanceThreshold={1.1} luminanceSmoothing={0.22} intensity={0.25} radius={0.6} />
+      <Bloom
+        mipmapBlur
+        luminanceThreshold={1.1}
+        luminanceSmoothing={0.22}
+        intensity={0.25}
+        radius={0.6}
+      />
       {/* Tối bốn góc rất nhẹ: mắt bị kéo về giữa khung, nơi cụm đứng. Quá tay
           thì nó thành một cái ống nhòm và người dùng thấy ngột. */}
       <Vignette offset={0.32} darkness={0.25} />
     </EffectComposer>
   );
 }
-

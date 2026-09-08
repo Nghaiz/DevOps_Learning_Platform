@@ -7,6 +7,7 @@ import type { ResourceKind } from '@devops-platform/games';
 import { TIER_FEATURES } from '../shared/scene-quality';
 import { RESOURCE_COLOR } from '../shared/resource-identity';
 import type { QualityTier } from '../arena-contract';
+import { STATUS_TINT, TERMINATING_FADE } from '../shared/status-tint';
 import { INITIAL_CAPACITY } from './scene-constants';
 import type { SceneRuntime } from './scene-entry';
 import type { ArenaColors } from './use-arena-colors';
@@ -128,8 +129,15 @@ export function ClusterInstances({ runtime, colors, tier }: ClusterInstancesProp
       MATRIX.compose(POSITION, ROTATION, SCALE);
       batch.mesh.setMatrixAt(index, MATRIX);
       COLOR.copy(batch.color);
-      if (entry.failing) COLOR.lerp(colors.glow[entry.token], 0.6);
-      if (entry.terminating) COLOR.lerp(colors.platform, 0.6);
+      /*
+       * Trạng thái pha vào màu thân theo THANG ĐỘ (`STATUS_TINT`), không theo
+       * một cờ `failing` nhị phân. Xem `shared/status-tint.ts` về việc vì sao —
+       * gọn lại: cờ nhị phân bỏ sót hẳn `Pending`, và nó cào bằng một cảnh báo
+       * nhẹ với một pod đã chết.
+       */
+      const tint = STATUS_TINT[entry.token];
+      if (tint > 0) COLOR.lerp(colors.glow[entry.token], tint);
+      if (entry.terminating) COLOR.lerp(colors.platform, TERMINATING_FADE);
       batch.mesh.setColorAt(index, COLOR);
       if (ringCount < capacity) {
         POSITION.y -= entry.drawScale * 0.46;

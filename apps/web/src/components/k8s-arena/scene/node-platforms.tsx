@@ -49,9 +49,14 @@ export interface NodePlatformsProps {
  */
 export function NodePlatforms({ colors, colorsVersion, tier }: NodePlatformsProps): ReactElement {
   const features = TIER_FEATURES[tier];
-  const groundMaterial = useMemo(() => new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 }), []);
+  const groundMaterial = useMemo(
+    () => new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 }),
+    [],
+  );
   useEffect(() => () => groundMaterial.dispose(), [groundMaterial]);
-  useEffect(() => { groundMaterial.color.copy(colors.ground); }, [groundMaterial, colors, colorsVersion]);
+  useEffect(() => {
+    groundMaterial.color.copy(colors.ground);
+  }, [groundMaterial, colors, colorsVersion]);
 
   return (
     <>
@@ -104,4 +109,3 @@ export function NodePlatforms({ colors, colorsVersion, tier }: NodePlatformsProp
     </>
   );
 }
-

@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactElement,
+} from 'react';
 import type { ObjectView } from '@devops-platform/games';
 import { cn } from '@devops-platform/ui';
 import type { ArenaDispatch, ScreenPoint } from '../arena-contract.ts';
@@ -118,7 +125,9 @@ export function ArenaContextMenu({
         return;
       }
       event.preventDefault();
-      const items = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
+      const items = [
+        ...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []),
+      ];
       if (items.length === 0) {
         return;
       }
@@ -128,7 +137,9 @@ export function ArenaContextMenu({
       // đúng cú pháp modulo nhưng sai trực giác.
       const next =
         index === -1
-          ? (down ? 0 : items.length - 1)
+          ? down
+            ? 0
+            : items.length - 1
           : // Vòng lại hai đầu — WAI-ARIA APG cho menu. Kẹt ở mục cuối làm
             // người dùng tưởng bàn phím hỏng.
             (index + (down ? 1 : -1) + items.length) % items.length;

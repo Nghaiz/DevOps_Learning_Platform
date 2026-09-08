@@ -56,7 +56,15 @@ function ArenaCanvas(props: ArenaSceneProps): ReactElement {
   const { colors, version } = useArenaColors(probeRef, reportDegraded);
   const reducedMotion = usePrefersReducedMotion();
   const features = TIER_FEATURES[props.quality];
-  const cameraOptions = useMemo(() => ({ fov: CAMERA_TUNING.fov, near: 0.1, far: 400, position: [...CAMERA_TUNING.initialPosition] as [number, number, number] }), []);
+  const cameraOptions = useMemo(
+    () => ({
+      fov: CAMERA_TUNING.fov,
+      near: 0.1,
+      far: 400,
+      position: [...CAMERA_TUNING.initialPosition] as [number, number, number],
+    }),
+    [],
+  );
 
   return (
     <div className="relative h-full w-full" data-testid="arena-scene">
@@ -103,7 +111,11 @@ function ArenaCanvas(props: ArenaSceneProps): ReactElement {
           showEdges={props.showEdges}
         />
       </Canvas>
-      <div ref={setLabelLayer} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden" />
+      <div
+        ref={setLabelLayer}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      />
     </div>
   );
 }

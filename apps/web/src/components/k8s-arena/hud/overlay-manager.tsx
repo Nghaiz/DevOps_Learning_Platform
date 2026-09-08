@@ -90,7 +90,9 @@ export function useOverlayManager(options: OverlayManagerOptions = {}): OverlayM
   }, []);
 
   const toggle = useCallback((id: OverlayId): void => {
-    setStack((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+    setStack((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
   }, []);
 
   const closeTopmost = useCallback((): void => {

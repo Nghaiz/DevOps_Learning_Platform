@@ -173,4 +173,3 @@ export function deriveArenaPalette(colors: SceneColors): ArenaPalette {
     glow: glow as Readonly<Record<StatusToken, Rgb>>,
   };
 }
-

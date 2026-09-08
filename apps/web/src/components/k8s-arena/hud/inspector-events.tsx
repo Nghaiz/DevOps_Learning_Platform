@@ -39,7 +39,9 @@ export function InspectorEvents({ events }: InspectorEventsProps): ReactElement 
             t{event.tick}
           </span>
           <span className="sr-only">{EVENT_LEVEL_LABEL[event.level]}:</span>
-          <span className={cn('min-w-0 wrap-break-word', EVENT_LEVEL_CLASS[event.level])}>{event.message}</span>
+          <span className={cn('min-w-0 wrap-break-word', EVENT_LEVEL_CLASS[event.level])}>
+            {event.message}
+          </span>
         </li>
       ))}
     </ol>

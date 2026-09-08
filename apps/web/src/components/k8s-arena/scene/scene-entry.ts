@@ -7,6 +7,7 @@
  */
 
 import type { ResourceKind } from '@devops-platform/games';
+import type { RelationKind } from '../shared/edge-routing';
 import type { StatusToken } from '../shared/scene-tokens';
 
 export interface SceneEntry {
@@ -47,9 +48,29 @@ export interface NodeEntry {
 }
 
 export interface EdgeBuffers {
-  /** Toạ độ cặp đầu-cuối, 6 số một cạnh. */
+  /** Toạ độ cặp đỉnh liên tiếp, 6 số một ĐOẠN (một cạnh gồm `EDGE_SEGMENTS` đoạn). */
   readonly solid: number[];
   readonly dashed: number[];
+  /**
+   * Chỉ số loại quan hệ của từng ĐOẠN, trỏ vào `RELATION_KINDS`.
+   *
+   * Runtime phát ra CHỈ SỐ chứ không phát ra màu, vì bảng màu sống ở tầng React
+   * (`ArenaColors`, đọc lại mỗi lần đổi theme). Nướng rgb vào đây sẽ buộc runtime
+   * giữ tham chiếu tới bảng màu và dựng lại toàn bộ buffer mỗi lần đổi theme —
+   * trong khi hình học không đổi một chút nào.
+   */
+  readonly solidKinds: number[];
+  readonly dashedKinds: number[];
+  /**
+   * Chỉ số quan hệ của từng ĐOẠN, trỏ vào `SceneRuntime.links`.
+   *
+   * Có nó thì tầng vẽ trả lời được câu "đoạn này có dính tới vật đang chọn
+   * không" mà không phải dựng lại hình học — đó là thứ cho phép làm mờ những
+   * dây không liên quan khi người chơi chọn một vật, và làm mờ chính là cách
+   * gỡ rối một cụm đông mà không phải giấu dây đi.
+   */
+  readonly solidLinks: number[];
+  readonly dashedLinks: number[];
 }
 
 /**
@@ -64,7 +85,16 @@ export interface EdgeBuffers {
 export interface EdgeLink {
   readonly fromUid: string;
   readonly toUid: string;
+  readonly kind: RelationKind;
   readonly healthy: boolean;
+  /**
+   * Bậc xoè giữa các cạnh CÙNG một cặp đầu-cuối (0 = đường giữa).
+   *
+   * Tính một lần lúc `sync` chứ không tính lúc dựng toạ độ: nó chỉ phụ thuộc
+   * DANH SÁCH quan hệ, còn `rebuildEdges` chạy lại mỗi khung hình người chơi
+   * đang kéo. Đếm lại bậc xoè ở đó là đếm cùng một thứ 60 lần một giây.
+   */
+  readonly fan: number;
 }
 
 /** Vị trí do người chơi tự đặt. Chỉ hai trục mặt sàn — độ cao vẫn do bố cục quyết. */
@@ -94,6 +124,8 @@ export interface SceneRuntime {
   readonly visible: SceneEntry[];
   readonly nodes: NodeEntry[];
   readonly edges: EdgeBuffers;
+  /** Danh sách quan hệ, để tầng vẽ tra được hai đầu của một đoạn. Chỉ đọc. */
+  readonly links: readonly EdgeLink[];
   radius: number;
   /** Tăng mỗi lần hình dạng cảnh đổi — bóng đổ và buffer cạnh bám vào số này. */
   structureVersion: number;

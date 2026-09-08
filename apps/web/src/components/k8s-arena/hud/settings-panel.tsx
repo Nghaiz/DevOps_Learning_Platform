@@ -16,7 +16,11 @@ import { ARENA_KEYS, type QualityTier } from '../arena-contract.ts';
  */
 const SPEEDS: readonly number[] = [0.25, 0.5, 1, 2, 4, 8];
 
-const TIERS: readonly { readonly id: QualityTier; readonly label: string; readonly hint: string }[] = [
+const TIERS: readonly {
+  readonly id: QualityTier;
+  readonly label: string;
+  readonly hint: string;
+}[] = [
   { id: 'low', label: 'Nhẹ', hint: 'Tắt bóng đổ và hậu kỳ. Dành cho máy yếu hoặc GPU phần mềm.' },
   { id: 'medium', label: 'Vừa', hint: 'Có bóng đổ, không hậu kỳ.' },
   { id: 'high', label: 'Cao', hint: 'Bóng mềm, hậu kỳ, phản chiếu môi trường.' },
@@ -78,7 +82,12 @@ export function SettingsPanel({
       <header>
         <Gauge className="size-4 shrink-0" aria-hidden />
         <h2>Cài đặt</h2>
-        <button type="button" onClick={onClose} aria-label="Đóng cài đặt" className="arena-settings-close">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Đóng cài đặt"
+          className="arena-settings-close"
+        >
           <X className="size-4" aria-hidden />
         </button>
       </header>
@@ -93,7 +102,11 @@ export function SettingsPanel({
             aria-pressed={paused}
             className="arena-settings-wide"
           >
-            {paused ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />}
+            {paused ? (
+              <Play className="size-4" aria-hidden />
+            ) : (
+              <Pause className="size-4" aria-hidden />
+            )}
             <span>{paused ? 'Chạy tiếp' : 'Tạm dừng'}</span>
             <kbd>Space</kbd>
           </button>
@@ -135,13 +148,21 @@ export function SettingsPanel({
           <label className="arena-settings-toggle">
             <Tags className="size-4 shrink-0" aria-hidden />
             <span>Tên tài nguyên</span>
-            <Switch checked={showLabels} onCheckedChange={onShowLabels} aria-label="Hiện tên tài nguyên" />
+            <Switch
+              checked={showLabels}
+              onCheckedChange={onShowLabels}
+              aria-label="Hiện tên tài nguyên"
+            />
           </label>
 
           <label className="arena-settings-toggle">
             <Spline className="size-4 shrink-0" aria-hidden />
             <span>Dây quan hệ</span>
-            <Switch checked={showEdges} onCheckedChange={onShowEdges} aria-label="Hiện dây quan hệ" />
+            <Switch
+              checked={showEdges}
+              onCheckedChange={onShowEdges}
+              aria-label="Hiện dây quan hệ"
+            />
           </label>
         </section>
 

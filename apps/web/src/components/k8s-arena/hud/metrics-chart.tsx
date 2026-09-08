@@ -34,7 +34,13 @@ export interface MetricsChartProps {
  * không đọc được, nên phần khả truy phải nói giá trị hiện tại và khoảng dao động
  * — đó là thứ người ta thật sự đọc đồ thị để biết.
  */
-export function MetricsChart({ title, values, max, format, colorToken }: MetricsChartProps): ReactElement {
+export function MetricsChart({
+  title,
+  values,
+  max,
+  format,
+  colorToken,
+}: MetricsChartProps): ReactElement {
   const latest = values.at(-1) ?? 0;
   const lowest = values.length === 0 ? 0 : Math.min(...values);
   const highest = values.length === 0 ? 0 : Math.max(...values);
@@ -79,7 +85,9 @@ export function MetricsChart({ title, values, max, format, colorToken }: Metrics
         ) : null}
         {/* Một mẫu duy nhất không tạo được đoạn thẳng — chấm một điểm để đồ thị
             không trông như đang hỏng trong vài giây đầu sau khi mở bảng. */}
-        {values.length === 1 ? <circle cx={VIEW_W} cy={heightOf(latest, ceiling)} r={1.2} style={fill} /> : null}
+        {values.length === 1 ? (
+          <circle cx={VIEW_W} cy={heightOf(latest, ceiling)} r={1.2} style={fill} />
+        ) : null}
       </svg>
     </figure>
   );
@@ -93,5 +101,7 @@ function heightOf(value: number, ceiling: number): number {
 /** Mẫu mới nhất luôn nằm sát mép phải — mắt tìm "bây giờ" ở đó. */
 function pointsOf(values: readonly number[], ceiling: number): string {
   const step = VIEW_W / (values.length - 1);
-  return values.map((value, index) => `${String(index * step)},${String(heightOf(value, ceiling))}`).join(' ');
+  return values
+    .map((value, index) => `${String(index * step)},${String(heightOf(value, ceiling))}`)
+    .join(' ');
 }

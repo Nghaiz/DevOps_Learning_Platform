@@ -267,6 +267,28 @@ export const CAMERA_TUNING = {
    */
   minFrameDistance: 8,
 
+  /**
+   * Tỉ lệ giữa hai trục ngang của hướng nhìn khi đóng khung.
+   *
+   * Chỉ là HƯỚNG — độ dài do `frameHeightFactor` và khoảng cách quyết định. Tách
+   * ra để `camera-rig` không còn quyền tự chọn số: xem chú thích của
+   * `frameHeightFactor` về việc bản trước đã trôi khỏi hợp đồng thế nào.
+   */
+  frameAzimuth: [0.478, 0.878],
+
+  /**
+   * Dời khung sang trái bao nhiêu phần bề ngang khung nhìn.
+   *
+   * HUD chiếm hẳn cạnh trái (thanh công cụ tài nguyên + thẻ nhiệm vụ ≈ 27% bề
+   * ngang ở 1600px), nên một cụm căn giữa CANVAS lại nằm lệch hẳn về góc trên
+   * bên trái của phần màn hình thật sự nhìn thấy được, và nửa dưới bên phải bỏ
+   * trống. Dời camera sang trái thì cụm hiện sang phải, vào giữa vùng trống.
+   *
+   * 0.1 là mức dè dặt có chủ ý: bảng thông số mở ra ở cạnh PHẢI và ăn lại một
+   * phần khoảng trống đó, nên bù quá tay sẽ hỏng đúng lúc bảng đang mở.
+   */
+  frameLeftBias: 0.1,
+
   /** Khoảng cách camera giữ lại khi bay tới một object hoặc một node cụ thể. */
   focusDistance: 7,
 } as const;

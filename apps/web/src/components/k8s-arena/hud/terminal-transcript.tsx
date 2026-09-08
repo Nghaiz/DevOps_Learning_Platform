@@ -35,7 +35,10 @@ export function TerminalTranscript({ lines }: TerminalTranscriptProps): ReactEle
   return (
     <div
       ref={scrollRef}
-      className={cn('min-h-0 flex-1 overflow-y-auto px-3 py-2 font-mono text-xs', HUD_SCROLL_HIDDEN)}
+      className={cn(
+        'min-h-0 flex-1 overflow-y-auto px-3 py-2 font-mono text-xs',
+        HUD_SCROLL_HIDDEN,
+      )}
     >
       {lines.map((line) => (
         <div key={line.id} className="mb-2">
@@ -49,7 +52,9 @@ export function TerminalTranscript({ lines }: TerminalTranscriptProps): ReactEle
             đúng cái bảng mà người học cần đọc theo cột. Tràn ngang thì cuộn
             ngang — trong một khung riêng, không phải cả trang.
           */}
-          <pre className={cn('overflow-x-auto whitespace-pre text-foreground', HUD_SCROLL_HIDDEN)}>{line.output}</pre>
+          <pre className={cn('overflow-x-auto whitespace-pre text-foreground', HUD_SCROLL_HIDDEN)}>
+            {line.output}
+          </pre>
         </div>
       ))}
     </div>

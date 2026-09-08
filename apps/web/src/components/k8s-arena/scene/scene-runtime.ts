@@ -17,6 +17,13 @@
 
 import type { ClusterView } from '@devops-platform/games';
 import { KIND_ACCENT } from '../arena-contract';
+import {
+  EDGE_SEGMENTS,
+  fanOffset,
+  pairKey,
+  relationIndex,
+  writeCurve,
+} from '../shared/edge-routing';
 import { computeLayout } from '../shared/scene-layout';
 import { phaseFromId } from '../shared/scene-motion';
 import type {
@@ -36,7 +43,14 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
   const order: SceneEntry[] = [];
   const visible: SceneEntry[] = [];
   const nodes: NodeEntry[] = [];
-  const edges: EdgeBuffers = { solid: [], dashed: [] };
+  const edges: EdgeBuffers = {
+    solid: [],
+    dashed: [],
+    solidKinds: [],
+    dashedKinds: [],
+    solidLinks: [],
+    dashedLinks: [],
+  };
   const links: EdgeLink[] = [];
   const overrides = new Map<string, PlacementOverride>();
   let signature: string | null = null;
@@ -48,6 +62,7 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
     visible,
     nodes,
     edges,
+    links,
     overrides,
     radius: 1,
     structureVersion: 0,
@@ -170,12 +185,30 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
       }
 
       links.length = 0;
+      /*
+       * Bậc xoè tính MỘT LẦN ở đây. Nhiều quan hệ giữa cùng hai vật (một pod vừa
+       * `runs-on` node vừa được `selects` bởi service ở cạnh nó) sẽ vẽ chồng khít
+       * lên nhau nếu không đánh số — người chơi đếm ra một dây ở chỗ có ba.
+       */
+      const pairCount = new Map<string, number>();
       for (const edge of layout.edges) {
-        links.push({ fromUid: edge.fromUid, toUid: edge.toUid, healthy: edge.healthy });
+        const key = pairKey(edge.fromUid, edge.toUid);
+        const index = pairCount.get(key) ?? 0;
+        pairCount.set(key, index + 1);
+        links.push({
+          fromUid: edge.fromUid,
+          toUid: edge.toUid,
+          kind: edge.kind,
+          healthy: edge.healthy,
+          fan: fanOffset(index),
+        });
       }
       rebuildEdges();
 
-      runtime.radius = Math.max(layout.radius, ...[...entries.values()].map(entry => Math.hypot(entry.x, entry.z) + entry.size));
+      runtime.radius = Math.max(
+        layout.radius,
+        ...[...entries.values()].map((entry) => Math.hypot(entry.x, entry.z) + entry.size),
+      );
       runtime.structureVersion += 1;
       rebuildOrder();
       return true;
@@ -202,23 +235,29 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
   function rebuildEdges(): void {
     edges.solid.length = 0;
     edges.dashed.length = 0;
-    for (const link of links) {
+    edges.solidKinds.length = 0;
+    edges.dashedKinds.length = 0;
+    edges.solidLinks.length = 0;
+    edges.dashedLinks.length = 0;
+    for (let linkIndex = 0; linkIndex < links.length; linkIndex += 1) {
+      const link = links[linkIndex];
+      if (link === undefined) {
+        continue;
+      }
       const a = entries.get(link.fromUid);
       const b = entries.get(link.toUid);
       if (a === undefined || b === undefined) {
         continue;
       }
       const target = link.healthy ? edges.solid : edges.dashed;
-      const distance = Math.hypot(b.x - a.x, b.z - a.z);
-      const height = Math.min(2, 0.4 + distance * 0.22);
-      const bend = Math.min(0.65, distance * 0.12);
-      const point = (t: number): number[] => {
-        const arc = 4 * t * (1 - t);
-        return [a.x + (b.x-a.x)*t - (b.z-a.z)/Math.max(distance,0.01)*bend*arc,
-          a.y + (b.y-a.y)*t + height*arc,
-          a.z + (b.z-a.z)*t + (b.x-a.x)/Math.max(distance,0.01)*bend*arc];
-      };
-      for (let segment = 0; segment < 24; segment++) target.push(...point(segment/24), ...point((segment+1)/24));
+      const kinds = link.healthy ? edges.solidKinds : edges.dashedKinds;
+      const owners = link.healthy ? edges.solidLinks : edges.dashedLinks;
+      writeCurve(target, a, b, link.fan);
+      const index = relationIndex(link.kind);
+      for (let segment = 0; segment < EDGE_SEGMENTS; segment += 1) {
+        kinds.push(index);
+        owners.push(linkIndex);
+      }
     }
   }
 

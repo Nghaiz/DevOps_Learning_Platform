@@ -59,10 +59,7 @@ export function SceneContent({
 }: SceneContentProps): ReactElement {
   const invalidate = useThree((s) => s.invalidate);
   const proxyRef = useRef<HitProxyHandle | null>(null);
-  const runtime = useMemo(
-    () => createSceneRuntime(() => propsRef.current.getView()),
-    [propsRef],
-  );
+  const runtime = useMemo(() => createSceneRuntime(() => propsRef.current.getView()), [propsRef]);
 
   // Chọn / rê / đổi theme / đổi bậc đều là thứ NHÌN THẤY ĐƯỢC nhưng không sinh
   // ra chuyển động nào, nên không có gì khác xin khung hình hộ chúng.
@@ -98,14 +95,9 @@ export function SceneContent({
       />
       <CameraRig runtime={runtime} propsRef={propsRef} reducedMotion={reducedMotion} />
       <PointerPicking runtime={runtime} propsRef={propsRef} proxyRef={proxyRef} />
-      <SceneLabels
-        runtime={runtime}
-        propsRef={propsRef}
-        layer={showLabels ? labelLayer : null}
-      />
+      <SceneLabels runtime={runtime} propsRef={propsRef} layer={showLabels ? labelLayer : null} />
       <LayoutSync runtime={runtime} propsRef={propsRef} />
       <SceneEffects tier={tier} />
     </>
   );
 }
-

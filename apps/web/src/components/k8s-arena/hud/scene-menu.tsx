@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactElement,
+} from 'react';
 import { cn } from '@devops-platform/ui';
 import type { ScreenPoint } from '../arena-contract.ts';
 import { ContextMenuItem } from './context-menu-item.tsx';
@@ -102,7 +109,9 @@ export function SceneMenu({ anchor, actions, onClose }: SceneMenuProps): ReactEl
         return;
       }
       event.preventDefault();
-      const items = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
+      const items = [
+        ...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []),
+      ];
       if (items.length === 0) {
         return;
       }

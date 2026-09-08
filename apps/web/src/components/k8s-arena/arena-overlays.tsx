@@ -132,11 +132,20 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
     if (selectedObject === null) {
       return null;
     }
-    return engine.view.nodes.find((node) => node.name === (selectedObject.kind === 'Node' ? selectedObject.name : selectedObject.nodeName)) ?? null;
+    return (
+      engine.view.nodes.find(
+        (node) =>
+          node.name ===
+          (selectedObject.kind === 'Node' ? selectedObject.name : selectedObject.nodeName),
+      ) ?? null
+    );
   }, [engine.view, selectedObject]);
 
   const menuObject = useMemo<ObjectView | null>(
-    () => (props.menuUid === null ? null : (engine.view.objects.find((o) => o.uid === props.menuUid) ?? null)),
+    () =>
+      props.menuUid === null
+        ? null
+        : (engine.view.objects.find((o) => o.uid === props.menuUid) ?? null),
     [engine.view, props.menuUid],
   );
 
@@ -342,4 +351,3 @@ function useStars(level: Level, engine: ArenaSessionHandle): number {
     return 1;
   }, [engine.status, engine.hintsRevealed, level]);
 }
-

@@ -130,7 +130,11 @@ export function InspectorYamlTab({ object, yaml, onEdit }: InspectorYamlTabProps
           {dirty ? 'Đã sửa — chưa lưu' : 'Khớp với cụm'}
         </span>
         <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={copy}>
-          {copied ? <Check aria-hidden className="size-4" /> : <Copy aria-hidden className="size-4" />}
+          {copied ? (
+            <Check aria-hidden className="size-4" />
+          ) : (
+            <Copy aria-hidden className="size-4" />
+          )}
           {copied ? 'Đã chép' : 'Chép'}
         </Button>
         <Button type="button" variant="ghost" size="sm" disabled={!dirty} onClick={revert}>

@@ -44,7 +44,11 @@ export function checkResourceName(raw: string): NameCheck {
     return { ok: false, reason: 'Tên không được bắt đầu hoặc kết thúc bằng dấu gạch nối.' };
   }
   if (!VALID_NAME.test(name)) {
-    return { ok: false, reason: 'Chỉ dùng chữ thường, số và dấu gạch nối (`-`). Không dấu cách, không dấu tiếng Việt.' };
+    return {
+      ok: false,
+      reason:
+        'Chỉ dùng chữ thường, số và dấu gạch nối (`-`). Không dấu cách, không dấu tiếng Việt.',
+    };
   }
   return { ok: true };
 }

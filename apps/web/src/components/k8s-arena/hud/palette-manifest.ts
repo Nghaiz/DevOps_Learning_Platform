@@ -70,7 +70,9 @@ rules:
       - get
       - list`,
 
-  RoleBinding: (name: string) => `${head('rbac.authorization.k8s.io/v1', 'RoleBinding', name, false)}
+  RoleBinding: (
+    name: string,
+  ) => `${head('rbac.authorization.k8s.io/v1', 'RoleBinding', name, false)}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -79,7 +81,9 @@ subjects:
   - kind: ServiceAccount
     name: default`,
 
-  ClusterRole: (name: string) => `${head('rbac.authorization.k8s.io/v1', 'ClusterRole', name, false)}
+  ClusterRole: (
+    name: string,
+  ) => `${head('rbac.authorization.k8s.io/v1', 'ClusterRole', name, false)}
 rules:
   - apiGroups:
       - ""
@@ -89,7 +93,9 @@ rules:
       - get
       - list`,
 
-  ClusterRoleBinding: (name: string) => `${head('rbac.authorization.k8s.io/v1', 'ClusterRoleBinding', name, false)}
+  ClusterRoleBinding: (
+    name: string,
+  ) => `${head('rbac.authorization.k8s.io/v1', 'ClusterRoleBinding', name, false)}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

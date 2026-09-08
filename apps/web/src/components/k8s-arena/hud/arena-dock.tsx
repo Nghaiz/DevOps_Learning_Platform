@@ -1,7 +1,17 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { Activity, BookOpen, Focus, LayoutGrid, List, Map, RotateCcw, Settings, Terminal } from 'lucide-react';
+import {
+  Activity,
+  BookOpen,
+  Focus,
+  LayoutGrid,
+  List,
+  Map,
+  RotateCcw,
+  Settings,
+  Terminal,
+} from 'lucide-react';
 import { ARENA_KEYS, type CameraCommand, type OverlayId } from '../arena-contract';
 import type { OverlayManager } from './overlay-manager';
 

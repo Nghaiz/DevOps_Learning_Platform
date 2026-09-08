@@ -27,7 +27,8 @@ import type { ObjectView } from '@devops-platform/games';
  * thì KHÔNG: YAML 1.1 đọc chúng thành boolean/số. Một namespace tên `no` in ra
  * không có ngoặc là một dòng nói dối.
  */
-const NEEDS_QUOTE = /^$|^[-?:,[\]{}#&*!|>'"%@`]|[\s:#]|^(?:y|Y|yes|Yes|YES|n|N|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF|null|Null|NULL|~)$|^[+-]?(?:\d|\.\d)/;
+const NEEDS_QUOTE =
+  /^$|^[-?:,[\]{}#&*!|>'"%@`]|[\s:#]|^(?:y|Y|yes|Yes|YES|n|N|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF|null|Null|NULL|~)$|^[+-]?(?:\d|\.\d)/;
 
 export function yamlScalar(value: string): string {
   if (!NEEDS_QUOTE.test(value)) {

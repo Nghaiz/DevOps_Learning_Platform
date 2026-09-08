@@ -101,9 +101,7 @@ export function TopBar({
 }: TopBarProps): ReactElement {
   const met = new Set(metIds);
   const guard = new Set(guardIds);
-  const required = objectives.filter(
-    (objective) => objective.required && !guard.has(objective.id),
-  );
+  const required = objectives.filter((objective) => objective.required && !guard.has(objective.id));
   /* Ràng buộc "phải giữ" bị VỠ là tin xấu, và nó phải thấy được mà không cần mở thẻ nhiệm vụ. */
   const brokenGuards = objectives.filter(
     (objective) => guard.has(objective.id) && !met.has(objective.id),
@@ -113,13 +111,23 @@ export function TopBar({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <header className={cn('arena-topbar pointer-events-auto flex shrink-0 items-center gap-3 border-b border-border bg-card px-3', TOP_BAR_HEIGHT)}>
+      <header
+        className={cn(
+          'arena-topbar pointer-events-auto flex shrink-0 items-center gap-3 border-b border-border bg-card px-3',
+          TOP_BAR_HEIGHT,
+        )}
+      >
         <IconButton label="Thoát bài" onClick={onExit}>
           <LogOut className="size-4" />
         </IconButton>
 
         <div className="arena-title flex min-w-0 items-baseline gap-2">
-          <span className="arena-level-code font-mono text-xs font-semibold text-muted-foreground" title={code}>K8S / {code.split('-')[1]?.padStart(2, '0') ?? code}</span>
+          <span
+            className="arena-level-code font-mono text-xs font-semibold text-muted-foreground"
+            title={code}
+          >
+            K8S / {code.split('-')[1]?.padStart(2, '0') ?? code}
+          </span>
           <h1 className="truncate text-sm font-semibold text-foreground">{title}</h1>
         </div>
 
@@ -130,7 +138,10 @@ export function TopBar({
               style={{ width: `${percent}%` }}
             />
           </div>
-          <span className="font-mono text-xs text-muted-foreground" aria-label={`Đã đạt ${done} trên ${required.length} mục tiêu`}>
+          <span
+            className="font-mono text-xs text-muted-foreground"
+            aria-label={`Đã đạt ${done} trên ${required.length} mục tiêu`}
+          >
             {done}/{required.length}
           </span>
         </div>
@@ -145,22 +156,35 @@ export function TopBar({
           </span>
         )}
 
-        <div className="arena-stars ml-auto flex items-center gap-1 text-muted-foreground" aria-label={`${stars} trên 3 sao`}>
+        <div
+          className="arena-stars ml-auto flex items-center gap-1 text-muted-foreground"
+          aria-label={`${stars} trên 3 sao`}
+        >
           {[1, 2, 3].map((position) => (
             <Star
               key={position}
               aria-hidden
-              className={cn('size-4', position <= stars ? 'fill-warning text-warning' : 'text-input')}
+              className={cn(
+                'size-4',
+                position <= stars ? 'fill-warning text-warning' : 'text-input',
+              )}
             />
           ))}
         </div>
 
-        <span title="Thời gian mô phỏng" className="arena-clock flex items-center gap-1 font-mono text-xs text-muted-foreground">
+        <span
+          title="Thời gian mô phỏng"
+          className="arena-clock flex items-center gap-1 font-mono text-xs text-muted-foreground"
+        >
           <Clock className="size-3.5" aria-hidden />
           {formatElapsed(simulationTick * 500)}
         </span>
 
-        <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5" role="group" aria-label="Tốc độ mô phỏng">
+        <div
+          className="flex items-center gap-0.5 rounded-md bg-muted p-0.5"
+          role="group"
+          aria-label="Tốc độ mô phỏng"
+        >
           {SPEEDS.map((value) => (
             <SpeedButton key={value} value={value} current={speed} onPick={onSpeedChange} />
           ))}
@@ -238,7 +262,11 @@ function IconButton({
 function formatElapsed(elapsedMs: number): string {
   const total = Math.max(0, Math.floor(elapsedMs / 1000));
   const seconds = String(total % 60).padStart(2, '0');
-  const minutes = total < 3600 ? String(Math.floor(total / 60)) : String(Math.floor(total / 60) % 60).padStart(2, '0');
-  return total < 3600 ? `${minutes}:${seconds}` : `${Math.floor(total / 3600)}:${minutes}:${seconds}`;
+  const minutes =
+    total < 3600
+      ? String(Math.floor(total / 60))
+      : String(Math.floor(total / 60) % 60).padStart(2, '0');
+  return total < 3600
+    ? `${minutes}:${seconds}`
+    : `${Math.floor(total / 3600)}:${minutes}:${seconds}`;
 }
-

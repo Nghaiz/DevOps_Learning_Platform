@@ -60,7 +60,13 @@ export function MetricsPanel({ view, onClose, className }: MetricsPanelProps): R
           format={percent}
           colorToken="var(--warning)"
         />
-        <MetricsChart title="Số pod" values={pods} max={null} format={count} colorToken="var(--success)" />
+        <MetricsChart
+          title="Số pod"
+          values={pods}
+          max={null}
+          format={count}
+          colorToken="var(--success)"
+        />
 
         <div>
           <h3 className="mb-1 text-xs text-muted-foreground">Theo node</h3>
@@ -68,13 +74,22 @@ export function MetricsPanel({ view, onClose, className }: MetricsPanelProps): R
             {view.nodes.map((node) => (
               <li key={node.name} className="flex items-baseline justify-between gap-2 text-xs">
                 <span className="min-w-0 truncate font-mono">{node.name}</span>
-                <span className={cn('shrink-0 font-mono', node.ready ? 'text-muted-foreground' : 'text-destructive')}>
-                  {node.ready ? `${percent(node.cpuUsed)} · ${percent(node.memoryUsed)}` : 'NotReady'}
+                <span
+                  className={cn(
+                    'shrink-0 font-mono',
+                    node.ready ? 'text-muted-foreground' : 'text-destructive',
+                  )}
+                >
+                  {node.ready
+                    ? `${percent(node.cpuUsed)} · ${percent(node.memoryUsed)}`
+                    : 'NotReady'}
                 </span>
               </li>
             ))}
           </ul>
-          {view.nodes.length === 0 ? <p className="text-xs text-muted-foreground">Cụm chưa có node nào.</p> : null}
+          {view.nodes.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Cụm chưa có node nào.</p>
+          ) : null}
         </div>
 
         <p className="text-[11px] text-muted-foreground">

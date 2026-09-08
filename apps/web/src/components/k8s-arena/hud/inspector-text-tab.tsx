@@ -72,7 +72,11 @@ export function InspectorTextTab({ text, label, copyLabel }: InspectorTextTabPro
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex justify-end">
         <Button type="button" variant="ghost" size="sm" onClick={copy}>
-          {copied ? <Check aria-hidden="true" className="size-4" /> : <Copy aria-hidden="true" className="size-4" />}
+          {copied ? (
+            <Check aria-hidden="true" className="size-4" />
+          ) : (
+            <Copy aria-hidden="true" className="size-4" />
+          )}
           {copied ? 'Đã chép' : copyLabel}
         </Button>
       </div>

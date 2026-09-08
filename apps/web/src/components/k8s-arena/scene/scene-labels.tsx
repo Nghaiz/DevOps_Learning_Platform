@@ -43,7 +43,16 @@ export interface SceneLabelsProps {
 function box(index: number): LabelBox {
   let existing = BOXES[index];
   if (existing === undefined) {
-    existing = { uid: '', text: '', x: 0, y: 0, priority: 0, halfWidth: 0, halfHeight: 0, visible: false };
+    existing = {
+      uid: '',
+      text: '',
+      x: 0,
+      y: 0,
+      priority: 0,
+      halfWidth: 0,
+      halfHeight: 0,
+      visible: false,
+    };
     BOXES[index] = existing;
   }
   return existing;
@@ -98,7 +107,14 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
     const current = propsRef.current;
     let count = 0;
 
-    const push = (uid: string, text: string, x: number, y: number, z: number, base: number): void => {
+    const push = (
+      uid: string,
+      text: string,
+      x: number,
+      y: number,
+      z: number,
+      base: number,
+    ): void => {
       if (count >= MAX_CANDIDATES) {
         return;
       }
@@ -169,8 +185,7 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
         span.textContent = candidate.text;
       }
       span.style.display = 'block';
-      span.style.transform =
-        `translate3d(${candidate.x.toFixed(1)}px, ${candidate.y.toFixed(1)}px, 0) translate(-50%, -50%)`;
+      span.style.transform = `translate3d(${candidate.x.toFixed(1)}px, ${candidate.y.toFixed(1)}px, 0) translate(-50%, -50%)`;
       shown += 1;
     }
     for (let i = shown; i < pool.length; i += 1) {

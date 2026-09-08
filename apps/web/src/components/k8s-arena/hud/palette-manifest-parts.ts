@@ -30,7 +30,12 @@ export function podBody(image: string, port: number | null, restartPolicy: strin
   return `${restart}\n      containers:\n${container(image, port)}`;
 }
 
-export function head(apiVersion: string, kind: ResourceKind, name: string, labelled: boolean): string {
+export function head(
+  apiVersion: string,
+  kind: ResourceKind,
+  name: string,
+  labelled: boolean,
+): string {
   const labels = labelled ? `\n  labels:\n    app: ${name}` : '';
   return `apiVersion: ${apiVersion}\nkind: ${kind}\nmetadata:\n  name: ${name}${labels}`;
 }
@@ -55,7 +60,8 @@ spec:${podBody(WEB_IMAGE, 80, null)}`,
 
   Deployment: (name: string) => workload('Deployment', name, '\n  replicas: 2'),
   ReplicaSet: (name: string) => workload('ReplicaSet', name, '\n  replicas: 2'),
-  StatefulSet: (name: string) => workload('StatefulSet', name, `\n  replicas: 2\n  serviceName: ${name}`),
+  StatefulSet: (name: string) =>
+    workload('StatefulSet', name, `\n  replicas: 2\n  serviceName: ${name}`),
   /* DaemonSet KHÔNG có `replicas` — số bản sao của nó là số node, không phải một con số người ta đặt. */
   DaemonSet: (name: string) => workload('DaemonSet', name, ''),
 
@@ -92,7 +98,9 @@ spec:
             - name: app
               image: ${TOOL_IMAGE}`,
 
-  HorizontalPodAutoscaler: (name: string) => `${head('autoscaling/v2', 'HorizontalPodAutoscaler', name, false)}
+  HorizontalPodAutoscaler: (
+    name: string,
+  ) => `${head('autoscaling/v2', 'HorizontalPodAutoscaler', name, false)}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

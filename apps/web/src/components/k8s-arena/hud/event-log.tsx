@@ -86,14 +86,22 @@ export function EventLog({ events, onClose, className }: EventLogProps): ReactEl
           // bình thường (hai pod hỏng cùng lúc vì cùng một nguyên nhân), và khoá
           // trùng sẽ làm React bỏ qua dòng thứ hai — vùng sống khi đó im lặng
           // đúng lúc có nhiều tin nhất.
-          <li key={`${String(event.tick)}-${String(index)}-${event.message}`} className="flex gap-2 text-xs">
-            <span aria-hidden="true" className="shrink-0 font-mono text-[11px] text-muted-foreground">
+          <li
+            key={`${String(event.tick)}-${String(index)}-${event.message}`}
+            className="flex gap-2 text-xs"
+          >
+            <span
+              aria-hidden="true"
+              className="shrink-0 font-mono text-[11px] text-muted-foreground"
+            >
               t{event.tick}
             </span>
             <span className="sr-only">{EVENT_LEVEL_LABEL[event.level]}:</span>
             {/* `wrap-break-word`: một thông điệp có từ đơn dài hơn cả bảng sẽ đẩy
                 dòng rộng ra và đẻ thanh cuộn ngang — thứ bảng này không được có. */}
-            <span className={cn('min-w-0 wrap-break-word', EVENT_LEVEL_CLASS[event.level])}>{event.message}</span>
+            <span className={cn('min-w-0 wrap-break-word', EVENT_LEVEL_CLASS[event.level])}>
+              {event.message}
+            </span>
           </li>
         ))}
       </ol>

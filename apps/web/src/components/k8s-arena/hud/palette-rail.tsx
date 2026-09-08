@@ -1,6 +1,14 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from 'react';
 import { TooltipProvider, cn } from '@devops-platform/ui';
 import type { ObjectView, ResourceKind } from '@devops-platform/games';
 import type { ArenaDispatch, PaletteEntry } from '../arena-contract.ts';
@@ -27,7 +35,6 @@ export interface PaletteRailProps {
   /** Tick hiện hành. Phiên chơi đóng dấu lại tick lúc nhận, nên giá trị hơi cũ vẫn vô hại. */
   readonly getTick: () => number;
 }
-
 
 interface Pending {
   readonly entry: PaletteEntry;
@@ -96,7 +103,13 @@ export function PaletteRail({
       return undefined;
     }
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target) || isDialogOpen()) {
+      if (
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        isTypingTarget(event.target) ||
+        isDialogOpen()
+      ) {
         return;
       }
       const digit = Number.parseInt(event.key, 10);
@@ -210,5 +223,3 @@ export function PaletteRail({
     </TooltipProvider>
   );
 }
-
-
