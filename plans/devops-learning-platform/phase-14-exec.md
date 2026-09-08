@@ -349,7 +349,7 @@ thái "sắp có", không bấm vào được.
 - [ ] Kubernetes Game: **≥ 30 level**, chaos mode, sandbox, challenges theo scenario, draw, stats, achievements.
 - [ ] Mô phỏng tất định: test khẳng định cùng seed + cùng action ⇒ cùng trạng thái.
 - [ ] **0 lời gọi backend** trong lúc chơi — đo bằng Playwright network trace, không phải bằng đọc code.
-- [ ] `three` **không** có mặt trong bundle của `/`, `/lessons`, `/dashboard` — đo bằng grep trên `.next/static/chunks`, có **đối chứng dương** (khẳng định nó CÓ trong chunk của `/games/k8s`).
+- [ ] `three` **không** có mặt trong bundle của `/`, `/lessons`, `/me` (`/dashboard` 308 về `/me`, xem §13.1) — đo bằng grep trên `.next/static/chunks`, có **đối chứng dương** (khẳng định nó CÓ trong chunk của `/games/k8s`).
 - [ ] Cổng axe xanh trên `/games` và `/games/k8s`; chơi hết được level 1 **chỉ bằng bàn phím**.
 - [ ] Attribution đúng license cho mọi thứ mượn từ k8sgames.
 - [ ] Cổng màu grep thành **script có đối chứng dương**, không còn là lệnh tay trong plan.
@@ -822,3 +822,58 @@ chia ô.
 viết) đo bố cục, tương tác, bảng màu và phím tắt của bản gốc. Đọc nó trước khi
 chốt kích thước và hành vi cụ thể. Ta lấy **cấu trúc**, không lấy mã và không lấy
 bảng màu — thương hiệu ta là ĐỎ, chữ tiếng Việt, và ta có cổng a11y mà họ không có.
+
+---
+
+## 13. Đính chính từ lane đo lường (2026-09-08)
+
+### 13.1 Ô AC gọi tên một route KHÔNG tồn tại
+
+§6 viết `three` phải vắng mặt ở `/`, `/lessons`, `/dashboard`. Đo thật:
+**`/dashboard` trả 308 về `/me`**, nên thứ được quét là bundle của `/me`. Bundle
+của `/dashboard` theo nghĩa đen **không tồn tại**.
+
+Ô AC sửa thành: `/`, `/lessons`, `/me`. Ghi lại chứ không im lặng đổi — một ô AC
+gọi tên route đã chết là ô AC không ai kiểm được, và người đọc sau sẽ tưởng nó
+từng được kiểm.
+
+### 13.2 Grep `.next/static/chunks` KHÔNG trả lời được câu hỏi
+
+Cách sai (và là cách hiển nhiên): grep cả thư mục chunk tìm `THREE.WebGLRenderer`.
+Thư mục đó chứa chunk của **mọi** route, nên nó chỉ trả lời "three có nằm đâu đó
+trong bản build không" — luôn luôn CÓ, kể cả khi mọi thứ đúng.
+
+Cách đúng: mở từng route bằng trình duyệt thật và bắt **những script trình duyệt
+thực sự tải**, rồi tìm marker trong đúng tập đó. Kết quả đo được: marker nằm ở
+đúng một chunk, có mặt trên `/games/k8s` (13 script, 1.76 MB), vắng trên `/`
+(11 script), `/lessons` (12), `/me` (12).
+
+Đây là cùng một họ với bẫy đã ghi ở `green-that-proves-nothing`: nguồn dữ liệu
+**không thể chứa** bằng chứng cần thiết, nên không mẫu regex nào cứu được.
+
+### 13.3 `RENDERER` của WebGL trả về chuỗi vô nghĩa
+
+`gl.getParameter(gl.RENDERER)` trả `"WebKit WebGL"` — một chuỗi chung không mang
+tín hiệu nào. Chuỗi thật nằm ở `WEBGL_debug_renderer_info` (unmasked), và dưới
+Playwright nó là `ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)))`.
+
+Hệ quả cho §9.5: bộ dò bậc chất lượng nào **chỉ** đọc giá trị thường sẽ âm thầm
+chọn bậc **cao** trên một máy không có GPU — đúng chiều sai nguy hiểm nhất, vì nó
+bật bloom và bóng đổ trên phần cứng yếu nhất. Bản hiện tại đọc unmasked và đo ra
+`tier: "low"` đúng; ghi lại để lần sửa sau không rơi ngược vào.
+
+### 13.4 Chạy E2E: `E2E_ORIGIN` phải là `localhost`, không phải `127.0.0.1`
+
+Better Auth từ chối `127.0.0.1` với `INVALID_ORIGIN`, và nó chết ở `globalSetup`
+**trước khi test nào chạy** — nên triệu chứng không trỏ về nguyên nhân. Postgres và
+Redis lấy thẳng từ `docker-compose.yml` của repo; volume đã có schema đã migrate.
+
+### 13.5 Ô gác ở N=0 không đo được gì
+
+Lane đo lường **từ chối** hạ ô "≤ 25 draw call với 200 pod" xuống một N nhỏ hơn khi
+chưa có engine, và đó là quyết định đúng: ở `objects: 0` thì `calls <= 25` **luôn**
+xanh và không gác gì cả. Ô đó ở trạng thái ĐỎ có lý do, không phải xanh giả.
+
+Cùng lý do, ô "0 frame khi cảnh tĩnh" đã đo được (74 → 74 qua 3 giây) nhưng phạm vi
+của nó là **cảnh rỗng đang nghỉ**, không phải cảnh đông pod. Ghi đúng phạm vi thay
+vì ghi "đã đạt".
