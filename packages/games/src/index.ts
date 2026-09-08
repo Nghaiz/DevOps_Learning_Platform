@@ -66,3 +66,14 @@ export {
 } from './core/verify.ts';
 
 export { SCORE_MAX, checkPlausibility, checkSave, checksum, stampSave } from './core/integrity.ts';
+
+// ── Nội dung level ──────────────────────────────────────────────────────────
+/*
+ * Mở export 2026-09-08. Lane đo lường đo được rằng `/games/k8s` không có màn
+ * chọn level và cụm luôn rỗng, vì `page.tsx` render `<K8sGame />` không có
+ * `levels` — mà package cũng chưa export danh sách nào để truyền vào.
+ *
+ * Đây là NỬA của chỗ hổng đó. Nửa còn lại là `createSession`, đang chờ
+ * `k8s/session.ts` của lane B.
+ */
+export { LEVELS } from './k8s/levels/index.ts';
