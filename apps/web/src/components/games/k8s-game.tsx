@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Boxes, Clock, Crosshair, PanelRightClose, ScrollText, X } from 'lucide-react';
 import type { ClusterView, CreateSession, GameAction, K8sSession, Level, ObjectView } from '@devops-platform/games';
+import { LEVELS } from '@devops-platform/games';
 import { Button, cn } from '@devops-platform/ui';
 import { useMinWidth } from '../shell/use-min-width';
 import { CommandBar, ManifestEditor } from './command-bar';
@@ -41,15 +42,33 @@ function SceneBootFrame(): ReactElement {
 /** Dưới ngưỡng này, overlay chồng nhau thành không dùng được (§12.6). */
 const WIDE_LAYOUT_PX = 1024;
 
+/**
+ * ⚠ Mọi prop đều TUỲ CHỌN, và mặc định là dữ liệu THẬT — không phải để tiện, mà
+ * vì route không truyền được chúng.
+ *
+ * `app/games/k8s/page.tsx` là **server component**, và một hàm không serialize
+ * được qua ranh giới server→client: truyền `createSession` xuống dưới dạng prop
+ * sẽ ném lúc chạy, không phải lúc biên dịch. Nên vỏ game tự import lấy, còn
+ * route giữ đúng vai một lớp mỏng chỉ sở hữu `metadata`.
+ *
+ * Prop vẫn còn để TEST tiêm được bản giả (`k8s-game.dom.test.tsx` dựng một
+ * `K8sSession` ghi lại action) — đó là lý do duy nhất chúng tồn tại.
+ */
 export interface K8sGameProps {
+  /** Mặc định: `LEVELS` thật từ `@devops-platform/games`. */
   readonly levels?: readonly Level[];
   readonly initialLevelId?: string;
   /**
-   * Hàm dựng phiên chơi, do lane B hiện thực. Vắng mặt ⇒ chưa có engine.
+   * Hàm dựng phiên chơi, do lane B hiện thực.
    *
-   * Là PROP chứ không import thẳng từ barrel: lane E phải chạy và test được độc
-   * lập với tiến độ lane B, và một import cứng vào thứ chưa tồn tại làm đỏ
-   * typecheck của cả `apps/web`, tức chặn năm lane còn lại.
+   * ⏳ CHƯA có mặc định vì `createSession` **chưa được export** khỏi barrel
+   * `@devops-platform/games` (đo 2026-09-08: barrel chỉ mới có `LEVELS`, và
+   * chính nó ghi "nửa còn lại đang chờ"). Import một thứ chưa tồn tại làm đỏ
+   * typecheck của cả `apps/web` và chặn năm lane còn lại — cái giá đó lớn hơn
+   * hẳn việc chờ một dòng export.
+   *
+   * Khi barrel mở export, đổi ĐÚNG MỘT chỗ: thêm `createSession` vào import ở
+   * đầu file và đặt nó làm giá trị mặc định của tham số này.
    */
   readonly createSession?: CreateSession;
   readonly seed?: number;
@@ -81,7 +100,7 @@ const DEFAULT_SEED = 1;
  * Overlay là DOM thật, nổi TRÊN canvas chứ không vẽ vào canvas. Canvas vẫn
  * `aria-hidden` và không nhận focus; mọi thao tác vẫn làm xong được bằng bàn phím.
  */
-export function K8sGame({ levels = [], initialLevelId, createSession, seed = DEFAULT_SEED }: K8sGameProps): ReactElement {
+export function K8sGame({ levels = LEVELS, initialLevelId, createSession, seed = DEFAULT_SEED }: K8sGameProps): ReactElement {
   const [levelId, setLevelId] = useState<string | null>(initialLevelId ?? levels[0]?.id ?? null);
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [session, setSession] = useState<K8sSession | null>(null);
