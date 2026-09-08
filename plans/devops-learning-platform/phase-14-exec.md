@@ -988,6 +988,18 @@ Lane đo lường xử lý đúng: ghim bậc vừa qua `localStorage` trước 
 động, rồi khẳng định **cả** `tier === 'medium'` **lẫn** `triangles > objects` —
 nên nếu số đọc rơi vào một fullscreen pass thì nó ĐỎ, không phải xanh.
 
+**Cùng một gốc, triệu chứng thứ hai: `renderer.info.render.frame`.** Ở bậc cao
+nó đếm **mọi pass của composer**, nên MỘT lần vẽ lại logic làm nó tăng khoảng
+**15** (RenderPass + chuỗi blur của UnrealBloomPass + OutputPass). Một phép đo
+"15 khung trong 6 giây" đọc ra như "sửa được một nửa" trong khi thực tế là **một**
+lần vẽ. Cả ô draw call lẫn ô khung-hình-tĩnh đều phải đọc ở **bậc vừa**, nơi
+không có composer và bộ đếm là 1:1.
+
+**Và một bẫy đọc số thứ ba: lấy MỘT hiệu số đầu-cuối.** Một lượt đo ra 58 khung
+ở bậc vừa hoá ra là đuôi giảm chấn của camera sau khi đổi bậc dựng lại cảnh,
+không phải rò rỉ. Lấy mẫu **theo từng giây** phân biệt được hai thứ đó; một hiệu
+số đầu-cuối duy nhất sẽ đọc ra thành thất bại.
+
 ### 15.5 Cây `.next` dùng chung — nguy hiểm cho mọi lượt đo
 
 Một lane build lại `.next` giữa lúc suite E2E đang chạy. Chunk biến mất giữa
