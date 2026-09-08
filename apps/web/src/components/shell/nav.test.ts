@@ -7,14 +7,39 @@ import { PRIMARY_NAV, isActiveNav, normalizeRole, userMenuItems } from './nav';
  * thầm làm lệch điều hướng khỏi tài liệu.
  */
 describe('PRIMARY_NAV — C6 verbatim', () => {
-  it('đúng sáu mục, đúng thứ tự, đúng nhãn', () => {
+  it('đúng bảy mục, đúng thứ tự, đúng nhãn', () => {
     expect(PRIMARY_NAV).toEqual([
       { href: '/lessons', label: 'Bài học' },
       { href: '/labs', label: 'Lab' },
       { href: '/playgrounds', label: 'Playground' },
       { href: '/paths', label: 'Lộ trình' },
       { href: '/quiz', label: 'Quiz' },
+      { href: '/games', label: 'Games' },
       { href: '/me', label: 'Của tôi' },
+    ]);
+  });
+
+  /**
+   * `/me` phải ở CUỐI, và đây là khẳng định riêng chứ không phải một hệ quả
+   * đọc ra từ ô `toEqual` bên trên. Ô đó ghim cả bảy cặp nên nó đỏ với BẤT KỲ
+   * thay đổi nào; ai thêm mục thứ tám sẽ cập nhật nó bằng cách dán mục mới vào
+   * chỗ nào đó rồi chạy lại cho xanh. Ô này nói ra cái luật: sáu mục đầu là kho
+   * nội dung, mục cuối là chỗ của riêng người dùng.
+   */
+  it('mục cá nhân đứng cuối, sau mọi mục kho nội dung', () => {
+    expect(PRIMARY_NAV.at(-1)).toEqual({ href: '/me', label: 'Của tôi' });
+  });
+
+  /**
+   * `/games` là trụ cột ③ (P14) và nó KHÔNG được gác đăng nhập — hợp đồng
+   * `phase-14-exec.md` §4.2. Phép kiểm thật nằm ở `proxy.test.ts` (nó sở hữu
+   * `matchesProtected`); ở đây chỉ ghim rằng đường trong bảng nav đúng bằng
+   * đường mà route dựng ra, để một lần đổi `/games` → `/game` không âm thầm cho
+   * ra một mục điều hướng 404.
+   */
+  it('có mục /games trỏ đúng route đã dựng', () => {
+    expect(PRIMARY_NAV.filter((item) => item.href === '/games')).toEqual([
+      { href: '/games', label: 'Games' },
     ]);
   });
 

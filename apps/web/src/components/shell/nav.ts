@@ -23,8 +23,21 @@ export interface NavItem {
 
 /**
  * Điều hướng chính — **thứ tự và nhãn khớp C6 từng chữ**. Đổi ở đây là đổi hợp
- * đồng: `nav.test.ts` khẳng định lại đúng sáu cặp (href, label) này, nên một
+ * đồng: `nav.test.ts` khẳng định lại đúng bảy cặp (href, label) này, nên một
  * lần "sửa nhãn cho gọn" sẽ đỏ ở test chứ không trôi vào production.
+ *
+ * `/games` thêm ở P14 (hợp đồng C4, `phase-14-exec.md` §4.2) và đứng TRƯỚC
+ * `/me`: sáu mục đầu là kho nội dung, `/me` là chỗ của riêng người dùng và phải
+ * ở cuối. Nhãn giữ nguyên chữ "Games" theo đúng hợp đồng — thuật ngữ ở lại
+ * tiếng Anh như `Lab`, `Playground`, `Quiz` bên cạnh.
+ *
+ * ⚠ Thêm một mục ở đây là sửa BA file cùng lúc: `nav-icons.ts` (thiếu icon thì
+ * `nav-icons.test.ts` đỏ) và `nav.test.ts` (`toEqual` ghim từng chữ). Đó là
+ * thiết kế — hai phép kiểm đó tồn tại để không ai thêm được một mục nửa vời.
+ *
+ * ⛔ Thêm mục ở đây KHÔNG tự động gác đăng nhập cho đường đó. Cổng là
+ * `PROTECTED_PATHS` trong `proxy.ts`, và `/games` cố ý KHÔNG có trong đó: game
+ * chạy hoàn toàn ở trình duyệt, tiến độ ở `localStorage`.
  */
 export const PRIMARY_NAV: readonly NavItem[] = [
   { href: '/lessons', label: 'Bài học' },
@@ -32,6 +45,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
   { href: '/playgrounds', label: 'Playground' },
   { href: '/paths', label: 'Lộ trình' },
   { href: '/quiz', label: 'Quiz' },
+  { href: '/games', label: 'Games' },
   { href: '/me', label: 'Của tôi' },
 ];
 
