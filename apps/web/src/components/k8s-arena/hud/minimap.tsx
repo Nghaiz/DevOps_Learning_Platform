@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type KeyboardEvent, type ReactElement }
 import { ChevronDown, Map as MapIcon } from 'lucide-react';
 import type { ClusterView, ObjectView } from '@devops-platform/games';
 import { cn } from '@devops-platform/ui';
+import { HIDDEN_SCROLL } from './inspector-frame.tsx';
 
 /** Bao nhiêu chấm pod vẽ trước khi gộp phần dư thành `+n`. */
 const MAX_DOTS = 12;
@@ -106,7 +107,9 @@ export function Minimap({ view, onSelectNode, className }: MinimapProps): ReactE
       </button>
 
       {collapsed ? null : (
-        <div className="flex flex-col gap-1.5 border-t border-border p-2">
+        // Cụm nhiều node thì bản đồ vẫn phải nằm gọn trong màn hình; cuộn được
+        // nhưng không có thanh trượt nào hiện ra.
+        <div className={cn('flex max-h-[45vh] flex-col gap-1.5 border-t border-border p-2', HIDDEN_SCROLL)}>
           {view.nodes.map((node) => (
             <button
               key={node.name}

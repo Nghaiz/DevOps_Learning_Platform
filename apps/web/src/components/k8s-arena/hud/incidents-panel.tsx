@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import type { ObjectView } from '@devops-platform/games';
 import { Badge, cn } from '@devops-platform/ui';
-import { PanelFrame } from './inspector-frame.tsx';
+import { HIDDEN_SCROLL, PanelFrame } from './inspector-frame.tsx';
 import { INCIDENT_LABEL } from './incidents-labels.ts';
 import { objectLabel, type IncidentView } from './inspector-types.ts';
 
@@ -96,7 +96,7 @@ export function IncidentsPanel({
         </div>
       }
     >
-      <ul className="flex max-h-72 min-h-0 flex-col divide-y divide-border overflow-y-auto">
+      <ul className={cn('flex max-h-72 min-h-0 flex-col divide-y divide-border', HIDDEN_SCROLL)}>
         {shown.map((incident) => {
           const target = byUid.get(incident.targetUid) ?? null;
           const active = incident.resolvedTick === null;

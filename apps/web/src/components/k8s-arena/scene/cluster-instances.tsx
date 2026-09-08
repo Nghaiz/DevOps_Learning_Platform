@@ -140,7 +140,28 @@ export function ClusterInstances({ runtime, colors, tier, bodyRef }: ClusterInst
       TMP_SCALE.setScalar(entry.drawScale);
       TMP_MATRIX.compose(TMP_POS, IDENTITY_QUAT, TMP_SCALE);
       body.setMatrixAt(i, TMP_MATRIX);
-      body.setColorAt(i, colors.body[entry.token]);
+      /*
+       * Thân mang màu LOẠI, không phải màu trạng thái: trong một cụm khoẻ mạnh
+       * thì MỌI vật đều `success`, nên tô thân theo trạng thái cho ra một rừng
+       * khối xanh lá giống hệt nhau và không phân biệt nổi Service với Pod. Màu
+       * loại lấy chung nguồn với bảng công cụ nên một khái niệm chỉ có một màu.
+       *
+       * Trạng thái không mất đi — nó ra quầng sáng và viền, và với vật đang hỏng
+       * thì thân còn pha mạnh về phía màu trạng thái, để pod lỗi vẫn đọc ra ở
+       * bậc thấp nơi quầng sáng bị tắt.
+       */
+      const accent = colors.kind[entry.accent];
+      if (accent === undefined) {
+        TMP_COLOR.copy(colors.body[entry.token]);
+      } else {
+        TMP_COLOR.copy(accent);
+        if (entry.failing) {
+          TMP_COLOR.lerp(colors.glow[entry.token], 0.55);
+        } else if (entry.terminating) {
+          TMP_COLOR.lerp(colors.platform, 0.5);
+        }
+      }
+      body.setColorAt(i, TMP_COLOR);
 
       TMP_SCALE.setScalar(entry.drawScale * GLOW_SCALE);
       TMP_MATRIX.compose(TMP_POS, IDENTITY_QUAT, TMP_SCALE);

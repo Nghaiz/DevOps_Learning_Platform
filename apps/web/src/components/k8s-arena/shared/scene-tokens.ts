@@ -48,6 +48,20 @@ export const SCENE_TOKEN_VARS = {
   'muted-foreground': '--muted-foreground',
   foreground: '--foreground',
   primary: '--primary',
+  /*
+   * Màu theo LOẠI tài nguyên. Cùng nguồn với bảng công cụ bên trái, cố ý: nếu
+   * Pod xanh dương ở bảng mà xanh lá trong cảnh thì người chơi phải học hai hệ
+   * màu cho một khái niệm. `KIND_ACCENT` trong hợp đồng ánh xạ 26 `ResourceKind`
+   * về đúng tám tên này.
+   */
+  'kind-pod': '--kind-pod',
+  'kind-controller': '--kind-controller',
+  'kind-batch': '--kind-batch',
+  'kind-network': '--kind-network',
+  'kind-config': '--kind-config',
+  'kind-storage': '--kind-storage',
+  'kind-security': '--kind-security',
+  'kind-cluster': '--kind-cluster',
 } as const satisfies Record<StatusToken, string> & Record<string, string>;
 
 export type SceneTokenName = keyof typeof SCENE_TOKEN_VARS;

@@ -3,7 +3,7 @@
 import { useEffect, useRef, type ReactElement } from 'react';
 import type { EventView } from '@devops-platform/games';
 import { cn } from '@devops-platform/ui';
-import { PanelFrame } from './inspector-frame.tsx';
+import { HIDDEN_SCROLL, PanelFrame } from './inspector-frame.tsx';
 import { EVENT_LEVEL_CLASS, EVENT_LEVEL_LABEL } from './inspector-types.ts';
 
 /** Bao nhiêu dòng gần nhất còn giữ. Nhật ký dài vô hạn là một rò rỉ bộ nhớ chậm. */
@@ -80,7 +80,11 @@ export function EventLog({ events, onClose, className }: EventLogProps): ReactEl
         aria-live="polite"
         aria-relevant="additions text"
         aria-label="Nhật ký sự kiện của cụm"
-        className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className={cn(
+          'flex min-h-0 flex-1 flex-col gap-1 px-3 py-2',
+          'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+          HIDDEN_SCROLL,
+        )}
       >
         {recent.map((event, index) => (
           // Khoá gồm cả chỉ số: hai sự kiện cùng tick với cùng nội dung là chuyện
@@ -92,7 +96,9 @@ export function EventLog({ events, onClose, className }: EventLogProps): ReactEl
               t{event.tick}
             </span>
             <span className="sr-only">{EVENT_LEVEL_LABEL[event.level]}:</span>
-            <span className={cn('min-w-0', EVENT_LEVEL_CLASS[event.level])}>{event.message}</span>
+            {/* `wrap-break-word`: một thông điệp có từ đơn dài hơn cả bảng sẽ đẩy
+                dòng rộng ra và đẻ thanh cuộn ngang — thứ bảng này không được có. */}
+            <span className={cn('min-w-0 wrap-break-word', EVENT_LEVEL_CLASS[event.level])}>{event.message}</span>
           </li>
         ))}
       </ol>

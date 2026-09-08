@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import type { ClusterView } from '@devops-platform/games';
 import { cn } from '@devops-platform/ui';
+import { HIDDEN_SCROLL } from './inspector-frame.tsx';
 import { PanelFrame } from './inspector-frame.tsx';
 import { MetricsChart } from './metrics-chart.tsx';
 import { pushSample, sampleFrom, type MetricSample } from './metrics-history.ts';
@@ -44,7 +45,7 @@ export function MetricsPanel({ view, onClose, className }: MetricsPanelProps): R
       onClose={onClose}
       className={cn('absolute bottom-3 left-3 z-20 w-72 max-w-[calc(100%-1.5rem)]', className)}
     >
-      <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-3 py-3">
+      <div className={cn('flex min-h-0 flex-col gap-3 px-3 py-3', HIDDEN_SCROLL)}>
         <MetricsChart
           title="CPU trung bình"
           values={cpu}

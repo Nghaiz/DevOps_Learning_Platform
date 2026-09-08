@@ -32,6 +32,10 @@ export interface ArenaColors {
   readonly hover: THREE.Color;
   readonly body: Readonly<Record<StatusToken, THREE.Color>>;
   readonly glow: Readonly<Record<StatusToken, THREE.Color>>;
+  /** Thân theo LOẠI. Khoá là token của `KIND_ACCENT`; thiếu khoá thì bên gọi tự lo dự phòng. */
+  readonly kind: Record<string, THREE.Color>;
+  readonly gridCell: THREE.Color;
+  readonly gridSection: THREE.Color;
 }
 
 const STATUS_TOKENS: readonly StatusToken[] = [
@@ -63,6 +67,9 @@ export function createArenaColors(): ArenaColors {
     hover: new THREE.Color(),
     body: emptyStatusColors(),
     glow: emptyStatusColors(),
+    kind: {},
+    gridCell: new THREE.Color(),
+    gridSection: new THREE.Color(),
   };
 }
 
@@ -89,6 +96,17 @@ export function applyArenaPalette(target: ArenaColors, palette: ArenaPalette): v
     writeColor(target.body[token], palette.body[token]);
     writeColor(target.glow[token], palette.glow[token]);
   }
+  writeColor(target.gridCell, palette.gridCell);
+  writeColor(target.gridSection, palette.gridSection);
+  for (const [token, rgb] of Object.entries(palette.kind)) {
+    // Dựng một lần rồi sửa tại chỗ: vật liệu giữ tham chiếu tới chính các `Color`
+    // này, nên đổi theme không được phép tạo thể hiện mới.
+    const existing = target.kind[token];
+    if (existing === undefined) {
+      target.kind[token] = new THREE.Color();
+    }
+    writeColor(target.kind[token] as THREE.Color, rgb);
+  }
 }
 
 export interface ArenaColorsHandle {
@@ -104,7 +122,10 @@ export interface ArenaColorsHandle {
  * lớp `.dark` cũng bị đổi bởi script khởi tạo sớm và bởi đường "theo hệ thống",
  * hai đường mà context React không đi qua.
  */
-export function useArenaColors(probeRef: RefObject<HTMLElement | null>): ArenaColorsHandle {
+export function useArenaColors(
+  probeRef: RefObject<HTMLElement | null>,
+  onDegraded: (reason: string) => void,
+): ArenaColorsHandle {
   const colorsRef = useRef<ArenaColors | null>(null);
   colorsRef.current ??= createArenaColors();
   const [version, setVersion] = useState(0);
@@ -132,16 +153,16 @@ export function useArenaColors(probeRef: RefObject<HTMLElement | null>): ArenaCo
     }
     applyArenaPalette(colors, deriveArenaPalette(source));
     if (degraded && !degradedRef.current) {
+      // Báo MỘT lần: đọc lại màu chạy mỗi lần đổi theme, và một cảnh báo lặp lại
+      // mỗi lần bật/tắt chế độ tối là tiếng ồn, không phải thông tin.
       degradedRef.current = true;
-      /*
-       * Nói ra thay vì nuốt. Hợp đồng chưa có callback cho việc này (đã báo
-       * lead), nên `console.warn` là kênh duy nhất còn lại — và một fallback im
-       * lặng ở đây sẽ để người dùng ngồi đoán tại sao cả cảnh màu xám.
-       */
-      console.warn('[arena-scene] không đọc được màu từ design token, đang dùng màu xám dự phòng');
+      onDegraded(
+        'Không đọc được màu từ design token — cảnh 3D đang dùng màu xám dự phòng. ' +
+          'Thường là do trình duyệt chặn canvas 2D, thứ dùng để phân giải oklch().',
+      );
     }
     setVersion((n) => n + 1);
-  }, [probeRef]);
+  }, [probeRef, onDegraded]);
 
   useEffect(() => {
     read();

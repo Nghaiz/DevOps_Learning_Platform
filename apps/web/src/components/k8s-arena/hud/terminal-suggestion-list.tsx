@@ -3,6 +3,7 @@
 import type { ReactElement } from 'react';
 import { cn } from '@devops-platform/ui';
 import type { Suggestion } from './terminal-suggest-vocab.ts';
+import { HUD_SCROLL_HIDDEN } from './top-bar.tsx';
 
 export interface TerminalSuggestionListProps {
   readonly suggestions: readonly Suggestion[];
@@ -31,7 +32,7 @@ export function TerminalSuggestionList({
   }
   const index = Math.min(highlight, suggestions.length - 1);
   return (
-    <ul className="max-h-40 overflow-y-auto border-t border-border bg-muted px-1 py-1">
+    <ul className={cn('max-h-40 overflow-y-auto border-t border-border bg-muted px-1 py-1', HUD_SCROLL_HIDDEN)}>
       {suggestions.map((item, position) => (
         <li
           key={item.value}

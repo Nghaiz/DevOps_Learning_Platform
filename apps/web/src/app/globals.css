@@ -157,6 +157,14 @@
   --difficulty-advanced-foreground: oklch(0.985 0 0);
   --difficulty-expert: oklch(0.5 0.19 18);
   --difficulty-expert-foreground: oklch(0.985 0 0);
+  --kind-pod: oklch(0.55 0.17 250);
+  --kind-controller: oklch(0.56 0.16 295);
+  --kind-batch: oklch(0.56 0.15 330);
+  --kind-network: oklch(0.55 0.14 195);
+  --kind-config: oklch(0.56 0.14 85);
+  --kind-storage: oklch(0.55 0.13 55);
+  --kind-security: oklch(0.54 0.15 20);
+  --kind-cluster: oklch(0.55 0.08 160);
 
   /*
    * ── Trạng thái học ────────────────────────────────────────────────────────
@@ -348,6 +356,14 @@
   --difficulty-advanced-foreground: oklch(0.145 0 0);
   --difficulty-expert: oklch(0.7 0.16 18);
   --difficulty-expert-foreground: oklch(0.145 0 0);
+  --kind-pod: oklch(0.72 0.16 250);
+  --kind-controller: oklch(0.73 0.15 295);
+  --kind-batch: oklch(0.73 0.14 330);
+  --kind-network: oklch(0.74 0.13 195);
+  --kind-config: oklch(0.76 0.13 85);
+  --kind-storage: oklch(0.74 0.12 55);
+  --kind-security: oklch(0.71 0.14 20);
+  --kind-cluster: oklch(0.72 0.07 160);
 
   --status-progress: oklch(0.7 0.145 262.881);
   --status-progress-foreground: oklch(0.145 0 0);
@@ -421,6 +437,14 @@
   --color-difficulty-advanced-foreground: var(--difficulty-advanced-foreground);
   --color-difficulty-expert: var(--difficulty-expert);
   --color-difficulty-expert-foreground: var(--difficulty-expert-foreground);
+  --color-kind-pod: var(--kind-pod);
+  --color-kind-controller: var(--kind-controller);
+  --color-kind-batch: var(--kind-batch);
+  --color-kind-network: var(--kind-network);
+  --color-kind-config: var(--kind-config);
+  --color-kind-storage: var(--kind-storage);
+  --color-kind-security: var(--kind-security);
+  --color-kind-cluster: var(--kind-cluster);
   --color-status-progress: var(--status-progress);
   --color-status-progress-foreground: var(--status-progress-foreground);
   --color-status-done: var(--status-done);

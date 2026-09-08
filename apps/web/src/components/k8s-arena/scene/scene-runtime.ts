@@ -16,6 +16,7 @@
  */
 
 import type { ClusterView } from '@devops-platform/games';
+import { KIND_ACCENT } from '../arena-contract';
 import { computeLayout } from '../shared/scene-layout';
 import { phaseFromId } from '../shared/scene-motion';
 import type { EdgeBuffers, FrameOptions, NodeEntry, SceneEntry, SceneRuntime } from './scene-entry';
@@ -61,6 +62,7 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
           entry = {
             uid: placement.uid,
             kind: object.kind,
+            accent: KIND_ACCENT[object.kind],
             label: '',
             x: 0,
             y: 0,

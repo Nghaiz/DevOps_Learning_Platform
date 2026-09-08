@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState, type ComponentRef, type ReactElement, type RefObject } from 'react';
+import { useEffect, useRef, type ComponentRef, type ReactElement, type RefObject } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
+import { PLATFORM_HEIGHT } from '../shared/scene-layout';
 import { CAMERA_TUNING, type ArenaSceneProps } from '../arena-contract';
 import type { SceneRuntime } from './scene-entry';
 
@@ -38,6 +39,14 @@ export interface CameraRigProps {
  * Lệnh camera là SỰ KIỆN có dấu thời gian, không phải trạng thái: bấm "về góc
  * nhìn" hai lần liên tiếp phải bay hai lần, mà hai prop trạng thái giống hệt
  * nhau thì lần thứ hai rơi vào hư không.
+ *
+ * ⛔ KHÔNG có xoay tự động khi nhàn rỗi. Hợp đồng từng có `idleSpinAfterMs` và
+ * đã gỡ hẳn ngày 2026-09-08 sau khi đo: sau 30 giây nó vẽ liên tục ~14 fps và
+ * KHÔNG BAO GIỜ tự dừng — kể cả khi mô phỏng đã tạm dừng (tick đứng ở 0 mà vẫn
+ * 41–45 khung mỗi 3 giây). Ba cái giá phải trả: quạt máy chạy mãi cho một cảnh
+ * không ai đang xem; mọi cổng đo hiệu năng chỉ còn đúng trong 30 giây đầu; và
+ * camera tự trôi trong lúc người ta đang đọc bảng thông số thì phiền chứ không
+ * sinh động. Đừng thêm lại.
  */
 export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps): ReactElement {
   const camera = useThree((s) => s.camera);
@@ -47,11 +56,17 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
   const handledRef = useRef<number>(-1);
   /** Đã đóng khung lần đầu chưa. Cụm chưa đồng bộ thì `radius` còn là giá trị khởi tạo. */
   const framedRef = useRef(false);
-  const [spinning, setSpinning] = useState(false);
 
-  /** Khoảng cách đủ ôm trọn cụm mà vẫn chừa lề. Sàn cần cho cụm chỉ có một node. */
+  /** Khoảng cách đủ ôm trọn cụm mà vẫn chừa lề. Mọi hệ số lấy từ hợp đồng. */
   function frameDistance(): number {
-    return Math.max(8, runtime.radius * 1.35);
+    return Math.max(CAMERA_TUNING.minFrameDistance, runtime.radius * CAMERA_TUNING.frameFillFactor);
+  }
+
+  /** Ghi `GOAL_*` cho một điểm ngắm, giữ nguyên hướng nhìn hiện tại. */
+  function aimAt(x: number, y: number, z: number, distance: number): void {
+    GOAL_TARGET.set(x, y, z);
+    TMP_DIR.copy(camera.position).sub(GOAL_TARGET).normalize();
+    GOAL_POSITION.copy(GOAL_TARGET).addScaledVector(TMP_DIR, distance);
   }
 
   /** Bắt đầu bay tới mục tiêu đã ghi vào `GOAL_*`, hoặc nhảy thẳng nếu người dùng tắt chuyển động. */
@@ -76,21 +91,28 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
     const distance = frameDistance();
     if (command.kind === 'reset') {
       GOAL_TARGET.set(0, 0, 0);
-      GOAL_POSITION.set(0, distance * 0.46, distance);
+      GOAL_POSITION.set(0, distance * CAMERA_TUNING.frameHeightFactor, distance);
     } else if (command.kind === 'frame-all') {
-      GOAL_TARGET.set(0, 0, 0);
       // Giữ nguyên hướng nhìn hiện tại: người dùng vừa chọn một góc, "đóng khung
       // tất cả" không có lý do gì để cướp lại góc đó — nó chỉ cần lùi ra đủ xa.
-      TMP_DIR.copy(camera.position).sub(GOAL_TARGET).normalize();
-      GOAL_POSITION.copy(GOAL_TARGET).addScaledVector(TMP_DIR, distance);
+      aimAt(0, 0, 0, distance);
+    } else if (command.nodeName !== undefined) {
+      /*
+       * Bay tới một NODE. Nhánh riêng vì node không mang uid — hợp đồng tách
+       * `nodeName` khỏi `uid` đúng để chỗ này không phải đoán xem chuỗi đang
+       * cầm là loại nào, và đoán sai thì camera bay vào hư không mà không báo gì.
+       */
+      const node = runtime.nodes.find((n) => n.name === command.nodeName);
+      if (node === undefined) {
+        return;
+      }
+      aimAt(node.x, PLATFORM_HEIGHT / 2, 0, CAMERA_TUNING.focusDistance);
     } else {
       const entry = command.uid === undefined ? undefined : runtime.entries.get(command.uid);
       if (entry === undefined) {
         return;
       }
-      GOAL_TARGET.set(entry.x, entry.drawY, entry.z);
-      TMP_DIR.copy(camera.position).sub(GOAL_TARGET).normalize();
-      GOAL_POSITION.copy(GOAL_TARGET).addScaledVector(TMP_DIR, Math.max(CAMERA_TUNING.minDistance + 1, 7));
+      aimAt(entry.x, entry.drawY, entry.z, Math.max(CAMERA_TUNING.minDistance + 1, CAMERA_TUNING.focusDistance));
     }
 
     framedRef.current = true;
@@ -98,56 +120,33 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
     invalidate();
   });
 
-  // ── Xoay nhàn rỗi ─────────────────────────────────────────────────────────
-  // Hẹn giờ chứ không đếm trong vòng lặp vẽ: khi cảnh đứng yên thì KHÔNG có
-  // khung hình nào chạy, nên một bộ đếm trong `useFrame` sẽ không bao giờ tới
-  // ngưỡng — đúng lúc cần nó nhất.
+  /*
+   * Bộ điều khiển cần biết khi người dùng bắt đầu thao tác, để huỷ cú bay đang
+   * dở — nếu không, camera vừa bị kéo tay vừa bị lệnh bay kéo ngược lại.
+   */
   useEffect(() => {
-    if (reducedMotion) {
-      return;
-    }
     const controls = controlsRef.current;
     if (controls === null) {
       return;
     }
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const arm = (): void => {
-      window.clearTimeout(timer);
-      setSpinning(false);
-      timer = setTimeout(() => {
-        if (document.visibilityState === 'visible') {
-          setSpinning(true);
-          invalidate();
-        }
-      }, CAMERA_TUNING.idleSpinAfterMs);
-    };
     const stop = (): void => {
       flyingRef.current = false;
-      arm();
     };
     controls.addEventListener('start', stop);
-    document.addEventListener('visibilitychange', arm);
-    arm();
-    return () => {
-      window.clearTimeout(timer);
-      controls.removeEventListener('start', stop);
-      document.removeEventListener('visibilitychange', arm);
-    };
-  }, [invalidate, reducedMotion]);
+    return () => controls.removeEventListener('start', stop);
+  }, []);
 
   useFrame((_state, dt) => {
     /*
-     * Đóng khung lần đầu ngay khi cụm có hình dạng thật.
-     *
-     * Không làm trong effect lúc mount: lúc đó `radius` còn là giá trị khởi tạo
-     * vì chưa có lần `sync()` nào, nên camera sẽ đóng khung một cụm rỗng rồi
-     * đứng yên ở đó — người chơi vào bài và thấy một khung hình lệch.
+     * Đóng khung lần đầu ngay khi cụm có hình dạng thật — không làm lúc mount,
+     * vì khi đó chưa có lần `sync()` nào nên `radius` còn là giá trị khởi tạo và
+     * camera sẽ đóng khung một cụm rỗng rồi đứng yên ở đó.
      */
     if (!framedRef.current && runtime.structureVersion > 0) {
       framedRef.current = true;
       const distance = frameDistance();
       GOAL_TARGET.set(0, 0, 0);
-      GOAL_POSITION.set(0, distance * 0.46, distance);
+      GOAL_POSITION.set(0, distance * CAMERA_TUNING.frameHeightFactor, distance);
       departure();
     }
     if (!flyingRef.current) {
@@ -175,8 +174,6 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
       maxPolarAngle={CAMERA_TUNING.maxPolarAngle}
       minDistance={CAMERA_TUNING.minDistance}
       maxDistance={CAMERA_TUNING.maxDistance}
-      autoRotate={spinning}
-      autoRotateSpeed={CAMERA_TUNING.idleSpinSpeed}
       mouseButtons={{
         LEFT: THREE.MOUSE.ROTATE,
         MIDDLE: THREE.MOUSE.DOLLY,

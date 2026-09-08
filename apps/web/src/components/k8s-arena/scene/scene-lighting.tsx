@@ -17,8 +17,10 @@ export interface SceneLightingProps {
   readonly tier: QualityTier;
 }
 
-/** Bán kính đổi ít hơn ngần này thì không đáng dựng lại sương mù và khung bóng. */
+/** Bán kính đổi ít hơn ngần này thì không đáng dựng lại khung bóng. */
 const RADIUS_EPSILON = 0.5;
+/** Khoảng cách camera đổi ít hơn ngần này thì không đáng dựng lại sương mù. */
+const DISTANCE_EPSILON = 0.25;
 
 /**
  * Ánh sáng, môi trường, nền và sương mù.
@@ -43,6 +45,7 @@ export function SceneLighting({ runtime, colors, colorsVersion, tier }: SceneLig
   const camera = useThree((s) => s.camera);
   const keyRef = useRef<THREE.DirectionalLight>(null);
   const appliedRadius = useRef(Number.NaN);
+  const appliedDistance = useRef(Number.NaN);
   const hemiRef = useRef<THREE.HemisphereLight>(null);
   const fog = useMemo(() => new THREE.Fog(new THREE.Color(), 1, 2), []);
 
@@ -92,13 +95,42 @@ export function SceneLighting({ runtime, colors, colorsVersion, tier }: SceneLig
   }, [scene, gl, features.environment]);
 
   useFrame(() => {
+    /*
+     * Sương mù bám theo KHOẢNG CÁCH CAMERA, không chỉ theo bán kính cụm.
+     *
+     * ⚠ Bản đầu đặt `far = radius * 5.5` và chỉ tính lại khi cụm đổi hình dạng.
+     * Với một cụm nhỏ (`radius` 3.2) thì `far` ≈ 17.6, trong khi hợp đồng cho
+     * phép lăn chuột ra tới `maxDistance` 80 — nên phóng xa vài nấc là TOÀN BỘ
+     * cảnh chìm hết vào màu nền và người chơi nhìn thấy một khung hình trống.
+     * Đo trực tiếp 2026-09-08: lăn ra xa thì chỉ còn lại mấy cái nhãn DOM trôi
+     * trên nền đen, phóng lại gần thì cảnh hiện lại nguyên vẹn.
+     *
+     * Neo vào khoảng cách camera thì sương giữ đúng vai trò của nó — làm vật ở
+     * xa tan dần — ở mọi mức phóng, thay vì trở thành một cái công tắc tắt cảnh.
+     */
+    const distance = camera.position.length();
+    /*
+     * ⚠ Viết ở dạng PHỦ ĐỊNH của "chưa đổi đủ nhiều", không phải dạng khẳng định
+     * "đã đổi đủ nhiều". Giá trị khởi tạo là `NaN`, mà `Math.abs(x - NaN) >= eps`
+     * cho `false` — nên bản khẳng định KHÔNG BAO GIỜ chạy lần đầu, `appliedDistance`
+     * ở lại `NaN` vĩnh viễn, và sương mù giữ nguyên `near`/`far` của hàm dựng
+     * (1 và 2). Kết quả là mọi thứ xa hơn 2 đơn vị chìm hết vào màu nền: cả cảnh
+     * đen kịt, chỉ còn nhãn DOM trôi trên đó. Đã đo và đã thấy đúng như vậy
+     * 2026-09-08. Dạng phủ định thì `NaN < eps` là `false`, phủ định thành `true`,
+     * nên lần đầu luôn chạy.
+     */
+    if (!(Math.abs(distance - appliedDistance.current) < DISTANCE_EPSILON)) {
+      appliedDistance.current = distance;
+      const reach = Math.max(distance, runtime.radius);
+      fog.near = reach * 0.75;
+      fog.far = reach * 3.4 + runtime.radius;
+    }
+
     const radius = runtime.radius;
     if (Math.abs(radius - appliedRadius.current) < RADIUS_EPSILON) {
       return;
     }
     appliedRadius.current = radius;
-    fog.near = radius * 1.8;
-    fog.far = radius * 5.5;
     const key = keyRef.current;
     if (key !== null) {
       const span = Math.max(14, radius * 1.4);

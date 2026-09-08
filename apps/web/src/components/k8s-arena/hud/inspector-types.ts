@@ -1,76 +1,24 @@
 /**
- * Hình dạng dữ liệu mà các bảng của lane C nhận vào.
+ * Kiểu và hằng dùng chung cho các bảng của lane C.
  *
- * ## Vì sao có file này thay vì đọc thẳng `ClusterView`
+ * ## Lịch sử: file này từng chứa ba kiểu TẠM, giờ không còn
  *
- * `ClusterView` (hợp đồng engine) mang đủ dữ liệu cho scene 3D nhưng THIẾU ba
- * thứ mà một bảng thông số bắt buộc phải có, và cả ba đều tồn tại sẵn ở tầng
- * trong (`model.ts`) rồi bị bỏ lại khi chiếu ra view:
+ * Bản đầu (2026-09-08) khai `ObjectDetail`, `IncidentView`, `ScopedEventView`
+ * làm props vì `ClusterView` khi đó thiếu nhãn/tài nguyên/thời điểm tạo của
+ * object, thiếu `involvedUid` trên sự kiện, và không có danh sách sự cố nào.
+ * Lane engine đã bổ sung đủ cả ba, nên kiểu tạm bị xoá và mọi bảng đọc thẳng
+ * kiểu chính thức. Ghi lại ở đây vì đây là lý do prop `detail` biến mất khỏi
+ * `InspectorPanel`.
  *
- * | Cần | `ClusterView` có? | Nguồn thật |
- * |---|---|---|
- * | Nhãn, spec, thời điểm tạo của object | không | `K8sObject.labels` / `.spec` / `.createdTick` |
- * | Sự kiện thuộc về MỘT object | không — `EventView` bỏ `involvedUid` | `ClusterEvent.involvedUid` |
- * | Danh sách sự cố | không — `ClusterView` không có trường nào | `ClusterState.incidents` |
- *
- * Lane C KHÔNG được sửa `contract.ts` (README §3: "Không ai"), nên chỗ lệch này
- * được khai báo ra đây thành props để cha bơm vào. Đó là lựa chọn cố ý giữa hai
- * đường: bịa dữ liệu tại chỗ (ví dụ lọc sự kiện theo việc tên object có xuất
- * hiện trong câu chữ hay không) sẽ cho ra một bảng LÚC NÀO CŨNG có nội dung và
- * thỉnh thoảng sai — kiểu hỏng tệ nhất, vì không ai nhìn ra. Khai thành props
- * thì chỗ chưa nối được lộ ngay ở typecheck của lead.
+ * `IncidentView` chưa có trong barrel `@devops-platform/games`, nên lấy nó ra
+ * bằng cách bóc từ `ClusterView` — đó KHÔNG phải một bản sao: `ClusterView`
+ * mới là nguồn, và kiểu ở đây tự trôi theo nếu engine đổi hình dạng.
  */
 
-import type { EventView, IncidentKind, ObjectView, ResourceKind } from '@devops-platform/games';
+import type { ClusterView, EventView, ObjectView, ResourceKind } from '@devops-platform/games';
 
-/** Một cặp cpu/memory như `resources.requests` / `resources.limits` của K8s. */
-export interface ResourceAmount {
-  /** Dạng chuỗi K8s thật (`250m`, `1`). `null` = manifest không khai. */
-  readonly cpu: string | null;
-  /** `128Mi`, `1Gi`. `null` = không khai. */
-  readonly memory: string | null;
-}
-
-/**
- * Phần chi tiết của một object mà `ObjectView` không mang.
- *
- * Mọi trường đều cho phép rỗng/`null` vì một tài nguyên hợp lệ có thể thật sự
- * không có nhãn hay không khai resources — và một Pod chưa qua `apply` cũng
- * chưa có `createdTick`. Bảng bỏ hẳn dòng tương ứng thay vì in `—`: một dấu gạch
- * đọc ra là "đã kiểm và không có", còn vắng mặt đọc ra là "chưa biết", và hai
- * chuyện đó khác nhau khi người học đang chẩn đoán.
- */
-export interface ObjectDetail {
-  readonly labels: Readonly<Record<string, string>>;
-  readonly requests: ResourceAmount | null;
-  readonly limits: ResourceAmount | null;
-  /** Tick lúc tạo. Tuổi được TÍNH tại chỗ dùng từ `tick` hiện tại, không lưu. */
-  readonly createdTick: number | null;
-}
-
-/**
- * Một sự cố trong danh sách.
- *
- * Trùng hình dạng với `ActiveIncident` của `model.ts` là CỐ Ý — đây chính là nó,
- * chỉ khác là `model.ts` không xuất ra khỏi package nên lane C không import
- * được. Giữ đúng tên trường để ngày lead nối được thì phép gán là thẳng, không
- * cần lớp dịch.
- *
- * ⚠ Không có trường `active`. Còn hoạt động hay không SUY RA được từ
- * `resolvedTick === null`, và repo cấm lưu trường suy ra được (README §5).
- */
-export interface IncidentView {
-  readonly kind: IncidentKind;
-  readonly targetUid: string;
-  readonly startedTick: number;
-  /** `null` = còn đang xảy ra. Đã xử lý thì GIỮ bản ghi kèm tick, không xoá. */
-  readonly resolvedTick: number | null;
-}
-
-/** Sự kiện kèm object liên quan — thứ `EventView` thiếu để lọc theo object. */
-export interface ScopedEventView extends EventView {
-  readonly involvedUid: string | null;
-}
+/** Một sự cố. Bóc từ hợp đồng — xem lý do ở đầu file. */
+export type IncidentView = ClusterView['incidents'][number];
 
 /**
  * Loại đổi được số replica.

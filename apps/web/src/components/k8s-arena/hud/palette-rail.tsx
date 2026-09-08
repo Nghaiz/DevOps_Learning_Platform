@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { TooltipProvider, cn } from '@devops-platform/ui';
 import type { ObjectView, ResourceKind } from '@devops-platform/games';
 import type { ArenaDispatch, PaletteEntry } from '../arena-contract.ts';
@@ -10,6 +10,7 @@ import { PaletteCell } from './palette-cell.tsx';
 import { PaletteNameDialog } from './palette-name-dialog.tsx';
 import { buildManifest } from './palette-manifest.ts';
 import { isDialogOpen, isTypingTarget } from './overlay-manager-keys.ts';
+import { HUD_SCROLL_HIDDEN, HUD_TOP_OFFSET } from './top-bar.tsx';
 
 export interface PaletteRailProps {
   readonly open: boolean;
@@ -51,6 +52,22 @@ export function PaletteRail({
   getTick,
 }: PaletteRailProps): ReactElement | null {
   const [pending, setPending] = useState<Pending | null>(null);
+  const [hasMoreBelow, setHasMoreBelow] = useState(false);
+  const railRef = useRef<HTMLElement>(null);
+
+  /*
+   * Đo sau mỗi lần cuộn VÀ sau mỗi lần bố cục đổi. Không suy từ số ô: chiều cao
+   * thật phụ thuộc khung nhìn và cỡ chữ của người dùng, nên chỉ phép đo mới biết
+   * còn ô bên dưới hay không.
+   */
+  const syncFade = useCallback((): void => {
+    const node = railRef.current;
+    if (node !== null) {
+      setHasMoreBelow(node.scrollTop + node.clientHeight < node.scrollHeight - 1);
+    }
+  }, []);
+
+  useEffect(syncFade, [syncFade, allowedResources]);
   const allowed = useMemo(() => new Set(allowedResources), [allowedResources]);
 
   const start = useCallback(
@@ -106,29 +123,75 @@ export function PaletteRail({
 
   return (
     <TooltipProvider delayDuration={250}>
+      {/*
+        Hai trục, hai luật KHÁC NHAU — và chỗ khác nhau đó mới là nội dung của
+        `NO_VISIBLE_SCROLLBARS` (đính chính của chủ dự án 2026-09-08: *"ý tôi là
+        cấm không cho xuất hiện cái thanh scroll dọc/ngang"* — thứ bị cấm là
+        THANH TRƯỢT hiện ra, không phải khả năng cuộn).
+
+        NGANG — `overflow-x-hidden`, và bố cục phải tự không tràn. Một cột hẹp bị
+        tràn ngang nghĩa là có phần tử rộng hơn khung; ẩn thanh trượt ở đó chỉ
+        giấu triệu chứng, còn nội dung vẫn bị cắt mất bên phải mà giờ không còn
+        cách nào kéo tới. Đo được ở 1440×900: `scrollWidth` 87 = `clientWidth`
+        87, tức không tràn — ô dùng `w-full` trong lưới thay vì một bề rộng cố
+        định rộng hơn khung.
+
+        DỌC — cuộn được, thanh trượt ẩn. `overflow-hidden` ở trục này là SAI dù
+        26 ô vừa màn hình 900px: trên khung nhìn thấp hơn nó sẽ cắt mất mấy ô
+        cuối trong im lặng, và người chơi không có đường nào tới được công cụ đó.
+        Hai cột kéo chiều cao từ ~1040px xuống vừa màn hình thường, còn phần
+        cuộn là lưới an toàn cho màn hình thấp.
+
+        `top-12` phải bằng chiều cao thanh trên cùng — lý do và chỗ neo hằng số ở
+        `HUD_TOP_OFFSET` trong `top-bar.tsx`. Đo được: mép trên bảng 48px, đúng
+        bằng mép dưới thanh, nên ô "Pod" không còn bị che.
+      */}
       <aside
+        ref={railRef}
+        onScroll={syncFade}
         aria-label="Bảng tạo tài nguyên"
         className={cn(
-          'pointer-events-auto absolute top-0 bottom-0 left-0 z-20 flex w-16 flex-col gap-3 overflow-y-auto',
-          'border-r border-border bg-card/85 py-3 backdrop-blur-sm shadow-elevation-2',
+          'pointer-events-auto absolute bottom-0 left-0 z-20 w-22 overflow-x-hidden overflow-y-auto',
+          HUD_TOP_OFFSET,
+          HUD_SCROLL_HIDDEN,
+          'border-r border-border bg-card/85 px-1 py-1 shadow-elevation-2 backdrop-blur-sm',
         )}
       >
-        {PALETTE_GROUP_ORDER.map((group) => (
-          <section key={group} className="flex flex-col items-center gap-1">
-            <h3 className="px-1 text-[9px] font-semibold tracking-wide text-muted-foreground uppercase">
-              {PALETTE_GROUP_LABELS[group]}
-            </h3>
-            {PALETTE_ENTRIES.filter((entry) => entry.group === group).map((entry) => (
-              <PaletteCell
-                key={entry.kind}
-                entry={entry}
-                enabled={allowed.has(entry.kind)}
-                onPick={() => start(entry)}
-              />
-            ))}
-          </section>
-        ))}
+        <div className="grid grid-cols-2 gap-1">
+          {PALETTE_GROUP_ORDER.map((group) => (
+            <Fragment key={group}>
+              <h3 className="col-span-2 px-0.5 text-[8px] leading-none font-semibold tracking-wide text-muted-foreground uppercase">
+                {PALETTE_GROUP_LABELS[group]}
+              </h3>
+              {PALETTE_ENTRIES.filter((entry) => entry.group === group).map((entry) => (
+                <PaletteCell
+                  key={entry.kind}
+                  entry={entry}
+                  enabled={allowed.has(entry.kind)}
+                  onPick={() => start(entry)}
+                />
+              ))}
+            </Fragment>
+          ))}
+        </div>
       </aside>
+
+      {/*
+        Dải mờ ở mép dưới — tín hiệu DUY NHẤT còn lại rằng bên dưới còn ô, vì
+        thanh trượt đã bị ẩn. Nằm ngoài `<aside>` và `pointer-events-none` để nó
+        không chặn cú bấm vào ô nằm dưới nó, và không tự trở thành một phần của
+        vùng cuộn (một lớp phủ nằm TRONG vùng cuộn sẽ trôi theo nội dung, tức
+        biến mất đúng lúc cần nhất).
+      */}
+      {hasMoreBelow ? (
+        <div
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute bottom-0 left-0 z-20 h-6 w-22',
+            'bg-gradient-to-t from-card to-transparent',
+          )}
+        />
+      ) : null}
 
       {/* Hộp thoại render qua Portal nên nó KHÔNG nằm trong `<aside>` về mặt bố cục — đặt ở đây chỉ để cùng vòng đời với thanh bên. */}
       <PaletteNameDialog

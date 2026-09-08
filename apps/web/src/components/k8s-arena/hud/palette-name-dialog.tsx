@@ -6,6 +6,7 @@ import type { PaletteEntry } from '../arena-contract.ts';
 import { checkResourceName, suggestResourceName } from './palette-name.ts';
 import { buildManifest } from './palette-manifest.ts';
 import { paletteHint } from './palette-entries.ts';
+import { HUD_SCROLL_HIDDEN } from './top-bar.tsx';
 
 export interface PaletteNameDialogProps {
   /** `null` = đóng. Mở bằng cách truyền ô người chơi vừa bấm. */
@@ -104,7 +105,9 @@ export function PaletteNameDialog({
 
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">Manifest sẽ được áp</span>
-            <pre className="max-h-56 overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-xs leading-relaxed text-foreground">
+            <pre
+              className={`max-h-56 overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-xs leading-relaxed text-foreground ${HUD_SCROLL_HIDDEN}`}
+            >
               {buildManifest(entry.kind, check.ok ? trimmed : entry.short.toLowerCase())}
             </pre>
           </div>

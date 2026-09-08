@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { Check, Copy } from 'lucide-react';
-import { Button } from '@devops-platform/ui';
+import { Button, cn } from '@devops-platform/ui';
+import { HIDDEN_SCROLL_BOTH } from './inspector-frame.tsx';
+import { useHorizontalWheelScroll } from './inspector-hscroll.tsx';
 
 /** Bao lâu nút giữ trạng thái "Đã chép" trước khi trở lại. */
 const COPIED_MS = 2000;
@@ -18,14 +20,21 @@ export interface InspectorTextTabProps {
 /**
  * Khối văn bản đơn sắc có nút chép — dùng cho cả tab YAML lẫn tab Mô tả.
  *
+ * ## Vì sao `whitespace-pre` chứ không bẻ dòng
+ *
+ * Bản trước đổi sang `whitespace-pre-wrap` để diệt thanh cuộn ngang. Chủ dự án
+ * bác: cuộn ngang ở bảng này ĐƯỢC PHÉP, vì `kubectl describe` và YAML là nội
+ * dung căn cột, và bẻ dòng phá đúng cái thẳng hàng làm chúng đọc được. Thứ bị
+ * cấm là THANH TRƯỢT hiện ra, không phải khả năng cuộn.
+ *
  * `<pre>` chứ không phải một cây `<div>` tô màu cú pháp: nội dung phải chép ra
  * được NGUYÊN VẸN và phải đọc được tuần tự bằng trình đọc màn hình. Tô màu ở đây
- * đổi cả hai thứ đó lấy một thứ trang trí. (Cùng lập luận với bản cũ, giữ lại
- * nguyên vẹn vì nó vẫn đúng.)
+ * đổi cả hai thứ đó lấy một thứ trang trí.
  */
 export function InspectorTextTab({ text, label, copyLabel }: InspectorTextTabProps): ReactElement {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { ref, hasLeft, hasRight } = useHorizontalWheelScroll(text);
 
   // Dọn hẹn giờ lúc gỡ. Không dọn thì `setCopied` chạy trên component đã unmount
   // mỗi lần người dùng chép rồi bỏ chọn ngay — React 19 không cảnh báo nữa, nên
@@ -67,19 +76,54 @@ export function InspectorTextTab({ text, label, copyLabel }: InspectorTextTabPro
           {copied ? 'Đã chép' : copyLabel}
         </Button>
       </div>
-      {/*
-        `tabIndex={0}` trên vùng cuộn là YÊU CẦU của a11y (axe
-        `scrollable-region-focusable`), không phải tuỳ chọn: khối không focus
-        được thì người chỉ dùng bàn phím không cuộn tới được phần dưới của nó —
-        mà phần dưới của một khối `describe` chính là chỗ Events nằm.
-      */}
-      <pre
-        aria-label={label}
-        tabIndex={0}
-        className="min-h-0 flex-1 overflow-auto rounded-md bg-muted p-2 font-mono text-xs whitespace-pre text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        {text}
-      </pre>
+
+      {/* `relative` để hai dải mờ neo vào đúng mép khối cuộn, không neo vào tab. */}
+      <div className="relative min-h-0 flex-1">
+        {/*
+          `tabIndex={0}` trên vùng cuộn là YÊU CẦU của a11y (axe
+          `scrollable-region-focusable`), không phải tuỳ chọn: khối không focus
+          được thì người chỉ dùng bàn phím không cuộn tới được phần dưới của nó —
+          mà phần dưới của một khối `describe` chính là chỗ Events nằm, tức chỗ
+          câu trả lời cho "vì sao pod của tôi mãi Pending".
+        */}
+        <pre
+          ref={ref}
+          aria-label={label}
+          tabIndex={0}
+          className={cn(
+            'h-full rounded-md bg-muted p-2 font-mono text-xs whitespace-pre text-foreground',
+            'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+            HIDDEN_SCROLL_BOTH,
+          )}
+        >
+          {text}
+        </pre>
+
+        {/*
+          Dải mờ thay cho thanh trượt đã ẩn. Đây KHÔNG phải trang trí: thanh trượt
+          là thứ duy nhất nói "còn nội dung bên kia", nên ẩn nó mà không bù lại là
+          giấu mất một nửa khối describe khỏi người dùng — họ không có lý do nào
+          để thử lăn chuột.
+
+          `aria-hidden` + `pointer-events-none`: trình đọc màn hình đọc tuần tự cả
+          `<pre>` nên không bao giờ bị khuất, và dải mờ không được chặn cú lăn
+          chuột mà nó đang mời gọi.
+        */}
+        <span
+          aria-hidden="true"
+          className={cn(
+            'pointer-events-none absolute inset-y-0 left-0 w-6 rounded-l-md bg-linear-to-r from-muted to-transparent transition-opacity',
+            hasLeft ? 'opacity-100' : 'opacity-0',
+          )}
+        />
+        <span
+          aria-hidden="true"
+          className={cn(
+            'pointer-events-none absolute inset-y-0 right-0 w-6 rounded-r-md bg-linear-to-l from-muted to-transparent transition-opacity',
+            hasRight ? 'opacity-100' : 'opacity-0',
+          )}
+        />
+      </div>
     </div>
   );
 }

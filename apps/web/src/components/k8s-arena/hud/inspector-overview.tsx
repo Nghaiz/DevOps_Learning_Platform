@@ -3,7 +3,12 @@
 import type { ReactElement, ReactNode } from 'react';
 import type { NodeView, ObjectView } from '@devops-platform/games';
 import { Badge, type BadgeVariant } from '@devops-platform/ui';
-import type { ObjectDetail, ResourceAmount } from './inspector-types.ts';
+
+/**
+ * Cặp cpu/memory. Bóc từ `ObjectView` chứ không khai lại: barrel chưa mở
+ * `ResourceAmountView`, mà một bản sao thủ công sẽ lặng lẽ lệch nếu engine đổi.
+ */
+type ResourceAmount = NonNullable<ObjectView['requests']>;
 
 /**
  * Token màu ngữ nghĩa của engine → biến thể `Badge`.
@@ -22,7 +27,6 @@ const STATUS_BADGE: Readonly<Record<ObjectView['statusToken'], BadgeVariant>> = 
 
 export interface InspectorOverviewProps {
   readonly object: ObjectView;
-  readonly detail: ObjectDetail | null;
   /** Node đang chạy object này; `null` khi chưa xếp lịch hoặc không tra được. */
   readonly node: NodeView | null;
   /** Tick hiện tại của cụm — dùng để TÍNH tuổi, không lưu tuổi ở đâu cả. */
@@ -33,7 +37,9 @@ function Row({ label, children }: { readonly label: string; readonly children: R
   return (
     <div className="grid grid-cols-[7.5rem_1fr] gap-2 py-1 text-xs">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words text-foreground">{children}</dd>
+      {/* `wrap-break-word` để một giá trị dài (image kèm registry đầy đủ) xuống
+          dòng thay vì đẩy bảng rộng ra và đẻ thanh cuộn ngang. */}
+      <dd className="min-w-0 wrap-break-word text-foreground">{children}</dd>
     </div>
   );
 }
@@ -54,17 +60,18 @@ function percent(fraction: number): string {
 /**
  * Tab Tổng quan.
  *
- * Dòng nào không có dữ liệu thì KHÔNG hiện, không in `—`. Lý do nằm ở
- * `inspector-types.ts`: một dấu gạch đọc ra là "đã kiểm, không có", còn vắng
- * mặt đọc ra là "chưa biết". Người học đang chẩn đoán một pod hỏng cần phân biệt
- * đúng hai chuyện đó — "không khai limit" và "chưa đọc được limit" dẫn tới hai
- * bước tiếp theo khác nhau.
+ * Đọc thẳng `ObjectView` — không còn prop `detail` nào. Nhãn, requests/limits và
+ * `createdTick` đã ra tới hợp đồng engine, nên lớp props tạm ở giữa bị gỡ.
+ *
+ * Dòng nào không có dữ liệu thì KHÔNG hiện, không in `—`. Đây là quy ước mà
+ * chính hợp đồng cũng ghi (`ObjectView.requests`): một dấu gạch đọc ra là "đã
+ * kiểm, không có", còn vắng mặt đọc ra là "chưa biết". Người học đang chẩn đoán
+ * một pod OOMKilled cần đúng sự phân biệt đó.
  */
-export function InspectorOverview({ object, detail, node, tick }: InspectorOverviewProps): ReactElement {
-  const labels = detail === null ? [] : Object.entries(detail.labels);
-  const requests = amountText(detail?.requests ?? null);
-  const limits = amountText(detail?.limits ?? null);
-  const createdTick = detail?.createdTick ?? null;
+export function InspectorOverview({ object, node, tick }: InspectorOverviewProps): ReactElement {
+  const labels = Object.entries(object.labels);
+  const requests = amountText(object.requests);
+  const limits = amountText(object.limits);
 
   return (
     <dl className="divide-y divide-border">
@@ -124,14 +131,12 @@ export function InspectorOverview({ object, detail, node, tick }: InspectorOverv
         </Row>
       )}
 
-      {createdTick === null ? null : (
-        <Row label="Tạo lúc">
-          {/* Tuổi TÍNH tại đây từ `tick - createdTick`, không lưu ở đâu — đúng
-              luật "không lưu trường suy ra được" (README §5). */}
-          <span className="font-mono">t{createdTick}</span>
-          <span className="ml-2 text-muted-foreground">{Math.max(0, tick - createdTick)} tick trước</span>
-        </Row>
-      )}
+      <Row label="Tạo lúc">
+        {/* Tuổi TÍNH tại đây từ `tick - createdTick`, không lưu — đúng luật
+            "không lưu trường suy ra được", và chính hợp đồng cũng nói vậy. */}
+        <span className="font-mono">t{object.createdTick}</span>
+        <span className="ml-2 text-muted-foreground">{Math.max(0, tick - object.createdTick)} tick trước</span>
+      </Row>
 
       {labels.length === 0 ? null : (
         <Row label="Nhãn">

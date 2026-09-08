@@ -1,23 +1,27 @@
 'use client';
 
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { EventView, NodeView, ObjectView } from '@devops-platform/games';
 import { Tabs, TabsContent, TabsList, TabsTrigger, cn } from '@devops-platform/ui';
 import type { ArenaDispatch } from '../arena-contract.ts';
 /*
- * ⚠ Import xuyên sang thư mục của bản cũ, và đó là chỗ CẦN LEAD XỬ LÝ khi dọn
- * `components/games/`. `object-yaml.ts` là hàm THUẦN đã có test riêng
- * (`object-yaml.test.ts`), nên viết lại một bộ tuần tự thứ hai ở đây là vi phạm
- * SSOT. Khi lane nào xoá thư mục cũ thì file này phải được CHUYỂN vào
- * `k8s-arena/`, không xoá.
+ * `object-yaml.ts` là hàm THUẦN đã có test riêng (`object-yaml.test.ts`), nên
+ * viết một bộ tuần tự YAML thứ hai ở đây là vi phạm SSOT.
+ *
+ * ⚠ Đường dẫn là `../shared/`, KHÔNG phải `../../games/`. Thư mục giao diện cũ
+ * đã bị xoá và năm module thuần chuyển sang `k8s-arena/shared/`. Đường dẫn cũ
+ * từng quay lại một lần khi file này được ghi đè từ một bản chép trước lúc
+ * chuyển, và hậu quả không phải một lỗi biên dịch gọn gàng: CẢ ứng dụng trả 500,
+ * mọi trang, vì một module không phân giải được làm sập cả cây import.
  */
 import { objectToYaml } from '../shared/object-yaml.ts';
 import { InspectorActions } from './inspector-actions.tsx';
 import { InspectorEvents } from './inspector-events.tsx';
 import { InspectorOverview } from './inspector-overview.tsx';
 import { InspectorTextTab } from './inspector-text-tab.tsx';
-import { PanelFrame } from './inspector-frame.tsx';
-import { objectLabel, type ObjectDetail } from './inspector-types.ts';
+import { HIDDEN_SCROLL, PanelFrame } from './inspector-frame.tsx';
+import { InspectorResizeHandle, useInspectorWidth } from './inspector-resize.tsx';
+import { objectLabel } from './inspector-types.ts';
 
 /**
  * Thời gian trượt ra trước khi gỡ khỏi cây DOM.
@@ -32,22 +36,17 @@ const EXIT_MS = 200;
 export interface InspectorPanelProps {
   /** `null` ⇒ không có gì đang chọn ⇒ bảng KHÔNG tồn tại. Xem chú thích dưới. */
   readonly object: ObjectView | null;
-  readonly detail: ObjectDetail | null;
   /** Node đang chạy object; cha tra từ `ClusterView.nodes` theo `object.nodeName`. */
   readonly node: NodeView | null;
   readonly tick: number;
-  /** Sự kiện ĐÃ lọc về đúng object này — xem `InspectorEventsProps`. */
-  readonly events: readonly EventView[];
   /**
-   * Khối `kubectl describe` do cha dựng bằng `kubectl.ts` của engine.
+   * TOÀN BỘ sự kiện của cụm — truyền thẳng `view.events`, không lọc trước.
    *
-   * `null` ⇒ tab Mô tả KHÔNG hiện. Cố ý không hiện một tab rỗng: `describePod`
-   * / `describeService` / `describeGeneric` nằm private trong
-   * `packages/games/src/k8s/kubectl.ts` và nhận `ClusterState` chứ không nhận
-   * `ObjectView`, nên lane C không gọi tới được và cũng KHÔNG được viết bộ định
-   * dạng thứ hai. Chừng nào lead chưa mở đường thì thà thiếu một tab còn hơn có
-   * một tab luôn trống mà không ai biết vì sao.
+   * Bản đầu đòi cha lọc sẵn, vì `EventView` khi đó chưa có `involvedUid`. Giờ đã
+   * có, nên việc lọc về đây: một chỗ lọc thì không có chỗ thứ hai để quên.
    */
+  readonly events: readonly EventView[];
+  /** Khối `kubectl describe` — cha lấy từ `session.describe(uid)`. */
   readonly describeText: string | null;
   readonly dispatch: ArenaDispatch;
   /** Bỏ chọn. Cha đặt `selectedUid = null`, và bảng tự trượt ra rồi biến mất. */
@@ -62,15 +61,14 @@ export interface InspectorPanelProps {
  * không phải một bảng rỗng ghi "chưa chọn gì", không phải một bảng mờ đi, không
  * phải một bảng thu nhỏ. Không có node nào trong DOM.
  *
- * Bản cũ (`components/games/inspector-panel.tsx`) trả về một đoạn văn "Chọn một
- * tài nguyên…" khi `object === null`, và đó chính là thứ bị chê.
- *
  * Trạng thái `shown` tồn tại ĐÚNG để giữ nội dung sống thêm `EXIT_MS` cho cú
  * trượt ra chạy hết; hết thời gian đó thì nó về `null` và cây DOM sạch.
+ *
+ * Bề rộng kéo được ở mép trái và nhớ qua `localStorage` — bản đầu đóng cứng
+ * 352px và chủ dự án chê chật, trong khi hai phần ba màn hình bên trái bỏ trống.
  */
 export function InspectorPanel({
   object,
-  detail,
   node,
   tick,
   events,
@@ -81,6 +79,7 @@ export function InspectorPanel({
   const [shown, setShown] = useState<ObjectView | null>(null);
   const [entered, setEntered] = useState(false);
   const [tab, setTab] = useState('overview');
+  const { width, setWidth } = useInspectorWidth();
 
   useEffect(() => {
     if (object !== null) {
@@ -111,6 +110,12 @@ export function InspectorPanel({
     setTab('overview');
   }, [shown?.uid]);
 
+  const uid = shown?.uid ?? null;
+  const ownEvents = useMemo(
+    () => (uid === null ? [] : events.filter((event) => event.involvedUid === uid)),
+    [events, uid],
+  );
+
   if (shown === null) {
     return null;
   }
@@ -122,12 +127,15 @@ export function InspectorPanel({
       title={title}
       closeLabel={`Đóng bảng thông số của ${title}`}
       onClose={onClose}
+      style={{ width }}
       className={cn(
-        'absolute inset-y-3 right-3 z-20 w-88 max-w-[calc(100%-1.5rem)]',
+        'absolute inset-y-3 right-3 z-20 max-w-[calc(100%-1.5rem)]',
         'transition-[transform,opacity] duration-200 ease-out',
         entered ? 'translate-x-0 opacity-100' : 'translate-x-[calc(100%+0.75rem)] opacity-0',
       )}
     >
+      <InspectorResizeHandle width={width} onWidth={setWidth} />
+
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
         <TabsList className="mx-3 mt-2 self-start">
           <TabsTrigger value="overview">Tổng quan</TabsTrigger>
@@ -136,16 +144,16 @@ export function InspectorPanel({
           {describeText === null ? null : <TabsTrigger value="describe">Mô tả</TabsTrigger>}
         </TabsList>
 
-        <TabsContent value="overview" className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-          <InspectorOverview object={shown} detail={detail} node={node} tick={tick} />
+        <TabsContent value="overview" className={cn('min-h-0 flex-1 px-3 py-2', HIDDEN_SCROLL)}>
+          <InspectorOverview object={shown} node={node} tick={tick} />
         </TabsContent>
 
         <TabsContent value="yaml" className="flex min-h-0 flex-1 flex-col px-3 py-2">
           <InspectorTextTab text={objectToYaml(shown)} label={`YAML của ${title}`} copyLabel="Chép YAML" />
         </TabsContent>
 
-        <TabsContent value="events" className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-          <InspectorEvents events={events} />
+        <TabsContent value="events" className={cn('min-h-0 flex-1 px-3 py-2', HIDDEN_SCROLL)}>
+          <InspectorEvents events={ownEvents} />
         </TabsContent>
 
         {describeText === null ? null : (

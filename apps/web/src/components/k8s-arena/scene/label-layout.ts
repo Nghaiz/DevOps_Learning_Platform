@@ -130,3 +130,43 @@ export function layoutLabels(boxes: LabelBox[], count: number, options: LabelLay
 
   return placed;
 }
+
+/** Điểm neo nhãn của một bệ node, trong toạ độ world. */
+export interface NodeAnchor {
+  readonly x: number;
+  readonly z: number;
+}
+
+/**
+ * Góc XA CAMERA của một bệ node — chỗ duy nhất nhãn node không đè lên thứ gì.
+ *
+ * Ba lần đo trên `/games/k8s` ngày 2026-09-08, ba kết quả:
+ *  - mép trước (`+z` cố định): mép trước là mép GẦN camera, mà camera nhìn chếch
+ *    từ trên xuống nên nó chiếu ra thành cạnh DƯỚI bệ — nhãn nằm bên dưới cái
+ *    nó gọi tên.
+ *  - mép xa, canh giữa: lên đúng phía trên bệ, nhưng rơi thẳng vào cột màn hình
+ *    của pod đứng giữa, nên tên node xếp chồng ngay trên tên pod và đọc ra như
+ *    hai cái tên của CÙNG một vật.
+ *  - góc xa (bản này): lệch cả ra sau lẫn sang bên nên nó thoát khỏi mọi thứ
+ *    đứng trên mặt bệ mà vẫn kề bệ.
+ *
+ * Cả hai hướng đều suy từ vị trí camera nên chúng đúng ở mọi góc xoay; một hằng
+ * số `-z` cũng đúng, cho tới lúc người dùng xoay camera 180°.
+ */
+export function nodeLabelAnchor(
+  nodeX: number,
+  cameraX: number,
+  cameraZ: number,
+  back: number,
+  side: number,
+): NodeAnchor {
+  const dx = cameraX - nodeX;
+  const away = Math.hypot(dx, cameraZ) || 1;
+  const towardX = dx / away;
+  const towardZ = cameraZ / away;
+  // `(-towardZ, towardX)` là vector vuông góc của hướng-về-camera trong mặt phẳng XZ.
+  return {
+    x: nodeX - towardX * back - towardZ * side,
+    z: -towardZ * back + towardX * side,
+  };
+}

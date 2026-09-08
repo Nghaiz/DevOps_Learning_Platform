@@ -17,6 +17,34 @@ import type { Objective } from '@devops-platform/games';
  */
 const SPEEDS: readonly number[] = [0, 1, 2, 4];
 
+/**
+ * Chiều cao thanh trên cùng, và độ lệch mà mọi lớp nổi neo mép trên phải dùng.
+ *
+ * Hai hằng chứ không một, vì Tailwind quét chuỗi lớp NGUYÊN VẸN — không sinh
+ * được `top-${n}` từ một con số. Chúng phải khớp nhau; đặt cạnh nhau ở đây để
+ * chỗ cần sửa là MỘT chỗ.
+ *
+ * Lý do tồn tại: bản trước lớp nổi để `top-0`, mà khối chứa chúng bao cả thanh
+ * trên cùng — nên ô đầu tiên của bảng công cụ ("Pod") bị thanh trên che mất nửa
+ * (chủ dự án báo 2026-09-08). Nếu sau này lead bọc HUD trong một khối đã nằm
+ * dưới thanh, đổi `HUD_TOP_OFFSET` về `'top-0'` là xong — một dòng.
+ */
+export const TOP_BAR_HEIGHT = 'h-12';
+export const HUD_TOP_OFFSET = 'top-12';
+
+/**
+ * Vùng cuộn được nhưng KHÔNG hiện thanh trượt.
+ *
+ * Hợp đồng (`NO_VISIBLE_SCROLLBARS`) cho phép cuộn dọc ở đúng hai chỗ — vùng nội
+ * dung dài thật, nơi cuộn là hành vi mong đợi — với điều kiện ẩn thanh trượt.
+ * Trong lane này đó là kết quả terminal và thân ngăn tra cứu. Bảng công cụ
+ * KHÔNG thuộc nhóm đó và không được dùng hằng này.
+ *
+ * `scrollbar-width: none` phủ Firefox và Chromium mới; `::-webkit-scrollbar`
+ * phủ WebKit cũ. Cần cả hai — không trình duyệt nào nhận đủ một mình.
+ */
+export const HUD_SCROLL_HIDDEN = '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+
 export interface TopBarProps {
   /** Mã bài, ví dụ `K8S-01`. */
   readonly code: string;
@@ -75,7 +103,7 @@ export function TopBar({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <header className="pointer-events-auto flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-3">
+      <header className={cn('pointer-events-auto flex shrink-0 items-center gap-3 border-b border-border bg-card px-3', TOP_BAR_HEIGHT)}>
         <IconButton label="Thoát bài" onClick={onExit}>
           <LogOut className="size-4" />
         </IconButton>

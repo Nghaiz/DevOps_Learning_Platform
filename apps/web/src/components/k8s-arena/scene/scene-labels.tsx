@@ -3,9 +3,9 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import { PLATFORM_DEPTH, PLATFORM_HEIGHT } from '../shared/scene-layout';
+import { PLATFORM_DEPTH, PLATFORM_HEIGHT, PLATFORM_WIDTH } from '../shared/scene-layout';
 import type { ArenaSceneProps } from '../arena-contract';
-import { layoutLabels, type LabelBox } from './label-layout';
+import { layoutLabels, nodeLabelAnchor, type LabelBox } from './label-layout';
 import {
   LABEL_CHAR_WIDTH,
   LABEL_HALF_HEIGHT,
@@ -122,7 +122,14 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
     };
 
     for (const node of runtime.nodes) {
-      push(`node:${node.name}`, node.name, node.x, PLATFORM_HEIGHT / 2, PLATFORM_DEPTH / 2 + 0.25, PRIORITY_NODE);
+      const anchor = nodeLabelAnchor(
+        node.x,
+        camera.position.x,
+        camera.position.z,
+        PLATFORM_DEPTH / 2 + 0.4,
+        PLATFORM_WIDTH / 2 + 0.4,
+      );
+      push(`node:${node.name}`, node.name, anchor.x, PLATFORM_HEIGHT / 2 + 0.05, anchor.z, PRIORITY_NODE);
     }
     // Hai lượt: lượt đầu lấy thứ QUAN TRỌNG (đang chọn, đang rê, đang lỗi, và
     // mọi tài nguyên không phải Pod), lượt sau mới lấp bằng Pod bình thường.

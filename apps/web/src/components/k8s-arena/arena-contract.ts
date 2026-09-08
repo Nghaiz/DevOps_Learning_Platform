@@ -137,6 +137,18 @@ export interface ArenaSceneProps {
   readonly onContextMenu: (uid: string, screen: ScreenPoint) => void;
   readonly quality: QualityTier;
   readonly onQualityDowngrade: (next: QualityTier, reason: string) => void;
+  /**
+   * Cảnh không đọc được màu từ biến CSS và đang chạy bằng bảng màu dự phòng.
+   *
+   * Khác hẳn `onQualityDowngrade`: hạ bậc chất lượng là đánh đổi có chủ ý để giữ
+   * khung hình, còn cái này là một phép đọc HỎNG. Trước khi có đường báo này,
+   * cảnh chỉ `console.warn` — tức là fallback không bao giờ tới được người dùng,
+   * đúng thứ mà nguyên tắc "báo lỗi thay vì âm thầm quay về mặc định" cấm.
+   *
+   * Tuỳ chọn vì nó là tín hiệu chẩn đoán: nơi gọi có thể chọn hiện hay không,
+   * nhưng cảnh thì luôn phải phát ra.
+   */
+  readonly onColorsDegraded?: (reason: string) => void;
   readonly cameraCommand: CameraCommand | null;
   /** Tắt hẳn 3D (người dùng chọn, hoặc máy không có WebGL). */
   readonly enabled: boolean;
@@ -170,9 +182,51 @@ export const CAMERA_TUNING = {
   minPolarAngle: 0.15,
   minDistance: 5,
   maxDistance: 80,
-  /** Bật xoay tự động khi người dùng đứng yên lâu — cảnh không bị chết cứng. */
-  idleSpinAfterMs: 30_000,
-  idleSpinSpeed: 0.25,
+
+  /**
+   * Góc mở ống kính, độ.
+   *
+   * 45 là chỗ đứng giữa: hẹp hơn thì một cụm nhiều node không lọt khung nếu
+   * không lùi camera ra tới mức mất hết cảm giác chiều sâu; rộng hơn thì phối
+   * cảnh bẻ cong các bệ ở rìa và chúng trông như đổ nghiêng.
+   */
+  fov: 45,
+
+  /**
+   * Vị trí camera lúc mới dựng, TRƯỚC lần tự đóng khung đầu tiên.
+   *
+   * Nó chỉ sống được vài khung hình — `frame-all` chạy ngay khi cụm có hình
+   * dạng thật — nhưng vẫn phải hợp lý, vì đó là khung hình đầu người chơi thấy.
+   */
+  initialPosition: [0, 12, 24],
+
+  /**
+   * Bán kính cụm × hệ số này = khoảng cách đóng khung.
+   *
+   * 1.35 để cụm lấp khung mà vẫn chừa lề. Bản trước dùng 1.75 và cụm chỉ chiếm
+   * khoảng một phần ba giữa màn hình — phí đúng cái diện tích mà luật bố cục
+   * "canvas chiếm trọn vùng dưới thanh trên cùng" dựng ra để giành lấy.
+   */
+  frameFillFactor: 1.35,
+
+  /**
+   * Khoảng cách × hệ số này = độ cao camera khi đóng khung.
+   *
+   * 0.46 ≈ 25° so với mặt sàn. Cao hơn (0.55+) là gần như nhìn từ đỉnh xuống,
+   * bệ node dẹt lại và phần bo góc — chỗ bắt ánh viền — biến mất.
+   */
+  frameHeightFactor: 0.46,
+
+  /**
+   * Sàn của khoảng cách đóng khung.
+   *
+   * Cần thiết vì một cụm chỉ có MỘT node cho `radius` rất nhỏ, và không có sàn
+   * thì camera chui vào bên trong cái bệ.
+   */
+  minFrameDistance: 8,
+
+  /** Khoảng cách camera giữ lại khi bay tới một object hoặc một node cụ thể. */
+  focusDistance: 7,
 } as const;
 
 // ── Lớp nổi HUD ─────────────────────────────────────────────────────────────
@@ -276,6 +330,90 @@ export interface PaletteEntry {
 }
 
 export type PaletteGroup = 'workload' | 'network' | 'config' | 'storage' | 'cluster';
+
+/**
+ * Màu nhận dạng theo LOẠI tài nguyên — nguồn duy nhất cho cả bảng công cụ lẫn
+ * cảnh 3D.
+ *
+ * ⛔ Vì sao phải là một bảng chung: bảng bên trái và các khối trong cảnh nói về
+ * cùng một thứ. Nếu Pod xanh dương ở bảng mà xanh lá trong cảnh thì người chơi
+ * phải học hai hệ màu cho một khái niệm, và cái thứ hai vô dụng. Hai lane khác
+ * nhau dựng hai bảng màu riêng là cách chắc chắn nhất để chuyện đó xảy ra.
+ *
+ * Tám màu chứ không phải 26: mắt người phân biệt tin cậy được khoảng 8-12 màu
+ * trong một giao diện, và 26 màu khác nhau sẽ có vài cặp gần như trùng — lúc đó
+ * màu không còn phân biệt được gì mà chỉ làm rối. Nhóm theo VAI TRÒ, nên các
+ * loại hay đứng cạnh nhau trong một sơ đồ luôn khác màu nhau.
+ *
+ * Giá trị thật nằm ở `globals.css` (`--kind-*`, có cả nhánh sáng và tối). Ở đây
+ * chỉ có tên token, để đổi bảng màu là đổi một chỗ.
+ */
+export const KIND_ACCENT: Readonly<Record<ResourceKind, string>> = {
+  /* Đơn vị chạy — màu chủ đạo, thứ người chơi nhìn nhiều nhất. */
+  Pod: 'kind-pod',
+  /* Bộ điều khiển sinh ra pod. Khác Pod để thấy rõ quan hệ cha-con trong cảnh. */
+  ReplicaSet: 'kind-controller',
+  Deployment: 'kind-controller',
+  StatefulSet: 'kind-controller',
+  DaemonSet: 'kind-controller',
+  /* Việc chạy rồi kết thúc — khác hẳn workload chạy mãi. */
+  Job: 'kind-batch',
+  CronJob: 'kind-batch',
+  /* Đường đi của gói tin. */
+  Service: 'kind-network',
+  Ingress: 'kind-network',
+  NetworkPolicy: 'kind-network',
+  /* Dữ liệu cấu hình bơm vào container. */
+  ConfigMap: 'kind-config',
+  Secret: 'kind-config',
+  /* Ổ đĩa. */
+  PersistentVolume: 'kind-storage',
+  PersistentVolumeClaim: 'kind-storage',
+  StorageClass: 'kind-storage',
+  /* Ai được làm gì. */
+  ServiceAccount: 'kind-security',
+  Role: 'kind-security',
+  RoleBinding: 'kind-security',
+  ClusterRole: 'kind-security',
+  ClusterRoleBinding: 'kind-security',
+  /* Khung chứa và hạn mức — nền của mọi thứ khác, nên màu trầm nhất. */
+  Namespace: 'kind-cluster',
+  Node: 'kind-cluster',
+  HorizontalPodAutoscaler: 'kind-cluster',
+  PodDisruptionBudget: 'kind-cluster',
+  ResourceQuota: 'kind-cluster',
+  LimitRange: 'kind-cluster',
+};
+
+/**
+ * ⛔ KHÔNG THANH TRƯỢT NÀO ĐƯỢC HIỆN RA trong bất kỳ lớp HUD nào.
+ *
+ * Chỉ đạo của chủ dự án (2026-09-08), sau hai lượt làm rõ nên đọc kỹ ranh giới:
+ * *"cấm không cho xuất hiện cái thanh scroll dọc/ngang"*.
+ *
+ * Thứ bị cấm là **thanh trượt hiện ra**, KHÔNG phải khả năng cuộn. Nội dung dài
+ * vẫn cuộn được; chỉ là cái thanh xám không được chiếm chỗ và không được nhìn
+ * thấy. Ẩn bằng `scrollbar-width: none` cộng `::-webkit-scrollbar { display:
+ * none }`.
+ *
+ * Hai hệ quả phải làm cùng, nếu không việc ẩn thanh trượt thành ra làm hại:
+ *
+ * 1. **Dải mờ ở mép còn nội dung.** Thanh trượt bị ẩn thì nó là thứ DUY NHẤT
+ *    cho người dùng biết còn gì để xem. Bỏ dải đó khi đã cuộn hết.
+ * 2. **Lăn chuột cuộn NGANG khi con trỏ ở trong vùng cuộn ngang** (bảng thông
+ *    số bên phải: mô tả, YAML, tổng quan, sự kiện). Người dùng không phải giữ
+ *    Shift và không có thanh trượt để kéo, nên nếu con lăn không làm gì thì nội
+ *    dung bên phải là không với tới được. Listener `wheel` phải đăng ký
+ *    `{ passive: false }` — thiếu nó thì `preventDefault` bị bỏ qua mà không có
+ *    lỗi nào; cộng `deltaX + deltaY` để không chặn mất thao tác vuốt ngang thật;
+ *    và chỉ nuốt sự kiện khi còn chỗ cuộn, nếu không con lăn chết cứng ở cuối.
+ *
+ * **Ngoại lệ theo trục, cho bảng CÔNG CỤ bên trái:** cuộn ngang ở một cột dọc
+ * hẹp là lỗi bố cục chứ không phải nhu cầu — nó nghĩa là có phần tử rộng hơn
+ * khung, và ẩn thanh trượt ở đó chỉ giấu triệu chứng trong khi nội dung vẫn bị
+ * cắt mất mà không còn cách nào kéo tới. Sửa bố cục, đừng ẩn.
+ */
+export const NO_VISIBLE_SCROLLBARS = true;
 
 export const PALETTE_GROUP_LABELS: Readonly<Record<PaletteGroup, string>> = {
   workload: 'Workload',

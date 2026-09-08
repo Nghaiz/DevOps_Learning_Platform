@@ -12,6 +12,8 @@ import type { StatusToken } from '../shared/scene-tokens';
 export interface SceneEntry {
   readonly uid: string;
   readonly kind: ResourceKind;
+  /** Token màu theo LOẠI, tra sẵn ở `sync` vì nó không bao giờ đổi với một uid. */
+  readonly accent: string;
   label: string;
   /** Vị trí NGHỈ do `computeLayout` quyết định. */
   x: number;

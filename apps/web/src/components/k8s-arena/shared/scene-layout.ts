@@ -76,8 +76,20 @@ const PLATFORM_PADDING = 0.42;
 export const POD_SIZE = 0.6;
 const POD_GAP_MIN = 0.16;
 const POD_GAP_PREFERRED = 0.34;
-/** Độ cao NGHỈ của pod trên mặt bệ (§9.2 "lơ lửng rất nhẹ") — không phải biên độ bồng bềnh. */
-export const POD_HOVER = 0.34;
+/**
+ * Độ cao NGHỈ của pod trên mặt bệ (§9.2 "lơ lửng rất nhẹ") — không phải biên độ bồng bềnh.
+ *
+ * ⚠ Giá trị cũ 0.34 bằng 57% chiều cao của chính pod (`POD_SIZE` 0.6), và trên
+ * màn hình nó KHÔNG đọc ra là "lơ lửng nhẹ" mà là "pod rời khỏi node" — đo trực
+ * tiếp 2026-09-08 ở `/games/k8s` level 1: khối pod tách hẳn khỏi mặt bệ trong
+ * khi bóng của nó vẫn đổ đúng trên bệ, nên một khung hình chứa hai thông tin
+ * mâu thuẫn nhau.
+ *
+ * SÀN của giá trị này là `BOB_AMPLITUDE` (0.045, `scene-motion.ts`): thấp hơn
+ * biên độ bồng bềnh thì đáy pod chui vào trong bệ ở nửa dưới mỗi chu kỳ thở.
+ * 0.06 chừa đúng khoảng an toàn đó và không hơn.
+ */
+export const POD_HOVER = 0.06;
 
 const SHELF_Z = -3.6;
 const SHELF_SPACING = 1.35;

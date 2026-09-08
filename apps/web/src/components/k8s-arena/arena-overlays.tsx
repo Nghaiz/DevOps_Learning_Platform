@@ -151,7 +151,6 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
       */}
       <InspectorPanel
         object={selectedObject}
-        detail={null}
         node={selectedNode}
         tick={engine.view.tick}
         events={engine.view.events.filter((event) => event.involvedUid === selectedObject?.uid)}

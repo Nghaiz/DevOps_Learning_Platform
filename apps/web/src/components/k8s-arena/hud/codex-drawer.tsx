@@ -4,6 +4,7 @@ import { useState, type ReactElement } from 'react';
 import { CornerDownLeft, X } from 'lucide-react';
 import { MarkdownView, Tabs, TabsContent, TabsList, TabsTrigger, cn } from '@devops-platform/ui';
 import type { CheatSheetEntry, LevelTeaching } from '@devops-platform/games';
+import { HUD_SCROLL_HIDDEN, HUD_TOP_OFFSET } from './top-bar.tsx';
 
 export interface CodexDrawerProps {
   readonly open: boolean;
@@ -49,7 +50,9 @@ export function CodexDrawer({
       aria-label="Ngăn tra cứu"
       inert={!open}
       className={cn(
-        'absolute top-0 right-0 bottom-0 z-30 flex w-96 max-w-full flex-col',
+        'absolute right-0 bottom-0 z-30 flex w-96 max-w-full flex-col',
+        // Không chui xuống dưới thanh trên cùng — cùng lý do đã ghi ở `HUD_TOP_OFFSET`.
+        HUD_TOP_OFFSET,
         'border-l border-border bg-card/95 shadow-elevation-3 backdrop-blur-sm',
         'transition-transform duration-(--motion-base) ease-out',
         open ? 'pointer-events-auto translate-x-0' : 'pointer-events-none translate-x-full',
@@ -74,7 +77,7 @@ export function CodexDrawer({
           <TabsTrigger value="bay">Bẫy</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="khai-niem" className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+        <TabsContent value="khai-niem" className={cn('min-h-0 flex-1 overflow-y-auto px-3 pb-4', HUD_SCROLL_HIDDEN)}>
           {/* Không có ảnh trong primer của level — trả `null` để component tự vẽ placeholder thay vì chế một URL. */}
           <MarkdownView markdown={teaching.primer} resolveAssetUrl={() => null} />
           {showTakeaways && teaching.takeaways.length > 0 ? (
@@ -93,7 +96,7 @@ export function CodexDrawer({
           ) : null}
         </TabsContent>
 
-        <TabsContent value="lenh-mau" className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+        <TabsContent value="lenh-mau" className={cn('min-h-0 flex-1 overflow-y-auto px-3 pb-4', HUD_SCROLL_HIDDEN)}>
           <ul className="flex flex-col gap-2">
             {teaching.cheatsheet.map((item) => (
               <CheatRow key={item.command} item={item} onInsert={onInsertCommand} />
@@ -101,7 +104,7 @@ export function CodexDrawer({
           </ul>
         </TabsContent>
 
-        <TabsContent value="bay" className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+        <TabsContent value="bay" className={cn('min-h-0 flex-1 overflow-y-auto px-3 pb-4', HUD_SCROLL_HIDDEN)}>
           <NoteList title="Sai lầm phổ biến" items={pitfalls} tone="warning" />
           <NoteList title="Mẹo thực chiến" items={proTips} tone="muted" />
           {pitfalls.length === 0 && proTips.length === 0 ? (

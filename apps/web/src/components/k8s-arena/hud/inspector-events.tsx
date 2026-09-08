@@ -7,14 +7,8 @@ import { EVENT_LEVEL_CLASS, EVENT_LEVEL_LABEL } from './inspector-types.ts';
 
 export interface InspectorEventsProps {
   /**
-   * Sự kiện ĐÃ được lọc về đúng object đang chọn.
-   *
-   * Việc lọc nằm ở cha chứ không ở đây, và đó không phải sự lười: `EventView`
-   * của hợp đồng chỉ có `{tick, level, message}` — nó ĐÃ ĐÁNH RƠI `involvedUid`
-   * mà `ClusterEvent` bên trong engine vẫn giữ. Lọc tại đây thì cách duy nhất là
-   * dò tên object trong câu chữ, và cách đó sai một cách im lặng: hai pod tên
-   * `web` và `web-2` sẽ ăn sự kiện của nhau. Xem `inspector-types.ts` phần bảng
-   * chỗ lệch hợp đồng.
+   * Sự kiện của đúng object đang chọn — `InspectorPanel` lọc theo `involvedUid`
+   * trước khi truyền xuống.
    */
   readonly events: readonly EventView[];
 }
@@ -45,7 +39,7 @@ export function InspectorEvents({ events }: InspectorEventsProps): ReactElement 
             t{event.tick}
           </span>
           <span className="sr-only">{EVENT_LEVEL_LABEL[event.level]}:</span>
-          <span className={cn('min-w-0', EVENT_LEVEL_CLASS[event.level])}>{event.message}</span>
+          <span className={cn('min-w-0 wrap-break-word', EVENT_LEVEL_CLASS[event.level])}>{event.message}</span>
         </li>
       ))}
     </ol>

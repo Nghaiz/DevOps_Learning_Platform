@@ -97,6 +97,11 @@ export interface ArenaPalette {
   readonly body: Readonly<Record<StatusToken, Rgb>>;
   /** Màu hào quang — giữ nguyên độ tươi của token, đây là ánh sáng. */
   readonly glow: Readonly<Record<StatusToken, Rgb>>;
+  /** Màu thân theo LOẠI tài nguyên, tra bằng token của `KIND_ACCENT`. */
+  readonly kind: Readonly<Record<string, Rgb>>;
+  /** Ô lưới nhỏ và đường phân khu của sàn. */
+  readonly gridCell: Rgb;
+  readonly gridSection: Rgb;
 }
 
 const STATUS_TOKENS: readonly StatusToken[] = [
@@ -109,6 +114,17 @@ const STATUS_TOKENS: readonly StatusToken[] = [
 
 /** Trần độ sáng của nền. Trên mức này thì sương mù và bóng tiếp xúc mất tác dụng. */
 const BACKGROUND_MAX_L = 0.055;
+
+const KIND_TOKENS: readonly string[] = [
+  'kind-pod',
+  'kind-controller',
+  'kind-batch',
+  'kind-network',
+  'kind-config',
+  'kind-storage',
+  'kind-security',
+  'kind-cluster',
+];
 
 export function deriveArenaPalette(colors: SceneColors): ArenaPalette {
   const background = reshade(colors.background, 0.012, BACKGROUND_MAX_L, 0.28);
@@ -127,7 +143,23 @@ export function deriveArenaPalette(colors: SceneColors): ArenaPalette {
     glow[token] = pure;
   }
 
+  const kind: Record<string, Rgb> = {};
+  for (const token of KIND_TOKENS) {
+    const value = (colors as Readonly<Record<string, Rgb>>)[token];
+    if (value === undefined) {
+      continue;
+    }
+    // Nâng độ sáng lên hẳn so với bệ: đây là thân vật trên nền tối, và nó phải
+    // đọc được ở khoảng cách xa nhất mà camera cho phép.
+    kind[token] = reshade(value, 0.46, 0.7, 0.95);
+  }
+
   return {
+    kind,
+    // Lưới sàn phải THẤY ĐƯỢC nhưng không được tranh nhìn với cụm: đường phân
+    // khu đậm hơn ô nhỏ, cả hai đều là xám của token viền chứ không phải màu.
+    gridCell: reshade(colors.border, 0.16, 0.24, 0.12),
+    gridSection: reshade(colors.border, 0.3, 0.4, 0.14),
     background,
     ground,
     platform,

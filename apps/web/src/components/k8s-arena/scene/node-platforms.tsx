@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { ContactShadows } from '@react-three/drei';
+import { ContactShadows, Grid } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { PLATFORM_DEPTH, PLATFORM_HEIGHT, PLATFORM_WIDTH } from '../shared/scene-layout';
+import { PLATFORM_DEPTH, PLATFORM_GAP, PLATFORM_HEIGHT, PLATFORM_WIDTH } from '../shared/scene-layout';
 import { TIER_FEATURES } from '../shared/scene-quality';
 import type { QualityTier } from '../arena-contract';
 import { PLATFORM_CAPACITY } from './scene-constants';
@@ -30,6 +30,14 @@ const GROUND_Y = FLOOR_Y - 0.02;
  * hai con số `textures`/`geometries` mà cổng đo bộ nhớ đang gác.
  */
 const CONTACT_SHADOW_SPAN = 44;
+/**
+ * Tầm nhìn của lưới sàn, đơn vị world.
+ *
+ * Phải PHỦ QUÁ `CAMERA_TUNING.maxDistance` (80), nếu không người dùng kéo ra xa
+ * sẽ thấy lưới kết thúc bằng một đường cắt cụt — và một cạnh cứng giữa khoảng
+ * không đọc ra là lỗi vẽ, không phải là chân trời.
+ */
+const GRID_FADE = 120;
 
 export interface NodePlatformsProps {
   readonly runtime: SceneRuntime;
@@ -130,8 +138,33 @@ export function NodePlatforms({ runtime, colors, colorsVersion, tier }: NodePlat
         receiveShadow={features.shadows}
         material={groundMaterial}
       >
-        <planeGeometry args={[220, 220]} />
+        <planeGeometry args={[420, 420]} />
       </mesh>
+      {/*
+        Lưới sàn trải tới chân trời.
+
+        Đây KHÔNG phải trang trí. Không có nó, cụm là một vật thể đơn độc trôi
+        trên nền đen: mắt không có mốc nào để bám, khung cảnh trông vừa nhỏ vừa
+        lơ lửng, và quan trọng hơn — xoay camera gần như không thấy mình đang
+        xoay, vì không có gì trong khung chuyển động tương đối. Một mặt lưới cho
+        cả ba thứ đó bằng đúng MỘT lệnh vẽ.
+
+        `fadeDistance` lo phần rìa: lưới nhạt dần vào nền thay vì kết thúc bằng
+        một cạnh cứng.
+      */}
+      <Grid
+        position={[0, GROUND_Y + 0.004, 0]}
+        infiniteGrid
+        cellSize={1}
+        cellThickness={0.6}
+        cellColor={colors.gridCell}
+        sectionSize={PLATFORM_WIDTH + PLATFORM_GAP}
+        sectionThickness={1.1}
+        sectionColor={colors.gridSection}
+        fadeDistance={GRID_FADE}
+        fadeStrength={1.5}
+        fadeFrom={0}
+      />
       {features.shadows ? (
         <ContactShadows
           position={[0, FLOOR_Y + 0.002, 0]}

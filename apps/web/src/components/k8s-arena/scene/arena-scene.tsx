@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { TIER_FEATURES } from '../shared/scene-quality';
-import type { ArenaSceneProps } from '../arena-contract';
+import { CAMERA_TUNING, type ArenaSceneProps } from '../arena-contract';
 import { SceneContent } from './scene-content';
 import { useArenaColors } from './use-arena-colors';
 
@@ -45,7 +45,15 @@ function ArenaCanvas(props: ArenaSceneProps): ReactElement {
 
   const probeRef = useRef<HTMLSpanElement>(null);
   const [labelLayer, setLabelLayer] = useState<HTMLDivElement | null>(null);
-  const { colors, version } = useArenaColors(probeRef);
+  /*
+   * Bọc `useCallback` với phụ thuộc RỖNG và đọc qua `propsRef`: hook màu dùng
+   * hàm này làm phụ thuộc của effect, nên một tham chiếu mới mỗi lần render sẽ
+   * bắt nó đọc lại toàn bộ bảng màu ở mọi lượt render.
+   */
+  const reportDegraded = useCallback((reason: string): void => {
+    propsRef.current.onColorsDegraded?.(reason);
+  }, []);
+  const { colors, version } = useArenaColors(probeRef, reportDegraded);
   const reducedMotion = usePrefersReducedMotion();
   const features = TIER_FEATURES[props.quality];
 
@@ -68,7 +76,14 @@ function ArenaCanvas(props: ArenaSceneProps): ReactElement {
         frameloop="demand"
         dpr={[1, features.maxPixelRatio]}
         shadows={features.softShadows ? 'soft' : features.shadows}
-        camera={{ fov: 45, near: 0.1, far: 400, position: [0, 12, 24] }}
+        camera={{
+          fov: CAMERA_TUNING.fov,
+          near: 0.1,
+          far: 400,
+          // Sao chép mảng: hằng số của hợp đồng là `readonly`, và R3F ghi thẳng vào
+          // mảng nó nhận được.
+          position: [...CAMERA_TUNING.initialPosition],
+        }}
         gl={{
           antialias: true,
           alpha: false,
