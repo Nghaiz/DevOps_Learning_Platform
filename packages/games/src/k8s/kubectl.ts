@@ -15,10 +15,28 @@
  */
 
 import type { ResourceKind } from './contract.ts';
+import type { CommandOutcome, RunCommand } from './engine-boundary.ts';
 import type { ClusterState, K8sObject } from './model.ts';
-import { podRuntime } from './model.ts';
-import { livePods, podsOwnedBy, readyPods, serviceEndpoints } from './query.ts';
-import { KINDS, asNumber, asString, readContainers, resolveKind } from './resources.ts';
+import {
+  emitEvent,
+  findObject,
+  isDoomed,
+  podRuntime,
+  removeObjectCascade,
+  replaceObject,
+} from './model.ts';
+import { childrenOf, livePods, podsOwnedBy, readyPods, serviceEndpoints, workloadTemplate } from './query.ts';
+import { DEFAULT_GRACE_TICKS, templateHash } from './controllers.ts';
+import { TICK_MS, markDeleting } from './tick.ts';
+import {
+  KINDS,
+  asNumber,
+  asString,
+  asStringMap,
+  isNamespaced,
+  readContainers,
+  resolveKind,
+} from './resources.ts';
 
 export interface KubectlOptions {
   /** `null` = chưa nêu; bên gọi thay bằng namespace hiện hành. */
@@ -194,12 +212,24 @@ function readFlags(tokens: readonly string[]): Flags {
   return { options, positional, error: null };
 }
 
-function needKind(token: string, verb: string): ResourceKind | string {
-  if (token === '') {
-    return `Lệnh \`kubectl ${verb}\` cần một loại tài nguyên, ví dụ \`pods\`.`;
-  }
-  const kind = resolveKind(token);
-  return kind ?? `Không biết loại tài nguyên "${token}".`;
+/**
+ * ⚠ Trả `ResourceKind | null`, KHÔNG phải `ResourceKind | string`.
+ *
+ * Bản đầu trả một union kiểu-với-thông-báo rồi phân biệt hai nhánh bằng
+ * `typeof kind === 'string'` — mà `ResourceKind` CHÍNH LÀ string, nên nhánh lỗi
+ * nuốt luôn mọi kết quả hợp lệ: `kubectl get pods` trả về `{ok:false,
+ * error:'Pod'}`. Cả file biên dịch xanh và mọi lệnh có tên loại đều hỏng. Đây là
+ * lý do union phân biệt phải có thẻ (`ok`), không được dựa vào `typeof` giữa hai
+ * nhánh cùng kiểu nền.
+ */
+function resolveKindArg(token: string): ResourceKind | null {
+  return token === '' ? null : resolveKind(token);
+}
+
+function kindError(token: string, verb: string): string {
+  return token === ''
+    ? `Lệnh \`kubectl ${verb}\` cần một loại tài nguyên, ví dụ \`pods\`.`
+    : `Không biết loại tài nguyên "${token}". Gõ \`kubectl get\` kèm một trong: pods, deployments, services, configmaps…`;
 }
 
 /** `pod/web` là dạng viết tắt hợp lệ của `pod web`. */
@@ -237,17 +267,17 @@ export function parseKubectl(input: string): ParseResult {
   switch (verb) {
     case 'get':
     case 'describe': {
-      const kind = needKind(first.kindToken, verb);
-      if (typeof kind === 'string') {
-        return { ok: false, error: kind };
+      const kind = resolveKindArg(first.kindToken);
+      if (kind === null) {
+        return { ok: false, error: kindError(first.kindToken, verb) };
       }
       return { ok: true, command: { verb, kind, name, options } };
     }
     case 'delete':
     case 'edit': {
-      const kind = needKind(first.kindToken, verb);
-      if (typeof kind === 'string') {
-        return { ok: false, error: kind };
+      const kind = resolveKindArg(first.kindToken);
+      if (kind === null) {
+        return { ok: false, error: kindError(first.kindToken, verb) };
       }
       if (name === null) {
         return { ok: false, error: `Lệnh \`kubectl ${verb}\` cần tên tài nguyên.` };
@@ -255,9 +285,9 @@ export function parseKubectl(input: string): ParseResult {
       return { ok: true, command: { verb, kind, name, options } };
     }
     case 'scale': {
-      const kind = needKind(first.kindToken, verb);
-      if (typeof kind === 'string') {
-        return { ok: false, error: kind };
+      const kind = resolveKindArg(first.kindToken);
+      if (kind === null) {
+        return { ok: false, error: kindError(first.kindToken, verb) };
       }
       if (name === null) {
         return { ok: false, error: 'Lệnh `kubectl scale` cần tên tài nguyên.' };
@@ -289,9 +319,9 @@ export function parseKubectl(input: string): ParseResult {
         return { ok: false, error: '`kubectl rollout` nhận: status, restart, undo, history.' };
       }
       const target = splitSlash(positional[1]);
-      const kind = needKind(target.kindToken, 'rollout');
-      if (typeof kind === 'string') {
-        return { ok: false, error: kind };
+      const kind = resolveKindArg(target.kindToken);
+      if (kind === null) {
+        return { ok: false, error: kindError(target.kindToken, 'rollout') };
       }
       const rolloutName = target.name ?? positional[2] ?? null;
       if (rolloutName === null) {
@@ -511,10 +541,12 @@ function describeGeneric(state: ClusterState, object: K8sObject): string {
 }
 
 /**
- * Chạy các lệnh CHỈ ĐỌC. Lệnh làm thay đổi trạng thái (`delete`, `scale`,
- * `rollout restart/undo`) nằm ở `reducer.ts`, vì chỉ reducer mới được sinh trạng
- * thái mới — tách hai việc đó là thứ giữ cho hàm này thuần và test được mà không
- * cần dựng cả một cụm.
+ * Chạy các lệnh CHỈ ĐỌC — `get`, `describe`, `logs`, `exec`.
+ *
+ * Tách khỏi `runCommand` để test được phần kết xuất mà không phải nghĩ về trạng
+ * thái mới: hàm này nhận `state` và trả về một chuỗi, hết. Lệnh làm thay đổi
+ * trạng thái nằm ở `runCommand` bên dưới, và nó gọi lại đúng hàm này cho nhánh
+ * chỉ đọc — một chỗ kết xuất duy nhất, không hai bản.
  */
 export function renderQuery(
   state: ClusterState,
@@ -673,4 +705,510 @@ function renderExec(
       .join('\n');
   }
   return `(game chỉ mô phỏng \`df\` và \`env\` trong container; đã nhận "${joined}")`;
+}
+
+// ── Lệnh làm thay đổi trạng thái ────────────────────────────────────────────
+
+/**
+ * `kubectl delete`, `scale`, `rollout` — và hai lệnh mà một trò chơi trong trình
+ * duyệt KHÔNG chạy được (`apply -f`, `edit`), vốn phải trả lời cho tử tế thay vì
+ * im lặng.
+ *
+ * ## Vì sao lỗi ở đây dài hơn lỗi của kubectl thật
+ *
+ * `kubectl` thật in `error: cannot scale resource "pods"` rồi thôi — đúng cho một
+ * người vận hành đã biết vì sao, vô dụng cho một người đang học. Quy ước của file
+ * này: giữ NGUYÊN dòng kubectl thật (người học sẽ gặp lại nó ngoài đời), rồi thêm
+ * một dòng tiếng Việt nói LÀM GÌ TIẾP. Không bao giờ chỉ có dòng thứ hai, và
+ * không bao giờ chỉ có dòng thứ nhất.
+ *
+ * ⛔ Không ném. Một lệnh gõ sai là chuyện thường của người học, không phải sự cố
+ * của phiên chơi.
+ */
+export const runCommand: RunCommand = (state, input, currentNamespace) => {
+  const parsed = parseKubectl(input);
+  if (!parsed.ok) {
+    return { state, output: parsed.error, accepted: false };
+  }
+  const command = parsed.command;
+  const namespace = command.options.namespace ?? currentNamespace;
+  switch (command.verb) {
+    case 'get':
+    case 'describe':
+    case 'logs':
+    case 'exec':
+      return { state, output: renderQuery(state, command, currentNamespace), accepted: true };
+    case 'delete':
+      return runDelete(state, command.kind, command.name, namespace, command.options.force);
+    case 'scale':
+      return runScale(state, command.kind, command.name, namespace, command.replicas);
+    case 'rollout':
+      return runRollout(state, command.sub, command.kind, command.name, namespace);
+    case 'apply':
+      return { state, output: applyNotSupported(command.options.filename), accepted: false };
+    case 'edit':
+      return runEdit(state, command.kind, command.name, namespace);
+  }
+};
+
+/** Tra tài nguyên theo khoá tự nhiên. Loại phạm vi cluster luôn có namespace rỗng. */
+function lookup(
+  state: ClusterState,
+  kind: ResourceKind,
+  name: string,
+  namespace: string,
+): K8sObject | null {
+  return findObject(state, { kind, namespace: isNamespaced(kind) ? namespace : '', name });
+}
+
+/** Dòng NotFound đúng chữ của API server, kèm chỉ dẫn tìm ở đâu. */
+function notFoundOutcome(
+  state: ClusterState,
+  kind: ResourceKind,
+  name: string,
+  namespace: string,
+): CommandOutcome {
+  const scope = isNamespaced(kind) ? ` trong namespace ${namespace}` : ' (tài nguyên phạm vi cluster)';
+  return {
+    state,
+    output: [
+      `Error from server (NotFound): ${KINDS[kind].plural} "${name}" not found`,
+      `Không có ${kind} nào tên "${name}"${scope}. Liệt kê lại bằng \`kubectl get ${KINDS[kind].plural}${isNamespaced(kind) ? ` -n ${namespace}` : ''}\` để đối chiếu tên.`,
+    ].join('\n'),
+    accepted: false,
+  };
+}
+
+/**
+ * `kubectl delete`.
+ *
+ * Hai chi tiết ĐÚNG với cụm thật và cùng là hai bài học:
+ *
+ * 1. **Xoá pod do controller quản lý không sửa được gì.** ReplicaSet đẻ lại pod
+ *    ngay ở tick sau, với cùng cấu hình hỏng. Người chơi thấy restart count về 0
+ *    và tưởng đã sửa xong — nên lệnh này nói thẳng ra điều đó.
+ * 2. **`--force` xoá BẢN GHI ở API server, không giết tiến trình.** Đây là hiểu
+ *    lầm phổ biến nhất về force delete, và repo đã trả giá cho đúng nó một lần ở
+ *    hạ tầng thật (pod "đã xoá" mà tiến trình còn sống thêm 30 giây).
+ */
+function runDelete(
+  state: ClusterState,
+  kind: ResourceKind,
+  name: string,
+  namespace: string,
+  force: boolean,
+): CommandOutcome {
+  const target = lookup(state, kind, name, namespace);
+  if (target === null) {
+    return notFoundOutcome(state, kind, name, namespace);
+  }
+  const line = `${KINDS[kind].plural.replace(/s$/, '')} "${name}" deleted`;
+  const pod = podRuntime(target);
+  if (pod !== null) {
+    if (isDoomed(pod) && !force) {
+      return {
+        state,
+        output: [
+          `pod "${name}" đang ở Terminating rồi.`,
+          'Pod chờ hết grace period mới biến mất. Muốn bỏ qua khoảng chờ đó thì thêm `--force`, nhưng đọc kỹ: force chỉ xoá BẢN GHI ở API server chứ không giết tiến trình bên trong.',
+        ].join('\n'),
+        accepted: false,
+      };
+    }
+    const owner = target.ownerUid === null ? null : state.objects.find((item) => item.uid === target.ownerUid) ?? null;
+    const notes: string[] = [];
+    if (force) {
+      notes.push(
+        'Đã xoá bản ghi pod ngay, không chờ grace period. Lưu ý: ở cụm thật, tiến trình trong container có thể còn sống thêm một lúc — force delete tác động lên API server, không phải lên process.',
+      );
+    }
+    if (owner !== null) {
+      notes.push(
+        `Pod này thuộc ${owner.kind} "${owner.name}", nên controller sẽ tạo lại một pod mới trong vài tick — với ĐÚNG cấu hình cũ. Xoá pod chỉ đặt lại đồng hồ, không sửa nguyên nhân.`,
+      );
+    }
+    return {
+      state: markDeleting(state, target, force ? 0 : DEFAULT_GRACE_TICKS),
+      output: [line, ...notes].join('\n'),
+      accepted: true,
+    };
+  }
+  const children = childrenOf(state, target.uid);
+  const cascade =
+    children.length === 0
+      ? []
+      : [`Xoá theo tầng: ${children.length} tài nguyên con của ${kind} "${name}" cũng biến mất (ownerReference).`];
+  const next = emitEvent(removeObjectCascade(state, target.uid), {
+    level: 'info',
+    reason: 'SuccessfulDelete',
+    message: `Đã xoá ${kind} ${name}.`,
+    involvedUid: null,
+  });
+  return { state: next, output: [line, ...cascade].join('\n'), accepted: true };
+}
+
+/** Loại có `spec.replicas`. Pod KHÔNG nằm trong đây, và đó là nội dung của lỗi. */
+const SCALABLE: ReadonlySet<ResourceKind> = new Set<ResourceKind>([
+  'Deployment',
+  'ReplicaSet',
+  'StatefulSet',
+]);
+
+function runScale(
+  state: ClusterState,
+  kind: ResourceKind,
+  name: string,
+  namespace: string,
+  replicas: number,
+): CommandOutcome {
+  if (!SCALABLE.has(kind)) {
+    return {
+      state,
+      output: [
+        `error: cannot scale resource "${KINDS[kind].plural}"`,
+        kind === 'Pod'
+          ? 'Một Pod là MỘT bản chạy, không có `replicas` để tăng giảm. Muốn nhiều bản thì phải có một controller phía trên: tạo Deployment rồi `kubectl scale deployment/<tên> --replicas=N`.'
+          : `Chỉ Deployment, ReplicaSet và StatefulSet có \`spec.replicas\`. ${kind} thì không.`,
+      ].join('\n'),
+      accepted: false,
+    };
+  }
+  if (!Number.isFinite(replicas) || replicas < 0 || !Number.isInteger(replicas)) {
+    return {
+      state,
+      output: [
+        `error: invalid replicas value "${replicas}"`,
+        '`--replicas` phải là một số nguyên không âm. `--replicas=0` là hợp lệ và có nghĩa: giữ lại cấu hình, tắt hết pod.',
+      ].join('\n'),
+      accepted: false,
+    };
+  }
+  const target = lookup(state, kind, name, namespace);
+  if (target === null) {
+    return notFoundOutcome(state, kind, name, namespace);
+  }
+  const before = asNumber(target.spec['replicas']) ?? 1;
+  const next = emitEvent(
+    replaceObject(state, { ...target, spec: { ...target.spec, replicas } }),
+    {
+      level: 'info',
+      reason: 'ScalingReplicaSet',
+      message: `Đổi số replica của ${kind} ${name} từ ${before} sang ${replicas}.`,
+      involvedUid: target.uid,
+    },
+  );
+  const note =
+    replicas > before
+      ? 'Pod mới cần vài tick để được xếp lịch rồi Ready. `kubectl get pods -w` (ở đây: gõ lại `get pods`) để nhìn nó đi qua từng pha.'
+      : replicas === before
+        ? 'Số replica không đổi — lệnh này không làm gì cả.'
+        : 'Pod thừa vào Terminating và biến mất sau grace period, không mất ngay lập tức.';
+  return {
+    state: next,
+    output: [`${kind.toLowerCase()}.apps/${name} scaled`, note].join('\n'),
+    accepted: true,
+  };
+}
+
+// ── rollout ─────────────────────────────────────────────────────────────────
+
+/** ReplicaSet ĐANG được Deployment nhắm tới — tra bằng hash của template hiện tại. */
+function currentReplicaSet(state: ClusterState, deployment: K8sObject): K8sObject | null {
+  const template = workloadTemplate(deployment);
+  if (template === null) {
+    return null;
+  }
+  const name = `${deployment.name}-${templateHash(template)}`;
+  return (
+    childrenOf(state, deployment.uid).find(
+      (item) => item.kind === 'ReplicaSet' && item.name === name,
+    ) ?? null
+  );
+}
+
+function replicaSetsOf(state: ClusterState, deployment: K8sObject): readonly K8sObject[] {
+  return [...childrenOf(state, deployment.uid)]
+    .filter((item) => item.kind === 'ReplicaSet')
+    .sort((a, b) => (asNumber(a.spec['revision']) ?? 0) - (asNumber(b.spec['revision']) ?? 0));
+}
+
+function imagesOf(object: K8sObject): string {
+  const template = workloadTemplate(object);
+  const containers = template === null ? [] : readContainers(template, TICK_MS);
+  return containers.map((container) => container.image).join(', ') || '<none>';
+}
+
+/**
+ * `kubectl rollout`.
+ *
+ * ⚠ Chỉ Deployment có lịch sử revision trong mô phỏng này, vì lịch sử đó CHÍNH LÀ
+ * các ReplicaSet con — không có tầng RS thì không có gì để `undo` về. StatefulSet
+ * và DaemonSet cũng nhận `rollout` ở kubectl thật, nhưng cơ chế lưu revision của
+ * chúng khác hẳn (ControllerRevision), và giả vờ có nó ở đây sẽ dạy một mô hình
+ * sai. Nói thẳng là chưa mô phỏng thì đúng hơn là mô phỏng nửa vời.
+ */
+function runRollout(
+  state: ClusterState,
+  sub: RolloutSub,
+  kind: ResourceKind,
+  name: string,
+  namespace: string,
+): CommandOutcome {
+  if (kind !== 'Deployment') {
+    return {
+      state,
+      output: [
+        `error: no rollout history for ${KINDS[kind].plural}/${name}`,
+        'Trong game này `kubectl rollout` chỉ chạy cho Deployment — lịch sử revision của Deployment chính là các ReplicaSet con, xem bằng `kubectl get rs`.',
+      ].join('\n'),
+      accepted: false,
+    };
+  }
+  const deployment = lookup(state, kind, name, namespace);
+  if (deployment === null) {
+    return notFoundOutcome(state, kind, name, namespace);
+  }
+  switch (sub) {
+    case 'status':
+      return rolloutStatus(state, deployment);
+    case 'history':
+      return rolloutHistory(state, deployment);
+    case 'restart':
+      return rolloutRestart(state, deployment);
+    case 'undo':
+      return rolloutUndo(state, deployment);
+  }
+}
+
+/**
+ * `kubectl rollout status` — dòng thật của kubectl, cộng một chỉ dẫn khi treo.
+ *
+ * Rollout treo là TRIỆU CHỨNG, không phải nguyên nhân: ReplicaSet mới không lên
+ * nổi vì pod của nó không bao giờ Ready. Câu trả lời nằm ở `describe` pod của RS
+ * MỚI, nên khi treo thì lệnh này chỉ đích danh pod đó — biết phải nhìn RS nào đã
+ * là một bước, và đó là bước hay bị lạc nhất.
+ */
+function rolloutStatus(state: ClusterState, deployment: K8sObject): CommandOutcome {
+  const desired = asNumber(deployment.spec['replicas']) ?? 1;
+  const rs = currentReplicaSet(state, deployment);
+  const pods = rs === null ? [] : podsOwnedBy(state, rs.uid);
+  const ready = readyPods(pods).length;
+  if (rs !== null && ready >= desired) {
+    return {
+      state,
+      output: `deployment "${deployment.name}" successfully rolled out`,
+      accepted: true,
+    };
+  }
+  const stuck = pods.find((pod) => {
+    const runtime = podRuntime(pod);
+    return runtime !== null && runtime.reason !== null;
+  });
+  const lines = [
+    `Waiting for deployment "${deployment.name}" rollout to finish: ${ready} of ${desired} updated replicas are available...`,
+  ];
+  if (stuck !== undefined) {
+    lines.push(
+      `Pod ${stuck.name} của ReplicaSet mới đang ở ${podStatusText(stuck)}. Rollout dừng ở đây theo thiết kế: Kubernetes GIỮ phiên bản cũ đang phục vụ thay vì thay bằng một phiên bản không lên nổi. Đọc \`kubectl describe pod ${stuck.name}\` để biết vì sao.`,
+    );
+  }
+  return { state, output: lines.join('\n'), accepted: true };
+}
+
+/**
+ * `kubectl rollout history`.
+ *
+ * ⚠ Cột thứ hai là IMAGE(S) chứ không phải CHANGE-CAUSE như kubectl thật.
+ * `CHANGE-CAUSE` đọc từ annotation `kubernetes.io/change-cause`, mà thứ đó chỉ có
+ * khi người ta chủ động ghi vào — ở cụm thật nó rỗng gần như mọi lúc. In image ra
+ * trả lời đúng câu người chơi đang hỏi ("revision nào chạy image nào") thay vì in
+ * một cột `<none>` cho mọi dòng.
+ */
+function rolloutHistory(state: ClusterState, deployment: K8sObject): CommandOutcome {
+  const sets = replicaSetsOf(state, deployment);
+  if (sets.length === 0) {
+    return {
+      state,
+      output: `Chưa có revision nào cho deployment "${deployment.name}" — ReplicaSet đầu tiên chỉ ra đời ở tick sau khi Deployment được tạo.`,
+      accepted: true,
+    };
+  }
+  const current = currentReplicaSet(state, deployment);
+  return {
+    state,
+    output: [
+      `deployment.apps/${deployment.name}`,
+      table(
+        ['REVISION', 'IMAGE(S)', 'REPLICAS', ''],
+        sets.map((rs) => [
+          String(asNumber(rs.spec['revision']) ?? 0),
+          imagesOf(rs),
+          String(asNumber(rs.spec['replicas']) ?? 0),
+          current !== null && rs.uid === current.uid ? '(hiện hành)' : '',
+        ]),
+      ),
+    ].join('\n'),
+    accepted: true,
+  };
+}
+
+/**
+ * Khoá đánh dấu một lần restart. Đúng tên annotation mà `kubectl rollout restart`
+ * thật ghi vào pod template — và cơ chế cũng y hệt: template đổi ⇒ hash đổi ⇒
+ * Deployment tạo một ReplicaSet MỚI ⇒ pod được thay dần. Restart KHÔNG phải là
+ * "giết pod"; nó là một rollout đầy đủ, và giữ đúng cơ chế này là cách người chơi
+ * nhìn thấy điều đó ở `kubectl get rs`.
+ *
+ * Giá trị là số TICK chứ không phải mốc thời gian thật: `Date.now()` sẽ làm hai
+ * lần phát lại cùng một `RunLog` sinh ra hai hash khác nhau, và mọi lượt chơi
+ * trung thực đều bị báo gian lận.
+ */
+const RESTART_MARKER = 'kubectl.kubernetes.io/restartedAt';
+
+function rolloutRestart(state: ClusterState, deployment: K8sObject): CommandOutcome {
+  const template = workloadTemplate(deployment);
+  if (template === null) {
+    return {
+      state,
+      output: [
+        `error: deployment "${deployment.name}" has no pod template`,
+        'Deployment thiếu `spec.template` thì không có gì để restart. Kiểm lại manifest.',
+      ].join('\n'),
+      accepted: false,
+    };
+  }
+  const next = replaceObject(state, {
+    ...deployment,
+    spec: {
+      ...deployment.spec,
+      template: { ...template, [RESTART_MARKER]: state.tick },
+      revision: (asNumber(deployment.spec['revision']) ?? 0) + 1,
+    },
+  });
+  return {
+    state: emitEvent(next, {
+      level: 'info',
+      reason: 'ScalingReplicaSet',
+      message: `Restart Deployment ${deployment.name}: pod template đổi, một ReplicaSet mới sẽ lên thay dần.`,
+      involvedUid: deployment.uid,
+    }),
+    output: [
+      `deployment.apps/${deployment.name} restarted`,
+      'Restart không phải là giết pod: template vừa đổi nên Deployment tạo một ReplicaSet mới và thay pod dần dần. `kubectl get rs` sẽ thấy cả hai cùng tồn tại một lúc.',
+    ].join('\n'),
+    accepted: true,
+  };
+}
+
+/**
+ * `kubectl rollout undo` — quay về ReplicaSet có revision liền trước.
+ *
+ * ⚠ Phải GỠ nhãn `pod-template-hash` khỏi template trước khi ghi ngược vào
+ * Deployment. Nhãn đó do controller thêm vào template CỦA ReplicaSet; chép cả nó
+ * về Deployment sẽ làm hash của template khác hash cũ, và Deployment tạo ra một
+ * ReplicaSet THỨ BA thay vì quay lại cái đã có. Triệu chứng sẽ là "undo xong vẫn
+ * hỏng, mà lại thừa một RS" — rất khó truy nếu không biết chỗ này.
+ */
+function rolloutUndo(state: ClusterState, deployment: K8sObject): CommandOutcome {
+  const sets = replicaSetsOf(state, deployment);
+  const current = currentReplicaSet(state, deployment);
+  const previous =
+    [...sets].reverse().find((rs) => current === null || rs.uid !== current.uid) ?? null;
+  if (previous === null) {
+    return {
+      state,
+      output: [
+        `error: no rollout history found for deployment "${deployment.name}"`,
+        'Chỉ có đúng một revision nên không có chỗ nào để quay về. `rollout undo` cần ít nhất hai ReplicaSet — xem `kubectl get rs`.',
+      ].join('\n'),
+      accepted: false,
+    };
+  }
+  const restored = stripHashLabel(workloadTemplate(previous));
+  if (restored === null) {
+    return {
+      state,
+      output: `error: ReplicaSet "${previous.name}" không còn pod template để khôi phục.`,
+      accepted: false,
+    };
+  }
+  const next = replaceObject(state, {
+    ...deployment,
+    spec: { ...deployment.spec, template: restored },
+  });
+  const revision = asNumber(previous.spec['revision']) ?? 0;
+  return {
+    state: emitEvent(next, {
+      level: 'info',
+      reason: 'DeploymentRollback',
+      message: `Deployment ${deployment.name} quay về revision ${revision}.`,
+      involvedUid: deployment.uid,
+    }),
+    output: [
+      `deployment.apps/${deployment.name} rolled back`,
+      `Quay về revision ${revision} (image: ${imagesOf(previous)}). ReplicaSet cũ được scale lên lại — nó chưa từng bị xoá, và đó chính là thứ làm undo chạy xong trong vài giây.`,
+    ].join('\n'),
+    accepted: true,
+  };
+}
+
+function stripHashLabel(
+  template: Readonly<Record<string, unknown>> | null,
+): Readonly<Record<string, unknown>> | null {
+  if (template === null) {
+    return null;
+  }
+  const labels = asStringMap(template['labels']);
+  const rest: Record<string, string> = {};
+  for (const [key, value] of Object.entries(labels)) {
+    if (key !== 'pod-template-hash') {
+      rest[key] = value;
+    }
+  }
+  const out: Record<string, unknown> = { ...template };
+  // Không còn nhãn nào thì XOÁ hẳn khoá `labels` chứ không để lại `{}`: template
+  // gốc của người chơi có thể vốn không có khoá đó, và `{}` cho ra một hash khác.
+  if (Object.keys(rest).length === 0) {
+    delete out['labels'];
+  } else {
+    out['labels'] = rest;
+  }
+  return out;
+}
+
+// ── Hai lệnh cần một thứ mà trình duyệt không có ────────────────────────────
+
+/**
+ * `kubectl apply -f <tệp>` cần một hệ tệp; `kubectl edit` cần `$EDITOR`. Trò chơi
+ * chạy trong trình duyệt và không có cả hai.
+ *
+ * Câu trả lời KHÔNG được là "lệnh không hỗ trợ": người chơi vừa gõ đúng cú pháp
+ * thật và xứng đáng biết đường đi tương đương trong game. Cả hai hành động đều
+ * tồn tại ở đây, chỉ là đi qua bảng YAML chứ không qua thanh lệnh.
+ */
+function applyNotSupported(filename: string | null): string {
+  return [
+    `error: the path ${filename === null ? '<không nêu>' : `"${filename}"`} does not exist`,
+    'Game chạy trong trình duyệt nên không có hệ tệp để `-f` trỏ tới. Dán manifest vào bảng YAML rồi bấm áp dụng — kết quả giống hệt `kubectl apply -f`, kể cả phần tạo-hoặc-cập-nhật.',
+  ].join('\n');
+}
+
+function runEdit(
+  state: ClusterState,
+  kind: ResourceKind,
+  name: string,
+  namespace: string,
+): CommandOutcome {
+  const target = lookup(state, kind, name, namespace);
+  if (target === null) {
+    return notFoundOutcome(state, kind, name, namespace);
+  }
+  return {
+    state,
+    output: [
+      'error: unable to launch the editor "vi"',
+      `\`kubectl edit\` mở trình soạn thảo trong terminal, thứ không tồn tại ở đây. Mở ${kind} "${name}" trong bảng YAML rồi sửa và áp dụng lại — đó đúng là việc mà \`edit\` làm: đọc object hiện tại, sửa, gửi lại.`,
+    ].join('\n'),
+    accepted: false,
+  };
 }
