@@ -65,5 +65,14 @@ import { l02 } from './l02.ts';
 import { l03 } from './l03.ts';
 import { l04 } from './l04.ts';
 import { l05 } from './l05.ts';
+import { l06 } from './l06.ts';
+import { l07 } from './l07.ts';
+import { l08 } from './l08.ts';
+import { l09 } from './l09.ts';
+import { l10 } from './l10.ts';
+import { l11 } from './l11.ts';
 
-export const LEVELS: readonly Level[] = [l01, l02, l03, l04, l05];
+export const LEVELS: readonly Level[] = [
+  l01, l02, l03, l04, l05, l06, l07, l08,
+  l09, l10, l11,
+];
