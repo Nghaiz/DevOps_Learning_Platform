@@ -52,3 +52,17 @@ export type {
 
 export type { PredicateName } from './k8s/predicate-names.ts';
 export { PREDICATE_NAMES } from './k8s/predicate-names.ts';
+
+// ── Chống gian lận (lane G) ─────────────────────────────────────────────────
+export type { ReplayEngine, RunTally, VerifyResult, VerifyStatus } from './core/verify.ts';
+export {
+  COMMAND_KINDS,
+  checkDeterminism,
+  isVerified,
+  sessionReplayEngine,
+  tallyLog,
+  verifyLabel,
+  verifyRun,
+} from './core/verify.ts';
+
+export { SCORE_MAX, checkPlausibility, checkSave, checksum, stampSave } from './core/integrity.ts';
