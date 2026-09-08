@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { EventView, NodeView, ObjectView } from '@devops-platform/games';
 import { Tabs, TabsContent, TabsList, TabsTrigger, cn } from '@devops-platform/ui';
-import type { ArenaDispatch } from '../arena-contract.ts';
+import type { ArenaDispatch, ArenaEdit } from '../arena-contract.ts';
 /*
  * `object-yaml.ts` là hàm THUẦN đã có test riêng (`object-yaml.test.ts`), nên
  * viết một bộ tuần tự YAML thứ hai ở đây là vi phạm SSOT.
@@ -19,9 +19,12 @@ import { InspectorActions } from './inspector-actions.tsx';
 import { InspectorEvents } from './inspector-events.tsx';
 import { InspectorOverview } from './inspector-overview.tsx';
 import { InspectorTextTab } from './inspector-text-tab.tsx';
+import { InspectorYamlTab } from './inspector-yaml-tab.tsx';
 import { HIDDEN_SCROLL, PanelFrame } from './inspector-frame.tsx';
 import { InspectorResizeHandle, useInspectorWidth } from './inspector-resize.tsx';
 import { objectLabel } from './inspector-types.ts';
+import { RESOURCE_COLOR } from '../shared/resource-identity';
+import { RESOURCE_ICON } from './resource-icon';
 
 /**
  * Thời gian trượt ra trước khi gỡ khỏi cây DOM.
@@ -48,7 +51,18 @@ export interface InspectorPanelProps {
   readonly events: readonly EventView[];
   /** Khối `kubectl describe` — cha lấy từ `session.describe(uid)`. */
   readonly describeText: string | null;
+  /**
+   * Manifest ĐẦY ĐỦ — cha lấy từ `session.manifest(uid)`. `null` = engine không
+   * dựng được (object vừa biến mất), và tab YAML khi đó chỉ ĐỌC.
+   *
+   * ⛔ KHÔNG thay bằng `objectToYaml(object)`. Bản đó không mang `spec`, và lưu
+   * nó lại sẽ xoá sạch spec thật của tài nguyên — đã đo được một lần: pod mất
+   * hết container mà vẫn `Running`, không một lỗi nào.
+   */
+  readonly manifestYaml: string | null;
   readonly dispatch: ArenaDispatch;
+  /** Lưu manifest đã sửa ở tab YAML, và trả lại đúng câu engine nói. */
+  readonly onEdit: ArenaEdit;
   /** Bỏ chọn. Cha đặt `selectedUid = null`, và bảng tự trượt ra rồi biến mất. */
   readonly onClose: () => void;
 }
@@ -73,7 +87,9 @@ export function InspectorPanel({
   tick,
   events,
   describeText,
+  manifestYaml,
   dispatch,
+  onEdit,
   onClose,
 }: InspectorPanelProps): ReactElement | null {
   const [shown, setShown] = useState<ObjectView | null>(null);
@@ -121,10 +137,12 @@ export function InspectorPanel({
   }
 
   const title = objectLabel(shown);
+  const KindIcon = RESOURCE_ICON[shown.kind];
 
   return (
     <PanelFrame
       title={title}
+      headerExtra={<KindIcon aria-hidden className="size-6 shrink-0" style={{ color: RESOURCE_COLOR[shown.kind] }} />}
       closeLabel={`Đóng bảng thông số của ${title}`}
       onClose={onClose}
       style={{ width }}
@@ -135,7 +153,7 @@ export function InspectorPanel({
          * trên ảnh chụp màn hình, nút "Xoá" bị cắt mất một nửa và không bấm
          * tới. Bảng thông số là thứ người dùng vừa chủ động mở nên nó thắng.
          */
-        'absolute inset-y-3 right-3 z-30 max-w-[calc(100%-1.5rem)]',
+        'arena-inspector absolute inset-y-3 right-3 z-30 max-w-[calc(100%-1.5rem)]',
         'transition-[transform,opacity] duration-200 ease-out',
         entered ? 'translate-x-0 opacity-100' : 'translate-x-[calc(100%+0.75rem)] opacity-0',
       )}
@@ -155,7 +173,15 @@ export function InspectorPanel({
         </TabsContent>
 
         <TabsContent value="yaml" className="flex min-h-0 flex-1 flex-col px-3 py-2">
-          <InspectorTextTab text={objectToYaml(shown)} label={`YAML của ${title}`} copyLabel="Chép YAML" />
+          {manifestYaml === null ? (
+            <InspectorTextTab
+              text={objectToYaml(shown)}
+              label={`YAML của ${title}`}
+              copyLabel="Chép YAML"
+            />
+          ) : (
+            <InspectorYamlTab object={shown} yaml={manifestYaml} onEdit={onEdit} />
+          )}
         </TabsContent>
 
         <TabsContent value="events" className={cn('min-h-0 flex-1 px-3 py-2', HIDDEN_SCROLL)}>
@@ -177,3 +203,4 @@ export function InspectorPanel({
     </PanelFrame>
   );
 }
+

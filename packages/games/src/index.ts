@@ -88,7 +88,26 @@ export { createSession } from './k8s/session.ts';
  * hợp đồng là phần tối thiểu. Tầng giao diện cần cả `runCommand` (thanh lệnh)
  * lẫn `describe` (tab Mô tả của bảng thông số), và cả hai chỉ có ở kiểu đầy đủ.
  */
-export type { K8sEngineSession } from './k8s/session.ts';
+export type { DispatchOutcome, K8sEngineSession } from './k8s/session.ts';
+
+/*
+ * Bộ tuần tự manifest. Mở export cho tầng giao diện KHÔNG phải để nó tự dựng
+ * YAML — `K8sEngineSession.manifest(uid)` mới là đường dùng — mà để test và
+ * công cụ soạn bài dựng được manifest từ một object rời.
+ */
+export { toManifestYaml } from './k8s/manifest-yaml.ts';
+
+/*
+ * Phân loại mục tiêu "phải làm" / "phải giữ".
+ *
+ * Mở export vì tầng giao diện KHÔNG được tự suy ra: nó sẽ phải gọi
+ * `initialState` + `advance` + `evaluateObjectives` — tức dựng lại một phiên bản
+ * thứ hai của cùng phép thử, chạy trên cùng dữ liệu, và lệch đi ngay lần đầu ai
+ * đó đổi `SETTLE_TICKS`. Phép thử này là kiến thức của ENGINE (nó biết mô phỏng
+ * tiến hoá thế nào), nên nó ở lại engine và giao diện chỉ đọc kết quả.
+ */
+export type { ObjectiveKinds } from './k8s/objective-kind.ts';
+export { SETTLE_TICKS, classifyObjectives } from './k8s/objective-kind.ts';
 
 /*
  * Mười bài OJ mẫu, chuyển từ `CHALLENGES` — và export ngay tại đây là chỗ mà

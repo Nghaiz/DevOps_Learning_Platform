@@ -29,8 +29,10 @@ export interface ArenaContextMenuProps {
   readonly tick: number;
   readonly dispatch: ArenaDispatch;
   readonly onClose: () => void;
-  /** Mở bảng thông số cho object này. */
+  /** Mở bảng thông số cho object này. Camera KHÔNG di chuyển. */
   readonly onInspect: (uid: string) => void;
+  /** Bay camera tới object này rồi chọn nó. */
+  readonly onFocus: (uid: string) => void;
 }
 
 /**
@@ -48,6 +50,7 @@ export function ArenaContextMenu({
   dispatch,
   onClose,
   onInspect,
+  onFocus,
 }: ArenaContextMenuProps): ReactElement | null {
   const menuRef = useRef<HTMLDivElement>(null);
   const [placed, setPlaced] = useState<ScreenPoint | null>(null);
@@ -162,9 +165,17 @@ export function ArenaContextMenu({
       </p>
       <ContextMenuItem
         label="Xem thông số"
-        hint="Mở bảng bên phải với trạng thái, YAML, sự kiện và mô tả."
+        hint="Mở bảng bên phải với trạng thái, YAML (sửa được), sự kiện và mô tả."
         onSelect={() => {
           onInspect(object.uid);
+          onClose();
+        }}
+      />
+      <ContextMenuItem
+        label="Bay tới đây"
+        hint="Đưa camera tới sát tài nguyên này. Bấm chọn thường KHÔNG làm camera di chuyển."
+        onSelect={() => {
+          onFocus(object.uid);
           onClose();
         }}
       />

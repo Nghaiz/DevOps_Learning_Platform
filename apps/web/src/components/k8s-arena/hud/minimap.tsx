@@ -44,7 +44,7 @@ export interface MinimapProps {
  * thập ở đây sẽ hứa một hành động (bỏ hẳn lớp) mà nó không làm.
  */
 export function Minimap({ view, onSelectNode, className }: MinimapProps): ReactElement {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const podsByNode = useMemo(() => {
     const map = new Map<string, ObjectView[]>();
@@ -170,3 +170,4 @@ function podCount(byNode: ReadonlyMap<string, readonly ObjectView[]>): number {
   }
   return total;
 }
+

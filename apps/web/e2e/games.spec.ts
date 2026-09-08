@@ -387,7 +387,7 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
       expect(
         hits.map((h) => h.marker),
         `Không dấu vết \`three\` nào trong ${scanned} script mà ${GAME_PATH} tải về, ` +
-          `dù cảnh 3D đã mount (\`__dlpK8sScene\` tồn tại). Hoặc THREE_MARKERS đã lỗi ` +
+          `dù cảnh 3D đã mount (\`__dlpArenaScene\` tồn tại). Hoặc THREE_MARKERS đã lỗi ` +
           `thời so với bản \`three\` đang dùng, hoặc bundle đã đổi cách chia chunk. ` +
           `Dù là gì, phép kiểm VẮNG MẶT ở ô kia đang vô giá trị cho tới khi ô này xanh.`,
       ).not.toEqual([]);

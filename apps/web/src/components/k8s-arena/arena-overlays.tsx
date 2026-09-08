@@ -24,12 +24,15 @@ import { MissionCard } from './hud/mission-card';
 import { CodexDrawer } from './hud/codex-drawer';
 import { TerminalPanel } from './hud/terminal-panel';
 import { TopBar } from './hud/top-bar';
+import { ArenaDock } from './hud/arena-dock';
 import { useOverlayManager } from './hud/overlay-manager';
 import { InspectorPanel } from './hud/inspector-panel';
 import { ArenaContextMenu } from './hud/context-menu';
 import { MetricsPanel } from './hud/metrics-panel';
 import { IncidentsPanel } from './hud/incidents-panel';
 import { Minimap } from './hud/minimap';
+import { SettingsPanel } from './hud/settings-panel';
+import { SceneMenu, type SceneMenuAction } from './hud/scene-menu';
 import { EventLog } from './hud/event-log';
 import type { TerminalInsert } from './hud/terminal-panel';
 
@@ -43,11 +46,24 @@ export interface ArenaOverlaysProps {
   readonly describeText: string | null;
   readonly menuUid: string | null;
   readonly menuAnchor: ScreenPoint | null;
+  /** Chuột phải vào chỗ trống. `null` ⇒ menu cảnh không tồn tại trong DOM. */
+  readonly sceneMenuAnchor: ScreenPoint | null;
   readonly listObjects: () => readonly ObjectView[];
   readonly onSelect: (uid: string | null) => void;
+  /** Chọn VÀ bay camera tới. Tách khỏi `onSelect` — xem `selectObject` ở `arena-root`. */
+  readonly onFocusObject: (uid: string) => void;
   readonly onSelectNode: (nodeName: string) => void;
   readonly onCloseMenu: () => void;
+  readonly onCloseSceneMenu: () => void;
   readonly onCamera: (kind: CameraCommand['kind']) => void;
+  readonly onQuality: (tier: QualityTier) => void;
+  readonly showLabels: boolean;
+  readonly onShowLabels: (next: boolean) => void;
+  readonly showEdges: boolean;
+  readonly onShowEdges: (next: boolean) => void;
+  /** Có tài nguyên nào đang bị kéo lệch khỏi bố cục tự động không. */
+  readonly canAutoAlign: boolean;
+  readonly onAutoAlign: () => void;
   readonly onExit: () => void;
 }
 
@@ -59,7 +75,50 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
     codexAvailable: mode.codexAvailable,
     onCamera: props.onCamera,
     onPauseResume: engine.togglePause,
+    onAutoAlign: props.onAutoAlign,
   });
+
+  /*
+   * Menu chuột phải trên chỗ trống. Mọi mục ở đây đều thao tác trên CẢ CẢNH —
+   * không mục nào cần một tài nguyên đang chọn, nên menu này mở được ở bất kỳ
+   * đâu và không bao giờ rơi vào trạng thái rỗng nghĩa.
+   */
+  const sceneActions = useMemo<readonly SceneMenuAction[]>(
+    () => [
+      {
+        id: 'auto-align',
+        label: 'Sắp xếp lại',
+        hint: 'Trả mọi tài nguyên bạn đã kéo về đúng chỗ bố cục tự động tính.',
+        disabled: !props.canAutoAlign,
+        run: props.onAutoAlign,
+      },
+      {
+        id: 'frame-all',
+        label: 'Xem toàn cụm',
+        hint: 'Lùi camera ra đủ xa để cả cụm lọt khung, giữ nguyên hướng nhìn.',
+        run: () => props.onCamera('frame-all'),
+      },
+      {
+        id: 'reset-camera',
+        label: 'Đặt lại góc nhìn',
+        hint: 'Về góc nhìn chéo mặc định.',
+        run: () => props.onCamera('reset'),
+      },
+      {
+        id: 'pause',
+        label: engine.paused ? 'Chạy tiếp mô phỏng' : 'Tạm dừng mô phỏng',
+        hint: 'Dừng hẳn đồng hồ mô phỏng để đọc kỹ một trạng thái.',
+        run: engine.togglePause,
+      },
+      {
+        id: 'settings',
+        label: 'Cài đặt…',
+        hint: 'Tốc độ, bậc chất lượng, nhãn và dây quan hệ.',
+        run: () => overlays.show('settings'),
+      },
+    ],
+    [props, engine.paused, engine.togglePause, overlays],
+  );
 
   const insertCommand = useCallback(
     (command: string) => {
@@ -81,11 +140,31 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
     [engine.view, props.menuUid],
   );
 
+  /*
+   * Manifest THẬT của tài nguyên đang chọn — nguồn của ô soạn thảo YAML.
+   *
+   * Tính lại theo `engine.view` chứ không theo tick: bảng HUD đã được tiết chế
+   * xuống 100ms, nên đây là nhịp chậm nhất mà nội dung vẫn không bị đọc ra là
+   * cũ. Bám theo tick sẽ dựng lại chuỗi YAML nhiều lần mỗi giây cho một ô mà
+   * hầu hết thời gian không ai mở.
+   */
+  const manifestYaml = useMemo(
+    () => (selectedObject === null ? null : engine.manifest(selectedObject.uid)),
+    [engine, selectedObject, engine.view],
+  );
+
   const stars = useStars(level, engine);
 
   return (
     <div className="pointer-events-none absolute inset-0">
       <ArenaAnnouncer events={engine.view.events} />
+      <ArenaDock
+        overlays={overlays}
+        onCamera={props.onCamera}
+        codexAvailable={mode.codexAvailable}
+        canAutoAlign={props.canAutoAlign}
+        onAutoAlign={props.onAutoAlign}
+      />
 
       <div className="pointer-events-auto absolute inset-x-0 top-0 z-30">
         <TopBar
@@ -93,18 +172,19 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
           title={level.title}
           objectives={level.objectives}
           metIds={engine.status.objectivesMet}
+          guardIds={engine.guardObjectiveIds}
           startedAt={props.startedAt}
           stars={stars}
           speed={engine.paused ? 0 : engine.speed}
           onSpeedChange={engine.setSpeed}
           onExit={props.onExit}
-          onSettings={() => overlays.toggle('codex')}
+          onSettings={() => overlays.toggle('settings')}
         />
       </div>
 
       <PaletteRail
         open={overlays.isOpen('palette')}
-        allowedResources={level.allowedResources}
+        featuredResources={level.allowedResources}
         listObjects={listObjects}
         dispatch={engine.dispatch}
         getTick={engine.getTick}
@@ -116,6 +196,7 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
         goal={level.mission}
         objectives={level.objectives}
         metIds={engine.status.objectivesMet}
+        guardIds={engine.guardObjectiveIds}
         hints={level.hints}
         hintsRevealed={engine.hintsRevealed}
         codexAvailable={mode.codexAvailable}
@@ -155,7 +236,9 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
         tick={engine.view.tick}
         events={engine.view.events}
         describeText={props.describeText}
+        manifestYaml={manifestYaml}
         dispatch={engine.dispatch}
+        onEdit={engine.editResource}
         onClose={() => onSelect(null)}
       />
 
@@ -166,13 +249,37 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
         dispatch={engine.dispatch}
         onClose={props.onCloseMenu}
         onInspect={onSelect}
+        onFocus={props.onFocusObject}
+      />
+
+      <SceneMenu
+        anchor={props.sceneMenuAnchor}
+        actions={sceneActions}
+        onClose={props.onCloseSceneMenu}
+      />
+
+      <SettingsPanel
+        open={overlays.isOpen('settings')}
+        speed={engine.speed}
+        paused={engine.paused}
+        onSpeed={engine.setSpeed}
+        onTogglePause={engine.togglePause}
+        quality={props.quality}
+        onQuality={props.onQuality}
+        showLabels={props.showLabels}
+        onShowLabels={props.onShowLabels}
+        showEdges={props.showEdges}
+        onShowEdges={props.onShowEdges}
+        canAutoAlign={props.canAutoAlign}
+        onAutoAlign={props.onAutoAlign}
+        onClose={() => overlays.hide('settings')}
       />
 
       {overlays.isOpen('minimap') ? (
         <Minimap
           view={engine.view}
           onSelectNode={props.onSelectNode}
-          className="pointer-events-auto absolute bottom-4 right-4 z-20"
+          className="arena-minimap pointer-events-auto absolute bottom-20 right-4 z-20"
         />
       ) : null}
 
@@ -180,7 +287,7 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
         <MetricsPanel
           view={engine.view}
           onClose={() => overlays.hide('metrics')}
-          className="pointer-events-auto absolute bottom-4 left-20 z-20"
+          className="pointer-events-auto absolute bottom-20 left-28 z-20"
         />
       ) : null}
 
@@ -199,7 +306,7 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
         <EventLog
           events={engine.view.events}
           onClose={() => overlays.hide('eventLog')}
-          className="pointer-events-auto absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
+          className="pointer-events-auto absolute bottom-20 left-1/2 z-20 -translate-x-1/2"
         />
       ) : null}
     </div>
@@ -234,3 +341,4 @@ function useStars(level: Level, engine: ArenaSessionHandle): number {
     return 1;
   }, [engine.status, engine.hintsRevealed, level]);
 }
+

@@ -105,6 +105,8 @@ function ArenaCanvas(props: ArenaSceneProps): ReactElement {
           labelLayer={labelLayer}
           selectedUid={props.selectedUid}
           hoveredUid={props.hoveredUid}
+          showLabels={props.showLabels}
+          showEdges={props.showEdges}
         />
       </Canvas>
       <div ref={setLabelLayer} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden" />

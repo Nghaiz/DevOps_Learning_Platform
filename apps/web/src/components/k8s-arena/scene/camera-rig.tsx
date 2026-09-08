@@ -50,6 +50,7 @@ export interface CameraRigProps {
  */
 export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps): ReactElement {
   const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
   const controlsRef = useRef<OrbitControlsHandle | null>(null);
   const flyingRef = useRef(false);
@@ -59,7 +60,8 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
 
   /** Khoảng cách đủ ôm trọn cụm mà vẫn chừa lề. Mọi hệ số lấy từ hợp đồng. */
   function frameDistance(): number {
-    return Math.max(CAMERA_TUNING.minFrameDistance, runtime.radius * CAMERA_TUNING.frameFillFactor);
+    const aspectMargin = Math.max(1, size.height / Math.max(1, size.width - 80));
+    return Math.min(CAMERA_TUNING.maxDistance * 0.75, Math.max(CAMERA_TUNING.minFrameDistance, runtime.radius * CAMERA_TUNING.frameFillFactor) * aspectMargin);
   }
 
   /** Ghi `GOAL_*` cho một điểm ngắm, giữ nguyên hướng nhìn hiện tại. */
@@ -91,7 +93,7 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
     const distance = frameDistance();
     if (command.kind === 'reset') {
       GOAL_TARGET.set(0, 0, 0);
-      GOAL_POSITION.set(0, distance * CAMERA_TUNING.frameHeightFactor, distance);
+      GOAL_POSITION.set(distance * 0.48, distance * 0.72, distance * 0.88);
     } else if (command.kind === 'frame-all') {
       // Giữ nguyên hướng nhìn hiện tại: người dùng vừa chọn một góc, "đóng khung
       // tất cả" không có lý do gì để cướp lại góc đó — nó chỉ cần lùi ra đủ xa.
@@ -146,7 +148,7 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
       framedRef.current = true;
       const distance = frameDistance();
       GOAL_TARGET.set(0, 0, 0);
-      GOAL_POSITION.set(0, distance * CAMERA_TUNING.frameHeightFactor, distance);
+      GOAL_POSITION.set(distance * 0.48, distance * 0.72, distance * 0.88);
       departure();
     }
     if (!flyingRef.current) {

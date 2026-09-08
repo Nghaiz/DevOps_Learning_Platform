@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { createNodeGeometry } from './node-geometry';
 import { ContactShadows, Grid } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { PLATFORM_DEPTH, PLATFORM_GAP, PLATFORM_HEIGHT, PLATFORM_WIDTH } from '../shared/scene-layout';
+import { PLATFORM_GAP, PLATFORM_HEIGHT, PLATFORM_WIDTH } from '../shared/scene-layout';
 import { TIER_FEATURES } from '../shared/scene-quality';
 import type { QualityTier } from '../arena-contract';
 import { PLATFORM_CAPACITY } from './scene-constants';
@@ -62,11 +62,11 @@ export function NodePlatforms({ runtime, colors, colorsVersion, tier }: NodePlat
 
   const geometry = useMemo(
     () =>
-      new RoundedBoxGeometry(PLATFORM_WIDTH, PLATFORM_HEIGHT, PLATFORM_DEPTH, features.roundedSegments, 0.07),
+      createNodeGeometry(features.roundedSegments),
     [features.roundedSegments],
   );
   const material = useMemo(
-    () => new THREE.MeshStandardMaterial({ roughness: 0.74, metalness: 0.22, envMapIntensity: 0.6 }),
+    () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.48, metalness: 0.3, envMapIntensity: 0.7 }),
     [],
   );
   const groundMaterial = useMemo(() => new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 }), []);
@@ -181,3 +181,4 @@ export function NodePlatforms({ runtime, colors, colorsVersion, tier }: NodePlat
     </>
   );
 }
+

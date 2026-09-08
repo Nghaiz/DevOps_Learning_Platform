@@ -14,8 +14,13 @@ import { HUD_SCROLL_HIDDEN, HUD_TOP_OFFSET } from './top-bar.tsx';
 
 export interface PaletteRailProps {
   readonly open: boolean;
-  /** `Level.allowedResources` — loại ngoài danh sách này hiện mờ kèm lời giải thích. */
-  readonly allowedResources: readonly ResourceKind[];
+  /**
+   * `Level.allowedResources` — loại bài học đang xoay quanh.
+   *
+   * ⛔ KHÔNG phải danh sách cho phép. Mọi loại đều tạo được ở mọi bài; danh sách
+   * này chỉ quyết định ô nào được ĐÁNH DẤU. Xem `PaletteEntry` trong hợp đồng.
+   */
+  readonly featuredResources: readonly ResourceKind[];
   /** Đọc object đang có, gọi lúc mở hộp đặt tên. Hàm chứ không phải mảng: engine đập nhịp nhiều lần mỗi giây. */
   readonly listObjects: () => readonly ObjectView[];
   readonly dispatch: ArenaDispatch;
@@ -31,7 +36,7 @@ interface Pending {
 }
 
 /**
- * Bảng tạo tài nguyên bên trái.
+ * Bảng tạo tài nguyên bên trái. MỌI ô đều dùng được, ở MỌI bài.
  *
  * ⛔ Đây là thứ CHƯA TỪNG TỒN TẠI trong bản cũ, và sự vắng mặt của nó là một lỗi
  * chỉ ra được bằng chứng: gợi ý của level 1 viết *"Bảng tài nguyên bên trái cho
@@ -39,14 +44,14 @@ interface Pending {
  * trái cũ (`resource-rail.tsx:28`) chỉ LIỆT KÊ object đã có. Người chơi làm theo
  * gợi ý sẽ không tìm thấy gì.
  *
- * Ô bị chặn KHÔNG bị ẩn đi. Ẩn thì người học kết luận "game này không có
- * Deployment"; hiện mờ kèm câu giải thích thì họ đọc đúng thứ đang xảy ra —
- * *loại này có thật, bài này chưa mở nó*. Đó là khác biệt giữa một giới hạn dạy
- * học và một tính năng thiếu.
+ * ⛔ KHÔNG có ô nào bị khoá. Bản trước làm mờ và chặn bấm những loại ngoài
+ * `Level.allowedResources`; chủ dự án bác bỏ hẳn (2026-09-08): *"không được
+ * phép chặn thao tác với các resource, bài nào cũng phải mở"*. `allowedResources`
+ * giờ chỉ ĐÁNH DẤU loại mà bài học xoay quanh — một chỉ dẫn, không phải hàng rào.
  */
 export function PaletteRail({
   open,
-  allowedResources,
+  featuredResources,
   listObjects,
   dispatch,
   getTick,
@@ -67,8 +72,8 @@ export function PaletteRail({
     }
   }, []);
 
-  useEffect(syncFade, [syncFade, allowedResources]);
-  const allowed = useMemo(() => new Set(allowedResources), [allowedResources]);
+  useEffect(syncFade, [syncFade, featuredResources]);
+  const featured = useMemo(() => new Set(featuredResources), [featuredResources]);
 
   const start = useCallback(
     (entry: PaletteEntry): void => {
@@ -99,15 +104,17 @@ export function PaletteRail({
         return;
       }
       const entry = entryByHotkey(digit);
-      if (entry === null || !allowed.has(entry.kind)) {
+      if (entry === null) {
         return;
       }
+      // Không lọc theo `featuredResources`: phím tắt phải mở được ĐÚNG những ô
+      // mà chuột mở được, nếu không bàn phím lại thành một hàng rào thứ hai.
       event.preventDefault();
       start(entry);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, allowed, start]);
+  }, [open, start]);
 
   if (!open) {
     return null;
@@ -151,7 +158,7 @@ export function PaletteRail({
         onScroll={syncFade}
         aria-label="Bảng tạo tài nguyên"
         className={cn(
-          'pointer-events-auto absolute bottom-0 left-0 z-20 w-22 overflow-x-hidden overflow-y-auto',
+          'arena-palette pointer-events-auto absolute bottom-0 left-0 z-20 overflow-x-hidden overflow-y-auto',
           HUD_TOP_OFFSET,
           HUD_SCROLL_HIDDEN,
           'border-r border-border bg-card/85 px-1 py-1 shadow-elevation-2 backdrop-blur-sm',
@@ -160,14 +167,14 @@ export function PaletteRail({
         <div className="grid grid-cols-2 gap-1">
           {PALETTE_GROUP_ORDER.map((group) => (
             <Fragment key={group}>
-              <h3 className="col-span-2 px-0.5 text-[8px] leading-none font-semibold tracking-wide text-muted-foreground uppercase">
+              <h3 className="arena-tool-group col-span-2 px-0.5 text-[8px] leading-none font-semibold tracking-wide text-muted-foreground uppercase">
                 {PALETTE_GROUP_LABELS[group]}
               </h3>
               {PALETTE_ENTRIES.filter((entry) => entry.group === group).map((entry) => (
                 <PaletteCell
                   key={entry.kind}
                   entry={entry}
-                  enabled={allowed.has(entry.kind)}
+                  featured={featured.has(entry.kind)}
                   onPick={() => start(entry)}
                 />
               ))}
@@ -187,7 +194,7 @@ export function PaletteRail({
         <div
           aria-hidden
           className={cn(
-            'pointer-events-none absolute bottom-0 left-0 z-20 h-6 w-22',
+            'arena-palette-fade pointer-events-none absolute bottom-0 left-0 z-20 h-6',
             'bg-gradient-to-t from-card to-transparent',
           )}
         />
@@ -203,4 +210,5 @@ export function PaletteRail({
     </TooltipProvider>
   );
 }
+
 

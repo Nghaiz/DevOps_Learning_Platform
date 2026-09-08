@@ -29,7 +29,13 @@
  * thì đặt `pointer-events: none` để chuột lọt xuống canvas.
  */
 
-import type { ClusterView, GameAction, ResourceKind } from '@devops-platform/games';
+import type {
+  ClusterView,
+  DispatchOutcome,
+  GameAction,
+  ResourceKind,
+  ResourceRef,
+} from '@devops-platform/games';
 
 // ── Chế độ chơi ─────────────────────────────────────────────────────────────
 
@@ -135,8 +141,43 @@ export interface ArenaSceneProps {
   readonly onHover: (uid: string | null) => void;
   /** Chuột phải trên một object. Toạ độ là toạ độ màn hình để đặt menu ngữ cảnh. */
   readonly onContextMenu: (uid: string, screen: ScreenPoint) => void;
+  /**
+   * Chuột phải vào CHỖ TRỐNG của cảnh.
+   *
+   * Tách hẳn khỏi `onContextMenu` chứ không dùng chung với `uid === null`: hai
+   * cú bấm này mở hai menu KHÁC NHAU (menu của một tài nguyên / menu của cảnh),
+   * và một tham số nhận `null` sẽ bắt mọi chỗ nhận phải rẽ nhánh — rồi quên rẽ ở
+   * một chỗ nào đó và mở menu tài nguyên với một tài nguyên không tồn tại.
+   *
+   * Bản trước KHÔNG có đường này, và hệ quả là chuột phải trượt sẽ bật menu của
+   * TRÌNH DUYỆT lên giữa cảnh 3D (`preventDefault` chỉ chạy khi trúng vật).
+   */
+  readonly onSceneContextMenu: (screen: ScreenPoint) => void;
+  /** Nhãn tên nổi trên vật. Tắt khi cụm đông và người chơi muốn nhìn hình. */
+  readonly showLabels: boolean;
+  /** Dây nối quan hệ giữa các tài nguyên. */
+  readonly showEdges: boolean;
   readonly quality: QualityTier;
   readonly onQualityDowngrade: (next: QualityTier, reason: string) => void;
+  /**
+   * Có tài nguyên nào đang bị KÉO lệch khỏi bố cục tự động không.
+   *
+   * ⚠ Một cờ BOOLEAN, không phải số lượng, và đó là ràng buộc hiệu năng chứ
+   * không phải sở thích: vị trí kéo sống ngoài React (`SceneRuntime.overrides`)
+   * vì nó đổi mỗi khung hình trong lúc kéo. Báo lên một con số sẽ làm HUD dựng
+   * lại 60 lần một giây suốt cú kéo; báo lên một cờ thì nó chỉ đổi đúng hai lần
+   * cả phiên — lúc vật đầu tiên bị kéo, và lúc "sắp xếp lại".
+   */
+  readonly onMovedChange: (moved: boolean) => void;
+  /**
+   * Dấu thời gian của lệnh "sắp xếp lại" gần nhất (`performance.now()`), `0` =
+   * chưa bấm lần nào.
+   *
+   * Cùng lý do với `CameraCommand.issuedAt`: đây là một SỰ KIỆN, không phải một
+   * trạng thái. Bấm hai lần liên tiếp phải sắp xếp hai lần, mà hai prop giống
+   * hệt nhau thì lần thứ hai rơi vào hư không.
+   */
+  readonly autoAlignAt: number;
   /**
    * Cảnh không đọc được màu từ biến CSS và đang chạy bằng bảng màu dự phòng.
    *
@@ -246,7 +287,8 @@ export type OverlayId =
   | 'incidents'
   | 'minimap'
   | 'codex'
-  | 'eventLog';
+  | 'eventLog'
+  | 'settings';
 
 /**
  * ⛔ VÙNG THÔNG BÁO CHO TRÌNH ĐỌC MÀN HÌNH — quyết định của lead, 2026-09-08.
@@ -283,6 +325,7 @@ export const DEFAULT_OVERLAYS: Readonly<Record<OverlayId, boolean>> = {
   minimap: true,
   codex: false,
   eventLog: false,
+  settings: false,
 };
 
 /**
@@ -301,8 +344,15 @@ export const ARENA_KEYS = {
   toggleIncidents: 'i',
   toggleCodex: '?',
   toggleEventLog: 'l',
+  toggleSettings: 's',
   resetCamera: 'r',
   frameAll: 'f',
+  /**
+   * Trả mọi tài nguyên về chỗ bố cục tự động tính — huỷ toàn bộ vị trí người
+   * chơi đã KÉO. `g` = "gọn"; `a` bỏ trống vì nó là phím đầu của nhiều thao tác
+   * chọn-tất-cả mà người dùng quen bấm theo phản xạ.
+   */
+  autoAlign: 'g',
   pauseResume: ' ',
   closeTopmost: 'Escape',
 } as const;
@@ -317,6 +367,19 @@ export const ARENA_KEYS = {
  * trái cho bạn tạo pod mà không cần gõ YAML"* (`levels/l01.ts:59`) trong khi
  * bảng bên trái của bản cũ chỉ LIỆT KÊ những gì đã có. Gợi ý đang mô tả một
  * tính năng không tồn tại, và người chơi làm theo sẽ không tìm thấy gì.
+ */
+/**
+ * ⛔ MỌI Ô TRONG BẢNG ĐỀU DÙNG ĐƯỢC, Ở MỌI BÀI.
+ *
+ * Chỉ đạo trực tiếp của chủ dự án (2026-09-08): *"không được phép chặn thao tác
+ * với các resource, bài nào cũng phải mở chứ không được khóa (không được hiện là
+ * bài nào chưa mở loại tài nguyên này)"*.
+ *
+ * `Level.allowedResources` KHÔNG còn là một cái khoá. Nó vẫn ở lại trong dữ
+ * liệu và vẫn được đọc, nhưng chỉ để ĐÁNH DẤU những loại bài học đang xoay
+ * quanh — một chỉ dẫn, không phải một hàng rào. Người chơi muốn dựng thêm
+ * Service ở một bài về Pod thì cứ dựng: đây là môi trường mô phỏng, và phạt
+ * việc thử nghiệm là phạt đúng hành vi mà nó sinh ra để khuyến khích.
  */
 export interface PaletteEntry {
   readonly kind: ResourceKind;
@@ -435,4 +498,22 @@ export const PALETTE_GROUP_LABELS: Readonly<Record<PaletteGroup, string>> = {
  */
 export interface ArenaDispatch {
   (action: GameAction): void;
+}
+
+/**
+ * Sửa manifest của một tài nguyên, và NGHE ENGINE TRẢ LỜI.
+ *
+ * Tách khỏi `ArenaDispatch` vì một lý do đo được: `dispatch` trả `void`, nên
+ * `ReduceResult.output` — chỗ engine viết *"Không lưu được thay đổi: …"* hay
+ * *"Không đổi được `kind` hay `metadata.name` bằng `edit`"* — bị vứt đi trước
+ * khi tới giao diện. Ô soạn thảo YAML mà không có đường này thì bấm Lưu trên
+ * một manifest sai sẽ KHÔNG có phản ứng nào cả, và người chơi không có cách nào
+ * biết mình sai ở đâu. Đó đúng là thứ `development-principles.md` § "Errors Over
+ * Silent Fallbacks" cấm.
+ *
+ * Vẫn đi qua đúng một cửa xuống engine (`dispatchDetailed`), nên `RunLog` vẫn
+ * ghi đủ và phần chấm điểm chống gian lận không mất gì.
+ */
+export interface ArenaEdit {
+  (target: ResourceRef, yaml: string): DispatchOutcome;
 }

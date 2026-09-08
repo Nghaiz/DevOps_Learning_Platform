@@ -181,7 +181,7 @@ export const TIER_FEATURES: Readonly<Record<QualityTier, TierFeatures>> = {
     softShadows: false,
     bloom: false,
     environment: true,
-    maxPixelRatio: 1,
+    maxPixelRatio: 1.5,
     roundedSegments: 2,
     particles: true,
   },
@@ -191,7 +191,8 @@ export const TIER_FEATURES: Readonly<Record<QualityTier, TierFeatures>> = {
     bloom: false,
     environment: false,
     maxPixelRatio: 1,
-    roundedSegments: 1,
+    roundedSegments: 2,
     particles: false,
   },
 };
+

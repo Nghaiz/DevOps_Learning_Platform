@@ -23,12 +23,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type {
   ClusterView,
+  DispatchOutcome,
   GameAction,
   K8sEngineSession,
   Level,
+  ResourceRef,
   SessionStatus,
 } from '@devops-platform/games';
-import { createSession } from '@devops-platform/games';
+import { classifyObjectives, createSession } from '@devops-platform/games';
 
 /**
  * Nhịp làm mới của các bảng HUD.
@@ -47,8 +49,23 @@ export interface ArenaSessionHandle {
   readonly view: ClusterView;
   readonly status: SessionStatus;
   readonly dispatch: (action: GameAction) => void;
+  /**
+   * Sửa manifest và NGHE engine trả lời — đường của ô soạn thảo YAML.
+   *
+   * Tách khỏi `dispatch` vì `dispatch` trả `void` và nuốt mất `output`, nên một
+   * YAML sai cú pháp trước đây làm nút Lưu im lặng hoàn toàn.
+   */
+  readonly editResource: (target: ResourceRef, yaml: string) => DispatchOutcome;
   readonly runCommand: (command: string) => string;
   readonly describe: (uid: string) => string | null;
+  /**
+   * Manifest YAML ĐẦY ĐỦ của một tài nguyên — nguồn của ô soạn thảo YAML.
+   *
+   * ⛔ KHÔNG dùng `objectToYaml` cho việc này. Nó tuần tự hoá `ObjectView`, một
+   * phép chiếu hiển thị không mang `spec`, nên lưu bản đó lại sẽ xoá sạch spec
+   * của tài nguyên. Xem `manifest-yaml.ts` trong package games.
+   */
+  readonly manifest: (uid: string) => string | null;
   readonly getTick: () => number;
   /**
    * Số gợi ý đã mở. Lấy thẳng từ `SessionStatus.hintsRevealed` của engine.
@@ -60,6 +77,14 @@ export interface ArenaSessionHandle {
    * để báo. Trước khi tự tính một con số, tìm xem nó đã tồn tại chưa.
    */
   readonly hintsRevealed: number;
+  /**
+   * Mục tiêu ĐÚNG SẴN mà người chơi phải giữ — `ObjectiveKinds.guards`.
+   *
+   * Tính MỘT LẦN cho mỗi level, không mỗi tick: nó là tính chất của bài, không
+   * phải của trạng thái hiện tại. Xem `classifyObjectives` trong package games
+   * về việc vì sao phép thử phải đo ở hai thời điểm.
+   */
+  readonly guardObjectiveIds: readonly string[];
   readonly speed: number;
   readonly paused: boolean;
   /**
@@ -131,6 +156,14 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
     sessionRef.current?.dispatch(action);
   }, []);
 
+  const editResource = useCallback((target: ResourceRef, yaml: string): DispatchOutcome => {
+    const current = sessionRef.current;
+    if (current === null) {
+      return { output: 'Phiên chưa sẵn sàng.', accepted: false };
+    }
+    return current.dispatchDetailed({ tick: current.getView().tick, kind: 'edit', target, yaml });
+  }, []);
+
   const runCommand = useCallback((command: string): string => {
     return sessionRef.current?.runCommand(command) ?? 'Phiên chưa sẵn sàng.';
   }, []);
@@ -139,7 +172,21 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
     return sessionRef.current?.describe(uid) ?? null;
   }, []);
 
+  const manifest = useCallback((uid: string): string | null => {
+    return sessionRef.current?.manifest(uid) ?? null;
+  }, []);
+
   const getTick = useCallback((): number => sessionRef.current?.getView().tick ?? 0, []);
+
+  /*
+   * Hạt giống LÀ hạt giống của phiên. Phân loại phải chạy trên đúng chuỗi ngẫu
+   * nhiên mà người chơi đang thấy — một hạt giống khác cho ra một đợt sự cố
+   * khác, và một mục tiêu có thể đổi nhóm theo đó.
+   */
+  const guardObjectiveIds = useMemo(
+    () => classifyObjectives(level, seedRef.current).guards,
+    [level],
+  );
 
 
   const applySpeed = useCallback((multiplier: number) => {
@@ -179,10 +226,13 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
     view,
     status,
     dispatch,
+    editResource,
     runCommand,
     describe,
+    manifest,
     getTick,
     hintsRevealed: status.hintsRevealed,
+    guardObjectiveIds,
     speed,
     paused,
     setSpeed: applySpeed,

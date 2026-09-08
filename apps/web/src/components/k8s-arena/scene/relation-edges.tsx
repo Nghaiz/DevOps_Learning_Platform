@@ -20,9 +20,16 @@ export interface RelationEdgesProps {
   readonly runtime: SceneRuntime;
   readonly colors: ArenaColors;
   readonly colorsVersion: number;
+  /** Người chơi tắt dây quan hệ trong bảng cài đặt khi cụm đông và cảnh rối. */
+  readonly visible: boolean;
 }
 
-export function RelationEdges({ runtime, colors, colorsVersion }: RelationEdgesProps): ReactElement {
+export function RelationEdges({
+  runtime,
+  colors,
+  colorsVersion,
+  visible,
+}: RelationEdgesProps): ReactElement {
   const builtRef = useRef(-1);
 
   const solidGeometry = useMemo(() => new THREE.BufferGeometry(), []);
@@ -67,6 +74,8 @@ export function RelationEdges({ runtime, colors, colorsVersion }: RelationEdgesP
   }, [solidMaterial, dashedMaterial, colors, colorsVersion]);
 
   useFrame(() => {
+    solid.visible = visible;
+    dashed.visible = visible;
     if (builtRef.current === runtime.structureVersion) {
       return;
     }

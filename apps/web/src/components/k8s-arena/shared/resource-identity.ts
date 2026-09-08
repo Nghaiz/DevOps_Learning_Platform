@@ -1,0 +1,31 @@
+import type { ResourceKind } from '@devops-platform/games';
+
+/** Arena pigments shared by SVG tools, inspector badges and 3D materials. */
+export const RESOURCE_COLOR = {
+  Pod: '#69a8ff',
+  Deployment: '#b39aff',
+  ReplicaSet: '#d1b3ff',
+  StatefulSet: '#a78bfa',
+  DaemonSet: '#65dfc0',
+  Job: '#f8bc65',
+  CronJob: '#f6d879',
+  HorizontalPodAutoscaler: '#a6e878',
+  PodDisruptionBudget: '#e8bf78',
+  Service: '#51d5e9',
+  Ingress: '#7dbcf8',
+  NetworkPolicy: '#ed899e',
+  ConfigMap: '#e9d183',
+  Secret: '#f597bb',
+  ServiceAccount: '#f3b69b',
+  Role: '#eb9d8b',
+  RoleBinding: '#eca8d6',
+  ClusterRole: '#f7ba80',
+  ClusterRoleBinding: '#e0a2ed',
+  PersistentVolumeClaim: '#6ddbb7',
+  PersistentVolume: '#47c6a9',
+  StorageClass: '#9cdbac',
+  Namespace: '#89c7de',
+  ResourceQuota: '#e3cb92',
+  LimitRange: '#bbc68a',
+  Node: '#79b8b0',
+} as const satisfies Record<ResourceKind, string>;

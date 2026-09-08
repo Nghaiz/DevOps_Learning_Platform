@@ -19,7 +19,15 @@ import type { ClusterView } from '@devops-platform/games';
 import { KIND_ACCENT } from '../arena-contract';
 import { computeLayout } from '../shared/scene-layout';
 import { phaseFromId } from '../shared/scene-motion';
-import type { EdgeBuffers, FrameOptions, NodeEntry, SceneEntry, SceneRuntime } from './scene-entry';
+import type {
+  EdgeBuffers,
+  EdgeLink,
+  FrameOptions,
+  NodeEntry,
+  PlacementOverride,
+  SceneEntry,
+  SceneRuntime,
+} from './scene-entry';
 import { advanceEntries } from './scene-frame';
 import { visualSignature } from './scene-signature';
 
@@ -29,6 +37,8 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
   const visible: SceneEntry[] = [];
   const nodes: NodeEntry[] = [];
   const edges: EdgeBuffers = { solid: [], dashed: [] };
+  const links: EdgeLink[] = [];
+  const overrides = new Map<string, PlacementOverride>();
   let signature: string | null = null;
 
   const runtime: SceneRuntime = {
@@ -37,8 +47,42 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
     visible,
     nodes,
     edges,
+    overrides,
     radius: 1,
     structureVersion: 0,
+
+    moveTo(uid: string, x: number, z: number): void {
+      const entry = entries.get(uid);
+      if (entry === undefined) {
+        return;
+      }
+      overrides.set(uid, { x, z });
+      entry.x = x;
+      entry.z = z;
+      /*
+       * Dựng lại cạnh NGAY, không đợi lần `sync` sau. Chữ ký hình ảnh được tính
+       * từ `computeLayout` — nó không biết gì về vị trí kéo tay — nên `sync` kết
+       * luận "không có gì đổi" và trả về sớm; đợi nó là đợi mãi mãi, và sợi dây
+       * nối sẽ đứng yên trong khi vật ở đầu nó đã bị kéo đi.
+       */
+      rebuildEdges();
+      runtime.structureVersion += 1;
+    },
+
+    resetLayout(): boolean {
+      if (overrides.size === 0) {
+        return false;
+      }
+      overrides.clear();
+      /*
+       * Ép `sync` tính lại từ đầu: chữ ký hiện tại vẫn khớp với cụm (cụm chưa
+       * đổi), nên không xoá nó thì `sync` trả về sớm và các entry giữ nguyên toạ
+       * độ kéo tay — nút "Sắp xếp lại" bấm vào không làm gì cả.
+       */
+      signature = null;
+      runtime.sync();
+      return true;
+    },
 
     sync(): boolean {
       const view = getView();
@@ -81,9 +125,18 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
           };
           entries.set(placement.uid, entry);
         }
-        entry.x = placement.position.x;
+        /*
+         * Vị trí kéo tay THẮNG bố cục tự động, và phải áp lại ở MỌI lần `sync`.
+         * Bỏ qua bước này thì mỗi lần cụm đổi cấu trúc (một pod sinh ra ở đâu
+         * đó) mọi vật người chơi vừa sắp xếp sẽ búng về chỗ cũ.
+         *
+         * Chỉ hai trục mặt sàn: `y` vẫn do bố cục quyết, nên pod vẫn đứng đúng
+         * độ cao mặt bệ và vật trên kệ vẫn ở tầm kệ.
+         */
+        const override = overrides.get(placement.uid);
+        entry.x = override?.x ?? placement.position.x;
         entry.y = placement.position.y;
-        entry.z = placement.position.z;
+        entry.z = override?.z ?? placement.position.z;
         entry.size = placement.size;
         entry.token = object.statusToken;
         /*
@@ -114,18 +167,11 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
         });
       }
 
-      const positionOf = new Map(layout.objects.map((o) => [o.uid, o.position]));
-      edges.solid.length = 0;
-      edges.dashed.length = 0;
+      links.length = 0;
       for (const edge of layout.edges) {
-        const a = positionOf.get(edge.fromUid);
-        const b = positionOf.get(edge.toUid);
-        if (a === undefined || b === undefined) {
-          continue;
-        }
-        const target = edge.healthy ? edges.solid : edges.dashed;
-        target.push(a.x, a.y, a.z, b.x, b.y, b.z);
+        links.push({ fromUid: edge.fromUid, toUid: edge.toUid, healthy: edge.healthy });
       }
+      rebuildEdges();
 
       runtime.radius = layout.radius;
       runtime.structureVersion += 1;
@@ -142,6 +188,28 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
       return result.animating;
     },
   };
+
+  /**
+   * Toạ độ hai đầu mỗi cạnh, đọc từ `entries` — tức từ vị trí THẬT SỰ đang vẽ,
+   * đã tính cả chỗ người chơi kéo tới.
+   *
+   * Bản trước đọc thẳng `layout.objects`, và đó là lý do một sợi dây vẫn nối
+   * vào chỗ trống sau khi vật ở đầu nó bị kéo đi: `computeLayout` không bao giờ
+   * biết tới vị trí kéo tay.
+   */
+  function rebuildEdges(): void {
+    edges.solid.length = 0;
+    edges.dashed.length = 0;
+    for (const link of links) {
+      const a = entries.get(link.fromUid);
+      const b = entries.get(link.toUid);
+      if (a === undefined || b === undefined) {
+        continue;
+      }
+      const target = link.healthy ? edges.solid : edges.dashed;
+      target.push(a.x, a.y, a.z, b.x, b.y, b.z);
+    }
+  }
 
   function rebuildOrder(): void {
     order.length = 0;

@@ -127,11 +127,11 @@ const KIND_TOKENS: readonly string[] = [
 ];
 
 export function deriveArenaPalette(colors: SceneColors): ArenaPalette {
-  const background = reshade(colors.background, 0.012, BACKGROUND_MAX_L, 0.28);
+  const background = reshade(colors['kind-pod'], 0.035, BACKGROUND_MAX_L, 0.38);
   // Sàn sáng hơn nền một chút để có một đường chân trời đọc được; cùng sắc nên
   // sương mù vẫn hoà được hai thứ vào nhau ở xa.
-  const ground = reshade(background, 0.03, 0.075, 0.22);
-  const platform = reshade(colors.card, 0.1, 0.17, 0.2);
+  const ground = reshade(background, 0.045, 0.065, 0.32);
+  const platform = reshade(colors['kind-cluster'], 0.32, 0.4, 0.3);
 
   const body: Record<string, Rgb> = {};
   const glow: Record<string, Rgb> = {};
@@ -158,8 +158,8 @@ export function deriveArenaPalette(colors: SceneColors): ArenaPalette {
     kind,
     // Lưới sàn phải THẤY ĐƯỢC nhưng không được tranh nhìn với cụm: đường phân
     // khu đậm hơn ô nhỏ, cả hai đều là xám của token viền chứ không phải màu.
-    gridCell: reshade(colors.border, 0.16, 0.24, 0.12),
-    gridSection: reshade(colors.border, 0.3, 0.4, 0.14),
+    gridCell: reshade(colors['kind-network'], 0.12, 0.16, 0.24),
+    gridSection: reshade(colors['kind-network'], 0.21, 0.27, 0.3),
     background,
     ground,
     platform,
@@ -173,3 +173,4 @@ export function deriveArenaPalette(colors: SceneColors): ArenaPalette {
     glow: glow as Readonly<Record<StatusToken, Rgb>>,
   };
 }
+

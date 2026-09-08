@@ -52,6 +52,27 @@ export interface EdgeBuffers {
   readonly dashed: number[];
 }
 
+/**
+ * Một quan hệ, ở dạng CHƯA thành toạ độ.
+ *
+ * Tách khỏi `EdgeBuffers` vì hai thứ đổi theo hai nhịp khác nhau: danh sách
+ * quan hệ chỉ đổi khi cụm đổi cấu trúc, còn toạ độ hai đầu đổi mỗi lần người
+ * chơi KÉO một đầu. Giữ nguyên cách cũ (nướng toạ độ vào buffer ngay lúc
+ * `sync`) thì cạnh đứng yên trong khi vật ở đầu nó đã bị kéo đi — một sợi dây
+ * nối vào chỗ trống.
+ */
+export interface EdgeLink {
+  readonly fromUid: string;
+  readonly toUid: string;
+  readonly healthy: boolean;
+}
+
+/** Vị trí do người chơi tự đặt. Chỉ hai trục mặt sàn — độ cao vẫn do bố cục quyết. */
+export interface PlacementOverride {
+  readonly x: number;
+  readonly z: number;
+}
+
 export interface FrameOptions {
   /** Bồng bềnh chỉ đáng trả giá khi người dùng đang thật sự nhìn vào khung. */
   readonly bobActive: boolean;
@@ -75,6 +96,20 @@ export interface SceneRuntime {
   radius: number;
   /** Tăng mỗi lần hình dạng cảnh đổi — bóng đổ và buffer cạnh bám vào số này. */
   structureVersion: number;
+  /**
+   * Vị trí người chơi tự KÉO, đè lên `computeLayout`.
+   *
+   * ⛔ Thuần HIỂN THỊ. Không đi vào `GameAction`, không vào `RunLog`, không đổi
+   * một bit nào của mô phỏng — kéo một pod sang chỗ khác trên màn hình KHÔNG
+   * dời nó sang node khác, y như kéo một icon trên desktop không chuyển ổ đĩa.
+   * Đưa nó vào log sẽ làm mọi lượt chơi trung thực trượt xác minh, vì bản phát
+   * lại không có chuột.
+   */
+  readonly overrides: Map<string, PlacementOverride>;
+  /** Ghi vị trí kéo cho một object và cập nhật ngay cạnh nối vào nó. */
+  moveTo(uid: string, x: number, z: number): void;
+  /** Bỏ MỌI vị trí kéo. Trả `true` khi thật sự có cái để bỏ. */
+  resetLayout(): boolean;
   /** Đọc engine, cập nhật kho. Trả `true` khi có gì đó NHÌN THẤY ĐƯỢC đã đổi. */
   sync(): boolean;
   /** Chạy hoạt ảnh một khung hình. Trả `true` khi còn thứ đang chuyển động. */

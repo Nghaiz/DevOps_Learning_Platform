@@ -7,8 +7,12 @@ import type { ArenaSceneProps, QualityTier } from '../arena-contract';
 import type { SceneRuntime } from './scene-entry';
 
 /**
- * Số liệu cho cổng đo e2e. Cùng hình dạng với cửa sổ của bản cũ
- * (`__dlpK8sScene`) để harness không phải học một hợp đồng thứ hai.
+ * Số liệu cho cổng đo e2e, phát ra ở `globalThis.__dlpArenaScene`.
+ *
+ * ⚠ TÊN NÀY LÀ MỘT HỢP ĐỒNG với `e2e/games-harness.ts`. Bản cũ phát ở
+ * `__dlpK8sScene`; đợt dựng lại arena đổi tên mà không đổi bên đọc, và hậu quả
+ * là mọi ô hiệu năng của `@games` báo "không đo được" trong im lặng suốt từ đó —
+ * một cổng không đỏ, chỉ ngừng đo. Đổi tên ở đây thì phải đổi cả bên kia.
  */
 export interface ArenaSceneStats {
   readonly calls: number;
