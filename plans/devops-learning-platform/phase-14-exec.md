@@ -726,3 +726,97 @@ buộc phải phân loại có ý thức là protected hay công khai, thay vì 
 một giả định. Comment trên tập miễn trừ phải ghi **lý do** `/games` công khai (chơi
 hoàn toàn trong trình duyệt, tiến độ ở `localStorage`, nên cổng đăng nhập không gác
 gì cả) — thiếu lý do thì người đọc sau sẽ tưởng là sót và "sửa" nó.
+
+---
+
+## 12. Hợp đồng C8 — bố cục TOÀN MÀN HÌNH (thay thế phần bố cục của §4.4)
+
+> Lane E sở hữu. Chủ dự án bác bản dựng đầu 2026-09-08 kèm ảnh chụp game gốc.
+
+### 12.1 §4.4 sai chỗ nào, và đó là lỗi của lead
+
+§4.4 vẽ một sơ đồ **chia đôi**: canvas một bên, panel một cột bên cạnh. Lane E làm
+đúng thứ được giao. Kết quả là canvas bé tí giữa một mớ ô chữ nhật, và chủ dự án
+gọi nó là "chia từng ô vùng, quá tệ" — đúng.
+
+Ảnh chụp bản gốc cho thấy cách làm đúng: **canvas chiếm TOÀN BỘ viewport, mọi thứ
+khác NỔI ĐÈ lên trên nó**. Không có ô nào chia phần diện tích với canvas. Đây là
+khác biệt về kiến trúc bố cục, không phải về trang trí.
+
+Sơ đồ ở §4.4 **hết hiệu lực**. Phần a11y của §4.4 thì **giữ nguyên toàn bộ** — xem
+§12.4, nó không hề mâu thuẫn với toàn màn hình.
+
+### 12.2 Bố cục
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ ← Thoát  Kubernetes Game   Nodes 2  Pods 3/3  Deploy 1  Svc 1        │ ← thanh trên
+│                     CPU ▓▓░░ 34%  MEM ▓░░░ 12%   L2  1x 2x 4x   ⚙    │   mỏng, nổi
+├────┬─────────────────────────────────────────────────────────────────┤
+│ ▣  │ ┌─ L2 — Deployment và ReplicaSet ──┐                            │
+│Pod │ │ primer…                          │                            │
+│ ▣  │ │ ○ Tạo Deployment                 │        CANVAS 3D           │
+│Dep │ │ ○ Scale lên 3 replica    0/3     │      TRÀN TOÀN MÀN HÌNH    │
+│ ▣  │ │ [ Gợi ý (3) ]                    │      (nằm DƯỚI mọi overlay)│
+│ RS │ └──────────────────────────────────┘                            │
+│ …  │                                              ┌───────────────┐  │
+│rail│                                              │  bản đồ thu   │  │
+│trái│      [Căn lại] [Về góc nhìn] [YAML] [kubectl] [Trợ giúp]      │  │
+└────┴─────────────────────────────────────────────────────────────────┘
+```
+
+Mọi khối ngoài canvas là **overlay định vị tuyệt đối**, nền mờ có `backdrop-blur`,
+bo góc, viền mảnh. Canvas nằm dưới cùng và **không bao giờ** bị thu nhỏ để nhường
+chỗ cho panel.
+
+### 12.3 Thoát khỏi vỏ ứng dụng
+
+`AppShell` nằm ở **root layout** nên route con không gỡ được nó bằng route group.
+Nhưng `app-shell.tsx` là client component và **đã đọc `usePathname()`** (nó tính
+`isActiveNav`). Vậy: cho nó ẩn `ShellHeader` và bỏ padding trên các route
+immersive, giữ **đúng một** `<main>`.
+
+⛔ KHÔNG dùng `fixed inset-0 z-50` phủ lên vỏ. Cách đó để lại header trong DOM
+phía dưới, đẻ ra một cuộc chiến z-index, và buộc phải bẫy focus thủ công. Ẩn
+đúng thứ cần ẩn thì rẻ hơn và không phá hợp đồng landmark.
+
+Trang game đặt `overflow: hidden`, không có thanh cuộn trang.
+
+### 12.4 A11y — KHÔNG nhân nhượng, và toàn màn hình không hề cản
+
+Overlay **là DOM thật**. Chúng nổi lên trên canvas chứ không phải vẽ vào canvas,
+nên mọi ràng buộc của §4.4 giữ nguyên y hệt:
+
+- Canvas `aria-hidden="true"`, không nhận focus. Nó minh hoạ trạng thái mà overlay
+  đã nói bằng chữ.
+- **Mọi thao tác chơi được vẫn phải làm xong bằng bàn phím** qua overlay. Rail
+  trái, thẻ level, thanh công cụ, inspector: tất cả focus được bằng Tab.
+- Thứ tự tab phải theo trình tự đọc, không theo thứ tự DOM tình cờ. Overlay chồng
+  nhau nhiều lớp là chỗ dễ hỏng nhất của bố cục này — kiểm bằng bàn phím thật.
+- `aria-live="polite"` cho thay đổi trạng thái, như cũ.
+
+### 12.5 Các vùng chrome
+
+| Vùng | Vị trí | Nội dung |
+|---|---|---|
+| Thanh trên | trên, tràn ngang, mỏng | Thoát · tên game · bộ đếm sống (Nodes/Pods/Deploy/Svc) · CPU/MEM · chế độ · level · tốc độ 1x/2x/4x · cài đặt |
+| Rail tài nguyên | trái, dọc | Bảng tài nguyên nhóm theo WORKLOADS · NETWORK · CONFIG · STORAGE. Icon + nhãn ngắn. |
+| Thẻ level | trên-trái, đè canvas | Tiêu đề · `primer` · checklist mục tiêu có tiến độ · nút gợi ý. **Thu gọn được.** |
+| Thanh công cụ | dưới-giữa | Căn lại · Về góc nhìn · YAML · kubectl · Trợ giúp |
+| Bản đồ thu nhỏ | dưới-phải | Toàn cảnh cụm, bấm để nhảy góc nhìn |
+| Inspector | phải, dạng drawer | Mở khi chọn đối tượng. YAML + trạng thái + hành động. |
+| Đúc kết | giữa, khi thắng | `takeaways` của `LevelTeaching`. Đây là nhịp "à ra thế", nó xứng đáng chiếm giữa màn hình một lúc. |
+
+### 12.6 Màn hình hẹp
+
+Overlay chồng chất trên màn hình nhỏ là không dùng được. Dưới ~1024px: rail thành
+thanh ngang cuộn được hoặc menu bung ra; thẻ level và inspector thành drawer chỉ
+mở một cái tại một thời điểm. Canvas vẫn tràn màn hình. **Không** quay lại bố cục
+chia ô.
+
+### 12.7 Nghiên cứu kèm theo
+
+`plans/devops-learning-platform/reports/2026-09-08-p14-k8sgames-ui-study.md` (đang
+viết) đo bố cục, tương tác, bảng màu và phím tắt của bản gốc. Đọc nó trước khi
+chốt kích thước và hành vi cụ thể. Ta lấy **cấu trúc**, không lấy mã và không lấy
+bảng màu — thương hiệu ta là ĐỎ, chữ tiếng Việt, và ta có cổng a11y mà họ không có.
