@@ -616,28 +616,54 @@ const configmapKeySet: Predicate = (state, args) => {
  * một kiểu. Mục tiêu "mount vào đúng chỗ" là việc của `volume-mounted`; tách hai
  * câu hỏi ra cho phép một level hỏi riêng từng cái.
  */
-const secretMounted: Predicate = (state, args) => {
+/**
+ * Pod đích của hai vị từ mount — theo `podName` HOẶC `labelSelector`.
+ *
+ * ⚠ Thiếu CẢ HAI thì trả `null` (⇒ vị từ `false`), khác hẳn `podsInScope` ở trên
+ * vốn rơi về "mọi pod trong namespace". Với một mục tiêu mount thì "mọi pod" là
+ * một câu hỏi vô nghĩa, và trả về cả namespace sẽ cho ra tích xanh nhờ một pod
+ * hoàn toàn không liên quan.
+ *
+ * Vì sao cần `labelSelector`: pod do Deployment sinh mang tên `<tên>-<hash>-<hash>`
+ * nên không level nào viết trước được `podName`. Lượng từ là "ÍT NHẤT MỘT pod
+ * khớp", đúng tiền lệ mà hợp đồng viện dẫn (`pod-running`).
+ */
+function podsForMount(state: ClusterState, args: Args): readonly K8sObject[] | null {
+  const namespace = argString(args, 'namespace');
+  if (namespace === null) {
+    return null;
+  }
   const podName = argString(args, 'podName');
+  const selector = argSelector(args);
+  const pods = livePods(state, namespace);
+  if (podName !== null) {
+    return pods.filter((pod) => pod.name === podName);
+  }
+  return selector === null ? null : pods.filter((pod) => matchLabels(pod.labels, selector));
+}
+
+const secretMounted: Predicate = (state, args) => {
   const namespace = argString(args, 'namespace');
   const secretName = argString(args, 'secretName');
-  if (podName === null || namespace === null || secretName === null) {
-    return false;
-  }
-  const pod = livePods(state, namespace).find((object) => object.name === podName);
-  if (pod === undefined) {
+  const pods = podsForMount(state, args);
+  if (namespace === null || secretName === null || pods === null || pods.length === 0) {
     return false;
   }
   if (lookup(state, 'Secret', secretName, namespace) === null) {
     return false;
   }
-  const viaEnv = readContainers(pod.spec, TICK_MS).some((container) =>
-    container.secretRefs.some((ref) => ref.name === secretName),
-  );
-  const viaVolume = asArray(pod.spec['volumes']).some((entry) => {
-    const secret = asRecord(asRecord(entry)?.['secret']);
-    return asString(secret?.['secretName']) === secretName || asString(secret?.['name']) === secretName;
+  return pods.some((pod) => {
+    const viaEnv = readContainers(pod.spec, TICK_MS).some((container) =>
+      container.secretRefs.some((ref) => ref.name === secretName),
+    );
+    const viaVolume = asArray(pod.spec['volumes']).some((entry) => {
+      const secret = asRecord(asRecord(entry)?.['secret']);
+      return (
+        asString(secret?.['secretName']) === secretName || asString(secret?.['name']) === secretName
+      );
+    });
+    return viaEnv || viaVolume;
   });
-  return viaEnv || viaVolume;
 };
 
 const pvcBound: Predicate = (state, args) => {
@@ -651,18 +677,15 @@ const pvcBound: Predicate = (state, args) => {
 };
 
 const volumeMounted: Predicate = (state, args) => {
-  const podName = argString(args, 'podName');
-  const namespace = argString(args, 'namespace');
   const mountPath = argString(args, 'mountPath');
-  if (podName === null || namespace === null || mountPath === null) {
+  const pods = podsForMount(state, args);
+  if (mountPath === null || pods === null || pods.length === 0) {
     return false;
   }
-  const pod = livePods(state, namespace).find((object) => object.name === podName);
-  if (pod === undefined) {
-    return false;
-  }
-  return readContainers(pod.spec, TICK_MS).some((container) =>
-    container.volumeMounts.some((mount) => mount.mountPath === mountPath),
+  return pods.some((pod) =>
+    readContainers(pod.spec, TICK_MS).some((container) =>
+      container.volumeMounts.some((mount) => mount.mountPath === mountPath),
+    ),
   );
 };
 

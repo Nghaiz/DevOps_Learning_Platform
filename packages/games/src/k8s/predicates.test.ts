@@ -374,3 +374,80 @@ describe('vị từ theo cấu hình', () => {
     expect(check(down, 'node-ready', { nodeName: 'may-chu-1' })).toBe(false);
   });
 });
+
+/**
+ * l20 mount Secret vào một Deployment, nên pod mang tên `<tên>-<hash>-<hash>` và
+ * `podName` không viết trước được. Thiếu nhánh `labelSelector` thì hai mục tiêu
+ * của l20 KHÔNG BAO GIỜ xanh — level không thắng được, và không có gì trong log
+ * chỉ về vị từ.
+ */
+describe('secret-mounted / volume-mounted chỉ pod bằng podName HOẶC labelSelector', () => {
+  const secret: ResourceSpec = {
+    kind: 'Secret',
+    name: 'so-sach-db',
+    namespace: 'san-pham',
+    spec: { type: 'Opaque', data: { MAT_KHAU: 'x' } },
+  };
+  const mounted = pod('web', {
+    volumes: [{ name: 'bi-mat', secret: { secretName: 'so-sach-db' } }],
+    containers: [
+      {
+        name: 'web',
+        image: 'nginx:1.27-alpine',
+        ports: [{ containerPort: 80 }],
+        volumeMounts: [{ name: 'bi-mat', mountPath: '/etc/bi-mat' }],
+      },
+    ],
+  });
+
+  it('xanh khi chỉ bằng labelSelector, không có podName', () => {
+    const state = advance(cluster([secret, mounted]), 20);
+    expect(
+      check(state, 'secret-mounted', {
+        namespace: 'san-pham',
+        labelSelector: 'app=web',
+        secretName: 'so-sach-db',
+      }),
+    ).toBe(true);
+    expect(
+      check(state, 'volume-mounted', {
+        namespace: 'san-pham',
+        labelSelector: 'app=web',
+        mountPath: '/etc/bi-mat',
+      }),
+    ).toBe(true);
+  });
+
+  it('vẫn xanh với podName — đường cũ không gãy', () => {
+    const state = advance(cluster([secret, mounted]), 20);
+    expect(
+      check(state, 'volume-mounted', {
+        namespace: 'san-pham',
+        podName: 'web',
+        mountPath: '/etc/bi-mat',
+      }),
+    ).toBe(true);
+  });
+
+  /** Thiếu cả hai cách chỉ pod ⇒ `false`, chứ KHÔNG rơi về "mọi pod trong namespace". */
+  it('đỏ khi thiếu cả podName lẫn labelSelector', () => {
+    const state = advance(cluster([secret, mounted]), 20);
+    expect(check(state, 'volume-mounted', { namespace: 'san-pham', mountPath: '/etc/bi-mat' })).toBe(
+      false,
+    );
+    expect(
+      check(state, 'secret-mounted', { namespace: 'san-pham', secretName: 'so-sach-db' }),
+    ).toBe(false);
+  });
+
+  it('đỏ khi selector khớp pod nhưng pod chưa mount đúng chỗ', () => {
+    const state = advance(cluster([secret, pod('web')]), 20);
+    expect(
+      check(state, 'volume-mounted', {
+        namespace: 'san-pham',
+        labelSelector: 'app=web',
+        mountPath: '/etc/bi-mat',
+      }),
+    ).toBe(false);
+  });
+});
