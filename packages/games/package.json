@@ -1,0 +1,27 @@
+{
+  "name": "@devops-platform/games",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "//exports": "Chỉ MỘT subpath và nó phải an toàn cho trình duyệt: không file nào dưới src/ được import node:*. Package này chạy TRONG bundle client (game là frontend-only, phase-14 §14.A.1) — kéo node:fs vào đây thì chỉ `next build` đỏ, còn typecheck/lint/test vẫn xanh. Đó đúng là hình dạng lỗi packages/scenario đã trả giá ngày 2026-09-04.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "//typescript": "Alias TS6/TS7 song song — xem giải thích ở package.json gốc: `tsc` = TS7 native, `typescript` = shim TS6 cho typescript-eslint API.",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.4.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "eslint": "^10.9.1",
+    "eslint-config-prettier": "^10.1.8",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.68.0",
+    "vitest": "^4.1.11"
+  }
+}
