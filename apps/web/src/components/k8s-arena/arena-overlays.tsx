@@ -29,6 +29,8 @@ import { useOverlayManager } from './hud/overlay-manager';
 import { InspectorPanel } from './hud/inspector-panel';
 import { ArenaContextMenu } from './hud/context-menu';
 import { MetricsPanel } from './hud/metrics-panel';
+import { HeaderMetrics } from './hud/header-metrics';
+import { useMetricsHistory } from './hud/use-metrics-history';
 import { IncidentsPanel } from './hud/incidents-panel';
 import { Minimap } from './hud/minimap';
 import { SettingsPanel } from './hud/settings-panel';
@@ -163,6 +165,12 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
   );
 
   const stars = useStars(level, engine);
+  /*
+   * Lịch sử số liệu thu ở ĐÂY, không thu trong `MetricsPanel`. Dải trên thanh
+   * trên cùng luôn hiện nên mẫu phải được thu dù bảng có mở hay không; thu ở hai
+   * nơi là thu thừa một nơi. Xem `use-metrics-history.ts`.
+   */
+  const metricsHistory = useMetricsHistory(engine.view);
 
   return (
     <div className="pointer-events-none absolute inset-0">
@@ -184,7 +192,13 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
           guardIds={engine.guardObjectiveIds}
           startedAt={props.startedAt}
           simulationTick={engine.view.tick}
-          stars={stars}
+          metrics={
+            <HeaderMetrics
+              view={engine.view}
+              history={metricsHistory}
+              onOpenMetrics={() => overlays.toggle('metrics')}
+            />
+          }
           speed={engine.paused ? 0 : engine.speed}
           onSpeedChange={engine.setSpeed}
           onExit={props.onExit}
@@ -295,6 +309,7 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
 
       {overlays.isOpen('metrics') ? (
         <MetricsPanel
+          history={metricsHistory}
           view={engine.view}
           onClose={() => overlays.hide('metrics')}
           className="pointer-events-auto absolute bottom-20 left-28 z-20"

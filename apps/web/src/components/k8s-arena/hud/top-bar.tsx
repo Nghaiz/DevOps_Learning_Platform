@@ -1,7 +1,7 @@
 'use client';
 
 import { type ReactElement } from 'react';
-import { Clock, LogOut, Pause, Settings, ShieldAlert, Star } from 'lucide-react';
+import { Clock, LogOut, Pause, Settings, ShieldAlert } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from '@devops-platform/ui';
 import type { Objective } from '@devops-platform/games';
 
@@ -63,8 +63,14 @@ export interface TopBarProps {
   /** `Date.now()` lúc vào bài. Thanh tự đếm từ đó, không nhận một con số đổi mỗi giây qua prop. */
   readonly startedAt: number;
   readonly simulationTick?: number;
-  /** 0..3. Điểm sao do tầng chấm điểm tính, thanh chỉ hiển thị. */
-  readonly stars: number;
+  /**
+   * Dải số liệu cụm, do bên gọi dựng (`HeaderMetrics`).
+   *
+   * Nhận vào dưới dạng node chứ không dựng tại chỗ: thanh này không được biết
+   * `ClusterView` — nó chỉ nhận những gì cần vẽ. Ba ngôi sao trước đây chiếm
+   * đúng chỗ này và không bao giờ đổi giá trị cho tới lúc thắng.
+   */
+  readonly metrics?: ReactElement | null;
   /** Nhịp hiện tại; `0` = đang tạm dừng. */
   readonly speed: number;
   readonly onSpeedChange: (multiplier: number) => void;
@@ -93,7 +99,7 @@ export function TopBar({
   metIds,
   guardIds,
   simulationTick = 0,
-  stars,
+  metrics = null,
   speed,
   onSpeedChange,
   onExit,
@@ -107,7 +113,6 @@ export function TopBar({
     (objective) => guard.has(objective.id) && !met.has(objective.id),
   ).length;
   const done = required.filter((objective) => met.has(objective.id)).length;
-  const percent = required.length === 0 ? 0 : Math.round((done / required.length) * 100);
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -131,20 +136,25 @@ export function TopBar({
           <h1 className="truncate text-sm font-semibold text-foreground">{title}</h1>
         </div>
 
-        <div className="arena-progress ml-2 flex min-w-24 max-w-40 flex-1 items-center gap-2">
-          <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-status-done transition-[width] duration-(--motion-base) ease-out"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          <span
-            className="font-mono text-xs text-muted-foreground"
-            aria-label={`Đã đạt ${done} trên ${required.length} mục tiêu`}
-          >
-            {done}/{required.length}
+        {/*
+         * Mục tiêu còn lại, ở dạng MỘT con số.
+         *
+         * Thanh tiến độ cũ đã gỡ: nó lặp lại đúng con số ngay cạnh nó, rồi lặp
+         * lại lần nữa cả danh sách mục tiêu trong thẻ nhiệm vụ ở ngay bên dưới —
+         * ba lần cùng một thông tin trên một màn hình, và nó chiếm mất chỗ của
+         * dải số liệu (xem `header-metrics.tsx`).
+         */}
+        <span
+          className="arena-objectives shrink-0 font-mono text-xs text-muted-foreground"
+          aria-label={`Đã đạt ${done} trên ${required.length} mục tiêu`}
+        >
+          <span className={done === required.length ? 'text-success' : 'text-foreground'}>
+            {done}
           </span>
-        </div>
+          /{required.length}
+        </span>
+
+        <div className="ml-auto flex min-w-0 items-center gap-3">{metrics}</div>
 
         {brokenGuards === 0 ? null : (
           <span
@@ -155,22 +165,6 @@ export function TopBar({
             {brokenGuards}
           </span>
         )}
-
-        <div
-          className="arena-stars ml-auto flex items-center gap-1 text-muted-foreground"
-          aria-label={`${stars} trên 3 sao`}
-        >
-          {[1, 2, 3].map((position) => (
-            <Star
-              key={position}
-              aria-hidden
-              className={cn(
-                'size-4',
-                position <= stars ? 'fill-warning text-warning' : 'text-input',
-              )}
-            />
-          ))}
-        </div>
 
         <span
           title="Thời gian mô phỏng"

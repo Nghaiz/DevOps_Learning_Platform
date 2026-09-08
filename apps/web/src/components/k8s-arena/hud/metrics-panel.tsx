@@ -1,18 +1,27 @@
 'use client';
 
-import { useEffect, useState, type ReactElement } from 'react';
+import { type ReactElement } from 'react';
 import type { ClusterView } from '@devops-platform/games';
 import { cn } from '@devops-platform/ui';
 import { HIDDEN_SCROLL } from './inspector-frame.tsx';
 import { PanelFrame } from './inspector-frame.tsx';
 import { MetricsChart } from './metrics-chart.tsx';
-import { pushSample, sampleFrom, type MetricSample } from './metrics-history.ts';
+import { type MetricSample } from './metrics-history.ts';
 
 const percent = (value: number): string => `${String(Math.round(value * 100))}%`;
 const count = (value: number): string => String(Math.round(value));
 
 export interface MetricsPanelProps {
   readonly view: ClusterView;
+  /**
+   * Chuỗi mẫu, do cha thu (`useMetricsHistory`).
+   *
+   * ⚠ Trước đây bảng tự giữ lịch sử trong state của chính nó, nên đồ thị bắt
+   * đầu từ lúc MỞ bảng và bảng phải tự đi giải thích điều đó ở chân. Kể từ khi
+   * dải số liệu nằm thường trực trên thanh trên cùng, mẫu đã được thu sẵn cho cả
+   * phiên — nhận vào rẻ hơn và cho đồ thị đầy đủ hơn.
+   */
+  readonly history: readonly MetricSample[];
   readonly onClose: () => void;
   /** Cho lead đổi chỗ đặt. Bỏ trống thì dùng góc trái dưới. */
   readonly className?: string;
@@ -27,13 +36,12 @@ export interface MetricsPanelProps {
  * gian đang tắt. Bảng tự nói ra giới hạn này ở chân, để người dùng không tưởng
  * đồ thị đang giấu mất phần đầu.
  */
-export function MetricsPanel({ view, onClose, className }: MetricsPanelProps): ReactElement {
-  const [history, setHistory] = useState<readonly MetricSample[]>([]);
-
-  useEffect(() => {
-    setHistory((current) => pushSample(current, sampleFrom(view)));
-  }, [view]);
-
+export function MetricsPanel({
+  view,
+  history,
+  onClose,
+  className,
+}: MetricsPanelProps): ReactElement {
   const cpu = history.map((sample) => sample.cpu);
   const memory = history.map((sample) => sample.memory);
   const pods = history.map((sample) => sample.pods);
@@ -93,7 +101,7 @@ export function MetricsPanel({ view, onClose, className }: MetricsPanelProps): R
         </div>
 
         <p className="text-[11px] text-muted-foreground">
-          Đồ thị bắt đầu từ lúc mở bảng, giữ {String(history.length)} mẫu gần nhất.
+          Đồ thị tính từ lúc vào bài, giữ {String(history.length)} mẫu gần nhất.
         </p>
       </div>
     </PanelFrame>
