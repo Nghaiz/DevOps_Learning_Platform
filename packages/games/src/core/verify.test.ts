@@ -13,11 +13,19 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { GameAction, RunLog } from '../k8s/contract.ts';
+import type {
+  ClusterView,
+  CreateSessionOptions,
+  K8sSession,
+  Level,
+  RunLog,
+  SessionStatus,
+} from '../k8s/contract.ts';
 import type { RunResult } from './types.ts';
 import {
   checkDeterminism,
   isVerified,
+  sessionReplayEngine,
   tallyLog,
   verifyLabel,
   verifyRun,
@@ -35,21 +43,25 @@ interface FakeState {
   readonly deleted: readonly string[];
 }
 
-function target(action: GameAction): string {
-  const name = action.payload['name'];
-  return typeof name === 'string' ? name : '?';
-}
-
 /**
  * Engine tất định: trạng thái chỉ phụ thuộc `levelId`, `seed`, và chuỗi action.
  * Không đồng hồ, không `Math.random`, không đọc gì ngoài tham số — đúng ràng
  * buộc §3.4 mà lane B phải đạt.
+ *
+ * Nó KHÔNG phân tích YAML: coi cả khối `yaml` là tên tài nguyên. Thứ đang kiểm
+ * ở file này là CƠ CHẾ XÁC MINH, không phải bộ mô phỏng Kubernetes — một engine
+ * giả càng đơn giản thì test càng nói đúng về cái nó định nói.
+ *
+ * Narrowing theo `kind` cho ra thẳng các field (`yaml`, `target`) — `GameAction`
+ * là union phân biệt chứ không còn `payload` lỏng.
  */
 const deterministicEngine: ReplayEngine<FakeState> = {
   init: (levelId, seed) => ({ levelId, seed, applied: [], deleted: [] }),
   reduce: (state, action) => {
-    if (action.kind === 'apply') return { ...state, applied: [...state.applied, target(action)] };
-    if (action.kind === 'delete') return { ...state, deleted: [...state.deleted, target(action)] };
+    if (action.kind === 'apply') return { ...state, applied: [...state.applied, action.yaml] };
+    if (action.kind === 'delete') {
+      return { ...state, deleted: [...state.deleted, action.target.name] };
+    }
     return state;
   },
   objectivesMet: (state) =>
@@ -92,11 +104,11 @@ const genuineLog: RunLog = {
   levelId: LEVEL,
   seed: SEED,
   actions: [
-    { tick: 0, kind: 'apply', payload: { name: 'web' } },
-    { tick: 3, kind: 'wait', payload: {} },
-    { tick: 5, kind: 'apply', payload: { name: 'db' } },
-    { tick: 8, kind: 'hint', payload: { index: 0 } },
-    { tick: 9, kind: 'kubectl', payload: { command: 'get pods' } },
+    { tick: 0, kind: 'apply', yaml: 'web' },
+    { tick: 3, kind: 'wait', ticks: 2 },
+    { tick: 5, kind: 'apply', yaml: 'db' },
+    { tick: 8, kind: 'hint', index: 0 },
+    { tick: 9, kind: 'kubectl', command: 'get pods' },
   ],
 };
 
@@ -240,8 +252,8 @@ describe('verifyRun — nhật ký sai hình dạng', () => {
       levelId: LEVEL,
       seed: SEED,
       actions: [
-        { tick: 5, kind: 'apply', payload: { name: 'web' } },
-        { tick: 2, kind: 'apply', payload: { name: 'db' } },
+        { tick: 5, kind: 'apply', yaml: 'web' },
+        { tick: 2, kind: 'apply', yaml: 'db' },
       ],
     };
     const result = verifyRun(badLog, genuineResult(), deterministicEngine);
@@ -253,7 +265,7 @@ describe('verifyRun — nhật ký sai hình dạng', () => {
     const badLog = {
       levelId: LEVEL,
       seed: SEED,
-      actions: [{ tick: 0, kind: 'sudo-win', payload: {} }],
+      actions: [{ tick: 0, kind: 'sudo-win', yaml: 'thang-luon' }],
     } as unknown as RunLog;
     expect(verifyRun(badLog, genuineResult(), deterministicEngine).status).toBe('log-hong');
   });
@@ -267,7 +279,7 @@ describe('verifyRun — nhật ký sai hình dạng', () => {
     const badLog: RunLog = {
       levelId: LEVEL,
       seed: SEED,
-      actions: [{ tick: -1, kind: 'apply', payload: {} }],
+      actions: [{ tick: -1, kind: 'apply', yaml: 'web' }],
     };
     expect(verifyRun(badLog, genuineResult(), deterministicEngine).status).toBe('log-hong');
   });
@@ -378,5 +390,180 @@ describe('nhãn cho người dùng', () => {
 
   it('mọi trạng thái đều có nhãn không rỗng', () => {
     for (const status of ALL_STATUSES) expect(verifyLabel(status).length).toBeGreaterThan(0);
+  });
+});
+
+// ── Adapter sang K8sSession thật của lane B ─────────────────────────────────
+
+/**
+ * `K8sSession` giả — CÓ TRẠNG THÁI THAY ĐỔI TẠI CHỖ, khác hẳn engine thuần ở
+ * trên. Đó chính là lý do phải có nhóm test này: `verifyRun` phát lại hai lần,
+ * và với một session mutable thì lần hai PHẢI chạy trên một session mới hoàn
+ * toàn. Nếu adapter dùng lại session cũ thì lần hai sẽ nối tiếp trạng thái lần
+ * một và mọi lượt chơi hợp lệ bị gắn cờ.
+ */
+const FAKE_LEVEL: Level = {
+  id: LEVEL,
+  chapter: 1,
+  title: 'Pod đầu tiên',
+  brief: 'Tạo một pod.',
+  difficulty: 'basic',
+  initialState: { nodes: [], namespaces: ['default'], resources: [] },
+  allowedResources: ['Pod'],
+  objectives: [{ id: 'obj-web', label: 'Pod web chạy', check: 'pod-dang-chay', required: true }],
+  hints: ['Dùng kubectl apply.'],
+  parMoves: 2,
+  teaches: ['pod'],
+  teaching: {
+    primer: 'Pod là đơn vị chạy nhỏ nhất của Kubernetes.',
+    cheatsheet: [{ command: 'kubectl apply -f pod.yaml', explain: 'Tạo tài nguyên từ manifest.' }],
+    takeaways: ['Pod bọc container và là thứ scheduler xếp lên node.'],
+  },
+};
+
+interface SessionSpy {
+  readonly optionsSeen: CreateSessionOptions[];
+  disposeCount: number;
+  createCount: number;
+}
+
+/**
+ * `viewDrift` mô phỏng một engine mà `ClusterView` đổi giữa hai lần phát lại
+ * TRONG KHI `objectivesMet` và `score` vẫn y hệt — đúng hình dạng mà một phép so
+ * "bốc vài field" sẽ bỏ lọt.
+ */
+function makeFakeCreateSession(spy: SessionSpy, viewDrift = false) {
+  return (options: CreateSessionOptions): K8sSession => {
+    spy.optionsSeen.push(options);
+    const runIndex = spy.createCount++;
+    const applied: string[] = [];
+    let hints = 0;
+    let moves = 0;
+    let tick = 0;
+
+    const status = (): SessionStatus => ({
+      phase: applied.length > 0 ? 'won' : 'playing',
+      objectivesMet: applied.map((name) => `obj-${name}`),
+      hintsRevealed: hints,
+      movesUsed: moves,
+    });
+
+    return {
+      getView: (): ClusterView => ({
+        // Với `viewDrift`, `tick` mang số thứ tự phiên — nó KHÔNG lọt vào
+        // objectivesMet hay score, nên chỉ phép so trên hình chiếu đầy đủ mới
+        // thấy. Đây là đối chứng cho lời khuyên "so ClusterView, đừng bốc field".
+        tick: viewDrift ? tick + runIndex * 1000 : tick,
+        nodes: [],
+        objects: applied.map((name) => ({
+          uid: `uid-${name}`,
+          kind: 'Pod' as const,
+          name,
+          namespace: 'default',
+          phase: 'Running' as const,
+          nodeName: 'node-1',
+          ownerUid: null,
+          statusToken: 'success' as const,
+          ariaLabel: `Pod ${name} đang chạy`,
+        })),
+        edges: [],
+        events: [],
+      }),
+      getStatus: status,
+      subscribe: () => () => {},
+      dispatch: (action) => {
+        tick = action.tick;
+        if (action.kind === 'apply') {
+          applied.push(action.yaml);
+          moves++;
+        } else if (action.kind === 'hint') hints++;
+        else if (action.kind !== 'wait') moves++;
+      },
+      getLog: () => genuineLog,
+      dispose: () => {
+        spy.disposeCount++;
+      },
+    };
+  };
+}
+
+function newSpy(): SessionSpy {
+  return { optionsSeen: [], disposeCount: 0, createCount: 0 };
+}
+
+const scoreFromStatus = (status: SessionStatus, tally: { hintsUsed: number }) =>
+  status.objectivesMet.length * 100 - tally.hintsUsed * 10;
+
+function sessionResult(): RunResult {
+  const truth = genuineResult();
+  return {
+    ...truth,
+    // Engine giả dạng session đếm objective theo yaml đã apply, giống engine
+    // thuần ở trên; điểm thì theo `scoreFromStatus`.
+    score: 2 * 100 - 1 * 10,
+    commandsUsed: 3,
+    hintsUsed: 1,
+  };
+}
+
+describe('sessionReplayEngine — adapter sang CreateSession thật', () => {
+  it('luôn tạo phiên với autoTick: false — phát lại không được phụ thuộc đồng hồ', () => {
+    const spy = newSpy();
+    const engine = sessionReplayEngine(makeFakeCreateSession(spy), FAKE_LEVEL, scoreFromStatus);
+    verifyRun(genuineLog, sessionResult(), engine);
+
+    expect(spy.optionsSeen.length).toBeGreaterThan(0);
+    for (const options of spy.optionsSeen) {
+      expect(options.autoTick).toBe(false);
+      expect(options.seed).toBe(SEED);
+      expect(options.level.id).toBe(LEVEL);
+    }
+  });
+
+  it('lượt chơi thật qua session thật ⇒ đã xác minh (chiều dương)', () => {
+    const spy = newSpy();
+    const engine = sessionReplayEngine(makeFakeCreateSession(spy), FAKE_LEVEL, scoreFromStatus);
+    expect(verifyRun(genuineLog, sessionResult(), engine).status).toBe('da-xac-minh');
+  });
+
+  it('sửa score ⇒ không xác minh được (chiều âm)', () => {
+    const spy = newSpy();
+    const engine = sessionReplayEngine(makeFakeCreateSession(spy), FAKE_LEVEL, scoreFromStatus);
+    const result = verifyRun(genuineLog, { ...sessionResult(), score: 1000 }, engine);
+    expect(result.status).toBe('khong-khop');
+    expect(mismatchFor(result, 'score')?.claimed).toBe('1000');
+  });
+
+  it('mỗi lần phát lại dùng một phiên MỚI, và phiên nào cũng được đóng', () => {
+    // Session là mutable. Dùng lại phiên cũ cho lần phát lại thứ hai thì trạng
+    // thái nối tiếp và kết quả lệch — mọi lượt chơi hợp lệ bị gắn cờ oan.
+    const spy = newSpy();
+    const engine = sessionReplayEngine(makeFakeCreateSession(spy), FAKE_LEVEL, scoreFromStatus);
+    verifyRun(genuineLog, sessionResult(), engine);
+    expect(spy.createCount).toBe(2);
+    expect(spy.disposeCount).toBe(2);
+  });
+
+  it('ClusterView lệch giữa hai lần ⇒ engine-khong-tat-dinh, dù điểm và objective y hệt', () => {
+    // Đối chứng cho "so hình chiếu đầy đủ, đừng bốc vài field": ở đây `score` và
+    // `objectivesMet` KHỚP hoàn toàn giữa hai lần phát lại; chỉ `ClusterView.tick`
+    // lệch. Một phép so bốc tay field sẽ báo đã-xác-minh và bỏ lọt một engine hỏng.
+    const spy = newSpy();
+    const engine = sessionReplayEngine(
+      makeFakeCreateSession(spy, true),
+      FAKE_LEVEL,
+      scoreFromStatus,
+    );
+    expect(verifyRun(genuineLog, sessionResult(), engine).status).toBe('engine-khong-tat-dinh');
+  });
+
+  it('phát lại nhật ký của level khác ⇒ phat-lai-loi, không đổ cho người chơi', () => {
+    const spy = newSpy();
+    const engine = sessionReplayEngine(makeFakeCreateSession(spy), FAKE_LEVEL, scoreFromStatus);
+    const otherLevelLog: RunLog = { ...genuineLog, levelId: 'k8s-99-khac' };
+    const claimed: RunResult = { ...sessionResult(), levelId: 'k8s-99-khac' };
+    const result = verifyRun(otherLevelLog, claimed, engine);
+    expect(result.status).toBe('phat-lai-loi');
+    expect(result.detail).toContain('k8s-99-khac');
   });
 });

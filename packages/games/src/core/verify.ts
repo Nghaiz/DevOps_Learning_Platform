@@ -27,7 +27,15 @@
  * @see docs/games/anti-cheat.md
  */
 
-import type { GameAction, GameActionKind, RunLog } from '../k8s/contract.ts';
+import type {
+  CreateSession,
+  GameAction,
+  GameActionKind,
+  K8sSession,
+  Level,
+  RunLog,
+  SessionStatus,
+} from '../k8s/contract.ts';
 import type { RunResult } from './types.ts';
 import { lastActionTick, stableStringify } from './integrity.ts';
 
@@ -189,6 +197,54 @@ export interface ReplayEngine<TState> {
    * vẫn đúng nhưng thô hơn.
    */
   project?(state: TState): unknown;
+  /**
+   * Dọn trạng thái sau khi phát lại xong. Bắt buộc với engine có tài nguyên
+   * sống — `K8sSession` giữ một vòng lặp thời gian và tự nói phải gọi
+   * `dispose()`. Engine thuần (state bất biến) bỏ qua.
+   */
+  dispose?(state: TState): void;
+}
+
+/**
+ * Dựng `ReplayEngine` từ `CreateSession` THẬT của lane B.
+ *
+ * Đây là adapter mà chỗ dùng thật sẽ gọi; `ReplayEngine` bên trên vẫn là kiểu
+ * generic để (a) test được bằng engine giả, kể cả engine cố tình không tất định,
+ * và (b) game sau không phải là Kubernetes vẫn tái dùng được `verifyRun`.
+ *
+ * ⚠ `autoTick: false` là BẮT BUỘC, không phải một tuỳ chọn hiệu năng. Bật lên
+ * thì mô phỏng tiến theo đồng hồ tường, và một lần phát lại trên máy chậm sẽ ra
+ * kết quả khác lần phát lại trên máy nhanh — xác minh mất hết ý nghĩa và mọi
+ * người chơi hợp lệ bị gắn cờ. Phát lại KHÔNG được phụ thuộc thời gian thật.
+ *
+ * `project` trả thẳng `getView()` (tức `ClusterView`) thay vì bốc vài field: mô
+ * hình lúc chạy của lane B còn `ready` và `restartCount` là các trục riêng của
+ * `phase`, và sẽ còn dày lên nữa. So trên hình chiếu đầy đủ thì phép so vẫn đúng
+ * khi mô hình lớn thêm; bốc tay field thì im lặng mù dần.
+ */
+export function sessionReplayEngine(
+  createSession: CreateSession,
+  level: Level,
+  scoreRun: (status: SessionStatus, tally: RunTally) => number,
+): ReplayEngine<K8sSession> {
+  return {
+    init: (levelId, seed) => {
+      // Nhật ký thuộc level khác thì phát lại vô nghĩa — ném để thành
+      // `phat-lai-loi` (lỗi của ta / của dữ liệu), chứ không âm thầm chấm sai.
+      if (levelId !== level.id) {
+        throw new Error(`nhật ký thuộc level "${levelId}" nhưng được phát lại trên "${level.id}"`);
+      }
+      return createSession({ level, seed, autoTick: false });
+    },
+    reduce: (session, action) => {
+      session.dispatch(action);
+      return session;
+    },
+    objectivesMet: (session) => session.getStatus().objectivesMet,
+    score: (session, tally) => scoreRun(session.getStatus(), tally),
+    project: (session) => session.getView(),
+    dispose: (session) => session.dispose(),
+  };
 }
 
 interface ReplayOutcome {
@@ -233,15 +289,26 @@ function logShapeError(log: RunLog): string | null {
 // ── Phát lại ────────────────────────────────────────────────────────────────
 
 function replay<TState>(engine: ReplayEngine<TState>, log: RunLog, tally: RunTally): ReplayOutcome {
+  // `let` ngoài `try` để `finally` dọn được trạng thái MỚI NHẤT, không phải
+  // trạng thái ban đầu.
   let state = engine.init(log.levelId, log.seed);
-  for (const action of log.actions) {
-    state = engine.reduce(state, action);
+  try {
+    for (const action of log.actions) {
+      state = engine.reduce(state, action);
+    }
+    return {
+      objectivesMet: [...engine.objectivesMet(state)],
+      score: engine.score(state, tally),
+      // Chuỗi hoá NGAY, không giữ tham chiếu: với engine có trạng thái thay đổi
+      // tại chỗ (`K8sSession`), một tham chiếu giữ lại sẽ đọc ra trạng thái của
+      // lần phát lại SAU và phép so hai lần thành tautology.
+      projection: engine.project ? stableStringify(engine.project(state)) : null,
+    };
+  } finally {
+    // `K8sSession` giữ vòng lặp thời gian; không đóng thì hai lần phát lại mỗi
+    // lượt xác minh sẽ để lại rác. `finally` để một reducer ném cũng vẫn dọn.
+    engine.dispose?.(state);
   }
-  return {
-    objectivesMet: engine.objectivesMet(state),
-    score: engine.score(state, tally),
-    projection: engine.project ? stableStringify(engine.project(state)) : null,
-  };
 }
 
 /** Chuẩn hoá để so: thứ tự objective không mang thông tin, trùng lặp thì mang. */

@@ -166,8 +166,16 @@ Ghi ra để đợt sau không phải nghĩ lại:
 4. Kèm giới hạn tần suất và **trần độ dài `actions`** — một nhật ký dài vô hạn
    là một cách làm ngộp CPU của server.
 
-`verifyRun()` nhận reducer làm **tham số tiêm vào** chứ không import cứng, chính
-là để cùng một hàm đó chạy được ở server mà không phải viết lại.
+`verifyRun()` nhận engine làm **tham số tiêm vào** chứ không import cứng, chính
+là để cùng một hàm đó chạy được ở server mà không phải viết lại. Chỗ dùng thật
+gọi `sessionReplayEngine(createSession, level, scoreRun)` để bọc `CreateSession`
+của lane B lại.
+
+> ⚠ Adapter đó **luôn** truyền `autoTick: false`. Đây không phải một tinh chỉnh
+> hiệu năng: bật lên thì mô phỏng tiến theo đồng hồ tường, một lần phát lại trên
+> máy chậm ra kết quả khác lần phát lại trên máy nhanh, và xác minh mất sạch ý
+> nghĩa — mọi người chơi hợp lệ bị gắn cờ. Phát lại không được phụ thuộc thời
+> gian thật, ở client cũng như ở server.
 
 > ⚠ **Ràng buộc phải giữ:** nộp điểm là **một lời gọi backend**, nên nếu làm
 > trong lúc chơi thì nó phá ô nghiệm thu "0 lời gọi backend khi chơi". Thiết kế
@@ -197,6 +205,46 @@ dữ liệu. Achievement của ta là **dữ liệu** (`Achievement` trong
 
 Nói cách khác: thứ ta có được không phải vì ta cẩn thận hơn, mà vì ta đã trả giá
 đúng chỗ — tất định và dữ-liệu-thay-vì-mã — ngay từ đầu.
+
+### 6.1 ⚠ Cơ chế này hiện CHỈ phủ game Kubernetes
+
+Đọc §8.3 của kế hoạch chặng rất dễ tưởng cơ chế này là của cả trụ cột ③. Không phải.
+
+`RunLog` và `GameAction` được định nghĩa trong **`packages/games/src/k8s/contract.ts`**,
+không phải trong `core/`. `GameAction` là union phân biệt với các nhánh mang
+nghĩa Kubernetes (`apply` + `yaml`, `scale` + `replicas`, `target: ResourceRef`
+gồm `kind`/`namespace`/`name`). Ba game còn lại **chưa có nhật ký hành động nào**,
+nên hôm nay chúng **không có xác minh**.
+
+Ba game đó không cùng một hoàn cảnh, và chỗ khác nhau này quan trọng:
+
+| Game | Có đường xác minh không | Vì sao |
+|---|---|---|
+| **netpol** | **Có, và dễ hơn** | Không có trục thời gian. Kết quả xác minh được từ **trạng thái cuối** (bộ policy người chơi viết) bất kể đi đường nào tới đó — không cần nhật ký, không cần phát lại. |
+| **dockerfile** | **Có, và dễ hơn** | Cùng lý do: chấm trên Dockerfile cuối cùng, không phải trên quá trình. |
+| **pipeline** | **Không, nếu không thiết kế lại** | Điểm phụ thuộc **một chuỗi lần chạy có gieo hạt**, tức là có trạng thái tích luỹ theo thời gian. Chấm từ trạng thái cuối không đủ; nó cần đúng loại nhật ký + phát lại như K8s, và cái đó phải thiết kế **trước khi** viết engine — xem lại §6: thêm sau là viết lại. |
+
+Nói thẳng để không ai phải phát hiện muộn: **nếu game pipeline được xây mà không
+có nhật ký hành động và RNG gieo hạt ngay từ đầu, điểm của nó sẽ không xác minh
+được, và không có bản vá nào sửa được điều đó về sau.**
+
+Khi nào cần phủ nhiều game: nâng `RunLog` (và phần chung của `GameAction`) lên
+`core/`, để mỗi game khai nhánh action của riêng nó. `verifyRun()` **đã** không
+phụ thuộc gì vào Kubernetes — nó chỉ đọc `tick` và `kind` — nên phần khó là hợp
+đồng dữ liệu, không phải hàm xác minh.
+
+### 6.2 So hình chiếu đầy đủ, đừng bốc vài field
+
+Phát lại so hai lần bằng `ClusterView` **nguyên vẹn** (`K8sSession.getView()`),
+không phải bằng vài field chọn tay. Lý do cụ thể: mô hình lúc chạy của lane B
+tách `ready` và `restartCount` thành **các trục riêng** của `phase`, và
+`ObjectView` mang cả hai — cùng bài học đã trả giá một lần ở repo này, khi một
+cổng chỉ đọc `phase` coi pod `Terminating` là còn sống.
+
+Một phép so bốc tay field sẽ **im lặng mù dần** mỗi lần mô hình dày thêm: nó vẫn
+xanh, chỉ là không còn đo cái nó tưởng đang đo. Có test cho đúng chuyện này — một
+engine mà `ClusterView` lệch giữa hai lần phát lại **trong khi `score` và
+`objectivesMet` khớp hoàn toàn** phải bị bắt là `engine-khong-tat-dinh`.
 
 ## 7. Cổng gác tự động
 
@@ -230,3 +278,4 @@ dòng vào mảng `CLEAN` để lần sau không tái phát.
 | Vậy cái gì thật sự bảo vệ được? | **Phát lại tất định.** Điểm chỉ được công nhận khi chạy lại nhật ký ra đúng kết quả. |
 | Bản lưu không xác minh được có bị xoá không? | **Không bao giờ.** Chỉ mất quyền tính điểm/achievement. |
 | Bảng xếp hạng có an toàn không? | Sẽ an toàn — vì server tự chấm, không tin điểm client gửi. Chưa làm đợt này. |
+| Cơ chế này phủ cả 4 game chứ? | **Không.** Chỉ game K8s. netpol/dockerfile chấm được từ trạng thái cuối; **pipeline thì không, và phải thiết kế lại nếu muốn**. Xem §6.1. |

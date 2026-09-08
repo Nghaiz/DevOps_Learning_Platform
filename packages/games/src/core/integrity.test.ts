@@ -41,8 +41,8 @@ const cleanLog: RunLog = {
   levelId: 'k8s-01-pod-dau-tien',
   seed: 1234,
   actions: [
-    { tick: 0, kind: 'apply', payload: { name: 'web' } },
-    { tick: 12, kind: 'kubectl', payload: { command: 'get pods' } },
+    { tick: 0, kind: 'apply', yaml: 'kind: Pod\nmetadata:\n  name: web' },
+    { tick: 12, kind: 'kubectl', command: 'get pods' },
   ],
 };
 
