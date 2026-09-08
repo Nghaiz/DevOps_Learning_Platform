@@ -490,7 +490,9 @@ thuật CỤ THỂ tạo ra khác biệt đó — phần lớn cảnh Three.js t
 ### 9.1 Bốn thứ quyết định 80% cảm giác "được thiết kế"
 
 1. **Tone mapping + color space.** `ACESFilmicToneMapping`, `outputColorSpace = SRGBColorSpace`, `toneMappingExposure` chỉnh tay. Thiếu cái này là lý do số một khiến cảnh Three.js trông bợt và nhựa.
-2. **Ánh sáng ba điểm, có bóng đổ mềm.** Key directional có shadow map (`PCFSoftShadowMap`), fill bằng `HemisphereLight`, và một rim light hắt viền. Một `AmbientLight` + một `DirectionalLight` là dấu hiệu nhận dạng của cảnh demo.
+2. **Ánh sáng ba điểm, có bóng đổ mềm.** Key directional có shadow map, fill bằng `HemisphereLight`, và một rim light hắt viền. Một `AmbientLight` + một `DirectionalLight` là dấu hiệu nhận dạng của cảnh demo.
+
+   ⚠ **ĐÍNH CHÍNH 2026-09-08 — bản đầu của dòng này ghi `PCFSoftShadowMap`, và ĐÓ LÀ MỘT HẰNG SỐ ĐÃ BỊ GỠ.** three 0.185 xoá nó: nó cảnh báo rồi **ghi đè** `shadowMap.type` thành `PCFShadowMap`. Nghĩa là bậc chất lượng cao chạy suốt mà KHÔNG có bóng mềm nào — không lỗi, không vỡ hình, và không test nào thấy được vì chẳng có gì đo bóng đổ. Làm ĐÚNG theo hợp đồng là tạo ra đúng con bug này. Lane E chỉ phát hiện khi chạy thật dưới CSP rồi đọc console. Dùng **`VSMShadowMap`** kèm `shadow.radius` và `blurSamples` đặt tường minh: VSM ở mặc định gần như cạnh cứng, nên đổi API mà không chỉnh hai tham số đó thì không đổi được gì.
 3. **Vật liệu PBR thật.** `MeshStandardMaterial` (hoặc `MeshPhysicalMaterial` cho bề mặt cần bóng) với `roughness`/`metalness` chỉnh có chủ ý, cộng một environment map **sinh tại chỗ** (`RoomEnvironment` trong `three/examples/jsm`, hoặc gradient thủ tục). ⛔ Không tải HDRI từ mạng: CSP chặn, và game phải giữ tính chất 0 lời gọi backend. `MeshBasicMaterial` bị cấm cho vật thể chính.
 4. **Hình khối bo góc.** `BoxGeometry` cạnh sắc chính là hình dạng của cái "đơn sơ" mà chủ dự án chê. Dùng khối bo (bevel qua `ExtrudeGeometry`, hoặc tự dựng rounded box). Góc bo bắt được rim light — đó là chỗ khối trông có chất liệu.
 
