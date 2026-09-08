@@ -37,13 +37,13 @@ Tên biến CSS = tên trong hợp đồng C1, không đổi được mà không
 | `--card-foreground` | `text-card-foreground` | Chữ trong card | `0.145 0 0` | `0.985 0 0` |
 | `--popover` | `bg-popover` | Nền popover/dropdown/select | `1 0 0` | `0.205 0 0` |
 | `--popover-foreground` | `text-popover-foreground` | Chữ trong popover | `0.145 0 0` | `0.985 0 0` |
-| `--primary` | `bg-primary` / `text-primary` | Hành động chính, link, focus ring mặc định | `0.546 0.215 262.881` (xanh dương) | `0.685 0.169 262.881` (xanh dương sáng hơn) |
+| `--primary` | `bg-primary` / `text-primary` | Hành động chính, link, focus ring mặc định | `0.58 0.23 25` (đỏ) | `0.609 0.242 25` (đỏ sáng hơn) |
 | `--primary-foreground` | `text-primary-foreground` | Chữ trên nền primary | `0.985 0 0` | `0.145 0 0` |
 | `--secondary` | `bg-secondary` | Hành động phụ, nút Copy/Chạy trong code block | `0.97 0 0` | `0.269 0 0` |
 | `--secondary-foreground` | `text-secondary-foreground` | Chữ trên nền secondary | `0.205 0 0` | `0.985 0 0` |
 | `--muted` | `bg-muted` | Nền mờ (Skeleton, code block, hàng bảng hover) | `0.97 0 0` | `0.269 0 0` |
 | `--muted-foreground` | `text-muted-foreground` | Chữ phụ/ghi chú | `0.446 0 0` | `0.708 0 0` |
-| `--accent` | `bg-accent` | Hover/focus của item tương tác (menu, tab) | `0.951 0.023 262.881` | `0.269 0 0` |
+| `--accent` | `bg-accent` | Hover/focus của item tương tác (menu, tab) | `0.951 0.023 25` | `0.269 0 0` |
 | `--accent-foreground` | `text-accent-foreground` | Chữ trên nền accent | `0.205 0 0` | `0.985 0 0` |
 | `--destructive` | `bg-destructive` | Hành động/trạng thái phá huỷ, lỗi | `0.577 0.245 27.325` (đỏ) | `0.704 0.191 22.216` |
 | `--destructive-foreground` | `text-destructive-foreground` | Chữ trên nền destructive | `0.985 0 0` | `0.145 0 0` |
@@ -53,7 +53,7 @@ Tên biến CSS = tên trong hợp đồng C1, không đổi được mà không
 | `--warning-foreground` | `text-warning-foreground` | Chữ trên nền warning | `0.985 0 0` | `0.145 0 0` |
 | `--border` | `border-border` | Viền mặc định | `0.922 0 0` | `1 0 0 / 12%` |
 | `--input` | `border-input`, `bg-input` (Switch off) | Viền ô nhập, nền Switch tắt | `0.63 0 0` (**không** bằng `--border` — xem §1a) | `1 0 0 / 38%` (**cũng** không bằng `--border` — xem §1a) |
-| `--ring` | `focus-visible:ring-ring` **+ `ring-offset-2 ring-offset-background`** | Vòng focus — bằng primary, nên KHÔNG được vẽ sát mặt nút (§1a) | `0.546 0.215 262.881` (= primary) | `0.685 0.169 262.881` (= primary tối) |
+| `--ring` | `focus-visible:ring-ring` **+ `ring-offset-2 ring-offset-background`** | Vòng focus — bằng primary, nên KHÔNG được vẽ sát mặt nút (§1a) | `0.58 0.23 25` (= primary) | `0.609 0.242 25` (= primary tối) |
 | `--radius` | `rounded-lg` (= `--radius-lg`) | Bo góc gốc | `0.625rem` | (không đổi theo theme) |
 
 `--radius-sm`/`--radius-md`/`--radius-lg`/`--radius-xl` suy ra từ `--radius` trong
@@ -109,7 +109,7 @@ chứng minh viền đủ tương phản.
 | `--muted-foreground` / `--background` | 4.5 | 7.57 | 7.63 |
 | `--muted-foreground` / `--muted` | 4.5 | 6.94 | 5.83 |
 | `--muted-foreground` / `--card` | 4.5 | 7.57 | 6.91 |
-| `--primary-foreground` / `--primary` | 4.5 | 4.95 | 6.85 |
+| `--primary-foreground` / `--primary` | 4.5 | **4.61** | **4.61** |
 | `--secondary-foreground` / `--secondary` | 4.5 | 16.42 | 14.48 |
 | `--destructive-foreground` / `--destructive` | 4.5 | 4.56 | 6.84 |
 | `--success-foreground` / `--success` | 4.5 | 4.95 | 7.82 |
@@ -119,12 +119,14 @@ chứng minh viền đủ tương phản.
 | `--input` / `--muted` | 3.0 | 3.21 | **3.45** |
 | núm Switch / rãnh Switch (trên `--background`) | 3.0 | 3.50 | **3.51** |
 | núm Switch / rãnh Switch (trên `--card`) | 3.0 | 3.50 | **3.95** |
-| `--ring` / `--background` | 3.0 | 5.17 | 6.85 |
-| `--ring` / `--card` | 3.0 | 5.17 | 6.20 |
-| `--primary` / `--background` | 3.0 | 5.17 | 6.85 |
-| `--destructive` / `--background` | 3.0 | 4.76 | 6.84 |
+| `--ring` / `--background` | 3.0 | 4.82 | 4.61 |
+| `--ring` / `--card` | 3.0 | 4.82 | 4.17 |
+| `--primary` / `--background` | 3.0 | 4.82 | 4.61 |
+| `--destructive` / `--background` | 3.0 (SC 1.4.11 viền) **và 4.5** (SC 1.4.3 — nay là màu CHỮ, §1c) | 4.76 | 6.84 |
+| `--destructive` / `--card` | 3.0 **và 4.5** (§1c) | 4.76 | 6.19 |
+| `--destructive` / `--muted` | 4.5 — **CHƯA ĐẠT ở nhánh sáng**, khoảng trống đã đo (§1c) | **4.37** | 5.23 |
 | `--ring` / `--primary` | miễn trừ có chứng minh | **1.00** | **1.00** |
-| `--ring` / `--destructive` | miễn trừ có chứng minh | **1.09** | **1.00** |
+| `--ring` / `--destructive` | miễn trừ có chứng minh | **1.01** | **1.49** |
 | `--border` / `--background` | — (trang trí) | **1.26** | **1.33** |
 | `--border` / `--card` | — (trang trí) | **1.26** | **1.42** |
 
@@ -162,16 +164,30 @@ nằm sát một mặt tô `bg-primary` đều bằng **1.00:1** — vô hình, 
 (nút `destructive`: 1.09 sáng / 1.00 tối). Nó phá luôn phép kiểm bàn phím của
 13.H, vì thứ phép kiểm đó cần thấy thì không hiển thị.
 
-**Không có nghiệm token.** Ở chế độ tối `--primary` chỉ cách `--card` 6.20:1,
-mà nhét vừa hai bậc 3:1 thì cần khe ≥9:1. Quét vét cạn thang độ chói cho đúng
-**0 nghiệm**; hai đầu mút nói rõ vì sao: trắng tinh chỉ được 2.89:1 với
-`--primary`, còn đen tuyền chỉ được 1.17:1 với `--card`. Nới `--primary` ra xa
-hơn thì phá `--primary-foreground` và cả bảng màu mọi lane đang tiêu thụ. Cách
-sửa vì vậy nằm ở **hình học**, không nằm ở màu:
+**`--destructive`: không có nghiệm token.** Ở chế độ tối, quét vét cạn thang độ
+chói cho đúng **0 nghiệm**; hai đầu mút nói rõ vì sao: trắng tinh chỉ được
+2.8922:1 với `--destructive`, còn đen tuyền chỉ được 1.1722:1 với `--card`.
+
+**`--primary`: nay là một LỰA CHỌN, không phải bất khả thi.** ⚠ Mục này TỪNG
+khẳng định điều bất khả thi trên cho cả hai màu, dựa trên khe `--primary`↔`--card`
+6.20:1 và quy tắc "nhét vừa hai bậc 3:1 thì cần khe ≥9:1". Thương hiệu đỏ
+(2026-09-08) làm câu đó **sai** — và nó sai vì lập luận ≥9 chỉ xét vòng focus nằm
+**giữa** `--card` và `--primary`, nên bỏ sót nhánh nó nằm **ngoài** khoảng đó.
+Đỏ có độ chói tương đối thấp hơn lam ở cùng L, nên trắng nay đạt **4.2972:1** với
+`--primary` tối và phép quét cho **317 nghiệm**: một giá trị `--ring` riêng đang
+có sẵn.
+
+Ta không lấy nó, vì phạm vi chứ không vì vật lý: `--ring` là vòng focus của **mọi**
+phần tử focus được, nên cho nó hue riêng là thiết kế lại toàn bộ hệ thống focus,
+không phải đổi màu thương hiệu. Cơ chế `ring-offset` dưới đây vốn đã khiến vòng
+focus không bao giờ nằm sát mặt nút, nên khoảng trống này không gây hại ngay. Nếu
+sau khi đỏ lên vẫn thấy đáng làm thì mở một thay đổi riêng.
+
+Cách sửa vì vậy vẫn nằm ở **hình học**, không nằm ở màu:
 
 | Cơ chế | Dùng ở | Màu KỀ vòng focus khi đó |
 |---|---|---|
-| `ring-offset-2` + `ring-offset-background` | `Button`, `Switch`, `Checkbox` | `--background` / `--card` — 5.17 sáng / 6.85 tối |
+| `ring-offset-2` + `ring-offset-background` | `Button`, `Switch`, `Checkbox` | `--background` / `--card` — 4.82 sáng / 4.61 tối |
 | `ring-current` | `StepNav`, nút đóng `Toast` | `text-*-foreground` của chính bề mặt — đã gác ở ≥4.5:1 |
 
 Hai class của cơ chế thứ nhất **bắt buộc đi cùng nhau**: thiếu
@@ -184,9 +200,15 @@ trong `overflow-x-auto` nên vòng đẩy ra ngoài bị **cắt** ở mép cu�
 Miễn trừ hai cặp `--ring`/`--primary` và `--ring`/`--destructive` khỏi bảng đo
 chỉ đứng vững chừng nào offset **thật sự có mặt**, nên nó được gác bằng class
 render ra DOM ở `button.test.tsx`, `switch.test.tsx`, `checkbox.test.tsx`,
-`toast.test.tsx`, `lesson/step-nav.test.tsx` — cộng một đối chứng ghim khe
-6.20:1: nếu ai nới `--primary` quá 9:1 thì test đỏ và miễn trừ phải bị **gỡ**,
-không phải chỉnh lại con số.
+`toast.test.tsx`, `lesson/step-nav.test.tsx`.
+
+⛔ Con số **6.20 đã bị XOÁ**, không phải cập nhật thành 4.17. Nó ghim một lập luận
+nay đã sai (xem ngay trên), nên ghim lại số mới sẽ để một con số trông tươi mới
+đứng cạnh một chứng minh hỏng — đúng thứ `rules/pinned-baseline-test-companion.md`
+cấm. Thay vào đó `tokens.contract.test.ts` gác **điều kiện còn hiệu lực**:
+`--ring === --primary` ở cả hai theme. Ngày nào ai đó cho `--ring` một giá trị
+riêng thì test đó đỏ, và khi ấy cặp `--ring`/`--primary` phải quay lại bảng đo —
+vì lúc đó nó đo được thật.
 
 **Spinner trong nút `loading` lấy màu từ token, không từ `currentColor`.**
 `Button loading` đặt `text-transparent` lên chính `<button>` để giấu nhãn phía
@@ -206,6 +228,91 @@ không bao giờ đỏ được.
 (chấm lab, quiz), "cảnh báo" (sắp hết TTL, gần chạm hardCap), và "lỗi" (destructive)
 là ba trạng thái ngữ nghĩa khác nhau mà chỉ một cặp primary/destructive không đủ
 diễn đạt.
+
+### 1c. Thương hiệu ĐỎ, và vì sao `destructive` phải đổi HÌNH DẠNG
+
+Từ 2026-09-08 hue thương hiệu là **25** (đỏ ấm), không còn 262.881 (lam). Chọn 25
+chứ không 15 (ngả hồng) hay 40 (ngả cam): 25 là đỏ mà mắt đọc thẳng ra "đỏ".
+
+**L là nghiệm của một phép quét, không phải một giá trị chọn tay.** Hai lực kéo
+ngược nhau — "không quá đậm" kéo L lên, contrast của chữ trên mặt nút kéo L
+xuống. Quét L 0.400–0.700 bước 0.001 tại hue 25 bằng chính `measure()` của
+`packages/ui/src/theme/tokens.contract.test.ts`, chroma bám mép gamut sRGB chừa
+biên 0.005:
+
+| Nhánh | Tiêu chí | Nghiệm | Đo được | Láng giềng trượt |
+|---|---|---|---|---|
+| `:root` | L **lớn nhất** giữ chữ trắng `0.985` ở ≥4.6:1 | `oklch(0.58 0.23 25)` → `#e31029` | 4.6144 | L=0.581 → 4.5977 |
+| `.dark` | L **nhỏ nhất** giữ chữ `0.145` ở ≥4.6:1 | `oklch(0.609 0.242 25)` → `#f2102c` | 4.6060 | L=0.608 → 4.5896 |
+
+Tiêu chí đảo chiều giữa hai nhánh vì chữ trên nút đảo chiều: nhánh sáng chữ
+TRẮNG nên contrast kéo L xuống; nhánh tối chữ GẦN ĐEN nên contrast kéo L lên, và
+L càng cao thì đỏ càng nhạt về phía hồng. Cả hai vì vậy nằm đúng trên biên 4.6 —
+từ hai phía đối nhau. Ngưỡng 4.6 dư 0.1 so với 4.5 của SC 1.4.3, để sai số
+oklch→sRGB giữa các trình duyệt không kéo tụt xuống dưới.
+
+Chroma chừa biên 0.005 dưới mép gamut gần như **miễn phí**: bám mép tuyệt đối chỉ
+mua thêm 0.001 L (L=0.581 C=0.236, dư vỏn vẹn 0.00005) và đổi lại là một giá trị
+mà bất kỳ ma trận oklch→sRGB nào lệch ở chữ số thứ tư cũng đẩy ra ngoài gamut —
+lúc đó trình duyệt gamut-map còn phép đo lại clamp, hai phép chiếu khác nhau, và
+con số đo được không còn tả đúng thứ hiển thị.
+
+**Hệ quả: `--primary` và `--destructive` nay lệch đúng 2.3° hue**, đo được
+**1.01:1** giữa hai mặt nút ở nhánh sáng. Mắt không phân biệt nổi. Nếu cả hai
+cùng tô nền đặc thì "Lưu" và "Xoá vĩnh viễn" trông y hệt nhau — và với người mù
+màu đỏ-lục, hoặc trên bản in đen trắng, chúng **đúng là** một.
+
+Tách bằng **HÌNH DẠNG**, ở tầng component, không bằng cách đổi màu:
+
+| | `primary` | `destructive` |
+|---|---|---|
+| nền lúc nghỉ | `bg-primary` (ĐẶC) | `bg-transparent` (rỗng) |
+| viền | không có | `border border-destructive` |
+| chữ | `text-primary-foreground` (sáng, đảo) | `text-destructive` (đậm) |
+| icon | không có mặc định | `TriangleAlert` mặc định, `aria-hidden` |
+| hover | `bg-primary/90` | đảo sang nền ĐẶC `bg-destructive` |
+
+Khác biệt là **cấu trúc**, nên nó sống sót khi khử màu. Quy ra độ chói tương đối
+(chính là kênh xám mà ảnh đen trắng giữ lại): nền nút `primary` L=0.1679 còn nền
+nút `destructive` L=1.0000 ở nhánh sáng — chênh **4.82:1**; nhánh tối 0.1943 vs
+0.0030 — chênh **4.61:1**. Tức ngay cả khi xoá sạch sắc độ, hai nút vẫn là "khối
+đặc tối" cạnh "khung rỗng sáng". Gác ở `button.test.tsx` §"khử màu" và
+`badge.test.tsx`.
+
+**Vì sao nghỉ = trong suốt chứ không phải `bg-destructive/10`.** Chữ đỏ trên nền
+hồng nhạt **không đạt** SC 1.4.3 ở nhánh sáng: đo được **3.99:1** (cần 4.5). Alpha
+không cứu nổi — `--destructive` sáng chỉ đạt 4.7647:1 trên nền trắng tinh, nên mọi
+lớp phủ đều ăn vào đúng phần dư mỏng đó; muốn đạt 4.5 thì tint phải hạ xuống /03,
+lúc ấy không còn là tint nữa. Bỏ hẳn tint giữ nguyên 4.7647 (sáng) / 6.8443 (tối).
+
+⚠ **Khoảng trống đã đo:** trên `bg-muted` nhánh **sáng**, `text-destructive` chỉ
+được **4.3686:1** — dưới 4.5. Đừng đặt nút/badge `destructive` vào khối `bg-muted`
+ở nhánh sáng. Ba nơi gọi thật hiện nay (`confirm-dialog`, `publish-panel`,
+`active-sessions`) đều nằm trên mặt dialog/card nên không chạm giới hạn này. Sửa
+triệt để cần một token đỏ đậm hơn cho chữ (ví dụ `oklch(0.52 0.19 27.325)` cho
+5.083:1) — tức thêm token vào C1, một thay đổi hợp đồng. Khoảng trống được ghim
+bằng một *absence pin* ở `tokens.contract.test.ts`: chính lúc nó ĐỎ là lúc khoảng
+trống đã đóng, và khi đó phải xoá test rồi thêm cặp vào `TEXT_PAIRS`.
+
+**`Alert` KHÔNG đổi, và đó là kết luận có số.** Nó vốn đã là dạng nhạt + viền, và
+không có biến thể alert nào tô nền `--primary` đặc để mà lẫn. Nhãn ở đó là
+`text-foreground` (16.56:1 sáng / 15.16:1 tối trên `--card`) chứ không phải
+`text-destructive`, nên nó không chạm cái trần 4.7647 đã buộc nút phải bỏ tint —
+khác nhau vì alert đọc lâu còn nút thì liếc.
+
+**`--status-progress` giữ hue 262.881, và lý do ĐẢO NGƯỢC.** Trước đây lam là hue
+thương hiệu nên "đang học" bám theo màu chính một cách có chủ ý. Nay thương hiệu
+là đỏ, nên lập luận đó vừa mất hiệu lực vừa lật thành lý do ngược lại: một chấm
+"đang học" màu đỏ đọc thẳng ra "lỗi". Lam nay **rảnh** — không còn tranh chấp ngữ
+nghĩa với gì — nên nó mang được nghĩa trung lập "đang diễn ra". Cùng lý lẽ cho các
+mặt nền tối (`--background`/`--card`/`--muted`/`--secondary`, chroma 0.012): mặt
+nền không mang thương hiệu, và tô sắc ấm lên nền tối cho ra xám ngả nâu, đục. Nền
+lạnh dưới điểm nhấn đỏ là tương phản có chủ ý.
+
+**Hàng xóm hue — đã đo, không có xung đột.** `--warning` (hue 55.98 sáng / 70.08
+tối) và `--difficulty-intermediate` (hue 65) cách primary 31–45°, và đọc ra nâu/hổ
+phách (`#ae5100`, `#975c16` ở nhánh sáng) chứ không cùng họ với `#e31029`. Cái
+thật sự sát là `--destructive` ở 2.3° — và đó chính là lý do mục này tồn tại.
 
 ## 2. Cơ chế dark mode (D2)
 
@@ -590,11 +697,34 @@ làm rỗng một ô trạng thái) và đòi cả ba lượt đó phải đỏ.
 sách miễn trừ** trừ khi đó thật sự là một quyết định mới, và khi đó phải sửa
 C1/C2 ở `phase-13-exec.md` trong cùng commit.
 
-### 7a. Hai dương tính giả đã biết của lệnh grep AC
+### 7a. Cổng màu — nay là script, không còn là lệnh grep
 
-Lệnh grep ở §0 và ở `phase-13-exec.md` §5 giới hạn `--include=*.tsx`, và ở dạng
-đó nó **rỗng** trên `packages/ui/src`. Nới phạm vi ra thì gặp hai thứ vô hại —
-ghi ở đây để lần kiểm sau không mất thời gian truy lại:
+Từ 2026-09-08 phép kiểm màu cứng là **`pnpm tokens:check`**
+(`scripts/check-design-tokens.mjs`), không còn là dòng grep dán trong
+`phase-13-exec.md` §5. Ba lý do đo được:
+
+1. **Không job CI nào chạy lệnh grep đó** (grep toàn bộ `.github/workflows/`:
+   0 kết quả). Một lệnh nằm trong plan chỉ chạy khi có người nhớ chạy.
+2. **Nó kêu oan 5/5 lần.** Cả năm kết quả nó trả về đều là `#fff` trong CHÚ
+   THÍCH hoặc trong thông điệp assertion mô tả một lỗi đã sửa. Một cổng mà 100%
+   đầu ra là báo động giả thì bị tắt trong hai tuần.
+3. **Vùng quét thủng.** `--include=*.tsx` bỏ qua mọi `.ts` và `.css`.
+
+Script bỏ dòng chú thích và file test, mở thang màu Tailwind từ 4 tên lên đủ 22
+(`bg-red-500` / `text-blue-600` trước đây lọt hoàn toàn), thêm dạng `0xRRGGBB`
+của Three.js (§4.5), và chạy **đối chứng dương** trước mỗi lượt quét — 13 mẫu
+bẩn phải bị bắt, 20 mẫu sạch không được kêu; tự kiểm hỏng thì thoát 2 và không
+quét gì cả.
+
+**Sổ cái miễn trừ chạy hai chiều**, cùng khuôn `KNOWN_OUT_OF_GAMUT`: file/giá trị
+có màu cứng mà không có trong sổ ⇒ đỏ; dòng trong sổ mà nay đã sạch ⇒ **cũng đỏ**,
+và việc phải làm là xoá dòng đó. Miễn trừ có hai mức — cả file (xterm `ITheme`,
+vì nó nhận màu qua API JS và không đọc được `var(--token)`) và **từng giá trị trên
+từng dòng** (`0xffffff` của `THREE.*Light` là "vắng mặt sắc độ", nhưng `0x000000`
+của `THREE.Fog` là màu cảnh phải đổi theo theme, nên nó **vẫn bị bắt**).
+
+Hai dương tính giả cũ dưới đây nay đã được script xử lý đúng — giữ lại để lần
+kiểm sau không mất thời gian truy lại:
 
 1. **`globals.css` chứa `slate-*` và `#hex` trong CHÚ THÍCH.** Đó là bằng chứng
    đo được: tên class của lỗi `@source` 2026-08-13, và hai giá trị sRGB của lần

@@ -141,15 +141,46 @@ const COMPILED = RULES.map((r) => ({ ...r, re: new RegExp(r.src, 'gu') }));
 //   • chiều lên  — file có màu cứng mà KHÔNG có trong sổ ⇒ đỏ.
 //   • chiều xuống — file trong sổ mà nay đã SẠCH (hoặc đã bị xoá) ⇒ cũng đỏ,
 //     và việc phải làm là XOÁ dòng đó khỏi sổ, không phải thêm màu lại.
-const KNOWN_HARDCODED = {
-  'packages/terminal/src/themes.ts':
-    'xterm.js nhận màu qua API JS (ITheme), không qua CSS — nó KHÔNG đọc được ' +
-    'var(--token). Đây là ranh giới thư viện ngoài, không phải một chỗ lười.',
-  'apps/web/src/components/games/scene-tokens.ts':
-    "'#000000' là MỐC SENTINEL để phát hiện gán fillStyle trượt (spec canvas: " +
-    'gán chuỗi sai thì bỏ qua im lặng), không phải một màu được chọn để hiển ' +
-    'thị. Xem chú thích tại chỗ.',
-};
+// Hai DẠNG miễn trừ, và sự khác nhau giữa chúng là có chủ ý:
+//
+//   { file: '…', reason: '…' }              — miễn CẢ FILE.
+//   { file: '…', allow: [{ match, context, reason }] } — miễn ĐÚNG MỘT giá trị,
+//                                              và chỉ trên dòng khớp `context`.
+//
+// Dạng thứ hai tồn tại vì miễn cả file là quá rộng ở đúng chỗ nguy hiểm nhất.
+// `k8s-scene-lazy.tsx` là ví dụ sống: `0xffffff` cho `DirectionalLight` là
+// "không tô màu gì cả" (ánh sáng trắng), nhưng `0x000000` cho `THREE.Fog` là
+// một MÀU CẢNH phải đổi theo theme — ở nhánh sáng nền trang là `oklch(1 0 0)`
+// nên hình ở xa sẽ mờ dần về ĐEN trên nền TRẮNG. Miễn cả file sẽ nuốt luôn con
+// sương mù đó.
+const KNOWN_HARDCODED = [
+  {
+    file: 'packages/terminal/src/themes.ts',
+    reason:
+      'xterm.js nhận màu qua API JS (ITheme), không qua CSS — nó KHÔNG đọc được ' +
+      'var(--token). Đây là ranh giới thư viện ngoài, không phải một chỗ lười.',
+  },
+  // ✅ 2026-09-08 — `apps/web/src/components/games/scene-tokens.ts` ĐÃ ĐƯỢC XOÁ
+  // khỏi sổ này, và đó chính là chiều-xuống hoạt động. Nó từng được miễn vì một
+  // mốc sentinel `'#000000'` dùng để phát hiện gán `fillStyle` trượt; lane E sau
+  // đó viết lại chỗ đó không cần hằng hex nữa, cổng báo dòng miễn trừ HẾT HẠN,
+  // nên dòng bị xoá. KHÔNG thêm màu cứng lại cho "khớp sổ cái".
+  {
+    file: 'apps/web/src/components/games/k8s-scene-lazy.tsx',
+    allow: [
+      {
+        match: '0xffffff',
+        context: /(?:Directional|Hemisphere|Ambient|Point|Spot)Light\s*\(/,
+        reason:
+          'Ánh sáng TRẮNG là sự VẮNG MẶT của sắc độ, không phải một màu thương ' +
+          'hiệu — và `THREE.*Light` nhận màu qua tham số số học của API JS, không ' +
+          'đọc được var(--token). Cùng hình dạng với dòng xterm ITheme ở trên. ' +
+          '⚠ Miễn trừ này CHỈ cho giá trị trắng trên dòng khởi tạo Light: mọi màu ' +
+          'cứng khác trong file (material, fog, background) VẪN bị bắt.',
+      },
+    ],
+  },
+];
 
 // ─────────────────────────────────────────────────────── bỏ dòng chú thích
 //
@@ -227,11 +258,19 @@ function scanTree() {
       const fileHits = scanText(readFileSync(abs, 'utf8'), { ext });
       if (fileHits.length === 0) continue;
 
-      if (KNOWN_HARDCODED[rel] !== undefined) {
-        seenExempt.add(rel);
+      const entry = KNOWN_HARDCODED.find((e) => e.file === rel);
+      if (entry?.allow === undefined && entry !== undefined) {
+        seenExempt.add(rel); // miễn CẢ FILE
         continue;
       }
-      for (const h of fileHits) hits.push({ ...h, file: rel });
+      for (const h of fileHits) {
+        const rule = entry?.allow?.find((a) => a.match === h.match && a.context.test(h.text));
+        if (rule !== undefined) {
+          seenExempt.add(`${rel} :: ${rule.match}`);
+          continue;
+        }
+        hits.push({ ...h, file: rel });
+      }
     }
   }
   return { hits, files, seenExempt, roots };
@@ -374,8 +413,15 @@ if (onlySelfTest) process.exit(0);
 
 const { hits, files, seenExempt, roots } = scanTree();
 
-// CHIỀU XUỐNG của sổ cái — dòng miễn trừ đã hết hạn.
-const stale = Object.keys(KNOWN_HARDCODED).filter((f) => !seenExempt.has(f));
+// CHIỀU XUỐNG của sổ cái — dòng miễn trừ đã hết hạn. Rà TỪNG dòng, kể cả từng
+// mục `allow` con: một mục `allow` không bao giờ khớp cũng là một dòng chết.
+const stale = KNOWN_HARDCODED.flatMap((e) =>
+  e.allow === undefined
+    ? seenExempt.has(e.file)
+      ? []
+      : [e.file]
+    : e.allow.filter((a) => !seenExempt.has(`${e.file} :: ${a.match}`)).map((a) => `${e.file} :: ${a.match}`),
+);
 
 if (hits.length === 0 && stale.length === 0) {
   console.log(
