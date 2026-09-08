@@ -1,0 +1,5 @@
+platform-gateway        ghcr.io/nghaiz/dlp-terminal-gateway:p14a
+platform-orchestrator   ghcr.io/nghaiz/dlp-orchestrator:p14a
+platform-postgres       postgres:16-alpine
+platform-redis          redis:7-alpine
+platform-web            ghcr.io/nghaiz/dlp-web:p14a

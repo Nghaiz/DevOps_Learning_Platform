@@ -1,0 +1,6 @@
+platform-gateway        ghcr.io/nghaiz/dlp-terminal-gateway:p13e
+platform-orchestrator   ghcr.io/nghaiz/dlp-orchestrator:p13
+platform-postgres       postgres:16-alpine
+platform-redis          redis:7-alpine
+platform-web            ghcr.io/nghaiz/dlp-web:p13d
+SANDBOX_IMAGE=ghcr.io/nghaiz/dlp-sandbox-base:p13ide

@@ -1,5 +1,6 @@
 import { Fragment, type ComponentProps, type ReactNode } from 'react';
 import { Slot } from 'radix-ui';
+import { TriangleAlert } from 'lucide-react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from './cn.ts';
 import { Spinner } from './spinner.tsx';
@@ -16,12 +17,27 @@ const buttonVariants = cva(
      *
      * Offset tồn tại vì `--ring` = `--primary` theo đúng thiết kế, nên vòng
      * focus vẽ SÁT mặt nút primary cho đúng 1.00:1 — vô hình, ở cả hai theme
-     * (nút destructive: 1.09 sáng / 1.00 tối). Và KHÔNG màu nào sửa được bằng
-     * token: ở chế độ tối `--primary` chỉ cách `--card` 6.20:1, mà đạt 3:1 với
-     * CẢ HAI thì cần khe ≥9:1 — quét vét cạn thang độ chói cho 0 nghiệm (trắng
-     * tinh chỉ được 2.89:1 với `--primary` tối). Offset đẩy vòng focus ra ngoài
-     * một khe 2px màu nền, nên màu KỀ nó là `--background`/`--card` — cặp đã
-     * được gác sẵn ở `theme/tokens.contract.test.ts` (5.17 sáng / 6.85 tối).
+     * (nút destructive: 1.01 sáng / 1.49 tối).
+     *
+     * ⚠ 2026-09-08 — CHỖ NÀY TỪNG NÓI "và KHÔNG màu nào sửa được bằng token".
+     * Với thương hiệu lam thì đúng: quét vét cạn thang độ chói cho 0 nghiệm, vì
+     * trắng tinh chỉ được 2.89:1 với `--primary` tối. Đỏ có độ chói tương đối
+     * THẤP hơn lam ở cùng L, nên câu đó nay SAI: trắng được 4.2972:1 với
+     * `--primary` tối mới, và phép quét cho **317 nghiệm**. Một giá trị `--ring`
+     * riêng ĐANG CÓ SẴN.
+     *
+     * Ta không lấy nó, và đây là một LỰA CHỌN chứ không phải một ràng buộc vật
+     * lý: `--ring` là vòng focus của MỌI phần tử focus được, không riêng nút
+     * primary, nên cho nó một hue riêng là sửa cả hệ thống focus chứ không phải
+     * sửa màu thương hiệu — ngoài phạm vi đợt đổi màu này. Và kỹ thuật
+     * `ring-offset-2` + `ring-offset-background` dưới đây vốn đã khiến vòng
+     * focus KHÔNG BAO GIỜ nằm sát mặt nút, nên khoảng trống đó không gây hại
+     * ngay. Nếu sau khi đỏ lên vẫn thấy đáng làm thì mở một thay đổi riêng.
+     *
+     * Offset đẩy vòng focus ra ngoài một khe 2px màu nền, nên màu KỀ nó là
+     * `--background`/`--card` — cặp đã được gác sẵn ở
+     * `theme/tokens.contract.test.ts` (4.8178 sáng / 4.6065 tối trên
+     * `--background`).
      *
      * Thiếu `ring-offset-background` thì Tailwind rơi về mặc định của chính nó,
      * `--tw-ring-offset-color: #fff` (đo trong tailwindcss/dist/lib.js): khe
@@ -54,7 +70,41 @@ const buttonVariants = cva(
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
         ghost: 'bg-transparent hover:bg-accent hover:text-accent-foreground',
-        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        /*
+         * TÁCH KHỎI `primary` BẰNG HÌNH DẠNG, không bằng màu (quyết định #1 của
+         * 14.A). Từ 2026-09-08 thương hiệu là ĐỎ, nên `--primary` và
+         * `--destructive` chỉ còn lệch 2.3° hue — đo được 1.01:1 giữa hai mặt
+         * nút, tức mắt KHÔNG phân biệt nổi. Nếu cả hai cùng là nền đặc thì "Lưu"
+         * và "Xoá vĩnh viễn" trông y hệt nhau.
+         *
+         * Nên: primary = nền ĐẶC, destructive = VIỀN + nền trong suốt + chữ đỏ
+         * + icon bắt buộc. Khác biệt nằm ở CẤU TRÚC (có viền / không viền, nền
+         * sáng / nền tối, có icon / không icon), nên nó sống sót khi in đen
+         * trắng và với người mù màu đỏ-lục — xem `button.test.tsx` §"khử màu".
+         *
+         * Vì sao nghỉ = TRONG SUỐT chứ không phải `bg-destructive/10`: chữ đỏ
+         * trên nền hồng nhạt KHÔNG đạt SC 1.4.3 ở nhánh sáng. Đo được 3.99:1
+         * (cần 4.5), và alpha không cứu nổi — `--destructive` sáng chỉ đạt
+         * 4.7647:1 trên nền trắng tinh, nên mọi lớp phủ đều ăn vào đúng phần dư
+         * mỏng đó; muốn đạt 4.5 thì tint phải hạ xuống /03, lúc ấy không còn là
+         * tint nữa. Bỏ hẳn tint ở trạng thái nghỉ giữ nguyên 4.7647:1 (sáng) và
+         * 6.8443:1 (tối) trên `--background`, 4.7647 / 6.1943 trên `--card`.
+         *
+         * ⚠ Giới hạn ĐÃ ĐO: trên `bg-muted` nhánh SÁNG chỉ được 4.3686:1 —
+         * DƯỚI 4.5. Ba nơi gọi thật (confirm-dialog, publish-panel,
+         * active-sessions) đều nằm trên mặt dialog/card nên không chạm giới hạn
+         * này, nhưng ĐỪNG đặt nút destructive vào khối `bg-muted` ở nhánh sáng.
+         * Gác bằng test khoảng-trống ở `theme/tokens.contract.test.ts`.
+         *
+         * Hover ĐẢO sang nền đặc: cặp `--destructive-foreground` trên
+         * `--destructive` đã được `TEXT_PAIRS` gác sẵn (4.5636 sáng / 6.8436
+         * tối). Đảo lúc hover không đụng `primary`, vì `primary` đặc từ lúc
+         * NGHỈ — và trạng thái nghỉ mới là thứ người dùng quét mắt qua.
+         */
+        destructive: [
+          'border border-destructive bg-transparent text-destructive',
+          'hover:bg-destructive hover:text-destructive-foreground',
+        ].join(' '),
         link: 'bg-transparent text-primary underline-offset-4 hover:underline',
       } satisfies Record<ButtonVariant, string>,
       size: {
@@ -94,9 +144,38 @@ const SPINNER_TONE = {
   secondary: 'text-secondary-foreground',
   outline: 'text-foreground',
   ghost: 'text-foreground',
-  destructive: 'text-destructive-foreground',
+  /*
+   * `text-destructive`, KHÔNG phải `text-destructive-foreground` — đổi cùng lúc
+   * với biến thể viền ở trên. `loading` kéo theo `disabled`, nên nút không bao
+   * giờ ở trạng thái hover khi Spinner chạy: màu nền dưới Spinner là màu NGHỈ
+   * (trong suốt), và chữ nghỉ là `text-destructive`. Để nguyên
+   * `-foreground` ở đây là vẽ Spinner gần-trắng lên nền gần-trắng — vô hình,
+   * đúng cùng một hỏng câm mà cả khối chú thích này sinh ra để chặn.
+   * `--destructive` trên `--background` đo được 4.7647:1 (sáng) / 6.8443:1
+   * (tối), dư so với mức 3:1 mà một thành phần đồ hoạ cần.
+   */
+  destructive: 'text-destructive',
   link: 'text-primary',
 } as const satisfies Record<ButtonVariant, string>;
+
+/**
+ * Icon MẶC ĐỊNH của `destructive` — nửa còn lại của tín hiệu hình dạng.
+ *
+ * Cùng lập luận đã ghi cho `DEFAULT_ICON` ở `badge.tsx`: nếu icon thuần opt-in
+ * thì bảo đảm cho người mù màu phụ thuộc vào việc MỌI nơi gọi nhớ truyền nó —
+ * tức là không có bảo đảm nào. Viền + nền trong suốt phân biệt được nút này với
+ * `primary`; icon là thứ nói thêm rằng nó NGUY HIỂM chứ không chỉ là "nút phụ"
+ * (biến thể `outline` cũng có viền). Không có icon thì quyết định #1 chỉ còn
+ * một nửa.
+ *
+ * `aria-hidden` vì nhãn nút đã nói đủ ("Xoá vĩnh viễn", "Lưu trữ"); để icon lộ
+ * ra là thêm một node vô nghĩa vào tên hỗ trợ tiếp cận.
+ *
+ * Nơi gọi vẫn đè được bằng `iconLeft`, và tắt hẳn bằng `iconLeft={null}`.
+ * ⚠ BỊ BỎ QUA khi `asChild`, cùng ràng buộc single-child của Radix `Slot` như
+ * `iconLeft` — ở nhánh đó nơi gọi tự đặt icon bên trong element con của mình.
+ */
+const DESTRUCTIVE_ICON = <TriangleAlert aria-hidden />;
 
 export interface ButtonProps
   extends Omit<ComponentProps<'button'>, 'color'>,
@@ -146,6 +225,10 @@ export function Button(props: ButtonProps) {
     ...rest
   } = props;
   const Comp = asChild ? Slot.Root : 'button';
+  // `undefined` ⇒ dùng icon mặc định của biến thể; `null` ⇒ nơi gọi TẮT hẳn.
+  // Cùng quy ước ba trạng thái với prop `icon` của `badge.tsx`.
+  const resolvedIconLeft =
+    iconLeft === undefined && variant === 'destructive' ? DESTRUCTIVE_ICON : iconLeft;
   const isDisabled = disabled === true || loading;
 
   return (
@@ -225,7 +308,7 @@ export function Button(props: ButtonProps) {
               của nút cũng nuốt luôn màu nét của chúng — đúng ý: cả cụm
               icon+nhãn mờ đi sau Spinner đè lên, thay vì icon còn nổi lên
               cạnh một cái nhãn đã tàng hình. */}
-          {iconLeft}
+          {resolvedIconLeft}
           {children}
           {iconRight}
         </Fragment>

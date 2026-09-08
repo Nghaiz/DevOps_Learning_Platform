@@ -69,8 +69,16 @@ const ROOTS = [
   'packages/scenario/src',
   'packages/shared-types/src',
   'packages/terminal/src',
+  // Thêm 2026-09-08 (P14): package này ra đời SAU script nên trước đó không được
+  // quét chút nào — một vùng mã sản phẩm hoàn toàn ngoài tầm cổng, im lặng. Lane F
+  // phát hiện khi soạn `docs/games/pipeline.md`.
+  'packages/games/src',
   'content',
 ];
+
+// `docs/` CỐ Ý đứng ngoài: cổng này gác BỀ MẶT SẢN PHẨM (thứ người dùng thấy), còn
+// docs là tài liệu nội bộ. Ghi ra đây để lần sau không ai đọc sự vắng mặt này thành
+// một chỗ sót.
 
 const IGNORE_DIRS = new Set([
   'node_modules', '.git', '.next', '.turbo', '.artifacts',
@@ -301,11 +309,16 @@ const DIRTY = [
   ['lọt-2', 'Học phí trọn gói 1.500.000đ'],
   ['lọt-3', 'Mua khoá học'],
   ['lọt-4', 'Bản Pro — 99k/tháng'],
-  ['cũ-SNAKE_CASE', 'const MONTHLY_PRICE_VND = 199000;'],
-  // `sku` trước đây không có đối chứng nào — không dòng nào chứng minh nó còn
-  // bắt, cũng không dòng nào chứng minh nó không kêu oan. Nay có cả hai.
-  ['sku-hoa', "const SKU_ID = 'course-101';"],
-  ['sku-thường', 'product_sku'],
+  ['cũ-SNAKE_CASE', 'const MONTHLY_PRICE_VND = 199000;'],
+
+  // `sku` trước đây không có đối chứng nào — không dòng nào chứng minh nó còn
+
+  // bắt, cũng không dòng nào chứng minh nó không kêu oan. Nay có cả hai.
+
+  ['sku-hoa', "const SKU_ID = 'course-101';"],
+
+  ['sku-thường', 'product_sku'],
+
   ['sku-số-nhiều', 'const SKUS = [];'],
   ['cũ-camelCase', 'const isPaid = user.subscription !== null;'],
   ['cũ-hằng', "export const PAYWALL_COPY = 'Mở khoá tất cả';"],
@@ -335,9 +348,12 @@ const CLEAN = [
   'setCheckOutcomes((prev) => ({ ...prev, [taskId]: { kind: running } }));',
   'const items = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);',
   'function subscribe(listener) { return () => {}; }',
-  // Tên migration do `drizzle-kit generate` tự sinh — nguồn tên NGẪU NHIÊN, nên
-  // dòng này gác một lớp dương tính giả sẽ tái phát chứ không phải một ca lẻ.
-  '"tag": "0008_nervous_skullbuster",',
+  // Tên migration do `drizzle-kit generate` tự sinh — nguồn tên NGẪU NHIÊN, nên
+
+  // dòng này gác một lớp dương tính giả sẽ tái phát chứ không phải một ca lẻ.
+
+  '"tag": "0008_nervous_skullbuster",',
+
   'giá trị mặc định là 30 giây',
   'đánh giá kết quả bài làm của người học',
   'nút nằm phía trên bàn phím ảo',

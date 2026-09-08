@@ -36,13 +36,57 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.546 0.215 262.881);
+  /*
+   * ── Thương hiệu ĐỎ (14.A, hue 25) ─────────────────────────────────────────
+   * Trước 2026-09-08 đây là hue 262.881 (lam). Hue 25 chọn có lý do: 15 ngả
+   * hồng, 40 ngả cam, 25 là đỏ mà mắt đọc thẳng ra "đỏ".
+   *
+   * L KHÔNG phải một giá trị "trông hợp lý" — nó là NGHIỆM của một phép quét.
+   * Hai lực kéo ngược nhau: "không quá đậm" kéo L lên, còn chữ trắng
+   * `--primary-foreground` (0.985) trên mặt nút kéo L xuống. Quét L từ 0.400
+   * đến 0.700 (bước 0.001) tại hue 25, chọn L LỚN NHẤT còn giữ ≥ 4.6:1 (dư 0.1
+   * so với ngưỡng 4.5 của SC 1.4.3, để sai số oklch→sRGB giữa các trình duyệt
+   * không kéo tụt xuống dưới). Đo bằng chính `measure()` của
+   * `packages/ui/src/theme/tokens.contract.test.ts`:
+   *
+   *     L=0.578 C=0.229 → 4.6508  đạt
+   *     L=0.579 C=0.230 → 4.6339  đạt
+   *     L=0.580 C=0.230 → 4.6144  đạt   ← NGHIỆM, #e31029
+   *     L=0.581 C=0.231 → 4.5977  TRƯỢT
+   *     L=0.582 C=0.231 → 4.5783  TRƯỢT
+   *
+   * Chroma bám mép gamut sRGB (giảm chroma ở cùng L làm màu sáng lên, tức kéo
+   * tụt contrast chữ trắng — nên mép gamut CHÍNH LÀ thứ mua được L lớn nhất),
+   * nhưng chừa BIÊN 0.005 dưới mép: `cmax(0.580, 25) = 0.23564`, lấy 0.230.
+   * Biên đó gần như miễn phí — bám sát mép tuyệt đối chỉ được thêm 0.001 L
+   * (L=0.581 C=0.236, dư vỏn vẹn 0.00005) và đổi lại là một giá trị mà bất kỳ
+   * ma trận oklch→sRGB nào lệch ở chữ số thứ tư cũng đẩy ra ngoài gamut. Ngoài
+   * gamut thì trình duyệt gamut-map còn phép đo lại clamp — hai phép chiếu khác
+   * nhau, và khi đó CON SỐ ĐO ĐƯỢC KHÔNG CÒN TẢ ĐÚNG thứ hiển thị (xem chú
+   * thích `inSrgbGamut` trong tokens.contract.test.ts).
+   *
+   * ⚠ `--destructive` cũng đỏ và CỐ Ý không tránh né chuyện đó: hai màu chỉ
+   * lệch 2.3° hue (1.01:1 — mắt không phân biệt nổi). Việc tách làm ở tầng
+   * HÌNH DẠNG, không ở tầng màu: primary nền ĐẶC, destructive VIỀN + nền nhạt
+   * + icon bắt buộc. Xem `packages/ui/src/button.tsx`. Đổi một trong hai màu
+   * cho "khác nhau hơn" là hiểu sai quyết định này.
+   */
+  --primary: oklch(0.58 0.23 25);
   --primary-foreground: oklch(0.985 0 0);
+  /*
+   * `--secondary`/`--muted` GIỮ hue 262.881 (lam) — không phải bỏ sót. Chúng là
+   * MẶT NỀN, không mang thương hiệu; tô sắc ấm lên chúng cho ra xám ngả nâu,
+   * đục. Nền lạnh dưới điểm nhấn đỏ là tương phản có chủ ý. `--accent` thì
+   * NGƯỢC LẠI đi theo hue mới: nó là vệt highlight/hover, tức một chạm thương
+   * hiệu thật sự, không phải mặt nền.
+   */
   --secondary: oklch(0.97 0.005 262.881);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0.005 262.881);
   --muted-foreground: oklch(0.446 0 0);
-  --accent: oklch(0.951 0.023 262.881);
+  /* Giữ nguyên L/chroma của bản lam, chỉ xoay hue → #fee9e7; chữ 0.205 trên nó
+   * đo được 15.41:1, dư xa ngưỡng 4.5. */
+  --accent: oklch(0.951 0.023 25);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
@@ -77,7 +121,10 @@
    * sai đó còn nằm ở `docs/design-system.md` §1a; cả ba nơi sửa cùng ngày.
    */
   --input: oklch(0.63 0 0);
-  --ring: oklch(0.546 0.215 262.881);
+  /* BẰNG `--primary` theo thiết kế — ràng buộc này là lý do cặp `--ring`↔
+   * `--primary` không đo được (1.00:1) và phải tách bằng `ring-offset-2`. Xem
+   * khối miễn trừ cuối `tokens.contract.test.ts`. */
+  --ring: oklch(0.58 0.23 25);
 
   /*
    * ── Độ khó ────────────────────────────────────────────────────────────────
@@ -108,13 +155,30 @@
   --difficulty-intermediate-foreground: oklch(0.985 0 0);
   --difficulty-advanced: oklch(0.547 0.2 305);
   --difficulty-advanced-foreground: oklch(0.985 0 0);
+  --difficulty-expert: oklch(0.5 0.19 18);
+  --difficulty-expert-foreground: oklch(0.985 0 0);
+  --kind-pod: oklch(0.55 0.17 250);
+  --kind-controller: oklch(0.56 0.16 295);
+  --kind-batch: oklch(0.56 0.15 330);
+  --kind-network: oklch(0.55 0.14 195);
+  --kind-config: oklch(0.56 0.14 85);
+  --kind-storage: oklch(0.55 0.13 55);
+  --kind-security: oklch(0.54 0.15 20);
+  --kind-cluster: oklch(0.55 0.08 160);
 
   /*
    * ── Trạng thái học ────────────────────────────────────────────────────────
-   * `--status-progress` dùng ĐÚNG hue thương hiệu (262.881), không phải một màu
-   * lam gần giống: "đang học" là trạng thái hoạt động nên nó thuộc họ màu chính
-   * một cách có chủ ý. Chọn 245 hay 250 sẽ lệch 13–18° so với `--primary` — đủ
-   * để mắt thấy khác nhưng không đủ để thấy là CỐ Ý, tức trông như lỗi.
+   * `--status-progress` GIỮ hue 262.881 (lam) sau khi thương hiệu chuyển sang
+   * đỏ — và lý do của nó ĐẢO NGƯỢC so với bản trước, chứ không phải nó bị bỏ
+   * quên.
+   *
+   * Trước 2026-09-08: lam LÀ hue thương hiệu, và "đang học" bám theo màu chính
+   * một cách có chủ ý. Nay thương hiệu là đỏ, nên lập luận đó vừa mất hiệu lực
+   * vừa lật thành lý do NGƯỢC LẠI: một chấm "đang học" màu đỏ đọc thẳng ra
+   * "lỗi" — cùng họ màu với `--destructive`, và tệ hơn, cùng họ với chính nút
+   * hành động chính. Lam nay RẢNH: nó không còn tranh chấp ngữ nghĩa với thứ
+   * gì, nên nó mang được nghĩa trung lập "đang diễn ra" đúng như một chấm
+   * trạng thái cần.
    *
    * `--status-locked` gần trung tính (chroma 0.012) chứ không xám tuyệt đối: nó
    * vẫn phải đạt 3:1 khi làm chấm/viền nên không được phép nhạt đi; hạ chroma
@@ -185,15 +249,20 @@
 
 .dark {
   /*
-   * Thang trung tính tối mang chroma 0.012 ở hue thương hiệu (262.881) thay vì
-   * xám tuyệt đối. Xám 0-chroma đọc ra "chưa ai chọn màu này"; một chút lạnh
-   * làm nền trông được thiết kế mà mắt vẫn nhận là trung tính.
+   * Thang trung tính tối mang chroma 0.012 ở hue 262.881 (lam) thay vì xám
+   * tuyệt đối. Xám 0-chroma đọc ra "chưa ai chọn màu này"; một chút lạnh làm
+   * nền trông được thiết kế mà mắt vẫn nhận là trung tính.
+   *
+   * ⚠ 262.881 ở đây KHÔNG CÒN là "hue thương hiệu" — bốn dòng này từng nói thế
+   * và câu đó chết ngày 2026-09-08 khi thương hiệu chuyển sang đỏ hue 25. Nay
+   * nó là một lựa chọn có lý do RIÊNG, và là lý do mạnh hơn: mặt nền không mang
+   * thương hiệu, và tô sắc ấm (hue 25) lên nền tối cho ra xám ngả nâu, đục. Nền
+   * LẠNH dưới điểm nhấn ĐỎ là tương phản có chủ ý — giữ 262.881 ở đây là quyết
+   * định, không phải sót lại của bảng màu cũ.
    *
    * ĐO TRƯỚC KHI ĐỔI, vì đây là nền của mọi phép đo khác. Ở oklch, thêm chroma
    * trong khi giữ nguyên L gần như không đụng tới độ chói tương đối, nên toàn
-   * bộ tỉ lệ đang đạt giữ nguyên tới hai chữ số — kể cả ô `--primary`↔`--card`
-   * đang bị GHIM ở 6.20 bởi khối "miễn trừ CÓ CHỨNG MINH" cuối
-   * `tokens.contract.test.ts` (đo lại sau khi tô sắc độ: 6.197, y hệt trước).
+   * bộ tỉ lệ đang đạt giữ nguyên tới hai chữ số.
    */
   --background: oklch(0.145 0.012 262.881);
   --foreground: oklch(0.985 0 0);
@@ -201,7 +270,35 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0.012 262.881);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.685 0.169 262.881);
+  /*
+   * Cùng hue 25, nhưng tiêu chí chọn L là ẢNH GƯƠNG của nhánh sáng, không phải
+   * cùng một câu.
+   *
+   * Ở `:root` chữ trên nút là TRẮNG (0.985) nên contrast kéo L xuống ⇒ lấy L
+   * LỚN NHẤT còn đạt. Ở đây chữ là GẦN ĐEN (0.145) nên contrast kéo L LÊN ⇒ lấy
+   * L NHỎ NHẤT còn đạt ≥4.6:1. Nhỏ nhất chứ không lớn nhất, vì L càng lên thì
+   * đỏ càng nhạt về phía hồng/salmon và mất luôn tính "cùng một thương hiệu"
+   * với nhánh sáng; lấy mép dưới giữ màu đậm và bão hoà nhất mà ngân sách
+   * contrast còn cho phép. Cả hai nhánh vì vậy đều nằm ĐÚNG trên biên 4.6 —
+   * từ hai phía đối nhau.
+   *
+   *     L=0.607 C=0.241 → 4.5706  TRƯỢT
+   *     L=0.608 C=0.241 → 4.5896  TRƯỢT
+   *     L=0.609 C=0.242 → 4.6060  đạt   ← NGHIỆM, #f2102c
+   *     L=0.610 C=0.242 → 4.6252  đạt
+   *
+   * `cmax(0.609, 25) = 0.24734`, lấy 0.242 ⇒ dư 0.00534. Giá trị lam cũ
+   * (`oklch(0.685 0.169 262.881)`) NGOÀI gamut và đang được ghi nợ trong
+   * `KNOWN_OUT_OF_GAMUT`; giá trị mới vào gamut nên hai dòng nợ đó đã được xoá.
+   *
+   * Hệ quả đã đo và CÓ CHỦ Ý: đỏ có độ chói tương đối thấp hơn lam ở cùng L,
+   * nên khe `--primary`↔`--card` tối co từ 6.20 xuống 4.1690 và trắng nay đạt
+   * 4.2972:1 với `--primary`. Điều đó làm lời khẳng định "không màu nào sửa
+   * được cặp `--ring`↔`--primary`" hết đúng — xem khối miễn trừ ở
+   * `tokens.contract.test.ts`, nơi lập luận cũ đã bị XOÁ chứ không ghim lại số
+   * mới.
+   */
+  --primary: oklch(0.609 0.242 25);
   --primary-foreground: oklch(0.145 0 0);
   --secondary: oklch(0.269 0.012 262.881);
   --secondary-foreground: oklch(0.985 0 0);
@@ -235,7 +332,8 @@
    * tường minh của SC 1.4.11 — lý do đầy đủ ở `docs/design-system.md` §1a.
    */
   --input: oklch(1 0 0 / 38%);
-  --ring: oklch(0.685 0.169 262.881);
+  /* BẰNG `--primary`, cùng ràng buộc như nhánh sáng. */
+  --ring: oklch(0.609 0.242 25);
 
   /*
    * Cùng ba hue của nhánh sáng nhưng ĐẢO vai: nền tối ⇒ chip phải SÁNG, chữ
@@ -256,6 +354,16 @@
   --difficulty-intermediate-foreground: oklch(0.145 0 0);
   --difficulty-advanced: oklch(0.7 0.175 305);
   --difficulty-advanced-foreground: oklch(0.145 0 0);
+  --difficulty-expert: oklch(0.7 0.16 18);
+  --difficulty-expert-foreground: oklch(0.145 0 0);
+  --kind-pod: oklch(0.72 0.16 250);
+  --kind-controller: oklch(0.73 0.15 295);
+  --kind-batch: oklch(0.73 0.14 330);
+  --kind-network: oklch(0.74 0.13 195);
+  --kind-config: oklch(0.76 0.13 85);
+  --kind-storage: oklch(0.74 0.12 55);
+  --kind-security: oklch(0.71 0.14 20);
+  --kind-cluster: oklch(0.72 0.07 160);
 
   --status-progress: oklch(0.7 0.145 262.881);
   --status-progress-foreground: oklch(0.145 0 0);
@@ -327,6 +435,16 @@
   --color-difficulty-intermediate-foreground: var(--difficulty-intermediate-foreground);
   --color-difficulty-advanced: var(--difficulty-advanced);
   --color-difficulty-advanced-foreground: var(--difficulty-advanced-foreground);
+  --color-difficulty-expert: var(--difficulty-expert);
+  --color-difficulty-expert-foreground: var(--difficulty-expert-foreground);
+  --color-kind-pod: var(--kind-pod);
+  --color-kind-controller: var(--kind-controller);
+  --color-kind-batch: var(--kind-batch);
+  --color-kind-network: var(--kind-network);
+  --color-kind-config: var(--kind-config);
+  --color-kind-storage: var(--kind-storage);
+  --color-kind-security: var(--kind-security);
+  --color-kind-cluster: var(--kind-cluster);
   --color-status-progress: var(--status-progress);
   --color-status-progress-foreground: var(--status-progress-foreground);
   --color-status-done: var(--status-done);

@@ -257,6 +257,7 @@ const C2_EXPORTS = [
   'Separator',
   'Kbd',
   'ContentView',
+  'MarkdownView',
   'SplitPane',
   'StepNav',
   'ProgressBar',

@@ -1,0 +1,6 @@
+EXIT_lesson=0
+EXIT_lab=0
+EXIT_quiz=0
+EXIT_path=0
+EXIT_author=1
+EXIT_admin=0

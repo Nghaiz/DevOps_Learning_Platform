@@ -1,0 +1,125 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - link "Bỏ qua điều hướng" [ref=f4e3] [cursor=pointer]:
+      - /url: "#noi-dung"
+    - banner [ref=f4e4]:
+      - generic [ref=f4e5]:
+        - link "DevOps Learning Platform — về trang chủ" [ref=f4e6] [cursor=pointer]:
+          - /url: /
+          - generic [ref=f4e10]: DevOps Learning
+        - navigation "Điều hướng chính" [ref=f4e12]:
+          - link "Bài học" [ref=f4e13] [cursor=pointer]:
+            - /url: /lessons
+          - link "Lab" [ref=f4e16] [cursor=pointer]:
+            - /url: /labs
+          - link "Playground" [ref=f4e19] [cursor=pointer]:
+            - /url: /playgrounds
+          - link "Lộ trình" [ref=f4e23] [cursor=pointer]:
+            - /url: /paths
+          - link "Quiz" [ref=f4e28] [cursor=pointer]:
+            - /url: /quiz
+          - link "Của tôi" [ref=f4e32] [cursor=pointer]:
+            - /url: /me
+        - generic [ref=f4e37]:
+          - generic [ref=f4e38]: Còn 14 chỗ
+          - button "Giao diện" [ref=f4e40]
+          - button "Tài khoản của AC613 Probe" [ref=f4e42]:
+            - generic [ref=f4e43]: AP
+    - main [ref=f4e45]:
+      - generic [ref=f4e46]:
+        - navigation "Điều hướng quản trị" [ref=f4e47]:
+          - link "Tổng quan" [ref=f4e48] [cursor=pointer]:
+            - /url: /admin
+          - link "Người dùng" [ref=f4e49] [cursor=pointer]:
+            - /url: /admin/users
+          - link "Phiên đang chạy" [ref=f4e50] [cursor=pointer]:
+            - /url: /admin/sessions
+          - link "Nội dung" [ref=f4e51] [cursor=pointer]:
+            - /url: /admin/content
+          - link "Nhật ký" [ref=f4e52] [cursor=pointer]:
+            - /url: /admin/audit
+        - generic [ref=f4e53]:
+          - generic [ref=f4e55]:
+            - heading "Phiên đang chạy" [level=1] [ref=f4e56]
+            - paragraph [ref=f4e57]: Mọi phiên còn sống trên nền tảng, của mọi người dùng. Kết thúc một phiên sẽ thu hồi pod ngay.
+          - generic [ref=f4e58]:
+            - heading "Danh sách này chỉ có phiên CÒN SỐNG" [level=5] [ref=f4e59]
+            - generic [ref=f4e60]: Orchestrator lọc bỏ phiên đã hết hạn, đã thu hồi hoặc lỗi trước khi trả về. Một phiên biến mất khỏi bảng nghĩa là nó đã kết thúc, không phải nó bị ẩn.
+          - generic [ref=f4e65]:
+            - table [ref=f4e67]:
+              - rowgroup [ref=f4e68]:
+                - row [ref=f4e69]:
+                  - columnheader "Phiên" [ref=f4e70]
+                  - columnheader "Chủ phiên" [ref=f4e71]
+                  - columnheader "Trạng thái" [ref=f4e72]
+                  - columnheader "Hạn" [ref=f4e73]
+                  - columnheader "Hành động" [ref=f4e74]
+              - rowgroup [ref=f4e75]:
+                - row [ref=f4e76]:
+                  - cell "036eb6a17fbe343ab467c79ccf394bce pod sandbox-360ee1547609 · tạo 17:00:23 7/9/2026" [ref=f4e77]:
+                    - generic [ref=f4e78]:
+                      - generic [ref=f4e79]: 036eb6a17fbe343ab467c79ccf394bce
+                      - generic [ref=f4e80]: pod sandbox-360ee1547609 · tạo 17:00:23 7/9/2026
+                  - cell "5NA1BSwuPUil7vUI4BGJBJxonQcu2VKZ (bạn)" [ref=f4e81]
+                  - cell "Đã nhận pod" [ref=f4e82]
+                  - cell "còn 35 phút" [ref=f4e84]
+                  - cell [ref=f4e85]:
+                    - button "Kết thúc" [ref=f4e86]
+                - row [ref=f4e87]:
+                  - cell "40a232c8b8f882a097385745c901a7f8 pod sandbox-e5a4c73164b2 · tạo 17:03:31 7/9/2026" [ref=f4e88]:
+                    - generic [ref=f4e89]:
+                      - generic [ref=f4e90]: 40a232c8b8f882a097385745c901a7f8
+                      - generic [ref=f4e91]: pod sandbox-e5a4c73164b2 · tạo 17:03:31 7/9/2026
+                  - cell "5NA1BSwuPUil7vUI4BGJBJxonQcu2VKZ (bạn)" [ref=f4e92]
+                  - cell "Đã nhận pod" [ref=f4e93]
+                  - cell "còn 39 phút" [ref=f4e95]
+                  - cell [ref=f4e96]:
+                    - button "Kết thúc" [ref=f4e97]
+                - row [ref=f4e98]:
+                  - cell "57db53dc6b947b31f4ae5e8333a2b8b7 pod sandbox-d9ee67773f84 · tạo 16:52:09 7/9/2026" [ref=f4e99]:
+                    - generic [ref=f4e100]:
+                      - generic [ref=f4e101]: 57db53dc6b947b31f4ae5e8333a2b8b7
+                      - generic [ref=f4e102]: pod sandbox-d9ee67773f84 · tạo 16:52:09 7/9/2026
+                  - cell "758rgJGmR0hQqdxDdIGThbzhSXo5wjaX" [ref=f4e103]
+                  - cell "Đã nhận pod" [ref=f4e104]
+                  - cell "còn 27 phút" [ref=f4e106]
+                  - cell [ref=f4e107]:
+                    - button "Kết thúc" [ref=f4e108]
+                - row [ref=f4e109]:
+                  - cell "585b8c82e5defd5a6e3630760128d6bc pod sandbox-119429f2d20b · tạo 16:37:18 7/9/2026" [ref=f4e110]:
+                    - generic [ref=f4e111]:
+                      - generic [ref=f4e112]: 585b8c82e5defd5a6e3630760128d6bc
+                      - generic [ref=f4e113]: pod sandbox-119429f2d20b · tạo 16:37:18 7/9/2026
+                  - cell "K7zJVcJHkOdcApfvoi7nCaPEdqicZTMt" [ref=f4e114]
+                  - cell "Đã nhận pod" [ref=f4e115]
+                  - cell "còn 12 phút" [ref=f4e117]
+                  - cell [ref=f4e118]:
+                    - button "Kết thúc" [ref=f4e119]
+                - row [ref=f4e120]:
+                  - cell "d7fedcbd84674c6363d3aad65d33eaa4 pod sandbox-68e4d602e5b7 · tạo 16:57:10 7/9/2026" [ref=f4e121]:
+                    - generic [ref=f4e122]:
+                      - generic [ref=f4e123]: d7fedcbd84674c6363d3aad65d33eaa4
+                      - generic [ref=f4e124]: pod sandbox-68e4d602e5b7 · tạo 16:57:10 7/9/2026
+                  - cell "5NA1BSwuPUil7vUI4BGJBJxonQcu2VKZ (bạn)" [ref=f4e125]
+                  - cell "Đã nhận pod" [ref=f4e126]
+                  - cell "còn 32 phút" [ref=f4e128]
+                  - cell [ref=f4e129]:
+                    - button "Kết thúc" [ref=f4e130]
+                - row [ref=f4e131]:
+                  - cell "e2569e0218a841137a896485b179d46a pod sandbox-c9b11d18d79b · tạo 16:47:50 7/9/2026" [ref=f4e132]:
+                    - generic [ref=f4e133]:
+                      - generic [ref=f4e134]: e2569e0218a841137a896485b179d46a
+                      - generic [ref=f4e135]: pod sandbox-c9b11d18d79b · tạo 16:47:50 7/9/2026
+                  - cell "758rgJGmR0hQqdxDdIGThbzhSXo5wjaX" [ref=f4e136]
+                  - cell "Đã nhận pod" [ref=f4e137]
+                  - cell "còn 23 phút" [ref=f4e139]
+                  - cell [ref=f4e140]:
+                    - button "Kết thúc" [ref=f4e141]
+            - status [ref=f4e142]: Đang xem 6 phiên ở trang 1.
+            - generic [ref=f4e143]:
+              - button "Về đầu" [disabled]
+              - generic [ref=f4e144]: Trang 1
+              - button "Tiếp" [disabled]
+  - region "Notifications (F8)":
+    - list
+  - alert [ref=f4e62]

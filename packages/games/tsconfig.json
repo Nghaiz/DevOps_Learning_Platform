@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    // KHÔNG có "node" ở đây, khác packages/scenario và đó là chủ ý: logic game
+    // chạy trong trình duyệt. Bỏ types node ra nghĩa là một `import 'node:fs'`
+    // lạc vào đây sẽ ĐỎ ngay ở typecheck thay vì đợi tới lúc `next build`.
+    // Test cũng không cần: vitest cấp `describe/it/expect` qua import tường minh.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src/**/*.ts", "eslint.config.mjs"]
+}

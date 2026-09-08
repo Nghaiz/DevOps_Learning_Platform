@@ -71,6 +71,17 @@ export { Separator, Kbd } from './separator.tsx';
 // này: chúng là component TRÌNH BÀY thuần — không biết tRPC, không biết terminal,
 // nhận dữ liệu và callback qua props. Phần có dây nối (gọi API, gõ vào PTY) nằm
 // ở `apps/web/src/app/lessons/**` và KHÔNG được kéo xuống đây.
+/*
+ * `MarkdownView` mở export 2026-09-08 cho `Level.teaching.primer` của Kubernetes
+ * Game. Lane E render primer bằng đoạn văn + backtick tự viết vì component này
+ * chưa mở, nên **bold, danh sách, liên kết hiện ra dưới dạng ký tự thô**.
+ *
+ * Lối thoát kia — dùng `ContentView` — sẽ kéo `@devops-platform/scenario` vào
+ * một route CỐ Ý không gọi backend lần nào. Đổi một AC lấy một tiện nghi là sai
+ * hướng, nên mở đúng thứ nhỏ hơn.
+ */
+export { MarkdownView } from './lesson/markdown-view.tsx';
+export type { MarkdownViewProps } from './lesson/markdown-view.tsx';
 export { ContentView } from './lesson/content-view.tsx';
 export type { ContentViewProps } from './lesson/content-view.tsx';
 export { SCROLL_REGION_FOCUS } from './lesson/scroll-region.ts';

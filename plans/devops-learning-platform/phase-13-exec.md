@@ -123,6 +123,7 @@ Tất cả export từ `packages/ui/src/index.ts`. Tên và prop tối thiểu:
 | `ErrorState` | `{ title?: string; message: string; onRetry?(): void; retrying?: boolean }` |
 | `Separator`, `Kbd` | — |
 | `ContentView`, `SplitPane`, `StepNav`, `ProgressBar` | giữ nguyên API, chuyển màu sang token |
+| `MarkdownView` | mở export 2026-09-08 (P14) cho `Level.teaching.primer` của Kubernetes Game — vốn đã tồn tại và được `ContentView` dùng nội bộ, chỉ là chưa ra barrel. Lối thoát kia là dùng `ContentView`, mà nó kéo `@devops-platform/scenario` vào một route CỐ Ý không gọi backend lần nào. |
 
 Mỗi component có file test (vitest + RTL, jsdom) kiểm hành vi + trạng thái. `docs/design-system.md` có bảng checklist 4 trạng thái cho từng component.
 

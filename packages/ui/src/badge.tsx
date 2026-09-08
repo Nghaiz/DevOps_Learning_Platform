@@ -1,6 +1,16 @@
 import type { ComponentProps, ComponentType, ReactNode } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { Circle, CircleCheck, CirclePlay, Lock, SignalHigh, SignalLow, SignalMedium } from 'lucide-react';
+import {
+  Circle,
+  CircleCheck,
+  CirclePlay,
+  Lock,
+  Signal,
+  SignalHigh,
+  SignalLow,
+  SignalMedium,
+  TriangleAlert,
+} from 'lucide-react';
 import { cn } from './cn.ts';
 
 export type BadgeVariant =
@@ -13,6 +23,7 @@ export type BadgeVariant =
   | 'difficulty-basic'
   | 'difficulty-intermediate'
   | 'difficulty-advanced'
+  | 'difficulty-expert'
   | 'status-todo'
   | 'status-progress'
   | 'status-done'
@@ -56,12 +67,25 @@ const badgeVariants = cva(
         secondary: 'border-transparent bg-secondary text-secondary-foreground',
         success: 'border-transparent bg-success text-success-foreground',
         warning: 'border-transparent bg-warning text-warning-foreground',
-        destructive: 'border-transparent bg-destructive text-destructive-foreground',
+        /*
+         * VIỀN + chữ đỏ, KHÔNG nền đặc — cùng quyết định #1 của 14.A đã áp cho
+         * `button.tsx`. Từ 2026-09-08 `--primary` là đỏ hue 25 còn
+         * `--destructive` là đỏ hue 27.325: lệch 2.3°, đo được 1.01:1 giữa hai
+         * mặt. Badge `default` (nền primary đặc) và badge `destructive` (nền
+         * destructive đặc) vì thế sẽ trông y hệt nhau — nên biến thể này bỏ nền
+         * đặc và giữ lại viền + chữ đỏ + icon cảnh báo.
+         *
+         * Đo được cho chữ `text-destructive`: 4.7647:1 trên `--background` và
+         * `--card` (sáng), 6.8443 / 6.1943 (tối). Cùng giới hạn `bg-muted`
+         * nhánh sáng như nút (4.3686:1) — xem chú thích ở `button.tsx`.
+         */
+        destructive: 'border-destructive bg-transparent text-destructive',
         outline: 'border-border text-foreground',
         'difficulty-basic': 'border-transparent bg-difficulty-basic text-difficulty-basic-foreground',
         'difficulty-intermediate':
           'border-transparent bg-difficulty-intermediate text-difficulty-intermediate-foreground',
         'difficulty-advanced': 'border-transparent bg-difficulty-advanced text-difficulty-advanced-foreground',
+        'difficulty-expert': 'border-transparent bg-difficulty-expert text-difficulty-expert-foreground',
         'status-todo': 'border-border bg-muted text-muted-foreground',
         'status-progress': 'border-transparent bg-status-progress text-status-progress-foreground',
         'status-done': 'border-transparent bg-status-done text-status-done-foreground',
@@ -100,9 +124,14 @@ type BadgeIcon = ComponentType<{ readonly className?: string; readonly 'aria-hid
  * định: chúng không mang một trạng thái cố định nào để mà vẽ.
  */
 const DEFAULT_ICON: Partial<Record<BadgeVariant, BadgeIcon>> = {
+  // `destructive` CÓ icon mặc định dù nó là biến thể phi-ngữ-nghĩa: nó là nửa
+  // còn lại của tín hiệu hình dạng tách nó khỏi `default`, sau khi thương hiệu
+  // chuyển sang đỏ. Viền một mình không đủ — `outline` cũng có viền.
+  destructive: TriangleAlert,
   'difficulty-basic': SignalLow,
   'difficulty-intermediate': SignalMedium,
   'difficulty-advanced': SignalHigh,
+  'difficulty-expert': Signal,
   'status-todo': Circle,
   'status-progress': CirclePlay,
   'status-done': CircleCheck,

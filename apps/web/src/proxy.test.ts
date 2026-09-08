@@ -24,15 +24,63 @@ function requestFor(pathname: string, cookie?: string): NextRequest {
   return cookie === undefined ? new NextRequest(url) : new NextRequest(url, { headers: { cookie } });
 }
 
+/**
+ * Mục điều hướng chính CÔNG KHAI có chủ ý — miễn trừ khỏi phép kiểm ngay dưới.
+ *
+ * Tới P13 mọi mục trong `PRIMARY_NAV` đều nằm sau cổng đăng nhập, nên "mọi mục
+ * nav đều được gác" vừa là một phép kiểm vừa là một mệnh đề đúng. P14 phá mệnh
+ * đề đó: `/games` chạy HOÀN TOÀN trong trình duyệt, tiến độ ở `localStorage`,
+ * 0 lời gọi backend — bắt đăng nhập là dựng một cánh cổng không gác gì
+ * (`plans/devops-learning-platform/phase-14-exec.md` §4.2, và ô nghiệm thu §6).
+ *
+ * Nên đây là một danh sách miễn trừ CÓ TÊN, không phải một vòng lặp bị nới
+ * lỏng: thêm `/games` vào `PROTECTED_PATHS` cho test xanh sẽ làm đỏ một ô AC
+ * của phase, và sửa vòng lặp thành `.filter(...)` vô danh thì mục thứ tám quên
+ * gác cũng lọt luôn.
+ */
+const PUBLIC_NAV_REASON: Readonly<Record<string, string>> = {
+  // Chơi hoàn toàn trong trình duyệt; tiến độ ở `localStorage`; 0 lời gọi
+  // backend. Không có tài nguyên phía server nào để một cổng đăng nhập gác —
+  // nó sẽ chỉ chặn người lạ khỏi một thứ chạy trên chính máy họ. P14 §4.2.
+  '/games': 'chơi trong trình duyệt, tiến độ ở localStorage — không có gì phía server để gác',
+};
+
+const PUBLIC_NAV_HREFS: ReadonlySet<string> = new Set(Object.keys(PUBLIC_NAV_REASON));
+
 describe('PROTECTED_PATHS phủ hết điều hướng C6', () => {
   /**
    * Nguồn của danh sách kỳ vọng là chính bảng nav — không phải một bản chép
    * tay. Thêm một mục vào `PRIMARY_NAV` mà quên gác nó ở proxy sẽ đỏ ở đây,
    * kể cả khi người thêm không biết file này tồn tại.
    */
-  it('mọi mục điều hướng chính đều được gác', () => {
-    for (const item of PRIMARY_NAV) {
+  it('mọi mục điều hướng chính đều được gác, trừ đường công khai đã khai tên', () => {
+    for (const item of PRIMARY_NAV.filter((nav) => !PUBLIC_NAV_HREFS.has(nav.href))) {
       expect(matchesProtected(item.href), `thiếu ${item.href}`).toBe(true);
+    }
+  });
+
+  /**
+   * Đối chứng HAI CHIỀU cho danh sách miễn trừ (`pinned-baseline-test-companion`).
+   * Một danh sách miễn trừ không có người canh sẽ thành nghĩa địa, và nó hỏng
+   * theo hai hướng ngược nhau — mỗi hướng cần một khẳng định riêng:
+   *
+   *  1. **Mục ôi** — `/games` bị đổi tên hay gỡ khỏi nav, dòng miễn trừ ở lại.
+   *     Lần sau ai đó thêm một route tên `/games` sẽ được miễn gác MIỄN PHÍ, và
+   *     không lệnh nào kêu.
+   *  2. **Miễn trừ hết đúng** — `/games` sau này CÓ gác thật (ví dụ bảng xếp
+   *     hạng theo tài khoản, §8.5). Lúc đó dòng miễn trừ đang che một đường đã
+   *     được gác, tức phép kiểm trên đang kiểm ít hơn nó tưởng.
+   *
+   * Ô này đỏ ở cả hai, và thông báo nói thẳng phải làm gì.
+   */
+  it('miễn trừ công khai không có mục ôi, và mỗi mục vẫn thật sự công khai', () => {
+    const navHrefs = new Set(PRIMARY_NAV.map((item) => item.href));
+    for (const href of PUBLIC_NAV_HREFS) {
+      expect(navHrefs.has(href), `${href} không còn trong PRIMARY_NAV — xoá khỏi miễn trừ`).toBe(true);
+      expect(
+        matchesProtected(href),
+        `${href} nay ĐÃ được gác, nhưng miễn trừ vẫn nói "${PUBLIC_NAV_REASON[href]}" — xoá khỏi miễn trừ`,
+      ).toBe(false);
     }
   });
 

@@ -8,6 +8,7 @@ import { lessonsRouter } from './lessons';
 import { meRouter } from './me';
 import { pathsRouter } from './paths';
 import { playgroundsRouter } from './playgrounds';
+import { problemsRouter } from './problems';
 import { quizRouter } from './quiz';
 import { sessionRouter } from './session';
 
@@ -21,6 +22,7 @@ export const appRouter = createTRPCRouter({
   me: meRouter,
   paths: pathsRouter,
   playgrounds: playgroundsRouter,
+  problems: problemsRouter,
   quiz: quizRouter,
   session: sessionRouter,
 });
