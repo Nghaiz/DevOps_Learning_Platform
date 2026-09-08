@@ -147,6 +147,18 @@ export interface ProbeSpec {
 export interface ContainerSpec {
   readonly name: string;
   readonly image: string;
+  /**
+   * Ứng dụng mất bao lâu mới sẵn sàng, tính bằng TICK.
+   *
+   * ⚠ Đây là field CHỈ CÓ TRONG MÔ PHỎNG, không tồn tại trong Kubernetes thật —
+   * cùng loại với `phase` trên pod spec. Nó tồn tại vì mô phỏng không chạy ứng
+   * dụng thật nên không có cách nào biết ứng dụng khởi động chậm hay nhanh, mà
+   * đó lại chính là biến quyết định của cả một nhóm sự cố: một liveness probe
+   * `initialDelaySeconds: 0` chỉ giết được ứng dụng nào khởi động LÂU hơn thế.
+   *
+   * Không khai thì lấy `DEFAULT_STARTUP_TICKS`.
+   */
+  readonly startupTicks: number;
   readonly command: readonly string[];
   readonly ports: readonly number[];
   /** milli-core / MiB. `null` = KHÔNG đặt — khác 0, và HPA phân biệt hai cái đó. */
@@ -264,6 +276,11 @@ export function readContainers(spec: unknown, tickMs: number): readonly Containe
     out.push({
       name: asString(container['name']) ?? 'container',
       image: asString(container['image']) ?? '',
+      startupTicks: secondsToTicks(
+        container[SIM_STARTUP_FIELD],
+        tickMs,
+        DEFAULT_STARTUP_TICKS,
+      ),
       command: asStringArray(container['command']),
       ports: asArray(container['ports'])
         .map((port) => asNumber(asRecord(port)?.['containerPort']))
@@ -288,6 +305,18 @@ export function readContainers(spec: unknown, tickMs: number): readonly Containe
   }
   return out;
 }
+
+/**
+ * Tên field mô phỏng-riêng cho thời gian khởi động ứng dụng.
+ *
+ * ⚠ Hằng chứ không phải chuỗi rải rác: đây là chỗ DUY NHẤT biết tên đó, nên đổi
+ * tên là sửa một dòng. Và vì nó là field không-phải-Kubernetes nằm lẫn giữa các
+ * field Kubernetes thật, tên nó là thứ đáng được đặt ở một chỗ đọc thấy.
+ */
+export const SIM_STARTUP_FIELD = 'thoiGianKhoiDongGiay';
+
+/** Ứng dụng mất khoảng 2 giây để sẵn sàng, khi level không nói gì khác. */
+export const DEFAULT_STARTUP_TICKS = 4;
 
 /** `selector.matchLabels` (workload) hoặc `selector` phẳng (Service). Cả hai đều gặp. */
 export function readSelector(spec: unknown): Readonly<Record<string, string>> {
@@ -406,7 +435,7 @@ export const KINDS: Readonly<Record<ResourceKind, KindInfo>> = {
     'services',
     ['svc'],
     true,
-    ['type', 'selector', 'ports', 'labels'],
+    ['type', 'selector', 'ports', 'labels', 'clusterIP'],
     ['TYPE', 'CLUSTER-IP', 'EXTERNAL-IP', 'PORT(S)', 'AGE'],
   ),
   Ingress: info(
@@ -552,3 +581,59 @@ export function resolveKind(token: string): ResourceKind | null {
 export function isNamespaced(kind: ResourceKind): boolean {
   return KINDS[kind].namespaced;
 }
+
+// ── Sổ cái từ vựng lồng nhau ────────────────────────────────────────────────
+
+/**
+ * ⛔ Đây là SSOT của phép kiểm "level có đặt field lạ không"
+ * (`levels-vocabulary.test.ts`).
+ *
+ * `ResourceSpec.spec` là `Record<string, unknown>` theo hợp đồng, nên KHÔNG có
+ * gì trong hệ kiểu bắt được việc lane C viết `replicaCount` còn engine đọc
+ * `replicas`. Hỏng đó không sinh lỗi biên dịch, không làm đỏ test nào, không ném
+ * lúc chạy — level chỉ đơn giản là dựng ra một cụm rỗng, và triệu chứng duy nhất
+ * là một người chơi báo "level này không chạy được".
+ *
+ * Thêm một field vào bảng dưới đây mà KHÔNG viết mã đọc nó cũng là một cách phá
+ * cổng này: cổng sẽ xanh trong khi field vẫn bị bỏ qua. Nên mỗi dòng ở đây phải
+ * truy được về một chỗ đọc thật trong `readContainers` / `tick.ts` / `query.ts`.
+ */
+export const CONTAINER_FIELDS: readonly string[] = [
+  'name',
+  'image',
+  'command',
+  'args',
+  'ports',
+  'env',
+  'envFrom',
+  'volumeMounts',
+  'resources',
+  'readinessProbe',
+  'livenessProbe',
+  'startupProbe',
+  SIM_STARTUP_FIELD,
+];
+
+export const PROBE_FIELDS: readonly string[] = [
+  'httpGet',
+  'tcpSocket',
+  'exec',
+  'port',
+  'path',
+  'initialDelaySeconds',
+  'periodSeconds',
+  'timeoutSeconds',
+  'failureThreshold',
+  'successThreshold',
+];
+
+export const VOLUME_FIELDS: readonly string[] = [
+  'name',
+  'persistentVolumeClaim',
+  'configMap',
+  'secret',
+  'emptyDir',
+];
+
+/** `template` của workload là một pod-spec PHẲNG, nên nó dùng đúng bộ field của Pod. */
+export const POD_TEMPLATE_FIELDS: readonly string[] = KINDS.Pod.specFields;

@@ -29,6 +29,11 @@ function level(overrides: Partial<Level> = {}): Level {
     hints: [],
     parMoves: 1,
     teaches: [],
+    teaching: {
+      primer: 'Fixture của test máy mô phỏng, không phải nội dung dạy học thật.',
+      cheatsheet: [],
+      takeaways: [],
+    },
     ...overrides,
   };
 }

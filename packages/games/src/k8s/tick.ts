@@ -43,8 +43,6 @@ export const TICK_MS = 500;
 
 /** Tạo container mất khoảng 2 giây. */
 const CONTAINER_CREATE_TICKS = 4;
-/** Ứng dụng mất khoảng 2 giây để sẵn sàng nhận traffic. */
-const DEFAULT_STARTUP_TICKS = 4;
 /** Container một-lần (`restartPolicy` khác `Always`) chạy khoảng 5 giây rồi xong. */
 const ONE_SHOT_RUN_TICKS = 10;
 /** Pod trên node NotReady bị đánh dấu mất sau khoảng 10 giây. */
@@ -389,7 +387,13 @@ function runContainers(state: ClusterState, object: K8sObject, pod: PodRuntime):
     if (liveness === null) {
       continue;
     }
-    const tooEarly = liveness.initialDelayTicks < DEFAULT_STARTUP_TICKS;
+    // So với thời gian khởi động THẬT của ứng dụng đó, không với một hằng số.
+    // Đây là bẫy kinh điển nhất của liveness probe: một ứng dụng khởi động 40
+    // giây với `initialDelaySeconds: 0` bị kubelet giết trước khi kịp sống, và
+    // vòng lặp đó không bao giờ thoát ra được. Dùng một hằng số cứng ở đây thì
+    // level nào khai ứng dụng chậm cũng bị bỏ qua — và l29 chỉ đỏ ĐÚNG vì tình
+    // cờ 0 nhỏ hơn hằng số, chứ không vì mô phỏng hiểu ý level.
+    const tooEarly = liveness.initialDelayTicks < container.startupTicks;
     if (probeFails(container, liveness) || tooEarly) {
       return terminate(
         state,
@@ -451,9 +455,12 @@ function runContainers(state: ClusterState, object: K8sObject, pod: PodRuntime):
       : next;
   }
 
+  // Sẵn sàng khi ứng dụng đã khởi động xong VÀ đã qua `initialDelaySeconds` của
+  // readiness probe — lấy mốc muộn hơn trong hai mốc, đúng như kubelet.
   const readinessDelay = containers.reduce(
-    (max, container) => Math.max(max, container.readinessProbe?.initialDelayTicks ?? 0),
-    DEFAULT_STARTUP_TICKS,
+    (max, container) =>
+      Math.max(max, container.startupTicks, container.readinessProbe?.initialDelayTicks ?? 0),
+    0,
   );
   const ready = startedFor >= readinessDelay;
   const becameReady = ready && !pod.ready;
