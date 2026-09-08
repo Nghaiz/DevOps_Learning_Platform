@@ -17,11 +17,12 @@ git switch -c feat/ten-tinh-nang          # KHÔNG làm việc trên main
 # ... code ...
 git push -u origin feat/ten-tinh-nang
 gh pr create --fill
-gh pr merge --squash --auto               # tự merge NGAY KHI ci-ok xanh
+gh pr merge --merge --auto                # tự merge NGAY KHI ci-ok xanh
 ```
 
 `--auto` là mấu chốt của quy trình một người: bạn không phải ngồi canh CI. PR tự
-merge khi cổng xanh, nhánh tự xoá, `main` nhận đúng một commit sạch.
+merge khi cổng xanh, nhánh tự xoá, `main` nhận **đủ commit của nhánh** cộng một
+merge commit đánh dấu ranh giới — xem §2 về việc bỏ squash.
 
 Sau khi merge:
 
@@ -34,12 +35,19 @@ git branch -D feat/ten-tinh-nang          # nhánh remote GitHub đã tự xoá
 
 ---
 
-## 1. Branch protection cho `main` ✅ đã áp dụng
+## 1. Branch protection cho `main` ⚠️ HIỆN KHÔNG BẬT
+
+> **Đo lại 2026-09-08:** `gh api repos/Nghaiz/DevOps_Learning_Platform/branches/main/protection`
+> trả **404 `Branch not protected`**. Nhánh `main` đang **không có** protection
+> nào — không required check, không bắt buộc PR, không chặn force-push. Bản
+> trước của mục này ghi "✅ đã áp dụng"; điều đó đã không còn đúng, và không rõ
+> nó bị gỡ lúc nào. Bảng dưới là **cấu hình mong muốn**, không phải trạng thái
+> đang chạy. Muốn bật lại thì chạy khối "Đặt lại từ đầu" ở cuối mục này.
 
 Repo này dùng **classic branch protection**, KHÔNG phải ruleset. Đây chính là chỗ
-bản trước của tài liệu này sai và bạn thấy lệch với giao diện.
+một bản trước nữa của tài liệu này sai và bạn thấy lệch với giao diện.
 
-Trạng thái hiện tại (đọc bằng `gh api .../branches/main/protection`):
+Cấu hình mong muốn:
 
 | Cài đặt | Giá trị | Vì sao |
 |---|---|---|
@@ -48,7 +56,7 @@ Trạng thái hiện tại (đọc bằng `gh api .../branches/main/protection`)
 | Require a pull request | ✅ | không có PR = bỏ qua toàn bộ cổng CI |
 | Số approval cần | **0** | bạn không thể tự duyệt PR của mình; để 1 là tự khoá mình vĩnh viễn |
 | Require conversation resolution | ✅ | comment của Copilot review phải được xử lý, không trôi |
-| Require linear history | ✅ | đi cặp với squash-only ở §2 |
+| Require linear history | ❌ | **đã đổi 2026-09-08** — §2 chuyển sang merge-commit, mà merge commit có hai cha nên linear history sẽ chặn nó |
 | Allow force pushes / deletions | ❌ / ❌ | force-push viết lại lịch sử mà gitleaks đã quét |
 | Do not allow bypassing (admin) | ❌ **tắt** | bạn giữ được lối thoát khẩn cấp — bù lại bằng hook local ở §7 |
 
@@ -90,7 +98,7 @@ gh api -X PUT repos/Nghaiz/DevOps_Learning_Platform/branches/main/protection --i
     "require_last_push_approval": false
   },
   "restrictions": null,
-  "required_linear_history": true,
+  "required_linear_history": false,
   "allow_force_pushes": false,
   "allow_deletions": false,
   "required_conversation_resolution": true,
@@ -111,16 +119,30 @@ bypassing the above settings" để **trống**.
 
 | Cài đặt | Giá trị |
 |---|---|
-| Allow squash merging | ✅ (tiêu đề = tiêu đề PR, mô tả = body PR) |
-| Allow merge commits | ❌ |
+| Allow merge commits | ✅ (tiêu đề = tiêu đề PR, mô tả = body PR) |
+| Allow squash merging | ❌ **đổi 2026-09-08** |
 | Allow rebase merging | ❌ |
 | Automatically delete head branches | ✅ |
 | Allow auto-merge | ✅ |
 | Allow update branch | ✅ |
 
-Chỉ còn squash ⇒ mỗi PR thành đúng một commit trên `main`, revert một tính năng
-là revert một commit. Auto-merge là thứ khiến quy trình PR không tốn thời gian
-chờ của bạn.
+**Đổi 2026-09-08 — vì sao bỏ squash.** Squash-only ép mỗi PR thành đúng một
+commit trên `main`. Với PR nhỏ thì gọn, nhưng nhánh dài (P14 vào main với **100
+commit**) thì toàn bộ lịch sử — thứ tự phát hiện lỗi, commit nào là bản vá của
+commit nào, `git bisect` — bị nén phẳng thành một dòng và mất vĩnh viễn. Không
+có cờ nào của `gh pr merge --squash` giữ lại được phần đó.
+
+Giờ chỉ còn merge-commit ⇒ `main` nhận **đủ commit gốc, giữ nguyên SHA**, cộng
+một merge commit đánh dấu ranh giới tính năng. Revert một tính năng vẫn là một
+lệnh: `git revert -m 1 <sha-merge-commit>`.
+
+Rebase để tắt vì nó viết lại SHA — commit trên `main` không còn khớp commit bạn
+đã ký/đã đo trên nhánh.
+
+Auto-merge là thứ khiến quy trình PR không tốn thời gian chờ của bạn.
+
+> **Đi cặp với §1:** merge commit có **hai cha**, nên `required_linear_history`
+> phải **tắt**. Bật lại protection mà quên tắt cờ đó là mọi PR kẹt vĩnh viễn.
 
 ```bash
 # kiểm lại
@@ -295,7 +317,7 @@ gấp:
 | Cách | Lệnh | Ghi chú |
 |---|---|---|
 | Bỏ qua hook local, vẫn qua PR | `git push --no-verify` rồi tạo PR | **ưu tiên cách này** |
-| Merge PR bỏ qua required check | `gh pr merge <n> --squash --admin` | được vì `enforce_admins: false` |
+| Merge PR bỏ qua required check | `gh pr merge <n> --merge --admin` | được vì `enforce_admins: false` |
 | Tắt protection tạm thời | `gh api -X DELETE repos/Nghaiz/DevOps_Learning_Platform/branches/main/protection` | **nhớ bật lại bằng lệnh ở §1** |
 
 Cách thứ ba là cách dễ quên bật lại nhất. Nếu dùng, đặt luôn một lời nhắc.
