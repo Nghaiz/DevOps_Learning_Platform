@@ -132,54 +132,57 @@ async function activate(page: Page): Promise<void> {
   await page.waitForTimeout(250);
 }
 
-/** Khoá tuỳ chọn hiển thị của game (`components/games/game-preferences.ts`). */
-const SCENE_PREF_KEY = 'dlp.games.v1.k8s.display';
-
 /**
- * Ghim bậc chất lượng TRƯỚC khi mã của app chạy.
+ * Ghim bậc chất lượng QUA CHÍNH BẢNG CÀI ĐẶT, sau khi đã vào một level.
  *
- * `addInitScript` đi qua CDP `Page.addScriptToEvaluateOnNewDocument`, nên nó ghi
- * `localStorage` sớm hơn cả effect đọc tuỳ chọn — tức là scene mount THẲNG vào
- * bậc ta cần, không mount ở `auto` rồi đổi. Đổi sau khi mount sẽ dựng lại
- * renderer giữa chừng và mọi bộ đếm ta sắp đọc bị reset dưới chân.
+ * ⚠ Bản trước gieo `localStorage['dlp.games.v1.k8s.display']` bằng
+ * `addInitScript`. Khoá đó thuộc `components/games/game-preferences.ts` — một
+ * module đã bị xoá cùng đợt dựng lại arena. Gieo một khoá không ai đọc là một
+ * bước KHÔNG LÀM GÌ, và nó im lặng: cảnh cứ mount ở bậc `high`, nơi
+ * `renderer.info.render.frame` đếm từng pass của composer, và ô "0 frame khi
+ * tĩnh" đọc ra một con số hoàn toàn khác thứ nó định đo.
+ *
+ * Bậc chất lượng của arena mới là state của React, không nhớ qua storage, nên
+ * đường DUY NHẤT đặt được nó là bảng cài đặt — cũng đúng là đường người dùng
+ * đi. Phải gọi SAU khi vào level: bảng cài đặt chỉ tồn tại trong đấu trường.
  */
-async function seedQuality(page: Page, quality: 'auto' | 'low' | 'medium' | 'high'): Promise<void> {
-  await page.addInitScript(
-    (seed: { key: string; value: string }) => {
-      try {
-        window.localStorage.setItem(seed.key, seed.value);
-      } catch {
-        // Chế độ riêng tư chặn storage — game vẫn chạy, chỉ là không nhớ.
-      }
-    },
-    { key: SCENE_PREF_KEY, value: JSON.stringify({ scene3d: true, quality }) },
-  );
+async function pinQuality(page: Page, label: 'Nhẹ' | 'Vừa' | 'Cao'): Promise<void> {
+  await page.getByRole('button', { name: 'Cài đặt', exact: true }).first().click();
+  await page.getByRole('button', { name: label, exact: true }).click();
+  await page.getByRole('button', { name: 'Đóng cài đặt' }).click();
+  await page.waitForTimeout(600);
 }
 
 /**
  * Chọn level theo một mảnh tiêu đề.
  *
- * ⚠ Dùng `selectOption`, KHÔNG phải bàn phím — và đó là chủ ý: ô "chỉ bằng bàn
- * phím" là ô AC riêng ở trên và nó tự đi đường bàn phím thật. Ba ô hiệu năng
- * dưới đây đo GPU, không đo a11y; bắt chúng gõ Tab qua một `<select>` gốc chỉ
- * thêm một nguồn chập chờn mà không thêm một bit bằng chứng nào.
+ * ⚠ Màn chọn level là một LƯỚI THẺ (`level-picker.tsx`), không còn là
+ * `<select id="k8s-level-select">`. Cái `<select>` đó biến mất cùng đợt dựng
+ * lại arena, và ba ô hiệu năng dưới đây đã hỏng theo trong im lặng: chúng gọi
+ * `waitForSceneChannel` NGAY sau khi mở `/games/k8s`, nhưng route đó giờ mở ra
+ * màn chọn level — chưa có canvas nào, nên cửa sổ đo không tồn tại và cả ba ô
+ * hết giờ với thông điệp "WebGL không dựng được". Sai nguyên nhân, đúng triệu
+ * chứng — đó là lý do nó sống sót lâu.
+ *
+ * Bấm chuột chứ không bàn phím vẫn là chủ ý cũ: ô "chỉ bằng bàn phím" là một ô
+ * riêng và nó tự đi đường bàn phím thật; ba ô này đo GPU, không đo a11y.
  */
 async function chooseLevel(page: Page, titleFragment: string): Promise<void> {
-  const value = await page.evaluate((fragment: string) => {
-    const el = document.querySelector<HTMLSelectElement>('#k8s-level-select');
-    const option = [...(el?.options ?? [])].find((o) => (o.textContent ?? '').includes(fragment));
-    return option?.value ?? null;
-  }, titleFragment);
+  const card = page.getByRole('button', { name: new RegExp(escapeRegExp(titleFragment)) }).first();
 
-  expect(
-    value,
+  await expect(
+    card,
     `Không level nào có tiêu đề chứa "${titleFragment}". Danh sách level đã đổi, và ô ` +
       `hiệu năng dưới đây cần một level CÓ SẴN workload đổi được replica — không có nó thì ` +
       `không dựng được quy mô mà §11.3 nói tới.`,
-  ).not.toBeNull();
+  ).toBeVisible();
 
-  await page.selectOption('#k8s-level-select', value as string);
-  await page.waitForTimeout(500);
+  await card.click();
+  await page.waitForTimeout(800);
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
@@ -192,10 +195,12 @@ async function chooseLevel(page: Page, titleFragment: string): Promise<void> {
  * draw call ở 200 object, bất kể mất bao lâu mới có 200 object.
  */
 async function setMaxSpeed(page: Page): Promise<void> {
+  // Nhãn thật là `4×` (dấu NHÂN U+00D7), không phải chữ `x` — `top-bar.tsx`
+  // dựng nó bằng `${value}×`. So với `'4x'` thì không bao giờ khớp.
   const found = await tabUntil(
     page,
-    'nút tốc độ 4x',
-    (info) => info.tag === 'button' && !info.disabled && info.text.trim() === '4x',
+    'nút tốc độ 4×',
+    (info) => info.tag === 'button' && !info.disabled && /^4[x×]$/.test(info.text.trim()),
   );
   await activate(page);
   void found;
@@ -537,13 +542,25 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
         số đọc được là con số của CẢNH. Hai tiền đề ở cuối khoá cái bẫy lại: bậc
         PHẢI là `medium`, và số tam giác PHẢI lớn hơn số object.
       */
-      await seedQuality(page, 'medium');
       await openScreen(page, GAME_PATH, 'anon');
-      await waitForSceneChannel(page);
-      expect(await engineIsWired(page), ENGINE_NOT_WIRED).toBe(true);
+      /*
+        Tiền đề "engine đã được nối" ĐÃ BỎ ở đây, và việc bỏ nó không nới lỏng ô
+        này chút nào.
+
+        Nó đọc thanh lệnh `kubectl` có mở khoá không — một phép thử đúng khi
+        `/games/k8s` render thẳng vào game. Arena mới mở ra màn CHỌN LEVEL, và
+        thanh lệnh là một lớp nổi mặc định ĐÓNG, nên phép thử đó giờ luôn sai ở
+        đúng chỗ này và ô đỏ vì một lý do không liên quan gì tới draw call.
+
+        Thứ thật sự chứng minh engine đang chạy nằm ngay dưới và mạnh hơn:
+        `waitForSceneChannel` đòi cảnh 3D mount thật, rồi hai phép đo khẳng định
+        số object ĐÃ TĂNG giữa hai mốc quy mô. Một engine chưa nối không làm
+        được cả hai.
+      */
 
       await chooseLevel(page, SCALE_LEVEL_TITLE);
       await waitForSceneChannel(page);
+      await pinQuality(page, 'Vừa');
       await setMaxSpeed(page);
 
       /** Đưa cluster tới một quy mô rồi đọc số liệu của khung hình vừa vẽ ở đó. */
@@ -619,13 +636,25 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
     }, testInfo) => {
       test.setTimeout(600_000);
 
-      await seedQuality(page, 'medium');
       await openScreen(page, GAME_PATH, 'anon');
-      await waitForSceneChannel(page);
-      expect(await engineIsWired(page), ENGINE_NOT_WIRED).toBe(true);
+      /*
+        Tiền đề "engine đã được nối" ĐÃ BỎ ở đây, và việc bỏ nó không nới lỏng ô
+        này chút nào.
+
+        Nó đọc thanh lệnh `kubectl` có mở khoá không — một phép thử đúng khi
+        `/games/k8s` render thẳng vào game. Arena mới mở ra màn CHỌN LEVEL, và
+        thanh lệnh là một lớp nổi mặc định ĐÓNG, nên phép thử đó giờ luôn sai ở
+        đúng chỗ này và ô đỏ vì một lý do không liên quan gì tới draw call.
+
+        Thứ thật sự chứng minh engine đang chạy nằm ngay dưới và mạnh hơn:
+        `waitForSceneChannel` đòi cảnh 3D mount thật, rồi hai phép đo khẳng định
+        số object ĐÃ TĂNG giữa hai mốc quy mô. Một engine chưa nối không làm
+        được cả hai.
+      */
 
       await chooseLevel(page, SCALE_LEVEL_TITLE);
       await waitForSceneChannel(page);
+      await pinQuality(page, 'Vừa');
       await setMaxSpeed(page);
 
       /*
@@ -759,7 +788,6 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
         giây" trông y hệt một bản vá làm dở, trong khi sự thật là MỘT lần vẽ lại.
         Bậc `medium` không có composer, nên một frame là một frame.
       */
-      await seedQuality(page, 'medium');
       await openScreen(page, GAME_PATH, 'anon');
 
       /*
@@ -770,7 +798,6 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
         thật chứ không phải một dòng trong tài liệu.
       */
       await movePointerAwayFromCanvas(page);
-      await waitForSceneChannel(page);
 
       /*
         Đo trên một cluster CÓ VẬT, không phải cluster rỗng.
@@ -781,6 +808,7 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
       */
       await chooseLevel(page, SCALE_LEVEL_TITLE);
       await waitForSceneChannel(page);
+      await pinQuality(page, 'Vừa');
       await movePointerAwayFromCanvas(page);
 
       /*
