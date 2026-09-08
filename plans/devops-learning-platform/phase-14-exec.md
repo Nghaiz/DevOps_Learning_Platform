@@ -701,3 +701,28 @@ và nếu vẫn không mượt thì người dùng vẫn chơi được đầy �
 Điều **đạt được**, và là thứ hợp đồng này cam kết: trên máy có GPU ở mức trung bình
 trở lên, cảnh chạy ổn định ở nhịp màn hình, không tụt khung hình khi thêm pod, và
 không xuống cấp dần sau nhiều phút chơi.
+
+### 10.5 Hai đính chính từ lane D (2026-09-08)
+
+**Repo này KHÔNG có alias `@/`.** Lead viết `@/components/games/k8s-game` vào brief
+của lane D và lane E mà không kiểm — sai. Đã kiểm lại: không có `paths` trong
+`tsconfig.base.json` lẫn `apps/web/tsconfig.json`, `grep -rn "from '@/" apps/web/src`
+đếm được **0**, `next.config.ts` không đặt alias nào. Dùng đường dẫn tương đối, như
+cả repo đang làm. Viết `@/…` sẽ đỏ ở typecheck và ở `next build`.
+
+**`proxy.test.ts` xung đột với §4.2, và test phải nhường.** `proxy.test.ts:33` duyệt
+`PRIMARY_NAV` rồi khẳng định MỌI mục đều `matchesProtected(...) === true`. Tiền đề đó
+đúng chỉ vì tình cờ cả sáu mục cũ đều cần đăng nhập. `/games` là mục nav **công khai
+có chủ ý** đầu tiên (§4.2), nên hai thứ mâu thuẫn trực tiếp — và cái nhường không phải
+hợp đồng.
+
+Lane D thay bằng tập miễn trừ có tên `PUBLIC_NAV_HREFS = new Set(['/games'])` kèm
+companion **hai chiều**: đỏ khi `/games` rời `PRIMARY_NAV` (mục chết), và đỏ khi
+`/games` trở thành protected (miễn trừ hết đúng). `proxy.ts` không bị đụng,
+`PROTECTED_PATHS` nguyên byte.
+
+Bất biến mới **mạnh hơn** bất biến cũ, không phải yếu đi: từ nay thêm một mục nav
+buộc phải phân loại có ý thức là protected hay công khai, thay vì thừa hưởng lặng lẽ
+một giả định. Comment trên tập miễn trừ phải ghi **lý do** `/games` công khai (chơi
+hoàn toàn trong trình duyệt, tiến độ ở `localStorage`, nên cổng đăng nhập không gác
+gì cả) — thiếu lý do thì người đọc sau sẽ tưởng là sót và "sửa" nó.
