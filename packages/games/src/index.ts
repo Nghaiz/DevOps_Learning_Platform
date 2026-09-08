@@ -27,7 +27,11 @@ export type {
   ClusterView,
   EdgeView,
   EventView,
+  CreateSession,
+  CreateSessionOptions,
   GameAction,
+  GameActionKind,
+  K8sSession,
   IncidentKind,
   Level,
   NodeSpec,
@@ -38,7 +42,10 @@ export type {
   PodReason,
   ResourceKind,
   ResourceSpec,
+  ResourceRef,
   RunLog,
+  SessionPhase,
+  SessionStatus,
 } from './k8s/contract.ts';
 
 export type { PredicateName } from './k8s/predicate-names.ts';

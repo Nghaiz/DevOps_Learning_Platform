@@ -312,12 +312,50 @@ export interface EventView {
  * `Math.random()`, không `Date.now()`, không `Map` lặp theo thứ tự chèn ở chỗ
  * kết quả phụ thuộc thứ tự. Mọi ngẫu nhiên đi qua `core/rng.ts` có hạt giống.
  */
-export interface GameAction {
-  /** Tick mô phỏng lúc hành động xảy ra — KHÔNG phải giờ treo tường. */
-  readonly tick: number;
-  readonly kind: 'apply' | 'delete' | 'scale' | 'edit' | 'kubectl' | 'hint' | 'wait';
-  readonly payload: Readonly<Record<string, unknown>>;
+/**
+ * Định danh một tài nguyên. Đây là khoá TỰ NHIÊN của Kubernetes: bộ ba
+ * (kind, namespace, name) là duy nhất theo đúng định nghĩa của K8s.
+ *
+ * ⚠ CỐ Ý không dùng `uid` ở đây, dù `ObjectView` có mang `uid`. Lý do là phát
+ * lại: `RunLog` phải sống lâu hơn cách engine sinh uid. Bộ ba này ổn định qua
+ * mọi lần refactor engine, và nó ĐỌC ĐƯỢC khi mở một `RunLog` đã lưu ra xem —
+ * `uid` thì không. `uid` là chuyện nội bộ của renderer, dùng để tra scene graph.
+ */
+export interface ResourceRef {
+  readonly kind: ResourceKind;
+  readonly namespace: string;
+  readonly name: string;
 }
+
+/**
+ * Hình dạng `payload` theo từng `kind`. Union phân biệt, KHÔNG phải
+ * `Record<string, unknown>`.
+ *
+ * Bản đầu của hợp đồng này để `payload` lỏng, và lane E đã đúng khi dừng lại
+ * báo lead: hai lane sẽ mỗi bên tự nghĩ ra một hình dạng, CẢ HAI đều typecheck,
+ * và chỗ lệch chỉ lộ lúc chạy. Đó đúng là hỏng hóc mà
+ * `rules/contract-first-integration.md` sinh ra để chặn.
+ */
+export type GameAction =
+  /** Người chơi gõ vào thanh lệnh. Chuỗi thô, `kubectl.ts` tự phân tích. */
+  | { readonly tick: number; readonly kind: 'kubectl'; readonly command: string }
+  /** Áp một manifest. Tài nguyên đích nằm trong chính YAML, nên không có `target`. */
+  | { readonly tick: number; readonly kind: 'apply'; readonly yaml: string }
+  | { readonly tick: number; readonly kind: 'edit'; readonly target: ResourceRef; readonly yaml: string }
+  | { readonly tick: number; readonly kind: 'delete'; readonly target: ResourceRef }
+  | { readonly tick: number; readonly kind: 'scale'; readonly target: ResourceRef; readonly replicas: number }
+  /**
+   * Mở gợi ý thứ `index` (đếm từ 0). Không mang `levelId`: một `RunLog` thuộc
+   * đúng một level và đã ghi `levelId` ở cấp trên — nhắc lại là một field suy ra
+   * được, đúng thứ quy ước của repo cấm.
+   */
+  | { readonly tick: number; readonly kind: 'hint'; readonly index: number }
+  /** Để mô phỏng chạy tiếp mà không làm gì. Đây là cách người chơi "chờ xem". */
+  | { readonly tick: number; readonly kind: 'wait'; readonly ticks: number };
+
+/** Rút gọn cho chỗ chỉ cần phân loại. */
+export type GameActionKind = GameAction['kind'];
+
 
 /** Một lượt chơi đầy đủ, đủ để phát lại từ số không. */
 export interface RunLog {
@@ -325,3 +363,44 @@ export interface RunLog {
   readonly seed: number;
   readonly actions: readonly GameAction[];
 }
+
+// ── Phiên chơi: ranh giới lane B (engine) ↔ lane D/E (giao diện) ────────────
+
+export type SessionPhase = 'playing' | 'won' | 'lost';
+
+export interface SessionStatus {
+  readonly phase: SessionPhase;
+  /** id các objective ĐANG đạt. Tính lại mỗi tick — objective có thể đạt rồi mất. */
+  readonly objectivesMet: readonly string[];
+  readonly hintsRevealed: number;
+  readonly movesUsed: number;
+}
+
+/**
+ * Một phiên chơi. Lane B hiện thực, lane E tiêu thụ. Lane E KHÔNG tự gọi reducer.
+ *
+ * ⚠ `getView()` phải trả về CÙNG MỘT THAM CHIẾU cho tới khi trạng thái thật sự
+ * đổi. React `useSyncExternalStore` so sánh snapshot bằng `Object.is`; trả một
+ * object mới mỗi lần gọi sẽ làm React render vô hạn. Đây là cái bẫy kinh điển
+ * của API này, ghi ra đây để không ai phải gỡ nó lúc 2 giờ sáng.
+ */
+export interface K8sSession {
+  getView(): ClusterView;
+  getStatus(): SessionStatus;
+  /** Trả về hàm huỷ đăng ký. */
+  subscribe(listener: () => void): () => void;
+  dispatch(action: GameAction): void;
+  /** Nhật ký đầy đủ để phát lại — nền tảng của xác minh chống gian lận (§8.3). */
+  getLog(): RunLog;
+  /** Dừng vòng lặp thời gian. Lane E gọi lúc unmount. */
+  dispose(): void;
+}
+
+export interface CreateSessionOptions {
+  readonly level: Level;
+  readonly seed: number;
+  /** `false` = mô phỏng chỉ tiến khi có action (dùng cho test và cho phát lại). */
+  readonly autoTick?: boolean;
+}
+
+export type CreateSession = (options: CreateSessionOptions) => K8sSession;
