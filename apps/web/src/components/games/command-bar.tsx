@@ -131,19 +131,37 @@ export interface ManifestEditorProps {
  * dòng sẽ buộc người chơi viết YAML nhiều dòng trên một dòng, thứ không ai làm
  * với `kubectl` thật.
  *
- * `<details>` chứ không phải state React tự quản: nó đóng/mở được bằng bàn phím
- * sẵn có, trình đọc màn hình biết nó là vùng gập, và không tốn một dòng logic nào.
+ * ## Vì sao KHÔNG dùng `<details>`
+ *
+ * `<details>`/`<summary>` là lựa chọn đầu tiên và đã bị bỏ, vì hai lý do đo được
+ * chứ không phải sở thích:
+ *
+ * 1. **Không kiểm được.** jsdom không hiện thực đầy đủ hành vi kích hoạt của
+ *    `<summary>`, nên một test bàn phím cho ô này sẽ phải bấm chuột để mở — tức
+ *    ô AC "chơi được chỉ bằng bàn phím" sẽ được chứng minh bằng một cú CLICK.
+ *    Một phép đo tự mâu thuẫn thì thà không có.
+ * 2. **`aria-expanded` là thứ ta muốn nói.** Nút + `aria-controls` nói thẳng
+ *    trạng thái gập cho trình đọc màn hình, thay vì phụ thuộc vào mức hỗ trợ
+ *    `<details>` vốn còn lệch giữa các bộ đọc.
  */
 export function ManifestEditor({ onApply, disabled = false }: ManifestEditorProps): ReactElement {
   const areaId = useId();
+  const panelId = `${areaId}-panel`;
   const [yaml, setYaml] = useState('');
+  const [open, setOpen] = useState(false);
 
   return (
-    <details className="border-t border-border bg-card">
-      <summary className="cursor-pointer px-3 py-2 text-xs text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+    <div className="border-t border-border bg-card">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((value) => !value)}
+        className="w-full px-3 py-2 text-left text-xs text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
         Áp dụng manifest YAML
-      </summary>
-      <div className="flex flex-col gap-2 px-3 pb-3">
+      </button>
+      <div id={panelId} hidden={!open} className="flex flex-col gap-2 px-3 pb-3">
         <Label htmlFor={areaId} className="sr-only">
           Nội dung manifest YAML
         </Label>
@@ -171,6 +189,6 @@ export function ManifestEditor({ onApply, disabled = false }: ManifestEditorProp
           Áp dụng
         </Button>
       </div>
-    </details>
+    </div>
   );
 }

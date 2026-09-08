@@ -30,7 +30,7 @@ export function ObjectivesPanel({ level, status, onRevealHint }: ObjectivesPanel
 
   return (
     <div className="flex flex-col gap-3 px-3 py-3">
-      <ul role="list" className="flex flex-col gap-1.5">
+      <ul role="list" aria-label="Mục tiêu của level" className="flex flex-col gap-1.5">
         {level.objectives.map((objective) => {
           const done = met.has(objective.id);
           return (
@@ -60,7 +60,7 @@ export function ObjectivesPanel({ level, status, onRevealHint }: ObjectivesPanel
 
       {level.hints.length > 0 ? (
         <div className="flex flex-col gap-2 border-t border-border pt-3">
-          <ol role="list" className="flex flex-col gap-1.5">
+          <ol role="list" aria-label="Gợi ý đã mở" className="flex flex-col gap-1.5">
             {level.hints.slice(0, status.hintsRevealed).map((hint, index) => (
               <li key={hint} className="flex gap-2 text-sm text-muted-foreground">
                 <span className="shrink-0 font-mono text-xs">{index + 1}.</span>

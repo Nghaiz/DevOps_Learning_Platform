@@ -241,7 +241,19 @@ export default function K8sSceneLazy({
     key.shadow.normalBias = 0.02;
     scene.add(key);
 
-    const fill = new THREE.HemisphereLight(0xffffff, 0x000000, 0.55);
+    // ⚠ Hai vế của hemisphere light CÓ khác nhau lúc chạy, dù dòng khởi tạo dưới
+    // đây trông như không: `applyColors()` ghi `groundColor` từ token nền, và nó
+    // chạy TRƯỚC frame đầu tiên, nên giá trị dựng ở đây không bao giờ lên màn
+    // hình. Giữ được đúng cái làm nên hemisphere light — sáng từ trên so với dội
+    // từ dưới, tức phần đổ bóng đứng mà §9.1 tính là một trong bốn thứ tạo cảm
+    // giác "được thiết kế".
+    //
+    // ⚠ `groundColor` KHÔNG được để đen cứng: nó là ánh sáng dội lên từ sàn, và
+    // sàn mang màu nền. Để đen thì mặt dưới mọi vật tối đen trên theme SÁNG —
+    // đúng lỗi §4.5 tồn tại để chặn, và là lỗi không một test nào hiện có bắt
+    // được vì không có phép đo nào chạm tới màu đã render. `applyColors()` ghi
+    // đè cả hai giá trị dưới đây từ token.
+    const fill = new THREE.HemisphereLight(0xffffff, new THREE.Color(), 0.55);
     scene.add(fill);
 
     // Rim: hắt từ SAU và THẤP, đúng chỗ bắt được góc bo của khối (§9.1 mục 4).
@@ -305,9 +317,14 @@ export default function K8sSceneLazy({
       scene.background = tokenColors.background;
       fog.color.copy(tokenColors.background);
       groundMaterial.color.copy(tokenColors.background);
+      // Ánh sáng dội lên từ sàn — cùng màu với sàn, đổi theo theme.
+      fill.groundColor.copy(tokenColors.background);
     }
 
-    const fog = new THREE.Fog(0x000000, 14, 46);
+    // Màu dựng rỗng rồi để `applyColors()` điền: fog PHẢI trùng màu nền, nếu
+    // không vật ở xa chìm về một màu khác màu trang và mép cảnh lộ ra như một
+    // vệt bẩn. Đen chỉ đúng ở theme tối.
+    const fog = new THREE.Fog(new THREE.Color(), 14, 46);
     scene.fog = fog;
 
     // ── Hình học dùng chung ─────────────────────────────────────────────────

@@ -89,7 +89,13 @@ export function ResourceList({ objects, selectedUid, onSelect }: ResourceListPro
   }
 
   return (
-    <ul ref={listRef} role="list" className="flex flex-col gap-0.5 p-1" onKeyDown={onKeyDown}>
+    <ul
+      ref={listRef}
+      role="list"
+      aria-label="Danh sách tài nguyên"
+      className="flex flex-col gap-0.5 p-1"
+      onKeyDown={onKeyDown}
+    >
       {objects.map((object) => {
         const selected = object.uid === selectedUid;
         return (

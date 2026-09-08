@@ -76,6 +76,11 @@ export function levelFixture(over: Partial<Level> = {}): Level {
     hints: ['Dùng `kubectl run`.', 'Cú pháp: `kubectl run web --image=nginx`.'],
     parMoves: 2,
     teaches: ['pod'],
+    teaching: {
+      primer: 'Pod là đơn vị chạy nhỏ nhất của Kubernetes: một hoặc vài container dùng chung mạng và ổ đĩa.',
+      cheatsheet: [{ command: 'kubectl run web --image=nginx', explain: 'Tạo nhanh một pod đơn lẻ để thử.' }],
+      takeaways: ['Pod là đơn vị lịch trình, không phải container.'],
+    },
     ...over,
   };
 }
