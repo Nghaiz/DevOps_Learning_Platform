@@ -156,4 +156,64 @@ không đụng tới Service hay Deployment nào.`,
     'service port vs container port',
     'kubectl describe ingress',
   ],
+  teaching: {
+    primer: `Hai mã lỗi HTTP này nói hai chuyện khác hẳn nhau, và tách chúng ra là toàn bộ
+nội dung của level.
+
+- **404** đến từ chính ingress controller: nó nhận request nhưng **không luật nào
+  khớp** đường dẫn đó. Request chưa từng rời khỏi controller, nên mọi thứ phía
+  sau (Service, endpoints, pod) đều vô can.
+- **502** nghĩa là controller **đã** khớp một luật, đã chuyển tiếp, và cái đích
+  đó không trả lời. Lỗi nằm ở backend của luật: sai tên Service, hoặc sai cổng
+  Service.
+
+Suy ra ngay được hai hướng điều tra khác nhau. Với 404, so danh sách path trong
+Ingress với đường dẫn người dùng thật sự gõ. Với 502, so cổng trong backend với
+\`port\` của Service.
+
+Đây cũng là kiểu sự cố mà mọi thứ **bên trong cluster đều xanh**: Service gọi
+được, endpoints đầy đủ, pod Ready. Chỉ có người dùng ngoài Internet là không vào
+được, vì tầng hỏng nằm ở lớp ngoài cùng, lớp mà bảng theo dõi nội bộ không đi qua.
+
+Hai lỗi cùng lúc thì đừng đi tìm một nguyên nhân chung. Sửa cái này không làm
+cái kia biến mất, và đó là dấu hiệu bạn đang nhìn hai vấn đề độc lập.
+
+Nhìn vào đâu: bảng luật của \`describe ingress\`, rồi \`get svc\` để đối chiếu cổng.`,
+    cheatsheet: [
+      {
+        command: 'kubectl describe ingress thu-vien -n thu-vien',
+        explain: 'In bảng luật: đường dẫn nào được khai, mỗi đường trỏ tới Service và cổng nào.',
+      },
+      {
+        command: 'kubectl get svc -n thu-vien',
+        explain: 'Cột PORT(S) là cổng thật của Service. Backend của Ingress phải khớp con số này.',
+      },
+      {
+        command: 'kubectl get endpoints -n thu-vien',
+        explain: 'Chứng minh các Service đều có pod phía sau, để loại trừ nguyên nhân bên trong.',
+      },
+      {
+        command: 'curl -H "Host: thu-vien.dlp.vn" http://<dia-chi-ingress>/muon-sach',
+        explain: 'Tái hiện đúng request của người dùng. Mã trả về nói bạn đang ở tầng nào.',
+      },
+      {
+        command: 'kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx',
+        explain: 'Controller ghi lại từng request và lý do nó trả 404 hay 502.',
+      },
+    ],
+    takeaways: [
+      '404 từ ingress controller nghĩa là không luật nào khớp, nên request chưa từng đi tới Service.',
+      '502 nghĩa là luật đã khớp nhưng backend không trả lời, nên lỗi nằm ở tên hoặc cổng Service.',
+      'Backend của Ingress luôn dùng cổng của Service, và đó là chỗ containerPort hay bị điền nhầm vào.',
+      'Bên trong cluster xanh hết vẫn không đủ để kết luận người dùng vào được: lớp ngoài cùng nằm ngoài tầm nhìn đó.',
+    ],
+    proTips: [
+      'Đọc mã lỗi như một chỉ dẫn về tầng, không phải như một lời phàn nàn. Nó thu hẹp phạm vi tìm kiếm trước khi bạn mở bất kỳ file YAML nào.',
+      'Hai triệu chứng khác nhau xuất hiện cùng lúc thường là hai lỗi khác nhau. Gộp chúng lại làm một là cách nhanh nhất để sửa nửa vời.',
+    ],
+    pitfalls: [
+      'Thấy 404 rồi đi kiểm pod và log ứng dụng. Đó là phản xạ đúng cho hầu hết lỗi khác, nhưng ở đây request chưa từng rời controller nên bạn đang đọc log của một thứ không liên quan.',
+      'Điền cổng container vào backend của Ingress. Con số đó có thật, vừa đọc được trong Deployment, và nhìn hoàn toàn hợp lý; chỉ là Ingress nói chuyện với Service chứ không nói chuyện với container.',
+    ],
+  },
 };

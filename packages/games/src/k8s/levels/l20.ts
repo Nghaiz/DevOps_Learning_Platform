@@ -151,4 +151,62 @@ cất không cứu được nó. Nó phải được đổi.`,
     'rò rỉ qua biến môi trường',
     'xoay vòng credential',
   ],
+  teaching: {
+    primer: `Mười chín level vừa rồi dựng lên một phản xạ: mở \`kubectl get pods\`, thấy xanh
+hết thì yên tâm. Level này tồn tại để bác bỏ nó. Cluster ở đây hoàn toàn khoẻ và
+vẫn có một thứ phải sửa.
+
+**ConfigMap không có lớp bảo vệ nào.** Nội dung hiện nguyên văn trong
+\`kubectl get -o yaml\`, đi vào mọi bản sao lưu của etcd ở dạng đọc được, và ai
+có quyền đọc ConfigMap trong namespace, thường là cả đội, đều đọc được.
+
+**Secret không phải mã hoá.** Mặc định nó chỉ được biểu diễn bằng base64, mà
+base64 là phép mã hoá ký tự chứ không phải bảo mật: ai cũng giải ngược được trong
+một lệnh. Cái Secret thật sự mang lại là **một loại object riêng để phân quyền**.
+RBAC cấp quyền theo loại, nên quyền đọc Secret siết riêng được và thường bị siết
+chặt, trong khi quyền đọc ConfigMap mở rộng cho cả đội. Khác biệt đó có thật và
+đủ để đáng làm.
+
+Cách đưa Secret vào cũng có bậc. Bơm thành biến môi trường vẫn rò: giá trị hiện
+trong \`kubectl describe pod\` và thừa kế xuống mọi tiến trình con. **Mount thành
+file** thì không, và file còn được cập nhật khi Secret đổi.
+
+Nhìn vào đâu: nội dung của các ConfigMap, tự hỏi giá trị nào không nên ai cũng đọc.`,
+    cheatsheet: [
+      {
+        command: 'kubectl get configmap -n ke-toan -o yaml',
+        explain: 'Đọc nội dung mọi ConfigMap. Không có gì để describe ở đây, chỉ có nội dung để soi.',
+      },
+      {
+        command: 'kubectl create secret generic so-sach-db --from-literal=DB_MAT_KHAU=... -n ke-toan',
+        explain: 'Tạo Secret kiểu Opaque cho dữ liệu tự do. Kubernetes tự base64 hoá phần giá trị.',
+      },
+      {
+        command: 'kubectl get secret so-sach-db -n ke-toan -o jsonpath="{.data.DB_MAT_KHAU}"',
+        explain: 'In phần base64. Ai cũng giải ngược được, và đó chính là điều cần thấy tận mắt.',
+      },
+      {
+        command: 'kubectl describe pod so-sach -n ke-toan',
+        explain: 'Biến môi trường hiện ra ở đây. Bằng chứng vì sao mount thành file kín hơn.',
+      },
+      {
+        command: 'kubectl auth can-i get secrets -n ke-toan',
+        explain: 'Hỏi thẳng xem mình có quyền đọc Secret không. Đây là lớp bảo vệ thật của Secret.',
+      },
+    ],
+    takeaways: [
+      'Secret không mã hoá dữ liệu; nó tách quyền đọc thành một loại object riêng để RBAC siết được.',
+      'base64 là phép biểu diễn ký tự, ai cũng giải ngược được, nên nhìn không đọc được không có nghĩa là an toàn.',
+      'Mount Secret thành file rò ít hơn bơm thành biến môi trường, vì biến hiện trong describe và thừa kế xuống tiến trình con.',
+      'Cluster xanh hết không đồng nghĩa cluster an toàn: có loại sự cố không bao giờ hiện ra ở trạng thái pod.',
+    ],
+    proTips: [
+      'Đổi chỗ cất không cứu được một bí mật đã lộ. Việc bắt buộc kèm theo là xoay vòng chính giá trị đó, và ai cũng quên bước này.',
+      'Ở cụm thật, bật mã hoá etcd khi lưu và cân nhắc một hệ quản lý bí mật bên ngoài. Secret của Kubernetes là ranh giới phân quyền, không phải két sắt.',
+    ],
+    pitfalls: [
+      'Tin rằng base64 đã là bảo vệ, vì nhìn vào chuỗi đó thật sự không đọc được gì. Cảm giác an toàn đó là toàn bộ vấn đề, và một lệnh giải ngược là đủ để xoá nó.',
+      'Chuyển sang Secret nhưng vẫn nạp bằng envFrom cho tiện, vì như thế ứng dụng không phải sửa dòng nào. Loại object đã đúng, còn đường rò thì vẫn nguyên: giá trị hiện lại trong describe pod.',
+    ],
+  },
 };

@@ -130,4 +130,61 @@ hai luật này.`,
     'NodePort vs LoadBalancer vs Ingress',
     'TLS termination',
   ],
+  teaching: {
+    primer: `Service kiểu ClusterIP chỉ gọi được từ trong cluster. Muốn mở ra ngoài có ba
+đường, và chúng làm việc ở hai tầng khác nhau:
+
+- **NodePort** mở một cổng cao trên mọi node. Tầng TCP.
+- **LoadBalancer** xin nhà cung cấp hạ tầng một địa chỉ IP ngoài. Cũng tầng TCP,
+  và mỗi dịch vụ cần một địa chỉ riêng.
+- **Ingress** làm việc ở **tầng HTTP**. Một địa chỉ vào duy nhất, rồi phân luồng
+  theo tên miền và theo đường dẫn tới nhiều Service khác nhau.
+
+Khác biệt quyết định: hai kiểu đầu không đọc được đường dẫn HTTP, nên chúng
+không thể định tuyến \`/api\` đi một nơi và \`/\` đi nơi khác. Ingress đọc được,
+và đó cũng là chỗ đặt chứng chỉ TLS một lần cho mọi dịch vụ phía sau.
+
+Ingress **không** thay thế Service, nó đứng trước Service. Mỗi luật trỏ tới một
+Service theo tên và theo **cổng của Service** (\`port\`), không phải cổng của
+container.
+
+\`pathType\` quyết định cách khớp. \`Prefix\` khớp mọi đường dẫn bắt đầu bằng
+chuỗi đó, nên \`/\` với \`Prefix\` khớp tất cả. Ingress controller so luật **cụ
+thể nhất** trước, nên thứ tự bạn viết không quyết định; thứ quyết định là bạn có
+khai đủ luật hay không.
+
+Nhìn vào đâu: bảng luật trong \`describe ingress\`, đặt cạnh \`get svc\`.`,
+    cheatsheet: [
+      {
+        command: 'kubectl get svc -n san-pham',
+        explain: 'Đọc cổng của từng Service. Đây là con số Ingress cần, không phải containerPort.',
+      },
+      {
+        command: 'kubectl get ingress -n san-pham',
+        explain: 'Xem host, đường dẫn và địa chỉ mà Ingress đang lắng nghe.',
+      },
+      {
+        command: 'kubectl describe ingress san-pham -n san-pham',
+        explain: 'In bảng luật đầy đủ: mỗi path kèm backend của nó. Đây là chỗ đối chiếu nhanh nhất.',
+      },
+      {
+        command: 'kubectl get endpoints -n san-pham',
+        explain: 'Kiểm các Service phía sau còn pod hay không, trước khi nghi ngờ chính Ingress.',
+      },
+    ],
+    takeaways: [
+      'Ingress đứng trước Service chứ không thay thế nó, nên Service phải khoẻ thì Ingress mới có tác dụng.',
+      'Ingress làm việc ở tầng HTTP nên định tuyến được theo đường dẫn, thứ NodePort và LoadBalancer không làm được.',
+      'Backend của Ingress dùng cổng của Service, không dùng cổng của container.',
+      'Prefix `/` khớp mọi đường dẫn, và controller so luật cụ thể nhất trước nên thứ tự khai không quyết định.',
+    ],
+    proTips: [
+      'Ingress chỉ là bản khai báo. Phải có một ingress controller đang chạy trong cluster thì nó mới được thực thi, và cụm trống thì Ingress nằm im không báo lỗi.',
+      'Gom nhiều dịch vụ sau một Ingress còn cho bạn một chỗ duy nhất để đặt TLS, thay vì cấu hình chứng chỉ ở từng dịch vụ.',
+    ],
+    pitfalls: [
+      'Chỉ khai luật `/` rồi tin rằng `/api` cũng đi đúng chỗ vì tên trùng nhau. Prefix `/` nuốt hết, nên mọi request đổ về web và API không bao giờ được gọi.',
+      'Điền containerPort vào backend vì con số đó vừa đọc trong Deployment và nhìn quen mắt. Luật vẫn khớp đường dẫn, nhưng chuyển tiếp tới một cổng Service không có.',
+    ],
+  },
 };

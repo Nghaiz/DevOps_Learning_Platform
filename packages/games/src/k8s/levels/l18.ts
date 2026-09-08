@@ -112,4 +112,64 @@ Giá trị cụ thể không quan trọng ở level này. Điều quan trọng l
     'tách cấu hình khỏi image',
     'kubectl describe pod events',
   ],
+  teaching: {
+    primer: `Kubelet dựng một container qua ba bước, và pod hỏng ở bước nào thì mang trạng
+thái của bước đó. Đây là bảng phân biệt bạn nên nhớ cho cả phần còn lại:
+
+- Hỏng khi **kéo image**: \`ImagePullBackOff\`, chưa có container, RESTARTS đứng ở 0.
+- Hỏng khi **gom cấu hình**: \`CreateContainerConfigError\`, image đã về máy,
+  container vẫn chưa được tạo, RESTARTS cũng đứng ở 0.
+- Hỏng khi **chạy**: \`CrashLoopBackOff\`, container đã tồn tại và đã chết,
+  RESTARTS tăng dần.
+
+Hai trạng thái đầu giống nhau ở một điểm quan trọng: **không có log để đọc**, vì
+không có container nào từng chạy. Thứ phân biệt chúng, và thứ nói ra nguyên nhân,
+đều nằm trong Events của pod. Cột RESTARTS tách nhóm này khỏi nhóm thứ ba.
+
+Level này là bước hai. Kubelet kéo image xong, quay sang gom vật liệu cấu hình
+để bơm vào container, và thiếu mất một thứ.
+
+Vì sao cấu hình không nằm trong image: cùng một image phải chạy được ở mọi môi
+trường, khác nhau chỉ ở các giá trị bơm vào lúc chạy. **ConfigMap** giữ đúng
+những giá trị đó, dạng khoá và giá trị, đưa vào container qua biến môi trường
+(\`envFrom\`) hoặc mount thành file.
+
+Nhìn vào đâu: Events của pod, chúng gọi đích danh tên object đang thiếu.`,
+    cheatsheet: [
+      {
+        command: 'kubectl describe pod -n van-hanh -l app=bao-cao',
+        explain: 'Events gọi tên object đang thiếu. Không có container thì đây là nguồn tin duy nhất.',
+      },
+      {
+        command: 'kubectl get configmap -n van-hanh',
+        explain: 'Xác nhận ConfigMap thật sự không tồn tại, thay vì tin vào Events một mình.',
+      },
+      {
+        command: 'kubectl get deploy bao-cao -n van-hanh -o yaml',
+        explain: 'Đọc envFrom trong template để biết pod đang trông đợi những khoá nào.',
+      },
+      {
+        command: 'kubectl create configmap bao-cao-cau-hinh --from-literal=MUC_LOG=info -n van-hanh',
+        explain: 'Tạo ConfigMap nhanh từ dòng lệnh; lặp lại --from-literal cho từng khoá.',
+      },
+      {
+        command: 'kubectl get events -n van-hanh --sort-by=.lastTimestamp',
+        explain: 'Xem mọi sự kiện theo thời gian khi chưa biết pod nào đang kêu.',
+      },
+    ],
+    takeaways: [
+      'RESTARTS bằng 0 kèm trạng thái lỗi nghĩa là container chưa bao giờ được tạo, nên đừng đi tìm log.',
+      'CreateContainerConfigError nằm giữa hai lỗi đã học: image đã về, container thì chưa dựng.',
+      'Cùng một image chạy được ở mọi môi trường, khác biệt nằm ở cấu hình bơm vào lúc chạy.',
+      'Pod kẹt vì thiếu ConfigMap sẽ tự thử lại khi thứ thiếu xuất hiện, không cần tạo lại Deployment.',
+    ],
+    proTips: [
+      'Ba trạng thái lỗi hay bị gộp thành "pod không lên" thật ra kể ba câu chuyện khác nhau. Đọc đúng tên trạng thái là đã đi được nửa đường.',
+      'Ở cụm thật, tạo ConfigMap trước rồi mới apply Deployment. Thứ tự đó tránh được cả một cửa sổ pod kẹt.',
+    ],
+    pitfalls: [
+      'Chạy `kubectl logs` rồi thấy trống và nghi ứng dụng lỗi im lặng. Không có container thì không có log, và sự trống rỗng đó là một dữ kiện chứ không phải một bí ẩn.',
+      'Xoá Deployment rồi tạo lại để "làm mới". Cách này chữa được vài lỗi khác nên nó là phản xạ dễ hiểu, nhưng ở đây pod mới cũng thiếu đúng ConfigMap đó và kẹt y hệt.',
+    ],
+  },
 };
