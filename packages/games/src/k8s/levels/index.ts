@@ -10,7 +10,7 @@
  * | Chương | Dạy gì | Level |
  * |---|---|---|
  * | 1 | Pod, container, image, log, vòng đời | 01–05 |
- * | 2 | Deployment, ReplicaSet, scale, rollout, Job | 06–11 |
+ * | 2 | Deployment, ReplicaSet, scale, rollout, Job, CronJob | 06–11 + 36 |
  * | 3 | Service, endpoint, DNS, Ingress | 12–17 |
  * | 4 | ConfigMap, Secret, volume, PVC/PV, StatefulSet | 18–22 |
  * | 5 | Xếp lịch: requests/limits, taint, affinity, quota | 23–27 |
@@ -95,11 +95,23 @@ import { l32 } from './l32.ts';
 import { l33 } from './l33.ts';
 import { l34 } from './l34.ts';
 import { l35 } from './l35.ts';
+import { l36 } from './l36.ts';
 
+/**
+ * ⚠ `l36` nằm giữa `l11` và `l12` KHÔNG phải nhầm lẫn.
+ *
+ * Số trong id là ĐỊNH DANH, không phải vị trí chơi — xem ô `Level.id` trong
+ * `contract.ts`. `RunResult.levelId` sống trong localStorage của người chơi, nên
+ * đánh số lại l12–l35 để nhét số 12 vào chỗ này sẽ xoá sổ tiến độ đã lưu của mọi
+ * người, im lặng và không hồi phục được. Level chèn giữa mạch học vì thế lấy số ở
+ * cuối dãy rồi đặt vào đúng chỗ trong mảng này.
+ *
+ * Đọc hơi lệch mắt; đổi lại là chèn level không bao giờ phá lịch sử của ai.
+ */
 export const LEVELS: readonly Level[] = [
   l01, l02, l03, l04, l05, l06, l07, l08,
-  l09, l10, l11, l12, l13, l14, l15, l16,
-  l17, l18, l19, l20, l21, l22, l23, l24,
-  l25, l26, l27, l28, l29, l30, l31, l32,
-  l33, l34, l35,
+  l09, l10, l11, l36, l12, l13, l14, l15,
+  l16, l17, l18, l19, l20, l21, l22, l23,
+  l24, l25, l26, l27, l28, l29, l30, l31,
+  l32, l33, l34, l35,
 ];
