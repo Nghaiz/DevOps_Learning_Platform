@@ -17,6 +17,7 @@
     "scenarios:check": "node scripts/vendor-scenarios.mjs --check",
     "repo:check": "node scripts/check-repo-settings.mjs",
     "antipattern:check": "node scripts/check-no-antipattern.mjs",
+    "tokens:check": "node scripts/check-design-tokens.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "proto": "buf generate",
