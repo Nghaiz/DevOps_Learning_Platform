@@ -114,4 +114,60 @@ cổng của Service.`,
     'endpoint address and port',
     'chẩn đoán phân biệt',
   ],
+  teaching: {
+    primer: `Một endpoint không phải chỉ là một địa chỉ IP. Nó là cặp **IP và cổng**. Danh
+sách endpoints đầy đủ chứng minh Service tìm **đúng pod**; nó không chứng minh
+Service đang gõ **đúng cửa**.
+
+Ba con số dễ bị gộp làm một, và chúng ở ba tầng khác nhau:
+
+- \`port\` của Service: cổng mà người khác gọi vào Service.
+- \`targetPort\` của Service: cổng mà Service chuyển request tới, bên trong pod.
+- \`containerPort\` của container: khai báo mang tính tài liệu về cổng ứng dụng
+  nghe. Nó **không** mở cổng nào cả; thứ mở cổng là chính tiến trình trong
+  container.
+
+Nếu \`targetPort\` trỏ tới một cổng không có ai nghe, kernel trong pod trả lời
+ngay: **connection refused**. Đây là chi tiết chẩn đoán đáng nhớ nhất của level.
+*Refused* nghĩa là gói tin **đã tới nơi** và bị từ chối, nên định tuyến và mạng
+đều ổn. *Timeout* thì ngược lại: không ai trả lời, nên nghi ngờ hướng khác.
+
+Đọc cổng thật từ template của Deployment, đừng suy từ cổng của Service. Hai số
+đó trùng nhau ở level 12 là tình cờ, không phải quy tắc.
+
+Nhìn vào đâu: \`targetPort\` trong \`describe svc\` đặt cạnh \`containerPort\`
+trong template của Deployment.`,
+    cheatsheet: [
+      {
+        command: 'kubectl get endpoints kho-hang -n kho',
+        explain: 'Cột ENDPOINTS in cả IP lẫn cổng. Cổng ở đó chính là targetPort đang được dùng.',
+      },
+      {
+        command: 'kubectl describe svc kho-hang -n kho',
+        explain: 'Đọc riêng hai dòng Port và TargetPort. Chúng là hai thứ khác nhau.',
+      },
+      {
+        command: 'kubectl get deploy kho-hang -n kho -o yaml',
+        explain: 'Tìm containerPort trong template để biết ứng dụng thật sự nghe ở đâu.',
+      },
+      {
+        command: 'kubectl exec -n kho <ten-pod> -- wget -qO- localhost:9090',
+        explain: 'Gọi thẳng từ trong pod, bỏ qua Service. Có trả lời là ứng dụng khoẻ và lỗi nằm ở Service.',
+      },
+    ],
+    takeaways: [
+      'Endpoint là cặp IP và cổng: danh sách đầy đủ chỉ chứng minh đúng pod, chưa chứng minh đúng cổng.',
+      'port là cửa ngoài của Service, targetPort là cửa trong của pod, và containerPort chỉ là tài liệu.',
+      'Connection refused nghĩa là gói tin đã tới nơi và bị từ chối, khác hẳn timeout về mặt chẩn đoán.',
+      'Một công cụ không bao giờ đủ để chẩn đoán mạng, kể cả công cụ vừa cứu bạn ở level trước.',
+    ],
+    proTips: [
+      'Đặt tên cho cổng trong container (`name: http`) rồi cho targetPort trỏ theo tên. Đổi số cổng sau này thì Service không phải sửa.',
+      'Đổi cổng bên trong không ảnh hưởng người gọi, miễn là `port` giữ nguyên. Đó chính là lớp gián tiếp mà Service mang lại.',
+    ],
+    pitfalls: [
+      'Đặt targetPort bằng port cho dễ nhớ. Nó đúng ở dịch vụ đầu tiên nên trở thành thói quen, rồi hỏng lặng lẽ ở dịch vụ đầu tiên nghe một cổng khác.',
+      'Thấy endpoints đầy đủ rồi loại Service khỏi danh sách nghi ngờ. Đó chính là phản xạ level trước vừa dựng lên, và ở đây nó dẫn bạn đi sai đường.',
+    ],
+  },
 };

@@ -93,4 +93,63 @@ Container của Deployment nghe ở cổng nào thì đọc trong template — �
     'kubectl get endpoints',
     'ephemeral pod IP',
   ],
+  teaching: {
+    primer: `IP của pod là **tạm thời**. Pod chết đi mọc lại là có IP khác, rolling update
+thay cả ba pod là ba IP mới. Không ai viết một địa chỉ như thế vào cấu hình.
+
+**Service** là câu trả lời: một cái tên và một IP ảo cố định, đứng trước một nhóm
+pod hay thay đổi. Nó tìm pod của mình bằng **selector**, tức là so label, đúng
+cách ReplicaSet nhận con ở chương 2.
+
+Danh sách pod mà Service thật sự đang trỏ tới có tên riêng: **endpoints**. Đây là
+object quan trọng nhất của cả chương 3, vì nó là thứ duy nhất cho biết Service có
+đang nối tới ai hay không. \`kubectl get svc\` chỉ cho bạn xem Service được *khai
+báo* thế nào; \`kubectl get endpoints\` cho biết nó đang *nối* tới đâu.
+
+Một pod chỉ vào được endpoints khi nó đã **Ready**. Pod Running mà chưa Ready thì
+đứng ngoài, và đó là cơ chế cố ý: nó giữ cho lưu lượng không đi vào một bản chạy
+chưa sẵn sàng.
+
+Service có hai cổng, đừng gộp chúng: \`port\` là cổng người khác gọi vào Service,
+\`targetPort\` là cổng Service gõ vào container. Ở level này hai số trùng nhau,
+level 14 là chỗ chúng khác nhau.
+
+Nhìn vào đâu: label thật của pod bằng \`--show-labels\`, rồi endpoints để xác nhận.`,
+    cheatsheet: [
+      {
+        command: 'kubectl get pods -n san-pham --show-labels',
+        explain: 'Đọc label THẬT của pod trước khi viết selector, thay vì suy từ tên Deployment.',
+      },
+      {
+        command: 'kubectl get endpoints web -n san-pham',
+        explain: 'Danh sách địa chỉ Service đang nối tới. Đây là bằng chứng, không phải khai báo.',
+      },
+      {
+        command: 'kubectl describe svc web -n san-pham',
+        explain: 'Cho Selector, Port, TargetPort và cả Endpoints trong một màn hình.',
+      },
+      {
+        command: 'kubectl expose deployment web --port=80 --target-port=80 -n san-pham',
+        explain: 'Tạo nhanh Service từ Deployment, selector được suy ra từ label sẵn có.',
+      },
+      {
+        command: 'kubectl get svc -n san-pham',
+        explain: 'Xem TYPE và CLUSTER-IP. ClusterIP nghĩa là chỉ gọi được từ trong cluster.',
+      },
+    ],
+    takeaways: [
+      'IP của pod là tạm thời, nên mọi liên lạc ổn định trong cluster phải đi qua tên của Service.',
+      'Service nhận pod bằng label chứ không bằng tên, nên nó không cần biết pod nào tồn tại lúc nào.',
+      'Endpoints là danh sách pod Service đang thật sự trỏ tới, và là thứ duy nhất trả lời được câu hỏi đó.',
+      'Chỉ pod đã Ready mới nằm trong endpoints, vì thế trạng thái Ready có sức nặng hơn Running.',
+    ],
+    proTips: [
+      'Nhớ một thứ tự chẩn đoán cho cả chương: endpoints trước, describe sau, YAML cuối cùng.',
+      'Ở Kubernetes mới, `kubectl get endpointslices` là bản chi tiết hơn của endpoints và chịu được cụm rất lớn.',
+    ],
+    pitfalls: [
+      'Viết selector theo tên Deployment vì thường thì tên và label trùng nhau. Nó đúng đủ thường xuyên để thành thói quen, rồi hỏng im lặng ở đúng chỗ label được đặt khác tên.',
+      'Chọn label quá hẹp hoặc quá rộng khi pod mang nhiều label. Quá rộng thì Service nuốt luôn pod của workload khác, và không có cảnh báo nào cho việc đó.',
+    ],
+  },
 };

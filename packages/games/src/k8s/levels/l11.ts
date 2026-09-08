@@ -95,4 +95,63 @@ Kubernetes không xoá chúng ngay.`,
     'cron schedule',
     'immutable job template',
   ],
+  teaching: {
+    primer: `Năm level vừa rồi dạy một phản xạ: pod không Running là đáng ngờ. Với **Job**
+thì ngược lại. Một Job thành công là một Job đã dừng hẳn; Job còn chạy mãi mới
+là chuyện phải xem.
+
+\`restartPolicy\` là thứ quyết định điều đó. Pod của dịch vụ dùng \`Always\` nên
+kubelet dựng lại mãi. Pod của Job phải dùng \`Never\` hoặc \`OnFailure\`, nếu
+không nó không bao giờ tới được trạng thái kết thúc.
+
+Khi container của Job chết, Job **thử lại bằng một pod mới**, không phải bằng
+cách restart pod cũ. Vì thế một Job hỏng để lại nhiều pod \`Failed\` nằm cạnh
+nhau. Đó là các lần thử nối tiếp nhau, không phải nhiều bản chạy song song, và
+\`backoffLimit\` là số lần thử tối đa trước khi Job bỏ cuộc. Mỗi pod đó giữ log
+của lần thử tương ứng.
+
+Một đặc tính hay bị vấp: \`template\` của Job là **bất biến** sau khi tạo. Sửa
+lệnh bên trong nghĩa là xoá Job rồi tạo lại, không phải sửa tại chỗ.
+
+**CronJob** không tự chạy gì cả. Nó chỉ là cái máy tạo Job theo lịch cron, và
+mọi thứ ở trên vẫn đúng với từng Job nó sinh ra.
+
+Nhìn vào đâu: \`describe job\` cho số lần đã thử, log của pod \`Failed\` cho lý do.`,
+    cheatsheet: [
+      {
+        command: 'kubectl get jobs -n du-lieu',
+        explain: 'Cột COMPLETIONS dạng x/y: đã xong bao nhiêu trên tổng số cần xong.',
+      },
+      {
+        command: 'kubectl describe job di-tru-v3 -n du-lieu',
+        explain: 'Cho biết đã thử mấy lần trên backoffLimit, và Events của từng lần tạo pod.',
+      },
+      {
+        command: 'kubectl logs -n du-lieu -l job=di-tru-v3',
+        explain: 'Đọc log của các pod thuộc Job. Pod Failed không bị restart nên không cần --previous.',
+      },
+      {
+        command: 'kubectl delete job di-tru-v3 -n du-lieu',
+        explain: 'Bắt buộc trước khi sửa lệnh: template của Job đã tạo là bất biến.',
+      },
+      {
+        command: 'kubectl create job chay-thu --from=cronjob/don-log -n du-lieu',
+        explain: 'Chạy CronJob ngay một lần để thử, không phải chờ tới giờ trong lịch.',
+      },
+    ],
+    takeaways: [
+      'Job xong là dừng hẳn, nên với Job thì Running mãi mới là dấu hiệu bất thường.',
+      'Mỗi lần Job thử lại là một pod mới, nên nhiều pod Failed cạnh nhau là các lần thử nối tiếp chứ không phải chạy song song.',
+      'Template của Job bất biến: muốn đổi lệnh thì phải xoá Job và tạo lại.',
+      'CronJob chỉ là bộ tạo Job theo lịch; mọi quy tắc của Job vẫn áp cho từng Job nó sinh ra.',
+    ],
+    proTips: [
+      '`ttlSecondsAfterFinished` tự dọn Job đã xong, nhưng nó xoá cả Job hỏng chứ không chỉ Job thành công. Đừng dùng nó cho Job mà bạn cần đọc lại log khi có sự cố.',
+      '`concurrencyPolicy: Forbid` chặn lần chạy mới khi lần trước còn sống, hợp cho việc di trú dữ liệu không được chạy chồng.',
+    ],
+    pitfalls: [
+      'Dùng Deployment cho một việc chạy một lần. Nó chạy đúng ngay lần đầu nên trông như đã xong, rồi pod kết thúc bị dựng lại vô hạn và công việc chạy đi chạy lại mãi.',
+      'Xoá các pod Failed cho gọn trước khi đọc log. Chúng là bản ghi duy nhất về lý do Job hỏng, và Job thì không giữ lại nội dung đó.',
+    ],
+  },
 };

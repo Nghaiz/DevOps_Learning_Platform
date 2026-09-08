@@ -110,4 +110,64 @@ endpoint, không được đụng tới số replica của Deployment.`,
     'immutable deployment selector',
     'kubectl describe svc',
   ],
+  teaching: {
+    primer: `Khi một lời gọi qua Service thất bại, có đúng ba chỗ hỏng được: **phía gọi**,
+**phía pod**, và **mối nối giữa chúng**. Chương này dạy cách tách ba chỗ đó ra,
+và level này là chỗ mối nối đứt trong khi hai đầu đều khoẻ.
+
+Service không giữ danh sách pod bằng tên. Nó chạy một truy vấn theo label, liên
+tục, và mọi pod khớp thì được đưa vào **endpoints**. Nếu truy vấn không khớp cái
+gì, Service vẫn tồn tại đầy đủ và vẫn có IP: nó chỉ không có ai ở phía sau.
+Request đi vào rồi rơi vào khoảng không, nên triệu chứng là **timeout** chứ
+không phải lỗi tức thì.
+
+Vì thế \`kubectl get svc\` gần như vô dụng ở đây: Service trông hoàn hảo. Lệnh
+trả lời được là \`kubectl get endpoints\`, và \`<none>\` là một câu trả lời dứt
+khoát.
+
+So label phải khớp **chính xác từng ký tự**. Kubernetes không có so khớp gần
+đúng, không có phân biệt hoa thường mềm dẻo, không có ý định đoán ý bạn.
+
+Một ràng buộc quyết định hướng sửa: \`selector\` của Deployment là **bất biến**
+sau khi tạo. Nghĩa là bạn sửa selector của Service cho khớp pod, chứ không sửa
+label của pod cho khớp Service.
+
+Nhìn vào đâu: \`get endpoints\` trước tiên, rồi đặt Selector cạnh \`--show-labels\`.`,
+    cheatsheet: [
+      {
+        command: 'kubectl get endpoints api -n don-hang',
+        explain: 'Lệnh đầu tiên phải chạy. Cột ENDPOINTS ghi <none> là mối nối đứt, không phải pod hỏng.',
+      },
+      {
+        command: 'kubectl describe svc api -n don-hang',
+        explain: 'Đọc dòng Selector: đây là truy vấn label mà Service đang chạy.',
+      },
+      {
+        command: 'kubectl get pods -n don-hang --show-labels',
+        explain: 'Đọc label thật của pod, để đặt cạnh Selector mà so từng ký tự.',
+      },
+      {
+        command: 'kubectl get pods -n don-hang -l app=api',
+        explain: 'Chạy thử chính truy vấn đó. Ra danh sách rỗng là bạn đã tái hiện được lỗi.',
+      },
+      {
+        command: 'kubectl edit svc api -n don-hang',
+        explain: 'Sửa selector của Service. Endpoints được tính lại ngay, không cần tạo lại pod.',
+      },
+    ],
+    takeaways: [
+      'Endpoints rỗng nghĩa là mối nối Service với pod đứt, và nó loại trừ luôn giả thuyết pod hỏng.',
+      'Service khai báo đúng chuẩn vẫn có thể không nối tới ai, nên `kubectl get svc` không đủ để kết luận.',
+      'Label so khớp chính xác từng ký tự: Kubernetes không đoán ý và không so gần đúng.',
+      'Selector của Deployment bất biến, nên hướng sửa đúng là đổi Service chứ không đổi pod.',
+    ],
+    proTips: [
+      'Chạy thử selector bằng `kubectl get pods -l <selector>` trước khi ghi nó vào Service. Rẻ hơn nhiều so với chẩn đoán ngược lại sau này.',
+      'Endpoints rỗng còn một nguyên nhân thứ hai: label đúng nhưng pod chưa Ready. Kiểm cột READY trước khi kết luận là lệch label.',
+    ],
+    pitfalls: [
+      'Sửa label của pod cho khớp Service, vì nghe rất hợp lý rằng chỉ cần hai bên giống nhau. Pod đó lập tức rơi khỏi selector bất biến của Deployment, Deployment tạo pod bù, và bạn vừa tạo ra một sự cố lớn hơn sự cố ban đầu.',
+      'Scale Deployment lên vì thấy Service không có endpoint nào. Thêm pod không giúp gì khi không pod nào khớp được truy vấn.',
+    ],
+  },
 };
