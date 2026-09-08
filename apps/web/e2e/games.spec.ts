@@ -748,8 +748,18 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
     test(`0 frame vẽ khi cảnh tĩnh ${STATIC_WINDOW_MS / 1000} giây (§11.3)`, async ({
       page,
     }, testInfo) => {
-      test.setTimeout(120_000);
+      test.setTimeout(180_000);
 
+      /*
+        Ghim bậc `medium` — cùng LÝ DO như cổng draw call, khác TRIỆU CHỨNG (§15.4).
+
+        Ở bậc cao, `renderer.info.render.frame` đếm TỪNG PASS của composer, nên
+        một lần vẽ lại logic duy nhất làm nó nhảy khoảng 15 (RenderPass + chuỗi
+        blur của UnrealBloomPass + OutputPass). Đọc ở đó thì "15 frame trong 6
+        giây" trông y hệt một bản vá làm dở, trong khi sự thật là MỘT lần vẽ lại.
+        Bậc `medium` không có composer, nên một frame là một frame.
+      */
+      await seedQuality(page, 'medium');
       await openScreen(page, GAME_PATH, 'anon');
 
       /*
@@ -763,51 +773,114 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
       await waitForSceneChannel(page);
 
       /*
+        Đo trên một cluster CÓ VẬT, không phải cluster rỗng.
+
+        Level mặc định khởi đầu rỗng, và "không vẽ gì" trên một cảnh không có gì
+        là một kết luận rẻ tiền. l07 khởi đầu sẵn một Deployment 2 replica, nên
+        cảnh có node, pod, edge — đủ thứ để vẽ nếu vòng lặp quyết định vẽ.
+      */
+      await chooseLevel(page, SCALE_LEVEL_TITLE);
+      await waitForSceneChannel(page);
+      await movePointerAwayFromCanvas(page);
+
+      /*
         Chờ cảnh NGỦ trước khi mở cửa sổ đo.
 
-        Ngay sau mount, camera còn đang giảm chấn về vị trí đích và mỗi frame đó
-        là một lần vẽ HỢP LỆ. Đo ngay sẽ đỏ vì một hành vi đúng. Định nghĩa cần
-        đo là "cảnh đứng yên rồi thì có ngừng vẽ không", nên trước hết phải chờ
-        nó đứng yên — và nếu nó KHÔNG BAO GIỜ đứng yên thì đó chính là hỏng hóc
-        ô này săn, chỉ là dưới một cái tên khác.
+        Ngay sau mount (và sau mỗi lần cảnh được dựng lại), camera còn đang giảm
+        chấn về vị trí đích và mỗi frame đó là một lần vẽ HỢP LỆ. Đo ngay sẽ đỏ
+        vì một hành vi đúng — lane renderer đã đọc đúng cái đuôi giảm chấn đó
+        thành một con số 58 và suýt kết luận sai. Định nghĩa cần đo là "cảnh
+        đứng yên rồi thì có ngừng vẽ không", nên trước hết phải chờ nó đứng yên;
+        và nếu nó KHÔNG BAO GIỜ đứng yên thì đó chính là hỏng hóc ô này săn.
       */
       let previous = -1;
-      let settledFrames = -1;
-      for (let i = 0; i < 30; i += 1) {
+      let settled: SceneStats | null = null;
+      for (let i = 0; i < 40; i += 1) {
         await page.waitForTimeout(500);
-        const current = (await readSceneStats(page)).frames;
-        if (current === previous) {
-          settledFrames = current;
+        const current = await readSceneStats(page);
+        if (current.frames === previous) {
+          settled = current;
           break;
         }
-        previous = current;
+        previous = current.frames;
       }
       expect(
-        settledFrames,
-        'Cảnh không bao giờ ngừng vẽ trong 15 giây dù con trỏ ở ngoài khung và không có ' +
+        settled,
+        'Cảnh không bao giờ ngừng vẽ trong 20 giây dù con trỏ ở ngoài khung và không có ' +
           'gì thay đổi. §11.2 nói vòng lặp phải DỪNG khi không có thứ gì động — một vòng ' +
           'lặp quay vô ích là pin, là quạt, và là ngân sách 16.6ms bị tiêu vào việc vẽ lại ' +
           'đúng cái vừa vẽ.',
-      ).toBeGreaterThanOrEqual(0);
+      ).not.toBeNull();
 
-      await page.waitForTimeout(STATIC_WINDOW_MS);
+      const before = settled as SceneStats;
+
+      /*
+        Lấy mẫu TỪNG GIÂY, không phải một hiệu số đầu-cuối.
+
+        Một hiệu số duy nhất không phân biệt được "rò rỉ đều đặn" với "một cái
+        đuôi giảm chấn rồi thôi" — hai thứ có cùng tổng nhưng khác hẳn về bản
+        chất. Chuỗi mẫu nói ra sự khác biệt đó, và nó nằm trong artifact để
+        người đọc tự kiểm.
+      */
+      const series: { atMs: number; frames: number; tick: number }[] = [];
+      for (let elapsed = 1_000; elapsed <= STATIC_WINDOW_MS; elapsed += 1_000) {
+        await page.waitForTimeout(1_000);
+        const sample = await readSceneStats(page);
+        series.push({ atMs: elapsed, frames: sample.frames, tick: sample.tick });
+      }
+
       const after = await readSceneStats(page);
-      const drawn = after.frames - settledFrames;
+      const drawn = after.frames - before.frames;
+      const ticked = after.tick - before.tick;
 
       await attachJson(testInfo, 'games-static-frames.json', {
+        level: SCALE_LEVEL_TITLE,
         windowMs: STATIC_WINDOW_MS,
-        framesAtRest: settledFrames,
-        framesAfter: after.frames,
-        framesDrawnInWindow: drawn,
         tier: after.tier,
         objects: after.objects,
+        framesAtRest: before.frames,
+        framesAfter: after.frames,
+        framesDrawnInWindow: drawn,
+        tickBefore: before.tick,
+        tickAfter: after.tick,
+        ticksInWindow: ticked,
+        series,
       });
+
+      // Tiền đề bậc — xem khối chú thích đầu ô.
+      expect(
+        after.tier,
+        `Cần đo số frame ở bậc "medium" (không composer) nhưng cảnh đang chạy bậc ` +
+          `"${after.tier}". Ở "high" một lần vẽ lại đếm thành ~15 frame.`,
+      ).toBe('medium');
+
+      // Tiền đề cảnh có vật — "không vẽ gì" trên một cảnh rỗng là kết luận rẻ tiền.
+      expect(
+        after.objects,
+        'Cảnh không có object nào, nên "0 frame" chỉ đang nói rằng không có gì để vẽ.',
+      ).toBeGreaterThan(0);
+
+      /*
+        ĐỐI CHỨNG ÂM, và nó là lý do ô này đáng tin.
+
+        `frames` đứng yên có HAI cách đọc: render-theo-yêu-cầu hoạt động, hoặc
+        mô phỏng đã chết nên chẳng còn gì để vẽ. Lane renderer đã đo trúng
+        trường hợp thứ hai một lần và đọc nó thành thành công. Cặp số (frames=0,
+        tick>0) mới là bằng chứng; một mình `frames` thì không.
+      */
+      expect(
+        ticked,
+        `Đồng hồ mô phỏng KHÔNG chạy trong ${STATIC_WINDOW_MS}ms (tick ${before.tick} → ` +
+          `${after.tick}). "0 frame" khi đó không chứng minh render-theo-yêu-cầu hoạt động — ` +
+          `nó chỉ đang nói rằng không có gì xảy ra để mà vẽ.`,
+      ).toBeGreaterThan(0);
 
       expect(
         drawn,
-        `Cảnh vẽ ${drawn} khung hình trong ${STATIC_WINDOW_MS}ms đứng yên, với con trỏ ` +
-          `NGOÀI khung và bậc chất lượng "${after.tier}". Render-theo-yêu-cầu (§11.2) chưa ` +
-          `hoạt động, hoặc có thứ gì đó tự đánh dấu "cần vẽ lại" mỗi frame.`,
+        `Cảnh vẽ ${drawn} khung hình trong ${STATIC_WINDOW_MS}ms đứng yên (${ticked} tick mô ` +
+          `phỏng đã chạy, con trỏ NGOÀI khung, bậc "${after.tier}", ${after.objects} object). ` +
+          `Render-theo-yêu-cầu (§11.2) chưa hoạt động, hoặc có thứ gì đó tự đánh dấu "cần vẽ ` +
+          `lại" mỗi tick. Chuỗi mẫu từng giây nằm trong games-static-frames.json.`,
       ).toBe(0);
     });
 

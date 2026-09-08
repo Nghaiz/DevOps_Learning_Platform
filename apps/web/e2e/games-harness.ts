@@ -224,9 +224,18 @@ export interface SceneStats {
   readonly frames: number;
   readonly tier: string;
   readonly objects: number;
+  /**
+   * Tick của đồng hồ MÔ PHỎNG — đối chứng ÂM của cổng "0 frame khi cảnh tĩnh".
+   *
+   * Không có nó, `frames` đứng yên có hai cách đọc không phân biệt được:
+   * "render-theo-yêu-cầu hoạt động" và "mô phỏng đã chết nên chẳng có gì để
+   * vẽ". Lane renderer đã đo đúng trường hợp thứ hai một lần và đọc nó thành
+   * thành công. `frames` = 0 cạnh `tick` = 0 không chứng minh gì cả.
+   */
+  readonly tick: number;
 }
 
-const STAT_KEYS = ['calls', 'triangles', 'geometries', 'textures', 'frames', 'objects'] as const;
+const STAT_KEYS = ['calls', 'triangles', 'geometries', 'textures', 'frames', 'objects', 'tick'] as const;
 
 /** Chờ scene mount xong. Ném khi hết giờ — "chưa mount" không được đọc thành "sạch". */
 export async function waitForSceneChannel(page: Page, timeoutMs = 30_000): Promise<void> {
