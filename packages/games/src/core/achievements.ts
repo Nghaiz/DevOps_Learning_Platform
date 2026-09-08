@@ -26,6 +26,17 @@ export interface LevelFacts {
   readonly chapter: number;
   readonly parMoves: number;
   readonly difficulty: Difficulty;
+  /**
+   * Id các objective `required: false`. Bên gọi lấy từ
+   * `level.objectives.filter((o) => !o.required).map((o) => o.id)`.
+   *
+   * Có mặt ở đây vì `RunResult` chỉ mang `objectivesMet` (một mảng id) và
+   * `objectivesTotal` (một con số) — không có gì phân biệt mục tiêu bắt buộc với
+   * mục tiêu thưởng. Không có field này thì không luật nào diễn đạt được "đã làm
+   * cả việc mà level không đòi", mà đó chính là loại hành vi chủ dự án muốn
+   * thưởng: tò mò, chứ không phải cày.
+   */
+  readonly bonusObjectiveIds: readonly string[];
 }
 
 export interface AchievementContext {
@@ -80,10 +91,29 @@ function rule(
   gameId: GameId | 'all',
   title: string,
   description: string,
-  hidden: boolean,
   check: (ctx: AchievementContext) => boolean,
 ): AchievementRule {
-  return { achievement: { id, gameId, title, description, hidden }, check };
+  return { achievement: { id, gameId, title, description, hidden: false }, check };
+}
+
+/**
+ * Thành tựu ẩn. `teaser` là THAM SỐ BẮT BUỘC ở đây, không phải tuỳ chọn — hợp
+ * đồng `core/types.ts` đòi `hidden: true` phải kèm teaser, và bắt buộc nó ở chữ
+ * ký hàm nghĩa là quên nó thành lỗi biên dịch chứ không phải một ô xám câm trên
+ * giao diện.
+ *
+ * ⚠ `teaser` đặt bằng spread có điều kiện vì `exactOptionalPropertyTypes` cấm
+ * gán `undefined` cho một field tuỳ chọn — không phải để dành chỗ cho teaser rỗng.
+ */
+function hiddenRule(
+  id: string,
+  gameId: GameId | 'all',
+  title: string,
+  description: string,
+  teaser: string,
+  check: (ctx: AchievementContext) => boolean,
+): AchievementRule {
+  return { achievement: { id, gameId, title, description, hidden: true, teaser }, check };
 }
 
 export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
@@ -92,7 +122,6 @@ export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
     'k8s',
     'Pod đầu tiên',
     'Hoàn thành level đầu tiên của Kubernetes Game.',
-    false,
     (ctx) => passedRuns(ctx).length >= 1,
   ),
   rule(
@@ -100,7 +129,6 @@ export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
     'k8s',
     'Xong chương 1',
     'Hoàn thành mọi level của chương 1.',
-    false,
     (ctx) => chapterCleared(ctx, 1),
   ),
   rule(
@@ -108,7 +136,6 @@ export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
     'k8s',
     'Xong chương 3',
     'Hoàn thành mọi level của chương 3.',
-    false,
     (ctx) => chapterCleared(ctx, 3),
   ),
   rule(
@@ -116,7 +143,6 @@ export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
     'k8s',
     'Mười level',
     'Hoàn thành 10 level khác nhau.',
-    false,
     (ctx) => clearedLevelIds(ctx).size >= 10,
   ),
   rule(
@@ -124,7 +150,6 @@ export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
     'k8s',
     'Hai mươi level',
     'Hoàn thành 20 level khác nhau.',
-    false,
     (ctx) => clearedLevelIds(ctx).size >= 20,
   ),
   rule(
@@ -132,7 +157,6 @@ export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
     'k8s',
     'Trọn bộ',
     'Hoàn thành mọi level của Kubernetes Game.',
-    false,
     (ctx) => ctx.levels.length > 0 && clearedLevelIds(ctx).size >= ctx.levels.length,
   ),
   rule(
@@ -140,7 +164,6 @@ export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
     'k8s',
     'Điểm tuyệt đối',
     'Đạt 1000 điểm ở một level bất kỳ.',
-    false,
     (ctx) => passedRuns(ctx).some((run) => run.score >= 1000),
   ),
   rule(
@@ -148,7 +171,6 @@ export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
     'k8s',
     'Tự lực',
     'Hoàn thành 5 level mà không mở gợi ý nào.',
-    false,
     (ctx) => passedRuns(ctx).filter((run) => run.hintsUsed === 0).length >= 5,
   ),
   rule(
@@ -156,7 +178,6 @@ export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
     'k8s',
     'Không thừa một nước',
     'Hoàn thành một level với số lệnh không vượt mốc chuẩn.',
-    false,
     (ctx) => {
       const par = parByLevel(ctx);
       return passedRuns(ctx).some((run) => {
@@ -170,7 +191,6 @@ export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
     'k8s',
     'Chẩn đoán nhanh',
     'Hoàn thành một level khó trong vòng 3 phút.',
-    false,
     (ctx) => {
       const advanced = new Set(
         ctx.levels.filter((level) => level.difficulty === 'advanced').map((level) => level.id),
@@ -180,18 +200,69 @@ export const K8S_ACHIEVEMENTS: readonly AchievementRule[] = [
       );
     },
   ),
-  rule(
-    'k8s-kien-tri',
+  hiddenRule(
+    'k8s-tro-lai',
     'k8s',
-    'Kiên trì',
-    'Qua được một level sau ít nhất 5 lần thử.',
-    true,
+    'Trở lại',
+    'Qua được một level mà trước đó bạn đã thua.',
+    'Một level đã đánh bại bạn. Nó vẫn còn ở đó.',
     (ctx) => {
-      const attempts = new Map<string, number>();
+      // Thua TRƯỚC rồi mới qua — không phải "có cả lượt thua lẫn lượt qua". Hai
+      // vế đó khác nhau ở đúng cái đáng thưởng: quay lại sau khi thất bại, chứ
+      // không phải qua rồi thử lại cho vui.
+      const firstFailure = new Map<string, number>();
       for (const run of ctx.runs) {
-        attempts.set(run.levelId, (attempts.get(run.levelId) ?? 0) + 1);
+        if (isPassed(run)) {
+          continue;
+        }
+        const known = firstFailure.get(run.levelId);
+        if (known === undefined || run.startedAt < known) {
+          firstFailure.set(run.levelId, run.startedAt);
+        }
       }
-      return [...clearedLevelIds(ctx)].some((id) => (attempts.get(id) ?? 0) >= 5);
+      return passedRuns(ctx).some((run) => {
+        const failedAt = firstFailure.get(run.levelId);
+        return failedAt !== undefined && failedAt < run.startedAt;
+      });
+    },
+  ),
+  hiddenRule(
+    'k8s-ti-mi',
+    'k8s',
+    'Tỉ mỉ',
+    'Đạt trọn cả mục tiêu thưởng của một level, không chỉ mục tiêu bắt buộc.',
+    'Không phải mọi việc đáng làm đều bị bắt buộc.',
+    (ctx) => {
+      const bonus = new Map(ctx.levels.map((level) => [level.id, level.bonusObjectiveIds]));
+      return passedRuns(ctx).some((run) => {
+        const ids = bonus.get(run.levelId);
+        // Level KHÔNG có mục tiêu thưởng thì không tính — `[].every(...)` trả
+        // `true`, và nó sẽ mở khoá thành tựu này ở ngay level đầu tiên.
+        if (ids === undefined || ids.length === 0) {
+          return false;
+        }
+        const met = new Set(run.objectivesMet);
+        return ids.every((id) => met.has(id));
+      });
+    },
+  ),
+  hiddenRule(
+    'k8s-khong-thua-mot-nuoc',
+    'k8s',
+    'Không thừa một nước',
+    'Qua một level với điểm tuyệt đối, không mở gợi ý, và không vượt mốc chuẩn.',
+    'Điểm số không phải thứ duy nhất đếm được trong một ván chơi.',
+    (ctx) => {
+      const par = parByLevel(ctx);
+      return passedRuns(ctx).some((run) => {
+        const limit = par.get(run.levelId);
+        return (
+          limit !== undefined &&
+          run.score >= 1000 &&
+          run.hintsUsed === 0 &&
+          run.commandsUsed <= limit
+        );
+      });
     },
   ),
 ];
@@ -202,7 +273,6 @@ export const CROSS_GAME_ACHIEVEMENTS: readonly AchievementRule[] = [
     'all',
     'Bước vào cuộc',
     'Hoàn thành level đầu tiên ở bất kỳ game nào.',
-    false,
     (ctx) => passedRuns(ctx).length >= 1,
   ),
 ];
