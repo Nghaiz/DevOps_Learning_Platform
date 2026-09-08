@@ -619,3 +619,85 @@ tách bằng hình dạng chứ không bằng hue. Đúng như thiết kế, kh�
 
 Cả hai trong gamut, chừa ~0.005 chroma. L gần như không đổi theo biên chroma
 (0.581 sát mép so với 0.577 ở biên 0.03), nên biên an toàn gần như miễn phí.
+
+---
+
+## 11. Hợp đồng C7 — hiệu năng 3D
+
+> Lane E sở hữu. Yêu cầu bổ sung của chủ dự án 2026-09-08: *"3D đẹp và quan trọng
+> là phải cực mượt, không được giật lag"*.
+
+Mượt không đến từ việc chọn thư viện. Nó đến từ sáu quyết định dưới đây, và giật
+lag gần như luôn là một trong sáu thứ này chứ không phải "Three.js chậm".
+
+### 11.1 Sáu nguyên nhân giật, theo thứ tự mức độ
+
+**1. Số draw call.** Mỗi mesh riêng lẻ là một lệnh vẽ. 200 pod = 200 draw call, đủ
+để tụt khung hình trên GPU tích hợp. **Bắt buộc dùng `InstancedMesh`**: mọi pod
+dùng chung một geometry + một material, khác nhau ở ma trận và màu instance. 200
+pod thành **một** draw call. Đây là khoản lời lớn nhất trong cả danh sách và nó
+không thương lượng được.
+
+**2. Cấp phát trong vòng lặp render.** `new THREE.Vector3()` mỗi frame mỗi vật thể
+sinh rác, rác sinh GC pause, GC pause là cái khựng mắt nhìn thấy. Vòng lặp render
+phải **không cấp phát**: dựng sẵn vector/matrix/color dùng lại. Đây là thứ dễ vi
+phạm nhất vì mã trông vô hại.
+
+**3. Cho React chạm vào vòng lặp.** Nếu mỗi tick mô phỏng kéo theo một lần render
+React, ta trả giá reconciliation 60 lần/giây. Vòng lặp scene là **mệnh lệnh và nằm
+ngoài React**; React chỉ dựng panel DOM, và panel cập nhật theo nhịp riêng (~10Hz là
+đủ cho chữ). Đây chính là lý do §4.3 cấm `@react-three/fiber` — không phải vì nó
+tệ, mà vì nó đặt scene vào cây React.
+
+**4. Bóng đổ tính lại mỗi frame.** Shadow map 2048 render lại toàn cảnh mỗi frame.
+Cảnh này gần như tĩnh: đặt `shadowMap.autoUpdate = false` và chỉ bật
+`shadowMap.needsUpdate = true` đúng frame có vật thể sinh/mất/di chuyển.
+
+**5. Không giới hạn pixel ratio.** Màn hình DPR 3 vẽ gấp 9 lần số điểm ảnh. Kẹp
+`setPixelRatio(Math.min(devicePixelRatio, 2))`, bậc thấp thì kẹp về 1.
+
+**6. Đọc layout từ nhãn DOM.** Nhãn chồng lên canvas (§9.2) mà gọi
+`getBoundingClientRect` mỗi frame sẽ ép trình duyệt tính lại layout đồng bộ — đúng
+định nghĩa của layout thrash. Chỉ **ghi** `transform: translate3d(...)`, không bao
+giờ **đọc** layout trong vòng lặp.
+
+### 11.2 Render theo yêu cầu, không quay vòng vô ích
+
+Cảnh đứng yên **không được** render 60fps. Vòng lặp chỉ vẽ khi có thứ đang động
+(chuyển tiếp trạng thái, bồng bềnh, camera đang giảm chấn, hạt trên edge). Ngoài ra
+thì dừng. Lợi ba mặt: pin máy tính xách tay, quạt không quay, và khi thứ gì đó
+*thật sự* động thì có sẵn toàn bộ ngân sách 16.6ms cho nó.
+
+⚠ Bồng bềnh khi rảnh (§9.3) mâu thuẫn trực tiếp với điều này — nó làm cảnh không
+bao giờ đứng yên. Giải: bồng bềnh chỉ chạy khi tab đang hiển thị VÀ con trỏ đang ở
+trong khung, và tắt hẳn ở bậc chất lượng thấp. Đẹp không được mua bằng một vòng lặp
+không bao giờ ngủ.
+
+### 11.3 Cổng đo — đo NGUYÊN NHÂN, không đo khung hình
+
+⛔ Không đặt AC kiểu "≥ 60fps". Con số đó phụ thuộc máy chạy test, và dưới
+SwiftShader của Playwright thì nó vô nghĩa — cổng sẽ đỏ vì phần cứng CI chứ không
+vì mã. Đo mấy thứ tất định sau, đọc thẳng từ `renderer.info`:
+
+| Đại lượng | Ngưỡng | Vì sao đo được |
+|---|---|---|
+| `renderer.info.render.calls` với 200 pod | **≤ 25** | Tất định. Vượt nghĩa là chưa instancing. |
+| `renderer.info.memory.geometries` sau 500 lần sinh/xoá pod | không tăng | Bắt rò rỉ geometry — nguyên nhân giật sau vài phút chơi. |
+| `renderer.info.memory.textures` sau 500 chu kỳ | không tăng | Như trên. |
+| Số byte cấp phát trong 100 frame liên tiếp (`performance.measureUserAgentSpecificMemory` hoặc đếm tay) | ~0 tăng trưởng | Bắt vi phạm mục 11.1.2. |
+| Số frame vẽ khi cảnh tĩnh 3 giây | **0** | Chứng minh render-theo-yêu-cầu thật sự hoạt động. |
+
+Bốn cái đầu bắt đúng NGUYÊN NHÂN của giật; chúng đỏ trên máy nào cũng đỏ. Một con
+số fps chỉ nói được máy chạy test mạnh hay yếu.
+
+### 11.4 Nói thẳng về giới hạn
+
+**"Cực mượt trên mọi máy" không đạt được với 3D có hậu kỳ.** Máy không có GPU rời
+(SwiftShader, hoặc GPU tích hợp cũ) sẽ không mượt dù tối ưu đến đâu — đó là vật lý
+của phần cứng, không phải chỗ để cố thêm. Ba bậc chất lượng (§9.5) và công tắc
+"Tắt hiệu ứng 3D" (§4.4) tồn tại chính xác vì lý do này: hạ dần cho tới khi mượt,
+và nếu vẫn không mượt thì người dùng vẫn chơi được đầy đủ bằng lớp DOM.
+
+Điều **đạt được**, và là thứ hợp đồng này cam kết: trên máy có GPU ở mức trung bình
+trở lên, cảnh chạy ổn định ở nhịp màn hình, không tụt khung hình khi thêm pod, và
+không xuống cấp dần sau nhiều phút chơi.
