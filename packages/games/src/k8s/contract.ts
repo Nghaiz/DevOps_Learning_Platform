@@ -192,6 +192,61 @@ export interface Objective {
 
 // ── Level ───────────────────────────────────────────────────────────────────
 
+// ── Tầng dạy học ────────────────────────────────────────────────────────────
+
+/**
+ * ⛔ PHÂN VAI GIỮA LEVEL VÀ CHALLENGE — đọc trước khi viết bất kỳ nội dung nào.
+ *
+ * **Level DẠY. Challenge THỬ.** Đây là chỉ đạo của chủ dự án (2026-09-08) và nó
+ * quyết định giọng của toàn bộ nội dung:
+ *
+ * - Level đưa kiến thức TRƯỚC, rồi cho người chơi dùng nó. Người chơi không bao
+ *   giờ phải đoán một khái niệm chưa ai nói với họ. Vừa học vừa chơi.
+ * - Challenge mới là chỗ đánh đố: có đồng hồ, không gợi ý, không primer, và nó
+ *   giả định người chơi đã học xong phần tương ứng.
+ *
+ * Hệ quả cụ thể: một level KHÓ vì tình huống phức tạp thì được; một level khó vì
+ * giấu thông tin thì SAI CHỖ — chuyển ý tưởng đó sang `challenges.ts`.
+ */
+export interface CheatSheetEntry {
+  /** Lệnh hoặc field, dạng người ta gõ thật: `kubectl logs <pod> --previous`. */
+  readonly command: string;
+  /** Một dòng tiếng Việt: nó làm gì, và vì sao level này cần nó. */
+  readonly explain: string;
+}
+
+export interface LevelTeaching {
+  /**
+   * Hiện TRƯỚC khi chơi. Mô hình tư duy tối thiểu để bắt đầu mà không phải đoán.
+   * Markdown tiếng Việt, ≤ 250 từ.
+   *
+   * Đây KHÔNG phải lời giải. Nó là thứ một người hướng dẫn tốt nói trong hai
+   * phút trước khi để học viên tự làm: khái niệm là gì, nó nằm ở đâu trong bức
+   * tranh lớn, và nhìn vào đâu.
+   */
+  readonly primer: string;
+  /**
+   * Tra nhanh cho ĐÚNG level này. 2–6 mục, không phải tài liệu tham khảo đầy đủ.
+   * Người chơi không nên phải rời game đi tra cú pháp.
+   */
+  readonly cheatsheet: readonly CheatSheetEntry[];
+  /**
+   * Hiện SAU khi thắng. 2–4 ý đúc kết, mỗi ý một câu.
+   *
+   * Đây là chỗ kiến thức ĐÓNG LẠI, và về mặt thiết kế game nó là khoảnh khắc
+   * "à ra thế" — thứ biến một lần thắng thành một điều nhớ được. Bỏ nó thì người
+   * chơi qua level mà không biết mình vừa học gì.
+   */
+  readonly takeaways: readonly string[];
+  /** Mẹo thực chiến: điều người vận hành thật sẽ nói thêm. Tuỳ chọn. */
+  readonly proTips?: readonly string[];
+  /**
+   * Sai lầm phổ biến, kèm VÌ SAO nó hấp dẫn. Nói "đừng làm X" là vô dụng nếu
+   * không nói vì sao X trông có vẻ đúng.
+   */
+  readonly pitfalls?: readonly string[];
+}
+
 export interface Level {
   /** `k8s-01-pod-dau-tien` — số thứ tự hai chữ số, rồi slug tiếng Việt không dấu. */
   readonly id: string;
@@ -211,9 +266,24 @@ export interface Level {
   readonly parMoves: number;
   /** Khái niệm K8s level này dạy — dùng để tra cứu chéo và cho trang stats. */
   readonly teaches: readonly string[];
+  /**
+   * BẮT BUỘC. Tầng dạy học — xem `LevelTeaching`.
+   *
+   * Không phải trường tuỳ chọn cho "level nào cần": chủ dự án chốt rằng MỌI level
+   * phải vừa học vừa chơi được. Một level không có `teaching` là một câu đố, và
+   * câu đố thuộc về `challenges.ts`.
+   */
+  readonly teaching: LevelTeaching;
 }
 
-/** Thử thách có đồng hồ. Khác level ở chỗ nó tính giờ và không có gợi ý. */
+/**
+ * Thử thách có đồng hồ.
+ *
+ * CỐ Ý không có `teaching`, không có `hints`, không có `parMoves`. Đây là nửa
+ * "thử" của cặp dạy/thử: người chơi tới đây sau khi đã học, và mọi thứ cần biết
+ * đã nằm ở các level tương ứng. Đánh đố, áp dụng kiến thức, và sức ép thời gian
+ * thuộc về đây — không thuộc về level.
+ */
 export interface Challenge {
   readonly id: string;
   readonly title: string;

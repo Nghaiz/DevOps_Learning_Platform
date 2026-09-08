@@ -50,11 +50,29 @@ export interface Achievement {
   readonly title: string;
   readonly description: string;
   /**
-   * `true` = không hiện mô tả cho tới khi mở khoá. Dùng tiết chế: thành tựu ẩn
-   * mà người chơi không đoán nổi đường tới thì không phải phần thưởng, chỉ là
-   * một ô xám.
+   * `true` = `description` bị giấu cho tới khi mở khoá, và `teaser` hiện thay.
+   *
+   * ⛔ `hidden: true` BẮT BUỘC kèm `teaser`. Chỉ đạo của chủ dự án
+   * (2026-09-08): thành tựu ẩn phải cho người chơi ĐỦ để mày mò, không được mù
+   * tuyệt đối. Một ô xám không gợi ý gì không phải phần thưởng — nó là một ô
+   * người ta bỏ qua, và nó làm hỏng đúng thứ mà thành tựu ẩn sinh ra để tạo:
+   * tò mò.
    */
   readonly hidden: boolean;
+  /**
+   * BẮT BUỘC khi `hidden: true`, CẤM khi `hidden: false`. Một dòng tiếng Việt
+   * hiện thay cho `description` lúc còn khoá.
+   *
+   * Nguyên tắc viết (đây là thiết kế game, không phải văn phong): teaser nói
+   * **miền**, giấu **hành động**. "Có những lệnh bạn chỉ gõ khi mọi thứ đã
+   * cháy" là tốt — người chơi biết đi tìm ở đâu mà vẫn phải tự nghĩ ra làm gì.
+   * "Làm điều gì đó đặc biệt" là vô dụng. "Chạy `kubectl logs --previous` ba
+   * lần" thì không còn là ẩn.
+   *
+   * Kiểm nhanh: đọc teaser xong, người chơi có nảy ra một GIẢ THUYẾT để thử
+   * không? Có thì đạt. Không thì viết lại.
+   */
+  readonly teaser?: string;
 }
 
 /**

@@ -23,6 +23,7 @@ export { STORAGE_KEY_PREFIX, storageKey } from './core/types.ts';
 export type {
   ChaosWave,
   Challenge,
+  CheatSheetEntry,
   ClusterSpec,
   ClusterView,
   EdgeView,
@@ -34,6 +35,7 @@ export type {
   K8sSession,
   IncidentKind,
   Level,
+  LevelTeaching,
   NodeSpec,
   NodeView,
   ObjectView,
