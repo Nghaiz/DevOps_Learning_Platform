@@ -44,7 +44,8 @@ function workspaceRoot(): string {
   for (;;) {
     if (existsSync(join(dir, 'pnpm-workspace.yaml'))) return dir;
     const parent = dirname(dir);
-    if (parent === dir) throw new Error('Không tìm thấy gốc workspace (pnpm-workspace.yaml) từ ' + process.cwd());
+    if (parent === dir)
+      throw new Error('Không tìm thấy gốc workspace (pnpm-workspace.yaml) từ ' + process.cwd());
     dir = parent;
   }
 }
@@ -88,12 +89,35 @@ const C1_COLOR_TOKENS = [
   '--difficulty-intermediate-foreground',
   '--difficulty-advanced',
   '--difficulty-advanced-foreground',
+  '--difficulty-expert',
+  '--difficulty-expert-foreground',
   '--status-progress',
   '--status-progress-foreground',
   '--status-done',
   '--status-done-foreground',
   '--status-locked',
   '--status-locked-foreground',
+
+  /*
+   * Màu theo LOẠI tài nguyên Kubernetes.
+   *
+   * Tám token này là bảng màu chung của arena: renderer 3D đọc chúng qua
+   * `scene-tokens.ts`, bảng công cụ bên trái và màn chọn màn dùng đúng chúng cho
+   * icon. Cùng một nguồn cố ý — nếu Pod xanh dương ở bảng mà xanh lá trong cảnh
+   * thì người chơi phải học hai hệ màu cho một khái niệm.
+   *
+   * KHÔNG có cặp `-foreground`: chúng không bao giờ làm NỀN cho chữ. Chúng tô
+   * thân khối 3D và nét icon, nên ràng buộc của chúng là tương phản với NỀN
+   * CẢNH, không phải với chữ đặt lên trên.
+   */
+  '--kind-pod',
+  '--kind-controller',
+  '--kind-batch',
+  '--kind-network',
+  '--kind-config',
+  '--kind-storage',
+  '--kind-security',
+  '--kind-cluster',
 ] as const;
 
 type ColorToken = (typeof C1_COLOR_TOKENS)[number];
@@ -167,7 +191,9 @@ interface Oklch {
 }
 
 function parseOklch(value: string): Oklch {
-  const match = /^oklch\(\s*([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s*(?:\/\s*([0-9.]+)(%?)\s*)?\)$/.exec(value);
+  const match = /^oklch\(\s*([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s*(?:\/\s*([0-9.]+)(%?)\s*)?\)$/.exec(
+    value,
+  );
   if (match === null) throw new Error(`Không phải oklch(): ${value}`);
   const [, l, c, h, a, pct] = match;
   const alpha = a === undefined ? 1 : pct === '%' ? Number(a) / 100 : Number(a);
@@ -248,7 +274,13 @@ function contrastRatio(a: number, b: number): number {
 
 /** `#rrggbb` 8-bit — để đối chứng đối chiếu được với số học làm tay. */
 function toHex(rgb: Srgb): string {
-  return `#${rgb.map((channel) => Math.round(clamp(channel) * 255).toString(16).padStart(2, '0')).join('')}`;
+  return `#${rgb
+    .map((channel) =>
+      Math.round(clamp(channel) * 255)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
 }
 
 /**
@@ -297,11 +329,16 @@ function resolve(theme: Record<string, string>, token: ColorToken, backdrop?: Sr
   const raw = theme[token] ?? root[token];
   if (raw === undefined) throw new Error(`Token ${token} không có ở cả theme lẫn :root`);
   const parsed = parseOklch(raw);
-  if (parsed.alpha < 1 && backdrop === undefined) throw new Error(`${token} trong suốt — cần nền để đè lên`);
+  if (parsed.alpha < 1 && backdrop === undefined)
+    throw new Error(`${token} trong suốt — cần nền để đè lên`);
   return composite(parsed, backdrop);
 }
 
-function measure(theme: Record<string, string>, foreground: ColorToken, background: ColorToken): number {
+function measure(
+  theme: Record<string, string>,
+  foreground: ColorToken,
+  background: ColorToken,
+): number {
   const bg = resolve(theme, background);
   const fg = resolve(theme, foreground, bg);
   return contrastRatio(relativeLuminance(fg), relativeLuminance(bg));
@@ -336,19 +373,26 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
   });
 
   it.each(C1_COLOR_TOKENS)('%s khai ở .dark', (token) => {
-    expect(dark[token], `${token} thiếu trong .dark — chế độ tối sẽ kế thừa màu sáng trong im lặng`).toBeDefined();
+    expect(
+      dark[token],
+      `${token} thiếu trong .dark — chế độ tối sẽ kế thừa màu sáng trong im lặng`,
+    ).toBeDefined();
   });
 
   it.each(C1_ELEVATION_TOKENS)('%s khai ở CẢ HAI theme', (token) => {
     expect(root[token], `${token} thiếu trong :root`).toBeDefined();
-    expect(dark[token], `${token} thiếu trong .dark — thẻ ở chế độ tối sẽ đeo bóng của nhánh sáng`).toBeDefined();
+    expect(
+      dark[token],
+      `${token} thiếu trong .dark — thẻ ở chế độ tối sẽ đeo bóng của nhánh sáng`,
+    ).toBeDefined();
   });
 
   it('bóng của .dark KHÁC bóng của :root (chép nguyên sang là hỏng câm)', () => {
     for (const token of C1_ELEVATION_TOKENS) {
-      expect(dark[token], `${token} ở .dark trùng y hệt :root — bóng lạnh nhạt vô hình trên nền tối`).not.toBe(
-        root[token],
-      );
+      expect(
+        dark[token],
+        `${token} ở .dark trùng y hệt :root — bóng lạnh nhạt vô hình trên nền tối`,
+      ).not.toBe(root[token]);
     }
   });
 
@@ -356,7 +400,10 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
     '%s khai ở :root và CỐ Ý vắng ở .dark (số đo, không phải màu — không đổi theo theme)',
     (token) => {
       expect(root[token]).toBeDefined();
-      expect(dark[token], `${token} bị lặp ở .dark — thêm một chỗ để quên đồng bộ, đổi lấy con số không`).toBeUndefined();
+      expect(
+        dark[token],
+        `${token} bị lặp ở .dark — thêm một chỗ để quên đồng bộ, đổi lấy con số không`,
+      ).toBeUndefined();
     },
   );
 
@@ -379,16 +426,18 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
 describe('C1 — `@theme inline` sinh được class Tailwind cho mọi token', () => {
   it.each(C1_COLOR_TOKENS)('%s có `--color-*` trỏ đúng về nó', (token) => {
     const mapped = themeInline[`--color${token.slice(1)}`];
-    expect(mapped, `thiếu --color${token.slice(1)} ⇒ class bg/text/border tương ứng KHÔNG được sinh ra`).toBe(
-      `var(${token})`,
-    );
+    expect(
+      mapped,
+      `thiếu --color${token.slice(1)} ⇒ class bg/text/border tương ứng KHÔNG được sinh ra`,
+    ).toBe(`var(${token})`);
   });
 
   it.each(C1_ELEVATION_TOKENS)('%s có `--shadow-*` trỏ đúng về nó', (token) => {
     const mapped = themeInline[`--shadow${token.slice(1)}`];
-    expect(mapped, `thiếu --shadow${token.slice(1)} ⇒ class shadow-elevation-* KHÔNG được sinh ra`).toBe(
-      `var(${token})`,
-    );
+    expect(
+      mapped,
+      `thiếu --shadow${token.slice(1)} ⇒ class shadow-elevation-* KHÔNG được sinh ra`,
+    ).toBe(`var(${token})`);
   });
 
   it('thang bo góc suy ra từ `--radius`, không phải số cứng', () => {
@@ -444,6 +493,7 @@ const TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
   ['--difficulty-basic-foreground', '--difficulty-basic'],
   ['--difficulty-intermediate-foreground', '--difficulty-intermediate'],
   ['--difficulty-advanced-foreground', '--difficulty-advanced'],
+  ['--difficulty-expert-foreground', '--difficulty-expert'],
   ['--status-progress-foreground', '--status-progress'],
   ['--status-done-foreground', '--status-done'],
   ['--status-locked-foreground', '--status-locked'],
@@ -676,7 +726,10 @@ describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặ
     const solutions: number[] = [];
     for (let step = 0; step <= LUMINANCE_STEPS; step += 1) {
       const candidate = step / LUMINANCE_STEPS;
-      if (contrastRatio(candidate, cardLuminance) >= 3 && contrastRatio(candidate, fillLuminance) >= 3) {
+      if (
+        contrastRatio(candidate, cardLuminance) >= 3 &&
+        contrastRatio(candidate, fillLuminance) >= 3
+      ) {
         solutions.push(candidate);
       }
     }
@@ -709,7 +762,9 @@ describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặ
    * nên nó được gộp về chung phép quét với `--destructive` ở trên.
    */
   it('chế độ tối: trắng tinh ĐẠT ≥3:1 với `--primary` — nên miễn trừ của nó là lựa chọn, không phải bất khả thi', () => {
-    expect(contrastRatio(1, relativeLuminance(resolve(dark, '--primary')))).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(1, relativeLuminance(resolve(dark, '--primary')))).toBeGreaterThanOrEqual(
+      3,
+    );
   });
 });
 
@@ -735,7 +790,10 @@ describe('khoảng trống đã đo — nhãn destructive trên `--muted`', () =
   it('nhánh sáng CHƯA đạt 4.5:1 (đo 4.3686) ⇒ đừng đặt nút destructive trong khối `bg-muted`', () => {
     const measured = measure(root, '--destructive', '--muted');
     expect(measured).toBeCloseTo(4.3686, 3);
-    expect(measured, 'nếu dòng này đỏ vì đã ĐẠT 4.5 thì xoá cả test, thêm cặp vào TEXT_PAIRS').toBeLessThan(4.5);
+    expect(
+      measured,
+      'nếu dòng này đỏ vì đã ĐẠT 4.5 thì xoá cả test, thêm cặp vào TEXT_PAIRS',
+    ).toBeLessThan(4.5);
   });
 
   it('nhánh tối thì ĐẠT — khoảng trống chỉ có ở nhánh sáng, không phải cả hai', () => {
@@ -787,17 +845,21 @@ describe('gamut sRGB — số đo chỉ đúng khi màu nằm trong gamut', () =
     expect(inSrgbGamut('oklch(0.7 0.4 262.881)')).toBe(false);
   });
 
-  const entries = ([
-    [':root', root],
-    ['.dark', dark],
-  ] as const).flatMap(([label, theme]) =>
+  const entries = (
+    [
+      [':root', root],
+      ['.dark', dark],
+    ] as const
+  ).flatMap(([label, theme]) =>
     Object.entries(theme)
       .filter(([, value]) => value.startsWith('oklch('))
       .map(([token, value]) => ({ key: `${label} ${token}`, value })),
   );
 
   it('CHIỀU LÊN — không token nào ngoài gamut mà chưa được ghi nợ', () => {
-    const undeclared = entries.filter((e) => !inSrgbGamut(e.value) && KNOWN_OUT_OF_GAMUT[e.key] === undefined);
+    const undeclared = entries.filter(
+      (e) => !inSrgbGamut(e.value) && KNOWN_OUT_OF_GAMUT[e.key] === undefined,
+    );
     expect(
       undeclared.map((e) => `${e.key} = ${e.value}`),
       'token ngoài gamut MỚI: trình duyệt sẽ gamut-map nó khác với clamp của phép đo, nên tỉ lệ đo được ' +
@@ -819,7 +881,7 @@ describe('gamut sRGB — số đo chỉ đúng khi màu nằm trong gamut', () =
   it('token độ khó / trạng thái đều TRONG gamut (số đo của chúng là số thật)', () => {
     const semantic = entries.filter((e) => /--(difficulty|status)-/.test(e.key));
     // Nếu bộ lọc hụt, khối này xanh vì rỗng — ghim số lượng để không xanh khống.
-    expect(semantic).toHaveLength(24);
+    expect(semantic).toHaveLength(28);
     expect(semantic.filter((e) => !inSrgbGamut(e.value)).map((e) => e.key)).toEqual([]);
   });
 });
@@ -834,7 +896,10 @@ describe('D4 — prefers-reduced-motion khai một lần, dùng chung', () => {
   const block = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*?)\n\}/.exec(css)?.[1];
 
   it('có khối @media (prefers-reduced-motion: reduce)', () => {
-    expect(block, 'thiếu khối reduced-motion ⇒ mọi lane phải tự nhớ, tức sẽ có lane quên').toBeDefined();
+    expect(
+      block,
+      'thiếu khối reduced-motion ⇒ mọi lane phải tự nhớ, tức sẽ có lane quên',
+    ).toBeDefined();
   });
 
   it('phủ bằng bộ chọn phổ quát — tiện ích Tailwind KHÔNG đọc --motion-*', () => {

@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import type { ResourceKind } from '@devops-platform/games';
 import { TIER_FEATURES } from '../shared/scene-quality';
-import { RESOURCE_COLOR } from '../shared/resource-identity';
-import type { QualityTier } from '../arena-contract';
+import { RESOURCE_KINDS } from '../shared/resource-identity';
+import { KIND_ACCENT, type QualityTier } from '../arena-contract';
 import { STATUS_TINT, TERMINATING_FADE } from '../shared/status-tint';
 import { INITIAL_CAPACITY } from './scene-constants';
 import type { SceneRuntime } from './scene-entry';
@@ -18,7 +18,7 @@ const POSITION = new THREE.Vector3();
 const SCALE = new THREE.Vector3();
 const COLOR = new THREE.Color();
 const ROTATION = new THREE.Quaternion();
-const KINDS = Object.keys(RESOURCE_COLOR) as ResourceKind[];
+const KINDS = RESOURCE_KINDS;
 
 /**
  * Một lô instance của MỘT loại tài nguyên.
@@ -38,6 +38,8 @@ interface ResourceBatch {
 export interface ClusterInstancesProps {
   readonly runtime: SceneRuntime;
   readonly colors: ArenaColors;
+  /** Tăng mỗi lần token được đọc lại (đổi theme). Xem effect tô màu lô. */
+  readonly colorsVersion: number;
   readonly tier: QualityTier;
 }
 
@@ -56,7 +58,12 @@ function instance(
 }
 
 /** One body draw per populated kind plus one status-ring draw for the whole cluster. */
-export function ClusterInstances({ runtime, colors, tier }: ClusterInstancesProps): ReactElement {
+export function ClusterInstances({
+  runtime,
+  colors,
+  colorsVersion,
+  tier,
+}: ClusterInstancesProps): ReactElement {
   const features = TIER_FEATURES[tier];
   const [capacity, setCapacity] = useState(INITIAL_CAPACITY);
   const geometries = useMemo(
@@ -77,7 +84,7 @@ export function ClusterInstances({ runtime, colors, tier }: ClusterInstancesProp
     () =>
       KINDS.map((kind, index) => ({
         kind,
-        color: new THREE.Color(RESOURCE_COLOR[kind]),
+        color: new THREE.Color(),
         uids: [] as string[],
         mesh: instance(geometries[index]!, material, capacity),
       })),
@@ -102,6 +109,28 @@ export function ClusterInstances({ runtime, colors, tier }: ClusterInstancesProp
     () => instance(ringGeometry, ringMaterial, capacity),
     [ringGeometry, ringMaterial, capacity],
   );
+
+  /*
+   * Màu của LÔ đọc từ token, và đọc LẠI mỗi khi bảng màu đổi.
+   *
+   * ⚠ Trước đây nó là `new THREE.Color(RESOURCE_COLOR[kind])` với `RESOURCE_COLOR`
+   * là một bảng hex viết tay — nghĩa là màu 3D nướng cứng lúc dựng lô và không
+   * bao giờ theo theme, trong khi `palette.kind` (đã dựng sẵn từ đúng các token
+   * đó) không ai đọc. Hai bảng màu, một cái sống một cái chết.
+   *
+   * `THREE.Color` KHÔNG phân giải được chuỗi `var(--kind-pod)` — nó trả về đen
+   * mà không báo gì — nên tầng 3D bắt buộc phải đi qua `colors.kind`, thứ
+   * `scene-tokens.ts` đã phân giải sẵn ra RGB.
+   */
+  useEffect(() => {
+    for (const batch of batches) {
+      const token = KIND_ACCENT[batch.kind];
+      const resolved = colors.kind[token];
+      if (resolved !== undefined) {
+        batch.color.copy(resolved);
+      }
+    }
+  }, [batches, colors, colorsVersion]);
 
   useEffect(() => () => batches.forEach(({ mesh }) => mesh.dispose()), [batches]);
   useEffect(() => () => geometries.forEach((geometry) => geometry.dispose()), [geometries]);

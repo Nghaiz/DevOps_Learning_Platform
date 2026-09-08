@@ -105,7 +105,6 @@ export function YamlEditor({ value, onChange, ariaLabel }: YamlEditorProps): Rea
         {lines.map((tokens, index) => (
           // Chỉ số dòng là khoá ổn định duy nhất ở đây — một dòng YAML không có
           // danh tính nào khác, và hai dòng giống hệt nhau là chuyện thường.
-          // eslint-disable-next-line react/no-array-index-key
           <span key={index} className="block">
             {tokens.length === 0 ? (
               // Dòng rỗng vẫn phải chiếm đúng một dòng, nếu không mọi dòng dưới
@@ -114,7 +113,6 @@ export function YamlEditor({ value, onChange, ariaLabel }: YamlEditorProps): Rea
             ) : (
               <>
                 {tokens.map((token, position) => (
-                  // eslint-disable-next-line react/no-array-index-key
                   <span key={position} className={TOKEN_CLASS[token.kind]}>
                     {token.text}
                   </span>

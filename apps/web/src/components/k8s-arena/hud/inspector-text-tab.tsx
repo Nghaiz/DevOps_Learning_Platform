@@ -135,10 +135,8 @@ export function InspectorTextTab({ text, label, copyLabel }: InspectorTextTabPro
           {lines.map((tokens, index) => (
             // Chỉ số dòng là khoá ổn định duy nhất — một dòng `describe` không
             // có danh tính nào khác, và hai dòng giống hệt nhau là chuyện thường.
-            // eslint-disable-next-line react/no-array-index-key
             <span key={index} className="block">
               {tokens.map((token, position) => (
-                // eslint-disable-next-line react/no-array-index-key
                 <span key={position} className={DESCRIBE_CLASS[token.kind]}>
                   {token.text}
                 </span>

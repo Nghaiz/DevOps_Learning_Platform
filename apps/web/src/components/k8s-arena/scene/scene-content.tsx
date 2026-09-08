@@ -72,7 +72,12 @@ export function SceneContent({
       <FramePump runtime={runtime} propsRef={propsRef} tier={tier} reducedMotion={reducedMotion} />
       <SceneLighting runtime={runtime} colors={colors} colorsVersion={colorsVersion} tier={tier} />
       <NodePlatforms runtime={runtime} colors={colors} colorsVersion={colorsVersion} tier={tier} />
-      <ClusterInstances runtime={runtime} colors={colors} tier={tier} />
+      <ClusterInstances
+        runtime={runtime}
+        colors={colors}
+        colorsVersion={colorsVersion}
+        tier={tier}
+      />
       {/*
         Hình bao bấm được. Nằm NGAY SAU bộ ghi instance vì nó đọc cùng một
         `runtime.visible` trong cùng khung hình — đảo thứ tự thì hộp bấm trễ một

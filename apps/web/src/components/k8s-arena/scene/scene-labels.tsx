@@ -83,8 +83,8 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
     for (let i = 0; i < MAX_LABELS; i += 1) {
       const span = document.createElement('span');
       span.className =
-        'pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-sm bg-slate-950/70 px-1 ' +
-        'py-px font-mono text-[10px] leading-4 text-slate-100 ring-1 ring-white/10';
+        'pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-sm bg-background/75 px-1 ' +
+        'py-px font-mono text-[10px] leading-4 text-foreground ring-1 ring-border';
       span.style.display = 'none';
       span.style.willChange = 'transform';
       layer.appendChild(span);

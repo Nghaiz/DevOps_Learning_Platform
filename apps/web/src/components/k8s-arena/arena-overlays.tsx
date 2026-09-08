@@ -181,7 +181,6 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
     [engine, selectedObject, engine.view],
   );
 
-  const stars = useStars(level, engine);
   useRecordWin(level, engine, props.startedAt);
   /*
    * Lịch sử số liệu thu ở ĐÂY, không thu trong `MetricsPanel`. Dải trên thanh
@@ -359,12 +358,6 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
 }
 
 /**
- * Số sao hiện trên thanh trên cùng, 0..3.
- *
- * TÍNH từ điểm, không lưu — `SessionStatus` cố ý không mang số sao, và thêm nó
- * vào đó sẽ là một trường suy ra được nằm cạnh chính các trường suy ra nó.
- */
-/**
  * Ghi lượt chơi vào bản lưu ngay khi thắng — MỘT LẦN cho mỗi phiên.
  *
  * ⚠ Trước bản này KHÔNG có gì ghi tiến độ cả. Cả `core/progress.ts` là mã chết
@@ -402,31 +395,10 @@ function useRecordWin(level: Level, engine: ArenaSessionHandle, startedAt: numbe
         hintsAvailable: level.hints.length,
       }),
     });
-    // `engine.status` cố ý KHÔNG nằm trong mảng phụ thuộc: nó đổi mỗi nhịp, và
-    // effect này chỉ quan tâm tới đúng khoảnh khắc pha chuyển sang `won`.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, level, startedAt, engine.seed]);
-}
-
-function useStars(level: Level, engine: ArenaSessionHandle): number {
-  return useMemo(() => {
-    if (engine.status.phase !== 'won') {
-      return 0;
-    }
-    const score = computeScore({
-      objectivesMet: engine.status.objectivesMet.length,
-      objectivesTotal: level.objectives.length,
-      movesUsed: engine.status.movesUsed,
-      parMoves: level.parMoves,
-      hintsUsed: engine.status.hintsRevealed,
-      hintsAvailable: level.hints.length,
-    });
-    if (score >= 900) {
-      return 3;
-    }
-    if (score >= 700) {
-      return 2;
-    }
-    return 1;
-  }, [engine.status, engine.hintsRevealed, level]);
+    /*
+     * `engine.status` cố ý KHÔNG nằm trong mảng phụ thuộc: nó đổi danh tính mỗi
+     * nhịp, và effect này chỉ quan tâm tới đúng khoảnh khắc pha chuyển sang
+     * `won`. `writtenRef` mới là thứ bảo đảm chỉ ghi một lần.
+     */
+  }, [phase, level, startedAt, engine]);
 }

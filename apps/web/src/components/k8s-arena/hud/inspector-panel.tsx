@@ -180,7 +180,7 @@ export function InspectorPanel({
         <TabsContent value="overview" className={cn('min-h-0 flex-1 px-3 py-2', HIDDEN_SCROLL)}>
           <InspectorOverview object={shown} node={node} tick={tick} manifestYaml={manifestYaml} />
           {/*
-            Token ngữ nghĩa, KHÔNG phải thang màu Tailwind. Ba lớp `sky-400` ở
+            Token ngữ nghĩa, KHÔNG phải thang màu Tailwind. Ba lớp thang-màu ở
             đây trước kia là màu cứng duy nhất còn sót trong bảng — thứ mà
             `check-design-tokens.mjs` cấm, và thứ không đổi theo theme sáng/tối.
           */}
