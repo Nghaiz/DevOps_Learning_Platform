@@ -579,9 +579,21 @@ export default function K8sSceneLazy({
       solidGeometry.computeBoundingSphere();
       dashedGeometry.computeBoundingSphere();
 
-      // Camera lùi ra vừa đủ ôm trọn cụm, rồi để giảm chấn đưa tới (§9.3).
-      const distance = Math.max(11, layout.radius * 1.75);
-      cameraGoal.set(0, distance * 0.55, distance);
+      /*
+       * Camera lùi ra vừa đủ ôm trọn cụm, rồi để giảm chấn đưa tới (§9.3).
+       *
+       * Hệ số 1.75 và sàn 11 của bản trước để cụm chiếm khoảng một phần ba giữa
+       * khung, phần dưới-trái trống hẳn — đúng thứ thấy trên ảnh chụp 1920. Đó
+       * là phí phạm chính cái diện tích mà cả §12 dựng ra để giành lấy.
+       *
+       * 1.35 + sàn 8 kéo cụm lấp khung mà vẫn chừa lề. Sàn vẫn cần: một cụm chỉ
+       * có MỘT node cho `radius` rất nhỏ, và không có sàn thì camera chui vào
+       * trong cái bệ.
+       */
+      const distance = Math.max(8, layout.radius * 1.35);
+      // Hạ độ cao xuống: 0.55 là góc gần như nhìn từ trên, làm bệ node dẹt lại
+      // và giấu mất phần bo góc — chính chỗ bắt rim light của §9.1.
+      cameraGoal.set(0, distance * 0.46, distance);
 
       topologyDirty = true;
       needsRender = true;
@@ -794,7 +806,7 @@ export default function K8sSceneLazy({
      */
     const labelCells = new Set<number>();
     /** Bề rộng/cao trung bình một nhãn, dùng làm bước lưới chống chồng. */
-    const LABEL_CELL_W = 118;
+    const LABEL_CELL_W = 168;
     const LABEL_CELL_H = 20;
 
     function writeLabels(): void {

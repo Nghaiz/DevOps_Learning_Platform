@@ -2,6 +2,7 @@
 
 import { type ReactElement } from 'react';
 import type { ObjectView } from '@devops-platform/games';
+import { cn } from '@devops-platform/ui';
 import { RESOURCE_GROUP_LABEL, RESOURCE_GROUP_ORDER, groupObjects } from './resource-groups';
 import { ResourceList } from './resource-list';
 
@@ -9,6 +10,8 @@ export interface ResourceRailProps {
   readonly objects: readonly ObjectView[];
   readonly selectedUid: string | null;
   readonly onSelect: (uid: string) => void;
+  /** `true` = dải ngang của màn hẹp (§12.6), thay cho cột dọc. */
+  readonly horizontal?: boolean;
 }
 
 /**
@@ -22,7 +25,7 @@ export interface ResourceRailProps {
  * Nhóm rỗng bị bỏ hẳn thay vì hiện tiêu đề trống: một cụm mới có đúng một Pod,
  * và ba tiêu đề trống bên dưới nó đọc ra như "ba thứ đang tải".
  */
-export function ResourceRail({ objects, selectedUid, onSelect }: ResourceRailProps): ReactElement {
+export function ResourceRail({ objects, selectedUid, onSelect, horizontal = false }: ResourceRailProps): ReactElement {
   const grouped = groupObjects(objects);
   const nonEmpty = RESOURCE_GROUP_ORDER.filter((group) => (grouped.get(group) ?? []).length > 0);
 
@@ -35,9 +38,9 @@ export function ResourceRail({ objects, selectedUid, onSelect }: ResourceRailPro
   }
 
   return (
-    <div className="flex flex-col gap-3 py-2">
+    <div className={cn('flex gap-3 py-2', horizontal ? 'flex-row items-start' : 'flex-col')}>
       {nonEmpty.map((group) => (
-        <section key={group} aria-labelledby={`rail-${group}`}>
+        <section key={group} aria-labelledby={`rail-${group}`} className={horizontal ? 'shrink-0' : ''}>
           <h3
             id={`rail-${group}`}
             className="px-3 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground"
@@ -49,6 +52,7 @@ export function ResourceRail({ objects, selectedUid, onSelect }: ResourceRailPro
             selectedUid={selectedUid}
             onSelect={onSelect}
             label={`Tài nguyên nhóm ${RESOURCE_GROUP_LABEL[group]}`}
+            horizontal={horizontal}
           />
         </section>
       ))}

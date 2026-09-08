@@ -33,6 +33,11 @@ export interface ResourceListProps {
    * biết mình đang ở nhóm nào.
    */
   readonly label?: string;
+  /**
+   * `true` = xếp NGANG. Dùng cho dải rail ở màn hẹp, nơi cột dọc chỉ hiện được
+   * hai mục trong 96px rồi cắt cụt phần còn lại.
+   */
+  readonly horizontal?: boolean;
 }
 
 /**
@@ -52,6 +57,7 @@ export function ResourceList({
   selectedUid,
   onSelect,
   label = 'Danh sách tài nguyên',
+  horizontal = false,
 }: ResourceListProps): ReactElement {
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -105,7 +111,7 @@ export function ResourceList({
       ref={listRef}
       role="list"
       aria-label={label}
-      className="flex flex-col gap-0.5 p-1"
+      className={cn('flex gap-0.5 p-1', horizontal ? 'flex-row' : 'flex-col')}
       onKeyDown={onKeyDown}
     >
       {objects.map((object) => {
@@ -124,14 +130,17 @@ export function ResourceList({
               aria-current={selected ? true : undefined}
               onClick={() => onSelect(object.uid)}
               className={cn(
-                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm',
+                'flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm',
+                horizontal ? 'w-auto whitespace-nowrap' : 'w-full',
                 'transition-colors duration-[var(--motion-fast)] ease-out',
                 'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                 selected ? 'bg-accent text-accent-foreground' : 'hover:bg-muted',
               )}
             >
               <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', STATUS_DOT[object.statusToken])} />
-              <span className="min-w-0 flex-1 truncate font-mono text-xs">{shortLabel(object)}</span>
+              <span className={cn('min-w-0 font-mono text-xs', horizontal ? '' : 'flex-1 truncate')}>
+                {shortLabel(object)}
+              </span>
               {/*
                 `ariaLabel` do lane B viết bằng tiếng Việt và đã mang đầy đủ trạng
                 thái ("pod web-2 lỗi CrashLoopBackOff"). Đặt nó vào một `sr-only`

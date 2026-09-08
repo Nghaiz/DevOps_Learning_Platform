@@ -15,6 +15,7 @@ import { HUD_PANEL, HUD_PANEL_FLUSH, MiniMap, TopBar, WinOverlay, Z } from './ga
 import { InspectorPanel } from './inspector-panel';
 import { LevelCard } from './level-card';
 import { ResourceRail } from './resource-rail';
+import { StatusLegend } from './status-legend';
 import { QUALITY_CHOICES, QUALITY_LABEL, type QualityChoice, type QualityTier } from './scene-quality';
 
 /**
@@ -41,6 +42,16 @@ function SceneBootFrame(): ReactElement {
 
 /** Dưới ngưỡng này, overlay chồng nhau thành không dùng được (§12.6). */
 const WIDE_LAYOUT_PX = 1024;
+
+/**
+ * Dưới ngưỡng này, thẻ level MẶC ĐỊNH thu gọn.
+ *
+ * 1024 (ngưỡng drawer của §12.6) là quá thấp cho riêng thẻ level: ở 1280, rail
+ * 208px cộng thẻ 320px chiếm 544px, và thẻ nổi đè lên phần lớn chỗ còn lại —
+ * canvas thành thứ phải nhìn vòng quanh một panel. Rail thì vẫn ổn ở 1024, nên
+ * đây là ngưỡng THỨ HAI chứ không phải thay ngưỡng cũ.
+ */
+const ROOMY_LAYOUT_PX = 1440;
 
 /**
  * ⚠ Mọi prop đều TUỲ CHỌN, và mặc định là dữ liệu THẬT — không phải để tiện, mà
@@ -114,6 +125,7 @@ export function K8sGame({
 
   const display = useDisplayPreference();
   const wide = useMinWidth(WIDE_LAYOUT_PX);
+  const roomy = useMinWidth(ROOMY_LAYOUT_PX);
   const level = useMemo(() => levels.find((l) => l.id === levelId) ?? null, [levels, levelId]);
 
   useEffect(() => {
@@ -355,6 +367,9 @@ export function K8sGame({
             'absolute flex flex-col border-border/60',
             Z.panel,
             HUD_PANEL_FLUSH,
+            // Ẩn thanh cuộn: ở dải ngang trình duyệt vẽ một vạch xám suốt bề
+            // ngang, đọc ra như một đường kẻ hỏng chứ không như một vùng cuộn.
+            '[&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden',
             wide === false ? 'inset-x-0 top-12 h-24 border-b' : 'top-12 bottom-0 left-0 w-52 border-r',
           )}
         >
@@ -362,8 +377,14 @@ export function K8sGame({
             Tài nguyên trong cluster
           </h2>
           <div className="min-h-0 flex-1 overflow-auto">
-            <ResourceRail objects={view.objects} selectedUid={selectedUid} onSelect={selectObject} />
+            <ResourceRail
+              objects={view.objects}
+              selectedUid={selectedUid}
+              onSelect={selectObject}
+              horizontal={wide === false}
+            />
           </div>
+          {wide !== false ? <StatusLegend className="shrink-0 border-t border-border/60" /> : null}
           {wide !== false ? (
             <div className="shrink-0 border-t border-border/60">
               <button
@@ -404,6 +425,13 @@ export function K8sGame({
             status={status}
             onRevealHint={(index) => dispatch((tick) => ({ tick, kind: 'hint', index }))}
             className={wide === false ? 'inset-x-3 top-40 max-h-[45vh]' : 'top-14 left-56 w-80'}
+            /*
+              Ở màn hẹp thẻ level là một DRAWER người dùng vừa chủ động mở — nên
+              nó phải mở SẴN. Bản trước dùng chung quy tắc `roomy` cho cả hai chế
+              độ, nên bấm "Mục tiêu" ở 900px chỉ hiện đúng một dòng tiêu đề thu
+              gọn: một cái drawer rỗng.
+            */
+            defaultOpen={wide === false ? true : roomy !== false}
           />
         ) : null}
 
@@ -559,7 +587,10 @@ export function K8sGame({
         {levels.length > 1 ? (
           <div
             className={cn(
-              'absolute top-14 right-3 p-1',
+              'absolute right-3 p-1',
+              // Màn hẹp: rail là một dải ngang chiếm từ y=48 tới y=144, nên bộ
+              // chọn level phải nằm DƯỚI nó, không đè lên.
+              wide === false ? 'top-[9.5rem]' : 'top-14',
               Z.panel,
               HUD_PANEL,
               inspectorOpen && wide !== false ? 'hidden' : '',

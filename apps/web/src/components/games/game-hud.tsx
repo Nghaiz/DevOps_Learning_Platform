@@ -113,9 +113,14 @@ export function TopBar({ view, level, speed, onSpeed, settings }: TopBarProps): 
 
       <h1 className="shrink-0 text-sm font-semibold tracking-tight text-foreground">Kubernetes Game</h1>
 
-      <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto">
+      {/*
+        Thanh cuộn ngang bị ẩn: ở màn hẹp bộ đếm tràn và trình duyệt vẽ một thanh
+        cuộn xám ngay dưới hàng số, trông như một thanh tiến độ hỏng. Nội dung
+        vẫn cuộn được bằng chuột/vuốt, chỉ là không vẽ thanh.
+      */}
+      <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Counter label="Nodes" value={`${String(s.nodesReady)}/${String(s.nodesTotal)}`} />
-        <Counter label="Pods" value={`${String(s.podsRunning)}/${String(s.podsTotal)}`} />
+        <Counter label="Pods ready" value={`${String(s.podsReady)}/${String(s.podsTotal)}`} />
         <Counter label="Deploy" value={String(s.deployments)} />
         <Counter label="Svc" value={String(s.services)} />
         <Meter label="CPU" value={s.cpu} />

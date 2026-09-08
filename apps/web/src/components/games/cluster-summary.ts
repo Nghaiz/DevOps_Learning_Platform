@@ -12,7 +12,7 @@ import type { ClusterView } from '@devops-platform/games';
 export interface ClusterSummary {
   readonly nodesReady: number;
   readonly nodesTotal: number;
-  readonly podsRunning: number;
+  readonly podsReady: number;
   readonly podsTotal: number;
   readonly deployments: number;
   readonly services: number;
@@ -36,13 +36,20 @@ export function summarize(view: ClusterView): ClusterSummary {
     nodesReady: view.nodes.filter((n) => n.ready).length,
     nodesTotal: view.nodes.length,
     /*
-     * "Running" đọc từ `phase`, KHÔNG từ `statusToken`. Hai trục khác nhau: một
-     * pod có thể `phase: 'Running'` mà `reason: 'CrashLoopBackOff'` — nó ĐANG
-     * chạy theo nghĩa của scheduler và vẫn hỏng theo nghĩa của người dùng. Đếm
-     * bằng `statusToken` sẽ trộn hai câu hỏi đó vào một con số không trả lời
-     * được câu nào.
+     * ⚠ Đếm pod SẴN SÀNG, không phải pod đang Running. Bản trước đếm `phase ===
+     * 'Running'` và thanh trên báo "Pods 2/2" trong khi Deployment ngay bên dưới
+     * hiện màu cảnh báo vì mới 1/2 pod Ready — hai con số cùng màn hình nói hai
+     * điều trái nhau, và cái sai là cái của thanh trên.
+     *
+     * `phase: Running` chỉ nói scheduler đã đặt được pod và container đã chạy.
+     * READY còn đòi probe xanh. `kubectl get pods` để đúng cột READY ở đó vì
+     * chính chỗ đó mới trả lời "dịch vụ có nhận request được chưa".
+     *
+     * Lấy `statusToken === 'success'` CÙNG `phase === 'Running'`: engine chỉ gán
+     * `success` cho pod Running-và-Ready (`view.ts` → `podToken`), còn vế `phase`
+     * loại pod `Succeeded` — nó xong việc chứ không phải đang phục vụ.
      */
-    podsRunning: pods.filter((p) => p.phase === 'Running').length,
+    podsReady: pods.filter((p) => p.phase === 'Running' && p.statusToken === 'success').length,
     podsTotal: pods.length,
     deployments: view.objects.filter((o) => o.kind === 'Deployment').length,
     services: view.objects.filter((o) => o.kind === 'Service').length,
