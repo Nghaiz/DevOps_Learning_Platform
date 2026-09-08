@@ -130,9 +130,18 @@ Ba nguyên nhân làm HPA đứng im:
 - Đã chạm \`maxReplicas\`, nên nó tính ra rồi mà không được phép tăng nữa.`,
     cheatsheet: [
       { command: 'kubectl get hpa -n <ns>', explain: 'Xác nhận HPA nào đang áp trong namespace.' },
-      { command: 'kubectl describe hpa <tên> -n <ns>', explain: 'Spec của HPA (ngưỡng, minReplicas, maxReplicas) kèm khối Events của nó.' },
-      { command: 'kubectl get pods -n <ns>', explain: 'Đếm replica đang chạy: nó có nhúc nhích khỏi minReplicas hay không.' },
-      { command: 'kubectl describe deploy <tên> -n <ns>', explain: 'Kiểm khối `resources` của container — mẫu số HPA cần.' },
+      {
+        command: 'kubectl describe hpa <tên> -n <ns>',
+        explain: 'Spec của HPA (ngưỡng, minReplicas, maxReplicas) kèm khối Events của nó.',
+      },
+      {
+        command: 'kubectl get pods -n <ns>',
+        explain: 'Đếm replica đang chạy: nó có nhúc nhích khỏi minReplicas hay không.',
+      },
+      {
+        command: 'kubectl describe deploy <tên> -n <ns>',
+        explain: 'Kiểm khối `resources` của container — mẫu số HPA cần.',
+      },
     ],
     takeaways: [
       'HPA tính phần trăm bằng mức dùng chia cho requests, nên requests là bắt buộc với workload có HPA.',

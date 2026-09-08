@@ -109,10 +109,22 @@ chương này.
 Hai loại sau có điểm chung: ứng dụng **không sai**, nó bị giết từ bên ngoài. Với
 OOM, kẻ giết là OOM killer của kernel và tín hiệu là SIGKILL, không bắt được.`,
     cheatsheet: [
-      { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Tìm khối Last State kèm Reason và Exit Code — không phải khối State.' },
-      { command: 'kubectl logs <pod> -n <ns> --previous', explain: 'Log của lần chạy đã chết; sạch và đứt ngang là dấu hiệu bị giết từ ngoài.' },
-      { command: 'kubectl describe deploy <tên> -n <ns>', explain: 'Đọc khối resources của container: limits.memory đang đặt bao nhiêu.' },
-      { command: 'kubectl get pods -n <ns>', explain: 'Cột RESTARTS và cột NODE — nhiều pod cùng OOM trên một node là tín hiệu khác.' },
+      {
+        command: 'kubectl describe pod <pod> -n <ns>',
+        explain: 'Tìm khối Last State kèm Reason và Exit Code — không phải khối State.',
+      },
+      {
+        command: 'kubectl logs <pod> -n <ns> --previous',
+        explain: 'Log của lần chạy đã chết; sạch và đứt ngang là dấu hiệu bị giết từ ngoài.',
+      },
+      {
+        command: 'kubectl describe deploy <tên> -n <ns>',
+        explain: 'Đọc khối resources của container: limits.memory đang đặt bao nhiêu.',
+      },
+      {
+        command: 'kubectl get pods -n <ns>',
+        explain: 'Cột RESTARTS và cột NODE — nhiều pod cùng OOM trên một node là tín hiệu khác.',
+      },
     ],
     takeaways: [
       'Exit code 137 là SIGKILL, và trong container gần như luôn nghĩa là chạm memory limit.',

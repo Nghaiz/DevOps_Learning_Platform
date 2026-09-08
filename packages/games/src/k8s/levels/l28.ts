@@ -123,10 +123,24 @@ coi container đang chạy là sẵn sàng.
 Hệ quả: readiness fail là một sự cố **im lặng**. Không restart, không crash,
 không log lỗi, chỉ là traffic lặng lẽ ngừng tới.`,
     cheatsheet: [
-      { command: 'kubectl get pods -n <ns>', explain: 'Đọc cột READY chứ không chỉ cột STATUS — Running kèm 0/1 là hai thông tin khác nhau.' },
-      { command: 'kubectl describe svc <svc> -n <ns>', explain: 'Dòng Endpoints liệt kê pod mà Service thật sự trỏ tới; <none> khi không pod nào Ready.' },
-      { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Events ghi từng lần probe thất bại, kèm cổng và đường dẫn đã gọi.' },
-      { command: 'kubectl describe deploy <tên> -n <ns>', explain: 'Đọc khối readinessProbe để so cổng probe với containerPort.' },
+      {
+        command: 'kubectl get pods -n <ns>',
+        explain:
+          'Đọc cột READY chứ không chỉ cột STATUS — Running kèm 0/1 là hai thông tin khác nhau.',
+      },
+      {
+        command: 'kubectl describe svc <svc> -n <ns>',
+        explain:
+          'Dòng Endpoints liệt kê pod mà Service thật sự trỏ tới; <none> khi không pod nào Ready.',
+      },
+      {
+        command: 'kubectl describe pod <pod> -n <ns>',
+        explain: 'Events ghi từng lần probe thất bại, kèm cổng và đường dẫn đã gọi.',
+      },
+      {
+        command: 'kubectl describe deploy <tên> -n <ns>',
+        explain: 'Đọc khối readinessProbe để so cổng probe với containerPort.',
+      },
     ],
     takeaways: [
       'phase và ready là hai trục độc lập; Running không có nghĩa là phục vụ được.',

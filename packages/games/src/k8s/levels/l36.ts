@@ -124,7 +124,8 @@ lúc bạn tưởng.`,
     cheatsheet: [
       {
         command: 'kubectl describe cronjob sao-luu -n du-lieu',
-        explain: 'Đọc một CronJob thật đang chạy tốt. Nhanh hơn và đúng hơn mọi trí nhớ về cú pháp.',
+        explain:
+          'Đọc một CronJob thật đang chạy tốt. Nhanh hơn và đúng hơn mọi trí nhớ về cú pháp.',
       },
       {
         command: 'kubectl get cronjob -n du-lieu',
@@ -140,7 +141,8 @@ lúc bạn tưởng.`,
       },
       {
         command: 'schedule: "0 2 * * *"',
-        explain: 'Năm trường: phút 0, giờ 2, ba trường còn lại để sao. Đây là chỗ dễ sai nhất của cả level.',
+        explain:
+          'Năm trường: phút 0, giờ 2, ba trường còn lại để sao. Đây là chỗ dễ sai nhất của cả level.',
       },
     ],
     takeaways: [

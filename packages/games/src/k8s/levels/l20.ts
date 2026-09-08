@@ -20,7 +20,8 @@ export const l20: Level = {
   id: 'k8s-20-mat-khau-nam-nham-cho',
   chapter: 4,
   title: 'Mọi thứ xanh, và vẫn phải sửa',
-  mission: 'Chuyển mật khẩu từ ConfigMap sang Secret mount vào `/etc/bi-mat`, xoá ConfigMap cũ, giữ 2 replica.',
+  mission:
+    'Chuyển mật khẩu từ ConfigMap sang Secret mount vào `/etc/bi-mat`, xoá ConfigMap cũ, giữ 2 replica.',
   brief: `Đợt rà soát an ninh gắn cờ namespace \`ke-toan\`. Không có sự cố nào: Deployment
 \`so-sach\` đủ 2 replica, không pod nào restart, log sạch.
 
@@ -162,19 +163,23 @@ file thì không.`,
     cheatsheet: [
       {
         command: 'kubectl describe configmap -n ke-toan',
-        explain: 'Đọc nội dung mọi ConfigMap. Không có gì để describe ở đây, chỉ có nội dung để soi.',
+        explain:
+          'Đọc nội dung mọi ConfigMap. Không có gì để describe ở đây, chỉ có nội dung để soi.',
       },
       {
         command: 'kind: Secret + type: Opaque',
-        explain: 'Secret khai giống ConfigMap, chỉ khác kind và thêm type. Soạn trong bảng YAML rồi áp dụng.',
+        explain:
+          'Secret khai giống ConfigMap, chỉ khác kind và thêm type. Soạn trong bảng YAML rồi áp dụng.',
       },
       {
         command: 'kubectl describe secret so-sach-db -n ke-toan',
-        explain: 'In nội dung Secret. Giá trị chỉ được base64 hoá và ai cũng giải ngược được, đó chính là điều cần thấy tận mắt.',
+        explain:
+          'In nội dung Secret. Giá trị chỉ được base64 hoá và ai cũng giải ngược được, đó chính là điều cần thấy tận mắt.',
       },
       {
         command: 'spec.template.spec.volumes[].secret',
-        explain: 'Khai volume kiểu secret trong TEMPLATE của Deployment, rồi volumeMounts trỏ vào /etc/bi-mat. Sửa thẳng pod đang chạy thì không được: pod spec gần như bất biến.',
+        explain:
+          'Khai volume kiểu secret trong TEMPLATE của Deployment, rồi volumeMounts trỏ vào /etc/bi-mat. Sửa thẳng pod đang chạy thì không được: pod spec gần như bất biến.',
       },
       {
         command: 'kubectl get secret -n ke-toan',

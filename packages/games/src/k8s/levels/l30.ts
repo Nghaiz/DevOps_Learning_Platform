@@ -173,10 +173,22 @@ Cách phân biệt chỉ cần một cột:
 - Pod \`0/1\` mà endpoint rỗng — Service thấy pod, pod tự khai chưa sẵn sàng. Hỏng
   ở bước 2.`,
     cheatsheet: [
-      { command: 'kubectl get pods -n <ns> --show-labels', explain: 'Cột READY và label thật, cùng một lệnh — đủ để tách hai nguyên nhân.' },
-      { command: 'kubectl get svc -n <ns>', explain: 'Cột ENDPOINTS đếm pod mà mỗi Service thật sự trỏ tới, thấy ngay cái nào rỗng.' },
-      { command: 'kubectl describe svc <tên> -n <ns>', explain: 'Đọc dòng Selector; nó có thể đòi nhiều label hơn bạn nhớ.' },
-      { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Với pod 0/1, Events ghi probe nào fail và nó đang gọi cổng nào.' },
+      {
+        command: 'kubectl get pods -n <ns> --show-labels',
+        explain: 'Cột READY và label thật, cùng một lệnh — đủ để tách hai nguyên nhân.',
+      },
+      {
+        command: 'kubectl get svc -n <ns>',
+        explain: 'Cột ENDPOINTS đếm pod mà mỗi Service thật sự trỏ tới, thấy ngay cái nào rỗng.',
+      },
+      {
+        command: 'kubectl describe svc <tên> -n <ns>',
+        explain: 'Đọc dòng Selector; nó có thể đòi nhiều label hơn bạn nhớ.',
+      },
+      {
+        command: 'kubectl describe pod <pod> -n <ns>',
+        explain: 'Với pod 0/1, Events ghi probe nào fail và nó đang gọi cổng nào.',
+      },
     ],
     takeaways: [
       'Endpoint dựng qua hai bước: chọn theo selector, rồi lọc bỏ pod chưa Ready.',

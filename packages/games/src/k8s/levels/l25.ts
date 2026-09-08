@@ -14,7 +14,8 @@ export const l25: Level = {
   id: 'k8s-25-taint-cho-phep-khong-phai-hut',
   chapter: 5,
   title: 'Node dành riêng, và hai loại việc phải lên đó',
-  mission: 'Cho `thu-thap-metric` chạy đủ trên cả 3 node, và đưa `huan-luyen` lên đúng `may-chu-gpu`.',
+  mission:
+    'Cho `thu-thap-metric` chạy đủ trên cả 3 node, và đưa `huan-luyen` lên đúng `may-chu-gpu`.',
   brief: `\`may-chu-gpu\` được mua riêng cho việc huấn luyện, nên quản trị viên đã đánh
 **taint** \`chuyen-dung=gpu:NoSchedule\` lên nó.
 
@@ -143,11 +144,29 @@ lên node bị taint, nhưng scheduler vẫn có thể đặt nó ở bất kỳ
 
 Vì vậy một pod phải chạy đúng trên node dành riêng cần **cả hai**.`,
     cheatsheet: [
-      { command: 'kubectl describe node <node>', explain: 'Labels và spec của node: nơi đọc taint đang đặt và các label dùng cho nodeSelector.' },
-      { command: 'spec.nodeSelector', explain: 'Cách chỉ định NƠI ĐẾN: khớp một label mà node đích thật sự mang. Khai trong pod spec.' },
-      { command: 'spec.tolerations', explain: 'Tấm vé đi qua taint, phải khớp key, value và effect. Khai trong pod spec.' },
-      { command: 'kubectl get pods -n <ns>', explain: 'Cột NODE cho biết pod thật sự nằm ở đâu, không phải nơi bạn nghĩ.' },
-      { command: 'kubectl describe daemonset <tên> -n <ns>', explain: 'Spec của DaemonSet, gồm cả tolerations đang khai. Đếm pod thật thì dùng get pods.' },
+      {
+        command: 'kubectl describe node <node>',
+        explain:
+          'Labels và spec của node: nơi đọc taint đang đặt và các label dùng cho nodeSelector.',
+      },
+      {
+        command: 'spec.nodeSelector',
+        explain:
+          'Cách chỉ định NƠI ĐẾN: khớp một label mà node đích thật sự mang. Khai trong pod spec.',
+      },
+      {
+        command: 'spec.tolerations',
+        explain: 'Tấm vé đi qua taint, phải khớp key, value và effect. Khai trong pod spec.',
+      },
+      {
+        command: 'kubectl get pods -n <ns>',
+        explain: 'Cột NODE cho biết pod thật sự nằm ở đâu, không phải nơi bạn nghĩ.',
+      },
+      {
+        command: 'kubectl describe daemonset <tên> -n <ns>',
+        explain:
+          'Spec của DaemonSet, gồm cả tolerations đang khai. Đếm pod thật thì dùng get pods.',
+      },
     ],
     takeaways: [
       'Taint nằm trên node và từ chối; toleration nằm trên pod và xin phép.',

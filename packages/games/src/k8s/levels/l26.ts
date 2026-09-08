@@ -154,10 +154,24 @@ nằm \`Pending\` vô thời hạn, trông hệt lúc hết CPU. Chỉ Events c�
 Cơ chế này dùng được cả hai chiều: kéo workload về một nhóm node, và giữ nó ra
 khỏi nhóm khác.`,
     cheatsheet: [
-      { command: 'kubectl describe node', explain: 'Dòng Labels cho label thật của từng node; so từng ký tự với nodeSelector đang khai.' },
-      { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Events phân biệt "thiếu tài nguyên" với "không khớp selector" — hai câu khác nhau.' },
-      { command: 'spec.nodeSelector', explain: 'Trường cần sửa trong template: khai đúng cặp label mà node thật sự mang.' },
-      { command: 'kubectl get pods -n <ns>', explain: 'Cột NODE xác nhận pod đã chuyển đúng chỗ sau khi sửa.' },
+      {
+        command: 'kubectl describe node',
+        explain:
+          'Dòng Labels cho label thật của từng node; so từng ký tự với nodeSelector đang khai.',
+      },
+      {
+        command: 'kubectl describe pod <pod> -n <ns>',
+        explain:
+          'Events phân biệt "thiếu tài nguyên" với "không khớp selector" — hai câu khác nhau.',
+      },
+      {
+        command: 'spec.nodeSelector',
+        explain: 'Trường cần sửa trong template: khai đúng cặp label mà node thật sự mang.',
+      },
+      {
+        command: 'kubectl get pods -n <ns>',
+        explain: 'Cột NODE xác nhận pod đã chuyển đúng chỗ sau khi sửa.',
+      },
     ],
     takeaways: [
       'nodeSelector khớp label chính xác; không node nào khớp thì pod Pending mãi mà không báo lỗi.',

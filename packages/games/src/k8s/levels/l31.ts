@@ -12,7 +12,8 @@ export const l31: Level = {
   id: 'k8s-31-mac-dinh-cam-roi-mo-dung-duong',
   chapter: 6,
   title: 'Cấm hết trước, rồi mở đúng thứ cần',
-  mission: 'Dựng NetworkPolicy cho `web` gọi được `api` cổng 8080, `bao-cao` thì không, và DNS vẫn sống.',
+  mission:
+    'Dựng NetworkPolicy cho `web` gọi được `api` cổng 8080, `bao-cao` thì không, và DNS vẫn sống.',
   brief: `Namespace \`y-te\` chứa dữ liệu bệnh án và vừa bị đội an ninh gắn cờ: bất kỳ pod
 nào cũng gọi thẳng được vào \`api\`.
 
@@ -35,9 +36,7 @@ Ba workload:
         namespace: 'y-te',
         spec: {
           labels: { app: 'web', tang: 'frontend' },
-          containers: [
-            { name: 'web', image: 'nginx:1.27-alpine', ports: [{ containerPort: 80 }] },
-          ],
+          containers: [{ name: 'web', image: 'nginx:1.27-alpine', ports: [{ containerPort: 80 }] }],
         },
       },
       {
@@ -58,7 +57,11 @@ Ba workload:
         spec: {
           labels: { app: 'bao-cao', tang: 'cong-cu' },
           containers: [
-            { name: 'bao-cao', image: 'ghcr.io/dlp/bao-cao:2.1.0', ports: [{ containerPort: 8080 }] },
+            {
+              name: 'bao-cao',
+              image: 'ghcr.io/dlp/bao-cao:2.1.0',
+              ports: [{ containerPort: 8080 }],
+            },
           ],
         },
       },
@@ -135,11 +138,28 @@ Nhiều policy hợp lại bằng phép **hợp**; không có luật từ chối
 Cái bẫy lớn nhất là DNS. Policy egress chặn hết rồi chỉ mở cổng ứng dụng sẽ chặn
 luôn cổng **53** đi tới CoreDNS, và mọi lời gọi theo tên chết theo.`,
     cheatsheet: [
-      { command: 'kubectl get networkpolicy -n <ns>', explain: 'Liệt kê mọi policy đang có hiệu lực trong namespace.' },
-      { command: 'kubectl describe networkpolicy <tên> -n <ns>', explain: 'Đọc podSelector, policyTypes và từng luật cho phép.' },
-      { command: 'kubectl get pods -n <ns> --show-labels', explain: 'Policy chọn pod bằng label, nên label thật là thứ quyết định ai bị chạm.' },
-      { command: 'egress[].ports: 53 UDP và 53 TCP', explain: 'Cổng DNS. Khai egress cho web thì phải tự mở cổng này, không thì mọi lời gọi theo tên chết theo.' },
-      { command: 'spec.podSelector: {}', explain: 'podSelector rỗng chọn MỌI pod trong namespace, và đó là cách viết luật default-deny.' },
+      {
+        command: 'kubectl get networkpolicy -n <ns>',
+        explain: 'Liệt kê mọi policy đang có hiệu lực trong namespace.',
+      },
+      {
+        command: 'kubectl describe networkpolicy <tên> -n <ns>',
+        explain: 'Đọc podSelector, policyTypes và từng luật cho phép.',
+      },
+      {
+        command: 'kubectl get pods -n <ns> --show-labels',
+        explain: 'Policy chọn pod bằng label, nên label thật là thứ quyết định ai bị chạm.',
+      },
+      {
+        command: 'egress[].ports: 53 UDP và 53 TCP',
+        explain:
+          'Cổng DNS. Khai egress cho web thì phải tự mở cổng này, không thì mọi lời gọi theo tên chết theo.',
+      },
+      {
+        command: 'spec.podSelector: {}',
+        explain:
+          'podSelector rỗng chọn MỌI pod trong namespace, và đó là cách viết luật default-deny.',
+      },
     ],
     takeaways: [
       'Không có policy thì mọi pod nói chuyện được với mọi pod; namespace không chặn traffic.',

@@ -79,12 +79,7 @@ Bắt đầu từ pod đang kẹt. Lý do nó không xếp lịch được khôn
       },
     ],
   },
-  allowedResources: [
-    'StorageClass',
-    'PersistentVolume',
-    'PersistentVolumeClaim',
-    'StatefulSet',
-  ],
+  allowedResources: ['StorageClass', 'PersistentVolume', 'PersistentVolumeClaim', 'StatefulSet'],
   objectives: [
     {
       id: 'co-storageclass',
@@ -149,10 +144,22 @@ liệu, hàng đợi, mọi thứ có bản chính và bản sao. Nó khác Depl
 
 Điểm cuối có hệ quả cần nhớ: **một pod kẹt chặn đứng toàn bộ phần đuôi**.`,
     cheatsheet: [
-      { command: 'kubectl get statefulset -n <ns>', explain: 'Cột READY dạng "1/3" cho biết bao nhiêu pod đã sẵn sàng trên tổng mong muốn.' },
-      { command: 'kubectl get pods -n <ns> -l app=<nhãn>', explain: 'Nhìn chỗ đứt quãng trong dãy số thứ tự — đó là pod đang chặn.' },
-      { command: 'kubectl describe pod <sts>-0 -n <ns>', explain: 'Luôn bắt đầu từ pod có số nhỏ nhất đang kẹt; các pod sau chỉ là hệ quả.' },
-      { command: 'kubectl get pvc -n <ns>', explain: 'PVC do volumeClaimTemplates sinh ra, tên theo dạng <template>-<sts>-<số>.' },
+      {
+        command: 'kubectl get statefulset -n <ns>',
+        explain: 'Cột READY dạng "1/3" cho biết bao nhiêu pod đã sẵn sàng trên tổng mong muốn.',
+      },
+      {
+        command: 'kubectl get pods -n <ns> -l app=<nhãn>',
+        explain: 'Nhìn chỗ đứt quãng trong dãy số thứ tự — đó là pod đang chặn.',
+      },
+      {
+        command: 'kubectl describe pod <sts>-0 -n <ns>',
+        explain: 'Luôn bắt đầu từ pod có số nhỏ nhất đang kẹt; các pod sau chỉ là hệ quả.',
+      },
+      {
+        command: 'kubectl get pvc -n <ns>',
+        explain: 'PVC do volumeClaimTemplates sinh ra, tên theo dạng <template>-<sts>-<số>.',
+      },
     ],
     takeaways: [
       'StatefulSet cho pod tên ổn định, ổ đĩa bền theo số thứ tự, và khởi động có thứ tự.',

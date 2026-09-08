@@ -134,11 +134,28 @@ hẳn nhau.
 Hệ quả gây bất ngờ nhiều nhất: một cluster có thể **rảnh mà vẫn đầy**. Sáu pod
 đặt chỗ 1200m rồi ngồi không vẫn giữ nguyên 7200m, và không ai được dùng phần thừa.`,
     cheatsheet: [
-      { command: 'kubectl describe node <node>', explain: 'Spec của node cho biết tổng CPU và bộ nhớ mà mọi requests phải cộng vừa vào.' },
-      { command: 'kubectl describe deploy nhat-ky -n giam-sat', explain: 'Đọc requests đang khai của từng container: vế đặt chỗ trong phép cộng của scheduler.' },
-      { command: 'kubectl get pods -n <ns>', explain: 'Đếm pod đang giữ chỗ trên cluster; cột STATUS cho biết cái nào còn Pending.' },
-      { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Events ghi lý do scheduler loại từng node, ví dụ "Insufficient cpu".' },
-      { command: 'spec.template.spec.containers[].resources.requests.cpu', explain: 'Trường cần hạ. Sửa trong bảng YAML của Deployment, giữ nguyên replicas và limits.' },
+      {
+        command: 'kubectl describe node <node>',
+        explain: 'Spec của node cho biết tổng CPU và bộ nhớ mà mọi requests phải cộng vừa vào.',
+      },
+      {
+        command: 'kubectl describe deploy nhat-ky -n giam-sat',
+        explain:
+          'Đọc requests đang khai của từng container: vế đặt chỗ trong phép cộng của scheduler.',
+      },
+      {
+        command: 'kubectl get pods -n <ns>',
+        explain: 'Đếm pod đang giữ chỗ trên cluster; cột STATUS cho biết cái nào còn Pending.',
+      },
+      {
+        command: 'kubectl describe pod <pod> -n <ns>',
+        explain: 'Events ghi lý do scheduler loại từng node, ví dụ "Insufficient cpu".',
+      },
+      {
+        command: 'spec.template.spec.containers[].resources.requests.cpu',
+        explain:
+          'Trường cần hạ. Sửa trong bảng YAML của Deployment, giữ nguyên replicas và limits.',
+      },
     ],
     takeaways: [
       'Scheduler chỉ đọc requests, không bao giờ đọc mức dùng thật.',

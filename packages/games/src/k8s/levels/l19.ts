@@ -156,9 +156,9 @@ Nhìn vào đâu: nội dung ConfigMap, không phải sự tồn tại của nó
         explain: 'Đọc danh sách env và các configMapKeyRef để biết pod đang đòi những khoá nào.',
       },
       {
-        command:
-          'data.MA_TRAM',
-        explain: 'Khoá còn thiếu. Thêm nó vào ConfigMap trong bảng YAML rồi áp dụng lại, giữ nguyên ba khoá cũ.',
+        command: 'data.MA_TRAM',
+        explain:
+          'Khoá còn thiếu. Thêm nó vào ConfigMap trong bảng YAML rồi áp dụng lại, giữ nguyên ba khoá cũ.',
       },
       {
         command: 'kubectl get configmap -n khi-tuong',

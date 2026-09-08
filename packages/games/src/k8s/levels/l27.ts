@@ -147,10 +147,23 @@ Quan trọng: cả hai chặn ở **API server**, không phải ở scheduler. P
 Khi cả hai cùng có hiệu lực, lời giải bị kẹp: đủ lớn để qua sàn, đủ nhỏ để tổng
 vẫn dưới trần.`,
     cheatsheet: [
-      { command: 'kubectl describe resourcequota <tên> -n <ns>', explain: 'Trần đang đặt cho cả namespace; phần đã dùng thì bạn tự cộng từ requests của các workload.' },
-      { command: 'kubectl describe limitrange <tên> -n <ns>', explain: 'Sàn, trần và giá trị mặc định áp cho MỘT container.' },
-      { command: 'kubectl describe rs -n <ns>', explain: 'Khi không có pod nào, Events của ReplicaSet là nơi ghi lý do bị từ chối.' },
-      { command: 'spec.template.spec.containers[].resources.requests.memory', explain: 'Con số phải tính ra: trên sàn LimitRange, và nhân 6 vẫn dưới trần quota.' },
+      {
+        command: 'kubectl describe resourcequota <tên> -n <ns>',
+        explain:
+          'Trần đang đặt cho cả namespace; phần đã dùng thì bạn tự cộng từ requests của các workload.',
+      },
+      {
+        command: 'kubectl describe limitrange <tên> -n <ns>',
+        explain: 'Sàn, trần và giá trị mặc định áp cho MỘT container.',
+      },
+      {
+        command: 'kubectl describe rs -n <ns>',
+        explain: 'Khi không có pod nào, Events của ReplicaSet là nơi ghi lý do bị từ chối.',
+      },
+      {
+        command: 'spec.template.spec.containers[].resources.requests.memory',
+        explain: 'Con số phải tính ra: trên sàn LimitRange, và nhân 6 vẫn dưới trần quota.',
+      },
     ],
     takeaways: [
       'ResourceQuota giới hạn tổng của cả namespace; LimitRange giới hạn từng container.',

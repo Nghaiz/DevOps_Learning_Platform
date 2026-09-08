@@ -77,28 +77,48 @@ Namespace này còn có Secret \`khoa-ky-so\`. Quyền thừa nào cũng có gi�
       id: 'liet-ke-duoc-pod',
       label: '`bot-giam-sat` liệt kê được pod trong `van-hanh`',
       check: 'rbac-allows',
-      args: { serviceAccount: 'bot-giam-sat', namespace: 'van-hanh', verb: 'list', resource: 'pods' },
+      args: {
+        serviceAccount: 'bot-giam-sat',
+        namespace: 'van-hanh',
+        verb: 'list',
+        resource: 'pods',
+      },
       required: true,
     },
     {
       id: 'doc-duoc-mot-pod',
       label: '`bot-giam-sat` đọc được chi tiết một pod',
       check: 'rbac-allows',
-      args: { serviceAccount: 'bot-giam-sat', namespace: 'van-hanh', verb: 'get', resource: 'pods' },
+      args: {
+        serviceAccount: 'bot-giam-sat',
+        namespace: 'van-hanh',
+        verb: 'get',
+        resource: 'pods',
+      },
       required: true,
     },
     {
       id: 'khong-doc-duoc-secret',
       label: '`bot-giam-sat` KHÔNG đọc được Secret',
       check: 'rbac-denies',
-      args: { serviceAccount: 'bot-giam-sat', namespace: 'van-hanh', verb: 'get', resource: 'secrets' },
+      args: {
+        serviceAccount: 'bot-giam-sat',
+        namespace: 'van-hanh',
+        verb: 'get',
+        resource: 'secrets',
+      },
       required: true,
     },
     {
       id: 'khong-xoa-duoc-pod',
       label: '`bot-giam-sat` KHÔNG xoá được pod',
       check: 'rbac-denies',
-      args: { serviceAccount: 'bot-giam-sat', namespace: 'van-hanh', verb: 'delete', resource: 'pods' },
+      args: {
+        serviceAccount: 'bot-giam-sat',
+        namespace: 'van-hanh',
+        verb: 'delete',
+        resource: 'pods',
+      },
       required: true,
     },
   ],
@@ -133,11 +153,27 @@ Hai điều cần nhớ:
 2. **Mặc định là không có gì.** ServiceAccount chưa được gán gì thì không làm được
    gì, và API server trả 403.`,
     cheatsheet: [
-      { command: 'rules[].verbs: ["get", "list"]', explain: 'Đúng hai verb mà level này cần. Dấu sao gồm cả delete và create, và nó sẽ làm bạn trượt vế cấm.' },
-      { command: 'subjects[].kind: ServiceAccount', explain: 'RoleBinding nối Role tới chủ thể. Thiếu binding thì Role không cấp quyền cho ai.' },
-      { command: 'kubectl get rolebindings -n <ns>', explain: 'Xem Role nào đang được nối tới ai trong namespace.' },
-      { command: 'kubectl describe role <tên> -n <ns>', explain: 'Spec của Role: apiGroups, resources, verbs.' },
-      { command: 'kubectl describe rolebinding <tên> -n <ns>', explain: 'Đọc roleRef và subjects: Role nào đang nối tới chủ thể nào.' },
+      {
+        command: 'rules[].verbs: ["get", "list"]',
+        explain:
+          'Đúng hai verb mà level này cần. Dấu sao gồm cả delete và create, và nó sẽ làm bạn trượt vế cấm.',
+      },
+      {
+        command: 'subjects[].kind: ServiceAccount',
+        explain: 'RoleBinding nối Role tới chủ thể. Thiếu binding thì Role không cấp quyền cho ai.',
+      },
+      {
+        command: 'kubectl get rolebindings -n <ns>',
+        explain: 'Xem Role nào đang được nối tới ai trong namespace.',
+      },
+      {
+        command: 'kubectl describe role <tên> -n <ns>',
+        explain: 'Spec của Role: apiGroups, resources, verbs.',
+      },
+      {
+        command: 'kubectl describe rolebinding <tên> -n <ns>',
+        explain: 'Đọc roleRef và subjects: Role nào đang nối tới chủ thể nào.',
+      },
     ],
     takeaways: [
       'Role định nghĩa quyền, RoleBinding nối quyền tới chủ thể — thiếu một trong hai thì không có quyền nào.',

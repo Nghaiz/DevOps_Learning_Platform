@@ -51,9 +51,7 @@ DaemonSet \`thu-thap-metric\` vẫn Running trên mọi node, log không lỗi, 
         namespace: 'giao-van',
         spec: {
           labels: { app: 'web', tang: 'frontend' },
-          containers: [
-            { name: 'web', image: 'nginx:1.27-alpine', ports: [{ containerPort: 80 }] },
-          ],
+          containers: [{ name: 'web', image: 'nginx:1.27-alpine', ports: [{ containerPort: 80 }] }],
         },
       },
       {
@@ -77,9 +75,7 @@ DaemonSet \`thu-thap-metric\` vẫn Running trên mọi node, log không lỗi, 
         namespace: 'giao-van',
         spec: {
           labels: { app: 'khach-la', tang: 'khong-ro' },
-          containers: [
-            { name: 'khach-la', image: 'busybox:1.37', command: ['sleep', '86400'] },
-          ],
+          containers: [{ name: 'khach-la', image: 'busybox:1.37', command: ['sleep', '86400'] }],
         },
       },
       {
@@ -185,10 +181,23 @@ Một luật allow là phép **AND** của hai điều kiện:
 Trượt một trong hai là bị chặn. Đây là lý do một dịch vụ nhiều cổng dễ bị cắt mất
 một nửa: cổng ứng dụng được mở, cổng metric thì không ai nhớ tới.`,
     cheatsheet: [
-      { command: 'ingress[].from cùng ingress[].ports', explain: 'Một luật allow là phép AND của hai trường này; trượt một trong hai là bị chặn.' },
-      { command: 'kubectl describe networkpolicy <tên> -n <ns>', explain: 'Đọc từng luật: nguồn nào, cổng nào — kiểm hai điều kiện riêng biệt.' },
-      { command: 'kubectl get pods -n <ns> --show-labels', explain: 'Label của pod nguồn quyết định nó có khớp `from` hay không.' },
-      { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Dòng Ports liệt kê mọi cổng container mở, và một dịch vụ thường mở nhiều hơn một.' },
+      {
+        command: 'ingress[].from cùng ingress[].ports',
+        explain: 'Một luật allow là phép AND của hai trường này; trượt một trong hai là bị chặn.',
+      },
+      {
+        command: 'kubectl describe networkpolicy <tên> -n <ns>',
+        explain: 'Đọc từng luật: nguồn nào, cổng nào — kiểm hai điều kiện riêng biệt.',
+      },
+      {
+        command: 'kubectl get pods -n <ns> --show-labels',
+        explain: 'Label của pod nguồn quyết định nó có khớp `from` hay không.',
+      },
+      {
+        command: 'kubectl describe pod <pod> -n <ns>',
+        explain:
+          'Dòng Ports liệt kê mọi cổng container mở, và một dịch vụ thường mở nhiều hơn một.',
+      },
     ],
     takeaways: [
       'NetworkPolicy chặn im lặng: không log, không Event, chỉ có timeout ở phía gọi.',

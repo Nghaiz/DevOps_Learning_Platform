@@ -127,10 +127,22 @@ Chỗ dễ tự bắn vào chân: đặt \`minAvailable\` **bằng** số replic
 workload.`,
     cheatsheet: [
       { command: 'kubectl get pdb -n <ns>', explain: 'Xác nhận PDB nào đang áp trong namespace.' },
-      { command: 'kubectl describe pdb <tên> -n <ns>', explain: 'Đọc minAvailable trong spec, vế bị trừ của phép tính.' },
-      { command: 'spec.replicas', explain: 'Vế còn lại. Hiệu của replicas và minAvailable là chỗ trống để bảo trì diễn ra.' },
-      { command: 'kubectl get deploy <tên> -n <ns>', explain: 'So số replica với minAvailable — hiệu của chúng là chỗ trống để bảo trì.' },
-      { command: 'kubectl get pods -n <ns>', explain: 'Đếm pod thật sự đang sẵn sàng, con số để trừ đi minAvailable.' },
+      {
+        command: 'kubectl describe pdb <tên> -n <ns>',
+        explain: 'Đọc minAvailable trong spec, vế bị trừ của phép tính.',
+      },
+      {
+        command: 'spec.replicas',
+        explain: 'Vế còn lại. Hiệu của replicas và minAvailable là chỗ trống để bảo trì diễn ra.',
+      },
+      {
+        command: 'kubectl get deploy <tên> -n <ns>',
+        explain: 'So số replica với minAvailable — hiệu của chúng là chỗ trống để bảo trì.',
+      },
+      {
+        command: 'kubectl get pods -n <ns>',
+        explain: 'Đếm pod thật sự đang sẵn sàng, con số để trừ đi minAvailable.',
+      },
     ],
     takeaways: [
       'PDB chỉ chặn gián đoạn tự nguyện; node chết thì nó không bảo vệ được gì.',

@@ -206,6 +206,8 @@ function useThrottledView(session: K8sEngineSession | null): ClusterView {
       if (session === null) {
         return () => undefined;
       }
+      /* Ảnh chụp đầu tiên: lấy ngay khi có phiên, trước khi engine kịp đập nhịp. */
+      snapshotRef.current = session.getView();
       let timer: ReturnType<typeof setTimeout> | null = null;
       const unsubscribe = session.subscribe(() => {
         const now = Date.now();
@@ -240,15 +242,19 @@ function useThrottledView(session: K8sEngineSession | null): ClusterView {
     [session],
   );
 
-  const getSnapshot = useCallback((): ClusterView => {
-    if (session === null) {
-      return EMPTY_VIEW;
-    }
-    if (snapshotRef.current === EMPTY_VIEW) {
-      snapshotRef.current = session.getView();
-    }
-    return snapshotRef.current;
-  }, [session]);
+  /*
+   * ⚠ CHỈ ĐỌC. Không gán gì vào ref ở đây.
+   *
+   * `getSnapshot` phải THUẦN và phải trả cùng một tham chiếu khi dữ liệu chưa
+   * đổi. Bản đầu của hàm này tự khởi tạo `snapshotRef` lần gọi đầu, và React
+   * bắt ngay: "The result of getServerSnapshot should be cached to avoid an
+   * infinite loop" (đo trên trình duyệt 2026-09-08). React gọi hàm này nhiều
+   * lần trong một lượt render để so tham chiếu; một hàm vừa đọc vừa ghi có thể
+   * trả hai giá trị khác nhau trong cùng lượt, và React render lại mãi.
+   *
+   * Việc khởi tạo chuyển vào `subscribe`, nơi tác dụng phụ là hợp lệ.
+   */
+  const getSnapshot = useCallback((): ClusterView => snapshotRef.current, []);
 
   /*
    * Ảnh chụp phía máy chủ dùng chung một hằng, nên nó ổn định theo tham chiếu.

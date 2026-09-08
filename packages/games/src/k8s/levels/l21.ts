@@ -12,7 +12,8 @@ export const l21: Level = {
   id: 'k8s-21-pvc-mai-khong-bound',
   chapter: 4,
   title: 'Pod chờ một ổ đĩa không bao giờ tới',
-  mission: 'Làm PVC `anh-san-pham` chuyển sang Bound và đưa pod lên Running với ổ đĩa ở `/du-lieu`.',
+  mission:
+    'Làm PVC `anh-san-pham` chuyển sang Bound và đưa pod lên Running với ổ đĩa ở `/du-lieu`.',
   brief: `Pod \`anh-san-pham\` trong namespace \`noi-dung\` kẹt ở \`ContainerCreating\` đã hai
 mươi phút. Không lỗi image, không lỗi cấu hình, RESTARTS bằng 0.
 
@@ -132,11 +133,27 @@ Ghép cần khớp **cả ba** tiêu chí cùng lúc: \`storageClassName\` khớ
 \`accessModes\` phải hỗ trợ kiểu PVC xin, và dung lượng PV lớn hơn hoặc bằng mức
 xin. Kubernetes không nói tiêu chí nào lệch.`,
     cheatsheet: [
-      { command: 'kubectl get pvc -n <ns>', explain: 'Cột STATUS cho biết Bound hay Pending, và PVC nào đã chiếm PV nào.' },
-      { command: 'kubectl describe pvc <tên> -n <ns>', explain: 'Events ghi lý do chưa ghép được — chỗ đầu tiên cần đọc.' },
-      { command: 'kubectl get pv', explain: 'PV không thuộc namespace nào; bảng này liệt kê những PV đang có trong cluster.' },
-      { command: 'kubectl get storageclass', explain: 'Các lớp lưu trữ đang có; lớp không tồn tại là nguyên nhân rất hay gặp.' },
-      { command: 'kubectl describe pv <tên>', explain: 'Spec đầy đủ của một PV. ReadWriteOnce là một node ghi, ReadOnlyMany là nhiều node chỉ đọc, ReadWriteMany là nhiều node cùng ghi.' },
+      {
+        command: 'kubectl get pvc -n <ns>',
+        explain: 'Cột STATUS cho biết Bound hay Pending, và PVC nào đã chiếm PV nào.',
+      },
+      {
+        command: 'kubectl describe pvc <tên> -n <ns>',
+        explain: 'Events ghi lý do chưa ghép được — chỗ đầu tiên cần đọc.',
+      },
+      {
+        command: 'kubectl get pv',
+        explain: 'PV không thuộc namespace nào; bảng này liệt kê những PV đang có trong cluster.',
+      },
+      {
+        command: 'kubectl get storageclass',
+        explain: 'Các lớp lưu trữ đang có; lớp không tồn tại là nguyên nhân rất hay gặp.',
+      },
+      {
+        command: 'kubectl describe pv <tên>',
+        explain:
+          'Spec đầy đủ của một PV. ReadWriteOnce là một node ghi, ReadOnlyMany là nhiều node chỉ đọc, ReadWriteMany là nhiều node cùng ghi.',
+      },
     ],
     takeaways: [
       'PV là nguồn cung ở phạm vi cluster; PVC là nhu cầu trong một namespace.',

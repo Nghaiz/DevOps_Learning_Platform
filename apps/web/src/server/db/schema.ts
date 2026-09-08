@@ -6,6 +6,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -15,6 +16,15 @@ import {
   CONTENT_KINDS,
   CONTENT_STATES,
 } from '@devops-platform/shared-types/authoring';
+import {
+  PROBLEM_DIFFICULTIES,
+  PROBLEM_STATES,
+  PROBLEM_TOPICS,
+  type ClusterSpec,
+  type Objective,
+  type ProblemHint,
+  type ResourceKind,
+} from '@devops-platform/games';
 import { LEARNING_PATH_STATES, PATH_ITEM_KINDS } from '@devops-platform/shared-types/path';
 import { QUIZ_QUESTION_KINDS, QUIZ_STATES } from '@devops-platform/shared-types/quiz';
 
@@ -1088,3 +1098,247 @@ export type QuizAttemptRow = typeof quizAttempts.$inferSelect;
 export type NewQuizAttemptRow = typeof quizAttempts.$inferInsert;
 export type QuizAnswerRow = typeof quizAnswers.$inferSelect;
 export type NewQuizAnswerRow = typeof quizAnswers.$inferInsert;
+
+// ── Hệ bài tập kiểu OJ (P14 lane D) ─────────────────────────────────────────
+
+/**
+ * Hai bảng dưới đây hiện thực `packages/games/src/k8s/problem.ts`. Đọc file đó
+ * TRƯỚC — nó giải thích vì sao `Problem` khác `Level` và khác `Lab`, và vì sao
+ * ba khái niệm rất dễ lẫn ấy phải ở ba chỗ khác nhau.
+ *
+ * Hai thang bậc cố ý KHÔNG dùng chung với phần còn lại của repo:
+ *
+ * - `problem_difficulty` bốn bậc, KHÁC `SCENARIO_DIFFICULTIES` ba bậc. Đây là
+ *   quyết định của hợp đồng, không phải sơ suất — bài lab là nội dung dạy nên
+ *   ba bậc đủ, còn một OJ cần tách "khó" khỏi "rất khó" vì đó là ranh giới
+ *   người ta dựa vào để chọn bài kế tiếp. Vì hai thang khác nhau, KHÔNG ánh xạ
+ *   ngầm giữa chúng ở bất kỳ đâu.
+ * - `problem_state` ba giá trị trùng TÊN với `content_state` nhưng là kiểu
+ *   RIÊNG. Gộp lại sẽ trói vòng đời bài OJ vào vòng đời nội dung soạn — hai thứ
+ *   đã khác nhau ngay từ bây giờ (`content_state` có `publishing` và một lượt
+ *   chạy thử ngoài request; bài OJ không có gì tương ứng).
+ */
+export const problemDifficulty = pgEnum('problem_difficulty', PROBLEM_DIFFICULTIES);
+export const problemState = pgEnum('problem_state', PROBLEM_STATES);
+
+export const problems = pgTable(
+  'problems',
+  {
+    /**
+     * Khoá chính là `code` (`K8S-0042`), KHÔNG phải `slug` và KHÔNG phải uuid.
+     * Lý lẽ đầy đủ ở `problem.ts` § "Định danh": `code` là thứ DUY NHẤT không
+     * bao giờ đổi — `slug` sinh từ tiêu đề nên đổi theo tiêu đề, còn một uuid
+     * thì không ai đọc cho nhau nghe được.
+     *
+     * Bốn chữ số cố định làm `ORDER BY code` đúng bằng so sánh chuỗi, nên cây
+     * btree của khoá chính đã phục vụ luôn thứ tự mặc định của danh sách —
+     * không cần một chỉ mục thứ hai cho nó.
+     */
+    code: text('code').primaryKey(),
+    /** Nằm trong URL, sinh từ tiêu đề, ĐỔI ĐƯỢC. Duy nhất riêng, xem index dưới. */
+    slug: text('slug').notNull(),
+    title: text('title').notNull(),
+    /** Markdown, trần cứng 150 từ — gác ở tầng ghi (`problems/validate.ts`). */
+    statement: text('statement').notNull(),
+    difficulty: problemDifficulty('difficulty').notNull(),
+    /**
+     * `text[]` + GIN, KHÔNG phải `jsonb` như `content_items.capabilities`.
+     *
+     * Khác biệt quyết định là CÓ LỌC THEO PHẦN TỬ hay không. `capabilities` được
+     * đọc nguyên khối rồi đưa thẳng vào Zod, không truy vấn nào chạm tới từng
+     * phần tử — jsonb đúng ở đó. Ở đây thì ngược lại: bộ lọc danh sách hỏi "bài
+     * nào có BẤT KỲ chủ đề nào trong tập này" (`&&`) và "bài nào có ĐỦ mọi tag
+     * này" (`@>`); cả hai là toán tử mảng của Postgres và có chỉ mục GIN phục vụ
+     * trực tiếp. Viết cùng câu hỏi đó trên jsonb phải qua `jsonb_path_exists`
+     * hoặc `EXISTS (SELECT … jsonb_array_elements)` — một phép quét không dùng
+     * được chỉ mục nào.
+     *
+     * Vì sao `text[]` chứ không phải `pgEnum(...).array()`, dù `PROBLEM_TOPICS`
+     * là tập ĐÓNG: một mảng kiểu enum bắt mọi tham số truyền vào `&&`/`@>` phải
+     * ép sang `problem_topic[]`, trong khi driver `postgres` gửi mảng chuỗi dưới
+     * dạng `text[]` — Postgres từ chối với `operator does not exist:
+     * problem_topic[] && text[]`, một lỗi chỉ lộ lúc chạy. Tập đóng vẫn được
+     * gác, nhưng gác ở biên GHI bằng chính `PROBLEM_TOPICS` (SSOT của hợp đồng)
+     * chứ không bằng một bản sao thứ hai của danh sách nằm trong DB.
+     *
+     * Kiểu TypeScript vẫn hẹp nhờ `{ enum: PROBLEM_TOPICS }`: cột ra kiểu
+     * `ProblemTopic[]`, không phải `string[]`.
+     */
+    topics: text('topics', { enum: PROBLEM_TOPICS }).array().notNull(),
+    /** Phân loại tự do, đã chuẩn hoá thường + gạch nối. Rỗng là hợp lệ. */
+    tags: text('tags').array().notNull(),
+    /** `null` = không giới hạn giờ — không phải bài nào cũng nên chạy đua. */
+    timeLimitSec: integer('time_limit_sec'),
+    /** `ClusterSpec` — đọc nguyên khối để dựng phiên mô phỏng, không lọc theo phần tử. */
+    initialState: jsonb('initial_state').$type<ClusterSpec>().notNull(),
+    objectives: jsonb('objectives').$type<Objective[]>().notNull(),
+    /** `null` = cho dùng mọi loại tài nguyên. Một mảng đủ 26 loại KHÔNG tương đương. */
+    allowedResources: jsonb('allowed_resources').$type<ResourceKind[]>(),
+    /** `ProblemHint[]` — gợi ý CÓ GIÁ, nên mỗi cái cần `id` và `penaltyPoints`. */
+    hints: jsonb('hints').$type<ProblemHint[]>().notNull(),
+    /** `null` = không chấm theo số nước đi; `computeScore` đọc 0 đúng nghĩa đó. */
+    parMoves: integer('par_moves'),
+    state: problemState('state').notNull().default('draft'),
+    /**
+     * `null` với bài seed trong repo — chúng không có tài khoản tác giả.
+     *
+     * ⚠ KHÔNG cascade khi xoá user, cùng lý lẽ đã ghi ở `content_items`: xoá một
+     * tài khoản tác giả mà kéo theo mọi bài họ đã xuất bản sẽ làm lịch sử nộp
+     * bài của người học trỏ vào hư không. Postgres mặc định NO ACTION ⇒ xoá tác
+     * giả khi còn bài sẽ LỖI, buộc người vận hành chuyển chủ hoặc archive
+     * trước. Ồn ào là đúng ở đây.
+     */
+    authorId: text('author_id').references(() => users.id),
+    /**
+     * ⚠ `precision: 3` — KHÁC mọi bảng khác trong file này, và không phải cho đẹp.
+     *
+     * `created_at` là một khoá sắp xếp của hợp đồng (`PROBLEM_ORDER_KEYS`), nên
+     * nó đi vào con trỏ keyset. Mặc định `timestamptz` của Postgres giữ tới
+     * MICRO giây, còn `Date` của JavaScript chỉ có MILI giây — driver `postgres`
+     * cắt phần dư khi dựng `Date`. Con trỏ vì thế mang một mốc NHỎ HƠN mốc thật
+     * của chính dòng nó trỏ tới, và mệnh đề `created_at > $cursor` nhận lại
+     * đúng dòng đó ở đầu trang sau: dòng LẶP, im lặng, chỉ lộ khi có người đếm.
+     *
+     * Ép cột về đúng độ chính xác mà JS biểu diễn được thì vòng đọc-ghi khép
+     * kín, và phép so trong keyset là phép so trên cùng một giá trị. Cách khác
+     * — loại trừ dòng con trỏ bằng `code <> …` — chỉ vá được dòng CUỐI của
+     * trang, không vá được những dòng khác cùng mili giây.
+     */
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('problems_slug_key').on(table.slug),
+    // Truy vấn nóng nhất của trang danh sách: lọc `state` (người học chỉ thấy
+    // `published`) rồi sắp theo `difficulty`.
+    index('problems_state_difficulty_idx').on(table.state, table.difficulty),
+    // Trang soạn: "bài của TÔI", mọi state.
+    index('problems_author_state_idx').on(table.authorId, table.state),
+    // Phục vụ `&&` (chủ đề: HOẶC) và `@>` (tag: VÀ) — xem chú thích cột `topics`.
+    index('problems_topics_gin_idx').using('gin', table.topics),
+    index('problems_tags_gin_idx').using('gin', table.tags),
+  ],
+);
+
+/**
+ * Một lượt làm bài đã kết thúc.
+ *
+ * ⛔ KHÔNG có `solver_count` / `attempt_count` / `acceptance_rate` ở bảng
+ * `problems`, và đó là điều kiện tồn tại của bảng này. `problem.ts` §
+ * `ProblemStats` viết thẳng: đó là chỗ mọi thiết kế OJ đều trượt — thêm cột cho
+ * "truy vấn nhanh" rồi vĩnh viễn phải giữ chúng đồng bộ bằng trigger hoặc cron,
+ * và chúng sẽ lệch. Cả ba số TÍNH từ bảng này ngay tại chỗ dùng
+ * (`server/problems/stats.ts`). `acceptance_rate` còn tệ hơn hai cái kia: nó
+ * suy ra được từ chính hai cái kia, nên lưu nó là lưu cùng một sự thật ba lần.
+ *
+ * Ngoại lệ duy nhất được cân nhắc nếu ĐO ĐƯỢC rằng truy vấn này là nút cổ chai:
+ * MATERIALIZED VIEW có lịch refresh — không phải thêm cột.
+ *
+ * ⛔ KHÔNG lưu `RunLog`, vì hợp đồng `ProblemSubmission` không có nó. Hệ quả
+ * phải biết: đã chấm xong thì KHÔNG chấm lại được. Đổi công thức điểm về sau
+ * không áp ngược lên lịch sử, và một khiếu nại "tôi giải được mà máy báo không"
+ * không còn gì để phân xử. Đây là đánh đổi của hợp đồng, không phải thứ bị bỏ
+ * quên — muốn đổi thì đổi ở `problem.ts` trước.
+ */
+export const problemSubmissions = pgTable(
+  'problem_submissions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /**
+     * KHÔNG cascade khi xoá bài: `crud.ts` từ chối xoá một bài đã có lượt nộp và
+     * bảo người soạn dùng `archive`. Cascade ở đây sẽ biến một cú bấm "xoá" trên
+     * trang soạn thành xoá lịch sử của mọi người đã làm bài đó, im lặng.
+     */
+    problemCode: text('problem_code')
+      .notNull()
+      .references(() => problems.code),
+    /** Cascade: xoá tài khoản thì xoá luôn lịch sử làm bài — cùng `lab_attempts`. */
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /**
+     * Kết quả CỦA MÁY CHỦ sau khi phát lại nhật ký, không phải lời khai client.
+     * `false` cũng ghi: một lượt không xác minh được vẫn là dữ liệu của người
+     * dùng và vẫn tính vào `attemptCount` — nó chỉ mất quyền được điểm.
+     */
+    solved: boolean('solved').notNull(),
+    /** 0..1000, do máy chủ chấm lại. Xem `server/problems/submit.ts`. */
+    score: integer('score').notNull(),
+    /**
+     * Giờ TREO TƯỜNG do client khai, đã kẹp về không âm.
+     *
+     * ⚠ KHÔNG xác minh được, và cố ý không giả vờ xác minh: `verify.ts` nói rõ
+     * `startedAt`/`finishedAt` không nằm trong nhật ký nên phát lại không tái
+     * tạo được. Đừng dùng cột này làm khoá xếp hạng.
+     */
+    durationSeconds: integer('duration_seconds').notNull(),
+    /** ĐẾM TỪ nhật ký theo `COMMAND_KINDS`, không lấy từ lời khai. */
+    movesUsed: integer('moves_used').notNull(),
+    /** Id gợi ý đã mở, đọc ra từ các action `hint` trong nhật ký. */
+    hintsRevealed: text('hints_revealed').array().notNull(),
+    /** `precision: 3` — cùng lý do keyset đã ghi ở `problems.created_at`. */
+    submittedAt: timestamp('submitted_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+  },
+  (table) => [
+    // `stats.ts` gộp theo `problem_code` và đếm distinct `user_id`; cặp này phủ
+    // cả phép gộp lẫn phép tra "người xem đã giải bài này chưa".
+    index('problem_submissions_problem_user_idx').on(table.problemCode, table.userId),
+    // `mySubmissions`: keyset `(submitted_at, id)` giảm dần trong phạm vi một người.
+    index('problem_submissions_user_submitted_idx').on(table.userId, table.submittedAt),
+  ],
+);
+
+export type ProblemRow = typeof problems.$inferSelect;
+export type NewProblemRow = typeof problems.$inferInsert;
+/**
+ * Lượt MỞ GỢI Ý của một người trên một bài.
+ *
+ * ⚠ Bảng thứ BA, ngoài hai bảng brief của lane D liệt kê — thêm vào sau khi hợp
+ * đồng đổi ngày 2026-09-08. `ProblemHintTeaser.revealed` viết rõ *"Máy chủ
+ * quyết, không phải client"*, và không có bảng này thì máy chủ không có gì để
+ * quyết bằng: nó sẽ phải tin một cờ do trình duyệt gửi lên, tức là đúng thứ mà
+ * cả cơ chế gợi-ý-có-giá sinh ra để chặn.
+ *
+ * Bảng này còn bịt một lỗ mà nhật ký một mình không bịt được. Điểm trừ vốn tính
+ * từ các action `kind: 'hint'` trong `RunLog`, mà nhật ký thì do client dựng —
+ * nên gọi thẳng `problems.revealHint` bằng tab công cụ nhà phát triển và KHÔNG
+ * ghi action tương ứng sẽ đọc được gợi ý mà không mất điểm. Có bản ghi phía máy
+ * chủ thì `submit.ts` lấy HỢP của hai tập (nhật ký ∪ bảng này) làm tập bị trừ,
+ * và đường vòng đó hết tác dụng.
+ *
+ * Vì sao không lưu nội dung hay điểm trừ ở đây: cả hai đọc được từ
+ * `problems.hints` theo `hint_id`. Chép sang đây là lưu trường suy ra được, và
+ * nó sẽ nói dối ngay lần đầu người soạn sửa lời một gợi ý.
+ *
+ * Khoá chính GỘP `(problem_code, user_id, hint_id)`: mở lại một gợi ý đã mở
+ * không phải một sự kiện mới, và một `uuid` riêng sẽ cho phép hai dòng cùng
+ * nghĩa tồn tại song song — lúc đó "đã mở chưa" có hai câu trả lời.
+ */
+export const problemHintReveals = pgTable(
+  'problem_hint_reveals',
+  {
+    problemCode: text('problem_code')
+      .notNull()
+      .references(() => problems.code),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Id trong `problems.hints`. KHÔNG có FK — mảng jsonb không trỏ FK được. */
+    hintId: text('hint_id').notNull(),
+    revealedAt: timestamp('revealed_at', { withTimezone: true, precision: 3 })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'problem_hint_reveals_pk',
+      columns: [table.problemCode, table.userId, table.hintId],
+    }),
+  ],
+);
+
+export type ProblemHintRevealRow = typeof problemHintReveals.$inferSelect;
+export type NewProblemHintRevealRow = typeof problemHintReveals.$inferInsert;
+
+export type ProblemSubmissionRow = typeof problemSubmissions.$inferSelect;
+export type NewProblemSubmissionRow = typeof problemSubmissions.$inferInsert;

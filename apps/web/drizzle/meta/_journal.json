@@ -64,6 +64,13 @@
       "when": 1788783088696,
       "tag": "0008_nervous_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788859675802,
+      "tag": "0009_sudden_kitty_pryde",
+      "breakpoints": true
     }
   ]
 }

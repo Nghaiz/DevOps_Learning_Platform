@@ -118,10 +118,23 @@ Hạn chót xấp xỉ \`initialDelay+period×(failureThreshold−1)\`. App kh�
 hơn con số đó bị giết trước khi kịp sống, nên nó **không bao giờ** khởi động
 xong: vòng lặp tự duy trì, và log không nói gì.`,
     cheatsheet: [
-      { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Events ghi "Liveness probe failed" kèm số lần — bằng chứng tách nó khỏi OOM.' },
-      { command: 'kubectl get pods -n <ns>', explain: 'Cột RESTARTS tăng đều: đây là vòng lặp giết rồi dựng lại, không phải một lần chết đơn lẻ.' },
-      { command: 'kubectl logs <pod> -n <ns> --previous', explain: 'Log sạch, đứt ngang — giống OOM, nên một mình nó không kết luận được gì.' },
-      { command: 'kubectl describe deploy <tên> -n <ns>', explain: 'Đọc bốn con số của probe và cộng ra hạn chót thật.' },
+      {
+        command: 'kubectl describe pod <pod> -n <ns>',
+        explain: 'Events ghi "Liveness probe failed" kèm số lần — bằng chứng tách nó khỏi OOM.',
+      },
+      {
+        command: 'kubectl get pods -n <ns>',
+        explain:
+          'Cột RESTARTS tăng đều: đây là vòng lặp giết rồi dựng lại, không phải một lần chết đơn lẻ.',
+      },
+      {
+        command: 'kubectl logs <pod> -n <ns> --previous',
+        explain: 'Log sạch, đứt ngang — giống OOM, nên một mình nó không kết luận được gì.',
+      },
+      {
+        command: 'kubectl describe deploy <tên> -n <ns>',
+        explain: 'Đọc bốn con số của probe và cộng ra hạn chót thật.',
+      },
     ],
     takeaways: [
       'Exit 137 chỉ nói SIGKILL; kernel (OOM) và kubelet (liveness) đều gửi được tín hiệu đó.',

@@ -18,7 +18,7 @@
  * nuốt pointer-event của nút menu).
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { ReactElement } from 'react';
 import type { Level, ObjectView } from '@devops-platform/games';
@@ -53,6 +53,29 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
   const [quality, setQuality] = useState<QualityTier>('high');
   const [camera, setCamera] = useState<CameraCommand | null>(null);
   const startedAtRef = useRef(Date.now());
+
+  /*
+   * Ép chế độ tối lên GỐC TÀI LIỆU, không chỉ lên khung của arena.
+   *
+   * Đặt `dark` trên `div` bọc ngoài là chưa đủ, và chỗ hụt chỉ lộ ra khi mở một
+   * hộp thoại: Radix render dialog qua portal vào `document.body`, tức là NGOÀI
+   * khung arena, nên nó đọc bảng màu sáng của ứng dụng và hiện ra trắng toát
+   * giữa một cảnh tối. Đo trực tiếp trên trình duyệt 2026-09-08 với hộp thoại
+   * đặt tên tài nguyên.
+   *
+   * Khôi phục lớp cũ khi rời trang: người dùng chọn theme sáng cho cả ứng dụng
+   * thì phải nhận lại đúng thứ họ chọn, không phải bị arena giữ lại chế độ tối.
+   */
+  useEffect(() => {
+    const root = document.documentElement;
+    const hadDark = root.classList.contains('dark');
+    root.classList.add('dark');
+    return () => {
+      if (!hadDark) {
+        root.classList.remove('dark');
+      }
+    };
+  }, []);
 
   /*
    * Hàm, không phải mảng — và đây là ràng buộc hiệu năng, không phải sở thích.
@@ -108,7 +131,22 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
   );
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden bg-background text-foreground">
+    /*
+     * `dark` chốt cứng, KHÔNG theo theme của ứng dụng — bản cũ cũng làm vậy và
+     * lý do vẫn đúng.
+     *
+     * Cảnh 3D tự ép nền tối bằng trần độ sáng, nên ở theme sáng ta được một
+     * khung cảnh tối nằm dưới một dàn bảng trắng: chữ trắng của cảnh chìm vào
+     * bảng, và các khối trong cảnh nhận token màu của bảng màu sáng nên ra xám
+     * xịt. Đo trực tiếp 2026-09-08: node render thành một tấm xám không màu, và
+     * thẻ nhiệm vụ trắng toát đè lên cảnh tối.
+     *
+     * Cách sửa đúng KHÔNG phải là hardcode màu tối vào từng bảng — làm vậy thì
+     * token mất tác dụng và ai đổi bảng màu sau này sẽ đổi được mọi trang trừ
+     * trang này. Ép ngữ cảnh `dark` giữ nguyên hệ token: mọi bảng và cả
+     * `scene-tokens.ts` cùng đọc nhánh tối của cùng một bộ biến CSS.
+     */
+    <div className="dark relative h-dvh w-full overflow-hidden bg-background text-foreground">
       {/* Cảnh 3D nằm DƯỚI cùng và chiếm trọn khung. */}
       <div className="absolute inset-0">
         <ArenaScene
