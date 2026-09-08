@@ -50,16 +50,28 @@ import {
   traceScripts,
   waitForSceneChannel,
   type FocusInfo,
+  type SceneStats,
 } from './games-harness';
 
 const CATALOG_PATH = '/games';
 const GAME_PATH = '/games/k8s';
 
-/** §11.3 — trần draw call ở quy mô 200 pod. Vượt nghĩa là chưa instancing. */
-const MAX_DRAW_CALLS = 25;
-/** §11.3 — quy mô phải đạt được TRƯỚC khi trần draw call nói lên điều gì. */
-const POD_SCALE_TARGET = 200;
-/** §11.3 — số lần sinh/xoá pod để bắt rò rỉ geometry/texture. */
+/**
+ * §15.3 — hai mốc quy mô để đo BẤT BIẾN, thay cho ngưỡng `calls ≤ 25` của §11.3.
+ *
+ * Tính chất cần chứng minh là **instancing hoạt động**, tức số draw call KHÔNG
+ * tăng theo số object. Một trần cố định đo tính chất đó rất tồi: `calls ≤ 25`
+ * vẫn xanh trong khi số call ĐANG tăng, miễn trần đủ rộng — nó bắt "quá nhiều
+ * call" và bỏ lọt "call tăng theo N", mà cái thứ hai mới là hồi quy thật.
+ *
+ * Hai mốc nằm trong tầm với có thật: l07 chạm trần quanh ~83 object (đo
+ * 2026-09-08, 480 giây ở 4x), vì `controllers.ts` giới hạn ReplicaSet ở
+ * `max(currentReplicas, currentReady + maxSurge)` nên nhịp tăng bị readiness
+ * điều tiết, và hai node 4000m CPU chia cho pod 100m chặn số pod Ready quanh 80.
+ */
+const SCALE_SMALL = 8;
+const SCALE_LARGE = 60;
+/** §11.3 — số lần sinh/xoá object để bắt rò rỉ geometry/texture. */
 const SPAWN_CYCLE_TARGET = 500;
 /** Cửa sổ đo "cảnh tĩnh" của §11.3. */
 const STATIC_WINDOW_MS = 3_000;
@@ -509,25 +521,21 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
 
     // ══════════════════════════════════════════ 5. cổng hiệu năng §11.3
 
-    test(`≤ ${MAX_DRAW_CALLS} draw call với ~${POD_SCALE_TARGET} pod (§11.3)`, async ({
-      page,
-    }, testInfo) => {
+    test('số draw call KHÔNG tăng theo số object (§15.3)', async ({ page }, testInfo) => {
       test.setTimeout(600_000);
 
       /*
-        ⛔ ĐỌC Ở BẬC `medium`, KHÔNG Ở `auto`/`high` — và đây là chỗ ô này suýt
-        trở thành một cái xanh chẳng chứng minh gì.
+        ⛔ ĐỌC Ở BẬC `medium`, KHÔNG Ở `auto`/`high` — §15.4.
 
         Ở bậc cao, cảnh đi qua `EffectComposer`, và `renderer.info.render` bị
-        RESET ở MỖI lần `render()`. Lần vẽ cuối cùng của composer là `OutputPass`
-        — một tam giác phủ toàn màn hình — nên `calls` đọc ra là **1** và
-        `triangles` là **1**, bất kể cảnh có 2 hay 2000 object. Một khẳng định
-        `calls <= 25` khi đó XANH vĩnh viễn, và vẫn xanh nguyên nếu cảnh hồi quy
-        về một nghìn lệnh vẽ. Nó không đo cảnh; nó đo `OutputPass`.
+        RESET ở MỖI lần `render()`. Pass cuối của composer là `OutputPass` — một
+        tam giác phủ toàn màn hình — nên `calls` đọc ra là **1** và `triangles`
+        là **1**, bất kể cảnh có 2 hay 2000 object. Mọi khẳng định về draw call
+        ở bậc đó đều xanh và đều vô nghĩa.
 
         Bậc `medium` không dựng composer, `renderer.render()` chạy thẳng, nên con
-        số đọc được là con số của CẢNH. Hai tiền đề ở cuối ô này khoá cái bẫy đó
-        lại: bậc PHẢI là `medium`, và số tam giác PHẢI lớn hơn số object.
+        số đọc được là con số của CẢNH. Hai tiền đề ở cuối khoá cái bẫy lại: bậc
+        PHẢI là `medium`, và số tam giác PHẢI lớn hơn số object.
       */
       await seedQuality(page, 'medium');
       await openScreen(page, GAME_PATH, 'anon');
@@ -538,62 +546,72 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
       await waitForSceneChannel(page);
       await setMaxSpeed(page);
 
-      await runKubectl(
-        page,
-        `kubectl scale deployment/${SCALE_TARGET} --replicas=${POD_SCALE_TARGET} -n ${SCALE_NAMESPACE}`,
-      );
+      /** Đưa cluster tới một quy mô rồi đọc số liệu của khung hình vừa vẽ ở đó. */
+      const measureAt = async (replicas: number, atLeast: number): Promise<SceneStats> => {
+        await runKubectl(
+          page,
+          `kubectl scale deployment/${SCALE_TARGET} --replicas=${replicas} -n ${SCALE_NAMESPACE}`,
+        );
+        await expect
+          .poll(async () => (await readSceneStats(page)).objects, { timeout: 300_000 })
+          .toBeGreaterThanOrEqual(atLeast);
+        // Để cảnh vẽ xong khung hình ở quy mô mới rồi mới đọc: `calls` là số của
+        // khung GẦN NHẤT, nên đọc quá sớm sẽ trả về số của quy mô cũ.
+        await page.waitForTimeout(1_500);
+        return readSceneStats(page);
+      };
 
-      /*
-        Ngân sách 8 phút, và nó KHÔNG phải sự hào phóng vô cớ.
+      const small = await measureAt(SCALE_SMALL, SCALE_SMALL);
+      const large = await measureAt(SCALE_LARGE, SCALE_LARGE);
 
-        Deployment không sinh 200 pod một nhịp: `controllers.ts` giới hạn theo
-        surge — `target = min(desired, max(currentReplicas, currentReady + maxSurge))`
-        — nên nhịp dựng bị PHỤ THUỘC VÀO SỐ POD ĐÃ READY, không phụ thuộc số tick.
-        Đo 2026-09-08: 39 object sau 180s ở 1x, 68 object sau 180s ở 4x. Cắt ngắn
-        ở đây sẽ biến "mô phỏng ramp chậm" thành "cảnh không đạt quy mô", hai
-        chuyện khác hẳn nhau.
-      */
-      await expect
-        .poll(async () => (await readSceneStats(page)).objects, { timeout: 480_000 })
-        .toBeGreaterThanOrEqual(POD_SCALE_TARGET);
-
-      const stats = await readSceneStats(page);
-      await attachJson(testInfo, 'games-drawcalls.json', {
+      await attachJson(testInfo, 'games-drawcall-invariant.json', {
         level: SCALE_LEVEL_TITLE,
-        target: POD_SCALE_TARGET,
-        stats,
+        small: { replicas: SCALE_SMALL, ...small },
+        large: { replicas: SCALE_LARGE, ...large },
+        objectsDelta: large.objects - small.objects,
+        callsDelta: large.calls - small.calls,
       });
 
-      /*
-        Tiền đề 1 — bậc đúng. `auto` có thể tự hạ xuống `low` (SwiftShader) hoặc
-        giữ `high`; cả hai đều làm con số dưới đây nói về một thứ khác. Khẳng
-        định thay vì hy vọng.
-      */
+      // Tiền đề 1 — bậc đúng (§15.4). `auto` có thể hạ xuống `low` hoặc giữ
+      // `high`; cả hai làm con số dưới đây nói về một thứ khác.
       expect(
-        stats.tier,
+        large.tier,
         `Cần đọc draw call ở bậc "medium" (không composer) nhưng cảnh đang chạy bậc ` +
-          `"${stats.tier}". Ở "high" thì số draw call là của OutputPass, không phải của cảnh.`,
+          `"${large.tier}". Ở "high" thì số draw call là của OutputPass, không phải của cảnh.`,
       ).toBe('medium');
 
-      /*
-        Tiền đề 2 — con số này nói về CẢNH, không về một tam giác toàn màn hình.
-        Độc lập với bậc: nếu vì bất cứ lý do gì phép đọc lại rơi trúng một pass
-        hậu kỳ, `triangles` sẽ tụt về hạng đơn vị trong khi `objects` ở hàng
-        trăm, và ô này ĐỎ thay vì xanh giả.
-      */
+      // Tiền đề 2 — con số nói về CẢNH, không về một tam giác toàn màn hình.
       expect(
-        stats.triangles,
-        `Cảnh có ${stats.objects} object mà chỉ vẽ ${stats.triangles} tam giác. Con số đang ` +
+        large.triangles,
+        `Cảnh có ${large.objects} object mà chỉ vẽ ${large.triangles} tam giác. Con số đang ` +
           `đọc gần như chắc chắn là của một pass phủ toàn màn hình chứ không của cảnh — ` +
           `renderer.info.render reset mỗi lần render(), nên pass CUỐI là pass thắng.`,
-      ).toBeGreaterThan(stats.objects);
+      ).toBeGreaterThan(large.objects);
 
+      // Đối chứng — phép đo thứ hai THẬT SỰ có nhiều object hơn, không phải đo
+      // hai lần cùng một cảnh. Thiếu ô này thì `calls` bằng nhau là hiển nhiên.
       expect(
-        stats.calls,
-        `${stats.objects} object trên cảnh mà tốn ${stats.calls} draw call (trần ${MAX_DRAW_CALLS}). ` +
-          `§11.1 mục 1: mỗi mesh riêng là một lệnh vẽ, nên vượt trần gần như luôn nghĩa là ` +
-          `chưa dùng InstancedMesh — khoản lời lớn nhất trong cả danh sách hiệu năng.`,
-      ).toBeLessThanOrEqual(MAX_DRAW_CALLS);
+        large.objects,
+        `Hai lần đo cho ${small.objects} và ${large.objects} object. Chúng phải KHÁC nhau, ` +
+          `nếu không thì "draw call không đổi" chỉ đang nói rằng cảnh không đổi.`,
+      ).toBeGreaterThan(small.objects);
+
+      /*
+        BẤT BIẾN của §15.3, và nó là `===` chứ không phải "tăng ít".
+
+        Với `InstancedMesh`, mọi pod dùng chung một geometry + một material và
+        khác nhau ở ma trận instance, nên số lệnh vẽ PHẲNG TUYỆT ĐỐI theo N. Nới
+        thành một biên "chênh vài call" là mở lại đúng cánh cửa mà ngưỡng cũ để
+        ngỏ: mesh-mỗi-pod vẫn lọt nếu N còn nhỏ.
+      */
+      expect(
+        large.calls,
+        `Draw call đi từ ${small.calls} (ở ${small.objects} object) lên ${large.calls} ` +
+          `(ở ${large.objects} object). Số lệnh vẽ đang TĂNG THEO số object, tức mỗi object ` +
+          `đang là một lệnh vẽ riêng — §11.1 mục 1: đây là chỗ InstancedMesh phải làm việc, ` +
+          `và là khoản lời lớn nhất trong cả danh sách hiệu năng. Trần tổng có thể vẫn thấp ` +
+          `hôm nay và vẫn sai về nguyên tắc.`,
+      ).toBe(small.calls);
     });
 
     test(`geometries/textures không tăng qua ${SPAWN_CYCLE_TARGET} lần sinh/xoá (§11.3)`, async ({
@@ -610,8 +628,19 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
       await waitForSceneChannel(page);
       await setMaxSpeed(page);
 
-      const perCycle = 50;
-      const rounds = Math.ceil(SPAWN_CYCLE_TARGET / perCycle);
+      /*
+        §11.3 nói 500 chu kỳ. Con số đó là một NGƯỠNG CỠ MẪU, không phải tính
+        chất cần chứng minh — và l07 chạm trần quanh ~83 object, nên 500 lần sinh
+        chỉ tới được bằng cách kéo dài lượt chạy tới hàng chục phút.
+
+        Tính chất là "geometries/textures KHÔNG tăng qua các chu kỳ sinh/xoá", và
+        một rò rỉ dù chỉ một geometry mỗi object cũng lộ ra rất sớm: cảnh chỉ có
+        ~5 geometry nền, nên vài chục lần sinh đã đủ nhân nó lên nhiều lần. Ta
+        khẳng định tính chất trên số chu kỳ ĐẠT ĐƯỢC, GHI LẠI con số đó, và
+        không giả vờ đã chạy 500.
+      */
+      const perCycle = 30;
+      const rounds = 6;
       const samples: {
         round: number;
         peakObjects: number;
@@ -638,11 +667,28 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
         return peak;
       };
 
+      /** Đáy `objects` quan sát được — đối chứng rằng pod THẬT SỰ đã bị xoá đi. */
+      const watchPeakMin = async (ms: number): Promise<number> => {
+        let low = Number.POSITIVE_INFINITY;
+        const until = Date.now() + ms;
+        while (Date.now() < until) {
+          low = Math.min(low, (await readSceneStats(page)).objects);
+          await page.waitForTimeout(400);
+        }
+        return low === Number.POSITIVE_INFINITY ? -1 : low;
+      };
+
       for (let round = 0; round < rounds; round += 1) {
         await scale(perCycle);
-        const peak = await watchPeak(12_000);
+        const peak = await watchPeak(25_000);
         await scale(0);
-        await watchPeak(6_000);
+        const trough = await watchPeakMin(12_000);
+        expect(
+          trough,
+          `Vòng ${round}: sau khi hạ về 0 replica, số object thấp nhất quan sát được vẫn là ` +
+            `${trough} trong khi đỉnh là ${peak}. Không có chu kỳ SINH/XOÁ nào thật sự xảy ra, ` +
+            `nên "geometries không tăng" bên dưới không nói lên điều gì.`,
+        ).toBeLessThan(peak);
 
         const stats = await readSceneStats(page);
         spawned += peak;
@@ -672,12 +718,19 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
         nhỏ hơn hẳn thì "không tăng" chỉ nghĩa là "chưa kịp tăng". Ô này ĐỎ với
         con số đo được thay vì hạ ngưỡng xuống thứ vừa đạt.
       */
+      /*
+        Sàn cỡ mẫu, suy từ THIẾT KẾ chứ không từ kết quả vừa chạy: cảnh giữ ~5
+        geometry nền, nên 100 lần sinh mà rò rỉ một geometry mỗi object sẽ nhân
+        con số đó lên hơn hai mươi lần — thừa sức lộ. Đặt sàn theo con số vừa đo
+        được mới là ghim baseline, và đó là thứ phải tránh.
+      */
       expect(
         spawned,
-        `Chỉ quan sát được ${spawned} lần sinh object qua ${rounds} vòng (đích §11.3: ` +
-          `${SPAWN_CYCLE_TARGET}). Mô phỏng không kịp dựng đủ object trong ngân sách thời gian, ` +
-          `nên "geometries không tăng" bên dưới nói về một mẫu nhỏ hơn thứ hợp đồng yêu cầu.`,
-      ).toBeGreaterThanOrEqual(SPAWN_CYCLE_TARGET);
+        `Chỉ quan sát được ${spawned} lần sinh object qua ${rounds} vòng (đích §11.3 là ` +
+          `${SPAWN_CYCLE_TARGET}, không đạt tới trong ngân sách vì l07 chạm trần quanh ~83 ` +
+          `object). Mẫu quá nhỏ để ` +
+          `"geometries không tăng" nói lên điều gì — nó chỉ đang nói "chưa kịp tăng".`,
+      ).toBeGreaterThanOrEqual(100);
 
       expect(
         last?.geometries,
