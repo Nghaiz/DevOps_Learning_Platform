@@ -12,7 +12,7 @@ import type { Level } from '../contract.ts';
 export const l26: Level = {
   id: 'k8s-26-nodeselector-khong-khop-label',
   chapter: 5,
-  title: 'Pending mãi, nhưng lần này không phải vì hết chỗ',
+  title: 'Sửa nodeSelector khớp nhãn node',
   mission: 'Cho `chi-muc` chạy đủ 3 replica, và đưa `sao-luu` ra khỏi mọi node SSD.',
   brief: `Cluster có ba node: hai node đĩa SSD, một node đĩa cơ.
 

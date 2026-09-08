@@ -12,7 +12,7 @@ import type { Level } from '../contract.ts';
 export const l02: Level = {
   id: 'k8s-02-tag-image-khong-ton-tai',
   chapter: 1,
-  title: 'Pod không bao giờ khởi động',
+  title: 'Cứu pod không chịu khởi động',
   mission: 'Đưa pod `api` trong `nen-tang` về Running mà không đụng tới pod `api-cu` đang chạy.',
   brief: `Một đồng nghiệp đẩy pod \`api\` lên namespace \`nen-tang\` rồi tan ca. Mười lăm phút
 sau nó vẫn chưa từng chạy: READY \`0/1\`, STATUS không phải Running.

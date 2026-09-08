@@ -24,7 +24,7 @@ import type { Level } from '../contract.ts';
 export const l11: Level = {
   id: 'k8s-11-job-chay-mot-lan',
   chapter: 2,
-  title: 'Công việc chạy một lần rồi thôi',
+  title: 'Chạy xong một Job đang thất bại',
   mission: 'Tìm vì sao Job `di-tru-v3` thất bại, sửa, và đưa nó tới trạng thái hoàn thành.',
   brief: `Trong namespace \`du-lieu\` có Job \`di-tru-v3\` và nó không xong.
 \`kubectl get jobs\` ghi \`COMPLETIONS 0/1\`, còn danh sách pod thì có mấy pod

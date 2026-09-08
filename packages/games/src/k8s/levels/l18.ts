@@ -12,7 +12,7 @@ import type { Level } from '../contract.ts';
 export const l18: Level = {
   id: 'k8s-18-configmap-tach-cau-hinh',
   chapter: 4,
-  title: 'Container không dựng nổi vì thiếu cấu hình',
+  title: 'Cấp ConfigMap mà container đang đòi',
   mission: 'Đưa Deployment `bao-cao` lên chạy 2 replica bằng cách cấp đủ cấu hình nó đang đòi.',
   brief: `Deployment \`bao-cao\` vừa được chuyển từ staging sang \`van-hanh\`. Không pod nào
 lên. Trạng thái không phải ImagePullBackOff — image đã về máy — và cũng không

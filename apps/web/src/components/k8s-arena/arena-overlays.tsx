@@ -12,7 +12,7 @@
  * khi không có object, và ở đây không được thêm một khung rỗng thay thế.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import type { Level, NodeView, ObjectView } from '@devops-platform/games';
 import { computeScore } from '@devops-platform/games';
@@ -31,6 +31,7 @@ import { ArenaContextMenu } from './hud/context-menu';
 import { MetricsPanel } from './hud/metrics-panel';
 import { HeaderMetrics } from './hud/header-metrics';
 import { useMetricsHistory } from './hud/use-metrics-history';
+import { recordRun } from './level-progress';
 import { IncidentsPanel } from './hud/incidents-panel';
 import { Minimap } from './hud/minimap';
 import { SettingsPanel } from './hud/settings-panel';
@@ -181,6 +182,7 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
   );
 
   const stars = useStars(level, engine);
+  useRecordWin(level, engine, props.startedAt);
   /*
    * Lịch sử số liệu thu ở ĐÂY, không thu trong `MetricsPanel`. Dải trên thanh
    * trên cùng luôn hiện nên mẫu phải được thu dù bảng có mở hay không; thu ở hai
@@ -362,6 +364,50 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
  * TÍNH từ điểm, không lưu — `SessionStatus` cố ý không mang số sao, và thêm nó
  * vào đó sẽ là một trường suy ra được nằm cạnh chính các trường suy ra nó.
  */
+/**
+ * Ghi lượt chơi vào bản lưu ngay khi thắng — MỘT LẦN cho mỗi phiên.
+ *
+ * ⚠ Trước bản này KHÔNG có gì ghi tiến độ cả. Cả `core/progress.ts` là mã chết
+ * (barrel không mở hàm nào của nó), nên thắng xong tải lại trang là mất sạch,
+ * trong khi `/games` vẫn viết *"tiến độ lưu ngay trên máy bạn"*.
+ *
+ * `writtenRef` chặn ghi lặp: `status` đổi danh tính theo từng nhịp engine, và
+ * pha `won` giữ nguyên sau khi thắng — không chặn thì mỗi nhịp thêm một lượt
+ * chơi vào bản lưu, và số lần chơi phồng lên vô hạn cho tới khi hết chỗ.
+ */
+function useRecordWin(level: Level, engine: ArenaSessionHandle, startedAt: number): void {
+  const writtenRef = useRef(false);
+  const phase = engine.status.phase;
+  useEffect(() => {
+    if (phase !== 'won' || writtenRef.current) {
+      return;
+    }
+    writtenRef.current = true;
+    recordRun({
+      gameId: 'k8s',
+      levelId: level.id,
+      seed: engine.seed,
+      startedAt,
+      finishedAt: Date.now(),
+      objectivesMet: engine.status.objectivesMet,
+      objectivesTotal: level.objectives.length,
+      commandsUsed: engine.status.movesUsed,
+      hintsUsed: engine.status.hintsRevealed,
+      score: computeScore({
+        objectivesMet: engine.status.objectivesMet.length,
+        objectivesTotal: level.objectives.length,
+        movesUsed: engine.status.movesUsed,
+        parMoves: level.parMoves,
+        hintsUsed: engine.status.hintsRevealed,
+        hintsAvailable: level.hints.length,
+      }),
+    });
+    // `engine.status` cố ý KHÔNG nằm trong mảng phụ thuộc: nó đổi mỗi nhịp, và
+    // effect này chỉ quan tâm tới đúng khoảnh khắc pha chuyển sang `won`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, level, startedAt, engine.seed]);
+}
+
 function useStars(level: Level, engine: ArenaSessionHandle): number {
   return useMemo(() => {
     if (engine.status.phase !== 'won') {

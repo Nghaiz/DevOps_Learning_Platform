@@ -14,7 +14,7 @@ import type { Level } from '../contract.ts';
 export const l23: Level = {
   id: 'k8s-23-khong-node-nao-nhan',
   chapter: 5,
-  title: 'Chỗ thì còn, mà không node nào nhận',
+  title: 'Hạ requests để scheduler nhận pod',
   mission: 'Đưa pod `canh-bao` lên Running mà vẫn giữ 6 replica `nhat-ky` cùng requests và limits.',
   brief: `Pod \`canh-bao\` trong namespace \`giam-sat\` nằm \`Pending\`. Scheduler ghi lý do rất
 thẳng: không node nào đủ CPU.

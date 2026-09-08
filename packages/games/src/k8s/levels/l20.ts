@@ -19,7 +19,7 @@ import type { Level } from '../contract.ts';
 export const l20: Level = {
   id: 'k8s-20-mat-khau-nam-nham-cho',
   chapter: 4,
-  title: 'Mọi thứ xanh, và vẫn phải sửa',
+  title: 'Chuyển mật khẩu sang Secret',
   mission:
     'Chuyển mật khẩu từ ConfigMap sang Secret mount vào `/etc/bi-mat`, xoá ConfigMap cũ, giữ 2 replica.',
   brief: `Đợt rà soát an ninh gắn cờ namespace \`ke-toan\`. Không có sự cố nào: Deployment

@@ -112,6 +112,29 @@ export { parseManifests } from './k8s/yaml.ts';
 export type { Manifest, ManifestResult } from './k8s/yaml.ts';
 
 /*
+ * Lưu tiến độ trên máy người chơi.
+ *
+ * ⚠ Cả `core/progress.ts` là MÃ CHẾT cho tới bản này: barrel chỉ mở
+ * `STORAGE_KEY_PREFIX`/`storageKey` và mấy cái type, nên không hàm nào trong đó
+ * gọi được từ ngoài package. Hệ quả: tiến độ KHÔNG được lưu ở đâu cả — thắng
+ * một màn rồi tải lại trang là mất sạch — trong khi cả trang `/games` lẫn
+ * `layout.tsx` đều đang viết ra chữ *"tiến độ lưu ngay trên máy bạn"*. Một lời
+ * hứa không có gì thực hiện.
+ *
+ * Mở đúng phần cần để tầng giao diện đọc/ghi, không mở `parseSave` (chi tiết
+ * nội bộ của việc di trú phiên bản).
+ */
+export {
+  appendRun,
+  browserStorage,
+  emptySave,
+  loadSave,
+  readSave,
+  writeSave,
+} from './core/progress.ts';
+export type { SaveLoad, SaveStatus, StorageLike } from './core/progress.ts';
+
+/*
  * Phân loại mục tiêu "phải làm" / "phải giữ".
  *
  * Mở export vì tầng giao diện KHÔNG được tự suy ra: nó sẽ phải gọi

@@ -12,7 +12,7 @@ import type { Level } from '../contract.ts';
 export const l34: Level = {
   id: 'k8s-34-ngan-sach-gian-doan-qua-chat',
   chapter: 6,
-  title: 'Bảo trì không bao giờ bắt đầu được',
+  title: 'Gỡ PDB đang chặn drain node',
   mission: 'Làm cho drain `may-chu-2` chạy được, trong khi `api` vẫn giữ tối thiểu 3 bản chạy.',
   brief: `Bảo trì đêm nay: \`may-chu-2\` cần vá kernel. Quy trình chuẩn là **drain** node
 trước khi tắt.

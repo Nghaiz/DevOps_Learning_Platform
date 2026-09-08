@@ -11,7 +11,7 @@ import type { Level } from '../contract.ts';
 export const l21: Level = {
   id: 'k8s-21-pvc-mai-khong-bound',
   chapter: 4,
-  title: 'Pod chờ một ổ đĩa không bao giờ tới',
+  title: 'Ghép PVC với đúng PV',
   mission:
     'Làm PVC `anh-san-pham` chuyển sang Bound và đưa pod lên Running với ổ đĩa ở `/du-lieu`.',
   brief: `Pod \`anh-san-pham\` trong namespace \`noi-dung\` kẹt ở \`ContainerCreating\` đã hai

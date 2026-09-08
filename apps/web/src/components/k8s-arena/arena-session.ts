@@ -78,6 +78,8 @@ export interface ArenaSessionHandle {
    * để báo. Trước khi tự tính một con số, tìm xem nó đã tồn tại chưa.
    */
   readonly hintsRevealed: number;
+  /** Hạt giống của phiên. Ghi vào `RunResult` để phát lại được đúng lượt chơi. */
+  readonly seed: number;
   /**
    * Mục tiêu ĐÚNG SẴN mà người chơi phải giữ — `ObjectiveKinds.guards`.
    *
@@ -226,6 +228,7 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
   }, [paused]);
 
   return {
+    seed: seedRef.current,
     sceneSubscribe,
     sceneGetView,
     view,

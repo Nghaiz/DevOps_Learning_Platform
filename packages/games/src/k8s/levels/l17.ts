@@ -11,7 +11,7 @@ import type { Level } from '../contract.ts';
 export const l17: Level = {
   id: 'k8s-17-ingress-tra-404',
   chapter: 3,
-  title: 'Bên trong xanh hết, bên ngoài trả lỗi',
+  title: 'Sửa Ingress trả 404 và 502',
   mission:
     'Sửa Ingress `thu-vien` để `/muon-sach` tới Service `muon-sach` và `/api` tới Service `api`.',
   brief: `Trang \`https://thu-vien.dlp.vn\` vừa lên và người dùng báo hai lỗi khác nhau:

@@ -15,7 +15,7 @@ import type { Level } from '../contract.ts';
 export const l30: Level = {
   id: 'k8s-30-hai-endpoint-rong-hai-nguyen-nhan',
   chapter: 6,
-  title: 'Hai Service cùng rỗng, và không cùng lý do',
+  title: 'Chữa hai Service rỗng vì hai lý do',
   mission: 'Đưa cả hai Service về đủ 3 endpoint, và `binh-luan` phải giữ readiness probe.',
   brief: `Trang tin \`tin-tuc\` hỏng hai chỗ cùng lúc sau một đợt deploy. Cả hai Service đều
 không có endpoint nào:
