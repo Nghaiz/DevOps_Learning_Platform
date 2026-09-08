@@ -1,0 +1,157 @@
+import { describe, expect, it } from 'vitest';
+import { SCENARIO_DIFFICULTIES } from '@devops-platform/shared-types/scenario';
+import {
+  GAMES,
+  GAME_META,
+  GAME_TOPICS,
+  GAME_TOPIC_LABEL,
+  NO_GAME_FILTER,
+  NO_LOGIN_LABEL,
+  NO_SANDBOX_LABEL,
+  describeGameCount,
+  filterGames,
+  hasActiveGameFilter,
+} from './games-catalog';
+
+describe('GAMES — hình dạng dữ liệu', () => {
+  it('bốn mục: một chơi được, ba sắp có', () => {
+    expect(GAMES).toHaveLength(4);
+    expect(GAMES.filter((game) => game.href !== null).map((game) => game.id)).toEqual(['k8s']);
+    expect(GAMES.filter((game) => game.href === null).map((game) => game.id)).toEqual([
+      'pipeline',
+      'maze',
+      'forge',
+    ]);
+  });
+
+  it('mục chơi được trỏ đúng route đã dựng', () => {
+    expect(GAMES.find((game) => game.id === 'k8s')?.href).toBe('/games/k8s');
+  });
+
+  it('mọi mục có id duy nhất, tiêu đề và mô tả không rỗng', () => {
+    expect(new Set(GAMES.map((game) => game.id)).size).toBe(GAMES.length);
+    for (const game of GAMES) {
+      expect(game.title.trim()).not.toBe('');
+      expect(game.description.trim()).not.toBe('');
+    }
+  });
+
+  /**
+   * Chủ đề và độ khó là thứ BỘ LỌC đọc. Một mục không chủ đề sẽ biến mất khỏi
+   * mọi lượt lọc theo chủ đề mà không lệnh nào kêu — nó chỉ đơn giản không bao
+   * giờ xuất hiện, và trông y hệt "chưa có game nào ở chủ đề đó".
+   */
+  it('mọi mục có ít nhất một chủ đề, và chủ đề nằm trong danh sách đã khai', () => {
+    for (const game of GAMES) {
+      expect(game.topics.length).toBeGreaterThan(0);
+      for (const topic of game.topics) {
+        expect(GAME_TOPICS).toContain(topic);
+      }
+    }
+  });
+
+  it('mọi mục có độ khó hợp lệ theo hợp đồng ScenarioDifficulty', () => {
+    for (const game of GAMES) {
+      expect(SCENARIO_DIFFICULTIES).toContain(game.difficulty);
+    }
+  });
+
+  /**
+   * Hai chiều (`pinned-baseline-test-companion`): thiếu nhãn chủ đề là một lỗi
+   * (chip hiện ra rỗng), nhãn thừa trỏ tới chủ đề không còn tồn tại là một lỗi
+   * khác — bảng biến thành nghĩa địa và bộ lọc mọc một chip không lọc được gì.
+   */
+  it('bảng nhãn chủ đề khớp đúng danh sách chủ đề, không thiếu không thừa', () => {
+    expect(Object.keys(GAME_TOPIC_LABEL).sort()).toEqual([...GAME_TOPICS].sort());
+    for (const topic of GAME_TOPICS) {
+      expect(GAME_TOPIC_LABEL[topic].trim()).not.toBe('');
+    }
+  });
+});
+
+/**
+ * Yêu cầu 14.B.6: **mọi** thẻ game phải nói ra rằng nó không tốn sandbox và
+ * không cần đăng nhập. Bảo đảm đó là CẤU TRÚC — `games-client.tsx` render đúng
+ * một hằng số `GAME_META` cho cả bốn thẻ, nên không có đường để một thẻ thiếu
+ * nhãn. Khẳng định dưới đây ghim NỘI DUNG của hằng số đó; nếu ai xoá một dòng
+ * để "cho thẻ gọn hơn", ô này đỏ.
+ */
+describe('GAME_META — hai điều mọi thẻ phải nói', () => {
+  it('có cả nhãn sandbox lẫn nhãn đăng nhập', () => {
+    expect(GAME_META.map((item) => item.label)).toEqual([NO_SANDBOX_LABEL, NO_LOGIN_LABEL]);
+  });
+
+  it('hai nhãn nói ra chữ KHÔNG — chúng là lời phủ định, không phải nhãn phân loại', () => {
+    expect(NO_SANDBOX_LABEL).toMatch(/không.*sandbox/i);
+    expect(NO_LOGIN_LABEL).toMatch(/không.*đăng nhập/i);
+  });
+});
+
+describe('filterGames', () => {
+  it('không lọc gì thì trả về nguyên danh sách', () => {
+    expect(filterGames(GAMES, NO_GAME_FILTER)).toEqual(GAMES);
+  });
+
+  it('lọc theo chủ đề chỉ giữ mục MANG chủ đề đó', () => {
+    const result = filterGames(GAMES, { topic: 'kubernetes', difficulty: 'all' });
+    expect(result.map((game) => game.id)).toEqual(['k8s', 'maze']);
+  });
+
+  it('mục nhiều chủ đề khớp ở CẢ HAI chủ đề của nó', () => {
+    const byNetwork = filterGames(GAMES, { topic: 'network', difficulty: 'all' });
+    expect(byNetwork.map((game) => game.id)).toEqual(['maze']);
+  });
+
+  it('lọc theo độ khó chỉ giữ đúng mức đó', () => {
+    expect(filterGames(GAMES, { topic: 'all', difficulty: 'beginner' }).map((g) => g.id)).toEqual([
+      'k8s',
+      'forge',
+    ]);
+    expect(filterGames(GAMES, { topic: 'all', difficulty: 'advanced' }).map((g) => g.id)).toEqual([
+      'maze',
+    ]);
+  });
+
+  it('hai điều kiện là AND, không phải OR', () => {
+    expect(filterGames(GAMES, { topic: 'kubernetes', difficulty: 'advanced' }).map((g) => g.id)).toEqual([
+      'maze',
+    ]);
+  });
+
+  /**
+   * Đối chứng ÂM. Không có ô này thì mọi khẳng định trên vẫn xanh với một hàm
+   * `filterGames = (games) => games` — chúng chỉ tình cờ khớp ở những tổ hợp có
+   * kết quả. Đây là tổ hợp hợp lệ mà kho KHÔNG có mục nào, và nó phải ra rỗng.
+   */
+  it('tổ hợp không mục nào khớp thì ra danh sách RỖNG', () => {
+    expect(filterGames(GAMES, { topic: 'kubernetes', difficulty: 'intermediate' })).toEqual([]);
+    expect(filterGames(GAMES, { topic: 'container', difficulty: 'advanced' })).toEqual([]);
+  });
+
+  it('mọi chủ đề đã khai đều có ít nhất một game — không chip nào lọc ra rỗng ngay từ đầu', () => {
+    for (const topic of GAME_TOPICS) {
+      expect(filterGames(GAMES, { topic, difficulty: 'all' }).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('hasActiveGameFilter', () => {
+  it('mặc định là KHÔNG lọc', () => {
+    expect(hasActiveGameFilter(NO_GAME_FILTER)).toBe(false);
+  });
+
+  it('bật một trong hai chiều là đã lọc', () => {
+    expect(hasActiveGameFilter({ topic: 'cicd', difficulty: 'all' })).toBe(true);
+    expect(hasActiveGameFilter({ topic: 'all', difficulty: 'beginner' })).toBe(true);
+  });
+});
+
+describe('describeGameCount', () => {
+  it('không lọc thì KHÔNG nói "khớp bộ lọc" — câu đó sẽ là một khẳng định sai', () => {
+    expect(describeGameCount(4, false)).toBe('4 game');
+  });
+
+  it('có lọc thì nói rõ con số là con số ĐÃ LỌC', () => {
+    expect(describeGameCount(2, true)).toBe('2 game khớp bộ lọc');
+  });
+});
