@@ -33,6 +33,7 @@
  * cổng ấy chỉ tồn tại trên giấy.
  */
 
+import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures/api';
 import { openScreen, settle } from './fixtures/nav';
 import {
@@ -77,12 +78,14 @@ const ENGINE_NOT_WIRED =
   'Bộ máy mô phỏng chưa được nối vào route: `app/games/k8s/page.tsx` render `<K8sGame />` ' +
   'không truyền `levels` lẫn `createSession`, và `@devops-platform/games` chưa export ' +
   'danh sách level nào. Đây là một PHÁT HIỆN SẢN PHẨM của làn đo, không phải một ô test ' +
-  'cần nới: không có engine thì "chơi được" không có gì để đo.';
+  'cần nới: không có engine thì "chơi được" không có gì để đo. Ô này ĐỎ cho tới khi lane B ' +
+  'giao `createSession` + danh sách level và lane D truyền chúng vào `<K8sGame />` — đó là ' +
+  'một phụ thuộc CHƯA XONG, không phải một hồi quy.';
 
 // ─────────────────────────────────────────────────────────────── tiện ích cục bộ
 
 /** Thanh lệnh `kubectl` mở khoá ⇔ engine đã sẵn sàng (`disabled={!engineReady}`). */
-async function engineIsWired(page: import('@playwright/test').Page): Promise<boolean> {
+async function engineIsWired(page: Page): Promise<boolean> {
   return page.evaluate(() => {
     const inputs = [...document.querySelectorAll('input')];
     return inputs.some((el) => {
@@ -100,7 +103,7 @@ function isButtonNamed(fragment: string): (info: FocusInfo) => boolean {
 }
 
 /** Enter trên phần tử đang focus. Không `.click()` — xem `tabUntil`. */
-async function activate(page: import('@playwright/test').Page): Promise<void> {
+async function activate(page: Page): Promise<void> {
   await page.keyboard.press('Enter');
   await page.waitForTimeout(250);
 }

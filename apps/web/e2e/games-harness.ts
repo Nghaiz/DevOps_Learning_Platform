@@ -14,7 +14,7 @@
  */
 
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type Page, type TestInfo } from '@playwright/test';
+import { expect, type Page, type Request, type Response, type TestInfo } from '@playwright/test';
 import type { Result } from 'axe-core';
 import { E2E_BASE_URL } from './env';
 
@@ -68,7 +68,7 @@ export function traceRequests(page: Page): RequestTrace {
   const captured: CapturedRequest[] = [];
   let current = 'tải trang';
 
-  const onRequest = (request: import('@playwright/test').Request): void => {
+  const onRequest = (request: Request): void => {
     let parsed: URL;
     try {
       parsed = new URL(request.url());
@@ -128,7 +128,7 @@ export interface ScriptTrace {
 export function traceScripts(page: Page): ScriptTrace {
   const urls = new Set<string>();
 
-  const onResponse = (response: import('@playwright/test').Response): void => {
+  const onResponse = (response: Response): void => {
     const request = response.request();
     if (request.resourceType() !== 'script') {
       return;
