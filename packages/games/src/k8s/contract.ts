@@ -248,7 +248,20 @@ export interface LevelTeaching {
 }
 
 export interface Level {
-  /** `k8s-01-pod-dau-tien` — số thứ tự hai chữ số, rồi slug tiếng Việt không dấu. */
+  /**
+   * `k8s-01-pod-dau-tien` — số hai chữ số, rồi slug tiếng Việt không dấu.
+   *
+   * ⛔ **Con số trong id là ĐỊNH DANH, không phải VỊ TRÍ chơi.** Thứ tự chơi là
+   * thứ tự của mảng `LEVELS` trong `levels/index.ts`, không phải thứ tự số.
+   *
+   * Quyết định 2026-09-08, và nó có tải: `RunResult.levelId` được lưu trong
+   * `localStorage` của người chơi. Đánh số lại một level là **mồ côi toàn bộ
+   * tiến độ đã lưu** của mọi người đang chơi — không lỗi, không cảnh báo, chỉ là
+   * lịch sử biến mất. Vì vậy chèn một level mới vào GIỮA mạch học được làm bằng
+   * cách đặt nó ở cuối dãy số (file `l36.ts`, id `k8s-36-…`) rồi chèn vào ĐÚNG
+   * CHỖ trong mảng. Nhìn hơi lệch khi đọc mảng; đổi lại là chèn level không bao
+   * giờ phá tiến độ của ai.
+   */
   readonly id: string;
   /** 1..6. Xem `levels/index.ts` để biết chương nào dạy gì. */
   readonly chapter: number;

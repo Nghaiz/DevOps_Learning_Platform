@@ -49,6 +49,14 @@ export const PREDICATE_NAMES = [
   'probe-configured',
   /** args: { name, namespace } — Job kết thúc Succeeded */
   'job-succeeded',
+  /**
+   * args: { name, namespace, schedule }
+   *
+   * Thêm 2026-09-08. Không có nó thì một level dạy CronJob chỉ kiểm được
+   * `resource-exists`, tức brief đòi "mỗi ngày một lần" mà hệ thống không hề
+   * kiểm lịch — cùng một lỗi nói-quá-thứ-đã-kiểm với l05 và l11 cũ.
+   */
+  'cronjob-schedule-is',
 
   // ── Mạng ──────────────────────────────────────────────────────────────────
   /** args: { name, namespace, min } */
@@ -65,11 +73,23 @@ export const PREDICATE_NAMES = [
   // ── Cấu hình và lưu trữ ───────────────────────────────────────────────────
   /** args: { name, namespace, key } */
   'configmap-key-set',
-  /** args: { podName, namespace, secretName } */
+  /**
+   * args: { namespace, secretName, podName? , labelSelector? }
+   *
+   * ⚠ Nhận MỘT TRONG HAI cách chỉ pod, theo đúng tiền lệ của `pod-running` ở
+   * trên. Mở rộng 2026-09-08: pod do Deployment sinh mang tên
+   * `<tên>-<hash>-<hash>` nên `podName` không viết trước được, và l20 (mount
+   * Secret vào một Deployment) KHÔNG diễn đạt nổi mục tiêu của nó nếu chỉ có
+   * `podName`. Bỏ mục tiêu đi thì level thắng được bằng `envFrom: secretRef`
+   * trong khi bài học lại khẳng định mount theo file rò rỉ ít hơn — tức lời dạy
+   * nói quá thứ đã kiểm, đúng lỗi vừa sửa ở l05.
+   *
+   * Thiếu cả hai ⇒ trả `false`, không ném.
+   */
   'secret-mounted',
   /** args: { name, namespace } — PVC ở trạng thái Bound */
   'pvc-bound',
-  /** args: { podName, namespace, mountPath } */
+  /** args: { namespace, mountPath, podName? , labelSelector? } — cùng lý do mở rộng như `secret-mounted`. */
   'volume-mounted',
 
   // ── Xếp lịch và quota ─────────────────────────────────────────────────────
