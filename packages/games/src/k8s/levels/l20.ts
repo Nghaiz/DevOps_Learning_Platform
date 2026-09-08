@@ -8,6 +8,25 @@ import type { Level } from '../contract.ts';
  * "xanh hết nghĩa là ổn". Không có level như thế này thì cả game ngầm dạy rằng
  * an toàn là thứ nhìn thấy được trong `kubectl get pods` — và đó là một mô hình
  * sai mà người học sẽ mang theo ra production.
+ *
+ * ⚠ LỖI ĐÃ BIẾT, CHƯA SỬA ĐƯỢC — ĐÍCH PHẢI LÀ Deployment, KHÔNG PHẢI Pod.
+ *
+ * Level đang bắt người chơi sửa `volumes` và `envFrom` của một Pod ĐANG CHẠY.
+ * Kubernetes thật từ chối việc đó: pod spec gần như bất biến, chỉ `image` sửa
+ * được. Nghĩa là level dạy một quy trình không tồn tại, và nó phạt đúng người
+ * chơi đã biết Kubernetes rõ nhất — họ sẽ đi tìm chỗ mình hiểu sai.
+ *
+ * Bản đã chuyển sang Deployment viết xong rồi, nhưng CHƯA áp được vì nó chặn ở
+ * hợp đồng vị từ: pod của Deployment mang tên sinh tự động, trong khi
+ * `secret-mounted` và `volume-mounted` chỉ nhận `podName`. Cần lead pin thêm
+ * `labelSelector?` cho hai dòng đó trong `predicate-names.ts` — đúng cặp
+ * `name? | labelSelector?` mà `pod-running` ĐÃ có, nên là mở rộng theo tiền lệ
+ * chứ không phải khái niệm mới. `l21` của lane C vẫn dùng `podName`, không đổi.
+ *
+ * Giữ nguyên bản Pod cho tới lúc đó là có chủ ý: truyền `labelSelector` khi lane
+ * B chưa hiện thực sẽ cho ra một level KHÔNG BAO GIỜ QUA ĐƯỢC, và
+ * `predicate-names.ts` cấm đúng việc này ở đầu file. Một lỗi đã ghi rõ vẫn tốt
+ * hơn một level không thắng nổi.
  */
 export const l20: Level = {
   id: 'k8s-20-mat-khau-nam-nham-cho',
