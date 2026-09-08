@@ -936,3 +936,64 @@ vẫn theo theme người dùng như mọi trang khác — chỉ `/games/k8s` ch
 - Ảnh chụp thứ hai ở 1280×720 — chứng minh panel không chồng ở màn hẹp hơn.
 - Ảnh chụp thứ ba với 3D tắt, chứng minh lớp DOM vẫn dùng được.
 - Cả ba **được nhìn** trước khi báo xong, không chỉ được lưu ra file.
+
+---
+
+## 15. Sửa §11.3 — ô gác draw call đo SAI THỨ (2026-09-08)
+
+### 15.1 Con số 200 là của tôi, và cách đặt nó đã sai
+
+§11.3 viết "≤ 25 draw call với 200 pod". Lane đo lường phát hiện 200 có thể
+**không đạt tới được về mặt cấu trúc**: `controllers.ts` giới hạn ReplicaSet ở
+`max(currentReplicas, currentReady + maxSurge)`, nên nhịp tăng bị **readiness**
+điều tiết chứ không phải bởi tick. Ở l07, hai node 4000m CPU chia cho pod 100m
+chặn số pod Ready quanh ~80. Đo thật: 39 object sau 180 giây ở 1x, 68 ở 4x.
+
+Nó **từ chối hạ ngưỡng xuống bất kỳ con số nào nó vô tình đo được**, và đó là
+quyết định đúng — một ô gác chỉnh theo kết quả vừa chạy không còn là ô gác.
+
+### 15.2 Nhưng vấn đề sâu hơn: ngưỡng đo sai tính chất
+
+Tính chất ta thật sự cần chứng minh là **instancing hoạt động**, tức
+**số draw call KHÔNG tăng theo số object**. Một ngưỡng cố định đo tính chất đó
+một cách gián tiếp và tồi: `calls ≤ 25` vẫn xanh khi số call ĐANG tăng, miễn là
+trần đủ rộng. Nó bắt được "quá nhiều call", không bắt được "call tăng theo N" —
+mà cái thứ hai mới là hồi quy thật.
+
+### 15.3 Ô gác mới: bất biến, không phải ngưỡng
+
+Đo `renderer.info.render.calls` ở **hai** mức object khác nhau và trong tầm với
+(ví dụ N≈10 và N≈60), rồi khẳng định:
+
+1. **`calls(N₂) === calls(N₁)`** — instancing đúng thì con số này phẳng tuyệt
+   đối, không phải "tăng ít".
+2. `objects(N₂) > objects(N₁)` — đối chứng, chứng minh phép đo thật sự có nhiều
+   object hơn chứ không phải đo hai lần cùng một cảnh.
+3. Vẫn giữ **bậc VỪA** (không composer) vì lý do ở §15.4.
+
+Ô này mạnh hơn ngưỡng cũ ở đúng chỗ quan trọng: nó đỏ ngay lần đầu ai đó thay
+`InstancedMesh` bằng mesh-mỗi-pod, kể cả khi tổng số call vẫn dưới 25.
+
+Con số plateau thật (~80?) vẫn **ghi lại như một số đo**, trong report, không
+phải như một ngưỡng. Nó mô tả sức chứa của l07, không mô tả sức khoẻ của renderer.
+
+### 15.4 Bẫy composer, ghi lại để không ai đo lại sai
+
+Bật bloom (bậc cao) thì `renderer.info.render.calls` báo **1** và `triangles`
+báo **1** — đó là `OutputPass` vẽ một tam giác phủ màn hình, không phải cảnh.
+`info.render` reset mỗi lần `render()` và pass cuối của composer thắng. Một
+khẳng định `calls ≤ 25` ở bậc cao **luôn xanh** và không đo gì.
+
+Lane đo lường xử lý đúng: ghim bậc vừa qua `localStorage` trước khi app khởi
+động, rồi khẳng định **cả** `tier === 'medium'` **lẫn** `triangles > objects` —
+nên nếu số đọc rơi vào một fullscreen pass thì nó ĐỎ, không phải xanh.
+
+### 15.5 Cây `.next` dùng chung — nguy hiểm cho mọi lượt đo
+
+Một lane build lại `.next` giữa lúc suite E2E đang chạy. Chunk biến mất giữa
+chừng, chunk `three` không nạp được, cảnh không mount, và **năm test đỏ theo
+đúng kiểu đọc ra như hồi quy sản phẩm**. Không phải vậy.
+
+Bắt buộc từ nay: ghi `BUILD_ID` trước và sau mỗi lượt E2E, chỉ tin kết quả khi
+hai giá trị khớp. Kết quả của một lượt bị build đè lên là vô giá trị, và tệ hơn
+là nó vô giá trị theo hướng trông giống một phát hiện thật.
