@@ -91,6 +91,20 @@ export interface CameraCommand {
   readonly kind: 'reset' | 'focus' | 'frame-all';
   /** Với `focus`: uid của object cần bay tới. Bỏ qua với hai kind kia. */
   readonly uid?: string;
+  /**
+   * Với `focus`: tên node cần bay tới, khi đích đến là một NODE chứ không phải
+   * một object.
+   *
+   * Vì sao phải có trường thứ hai thay vì dùng chung `uid`: node không mang
+   * uid. Trong `ClusterView` chúng được địa chỉ hoá bằng `name`, còn uid chỉ
+   * cấp cho object nằm TRÊN node. Bản đồ thu nhỏ bấm vào một node, và không có
+   * uid nào để đưa vào đây.
+   *
+   * Nhét tên node vào `uid` cũng chạy được, nhưng khi đó chỗ nhận phải đoán
+   * xem chuỗi đang cầm là uid hay tên — và đoán sai thì camera bay tới hư
+   * không mà không báo gì. Hai trường thì không có gì để đoán.
+   */
+  readonly nodeName?: string;
   /** `performance.now()` lúc phát lệnh. Scene so sánh để biết lệnh mới. */
   readonly issuedAt: number;
 }
@@ -179,6 +193,31 @@ export type OverlayId =
   | 'minimap'
   | 'codex'
   | 'eventLog';
+
+/**
+ * ⛔ VÙNG THÔNG BÁO CHO TRÌNH ĐỌC MÀN HÌNH — quyết định của lead, 2026-09-08.
+ *
+ * Vấn đề: nhật ký sự kiện mặc định TẮT (`DEFAULT_OVERLAYS.eventLog === false`),
+ * nên nếu vùng sống duy nhất nằm trong nhật ký thì cụm chạy hoàn toàn câm với
+ * trình đọc màn hình cho tới khi người dùng tự bấm phím mở nhật ký — mà họ
+ * không có cách nào biết là cần bấm.
+ *
+ * Chốt: **lead dựng một vùng thông báo thường trực, ẩn về mặt hình ảnh**, sống
+ * trong `arena-root.tsx` bất kể lớp nào đang bật. Bảng nhật ký sự kiện KHÔNG
+ * mang `aria-live` — bảng đó hiển thị bằng mắt, việc đọc thành tiếng thuộc về
+ * vùng thông báo của lead. Hai vùng cùng đọc dòng sự kiện thì trình đọc màn
+ * hình đọc lặp mỗi lần cụm đổi trạng thái.
+ *
+ * ⚠ Luật này nói về DÒNG SỰ KIỆN CỤM, không phải "cả trang chỉ được một vùng".
+ * Một hộp thoại modal đọc lỗi nhập liệu tại chỗ (hộp đặt tên tài nguyên đang
+ * làm vậy) là vùng sống hợp lệ và ĐỪNG gỡ nó: lỗi biểu mẫu phải đọc ngay cạnh ô
+ * nhập, không phải dồn về một vùng chung ở nơi khác trên trang.
+ *
+ * Ràng buộc "đúng một vùng trên toàn trang" mà bạn có thể nghe nhắc tới là của
+ * `playground.flow.spec.ts` (`toHaveCount(1)`) và nó gác TRANG SÂN CHƠI, không
+ * gác arena — đã kiểm 2026-09-08. Đừng mang thẳng con số đó sang đây.
+ */
+export const ARIA_LIVE_OWNER = 'arena-root' as const;
 
 /** Lớp nào bật sẵn khi vào bài. Số lớp bật sẵn ít là có chủ ý — vào là chơi ngay. */
 export const DEFAULT_OVERLAYS: Readonly<Record<OverlayId, boolean>> = {

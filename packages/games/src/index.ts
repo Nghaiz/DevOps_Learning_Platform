@@ -137,3 +137,36 @@ export {
  */
 export type { ScoreInput } from './k8s/scoring.ts';
 export { MAX_SCORE, computeScore, scoreCeiling } from './k8s/scoring.ts';
+
+/*
+ * Chấm điểm bài OJ. Một hàm, hai phía dùng chung — và đó là toàn bộ lý do nó
+ * tồn tại tách khỏi `computeScore`.
+ *
+ * Máy chủ phát lại nhật ký hành động rồi chỉ ghi nhận khi con số nó tính khớp
+ * con số client khai. Nếu hai bên tính bằng hai đoạn mã khác nhau thì mọi lượt
+ * nộp HỢP LỆ đều bị từ chối và không ai được điểm — một lỗi trông không giống
+ * lỗi công thức, mà giống hệ thống từ chối người chơi ngẫu nhiên.
+ */
+export type { ProblemScoreInput } from './k8s/problem-scoring.ts';
+export { scoreProblemRun } from './k8s/problem-scoring.ts';
+
+/*
+ * `ALL_KINDS` mở theo yêu cầu lane D, và lý do đáng ghi lại vì nó là một cái bẫy
+ * ngữ nghĩa chứ không phải thiếu tiện ích.
+ *
+ * Để phát lại nhật ký, một `Problem` phải bọc thành `Level` cho `createSession`.
+ * `Level.allowedResources` không nhận `null`, còn `Problem.allowedResources` thì
+ * có, và `null` ở đó nghĩa là "cho dùng MỌI loại". Không có `ALL_KINDS` thì chỗ
+ * bọc buộc phải viết `[]` — mà `[]` mang nghĩa NGƯỢC LẠI: "cấm mọi loại".
+ *
+ * Hôm nay chưa gây hại vì engine không đọc trường đó khi phát lại. Nhưng ngày
+ * nào engine bắt đầu chặn theo `allowedResources`, mọi lượt phát lại của mọi bài
+ * "không giới hạn" sẽ trượt, và trượt trong im lặng — một hành động bị chặn
+ * không phải một lỗi.
+ *
+ * Công dụng thứ hai: `ResourceKind` là kiểu liên hợp, không phải hằng mảng, nên
+ * Zod ở biên ghi không có gì để dựng `z.enum`. Thiếu nó thì `kind` chỉ kiểm được
+ * là chuỗi khác rỗng, và một `Deploymnet` gõ nhầm lọt qua cổng xuất bản rồi chỉ
+ * lộ ra khi có người vào làm bài.
+ */
+export { ALL_KINDS } from './k8s/resources.ts';
