@@ -411,6 +411,16 @@ const livenessProbeQuaGat = define(
  * `kubectl get` thì không khác gì một app hỏng thật. Đây là bẫy mà câu trả lời
  * đúng nhất lại là thứ hay bị bỏ sót nhất: thêm `startupProbe`.
  */
+/**
+ * Thời gian một container cần để sẵn sàng, tính bằng tick.
+ *
+ * ⚠ Bản sao của `DEFAULT_STARTUP_TICKS` trong `tick.ts`, vốn không được export.
+ * Hai bản là một nợ SSOT có thật và đã báo lead — nhưng để `isActive` so với 0
+ * thay vì so với ngưỡng thì tệ hơn nhiều: nó sẽ báo "đã sửa" cho một pod vẫn
+ * đang bị giết. Sửa một bên thì phải sửa cả bên kia.
+ */
+const MIN_SAFE_INITIAL_DELAY_TICKS = 4;
+
 const probeKhongCoInitialDelay = define(
   'probe-khong-co-initialdelay',
   SYMPTOM_RESTART_LOOP,
@@ -421,11 +431,13 @@ const probeKhongCoInitialDelay = define(
         const open = asArray(container['ports'])
           .map((entry) => asNumber(asRecord(entry)?.['containerPort']))
           .filter((port): port is number => port !== null);
+        // KHÔNG ghi `initialDelaySeconds: 0` — ghi số 0 vào đó cho ra 1 tick chứ
+        // không phải 0 (`secondsToTicks` chặn sàn ở 1). Sự cố này đúng nghĩa đen
+        // là "probe không khai initialDelay", nên trường phải VẮNG MẶT.
         return {
           ...container,
           livenessProbe: {
             httpGet: { path: '/khoe-manh', port: open[0] ?? 8080 },
-            initialDelaySeconds: 0,
             periodSeconds: 2,
             failureThreshold: 1,
           },
@@ -435,10 +447,16 @@ const probeKhongCoInitialDelay = define(
   (state, object) =>
     parsedContainers(object).some((container) => {
       const probe = container.livenessProbe;
-      // Cổng ĐÚNG mà vẫn không có độ trễ — nếu cổng sai thì đó là sự cố kia.
+      // Cổng ĐÚNG mà độ trễ vẫn ngắn hơn thời gian ứng dụng cần để lên — nếu cổng
+      // sai thì đó là sự cố kia.
+      //
+      // ⚠ So với NGƯỠNG chứ không so với 0. Người chơi "sửa" bằng
+      // `initialDelaySeconds: 1` vẫn bị kubelet giết y như cũ, và một phép so với
+      // 0 sẽ báo ĐÃ SỬA trong khi pod còn đang chết đi chết lại — đúng loại lời
+      // nói dối mà `isActive` sinh ra để tránh.
       return (
         probe !== null &&
-        probe.initialDelayTicks === 0 &&
+        probe.initialDelayTicks < MIN_SAFE_INITIAL_DELAY_TICKS &&
         (probe.port === null || container.ports.includes(probe.port))
       );
     }),
@@ -643,6 +661,9 @@ const khongCoEndpoint = define(
   SYMPTOM_NO_ENDPOINT,
   (state, object) => {
     const selector = readSelector(object.spec);
+    if (Object.keys(selector).length === 0) {
+      return state;
+    }
     let next = state;
     for (const kind of ['Deployment', 'StatefulSet', 'ReplicaSet'] as const) {
       for (const workload of objectsOfKind(next, kind, object.namespace)) {
@@ -651,14 +672,32 @@ const khongCoEndpoint = define(
         }
       }
     }
+    // Pod TRẦN không có controller nào để hạ về 0 — nó chỉ biến mất khi bị xoá,
+    // và đó cũng là cách nó biến mất ngoài đời. Thiếu nhánh này thì sự cố không
+    // gieo được lên một Service đứng sau pod trần, và nó im lặng không làm gì.
+    for (const pod of podsMatching(next, object.namespace, selector)) {
+      if (pod.ownerUid === null) {
+        next = removeObjectCascade(next, pod.uid);
+      }
+    }
     return next;
   },
   (state, object) => {
     const selector = readSelector(object.spec);
+    if (Object.keys(selector).length === 0) {
+      return false;
+    }
+    const backing = ['Deployment', 'StatefulSet', 'ReplicaSet'].flatMap((kind) =>
+      objectsOfKind(state, kind as 'Deployment', object.namespace).filter((workload) =>
+        matchLabels(templateLabels(workload), selector),
+      ),
+    );
+    // Không pod nào khớp, và không workload nào còn được yêu cầu chạy ⇒ thật sự
+    // không còn gì phía sau Service. Chồng lấn với `service-selector-lech-label`
+    // là vô hại: `no-incident-active` chỉ hỏi những sự cố ĐÃ được gieo.
     return (
-      Object.keys(selector).length > 0 &&
       podsMatching(state, object.namespace, selector).length === 0 &&
-      livePods(state, object.namespace).length === 0
+      backing.every((workload) => (asNumber(workload.spec['replicas']) ?? 0) === 0)
     );
   },
 );
@@ -842,12 +881,37 @@ const networkPolicyChanNham = define(
       ingress: [{ from: [{ podSelector: { matchLabels: { tang: 'khong-ton-tai' } } }] }],
     }),
   (state, object) => {
+    // ⚠ Hỏi về CHÍNH policy, không hỏi "có ai đang bị chặn không". Bản đầu đếm
+    // pod nguồn bị chặn, và nó có hai chỗ hỏng: ở một namespace chỉ có một pod
+    // thì không có nguồn nào để đếm, còn người chơi XOÁ pod nguồn đi thì sự cố
+    // đọc ra là "đã sửa" trong khi policy vẫn chặn y nguyên.
     const to = podLabelsOf(object);
-    const others = livePods(state, object.namespace).filter((pod) => !matchLabels(pod.labels, to));
-    return (
-      others.length > 0 &&
-      others.every((pod) => !ingressAllowed(state, object.namespace, pod.labels, to, null))
-    );
+    const pods = livePods(state, object.namespace);
+    return objectsOfKind(state, 'NetworkPolicy', object.namespace).some((policy) => {
+      const selector = asStringMap(asRecord(policy.spec['podSelector'])?.['matchLabels']);
+      if (!matchLabels(to, selector)) {
+        return false;
+      }
+      const types = asStringArray(policy.spec['policyTypes']);
+      const guardsIngress =
+        types.length === 0 ? policy.spec['ingress'] !== undefined : types.includes('Ingress');
+      if (!guardsIngress) {
+        return false;
+      }
+      const rules = asArray(policy.spec['ingress']);
+      // Policy có chọn pod đích nhưng KHÔNG rule nào mở cho một nguồn có thật ⇒
+      // nó là default-deny đội lốt một policy trông có vẻ đã cho phép ai đó.
+      return !rules.some((rule) => {
+        const froms = asArray(asRecord(rule)?.['from']);
+        if (froms.length === 0) {
+          return true;
+        }
+        return froms.some((entry) => {
+          const from = asStringMap(asRecord(asRecord(entry)?.['podSelector'])?.['matchLabels']);
+          return pods.some((pod) => matchLabels(pod.labels, from));
+        });
+      });
+    });
   },
 );
 
