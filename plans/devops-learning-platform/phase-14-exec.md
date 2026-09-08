@@ -475,3 +475,63 @@ minh do người dùng bấm, sau khi lượt chơi kết thúc. Không phải �
       câu "không chặn được F12, và đây là lý do".
 - [ ] Grep khẳng định repo **không** có mã dò devtools / chặn `contextmenu` / vòng
       lặp `debugger` — có đối chứng dương.
+
+---
+
+## 9. Hợp đồng C6 — hướng mỹ thuật 3D
+
+> Lane E sở hữu. Yêu cầu bổ sung của chủ dự án 2026-09-08: *"đồ hoạ threejs của họ
+> trông khá xấu và đơn sơ, đừng bắt chước, tự thiết kế đẹp hơn"*.
+
+"Làm đẹp hơn" không phải một chỉ dẫn thi hành được. Dưới đây là các quyết định kỹ
+thuật CỤ THỂ tạo ra khác biệt đó — phần lớn cảnh Three.js trông rẻ tiền vì thiếu
+đúng bốn thứ đầu tiên trong danh sách này, không phải vì thiếu mô hình đẹp.
+
+### 9.1 Bốn thứ quyết định 80% cảm giác "được thiết kế"
+
+1. **Tone mapping + color space.** `ACESFilmicToneMapping`, `outputColorSpace = SRGBColorSpace`, `toneMappingExposure` chỉnh tay. Thiếu cái này là lý do số một khiến cảnh Three.js trông bợt và nhựa.
+2. **Ánh sáng ba điểm, có bóng đổ mềm.** Key directional có shadow map (`PCFSoftShadowMap`), fill bằng `HemisphereLight`, và một rim light hắt viền. Một `AmbientLight` + một `DirectionalLight` là dấu hiệu nhận dạng của cảnh demo.
+3. **Vật liệu PBR thật.** `MeshStandardMaterial` (hoặc `MeshPhysicalMaterial` cho bề mặt cần bóng) với `roughness`/`metalness` chỉnh có chủ ý, cộng một environment map **sinh tại chỗ** (`RoomEnvironment` trong `three/examples/jsm`, hoặc gradient thủ tục). ⛔ Không tải HDRI từ mạng: CSP chặn, và game phải giữ tính chất 0 lời gọi backend. `MeshBasicMaterial` bị cấm cho vật thể chính.
+4. **Hình khối bo góc.** `BoxGeometry` cạnh sắc chính là hình dạng của cái "đơn sơ" mà chủ dự án chê. Dùng khối bo (bevel qua `ExtrudeGeometry`, hoặc tự dựng rounded box). Góc bo bắt được rim light — đó là chỗ khối trông có chất liệu.
+
+### 9.2 Ngôn ngữ hình ảnh
+
+Phòng điều khiển tối, tương phản cao, điểm nhấn đỏ. Cụ thể:
+
+- **Node** = bệ nâng, mặt trên hơi phản chiếu, viền phát sáng yếu. Node `NotReady` mất phần phát sáng và tụt độ bão hoà, không đổi sang màu khác — mất sức sống đọc ra đúng nghĩa hơn là đổi màu.
+- **Pod** = khối bo tròn đặt trên bệ, lơ lửng rất nhẹ. Trạng thái nói bằng **vật liệu**, không chỉ bằng màu: khoẻ thì bề mặt sạch và phát sáng đều; lỗi thì phát sáng nhấp nháy theo nhịp thở chậm; `Terminating` thì mờ dần và tụt xuống.
+- **Edge** = đường có hạt chạy dọc theo, chỉ hướng đi của traffic. Quan hệ đứt (selector lệch label) vẽ nét đứt, đứng yên, nhuộm `destructive`. **Người chơi phải thấy ngay cái nào đang chảy và cái nào không.**
+- **Nhãn chữ nằm ở DOM chồng lên canvas**, KHÔNG phải text 3D. Sắc nét hơn ở mọi mức zoom, đổi theo font hệ thiết kế, và nó chính là lớp a11y §4.4 đằng nào cũng phải dựng. Text 3D là mờ, không đọc được bằng trình đọc màn hình, và tốn thêm asset font.
+- **Nền** = gradient đứng lấy từ token, cộng fog cùng màu nền để vật ở xa chìm dần. Fog là mẹo rẻ nhất tạo chiều sâu.
+- **Mặt sàn** có bóng tiếp xúc mềm dưới mỗi bệ. Vật không có bóng trông như dán lên ảnh nền.
+
+### 9.3 Chuyển động
+
+Không gì được nhảy cóc. Mọi thay đổi trạng thái là một chuyển tiếp có easing.
+
+- Pod sinh ra: scale từ 0 với ease vượt nhẹ (overshoot) rồi lắng.
+- Pod bị xoá: scale nhỏ lại + mờ đi, KHÔNG biến mất tức thì.
+- Bồng bềnh khi rảnh: biên độ rất nhỏ, **pha khác nhau cho từng pod** — cùng pha thì cả cảnh đập như một khối, trông như lỗi.
+- Camera: có quán tính, giảm chấn, không cắt cảnh đột ngột.
+- ⚠ `prefers-reduced-motion: reduce` ⇒ tắt bồng bềnh và nhấp nháy, giữ chuyển tiếp trạng thái nhưng rút còn ~1 frame. Hệ thiết kế đã có khối media query cho việc này; đừng dựng cơ chế thứ hai.
+
+### 9.4 Bloom — có, nhưng tiết chế
+
+`UnrealBloomPass` qua `EffectComposer` (nằm sẵn trong `three/examples/jsm`, không thêm dependency), **chỉ tác động lên phần emissive**, ngưỡng đặt cao. Bloom tràn lan là cách nhanh nhất biến "có không khí" thành "mờ nhoè". Nằm ở bậc chất lượng cao, tắt ở bậc thấp.
+
+### 9.5 Ba bậc chất lượng, tự dò
+
+| Bậc | Bật | Khi nào |
+|---|---|---|
+| Cao | bóng mềm, bloom, env map, pixelRatio ≤ 2 | GPU rời, khung hình ổn định |
+| Vừa | bóng cứng, không bloom, pixelRatio 1 | mặc định an toàn |
+| Thấp | không bóng, không post, vật liệu đơn giản | SwiftShader (không có GPU thật), hoặc khung hình đo được thấp |
+
+⚠ Chromium headless của Playwright cấp WebGL2 **qua SwiftShader** — chạy được nhưng rất chậm. Tự dò và hạ về bậc thấp, nếu không E2E sẽ hết giờ. Có công tắc tay để người dùng ép bậc.
+
+### 9.6 Ràng buộc không được đánh đổi
+
+- Mọi màu **đọc từ design token** (§4.5). Cảnh phải đổi đúng khi chuyển sáng/tối. Không hex.
+- Không asset ngoài: không HDRI, không texture tải về, không font 3D. Cần texture thì sinh bằng canvas lúc chạy.
+- `import 'three'` vẫn chỉ được nằm trong đúng một file lazy (§4.3). Import từ `three/examples/jsm` cũng tính là ở trong ranh giới đó.
+- Đẹp không được đổi bằng a11y. Lớp DOM ở §4.4 là giao diện chính thức; canvas vẫn `aria-hidden`.
