@@ -262,11 +262,16 @@ function stepPod(state: ClusterState, uid: string): ClusterState {
           involvedUid: object.uid,
         });
   }
-  if (state.tick < pod.startedTick) {
-    return put(state, object, { ...pod, phase: 'Pending', reason: 'ContainerCreating', ready: false });
-  }
+  // ⚠ Backoff phải xét TRƯỚC pha tạo container, dù cả hai đều là "đang chờ tới
+  // `startedTick`". Xét ngược lại thì một pod đang CrashLoopBackOff hiện
+  // `ContainerCreating` ở cột STATUS suốt cửa sổ backoff — một trạng thái trông
+  // như "sắp chạy được" trong khi thật ra nó đang chết đi chết lại. Đó là dạy
+  // ngược hẳn, và nó chỉ lộ ra khi có test đọc `reason` giữa hai lần restart.
   if (state.tick < pod.nextRetryTick) {
     return waitingInBackoff(state, object, pod);
+  }
+  if (state.tick < pod.startedTick) {
+    return put(state, object, { ...pod, phase: 'Pending', reason: 'ContainerCreating', ready: false });
   }
   return runContainers(state, object, pod);
 }
