@@ -200,11 +200,6 @@ export function createCanvasColorResolver(doc: Document): (css: string) => Rgb |
        */
       ctx.fillStyle = 'rgb(0, 0, 0)';
       ctx.fillStyle = css;
-      if (ctx.fillStyle === 'rgb(0, 0, 0)' || ctx.fillStyle === '#000000') {
-        // Có thể là màu đen thật, cũng có thể là gán trượt. Vẫn vẽ và đọc —
-        // đằng nào kết quả cũng đúng cho trường hợp đen thật.
-        ctx.fillStyle = css;
-      }
       ctx.clearRect(0, 0, 1, 1);
       ctx.fillRect(0, 0, 1, 1);
       const data = ctx.getImageData(0, 0, 1, 1).data;
@@ -230,7 +225,7 @@ export function readSceneColors(
   let degraded = false;
 
   for (const name of SCENE_TOKEN_NAMES) {
-    let value: Rgb | null = null;
+    let value: Rgb | null;
     try {
       probe.style.color = `var(${SCENE_TOKEN_VARS[name]})`;
       value = resolve(getComputedColor(probe));
