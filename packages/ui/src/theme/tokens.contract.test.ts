@@ -424,6 +424,20 @@ const TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
   ['--secondary-foreground', '--secondary'],
   ['--accent-foreground', '--accent'],
   ['--destructive-foreground', '--destructive'],
+  /*
+   * NHÃN của nút/badge `destructive` lúc NGHỈ. Sau 14.A biến thể đó bỏ nền đặc
+   * và chuyển sang viền + `text-destructive` trên nền trang, nên `--destructive`
+   * nay là MÀU CHỮ THẬT SỰ và phải chịu SC 1.4.3 ≥4.5 — không còn chỉ là màu
+   * nền như trước.
+   *
+   * Cùng cặp `--destructive`↔`--background`/`--card` cũng nằm trong
+   * `NON_TEXT_PAIRS` ở dưới, và đó KHÔNG phải thừa: ở đây nó bị đo với tư cách
+   * CHỮ (4.5), dưới đó với tư cách VIỀN (3.0). Hai vai, hai ngưỡng — tách ra để
+   * ai đổi nhãn về `text-foreground` sau này thì xoá đúng hai dòng này mà vẫn
+   * giữ nghĩa vụ của viền.
+   */
+  ['--destructive', '--background'],
+  ['--destructive', '--card'],
   ['--success-foreground', '--success'],
   ['--warning-foreground', '--warning'],
   // Chữ TRÊN chip độ khó / trạng thái.
@@ -457,6 +471,13 @@ const NON_TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
   // chứng minh, xem khối "miễn trừ CÓ CHỨNG MINH" ở cuối file.
   ['--primary', '--background'],
   ['--destructive', '--background'],
+  // Viền `border-destructive` của nút/badge destructive là ranh giới NHẬN DẠNG
+  // (nó là thứ phân biệt nút nguy hiểm với nút primary sau khi thương hiệu
+  // chuyển sang đỏ — quyết định #1 của 14.A), nên nó chịu SC 1.4.11 chứ không
+  // phải ngoại lệ trang trí. `--background` đã có ở dòng trên; `--card` là ràng
+  // buộc RIÊNG và là mặt thật sự hay gặp nhất — cả ba nơi gọi nút destructive
+  // (confirm-dialog, publish-panel, active-sessions) đều nằm trên dialog/card.
+  ['--destructive', '--card'],
 
   // Chip độ khó / trạng thái CÒN LÀ đồ hoạ: viền trái thẻ và chấm chỉ mục, nơi
   // không có chữ nào để dựa vào. Đo trên cả ba mặt vì cả ba đều xuất hiện thật
@@ -594,22 +615,51 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
 });
 
 /**
- * `--ring` KHÔNG được đo cạnh `--primary`/`--destructive`, và đó là một QUYẾT
- * ĐỊNH CÓ CHỨNG MINH, không phải một chỗ bỏ sót.
+ * `--ring` KHÔNG được đo cạnh `--primary`/`--destructive`. Đo thô thì hai cặp
+ * đó bằng 1.00:1 và 1.01:1 (`--ring` = `--primary` theo đúng thiết kế C1 §2.2)
+ * — vòng focus vô hình trên chính nút chính. Nhưng LÝ DO miễn trừ nay KHÁC
+ * NHAU giữa hai màu, nên chúng được gác bằng hai thứ khác nhau.
  *
- * Đo thô thì hai cặp đó bằng 1.00:1 (`--ring` = `--primary` theo đúng thiết
- * kế) — vòng focus vô hình trên chính nút chính, ở CẢ HAI theme. Nhưng không
- * một màu nào sửa được cặp đó ở chế độ tối: `--primary` tối chỉ cách `--card`
- * 6.20:1, mà nhét vừa HAI bậc 3:1 thì cần khe ≥9:1. Quét vét cạn thang độ chói
- * cho ĐÚNG 0 nghiệm — hai đầu mút nói rõ vì sao: trắng tinh chỉ được 2.89:1
- * với `--primary`, còn đen tuyền chỉ được 1.17:1 với `--card`.
+ * ── `--destructive`: BẤT KHẢ THI, và điều đó vẫn đo được ───────────────────
+ * Không một màu nào sửa được cặp đó ở chế độ tối: nhét vừa HAI bậc 3:1 quanh
+ * `--card` thì cần một khe rộng, và quét vét cạn thang độ chói cho ĐÚNG 0
+ * nghiệm — hai đầu mút nói rõ vì sao: trắng tinh chỉ được 2.8922:1 với
+ * `--destructive` tối, còn đen tuyền chỉ được 1.1722:1 với `--card`. Phép quét
+ * dưới đây vẫn chạy, vẫn là một khẳng định có thể đỏ.
  *
- * Cách sửa đúng là TÁCH vòng focus khỏi mặt nút bằng `ring-offset-2` +
+ * ── `--primary`: nay là một LỰA CHỌN, KHÔNG phải bất khả thi ───────────────
+ * ⚠ 2026-09-08 — khối này TỪNG khẳng định điều bất khả thi ấy cho CẢ HAI màu,
+ * và với thương hiệu lam thì nó đúng (0 nghiệm, trắng 2.89:1 với `--primary`
+ * tối). Thương hiệu đỏ làm nó SAI: đỏ có độ chói tương đối thấp hơn lam ở cùng
+ * L, nên trắng nay được **4.2972:1** với `--primary` tối và phép quét cho
+ * **317 nghiệm**. Một giá trị `--ring` riêng ĐANG CÓ SẴN.
+ *
+ * Ta không lấy nó. Lý do là phạm vi, không phải vật lý: `--ring` là vòng focus
+ * của MỌI phần tử focus được, nên cho nó một hue riêng là thiết kế lại toàn bộ
+ * hệ thống focus chứ không phải đổi màu thương hiệu — việc của một thay đổi
+ * khác. Trong lúc đó `ring-offset-2` + `ring-offset-background` vốn đã khiến
+ * vòng focus không bao giờ nằm sát mặt nút, nên khoảng trống này không gây hại
+ * ngay.
+ *
+ * ⛔ Con số 6.20 (khe `--primary`↔`--card` tối thời lam) ĐÃ BỊ XOÁ khỏi đây,
+ * KHÔNG phải cập nhật thành 4.17. Nó ghim một lập luận "khe <9 nên không nhét
+ * vừa hai bậc 3:1" — lập luận đó chỉ xét ring nằm GIỮA card và primary, và
+ * chính vì thế nó bỏ sót nhánh ring nằm NGOÀI khoảng đó, tức đúng nhánh mà 317
+ * nghiệm mới rơi vào. Ghim lại 4.17 sẽ để một con số trông tươi mới đứng cạnh
+ * một chứng minh đã sai (`rules/pinned-baseline-test-companion.md`).
+ *
+ * Thay vào đó, thứ được gác cho `--primary` là ĐIỀU KIỆN THẬT SỰ còn hiệu lực:
+ * `--ring` === `--primary`. Ngày nào ai đó cho `--ring` giá trị riêng thì test
+ * dưới đây ĐỎ, và khi ấy cặp `--ring`↔`--primary` phải quay lại
+ * `NON_TEXT_PAIRS` — vì lúc đó nó đo được thật.
+ *
+ * Cách sửa đúng vẫn là TÁCH vòng focus khỏi mặt nút bằng `ring-offset-2` +
  * `ring-offset-background`: màu KỀ vòng focus khi đó là màu của khe, tức
- * `--background` — cặp đã nằm sẵn trong `NON_TEXT_PAIRS` ở trên (5.17 / 6.85).
- * Chỗ nào không dùng được offset (hàng bước trong `overflow-x-auto` sẽ CẮT mất
- * vòng; nút đóng nằm trên mặt toast tô đặc, nơi màu nền trang không hề kề nó)
- * thì chuyển sang `ring-current`, và bảo đảm khi ấy do `TEXT_PAIRS` cấp.
+ * `--background` — cặp đã nằm sẵn trong `NON_TEXT_PAIRS` ở trên (4.8178 sáng /
+ * 4.6065 tối). Chỗ nào không dùng được offset (hàng bước trong `overflow-x-auto`
+ * sẽ CẮT mất vòng; nút đóng nằm trên mặt toast tô đặc, nơi màu nền trang không
+ * hề kề nó) thì chuyển sang `ring-current`, và bảo đảm khi ấy do `TEXT_PAIRS`
+ * cấp.
  *
  * ⚠ Miễn trừ chỉ đứng vững chừng nào offset THẬT SỰ có mặt. Nó được gác bằng
  * class render ra DOM ở `button.test.tsx`, `switch.test.tsx`,
@@ -620,34 +670,76 @@ describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặ
   /** Bước quét: 1001 điểm phủ trọn miền giá trị của độ chói tương đối. */
   const LUMINANCE_STEPS = 1000;
 
-  it.each(['--primary', '--destructive'] as const)(
-    'chế độ tối: KHÔNG tồn tại độ chói nào đạt ≥3:1 với CẢ `--card` lẫn %s',
-    (fill) => {
-      const fillLuminance = relativeLuminance(resolve(dark, fill));
-      const cardLuminance = relativeLuminance(resolve(dark, '--card'));
-      const solutions: number[] = [];
-      for (let step = 0; step <= LUMINANCE_STEPS; step += 1) {
-        const candidate = step / LUMINANCE_STEPS;
-        if (contrastRatio(candidate, cardLuminance) >= 3 && contrastRatio(candidate, fillLuminance) >= 3) {
-          solutions.push(candidate);
-        }
+  it('chế độ tối: KHÔNG tồn tại độ chói nào đạt ≥3:1 với CẢ `--card` lẫn `--destructive`', () => {
+    const fillLuminance = relativeLuminance(resolve(dark, '--destructive'));
+    const cardLuminance = relativeLuminance(resolve(dark, '--card'));
+    const solutions: number[] = [];
+    for (let step = 0; step <= LUMINANCE_STEPS; step += 1) {
+      const candidate = step / LUMINANCE_STEPS;
+      if (contrastRatio(candidate, cardLuminance) >= 3 && contrastRatio(candidate, fillLuminance) >= 3) {
+        solutions.push(candidate);
       }
-      expect(solutions).toEqual([]);
-      // Hai đầu mút, ghim lại để lần đọc sau không phải tự chạy vòng lặp mới hiểu.
-      expect(contrastRatio(1, fillLuminance)).toBeLessThan(3);
-      expect(contrastRatio(0, cardLuminance)).toBeLessThan(3);
-    },
-  );
+    }
+    expect(solutions).toEqual([]);
+    // Hai đầu mút, ghim lại để lần đọc sau không phải tự chạy vòng lặp mới hiểu.
+    expect(contrastRatio(1, fillLuminance)).toBeLessThan(3);
+    expect(contrastRatio(0, cardLuminance)).toBeLessThan(3);
+  });
 
   /**
-   * ĐỐI CHỨNG của chính miễn trừ. Nếu ai đó kéo `--primary` tối ra xa `--card`
-   * quá 9:1 thì test này ĐỎ — và lúc đó miễn trừ hết cần thiết, phải đưa cặp
-   * `--ring`/`--primary` trở lại `NON_TEXT_PAIRS` chứ KHÔNG phải chỉnh lại con
-   * số ở đây.
+   * ĐỐI CHỨNG của miễn trừ cho `--primary` — và nó gác đúng cái điều kiện còn
+   * đứng vững, chứ không gác một con số.
+   *
+   * Đỏ ở đây nghĩa là `--ring` đã tách khỏi `--primary`. Đó là TIN MỪNG, và
+   * việc phải làm KHÔNG phải sửa test này: hãy đưa cặp `--ring`↔`--primary`
+   * trở lại `NON_TEXT_PAIRS` và xoá nửa `--primary` của miễn trừ.
    */
-  it('khe `--primary` ↔ `--card` tối = 6.20:1, dưới mức 9:1 mà hai bậc 3:1 đòi', () => {
-    expect(measure(dark, '--primary', '--card')).toBeCloseTo(6.2, 1);
-    expect(measure(dark, '--primary', '--card')).toBeLessThan(9);
+  it.each([
+    ['sáng (:root)', root],
+    ['tối (.dark)', dark],
+  ])('%s: `--ring` === `--primary` — ĐÂY mới là lý do cặp đó không đo được', (_label, theme) => {
+    expect(theme['--ring']).toBe(theme['--primary']);
+  });
+
+  /**
+   * Ghim chiều NGƯỢC LẠI của phát hiện 2026-09-08, để không ai khôi phục lời
+   * khẳng định "không màu nào sửa được" cho `--primary`. Nếu ngày nào đó
+   * `--primary` tối đổi sang một màu mà trắng KHÔNG còn đạt 3:1 với nó, test
+   * này đỏ — và khi ấy miễn trừ của `--primary` lại trở thành bất khả thi thật,
+   * nên nó được gộp về chung phép quét với `--destructive` ở trên.
+   */
+  it('chế độ tối: trắng tinh ĐẠT ≥3:1 với `--primary` — nên miễn trừ của nó là lựa chọn, không phải bất khả thi', () => {
+    expect(contrastRatio(1, relativeLuminance(resolve(dark, '--primary')))).toBeGreaterThanOrEqual(3);
+  });
+});
+
+/**
+ * Khoảng trống ĐÃ ĐO của biến thể `destructive` dạng viền (14.A quyết định #1).
+ *
+ * Nhãn nút/badge destructive lúc nghỉ là `text-destructive` trên nền trang.
+ * `TEXT_PAIRS` đã gác nó ≥4.5 trên `--background` và `--card`. Trên `--muted`
+ * nhánh SÁNG thì KHÔNG đạt — và con số đó được ghim ở đây thay vì giấu đi.
+ *
+ * Nguyên nhân là một cái TRẦN, không phải một chỗ chỉnh sai: `--destructive`
+ * sáng chỉ đạt 4.7647:1 trên nền trắng tinh, nên bất kỳ mặt nào tối hơn trắng
+ * đều ăn vào phần dư mỏng đó. Sửa được bằng một token đỏ đậm hơn cho chữ —
+ * nhưng đó là thêm token vào C1, tức một thay đổi hợp đồng, không phải việc của
+ * lane này.
+ *
+ * ⚠ Đây là một ABSENCE PIN theo `rules/pinned-baseline-test-companion.md`: nó
+ * tự làm companion cho chính mình, vì chính lúc nó ĐỎ là lúc khoảng trống đã
+ * đóng. Khi đó việc phải làm là XOÁ test này và thêm `['--destructive',
+ * '--muted']` vào `TEXT_PAIRS` — tuyệt đối không nới con số ở đây.
+ */
+describe('khoảng trống đã đo — nhãn destructive trên `--muted`', () => {
+  it('nhánh sáng CHƯA đạt 4.5:1 (đo 4.3686) ⇒ đừng đặt nút destructive trong khối `bg-muted`', () => {
+    const measured = measure(root, '--destructive', '--muted');
+    expect(measured).toBeCloseTo(4.3686, 3);
+    expect(measured, 'nếu dòng này đỏ vì đã ĐẠT 4.5 thì xoá cả test, thêm cặp vào TEXT_PAIRS').toBeLessThan(4.5);
+  });
+
+  it('nhánh tối thì ĐẠT — khoảng trống chỉ có ở nhánh sáng, không phải cả hai', () => {
+    expect(measure(dark, '--destructive', '--muted')).toBeGreaterThanOrEqual(4.5);
   });
 });
 
@@ -671,17 +763,21 @@ describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặ
  * MỪNG: một màu vừa được sửa.
  */
 const KNOWN_OUT_OF_GAMUT: Readonly<Record<string, string>> = {
-  // Bảy token này có TỪ TRƯỚC lane nền thị giác (13.x) và không thuộc phạm vi
-  // sửa của nó: đổi màu thương hiệu sẽ đụng cả năm lane đang chạy song song, và
-  // `.dark --primary` còn đang bị ghim ở 6.20 bởi khối "miễn trừ CÓ CHỨNG MINH"
-  // ngay dưới. Ghi nợ tại đây, sửa ở một thay đổi riêng.
+  // Năm token này có TỪ TRƯỚC lane nền thị giác (13.x) và không thuộc phạm vi
+  // sửa của nó. Ghi nợ tại đây, sửa ở một thay đổi riêng.
+  //
+  // ✅ 2026-09-08 — HAI dòng đã được XOÁ khỏi danh sách này, và đó là tin mừng
+  // đúng như chiều-xuống của cổng dưới đây dặn: `.dark --primary` và
+  // `.dark --ring` (cũ: `oklch(0.685 0.169 262.881)`, chroma 0.169 vượt gamut ở
+  // L=0.685). Thương hiệu đỏ 14.A đặt chúng thành `oklch(0.609 0.242 25)`, và
+  // giá trị đó nằm TRONG gamut với dư 0.00534 chroma — chừa biên có chủ ý, xem
+  // phép quét L ghi ở `globals.css`. Không dòng nào bị chỉnh cho "khớp danh
+  // sách"; danh sách co lại vì màu thật sự đã vào gamut.
   ':root --destructive': 'oklch(0.577 0.245 27.325) — chroma 0.245 vượt gamut ở L=0.577',
   ':root --success': 'oklch(0.518 0.146 150.741) — chroma 0.146 vượt gamut ở L=0.518',
   ':root --warning': 'oklch(0.541 0.15 55.98) — chroma 0.15 vượt gamut ở L=0.541',
-  '.dark --primary': 'oklch(0.685 0.169 262.881) — chroma 0.169 vượt gamut ở L=0.685',
   '.dark --destructive': 'oklch(0.704 0.191 22.216) — chroma 0.191 vượt gamut ở L=0.704',
   '.dark --warning': 'oklch(0.769 0.188 70.08) — chroma 0.188 vượt gamut ở L=0.769',
-  '.dark --ring': 'oklch(0.685 0.169 262.881) — bằng --primary theo thiết kế, nên thừa hưởng y hệt',
 };
 
 describe('gamut sRGB — số đo chỉ đúng khi màu nằm trong gamut', () => {

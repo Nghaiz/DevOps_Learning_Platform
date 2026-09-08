@@ -40,7 +40,8 @@ describe('Button — variant ánh xạ đúng class token', () => {
     ['secondary', 'bg-secondary'],
     ['outline', 'border-input'],
     ['ghost', 'hover:bg-accent'],
-    ['destructive', 'bg-destructive'],
+    // nền ĐẶC đã bỏ — nay là viền, xem §'tách destructive khỏi primary'
+    ['destructive', 'border-destructive'],
     ['link', 'text-primary'],
   ] as const)('variant=%s có class %s', (variant, expectedClass) => {
     render(<Button variant={variant}>Nút</Button>);
@@ -257,7 +258,8 @@ describe('Button — Spinner lúc loading phải có màu riêng, không thừa 
     ['secondary', 'text-secondary-foreground'],
     ['outline', 'text-foreground'],
     ['ghost', 'text-foreground'],
-    ['destructive', 'text-destructive-foreground'],
+    // chữ NGHỈ của biến thể viền là 'text-destructive', không phải '-foreground'
+    ['destructive', 'text-destructive'],
     ['link', 'text-primary'],
   ] as const)('variant=%s: lớp bọc Spinner đặt màu %s', (variant, tone) => {
     render(
@@ -375,5 +377,125 @@ describe('Button — khe icon', () => {
   it('không truyền icon ⇒ nút không tự sinh svg nào (Spinner chỉ xuất hiện khi loading)', () => {
     const { container } = render(<Button>Nút</Button>);
     expect(container.querySelectorAll('svg')).toHaveLength(0);
+  });
+});
+
+/**
+ * Quyết định #1 của 14.A: sau khi thương hiệu chuyển sang ĐỎ, `primary` và
+ * `destructive` phải phân biệt được KHÔNG DỰA VÀO MÀU.
+ *
+ * Vì sao phải gác ở đây chứ không tin vào mắt: hai token nay chỉ lệch 2.3° hue
+ * (`--primary` 25 vs `--destructive` 27.325), đo được **1.01:1** giữa hai mặt
+ * nút ở nhánh sáng. Nếu cả hai cùng tô nền đặc thì "Lưu" và "Xoá vĩnh viễn"
+ * trông y hệt nhau — và với người mù màu đỏ-lục, hoặc trên bản in đen trắng,
+ * chúng ĐÚNG LÀ một.
+ *
+ * ⚠ jsdom KHÔNG có CSSOM thật nên không đọc được màu đã tính; một test kiểu
+ * "ảnh chụp khác nhau" không viết được ở tầng này. Thứ đo được — và cũng là
+ * thứ thật sự quyết định — là các class CẤU TRÚC đi ra DOM. Chúng là những
+ * khác biệt SỐNG SÓT khi khử màu:
+ *
+ *   | | primary | destructive |
+ *   |---|---|---|
+ *   | nền      | `bg-primary` (ĐẶC) | `bg-transparent` (rỗng) |
+ *   | viền     | không có | `border` + `border-destructive` |
+ *   | chữ      | `text-primary-foreground` (sáng, đảo) | `text-destructive` (đậm) |
+ *   | icon     | không có mặc định | `TriangleAlert` bắt buộc |
+ *
+ * Quy ra độ chói tương đối (chính là kênh xám mà ảnh đen trắng giữ lại), đo ở
+ * nhánh sáng: nền nút primary L=0.1679 còn nền nút destructive L=1.0000 — chênh
+ * **4.82:1**. Nhánh tối: 0.1943 vs 0.0030, chênh **4.61:1**. Tức ngay cả khi
+ * xoá sạch sắc độ, hai nút vẫn là "khối đặc tối" cạnh "khung rỗng sáng".
+ */
+describe('Button — primary vs destructive phân biệt được khi KHỬ MÀU (quyết định #1, 14.A)', () => {
+  const classesOf = (name: string) =>
+    screen.getByRole('button', { name }).className.split(/\s+/);
+
+  it('primary tô nền ĐẶC và KHÔNG có viền; destructive có viền và KHÔNG tô nền', () => {
+    render(
+      <div>
+        <Button variant="primary">Lưu</Button>
+        <Button variant="destructive">Xoá</Button>
+      </div>,
+    );
+    const primary = classesOf('Lưu');
+    const destructive = classesOf('Xoá');
+
+    expect(primary).toContain('bg-primary');
+    expect(primary, 'primary có viền thì nó mất đúng dấu hiệu tách nó khỏi destructive').not.toContain('border');
+
+    expect(destructive).toContain('border');
+    expect(destructive).toContain('border-destructive');
+    expect(destructive).toContain('bg-transparent');
+    expect(destructive, 'nền đặc quay lại ⇒ hai nút lại trông như nhau khi khử màu').not.toContain('bg-destructive');
+  });
+
+  it('hai nút KHÔNG chung bất kỳ class nền/viền/chữ nào — khác biệt là cấu trúc, không phải sắc độ', () => {
+    render(
+      <div>
+        <Button variant="primary">Lưu</Button>
+        <Button variant="destructive">Xoá</Button>
+      </div>,
+    );
+    const shape = (list: string[]) =>
+      list.filter((c) => /^(bg-|border|text-)/.test(c) && c !== 'text-sm');
+    const primary = new Set(shape(classesOf('Lưu')));
+    const shared = shape(classesOf('Xoá')).filter((c) => primary.has(c));
+    expect(shared, `class trùng nhau: ${shared.join(', ')}`).toEqual([]);
+  });
+
+  /**
+   * Icon là NỬA CÒN LẠI của tín hiệu. Viền một mình không đủ: `outline` cũng có
+   * viền, nên "có viền" chỉ nói "đây không phải nút chính", chưa nói "đây là
+   * nút NGUY HIỂM".
+   */
+  it('destructive tự mang icon cảnh báo; primary thì KHÔNG', () => {
+    const { container: withDestructive } = render(<Button variant="destructive">Xoá</Button>);
+    expect(withDestructive.querySelector('svg.lucide-triangle-alert')).not.toBeNull();
+    cleanup();
+
+    const { container: withPrimary } = render(<Button variant="primary">Lưu</Button>);
+    expect(withPrimary.querySelector('svg')).toBeNull();
+  });
+
+  it('icon mặc định KHÔNG lọt vào tên hỗ trợ tiếp cận của nút', () => {
+    render(<Button variant="destructive">Xoá vĩnh viễn</Button>);
+    // Tên nút phải đúng là nhãn — nếu icon thiếu `aria-hidden` thì thuật toán
+    // tính tên gộp thêm node svg và `getByRole` với tên chính xác sẽ trượt.
+    const button = screen.getByRole('button', { name: 'Xoá vĩnh viễn' });
+    expect(button.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('`iconLeft` của nơi gọi ĐÈ icon mặc định, `iconLeft={null}` TẮT hẳn', () => {
+    const { container } = render(
+      <Button variant="destructive" iconLeft={<Spinner size="sm" />}>
+        Xoá
+      </Button>,
+    );
+    expect(container.querySelector('svg.lucide-triangle-alert')).toBeNull();
+    cleanup();
+
+    const { container: off } = render(
+      <Button variant="destructive" iconLeft={null}>
+        Xoá
+      </Button>,
+    );
+    expect(off.querySelector('svg')).toBeNull();
+  });
+
+  /**
+   * Cùng ràng buộc single-child của Radix `Slot` như `iconLeft` thường: nhánh
+   * `asChild` truyền thẳng `children`, nên icon mặc định cũng phải im lặng lùi
+   * ra. Ghim lại để nó là một hành vi CÓ CHỦ Ý, không phải một sự bỏ qua tình cờ
+   * mà lần refactor sau sẽ "sửa" thành lỗi Slot.
+   */
+  it('asChild BỎ QUA icon mặc định (Slot chỉ nhận đúng một element con)', () => {
+    const { container } = render(
+      <Button variant="destructive" asChild>
+        <a href="/xoa">Xoá</a>
+      </Button>,
+    );
+    expect(container.querySelector('a')).not.toBeNull();
+    expect(container.querySelector('svg')).toBeNull();
   });
 });

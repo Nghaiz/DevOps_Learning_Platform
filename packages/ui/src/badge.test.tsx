@@ -59,7 +59,7 @@ describe('Badge', () => {
     ['secondary', 'bg-secondary'],
     ['success', 'bg-success'],
     ['warning', 'bg-warning'],
-    ['destructive', 'bg-destructive'],
+    ['destructive', 'border-destructive'],
     ['outline', 'border-border'],
     ['difficulty-basic', 'bg-difficulty-basic'],
     ['difficulty-intermediate', 'bg-difficulty-intermediate'],
@@ -157,7 +157,7 @@ describe('Badge — icon ngữ nghĩa (WCAG 1.4.1, không chỉ dựa vào màu)
     expect(new Set(names).size, `trùng hình: ${names.join(', ')}`).toBe(3);
   });
 
-  it.each(['default', 'secondary', 'success', 'warning', 'destructive', 'outline'] as const)(
+  it.each(['default', 'secondary', 'success', 'warning', 'outline'] as const)(
     'variant=%s (phi ngữ nghĩa) KHÔNG tự thêm icon',
     (variant) => {
       const { container } = render(<Badge variant={variant}>Nhãn</Badge>);
@@ -197,5 +197,42 @@ describe('Badge — icon ngữ nghĩa (WCAG 1.4.1, không chỉ dựa vào màu)
     // `textContent` là thứ trình đọc màn hình gom lại; icon `aria-hidden`
     // không đóng góp gì, nên chuỗi phải SẠCH, không dính tên icon.
     expect(screen.getByText('Bị khoá').textContent).toBe('Bị khoá');
+  });
+});
+
+/**
+ * Cùng quyết định #1 của 14.A như `button.test.tsx`, áp cho badge.
+ *
+ * Badge `default` tô nền `--primary` đặc, badge `destructive` TỪNG tô nền
+ * `--destructive` đặc. Sau khi thương hiệu chuyển sang đỏ hue 25, hai nền đó
+ * chỉ lệch 2.3° hue (1.01:1) — hai badge sẽ trông y hệt nhau. Nên `destructive`
+ * bỏ nền đặc, giữ viền + chữ đỏ + icon cảnh báo.
+ */
+describe('Badge — default vs destructive phân biệt được khi KHỬ MÀU (quyết định #1, 14.A)', () => {
+  it('default tô nền đặc; destructive là viền + chữ đỏ, KHÔNG nền đặc', () => {
+    const { container: def } = render(<Badge variant="default">Mới</Badge>);
+    const defaultClasses = (def.firstElementChild as HTMLElement).className.split(/\s+/);
+    cleanup();
+    const { container: des } = render(<Badge variant="destructive">Lỗi</Badge>);
+    const destructiveClasses = (des.firstElementChild as HTMLElement).className.split(/\s+/);
+
+    expect(defaultClasses).toContain('bg-primary');
+    expect(defaultClasses).toContain('border-transparent');
+
+    expect(destructiveClasses).toContain('border-destructive');
+    expect(destructiveClasses).toContain('bg-transparent');
+    expect(destructiveClasses).toContain('text-destructive');
+    expect(
+      destructiveClasses,
+      'nền đặc quay lại ⇒ badge "Lỗi" và badge mặc định lại trùng nhau khi khử màu',
+    ).not.toContain('bg-destructive');
+  });
+
+  it('destructive tự mang icon cảnh báo; default thì KHÔNG', () => {
+    const { container: des } = render(<Badge variant="destructive">Lỗi</Badge>);
+    expect(iconName(iconOf(des) as SVGElement)).toBe('lucide-triangle-alert');
+    cleanup();
+    const { container: def } = render(<Badge variant="default">Mới</Badge>);
+    expect(iconOf(def)).toBeNull();
   });
 });
