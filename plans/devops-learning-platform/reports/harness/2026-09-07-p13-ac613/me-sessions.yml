@@ -1,0 +1,95 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - link "Bỏ qua điều hướng" [ref=f5e3] [cursor=pointer]:
+      - /url: "#noi-dung"
+    - banner [ref=f5e4]:
+      - generic [ref=f5e5]:
+        - link "DevOps Learning Platform — về trang chủ" [ref=f5e6] [cursor=pointer]:
+          - /url: /
+          - generic [ref=f5e10]: DevOps Learning
+        - navigation "Điều hướng chính" [ref=f5e12]:
+          - link "Bài học" [ref=f5e13] [cursor=pointer]:
+            - /url: /lessons
+          - link "Lab" [ref=f5e16] [cursor=pointer]:
+            - /url: /labs
+          - link "Playground" [ref=f5e19] [cursor=pointer]:
+            - /url: /playgrounds
+          - link "Lộ trình" [ref=f5e23] [cursor=pointer]:
+            - /url: /paths
+          - link "Quiz" [ref=f5e28] [cursor=pointer]:
+            - /url: /quiz
+          - link "Của tôi" [ref=f5e32] [cursor=pointer]:
+            - /url: /me
+        - generic [ref=f5e37]:
+          - generic [ref=f5e38]: Còn 14 chỗ
+          - button "Giao diện" [ref=f5e40]
+          - button "Tài khoản của AC613 Probe" [ref=f5e42]:
+            - generic [ref=f5e43]: AP
+    - main [ref=f5e45]:
+      - generic [ref=f5e46]:
+        - generic [ref=f5e47]:
+          - generic [ref=f5e48]:
+            - heading "Của tôi" [level=1] [ref=f5e49]
+            - paragraph [ref=f5e50]: Lộ trình đang dở, phiên đang mở, và lịch sử học của bạn.
+          - link "Hồ sơ & cài đặt" [ref=f5e51] [cursor=pointer]:
+            - /url: /settings
+        - region [ref=f5e52]:
+          - heading "Lộ trình đang dở" [level=2] [ref=f5e53]
+          - generic [ref=f5e73]:
+            - generic [ref=f5e78]:
+              - paragraph [ref=f5e79]: Chưa có lộ trình nào đang dở
+              - paragraph [ref=f5e80]: Mục này chỉ hiện lộ trình bạn đã đạt ít nhất một phần và chưa đạt hết.
+            - link "Xem lộ trình" [ref=f5e82] [cursor=pointer]:
+              - /url: /paths
+        - region [ref=f5e57]:
+          - generic [ref=f5e58]:
+            - heading "Phiên đang mở" [level=2] [ref=f5e59]
+            - generic "Đang chạy 6/20 phiên (trần cứng 23)." [ref=f5e83]: Còn 14 chỗ
+          - table [ref=f5e85]:
+            - rowgroup [ref=f5e86]:
+              - row [ref=f5e87]:
+                - columnheader "Phiên" [ref=f5e88]
+                - columnheader "Trạng thái" [ref=f5e89]
+                - columnheader "Mở lúc" [ref=f5e90]
+                - columnheader "Hạn" [ref=f5e91]
+                - columnheader "Hành động" [ref=f5e92]
+            - rowgroup [ref=f5e94]:
+              - row [ref=f5e95]:
+                - cell "036eb6a17fbe343ab467c79ccf394bce" [ref=f5e96]
+                - cell "Máy đã sẵn sàng" [ref=f5e97]
+                - cell "17:00:23 7/9/2026" [ref=f5e99]
+                - cell "còn 34 phút" [ref=f5e100]
+                - cell [ref=f5e101]:
+                  - button "Kết thúc" [ref=f5e102]
+              - row [ref=f5e103]:
+                - cell "40a232c8b8f882a097385745c901a7f8" [ref=f5e104]
+                - cell "Máy đã sẵn sàng" [ref=f5e105]
+                - cell "17:03:31 7/9/2026" [ref=f5e107]
+                - cell "còn 37 phút" [ref=f5e108]
+                - cell [ref=f5e109]:
+                  - button "Kết thúc" [ref=f5e110]
+              - row [ref=f5e111]:
+                - cell "d7fedcbd84674c6363d3aad65d33eaa4" [ref=f5e112]
+                - cell "Máy đã sẵn sàng" [ref=f5e113]
+                - cell "16:57:10 7/9/2026" [ref=f5e115]
+                - cell "còn 31 phút" [ref=f5e116]
+                - cell [ref=f5e117]:
+                  - button "Kết thúc" [ref=f5e118]
+          - generic [ref=f5e119]:
+            - button "Về đầu" [disabled]
+            - generic [ref=f5e120]: Trang 1
+            - button "Tiếp" [disabled]
+        - region [ref=f5e61]:
+          - heading "Lịch sử học" [level=2] [ref=f5e62]
+          - generic [ref=f5e63]:
+            - tablist [ref=f5e64]:
+              - tab "Bài học" [selected] [ref=f5e65]
+              - tab "Lab" [ref=f5e66]
+              - tab "Quiz" [ref=f5e67]
+            - tabpanel "Bài học" [ref=f5e68]:
+              - generic [ref=f5e127]:
+                - paragraph [ref=f5e128]: Chưa có bài học nào
+                - paragraph [ref=f5e129]: Mở một bài học và tiến độ của bạn sẽ hiện ở đây.
+  - region "Notifications (F8)":
+    - list
+  - alert [ref=f5e70]

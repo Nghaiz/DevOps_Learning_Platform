@@ -1,0 +1,99 @@
+{
+  "file": "12d-soak-4h.jsonl",
+  "soMau": 242,
+  "mauHopLe": 240,
+  "mauBiLoai": 2,
+  "wsSong": 10,
+  "phutCuaSo": 239,
+  "nhipMauGiay": 60,
+  "khoangTrong": [],
+  "tutDot": [],
+  "moLaiPhien": 10,
+  "daiLuong": {
+    "orch go_goroutines": {
+      "dau": 28,
+      "cuoi": 27,
+      "min": 25,
+      "max": 29,
+      "docPerHour": -0.19,
+      "docNua1": -1.55,
+      "docNua2": -0.15,
+      "nguong": 2,
+      "phang": true,
+      "nhan": "✅ phẳng"
+    },
+    "orch process_open_fds": {
+      "dau": 18,
+      "cuoi": 17,
+      "min": 16,
+      "max": 18,
+      "docPerHour": -0.23,
+      "docNua1": -0.86,
+      "docNua2": -0.72,
+      "nguong": 2,
+      "phang": true,
+      "nhan": "✅ phẳng"
+    },
+    "orch RSS (MiB)": {
+      "dau": 51.2578125,
+      "cuoi": 52.61328125,
+      "min": 50.42578125,
+      "max": 53.30078125,
+      "docPerHour": 0.04,
+      "docNua1": 1.07,
+      "docNua2": -0.2,
+      "nguong": 5,
+      "phang": true,
+      "nhan": "✅ phẳng"
+    },
+    "orch dlp_pool_claimed_size": {
+      "dau": 10,
+      "cuoi": 10,
+      "min": 10,
+      "max": 10,
+      "docPerHour": 0,
+      "docNua1": 0,
+      "docNua2": 0,
+      "nguong": 0.5,
+      "phang": true,
+      "nhan": "✅ phẳng"
+    },
+    "gateway go_goroutines (tổng)": {
+      "dau": 308,
+      "cuoi": 300,
+      "min": 298,
+      "max": 310,
+      "docPerHour": -1.8,
+      "docNua1": -7.16,
+      "docNua2": -7.38,
+      "nguong": 2,
+      "phang": true,
+      "nhan": "✅ giảm"
+    },
+    "gateway process_open_fds (tổng)": {
+      "dau": 44,
+      "cuoi": 44,
+      "min": 44,
+      "max": 44,
+      "docPerHour": 0,
+      "docNua1": 0,
+      "docNua2": 0,
+      "nguong": 2,
+      "phang": true,
+      "nhan": "✅ phẳng"
+    },
+    "gateway RSS (MiB, tổng)": {
+      "dau": 100.9140625,
+      "cuoi": 107.6171875,
+      "min": 100.9140625,
+      "max": 110.32421875,
+      "docPerHour": 1.79,
+      "docNua1": 2.66,
+      "docNua2": -0.53,
+      "nguong": 5,
+      "phang": true,
+      "nhan": "✅ phẳng · PLATEAU (nửa sau đã chững)"
+    }
+  },
+  "ketLuan": "KHÔNG RÒ RỈ (không đại lượng nào dốc lên quá ngưỡng)"
+}

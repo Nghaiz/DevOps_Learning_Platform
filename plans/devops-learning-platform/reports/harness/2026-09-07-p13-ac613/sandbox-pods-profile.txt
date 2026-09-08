@@ -1,0 +1,9 @@
+dlp-cni-canary-29805750-4b2vk   registry.k8s.io/kubectl:v1.34.10         16Mi
+dlp-cni-canary-29812860-9mqkd   registry.k8s.io/kubectl:v1.34.10         16Mi
+dlp-cni-canary-29812890-wvxdp   registry.k8s.io/kubectl:v1.34.10         16Mi
+sandbox-119429f2d20b            ghcr.io/nghaiz/dlp-sandbox-base:p13ide   768Mi
+sandbox-3d90e702666a            ghcr.io/nghaiz/dlp-sandbox-base:p13ide   256Mi
+sandbox-4c4adb678bad            ghcr.io/nghaiz/dlp-sandbox-base:p13ide   256Mi
+sandbox-58a510990e37            ghcr.io/nghaiz/dlp-sandbox-base:p13ide   256Mi
+sandbox-c9b11d18d79b            ghcr.io/nghaiz/dlp-sandbox-base:p13ide   768Mi
+sandbox-d9ee67773f84            ghcr.io/nghaiz/dlp-sandbox-base:p13ide   768Mi

@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><title>primary vs destructive — khử màu</title>
+<style>
+:root{
+  --background:oklch(1 0 0); --foreground:oklch(0.145 0 0);
+  --primary:oklch(0.58 0.23 25); --primary-foreground:oklch(0.985 0 0);
+  --destructive:oklch(0.577 0.245 27.325); --destructive-foreground:oklch(0.985 0 0);
+}
+.dark{
+  --background:oklch(0.145 0.012 262.881); --foreground:oklch(0.985 0 0);
+  --primary:oklch(0.609 0.242 25); --primary-foreground:oklch(0.145 0 0);
+  --destructive:oklch(0.704 0.191 22.216); --destructive-foreground:oklch(0.145 0 0);
+}
+body{margin:0;font:14px system-ui;background:#888}
+.pane{padding:18px;background:var(--background);color:var(--foreground)}
+.row{display:flex;gap:14px;align-items:center;margin:10px 0}
+button{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;
+  border-radius:6px;font:500 14px system-ui;cursor:pointer;border:1px solid transparent}
+.primary{background:var(--primary);color:var(--primary-foreground);border-color:transparent}
+.destructive{background:transparent;color:var(--destructive);border-color:var(--destructive)}
+.grid{display:grid;grid-template-columns:1fr 1fr}
+.grey{filter:grayscale(1)}
+h3{margin:4px 0 0;font:600 12px system-ui;color:var(--foreground);opacity:.7}
+</style></head><body>
+<div class="grid">
+  <div><div class="pane"><h3>SÁNG — nguyên bản</h3>
+    <div class="row"><button class="primary">Lưu</button>
+    <button class="destructive"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Xoá vĩnh viễn</button></div></div>
+    <div class="pane dark"><h3>TỐI — nguyên bản</h3>
+    <div class="row"><button class="primary">Lưu</button>
+    <button class="destructive"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Xoá vĩnh viễn</button></div></div>
+  </div>
+  <div class="grey"><div class="pane"><h3>SÁNG — KHỬ MÀU</h3>
+    <div class="row"><button class="primary">Lưu</button>
+    <button class="destructive"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Xoá vĩnh viễn</button></div></div>
+    <div class="pane dark"><h3>TỐI — KHỬ MÀU</h3>
+    <div class="row"><button class="primary">Lưu</button>
+    <button class="destructive"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Xoá vĩnh viễn</button></div></div>
+  </div>
+</div></body></html>

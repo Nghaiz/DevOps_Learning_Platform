@@ -1,0 +1,14 @@
+bat_dau=2026-09-06T17:32:35Z
+n=10 hours=4
+--- truoc khi chay ---
+platform-gateway        ghcr.io/nghaiz/dlp-terminal-gateway:p13
+platform-orchestrator   ghcr.io/nghaiz/dlp-orchestrator:p13
+platform-postgres       postgres:16-alpine
+platform-redis          redis:7-alpine
+platform-web            ghcr.io/nghaiz/dlp-web:p13
+--- gateway pods ---
+platform-gateway-6cfcdf9c46-c5zcd   10.244.211.113   a62bb107-c4c5-4509-ad85-740143b0f5b8   0     2026-09-06T15:36:45Z
+platform-gateway-6cfcdf9c46-hn25q   10.244.211.67    157cfb92-863b-464b-bc15-589d43ec3142   0     2026-09-06T15:37:03Z
+--- orchestrator pod ---
+platform-orchestrator-8d9f8dbd6-ws56x   56a5d88f-ad88-45d1-aee3-83c138f5df67   0
+GW_METRICS=http://10.244.211.113:8083/metrics,http://10.244.211.67:8083/metrics
