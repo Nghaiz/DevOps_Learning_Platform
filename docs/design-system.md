@@ -404,6 +404,7 @@ phải "bỏ quên".
 | `ErrorState` | n/a | n/a | CHÍNH LÀ trạng thái error (`role="alert"`) | `retrying` → nút Thử lại `Button loading` |
 | `Separator` | n/a (ranh giới thuần thị giác) | n/a | n/a | n/a |
 | `Kbd` | n/a | n/a | n/a | n/a |
+| `MarkdownView` | n/a (render đồng bộ từ chuỗi đã có trong tay — không có pha tải) | n/a (chuỗi rỗng ra khối rỗng; "không có nội dung" là quyết định của nơi gọi, không phải của trình render) | n/a (không I/O nên không có lỗi riêng; markdown hỏng vẫn render ra text) | n/a (chỉ đọc, không có control nào để vô hiệu) |
 | `ContentView`/`SplitPane`/`StepNav`/`ProgressBar` | giữ API cũ (P2/2.D) — nơi gọi (trang bài học) bọc `Skeleton` NGOÀI cụm | n/a (bài học luôn có ít nhất một bước; danh sách rỗng là lỗi dữ liệu, chặn từ trước khi render) | nơi gọi bọc `ErrorState` NGOÀI cụm — tầng primitive không có trạng thái lỗi riêng | `StepNav` tự tính disable nút Trước/Tiếp theo vị trí `activeKey` |
 
 ### 4b. `Button` — biến thể, `asChild`/`loading`, icon
