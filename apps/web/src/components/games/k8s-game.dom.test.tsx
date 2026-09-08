@@ -97,6 +97,37 @@ function renderGame(harness: Harness) {
   return render(<K8sGame levels={[LEVEL]} createSession={harness.createSession} />);
 }
 
+/**
+ * `window.matchMedia` **không tồn tại** trong jsdom của cấu hình này — nó là
+ * `undefined`, không phải một hàm trả `matches: false`. Hai hệ quả, và cả hai
+ * đều đã cắn một lần:
+ *
+ * 1. `vi.spyOn(window, 'matchMedia')` ném `can only spy on a function`. Phải
+ *    GÁN THẲNG, không spy.
+ * 2. Khi không giả lập, `useMinWidth` trả `null` ("chưa đo được") chứ không phải
+ *    `false`. Bố cục coi `null` là RỘNG — có chủ ý, vì đoán "hẹp" khi chưa đo
+ *    sẽ gập rail và inspector ở lượt render đầu trên mọi máy. Nghĩa là các ô
+ *    không gọi `mockViewport` vẫn đang đo nhánh rộng, và đó là nhánh đúng để đo
+ *    mặc định — nhưng phải nói ra, chứ không để nó thành một sự tình cờ.
+ */
+function mockViewport(wide: boolean): void {
+  (window as unknown as { matchMedia: (q: string) => MediaQueryList }).matchMedia = (query: string) =>
+    ({
+      matches: query.includes('min-width') ? wide : false,
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList;
+}
+
+function clearViewportMock(): void {
+  delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+}
+
 beforeEach(() => {
   // 3D tắt TRƯỚC khi render: giữ `three` ra khỏi runner, và đồng thời là nửa
   // dương của phép kiểm "tắt thì không nạp".
@@ -105,6 +136,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  clearViewportMock();
   window.localStorage.clear();
 });
 
@@ -117,7 +149,10 @@ describe('K8sGame — đường bàn phím', () => {
   it('mọi điều khiển cần để chơi đều nằm trong đường Tab', async () => {
     const user = userEvent.setup();
     const harness = makeHarness(clusterView({ objects: [podView('u-1', 'web-1')] }));
-    renderGame(harness);
+    // HAI level: bộ chọn level chỉ hiện khi có nhiều hơn một, và một bộ chọn
+    // vắng mặt vì "chỉ có một lựa chọn" khác hẳn một bộ chọn vắng mặt vì lọt
+    // khỏi đường Tab.
+    render(<K8sGame levels={[LEVEL, levelFixture({ id: 'k8s-02', chapter: 2, title: 'Level hai' })]} createSession={harness.createSession} />);
     await screen.findByRole('button', { name: /Chờ một nhịp/ });
 
     const reached: string[] = [];
@@ -214,7 +249,7 @@ describe('K8sGame — đường bàn phím', () => {
     await user.keyboard('{Enter}');
 
     // Chọn một Deployment bằng bàn phím ⇒ mở khoá delete / scale / edit.
-    const list = screen.getByRole('list', { name: 'Danh sách tài nguyên' });
+    const list = screen.getByRole('list', { name: 'Tài nguyên nhóm WORKLOADS' });
     within(list).getByRole('button', { name: /deployment\/web-deploy/ }).focus();
     await user.keyboard('{Enter}');
 
@@ -249,7 +284,7 @@ describe('K8sGame — đường bàn phím', () => {
     );
     renderGame(harness);
 
-    const list = await screen.findByRole('list', { name: 'Danh sách tài nguyên' });
+    const list = await screen.findByRole('list', { name: 'Tài nguyên nhóm WORKLOADS' });
     within(list).getByRole('button', { name: /deployment\/web/ }).focus();
     await user.keyboard('{Enter}');
     screen.getByRole('button', { name: /Xoá deployment\/web/ }).focus();
@@ -273,7 +308,7 @@ describe('K8sGame — đường bàn phím', () => {
     );
     renderGame(harness);
 
-    const list = await screen.findByRole('list', { name: 'Danh sách tài nguyên' });
+    const list = await screen.findByRole('list', { name: 'Tài nguyên nhóm WORKLOADS' });
     const first = within(list).getByRole('button', { name: /pod\/web-1/ });
     first.focus();
     await user.keyboard('{ArrowDown}');
@@ -314,7 +349,7 @@ describe('K8sGame — thông báo cho trình đọc màn hình', () => {
     const harness = makeHarness(clusterView({ objects: [podView('u-1', 'web-1')] }));
     renderGame(harness);
 
-    const list = await screen.findByRole('list', { name: 'Danh sách tài nguyên' });
+    const list = await screen.findByRole('list', { name: 'Tài nguyên nhóm WORKLOADS' });
     within(list).getByRole('button', { name: /pod\/web-1/ }).focus();
     await user.keyboard('{Enter}');
 
@@ -337,13 +372,68 @@ describe('K8sGame — thông báo cho trình đọc màn hình', () => {
     );
     renderGame(harness);
 
-    const list = await screen.findByRole('list', { name: 'Danh sách tài nguyên' });
+    const list = await screen.findByRole('list', { name: 'Tài nguyên nhóm WORKLOADS' });
     const item = within(list).getByRole('button', { name: /pod\/web-1/ });
     // Tên nhìn thấy được VÀ trạng thái, cùng trong tên khả truy — không cái nào
     // thay thế cái nào (đó là lý do `ariaLabel` nằm trong `sr-only` chứ không
     // trong thuộc tính `aria-label`).
     expect(item.textContent).toContain('pod/web-1');
     expect(item.textContent).toContain('pod web-1 lỗi CrashLoopBackOff');
+  });
+});
+
+/**
+ * §12 đổi bố cục sang toàn màn hình với overlay chồng nhau. Hai ô dưới đây bắt
+ * đúng hai lỗi mà lần đổi đó ĐÃ tạo ra và không lỗi nào lộ trong bản chia ô cũ.
+ */
+describe('K8sGame — bố cục toàn màn hình (§12)', () => {
+  /**
+   * Nhật ký mặc định THU GỌN. Bản đầu thu gọn bằng `hidden`, và `hidden` gỡ phần
+   * tử khỏi CÂY KHẢ TRUY — nghĩa là vùng `aria-live` ngừng thông báo, và người
+   * dùng trình đọc màn hình mất sạch sự kiện cluster gần như suốt ván chơi.
+   * Không ô nào ở bản bố cục cũ bắt được, vì ở đó nhật ký luôn mở.
+   */
+  it('vùng aria-live còn sống khi nhật ký đang thu gọn', async () => {
+    const harness = makeHarness(clusterView());
+    renderGame(harness);
+
+    const toggle = await screen.findByRole('button', { name: /Nhật ký/ });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+    // Vẫn ở trong cây khả truy dù mắt không thấy.
+    const log = screen.getByRole('log');
+    expect(log.getAttribute('aria-live')).toBe('polite');
+
+    harness.push(clusterView({ tick: 1, events: [eventView(1, 'pod web-1 bị OOMKilled', { level: 'error' })] }));
+    await waitFor(() => {
+      expect(within(screen.getByRole('log')).getByText('pod web-1 bị OOMKilled')).toBeDefined();
+    });
+  });
+
+  /**
+   * §12.6 cho phép gập rail và inspector thành drawer trên màn hẹp. Nó KHÔNG cho
+   * phép bỏ một hành động — bản đầu ẩn hẳn ô lệnh dưới 1024px, tức cắt `kubectl`
+   * (đường vạn năng của §4.4) đúng ở nhóm thiết bị ít bàn phím ngoài nhất.
+   */
+  it('màn hẹp vẫn gõ được kubectl', async () => {
+    const user = userEvent.setup();
+    mockViewport(false);
+    const harness = makeHarness(clusterView());
+    renderGame(harness);
+
+    const input = await screen.findByLabelText('Thanh lệnh kubectl');
+    input.focus();
+    await user.keyboard('kubectl get pods{Enter}');
+
+    expect(harness.actions.map((a) => a.kind)).toContain('kubectl');
+  });
+
+  it('canvas không bao giờ chia bề ngang với overlay — overlay định vị tuyệt đối', async () => {
+    renderGame(makeHarness(clusterView({ objects: [podView('u-1', 'web-1')] })));
+    const rail = await screen.findByRole('list', { name: 'Tài nguyên nhóm WORKLOADS' });
+    // Mọi vùng chrome nằm trong một khối `absolute`; nếu ai đó quay lại bố cục
+    // chia ô thì lớp này biến mất khỏi tổ tiên và ô này đỏ.
+    expect(rail.closest('.absolute')).not.toBeNull();
   });
 });
 

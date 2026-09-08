@@ -26,6 +26,13 @@ export interface ResourceListProps {
   readonly objects: readonly ObjectView[];
   readonly selectedUid: string | null;
   readonly onSelect: (uid: string) => void;
+  /**
+   * Nhãn khả truy của danh sách. Rail trái dựng NHIỀU danh sách (một cho mỗi
+   * nhóm), nên nhãn phải phân biệt được chúng — nếu không trình đọc màn hình
+   * thông báo bốn "Danh sách tài nguyên" giống hệt nhau và người nghe không
+   * biết mình đang ở nhóm nào.
+   */
+  readonly label?: string;
 }
 
 /**
@@ -40,7 +47,12 @@ export interface ResourceListProps {
  * Space cùng kích hoạt, cần vòng focus của trình duyệt. Ba thứ đó miễn phí với
  * một nút thật và phải dựng lại bằng tay (và thường dựng thiếu) với một div.
  */
-export function ResourceList({ objects, selectedUid, onSelect }: ResourceListProps): ReactElement {
+export function ResourceList({
+  objects,
+  selectedUid,
+  onSelect,
+  label = 'Danh sách tài nguyên',
+}: ResourceListProps): ReactElement {
   const listRef = useRef<HTMLUListElement>(null);
 
   /**
@@ -92,7 +104,7 @@ export function ResourceList({ objects, selectedUid, onSelect }: ResourceListPro
     <ul
       ref={listRef}
       role="list"
-      aria-label="Danh sách tài nguyên"
+      aria-label={label}
       className="flex flex-col gap-0.5 p-1"
       onKeyDown={onKeyDown}
     >

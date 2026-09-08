@@ -73,6 +73,8 @@ export interface K8sSceneProps {
   readonly subscribe: (onChange: () => void) => () => void;
   readonly getView: () => ClusterView;
   readonly selectedUid: string | null;
+  /** Tên node cần đưa vào giữa khung. `null` = về góc nhìn toàn cảnh. */
+  readonly focusNodeName: string | null;
   readonly quality: QualityChoice;
   readonly onTierChange?: (tier: QualityTier) => void;
   /** Gọi khi không đọc được màu từ design token — vỏ game hiện cảnh báo. */
@@ -150,6 +152,7 @@ export default function K8sSceneLazy({
   subscribe,
   getView,
   selectedUid,
+  focusNodeName,
   quality,
   onTierChange,
   onDegradedColors,
@@ -157,6 +160,7 @@ export default function K8sSceneLazy({
   const hostRef = useRef<HTMLDivElement>(null);
   const labelLayerRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<string | null>(selectedUid);
+  const focusNodeRef = useRef<string | null>(focusNodeName);
   const subscribeRef = useRef(subscribe);
   const getViewRef = useRef(getView);
   const onTierChangeRef = useRef(onTierChange);
@@ -170,6 +174,10 @@ export default function K8sSceneLazy({
   useEffect(() => {
     selectedRef.current = selectedUid;
   }, [selectedUid]);
+
+  useEffect(() => {
+    focusNodeRef.current = focusNodeName;
+  }, [focusNodeName]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -802,7 +810,24 @@ export default function K8sSceneLazy({
       const bobActive = pointerInside && document.visibilityState === 'visible' && tier !== 'low' && !reducedMotion;
 
       // Camera giảm chấn (§9.3) — không cắt cảnh đột ngột.
+      //
+      // `1 - exp(-dt * k)` chứ không phải một hằng số nhân: dạng này độc lập với
+      // nhịp khung hình, nên camera đi hết quãng đường trong CÙNG một khoảng
+      // thời gian trên màn 60Hz và màn 144Hz. Nhân một hằng số mỗi frame thì màn
+      // nhanh hơn sẽ giảm chấn nhanh hơn, và cảm giác điều khiển đổi theo phần
+      // cứng.
       const damp = 1 - Math.exp(-dt * 3.2);
+
+      // Bản đồ thu nhỏ chọn node ⇒ trượt tâm nhìn tới bệ của node đó (§12.5).
+      const focusName = focusNodeRef.current;
+      const focusNode = focusName === null ? undefined : nodeEntries.find((n) => n.name === focusName);
+      const targetX = focusNode?.x ?? 0;
+      if (Math.abs(cameraTarget.x - targetX) > 1e-4) {
+        cameraTarget.x += (targetX - cameraTarget.x) * damp;
+        camera.lookAt(cameraTarget);
+        needsRender = true;
+      }
+
       if (camera.position.distanceToSquared(cameraGoal) > 1e-5) {
         camera.position.lerp(cameraGoal, damp);
         camera.lookAt(cameraTarget);

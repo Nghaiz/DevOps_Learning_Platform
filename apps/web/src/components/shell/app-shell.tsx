@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { isImmersiveRoute } from './immersive-routes';
 import { Menu, Terminal, type LucideIcon } from 'lucide-react';
 import {
   Alert,
@@ -71,10 +72,26 @@ export function AppShell({
   // và `AppShell` nằm trong cây của mọi trang nên đây là chỗ sớm nhất chắc chắn.
   void ZOD_JITLESS_APPLIED;
 
+  /*
+   * §12.3 — route immersive (game 3D) thu vỏ về tối thiểu: KHÔNG thanh đầu
+   * trang, KHÔNG thanh cuộn trang, chiều cao khoá đúng một viewport để canvas
+   * tràn hết được.
+   *
+   * Ẩn `ShellHeader` chứ KHÔNG phủ `fixed inset-0 z-50` lên nó: phủ thì header
+   * vẫn nằm trong DOM bên dưới, mọi link điều hướng vẫn nhận Tab trong khi mắt
+   * không thấy, và phải bẫy focus thủ công để chữa. Ẩn thì hợp đồng "đúng MỘT
+   * `<main>`" cũng còn nguyên.
+   *
+   * Link "Bỏ qua điều hướng" GIỮ LẠI kể cả ở chế độ immersive: không có
+   * `ShellHeader` thì nó chỉ còn là đường tắt tới `<main>`, vô hại, và bỏ nó đi
+   * sẽ làm phần tử focus được đầu tiên của trang đổi theo route.
+   */
+  const immersive = isImmersiveRoute(usePathname());
+
   return (
     <ViewerProvider viewer={viewer}>
       <CapacityProvider enabled={viewer !== null}>
-        <div className="flex min-h-dvh flex-col">
+        <div className={cn('flex flex-col', immersive ? 'h-dvh overflow-hidden' : 'min-h-dvh')}>
           <a
             href="#noi-dung"
             className={cn(
@@ -84,9 +101,13 @@ export function AppShell({
           >
             Bỏ qua điều hướng
           </a>
-          <ShellHeader viewer={viewer} />
-          {viewer === null ? null : <CapacityFullBanner />}
-          <main id="noi-dung" tabIndex={-1} className="flex min-h-0 flex-1 flex-col outline-none">
+          {immersive ? null : <ShellHeader viewer={viewer} />}
+          {viewer === null || immersive ? null : <CapacityFullBanner />}
+          <main
+            id="noi-dung"
+            tabIndex={-1}
+            className={cn('flex min-h-0 flex-1 flex-col outline-none', immersive && 'overflow-hidden')}
+          >
             {children}
           </main>
         </div>

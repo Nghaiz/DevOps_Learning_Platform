@@ -1,141 +1,90 @@
 'use client';
 
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useState, type ReactElement } from 'react';
 import { BookOpen, Lightbulb, TriangleAlert } from 'lucide-react';
-import type { Level, SessionPhase } from '@devops-platform/games';
+import type { LevelTeaching } from '@devops-platform/games';
+import { MarkdownView } from '@devops-platform/ui';
 
 /**
- * Tầng dạy học của một level (§`LevelTeaching` trong hợp đồng).
+ * Tầng dạy học của một level, phần hiện TRƯỚC và TRONG khi chơi.
  *
- * Hợp đồng nói `teaching` là BẮT BUỘC với mọi level — "một level không có
- * `teaching` là một câu đố". Nếu giao diện không dựng chỗ cho nó thì lane C viết
- * primer, cheatsheet và takeaways cho 30 level mà không ai đọc được, và ràng
- * buộc "bắt buộc" kia chỉ còn hiệu lực trong TypeScript.
+ * `takeaways` KHÔNG ở đây — nó sống ở `WinOverlay` (§12.5 hàng cuối), vì hợp
+ * đồng nói rõ nó chỉ xuất hiện sau khi thắng. Hiện sớm thì nó thành bản tóm tắt
+ * lời giải và level mất đúng cái nó định dạy.
  *
- * ⚠ **Giới hạn đã biết: markdown chỉ hiện thực một phần.** `primer` được khai là
- * markdown, nhưng ở đây chỉ tách đoạn và dựng `<code>` cho đoạn trong dấu huyền.
- * Đậm/nghiêng/danh sách/liên kết sẽ hiện ra dạng ký tự thô.
+ * `primer` vẽ bằng `MarkdownView` của hệ thiết kế. Bản trước tự cắt đoạn và tự
+ * dựng `<code>` cho dấu huyền vì `MarkdownView` chưa được export khỏi barrel
+ * `@devops-platform/ui`; lane A đã mở export 2026-09-08, nên bản tự chế đó bị
+ * xoá — hai bộ vẽ markdown trong một repo là hai bộ sẽ trôi khỏi nhau.
  *
- * Đó là một lựa chọn, không phải một chỗ quên: bộ vẽ markdown thật của repo
- * (`MarkdownView`) KHÔNG được export khỏi barrel `@devops-platform/ui`, và
- * `ContentView` — thứ được export — nhận `ContentBlock[]` của
- * `@devops-platform/scenario`, tức kéo cả đường ống nội dung bài học vào một
- * route game vốn cố ý không gọi backend. Hai đường sửa đúng đều nằm ngoài lane
- * này: (a) lane A export `MarkdownView`, hoặc (b) hướng dẫn lane C giữ primer ở
- * dạng văn xuôi + dấu huyền. Đã báo lead.
+ * `resolveAssetUrl` luôn trả `null`: primer của game không có ảnh, và game chạy
+ * với 0 lời gọi backend nên nó cũng không được phép có. `MarkdownView` tự vẽ
+ * placeholder khi gặp ảnh, chứ không bịa URL hay bỏ qua trong im lặng.
  */
-
-/** Tách văn bản theo dấu huyền, giữ nguyên thứ tự, để dựng `<code>` cho phần lệnh. */
-function renderInline(text: string): ReactNode[] {
-  return text.split(/(`[^`]+`)/g).map((part, index) =>
-    part.startsWith('`') && part.endsWith('`') && part.length > 2 ? (
-      <code key={`${String(index)}-${part}`} className="rounded bg-muted px-1 font-mono text-[0.9em]">
-        {part.slice(1, -1)}
-      </code>
-    ) : (
-      part
-    ),
-  );
-}
-
-function Prose({ text }: { readonly text: string }): ReactElement {
-  const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim() !== '');
-  return (
-    <>
-      {paragraphs.map((paragraph) => (
-        <p key={paragraph} className="text-sm text-muted-foreground">
-          {renderInline(paragraph.trim())}
-        </p>
-      ))}
-    </>
-  );
-}
+const NO_ASSETS = (): null => null;
 
 export interface TeachingPanelProps {
-  readonly level: Level | null;
-  readonly phase: SessionPhase;
+  readonly teaching: LevelTeaching;
 }
 
-export function TeachingPanel({ level, phase }: TeachingPanelProps): ReactElement | null {
+export function TeachingPanel({ teaching }: TeachingPanelProps): ReactElement {
   const [showExtras, setShowExtras] = useState(false);
-
-  if (level === null) {
-    return null;
-  }
-  const { teaching } = level;
-  const extras = [...(teaching.proTips ?? []), ...(teaching.pitfalls ?? [])];
+  const hasExtras = (teaching.proTips ?? []).length > 0 || (teaching.pitfalls ?? []).length > 0;
 
   return (
-    <div className="flex flex-col gap-3 px-3 py-3">
-      <Prose text={teaching.primer} />
+    <div className="flex flex-col gap-3">
+      <div className="text-sm text-muted-foreground">
+        <MarkdownView markdown={teaching.primer} resolveAssetUrl={NO_ASSETS} />
+      </div>
 
       {teaching.cheatsheet.length > 0 ? (
-        <div className="flex flex-col gap-1.5 border-t border-border pt-3">
-          <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+        <div className="flex flex-col gap-1.5 border-t border-border/60 pt-2">
+          <h4 className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
             <BookOpen aria-hidden="true" className="size-3.5" />
             Tra nhanh
-          </h3>
+          </h4>
           {/*
-            `<dl>` chứ không phải hai cột trong một bảng: đây đúng là quan hệ
-            thuật ngữ ↔ định nghĩa, và trình đọc màn hình ghép được cặp đó. Một
-            `<table>` sẽ bắt người nghe điều hướng theo hàng/cột cho một thứ
-            không phải dữ liệu bảng.
+            `<dl>` chứ không phải bảng: đây đúng là quan hệ thuật ngữ ↔ định
+            nghĩa và trình đọc màn hình ghép được cặp đó. `<table>` sẽ bắt người
+            nghe điều hướng theo hàng/cột cho một thứ không phải dữ liệu bảng.
           */}
           <dl className="flex flex-col gap-1.5">
             {teaching.cheatsheet.map((entry) => (
               <div key={entry.command} className="flex flex-col gap-0.5">
                 <dt>
-                  <code className="rounded bg-muted px-1 font-mono text-xs text-foreground">{entry.command}</code>
+                  <code className="rounded bg-muted px-1 font-mono text-[11px] text-foreground">{entry.command}</code>
                 </dt>
-                <dd className="text-xs text-muted-foreground">{entry.explain}</dd>
+                <dd className="text-[11px] text-muted-foreground">{entry.explain}</dd>
               </div>
             ))}
           </dl>
         </div>
       ) : null}
 
-      {/*
-        Takeaways CHỈ hiện sau khi thắng. Hợp đồng gọi đây là khoảnh khắc kiến
-        thức đóng lại; hiện sẵn từ đầu thì nó thành phần tóm tắt của lời giải, và
-        level mất đúng cái nó định dạy.
-      */}
-      {phase === 'won' && teaching.takeaways.length > 0 ? (
-        <div className="flex flex-col gap-1.5 border-t border-border pt-3">
-          <h3 className="text-xs font-semibold text-foreground">Rút ra được gì</h3>
-          <ul role="list" aria-label="Điều rút ra sau level" className="flex flex-col gap-1">
-            {teaching.takeaways.map((item) => (
-              <li key={item} className="text-sm text-foreground">
-                {renderInline(item)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {extras.length > 0 ? (
-        <div className="border-t border-border pt-3">
+      {hasExtras ? (
+        <div className="border-t border-border/60 pt-2">
           <button
             type="button"
             aria-expanded={showExtras}
             onClick={() => setShowExtras((value) => !value)}
-            className="text-xs text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="text-[11px] text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             {showExtras ? 'Ẩn' : 'Xem'} mẹo thực chiến và sai lầm thường gặp
           </button>
           {showExtras ? (
             <ul role="list" className="mt-2 flex flex-col gap-1.5">
               {(teaching.proTips ?? []).map((tip) => (
-                <li key={tip} className="flex gap-2 text-xs text-muted-foreground">
+                <li key={tip} className="flex gap-2 text-[11px] text-muted-foreground">
                   <Lightbulb aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-success" />
                   <span className="sr-only">Mẹo:</span>
-                  <span>{renderInline(tip)}</span>
+                  <span>{tip}</span>
                 </li>
               ))}
               {(teaching.pitfalls ?? []).map((pitfall) => (
-                <li key={pitfall} className="flex gap-2 text-xs text-muted-foreground">
+                <li key={pitfall} className="flex gap-2 text-[11px] text-muted-foreground">
                   <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
                   <span className="sr-only">Sai lầm thường gặp:</span>
-                  <span>{renderInline(pitfall)}</span>
+                  <span>{pitfall}</span>
                 </li>
               ))}
             </ul>
