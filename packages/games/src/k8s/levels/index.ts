@@ -77,9 +77,14 @@ import { l14 } from './l14.ts';
 import { l15 } from './l15.ts';
 import { l16 } from './l16.ts';
 import { l17 } from './l17.ts';
+import { l18 } from './l18.ts';
+import { l19 } from './l19.ts';
+import { l20 } from './l20.ts';
+import { l21 } from './l21.ts';
+import { l22 } from './l22.ts';
 
 export const LEVELS: readonly Level[] = [
   l01, l02, l03, l04, l05, l06, l07, l08,
   l09, l10, l11, l12, l13, l14, l15, l16,
-  l17,
+  l17, l18, l19, l20, l21, l22,
 ];
