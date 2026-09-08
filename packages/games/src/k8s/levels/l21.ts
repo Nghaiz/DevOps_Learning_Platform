@@ -132,4 +132,44 @@ Trong cluster đang có sẵn hai PV chưa ai dùng. Không cái nào khớp.
     'binding PV-PVC',
     'ContainerCreating',
   ],
+  teaching: {
+    primer: `Lưu trữ trong Kubernetes tách làm hai object, và việc tách đó là có lý do: người
+cấp đĩa và người dùng đĩa thường là hai người khác nhau.
+
+- **PersistentVolume (PV)** — nguồn cung. Một ổ đĩa có thật, phạm vi toàn
+  cluster, không thuộc namespace nào.
+- **PersistentVolumeClaim (PVC)** — nhu cầu. Nằm trong namespace, do người viết
+  ứng dụng khai: tôi cần bao nhiêu, kiểu truy cập nào, lớp lưu trữ nào.
+
+Kubernetes ghép hai bên. Ghép được thì PVC chuyển sang \`Bound\`; chưa ghép được
+thì nó nằm \`Pending\`, và pod tham chiếu nó không xếp lịch nổi — pod sẽ kẹt ở
+\`ContainerCreating\` hoặc \`Pending\` chứ không báo lỗi gì rõ ràng.
+
+Việc ghép cần khớp **cả ba** tiêu chí:
+
+1. \`storageClassName\` — khớp chuỗi, không có suy diễn gần đúng.
+2. \`accessModes\` — PV phải hỗ trợ kiểu PVC xin. \`ReadWriteOnce\` là một node
+   ghi; \`ReadOnlyMany\` là nhiều node chỉ đọc; \`ReadWriteMany\` là nhiều node
+   cùng ghi.
+3. Dung lượng — PV phải **lớn hơn hoặc bằng** mức PVC xin.
+
+Kubernetes không nói giúp bạn tiêu chí nào lệch. Nó chỉ nói chưa tìm được cái nào
+khớp, nên bạn phải tự so đủ ba.`,
+    cheatsheet: [
+      { command: 'kubectl get pvc -n <ns>', explain: 'Cột STATUS cho biết Bound hay Pending, và PVC nào đã chiếm PV nào.' },
+      { command: 'kubectl describe pvc <tên> -n <ns>', explain: 'Events ghi lý do chưa ghép được — chỗ đầu tiên cần đọc.' },
+      { command: 'kubectl get pv', explain: 'PV không thuộc namespace nào; xem dung lượng, accessMode, lớp và trạng thái Available hay Bound.' },
+      { command: 'kubectl get storageclass', explain: 'Các lớp lưu trữ đang có; lớp không tồn tại là nguyên nhân rất hay gặp.' },
+    ],
+    takeaways: [
+      'PV là nguồn cung ở phạm vi cluster; PVC là nhu cầu trong một namespace.',
+      'Ghép được cần khớp đồng thời ba tiêu chí: lớp lưu trữ, kiểu truy cập, và dung lượng.',
+      'PVC Pending làm pod kẹt, nên triệu chứng hiện ở pod trong khi nguyên nhân nằm ở PVC.',
+      'Dung lượng chỉ cần PV lớn hơn hoặc bằng — nhưng lớp và accessMode thì phải khớp chính xác.',
+    ],
+    pitfalls: [
+      'Thấy một PV đủ lớn rồi kết luận nó khớp. Dung lượng là tiêu chí dễ nhìn nhất nên hay được kiểm một mình, trong khi lớp và accessMode mới là chỗ hay lệch.',
+      'Đi tìm lỗi trong pod. Pod hoàn toàn đúng; nó chỉ đang chờ một thứ chưa có.',
+    ],
+  },
 };

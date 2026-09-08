@@ -151,4 +151,39 @@ Bắt đầu từ pod đang kẹt. Lý do nó không xếp lịch được khôn
     'ổ đĩa bền theo ordinal',
     'StatefulSetOrderedReadyStuck',
   ],
+  teaching: {
+    primer: `**StatefulSet** dành cho workload mà danh tính của từng bản chạy có ý nghĩa —
+cơ sở dữ liệu, hàng đợi, mọi thứ có bản chính và bản sao. Nó khác Deployment ở ba
+điểm, và cả ba đều xuất phát từ cùng một nhu cầu đó:
+
+- **Tên ổn định.** Pod là \`postgres-0\`, \`postgres-1\`, \`postgres-2\` — không
+  có hậu tố băm ngẫu nhiên. Pod chết đi tạo lại vẫn giữ nguyên tên cũ.
+- **Ổ đĩa riêng và bền.** \`volumeClaimTemplates\` sinh một PVC cho mỗi pod, tên
+  theo dạng \`<template>-<statefulset>-<số>\`. Xoá pod thì PVC ở lại, và pod mới
+  cùng số nhận lại đúng ổ đĩa cũ.
+- **Thứ tự.** Mặc định \`podManagementPolicy: OrderedReady\`: pod thứ N chỉ được
+  tạo sau khi pod N−1 đã Ready. Khởi động lần lượt 0, 1, 2; thu nhỏ thì ngược lại.
+
+Điểm cuối có một hệ quả cần nhớ: **một pod kẹt chặn đứng toàn bộ phần đuôi**.
+Bảng \`get pods\` sẽ trông như thể StatefulSet chỉ khai một replica, trong khi
+thật ra hai pod kia chưa từng được tạo. Deployment không bao giờ hành xử như vậy.
+
+StatefulSet cũng thường đi kèm một **headless Service** (\`clusterIP: None\`) để
+mỗi pod có một tên DNS riêng thay vì bị cân bằng tải chung.`,
+    cheatsheet: [
+      { command: 'kubectl get statefulset -n <ns>', explain: 'Cột READY dạng "1/3" cho biết bao nhiêu pod đã sẵn sàng trên tổng mong muốn.' },
+      { command: 'kubectl get pods -n <ns> -l app=<nhãn>', explain: 'Nhìn chỗ đứt quãng trong dãy số thứ tự — đó là pod đang chặn.' },
+      { command: 'kubectl describe pod <sts>-0 -n <ns>', explain: 'Luôn bắt đầu từ pod có số nhỏ nhất đang kẹt; các pod sau chỉ là hệ quả.' },
+      { command: 'kubectl get pvc -n <ns>', explain: 'PVC do volumeClaimTemplates sinh ra, tên theo dạng <template>-<sts>-<số>.' },
+    ],
+    takeaways: [
+      'StatefulSet cho pod tên ổn định, ổ đĩa bền theo số thứ tự, và khởi động có thứ tự.',
+      'Với OrderedReady, một pod kẹt chặn mọi pod sau nó — hãy luôn chẩn đoán từ số nhỏ nhất.',
+      'volumeClaimTemplates sinh PVC riêng cho từng pod; xoá pod không xoá dữ liệu.',
+      'Triệu chứng ở tầng workload có thể có nguyên nhân ở tầng lưu trữ.',
+    ],
+    pitfalls: [
+      'Đi tìm vì sao pod 1 và 2 "biến mất". Chúng không biến mất, chúng chưa từng được tạo — và đó là hành vi đúng, không phải lỗi.',
+    ],
+  },
 };

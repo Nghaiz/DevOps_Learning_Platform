@@ -1,5 +1,5 @@
 /**
- * Danh mục level của K8s Game — thứ tự trong mảng LÀ thứ tự chơi.
+ * Danh mục level của Kubernetes Game — thứ tự trong mảng LÀ thứ tự chơi.
  *
  * ⛔ Lane C sở hữu thư mục này. `contract.ts` và `predicate-names.ts` là của
  * lead; `reducer.ts` / `predicates.ts` là của lane B. Level ở đây chỉ là DỮ LIỆU:
@@ -82,9 +82,15 @@ import { l19 } from './l19.ts';
 import { l20 } from './l20.ts';
 import { l21 } from './l21.ts';
 import { l22 } from './l22.ts';
+import { l23 } from './l23.ts';
+import { l24 } from './l24.ts';
+import { l25 } from './l25.ts';
+import { l26 } from './l26.ts';
+import { l27 } from './l27.ts';
 
 export const LEVELS: readonly Level[] = [
   l01, l02, l03, l04, l05, l06, l07, l08,
   l09, l10, l11, l12, l13, l14, l15, l16,
-  l17, l18, l19, l20, l21, l22,
+  l17, l18, l19, l20, l21, l22, l23, l24,
+  l25, l26, l27,
 ];
