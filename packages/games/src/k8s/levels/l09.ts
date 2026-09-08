@@ -15,22 +15,14 @@ export const l09: Level = {
   id: 'k8s-09-rollout-treo-giua-chung',
   chapter: 2,
   title: 'Rollout dừng giữa chừng lúc 2 giờ sáng',
-  brief: `Pipeline CI vừa đẩy một bản lên production rồi báo đỏ. Bạn mở cluster ra và thấy
-một cảnh khó hiểu: Deployment \`api\` trong \`nen-tang\` có **7 pod** dù nó chỉ
-khai 6 replica, trong đó một số Running và một số kẹt không bao giờ Ready.
+  mission:
+    'Đưa Deployment `api` về 6 replica sẵn sàng trên image có thật, không pod nào còn lý do lỗi.',
+  brief: `Pipeline CI vừa đẩy một bản lên production rồi báo đỏ. Deployment \`api\` trong
+\`nen-tang\` có **7 pod** dù chỉ khai 6 replica, trong đó một số Running và một số
+kẹt không bao giờ Ready.
 
-Trang trạng thái của công ty vẫn xanh. Khách hàng không phàn nàn. Đó không phải
-may mắn — Deployment này đặt \`maxUnavailable: 0\`, nghĩa là nó **không được phép**
-hạ pod cũ xuống trước khi pod mới sẵn sàng. Pod mới không bao giờ sẵn sàng, nên
-pod cũ không bao giờ bị hạ, nên dịch vụ không đứt. Rollout đứng yên vô thời hạn
-thay vì làm sập production.
-
-**Việc cần làm:** đưa Deployment \`api\` về một trạng thái ổn định với 6 replica
-sẵn sàng, chạy image có thật, và không pod nào còn mang lý do lỗi.
-
-Bạn không cần đoán tag nào là tag lành. Mỗi lần Deployment đổi template,
-Kubernetes giữ lại ReplicaSet của thế hệ trước — nguyên vẹn, kể cả khi nó đã bị
-hạ về 0 pod. Lịch sử đó nằm ngay trong cluster.`,
+Trang trạng thái của công ty vẫn xanh, khách hàng không phàn nàn. Đó không phải
+may mắn.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [
@@ -114,8 +106,8 @@ hạ về 0 pod. Lịch sử đó nằm ngay trong cluster.`,
   ],
   hints: [
     '7 pod cho 6 replica là dấu vết của hai thế hệ cùng sống: `maxSurge: 1` cho phép tạo thừa đúng một pod, và pod thừa đó chính là pod mới đang kẹt. `kubectl get rs -n nen-tang` cho bạn thấy cả hai ReplicaSet.',
-    '`kubectl rollout status deployment/api -n nen-tang` sẽ treo chứ không trả về — đó là xác nhận. `kubectl rollout history deployment/api -n nen-tang` liệt kê các revision đã đi qua; thêm `--revision=4` để xem template của thế hệ trước.',
-    'Revision 4 dùng image `ghcr.io/dlp/api:1.5.0`. Quay về nó bằng `kubectl rollout undo deployment/api -n nen-tang`, hoặc sửa thẳng image trong Deployment về đúng tag đó. Cách nào cũng được — điều quan trọng là bạn đã ĐỌC ra tag đó từ cluster chứ không đoán.',
+    '`kubectl rollout status deployment/api -n nen-tang` sẽ treo chứ không trả về — đó là xác nhận. `kubectl rollout history deployment/api -n nen-tang` liệt kê các revision đã đi qua, và `kubectl describe rs <ten-rs> -n nen-tang` cho bạn image của từng thế hệ.',
+    'ReplicaSet của thế hệ trước dùng image `ghcr.io/dlp/api:1.5.0`. Quay về nó bằng `kubectl rollout undo deployment/api -n nen-tang`, hoặc sửa thẳng image trong Deployment về đúng tag đó. Cách nào cũng được — điều quan trọng là bạn đã ĐỌC ra tag đó từ cluster chứ không đoán.',
   ],
   parMoves: 2,
   teaches: [
@@ -127,47 +119,37 @@ hạ về 0 pod. Lịch sử đó nằm ngay trong cluster.`,
     'ReplicaSet history',
   ],
   teaching: {
-    primer: `Một rollout **treo** không giống một rollout **hỏng**. Đây là chỗ hai khái niệm
-đó tách ra, và tách được chúng là toàn bộ giá trị của level.
+    primer: `Một rollout **treo** không giống một rollout **hỏng**.
 
 Deployment với \`maxUnavailable: 0\` không được phép hạ pod cũ trước khi pod mới
-sẵn sàng. Nếu pod mới không bao giờ sẵn sàng, quy tắc đó biến thành một cái phanh:
-rollout đứng yên vô thời hạn, pod cũ vẫn phục vụ, và người dùng không thấy gì.
-Đây là hành vi **đúng**, không phải một lỗi cần dập gấp.
+sẵn sàng. Nếu pod mới không bao giờ sẵn sàng, quy tắc đó thành một cái phanh:
+rollout đứng yên vô thời hạn, pod cũ vẫn phục vụ, người dùng không thấy gì.
 
-Dấu vết nhận ra nó: số pod nhiều hơn số replica. \`maxSurge: 1\` cho phép tạo
-thừa đúng một pod, và pod thừa đó chính là pod mới đang kẹt.
+Dấu vết nhận ra nó: số pod nhiều hơn số replica.
 
-Mỗi lần \`template\` đổi, Kubernetes giữ lại ReplicaSet của thế hệ trước, nguyên
-vẹn, kể cả sau khi đã hạ nó về 0 pod. Đó là **lịch sử revision**, và nó nằm ngay
-trong cluster chứ không nằm trong pipeline CI. Nghĩa là bạn không phải đoán bản
-lành là bản nào: đọc ra được.
-
-\`kubectl rollout undo\` đọc chính lịch sử đó và đưa template về thế hệ trước.
-Sửa tay image về đúng tag cũ cũng ra kết quả tương đương.
-
-Nhìn vào đâu: \`get rs\` để thấy hai thế hệ, \`rollout history\` để đọc template
-của thế hệ lành.`,
+Mỗi lần \`template\` đổi, Kubernetes giữ lại ReplicaSet của thế hệ trước, kể cả sau
+khi đã hạ nó về 0 pod. Đó là **lịch sử revision**, nằm ngay trong cluster — nghĩa
+là bản lành đọc ra được chứ không phải đoán.`,
     cheatsheet: [
       {
         command: 'kubectl rollout status deployment/api -n nen-tang',
         explain: 'Không trả về nghĩa là rollout đang treo. Bản thân việc treo đã là một kết luận.',
       },
       {
-        command: 'kubectl get rs -n nen-tang -o wide',
-        explain: 'Cột IMAGES của từng ReplicaSet cho biết thế hệ nào chạy image nào.',
+        command: 'kubectl get rs -n nen-tang',
+        explain: 'Hai ReplicaSet cùng tồn tại: một thế hệ đang lên, một thế hệ cũ chưa bị hạ hết.',
       },
       {
-        command: 'kubectl rollout history deployment/api -n nen-tang --revision=4',
-        explain: 'In template đầy đủ của một revision cũ, nơi đọc ra tag lành mà không phải đoán.',
+        command: 'kubectl describe rs <ten-rs> -n nen-tang',
+        explain: 'Image của từng thế hệ nằm ở đây. Đây là chỗ đọc ra tag lành mà không phải đoán.',
       },
       {
         command: 'kubectl rollout undo deployment/api -n nen-tang',
-        explain: 'Quay về revision liền trước. Thêm --to-revision=N để nhắm một thế hệ cụ thể.',
+        explain: 'Quay về revision liền trước, tức là ghi lại template của thế hệ lành.',
       },
       {
         command: 'kubectl describe pod -n nen-tang -l app=api',
-        explain: 'Xem pod kẹt kẹt vì lý do gì, để biết sửa image hay quay lui là đúng.',
+        explain: 'Xem pod mới kẹt vì lý do gì, để biết quay lui hay sửa image là đúng.',
       },
     ],
     takeaways: [

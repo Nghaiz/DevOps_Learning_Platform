@@ -16,28 +16,14 @@ export const l30: Level = {
   id: 'k8s-30-hai-endpoint-rong-hai-nguyen-nhan',
   chapter: 6,
   title: 'Hai Service cùng rỗng, và không cùng lý do',
-  brief: `Trang tin \`tin-tuc\` hỏng hai chỗ cùng lúc sau một đợt deploy. Cả hai Service
-đều không có endpoint nào:
+  mission: 'Đưa cả hai Service về đủ 3 endpoint, và `binh-luan` phải giữ readiness probe.',
+  brief: `Trang tin \`tin-tuc\` hỏng hai chỗ cùng lúc sau một đợt deploy. Cả hai Service đều
+không có endpoint nào:
 
 - \`bai-viet\` — 3 pod, tất cả \`Running\`, cột READY ghi \`1/1\`.
 - \`binh-luan\` — 3 pod, tất cả \`Running\`, cột READY ghi \`0/1\`.
 
-Từ \`kubectl get svc\` chúng giống hệt nhau. Từ \`kubectl get endpoints\` cũng
-vậy: cả hai đều rỗng. Nhưng một chi tiết đã tách chúng ra rồi, và nó nằm trong
-bảng \`get pods\` phía trên.
-
-Service xây danh sách endpoint qua hai bước, và mỗi bước hỏng một kiểu:
-
-1. **Chọn pod** theo selector. Không pod nào khớp label thì danh sách rỗng ngay
-   từ đầu — pod vẫn khoẻ, vẫn \`1/1\`, chỉ là Service không nhìn thấy chúng.
-2. **Lọc pod chưa Ready.** Pod khớp label nhưng đang \`0/1\` sẽ bị loại — Service
-   nhìn thấy chúng, và cố tình không gửi traffic tới.
-
-Hai bước, hai nguyên nhân, hai cách sửa hoàn toàn khác nhau. Áp cách sửa của cái
-này lên cái kia sẽ không có tác dụng gì, và đó là chỗ dễ mất thời gian nhất.
-
-**Việc cần làm:** cả hai Service đều có đủ 3 endpoint, và \`binh-luan\` giữ lại
-readiness probe của nó.`,
+Một chi tiết trong bảng trên đã tách chúng ra.`,
   difficulty: 'advanced',
   initialState: {
     nodes: [
@@ -173,32 +159,22 @@ readiness probe của nó.`,
     'readiness probe',
   ],
   teaching: {
-    primer: `Endpoint của một Service được dựng qua **hai bước lọc nối tiếp**, và biết rõ hai
-bước đó là đủ để chẩn đoán mọi trường hợp endpoint rỗng.
+    primer: `Endpoint của một Service được dựng qua **hai bước lọc nối tiếp**.
 
-**Bước 1 — chọn.** Service lấy mọi pod trong namespace khớp **toàn bộ** label
-trong selector. Selector liệt kê hai label thì pod phải có cả hai; có một thì
-không tính. Không pod nào khớp thì danh sách rỗng ngay tại đây.
+**Bước 1 — chọn.** Service lấy mọi pod khớp **toàn bộ** label trong selector.
+Selector liệt kê hai label thì pod phải có cả hai.
 
 **Bước 2 — lọc.** Trong số pod đã chọn, chỉ pod **Ready** được đưa vào endpoint.
-Pod \`Running\` mà \`0/1\` bị loại một cách có chủ ý: đó chính là công dụng của
-readiness probe.
+Pod \`Running\` mà \`0/1\` bị loại một cách có chủ ý.
 
-Cách phân biệt nhanh, chỉ cần một cột:
+Cách phân biệt chỉ cần một cột:
 
-| Pod | Ý nghĩa | Hỏng ở bước |
-|---|---|---|
-| \`1/1\` mà endpoint rỗng | Pod khoẻ, Service không nhìn thấy nó | 1 — selector |
-| \`0/1\` mà endpoint rỗng | Service thấy pod, pod tự khai chưa sẵn sàng | 2 — readiness |
-
-Hai nguyên nhân này không liên quan gì tới nhau, và cách sửa của cái này không có
-tác dụng gì với cái kia. Sửa selector cho một pod \`0/1\` sẽ không đưa nó vào
-endpoint; nới readiness cho một pod \`1/1\` cũng vậy.
-
-Thói quen đáng giữ: nhìn cột READY **trước** khi mở bất kỳ file YAML nào.`,
+- Pod \`1/1\` mà endpoint rỗng — pod khoẻ, Service không nhìn thấy nó. Hỏng ở bước 1.
+- Pod \`0/1\` mà endpoint rỗng — Service thấy pod, pod tự khai chưa sẵn sàng. Hỏng
+  ở bước 2.`,
     cheatsheet: [
       { command: 'kubectl get pods -n <ns> --show-labels', explain: 'Cột READY và label thật, cùng một lệnh — đủ để tách hai nguyên nhân.' },
-      { command: 'kubectl get endpoints -n <ns>', explain: 'Xem mọi Service cùng lúc, biết ngay cái nào rỗng.' },
+      { command: 'kubectl get svc -n <ns>', explain: 'Cột ENDPOINTS đếm pod mà mỗi Service thật sự trỏ tới, thấy ngay cái nào rỗng.' },
       { command: 'kubectl describe svc <tên> -n <ns>', explain: 'Đọc dòng Selector; nó có thể đòi nhiều label hơn bạn nhớ.' },
       { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Với pod 0/1, Events ghi probe nào fail và nó đang gọi cổng nào.' },
     ],

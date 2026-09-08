@@ -13,28 +13,14 @@ export const l28: Level = {
   id: 'k8s-28-running-nhung-chua-san-sang',
   chapter: 6,
   title: 'Running, và vẫn không ai gọi tới được',
+  mission: 'Đưa Service `tim-kiem` về đủ 3 endpoint mà vẫn giữ readiness probe.',
   brief: `Deployment \`tim-kiem\` trong namespace \`noi-dung\` vừa được deploy. Ba pod đều
-\`Running\`, RESTARTS bằng 0, log sạch, không có sự cố nào trong Events.
+\`Running\`, RESTARTS bằng 0, log sạch, Events không có sự cố nào.
 
 Và Service \`tim-kiem\` không có endpoint nào.
 
-Bạn đã gặp một endpoint rỗng ở level 13, khi selector của Service tìm nhầm label.
-Lần này selector đúng: \`kubectl get pods --show-labels\` và
-\`kubectl describe svc\` khớp nhau từng ký tự.
-
-Nhìn kỹ hơn vào \`kubectl get pods\` sẽ thấy cột READY ghi \`0/1\` trên cả ba
-pod. Đây là trục thứ hai mà bạn chưa dùng tới: một pod vừa có **phase** (nó đang
-ở giai đoạn nào của vòng đời) vừa có **ready** (nó có tự nhận là phục vụ được
-hay không). Hai thứ độc lập nhau, và Service chỉ đưa pod **Ready** vào danh sách
-endpoint.
-
-Cái quyết định Ready là **readiness probe**. Không khai thì Kubernetes mặc định
-coi container đang chạy là sẵn sàng. Khai rồi thì pod phải vượt qua được — và
-một probe cấu hình sai sẽ giữ pod ở \`0/1\` vĩnh viễn, trong khi ứng dụng bên
-trong hoàn toàn khoẻ mạnh.
-
-**Việc cần làm:** đưa Service \`tim-kiem\` về đủ 3 endpoint, giữ readiness probe
-(đừng xoá nó đi) và giữ đủ 3 replica sẵn sàng.`,
+Bạn đã gặp một endpoint rỗng ở level 13, khi selector tìm nhầm label. Lần này
+selector khớp từng ký tự.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [
@@ -122,33 +108,25 @@ trong hoàn toàn khoẻ mạnh.
     'httpGet probe',
   ],
   teaching: {
-    primer: `Một pod có **hai trục trạng thái độc lập**, và nhầm chúng làm một là nguồn gốc
-của rất nhiều giờ chẩn đoán sai:
+    primer: `Một pod có **hai trục trạng thái độc lập**:
 
-- \`phase\` — pod đang ở giai đoạn nào: Pending, Running, Succeeded, Failed,
-  Terminating.
-- \`ready\` — pod có tự nhận là phục vụ được hay không. Đây là cột \`READY\` dạng
-  \`1/1\` hoặc \`0/1\` trong \`kubectl get pods\`.
+- \`phase\` — pod đang ở giai đoạn nào: Pending, Running, Succeeded, Failed.
+- \`ready\` — pod có tự nhận là phục vụ được không. Đây là cột \`READY\` dạng \`1/1\`
+  hay \`0/1\`.
 
-Một pod \`Running\` mà \`0/1\` là bình thường về mặt cơ chế: container đang chạy,
-nó chỉ chưa sẵn sàng nhận traffic.
+Một pod \`Running\` mà \`0/1\` là bình thường về mặt cơ chế: container đang chạy, nó
+chỉ chưa sẵn sàng nhận traffic. Và Service **chỉ** đưa pod Ready vào endpoint.
 
-Ba loại probe, ba câu hỏi khác nhau:
+Cái quyết định Ready là **readiness probe**. Không khai thì Kubernetes mặc định
+coi container đang chạy là sẵn sàng.
 
-- **readiness** — "gửi traffic cho tôi được chưa?" Fail thì pod bị **gỡ khỏi
-  endpoint** của Service. Container **không** bị restart.
-- **liveness** — "tôi còn sống không?" Fail thì kubelet **giết và dựng lại**.
-- **startup** — "tôi khởi động xong chưa?" Trong lúc nó chưa xong, hai probe kia
-  bị tạm hoãn. Dành cho ứng dụng khởi động chậm.
-
-Hệ quả quan trọng: readiness fail là một sự cố **im lặng**. Không restart, không
-crash, không log lỗi — chỉ là traffic lặng lẽ ngừng tới. Thứ duy nhất nhìn thấy
-được là cột READY và một danh sách endpoint rỗng.`,
+Hệ quả: readiness fail là một sự cố **im lặng**. Không restart, không crash,
+không log lỗi, chỉ là traffic lặng lẽ ngừng tới.`,
     cheatsheet: [
       { command: 'kubectl get pods -n <ns>', explain: 'Đọc cột READY chứ không chỉ cột STATUS — Running kèm 0/1 là hai thông tin khác nhau.' },
-      { command: 'kubectl get endpoints <svc> -n <ns>', explain: 'Danh sách pod Service thật sự trỏ tới; rỗng khi không pod nào Ready.' },
+      { command: 'kubectl describe svc <svc> -n <ns>', explain: 'Dòng Endpoints liệt kê pod mà Service thật sự trỏ tới; <none> khi không pod nào Ready.' },
       { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Events ghi từng lần probe thất bại, kèm cổng và đường dẫn đã gọi.' },
-      { command: 'kubectl get deploy <tên> -n <ns> -o yaml', explain: 'Đọc khối readinessProbe để so cổng probe với containerPort.' },
+      { command: 'kubectl describe deploy <tên> -n <ns>', explain: 'Đọc khối readinessProbe để so cổng probe với containerPort.' },
     ],
     takeaways: [
       'phase và ready là hai trục độc lập; Running không có nghĩa là phục vụ được.',
@@ -159,6 +137,9 @@ crash, không log lỗi — chỉ là traffic lặng lẽ ngừng tới. Thứ d
     pitfalls: [
       'Xoá readiness probe để pod thành Ready ngay. Endpoint đầy lại trong một giây nên trông như đã sửa, nhưng bạn vừa bỏ đúng cơ chế ngăn Service gửi traffic vào pod chưa khởi động xong — lỗi sẽ quay lại ở lần rollout sau dưới dạng vài trăm request lỗi.',
       'Kết luận ngay là lỗi selector vì đã gặp ở level 13. Endpoint rỗng có ít nhất hai nguyên nhân, và cột READY là thứ tách chúng ra.',
+    ],
+    proTips: [
+      'Ba loại probe hỏi ba câu khác nhau. readiness hỏi "gửi traffic cho tôi được chưa?" và fail thì pod bị gỡ khỏi endpoint, container KHÔNG restart. liveness hỏi "tôi còn sống không?" và fail thì kubelet giết rồi dựng lại. startup hỏi "tôi khởi động xong chưa?" và trong lúc nó chưa xong, hai probe kia bị tạm hoãn.',
     ],
   },
 };

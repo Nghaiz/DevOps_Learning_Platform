@@ -12,27 +12,14 @@ export const l17: Level = {
   id: 'k8s-17-ingress-tra-404',
   chapter: 3,
   title: 'Bên trong xanh hết, bên ngoài trả lỗi',
+  mission:
+    'Sửa Ingress `thu-vien` để `/muon-sach` tới Service `muon-sach` và `/api` tới Service `api`.',
   brief: `Trang \`https://thu-vien.dlp.vn\` vừa lên và người dùng báo hai lỗi khác nhau:
-
-- Vào \`/\` thì ra trang chủ bình thường.
-- Vào \`/muon-sach\` thì nhận **404** từ ingress controller.
-- Vào \`/api\` thì nhận **502 Bad Gateway**.
+vào \`/\` thì ra trang chủ bình thường, vào \`/muon-sach\` thì nhận **404**, vào
+\`/api\` thì nhận **502 Bad Gateway**.
 
 Từ bên trong cluster, cả ba Service đều gọi được, đều có endpoint đầy đủ, mọi pod
-đều Ready. Đây là kiểu sự cố mà mọi bảng theo dõi nội bộ đều xanh trong khi người
-dùng thì không vào được.
-
-Hai mã lỗi này nói hai chuyện khác nhau, và tách được chúng ra là toàn bộ nội
-dung của level:
-
-- **404** đến từ chính ingress controller: nó nhận request nhưng **không tìm thấy
-  luật nào khớp đường dẫn đó**. Request chưa từng rời khỏi controller.
-- **502** nghĩa là controller ĐÃ tìm thấy luật khớp, đã chuyển tiếp đi, và **cái
-  đích đó không trả lời** — sai tên Service, hoặc sai cổng Service.
-
-**Việc cần làm:** sửa Ingress \`thu-vien\` trong namespace \`thu-vien\` để
-\`/muon-sach\` đi tới Service \`muon-sach\` và \`/api\` đi tới Service \`api\`,
-không đụng tới Service hay Deployment nào.`,
+đều Ready.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [
@@ -104,7 +91,12 @@ không đụng tới Service hay Deployment nào.`,
             {
               host: 'thu-vien.dlp.vn',
               paths: [
-                { path: '/tra-sach', pathType: 'Prefix', serviceName: 'muon-sach', servicePort: 8000 },
+                {
+                  path: '/tra-sach',
+                  pathType: 'Prefix',
+                  serviceName: 'muon-sach',
+                  servicePort: 8000,
+                },
                 { path: '/api', pathType: 'Prefix', serviceName: 'api', servicePort: 8080 },
               ],
             },
@@ -157,28 +149,17 @@ không đụng tới Service hay Deployment nào.`,
     'kubectl describe ingress',
   ],
   teaching: {
-    primer: `Hai mã lỗi HTTP này nói hai chuyện khác hẳn nhau, và tách chúng ra là toàn bộ
-nội dung của level.
+    primer: `Hai mã lỗi HTTP này nói hai chuyện khác hẳn nhau.
 
 - **404** đến từ chính ingress controller: nó nhận request nhưng **không luật nào
   khớp** đường dẫn đó. Request chưa từng rời khỏi controller, nên mọi thứ phía
-  sau (Service, endpoints, pod) đều vô can.
+  sau đều vô can.
 - **502** nghĩa là controller **đã** khớp một luật, đã chuyển tiếp, và cái đích
   đó không trả lời. Lỗi nằm ở backend của luật: sai tên Service, hoặc sai cổng
   Service.
 
-Suy ra ngay được hai hướng điều tra khác nhau. Với 404, so danh sách path trong
-Ingress với đường dẫn người dùng thật sự gõ. Với 502, so cổng trong backend với
-\`port\` của Service.
-
-Đây cũng là kiểu sự cố mà mọi thứ **bên trong cluster đều xanh**: Service gọi
-được, endpoints đầy đủ, pod Ready. Chỉ có người dùng ngoài Internet là không vào
-được, vì tầng hỏng nằm ở lớp ngoài cùng, lớp mà bảng theo dõi nội bộ không đi qua.
-
-Hai lỗi cùng lúc thì đừng đi tìm một nguyên nhân chung. Sửa cái này không làm
-cái kia biến mất, và đó là dấu hiệu bạn đang nhìn hai vấn đề độc lập.
-
-Nhìn vào đâu: bảng luật của \`describe ingress\`, rồi \`get svc\` để đối chiếu cổng.`,
+Đây cũng là kiểu sự cố mà mọi thứ **bên trong cluster đều xanh**, vì tầng hỏng
+nằm ở lớp ngoài cùng — lớp mà bảng theo dõi nội bộ không đi qua.`,
     cheatsheet: [
       {
         command: 'kubectl describe ingress thu-vien -n thu-vien',
@@ -189,7 +170,7 @@ Nhìn vào đâu: bảng luật của \`describe ingress\`, rồi \`get svc\` đ
         explain: 'Cột PORT(S) là cổng thật của Service. Backend của Ingress phải khớp con số này.',
       },
       {
-        command: 'kubectl get endpoints -n thu-vien',
+        command: 'kubectl get svc -n thu-vien',
         explain: 'Chứng minh các Service đều có pod phía sau, để loại trừ nguyên nhân bên trong.',
       },
       {

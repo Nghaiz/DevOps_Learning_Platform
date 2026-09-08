@@ -30,24 +30,12 @@ export const l36: Level = {
   id: 'k8s-36-cronjob-theo-lich',
   chapter: 2,
   title: 'Việc tự chạy mỗi đêm, không ai bấm nút',
-  brief: `Job bạn vừa cứu ở level trước là việc chạy một lần rồi thôi. Còn việc dọn log thì
-phải chạy lại mỗi đêm, mãi mãi, và không ai muốn thức dậy lúc 2 giờ sáng để bấm.
+  mission: 'Tạo CronJob `don-log` trong `du-lieu` chạy `busybox:1.37` lúc 2 giờ sáng mỗi ngày.',
+  brief: `Job bạn vừa cứu ở level trước chạy một lần rồi thôi. Còn việc dọn log phải chạy
+lại mỗi đêm, và không ai muốn dậy lúc 2 giờ sáng để bấm.
 
-**CronJob** là object cho việc đó. Nó không tự chạy gì cả: tới giờ trong lịch, nó
-**tạo ra một Job**, và Job đó tạo pod đúng như bạn đã thấy. Mọi thứ học được ở
-level trước vẫn nguyên giá trị, chỉ thêm một tầng ở trên.
-
-Trong namespace \`du-lieu\` đã có sẵn CronJob \`sao-luu\` chạy tốt từ lâu. Nó là
-mẫu tham khảo tốt hơn bất cứ tài liệu nào: mở ra xem một CronJob thật có hình
-dạng gì.
-
-**Việc cần làm:** tạo CronJob \`don-log\` trong \`du-lieu\`, chạy image
-\`busybox:1.37\`, theo lịch **2 giờ sáng mỗi ngày**. Đừng đụng vào \`sao-luu\`.
-
-Lịch viết bằng cú pháp cron năm trường. Đây là chỗ dễ sai nhất và cũng là chỗ
-sai âm thầm nhất: một lịch viết nhầm vẫn được API server nhận, CronJob vẫn hiện
-ra trong \`kubectl get\`, và bạn chỉ phát hiện ra khi công việc không chạy vào
-đêm mà bạn cần nó.`,
+Trong namespace \`du-lieu\` đã có sẵn CronJob \`sao-luu\` chạy tốt. Nó là mẫu tham
+khảo tốt hơn bất cứ tài liệu nào. Đừng đụng vào nó.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [{ name: 'may-chu-1', cpu: 4000, memory: 8192, ready: true }],
@@ -102,7 +90,7 @@ ra trong \`kubectl get\`, và bạn chỉ phát hiện ra khi công việc khôn
     },
   ],
   hints: [
-    'Đừng viết từ đầu. `kubectl get cronjob sao-luu -n du-lieu -o yaml` cho bạn một CronJob thật đang chạy tốt, đủ mọi trường cần có.',
+    'Đừng viết từ đầu. `kubectl describe cronjob sao-luu -n du-lieu` cho bạn một CronJob thật đang chạy tốt, đủ mọi trường cần có.',
     'Một CronJob tối thiểu cần hai thứ: `schedule` dạng cron, và `jobTemplate` chứa pod template y như của Job. Chú ý pod trong đó phải dùng `restartPolicy` là `Never` hoặc `OnFailure` — `Always` không hợp lệ ở đây, vì một công việc theo lịch phải kết thúc được.',
     'Cron có năm trường theo thứ tự: phút, giờ, ngày trong tháng, tháng, thứ trong tuần. Dấu sao nghĩa là "mọi giá trị". 2 giờ sáng mỗi ngày là `"0 2 * * *"`: phút 0, giờ 2, còn ba trường sau để sao.',
   ],
@@ -117,10 +105,10 @@ ra trong \`kubectl get\`, và bạn chỉ phát hiện ra khi công việc khôn
   ],
   teaching: {
     primer: `**CronJob không chạy gì cả.** Nó là một cái máy tạo Job: tới giờ trong lịch, nó
-sinh ra một Job, Job sinh ra pod. Ba tầng, và mọi thứ bạn học ở level trước về
-Job vẫn đúng nguyên với từng Job mà nó đẻ ra.
+sinh ra một Job, Job sinh ra pod. Mọi quy tắc của Job vẫn đúng với từng Job nó
+đẻ ra.
 
-Lịch viết bằng **cú pháp cron năm trường**, theo thứ tự:
+Lịch viết bằng **cú pháp cron năm trường**:
 
 \`\`\`
 phút  giờ  ngày-trong-tháng  tháng  thứ-trong-tuần
@@ -130,40 +118,29 @@ phút  giờ  ngày-trong-tháng  tháng  thứ-trong-tuần
 Dấu sao là "mọi giá trị". Dòng trên đọc là: phút thứ 0 của giờ thứ 2, mọi ngày,
 mọi tháng, mọi thứ. Tức 02:00 hằng đêm.
 
-Hai trường tuỳ chọn quyết định hành vi khi mọi thứ không diễn ra êm:
-
-- \`concurrencyPolicy\` trả lời "lần chạy trước còn sống thì sao?". Mặc định
-  \`Allow\` cho chạy chồng lên nhau. \`Forbid\` bỏ qua lần mới; \`Replace\` giết lần
-  cũ.
-- \`startingDeadlineSeconds\` là hạn muộn nhất còn được phép khởi động. Trễ hơn
-  thế thì lần chạy đó bị **bỏ hẳn**, không dồn lại chạy bù.
-
-Điểm đáng nhớ của cả level: một lịch sai vẫn được API server chấp nhận. Không có
-lỗi, không có cảnh báo, CronJob vẫn nằm đó trong \`kubectl get\`. Nó chỉ đơn giản
-là không chạy vào lúc bạn tưởng.
-
-Nhìn vào đâu: cột SCHEDULE và LAST SCHEDULE trong \`get cronjob\`, và danh sách
-Job nó đã sinh ra.`,
+Điểm đáng nhớ nhất: một lịch sai vẫn được API server chấp nhận. Không lỗi, không
+cảnh báo, CronJob vẫn nằm đó trong \`kubectl get\` — nó chỉ đơn giản không chạy vào
+lúc bạn tưởng.`,
     cheatsheet: [
       {
-        command: 'kubectl get cronjob sao-luu -n du-lieu -o yaml',
+        command: 'kubectl describe cronjob sao-luu -n du-lieu',
         explain: 'Đọc một CronJob thật đang chạy tốt. Nhanh hơn và đúng hơn mọi trí nhớ về cú pháp.',
       },
       {
         command: 'kubectl get cronjob -n du-lieu',
-        explain: 'Cột SCHEDULE và LAST SCHEDULE: lịch đang khai, và lần gần nhất nó thật sự chạy.',
+        explain: 'Liệt kê CronJob đang có trong namespace.',
       },
       {
         command: 'kubectl describe cronjob don-log -n du-lieu',
-        explain: 'Events ghi lại từng lần tạo Job, và cả những lần bị bỏ lỡ.',
+        explain: 'Spec của CronJob bạn vừa tạo, kèm khối Events của nó.',
       },
       {
-        command: 'kubectl get jobs -n du-lieu --sort-by=.status.startTime',
-        explain: 'Xem CronJob đã đẻ ra những Job nào, theo thứ tự thời gian.',
+        command: 'kubectl get jobs -n du-lieu',
+        explain: 'Xem CronJob đã đẻ ra những Job nào.',
       },
       {
-        command: 'kubectl create job chay-thu --from=cronjob/don-log -n du-lieu',
-        explain: 'Chạy thử ngay một lần thay vì chờ tới giờ. Cách kiểm chứng rẻ nhất trước khi tin vào lịch.',
+        command: 'schedule: "0 2 * * *"',
+        explain: 'Năm trường: phút 0, giờ 2, ba trường còn lại để sao. Đây là chỗ dễ sai nhất của cả level.',
       },
     ],
     takeaways: [
@@ -173,7 +150,7 @@ Job nó đã sinh ra.`,
       'concurrencyPolicy và startingDeadlineSeconds quyết định điều gì xảy ra khi lần chạy trước chưa xong hoặc cụm đang bận.',
     ],
     proTips: [
-      'Chạy thử bằng `create job --from=cronjob/...` ngay sau khi tạo. Nó kiểm được image và lệnh, phần duy nhất nó không kiểm là lịch.',
+      'Ngoài đời bạn chạy thử một lần bằng `kubectl create job --from=cronjob/...` thay vì chờ tới giờ. Game này chưa mô phỏng lệnh đó, nên hãy đọc kỹ lịch trước khi tin vào nó.',
       'Đặt lịch theo múi giờ nào là câu hỏi thật: mặc định CronJob tính theo giờ của control plane, thường là UTC. 2 giờ sáng của cụm chưa chắc là 2 giờ sáng của bạn.',
     ],
     pitfalls: [

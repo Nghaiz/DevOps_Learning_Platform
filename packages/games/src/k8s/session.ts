@@ -30,6 +30,8 @@ import type {
   SessionStatus,
 } from './contract.ts';
 import type { ClusterState } from './model.ts';
+import { findByUid } from './model.ts';
+import { describeObject } from './describe.ts';
 import { COMMAND_KINDS, countHints, countMoves, initialState, reduce } from './reducer.ts';
 import { TICK_MS, advance } from './tick.ts';
 import { toView } from './view.ts';
@@ -104,6 +106,30 @@ export interface K8sEngineSession extends K8sSession {
   runCommand(command: string): string;
   /** Đọc trạng thái thô — dùng cho test và cho `verify.ts`, KHÔNG cho renderer. */
   getState(): ClusterState;
+  /**
+   * Khối `kubectl describe` của một object, tra theo uid. `null` = không có
+   * object nào mang uid đó (đã bị xoá, hoặc uid tới từ một snapshot cũ).
+   *
+   * ## Vì sao ở ĐÂY chứ không ở `K8sSession`
+   *
+   * `K8sSession` là hợp đồng TỐI THIỂU và có hai bản giả trong test dựng thủ
+   * công; thêm một method bắt buộc vào đó làm cả hai đỏ mà chẳng đổi gì về chất.
+   * `K8sEngineSession` sinh ra đúng để chứa "phần lane E cần mà hợp đồng tối
+   * thiểu cố ý không mang", và `runCommand` — cũng là một tính năng giao diện
+   * hạng nhất — đã ở đây. Chỗ này là chỗ của nó.
+   *
+   * Lane giao diện KHÔNG cần thêm dòng nào ở barrel: `createSession` đã được
+   * export, và kiểu trả về suy ra của nó mang sẵn method này. Chỉ lưu ý đừng
+   * chú kiểu biến giữ phiên là `K8sSession` — chú như thế sẽ xoá mất method.
+   *
+   * ## Vì sao là method của phiên chứ không phải một hàm thuần lane E tự gọi
+   *
+   * Dựng mô tả cần `ClusterState` đầy đủ (spec container, `lastState`, danh sách
+   * event có `reason`), và `getState()` ghi rõ là KHÔNG dành cho renderer. Trả
+   * một chuỗi đã dựng xong giữ nguyên ranh giới đó: giao diện không bao giờ cầm
+   * trạng thái thô, và chỉ có một bộ sinh mô tả cho cả thanh lệnh lẫn tab Mô tả.
+   */
+  describe(uid: string): string | null;
 }
 
 export function createSession(options: CreateSessionOptions): K8sEngineSession {
@@ -127,6 +153,14 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
    * cho ra đúng cùng một trạng thái — xem chú thích `setSpeed` ở `contract.ts`.
    */
   let speed = 1;
+  /**
+   * Tạm dừng — TÁCH khỏi `speed`, không phải `speed === 0`.
+   *
+   * Gộp hai thứ lại sẽ mất thông tin "người dùng đã chọn 4×" ngay khi họ bấm tạm
+   * dừng, và `resume()` chỉ còn cách nhảy về 1×. Hai biến thì `resume()` trả
+   * đúng nhịp người dùng đang xem dở.
+   */
+  let paused = false;
 
   function notify(): void {
     for (const listener of [...listeners]) {
@@ -143,8 +177,16 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
     notify();
   }
 
+  /**
+   * ⚠ Điều kiện `paused` nằm ở ĐÂY chứ không ở từng chỗ gọi.
+   *
+   * `setSpeed` dựng lại bộ đếm giờ để đổi chu kỳ, và nếu phép kiểm tạm dừng nằm
+   * ở `pause()` thôi thì một lần `setSpeed` trong lúc đang dừng sẽ âm thầm cho
+   * cụm chạy lại — người chơi bấm tạm dừng, kéo thanh tốc độ, và cụm chạy tiếp
+   * mà nút vẫn hiện "đang dừng". Gác ở đây thì mọi đường vào đều bị chặn.
+   */
   function startTimer(): void {
-    if (!autoTick || timer !== null) {
+    if (!autoTick || paused || timer !== null) {
       return;
     }
     timer = setInterval(() => {
@@ -229,6 +271,11 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
       return state;
     },
 
+    describe(uid: string): string | null {
+      const object = findByUid(state, uid);
+      return object === null ? null : describeObject(state, object);
+    },
+
     setSpeed(multiplier: number): void {
       /*
        * Kẹp và làm sạch đầu vào ngay tại đây thay vì tin người gọi: giá trị 0
@@ -240,10 +287,38 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
         return;
       }
       speed = next;
-      // Đổi nhịp = dựng lại timer; `setInterval` không sửa chu kỳ được sau khi tạo.
+      /*
+       * Đổi nhịp = dựng lại timer; `setInterval` không sửa chu kỳ được sau khi
+       * tạo. Trong lúc đang tạm dừng thì `startTimer` tự bỏ qua, nên tốc độ mới
+       * được NHỚ mà cụm không chạy lại — `resume()` sau đó dùng đúng nhịp này.
+       */
       stopTimer();
       startTimer();
     },
+
+    /*
+     * Hai hàm dưới đây tự bỏ qua khi đã ở đúng trạng thái được yêu cầu, nên gọi
+     * `pause()` hai lần hay `resume()` lúc chưa dừng đều vô hại. Không tự bỏ qua
+     * thì `resume()` thừa sẽ dựng thêm một `setInterval` thứ hai chồng lên cái
+     * đang chạy, và cụm đập nhịp gấp đôi — một lỗi không có gì đỏ, chỉ có mô
+     * phỏng chạy nhanh gấp đôi tốc độ ghi trên nút.
+     */
+    pause(): void {
+      if (paused) {
+        return;
+      }
+      paused = true;
+      stopTimer();
+    },
+
+    resume(): void {
+      if (!paused) {
+        return;
+      }
+      paused = false;
+      startTimer();
+    },
+
     dispose(): void {
       disposed = true;
       if (timer !== null) {

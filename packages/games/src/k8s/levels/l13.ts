@@ -12,23 +12,13 @@ export const l13: Level = {
   id: 'k8s-13-endpoint-rong',
   chapter: 3,
   title: 'Service có đó, mà gọi không ai trả lời',
-  brief: `Đội frontend báo lỗi: mọi request tới \`http://api.don-hang.svc.cluster.local\`
-đều timeout. Bạn kiểm tra và thấy một cảnh khó hiểu — Service \`api\` tồn tại,
-có IP đàng hoàng, và cả 4 pod của Deployment \`api\` đều Running, đều Ready, log
-sạch, không restart lần nào.
+  mission:
+    'Làm Service `api` trong `don-hang` có đủ 4 endpoint, không đụng số replica của Deployment.',
+  brief: `Đội frontend báo mọi request tới \`http://api.don-hang.svc.cluster.local\` đều
+timeout. Service \`api\` tồn tại và có IP đàng hoàng; cả 4 pod của Deployment
+\`api\` đều Running, đều Ready, log sạch, không restart lần nào.
 
-Cả hai đầu đều khoẻ. Vấn đề nằm ở **mối nối giữa chúng**.
-
-Service không giữ danh sách pod bằng tên. Nó chạy một truy vấn theo label, liên
-tục, và mọi pod khớp thì được đưa vào danh sách endpoint. Nếu truy vấn đó không
-khớp cái gì, Service vẫn tồn tại đầy đủ và vẫn có IP — nó chỉ không có ai ở phía
-sau để chuyển request tới. Request đi vào rồi rơi vào khoảng không.
-
-Đây là lý do \`kubectl get svc\` gần như vô dụng khi chẩn đoán: nó cho bạn xem
-Service được **khai báo** thế nào, không cho biết Service đang **nối** tới đâu.
-
-**Việc cần làm:** làm cho Service \`api\` trong namespace \`don-hang\` có đủ 4
-endpoint, không được đụng tới số replica của Deployment.`,
+Cả hai đầu đều khoẻ. Vấn đề nằm ở mối nối giữa chúng.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [
@@ -98,7 +88,7 @@ endpoint, không được đụng tới số replica của Deployment.`,
     },
   ],
   hints: [
-    'Trước khi mở YAML nào, chạy `kubectl get endpoints api -n don-hang`. Nếu cột ENDPOINTS ghi `<none>`, bạn đã biết vấn đề nằm ở mối nối Service–pod chứ không ở pod.',
+    'Trước khi mở YAML nào, chạy `kubectl describe service api -n don-hang`. Nếu dòng Endpoints ghi `<none>`, bạn đã biết vấn đề nằm ở mối nối Service–pod chứ không ở pod.',
     'So hai thứ với nhau: `kubectl describe svc api -n don-hang` cho bạn Selector, `kubectl get pods -n don-hang --show-labels` cho bạn label thật của pod. Chúng phải khớp từng ký tự — Kubernetes không có so khớp gần đúng.',
     'Selector của Service đang tìm `app=api-backend`, còn pod mang `app=api` và `tang=backend`. Sửa selector của Service về đúng label pod đang có. Đừng đổi label của pod: selector của Deployment là bất biến sau khi tạo, đổi label pod sẽ làm Deployment mất luôn con của nó.',
   ],
@@ -112,31 +102,22 @@ endpoint, không được đụng tới số replica của Deployment.`,
   ],
   teaching: {
     primer: `Khi một lời gọi qua Service thất bại, có đúng ba chỗ hỏng được: **phía gọi**,
-**phía pod**, và **mối nối giữa chúng**. Chương này dạy cách tách ba chỗ đó ra,
-và level này là chỗ mối nối đứt trong khi hai đầu đều khoẻ.
+**phía pod**, và **mối nối giữa chúng**.
 
 Service không giữ danh sách pod bằng tên. Nó chạy một truy vấn theo label, liên
 tục, và mọi pod khớp thì được đưa vào **endpoints**. Nếu truy vấn không khớp cái
-gì, Service vẫn tồn tại đầy đủ và vẫn có IP: nó chỉ không có ai ở phía sau.
-Request đi vào rồi rơi vào khoảng không, nên triệu chứng là **timeout** chứ
-không phải lỗi tức thì.
+gì, Service vẫn tồn tại và vẫn có IP: nó chỉ không có ai ở phía sau. Request rơi
+vào khoảng không, nên triệu chứng là **timeout** chứ không phải lỗi tức thì.
 
-Vì thế \`kubectl get svc\` gần như vô dụng ở đây: Service trông hoàn hảo. Lệnh
-trả lời được là \`kubectl get endpoints\`, và \`<none>\` là một câu trả lời dứt
-khoát.
+So label phải khớp **chính xác từng ký tự**: không có so khớp gần đúng.
 
-So label phải khớp **chính xác từng ký tự**. Kubernetes không có so khớp gần
-đúng, không có phân biệt hoa thường mềm dẻo, không có ý định đoán ý bạn.
-
-Một ràng buộc quyết định hướng sửa: \`selector\` của Deployment là **bất biến**
-sau khi tạo. Nghĩa là bạn sửa selector của Service cho khớp pod, chứ không sửa
-label của pod cho khớp Service.
-
-Nhìn vào đâu: \`get endpoints\` trước tiên, rồi đặt Selector cạnh \`--show-labels\`.`,
+\`selector\` của Deployment là **bất biến** sau khi tạo, và điều đó quyết định
+hướng sửa.`,
     cheatsheet: [
       {
-        command: 'kubectl get endpoints api -n don-hang',
-        explain: 'Lệnh đầu tiên phải chạy. Cột ENDPOINTS ghi <none> là mối nối đứt, không phải pod hỏng.',
+        command: 'kubectl describe service api -n don-hang',
+        explain:
+          'Lệnh đầu tiên phải chạy. Cột ENDPOINTS ghi <none> là mối nối đứt, không phải pod hỏng.',
       },
       {
         command: 'kubectl describe svc api -n don-hang',

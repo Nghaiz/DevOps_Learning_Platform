@@ -13,26 +13,13 @@ export const l18: Level = {
   id: 'k8s-18-configmap-tach-cau-hinh',
   chapter: 4,
   title: 'Container không dựng nổi vì thiếu cấu hình',
-  brief: `Deployment \`bao-cao\` vừa được chuyển từ môi trường staging sang \`van-hanh\`.
-Không pod nào lên. Trạng thái không phải ImagePullBackOff — image đã về máy — và
-cũng không phải CrashLoopBackOff, vì RESTARTS đứng yên ở 0.
+  mission: 'Đưa Deployment `bao-cao` lên chạy 2 replica bằng cách cấp đủ cấu hình nó đang đòi.',
+  brief: `Deployment \`bao-cao\` vừa được chuyển từ staging sang \`van-hanh\`. Không pod nào
+lên. Trạng thái không phải ImagePullBackOff — image đã về máy — và cũng không
+phải CrashLoopBackOff, vì RESTARTS đứng yên ở 0.
 
-Trạng thái là \`CreateContainerConfigError\`, và nó nói một chuyện rất cụ thể:
-kubelet **chưa** dựng container. Nó kéo image xong, quay sang gom vật liệu cấu
-hình để bơm vào container, và thiếu mất một thứ. Không có container nào được tạo
-nghĩa là không có gì để restart, và cũng không có log nào để đọc.
-
-Cấu hình không nên nằm trong image. Cùng một image phải chạy được ở staging và ở
-production, khác nhau chỉ ở giá trị được bơm vào lúc chạy. **ConfigMap** giữ đúng
-những giá trị đó: dữ liệu dạng khoá–giá trị, đưa vào container qua biến môi
-trường hoặc qua file.
-
-**Việc cần làm:** đưa Deployment \`bao-cao\` (2 replica) lên chạy được. Nó cần
-một ConfigMap tên \`bao-cao-cau-hinh\` với ba khoá: \`MUC_LOG\`, \`SO_LUONG_WORKER\`
-và \`MUI_GIO\`.
-
-Giá trị cụ thể không quan trọng ở level này. Điều quan trọng là bạn tìm ra pod
-đang đòi cái gì, thay vì đoán.`,
+Trạng thái là \`CreateContainerConfigError\`. Điều quan trọng ở đây là bạn tìm ra
+pod đang đòi cái gì, thay vì đoán.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [
@@ -114,46 +101,41 @@ Giá trị cụ thể không quan trọng ở level này. Điều quan trọng l
   ],
   teaching: {
     primer: `Kubelet dựng một container qua ba bước, và pod hỏng ở bước nào thì mang trạng
-thái của bước đó. Đây là bảng phân biệt bạn nên nhớ cho cả phần còn lại:
+thái của bước đó:
 
-- Hỏng khi **kéo image**: \`ImagePullBackOff\`, chưa có container, RESTARTS đứng ở 0.
+- Hỏng khi **kéo image**: \`ImagePullBackOff\`, chưa có container, RESTARTS ở 0.
 - Hỏng khi **gom cấu hình**: \`CreateContainerConfigError\`, image đã về máy,
-  container vẫn chưa được tạo, RESTARTS cũng đứng ở 0.
+  container vẫn chưa được tạo, RESTARTS cũng ở 0.
 - Hỏng khi **chạy**: \`CrashLoopBackOff\`, container đã tồn tại và đã chết,
   RESTARTS tăng dần.
 
-Hai trạng thái đầu giống nhau ở một điểm quan trọng: **không có log để đọc**, vì
-không có container nào từng chạy. Thứ phân biệt chúng, và thứ nói ra nguyên nhân,
-đều nằm trong Events của pod. Cột RESTARTS tách nhóm này khỏi nhóm thứ ba.
+Hai trạng thái đầu giống nhau ở một điểm: **không có log để đọc**. Cột RESTARTS
+tách chúng khỏi nhóm thứ ba.
 
-Level này là bước hai. Kubelet kéo image xong, quay sang gom vật liệu cấu hình
-để bơm vào container, và thiếu mất một thứ.
-
-Vì sao cấu hình không nằm trong image: cùng một image phải chạy được ở mọi môi
-trường, khác nhau chỉ ở các giá trị bơm vào lúc chạy. **ConfigMap** giữ đúng
-những giá trị đó, dạng khoá và giá trị, đưa vào container qua biến môi trường
-(\`envFrom\`) hoặc mount thành file.
-
-Nhìn vào đâu: Events của pod, chúng gọi đích danh tên object đang thiếu.`,
+**ConfigMap** giữ cấu hình dạng khoá và giá trị, đưa vào container qua biến môi
+trường (\`envFrom\`) hoặc mount thành file — để cùng một image chạy được ở mọi
+nơi.`,
     cheatsheet: [
       {
         command: 'kubectl describe pod -n van-hanh -l app=bao-cao',
-        explain: 'Events gọi tên object đang thiếu. Không có container thì đây là nguồn tin duy nhất.',
+        explain:
+          'Events gọi tên object đang thiếu. Không có container thì đây là nguồn tin duy nhất.',
       },
       {
         command: 'kubectl get configmap -n van-hanh',
         explain: 'Xác nhận ConfigMap thật sự không tồn tại, thay vì tin vào Events một mình.',
       },
       {
-        command: 'kubectl get deploy bao-cao -n van-hanh -o yaml',
-        explain: 'Đọc envFrom trong template để biết pod đang trông đợi những khoá nào.',
+        command: 'kubectl describe deployment bao-cao -n van-hanh',
+        explain:
+          'Khối Spec in ra cả template, nên đọc được `envFrom` để biết pod đang trông đợi những khoá nào.',
       },
       {
-        command: 'kubectl create configmap bao-cao-cau-hinh --from-literal=MUC_LOG=info -n van-hanh',
+        command: 'kubectl apply -f configmap.yaml',
         explain: 'Tạo ConfigMap nhanh từ dòng lệnh; lặp lại --from-literal cho từng khoá.',
       },
       {
-        command: 'kubectl get events -n van-hanh --sort-by=.lastTimestamp',
+        command: 'kubectl get configmap -n van-hanh',
         explain: 'Xem mọi sự kiện theo thời gian khi chưa biết pod nào đang kêu.',
       },
     ],

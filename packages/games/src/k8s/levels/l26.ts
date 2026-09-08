@@ -13,29 +13,14 @@ export const l26: Level = {
   id: 'k8s-26-nodeselector-khong-khop-label',
   chapter: 5,
   title: 'Pending mãi, nhưng lần này không phải vì hết chỗ',
-  brief: `Cluster có ba node: hai node dùng đĩa SSD, một node dùng đĩa cơ dung lượng lớn.
-Chúng được gắn label từ khi gia nhập cluster.
+  mission: 'Cho `chi-muc` chạy đủ 3 replica, và đưa `sao-luu` ra khỏi mọi node SSD.',
+  brief: `Cluster có ba node: hai node đĩa SSD, một node đĩa cơ.
 
-Hai việc đang sai:
+- Deployment \`chi-muc\` khai \`nodeSelector: disk=ssd\` và không pod nào lên được,
+  tất cả nằm \`Pending\`.
+- Pod \`sao-luu\` ghi hàng trăm GB mỗi đêm, đang chiếm một node SSD.
 
-- Deployment \`chi-muc\` cần đĩa nhanh và khai \`nodeSelector: disk=ssd\`. Không
-  pod nào lên được, tất cả nằm \`Pending\`. Điều khó chịu là scheduler **không
-  coi đây là lỗi** — nó chỉ đơn giản không tìm thấy ứng viên nào, nên pod đứng đó
-  vô thời hạn. Triệu chứng bề mặt giống hệt tình huống hết CPU ở level 23, và hai
-  nguyên nhân này chỉ tách được khi bạn đọc lý do scheduler ghi lại.
-
-- Pod \`sao-luu\` ghi hàng trăm GB mỗi đêm. Nó đang chạy trên một node SSD, làm
-  đầy đĩa nhanh vốn dành cho việc khác, và phải được chuyển sang node đĩa cơ.
-
-Cả hai đều là cùng một cơ chế nhìn từ hai phía. \`nodeSelector\` là một bộ lọc
-cứng: scheduler chỉ xét những node mang **đủ** các label bạn liệt kê. Bạn dùng nó
-để kéo pod về một nhóm node, và cũng chính là để giữ pod tránh xa một nhóm khác.
-
-**Việc cần làm:** \`chi-muc\` chạy đủ 3 replica, và \`sao-luu\` không nằm trên
-node SSD nào.
-
-Label thật của node nằm trong cluster. Đọc chúng trước khi sửa bất cứ thứ gì —
-điều sai ở đây là một chuỗi, và bạn không đoán ra được chuỗi đúng.`,
+Điều sai ở đây là một chuỗi, và bạn không đoán ra nó.`,
   difficulty: 'advanced',
   initialState: {
     nodes: [
@@ -142,7 +127,7 @@ Label thật của node nằm trong cluster. Đọc chúng trước khi sửa b�
   ],
   hints: [
     'Pending có nhiều nguyên nhân và chúng nhìn giống nhau. `kubectl describe pod -n tim-kiem -l app=chi-muc` ghi lý do scheduler loại từng node — "insufficient cpu" và "node(s) didn\'t match node selector" là hai câu hoàn toàn khác nhau.',
-    '`kubectl get nodes --show-labels` cho bạn label thật. So với `nodeSelector` khai trong template của `chi-muc`: tên khoá phải khớp từng ký tự, và ở đây khoá đang dùng không tồn tại trên node nào.',
+    '`kubectl describe node` cho bạn label thật của cả ba node. So với `nodeSelector` khai trong template của `chi-muc`: tên khoá phải khớp từng ký tự, và ở đây khoá đang dùng không tồn tại trên node nào.',
     'Node dùng khoá `luu-tru`, không phải `disk`. Sửa `nodeSelector` của `chi-muc` thành `luu-tru: ssd`. Với `sao-luu`: pod đang bị ghim cứng bằng `nodeName`, nên phải xoá và tạo lại với `nodeSelector: luu-tru=hdd` — đó là cách khai "hãy đặt tôi vào nhóm node này" thay vì chỉ tên một máy.',
   ],
   parMoves: 3,
@@ -155,33 +140,24 @@ Label thật của node nằm trong cluster. Đọc chúng trước khi sửa b�
     'giữ workload ra khỏi một nhóm node',
   ],
   teaching: {
-    primer: `\`nodeSelector\` là bộ lọc đơn giản nhất trong xếp lịch: liệt kê một hoặc nhiều
-cặp label, và scheduler chỉ xét những node mang **đủ** các cặp đó. Không có so
-khớp gần đúng, không có suy diễn — sai một ký tự trong tên khoá là không node nào
-khớp.
+    primer: `\`nodeSelector\` là bộ lọc cứng: scheduler chỉ xét node mang **đủ** các cặp label
+bạn liệt kê. Không có so khớp gần đúng — sai một ký tự trong tên khoá là không
+node nào khớp.
 
-Điều cần nhớ: scheduler **không coi đó là lỗi**. Nó chỉ đơn giản không tìm thấy
-ứng viên nào, nên pod nằm \`Pending\` vô thời hạn. Trạng thái này giống hệt lúc
-hết CPU, và chỉ Events của pod mới tách được:
+Và scheduler **không coi đó là lỗi**. Nó chỉ không tìm thấy ứng viên nào, nên pod
+nằm \`Pending\` vô thời hạn, trông hệt lúc hết CPU. Chỉ Events của pod tách được:
 
-- \`Insufficient cpu\` / \`Insufficient memory\` — có node phù hợp nhưng không đủ chỗ.
+- \`Insufficient cpu\` — có node phù hợp nhưng không đủ chỗ.
 - \`node(s) didn't match Pod's node affinity/selector\` — không node nào đủ điều
   kiện ngay từ đầu.
 
-\`nodeSelector\` dùng được theo cả hai chiều: kéo workload về một nhóm node, và
-giữ workload ra khỏi một nhóm khác bằng cách trỏ nó sang nhóm còn lại.
-
-Đừng nhầm \`nodeSelector\` với \`nodeName\`. \`nodeName\` ghim cứng vào đúng một
-máy và bỏ qua scheduler hoàn toàn — máy đó chết thì pod không đi đâu được. Nó
-gần như luôn là lựa chọn sai ngoài việc gỡ rối.
-
-Cần nhiều hơn "khớp chính xác" — chẳng hạn "ưu tiên nhưng không bắt buộc", hoặc
-"một trong các giá trị này" — thì dùng node affinity.`,
+Cơ chế này dùng được cả hai chiều: kéo workload về một nhóm node, và giữ nó ra
+khỏi nhóm khác.`,
     cheatsheet: [
-      { command: 'kubectl get nodes --show-labels', explain: 'Label thật của node; so từng ký tự với nodeSelector đang khai.' },
+      { command: 'kubectl describe node', explain: 'Dòng Labels cho label thật của từng node; so từng ký tự với nodeSelector đang khai.' },
       { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Events phân biệt "thiếu tài nguyên" với "không khớp selector" — hai câu khác nhau.' },
-      { command: 'kubectl label node <node> <key>=<value>', explain: 'Gắn thêm label cho node, khi lỗi thật sự nằm ở node chứ không ở workload.' },
-      { command: 'kubectl get pods -o wide -n <ns>', explain: 'Cột NODE xác nhận pod đã chuyển đúng chỗ sau khi sửa.' },
+      { command: 'spec.nodeSelector', explain: 'Trường cần sửa trong template: khai đúng cặp label mà node thật sự mang.' },
+      { command: 'kubectl get pods -n <ns>', explain: 'Cột NODE xác nhận pod đã chuyển đúng chỗ sau khi sửa.' },
     ],
     takeaways: [
       'nodeSelector khớp label chính xác; không node nào khớp thì pod Pending mãi mà không báo lỗi.',
@@ -192,6 +168,9 @@ Cần nhiều hơn "khớp chính xác" — chẳng hạn "ưu tiên nhưng khô
     pitfalls: [
       'Thấy Pending là nghĩ ngay tới thiếu tài nguyên. Đó là nguyên nhân thường gặp nhất nên nó được đoán trước, và người ta đi nâng node trong khi lỗi chỉ là một tên khoá gõ sai.',
       'Sửa nodeSelector trên một pod đang chạy. Trường này bất biến — pod phải được xoá và tạo lại.',
+    ],
+    proTips: [
+      'Đừng nhầm `nodeSelector` với `nodeName`. `nodeName` ghim cứng vào đúng một máy và bỏ qua scheduler hoàn toàn, nên máy đó chết thì pod không đi đâu được. Cần nhiều hơn khớp chính xác, chẳng hạn ưu tiên nhưng không bắt buộc, thì dùng node affinity.',
     ],
   },
 };

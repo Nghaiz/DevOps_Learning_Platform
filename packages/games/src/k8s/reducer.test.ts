@@ -17,6 +17,7 @@ function level(overrides: Partial<Level> = {}): Level {
     id: 'test-01',
     chapter: 1,
     title: 'Test',
+    mission: 'Việc cần làm của level thử.',
     brief: '',
     difficulty: 'basic',
     initialState: {

@@ -12,29 +12,14 @@ export const l21: Level = {
   id: 'k8s-21-pvc-mai-khong-bound',
   chapter: 4,
   title: 'Pod chờ một ổ đĩa không bao giờ tới',
-  brief: `Pod \`anh-san-pham\` trong namespace \`noi-dung\` kẹt ở \`ContainerCreating\` đã
-hai mươi phút. Không có lỗi image, không có lỗi cấu hình, RESTARTS bằng 0.
+  mission: 'Làm PVC `anh-san-pham` chuyển sang Bound và đưa pod lên Running với ổ đĩa ở `/du-lieu`.',
+  brief: `Pod \`anh-san-pham\` trong namespace \`noi-dung\` kẹt ở \`ContainerCreating\` đã hai
+mươi phút. Không lỗi image, không lỗi cấu hình, RESTARTS bằng 0.
 
-Pod này cần lưu trữ bền — dữ liệu phải sống sót qua việc pod bị xoá đi tạo lại,
-nên \`emptyDir\` ở level 5 không dùng được. Kubernetes tách nhu cầu đó làm hai
-object:
+Pod này cần lưu trữ bền, nên \`emptyDir\` ở level 5 không dùng được. Nó đang chờ
+một PVC chưa \`Bound\`.
 
-- **PersistentVolume (PV)** là một ổ đĩa có thật, do quản trị viên cấp.
-- **PersistentVolumeClaim (PVC)** là **yêu cầu** của ứng dụng: tôi cần chừng này
-  dung lượng, với kiểu truy cập này, thuộc lớp lưu trữ này.
-
-Kubernetes ghép hai bên lại. Chưa ghép được thì PVC nằm ở \`Pending\`, và pod
-tham chiếu nó không thể xếp lịch — vì không có ổ đĩa thì không mount được gì.
-
-Việc ghép đòi khớp **ba** tiêu chí cùng lúc: lớp lưu trữ (\`storageClassName\`),
-kiểu truy cập (\`accessModes\`), và dung lượng (PV phải lớn hơn hoặc bằng mức PVC
-xin). Sai một tiêu chí là không ghép, và Kubernetes không nói giúp bạn sai tiêu
-chí nào — nó chỉ nói "chưa tìm được cái nào khớp".
-
-Trong cluster đang có sẵn hai PV chưa ai dùng. Không cái nào khớp.
-
-**Việc cần làm:** làm PVC \`anh-san-pham\` chuyển sang \`Bound\` và đưa pod
-\`anh-san-pham\` tới Running với ổ đĩa mount vào \`/du-lieu\`.`,
+Cluster có sẵn hai PV rảnh. Không cái nào khớp.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [
@@ -133,33 +118,25 @@ Trong cluster đang có sẵn hai PV chưa ai dùng. Không cái nào khớp.
     'ContainerCreating',
   ],
   teaching: {
-    primer: `Lưu trữ trong Kubernetes tách làm hai object, và việc tách đó là có lý do: người
-cấp đĩa và người dùng đĩa thường là hai người khác nhau.
+    primer: `Lưu trữ tách làm hai object, vì người cấp đĩa và người dùng đĩa thường là hai
+người khác nhau.
 
-- **PersistentVolume (PV)** — nguồn cung. Một ổ đĩa có thật, phạm vi toàn
-  cluster, không thuộc namespace nào.
-- **PersistentVolumeClaim (PVC)** — nhu cầu. Nằm trong namespace, do người viết
-  ứng dụng khai: tôi cần bao nhiêu, kiểu truy cập nào, lớp lưu trữ nào.
+- **PersistentVolume (PV)** là nguồn cung: một ổ đĩa có thật, phạm vi toàn cluster.
+- **PersistentVolumeClaim (PVC)** là nhu cầu: nằm trong namespace, do người viết
+  ứng dụng khai.
 
-Kubernetes ghép hai bên. Ghép được thì PVC chuyển sang \`Bound\`; chưa ghép được
-thì nó nằm \`Pending\`, và pod tham chiếu nó không xếp lịch nổi — pod sẽ kẹt ở
-\`ContainerCreating\` hoặc \`Pending\` chứ không báo lỗi gì rõ ràng.
+Kubernetes ghép hai bên. Ghép được thì PVC sang \`Bound\`; chưa ghép được thì nó
+nằm \`Pending\`, và pod tham chiếu nó kẹt ở \`ContainerCreating\` mà không báo lỗi gì rõ.
 
-Việc ghép cần khớp **cả ba** tiêu chí:
-
-1. \`storageClassName\` — khớp chuỗi, không có suy diễn gần đúng.
-2. \`accessModes\` — PV phải hỗ trợ kiểu PVC xin. \`ReadWriteOnce\` là một node
-   ghi; \`ReadOnlyMany\` là nhiều node chỉ đọc; \`ReadWriteMany\` là nhiều node
-   cùng ghi.
-3. Dung lượng — PV phải **lớn hơn hoặc bằng** mức PVC xin.
-
-Kubernetes không nói giúp bạn tiêu chí nào lệch. Nó chỉ nói chưa tìm được cái nào
-khớp, nên bạn phải tự so đủ ba.`,
+Ghép cần khớp **cả ba** tiêu chí cùng lúc: \`storageClassName\` khớp chuỗi,
+\`accessModes\` phải hỗ trợ kiểu PVC xin, và dung lượng PV lớn hơn hoặc bằng mức
+xin. Kubernetes không nói tiêu chí nào lệch.`,
     cheatsheet: [
       { command: 'kubectl get pvc -n <ns>', explain: 'Cột STATUS cho biết Bound hay Pending, và PVC nào đã chiếm PV nào.' },
       { command: 'kubectl describe pvc <tên> -n <ns>', explain: 'Events ghi lý do chưa ghép được — chỗ đầu tiên cần đọc.' },
-      { command: 'kubectl get pv', explain: 'PV không thuộc namespace nào; xem dung lượng, accessMode, lớp và trạng thái Available hay Bound.' },
+      { command: 'kubectl get pv', explain: 'PV không thuộc namespace nào; bảng này liệt kê những PV đang có trong cluster.' },
       { command: 'kubectl get storageclass', explain: 'Các lớp lưu trữ đang có; lớp không tồn tại là nguyên nhân rất hay gặp.' },
+      { command: 'kubectl describe pv <tên>', explain: 'Spec đầy đủ của một PV. ReadWriteOnce là một node ghi, ReadOnlyMany là nhiều node chỉ đọc, ReadWriteMany là nhiều node cùng ghi.' },
     ],
     takeaways: [
       'PV là nguồn cung ở phạm vi cluster; PVC là nhu cầu trong một namespace.',

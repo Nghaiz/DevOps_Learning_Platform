@@ -13,24 +13,12 @@ export const l15: Level = {
   id: 'k8s-15-goi-nham-ten-dns',
   chapter: 3,
   title: 'Tên gọi được ở namespace này, không gọi được ở namespace kia',
-  brief: `Dịch vụ \`don-hang\` cần hỏi tồn kho trước khi chốt đơn. Nó gọi \`http://kho-hang\`
-— đúng cái tên mà đội kho đã đưa, và đúng cái tên chạy tốt khi đội kho tự test.
+  mission: 'Sửa cấu hình `don-hang` để nó phân giải và gọi được Service kho hàng, giữ pod chạy.',
+  brief: `Dịch vụ \`don-hang\` cần hỏi tồn kho trước khi chốt đơn. Nó gọi
+\`http://kho-hang\` — đúng cái tên mà đội kho đã đưa.
 
 Ở namespace \`don-hang\`, lời gọi đó chết ngay ở bước phân giải tên: log ghi
-\`no such host\`. Không phải timeout, không phải connection refused — hệ thống
-thậm chí chưa tìm ra địa chỉ để mà kết nối.
-
-Bên trong pod, mỗi Service được đặt tên đầy đủ theo dạng
-\`<service>.<namespace>.svc.cluster.local\`. Kubernetes cấu hình sẵn cho pod một
-danh sách hậu tố tìm kiếm, và danh sách đó bắt đầu bằng **namespace của chính
-pod**. Vì vậy tên ngắn luôn được hiểu là "trong namespace của tôi" trước tiên.
-
-Namespace **không** chặn traffic. Hai pod ở hai namespace khác nhau gọi thẳng
-nhau được. Namespace chỉ là ranh giới đặt tên và phân quyền — nên vấn đề ở đây
-thuần tuý là bạn đang gọi một cái tên không tồn tại ở nơi bạn đang đứng.
-
-**Việc cần làm:** sửa cấu hình của \`don-hang\` để nó phân giải và gọi được tới
-Service kho hàng, và giữ pod \`don-hang\` chạy.
+\`no such host\`.
 
 Địa chỉ đích nằm trong ConfigMap \`don-hang-cau-hinh\`, key \`KHO_URL\`.`,
   difficulty: 'intermediate',
@@ -144,49 +132,38 @@ Service kho hàng, và giữ pod \`don-hang\` chạy.
     'ConfigMap qua biến môi trường',
   ],
   teaching: {
-    primer: `\`no such host\` là lỗi ở tầng **phân giải tên**, không phải tầng kết nối. Nó
-nghĩa là chưa tìm ra địa chỉ để mà kết nối, nên mọi giả thuyết về firewall,
-cổng hay pod chết đều chưa tới lượt.
+    primer: `\`no such host\` là lỗi ở tầng **phân giải tên**, không phải tầng kết nối: chưa
+tìm ra địa chỉ để mà kết nối, nên mọi giả thuyết về firewall, cổng hay pod chết
+đều chưa tới lượt.
 
 Mỗi Service có một tên đầy đủ trong cụm:
-\`<service>.<namespace>.svc.cluster.local\`. Đó mới là tên thật; \`kho-hang\` chỉ
-là tên rút gọn.
+\`<service>.<namespace>.svc.cluster.local\`. Rút gọn được là vì Kubernetes ghi sẵn
+vào pod một danh sách **hậu tố tìm kiếm**, và hậu tố đầu tiên là namespace của
+**chính pod đó**.
 
-Rút gọn được là vì Kubernetes ghi sẵn vào \`/etc/resolv.conf\` của pod một danh
-sách **hậu tố tìm kiếm**, và hậu tố đầu tiên là namespace của **chính pod đó**.
-Nên trong pod ở namespace \`don-hang\`, tên \`kho-hang\` được thử thành
-\`kho-hang.don-hang.svc.cluster.local\` trước tiên. Nếu Service nằm ở namespace
-khác, cái tên đó không tồn tại và phân giải hỏng ngay.
+**Namespace không chặn traffic.** Hai pod ở hai namespace gọi thẳng nhau được;
+namespace là ranh giới đặt tên và phân quyền, không phải ranh giới mạng.
 
-Đây là chỗ một hiểu nhầm phổ biến bị bác bỏ: **namespace không chặn traffic**.
-Hai pod ở hai namespace gọi thẳng nhau được, không cần mở gì. Namespace là ranh
-giới đặt tên và phân quyền, không phải ranh giới mạng. Việc chặn traffic là của
-NetworkPolicy, và nó ở chương 6.
-
-Một chi tiết nữa: ConfigMap nạp qua biến môi trường chỉ được đọc **lúc container
-khởi động**. Sửa ConfigMap không làm biến trong pod đang chạy đổi theo.
-
-Nhìn vào đâu: \`get svc --all-namespaces\` để biết Service thật sự sống ở đâu.`,
+ConfigMap nạp qua biến môi trường chỉ được đọc **lúc container khởi động**.`,
     cheatsheet: [
       {
         command: 'kubectl get svc --all-namespaces',
-        explain: 'Tìm Service đang nằm ở namespace nào. Bước này trả lời được câu hỏi ngay lập tức.',
+        explain:
+          'Tìm Service đang nằm ở namespace nào. Bước này trả lời được câu hỏi ngay lập tức.',
       },
       {
-        command: 'kubectl exec -n don-hang don-hang -- nslookup kho-hang.kho.svc.cluster.local',
-        explain: 'Thử phân giải tên đầy đủ từ chính pod đang lỗi, tách tầng DNS ra khỏi tầng kết nối.',
+        command: 'kubectl get svc kho-hang -n kho',
+        explain:
+          'Xác nhận Service đích có thật, và đọc đúng tên lẫn namespace của nó trước khi ghép tên đầy đủ.',
       },
       {
-        command: 'kubectl exec -n don-hang don-hang -- cat /etc/resolv.conf',
-        explain: 'Xem danh sách hậu tố tìm kiếm, thấy tận mắt vì sao tên ngắn gắn với namespace của pod.',
+        command: 'kubectl describe configmap don-hang-cau-hinh -n don-hang',
+        explain: 'Đọc thẳng giá trị `KHO_URL` ứng dụng đang dùng, thay vì đoán từ mã nguồn.',
       },
       {
-        command: 'kubectl get configmap don-hang-cau-hinh -n don-hang -o yaml',
-        explain: 'Đọc địa chỉ đích mà ứng dụng đang dùng, thay vì đoán từ mã nguồn.',
-      },
-      {
-        command: 'kubectl get pods -n kube-system -l k8s-app=kube-dns',
-        explain: 'Kiểm CoreDNS còn sống không. Nếu nó chết thì MỌI tên đều hỏng, không riêng một tên.',
+        command: 'kubectl describe pod don-hang -n don-hang',
+        explain:
+          'Pod gọi vẫn Running và Events sạch. Đó là cách loại trừ pod ra khỏi danh sách nghi ngờ, để còn lại đúng cái tên bị gọi sai.',
       },
     ],
     takeaways: [
@@ -198,6 +175,7 @@ Nhìn vào đâu: \`get svc --all-namespaces\` để biết Service thật sự 
     proTips: [
       'Một tên hỏng trong khi các tên khác vẫn chạy thì lỗi ở cái tên; mọi tên cùng hỏng thì mới nghi CoreDNS.',
       'Mount ConfigMap thành file thay vì bơm thành biến môi trường: file được cập nhật khi ConfigMap đổi, biến thì không.',
+      'Không có lệnh nào trong game phân giải tên hộ bạn, nên phép kiểm là đối chiếu: namespace của pod gọi, đặt cạnh namespace của Service đích. Khác nhau thì tên ngắn chắc chắn hỏng, không cần thử.',
     ],
     pitfalls: [
       'Nghĩ namespace cách ly mạng nên đi tìm firewall hoặc quyền truy cập. Giả thuyết đó nghe rất hợp lý vì namespace vẫn được gọi là ranh giới, chỉ có điều nó là ranh giới của tên chứ không phải của gói tin.',

@@ -17,28 +17,15 @@ export const l27: Level = {
   id: 'k8s-27-bi-kep-giua-quota-va-limitrange',
   chapter: 5,
   title: 'Trần từ trên, sàn từ dưới',
-  brief: `Namespace \`xu-ly\` được cấp cho một đội nhỏ, và nó có hai hàng rào do quản trị
-viên cluster đặt:
+  mission: 'Đưa `xu-ly-video` lên đủ 6 replica sẵn sàng mà không đụng vào quota hay LimitRange.',
+  brief: `Namespace \`xu-ly\` có hai hàng rào do quản trị viên cluster đặt: ResourceQuota
+\`han-muc\` chặn tổng của cả namespace, và LimitRange \`khung-tai-nguyen\` chặn từng
+container theo cả hai chiều.
 
-- **ResourceQuota** \`hạn-mức\` — trần cho **cả namespace cộng lại**. Không phải
-  giới hạn của một pod: nó cộng \`requests\` của mọi pod trong namespace và từ
-  chối cái nào làm tổng vượt trần.
-- **LimitRange** \`khung-tai-nguyen\` — sàn và trần cho **từng container**. Nó
-  cũng từ chối, nhưng theo chiều ngược lại: một container xin quá ít cũng không
-  được nhận.
+Deployment \`xu-ly-video\` khai 6 replica và **không pod nào được tạo ra** — kể cả
+ở trạng thái Pending.
 
-Deployment \`xu-ly-video\` khai 6 replica và không pod nào được tạo ra. Chú ý dấu
-hiệu này, nó khác mọi level trước: pod **không hề xuất hiện ở trạng thái
-Pending**. Pending nghĩa là pod đã được API server chấp nhận và đang chờ
-scheduler. Ở đây API server từ chối ngay từ đầu, nên không có pod nào để mà chờ —
-lỗi nằm trong Events của ReplicaSet, không nằm ở pod.
-
-**Việc cần làm:** đưa \`xu-ly-video\` lên đủ 6 replica sẵn sàng, giữ namespace
-trong hạn mức, và vẫn khai đầy đủ requests lẫn limits cho container.
-
-Bạn không có quyền sửa hai hàng rào đó — và đó là điểm chính. Nâng trần lên cho
-vừa với thứ mình đang xin là phản xạ đầu tiên của hầu hết mọi người, cũng là lý
-do quota tồn tại. Việc của bạn là tìm con số vừa dưới trần vừa trên sàn.`,
+Bạn không có quyền sửa hai hàng rào đó.`,
   difficulty: 'advanced',
   initialState: {
     nodes: [
@@ -131,8 +118,8 @@ do quota tồn tại. Việc của bạn là tìm con số vừa dưới trần 
     },
   ],
   hints: [
-    'Không có pod để `describe` — đó chính là manh mối. Khi API server từ chối, dấu vết nằm ở tầng trên: `kubectl describe rs -n xu-ly` (Events của ReplicaSet) và `kubectl get events -n xu-ly`.',
-    '`kubectl describe resourcequota han-muc -n xu-ly` in bảng Used / Hard — dùng bao nhiêu trên trần bao nhiêu. `kubectl describe limitrange khung-tai-nguyen -n xu-ly` cho sàn và trần của MỘT container. Viết ra phép tính: 6 replica nhân với requests hiện tại bằng bao nhiêu, so với trần.',
+    'Không có pod để `describe` — đó chính là manh mối. Khi API server từ chối, dấu vết nằm ở tầng trên: `kubectl describe rs -n xu-ly`, và khối Events của ReplicaSet ghi thẳng lý do bị từ chối.',
+    '`kubectl describe resourcequota han-muc -n xu-ly` in trần đang đặt cho cả namespace. `kubectl describe limitrange khung-tai-nguyen -n xu-ly` cho sàn và trần của MỘT container. Viết ra phép tính: 6 replica nhân với requests hiện tại bằng bao nhiêu, so với trần.',
     '6 × 512Mi = 3072Mi, gần gấp đôi trần 1600Mi. Chia ngược lại: mỗi pod được nhiều nhất 266Mi, và LimitRange không cho xuống dưới 128Mi — vậy `requests.memory` nằm trong khoảng 128Mi tới 266Mi, chọn 256Mi là gọn nhất. Giữ `limits.memory` ở 512Mi (đúng bằng trần LimitRange cho phép) vì quota này chỉ tính requests.',
   ],
   parMoves: 1,
@@ -146,34 +133,24 @@ do quota tồn tại. Việc của bạn là tìm con số vừa dưới trần 
     'quota tính requests chứ không tính mức dùng thật',
   ],
   teaching: {
-    primer: `Hai object kiểm soát tài nguyên ở hai phạm vi khác nhau, và chúng chặn ở hai
-chiều ngược nhau.
+    primer: `Hai object kiểm soát tài nguyên ở hai phạm vi, chặn theo hai chiều ngược nhau.
 
-**ResourceQuota** — trần cho **cả namespace cộng lại**. Nó cộng \`requests\` (và
-\`limits\`, nếu quota có khai) của mọi pod trong namespace, rồi từ chối object nào
-làm tổng vượt trần. Nó cũng đếm được số lượng object: \`pods\`, \`services\`,
-\`persistentvolumeclaims\`.
+**ResourceQuota** — trần cho **cả namespace cộng lại**. Nó cộng \`requests\` của
+mọi pod rồi từ chối object nào làm tổng vượt trần.
 
 **LimitRange** — sàn và trần cho **từng container**. Nó từ chối container xin quá
-nhiều, và cũng từ chối container xin quá ít. Nó còn có thể **gán mặc định** cho
-container không khai gì.
+nhiều, và cũng từ chối container xin quá ít.
 
-Điểm quan trọng nhất và hay bị bỏ qua: cả hai chặn ở **API server**, không phải ở
-scheduler. Nghĩa là pod **không hề được tạo ra**. Không có pod thì không có
-\`Pending\`, không có gì để \`describe\`, và mọi phản xạ chẩn đoán ở tầng pod đều
-vô dụng. Dấu vết nằm ở object cha — Events của ReplicaSet — và ở
-\`kubectl get events\`.
+Quan trọng: cả hai chặn ở **API server**, không phải ở scheduler. Pod **không hề
+được tạo ra**, nên không có \`Pending\` và không có gì để \`describe\`.
 
-Một hệ quả nữa: nếu quota khai \`limits.memory\` thì **mọi** container trong
-namespace bắt buộc phải đặt limit, nếu không sẽ bị từ chối thẳng.
-
-Khi cả hai cùng có hiệu lực, lời giải bị kẹp: đủ lớn để qua sàn LimitRange, đủ
-nhỏ để tổng vẫn dưới trần quota.`,
+Khi cả hai cùng có hiệu lực, lời giải bị kẹp: đủ lớn để qua sàn, đủ nhỏ để tổng
+vẫn dưới trần.`,
     cheatsheet: [
-      { command: 'kubectl describe resourcequota <tên> -n <ns>', explain: 'Bảng Used / Hard — dùng bao nhiêu trên trần bao nhiêu, theo từng loại tài nguyên.' },
+      { command: 'kubectl describe resourcequota <tên> -n <ns>', explain: 'Trần đang đặt cho cả namespace; phần đã dùng thì bạn tự cộng từ requests của các workload.' },
       { command: 'kubectl describe limitrange <tên> -n <ns>', explain: 'Sàn, trần và giá trị mặc định áp cho MỘT container.' },
       { command: 'kubectl describe rs -n <ns>', explain: 'Khi không có pod nào, Events của ReplicaSet là nơi ghi lý do bị từ chối.' },
-      { command: 'kubectl get events -n <ns> --sort-by=.lastTimestamp', explain: 'Sự kiện toàn namespace theo thời gian; thấy được cả thứ chưa kịp thành pod.' },
+      { command: 'spec.template.spec.containers[].resources.requests.memory', explain: 'Con số phải tính ra: trên sàn LimitRange, và nhân 6 vẫn dưới trần quota.' },
     ],
     takeaways: [
       'ResourceQuota giới hạn tổng của cả namespace; LimitRange giới hạn từng container.',
@@ -184,6 +161,10 @@ nhỏ để tổng vẫn dưới trần quota.`,
     pitfalls: [
       'Đi tìm pod để `describe`. Phản xạ này đúng ở mọi level trước nên nó được dùng trước tiên, nhưng ở đây không có pod nào tồn tại để mà đọc.',
       'Nâng trần quota cho vừa với thứ mình đang xin. Nó giải quyết triệu chứng trong một lệnh, và đó chính là điều quota được đặt ra để ngăn — hạn mức là thoả thuận với cả cluster, không phải một tuỳ chọn của workload.',
+    ],
+    proTips: [
+      'ResourceQuota còn đếm được số lượng object, không chỉ tài nguyên: `pods`, `services`, `persistentvolumeclaims`.',
+      'Nếu quota có khai `limits.memory` thì mọi container trong namespace bắt buộc phải đặt limit, không khai là bị từ chối thẳng.',
     ],
   },
 };

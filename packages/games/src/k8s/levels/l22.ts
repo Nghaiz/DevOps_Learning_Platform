@@ -14,26 +14,12 @@ export const l22: Level = {
   id: 'k8s-22-statefulset-dung-o-pod-khong',
   chapter: 4,
   title: 'StatefulSet dừng lại ở pod số 0',
-  brief: `Cụm cơ sở dữ liệu \`postgres\` trong namespace \`du-lieu\` khai 3 replica. Trong
-cluster chỉ có **một** pod: \`postgres-0\`, và nó ở \`Pending\`. Không có
-\`postgres-1\`, không có \`postgres-2\` — chúng chưa từng được tạo.
+  mission: 'Đưa cả 3 pod của StatefulSet `postgres` lên chạy, mỗi pod một ổ đĩa riêng.',
+  brief: `Cụm \`postgres\` trong namespace \`du-lieu\` khai 3 replica. Trong cluster chỉ có
+**một** pod: \`postgres-0\`, và nó \`Pending\`. Không có \`postgres-1\`, không có
+\`postgres-2\` — chúng chưa từng được tạo.
 
-Deployment không hành xử như vậy: nó tạo cả ba pod cùng lúc rồi cả ba cùng hỏng.
-Khác biệt này là cố ý trong thiết kế của **StatefulSet**. Với cơ sở dữ liệu, thứ
-tự khởi động có ý nghĩa — pod số 0 thường là bản chính mà các bản sau phải nối
-vào. Nên StatefulSet mặc định chạy \`OrderedReady\`: nó chỉ tạo pod thứ N sau khi
-pod thứ N−1 đã Ready.
-
-Hệ quả là một pod kẹt sẽ chặn đứng toàn bộ phần còn lại, và bảng \`get pods\`
-trông như thể StatefulSet chỉ khai một replica.
-
-StatefulSet khác Deployment ở một chỗ nữa: mỗi pod có ổ đĩa **riêng và bền**, mô
-tả bằng \`volumeClaimTemplates\`. Kubernetes tự sinh một PVC cho mỗi pod, đặt tên
-theo dạng \`<tên-template>-<tên-statefulset>-<số-thứ-tự>\`. Pod bị xoá thì PVC vẫn
-ở lại, và pod mới cùng số thứ tự sẽ nhận lại đúng ổ đĩa cũ.
-
-**Việc cần làm:** đưa cả 3 pod của \`postgres\` lên chạy, với ổ đĩa riêng cho từng
-pod.
+Deployment không bao giờ hành xử như vậy.
 
 Bắt đầu từ pod đang kẹt. Lý do nó không xếp lịch được không nằm ở nó.`,
   difficulty: 'advanced',
@@ -152,24 +138,16 @@ Bắt đầu từ pod đang kẹt. Lý do nó không xếp lịch được khôn
     'StatefulSetOrderedReadyStuck',
   ],
   teaching: {
-    primer: `**StatefulSet** dành cho workload mà danh tính của từng bản chạy có ý nghĩa —
-cơ sở dữ liệu, hàng đợi, mọi thứ có bản chính và bản sao. Nó khác Deployment ở ba
-điểm, và cả ba đều xuất phát từ cùng một nhu cầu đó:
+    primer: `**StatefulSet** dành cho workload mà danh tính từng bản chạy có ý nghĩa: cơ sở dữ
+liệu, hàng đợi, mọi thứ có bản chính và bản sao. Nó khác Deployment ở ba điểm.
 
-- **Tên ổn định.** Pod là \`postgres-0\`, \`postgres-1\`, \`postgres-2\` — không
-  có hậu tố băm ngẫu nhiên. Pod chết đi tạo lại vẫn giữ nguyên tên cũ.
-- **Ổ đĩa riêng và bền.** \`volumeClaimTemplates\` sinh một PVC cho mỗi pod, tên
-  theo dạng \`<template>-<statefulset>-<số>\`. Xoá pod thì PVC ở lại, và pod mới
-  cùng số nhận lại đúng ổ đĩa cũ.
-- **Thứ tự.** Mặc định \`podManagementPolicy: OrderedReady\`: pod thứ N chỉ được
-  tạo sau khi pod N−1 đã Ready. Khởi động lần lượt 0, 1, 2; thu nhỏ thì ngược lại.
+- **Tên ổn định** — \`postgres-0\`, \`postgres-1\`, không có hậu tố băm ngẫu nhiên.
+- **Ổ đĩa bền theo số thứ tự** — \`volumeClaimTemplates\` sinh một PVC cho mỗi pod;
+  xoá pod thì PVC ở lại, pod mới cùng số nhận lại đúng ổ đĩa cũ.
+- **Thứ tự khởi động** — mặc định \`OrderedReady\`: pod thứ N chỉ được tạo sau khi
+  pod N−1 đã Ready.
 
-Điểm cuối có một hệ quả cần nhớ: **một pod kẹt chặn đứng toàn bộ phần đuôi**.
-Bảng \`get pods\` sẽ trông như thể StatefulSet chỉ khai một replica, trong khi
-thật ra hai pod kia chưa từng được tạo. Deployment không bao giờ hành xử như vậy.
-
-StatefulSet cũng thường đi kèm một **headless Service** (\`clusterIP: None\`) để
-mỗi pod có một tên DNS riêng thay vì bị cân bằng tải chung.`,
+Điểm cuối có hệ quả cần nhớ: **một pod kẹt chặn đứng toàn bộ phần đuôi**.`,
     cheatsheet: [
       { command: 'kubectl get statefulset -n <ns>', explain: 'Cột READY dạng "1/3" cho biết bao nhiêu pod đã sẵn sàng trên tổng mong muốn.' },
       { command: 'kubectl get pods -n <ns> -l app=<nhãn>', explain: 'Nhìn chỗ đứt quãng trong dãy số thứ tự — đó là pod đang chặn.' },
@@ -184,6 +162,10 @@ mỗi pod có một tên DNS riêng thay vì bị cân bằng tải chung.`,
     ],
     pitfalls: [
       'Đi tìm vì sao pod 1 và 2 "biến mất". Chúng không biến mất, chúng chưa từng được tạo — và đó là hành vi đúng, không phải lỗi.',
+      'Đọc bảng `get pods` rồi tin StatefulSet chỉ khai một replica. Bảng đó không sai, nó chỉ đang cho thấy hậu quả của OrderedReady chứ không cho thấy số replica mong muốn.',
+    ],
+    proTips: [
+      'StatefulSet thường đi kèm một headless Service (`clusterIP: None`) để mỗi pod có một tên DNS riêng thay vì bị cân bằng tải chung.',
     ],
   },
 };

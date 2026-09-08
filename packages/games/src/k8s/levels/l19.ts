@@ -14,26 +14,15 @@ export const l19: Level = {
   id: 'k8s-19-thieu-mot-khoa-trong-configmap',
   chapter: 4,
   title: 'ConfigMap có đó, khoá thì không',
-  brief: `Lại \`CreateContainerConfigError\`, lần này ở Deployment \`du-bao\` trong
-namespace \`khi-tuong\`. Bạn làm đúng như level trước: \`kubectl get configmap\`.
+  mission:
+    'Đưa Deployment `du-bao` (3 replica) lên chạy mà không mất khoá nào đang có trong ConfigMap.',
+  brief: `Lại \`CreateContainerConfigError\`, lần này ở Deployment \`du-bao\` trong namespace
+\`khi-tuong\`. Bạn làm phản xạ vừa học: \`kubectl get configmap\`.
 
-ConfigMap \`du-bao-cau-hinh\` tồn tại. Bạn xem nội dung, thấy có dữ liệu bên
-trong, và bế tắc.
+ConfigMap \`du-bao-cau-hinh\` có thật, bên trong cũng có dữ liệu, và pod vẫn không
+dựng nổi container. Sự tồn tại của object không phải câu trả lời.
 
-Cách một pod đọc ConfigMap có hai kiểu, và chúng hỏng khác nhau:
-
-- \`envFrom\` bơm **toàn bộ** khoá trong ConfigMap thành biến môi trường. Thiếu
-  một khoá thì đơn giản là thiếu một biến — container vẫn dựng được, và ứng dụng
-  tự xoay xở hoặc tự chết sau đó.
-- \`env[].valueFrom.configMapKeyRef\` đòi **đúng một khoá có tên cụ thể**. Khoá
-  không tồn tại thì kubelet dừng ngay: nó không có giá trị để bơm, nên không dựng
-  container. Đây là kiểu tham chiếu chặt, và cũng là kiểu đang được dùng ở đây.
-
-**Việc cần làm:** đưa Deployment \`du-bao\` (3 replica) lên chạy được, và
-giữ nguyên mọi khoá đang có trong ConfigMap.
-
-Đừng đoán tên khoá còn thiếu. Nó được ghi ra ở hai chỗ khác nhau trong cluster,
-và cả hai đều chính xác hơn trí nhớ của bạn.`,
+Đừng đoán tên khoá; cluster đã ghi nó ra.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [
@@ -126,7 +115,7 @@ và cả hai đều chính xác hơn trí nhớ của bạn.`,
     },
   ],
   hints: [
-    'Sự tồn tại của ConfigMap không phải câu trả lời — nội dung của nó mới là. `kubectl get configmap du-bao-cau-hinh -n khi-tuong -o yaml` liệt kê từng khoá đang có.',
+    'Sự tồn tại của ConfigMap không phải câu trả lời — nội dung của nó mới là. `kubectl describe configmap du-bao-cau-hinh -n khi-tuong` liệt kê từng khoá đang có.',
     'Chỗ thứ hai ghi tên khoá là Events của pod: `kubectl describe pod -n khi-tuong -l app=du-bao` nói rõ khoá nào không tìm thấy. Chỗ thứ ba là chính template của Deployment — đọc danh sách `env` và các `configMapKeyRef` trong đó.',
     'Pod đòi hai khoá qua `configMapKeyRef`: `API_THOI_TIET` (đã có) và `MA_TRAM` (chưa có). Thêm khoá `MA_TRAM` vào ConfigMap mà không xoá ba khoá cũ.',
   ],
@@ -138,47 +127,42 @@ và cả hai đều chính xác hơn trí nhớ của bạn.`,
     'CreateContainerConfigError',
   ],
   teaching: {
-    primer: `Cùng trạng thái lỗi với level trước, nguyên nhân lệch một tầng: object **có**,
-khoá bên trong thì **không**. Phản xạ \`kubectl get configmap\` bạn vừa học sẽ
-trả lời "có" rồi dẫn bạn đi sai đường, nên level này dạy tầng sâu hơn một bậc.
+    primer: `Pod đọc ConfigMap theo hai kiểu, và chúng hỏng khác hẳn nhau.
 
-Pod đọc ConfigMap theo hai kiểu, và chúng hỏng khác hẳn nhau:
+\`envFrom\` bơm **toàn bộ** khoá thành biến môi trường. Đây là tham chiếu **lỏng**:
+thiếu một khoá chỉ là thiếu một biến, container vẫn dựng được, lỗi lộ ra muộn hơn
+trong ứng dụng.
 
-- \`envFrom\` bơm **toàn bộ** khoá trong ConfigMap thành biến môi trường. Đây là
-  tham chiếu **lỏng**: thiếu một khoá thì chỉ là thiếu một biến, container vẫn
-  dựng được, và lỗi lộ ra muộn hơn ở bên trong ứng dụng.
-- \`env[].valueFrom.configMapKeyRef\` đòi **đúng một khoá có tên cụ thể**. Đây là
-  tham chiếu **chặt**: khoá không tồn tại thì kubelet không có giá trị để bơm,
-  nên nó dừng và không dựng container.
+\`env[].valueFrom.configMapKeyRef\` đòi **đúng một khoá có tên cụ thể**. Đây là tham
+chiếu **chặt**: không có khoá thì kubelet không có giá trị để bơm, nên nó dừng và
+không dựng container.
 
-Tham chiếu chặt hỏng sớm và hỏng rõ, ngay lúc tạo pod, với tên khoá ghi thẳng
-trong Events. Đó là ưu điểm chứ không phải nhược điểm: lỗi cấu hình bị chặn ở
-biên chứ không lọt vào trong rồi biểu hiện thành một hành vi kỳ lạ lúc 3 giờ sáng.
-
-Tên khoá còn thiếu được ghi ở **hai chỗ** trong cluster: Events của pod, và
-danh sách \`env\` trong template của Deployment. Cả hai đều chính xác hơn trí nhớ.
+Hỏng sớm và hỏng rõ ở biên là ưu điểm: lỗi cấu hình bị chặn ngay lúc tạo pod, kèm
+tên khoá ghi thẳng trong Events.
 
 Nhìn vào đâu: nội dung ConfigMap, không phải sự tồn tại của nó.`,
     cheatsheet: [
       {
-        command: 'kubectl get configmap du-bao-cau-hinh -n khi-tuong -o yaml',
-        explain: 'Liệt kê từng khoá đang có. Sự tồn tại của ConfigMap không phải câu trả lời, nội dung mới là.',
+        command: 'kubectl describe configmap du-bao-cau-hinh -n khi-tuong',
+        explain:
+          'Liệt kê từng khoá đang có. Sự tồn tại của ConfigMap không phải câu trả lời, nội dung mới là.',
       },
       {
         command: 'kubectl describe pod -n khi-tuong -l app=du-bao',
         explain: 'Events nói đích danh khoá nào không tìm thấy, không phải chỉ nói ConfigMap nào.',
       },
       {
-        command: 'kubectl get deploy du-bao -n khi-tuong -o yaml',
+        command: 'kubectl describe deploy du-bao -n khi-tuong',
         explain: 'Đọc danh sách env và các configMapKeyRef để biết pod đang đòi những khoá nào.',
       },
       {
-        command: 'kubectl patch configmap du-bao-cau-hinh -n khi-tuong --type merge -p \x27{"data":{"MA_TRAM":"HN-01"}}\x27',
-        explain: 'Thêm một khoá mà giữ nguyên các khoá cũ. Đây là cách sửa an toàn ở level này.',
+        command:
+          'data.MA_TRAM',
+        explain: 'Khoá còn thiếu. Thêm nó vào ConfigMap trong bảng YAML rồi áp dụng lại, giữ nguyên ba khoá cũ.',
       },
       {
-        command: 'kubectl edit configmap du-bao-cau-hinh -n khi-tuong',
-        explain: 'Sửa tay khi cần xem toàn cảnh trước lúc thêm khoá.',
+        command: 'kubectl get configmap -n khi-tuong',
+        explain: 'Xác nhận ConfigMap có mặt, và nhớ rằng có mặt không có nghĩa là đủ khoá.',
       },
     ],
     takeaways: [

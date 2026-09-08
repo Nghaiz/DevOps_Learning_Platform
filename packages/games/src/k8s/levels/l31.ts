@@ -12,30 +12,15 @@ export const l31: Level = {
   id: 'k8s-31-mac-dinh-cam-roi-mo-dung-duong',
   chapter: 6,
   title: 'Cấm hết trước, rồi mở đúng thứ cần',
+  mission: 'Dựng NetworkPolicy cho `web` gọi được `api` cổng 8080, `bao-cao` thì không, và DNS vẫn sống.',
   brief: `Namespace \`y-te\` chứa dữ liệu bệnh án và vừa bị đội an ninh gắn cờ: bất kỳ pod
-nào trong namespace cũng gọi thẳng được vào \`api\`. Mặc định của Kubernetes là
-**mọi pod nói chuyện được với mọi pod**, kể cả xuyên namespace — không có
-NetworkPolicy nào thì không có rào nào.
+nào cũng gọi thẳng được vào \`api\`.
 
-Hiện có ba workload:
+Ba workload:
 
 - \`web\` — giao diện, **cần** gọi \`api\` ở cổng 8080.
 - \`api\` — dịch vụ giữ dữ liệu.
-- \`bao-cao\` — công cụ xuất báo cáo, đọc thẳng từ cơ sở dữ liệu và **không được**
-  gọi \`api\`.
-
-**Việc cần làm:** dựng NetworkPolicy trong \`y-te\` sao cho \`web\` gọi được
-\`api\` ở cổng 8080, \`bao-cao\` **không** gọi được \`api\`, và \`web\` vẫn phân
-giải được tên \`api.y-te.svc.cluster.local\`.
-
-Mục tiêu thứ ba trông thừa, và nó là phần đáng học nhất của level. NetworkPolicy
-lọc ở tầng IP và cổng, nên nó không biết gì về DNS — nó chỉ thấy các gói UDP đi
-ra cổng 53 nhắm tới CoreDNS ở một namespace khác. Một policy egress "cấm hết rồi
-mở cổng 8080 tới api" là hợp lý về mặt ý định, và nó sẽ chặn luôn cổng 53.
-
-Khi đó \`web\` không phân giải nổi tên nào nữa. Triệu chứng là \`no such host\`,
-trông hệt như CoreDNS chết — trong khi bạn vừa tự tay gây ra nó bằng một policy
-mà bạn tin là chỉ động tới cổng 8080.`,
+- \`bao-cao\` — công cụ xuất báo cáo, **không được** gọi \`api\`.`,
   difficulty: 'advanced',
   initialState: {
     nodes: [
@@ -139,38 +124,22 @@ mà bạn tin là chỉ động tới cổng 8080.`,
   ],
   teaching: {
     primer: `Mặc định của Kubernetes là **mọi pod nói chuyện được với mọi pod**, kể cả xuyên
-namespace. Namespace là ranh giới đặt tên và phân quyền, không phải ranh giới
-mạng.
+namespace. Namespace là ranh giới đặt tên và phân quyền, không phải ranh giới mạng.
 
-**NetworkPolicy** là thứ dựng ranh giới mạng, và nó hoạt động theo một quy tắc
-cần nhớ chính xác:
+**NetworkPolicy** dựng ranh giới mạng theo một quy tắc cần nhớ chính xác: pod
+**không** bị policy nào chọn thì mở hết; ngay khi có **một** policy chọn nó, pod
+chuyển sang chỉ-cho-phép-tường-minh cho **chiều** mà policy đó khai.
 
-> Một pod **không** bị policy nào chọn thì mở hết. Ngay khi có **một** policy
-> chọn nó, pod chuyển sang chế độ chỉ-cho-phép-tường-minh cho **chiều** mà
-> policy đó khai.
-
-Ba phần của một policy:
-
-- \`podSelector\` — chọn pod được bảo vệ. Để rỗng là chọn **mọi** pod trong
-  namespace, và đó là cách viết luật default-deny.
-- \`policyTypes\` — \`Ingress\` (ai được vào), \`Egress\` (được đi đâu), hoặc cả
-  hai. Khai một chiều thì chiều còn lại vẫn mở.
-- \`ingress\` / \`egress\` — danh sách luật cho phép. Nhiều policy cùng chạm một
-  pod thì hợp lại là phép **hợp**, và **không có luật từ chối** — NetworkPolicy
-  chỉ biết cho phép.
-
-Một kết nối cần được cho phép ở **cả hai đầu**: egress của bên gọi và ingress của
-bên nhận.
+Nhiều policy hợp lại bằng phép **hợp**; không có luật từ chối.
 
 Cái bẫy lớn nhất là DNS. Policy egress chặn hết rồi chỉ mở cổng ứng dụng sẽ chặn
-luôn cổng **53** đi tới CoreDNS, và mọi lời gọi theo tên chết theo. Triệu chứng
-là \`no such host\`, trông y hệt CoreDNS hỏng.`,
+luôn cổng **53** đi tới CoreDNS, và mọi lời gọi theo tên chết theo.`,
     cheatsheet: [
       { command: 'kubectl get networkpolicy -n <ns>', explain: 'Liệt kê mọi policy đang có hiệu lực trong namespace.' },
       { command: 'kubectl describe networkpolicy <tên> -n <ns>', explain: 'Đọc podSelector, policyTypes và từng luật cho phép.' },
       { command: 'kubectl get pods -n <ns> --show-labels', explain: 'Policy chọn pod bằng label, nên label thật là thứ quyết định ai bị chạm.' },
-      { command: 'kubectl exec <pod> -n <ns> -- nslookup <service>', explain: 'Tách lỗi DNS khỏi lỗi kết nối: phân giải được tên hay không.' },
-      { command: 'kubectl exec <pod> -n <ns> -- wget -qO- --timeout=3 <đích>:<cổng>', explain: 'Thử kết nối thật từ đúng pod bị chặn.' },
+      { command: 'egress[].ports: 53 UDP và 53 TCP', explain: 'Cổng DNS. Khai egress cho web thì phải tự mở cổng này, không thì mọi lời gọi theo tên chết theo.' },
+      { command: 'spec.podSelector: {}', explain: 'podSelector rỗng chọn MỌI pod trong namespace, và đó là cách viết luật default-deny.' },
     ],
     takeaways: [
       'Không có policy thì mọi pod nói chuyện được với mọi pod; namespace không chặn traffic.',
@@ -181,6 +150,10 @@ là \`no such host\`, trông y hệt CoreDNS hỏng.`,
     pitfalls: [
       'Viết luôn một policy egress "cấm hết, chỉ mở cổng ứng dụng". Nó đọc rất chặt chẽ và đúng ý định, nhưng cổng 53 không phải cổng ứng dụng nên nó bị chặn cùng — và bạn sẽ đi tìm lỗi ở CoreDNS thay vì ở policy mình vừa viết.',
       'Nghĩ rằng khai một chiều là đủ để chặn cả hai. Khai `policyTypes: [Ingress]` thì egress của pod đó vẫn mở hoàn toàn.',
+    ],
+    proTips: [
+      'Một policy có ba phần. `podSelector` chọn pod được bảo vệ, để rỗng là chọn mọi pod trong namespace (cách viết luật default-deny). `policyTypes` khai chiều: Ingress, Egress, hoặc cả hai, và khai một chiều thì chiều còn lại vẫn mở. `ingress` / `egress` là danh sách luật cho phép.',
+      'Một kết nối cần được cho phép ở cả hai đầu: egress của bên gọi và ingress của bên nhận. Với `api` thì ingress là đủ; nếu bạn cũng đặt egress cho `web` thì phải tự mở lấy mọi đường `web` cần đi.',
     ],
   },
 };

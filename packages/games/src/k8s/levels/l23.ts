@@ -15,29 +15,14 @@ export const l23: Level = {
   id: 'k8s-23-khong-node-nao-nhan',
   chapter: 5,
   title: 'Chỗ thì còn, mà không node nào nhận',
-  brief: `Pod \`canh-bao\` trong namespace \`giam-sat\` nằm \`Pending\` từ sáng. Scheduler
-ghi lý do rất thẳng: không node nào đủ CPU.
+  mission: 'Đưa pod `canh-bao` lên Running mà vẫn giữ 6 replica `nhat-ky` cùng requests và limits.',
+  brief: `Pod \`canh-bao\` trong namespace \`giam-sat\` nằm \`Pending\`. Scheduler ghi lý do rất
+thẳng: không node nào đủ CPU.
 
-Nhưng \`kubectl top nodes\` lại nói cả hai node đang dùng chưa tới **15%** CPU.
-Cluster gần như rảnh, và scheduler vẫn từ chối.
+Nhưng mức dùng thật của cả hai node chưa tới **15%**. Cluster gần như rảnh, và
+scheduler vẫn từ chối. Cả hai con số đều đúng.
 
-Cả hai con số đều đúng, vì chúng đo hai thứ khác nhau:
-
-- \`requests\` là phần CPU và bộ nhớ được **đặt chỗ trước** cho pod. Scheduler
-  cộng \`requests\` của mọi pod trên một node, và chỉ xếp thêm nếu phần còn lại
-  đủ cho pod mới. Đây là một phép cộng trên giấy tờ.
-- Mức dùng thật thì scheduler không nhìn tới. Một pod đặt chỗ 1200m rồi ngồi
-  không vẫn giữ nguyên 1200m đó, và không ai được dùng phần thừa.
-
-Deployment \`nhat-ky\` đang giữ 6 replica, mỗi replica đặt chỗ 1200m CPU. Kiểm
-tra mức dùng thật của chúng trước khi quyết định làm gì.
-
-**Việc cần làm:** đưa pod \`canh-bao\` lên Running, **giữ nguyên 6 replica** của
-\`nhat-ky\`, và \`nhat-ky\` vẫn phải khai đầy đủ cả requests lẫn limits.
-
-Bỏ hẳn requests đi cũng làm pod lên được, và đó là cách sai: pod không có
-requests là pod scheduler không biết cần gì, và là pod đầu tiên bị đuổi khi node
-cạn tài nguyên.`,
+Deployment \`nhat-ky\` đang giữ 6 replica. Kiểm mức dùng thật của chúng trước.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [
@@ -124,7 +109,7 @@ cạn tài nguyên.`,
   ],
   hints: [
     '`kubectl describe pod canh-bao -n giam-sat` cho biết scheduler đã từ chối từng node vì lý do gì. Đọc tiếp `kubectl describe node may-chu-1` và tìm bảng "Allocated resources" — đó là phép cộng requests mà scheduler đang dùng.',
-    'Đặt hai con số cạnh nhau: `kubectl top pods -n giam-sat` (mức dùng thật) và requests khai trong Deployment `nhat-ky`. 6 pod × 1200m = 7200m đã bị giữ chỗ trên tổng 8000m của cluster, trong khi mức dùng thật của chúng chỉ khoảng một phần mười.',
+    'Đặt hai con số cạnh nhau: mức dùng thật đã nêu ở đề bài và requests khai trong Deployment `nhat-ky` (`kubectl describe deploy nhat-ky -n giam-sat`). 6 pod × 1200m = 7200m đã bị giữ chỗ trên tổng 8000m của cluster, trong khi mức dùng thật của chúng chỉ khoảng một phần mười.',
     'Hạ `requests.cpu` của `nhat-ky` xuống mức gần với mức dùng thật — khoảng 200m là dư dả. Giữ nguyên `replicas: 6` và giữ nguyên khối `limits`. Pod `canh-bao` đang Pending sẽ được xếp lịch ngay khi chỗ trống xuất hiện, bạn không phải tạo lại nó.',
   ],
   parMoves: 1,
@@ -132,39 +117,28 @@ cạn tài nguyên.`,
     'requests vs limits',
     'scheduler chỉ đọc requests',
     'Allocated resources',
-    'kubectl top',
+    'đặt chỗ khác mức dùng thật',
     'Unschedulable',
     'over-provisioning',
   ],
   teaching: {
-    primer: `Mỗi container khai hai con số cho mỗi loại tài nguyên, và chúng làm hai việc
-hoàn toàn khác nhau:
+    primer: `Mỗi container khai hai con số cho mỗi loại tài nguyên, và chúng làm hai việc khác
+hẳn nhau.
 
-- \`requests\` — mức **đặt chỗ**. Scheduler cộng requests của mọi pod trên một
-  node và chỉ xếp thêm nếu phần còn lại đủ. Đây là một phép cộng trên giấy tờ, và
-  nó là thứ **duy nhất** scheduler nhìn.
-- \`limits\` — mức **trần**. Vượt trần CPU thì container bị bóp lại cho chậm đi;
-  vượt trần bộ nhớ thì bị giết.
+- \`requests\` là mức **đặt chỗ**. Scheduler cộng requests của mọi pod trên một
+  node và chỉ xếp thêm nếu phần còn lại đủ. Đây là phép cộng trên giấy tờ, và là
+  thứ **duy nhất** scheduler nhìn.
+- \`limits\` là mức **trần**. Vượt trần CPU thì container bị bóp cho chậm lại; vượt
+  trần bộ nhớ thì bị giết.
 
 Hệ quả gây bất ngờ nhiều nhất: một cluster có thể **rảnh mà vẫn đầy**. Sáu pod
-đặt chỗ 1200m rồi ngồi không vẫn giữ nguyên 7200m, và không ai được dùng phần
-thừa. \`kubectl top\` báo 15%, scheduler vẫn từ chối, và cả hai đều đúng.
-
-Ba mức chất lượng dịch vụ (**QoS**) sinh ra từ hai con số này, và chúng quyết
-định thứ tự bị đuổi khi node cạn tài nguyên:
-
-- **Guaranteed** — requests bằng limits. Bị đuổi sau cùng.
-- **Burstable** — có requests, limits lớn hơn.
-- **BestEffort** — không khai gì. Bị đuổi trước tiên.
-
-Vì vậy bỏ requests đi để pod lên được là một cách sửa tệ: nó biến pod thành nhóm
-hy sinh đầu tiên.`,
+đặt chỗ 1200m rồi ngồi không vẫn giữ nguyên 7200m, và không ai được dùng phần thừa.`,
     cheatsheet: [
-      { command: 'kubectl describe node <node>', explain: 'Bảng "Allocated resources" là phép cộng requests mà scheduler thật sự dùng.' },
-      { command: 'kubectl top nodes', explain: 'Mức dùng THẬT của node — con số này scheduler không quan tâm.' },
-      { command: 'kubectl top pods -n <ns>', explain: 'Đặt cạnh requests đã khai để thấy khoảng cách giữa đặt chỗ và thực dùng.' },
+      { command: 'kubectl describe node <node>', explain: 'Spec của node cho biết tổng CPU và bộ nhớ mà mọi requests phải cộng vừa vào.' },
+      { command: 'kubectl describe deploy nhat-ky -n giam-sat', explain: 'Đọc requests đang khai của từng container: vế đặt chỗ trong phép cộng của scheduler.' },
+      { command: 'kubectl get pods -n <ns>', explain: 'Đếm pod đang giữ chỗ trên cluster; cột STATUS cho biết cái nào còn Pending.' },
       { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Events ghi lý do scheduler loại từng node, ví dụ "Insufficient cpu".' },
-      { command: 'kubectl get pods -n <ns> --field-selector status.phase=Pending', explain: 'Lọc nhanh những pod chưa được xếp lịch.' },
+      { command: 'spec.template.spec.containers[].resources.requests.cpu', explain: 'Trường cần hạ. Sửa trong bảng YAML của Deployment, giữ nguyên replicas và limits.' },
     ],
     takeaways: [
       'Scheduler chỉ đọc requests, không bao giờ đọc mức dùng thật.',
@@ -174,7 +148,11 @@ hy sinh đầu tiên.`,
     ],
     pitfalls: [
       'Giảm số replica cho pod mới có chỗ. Nó làm triệu chứng biến mất ngay nên trông như đã sửa, trong khi vấn đề thật — requests khai quá tay — vẫn nguyên và sẽ quay lại ở workload tiếp theo.',
-      'Đọc `kubectl top` rồi kết luận cluster còn chỗ. Hai con số đo hai thứ khác nhau.',
+      'Đọc mức dùng thật rồi kết luận cluster còn chỗ. Hai con số đo hai thứ khác nhau, và scheduler chỉ nhìn con số kia.',
+      'Bỏ hẳn requests đi cho pod lên được. Cách này hiệu nghiệm ngay, và nó biến pod thành BestEffort, tức nhóm hy sinh đầu tiên khi node cạn tài nguyên.',
+    ],
+    proTips: [
+      'Hai con số đó sinh ra ba mức QoS, và chúng quyết định thứ tự bị đuổi khi node cạn tài nguyên: Guaranteed (requests bằng limits) bị đuổi sau cùng, Burstable ở giữa, BestEffort (không khai gì) bị đuổi trước tiên.',
     ],
   },
 };

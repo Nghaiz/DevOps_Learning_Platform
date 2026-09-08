@@ -13,20 +13,12 @@ export const l03: Level = {
   id: 'k8s-03-doc-log-truoc-khi-doan',
   chapter: 1,
   title: 'Container khởi động rồi chết ngay',
-  brief: `Dịch vụ \`bao-cao\` được deploy lúc nửa đêm và chưa phục vụ được request nào.
-Nhìn \`kubectl get pods\`, pod ở trạng thái Running một khoảnh khắc rồi lại đổi,
-và cột RESTARTS tăng đều: 3, rồi 5, rồi 8. Khoảng cách giữa hai lần restart mỗi
-lúc một dài.
+  mission: 'Tìm vì sao container `bao-cao` chết ngay khi khởi động, sửa nó, và giữ pod ở Running.',
+  brief: `Dịch vụ \`bao-cao\` được deploy lúc nửa đêm và chưa phục vụ được request nào. Pod
+lên Running một khoảnh khắc rồi lại đổi, cột RESTARTS tăng đều: 3, rồi 5, rồi 8,
+khoảng cách giữa hai lần mỗi lúc một dài.
 
-Con số restart tăng lên nói với bạn một điều rất cụ thể, khác hẳn level trước:
-container đã được **tạo ra và chạy** — chỉ là nó chết ngay sau đó, và kubelet cứ
-dựng lại, mỗi lần chờ lâu hơn lần trước.
-
-**Việc cần làm:** tìm ra vì sao container chết, sửa nó, và giữ pod \`bao-cao\` ở
-Running mà không còn lý do lỗi nào.
-
-Ở level trước, ứng dụng chưa từng chạy nên không có gì để đọc. Lần này thì có —
-nhưng nó nằm ở một chỗ mà lệnh log mặc định không nhìn tới.`,
+Level trước ứng dụng chưa từng chạy nên không có gì để đọc. Lần này thì có.`,
   difficulty: 'basic',
   initialState: {
     nodes: [{ name: 'may-chu-1', cpu: 4000, memory: 8192, ready: true }],
@@ -90,43 +82,37 @@ nhưng nó nằm ở một chỗ mà lệnh log mặc định không nhìn tới
     'entrypoint',
   ],
   teaching: {
-    primer: `Level trước pod chết ở bước kéo image. Lần này nó đi xa hơn: container **đã được
-tạo và đã chạy**, rồi chết. Cột RESTARTS tăng là dấu hiệu duy nhất phân biệt hai
-tình huống đó, và nó đáng tin hơn cột STATUS.
+    primer: `Container ở đây **đã được tạo và đã chạy**, rồi chết. Cột RESTARTS tăng là dấu
+hiệu duy nhất phân biệt tình huống này với một pod chưa bao giờ có container, và
+nó đáng tin hơn cột STATUS.
 
-Khi container trong pod chết, kubelet dựng lại nó theo mặc định
-(\`restartPolicy: Always\`). Nếu nó chết ngay lần nào cũng vậy, kubelet chuyển
-sang chờ lâu dần trước mỗi lần thử: 10 giây, 20, 40, tối đa 5 phút. Trạng thái
-đó tên là \`CrashLoopBackOff\`. Nó **không** phải một lỗi riêng, nó chỉ nói
-"container này chết liên tục" mà chưa nói vì sao.
+Khi container chết, kubelet dựng lại nó theo mặc định (\`restartPolicy: Always\`).
+Chết lần nào cũng vậy thì kubelet chờ lâu dần trước mỗi lần thử: 10 giây, 20, 40,
+tối đa 5 phút. Trạng thái đó tên là \`CrashLoopBackOff\` — một mô tả triệu chứng,
+chưa nói vì sao.
 
-Ở đây có một cái bẫy về công cụ. \`kubectl logs\` đọc log của container **đang
-chạy**. Ngay sau một lần restart, container hiện tại vừa mới sinh ra và chưa kịp
-ghi gì, nên lệnh đó thường trả về gần như trống. Log của lần chạy đã chết nằm ở
-chỗ khác, và cờ \`--previous\` là thứ lấy nó ra.
-
-Ba nguyên nhân gốc phổ biến của một container chết ngay lúc khởi động: sai lệnh
-khởi động (\`command\`), thiếu cấu hình bắt buộc, hoặc hết bộ nhớ. Level này là
-loại thứ nhất.
-
-Nhìn vào đâu: RESTARTS, rồi \`logs --previous\`, rồi đối chiếu \`command\` với
-đường dẫn thật trong image.`,
+Ba nguyên nhân gốc phổ biến: sai lệnh khởi động (\`command\`), thiếu cấu hình bắt
+buộc, hoặc hết bộ nhớ.`,
     cheatsheet: [
       {
         command: 'kubectl logs bao-cao -n van-hanh --previous',
-        explain: 'Đọc log của LẦN CHẠY TRƯỚC, tức là lần đã chết. Không có cờ này thì log gần như trống.',
+        explain:
+          'Đọc log của LẦN CHẠY TRƯỚC, tức là lần đã chết. Không có cờ này thì log gần như trống.',
       },
       {
-        command: 'kubectl get pods -n van-hanh -w',
-        explain: 'Theo dõi RESTARTS tăng theo thời gian thực, xác nhận đây là vòng lặp chứ không phải một lần chết.',
+        command: 'kubectl get pods -n van-hanh',
+        explain:
+          'Cột RESTARTS tách "chạy rồi chết" khỏi "chưa bao giờ chạy". Gõ lại sau vài giây để thấy nó tăng.',
       },
       {
         command: 'kubectl describe pod bao-cao -n van-hanh',
-        explain: 'Phần Last State cho exit code của lần chết gần nhất. Số khác 0 nghĩa là container tự thoát trong lỗi.',
+        explain:
+          'Phần Last State cho exit code của lần chết gần nhất. Số khác 0 nghĩa là container tự thoát trong lỗi.',
       },
       {
-        command: 'kubectl get pod bao-cao -n van-hanh -o jsonpath="{.spec.containers[*].command}"',
-        explain: 'In chính xác lệnh khởi động đang khai, để so từng ký tự với đường dẫn thật.',
+        command: 'kubectl edit pod bao-cao -n van-hanh',
+        explain:
+          'Mở bản khai để soi trường `command` và so từng ký tự với đường dẫn thật trong image.',
       },
     ],
     takeaways: [

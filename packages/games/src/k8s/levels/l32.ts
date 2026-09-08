@@ -13,29 +13,15 @@ export const l32: Level = {
   id: 'k8s-32-policy-chan-nham-thu-khong-ai-nghi',
   chapter: 6,
   title: 'Policy đúng ý định, và vẫn cắt nhầm một đường',
-  brief: `Tuần trước namespace \`giao-van\` được siết lại bằng NetworkPolicy
-\`chi-cho-frontend\`: chỉ pod tầng frontend mới được gọi vào \`kho-van\`. Policy
-viết đúng ý định đó và đã chạy được một tuần.
+  mission: 'Cho `thu-thap-metric` gọi được `kho-van` cổng 9100, trong khi `khach-la` vẫn bị chặn.',
+  brief: `Tuần trước namespace \`giao-van\` được siết bằng NetworkPolicy \`chi-cho-frontend\`:
+chỉ pod tầng frontend mới gọi được vào \`kho-van\`.
 
 Sáng nay có người phát hiện biểu đồ giám sát của \`kho-van\` **trống từ tuần
-trước**. Không phải sai số liệu — hoàn toàn không có điểm dữ liệu nào.
+trước**. Không một điểm dữ liệu nào.
 
-DaemonSet \`thu-thap-metric\` vẫn Running trên mọi node, log của nó không có lỗi
-nào rõ ràng, và chính \`kho-van\` thì hoàn toàn khoẻ, vẫn phục vụ frontend bình
-thường.
-
-Đây là loại sự cố khó nhất trong chương: **không có gì màu đỏ**. NetworkPolicy
-không ghi log, không sinh Event, và không trả về lỗi cho ai cả. Gói tin bị bỏ đi
-trong im lặng, phía gọi chỉ thấy timeout. Một luật allow viết hẹp hơn thực tế cần
-sẽ không báo cho bạn biết nó vừa cắt mất thứ gì — bạn phải tự đi tìm.
-
-**Việc cần làm:** \`thu-thap-metric\` gọi được \`kho-van\` ở cổng 9100 để thu
-metric, trong khi pod \`khach-la\` vẫn **không** gọi được \`kho-van\` ở cổng
-8080.
-
-Nói cách khác: mở đúng một đường, không mở toang cửa. Xoá policy đi sẽ làm biểu
-đồ có dữ liệu ngay lập tức, và cũng trả namespace về đúng tình trạng mà nó được
-dựng lên để sửa.`,
+DaemonSet \`thu-thap-metric\` vẫn Running trên mọi node, log không lỗi, và
+\`kho-van\` thì hoàn toàn khoẻ.`,
   difficulty: 'advanced',
   initialState: {
     nodes: [
@@ -173,7 +159,7 @@ dựng lên để sửa.`,
     },
   ],
   hints: [
-    'Không có gì đỏ để đọc, nên hãy tự tạo bằng chứng: `kubectl exec thu-thap-metric -n giao-van -- wget -qO- --timeout=3 kho-van:9100`. Timeout xác nhận traffic bị chặn chứ không phải dịch vụ hỏng — và so sánh với cùng lệnh đó chạy từ `web` ở cổng 8080.',
+    'Không có gì đỏ để đọc, và đó chính là đặc điểm của NetworkPolicy. Bắt đầu từ luật đang có: `kubectl describe networkpolicy chi-cho-frontend -n giao-van`, rồi hỏi nó cho phép AI vào CỔNG NÀO.',
     '`kubectl describe networkpolicy chi-cho-frontend -n giao-van` cho bạn luật hiện có. Đặt nó cạnh `kubectl get pods -n giao-van --show-labels` và kiểm hai thứ riêng biệt: pod nguồn có khớp `from` không, và cổng đích có nằm trong `ports` không. Một luật allow phải khớp CẢ HAI.',
     'Luật hiện tại chỉ cho `tang=frontend` vào cổng 8080. `thu-thap-metric` mang `tang=giam-sat` và cần cổng 9100 — trượt cả hai điều kiện. Thêm một luật ingress THỨ HAI cho `app=thu-thap-metric` ở cổng 9100. Đừng nới luật cũ thành mọi cổng hay mọi pod: `khach-la` phải tiếp tục bị chặn.',
   ],
@@ -186,44 +172,37 @@ dựng lên để sửa.`,
     'kubectl exec để kiểm chứng kết nối',
   ],
   teaching: {
-    primer: `NetworkPolicy chặn **trong im lặng**. Không log, không Event, không mã lỗi.
-Phía gọi chỉ thấy kết nối treo rồi timeout, và phía bị gọi thì không hề biết có
-ai vừa cố liên lạc. Đây là điều làm nó khác mọi sự cố bạn đã gặp: không có gì để
-\`describe\`, không có gì màu đỏ, và bằng chứng phải do bạn tự tạo ra.
+    primer: `NetworkPolicy chặn **trong im lặng**. Không log, không Event, không mã lỗi. Phía
+gọi chỉ thấy timeout. Không có gì để \`describe\`, không có gì màu đỏ, và bằng
+chứng phải do bạn tự dựng bằng cách đặt luật cạnh label của **đúng pod nguồn**.
 
-Công cụ chẩn đoán chính là \`kubectl exec\` từ **đúng pod nguồn**. Thử từ một pod
-khác không có giá trị, vì policy quyết định theo label của pod nguồn.
+Một luật allow là phép **AND** của hai điều kiện:
 
-Một luật allow là một phép **AND** của hai điều kiện:
+- **nguồn** — pod gọi phải khớp \`from\`.
+- **cổng** — cổng đích phải nằm trong \`ports\` của luật đó. Bỏ trống \`ports\` nghĩa
+  là mọi cổng.
 
-- **nguồn** — pod gọi phải khớp \`from\` (podSelector, namespaceSelector, hoặc
-  ipBlock).
-- **cổng** — cổng đích phải nằm trong \`ports\` của luật đó. Bỏ trống \`ports\`
-  nghĩa là mọi cổng.
-
-Trượt một trong hai là bị chặn. Đây là lý do một dịch vụ có nhiều cổng dễ bị cắt
-mất một nửa: cổng ứng dụng được mở, cổng metric thì không ai nhớ tới.
-
-Cách mở thêm đúng đắn là **thêm một luật mới** vào danh sách \`ingress\`, chứ
-không nới luật cũ. Các luật hợp lại bằng phép hợp, nên một luật hẹp thêm vào chỉ
-mở đúng phần bạn khai — trong khi nới luật cũ thành "mọi cổng" hay "mọi pod" sẽ
-mở cho cả những thứ bạn đang cố chặn.`,
+Trượt một trong hai là bị chặn. Đây là lý do một dịch vụ nhiều cổng dễ bị cắt mất
+một nửa: cổng ứng dụng được mở, cổng metric thì không ai nhớ tới.`,
     cheatsheet: [
-      { command: 'kubectl exec <pod-nguồn> -n <ns> -- wget -qO- --timeout=3 <đích>:<cổng>', explain: 'Tạo bằng chứng: timeout nghĩa là bị chặn, không phải dịch vụ hỏng.' },
+      { command: 'ingress[].from cùng ingress[].ports', explain: 'Một luật allow là phép AND của hai trường này; trượt một trong hai là bị chặn.' },
       { command: 'kubectl describe networkpolicy <tên> -n <ns>', explain: 'Đọc từng luật: nguồn nào, cổng nào — kiểm hai điều kiện riêng biệt.' },
       { command: 'kubectl get pods -n <ns> --show-labels', explain: 'Label của pod nguồn quyết định nó có khớp `from` hay không.' },
-      { command: 'kubectl get pod <pod> -n <ns> -o yaml', explain: 'Xem đủ danh sách containerPort — một dịch vụ thường mở nhiều hơn một cổng.' },
+      { command: 'kubectl describe pod <pod> -n <ns>', explain: 'Dòng Ports liệt kê mọi cổng container mở, và một dịch vụ thường mở nhiều hơn một.' },
     ],
     takeaways: [
       'NetworkPolicy chặn im lặng: không log, không Event, chỉ có timeout ở phía gọi.',
-      'Bằng chứng phải tự tạo bằng `kubectl exec` từ đúng pod nguồn.',
+      'Bằng chứng phải tự dựng: đặt luật cạnh label của đúng pod nguồn.',
       'Một luật allow chỉ ăn khi khớp CẢ nguồn lẫn cổng; trượt một là bị chặn.',
       'Mở thêm bằng cách thêm luật hẹp, không bằng cách nới luật cũ.',
     ],
     pitfalls: [
       'Xoá policy để biểu đồ có dữ liệu lại. Nó hiệu quả tức thì và ai cũng thấy nhẹ nhõm, nhưng namespace quay về đúng tình trạng mà policy được dựng lên để sửa — và lần này không ai nhớ dựng lại.',
       'Nới luật cũ thành mọi cổng cho `tang=frontend`. Nó không giúp gì cho pod giám sát (label khác) và lại mở thêm cổng metric cho frontend — sai cả hai chiều.',
-      'Thử `wget` từ máy của bạn hoặc từ một pod tiện tay. Policy đọc label của pod nguồn, nên chỉ phép thử từ đúng pod mới có nghĩa.',
+      'Đọc luật rồi kết luận chung cho cả namespace. Policy khớp theo label của từng pod nguồn, nên câu trả lời khác nhau tuỳ pod, và bạn phải soi label của đúng pod đang hỏng.',
+    ],
+    proTips: [
+      'Cách mở thêm đúng đắn là thêm một luật MỚI vào danh sách `ingress`, không phải nới luật cũ. Các luật hợp lại bằng phép hợp, nên một luật hẹp thêm vào chỉ mở đúng phần bạn khai, trong khi nới luật cũ thành mọi cổng hay mọi pod sẽ mở cho cả những thứ bạn đang cố chặn.',
     ],
   },
 };

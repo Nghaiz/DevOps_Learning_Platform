@@ -1,0 +1,195 @@
+'use client';
+
+import { useEffect, useState, type ReactElement } from 'react';
+import { Clock, LogOut, Pause, Settings, Star } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from '@devops-platform/ui';
+import type { Objective } from '@devops-platform/games';
+
+/**
+ * Bốn nấc tốc độ hiện trên thanh.
+ *
+ * ⚠ Nấc `0` KHÔNG đi thẳng vào `K8sSession.setSpeed`: hàm đó kẹp đầu vào về
+ * `[0.25, 8]` một cách có chủ ý (chu kỳ `setInterval` bằng 0 làm treo tab), nên
+ * `setSpeed(0)` cho ra 0.25× chứ không phải dừng — một cái nút nói dối. Việc
+ * dừng thật phải làm ở tầng trên: `onSpeedChange(0)` là tín hiệu "tạm dừng", và
+ * bên gọi dừng vòng lặp thay vì hạ nhịp. Đã báo lead: hợp đồng `K8sSession`
+ * chưa có `pause`/`resume`.
+ */
+const SPEEDS: readonly number[] = [0, 1, 2, 4];
+
+export interface TopBarProps {
+  /** Mã bài, ví dụ `K8S-01`. */
+  readonly code: string;
+  readonly title: string;
+  readonly objectives: readonly Objective[];
+  /** `SessionStatus.objectivesMet`. */
+  readonly metIds: readonly string[];
+  /** `Date.now()` lúc vào bài. Thanh tự đếm từ đó, không nhận một con số đổi mỗi giây qua prop. */
+  readonly startedAt: number;
+  /** 0..3. Điểm sao do tầng chấm điểm tính, thanh chỉ hiển thị. */
+  readonly stars: number;
+  /** Nhịp hiện tại; `0` = đang tạm dừng. */
+  readonly speed: number;
+  readonly onSpeedChange: (multiplier: number) => void;
+  readonly onExit: () => void;
+  readonly onSettings: () => void;
+}
+
+/**
+ * Thanh trên cùng — dải duy nhất mà canvas 3D KHÔNG chiếm.
+ *
+ * Mọi thứ ở đây là trạng thái người chơi liếc mắt là thấy, không phải thứ họ
+ * thao tác liên tục: còn bao nhiêu mục tiêu, đã chơi bao lâu, mô phỏng đang chạy
+ * nhanh cỡ nào. Nút hành động thật nằm ở các lớp nổi.
+ */
+export function TopBar({
+  code,
+  title,
+  objectives,
+  metIds,
+  startedAt,
+  stars,
+  speed,
+  onSpeedChange,
+  onExit,
+  onSettings,
+}: TopBarProps): ReactElement {
+  const [now, setNow] = useState(startedAt);
+
+  /*
+   * Đồng hồ đếm theo ĐỒNG HỒ TREO TƯỜNG, kể cả lúc mô phỏng tạm dừng — và đó là
+   * lựa chọn, không phải sót. Dừng mô phỏng để ngồi nghĩ vẫn là thời gian đã
+   * tiêu; một đồng hồ đứng lại lúc tạm dừng biến "tạm dừng" thành nước đi tối ưu
+   * để ăn điểm thời gian.
+   */
+  useEffect(() => {
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [startedAt]);
+
+  const met = new Set(metIds);
+  const required = objectives.filter((objective) => objective.required);
+  const done = required.filter((objective) => met.has(objective.id)).length;
+  const percent = required.length === 0 ? 0 : Math.round((done / required.length) * 100);
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <header className="pointer-events-auto flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-3">
+        <IconButton label="Thoát bài" onClick={onExit}>
+          <LogOut className="size-4" />
+        </IconButton>
+
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span className="font-mono text-xs font-semibold text-muted-foreground">{code}</span>
+          <h1 className="truncate text-sm font-semibold text-foreground">{title}</h1>
+        </div>
+
+        <div className="ml-2 flex min-w-24 max-w-40 flex-1 items-center gap-2">
+          <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-status-done transition-[width] duration-(--motion-base) ease-out"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+          <span className="font-mono text-xs text-muted-foreground" aria-label={`Đã đạt ${done} trên ${required.length} mục tiêu`}>
+            {done}/{required.length}
+          </span>
+        </div>
+
+        <div className="ml-auto flex items-center gap-1 text-muted-foreground" aria-label={`${stars} trên 3 sao`}>
+          {[1, 2, 3].map((position) => (
+            <Star
+              key={position}
+              aria-hidden
+              className={cn('size-4', position <= stars ? 'fill-warning text-warning' : 'text-input')}
+            />
+          ))}
+        </div>
+
+        <span className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
+          <Clock className="size-3.5" aria-hidden />
+          {formatElapsed(now - startedAt)}
+        </span>
+
+        <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5" role="group" aria-label="Tốc độ mô phỏng">
+          {SPEEDS.map((value) => (
+            <SpeedButton key={value} value={value} current={speed} onPick={onSpeedChange} />
+          ))}
+        </div>
+
+        <IconButton label="Cài đặt" onClick={onSettings}>
+          <Settings className="size-4" />
+        </IconButton>
+      </header>
+    </TooltipProvider>
+  );
+}
+
+function SpeedButton({
+  value,
+  current,
+  onPick,
+}: {
+  readonly value: number;
+  readonly current: number;
+  readonly onPick: (multiplier: number) => void;
+}): ReactElement {
+  const label = value === 0 ? 'Tạm dừng' : `Chạy ${value}×`;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => onPick(value)}
+          aria-pressed={current === value}
+          aria-label={label}
+          className={cn(
+            'flex h-6 min-w-7 items-center justify-center rounded-sm px-1 font-mono text-[11px] font-semibold',
+            'outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+            current === value
+              ? 'bg-background text-foreground shadow-elevation-1'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {value === 0 ? <Pause className="size-3" aria-hidden /> : `${value}×`}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function IconButton({
+  label,
+  onClick,
+  children,
+}: {
+  readonly label: string;
+  readonly onClick: () => void;
+  readonly children: ReactElement;
+}): ReactElement {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={label}
+          className="rounded-md p-1.5 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** `mm:ss`, và `h:mm:ss` khi vượt một giờ. Không hiện mili-giây — không ai đọc. */
+function formatElapsed(elapsedMs: number): string {
+  const total = Math.max(0, Math.floor(elapsedMs / 1000));
+  const seconds = String(total % 60).padStart(2, '0');
+  const minutes = total < 3600 ? String(Math.floor(total / 60)) : String(Math.floor(total / 60) % 60).padStart(2, '0');
+  return total < 3600 ? `${minutes}:${seconds}` : `${Math.floor(total / 3600)}:${minutes}:${seconds}`;
+}

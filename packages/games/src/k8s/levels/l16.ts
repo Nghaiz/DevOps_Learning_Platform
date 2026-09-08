@@ -12,26 +12,12 @@ export const l16: Level = {
   id: 'k8s-16-ingress-mo-cua-ra-ngoai',
   chapter: 3,
   title: 'Mở một cửa duy nhất ra Internet',
-  brief: `Namespace \`san-pham\` có hai Service ClusterIP đang chạy tốt: \`web\` phục vụ
-giao diện, \`api\` phục vụ dữ liệu. Cả hai chỉ gọi được từ bên trong cluster.
+  mission: 'Tạo Ingress `san-pham` để `/api` đi tới Service `api` và `/` đi tới Service `web`.',
+  brief: `Namespace \`san-pham\` có hai Service ClusterIP đang chạy tốt: \`web\` phục vụ giao
+diện, \`api\` phục vụ dữ liệu. Cả hai chỉ gọi được từ bên trong cluster.
 
-Cách thô sơ để mở ra ngoài là đổi mỗi Service sang NodePort hoặc LoadBalancer.
-Với hai dịch vụ thì đã là hai cổng lạ hoặc hai địa chỉ IP phải trả tiền; với hai
-mươi dịch vụ thì không quản nổi. Và cả hai kiểu đó đều làm việc ở tầng TCP — chúng
-không đọc được đường dẫn HTTP, nên không thể định tuyến theo path.
-
-**Ingress** làm việc ở tầng HTTP. Một địa chỉ vào duy nhất, rồi phân luồng theo
-host và theo đường dẫn tới các Service khác nhau bên trong. Đây cũng là chỗ đặt
-chứng chỉ TLS một lần cho mọi dịch vụ phía sau.
-
-**Việc cần làm:** tạo Ingress \`san-pham\` trong namespace \`san-pham\` sao cho:
-
-- \`/api\` đi tới Service \`api\`
-- \`/\` đi tới Service \`web\`
-
-Thứ tự khai báo path có ý nghĩa hơn bạn tưởng: \`/\` với \`pathType: Prefix\`
-khớp mọi thứ, kể cả \`/api\`. Hãy nghĩ xem điều đó ảnh hưởng gì tới cách bạn viết
-hai luật này.`,
+Thứ tự khai báo path có ý nghĩa hơn bạn tưởng: \`/\` với \`pathType: Prefix\` khớp
+mọi thứ, kể cả \`/api\`.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [
@@ -135,25 +121,15 @@ hai luật này.`,
 đường, và chúng làm việc ở hai tầng khác nhau:
 
 - **NodePort** mở một cổng cao trên mọi node. Tầng TCP.
-- **LoadBalancer** xin nhà cung cấp hạ tầng một địa chỉ IP ngoài. Cũng tầng TCP,
-  và mỗi dịch vụ cần một địa chỉ riêng.
-- **Ingress** làm việc ở **tầng HTTP**. Một địa chỉ vào duy nhất, rồi phân luồng
-  theo tên miền và theo đường dẫn tới nhiều Service khác nhau.
+- **LoadBalancer** xin hạ tầng một IP ngoài. Cũng tầng TCP, mỗi dịch vụ một IP.
+- **Ingress** làm việc ở **tầng HTTP**: một địa chỉ vào duy nhất, phân luồng theo
+  tên miền và theo đường dẫn.
 
-Khác biệt quyết định: hai kiểu đầu không đọc được đường dẫn HTTP, nên chúng
-không thể định tuyến \`/api\` đi một nơi và \`/\` đi nơi khác. Ingress đọc được,
-và đó cũng là chỗ đặt chứng chỉ TLS một lần cho mọi dịch vụ phía sau.
+Hai kiểu đầu không đọc được đường dẫn HTTP nên không định tuyến theo path được.
+Ingress đọc được, và đó cũng là chỗ đặt chứng chỉ TLS một lần.
 
-Ingress **không** thay thế Service, nó đứng trước Service. Mỗi luật trỏ tới một
-Service theo tên và theo **cổng của Service** (\`port\`), không phải cổng của
-container.
-
-\`pathType\` quyết định cách khớp. \`Prefix\` khớp mọi đường dẫn bắt đầu bằng
-chuỗi đó, nên \`/\` với \`Prefix\` khớp tất cả. Ingress controller so luật **cụ
-thể nhất** trước, nên thứ tự bạn viết không quyết định; thứ quyết định là bạn có
-khai đủ luật hay không.
-
-Nhìn vào đâu: bảng luật trong \`describe ingress\`, đặt cạnh \`get svc\`.`,
+Ingress **không** thay thế Service: nó đứng trước Service, và trỏ tới **cổng của
+Service**.`,
     cheatsheet: [
       {
         command: 'kubectl get svc -n san-pham',
@@ -165,10 +141,11 @@ Nhìn vào đâu: bảng luật trong \`describe ingress\`, đặt cạnh \`get 
       },
       {
         command: 'kubectl describe ingress san-pham -n san-pham',
-        explain: 'In bảng luật đầy đủ: mỗi path kèm backend của nó. Đây là chỗ đối chiếu nhanh nhất.',
+        explain:
+          'In bảng luật đầy đủ: mỗi path kèm backend của nó. Đây là chỗ đối chiếu nhanh nhất.',
       },
       {
-        command: 'kubectl get endpoints -n san-pham',
+        command: 'kubectl get svc -n san-pham',
         explain: 'Kiểm các Service phía sau còn pod hay không, trước khi nghi ngờ chính Ingress.',
       },
     ],
@@ -185,6 +162,7 @@ Nhìn vào đâu: bảng luật trong \`describe ingress\`, đặt cạnh \`get 
     pitfalls: [
       'Chỉ khai luật `/` rồi tin rằng `/api` cũng đi đúng chỗ vì tên trùng nhau. Prefix `/` nuốt hết, nên mọi request đổ về web và API không bao giờ được gọi.',
       'Điền containerPort vào backend vì con số đó vừa đọc trong Deployment và nhìn quen mắt. Luật vẫn khớp đường dẫn, nhưng chuyển tiếp tới một cổng Service không có.',
+      'Khai `/` với `pathType: Prefix` rồi tưởng nó nuốt mất `/api`, nên đi sắp lại thứ tự hai luật cho chắc. Thứ tự trong YAML không quyết định gì: ingress controller so luật CỤ THỂ NHẤT trước, nên thứ thật sự làm hỏng là thiếu luật chứ không phải sai thứ tự.',
     ],
   },
 };

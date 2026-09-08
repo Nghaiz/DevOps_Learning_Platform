@@ -1,15 +1,15 @@
 /**
  * Phân tích và thực thi lệnh `kubectl`.
  *
- * ## Vì sao `describe` được đầu tư nhiều hơn `get`
+ * ## Khối `describe` KHÔNG nằm ở đây
  *
- * `kubectl get` là bảng tóm tắt; `kubectl describe` là chỗ NGUYÊN NHÂN nằm. Ba
- * sự cố dễ nhầm nhất của bộ (CrashLoopBackOff · OOMKilled · LivenessProbeFailed)
- * cho ra cùng một dòng ở `get` và chỉ tách nhau ở hai chỗ mà `describe` in ra:
- * khối **Last State** và danh sách **Events**. Bỏ hai khối đó đi là biến trò chơi
- * thành đoán mò.
+ * Phần dựng chuỗi của `describe` ở `describe.ts`, và file này chỉ gọi vào
+ * `describeObject`. Lý do: tab Mô tả của bảng thông số cần đúng khối văn bản đó
+ * nhưng đi qua `session.describe(uid)` chứ không qua thanh lệnh — hai đường vào,
+ * một bộ định dạng. Viết bộ thứ hai cho giao diện sẽ cho ra hai nội dung khác
+ * nhau cho cùng một pod, và không có gì đỏ ở đâu cả.
  *
- * Cùng lý do, `logs --previous` được hiện thực đúng nghĩa: log của container
+ * `logs --previous` thì được hiện thực đúng nghĩa ngay tại đây: log của container
  * ĐANG chạy trong một pod CrashLoop gần như luôn rỗng, nên `--previous` là chỗ
  * duy nhất còn bằng chứng.
  */
@@ -26,6 +26,7 @@ import {
   replaceObject,
 } from './model.ts';
 import { childrenOf, livePods, podsOwnedBy, readyPods, serviceEndpoints, workloadTemplate } from './query.ts';
+import { describeObject, labelText, podStatusText } from './describe.ts';
 import { DEFAULT_GRACE_TICKS, templateHash } from './controllers.ts';
 import { TICK_MS, markDeleting } from './tick.ts';
 import {
@@ -35,6 +36,7 @@ import {
   asStringMap,
   isNamespaced,
   readContainers,
+  readSelector,
   resolveKind,
 } from './resources.ts';
 
@@ -64,6 +66,43 @@ export type KubectlCommand =
   | { readonly verb: 'logs'; readonly name: string; readonly options: KubectlOptions }
   | { readonly verb: 'exec'; readonly name: string; readonly command: readonly string[]; readonly options: KubectlOptions }
   | { readonly verb: 'rollout'; readonly sub: RolloutSub; readonly kind: ResourceKind; readonly name: string; readonly options: KubectlOptions };
+
+/**
+ * Danh sách động từ ở dạng DỮ LIỆU, không phải kiểu.
+ *
+ * `KubectlCommand` ở trên là kiểu liên hợp, và kiểu thì biến mất lúc chạy — nên
+ * tầng giao diện không có cách nào duyệt qua nó để dựng gợi ý lệnh. Trước khi
+ * có hằng này, bộ gợi ý terminal giữ một bản CHÉP TAY chín động từ cộng bảng cờ,
+ * và bản chép đó không có gì bắt được khi `kubectl.ts` thêm hay đổi động từ:
+ * gợi ý cứ lặng lẽ sai đi, còn lệnh vẫn chạy đúng vì `parseKubectl` mới là bên
+ * phân tích thật.
+ *
+ * Cặp kiểm tra ngay dưới là thứ làm hằng này khác một bản chép: nó bắt lệch theo
+ * CẢ HAI chiều lúc biên dịch. Thêm động từ vào `KubectlCommand` mà quên thêm vào
+ * đây thì đỏ; để lại ở đây một động từ đã gỡ khỏi union thì cũng đỏ.
+ */
+export const KUBECTL_VERBS = [
+  'get',
+  'describe',
+  'delete',
+  'scale',
+  'apply',
+  'edit',
+  'logs',
+  'exec',
+  'rollout',
+] as const;
+
+export type KubectlVerb = KubectlCommand['verb'];
+
+/* Chiều 1 — mọi phần tử của mảng phải là một động từ có thật trong union. */
+const _verbsAreReal: readonly KubectlVerb[] = KUBECTL_VERBS;
+/* Chiều 2 — mọi động từ trong union phải có mặt trong mảng. */
+const _verbsAreComplete: Exclude<KubectlVerb, (typeof KUBECTL_VERBS)[number]> extends never
+  ? true
+  : false = true;
+void _verbsAreReal;
+void _verbsAreComplete;
 
 export type ParseResult =
   | { readonly ok: true; readonly command: KubectlCommand }
@@ -357,17 +396,13 @@ function age(state: ClusterState, createdTick: number): string {
   return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m${seconds % 60}s`;
 }
 
-/** Cột STATUS của `kubectl get pods`: `reason` thắng `phase` khi có mặt — đúng như kubectl. */
-export function podStatusText(object: K8sObject): string {
-  const pod = podRuntime(object);
-  if (pod === null) {
-    return '';
-  }
-  if (pod.phase === 'Terminating') {
-    return 'Terminating';
-  }
-  return pod.reason ?? pod.phase;
-}
+/*
+ * `podStatusText` và `labelText` sống ở `describe.ts` cùng với phần dựng chuỗi
+ * `describe`, và được tái xuất ở đây vì bảng `get` cũng cần đúng hai mẩu đó.
+ * Một cột STATUS và một khối Status nói khác nhau về cùng một pod là chuyện chỉ
+ * người đọc mã mới phát hiện ra.
+ */
+export { podStatusText };
 
 function podRow(state: ClusterState, object: K8sObject, showLabels: boolean): readonly string[] {
   const pod = podRuntime(object);
@@ -382,11 +417,6 @@ function podRow(state: ClusterState, object: K8sObject, showLabels: boolean): re
     pod?.nodeName ?? '<none>',
   ];
   return showLabels ? [...row, labelText(object)] : row;
-}
-
-function labelText(object: K8sObject): string {
-  const entries = Object.entries(object.labels);
-  return entries.length === 0 ? '<none>' : entries.map(([key, value]) => `${key}=${value}`).join(',');
 }
 
 function workloadRow(state: ClusterState, object: K8sObject): readonly string[] {
@@ -426,121 +456,6 @@ function selectObjects(state: ClusterState, command: KubectlCommand, namespace: 
 }
 
 /**
- * `kubectl describe pod` — khối mang toàn bộ giá trị chẩn đoán.
- *
- * Thứ tự các khối theo đúng bản thật, và hai khối dưới đây là lý do hàm này tồn
- * tại:
- *
- * - **Last State** — `OOMKilled` + `Exit Code: 137` nằm ở ĐÂY, không ở State.
- *   Đây là bằng chứng duy nhất phân biệt một pod thiếu RAM với một pod sai
- *   entrypoint, vì cột STATUS của `get` nói `CrashLoopBackOff` cho cả hai.
- * - **Events** — scheduler ghi lý do TỪ CHỐI CỦA TỪNG NODE ở đây. Nhiều người
- *   dùng Kubernetes lâu năm không biết là có, và nó trả lời thẳng câu "vì sao
- *   pod của tôi mãi Pending".
- */
-function describePod(state: ClusterState, object: K8sObject): string {
-  const pod = podRuntime(object);
-  if (pod === null) {
-    return '';
-  }
-  const containers = readContainers(object.spec, 500);
-  const lines = [
-    `Name:         ${object.name}`,
-    `Namespace:    ${object.namespace}`,
-    `Node:         ${pod.nodeName ?? '<none>'}`,
-    `Labels:       ${labelText(object)}`,
-    `Status:       ${podStatusText(object)}`,
-    `Ready:        ${pod.ready ? 'True' : 'False'}`,
-    `Restart Count: ${pod.restarts}`,
-    'Containers:',
-  ];
-  for (const container of containers) {
-    lines.push(`  ${container.name}:`);
-    lines.push(`    Image:        ${container.image}`);
-    lines.push(`    Ports:        ${container.ports.join(', ') || '<none>'}`);
-    lines.push(`    State:        ${pod.phase === 'Running' ? 'Running' : 'Waiting'}`);
-    if (pod.reason !== null) {
-      lines.push(`      Reason:     ${pod.reason}`);
-    }
-    if (pod.lastState !== null) {
-      lines.push('    Last State:   Terminated');
-      lines.push(`      Reason:     ${pod.lastState.reason}`);
-      lines.push(`      Exit Code:  ${pod.lastState.exitCode}`);
-    }
-    const requests = [
-      container.requestsCpu === null ? null : `cpu: ${container.requestsCpu}m`,
-      container.requestsMemory === null ? null : `memory: ${container.requestsMemory}Mi`,
-    ].filter((item): item is string => item !== null);
-    const limits = [
-      container.limitsCpu === null ? null : `cpu: ${container.limitsCpu}m`,
-      container.limitsMemory === null ? null : `memory: ${container.limitsMemory}Mi`,
-    ].filter((item): item is string => item !== null);
-    lines.push(`    Requests:     ${requests.join(', ') || '<none>'}`);
-    lines.push(`    Limits:       ${limits.join(', ') || '<none>'}`);
-    if (container.readinessProbe !== null) {
-      lines.push(`    Readiness:    cổng ${container.readinessProbe.port ?? '?'} ${container.readinessProbe.path}`);
-    }
-    if (container.livenessProbe !== null) {
-      lines.push(`    Liveness:     cổng ${container.livenessProbe.port ?? '?'} ${container.livenessProbe.path}`);
-    }
-  }
-  return [...lines, '', eventsBlock(state, object.uid)].join('\n');
-}
-
-function eventsBlock(state: ClusterState, uid: string): string {
-  const events = state.events.filter((event) => event.involvedUid === uid).slice(-12);
-  if (events.length === 0) {
-    return 'Events:       <none>';
-  }
-  return [
-    'Events:',
-    ...events.map((event) => `  ${event.reason.padEnd(24)} ${event.message}`),
-  ].join('\n');
-}
-
-function describeService(state: ClusterState, object: K8sObject): string {
-  const endpoints = serviceEndpoints(state, object);
-  const selector = Object.entries(readSelectorOf(object));
-  return [
-    `Name:         ${object.name}`,
-    `Namespace:    ${object.namespace}`,
-    `Selector:     ${selector.length === 0 ? '<none>' : selector.map(([k, v]) => `${k}=${v}`).join(',')}`,
-    `Endpoints:    ${endpoints.length === 0 ? '<none>' : endpoints.map((pod) => pod.name).join(', ')}`,
-    '',
-    eventsBlock(state, object.uid),
-  ].join('\n');
-}
-
-function readSelectorOf(object: K8sObject): Readonly<Record<string, string>> {
-  const raw = object.spec['selector'];
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return {};
-  }
-  const record = raw as Record<string, unknown>;
-  const nested = record['matchLabels'];
-  const source = typeof nested === 'object' && nested !== null ? (nested as Record<string, unknown>) : record;
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(source)) {
-    if (typeof value === 'string') {
-      out[key] = value;
-    }
-  }
-  return out;
-}
-
-function describeGeneric(state: ClusterState, object: K8sObject): string {
-  return [
-    `Name:         ${object.name}`,
-    `Namespace:    ${object.namespace || '<cluster-scoped>'}`,
-    `Kind:         ${object.kind}`,
-    `Labels:       ${labelText(object)}`,
-    `Spec:         ${JSON.stringify(object.spec, null, 2)}`,
-    '',
-    eventsBlock(state, object.uid),
-  ].join('\n');
-}
-
-/**
  * Chạy các lệnh CHỈ ĐỌC — `get`, `describe`, `logs`, `exec`.
  *
  * Tách khỏi `runCommand` để test được phần kết xuất mà không phải nghĩ về trạng
@@ -562,15 +477,10 @@ export function renderQuery(
       if (matches.length === 0) {
         return notFound(command.kind, command.name, namespace);
       }
-      return matches
-        .map((object) =>
-          object.kind === 'Pod'
-            ? describePod(state, object)
-            : object.kind === 'Service'
-              ? describeService(state, object)
-              : describeGeneric(state, object),
-        )
-        .join('\n\n');
+      // Phân nhánh theo `kind` nằm trong `describeObject`, không ở đây: hai chỗ
+      // gọi (thanh lệnh và `session.describe`) thì hai chỗ phải nhớ thêm nhánh
+      // mới, và chỗ quên sẽ rơi về khối generic mà không có gì báo.
+      return matches.map((object) => describeObject(state, object)).join('\n\n');
     }
     case 'logs':
       return renderLogs(state, command.name, namespace, command.options.previous);
@@ -617,7 +527,11 @@ function renderGet(state: ClusterState, command: KubectlCommand, namespace: stri
       matches.map((object) => [
         object.name,
         asString(object.spec['type']) ?? 'ClusterIP',
-        Object.entries(readSelectorOf(object))
+        // `readSelector` của `resources.ts` chứ không một bản đọc selector thứ
+        // hai tại chỗ: `view.ts` đã dùng đúng hàm đó cho cùng câu hỏi, và hai
+        // bản sẽ lệch nhau ở đúng chỗ khó thấy nhất — `selector` phẳng của
+        // Service so với `selector.matchLabels` của workload.
+        Object.entries(readSelector(object.spec))
           .map(([key, value]) => `${key}=${value}`)
           .join(',') || '<none>',
         String(serviceEndpoints(state, object).length),

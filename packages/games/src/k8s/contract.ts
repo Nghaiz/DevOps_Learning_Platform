@@ -266,6 +266,18 @@ export interface Level {
   /** 1..6. Xem `levels/index.ts` để biết chương nào dạy gì. */
   readonly chapter: number;
   readonly title: string;
+  /**
+   * Một câu, tối đa 20 từ, nói người chơi phải làm ĐƯỢC gì.
+   *
+   * ⛔ BẮT BUỘC. Sau khi thiết kế lại giao diện, đây là dòng chữ DUY NHẤT hiện
+   * thường trực trên màn hình — `brief` nằm trong thẻ nhiệm vụ mở theo yêu cầu,
+   * `primer` nằm trong ngăn tra cứu. Một level thiếu `mission` là một level không
+   * nói được cho người chơi biết phải làm gì, và để trường này tuỳ chọn thì chỗ
+   * đó im lặng rỗng thay vì đỏ ở typecheck.
+   *
+   * Nói ĐƯỢC GÌ chứ không nói LÀM THẾ NÀO — cùng luật với `Objective.label`.
+   */
+  readonly mission: string;
   /** Markdown tiếng Việt, ≤ 400 từ. Nói bối cảnh + việc cần làm, KHÔNG nói cách làm. */
   readonly brief: string;
   readonly difficulty: Difficulty;
@@ -333,6 +345,15 @@ export interface ClusterView {
   readonly objects: readonly ObjectView[];
   readonly edges: readonly EdgeView[];
   readonly events: readonly EventView[];
+  /**
+   * Sự cố của cụm — CẢ đang xảy ra lẫn đã xử lý, không lọc sẵn.
+   *
+   * Lọc ở đây sẽ đóng cứng một chính sách hiển thị vào hợp đồng: bảng sự cố có
+   * ba bộ lọc (đang xảy ra / đã xử lý / tất cả) và người chơi đổi giữa chúng
+   * bằng một cú bấm. Đưa danh sách đầy đủ ra thì đổi bộ lọc là một phép lọc trên
+   * mảng đã có; lọc sẵn ở đây thì mỗi lần đổi bộ lọc phải đi hỏi lại engine.
+   */
+  readonly incidents: readonly IncidentView[];
 }
 
 export interface NodeView {
@@ -343,11 +364,57 @@ export interface NodeView {
   readonly memoryUsed: number;
 }
 
+/**
+ * Một cặp cpu/memory đã ĐỊNH DẠNG SẴN theo ký pháp Kubernetes (`250m`, `128Mi`).
+ *
+ * Chuỗi chứ không phải số, vì cùng lý do `NodeView.cpuUsed` là tỉ lệ chứ không
+ * phải hai số thô: đơn vị của Kubernetes (milli-core, Mi/Gi) là một quy ước mà
+ * renderer không được phép tự diễn giải lại. Có hai chỗ cùng đổi số sang chuỗi
+ * thì hai chỗ đó sẽ lệch nhau, và người chơi sẽ thấy `128Mi` ở bảng thông số
+ * cạnh `134217728` ở khối `kubectl describe` của cùng một pod. Cả hai đi qua
+ * đúng một bộ định dạng ở `describe.ts`.
+ *
+ * `null` = manifest KHÔNG khai vế đó. Khác hẳn `0`: Kubernetes phân biệt
+ * "không đặt requests" (pod BestEffort, HPA mù) với "đặt bằng 0", và
+ * `readContainers` cố ý giữ `null` để `hpa-khong-co-metrics` mô phỏng được.
+ */
+export interface ResourceAmountView {
+  readonly cpu: string | null;
+  readonly memory: string | null;
+}
+
 export interface ObjectView {
   readonly uid: string;
   readonly kind: ResourceKind;
   readonly name: string;
   readonly namespace: string;
+  /**
+   * Nhãn của chính object. Rỗng là hợp lệ và thường gặp.
+   *
+   * Ra tới đây vì nhãn là DỮ LIỆU CHẨN ĐOÁN, không phải trang trí: cả nhóm sự cố
+   * `service-selector-lech-label` chỉ nhìn ra được khi người chơi đọc được nhãn
+   * pod cạnh selector của Service. Không đưa ra thì bảng thông số phải im lặng
+   * đúng ở chỗ câu trả lời nằm.
+   */
+  readonly labels: Readonly<Record<string, string>>;
+  /**
+   * Tổng `resources.requests` / `resources.limits` của mọi container.
+   *
+   * `null` = không container nào khai vế nào — bảng BỎ HẲN dòng thay vì in một
+   * dấu gạch. Dấu gạch đọc ra là "đã kiểm, không có"; vắng mặt đọc ra là "chưa
+   * biết". Người học đang chẩn đoán một pod OOMKilled cần đúng sự phân biệt đó.
+   *
+   * Cộng dồn chứ không tách theo container: dòng này trả lời "pod này xin bao
+   * nhiêu" — đúng con số scheduler và ResourceQuota dùng. Chi tiết từng
+   * container nằm ở tab Mô tả, nơi có chỗ in đầy đủ.
+   */
+  readonly requests: ResourceAmountView | null;
+  readonly limits: ResourceAmountView | null;
+  /**
+   * Tick object được tạo. TUỔI được tính tại chỗ dùng (`tick - createdTick`),
+   * không lưu — tuổi là trường suy ra được, và repo cấm lưu loại đó.
+   */
+  readonly createdTick: number;
   /** Chỉ có ở Pod. */
   readonly phase?: PodPhase;
   readonly reason?: PodReason;
@@ -392,6 +459,41 @@ export interface EventView {
   readonly level: 'info' | 'warning' | 'error';
   /** Tiếng Việt. Đây cũng là nội dung đẩy vào vùng `aria-live`. */
   readonly message: string;
+  /**
+   * uid của object sự kiện nói về. `null` = sự kiện ở phạm vi cụm (scheduler
+   * chung, quota chung) và không thuộc về object nào.
+   *
+   * ⛔ Bắt buộc, không tuỳ chọn, dù giá trị có thể là `null`. Đây là trục lọc
+   * DUY NHẤT đúng cho tab Sự kiện: cách còn lại là dò tên object trong `message`,
+   * và cách đó sai một cách IM LẶNG — một cụm có `web` và `web-2` sẽ cho pod
+   * `web` ăn hết sự kiện của `web-2`, không có gì đỏ ở đâu cả. Để trường này
+   * tuỳ chọn thì mọi chỗ tiêu thụ phải nhớ kiểm, và chỗ nào quên thì rơi thẳng
+   * về đúng cái lỗi im lặng đó.
+   */
+  readonly involvedUid: string | null;
+}
+
+/**
+ * Một sự cố trong danh sách sự cố.
+ *
+ * ⚠ Trùng hình dạng với `ActiveIncident` của `model.ts` là CỐ Ý và là một ràng
+ * buộc, không phải trùng hợp: `toView` truyền thẳng `state.incidents` sang đây
+ * mà không sao chép. Nhờ thế phép chiếu không cấp phát gì trong đường nóng, và
+ * tham chiếu mảng ổn định giữa các tick không có sự cố mới — thứ mà `useMemo`
+ * phía React dựa vào. Cái giá là hai kiểu phải ở NGUYÊN hình dạng của nhau, nên
+ * `view.test.ts` giữ một cổng gác hai chiều: thêm field vào một bên mà quên bên
+ * kia là đỏ ngay, chứ không âm thầm rò một field nội bộ của engine ra giao diện.
+ *
+ * ⚠ Không có trường `active`. Còn hoạt động hay không SUY RA được từ
+ * `resolvedTick === null`, và repo cấm lưu trường suy ra được.
+ */
+export interface IncidentView {
+  readonly kind: IncidentKind;
+  /** uid object bị ảnh hưởng. Có thể trỏ tới object đã bị xoá — giao diện tự lo. */
+  readonly targetUid: string;
+  readonly startedTick: number;
+  /** `null` = còn đang xảy ra. Đã xử lý thì GIỮ bản ghi kèm tick, không xoá. */
+  readonly resolvedTick: number | null;
 }
 
 // ── Nhật ký hành động — nền tảng của xác minh chống gian lận ────────────────
@@ -500,6 +602,22 @@ export interface K8sSession {
    * Nói cách khác: tốc độ là thứ NGƯỜI CHƠI nhìn, không phải thứ MÔ PHỎNG làm.
    */
   setSpeed(multiplier: number): void;
+  /**
+   * Tạm dừng mô phỏng. Gọi nhiều lần liên tiếp là vô hại.
+   *
+   * ⛔ CỐ Ý là đường riêng, KHÔNG phải `setSpeed(0)`. `setSpeed` kẹp sàn ở 0.25
+   * và cái kẹp đó phải giữ nguyên: chu kỳ `setInterval` bằng 0 được trình duyệt
+   * hiểu là "nhanh nhất có thể", tức treo tab chứ không phải báo lỗi. Hệ quả là
+   * `setSpeed(0)` cho ra 0.25× — một nút "tạm dừng" bấm vào thì cụm vẫn chạy,
+   * chỉ chậm lại. Đó là một nút NÓI DỐI, và người chơi dựa vào nó để đọc kỹ một
+   * trạng thái sẽ thấy trạng thái đó trôi đi dưới tay mình.
+   *
+   * Tạm dừng là một TRẠNG THÁI khác hẳn tốc độ, nên nó dừng hẳn bộ đếm giờ và
+   * giữ nguyên `speed` — `resume()` trả về đúng tốc độ người dùng đã chọn.
+   */
+  pause(): void;
+  /** Chạy tiếp ở đúng tốc độ trước khi dừng. Gọi khi chưa dừng là vô hại. */
+  resume(): void;
   /** Dừng vòng lặp thời gian. Lane E gọi lúc unmount. */
   dispose(): void;
 }

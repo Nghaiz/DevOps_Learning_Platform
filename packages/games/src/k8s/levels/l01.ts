@@ -12,19 +12,13 @@ export const l01: Level = {
   id: 'k8s-01-pod-dau-tien',
   chapter: 1,
   title: 'Pod đầu tiên',
+  mission:
+    'Tạo pod `web` trong namespace `hoc-tap` chạy `nginx:1.27-alpine`, rồi đưa nó tới Running.',
   brief: `Bạn vừa được cấp một cluster Kubernetes trống. Một node, không object nào,
 \`kubectl get pods\` trả về đúng một dòng: *No resources found*.
 
-Đơn vị nhỏ nhất mà Kubernetes chịu chạy không phải là container — mà là **pod**,
-một lớp bọc quanh một hoặc nhiều container, chia nhau cùng địa chỉ mạng và cùng
-vùng lưu trữ tạm. Bạn không nói với Kubernetes "hãy chạy container này"; bạn khai
-báo "cluster phải có một pod trông như thế này", rồi để nó tự lo phần còn lại.
-
-**Việc cần làm:** dựng một pod tên \`web\` trong namespace \`hoc-tap\`, chạy image
-\`nginx:1.27-alpine\`, và đưa được nó tới trạng thái Running.
-
-Đừng vội. Sau khi tạo xong, hãy xem pod đi qua những trạng thái nào trước khi tới
-Running — sáu level tới đều dựa trên việc bạn đọc được các trạng thái đó.`,
+Đây là chỗ bạn dựng thứ đầu tiên của mình. Tạo xong đừng đóng ngay: hãy nhìn pod
+đi qua những trạng thái nào trước khi tới Running.`,
   difficulty: 'basic',
   initialState: {
     nodes: [{ name: 'may-chu-1', cpu: 4000, memory: 8192, ready: true }],
@@ -63,34 +57,23 @@ Running — sáu level tới đều dựa trên việc bạn đọc được cá
   parMoves: 1,
   teaches: ['pod', 'container', 'image', 'namespace', 'kubectl apply', 'pod phase'],
   teaching: {
-    primer: `Kubernetes không chạy container trực tiếp. Đơn vị nhỏ nhất mà nó xếp lên
-node là **pod**: một lớp bọc quanh một hoặc nhiều container, chia nhau một địa
-chỉ IP và một vùng lưu trữ tạm.
+    primer: `Kubernetes không chạy container trực tiếp. Đơn vị nhỏ nhất nó xếp lên node là
+**pod**: một lớp bọc quanh một hoặc nhiều container, chia nhau một địa chỉ IP và
+một vùng lưu trữ tạm.
 
-Cách làm việc với Kubernetes là **khai báo**, không phải ra lệnh từng bước. Bạn
-không nói "hãy chạy container này"; bạn ghi ra trạng thái mong muốn, rồi cluster
-liên tục so mong muốn với thực tế và tự đóng khoảng cách. Mọi thứ ở các chương
-sau đều là biến thể của ý này.
+Cách làm việc với nó là **khai báo**: bạn ghi ra trạng thái mong muốn, rồi cluster
+liên tục so nó với thực tế và tự đóng khoảng cách. Mọi thứ ở các chương sau đều
+là biến thể của ý này.
 
-Một pod tối thiểu cần bốn thứ: tên, namespace, tên container, và image.
-**Namespace** là ranh giới đặt tên: hai namespace chứa được hai pod cùng tên
-\`web\` mà không đụng nhau, và lệnh \`kubectl\` nào không ghi \`-n\` thì làm việc
-với namespace \`default\`.
+**Namespace** là ranh giới đặt tên: hai namespace chứa được hai pod cùng tên mà
+không đụng nhau.
 
-Sau khi được tạo, pod đi qua vài **phase**. \`Pending\` nghĩa là API server đã
-nhận bản khai nhưng container chưa chạy: pod đang chờ được xếp lên node, hoặc
-node đang kéo image về. \`Running\` nghĩa là ít nhất một container đã khởi động.
-
-Nhìn vào đâu: \`kubectl get pods\` cho bạn phase, \`kubectl describe pod\` cho
-bạn từng bước kubelet đã làm và lý do nó dừng lại.`,
+**Phase** là chỗ pod đang đứng trong vòng đời: \`Pending\` là chưa container nào
+chạy, \`Running\` là đã có container khởi động.`,
     cheatsheet: [
       {
         command: 'kubectl get pods -n hoc-tap',
         explain: 'Liệt kê pod trong namespace. Cột STATUS chính là phase bạn đang chờ đổi.',
-      },
-      {
-        command: 'kubectl get pods -n hoc-tap -o wide',
-        explain: 'Thêm cột IP và NODE, cho biết pod đã được xếp lên máy nào.',
       },
       {
         command: 'kubectl describe pod web -n hoc-tap',
@@ -102,7 +85,8 @@ bạn từng bước kubelet đã làm và lý do nó dừng lại.`,
       },
       {
         command: 'kubectl apply -f pod.yaml',
-        explain: 'Đưa một bản khai báo vào cluster. Chạy lại nhiều lần vẫn ra cùng kết quả.',
+        explain:
+          'Đưa một bản khai vào cluster. Một pod tối thiểu cần bốn thứ: tên, namespace, tên container, image.',
       },
     ],
     takeaways: [
@@ -112,8 +96,8 @@ bạn từng bước kubelet đã làm và lý do nó dừng lại.`,
       'Namespace là ranh giới đặt tên, nên thiếu cờ `-n` là bạn đang nhìn nhầm chỗ.',
     ],
     proTips: [
-      'Thêm `-w` vào `kubectl get pods` để xem trạng thái đổi theo thời gian thực thay vì gõ lại lệnh.',
-      '`kubectl run web --image=nginx:1.27-alpine --dry-run=client -o yaml` sinh sẵn khung YAML để bạn sửa, nhanh hơn gõ từ đầu.',
+      'Một pod tối thiểu cần bốn thứ: tên, namespace, tên container, và image. Thiếu image thì API server từ chối ngay chứ không tạo ra một pod hỏng để bạn phải đi dọn.',
+      'Gõ lại `kubectl get pods` vài lần trong lúc chờ. Thấy phase tự đổi là thấy reconciliation loop đang chạy.',
     ],
     pitfalls: [
       'Quên `-n` rồi kết luận pod chưa được tạo. Lệnh chạy đúng, chỉ là nó đang nhìn namespace `default` trong khi pod nằm ở chỗ khác.',

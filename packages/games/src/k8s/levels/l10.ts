@@ -12,25 +12,12 @@ export const l10: Level = {
   id: 'k8s-10-replicaset-mo-coi',
   chapter: 2,
   title: 'ReplicaSet không ai nhận',
-  brief: `Một người trong đội đã tạo tay một ReplicaSet tên \`web-tam\` hồi tháng trước để
-thử nghiệm, rồi quên nó ở đó. ReplicaSet này gắn cho pod của nó **đúng cái label
-mà Deployment \`web\` dùng làm selector**: \`app=web\`.
+  mission: 'Dọn ReplicaSet mồ côi `web-tam` và đưa Deployment `web` về đúng 4 pod của chính nó.',
+  brief: `Một người trong đội tạo tay ReplicaSet \`web-tam\` để thử nghiệm rồi quên nó ở đó.
+Pod của nó mang đúng label mà Deployment \`web\` dùng làm selector: \`app=web\`.
 
-Kết quả là một tình huống khó chịu. Deployment \`web\` muốn 4 pod \`app=web\`.
-Nó đếm pod theo label, thấy đủ 4 — nhưng 3 trong số đó do \`web-tam\` sinh ra và
-chạy image cũ. Nên Deployment giữ ReplicaSet của chính nó ở đúng 1 pod. Một nửa
-lưu lượng vào \`web\` đang được phục vụ bởi một phiên bản mà không ai chủ ý deploy.
-
-Đây là hệ quả trực tiếp của một điều bạn đã dùng từ level 6 mà chưa để ý: các
-tầng trong Kubernetes nối với nhau bằng **label**, không bằng tên hay quan hệ cha
-con cứng. Label là chuỗi tự do, và không có gì ngăn hai chủ sở hữu cùng đòi một
-nhóm pod.
-
-**Việc cần làm:** dọn ReplicaSet mồ côi đi, và đưa Deployment \`web\` về đúng 4
-pod của chính nó, tất cả chạy \`nginx:1.27-alpine\`.
-
-Xoá ReplicaSet cũng xoá luôn pod nó sở hữu. Điều đó là đúng ở đây — nhưng hãy
-kiểm tra kỹ bạn đang xoá cái nào trước khi gõ.`,
+Deployment \`web\` muốn 4 pod \`app=web\`, đếm theo label thấy đủ 4, nên giữ
+ReplicaSet của chính nó ở 1 pod. Ba pod còn lại chạy image cũ.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [
@@ -109,7 +96,7 @@ kiểm tra kỹ bạn đang xoá cái nào trước khi gõ.`,
     },
   ],
   hints: [
-    '`kubectl get pods -n san-pham -o wide` cho bạn thấy các pod, nhưng không cho biết ai sinh ra chúng. Thứ trả lời được câu đó nằm trong `kubectl describe pod` — dòng `Controlled By`.',
+    '`kubectl get pods -n san-pham` cho bạn thấy các pod, nhưng không cho biết ai sinh ra chúng. Thứ trả lời được câu đó nằm trong `kubectl describe pod` — dòng `Controlled By`.',
     '`kubectl get rs -n san-pham` liệt kê mọi ReplicaSet. Cái do Deployment tạo ra có hậu tố băm ngẫu nhiên trong tên và có `Controlled By: Deployment/web`; cái tạo tay thì không có chủ.',
     'Xoá ReplicaSet `web-tam`. Pod của nó biến mất theo, số pod `app=web` tụt xuống, và Deployment `web` tự tạo bù cho đủ 4 — bạn không cần scale gì thêm.',
   ],
@@ -124,24 +111,17 @@ kiểm tra kỹ bạn đang xoá cái nào trước khi gõ.`,
   ],
   teaching: {
     primer: `Từ level 6 tới giờ bạn dựa vào **label** mà chưa nhìn kỹ nó. Label là cặp
-khoá-giá trị tự do gắn lên object, và mọi quan hệ giữa các tầng trong Kubernetes
-đều đi qua nó: ReplicaSet nhận pod bằng label, Service tìm pod bằng label.
+khoá-giá trị tự do, và mọi quan hệ giữa các tầng đều đi qua nó.
 
-Điểm quan trọng: label là chuỗi tự do và **không có tính độc quyền**. Hai
-controller cùng khai selector \`app=web\` sẽ cùng đòi một nhóm pod. Không có gì
-trong Kubernetes ngăn việc đó, và không có cảnh báo nào bật lên.
+Điểm quan trọng: label **không có tính độc quyền**. Hai controller cùng khai
+selector \`app=web\` sẽ cùng đòi một nhóm pod, và không có cảnh báo nào bật lên.
 
-Vậy làm sao biết pod nào thật sự thuộc về ai? Không xem label, mà xem
-**ownerReferences**: một trường trong metadata của pod, trỏ tới object đã tạo ra
-nó. \`kubectl describe pod\` in nó ra dưới dòng \`Controlled By\`. Đây là quan hệ
-sở hữu thật, và nó là thứ quyết định hai chuyện: ai chịu trách nhiệm dựng lại
-pod, và pod nào bị xoá theo khi bạn xoá controller.
+Vậy pod nào thật sự thuộc về ai? Không xem label, mà xem **ownerReferences** —
+một trường trong metadata trỏ tới object đã tạo ra pod, in ra ở dòng
+\`Controlled By\`. Đó mới là quan hệ sở hữu thật.
 
 Xoá một controller sẽ **xoá luôn** pod nó sở hữu. Cơ chế đó tên là cascading
-delete, và ở đây nó có lợi: bạn xoá một ReplicaSet, pod của nó biến mất, số pod
-khớp label tụt xuống, và Deployment thật tự tạo bù cho đủ.
-
-Nhìn vào đâu: \`Controlled By\` trong \`describe pod\`, không phải cột label.`,
+delete.`,
     cheatsheet: [
       {
         command: 'kubectl get rs -n san-pham',
@@ -149,15 +129,17 @@ Nhìn vào đâu: \`Controlled By\` trong \`describe pod\`, không phải cột 
       },
       {
         command: 'kubectl describe pod <ten-pod> -n san-pham',
-        explain: 'Dòng Controlled By nói ai thật sự sở hữu pod này, khác hẳn với ai đang khớp label.',
+        explain:
+          'Dòng Controlled By nói ai thật sự sở hữu pod này, khác hẳn với ai đang khớp label.',
       },
       {
         command: 'kubectl get pods -n san-pham --show-labels',
         explain: 'Thấy pod nào mang label nào, để hiểu vì sao hai controller cùng đòi chúng.',
       },
       {
-        command: 'kubectl get pods -n san-pham -o custom-columns=POD:.metadata.name,CHU:.metadata.ownerReferences[*].name',
-        explain: 'Bảng pod kèm chủ sở hữu trong một lệnh, nhanh hơn describe từng pod.',
+        command: 'kubectl describe rs web-tam -n san-pham',
+        explain:
+          'ReplicaSet tạo tay không có dòng Controlled By: nó không có chủ, và đó là định nghĩa của mồ côi.',
       },
       {
         command: 'kubectl delete rs web-tam -n san-pham',

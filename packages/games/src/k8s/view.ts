@@ -20,6 +20,7 @@ import type {
   NodeView,
   ObjectView,
   PodReason,
+  ResourceAmountView,
 } from './contract.ts';
 import type { ClusterState, K8sObject } from './model.ts';
 import { podRuntime } from './model.ts';
@@ -31,8 +32,11 @@ import {
   podsOwnedBy,
   readyPods,
   serviceEndpoints,
+  workloadTemplate,
 } from './query.ts';
-import { KINDS, asNumber, asRecord, asString, readSelector } from './resources.ts';
+import type { ContainerSpec } from './resources.ts';
+import { KINDS, asNumber, asRecord, asString, readContainers, readSelector } from './resources.ts';
+import { formatCpuMilli, formatMemoryMi } from './describe.ts';
 import { TICK_MS } from './tick.ts';
 
 /** Lý do khiến người chơi phải SỬA gì đó, không phải chỉ chờ. */
@@ -163,13 +167,75 @@ function ariaLabelFor(state: ClusterState, object: K8sObject): string {
   return `${object.kind} ${object.name} trong ${where}.`;
 }
 
+/**
+ * Mảng rỗng DÙNG CHUNG cho mọi object không có container.
+ *
+ * `readContainers` cấp phát một mảng mới ngay cả khi không có container nào, và
+ * `toObjectView` chạy cho MỌI object ở MỌI tick. Với một cụm vài chục tài nguyên
+ * ở nhịp 2 lần/giây, đó là hàng nghìn mảng rỗng mỗi phút cho bộ gom rác — không
+ * làm sập gì, nhưng là rác sinh ra để không ai dùng.
+ */
+const EMPTY_CONTAINERS: readonly ContainerSpec[] = [];
+
+/**
+ * Danh sách container của object, dù nó khai trực tiếp (Pod) hay qua template
+ * (Deployment, StatefulSet, DaemonSet…).
+ *
+ * `workloadTemplate` chỉ là một phép ép kiểu trên `spec['template']` — không cấp
+ * phát gì và trả `null` cho mọi loại không có template, nên Service/ConfigMap
+ * thoát ra trước khi chạm tới `readContainers`.
+ */
+function containersOf(object: K8sObject): readonly ContainerSpec[] {
+  const source = object.kind === 'Pod' ? object.spec : workloadTemplate(object);
+  return source === null ? EMPTY_CONTAINERS : readContainers(source, TICK_MS);
+}
+
+/**
+ * Cộng dồn `requests` (hoặc `limits`) qua mọi container.
+ *
+ * ⚠ `null` được GIỮ, không quy về 0. Kubernetes phân biệt "không đặt" với "đặt
+ * bằng 0" — một pod không khai requests là BestEffort và làm HPA mù, đó chính là
+ * sự cố `hpa-khong-co-metrics`. Cộng `?? 0` ở đây sẽ hiện `0m` cho một pod chưa
+ * khai gì, và người học đọc ra là "đã khai, khai bằng 0".
+ */
+function amountOf(containers: readonly ContainerSpec[], limits: boolean): ResourceAmountView | null {
+  let cpu: number | null = null;
+  let memory: number | null = null;
+  for (const container of containers) {
+    const cpuPart = limits ? container.limitsCpu : container.requestsCpu;
+    const memoryPart = limits ? container.limitsMemory : container.requestsMemory;
+    if (cpuPart !== null) {
+      cpu = (cpu ?? 0) + cpuPart;
+    }
+    if (memoryPart !== null) {
+      memory = (memory ?? 0) + memoryPart;
+    }
+  }
+  if (cpu === null && memory === null) {
+    return null;
+  }
+  return {
+    cpu: cpu === null ? null : formatCpuMilli(cpu),
+    memory: memory === null ? null : formatMemoryMi(memory),
+  };
+}
+
 function toObjectView(state: ClusterState, object: K8sObject): ObjectView {
   const pod = podRuntime(object);
+  const containers = containersOf(object);
   return {
     uid: object.uid,
     kind: object.kind,
     name: object.name,
     namespace: object.namespace,
+    // Truyền THẲNG tham chiếu của state, không sao chép: `K8sObject.labels` đã
+    // bất biến, và một `{...object.labels}` ở đây là một object mới cho mỗi tài
+    // nguyên ở mỗi tick — vừa là rác, vừa phá phép so `Object.is` mà React dùng
+    // để bỏ qua render.
+    labels: object.labels,
+    requests: amountOf(containers, false),
+    limits: amountOf(containers, true),
+    createdTick: object.createdTick,
     // Spread có điều kiện chứ không gán `undefined`: `exactOptionalPropertyTypes`
     // của repo phân biệt "field vắng" với "field bằng undefined", và bốn field
     // dưới đây CHỈ có nghĩa với Pod.
@@ -295,6 +361,10 @@ function toEvents(state: ClusterState): readonly EventView[] {
     tick: event.tick,
     level: event.level,
     message: event.message,
+    // Trục lọc của tab Sự kiện. Đánh rơi nó ở đây thì cách lọc duy nhất còn lại
+    // là dò tên object trong `message`, và cách đó sai IM LẶNG: một cụm có `web`
+    // và `web-2` sẽ cho pod `web` ăn hết sự kiện của `web-2`.
+    involvedUid: event.involvedUid,
   }));
 }
 
@@ -317,6 +387,20 @@ export function toView(state: ClusterState): ClusterView {
     objects: drawable.map((object) => toObjectView(state, object)),
     edges: toEdges(state),
     events: toEvents(state),
+    /*
+     * Truyền THẲNG mảng của state, không `.map()`.
+     *
+     * `IncidentView` và `ActiveIncident` cùng hình dạng, nên phép gán này hợp lệ
+     * về kiểu và không cấp phát gì trong đường nóng. Nó còn giữ tham chiếu ổn
+     * định giữa những tick không có sự cố mới — thứ mà `useMemo` phía bảng sự cố
+     * dựa vào để khỏi lọc lại danh sách mỗi nhịp.
+     *
+     * Cái giá là hai kiểu phải ở nguyên hình dạng của nhau. `view.test.ts` giữ
+     * cổng gác hai chiều cho đúng chuyện đó: thêm một field vào `ActiveIncident`
+     * mà quên `IncidentView` sẽ rò một field nội bộ của engine ra giao diện
+     * trong im lặng, vì cấu trúc thật vẫn mang nó dù kiểu không khai.
+     */
+    incidents: state.incidents,
   };
 }
 

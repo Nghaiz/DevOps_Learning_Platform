@@ -13,20 +13,12 @@ export const l02: Level = {
   id: 'k8s-02-tag-image-khong-ton-tai',
   chapter: 1,
   title: 'Pod không bao giờ khởi động',
-  brief: `Một đồng nghiệp vừa đẩy pod \`api\` lên namespace \`nen-tang\` rồi tan ca.
-Pod đó đã nằm đó mười lăm phút và chưa từng chạy. Cột READY ghi \`0/1\`, cột
-STATUS không phải Running.
+  mission: 'Đưa pod `api` trong `nen-tang` về Running mà không đụng tới pod `api-cu` đang chạy.',
+  brief: `Một đồng nghiệp đẩy pod \`api\` lên namespace \`nen-tang\` rồi tan ca. Mười lăm phút
+sau nó vẫn chưa từng chạy: READY \`0/1\`, STATUS không phải Running.
 
-Điều đáng chú ý: bên cạnh nó, pod \`api-cu\` vẫn chạy bình thường, phục vụ đúng
-ứng dụng đó. Nghĩa là node khoẻ, mạng thông, namespace không có gì chặn — vấn đề
-nằm ở chính pod mới.
-
-**Việc cần làm:** đưa pod \`api\` về trạng thái Running.
-
-Đây là lúc học một thói quen quan trọng hơn cả đáp án của level này: khi một pod
-không lên được, thứ đầu tiên cần đọc không phải là log của ứng dụng. Ứng dụng
-còn chưa chạy thì lấy đâu ra log. Thứ cần đọc là những gì **kubelet** đã ghi lại
-khi nó cố tạo container và thất bại.`,
+Ngay cạnh nó, pod \`api-cu\` phục vụ đúng ứng dụng đó bình thường. Node khoẻ, mạng
+thông — vấn đề nằm ở chính pod mới.`,
   difficulty: 'basic',
   initialState: {
     nodes: [{ name: 'may-chu-1', cpu: 4000, memory: 8192, ready: true }],
@@ -50,7 +42,11 @@ khi nó cố tạo container và thất bại.`,
         spec: {
           labels: { app: 'api', phien_ban: 'moi' },
           containers: [
-            { name: 'api', image: 'ghcr.io/dlp/api:1.4.2-hotfix', ports: [{ containerPort: 8080 }] },
+            {
+              name: 'api',
+              image: 'ghcr.io/dlp/api:1.4.2-hotfix',
+              ports: [{ containerPort: 8080 }],
+            },
           ],
         },
         seededIncident: 'image-tag-sai',
@@ -83,7 +79,7 @@ khi nó cố tạo container và thất bại.`,
   ],
   hints: [
     '`kubectl get pods` chỉ cho bạn biết pod KHÔNG ổn. Muốn biết vì sao, dùng `kubectl describe pod api -n nen-tang` và đọc phần Events ở cuối — đó là nhật ký kubelet ghi lại từng bước nó thử làm.',
-    'Events nói kubelet không kéo được image về. Trước khi sửa, hãy đọc chính xác chuỗi image mà pod đang khai báo: `kubectl get pod api -n nen-tang -o jsonpath="{.spec.containers[*].image}"`.',
+    'Events nói kubelet không kéo được image về. Trước khi sửa, hãy đọc chính xác chuỗi image mà pod đang khai báo: `kubectl describe pod api -n nen-tang`, dòng Image trong khối Containers.',
     'Trong namespace này có một pod khác đang chạy được cùng ứng dụng đó. Tag mà nó dùng là tag chắc chắn tồn tại trong registry. So hai chuỗi image với nhau, rồi sửa pod `api` về tag đó.',
   ],
   parMoves: 2,
@@ -95,45 +91,36 @@ khi nó cố tạo container và thất bại.`,
     'container registry',
   ],
   teaching: {
-    primer: `Để một pod chạy được, kubelet trên node làm ba việc theo thứ tự: **kéo image**
-về máy, **tạo container** từ image đó, rồi **chạy** nó. Mỗi bước hỏng cho một
-triệu chứng khác nhau, và biết pod chết ở bước nào là một nửa việc chẩn đoán.
+    primer: `Để một pod chạy được, kubelet làm ba việc theo thứ tự: **kéo image** về node,
+**tạo container** từ image đó, rồi **chạy** nó. Biết pod chết ở bước nào là một
+nửa việc chẩn đoán.
 
-Level này dừng ở bước một. \`ImagePullBackOff\` nghĩa là kubelet đã thử kéo image
-và thất bại, nên chưa có container nào tồn tại. Hệ quả rất thực tế: **không có
-log để đọc**. Ứng dụng còn chưa khởi động thì không có gì để ghi ra.
+\`ImagePullBackOff\` là hỏng ở bước một: kubelet đã thử kéo image và thất bại, nên
+chưa có container nào tồn tại. Hệ quả: **không có log để đọc**. Chữ *BackOff*
+nghĩa là nó vẫn thử lại, mỗi lần chờ lâu hơn, nên trạng thái này không tự khỏi.
 
-Thứ có ghi lại là **Events** của pod. Kubelet ghi vào đó từng lần thử và từng
-lỗi, và \`kubectl describe pod\` in chúng ở cuối. Chữ *BackOff* nghĩa là nó vẫn
-đang thử lại, mỗi lần chờ lâu hơn lần trước, nên trạng thái này không tự khỏi.
+Thứ có ghi lại là **Events** của pod — nhật ký kubelet, in ở cuối \`describe\`.
 
-Một chuỗi image gồm ba phần: \`registry/repository:tag\`. Ba nguyên nhân thường
-gặp là tag không tồn tại, registry không với tới được, và registry riêng tư mà
-pod không có thông tin đăng nhập. Ở đây node vẫn kéo được image cho pod khác
-trong cùng namespace, nên hai nguyên nhân sau đã tự loại trừ.
-
-Nhìn vào đâu: Events của pod, rồi chuỗi image mà pod đang khai, rồi một thứ đang
-chạy được để đối chiếu.`,
+Một chuỗi image gồm ba phần: \`registry/repository:tag\`. Sai bất kỳ phần nào cũng
+cho cùng một triệu chứng.`,
     cheatsheet: [
       {
         command: 'kubectl describe pod api -n nen-tang',
         explain: 'Events ở cuối là nhật ký kubelet. Lỗi kéo image nằm ở đó, không nằm trong log.',
       },
       {
-        command: 'kubectl get pod api -n nen-tang -o jsonpath="{.spec.containers[*].image}"',
-        explain: 'In đúng chuỗi image pod đang khai, tránh đọc nhầm bằng mắt.',
+        command: 'kubectl get pods -n nen-tang',
+        explain: 'Cột READY `0/1` cộng STATUS tách "chưa từng chạy" khỏi "chạy rồi chết".',
       },
       {
-        command: 'kubectl get pods -n nen-tang -o wide',
-        explain: 'So pod hỏng với pod đang chạy cạnh nó: cùng node thì loại trừ được lỗi mạng của node.',
+        command: 'kubectl describe pod api-cu -n nen-tang',
+        explain:
+          'Đọc chuỗi image của pod đang chạy được: đó là tag chắc chắn có thật trong registry.',
       },
       {
-        command: 'kubectl get events -n nen-tang --sort-by=.lastTimestamp',
-        explain: 'Xem mọi sự kiện trong namespace theo thứ tự thời gian khi chưa biết pod nào có lỗi.',
-      },
-      {
-        command: 'kubectl set image pod/api api=ghcr.io/dlp/api:1.4.2 -n nen-tang',
-        explain: 'Đổi image của một container đã khai, không phải viết lại cả pod.',
+        command: 'kubectl edit pod api -n nen-tang',
+        explain:
+          'Sửa thẳng trường `image`. Với pod trần, đây là một trong số rất ít field đổi được.',
       },
     ],
     takeaways: [
@@ -149,6 +136,7 @@ chạy được để đối chiếu.`,
     pitfalls: [
       'Chạy `kubectl logs` đầu tiên vì đó là phản xạ quen. Log trống làm nhiều người tưởng ứng dụng im lặng, trong khi thật ra nó chưa bao giờ được khởi động.',
       'Xoá pod rồi tạo lại y hệt. Bộ đếm BackOff về không nên trạng thái trông khá hơn trong vài giây, nhưng chuỗi image vẫn sai và pod hỏng lại đúng như cũ.',
+      'Tin vào trí nhớ về tag thay vì đọc từ một pod đang chạy được. Tag nghe hợp lý và tag có thật là hai chuyện khác nhau, và registry không tha thứ.',
     ],
   },
 };

@@ -20,39 +20,14 @@ export const l20: Level = {
   id: 'k8s-20-mat-khau-nam-nham-cho',
   chapter: 4,
   title: 'Mọi thứ xanh, và vẫn phải sửa',
-  brief: `Đợt rà soát an ninh nội bộ gắn cờ namespace \`ke-toan\`. Không có sự cố nào cả:
-Deployment \`so-sach\` đủ 2 replica sẵn sàng, không pod nào restart, log sạch,
-dịch vụ phục vụ bình thường.
+  mission: 'Chuyển mật khẩu từ ConfigMap sang Secret mount vào `/etc/bi-mat`, xoá ConfigMap cũ, giữ 2 replica.',
+  brief: `Đợt rà soát an ninh gắn cờ namespace \`ke-toan\`. Không có sự cố nào: Deployment
+\`so-sach\` đủ 2 replica, không pod nào restart, log sạch.
 
-Vấn đề là mật khẩu cơ sở dữ liệu đang nằm trong ConfigMap \`so-sach-bi-mat\`.
+Mật khẩu cơ sở dữ liệu đang nằm trong ConfigMap \`so-sach-bi-mat\`, nơi ai đọc
+được ConfigMap cũng đọc được nó.
 
-ConfigMap không có bất kỳ lớp bảo vệ nào. Nội dung của nó hiện nguyên văn trong
-\`kubectl get -o yaml\`, đi vào mọi bản sao lưu của etcd ở dạng đọc được, và ai có
-quyền đọc ConfigMap trong namespace, thường là rất nhiều người, đều đọc được.
-
-**Secret** không phải là mã hoá. Mặc định nó chỉ được biểu diễn bằng base64, và
-base64 không phải bảo mật. Cái Secret thật sự mang lại là **một loại object riêng
-để phân quyền**: RBAC cấp quyền theo loại, nên đọc Secret cấp riêng được và
-thường bị siết chặt, trong khi đọc ConfigMap thì mở cho cả đội. Đó là khác biệt
-có thật và đủ để đáng làm.
-
-Đưa Secret vào bằng biến môi trường vẫn còn rò: giá trị hiện trong
-\`kubectl describe pod\` và thừa kế xuống mọi tiến trình con. Mount thành file
-thì không.
-
-**Việc cần làm:**
-
-1. Tạo Secret \`so-sach-db\` chứa \`DB_MAT_KHAU\`.
-2. Sửa template của Deployment \`so-sach\` để nó mount Secret đó vào
-   \`/etc/bi-mat\`, và thôi tham chiếu ConfigMap chứa mật khẩu.
-3. Xoá hẳn ConfigMap \`so-sach-bi-mat\`.
-
-Giữ nguyên ConfigMap \`so-sach-cau-hinh\` và giữ dịch vụ đủ 2 replica sẵn sàng khi
-xong. Bạn sửa **template**, không sửa pod: pod đang chạy không cho đổi volume, và
-Deployment sẽ thay chúng bằng một thế hệ mới.
-
-Một điều nữa, thật ngoài đời và không kiểm được ở đây: mật khẩu đã lộ thì đổi chỗ
-cất không cứu được nó. Nó phải được đổi.`,
+Giữ nguyên ConfigMap \`so-sach-cau-hinh\`. Bạn sửa template, không sửa pod.`,
   difficulty: 'intermediate',
   initialState: {
     nodes: [{ name: 'may-chu-1', cpu: 4000, memory: 8192, ready: true }],
@@ -155,7 +130,7 @@ cất không cứu được nó. Nó phải được đổi.`,
     },
   ],
   hints: [
-    'Không có gì để `describe` ở level này — không pod nào lỗi. Thứ cần đọc là nội dung: `kubectl get configmap -n ke-toan -o yaml` và tự hỏi giá trị nào trong đó không nên để ai cũng đọc được.',
+    'Không có gì để `describe` ở level này — không pod nào lỗi. Thứ cần đọc là nội dung: `kubectl describe configmap -n ke-toan` và tự hỏi giá trị nào trong đó không nên để ai cũng đọc được.',
     'Secret khai giống ConfigMap, chỉ khác `kind` và thêm trường `type` (dùng `Opaque` cho dữ liệu tự do). Muốn mount thành file thì khai một volume kiểu `secret` trong template của Deployment, rồi `volumeMounts` trong container trỏ tới nó.',
     'Tạo Secret `so-sach-db` với khoá `DB_MAT_KHAU`. Trong template của Deployment: thêm volume `bi-mat` kiểu secret trỏ tới `so-sach-db`, thêm `volumeMounts` với `mountPath: /etc/bi-mat`, bỏ dòng `envFrom` trỏ tới `so-sach-bi-mat`, rồi xoá ConfigMap đó. Giữ nguyên `envFrom` trỏ tới `so-sach-cau-hinh`. Đổi template làm Deployment thay pod bằng thế hệ mới — đó là rollout của chương 2.',
   ],
@@ -172,49 +147,38 @@ cất không cứu được nó. Nó phải được đổi.`,
     'xoay vòng credential',
   ],
   teaching: {
-    primer: `Mười chín level vừa rồi dựng lên một phản xạ: mở \`kubectl get pods\`, thấy xanh
-hết thì yên tâm. Level này tồn tại để bác bỏ nó. Cluster ở đây hoàn toàn khoẻ và
-vẫn có một thứ phải sửa.
+    primer: `Mười chín level vừa rồi dựng một phản xạ: xanh hết thì yên tâm. Level này bác bỏ
+nó. Cluster khoẻ, và vẫn có thứ phải sửa.
 
-**ConfigMap không có lớp bảo vệ nào.** Nội dung hiện nguyên văn trong
-\`kubectl get -o yaml\`, đi vào bản sao lưu etcd ở dạng đọc được, và ai có quyền
-đọc ConfigMap trong namespace, thường là cả đội, đều đọc được.
+**ConfigMap không có lớp bảo vệ nào.** Nội dung hiện nguyên văn với ai đọc được nó
+và đi vào bản sao lưu etcd ở dạng đọc được.
 
-**Secret không phải mã hoá.** Mặc định nó chỉ được biểu diễn bằng base64, mà
-base64 ai cũng giải ngược được. Cái Secret mang lại là **một loại
-object riêng để phân quyền**: RBAC cấp quyền theo loại, nên quyền đọc Secret siết
-riêng được, trong khi quyền đọc ConfigMap mở cho cả đội.
+**Secret không phải mã hoá.** Mặc định nó chỉ được biểu diễn bằng base64, mà ai
+cũng giải ngược được. Cái nó mang lại là một **loại object riêng để phân quyền**:
+RBAC cấp quyền theo loại, nên quyền đọc Secret siết riêng được.
 
-Cách đưa Secret vào cũng có bậc. Bơm thành biến môi trường vẫn rò: giá trị hiện
-trong \`kubectl describe pod\` và thừa kế xuống mọi tiến trình con. **Mount thành
-file** thì không.
-
-Về cách sửa: bạn không sửa pod đang chạy. Pod gần như bất biến, chỉ đổi
-được \`image\`; \`volumes\` và \`envFrom\` thì không. Vì thế thứ bạn sửa là
-**template của Deployment**, và Deployment thay pod bằng một thế hệ mới, đúng cơ
-chế rollout ở chương 2.
-
-Nhìn vào đâu: nội dung các ConfigMap, tự hỏi giá trị nào không nên ai cũng đọc.`,
+Cách đưa Secret vào cũng có bậc: bơm thành biến môi trường vẫn rò, mount thành
+file thì không.`,
     cheatsheet: [
       {
-        command: 'kubectl get configmap -n ke-toan -o yaml',
+        command: 'kubectl describe configmap -n ke-toan',
         explain: 'Đọc nội dung mọi ConfigMap. Không có gì để describe ở đây, chỉ có nội dung để soi.',
       },
       {
-        command: 'kubectl create secret generic so-sach-db --from-literal=DB_MAT_KHAU=... -n ke-toan',
-        explain: 'Tạo Secret kiểu Opaque cho dữ liệu tự do. Kubernetes tự base64 hoá phần giá trị.',
+        command: 'kind: Secret + type: Opaque',
+        explain: 'Secret khai giống ConfigMap, chỉ khác kind và thêm type. Soạn trong bảng YAML rồi áp dụng.',
       },
       {
-        command: 'kubectl get secret so-sach-db -n ke-toan -o jsonpath="{.data.DB_MAT_KHAU}"',
-        explain: 'In phần base64. Ai cũng giải ngược được, và đó chính là điều cần thấy tận mắt.',
+        command: 'kubectl describe secret so-sach-db -n ke-toan',
+        explain: 'In nội dung Secret. Giá trị chỉ được base64 hoá và ai cũng giải ngược được, đó chính là điều cần thấy tận mắt.',
       },
       {
-        command: 'kubectl edit deployment so-sach -n ke-toan',
-        explain: 'Sửa TEMPLATE. Sửa thẳng pod đang chạy sẽ bị API server từ chối vì pod spec bất biến.',
+        command: 'spec.template.spec.volumes[].secret',
+        explain: 'Khai volume kiểu secret trong TEMPLATE của Deployment, rồi volumeMounts trỏ vào /etc/bi-mat. Sửa thẳng pod đang chạy thì không được: pod spec gần như bất biến.',
       },
       {
-        command: 'kubectl auth can-i get secrets -n ke-toan',
-        explain: 'Hỏi thẳng xem mình có quyền đọc Secret không. Đây là lớp bảo vệ thật của Secret.',
+        command: 'kubectl get secret -n ke-toan',
+        explain: 'Xác nhận Secret đã tồn tại trước khi sửa template trỏ vào nó.',
       },
     ],
     takeaways: [

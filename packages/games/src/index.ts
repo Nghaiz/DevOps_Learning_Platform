@@ -83,6 +83,21 @@ export { SCORE_MAX, checkPlausibility, checkSave, checksum, stampSave } from './
 export { LEVELS } from './k8s/levels/index.ts';
 export { createSession } from './k8s/session.ts';
 
+/*
+ * `K8sEngineSession` là kiểu THẬT mà `createSession` trả về; `K8sSession` trong
+ * hợp đồng là phần tối thiểu. Tầng giao diện cần cả `runCommand` (thanh lệnh)
+ * lẫn `describe` (tab Mô tả của bảng thông số), và cả hai chỉ có ở kiểu đầy đủ.
+ */
+export type { K8sEngineSession } from './k8s/session.ts';
+
+/*
+ * Mười bài OJ mẫu, chuyển từ `CHALLENGES` — và export ngay tại đây là chỗ mà
+ * `CHALLENGES` đã trượt: nó nằm trong package suốt một thời gian dài, chạy được,
+ * có test tham chiếu, mà không ai ngoài package với tới được, nên người dùng
+ * cuối chưa từng nhìn thấy bài nào.
+ */
+export { PROBLEMS_SEED } from './k8s/problems-seed/index.ts';
+
 // ── Hệ bài tập kiểu OJ ──────────────────────────────────────────────────────
 /*
  * Mở export ngay từ commit đầu của hệ này, và đó là bài học rút từ `CHALLENGES`
@@ -170,3 +185,29 @@ export { scoreProblemRun } from './k8s/problem-scoring.ts';
  * lộ ra khi có người vào làm bài.
  */
 export { ALL_KINDS } from './k8s/resources.ts';
+
+/*
+ * Bảng loại tài nguyên và bộ phân tích lệnh, mở cho tầng giao diện.
+ *
+ * Lý do là chống bản sao chép, không phải tiện tay. Bộ gợi ý lệnh của terminal
+ * cần biết có những động từ nào, mỗi động từ nhận cờ gì, và một chuỗi người dùng
+ * gõ (`netpol`, `deploy`, `po`) ứng với loại tài nguyên nào. Không mở thì tầng
+ * giao diện buộc phải chép tay chín động từ, bảng cờ, và một phép đoán số nhiều
+ * bằng cách bỏ hậu tố `s` — phép đoán đó đã trượt sẵn ở `networkpolicies`.
+ *
+ * Cái giá của bản chép không phải là gợi ý sai hôm nay (lệnh vẫn chạy đúng, vì
+ * `parseKubectl` mới là bên phân tích lúc người dùng bấm Enter). Cái giá là
+ * KHÔNG CÓ CỔNG NÀO đỏ khi `kubectl.ts` đổi — bản chép cứ lệch dần và không ai
+ * biết. `KUBECTL_VERBS` có cặp kiểm tra hai chiều lúc biên dịch nên nó không thể
+ * lệch với `KubectlCommand`.
+ */
+export type { KindInfo } from './k8s/resources.ts';
+export { KINDS, resolveKind } from './k8s/resources.ts';
+export type {
+  KubectlCommand,
+  KubectlOptions,
+  KubectlVerb,
+  ParseResult,
+  RolloutSub,
+} from './k8s/kubectl.ts';
+export { KUBECTL_VERBS, parseKubectl } from './k8s/kubectl.ts';

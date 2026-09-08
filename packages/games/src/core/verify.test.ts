@@ -406,6 +406,7 @@ const FAKE_LEVEL: Level = {
   id: LEVEL,
   chapter: 1,
   title: 'Pod đầu tiên',
+  mission: 'Tạo một pod chạy được.',
   brief: 'Tạo một pod.',
   difficulty: 'basic',
   initialState: { nodes: [], namespaces: ['default'], resources: [] },
@@ -460,6 +461,14 @@ function makeFakeCreateSession(spy: SessionSpy, viewDrift = false) {
           kind: 'Pod' as const,
           name,
           namespace: 'default',
+          /* Bốn trường dưới là vật liệu tối thiểu để `ObjectView` hợp lệ, cố ý
+           * để rỗng: phép so ở đây là so TOÀN BỘ hình chiếu, nên nội dung của
+           * chúng không cần giống thật — chỉ cần TẤT ĐỊNH giữa hai lần phát lại,
+           * và hằng số thì tất định tuyệt đối. */
+          labels: {},
+          requests: null,
+          limits: null,
+          createdTick: 0,
           phase: 'Running' as const,
           nodeName: 'node-1',
           ownerUid: null,
@@ -468,6 +477,7 @@ function makeFakeCreateSession(spy: SessionSpy, viewDrift = false) {
         })),
         edges: [],
         events: [],
+        incidents: [],
       }),
       getStatus: status,
       subscribe: () => () => {},
@@ -483,6 +493,10 @@ function makeFakeCreateSession(spy: SessionSpy, viewDrift = false) {
       /* Nhịp phát không đụng tới phát lại: xác minh chạy nhanh hết mức, không
        * theo đồng hồ. Fixture để rỗng là ĐÚNG, không phải chỗ chưa làm. */
       setSpeed: () => {},
+      /* Cùng lập luận với `setSpeed`: tạm dừng là chuyện của đồng hồ treo tường,
+       * còn phát lại chạy nhanh hết mức và không có đồng hồ nào để dừng. */
+      pause: () => {},
+      resume: () => {},
       dispose: () => {
         spy.disposeCount++;
       },
