@@ -129,7 +129,13 @@ export function InspectorPanel({
       onClose={onClose}
       style={{ width }}
       className={cn(
-        'absolute inset-y-3 right-3 z-20 max-w-[calc(100%-1.5rem)]',
+        /*
+         * `z-30` chứ không `z-20`: bản đồ thu nhỏ cũng nằm ở góc phải dưới, và
+         * ở cùng bậc thì nó vẽ đè lên hàng hành động của bảng này — đo được
+         * trên ảnh chụp màn hình, nút "Xoá" bị cắt mất một nửa và không bấm
+         * tới. Bảng thông số là thứ người dùng vừa chủ động mở nên nó thắng.
+         */
+        'absolute inset-y-3 right-3 z-30 max-w-[calc(100%-1.5rem)]',
         'transition-[transform,opacity] duration-200 ease-out',
         entered ? 'translate-x-0 opacity-100' : 'translate-x-[calc(100%+0.75rem)] opacity-0',
       )}

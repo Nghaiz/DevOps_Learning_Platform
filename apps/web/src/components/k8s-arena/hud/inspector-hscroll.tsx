@@ -85,9 +85,29 @@ export function useHorizontalWheelScroll(text: string): HorizontalScrollState {
       }
       event.preventDefault();
       el.scrollLeft = Math.min(max, Math.max(0, el.scrollLeft + delta));
+      /*
+       * Tự đo, và đo ở KHUNG HÌNH KẾ TIẾP. Hai quyết định, hai lý do đo được.
+       *
+       * 1. **Không đợi sự kiện `scroll`.** Gắn một listener dò trên chính
+       *    `<pre>` rồi cuộn hai lần liên tiếp (một lần qua con lăn, một lần gán
+       *    thẳng `scrollLeft`), chờ 600ms sau mỗi lần — bộ đếm dừng ở 1. Trình
+       *    duyệt gộp `scroll` theo khung hình và lần thứ hai không bao giờ tới.
+       *    Hậu quả: dải mờ mép trái không bật sau khi người dùng cuộn sang phải.
+       *
+       * 2. **`requestAnimationFrame` chứ không gọi thẳng.** Đọc `scrollLeft`
+       *    ngay sau khi gán trả về giá trị CŨ. Lộ ra ở cú lăn ngược một phát về
+       *    đầu: vị trí về 0 mà dải mờ vẫn là "L=1 R=0", tức vẫn báo còn nội dung
+       *    bên trái trong khi đã ở sát mép trái. Cuộn xuôi che mất lỗi này vì
+       *    Chromium chẻ một cú lăn lớn thành nhiều sự kiện, nên lần đo lệch một
+       *    nhịp vẫn hội tụ về đúng — chỉ hướng ngược, đi một phát tới 0, mới
+       *    phơi ra. rAF chạy sau khi bố cục đã commit nên đọc được giá trị thật.
+       */
+      requestAnimationFrame(measure);
     };
 
     el.addEventListener('wheel', onWheel, { passive: false });
+    // Vẫn giữ listener `scroll` cho các nguồn cuộn khác (bàn phím trong vùng đã
+    // focus, cảm ứng) — nó không đáng tin một mình nhưng không thừa.
     el.addEventListener('scroll', measure);
     // Bề rộng bảng kéo được, nên khoảng cuộn đổi mà KHÔNG có sự kiện scroll nào.
     // Thiếu observer này thì dải mờ đứng yên ở giá trị cũ sau mỗi lần kéo mép.
@@ -100,10 +120,28 @@ export function useHorizontalWheelScroll(text: string): HorizontalScrollState {
     };
   }, [measure]);
 
-  // Đổi nội dung ⇒ đo lại. `text` trong mảng phụ thuộc chứ không phải một ref:
-  // chuyển từ pod này sang pod khác đổi cả bề rộng nội dung lẫn vị trí cuộn.
+  /*
+   * Đổi nội dung ⇒ đo lại, HAI LẦN: ngay lập tức và ở khung hình kế tiếp.
+   *
+   * `text` trong mảng phụ thuộc chứ không phải một ref: chuyển từ pod này sang
+   * pod khác đổi cả bề rộng nội dung lẫn vị trí cuộn.
+   *
+   * ⚠ Lần đo thứ hai KHÔNG thừa. Ngay sau khi commit, `scrollWidth` có thể còn
+   * bằng `clientWidth` vì bố cục chưa xong — khi đó `max` bằng 0 và dải mờ phải
+   * bị tắt. Không có gì đánh thức nó dậy sau đó: `ResizeObserver` chỉ bắn khi
+   * KÍCH THƯỚC PHẦN TỬ đổi, mà ở đây đổi là bề rộng NỘI DUNG bên trong, còn
+   * `scroll` thì không bắn vì người dùng chưa cuộn.
+   *
+   * Đo được đúng lỗi này trên `describe` của `pod/pod`: nội dung tràn 64px mà
+   * dải mờ mép phải tắt, trong khi cùng đoạn mã đó chạy đúng với `pod/api` tràn
+   * 423px — chênh lệch chỉ là thời điểm bố cục kịp hay không kịp.
+   */
   useEffect(() => {
     measure();
+    const raf = requestAnimationFrame(measure);
+    return () => {
+      cancelAnimationFrame(raf);
+    };
   }, [measure, text]);
 
   return { ref, hasLeft, hasRight };

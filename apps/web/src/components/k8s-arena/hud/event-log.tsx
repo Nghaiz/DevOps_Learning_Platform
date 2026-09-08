@@ -19,22 +19,20 @@ export interface EventLogProps {
 }
 
 /**
- * Nhật ký sự kiện cụm — bật bằng phím `L` (`ARENA_KEYS.toggleEventLog`), VÀ là
- * vùng `aria-live` của cả màn chơi.
+ * Nhật ký sự kiện cụm — bật bằng phím `L` (`ARENA_KEYS.toggleEventLog`).
  *
- * ## Một vùng sống, không phải hai
+ * ## Bảng này KHÔNG phải vùng sống, và đó là chủ ý
  *
- * Cám dỗ ở đây là dựng thêm một `<div class="sr-only" aria-live>` riêng để đọc
- * thông báo, bên cạnh nhật ký nhìn thấy được. Đó là một lỗi: hai vùng sống cùng
- * mang một nội dung thì trình đọc màn hình đọc mọi thứ HAI LẦN. Nhật ký này
- * chính là vùng sống, và mỗi dòng chỉ tồn tại một bản. Bản cũ đã chốt đúng như
- * vậy và có test e2e gác (`playground.flow.spec.ts` khẳng định trang chỉ có
- * ĐÚNG MỘT `[aria-live="polite"]`) — lane nào định thêm vùng sống thứ hai vào
- * khu vực HUD phải đổi chỗ này trước, không thêm song song.
+ * Bản đầu của lane C đặt `role="log"` + `aria-live="polite"` ngay trên `<ol>`
+ * dưới đây. Hợp đồng đã chốt khác (`ARIA_LIVE_OWNER`, `arena-contract.ts`):
+ * vùng thông báo là một vùng ẩn THƯỜNG TRỰC do `arena-root` dựng, vì nhật ký
+ * mặc định TẮT — để vùng sống duy nhất nằm trong nó thì cụm chạy hoàn toàn câm
+ * với trình đọc màn hình cho tới khi người dùng tự bấm `L`, mà họ không có cách
+ * nào biết là cần bấm.
  *
- * `role="log"` là vai đúng cho một dòng chảy chỉ-thêm theo thời gian; nó ngụ ý
- * `aria-live="polite"` nhưng vẫn khai tường minh vì `aria-relevant` mặc định của
- * `log` khác nhau giữa các bộ đọc.
+ * ⚠ `role="log"` bị gỡ chứ không chỉ gỡ `aria-live`: vai `log` NGỤ Ý
+ * `aria-live="polite"`, nên giữ nó lại là giữ nguyên vùng sống thứ hai dưới một
+ * cái tên khác, và trình đọc màn hình sẽ đọc lặp mỗi dòng sự kiện.
  */
 export function EventLog({ events, onClose, className }: EventLogProps): ReactElement {
   const scrollRef = useRef<HTMLOListElement>(null);
@@ -65,7 +63,7 @@ export function EventLog({ events, onClose, className }: EventLogProps): ReactEl
         ⚠ `tabIndex={0}` trên CHÍNH vùng cuộn — axe `scrollable-region-focusable`.
         Một khối cuộn được mà không focus được thì người chỉ dùng bàn phím không
         bao giờ đọc tới được phần dưới của nó, và nhật ký chính là chỗ người chơi
-        chẩn đoán sự cố. Đặt `overflow` + `tabIndex` lên chính `<ol role="log">`
+        chẩn đoán sự cố. Đặt `overflow` + `tabIndex` lên chính `<ol>`
         chứ không lên một div bọc ngoài: `<ol>` đã có tên khả truy sẵn, nên không
         phải bịa thêm một vai và một nhãn thứ hai chỉ để làm hài lòng luật.
       */}
@@ -76,9 +74,6 @@ export function EventLog({ events, onClose, className }: EventLogProps): ReactEl
           const el = event.currentTarget;
           pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < PIN_THRESHOLD_PX;
         }}
-        role="log"
-        aria-live="polite"
-        aria-relevant="additions text"
         aria-label="Nhật ký sự kiện của cụm"
         className={cn(
           'flex min-h-0 flex-1 flex-col gap-1 px-3 py-2',

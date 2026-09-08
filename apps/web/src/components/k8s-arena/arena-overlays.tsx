@@ -153,7 +153,7 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
         object={selectedObject}
         node={selectedNode}
         tick={engine.view.tick}
-        events={engine.view.events.filter((event) => event.involvedUid === selectedObject?.uid)}
+        events={engine.view.events}
         describeText={props.describeText}
         dispatch={engine.dispatch}
         onClose={() => onSelect(null)}
