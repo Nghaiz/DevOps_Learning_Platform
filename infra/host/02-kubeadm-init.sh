@@ -36,7 +36,7 @@ cidr_overlap() {   # $1 $2 = a.b.c.d/len — trùng nhau khi cùng prefix ở đ
   [ $(( i1 & mask )) -eq $(( i2 & mask )) ]
 }
 
-log "0/4 Kiểm tra POD_CIDR không chồng lấn mạng của host"
+log "0/5 Kiểm tra POD_CIDR không chồng lấn mạng của host"
 CLASH=""
 while read -r hostcidr; do
   [ -n "$hostcidr" ] || continue
@@ -64,7 +64,7 @@ else
 fi
 
 # ------------------------------------------------------------------ 1. kubeadm init
-log "1/4 kubeadm init (pod-network-cidr=$POD_CIDR)"
+log "1/5 kubeadm init (pod-network-cidr=$POD_CIDR)"
 if [ -f /etc/kubernetes/admin.conf ]; then
   ok "cluster đã tồn tại — bỏ qua init"
 else
@@ -77,7 +77,7 @@ else
 fi
 
 # ------------------------------------------------------------------ 2. kubeconfig
-log "2/4 Cấp kubeconfig cho $TARGET_USER và root"
+log "2/5 Cấp kubeconfig cho $TARGET_USER và root"
 install -d -m 0700 -o "$TARGET_USER" -g "$TARGET_USER" "$TARGET_HOME/.kube"
 install -m 0600 -o "$TARGET_USER" -g "$TARGET_USER" /etc/kubernetes/admin.conf "$TARGET_HOME/.kube/config"
 install -d -m 0700 /root/.kube
@@ -86,7 +86,7 @@ export KUBECONFIG=/etc/kubernetes/admin.conf
 ok "$TARGET_HOME/.kube/config"
 
 # ------------------------------------------------------------------ 3. CNI
-log "3/4 Cài CNI (Calico $CALICO_VERSION)"
+log "3/5 Cài CNI (Calico $CALICO_VERSION)"
 if kubectl get daemonset -n kube-system calico-node >/dev/null 2>&1; then
   ok "Calico đã có — bỏ qua"
 else
@@ -100,7 +100,7 @@ kubectl wait --for=condition=Ready node --all --timeout=300s \
 ok "node Ready"
 
 # ------------------------------------------------------------------ 4. Single-node untaint
-log "4/4 Cấu hình single-node"
+log "4/5 Cấu hình single-node"
 if [ "$SINGLE_NODE" = "true" ]; then
   kubectl taint nodes --all node-role.kubernetes.io/control-plane- 2>/dev/null \
     && ok "đã gỡ taint control-plane (pod chạy được trên node này)" \
@@ -108,6 +108,69 @@ if [ "$SINGLE_NODE" = "true" ]; then
 else
   ok "SINGLE_NODE=false — giữ taint, dùng worker riêng"
 fi
+
+# ------------------------------------- 5. Ngưỡng bầu cử chịu được đứt mạng ngắn
+#
+# VÌ SAO BƯỚC NÀY TỒN TẠI — nó sửa một chế độ hỏng ĐÃ ĐO, không phải phòng xa.
+#
+# Máy chủ là VM trên laptop DI ĐỘNG dùng VMware NAT. Khi host đổi mạng không dây
+# (đi lại, hotspot điện thoại tự ngắt/nối), VMware TRUYỀN trạng thái link của card
+# host vào card ảo của guest — `vmware.log` ghi rõ
+# `MACVNetLinkStateEventHandler: event, up:0`. Guest mất link THẬT 10–17s, không
+# phải chậm.
+#
+# `--leader-elect-renew-deadline` mặc định là 10s, ngắn hơn cơn đứt đó, nên kcm và
+# scheduler mất quyền lãnh đạo rồi TỰ THOÁT; kubelet dựng lại. Đo 2026-09-09, cùng
+# một trigger (ngắt/nối SSID), trước/sau:
+#
+#   trước: 1 lần flap ⇒ kcm +1 restart, scheduler +1 restart (apiserver, etcd: 0)
+#   sau:   1 lần flap ⇒ cả hai +0 restart, node Ready suốt
+#
+# ⛔ KHÔNG tắt `--leader-elect`. Cụm này một node nên bầu cử vô nghĩa, nhưng tắt là
+# bỏ một tính chất đúng đắn phòng khi có node control-plane thứ hai. Nới ngưỡng giữ
+# được cả hai. Ràng buộc của k8s: lease > renew > retry.
+#
+# ⚠ Đây KHÔNG phải bản vá cho flap — flap vẫn xảy ra y nguyên (đếm `NIC Link is`
+# trong dmesg vẫn tăng). Nó chỉ làm control-plane chịu được. Khoá
+# `ethernet0.linkStatePropagation.enable = "FALSE"` trong .vmx đã thử và ĐO LÀ VÔ
+# TÁC DỤNG với NAT: VMware đọc khoá (thấy trong DICT của vmware.log) rồi bỏ qua.
+log "5/5 Nới ngưỡng bầu cử lãnh đạo (chịu đứt mạng ~60s)"
+# ⛔ awk, KHÔNG phải `sed -i "/anchor/a\\${VAR}"`. Bản sed đã thử và ĐO LÀ SAI: nó
+# chèn nguyên văn chuỗi `${LE_FLAGS}` vào manifest thay vì ba dòng cờ — tức làm
+# hỏng manifest control-plane MÀ KHÔNG BÁO LỖI. Kiểm bằng `cat -A` trên một bản
+# sao trước khi tin bất kỳ cách chèn nhiều dòng nào.
+for comp in kube-controller-manager kube-scheduler; do
+  manifest="/etc/kubernetes/manifests/${comp}.yaml"
+  if ! [ -f "$manifest" ]; then
+    ok "$comp: không có manifest — bỏ qua"
+  elif grep -q 'leader-elect-renew-deadline' "$manifest"; then
+    ok "$comp: đã có ngưỡng — bỏ qua"
+  else
+    sudo cp "$manifest" "${manifest}.bak-$(date +%Y%m%d%H%M%S)"
+    tmp="$(mktemp)"
+    # shellcheck disable=SC2024  # sudo là để ĐỌC manifest 0600; đích ghi là file
+    # tạm của user, cố ý không cần quyền root.
+    sudo awk '
+      { print }
+      /- --leader-elect=true/ {
+        print "    - --leader-elect-lease-duration=90s"
+        print "    - --leader-elect-renew-deadline=60s"
+        print "    - --leader-elect-retry-period=10s"
+      }
+    ' "$manifest" > "$tmp"
+    # `cp` ĐÈ lên file đã tồn tại giữ nguyên quyền + chủ sở hữu của ĐÍCH; `mv` thì
+    # mang metadata của nguồn sang, làm manifest đổi chủ sang user thường.
+    sudo cp "$tmp" "$manifest"
+    rm -f "$tmp"
+    ok "$comp: đã nới ngưỡng (sao lưu .bak cạnh manifest)"
+  fi
+done
+printf '    chờ kubelet nạp lại manifest (tối đa 120s)...\n'
+kubectl -n kube-system wait --for=condition=Ready pod \
+  -l component=kube-controller-manager --timeout=120s >/dev/null 2>&1 || true
+kubectl -n kube-system wait --for=condition=Ready pod \
+  -l component=kube-scheduler --timeout=120s >/dev/null 2>&1 || true
+ok "control-plane đã lên lại"
 
 log "Trạng thái cluster"
 kubectl get nodes -o wide
