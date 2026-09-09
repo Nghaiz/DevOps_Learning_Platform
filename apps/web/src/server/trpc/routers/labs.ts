@@ -25,6 +25,8 @@ import type { Database } from '../../db/client';
 import { labAttempts, labTaskResults, users, type LabAttemptRow, type LabTaskResultRow } from '../../db/schema';
 import { readUserPreferences } from '../../me/preferences';
 import { profileForCapabilities, unsupportedCapabilities } from '../../lessons/catalog';
+import { setupScriptPlan } from '../../lessons/setup-plan';
+import { buildToolsEnableScript } from '../../lessons/tools-enable';
 import { runScriptInSession } from '../../lessons/validate';
 import { labSource, requireLab } from '../../labs/catalog';
 import { rethrowContentSourceError } from '../../content/source-errors';
@@ -280,6 +282,49 @@ export const labsRouter = createTRPCRouter({
       // CÙNG biểu thức mà `get` đưa cho `profileForLab` — xem `sandboxCapabilities`.
       capabilities: sandboxCapabilities(lab),
     });
+
+    /*
+      Dựng CẢNH của lab trước khi trả `attemptId`.
+
+      ⛔ Vì sao ở ĐÂY chứ không phải một procedure `labs.runSetup` riêng như
+      `lessons.runSetup`: lesson có phase, nên client phải điều phối một lượt
+      setup cho mỗi phase. Lab cố ý KHÔNG có phase — cả N task dùng CHUNG một
+      lượt setup (xem `labSchema.setup`). Một procedure riêng ở đây chỉ thêm
+      một trạng thái trung gian mà client phải nhớ gọi, và "quên gọi" chính là
+      lỗi mà chặng này sửa: `lab-loader.ts` nạp đủ `setup.foreground` +
+      `setup.background`, nhưng KHÔNG người tiêu thụ nào chạy chúng, nên mọi
+      `verify.sh` chấm trên một sandbox TRẮNG. Hậu quả đo được: task kiểu
+      "vắng mặt là đạt" (`find-kill-runaway`) đỗ NGAY khi chưa gõ lệnh nào, còn
+      task cần cảnh dựng sẵn (`fix-healthcheck-script`,
+      `harden-secret-permissions`) không bao giờ đạt được.
+
+      Chạy TRƯỚC khi ghi `labAttempts`: setup hỏng thì không để lại một lần thử
+      dở dang trong hồ sơ người học — phiên sandbox thừa đã có reaper thu hồi.
+    */
+    const setupSteps = setupScriptPlan({
+      tools: buildToolsEnableScript(lab.toolset),
+      // Lab chưa có asset: `lab-loader.ts` luôn gán `[]`. Ngày có asset thật,
+      // thêm ở ĐÂY cùng khuôn `lessons.runSetup` (asset đi TRƯỚC background).
+      assets: null,
+      background: lab.setup.background,
+    });
+    if (setupSteps.length > 0) {
+      const setupExpiresAtSeconds = await sessionExpiry(ctx, session.id);
+      for (const step of setupSteps) {
+        const outcome = await runScriptInSession({
+          sessionId: session.id,
+          userId: ctx.user.id,
+          expiresAtSeconds: setupExpiresAtSeconds,
+          script: step.script,
+        });
+        if (!outcome.passed) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: step.failureMessage(outcome.exitCode),
+          });
+        }
+      }
+    }
 
     // Hồ sơ (P13 C4) — lựa chọn "hiện tên trên bảng xếp hạng" là mặc định
     // TOÀN CỤC của người dùng; `setDisplayPreference` vẫn cho đổi ý SAU khi đã
