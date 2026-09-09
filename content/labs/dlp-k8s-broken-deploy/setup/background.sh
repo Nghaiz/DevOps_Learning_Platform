@@ -11,11 +11,26 @@ set -euo pipefail
 mkdir -p /root/lab-k8s
 
 # Cụm con dựng NỀN ngay lúc pod khởi động (xem images/sandbox-base/
-# entrypoint.sh); chờ ở đây là chờ NỐT phần còn lại nếu boot chậm hơn thường
-# lệ — 240s là trần rộng có chủ ý, vì lượt gọi NÀY chạy nền, không tính vào
-# trần 120s của một lượt Chấm.
-if ! dlp-k8s-wait 240; then
-  echo "Cum Kubernetes con khong san sang sau 240s — khong dung duoc lab nay" >&2
+# entrypoint.sh); chờ ở đây là chờ NỐT phần còn lại nếu boot chậm hơn thường lệ.
+#
+# ⛔ 90, KHÔNG phải 240. Bản trước để 240 với lý do "lượt gọi NÀY chạy nền,
+# không tính vào trần 120s của một lượt Chấm" — tiền đề đó đúng khi setup của
+# lab chưa hề được chạy. Từ khi `labs.startAttempt` chạy setup thật, nó đi qua
+# ĐÚNG đường `/exec/session/{id}` mà lượt Chấm dùng, nên trần 120s
+# (`gateway.execTimeout`) áp vào đây y hệt.
+#
+# Để 240 thì gateway giết exec ở 120s TRƯỚC khi vòng chờ kịp hết giờ, và câu
+# báo lỗi ngay dưới — câu duy nhất nói ra nguyên nhân thật — trở thành mã chết:
+# người học chỉ nhận được "Script chuẩn bị môi trường thất bại (exit …)", không
+# biết là do cụm con chưa lên. 90s nằm gọn trong 120s và vẫn chừa chỗ cho 5 lượt
+# `kubectl apply` bên dưới.
+#
+# Đo trên cụm thật 2026-09-09, hai lượt pod k8s LẠNH qua đường sản phẩm: toàn bộ
+# script này mất 26.1s (node vừa boot 2 phút, load 2.5) và 17.1s (node đã lắng).
+# Phần lớn thời gian đó chính là vòng chờ này, nên 90s là dư ~3–5 lần chứ không
+# sát nút.
+if ! dlp-k8s-wait 90; then
+  echo "Cum Kubernetes con khong san sang sau 90s — khong dung duoc lab nay" >&2
   exit 1
 fi
 
