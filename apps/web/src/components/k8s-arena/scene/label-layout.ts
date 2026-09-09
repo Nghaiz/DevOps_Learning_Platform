@@ -46,7 +46,13 @@ const ORDER: number[] = [];
 /** Hộp bao đã chốt chỗ, phẳng: [left, right, top, bottom] × n. */
 const TAKEN: number[] = [];
 
-function overlaps(left: number, right: number, top: number, bottom: number, count: number): boolean {
+function overlaps(
+  left: number,
+  right: number,
+  top: number,
+  bottom: number,
+  count: number,
+): boolean {
   for (let i = 0; i < count; i += 1) {
     const base = i * 4;
     if (
@@ -67,7 +73,11 @@ function overlaps(left: number, right: number, top: number, bottom: number, coun
  * Trả về số nhãn được hiện. Mọi phần tử `boxes[i]` với `i < count` đều có
  * `visible` được ghi, và `y` của nhãn được đẩy lệch có thể đã đổi.
  */
-export function layoutLabels(boxes: LabelBox[], count: number, options: LabelLayoutOptions): number {
+export function layoutLabels(
+  boxes: LabelBox[],
+  count: number,
+  options: LabelLayoutOptions,
+): number {
   ORDER.length = 0;
   for (let i = 0; i < count; i += 1) {
     const box = boxes[i];

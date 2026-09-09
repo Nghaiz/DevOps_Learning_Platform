@@ -65,14 +65,20 @@ export function IncidentsPanel({
     }
   });
 
-  const activeCount = incidents.reduce((acc, incident) => (incident.resolvedTick === null ? acc + 1 : acc), 0);
+  const activeCount = incidents.reduce(
+    (acc, incident) => (incident.resolvedTick === null ? acc + 1 : acc),
+    0,
+  );
 
   return (
     <PanelFrame
       title={`Sự cố (${String(activeCount)} đang xảy ra)`}
       closeLabel="Đóng danh sách sự cố"
       onClose={onClose}
-      className={cn('absolute top-3 left-1/2 z-20 w-96 max-w-[calc(100%-1.5rem)] -translate-x-1/2', className)}
+      className={cn(
+        'absolute top-3 left-1/2 z-20 w-96 max-w-[calc(100%-1.5rem)] -translate-x-1/2',
+        className,
+      )}
       headerExtra={
         <div role="group" aria-label="Lọc sự cố" className="flex shrink-0 gap-1">
           {FILTER_ORDER.map((option) => (
@@ -123,7 +129,9 @@ export function IncidentsPanel({
                 )}
               >
                 <span className="flex items-center gap-2">
-                  <Badge variant={active ? 'destructive' : 'success'}>{active ? 'Đang xảy ra' : 'Đã xử lý'}</Badge>
+                  <Badge variant={active ? 'destructive' : 'success'}>
+                    {active ? 'Đang xảy ra' : 'Đã xử lý'}
+                  </Badge>
                   <span className="min-w-0 flex-1 truncate text-xs text-foreground">
                     {INCIDENT_LABEL[incident.kind]}
                   </span>

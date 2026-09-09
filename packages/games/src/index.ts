@@ -88,7 +88,63 @@ export { createSession } from './k8s/session.ts';
  * hợp đồng là phần tối thiểu. Tầng giao diện cần cả `runCommand` (thanh lệnh)
  * lẫn `describe` (tab Mô tả của bảng thông số), và cả hai chỉ có ở kiểu đầy đủ.
  */
-export type { K8sEngineSession } from './k8s/session.ts';
+export type { DispatchOutcome, K8sEngineSession } from './k8s/session.ts';
+
+/*
+ * Bộ tuần tự manifest. Mở export cho tầng giao diện KHÔNG phải để nó tự dựng
+ * YAML — `K8sEngineSession.manifest(uid)` mới là đường dùng — mà để test và
+ * công cụ soạn bài dựng được manifest từ một object rời.
+ */
+export { toManifestYaml } from './k8s/manifest-yaml.ts';
+
+/*
+ * Bộ ĐỌC manifest, cặp với `toManifestYaml` ở trên.
+ *
+ * Mở ra vì tầng trình bày cần đọc được `spec` — bảng Tổng quan hiện tên và
+ * image của container, thứ `ObjectView` cố ý không mang (hợp đồng giữ view
+ * mỏng: `ObjectView` chỉ có những gì `kubectl get` in ra).
+ *
+ * ⛔ Đây KHÔNG phải lời mời viết một bộ đọc YAML thứ hai ở tầng giao diện. Bảng
+ * Tổng quan phải dùng ĐÚNG bộ đọc mà engine dùng để áp manifest; hai bộ đọc
+ * khác nhau nghĩa là bảng có thể hiện một image mà engine không hề thấy.
+ */
+export { parseManifests } from './k8s/yaml.ts';
+export type { Manifest, ManifestResult } from './k8s/yaml.ts';
+
+/*
+ * Lưu tiến độ trên máy người chơi.
+ *
+ * ⚠ Cả `core/progress.ts` là MÃ CHẾT cho tới bản này: barrel chỉ mở
+ * `STORAGE_KEY_PREFIX`/`storageKey` và mấy cái type, nên không hàm nào trong đó
+ * gọi được từ ngoài package. Hệ quả: tiến độ KHÔNG được lưu ở đâu cả — thắng
+ * một màn rồi tải lại trang là mất sạch — trong khi cả trang `/games` lẫn
+ * `layout.tsx` đều đang viết ra chữ *"tiến độ lưu ngay trên máy bạn"*. Một lời
+ * hứa không có gì thực hiện.
+ *
+ * Mở đúng phần cần để tầng giao diện đọc/ghi, không mở `parseSave` (chi tiết
+ * nội bộ của việc di trú phiên bản).
+ */
+export {
+  appendRun,
+  browserStorage,
+  emptySave,
+  loadSave,
+  readSave,
+  writeSave,
+} from './core/progress.ts';
+export type { SaveLoad, SaveStatus, StorageLike } from './core/progress.ts';
+
+/*
+ * Phân loại mục tiêu "phải làm" / "phải giữ".
+ *
+ * Mở export vì tầng giao diện KHÔNG được tự suy ra: nó sẽ phải gọi
+ * `initialState` + `advance` + `evaluateObjectives` — tức dựng lại một phiên bản
+ * thứ hai của cùng phép thử, chạy trên cùng dữ liệu, và lệch đi ngay lần đầu ai
+ * đó đổi `SETTLE_TICKS`. Phép thử này là kiến thức của ENGINE (nó biết mô phỏng
+ * tiến hoá thế nào), nên nó ở lại engine và giao diện chỉ đọc kết quả.
+ */
+export type { ObjectiveKinds } from './k8s/objective-kind.ts';
+export { SETTLE_TICKS, classifyObjectives } from './k8s/objective-kind.ts';
 
 /*
  * Mười bài OJ mẫu, chuyển từ `CHALLENGES` — và export ngay tại đây là chỗ mà

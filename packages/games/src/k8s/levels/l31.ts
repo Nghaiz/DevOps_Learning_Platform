@@ -11,7 +11,7 @@ import type { Level } from '../contract.ts';
 export const l31: Level = {
   id: 'k8s-31-mac-dinh-cam-roi-mo-dung-duong',
   chapter: 6,
-  title: 'Cấm hết trước, rồi mở đúng thứ cần',
+  title: 'Dựng NetworkPolicy chặn đúng chỗ',
   mission:
     'Dựng NetworkPolicy cho `web` gọi được `api` cổng 8080, `bao-cao` thì không, và DNS vẫn sống.',
   brief: `Namespace \`y-te\` chứa dữ liệu bệnh án và vừa bị đội an ninh gắn cờ: bất kỳ pod

@@ -8,7 +8,7 @@ import type { Level } from '../contract.ts';
 export const l07: Level = {
   id: 'k8s-07-scale-theo-tai',
   chapter: 2,
-  title: 'Tăng số bản chạy trước giờ cao điểm',
+  title: 'Nhân bản dịch vụ trước giờ cao điểm',
   mission: 'Đưa Deployment `tra-cuu` lên 6 replica và giữ cả sáu ở trạng thái sẵn sàng.',
   brief: `Sở giáo dục công bố điểm thi lúc 20 giờ tối nay. Cổng tra cứu \`tra-cuu\` trong
 namespace \`giao-duc\` bình thường chỉ có vài chục người mỗi giờ; tối nay nó sẽ

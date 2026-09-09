@@ -132,7 +132,9 @@ export function useArenaColors(
   const degradedRef = useRef(false);
   // Bộ phân giải giữ một canvas 1×1 bên trong — dựng một lần, không dựng lại
   // mỗi lần đổi theme.
-  const resolverRef = useRef<((css: string) => { r: number; g: number; b: number } | null) | null>(null);
+  const resolverRef = useRef<((css: string) => { r: number; g: number; b: number } | null) | null>(
+    null,
+  );
 
   const read = useCallback((): void => {
     const colors = colorsRef.current;
@@ -147,7 +149,11 @@ export function useArenaColors(
       degraded = true;
     } else {
       resolverRef.current ??= createCanvasColorResolver(document);
-      const result = readSceneColors(probe, (el) => window.getComputedStyle(el).color, resolverRef.current);
+      const result = readSceneColors(
+        probe,
+        (el) => window.getComputedStyle(el).color,
+        resolverRef.current,
+      );
       source = result.colors;
       degraded = result.degraded;
     }

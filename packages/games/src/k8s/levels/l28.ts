@@ -12,7 +12,7 @@ import type { Level } from '../contract.ts';
 export const l28: Level = {
   id: 'k8s-28-running-nhung-chua-san-sang',
   chapter: 6,
-  title: 'Running, và vẫn không ai gọi tới được',
+  title: 'Chữa readiness probe chặn hết endpoint',
   mission: 'Đưa Service `tim-kiem` về đủ 3 endpoint mà vẫn giữ readiness probe.',
   brief: `Deployment \`tim-kiem\` trong namespace \`noi-dung\` vừa được deploy. Ba pod đều
 \`Running\`, RESTARTS bằng 0, log sạch, Events không có sự cố nào.

@@ -12,7 +12,7 @@ import type { Level } from '../contract.ts';
 export const l03: Level = {
   id: 'k8s-03-doc-log-truoc-khi-doan',
   chapter: 1,
-  title: 'Container khởi động rồi chết ngay',
+  title: 'Đọc log của container vừa chết',
   mission: 'Tìm vì sao container `bao-cao` chết ngay khi khởi động, sửa nó, và giữ pod ở Running.',
   brief: `Dịch vụ \`bao-cao\` được deploy lúc nửa đêm và chưa phục vụ được request nào. Pod
 lên Running một khoảnh khắc rồi lại đổi, cột RESTARTS tăng đều: 3, rồi 5, rồi 8,

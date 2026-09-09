@@ -13,7 +13,7 @@ import type { Level } from '../contract.ts';
 export const l22: Level = {
   id: 'k8s-22-statefulset-dung-o-pod-khong',
   chapter: 4,
-  title: 'StatefulSet dừng lại ở pod số 0',
+  title: 'Gỡ StatefulSet kẹt ở pod số 0',
   mission: 'Đưa cả 3 pod của StatefulSet `postgres` lên chạy, mỗi pod một ổ đĩa riêng.',
   brief: `Cụm \`postgres\` trong namespace \`du-lieu\` khai 3 replica. Trong cluster chỉ có
 **một** pod: \`postgres-0\`, và nó \`Pending\`. Không có \`postgres-1\`, không có

@@ -11,7 +11,7 @@ import type { Level } from '../contract.ts';
 export const l16: Level = {
   id: 'k8s-16-ingress-mo-cua-ra-ngoai',
   chapter: 3,
-  title: 'Mở một cửa duy nhất ra Internet',
+  title: 'Mở một cửa Ingress ra Internet',
   mission: 'Tạo Ingress `san-pham` để `/api` đi tới Service `api` và `/` đi tới Service `web`.',
   brief: `Namespace \`san-pham\` có hai Service ClusterIP đang chạy tốt: \`web\` phục vụ giao
 diện, \`api\` phục vụ dữ liệu. Cả hai chỉ gọi được từ bên trong cluster.

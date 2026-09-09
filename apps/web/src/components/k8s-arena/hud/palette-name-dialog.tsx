@@ -1,7 +1,17 @@
 'use client';
 
 import { useId, useState, type FormEvent, type ReactElement } from 'react';
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label } from '@devops-platform/ui';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+} from '@devops-platform/ui';
 import type { PaletteEntry } from '../arena-contract.ts';
 import { checkResourceName, suggestResourceName } from './palette-name.ts';
 import { buildManifest } from './palette-manifest.ts';
@@ -50,13 +60,16 @@ export function PaletteNameDialog({
    * mà mảng đó đổi tham chiếu mỗi tick — tức ô nhập bị điền đè trong lúc người
    * chơi đang gõ.
    */
-  const [draft, setDraft] = useState<{ readonly forKind: string; readonly name: string } | null>(null);
+  const [draft, setDraft] = useState<{ readonly forKind: string; readonly name: string } | null>(
+    null,
+  );
 
   if (entry === null) {
     return null;
   }
 
-  const name = draft?.forKind === entry.kind ? draft.name : suggestResourceName(entry.short, takenNames);
+  const name =
+    draft?.forKind === entry.kind ? draft.name : suggestResourceName(entry.short, takenNames);
   const setName = (next: string): void => setDraft({ forKind: entry.kind, name: next });
   const trimmed = name.trim();
   const check = checkResourceName(trimmed);
@@ -94,7 +107,9 @@ export function PaletteNameDialog({
             />
             <p
               id={errorId}
-              className={errorText === null ? 'text-xs text-muted-foreground' : 'text-xs text-destructive'}
+              className={
+                errorText === null ? 'text-xs text-muted-foreground' : 'text-xs text-destructive'
+              }
               // `aria-live` để trình đọc màn hình đọc lỗi ngay khi gõ, thay vì
               // chỉ đọc lúc người dùng quay lại ô.
               aria-live="polite"

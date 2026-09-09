@@ -11,7 +11,7 @@ import type { Level } from '../contract.ts';
 export const l08: Level = {
   id: 'k8s-08-rollout-khong-dut-dich-vu',
   chapter: 2,
-  title: 'Đổi phiên bản mà không tắt dịch vụ',
+  title: 'Đổi phiên bản mà không rớt một request',
   mission:
     'Đưa Deployment `api` sang image `ghcr.io/dlp/api:1.5.0` mà không để số pod chạy tụt dưới 4.',
   brief: `Bản \`1.5.0\` của API đã qua kiểm thử và cần lên production. Deployment \`api\` trong

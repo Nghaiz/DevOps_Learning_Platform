@@ -1,6 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactElement,
+} from 'react';
 import { SquareTerminal, X } from 'lucide-react';
 import { Kbd, cn } from '@devops-platform/ui';
 import type { ObjectView } from '@devops-platform/games';
@@ -20,6 +27,18 @@ import { useCommandHistory } from './terminal-history.ts';
 export interface TerminalInsert {
   readonly command: string;
   readonly issuedAt: number;
+  /**
+   * `true` ⇒ CHẠY luôn, không chỉ điền vào ô.
+   *
+   * Đây là đường đi của các nút hành động trong bảng thông số (Xem log, Mô tả
+   * chi tiết…). Chúng phải hiện KẾT QUẢ, và terminal là chỗ duy nhất trong arena
+   * có chỗ in kết quả — xem khối tài liệu đầu `inspector-action-list.ts` về lý
+   * do chúng không thể đi qua `dispatch`.
+   *
+   * Điền-mà-không-chạy vẫn giữ nguyên cho ngăn tra cứu: ở đó mục đích là mời
+   * người học ĐỌC rồi tự bấm Enter, tức chính cú bấm đó là phần bài học.
+   */
+  readonly autoRun?: boolean;
 }
 
 export interface TerminalPanelProps {
@@ -66,6 +85,15 @@ export function TerminalPanel({
 
   const suggestions = open ? suggestTokens(input, listObjects()) : [];
   const active = suggestions[Math.min(highlight, suggestions.length - 1)] ?? null;
+  /*
+   * Đuôi mà Tab sẽ điền thêm, hoặc `null` khi gợi ý không phải phần nối tiếp
+   * của thứ đang gõ (gợi ý thay cả token, ví dụ gõ `po` ra `pods`).
+   */
+  const completed = active === null ? null : applySuggestion(input, active.value);
+  const ghost =
+    completed !== null && completed.startsWith(input) && completed !== input
+      ? completed.slice(input.length)
+      : null;
 
   useEffect(() => {
     if (open) {
@@ -73,27 +101,39 @@ export function TerminalPanel({
     }
   }, [open]);
 
-  useEffect(() => {
-    if (insert !== null && insert.issuedAt !== appliedInsertRef.current) {
-      appliedInsertRef.current = insert.issuedAt;
-      setInput(insert.command);
+  const execute = useCallback(
+    (command: string): void => {
+      history.push(command);
+      const output = onRun(command);
+      setLines((previous) =>
+        [...previous, { id: nextIdRef.current++, command, output }].slice(-TRANSCRIPT_LIMIT),
+      );
+      setInput('');
       setHighlight(0);
-      inputRef.current?.focus();
+    },
+    [history, onRun],
+  );
+
+  useEffect(() => {
+    if (insert === null || insert.issuedAt === appliedInsertRef.current) {
+      return;
     }
-  }, [insert]);
+    appliedInsertRef.current = insert.issuedAt;
+    setHighlight(0);
+    if (insert.autoRun === true) {
+      execute(insert.command);
+    } else {
+      setInput(insert.command);
+    }
+    inputRef.current?.focus();
+  }, [insert, execute]);
 
   const run = (): void => {
     const command = input.trim();
     if (command === '') {
       return;
     }
-    history.push(command);
-    const output = onRun(command);
-    setLines((previous) =>
-      [...previous, { id: nextIdRef.current++, command, output }].slice(-TRANSCRIPT_LIMIT),
-    );
-    setInput('');
-    setHighlight(0);
+    execute(command);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
@@ -133,15 +173,33 @@ export function TerminalPanel({
     <section
       aria-label="Terminal kubectl"
       inert={!open}
+      /*
+       * `will-change: transform` + đổi CẢ độ mờ.
+       *
+       * Chỉ trượt `translate-y` thì khung xuất hiện đột ngột ở mép dưới rồi lao
+       * lên — mắt bắt được cạnh trên của nó nhảy vào khung hình. Thêm một lượt
+       * hiện dần làm cú vào mềm hẳn, và `will-change` để trình duyệt tách lớp
+       * TRƯỚC khi chuyển động bắt đầu, thay vì tách ngay giữa khung hình đầu
+       * tiên — đó chính là cái giật một nhịp lúc mở.
+       */
+      style={{ willChange: 'transform, opacity' }}
       className={cn(
-        'absolute right-0 bottom-0 left-0 z-30 flex h-72 flex-col',
-        'border-t border-border bg-card/95 shadow-elevation-3 backdrop-blur-sm',
-        'transition-transform duration-(--motion-base) ease-out',
-        open ? 'pointer-events-auto translate-y-0' : 'pointer-events-none translate-y-full',
+        'absolute right-0 bottom-0 left-0 z-30 flex h-72 flex-col overflow-visible',
+        'rounded-t-xl border-t border-border bg-card/95 shadow-elevation-3 backdrop-blur-md',
+        'transition-[transform,opacity] duration-(--motion-base) ease-out',
+        open
+          ? 'pointer-events-auto translate-y-0 opacity-100'
+          : 'pointer-events-none translate-y-full opacity-0',
       )}
     >
+      {/* Vạch sáng mảnh ở mép trên — tách terminal khỏi cảnh 3D phía sau nó. */}
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-status-progress/50 to-transparent"
+      />
+
       <header className="flex items-center gap-2 border-b border-border px-3 py-1.5">
-        <SquareTerminal className="size-4 text-primary" aria-hidden />
+        <SquareTerminal className="size-4 text-status-progress" aria-hidden />
         <span className="text-xs font-semibold text-foreground">Terminal</span>
         <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
           <Kbd>Tab</Kbd> hoàn thành · <Kbd>Esc</Kbd> đóng
@@ -158,27 +216,46 @@ export function TerminalPanel({
 
       <TerminalTranscript lines={lines} />
 
-      <TerminalSuggestionList suggestions={suggestions} highlight={highlight} />
-
-      <div className="flex items-center gap-2 border-t border-border px-3 py-2">
-        <span aria-hidden className="font-mono text-xs text-primary">
+      {/*
+        `relative` ở HÀNG NHẬP, không ở cả khung: danh sách gợi ý neo bằng
+        `bottom-full` nên nó phải lấy hàng này làm mốc, nếu không nó bay lên tận
+        mép trên của terminal.
+      */}
+      <div className="relative flex items-center gap-2 border-t border-border px-3 py-2">
+        <TerminalSuggestionList suggestions={suggestions} highlight={highlight} />
+        <span aria-hidden className="font-mono text-xs text-status-progress">
           $
         </span>
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={(event) => {
-            setInput(event.target.value);
-            setHighlight(0);
-            history.resetCursor();
-          }}
-          onKeyDown={onKeyDown}
-          spellCheck={false}
-          autoComplete="off"
-          aria-label="Gõ lệnh kubectl"
-          placeholder="kubectl get pods"
-          className="min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
-        />
+        {/*
+          Phần đuôi gợi ý hiện MỜ ngay sau con trỏ, chồng khít lên ô nhập.
+          Người gõ thấy trước Tab sẽ điền gì, thay vì phải liếc xuống danh sách.
+        */}
+        <span className="relative min-w-0 flex-1">
+          {ghost === null ? null : (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 truncate font-mono text-xs whitespace-pre text-muted-foreground/60"
+            >
+              <span className="invisible">{input}</span>
+              {ghost}
+            </span>
+          )}
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={(event) => {
+              setInput(event.target.value);
+              setHighlight(0);
+              history.resetCursor();
+            }}
+            onKeyDown={onKeyDown}
+            spellCheck={false}
+            autoComplete="off"
+            aria-label="Gõ lệnh kubectl"
+            placeholder="kubectl get pods"
+            className="relative w-full min-w-0 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
+          />
+        </span>
       </div>
     </section>
   );

@@ -233,16 +233,16 @@ function editResource(
     return { state, output: `Không lưu được thay đổi: ${parsed.error}`, accepted: false };
   }
   const manifest = parsed.manifests[0];
-  if (manifest === undefined) {
+  if (manifest === undefined || parsed.manifests.length !== 1) {
     return { state, output: 'Không lưu được thay đổi: YAML rỗng.', accepted: false };
   }
   // `edit` KHÔNG cho đổi định danh. Sửa `metadata.name` trong `kubectl edit` ở
   // cụm thật bị API server từ chối; cho phép ở đây sẽ dạy rằng đổi tên là một
   // thao tác tại chỗ, trong khi thật ra nó là xoá-và-tạo-mới.
-  if (manifest.name !== existing.name || manifest.kind !== existing.kind) {
+  if (manifest.name !== existing.name || manifest.kind !== existing.kind || (isNamespaced(manifest.kind) && manifest.namespace !== existing.namespace)) {
     return {
       state,
-      output: 'Không đổi được `kind` hay `metadata.name` bằng `edit` — hãy xoá rồi tạo lại.',
+      output: 'Không đổi được kind, tên hay namespace bằng edit — hãy tạo resource mới.',
       accepted: false,
     };
   }

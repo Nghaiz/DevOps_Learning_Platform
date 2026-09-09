@@ -55,7 +55,11 @@ describe('isSoftwareRenderer', () => {
 });
 
 describe('createTierController', () => {
-  function feed(controller: ReturnType<typeof createTierController>, ms: number, frames: number): (QualityTier | null)[] {
+  function feed(
+    controller: ReturnType<typeof createTierController>,
+    ms: number,
+    frames: number,
+  ): (QualityTier | null)[] {
     return Array.from({ length: frames }, () => controller.observe(ms));
   }
 

@@ -35,7 +35,10 @@ function clamp(px: number): number {
   const ceiling =
     typeof window === 'undefined'
       ? INSPECTOR_WIDTH.max
-      : Math.min(INSPECTOR_WIDTH.max, Math.max(INSPECTOR_WIDTH.min, window.innerWidth - VIEWPORT_RESERVE));
+      : Math.min(
+          INSPECTOR_WIDTH.max,
+          Math.max(INSPECTOR_WIDTH.min, window.innerWidth - VIEWPORT_RESERVE),
+        );
   return Math.round(Math.min(ceiling, Math.max(INSPECTOR_WIDTH.min, px)));
 }
 
@@ -52,7 +55,10 @@ function clamp(px: number): number {
  * `localStorage` NÉM ngay khi đọc thuộc tính, không phải trả `null`. Không bọc
  * thì cả bảng thông số sập vì một tiện nghi.
  */
-export function useInspectorWidth(): { readonly width: number; readonly setWidth: (px: number) => void } {
+export function useInspectorWidth(): {
+  readonly width: number;
+  readonly setWidth: (px: number) => void;
+} {
   const [width, setStored] = useState<number>(INSPECTOR_WIDTH.fallback);
 
   useEffect(() => {
@@ -97,7 +103,10 @@ export interface InspectorResizeHandleProps {
  * bắn `pointermove` về đây; không có nó thì kéo nhanh là mất dấu và bảng dừng
  * giữa chừng.
  */
-export function InspectorResizeHandle({ width, onWidth }: InspectorResizeHandleProps): ReactElement {
+export function InspectorResizeHandle({
+  width,
+  onWidth,
+}: InspectorResizeHandleProps): ReactElement {
   const dragRef = useRef<{ readonly startX: number; readonly startWidth: number } | null>(null);
 
   const onPointerDown = useCallback(

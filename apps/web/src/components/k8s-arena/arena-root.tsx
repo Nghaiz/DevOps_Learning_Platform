@@ -25,6 +25,7 @@ import type { Level, ObjectView } from '@devops-platform/games';
 import type { ArenaModeContext, CameraCommand, QualityTier, ScreenPoint } from './arena-contract';
 import { useArenaSession } from './arena-session';
 import { ArenaOverlays } from './arena-overlays';
+import './arena.css';
 
 /**
  * ⚠ `ssr: false` là BẮT BUỘC, không phải tối ưu.
@@ -50,8 +51,22 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
   const [hoveredUid, setHoveredUid] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<ScreenPoint | null>(null);
   const [menuUid, setMenuUid] = useState<string | null>(null);
+  const [sceneMenuAnchor, setSceneMenuAnchor] = useState<ScreenPoint | null>(null);
   const [quality, setQuality] = useState<QualityTier>('high');
+  const [showLabels, setShowLabels] = useState(true);
+  const [showEdges, setShowEdges] = useState(true);
   const [camera, setCamera] = useState<CameraCommand | null>(null);
+  /**
+   * Số lần "sắp xếp lại" đã bấm, và số vật đang bị kéo lệch.
+   *
+   * ⚠ Vị trí kéo sống trong `SceneRuntime` — NGOÀI React, cố ý: nó đổi mỗi
+   * khung hình trong lúc kéo, và cho nó đi qua `useState` là dựng lại cả cây
+   * HUD 60 lần một giây. Nhưng nút "Sắp xếp lại" cần biết có gì để sắp xếp
+   * không, nên cảnh báo ngược lên bằng MỘT con số, chỉ khi tập vật-bị-kéo
+   * chuyển giữa rỗng và không rỗng.
+   */
+  const [hasMoved, setHasMoved] = useState(false);
+  const [alignAt, setAlignAt] = useState(0);
   const startedAtRef = useRef(Date.now());
 
   /*
@@ -82,7 +97,10 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
    * Engine đập nhịp nhiều lần mỗi giây; truyền mảng object qua props sẽ làm mọi
    * bảng nhận nó dựng lại theo từng nhịp, kể cả khi bảng đó đang đóng.
    */
-  const listObjects = useCallback((): readonly ObjectView[] => engine.sceneGetView().objects, [engine]);
+  const listObjects = useCallback(
+    (): readonly ObjectView[] => engine.sceneGetView().objects,
+    [engine],
+  );
 
   const sendCamera = useCallback((kind: CameraCommand['kind'], target?: Partial<CameraCommand>) => {
     /*
@@ -93,17 +111,35 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
     setCamera({ kind, issuedAt: performance.now(), ...target });
   }, []);
 
-  const selectObject = useCallback(
-    (uid: string | null) => {
+  /**
+   * Chọn một tài nguyên. KHÔNG động tới camera.
+   *
+   * ⛔ Bản trước bắn `focus` ở MỌI lần chọn, và đó là một lỗi thao tác đo được:
+   * `CAMERA_TUNING.focusDistance` là 7 đơn vị, tức mỗi cú bấm kéo camera lao vào
+   * sát vật, các bệ node văng ra ngoài khung, và điểm người chơi vừa nhắm vào
+   * biến mất khỏi chỗ cũ. Bấm nhầm một cái là mất phương hướng, và muốn bấm cái
+   * bên cạnh thì phải lùi camera ra trước — trong một game mà bấm là thao tác
+   * làm nhiều nhất.
+   *
+   * Bay tới vật giờ là một hành động RIÊNG và có chủ đích: mục "Bay tới đây"
+   * trong menu chuột phải, hoặc bấm một node trên bản đồ thu nhỏ. Chọn để xem
+   * thông số thì camera đứng yên.
+   */
+  const selectObject = useCallback((uid: string | null) => {
+    setSelectedUid(uid);
+  }, []);
+
+  /** Bay camera tới một tài nguyên, và chọn nó luôn. */
+  const focusObject = useCallback(
+    (uid: string) => {
       setSelectedUid(uid);
-      if (uid !== null) {
-        sendCamera('focus', { uid });
-      }
+      sendCamera('focus', { uid });
     },
     [sendCamera],
   );
 
   const openContextMenu = useCallback((uid: string, at: ScreenPoint) => {
+    setSceneMenuAnchor(null);
     setMenuUid(uid);
     setMenuAnchor(at);
   }, []);
@@ -111,6 +147,23 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
   const closeContextMenu = useCallback(() => {
     setMenuAnchor(null);
     setMenuUid(null);
+  }, []);
+
+  const openSceneMenu = useCallback((at: ScreenPoint) => {
+    // Đóng menu tài nguyên trước: hai menu cùng mở là hai vùng cùng nhận phím
+    // mũi tên, và người dùng bàn phím không có cách nào biết mình đang ở đâu.
+    setMenuAnchor(null);
+    setMenuUid(null);
+    setSceneMenuAnchor(at);
+  }, []);
+
+  const closeSceneMenu = useCallback(() => {
+    setSceneMenuAnchor(null);
+  }, []);
+
+  /** Trả mọi tài nguyên về chỗ bố cục tự động tính. */
+  const autoAlign = useCallback(() => {
+    setAlignAt(performance.now());
   }, []);
 
   const selectNode = useCallback(
@@ -146,10 +199,11 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
      * trang này. Ép ngữ cảnh `dark` giữ nguyên hệ token: mọi bảng và cả
      * `scene-tokens.ts` cùng đọc nhánh tối của cùng một bộ biến CSS.
      */
-    <div className="dark relative h-dvh w-full overflow-hidden bg-background text-foreground">
+    <div className="arena-root dark relative h-dvh w-full overflow-hidden bg-background text-foreground">
       {/* Cảnh 3D nằm DƯỚI cùng và chiếm trọn khung. */}
       <div className="absolute inset-0">
         <ArenaScene
+          simulationSpeed={engine.paused ? 0 : engine.speed}
           subscribe={engine.sceneSubscribe}
           getView={engine.sceneGetView}
           selectedUid={selectedUid}
@@ -157,8 +211,13 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
           onSelect={selectObject}
           onHover={setHoveredUid}
           onContextMenu={openContextMenu}
+          onSceneContextMenu={openSceneMenu}
+          showLabels={showLabels}
+          showEdges={showEdges}
           quality={quality}
           onQualityDowngrade={setQuality}
+          onMovedChange={setHasMoved}
+          autoAlignAt={alignAt}
           cameraCommand={camera}
           enabled
         />
@@ -174,11 +233,21 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
         describeText={describeText}
         menuUid={menuUid}
         menuAnchor={menuAnchor}
+        sceneMenuAnchor={sceneMenuAnchor}
         listObjects={listObjects}
         onSelect={selectObject}
+        onFocusObject={focusObject}
         onSelectNode={selectNode}
         onCloseMenu={closeContextMenu}
+        onCloseSceneMenu={closeSceneMenu}
         onCamera={sendCamera}
+        onQuality={setQuality}
+        showLabels={showLabels}
+        onShowLabels={setShowLabels}
+        showEdges={showEdges}
+        onShowEdges={setShowEdges}
+        canAutoAlign={hasMoved}
+        onAutoAlign={autoAlign}
         onExit={onExit}
       />
     </div>

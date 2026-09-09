@@ -1,7 +1,16 @@
 'use client';
 
 import { useState, type ReactElement } from 'react';
-import { BookOpen, Check, ChevronDown, ChevronUp, Lightbulb, Target } from 'lucide-react';
+import {
+  BookOpen,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Lightbulb,
+  ShieldAlert,
+  ShieldCheck,
+  Target,
+} from 'lucide-react';
 import { Button, MarkdownView, cn } from '@devops-platform/ui';
 import type { Objective } from '@devops-platform/games';
 import type { ArenaDispatch } from '../arena-contract.ts';
@@ -25,6 +34,15 @@ export interface MissionCardProps {
   readonly objectives: readonly Objective[];
   /** `SessionStatus.objectivesMet` — id các mục tiêu ĐANG đạt. Tính lại mỗi tick, có thể mất đi. */
   readonly metIds: readonly string[];
+  /**
+   * `ObjectiveKinds.guards` — mục tiêu ĐÚNG SẴN mà người chơi phải giữ cho đúng.
+   *
+   * Chúng hiện thành một khối riêng ở dưới, KHÔNG phải ô tích. Lý do: một ràng
+   * buộc "đừng làm hỏng thứ đang chạy" trông y hệt một việc đã làm xong, nên
+   * người vừa vào bài đọc được rằng game tự hoàn thành hộ họ một phần — đúng
+   * thứ chủ dự án báo 2026-09-08.
+   */
+  readonly guardIds: readonly string[];
   readonly hints: readonly string[];
   readonly hintsRevealed: number;
   /** `ArenaModeContext.codexAvailable`. `false` ⇒ KHÔNG render nút mở tra cứu. */
@@ -55,6 +73,7 @@ export function MissionCard({
   goal,
   objectives,
   metIds,
+  guardIds,
   hints,
   hintsRevealed,
   codexAvailable,
@@ -70,9 +89,18 @@ export function MissionCard({
   }
 
   const met = new Set(metIds);
-  // Tiến độ đếm trên mục tiêu BẮT BUỘC: mục tiêu thưởng không chặn qua màn, nên
-  // gộp chúng vào mẫu số làm "2/4" trông như chưa xong trong khi bài đã qua.
-  const required = objectives.filter((objective) => objective.required);
+  const guard = new Set(guardIds);
+  const goals = objectives.filter((objective) => !guard.has(objective.id));
+  const guards = objectives.filter((objective) => guard.has(objective.id));
+  /*
+   * Tiến độ đếm trên VIỆC PHẢI LÀM và bắt buộc.
+   *
+   * Hai phép loại, hai lý do khác nhau. Mục tiêu thưởng bị loại vì nó không chặn
+   * qua màn, nên gộp vào mẫu số làm "2/4" trông như chưa xong trong khi bài đã
+   * qua. Mục tiêu PHẢI GIỮ bị loại vì nó đúng từ trước khi người chơi chạm vào
+   * gì — đếm nó là mở bài ở 1/3 và khoe một tiến độ chưa ai kiếm được.
+   */
+  const required = goals.filter((objective) => objective.required);
   const doneCount = required.filter((objective) => met.has(objective.id)).length;
   const lastHint = hintsRevealed > 0 ? (hints[hintsRevealed - 1] ?? null) : null;
   const hasMoreHints = hintsRevealed < hints.length;
@@ -81,14 +109,14 @@ export function MissionCard({
     <section
       aria-label="Nhiệm vụ"
       className={cn(
-        'pointer-events-auto absolute top-3 left-20 z-20 w-90 max-w-[calc(100vw-6rem)] overflow-hidden',
+        'arena-mission pointer-events-auto absolute top-3 left-20 z-20 w-90 max-w-[calc(100vw-6rem)] overflow-hidden',
         'rounded-lg border border-border bg-card/90 shadow-elevation-2 backdrop-blur-sm',
       )}
     >
       <header className="flex items-center gap-2 px-3 py-2">
         <Target className="size-4 shrink-0 text-primary" aria-hidden />
         <span className="font-mono text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-          {code}
+          {`Nhiệm vụ ${code.split('-')[1]?.padStart(2, '0') ?? code}`}
         </span>
         <span
           className={cn(
@@ -124,15 +152,29 @@ export function MissionCard({
             nhưng nếu câu nào đó rơi vào nhánh khối thì nó phát ra `<p>`, và
             `<p>` lồng trong `<p>` là HTML không hợp lệ.
           */}
-          <div className="truncate text-sm font-medium text-foreground" title={goal}>
+          <div className="arena-mission-goal text-sm font-medium text-foreground" title={goal}>
             <MarkdownView markdown={goal} resolveAssetUrl={() => null} />
           </div>
 
           <ul className="flex flex-col gap-1">
-            {objectives.map((objective) => (
+            {goals.map((objective) => (
               <ObjectiveRow key={objective.id} objective={objective} done={met.has(objective.id)} />
             ))}
           </ul>
+
+          {guards.length === 0 ? null : (
+            <div className="arena-mission-guards">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground uppercase">
+                <ShieldCheck className="size-3.5 shrink-0" aria-hidden />
+                Phải giữ nguyên
+              </p>
+              <ul className="mt-1 flex flex-col gap-1">
+                {guards.map((objective) => (
+                  <GuardRow key={objective.id} objective={objective} held={met.has(objective.id)} />
+                ))}
+              </ul>
+            </div>
+          )}
 
           {lastHint === null ? null : (
             <p className="rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
@@ -186,13 +228,52 @@ function ObjectiveRow({
       >
         {done ? <Check className="size-3" /> : null}
       </span>
-      <span className={cn('leading-snug', done ? 'text-muted-foreground line-through' : 'text-foreground')}>
+      <span
+        className={cn(
+          'leading-snug',
+          done ? 'text-muted-foreground line-through' : 'text-foreground',
+        )}
+      >
         {objective.label}
         {objective.required ? null : (
-          <span className="ml-1 rounded bg-muted px-1 text-[10px] text-muted-foreground">thưởng</span>
+          <span className="ml-1 rounded bg-muted px-1 text-[10px] text-muted-foreground">
+            thưởng
+          </span>
         )}
       </span>
       <span className="sr-only">{done ? 'đã đạt' : 'chưa đạt'}</span>
+    </li>
+  );
+}
+
+/**
+ * Một ràng buộc "đừng làm hỏng".
+ *
+ * Trạng thái BÌNH THƯỜNG của nó là "đang giữ được", nên nó KHÔNG được vẽ như một
+ * ô tích xanh — xanh ở đây phải mang nghĩa "bạn vừa làm được một việc". Đang giữ
+ * thì im lặng và mờ; VỠ ra thì đỏ, vì đó mới là tin tức.
+ */
+function GuardRow({
+  objective,
+  held,
+}: {
+  readonly objective: Objective;
+  readonly held: boolean;
+}): ReactElement {
+  return (
+    <li
+      className={cn(
+        'flex items-start gap-2 text-xs',
+        held ? 'text-muted-foreground' : 'text-destructive',
+      )}
+    >
+      {held ? (
+        <ShieldCheck aria-hidden className="mt-0.5 size-3.5 shrink-0 opacity-70" />
+      ) : (
+        <ShieldAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+      )}
+      <span className="leading-snug">{objective.label}</span>
+      <span className="sr-only">{held ? 'đang giữ được' : 'ĐÃ VỠ'}</span>
     </li>
   );
 }

@@ -13,7 +13,7 @@ import type { Level } from '../contract.ts';
 export const l19: Level = {
   id: 'k8s-19-thieu-mot-khoa-trong-configmap',
   chapter: 4,
-  title: 'ConfigMap có đó, khoá thì không',
+  title: 'Bổ sung khoá còn thiếu trong ConfigMap',
   mission:
     'Đưa Deployment `du-bao` (3 replica) lên chạy mà không mất khoá nào đang có trong ConfigMap.',
   brief: `Lại \`CreateContainerConfigError\`, lần này ở Deployment \`du-bao\` trong namespace

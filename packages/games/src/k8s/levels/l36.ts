@@ -29,7 +29,7 @@ import type { Level } from '../contract.ts';
 export const l36: Level = {
   id: 'k8s-36-cronjob-theo-lich',
   chapter: 2,
-  title: 'Việc tự chạy mỗi đêm, không ai bấm nút',
+  title: 'Hẹn giờ cho việc chạy mỗi đêm',
   mission: 'Tạo CronJob `don-log` trong `du-lieu` chạy `busybox:1.37` lúc 2 giờ sáng mỗi ngày.',
   brief: `Job bạn vừa cứu ở level trước chạy một lần rồi thôi. Còn việc dọn log phải chạy
 lại mỗi đêm, và không ai muốn dậy lúc 2 giờ sáng để bấm.

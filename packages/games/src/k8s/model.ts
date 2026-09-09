@@ -32,7 +32,7 @@ import type {
   ResourceKind,
   ResourceRef,
 } from './contract.ts';
-import { asStringMap, asString, isNamespaced } from './resources.ts';
+import { asStringMap, asString, asNumber, asRecord, isNamespaced } from './resources.ts';
 
 /** Số sự kiện giữ lại. Chaos mode chạy vô hạn, nên mảng này PHẢI có trần. */
 export const EVENT_LIMIT = 240;
@@ -199,11 +199,38 @@ function sorted(objects: readonly K8sObject[]): readonly K8sObject[] {
 
 export function findObject(state: ClusterState, ref: ResourceRef): K8sObject | null {
   const key = refKey(ref);
-  return state.objects.find((object) => refKey(objectRef(object)) === key) ?? null;
+  return state.objects.find((object) => refKey(objectRef(object)) === key) ?? infrastructureObjects(state).find((object) => refKey(objectRef(object)) === key) ?? null;
 }
 
 export function findByUid(state: ClusterState, uid: string): K8sObject | null {
-  return state.objects.find((object) => object.uid === uid) ?? null;
+  return state.objects.find((object) => object.uid === uid) ?? infrastructureObjects(state).find((object) => object.uid === uid) ?? null;
+}
+
+/** Project seeded infrastructure without consuming replay UIDs. */
+export function infrastructureObjects(state: ClusterState): K8sObject[] {
+  const make = (kind: ResourceKind, name: string, spec: Readonly<Record<string, unknown>>, labels: Readonly<Record<string, string>> = {}): K8sObject => ({
+    uid: `infra:${kind}:${name}`, kind, name, namespace: '', spec, labels,
+    ownerUid: null, createdTick: 0, runtime: { kind: 'none' },
+  });
+  return [
+    ...state.nodes.map(node => make('Node', node.name, { capacity: { cpu: node.cpu, memory: node.memory }, unschedulable: node.unschedulable }, node.labels)),
+    ...state.namespaces.map(name => make('Namespace', name, {})),
+  ].filter(item => !state.objects.some(object => object.kind === item.kind && object.name === item.name));
+}
+
+/** Keep API objects and the scheduler's infrastructure indexes in agreement. */
+function syncInfrastructure(state: ClusterState, object: K8sObject): ClusterState {
+  if (object.kind === 'Namespace') return { ...state, namespaces: [...new Set([...state.namespaces, object.name])].sort() };
+  if (object.kind !== 'Node') return state;
+  const previous = findNode(state, object.name);
+  const capacity = asRecord(object.spec['capacity']);
+  const node: NodeState = {
+    name: object.name, cpu: asNumber(capacity?.['cpu']) ?? previous?.cpu ?? 2000,
+    memory: asNumber(capacity?.['memory']) ?? previous?.memory ?? 4096,
+    ready: previous?.ready ?? true, labels: object.labels, taints: previous?.taints ?? [],
+    unschedulable: typeof object.spec['unschedulable'] === 'boolean' ? object.spec['unschedulable'] : previous?.unschedulable ?? false,
+  };
+  return { ...state, nodes: [...state.nodes.filter(item => item.name !== node.name), node].sort((a,b) => a.name < b.name ? -1 : 1) };
 }
 
 export function findNode(state: ClusterState, name: string): NodeState | null {
@@ -233,16 +260,18 @@ export function isTerminal(pod: PodRuntime): boolean {
 // ── Biến đổi bất biến ───────────────────────────────────────────────────────
 
 export function addObject(state: ClusterState, object: K8sObject): ClusterState {
-  return { ...state, objects: sorted([...state.objects, object]) };
+  return syncInfrastructure({ ...state, objects: sorted([...state.objects, object]) }, object);
 }
 
 export function replaceObject(state: ClusterState, object: K8sObject): ClusterState {
-  const objects = state.objects.map((item) => (item.uid === object.uid ? object : item));
-  return { ...state, objects: sorted(objects) };
+  const objects = state.objects.some(item => item.uid === object.uid)
+    ? state.objects.map((item) => (item.uid === object.uid ? object : item)) : [...state.objects, object];
+  return syncInfrastructure({ ...state, objects: sorted(objects) }, object);
 }
 
 /** Xoá theo uid. Object con (`ownerUid` trỏ tới nó) bị xoá theo — cascade thật của K8s. */
 export function removeObjectCascade(state: ClusterState, uid: string): ClusterState {
+  const removed = findByUid(state, uid);
   const doomed = new Set<string>([uid]);
   let grew = true;
   while (grew) {
@@ -254,7 +283,13 @@ export function removeObjectCascade(state: ClusterState, uid: string): ClusterSt
       }
     }
   }
-  return { ...state, objects: state.objects.filter((object) => !doomed.has(object.uid)) };
+  const objects = state.objects.filter(object => !doomed.has(object.uid) && !(removed?.kind === 'Namespace' && object.namespace === removed.name));
+  return { ...state,
+    nodes: removed?.kind === 'Node' ? state.nodes.filter(node => node.name !== removed.name) : state.nodes,
+    namespaces: removed?.kind === 'Namespace' ? state.namespaces.filter(name => name !== removed.name) : state.namespaces,
+    objects: objects.map(object => removed?.kind === 'Node' && object.runtime.kind === 'pod' && object.runtime.pod.nodeName === removed.name
+      ? { ...object, runtime: { kind: 'pod' as const, pod: newPod(null) } } : object),
+  };
 }
 
 export function emitEvent(

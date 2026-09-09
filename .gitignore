@@ -136,3 +136,5 @@ infra/k6/out/
 **/reports/**/*.tar.gz
 **/reports/**/*.tgz
 **/reports/**/*.zip
+.codex
+.agents

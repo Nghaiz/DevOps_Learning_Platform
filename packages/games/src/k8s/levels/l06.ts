@@ -8,7 +8,7 @@ import type { Level } from '../contract.ts';
 export const l06: Level = {
   id: 'k8s-06-deployment-thay-cho-pod',
   chapter: 2,
-  title: 'Deployment và khả năng tự phục hồi',
+  title: 'Giao pod cho Deployment quản',
   mission:
     'Dựng Deployment `web` trong `san-pham` với 3 replica chạy `nginx:1.27-alpine`, cả ba sẵn sàng.',
   brief: `Năm level vừa rồi bạn tạo pod bằng tay. Ở production không ai làm thế, vì một lý

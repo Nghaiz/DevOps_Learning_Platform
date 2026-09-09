@@ -13,7 +13,7 @@ import type { Level } from '../contract.ts';
 export const l25: Level = {
   id: 'k8s-25-taint-cho-phep-khong-phai-hut',
   chapter: 5,
-  title: 'Node dành riêng, và hai loại việc phải lên đó',
+  title: 'Đưa việc lên đúng node có taint',
   mission:
     'Cho `thu-thap-metric` chạy đủ trên cả 3 node, và đưa `huan-luyen` lên đúng `may-chu-gpu`.',
   brief: `\`may-chu-gpu\` được mua riêng cho việc huấn luyện, nên quản trị viên đã đánh

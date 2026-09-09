@@ -11,7 +11,7 @@ import type { Level } from '../contract.ts';
 export const l01: Level = {
   id: 'k8s-01-pod-dau-tien',
   chapter: 1,
-  title: 'Pod đầu tiên',
+  title: 'Dựng pod đầu tiên',
   mission:
     'Tạo pod `web` trong namespace `hoc-tap` chạy `nginx:1.27-alpine`, rồi đưa nó tới Running.',
   brief: `Bạn vừa được cấp một cluster Kubernetes trống. Một node, không object nào,

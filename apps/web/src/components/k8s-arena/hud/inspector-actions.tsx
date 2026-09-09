@@ -1,11 +1,26 @@
 'use client';
 
 import { useEffect, useId, useState, type ReactElement } from 'react';
-import { RotateCcw, RefreshCw, ScrollText, Trash2 } from 'lucide-react';
+import {
+  Activity,
+  FileText,
+  History,
+  RotateCcw,
+  RefreshCw,
+  ScrollText,
+  Terminal,
+  Trash2,
+} from 'lucide-react';
 import type { ObjectView } from '@devops-platform/games';
 import { Button, Input, Label } from '@devops-platform/ui';
 import type { ArenaDispatch } from '../arena-contract.ts';
-import { availableActions, buildAction, type ArenaActionId } from './inspector-action-list.ts';
+import {
+  availableActions,
+  buildAction,
+  commandFor,
+  type ArenaActionId,
+} from './inspector-action-list.ts';
+import { ConfirmDelete } from './confirm-delete.tsx';
 
 /**
  * Icon của từng hành động. `scale` là `null` vì nó có hàng riêng kèm ô nhập.
@@ -15,7 +30,12 @@ import { availableActions, buildAction, type ArenaActionId } from './inspector-a
  */
 const ACTION_ICON: Readonly<Record<ArenaActionId, ReactElement | null>> = {
   scale: null,
+  describe: <FileText aria-hidden="true" className="size-4" />,
   logs: <ScrollText aria-hidden="true" className="size-4" />,
+  'logs-previous': <History aria-hidden="true" className="size-4" />,
+  exec: <Terminal aria-hidden="true" className="size-4" />,
+  'selected-pods': <Activity aria-hidden="true" className="size-4" />,
+  'rollout-status': <Activity aria-hidden="true" className="size-4" />,
   restart: <RefreshCw aria-hidden="true" className="size-4" />,
   rollback: <RotateCcw aria-hidden="true" className="size-4" />,
   delete: <Trash2 aria-hidden="true" className="size-4" />,
@@ -26,6 +46,13 @@ export interface InspectorActionsProps {
   /** Tick hiện tại — mọi `GameAction` phải mang tick lúc phát để phát lại khớp. */
   readonly tick: number;
   readonly dispatch: ArenaDispatch;
+  /**
+   * Chạy một câu `kubectl` trong terminal và hiện kết quả ở đó.
+   *
+   * ⚠ Bắt buộc cho mọi hành động kênh `terminal`. Đi qua `dispatch` thì kết quả
+   * bị vứt — xem khối tài liệu đầu `inspector-action-list.ts`.
+   */
+  readonly onRunCommand: (command: string) => void;
 }
 
 /**
@@ -36,9 +63,15 @@ export interface InspectorActionsProps {
  * `RunLog` phải ghi đủ mọi hành động thì `verify.ts` mới phát lại và chấm lại
  * được, nên một nút đi tắt là một lỗ hổng gian lận (hợp đồng, `ArenaDispatch`).
  */
-export function InspectorActions({ object, tick, dispatch }: InspectorActionsProps): ReactElement {
+export function InspectorActions({
+  object,
+  tick,
+  dispatch,
+  onRunCommand,
+}: InspectorActionsProps): ReactElement {
   const scaleId = useId();
   const [replicas, setReplicas] = useState('1');
+  const [confirming, setConfirming] = useState(false);
 
   // Đổi object đang chọn ⇒ đưa ô replica về mặc định. Không có bước này thì con
   // số gõ cho Deployment TRƯỚC nằm lại trong ô, và một cú bấm sẽ co giãn tài
@@ -52,6 +85,14 @@ export function InspectorActions({ object, tick, dispatch }: InspectorActionsPro
   const replicasValid = Number.isInteger(parsed) && parsed >= 0;
 
   const run = (id: ArenaActionId): void => {
+    const definition = actions.find((action) => action.id === id);
+    if (definition?.channel === 'terminal') {
+      const command = commandFor(id, object);
+      if (command !== null) {
+        onRunCommand(command);
+      }
+      return;
+    }
     const action = buildAction(id, object, tick, parsed);
     if (action !== null) {
       dispatch(action);
@@ -113,6 +154,13 @@ export function InspectorActions({ object, tick, dispatch }: InspectorActionsPro
               */
               iconLeft={action.danger ? undefined : ACTION_ICON[action.id]}
               onClick={() => {
+                // Xoá là hành động DUY NHẤT không hoàn tác được, và chính chú
+                // thích của nó nói vậy — nhưng trước đây nó chạy ngay ở cú bấm
+                // đầu tiên, không hỏi lại lấy một lần.
+                if (action.id === 'delete') {
+                  setConfirming(true);
+                  return;
+                }
                 run(action.id);
               }}
             >
@@ -121,6 +169,18 @@ export function InspectorActions({ object, tick, dispatch }: InspectorActionsPro
             </Button>
           ))}
       </div>
+
+      <ConfirmDelete
+        open={confirming}
+        object={object}
+        onCancel={() => {
+          setConfirming(false);
+        }}
+        onConfirm={() => {
+          setConfirming(false);
+          run('delete');
+        }}
+      />
     </div>
   );
 }

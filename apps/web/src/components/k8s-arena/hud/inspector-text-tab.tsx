@@ -3,8 +3,27 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { Button, cn } from '@devops-platform/ui';
+import { tokenizeDescribe, type DescribeTokenKind } from '../shared/describe-highlight';
 import { HIDDEN_SCROLL_BOTH } from './inspector-frame.tsx';
 import { useHorizontalWheelScroll } from './inspector-hscroll.tsx';
+import { ThemedHScrollbar } from './themed-hscrollbar.tsx';
+
+/**
+ * Loại mẩu → lớp màu.
+ *
+ * Token ngữ nghĩa, không hex — `check-design-tokens.mjs` chặn màu cứng, và bảng
+ * này phải đổi theo theme cùng phần còn lại của bảng thông số.
+ */
+const DESCRIBE_CLASS: Readonly<Record<DescribeTokenKind, string>> = {
+  heading: 'text-foreground font-semibold',
+  label: 'text-status-progress',
+  value: 'text-foreground',
+  muted: 'text-muted-foreground',
+  warning: 'text-warning',
+  error: 'text-destructive font-semibold',
+  punctuation: 'text-muted-foreground',
+  plain: 'text-foreground',
+};
 
 /** Bao lâu nút giữ trạng thái "Đã chép" trước khi trở lại. */
 const COPIED_MS = 2000;
@@ -27,14 +46,27 @@ export interface InspectorTextTabProps {
  * dung căn cột, và bẻ dòng phá đúng cái thẳng hàng làm chúng đọc được. Thứ bị
  * cấm là THANH TRƯỢT hiện ra, không phải khả năng cuộn.
  *
- * `<pre>` chứ không phải một cây `<div>` tô màu cú pháp: nội dung phải chép ra
- * được NGUYÊN VẸN và phải đọc được tuần tự bằng trình đọc màn hình. Tô màu ở đây
- * đổi cả hai thứ đó lấy một thứ trang trí.
+ * ## Tô màu, mà vẫn chép ra nguyên vẹn
+ *
+ * Bản trước từ chối tô màu với lý do: nội dung phải chép ra được NGUYÊN VẸN và
+ * phải đọc tuần tự được bằng trình đọc màn hình. Cả hai lý do đều đúng — nhưng
+ * chúng chỉ loại trừ việc THAY `<pre>` bằng một cây widget, không loại trừ việc
+ * bọc từng mẩu chữ trong `<span>`.
+ *
+ * Vẫn là một `<pre>` duy nhất, vẫn đúng từng ký tự (`describe-highlight.ts` có
+ * một ô kiểm chỉ để gác điều đó), nên `Ctrl+C` và trình đọc màn hình thấy đúng
+ * cùng một chuỗi như trước. Cái thêm vào chỉ là `className` trên các `<span>`.
+ *
+ * Và nó không phải trang trí: `describe` là chỗ người học đi tìm chữ
+ * `CrashLoopBackOff` giữa bốn mươi dòng căn cột. Một khối đơn sắc bắt họ đọc
+ * tuần tự; một chữ đỏ thì đập vào mắt.
  */
 export function InspectorTextTab({ text, label, copyLabel }: InspectorTextTabProps): ReactElement {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { ref, hasLeft, hasRight } = useHorizontalWheelScroll(text);
+  const { ref, hasLeft, hasRight, visibleFraction, progress, scrollToFraction } =
+    useHorizontalWheelScroll(text);
+  const lines = tokenizeDescribe(text);
 
   // Dọn hẹn giờ lúc gỡ. Không dọn thì `setCopied` chạy trên component đã unmount
   // mỗi lần người dùng chép rồi bỏ chọn ngay — React 19 không cảnh báo nữa, nên
@@ -72,7 +104,11 @@ export function InspectorTextTab({ text, label, copyLabel }: InspectorTextTabPro
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex justify-end">
         <Button type="button" variant="ghost" size="sm" onClick={copy}>
-          {copied ? <Check aria-hidden="true" className="size-4" /> : <Copy aria-hidden="true" className="size-4" />}
+          {copied ? (
+            <Check aria-hidden="true" className="size-4" />
+          ) : (
+            <Copy aria-hidden="true" className="size-4" />
+          )}
           {copied ? 'Đã chép' : copyLabel}
         </Button>
       </div>
@@ -96,7 +132,18 @@ export function InspectorTextTab({ text, label, copyLabel }: InspectorTextTabPro
             HIDDEN_SCROLL_BOTH,
           )}
         >
-          {text}
+          {lines.map((tokens, index) => (
+            // Chỉ số dòng là khoá ổn định duy nhất — một dòng `describe` không
+            // có danh tính nào khác, và hai dòng giống hệt nhau là chuyện thường.
+            <span key={index} className="block">
+              {tokens.map((token, position) => (
+                <span key={position} className={DESCRIBE_CLASS[token.kind]}>
+                  {token.text}
+                </span>
+              ))}
+              {'\n'}
+            </span>
+          ))}
         </pre>
 
         {/*
@@ -124,6 +171,19 @@ export function InspectorTextTab({ text, label, copyLabel }: InspectorTextTabPro
           )}
         />
       </div>
+
+      {/*
+        Thanh cuộn ngang của arena, không phải của trình duyệt. Dải mờ ở trên trả
+        lời "còn nội dung bên kia không"; thanh này trả lời "còn bao nhiêu" và
+        cho KÉO tới thẳng chỗ cần — với khối describe rộng gấp ba khung thì đó là
+        khác biệt giữa lăn mò và nhìn rồi nhảy tới.
+      */}
+      <ThemedHScrollbar
+        visibleFraction={visibleFraction}
+        progress={progress}
+        onScrollToFraction={scrollToFraction}
+        label={`Cuộn ngang ${label}`}
+      />
     </div>
   );
 }

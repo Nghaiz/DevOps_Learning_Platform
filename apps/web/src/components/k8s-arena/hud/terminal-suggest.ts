@@ -38,13 +38,18 @@ const VERBS_WITH_KIND = new Set(['get', 'describe', 'delete', 'edit', 'scale']);
 const VERBS_WITH_POD = new Set(['logs', 'exec']);
 
 /**
- * Vị trí đối số (bỏ qua cờ và giá trị của cờ) mà token đang gõ sẽ chiếm.
+ * Các ĐỐI SỐ của lệnh, tức token đã bỏ cờ và giá trị đi kèm cờ.
  *
- * Đếm ở đây thay vì tin vào chỉ số mảng: `kubectl -n prod get pods` là hợp lệ,
- * nên "token thứ ba" và "đối số thứ nhất" không phải một thứ.
+ * Trả cả danh sách chứ không chỉ đếm: mọi câu hỏi mà `poolFor` cần đặt —
+ * "động từ là gì", "đang gõ đối số thứ mấy", "loại vừa gõ là gì" — đều là câu
+ * hỏi về CÙNG danh sách này. Bản trước có hai hàm riêng, mỗi hàm đếm theo một
+ * quy ước, và chỗ chúng bất đồng chính là chỗ gợi ý biến mất.
+ *
+ * `kubectl -n prod get pods` là cú pháp hợp lệ, nên "token thứ ba" và "đối số
+ * thứ nhất" không phải một thứ.
  */
-function positionalIndex(committed: readonly string[]): number {
-  let count = 0;
+function positionals(committed: readonly string[]): readonly string[] {
+  const out: string[] = [];
   let skipNext = false;
   for (const token of committed) {
     if (skipNext) {
@@ -55,27 +60,9 @@ function positionalIndex(committed: readonly string[]): number {
       skipNext = FLAGS_TAKING_VALUE.has(token);
       continue;
     }
-    count += 1;
+    out.push(token);
   }
-  return count;
-}
-
-/** Đối số cuối cùng đã gõ xong sau động từ — với `get pods` thì là `pods`. */
-function lastPositional(committed: readonly string[]): string {
-  let skipNext = false;
-  let last = '';
-  for (const token of committed.slice(2)) {
-    if (skipNext) {
-      skipNext = false;
-      continue;
-    }
-    if (token.startsWith('-')) {
-      skipNext = FLAGS_TAKING_VALUE.has(token);
-      continue;
-    }
-    last = token;
-  }
-  return last;
+  return out;
 }
 
 /**
@@ -119,29 +106,49 @@ function poolFor(
   prefix: string,
   objects: readonly ObjectView[],
 ): readonly Suggestion[] {
-  const head = committed[0];
+  /*
+   * Mọi phép đếm dưới đây chạy trên DANH SÁCH ĐỐI SỐ, không trên mảng token thô.
+   *
+   * ⚠ Đây là chỗ hai lỗi cùng một họ đã nằm. `kubectl -n prod get pods` là cú
+   * pháp hợp lệ, nên "token thứ hai" KHÔNG phải "động từ": bản trước đọc
+   * `committed[1]` và với dòng trên nó nhận về `-n`, rồi gợi ý cờ của một động
+   * từ không tồn tại. Cùng lỗi đó, ở một mức khác, làm gợi ý loại/tên biến mất
+   * hoàn toàn (xem chú thích của `position`).
+   */
+  const args = positionals(committed);
+  const head = args[0];
   if (head === undefined) {
     return [{ value: 'kubectl', hint: 'Mọi lệnh trong game bắt đầu bằng kubectl' }];
   }
   if (head !== 'kubectl' && head !== 'k') {
     return [];
   }
-  const verb = committed[1];
+  const verb = args[1];
   if (verb === undefined) {
     return VERBS;
   }
   if (prefix.startsWith('-')) {
     return flagsFor(verb);
   }
-  // Đối số 0 là chính động từ, nên đối số CỦA động từ bắt đầu từ 1.
-  const position = positionalIndex(committed) - 1;
+  /*
+   * Đối số thứ mấy CỦA ĐỘNG TỪ. Trừ 2 vì `args` còn chứa cả `kubectl` lẫn động từ.
+   *
+   * ⚠ Bản trước trừ 1, và hệ quả là gợi ý LOẠI TÀI NGUYÊN và TÊN OBJECT không
+   * bao giờ xuất hiện — hai nhóm gợi ý hữu ích nhất trong cả bộ. Gõ `kubectl get`
+   * rồi dấu cách cho `position === 1`, rơi vào nhánh "tên object"; nhánh đó tra
+   * loại bằng một hàm đếm theo quy ước KHÁC (đã bỏ `kubectl` và động từ), nhận
+   * về chuỗi rỗng, `resolveKind('')` trả `null`, và danh sách rỗng. Rỗng chứ
+   * không sai, nên nó hỏng hoàn toàn im lặng: người chơi chỉ thấy gợi ý lúc gõ
+   * động từ rồi thôi. Đo trực tiếp 2026-09-09 với `kubectl get po`.
+   */
+  const position = args.length - 2;
   if (verb === 'rollout') {
     if (position === 0) {
       return ROLLOUT_SUBS;
     }
     return position === 1
       ? kindsInCluster(objects)
-      : names(objectsOfKindToken(objects, lastPositional(committed)));
+      : names(objectsOfKindToken(objects, args.at(-1) ?? ''));
   }
   if (VERBS_WITH_POD.has(verb)) {
     return position === 0 ? names(objects.filter((object) => object.kind === 'Pod')) : [];
@@ -150,7 +157,7 @@ function poolFor(
     if (position === 0) {
       return kindsInCluster(objects);
     }
-    return position === 1 ? names(objectsOfKindToken(objects, lastPositional(committed))) : [];
+    return position === 1 ? names(objectsOfKindToken(objects, args.at(-1) ?? '')) : [];
   }
   return flagsFor(verb);
 }
@@ -161,7 +168,10 @@ function poolFor(
  * Trả mảng rỗng khi không có gì đáng gợi — bảng gợi ý rỗng phải BIẾN MẤT, không
  * phải hiện ra một khung trống.
  */
-export function suggestTokens(input: string, objects: readonly ObjectView[]): readonly Suggestion[] {
+export function suggestTokens(
+  input: string,
+  objects: readonly ObjectView[],
+): readonly Suggestion[] {
   const atNewToken = input === '' || /\s$/.test(input);
   const tokens = input.split(/\s+/).filter((token) => token !== '');
   const prefix = atNewToken ? '' : (tokens.at(-1) ?? '');

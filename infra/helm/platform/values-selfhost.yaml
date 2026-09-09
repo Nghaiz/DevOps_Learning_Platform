@@ -124,8 +124,17 @@ web:
   # markdown hạ một bậc heading, đường polling của trang soạn bài, và tắt phép dò
   # JIT của Zod. KHÔNG đụng proto nên KHÔNG có ràng buộc "web và orchestrator lên
   # cùng lượt" của §3bis; orchestrator/gateway/migrator giữ nguyên `p13`.
+  #
+  # p14b (2026-09-09): đợt dựng lại giao diện arena + màn chọn màn + 36 tên màn.
+  # CHỈ tầng web, không đụng proto — orchestrator/gateway/migrator giữ `p14a`.
+  #
+  # ⚠ Đây cũng là image ĐẦU TIÊN chứa `/games/k8s`. Bản `p14a` được build lúc
+  # 02:41 ngày 2026-09-08, còn PR games gộp lúc 18:25 CÙNG NGÀY — nên trên cụm
+  # `/games/k8s` trả 404 suốt từ đó, trong khi 4/4 deployment `Running 1/1` và
+  # mọi lệnh helm đều xanh. Nguyên nhân gốc là danh sách COPY trong
+  # `apps/web/Dockerfile` thiếu `packages/games`; đã vá cùng lượt này.
   image:
-    tag: p14a
+    tag: p14b
   replicaCount: 1
   # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
   # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ

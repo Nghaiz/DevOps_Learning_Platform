@@ -208,7 +208,19 @@ export async function findMarkers(
 // ════════════════════════════════════════════════ cửa sổ đọc số liệu của scene
 
 /**
- * Hình dạng `globalThis.__dlpK8sScene()` trả về (lane E cài, gỡ khi unmount).
+ * Hình dạng `globalThis.__dlpArenaScene()` trả về (lane cảnh cài, gỡ khi unmount).
+ *
+ * ⚠ TÊN ĐỔI 2026-09-08, và trước khi sửa thì đây là một cổng ĐỎ TRONG IM LẶNG.
+ * Bản dựng lại của arena cài cửa sổ đo dưới tên `__dlpArenaScene`
+ * (`scene/frame-pump.tsx`) trong khi harness vẫn chờ cái tên CŨ, nên
+ * `waitForSceneChannel` hết giờ và MỌI ô hiệu năng của `@games` trả về "không đo
+ * được" — chứ không phải "đạt". Đo trực tiếp trên trình duyệt 2026-09-08: đọc
+ * tên cũ trên `/games/k8s` đang chạy bình thường cho ra `undefined`.
+ *
+ * Bài học đáng giữ hơn dòng sửa: một lần đổi tên của bên PHÁT không làm gì bên
+ * ĐO đỏ lên: harness chỉ biết "không thấy cửa sổ đo", mà thông điệp cho tình
+ * huống đó lại chính là thông điệp cho "WebGL không dựng được". Hai nguyên nhân
+ * rất khác nhau, một câu báo lỗi.
  *
  * KHAI LẠI ở đây thay vì `import type` từ `components/games/k8s-scene-lazy.tsx`:
  * file đó `import 'three'` và nằm ngoài `include` của `e2e/tsconfig.json`. Cái
@@ -241,13 +253,13 @@ const STAT_KEYS = ['calls', 'triangles', 'geometries', 'textures', 'frames', 'ob
 export async function waitForSceneChannel(page: Page, timeoutMs = 30_000): Promise<void> {
   await page
     .waitForFunction(
-      () => typeof (globalThis as { __dlpK8sScene?: unknown }).__dlpK8sScene === 'function',
+      () => typeof (globalThis as { __dlpArenaScene?: unknown }).__dlpArenaScene === 'function',
       undefined,
       { timeout: timeoutMs },
     )
     .catch(() => {
       throw new Error(
-        `Sau ${timeoutMs}ms vẫn không có \`globalThis.__dlpK8sScene\`. Cảnh 3D chưa ` +
+        `Sau ${timeoutMs}ms vẫn không có \`globalThis.__dlpArenaScene\`. Cảnh 3D chưa ` +
           `mount (chunk \`three\` chưa tải, WebGL không dựng được, hoặc công tắc "Tắt ` +
           `hiệu ứng 3D" đang bật). Mọi cổng hiệu năng dưới đây KHÔNG đo được — và đó ` +
           `là "không đo được", không phải "đạt".`,
@@ -257,13 +269,13 @@ export async function waitForSceneChannel(page: Page, timeoutMs = 30_000): Promi
 
 export async function readSceneStats(page: Page): Promise<SceneStats> {
   const raw = await page.evaluate(() => {
-    const read = (globalThis as { __dlpK8sScene?: () => unknown }).__dlpK8sScene;
+    const read = (globalThis as { __dlpArenaScene?: () => unknown }).__dlpArenaScene;
     return typeof read === 'function' ? read() : null;
   });
 
   if (raw === null || typeof raw !== 'object') {
     throw new Error(
-      '`__dlpK8sScene()` không trả về object. Cửa sổ đo của lane E đã bị gỡ hoặc đổi ' +
+      '`__dlpArenaScene()` không trả về object. Cửa sổ đo của lane E đã bị gỡ hoặc đổi ' +
         'hợp đồng — dừng ở đây thay vì đọc `undefined` rồi so sánh số học với nó.',
     );
   }
@@ -272,13 +284,13 @@ export async function readSceneStats(page: Page): Promise<SceneStats> {
   for (const key of STAT_KEYS) {
     if (typeof record[key] !== 'number' || !Number.isFinite(record[key])) {
       throw new Error(
-        `\`__dlpK8sScene().${key}\` không phải số hữu hạn (nhận: ${String(record[key])}). ` +
+        `\`__dlpArenaScene().${key}\` không phải số hữu hạn (nhận: ${String(record[key])}). ` +
           `Hợp đồng cửa sổ đo đã lệch giữa lane E và lane F.`,
       );
     }
   }
   if (typeof record['tier'] !== 'string' || record['tier'] === '') {
-    throw new Error('`__dlpK8sScene().tier` không phải chuỗi bậc chất lượng.');
+    throw new Error('`__dlpArenaScene().tier` không phải chuỗi bậc chất lượng.');
   }
 
   return raw as SceneStats;

@@ -3,9 +3,8 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import { PLATFORM_DEPTH, PLATFORM_HEIGHT, PLATFORM_WIDTH } from '../shared/scene-layout';
 import type { ArenaSceneProps } from '../arena-contract';
-import { layoutLabels, nodeLabelAnchor, type LabelBox } from './label-layout';
+import { layoutLabels, type LabelBox } from './label-layout';
 import {
   LABEL_CHAR_WIDTH,
   LABEL_HALF_HEIGHT,
@@ -24,7 +23,6 @@ const MAX_TEXT = 26;
 
 const PRIORITY_SELECTED = 1000;
 const PRIORITY_HOVERED = 900;
-const PRIORITY_NODE = 700;
 const PRIORITY_FAILING = 600;
 const PRIORITY_OTHER_KIND = 400;
 const PRIORITY_POD = 200;
@@ -45,7 +43,16 @@ export interface SceneLabelsProps {
 function box(index: number): LabelBox {
   let existing = BOXES[index];
   if (existing === undefined) {
-    existing = { uid: '', text: '', x: 0, y: 0, priority: 0, halfWidth: 0, halfHeight: 0, visible: false };
+    existing = {
+      uid: '',
+      text: '',
+      x: 0,
+      y: 0,
+      priority: 0,
+      halfWidth: 0,
+      halfHeight: 0,
+      visible: false,
+    };
     BOXES[index] = existing;
   }
   return existing;
@@ -76,8 +83,8 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
     for (let i = 0; i < MAX_LABELS; i += 1) {
       const span = document.createElement('span');
       span.className =
-        'pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-sm bg-slate-950/70 px-1 ' +
-        'py-px font-mono text-[10px] leading-4 text-slate-100 ring-1 ring-white/10';
+        'pointer-events-none absolute left-0 top-0 whitespace-nowrap rounded-sm bg-background/75 px-1 ' +
+        'py-px font-mono text-[10px] leading-4 text-foreground ring-1 ring-border';
       span.style.display = 'none';
       span.style.willChange = 'transform';
       layer.appendChild(span);
@@ -100,7 +107,14 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
     const current = propsRef.current;
     let count = 0;
 
-    const push = (uid: string, text: string, x: number, y: number, z: number, base: number): void => {
+    const push = (
+      uid: string,
+      text: string,
+      x: number,
+      y: number,
+      z: number,
+      base: number,
+    ): void => {
       if (count >= MAX_CANDIDATES) {
         return;
       }
@@ -121,16 +135,6 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
       count += 1;
     };
 
-    for (const node of runtime.nodes) {
-      const anchor = nodeLabelAnchor(
-        node.x,
-        camera.position.x,
-        camera.position.z,
-        PLATFORM_DEPTH / 2 + 0.4,
-        PLATFORM_WIDTH / 2 + 0.4,
-      );
-      push(`node:${node.name}`, node.name, anchor.x, PLATFORM_HEIGHT / 2 + 0.05, anchor.z, PRIORITY_NODE);
-    }
     // Hai lượt: lượt đầu lấy thứ QUAN TRỌNG (đang chọn, đang rê, đang lỗi, và
     // mọi tài nguyên không phải Pod), lượt sau mới lấp bằng Pod bình thường.
     // Không có bước này thì 200 pod khoẻ mạnh chiếm hết chỗ và pod đang hỏng —
@@ -181,8 +185,7 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
         span.textContent = candidate.text;
       }
       span.style.display = 'block';
-      span.style.transform =
-        `translate3d(${candidate.x.toFixed(1)}px, ${candidate.y.toFixed(1)}px, 0) translate(-50%, -50%)`;
+      span.style.transform = `translate3d(${candidate.x.toFixed(1)}px, ${candidate.y.toFixed(1)}px, 0) translate(-50%, -50%)`;
       shown += 1;
     }
     for (let i = shown; i < pool.length; i += 1) {

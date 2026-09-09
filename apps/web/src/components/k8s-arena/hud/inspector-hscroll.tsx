@@ -25,6 +25,17 @@ export interface HorizontalScrollState {
   readonly hasLeft: boolean;
   /** Còn nội dung khuất bên PHẢI. */
   readonly hasRight: boolean;
+  /**
+   * Phần bề ngang đang nhìn thấy, 0..1 — cũng chính là BỀ DÀI của con trượt.
+   *
+   * `1` nghĩa là không có gì tràn, và lúc đó thanh trượt tự ẩn: một thanh trượt
+   * dài hết khay không nói được gì mà vẫn chiếm một dải màu.
+   */
+  readonly visibleFraction: number;
+  /** Vị trí cuộn hiện tại trên tổng khoảng cuộn được, 0..1. */
+  readonly progress: number;
+  /** Nhảy tới một vị trí 0..1. Con trượt kéo tay gọi hàm này. */
+  readonly scrollToFraction: (fraction: number) => void;
 }
 
 /**
@@ -52,6 +63,8 @@ export function useHorizontalWheelScroll(text: string): HorizontalScrollState {
   const ref = useRef<HTMLPreElement>(null);
   const [hasLeft, setHasLeft] = useState(false);
   const [hasRight, setHasRight] = useState(false);
+  const [visibleFraction, setVisibleFraction] = useState(1);
+  const [progress, setProgress] = useState(0);
 
   const measure = useCallback(() => {
     const el = ref.current;
@@ -61,7 +74,24 @@ export function useHorizontalWheelScroll(text: string): HorizontalScrollState {
     const max = el.scrollWidth - el.clientWidth;
     setHasLeft(el.scrollLeft > EDGE_TOLERANCE_PX);
     setHasRight(el.scrollLeft < max - EDGE_TOLERANCE_PX);
+    // `scrollWidth` bằng 0 chỉ xảy ra khi phần tử chưa có bố cục; coi như "vừa
+    // khít" để thanh trượt ẩn đi thay vì nhấp nháy một con trượt dài bằng khay.
+    setVisibleFraction(el.scrollWidth > 0 ? Math.min(1, el.clientWidth / el.scrollWidth) : 1);
+    setProgress(max > 0 ? Math.min(1, Math.max(0, el.scrollLeft / max)) : 0);
   }, []);
+
+  const scrollToFraction = useCallback(
+    (fraction: number) => {
+      const el = ref.current;
+      if (el === null) {
+        return;
+      }
+      const max = el.scrollWidth - el.clientWidth;
+      el.scrollLeft = Math.min(max, Math.max(0, fraction * max));
+      measure();
+    },
+    [measure],
+  );
 
   useEffect(() => {
     const el = ref.current;
@@ -144,5 +174,5 @@ export function useHorizontalWheelScroll(text: string): HorizontalScrollState {
     };
   }, [measure, text]);
 
-  return { ref, hasLeft, hasRight };
+  return { ref, hasLeft, hasRight, visibleFraction, progress, scrollToFraction };
 }

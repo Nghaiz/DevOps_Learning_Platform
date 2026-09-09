@@ -13,7 +13,7 @@ import type { Level } from '../contract.ts';
 export const l24: Level = {
   id: 'k8s-24-bi-giet-vi-thieu-bo-nho',
   chapter: 5,
-  title: 'Ứng dụng không sai, nó chỉ cần nhiều RAM hơn mức được cấp',
+  title: 'Nâng limit bộ nhớ cho pod bị OOM',
   mission: 'Đưa `xu-ly-anh` về 3 replica chạy ổn định, vẫn khai đủ requests và limits bộ nhớ.',
   brief: `Deployment \`xu-ly-anh\` trong namespace \`noi-dung\` restart liên tục. Bảng
 \`get pods\` trông hệt level 3: Running một lúc rồi chết, RESTARTS tăng dần.

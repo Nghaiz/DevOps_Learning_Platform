@@ -12,7 +12,7 @@ import type { Level } from '../contract.ts';
 export const l04: Level = {
   id: 'k8s-04-doc-trang-thai-pod',
   chapter: 1,
-  title: 'Ba pod, chỉ một cái là vấn đề',
+  title: 'Dọn đúng pod hỏng, chừa pod đang chạy',
   mission: 'Xoá đúng pod đã thất bại trong `bao-cao`, giữ nguyên pod `web` đang phục vụ.',
   brief: `Bạn nhận ca trực và namespace \`bao-cao\` có ba pod: \`web\` đang Running,
 \`xuat-thang-08\` ở Succeeded, \`xuat-thang-07\` ở Failed.

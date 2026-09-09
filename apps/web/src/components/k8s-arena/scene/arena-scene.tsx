@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { TIER_FEATURES } from '../shared/scene-quality';
@@ -56,6 +56,15 @@ function ArenaCanvas(props: ArenaSceneProps): ReactElement {
   const { colors, version } = useArenaColors(probeRef, reportDegraded);
   const reducedMotion = usePrefersReducedMotion();
   const features = TIER_FEATURES[props.quality];
+  const cameraOptions = useMemo(
+    () => ({
+      fov: CAMERA_TUNING.fov,
+      near: 0.1,
+      far: 400,
+      position: [...CAMERA_TUNING.initialPosition] as [number, number, number],
+    }),
+    [],
+  );
 
   return (
     <div className="relative h-full w-full" data-testid="arena-scene">
@@ -76,14 +85,7 @@ function ArenaCanvas(props: ArenaSceneProps): ReactElement {
         frameloop="demand"
         dpr={[1, features.maxPixelRatio]}
         shadows={features.softShadows ? 'soft' : features.shadows}
-        camera={{
-          fov: CAMERA_TUNING.fov,
-          near: 0.1,
-          far: 400,
-          // Sao chép mảng: hằng số của hợp đồng là `readonly`, và R3F ghi thẳng vào
-          // mảng nó nhận được.
-          position: [...CAMERA_TUNING.initialPosition],
-        }}
+        camera={cameraOptions}
         gl={{
           antialias: true,
           alpha: false,
@@ -105,9 +107,15 @@ function ArenaCanvas(props: ArenaSceneProps): ReactElement {
           labelLayer={labelLayer}
           selectedUid={props.selectedUid}
           hoveredUid={props.hoveredUid}
+          showLabels={props.showLabels}
+          showEdges={props.showEdges}
         />
       </Canvas>
-      <div ref={setLabelLayer} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden" />
+      <div
+        ref={setLabelLayer}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      />
     </div>
   );
 }

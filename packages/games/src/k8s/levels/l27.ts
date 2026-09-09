@@ -16,7 +16,7 @@ import type { Level } from '../contract.ts';
 export const l27: Level = {
   id: 'k8s-27-bi-kep-giua-quota-va-limitrange',
   chapter: 5,
-  title: 'Trần từ trên, sàn từ dưới',
+  title: 'Lách qua quota và LimitRange',
   mission: 'Đưa `xu-ly-video` lên đủ 6 replica sẵn sàng mà không đụng vào quota hay LimitRange.',
   brief: `Namespace \`xu-ly\` có hai hàng rào do quản trị viên cluster đặt: ResourceQuota
 \`han-muc\` chặn tổng của cả namespace, và LimitRange \`khung-tai-nguyen\` chặn từng

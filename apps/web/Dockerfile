@@ -17,6 +17,7 @@ COPY packages/ui/package.json packages/ui/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/terminal/package.json packages/terminal/package.json
 COPY packages/scenario/package.json packages/scenario/package.json
+COPY packages/games/package.json packages/games/package.json
 # --frozen-lockfile: build KHÔNG được tự ý sửa lockfile — lệch lockfile phải lộ ra
 # ở CI (pnpm install thường), không phải âm thầm re-resolve trong image build.
 RUN pnpm install --frozen-lockfile
@@ -32,6 +33,7 @@ COPY packages/ui packages/ui
 COPY packages/shared-types packages/shared-types
 COPY packages/terminal packages/terminal
 COPY packages/scenario packages/scenario
+COPY packages/games packages/games
 ENV NEXT_TELEMETRY_DISABLED=1
 # Bật standalone TẠI ĐÂY (không hardcode trong next.config.ts): trên Windows dev,
 # bước trace standalone tạo symlink → EPERM; chỉ image Docker cần standalone.
@@ -47,6 +49,16 @@ ENV NEXT_OUTPUT=standalone
 # `packages/terminal` ở 1.F, và `packages/scenario` là lượt thứ hai: nó có
 # package.json từ 2.A, nhưng tới 2.B mới có ai import nó — nên cảnh báo cũ ("chưa
 # có manifest, chưa cần copy") đã hết đúng trước khi có ai đọc lại nó.
+#
+# LƯỢT THỨ BA — `packages/games` (2026-09-09). Đúng hình dạng cảnh báo trên, và
+# lần này nó im lặng lâu hơn cả hai lần trước: PR games gộp lúc 18:25 ngày
+# 2026-09-08, còn image `p14a` đang chạy trên cụm được build lúc 02:41 CÙNG NGÀY
+# — tức 16 tiếng TRƯỚC khi package tồn tại. Nên không lần build nào đỏ, `helm`
+# vẫn xanh, 4/4 deployment vẫn `Running 1/1`, và triệu chứng ở phía người dùng
+# là `/games/k8s` trả 404 trên cụm trong khi chạy tốt ở máy dev.
+#
+# Bài học chung của cả ba lượt: danh sách này KHÔNG tự đỏ khi thiếu — nó chỉ đỏ
+# ở lần build ĐẦU TIÊN sau khi có người import package mới. Trước đó nó im.
 RUN pnpm turbo run build
 
 # ---------------------------------------------------------------- migrator

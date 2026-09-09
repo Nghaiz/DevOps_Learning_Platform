@@ -11,7 +11,7 @@ import type { Level } from '../contract.ts';
 export const l10: Level = {
   id: 'k8s-10-replicaset-mo-coi',
   chapter: 2,
-  title: 'ReplicaSet không ai nhận',
+  title: 'Dọn ReplicaSet mồ côi đang cướp pod',
   mission: 'Dọn ReplicaSet mồ côi `web-tam` và đưa Deployment `web` về đúng 4 pod của chính nó.',
   brief: `Một người trong đội tạo tay ReplicaSet \`web-tam\` để thử nghiệm rồi quên nó ở đó.
 Pod của nó mang đúng label mà Deployment \`web\` dùng làm selector: \`app=web\`.

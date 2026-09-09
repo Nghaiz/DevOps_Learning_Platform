@@ -65,7 +65,10 @@ const COMMON_FLAGS: readonly Suggestion[] = [
 /** Cờ riêng theo động từ. Ghép với `COMMON_FLAGS` ở `flagsFor`. Bản chép — xem đầu file. */
 const VERB_FLAGS: Readonly<Record<string, readonly Suggestion[]>> = {
   logs: [
-    { value: '--previous', hint: 'Log của LẦN CHẠY TRƯỚC — chỗ duy nhất còn bằng chứng khi pod CrashLoop' },
+    {
+      value: '--previous',
+      hint: 'Log của LẦN CHẠY TRƯỚC — chỗ duy nhất còn bằng chứng khi pod CrashLoop',
+    },
     { value: '-c', hint: 'Chọn container trong pod nhiều container' },
   ],
   exec: [
@@ -89,8 +92,18 @@ const VERB_FLAGS: Readonly<Record<string, readonly Suggestion[]>> = {
  * làm gợi ý lệch một ô ngay khi người chơi gõ `-n`.
  */
 export const FLAGS_TAKING_VALUE = new Set([
-  '-n', '--namespace', '-l', '--selector', '-o', '--output',
-  '-c', '--container', '-f', '--filename', '--grace-period', '--wait',
+  '-n',
+  '--namespace',
+  '-l',
+  '--selector',
+  '-o',
+  '--output',
+  '-c',
+  '--container',
+  '-f',
+  '--filename',
+  '--grace-period',
+  '--wait',
 ]);
 
 export function flagsFor(verb: string): readonly Suggestion[] {
