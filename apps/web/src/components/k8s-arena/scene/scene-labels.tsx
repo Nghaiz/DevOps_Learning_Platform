@@ -74,6 +74,11 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const poolRef = useRef<HTMLSpanElement[]>([]);
+  const lastProjection = useRef({
+    key: '',
+    world: new THREE.Matrix4(),
+    projection: new THREE.Matrix4(),
+  });
 
   useEffect(() => {
     if (layer === null) {
@@ -91,6 +96,7 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
       pool.push(span);
     }
     poolRef.current = pool;
+    lastProjection.current.key = '';
     return () => {
       for (const span of pool) {
         span.remove();
@@ -105,6 +111,17 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
       return;
     }
     const current = propsRef.current;
+    const cache = lastProjection.current;
+    const key = `${runtime.structureVersion}:${runtime.visible.length}:${size.width}:${size.height}:${current.selectedUid}:${current.hoveredUid}`;
+    if (
+      key === cache.key &&
+      cache.world.equals(camera.matrixWorld) &&
+      cache.projection.equals(camera.projectionMatrix)
+    )
+      return;
+    cache.key = key;
+    cache.world.copy(camera.matrixWorld);
+    cache.projection.copy(camera.projectionMatrix);
     let count = 0;
 
     const push = (
@@ -129,9 +146,8 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
       target.y = (-TMP_PROJECT.y * 0.5 + 0.5) * size.height;
       target.halfWidth = (target.text.length * LABEL_CHAR_WIDTH) / 2 + 4;
       target.halfHeight = LABEL_HALF_HEIGHT;
-      // Vật ở gần thắng vật ở xa khi cùng hạng: nhãn của thứ đang che mặt tiền
-      // mà bị ẩn để nhường cho thứ khuất phía sau thì đọc ra là lỗi.
-      target.priority = base - TMP_PROJECT.z * 100;
+      // Stable priority prevents hovering animations from swapping label slots.
+      target.priority = base;
       count += 1;
     };
 
@@ -159,7 +175,7 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
                 : entry.kind === 'Pod'
                   ? PRIORITY_POD
                   : PRIORITY_OTHER_KIND;
-        push(entry.uid, entry.label, entry.x, entry.drawY + entry.drawScale * 0.8, entry.z, base);
+        push(entry.uid, entry.label, entry.x, entry.y + entry.size * 0.8, entry.z, base);
       }
     }
 
@@ -184,8 +200,9 @@ export function SceneLabels({ runtime, propsRef, layer }: SceneLabelsProps): nul
       if (span.textContent !== candidate.text) {
         span.textContent = candidate.text;
       }
-      span.style.display = 'block';
-      span.style.transform = `translate3d(${candidate.x.toFixed(1)}px, ${candidate.y.toFixed(1)}px, 0) translate(-50%, -50%)`;
+      if (span.style.display !== 'block') span.style.display = 'block';
+      const transform = `translate3d(${candidate.x.toFixed(1)}px, ${candidate.y.toFixed(1)}px, 0) translate(-50%, -50%)`;
+      if (span.style.transform !== transform) span.style.transform = transform;
       shown += 1;
     }
     for (let i = shown; i < pool.length; i += 1) {

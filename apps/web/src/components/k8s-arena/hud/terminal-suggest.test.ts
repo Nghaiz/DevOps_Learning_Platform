@@ -95,3 +95,17 @@ describe('applySuggestion', () => {
     expect(applySuggestion('kubectl get pod pod', 'pods')).toBe('kubectl get pod pods ');
   });
 });
+
+describe('flag value completion', () => {
+  it('suggests namespace values after a namespace flag', () => {
+    expect(suggestTokens('kubectl get pods -n ', []).map((item) => item.value)).toContain(
+      'default',
+    );
+  });
+  it('suggests output formats instead of resource names', () => {
+    expect(suggestTokens('kubectl get pods -o ', []).map((item) => item.value)).toEqual([
+      'wide',
+      'yaml',
+    ]);
+  });
+});

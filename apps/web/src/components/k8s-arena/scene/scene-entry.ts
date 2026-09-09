@@ -42,6 +42,7 @@ export interface SceneEntry {
 export interface NodeEntry {
   readonly name: string;
   x: number;
+  z: number;
   ready: boolean;
   /** max(cpu, memory), 0..1. */
   load: number;

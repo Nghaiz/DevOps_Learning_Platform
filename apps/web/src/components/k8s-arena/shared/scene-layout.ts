@@ -1,3 +1,4 @@
+import { arrangeConnections } from './connection-layout';
 /**
  * Bố cục 3D — TOÁN THUẦN, không `three`, không DOM.
  *
@@ -32,11 +33,11 @@ export interface NodePlacement {
 
 /** Vùng một object được đặt vào — quyết định cả hình dạng lẫn ý nghĩa. */
 export type PlacementZone =
-  /** Pod đã xếp lịch: đứng trên bệ của node. */
+  /** Scheduled Pod or Node. */
   | 'node'
   /** Pod chưa xếp lịch (`nodeName === null`): dải chờ phía TRƯỚC, không có bệ dưới chân. */
   | 'pending'
-  /** Không phải Pod (Service, ConfigMap, PVC…): kệ phía sau. */
+  /** Logical resource; grouped by its connections when present. */
   | 'shelf';
 
 export interface ObjectPlacement {
@@ -71,11 +72,10 @@ export const PLATFORM_DEPTH = 3.2;
 export const PLATFORM_HEIGHT = 0.26;
 export const PLATFORM_GAP = 1.15;
 /** Mép trong của bệ — pod không đặt sát rìa, nếu không bóng đổ bị cắt cụt ở cạnh. */
-const PLATFORM_PADDING = 0.42;
 
 export const POD_SIZE = 0.6;
-const POD_GAP_MIN = 0.16;
-const POD_GAP_PREFERRED = 0.34;
+
+const POD_GAP_PREFERRED = 1.05;
 /**
  * Độ cao NGHỈ của pod trên mặt bệ (§9.2 "lơ lửng rất nhẹ") — không phải biên độ bồng bềnh.
  *
@@ -92,12 +92,12 @@ const POD_GAP_PREFERRED = 0.34;
 export const POD_HOVER = 0.06;
 
 const SHELF_Z = -3.6;
-const SHELF_SPACING = 1.35;
+const SHELF_SPACING = 2.2;
 const SHELF_Y = 0.23;
 const SHELF_SIZE = 0.52;
 
 const PENDING_Z = 3.7;
-const PENDING_SPACING = 0.92;
+
 const PENDING_Y = 0.23;
 const PENDING_SIZE = 0.52;
 
@@ -109,7 +109,6 @@ const PENDING_SIZE = 0.52;
  * đọc chúng để bước lưới không bao giờ đẩy hàng cuối ra khỏi bệ.
  */
 const POD_ZONE_CENTER_Z = 0.5;
-const POD_ZONE_DEPTH = 1.7;
 
 /** Tủ máy chủ lùi hẳn ra sau, nhường phần trước của bệ cho pod. */
 const RACK_Z = -1.0;
@@ -156,18 +155,7 @@ export function podGrid(count: number): {
   }
   const cols = Math.ceil(Math.sqrt(count));
   const rows = Math.ceil(count / cols);
-  const usableX = PLATFORM_WIDTH - PLATFORM_PADDING * 2;
-  const preferred = POD_SIZE + POD_GAP_PREFERRED;
-  const fittedX = cols > 1 ? (usableX - POD_SIZE) / (cols - 1) : preferred;
-  /*
-   * Bước lưới phải vừa cả CHIỀU SÂU, không chỉ chiều ngang.
-   *
-   * Bản trước chỉ tính theo chiều ngang, nên hàng pod thứ hai rơi ra NGOÀI mép
-   * trước của bệ — đo trực tiếp ở level 13: pod đứng lửng lơ cạnh bệ trong khi
-   * dây `runs-on` vẫn nối vào node, tức một khung hình nói hai điều trái nhau.
-   */
-  const fittedZ = rows > 1 ? (POD_ZONE_DEPTH - POD_SIZE) / (rows - 1) : preferred;
-  const pitch = Math.max(POD_SIZE + POD_GAP_MIN, Math.min(preferred, fittedX, fittedZ));
+  const pitch = POD_SIZE + POD_GAP_PREFERRED;
   return { cols, rows, pitch };
 }
 
@@ -183,7 +171,7 @@ function placePodsOnPlatform(
   pods: readonly ObjectView[],
   platformCenterX: number,
 ): ObjectPlacement[] {
-  const { cols, rows, pitch } = podGrid(pods.length);
+  const { cols, pitch } = podGrid(pods.length);
   const top = PLATFORM_HEIGHT + 0.01;
   return pods.map((pod, i) => {
     const col = i % cols;
@@ -194,7 +182,7 @@ function placePodsOnPlatform(
       position: {
         x: platformCenterX + (col - (cols - 1) / 2) * pitch,
         y: top,
-        z: POD_ZONE_CENTER_Z + (row - (rows - 1) / 2) * pitch,
+        z: POD_ZONE_CENTER_Z + row * pitch,
       },
       size: POD_SIZE,
     };
@@ -245,17 +233,47 @@ function placeInGrid(
   });
 }
 
-function placeNodes(nodes: readonly NodeView[]): NodePlacement[] {
-  const sorted = [...nodes].sort(byName);
-  return sorted.map((node, i) => ({
-    name: node.name,
-    ready: node.ready,
-    cpuUsed: node.cpuUsed,
-    memoryUsed: node.memoryUsed,
-    position: { x: platformX(i, sorted.length), y: 0, z: 0 },
-    width: PLATFORM_WIDTH,
-    depth: PLATFORM_DEPTH,
-  }));
+function placeNodes(nodes: readonly NodeView[], objects: readonly ObjectView[]): NodePlacement[] {
+  const complete = new Map(nodes.map((node) => [node.name, node]));
+  for (const object of objects) {
+    if (object.kind === 'Node' && !complete.has(object.name)) {
+      complete.set(object.name, {
+        name: object.name,
+        ready: object.statusToken === 'success',
+        cpuUsed: 0,
+        memoryUsed: 0,
+      });
+    }
+  }
+  const sorted = [...complete.values()].sort(byName);
+  const dimensions = sorted.map((node) => {
+    const count = objects.filter(
+      (object) => object.kind === 'Pod' && object.nodeName === node.name,
+    ).length;
+    const grid = podGrid(count);
+    return {
+      width: Math.max(PLATFORM_WIDTH, (grid.cols - 1) * grid.pitch + POD_SIZE + 1.4),
+      depth: Math.max(PLATFORM_DEPTH, (grid.rows - 1) * grid.pitch + 3.2),
+    };
+  });
+  const totalWidth =
+    dimensions.reduce((sum, item) => sum + item.width, 0) +
+    Math.max(0, sorted.length - 1) * PLATFORM_GAP;
+  let left = -totalWidth / 2;
+  return sorted.map((node, i) => {
+    const { width, depth } = dimensions[i]!;
+    const x = left + width / 2;
+    left += width + PLATFORM_GAP;
+    return {
+      name: node.name,
+      ready: node.ready,
+      cpuUsed: node.cpuUsed,
+      memoryUsed: node.memoryUsed,
+      position: { x, y: 0, z: (depth - PLATFORM_DEPTH) / 2 },
+      width,
+      depth,
+    };
+  });
 }
 
 /**
@@ -268,7 +286,7 @@ function placeNodes(nodes: readonly NodeView[]): NodePlacement[] {
  * trên một node là dạy sai mô hình Kubernetes.
  */
 export function computeLayout(view: ClusterView): SceneLayout {
-  const nodes = placeNodes(view.nodes);
+  const nodes = placeNodes(view.nodes, view.objects);
   const nodeX = new Map(nodes.map((n) => [n.name, n.position.x]));
 
   const pods = [...view.objects.filter((o) => o.kind === 'Pod')].sort(byUid);
@@ -310,7 +328,7 @@ export function computeLayout(view: ClusterView): SceneLayout {
   }
 
   const objects: ObjectPlacement[] = [];
-  for (const object of view.objects.filter((object) => object.kind === 'Node')) {
+  for (const object of [...view.objects.filter((object) => object.kind === 'Node')].sort(byUid)) {
     objects.push({
       uid: object.uid,
       zone: 'node',
@@ -326,13 +344,21 @@ export function computeLayout(view: ClusterView): SceneLayout {
    * cố định: cụm một node thì kệ hẹp, cụm bốn node thì kệ rộng ra theo. Sàn
    * `PLATFORM_WIDTH * 2` để cụm một node vẫn có chỗ cho vài món trên một hàng.
    */
-  const clusterWidth = Math.max(PLATFORM_WIDTH * 2, nodes.length * (PLATFORM_WIDTH + PLATFORM_GAP));
+  const clusterWidth = Math.max(
+    PLATFORM_WIDTH * 2,
+    nodes.reduce((sum, node) => sum + node.width + PLATFORM_GAP, 0),
+    Math.ceil(Math.sqrt(others.length)) * SHELF_SPACING,
+  );
+  const pendingZ = Math.max(
+    PENDING_Z,
+    ...nodes.map((node) => node.position.z + node.depth / 2 + 2),
+  );
   objects.push(
     ...placeInGrid(
       pending,
-      PENDING_SPACING,
+      SHELF_SPACING,
       PENDING_Y,
-      PENDING_Z,
+      pendingZ,
       PENDING_SIZE,
       'pending',
       clusterWidth,
@@ -348,13 +374,31 @@ export function computeLayout(view: ClusterView): SceneLayout {
     .filter((e) => known.has(e.fromUid) && known.has(e.toUid))
     .map((e) => ({ fromUid: e.fromUid, toUid: e.toUid, kind: e.kind, healthy: e.healthy }));
 
+  const labels = new Map(
+    view.objects.map((object) => [
+      object.uid,
+      `${object.kind}:${object.namespace ?? ''}:${object.name}:${object.uid}`,
+    ]),
+  );
+  const connected = arrangeConnections(objects, edges, labels);
+  objects.splice(0, objects.length, ...connected);
+  const objectByUid = new Map(view.objects.map((object) => [object.uid, object]));
+  const nodePositions = new Map(
+    objects
+      .filter((object) => objectByUid.get(object.uid)?.kind === 'Node')
+      .map((object) => [objectByUid.get(object.uid)!.name, object.position]),
+  );
+  const finalNodes = nodes.map((node) => ({
+    ...node,
+    position: nodePositions.get(node.name) ?? node.position,
+  }));
   let radius = PLATFORM_WIDTH;
   for (const o of objects) {
     radius = Math.max(radius, Math.hypot(o.position.x, o.position.z) + o.size);
   }
-  for (const n of nodes) {
+  for (const n of finalNodes) {
     radius = Math.max(radius, Math.abs(n.position.x) + PLATFORM_WIDTH / 2);
   }
 
-  return { nodes, objects, edges, radius };
+  return { nodes: finalNodes, objects, edges, radius };
 }

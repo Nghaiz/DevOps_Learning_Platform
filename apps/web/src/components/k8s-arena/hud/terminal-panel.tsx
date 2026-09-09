@@ -3,27 +3,19 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type KeyboardEvent,
   type ReactElement,
 } from 'react';
-import { SquareTerminal, X } from 'lucide-react';
-import { Kbd, cn } from '@devops-platform/ui';
+import { ArrowUpRight, Eraser, SquareTerminal, X } from 'lucide-react';
 import type { ObjectView } from '@devops-platform/games';
-import { applySuggestion, suggestTokens } from './terminal-suggest.ts';
-import { TerminalSuggestionList } from './terminal-suggestion-list.tsx';
-import { TerminalTranscript, type TranscriptLine } from './terminal-transcript.tsx';
-import { useCommandHistory } from './terminal-history.ts';
+import { applySuggestion, suggestTokens } from './terminal-suggest';
+import { TerminalSuggestionList } from './terminal-suggestion-list';
+import { TerminalTranscript, type TranscriptLine } from './terminal-transcript';
+import { useCommandHistory } from './terminal-history';
 
-/**
- * Lệnh do nơi khác chèn vào (bấm một dòng trong ngăn tra cứu).
- *
- * Mang `issuedAt` chứ không chỉ một chuỗi, cùng lý do đã ghi cho `CameraCommand`
- * trong hợp đồng: chèn LẠI đúng một lệnh là một SỰ KIỆN thứ hai, mà nếu mô hình
- * hoá bằng prop trạng thái thì lần bấm thứ hai không đổi prop nào và rơi vào hư
- * không.
- */
 export interface TerminalInsert {
   readonly command: string;
   readonly issuedAt: number;
@@ -50,24 +42,7 @@ export interface TerminalPanelProps {
   readonly insert: TerminalInsert | null;
 }
 
-/** Bao nhiêu khối kết quả giữ trên màn. Cắt để DOM không phình vô hạn trong một lượt chơi dài. */
-const TRANSCRIPT_LIMIT = 100;
-
-/**
- * Terminal trượt lên từ đáy.
- *
- * Bản cũ (`command-bar.tsx`) là một `<input>` LUÔN hiện giữa màn hình — nó chiếm
- * chỗ của cảnh 3D suốt lượt chơi kể cả khi người chơi đang dùng chuột. Ở đây nó
- * ẩn cho tới khi bấm dấu huyền, và Esc trả màn hình lại.
- *
- * ## Luật phím, viết ra vì hai nhóm phím tranh nhau mũi tên
- *
- * Mũi tên lên/xuống vừa là lịch sử lệnh (thói quen terminal) vừa là cách chọn
- * trong danh sách gợi ý. Ai thắng được quyết định bằng thứ ĐANG HIỆN: có gợi ý
- * trên màn thì mũi tên đi trong gợi ý; không có (ô trống, hoặc không khớp gì)
- * thì mũi tên đi trong lịch sử. Quy tắc này QUAN SÁT ĐƯỢC — người dùng nhìn thấy
- * danh sách nên đoán đúng phím sẽ làm gì, thay vì phải nhớ một tổ hợp.
- */
+/** A fixed shell: output and completions never push the command line or the arena. */
 export function TerminalPanel({
   open,
   onClose,
@@ -78,185 +53,184 @@ export function TerminalPanel({
   const [input, setInput] = useState('');
   const [lines, setLines] = useState<readonly TranscriptLine[]>([]);
   const [highlight, setHighlight] = useState(0);
+  const [dismissed, setDismissed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const nextIdRef = useRef(1);
-  const appliedInsertRef = useRef(0);
-  const history = useCommandHistory();
-
-  const suggestions = open ? suggestTokens(input, listObjects()) : [];
-  const active = suggestions[Math.min(highlight, suggestions.length - 1)] ?? null;
-  /*
-   * Đuôi mà Tab sẽ điền thêm, hoặc `null` khi gợi ý không phải phần nối tiếp
-   * của thứ đang gõ (gợi ý thay cả token, ví dụ gõ `po` ra `pods`).
-   */
-  const completed = active === null ? null : applySuggestion(input, active.value);
-  const ghost =
-    completed !== null && completed.startsWith(input) && completed !== input
-      ? completed.slice(input.length)
-      : null;
+  const previousFocus = useRef<HTMLElement | null>(null);
+  const nextId = useRef(0);
+  const appliedInsert = useRef(0);
+  const listId = useId();
+  const { push, walk, resetCursor } = useCommandHistory();
+  const suggestions = open && !dismissed ? suggestTokens(input, listObjects()) : [];
+  const activeIndex = Math.min(highlight, suggestions.length - 1);
+  const active = suggestions[activeIndex];
 
   useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
-    }
+    if (!open) return;
+    previousFocus.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
+    return () => {
+      cancelAnimationFrame(frame);
+      if (document.activeElement === inputRef.current)
+        previousFocus.current?.focus({ preventScroll: true });
+    };
   }, [open]);
 
   const execute = useCallback(
-    (command: string): void => {
-      history.push(command);
+    (command: string) => {
+      if (!command.trim()) return;
+      if (command.trim() === 'clear') {
+        setLines([]);
+        setInput('');
+        return;
+      }
+      push(command);
       const output = onRun(command);
-      setLines((previous) =>
-        [...previous, { id: nextIdRef.current++, command, output }].slice(-TRANSCRIPT_LIMIT),
-      );
+      const line = { id: ++nextId.current, command, output };
+      setLines((previous) => [...previous, line].slice(-100));
       setInput('');
       setHighlight(0);
+      setDismissed(false);
     },
-    [history, onRun],
+    [onRun, push],
   );
 
   useEffect(() => {
-    if (insert === null || insert.issuedAt === appliedInsertRef.current) {
-      return;
-    }
-    appliedInsertRef.current = insert.issuedAt;
+    if (!insert || insert.issuedAt === appliedInsert.current) return;
+    appliedInsert.current = insert.issuedAt;
+    if (insert.autoRun) execute(insert.command);
+    else setInput(insert.command);
     setHighlight(0);
-    if (insert.autoRun === true) {
-      execute(insert.command);
-    } else {
-      setInput(insert.command);
-    }
-    inputRef.current?.focus();
-  }, [insert, execute]);
+    setDismissed(false);
+    if (open) inputRef.current?.focus({ preventScroll: true });
+  }, [insert, execute, open]);
 
-  const run = (): void => {
-    const command = input.trim();
-    if (command === '') {
-      return;
-    }
-    execute(command);
-  };
-
-  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-    if (event.key === 'Escape') {
-      // Chặn lan lên `window`: bộ nghe phím tắt toàn cục cũng nghe Escape, và
-      // một lần bấm không được đóng hai lớp.
-      event.stopPropagation();
-      onClose();
-      return;
-    }
-    if (event.key === 'Enter') {
-      run();
-      return;
-    }
-    if (event.key === 'Tab' && active !== null) {
+  function complete(value: string): void {
+    setInput(applySuggestion(input, value));
+    setHighlight(0);
+    setDismissed(false);
+    inputRef.current?.focus({ preventScroll: true });
+  }
+  function onKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    event.stopPropagation();
+    if (event.nativeEvent.isComposing) return;
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
       event.preventDefault();
-      setInput(applySuggestion(input, active.value));
-      setHighlight(0);
+      setLines([]);
       return;
     }
-    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
-      return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (suggestions.length) setDismissed(true);
+      else onClose();
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      execute(input.trim());
+    } else if (event.key === 'Tab' && active) {
+      event.preventDefault();
+      complete(active.value);
+    } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (suggestions.length && !event.altKey)
+        setHighlight(
+          (value) =>
+            (value + (event.key === 'ArrowDown' ? 1 : -1) + suggestions.length) %
+            suggestions.length,
+        );
+      else {
+        const command = walk(event.key === 'ArrowUp' ? 1 : -1);
+        if (command !== null) {
+          setInput(command);
+          setDismissed(true);
+        }
+      }
     }
-    event.preventDefault();
-    if (suggestions.length > 0) {
-      const delta = event.key === 'ArrowDown' ? 1 : -1;
-      setHighlight((value) => (value + delta + suggestions.length) % suggestions.length);
-      return;
-    }
-    const recalled = history.walk(event.key === 'ArrowUp' ? 1 : -1);
-    if (recalled !== null) {
-      setInput(recalled);
-    }
-  };
-
+  }
   return (
     <section
       aria-label="Terminal kubectl"
       inert={!open}
-      /*
-       * `will-change: transform` + đổi CẢ độ mờ.
-       *
-       * Chỉ trượt `translate-y` thì khung xuất hiện đột ngột ở mép dưới rồi lao
-       * lên — mắt bắt được cạnh trên của nó nhảy vào khung hình. Thêm một lượt
-       * hiện dần làm cú vào mềm hẳn, và `will-change` để trình duyệt tách lớp
-       * TRƯỚC khi chuyển động bắt đầu, thay vì tách ngay giữa khung hình đầu
-       * tiên — đó chính là cái giật một nhịp lúc mở.
-       */
-      style={{ willChange: 'transform, opacity' }}
-      className={cn(
-        'absolute right-0 bottom-0 left-0 z-30 flex h-72 flex-col overflow-visible',
-        'rounded-t-xl border-t border-border bg-card/95 shadow-elevation-3 backdrop-blur-md',
-        'transition-[transform,opacity] duration-(--motion-base) ease-out',
-        open
-          ? 'pointer-events-auto translate-y-0 opacity-100'
-          : 'pointer-events-none translate-y-full opacity-0',
-      )}
+      aria-hidden={!open}
+      data-open={open}
+      className="arena-terminal"
     >
-      {/* Vạch sáng mảnh ở mép trên — tách terminal khỏi cảnh 3D phía sau nó. */}
-      <span
-        aria-hidden
-        className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-status-progress/50 to-transparent"
-      />
-
-      <header className="flex items-center gap-2 border-b border-border px-3 py-1.5">
-        <SquareTerminal className="size-4 text-status-progress" aria-hidden />
-        <span className="text-xs font-semibold text-foreground">Terminal</span>
-        <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Kbd>Tab</Kbd> hoàn thành · <Kbd>Esc</Kbd> đóng
-        </span>
+      <header className="arena-terminal-header">
+        <SquareTerminal size={17} aria-hidden />
+        <strong>kubectl</strong>
+        <span className="arena-terminal-session">CLUSTER CONSOLE</span>
+        <span className="arena-terminal-hint">Tab hoàn thành · Alt + ↑ lịch sử · Esc đóng</span>
         <button
           type="button"
-          onClick={onClose}
-          aria-label="Đóng terminal"
-          className="rounded-sm p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => setLines([])}
+          aria-label="Xoá màn hình terminal"
+          title="Xoá màn hình (Ctrl+L)"
         >
-          <X className="size-4" />
+          <Eraser size={16} />
+        </button>
+        <button type="button" onClick={onClose} aria-label="Đóng terminal">
+          <X size={18} />
         </button>
       </header>
-
-      <TerminalTranscript lines={lines} />
-
-      {/*
-        `relative` ở HÀNG NHẬP, không ở cả khung: danh sách gợi ý neo bằng
-        `bottom-full` nên nó phải lấy hàng này làm mốc, nếu không nó bay lên tận
-        mép trên của terminal.
-      */}
-      <div className="relative flex items-center gap-2 border-t border-border px-3 py-2">
-        <TerminalSuggestionList suggestions={suggestions} highlight={highlight} />
-        <span aria-hidden className="font-mono text-xs text-status-progress">
-          $
-        </span>
-        {/*
-          Phần đuôi gợi ý hiện MỜ ngay sau con trỏ, chồng khít lên ô nhập.
-          Người gõ thấy trước Tab sẽ điền gì, thay vì phải liếc xuống danh sách.
-        */}
-        <span className="relative min-w-0 flex-1">
-          {ghost === null ? null : (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 truncate font-mono text-xs whitespace-pre text-muted-foreground/60"
-            >
-              <span className="invisible">{input}</span>
-              {ghost}
-            </span>
-          )}
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(event) => {
-              setInput(event.target.value);
-              setHighlight(0);
-              history.resetCursor();
-            }}
-            onKeyDown={onKeyDown}
-            spellCheck={false}
-            autoComplete="off"
-            aria-label="Gõ lệnh kubectl"
-            placeholder="kubectl get pods"
-            className="relative w-full min-w-0 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
+      <div className="arena-terminal-body">
+        <div className="arena-terminal-output">
+          {lines.length === 0 ? (
+            <div className="arena-terminal-welcome">
+              <span>ĐIỀU KHIỂN CỤM BẰNG LỆNH</span>
+              <p>
+                Bắt đầu với <code>kubectl get pods</code>
+              </p>
+              <small>Gợi ý dựa trên tài nguyên trong cụm. Chọn để điền, Enter để chạy.</small>
+            </div>
+          ) : null}
+          <TerminalTranscript lines={lines} />
+        </div>
+        <aside
+          className="arena-terminal-completions"
+          aria-label="Gợi ý lệnh"
+          hidden={suggestions.length === 0}
+        >
+          <span className="arena-terminal-section-title">HOÀN THÀNH LỆNH</span>
+          <TerminalSuggestionList
+            id={listId}
+            suggestions={suggestions}
+            highlight={highlight}
+            onPick={complete}
           />
-        </span>
+        </aside>
       </div>
+      <form
+        className="arena-terminal-input"
+        onSubmit={(event) => {
+          event.preventDefault();
+          execute(input.trim());
+        }}
+      >
+        <span aria-hidden>❯</span>
+        <input
+          ref={inputRef}
+          value={input}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={suggestions.length > 0}
+          aria-controls={listId}
+          aria-activedescendant={active ? `${listId}-${activeIndex}` : undefined}
+          onChange={(event) => {
+            setInput(event.target.value);
+            setHighlight(0);
+            setDismissed(false);
+            resetCursor();
+          }}
+          onKeyDown={onKeyDown}
+          spellCheck={false}
+          autoComplete="off"
+          aria-label="Gõ lệnh kubectl"
+          placeholder="kubectl get pods"
+        />
+        <button type="submit" disabled={!input.trim()} aria-label="Chạy lệnh">
+          <span>Chạy</span>
+          <ArrowUpRight size={16} />
+        </button>
+      </form>
     </section>
   );
 }

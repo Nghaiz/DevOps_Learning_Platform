@@ -156,10 +156,15 @@ export function createResourceGeometry(kind: ResourceKind, detail: number): THRE
         box(i === 2 ? 0.25 : 0.42, 0.055, 0.035, 0.05, 0.27 - i * 0.2, 0.16, 1.8);
       break;
     case 'PersistentVolume':
-    case 'PersistentVolumeClaim':
       for (let i = 0; i < 3; i++) cylinder(0.39, 0.22, 0, i * 0.28 - 0.28, 0, 0.65 + i * 0.25);
-      if (kind === 'PersistentVolumeClaim') box(0.28, 0.27, 0.09, 0.28, -0.18, 0.34, 1.8);
-      else ring(0.24, 0.035, 0, 0.41, 0, true, 1.7);
+      ring(0.24, 0.035, 0, 0.41, 0, true, 1.7);
+      break;
+    case 'PersistentVolumeClaim':
+      // A claim requests a disk: a downward arrow docking into a drive tray.
+      box(0.88, 0.22, 0.65, 0, -0.3, 0, 0.65);
+      box(0.13, 0.4, 0.13, 0, 0.25, 0, 1.5);
+      add(new THREE.ConeGeometry(0.24, 0.25, 4).rotateZ(Math.PI), 0, -0.03, 0, 1.5);
+      box(0.12, 0.055, 0.035, 0.25, -0.29, 0.34, 1.8);
       break;
     case 'StorageClass':
       box(0.92, 0.32, 0.72, 0, -0.15);
@@ -195,7 +200,6 @@ export function createResourceGeometry(kind: ResourceKind, detail: number): THRE
       }
       break;
     case 'HorizontalPodAutoscaler':
-    case 'ResourceQuota':
     case 'LimitRange':
       plate();
       for (let i = 0; i < 3; i++) {
@@ -203,9 +207,17 @@ export function createResourceGeometry(kind: ResourceKind, detail: number): THRE
         box(0.2, h, 0.25, (i - 1) * 0.31, -0.35 + h / 2, 0, 0.7 + i * 0.25);
         if (kind === 'LimitRange') box(0.28, 0.09, 0.34, (i - 1) * 0.31, i * 0.17 - 0.2, 0, 1.8);
       }
-      if (kind === 'ResourceQuota') box(1, 0.075, 0.3, 0, 0.47, 0, 1.6);
       if (kind === 'HorizontalPodAutoscaler')
         add(new THREE.ConeGeometry(0.16, 0.23, 4), 0.31, 0.51, 0, 1.5);
+      break;
+    case 'ResourceQuota':
+      // Capacity gauge: visibly different from autoscaling's growing columns.
+      cylinder(0.46, 0.16, 0, -0.36, 0, 0.45);
+      ring(0.37, 0.085, 0, 0.08, 0);
+      add(new RoundedBoxGeometry(0.075, 0.37, 0.08, segments, 0.02).rotateZ(-0.65),
+        0.09, 0.18, 0.1, 1.8);
+      add(new THREE.SphereGeometry(0.09, 16, 12), 0, 0.05, 0.1, 1.8);
+      box(0.25, 0.075, 0.13, 0, -0.2, 0.1, 0.4);
       break;
     case 'Node':
       box(0.82, 0.94, 0.6, 0, 0, 0, 0.6);

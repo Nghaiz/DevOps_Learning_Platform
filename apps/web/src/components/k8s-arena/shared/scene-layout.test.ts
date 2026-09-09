@@ -1,6 +1,6 @@
+import { KINDS, type ResourceKind } from '@devops-platform/games';
 import { describe, expect, it } from 'vitest';
 import {
-  PLATFORM_DEPTH,
   PLATFORM_GAP,
   PLATFORM_HEIGHT,
   PLATFORM_WIDTH,
@@ -63,9 +63,7 @@ describe('computeLayout', () => {
    * trên cả hai trục, và quét từ 1 tới 12 pod để bắt đúng lúc lưới sinh thêm hàng.
    */
   it('pod nằm trong mặt bệ dù có bao nhiêu pod', () => {
-    const halfW = PLATFORM_WIDTH / 2;
-    const halfD = PLATFORM_DEPTH / 2;
-    for (let count = 1; count <= 12; count += 1) {
+    for (let count = 1; count <= 40; count += 1) {
       const objects = Array.from({ length: count }, (_, i) =>
         podView(`p-${String(i).padStart(2, '0')}`, `pod-${i}`, { nodeName: 'node-a' }),
       );
@@ -77,8 +75,12 @@ describe('computeLayout', () => {
       for (const pod of placed) {
         const dx = Math.abs(pod.position.x - (platform?.position.x ?? 0));
         const dz = Math.abs(pod.position.z - (platform?.position.z ?? 0));
-        expect(dx + POD_SIZE / 2, `${count} pod: tràn ngang`).toBeLessThanOrEqual(halfW);
-        expect(dz + POD_SIZE / 2, `${count} pod: tràn dọc`).toBeLessThanOrEqual(halfD);
+        expect(dx + POD_SIZE / 2, `${count} pod: tràn ngang`).toBeLessThanOrEqual(
+          platform!.width / 2,
+        );
+        expect(dz + POD_SIZE / 2, `${count} pod: tràn dọc`).toBeLessThanOrEqual(
+          platform!.depth / 2,
+        );
       }
     }
   });
@@ -174,4 +176,48 @@ describe('podGrid', () => {
       expect(podGrid(n).pitch).toBeGreaterThan(POD_SIZE);
     }
   });
+});
+
+describe('dense mixed-resource layouts', () => {
+  for (const copies of [1, 4, 12]) {
+    it(`separates every resource kind with ${copies} instances of each kind`, () => {
+      const objects = (Object.keys(KINDS) as ResourceKind[]).flatMap((kind) =>
+        Array.from({ length: copies }, (_, i) =>
+          serviceView(`${kind}-${i}`, `${kind}-${i}`, {
+            kind,
+            nodeName: kind === 'Pod' ? 'node-a' : null,
+          }),
+        ),
+      );
+      // Include a dense scheduled workload plus pending pods; shelves must not
+      // consume either region even when all 26 resource kinds are present.
+      objects.push(...Array.from({ length: 80 }, (_, i) => podView(`scheduled-${i}`, `work-${i}`)));
+      objects.push(
+        ...Array.from({ length: 30 }, (_, i) =>
+          podView(`pending-${i}`, `wait-${i}`, { nodeName: null }),
+        ),
+      );
+      const view = clusterView({ objects });
+      const layout = computeLayout(view);
+      expect(layout.objects).toHaveLength(objects.length);
+      expect(
+        computeLayout({
+          ...view,
+          objects: [...objects].reverse(),
+          nodes: [...view.nodes].reverse(),
+        }),
+      ).toEqual(layout);
+      for (let i = 0; i < layout.objects.length; i++) {
+        const a = layout.objects[i]!;
+        expect(Object.values(a.position).every(Number.isFinite)).toBe(true);
+        for (let j = i + 1; j < layout.objects.length; j++) {
+          const b = layout.objects[j]!;
+          const distance = Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z);
+          expect(distance, `${a.uid} overlaps ${b.uid}`).toBeGreaterThan(
+            (a.size + b.size) / 2 + 0.45,
+          );
+        }
+      }
+    });
+  }
 });

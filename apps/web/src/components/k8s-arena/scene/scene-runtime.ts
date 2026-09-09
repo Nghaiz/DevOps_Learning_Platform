@@ -54,6 +54,14 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
   const links: EdgeLink[] = [];
   const overrides = new Map<string, PlacementOverride>();
   let signature: string | null = null;
+  let resetting = false;
+  let dragRoutesPending = false;
+  let plannedRoutes: number[][] = [];
+  let plannedPositions = new Map<string, { x: number; z: number }>();
+  const transitions = new Map<
+    string,
+    { x: number; z: number; targetX: number; targetZ: number; time: number }
+  >();
 
   const runtime: SceneRuntime = {
     draggingUid: null,
@@ -72,6 +80,7 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
       if (entry === undefined) {
         return;
       }
+      transitions.delete(uid);
       overrides.set(uid, { x, z });
       entry.x = x;
       entry.z = z;
@@ -82,7 +91,8 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
        * luận "không có gì đổi" và trả về sớm; đợi nó là đợi mãi mãi, và sợi dây
        * nối sẽ đứng yên trong khi vật ở đầu nó đã bị kéo đi.
        */
-      rebuildEdges();
+      dragRoutesPending = runtime.draggingUid !== null;
+      rebuildEdges(!dragRoutesPending);
       runtime.structureVersion += 1;
     },
 
@@ -90,6 +100,8 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
       if (overrides.size === 0) {
         return false;
       }
+      const starts = new Map([...entries].map(([uid, entry]) => [uid, { x: entry.x, z: entry.z }]));
+      transitions.clear();
       overrides.clear();
       /*
        * Ép `sync` tính lại từ đầu: chữ ký hiện tại vẫn khớp với cụm (cụm chưa
@@ -97,7 +109,17 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
        * độ kéo tay — nút "Sắp xếp lại" bấm vào không làm gì cả.
        */
       signature = null;
+      resetting = true;
       runtime.sync();
+      resetting = false;
+      for (const [uid, start] of starts) {
+        const entry = entries.get(uid);
+        if (!entry || Math.hypot(entry.x - start.x, entry.z - start.z) < 0.001) continue;
+        transitions.set(uid, { ...start, targetX: entry.x, targetZ: entry.z, time: 0 });
+        entry.x = start.x;
+        entry.z = start.z;
+      }
+      rebuildEdges(false);
       return true;
     },
 
@@ -112,13 +134,39 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
 
       const byUid = new Map(view.objects.map((o) => [o.uid, o]));
       const seen = new Set<string>();
-      for (const placement of layout.objects) {
+      const reserved = [...overrides].map(([uid, position]) => ({
+        uid,
+        ...position,
+        size: entries.get(uid)?.size ?? 0.95,
+      }));
+      for (const original of layout.objects) {
+        let placement = original;
+        if (overrides.size && !overrides.has(original.uid)) {
+          let x = original.position.x,
+            z = original.position.z;
+          let attempt = 0;
+          while (
+            reserved.some(
+              (point) =>
+                Math.hypot(point.x - x, point.z - z) < (point.size + original.size) / 2 + 0.7,
+            )
+          ) {
+            attempt++;
+            const ring = Math.ceil(attempt / 12);
+            const angle = (attempt * Math.PI) / 6;
+            x = original.position.x + Math.cos(angle) * ring * 2.2;
+            z = original.position.z + Math.sin(angle) * ring * 2.2;
+          }
+          placement = { ...original, position: { ...original.position, x, z } };
+          reserved.push({ uid: original.uid, x, z, size: original.size });
+        }
         const object = byUid.get(placement.uid);
         if (object === undefined) {
           continue;
         }
         seen.add(placement.uid);
         let entry = entries.get(placement.uid);
+        const existing = entry !== undefined;
         if (entry === undefined) {
           entry = {
             uid: placement.uid,
@@ -151,9 +199,29 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
          * độ cao mặt bệ và vật trên kệ vẫn ở tầm kệ.
          */
         const override = overrides.get(placement.uid);
-        entry.x = override?.x ?? placement.position.x;
+        if (
+          existing &&
+          !resetting &&
+          !override &&
+          !transitions.has(placement.uid) &&
+          Math.hypot(entry.x - placement.position.x, entry.z - placement.position.z) > 0.01
+        ) {
+          transitions.set(placement.uid, {
+            x: entry.x,
+            z: entry.z,
+            targetX: placement.position.x,
+            targetZ: placement.position.z,
+            time: 0,
+          });
+        }
+        const transition = transitions.get(placement.uid);
+        if (transition) {
+          transition.targetX = placement.position.x;
+          transition.targetZ = placement.position.z;
+        }
+        entry.x = transition ? entry.x : (override?.x ?? placement.position.x);
         entry.y = placement.position.y;
-        entry.z = override?.z ?? placement.position.z;
+        entry.z = transition ? entry.z : (override?.z ?? placement.position.z);
         entry.size = placement.size;
         entry.token = object.statusToken;
         /*
@@ -179,6 +247,7 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
         nodes.push({
           name: node.name,
           x: node.position.x,
+          z: node.position.z,
           ready: node.ready,
           load: Math.max(node.cpuUsed, node.memoryUsed),
         });
@@ -191,7 +260,9 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
        * lên nhau nếu không đánh số — người chơi đếm ra một dây ở chỗ có ba.
        */
       const pairCount = new Map<string, number>();
-      for (const edge of layout.edges) {
+      for (const edge of [...layout.edges].sort((a, b) =>
+        `${a.fromUid}/${a.toUid}/${a.kind}`.localeCompare(`${b.fromUid}/${b.toUid}/${b.kind}`),
+      )) {
         const key = pairKey(edge.fromUid, edge.toUid);
         const index = pairCount.get(key) ?? 0;
         pairCount.set(key, index + 1);
@@ -215,12 +286,34 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
     },
 
     advanceFrame(elapsedS: number, dt: number, options: FrameOptions): boolean {
+      const moving = transitions.size > 0;
+      for (const [uid, transition] of transitions) {
+        const entry = entries.get(uid);
+        if (!entry || entry.doomed) {
+          transitions.delete(uid);
+          continue;
+        }
+        transition.time += Math.max(0, Math.min(dt, 0.1));
+        const t = options.reducedMotion ? 1 : Math.min(1, transition.time / 0.6);
+        const ease = t * t * t * (t * (t * 6 - 15) + 10);
+        entry.x = transition.x + (transition.targetX - transition.x) * ease;
+        entry.z = transition.z + (transition.targetZ - transition.z) * ease;
+        if (t === 1) transitions.delete(uid);
+      }
+      const dragEnded = dragRoutesPending && runtime.draggingUid === null;
+      if (moving || dragEnded) {
+        // Plan once on settling. During motion, deform the existing routes in
+        // O(edges × segments), keeping sockets attached without graph searches.
+        rebuildEdges((moving && transitions.size === 0) || dragEnded);
+        if (dragEnded) dragRoutesPending = false;
+        runtime.structureVersion += 1;
+      }
       const result = advanceEntries(entries, order, visible, elapsedS, dt, options);
       if (result.buried) {
         rebuildOrder();
         runtime.structureVersion += 1;
       }
-      return result.animating;
+      return result.animating || transitions.size > 0;
     },
   };
 
@@ -232,13 +325,32 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
    * vào chỗ trống sau khi vật ở đầu nó bị kéo đi: `computeLayout` không bao giờ
    * biết tới vị trí kéo tay.
    */
-  function rebuildEdges(): void {
+  function rebuildEdges(replan = true): void {
     edges.solid.length = 0;
     edges.dashed.length = 0;
     edges.solidKinds.length = 0;
     edges.dashedKinds.length = 0;
     edges.solidLinks.length = 0;
     edges.dashedLinks.length = 0;
+    if (replan || plannedRoutes.length !== links.length) {
+      plannedRoutes = links.map((link) => {
+        const a = entries.get(link.fromUid),
+          b = entries.get(link.toUid);
+        const points: number[] = [];
+        if (a && b) {
+          writeCurve(
+            points,
+            { ...a, y: a.y + a.size * 0.3 },
+            { ...b, y: b.y + b.size * 0.3 },
+            link.fan,
+          );
+        }
+        return points;
+      });
+      plannedPositions = new Map(
+        [...entries].map(([uid, entry]) => [uid, { x: entry.x, z: entry.z }]),
+      );
+    }
     for (let linkIndex = 0; linkIndex < links.length; linkIndex += 1) {
       const link = links[linkIndex];
       if (link === undefined) {
@@ -252,7 +364,21 @@ export function createSceneRuntime(getView: () => ClusterView): SceneRuntime {
       const target = link.healthy ? edges.solid : edges.dashed;
       const kinds = link.healthy ? edges.solidKinds : edges.dashedKinds;
       const owners = link.healthy ? edges.solidLinks : edges.dashedLinks;
-      writeCurve(target, a, b, link.fan);
+      const route = plannedRoutes[linkIndex]!;
+      const originA = plannedPositions.get(a.uid)!,
+        originB = plannedPositions.get(b.uid)!;
+      for (let i = 0; i < route.length; i += 3) {
+        const vertex = Math.floor(i / 6) + (i % 6 === 3 ? 1 : 0);
+        const t = vertex / EDGE_SEGMENTS;
+        // Flat weights near endpoints keep the first segments attached during dragging.
+        const blend = Math.max(0, Math.min(1, (t - 0.15) / 0.7));
+        const weight = blend * blend * (3 - 2 * blend);
+        target.push(
+          route[i]! + (a.x - originA.x) * (1 - weight) + (b.x - originB.x) * weight,
+          route[i + 1]!,
+          route[i + 2]! + (a.z - originA.z) * (1 - weight) + (b.z - originB.z) * weight,
+        );
+      }
       const index = relationIndex(link.kind);
       for (let segment = 0; segment < EDGE_SEGMENTS; segment += 1) {
         kinds.push(index);

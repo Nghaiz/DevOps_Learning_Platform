@@ -3,6 +3,7 @@
 import { type ReactElement } from 'react';
 import { cn } from '@devops-platform/ui';
 import type { ClusterView } from '@devops-platform/games';
+import { sampleFrom } from './metrics-history';
 import type { MetricSample } from './metrics-history.ts';
 
 /**
@@ -53,7 +54,7 @@ function loadStroke(value: number): string {
 }
 
 export function HeaderMetrics({ view, history, onOpenMetrics }: HeaderMetricsProps): ReactElement {
-  const latest = history[history.length - 1];
+  const latest = sampleFrom(view);
   const cpu = latest?.cpu ?? 0;
   const memory = latest?.memory ?? 0;
 
@@ -77,7 +78,7 @@ export function HeaderMetrics({ view, history, onOpenMetrics }: HeaderMetricsPro
       onClick={onOpenMetrics}
       aria-label="Số liệu cụm — mở bảng đầy đủ"
       className={cn(
-        'arena-header-metrics group hidden min-w-0 items-center gap-4 rounded-md px-2 py-1 lg:flex',
+        'arena-header-metrics group flex min-w-0 items-center gap-4 rounded-md px-2 py-1',
         'outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring',
       )}
     >
@@ -119,7 +120,7 @@ export function HeaderMetrics({ view, history, onOpenMetrics }: HeaderMetricsPro
 
       {activeIncidents === 0 ? null : (
         <Cell label="SỰ CỐ">
-          <span className="animate-pulse font-mono text-xs font-semibold text-destructive">
+          <span className="font-mono text-xs font-semibold text-destructive">
             {activeIncidents}
           </span>
         </Cell>

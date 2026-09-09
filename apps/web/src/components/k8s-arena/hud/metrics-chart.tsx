@@ -60,7 +60,7 @@ export function MetricsChart({
         preserveAspectRatio="none"
         role="img"
         aria-label={`${title}: hiện tại ${format(latest)}, thấp nhất ${format(lowest)}, cao nhất ${format(highest)} trong ${String(values.length)} mẫu gần đây.`}
-        className="h-16 w-full rounded-md bg-muted"
+        className="h-20 w-full shrink-0 rounded-md bg-muted"
       >
         {/* Vạch giữa: mốc đọc nhanh "đang trên hay dưới nửa trần". */}
         <line
@@ -95,7 +95,7 @@ export function MetricsChart({
 
 function heightOf(value: number, ceiling: number): number {
   const ratio = ceiling === 0 ? 0 : Math.min(1, Math.max(0, value / ceiling));
-  return VIEW_H - ratio * VIEW_H;
+  return VIEW_H - 2 - ratio * (VIEW_H - 4);
 }
 
 /** Mẫu mới nhất luôn nằm sát mép phải — mắt tìm "bây giờ" ở đó. */

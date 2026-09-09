@@ -29,8 +29,8 @@ const SPEEDS: readonly number[] = [0, 1, 2, 4];
  * (chủ dự án báo 2026-09-08). Nếu sau này lead bọc HUD trong một khối đã nằm
  * dưới thanh, đổi `HUD_TOP_OFFSET` về `'top-0'` là xong — một dòng.
  */
-export const TOP_BAR_HEIGHT = 'h-12';
-export const HUD_TOP_OFFSET = 'top-12';
+export const TOP_BAR_HEIGHT = 'h-16';
+export const HUD_TOP_OFFSET = 'top-16';
 
 /**
  * Vùng cuộn được nhưng KHÔNG hiện thanh trượt.
@@ -126,12 +126,12 @@ export function TopBar({
           <LogOut className="size-4" />
         </IconButton>
 
-        <div className="arena-title flex min-w-0 items-baseline gap-2">
+        <div className="arena-title flex min-w-0 flex-col justify-center gap-1">
           <span
             className="arena-level-code font-mono text-xs font-semibold text-muted-foreground"
             title={code}
           >
-            K8S / {code.split('-')[1]?.padStart(2, '0') ?? code}
+            KUBERNETES ARENA · {code.split('-')[1]?.padStart(2, '0') ?? code}
           </span>
           <h1 className="truncate text-sm font-semibold text-foreground">{title}</h1>
         </div>
@@ -146,15 +146,17 @@ export function TopBar({
          */}
         <span
           className="arena-objectives shrink-0 font-mono text-xs text-muted-foreground"
+          title="Tiến độ nhiệm vụ"
           aria-label={`Đã đạt ${done} trên ${required.length} mục tiêu`}
         >
           <span className={done === required.length ? 'text-success' : 'text-foreground'}>
             {done}
           </span>
           /{required.length}
+          <small className="arena-progress-caption"> mục tiêu</small>
         </span>
 
-        <div className="ml-auto flex min-w-0 items-center gap-3">{metrics}</div>
+        <div className="arena-header-status ml-auto flex min-w-0 items-center gap-3">{metrics}</div>
 
         {brokenGuards === 0 ? null : (
           <span
@@ -175,7 +177,7 @@ export function TopBar({
         </span>
 
         <div
-          className="flex items-center gap-0.5 rounded-md bg-muted p-0.5"
+          className="arena-speed-control flex items-center gap-0.5 rounded-md bg-muted p-0.5"
           role="group"
           aria-label="Tốc độ mô phỏng"
         >
