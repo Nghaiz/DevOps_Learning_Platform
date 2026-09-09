@@ -18,6 +18,16 @@ COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/terminal/package.json packages/terminal/package.json
 COPY packages/scenario/package.json packages/scenario/package.json
 COPY packages/games/package.json packages/games/package.json
+# Hạn tải mặc định của pnpm là 60s MỖI request. Đủ khi có build cache, KHÔNG đủ
+# khi lớp này phải kéo lại toàn bộ dep từ registry trên đường truyền chậm: đo
+# 2026-09-09 ở ~1.5 MB/s, riêng `next` tarball mất 27s và các gói lớn
+# (playwright, three, @mediapipe) chạm trần rồi ném
+# `TimeoutError: The operation was aborted due to timeout` — build đỏ ở dòng
+# ngay dưới, và thông điệp trỏ vào `--frozen-lockfile` nên đọc ra như "lockfile
+# lệch" chứ không như lỗi mạng. Nới hạn + thêm lượt thử lại đổi chế độ hỏng đó
+# thành "chậm nhưng xong"; nó KHÔNG nới lỏng gì về tính tất định của lockfile.
+ENV npm_config_fetch_timeout=600000 \
+    npm_config_fetch_retries=5
 # --frozen-lockfile: build KHÔNG được tự ý sửa lockfile — lệch lockfile phải lộ ra
 # ở CI (pnpm install thường), không phải âm thầm re-resolve trong image build.
 RUN pnpm install --frozen-lockfile
