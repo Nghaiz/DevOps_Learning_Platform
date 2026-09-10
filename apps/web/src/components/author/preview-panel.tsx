@@ -59,7 +59,7 @@ export function PreviewPanel(props: {
       <Alert>
         <AlertDescription>
           Đây là chính khung nội dung của trình học. Nút chạy trên khối code bị vô hiệu hoá vì xem trước không
-          dựng sandbox — đúng như trình học khi người dùng chưa bắt đầu phiên.
+          dựng sandbox, đúng như trình học khi người dùng chưa bắt đầu phiên.
         </AlertDescription>
       </Alert>
 

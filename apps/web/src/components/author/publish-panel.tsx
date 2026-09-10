@@ -16,6 +16,7 @@ import {
   DialogTitle,
   Spinner,
 } from '@devops-platform/ui';
+import { renderCopy } from '../catalog/catalog-labels';
 import type { PreviewPayload } from './draft-from-preview';
 import { describeScriptReport, summarizeScriptChecks, type ScriptWarningView } from './script-warning';
 import type { PublishPhase } from './publish-machine';
@@ -98,7 +99,7 @@ export function PublishPanel(props: {
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-foreground">2. Xuất bản</h2>
         <p className="text-sm text-muted-foreground">
-          Xuất bản dựng một sandbox thật và chạy lần lượt mọi script của bài. Việc này mất vài phút — riêng dựng
+          Xuất bản dựng một sandbox thật và chạy lần lượt mọi script của bài. Việc này mất vài phút, riêng dựng
           sandbox cho bài Kubernetes đã tới ~49 giây. Bạn đóng tab được; lượt chạy thử không dừng theo.
         </p>
         <div className="flex flex-wrap gap-3">
@@ -140,7 +141,7 @@ export function PublishPanel(props: {
           <DialogHeader>
             <DialogTitle>Lưu trữ bài này?</DialogTitle>
             <DialogDescription>
-              Bài sẽ biến khỏi danh mục người học. Tiến độ và điểm đã có KHÔNG bị xoá — nền tảng không xoá nội
+              Bài sẽ biến khỏi danh mục người học. Tiến độ và điểm đã có KHÔNG bị xoá, nền tảng không xoá nội
               dung, vì tiến độ trỏ tới id bài bằng cột text không có khoá ngoại, nên xoá sẽ làm tiến độ cũ mồ côi
               trong im lặng.
             </DialogDescription>
@@ -182,12 +183,13 @@ function CheckReport(props: {
         </Alert>
       ) : (
         <Alert variant="destructive">
-          <AlertTitle>{props.issues.length} lỗi định dạng — chặn xuất bản</AlertTitle>
+          <AlertTitle>{props.issues.length} lỗi định dạng, chặn xuất bản</AlertTitle>
           <AlertDescription>
             <ul className="list-disc pl-5">
               {props.issues.map((issue) => (
                 <li key={`${issue.path}-${issue.message}`}>
-                  <code className="font-mono">{issue.path}</code> — {issue.message}
+                  <code className="font-mono">{issue.path}</code>
+                  {renderCopy({ key: 'author.issues.row', params: { message: issue.message } })}
                 </li>
               ))}
             </ul>
@@ -246,7 +248,7 @@ function PhaseReport({ phase }: { readonly phase: PublishPhase }): ReactElement 
           <AlertTitle>Đang chạy thử trong sandbox</AlertTitle>
           <AlertDescription className="flex items-center gap-2">
             <Spinner size="sm" />
-            Trang đang hỏi lại máy chủ vài giây một lần. Máy chủ KHÔNG báo đang chạy tới bước nào — chỉ có kết
+            Trang đang hỏi lại máy chủ vài giây một lần. Máy chủ KHÔNG báo đang chạy tới bước nào, chỉ có kết
             quả cuối, nên bảng dưới còn trống cho tới lúc đó.
           </AlertDescription>
         </Alert>
@@ -265,7 +267,7 @@ function PhaseReport({ phase }: { readonly phase: PublishPhase }): ReactElement 
     case 'failed':
       return (
         <Alert variant="destructive">
-          <AlertTitle>Lượt chạy thử trượt — bài quay về Nháp</AlertTitle>
+          <AlertTitle>Lượt chạy thử trượt, bài quay về Nháp</AlertTitle>
           <AlertDescription>Chi tiết ở bảng dưới. Sửa chỗ được nêu rồi xuất bản lại.</AlertDescription>
         </Alert>
       );
@@ -313,7 +315,7 @@ function TrialReport(props: {
       <div className="flex flex-col gap-2">
         <p className="text-sm text-muted-foreground">
           Đang chạy. Máy chủ không phát tiến độ từng bước, nên mọi dòng dưới đây còn ở &quot;Đang chờ&quot; cho
-          tới khi có kết quả cuối — đó là thứ ta biết, không phải thứ đang xảy ra.
+          tới khi có kết quả cuối: đó là thứ ta biết, không phải thứ đang xảy ra.
         </p>
         <TrialTable rows={props.plan.map((plan) => ({ plan, status: 'pending' as TrialStepStatus }))} />
       </div>

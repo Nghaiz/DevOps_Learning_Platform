@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
+import { renderCopy } from '../catalog/catalog-labels';
 import { describeSaveOutcome } from './save-outcome';
+
+/**
+ * `title` và `detail` nay là `CopyRef` chứ không phải câu (P16 / 16.G), nên mọi
+ * khẳng định về CHỮ dựng câu trước rồi mới so. Không khẳng định nào mất đi.
+ */
+const say = renderCopy;
 
 describe('describeSaveOutcome — sửa bản nháp thường', () => {
   it('báo thành công, không nói gì thêm', () => {
     const outcome = describeSaveOutcome({ id: 'dlp-bai-mot', supersedes: null }, 'dlp-bai-mot');
     expect(outcome.tone).toBe('success');
-    expect(outcome.title).toBe('Đã lưu bản nháp');
+    expect(say(outcome.title)).toBe('Đã lưu bản nháp');
     expect(outcome.detail).toBeNull();
     expect(outcome.navigate).toBe(false);
     expect(outcome.editId).toBe('dlp-bai-mot');
@@ -24,10 +31,12 @@ describe('describeSaveOutcome — sửa bài ĐÃ XUẤT BẢN thì server tách
   });
 
   it('nói rõ bài đang chạy chưa đổi — đây là thứ người soạn sẽ hiểu sai nếu ta im', () => {
-    expect(outcome.title).toContain('CHƯA đổi');
-    expect(outcome.detail).toContain('dlp-bai-mot');
-    expect(outcome.detail).toContain('dlp-bai-mot__draft');
-    expect(outcome.detail).toContain('Xuất bản');
+    expect(say(outcome.title)).toContain('CHƯA đổi');
+    expect(outcome.detail).not.toBeNull();
+    const detail = say(outcome.detail as NonNullable<typeof outcome.detail>);
+    expect(detail).toContain('dlp-bai-mot');
+    expect(detail).toContain('dlp-bai-mot__draft');
+    expect(detail).toContain('Xuất bản');
   });
 
   it('chỉ đường sang bản nháp mới, và đòi điều hướng vì id đã đổi', () => {

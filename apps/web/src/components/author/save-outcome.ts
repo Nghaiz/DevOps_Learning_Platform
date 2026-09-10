@@ -1,3 +1,5 @@
+import type { CopyRef } from '../catalog/catalog-labels';
+
 /**
  * Kết quả một lượt `authoring.update` — và vì sao nó cần một hàm riêng.
  *
@@ -17,8 +19,13 @@
 export interface SaveOutcome {
   /** `warning` cho nhánh tách nháp: đã lưu, nhưng CHƯA tới người học. */
   readonly tone: 'success' | 'warning';
-  readonly title: string;
-  readonly detail: string | null;
+  /**
+   * Tham chiếu bản đồ, KHÔNG phải câu đã ghép (§1.6 của `p16-copy.md`). Hai
+   * nhánh dưới đây là hai mục tĩnh trong `surfaces/author.ts`, nên cổng gạch
+   * ngang dài và cổng mất dấu soi được cả hai chứ không chỉ nhánh mà test đi vào.
+   */
+  readonly title: CopyRef;
+  readonly detail: CopyRef | null;
   /**
    * Id mà trang sửa bài phải chuyển tới sau khi lưu.
    *
@@ -42,7 +49,7 @@ export function describeSaveOutcome(
   if (result.supersedes === null) {
     return {
       tone: 'success',
-      title: 'Đã lưu bản nháp',
+      title: { key: 'author.save.ok.title' },
       detail: null,
       editId: result.id,
       navigate: result.id !== currentId,
@@ -51,10 +58,8 @@ export function describeSaveOutcome(
 
   return {
     tone: 'warning',
-    title: 'Đã tạo bản nháp kế nhiệm — bài đang chạy CHƯA đổi',
-    detail:
-      `Bài "${result.supersedes}" mà người học đang học giữ nguyên. Thay đổi của bạn nằm ở bản nháp ` +
-      `"${result.id}" và chỉ thay thế bản đang chạy khi bạn bấm Xuất bản.`,
+    title: { key: 'author.save.superseded.title' },
+    detail: { key: 'author.save.superseded.body', params: { liveId: result.supersedes, draftId: result.id } },
     editId: result.id,
     navigate: result.id !== currentId,
   };

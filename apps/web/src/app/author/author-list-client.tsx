@@ -18,19 +18,21 @@ import {
   TabsList,
   TabsTrigger,
 } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
+import { renderCopy } from '../../components/catalog/catalog-labels';
 import {
   countByFilter,
   describeItem,
+  describeUpdatedAt,
   filterByState,
-  filterLabel,
-  formatUpdatedAt,
+  filterLabelKey,
   lastPublishFailure,
   sortByRecent,
   STATE_BADGE,
   STATE_FILTERS,
-  STATE_LABELS,
+  STATE_KEYS,
   type AuthoredItem,
   type StateFilter,
 } from '../../components/author/content-state';
@@ -68,13 +70,11 @@ export function AuthorListClient() {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Soạn bài</h1>
-          <p className="text-sm text-muted-foreground">
-            Bài học, lab và playground do bạn tạo. Danh sách hiển thị đầy đủ, không chia trang.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('author.list.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('author.list.lead')}</p>
         </div>
         <Button asChild>
-          <Link href="/author/new">Tạo bài mới</Link>
+          <Link href="/author/new">{t('author.list.new-cta')}</Link>
         </Button>
       </header>
 
@@ -82,7 +82,7 @@ export function AuthorListClient() {
 
       {query.isError && (
         <ErrorState
-          title="Không tải được danh sách bài"
+          title={t('author.list.error-title')}
           message={describeTrpcError(query.error)}
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
@@ -91,11 +91,11 @@ export function AuthorListClient() {
 
       {query.isSuccess && items.length === 0 && (
         <EmptyState
-          title="Bạn chưa có bài nào"
-          description="Tạo bài học có từng bước, lab giao việc rồi chấm, hoặc playground là một sandbox trống. Bài mới luôn ở trạng thái Nháp — người học không thấy cho tới khi bạn xuất bản."
+          title={t('author.list.empty-title')}
+          description={t('author.list.empty-body')}
           action={
             <Button asChild>
-              <Link href="/author/new">Tạo bài đầu tiên</Link>
+              <Link href="/author/new">{t('author.list.empty-cta')}</Link>
             </Button>
           }
         />
@@ -112,7 +112,10 @@ export function AuthorListClient() {
             <TabsList>
               {STATE_FILTERS.map((value) => (
                 <TabsTrigger key={value} value={value}>
-                  {filterLabel(value)} ({counts[value]})
+                  {renderCopy({
+                    key: 'author.list.filter.tab',
+                    params: { label: t(filterLabelKey(value)), n: counts[value] },
+                  })}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -141,8 +144,11 @@ export function AuthorListClient() {
             <TabsContent value={filter}>
               {shown.length === 0 ? (
                 <EmptyState
-                  title={`Không có bài nào ở trạng thái "${filterLabel(filter)}"`}
-                  description="Đổi bộ lọc phía trên để xem các bài khác."
+                  title={renderCopy({
+                    key: 'author.list.filter.empty.title',
+                    params: { filter: t(filterLabelKey(filter)) },
+                  })}
+                  description={t('author.list.filter.empty.body')}
                 />
               ) : (
                 <ul className="flex flex-col gap-3">
@@ -176,24 +182,24 @@ function ItemCard({ item, now }: { readonly item: AuthoredItem; readonly now: Da
               >
                 {item.title}
               </Link>
-              <Badge variant={STATE_BADGE[item.state]}>{STATE_LABELS[item.state]}</Badge>
+              <Badge variant={STATE_BADGE[item.state]}>{t(STATE_KEYS[item.state])}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              {describeItem(item)} · <code className="font-mono">{item.id}</code>
+              {renderCopy(describeItem(item))} · <code className="font-mono">{item.id}</code>
             </p>
-            <p className="text-xs text-muted-foreground">Sửa {formatUpdatedAt(item.updatedAt, now)}</p>
+            <p className="text-xs text-muted-foreground">{renderCopy(describeUpdatedAt(item.updatedAt, now))}</p>
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link href={`/author/${encodeURIComponent(item.id)}`}>Mở</Link>
+            <Link href={`/author/${encodeURIComponent(item.id)}`}>{t('common.action.open')}</Link>
           </Button>
         </div>
 
         {failure !== null && (
           <Alert variant="destructive">
-            <AlertTitle>Lượt xuất bản gần nhất trượt</AlertTitle>
+            <AlertTitle>{t('author.list.publish-failed.title')}</AlertTitle>
             <AlertDescription>
               <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">{failure}</pre>
-              <p className="mt-2">Mở bài, sửa chỗ được nêu, rồi xuất bản lại.</p>
+              <p className="mt-2">{t('author.list.publish-failed.next')}</p>
             </AlertDescription>
           </Alert>
         )}
