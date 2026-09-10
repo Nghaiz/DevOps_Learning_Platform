@@ -19,10 +19,47 @@ successful, 32 total`, gồm cả `next build`. 16.C: 9 commit, 30 file. 16.D: 1
 AC-1..AC-6 + AC-8 xanh (AC-7 sang 16.I vì nằm trong `e2e/**`). **`16.B`, `16.E`, `16.F`, `16.G`,
 `16.H` chưa bắt đầu.** Bốn khoản dở của 16.C ghi ở mục 8.
 
-**Trạng thái 2026-09-10 (đợt ba, đang chạy):** ba lane `16.E`, `16.F`, `16.G1` đang thi công
-trên ba worktree riêng (`D:/NCKH/wt-p16-{e,f,g1}`, nhánh `feat/p16-{e-home3d,f-admin,g1-author}`),
-tất cả nền ở `92804b7`. Nền đã đo lại: `Tasks: 32 successful, 32 total`, FULL TURBO (toàn bộ
-cache trúng, tức cây không đổi so với lượt xác minh của đợt hai). **`16.B` và `16.H` để đợt sau.**
+**Trạng thái 2026-09-10 (đợt ba):** `16.G1`, `16.F`, `16.E` XONG và đã gộp (`cd6d51a`).
+16.G1: 4 commit / 19 file. 16.F: 5 commit / 20 file. 16.E: 7 commit / 17 file. `16.B`, `16.G2`,
+`16.H` đang chạy. Còn lại sau đó: `16.I`.
+
+Cây gộp năm lane, đo bằng lượt **ép chạy** (`--force`), không phải lượt trúng cache:
+
+```
+Tasks: 32 successful, 32 total · Cached: 0 cached, 32 total · 2m9.583s
+web 1729 (145 file) · ui 858 · games 402 · scenario 285
+terminal 133 · motion 110 · copy 52 · shared-types 48        tổng 3617
+check-design-tokens: 552 file / 4 vùng, đối chứng hai chiều xanh
+```
+
+**Vì sao phải ép chạy, và điều đó nói gì về mọi con số turbo trong dự án này.** Lượt verify đầu
+sau khi gộp trả `FULL TURBO — 32/32 cached` trên một cây vừa đổi 19 file. Đó là hình dạng của
+một ô xanh không chứng minh gì, nên nó không được nhận. Ba phép đo sau đó:
+
+1. `turbo.json` **không khai `inputs`** cho `build/lint/typecheck/test`, tức dùng mặc định là mọi
+   file git theo dõi trong package. Cấu hình đúng — đổi mã thì đổi hash. Giả thuyết nguy hiểm
+   nhất, và nó đã bị loại.
+2. **Không worktree nào có thư mục cache** (`.turbo` lẫn `node_modules/.cache`). Cache duy nhất
+   trong cả hệ là `.turbo/cache` ở cây chính. Suy ra turbo phân giải gốc repo về cây chính kể cả
+   khi chạy từ worktree con.
+3. `--force` trả `0 cached` và vẫn `32 successful`.
+
+Hệ quả cần nhớ: **số của lane luôn là chạy thật** (worktree không có cache để trúng), còn **số ở
+cây chính thì phải ép mới tin được**.
+
+**Ba lỗ hổng cổng, đo trong đợt này, mỗi cái hỏng im lặng:**
+
+| Bẫy | Vì sao không cổng nào đỏ |
+|---|---|
+| Probe của `renderMessages` gọi `fn(NUMBER_PROBE)` TRƯỚC | Một `ErrorEntry` viết `what: p.message` nhận số `7`; nó trượt khỏi **mọi** cổng giá trị. Ba mục của 16.F đã dính |
+| Cổng T4 báo động giả 100% trên file `.ts` thuần | Mẫu `>([^<>]*)<` khớp đoạn giữa mũi tên hàm và dấu mở generic. 16.E thấy một "vi phạm" dài 18 dòng không chứa ký tự JSX nào |
+| Bảng `intentionalThree` cùng hình dạng dòng với bản đồ khoá | Regex trích khoá đọc tiền tố nhóm thành "khoá chết" — ô đỏ về chính bộ đo, không về mã |
+
+Cộng một lỗ hổng **quy trình**: `git worktree add` không mang `.env` và `apps/web/.env` sang
+(khớp `*.env` ở `.gitignore:50`). Lượt turbo đầu của 16.G1 ra `Tasks: 29/31` với 121 ô đỏ — và
+con số nguy hiểm hơn là **71 ô lặng lẽ SKIP**, kéo tổng 1695 → 1659. Đọc cột passed/failed mà
+không đọc TỔNG thì lượt đó trông như "gần xanh". **Lead chép `.env` khi cấp worktree** là bước
+bắt buộc từ đây.
 
 **16.G tách đôi — quyết định của lead, không có trong plan gốc.** Cây `author/**` là 72 file /
 10.100 dòng, gấp đôi phạm vi 16.C, mà 16.C đã phải chia hai vì chạm trần lượt. Nên chia sẵn thay
