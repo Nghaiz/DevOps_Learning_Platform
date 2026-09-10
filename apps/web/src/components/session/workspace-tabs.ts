@@ -36,6 +36,47 @@ export type WorkspaceTabId = 'editor' | 'terminal';
 export const EDITOR_TAB = 'editor';
 export const TERMINAL_TAB = 'terminal';
 
+/**
+ * ⚠ Tiện ích Tailwind đặt `display`. Phần tử mang thuộc tính `hidden` KHÔNG
+ * được mang bất kỳ token nào trong danh sách này (`p16-workspace.md` §2).
+ *
+ * Vì sao hằng này sống ở ĐÂY chứ không nằm trong từng file test: hợp đồng §8
+ * AC-2 đòi một mảng "xuất ra được để test đọc", và hai file test khác nhau
+ * (`workspace-panel.test.tsx` quét markup tĩnh, `workspace-panel.dom.test.tsx`
+ * quét cây DOM sống) cùng cần đúng một danh sách. Hai bản chép là hai bản sẽ
+ * lệch, và bản lệch thì bên nào cũng xanh.
+ *
+ * So khớp theo TOKEN (tách `className` theo khoảng trắng), không `includes`
+ * chuỗi: `includes('flex')` trúng cả `flex-1` và `flex-col`, nên một bộ quét
+ * viết kiểu đó đỏ ngay lượt đầu rồi bị nới ra cho tới lúc không gác gì nữa.
+ */
+export const DISPLAY_UTILITIES: readonly string[] = [
+  'block',
+  'inline-block',
+  'inline',
+  'flex',
+  'inline-flex',
+  'grid',
+  'inline-grid',
+  'table',
+  'table-cell',
+  'contents',
+  'flow-root',
+  'list-item',
+];
+
+/**
+ * `true` khi `className` mang một tiện ích `display` — tức khi đặt cạnh thuộc
+ * tính `hidden` thì `hidden` bị vô hiệu trong im lặng.
+ *
+ * Hàm THUẦN, để cả hai file test gọi được cùng một phép đo trên hai nguồn khác
+ * nhau (chuỗi `class="..."` của markup tĩnh, và `element.className` của DOM).
+ */
+export function hasDisplayUtility(className: string): boolean {
+  const tokens = new Set(className.split(/\s+/).filter((token) => token !== ''));
+  return DISPLAY_UTILITIES.some((utility) => tokens.has(utility));
+}
+
 export const WORKSPACE_TAB_LABEL: Readonly<Record<WorkspaceTabId, string>> = {
   editor: 'Editor',
   terminal: 'Terminal',

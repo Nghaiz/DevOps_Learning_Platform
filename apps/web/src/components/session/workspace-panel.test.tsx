@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { WorkspacePanel, type WorkspacePanelProps } from './workspace-panel';
+import { DISPLAY_UTILITIES, hasDisplayUtility } from './workspace-tabs';
 
 /**
  * §Y1/§Y4/§Y6 — các bất biến của `WorkspacePanel`, kiểm trên MARKUP THẬT.
@@ -156,33 +157,61 @@ describe('bẫy CSS: phần tử mang `hidden` không được mang tiện ích 
    * `<div hidden class="flex">` VẪN HIỆN — và thuộc tính `hidden` thành ra vô
    * nghĩa mà không có gì báo. Test này là thứ duy nhất trong repo nói ra.
    */
-  const DISPLAY_UTILITIES = new Set([
-    'flex',
-    'grid',
-    'block',
-    'inline',
-    'inline-flex',
-    'inline-block',
-    'inline-grid',
-    'table',
-    'contents',
-    'flow-root',
-    'list-item',
-  ]);
+  /*
+    ⚠ Danh sách và phép so khớp KHÔNG chép tay ở đây: cả hai đến từ
+    `workspace-tabs.ts` (`DISPLAY_UTILITIES` / `hasDisplayUtility`), cùng nguồn
+    mà `workspace-panel.dom.test.tsx` đọc. Hai bản chép là hai bản sẽ lệch, và
+    khi lệch thì mỗi bên vẫn xanh theo bản của riêng nó.
+  */
 
   it('không thẻ nào vừa có `hidden` vừa có class display', () => {
     for (const state of ALL_STATES) {
       const offenders = openTags(render(state))
         .filter(isHidden)
-        .filter((tag) => classOf(tag).split(/\s+/).some((c) => DISPLAY_UTILITIES.has(c)));
+        .filter((tag) => hasDisplayUtility(classOf(tag)));
       expect(offenders, JSON.stringify(state)).toEqual([]);
     }
   });
 
-  it('có ít nhất MỘT thẻ mang `hidden` ở tab Terminal — đối chứng dương', () => {
+  it('có ít nhất MỘT thẻ mang `hidden` ở tab Terminal — đối chứng dương (query trúng đích)', () => {
     // Không có ô này thì ô trên xanh một cách vô nghĩa khi `hidden` biến mất
     // hoàn toàn khỏi markup vì một lý do khác.
     expect(openTags(render({ activeTab: 'terminal' })).filter(isHidden).length).toBeGreaterThan(0);
+  });
+
+  /*
+    ⚠ ĐỐI CHỨNG DƯƠNG THỨ HAI — hợp đồng §8 AC-2 đòi CẢ HAI vế, và vế này là vế
+    thiếu cho tới 2026-09-10.
+
+    Vế trên chứng minh "có thẻ mang `hidden` để mà quét". Vế này chứng minh "bộ
+    quét NHÌN THẤY vi phạm khi vi phạm có thật". Không có nó thì một
+    `hasDisplayUtility` luôn trả `false` (danh sách rỗng, `classOf` trượt regex,
+    một lượt refactor đổi dấu phân tách) cũng làm ô chính xanh — xanh vì mù, chứ
+    không phải vì sạch.
+  */
+  it('đối chứng dương: bộ quét ĐỎ được trên một cây giả cố ý sai', () => {
+    const BAD = '<div hidden="" class="min-h-0 flex flex-col"></div>';
+    const offenders = openTags(BAD)
+      .filter(isHidden)
+      .filter((tag) => hasDisplayUtility(classOf(tag)));
+
+    expect(offenders).toHaveLength(1);
+  });
+
+  it('đối chứng ÂM: tiện ích kích thước cạnh `hidden` KHÔNG bị coi là vi phạm', () => {
+    // `flex-1` / `flex-col` / `overflow-hidden` chứa chuỗi con của một tiện ích
+    // display nhưng KHÔNG đặt `display`. Một bộ quét dùng `includes` sẽ đỏ ở
+    // đây, rồi bị nới ra cho tới lúc không gác gì nữa (§2.1).
+    const OK = '<div hidden="" class="min-h-0 min-w-0 flex-1 flex-col overflow-hidden"></div>';
+    expect(openTags(OK).filter(isHidden).filter((tag) => hasDisplayUtility(classOf(tag)))).toEqual(
+      [],
+    );
+  });
+
+  it('danh sách tiện ích display không rỗng — chống một cổng rỗng đội lốt cổng sạch', () => {
+    expect(DISPLAY_UTILITIES.length).toBeGreaterThanOrEqual(12);
+    expect(DISPLAY_UTILITIES).toContain('flex');
+    expect(DISPLAY_UTILITIES).toContain('table-cell');
   });
 });
 
