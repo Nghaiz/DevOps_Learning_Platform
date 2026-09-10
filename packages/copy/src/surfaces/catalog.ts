@@ -524,6 +524,79 @@ export const catalog = {
   'catalog.path.open-failed': (p: { reason: string }) =>
     `${p.reason} Bấm “Tải lại” để xem trạng thái mới nhất.`,
 
+  /*
+   * ── Làm một bộ câu hỏi (`/quiz/[id]`) ────────────────────────────────────
+   *
+   * Số nhiều `catalog.title.quiz` là màn DANH SÁCH, `catalog.quiz.*` là màn
+   * LÀM BÀI. Cùng cách chia như `catalog.problems.*` so với `catalog.problem.*`.
+   *
+   * ⛔ KHÔNG có khoá nào ở đây nói một lựa chọn là đúng hay sai TRƯỚC khi nộp.
+   * `QuizForLearner` khai `isCorrect`/`explanation` là `never`, nên client
+   * không có dữ liệu để suy, và một câu chữ nằm sẵn ở đây sẽ là lối duy nhất
+   * để lộ điều đó ra. Ba nhãn `reveal-*` chỉ dựng được sau khi `quiz.submit`
+   * trả kết quả.
+   */
+  'catalog.quiz.back': 'Quiz',
+  'catalog.quiz.loading-title': 'Đang tải',
+  'catalog.quiz.loading-sr': 'Đang tải quiz',
+  'catalog.quiz.error-title': 'Không mở được quiz này',
+
+  /*
+   * Quy tắc chấm hiện TRƯỚC câu hỏi đầu tiên, và câu chữ chọn theo
+   * `quiz.multipleAnswerRule` TRONG PAYLOAD: server sở hữu luật chấm, nên một
+   * câu FE tự viết sẽ trôi khỏi cách chấm thật ở lần đầu tiên server đổi luật.
+   */
+  'catalog.quiz.grading-title': 'Cách chấm',
+  'catalog.quiz.rule-all-or-nothing':
+    'Câu nhiều đáp án: phải chọn ĐÚNG và ĐỦ mọi đáp án đúng mới được tính điểm, không có điểm một phần.',
+  'catalog.quiz.threshold': (p: { percent: number }) =>
+    `Đạt từ ${p.percent}% số câu. Làm lại bao nhiêu lần cũng được.`,
+
+  /*
+   * Tiến độ TRẢ LỜI, không phải tiến độ ĐÚNG. Bẫy P2 ở dạng quiz: một nhãn
+   * "đã làm 5/5 câu" cạnh nút Nộp rất dễ đọc thành "5/5 đúng", nên nhãn phải tự
+   * nói ra nó đếm câu ĐÃ CHỌN.
+   */
+  'catalog.quiz.progress': (p: { answered: number; total: number }) =>
+    `Đã chọn đáp án cho ${p.answered}/${p.total} câu`,
+  'catalog.quiz.progress-caveat': (p: { blank: number }) =>
+    `Còn ${p.blank} câu chưa chọn, câu bỏ trống tính là sai và vẫn nằm ở mẫu số.`,
+
+  /*
+   * Bốn vai trò của một lựa chọn sau khi nộp, ba trong số đó có nhãn chữ.
+   * "Bỏ lỡ một đáp án đúng" và "chọn một đáp án sai" là HAI chuyện khác nhau,
+   * và gộp chúng thành "sai" bỏ mất đúng thứ người học cần để hiểu mình sai ở
+   * đâu. Vai trò `none` cố ý không có nhãn: nó là trạng thái trước khi nộp.
+   */
+  'catalog.quiz.reveal-correct': 'Bạn chọn đúng',
+  'catalog.quiz.reveal-missed': 'Đáp án đúng, bạn chưa chọn',
+  'catalog.quiz.reveal-wrong-pick': 'Bạn chọn nhưng không đúng',
+
+  'catalog.quiz.pick-one': 'Chọn một đáp án',
+  'catalog.quiz.pick-many': 'Chọn nhiều đáp án',
+  'catalog.quiz.answer-correct': 'Đúng',
+  'catalog.quiz.answer-wrong': 'Chưa đúng',
+
+  'catalog.quiz.submit': 'Nộp bài',
+  'catalog.quiz.submit-with-blanks': 'Bạn vẫn nộp được khi còn câu bỏ trống, chúng sẽ tính là sai.',
+  'catalog.quiz.restart': 'Làm lại từ đầu',
+
+  /*
+   * Hai khoá cho một thông báo, vì nửa đầu chở câu lỗi của máy chủ còn nửa sau
+   * là câu của chúng ta. Ghép thành một khoá thì bản đồ phải đoán câu kia có
+   * kết thúc bằng dấu chấm hay không, và đoán sai ra hai dấu chấm liền nhau.
+   */
+  'catalog.quiz.submit-failed': (p: { reason: string }) => `Không nộp được bài: ${p.reason}`,
+  'catalog.quiz.submit-failed-note':
+    'Các lựa chọn của bạn vẫn còn trên màn hình, bấm Nộp bài để thử lại.',
+
+  // Mốc đi kèm điểm: "60%" một mình không nói được đạt hay chưa.
+  'catalog.quiz.score': (p: { correct: number; total: number; percent: number }) =>
+    `${p.correct}/${p.total} câu · ${p.percent}%`,
+  'catalog.quiz.verdict-pass': (p: { threshold: number }) => `Đạt (mốc ${p.threshold}%)`,
+  'catalog.quiz.verdict-fail': (p: { threshold: number }) => `Chưa đạt (mốc ${p.threshold}%)`,
+  'catalog.quiz.attempt-number': (p: { n: number }) => `Lần làm thứ ${p.n}`,
+
   // ── Khung chờ tải ─────────────────────────────────────────────────────
   'catalog.loading.grid': 'Đang tải danh sách',
 } as const satisfies Surface<'catalog'>;
