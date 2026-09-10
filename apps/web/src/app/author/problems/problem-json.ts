@@ -103,7 +103,7 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
   const difficulty = asStringOr(body['difficulty'], '');
   const validDifficulty = (PROBLEM_DIFFICULTIES as readonly string[]).includes(difficulty);
   if (difficulty !== '' && !validDifficulty) {
-    dropped.push(`độ khó "${difficulty}" không thuộc bốn bậc hợp lệ — đã đặt lại thành "Dễ"`);
+    dropped.push(`độ khó "${difficulty}" không thuộc bốn bậc hợp lệ, đã đặt lại thành "Dễ"`);
   }
 
   const topics: ProblemTopic[] = [];

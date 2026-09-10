@@ -34,7 +34,7 @@ export function AllowedResourcesFields(props: {
       </div>
       {!props.form.restrictResources ? (
         <p className="text-xs text-muted-foreground">
-          Cho dùng mọi loại. Khác hẳn &quot;chọn nhưng để trống&quot; — cái đó nghĩa là không tạo được gì.
+          Cho dùng mọi loại. Khác hẳn &quot;chọn nhưng để trống&quot;: cái đó nghĩa là không tạo được gì.
         </p>
       ) : (
         <>

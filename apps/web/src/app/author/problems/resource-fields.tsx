@@ -82,7 +82,7 @@ export function ResourceFields(props: {
       {clusterScoped ? (
         <p className="text-xs text-muted-foreground">
           <code className="font-mono">{props.resource.kind}</code> có phạm vi cluster nên không thuộc namespace
-          nào — ô Namespace bị bỏ qua.
+          nào, ô Namespace bị bỏ qua.
         </p>
       ) : (
         <TextField
@@ -105,7 +105,7 @@ export function ResourceFields(props: {
         rows={6}
         mono
         error={issueFor(props.issues, `${base}.spec`)}
-        hint="Hình dạng tuỳ loại tài nguyên — engine chỉ đọc những field nó cần và bỏ qua phần còn lại."
+        hint="Hình dạng tuỳ loại tài nguyên. Engine chỉ đọc những field nó cần và bỏ qua phần còn lại."
       />
 
       <div className="flex flex-col gap-1.5">
