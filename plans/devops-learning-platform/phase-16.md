@@ -458,6 +458,18 @@ cùng lúc, và nó chỉ có thật nếu ba hợp đồng ở 16.0 đủ chặ
   tầng biên dịch, bù bằng test dựng-ra-câu từng nhánh. Muốn đóng hẳn thì L0 phải thêm một lối vào
   cho `surfaces/`, và đó là quyết định ảnh hưởng cả bảy lane.
 
+- **Mười ba file nhóm trường của `components/author/**` còn chuỗi tại chỗ, chốt 2026-09-10.**
+  `draft-meta-fields.tsx` (380 dòng), `publish-panel.tsx` (395), `step-list-fields.tsx` (214),
+  `asset-manager.tsx` (212) và chín file khác. 16.G1 **cố ý dừng** ở ranh giới sạch thay vì
+  chuyển nửa vời, cùng lý lẽ 16.C đã dừng ở `quiz-client.tsx`: chuyển một nửa để lại hai nguồn
+  chữ trong một file, và đó là trạng thái tệ hơn cả hai đầu. Ô cấm gạch ngang dài thì ĐÃ đóng cho
+  toàn bộ vùng này (21 chuỗi ở bảy file) — nợ còn lại đúng là phần đi qua `packages/copy`.
+
+- **`CopyRef` đang sống nhầm tầng, cần L0 quyết sau khi gộp hết.** Nó khai trong
+  `components/catalog/catalog-labels.ts` — file của lane 16.C — nhưng nó là tầng nối `apps/web`
+  với `packages/copy`, và tính đến 16.G1 đã có bốn cây import nó. 16.G1 không tự chuyển vì file
+  thuộc lane khác. Chuyển nó là đụng cả bốn cây, nên là quyết định của L0, không phải của một lane.
+
 - **Lab vẫn chưa có tab Editor.** Rào cản kiến trúc đã gỡ (`IdePane` nay ở `components/session/`),
   rào cản còn lại là kiểu `Lab` không có `interfaceLayout` — cần sửa lược đồ + server, ngoài phạm
   vi frontend-only của đợt này.
