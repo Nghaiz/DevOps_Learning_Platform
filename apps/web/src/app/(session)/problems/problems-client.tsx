@@ -2,6 +2,7 @@
 
 import type { ReactElement } from 'react';
 import Link from 'next/link';
+import { t } from '@devops-platform/copy';
 import { Button, CursorPager, EmptyState, ErrorState, Skeleton } from '@devops-platform/ui';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
@@ -29,8 +30,8 @@ export function ProblemsClient(): ReactElement {
 
   return (
     <CatalogPage
-      title="Bài tập"
-      description="Mỗi bài là một cluster hỏng hoặc một yêu cầu cần dựng. Không có phần giảng — bạn tự biết hoặc tự tra, rồi thao tác cho tới khi mọi mục tiêu xanh."
+      title={t('catalog.title.problems')}
+      description={t('catalog.lead.problems')}
     >
       <ProblemsToolbar controls={controls} />
 
@@ -38,7 +39,7 @@ export function ProblemsClient(): ReactElement {
 
       {query.isError && (
         <ErrorState
-          title="Không tải được danh sách bài"
+          title={t('catalog.error-title.problems')}
           message={describeTrpcError(query.error)}
           retrying={query.isFetching}
           onRetry={() => void query.refetch()}
@@ -47,20 +48,24 @@ export function ProblemsClient(): ReactElement {
 
       {query.isSuccess && items.length === 0 && (
         <EmptyState
-          title={controls.hasActiveFilter ? 'Không bài nào khớp bộ lọc' : 'Chưa có bài tập nào được đăng'}
-          description={
+          title={t(
             controls.hasActiveFilter
-              ? 'Nhiều tag phải khớp ĐỦ, còn nhiều chủ đề chỉ cần khớp một — thu hẹp tag trước khi bỏ chủ đề.'
-              : 'Trong lúc chờ, các level của Kubernetes Game dạy đúng những thao tác mà bài tập ở đây sẽ hỏi.'
-          }
+              ? 'catalog.problems.empty-filter-title'
+              : 'catalog.problems.empty-blank-title',
+          )}
+          description={t(
+            controls.hasActiveFilter
+              ? 'catalog.problems.empty-filter-body'
+              : 'catalog.problems.empty-blank-body',
+          )}
           action={
             controls.hasActiveFilter ? (
               <Button variant="outline" size="sm" onClick={controls.clearFilters}>
-                Xoá bộ lọc
+                {t('catalog.action.clear-filter')}
               </Button>
             ) : (
               <Button asChild variant="outline" size="sm">
-                <Link href="/games/k8s">Mở Kubernetes Game</Link>
+                <Link href="/games/k8s">{t('catalog.problems.empty-cta')}</Link>
               </Button>
             )
           }
@@ -76,8 +81,10 @@ export function ProblemsClient(): ReactElement {
             "bài khó nhất" đọc thành "bài khó nhất trong 25 dòng này".
           */}
           <CatalogNote>
-            Đang xem {items.length} bài của trang {controls.page}
-            {hasNext ? ' — còn trang sau.' : ' — đã hết danh sách.'}
+            {t(
+              hasNext ? 'catalog.problems.scope-more' : 'catalog.problems.scope-last',
+              { shown: items.length, page: controls.page },
+            )}
           </CatalogNote>
           <CursorPager
             hasNext={hasNext}

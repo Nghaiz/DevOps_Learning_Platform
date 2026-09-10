@@ -295,6 +295,14 @@ export const catalog = {
   'catalog.games.challenge-cta': 'Xem Lab',
 
   // ── Bài tập (`/problems`) ─────────────────────────────────────────────
+  /*
+   * ⚠ Ô tìm của `/problems` là ô tìm THẬT: `problems.list` nhận
+   * `filter.query` và lọc trên toàn bộ kho. Nó KHÔNG dùng
+   * `catalog.toolbar.search-label` (“Tìm trong trang”) vì câu đó nói về một
+   * giới hạn mà màn này không có, và một cảnh báo sai chỗ dạy người dùng bỏ
+   * qua cảnh báo đúng chỗ.
+   */
+  'catalog.problems.search-region': 'Tìm trong kho bài tập',
   'catalog.problems.search-label': 'Tìm theo mã bài hoặc tên',
   'catalog.problems.search-placeholder': 'K8S-0042 hoặc pod treo',
   'catalog.problems.order-label': 'Sắp xếp theo',
