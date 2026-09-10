@@ -14,9 +14,9 @@ Một ô ghi ĐẠT mà không có bằng chứng thì không có giá trị, n�
 
 | # | Ô nghiệm thu | Kết quả | Bằng chứng / lý do |
 |---|---|---|---|
-| 1 | `SCREENS` phủ 32 màn, `MIN_SCREENS` = 32, 0 lỗi axe serious/critical trên mọi màn | **ĐẠT một nửa** | `SCREENS.length === 32`, `MIN_SCREENS = 32` — đã commit `70e8005`, `e2e/routes.ts`. Phần axe: xem §6, lượt quét chạy sau khi report này chốt. |
-| 2 | `csp.spec.ts` xanh trên 32 màn, không nới một chỉ thị CSP nào | **ĐẠT một nửa** | Không một chỉ thị CSP nào bị đụng — `csp.spec.ts` chỉ đổi gián tiếp qua `SCREENS` (`git diff 8e5b2af..HEAD -- apps/web/e2e/csp.spec.ts` rỗng). Phần "xanh trên 32 màn": xem §6. |
-| 3 | `KEYBOARD_SCREENS` ≥ 10, gồm `/labs/:id` và `/lessons/:id`, có ca thoát focus khỏi terminal | **ĐẠT (mã)** | `KEYBOARD_SCREENS.length === 10`, `MIN_KEYBOARD_SCREENS = 10`, kèm phép kiểm theo DANH TÍNH (`REQUIRED_KEYBOARD_PATHS`) chứ không chỉ theo số lượng. Ca thoát focus đã có sẵn từ 13.H: `test.describe('D10 — thoát terminal bằng Esc Esc')`, ô `Esc ĐƠN vẫn tới PTY, và Esc Esc rời khỏi terminal`. ⚠ Ô D10 đó cần **phiên sandbox thật** nên nó `skip` ở môi trường cục bộ — xem §7. |
+| 1 | `SCREENS` phủ 32 màn, `MIN_SCREENS` = 32, 0 lỗi axe serious/critical trên mọi màn | **KHÔNG ĐẠT** | `SCREENS.length === 32`, `MIN_SCREENS = 32` ✓ (`70e8005`). Nhưng axe tìm thấy **1 lỗi mức serious** trên `/paths/:id` — `color-contrast`, chi tiết ở §7.1. Ngoài ra 11 màn vai-trò SKIP và `/problems/:code` KHÔNG MỞ ĐƯỢC (danh mục rỗng, §7.3). Đo được: 21 pass / 2 fail / 12 skip. |
+| 2 | `csp.spec.ts` xanh trên 32 màn, không nới một chỉ thị CSP nào | **ĐẠT (có điều kiện)** | **0 vi phạm CSP** trên mọi màn mở được: 25 pass / 1 fail / 11 skip — và ô đỏ duy nhất là `/problems/:code` KHÔNG MỞ ĐƯỢC (§7.3), không phải một vi phạm CSP. Không một chỉ thị nào bị nới: `git diff 8e5b2af..HEAD -- apps/web/e2e/csp.spec.ts` **rỗng**, và lane không chạm mã sản phẩm. Điều kiện còn thiếu: 11 màn vai-trò chưa đo. |
+| 3 | `KEYBOARD_SCREENS` ≥ 10, gồm `/labs/:id` và `/lessons/:id`, có ca thoát focus khỏi terminal | **ĐẠT (mã) · CHƯA CHẠY** | `KEYBOARD_SCREENS.length === 10`, `MIN_KEYBOARD_SCREENS = 10`, kèm phép kiểm theo DANH TÍNH (`REQUIRED_KEYBOARD_PATHS`) chứ không chỉ theo số lượng. Ca thoát focus đã có sẵn từ 13.H: `test.describe('D10 — thoát terminal bằng Esc Esc')`, ô `Esc ĐƠN vẫn tới PTY, và Esc Esc rời khỏi terminal`. ⚠ Ô D10 đó cần **phiên sandbox thật** nên nó `skip` ở môi trường cục bộ — xem §7. |
 | 4 | Grep màu trần rỗng trên `apps/web/src` và `packages/ui/src`, trừ `packages/terminal/src/**/themes.ts` | **ĐẠT** | `node scripts/check-design-tokens.mjs` → `exit=0`, quét **562 file / 4 vùng**, 4 file miễn trừ có ghi lý do. Kèm đối chứng **hai chiều** của chính script: bắt đủ 13 mẫu bẩn, không kêu trên 20 mẫu sạch. |
 | 5 | Test contrast tính lại mọi token PTIT, trộn alpha trong sRGB mã hoá gamma | **ĐẠT** | `packages/ui/src/theme/tokens.contract.test.ts`, chạy trong lượt `turbo run test --force` (ui: 872/872 xanh, 0 skip). |
 | 6 | `packages/copy`: 0 ký tự `—`, 0 chuỗi mất dấu; cùng phép kiểm mất dấu chạy trên `content/**` | **ĐẠT** | `packages/copy/src/copy.contract.test.ts` + `scan.control.test.ts` (đối chứng của chính bộ dò), copy: 52/52 xanh. |
@@ -26,9 +26,14 @@ Một ô ghi ĐẠT mà không có bằng chứng thì không có giá trị, n�
 | 10 | Ngân sách LCP mới cho `/`, có số đo thật trong chú thích | **ĐẠT** | Đo được **152ms** trên `/` và **360ms** trên `/lessons` trong CÙNG một lượt chạy, cùng máy, cùng build. Bảng đầy đủ ở §3. Ngân sách ghi vào `perf.spec.ts` kèm số đo. |
 | 11 | `pnpm -w turbo run build lint typecheck test` xanh | **ĐẠT** | `Tasks: 32 successful, 32 total` · `Cached: 0 cached, 32 total` · `1m33.041s`. Bảng tổng từng gói ở §2. |
 
-**8 ĐẠT · 3 ĐẠT-một-nửa · 0 KHÔNG ĐẠT.** Ba ô nửa vời (1, 2, 3) đều là cùng một thiếu sót:
-harness đã dựng và biên dịch sạch, nhưng lượt quét e2e đầy đủ trên 32 màn chưa chạy xong trong
-phiên này. Không ô nào trong ba ô đó thất bại — chúng chưa được ĐO.
+**9 ĐẠT · 1 KHÔNG ĐẠT (ô 1) · 1 ĐẠT-nhưng-chưa-chạy (ô 3).**
+
+Ô 1 là ô **KHÔNG ĐẠT** thật, không phải "chưa đo": lượt quét đã chạy và tìm thấy một lỗi axe mức
+serious. Ô 2 ĐẠT về đúng thứ nó khẳng định (0 vi phạm CSP, 0 chỉ thị bị nới) nhưng chưa phủ hết
+11 màn vai-trò. Ô 3 có mã và có phép kiểm danh tính, nhưng `keyboard.spec.ts` chưa chạy trong
+phiên này — nên nó là ĐẠT về mã, chưa phải ĐẠT về hành vi.
+
+**Hai lỗi sản phẩm THẬT bắt được, cả hai ghi ở §7.**
 
 ---
 
@@ -207,12 +212,41 @@ là chú thích của `motif.spec.ts` (đã ghi) cộng mục này.
 
 ---
 
-## 6. Lượt quét 32 màn — trạng thái
+## 6. Lượt quét 32 màn — kết quả
 
-`a11y.spec.ts` + `csp.spec.ts` + `responsive.spec.ts` được phóng chạy nền tại thời điểm chốt
-report này (`E2E_START_SERVER=1`, `next start` cục bộ, tài khoản cố định `e2e-16i@dlp.local`).
-Kết quả CHƯA có khi report chốt, nên ô 1, 2 và phần quét của ô 3 ghi **ĐẠT một nửa** ở §1 —
-không ghi ĐẠT.
+`a11y.spec.ts` + `csp.spec.ts` + `responsive.spec.ts`, `next start` cục bộ, tài khoản dùng-một-lần,
+**151.8 giây**.
+
+### 6.1 Số ô ĐÃ CHẠY — đọc dòng này trước mọi con số khác
+
+| suite | pass | fail | skip | tổng |
+|---|---:|---:|---:|---:|
+| `a11y.spec.ts` | 21 | 2 | 12 | 35 |
+| `csp.spec.ts` | 25 | 1 | 11 | 37 |
+| `responsive.spec.ts` | 27 | 2 | 11 | 40 |
+| **tổng** | **73** | **5** | **34** | **112** |
+
+Năm ô đỏ: **2 lỗi sản phẩm thật** (§7.1, §7.2) và **3 ô cùng một nguyên nhân dữ liệu** (§7.3).
+
+### 6.2 Ba mươi tư ô SKIP — một lượt skip sạch không phải một lượt xanh
+
+| nhóm | số ô | vì sao |
+|---|---:|---|
+| màn vai-trò `author` / `admin` (11 màn × 3 suite, trừ phần đã chạy) | 33 | tài khoản e2e có `role: 'user'`; vai trò chỉ đặt được bằng SQL (`e2e/scripts/promote-role.sh`), không có API |
+| ô đối chứng `E2E_REQUIRE_ROLES=1` | 1 | chính nó tự skip khi cờ chưa bật |
+
+Cờ `E2E_REQUIRE_ROLES=1` biến **mọi** lượt skip trên thành đỏ có tên — đó là thứ lượt nghiệm thu
+thật phải bật, sau khi chạy `promote-role.sh`. Chưa bật trong phiên này, nên **11 màn vai-trò
+chưa từng được audit**: 5 màn `/author/**`, 5 màn `/admin/**`, và `/author/problems/:code`.
+
+Các ô D10 (Esc trong terminal) của `keyboard.spec.ts` sẽ skip vì lý do khác — chúng cần phiên
+sandbox THẬT, tức cần cụm. `gateway` không chạy cục bộ; log `next start` in
+`[grpc:orchestrator] RPC thất bại connectCode: 'Unavailable'` đúng như dự đoán. Cờ tương ứng là
+`E2E_REQUIRE_SESSION=1`.
+
+`/reset-password` được mở ở đường TRẦN, không mang query — bàn giao 16.B: `rule-08-no-token-in-url`
+grep văn bản THÔ kể cả chú thích, nên viết một URL có `?token=` vào file e2e sẽ làm cổng đó đỏ
+trong khi sản phẩm không sai gì.
 
 ### ⚠ Lượt quét ĐẦU TIÊN chạy 0 ô và đọc ra y hệt một lượt sạch
 
@@ -249,13 +283,67 @@ Phép kiểm đúng là khẳng định **số ô ĐÃ CHẠY**, không đọc m
 
 ## 7. Lỗi sản phẩm thật bắt được
 
-**Không có.** Mọi phép đo đã chạy đều đạt, và ô đỏ duy nhất trong phiên (§5) truy ra là lỗi của
-bộ đo, không phải của sản phẩm — đã sửa trong `motif.spec.ts` chứ không đụng mã sản phẩm.
+⛔ Không sửa cái nào — chúng thuộc lane khác và tám lane đã gộp xong. Ghi kèm file và dòng.
 
-Cần nói rõ phạm vi của câu "không có" này, vì một khẳng định phủ định là một khẳng định về phép
-tìm chứ không phải về cây mã: nó đúng trên **8 ô e2e đã chạy** (`motif.spec.ts` 4 ô +
-`perf.spec.ts` 4 ô) cộng **3652 ô vitest**. Nó **chưa** nói gì về 32 màn axe/CSP/responsive
-(§6), về 10 màn bàn phím, hay về 10 ô cần mắt người của lane motif (§5 report `2026-09-11-l0-motif-report.md`).
+### 7.1 `/paths/:id` — 1 lỗi axe mức **serious**, `color-contrast`
+
+| | |
+|---|---|
+| **Màn** | `/paths/:id` (đo trên `/paths/lo-trinh-tu-do-1788902504259-xkhve2`) |
+| **Luật** | `color-contrast` — impact **serious**, 1 node (36 luật khác pass, 0 lỗi mức thấp) |
+| **Bộ chọn axe** | `.opacity-80 > .justify-between.flex-wrap.gap-3 > .gap-1.flex-col > .text-muted-foreground.text-xs` |
+| **Nguồn** | `apps/web/src/app/paths/[id]/path-client.tsx:183` |
+| **Lane** | 16.C |
+
+Dòng 183 là:
+
+```
+<Card className={`flex flex-col gap-3 p-4 shadow-elevation-1 ${openable ? '' : 'opacity-80'}`}>
+```
+
+Cơ chế: `opacity-80` áp lên CẢ thẻ khi bước chưa mở được, và bên trong thẻ có chữ
+`text-muted-foreground text-xs`. `--muted-foreground` vốn đã là token tương phản THẤP nhất còn hợp
+lệ; nhân thêm 0.8 opacity là đẩy nó xuống dưới ngưỡng 4.5:1 của SC 1.4.3.
+
+Đáng chú ý ở chỗ đây là lớp lỗi mà **test contrast của `packages/ui` không thể bắt** (ô 5 vẫn
+ĐẠT): nó tính tương phản của TOKEN, còn `opacity` là một phép nhân áp ở tầng cha, lúc render, trên
+một tổ hợp mà không token nào biết tới. Chỉ axe trên trình duyệt thật mới thấy.
+
+### 7.2 `/lessons/:id` ở 1280px — KHÔNG có thanh nav chính
+
+| | |
+|---|---|
+| **Ô đỏ** | `responsive.spec.ts:210` — `1280px — bố cục đầy đủ: nav ngang + khoang terminal` |
+| **Locator không tìm thấy** | `getByRole('navigation', { name: 'Điều hướng chính', exact: true })` |
+| **Nhãn đến từ** | `packages/copy/src/surfaces/shell.ts:59` — `'shell.nav.aria': 'Điều hướng chính'` |
+| **Lane** | 16.B (vỏ) hoặc 16.D (khoang lab) — ranh giới cần chủ hợp đồng chốt |
+
+**Đây là một ô có TRƯỚC lane này, không phải ô mới.** `git diff 8e5b2af..HEAD -- apps/web/e2e/responsive.spec.ts`
+chỉ THÊM ở cuối file; bốn ô ngưỡng giữ nguyên từng chữ. Nên ô đỏ này là **hồi quy do tám lane dựng
+lại vỏ**, và nó chỉ lộ ra vì lượt quét e2e chưa từng chạy sau khi gộp.
+
+Phạm vi đã khoanh được, và nó hẹp hơn "vỏ hỏng": ô `769px — ĐỐI CHỨNG ÂM: nav ngang trở lại`
+**PASS** trên `/lessons`, tức thanh nav CÓ tồn tại và CÓ đúng nhãn trên trang danh mục. Nó chỉ
+vắng trên `/lessons/:id`. Thư mục `apps/web/src/app/lessons/[id]/` không có `layout.tsx`, nên nghi
+phấn đầu tiên là trang chi tiết đang render ngoài vỏ mang nav, hoặc mang một nhãn khác.
+
+Hệ quả cho người dùng, nói thẳng: ở khung desktop, người học vào một bài học rồi **không còn
+đường điều hướng nào** để đi tiếp — và không có lỗi nào trong console nói ra điều đó.
+
+### 7.3 KHÔNG phải lỗi sản phẩm — `/problems/:code` không mở được (3 ô đỏ)
+
+Ba ô đỏ còn lại (a11y, csp, responsive) cùng một nguyên nhân và cùng một thông báo:
+
+```
+problems.list trả 0 mục nên không mở được /problems/:code.
+```
+
+Đây là **dữ liệu cục bộ thiếu**, không phải sản phẩm sai: bảng `problems` của DB dev rỗng. Harness
+cố ý ném thay vì bịa một id — một id giả sẽ render trang 404 của app, axe quét trang 404 đó và ô
+AC xanh trong khi trang thật chưa từng mở. Chạy bộ seed nội dung rồi đo lại là đủ.
+
+Ba ô này chứng minh `firstItemId` + `resolvePath` mới hoạt động đúng: chúng ĐỌC được hình dạng
+lồng của `problems.list` và báo đúng "0 mục", thay vì ném `TypeError` như bản cũ sẽ làm.
 
 ---
 
