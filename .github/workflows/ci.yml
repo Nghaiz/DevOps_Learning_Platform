@@ -201,6 +201,16 @@ jobs:
       - name: lint + typecheck + build + test (turbo)
         run: pnpm turbo run lint typecheck build test
 
+      # P16 / AC-8. Bước RIÊNG chứ không nhét vào turbo: khi nó đỏ thì lý do đọc
+      # ra ngay từ tên bước, không phải lục trong log của bốn task gộp.
+      #
+      # ⚠ Trước 2026-09-10 script này tồn tại, `package.json` có lệnh gọi, và
+      # KHÔNG workflow nào chạy nó — tức luật "JSX không bao giờ mang màu trần"
+      # (p16-tokens.md §9) không được gác lần nào. Chính AC-8 nói ra điều đó:
+      # một script không ai gọi thì không gác gì. Đây là dòng biến nó thành cổng.
+      - name: Cổng màu trần (tokens:check)
+        run: pnpm tokens:check
+
   # ──────────────────────────────────────────────────────────────────────── Go
   go:
     name: Go (build + vet + test + lint + vuln)

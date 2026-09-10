@@ -34,13 +34,13 @@ export const metadata: Metadata = {
     icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
   },
   /*
-   * ⚠ `og.svg` là SVG, và phần lớn máy quét liên kết (Facebook, LinkedIn, Slack,
-   * Zalo) chỉ tài liệu hoá JPEG/PNG/GIF/WEBP cho `og:image`. Ảnh này vì vậy có
-   * thể KHÔNG hiện ở những nơi đó — đã ghi lại trong báo cáo 16.A để chủ dự án
-   * quyết định. Đường ra đúng, nếu cần raster: `app/opengraph-image.tsx` với
-   * `ImageResponse` của `next/og` (dựng PNG bằng CODE lúc build, nên vẫn KHÔNG
-   * vi phạm lệnh cấm sinh ảnh bằng model ở 16.A.10). File đó nằm ngoài quyền sở
-   * hữu của lane này.
+   * KHÔNG khai `images` ở đây. `app/opengraph-image.tsx` tự nối vào metadata:
+   * Next sinh `og:image`, `og:image:width/height/type` và `twitter:image` từ
+   * chính route đó, nên khai thêm ở đây là dựng nguồn sự thật thứ hai.
+   *
+   * Bản trước trỏ vào `public/og.svg` và đã bị bỏ (2026-09-10): SVG hợp lệ với
+   * trình duyệt nhưng Facebook, LinkedIn, Slack, Zalo chỉ tài liệu hoá
+   * JPEG/PNG/GIF/WEBP — ảnh share sẽ trống mà không có gì trong build báo.
    */
   openGraph: {
     type: 'website',
@@ -48,7 +48,6 @@ export const metadata: Metadata = {
     siteName: 'DevOps Learning Platform',
     title: 'DevOps Learning Platform',
     description: 'Học DevOps bằng lab sandbox chạy thật',
-    images: [{ url: '/og.svg', width: 1200, height: 630, type: 'image/svg+xml' }],
   },
 };
 
