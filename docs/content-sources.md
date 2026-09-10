@@ -9,28 +9,50 @@ Từ P9, nội dung **lesson / lab / playground** có **hai** nguồn cùng số
 | **Đĩa** | `content/{scenarios,labs,playgrounds}/**` | `vendor-scenarios.mjs`, ghim byte theo commit upstream | Chỉ khi build lại image |
 | **DB** | `content_items` / `content_steps` / `content_assets` | Người có vai trò `author` qua trang soạn | Bất cứ lúc nào |
 
-## Ngoài bảng trên: lộ trình và quiz chỉ có DB
+## Ngoài bảng trên: lộ trình, quiz và bài tập OJ chỉ có DB
 
 Bảng hai nguồn ở trên **không phủ hết** nội dung của nền tảng. Nó nói về
-`content_items` — tức lesson, lab, playground. Hai loại còn lại nằm ngoài nó:
+`content_items` — tức lesson, lab, playground. Ba loại còn lại nằm ngoài nó:
 
-| Loại | Bảng | Đọc bởi |
-|---|---|---|
-| **Lộ trình** | `learning_paths` / `learning_path_items` | `paths.list`, `paths.get` |
-| **Quiz** | `quizzes` / `quiz_questions` / `quiz_choices` | `quiz.list`, `quiz.get` |
+| Loại | Bảng | Đọc bởi | Đầu vào của lượt nạp |
+|---|---|---|---|
+| **Lộ trình** | `learning_paths` / `learning_path_items` | `paths.list`, `paths.get` | `content/paths/*.json` |
+| **Quiz** | `quizzes` / `quiz_questions` / `quiz_choices` | `quiz.list`, `quiz.get` | `content/quizzes/*.json` |
+| **Bài tập (OJ)** | `problems` | `problems.list`, `problems.get`, `problems.mine` | `packages/games/src/k8s/problems-seed/` (**TypeScript**, không phải `content/`) |
 
-Cả hai **chỉ có Postgres, không có nguồn đĩa**. Không có
+Cả ba **chỉ có Postgres, không có nguồn đĩa**. Không có
 `filesystemLearningPathSource` nào, và `compositeContentSource` không đụng tới
 chúng. Hệ quả là một cụm vừa dựng có `/lessons` + `/labs` đầy đủ (nội dung đã
 nướng vào image) trong khi `/paths` + `/quiz` rỗng trơn — đo trên cụm thật ngày
 2026-09-06: `learning_paths = 0`, `quizzes = 0`.
 
+### Bài tập OJ hỏng theo một kiểu khó thấy hơn
+
+Hai loại đầu rỗng vì **chưa có ai viết** đầu vào. `problems` thì rỗng dù đầu vào
+đã nằm trong repo từ 2026-09-08: `PROBLEMS_SEED` (10 bài) được export đầy đủ qua
+barrel `@devops-platform/games`, có test riêng gác nội dung — và grep toàn repo
+ngày 2026-09-11 cho thấy **không file nào import nó** ngoài chính test của nó.
+Dữ liệu có mặt mà không có đường nạp thì đúng bằng không có dữ liệu, chỉ tốn
+thêm một vòng đi tìm.
+
+Triệu chứng: `/problems` rỗng, `/problems/:code` và `/author/problems/:code`
+không có mã nào để mở, còn `apps/web/src/server/problems/next-code.ts` thì viết
+như thể `K8S-0001`… đã nằm sẵn trong bảng (nó cấp mã kế tiếp bằng `max(code)+1`
+và giải thích rằng không dùng `SEQUENCE` **chính vì** bài seed mang mã viết sẵn).
+
+**Nguồn là TypeScript, và cố ý không chép ra JSON.** `problems-seed.test.ts` gác
+trần 150 từ của đề, giá gợi ý tăng dần, và "mọi `check` phải nằm trong
+`PREDICATE_NAMES`" — nó chỉ gác bản gốc. Một bản chép JSON song song sẽ lệch
+khỏi những trần đó trong im lặng. Script nạp thẳng file `.ts` bằng type-stripping
+của Node 24; chi tiết và đánh đổi ghi ở đầu `scripts/seed-content.mjs`.
+
 ### Đường nạp: `scripts/seed-content.mjs`
 
-`content/paths/*.json` và `content/quizzes/*.json` là **đầu vào của lượt nạp**,
-không phải một nguồn đọc thứ ba: sau khi seed, SSOT lúc đọc vẫn là Postgres —
-đúng những bảng mà trang soạn ghi vào. Chúng được phiên bản hoá trong git để một
-cụm dựng lại từ đầu có cùng thư viện.
+`content/paths/*.json`, `content/quizzes/*.json` và
+`packages/games/src/k8s/problems-seed/` là **đầu vào của lượt nạp**, không phải
+một nguồn đọc thứ ba: sau khi seed, SSOT lúc đọc vẫn là Postgres — đúng những
+bảng mà trang soạn ghi vào. Chúng được phiên bản hoá trong git để một cụm dựng
+lại từ đầu có cùng thư viện.
 
 ```
 node scripts/seed-content.mjs --check   # kiểm nội dung, không cần DB
@@ -38,8 +60,26 @@ node scripts/seed-content.mjs --print   # in SQL (cụm không lộ Postgres ra 
 DATABASE_URL=... node scripts/seed-content.mjs
 ```
 
-Idempotent theo cấu trúc, và từ chối ghi đè bài thuộc một `author_id` khác. Chi
-tiết ở đầu chính script.
+Idempotent theo cấu trúc, và từ chối ghi đè nội dung thuộc một `author_id` khác.
+Chi tiết ở đầu chính script.
+
+**Đường thực thi đọc lại DB sau khi COMMIT** và so số dòng với số mục đã gửi.
+Trước đây dòng tổng kết đếm **đầu vào** (số file JSON đọc được) nên nó in ra
+giống hệt nhau bất kể giao dịch ghi được gì — đúng lớp "một cái xanh chẳng chứng
+minh gì" (`rules/green-that-proves-nothing.md`), vì phép đo lấy từ nguồn không
+thể chứa bằng chứng cần chứng minh. Đường `--print` **không** có phép đọc lại đó:
+nó không giữ kết nối nào, nên ai chạy `psql -f` phải tự đếm.
+
+**Bài seed được gán `author_id` = tác giả thư viện (`dlp-catalog-author`), khác
+với `Problem.authorId = null` trong file nguồn.** Cổng chống-ghi-đè so
+`author_id <> AUTHOR_ID`; với `NULL` thì phép so cho `NULL` và cổng không bao giờ
+nổ, nên một lượt seed sẽ âm thầm `DO UPDATE` đè lên bài người thật vừa soạn nếu
+mã trùng. Hệ quả: ba khối chú thích mô tả bài seed là "không có tác giả là một
+tài khoản" (`packages/games/src/k8s/problem.ts`,
+`apps/web/src/server/db/schema.ts`, `apps/web/src/server/problems/authz.ts`) đã
+**lỗi thời ở vế mô tả DB** — hành vi thì không đổi: `assertProblemOwner` vẫn trả
+`NOT_FOUND` cho mọi `author` khác, và tác giả thư viện không có hàng `accounts`
+nên không ai đăng nhập được thành nó.
 
 **Phải gọi nó ở mọi nơi dựng một Postgres mới** — cụm mới, **và mọi job CI chạy
 E2E**. `db:migrate` tạo bảng; nó không nạp gì cả.
