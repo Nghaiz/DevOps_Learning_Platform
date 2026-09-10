@@ -81,6 +81,20 @@ Sau khi P0–P3 đóng, ba việc quyết định hình dạng phần còn lại
 | **P13** | Frontend — hệ thiết kế + toàn bộ màn hình | XL | Token + dark mode, 4 trình học, danh mục, trang soạn, quản trị, a11y + e2e | `phase-13.md` |
 | **P14** | Trụ cột ③ Games + hoàn thiện + RC | L | Game frontend-only (0 backend), runbook, khôi phục **đã thử**, pentest cuối, `v0.1.0-rc1` | `phase-14.md` |
 
+### Chặng sau RC (thêm dần, không có trong bảng gốc)
+
+| Phase | Tên | Effort | Trạng thái | File |
+|---|---|---|---|---|
+| **P15** | Setup của lab phải sống được dưới tải | M | XONG 2026-09-09 | `phase-15.md` |
+| **P16** | Dựng lại toàn bộ frontend theo nhận diện PTIT | XL | XONG 2026-09-11 | `phase-16.md` |
+| **P17** | Nền chung trụ cột ③ + game "Phòng thí nghiệm Git" | XL | Kế hoạch 2026-09-11 | `phase-17.md` |
+| **P18** | Hệ OJ đa-game, Level Builder, chế độ thi | L | Kế hoạch 2026-09-11 | `phase-18.md` |
+| **P19** | Game "Đường ống CI/CD" | XL | Kế hoạch 2026-09-11 | `phase-19.md` |
+
+P17 → P18 → P19 chạy **tuần tự**, mỗi phase gộp xong mới tách nhánh phase sau. Thiết kế gốc của
+ba phase này: [`reports/2026-09-11-brainstorm-git-cicd-games.md`](reports/2026-09-11-brainstorm-git-cicd-games.md).
+Bốn chuỗi **không được cắt** trong bất kỳ hoàn cảnh nào: 17.A, 17.J, 18.A, 18.C.
+
 **Critical path:** P0 → **P1** → P2 → P3 → **P5** → (P6 ∥ P7) → P8 → P9 → P10 → P11 → **P12** → P13 → P14.
 P6 và P7 độc lập nhau về mã nhưng **không độc lập về RAM** — cả hai đều đẩy `requests` của pod sandbox lên và cùng hạ trần đồng thời; P12 đo trên tổng.
 
