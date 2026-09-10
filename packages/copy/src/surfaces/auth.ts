@@ -4,18 +4,25 @@ import type { ErrorEntry, IntentionalThree, Surface } from '../types.ts';
  * Surface `auth.`, sở hữu bởi lane 16.B (L1). Phủ bốn màn xác thực:
  * `/login`, `/register`, `/forgot-password`, `/reset-password`.
  *
- * ## ⚠ Hai màn dưới CHƯA có đường gửi thư, và chữ ở đây phải nói ra điều đó
+ * ## Đường gửi thư ĐÃ NỐI (lane 16.D của đợt đóng nợ P16)
  *
- * `phase-16.md` 16.B: `/forgot-password` và `/reset-password` chưa có backend
- * gửi mail. Đợt này là frontend-only. Một form gửi vào hư không mà hiện "Đã
- * gửi mail, kiểm hộp thư của bạn" là nói dối người dùng, và nó hỏng ở đúng file
- * này chứ không ở tầng nào khác.
+ * Ở lượt 16.B, `/forgot-password` và `/reset-password` là giao diện không gọi
+ * gì cả, và bản đồ này mang tám khoá `auth.forgot.notice-*`,
+ * `auth.forgot.unavailable-*`, `auth.reset.unavailable-*` nói thẳng ra điều đó.
+ * Chỉ dẫn để lại lúc ấy là: "ngày backend lên thì XOÁ chúng rồi thêm khoá thành
+ * công thật, đừng sửa câu tại chỗ để nó nghe giống thành công."
  *
- * Nên KHÔNG có khoá nào tên `sent`, `check-inbox` hay `email-sent` trong bản đồ
- * này. Thứ thay chỗ chúng là `auth.forgot.unavailable-*` và
- * `auth.reset.unavailable-*`, và cả hai nói thẳng rằng đường gửi chưa nối. Ngày
- * backend lên thì XOÁ chúng và thêm khoá thành công thật, đừng sửa câu tại chỗ
- * để nó nghe giống thành công.
+ * Lượt này làm đúng thế. Tám khoá kia đã bị xoá, không phải sửa lời. Thay chỗ
+ * chúng là `auth.forgot.sent-*` (thư đã gửi thật), `auth.reset.no-link-*` (tới
+ * trang mà không có liên kết hợp lệ) và `auth.reset.done-*` (đổi xong).
+ *
+ * ## Câu "đã gửi" KHÔNG được khẳng định email đó tồn tại
+ *
+ * `auth.forgot.sent-*` nói "nếu email đó có tài khoản", không nói "đã gửi tới
+ * bạn". Đó không phải cách nói vòng: máy chủ trả CÙNG một phản hồi cho email có
+ * thật và email không tồn tại, và câu chữ ở đây là nửa còn lại của lớp phòng thủ
+ * đó. Một câu "Đã gửi thư tới ban@vidu.com" trong khi máy chủ im lặng bỏ qua sẽ
+ * biến màn hình thành máy dò tài khoản, dù mọi mã trạng thái HTTP đều giống nhau.
  *
  * ## Mọi lỗi là `ErrorEntry`, và KHÔNG có lỗi nào từ Better Auth đi thẳng ra
  *
@@ -79,42 +86,51 @@ export const auth = {
   'auth.forgot.meta-title': 'Quên mật khẩu · DevOps Learning Platform',
   'auth.forgot.title': 'Quên mật khẩu',
   'auth.forgot.description':
-    'Nhập email của tài khoản. Khi đường gửi thư được bật, bạn sẽ nhận một liên kết đặt lại mật khẩu.',
+    'Nhập email của tài khoản. Nếu email đó có tài khoản, bạn sẽ nhận một liên kết đặt lại mật khẩu.',
   'auth.forgot.submit': 'Gửi liên kết đặt lại',
   'auth.forgot.back': 'Quay lại đăng nhập',
-  'auth.forgot.notice-title': 'Đường gửi thư chưa được bật',
-  'auth.forgot.notice-body':
-    'Máy chủ chưa nối phần gửi thư, nên biểu mẫu này chưa gửi được gì. Phần giao diện đã dựng xong và sẽ chạy ngay khi đường gửi lên.',
-  'auth.forgot.unavailable-title': 'Không có thư nào được gửi đi',
-  'auth.forgot.unavailable-body': (p: { email: string }) =>
-    `Biểu mẫu đã nhận ${p.email} nhưng máy chủ chưa có đường gửi thư, nên không có thư nào đang trên đường tới hộp thư đó. Đừng chờ.`,
-  'auth.forgot.unavailable-next':
-    'Nhắn cho quản trị viên lớp để họ đặt lại mật khẩu giúp bạn, hoặc đăng nhập bằng Google hay Microsoft nếu tài khoản của bạn có liên kết sẵn.',
+  'auth.forgot.sent-title': 'Nếu email đó có tài khoản, thư đã được gửi',
+  // Câu này nói "nếu", và chữ "nếu" là một quyết định bảo mật chứ không phải
+  // một cách nói dè dặt. Xem khối chú thích đầu file.
+  'auth.forgot.sent-body': (p: { email: string }) =>
+    `Kiểm tra hộp thư ${p.email}, kể cả thư mục spam. Liên kết trong thư dùng được một lần và hết hạn sau 30 phút.`,
+  'auth.forgot.sent-next':
+    'Chưa thấy thư sau vài phút thì gửi lại yêu cầu, hoặc đăng nhập bằng Google hay Microsoft nếu tài khoản của bạn có liên kết sẵn.',
 
   // ── /reset-password ─────────────────────────────────────────────────────
   //
-  // Màn này chỉ tới được từ một liên kết trong thư, mà thư thì chưa gửi được.
+  // Màn này chỉ tới được từ một liên kết trong thư.
   //
-  // ⛔ KHÔNG có khoá nào cho ca "liên kết thiếu mã". Hai khoá như vậy đã tồn
-  // tại ở lượt đầu và bị xoá cùng nhánh đọc mã ra khỏi query string, thứ mà
-  // `security/rule-08-no-token-in-url.test.ts` bắt được: luật 8 cấm mọi mã đi
-  // qua query string. Không có mã trên URL thì cũng không có ca thiếu mã.
+  // ⛔ VẪN KHÔNG có khoá nào cho ca "liên kết thiếu mã trên URL". Luật 8 cấm mã
+  // đi qua query string, và `security/rule-08-no-token-in-url.test.ts` grep cả
+  // cây nguồn để ép. Trang này không đọc mã từ URL, nên không có ca đó.
+  //
+  // Ca THẬT mà `no-link-*` phủ thì khác hẳn: người dùng tới trang mà KHÔNG có
+  // cookie do route đổi liên kết đặt (gõ thẳng địa chỉ, liên kết quá hạn 30
+  // phút, hoặc vừa đổi mật khẩu xong nên cookie đã bị xoá).
   'auth.reset.meta-title': 'Đặt lại mật khẩu · DevOps Learning Platform',
   'auth.reset.title': 'Đặt lại mật khẩu',
   'auth.reset.description': 'Chọn mật khẩu mới cho tài khoản của bạn.',
   'auth.reset.submit': 'Đặt mật khẩu mới',
   'auth.reset.back': 'Quay lại đăng nhập',
-  'auth.reset.unavailable-title': 'Chưa đổi được mật khẩu ở đây',
-  'auth.reset.unavailable-body':
-    'Máy chủ chưa nhận yêu cầu đặt lại mật khẩu, nên mật khẩu của bạn vẫn là mật khẩu cũ. Mọi thứ bạn vừa nhập không được lưu ở đâu cả.',
-  'auth.reset.unavailable-next':
-    'Nhắn cho quản trị viên lớp để họ đổi mật khẩu giúp bạn. Phần này bật lên cùng lúc với đường gửi thư.',
+  'auth.reset.no-link-title': 'Chưa có liên kết đặt lại nào đang mở',
+  'auth.reset.no-link-body':
+    'Trang này chỉ mở được từ liên kết trong thư đặt lại mật khẩu, và liên kết đó hết hạn sau 30 phút. Mật khẩu của bạn chưa đổi.',
+  'auth.reset.no-link-next': 'Xin một liên kết mới ở trang Quên mật khẩu rồi bấm vào liên kết trong thư mới nhất.',
+  'auth.reset.done-title': 'Đã đổi mật khẩu',
+  'auth.reset.done-body':
+    'Mật khẩu mới đã có hiệu lực và liên kết vừa dùng không còn giá trị. Đăng nhập lại bằng mật khẩu mới.',
 
   // ── Lỗi ─────────────────────────────────────────────────────────────────
   //
-  // Bốn mục, và bốn ca thật sự khác nhau ở chỗ NGƯỜI DÙNG PHẢI LÀM GÌ TIẾP:
+  // Bảy mục, và bảy ca thật sự khác nhau ở chỗ NGƯỜI DÙNG PHẢI LÀM GÌ TIẾP:
   // sai thông tin thì gõ lại, email trùng thì đi đăng nhập, hai ô lệch thì gõ
   // lại một ô, mạng chết thì chưa biết gì hết và không được gõ lại một cách mù.
+  //
+  // Ba mục cuối là của lane 16.D. `reset-link` và `password-too-short` KHÔNG
+  // gộp được dù cùng xuất hiện trên một màn: một cái bảo đi xin liên kết mới,
+  // cái kia bảo gõ lại tại chỗ, và gộp chúng là bắt người dùng đoán xem họ vừa
+  // gặp cái nào.
   'auth.error.sign-in': {
     what: 'Đăng nhập không thành công.',
     next: 'Kiểm tra lại email và mật khẩu rồi thử lần nữa. Nếu không nhớ mật khẩu, dùng liên kết ngay dưới nút.',
@@ -130,6 +146,18 @@ export const auth = {
   'auth.error.network': {
     what: 'Không gọi được máy chủ nên chưa biết yêu cầu vừa rồi có thành công hay không.',
     next: 'Kiểm tra kết nối mạng rồi thử lại. Đừng bấm liên tục: mỗi lần bấm là một yêu cầu nữa.',
+  } satisfies ErrorEntry,
+  'auth.error.forgot': {
+    what: 'Máy chủ từ chối yêu cầu đặt lại mật khẩu.',
+    next: 'Kiểm tra lại địa chỉ email rồi gửi lần nữa. Nếu vẫn hỏng, nhắn cho quản trị viên lớp.',
+  } satisfies ErrorEntry,
+  'auth.error.reset-link': {
+    what: 'Liên kết đặt lại mật khẩu không còn dùng được. Mật khẩu của bạn chưa đổi.',
+    next: 'Xin một liên kết mới ở trang Quên mật khẩu, rồi bấm vào liên kết trong thư mới nhất. Mỗi liên kết chỉ dùng được một lần.',
+  } satisfies ErrorEntry,
+  'auth.error.password-too-short': {
+    what: 'Mật khẩu mới ngắn hơn 8 ký tự nên máy chủ không nhận.',
+    next: 'Gõ lại một mật khẩu dài từ 8 ký tự ở cả hai ô. Liên kết của bạn vẫn còn dùng được, không cần xin liên kết mới.',
   } satisfies ErrorEntry,
 } as const satisfies Surface<'auth'>;
 

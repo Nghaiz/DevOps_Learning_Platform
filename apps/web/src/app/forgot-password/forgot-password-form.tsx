@@ -3,41 +3,49 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle, Button, Input, Label } from '@devops-platform/ui';
-import { t } from '@devops-platform/copy';
+import { err, t } from '@devops-platform/copy';
+import type { ErrorEntry } from '@devops-platform/copy/types';
+import { authClient } from '../../lib/auth-client';
+import { AuthFailure } from '../../components/shell/auth-failure';
 
 /**
- * Màn `/forgot-password`, FRONTEND-ONLY ở đợt này.
+ * Màn `/forgot-password`. Từ lane 16.D, form này GỌI THẬT.
  *
- * ## Biểu mẫu này KHÔNG gọi mạng, và đó là một lựa chọn
+ * ## Lượt trước cố ý không gọi gì, và lượt này gỡ đúng chỗ đó
  *
- * `phase-16.md` 16.B: chưa có backend gửi mail. Ba đường đi có thể:
+ * 16.B dựng màn này khi chưa có đường gửi thư, và chọn "không gọi gì, nói thẳng
+ * rằng đường gửi chưa nối" thay vì gọi một endpoint không tồn tại rồi hiện "đã
+ * gửi mail". Chỉ dẫn để lại: ngày backend lên thì XOÁ khoá `unavailable-*` rồi
+ * thêm khoá thành công thật, đừng sửa câu tại chỗ. Đã làm đúng thế, xem
+ * `packages/copy/src/surfaces/auth.ts`.
  *
- * 1. Gọi một endpoint chưa tồn tại, rồi hiện "Đã gửi mail" khi nó trả 404. Đó
- *    là nói dối, và nó là rủi ro có tên trong §5 của plan.
- * 2. Gọi endpoint đó rồi hiện một lỗi 404 thô. Người dùng đọc ra là "hệ thống
- *    hỏng", trong khi sự thật là "tính năng chưa bật".
- * 3. KHÔNG gọi gì, và nói thẳng rằng đường gửi thư chưa được nối.
+ * ## ⛔ Phản hồi PHẢI giống hệt nhau dù email có tồn tại hay không
  *
- * Chọn 3. Một request tới một đường không tồn tại không mua được gì: nó không
- * làm thư được gửi, không cho ta thêm thông tin nào, và nó để lại một dòng 404
- * trong log mà người trực sẽ phải giải thích. Trạng thái `submitted` dưới đây
- * là trạng thái của GIAO DIỆN, không phải của một yêu cầu nào.
+ * Better Auth trả cùng một body cho cả hai ca (`dist/api/routes/password.mjs`:
+ * nhánh không tìm thấy user vẫn sinh một id giả và vẫn tra một hàng giả trong
+ * bảng verification, để chống cả tấn công đo thời gian). Màn này là nửa còn lại
+ * của lớp phòng thủ đó: KHÔNG rẽ nhánh giao diện theo bất cứ thứ gì suy ra được
+ * từ phản hồi, và câu hiện ra nói "nếu email đó có tài khoản" chứ không nói "đã
+ * gửi tới bạn".
  *
- * ## Vẫn giữ đủ form thay vì chỉ hiện một bảng thông báo
+ * Một rẽ nhánh vô tình ở đây, dù chỉ là một dòng chữ khác nhau, làm hỏng toàn bộ
+ * phần chống dò tài khoản mà máy chủ vừa dựng. `security/password-reset.integration.test.ts`
+ * khẳng định hai phản hồi giống nhau ở tầng máy chủ; ô này là quy ước ở tầng
+ * giao diện.
  *
- * Vì hai thứ. Bố cục, mã tầng lỗi và nút sẽ phải đứng đúng chỗ khi backend lên,
- * nên dựng chúng bây giờ là dựng một lần. Và một trang chỉ có một câu "chưa
- * bật" không nói cho người dùng biết họ đã tới ĐÚNG CHỖ; họ vẫn nhập email, vẫn
- * bấm, và vẫn nhận một câu trả lời thẳng.
+ * ## `requestPasswordReset`, KHÔNG phải `forgetPassword`
  *
- * ⛔ Không khoá nào tên `sent` hay `check-inbox` trong `packages/copy`. Ngày
- * backend lên thì XOÁ `auth.forgot.unavailable-*` rồi thêm khoá thành công
- * thật, đừng sửa câu tại chỗ để nó nghe giống thành công.
+ * better-auth 1.6.26 cấp endpoint `/request-password-reset` và client suy tên
+ * phương thức từ đường dẫn đó. `forgetPassword` (tên trong nhiều hướng dẫn cũ)
+ * KHÔNG tồn tại ở bản này: grep `dist/` ra đúng ba file, cả ba thuộc plugin
+ * `email-otp`. Đọc mã thư viện chứ không đọc tài liệu.
  */
 export function ForgotPasswordForm() {
   const fieldId = useId();
   const [email, setEmail] = useState('');
-  const [submitted, setSubmitted] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [failure, setFailure] = useState<ErrorEntry | null>(null);
+  const [pending, setPending] = useState(false);
 
   /**
    * ⚠ MỌI nút trong form này khoá cho tới khi React gắn xong handler.
@@ -58,26 +66,35 @@ export function ForgotPasswordForm() {
     setHydrated(true);
   }, []);
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitted(email);
+    setFailure(null);
+    setSentTo(null);
+    setPending(true);
+    try {
+      const { error: authError } = await authClient.requestPasswordReset({ email });
+      if (authError) {
+        // Chuỗi của thư viện là chữ NGƯỜI VẬN HÀNH đọc, nên nó ở lại tiếng Anh
+        // và KHÔNG vào `packages/copy` (§1.7: log không vào bản đồ). Cùng quyết
+        // định đã ghi ở `login-form.tsx`.
+        console.error('[auth] request-password-reset rejected', authError);
+        setFailure(err('auth.error.forgot'));
+        return;
+      }
+      setSentTo(email);
+    } catch (networkError: unknown) {
+      // Mạng chết KHÁC hẳn máy chủ từ chối: ta chưa biết yêu cầu có tới nơi hay
+      // không, nên câu `next` phải nói "kiểm tra kết nối", không nói "kiểm tra
+      // lại email".
+      console.error('[auth] request-password-reset request failed', networkError);
+      setFailure(err('auth.error.network'));
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
     <div className="flex flex-col gap-5">
-      {/*
-        Cảnh báo đặt TRƯỚC form, không phải sau. Người dùng phải biết đường gửi
-        chưa bật TRƯỚC khi gõ email, chứ không phải sau khi đã gõ rồi bấm.
-
-        `variant="warning"` chứ không `destructive`: không có gì hỏng, chỉ là
-        một phần chưa được nối. Dùng màu lỗi ở đây sẽ dạy người dùng rằng màu đó
-        có nghĩa là "bình thường thôi", và lần sau một lỗi thật sẽ trôi qua mắt.
-      */}
-      <Alert variant="warning">
-        <AlertTitle>{t('auth.forgot.notice-title')}</AlertTitle>
-        <AlertDescription>{t('auth.forgot.notice-body')}</AlertDescription>
-      </Alert>
-
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`${fieldId}-email`}>{t('auth.field.email')}</Label>
@@ -91,25 +108,32 @@ export function ForgotPasswordForm() {
             }}
             required
             autoComplete="email"
+            invalid={failure !== null}
           />
         </div>
 
-        <Button type="submit" disabled={!hydrated}>
+        {failure === null ? null : <AuthFailure entry={failure} />}
+
+        <Button type="submit" disabled={!hydrated || pending}>
           {t('auth.forgot.submit')}
         </Button>
       </form>
 
-      {submitted === null ? null : (
+      {sentTo === null ? null : (
         /*
           `role="status"` chứ không `role="alert"`: đây là kết quả của một hành
           động người dùng vừa chủ động làm, không phải một lỗi cần ngắt lời
           trình đọc màn hình.
+
+          `variant="success"` KHÔNG dùng ở đây dù lượt gửi đã thành công: màu
+          thành công đọc ra là "email của bạn có tài khoản và thư đang tới", tức
+          đúng cái khẳng định mà máy chủ cố tình không đưa ra.
         */
-        <Alert variant="warning" role="status">
-          <AlertTitle>{t('auth.forgot.unavailable-title')}</AlertTitle>
+        <Alert role="status">
+          <AlertTitle>{t('auth.forgot.sent-title')}</AlertTitle>
           <AlertDescription className="flex flex-col gap-2">
-            <span>{t('auth.forgot.unavailable-body', { email: submitted })}</span>
-            <span>{t('auth.forgot.unavailable-next')}</span>
+            <span>{t('auth.forgot.sent-body', { email: sentTo })}</span>
+            <span>{t('auth.forgot.sent-next')}</span>
           </AlertDescription>
         </Alert>
       )}

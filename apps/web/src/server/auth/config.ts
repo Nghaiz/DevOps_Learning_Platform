@@ -5,6 +5,8 @@ import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { jwt } from 'better-auth/plugins';
 import { getDb } from '../db/client';
 import * as schema from '../db/schema';
+import { RESET_TOKEN_TTL_SECONDS } from './reset-link';
+import { sendResetPasswordMail } from './reset-mail';
 import {
   betterAuthSecret,
   betterAuthUrl,
@@ -81,6 +83,31 @@ function buildAuth() {
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
+    /**
+     * Hạn của hàng `verifications` mang mã đặt lại mật khẩu. Lấy từ CÙNG hằng số
+     * với `Max-Age` của cookie mang mã đó (`auth/reset-link.ts`) — hai con số
+     * riêng biệt sẽ đẻ ra cửa sổ mà một trong hai còn sống, xem ghi chú ở đó.
+     *
+     * Mặc định của thư viện là 3600s; ta rút xuống một nửa.
+     */
+    resetPasswordTokenExpiresIn: RESET_TOKEN_TTL_SECONDS,
+    /**
+     * ⛔ CỐ Ý BỎ QUA `url` mà thư viện đưa vào.
+     *
+     * Better Auth dựng `{baseURL}/reset-password/{mã}` trỏ tới endpoint chuyển
+     * hướng của CHÍNH NÓ, và endpoint đó đẩy tiếp sang `callbackURL` với mã nằm
+     * trong query string (`dist/api/routes/password.mjs`). Luật 8 của dự án cấm
+     * đúng hình dạng đó, và `security/rule-08-no-token-in-url.test.ts` grep cả
+     * cây nguồn để ép. Nên ta dựng liên kết riêng, trỏ vào route đổi mã lấy
+     * cookie của mình. Xem `auth/reset-link.ts` để hiểu ba bước.
+     *
+     * Callback này KHÔNG BAO GIỜ được ném: nhánh "email không tồn tại" của thư
+     * viện thoát sớm mà không gọi vào đây, nên một lỗi ném ra từ đây sẽ biến mã
+     * trạng thái HTTP thành máy dò tài khoản. `sendMail` bắt mọi lỗi và log.
+     */
+    sendResetPassword: async ({ user, token }) => {
+      await sendResetPasswordMail(betterAuthUrl(), user.email, token);
+    },
   },
   socialProviders: {
     google: {

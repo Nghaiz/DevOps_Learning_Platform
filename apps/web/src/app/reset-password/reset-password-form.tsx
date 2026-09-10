@@ -8,37 +8,42 @@ import type { ErrorEntry } from '@devops-platform/copy/types';
 import { AuthFailure } from '../../components/shell/auth-failure';
 
 /**
- * Màn `/reset-password`, FRONTEND-ONLY ở đợt này. Cùng lý lẽ với
- * `/forgot-password`: biểu mẫu này KHÔNG gọi mạng.
+ * Màn `/reset-password`. Từ lane 16.D, form này GỌI THẬT.
  *
- * ## KHÔNG đọc token từ URL, và đó là LUẬT 8 chứ không phải sở thích
+ * ## KHÔNG đọc mã từ URL, và đó là LUẬT 8 chứ không phải sở thích
  *
  * Bản đầu của màn này đọc mã dùng một lần ra khỏi query string rồi phân hai
- * nhánh: có mã
- * thì hiện form, không có mã thì hiện một bảng "liên kết thiếu mã". Nó bị
- * `src/security/rule-08-no-token-in-url.test.ts` bắt, và cổng đó ĐÚNG: luật 8
- * của dự án cấm mọi token đi qua query string, vì URL nằm trong lịch sử trình
- * duyệt, trong log của proxy, và trong header `Referer` gửi kèm mọi tài nguyên
- * bên thứ ba mà trang nạp.
+ * nhánh: có mã thì hiện form, không có mã thì hiện một bảng "liên kết thiếu mã".
+ * Nó bị `src/security/rule-08-no-token-in-url.test.ts` bắt, và cổng đó ĐÚNG:
+ * luật 8 của dự án cấm mọi token đi qua query string, vì URL nằm trong lịch sử
+ * trình duyệt, trong log của proxy, và trong header `Referer` gửi kèm mọi tài
+ * nguyên bên thứ ba mà trang nạp.
  *
- * Nên hình dạng ở đây không phải "đọc mã rồi phân nhánh" mà là "không có mã nào
- * để đọc". Ngày backend lên, mã dùng một lần phải tới qua một đường khác (thân
- * POST, hoặc một cookie do chính đường xử lý liên kết đặt), và phần dựng dưới
- * đây không phải đổi. Ghi rõ ra vì đây là một quyết định đã bị một phép đo bác
- * bỏ một lần, và lần sau sẽ có người nghĩ cổng kia sai.
+ * Chỉ dẫn để lại lúc ấy: "ngày backend lên, mã dùng một lần phải tới qua một
+ * đường khác (thân POST, hoặc một cookie do chính đường xử lý liên kết đặt), và
+ * phần dựng dưới đây không phải đổi."
  *
- * ## Phép kiểm hai ô khớp nhau CHẠY THẬT
+ * Lượt này chọn đường COOKIE, và phần dựng thật sự không phải đổi. Toàn bộ ba
+ * bước nằm ở `server/auth/reset-link.ts`. Điều component này cần biết gọn trong
+ * một câu: mã nằm trong một cookie `HttpOnly` mà JavaScript ở đây KHÔNG đọc
+ * được, nên form chỉ gửi mật khẩu mới, và máy chủ tự ghép mã vào.
  *
- * Nó là logic thuần, không cần backend, và nó là thứ duy nhất trong màn này hôm
- * nay có thể đúng hay sai. Giữ nó chạy nghĩa là ngày backend lên thì chỉ còn
- * phải nối một lệnh gọi vào, không phải viết lại phần kiểm.
+ * Hệ quả đáng nói: `authClient.resetPassword` KHÔNG dùng được từ đây, vì nó cần
+ * mã trong tham số. Đường đi là `POST /api/auth/reset-finish`, cùng khuôn với
+ * `fetch('/api/auth/refresh')` mà `login-form.tsx` đã dùng.
+ *
+ * ## Phép kiểm hai ô khớp nhau chạy TRƯỚC khi gọi mạng
+ *
+ * Nó là logic thuần và nó biết câu trả lời chắc chắn, nên gửi một request để
+ * máy chủ nói lại điều ta đã biết chỉ mua thêm một vòng chờ.
  */
 export function ResetPasswordForm() {
   const fieldId = useId();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [failure, setFailure] = useState<ErrorEntry | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [done, setDone] = useState(false);
+  const [pending, setPending] = useState(false);
 
   /**
    * ⚠ MỌI nút trong form này khoá cho tới khi React gắn xong handler.
@@ -59,15 +64,51 @@ export function ResetPasswordForm() {
     setHydrated(true);
   }, []);
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (password !== confirm) {
       setFailure(err('auth.error.password-mismatch'));
-      setSubmitted(false);
       return;
     }
     setFailure(null);
-    setSubmitted(true);
+    setPending(true);
+    try {
+      const response = await fetch('/api/auth/reset-finish', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ newPassword: password }),
+      });
+      if (response.ok) {
+        setDone(true);
+        setPassword('');
+        setConfirm('');
+        return;
+      }
+      const body: unknown = await response.json().catch(() => null);
+      const code =
+        typeof body === 'object' && body !== null
+          ? (body as Record<string, unknown>)['error']
+          : undefined;
+      console.error('[auth] reset-finish rejected', response.status, code);
+      setFailure(err(failureKeyFor(code)));
+    } catch (networkError: unknown) {
+      console.error('[auth] reset-finish request failed', networkError);
+      setFailure(err('auth.error.network'));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Alert role="status">
+          <AlertTitle>{t('auth.reset.done-title')}</AlertTitle>
+          <AlertDescription>{t('auth.reset.done-body')}</AlertDescription>
+        </Alert>
+        <BackToLogin />
+      </div>
+    );
   }
 
   return (
@@ -108,24 +149,39 @@ export function ResetPasswordForm() {
 
         {failure === null ? null : <AuthFailure entry={failure} />}
 
-        <Button type="submit" disabled={!hydrated}>
+        <Button type="submit" disabled={!hydrated || pending}>
           {t('auth.reset.submit')}
         </Button>
       </form>
 
-      {!submitted ? null : (
-        <Alert variant="warning" role="status">
-          <AlertTitle>{t('auth.reset.unavailable-title')}</AlertTitle>
-          <AlertDescription className="flex flex-col gap-2">
-            <span>{t('auth.reset.unavailable-body')}</span>
-            <span>{t('auth.reset.unavailable-next')}</span>
-          </AlertDescription>
-        </Alert>
-      )}
-
       <BackToLogin />
     </div>
   );
+}
+
+/**
+ * Ba mã lỗi của `/api/auth/reset-finish` về hai câu, và một nhánh cho thứ không
+ * nằm trong hợp đồng.
+ *
+ * `no-link` và `invalid-link` tách nhau ở tầng máy chủ để log phân biệt được
+ * "tới thẳng trang" với "liên kết hết hạn", nhưng người dùng phải làm CÙNG một
+ * việc, nên chúng về cùng một câu.
+ *
+ * Nhánh mặc định dùng `auth.error.network` cho một mã trạng thái ngoài hợp đồng
+ * (một 500 chưa bắt được ở đâu đó). Câu đó nói "chưa biết yêu cầu vừa rồi có
+ * thành công hay không", và với một lỗi chưa xử lý thì đó đúng là sự thật: mật
+ * khẩu CÓ THỂ đã đổi trước lúc sập.
+ */
+function failureKeyFor(
+  code: unknown,
+): 'auth.error.reset-link' | 'auth.error.password-too-short' | 'auth.error.network' {
+  if (code === 'no-link' || code === 'invalid-link') {
+    return 'auth.error.reset-link';
+  }
+  if (code === 'weak-password') {
+    return 'auth.error.password-too-short';
+  }
+  return 'auth.error.network';
 }
 
 function BackToLogin() {
