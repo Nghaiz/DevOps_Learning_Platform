@@ -365,9 +365,9 @@ export const catalog = {
    * TextKey>` ở `problem-labels.ts` giữ hai bên khớp nhau: thêm trạng thái thứ
    * tư vào hợp đồng thì bảng khoá đỏ ngay, chứ không lặng lẽ mất khỏi bộ lọc.
    */
-  'catalog.problems.viewer-solved': 'Đã giải',
-  'catalog.problems.viewer-attempted': 'Đã thử',
-  'catalog.problems.viewer-untouched': 'Chưa động tới',
+  'catalog.problems.viewer.solved': 'Đã giải',
+  'catalog.problems.viewer.attempted': 'Đã thử',
+  'catalog.problems.viewer.untouched': 'Chưa động tới',
 
   /*
    * Bốn khoá sắp xếp của hợp đồng, KHÔNG có `title`: collation Postgres không
@@ -392,9 +392,9 @@ export const catalog = {
   'catalog.problems.acceptance-none': 'Chưa ai thử',
   'catalog.problems.acceptance-percent': (p: { percent: number }) => `${p.percent}%`,
   'catalog.problems.time-unlimited': 'Không giới hạn',
-  'catalog.problems.duration-seconds': (p: { seconds: number }) => `${p.seconds} giây`,
-  'catalog.problems.duration-minutes': (p: { minutes: number }) => `${p.minutes} phút`,
-  'catalog.problems.duration-both': (p: { minutes: number; seconds: number }) =>
+  'catalog.problems.duration.seconds': (p: { seconds: number }) => `${p.seconds} giây`,
+  'catalog.problems.duration.minutes': (p: { minutes: number }) => `${p.minutes} phút`,
+  'catalog.problems.duration.both': (p: { minutes: number; seconds: number }) =>
     `${p.minutes} phút ${p.seconds} giây`,
 
   // ── Chi tiết một bài tập (`/problems/[code]`) ─────────────────────────
@@ -472,7 +472,7 @@ export const catalog = {
 
   /*
    * Kết quả của một LƯỢT NỘP, không phải trạng thái của người xem. Trùng chữ
-   * với `catalog.problems.viewer-solved` là trùng ngẫu nhiên: "Đã giải" ở đây
+   * với `catalog.problems.viewer.solved` là trùng ngẫu nhiên: "Đã giải" ở đây
    * nói về một lượt cụ thể, còn ở kia nói về toàn bộ lịch sử của người dùng với
    * bài này, và cặp đối lập cũng khác ("Chưa đạt" so với "Chưa động tới").
    */
@@ -602,6 +602,10 @@ export const catalog = {
 } as const satisfies Surface<'catalog'>;
 
 export const catalogIntentionalThree = {
+  'catalog.problems.viewer':
+    '2026-09-10: ProblemViewerStatus là union đóng ba thành viên (solved, attempted, untouched) trong packages/games, và Record<ProblemViewerStatus, TextKey> ở problem-labels.ts giữ hai bên khớp. Thành viên thứ tư phải sửa union trước.',
+  'catalog.problems.duration':
+    '2026-09-10: formatDuration có đúng ba hình dạng đầu ra vì một khoảng thời gian chỉ rơi vào ba ca: dưới một phút, tròn phút, và có dư giây. Không phải một phân loại ba, mà là ba nhánh của một phép chia.',
   'catalog.tier':
     '2026-09-10: đúng ba runtime tồn tại trong hợp đồng dữ liệu SandboxTierName (sysbox, gvisor, kata), kiểm tại packages/shared-types/src/scenario.ts. Hạng thứ tư nào cũng phải sửa schema trước, và lúc đó nhóm này thôi là ba.',
   'catalog.status':

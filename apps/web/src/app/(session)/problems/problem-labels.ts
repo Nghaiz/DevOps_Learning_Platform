@@ -77,9 +77,9 @@ export const PROBLEM_VIEWER_STATUSES = [
 ] as const satisfies readonly ProblemViewerStatus[];
 
 export const PROBLEM_VIEWER_STATUS_KEYS = {
-  solved: 'catalog.problems.viewer-solved',
-  attempted: 'catalog.problems.viewer-attempted',
-  untouched: 'catalog.problems.viewer-untouched',
+  solved: 'catalog.problems.viewer.solved',
+  attempted: 'catalog.problems.viewer.attempted',
+  untouched: 'catalog.problems.viewer.untouched',
 } as const satisfies Record<ProblemViewerStatus, TextKey>;
 
 export const PROBLEM_VIEWER_STATUS_LABELS = labelsFrom(PROBLEM_VIEWER_STATUS_KEYS);
@@ -153,12 +153,12 @@ export function formatDuration(seconds: number): CopyRef {
   const minutes = Math.floor(safe / 60);
   const rest = safe % 60;
   if (minutes === 0) {
-    return { key: 'catalog.problems.duration-seconds', params: { seconds: rest } };
+    return { key: 'catalog.problems.duration.seconds', params: { seconds: rest } };
   }
   if (rest === 0) {
-    return { key: 'catalog.problems.duration-minutes', params: { minutes } };
+    return { key: 'catalog.problems.duration.minutes', params: { minutes } };
   }
-  return { key: 'catalog.problems.duration-both', params: { minutes, seconds: rest } };
+  return { key: 'catalog.problems.duration.both', params: { minutes, seconds: rest } };
 }
 
 /**

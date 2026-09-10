@@ -388,9 +388,25 @@ dạng thứ nhất:
 
 1. `List.items.length === 3` mà không khai `intentionalThree`.
 2. Một giá trị chuỗi chứa đúng 3 dòng mở đầu bằng `- ` hoặc `• `.
-3. **Ba khoá anh em.** Gom khoá theo tiền tố bỏ phân đoạn cuối; nếu phân đoạn cuối tạo thành một
-   dãy đúng 3 (`.1/.2/.3`, `.a/.b/.c`, `.first/.second/.third`) thì đỏ, trừ khi tiền tố đó có mặt
-   trong `INTENTIONAL_THREE` của surface.
+3. **Ba khoá anh em.** Gom khoá theo tiền tố bỏ phân đoạn cuối; nếu một tiền tố có **đúng 3**
+   thành viên thì đỏ, trừ khi tiền tố đó có mặt trong `INTENTIONAL_THREE` của surface.
+
+   > **⚠ Đính chính 2026-09-10.** Bản trước của dòng này viết "nếu phân đoạn cuối tạo thành một
+   > **dãy** đúng 3 (`.1/.2/.3`, `.a/.b/.c`, `.first/.second/.third`)". Mã KHÔNG kiểm dãy:
+   > `scanThree` chỉ đếm thành viên, nên `catalog.tier` (sysbox/gvisor/kata) và `catalog.status`
+   > (not-started/in-progress/completed) đều đỏ dù không cái nào là một dãy. Cả hai đang phải khai
+   > `intentionalThree`, tức mã đã nói ra sự thật từ đầu và chỉ có văn bản này sai.
+   >
+   > Hệ quả **quan trọng hơn**, vì nó là cách cổng này bị vô hiệu trong im lặng: gom theo tiền tố
+   > nghĩa là **một nhóm ba đặt tên phẳng thì cổng KHÔNG nhìn thấy**.
+   > `catalog.problems.viewer-solved/-attempted/-untouched` rơi vào nhóm `catalog.problems` đông
+   > thành viên, nên nó đi qua T3 mà không cần một lời biện minh nào. Lane 16.C2 chọn tên phẳng cho
+   > nhất quán với khối xung quanh, tự phát hiện, và báo lại. Đã lồng cả hai nhóm
+   > (`viewer.*`, `duration.*`) và khai `intentionalThree`.
+   >
+   > **Đặt tên là một quyết định về khả năng gác, không chỉ về thẩm mỹ.** Một nhóm ba đúng nghĩa
+   > thì đặt lồng, để cổng bắt được và buộc người viết nêu lý do; nhất quán hình thức với khối bên
+   > cạnh không đáng đổi lấy một cổng mù.
 
 Hình dạng 3 là hình dạng thật: `value-props.tsx:6` tự khai `ba luận điểm`, `getting-started.tsx:4`
 tự khai `ba bước`, và không cái nào là mảng. Một test chỉ bắt mảng sẽ xanh trên đúng trang chủ mà
