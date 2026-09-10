@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
+import { t } from '@devops-platform/copy';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
@@ -11,9 +12,10 @@ import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
 import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
 import { CatalogError } from '../../components/catalog/catalog-error';
 import { CatalogPager } from '../../components/catalog/catalog-pager';
-import { TIER_LABEL } from '../../components/catalog/catalog-labels';
+import { catalogErrorTitle, catalogLead, catalogTitle, tierLabel } from '../../components/catalog/catalog-labels';
 import type { CatalogMetaItem } from '../../components/catalog/catalog-grid';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
+import { searchPage } from '../../components/catalog/catalog-search';
 import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
 import {
   compareCount,
@@ -28,31 +30,41 @@ import {
 type LessonRow = inferRouterOutputs<AppRouter>['lessons']['list']['items'][number];
 
 const SORT_OPTIONS: readonly SortOption<LessonRow>[] = [
-  { key: 'title', label: 'Tên A→Z', compare: compareTitle },
-  { key: 'difficulty', label: 'Dễ đến khó', compare: compareDifficulty },
-  { key: 'duration', label: 'Ngắn đến dài', compare: compareMinutes },
-  { key: 'steps', label: 'Ít bước đến nhiều', compare: compareCount((item) => item.stepCount) },
+  { key: 'title', label: t('catalog.sort.title'), compare: compareTitle },
+  { key: 'difficulty', label: t('catalog.sort.difficulty'), compare: compareDifficulty },
+  { key: 'duration', label: t('catalog.sort.duration'), compare: compareMinutes },
+  { key: 'steps', label: t('catalog.sort.steps'), compare: compareCount((item) => item.stepCount) },
 ];
+
+/**
+ * Trường mà ô tìm được phép soi.
+ *
+ * Chỉ những thứ NGƯỜI DÙNG NHÌN THẤY trên thẻ: tiêu đề, mô tả, và các nhãn năng
+ * lực hiện dưới đáy. Tìm trúng một trường không hiện ra đâu cả thì kết quả trả
+ * về đọc như một lỗi, vì người đọc không có cách nào thấy vì sao mục đó khớp.
+ */
+function lessonSearchFields(item: LessonRow): readonly (string | null)[] {
+  return [item.title, item.description, ...item.capabilities];
+}
 
 /**
  * Ba ô thông tin của thẻ bài học: số bước, thời lượng, loại sandbox.
  *
  * Là một HÀM chứ không phải mảng dựng thẳng trong JSX vì `estimatedMinutes` có
- * thể `null` — nội suy `~null phút` vào chuỗi thì TypeScript không kêu (template
- * literal nuốt mọi thứ) và người dùng nhận đúng chữ đó trên màn hình. Bỏ hẳn ô
- * ấy là cách duy nhất đúng; một ô "chưa rõ" cũng chỉ là rác chiếm chỗ.
+ * thể `null`. Bỏ hẳn ô ấy là cách duy nhất đúng; một ô "chưa rõ" cũng chỉ là rác
+ * chiếm chỗ.
  */
 function lessonMeta(item: LessonRow): readonly CatalogMetaItem[] {
-  const meta: CatalogMetaItem[] = [{ icon: 'steps', label: `${item.stepCount} bước` }];
+  const meta: CatalogMetaItem[] = [{ icon: 'steps', label: t('unit.step', { n: item.stepCount }) }];
   if (item.estimatedMinutes !== null) {
-    meta.push({ icon: 'duration', label: `~${item.estimatedMinutes} phút` });
+    meta.push({ icon: 'duration', label: t('catalog.meta.duration', { minutes: item.estimatedMinutes }) });
   }
-  meta.push({ icon: 'sandbox', label: TIER_LABEL[item.tier] });
+  meta.push({ icon: 'sandbox', label: tierLabel(item.tier) });
   return meta;
 }
 
 /**
- * Trang danh sách `/lessons` (13.C).
+ * Trang danh sách `/lessons`.
  *
  * ## ⛔ `useQuery`, KHÔNG `useInfiniteQuery` — ràng buộc cứng, không phải phong cách
  *
@@ -62,50 +74,43 @@ function lessonMeta(item: LessonRow): readonly CatalogMetaItem[] {
  *     GET /api/trpc/lessons.list?batch=1&input={"0":{"direction":"forward"}}  → 400
  *     [{"code":"unrecognized_keys","keys":["direction"], ...}]
  *
- * `listLessonsInput` là `.strict()` (luật 3), nên nó từ chối — ĐÚNG như thiết
- * kế. Hai thứ này không tương thích với nhau, và cách sửa SAI là thêm
- * `direction` vào schema: server không đọc field đó, nên đó là nới lỏng một
- * cổng bảo mật để chứa một field vô nghĩa.
+ * `listLessonsInput` là `.strict()`, nên nó từ chối, ĐÚNG như thiết kế. Cách sửa
+ * SAI là thêm `direction` vào schema: server không đọc field đó, nên đó là nới
+ * lỏng một cổng bảo mật để chứa một field vô nghĩa.
  *
  * ⚠ Bug này KHÔNG bị e2e mức API bắt: harness gọi thẳng
  * `lessons.list({limit:100})` và xanh 14/14, trong khi đường người dùng thật đỏ
  * 400 và trang trắng. Chỉ trình duyệt mới đi qua đúng đoạn mã sinh input. Phép
- * kiểm giữ lại điều này nằm ở `components/catalog/catalog-input.test.ts` — nó
- * safeParse bằng chính schema đang chạy trong router.
+ * kiểm giữ lại điều này nằm ở `components/catalog/catalog-input.test.ts`.
  *
- * Phân trang vì vậy là **cursor thủ công**: `useCatalogControls` giữ ngăn xếp
- * cursor, `CursorPager` chỉ đi tới (không có "Trước" — cursor server không có
- * phép toán lùi).
+ * ## Ba tầng thu hẹp, và chúng KHÔNG cùng phạm vi
  *
- * ## Lọc ở SERVER, không ở client (đóng nợ P2)
+ * | Tầng | Chạy ở | Phạm vi | Reset cursor |
+ * |---|---|---|---|
+ * | bộ lọc độ khó / sandbox | server | cả kho | có |
+ * | ô tìm | client | trang đang tải | không |
+ * | sắp xếp | client | trang đang tải | không |
  *
- * Bản trước lọc độ khó bằng `items.filter(...)` sau khi đã nhận trang, kèm ghi
- * chú rằng khi catalog đủ lớn để phân trang thật thì bộ lọc phải đi xuống
- * server "cùng lúc". Đó chính là lúc này: D9 đã đưa phân trang xuống tầng nguồn
- * và `listLessonsInput` nhận `difficulty`/`tier`. Lọc ở client trên một trang
- * đã cắt sẽ cho ra những trang vơi bất định — chọn "Nâng cao" có thể ra một
- * trang trống trong khi kho đầy bài nâng cao ở trang sau.
- *
- * KHÔNG gửi `limit`: server đã có mặc định + trần (luật 4) và TRẢ VỀ `limit` nó
- * thực sự dùng. Nhập lại hằng số đó ở client sẽ phải import từ
- * `server/trpc/init` — kéo mã server vào bundle trình duyệt.
+ * Lọc ở SERVER đóng nợ P2: lọc ở client trên một trang đã cắt sẽ cho ra những
+ * trang vơi bất định, chọn "Nâng cao" có thể ra một trang trống trong khi kho
+ * đầy bài nâng cao ở trang sau. Ô tìm thì ngược lại KHÔNG xuống server được, vì
+ * `listLessonsInput` không có khoá nào cho từ khoá và `.strict()` sẽ trả 400.
+ * `CatalogScopeNotes` nói ra chênh lệch đó thay vì để người dùng tự đoán.
  */
 export function LessonsClient({ canAuthor }: { readonly canAuthor: boolean }): React.ReactElement {
   const controls = useCatalogControls();
   const query = api.lessons.list.useQuery(buildCatalogListInput(controls.filters, controls.cursor));
 
   const sortOption = findSortOption(SORT_OPTIONS, controls.sortKey);
+  const loaded = query.data?.items ?? [];
   const items = useMemo(
-    () => sortPage(query.data?.items ?? [], sortOption),
-    [query.data, sortOption],
+    () => sortPage(searchPage(query.data?.items ?? [], controls.normalizedSearch, lessonSearchFields), sortOption),
+    [query.data, controls.normalizedSearch, sortOption],
   );
   const hasNext = query.data?.nextCursor != null;
 
   return (
-    <CatalogPage
-      title="Bài học"
-      description="Mỗi bài mở một sandbox riêng. Tiến độ chỉ mình bạn thấy."
-    >
+    <CatalogPage title={catalogTitle('lessons')} description={catalogLead('lessons')}>
       <CatalogToolbar
         kind="lessons"
         fields={['difficulty', 'tier']}
@@ -116,6 +121,8 @@ export function LessonsClient({ canAuthor }: { readonly canAuthor: boolean }): R
         sortKey={controls.sortKey}
         sortOptions={SORT_OPTIONS}
         onSort={controls.setSortKey}
+        search={controls.search}
+        onSearch={controls.setSearch}
         shown={query.isSuccess ? items.length : null}
         hasNext={hasNext}
         disabled={query.isPending}
@@ -125,7 +132,7 @@ export function LessonsClient({ canAuthor }: { readonly canAuthor: boolean }): R
 
       {query.isError && (
         <CatalogError
-          title="Không tải được danh sách bài học"
+          title={catalogErrorTitle('lessons')}
           message={describeTrpcError(query.error)}
           errorCode={trpcErrorCode(query.error)}
           retrying={query.isFetching}
@@ -141,7 +148,11 @@ export function LessonsClient({ canAuthor }: { readonly canAuthor: boolean }): R
           page={controls.page}
           hasActiveFilter={controls.hasActiveFilter}
           canAuthor={canAuthor}
+          query={controls.normalizedSearch}
+          loaded={loaded.length}
+          hasNext={hasNext}
           onClearFilters={controls.clearFilters}
+          onClearSearch={controls.clearSearch}
           onFirstPage={controls.goFirst}
         />
       )}
@@ -167,8 +178,10 @@ export function LessonsClient({ canAuthor }: { readonly canAuthor: boolean }): R
             kind="lessons"
             page={controls.page}
             shown={items.length}
+            loaded={loaded.length}
             hasNext={hasNext}
             sortKey={controls.sortKey}
+            query={controls.normalizedSearch}
           />
 
           <CatalogPager

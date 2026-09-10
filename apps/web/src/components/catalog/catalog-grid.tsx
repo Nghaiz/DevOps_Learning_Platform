@@ -1,14 +1,15 @@
 import type { ReactElement, ReactNode } from 'react';
 import Link from 'next/link';
 import type { ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
+import { t } from '@devops-platform/copy';
 import { Badge, Card, Skeleton } from '@devops-platform/ui';
 import { CatalogIcon, type CatalogIconName } from './catalog-icons';
 import {
   DIFFICULTY_ACCENT,
   DIFFICULTY_BADGE,
-  DIFFICULTY_LABEL,
   PROGRESS_STATUS_BADGE,
-  PROGRESS_STATUS_LABEL,
+  difficultyLabel,
+  progressStatusLabel,
 } from './catalog-labels';
 
 /** Lưới thẻ. `<ul role="list">` tường minh vì `list-style: none` của Tailwind gỡ vai trò list ở Safari/VoiceOver. */
@@ -85,7 +86,7 @@ export function CatalogCard(props: {
   readonly tags?: readonly string[];
 }): ReactElement {
   const status = props.status;
-  const statusLabel = status === undefined ? null : (PROGRESS_STATUS_LABEL[status] ?? status);
+  const statusLabel = status === undefined ? null : (progressStatusLabel(status) ?? status);
 
   // Spread có điều kiện, không `accent={... : undefined}`: repo bật
   // `exactOptionalPropertyTypes`, nên truyền tường minh `undefined` vào một prop
@@ -100,7 +101,7 @@ export function CatalogCard(props: {
       >
         <Card interactive {...accent} className="flex h-full flex-col gap-3 p-5">
           <div className="flex items-start justify-between gap-3">
-            <h3 className="text-base leading-snug font-semibold text-foreground">{props.title}</h3>
+            <h3 className="text-xl leading-snug font-semibold text-balance text-foreground">{props.title}</h3>
             {statusLabel !== null && status !== undefined && (
               <Badge variant={PROGRESS_STATUS_BADGE[status] ?? 'status-todo'}>{statusLabel}</Badge>
             )}
@@ -109,7 +110,7 @@ export function CatalogCard(props: {
           {(props.difficulty !== undefined || props.flag !== undefined) && (
             <div className="flex flex-wrap items-center gap-2">
               {props.difficulty !== undefined && (
-                <Badge variant={DIFFICULTY_BADGE[props.difficulty]}>{DIFFICULTY_LABEL[props.difficulty]}</Badge>
+                <Badge variant={DIFFICULTY_BADGE[props.difficulty]}>{difficultyLabel(props.difficulty)}</Badge>
               )}
               {props.flag !== undefined && (
                 <Badge variant="outline" icon={<CatalogIcon name={props.flag.icon} />}>
@@ -175,7 +176,7 @@ export function CatalogGridSkeleton({ count = 6 }: { readonly count?: number }):
     <div
       role="status"
       aria-live="polite"
-      aria-label="Đang tải danh sách"
+      aria-label={t('catalog.loading.grid')}
       className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
     >
       {Array.from({ length: count }, (_unused, index) => (

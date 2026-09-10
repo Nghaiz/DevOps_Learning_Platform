@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
+import { t } from '@devops-platform/copy';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
@@ -11,8 +12,9 @@ import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
 import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
 import { CatalogError } from '../../components/catalog/catalog-error';
 import { CatalogPager } from '../../components/catalog/catalog-pager';
-import { TIER_LABEL } from '../../components/catalog/catalog-labels';
+import { catalogErrorTitle, catalogLead, catalogTitle, tierLabel } from '../../components/catalog/catalog-labels';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
+import { searchPage } from '../../components/catalog/catalog-search';
 import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
 import {
   compareCount,
@@ -25,22 +27,30 @@ import {
 type PlaygroundRow = inferRouterOutputs<AppRouter>['playgrounds']['list']['items'][number];
 
 const SORT_OPTIONS: readonly SortOption<PlaygroundRow>[] = [
-  { key: 'title', label: 'Tên A→Z', compare: compareTitle },
-  { key: 'ttl', label: 'TTL ngắn đến dài', compare: compareCount((item) => item.ttlSeconds) },
+  { key: 'title', label: t('catalog.sort.title'), compare: compareTitle },
+  { key: 'ttl', label: t('catalog.sort.ttl'), compare: compareCount((item) => item.ttlSeconds) },
 ];
 
+/** Xem `lessonSearchFields` ở `lessons-client.tsx`: tập trường bằng đúng thứ hiện trên thẻ. */
+function playgroundSearchFields(item: PlaygroundRow): readonly (string | null)[] {
+  return [item.title, item.description, ...item.capabilities];
+}
+
 /**
- * Trang danh sách `/playgrounds` (13.C) — cùng khuôn `lessons-client.tsx`
- * (`useQuery`, không `useInfiniteQuery`; lọc ở server; không gửi `limit`).
+ * Trang danh sách `/playgrounds`, cùng khuôn `lessons-client.tsx`.
  *
  * ⚠ **Không có ô lọc độ khó ở đây, và đó là chủ ý.** `playgrounds.list` NHẬN
  * `difficulty` nhưng bỏ qua nó: `PlaygroundSummary` không có field độ khó
- * (`playgroundSchema` cố ý không có — không có bài thì không có gì để khó/dễ),
+ * (`playgroundSchema` cố ý không có, vì không có bài thì không có gì để khó dễ),
  * và `listPlaygroundsPage` không đọc field filter đó. Hiện một ô lọc mà server
  * không bao giờ áp dụng là một điều khiển nói dối: người dùng bấm, danh sách
  * không đổi, và không có gì trên màn hình giải thích vì sao.
  *
- * TTL hiện NGAY ở đây (đơn vị phút) — AC 8.E đòi người học biết môi trường tự
+ * Hệ quả cho hàng tab của `CatalogToolbar`: `fields` ở đây là `['tier']`, nên
+ * tab ánh xạ sang hạng sandbox chứ không sang độ khó. Ánh xạ đó là dữ liệu
+ * (`fields[0]`), không phải một bảng viết tay cho từng trang.
+ *
+ * TTL hiện NGAY ở đây (đơn vị phút). AC 8.E đòi người học biết môi trường tự
  * đóng sau bao lâu TRƯỚC KHI bấm vào, không chỉ trước khi bấm "Bắt đầu" bên
  * trong `/playgrounds/[id]`.
  */
@@ -49,14 +59,16 @@ export function PlaygroundsClient({ canAuthor }: { readonly canAuthor: boolean }
   const query = api.playgrounds.list.useQuery(buildCatalogListInput(controls.filters, controls.cursor));
 
   const sortOption = findSortOption(SORT_OPTIONS, controls.sortKey);
-  const items = useMemo(() => sortPage(query.data?.items ?? [], sortOption), [query.data, sortOption]);
+  const loaded = query.data?.items ?? [];
+  const items = useMemo(
+    () =>
+      sortPage(searchPage(query.data?.items ?? [], controls.normalizedSearch, playgroundSearchFields), sortOption),
+    [query.data, controls.normalizedSearch, sortOption],
+  );
   const hasNext = query.data?.nextCursor != null;
 
   return (
-    <CatalogPage
-      title="Sân chơi"
-      description="Sandbox trống, không bài, không chấm điểm — thử lệnh trước khi vào một bài học hoặc lab thật."
-    >
+    <CatalogPage title={catalogTitle('playgrounds')} description={catalogLead('playgrounds')}>
       <CatalogToolbar
         kind="playgrounds"
         fields={['tier']}
@@ -67,6 +79,8 @@ export function PlaygroundsClient({ canAuthor }: { readonly canAuthor: boolean }
         sortKey={controls.sortKey}
         sortOptions={SORT_OPTIONS}
         onSort={controls.setSortKey}
+        search={controls.search}
+        onSearch={controls.setSearch}
         shown={query.isSuccess ? items.length : null}
         hasNext={hasNext}
         disabled={query.isPending}
@@ -76,7 +90,7 @@ export function PlaygroundsClient({ canAuthor }: { readonly canAuthor: boolean }
 
       {query.isError && (
         <CatalogError
-          title="Không tải được danh sách sân chơi"
+          title={catalogErrorTitle('playgrounds')}
           message={describeTrpcError(query.error)}
           errorCode={trpcErrorCode(query.error)}
           retrying={query.isFetching}
@@ -92,7 +106,11 @@ export function PlaygroundsClient({ canAuthor }: { readonly canAuthor: boolean }
           page={controls.page}
           hasActiveFilter={controls.hasActiveFilter}
           canAuthor={canAuthor}
+          query={controls.normalizedSearch}
+          loaded={loaded.length}
+          hasNext={hasNext}
           onClearFilters={controls.clearFilters}
+          onClearSearch={controls.clearSearch}
           onFirstPage={controls.goFirst}
         />
       )}
@@ -107,8 +125,11 @@ export function PlaygroundsClient({ canAuthor }: { readonly canAuthor: boolean }
                 title={item.title}
                 description={item.description}
                 meta={[
-                  { icon: 'ttl', label: `Tự đóng sau ${Math.round(item.ttlSeconds / 60)} phút` },
-                  { icon: 'sandbox', label: TIER_LABEL[item.tier] },
+                  {
+                    icon: 'ttl',
+                    label: t('catalog.meta.ttl', { minutes: Math.round(item.ttlSeconds / 60) }),
+                  },
+                  { icon: 'sandbox', label: tierLabel(item.tier) },
                 ]}
                 tags={item.capabilities}
               />
@@ -119,8 +140,10 @@ export function PlaygroundsClient({ canAuthor }: { readonly canAuthor: boolean }
             kind="playgrounds"
             page={controls.page}
             shown={items.length}
+            loaded={loaded.length}
             hasNext={hasNext}
             sortKey={controls.sortKey}
+            query={controls.normalizedSearch}
           />
 
           <CatalogPager
