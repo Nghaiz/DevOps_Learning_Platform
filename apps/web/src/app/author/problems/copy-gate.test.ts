@@ -109,11 +109,21 @@ describe('T4 · glob của lane 16.G2', () => {
     expect(FILES.length).toBeGreaterThan(20);
   });
 
-  it('bộ dò nhìn thấy chữ có dấu ở nơi chắc chắn có', () => {
-    // Đối chứng dương trên FILE THẬT: một trong các file hoãn phải còn vi phạm.
-    // Nếu ô này đỏ thì bộ dò hỏng, không phải glob đã sạch (vế thứ hai bên dưới
-    // mới là thứ nói ra chuyện sạch).
-    expect(DIRTY.length).toBeGreaterThan(0);
+  /*
+    Đối chứng dương trên nguồn TỔNG HỢP, KHÔNG trên bảng hoãn.
+
+    Bản đầu của ô này viết `expect(DIRTY.length).toBeGreaterThan(0)`, và đó là
+    một cái bẫy: ngày lane chuyển xong file cuối cùng, DIRTY về 0 và ô đỏ với
+    thông điệp "bộ dò hỏng" trong khi sự thật là "đã xong". Đúng bẫy "RED for
+    the opposite reason" mà `pinned-baseline-test-companion.md` mô tả, và cách
+    sửa hiển nhiên (hạ ngưỡng xuống 0) sẽ biến ô này thành no-op vĩnh viễn.
+
+    Nguồn tổng hợp không bao giờ hết hạn: nó đo ĐÚNG thứ nó nói là đo, tức bộ dò
+    còn phân biệt được chuỗi có dấu với chuỗi không dấu.
+  */
+  it('bộ dò còn phân biệt được chuỗi có dấu với chuỗi không', () => {
+    expect(scanLatinLiteral("const a = 'Chưa có gợi ý nào';")).toHaveLength(1);
+    expect(scanLatinLiteral("const a = 'no diacritics at all';")).toEqual([]);
   });
 
   it('không file nào ngoài bảng hoãn còn chuỗi người dùng nằm ngoài bản đồ', () => {
@@ -139,9 +149,14 @@ describe('T4 · glob của lane 16.G2', () => {
     đi thay vì để lại một tấm lọc che mất vi phạm thật.
   */
   it('phep loc jsx-text tren .ts van con ly do ton tai', () => {
-    const noisy = FILES.filter(
-      (f) => !f.endsWith('.tsx') && scanLatinLiteral(readFileSync(f, 'utf8')).some((v) => v.kind === 'jsx-text'),
-    );
-    expect(noisy.length).toBeGreaterThan(0);
+    // Nguồn tổng hợp, cùng lý do như ô đối chứng dương ở trên: đếm trên FILE
+    // THẬT thì phép lọc "hết lý do" ngay khi glob sạch chữ tiếng Việt, dù cơ
+    // chế sinh báo động giả (mũi tên hàm rồi dấu mở generic) không đổi gì.
+    //
+    // Đoạn dưới KHÔNG chứa một thẻ JSX nào. Dấu `>` là của `=>`, dấu `<` là của
+    // `Array<`, và phần chữ nằm giữa hai dấu đó có ký tự tiếng Việt, nên bộ dò
+    // ghi nó thành một vi phạm `jsx-text`.
+    const tsShaped = "const f = () => ['Đã lưu'] as Array<string>;";
+    expect(scanLatinLiteral(tsShaped).some((v) => v.kind === 'jsx-text')).toBe(true);
   });
 });
