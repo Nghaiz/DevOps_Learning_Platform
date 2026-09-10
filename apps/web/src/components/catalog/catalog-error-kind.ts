@@ -36,6 +36,8 @@
  * client hiện chưa truyền mã (xem `catalog-error.tsx`) im lặng nhận một chẩn
  * đoán mà không ai đo được.
  */
+import type { CopyRef } from './catalog-labels';
+
 export type CatalogErrorKind = 'retryable' | 'stale-cursor' | 'unknown';
 
 export interface CatalogErrorAdvice {
@@ -44,8 +46,12 @@ export interface CatalogErrorAdvice {
   readonly canRetry: boolean;
   /** Hiện lối thoát "về đầu danh sách" không. */
   readonly canGoFirstPage: boolean;
-  /** Câu phụ dưới ô lỗi. `null` = không có gì đáng thêm; một dòng luôn hiện sẽ thành nhiễu. */
-  readonly hint: string | null;
+  /**
+   * Câu phụ dưới ô lỗi, dạng THAM CHIẾU tới bản đồ thông điệp chứ không phải
+   * câu đã ghép (`p16-copy.md` §1.6). `null` = không có gì đáng thêm; một dòng
+   * luôn hiện sẽ thành nhiễu.
+   */
+  readonly hint: CopyRef | null;
 }
 
 /**
@@ -76,7 +82,7 @@ export function describeCatalogError(args: {
       kind: 'stale-cursor',
       canRetry: false,
       canGoFirstPage: true,
-      hint: `Mốc phân trang của trang ${args.page} không còn trong kho, nên tải lại sẽ ra đúng lỗi này. Quay về đầu danh sách để đọc tiếp.`,
+      hint: { key: 'catalog.error-hint.stale-cursor', params: { page: args.page } },
     };
   }
 
@@ -90,9 +96,7 @@ export function describeCatalogError(args: {
       // Thử lại đã là bước tiếp theo — một dòng nữa ở đây chỉ chép lại câu ngay
       // phía trên nó. Việc phân biệt "không đọc được" với "kho trống" ở trang 1
       // do CẤU TRÚC gánh (ErrorState chứ không EmptyState), không cần nói thêm.
-      hint: midway
-        ? `Chỗ đang đọc được giữ nguyên — Thử lại sẽ nạp lại đúng trang ${args.page}, không đưa bạn về đầu.`
-        : null,
+      hint: midway ? { key: 'catalog.error-hint.retryable-midway', params: { page: args.page } } : null,
     };
   }
 
@@ -100,6 +104,6 @@ export function describeCatalogError(args: {
     kind: 'unknown',
     canRetry: true,
     canGoFirstPage: midway,
-    hint: midway ? 'Nếu thử lại vẫn lỗi, quay về đầu danh sách để đọc tiếp.' : null,
+    hint: midway ? { key: 'catalog.error-hint.unknown-midway' } : null,
   };
 }

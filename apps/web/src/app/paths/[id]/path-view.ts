@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import type {
   LearningPathDetail,
   LearningPathItemView,
@@ -32,7 +33,7 @@ import type { BadgeVariant } from '@devops-platform/ui';
  */
 
 export const PATH_ITEM_KIND_LABEL: Record<PathItemKind, string> = {
-  lesson: 'Bài học',
+  lesson: t('catalog.path.kind-lesson'),
   lab: 'Lab',
   quiz: 'Quiz',
 };
@@ -65,9 +66,9 @@ export interface PathItemViewModel {
 }
 
 const STATE_LABEL: Record<LearningPathItemView['state'], string> = {
-  passed: 'Đã đạt',
-  available: 'Mở',
-  locked: 'Còn khoá',
+  passed: t('catalog.path.state-passed'),
+  available: t('catalog.path.state-available'),
+  locked: t('catalog.path.state-locked'),
 };
 
 const STATE_VARIANT: Record<LearningPathItemView['state'], BadgeVariant> = {
@@ -100,7 +101,10 @@ export function buildPathItemViews(
     return {
       key: `${item.kind}:${item.itemId}`,
       item,
-      ordinalLabel: `${String(item.ordinal + 1)}. ${PATH_ITEM_KIND_LABEL[item.kind]}`,
+      ordinalLabel: t('catalog.path.ordinal', {
+        n: item.ordinal + 1,
+        kind: PATH_ITEM_KIND_LABEL[item.kind],
+      }),
       title: item.title ?? item.itemId,
       openability,
       stateLabel: STATE_LABEL[item.state],
@@ -108,9 +112,9 @@ export function buildPathItemViews(
       missingContent: item.title === null,
       note:
         openability === 'locked'
-          ? 'Còn khoá — hoàn thành phần trước đó thì phần này tự mở.'
+          ? t('catalog.path.note-locked')
           : openability === 'missing'
-            ? 'Không nạp được nội dung này (đã lưu trữ hoặc sai mã) — hãy báo người soạn lộ trình.'
+            ? t('catalog.path.note-missing')
             : null,
       href: openability === 'open' ? pathItemHref(item) : null,
     };
@@ -144,7 +148,7 @@ export function summarizePathProgress(
   detail: Pick<LearningPathDetail, 'passedCount' | 'itemCount' | 'nextItemId' | 'items'>,
 ): PathProgressSummary {
   const finished = detail.itemCount > 0 && detail.passedCount >= detail.itemCount;
-  const label = `Đã đạt ${String(detail.passedCount)}/${String(detail.itemCount)} phần`;
+  const label = t('catalog.path.progress', { passed: detail.passedCount, total: detail.itemCount });
 
   if (detail.nextItemId !== null) {
     // Hiện TIÊU ĐỀ, không hiện mã. `nextItemId` là một `scenarioId` như
@@ -152,12 +156,12 @@ export function summarizePathProgress(
     // chính của bảng.
     const next = detail.items.find((item) => item.itemId === detail.nextItemId);
     const name = next?.title ?? detail.nextItemId;
-    return { label, nextLabel: `Nên làm tiếp: ${name}`, finished };
+    return { label, nextLabel: t('catalog.path.next', { name }), finished };
   }
 
   return {
     label,
-    nextLabel: finished ? 'Bạn đã đạt tất cả các phần của lộ trình này.' : null,
+    nextLabel: finished ? t('catalog.path.all-done') : null,
     finished,
   };
 }

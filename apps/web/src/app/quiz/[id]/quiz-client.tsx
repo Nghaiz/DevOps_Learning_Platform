@@ -144,7 +144,7 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
       )}
 
       {/* AC #6 — quy tắc chấm đứng TRƯỚC câu hỏi đầu tiên, không phải sau khi nộp. */}
-      <Card className="flex flex-col gap-1 p-4">
+      <Card className="flex flex-col gap-1 p-4 shadow-elevation-1">
         <span className="text-sm font-medium text-foreground">Cách chấm</span>
         <span className="text-sm text-muted-foreground">
           {MULTIPLE_ANSWER_RULE_TEXT[quiz.multipleAnswerRule]}
@@ -275,9 +275,9 @@ function QuestionCard({
   });
 
   return (
-    <Card className="flex flex-col gap-3 p-4">
+    <Card className="flex flex-col gap-3 p-4 shadow-elevation-1">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-sm font-medium text-foreground">
+        <h2 className="text-base font-medium text-foreground">
           {question.ordinal + 1}. {question.markdown}
         </h2>
         {outcome != null && (
@@ -343,7 +343,7 @@ function ScoreBanner({
           : 'border-warning/30 bg-warning/10'
       }`}
     >
-      <span className="text-lg font-semibold text-foreground">
+      <span className="text-xl font-semibold text-foreground">
         {result.score.correctCount}/{result.score.questionCount} câu — {result.score.percent}%
       </span>
       {/* Mốc đi kèm điểm: "60%" một mình không nói được đạt hay chưa. */}
@@ -370,7 +370,7 @@ function PageShell({
         <Link href="/quiz" className="text-sm text-muted-foreground hover:text-foreground">
           ← Quiz
         </Link>
-        <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
+        <h1 className="text-4xl font-semibold tracking-tight text-balance text-foreground">{title}</h1>
       </header>
       {children}
     </div>

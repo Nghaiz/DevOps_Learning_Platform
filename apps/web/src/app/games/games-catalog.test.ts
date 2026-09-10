@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { renderCopy } from '../../components/catalog/catalog-labels';
 import { SCENARIO_DIFFICULTIES } from '@devops-platform/shared-types/scenario';
 import {
   GAMES,
@@ -148,10 +149,10 @@ describe('hasActiveGameFilter', () => {
 
 describe('describeGameCount', () => {
   it('không lọc thì KHÔNG nói "khớp bộ lọc" — câu đó sẽ là một khẳng định sai', () => {
-    expect(describeGameCount(4, false)).toBe('4 game');
+    expect(renderCopy(describeGameCount(4, false))).toBe('4 game');
   });
 
   it('có lọc thì nói rõ con số là con số ĐÃ LỌC', () => {
-    expect(describeGameCount(2, true)).toBe('2 game khớp bộ lọc');
+    expect(renderCopy(describeGameCount(2, true))).toBe('2 game khớp bộ lọc');
   });
 });

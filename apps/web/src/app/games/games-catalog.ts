@@ -1,4 +1,6 @@
+import { t } from '@devops-platform/copy';
 import type { ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
+import type { CopyRef } from '../../components/catalog/catalog-labels';
 import type { CatalogIconName } from '../../components/catalog/catalog-icons';
 
 /**
@@ -33,10 +35,10 @@ export type GameTopic = (typeof GAME_TOPICS)[number];
  * tài liệu nào ngoài kia dùng. Chỉ `network` có bản tiếng Việt đủ phổ thông.
  */
 export const GAME_TOPIC_LABEL: Record<GameTopic, string> = {
-  kubernetes: 'Kubernetes',
-  cicd: 'CI/CD',
-  network: 'Mạng',
-  container: 'Container',
+  kubernetes: t('catalog.games.topic.kubernetes'),
+  cicd: t('catalog.games.topic.cicd'),
+  network: t('catalog.games.topic.network'),
+  container: t('catalog.games.topic.container'),
 };
 
 export interface GameEntry {
@@ -116,8 +118,8 @@ export const GAMES: readonly GameEntry[] = [
  * **cần đăng nhập**. Trang danh mục nói cả hai vế cạnh nhau — xem khối CTF ở
  * `games-client.tsx`.
  */
-export const NO_SANDBOX_LABEL = 'Không tốn sandbox';
-export const NO_LOGIN_LABEL = 'Không cần đăng nhập';
+export const NO_SANDBOX_LABEL = t('catalog.games.no-sandbox');
+export const NO_LOGIN_LABEL = t('catalog.games.no-login');
 
 export interface GameMetaItem {
   readonly icon: CatalogIconName;
@@ -165,7 +167,16 @@ export function filterGames(
   );
 }
 
-/** `n game` / `n game khớp bộ lọc`. Không có vế "trong trang này" — không phân trang. */
-export function describeGameCount(shown: number, filtering: boolean): string {
-  return filtering ? `${shown} game khớp bộ lọc` : `${shown} game`;
+/**
+ * Dòng đếm của `/games`, trả về KHOÁ chứ không trả về câu (§1.6).
+ *
+ * Không có vế “trong trang này”, và đó là một khác biệt CÓ THẬT so với năm trang
+ * danh mục: bốn mục nằm sẵn trong bundle nên bộ lọc và ô tìm đều chạy trên TOÀN
+ * BỘ kho. Mượn câu cảnh báo phạm vi của các trang kia sang đây sẽ là cảnh báo
+ * về một giới hạn không tồn tại.
+ */
+export function describeGameCount(shown: number, filtering: boolean): CopyRef {
+  return filtering
+    ? { key: 'catalog.games.count-filtered', params: { shown } }
+    : { key: 'catalog.games.count', params: { shown } };
 }
