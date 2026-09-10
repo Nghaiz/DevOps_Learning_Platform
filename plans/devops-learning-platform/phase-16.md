@@ -32,6 +32,28 @@ terminal 133 · motion 110 · copy 52 · shared-types 48        tổng 3617
 check-design-tokens: 552 file / 4 vùng, đối chứng hai chiều xanh
 ```
 
+**Trạng thái 2026-09-11 (chốt đợt):** `16.I` XONG và đã gộp, cộng một lượt xác minh của lead.
+Số đo đầy đủ và cách lặp lại: [`reports/2026-09-11-verify-p16-lead.md`](reports/2026-09-11-verify-p16-lead.md).
+
+Ô nghiệm thu §7, đo trên build CỤC BỘ với tài khoản admin và `E2E_REQUIRE_ROLES=1`:
+
+```
+a11y + csp:  68 xanh · 4 đỏ · 0 skip     ⇒ 30/32 màn sạch cả axe lẫn CSP
+turbo:       Tasks: 32 successful, 32 total
+```
+
+Bốn ô đỏ là **hai màn**, mỗi màn hai spec: `/problems/:code` và `/author/problems/:code`. Bảng
+`problems` có 0 dòng và **không có nguồn seed nào** — `content/` không có thư mục `problems`,
+`seed-content.mjs` không nạp bảng đó. Hai màn ấy chỉ tồn tại sau khi có người soạn bài tập qua
+UI. Ô AC nói "32 màn" trong khi hai màn cấu trúc-không-thể chạm tới trên một cài đặt sạch; đóng
+nó là một quyết định (thêm nguồn seed, hay cho harness tự soạn rồi dọn), không phải việc vặt.
+
+⚠ **Mọi lượt e2e phải khai base.** `E2E_BASE_URL` mặc định trỏ vào cụm lab, đang chạy một build
+cũ. Lượt xác minh đầu của lead cho 13 ô đỏ chỉ vì điều đó; cùng suite vào build cục bộ cho 1.
+Ba biến bắt buộc: `E2E_START_SERVER=1`, `E2E_BASE_URL=http://localhost:3000`,
+`E2E_ORIGIN=http://localhost:3000`. Báo cáo 16.I **không khai base nào** — đọc bảng 11 ô của nó
+với điều kiện đó.
+
 **Trạng thái 2026-09-11:** cả tám lane dựng lại (`16.B`..`16.H`, `16.G` tách G1+G2) XONG và đã
 gộp, cộng một lượt L0 đóng motif và một lượt L0 nối metadata vào bản đồ copy. `16.I` đang chạy.
 
