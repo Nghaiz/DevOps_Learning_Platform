@@ -548,7 +548,10 @@ export const lessonsRouter = createTRPCRouter({
       if (!outcome.passed) {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: step.failureMessage(outcome.exitCode),
+          // `output` (stdout+stderr đã gộp) đi cùng mã thoát — P15 / 15.B: câu
+          // dựng CHỈ từ mã thoát làm dòng stderr tự giải thích của script thành
+          // mã chết. Xem `setup-plan.ts` § `failureMessage`.
+          message: step.failureMessage({ exitCode: outcome.exitCode, output: outcome.output }),
         });
       }
     }

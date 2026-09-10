@@ -25,13 +25,19 @@ import type { Database } from '../../db/client';
 import { labAttempts, labTaskResults, users, type LabAttemptRow, type LabTaskResultRow } from '../../db/schema';
 import { readUserPreferences } from '../../me/preferences';
 import { profileForCapabilities, unsupportedCapabilities } from '../../lessons/catalog';
-import { setupScriptPlan } from '../../lessons/setup-plan';
+import { setupFailureDetail, setupScriptPlan } from '../../lessons/setup-plan';
 import { buildToolsEnableScript } from '../../lessons/tools-enable';
 import { runScriptInSession } from '../../lessons/validate';
 import { labSource, requireLab } from '../../labs/catalog';
 import { rethrowContentSourceError } from '../../content/source-errors';
 import { truncateLabOutput } from '../../labs/output';
-import { createSandboxSession, sessionExpiry } from '../../labs/session';
+import {
+  launchedBackgroundStep,
+  parseSetupProbe,
+  SETUP_PROBE_SCRIPT,
+  type SetupProbe,
+} from '../../labs/setup-background';
+import { createSandboxSession, reapUnusableSession, sessionExpiry } from '../../labs/session';
 import { applySessionPreferences } from '../../sessions/preferences';
 import { createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
@@ -129,6 +135,56 @@ async function requireOwnAttempt(
  */
 function sandboxCapabilities(lab: Lab): Lab['capabilities'] {
   return lab.capabilities;
+}
+
+// ---------------------------------------------------------------- setup chạy nền
+
+/**
+ * Đọc sentinel setup trong pod của một lần thử (P15 / 15.C — hướng B).
+ *
+ * `null` = lab KHÔNG khai `setup.background`, nên không có gì để chờ. Trả `null`
+ * thay vì `'ready'` để hai người gọi tự quyết: `setupStatus` dịch nó thành
+ * "sẵn sàng" cho FE, còn `checkTask` bỏ hẳn lượt exec probe. Đó cũng là lý do
+ * điều kiện đọc `lab.setup.background`, KHÔNG đọc state `'absent'` của probe:
+ * "bài này không có setup" là một sự thật của NỘI DUNG, biết được mà không cần
+ * hỏi pod — còn `'absent'` từ probe là một sự thật về POD, và nó nhập nhằng giữa
+ * "không có gì để chạy" với "lượt phóng chưa từng xảy ra". Nhập nhằng đó, nếu
+ * đọc thành "sẵn sàng", là chấm trên sandbox trắng — đúng lỗi `4a67043` đã sửa.
+ */
+async function probeSetup(
+  ctx: { user: { id: string; role: string } },
+  lab: Lab,
+  sessionId: string,
+): Promise<SetupProbe | null> {
+  if (lab.setup.background === null) {
+    return null;
+  }
+  const expiresAtSeconds = await sessionExpiry(ctx, sessionId);
+  const outcome = await runScriptInSession({
+    sessionId,
+    userId: ctx.user.id,
+    expiresAtSeconds,
+    script: SETUP_PROBE_SCRIPT,
+  });
+  return parseSetupProbe(outcome.output);
+}
+
+/** Câu người học đọc cho mỗi trạng thái setup chưa xong. */
+function describeUnreadySetup(probe: SetupProbe): string {
+  if (probe.state === 'running') {
+    return 'Môi trường của bài đang được dựng — đợi vài giây rồi chấm lại.';
+  }
+  if (probe.state === 'absent') {
+    // Lab CÓ khai `background` mà pod không có dấu phóng nào: phiên này có trước
+    // P15, hoặc lượt phóng đã mất. Chấm bây giờ là chấm trên sandbox trắng.
+    return 'Môi trường của bài chưa được dựng trong phiên này. Hãy bấm Bắt đầu để mở lần thử mới.';
+  }
+  const detail =
+    probe.log === null
+      ? 'Hãy bấm Bắt đầu để mở lần thử mới.'
+      : (setupFailureDetail(probe.log) ?? 'Hãy bấm Bắt đầu để mở lần thử mới.');
+  const exit = probe.exitCode === null ? '' : ` (exit ${String(probe.exitCode)})`;
+  return `Dựng môi trường của bài thất bại${exit}: ${detail}`;
 }
 
 /**
@@ -299,7 +355,19 @@ export const labsRouter = createTRPCRouter({
       `harden-secret-permissions`) không bao giờ đạt được.
 
       Chạy TRƯỚC khi ghi `labAttempts`: setup hỏng thì không để lại một lần thử
-      dở dang trong hồ sơ người học — phiên sandbox thừa đã có reaper thu hồi.
+      dở dang trong hồ sơ người học.
+
+      ⛔ P15 / 15.A — setup hỏng còn phải TRẢ LẠI KHE QUOTA, ngay. Câu cũ ở đây
+      nói "phiên sandbox thừa đã có reaper thu hồi", và điều đó đúng về chữ nhưng
+      sai về hệ quả: reaper là TTL MỘT GIỜ. Lab k8s chỉ có 5 khe, nên năm lượt
+      hỏng liên tiếp đóng cửa lab một tiếng và màn hình chỉ nói "Còn 0 chỗ"
+      trong khi không ai đang học. Xem `reapUnusableSession`.
+
+      ⛔ P15 / 15.C — hướng B: bước `background` được PHÓNG chạy nền, không chạy
+      đồng bộ. Vì sao, và cái giá của nó: `labs/setup-background.ts`. Hai bước
+      kia (`tools`, `assets`) vẫn đồng bộ — chúng là hằng số thời gian, không
+      phụ thuộc một cụm Kubernetes con lên nhanh hay chậm, nên chúng không nằm
+      trong lớp lỗi mà 15.C sửa.
     */
     const setupSteps = setupScriptPlan({
       tools: buildToolsEnableScript(lab.toolset),
@@ -307,7 +375,7 @@ export const labsRouter = createTRPCRouter({
       // thêm ở ĐÂY cùng khuôn `lessons.runSetup` (asset đi TRƯỚC background).
       assets: null,
       background: lab.setup.background,
-    });
+    }).map(launchedBackgroundStep);
     if (setupSteps.length > 0) {
       const setupExpiresAtSeconds = await sessionExpiry(ctx, session.id);
       for (const step of setupSteps) {
@@ -318,9 +386,12 @@ export const labsRouter = createTRPCRouter({
           script: step.script,
         });
         if (!outcome.passed) {
+          // Thứ tự BẮT BUỘC: reap TRƯỚC, ném SAU. Ném trước là thoát khỏi hàm —
+          // không dòng nào sau `throw` chạy, và khe quota ở lại đúng một tiếng.
+          await reapUnusableSession(ctx, session.id);
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
-            message: step.failureMessage(outcome.exitCode),
+            message: step.failureMessage({ exitCode: outcome.exitCode, output: outcome.output }),
           });
         }
       }
@@ -349,6 +420,39 @@ export const labsRouter = createTRPCRouter({
     });
 
     return { attemptId, sessionId: session.id, preferencesApplied };
+  }),
+
+  /**
+   * Setup của bài đã dựng xong chưa (P15 / 15.C — hướng B).
+   *
+   * FE poll procedure này sau `startAttempt` để hiện "đang chuẩn bị môi trường"
+   * và, khi hỏng, hiện NGUYÊN NHÂN thật thay vì một mã thoát.
+   *
+   * ⛔ `query`, và nó KHÔNG tự reap phiên hỏng. Hai lý do, cả hai đều là quyết
+   * định chứ không phải thiếu sót:
+   *
+   * 1. Một `query` có tác dụng phụ là một cái bẫy cho mọi người đọc sau — và cho
+   *    react-query, vốn được phép gọi lại nó bất cứ lúc nào (refetch on focus,
+   *    retry) mà không coi đó là một hành động.
+   * 2. Ở đây người học CÒN một pod sống và một terminal đang mở trong đó. Giết
+   *    pod dưới chân họ vì setup của bài hỏng là một quyết định khác hẳn với
+   *    `reapUnusableSession` (nơi chưa có ai, chưa có lần thử nào). Khe quota
+   *    trong ca này chết theo TTL, y như MỌI phiên bị bỏ giữa chừng — tức không
+   *    phải một sự thụt lùi, mà là đúng đường đã có.
+   *
+   * 15.A chỉ gác ca ĐỒNG BỘ: setup hỏng ngay trong `startAttempt`, khi chưa có
+   * lần thử nào và chưa ai nhìn. Đó là ca đã đo được rò khe.
+   */
+  setupStatus: protectedProcedure.input(attemptIdInput).query(async ({ ctx, input }) => {
+    const attempt = await requireOwnAttempt(ctx, input.attemptId);
+    const lab = await requireLab(attempt.labId);
+    const probe = await probeSetup(ctx, lab, attempt.sessionId);
+    if (probe === null) {
+      return { state: 'ready' as const, message: null };
+    }
+    return probe.state === 'ready'
+      ? { state: 'ready' as const, message: null }
+      : { state: probe.state, message: describeUnreadySetup(probe) };
   }),
 
   /** Điểm + trạng thái của MỘT lần thử — chỉ chủ sở hữu (luật 5). */
@@ -456,6 +560,29 @@ export const labsRouter = createTRPCRouter({
     const task = lab.tasks.find((t) => t.id === input.taskId);
     if (task === undefined) {
       throw new TRPCError({ code: 'NOT_FOUND', message: `Lab "${lab.id}" không có task "${input.taskId}"` });
+    }
+
+    /*
+      ⛔ P15 / 15.C — TỪ CHỐI chấm khi setup chưa xong.
+
+      Vế này KHÔNG phải phòng xa: hướng B phóng setup chạy nền, nên từ lúc
+      `startAttempt` trả về cho tới khi cụm con lên (đo được 17–26s trên node đã
+      lắng, 93s dưới tải) có một cửa sổ mà cảnh của bài dựng DỞ. Chấm trong cửa
+      sổ đó cho kết quả sai theo cả hai chiều: task "vắng mặt là đạt" đỗ vì thứ
+      phải có còn chưa tạo, task cần cảnh dựng sẵn trượt vì cùng lý do. Đó đúng
+      là lỗi `4a67043` vừa sửa, quay lại dưới một hình dạng khác — và plan ô 11
+      gọi tên nó trước khi nó xảy ra.
+
+      ⚠ NÉM, không phải `passed: false`. Môi trường chưa dựng xong không phải
+      "bài làm sai" (`validate.ts` § `gatewayError`, plan ô 8). Một dấu X đỏ ở
+      đây bắt người học đi sửa một bài họ còn chưa kịp làm.
+    */
+    const setup = await probeSetup(ctx, lab, attempt.sessionId);
+    if (setup !== null && setup.state !== 'ready') {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: describeUnreadySetup(setup),
+      });
     }
 
     const expiresAtSeconds = await sessionExpiry(ctx, attempt.sessionId);
