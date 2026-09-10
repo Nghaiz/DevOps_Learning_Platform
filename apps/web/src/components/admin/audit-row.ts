@@ -1,12 +1,14 @@
+import { t } from '@devops-platform/copy';
+
 /**
- * Đọc một dòng `admin_audit` (`admin.audit.list`) thành câu tiếng Việt — hàm
+ * Đọc một dòng `admin_audit` (`admin.audit.list`) thành câu tiếng Việt, hàm
  * thuần, test được.
  *
  * ## Luật của cả file: nhật ký nói ĐÚNG thứ nó biết, và nói ra chỗ nó không biết
  *
  * `admin_audit.actor_id` cố ý KHÔNG có khoá ngoại tới `users` (chú thích ở
  * `schema.ts` và ở C4): nhật ký sống lâu hơn tài khoản. Hệ quả trực tiếp lên
- * giao diện — **một dòng có thể nêu một id không còn tồn tại**, và cách xử lý
+ * giao diện là **một dòng có thể nêu một id không còn tồn tại**, và cách xử lý
  * đúng là hiện đúng id đó kèm nói rõ nó là một id, KHÔNG phải để trống hay tra
  * ngược ra "người dùng đã xoá" (ta không có bảng nào để tra).
  *
@@ -16,11 +18,6 @@
  * không bị nuốt.
  */
 
-const ACTION_LABEL: Readonly<Record<string, string>> = {
-  'user.setRole': 'Đổi vai trò người dùng',
-  'session.terminate': 'Kết thúc phiên của người dùng',
-};
-
 /**
  * Hành động lạ (một bản BFF mới hơn ghi một `action` FE chưa biết) hiện NGUYÊN
  * chuỗi gốc. Nhật ký mà nuốt một hành động không nhận ra là nhật ký nói dối về
@@ -28,19 +25,27 @@ const ACTION_LABEL: Readonly<Record<string, string>> = {
  */
 export function describeAuditAction(action: string): string {
   if (action.trim() === '') {
-    return 'hành động không rõ (dòng nhật ký không ghi action)';
+    return t('admin.audit.action-missing');
   }
-  return ACTION_LABEL[action] ?? action;
+  if (action === 'user.setRole') {
+    return t('admin.audit-action.set-role');
+  }
+  if (action === 'session.terminate') {
+    return t('admin.audit-action.terminate');
+  }
+  return action;
 }
 
-const TARGET_TYPE_LABEL: Readonly<Record<string, string>> = {
-  user: 'Người dùng',
-  session: 'Phiên',
-};
-
 export function describeAuditTarget(targetType: string, targetId: string): string {
-  const type = TARGET_TYPE_LABEL[targetType] ?? targetType;
-  return targetId.trim() === '' ? `${type} (không rõ id)` : `${type} ${targetId}`;
+  const type =
+    targetType === 'user'
+      ? t('admin.audit-target.user')
+      : targetType === 'session'
+        ? t('admin.audit-target.session')
+        : targetType;
+  return targetId.trim() === ''
+    ? t('admin.audit.target-unknown-id', { type })
+    : t('admin.audit.target', { type, id: targetId });
 }
 
 export interface ActorView {
@@ -58,39 +63,39 @@ export interface ActorView {
 export function describeAuditActor(actorId: string): ActorView {
   if (actorId.trim() === '') {
     return {
-      text: 'không rõ',
-      note: 'Dòng nhật ký này không ghi id người thực hiện — bản BFF ghi ra nó có lỗi, không phải "không ai làm".',
+      text: t('admin.audit.actor-unknown'),
+      note: t('admin.audit.actor-unknown-note'),
     };
   }
-  return {
-    text: actorId,
-    note: 'Chỉ có id: bảng nhật ký cố ý không tham chiếu tới bảng người dùng, nên một tài khoản đã xoá vẫn để lại id ở đây.',
-  };
+  return { text: actorId, note: t('admin.audit.actor-note') };
 }
 
 /**
  * Chi tiết của một dòng.
  *
  * Hai hình dạng đã biết được dịch sang tiếng Việt; mọi hình dạng khác trả JSON
- * thô. Cố "đoán" hình dạng thứ ba sẽ cho ra một câu tự tin và sai — còn JSON
- * thô thì xấu nhưng luôn đúng.
+ * thô. Cố "đoán" hình dạng thứ ba sẽ cho ra một câu tự tin và sai, còn JSON thô
+ * thì xấu nhưng luôn đúng.
  */
 export function describeAuditDetail(action: string, detail: unknown): string {
   if (detail === null || detail === undefined) {
-    return 'không có chi tiết';
+    return t('admin.audit-detail.none');
   }
 
   if (action === 'user.setRole') {
     const roles = readRoleChange(detail);
     if (roles !== null) {
-      return `vai trò: ${roles.from} → ${roles.to}`;
+      return t('admin.audit-detail.role-change', { from: roles.from, to: roles.to });
     }
   }
 
   if (action === 'session.terminate') {
     const terminate = readTerminate(detail);
     if (terminate !== null) {
-      return `lý do: ${terminate.reason}, chủ phiên: ${terminate.targetUserId}`;
+      return t('admin.audit-detail.terminate', {
+        reason: terminate.reason,
+        owner: terminate.targetUserId,
+      });
     }
   }
 
@@ -127,7 +132,8 @@ function readTerminate(detail: unknown): { reason: string; targetUserId: string 
   // của orchestrator, và orchestrator có thể reap xong mà không trả session.
   return {
     reason,
-    targetUserId: typeof target === 'string' && target !== '' ? target : 'không rõ',
+    targetUserId:
+      typeof target === 'string' && target !== '' ? target : t('admin.audit-detail.owner-unknown'),
   };
 }
 
@@ -140,6 +146,6 @@ function stringifyDetail(detail: unknown): string {
   try {
     return JSON.stringify(detail) ?? String(detail);
   } catch {
-    return 'chi tiết không đọc được (dữ liệu không chuyển được sang JSON)';
+    return t('admin.audit-detail.unreadable');
   }
 }
