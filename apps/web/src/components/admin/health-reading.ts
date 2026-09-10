@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import type { BadgeVariant } from '@devops-platform/ui';
 
 /**
@@ -55,18 +56,23 @@ export interface HealthReading {
   readonly hasReadings: boolean;
 }
 
-const SOURCE_LABEL: Readonly<Record<string, string>> = {
-  orchestrator: 'Orchestrator',
-  gateway: 'Terminal gateway',
-};
-
-/** Tên nguồn cho người đọc; nguồn lạ giữ NGUYÊN tên máy chủ trả về, không rỗng. */
+/**
+ * Tên nguồn cho người đọc; nguồn lạ giữ NGUYÊN tên máy chủ trả về, không rỗng.
+ *
+ * Phép thu hẹp bằng so sánh chuỗi chứ không bằng một bảng tra: `t()` chỉ nhận
+ * khoá có thật, nên `admin.health.source.${name}` phải chứng minh được `name`
+ * thuộc đúng hai nguồn đã khai trước khi ghép. Bảng tra cũ trả `undefined` lúc
+ * chạy mà tầng kiểu không thấy.
+ */
 export function describeSourceName(name: string): string {
-  return SOURCE_LABEL[name] ?? name;
+  if (name === 'orchestrator' || name === 'gateway') {
+    return t(`admin.health.source.${name}`);
+  }
+  return name;
 }
 
 function reason(error: string | null): string {
-  return error === null || error.trim() === '' ? 'máy chủ không nêu lý do' : error;
+  return error === null || error.trim() === '' ? t('admin.health.reason-missing') : error;
 }
 
 /**
@@ -83,12 +89,9 @@ export function describeHealthSource(source: HealthSourceView): HealthReading {
   if (!source.reached) {
     return {
       tone: 'unreachable',
-      label: 'Không với tới được',
+      label: t('admin.health.state.unreachable-label'),
       badgeVariant: 'warning',
-      detail:
-        `${who} không trả lời: ${reason(source.error)}. ` +
-        'Chưa đọc được số liệu nào — đây không phải "mọi chỉ số bằng 0". ' +
-        'Kiểm NetworkPolicy và Service của nguồn này, hoặc đọc metric qua Prometheus.',
+      detail: t('admin.health.state.unreachable-detail', { who, reason: reason(source.error) }),
       seriesCount: 0,
       hasReadings: false,
     };
@@ -97,11 +100,9 @@ export function describeHealthSource(source: HealthSourceView): HealthReading {
   if (!source.ok) {
     return {
       tone: 'unhealthy',
-      label: 'Trả lời nhưng không dùng được',
+      label: t('admin.health.state.unhealthy-label'),
       badgeVariant: 'destructive',
-      detail:
-        `${who} có trả lời nhưng không cho số liệu dùng được: ${reason(source.error)}. ` +
-        'Kiểm URL /metrics có trỏ đúng dịch vụ không, và dịch vụ có đăng ký metric dlp_* lúc khởi động không.',
+      detail: t('admin.health.state.unhealthy-detail', { who, reason: reason(source.error) }),
       seriesCount: source.series.length,
       hasReadings: source.series.length > 0,
     };
@@ -109,9 +110,9 @@ export function describeHealthSource(source: HealthSourceView): HealthReading {
 
   return {
     tone: 'ok',
-    label: 'Đang phát metric',
+    label: t('admin.health.state.ok-label'),
     badgeVariant: 'success',
-    detail: `${who} trả lời và đang phát ${String(source.series.length)} chỉ số dlp_*.`,
+    detail: t('admin.health.state.ok-detail', { who, count: source.series.length }),
     seriesCount: source.series.length,
     hasReadings: source.series.length > 0,
   };
@@ -141,8 +142,7 @@ export function summarizeHealth(sources: readonly HealthSourceView[]): HealthSum
       total: 0,
       okCount: 0,
       tone: 'down',
-      headline:
-        'Không có nguồn metric nào để đọc. Bảng trống ở đây nghĩa là chưa cấu hình được gì, không phải hệ thống khoẻ.',
+      headline: t('admin.health.summary.empty'),
     };
   }
 
@@ -155,7 +155,7 @@ export function summarizeHealth(sources: readonly HealthSourceView[]): HealthSum
       total,
       okCount,
       tone: 'ok',
-      headline: `Cả ${String(total)} nguồn đều đang phát metric.`,
+      headline: t('admin.health.summary.all-ok', { total }),
     };
   }
 
@@ -164,7 +164,7 @@ export function summarizeHealth(sources: readonly HealthSourceView[]): HealthSum
       total,
       okCount,
       tone: 'down',
-      headline: `Không đọc được nguồn nào (0/${String(total)}): ${names}. Mọi con số bên dưới đều thiếu.`,
+      headline: t('admin.health.summary.down', { total, names }),
     };
   }
 
@@ -172,7 +172,7 @@ export function summarizeHealth(sources: readonly HealthSourceView[]): HealthSum
     total,
     okCount,
     tone: 'degraded',
-    headline: `Đọc được ${String(okCount)}/${String(total)} nguồn. Chưa đọc được: ${names}.`,
+    headline: t('admin.health.summary.degraded', { ok: okCount, total, names }),
   };
 }
 
@@ -197,12 +197,15 @@ export function describePool(
   if (capacity === null) {
     return {
       known: false,
-      text: 'Không đọc được pool từ orchestrator — đây không phải "pool trống". Xem trạng thái nguồn Orchestrator ở trên.',
+      text: t('admin.health.pool.unknown'),
     };
   }
   return {
     known: true,
-    text: `${String(capacity.poolFree)} pod ấm sẵn sàng, ${String(capacity.poolQuarantine)} pod đang cách ly.`,
+    text: t('admin.health.pool.known', {
+      free: capacity.poolFree,
+      quarantine: capacity.poolQuarantine,
+    }),
   };
 }
 
@@ -243,22 +246,28 @@ export function orderSeries(series: readonly MetricSeriesView[]): readonly Metri
  */
 export function formatMetricValue(value: number): string {
   if (Number.isNaN(value)) {
-    return 'NaN (nguồn báo không đo được)';
+    return t('admin.health.metric.nan');
   }
   if (value === Number.POSITIVE_INFINITY) {
-    return 'vô cực (+Inf)';
+    return t('admin.health.metric.pos-inf');
   }
   if (value === Number.NEGATIVE_INFINITY) {
-    return 'âm vô cực (-Inf)';
+    return t('admin.health.metric.neg-inf');
   }
   return value.toLocaleString('vi-VN', { maximumFractionDigits: 3 });
 }
 
-/** Nhãn của series thành `key=value, key=value`; không nhãn thì trả dấu gạch, không phải chuỗi rỗng. */
+/**
+ * Nhãn của series thành `key=value, key=value`.
+ *
+ * Không nhãn thì trả một CÂU, không trả chuỗi rỗng và cũng không trả một gạch
+ * ngang. Bản cũ trả U+2014, thứ vừa vi phạm luật số 3 của design §5 vừa đọc ra
+ * như "giá trị bị giấu" thay vì "series này vốn không có nhãn nào".
+ */
 export function formatLabels(labels: Readonly<Record<string, string>>): string {
   const entries = Object.entries(labels);
   if (entries.length === 0) {
-    return '—';
+    return t('admin.health.no-labels');
   }
   return entries
     .sort(([left], [right]) => left.localeCompare(right))

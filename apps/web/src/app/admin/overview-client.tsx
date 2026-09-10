@@ -2,6 +2,7 @@
 
 import type { ReactElement } from 'react';
 import Link from 'next/link';
+import { t } from '@devops-platform/copy';
 import {
   Alert,
   AlertDescription,
@@ -26,31 +27,33 @@ import { useCapacity } from '../../components/shell/use-capacity';
  * ## Sức chứa đọc từ vỏ ứng dụng, KHÔNG gọi `capacity.get` lần nữa
  *
  * `CapacityProvider` của vỏ (13.B) đã poll 15s một lần và mọi chỗ hiện "còn N
- * chỗ" — badge trên thanh đầu trang, `SessionControls` của C5 — đều đọc chung
+ * chỗ" (badge trên thanh đầu trang, `SessionControls` của C5) đều đọc chung
  * state đó. Thêm một `useQuery('capacity.get')` ở đây là hai con số khác nhau
  * trên CÙNG một màn hình (hai lượt gọi lệch nhau vài giây là đủ), cộng thêm một
  * lượt gọi cho đúng một câu trả lời.
  *
  * `admin.health` cũng trả `capacity`, và nó cố ý KHÔNG được dùng cho con số
- * "còn N chỗ" ở đây — cùng một lý do. Nó chỉ cấp thứ vỏ không có: `poolFree` /
+ * "còn N chỗ" ở đây, cùng một lý do. Nó chỉ cấp thứ vỏ không có: `poolFree` /
  * `poolQuarantine` (nội tình pool), hiện trong `HealthPanel` kèm thời điểm đọc
  * của chính nó.
  */
 export function AdminOverviewClient(): ReactElement {
   return (
     <AdminSection
-      title="Tổng quan"
-      description="Sức chứa nền tảng và sức khoẻ các dịch vụ, đọc lúc mở trang."
+      title={t('admin.overview.title')}
+      description={t('admin.overview.description')}
     >
       <CapacityCard />
       <HealthPanel />
       <Alert>
-        <AlertTitle>Mọi hành động quản trị đều được ghi lại</AlertTitle>
+        <AlertTitle>{t('admin.overview.audit-title')}</AlertTitle>
         <AlertDescription>
-          Đổi vai trò và kết thúc phiên của người khác đều ghi một dòng vào nhật ký, kèm tên người
-          bấm.{' '}
-          <Link href="/admin/audit" className="underline underline-offset-4">
-            Xem nhật ký
+          {t('admin.overview.audit-body')}{' '}
+          <Link
+            href="/admin/audit"
+            className="rounded-xs underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            {t('admin.overview.audit-link')}
           </Link>
           .
         </AlertDescription>
@@ -66,23 +69,20 @@ function CapacityCard(): ReactElement {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Sức chứa</CardTitle>
-          <CardDescription>
+          <CardTitle>{t('admin.capacity.title')}</CardTitle>
+          <CardDescription className="max-w-prose">
             {/*
               `loading` và `error` là hai chuyện khác nhau và không được gộp:
               "đang đọc" là tạm thời, "đọc hỏng" đòi người trực làm gì đó.
             */}
-            {loading
-              ? 'Đang đọc sức chứa từ orchestrator…'
-              : (error ??
-                'Chưa đọc được sức chứa. Bấm Đọc lại; nếu vẫn không có số, xem trạng thái Orchestrator ở bảng sức khoẻ bên dưới.')}
+            {loading ? t('admin.capacity.loading') : (error ?? t('admin.capacity.unreadable'))}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {loading ? <Skeleton className="h-8 w-40" /> : null}
           <div>
             <Button variant="outline" size="sm" onClick={refetch} loading={loading}>
-              Đọc lại
+              {t('admin.capacity.retry')}
             </Button>
           </div>
         </CardContent>
@@ -92,14 +92,14 @@ function CapacityCard(): ReactElement {
 
   /*
     Đọc `profile_capacity` (trần TÍNH TỪ ResourceQuota lúc gọi), KHÔNG còn
-    `softCapacity` = `CAPACITY_HARD_LIMIT − POOL_TARGET`. Hằng số cũ mã hoá giả
-    định "mọi phiên đều 256Mi" và đã in "Còn 14 chỗ" ngày 2026-09-07 đúng lúc
-    `startSession` trả 429 cho một bài IDE (768Mi).
+    `softCapacity` = `CAPACITY_HARD_LIMIT` trừ `POOL_TARGET`. Hằng số cũ mã hoá
+    giả định "mọi phiên đều 256Mi" và đã in "Còn 14 chỗ" ngày 2026-09-07 đúng
+    lúc `startSession` trả 429 cho một bài IDE (768Mi).
 
     Không truyền profile ⇒ profile MẶC ĐỊNH, và đó là câu trả lời đúng cho một
     trang tổng quan: người trực hỏi "cụm còn chỗ cho bài thường không", không
     hỏi về một bài cụ thể. Câu chữ của vỏ đã tự ghi rõ "cho bài thường" và nhắc
-    bài IDE/K8s có trần riêng — nên con số này không hứa rộng hơn thứ nó biết.
+    bài IDE/K8s có trần riêng, nên con số này không hứa rộng hơn thứ nó biết.
 
     `null` = CHƯA BIẾT (quota đọc lỗi), và nó khác hẳn 0. ⛔ Không lấp bằng
     `softCapacity`: một con số sai ở trang quản trị là một quyết định vận hành
@@ -109,16 +109,18 @@ function CapacityCard(): ReactElement {
   const at = formatFetchedAt(data.fetchedAt);
   const unknownDetail =
     data.quotaError === ''
-      ? 'Orchestrator không đọc được ResourceQuota của namespace sandbox, nên không có trần nào để trừ. Xem quyền của Role sandbox (`resourcequotas`, `limitranges`).'
-      : `Orchestrator không đọc được ResourceQuota của namespace sandbox: ${data.quotaError}`;
+      ? t('admin.capacity.quota-unreadable')
+      : t('admin.capacity.quota-unreadable-reason', { reason: data.quotaError });
 
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <CardTitle>Sức chứa</CardTitle>
+          <CardTitle>{t('admin.capacity.title')}</CardTitle>
           <CardDescription>
-            {at === null ? 'Thời điểm đọc không rõ.' : `Đọc lúc ${at}, tự làm mới mỗi 15 giây.`}
+            {at === null
+              ? t('admin.capacity.fetched-unknown')
+              : t('admin.capacity.fetched-at', { at })}
           </CardDescription>
         </div>
         <Badge
@@ -132,11 +134,11 @@ function CapacityCard(): ReactElement {
                   : 'success'
           }
         >
-          {reading === null ? 'Chưa rõ sức chứa' : reading.label}
+          {reading === null ? t('admin.capacity.unknown-badge') : reading.label}
         </Badge>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        <p className="text-sm text-foreground">
+        <p className="max-w-prose text-sm text-foreground">
           {reading === null ? unknownDetail : reading.detail}
         </p>
         {/*
@@ -146,7 +148,7 @@ function CapacityCard(): ReactElement {
         */}
         {error === null ? null : (
           <p role="status" className="text-sm text-muted-foreground">
-            Lượt đọc gần nhất lỗi ({error}) — số ở trên có thể đã cũ.
+            {t('admin.capacity.stale', { reason: error })}
           </p>
         )}
       </CardContent>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { t } from '@devops-platform/copy';
 import { ADMIN_NAV, isActiveAdminNav } from './admin-nav';
 
 /**
@@ -28,8 +29,18 @@ describe('ADMIN_NAV', () => {
     expect(outside).toEqual([]);
   });
 
+  /*
+    Nhãn nay là KHOÁ chứ không phải câu (16.F, p16-copy.md §1.6), nên ô này
+    dựng câu ra từ bản đồ rồi mới đo. So `labelKey` với chính nó thì xanh với
+    mọi giá trị, kể cả một khoá trỏ vào một mục rỗng.
+  */
   it('nhãn tiếng Việt, không rỗng', () => {
-    expect(ADMIN_NAV.every((item) => item.label.trim().length > 0)).toBe(true);
+    expect(ADMIN_NAV.every((item) => t(item.labelKey).trim().length > 0)).toBe(true);
+  });
+
+  it('mỗi mục một khoá riêng, không mục nào chép khoá của mục khác', () => {
+    const keys = ADMIN_NAV.map((item) => item.labelKey);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
 
