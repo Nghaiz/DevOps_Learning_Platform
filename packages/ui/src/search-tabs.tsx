@@ -90,7 +90,7 @@ const TOKEN_VARS: Readonly<Record<string, string>> = {
  * tập chuỗi tiếng Anh ở đó KHỚP TUYỆT ĐỐI với các khoá dưới đây. Gói đổi chữ
  * hoặc thêm nhãn mới ⇒ test ĐỎ, thay vì một nhãn tiếng Anh lặng lẽ sống lại.
  */
-const ARIA_LABEL_VI: Readonly<Record<string, string>> = {
+export const ARIA_LABEL_VI: Readonly<Record<string, string>> = {
   Search: 'Tìm kiếm',
   'Open search': 'Mở ô tìm kiếm',
   'Close search': 'Đóng ô tìm kiếm',
@@ -114,33 +114,62 @@ export function SearchTabs(props: SearchTabsProps): ReactElement {
   const host = useRef<HTMLDivElement>(null);
 
   /*
-   * CỐ Ý không có mảng phụ thuộc. Gói dùng framer-motion và render lại mỗi lần
-   * mở/đóng/đổi tab, mỗi lần như vậy React ghi lại `aria-label` tiếng Anh lên
-   * đúng phần tử đó. Một effect chạy MỘT LẦN sẽ đúng ở lượt đầu rồi thua ở mọi
-   * lượt sau — hỏng im lặng, vì lượt đầu là lượt duy nhất ai đó kiểm bằng mắt.
+   * `MutationObserver`, KHÔNG phải một effect chạy mỗi lượt render.
    *
-   * Chi phí: một `querySelectorAll` trên đúng cây con này sau mỗi lượt render
-   * của nó. Không có `MutationObserver` vì observer sẽ tự kích hoạt lại chính
-   * mình khi ta ghi thuộc tính.
+   * ⚠ Bản đầu dùng `useEffect` không mảng phụ thuộc, với lập luận "gói render
+   * lại mỗi lần mở/đóng nên effect chạy lại theo". Lập luận đó SAI, và
+   * `search-tabs.test.tsx` bắt được: state mở/đóng nằm bên TRONG
+   * `GooeySearchTabs`, nên khi nó đổi thì chỉ CON render lại — `SearchTabs`
+   * không render, và effect của `SearchTabs` không chạy.
+   *
+   * Đo được sau một lượt bấm mở (bản cũ):
+   *   ["DIV=Tìm", "BUTTON=Search", "INPUT=Search input", "BUTTON=Đóng ô tìm kiếm"]
+   *
+   * Nút đóng còn tiếng Việt vì React KHÔNG ghi lại thuộc tính khi giá trị ảo
+   * của nó không đổi — bản dịch lượt đầu sống sót. Nút bật/tắt thì có
+   * (`expanded ? "Search" : "Open search"`), nên nó bị ghi đè về tiếng Anh; và
+   * ô nhập là phần tử MỚI mount. Tức lượt đầu đúng, mọi lượt sau sai — đúng
+   * hình dạng hỏng-im-lặng mà chú thích cũ tuyên bố đã chặn.
+   *
+   * Observer không tự lặp vô hạn: lượt ghi của ta kích hoạt callback thêm một
+   * lần, lần đó thấy giá trị hiện tại KHÔNG còn là khoá trong bảng nên không
+   * ghi gì, và chuỗi dừng sau đúng một vòng thừa.
    */
   useEffect(() => {
     const root = host.current;
     if (root === null) return;
-    for (const node of root.querySelectorAll('[aria-label]')) {
-      const current = node.getAttribute('aria-label');
-      if (current === null) continue;
-      const translated = ARIA_LABEL_VI[current];
-      if (translated !== undefined) node.setAttribute('aria-label', translated);
-    }
-    /*
-     * Tên của vùng `role="search"` đặt ở ĐÂY chứ không phải bằng một
-     * `role="search"` thứ hai trên vỏ bọc: gói đã tự render một vùng như vậy,
-     * và hai landmark search lồng nhau là một khiếm khuyết a11y thật (axe
-     * `landmark-unique`), không phải một lớp bảo hiểm.
-     */
-    const searchRegion = root.querySelector('[role="search"]');
-    if (searchRegion !== null) searchRegion.setAttribute('aria-label', label);
-  });
+
+    const translate = (): void => {
+      for (const node of root.querySelectorAll('[aria-label]')) {
+        const current = node.getAttribute('aria-label');
+        if (current === null) continue;
+        const translated = ARIA_LABEL_VI[current];
+        if (translated !== undefined) node.setAttribute('aria-label', translated);
+      }
+      /*
+       * Tên của vùng `role="search"` đặt ở ĐÂY chứ không phải bằng một
+       * `role="search"` thứ hai trên vỏ bọc: gói đã tự render một vùng như vậy,
+       * và hai landmark search lồng nhau là một khiếm khuyết a11y thật (axe
+       * `landmark-unique`), không phải một lớp bảo hiểm.
+       */
+      const searchRegion = root.querySelector('[role="search"]');
+      if (searchRegion !== null && searchRegion.getAttribute('aria-label') !== label) {
+        searchRegion.setAttribute('aria-label', label);
+      }
+    };
+
+    translate();
+    const observer = new MutationObserver(translate);
+    observer.observe(root, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['aria-label'],
+    });
+    return () => {
+      observer.disconnect();
+    };
+  }, [label]);
 
   return (
     <div
