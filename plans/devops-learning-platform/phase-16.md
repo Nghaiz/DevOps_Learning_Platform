@@ -262,6 +262,20 @@ logic, không phải phần nhìn.
    thay các ô ngưỡng trên bằng lượt quét đó. Đổi hai ô ngưỡng thành quét là hạ cấp một phép đo
    có đối chứng âm xuống một phép đo không có.
 
+5. **Ba ô chuyển từ 16.A sang đây vì chúng chỉ đo được trong trình duyệt thật** (lane motion báo
+   2026-09-10, sau khi thi công xong `packages/motion`).
+
+   | Ô | Vì sao 16.A không đo được | Đo thế nào ở 16.I |
+   |---|---|---|
+   | AC-7 "ép reduced-motion ⇒ `transition-duration` ra 0.01ms" | Giá trị đến từ khối `@media` trong `globals.css`. `packages/motion` không sở hữu stylesheet nào, chạy vitest ở `environment: 'node'`, không có `react-dom`, và jsdom không phân giải `matchMedia` lẫn `@media` trong cascade. | `emulateMedia({ reducedMotion: 'reduce' })` rồi đọc `getComputedStyle(path).transitionDuration` |
+   | §8.3 cung chạy được bằng `calc(1 - var(--p))` | Transition đặt trên `stroke-dashoffset` mà giá trị đến từ một custom property **chưa đăng ký**. Spec nói nó bắn; chưa ai đo trên trình duyệt thật. | Đổi `--p` rồi khẳng định cung **chạy** chứ không **nhảy** |
+   | §8.1 khe hở nằm đúng phía | Hình học đúng theo test, nhưng "đúng phía" là phán quyết bằng mắt. | Tâm khe hở phải ở `(61.24, 22.18)` trong `viewBox` 100×100 |
+
+   Hai ô đầu hỏng **im lặng** nếu sai: không lỗi, không log. AC-7 sai thì trang TRÔNG NHƯ đã tuân
+   thủ reduced-motion; §8.3 sai thì cung nhảy một nhịp thay vì chạy. Đường lùi cho §8.3 đã sẵn —
+   `dashOffsetAt(p)` trả số thô, đặt thẳng vào `strokeDashoffset` thì transition chắc chắn chạy —
+   nhưng **không đổi trước khi đo**, vì §8.3 ghi dạng `calc()` là bắt buộc.
+
 ---
 
 ## 4. Team Layout
