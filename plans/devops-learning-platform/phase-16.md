@@ -365,3 +365,17 @@ cùng lúc, và nó chỉ có thật nếu ba hợp đồng ở 16.0 đủ chặ
 - **`components/k8s-arena/**` và `packages/games/**`.** Không đụng.
 - **Cổng kích thước bundle.** Vẫn không có. Ô AC "không kéo xterm.js vào trang không có
   terminal" của `phase-14-exec.md` vẫn không có phép đo nào.
+
+- **`--primary` ở nhánh TỐI không đạt 4.5:1 cho chữ link.** Đo được 4.20:1 trên `--card` và
+  3.54:1 trên `--muted`; SC 1.4.3 đòi 4.5 cho chữ thường. Bảng §1.6 nhánh tối chỉ đặt ngưỡng 3.0
+  nên hợp đồng không tự mâu thuẫn, nhưng nó cũng không nói ra rằng đây là khoảng trống. Đã đặt
+  absence pin **có companion hai chiều** trong `packages/ui/src/theme/tokens.contract.test.ts` —
+  pin đỏ khi con số đạt 4.5, và lúc đó phải XOÁ pin rồi đưa cặp vào `TEXT_PAIRS`, không ghim lại
+  số mới (`rules/pinned-baseline-test-companion.md`). Chốt 2026-09-10: sửa màu ở lượt sau, vì đổi
+  `--primary` nhánh tối kéo theo tính lại cả bảng §1.6 sau khi 858 ô đã xanh.
+
+- **`arena.css` (43 dòng) và `node-geometry.ts` (6 dòng) được miễn cổng màu trần.** Ghi trong
+  `KNOWN_HARDCODED` của `scripts/check-design-tokens.mjs`, khối "RÀ LẠI". Đây là miễn theo **phạm
+  vi**, không phải ranh giới thư viện ngoài như xterm.js — nó PHẢI hết hạn khi arena vào phạm vi.
+  Không có hai dòng đó thì cổng đỏ ngay khi vào CI và sẽ bị gỡ khỏi CI, tức luật §9 lại tiếp tục
+  không gác gì.
