@@ -124,6 +124,25 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
     { enabled: attemptId !== null },
   );
 
+  /*
+    P15 / 15.C (hướng B) — setup của bài chạy NỀN, nên `startAttempt` trả về
+    TRƯỚC khi cảnh của bài dựng xong. Không có nhịp hỏi này thì người học nhìn
+    một terminal trông như đã sẵn sàng, bấm Chấm, và nhận một lỗi họ không hiểu.
+
+    Dạng HÀM cho `refetchInterval` — cùng lý lẽ `author-edit-client.tsx`: nó phá
+    vòng phụ thuộc (options cần trạng thái, trạng thái cần dữ liệu) và không kẹt
+    được ở nhịp sai. `'running'` là trạng thái DUY NHẤT còn đổi được, nên ba
+    trạng thái kia dừng poll — một lab không khai `setup.background` trả `'ready'`
+    ngay lượt đầu và không tốn lượt hỏi nào nữa.
+  */
+  const setupQuery = api.labs.setupStatus.useQuery(
+    { attemptId: attemptId ?? '' },
+    {
+      enabled: attemptId !== null,
+      refetchInterval: (query) => (query.state.data?.state === 'running' ? 2_000 : false),
+    },
+  );
+
   const checkTask = api.labs.checkTask.useMutation();
   const submit = api.labs.submit.useMutation();
   const setDisplayPreference = api.labs.setDisplayPreference.useMutation();
@@ -235,6 +254,20 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   const selected =
     summary.displays.find((display) => display.task.id === selectedTaskId) ?? summary.displays[0];
 
+  /*
+    P15 / 15.C — "chưa biết" KHÁC "chưa xong".
+
+    `setupQuery.data === undefined` là lượt hỏi đầu chưa về. Đọc nó thành "chưa
+    xong" sẽ nháy một banner "đang chuẩn bị" cho MỌI lab, kể cả lab không có
+    setup nào; đọc nó thành "xong" sẽ mở nút Chấm trong đúng cửa sổ mà 15.C tồn
+    tại để đóng. Nên cả hai vế dưới đây đều hỏi TƯỜNG MINH một trạng thái đã
+    biết, và `undefined` không khớp vế nào: không banner, và nút Chấm đợi —
+    server vẫn là chốt cuối cùng (`checkTask` tự từ chối).
+  */
+  const setupData = setupQuery.data ?? null;
+  const setupPending = attemptId !== null && setupData?.state !== 'ready';
+  const setupNotice = setupData !== null && setupData.state !== 'ready' ? setupData : null;
+
   const terminalPane = (
     <TerminalPane
       session={session}
@@ -269,6 +302,23 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
         )}
       </div>
 
+      {/*
+        Trạng thái setup chạy nền (P15 / 15.C). `role="status"` cho nhánh đang
+        chờ — một cập nhật nhã nhặn; `Alert variant="destructive"` cho nhánh hỏng,
+        vì đó là thứ người học phải đọc và phải làm gì đó.
+      */}
+      {setupNotice !== null && setupNotice.message !== null && (
+        setupNotice.state === 'running' ? (
+          <div role="status" className="mb-4 rounded-lg border border-border bg-muted px-4 py-3">
+            <p className="text-sm text-foreground">{setupNotice.message}</p>
+          </div>
+        ) : (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription className="text-foreground">{setupNotice.message}</AlertDescription>
+          </Alert>
+        )
+      )}
+
       <TaskTable
         displays={summary.displays}
         weighted={summary.weighted}
@@ -280,13 +330,25 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
         <TaskDetail
           display={selected}
           outcome={checkOutcomes[selected.task.id] ?? null}
-          canCheck={attemptId !== null && !submitted}
+          canCheck={attemptId !== null && !submitted && !setupPending}
           disabledReason={
             attemptId === null
               ? 'Hãy bấm Bắt đầu ở trên để dựng sandbox trước khi chấm.'
               : submitted
                 ? 'Lần thử này đã nộp — không chấm lại được. Bấm Bắt đầu để mở lần thử mới.'
-                : null
+                : // P15 / 15.C — khoá nút là để người học KHÔNG nhận một lượt
+                  // chấm sai trên cảnh dựng dở. Câu ở đây nói cùng một điều với
+                  // banner ở trên, nhưng nó phải có mặt ở CẢ HAI chỗ: banner
+                  // giải thích trạng thái, câu này giải thích vì sao nút xám.
+                  //
+                  // Nhánh cuối là cửa sổ "CHƯA BIẾT" — lượt `setupStatus` đầu
+                  // tiên chưa về. Nút đã xám (`setupPending` đọc `undefined`
+                  // theo hướng an toàn), nên thiếu câu này là một nút xám KHÔNG
+                  // lời giải thích: trạng thái tệ nhất trong ba, vì người học
+                  // không biết là phải chờ hay là đã hỏng.
+                  setupPending
+                  ? (setupNotice?.message ?? 'Đang kiểm tra môi trường của bài…')
+                  : null
           }
           onCheck={() => {
             onCheckTask(selected.task.id);

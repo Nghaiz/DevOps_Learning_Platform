@@ -1,0 +1,271 @@
+/* Scoped styles for the cluster history and incident workspace. */
+.arena-event-window {
+  width: min(620px, calc(100% - 24px));
+  max-height: min(560px, calc(100% - 24px));
+}
+.arena-incident-window {
+  width: min(520px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+}
+.arena-event-window > header > button,
+.arena-incident-window > header > button {
+  width: 44px;
+  height: 44px;
+}
+.arena-event-intro {
+  padding: 14px 16px 0;
+}
+.arena-event-intro p {
+  font-size: 13px;
+  font-weight: 600;
+}
+.arena-event-intro span,
+.arena-event-caption,
+.arena-event-footer {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.arena-event-feed {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.arena-event-tools {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.arena-event-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.arena-event-filters button {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.arena-event-filters button[aria-pressed='true'] {
+  background: var(--foreground);
+  color: var(--background);
+  border-color: var(--foreground);
+}
+.arena-event-filters button span {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+.arena-event-filters button:focus-visible,
+.arena-incident-bottom button:focus-visible,
+.arena-event-list:focus-visible,
+.arena-incident-list:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.arena-event-search {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: var(--muted-foreground);
+}
+.arena-event-search:focus-within {
+  outline: 2px solid var(--ring);
+}
+.arena-event-search input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  outline: none;
+  color: var(--foreground);
+  font-size: 16px;
+}
+.arena-event-list {
+  min-height: 80px;
+  padding: 0 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.arena-event-card {
+  display: flex;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--muted) 32%, transparent);
+}
+.arena-event-symbol {
+  flex-shrink: 0;
+  padding-top: 2px;
+  color: var(--muted-foreground);
+}
+.arena-event-content {
+  min-width: 0;
+  flex: 1;
+}
+.arena-event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 10px;
+  margin-bottom: 5px;
+  font-size: 12px;
+}
+.arena-event-meta span {
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.arena-event-content p {
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.arena-event-card[data-level='error'] {
+  border-left: 3px solid var(--destructive);
+}
+.arena-event-card[data-level='error'] .arena-event-symbol,
+.arena-event-card[data-level='error'] strong {
+  color: var(--destructive);
+}
+.arena-event-card[data-level='warning'] {
+  border-left: 3px solid var(--warning);
+}
+.arena-event-card[data-level='warning'] .arena-event-symbol,
+.arena-event-card[data-level='warning'] strong {
+  color: var(--warning);
+}
+.arena-event-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+.arena-event-empty strong {
+  color: var(--foreground);
+  font-size: 13px;
+}
+.arena-event-empty p {
+  max-width: 350px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.arena-event-footer {
+  padding: 9px 14px;
+  border-top: 1px solid var(--border);
+}
+.arena-incident-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--success) 7%, transparent);
+}
+.arena-incident-summary > svg {
+  flex-shrink: 0;
+  color: var(--success);
+}
+.arena-incident-summary[data-active='true'] {
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+}
+.arena-incident-summary[data-active='true'] > svg {
+  color: var(--warning);
+}
+.arena-incident-summary strong {
+  font-size: 14px;
+}
+.arena-incident-summary p {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.arena-incident-list {
+  min-height: 0;
+  padding: 0 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.arena-incident-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+.arena-incident-top,
+.arena-incident-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.arena-incident-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--success);
+  font-weight: 600;
+}
+.arena-incident-card[data-active='true'] .arena-incident-status {
+  color: var(--warning);
+}
+.arena-incident-card h3 {
+  margin: 9px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.arena-incident-target {
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.arena-incident-bottom {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.arena-incident-bottom button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: var(--muted);
+  color: var(--foreground);
+  font-weight: 600;
+}
+@media (max-width: 480px) {
+  .arena-event-tools,
+  .arena-event-intro {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .arena-event-filters button {
+    min-height: 44px;
+    padding: 6px;
+  }
+  .arena-event-meta {
+    flex-direction: column;
+  }
+}

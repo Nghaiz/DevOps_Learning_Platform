@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -56,7 +57,7 @@ interface Pending {
  * phép chặn thao tác với các resource, bài nào cũng phải mở"*. `allowedResources`
  * giờ chỉ ĐÁNH DẤU loại mà bài học xoay quanh — một chỉ dẫn, không phải hàng rào.
  */
-export function PaletteRail({
+function PaletteRailView({
   open,
   featuredResources,
   listObjects,
@@ -223,3 +224,6 @@ export function PaletteRail({
     </TooltipProvider>
   );
 }
+
+/** Palette data is read on interaction; simulation ticks do not change its cells. */
+export const PaletteRail = memo(PaletteRailView);

@@ -26,7 +26,7 @@ import {
 export type { Suggestion } from './terminal-suggest-vocab.ts';
 
 /** Bao nhiêu gợi ý hiện cùng lúc. Nhiều hơn thì danh sách che mất kết quả lệnh trước. */
-const MAX_SUGGESTIONS = 8;
+const MAX_SUGGESTIONS = 12;
 
 /** Thứ tự lấy từ `KUBECTL_VERBS` của engine — không có danh sách thứ hai để lệch. */
 const VERBS: readonly Suggestion[] = KUBECTL_VERBS.map((verb) => ({
@@ -115,6 +115,21 @@ function poolFor(
    * từ không tồn tại. Cùng lỗi đó, ở một mức khác, làm gợi ý loại/tên biến mất
    * hoàn toàn (xem chú thích của `position`).
    */
+  const last = committed.at(-1);
+  if (last === '-n' || last === '--namespace') {
+    return [
+      ...new Set([
+        'default',
+        ...objects
+          .map((object) => (object.kind === 'Namespace' ? object.name : object.namespace))
+          .filter(Boolean),
+      ]),
+    ]
+      .sort()
+      .map((value) => ({ value, hint: 'Namespace' }));
+  }
+  if (last === '-o' || last === '--output')
+    return ['wide', 'yaml'].map((value) => ({ value, hint: 'Định dạng đầu ra' }));
   const args = positionals(committed);
   const head = args[0];
   if (head === undefined) {
@@ -177,7 +192,9 @@ export function suggestTokens(
   const prefix = atNewToken ? '' : (tokens.at(-1) ?? '');
   const committed = atNewToken ? tokens : tokens.slice(0, -1);
   const lowered = prefix.toLowerCase();
-  return poolFor(committed, prefix, objects)
+  return [
+    ...new Map(poolFor(committed, prefix, objects).map((item) => [item.value, item])).values(),
+  ]
     .filter((item) => item.value.toLowerCase().startsWith(lowered))
     .slice(0, MAX_SUGGESTIONS);
 }

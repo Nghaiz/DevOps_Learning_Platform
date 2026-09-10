@@ -1,6 +1,6 @@
+import { KINDS, type ResourceKind } from '@devops-platform/games';
 import { describe, expect, it } from 'vitest';
 import {
-  PLATFORM_DEPTH,
   PLATFORM_GAP,
   PLATFORM_HEIGHT,
   PLATFORM_WIDTH,
@@ -63,9 +63,7 @@ describe('computeLayout', () => {
    * trên cả hai trục, và quét từ 1 tới 12 pod để bắt đúng lúc lưới sinh thêm hàng.
    */
   it('pod nằm trong mặt bệ dù có bao nhiêu pod', () => {
-    const halfW = PLATFORM_WIDTH / 2;
-    const halfD = PLATFORM_DEPTH / 2;
-    for (let count = 1; count <= 12; count += 1) {
+    for (let count = 1; count <= 40; count += 1) {
       const objects = Array.from({ length: count }, (_, i) =>
         podView(`p-${String(i).padStart(2, '0')}`, `pod-${i}`, { nodeName: 'node-a' }),
       );
@@ -77,8 +75,12 @@ describe('computeLayout', () => {
       for (const pod of placed) {
         const dx = Math.abs(pod.position.x - (platform?.position.x ?? 0));
         const dz = Math.abs(pod.position.z - (platform?.position.z ?? 0));
-        expect(dx + POD_SIZE / 2, `${count} pod: tràn ngang`).toBeLessThanOrEqual(halfW);
-        expect(dz + POD_SIZE / 2, `${count} pod: tràn dọc`).toBeLessThanOrEqual(halfD);
+        expect(dx + POD_SIZE / 2, `${count} pod: tràn ngang`).toBeLessThanOrEqual(
+          platform!.width / 2,
+        );
+        expect(dz + POD_SIZE / 2, `${count} pod: tràn dọc`).toBeLessThanOrEqual(
+          platform!.depth / 2,
+        );
       }
     }
   });
@@ -174,4 +176,112 @@ describe('podGrid', () => {
       expect(podGrid(n).pitch).toBeGreaterThan(POD_SIZE);
     }
   });
+});
+
+describe('dense mixed-resource layouts', () => {
+  it('keeps each kind in one compact block across hosts, owners and disconnected resources', () => {
+    const objects = [
+      ...['a', 'b', 'c'].map((name) =>
+        serviceView(`node-${name}`, `node-${name}`, { kind: 'Node' }),
+      ),
+      serviceView('deploy', 'deploy', { kind: 'Deployment' }),
+      serviceView('rs', 'rs', { kind: 'ReplicaSet' }),
+      serviceView('cron', 'cron', { kind: 'CronJob' }),
+      serviceView('job-a', 'job-a', { kind: 'Job' }),
+      serviceView('job-b', 'job-b', { kind: 'Job' }),
+      serviceView('job-isolated', 'job-isolated', { kind: 'Job' }),
+      podView('pod-a', 'pod-a', { nodeName: 'node-a' }),
+      podView('pod-b', 'pod-b', { nodeName: 'node-b' }),
+      podView('pod-c', 'pod-c', { nodeName: 'node-c' }),
+      podView('pod-isolated', 'pod-isolated', { nodeName: null }),
+    ];
+    const view = clusterView({
+      nodes: ['a', 'b', 'c'].map((name) => nodeView(`node-${name}`)),
+      objects,
+      edges: [
+        { fromUid: 'deploy', toUid: 'rs', kind: 'owns', healthy: true },
+        { fromUid: 'rs', toUid: 'pod-a', kind: 'owns', healthy: true },
+        { fromUid: 'cron', toUid: 'job-a', kind: 'owns', healthy: true },
+        { fromUid: 'job-a', toUid: 'pod-b', kind: 'owns', healthy: false },
+        { fromUid: 'job-b', toUid: 'pod-c', kind: 'owns', healthy: true },
+        ...['a', 'b', 'c'].map((name) => ({
+          fromUid: `node-${name}`,
+          toUid: `pod-${name}`,
+          kind: 'runs-on' as const,
+          healthy: true,
+        })),
+      ],
+    });
+    const layout = computeLayout(view);
+    const kinds = new Map(objects.map((object) => [object.uid, object.kind]));
+    for (const kind of ['Node', 'Job', 'Pod']) {
+      const members = layout.objects.filter((object) => kinds.get(object.uid) === kind);
+      const minX = Math.min(...members.map((object) => object.position.x));
+      const maxX = Math.max(...members.map((object) => object.position.x));
+      const minZ = Math.min(...members.map((object) => object.position.z));
+      const maxZ = Math.max(...members.map((object) => object.position.z));
+      expect(maxX - minX, `${kind} must form a compact block`).toBeLessThan(7);
+      if (kind === 'Pod') {
+        expect(maxZ - minZ, 'Pods may wrap into adjacent rows').toBeLessThan(2.5);
+      } else {
+        expect(maxZ - minZ, `${kind} must share a row`).toBe(0);
+      }
+      for (const other of layout.objects.filter((object) => kinds.get(object.uid) !== kind)) {
+        expect(
+          other.position.x >= minX &&
+            other.position.x <= maxX &&
+            other.position.z >= minZ &&
+            other.position.z <= maxZ,
+          `${other.uid} must not split ${kind}`,
+        ).toBe(false);
+      }
+    }
+    expect(layout.edges).toEqual(view.edges);
+    expect(
+      computeLayout({ ...view, objects: [...objects].reverse(), edges: [...view.edges].reverse() })
+        .objects,
+    ).toEqual(layout.objects);
+  });
+
+  for (const copies of [1, 4, 12]) {
+    it(`separates every resource kind with ${copies} instances of each kind`, () => {
+      const objects = (Object.keys(KINDS) as ResourceKind[]).flatMap((kind) =>
+        Array.from({ length: copies }, (_, i) =>
+          serviceView(`${kind}-${i}`, `${kind}-${i}`, {
+            kind,
+            nodeName: kind === 'Pod' ? 'node-a' : null,
+          }),
+        ),
+      );
+      // Include a dense scheduled workload plus pending pods; shelves must not
+      // consume either region even when all 26 resource kinds are present.
+      objects.push(...Array.from({ length: 80 }, (_, i) => podView(`scheduled-${i}`, `work-${i}`)));
+      objects.push(
+        ...Array.from({ length: 30 }, (_, i) =>
+          podView(`pending-${i}`, `wait-${i}`, { nodeName: null }),
+        ),
+      );
+      const view = clusterView({ objects });
+      const layout = computeLayout(view);
+      expect(layout.objects).toHaveLength(objects.length);
+      expect(
+        computeLayout({
+          ...view,
+          objects: [...objects].reverse(),
+          nodes: [...view.nodes].reverse(),
+        }),
+      ).toEqual(layout);
+      for (let i = 0; i < layout.objects.length; i++) {
+        const a = layout.objects[i]!;
+        expect(Object.values(a.position).every(Number.isFinite)).toBe(true);
+        for (let j = i + 1; j < layout.objects.length; j++) {
+          const b = layout.objects[j]!;
+          const distance = Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z);
+          expect(distance, `${a.uid} overlaps ${b.uid}`).toBeGreaterThan(
+            (a.size + b.size) / 2 + 0.45,
+          );
+        }
+      }
+    });
+  }
 });

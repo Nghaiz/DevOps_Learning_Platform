@@ -51,18 +51,23 @@ export function MetricsPanel({
       title="Số liệu cụm"
       closeLabel="Đóng bảng số liệu"
       onClose={onClose}
-      className={cn('absolute bottom-3 left-3 z-20 w-72 max-w-[calc(100%-1.5rem)]', className)}
+      className={cn('arena-metrics-panel', className)}
     >
-      <div className={cn('flex min-h-0 flex-col gap-3 px-3 py-3', HIDDEN_SCROLL)}>
+      <div
+        className={cn(
+          'arena-metrics-body flex min-h-0 flex-col gap-5 px-5 py-4 overflow-y-auto',
+          HIDDEN_SCROLL,
+        )}
+      >
         <MetricsChart
-          title="CPU trung bình"
+          title="CPU · trung bình theo node"
           values={cpu}
           max={1}
           format={percent}
           colorToken="var(--status-progress)"
         />
         <MetricsChart
-          title="Bộ nhớ trung bình"
+          title="RAM · trung bình theo node"
           values={memory}
           max={1}
           format={percent}
@@ -76,7 +81,7 @@ export function MetricsPanel({
           colorToken="var(--success)"
         />
 
-        <div>
+        <div className="arena-metrics-nodes">
           <h3 className="mb-1 text-xs text-muted-foreground">Theo node</h3>
           <ul className="flex flex-col gap-1">
             {view.nodes.map((node) => (

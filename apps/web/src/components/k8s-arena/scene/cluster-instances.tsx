@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import type { ResourceKind } from '@devops-platform/games';
 import { TIER_FEATURES } from '../shared/scene-quality';
-import { RESOURCE_KINDS } from '../shared/resource-identity';
-import { KIND_ACCENT, type QualityTier } from '../arena-contract';
+import { RESOURCE_HSL, RESOURCE_KINDS } from '../shared/resource-identity';
+import { type QualityTier } from '../arena-contract';
 import { STATUS_TINT, TERMINATING_FADE } from '../shared/status-tint';
 import { INITIAL_CAPACITY } from './scene-constants';
 import type { SceneRuntime } from './scene-entry';
@@ -110,27 +110,12 @@ export function ClusterInstances({
     [ringGeometry, ringMaterial, capacity],
   );
 
-  /*
-   * Màu của LÔ đọc từ token, và đọc LẠI mỗi khi bảng màu đổi.
-   *
-   * ⚠ Trước đây nó là `new THREE.Color(RESOURCE_COLOR[kind])` với `RESOURCE_COLOR`
-   * là một bảng hex viết tay — nghĩa là màu 3D nướng cứng lúc dựng lô và không
-   * bao giờ theo theme, trong khi `palette.kind` (đã dựng sẵn từ đúng các token
-   * đó) không ai đọc. Hai bảng màu, một cái sống một cái chết.
-   *
-   * `THREE.Color` KHÔNG phân giải được chuỗi `var(--kind-pod)` — nó trả về đen
-   * mà không báo gì — nên tầng 3D bắt buộc phải đi qua `colors.kind`, thứ
-   * `scene-tokens.ts` đã phân giải sẵn ra RGB.
-   */
   useEffect(() => {
     for (const batch of batches) {
-      const token = KIND_ACCENT[batch.kind];
-      const resolved = colors.kind[token];
-      if (resolved !== undefined) {
-        batch.color.copy(resolved);
-      }
+      const color = RESOURCE_HSL[batch.kind];
+      batch.color.setHSL(color.h, color.s, color.l, THREE.SRGBColorSpace);
     }
-  }, [batches, colors, colorsVersion]);
+  }, [batches, colorsVersion]);
 
   useEffect(() => () => batches.forEach(({ mesh }) => mesh.dispose()), [batches]);
   useEffect(() => () => geometries.forEach((geometry) => geometry.dispose()), [geometries]);

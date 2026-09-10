@@ -190,7 +190,10 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
   const metricsHistory = useMetricsHistory(engine.view);
 
   return (
-    <div className="pointer-events-none absolute inset-0">
+    <div
+      className="arena-overlays pointer-events-none absolute inset-0"
+      data-terminal-open={overlays.isOpen('terminal')}
+    >
       <ArenaAnnouncer events={engine.view.events} />
       <ArenaDock
         overlays={overlays}
@@ -331,7 +334,7 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
           history={metricsHistory}
           view={engine.view}
           onClose={() => overlays.hide('metrics')}
-          className="pointer-events-auto absolute bottom-20 left-28 z-20"
+          className="pointer-events-auto"
         />
       ) : null}
 

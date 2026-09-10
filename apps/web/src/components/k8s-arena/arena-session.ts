@@ -271,6 +271,10 @@ function useThrottledView(session: K8sEngineSession | null): ClusterView {
         const now = Date.now();
         const elapsed = now - lastAtRef.current;
         if (elapsed >= PANEL_UPDATE_MS) {
+          if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+          }
           lastAtRef.current = now;
           snapshotRef.current = session.getView();
           onStoreChange();

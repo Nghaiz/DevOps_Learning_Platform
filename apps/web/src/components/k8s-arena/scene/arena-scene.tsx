@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { TIER_FEATURES } from '../shared/scene-quality';
@@ -21,11 +21,11 @@ import { useArenaColors } from './use-arena-colors';
  * theo tham chiếu — nếu chúng đổi mỗi lần cha render thì cả cây scene bị tháo
  * dựng liên tục và kết quả là KHÔNG CÓ cảnh 3D nào.
  */
-export function ArenaScene(props: ArenaSceneProps): ReactElement | null {
+export const ArenaScene = memo(function ArenaScene(props: ArenaSceneProps): ReactElement | null {
   // Không có hook nào trước nhánh này: `enabled` tắt thì cả cảnh không tồn tại,
   // và một thân component có hook sẽ không được phép trả về sớm như vậy.
   return props.enabled ? <ArenaCanvas {...props} /> : null;
-}
+});
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);

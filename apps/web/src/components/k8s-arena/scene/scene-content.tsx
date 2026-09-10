@@ -89,6 +89,7 @@ export function SceneContent({
         colors={colors}
         colorsVersion={colorsVersion}
         visible={showEdges}
+        tier={tier}
         propsRef={propsRef}
         reducedMotion={reducedMotion}
       />

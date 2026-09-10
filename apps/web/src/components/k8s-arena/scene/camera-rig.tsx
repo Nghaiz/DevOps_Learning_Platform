@@ -154,7 +154,7 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
       if (node === undefined) {
         return;
       }
-      aimAt(node.x, PLATFORM_HEIGHT / 2, 0, CAMERA_TUNING.focusDistance);
+      aimAt(node.x, PLATFORM_HEIGHT / 2, node.z, CAMERA_TUNING.focusDistance);
     } else {
       const entry = command.uid === undefined ? undefined : runtime.entries.get(command.uid);
       if (entry === undefined) {

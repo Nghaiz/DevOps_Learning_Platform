@@ -106,3 +106,67 @@ export async function createSandboxSession(
   }
   return { session: response.session };
 }
+
+/**
+ * Thu hồi NGAY một phiên vừa tạo mà không dùng được (P15 / 15.A).
+ *
+ * ## Vì sao cần, và nó đáng bao nhiêu
+ *
+ * `labs.startAttempt` tạo phiên → chạy setup → **ném** nếu setup lỗi. Phiên nằm
+ * lại cho tới khi reaper TTL thu hồi: MỘT GIỜ. Đã đo 2026-09-09: pod
+ * `sandbox-0129152d5014` sống tiếp với `DLP_K8S=1` và `/root/lab-k8s` rỗng sau
+ * một lượt setup hỏng.
+ *
+ * ⛔ Lab k8s có trần **5 phiên đồng thời** (`requestsMemory` 1Gi mỗi pod so với
+ * quota 5952Mi, trừ pod ấm). Năm lượt hỏng liên tiếp là lab đóng cửa một tiếng,
+ * và người dùng không có cách nào biết vì sao "Còn 0 chỗ" trong khi không ai
+ * đang học. Đó là lý do một lượt rò khe ở đây nghiêm trọng hơn vẻ ngoài của nó.
+ *
+ * `lifecycle.Reap` xoá pod với grace 0 và `LREM` khỏi cả `pool:claimed` lẫn
+ * `pool:free`, nên khe quota trả lại trong cùng lời gọi — KHÔNG chờ một chu kỳ
+ * sweep. Đây cũng là lý do phải đi qua RPC này chứ không phải `kubectl delete`:
+ * xoá pod sau lưng orchestrator làm lệch warm pool và lượt claim sau phát ra tên
+ * một pod đã chết.
+ *
+ * ## Vì sao không dùng `endSessionAs` (`server/sessions/list.ts`)
+ *
+ * Hàm đó thu hẹp `reason` về đúng `'user_ended'`, và đó là một hàng rào CÓ CHỦ Ý
+ * (P13 D15): nó tồn tại để không ai nối lại đường admin-reap-như-thể-chủ-phiên
+ * bằng cách truyền một chuỗi khác. Mở union ra để dùng lại ở đây là tháo hàng rào
+ * đó cho một lý do không liên quan. Lượt reap này cũng KHÔNG phải "người dùng tự
+ * kết thúc" — không ai bấm gì; nền tảng đang dọn thứ nó vừa tạo và không dùng
+ * được. Một `reason` riêng là thứ duy nhất làm câu hỏi "phiên này chết vì sao"
+ * trả lời được từ `sessions_audit`.
+ *
+ * `actor` vẫn là CHỦ phiên (`ctx.user.id`), không phải `system_component`: nhánh
+ * ấy đòi mTLS in-cluster + CommonName trong allowlist, và chủ sở hữu ở đây đúng
+ * là người vừa yêu cầu tạo phiên.
+ *
+ * KHÔNG ném: lượt reap hỏng không được thay thế câu báo lỗi THẬT của setup bằng
+ * một câu về reap. Pod khi đó vẫn chết theo TTL — tức lùi về đúng hành vi cũ —
+ * nhưng nó phải để lại dấu, nếu không rò khe là một sự kiện vô hình (cùng lý lẽ
+ * `content/publish.ts`).
+ */
+export async function reapUnusableSession(
+  ctx: { user: { id: string; role: string } },
+  sessionId: string,
+): Promise<void> {
+  try {
+    const headers = await callHeaders(ctx.user.id, ctx.user.role);
+    await callOrchestrator(() =>
+      orchestratorClient().reapSession(
+        {
+          sessionId,
+          reason: 'setup_failed',
+          actor: { case: 'userId', value: ctx.user.id },
+        },
+        { headers },
+      ),
+    );
+  } catch (cause) {
+    console.error('[labs:startAttempt] reap phiên sau setup hỏng thất bại', {
+      sessionId,
+      error: cause instanceof Error ? cause.message : String(cause),
+    });
+  }
+}

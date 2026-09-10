@@ -28,13 +28,13 @@ export const PLATFORM_CAPACITY = 32;
  * thì bước giãn nhãn hết chỗ trống và bắt đầu ẩn hàng loạt, mà một màn hình phủ
  * kín chữ cũng không ai đọc.
  */
-export const MAX_LABELS = 28;
+export const MAX_LABELS = 64;
 /** Nửa chiều cao hộp bao nhãn, pixel. Khớp với `text-[10px]` + padding dọc. */
 export const LABEL_HALF_HEIGHT = 9;
 /** Bề rộng ước lượng mỗi ký tự ở `text-[10px]` font mono, pixel. */
 export const LABEL_CHAR_WIDTH = 5.4;
 export const LABEL_NUDGE_STEP = 15;
-export const LABEL_MAX_NUDGES = 4;
+export const LABEL_MAX_NUDGES = 8;
 
 /**
  * Nhịp bắn tia tối đa, mili-giây (~30 lần/giây).

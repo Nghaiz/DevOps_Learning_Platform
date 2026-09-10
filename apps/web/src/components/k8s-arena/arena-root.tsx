@@ -97,9 +97,10 @@ export function ArenaRoot({ level, mode, onExit }: ArenaRootProps): ReactElement
    * Engine đập nhịp nhiều lần mỗi giây; truyền mảng object qua props sẽ làm mọi
    * bảng nhận nó dựng lại theo từng nhịp, kể cả khi bảng đó đang đóng.
    */
+  const { sceneGetView } = engine;
   const listObjects = useCallback(
-    (): readonly ObjectView[] => engine.sceneGetView().objects,
-    [engine],
+    (): readonly ObjectView[] => sceneGetView().objects,
+    [sceneGetView],
   );
 
   const sendCamera = useCallback((kind: CameraCommand['kind'], target?: Partial<CameraCommand>) => {

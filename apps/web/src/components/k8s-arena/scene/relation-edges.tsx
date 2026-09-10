@@ -6,42 +6,15 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { useFrame, useThree } from '@react-three/fiber';
-import type { ArenaSceneProps } from '../arena-contract';
-import { EDGE_SEGMENTS, RELATION_KINDS, RELATION_TOKEN } from '../shared/edge-routing';
+import type { ResourceKind } from '@devops-platform/games';
+import type { ArenaSceneProps, QualityTier } from '../arena-contract';
+import { EDGE_SEGMENTS } from '../shared/edge-routing';
+import { RESOURCE_HSL, RESOURCE_KINDS } from '../shared/resource-identity';
 import type { SceneRuntime } from './scene-entry';
+import { createEdgeMarkerMaterial } from './edge-marker-material';
 import type { ArenaColors } from './use-arena-colors';
 
-/**
- * Quan hệ giữa các tài nguyên: nét liền cho quan hệ đang khoẻ, nét đứt cho quan
- * hệ ĐÁNG LẼ có mà đang đứt (selector lệch label).
- *
- * ## Vì sao `LineSegments2` chứ không phải `THREE.LineSegments`
- *
- * `LineBasicMaterial.linewidth` **bị WebGL bỏ qua** — mọi trình duyệt vẽ đúng 1
- * pixel bất kể ta khai bao nhiêu. Bản trước dùng nó, và đó là toàn bộ nguyên
- * nhân của lời phàn nàn *"line quá mỏng, rối, khó nhìn"*: ở 1px, hai chục sợi
- * cong bắt chéo nhau thành một đám chỉ rối không thể lần. (Bản tham chiếu
- * k8sgames khai `linewidth: 1.5` và cũng nhận đúng 1px — họ chưa từng vẽ được
- * bề dày mà họ nghĩ là mình đang vẽ.)
- *
- * `LineSegments2` dựng mỗi đoạn thành một dải tam giác nên bề dày là THẬT, tính
- * bằng pixel màn hình. Giá phải trả: vật liệu cần biết độ phân giải khung vẽ
- * (`resolution`) — quên bước đó thì bề dày sai lệch theo tỉ lệ khung, và nó sai
- * một cách âm thầm.
- *
- * ## Một buffer, nhiều màu
- *
- * Vẫn chỉ hai lệnh vẽ, bất kể cụm có bao nhiêu quan hệ: màu đi theo ĐỈNH
- * (`vertexColors`), nên năm loại quan hệ nằm chung một hình học. Màu lấy từ
- * token của chính loại tài nguyên ở đầu phát (`RELATION_TOKEN`) — dây từ một
- * Service mang sắc của Service, nên mắt nối được dây với vật.
- *
- * ## Làm mờ khi có vật được chọn
- *
- * Chọn một vật thì mọi dây KHÔNG dính tới nó bị hạ xuống `DIM`. Đây là cách gỡ
- * rối đúng: người chơi vẫn thấy toàn cảnh, nhưng đường liên quan nổi hẳn lên.
- * Rẻ vì chỉ ghi lại buffer màu — hình học không đụng tới.
- */
+/** Batched, screen-space relationship strokes with moving flow markers. */
 export interface RelationEdgesProps {
   readonly propsRef: RefObject<ArenaSceneProps>;
   readonly reducedMotion: boolean;
@@ -50,11 +23,12 @@ export interface RelationEdgesProps {
   readonly colorsVersion: number;
   /** Người chơi tắt dây quan hệ trong bảng cài đặt khi cụm đông và cảnh rối. */
   readonly visible: boolean;
+  readonly tier: QualityTier;
 }
 
 /** Bề dày, tính bằng pixel màn hình. Nét đứt dày hơn vì nó là tin xấu. */
-const WIDTH_SOLID = 2.6;
-const WIDTH_BROKEN = 3.4;
+const WIDTH_SOLID = 2.7;
+const WIDTH_BROKEN = 3.0;
 
 /** Hệ số nhân màu cho dây không dính tới vật đang chọn. */
 const DIM = 0.22;
@@ -75,19 +49,32 @@ export function RelationEdges({
   const invalidate = useThree((s) => s.invalidate);
   const size = useThree((s) => s.size);
   const phase = useRef(0);
+  const rendered = useRef({ solid: [] as number[], dashed: [] as number[] });
+  const routeTarget = useRef({ solid: [] as number[], dashed: [] as number[] });
+  const routeTopology = useRef('');
+  const routeBlending = useRef(false);
+  const routeFrame = useRef(0);
 
-  const markerGeometry = useMemo(() => new THREE.SphereGeometry(0.055, 8, 6), []);
-  const markerMaterial = useMemo(
-    () => new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, opacity: 0.9 }),
-    [],
-  );
+  const markerGeometry = useMemo(() => {
+    const geometry = new THREE.BufferGeometry();
+    for (const name of ['position', 'color']) {
+      geometry.setAttribute(
+        name,
+        new THREE.BufferAttribute(new Float32Array(MARKER_CAP * 3), 3).setUsage(
+          THREE.DynamicDrawUsage,
+        ),
+      );
+    }
+    geometry.setDrawRange(0, 0);
+    return geometry;
+  }, []);
+  const markerMaterial = useMemo(createEdgeMarkerMaterial, []);
   const markers = useMemo(() => {
-    const mesh = new THREE.InstancedMesh(markerGeometry, markerMaterial, MARKER_CAP);
-    mesh.frustumCulled = false;
-    mesh.count = 0;
-    return mesh;
+    const points = new THREE.Points(markerGeometry, markerMaterial);
+    points.frustumCulled = false;
+    points.renderOrder = 5;
+    return points;
   }, [markerGeometry, markerMaterial]);
-  const matrix = useMemo(() => new THREE.Matrix4(), []);
 
   const solidGeometry = useMemo(() => new LineSegmentsGeometry(), []);
   const dashedGeometry = useMemo(() => new LineSegmentsGeometry(), []);
@@ -98,11 +85,13 @@ export function RelationEdges({
         linewidth: WIDTH_SOLID,
         vertexColors: true,
         transparent: true,
-        opacity: 0.9,
+        opacity: 1,
         toneMapped: false,
+        fog: false,
         // Khử răng cưa theo độ phủ: dây mảnh chạy chéo mà thiếu nó thì viền
         // răng cưa thấy rõ hơn cả chính sợi dây.
         alphaToCoverage: true,
+        depthWrite: false,
       }),
     [],
   );
@@ -112,9 +101,11 @@ export function RelationEdges({
         linewidth: WIDTH_BROKEN,
         vertexColors: true,
         transparent: true,
-        opacity: 0.95,
+        opacity: 1,
         toneMapped: false,
+        fog: false,
         alphaToCoverage: true,
+        depthWrite: false,
         dashed: true,
         dashSize: 0.3,
         gapSize: 0.22,
@@ -125,18 +116,48 @@ export function RelationEdges({
   const solid = useMemo(() => {
     const lines = new LineSegments2(solidGeometry, solidMaterial);
     lines.frustumCulled = false;
+    lines.renderOrder = 2;
     return lines;
   }, [solidGeometry, solidMaterial]);
 
   const dashed = useMemo(() => {
     const lines = new LineSegments2(dashedGeometry, dashedMaterial);
     lines.frustumCulled = false;
+    lines.renderOrder = 2;
     return lines;
   }, [dashedGeometry, dashedMaterial]);
 
+  const focused = useMemo(
+    () =>
+      [false, true].map((broken) => {
+        const geometry = new LineSegmentsGeometry();
+        const material = new LineMaterial({
+          linewidth: 3.2,
+          vertexColors: true,
+          transparent: true,
+          opacity: 1,
+          depthTest: false,
+          depthWrite: false,
+          toneMapped: false,
+          fog: false,
+          dashed: broken,
+          dashSize: 0.3,
+          gapSize: 0.22,
+        });
+        const line = new LineSegments2(geometry, material);
+        line.frustumCulled = false;
+        line.renderOrder = 4;
+        return line;
+      }),
+    [],
+  );
+
   useEffect(
     () => () => {
-      markers.dispose();
+      focused.forEach((line) => {
+        line.geometry.dispose();
+        line.material.dispose();
+      });
       markerGeometry.dispose();
       markerMaterial.dispose();
       solidGeometry.dispose();
@@ -145,6 +166,7 @@ export function RelationEdges({
       dashedMaterial.dispose();
     },
     [
+      focused,
       markers,
       markerGeometry,
       markerMaterial,
@@ -161,53 +183,91 @@ export function RelationEdges({
    * mọi kích thước khác — sai âm thầm, không lỗi, không cảnh báo.
    */
   useEffect(() => {
+    // LineSegments2 normally overwrites this with device pixels at draw time.
+    solid.onBeforeRender = () => solidMaterial.resolution.set(size.width, size.height);
+    dashed.onBeforeRender = () => dashedMaterial.resolution.set(size.width, size.height);
     solidMaterial.resolution.set(size.width, size.height);
     dashedMaterial.resolution.set(size.width, size.height);
-    invalidate();
-  }, [size, solidMaterial, dashedMaterial, invalidate]);
-
-  /** Màu của từng loại quan hệ, theo đúng thứ tự `RELATION_KINDS`. */
-  const kindColors = useMemo(() => RELATION_KINDS.map(() => new THREE.Color()), []);
-  useEffect(() => {
-    for (let i = 0; i < RELATION_KINDS.length; i += 1) {
-      const kind = RELATION_KINDS[i];
-      const target = kindColors[i];
-      if (kind === undefined || target === undefined) {
-        continue;
-      }
-      const token = RELATION_TOKEN[kind];
-      // Thiếu token thì lùi về màu dây chung, không lùi về đen: một sợi dây đen
-      // trên nền đen là một sợi dây biến mất.
-      target.copy(colors.kind[token] ?? colors.edge);
+    for (const line of focused) {
+      line.onBeforeRender = () => line.material.resolution.set(size.width, size.height);
+      line.material.resolution.set(size.width, size.height);
     }
-  }, [kindColors, colors, colorsVersion]);
+    invalidate();
+  }, [size, solid, dashed, solidMaterial, dashedMaterial, focused, invalidate]);
 
-  useFrame((_state, dt) => {
+  const resourceColors = useMemo(
+    () =>
+      new Map(
+        RESOURCE_KINDS.map((kind) => {
+          const { h, s, l } = RESOURCE_HSL[kind];
+          return [
+            kind,
+            new THREE.Color().setHSL(h, s, Math.min(0.76, l + 0.08), THREE.SRGBColorSpace),
+          ];
+        }),
+      ),
+    [],
+  );
+
+  useFrame((state, dt) => {
+    focused.forEach((line) => {
+      line.visible = visible && !!propsRef.current.selectedUid;
+    });
     solid.visible = visible;
     dashed.visible = visible;
-    markers.visible = visible && !reducedMotion;
+    markers.visible = visible;
     if (!visible) {
       return;
     }
 
     const structureChanged = builtRef.current !== runtime.structureVersion;
     if (structureChanged) {
+      const topology = runtime.links
+        .map((link) => `${link.fromUid}:${link.toUid}:${link.kind}:${link.healthy}`)
+        .join('|');
+      routeTarget.current = { solid: [...runtime.edges.solid], dashed: [...runtime.edges.dashed] };
+      if (
+        topology !== routeTopology.current ||
+        reducedMotion ||
+        rendered.current.solid.length !== runtime.edges.solid.length ||
+        rendered.current.dashed.length !== runtime.edges.dashed.length
+      ) {
+        rendered.current = { solid: [...runtime.edges.solid], dashed: [...runtime.edges.dashed] };
+        routeTopology.current = topology;
+      }
+      routeBlending.current = true;
       builtRef.current = runtime.structureVersion;
-      writePositions(solidGeometry, runtime.edges.solid);
-      writePositions(dashedGeometry, runtime.edges.dashed);
-      // `dashed` đọc khoảng cách dọc dây để biết chỗ nào là nét, chỗ nào là
-      // khoảng hở. Thiếu bước này thì nét đứt ra nét liền — và lúc đó một quan
-      // hệ ĐANG ĐỨT trông y hệt một quan hệ khoẻ.
-      dashed.computeLineDistances();
-      // Buộc tô lại: hình học mới thì buffer màu cũ không còn khớp số đoạn.
       tintedRef.current = '';
+    }
+    if (routeBlending.current) {
+      const blend = reducedMotion ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 22);
+      let remaining = 0;
+      for (const batch of ['solid', 'dashed'] as const) {
+        const points = rendered.current[batch],
+          target = routeTarget.current[batch];
+        for (let i = 0; i < target.length; i++) {
+          const at = i % (EDGE_SEGMENTS * 6);
+          // Attachment points track resources immediately; curve changes ease in.
+          const endpoint = at < 3 || at >= EDGE_SEGMENTS * 6 - 3;
+          const delta = target[i]! - (points[i] ?? target[i]!);
+          points[i] = endpoint || Math.abs(delta) < 0.001 ? target[i]! : points[i]! + delta * blend;
+          if (!endpoint) remaining = Math.max(remaining, Math.abs(delta));
+        }
+      }
+      writePositions(solidGeometry, rendered.current.solid);
+      writePositions(dashedGeometry, rendered.current.dashed);
+      writeDistances(solidGeometry, rendered.current.solid);
+      writeDistances(dashedGeometry, rendered.current.dashed);
+      routeFrame.current++;
+      routeBlending.current = remaining > 0.001;
+      if (routeBlending.current) invalidate();
     }
 
     /*
      * Buffer màu chỉ ghi lại khi có lý do: đổi cấu trúc, đổi theme, hoặc đổi vật
      * đang chọn. Khoá gộp cả ba nên một khung hình bình thường không đụng gì.
      */
-    const focus = propsRef.current.selectedUid ?? propsRef.current.hoveredUid ?? '';
+    const focus = propsRef.current.selectedUid ?? '';
     const tintKey = `${runtime.structureVersion}|${colorsVersion}|${focus}`;
     if (tintedRef.current !== tintKey) {
       tintedRef.current = tintKey;
@@ -216,7 +276,8 @@ export function RelationEdges({
         runtime.edges.solidKinds,
         runtime.edges.solidLinks,
         runtime.links,
-        kindColors,
+        runtime,
+        resourceColors,
         colors.edgeBroken,
         focus,
       );
@@ -225,51 +286,90 @@ export function RelationEdges({
         runtime.edges.dashedKinds,
         runtime.edges.dashedLinks,
         runtime.links,
-        // Quan hệ đứt KHÔNG mang màu của loại: nó phải đọc ra là hỏng, bất kể nó
-        // hỏng ở tầng mạng hay tầng lưu trữ.
-        null,
+        runtime,
+        resourceColors,
         colors.edgeBroken,
         focus,
       );
     }
 
+    const focusKey = `${routeFrame.current}:${colorsVersion}:${focus}`;
+    if (focused[0]!.userData.key !== focusKey) {
+      focused[0]!.userData.key = focusKey;
+      for (let batch = 0; batch < focused.length; batch++) {
+        const points = batch ? rendered.current.dashed : rendered.current.solid;
+        const owners = batch ? runtime.edges.dashedLinks : runtime.edges.solidLinks;
+        const kinds = batch ? runtime.edges.dashedKinds : runtime.edges.solidKinds;
+        const selectedPoints: number[] = [],
+          selectedOwners: number[] = [],
+          selectedKinds: number[] = [];
+        for (let segment = 0; segment < owners.length; segment++) {
+          const link = runtime.links[owners[segment]!];
+          if (!focus || !link || (link.fromUid !== focus && link.toUid !== focus)) continue;
+          selectedPoints.push(...points.slice(segment * 6, segment * 6 + 6));
+          selectedOwners.push(owners[segment]!);
+          selectedKinds.push(kinds[segment]!);
+        }
+        const geometry = focused[batch]!.geometry;
+        writePositions(geometry, selectedPoints);
+        writeDistances(geometry, selectedPoints);
+        writeColors(
+          geometry,
+          selectedKinds,
+          selectedOwners,
+          runtime.links,
+          runtime,
+          resourceColors,
+          colors.edgeBroken,
+          focus,
+        );
+      }
+    }
+
     const speed = propsRef.current.simulationSpeed ?? 1;
     const running = !reducedMotion && speed > 0 && document.visibilityState === 'visible';
-    if (!running) {
-      markers.count = 0;
-      return;
-    }
+    if (running) phase.current = (phase.current + Math.min(dt, 0.1) * speed * 0.16) % 1;
 
-    phase.current += Math.min(dt, 0.1) * speed * 0.32;
-    // Nét đứt TRÔI NGƯỢC chiều quan hệ: mắt đọc ra "đang cố mà không tới nơi",
-    // khác hẳn đoàn hạt xuôi chiều trên dây khoẻ.
-    dashedMaterial.dashOffset = phase.current * 0.6;
-
-    const points = runtime.edges.solid;
+    // Broken relationships carry their own moving dash pattern, never dots.
+    // A negative offset moves dashes in increasing path-distance direction.
+    dashedMaterial.dashOffset = -phase.current * 0.52 * 8;
+    focused[1]!.material.dashOffset = dashedMaterial.dashOffset;
+    markerMaterial.uniforms.pixelRatio!.value = state.gl.getPixelRatio();
+    markerMaterial.depthTest = !focus;
+    const positions = markerGeometry.getAttribute('position') as THREE.BufferAttribute;
+    const dotColors = markerGeometry.getAttribute('color') as THREE.BufferAttribute;
     const stride = EDGE_SEGMENTS * 6;
-    markers.count = Math.min(MARKER_CAP, Math.floor(points.length / stride));
-    for (let i = 0; i < markers.count; i += 1) {
-      const t = ((phase.current + i * 0.37) % 1) * EDGE_SEGMENTS;
-      const offset = i * stride + Math.floor(t) * 6;
-      const mix = t % 1;
-      const x = points[offset] ?? 0;
-      const y = points[offset + 1] ?? 0;
-      const z = points[offset + 2] ?? 0;
-      matrix.makeTranslation(
-        x + ((points[offset + 3] ?? x) - x) * mix,
-        y + ((points[offset + 4] ?? y) - y) * mix,
-        z + ((points[offset + 5] ?? z) - z) * mix,
-      );
-      markers.setMatrixAt(i, matrix);
+    let count = 0;
+    for (const batch of ['solid'] as const) {
+      const points = rendered.current[batch];
+      const owners = runtime.edges.solidLinks;
+      for (let i = 0; i < points.length / stride && count < MARKER_CAP; i++) {
+        const link = runtime.links[owners[i * EDGE_SEGMENTS]!];
+        if (focus && link?.fromUid !== focus && link?.toUid !== focus) continue;
+        const source = link ? runtime.entries.get(link.fromUid) : undefined;
+        const color = (source ? resourceColors.get(source.kind) : undefined) ?? colors.edge;
+        const t = ((phase.current + i * 0.381966) % 1) * EDGE_SEGMENTS;
+        const offset = i * stride + Math.floor(t) * 6;
+        const mix = t % 1;
+        for (let axis = 0; axis < 3; axis++) {
+          const start = points[offset + axis]!;
+          positions.array[count * 3 + axis] = start + (points[offset + axis + 3]! - start) * mix;
+        }
+        dotColors.setXYZ(count, color.r, color.g, color.b);
+        count++;
+      }
     }
-    markers.instanceMatrix.needsUpdate = true;
-    if (markers.count > 0) {
-      invalidate();
-    }
+    markerGeometry.setDrawRange(0, count);
+    positions.needsUpdate = true;
+    dotColors.needsUpdate = true;
+    if (running && (count > 0 || rendered.current.dashed.length > 0)) invalidate();
   });
 
   return (
     <>
+      {focused.map((line, i) => (
+        <primitive key={`focus-${i}`} object={line} />
+      ))}
       <primitive object={markers} />
       <primitive object={solid} />
       <primitive object={dashed} />
@@ -277,34 +377,31 @@ export function RelationEdges({
   );
 }
 
-/**
- * Nạp toạ độ. `LineSegmentsGeometry` tự tách thành thuộc tính instance, nên
- * không tái dùng buffer được như `BufferGeometry` — nhưng nó chỉ chạy khi cấu
- * trúc đổi, không chạy mỗi khung hình.
- */
+/** Reuse position buffers while the number of segments remains unchanged. */
 function writePositions(geometry: LineSegmentsGeometry, points: readonly number[]): void {
-  if (points.length === 0) {
-    // `setPositions([])` để lại thuộc tính rỗng và WebGL cảnh báo mỗi khung hình.
-    geometry.setPositions(new Float32Array(6));
-    geometry.instanceCount = 0;
-    return;
+  const attribute = geometry.getAttribute('instanceStart') as
+    THREE.InterleavedBufferAttribute | undefined;
+  if (attribute && attribute.data.array.length === Math.max(6, points.length)) {
+    attribute.data.array.set(points);
+    attribute.data.needsUpdate = true;
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+  } else {
+    // Release old GPU buffers before replacing attributes on topology changes.
+    geometry.dispose();
+    geometry.setPositions(points.length ? new Float32Array(points) : new Float32Array(6));
   }
-  geometry.setPositions(new Float32Array(points));
   geometry.instanceCount = points.length / 6;
 }
 
-/**
- * Nạp màu cho từng đỉnh, có tính chuyện làm mờ.
- *
- * `kindColors === null` nghĩa là mọi đoạn dùng chung `fallback` — dùng cho dây
- * đứt, thứ phải đọc ra là hỏng chứ không đọc ra là "thuộc tầng mạng".
- */
+/** Source resource identity stays readable on both solid and broken edges. */
 function writeColors(
   geometry: LineSegmentsGeometry,
   kinds: readonly number[],
   owners: readonly number[],
   links: readonly { readonly fromUid: string; readonly toUid: string }[],
-  kindColors: readonly THREE.Color[] | null,
+  runtime: SceneRuntime,
+  resourceColors: ReadonlyMap<ResourceKind, THREE.Color>,
   fallback: THREE.Color,
   focus: string,
 ): void {
@@ -314,12 +411,12 @@ function writeColors(
   }
   const out = new Float32Array(kinds.length * 6);
   for (let segment = 0; segment < kinds.length; segment += 1) {
-    const kindIndex = kinds[segment] ?? -1;
-    const color = (kindColors === null ? undefined : kindColors[kindIndex]) ?? fallback;
+    const link = links[owners[segment] ?? -1];
+    const source = link ? runtime.entries.get(link.fromUid) : undefined;
+    const color = (source ? resourceColors.get(source.kind) : undefined) ?? fallback;
 
     let scale = 1;
     if (focus !== '') {
-      const link = links[owners[segment] ?? -1];
       const related = link !== undefined && (link.fromUid === focus || link.toUid === focus);
       scale = related ? 1 : DIM;
     }
@@ -337,5 +434,44 @@ function writeColors(
     out[base + 4] = g;
     out[base + 5] = b;
   }
-  geometry.setColors(out);
+  const attribute = geometry.getAttribute('instanceColorStart') as
+    THREE.InterleavedBufferAttribute | undefined;
+  if (attribute && attribute.data.array.length === out.length) {
+    attribute.data.array.set(out);
+    attribute.data.needsUpdate = true;
+  } else {
+    geometry.setColors(out);
+  }
+}
+
+/** Each relationship starts its own dash phase; reuse the GPU distance buffer
+ * while endpoints move instead of allocating one on every animation frame. */
+function writeDistances(geometry: LineSegmentsGeometry, points: readonly number[]): void {
+  const attribute = geometry.getAttribute('instanceDistanceStart') as
+    THREE.InterleavedBufferAttribute | undefined;
+  const length = Math.max(2, points.length / 3);
+  const data =
+    attribute?.data.array.length === length
+      ? attribute.data
+      : new THREE.InstancedInterleavedBuffer(new Float32Array(length), 2, 1);
+  let distance = 0;
+  for (let segment = 0; segment < points.length / 6; segment++) {
+    if (segment % EDGE_SEGMENTS === 0) distance = 0;
+    const offset = segment * 6;
+    data.array[segment * 2] = distance;
+    distance += Math.hypot(
+      points[offset + 3]! - points[offset]!,
+      points[offset + 4]! - points[offset + 1]!,
+      points[offset + 5]! - points[offset + 2]!,
+    );
+    data.array[segment * 2 + 1] = distance;
+  }
+  if (data !== attribute?.data) {
+    geometry.setAttribute(
+      'instanceDistanceStart',
+      new THREE.InterleavedBufferAttribute(data, 1, 0),
+    );
+    geometry.setAttribute('instanceDistanceEnd', new THREE.InterleavedBufferAttribute(data, 1, 1));
+  }
+  data.needsUpdate = true;
 }
