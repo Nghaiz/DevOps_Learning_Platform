@@ -180,7 +180,20 @@ function PathItemCard({
   const openable = view.openability === 'open';
 
   return (
-    <Card className={`flex flex-col gap-3 p-4 shadow-elevation-1 ${openable ? '' : 'opacity-80'}`}>
+    /*
+     * KHÔNG làm mờ thẻ khi bước chưa mở.
+     *
+     * Bản trước dùng `opacity-80`, và nó nhân xuống mọi con — kể cả
+     * `text-muted-foreground text-xs` vốn đã nằm sát sàn 4.5:1. Lượt nghiệm thu
+     * 16.I đo được axe `color-contrast` mức SERIOUS ở đúng đây. Test contrast
+     * của `packages/ui` không bắt được: nó tính tương phản của TOKEN, còn
+     * opacity áp ở tầng cha lúc render, sau khi token đã qua cổng.
+     *
+     * Trạng thái "chưa mở" không mất đi: `<Badge variant={view.stateVariant}>`
+     * ngay bên dưới nói ra nó bằng chữ, và chữ thì đọc được bằng trình đọc màn
+     * hình còn lớp mờ thì không. Lớp mờ là tín hiệu THỪA mua bằng khả năng đọc.
+     */
+    <Card className="flex flex-col gap-3 p-4 shadow-elevation-1">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">{view.ordinalLabel}</span>

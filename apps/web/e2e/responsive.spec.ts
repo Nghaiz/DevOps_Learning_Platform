@@ -207,7 +207,27 @@ test(`${String(DESKTOP_TARGET_MIN_PX)}px — bố cục đầy đủ: nav ngang 
   const path = await resolvePath(api, LESSON);
   await openScreen(page, path, LESSON.auth);
 
-  await expect(desktopNav(page)).toBeVisible();
+  /*
+   * Nav ngang phải ẨN ở đây, và đó là thiết kế chứ không phải thiếu sót.
+   *
+   * `/lessons/:id` nằm trong `IMMERSIVE_CHILD_PREFIXES` của
+   * `components/shell/immersive-routes.ts`: P16 §16.D.1 gỡ thanh nav toàn cục
+   * khỏi hai cây `/labs` và `/lessons` vì nó ăn 56px dọc trên đúng màn hình mà
+   * mỗi pixel dọc là một dòng terminal.
+   *
+   * Khẳng định cũ ở đây là `toBeVisible()`, viết TRƯỚC thay đổi đó, và lượt
+   * nghiệm thu 16.I đọc nó thành một hồi quy của tám lane. Nó không phải hồi
+   * quy — nó là một ô test lỗi thời. Ai thấy ô này đỏ thì sửa ô, đừng gỡ hai
+   * tiền tố kia ra khỏi `immersive-routes.ts`.
+   *
+   * Phủ "màn rộng thì có nav ngang" KHÔNG mất: nó nằm ở ô đối chứng ngay dưới,
+   * chạy trên một route không-immersive ở cùng 1280px.
+   */
+  await expect(
+    desktopNav(page),
+    'Route immersive phải KHÔNG có nav ngang. Nó hiện ra nghĩa là hai tiền tố ' +
+      '/labs và /lessons đã rơi khỏi immersive-routes.ts.',
+  ).toBeHidden();
   await expect(narrowNotice(page)).toBeHidden();
 
   // Chưa bấm Bắt đầu ⇒ chưa có phiên ⇒ chưa có bề mặt xterm. Thứ PHẢI có là
@@ -215,6 +235,23 @@ test(`${String(DESKTOP_TARGET_MIN_PX)}px — bố cục đầy đủ: nav ngang 
   // dựng khoang, chứ không phải một cảnh báo khác.
   await expect(page.getByText(/để dựng sandbox và mở terminal/)).toBeVisible();
   await expect(terminalSurface(page)).toHaveCount(0);
+});
+
+test(`${String(DESKTOP_TARGET_MIN_PX)}px — ĐỐI CHỨNG: route KHÔNG immersive vẫn có nav ngang @responsive`, async ({
+  api,
+  page,
+}) => {
+  /*
+   * Vế còn lại của ô ngay trên. Một mình "immersive thì ẩn nav" là nửa phép đo:
+   * nó xanh y hệt khi vỏ ngừng dựng nav ở MỌI route. Cần một route không
+   * immersive ở CÙNG bề rộng mới phân biệt được "ẩn có chọn lọc" với "mất hẳn".
+   */
+  await page.setViewportSize({ width: DESKTOP_TARGET_MIN_PX, height: 900 });
+  const path = await resolvePath(api, CATALOG);
+  await openScreen(page, path, CATALOG.auth);
+
+  await expect(desktopNav(page)).toBeVisible();
+  await expect(narrowNotice(page)).toBeHidden();
 });
 
 // ═══════════════════════ P16 §16.I mục 4 — quét 32 màn ở 390px, KHÔNG tràn ngang

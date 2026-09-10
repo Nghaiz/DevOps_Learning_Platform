@@ -91,21 +91,22 @@ const ARC_SAMPLES = 720;
 /** `--motion-slow` của hệ. Cung chạy trong khoảng này khi KHÔNG bật reduced-motion. */
 const MOTION_SLOW_MS = 320;
 
-/** Nhịp lấy mẫu chuyển động, xấp xỉ một khung hình 60fps. */
-const SAMPLE_INTERVAL_MS = 16;
-
 /** Tổng thời gian lấy mẫu — dài hơn `--motion-slow` để bắt được cả nhịp cuối. */
 const SAMPLE_WINDOW_MS = 400;
 
-/**
- * Số giá trị TRUNG GIAN tối thiểu để gọi là "chạy" thay vì "nhảy".
+/*
+ * Hai hằng của đường LẤY MẪU (`SAMPLE_INTERVAL_MS`, `MIN_INTERMEDIATE_SAMPLES`)
+ * đã bị gỡ, và lý do đáng giữ hơn chính chúng.
  *
- * Một transition 320ms lấy mẫu mỗi 16ms cho tới ~20 mẫu trung gian trên lý
- * thuyết. Đòi 4 là biên rộng có chủ ý: cụm/máy dựng có thể bỏ khung, và một ô
- * đối chứng chập chờn sẽ bị nới cho tới khi hết kêu được. Nhưng 4 vẫn phân biệt
- * dứt khoát với NHẢY, vốn cho đúng **0** giá trị trung gian.
+ * Đường đó đọc `getComputedStyle(path).strokeDashoffset` nhiều lần rồi đếm giá
+ * trị trung gian. Nó không thể hoạt động ở đây: Chrome trả về chuỗi nguyên văn
+ * `calc(0.95px)` chứ không phân giải, vì `--p` là custom property CHƯA đăng ký
+ * `@property`. `parseFloat` trên chuỗi đó ra `NaN`, nên ô đỏ với câu "calc()
+ * không phản ứng với --p" — một phán quyết về SẢN PHẨM sinh ra từ lỗi HARNESS.
+ *
+ * Đường thay thế là `getAnimations()` cộng ba sự kiện transition; chi tiết ở
+ * chú thích cuối file.
  */
-const MIN_INTERMEDIATE_SAMPLES = 4;
 
 /** Hai `<path>` của `ProgressBar`: [0] là rãnh, [1] là cung tiến độ mang `--p`. */
 function progressArc(page: Page): Locator {
