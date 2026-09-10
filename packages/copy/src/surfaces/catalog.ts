@@ -328,6 +328,158 @@ export const catalog = {
     'Trong lúc chờ, các level của Kubernetes Game dạy đúng những thao tác mà bài tập ở đây sẽ hỏi.',
   'catalog.problems.empty-cta': 'Mở Kubernetes Game',
 
+  /*
+   * ── Bảng danh sách bài ───────────────────────────────────────────────────
+   *
+   * Chín tiêu đề cột là chín slot RIÊNG, không dùng lại bốn khoá
+   * `catalog.problems.*-legend` ở trên dù bốn trong số chúng đang trùng chữ.
+   * Một `legend` là nhãn của một bộ lọc nhiều lựa chọn, một `col` là tên cột
+   * của bảng; chúng đổi vì hai lý do khác nhau, và dùng chung một khoá nghĩa
+   * là sửa nhãn bộ lọc thì tiêu đề bảng đổi theo mà không ai định thế.
+   */
+  'catalog.problems.table-caption': 'Bấm vào tên bài để xem đề và bắt đầu làm.',
+  'catalog.problems.col-code': 'Mã bài',
+  'catalog.problems.col-title': 'Tên bài',
+  'catalog.problems.col-difficulty': 'Độ khó',
+  'catalog.problems.col-topics': 'Chủ đề',
+  'catalog.problems.col-tags': 'Tag',
+  'catalog.problems.col-acceptance': 'Tỉ lệ giải',
+  'catalog.problems.col-solvers': 'Người giải',
+  'catalog.problems.col-time-limit': 'Hạn giờ',
+  'catalog.problems.col-status': 'Trạng thái',
+
+  /*
+   * Ô tag rỗng: CHỮ, không phải một ký tự gạch.
+   *
+   * Bản cũ vẽ U+2014 trần trong ô. Nó không sang được bản đồ này vì luật gõ
+   * phím của cả gói cấm ba ký tự gạch dài, nhưng đổi sang chữ không phải một
+   * lượt lách cổng: trình đọc màn hình đọc ký tự đó ra thành tên của nó (hoặc
+   * bỏ qua hẳn), nên ô đó vốn đã không nói được điều nó định nói.
+   */
+  'catalog.problems.no-tag': 'Không có',
+  'catalog.problems.tags-more': (p: { n: number }) => `còn ${p.n} tag nữa`,
+
+  /*
+   * Ba trạng thái của NGƯỜI ĐANG XEM. Bằng đúng miền của union
+   * `ProblemViewerStatus` trong `packages/games`, và `Record<ProblemViewerStatus,
+   * TextKey>` ở `problem-labels.ts` giữ hai bên khớp nhau: thêm trạng thái thứ
+   * tư vào hợp đồng thì bảng khoá đỏ ngay, chứ không lặng lẽ mất khỏi bộ lọc.
+   */
+  'catalog.problems.viewer-solved': 'Đã giải',
+  'catalog.problems.viewer-attempted': 'Đã thử',
+  'catalog.problems.viewer-untouched': 'Chưa động tới',
+
+  /*
+   * Bốn khoá sắp xếp của hợp đồng, KHÔNG có `title`: collation Postgres không
+   * khớp JavaScript với tiếng Việt có dấu, mà lệch thứ tự dưới phân trang
+   * keyset nghĩa là mất dòng trong im lặng.
+   */
+  'catalog.problems.order-code': 'Mã bài',
+  'catalog.problems.order-difficulty': 'Độ khó',
+  'catalog.problems.order-solvers': 'Số người giải',
+  'catalog.problems.order-created': 'Ngày thêm',
+  'catalog.problems.direction-asc': 'Tăng dần',
+  'catalog.problems.direction-desc': 'Giảm dần',
+
+  /*
+   * ── Bốn con số của một hàng, dựng thành chữ ───────────────────────────────
+   *
+   * "0%" và "chưa ai thử" là HAI câu khác nhau, và hợp đồng cho cả hai cùng một
+   * số 0 (`acceptanceRate` = 0 khi `attemptCount` = 0). In "0%" lúc chưa ai thử
+   * là nói rằng bài này ai cũng trượt: một câu sai, và sai theo hướng làm người
+   * học né bài. Nhánh chọn nằm ở `formatAcceptance`, hai câu nằm ở đây.
+   */
+  'catalog.problems.acceptance-none': 'Chưa ai thử',
+  'catalog.problems.acceptance-percent': (p: { percent: number }) => `${p.percent}%`,
+  'catalog.problems.time-unlimited': 'Không giới hạn',
+  'catalog.problems.duration-seconds': (p: { seconds: number }) => `${p.seconds} giây`,
+  'catalog.problems.duration-minutes': (p: { minutes: number }) => `${p.minutes} phút`,
+  'catalog.problems.duration-both': (p: { minutes: number; seconds: number }) =>
+    `${p.minutes} phút ${p.seconds} giây`,
+
+  // ── Chi tiết một bài tập (`/problems/[code]`) ─────────────────────────
+  //
+  // Số nhiều `catalog.problems.*` là màn DANH SÁCH, số ít `catalog.problem.*`
+  // là màn CHI TIẾT. Cùng cách chia như `catalog.noun.paths` so với
+  // `catalog.path.*`.
+  //
+  // Thẻ `<title>` dựng từ MÃ chứ không từ tên bài: lấy tên đòi một lượt gọi máy
+  // chủ thứ hai chỉ để điền thẻ, trong khi mã bài đã là thứ người ta đọc cho
+  // nhau nghe ("làm được K8S-0042 chưa?") và nó không bao giờ đổi.
+  'catalog.problem.meta-title': (p: { code: string }) => `${p.code} · Bài tập · DevOps Learning Platform`,
+
+  /*
+   * `NOT_FOUND` gồm cả bài `draft`: hợp đồng nói bài nháp không hiện với người
+   * học KỂ CẢ khi họ biết URL, nên máy chủ trả "không có" chứ không phải "không
+   * được xem". Câu ở đây phải giữ đúng ranh giới đó, vì phân biệt hai câu chính
+   * là rò rỉ sự tồn tại của bài.
+   */
+  'catalog.problem.not-found-title': (p: { code: string }) => `Không có bài nào mã ${p.code}`,
+  'catalog.problem.not-found-body':
+    'Mã bài có dạng K8S-0042. Kiểm tra lại đường dẫn, hoặc tìm bài từ danh sách.',
+  'catalog.problem.back': 'Về danh sách bài',
+  'catalog.problem.error-title': 'Không tải được bài',
+  'catalog.problem.loading': 'Đang tải bài tập',
+
+  /*
+   * Ba con số trong một câu, và câu này KHÔNG được rút gọn thành "tỉ lệ giải X%":
+   * mẫu số là thứ nói cho người đọc biết con số kia đáng tin tới đâu. 50% trên
+   * hai lượt thử và 50% trên hai nghìn lượt là hai điều khác nhau.
+   */
+  'catalog.problem.stats': (p: { acceptance: string; solvers: number; attempts: number }) =>
+    `Tỉ lệ giải ${p.acceptance} · ${p.solvers} người đã giải trên ${p.attempts} người đã thử`,
+
+  /*
+   * Hạn giờ nói TRƯỚC khi bấm, không phải sau. Người đọc đề rồi mới biết bài
+   * chạy đồng hồ đã mất một phần thời gian của chính lượt đó. Tách hai nửa vì
+   * nửa đầu in đậm còn nửa sau không, và một khoá chở cả hai sẽ buộc nơi gọi
+   * cắt chuỗi để tô đậm.
+   */
+  'catalog.problem.time-limit-lead': (p: { limit: string }) => `Bài này có hạn giờ: ${p.limit}.`,
+  'catalog.problem.time-limit-note':
+    'Đồng hồ bắt đầu chạy khi bạn mở đấu trường, không phải khi bạn đọc đề.',
+
+  'catalog.problem.statement': 'Đề bài',
+  'catalog.problem.start': 'Bắt đầu làm bài',
+
+  /*
+   * ── Gợi ý CÓ GIÁ ─────────────────────────────────────────────────────────
+   *
+   * Giá nói ngay trên nhãn nút, không nấp trong một hộp thoại xác nhận hiện ra
+   * sau cú bấm đầu. Số điểm là THAM SỐ chứ không viết cứng: mỗi gợi ý có mức
+   * trừ riêng do người soạn đặt.
+   */
+  'catalog.problem.hints-title': 'Gợi ý',
+  'catalog.problem.hints-none': 'Bài này không có gợi ý, đề đã nói đủ.',
+  'catalog.problem.hints-cost': 'Mở một gợi ý là trừ điểm của lượt làm bài, và không hoàn lại được.',
+  'catalog.problem.hints-spent': (p: { count: number; points: number }) =>
+    `Bạn đã mở ${p.count} gợi ý, tổng trừ ${p.points} điểm.`,
+  'catalog.problem.hint-ordinal': (p: { n: number }) => `Gợi ý ${p.n}`,
+  'catalog.problem.hint-revealed': (p: { points: number }) => `Đã mở · trừ ${p.points} điểm`,
+  'catalog.problem.hint-reveal': (p: { points: number }) => `Mở gợi ý (trừ ${p.points} điểm)`,
+
+  // ── Lịch sử nộp của chính người đang xem ──────────────────────────────
+  'catalog.problem.subs-title': 'Lượt nộp của bạn',
+  'catalog.problem.subs-error-title': 'Không tải được lịch sử nộp',
+  'catalog.problem.subs-empty':
+    'Bạn chưa nộp lượt nào cho bài này. Mở đấu trường và thao tác cho tới khi mọi mục tiêu xanh.',
+  'catalog.problem.subs-col-at': 'Thời điểm',
+  'catalog.problem.subs-col-result': 'Kết quả',
+  'catalog.problem.subs-col-score': 'Điểm',
+  'catalog.problem.subs-col-duration': 'Thời gian làm',
+  'catalog.problem.subs-col-moves': 'Số nước',
+  'catalog.problem.subs-col-hints': 'Gợi ý đã mở',
+
+  /*
+   * Kết quả của một LƯỢT NỘP, không phải trạng thái của người xem. Trùng chữ
+   * với `catalog.problems.viewer-solved` là trùng ngẫu nhiên: "Đã giải" ở đây
+   * nói về một lượt cụ thể, còn ở kia nói về toàn bộ lịch sử của người dùng với
+   * bài này, và cặp đối lập cũng khác ("Chưa đạt" so với "Chưa động tới").
+   */
+  'catalog.problem.subs-solved': 'Đã giải',
+  'catalog.problem.subs-failed': 'Chưa đạt',
+  'catalog.problem.subs-more': 'Còn lượt nộp cũ hơn không hiện ở trang này.',
+
   // ── Chi tiết một lộ trình (`/paths/[id]`) ─────────────────────────────
   //
   // Ổ khoá vẽ trên màn này là HÌNH ẢNH của một luật chạy ở server, không phải

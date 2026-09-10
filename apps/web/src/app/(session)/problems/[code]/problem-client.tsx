@@ -2,6 +2,7 @@
 
 import type { ReactElement, ReactNode } from 'react';
 import Link from 'next/link';
+import { t } from '@devops-platform/copy';
 import { Button, EmptyState, ErrorState, Skeleton } from '@devops-platform/ui';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../../../lib/trpc';
@@ -41,9 +42,21 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
   if (detail.isPending) {
     return (
       <Shell>
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-24 w-full" />
+        {/*
+          Cùng khuôn với khung chờ của lưới danh mục: một vùng `role="status"`
+          có nhãn, không phải ba hình chữ nhật câm. Không có nhãn thì trình đọc
+          màn hình thông báo trang đã tải xong trong lúc chưa có gì để đọc.
+        */}
+        <div
+          role="status"
+          aria-live="polite"
+          aria-label={t('catalog.problem.loading')}
+          className="flex flex-col gap-8"
+        >
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       </Shell>
     );
   }
@@ -56,11 +69,11 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
       return (
         <Shell>
           <EmptyState
-            title={`Không có bài nào mã ${code}`}
-            description="Mã bài có dạng K8S-0042. Kiểm tra lại đường dẫn, hoặc tìm bài từ danh sách."
+            title={t('catalog.problem.not-found-title', { code })}
+            description={t('catalog.problem.not-found-body')}
             action={
               <Button asChild variant="outline" size="sm">
-                <Link href="/problems">Về danh sách bài</Link>
+                <Link href="/problems">{t('catalog.problem.back')}</Link>
               </Button>
             }
           />
@@ -70,7 +83,7 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
     return (
       <Shell>
         <ErrorState
-          title="Không tải được bài"
+          title={t('catalog.problem.error-title')}
           message={describeTrpcError(detail.error)}
           retrying={detail.isFetching}
           onRetry={() => void detail.refetch()}

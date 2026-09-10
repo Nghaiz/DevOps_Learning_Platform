@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
+import { t } from '@devops-platform/copy';
 import { isProblemCode } from '@devops-platform/games';
 import { readViewerSession } from '../../../../components/catalog/viewer-role.server';
 import { ProblemClient } from './problem-client';
@@ -9,7 +10,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   // Tiêu đề dựng từ MÃ chứ không từ tên bài: lấy tên đòi một lượt gọi máy chủ
   // thứ hai chỉ để điền thẻ `<title>`, trong khi mã bài đã là thứ người ta đọc
   // cho nhau nghe ("làm được K8S-0042 chưa?") và nó không bao giờ đổi.
-  return { title: `${code.toUpperCase()} — Bài tập — DevOps Learning Platform` };
+  return { title: t('catalog.problem.meta-title', { code: code.toUpperCase() }) };
 }
 
 /**
