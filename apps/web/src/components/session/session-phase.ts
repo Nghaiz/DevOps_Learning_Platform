@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import type { SessionPhase } from '@devops-platform/terminal';
 import type { BadgeVariant } from '@devops-platform/ui';
 
@@ -14,14 +15,14 @@ import type { BadgeVariant } from '@devops-platform/ui';
  * hiện tên pha bằng tiếng Anh cho người học.
  */
 export const SESSION_PHASE_LABEL: Record<SessionPhase, string> = {
-  idle: 'Chưa có phiên',
-  creating: 'Đang tạo phiên…',
-  connecting: 'Đang kết nối…',
-  ready: 'Sandbox sẵn sàng',
-  reconnecting: 'Mất kết nối — đang thử lại…',
-  exited: 'Shell đã thoát',
-  expired: 'Phiên đã kết thúc',
-  error: 'Lỗi',
+  idle: t('session.phase.idle'),
+  creating: t('session.phase.creating'),
+  connecting: t('session.phase.connecting'),
+  ready: t('session.phase.ready'),
+  reconnecting: t('session.phase.reconnecting'),
+  exited: t('session.phase.exited'),
+  expired: t('session.phase.expired'),
+  error: t('session.phase.error'),
 };
 
 /**

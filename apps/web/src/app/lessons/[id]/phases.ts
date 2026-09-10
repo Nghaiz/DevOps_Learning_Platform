@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import type { Scenario, ScenarioPhase } from '@devops-platform/shared-types/scenario';
 import type { PhaseRef } from '../../../server/lessons/phase';
 
@@ -32,7 +33,7 @@ export function buildPhases(scenario: Scenario): LessonPhase[] {
   if (scenario.intro !== null) {
     out.push({
       key: 'intro',
-      label: scenario.intro.title ?? 'Giới thiệu',
+      label: scenario.intro.title ?? t('session.lesson.phase-intro'),
       phase: scenario.intro,
       ref: { kind: 'intro' },
       stepIndex: null,
@@ -44,7 +45,7 @@ export function buildPhases(scenario: Scenario): LessonPhase[] {
       key: `step${String(step.index)}`,
       // Killercoda cho phép step KHÔNG có title (`loki-quickstart` là vậy cả 2
       // step). Rơi về "Bước N" thay vì hiện một nút rỗng không bấm trúng.
-      label: step.title ?? `Bước ${String(step.index + 1)}`,
+      label: step.title ?? t('session.lesson.phase-step', { index: step.index + 1 }),
       phase: step,
       ref: { kind: 'step', index: step.index },
       stepIndex: step.index,
@@ -54,7 +55,7 @@ export function buildPhases(scenario: Scenario): LessonPhase[] {
   if (scenario.finish !== null) {
     out.push({
       key: 'finish',
-      label: scenario.finish.title ?? 'Kết thúc',
+      label: scenario.finish.title ?? t('session.lesson.phase-finish'),
       phase: scenario.finish,
       ref: { kind: 'finish' },
       stepIndex: null,

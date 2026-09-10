@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { t } from '@devops-platform/copy';
 import { Alert, AlertDescription } from '@devops-platform/ui';
 import {
   SessionControls,
@@ -53,7 +54,7 @@ export function PlaygroundClient({
   });
 
   if (query.isPending) {
-    return <Centered>Đang tải sân chơi…</Centered>;
+    return <Centered>{t('session.playground.loading')}</Centered>;
   }
   if (query.isError) {
     return <Centered tone="error">{describeTrpcError(query.error)}</Centered>;
@@ -71,7 +72,7 @@ export function PlaygroundClient({
     <div className="flex min-h-0 flex-1 flex-col bg-background text-foreground">
       <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
         <Link href="/playgrounds" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Sân chơi
+          {t('session.playground.back')}
         </Link>
         <h1 className="text-sm font-semibold">{playground.title}</h1>
 
@@ -105,8 +106,9 @@ export function PlaygroundClient({
       {unsupportedCapabilities.length > 0 && (
         <Alert variant="warning" className="rounded-none border-x-0 border-t-0">
           <AlertDescription className="text-foreground">
-            Sân chơi này cần <strong>{unsupportedCapabilities.join(', ')}</strong> — nền tảng
-            chưa chạy được những năng lực đó, nên một số lệnh sẽ báo lỗi.
+            {t('session.playground.unsupported', {
+              capabilities: unsupportedCapabilities.join(', '),
+            })}
           </AlertDescription>
         </Alert>
       )}
@@ -144,11 +146,7 @@ export function PlaygroundClient({
               placeholder={
                 <span className="flex max-w-md flex-col gap-3">
                   {playground.description !== null && <span>{playground.description}</span>}
-                  <span>
-                    Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng
-                    sandbox và mở terminal — phiên tự đóng sau{' '}
-                    <strong className="text-foreground">{ttlMinutes} phút</strong>.
-                  </span>
+                  <span>{t('session.playground.empty', { minutes: ttlMinutes })}</span>
                 </span>
               }
             />

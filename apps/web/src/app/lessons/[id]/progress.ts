@@ -19,6 +19,8 @@
  * cuối" — đúng ca đẻ ra nợ này — là ca không ai viết.
  */
 
+import { t } from '@devops-platform/copy';
+
 export interface ProgressSummary {
   /** Giá trị cho `ProgressBar.value`. */
   readonly value: number;
@@ -50,12 +52,12 @@ export function summarizeProgress(input: ProgressInput): ProgressSummary {
   // Bài đã xong: thanh đầy, và nhãn nói ĐÚNG thứ ta biết — "xong bài" — chứ
   // không phải "đã đạt N bước", điều ta không có dữ liệu để khẳng định.
   if (completed) {
-    return { value: stepCount, max: stepCount, label: 'Đã hoàn thành' };
+    return { value: stepCount, max: stepCount, label: t('session.lesson.progress-done') };
   }
 
   return {
     value: passedInSession,
     max: stepCount,
-    label: `${String(passedInSession)}/${String(stepCount)} bước đã đạt trong phiên này`,
+    label: t('session.lesson.progress-in-session', { passed: passedInSession, total: stepCount }),
   };
 }

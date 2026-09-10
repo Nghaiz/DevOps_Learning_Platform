@@ -11,6 +11,7 @@ import {
   TERMINAL_PERCENT_MIN,
   TERMINAL_PERCENT_STEP,
   TERMINAL_TAB,
+  hasDisplayUtility,
   workspaceStorageKey,
   type WorkspaceTabId,
 } from './workspace-tabs';
@@ -645,5 +646,204 @@ describe('bài không có editor — hình dạng một mục', () => {
     mount({ editor: undefined, activeTab: TERMINAL_TAB });
     expect(screen.queryByRole('separator')).toBeNull();
     expect(separator().getAttribute('tabindex')).toBe('-1');
+  });
+});
+
+// ── AC-1 · ĐỐI CHỨNG DƯƠNG cho phép đo danh tính node ───────────────────────
+
+/**
+ * Hợp đồng `p16-workspace.md` §8 AC-1 đòi một đối chứng dương, và cho tới
+ * 2026-09-10 nó KHÔNG có: file này chỉ khẳng định `expect(after).toBe(before)`
+ * trên panel thật.
+ *
+ * Vì sao thiếu nó là một lỗ hổng thật chứ không phải thủ tục: ô AC-1 xanh khi
+ * hai tham chiếu bằng nhau. Một `getByTestId` trả về CÙNG một phần tử vì lý do
+ * khác hẳn — ví dụ panel không hề render lại (prop `activeTab` không tới nơi),
+ * hoặc `userEvent.click` bắn vào một nút không nối gì — cũng cho `toBe` xanh.
+ * Lúc đó ô quan trọng nhất của cả lane đang đo "không có gì đổi" thay vì đo
+ * "React giữ nguyên node qua một lượt reconcile".
+ *
+ * Nên phép đo được tách thành MỘT hàm, và hàm đó chạy hai lần: một lần trên
+ * panel thật (phải `toBe`), một lần trên một component CỐ Ý SAI theo đúng hình
+ * dạng §1.5 (phải `not.toBe`). Chỉ khi cả hai cùng đúng thì AC-1 mới nói được
+ * điều nó tuyên bố.
+ */
+
+/** Đúng MỘT phép đo, dùng cho cả panel thật lẫn component cố ý sai. */
+function terminalNodeIdentityAcrossTabSwitch(ui: (tab: WorkspaceTabId) => ReactElement): {
+  readonly sameNode: boolean;
+  readonly sameParent: boolean;
+} {
+  const { rerender } = render(ui(EDITOR_TAB));
+  const before = screen.getByTestId(TERMINAL_NODE);
+  const beforeParent = before.parentElement;
+
+  rerender(ui(TERMINAL_TAB));
+  const after = screen.getByTestId(TERMINAL_NODE);
+
+  return { sameNode: after === before, sameParent: after.parentElement === beforeParent };
+}
+
+describe('⛔ AC-1 — phép đo danh tính node ĐỎ được (đối chứng dương)', () => {
+  /**
+   * Hình dạng cấm số 1 của §1.5: hai nhánh JSX = hai cây.
+   *
+   * ```tsx
+   * {activeTab === 'terminal' ? <Terminal/> : <><Editor/><Terminal/></>}
+   * ```
+   *
+   * React so trùng con theo VỊ TRÍ và theo KIỂU phần tử. Ở vị trí 0 nó thấy một
+   * `<div>` ở nhánh này và một Fragment ở nhánh kia — hai kiểu khác nhau ⇒ huỷ
+   * cây cũ, dựng cây mới. Đó chính là `terminal.dispose()` + WebSocket đóng mà
+   * §1.2 mô tả, và nó không phát ra một lỗi nào.
+   */
+  function ForbiddenTwoBranchPanel({ activeTab }: { readonly activeTab: WorkspaceTabId }) {
+    const terminalRow = (
+      <div className="min-h-0 min-w-0 overflow-hidden">
+        <span data-testid={TERMINAL_NODE}>TERMINAL</span>
+      </div>
+    );
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {activeTab === TERMINAL_TAB ? (
+          terminalRow
+        ) : (
+          <>
+            <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+              <span data-testid={EDITOR_NODE}>EDITOR</span>
+            </div>
+            {terminalRow}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  it('component cố ý sai (hai nhánh JSX) ⇒ node terminal ĐỔI — phép đo không mù', () => {
+    const measured = terminalNodeIdentityAcrossTabSwitch((activeTab) => (
+      <ForbiddenTwoBranchPanel activeTab={activeTab} />
+    ));
+
+    expect(
+      measured.sameNode,
+      'phép đo danh tính đang MÙ: nó không phân biệt được một node bị dựng lại ' +
+        'với một node giữ nguyên. Mọi khẳng định §Y1 phía trên vì thế không ' +
+        'chứng minh gì. Sửa phép đo TRƯỚC, đừng sửa panel.',
+    ).toBe(false);
+  });
+
+  it('panel THẬT, đo bằng ĐÚNG hàm đó ⇒ node và cha đều giữ nguyên', () => {
+    // Cùng một `terminalNodeIdentityAcrossTabSwitch`, cùng một lượt chạy. Đây
+    // là thứ biến ô trên thành một đối chứng chứ không phải một test riêng lẻ
+    // về một component đồ chơi.
+    const measured = terminalNodeIdentityAcrossTabSwitch((activeTab) => (
+      <WorkspacePanel {...baseProps({ activeTab })} />
+    ));
+
+    expect(measured.sameNode).toBe(true);
+    expect(measured.sameParent).toBe(true);
+  });
+});
+
+// ── AC-2 · quét TOÀN BỘ cây DOM ở CẢ HAI tab ────────────────────────────────
+
+describe('AC-2 — mọi phần tử [hidden] trong cây đều không mang tiện ích display', () => {
+  /**
+   * `workspace-panel.test.tsx` quét chuỗi markup SSR; ô này quét cây DOM SỐNG.
+   * Hai thứ khác nhau: markup là lượt render đầu, còn DOM là thứ còn lại sau
+   * hydrate và sau mọi lượt đổi class do state gây ra.
+   *
+   * Danh sách tiện ích đến từ `workspace-tabs.ts`, không chép tay — xem chú
+   * thích tại chỗ khai.
+   */
+  function hiddenOffenders(): readonly string[] {
+    return [...document.querySelectorAll<HTMLElement>('[hidden]')]
+      .filter((el) => hasDisplayUtility(el.className))
+      .map((el) => `${el.tagName.toLowerCase()}.${el.className}`);
+  }
+
+  const CASES: readonly { readonly label: string; readonly props: Partial<WorkspacePanelProps> }[] =
+    [
+      { label: 'có editor · tab Editor', props: { activeTab: EDITOR_TAB } },
+      { label: 'có editor · tab Terminal', props: { activeTab: TERMINAL_TAB } },
+      { label: 'không editor · tab Terminal', props: { editor: undefined, activeTab: TERMINAL_TAB } },
+    ];
+
+  for (const testCase of CASES) {
+    it(`${testCase.label} — không phần tử [hidden] nào mang display`, () => {
+      mount(testCase.props);
+      expect(hiddenOffenders()).toEqual([]);
+    });
+  }
+
+  it('đối chứng dương (bộ quét): một cây giả `<div hidden class="flex">` bị BẮT', () => {
+    // Không có ô này thì một `hiddenOffenders` luôn trả mảng rỗng — vì
+    // `querySelectorAll` trượt, vì `className` rỗng trên SVG, vì bất cứ lý do
+    // nào — cũng làm ba ô trên xanh.
+    const scratch = document.createElement('div');
+    scratch.innerHTML = '<div hidden class="min-h-0 flex flex-col"></div>';
+    document.body.append(scratch);
+
+    expect(hiddenOffenders()).toEqual(['div.min-h-0 flex flex-col']);
+
+    scratch.remove();
+  });
+
+  it('đối chứng dương (query trúng đích): ở tab Editor, hàng 1 KHÔNG mang `hidden`', () => {
+    // Vế còn lại của AC-2. Không có nó thì một `row('editor')` trượt (trả một
+    // phần tử luôn `hidden`, hoặc luôn không) cũng làm vế "có `hidden`" xanh
+    // một cách rỗng tuếch.
+    mount({ activeTab: EDITOR_TAB });
+    expect(row('editor').hidden).toBe(false);
+
+    cleanup();
+    mount({ activeTab: TERMINAL_TAB });
+    expect(row('editor').hidden).toBe(true);
+  });
+});
+
+// ── AC-3 · hàng terminal KHÔNG BAO GIỜ mang `hidden`, kể cả tổ tiên ─────────
+
+describe('AC-3 — hàng terminal và MỌI tổ tiên của nó đều không bị ẩn', () => {
+  /**
+   * Vế "tổ tiên" là vế mà `workspace-panel.test.tsx` không nói được: markup
+   * tĩnh cho biết thẻ nào mang `hidden`, nhưng "thẻ đó có phải tổ tiên của hàng
+   * terminal không" là một câu hỏi về cây, không phải về chuỗi.
+   *
+   * Nó không phải phòng xa. Một `hidden` đặt nhầm lên ngăn xếp dọc (thay vì lên
+   * hàng 1) ẩn cả terminal, và triệu chứng giống hệt §1.2: không lỗi, không
+   * log, chỉ là terminal biến mất.
+   */
+  function hiddenAncestors(el: HTMLElement): readonly string[] {
+    const out: string[] = [];
+    for (let node = el.parentElement; node !== null; node = node.parentElement) {
+      if (node.hidden) {
+        out.push(`${node.tagName.toLowerCase()}#${node.id}`);
+      }
+    }
+    return out;
+  }
+
+  for (const hasEditor of [true, false]) {
+    for (const activeTab of [EDITOR_TAB, TERMINAL_TAB] as const) {
+      it(`hasEditor=${String(hasEditor)} · tab ${activeTab} — hàng terminal hiện`, () => {
+        mount({ ...(hasEditor ? {} : { editor: undefined }), activeTab });
+
+        const terminalRow = row('terminal');
+        expect(terminalRow.hidden).toBe(false);
+        expect(hiddenAncestors(terminalRow)).toEqual([]);
+        expect(screen.getByTestId(TERMINAL_NODE).isConnected).toBe(true);
+      });
+    }
+  }
+
+  it('đối chứng dương: cùng phép dò báo ĐÚNG rằng hàng 1 bị ẩn ở tab Terminal', () => {
+    // Chứng minh `.hidden` thật sự đọc được DOM. Không có ô này thì một phép dò
+    // luôn trả `false` cũng làm bốn ô trên xanh.
+    mount({ activeTab: TERMINAL_TAB });
+    expect(row('editor').hidden).toBe(true);
+    expect(hiddenAncestors(screen.getByTestId(EDITOR_NODE))).toEqual([
+      `div#${row('editor').id}`,
+    ]);
   });
 });

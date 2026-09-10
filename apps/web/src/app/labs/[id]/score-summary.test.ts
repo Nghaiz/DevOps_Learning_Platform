@@ -63,6 +63,18 @@ const FOUR_TASKS = [
   task({ id: 'd', title: 'D' }),
 ];
 
+/*
+  ⚠ P16 — bảy chuỗi neo trong file này đã đổi, và đổi vì một lý do ĐÚNG.
+
+  `summarizeLabScore` nay lấy câu từ `packages/copy`, nơi luật V3 cấm ký tự
+  U+2014 ở mọi giá trị. Mọi chỗ trước đây nối hai mệnh đề bằng gạch ngang dài
+  giờ dùng dấu phẩy hoặc dấu hai chấm.
+
+  Thứ được chuyển sang đây là KHẲNG ĐỊNH, không phải chuỗi: mỗi ô vẫn gác đúng
+  mệnh đề cũ (nhãn nói ra rằng con số trước lúc nộp là một DỰ BÁO có điều kiện;
+  cặp trọng số chỉ hiện khi nó thêm thông tin; câu phụ đổi vai sau khi nộp).
+  Không ô nào bị nới thành `toContain` để né việc phải sửa.
+*/
 describe('summarizeLabScore — chưa nộp', () => {
   it('LÀM DỞ: nhãn nói đúng số task đã đạt, và điểm là DỰ BÁO có điều kiện chứ không phải kết quả', () => {
     const summary = summarizeLabScore({
@@ -84,7 +96,7 @@ describe('summarizeLabScore — chưa nộp', () => {
 
     // ⛔ Đây là ô chống bẫy P2. Nhãn KHÔNG được nói "2/4" rồi để "50%" đứng trần
     // như một kết quả — và KHÔNG được nói "4/4" vì bốn task đã được đụng tới.
-    expect(summary.headline).toBe('Đã đạt 2/4 nhiệm vụ — nộp bây giờ được 50%');
+    expect(summary.headline).toBe('Đã đạt 2/4 nhiệm vụ, nộp bây giờ được 50%');
     expect(summary.caveat).toContain('Còn 1 nhiệm vụ chưa được chấm lần nào');
     expect(summary.caveat).toContain('tính là chưa đạt');
   });
@@ -97,7 +109,7 @@ describe('summarizeLabScore — chưa nộp', () => {
     });
     // 1/4 chứ không phải 1/1 — nếu mẫu số chỉ đếm task đã chấm thì đây là 100%.
     expect(summary.score.percent).toBe(25);
-    expect(summary.headline).toBe('Đã đạt 1/4 nhiệm vụ — nộp bây giờ được 25%');
+    expect(summary.headline).toBe('Đã đạt 1/4 nhiệm vụ, nộp bây giờ được 25%');
   });
 
   it('chấm lại ĐẠT sau khi trượt ⇒ nhãn theo lượt MỚI NHẤT', () => {
@@ -110,7 +122,7 @@ describe('summarizeLabScore — chưa nộp', () => {
       submittedAt: null,
     });
     expect(summary.passedCount).toBe(1);
-    expect(summary.headline).toBe('Đã đạt 1/1 nhiệm vụ — nộp bây giờ được 100%');
+    expect(summary.headline).toBe('Đã đạt 1/1 nhiệm vụ, nộp bây giờ được 100%');
   });
 
   it('mọi task đã có ít nhất một lượt chấm ⇒ KHÔNG có câu cảnh báo thừa', () => {
@@ -129,7 +141,7 @@ describe('summarizeLabScore — chưa nộp', () => {
       results: [],
       submittedAt: null,
     });
-    expect(summary.headline).toBe('Đã đạt 0/4 nhiệm vụ — nộp bây giờ được 0%');
+    expect(summary.headline).toBe('Đã đạt 0/4 nhiệm vụ, nộp bây giờ được 0%');
     expect(summary.caveat).toContain('Còn 4 nhiệm vụ');
   });
 });
@@ -146,7 +158,7 @@ describe('summarizeLabScore — trọng số', () => {
     expect(summary.weighted).toBe(true);
     expect(summary.score.percent).toBe(75);
     expect(summary.headline).toBe(
-      'Đã đạt 1/2 nhiệm vụ — nộp bây giờ được 75% (3/4 điểm trọng số)',
+      'Đã đạt 1/2 nhiệm vụ, nộp bây giờ được 75% (3/4 điểm trọng số)',
     );
   });
 
@@ -170,7 +182,7 @@ describe('summarizeLabScore — đã nộp', () => {
     });
     expect(summary.status).toBe('passed');
     expect(summary.tone).toBe('success');
-    expect(summary.headline).toBe('Đạt — 50% (mốc 50%)');
+    expect(summary.headline).toBe('Đạt: 50% (mốc 50%)');
   });
 
   it('làm tròn XUỐNG: 4/5 task mốc 80 thì đạt, 79.x thì KHÔNG được làm tròn lên thành đạt', () => {
@@ -187,7 +199,7 @@ describe('summarizeLabScore — đã nộp', () => {
     });
     expect(summary.status).toBe('failed');
     expect(summary.tone).toBe('warning');
-    expect(summary.headline).toBe('Chưa đạt — 75% (mốc 80%)');
+    expect(summary.headline).toBe('Chưa đạt: 75% (mốc 80%)');
   });
 
   it('nộp khi còn task chưa chấm ⇒ câu phụ GIẢI THÍCH điểm, không còn là lời cảnh báo', () => {

@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ExternalLink, SquareTerminal, FileCode2 } from 'lucide-react';
+import { t } from '@devops-platform/copy';
 import { cn } from '@devops-platform/ui';
 import { WorkspaceLayoutProvider } from './workspace-layout';
 import {
@@ -259,7 +260,7 @@ export function WorkspacePanel({
         {tabs.length > 1 ? (
           <div
             role="tablist"
-            aria-label="Khoang làm việc"
+            aria-label={t('session.workspace.tablist')}
             aria-orientation="horizontal"
             className="flex min-w-0 items-center gap-1 overflow-x-auto"
             onKeyDown={handleTablistKeyDown}
@@ -293,7 +294,7 @@ export function WorkspacePanel({
               href={popOutUrl}
               target="_blank"
               rel="noopener noreferrer"
-              title="Mở tab này ra một cửa sổ riêng"
+              title={t('session.workspace.popout-title')}
               className={cn(
                 'flex size-6 items-center justify-center rounded text-muted-foreground',
                 'transition-colors duration-(--motion-fast) hover:bg-accent hover:text-accent-foreground',
@@ -301,7 +302,7 @@ export function WorkspacePanel({
               )}
             >
               <ExternalLink aria-hidden="true" className="size-4" />
-              <span className="sr-only">Mở tab này ra cửa sổ riêng</span>
+              <span className="sr-only">{t('session.workspace.popout-sr')}</span>
             </a>
           )}
         </div>
@@ -340,22 +341,65 @@ export function WorkspacePanel({
         <div
           role="separator"
           aria-orientation="horizontal"
-          aria-label="Kéo để đổi chiều cao khoang terminal"
+          aria-label={t('session.workspace.separator')}
           aria-valuenow={terminalPercent}
           aria-valuemin={TERMINAL_PERCENT_MIN}
           aria-valuemax={TERMINAL_PERCENT_MAX}
           tabIndex={editorVisible ? 0 : -1}
           hidden={!editorVisible}
+          data-dragging={dragging ? 'true' : undefined}
+          /*
+            16.D.2 — thanh kéo viết lại phần NHÌN, giữ nguyên cơ chế.
+
+            Ba thứ đổi, và cả ba đều là chuyện dùng được chứ không phải chuyện
+            đẹp. (1) Vùng nắm cao `h-2.5` thay vì `h-1.5`: 6px là dưới ngưỡng
+            mà một con trỏ chuột bắt trúng ở lượt đầu, và trên cảm ứng thì gần
+            như không trúng bao giờ. (2) Một tay nắm NHÌN THẤY ĐƯỢC ở giữa: một
+            dải đơn sắc trông y hệt một đường viền, nên không ai biết nó kéo
+            được — affordance phải nhìn ra được trước khi thử. (3) `data-dragging`
+            để đổi màu lúc đang kéo mà không phải nhét thêm một class có điều
+            kiện vào chuỗi `cn`.
+
+            ⛔ Chiều cao vẫn CỐ ĐỊNH ở mọi trạng thái. Thanh này nằm sát khoang
+            terminal; bất cứ thứ gì cao lên hay thấp xuống quanh xterm đều làm
+            `ResizeObserver` bắn và fit lại đúng lúc người dùng đang gõ.
+          */
+          /*
+            ⛔ KHÔNG tiện ích `display` nào trên phần tử này. Nó mang `hidden`, và
+            `[hidden]{display:none}` đến từ stylesheet của TRÌNH DUYỆT trong khi
+            `.flex{display:flex}` đến từ stylesheet của TÁC GIẢ: cùng độ đặc
+            hiệu thì tác giả THẮNG, nên một `flex` ở đây làm `hidden` mất tác
+            dụng hoàn toàn mà không có gì báo (§2 của hợp đồng).
+
+            Đây không phải phòng xa. Lượt viết lại này ĐÃ đặt `flex` lên đúng
+            dòng này, và `workspace-panel.test.tsx` bắt được ngay: thanh kéo vẫn
+            hiện ở tab Terminal. Cần căn giữa thì bọc một lớp con, như dưới đây.
+          */
           className={cn(
-            'h-1.5 shrink-0 grow-0 cursor-row-resize touch-none bg-border',
+            'group/grip h-2.5 shrink-0 grow-0 cursor-row-resize touch-none',
+            'bg-border transition-colors duration-(--motion-fast)',
             'hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+            'data-[dragging=true]:bg-accent',
           )}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           onKeyDown={handleSeparatorKeyDown}
-        />
+        >
+          {/* Lớp bọc mang `display`, không phải phần tử mang `hidden` ở trên. */}
+          <span aria-hidden="true" className="flex h-full w-full items-center justify-center">
+            {/* Tay nắm. Thanh kéo đã có `aria-label` + `aria-valuenow`, nên vệt
+                này chỉ nói với MẮT. */}
+            <span
+              className={cn(
+                'h-0.5 w-9 rounded-full bg-muted-foreground/40',
+                'transition-colors duration-(--motion-fast)',
+                'group-hover/grip:bg-muted-foreground/70 group-data-[dragging=true]/grip:bg-primary',
+              )}
+            />
+          </span>
+        </div>
 
         {/*
           Hàng 2 — TERMINAL. ⛔ KHÔNG BAO GIỜ mang `hidden`, không bao giờ rời

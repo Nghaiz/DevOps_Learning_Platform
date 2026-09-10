@@ -1,5 +1,6 @@
 'use client';
 
+import { errText, t } from '@devops-platform/copy';
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { LoaderCircle } from 'lucide-react';
@@ -46,13 +47,13 @@ const TerminalSurfaceLazy = dynamic(
     loading: () => (
       <p role="status" className="flex items-center gap-2 p-6 text-xs text-muted-foreground">
         <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-        Đang mở terminal…
+        {t('session.terminal.booting')}
       </p>
     ),
   },
 );
 
-const ARIA_LABEL = 'Terminal sandbox toàn màn hình. Nhấn Esc hai lần để rời khỏi terminal.';
+const ARIA_LABEL = t('session.terminal.aria-label-window');
 
 type WindowPhase =
   | { readonly kind: 'connecting' }
@@ -89,7 +90,10 @@ export function TerminalWindowClient({ sessionId }: { readonly sessionId: string
         setPhase({ kind: 'stopped', detail: message.message });
         return;
       case 'exit':
-        setPhase({ kind: 'stopped', detail: `Shell đã thoát (mã ${String(message.exitCode)}).` });
+        setPhase({
+          kind: 'stopped',
+          detail: t('session.window.exited', { code: message.exitCode }),
+        });
         return;
       default:
         // 'expiring' — cửa sổ này không quản vòng đời phiên, tab bài học mới có
@@ -101,13 +105,7 @@ export function TerminalWindowClient({ sessionId }: { readonly sessionId: string
 
   const onClose = useCallback((code: number) => {
     setConnectionKey(null);
-    setPhase({
-      kind: 'stopped',
-      detail:
-        `Kết nối đã đóng (mã ${String(code)}). ` +
-        'Mỗi phiên chỉ giữ được MỘT kết nối terminal, nên nếu bạn vừa mở lại ' +
-        'terminal ở tab bài học thì cửa sổ này đã bị thay chỗ.',
-    });
+    setPhase({ kind: 'stopped', detail: errText('session.window.closed', { code }) });
   }, []);
 
   const reconnect = useCallback(() => {
@@ -120,11 +118,13 @@ export function TerminalWindowClient({ sessionId }: { readonly sessionId: string
     // Xem lý lẽ đầy đủ ở chú thích đầu file.
     <div className="fixed inset-0 z-50 flex flex-col bg-card">
       <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border px-3 text-xs">
-        <span className="truncate font-medium text-foreground">Terminal — phiên {sessionId}</span>
+        <span className="truncate font-medium text-foreground">
+          {t('session.window.title', { sessionId })}
+        </span>
         {phase.kind === 'connecting' ? (
           <span role="status" className="ml-auto flex items-center gap-1.5 text-muted-foreground">
             <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
-            Đang kết nối…
+            {t('session.window.connecting')}
           </span>
         ) : null}
       </div>
@@ -135,7 +135,7 @@ export function TerminalWindowClient({ sessionId }: { readonly sessionId: string
             {phase.detail}
           </p>
           <Button size="sm" variant="outline" onClick={reconnect}>
-            Thử nối lại
+            {t('session.window.reconnect')}
           </Button>
         </div>
       ) : (
