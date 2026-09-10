@@ -79,15 +79,15 @@ toàn. Không có lần NIC flap nào rơi vào cửa sổ đo, nên số liệu
 
 ## Acceptance criteria
 
-- [ ] Setup thất bại ⇒ khe quota trả lại **ngay**, đo bằng `resourcequota` trước/sau, không đợi
+- [x] Setup thất bại ⇒ khe quota trả lại **ngay**, đo bằng `resourcequota` trước/sau, không đợi
       reaper. Có test khẳng định **số khe**, không chỉ khẳng định có ném lỗi.
-- [ ] Người học đọc được nguyên nhân: thông điệp lỗi chứa stderr của bước setup. Kiểm bằng trình
+- [x] Người học đọc được nguyên nhân: thông điệp lỗi chứa stderr của bước setup. Kiểm bằng trình
       duyệt thật trên một lượt hỏng có chủ ý (ép bằng tải, cách tạo tải ghi trong report).
-- [ ] Chốt hướng A hoặc B, có lý do viết tại chỗ sửa. Nếu B: `checkTask` từ chối chấm khi chưa có
+- [x] Chốt hướng A hoặc B, có lý do viết tại chỗ sửa. Nếu B: `checkTask` từ chối chấm khi chưa có
       `.setup-done`, và có test cho vế từ chối đó.
-- [ ] Đo lại đường cong tải sau khi sửa, **cùng phương pháp** (bảng ở đầu file này là đường cơ sở).
+- [x] Đo lại đường cong tải sau khi sửa, **cùng phương pháp** (bảng ở đầu file này là đường cơ sở).
       Ngưỡng vỡ mới phải cao hơn cũ, hoặc — với hướng B — không còn ngưỡng theo `execTimeout` nữa.
-- [ ] ⚠ Vế cuối phải đo trên node ĐÃ LẮNG. Đo ngay sau reboot cho ra số của một node đang ổn định,
+- [x] ⚠ Vế cuối phải đo trên node ĐÃ LẮNG. Đo ngay sau reboot cho ra số của một node đang ổn định,
       không phải của hệ — [[idle-cluster-timeouts-cascade]].
 
 ## Risk Assessment (P15)
@@ -110,3 +110,28 @@ toàn. Không có lần NIC flap nào rơi vào cửa sổ đo, nên số liệu
 | 15.C hướng B (nếu chọn) | M |
 | Đo lại đường cong | S |
 | **Total** | **M** (S nếu chọn hướng A) |
+
+## Kết quả (2026-09-10)
+
+**XONG** — hướng **B**. Mã: `5d90ad1` + `6d8d2fc`. Image `dlp-web:p15b`.
+Report: [`reports/2026-09-10-verify-p15.md`](reports/2026-09-10-verify-p15.md).
+
+⛔ **HAI vế của chính chặng này hoá ra khác điều plan dự đoán — đọc report trước khi
+dựa vào bảng ở đầu file:**
+
+1. **Bảng cơ sở ở đầu file KHÔNG tái lập được**, kể cả trên chính image cũ. A/B cùng
+   phiên, cùng 160 worker: `p14d` (trước P15) `startAttempt` 59.1s ở load 129 và
+   **không hỏng**; `p15b` 17.1s ở load 136. Tức "load ~43 → `exit=1`" không xác nhận
+   được, và KHÔNG có "ngưỡng vỡ mới cao hơn cũ" nào được đo — không tìm thấy ngưỡng
+   vỡ cho CẢ HAI image tới 11× quá tải CPU. Vế được chứng minh của ô AC 4 là vế thứ
+   hai ("không còn ngưỡng theo `execTimeout`"), bằng 59.1s → 17.1s ở cùng tải.
+
+2. **k3s boot ở đây không bị chặn bởi CPU host**, nên một đường cong theo tải CPU là
+   sai công cụ cho câu hỏi "lab k8s chịu được bao nhiêu". Muốn ngưỡng thật thì phải
+   ép **I/O** (đĩa / etcd). Vì thế ô 10 (hướng A, `dlp-k8s-wait 90 → 105`) **KHÔNG
+   được làm**: nới một trần mà không lượt đo nào chạm tới là đổi một con số không có
+   số đo nào đỡ. Trần đó nay cũng không còn bị `execTimeout` 120s ràng buộc.
+
+Một chỗ lệch với chữ của plan, có chủ ý: ô 11 chỉ cờ `/root/lab-k8s/.setup-done` của
+nội dung; bản cài đặt dùng sentinel của NỀN TẢNG (`/root/.dlp-setup/{rc,log}`) vì
+`checkTask` không biết đường dẫn cờ theo-từng-bài mà không thêm field vào lab schema.
