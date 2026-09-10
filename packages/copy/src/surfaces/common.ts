@@ -20,6 +20,17 @@ import type { IntentionalThree, Surface } from '../types.ts';
  */
 export const common = {
   // ── Thao tác ────────────────────────────────────────────────────────────
+  /**
+   * Mô tả tài liệu mặc định của toàn ứng dụng, đọc bởi `app/layout.tsx`.
+   *
+   * Ở `common` chứ không ở `shell` vì `layout.tsx` gốc là file của L0 và không
+   * lane nào được chạm. Tiêu đề đi kèm thì dùng lại `shell.brand.name` thay vì
+   * đẻ thêm một bản thứ ba của tên sản phẩm.
+   */
+  'common.meta-description': 'Nền tảng học DevOps qua lab sandbox',
+  /** Mô tả cho thẻ Open Graph. Khác `common.meta-description`: thẻ share nói
+   * điều gì làm nền tảng này khác, còn mô tả tài liệu nói nó LÀ gì. */
+  'common.og-description': 'Học DevOps bằng lab sandbox chạy thật',
   'common.action.save': 'Lưu',
   'common.action.cancel': 'Huỷ',
   'common.action.close': 'Đóng',

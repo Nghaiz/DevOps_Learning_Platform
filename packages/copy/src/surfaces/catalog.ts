@@ -80,6 +80,41 @@ export const catalog = {
   'catalog.title.games': 'Games',
   'catalog.title.problems': 'Bài tập',
 
+  /**
+   * Tiêu đề tài liệu của tám trang danh mục.
+   *
+   * Tách khỏi `catalog.title.*` vì hai thứ khác nhau: `title` là chữ trên
+   * trang, còn cái này là chữ trên tab trình duyệt và trong kết quả tìm kiếm,
+   * nên nó phải mang cả tên sản phẩm. Phân cách bằng dấu chấm giữa chứ không phải gạch
+   * ngang dài, theo luật giọng văn và theo đúng mười khoá meta-title mà bốn
+   * lane khác đã viết.
+   *
+   * `catalog.problem.meta-title` KHÔNG thuộc nhóm này: nó là trang chi tiết và
+   * nhận tham số `code`, còn tám khoá đây là trang danh sách và là hằng.
+   */
+  'catalog.meta-title.lessons': 'Bài học · DevOps Learning Platform',
+  'catalog.meta-title.labs': 'Lab · DevOps Learning Platform',
+  'catalog.meta-title.playgrounds': 'Sân chơi · DevOps Learning Platform',
+  'catalog.meta-title.paths': 'Lộ trình · DevOps Learning Platform',
+  'catalog.meta-title.quiz': 'Quiz · DevOps Learning Platform',
+  'catalog.meta-title.games': 'Games · DevOps Learning Platform',
+  'catalog.meta-title.games-k8s': 'Kubernetes Arena · DevOps Learning Platform',
+  'catalog.meta-title.problems': 'Bài tập · DevOps Learning Platform',
+
+  /**
+   * Mô tả tài liệu, chỉ ba trang có. Đặt dưới tiền tố của TỪNG trang chứ không
+   * gom thành `catalog.meta-description.*`: gom lại thì đó là một nhóm đúng ba
+   * thành viên, và T3 sẽ đòi một lời khai rằng ba là con số đóng. Ba ở đây
+   * không đóng, nó chỉ là ba trang tình cờ có mô tả. Khai bừa một nhóm ba cố ý
+   * là nói dối chính cái cổng đang hỏi.
+   */
+  'catalog.problems.meta-description':
+    'Danh sách bài tập Kubernetes có lọc theo độ khó, chủ đề, tag và trạng thái của bạn.',
+  'catalog.games.meta-description':
+    'Game DevOps chạy trong trình duyệt: không tốn sandbox, không cần đăng nhập. Thử thách CTF nằm cạnh, và nó tốn một sandbox.',
+  'catalog.games.k8s-meta-description':
+    'Dựng và cứu một cluster Kubernetes qua từng level, ngay trong trình duyệt.',
+
   // ── Đoạn dẫn của bảy màn ──────────────────────────────────────────────
   'catalog.lead.lessons': 'Mỗi bài mở một sandbox riêng. Tiến độ chỉ mình bạn thấy.',
   'catalog.lead.labs':

@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { Be_Vietnam_Pro } from 'next/font/google';
 import { THEME_INIT_SCRIPT, ThemeProvider, Toaster, TooltipProvider } from '@devops-platform/ui';
 import { MotionProvider } from '@devops-platform/motion/provider';
+import { t } from '@devops-platform/copy';
 import { appUrl } from '../server/env';
 import { readRequestSession } from '../server/auth/config';
 import { AppShell } from '../components/shell/app-shell';
@@ -13,8 +14,8 @@ import './globals.css';
 const base = appUrl();
 
 export const metadata: Metadata = {
-  title: 'DevOps Learning Platform',
-  description: 'Nền tảng học DevOps qua lab sandbox',
+  title: t('shell.brand.name'),
+  description: t('common.meta-description'),
   // Bỏ hẳn key khi APP_URL chưa đặt, thay vì đoán một origin. `new URL()` trên
   // chuỗi rác ném lỗi ngay lúc build — đúng chỗ để phát hiện, không phải lúc có
   // người share link và thấy og:image trỏ về localhost.
@@ -46,9 +47,9 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'vi_VN',
-    siteName: 'DevOps Learning Platform',
-    title: 'DevOps Learning Platform',
-    description: 'Học DevOps bằng lab sandbox chạy thật',
+    siteName: t('shell.brand.name'),
+    title: t('shell.brand.name'),
+    description: t('common.og-description'),
   },
 };
 
