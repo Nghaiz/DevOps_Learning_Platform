@@ -183,6 +183,31 @@ Commit bằng dạng pathspec: `git commit -m "..." -- <đường dẫn cụ th�
 
 Bảy lane, chạy đồng thời dưới trần fan-out 8 của depth 0.
 
+##### Ba route KHÔNG lane nào nhận — chốt 2026-09-10
+
+Bảng trên giao `page+client` của năm cây danh mục cho 16.C, và `[id]/**` của **hai** cây cho
+16.D. Đọc sát thì `paths/[id]`, `playgrounds/[id]`, `quiz/[id]` rơi qua khe: không lane nào
+trong bảy lane nhắc tới chúng. Bản đồ sở hữu theo thư mục không phát hiện được lớp lỗi này —
+mỗi lane đọc phần của mình thì đều thấy đủ, và ba trang kia chỉ lộ ra khi ai đó mở chúng sau
+khi P16 xong và thấy giao diện cũ.
+
+Chia theo **thứ mã thực sự chạm tới**, không theo cây thư mục:
+
+| Route | Về lane | Vì sao |
+|---|---|---|
+| `app/playgrounds/[id]/**` | **16.D** | Dùng `use-playground-session.ts` → terminal → đụng đúng bất biến khoang làm việc ở `contracts/p16-workspace.md` §1. Để nó ở 16.C là để một lane không đọc hợp đồng đó viết mã chạm vào nó. |
+| `app/paths/[id]/**` | **16.C** | Trang đọc thuần, không có phiên sandbox nào. |
+| `app/quiz/[id]/**` | **16.C** | Form thuần, không có phiên sandbox nào. |
+
+Kèm theo, hai khoản cấp quyền theo TÊN cho đợt 16.C + 16.D (2026-09-10):
+
+- `components/shell/immersive-routes.ts` → **16.D độc quyền**. Mục 16.D.1 giao đúng việc sửa
+  file này, nhưng file nằm trong `components/shell/**` của 16.B. 16.B chưa chạy; khi nó chạy
+  thì đọc dòng này trước.
+- `app/{lessons,labs,paths,playgrounds,quiz}/layout.tsx` → **không lane nào sửa**. Chúng là
+  gác auth + provider tRPC phía server, không phải phần nhìn, và mỗi file đã ghi rõ vì sao nó
+  gác (hoặc CỐ Ý không gác) ở đúng tầng đó. Cần sửa thì báo lead, không tự đổi.
+
 #### 16.B — vỏ + xác thực
 
 Vỏ hôm nay là thanh trên `h-14` dính, có drawer trái cho mobile. Giữ hình thái đó, dựng lại.
