@@ -1002,6 +1002,57 @@ describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặ
 });
 
 /**
+ * AC-4, vế SỐ HỌC của luật hai kênh (`p16-tokens.md` §2.3).
+ *
+ * `button.test.tsx` và `badge.test.tsx` gác vế CẤU TRÚC — class nào đi ra DOM,
+ * icon có mặt hay không. Vế còn lại là một phép đo, và nó phải sống ở đây vì
+ * đây là nơi có chuỗi oklch → sRGB → độ chói; chép cả chuỗi đó sang một test
+ * component để có một con số là dựng bản thứ hai của phép đo, rồi hai bản trôi
+ * khỏi nhau.
+ *
+ * Điều được chứng minh: bỏ HẾT sắc độ thì hai nút vẫn khác nhau. Mặt nút
+ * `primary` là `bg-primary` ĐẶC; mặt nút `destructive` lúc nghỉ là
+ * `bg-transparent`, tức nó LỘ RA mặt bên dưới (`--background` hoặc `--card`).
+ * Nên khoảng cách cần đo chính là `--primary` ↔ mặt nền — và ≥3.0 là ngưỡng
+ * SC 1.4.11 cho hai thành phần phi-văn-bản cạnh nhau.
+ *
+ * Khác biệt ở MÀU giữa hai token là 1.0646 (sáng) / 1.5028 (tối) — gần 1.00,
+ * tức "cùng một màu". Khác biệt ở CẤU TRÚC là 6.09 / 4.64. Đó là toàn bộ lý do
+ * luật §2.2 nằm ở hình dạng chứ không ở sắc độ.
+ */
+describe('AC-4 — luật hai kênh sống sót khi KHỬ MÀU', () => {
+  it.each([
+    ['sáng (:root)', root, 6.0885, 6.0885],
+    ['tối (.dark)', dark, 4.6415, 4.2009],
+  ])(
+    '%s: mặt `primary` ĐẶC vs mặt `destructive` RỖNG ≥ 3.0:1 trên cả trang lẫn card',
+    (_label, theme, onBackground, onCard) => {
+      const overBackground = measure(theme as Record<string, string>, '--primary', '--background');
+      const overCard = measure(theme as Record<string, string>, '--primary', '--card');
+      expect(overBackground).toBeGreaterThanOrEqual(3);
+      expect(overCard).toBeGreaterThanOrEqual(3);
+      // Ghim số đo, để "xanh" ở đây có nghĩa là "xanh vì đúng khoảng cách này"
+      // chứ không phải "xanh vì một token nào đó tình cờ đủ xa".
+      expect(overBackground).toBeCloseTo(onBackground as number, 3);
+      expect(overCard).toBeCloseTo(onCard as number, 3);
+    },
+  );
+
+  it.each([
+    ['sáng (:root)', root, 1.0646],
+    ['tối (.dark)', dark, 1.5028],
+  ])('%s: hai token đỏ cách nhau %s:1 — gần 1.00, nên MÀU không tách được chúng', (_label, theme, expected) => {
+    const measured = measure(theme as Record<string, string>, '--primary', '--destructive');
+    expect(measured).toBeCloseTo(expected as number, 3);
+    expect(
+      measured,
+      'nếu dòng này ĐỎ vì hai màu đã cách nhau ≥3.0 thì luật hai kênh §2.2 mất lý do tồn tại — ' +
+        'và đó là một thay đổi hợp đồng, không phải một con số cần cập nhật ở đây.',
+    ).toBeLessThan(3);
+  });
+});
+
+/**
  * ✅ 2026-09-10 — ABSENCE PIN "nhãn destructive trên `--muted`" ĐÃ BỊ XOÁ khỏi
  * chỗ này, và đó là chiều-đóng-gap của `rules/pinned-baseline-test-companion.md`
  * hoạt động đúng như nó dặn.
