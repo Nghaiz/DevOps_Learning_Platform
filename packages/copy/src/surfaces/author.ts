@@ -194,6 +194,187 @@ export const author = {
   'author.save.superseded.title': 'Đã tạo bản nháp kế nhiệm, bài đang chạy CHƯA đổi',
   'author.save.superseded.body': (p: { liveId: string; draftId: string }) =>
     `Bài "${p.liveId}" mà người học đang học giữ nguyên. Thay đổi của bạn nằm ở bản nháp "${p.draftId}" và chỉ thay thế bản đang chạy khi bạn bấm Xuất bản.`,
+
+  /*
+   * ── Bài tập Kubernetes (OJ), lane 16.G2 ───────────────────────────────────
+   *
+   * Tiền tố riêng `author.problem.` chứ không dùng chung với `author.state.` /
+   * `author.kind.` của phần soạn bài học. Hai miền khác nhau: `ContentState` có
+   * bốn giá trị (thêm `publishing`), `ProblemState` có ba, và bảng nhãn của
+   * chúng chỉ trùng chữ ở hai mục. Gộp lại là trùng nhầm, và lượt thêm giá trị
+   * thứ năm vào một trong hai union sẽ kéo theo cả miền kia.
+   *
+   * Chữ RUỘT của một bài tập (đề bài, tên mục tiêu, nội dung gợi ý, tham số vị
+   * từ) KHÔNG ở đây: chúng là dữ liệu tác giả gõ, chặn bởi số bài chứ không
+   * chặn bởi số màn hình.
+   */
+
+  'author.problem.meta.list': 'Bài tập Kubernetes · DevOps Learning Platform',
+  'author.problem.meta.new': 'Soạn bài tập mới · DevOps Learning Platform',
+  'author.problem.meta.edit': 'Sửa bài tập · DevOps Learning Platform',
+
+  'author.problem.state.draft': 'Nháp',
+  'author.problem.state.published': 'Đã xuất bản',
+  'author.problem.state.archived': 'Lưu trữ',
+  'author.problem.filter-all': 'Tất cả',
+
+  'author.problem.nav.back': 'Về danh sách bài tập',
+  'author.problem.server-error-title': 'Máy chủ từ chối',
+
+  // ── Danh sách bài tập ──────────────────────────────────────────────────────
+  'author.problem.list.title': 'Bài tập Kubernetes',
+  'author.problem.list.lead': 'Bài do bạn soạn. Bản nháp không hiện với người học, kể cả khi họ biết URL.',
+  'author.problem.list.new-cta': 'Soạn bài mới',
+  'author.problem.list.error-title': 'Không tải được danh sách bài',
+  'author.problem.list.empty-title': 'Bạn chưa soạn bài nào',
+  'author.problem.list.empty-filtered': (p: { state: string }) => `Không có bài nào ở trạng thái "${p.state}"`,
+  'author.problem.list.empty-body':
+    'Một bài OJ không dạy lý thuyết. Nó ra đề, dựng sẵn một cụm hỏng, và chấm bằng vị từ tra trong bảng. Không cần viết một dòng logic engine nào.',
+  'author.problem.list.empty-cta': 'Soạn bài đầu tiên',
+  'author.problem.list.row-topics': (p: { topics: string }) => ` · ${p.topics}`,
+  'author.problem.list.row-untried': 'Chưa ai thử.',
+  'author.problem.list.row-solved': (p: { solvers: number; attempts: number }) =>
+    `${String(p.solvers)}/${String(p.attempts)} người thử đã giải được.`,
+
+  // ── Soạn bài tập mới ───────────────────────────────────────────────────────
+  'author.problem.new.title': 'Soạn bài tập mới',
+  'author.problem.new.lead':
+    'Bài OJ không dạy lý thuyết. Nó ra đề, dựng sẵn một cụm, và chấm bằng vị từ chọn từ bảng tra. Không cần viết một dòng logic engine nào.',
+  /*
+   * `Counted` chứ không phải một câu ghép số: nhánh `zero` bắt buộc ở tầng kiểu,
+   * và nó không phải chỗ điền cho đủ. Hộp này chỉ hiện khi `issues.length > 0`,
+   * nhưng một lượt refactor làm nó hiện với 0 thì câu phải nói ra rằng không còn
+   * gì chặn, thay vì một câu đếm số 0.
+   */
+  'author.problem.new.issues-title': {
+    zero: 'Không còn ô nào chặn lượt lưu',
+    one: 'Còn 1 ô chưa lưu được',
+    many: (n: number) => `Còn ${String(n)} ô chưa lưu được`,
+  },
+  'author.problem.new.submit': 'Lưu bản nháp',
+  'author.problem.new.submit-hint': 'Máy chủ cấp mã bài khi lưu. Xuất bản được làm ở trang sửa, sau khi có mã.',
+  'author.problem.new.created-title': (p: { code: string }) => `Đã tạo bản nháp ${p.code}`,
+  'author.problem.new.created-body': 'Người học chưa thấy bài này cho tới khi bạn xuất bản.',
+
+  // ── Sửa bài tập ────────────────────────────────────────────────────────────
+  'author.problem.edit.error-title': 'Không mở được bài này',
+  'author.problem.edit.error-fallback': 'Không đọc được nội dung bài.',
+  'author.problem.edit.code-note': 'mã không đổi kể cả khi bạn sửa đề hay đổi slug.',
+  'author.problem.edit.unsaved': 'Có thay đổi chưa lưu.',
+  'author.problem.edit.saved': 'Đã lưu mọi thay đổi.',
+
+  // ── Thông báo nổi sau mỗi lượt gọi máy chủ ─────────────────────────────────
+  'author.problem.toast.saved': 'Đã lưu',
+  'author.problem.toast.published': 'Đã xuất bản',
+  'author.problem.toast.published-body': 'Người học thấy bài này ngay bây giờ.',
+  'author.problem.toast.archived': 'Đã đưa vào lưu trữ',
+  'author.problem.toast.deleted': 'Đã xoá bài',
+  'author.problem.toast.json-copied': 'Đã chép JSON vào clipboard',
+  'author.problem.toast.imported': 'Đã nhập vào biểu mẫu',
+  'author.problem.toast.imported-body': 'Kiểm lại rồi lưu. Lượt nhập không tự lưu.',
+
+  // ── Bảy tab của trình soạn ─────────────────────────────────────────────────
+  'author.problem.tab.statement': 'Mô tả',
+  'author.problem.tab.cluster': 'Cụm ban đầu',
+  'author.problem.tab.objectives': (p: { n: number }) => `Mục tiêu (${String(p.n)})`,
+  'author.problem.tab.hints': (p: { n: number }) => `Gợi ý (${String(p.n)})`,
+  'author.problem.tab.arena': 'Thử',
+  'author.problem.tab.json': 'JSON',
+  'author.problem.tab.publish': 'Xuất bản',
+
+  'author.problem.objectives.heading': 'Mục tiêu',
+  'author.problem.objectives.add': 'Thêm mục tiêu',
+
+  // ── Tab Thử, mở đấu trường 3D ──────────────────────────────────────────────
+  'author.problem.arena.heading': 'Thử trong đấu trường',
+  'author.problem.arena.no-code-title': 'Chưa lưu thì chưa thử được',
+  'author.problem.arena.no-code-body':
+    'Đấu trường nạp bài theo mã, mà mã do máy chủ cấp lúc lưu lần đầu. Lưu bản nháp rồi quay lại đây. Bản nháp không hiện với người học, kể cả khi họ biết URL.',
+  'author.problem.arena.lead':
+    'Mở cụm bạn vừa soạn trong đấu trường 3D và tự làm thử bài của mình. Đây là cách duy nhất phát hiện một mục tiêu không bao giờ tích xanh trước khi có người học đụng vào nó.',
+  'author.problem.arena.stale-title': 'Đấu trường sẽ mở BẢN ĐÃ LƯU',
+  'author.problem.arena.stale-body':
+    'Bạn đang có thay đổi chưa lưu. Đấu trường nạp bài từ máy chủ theo mã, nên nó không thấy những gì bạn vừa sửa. Lưu trước rồi hãy mở.',
+  'author.problem.arena.open': (p: { code: string }) => `Mở đấu trường với bài ${p.code}`,
+
+  // ── Tab JSON, chuyển bài giữa các môi trường ───────────────────────────────
+  'author.problem.json.heading': 'Xuất và nhập JSON',
+  'author.problem.json.export-heading': 'Xuất',
+  'author.problem.json.export-lead':
+    'Tải về đúng thứ đang hiện trên màn hình, kể cả phần chưa lưu. Mang sang môi trường khác rồi nhập lại ở ô bên dưới.',
+  'author.problem.json.download': 'Tải file JSON',
+  'author.problem.json.copy': 'Chép vào clipboard',
+  'author.problem.json.export-failed': 'Không xuất được.',
+  'author.problem.json.copy-failed': 'Không chép được.',
+  'author.problem.json.import-heading': 'Nhập',
+  'author.problem.json.import-lead':
+    'Dán nội dung file vào đây. Lượt nhập GHI ĐÈ toàn bộ biểu mẫu đang soạn, và không đụng tới bản đã lưu cho tới khi bạn bấm lưu.',
+  'author.problem.json.textarea-label': 'JSON bài tập cần nhập',
+  'author.problem.json.import': 'Nhập vào biểu mẫu',
+  'author.problem.json.import-error-title': 'Không nhập được',
+  'author.problem.json.dropped-title': (p: { n: number }) => `Đã nhập, nhưng ${String(p.n)} giá trị bị bỏ`,
+
+  // ── Tab Xuất bản, cổng kiểm trước khi phát hành ────────────────────────────
+  'author.problem.publish.heading': 'Xuất bản',
+  'author.problem.publish.blocked-title': {
+    zero: 'Không còn chỗ nào chặn lượt xuất bản',
+    one: 'Còn 1 chỗ phải sửa trước khi xuất bản được',
+    many: (n: number) => `Còn ${String(n)} chỗ phải sửa trước khi xuất bản được`,
+  },
+  'author.problem.publish.ok-title': 'Bài đã đủ điều kiện xuất bản',
+  'author.problem.publish.ok-body':
+    'Máy chủ kiểm lại một lượt nữa khi bạn bấm. Đó là lớp cuối, và nó gác cùng bộ điều kiện.',
+  'author.problem.publish.submit': 'Xuất bản',
+  'author.problem.publish.already': 'Đã xuất bản',
+  'author.problem.publish.archive': 'Đưa vào lưu trữ',
+  'author.problem.publish.danger-heading': 'Xoá hẳn bài',
+  'author.problem.publish.danger-body':
+    'Chỉ xoá được bài CHƯA có ai nộp. Đã có lượt nộp thì máy chủ từ chối và bảo dùng lưu trữ. Xoá một bài đã có người làm là xoá lịch sử của họ.',
+  'author.problem.publish.delete': 'Xoá bài',
+
+  /*
+   * ── Dịch đường dẫn máy đọc sang câu người soạn đọc ─────────────────────────
+   *
+   * Bốn khoá PHẲNG chứ không lồng dưới một nhóm `path`: bốn hình dạng đường dẫn
+   * hiện có không đóng bởi một union nào, nên một nhóm anh em ở đó là một nhóm
+   * sẽ đổi số. Tên phẳng giữ chúng là con trực tiếp của `author.problem`, nhóm
+   * đã có nhiều thành viên.
+   */
+  'author.problem.path-group': (p: { group: string; n: number }) => `${p.group} ${String(p.n)}`,
+  'author.problem.path-arg': (p: { group: string; n: number; arg: string }) =>
+    `${p.group} ${String(p.n)} › tham số ${p.arg}`,
+  'author.problem.path-field': (p: { group: string; n: number; field: string }) =>
+    `${p.group} ${String(p.n)} › ${p.field}`,
+  'author.problem.path-unknown': (p: { path: string }) => `ô ${p.path}`,
+
+  'author.problem.group.objectives': 'Mục tiêu',
+  'author.problem.group.hints': 'Gợi ý',
+  'author.problem.group.nodes': 'Node',
+  'author.problem.group.resources': 'Tài nguyên',
+
+  // ── Tên từng ô nhập, dùng lại ở danh sách lỗi của cổng xuất bản ────────────
+  'author.problem.field.title': 'Tên bài',
+  'author.problem.field.slug': 'Slug',
+  'author.problem.field.statement': 'Đề bài',
+  'author.problem.field.topics': 'Chủ đề',
+  'author.problem.field.tags': 'Tag',
+  'author.problem.field.time-limit': 'Hạn giờ',
+  'author.problem.field.par-moves': 'Số nước đi chuẩn',
+  'author.problem.field.allowed-resources': 'Loại tài nguyên cho phép',
+  'author.problem.field.namespaces': 'Danh sách namespace',
+  'author.problem.field.nodes': 'Node',
+  'author.problem.field.objectives': 'Mục tiêu',
+  'author.problem.field.hints': 'Gợi ý',
+  'author.problem.field.name': 'tên',
+  'author.problem.field.namespace': 'namespace',
+  'author.problem.field.cpu': 'CPU',
+  'author.problem.field.memory': 'bộ nhớ',
+  'author.problem.field.spec': 'phần thân JSON',
+  'author.problem.field.id': 'định danh',
+  'author.problem.field.label': 'nhãn',
+  'author.problem.field.check': 'vị từ',
+  'author.problem.field.text': 'nội dung',
+  'author.problem.field.penalty-points': 'điểm bị trừ',
 } as const satisfies Surface<'author'>;
 
 export const authorIntentionalThree = {
@@ -203,4 +384,8 @@ export const authorIntentionalThree = {
     '2026-09-10: đúng ba loại tồn tại trong hợp đồng dữ liệu ContentKind (lesson, lab, playground), kiểm tại packages/shared-types/src/authoring.ts. Loại thứ tư nào cũng phải sửa union đó trước, và lúc đó nhóm này thôi là ba.',
   'author.item.desc':
     '2026-09-10: ba nhánh vì stepCount mang nghĩa khác nhau theo ContentKind, không phải một phân loại ba. Nhánh playground cố ý không nhắc con số vì playground không có thân, nên nó luôn bằng 0.',
+  'author.problem.meta':
+    '2026-09-10: đúng ba route tồn tại dưới app/author/problems (danh sách, soạn mới, sửa theo mã), kiểm bằng ba file page.tsx trong cây đó. Route thứ tư phải thêm một page.tsx trước, và lúc đó nhóm này thôi là ba.',
+  'author.problem.state':
+    '2026-09-10: đúng ba giá trị tồn tại trong PROBLEM_STATES tại packages/games/src/k8s/problem.ts dòng 85 (draft, published, archived). Đây là union KHÁC với ContentState của author.state, thứ có bốn giá trị vì thêm publishing.',
 } as const satisfies IntentionalThree;

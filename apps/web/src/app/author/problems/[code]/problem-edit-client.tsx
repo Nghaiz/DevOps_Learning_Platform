@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle, Button, ErrorState, Skeleton } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError } from '../../../../lib/trpc';
 import { useProblemMutations } from './use-problem-mutations';
@@ -31,6 +32,12 @@ import { PublishCheck } from '../publish-check';
  * đổi — và đó mới là thứ cảnh báo ở tab Thử cần biết.
  *
  * ⛔ Không dựng `<main>` (C6bis). ⛔ Không `useInfiniteQuery`.
+ *
+ * ## Nút lưu mượn `common.action.save`, không khai bản thứ hai
+ *
+ * Nhãn `Lưu` là nhãn nút chung của cả sản phẩm và L0 sở hữu nó. Chép một
+ * `author.problem.edit.save` sang đây là dựng nguồn thứ hai cho cùng một chữ,
+ * và hai nguồn là hai thứ sẽ lệch.
  */
 export function ProblemEditClient({ code }: { readonly code: string }): ReactElement {
 
@@ -86,8 +93,10 @@ export function ProblemEditClient({ code }: { readonly code: string }): ReactEle
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-6 py-10">
         <ErrorState
-          title="Không mở được bài này"
-          message={query.error === null ? 'Không đọc được nội dung bài.' : describeTrpcError(query.error)}
+          title={t('author.problem.edit.error-title')}
+          message={
+            query.error === null ? t('author.problem.edit.error-fallback') : describeTrpcError(query.error)
+          }
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
         />
@@ -111,19 +120,19 @@ export function ProblemEditClient({ code }: { readonly code: string }): ReactEle
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10">
       <header className="flex flex-col gap-1">
         <Link href="/author/problems" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← Về danh sách bài tập
+          ← {t('author.problem.nav.back')}
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           {form.title === '' ? code : form.title}
         </h1>
         <p className="text-sm text-muted-foreground">
-          <code className="font-mono">{code}</code> · mã không đổi kể cả khi bạn sửa đề hay đổi slug.
+          <code className="font-mono">{code}</code> · {t('author.problem.edit.code-note')}
         </p>
       </header>
 
       {serverError !== null && (
         <Alert variant="destructive">
-          <AlertTitle>Máy chủ từ chối</AlertTitle>
+          <AlertTitle>{t('author.problem.server-error-title')}</AlertTitle>
           <AlertDescription>{serverError}</AlertDescription>
         </Alert>
       )}
@@ -158,10 +167,10 @@ export function ProblemEditClient({ code }: { readonly code: string }): ReactEle
         actions={
           <>
             <Button type="button" onClick={save} loading={update.isPending} disabled={busy}>
-              Lưu
+              {t('common.action.save')}
             </Button>
             <span className="text-sm text-muted-foreground">
-              {hasUnsavedChanges ? 'Có thay đổi chưa lưu.' : 'Đã lưu mọi thay đổi.'}
+              {hasUnsavedChanges ? t('author.problem.edit.unsaved') : t('author.problem.edit.saved')}
             </span>
           </>
         }
