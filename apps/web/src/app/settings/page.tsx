@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
+import { t } from '@devops-platform/copy';
 import { redirect } from 'next/navigation';
 import { readRequestSession } from '../../server/auth/config';
 import { SettingsClient } from './settings-client';
 
 export const metadata: Metadata = {
-  title: 'Hồ sơ & cài đặt — DevOps Learning Platform',
+  title: t('me.page.settings-document-title'),
 };
 
 /**

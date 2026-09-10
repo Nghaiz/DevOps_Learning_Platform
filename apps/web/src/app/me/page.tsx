@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
+import { t } from '@devops-platform/copy';
 import { redirect } from 'next/navigation';
 import { readRequestSession } from '../../server/auth/config';
 import { MeClient } from './me-client';
 
 export const metadata: Metadata = {
-  title: 'Của tôi — DevOps Learning Platform',
+  title: t('me.page.me-document-title'),
 };
 
 /**

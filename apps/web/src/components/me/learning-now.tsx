@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactElement } from 'react';
+import { err, t } from '@devops-platform/copy';
 import {
   Button,
   Card,
@@ -15,6 +16,7 @@ import {
 } from '@devops-platform/ui';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
+import { MeSection } from './me-section';
 import { summarizePathProgress } from './path-progress';
 
 /**
@@ -35,11 +37,7 @@ export function LearningNow(): ReactElement {
   const paths = api.paths.mine.useQuery({});
 
   return (
-    <section aria-labelledby="dang-hoc" className="flex flex-col gap-3">
-      <h2 id="dang-hoc" className="text-lg font-medium text-foreground">
-        Lộ trình đang dở
-      </h2>
-
+    <MeSection id="dang-hoc" title={t('me.learning.title')}>
       {paths.isPending && (
         <div className="flex flex-col gap-3">
           <Skeleton className="h-24 w-full" />
@@ -47,23 +45,16 @@ export function LearningNow(): ReactElement {
         </div>
       )}
 
-      {paths.isError && (
-        <ErrorState
-          title="Không tải được lộ trình đang dở"
-          message={describeTrpcError(paths.error)}
-          onRetry={() => void paths.refetch()}
-          retrying={paths.isFetching}
-        />
-      )}
+      {paths.isError && <PathsError error={paths.error} onRetry={paths.refetch} retrying={paths.isFetching} />}
 
       {paths.isSuccess &&
         (paths.data.items.length === 0 ? (
           <EmptyState
-            title="Chưa có lộ trình nào đang dở"
-            description="Mục này chỉ hiện lộ trình bạn đã đạt ít nhất một phần và chưa đạt hết."
+            title={t('me.learning.empty-title')}
+            description={t('me.learning.empty-description')}
             action={
               <Button asChild variant="outline" size="sm">
-                <Link href="/paths">Xem lộ trình</Link>
+                <Link href="/paths">{t('me.learning.empty-action')}</Link>
               </Button>
             }
           />
@@ -82,7 +73,30 @@ export function LearningNow(): ReactElement {
             ))}
           </ul>
         ))}
-    </section>
+    </MeSection>
+  );
+}
+
+/**
+ * Hai nửa của `ErrorEntry` vào hai khe RIÊNG của `ErrorState`, không ghép.
+ *
+ * Ghép chúng lại thành một chuỗi ở nơi gọi là bỏ đúng sự phân biệt mà tầng kiểu
+ * vừa ép ra: `what` là chuyện gì hỏng, `next` là làm gì tiếp, và người đọc quét
+ * tiêu đề trước rồi mới đọc câu dưới.
+ */
+function PathsError(props: {
+  readonly error: unknown;
+  readonly onRetry: () => unknown;
+  readonly retrying: boolean;
+}): ReactElement {
+  const entry = err('me.error.paths-load', { reason: describeTrpcError(props.error) });
+  return (
+    <ErrorState
+      title={entry.what}
+      message={entry.next}
+      onRetry={() => void props.onRetry()}
+      retrying={props.retrying}
+    />
   );
 }
 
@@ -116,7 +130,13 @@ function PathCard(props: {
       <CardContent className="flex flex-col gap-2">
         <ProgressBar value={summary.value} max={summary.max} label={summary.label} />
         {summary.nextLabel !== null && (
-          <p className={summary.nextIsItemId ? 'font-mono text-xs text-muted-foreground' : 'text-xs text-muted-foreground'}>
+          <p
+            className={
+              summary.nextIsItemId
+                ? 'font-mono text-xs break-all text-muted-foreground'
+                : 'text-xs text-muted-foreground'
+            }
+          >
             {summary.nextLabel}
           </p>
         )}

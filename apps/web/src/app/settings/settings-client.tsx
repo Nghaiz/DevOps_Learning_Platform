@@ -2,19 +2,34 @@
 
 import Link from 'next/link';
 import type { ReactElement } from 'react';
+import { err, t } from '@devops-platform/copy';
 import { Button, ErrorState, Skeleton } from '@devops-platform/ui';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
+import { MePageHeader } from '../../components/me/me-section';
 import { PasswordForm } from '../../components/me/password-form';
 import { PreferencesForm } from '../../components/me/preferences-form';
 import { ProfileForm } from '../../components/me/profile-form';
 
-/** Vai trò hiện cho người dùng đọc; `me.get` trả mã thô của cột `users.role`. */
-const ROLE_LABEL: Readonly<Record<string, string>> = {
-  user: 'Người học',
-  author: 'Tác giả nội dung',
-  admin: 'Quản trị viên',
-};
+/**
+ * Vai trò hiện cho người dùng đọc; `me.get` trả mã thô của cột `users.role`.
+ *
+ * ⚠ Phép thu hẹp xảy ra TRƯỚC khi ghép khoá, không phải bằng một `as` lúc tra
+ * bảng. `t()` chỉ nhận khoá có thật, nên `t(\`me.role.${role}\`)` trên một chuỗi
+ * `string` là lỗi biên dịch chứ không phải một `undefined` lúc chạy rơi vào
+ * nhánh `?? role` một cách tình cờ. Đây đúng là ba phép ép kiểu mà 16.F phải gỡ
+ * ở `describeContentKind` và bạn bè; lane này không dựng lại chúng.
+ *
+ * Mã lạ hiện NGUYÊN MÃ, không đọc thành "Người học": một vai trò mới thêm ở
+ * `users.role` mà quên dịch phải nhìn thấy được, để người dùng báo lại được thứ
+ * họ nhìn thấy.
+ */
+function describeRole(role: string): string {
+  if (role === 'user' || role === 'author' || role === 'admin') {
+    return t(`me.role.${role}`);
+  }
+  return role;
+}
 
 /**
  * `/settings` — hồ sơ & tuỳ chọn (13.E mục 18).
@@ -40,11 +55,12 @@ export function SettingsClient(): ReactElement {
   }
 
   if (me.isError) {
+    const entry = err('me.error.profile-load', { reason: describeTrpcError(me.error) });
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
         <ErrorState
-          title="Không tải được hồ sơ"
-          message={describeTrpcError(me.error)}
+          title={entry.what}
+          message={entry.next}
           onRetry={() => void me.refetch()}
           retrying={me.isFetching}
         />
@@ -56,19 +72,17 @@ export function SettingsClient(): ReactElement {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold text-foreground">Hồ sơ &amp; cài đặt</h1>
-          <p className="text-sm text-muted-foreground">
-            Tên hiển thị, mật khẩu, và tuỳ chọn cho phiên sandbox của bạn.
-          </p>
-        </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/me">Về trang Của tôi</Link>
-        </Button>
-      </header>
+      <MePageHeader
+        title={t('me.page.settings-title')}
+        description={t('me.page.settings-subtitle')}
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/me">{t('me.page.settings-back')}</Link>
+          </Button>
+        }
+      />
 
-      <ProfileForm name={name} email={email} roleLabel={ROLE_LABEL[role] ?? role} />
+      <ProfileForm name={name} email={email} roleLabel={describeRole(role)} />
       <PasswordForm hasPassword={hasPassword} />
       <PreferencesForm
         defaultShell={preferences.defaultShell}

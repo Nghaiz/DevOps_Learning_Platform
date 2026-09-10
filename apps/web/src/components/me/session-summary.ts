@@ -1,3 +1,5 @@
+import { err, t } from '@devops-platform/copy';
+import type { ErrorEntry } from '@devops-platform/copy/types';
 import type { BadgeVariant } from '@devops-platform/ui';
 import { TERMINAL_STATUS_FLOOR } from '../../lib/session-reason';
 
@@ -36,15 +38,24 @@ export interface MySessionStatusView {
   readonly live: boolean;
 }
 
-const STATUS: Readonly<Record<number, { label: string; variant: BadgeVariant }>> = {
-  0: { label: 'Chưa rõ trạng thái', variant: 'outline' },
-  1: { label: 'Đang chuẩn bị máy', variant: 'secondary' },
-  2: { label: 'Đang chuẩn bị máy', variant: 'secondary' },
-  3: { label: 'Máy đã sẵn sàng', variant: 'success' },
-  4: { label: 'Đang chạy', variant: 'success' },
-  5: { label: 'Đã hết hạn', variant: 'outline' },
-  6: { label: 'Đã kết thúc', variant: 'outline' },
-  7: { label: 'Phiên gặp lỗi', variant: 'destructive' },
+type StatusKey =
+  | 'me.session-status.unknown'
+  | 'me.session-status.preparing'
+  | 'me.session-status.ready'
+  | 'me.session-status.running'
+  | 'me.session-status.expired'
+  | 'me.session-status.ended'
+  | 'me.session-status.failed';
+
+const STATUS: Readonly<Record<number, { key: StatusKey; variant: BadgeVariant }>> = {
+  0: { key: 'me.session-status.unknown', variant: 'outline' },
+  1: { key: 'me.session-status.preparing', variant: 'secondary' },
+  2: { key: 'me.session-status.preparing', variant: 'secondary' },
+  3: { key: 'me.session-status.ready', variant: 'success' },
+  4: { key: 'me.session-status.running', variant: 'success' },
+  5: { key: 'me.session-status.expired', variant: 'outline' },
+  6: { key: 'me.session-status.ended', variant: 'outline' },
+  7: { key: 'me.session-status.failed', variant: 'destructive' },
 };
 
 /**
@@ -55,9 +66,13 @@ const STATUS: Readonly<Record<number, { label: string; variant: BadgeVariant }>>
 export function describeMySessionStatus(status: number): MySessionStatusView {
   const known = STATUS[status];
   if (known === undefined) {
-    return { label: `Trạng thái lạ (${String(status)})`, variant: 'warning', live: false };
+    return { label: t('me.session-status.strange', { status }), variant: 'warning', live: false };
   }
-  return { ...known, live: status < TERMINAL_STATUS_FLOOR };
+  return {
+    label: t(known.key),
+    variant: known.variant,
+    live: status < TERMINAL_STATUS_FLOOR,
+  };
 }
 
 /**
@@ -72,20 +87,20 @@ export function describeMySessionStatus(status: number): MySessionStatusView {
  */
 export function describeSessionExpiry(expiresAt: string | null, now: number): string {
   if (expiresAt === null) {
-    return 'không rõ hạn';
+    return t('me.expiry.unknown');
   }
   const at = new Date(expiresAt).getTime();
   if (Number.isNaN(at)) {
-    return 'không rõ hạn';
+    return t('me.expiry.unknown');
   }
   const minutes = Math.round((at - now) / 60_000);
   if (minutes > 0) {
-    return `còn ${String(minutes)} phút`;
+    return t('me.expiry.remaining', { minutes });
   }
   if (minutes === 0) {
-    return 'hết hạn ngay bây giờ';
+    return t('me.expiry.now');
   }
-  return 'đã quá hạn, đang được dọn';
+  return t('me.expiry.overdue');
 }
 
 /** Id rút gọn cho tiêu đề hộp thoại. Danh sách vẫn hiện id ĐẦY ĐỦ. */
@@ -93,10 +108,21 @@ export function shortSessionId(id: string): string {
   return id.length <= 12 ? id : `${id.slice(0, 12)}…`;
 }
 
-/** Câu lỗi khi kết thúc phiên hỏng — nói chuyện gì xảy ra VÀ làm gì tiếp. */
-export function describeEndSessionError(code: string | null, message: string): string {
-  if (code === 'NOT_FOUND') {
-    return `${message}. Phiên có thể đã tự hết hạn — tải lại danh sách để xem còn phiên nào không.`;
-  }
-  return `${message} Tải lại danh sách rồi thử lại; nếu vẫn hỏng thì phiên sẽ tự hết hạn khi tới giờ.`;
+/**
+ * Lỗi khi kết thúc phiên hỏng: nói chuyện gì xảy ra VÀ làm gì tiếp.
+ *
+ * Trả `ErrorEntry` chứ KHÔNG ghép hai nửa thành một chuỗi. `ErrorState` có hai
+ * khe riêng (`title` + `message`), nên ghép ở đây rồi đổ cả cục vào khe
+ * `message` sẽ để khe `title` rơi về mặc định `'Không tải được dữ liệu'` —
+ * một câu nói sai hẳn chuyện gì vừa hỏng. Ghép chỉ đúng khi nơi nhận có ĐÚNG
+ * MỘT khe, và đây không phải ca đó.
+ *
+ * ⚠ Nửa `next` là một câu RIÊNG mở đầu bằng động từ viết hoa, nên phép so
+ * `toContain('tải lại')` phân biệt hoa thường của test cũ phải đổi theo. Đó là
+ * hệ quả bắt buộc của hình dạng `ErrorEntry`, không phải một lượt đổi chữ.
+ */
+export function describeEndSessionError(code: string | null, message: string): ErrorEntry {
+  return code === 'NOT_FOUND'
+    ? err('me.error.session-end-missing', { message })
+    : err('me.error.session-end', { message });
 }
