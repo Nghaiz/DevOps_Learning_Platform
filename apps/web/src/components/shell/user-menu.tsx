@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
   useToast,
 } from '@devops-platform/ui';
+import { errText, t } from '@devops-platform/copy';
 import { userMenuItems, type Viewer } from './nav';
 import { USER_MENU_ICONS } from './nav-icons';
 import { avatarInitials } from './initials';
@@ -47,9 +48,10 @@ export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
       // `/login` sẽ bị `proxy.ts` đẩy ngược về `/me` và người dùng kết luận
       // "bấm đăng xuất không ăn thua" mà không biết vì sao.
       toast({
-        title: 'Chưa đăng xuất được',
-        description:
-          'Máy chủ không phản hồi nên phiên chưa bị thu hồi. Kiểm tra kết nối rồi thử lại; nếu đang dùng máy chung, hãy đóng hẳn trình duyệt.',
+        title: t('shell.sign-out.failed-title'),
+        // `errText` nối `what` rồi `next`. Hai nửa TÁCH RỜI ở tầng kiểu nên
+        // không ai rút gọn được thông báo này về một câu "Đăng xuất thất bại".
+        description: errText('shell.error.sign-out'),
         variant: 'destructive',
       });
       setSigningOut(false);
@@ -83,14 +85,16 @@ export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
             {avatarInitials(viewer.name, viewer.email)}
           </span>
           <span className="sr-only">
-            Tài khoản{viewer.name === '' ? '' : ` của ${viewer.name}`}
+            {viewer.name === ''
+              ? t('shell.account.trigger')
+              : t('shell.account.trigger-named', { name: viewer.name })}
           </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
         <DropdownMenuLabel className="text-foreground">
           <span className="block truncate font-medium">
-            {viewer.name === '' ? 'Tài khoản' : viewer.name}
+            {viewer.name === '' ? t('shell.account.fallback-name') : viewer.name}
           </span>
           <span className="block truncate text-xs font-normal text-muted-foreground">
             {viewer.email}
@@ -122,7 +126,7 @@ export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
         >
           <span className="flex items-center gap-2">
             <LogOut aria-hidden="true" className="size-4 shrink-0" />
-            {signingOut ? 'Đang đăng xuất…' : 'Đăng xuất'}
+            {signingOut ? t('shell.account.signing-out') : t('shell.account.sign-out')}
           </span>
         </DropdownMenuItem>
       </DropdownMenuContent>
