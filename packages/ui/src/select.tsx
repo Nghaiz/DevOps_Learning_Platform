@@ -15,7 +15,7 @@ export function SelectTrigger({ className, children, ...props }: ComponentProps<
       data-slot="select-trigger"
       className={cn(
         'flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm',
-        'text-foreground outline-none transition-colors',
+        'text-foreground outline-none transition-colors duration-[var(--motion-fast)] ease-out',
         'focus-visible:ring-2 focus-visible:ring-ring',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'data-[placeholder]:text-muted-foreground',
@@ -39,7 +39,9 @@ export function SelectContent({ className, children, ...props }: ComponentProps<
         position="popper"
         sideOffset={4}
         className={cn(
-          'z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md',
+          'z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground',
+          // §5: popover = bậc `lg`. §6: popover = bậc nâng nền 3.
+          'shadow-elevation-3',
           className,
         )}
         {...props}

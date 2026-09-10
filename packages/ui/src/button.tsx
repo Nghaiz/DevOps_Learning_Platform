@@ -11,7 +11,7 @@ export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
 const buttonVariants = cva(
   [
     'inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap',
-    'transition-colors outline-none',
+    'transition-colors duration-[var(--motion-fast)] ease-out outline-none',
     /*
      * `ring-offset-2` và `ring-offset-background` đi CÙNG NHAU, không tách được.
      *

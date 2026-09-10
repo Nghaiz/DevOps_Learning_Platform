@@ -11,7 +11,7 @@ export function Checkbox({ className, ...props }: ComponentProps<typeof RadixChe
       data-slot="checkbox"
       className={cn(
         'peer flex size-4 shrink-0 items-center justify-center rounded-sm border border-input bg-background',
-        'transition-colors outline-none',
+        'transition-colors duration-[var(--motion-fast)] ease-out outline-none',
         /*
          * Lúc TÍCH, ô là `bg-primary` — mà `--ring` = `--primary`, nên vòng
          * focus sát mặt ô cho 1.00:1: hộp kiểm đang được chọn là hộp kiểm KHÔNG
