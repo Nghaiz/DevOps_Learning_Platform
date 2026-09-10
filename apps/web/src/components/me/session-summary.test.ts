@@ -79,14 +79,15 @@ describe('shortSessionId', () => {
 
 describe('describeEndSessionError', () => {
   it('mỗi câu lỗi nói CHUYỆN GÌ và LÀM GÌ TIẾP', () => {
+    // Hai nửa TÁCH RỜI, và ô này khẳng định từng nửa nói đúng phần của nó:
+    // `what` nói chuyện gì hỏng, `next` nói làm gì tiếp. Nối chúng lại rồi so
+    // trên chuỗi ghép sẽ xanh cả khi một nửa rỗng.
     const notFound = describeEndSessionError('NOT_FOUND', 'Không tìm thấy phiên');
-    expect(notFound).toContain('hết hạn');
-    // Nửa `next` của `ErrorEntry` là câu riêng mở đầu bằng động từ, nên chữ
-    // `T` viết hoa. Khẳng định vẫn là "câu này bảo người dùng tải lại".
-    expect(notFound).toContain('Tải lại danh sách');
+    expect(notFound.next).toContain('hết hạn');
+    expect(notFound.next).toContain('Tải lại danh sách');
 
     const other = describeEndSessionError(null, 'Mất kết nối tới máy chủ.');
-    expect(other).toContain('Mất kết nối tới máy chủ.');
-    expect(other.toLowerCase()).toContain('thử lại');
+    expect(other.what).toContain('Mất kết nối tới máy chủ.');
+    expect(other.next.toLowerCase()).toContain('thử lại');
   });
 });

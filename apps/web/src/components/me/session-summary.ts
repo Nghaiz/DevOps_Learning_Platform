@@ -1,4 +1,5 @@
 import { err, t } from '@devops-platform/copy';
+import type { ErrorEntry } from '@devops-platform/copy/types';
 import type { BadgeVariant } from '@devops-platform/ui';
 import { TERMINAL_STATUS_FLOOR } from '../../lib/session-reason';
 
@@ -108,21 +109,20 @@ export function shortSessionId(id: string): string {
 }
 
 /**
- * Câu lỗi khi kết thúc phiên hỏng: nói chuyện gì xảy ra VÀ làm gì tiếp.
+ * Lỗi khi kết thúc phiên hỏng: nói chuyện gì xảy ra VÀ làm gì tiếp.
  *
- * Hai nửa của `ErrorEntry` được ghép lại ở ĐÂY, và đó là chỗ ghép DUY NHẤT của
- * lane: `ErrorState` có hai khe riêng nên nó nhận `what`/`next` tách rời, còn
- * hàm này trả một chuỗi vì nơi gọi cất nó vào một `useState<string | null>`
- * dùng chung với các câu lỗi khác.
+ * Trả `ErrorEntry` chứ KHÔNG ghép hai nửa thành một chuỗi. `ErrorState` có hai
+ * khe riêng (`title` + `message`), nên ghép ở đây rồi đổ cả cục vào khe
+ * `message` sẽ để khe `title` rơi về mặc định `'Không tải được dữ liệu'` —
+ * một câu nói sai hẳn chuyện gì vừa hỏng. Ghép chỉ đúng khi nơi nhận có ĐÚNG
+ * MỘT khe, và đây không phải ca đó.
  *
- * ⚠ Nửa `next` giờ là một câu RIÊNG mở đầu bằng động từ viết hoa, nên phép so
+ * ⚠ Nửa `next` là một câu RIÊNG mở đầu bằng động từ viết hoa, nên phép so
  * `toContain('tải lại')` phân biệt hoa thường của test cũ phải đổi theo. Đó là
  * hệ quả bắt buộc của hình dạng `ErrorEntry`, không phải một lượt đổi chữ.
  */
-export function describeEndSessionError(code: string | null, message: string): string {
-  const entry =
-    code === 'NOT_FOUND'
-      ? err('me.error.session-end-missing', { message })
-      : err('me.error.session-end', { message });
-  return `${entry.what} ${entry.next}`;
+export function describeEndSessionError(code: string | null, message: string): ErrorEntry {
+  return code === 'NOT_FOUND'
+    ? err('me.error.session-end-missing', { message })
+    : err('me.error.session-end', { message });
 }
