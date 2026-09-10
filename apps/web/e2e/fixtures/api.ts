@@ -125,9 +125,38 @@ export async function firstItemId(api: APIRequestContext, proc: string): Promise
     );
   }
 
-  return items[0]?.id ?? null;
+  const first = items[0];
+  return first === undefined ? null : identityOf(first);
 }
 
 function isItemsEnvelope(v: unknown): v is { items: { id?: string }[] } {
   return typeof v === 'object' && v !== null && Array.isArray((v as { items?: unknown }).items);
+}
+
+/**
+ * Khoá định danh của một mục danh mục — BA chỗ, không phải một.
+ *
+ * Đo trên schema 2026-09-11: `lessons/labs/playgrounds/paths/quiz/authoring` khoá
+ * theo `id`, còn `problems.list` / `problems.mine` trả
+ * `{items:[{problem:{code}, …}]}` — mục ngoài KHÔNG có `id`, mã nằm lồng một
+ * tầng dưới `problem.code`.
+ *
+ * Vì sao điều này đáng một hàm riêng thay vì `?? item.code`: bản chỉ đọc `.id`
+ * trả `undefined` cho problems, và `firstItemId` khi đó trả `null` — thứ
+ * `resolvePath` dịch thành **"danh mục rỗng"**. Đó là một ô đỏ MANG THÔNG BÁO
+ * SAI, đúng lớp lỗi mà khối chú thích trên vừa mô tả cho `authoring.list`: nó
+ * đẩy người đọc đi kiểm nội dung trong image, trong khi bảng `problems` đầy
+ * và cái sai nằm ở một dòng harness. Ném có tên còn hơn trả `null` mơ hồ.
+ */
+function identityOf(item: unknown): string {
+  const row = item as { id?: unknown; code?: unknown; problem?: { id?: unknown; code?: unknown } };
+  for (const candidate of [row.id, row.code, row.problem?.id, row.problem?.code]) {
+    if (typeof candidate === 'string' && candidate !== '') return candidate;
+  }
+  throw new Error(
+    `Mục đầu của danh mục không mang khoá định danh nào trong {id, code, ` +
+      `problem.id, problem.code}. Nhận được: ${JSON.stringify(item).slice(0, 200)}. ` +
+      `Đây KHÔNG phải "danh mục rỗng" — danh mục có mục, chỉ là harness không ` +
+      `biết đọc khoá của nó.`,
+  );
 }
