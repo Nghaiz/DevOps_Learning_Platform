@@ -33,7 +33,7 @@ export function PhaseFields(props: {
           patch({ title });
         }}
         disabled={disabled}
-        hint="Bỏ trống cũng được — nội dung upstream thường không có."
+        hint="Bỏ trống cũng được, nội dung upstream thường không có."
       />
       <TextAreaField
         label={props.markdownLabel ?? 'Nội dung (Markdown)'}
@@ -47,7 +47,7 @@ export function PhaseFields(props: {
         hint={
           <>
             Khối code có thể mang nút chạy: dùng cú pháp khối code của nội dung nền tảng. Ảnh trỏ tới{' '}
-            <code className="font-mono">./assets/&lt;khoá&gt;</code> — lấy khoá ở tab Tệp đính kèm.
+            <code className="font-mono">./assets/&lt;khoá&gt;</code>, lấy khoá ở tab Tệp đính kèm.
           </>
         }
       />

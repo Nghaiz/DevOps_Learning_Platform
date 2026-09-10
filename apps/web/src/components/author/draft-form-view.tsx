@@ -44,7 +44,7 @@ export function DraftFormView(props: {
         <Section title="Nội dung">
           <Alert>
             <AlertDescription>
-              Playground là một sandbox trống — không có bước, không có script chấm. Người học nhận đúng một môi
+              Playground là một sandbox trống: không có bước, không có script chấm. Người học nhận đúng một môi
               trường và thời hạn đã khai ở trên.
             </AlertDescription>
           </Alert>

@@ -171,7 +171,7 @@ export function StepListFields(props: {
                 disabled={disabled}
                 hint={
                   kind === 'lab'
-                    ? 'Bắt buộc — một task không chấm được thì luôn ở trạng thái chưa đạt. Đạt khi exit code = 0.'
+                    ? 'Bắt buộc: một task không chấm được thì luôn ở trạng thái chưa đạt. Đạt khi exit code = 0.'
                     : 'Bỏ trống nghĩa là bước này chỉ dẫn giải, không chấm. Đạt khi exit code = 0.'
                 }
               />
@@ -187,7 +187,7 @@ export function StepListFields(props: {
                     }}
                     error={issueFor(issues, `${at}.weight`)}
                     disabled={disabled}
-                    hint="Bỏ trống thì loader áp 1 — mọi task nặng như nhau."
+                    hint="Bỏ trống thì loader áp 1, mọi task nặng như nhau."
                   />
                   <TextField
                     label="Gợi ý"

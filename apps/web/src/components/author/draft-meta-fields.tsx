@@ -82,8 +82,8 @@ export function DraftMetaFields(props: {
             label="Độ khó"
             hint={
               kind === 'lesson'
-                ? 'Bắt buộc khi xuất bản — schema bài học không nhận giá trị trống.'
-                : 'Bắt buộc khi xuất bản — schema lab không nhận giá trị trống.'
+                ? 'Bắt buộc khi xuất bản, schema bài học không nhận giá trị trống.'
+                : 'Bắt buộc khi xuất bản, schema lab không nhận giá trị trống.'
             }
           >
             {({ id, describedBy }) => (
@@ -187,7 +187,7 @@ export function DraftMetaFields(props: {
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium text-foreground">Bộ công cụ thêm cho bài này</legend>
         <p className="text-xs text-muted-foreground">
-          Mặc định không bật gì — sandbox đã có sẵn bộ lệnh thường dùng. Chỉ chọn thứ nội dung bài
+          Mặc định không bật gì, sandbox đã có sẵn bộ lệnh thường dùng. Chỉ chọn thứ nội dung bài
           thật sự gõ tới: mỗi công cụ là một lượt cài trong pod lúc mở phiên.
         </p>
         <div className="grid gap-x-6 gap-y-3 pt-1 sm:grid-cols-2">
@@ -216,7 +216,7 @@ export function DraftMetaFields(props: {
           patch({ backendImageId });
         }}
         error={issueFor(issues, 'backendImageId')}
-        hint="Nguyên văn imageid của upstream. Giữ để truy nguyên; nó KHÔNG quyết định sandbox chạy gì — phần đó do capability bên dưới."
+        hint="Nguyên văn imageid của upstream. Giữ để truy nguyên; nó KHÔNG quyết định sandbox chạy gì: phần đó do capability bên dưới."
         disabled={disabled}
       />
 
@@ -286,7 +286,7 @@ export function DraftMetaFields(props: {
             patch({ ttlSeconds });
           }}
           error={issueFor(issues, 'ttlSeconds')}
-          hint="300–7200. Con số này hiện cho người học TRƯỚC khi họ bấm Bắt đầu, nên đặt quá trần là một lời hứa hạ tầng sẽ phá."
+          hint="300 tới 7200. Con số này hiện cho người học TRƯỚC khi họ bấm Bắt đầu, nên đặt quá trần là một lời hứa hạ tầng sẽ phá."
           disabled={disabled}
         />
       )}
@@ -309,14 +309,14 @@ const DIFFICULTY_LABELS: Readonly<Record<(typeof SCENARIO_DIFFICULTIES)[number],
  * thật sự gõ vào nội dung bài, và là chỗ lệch dễ mất thời gian nhất.
  */
 const TOOL_DESCRIPTIONS: Readonly<Record<SandboxTool, string>> = {
-  btop: 'Theo dõi CPU, RAM và tiến trình theo thời gian thực — bản dễ nhìn của top.',
+  btop: 'Theo dõi CPU, RAM và tiến trình theo thời gian thực, bản dễ nhìn của top.',
   tldr: 'Ví dụ dùng nhanh cho một lệnh, thay cho việc đọc hết trang man.',
   ripgrep: 'Tìm chuỗi trong cả cây thư mục, rất nhanh. Lệnh gõ là rg.',
   fd: 'Tìm file theo tên với cú pháp ngắn hơn find. Lệnh gõ là fd.',
   duf: 'Xem dung lượng đĩa còn trống theo từng phân vùng, dạng bảng.',
   ncdu: 'Duyệt thư mục theo dung lượng để tìm chỗ đang chiếm đĩa.',
   delta: 'Tô màu và canh cột cho git diff, dễ đọc phần khác biệt hơn.',
-  yq: 'Đọc và sửa YAML/JSON từ dòng lệnh — hay dùng với manifest Kubernetes.',
+  yq: 'Đọc và sửa YAML/JSON từ dòng lệnh, hay dùng với manifest Kubernetes.',
 };
 
 function ToolBox(props: {

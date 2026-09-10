@@ -88,7 +88,7 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
         <AlertTitle>Ảnh nhúng trong nội dung bài</AlertTitle>
         <AlertDescription>
           Nhận {[...CONTENT_ASSET_TYPES.keys()].join(', ')}, tối đa 2 MB mỗi tệp. Đây KHÔNG phải khối &quot;Chép
-          file vào pod&quot; ở tab Soạn — khối đó khai file có sẵn trong image sandbox, còn ở đây là ảnh hiện
+          file vào pod&quot; ở tab Soạn: khối đó khai file có sẵn trong image sandbox, còn ở đây là ảnh hiện
           trong bài.
         </AlertDescription>
       </Alert>
