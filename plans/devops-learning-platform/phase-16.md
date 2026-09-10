@@ -19,6 +19,31 @@ successful, 32 total`, gồm cả `next build`. 16.C: 9 commit, 30 file. 16.D: 1
 AC-1..AC-6 + AC-8 xanh (AC-7 sang 16.I vì nằm trong `e2e/**`). **`16.B`, `16.E`, `16.F`, `16.G`,
 `16.H` chưa bắt đầu.** Bốn khoản dở của 16.C ghi ở mục 8.
 
+**Trạng thái 2026-09-10 (đợt ba, đang chạy):** ba lane `16.E`, `16.F`, `16.G1` đang thi công
+trên ba worktree riêng (`D:/NCKH/wt-p16-{e,f,g1}`, nhánh `feat/p16-{e-home3d,f-admin,g1-author}`),
+tất cả nền ở `92804b7`. Nền đã đo lại: `Tasks: 32 successful, 32 total`, FULL TURBO (toàn bộ
+cache trúng, tức cây không đổi so với lượt xác minh của đợt hai). **`16.B` và `16.H` để đợt sau.**
+
+**16.G tách đôi — quyết định của lead, không có trong plan gốc.** Cây `author/**` là 72 file /
+10.100 dòng, gấp đôi phạm vi 16.C, mà 16.C đã phải chia hai vì chạm trần lượt. Nên chia sẵn thay
+vì chia phản ứng:
+
+| Lane | Sở hữu | Ghi chú |
+|---|---|---|
+| **16.G1** | `components/author/**` (30 file) + `app/author/{page.tsx,author-list-client.tsx,[id]/**,new/**}` | soạn bài học |
+| **16.G2** | `app/author/problems/**` (35 file) | soạn bài tập, chạy **nối tiếp** sau khi G1 gộp |
+
+Nối tiếp chứ không song song, vì hai lý do đo được, không phải phòng xa:
+
+1. **Cả hai cùng ghi `packages/copy/src/surfaces/author.ts`.** Đó đúng là lớp lỗi mà chú thích
+   đầu `registry.ts` mô tả: hai worktree chia chung một cây, lượt ghi sau ĐÈ lượt trước, không
+   dấu xung đột, không lỗi biên dịch. Cách duy nhất chạy song song là tách surface đó làm hai
+   file, mà việc đó phải sửa `registry.ts` — file L0 — giữa lúc ba lane khác đang bay trên nó.
+2. **`components/author/field.tsx` là điểm chạm một chiều.** Mười file trong `app/author/problems/**`
+   import `TextField`, `TextAreaField`, `issueFor` từ nó; không file nào của `problems/` ghi
+   ngược vào `components/author/`. Nên G1 sở hữu `field.tsx` với ràng buộc giữ nguyên ba chữ ký
+   đó, còn G2 chỉ ĐỌC. Kiểm bằng grep hai chiều trước khi chốt, không suy từ cây thư mục.
+
 Ba thứ đợt này đo được mà plan chưa lường:
 
 1. **Lane effort-L không lọt một lượt agent.** Cả hai lane đều chạm trần 90 lượt (~500–620K
