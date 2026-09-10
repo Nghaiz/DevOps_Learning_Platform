@@ -53,8 +53,9 @@ export interface CatalogCardFlag {
  * KHÔNG đỏ ở đâu cả — lưới chỉ đơn giản mất hover, và trông y như trước khi
  * sửa. Thẻ này nằm trong `<Link>` nên nó là chỗ hợp lệ để bật.
  *
- * `accent` cho dải độ khó (một `border-l-4` thật, không phải khối tuyệt đối tự
- * kê), và `Badge` cho chip độ khó + huy hiệu trạng thái. Cả hai đã mang sẵn
+ * `accent` cho cung độ khó ở góc (design §3 — `packages/ui/src/card.tsx` sở hữu
+ * hình học của nó, ở đây chỉ chọn màu), và `Badge` cho chip độ khó + huy hiệu
+ * trạng thái. Cả hai đã mang sẵn
  * icon riêng theo biến thể, nên ràng buộc "phân biệt bằng cả màu lẫn hình" được
  * giữ ở tầng primitive theo MẶC ĐỊNH — không phụ thuộc vào việc chỗ gọi có nhớ
  * hay không.
@@ -167,9 +168,12 @@ export function CatalogCard(props: {
  * lên khi rê chuột lại chẳng dẫn tới đâu là đúng lời hứa suông mà mặc định
  * `false` của `Card` sinh ra để chặn.
  *
- * Viền trái dùng `border-l-muted` chứ không phải một `--difficulty-*` cụ thể:
- * lúc chưa có dữ liệu thì độ khó là thứ CHƯA BIẾT, và tô sẵn một màu độ khó là
- * đoán — người dùng sẽ thấy màu đổi khi dữ liệu về.
+ * Cung dùng `accent="pending"` (xám `--muted`) chứ không phải một `--difficulty-*`
+ * cụ thể: lúc chưa có dữ liệu thì độ khó là thứ CHƯA BIẾT, và tô sẵn một màu độ
+ * khó là đoán — người dùng sẽ thấy màu đổi khi dữ liệu về. Đi qua `accent` chứ
+ * không tự dựng một cung xám tại chỗ, để khung chờ và thẻ thật dùng CHUNG một
+ * hình học; hai bản chép sẽ lệch, và bố cục nhảy lúc dữ liệu về là đúng thứ
+ * khung chờ sinh ra để chặn.
  */
 export function CatalogGridSkeleton({ count = 6 }: { readonly count?: number }): ReactElement {
   return (
@@ -180,7 +184,7 @@ export function CatalogGridSkeleton({ count = 6 }: { readonly count?: number }):
       className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
     >
       {Array.from({ length: count }, (_unused, index) => (
-        <Card key={index} className="flex h-full flex-col gap-3 border-l-4 border-l-muted p-5">
+        <Card key={index} accent="pending" className="flex h-full flex-col gap-3 p-5">
           <div className="flex items-start justify-between gap-3">
             <Skeleton className="h-5 w-3/5" />
             <Skeleton className="h-5 w-20 shrink-0" />
