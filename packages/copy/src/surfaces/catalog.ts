@@ -328,6 +328,50 @@ export const catalog = {
     'Trong lúc chờ, các level của Kubernetes Game dạy đúng những thao tác mà bài tập ở đây sẽ hỏi.',
   'catalog.problems.empty-cta': 'Mở Kubernetes Game',
 
+  // ── Chi tiết một lộ trình (`/paths/[id]`) ─────────────────────────────
+  //
+  // Ổ khoá vẽ trên màn này là HÌNH ẢNH của một luật chạy ở server, không phải
+  // chính luật đó: `state` tới từ `paths.get` và cổng thi hành là
+  // `paths.openItem`. Câu chữ ở đây vì vậy không được hứa hay từ chối điều gì,
+  // nó chỉ thuật lại thứ server vừa nói.
+  'catalog.path.back': 'Lộ trình',
+  'catalog.path.loading': 'Đang tải lộ trình',
+  'catalog.path.error-title': 'Không mở được lộ trình này',
+  'catalog.path.sequential': 'Học tuần tự: phần sau mở khi phần trước đạt',
+  'catalog.path.open': 'Mở',
+  'catalog.path.reload': 'Tải lại',
+  'catalog.path.empty-title': 'Lộ trình này chưa có phần nào',
+  'catalog.path.empty-body':
+    'Người soạn chưa xếp nội dung vào đây. Bạn có thể học tự do ở danh mục bài học.',
+  'catalog.path.empty-cta': 'Xem danh mục bài học',
+  'catalog.path.kind-lesson': 'Bài học',
+  'catalog.path.state-passed': 'Đã đạt',
+  'catalog.path.state-available': 'Mở',
+  'catalog.path.state-locked': 'Còn khoá',
+  'catalog.path.note-locked': 'Còn khoá, hoàn thành phần trước đó thì phần này tự mở.',
+
+  /*
+   * `title === null` = mắt xích trỏ tới nội dung không còn nạp được. Câu này
+   * hiện ra thay vì lọc mục đó đi: một lộ trình thủng là chuyện người soạn
+   * phải thấy. Nó ĐỘC LẬP với ổ khoá, một item vừa khoá vừa thủng hiện cả hai.
+   */
+  'catalog.path.note-missing':
+    'Không nạp được nội dung này (đã lưu trữ hoặc sai mã), hãy báo người soạn lộ trình.',
+
+  /*
+   * Nhãn nói ĐÚNG thứ hệ thống biết: đã đạt bao nhiêu phần trên bao nhiêu, và
+   * phần nào nên làm tiếp. Nó KHÔNG biết người học đã bỏ ra bao lâu, nên không
+   * có nhãn thời lượng nào ở màn này. Bẫy đã trả giá ở P2: một nhãn từng nói
+   * “4/4 bước” từ đúng một lượt chấm.
+   */
+  'catalog.path.progress': (p: { passed: number; total: number }) =>
+    `Đã đạt ${p.passed}/${p.total} phần`,
+  'catalog.path.ordinal': (p: { n: number; kind: string }) => `${p.n}. ${p.kind}`,
+  'catalog.path.next': (p: { name: string }) => `Nên làm tiếp: ${p.name}`,
+  'catalog.path.all-done': 'Bạn đã đạt tất cả các phần của lộ trình này.',
+  'catalog.path.open-failed': (p: { reason: string }) =>
+    `${p.reason} Bấm “Tải lại” để xem trạng thái mới nhất.`,
+
   // ── Khung chờ tải ─────────────────────────────────────────────────────
   'catalog.loading.grid': 'Đang tải danh sách',
 } as const satisfies Surface<'catalog'>;
