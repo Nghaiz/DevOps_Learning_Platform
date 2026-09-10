@@ -318,9 +318,7 @@ function checkProblems(problems, states, issues) {
     }
   }
   if (!problems.some((problem) => problem.state === 'published')) {
-    issues.push(
-      'không bài nào ở state "published" — nạp xong /problems vẫn rỗng với người học',
-    );
+    issues.push('không bài nào ở state "published" — nạp xong /problems vẫn rỗng với người học');
   }
 }
 
@@ -647,9 +645,10 @@ async function main() {
     process.exit(2);
   }
 
+  const ids = (entries) => entries.map((entry) => entry.data.id);
   await execute(sqlText, [
-    { table: 'learning_paths', column: 'id', label: 'lộ trình', values: paths.map((e) => e.data.id) },
-    { table: 'quizzes', column: 'id', label: 'quiz', values: quizzes.map((e) => e.data.id) },
+    { table: 'learning_paths', column: 'id', label: 'lộ trình', values: ids(paths) },
+    { table: 'quizzes', column: 'id', label: 'quiz', values: ids(quizzes) },
     { table: 'problems', column: 'code', label: 'bài tập', values: problems.map((p) => p.code) },
   ]);
   console.error(`[seed] đã nạp và đọc lại khớp: ${summary} (tác giả ${AUTHOR_ID})`);
