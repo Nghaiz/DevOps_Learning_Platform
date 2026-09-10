@@ -49,7 +49,7 @@ function ActionButton({
       title={title}
       className={cn(
         'inline-flex h-6 shrink-0 items-center rounded px-2 text-xs font-medium',
-        'bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80',
+        'bg-secondary text-secondary-foreground transition-colors duration-[var(--motion-fast)] ease-out hover:bg-secondary/80',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         className,

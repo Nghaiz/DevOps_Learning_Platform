@@ -2,6 +2,7 @@
 
 import type { ReactElement } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
+import { err, t } from '@devops-platform/copy';
 import {
   Alert,
   AlertDescription,
@@ -40,7 +41,7 @@ import {
 type HealthOutput = inferRouterOutputs<AppRouter>['admin']['health'];
 
 /**
- * Bảng sức khoẻ của `/admin` (13.G mục 23) — pool, claim, reap, exec, đọc từ
+ * Bảng sức khoẻ của `/admin` (13.G mục 23): pool, claim, reap, exec, đọc từ
  * `/metrics` của orchestrator và gateway qua `admin.health`.
  *
  * ## Không tự động đọc lại
@@ -54,7 +55,7 @@ type HealthOutput = inferRouterOutputs<AppRouter>['admin']['health'];
  *
  * Trên cụm hôm nay `gateway` **được dự kiến** là không với tới được: cổng admin
  * 8083 cố ý không lên Service, và netpol chỉ mở cho ns monitoring (§3bis của
- * exec plan). Đó là thiết kế, không phải hỏng — nhưng nó vẫn phải hiện ra là
+ * exec plan). Đó là thiết kế, không phải hỏng, nhưng nó vẫn phải hiện ra là
  * "chưa đọc được", kèm lý do, chứ không phải một hàng số 0. Toàn bộ phán quyết
  * đó nằm ở `health-reading.ts` (hàm thuần, có test).
  */
@@ -65,8 +66,8 @@ export function HealthPanel(): ReactElement {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Sức khoẻ nền tảng</CardTitle>
-          <CardDescription>Đang đọc /metrics của orchestrator và gateway…</CardDescription>
+          <CardTitle>{t('admin.health.title')}</CardTitle>
+          <CardDescription>{t('admin.health.loading')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <Skeleton className="h-6 w-2/3" />
@@ -77,17 +78,27 @@ export function HealthPanel(): ReactElement {
   }
 
   if (query.isError) {
+    // Hai nửa của `ErrorEntry` đi vào hai khe khác nhau của `ErrorState`: hỏng
+    // cái gì thành tiêu đề, giờ làm gì thành phần thân. Ghép chúng vào một
+    // chuỗi ở đây là bỏ đúng sự phân biệt mà tầng kiểu vừa ép ra.
+    const failure = err('admin.error.health', { reason: describeTrpcError(query.error) });
     return (
       <ErrorState
-        title="Không đọc được bảng sức khoẻ"
-        message={`${describeTrpcError(query.error)} Bấm Thử lại; nếu vẫn lỗi, kiểm xem BFF có gọi được orchestrator không.`}
+        title={failure.what}
+        message={failure.next}
         onRetry={() => void query.refetch()}
         retrying={query.isFetching}
       />
     );
   }
 
-  return <HealthPanelBody data={query.data} fetching={query.isFetching} onRefetch={() => void query.refetch()} />;
+  return (
+    <HealthPanelBody
+      data={query.data}
+      fetching={query.isFetching}
+      onRefetch={() => void query.refetch()}
+    />
+  );
 }
 
 function HealthPanelBody({
@@ -110,14 +121,14 @@ function HealthPanelBody({
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <CardTitle>Sức khoẻ nền tảng</CardTitle>
-          <CardDescription>
+          <CardTitle>{t('admin.health.title')}</CardTitle>
+          <CardDescription className="max-w-prose">
             {summary.headline}
-            {at === null ? null : ` Đọc lúc ${at}.`}
+            {at === null ? null : t('admin.health.fetched-at', { at })}
           </CardDescription>
         </div>
         <Button variant="outline" size="sm" onClick={onRefetch} loading={fetching}>
-          Đọc lại
+          {t('admin.health.refetch')}
         </Button>
       </CardHeader>
 
@@ -126,15 +137,15 @@ function HealthPanelBody({
           <Alert variant={summary.tone === 'down' ? 'destructive' : 'warning'}>
             <AlertTitle>
               {summary.tone === 'down'
-                ? 'Không đọc được số liệu nào'
-                : 'Bảng dưới đây đang thiếu một phần'}
+                ? t('admin.health.alert-down-title')
+                : t('admin.health.alert-degraded-title')}
             </AlertTitle>
             <AlertDescription>{summary.headline}</AlertDescription>
           </Alert>
         )}
 
         <div className="flex flex-col gap-1">
-          <h2 className="text-sm font-medium text-foreground">Pool pod ấm</h2>
+          <h2 className="text-sm font-medium text-foreground">{t('admin.health.pool-title')}</h2>
           <p className={pool.known ? 'text-sm text-foreground' : 'text-sm text-muted-foreground'}>
             {pool.text}
           </p>
@@ -158,36 +169,42 @@ function SourceBlock({ source }: { readonly source: HealthSourceView }): ReactEl
         <h2 className="text-sm font-medium text-foreground">{describeSourceName(source.name)}</h2>
         <Badge variant={reading.badgeVariant}>{reading.label}</Badge>
       </div>
-      <p className="text-sm text-muted-foreground">{reading.detail}</p>
+      <p className="max-w-prose text-sm text-muted-foreground">{reading.detail}</p>
 
       {/*
         `hasReadings` chứ không `series.length > 0`: quyết định "có gì để vẽ
         không" thuộc về hàm thuần đã có test, không phải một điều kiện chép tay
-        ở JSX — nơi không ai kiểm được nó.
+        ở JSX, nơi không ai kiểm được nó.
+
+        Bảng nằm trong khối cuộn ngang riêng: tên metric Prometheus dài hơn
+        390px là chuyện thường, và ô nghiệm thu §7 mục 1 đòi không màn nào tràn
+        ngang ở bề rộng đó. Cuộn cục bộ giữ được cả hai.
       */}
       {reading.hasReadings ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Chỉ số</TableHead>
-              <TableHead>Nhãn</TableHead>
-              <TableHead className="text-right">Giá trị</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {series.map((entry) => (
-              <TableRow key={`${entry.name}|${formatLabels(entry.labels)}`}>
-                <TableCell className="font-mono text-xs">{entry.name}</TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
-                  {formatLabels(entry.labels)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatMetricValue(entry.value)}
-                </TableCell>
+        <div className="w-full overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('admin.health.col-metric')}</TableHead>
+                <TableHead>{t('admin.health.col-labels')}</TableHead>
+                <TableHead className="text-right">{t('admin.health.col-value')}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {series.map((entry) => (
+                <TableRow key={`${entry.name}|${formatLabels(entry.labels)}`}>
+                  <TableCell className="font-mono text-xs">{entry.name}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {formatLabels(entry.labels)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatMetricValue(entry.value)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       ) : null}
     </section>
   );

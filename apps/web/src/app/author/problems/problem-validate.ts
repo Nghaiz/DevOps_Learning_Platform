@@ -33,7 +33,7 @@ export function publishIssues(form: ProblemFormState): readonly FieldIssue[] {
   if (!SLUG_PATTERN.test(slug)) {
     issues.push({
       path: 'slug',
-      message: 'Slug phải là chữ thường, số và gạch nối — ví dụ "pod-khong-khoi-dong".',
+      message: 'Slug phải là chữ thường, số và gạch nối, ví dụ "pod-khong-khoi-dong".',
     });
   }
 
@@ -50,13 +50,13 @@ export function publishIssues(form: ProblemFormState): readonly FieldIssue[] {
   if (form.topics.length === 0) {
     issues.push({ path: 'topics', message: 'Chọn ít nhất một chủ đề.' });
   } else if (form.topics.length > 3) {
-    issues.push({ path: 'topics', message: 'Tối đa ba chủ đề — nhiều hơn nghĩa là bài đang làm quá nhiều việc.' });
+    issues.push({ path: 'topics', message: 'Tối đa ba chủ đề. Nhiều hơn nghĩa là bài đang làm quá nhiều việc.' });
   }
 
   if (form.restrictResources && form.allowedResources.length === 0) {
     issues.push({
       path: 'allowedResources',
-      message: 'Đã bật giới hạn loại tài nguyên nhưng chưa chọn loại nào — người làm sẽ không tạo được gì.',
+      message: 'Đã bật giới hạn loại tài nguyên nhưng chưa chọn loại nào, nên người làm sẽ không tạo được gì.',
     });
   }
 
@@ -95,7 +95,7 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
   if (!form.objectives.some((objective) => objective.required)) {
     issues.push({
       path: 'objectives',
-      message: 'Cần ít nhất một mục tiêu BẮT BUỘC — bài chỉ toàn mục tiêu thưởng thì qua ngay khi vừa mở.',
+      message: 'Cần ít nhất một mục tiêu BẮT BUỘC. Bài chỉ toàn mục tiêu thưởng thì qua ngay khi vừa mở.',
     });
   }
 
@@ -122,7 +122,7 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
       // qua được, và lỗi đó chỉ lộ ra khi đã có người ngồi làm.
       issues.push({
         path: `${path}.check`,
-        message: `Vị từ "${String(objective.check)}" không có trong bảng tra — bài này sẽ không bao giờ qua được.`,
+        message: `Vị từ "${String(objective.check)}" không có trong bảng tra, nên bài này sẽ không bao giờ qua được.`,
       });
       return;
     }
@@ -141,7 +141,7 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
           .join(' hoặc ');
         issues.push({
           path: `${path}.args.${spec.requireOneOf[0] ?? ''}`,
-          message: `Phải điền ${labels} — thiếu cả hai thì vị từ luôn trả sai.`,
+          message: `Phải điền ${labels}. Thiếu cả hai thì vị từ luôn trả sai.`,
         });
       }
     }

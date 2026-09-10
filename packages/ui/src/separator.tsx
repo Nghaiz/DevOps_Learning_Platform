@@ -39,7 +39,14 @@ export function Kbd({ className, ...props }: HTMLAttributes<HTMLElement>) {
     <kbd
       data-slot="kbd"
       className={cn(
-        'inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-muted px-1',
+        /*
+         * `rounded-sm`, KHÔNG phải `rounded` trần. Tiện ích `rounded` của
+         * Tailwind v4 phát ra `border-radius: 0.25rem` CỨNG — nó không đọc
+         * `--radius`, nên phím này sẽ đứng yên ở 4px trong khi cả hệ dịch sang
+         * thang mới. Hợp đồng §5 xếp chip/phím vào bậc `sm`
+         * (`calc(var(--radius) - 6px)` = 6px).
+         */
+        'inline-flex h-5 min-w-5 items-center justify-center rounded-sm border border-border bg-muted px-1',
         'font-mono text-xs text-muted-foreground',
         className,
       )}

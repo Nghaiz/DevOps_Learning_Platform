@@ -68,7 +68,13 @@ describe('SessionControls — nhãn sức chứa nói về ĐÚNG bài đang m�
     );
 
     expect(screen.getByText('Hết chỗ')).toBeDefined();
-    expect(screen.getByText(/nhiều khả năng sẽ bị từ chối/)).toBeDefined();
+    /*
+      P16: câu cảnh báo được viết lại khi chuyển sang `packages/copy` (luật V3
+      cấm gạch ngang dài), nên chuỗi cũ "nhiều khả năng sẽ bị từ chối" không còn.
+      KHẲNG ĐỊNH thì giữ nguyên và vẫn là khẳng định đáng giá: cảnh báo phải nói
+      ra khả năng bị từ chối, chứ không chỉ nói "hết chỗ" rồi để đó.
+    */
+    expect(screen.getByText(/Nếu bị từ chối/)).toBeDefined();
     // Nút vẫn bấm được — cảnh báo TRƯỚC, không phải chặn.
     expect(screen.getByRole('button', { name: 'Bắt đầu' }).hasAttribute('disabled')).toBe(false);
     expect(document.body.textContent).not.toContain('14');

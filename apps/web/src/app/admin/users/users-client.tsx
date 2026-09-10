@@ -2,6 +2,7 @@
 
 import { useCallback, useState, type FormEvent, type ReactElement } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
+import { err, t } from '@devops-platform/copy';
 import {
   Badge,
   Button,
@@ -32,7 +33,6 @@ import { AdminNote, AdminSection } from '../../../components/admin/admin-section
 import { ConfirmDialog } from '../../../components/admin/confirm-dialog';
 import {
   ASSIGNABLE_ROLES,
-  ROLE_LABEL,
   describeRole,
   describeRoleChangeError,
   planRoleChange,
@@ -55,18 +55,18 @@ type AdminUser = inferRouterOutputs<AppRouter>['admin']['users']['list']['items'
  * ## ⛔ `useQuery` + cursor thủ công, KHÔNG `useInfiniteQuery`
  *
  * `useInfiniteQuery` của `@trpc/react-query` nhét `direction` vào INPUT gửi
- * lên, và `listUsersInput` là `.strict()` — request thật của trình duyệt trả
+ * lên, và `listUsersInput` là `.strict()`, nên request thật của trình duyệt trả
  * 400 `unrecognized_keys` trong khi mọi test mức API vẫn xanh (đã xảy ra ở
  * 13.C, xem chú thích dài trong `app/lessons/lessons-client.tsx`). Ngăn xếp
- * cursor dùng lại `lib/cursor-stack.ts` — hàm thuần đã có test,
- * không viết bản thứ hai.
+ * cursor dùng lại `lib/cursor-stack.ts`, hàm thuần đã có test, không viết bản
+ * thứ hai.
  *
  * ## Tìm kiếm bằng SUBMIT, không phải theo từng phím
  *
  * `q` là `ILIKE` trên email/name ở tầng DB. Gửi mỗi lần gõ một phím là mỗi phím
  * một lượt quét bảng `users`, và `protectedProcedure` có trần 120 query/phút
- * mỗi user — gõ một địa chỉ email là đủ chạm trần. Submit cũng làm hành vi rõ
- * ràng hơn với bàn phím (Enter = tìm), thứ AC 13.H mục 25 đòi.
+ * mỗi user, tức gõ một địa chỉ email là đủ chạm trần. Submit cũng làm hành vi
+ * rõ ràng hơn với bàn phím (Enter = tìm), thứ AC 13.H mục 25 đòi.
  */
 export function AdminUsersClient({ actorId }: { readonly actorId: string }): ReactElement {
   const [stack, setStack] = useState<CursorStack>(FIRST_PAGE);
@@ -86,7 +86,7 @@ export function AdminUsersClient({ actorId }: { readonly actorId: string }): Rea
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       // Đổi điều kiện lọc PHẢI đưa cursor về đầu: cursor là `id` của dòng cuối
-      // trang trước, và giữ nó qua một lần đổi `q` vẫn cho một trang HỢP LỆ —
+      // trang trước, và giữ nó qua một lần đổi `q` vẫn cho một trang HỢP LỆ,
       // nhưng là trang giữa của tập mới, dưới nhãn "Trang 1".
       setAppliedQuery(draftQuery.trim());
       setStack(FIRST_PAGE);
@@ -95,23 +95,20 @@ export function AdminUsersClient({ actorId }: { readonly actorId: string }): Rea
   );
 
   return (
-    <AdminSection
-      title="Người dùng"
-      description="Tìm theo email hoặc tên, và đổi vai trò. Mỗi lần đổi ghi một dòng vào nhật ký quản trị."
-    >
+    <AdminSection title={t('admin.users.title')} description={t('admin.users.description')}>
       <form onSubmit={onSearch} className="flex flex-wrap items-end gap-2">
         <div className="flex min-w-60 flex-1 flex-col gap-1.5">
-          <Label htmlFor="admin-users-q">Tìm theo email hoặc tên</Label>
+          <Label htmlFor="admin-users-q">{t('admin.users.search-label')}</Label>
           <Input
             id="admin-users-q"
             value={draftQuery}
             onChange={(event) => setDraftQuery(event.target.value)}
-            placeholder="vd. hoc@example.com"
+            placeholder={t('admin.users.search-placeholder')}
             maxLength={80}
           />
         </div>
         <Button type="submit" variant="secondary" loading={query.isFetching}>
-          Tìm
+          {t('admin.users.search-submit')}
         </Button>
         {appliedQuery === '' ? null : (
           <Button
@@ -123,7 +120,7 @@ export function AdminUsersClient({ actorId }: { readonly actorId: string }): Rea
               setStack(FIRST_PAGE);
             }}
           >
-            Xoá bộ lọc
+            {t('admin.users.clear-filter')}
           </Button>
         )}
       </form>
@@ -163,10 +160,13 @@ function UsersBody(props: {
   }
 
   if (props.error !== null) {
+    // Hai nửa của `ErrorEntry` vào hai khe của `ErrorState`: hỏng cái gì thành
+    // tiêu đề, giờ làm gì thành phần thân.
+    const failure = err('admin.error.users-list', { reason: props.error });
     return (
       <ErrorState
-        title="Không tải được danh sách người dùng"
-        message={`${props.error} Bấm Thử lại; nếu vẫn lỗi, kiểm kết nối tới cơ sở dữ liệu.`}
+        title={failure.what}
+        message={failure.next}
         onRetry={props.onRetry}
         retrying={props.fetching}
       />
@@ -174,59 +174,60 @@ function UsersBody(props: {
   }
 
   const items = props.items ?? [];
+  const filtering = props.appliedQuery !== '';
 
   if (items.length === 0) {
     return (
       <EmptyState
         title={
-          props.appliedQuery === ''
-            ? 'Chưa có người dùng nào'
-            : `Không có ai khớp "${props.appliedQuery}"`
+          filtering
+            ? t('admin.users.empty-title-query', { query: props.appliedQuery })
+            : t('admin.users.empty-title')
         }
         description={
-          props.appliedQuery === ''
-            ? 'Bảng users đang trống — chưa ai đăng ký tài khoản.'
-            : 'Tìm khớp một phần trên email và tên, không phân biệt hoa thường. Thử một đoạn ngắn hơn.'
+          filtering ? t('admin.users.empty-body-query') : t('admin.users.empty-body')
         }
-        {...(props.appliedQuery === ''
-          ? {}
-          : {
+        {...(filtering
+          ? {
               action: (
                 <Button variant="outline" onClick={props.onFirst}>
-                  Về trang đầu
+                  {t('admin.users.back-first')}
                 </Button>
               ),
-            })}
+            }
+          : {})}
       />
     );
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Người dùng</TableHead>
-            <TableHead>Vai trò</TableHead>
-            <TableHead>Ngày tạo</TableHead>
-            <TableHead className="text-right">Hành động</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((user) => (
-            <UserRow key={user.id} user={user} actorId={props.actorId} />
-          ))}
-        </TableBody>
-      </Table>
+      <div className="w-full overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('admin.users.col-user')}</TableHead>
+              <TableHead>{t('admin.users.col-role')}</TableHead>
+              <TableHead>{t('admin.users.col-created')}</TableHead>
+              <TableHead className="text-right">{t('admin.users.col-actions')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((user) => (
+              <UserRow key={user.id} user={user} actorId={props.actorId} />
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
       {/*
         Câu tự đính chính phạm vi: bảng này chỉ nói về TRANG đang xem. Một dòng
         "3 quản trị viên" đếm trên một trang đã cắt sẽ là một khẳng định sai về
-        cả hệ thống — đúng bẫy nhãn-nói-quá-dữ-liệu mà 13.D mục 13 gọi tên.
+        cả hệ thống, đúng bẫy nhãn-nói-quá-dữ-liệu mà 13.D mục 13 gọi tên.
       */}
       <AdminNote>
-        Đang xem {items.length} người ở trang {props.page}
-        {props.hasNext ? ' — còn trang sau, nên đừng đếm tổng từ bảng này.' : '.'}
+        {t('admin.users.note', { count: items.length, page: props.page })}
+        {props.hasNext ? t('admin.users.note-more') : '.'}
       </AdminNote>
 
       <CursorPager
@@ -259,8 +260,8 @@ function UserRow({
       setServerError(null);
       toast({
         variant: 'success',
-        title: `Đã đổi vai trò của ${user.email}`,
-        description: `Vai trò mới: ${describeRole(result.role)}. Đã ghi vào nhật ký quản trị kèm tên bạn.`,
+        title: t('admin.users.toast-title', { email: user.email }),
+        description: t('admin.users.toast-body', { role: describeRole(result.role) }),
       });
       // Danh sách phải đọc lại từ máy chủ: sửa tại chỗ trong cache là tự khẳng
       // định một trạng thái ta chỉ suy ra, trong khi máy chủ vừa trả sự thật.
@@ -287,7 +288,7 @@ function UserRow({
           <span className="font-medium">{user.name}</span>
           <span className="text-xs text-muted-foreground">{user.email}</span>
           {user.id === actorId ? (
-            <span className="text-xs text-muted-foreground">Đây là tài khoản của bạn</span>
+            <span className="text-xs text-muted-foreground">{t('admin.users.self-note')}</span>
           ) : null}
         </div>
       </TableCell>
@@ -305,7 +306,7 @@ function UserRow({
             setOpen(true);
           }}
         >
-          Đổi vai trò
+          {t('admin.users.change-role')}
         </Button>
 
         <ConfirmDialog
@@ -325,7 +326,7 @@ function UserRow({
           onConfirm={() => setRole.mutate({ userId: user.id, role: nextRole })}
         >
           <div className="flex flex-col gap-1.5 text-left">
-            <Label htmlFor={`role-${user.id}`}>Vai trò mới</Label>
+            <Label htmlFor={`role-${user.id}`}>{t('admin.users.role-field')}</Label>
             <Select
               value={nextRole}
               onValueChange={(value) => {
@@ -339,7 +340,7 @@ function UserRow({
               <SelectContent>
                 {ASSIGNABLE_ROLES.map((role) => (
                   <SelectItem key={role} value={role}>
-                    {ROLE_LABEL[role]}
+                    {describeRole(role)}
                   </SelectItem>
                 ))}
               </SelectContent>

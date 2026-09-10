@@ -285,14 +285,25 @@ không cứu nổi — `--destructive` sáng chỉ đạt 4.7647:1 trên nền t
 lớp phủ đều ăn vào đúng phần dư mỏng đó; muốn đạt 4.5 thì tint phải hạ xuống /03,
 lúc ấy không còn là tint nữa. Bỏ hẳn tint giữ nguyên 4.7647 (sáng) / 6.8443 (tối).
 
-⚠ **Khoảng trống đã đo:** trên `bg-muted` nhánh **sáng**, `text-destructive` chỉ
-được **4.3686:1** — dưới 4.5. Đừng đặt nút/badge `destructive` vào khối `bg-muted`
-ở nhánh sáng. Ba nơi gọi thật hiện nay (`confirm-dialog`, `publish-panel`,
-`active-sessions`) đều nằm trên mặt dialog/card nên không chạm giới hạn này. Sửa
-triệt để cần một token đỏ đậm hơn cho chữ (ví dụ `oklch(0.52 0.19 27.325)` cho
-5.083:1) — tức thêm token vào C1, một thay đổi hợp đồng. Khoảng trống được ghim
-bằng một *absence pin* ở `tokens.contract.test.ts`: chính lúc nó ĐỎ là lúc khoảng
-trống đã đóng, và khi đó phải xoá test rồi thêm cặp vào `TEXT_PAIRS`.
+✅ **Khoảng trống trên `bg-muted` ĐÃ ĐÓNG (2026-09-10).** Chỗ này trước đây dặn
+"đừng đặt nút/badge `destructive` vào khối `bg-muted` ở nhánh sáng", vì
+`text-destructive` chỉ được **4.3686:1** ở đó. `p16-tokens.md` đặt `--destructive`
+sáng thành `oklch(0.505 0.192 29)`, đo lại được **5.9429** (sáng) và **5.3271**
+(tối) — cả hai vượt 4.5, nên lời dặn ấy không còn đúng và đã được gỡ.
+
+*Absence pin* tương ứng ở `tokens.contract.test.ts` cũng bị **xoá**, không phải
+"cập nhật con số": cặp `--destructive`/`--muted` nay nằm thẳng trong `TEXT_PAIRS`
+ở cả hai theme. Ghim lại 5.94 sẽ biến một lần sửa thành một baseline vĩnh viễn
+mà không ai rà lại — `rules/pinned-baseline-test-companion.md` cấm đúng điều đó.
+
+⚠ **Khoảng trống CÒN MỞ, ở chỗ khác:** `--primary` là màu của **link** (§1 bảng
+token nói rõ), và ở nhánh **tối** nó chỉ đạt **4.2009:1** trên `--card` và
+**3.5448:1** trên `--muted` — dưới 4.5. Trên `--background` thì đạt (4.6415).
+Bảng §1.6 của `p16-tokens.md` chỉ đặt ngưỡng 3.0 cho nhánh tối nên hợp đồng
+không tự mâu thuẫn, nhưng nó cũng không nói ra rằng đây là một khoảng trống.
+Được ghim bằng một absence pin có companion hai chiều ở `tokens.contract.test.ts`.
+Sửa triệt để cần một token màu link riêng, hoặc gạch chân bắt buộc (SC 1.4.1
+chấp nhận) — cả hai đều là thay đổi hợp đồng.
 
 **`Alert` KHÔNG đổi, và đó là kết luận có số.** Nó vốn đã là dạng nhạt + viền, và
 không có biến thể alert nào tô nền `--primary` đặc để mà lẫn. Nhãn ở đó là
@@ -406,6 +417,8 @@ phải "bỏ quên".
 | `Kbd` | n/a | n/a | n/a | n/a |
 | `MarkdownView` | n/a (render đồng bộ từ chuỗi đã có trong tay — không có pha tải) | n/a (chuỗi rỗng ra khối rỗng; "không có nội dung" là quyết định của nơi gọi, không phải của trình render) | n/a (không I/O nên không có lỗi riêng; markdown hỏng vẫn render ra text) | n/a (chỉ đọc, không có control nào để vô hiệu) |
 | `ContentView`/`SplitPane`/`StepNav`/`ProgressBar` | giữ API cũ (P2/2.D) — nơi gọi (trang bài học) bọc `Skeleton` NGOÀI cụm | n/a (bài học luôn có ít nhất một bước; danh sách rỗng là lỗi dữ liệu, chặn từ trước khi render) | nơi gọi bọc `ErrorState` NGOÀI cụm — tầng primitive không có trạng thái lỗi riêng | `StepNav` tự tính disable nút Trước/Tiếp theo vị trí `activeKey` |
+| `SearchTabs` | n/a (lọc chạy ở nơi gọi; khung chờ thuộc về danh sách BÊN DƯỚI, không thuộc thanh tìm) | n/a (thanh tìm luôn có ít nhất một tab; "không có kết quả" hiện bằng `EmptyState` của danh sách) | n/a (không I/O — nó chỉ phát `onSearch`/`onTabChange`) | n/a (gói ngoài `gooey-search-tabs@0.2.0` không có prop `disabled`; nơi gọi cần khoá thì không render nó — xem §4f) |
+| `ResourceIcon` | n/a (glyph tĩnh, không có pha tải) | n/a | n/a (`kind` là union đóng 26 giá trị nên không có nhánh "không biết loại") | n/a (không tương tác — không nhận focus, không có handler) |
 
 ### 4b. `Button` — biến thể, `asChild`/`loading`, icon
 
@@ -530,7 +543,8 @@ luận nhầm rằng nó thừa.
 
 ```ts
 interactive?: boolean;                            // mặc định FALSE
-accent?: 'basic' | 'intermediate' | 'advanced';   // dải màu độ khó ở viền trái
+accent?: 'basic' | 'intermediate' | 'advanced'   // cung màu độ khó ở góc trên-trái
+       | 'pending';                                // độ khó CHƯA BIẾT (khung chờ tải)
 ```
 
 `interactive` bật hover: đổi viền sang `border-input`, nâng bóng lên
@@ -548,11 +562,27 @@ có handler bấm.** Hiện có đúng một nơi — `CatalogCard`
 2026-09-06). Khung chờ (skeleton) trong cùng file cố ý KHÔNG truyền: một ô đang
 tải thì chưa bấm được.
 
-`accent` vẽ dải `border-l-4` màu độ khó ở viền trái. Hậu tố khớp token
-`--difficulty-*`, nên nó mang **cùng chỗ lệch `basic`/`beginner`** ở §4c —
-`DIFFICULTY_ACCENT` trong `catalog-labels.ts` là chỗ nối. Dải màu một mình KHÔNG
+`accent` vẽ **một cung màu ở góc trên-trái** — vòng ellipse hở của motif
+(`packages/motion/src/motif.ts`), bậc nét `ARC_STROKE_HAIRLINE`, cắt theo góc bo
+bởi một lớp bọc `absolute inset-0 overflow-hidden`. Hậu tố ba giá trị đầu khớp
+token `--difficulty-*`, nên nó mang **cùng chỗ lệch `basic`/`beginner`** ở §4c —
+`DIFFICULTY_ACCENT` trong `catalog-labels.ts` là chỗ nối. Màu một mình KHÔNG
 đủ cho 1.4.1; nó đi kèm `Badge` độ khó có icon trong cùng thẻ, và đó mới là thứ
-mang nghĩa.
+mang nghĩa — điều đó càng đúng với cung 2px hơn là với dải 4px cũ.
+
+`'pending'` (xám `--muted`) là độ khó **chưa biết**, dành cho khung chờ tải.
+Nó là một giá trị của `accent` chứ không phải một cung xám do nơi gọi tự dựng:
+hình học của cung do `card.tsx` sở hữu, và một bản chép ở `catalog-grid.tsx` sẽ
+lệch vào lần sửa thứ hai — lúc đó khung chờ và thẻ thật không còn cùng hình, mà
+bố cục nhảy khi dữ liệu về chính là thứ khung chờ sinh ra để chặn.
+
+> **Đổi hình ngày 2026-09-11 (lane 16.L0).** Bản trước vẽ `border-l-4
+> border-l-difficulty-*` — một dải phẳng ở viền trái. Design §3 chốt thẻ danh
+> mục dùng "một cung màu ở góc thay cho viền trái phẳng", và `Card` là chỗ duy
+> nhất phát ra hình đó. `Card` nay luôn mang `relative` (cung định vị tuyệt đối
+> theo thẻ) và nhận `children` tường minh thay vì để chúng đi qua `{...props}`.
+> `packages/ui/src/card.test.tsx` chuyển toàn bộ khẳng định cũ sang hình mới —
+> không ô nào bị xoá.
 
 ### 4e. Ba bậc bóng — `shadow-elevation-1|2|3`
 

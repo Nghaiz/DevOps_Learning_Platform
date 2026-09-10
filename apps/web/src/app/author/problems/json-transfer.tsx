@@ -2,6 +2,7 @@
 
 import { useState, type ReactElement } from 'react';
 import { Alert, AlertDescription, AlertTitle, Button, Textarea, useToast } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 import type { ProblemFormState } from './problem-form';
 import { exportFileName, exportProblemJson, importProblemJson } from './problem-json';
 
@@ -20,6 +21,12 @@ import { exportFileName, exportProblemJson, importProblemJson } from './problem-
  * còn trong tập đóng. Bỏ chúng trong im lặng thì một lượt nhập mất hai chủ đề
  * trông y hệt một lượt nhập sạch — và người soạn chỉ phát hiện lúc cổng xuất bản
  * báo thiếu chủ đề, không hiểu vì sao.
+ *
+ * ## Hai câu lỗi dự phòng đi qua bản đồ, `cause.message` thì không
+ *
+ * `exportProblemJson` và `importProblemJson` ném `Error` mang câu của chính
+ * chúng; câu đó là dữ liệu lúc chạy nên nó hiện nguyên văn. Chỉ nhánh "không
+ * phải `Error`" mới cần một câu do ta viết, và hai câu đó ở bản đồ.
  */
 export function JsonTransfer(props: {
   readonly form: ProblemFormState;
@@ -37,7 +44,7 @@ export function JsonTransfer(props: {
     try {
       json = exportProblemJson(props.form, props.code);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không xuất được.');
+      setError(cause instanceof Error ? cause.message : t('author.problem.json.export-failed'));
       return;
     }
     setError(null);
@@ -53,17 +60,16 @@ export function JsonTransfer(props: {
 
   return (
     <section className="flex flex-col gap-5">
-      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">Xuất và nhập JSON</h2>
+      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
+        {t('author.problem.json.heading')}
+      </h2>
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-foreground">Xuất</h3>
-        <p className="text-sm text-muted-foreground">
-          Tải về đúng thứ đang hiện trên màn hình, kể cả phần chưa lưu. Mang sang môi trường khác rồi nhập lại ở
-          ô bên dưới.
-        </p>
+        <h3 className="text-sm font-semibold text-foreground">{t('author.problem.json.export-heading')}</h3>
+        <p className="text-sm text-muted-foreground">{t('author.problem.json.export-lead')}</p>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={download}>
-            Tải file JSON
+            {t('author.problem.json.download')}
           </Button>
           <Button
             type="button"
@@ -71,26 +77,23 @@ export function JsonTransfer(props: {
             onClick={() => {
               try {
                 void navigator.clipboard.writeText(exportProblemJson(props.form, props.code));
-                toast({ title: 'Đã chép JSON vào clipboard' });
+                toast({ title: t('author.problem.toast.json-copied') });
                 setError(null);
               } catch (cause) {
-                setError(cause instanceof Error ? cause.message : 'Không chép được.');
+                setError(cause instanceof Error ? cause.message : t('author.problem.json.copy-failed'));
               }
             }}
           >
-            Chép vào clipboard
+            {t('author.problem.json.copy')}
           </Button>
         </div>
       </div>
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-foreground">Nhập</h3>
-        <p className="text-sm text-muted-foreground">
-          Dán nội dung file vào đây. Lượt nhập GHI ĐÈ toàn bộ biểu mẫu đang soạn, và không đụng tới bản đã lưu
-          cho tới khi bạn bấm lưu.
-        </p>
+        <h3 className="text-sm font-semibold text-foreground">{t('author.problem.json.import-heading')}</h3>
+        <p className="text-sm text-muted-foreground">{t('author.problem.json.import-lead')}</p>
         <Textarea
-          aria-label="JSON bài tập cần nhập"
+          aria-label={t('author.problem.json.textarea-label')}
           className="font-mono text-xs"
           rows={10}
           value={text}
@@ -114,24 +117,27 @@ export function JsonTransfer(props: {
               setError(null);
               setDropped(result.dropped);
               props.onImport(result.form);
-              toast({ title: 'Đã nhập vào biểu mẫu', description: 'Kiểm lại rồi lưu — nhập không tự lưu.' });
+              toast({
+                title: t('author.problem.toast.imported'),
+                description: t('author.problem.toast.imported-body'),
+              });
             }}
           >
-            Nhập vào biểu mẫu
+            {t('author.problem.json.import')}
           </Button>
         </div>
       </div>
 
       {error !== null && (
         <Alert variant="destructive">
-          <AlertTitle>Không nhập được</AlertTitle>
+          <AlertTitle>{t('author.problem.json.import-error-title')}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {dropped.length > 0 && (
         <Alert variant="warning">
-          <AlertTitle>Đã nhập, nhưng {String(dropped.length)} giá trị bị bỏ</AlertTitle>
+          <AlertTitle>{t('author.problem.json.dropped-title', { n: dropped.length })}</AlertTitle>
           <AlertDescription>
             <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
               {dropped.map((line) => (

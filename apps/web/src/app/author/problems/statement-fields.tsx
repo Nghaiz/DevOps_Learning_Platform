@@ -71,7 +71,7 @@ export function StatementFields(props: {
           error={issueFor(props.issues, 'slug')}
           hint={
             <>
-              Chữ thường, số và gạch nối. Slug đổi được khi sửa tên bài — khác mã bài, thứ không bao giờ đổi. Sẽ
+              Chữ thường, số và gạch nối. Slug đổi được khi sửa tên bài, khác mã bài là thứ không bao giờ đổi. Sẽ
               lưu thành <code className="font-mono">{slugPreview === '' ? '(trống)' : toSlug(slugPreview)}</code>.
             </>
           }
@@ -112,7 +112,7 @@ export function StatementFields(props: {
               rows={10}
               error={issueFor(props.issues, 'statement')}
               placeholder={'Namespace `thanh-toan` có một Deployment không lên nổi replica nào.\n\nTìm nguyên nhân và đưa nó về đủ 3 replica sẵn sàng.'}
-              hint="Bài OJ KHÔNG dạy lý thuyết — chỉ nói đề. Kiến thức nền để người làm tự tra."
+              hint="Bài OJ KHÔNG dạy lý thuyết, chỉ nói đề. Kiến thức nền để người làm tự tra."
             />
           </TabsContent>
           <TabsContent value="xem">
@@ -146,7 +146,7 @@ function WordMeter({ words, remaining }: { readonly words: number; readonly rema
     <p className={`text-xs ${tone}`} aria-live="polite">
       {String(words)}/{String(STATEMENT_WORD_LIMIT)} từ.{' '}
       {over
-        ? `Vượt trần — phải cắt ${String(-remaining)} từ mới xuất bản được.`
+        ? `Vượt trần: phải cắt ${String(-remaining)} từ mới xuất bản được.`
         : near
           ? `Còn ${String(remaining)} từ. Bài OJ nói đề, không giảng bài.`
           : `Còn ${String(remaining)} từ.`}

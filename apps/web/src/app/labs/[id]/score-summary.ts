@@ -1,6 +1,7 @@
 // Subpath `./lab-score`, KHÔNG phải barrel `.` — cùng lý do đã ghi ở đầu
 // `task-status.ts`: barrel kéo theo loader đọc đĩa (`node:fs/promises`) và làm
 // `next build` đổ với "the chunking context does not support external modules".
+import { t } from '@devops-platform/copy';
 import { computeLabScore, computeLabStatus } from '@devops-platform/scenario/lab-score';
 import type { Lab, LabAttemptStatus, LabScore } from '@devops-platform/shared-types/lab';
 import {
@@ -110,7 +111,10 @@ export function summarizeLabScore(input: LabScoreInput): LabScoreSummary {
   // Chỉ hiện cặp trọng số khi nó THÊM thông tin. Lab mọi task cùng trọng số thì
   // "(4/4 điểm trọng số)" chỉ lặp lại "4/4 nhiệm vụ" bằng chữ khác.
   const weightNote = weighted
-    ? ` (${String(score.earnedWeight)}/${String(score.totalWeight)} điểm trọng số)`
+    ? t('session.score.weighted-note', {
+        earned: score.earnedWeight,
+        total: score.totalWeight,
+      })
     : '';
 
   if (!submitted) {
@@ -126,10 +130,15 @@ export function summarizeLabScore(input: LabScoreInput): LabScoreSummary {
       // "nộp bây giờ được X%" chứ không phải "X%": trước lúc nộp, con số này là
       // một DỰ BÁO có điều kiện, và điều kiện đó (không chấm thêm gì nữa) phải
       // nằm trong câu chữ.
-      headline: `Đã đạt ${String(passedCount)}/${String(taskCount)} nhiệm vụ — nộp bây giờ được ${String(score.percent)}%${weightNote}`,
+      headline: t('session.score.progress', {
+        passed: passedCount,
+        total: taskCount,
+        percent: score.percent,
+        weightNote,
+      }),
       caveat:
         uncheckedCount > 0
-          ? `Còn ${String(uncheckedCount)} nhiệm vụ chưa được chấm lần nào — nếu nộp bây giờ, chúng tính là chưa đạt. Hãy bấm Chấm ở từng nhiệm vụ trước khi nộp.`
+          ? t('session.score.unchecked-warning', { count: uncheckedCount })
           : null,
       tone: 'neutral',
     };
@@ -144,12 +153,18 @@ export function summarizeLabScore(input: LabScoreInput): LabScoreSummary {
     uncheckedCount,
     weighted,
     submitted,
-    headline: `${status === 'passed' ? 'Đạt' : 'Chưa đạt'} — ${String(score.percent)}% (mốc ${String(lab.passThresholdPercent)}%)${weightNote}`,
+    headline: t('session.score.verdict', {
+      verdict:
+        status === 'passed' ? t('session.task.state.passed') : t('session.task.state.failed'),
+      percent: score.percent,
+      threshold: lab.passThresholdPercent,
+      weightNote,
+    }),
     // Sau khi nộp, câu phụ đổi vai: nó không còn cảnh báo nữa mà GIẢI THÍCH vì
     // sao điểm thấp hơn số nhiệm vụ người học tưởng mình đã làm.
     caveat:
       uncheckedCount > 0
-        ? `${String(uncheckedCount)} nhiệm vụ chưa từng được chấm nên tính là chưa đạt trong điểm trên.`
+        ? t('session.score.unchecked-note', { count: uncheckedCount })
         : null,
     tone: status === 'passed' ? 'success' : 'warning',
   };

@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
+import { err, errText, t } from '@devops-platform/copy';
 import {
   Alert,
   AlertDescription,
@@ -32,9 +33,12 @@ import {
 import {
   SessionControls,
   ShellFallbackNotice,
+  TaskChecklist,
   TerminalPane,
   WorkspacePanel,
   WorkspaceSplit,
+  outcomeKind,
+  resolveTaskVisualState,
   useResolvedTerminalTheme,
 } from '../../../components/session';
 import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
@@ -63,22 +67,26 @@ import type { TaskCheckState, TaskDisplay } from './task-status';
  *    `score-summary.ts` để biết bẫy P2 lặp lại ở lab dưới hình dạng nào.
  */
 
+/**
+ * Nhãn + biến thể badge cho viên trạng thái ở KHUNG CHI TIẾT của nhiệm vụ đang
+ * chọn. Danh SÁCH thì không dùng bảng này nữa: nó đã chuyển sang `TaskChecklist`
+ * với NĂM trạng thái, trong đó `infra` là trạng thái mà bảng ba giá trị dưới
+ * đây không diễn đạt được (16.D.4).
+ *
+ * Bảng này vẫn còn vì khung chi tiết chỉ nói về trạng thái ĐÃ LƯU của một
+ * nhiệm vụ; kết quả lượt chấm hiện thời đã có `CheckResultPanel` ngay bên dưới
+ * nó vẽ đủ ba nhánh.
+ */
 const TASK_STATE_LABEL: Record<TaskCheckState, string> = {
-  'not-attempted': 'Chưa chấm',
-  passed: 'Đạt',
-  failed: 'Chưa đạt',
+  'not-attempted': t('session.task.state.not-attempted'),
+  passed: t('session.task.state.passed'),
+  failed: t('session.task.state.failed'),
 };
 
-/**
- * `failed` dùng `warning` chứ KHÔNG dùng `destructive` — cùng lý lẽ đã ghi ở
- * `CheckResultPanel`: một nhiệm vụ chưa đạt là kết quả bình thường của một lượt
- * chấm, không phải lỗi hệ thống. Tô nó đỏ như lỗi làm người học đọc một bài
- * đang làm dở thành một trang hỏng.
- */
 const TASK_STATE_VARIANT: Record<TaskCheckState, BadgeVariant> = {
   'not-attempted': 'secondary',
   passed: 'success',
-  failed: 'warning',
+  failed: 'destructive',
 };
 
 const SCORE_TONE_CLASS = {
@@ -88,9 +96,10 @@ const SCORE_TONE_CLASS = {
 } as const;
 
 function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m)} phút ${String(s)} giây`;
+  return t('session.lab.duration', {
+    minutes: Math.floor(seconds / 60),
+    seconds: seconds % 60,
+  });
 }
 
 export function LabClient({ labId, userId }: { labId: string; userId: string }): React.ReactElement {
@@ -193,16 +202,28 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
       { labId, attemptId },
       {
         onSuccess: () => void utils.labs.invalidate(),
-        onError: (error) => setSubmitError(describeTrpcError(error)),
+        onError: (error) =>
+          setSubmitError(errText('session.lab.error.submit', { reason: describeTrpcError(error) })),
       },
     );
   }, [attemptId, labId, submit, utils]);
 
   /*
-    C5 — lab KHÔNG có tab Editor: không bài lab nào wire `IdePane` (chỉ trang
-    bài học có), nên `hasEditor: false` là mô tả đúng hiện trạng chứ không phải
-    một lựa chọn. Khi nào lab cần IDE thì `IdePane` phải ra khỏi
-    `app/lessons/[id]/` trước đã.
+    C5 — lab vẫn KHÔNG có tab Editor, nhưng LÝ DO đã đổi ở P16.
+
+    Rào cản kiến trúc đã gỡ: `IdePane` nay sống ở `components/session/` (16.D.3),
+    nên lab với tới được nó. Rào cản còn lại là NỘI DUNG, và nó có thật: kiểu
+    `Lab` (`packages/shared-types/src/lab.ts`) KHÔNG có trường `interfaceLayout`,
+    nên không bài lab nào khai được rằng nó muốn IDE.
+
+    ⛔ Đừng thay bằng `shouldShowIdePane(profile)`. `profile` là profile TÀI
+    NGUYÊN (`''` · `ide` · `k8s`), do `profileForCapabilities` tính từ năng lực;
+    `interfaceLayout` là một trường nội dung khác hẳn. `ide-layout.ts` đã ghi vì
+    sao phép so đó phải trùng byte với phép so ở server: nới tay ⇒ iframe trỏ
+    vào một pod không chạy Theia và trắng vĩnh viễn.
+
+    Mở IDE cho lab vì vậy cần một trường trong lược đồ lab cộng một lượt sửa
+    server, tức là ngoài phạm vi "chỉ frontend" của P16.
   */
   const tabs = useWorkspaceTabs({
     terminal: session.terminal,
@@ -226,7 +247,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center p-6">
         <ErrorState
-          title="Không mở được lab này"
+          title={err('session.lab.error.open').what}
           message={describeTrpcError(labQuery.error)}
           onRetry={() => void labQuery.refetch()}
           retrying={labQuery.isFetching}
@@ -274,8 +295,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
       theme={terminalTheme}
       placeholder={
         <span>
-          Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng sandbox
-          và mở terminal.
+          {t('session.terminal.empty')}
         </span>
       }
     />
@@ -319,10 +339,22 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
         )
       )}
 
-      <TaskTable
-        displays={summary.displays}
-        weighted={summary.weighted}
-        selectedTaskId={selected?.task.id ?? null}
+      {/*
+        16.D.4 — danh sách kiểm, không còn `<table>`. Trạng thái nhìn được TÍNH
+        tại đây từ hai nguồn đã có (kết quả server đã ghi + lượt chấm của phiên
+        này), chứ không lưu thành một trường thứ ba.
+      */}
+      <TaskChecklist
+        items={summary.displays.map((display) => ({
+          id: display.task.id,
+          title: display.task.title,
+          state: resolveTaskVisualState(
+            display.state,
+            outcomeKind(checkOutcomes[display.task.id] ?? null),
+          ),
+          weight: summary.weighted ? display.task.weight : null,
+        }))}
+        selectedId={selected?.task.id ?? null}
         onSelect={setSelectedTaskId}
       />
 
@@ -333,9 +365,9 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
           canCheck={attemptId !== null && !submitted && !setupPending}
           disabledReason={
             attemptId === null
-              ? 'Hãy bấm Bắt đầu ở trên để dựng sandbox trước khi chấm.'
+              ? t('session.lab.blocked-no-session')
               : submitted
-                ? 'Lần thử này đã nộp — không chấm lại được. Bấm Bắt đầu để mở lần thử mới.'
+                ? t('session.lab.blocked-submitted')
                 : // P15 / 15.C — khoá nút là để người học KHÔNG nhận một lượt
                   // chấm sai trên cảnh dựng dở. Câu ở đây nói cùng một điều với
                   // banner ở trên, nhưng nó phải có mặt ở CẢ HAI chỗ: banner
@@ -347,7 +379,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
                   // lời giải thích: trạng thái tệ nhất trong ba, vì người học
                   // không biết là phải chờ hay là đã hỏng.
                   setupPending
-                  ? (setupNotice?.message ?? 'Đang kiểm tra môi trường của bài…')
+                  ? (setupNotice?.message ?? t('session.lab.setup-checking'))
                   : null
           }
           onCheck={() => {
@@ -366,11 +398,9 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
             </Alert>
           )}
           <Button onClick={onSubmit} loading={submit.isPending}>
-            Nộp bài
+            {t('session.lab.submit')}
           </Button>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Nộp bài chốt điểm từ các lượt chấm đã có — nó KHÔNG chạy lại lượt chấm nào.
-          </p>
+          <p className="mt-2 text-xs text-muted-foreground">{t('session.lab.submit-note')}</p>
         </div>
       )}
 
@@ -379,8 +409,10 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
           <CardTitle>{summary.headline}</CardTitle>
           <CardDescription>
             {attemptData.durationSeconds !== null
-              ? `Thời gian làm bài: ${formatDuration(attemptData.durationSeconds)}.`
-              : 'Chưa tính được thời gian làm bài cho lần thử này.'}
+              ? t('session.lab.duration-line', {
+                  duration: formatDuration(attemptData.durationSeconds),
+                })
+              : t('session.lab.duration-unknown')}
           </CardDescription>
           {lab.leaderboard && (
             <div className="mt-4 flex items-center gap-2">
@@ -403,7 +435,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
                 }}
               />
               <Label htmlFor="dlp-lab-leaderboard-optin" className="font-normal">
-                Hiện tên tôi trên bảng xếp hạng (mặc định ẨN DANH)
+                {t('session.lab.leaderboard-optin')}
               </Label>
             </div>
           )}
@@ -421,7 +453,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
     <div className="flex min-h-0 flex-1 flex-col bg-background text-foreground">
       <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
         <Link href="/labs" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Lab
+          {t('session.lab.back')}
         </Link>
         <h1 className="text-sm font-semibold">{lab.title}</h1>
 
@@ -438,7 +470,9 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
             actions={{ start: session.start, end: session.end, extend: session.extend }}
             capacity={capacity.data ?? null}
             profile={profile}
-            startLabel={attemptId === null ? 'Bắt đầu' : 'Làm lại'}
+            startLabel={
+            attemptId === null ? t('session.controls.start') : t('session.controls.restart')
+          }
           />
         </div>
       </header>
@@ -451,9 +485,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
       {unsupportedCapabilities.length > 0 && (
         <Alert variant="warning" className="rounded-none border-x-0 border-t-0">
           <AlertDescription className="text-foreground">
-            Lab này cần <strong>{unsupportedCapabilities.join(', ')}</strong> — nền tảng chưa chạy
-            được những năng lực đó, nên một số lệnh trong lab sẽ báo lỗi. Bạn vẫn mở được để đọc
-            nội dung và làm các nhiệm vụ còn lại.
+            {t('session.lab.unsupported', { capabilities: unsupportedCapabilities.join(', ') })}
           </AlertDescription>
         </Alert>
       )}
@@ -479,8 +511,9 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertDescription className="flex flex-wrap items-center gap-3 text-foreground">
             <span>
-              Không đọc được kết quả lần thử này: {describeTrpcError(attemptQuery.error)} — bảng
-              nhiệm vụ bên dưới đang hiện trạng thái cũ.
+              {errText('session.lab.error.attempt', {
+                reason: describeTrpcError(attemptQuery.error),
+              })}
             </span>
             <Button
               size="sm"
@@ -488,7 +521,7 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
               onClick={() => void attemptQuery.refetch()}
               loading={attemptQuery.isFetching}
             >
-              Tải lại
+              {t('session.lab.reload')}
             </Button>
           </AlertDescription>
         </Alert>
@@ -502,8 +535,12 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
               <Tabs defaultValue="tasks" className="flex h-full flex-col">
                 <div className="border-b border-border bg-card px-4 py-2">
                   <TabsList>
-                    <TabsTrigger value="tasks">Nhiệm vụ ({lab.tasks.length})</TabsTrigger>
-                    <TabsTrigger value="leaderboard">Bảng xếp hạng</TabsTrigger>
+                    <TabsTrigger value="tasks">
+                      {t('session.lab.tasks-tab', { count: lab.tasks.length })}
+                    </TabsTrigger>
+                    <TabsTrigger value="leaderboard">
+                      {t('session.lab.leaderboard-tab')}
+                    </TabsTrigger>
                   </TabsList>
                 </div>
                 <TabsContent value="tasks" className="mt-0 min-h-0 flex-1">
@@ -544,72 +581,6 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
         />
       </div>
     </div>
-  );
-}
-
-/**
- * Bảng nhiệm vụ (task 13: *"bảng task bên cạnh terminal"*).
- *
- * Ô tiêu đề là một `<button>` thật chứ không phải `onClick` trên `<tr>`: một
- * hàng bấm được mà không focus được là một hàng người dùng bàn phím không mở
- * được, và đó là một ô AC của 13.H chứ không phải một chi tiết đẹp-xấu.
- */
-function TaskTable({
-  displays,
-  weighted,
-  selectedTaskId,
-  onSelect,
-}: {
-  displays: readonly TaskDisplay[];
-  weighted: boolean;
-  selectedTaskId: string | null;
-  onSelect: (taskId: string) => void;
-}): React.ReactElement {
-  return (
-    <Table>
-      <TableCaption>Bấm một nhiệm vụ để đọc đề và chấm riêng nhiệm vụ đó.</TableCaption>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-10">#</TableHead>
-          <TableHead>Nhiệm vụ</TableHead>
-          {/* Cột trọng số chỉ hiện khi nó THÊM thông tin — xem `score-summary.ts`. */}
-          {weighted && <TableHead className="w-24 text-right">Trọng số</TableHead>}
-          <TableHead className="w-28">Trạng thái</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {displays.map((display, index) => {
-          const isSelected = display.task.id === selectedTaskId;
-          return (
-            <TableRow key={display.task.id} className={isSelected ? 'bg-muted' : undefined}>
-              <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-              <TableCell>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSelect(display.task.id);
-                  }}
-                  aria-current={isSelected ? 'true' : undefined}
-                  className="w-full rounded text-left text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  {display.task.title}
-                </button>
-              </TableCell>
-              {weighted && (
-                <TableCell className="text-right text-muted-foreground">
-                  {display.task.weight}
-                </TableCell>
-              )}
-              <TableCell>
-                <Badge variant={TASK_STATE_VARIANT[display.state]}>
-                  {TASK_STATE_LABEL[display.state]}
-                </Badge>
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
   );
 }
 
@@ -657,7 +628,7 @@ function TaskDetail({
 
       {display.task.hint !== null && (
         <details className="mt-3 text-xs text-muted-foreground">
-          <summary className="cursor-pointer font-medium">Gợi ý</summary>
+          <summary className="cursor-pointer font-medium">{t('session.lab.hint')}</summary>
           <p className="mt-1">{display.task.hint}</p>
         </details>
       )}
@@ -669,7 +640,7 @@ function TaskDetail({
           disabled={!canCheck}
           loading={outcome?.kind === 'running'}
         >
-          Chấm nhiệm vụ này
+          {t('session.lab.check-one')}
         </Button>
         {/*
           Lý do bị khoá hiện thành CHỮ, không chỉ `title`: một nút disabled không
@@ -688,7 +659,7 @@ function TaskDetail({
         */}
         {display.lastExitCode !== null && outcome === null && (
           <span className="text-xs text-muted-foreground">
-            Lần chấm gần nhất kết thúc với exit {display.lastExitCode}.
+            {t('session.lab.last-exit', { code: display.lastExitCode })}
           </span>
         )}
       </div>
@@ -704,7 +675,7 @@ function LeaderboardPanel({ labId }: { labId: string }): React.ReactElement {
   if (query.isPending) {
     return (
       <div role="status" aria-busy="true" className="flex flex-col gap-2 p-4">
-        <span className="sr-only">Đang tải bảng xếp hạng…</span>
+        <span className="sr-only">{t('session.lab.leaderboard-loading')}</span>
         <Skeleton className="h-6 w-full" />
         <Skeleton className="h-6 w-full" />
         <Skeleton className="h-6 w-2/3" />
@@ -715,7 +686,7 @@ function LeaderboardPanel({ labId }: { labId: string }): React.ReactElement {
     return (
       <div className="p-4">
         <ErrorState
-          title="Không tải được bảng xếp hạng"
+          title={err('session.lab.error.leaderboard').what}
           message={describeTrpcError(query.error)}
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
@@ -725,24 +696,20 @@ function LeaderboardPanel({ labId }: { labId: string }): React.ReactElement {
   }
   if (query.data.items.length === 0) {
     return (
-      <p className="p-4 text-sm text-muted-foreground">
-        Chưa có ai nộp bài lab này. Nộp bài xong, bạn sẽ là người đầu tiên trên bảng.
-      </p>
+      <p className="p-4 text-sm text-muted-foreground">{t('session.lab.leaderboard-empty')}</p>
     );
   }
 
   return (
     <div className="p-4">
       <Table>
-        <TableCaption>
-          Chỉ hiện tên của người đã tự bật — mặc định là ẩn danh.
-        </TableCaption>
+        <TableCaption>{t('session.lab.leaderboard-caption')}</TableCaption>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-10">#</TableHead>
-            <TableHead>Người học</TableHead>
-            <TableHead className="w-20 text-right">Điểm</TableHead>
-            <TableHead className="w-32 text-right">Thời gian</TableHead>
+            <TableHead className="w-10">{t('session.lab.col-rank')}</TableHead>
+            <TableHead>{t('session.lab.col-learner')}</TableHead>
+            <TableHead className="w-20 text-right">{t('session.lab.col-score')}</TableHead>
+            <TableHead className="w-32 text-right">{t('session.lab.col-time')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -750,8 +717,12 @@ function LeaderboardPanel({ labId }: { labId: string }): React.ReactElement {
             <TableRow key={row.rank} className={row.isSelf ? 'bg-muted font-medium' : undefined}>
               <TableCell>{row.rank}</TableCell>
               <TableCell>
-                {row.displayName ?? <span className="text-muted-foreground italic">Ẩn danh</span>}
-                {row.isSelf && ' (bạn)'}
+                {row.displayName ?? (
+                  <span className="text-muted-foreground italic">
+                    {t('session.lab.leaderboard-anonymous')}
+                  </span>
+                )}
+                {row.isSelf && t('session.lab.leaderboard-self')}
               </TableCell>
               <TableCell className="text-right">{row.percent}%</TableCell>
               <TableCell className="text-right">{formatDuration(row.durationSeconds)}</TableCell>
@@ -766,7 +737,7 @@ function LeaderboardPanel({ labId }: { labId: string }): React.ReactElement {
 function LabSkeleton(): React.ReactElement {
   return (
     <div role="status" aria-busy="true" className="flex min-h-0 flex-1 flex-col gap-4 p-6">
-      <span className="sr-only">Đang tải lab…</span>
+      <span className="sr-only">{t('session.lab.loading')}</span>
       <Skeleton className="h-8 w-64" />
       <Skeleton className="h-20 w-full" />
       <Skeleton className="min-h-0 flex-1 w-full" />

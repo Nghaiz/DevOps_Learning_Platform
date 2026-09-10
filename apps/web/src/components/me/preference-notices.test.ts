@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   POD_FALLBACK_SHELL,
-  SHELL_LABEL,
+  shellLabel,
   describeLeaderboardPreference,
   describeSessionShellFallback,
   describeShellPreference,
@@ -112,8 +112,8 @@ describe('describeSessionShellFallback', () => {
     expect(notice).not.toBeNull();
     expect(notice?.tone).toBe('warning');
     expect(notice?.lines[0]).toContain('Phiên này đang chạy');
-    expect(notice?.lines[0]).toContain(SHELL_LABEL[POD_FALLBACK_SHELL]);
-    expect(notice?.lines[0]).toContain(SHELL_LABEL.pwsh);
+    expect(notice?.lines[0]).toContain(shellLabel(POD_FALLBACK_SHELL));
+    expect(notice?.lines[0]).toContain(shellLabel('pwsh'));
   });
 
   it('nói LÀM GÌ TIẾP — và mượn nguyên câu chữ của /settings, không viết bản thứ hai', () => {
@@ -123,7 +123,10 @@ describe('describeSessionShellFallback', () => {
     // Khẳng định QUAN HỆ giữa hai chỗ, không khẳng định lại nội dung: nếu ai đó
     // sửa câu ở `/settings` mà quên trang bài học, ca này đỏ.
     expect(notice?.lines).toEqual([notice?.lines[0], ...shared.lines]);
-    expect(notice?.lines.join(' ')).toContain('mở lại phiên là áp được');
+    // Nửa "làm gì tiếp" nay là một câu RIÊNG mở đầu bằng động từ viết hoa, nên
+    // phép so phân biệt hoa thường phải đi theo. Khẳng định không đổi: câu của
+    // `/settings` được mượn nguyên, không viết bản thứ hai.
+    expect(notice?.lines.join(' ')).toContain('Mở lại phiên là áp được');
   });
 
   it('shell đã chọn TRÙNG mặc định của máy: im lặng, vì không có gì để báo', () => {

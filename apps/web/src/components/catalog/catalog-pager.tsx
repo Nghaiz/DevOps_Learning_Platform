@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactElement } from 'react';
+import { t } from '@devops-platform/copy';
 import { Button } from '@devops-platform/ui';
 import { CatalogIcon } from './catalog-icons';
 
@@ -49,12 +50,12 @@ export function CatalogPager(props: {
 
   return (
     <nav
-      aria-label="Phân trang danh mục"
-      className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between"
+      aria-label={t('catalog.pager.region')}
+      className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-elevation-1 sm:flex-row sm:items-center sm:justify-between"
     >
       <Button variant="outline" size="sm" onClick={props.onReset} disabled={loading || atFirst}>
         <CatalogIcon name="first" />
-        Về đầu
+        {t('catalog.pager.first')}
       </Button>
 
       {/*
@@ -64,12 +65,12 @@ export function CatalogPager(props: {
         cho cùng một thao tác.
       */}
       <p className="text-center text-sm text-muted-foreground" aria-live="polite">
-        <span className="font-medium text-foreground">Trang {props.page}</span>
-        {!props.hasNext && <span className="ml-2">· Hết danh sách</span>}
+        <span className="font-medium text-foreground">{t('catalog.pager.page', { page: props.page })}</span>
+        {!props.hasNext && <span className="ml-2">{`· ${t('catalog.pager.end')}`}</span>}
       </p>
 
       <Button variant="outline" size="sm" onClick={props.onNext} disabled={!props.hasNext} loading={loading}>
-        Tiếp
+        {t('common.action.next')}
         <CatalogIcon name="next" />
       </Button>
     </nav>

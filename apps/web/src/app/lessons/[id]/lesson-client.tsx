@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
+import { errText, t } from '@devops-platform/copy';
 import { Alert, AlertDescription, Button, ContentView, ProgressBar, StepNav } from '@devops-platform/ui';
 import {
   DEFAULT_PROFILE,
+  IdePane,
   SessionControls,
   ShellFallbackNotice,
   TerminalPane,
@@ -17,7 +19,6 @@ import {
 import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { IdePane } from './ide-pane';
 import { buildPhases, canCheck, phaseKeyForStepIndex } from './phases';
 import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
@@ -243,13 +244,13 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
   const onExec = tabs.exec;
 
   if (query.isPending) {
-    return <Centered>Đang tải bài học…</Centered>;
+    return <Centered>{t('session.lesson.loading')}</Centered>;
   }
   if (query.isError) {
     return <Centered tone="error">{describeTrpcError(query.error)}</Centered>;
   }
   if (scenario === null || active === null) {
-    return <Centered tone="error">Không tìm thấy bài học này.</Centered>;
+    return <Centered tone="error">{t('session.lesson.not-found')}</Centered>;
   }
 
   const blocks = parseContentBlocks(active.phase.markdown);
@@ -294,9 +295,9 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
             onClick={onCheck}
             disabled={sessionId === null || check?.kind === 'running'}
             loading={check?.kind === 'running'}
-            title={sessionId === null ? 'Hãy bắt đầu phiên trước' : undefined}
+            title={sessionId === null ? t('session.lesson.check-blocked') : undefined}
           >
-            Kiểm tra
+            {t('session.lesson.check')}
           </Button>
           <CheckResultPanel outcome={check} />
         </div>
@@ -309,10 +310,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       session={session}
       theme={terminalTheme}
       placeholder={
-        <span>
-          Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng sandbox và
-          mở terminal.
-        </span>
+        <span>{t('session.terminal.empty')}</span>
       }
     />
   );
@@ -326,7 +324,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     <div className="flex min-h-0 flex-1 flex-col bg-background text-foreground">
       <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
         <Link href="/lessons" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Bài học
+          {t('session.lesson.back')}
         </Link>
         <h1 className="text-sm font-semibold">{scenario.title}</h1>
 
@@ -371,9 +369,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       {unsupported.length > 0 && (
         <Alert variant="warning" className="rounded-none border-x-0 border-t-0">
           <AlertDescription className="text-foreground">
-            Bài này cần <strong>{unsupported.join(', ')}</strong> — nền tảng chưa chạy được
-            những năng lực đó, nên một số lệnh trong bài sẽ báo lỗi. Bạn vẫn mở được để đọc
-            nội dung.
+            {t('session.lesson.unsupported', { capabilities: unsupported.join(', ') })}
           </AlertDescription>
         </Alert>
       )}
@@ -403,7 +399,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       {setupError !== null && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertDescription className="flex flex-wrap items-center gap-3 text-foreground">
-            <span>Không chuẩn bị được môi trường bài học: {setupError}</span>
+            <span>{errText('session.lesson.error.setup', { reason: setupError })}</span>
             <Button
               size="sm"
               variant="secondary"
@@ -412,7 +408,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
                 setSetupAttempt((n) => n + 1);
               }}
             >
-              Thử lại
+              {t('session.lesson.retry')}
             </Button>
           </AlertDescription>
         </Alert>

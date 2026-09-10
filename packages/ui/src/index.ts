@@ -51,6 +51,19 @@ export { RadioGroup, RadioGroupItem } from './radio-group.tsx';
 export { Toaster, useToast } from './toast.tsx';
 export type { ToastOptions, ToastVariant } from './toast.tsx';
 
+// ── Tìm kiếm + lọc theo tab (P16 / 16.A.5) ───────────────────────────────────
+// Vỏ bọc `gooey-search-tabs@0.2.0`. Năm trang danh mục đi qua đây, KHÔNG import
+// thẳng gói ngoài: gói lái màu bằng mười biến `--gst-*` có mặc định hex cứng và
+// đặt nhãn a11y bằng tiếng Anh — cả hai được bịt ở seam, không ở nơi gọi.
+export { SearchTabs } from './search-tabs.tsx';
+export type { SearchTabItem, SearchTabsProps } from './search-tabs.tsx';
+
+// ── Icon tài nguyên Kubernetes (P16 / 16.A.9) ────────────────────────────────
+// Bảng icon + nhóm màu cho 26 `ResourceKind`, khớp với arena qua một cổng đối
+// chiếu CHỈ ĐỌC (`resource-icon.contract.test.ts`). Arena KHÔNG bị sửa.
+export { ResourceIcon, RESOURCE_ICON, RESOURCE_KINDS, RESOURCE_KIND_ACCENT } from './resource-icon.tsx';
+export type { ResourceIconProps, ResourceKind } from './resource-icon.tsx';
+
 // ── Trạng thái / bố cục ──────────────────────────────────────────────────────
 export { Alert, AlertTitle, AlertDescription } from './alert.tsx';
 export type { AlertProps, AlertVariant } from './alert.tsx';

@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import type { ThemeName } from '@devops-platform/terminal/themes';
 
 /**
@@ -12,11 +13,23 @@ import type { ThemeName } from '@devops-platform/terminal/themes';
 
 export type ShellName = 'bash' | 'zsh' | 'pwsh';
 
-export const SHELL_LABEL: Readonly<Record<ShellName, string>> = {
-  bash: 'bash',
-  zsh: 'zsh',
-  pwsh: 'PowerShell (pwsh)',
-};
+/**
+ * Nhãn shell, tra qua bản đồ chứ không giữ câu tại chỗ.
+ *
+ * Hai trong ba giá trị (`bash`, `zsh`) không có dấu tiếng Việt nên cổng T4
+ * KHÔNG bắt được chúng nếu chúng ở lại đây. Đưa cả ba vào bản đồ là quyết định
+ * đọc theo §1.7 ("vào bản đồ: chữ hiển thị"), không phải theo thứ cổng bắt được
+ * — một cổng một chiều không phải là định nghĩa của luật.
+ */
+const SHELL_LABEL_KEY = {
+  bash: 'me.shell.bash',
+  zsh: 'me.shell.zsh',
+  pwsh: 'me.shell.pwsh',
+} as const satisfies Readonly<Record<ShellName, string>>;
+
+export function shellLabel(shell: ShellName): string {
+  return t(SHELL_LABEL_KEY[shell]);
+}
 
 export const SHELL_OPTIONS: readonly ShellName[] = ['bash', 'zsh', 'pwsh'];
 
@@ -70,22 +83,15 @@ export function describeShellPreference(input: {
    */
   readonly moreSessions?: boolean;
 }): PreferenceNotice {
-  const lines = [
-    `Shell được ghi vào máy ở lần mở phiên TIẾP THEO, không phải ngay bây giờ. ` +
-      `Nếu lúc đó máy chưa kịp được cấp, lần mở đó bỏ qua tuỳ chọn và bạn nhận ` +
-      `${SHELL_LABEL[POD_FALLBACK_SHELL]} mặc định của máy — mở lại phiên là áp được.`,
-  ];
+  const lines = [t('me.notice.shell-next-session', { fallback: shellLabel(POD_FALLBACK_SHELL) })];
 
   const count = input.activeSessionCount;
   if (count !== null && count > 0) {
-    const howMany = input.moreSessions === true ? `ít nhất ${String(count)}` : String(count);
+    const howMany =
+      input.moreSessions === true ? t('me.notice.shell-at-least', { n: count }) : String(count);
     return {
       tone: 'warning',
-      lines: [
-        ...lines,
-        `Bạn đang có ${howMany} phiên chạy. Chúng giữ shell cũ cho tới khi kết thúc — ` +
-          'kết thúc phiên ở trang "Của tôi" rồi mở lại nếu muốn dùng ngay.',
-      ],
+      lines: [...lines, t('me.notice.shell-active-sessions', { howMany })],
     };
   }
 
@@ -106,10 +112,8 @@ export function describeLeaderboardPreference(publicName: boolean): PreferenceNo
   return {
     tone: 'default',
     lines: [
-      publicName
-        ? 'Những lần thử lab SAU sẽ hiện tên bạn trên bảng xếp hạng.'
-        : 'Những lần thử lab SAU sẽ ẩn danh trên bảng xếp hạng.',
-      'Các lần thử đã nộp giữ lựa chọn của riêng chúng — đổi từng lần ở trang lab đó.',
+      publicName ? t('me.notice.leaderboard-public') : t('me.notice.leaderboard-private'),
+      t('me.notice.leaderboard-scope'),
     ],
   };
 }
@@ -117,11 +121,15 @@ export function describeLeaderboardPreference(publicName: boolean): PreferenceNo
 /** `null` = đi theo giao diện sáng/tối của trang (`resolveTerminalTheme`). */
 export type TerminalThemeChoice = ThemeName | null;
 
-export const TERMINAL_THEME_LABEL: Readonly<Record<ThemeName, string>> = {
-  'dlp-dark': 'Tối',
-  'dlp-light': 'Sáng',
-  'dlp-contrast': 'Tương phản cao',
-};
+const TERMINAL_THEME_LABEL_KEY = {
+  'dlp-dark': 'me.terminal-theme.dlp-dark',
+  'dlp-light': 'me.terminal-theme.dlp-light',
+  'dlp-contrast': 'me.terminal-theme.dlp-contrast',
+} as const satisfies Readonly<Record<ThemeName, string>>;
+
+export function terminalThemeLabel(theme: ThemeName): string {
+  return t(TERMINAL_THEME_LABEL_KEY[theme]);
+}
 
 /**
  * `null` không phải "chưa chọn" mà là một lựa chọn: đi theo giao diện trang
@@ -138,9 +146,9 @@ export function describeTerminalThemePreference(choice: TerminalThemeChoice): Pr
     tone: 'default',
     lines: [
       choice === null
-        ? 'Terminal đổi màu theo giao diện sáng/tối của trang.'
-        : `Terminal luôn dùng bảng màu "${TERMINAL_THEME_LABEL[choice]}", kể cả khi bạn đổi giao diện trang.`,
-      'Áp dụng cho terminal bạn mở sau khi lưu.',
+        ? t('me.notice.terminal-follow')
+        : t('me.notice.terminal-pinned', { theme: terminalThemeLabel(choice) }),
+      t('me.notice.terminal-scope'),
     ],
   };
 }
@@ -174,8 +182,10 @@ export function describeSessionShellFallback(shell: ShellName): PreferenceNotice
   return {
     tone: 'warning',
     lines: [
-      `Phiên này đang chạy ${SHELL_LABEL[POD_FALLBACK_SHELL]} mặc định của máy, ` +
-        `không phải ${SHELL_LABEL[shell]} bạn đã chọn.`,
+      t('me.notice.session-fallback', {
+        fallback: shellLabel(POD_FALLBACK_SHELL),
+        chosen: shellLabel(shell),
+      }),
       ...shared.lines,
     ],
   };

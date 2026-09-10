@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import type { BadgeVariant } from '@devops-platform/ui';
 
 /**
@@ -44,13 +45,13 @@ export interface LessonProgressSummary {
 export function summarizeLessonProgress(input: LessonProgressInput): LessonProgressSummary {
   if (input.completedAt !== null) {
     // "Đã xong" đọc từ `completed_at` — một mốc CÓ THẬT trong DB, không suy ra.
-    return { label: 'Đã xong', variant: 'success', detail: null };
+    return { label: t('me.lessons.status-done'), variant: 'success', detail: null };
   }
 
   // `stepIndex` là 0-based; người học đếm từ 1.
   return {
-    label: 'Đang học',
+    label: t('me.lessons.status-learning'),
     variant: 'secondary',
-    detail: `Đang ở bước ${String(input.stepIndex + 1)}`,
+    detail: t('me.lessons.step', { step: input.stepIndex + 1 }),
   };
 }

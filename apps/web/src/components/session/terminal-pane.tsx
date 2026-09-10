@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { t } from '@devops-platform/copy';
 import type { ReactElement, ReactNode } from 'react';
 import { LoaderCircle, Terminal } from 'lucide-react';
 import type { ThemeName } from '@devops-platform/terminal/themes';
@@ -44,7 +45,7 @@ function TerminalBootFrame(): ReactElement {
       */}
       <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
         <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-        Đang mở terminal…
+        {t('session.terminal.booting')}
       </p>
     </div>
   );
@@ -65,7 +66,7 @@ const TerminalSurfaceLazy = dynamic(() => import('./terminal-surface-lazy'), {
  * duyệt của trình đọc màn hình, nên câu đầu tiên người dùng nghe phải nói được
  * cách ra.
  */
-const TERMINAL_ARIA_LABEL = 'Terminal sandbox. Nhấn Esc hai lần để rời khỏi terminal.';
+const TERMINAL_ARIA_LABEL = t('session.terminal.aria-label');
 
 export interface TerminalPaneProps {
   readonly session: SandboxSession;
@@ -120,7 +121,7 @@ export function TerminalPane({ session, theme, placeholder }: TerminalPaneProps)
   const wideEnough = useMinWidth(TERMINAL_MIN_WIDTH_PX);
 
   const header = (
-    <PaneHeader icon={<Terminal />} title="Terminal">
+    <PaneHeader icon={<Terminal />} title={t('session.terminal.title')}>
       <SessionStatusPill phase={session.state.phase} />
     </PaneHeader>
   );
@@ -157,7 +158,7 @@ export function TerminalPane({ session, theme, placeholder }: TerminalPaneProps)
             <Terminal className="size-6" />
           </span>
           <div className="max-w-sm text-sm text-muted-foreground">
-            {placeholder ?? <span>Bấm Bắt đầu để dựng sandbox và mở terminal.</span>}
+            {placeholder ?? <span>{t('session.terminal.empty')}</span>}
           </div>
         </div>
       </div>
@@ -193,7 +194,8 @@ export function TerminalPane({ session, theme, placeholder }: TerminalPaneProps)
           'group-focus-within:border-status-progress group-focus-within:text-foreground'
         }
       >
-        Nhấn <Kbd>Esc</Kbd> <Kbd>Esc</Kbd> để rời khỏi terminal
+        {t('session.terminal.escape-hint-prefix')} <Kbd>Esc</Kbd> <Kbd>Esc</Kbd>{' '}
+        {t('session.terminal.escape-hint-suffix')}
       </p>
     </div>
   );

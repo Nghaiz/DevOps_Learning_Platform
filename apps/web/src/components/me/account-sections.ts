@@ -1,3 +1,5 @@
+import { err, t } from '@devops-platform/copy';
+
 /**
  * Quyết định của khối "Tài khoản" trên `/settings` — HÀM THUẦN.
  *
@@ -41,12 +43,7 @@ export function describePasswordSection(hasPassword: boolean): PasswordSectionVi
   if (hasPassword) {
     return { visible: true, reason: null };
   }
-  return {
-    visible: false,
-    reason:
-      'Tài khoản này đăng nhập bằng Google hoặc Microsoft nên không có mật khẩu ở đây để đổi. ' +
-      'Đổi mật khẩu tại chính nhà cung cấp đó.',
-  };
+  return { visible: false, reason: t('me.password.hidden-reason') };
 }
 
 export interface PasswordChangeInput {
@@ -68,15 +65,28 @@ export interface PasswordChangeInput {
  */
 export function validatePasswordChange(input: PasswordChangeInput): string | null {
   if (input.current === '') {
-    return 'Nhập mật khẩu hiện tại để xác nhận đây là bạn.';
+    return joinError(err('me.error.password-current-empty'));
   }
   if (input.next.length < MIN_PASSWORD_LENGTH) {
-    return `Mật khẩu mới cần ít nhất ${String(MIN_PASSWORD_LENGTH)} ký tự. Thêm ký tự rồi lưu lại.`;
+    return joinError(err('me.error.password-too-short', { min: MIN_PASSWORD_LENGTH }));
   }
   if (input.next !== input.confirm) {
-    return 'Hai ô mật khẩu mới chưa khớp. Gõ lại ô xác nhận cho giống ô trên.';
+    return joinError(err('me.error.password-mismatch'));
   }
   return null;
+}
+
+/**
+ * Ghép hai nửa của `ErrorEntry` thành một chuỗi, và đây là chỗ ghép DUY NHẤT
+ * của form mật khẩu.
+ *
+ * Nơi gọi cất câu lỗi vào một `useState<string | null>` dùng chung cho cả lỗi
+ * kiểm phía client lẫn lỗi Better Auth trả về, nên hai nửa phải hợp lại đúng
+ * một lần ở tầng này. Hai nửa VẪN tách rời ở tầng kiểu (bản đồ), thứ mà luật
+ * số 4 của design §5 ép ra; cái mất ở đây chỉ là hai khe hiển thị riêng.
+ */
+function joinError(entry: { readonly what: string; readonly next: string }): string {
+  return `${entry.what} ${entry.next}`;
 }
 
 /**
@@ -87,10 +97,10 @@ export function validatePasswordChange(input: PasswordChangeInput): string | nul
  */
 export function describePasswordChangeError(code: string | null, message: string | null): string {
   if (code === 'INVALID_PASSWORD') {
-    return 'Mật khẩu hiện tại không đúng. Kiểm tra lại ô đầu tiên rồi lưu lại.';
+    return joinError(err('me.error.password-invalid'));
   }
   if (message !== null && message !== '') {
-    return `${message} Thử lại sau ít phút; nếu vẫn hỏng thì đăng xuất rồi đăng nhập lại.`;
+    return joinError(err('me.error.password-other', { message }));
   }
-  return 'Không đổi được mật khẩu. Kiểm tra kết nối rồi thử lại.';
+  return joinError(err('me.error.password-unknown'));
 }

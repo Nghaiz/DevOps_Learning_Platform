@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   ASSIGNABLE_ROLES,
-  ROLE_LABEL,
   describeRole,
   describeRoleChangeError,
   planRoleChange,
@@ -72,8 +71,8 @@ describe('planRoleChange — câu xác nhận', () => {
 
   it('nêu CẢ HAI vai trò, bằng tiếng Việt', () => {
     const result = plan({ currentRole: 'user', nextRole: 'admin' });
-    expect(result.body).toContain(ROLE_LABEL.user);
-    expect(result.body).toContain(ROLE_LABEL.admin);
+    expect(result.body).toContain(describeRole('user'));
+    expect(result.body).toContain(describeRole('admin'));
   });
 
   it('nói rõ hành động được ghi vào nhật ký', () => {
@@ -81,13 +80,13 @@ describe('planRoleChange — câu xác nhận', () => {
   });
 
   it('nhãn nút nêu vai trò đích, không phải "Xác nhận" suông', () => {
-    expect(plan({ nextRole: 'admin' }).confirmLabel).toContain(ROLE_LABEL.admin);
+    expect(plan({ nextRole: 'admin' }).confirmLabel).toContain(describeRole('admin'));
   });
 
   it('câu xác nhận vẫn đầy đủ ngay cả khi đang bị chặn (người dùng cần đọc được ngữ cảnh)', () => {
     const result = plan({ targetId: ADMIN_ID, currentRole: 'admin', nextRole: 'user' });
-    expect(result.body).toContain(ROLE_LABEL.admin);
-    expect(result.body).toContain(ROLE_LABEL.user);
+    expect(result.body).toContain(describeRole('admin'));
+    expect(result.body).toContain(describeRole('user'));
   });
 });
 
@@ -97,7 +96,7 @@ describe('nhãn vai trò', () => {
   });
 
   it('mỗi vai trò có nhãn tiếng Việt riêng', () => {
-    const labels = ASSIGNABLE_ROLES.map((role) => ROLE_LABEL[role]);
+    const labels = ASSIGNABLE_ROLES.map((role) => describeRole(role));
     expect(new Set(labels).size).toBe(3);
     expect(labels.every((label) => label.trim().length > 0)).toBe(true);
   });
@@ -120,7 +119,7 @@ describe('describeRoleChangeError', () => {
   });
 
   it('NOT_FOUND: gợi ý tải lại danh sách', () => {
-    expect(describeRoleChangeError('NOT_FOUND', 'Không có người dùng đó')).toContain('tải lại');
+    expect(describeRoleChangeError('NOT_FOUND', 'Không có người dùng đó')).toContain('Tải lại');
   });
 
   /**

@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
+import { t } from '@devops-platform/copy';
 // Đường dẫn TƯƠNG ĐỐI, không phải `@/components/...`: repo này không khai
 // `paths` ở tsconfig nào và không đặt alias webpack, nên dạng `@/` sẽ đỏ ở cả
 // typecheck lẫn `next build`.
 import { ArenaEntry } from '../../../components/k8s-arena/arena-entry';
 
 export const metadata: Metadata = {
-  title: 'Kubernetes Arena — DevOps Learning Platform',
-  description: 'Dựng và cứu một cluster Kubernetes qua từng level, ngay trong trình duyệt.',
+  title: t('catalog.meta-title.games-k8s'),
+  description: t('catalog.games.k8s-meta-description'),
 };
 
 /**

@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { FIRST_PAGE, currentCursor, pageNumber, pushCursor, type CursorStack } from '../../lib/cursor-stack';
 import { NO_FILTER, buildCatalogListInput } from './catalog-input';
 import { describeCatalogError } from './catalog-error-kind';
+import { renderCopy, type CopyRef } from './catalog-labels';
+
+/**
+ * `hint` nay là `CopyRef` chứ không phải câu (§1.6 của p16-copy.md), nên mọi
+ * khẳng định về CHỮ phải dựng nó ra trước. Chính lượt dựng này là thứ còn kiểm
+ * được tham số, thứ mà `CopyRef` bỏ ở tầng biên dịch.
+ */
+function say(ref: CopyRef | null): string {
+  return ref === null ? '' : renderCopy(ref);
+}
 
 /**
  * Lỗi tải một trang danh mục: nói đúng loại, và KHÔNG cướp mất chỗ đang đọc.
@@ -21,7 +31,7 @@ describe('phân loại lỗi tải trang danh mục', () => {
     // một nguồn đang hỏng) và trả giá bằng đúng chỗ đang đọc.
     expect(advice.canGoFirstPage).toBe(false);
     expect(advice.hint).not.toBeNull();
-    expect(advice.hint).toContain('3');
+    expect(say(advice.hint)).toContain(String(3));
   });
 
   it('503 KHÔNG được mô tả bằng chẩn đoán của cursor hỏng', () => {
@@ -30,8 +40,8 @@ describe('phân loại lỗi tải trang danh mục', () => {
     // Câu cũ nói "Mục làm mốc của trang này có thể đã bị gỡ khỏi kho". Với 503
     // đó là một lời khẳng định SAI SỰ THẬT về nguyên nhân, và nó dẫn thẳng tới
     // lối thoát phá hoại nhất.
-    expect(advice.hint ?? '').not.toContain('gỡ khỏi kho');
-    expect(advice.hint ?? '').not.toContain('mốc');
+    expect(say(advice.hint)).not.toContain('gỡ khỏi kho');
+    expect(say(advice.hint)).not.toContain('mốc');
   });
 
   it('cursor hỏng (BAD_REQUEST giữa chừng): thử lại VÔ ÍCH, lối ra là về đầu', () => {
@@ -75,7 +85,7 @@ describe('phân loại lỗi tải trang danh mục', () => {
 
     expect(advice.kind).toBe('unknown');
     expect(advice.canRetry).toBe(true);
-    expect(advice.hint ?? '').not.toContain('gỡ khỏi kho');
+    expect(say(advice.hint)).not.toContain('gỡ khỏi kho');
   });
 
   it('KHÔNG lỗi nào được mô tả như kho rỗng', () => {
@@ -88,7 +98,7 @@ describe('phân loại lỗi tải trang danh mục', () => {
       for (const page of [1, 3]) {
         // So khớp trên bản THƯỜNG HOÁ: `toContain('Chưa có')` phân biệt hoa
         // thường, nên nó bỏ lọt đúng cách viết dễ xảy ra nhất (giữa câu).
-        const hint = (describeCatalogError({ code, page }).hint ?? '').toLowerCase();
+        const hint = say(describeCatalogError({ code, page }).hint).toLowerCase();
         expect(hint).not.toContain('rỗng');
         expect(hint).not.toContain('trống');
         expect(hint).not.toContain('chưa có');

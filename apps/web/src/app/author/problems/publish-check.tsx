@@ -2,9 +2,11 @@
 
 import type { ReactElement } from 'react';
 import { Alert, AlertDescription, AlertTitle, Badge, Button } from '@devops-platform/ui';
+import { count, t, type TextKey } from '@devops-platform/copy';
 import type { ProblemState } from '@devops-platform/games';
+import { renderCopy, type CopyRef } from '../../../components/catalog/catalog-labels';
 import type { FieldIssue } from './cluster-form';
-import { STATE_BADGE, STATE_LABELS } from './problem-labels';
+import { STATE_BADGE, STATE_KEYS } from './problem-labels';
 
 /**
  * Cổng kiểm trước khi xuất bản.
@@ -13,8 +15,8 @@ import { STATE_BADGE, STATE_LABELS } from './problem-labels';
  *
  * Brief nói thẳng: "Nói rõ lỗi ở đâu, đừng chỉ báo không hợp lệ". Một bài có 40
  * ô nhập; câu "không hợp lệ" đẩy việc dò tìm sang người soạn, và họ không có
- * cùng bảng luật với cái vừa từ chối họ. Danh sách dưới đây nói ĐÚNG ô nào —
- * `mục tiêu 3 › tham số namespace`.
+ * cùng bảng luật với cái vừa từ chối họ. Danh sách dưới đây nói ĐÚNG ô nào:
+ * `Mục tiêu 3 › tham số namespace`.
  *
  * ## ⚠ HAI phép kiểm ở đây KHÔNG có bản sao ở máy chủ
  *
@@ -31,7 +33,7 @@ import { STATE_BADGE, STATE_LABELS } from './problem-labels';
  *
  * Hệ quả phải nói ra: ai gọi thẳng `problems.publish` qua tRPC sẽ đi vòng qua
  * hai phép kiểm này, và bài xuất bản được với một mục tiêu không bao giờ tích
- * xanh. Đây là khoảng trống ĐÃ BIẾT, đã báo lead — không phải một lớp bảo vệ mà
+ * xanh. Đây là khoảng trống ĐÃ BIẾT, đã báo lead, không phải một lớp bảo vệ mà
  * ai đó tưởng là có.
  *
  * ## Nút xoá và nút lưu trữ không đứng cạnh nhau
@@ -53,20 +55,19 @@ export function PublishCheck(props: {
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
-        <h2 className="text-lg font-semibold text-foreground">Xuất bản</h2>
-        <Badge variant={STATE_BADGE[props.state]}>{STATE_LABELS[props.state]}</Badge>
+        <h2 className="text-lg font-semibold text-foreground">{t('author.problem.publish.heading')}</h2>
+        <Badge variant={STATE_BADGE[props.state]}>{t(STATE_KEYS[props.state])}</Badge>
       </div>
 
       {blocked ? (
         <Alert variant="destructive">
-          <AlertTitle>
-            Còn {String(props.issues.length)} chỗ phải sửa trước khi xuất bản được
-          </AlertTitle>
+          <AlertTitle>{count('author.problem.publish.blocked-title', props.issues.length)}</AlertTitle>
           <AlertDescription>
             <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
               {props.issues.map((issue) => (
                 <li key={`${issue.path}:${issue.message}`}>
-                  <span className="font-medium">{describePath(issue.path)}</span> — {issue.message}
+                  <span className="font-medium">{renderCopy(describePath(issue.path))}</span>
+                  {t('author.issues.row', { message: issue.message })}
                 </li>
               ))}
             </ul>
@@ -74,16 +75,16 @@ export function PublishCheck(props: {
         </Alert>
       ) : (
         <Alert variant="success">
-          <AlertTitle>Bài đã đủ điều kiện xuất bản</AlertTitle>
-          <AlertDescription>
-            Máy chủ kiểm lại một lượt nữa khi bạn bấm — đó là lớp cuối, và nó gác cùng bộ điều kiện.
-          </AlertDescription>
+          <AlertTitle>{t('author.problem.publish.ok-title')}</AlertTitle>
+          <AlertDescription>{t('author.problem.publish.ok-body')}</AlertDescription>
         </Alert>
       )}
 
       <div className="flex flex-wrap gap-2">
         <Button type="button" disabled={blocked || props.busy || props.state === 'published'} onClick={props.onPublish}>
-          {props.state === 'published' ? 'Đã xuất bản' : 'Xuất bản'}
+          {props.state === 'published'
+            ? t('author.problem.publish.already')
+            : t('author.problem.publish.submit')}
         </Button>
         <Button
           type="button"
@@ -91,19 +92,16 @@ export function PublishCheck(props: {
           disabled={props.busy || props.state === 'archived'}
           onClick={props.onArchive}
         >
-          Đưa vào lưu trữ
+          {t('author.problem.publish.archive')}
         </Button>
       </div>
 
       <div className="flex flex-col gap-2 rounded-md border border-destructive/40 p-4">
-        <h3 className="text-sm font-medium text-foreground">Xoá hẳn bài</h3>
-        <p className="text-xs text-muted-foreground">
-          Chỉ xoá được bài CHƯA có ai nộp. Đã có lượt nộp thì máy chủ từ chối và bảo dùng lưu trữ — xoá một bài
-          đã có người làm là xoá lịch sử của họ.
-        </p>
+        <h3 className="text-sm font-medium text-foreground">{t('author.problem.publish.danger-heading')}</h3>
+        <p className="text-xs text-muted-foreground">{t('author.problem.publish.danger-body')}</p>
         <div>
           <Button type="button" variant="destructive" size="sm" disabled={props.busy} onClick={props.onDelete}>
-            Xoá bài
+            {t('author.problem.publish.delete')}
           </Button>
         </div>
       </div>
@@ -117,55 +115,89 @@ export function PublishCheck(props: {
  * Đường dẫn máy đọc là thứ khớp với `FieldIssue.path` và với `fieldErrors` của
  * Zod; câu tiếng Việt là thứ người soạn đọc. Giữ cả hai chứ không đổi hẳn sang
  * tiếng Việt: `path` còn phải khớp với `issueFor` ở từng ô.
+ *
+ * ## Trả `CopyRef`, không trả câu đã ghép (§1.6 của `contracts/p16-copy.md`)
+ *
+ * Bốn nhánh dưới đây là bốn mục TĨNH trong bản đồ, nên cổng gạch ngang dài và
+ * cổng mất dấu soi được cả bốn. Bản cũ ghép câu tại chỗ bằng template literal,
+ * và lúc đó chỉ nhánh nào có test đi vào mới được soi.
+ *
+ * ## Nhánh dự phòng KHÔNG phải hàm đồng nhất
+ *
+ * `FIELD_LABELS[path] ?? path` của bản cũ trả thẳng đường dẫn máy đọc, và dịch
+ * sang bản đồ thì nó thành mục `(p) => p.value` mà cổng T0 bắt đúng (probe rỗng
+ * dựng ra chuỗi rỗng nên mục đó trông như không có khối lượng). Nhánh mới nói
+ * thêm một chữ để câu có nghĩa, và người đọc biết đó là một ô chưa có tên tiếng
+ * Việt chứ không tưởng đó là tên ô.
  */
-function describePath(path: string): string {
+function describePath(path: string): CopyRef {
   const parts = path.split('.');
   const head = parts[0] ?? '';
   const index = Number(parts[1]);
-  const ordinal = Number.isInteger(index) ? String(index + 1) : '';
+  const groupKey = GROUP_KEYS[head];
 
-  const group: Readonly<Record<string, string>> = {
-    objectives: 'Mục tiêu',
-    hints: 'Gợi ý',
-    nodes: 'Node',
-    resources: 'Tài nguyên',
-  };
-  const label = group[head];
-  if (label === undefined || ordinal === '') {
-    return FIELD_LABELS[path] ?? path;
+  if (groupKey === undefined || !Number.isInteger(index)) {
+    const own = FIELD_KEYS[path];
+    return own === undefined ? { key: 'author.problem.path-unknown', params: { path } } : { key: own };
   }
 
+  const group = t(groupKey);
+  const n = index + 1;
   const rest = parts.slice(2);
+
   if (rest.length === 0) {
-    return `${label} ${ordinal}`;
+    return { key: 'author.problem.path-group', params: { group, n } };
   }
   if (rest[0] === 'args') {
-    return `${label} ${ordinal} › tham số ${rest.slice(1).join('.')}`;
+    return { key: 'author.problem.path-arg', params: { group, n, arg: rest.slice(1).join('.') } };
   }
-  return `${label} ${ordinal} › ${FIELD_LABELS[rest.join('.')] ?? rest.join('.')}`;
+
+  const tail = rest.join('.');
+  const tailKey = FIELD_KEYS[tail];
+  return {
+    key: 'author.problem.path-field',
+    params: { group, n, field: tailKey === undefined ? tail : t(tailKey) },
+  };
 }
 
-const FIELD_LABELS: Readonly<Record<string, string>> = {
-  title: 'Tên bài',
-  slug: 'Slug',
-  statement: 'Đề bài',
-  topics: 'Chủ đề',
-  tags: 'Tag',
-  timeLimitSec: 'Hạn giờ',
-  parMoves: 'Số nước đi chuẩn',
-  allowedResources: 'Loại tài nguyên cho phép',
-  namespaces: 'Danh sách namespace',
-  nodes: 'Node',
-  objectives: 'Mục tiêu',
-  hints: 'Gợi ý',
-  name: 'tên',
-  namespace: 'namespace',
-  cpu: 'CPU',
-  memory: 'bộ nhớ',
-  spec: 'phần thân JSON',
-  id: 'định danh',
-  label: 'nhãn',
-  check: 'vị từ',
-  text: 'nội dung',
-  penaltyPoints: 'điểm bị trừ',
+/** Bốn nhóm có chỉ số trong `FieldIssue.path`. */
+const GROUP_KEYS: Readonly<Record<string, TextKey>> = {
+  objectives: 'author.problem.group.objectives',
+  hints: 'author.problem.group.hints',
+  nodes: 'author.problem.group.nodes',
+  resources: 'author.problem.group.resources',
+};
+
+/**
+ * Tên ô nhập, khoá chứ không phải chữ.
+ *
+ * Khoá bảng là ĐƯỜNG DẪN máy đọc (`timeLimitSec`, camelCase, do Zod sinh ra),
+ * còn khoá bản đồ là dạng gạch nối. Hai hệ tên khác nhau và không suy được cái
+ * này từ cái kia bằng một phép đổi chữ: `allowedResources` và `parMoves` chỉ
+ * tình cờ đổi được, còn `timeLimitSec` thì `time-limit-sec` mới đúng máy móc mà
+ * khoá bản đồ là `time-limit`. Ánh xạ tường minh, không ghép chuỗi.
+ */
+const FIELD_KEYS: Readonly<Record<string, TextKey>> = {
+  title: 'author.problem.field.title',
+  slug: 'author.problem.field.slug',
+  statement: 'author.problem.field.statement',
+  topics: 'author.problem.field.topics',
+  tags: 'author.problem.field.tags',
+  timeLimitSec: 'author.problem.field.time-limit',
+  parMoves: 'author.problem.field.par-moves',
+  allowedResources: 'author.problem.field.allowed-resources',
+  namespaces: 'author.problem.field.namespaces',
+  nodes: 'author.problem.field.nodes',
+  objectives: 'author.problem.field.objectives',
+  hints: 'author.problem.field.hints',
+  name: 'author.problem.field.name',
+  namespace: 'author.problem.field.namespace',
+  cpu: 'author.problem.field.cpu',
+  memory: 'author.problem.field.memory',
+  spec: 'author.problem.field.spec',
+  id: 'author.problem.field.id',
+  label: 'author.problem.field.label',
+  check: 'author.problem.field.check',
+  text: 'author.problem.field.text',
+  penaltyPoints: 'author.problem.field.penalty-points',
 };

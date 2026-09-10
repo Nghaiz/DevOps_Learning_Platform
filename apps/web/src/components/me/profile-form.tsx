@@ -13,6 +13,7 @@ import {
   Input,
   Label,
 } from '@devops-platform/ui';
+import { err, t } from '@devops-platform/copy';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
 
@@ -66,12 +67,12 @@ export function ProfileForm(props: {
     <Card>
       <form onSubmit={onSubmit}>
         <CardHeader>
-          <CardTitle>Hồ sơ</CardTitle>
-          <CardDescription>Tên này hiện trên bảng xếp hạng khi bạn cho phép.</CardDescription>
+          <CardTitle>{t('me.profile.title')}</CardTitle>
+          <CardDescription>{t('me.profile.description')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${fieldId}-name`}>Tên hiển thị</Label>
+            <Label htmlFor={`${fieldId}-name`}>{t('me.profile.name-label')}</Label>
             <Input
               id={`${fieldId}-name`}
               value={name}
@@ -84,39 +85,46 @@ export function ProfileForm(props: {
               }}
             />
             {trimmed === '' && (
-              <p className="text-xs text-destructive">Tên không được để trống. Nhập ít nhất một ký tự.</p>
+              <p className="text-xs text-destructive">{t('me.profile.name-empty')}</p>
             )}
           </div>
 
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-            <dt className="text-muted-foreground">Email</dt>
+            <dt className="text-muted-foreground">{t('me.profile.email-label')}</dt>
             <dd className="text-foreground">{props.email}</dd>
-            <dt className="text-muted-foreground">Vai trò</dt>
+            <dt className="text-muted-foreground">{t('me.profile.role-label')}</dt>
             <dd className="text-foreground">{props.roleLabel}</dd>
           </dl>
 
-          {updateProfile.isError && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                {describeTrpcError(updateProfile.error)} Sửa lại tên rồi lưu; nếu vẫn hỏng thì tải
-                lại trang.
-              </AlertDescription>
-            </Alert>
-          )}
+          {updateProfile.isError && <SaveError error={updateProfile.error} />}
 
           {saved && !updateProfile.isPending && (
             <Alert variant="success">
-              <AlertDescription>Đã lưu tên hiển thị.</AlertDescription>
+              <AlertDescription>{t('me.profile.saved')}</AlertDescription>
             </Alert>
           )}
 
           <div>
             <Button type="submit" loading={updateProfile.isPending} disabled={invalid}>
-              Lưu tên
+              {t('me.profile.save')}
             </Button>
           </div>
         </CardContent>
       </form>
     </Card>
+  );
+}
+
+/**
+ * `Alert` chỉ có MỘT khe nội dung, nên hai nửa của `ErrorEntry` được ghép ở
+ * đây. Đó là ca ghép hợp lệ mà `session-summary.ts` mô tả: ghép khi nơi nhận
+ * có đúng một khe, tách khi nó có hai (`ErrorState`).
+ */
+function SaveError({ error }: { readonly error: unknown }): ReactElement {
+  const entry = err('me.error.profile-save', { reason: describeTrpcError(error) });
+  return (
+    <Alert variant="destructive">
+      <AlertDescription>{`${entry.what} ${entry.next}`}</AlertDescription>
+    </Alert>
   );
 }

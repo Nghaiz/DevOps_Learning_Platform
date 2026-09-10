@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
+import { t } from '@devops-platform/copy';
 import { readCanAuthor } from '../../components/catalog/viewer-role.server';
 import { LessonsClient } from './lessons-client';
 
 export const metadata: Metadata = {
-  title: 'Bài học — DevOps Learning Platform',
+  title: t('catalog.meta-title.lessons'),
 };
 
 /**

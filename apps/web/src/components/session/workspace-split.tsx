@@ -5,6 +5,7 @@ import { SplitPane } from '@devops-platform/ui';
 // Import thẳng từng file — xem chú thích cùng vấn đề ở 'terminal-pane.tsx'.
 import { TERMINAL_MIN_WIDTH_PX } from '../shell/breakpoints';
 import { useMinWidth } from '../shell/use-min-width';
+import { resolveSplitShape, resolveStackedBottom } from './split-shape';
 
 /**
  * Bố cục "nội dung cạnh terminal" của trang bài học và trang lab — và cách nó
@@ -55,16 +56,28 @@ export function WorkspaceSplit({
   storageKey,
   defaultRatio,
 }: WorkspaceSplitProps): ReactElement {
+  /*
+    16.D.2 — quyết định hình học ra hàm THUẦN (`workspace-split.ts`), giữ đúng
+    ranh giới §4 của hợp đồng: file này chỉ VẼ kết quả.
+
+    Đáng kể nhất là `resolveStackedBottom` chứ không phải `resolveSplitShape`:
+    bản trước viết `narrowSide ?? side`, mà `??` nuốt mất một lựa chọn hợp lệ —
+    `narrowSide={null}` nghĩa là "khi hẹp thì không hiện gì ở dưới", còn
+    `undefined` mới là "chưa khai". `null` là một `ReactNode` hợp lệ nên
+    TypeScript không kêu, và cái khác biệt ấy im lặng biến mất.
+  */
   const wideEnough = useMinWidth(TERMINAL_MIN_WIDTH_PX);
 
-  if (wideEnough === false) {
+  if (resolveSplitShape(wideEnough) === 'stacked') {
     return (
       <div className="flex h-full min-h-0 w-full flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>
         {/* `shrink-0`: cảnh báo cao cố định, không bị nội dung dài đẩy khỏi
             khung — nó là thứ giải thích vì sao terminal không có mặt, nên nó
             phải nhìn thấy được mà không cần cuộn tới đáy bài. */}
-        <div className="shrink-0 border-t border-border">{narrowSide ?? side}</div>
+        <div className="shrink-0 border-t border-border">
+          {resolveStackedBottom(side, narrowSide)}
+        </div>
       </div>
     );
   }

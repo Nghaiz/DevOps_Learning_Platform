@@ -17,7 +17,7 @@ export function DialogContent({ className, children, ...props }: ComponentProps<
         data-slot="dialog-content"
         className={cn(
           'fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4',
-          'rounded-lg border border-border bg-background p-6 shadow-lg',
+          'rounded-lg border border-border bg-background p-6 shadow-elevation-3',
           'outline-none',
           className,
         )}
@@ -26,7 +26,15 @@ export function DialogContent({ className, children, ...props }: ComponentProps<
         {children}
         <RadixDialog.Close
           className={cn(
-            'absolute top-4 right-4 rounded-xs opacity-70 outline-none transition-opacity hover:opacity-100',
+            /*
+             * `rounded-sm` chứ không `rounded-xs`: bảng theme mặc định của
+             * Tailwind v4 khai `--radius-xs: 0.125rem` và `globals.css` KHÔNG
+             * ghi đè bậc đó (hợp đồng §5 chỉ định nghĩa sm/md/lg/xl/full), nên
+             * `rounded-xs` là một con số cứng 2px lọt lưới — đúng thứ mà "mọi
+             * bậc suy từ `--radius` bằng calc()" sinh ra để chặn.
+             */
+            'absolute top-4 right-4 rounded-sm opacity-70 outline-none hover:opacity-100',
+            'transition-opacity duration-[var(--motion-fast)] ease-out',
             'focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none',
           )}
         >

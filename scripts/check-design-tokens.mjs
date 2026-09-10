@@ -176,6 +176,46 @@ const KNOWN_HARDCODED = [
   // `DirectionalLight` không còn gác gì cả. Cổng tự báo dòng đã hết hạn và đây
   // là chiều-xuống của sổ cái hoạt động đúng lần thứ hai. Ánh sáng ở bản mới
   // đọc màu từ token qua `use-arena-colors.ts`, nên không cần miễn trừ nào.
+
+  {
+    file: 'apps/web/src/app/opengraph-image.tsx',
+    reason:
+      'Satori (nền của `next/og`) nhận màu qua thuộc tính style của JS và KHÔNG ' +
+      'chạy CSS cascade — nó không phân giải `var(--token)` và không hiểu ' +
+      '`oklch()`. Cùng loại ranh giới với xterm.js. Ba hằng trong file LẤY TỪ ' +
+      'token thương hiệu của globals.css, đã quy đổi sang hex.',
+  },
+
+  // ⏳ 2026-09-10 — HAI DÒNG DƯỚI LÀ MIỄN TRỪ THEO **PHẠM VI**, KHÔNG PHẢI THEO
+  // RANH GIỚI THƯ VIỆN NGOÀI. Đó là khác biệt quan trọng: dòng `xterm.js` ở trên
+  // sẽ KHÔNG BAO GIỜ hết hạn (API JS không đọc được `var(--token)`), còn hai dòng
+  // này PHẢI hết hạn.
+  //
+  // Lý do: `plans/devops-learning-platform/phase-16.md` mục 1 và mục 8 đặt
+  // `components/k8s-arena/**` ra NGOÀI phạm vi P16, và lúc P16 chạy thì một phiên
+  // khác đang sửa chính thư mục đó. Cổng này được nối vào CI ở cùng ngày; nếu
+  // không có hai dòng miễn trừ thì nó đỏ ngay từ commit đầu và sẽ bị gỡ khỏi CI —
+  // tức luật §9 lại tiếp tục không gác gì, đúng thứ AC-8 tồn tại để chặn.
+  //
+  // ⚠ RÀ LẠI KHI ARENA VÀO PHẠM VI. Đây không phải giấy phép vĩnh viễn cho arena
+  // đứng ngoài hệ token — nó là một khoản nợ có tên và có ngày. Cổng tự báo dòng
+  // hết hạn khi file hết vi phạm, và lúc đó XOÁ dòng chứ đừng thêm màu cứng lại
+  // cho khớp sổ cái.
+  {
+    file: 'apps/web/src/components/k8s-arena/arena.css',
+    reason:
+      'Stylesheet riêng của arena, 43 màu trần. NGOÀI phạm vi P16 (phase-16.md ' +
+      'mục 1 + mục 8). Đây là nợ hệ token thật, không phải ranh giới thư viện ' +
+      'ngoài — rà lại khi arena vào phạm vi. Ghi nợ 2026-09-10.',
+  },
+  {
+    file: 'apps/web/src/components/k8s-arena/scene/node-geometry.ts',
+    reason:
+      'Màu material của hình học 3D truyền qua API JS của three.js, không qua ' +
+      'CSS — cùng loại ranh giới với xterm.js. Vẫn để trong khối RÀ LẠI vì phần ' +
+      'còn lại của arena chưa dọn; khi arena vào phạm vi thì cân nhắc cho nó đọc ' +
+      'token qua `use-arena-colors.ts` như ánh sáng đã làm. Ghi nợ 2026-09-10.',
+  },
 ];
 
 // ─────────────────────────────────────────────────────── bỏ dòng chú thích

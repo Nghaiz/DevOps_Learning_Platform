@@ -16,6 +16,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 import {
   PROBLEM_DIFFICULTY_LABELS,
   PROBLEM_TOPIC_LABELS,
@@ -23,7 +24,7 @@ import {
 } from '@devops-platform/games';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { DIFFICULTY_BADGE, STATE_BADGE, STATE_FILTERS, STATE_LABELS, filterLabel, type StateFilter } from './problem-labels';
+import { DIFFICULTY_BADGE, STATE_BADGE, STATE_FILTERS, STATE_KEYS, filterLabelKey, type StateFilter } from './problem-labels';
 
 /**
  * `/author/problems` — bài OJ của tôi.
@@ -45,6 +46,13 @@ import { DIFFICULTY_BADGE, STATE_BADGE, STATE_FILTERS, STATE_LABELS, filterLabel
  * ⛔ KHÔNG `useInfiniteQuery`: `@trpc/react-query` tự chèn `direction` vào input,
  * mọi input schema của dự án là `.strict()`, và hậu quả là request thật 400
  * trong khi test ở tầng API vẫn xanh.
+ *
+ * ## Hai bảng nhãn CÒN LẠI ngoài `packages/copy`, và đó không phải sót
+ *
+ * `PROBLEM_DIFFICULTY_LABELS` và `PROBLEM_TOPIC_LABELS` tới từ
+ * `packages/games`, ngoài bảng sở hữu của lane này. Chúng là chữ người dùng
+ * đọc và về lâu dài thuộc về bản đồ, nhưng chuyển chúng là sửa một gói khác
+ * cộng mọi nơi gọi của nó, nên việc đó được BÁO chứ không tự làm ở đây.
  */
 export function ProblemListClient(): ReactElement {
   const [filter, setFilter] = useState<StateFilter>('all');
@@ -70,13 +78,11 @@ export function ProblemListClient(): ReactElement {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Bài tập Kubernetes</h1>
-          <p className="text-sm text-muted-foreground">
-            Bài do bạn soạn. Bản nháp không hiện với người học, kể cả khi họ biết URL.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('author.problem.list.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('author.problem.list.lead')}</p>
         </div>
         <Button asChild>
-          <Link href="/author/problems/new">Soạn bài mới</Link>
+          <Link href="/author/problems/new">{t('author.problem.list.new-cta')}</Link>
         </Button>
       </header>
 
@@ -90,7 +96,7 @@ export function ProblemListClient(): ReactElement {
 
       {query.isError && (
         <ErrorState
-          title="Không tải được danh sách bài"
+          title={t('author.problem.list.error-title')}
           message={describeTrpcError(query.error)}
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
@@ -107,7 +113,7 @@ export function ProblemListClient(): ReactElement {
           <TabsList>
             {STATE_FILTERS.map((value) => (
               <TabsTrigger key={value} value={value}>
-                {filterLabel(value)}
+                {t(filterLabelKey(value))}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -121,11 +127,15 @@ export function ProblemListClient(): ReactElement {
             <div className="flex flex-col gap-4 pt-2">
               {items.length === 0 ? (
                 <EmptyState
-                  title={filter === 'all' ? 'Bạn chưa soạn bài nào' : `Không có bài nào ở trạng thái "${filterLabel(filter)}"`}
-                  description="Một bài OJ không dạy lý thuyết — nó chỉ ra đề, dựng sẵn một cụm hỏng, và chấm bằng vị từ tra trong bảng. Không cần viết một dòng logic engine nào."
+                  title={
+                    filter === 'all'
+                      ? t('author.problem.list.empty-title')
+                      : t('author.problem.list.empty-filtered', { state: t(filterLabelKey(filter)) })
+                  }
+                  description={t('author.problem.list.empty-body')}
                   action={
                     <Button asChild>
-                      <Link href="/author/problems/new">Soạn bài đầu tiên</Link>
+                      <Link href="/author/problems/new">{t('author.problem.list.empty-cta')}</Link>
                     </Button>
                   }
                 />
@@ -174,23 +184,26 @@ function ProblemRow({ row }: { readonly row: ProblemWithStats }): ReactElement {
             >
               {problem.title}
             </Link>
-            <Badge variant={STATE_BADGE[problem.state]}>{STATE_LABELS[problem.state]}</Badge>
+            <Badge variant={STATE_BADGE[problem.state]}>{t(STATE_KEYS[problem.state])}</Badge>
             <Badge variant={DIFFICULTY_BADGE[problem.difficulty]}>
               {PROBLEM_DIFFICULTY_LABELS[problem.difficulty]}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
             <code className="font-mono">{problem.code}</code>
-            {problem.topics.length > 0 && ` · ${problem.topics.map((t) => PROBLEM_TOPIC_LABELS[t]).join(', ')}`}
+            {problem.topics.length > 0 &&
+              t('author.problem.list.row-topics', {
+                topics: problem.topics.map((topic) => PROBLEM_TOPIC_LABELS[topic]).join(', '),
+              })}
           </p>
           <p className="text-xs text-muted-foreground">
             {stats.attemptCount === 0
-              ? 'Chưa ai thử.'
-              : `${String(stats.solverCount)}/${String(stats.attemptCount)} người thử đã giải được.`}
+              ? t('author.problem.list.row-untried')
+              : t('author.problem.list.row-solved', { solvers: stats.solverCount, attempts: stats.attemptCount })}
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link href={`/author/problems/${encodeURIComponent(problem.code)}`}>Mở</Link>
+          <Link href={`/author/problems/${encodeURIComponent(problem.code)}`}>{t('common.action.open')}</Link>
         </Button>
       </CardContent>
     </Card>

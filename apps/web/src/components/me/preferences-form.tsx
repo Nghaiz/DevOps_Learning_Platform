@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState, type ReactElement } from 'react';
+import { err, t } from '@devops-platform/copy';
 import { THEME_NAMES, type ThemeName } from '@devops-platform/terminal/themes';
 import {
   Alert,
@@ -23,12 +24,12 @@ import {
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
 import {
-  SHELL_LABEL,
   SHELL_OPTIONS,
-  TERMINAL_THEME_LABEL,
   describeLeaderboardPreference,
   describeShellPreference,
   describeTerminalThemePreference,
+  shellLabel,
+  terminalThemeLabel,
   type PreferenceNotice,
   type ShellName,
 } from './preference-notices';
@@ -99,17 +100,15 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
-          <CardTitle>Tuỳ chọn</CardTitle>
-          {dirty && <Badge variant="warning">Chưa lưu</Badge>}
+          <CardTitle>{t('me.preferences.title')}</CardTitle>
+          {dirty && <Badge variant="warning">{t('me.preferences.dirty')}</Badge>}
         </div>
-        <CardDescription>
-          Áp dụng cho phiên và terminal bạn mở sau khi lưu, không đổi thứ đang chạy.
-        </CardDescription>
+        <CardDescription>{t('me.preferences.description')}</CardDescription>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
-          <Label htmlFor={`${fieldId}-shell`}>Shell mặc định</Label>
+          <Label htmlFor={`${fieldId}-shell`}>{t('me.preferences.shell-label')}</Label>
           <Select
             value={shell}
             onValueChange={(value) => {
@@ -123,7 +122,7 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
             <SelectContent>
               {SHELL_OPTIONS.map((option) => (
                 <SelectItem key={option} value={option}>
-                  {SHELL_LABEL[option]}
+                  {shellLabel(option)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -132,7 +131,7 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor={`${fieldId}-theme`}>Màu terminal</Label>
+          <Label htmlFor={`${fieldId}-theme`}>{t('me.preferences.theme-label')}</Label>
           <Select
             value={theme ?? FOLLOW_APP_THEME}
             onValueChange={(value) => {
@@ -144,10 +143,10 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={FOLLOW_APP_THEME}>Theo giao diện trang</SelectItem>
+              <SelectItem value={FOLLOW_APP_THEME}>{t('me.preferences.theme-follow')}</SelectItem>
               {THEME_NAMES.map((name) => (
                 <SelectItem key={name} value={name}>
-                  {TERMINAL_THEME_LABEL[name]}
+                  {terminalThemeLabel(name)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -165,23 +164,16 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
                 setSaved(false);
               }}
             />
-            <Label htmlFor={`${fieldId}-leaderboard`}>Hiện tên tôi trên bảng xếp hạng</Label>
+            <Label htmlFor={`${fieldId}-leaderboard`}>{t('me.preferences.leaderboard-label')}</Label>
           </div>
           <NoticeText notice={describeLeaderboardPreference(leaderboard)} />
         </div>
 
-        {updatePreferences.isError && (
-          <Alert variant="destructive">
-            <AlertDescription>
-              {describeTrpcError(updatePreferences.error)} Thử lưu lại; nếu vẫn hỏng thì tải lại
-              trang để xem tuỳ chọn hiện tại của bạn.
-            </AlertDescription>
-          </Alert>
-        )}
+        {updatePreferences.isError && <SaveError error={updatePreferences.error} />}
 
         {saved && !dirty && !updatePreferences.isPending && (
           <Alert variant="success">
-            <AlertDescription>Đã lưu tuỳ chọn.</AlertDescription>
+            <AlertDescription>{t('me.preferences.saved')}</AlertDescription>
           </Alert>
         )}
 
@@ -198,11 +190,25 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
               });
             }}
           >
-            Lưu tuỳ chọn
+            {t('me.preferences.save')}
           </Button>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * `Alert` chỉ có MỘT khe nội dung, nên hai nửa của `ErrorEntry` được ghép ở
+ * đây. Ghép hợp lệ khi nơi nhận có đúng một khe; `ErrorState` có hai và ở đó
+ * chúng đi vào hai khe riêng.
+ */
+function SaveError({ error }: { readonly error: unknown }): ReactElement {
+  const entry = err('me.error.preferences-save', { reason: describeTrpcError(error) });
+  return (
+    <Alert variant="destructive">
+      <AlertDescription>{`${entry.what} ${entry.next}`}</AlertDescription>
+    </Alert>
   );
 }
 

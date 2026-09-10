@@ -4,6 +4,7 @@ import { useCallback, useRef, useState, type ReactElement } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle, Button, useToast } from '@devops-platform/ui';
+import { count, t } from '@devops-platform/copy';
 import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError } from '../../../../lib/trpc';
 import type { FieldIssue } from '../cluster-form';
@@ -29,6 +30,12 @@ import { ProblemEditor } from '../problem-editor';
  * người đang viết dở.
  *
  * ⛔ Không dựng `<main>` (C6bis) — vỏ ứng dụng sở hữu landmark đó.
+ *
+ * ## ⚠ `issue.message` KHÔNG đi qua bản đồ, và đó là chủ ý
+ *
+ * Câu lỗi trong `FieldIssue` do `toProblemDraft` và Zod sinh ra lúc chạy, nên
+ * chúng là DỮ LIỆU chứ không phải mục bản đồ. Thứ đi qua `packages/copy` ở đây
+ * là câu BAO quanh chúng: tiêu đề hộp lỗi và phép đếm.
  */
 export function ProblemNewClient(): ReactElement {
   const router = useRouter();
@@ -49,8 +56,8 @@ export function ProblemNewClient(): ReactElement {
     onSuccess: (problem) => {
       void utils.problems.mine.invalidate();
       toast({
-        title: `Đã tạo bản nháp ${problem.code}`,
-        description: 'Người học chưa thấy bài này cho tới khi bạn xuất bản.',
+        title: t('author.problem.new.created-title', { code: problem.code }),
+        description: t('author.problem.new.created-body'),
       });
       router.push(`/author/problems/${encodeURIComponent(problem.code)}`);
     },
@@ -74,25 +81,22 @@ export function ProblemNewClient(): ReactElement {
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10">
       <header className="flex flex-col gap-1">
         <Link href="/author/problems" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← Về danh sách bài tập
+          ← {t('author.problem.nav.back')}
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Soạn bài tập mới</h1>
-        <p className="text-sm text-muted-foreground">
-          Bài OJ không dạy lý thuyết — nó ra đề, dựng sẵn một cụm, và chấm bằng vị từ chọn từ bảng tra. Không
-          cần viết một dòng logic engine nào.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('author.problem.new.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('author.problem.new.lead')}</p>
       </header>
 
       {serverError !== null && (
         <Alert variant="destructive">
-          <AlertTitle>Máy chủ từ chối</AlertTitle>
+          <AlertTitle>{t('author.problem.server-error-title')}</AlertTitle>
           <AlertDescription>{serverError}</AlertDescription>
         </Alert>
       )}
 
       {issues.length > 0 && (
         <Alert variant="destructive">
-          <AlertTitle>Còn {String(issues.length)} ô chưa lưu được</AlertTitle>
+          <AlertTitle>{count('author.problem.new.issues-title', issues.length)}</AlertTitle>
           <AlertDescription>
             <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
               {issues.map((issue) => (
@@ -114,11 +118,9 @@ export function ProblemNewClient(): ReactElement {
         actions={
           <>
             <Button type="button" onClick={submit} loading={create.isPending}>
-              Lưu bản nháp
+              {t('author.problem.new.submit')}
             </Button>
-            <span className="text-sm text-muted-foreground">
-              Máy chủ cấp mã bài khi lưu. Xuất bản được làm ở trang sửa, sau khi có mã.
-            </span>
+            <span className="text-sm text-muted-foreground">{t('author.problem.new.submit-hint')}</span>
           </>
         }
       />

@@ -1,3 +1,5 @@
+import { t } from '@devops-platform/copy';
+
 /**
  * Nhãn tiến độ lộ trình trên `/me` — HÀM THUẦN, tách khỏi JSX.
  *
@@ -56,20 +58,20 @@ export function summarizePathProgress(input: PathProgressInput): PathProgressSum
     return {
       value: 0,
       max: 0,
-      label: 'Lộ trình chưa có phần nào',
+      label: t('me.path.no-items'),
       nextLabel: null,
       nextIsItemId: false,
     };
   }
 
-  const label = `Đã đạt ${String(passedCount)}/${String(itemCount)} phần`;
+  const label = t('me.path.passed', { passed: passedCount, total: itemCount });
 
   if (nextItemId !== null) {
     return {
       value: passedCount,
       max: itemCount,
       label,
-      nextLabel: `Phần tiếp theo: ${nextItemId}`,
+      nextLabel: t('me.path.next-item', { id: nextItemId }),
       nextIsItemId: true,
     };
   }
@@ -78,14 +80,20 @@ export function summarizePathProgress(input: PathProgressInput): PathProgressSum
   // với người học. So sánh bằng chính hai con số vừa đọc, không bằng một cờ
   // riêng nào (không có cờ nào như thế, và nếu có thì nó là derived field).
   if (passedCount >= itemCount) {
-    return { value: passedCount, max: itemCount, label, nextLabel: 'Đã đạt tất cả các phần', nextIsItemId: false };
+    return {
+      value: passedCount,
+      max: itemCount,
+      label,
+      nextLabel: t('me.path.all-passed'),
+      nextIsItemId: false,
+    };
   }
 
   return {
     value: passedCount,
     max: itemCount,
     label,
-    nextLabel: 'Không còn phần nào đang mở — mở khoá bằng cách đạt phần trước đó',
+    nextLabel: t('me.path.locked'),
     nextIsItemId: false,
   };
 }

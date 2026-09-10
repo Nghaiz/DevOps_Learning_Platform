@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    // Chỉ test cần Node API (đọc chính `src/**` và `content/**` từ đĩa để dựng
+    // cổng T0/T1a/T4/T7); mã sản phẩm của gói này không chạm Node API nào.
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "eslint.config.mjs"]
+}

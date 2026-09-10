@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
+import { t } from '@devops-platform/copy';
 import { redirect } from 'next/navigation';
 import { readCanAuthor, readViewerSession } from '../../components/catalog/viewer-role.server';
 import { LabsClient } from './labs-client';
 
 export const metadata: Metadata = {
-  title: 'Lab — DevOps Learning Platform',
+  title: t('catalog.meta-title.labs'),
 };
 
 /**

@@ -1,12 +1,13 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import { t } from '@devops-platform/copy';
 import { redirect } from 'next/navigation';
 import { readViewerSession } from '../../../components/catalog/viewer-role.server';
 import { ProblemsClient } from './problems-client';
 
 export const metadata: Metadata = {
-  title: 'Bài tập — DevOps Learning Platform',
-  description: 'Danh sách bài tập Kubernetes có lọc theo độ khó, chủ đề, tag và trạng thái của bạn.',
+  title: t('catalog.meta-title.problems'),
+  description: t('catalog.problems.meta-description'),
 };
 
 /**

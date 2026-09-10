@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
+import { t } from '@devops-platform/copy';
 import type { AppRouter } from '../../server/trpc/routers/app-router';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../lib/trpc';
@@ -11,7 +12,9 @@ import { CatalogToolbar } from '../../components/catalog/catalog-toolbar';
 import { CatalogEmptyState } from '../../components/catalog/catalog-empty';
 import { CatalogError } from '../../components/catalog/catalog-error';
 import { CatalogPager } from '../../components/catalog/catalog-pager';
+import { catalogErrorTitle, catalogLead, catalogTitle } from '../../components/catalog/catalog-labels';
 import { buildCatalogListInput } from '../../components/catalog/catalog-input';
+import { searchPage } from '../../components/catalog/catalog-search';
 import { useCatalogControls } from '../../components/catalog/use-catalog-controls';
 import {
   compareCount,
@@ -24,37 +27,51 @@ import {
 type QuizRow = inferRouterOutputs<AppRouter>['quiz']['list']['items'][number];
 
 const SORT_OPTIONS: readonly SortOption<QuizRow>[] = [
-  { key: 'title', label: 'Tên A→Z', compare: compareTitle },
-  { key: 'questions', label: 'Ít câu đến nhiều', compare: compareCount((item) => item.questionCount) },
+  { key: 'title', label: t('catalog.sort.title'), compare: compareTitle },
+  {
+    key: 'questions',
+    label: t('catalog.sort.questions'),
+    compare: compareCount((item) => item.questionCount),
+  },
 ];
 
 /**
- * Trang danh sách `/quiz` (13.C) — **màn hình mới**, trước phase này chỉ có
- * `/quiz/[id]`, tức không có đường nào từ giao diện đi tới một bộ câu hỏi ngoài
- * việc gõ tay id vào thanh địa chỉ.
+ * Ô tìm soi tiêu đề và mô tả của BỘ câu hỏi, không soi câu hỏi bên trong.
+ *
+ * Đó không phải một giới hạn kỹ thuật mà là một ranh giới cố ý: `quiz.list` chỉ
+ * trả `QuizSummary`, không câu hỏi, không đáp án. Kéo nội dung câu hỏi xuống
+ * client để tìm được sẽ phá đúng ranh giới mà server đang giữ.
+ */
+function quizSearchFields(item: QuizRow): readonly (string | null)[] {
+  return [item.title, item.description];
+}
+
+/**
+ * Trang danh sách `/quiz`.
  *
  * Cùng khuôn `paths-client.tsx`: `quiz.list` nhận đúng `listInputSchema`
  * (`limit` + `cursor`) và `.strict()` từ chối mọi field lọc, nên trang này chỉ
- * có phần sắp xếp. `nextCursor` là cursor THẬT (keyset theo `id` qua
+ * có ô tìm và ô sắp xếp. `nextCursor` là cursor THẬT (keyset theo `id` qua
  * `listPublishedQuizzesPage`), không phải một `null` cố định.
  *
- * ⛔ Danh sách chỉ có `QuizSummary` — không câu hỏi, không đáp án. Ranh giới đó
- * do server giữ (`quiz.get` khai tường minh `QuizForLearner`; `quiz.list` bỏ cả
- * `state`), và trang này không được đi vòng qua nó bằng một lời gọi khác.
+ * ⛔ Danh sách chỉ có `QuizSummary`. Ranh giới đó do server giữ (`quiz.get` khai
+ * tường minh `QuizForLearner`; `quiz.list` bỏ cả `state`), và trang này không
+ * được đi vòng qua nó bằng một lời gọi khác.
  */
 export function QuizClient({ canAuthor }: { readonly canAuthor: boolean }): React.ReactElement {
   const controls = useCatalogControls();
   const query = api.quiz.list.useQuery(buildCatalogListInput(controls.filters, controls.cursor));
 
   const sortOption = findSortOption(SORT_OPTIONS, controls.sortKey);
-  const items = useMemo(() => sortPage(query.data?.items ?? [], sortOption), [query.data, sortOption]);
+  const loaded = query.data?.items ?? [];
+  const items = useMemo(
+    () => sortPage(searchPage(query.data?.items ?? [], controls.normalizedSearch, quizSearchFields), sortOption),
+    [query.data, controls.normalizedSearch, sortOption],
+  );
   const hasNext = query.data?.nextCursor != null;
 
   return (
-    <CatalogPage
-      title="Quiz"
-      description="Bộ câu hỏi tự chấm. Nộp xong mới thấy điểm và giải thích — trong lúc làm bài, đáp án không nằm trong dữ liệu trình duyệt nhận."
-    >
+    <CatalogPage title={catalogTitle('quiz')} description={catalogLead('quiz')}>
       <CatalogToolbar
         kind="quiz"
         fields={[]}
@@ -65,6 +82,8 @@ export function QuizClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
         sortKey={controls.sortKey}
         sortOptions={SORT_OPTIONS}
         onSort={controls.setSortKey}
+        search={controls.search}
+        onSearch={controls.setSearch}
         shown={query.isSuccess ? items.length : null}
         hasNext={hasNext}
         disabled={query.isPending}
@@ -74,7 +93,7 @@ export function QuizClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
 
       {query.isError && (
         <CatalogError
-          title="Không tải được danh sách quiz"
+          title={catalogErrorTitle('quiz')}
           message={describeTrpcError(query.error)}
           errorCode={trpcErrorCode(query.error)}
           retrying={query.isFetching}
@@ -90,7 +109,11 @@ export function QuizClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
           page={controls.page}
           hasActiveFilter={controls.hasActiveFilter}
           canAuthor={canAuthor}
+          query={controls.normalizedSearch}
+          loaded={loaded.length}
+          hasNext={hasNext}
           onClearFilters={controls.clearFilters}
+          onClearSearch={controls.clearSearch}
           onFirstPage={controls.goFirst}
         />
       )}
@@ -105,8 +128,11 @@ export function QuizClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
                 title={item.title}
                 description={item.description}
                 meta={[
-                  { icon: 'questions', label: `${item.questionCount} câu` },
-                  { icon: 'threshold', label: `Đạt từ ${item.passThresholdPercent}%` },
+                  { icon: 'questions', label: t('catalog.meta.questions', { n: item.questionCount }) },
+                  {
+                    icon: 'threshold',
+                    label: t('catalog.meta.threshold', { percent: item.passThresholdPercent }),
+                  },
                 ]}
               />
             ))}
@@ -116,8 +142,10 @@ export function QuizClient({ canAuthor }: { readonly canAuthor: boolean }): Reac
             kind="quiz"
             page={controls.page}
             shown={items.length}
+            loaded={loaded.length}
             hasNext={hasNext}
             sortKey={controls.sortKey}
+            query={controls.normalizedSearch}
           />
 
           <CatalogPager

@@ -18,7 +18,9 @@ export function DropdownMenuContent({
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-50 min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md',
+          'z-50 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground',
+          // §5: popover cùng bậc `lg` với card/dialog. §6: popover = bậc nâng nền 3.
+          'shadow-elevation-3',
           className,
         )}
         {...props}

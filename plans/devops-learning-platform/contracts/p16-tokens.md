@@ -439,9 +439,19 @@ sung:
 
 | Token | Giá trị | @360px | @1440px | Dùng cho |
 |---|---|---|---|---|
-| `--section-y` | `clamp(3rem, 2rem + 4.44vw, 6rem)` | 48px | 96px | `padding-block` của một chặng trang chủ / trang tiếp thị |
+| `--section-y` | `clamp(3rem, 2rem + 4.44vw, 6rem)` | 48px | **95.94px** | `padding-block` của một chặng trang chủ / trang tiếp thị |
 
 Một token này là lý do trang chủ bảy chặng không cần điểm ngắt nào cho nhịp dọc.
+
+> **Sửa 2026-09-10 — cột @1440px trước đây ghi 96px, và đó là con số SAI.** Chính công thức bên
+> trái cho `32 + 1440×0.0444 = 95.936px`, tức nó KHÔNG chạm `max` 6rem tại 1440. Hệ số chạm đúng
+> phải ≥ `4.4445vw`; `4.4444vw` vẫn hụt.
+>
+> Giữ công thức, sửa cột — vì 0.064px không ai thấy được, còn một hệ số năm chữ số thì khó đọc
+> hơn hẳn. `packages/ui/src/theme/type-scale.contract.test.ts` ghim **95.936** kèm companion, chứ
+> không nới biên độ thành `toBeCloseTo(96, 0)`: biên ±0.5px sẽ nuốt luôn một lần đổi hệ số thật.
+> 10/10 dòng §3.2 lọt trong ±0.05px nên đây là lệch riêng lẻ ở đúng dòng này, không phải sai số
+> hệ thống của cả bảng.
 
 ---
 

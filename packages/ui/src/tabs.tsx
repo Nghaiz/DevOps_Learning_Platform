@@ -23,10 +23,12 @@ export function TabsTrigger({ className, ...props }: ComponentProps<typeof Radix
       data-slot="tabs-trigger"
       className={cn(
         'inline-flex h-8 items-center justify-center rounded-sm px-3 text-sm font-medium whitespace-nowrap',
-        'text-muted-foreground transition-colors outline-none',
+        'text-muted-foreground transition-colors duration-[var(--motion-fast)] ease-out outline-none',
         'focus-visible:ring-2 focus-visible:ring-ring',
         'disabled:pointer-events-none disabled:opacity-50',
-        'data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+        // Tab đang chọn nổi lên khỏi rãnh `bg-muted` — đúng nghĩa "thẻ lúc nghỉ"
+        // của bậc 1 (§6). `shadow-sm` cũ là một bậc ngoài hệ ba bậc ngữ nghĩa.
+        'data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-elevation-1',
         className,
       )}
       {...props}

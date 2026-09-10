@@ -369,7 +369,7 @@ describe('Button — khe icon', () => {
      * và `getByRole` không thể thấy. Chỉ `<Spinner>` dùng ĐỘC LẬP mới giữ
      * `role="status"` — đó là ca mà test ở khối trên kiểm.
      */
-    const spinner = document.querySelector('svg.animate-spin');
+    const spinner = document.querySelector('svg[data-slot="spinner"]');
     expect(spinner, 'nhánh loading phải còn Spinner đè giữa').not.toBeNull();
     expect(spinner?.closest('[aria-hidden="true"]')).not.toBeNull();
   });
@@ -402,10 +402,22 @@ describe('Button — khe icon', () => {
  *   | chữ      | `text-primary-foreground` (sáng, đảo) | `text-destructive` (đậm) |
  *   | icon     | không có mặc định | `TriangleAlert` bắt buộc |
  *
- * Quy ra độ chói tương đối (chính là kênh xám mà ảnh đen trắng giữ lại), đo ở
- * nhánh sáng: nền nút primary L=0.1679 còn nền nút destructive L=1.0000 — chênh
- * **4.82:1**. Nhánh tối: 0.1943 vs 0.0030, chênh **4.61:1**. Tức ngay cả khi
+ * Quy ra độ chói tương đối (chính là kênh xám mà ảnh đen trắng giữ lại): nền
+ * nút primary là một khối ĐẶC, còn nền nút destructive lúc nghỉ TRONG SUỐT nên
+ * nó lộ ra mặt bên dưới. Chênh lệch đo được **6.0885:1** ở nhánh sáng và
+ * **4.6415:1** ở nhánh tối (trên `--card`: 6.0885 / 4.2009). Tức ngay cả khi
  * xoá sạch sắc độ, hai nút vẫn là "khối đặc tối" cạnh "khung rỗng sáng".
+ *
+ * ⚠ Bốn con số trên ĐÃ ĐỔI ngày 2026-09-10 (trước là 4.82 / 4.61, tính cho
+ * `--primary` = `#e31029` của hệ cũ). `p16-tokens.md` đặt `--primary` sáng
+ * thành `#BC2626`, nên khoảng cách rộng ra.
+ *
+ * Vế SỐ HỌC của khẳng định này KHÔNG nằm ở đây mà ở
+ * `theme/tokens.contract.test.ts` § "AC-4 — luật hai kênh sống sót khi KHỬ
+ * MÀU", vì chuỗi oklch → sRGB → độ chói sống ở đó. Chép chuỗi ấy sang một test
+ * component chỉ để lấy một con số là dựng bản thứ hai của phép đo, rồi hai bản
+ * trôi khỏi nhau. Ở FILE NÀY thứ được gác là các class CẤU TRÚC đi ra DOM —
+ * chúng là thứ jsdom thật sự quan sát được.
  */
 describe('Button — primary vs destructive phân biệt được khi KHỬ MÀU (quyết định #1, 14.A)', () => {
   const classesOf = (name: string) =>

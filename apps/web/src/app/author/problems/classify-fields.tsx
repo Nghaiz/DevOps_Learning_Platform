@@ -70,7 +70,7 @@ export function ClassifyFields(props: {
       </div>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-foreground">Chủ đề — chọn 1 đến 3</legend>
+        <legend className="text-sm font-medium text-foreground">Chủ đề, chọn 1 đến 3</legend>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {PROBLEM_TOPICS.map((topic) => (
             <TopicBox
@@ -139,7 +139,7 @@ export function ClassifyFields(props: {
           />
         ) : (
           <p className="text-xs text-muted-foreground">
-            Không giới hạn giờ. Không phải bài nào cũng nên chạy đua — bài chẩn đoán cần thời gian để đọc.
+            Không giới hạn giờ. Không phải bài nào cũng nên chạy đua: bài chẩn đoán cần thời gian để đọc.
           </p>
         )}
       </div>

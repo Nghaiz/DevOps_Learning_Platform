@@ -7,6 +7,158 @@
 > Chặng này **không brainstorm lại**. Mọi quyết định thiết kế đã chốt trong design doc và trong
 > bốn lượt hỏi ngày 2026-09-10. Chỗ nào design đã nói, plan này trỏ tới chứ không chép lại.
 
+**Trạng thái 2026-09-10:** `16.0` XONG (ba hợp đồng trên `main`). `16.A` XONG trên nhánh
+`feat/p16-frontend-rebuild` — 20 commit, `turbo run build lint typecheck test` = `Tasks: 32
+successful, 32 total`, test đã chạy: web 1602, ui 858, games 402, scenario 285, terminal 133,
+motion 110, copy 52, shared-types 48. Ba ô AC chuyển sang `16.I` (mục 16.I.5) vì cần trình duyệt
+thật; ba khoản nợ ghi ở mục 8. **`16.B`..`16.H` chưa bắt đầu.**
+
+**Trạng thái 2026-09-10 (đợt hai):** `16.C` và `16.D` XONG và đã gộp vào
+`feat/p16-frontend-rebuild`. Cây gộp `turbo run build lint typecheck test` = `Tasks: 32
+successful, 32 total`, gồm cả `next build`. 16.C: 9 commit, 30 file. 16.D: 14 commit, 36 file,
+AC-1..AC-6 + AC-8 xanh (AC-7 sang 16.I vì nằm trong `e2e/**`). **`16.B`, `16.E`, `16.F`, `16.G`,
+`16.H` chưa bắt đầu.** Bốn khoản dở của 16.C ghi ở mục 8.
+
+**Trạng thái 2026-09-10 (đợt ba):** `16.G1`, `16.F`, `16.E` XONG và đã gộp (`cd6d51a`).
+16.G1: 4 commit / 19 file. 16.F: 5 commit / 20 file. 16.E: 7 commit / 17 file. `16.B`, `16.G2`,
+`16.H` đang chạy. Còn lại sau đó: `16.I`.
+
+Cây gộp năm lane, đo bằng lượt **ép chạy** (`--force`), không phải lượt trúng cache:
+
+```
+Tasks: 32 successful, 32 total · Cached: 0 cached, 32 total · 2m9.583s
+web 1729 (145 file) · ui 858 · games 402 · scenario 285
+terminal 133 · motion 110 · copy 52 · shared-types 48        tổng 3617
+check-design-tokens: 552 file / 4 vùng, đối chứng hai chiều xanh
+```
+
+**Trạng thái 2026-09-11 (chốt đợt):** `16.I` XONG và đã gộp, cộng một lượt xác minh của lead.
+Số đo đầy đủ và cách lặp lại: [`reports/2026-09-11-verify-p16-lead.md`](reports/2026-09-11-verify-p16-lead.md).
+
+Ô nghiệm thu §7, đo trên build CỤC BỘ với tài khoản admin và `E2E_REQUIRE_ROLES=1`:
+
+```
+a11y + csp:  68 xanh · 4 đỏ · 0 skip     ⇒ 30/32 màn sạch cả axe lẫn CSP
+turbo:       Tasks: 32 successful, 32 total
+```
+
+Bốn ô đỏ là **hai màn**, mỗi màn hai spec: `/problems/:code` và `/author/problems/:code`. Bảng
+`problems` có 0 dòng và **không có nguồn seed nào** — `content/` không có thư mục `problems`,
+`seed-content.mjs` không nạp bảng đó. Hai màn ấy chỉ tồn tại sau khi có người soạn bài tập qua
+UI. Ô AC nói "32 màn" trong khi hai màn cấu trúc-không-thể chạm tới trên một cài đặt sạch; đóng
+nó là một quyết định (thêm nguồn seed, hay cho harness tự soạn rồi dọn), không phải việc vặt.
+
+⚠ **Mọi lượt e2e phải khai base.** `E2E_BASE_URL` mặc định trỏ vào cụm lab, đang chạy một build
+cũ. Lượt xác minh đầu của lead cho 13 ô đỏ chỉ vì điều đó; cùng suite vào build cục bộ cho 1.
+Ba biến bắt buộc: `E2E_START_SERVER=1`, `E2E_BASE_URL=http://localhost:3000`,
+`E2E_ORIGIN=http://localhost:3000`. Báo cáo 16.I **không khai base nào** — đọc bảng 11 ô của nó
+với điều kiện đó.
+
+**Trạng thái 2026-09-11:** cả tám lane dựng lại (`16.B`..`16.H`, `16.G` tách G1+G2) XONG và đã
+gộp, cộng một lượt L0 đóng motif và một lượt L0 nối metadata vào bản đồ copy. `16.I` đang chạy.
+
+Cây sau khi gộp hết, đo bằng lượt ép (`--force`, `Cached: 0 cached, 32 total`):
+
+```
+Tasks: 32 successful, 32 total
+web 1750 (148 file) · ui 872 (34 file) · games 402 · scenario 285
+terminal 133 · motion 110 · copy 52 · shared-types 48        tổng 3652
+bản đồ copy: 1067 khoá, tổng-từng-surface = Object.keys(MESSAGES) → không khoá nào bị nuốt
+```
+
+**Hai lượt L0 không có trong plan, và vì sao chúng cần thiết:**
+
+1. **Motif ellipse chưa từng vào hệ thiết kế.** `packages/ui` khai phụ thuộc
+   `@devops-platform/motion` nhưng **không file nào import nó** — `motif.ts` có đủ máy móc và
+   110 test xanh, không ai gọi. Tức ý tưởng thiết kế mà design §3 gọi là "xương sống của toàn bộ
+   thiết kế" chỉ sống ở trang chủ 3D. Đóng bốn bề mặt §3 liệt kê; 0 file → 8 file import.
+   `ProgressBar` giữ NGUYÊN hợp đồng aria, bốn ô test cũ được **chuyển** khẳng định chứ không xoá.
+
+2. **Metadata của route chưa từng đi qua bản đồ copy.** Tám tiêu đề còn chuỗi viết thẳng kèm gạch
+   ngang dài sống qua trọn bảy lane mà không ô nào đỏ. Lý do là cấu trúc, không phải sơ suất: sáu
+   cổng `copy-gate.test.ts` gác theo glob của từng lane và không cái nào phủ `app/**`, còn cổng T1
+   quét `packages/copy/src/**` nên nó **không thể** thấy một chuỗi nằm ngoài bản đồ. Cổng mới
+   (`app/metadata-copy-gate.test.ts`) cắt đúng thân `metadata`/`generateMetadata` và ship kèm đối
+   chứng dương lẫn âm hai phía. Mở rộng nó sang `description` tìm ra thêm ba mô tả trang và cả
+   khối `openGraph` của `layout.tsx` — thứ mà lượt grep tìm gạch ngang dài không thấy, vì chúng
+   không có dấu nào để tìm.
+
+**Một chỗ cố ý không làm cho tiện:** ba mô tả trang đặt dưới tiền tố TỪNG trang chứ không gom
+thành `catalog.meta-description.*`. Gom lại là một nhóm đúng ba thành viên và T3 sẽ đòi lời khai
+rằng ba là con số đóng — ba ở đây không đóng, nó chỉ là ba trang tình cờ có mô tả. Khai bừa một
+nhóm ba cố ý là nói dối chính cái cổng đang hỏi.
+
+**Con số 72 khoá `author.` của 16.G1 là 69.** Ba dòng `authorIntentionalThree` lọt vào phép đếm
+regex của chính lane đó — đúng bẫy nó chưa được cảnh báo, vì lời cảnh báo ra đời sau nó. Bản đồ
+chạy thật phân xử: `author` = 178 = 69 + 109 của 16.G2.
+
+**Vì sao phải ép chạy, và điều đó nói gì về mọi con số turbo trong dự án này.** Lượt verify đầu
+sau khi gộp trả `FULL TURBO — 32/32 cached` trên một cây vừa đổi 19 file. Đó là hình dạng của
+một ô xanh không chứng minh gì, nên nó không được nhận. Ba phép đo sau đó:
+
+1. `turbo.json` **không khai `inputs`** cho `build/lint/typecheck/test`, tức dùng mặc định là mọi
+   file git theo dõi trong package. Cấu hình đúng — đổi mã thì đổi hash. Giả thuyết nguy hiểm
+   nhất, và nó đã bị loại.
+2. **Không worktree nào có thư mục cache** (`.turbo` lẫn `node_modules/.cache`). Cache duy nhất
+   trong cả hệ là `.turbo/cache` ở cây chính. Suy ra turbo phân giải gốc repo về cây chính kể cả
+   khi chạy từ worktree con.
+3. `--force` trả `0 cached` và vẫn `32 successful`.
+
+Hệ quả cần nhớ: **số của lane luôn là chạy thật** (worktree không có cache để trúng), còn **số ở
+cây chính thì phải ép mới tin được**.
+
+**Ba lỗ hổng cổng, đo trong đợt này, mỗi cái hỏng im lặng:**
+
+| Bẫy | Vì sao không cổng nào đỏ |
+|---|---|
+| Probe của `renderMessages` gọi `fn(NUMBER_PROBE)` TRƯỚC | Một `ErrorEntry` viết `what: p.message` nhận số `7`; nó trượt khỏi **mọi** cổng giá trị. Ba mục của 16.F đã dính |
+| Cổng T4 báo động giả 100% trên file `.ts` thuần | Mẫu `>([^<>]*)<` khớp đoạn giữa mũi tên hàm và dấu mở generic. 16.E thấy một "vi phạm" dài 18 dòng không chứa ký tự JSX nào |
+| Bảng `intentionalThree` cùng hình dạng dòng với bản đồ khoá | Regex trích khoá đọc tiền tố nhóm thành "khoá chết" — ô đỏ về chính bộ đo, không về mã |
+
+Cộng một lỗ hổng **quy trình**: `git worktree add` không mang `.env` và `apps/web/.env` sang
+(khớp `*.env` ở `.gitignore:50`). Lượt turbo đầu của 16.G1 ra `Tasks: 29/31` với 121 ô đỏ — và
+con số nguy hiểm hơn là **71 ô lặng lẽ SKIP**, kéo tổng 1695 → 1659. Đọc cột passed/failed mà
+không đọc TỔNG thì lượt đó trông như "gần xanh". **Lead chép `.env` khi cấp worktree** là bước
+bắt buộc từ đây.
+
+**16.G tách đôi — quyết định của lead, không có trong plan gốc.** Cây `author/**` là 72 file /
+10.100 dòng, gấp đôi phạm vi 16.C, mà 16.C đã phải chia hai vì chạm trần lượt. Nên chia sẵn thay
+vì chia phản ứng:
+
+| Lane | Sở hữu | Ghi chú |
+|---|---|---|
+| **16.G1** | `components/author/**` (30 file) + `app/author/{page.tsx,author-list-client.tsx,[id]/**,new/**}` | soạn bài học |
+| **16.G2** | `app/author/problems/**` (35 file) | soạn bài tập, chạy **nối tiếp** sau khi G1 gộp |
+
+Nối tiếp chứ không song song, vì hai lý do đo được, không phải phòng xa:
+
+1. **Cả hai cùng ghi `packages/copy/src/surfaces/author.ts`.** Đó đúng là lớp lỗi mà chú thích
+   đầu `registry.ts` mô tả: hai worktree chia chung một cây, lượt ghi sau ĐÈ lượt trước, không
+   dấu xung đột, không lỗi biên dịch. Cách duy nhất chạy song song là tách surface đó làm hai
+   file, mà việc đó phải sửa `registry.ts` — file L0 — giữa lúc ba lane khác đang bay trên nó.
+2. **`components/author/field.tsx` là điểm chạm một chiều.** Mười file trong `app/author/problems/**`
+   import `TextField`, `TextAreaField`, `issueFor` từ nó; không file nào của `problems/` ghi
+   ngược vào `components/author/`. Nên G1 sở hữu `field.tsx` với ràng buộc giữ nguyên ba chữ ký
+   đó, còn G2 chỉ ĐỌC. Kiểm bằng grep hai chiều trước khi chốt, không suy từ cây thư mục.
+
+Ba thứ đợt này đo được mà plan chưa lường:
+
+1. **Lane effort-L không lọt một lượt agent.** Cả hai lane đều chạm trần 90 lượt (~500–620K
+   token mỗi lane) và phải nối tiếp. Lần đầu chạm trần, 16.C bỏ lại 19 file chưa commit và 16.D
+   bỏ lại một việc dời file đi nửa đường. Lane sau phải có nhịp commit mỗi ~15 lượt tool và một
+   điều kiện thoát ghi sẵn trong brief.
+2. **`apps/web` chưa từng khai `@devops-platform/copy` lẫn `motion`.** Chặn cả bảy lane, và nền
+   vẫn xanh 32/32 vì chưa file nào import chúng. Vá ở `279a7f3`.
+3. **Cổng T4 chỉ gác một chiều.** Nó bắt "chuỗi nằm ngoài bản đồ", không bắt "khoá không có nơi
+   gọi". Nên ba khoá `session.tier.*` trùng với `catalog.tier.*` đi qua mọi cổng của cả hai lane
+   mà không ô nào đỏ; chỉ lộ khi đọc tay sau lúc gộp.
+
+16.A được chia bốn khối thay vì "1 người tuần tự" như bảng mục 4 — `packages/ui` một mình đã 65
+file, cộng 46 token và hai package mới. Ranh giới sở hữu file giữ nguyên như plan pin: A1
+`globals.css` + `layout.tsx` + `public/`, A2 `packages/copy`, A3 `packages/motion`, A4
+`packages/ui`. Điểm nghẽn duy nhất không chia được là `pnpm install`, nên lead cài sẵn một lần
+trước khi fan-out.
+
 ---
 
 ## 1. Objective
@@ -171,6 +323,31 @@ Commit bằng dạng pathspec: `git commit -m "..." -- <đường dẫn cụ th�
 
 Bảy lane, chạy đồng thời dưới trần fan-out 8 của depth 0.
 
+##### Ba route KHÔNG lane nào nhận — chốt 2026-09-10
+
+Bảng trên giao `page+client` của năm cây danh mục cho 16.C, và `[id]/**` của **hai** cây cho
+16.D. Đọc sát thì `paths/[id]`, `playgrounds/[id]`, `quiz/[id]` rơi qua khe: không lane nào
+trong bảy lane nhắc tới chúng. Bản đồ sở hữu theo thư mục không phát hiện được lớp lỗi này —
+mỗi lane đọc phần của mình thì đều thấy đủ, và ba trang kia chỉ lộ ra khi ai đó mở chúng sau
+khi P16 xong và thấy giao diện cũ.
+
+Chia theo **thứ mã thực sự chạm tới**, không theo cây thư mục:
+
+| Route | Về lane | Vì sao |
+|---|---|---|
+| `app/playgrounds/[id]/**` | **16.D** | Dùng `use-playground-session.ts` → terminal → đụng đúng bất biến khoang làm việc ở `contracts/p16-workspace.md` §1. Để nó ở 16.C là để một lane không đọc hợp đồng đó viết mã chạm vào nó. |
+| `app/paths/[id]/**` | **16.C** | Trang đọc thuần, không có phiên sandbox nào. |
+| `app/quiz/[id]/**` | **16.C** | Form thuần, không có phiên sandbox nào. |
+
+Kèm theo, hai khoản cấp quyền theo TÊN cho đợt 16.C + 16.D (2026-09-10):
+
+- `components/shell/immersive-routes.ts` → **16.D độc quyền**. Mục 16.D.1 giao đúng việc sửa
+  file này, nhưng file nằm trong `components/shell/**` của 16.B. 16.B chưa chạy; khi nó chạy
+  thì đọc dòng này trước.
+- `app/{lessons,labs,paths,playgrounds,quiz}/layout.tsx` → **không lane nào sửa**. Chúng là
+  gác auth + provider tRPC phía server, không phải phần nhìn, và mỗi file đã ghi rõ vì sao nó
+  gác (hoặc CỐ Ý không gác) ở đúng tầng đó. Cần sửa thì báo lead, không tự đổi.
+
 #### 16.B — vỏ + xác thực
 
 Vỏ hôm nay là thanh trên `h-14` dính, có drawer trái cho mobile. Giữ hình thái đó, dựng lại.
@@ -262,6 +439,20 @@ logic, không phải phần nhìn.
    thay các ô ngưỡng trên bằng lượt quét đó. Đổi hai ô ngưỡng thành quét là hạ cấp một phép đo
    có đối chứng âm xuống một phép đo không có.
 
+5. **Ba ô chuyển từ 16.A sang đây vì chúng chỉ đo được trong trình duyệt thật** (lane motion báo
+   2026-09-10, sau khi thi công xong `packages/motion`).
+
+   | Ô | Vì sao 16.A không đo được | Đo thế nào ở 16.I |
+   |---|---|---|
+   | AC-7 "ép reduced-motion ⇒ `transition-duration` ra 0.01ms" | Giá trị đến từ khối `@media` trong `globals.css`. `packages/motion` không sở hữu stylesheet nào, chạy vitest ở `environment: 'node'`, không có `react-dom`, và jsdom không phân giải `matchMedia` lẫn `@media` trong cascade. | `emulateMedia({ reducedMotion: 'reduce' })` rồi đọc `getComputedStyle(path).transitionDuration` |
+   | §8.3 cung chạy được bằng `calc(1 - var(--p))` | Transition đặt trên `stroke-dashoffset` mà giá trị đến từ một custom property **chưa đăng ký**. Spec nói nó bắn; chưa ai đo trên trình duyệt thật. | Đổi `--p` rồi khẳng định cung **chạy** chứ không **nhảy** |
+   | §8.1 khe hở nằm đúng phía | Hình học đúng theo test, nhưng "đúng phía" là phán quyết bằng mắt. | Tâm khe hở phải ở `(61.24, 22.18)` trong `viewBox` 100×100 |
+
+   Hai ô đầu hỏng **im lặng** nếu sai: không lỗi, không log. AC-7 sai thì trang TRÔNG NHƯ đã tuân
+   thủ reduced-motion; §8.3 sai thì cung nhảy một nhịp thay vì chạy. Đường lùi cho §8.3 đã sẵn —
+   `dashOffsetAt(p)` trả số thô, đặt thẳng vào `strokeDashoffset` thì transition chắc chắn chạy —
+   nhưng **không đổi trước khi đo**, vì §8.3 ghi dạng `calc()` là bắt buộc.
+
 ---
 
 ## 4. Team Layout
@@ -351,3 +542,45 @@ cùng lúc, và nó chỉ có thật nếu ba hợp đồng ở 16.0 đủ chặ
 - **`components/k8s-arena/**` và `packages/games/**`.** Không đụng.
 - **Cổng kích thước bundle.** Vẫn không có. Ô AC "không kéo xterm.js vào trang không có
   terminal" của `phase-14-exec.md` vẫn không có phép đo nào.
+
+- **Bốn khoản dở của 16.C, chốt 2026-09-10.** `problems-table.tsx` (9 tiêu đề cột + caption) và
+  `problem-labels.ts` (4 bảng nhãn + 3 hàm định dạng) còn chuỗi tại chỗ; `app/(session)/problems/[code]/**`
+  (4 file) chưa động; chuỗi trong `app/quiz/[id]/quiz-client.tsx` **cố ý dừng** — 378 dòng form
+  nhiều trạng thái, chuyển nửa vời để lại hai nguồn chữ trong một file. Phần hình của quiz đã theo token.
+
+- **Bốn bộ chọn biên tập ở lại `apps/web`, lệch chữ hợp đồng §1.6.** Hợp đồng bảo chúng sang
+  `packages/copy`, nhưng exports map của gói khai đúng bốn lối vào và không lối nào chở hàm trong
+  `surfaces/`; `package.json` và `t.ts` đều là file khoá của L0. Phần cốt lõi của §1.6 vẫn giữ —
+  bộ chọn trả `CopyRef` chứ không trả câu, nên bộ dò quét đủ mọi nhánh. Cái mất là kiểm THAM SỐ ở
+  tầng biên dịch, bù bằng test dựng-ra-câu từng nhánh. Muốn đóng hẳn thì L0 phải thêm một lối vào
+  cho `surfaces/`, và đó là quyết định ảnh hưởng cả bảy lane.
+
+- **Mười ba file nhóm trường của `components/author/**` còn chuỗi tại chỗ, chốt 2026-09-10.**
+  `draft-meta-fields.tsx` (380 dòng), `publish-panel.tsx` (395), `step-list-fields.tsx` (214),
+  `asset-manager.tsx` (212) và chín file khác. 16.G1 **cố ý dừng** ở ranh giới sạch thay vì
+  chuyển nửa vời, cùng lý lẽ 16.C đã dừng ở `quiz-client.tsx`: chuyển một nửa để lại hai nguồn
+  chữ trong một file, và đó là trạng thái tệ hơn cả hai đầu. Ô cấm gạch ngang dài thì ĐÃ đóng cho
+  toàn bộ vùng này (21 chuỗi ở bảy file) — nợ còn lại đúng là phần đi qua `packages/copy`.
+
+- **`CopyRef` đang sống nhầm tầng, cần L0 quyết sau khi gộp hết.** Nó khai trong
+  `components/catalog/catalog-labels.ts` — file của lane 16.C — nhưng nó là tầng nối `apps/web`
+  với `packages/copy`, và tính đến 16.G1 đã có bốn cây import nó. 16.G1 không tự chuyển vì file
+  thuộc lane khác. Chuyển nó là đụng cả bốn cây, nên là quyết định của L0, không phải của một lane.
+
+- **Lab vẫn chưa có tab Editor.** Rào cản kiến trúc đã gỡ (`IdePane` nay ở `components/session/`),
+  rào cản còn lại là kiểu `Lab` không có `interfaceLayout` — cần sửa lược đồ + server, ngoài phạm
+  vi frontend-only của đợt này.
+
+- **`--primary` ở nhánh TỐI không đạt 4.5:1 cho chữ link.** Đo được 4.20:1 trên `--card` và
+  3.54:1 trên `--muted`; SC 1.4.3 đòi 4.5 cho chữ thường. Bảng §1.6 nhánh tối chỉ đặt ngưỡng 3.0
+  nên hợp đồng không tự mâu thuẫn, nhưng nó cũng không nói ra rằng đây là khoảng trống. Đã đặt
+  absence pin **có companion hai chiều** trong `packages/ui/src/theme/tokens.contract.test.ts` —
+  pin đỏ khi con số đạt 4.5, và lúc đó phải XOÁ pin rồi đưa cặp vào `TEXT_PAIRS`, không ghim lại
+  số mới (`rules/pinned-baseline-test-companion.md`). Chốt 2026-09-10: sửa màu ở lượt sau, vì đổi
+  `--primary` nhánh tối kéo theo tính lại cả bảng §1.6 sau khi 858 ô đã xanh.
+
+- **`arena.css` (43 dòng) và `node-geometry.ts` (6 dòng) được miễn cổng màu trần.** Ghi trong
+  `KNOWN_HARDCODED` của `scripts/check-design-tokens.mjs`, khối "RÀ LẠI". Đây là miễn theo **phạm
+  vi**, không phải ranh giới thư viện ngoài như xterm.js — nó PHẢI hết hạn khi arena vào phạm vi.
+  Không có hai dòng đó thì cổng đỏ ngay khi vào CI và sẽ bị gỡ khỏi CI, tức luật §9 lại tiếp tục
+  không gác gì.

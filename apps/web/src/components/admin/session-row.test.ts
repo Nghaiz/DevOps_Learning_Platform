@@ -146,7 +146,9 @@ describe('describeTerminateError', () => {
   it('NOT_FOUND: gợi ý phiên có thể đã tự hết hạn', () => {
     const text = describeTerminateError('NOT_FOUND', 'Không có phiên đó');
     expect(text).toContain('hết hạn');
-    expect(text).toContain('tải lại');
+    // Chữ hoa: nửa `next` của ErrorEntry là một câu riêng và mở đầu bằng động
+    // từ (p16-copy.md luật số 4), nên nó không còn nằm giữa câu như bản cũ.
+    expect(text).toContain('Tải lại');
   });
 
   it('lỗi khác: không khẳng định phiên còn sống hay đã chết', () => {
