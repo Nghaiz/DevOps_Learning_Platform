@@ -13,6 +13,24 @@ successful, 32 total`, test đã chạy: web 1602, ui 858, games 402, scenario 2
 motion 110, copy 52, shared-types 48. Ba ô AC chuyển sang `16.I` (mục 16.I.5) vì cần trình duyệt
 thật; ba khoản nợ ghi ở mục 8. **`16.B`..`16.H` chưa bắt đầu.**
 
+**Trạng thái 2026-09-10 (đợt hai):** `16.C` và `16.D` XONG và đã gộp vào
+`feat/p16-frontend-rebuild`. Cây gộp `turbo run build lint typecheck test` = `Tasks: 32
+successful, 32 total`, gồm cả `next build`. 16.C: 9 commit, 30 file. 16.D: 14 commit, 36 file,
+AC-1..AC-6 + AC-8 xanh (AC-7 sang 16.I vì nằm trong `e2e/**`). **`16.B`, `16.E`, `16.F`, `16.G`,
+`16.H` chưa bắt đầu.** Bốn khoản dở của 16.C ghi ở mục 8.
+
+Ba thứ đợt này đo được mà plan chưa lường:
+
+1. **Lane effort-L không lọt một lượt agent.** Cả hai lane đều chạm trần 90 lượt (~500–620K
+   token mỗi lane) và phải nối tiếp. Lần đầu chạm trần, 16.C bỏ lại 19 file chưa commit và 16.D
+   bỏ lại một việc dời file đi nửa đường. Lane sau phải có nhịp commit mỗi ~15 lượt tool và một
+   điều kiện thoát ghi sẵn trong brief.
+2. **`apps/web` chưa từng khai `@devops-platform/copy` lẫn `motion`.** Chặn cả bảy lane, và nền
+   vẫn xanh 32/32 vì chưa file nào import chúng. Vá ở `279a7f3`.
+3. **Cổng T4 chỉ gác một chiều.** Nó bắt "chuỗi nằm ngoài bản đồ", không bắt "khoá không có nơi
+   gọi". Nên ba khoá `session.tier.*` trùng với `catalog.tier.*` đi qua mọi cổng của cả hai lane
+   mà không ô nào đỏ; chỉ lộ khi đọc tay sau lúc gộp.
+
 16.A được chia bốn khối thay vì "1 người tuần tự" như bảng mục 4 — `packages/ui` một mình đã 65
 file, cộng 46 token và hai package mới. Ranh giới sở hữu file giữ nguyên như plan pin: A1
 `globals.css` + `layout.tsx` + `public/`, A2 `packages/copy`, A3 `packages/motion`, A4
@@ -402,6 +420,22 @@ cùng lúc, và nó chỉ có thật nếu ba hợp đồng ở 16.0 đủ chặ
 - **`components/k8s-arena/**` và `packages/games/**`.** Không đụng.
 - **Cổng kích thước bundle.** Vẫn không có. Ô AC "không kéo xterm.js vào trang không có
   terminal" của `phase-14-exec.md` vẫn không có phép đo nào.
+
+- **Bốn khoản dở của 16.C, chốt 2026-09-10.** `problems-table.tsx` (9 tiêu đề cột + caption) và
+  `problem-labels.ts` (4 bảng nhãn + 3 hàm định dạng) còn chuỗi tại chỗ; `app/(session)/problems/[code]/**`
+  (4 file) chưa động; chuỗi trong `app/quiz/[id]/quiz-client.tsx` **cố ý dừng** — 378 dòng form
+  nhiều trạng thái, chuyển nửa vời để lại hai nguồn chữ trong một file. Phần hình của quiz đã theo token.
+
+- **Bốn bộ chọn biên tập ở lại `apps/web`, lệch chữ hợp đồng §1.6.** Hợp đồng bảo chúng sang
+  `packages/copy`, nhưng exports map của gói khai đúng bốn lối vào và không lối nào chở hàm trong
+  `surfaces/`; `package.json` và `t.ts` đều là file khoá của L0. Phần cốt lõi của §1.6 vẫn giữ —
+  bộ chọn trả `CopyRef` chứ không trả câu, nên bộ dò quét đủ mọi nhánh. Cái mất là kiểm THAM SỐ ở
+  tầng biên dịch, bù bằng test dựng-ra-câu từng nhánh. Muốn đóng hẳn thì L0 phải thêm một lối vào
+  cho `surfaces/`, và đó là quyết định ảnh hưởng cả bảy lane.
+
+- **Lab vẫn chưa có tab Editor.** Rào cản kiến trúc đã gỡ (`IdePane` nay ở `components/session/`),
+  rào cản còn lại là kiểu `Lab` không có `interfaceLayout` — cần sửa lược đồ + server, ngoài phạm
+  vi frontend-only của đợt này.
 
 - **`--primary` ở nhánh TỐI không đạt 4.5:1 cho chữ link.** Đo được 4.20:1 trên `--card` và
   3.54:1 trên `--muted`; SC 1.4.3 đòi 4.5 cho chữ thường. Bảng §1.6 nhánh tối chỉ đặt ngưỡng 3.0
