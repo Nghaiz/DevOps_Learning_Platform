@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./motif": "./src/motif.ts",
-    "./reduced-motion": "./src/reduced-motion.ts"
+    "./reduced-motion": "./src/reduced-motion.ts",
+    "./provider": "./src/motion-provider.tsx"
   },
   "scripts": {
     "build": "tsc --noEmit",

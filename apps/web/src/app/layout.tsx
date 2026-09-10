@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { Be_Vietnam_Pro } from 'next/font/google';
 import { THEME_INIT_SCRIPT, ThemeProvider, Toaster, TooltipProvider } from '@devops-platform/ui';
+import { MotionProvider } from '@devops-platform/motion/provider';
 import { appUrl } from '../server/env';
 import { readRequestSession } from '../server/auth/config';
 import { AppShell } from '../components/shell/app-shell';
@@ -126,10 +127,19 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
-          <TooltipProvider delayDuration={300}>
-            <AppShell viewer={viewer}>{children}</AppShell>
-            <Toaster />
-          </TooltipProvider>
+          {/*
+            Giảm chuyển động cần CẢ HAI tầng. Khối `@media` trong `globals.css`
+            phủ `transition/animation-duration`; `MotionProvider` phủ thứ
+            framer-motion ghi thẳng vào style theo từng khung hình, thứ mà một
+            `@media` không chạm tới. Thiếu tầng này thì trang TRÔNG NHƯ đã tuân
+            thủ, vì nửa CSS thì tuân thủ thật. Xem `packages/motion/src/motion-provider.tsx`.
+          */}
+          <MotionProvider>
+            <TooltipProvider delayDuration={300}>
+              <AppShell viewer={viewer}>{children}</AppShell>
+              <Toaster />
+            </TooltipProvider>
+          </MotionProvider>
         </ThemeProvider>
       </body>
     </html>
