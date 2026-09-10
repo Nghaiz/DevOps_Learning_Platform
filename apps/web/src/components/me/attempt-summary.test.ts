@@ -34,7 +34,7 @@ describe('summarizeLabAttempt', () => {
 
     expect(summary.statusLabel).toBe('Đạt');
     expect(summary.statusVariant).toBe('success');
-    expect(summary.scoreLabel).toBe('90% · đạt 3 task');
+    expect(summary.scoreLabel).toBe('90% · đạt 3 nhiệm vụ');
     expect(summary.scoreLabel).not.toContain('tới lúc này');
     expect(summary.durationLabel).toBe('2 phút');
   });

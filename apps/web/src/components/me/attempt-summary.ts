@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import type { BadgeVariant } from '@devops-platform/ui';
 import type { LabAttemptStatus, LabScore } from '@devops-platform/shared-types/lab';
 import type { QuizScore } from '@devops-platform/shared-types/quiz';
@@ -27,10 +28,19 @@ export interface LabAttemptSummary {
   readonly durationLabel: string;
 }
 
-const LAB_STATUS: Readonly<Record<LabAttemptStatus, { label: string; variant: BadgeVariant }>> = {
-  in_progress: { label: 'Đang làm dở', variant: 'secondary' },
-  passed: { label: 'Đạt', variant: 'success' },
-  failed: { label: 'Chưa đạt', variant: 'destructive' },
+/**
+ * Ba trạng thái của `LabAttemptStatus`, khai bằng KHOÁ chứ không bằng câu.
+ *
+ * Bảng chạy ở tầng module nên nó được dựng đúng một lần lúc nạp; giữ khoá ở đây
+ * và gọi `t()` trong thân hàm nghĩa là bản đồ vẫn là nguồn duy nhất, và một
+ * khoá gõ sai là lỗi biên dịch chứ không phải một ô trống lúc chạy.
+ */
+const LAB_STATUS: Readonly<
+  Record<LabAttemptStatus, { key: 'me.labs.status.in-progress' | 'me.labs.status.passed' | 'me.labs.status.failed'; variant: BadgeVariant }>
+> = {
+  in_progress: { key: 'me.labs.status.in-progress', variant: 'secondary' },
+  passed: { key: 'me.labs.status.passed', variant: 'success' },
+  failed: { key: 'me.labs.status.failed', variant: 'destructive' },
 };
 
 export function summarizeLabAttempt(input: {
@@ -39,15 +49,15 @@ export function summarizeLabAttempt(input: {
   readonly durationSeconds: number | null;
 }): LabAttemptSummary {
   const status = LAB_STATUS[input.status];
-  const percent = `${String(input.score.percent)}%`;
+  const percent = input.score.percent;
 
   return {
-    statusLabel: status.label,
+    statusLabel: t(status.key),
     statusVariant: status.variant,
     scoreLabel:
       input.status === 'in_progress'
-        ? `${percent} tính tới lúc này (chưa nộp)`
-        : `${percent} · đạt ${String(input.score.passedTaskIds.length)} task`,
+        ? t('me.labs.score-partial', { percent })
+        : t('me.labs.score-final', { percent, tasks: input.score.passedTaskIds.length }),
     durationLabel: formatDuration(input.durationSeconds),
   };
 }
@@ -61,9 +71,9 @@ export interface QuizAttemptSummary {
 export function summarizeQuizAttempt(input: { readonly score: QuizScore }): QuizAttemptSummary {
   const { correctCount, questionCount, percent, passed } = input.score;
   return {
-    statusLabel: passed ? 'Đạt' : 'Chưa đạt',
+    statusLabel: passed ? t('me.quizzes.status-passed') : t('me.quizzes.status-failed'),
     statusVariant: passed ? 'success' : 'destructive',
-    scoreLabel: `${String(correctCount)}/${String(questionCount)} câu đúng · ${String(percent)}%`,
+    scoreLabel: t('me.quizzes.score', { correct: correctCount, total: questionCount, percent }),
   };
 }
 
@@ -74,14 +84,17 @@ export function summarizeQuizAttempt(input: { readonly score: QuizScore }): Quiz
  */
 export function formatDuration(seconds: number | null): string {
   if (seconds === null) {
-    return 'chưa nộp';
+    return t('me.duration.unsubmitted');
   }
+  // `unit.second` / `unit.minute` là khoá của L0 ở `common.`, dùng chung với
+  // các surface khác. Khai lại chúng dưới tiền tố `me.` sẽ là bản sao thứ hai
+  // của cùng một câu, và hai bản sẽ trôi khỏi nhau ở lần sửa đầu tiên (§1.7).
   if (seconds < 60) {
-    return `${String(seconds)} giây`;
+    return t('unit.second', { n: seconds });
   }
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) {
-    return `${String(minutes)} phút`;
+    return t('unit.minute', { n: minutes });
   }
-  return `${String(Math.floor(minutes / 60))} giờ ${String(minutes % 60)} phút`;
+  return t('me.duration.hours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 });
 }

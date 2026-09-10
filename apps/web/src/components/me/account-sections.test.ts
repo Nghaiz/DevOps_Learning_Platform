@@ -29,9 +29,16 @@ describe('describePasswordSection', () => {
 
 describe('validatePasswordChange', () => {
   it('thiếu mật khẩu hiện tại', () => {
-    expect(validatePasswordChange({ current: '', next: 'matkhaumoi1', confirm: 'matkhaumoi1' })).toBe(
-      'Nhập mật khẩu hiện tại để xác nhận đây là bạn.',
-    );
+    // Câu giờ có HAI nửa (`ErrorEntry`): hỏng cái gì, rồi làm gì tiếp. Khẳng
+    // định từng nửa thay vì so nguyên chuỗi, để một lượt sửa chữ ở nửa này
+    // không kéo theo một ô đỏ về nửa kia.
+    const message = validatePasswordChange({
+      current: '',
+      next: 'matkhaumoi1',
+      confirm: 'matkhaumoi1',
+    });
+    expect(message).toContain('Ô mật khẩu hiện tại đang trống.');
+    expect(message).toContain('Nhập mật khẩu hiện tại để xác nhận đây là bạn.');
   });
 
   it('mật khẩu mới ngắn hơn ngưỡng của Better Auth', () => {

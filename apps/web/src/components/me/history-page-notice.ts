@@ -1,3 +1,5 @@
+import { t } from '@devops-platform/copy';
+
 /**
  * F4 — một trang RỖNG có ba nguyên nhân, và giao diện cũ chỉ biết một.
  *
@@ -57,18 +59,18 @@ export function describeEmptyPage(
   // Hai vế, luôn theo thứ tự này: CHUYỆN GÌ XẢY RA, rồi LÀM GÌ TIẾP. Thiếu vế
   // đầu thì người dùng tưởng mình mất dữ liệu; thiếu vế sau thì họ biết chuyện
   // gì xảy ra nhưng vẫn kẹt.
-  const nguyenNhan =
-    skipped > 0
-      ? `${String(skipped)} mục ở trang này thuộc nội dung đã bị gỡ khỏi hệ thống. `
-      : '';
+  const nguyenNhan = skipped > 0 ? t('me.history.empty-page-removed', { n: skipped }) : '';
   const diTiep = state.hasNext
-    ? 'Bấm "Trang sau" để xem phần còn lại của lịch sử.'
+    ? t('me.history.empty-page-go-next')
     : state.page > 1
-      ? 'Bấm "Về trang đầu" để xem lại từ đầu.'
-      : 'Không còn mục nào khác để xem.';
+      ? t('me.history.empty-page-go-first')
+      : t('me.history.empty-page-nothing-else');
 
   return {
-    title: skipped > 0 ? 'Trang này không hiển thị được mục nào' : 'Trang này không có mục nào',
+    title:
+      skipped > 0
+        ? t('me.history.empty-page-title-skipped')
+        : t('me.history.empty-page-title'),
     description: `${nguyenNhan}${diTiep}`,
   };
 }

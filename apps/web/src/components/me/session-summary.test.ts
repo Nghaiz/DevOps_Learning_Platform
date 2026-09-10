@@ -81,7 +81,9 @@ describe('describeEndSessionError', () => {
   it('mỗi câu lỗi nói CHUYỆN GÌ và LÀM GÌ TIẾP', () => {
     const notFound = describeEndSessionError('NOT_FOUND', 'Không tìm thấy phiên');
     expect(notFound).toContain('hết hạn');
-    expect(notFound).toContain('tải lại');
+    // Nửa `next` của `ErrorEntry` là câu riêng mở đầu bằng động từ, nên chữ
+    // `T` viết hoa. Khẳng định vẫn là "câu này bảo người dùng tải lại".
+    expect(notFound).toContain('Tải lại danh sách');
 
     const other = describeEndSessionError(null, 'Mất kết nối tới máy chủ.');
     expect(other).toContain('Mất kết nối tới máy chủ.');
