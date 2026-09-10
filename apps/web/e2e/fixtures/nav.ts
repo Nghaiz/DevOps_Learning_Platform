@@ -10,10 +10,17 @@ import type { Screen } from '../routes';
  * trong khi trang thật chưa từng mở. Một danh mục rỗng trên cụm cũng là một
  * vấn đề thật (nội dung nạp từ image), nên nó xứng đáng đỏ.
  */
+const DYNAMIC_SEGMENT = /:([A-Za-z][A-Za-z0-9]*)/;
+
 export async function resolvePath(api: APIRequestContext, screen: Screen): Promise<string> {
-  if (!screen.path.includes(':id')) return screen.path;
+  // Khớp `:<tên>` bất kể tên, không chỉ `:id`. P16 thêm `/problems/:code` và
+  // `/author/problems/:code`; một phép so `includes(':id')` sẽ trả NGUYÊN chuỗi
+  // `/problems/:code` cho `page.goto`, Next dựng ra 404, và `openScreen` báo
+  // "route chưa dựng" — một thông báo SAI trỏ vào lane khác.
+  const match = DYNAMIC_SEGMENT.exec(screen.path);
+  if (match === null) return screen.path;
   if (screen.idFrom === undefined) {
-    throw new Error(`${screen.path} có :id nhưng thiếu idFrom trong routes.ts`);
+    throw new Error(`${screen.path} có đoạn động ${match[0]} nhưng thiếu idFrom trong routes.ts`);
   }
   const id = await firstItemId(api, screen.idFrom);
   if (id === null) {
@@ -22,7 +29,7 @@ export async function resolvePath(api: APIRequestContext, screen: Screen): Promi
         `là một vấn đề thật (nội dung nạp từ image) — không thay bằng id giả.`,
     );
   }
-  return screen.path.replace(':id', encodeURIComponent(id));
+  return screen.path.replace(DYNAMIC_SEGMENT, encodeURIComponent(id));
 }
 
 /**

@@ -29,25 +29,63 @@
 
 import type { APIRequestContext, ElementHandle, Page } from '@playwright/test';
 import { expect, firstItemId, test } from './fixtures/api';
-import { openScreen, settle } from './fixtures/nav';
+import { openScreen, resolvePath, settle } from './fixtures/nav';
+import type { Screen } from './routes';
 
 /**
  * Màn hình để đo thứ tự Tab + dấu focus.
  *
- * ⛔ Cố ý KHÔNG dùng cả 22 màn hình của `routes.ts`: mỗi điểm dừng Tab tốn HAI
+ * ⛔ Cố ý KHÔNG dùng cả 32 màn hình của `routes.ts`: mỗi điểm dừng Tab tốn HAI
  * ảnh chụp (xem `focusIndicatorChanges`), nên quét toàn bộ là đổi một phép đo
- * sắc nét lấy một suite chạy hàng chục phút. Bốn màn dưới đây phủ đủ bốn hình
- * dạng bố cục có thật: form (login), lưới thẻ (lessons), bảng/danh sách (me),
- * form cài đặt (settings). Thêm màn hình thì thêm ở đây, và sàn dưới phải tăng
- * theo — nếu không, rút danh sách xuống một dòng vẫn cho "0 lỗi focus".
+ * sắc nét lấy một suite chạy hàng chục phút.
+ *
+ * ── P16 §16.I mục 2: từ 4 lên 10, và cái giá của nó ─────────────────────────
+ *
+ * Bốn màn cũ phủ bốn hình dạng bố cục (form, lưới thẻ, danh sách, form cài
+ * đặt). Sáu màn thêm không phải để cho đủ số: mỗi màn mang một hình dạng mà
+ * bốn màn kia KHÔNG có.
+ *
+ * | thêm | hình dạng chưa được phủ |
+ * |---|---|
+ * | `/register` | form nhiều trường có xác nhận mật khẩu (16.B dựng mới) |
+ * | `/lessons/:id` | **bắt buộc theo mục 2** — trang có KHOANG TERMINAL |
+ * | `/labs` | lưới thẻ có bộ lọc |
+ * | `/labs/:id` | **bắt buộc theo mục 2** — khoang lab, bố cục hai cột |
+ * | `/problems` | bảng dữ liệu nhiều cột (16.C dựng mới) |
+ * | `/paths` | danh sách lộ trình, thẻ lồng thẻ |
+ *
+ * Cái giá phải nói ra: ba ô × 10 màn thay vì × 4, và ô dấu-focus chụp tới 2×18
+ * ảnh mỗi màn. Khối này chạy chậm hơn ~2,5 lần bản trước. Đó là phần đổi lấy
+ * việc `/lessons/:id` và `/labs/:id` — hai màn phức tạp nhất, và là hai màn duy
+ * nhất có bẫy focus THẬT (terminal) — cuối cùng cũng được đo.
+ *
+ * Hai màn `:id` phải đi qua `resolvePath` như mọi màn động khác. Thêm màn hình
+ * thì thêm ở đây, và sàn dưới phải tăng theo — nếu không, rút danh sách xuống
+ * một dòng vẫn cho "0 lỗi focus".
  */
-const KEYBOARD_SCREENS: { path: string; auth: 'anon' | 'user' }[] = [
+const KEYBOARD_SCREENS: Screen[] = [
   { path: '/login', auth: 'anon' },
+  { path: '/register', auth: 'anon' },
   { path: '/lessons', auth: 'user' },
+  { path: '/lessons/:id', auth: 'user', idFrom: 'lessons.list' },
+  { path: '/labs', auth: 'user' },
+  { path: '/labs/:id', auth: 'user', idFrom: 'labs.list' },
+  { path: '/paths', auth: 'user' },
+  { path: '/problems', auth: 'user' },
   { path: '/me', auth: 'user' },
   { path: '/settings', auth: 'user' },
 ];
-const MIN_KEYBOARD_SCREENS = 4;
+const MIN_KEYBOARD_SCREENS = 10;
+
+/**
+ * Hai màn mà §16.I mục 2 nêu ĐÍCH DANH.
+ *
+ * Tách khỏi `MIN_KEYBOARD_SCREENS` có chủ ý: một phép đếm ≥10 được thoả bởi mười
+ * màn BẤT KỲ, kể cả mười trang tĩnh không màn nào có terminal — tức đúng thứ ô
+ * AC dựng ra để bắt lại lọt qua. Đây là phép kiểm theo DANH TÍNH, không theo số
+ * lượng (`pinned-baseline-test-companion`).
+ */
+const REQUIRED_KEYBOARD_PATHS = ['/labs/:id', '/lessons/:id'] as const;
 
 /**
  * Trần số điểm dừng Tab kiểm mỗi màn. Nói ra chứ không giấu: đây là một phép đo
@@ -184,15 +222,34 @@ async function parkMouse(page: Page): Promise<void> {
 test('danh sách màn hình bàn phím không bị rút ngắn', () => {
   expect(KEYBOARD_SCREENS.length).toBeGreaterThanOrEqual(MIN_KEYBOARD_SCREENS);
   expect(new Set(KEYBOARD_SCREENS.map((s) => s.path)).size).toBe(KEYBOARD_SCREENS.length);
+
+  // Vế DANH TÍNH — xem khối chú thích của `REQUIRED_KEYBOARD_PATHS`.
+  const paths = new Set(KEYBOARD_SCREENS.map((s) => s.path));
+  const missing = REQUIRED_KEYBOARD_PATHS.filter((p) => !paths.has(p));
+  expect(
+    missing,
+    `§16.I mục 2 nêu đích danh ${REQUIRED_KEYBOARD_PATHS.join(' và ')} vì đó là hai ` +
+      `màn duy nhất có khoang terminal, tức hai màn duy nhất có bẫy focus THẬT. ` +
+      `Thiếu: ${missing.join(', ')}. Đếm đủ 10 màn tĩnh không thay được điều đó.`,
+  ).toEqual([]);
+
+  // Mỗi màn động phải có nguồn id, nếu không `resolvePath` ném GIỮA lượt chạy
+  // chứ không ở đây — và một lỗi cấu hình phải đỏ ở ô rẻ nhất.
+  for (const screen of KEYBOARD_SCREENS) {
+    if (screen.path.includes(':')) {
+      expect(screen.idFrom, `${screen.path} có đoạn động nhưng thiếu idFrom`).toBeDefined();
+    }
+  }
 });
 
 // ════════════════════════════════════════════════════ thứ tự Tab & dấu focus
 
 test.describe('bàn phím — thứ tự và dấu focus', () => {
   for (const screen of KEYBOARD_SCREENS) {
-    test(`không có tabindex dương trên ${screen.path}`, async ({ page }) => {
+    test(`không có tabindex dương trên ${screen.path}`, async ({ api, page }) => {
+      const path = await resolvePath(api, screen);
       if (screen.auth === 'anon') await page.context().clearCookies();
-      await openScreen(page, screen.path, screen.auth);
+      await openScreen(page, path, screen.auth);
 
       // `tabindex` dương là cách DUY NHẤT làm thứ tự Tab lệch khỏi thứ tự tài
       // liệu. Kiểm nó là kiểm nguyên nhân, không phải kiểm triệu chứng — và nó
@@ -208,9 +265,13 @@ test.describe('bàn phím — thứ tự và dấu focus', () => {
       ).toEqual([]);
     });
 
-    test(`mọi điểm dừng Tab trên ${screen.path} có dấu focus nhìn thấy được`, async ({ page }) => {
+    test(`mọi điểm dừng Tab trên ${screen.path} có dấu focus nhìn thấy được`, async ({
+      api,
+      page,
+    }) => {
+      const path = await resolvePath(api, screen);
       if (screen.auth === 'anon') await page.context().clearCookies();
-      await openScreen(page, screen.path, screen.auth);
+      await openScreen(page, path, screen.auth);
       await parkMouse(page);
 
       const invisible: string[] = [];
@@ -265,9 +326,10 @@ test.describe('bàn phím — thứ tự và dấu focus', () => {
       ).toEqual([]);
     });
 
-    test(`không có bẫy bàn phím trên ${screen.path}`, async ({ page }) => {
+    test(`không có bẫy bàn phím trên ${screen.path}`, async ({ api, page }) => {
+      const path = await resolvePath(api, screen);
       if (screen.auth === 'anon') await page.context().clearCookies();
-      await openScreen(page, screen.path, screen.auth);
+      await openScreen(page, path, screen.auth);
       await parkMouse(page);
 
       const visited: string[] = [];

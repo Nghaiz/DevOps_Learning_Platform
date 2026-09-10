@@ -34,7 +34,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures/api';
 import { openScreen, resolvePath } from './fixtures/nav';
-import { SCREENS, type Screen } from './routes';
+import { MIN_SCREENS, SCREENS, roleSatisfies, type Screen } from './routes';
 
 const NAV_COLLAPSE_MAX_PX = 768;
 const TERMINAL_MIN_WIDTH_PX = 1024;
@@ -215,4 +215,99 @@ test(`${String(DESKTOP_TARGET_MIN_PX)}px — bố cục đầy đủ: nav ngang 
   // dựng khoang, chứ không phải một cảnh báo khác.
   await expect(page.getByText(/để dựng sandbox và mở terminal/)).toBeVisible();
   await expect(terminalSurface(page)).toHaveCount(0);
+});
+
+// ═══════════════════════ P16 §16.I mục 4 — quét 32 màn ở 390px, KHÔNG tràn ngang
+
+/**
+ * Bề rộng quét. 390px = iPhone 12/13/14 dọc, khung điện thoại phổ biến nhất và
+ * hẹp hơn mọi ô ngưỡng ở trên.
+ *
+ * ⛔ Ô quét này KHÔNG thay được các ô ngưỡng phía trên, và đó là điều §16.I mục
+ * 4 nói thẳng. Hai loại phép đo khác nhau về bản chất:
+ *
+ * | | ô ngưỡng (768/769, 1023/1024) | ô quét (dưới đây) |
+ * |---|---|---|
+ * | phủ | 2 route | 32 route |
+ * | khẳng định | hành vi ĐỔI đúng tại một pixel | một bất biến duy nhất |
+ * | đối chứng âm | có, ở cả hai phía | **không có** |
+ *
+ * Một lượt quét "không màn nào tràn ngang" vẫn XANH trên một sản phẩm mà nav
+ * không bao giờ thu gọn và terminal không bao giờ mở — nó không hỏi những câu
+ * đó. Đổi các ô ngưỡng lấy lượt quét này là hạ cấp; chạy CẢ HAI mới là phủ.
+ *
+ * Cái ô này thêm được, và các ô ngưỡng không có: 30 route còn lại chưa từng
+ * được mở ở khung hẹp lần nào. Bảy lane P16 dựng lại toàn bộ frontend; một
+ * `min-w-*` hay một bảng nhiều cột lọt vào bất kỳ đâu trong số đó sẽ đẩy trang
+ * tràn ngang, và không ô nào ở trên nhìn tới.
+ */
+const PHONE_WIDTH_PX = 390;
+
+/** Dung sai làm tròn thiết bị — cùng con số các ô ngưỡng ở trên đang dùng. */
+const OVERFLOW_TOLERANCE_PX = 1;
+
+async function assertNoOverflowAt390(page: Page, path: string, auth: string): Promise<void> {
+  await page.setViewportSize({ width: PHONE_WIDTH_PX, height: 844 });
+  await openScreen(page, path, auth);
+
+  const overflow = await horizontalOverflowPx(page);
+  expect(
+    overflow,
+    `${path} tràn ngang ${String(overflow)}px ở khung ${String(PHONE_WIDTH_PX)}px. ` +
+      `Thủ phạm thường gặp: một \`min-w-*\` cứng, một bảng không bọc \`overflow-x\`, ` +
+      `hoặc một hàng flex không cho phép xuống dòng. Mở trace của ô này rồi đọc ` +
+      `\`document.documentElement.scrollWidth\` để tìm phần tử rộng nhất.`,
+  ).toBeLessThanOrEqual(OVERFLOW_TOLERANCE_PX);
+}
+
+test.describe(`${String(PHONE_WIDTH_PX)}px — quét công khai @responsive`, () => {
+  // Cùng lý do như `a11y.spec.ts`: `/login` và các màn xác thực chuyển hướng về
+  // `/me` khi ĐÃ có phiên, nên chúng phải mở bằng jar cookie rỗng.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  for (const screen of SCREENS.filter((s) => s.auth === 'anon')) {
+    test(`không tràn ngang — ${screen.path}`, async ({ page }) => {
+      await assertNoOverflowAt390(page, screen.path, screen.auth);
+    });
+  }
+});
+
+test.describe(`${String(PHONE_WIDTH_PX)}px — quét đã đăng nhập @responsive`, () => {
+  for (const screen of SCREENS.filter((s) => s.auth === 'user')) {
+    test(`không tràn ngang — ${screen.path}`, async ({ api, page }) => {
+      await assertNoOverflowAt390(page, await resolvePath(api, screen), screen.auth);
+    });
+  }
+});
+
+test.describe(`${String(PHONE_WIDTH_PX)}px — quét theo vai trò @responsive`, () => {
+  for (const screen of SCREENS.filter((s) => s.auth === 'author' || s.auth === 'admin')) {
+    test(`không tràn ngang — ${screen.path}`, async ({ account, api, page }) => {
+      test.skip(
+        !roleSatisfies(account.role, screen.auth),
+        `tài khoản ${account.email} có vai trò '${account.role}', cần '${screen.auth}'.`,
+      );
+      await assertNoOverflowAt390(page, await resolvePath(api, screen), screen.auth);
+    });
+  }
+});
+
+/**
+ * Cổng của chính lượt quét: nó phải phủ ĐỦ 32 màn.
+ *
+ * Ba `describe` trên chia `SCREENS` theo `auth`; nếu ai đó thêm một mức `auth`
+ * thứ tư thì những màn ấy rơi ra khỏi cả ba bộ lọc và biến mất khỏi lượt quét
+ * — không lỗi, không cảnh báo, chỉ ít test hơn. Ô này là phép cộng lại.
+ */
+test('lượt quét 390px phủ đủ mọi màn của SCREENS', () => {
+  const covered =
+    SCREENS.filter((s) => s.auth === 'anon').length +
+    SCREENS.filter((s) => s.auth === 'user').length +
+    SCREENS.filter((s) => s.auth === 'author' || s.auth === 'admin').length;
+  expect(
+    covered,
+    `Lượt quét 390px chỉ phủ ${String(covered)}/${String(SCREENS.length)} màn. ` +
+      `Một mức \`auth\` mới đã rơi ra khỏi cả ba describe.`,
+  ).toBe(SCREENS.length);
+  expect(SCREENS.length).toBeGreaterThanOrEqual(MIN_SCREENS);
 });
