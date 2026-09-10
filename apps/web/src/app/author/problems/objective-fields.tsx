@@ -65,7 +65,7 @@ export function ObjectiveFields(props: {
             props.onChange({ id });
           }}
           error={issueFor(props.issues, `${base}.id`)}
-          hint="Ổn định — lịch sử nộp bài tham chiếu tới nó."
+          hint="Ổn định. Lịch sử nộp bài tham chiếu tới nó."
         />
         <TextField
           label="Nhãn tiếng Việt"
@@ -99,7 +99,7 @@ export function ObjectiveFields(props: {
           <SelectContent>
             {PREDICATE_NAMES.map((predicate) => (
               <SelectItem key={predicate} value={predicate}>
-                {PREDICATE_SPECS[predicate].label} — {predicate}
+                {PREDICATE_SPECS[predicate].label}: {predicate}
               </SelectItem>
             ))}
           </SelectContent>
@@ -146,7 +146,7 @@ export function ObjectiveFields(props: {
           }}
         />
         <Label htmlFor={requiredId}>
-          {props.objective.required ? 'Bắt buộc — không đạt thì không qua bài' : 'Thưởng — ăn điểm, không chặn'}
+          {props.objective.required ? 'Bắt buộc: không đạt thì không qua bài' : 'Thưởng: ăn điểm, không chặn'}
         </Label>
       </div>
     </div>

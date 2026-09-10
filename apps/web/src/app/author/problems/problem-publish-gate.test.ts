@@ -97,7 +97,7 @@ describe('cổng xuất bản', () => {
         },
       ],
     });
-    expect(issues.some((issue) => issue.message.includes('thiếu cả hai'))).toBe(true);
+    expect(issues.some((issue) => issue.message.includes('Thiếu cả hai'))).toBe(true);
   });
 });
 

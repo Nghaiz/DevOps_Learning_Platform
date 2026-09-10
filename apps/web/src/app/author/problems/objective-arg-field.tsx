@@ -43,7 +43,7 @@ export function ObjectiveArgField(props: {
           ? INCIDENT_KINDS.map((kind) => ({ value: kind, label: INCIDENT_LABELS[kind] }))
           : PROBE_VALUES.map((probe) => ({
               value: probe,
-              label: probe === 'readiness' ? 'readiness — sẵn sàng nhận lưu lượng' : 'liveness — còn sống',
+              label: probe === 'readiness' ? 'readiness: sẵn sàng nhận lưu lượng' : 'liveness: còn sống',
             }));
 
     return (

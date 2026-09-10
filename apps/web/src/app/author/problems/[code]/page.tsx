@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
+import { t } from '@devops-platform/copy';
 import { ProblemEditClient } from './problem-edit-client';
 
 export const metadata: Metadata = {
-  title: 'Sửa bài tập — DevOps Learning Platform',
+  title: t('author.problem.meta.edit'),
 };
 
 /**

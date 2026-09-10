@@ -25,7 +25,7 @@ export function HintListFields(props: {
 
       {props.hints.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          Chưa có gợi ý nào. Bài không có gợi ý vẫn xuất bản được — nhưng với bài Khó trở lên, một gợi ý mở đầu
+          Chưa có gợi ý nào. Bài không có gợi ý vẫn xuất bản được, nhưng với bài Khó trở lên, một gợi ý mở đầu
           thường là thứ giữ người làm ở lại thay vì bỏ dở.
         </p>
       )}
@@ -54,7 +54,7 @@ export function HintListFields(props: {
                 props.onChange(props.hints.map((item, i) => (i === index ? { ...item, id } : item)));
               }}
               error={issueFor(props.issues, `hints.${String(index)}.id`)}
-              hint="Lịch sử mở gợi ý lưu theo id này — đổi là mồ côi dữ liệu cũ."
+              hint="Lịch sử mở gợi ý lưu theo id này. Đổi là mồ côi dữ liệu cũ."
             />
             <TextField
               label="Điểm bị trừ"

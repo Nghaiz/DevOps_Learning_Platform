@@ -49,16 +49,16 @@ export function isClusterScoped(kind: ResourceKind): boolean {
  * hai chuỗi khác nhau.
  */
 export const INCIDENT_LABELS: Readonly<Record<IncidentKind, string>> = {
-  'image-tag-sai': 'Tag image sai — pod kẹt ImagePullBackOff',
+  'image-tag-sai': 'Tag image sai, pod kẹt ImagePullBackOff',
   'image-registry-khong-toi-duoc': 'Không tới được registry',
   'thieu-imagepullsecret': 'Thiếu imagePullSecret cho registry riêng',
-  'memory-limit-qua-thap': 'Memory limit quá thấp — container bị OOMKilled',
-  'lenh-entrypoint-sai': 'Entrypoint sai — container thoát ngay',
+  'memory-limit-qua-thap': 'Memory limit quá thấp, container bị OOMKilled',
+  'lenh-entrypoint-sai': 'Entrypoint sai, container thoát ngay',
   'thieu-configmap': 'ConfigMap được tham chiếu không tồn tại',
   'thieu-secret': 'Secret được tham chiếu không tồn tại',
   'key-configmap-sai': 'Sai key trong ConfigMap',
   'readiness-probe-sai-cong': 'Readiness probe trỏ sai cổng',
-  'liveness-probe-qua-gat': 'Liveness probe quá gắt — pod bị giết vòng lặp',
+  'liveness-probe-qua-gat': 'Liveness probe quá gắt, pod bị giết vòng lặp',
   'probe-khong-co-initialdelay': 'Probe không có initialDelay',
   'service-selector-lech-label': 'Selector của Service lệch label của pod',
   'service-sai-targetport': 'Service sai targetPort',

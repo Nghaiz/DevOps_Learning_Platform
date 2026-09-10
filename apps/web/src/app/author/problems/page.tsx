@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
+import { t } from '@devops-platform/copy';
 import { ProblemListClient } from './problem-list-client';
 
 export const metadata: Metadata = {
-  title: 'Bài tập Kubernetes — DevOps Learning Platform',
+  title: t('author.problem.meta.list'),
 };
 
 /**

@@ -3,6 +3,7 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '@devops-platform/ui';
 import type { ProblemState } from '@devops-platform/games';
+import { t } from '@devops-platform/copy';
 import { ArenaPreview } from './arena-preview';
 import { ClassifyFields } from './classify-fields';
 import { ClusterFields } from './cluster-fields';
@@ -60,13 +61,13 @@ export function ProblemEditor(props: {
         }}
       >
         <TabsList>
-          <TabsTrigger value="mo-ta">Mô tả</TabsTrigger>
-          <TabsTrigger value="cum">Cụm ban đầu</TabsTrigger>
-          <TabsTrigger value="muc-tieu">Mục tiêu ({String(props.form.objectives.length)})</TabsTrigger>
-          <TabsTrigger value="goi-y">Gợi ý ({String(props.form.hints.length)})</TabsTrigger>
-          <TabsTrigger value="thu">Thử</TabsTrigger>
-          <TabsTrigger value="json">JSON</TabsTrigger>
-          {props.publishTab !== undefined && <TabsTrigger value="xuat-ban">Xuất bản</TabsTrigger>}
+          <TabsTrigger value="mo-ta">{t('author.problem.tab.statement')}</TabsTrigger>
+          <TabsTrigger value="cum">{t('author.problem.tab.cluster')}</TabsTrigger>
+          <TabsTrigger value="muc-tieu">{t('author.problem.tab.objectives', { n: props.form.objectives.length })}</TabsTrigger>
+          <TabsTrigger value="goi-y">{t('author.problem.tab.hints', { n: props.form.hints.length })}</TabsTrigger>
+          <TabsTrigger value="thu">{t('author.problem.tab.arena')}</TabsTrigger>
+          <TabsTrigger value="json">{t('author.problem.tab.json')}</TabsTrigger>
+          {props.publishTab !== undefined && <TabsTrigger value="xuat-ban">{t('author.problem.tab.publish')}</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="mo-ta">
@@ -92,7 +93,7 @@ export function ProblemEditor(props: {
 
         <TabsContent value="muc-tieu">
           <section className="flex flex-col gap-4 pt-4">
-            <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">Mục tiêu</h2>
+            <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">{t('author.problem.objectives.heading')}</h2>
             {props.form.objectives.map((objective, index) => (
               <ObjectiveFields
                 key={objective.key}
@@ -127,7 +128,7 @@ export function ProblemEditor(props: {
                   });
                 }}
               >
-                Thêm mục tiêu
+                {t('author.problem.objectives.add')}
               </Button>
             </div>
           </section>
