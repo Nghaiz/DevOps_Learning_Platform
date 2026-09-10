@@ -377,8 +377,22 @@ test(`LCP ${TARGET_PATH}`, async ({ page }, testInfo) => {
 const HOME_PATH = '/';
 
 /**
- * Ngân sách LCP cho `/` — **đã đo 2026-09-11**, xem bảng mẫu trong report
- * `2026-09-11-lane-16i-report.md` §3.
+ * Ngân sách LCP cho `/` — **đã đo 2026-09-11**.
+ *
+ * Một lượt `npx playwright test perf.spec.ts` trên `next start` cục bộ (Windows,
+ * build của nhánh `feat/p16-i-gates`, Postgres + Redis trong docker):
+ *
+ *   | màn | LCP (ms) | TTFB (ms) | sau TTFB (ms) | phần tử LCP |
+ *   |------|---------:|----------:|--------------:|---|
+ *   | `/`         | **152** | 43 | 109 | `<h1>` «Học DevOps bằng cách gõ lệnh thật» |
+ *   | `/lessons`  |     360 | 22 | 338 | `<h3>` «CKAD: ConfigMap as Files…» |
+ *
+ * Đối chứng dương của cùng lượt: tiêm 2000ms trễ vào tài liệu ⇒ LCP 380 → 2544ms
+ * (chênh 2164ms). Đồng hồ bám hiện thực, không in ra một hằng số.
+ *
+ * `/` nhanh hơn `/lessons` **2.4×** đúng như dự đoán: nó không có lượt fetch tRPC
+ * ở client trước khi có nội dung. Tỉ số 0.42 là thứ mang nghĩa khi so hai môi
+ * trường; con số tuyệt đối thì không.
  *
  * ⚠ ĐỌC TRƯỚC KHI SO VỚI `LCP_BUDGET_MS`: hai con số này KHÔNG đo trên cùng
  * một máy. `LCP_BUDGET_MS` (2500) đo trên **cụm lab** ngày 2026-09-07 với ảnh
