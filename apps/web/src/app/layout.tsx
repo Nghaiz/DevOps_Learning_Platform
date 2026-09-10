@@ -18,6 +18,38 @@ export const metadata: Metadata = {
   // chuỗi rác ném lỗi ngay lúc build — đúng chỗ để phát hiện, không phải lúc có
   // người share link và thấy og:image trỏ về localhost.
   ...(base === undefined ? {} : { metadataBase: new URL(base) }),
+  /*
+   * P16 16.A.10 — biểu tượng dựng từ file vector chính thức của PTIT, commit
+   * thẳng vào `apps/web/public/`. Không hotlink được: CSP `img-src 'self' data:`
+   * (`server/security/headers.ts`) chặn mọi origin khác.
+   *
+   * Chỉ khai SVG, KHÔNG có `.ico`/`.png` — và đó là giới hạn có thật chứ không
+   * phải bỏ sót. Dựng raster cần một bộ rasteriser (sharp / resvg / canvas);
+   * kiểm 2026-09-10: không gói nào trong số đó có trong `node_modules`, mà lane
+   * này bị cấm chạy `pnpm install` vì lockfile là tài nguyên dùng chung. Trình
+   * duyệt hiện đại nhận `image/svg+xml` cho `rel="icon"`; máy cũ không nhận thì
+   * rơi về không có biểu tượng, không vỡ trang.
+   */
+  icons: {
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+  },
+  /*
+   * ⚠ `og.svg` là SVG, và phần lớn máy quét liên kết (Facebook, LinkedIn, Slack,
+   * Zalo) chỉ tài liệu hoá JPEG/PNG/GIF/WEBP cho `og:image`. Ảnh này vì vậy có
+   * thể KHÔNG hiện ở những nơi đó — đã ghi lại trong báo cáo 16.A để chủ dự án
+   * quyết định. Đường ra đúng, nếu cần raster: `app/opengraph-image.tsx` với
+   * `ImageResponse` của `next/og` (dựng PNG bằng CODE lúc build, nên vẫn KHÔNG
+   * vi phạm lệnh cấm sinh ảnh bằng model ở 16.A.10). File đó nằm ngoài quyền sở
+   * hữu của lane này.
+   */
+  openGraph: {
+    type: 'website',
+    locale: 'vi_VN',
+    siteName: 'DevOps Learning Platform',
+    title: 'DevOps Learning Platform',
+    description: 'Học DevOps bằng lab sandbox chạy thật',
+    images: [{ url: '/og.svg', width: 1200, height: 630, type: 'image/svg+xml' }],
+  },
 };
 
 /**
