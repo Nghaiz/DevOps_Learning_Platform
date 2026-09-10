@@ -2,6 +2,7 @@
 
 import type { ReactElement } from 'react';
 import { Lock, Lightbulb } from 'lucide-react';
+import { t } from '@devops-platform/copy';
 import { Alert, AlertDescription, Button } from '@devops-platform/ui';
 import type { ProblemHintTeaser } from '@devops-platform/games';
 
@@ -39,15 +40,21 @@ export function ProblemHints(props: {
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-lg font-semibold text-foreground">Gợi ý</h2>
+      <h2 className="text-lg font-semibold text-foreground">{t('catalog.problem.hints-title')}</h2>
 
       {hints.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Bài này không có gợi ý — đề đã nói đủ.</p>
+        <p className="text-sm text-muted-foreground">{t('catalog.problem.hints-none')}</p>
       ) : (
         <>
+          {/*
+            Hai câu, hai khoá: câu thứ hai chỉ có nghĩa khi đã mở ít nhất một
+            gợi ý, và gộp chúng thành một khoá sẽ buộc bản đồ chứa một câu nói
+            "bạn đã mở 0 gợi ý". Dấu cách nối là dấu nối, không phải chữ.
+          */}
           <p className="text-sm text-muted-foreground">
-            Mở một gợi ý là trừ điểm của lượt làm bài, và không hoàn lại được.
-            {revealed.length > 0 && ` Bạn đã mở ${revealed.length} gợi ý, tổng trừ ${spent} điểm.`}
+            {t('catalog.problem.hints-cost')}
+            {revealed.length > 0 &&
+              ` ${t('catalog.problem.hints-spent', { count: revealed.length, points: spent })}`}
           </p>
 
           {errorMessage !== null && (
@@ -60,9 +67,13 @@ export function ProblemHints(props: {
             {hints.map((hint, index) => (
               <li key={hint.id} className="rounded-lg border border-border bg-card p-4 shadow-elevation-1">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-sm font-medium text-foreground">Gợi ý {index + 1}</span>
+                  <span className="text-sm font-medium text-foreground">
+                    {t('catalog.problem.hint-ordinal', { n: index + 1 })}
+                  </span>
                   {hint.revealed ? (
-                    <span className="text-xs text-muted-foreground">Đã mở · trừ {hint.penaltyPoints} điểm</span>
+                    <span className="text-xs text-muted-foreground">
+                      {t('catalog.problem.hint-revealed', { points: hint.penaltyPoints })}
+                    </span>
                   ) : (
                     <Button
                       variant="outline"
@@ -74,7 +85,7 @@ export function ProblemHints(props: {
                         onReveal(hint.id);
                       }}
                     >
-                      Mở gợi ý — trừ {hint.penaltyPoints} điểm
+                      {t('catalog.problem.hint-reveal', { points: hint.penaltyPoints })}
                     </Button>
                   )}
                 </div>
