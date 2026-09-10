@@ -1,10 +1,13 @@
 {
-  "name": "@devops-platform/ui",
+  "name": "@devops-platform/motion",
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "//exports": "Ba subpath tách nhau vì ba nhóm tiêu thụ khác nhau: `.` là biến thể framer-motion dùng chung, `./motif` là hình học ellipse + cung tiến độ (p16-tokens.md §8), `./reduced-motion` là cổng mức JS mà một khối @media KHÔNG thay được — `@media` không dừng nổi requestAnimationFrame.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./motif": "./src/motif.ts",
+    "./reduced-motion": "./src/reduced-motion.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -12,20 +15,8 @@
     "lint": "eslint .",
     "test": "vitest run"
   },
-  "//gooey-search-tabs": "GHIM CHÍNH XÁC, không `^`: gói đang ở 0.2.0 và 0.x không hứa gì về tương thích ngược. Năm trang danh mục đi qua nó, nên một bump nhỏ tự động là năm trang đổi hành vi cùng lúc.",
   "dependencies": {
-    "@devops-platform/motion": "workspace:*",
-    "@devops-platform/scenario": "workspace:*",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "gooey-search-tabs": "0.2.0",
-    "lucide-react": "^1.38.0",
-    "radix-ui": "^1.6.7",
-    "react-markdown": "^10.1.0",
-    "rehype-sanitize": "^6.0.0",
-    "remark-gfm": "^4.0.1",
-    "sonner": "2.0.8",
-    "tailwind-merge": "^3.6.0"
+    "framer-motion": "13.2.0"
   },
   "peerDependencies": {
     "react": "^19.0.0"
@@ -35,7 +26,6 @@
     "@eslint/js": "^10.0.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.6",
     "@types/node": "^26.4.0",
     "@types/react": "^19.2.0",
     "@typescript/native": "npm:typescript@^7.0.2",
