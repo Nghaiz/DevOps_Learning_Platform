@@ -5,7 +5,7 @@ import { SplitPane } from '@devops-platform/ui';
 // Import thẳng từng file — xem chú thích cùng vấn đề ở 'terminal-pane.tsx'.
 import { TERMINAL_MIN_WIDTH_PX } from '../shell/breakpoints';
 import { useMinWidth } from '../shell/use-min-width';
-import { resolveSplitShape, resolveStackedBottom } from './workspace-split';
+import { resolveSplitShape, resolveStackedBottom } from './split-shape';
 
 /**
  * Bố cục "nội dung cạnh terminal" của trang bài học và trang lab — và cách nó

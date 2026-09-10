@@ -1,6 +1,19 @@
 /**
  * P16 · 16.D.4 — trạng thái HIỂN THỊ của một nhiệm vụ lab, tách khỏi React.
  *
+ * ⚠ TÊN FILE: `task-state.ts`, KHÔNG phải `task-checklist.ts`.
+ *
+ * Lượt đầu đặt tên nó trùng với `task-checklist.tsx` và chỉ khác đuôi. `tsc`
+ * xanh sạch, `eslint` sạch, 242 ô test xanh — rồi `next build` ĐỎ với
+ * `Export outcomeKind doesn't exist in target module`. Hai bộ phân giải chọn
+ * hai file khác nhau cho cùng một chuỗi `'./task-checklist'`: `tsc` lấy bản
+ * `.ts`, còn Turbopack lấy bản `.tsx`.
+ *
+ * Nên trong thư mục này KHÔNG được có hai file cùng tên gốc khác đuôi
+ * `.ts`/`.tsx`. Repo vốn đã theo quy ước đó (`workspace-tabs.ts` +
+ * `workspace-panel.tsx`); lượt này phá nó ở HAI chỗ và cả hai được đổi tên
+ * (`workspace-split.ts` cũng thành `split-shape.ts`).
+ *
  * ## Vấn đề: tầng dữ liệu đã phân biệt đúng, phần nhìn thì chưa
  *
  * `lab-client.tsx` tách nhánh `kind:'error'` khỏi `passed:false` từ lâu, và

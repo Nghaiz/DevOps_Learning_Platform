@@ -79,8 +79,8 @@ export type { IdePaneProps } from './ide-pane.tsx';
 // bài làm trong khi thứ hỏng là cụm.
 export { TaskChecklist } from './task-checklist.tsx';
 export type { TaskChecklistItem, TaskChecklistProps } from './task-checklist.tsx';
-export { countByVisualState, outcomeKind, resolveTaskVisualState } from './task-checklist';
-export type { StoredTaskState, TaskOutcomeKind, TaskVisualState } from './task-checklist';
+export { countByVisualState, outcomeKind, resolveTaskVisualState } from './task-state';
+export type { StoredTaskState, TaskOutcomeKind, TaskVisualState } from './task-state';
 export { resolveTerminalTheme } from './terminal-theme';
 export { ShellFallbackNotice } from './shell-fallback-notice.tsx';
 export type { ShellFallbackNoticeProps } from './shell-fallback-notice.tsx';

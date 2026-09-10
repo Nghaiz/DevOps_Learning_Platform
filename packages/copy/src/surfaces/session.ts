@@ -110,9 +110,24 @@ export const session = {
   'session.workspace.popout-sr': 'Mở tab này ra cửa sổ riêng',
   'session.workspace.separator': 'Kéo để đổi chiều cao khoang terminal',
 
-  // ── Thanh mảnh của chế độ immersive (16.D.1) ─────────────────────────────
-  'session.topbar.progress-sr': (p: { done: number; total: number }) =>
-    `Đã đạt ${p.done} trên ${p.total} bước`,
+  /*
+    ⚠ KHÔNG có khoá `session.topbar.*`, và đó là một quyết định chứ không phải
+    một chỗ bỏ sót.
+
+    16.D.1 có hai nửa. Nửa immersive đã xong (`immersive-routes.ts`), nên thanh
+    56px của vỏ không còn ăn chiều cao của trang lab nữa. Nửa còn lại của thiết
+    kế là đổi thanh tiến độ thẳng sang CUNG ellipse, và nửa đó CHƯA làm: cơ chế
+    chạy của cung (`stroke-dashoffset: calc(1 - var(--p))` trên một custom
+    property chưa đăng ký) nằm trong danh sách "chưa ai đo trên trình duyệt
+    thật" của `phase-16.md` §16.I.5.
+
+    Đổi một `ProgressBar` đang chạy đúng và có `role="progressbar"` lấy một cơ
+    chế chưa đo, trong đúng cái lane mà kỷ luật là "đừng giao thứ chưa đo", là
+    một cuộc đổi sai chiều. Chờ 16.I đo xong.
+
+    Nên ở đây không có khoá nào: một khoá không có call site là một nghĩa địa,
+    và file này đã từ chối `session.slots` vì đúng lý do đó.
+  */
 
   // ── Khoang IDE ───────────────────────────────────────────────────────────
   'session.ide.pane-title': 'Trình soạn thảo',

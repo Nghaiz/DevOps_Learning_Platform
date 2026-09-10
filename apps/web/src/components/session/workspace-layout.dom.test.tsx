@@ -3,7 +3,7 @@ import { cleanup, render } from '@testing-library/react';
 import { useState, type ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useFitOnLayoutChange, type FitScheduler } from './workspace-layout';
-import { resolveSplitShape, resolveStackedBottom } from './workspace-split';
+import { resolveSplitShape, resolveStackedBottom } from './split-shape';
 
 /**
  * `p16-workspace.md` §8 **AC-5** đối chứng dương, cộng phần thuần của 16.D.2.

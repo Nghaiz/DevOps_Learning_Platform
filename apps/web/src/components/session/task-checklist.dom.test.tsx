@@ -8,7 +8,7 @@ import {
   outcomeKind,
   resolveTaskVisualState,
   type TaskVisualState,
-} from './task-checklist';
+} from './task-state';
 
 /**
  * P16 · 16.D.4 — "phân biệt RÕ TRÊN MÀN HÌNH giữa chưa đạt và hạ tầng lỗi".

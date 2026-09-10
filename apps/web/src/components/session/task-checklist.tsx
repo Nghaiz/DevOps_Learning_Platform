@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import { Circle, CircleCheck, CircleX, LoaderCircle, Unplug } from 'lucide-react';
 import { t } from '@devops-platform/copy';
 import { cn } from '@devops-platform/ui';
-import type { TaskVisualState } from './task-checklist';
+import type { TaskVisualState } from './task-state';
 
 /**
  * P16 · 16.D.4 — danh sách kiểm nhiệm vụ, thay cho `<table>`.
