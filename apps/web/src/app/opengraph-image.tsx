@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { ImageResponse } from 'next/og';
+import { t } from '@devops-platform/copy';
 
 /**
  * Ảnh xem trước khi share link (`og:image`), dựng bằng CODE lúc build.
@@ -31,7 +32,14 @@ import { ImageResponse } from 'next/og';
 
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
-export const alt = 'DevOps Learning Platform — học DevOps bằng lab sandbox chạy thật';
+/*
+ * `alt` DỰNG TỪ hai dòng chữ có thật trên ảnh, không phải một khoá thứ ba mô tả
+ * ảnh. Một khoá riêng sẽ trôi khỏi nội dung ảnh ở lần biên tập thứ hai, và khi
+ * trôi thì người dùng trình đọc màn hình nghe một câu không còn đúng với thứ
+ * người khác nhìn thấy. Bản trước mang một ký tự U+2014 ở đây; nó được thay
+ * bằng dấu chấm, không bằng một ký tự khác trông giống nó.
+ */
+export const alt = `${t('home.og.title')}. ${t('home.og.subtitle')}`;
 
 const BRAND_NAVY = '#051A53';
 const TEXT_PRIMARY = '#FFFFFF';
@@ -89,7 +97,7 @@ export default async function OpengraphImage(): Promise<ImageResponse> {
             lineHeight: 1.1,
           }}
         >
-          DevOps Learning Platform
+          {t('home.og.title')}
         </div>
         <div
           style={{
@@ -100,7 +108,7 @@ export default async function OpengraphImage(): Promise<ImageResponse> {
             color: TEXT_SECONDARY,
           }}
         >
-          Học DevOps bằng lab sandbox chạy thật
+          {t('home.og.subtitle')}
         </div>
       </div>
     ),

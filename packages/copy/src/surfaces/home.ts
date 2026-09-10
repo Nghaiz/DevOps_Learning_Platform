@@ -67,15 +67,14 @@ export const home = {
    * Bảy chặng theo design §7. Thứ tự là NGHĨA, nên chúng render trong một `<ol>`
    * và cảnh 3D chỉ đi theo đúng thứ tự đó.
    *
-   * `scene-label` là chữ cho trình đọc màn hình đọc thay cảnh 3D. Nó nói cảnh
-   * VẼ GÌ và trỏ người đọc xuống danh sách ngay dưới, vì danh sách đó mới là
-   * nơi chở nội dung. Cảnh không mang thông tin nào mà danh sách không có.
+   * KHÔNG có khoá mô tả cảnh 3D cho trình đọc màn hình, và đó là quyết định:
+   * lớp canvas mang `aria-hidden`, vì nó không chở thông tin nào mà bảy thẻ bên
+   * cạnh không có. Một mô tả thứ hai của cùng nội dung là chữ đọc THỪA, không
+   * phải chữ thêm.
    */
   'home.loop.heading': 'Một vòng, bảy chặng',
   'home.loop.lede':
     'Đây là đường đi của một thay đổi, từ lúc bạn gõ tới lúc người dùng nhận. Chặng sáu là chặng bạn không phải làm gì.',
-  'home.loop.scene-label':
-    'Hình dựng một vòng lặp CI/CD đang chạy. Nội dung từng chặng nằm trong danh sách ngay bên dưới.',
   'home.loop.stage-position': (p: { n: number; total: number }) =>
     `Chặng ${p.n} trên ${p.total}`,
 
