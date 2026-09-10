@@ -340,7 +340,15 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
                   // chấm sai trên cảnh dựng dở. Câu ở đây nói cùng một điều với
                   // banner ở trên, nhưng nó phải có mặt ở CẢ HAI chỗ: banner
                   // giải thích trạng thái, câu này giải thích vì sao nút xám.
-                  (setupNotice?.message ?? null)
+                  //
+                  // Nhánh cuối là cửa sổ "CHƯA BIẾT" — lượt `setupStatus` đầu
+                  // tiên chưa về. Nút đã xám (`setupPending` đọc `undefined`
+                  // theo hướng an toàn), nên thiếu câu này là một nút xám KHÔNG
+                  // lời giải thích: trạng thái tệ nhất trong ba, vì người học
+                  // không biết là phải chờ hay là đã hỏng.
+                  setupPending
+                  ? (setupNotice?.message ?? 'Đang kiểm tra môi trường của bài…')
+                  : null
           }
           onCheck={() => {
             onCheckTask(selected.task.id);

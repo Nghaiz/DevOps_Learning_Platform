@@ -155,15 +155,24 @@ async function probeSetup(
   ctx: { user: { id: string; role: string } },
   lab: Lab,
   sessionId: string,
+  /**
+   * `expiresAt` đã hỏi orchestrator rồi, nếu caller có sẵn.
+   *
+   * ⛔ Tham số này tồn tại vì `checkTask` cần `sessionExpiry` CHO CẢ lượt probe
+   * LẪN lượt chấm. Để probe tự hỏi lại là thêm một vòng gRPC tới orchestrator
+   * trên ĐƯỜNG NÓNG của mọi lượt bấm Chấm — chính đường mà P15 đang cố làm nhẹ
+   * đi. Một lượt chấm phải đi đúng MỘT lượt `GetSession`, như trước P15.
+   */
+  expiresAtSeconds?: number,
 ): Promise<SetupProbe | null> {
   if (lab.setup.background === null) {
     return null;
   }
-  const expiresAtSeconds = await sessionExpiry(ctx, sessionId);
+  const expiry = expiresAtSeconds ?? (await sessionExpiry(ctx, sessionId));
   const outcome = await runScriptInSession({
     sessionId,
     userId: ctx.user.id,
-    expiresAtSeconds,
+    expiresAtSeconds: expiry,
     script: SETUP_PROBE_SCRIPT,
   });
   return parseSetupProbe(outcome.output);
@@ -577,7 +586,10 @@ export const labsRouter = createTRPCRouter({
       "bài làm sai" (`validate.ts` § `gatewayError`, plan ô 8). Một dấu X đỏ ở
       đây bắt người học đi sửa một bài họ còn chưa kịp làm.
     */
-    const setup = await probeSetup(ctx, lab, attempt.sessionId);
+    // MỘT lượt `GetSession` cho cả probe lẫn lượt chấm — xem `probeSetup`.
+    const expiresAtSeconds = await sessionExpiry(ctx, attempt.sessionId);
+
+    const setup = await probeSetup(ctx, lab, attempt.sessionId, expiresAtSeconds);
     if (setup !== null && setup.state !== 'ready') {
       throw new TRPCError({
         code: 'PRECONDITION_FAILED',
@@ -585,7 +597,6 @@ export const labsRouter = createTRPCRouter({
       });
     }
 
-    const expiresAtSeconds = await sessionExpiry(ctx, attempt.sessionId);
     // Ném ở đây (lỗi hạ tầng: script hỏng/hết hạn/pod chết) dừng NGAY trước
     // `insert` — không có dòng nào được ghi cho một lần chấm lỗi hạ tầng
     // (contract §3 luật 3, bất biến của `lab_task_results`).

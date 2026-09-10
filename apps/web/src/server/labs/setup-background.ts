@@ -85,9 +85,12 @@ const LOG_MARKER = 'DLP-SETUP-LOG';
  *    được là HỎNG chứ không phải "xong" — hai lớp, vì đọc sai ở đây là chấm
  *    trên cảnh dựng dở.)
  *
- * `set -eu` + KHÔNG `disown`: `disown` cần job control, vốn TẮT trong bash không
- * tương tác — nó sẽ lỗi "no current job", và dưới `set -e` lỗi đó giết luôn lượt
- * phóng. `setsid` đã tách hẳn process group nên `disown` không thêm gì.
+ * `set -eu`, và KHÔNG `disown` — vì nó không thêm gì, KHÔNG vì nó hỏng.
+ * (`content/labs/dlp-linux-triage/setup/background.sh` gọi `disown` ngay sau một
+ * lượt `&` trong đúng bối cảnh bash-không-tương-tác này và nó chạy bình thường,
+ * nên "disown sẽ lỗi no current job" là một khẳng định SAI — đừng viết lại nó.)
+ * `setsid` đã tách hẳn process group, nên con nền không còn là job của shell này
+ * để mà phải disown.
  */
 export function buildBackgroundLaunchScript(script: string): string {
   const encoded = Buffer.from(script, 'utf8').toString('base64');
