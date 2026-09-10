@@ -793,6 +793,98 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
     expect(() => resolve(dark, '--input')).toThrow(/trong suốt/);
   });
 
+  /**
+   * AC-3.2 — bốn cặp có ĐÁP ÁN BIẾT TRƯỚC, độc lập với mọi token.
+   *
+   * Đây là vế thay cho đối chứng cũ vốn chỉ khẳng định "4.01 < 9.48": một phép
+   * so sánh hai con số do CHÍNH phép đo sinh ra không chứng minh phép đo đúng,
+   * nó chỉ chứng minh phép đo nhất quán với chính nó
+   * (`rules/green-that-proves-nothing.md`).
+   *
+   * Bốn con số dưới đây tính tay trong `p16-tokens.md` §1.1–§1.2 theo đúng chuỗi
+   * sRGB → tuyến tính → độ chói, và ba trong bốn đã được công bố độc lập ở
+   * `docs/design-system.md` §2.1. Lệch một dòng ⇒ MÃ ĐO sai, không phải màu sai.
+   *
+   * Đi từ HEX chứ không từ oklch là có chủ ý: nó bỏ qua ma trận oklch→sRGB, nên
+   * nếu ma trận đó hỏng thì khối này vẫn đúng và khối `toHex()` ở trên mới đỏ —
+   * hai khối hỏng vì hai lý do khác nhau, đúng thứ cần để định vị lỗi.
+   */
+  describe('AC-3.2 — cặp có đáp án biết trước, không phụ thuộc token nào', () => {
+    /** `#rrggbb` → sRGB đã mã hoá gamma. */
+    function fromHex(value: string): Srgb {
+      const m = /^#([0-9a-fA-F]{6})$/.exec(value);
+      if (m?.[1] === undefined) throw new Error(`Không phải hex 6 chữ số: ${value}`);
+      const digits = m[1];
+      return [0, 2, 4].map((i) => Number.parseInt(digits.slice(i, i + 2), 16) / 255) as unknown as Srgb;
+    }
+    const WHITE = fromHex('#ffffff');
+
+    /*
+     * Ghim tới chữ số thứ TƯ, không phải thứ hai. `toBeCloseTo(x, 2)` cho biên
+     * ±0.005, và `#373D4E` rơi đúng 10.824999 — lệch 0.005001 so với "10.83"
+     * làm tròn, tức một đối chứng đúng vẫn ĐỎ. Số nào cũng có sẵn đủ chữ số
+     * trong `p16-tokens.md` §1.1–§1.2, nên dùng thẳng số đó và bỏ hẳn khâu làm
+     * tròn: một đối chứng mà biên của nó rộng hơn sai số nó định bắt thì không
+     * gác gì, còn một đối chứng đỏ vì làm tròn thì bị tắt trong hai tuần.
+     */
+    it.each([
+      ['#ffffff', '#000000', 21.0, 'trần lý thuyết WCAG'],
+      ['#BC2626', '#ffffff', 6.0985, '`--primary` sáng trên trắng (hợp đồng §1.2)'],
+      ['#EFF003', '#ffffff', 1.2255, '`--brand-star` trên trắng — CON SỐ của lệnh cấm §1.5'],
+      ['#373D4E', '#ffffff', 10.825, '`--brand-ink` = `--foreground` sáng (hợp đồng §1.2)'],
+      ['#B89C0E', '#ffffff', 2.6924, '`--brand-star-shadow` — nửa còn lại của lệnh cấm §1.5'],
+      ['#051A53', '#ffffff', 16.4176, '`--brand-navy` — nguồn của hue 263.7'],
+    ])('%s trên %s = %s:1 (%s)', (fg, bg, expected) => {
+      const measured = contrastRatio(relativeLuminance(fromHex(fg)), relativeLuminance(fromHex(bg)));
+      expect(measured).toBeCloseTo(expected as number, 3);
+    });
+
+    it('`#EFF003` trên ĐEN = 17.14:1 — cùng màu, cùng phép đo, nền khác ⇒ kết luận khác', () => {
+      // Chốt rằng lệnh cấm §1.5 là về CẶP chứ không về màu: chính `#EFF003` bị
+      // cấm trên nền sáng lại là màu duy nhất được phép làm dấu thành tựu trên
+      // nền tối. Một đối chứng chỉ đo một phía sẽ đọc ra "vàng này luôn xấu".
+      expect(
+        contrastRatio(relativeLuminance(fromHex('#EFF003')), relativeLuminance(fromHex('#000000'))),
+      ).toBeCloseTo(17.1355, 3);
+      expect(WHITE).toEqual([1, 1, 1]);
+    });
+  });
+
+  /**
+   * AC-3.1 — TOKEN BỊ BẺ GÃY CÓ CHỦ ĐÍCH, chạy lại TRỌN pipeline của AC-2.
+   *
+   * Một cổng chưa từng thấy đỏ thì chưa được chứng minh là đang gác gì. Ở đây
+   * `--primary` bị ép thành `oklch(0.75 0.10 26.7)` — một hồng nhạt mà chữ
+   * trắng `--primary-foreground` chỉ đọc được ~2.3:1 — rồi CHÍNH `measure()`
+   * chạy trên bảng giả đó. Nếu nó không đỏ thì phép đo hỏng, chứ không phải
+   * token tốt.
+   *
+   * ⚠ Bảng giả kế thừa `root` bằng spread, nên nó đi qua đúng `resolve()`,
+   * đúng `composite()`, đúng `relativeLuminance()` — không có đường tắt nào.
+   * Một đối chứng tự dựng lại phép đo bằng số học riêng sẽ chứng minh cho phép
+   * đo RIÊNG đó, không phải cho cổng.
+   */
+  describe('AC-3.1 — bẻ gãy một token, cả pipeline AC-2 phải ĐỎ', () => {
+    const BROKEN = { ...root, '--primary': 'oklch(0.75 0.10 26.7)', '--ring': 'oklch(0.75 0.10 26.7)' };
+
+    it('bảng token giả: `--primary-foreground` trên `--primary` TRƯỢT ngưỡng 4.5', () => {
+      const measured = measure(BROKEN, '--primary-foreground', '--primary');
+      expect(measured).toBeLessThan(4.5);
+      // Ghim luôn con số (2.2192), để "đỏ" ở đây có nghĩa là "đỏ vì lý do này"
+      // chứ không phải "đỏ vì bảng giả tình cờ ném lỗi ở một chỗ khác".
+      expect(measured).toBeCloseTo(2.2192, 3);
+    });
+
+    it('bảng token giả: `--primary` trên `--background` TRƯỢT cả ngưỡng 3.0 của SC 1.4.11', () => {
+      expect(measure(BROKEN, '--primary', '--background')).toBeLessThan(3);
+    });
+
+    it('bảng token THẬT vượt cả hai ngưỡng đó — nếu không, đối chứng trên vô nghĩa', () => {
+      expect(measure(root, '--primary-foreground', '--primary')).toBeGreaterThanOrEqual(4.5);
+      expect(measure(root, '--primary', '--background')).toBeGreaterThanOrEqual(3);
+    });
+  });
+
   it('giá trị `--input` sáng ĐÃ TỪNG hỏng: 0.922 cho 1.26:1, dưới ngưỡng 3:1', () => {
     // Ghim lại con số của lỗi đã sửa. Nếu ai đó đưa `--input` về 0.922 thì
     // khối `NON_TEXT_PAIRS` ở trên đỏ; test này giải thích vì sao con số cũ
