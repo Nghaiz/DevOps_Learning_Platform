@@ -32,6 +32,44 @@ terminal 133 · motion 110 · copy 52 · shared-types 48        tổng 3617
 check-design-tokens: 552 file / 4 vùng, đối chứng hai chiều xanh
 ```
 
+**Trạng thái 2026-09-11:** cả tám lane dựng lại (`16.B`..`16.H`, `16.G` tách G1+G2) XONG và đã
+gộp, cộng một lượt L0 đóng motif và một lượt L0 nối metadata vào bản đồ copy. `16.I` đang chạy.
+
+Cây sau khi gộp hết, đo bằng lượt ép (`--force`, `Cached: 0 cached, 32 total`):
+
+```
+Tasks: 32 successful, 32 total
+web 1750 (148 file) · ui 872 (34 file) · games 402 · scenario 285
+terminal 133 · motion 110 · copy 52 · shared-types 48        tổng 3652
+bản đồ copy: 1067 khoá, tổng-từng-surface = Object.keys(MESSAGES) → không khoá nào bị nuốt
+```
+
+**Hai lượt L0 không có trong plan, và vì sao chúng cần thiết:**
+
+1. **Motif ellipse chưa từng vào hệ thiết kế.** `packages/ui` khai phụ thuộc
+   `@devops-platform/motion` nhưng **không file nào import nó** — `motif.ts` có đủ máy móc và
+   110 test xanh, không ai gọi. Tức ý tưởng thiết kế mà design §3 gọi là "xương sống của toàn bộ
+   thiết kế" chỉ sống ở trang chủ 3D. Đóng bốn bề mặt §3 liệt kê; 0 file → 8 file import.
+   `ProgressBar` giữ NGUYÊN hợp đồng aria, bốn ô test cũ được **chuyển** khẳng định chứ không xoá.
+
+2. **Metadata của route chưa từng đi qua bản đồ copy.** Tám tiêu đề còn chuỗi viết thẳng kèm gạch
+   ngang dài sống qua trọn bảy lane mà không ô nào đỏ. Lý do là cấu trúc, không phải sơ suất: sáu
+   cổng `copy-gate.test.ts` gác theo glob của từng lane và không cái nào phủ `app/**`, còn cổng T1
+   quét `packages/copy/src/**` nên nó **không thể** thấy một chuỗi nằm ngoài bản đồ. Cổng mới
+   (`app/metadata-copy-gate.test.ts`) cắt đúng thân `metadata`/`generateMetadata` và ship kèm đối
+   chứng dương lẫn âm hai phía. Mở rộng nó sang `description` tìm ra thêm ba mô tả trang và cả
+   khối `openGraph` của `layout.tsx` — thứ mà lượt grep tìm gạch ngang dài không thấy, vì chúng
+   không có dấu nào để tìm.
+
+**Một chỗ cố ý không làm cho tiện:** ba mô tả trang đặt dưới tiền tố TỪNG trang chứ không gom
+thành `catalog.meta-description.*`. Gom lại là một nhóm đúng ba thành viên và T3 sẽ đòi lời khai
+rằng ba là con số đóng — ba ở đây không đóng, nó chỉ là ba trang tình cờ có mô tả. Khai bừa một
+nhóm ba cố ý là nói dối chính cái cổng đang hỏi.
+
+**Con số 72 khoá `author.` của 16.G1 là 69.** Ba dòng `authorIntentionalThree` lọt vào phép đếm
+regex của chính lane đó — đúng bẫy nó chưa được cảnh báo, vì lời cảnh báo ra đời sau nó. Bản đồ
+chạy thật phân xử: `author` = 178 = 69 + 109 của 16.G2.
+
 **Vì sao phải ép chạy, và điều đó nói gì về mọi con số turbo trong dự án này.** Lượt verify đầu
 sau khi gộp trả `FULL TURBO — 32/32 cached` trên một cây vừa đổi 19 file. Đó là hình dạng của
 một ô xanh không chứng minh gì, nên nó không được nhận. Ba phép đo sau đó:
