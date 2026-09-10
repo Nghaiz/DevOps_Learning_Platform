@@ -47,7 +47,7 @@ async function counted(kind: CatalogKind, read: () => Promise<number>): Promise<
   try {
     return await read();
   } catch (error: unknown) {
-    console.error(`[trang-chủ] không đọc được số lượng ${kind}`, error);
+    console.error(`[home] catalog count read failed for ${kind}`, error);
     return null;
   }
 }
@@ -61,7 +61,7 @@ function contentSourceOrNull(): ContentSource | null {
   try {
     return publishedContentSource();
   } catch (error: unknown) {
-    console.error('[trang-chủ] không dựng được nguồn nội dung', error);
+    console.error('[home] content source unavailable', error);
     return null;
   }
 }
@@ -77,7 +77,7 @@ async function publishedQuizCount(): Promise<number> {
 export const readCatalogCounts = cache(async (): Promise<CatalogCounts> => {
   const source = contentSourceOrNull();
   const unavailable = async (): Promise<number> => {
-    throw new Error('nguồn nội dung không dựng được');
+    throw new Error('content source unavailable');
   };
 
   const [lessons, labs, playgrounds, quizCount] = await Promise.all([

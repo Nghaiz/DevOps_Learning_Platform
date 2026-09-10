@@ -355,7 +355,7 @@ export default function LoopScene({
   useEffect(() => {
     if (degraded) {
       console.warn(
-        '[home] Không phân giải được ít nhất một token màu cho cảnh trang chủ; đang dùng màu xám dự phòng.',
+        '[home] scene colour token(s) did not resolve; falling back to neutral grey',
       );
     }
   }, [degraded]);
