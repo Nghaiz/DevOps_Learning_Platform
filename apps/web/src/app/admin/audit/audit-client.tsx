@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactElement } from 'react';
+import { err, t } from '@devops-platform/copy';
 import {
   Alert,
   AlertDescription,
@@ -42,7 +43,7 @@ import {
  *
  * Không có nút nào ở đây, và đó là chủ ý: một nhật ký sửa được là một nhật ký
  * không dùng để đối chiếu được. `admin_audit` cũng cố ý KHÔNG có khoá ngoại tới
- * `users` — nhật ký sống lâu hơn tài khoản — nên một dòng có thể nêu một id
+ * `users` (nhật ký sống lâu hơn tài khoản), nên một dòng có thể nêu một id
  * không còn tra ngược ra người nào. `describeAuditActor` hiện đúng id đó kèm lý
  * do, thay vì để trống.
  *
@@ -59,76 +60,76 @@ export function AdminAuditClient(): ReactElement {
   const query = api.admin.audit.list.useQuery(cursor === undefined ? {} : { cursor });
 
   return (
-    <AdminSection
-      title="Nhật ký quản trị"
-      description="Đổi vai trò và kết thúc phiên — mới nhất trước. Chỉ ghi thêm, không sửa được."
-    >
+    <AdminSection title={t('admin.audit.title')} description={t('admin.audit.description')}>
       <Alert>
-        <AlertTitle>Đây là một nửa của nhật ký</AlertTitle>
-        <AlertDescription>
-          Bảng này ghi hành động của quản trị viên phía ứng dụng. Orchestrator ghi riêng
-          `sessions_audit` cho mỗi lần thu hồi pod. Hai bảng biết hai chuyện khác nhau: bảng kia
-          không biết tới vai trò, bảng này không biết phiên có thật sự chết hay không.
-        </AlertDescription>
+        <AlertTitle>{t('admin.audit.alert-title')}</AlertTitle>
+        <AlertDescription>{t('admin.audit.alert-body')}</AlertDescription>
       </Alert>
 
       {query.isPending ? (
         <Skeleton className="h-64 w-full" />
       ) : query.isError ? (
-        <ErrorState
-          title="Không tải được nhật ký"
-          message={`${describeTrpcError(query.error)} Nếu lỗi nói về cursor, bấm "Về đầu" — một dòng nhật ký không biến mất, nhưng cursor cũ có thể đã hết hiệu lực.`}
+        <AuditError
+          reason={describeTrpcError(query.error)}
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
         />
       ) : query.data.items.length === 0 ? (
         <EmptyState
-          title="Chưa có hành động quản trị nào"
-          description="Chưa ai đổi vai trò hay kết thúc phiên của người khác. Bảng trống ở đây nghĩa là chưa có việc gì xảy ra, không phải nhật ký hỏng."
+          title={t('admin.audit.empty-title')}
+          description={t('admin.audit.empty-body')}
         />
       ) : (
         <div className="flex flex-col gap-3">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Thời điểm</TableHead>
-                <TableHead>Người thực hiện</TableHead>
-                <TableHead>Hành động</TableHead>
-                <TableHead>Đối tượng</TableHead>
-                <TableHead>Chi tiết</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {query.data.items.map((row) => {
-                const actor = describeAuditActor(row.actorId);
-                return (
-                  <TableRow key={row.id}>
-                    <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
-                      {formatMoment(row.occurredAt)}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs" title={actor.note}>
-                      {actor.text}
-                    </TableCell>
-                    <TableCell className="text-sm">{describeAuditAction(row.action)}</TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {describeAuditTarget(row.targetType, row.targetId)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {describeAuditDetail(row.action, row.detail)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-            <TableCaption>
-              Cột &quot;Người thực hiện&quot; chỉ có id: bảng nhật ký cố ý không tham chiếu tới bảng
-              người dùng, nên một tài khoản đã xoá vẫn để lại id ở đây.
-            </TableCaption>
-          </Table>
+          {/*
+            Năm cột id dài trên một màn 390px: cuộn ngang cục bộ giữ bảng đọc
+            được mà không để cả trang trôi ngang (ô nghiệm thu §7 mục 1).
+          */}
+          <div className="w-full overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('admin.audit.col-when')}</TableHead>
+                  <TableHead>{t('admin.audit.col-actor')}</TableHead>
+                  <TableHead>{t('admin.audit.col-action')}</TableHead>
+                  <TableHead>{t('admin.audit.col-target')}</TableHead>
+                  <TableHead>{t('admin.audit.col-detail')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {query.data.items.map((row) => {
+                  const actor = describeAuditActor(row.actorId);
+                  return (
+                    <TableRow key={row.id}>
+                      <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
+                        {formatMoment(row.occurredAt)}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs" title={actor.note}>
+                        {actor.text}
+                      </TableCell>
+                      <TableCell className="text-sm">{describeAuditAction(row.action)}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {describeAuditTarget(row.targetType, row.targetId)}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {describeAuditDetail(row.action, row.detail)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+              <TableCaption>{t('admin.audit.caption')}</TableCaption>
+            </Table>
+          </div>
 
           <AdminNote>
-            Đang xem {query.data.items.length} dòng ở trang {pageNumber(stack)}
-            {query.data.nextCursor != null ? ' — còn trang sau.' : ' — đây là trang cuối.'}
+            {t('admin.audit.note', {
+              count: query.data.items.length,
+              page: pageNumber(stack),
+            })}
+            {query.data.nextCursor != null
+              ? t('admin.audit.note-more')
+              : t('admin.audit.note-last')}
           </AdminNote>
 
           <CursorPager
@@ -141,5 +142,32 @@ export function AdminAuditClient(): ReactElement {
         </div>
       )}
     </AdminSection>
+  );
+}
+
+/**
+ * Hai nửa của `ErrorEntry` vào hai khe của `ErrorState`.
+ *
+ * Tách thành component riêng chứ không gọi `err()` giữa một biểu thức ba ngôi
+ * ba tầng: một lời gọi hàm nhét vào giữa nhánh `isError` sẽ chạy ở MỌI lượt
+ * render, kể cả lượt `isPending`, và `query.error` lúc đó là `null`.
+ */
+function AuditError({
+  reason,
+  onRetry,
+  retrying,
+}: {
+  readonly reason: string;
+  readonly onRetry: () => void;
+  readonly retrying: boolean;
+}): ReactElement {
+  const failure = err('admin.error.audit-list', { reason });
+  return (
+    <ErrorState
+      title={failure.what}
+      message={failure.next}
+      onRetry={onRetry}
+      retrying={retrying}
+    />
   );
 }
