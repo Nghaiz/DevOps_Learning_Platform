@@ -88,8 +88,17 @@ describe('cookie mang mã', () => {
 
   it('hai đường, và đường nhập mật khẩu không dùng chung path với API', () => {
     expect([...RESET_COOKIE_PATHS]).toEqual(['/reset-password', '/api/auth/reset-finish']);
+
     // ⛔ Không đường nào là '/'. Xem lý do ở reset-link.ts.
-    expect(RESET_COOKIE_PATHS.some((path) => path === '/')).toBe(false);
+    //
+    // Nới kiểu về `readonly string[]` là BẮT BUỘC, không phải để chiều `tsc`:
+    // `RESET_COOKIE_PATHS` là tuple literal nên phép so với '/' bị TS2367 từ
+    // chối lúc biên dịch. Viết theo kiểu literal thì ô này là một khẳng định mà
+    // trình biên dịch đã biết trước câu trả lời, tức một ô không bao giờ đỏ
+    // được. Nới kiểu ra rồi kiểm GIÁ TRỊ thì nó đỏ thật khi ai đó thêm '/'.
+    const paths: readonly string[] = RESET_COOKIE_PATHS;
+    expect(paths.includes('/')).toBe(false);
+    expect(paths.every((path) => path.startsWith('/') && path.length > 1)).toBe(true);
   });
 
   it('lượt xoá khớp cùng cặp (tên, path) và đặt Max-Age=0', () => {
