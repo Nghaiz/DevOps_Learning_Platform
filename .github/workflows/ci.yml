@@ -211,6 +211,17 @@ jobs:
       - name: Cổng màu trần (tokens:check)
         run: pnpm tokens:check
 
+      # P16 / ô AC "không kéo xterm.js vào trang không có terminal"
+      # (phase-14-exec.md:21). Cùng lý do bước-riêng như tokens:check ở trên, và
+      # cùng bài học: trước lane này, ô AC đó KHÔNG CÓ PHÉP ĐO nào — chỉ có một
+      # test tĩnh đọc mã nguồn (terminal-theme.test.ts) gác kỷ luật import, chứ
+      # không gác byte.
+      #
+      # PHẢI đứng SAU bước turbo ở trên: nó đo `apps/web/.next/`, không đo mã
+      # nguồn. Chưa build thì script thoát 2 chứ không xanh khống.
+      - name: Cổng ngân sách bundle (bundle:check)
+        run: pnpm bundle:check
+
   # ──────────────────────────────────────────────────────────────────────── Go
   go:
     name: Go (build + vet + test + lint + vuln)
