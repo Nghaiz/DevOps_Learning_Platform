@@ -50,9 +50,15 @@ importers:
       '@connectrpc/connect-node':
         specifier: ^2.1.2
         version: 2.1.2(@bufbuild/protobuf@2.14.1)(@connectrpc/connect@2.1.2(@bufbuild/protobuf@2.14.1))
+      '@devops-platform/copy':
+        specifier: workspace:*
+        version: link:../../packages/copy
       '@devops-platform/games':
         specifier: workspace:*
         version: link:../../packages/games
+      '@devops-platform/motion':
+        specifier: workspace:*
+        version: link:../../packages/motion
       '@devops-platform/scenario':
         specifier: workspace:*
         version: link:../../packages/scenario
