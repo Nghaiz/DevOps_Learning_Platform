@@ -77,6 +77,35 @@ const _badgeVariantWarning: UI.BadgeVariant = 'warning';
 const _badgeVariantDestructive: UI.BadgeVariant = 'destructive';
 const _badgeVariantOutline: UI.BadgeVariant = 'outline';
 
+// ─── SearchTabs / ResourceIcon — P16 ─────────────────────────────────────────
+
+/**
+ * `label` BẮT BUỘC trên `SearchTabs`: gói ngoài render một vùng `role="search"`,
+ * và năm trang danh mục đều có một vùng như vậy — không đặt tên thì cây hỗ trợ
+ * tiếp cận có năm landmark "search" không phân biệt được với nhau.
+ */
+const _searchTabsProps: UI.SearchTabsProps = {
+  tabs: [{ value: 'all', label: 'Tất cả' }],
+  activeTab: 'all',
+  onTabChange: () => {},
+  onSearch: () => {},
+  onSearchChange: () => {},
+  placeholder: 'Tìm bài học',
+  label: 'Tìm và lọc bài học',
+};
+const _searchTabsRequired: Requires<UI.SearchTabsProps, 'tabs' | 'label'> = { tabs: true, label: true };
+const _searchTabItem: UI.SearchTabItem = { value: 'labs', label: 'Phòng thực hành' };
+
+/** `kind` bắt buộc; `label` tuỳ chọn và chính nó quyết định icon là trang trí hay không. */
+const _resourceIconProps: UI.ResourceIconProps = {
+  kind: 'Pod',
+  label: 'Pod',
+  accent: true,
+};
+const _resourceIconRequired: Requires<UI.ResourceIconProps, 'kind'> = { kind: true };
+const _resourceKindPod: UI.ResourceKind = 'Pod';
+const _resourceKindLimitRange: UI.ResourceKind = 'LimitRange';
+
 // ─── Alert / Spinner ─────────────────────────────────────────────────────────
 
 const _alertVariantDefault: UI.AlertVariant = 'default';
@@ -261,6 +290,12 @@ const C2_EXPORTS = [
   'SplitPane',
   'StepNav',
   'ProgressBar',
+  // ── P16 / 16.A.5 + 16.A.9 ────────────────────────────────────────────────
+  // Hai component MỚI của đợt P16. Chúng vào C2 (chứ không vào NON_C2) vì
+  // chúng render và có trạng thái để khai — nên `docs/design-system.md` §4a
+  // phải mô tả chúng, và cổng ở `design-system.contract.test.tsx` giữ điều đó.
+  'SearchTabs',
+  'ResourceIcon',
 ] as const;
 
 /** Export có thật nhưng KHÔNG nằm trong bảng C2 — hợp lệ, phải khai ở đây. */
@@ -273,6 +308,17 @@ const NON_C2_EXPORTS = [
   // (`check-result-panel.tsx`), và chép lại chuỗi class là để hai bản trôi khỏi
   // nhau — lúc đó khối output của trang chấm bài lặng lẽ mất viền focus.
   'SCROLL_REGION_FOCUS',
+  /*
+   * Ba bảng DỮ LIỆU của `resource-icon.tsx` — không phải component, nên C2 (vốn
+   * khẳng định mọi mục là hàm/đối tượng render được) không liệt kê chúng. Chúng
+   * được export vì nơi gọi cần lặp qua 26 khoá (bộ lọc theo loại ở trang danh
+   * mục, chú giải bài học) mà không phải chép lại danh sách — chép lại là để
+   * hai bản trôi khỏi nhau, đúng thứ `resource-icon.contract.test.ts` sinh ra
+   * để chặn giữa `packages/ui` và arena.
+   */
+  'RESOURCE_ICON',
+  'RESOURCE_KINDS',
+  'RESOURCE_KIND_ACCENT',
 ] as const;
 
 describe('C2 — bề mặt export của packages/ui', () => {
@@ -358,6 +404,10 @@ describe('C2 — chữ ký ràng buộc ở tầng kiểu', () => {
     expect(_themeInitScript).toContain(UI.THEME_STORAGE_KEY);
     expect(_themeStorageKey).toBe('dlp.theme');
     expect(typeof _useToastReturn.toast).toBe('function');
+    expect(_searchTabsProps.label).toBe('Tìm và lọc bài học');
+    expect(_searchTabItem.value).toBe('labs');
+    expect(_resourceIconProps.kind).toBe('Pod');
+    expect([_resourceKindPod, _resourceKindLimitRange]).toEqual(['Pod', 'LimitRange']);
   });
 
   it('cờ "prop này vẫn BẮT BUỘC" đều đúng (đỏ ở tsc nếu bị nới thành tuỳ chọn)', () => {
@@ -368,5 +418,7 @@ describe('C2 — chữ ký ràng buộc ở tầng kiểu', () => {
     expect(
       [_contentViewHasProps, _splitPaneHasProps, _stepNavHasProps, _progressBarHasProps].every(Boolean),
     ).toBe(true);
+    expect(Object.values(_searchTabsRequired).every(Boolean)).toBe(true);
+    expect(_resourceIconRequired.kind).toBe(true);
   });
 });
