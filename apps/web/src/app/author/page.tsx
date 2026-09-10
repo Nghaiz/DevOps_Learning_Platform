@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
+import { t } from '@devops-platform/copy';
 import { AuthorListClient } from './author-list-client';
 
 export const metadata: Metadata = {
-  title: 'Soạn bài — DevOps Learning Platform',
+  title: t('author.meta.list'),
 };
 
 /**
