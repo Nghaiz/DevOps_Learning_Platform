@@ -44,7 +44,16 @@ import { renderCopy, type CopyRef } from '../../../components/catalog/catalog-la
  */
 function labelsFrom<T extends string>(keys: Readonly<Record<T, TextKey>>): Readonly<Record<T, string>> {
   const out = {} as Record<T, string>;
-  for (const [value, key] of Object.entries(keys) as readonly (readonly [T, TextKey])[]) {
+  /*
+    `Object.entries` khai kiểu khoá là `string`, và TypeScript từ chối ép thẳng
+    `string` sang `T` vì `T` có thể hẹp hơn. Bắc qua `unknown` một lần, ở đúng
+    một chỗ: lúc chạy thì khoá của `keys` ĐÚNG là `T` theo chính kiểu tham số,
+    nên phép ép này không giấu một khả năng nào có thật.
+
+    ⚠ Lỗi này chỉ đỏ ở `next build`, KHÔNG đỏ ở `turbo run typecheck`. Hai pha
+    dùng hai cấu hình khác nhau, nên `typecheck` xanh không thay được `build`.
+  */
+  for (const [value, key] of Object.entries(keys) as unknown as readonly (readonly [T, TextKey])[]) {
     out[value] = renderCopy({ key });
   }
   return out;
