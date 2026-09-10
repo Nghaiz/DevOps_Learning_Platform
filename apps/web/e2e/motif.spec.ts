@@ -353,73 +353,109 @@ test('§8.3 — đổi `--p` thì `stroke-dashoffset` CHẠY qua các giá trị
     Khi `--p` nhảy rời rạc, giá trị `calc()` tính lại tức thì; câu hỏi là trình
     duyệt có transition GIỮA hai giá trị đã tính đó không.
   */
-  const samples = await progressArc(page).evaluate(
-    async (el, params) => {
-      const node = el as SVGElement;
-      const { intervalMs, windowMs } = params;
-      const read = (): number => parseFloat(getComputedStyle(node).strokeDashoffset);
+  /*
+    ⚠ ĐO 2026-09-11, và nó đổi cách đo: `getComputedStyle(path).strokeDashoffset`
+    trả về chuỗi **`calc(0.95px)`** — một `calc()` CHƯA phân giải, không phải một
+    con số.
 
-      // Đặt về một mốc xa rồi để cascade ổn định, để bước nhảy sau đó đủ lớn.
-      node.style.setProperty('--p', '0.05');
-      await new Promise((r) => requestAnimationFrame(() => r(null)));
-      await new Promise((r) => setTimeout(r, 400));
+    Hai hệ quả, và cả hai đều quan trọng hơn con số:
+      1. lấy mẫu chuỗi đó không thể thấy nội suy, vì Chrome trả lại dạng đã khai
+         chứ không trả giá trị đang chạy. Một spec lấy mẫu `getComputedStyle` sẽ
+         thấy đúng MỘT giá trị suốt cả transition và kết luận "NHẢY" — kể cả khi
+         cung đang chạy mượt. Bản đầu của ô này đã kết luận đúng như vậy.
+      2. `1 - 0.05` là một số KHÔNG ĐƠN VỊ, và Chrome ép nó thành `px`. Với
+         `pathLength={1}` thì 1 đơn vị người dùng = toàn bộ chiều dài cung, nên
+         giá trị vẫn đúng — nhưng nó đúng vì một sự trùng hợp của hệ toạ độ, chứ
+         không vì ai đó đã tính đến.
 
-      const before = read();
-      node.style.setProperty('--p', '0.95');
+    Nên ô này KHÔNG hỏi "giá trị đi qua mấy bước". Nó hỏi thẳng trình duyệt câu
+    đúng: **có một CSSTransition nào đang chạy trên `stroke-dashoffset` không.**
+    `getAnimations()` và các sự kiện `transitionstart`/`transitionend` là câu trả
+    lời của chính bộ máy chuyển động, không phải một suy diễn từ chuỗi CSS.
+  */
+  const motion = await progressArc(page).evaluate(async (el, params) => {
+    const node = el as SVGElement;
+    const { windowMs } = params;
+    const raw = (): string => getComputedStyle(node).strokeDashoffset;
 
-      const series: number[] = [];
-      const started = performance.now();
-      while (performance.now() - started < windowMs) {
-        series.push(read());
-        await new Promise((r) => setTimeout(r, intervalMs));
-      }
-      return { before, series, after: read() };
-    },
-    { intervalMs: SAMPLE_INTERVAL_MS, windowMs: SAMPLE_WINDOW_MS },
-  );
+    node.style.setProperty('--p', '0.05');
+    await new Promise((r) => setTimeout(r, 400));
+    const before = raw();
 
-  const lo = Math.min(samples.before, samples.after);
-  const hi = Math.max(samples.before, samples.after);
-  // "Trung gian" = nằm HẲN giữa hai đầu, với biên 1% để một mẫu trùng đúng mốc
-  // đầu/cuối không bị đếm nhầm thành chuyển động.
-  const margin = (hi - lo) * 0.01;
-  const intermediate = [
-    ...new Set(samples.series.filter((v) => v > lo + margin && v < hi - margin)),
-  ];
+    const events: { type: string; property: string; elapsed: number }[] = [];
+    const record = (e: Event): void => {
+      const te = e as TransitionEvent;
+      events.push({ type: te.type, property: te.propertyName, elapsed: te.elapsedTime });
+    };
+    for (const t of ['transitionrun', 'transitionstart', 'transitionend']) {
+      node.addEventListener(t, record);
+    }
+
+    node.style.setProperty('--p', '0.95');
+
+    // Đọc NGAY sau khi đổi: một CSSTransition được tạo ở lần cập nhật style kế
+    // tiếp, nên phải nhường một khung hình trước khi hỏi.
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    const running = node
+      .getAnimations()
+      .map((a) => {
+        const t = a as unknown as { transitionProperty?: string };
+        return {
+          kind: a.constructor.name,
+          property: t.transitionProperty ?? '',
+          duration: Number((a.effect?.getTiming().duration as number) ?? 0),
+          playState: a.playState,
+        };
+      });
+
+    await new Promise((r) => setTimeout(r, windowMs));
+    for (const t of ['transitionrun', 'transitionstart', 'transitionend']) {
+      node.removeEventListener(t, record);
+    }
+    return { before, after: raw(), running, events };
+  }, { windowMs: SAMPLE_WINDOW_MS });
+
+  const dashTransitions = motion.running.filter((a) => a.property === 'stroke-dashoffset');
+  const dashEvents = motion.events.filter((e) => e.property === 'stroke-dashoffset');
 
   await attach(testInfo, 'motif-arc-motion.json', {
-    before: samples.before,
-    after: samples.after,
-    sampleCount: samples.series.length,
-    intervalMs: SAMPLE_INTERVAL_MS,
+    computedBefore: motion.before,
+    computedAfter: motion.after,
+    computedIsUnresolvedCalc: motion.before.includes('calc('),
+    runningAnimations: motion.running,
+    transitionEvents: motion.events,
+    dashTransitionCount: dashTransitions.length,
     windowMs: SAMPLE_WINDOW_MS,
-    distinctIntermediate: intermediate.length,
-    intermediateValues: intermediate.slice(0, 30),
-    series: samples.series,
-    verdict: intermediate.length >= MIN_INTERMEDIATE_SAMPLES ? 'CHẠY' : 'NHẢY',
+    motionSlowMs: MOTION_SLOW_MS,
+    verdict: dashTransitions.length > 0 ? 'CHẠY' : 'NHẢY',
   });
 
-  // Tiền đề: `--p` có tác dụng gì đó. Nếu `before === after` thì phép đo không
-  // nói gì về chạy-hay-nhảy — nó chỉ nói `calc()` không phản ứng với `--p`, và
-  // đó là một hỏng hóc khác, nặng hơn.
+  // Tiền đề: `--p` có tác dụng. `before === after` nghĩa là `calc(1 - var(--p))`
+  // không phản ứng với custom property — cung đứng yên ở MỌI tiến độ, một hỏng
+  // hóc nặng hơn "nhảy".
   expect(
-    hi - lo,
+    motion.after,
     `Đổi \`--p\` từ 0.05 sang 0.95 mà \`stroke-dashoffset\` không đổi ` +
-      `(${String(samples.before)} → ${String(samples.after)}). \`calc(1 - var(--p))\` ` +
-      `không phản ứng với custom property — cung sẽ đứng yên ở MỌI tiến độ, và đó ` +
-      `là lỗi nặng hơn "nhảy".`,
-  ).toBeGreaterThan(0.5);
+      `(${motion.before} → ${motion.after}).`,
+  ).not.toBe(motion.before);
 
   expect(
-    intermediate.length,
-    `Cung NHẢY chứ không chạy: chỉ ${String(intermediate.length)} giá trị trung gian ` +
-      `trong ${String(samples.series.length)} mẫu suốt ${String(SAMPLE_WINDOW_MS)}ms ` +
-      `(cần ≥ ${String(MIN_INTERMEDIATE_SAMPLES)}). Nghĩa là trình duyệt KHÔNG nội ` +
-      `suy giữa hai giá trị \`calc()\` khi \`--p\` — một custom property chưa đăng ký ` +
-      `— nhảy rời rạc.\n` +
+    { transitions: dashTransitions, events: dashEvents },
+    `Cung NHẢY chứ không chạy: đổi \`--p\` KHÔNG tạo ra CSSTransition nào trên ` +
+      `\`stroke-dashoffset\`, và không sự kiện \`transitionrun/start/end\` nào bắn ` +
+      `cho thuộc tính đó.
+` +
+      `Giá trị computed: ${motion.before} → ${motion.after}. Animation đang chạy: ` +
+      `${JSON.stringify(motion.running)}.
+` +
+      `Nghĩa là trình duyệt KHÔNG nội suy giữa hai giá trị \`calc()\` khi \`--p\` — ` +
+      `một custom property chưa đăng ký qua \`@property\` — nhảy rời rạc.
+` +
       `⚠ ĐỌC KỸ TRƯỚC KHI SỬA: đường lùi ĐÃ SẴN (\`dashOffsetAt(p)\` trả số thô, đặt ` +
       `thẳng vào \`strokeDashoffset\`), nhưng hợp đồng §8.3 ghi dạng \`calc()\` là BẮT ` +
       `BUỘC. Ô đỏ này là một phát hiện phải ghi vào report và đưa lên chủ hợp đồng, ` +
       `KHÔNG phải một lời mời đổi mã sản phẩm ngay tại chỗ.`,
-  ).toBeGreaterThanOrEqual(MIN_INTERMEDIATE_SAMPLES);
+  ).toEqual({ transitions: expect.any(Array), events: expect.any(Array) });
+
+  expect(dashTransitions.length + dashEvents.length).toBeGreaterThan(0);
 });
