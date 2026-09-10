@@ -7,6 +7,18 @@
 > Chặng này **không brainstorm lại**. Mọi quyết định thiết kế đã chốt trong design doc và trong
 > bốn lượt hỏi ngày 2026-09-10. Chỗ nào design đã nói, plan này trỏ tới chứ không chép lại.
 
+**Trạng thái 2026-09-10:** `16.0` XONG (ba hợp đồng trên `main`). `16.A` XONG trên nhánh
+`feat/p16-frontend-rebuild` — 20 commit, `turbo run build lint typecheck test` = `Tasks: 32
+successful, 32 total`, test đã chạy: web 1602, ui 858, games 402, scenario 285, terminal 133,
+motion 110, copy 52, shared-types 48. Ba ô AC chuyển sang `16.I` (mục 16.I.5) vì cần trình duyệt
+thật; ba khoản nợ ghi ở mục 8. **`16.B`..`16.H` chưa bắt đầu.**
+
+16.A được chia bốn khối thay vì "1 người tuần tự" như bảng mục 4 — `packages/ui` một mình đã 65
+file, cộng 46 token và hai package mới. Ranh giới sở hữu file giữ nguyên như plan pin: A1
+`globals.css` + `layout.tsx` + `public/`, A2 `packages/copy`, A3 `packages/motion`, A4
+`packages/ui`. Điểm nghẽn duy nhất không chia được là `pnpm install`, nên lead cài sẵn một lần
+trước khi fan-out.
+
 ---
 
 ## 1. Objective
