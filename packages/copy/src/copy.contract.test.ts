@@ -61,35 +61,51 @@ function walkFiles(dir: string, ext: string): string[] {
 // ───────────────────────────────────────────────────────────────────────────
 
 /**
- * ⚠ RATCHET, KHÔNG PHẢI MỤC TIÊU. Hai con số dưới đây là SÀN, và chúng chỉ đi
- * lên.
+ * Hợp đồng §3.0: `entries.length > 80` và `totalBytes > 20_000`. Khẳng định
+ * THẲNG theo hai con số đó, không qua một biến sàn trung gian.
  *
- * Hợp đồng §3.0 viết thẳng `entries.length > 80` và `totalBytes > 20_000`. Hai
- * ngưỡng đó mô tả trạng thái SAU KHI cả bảy lane hạ cánh. Ở lượt L0 bản đồ chỉ
- * có `common.` và `error.` (§6.1 giao đúng hai file đó cho L0), nên ghim thẳng
- * 80 sẽ làm suite đỏ ngay từ commit đầu tiên, và đỏ vì một lý do không ai sửa
- * được: tám surface còn lại CỐ Ý rỗng cho tới khi lane của chúng chạy.
+ * ## Vì sao hằng số sàn bị xoá, chứ không được nâng
  *
- * Luật của ratchet, cả ba nằm trong thông điệp lỗi bên dưới vì người gặp nó lần
- * đầu sẽ không đọc file này:
+ * Từ lượt L0 tới 2026-09-11 file này giữ `MIN_ENTRIES = 39` và
+ * `MIN_TOTAL_BYTES = 1_668` làm ratchet, vì lúc đó tám surface còn cố ý rỗng và
+ * ghim thẳng 80 sẽ làm suite đỏ vì một lý do không ai sửa được. Luật của chính
+ * ratchet đó, viết trong `RATCHET_RULE` cũ, có ba vế, và vế thứ ba nói:
  *
- *   - Số ĐO ĐƯỢC tụt xuống dưới sàn: hồi quy. Ai đó vừa xoá khoá. Điều tra, và
- *     KHÔNG hạ sàn.
- *   - Số đo được vượt sàn: hướng tốt. LEAD nâng sàn lúc tích hợp, không phải
- *     lane nâng. Bảy lane cùng sửa một con số trong một file là đúng lớp đua ghi
- *     mà `registry.ts` được bảo vệ để tránh.
- *   - Sàn chạm mục tiêu hợp đồng: XOÁ hằng số và khẳng định thẳng theo hợp đồng.
- *     Không ghim lại.
+ *     Sàn chạm mục tiêu hợp đồng thì XOÁ hằng số và khẳng định thẳng theo hợp
+ *     đồng. Không ghim lại.
+ *
+ * Điều kiện đó đạt từ lâu mà không ai thi hành nó. Đo 2026-09-11: bản đồ có
+ * 1080 khoá, tức gấp 13,5 lần mục tiêu 80. Trong khi đó ô tự kiểm của ratchet
+ * (`MIN_ENTRIES <= CONTRACT_TARGET_ENTRIES`) vẫn XANH, vì nó so SÀN với mục
+ * tiêu chứ không so SỐ ĐO với mục tiêu, và sàn thì không ai nâng.
+ *
+ * Hệ quả đo được: bản đồ mất 1041 khoá mà T0 vẫn xanh. Một cổng chạy ở 3,6%
+ * công suất là đồ trang trí, và nó là loại nguy hiểm nhất vì nó BÁO XANH.
+ *
+ * ## Vế thứ hai, không có trong hợp đồng, và vì sao nó cần
+ *
+ * Một ngưỡng trên TỔNG không thấy được việc MỘT surface bị xoá sạch: xoá cả
+ * `error.` (5 khoá) thì tổng vẫn 1075, vẫn qua 80. Nên `SURFACE_FLOOR` dưới đây
+ * gác theo TỪNG surface, đúng theo tinh thần T5 (cộng từng phần thay vì tin vào
+ * tổng).
  */
-const MIN_ENTRIES = 39;
-const MIN_TOTAL_BYTES = 1_668;
-const CONTRACT_TARGET_ENTRIES = 80;
-const CONTRACT_TARGET_BYTES = 20_000;
 
-const RATCHET_RULE =
-  'SÀN chỉ đi lên. Tụt xuống nghĩa là có khoá bị xoá: điều tra, đừng hạ sàn. ' +
-  'Vượt sàn thì LEAD nâng sàn lúc tích hợp, không phải lane nâng. ' +
-  `Khi sàn chạm mục tiêu hợp đồng (${CONTRACT_TARGET_ENTRIES} khoá / ${CONTRACT_TARGET_BYTES} byte) thì XOÁ hằng số và khẳng định thẳng theo hợp đồng.`;
+/** Hợp đồng §3.0, khẳng định thẳng. Không có biến sàn trung gian nào nữa. */
+const CONTRACT_MIN_ENTRIES = 80;
+const CONTRACT_MIN_BYTES = 20_000;
+
+/**
+ * Surface được phép rỗng, kèm ngày và lý do. Hình dạng giống `intentionalThree`
+ * vì nó là cùng một loại lời khai: "trạng thái này là cố ý, đây là lý do".
+ *
+ * ⛔ Đây là một pinned baseline, nên nó ship kèm companion ở ô cuối T0: dòng
+ * miễn trừ nào KHÔNG còn đúng thì cổng ĐỎ, và cách sửa là XOÁ dòng đó, không
+ * phải ghim lại một con số mới (`rules/pinned-baseline-test-companion.md`).
+ */
+const SURFACE_MAY_BE_EMPTY: Readonly<Record<string, string>> = {
+  problem:
+    '2026-09-11: surface vừa tạo cho vùng bài tập k8s, lane chuyển chuỗi chưa hạ cánh. Xoá dòng này ngay khi khoá đầu tiên vào problem.ts.',
+};
 
 describe('T0 · đối chứng rỗng', () => {
   it('danh sách file surface suy ra TỪ KHOÁ của SURFACES, không gõ tay', () => {
@@ -112,11 +128,12 @@ describe('T0 · đối chứng rỗng', () => {
     }
   });
 
-  it('bản đồ không rỗng', () => {
+  it('bản đồ vượt sàn hợp đồng §3.0 về SỐ KHOÁ', () => {
     const count = Object.keys(MESSAGES).length;
-    expect(count, `${count} khoá, sàn là ${MIN_ENTRIES}. ${RATCHET_RULE}`).toBeGreaterThanOrEqual(
-      MIN_ENTRIES,
-    );
+    expect(
+      count,
+      `${count} khoá, hợp đồng §3.0 đòi hơn ${CONTRACT_MIN_ENTRIES}. Tụt xuống dưới nghĩa là có khoá bị xoá: điều tra, đừng hạ ngưỡng.`,
+    ).toBeGreaterThan(CONTRACT_MIN_ENTRIES);
   });
 
   it('giá trị dựng ra có khối lượng thật', () => {
@@ -124,9 +141,10 @@ describe('T0 · đối chứng rỗng', () => {
       (total, rv) => total + Buffer.byteLength(rv.value, 'utf8'),
       0,
     );
-    expect(bytes, `${bytes} byte, sàn là ${MIN_TOTAL_BYTES}. ${RATCHET_RULE}`).toBeGreaterThanOrEqual(
-      MIN_TOTAL_BYTES,
-    );
+    expect(
+      bytes,
+      `${bytes} byte, hợp đồng §3.0 đòi hơn ${CONTRACT_MIN_BYTES}. Tụt xuống dưới nghĩa là có giá trị bị rút ngắn hoặc bị xoá.`,
+    ).toBeGreaterThan(CONTRACT_MIN_BYTES);
   });
 
   /**
@@ -138,9 +156,53 @@ describe('T0 · đối chứng rỗng', () => {
     expect(RENDERED.failures).toEqual([]);
   });
 
-  it('sàn chưa vượt mục tiêu hợp đồng, nếu vượt thì đã tới lúc xoá hằng số', () => {
-    expect(MIN_ENTRIES, RATCHET_RULE).toBeLessThanOrEqual(CONTRACT_TARGET_ENTRIES);
-    expect(MIN_TOTAL_BYTES, RATCHET_RULE).toBeLessThanOrEqual(CONTRACT_TARGET_BYTES);
+  /**
+   * Vế mà một ngưỡng trên TỔNG không mua được: xoá sạch một surface nhỏ thì
+   * tổng gần như không nhúc nhích và ô ở trên vẫn xanh.
+   */
+  it('không surface nào rỗng, trừ những cái đã khai lý do', () => {
+    const empty = Object.entries(SURFACES)
+      .filter(([, entries]) => Object.keys(entries).length === 0)
+      .map(([name]) => name);
+    const undeclared = empty.filter((name) => SURFACE_MAY_BE_EMPTY[name] === undefined);
+    expect(
+      undeclared,
+      `surface rỗng mà không có lời khai: ${undeclared.join(', ')}. Khai vào SURFACE_MAY_BE_EMPTY kèm ngày và lý do, hoặc điều tra xem khoá đi đâu.`,
+    ).toEqual([]);
+  });
+
+  /**
+   * Companion của pinned baseline ở trên, theo `rules/pinned-baseline-test-companion.md`.
+   *
+   * Thiếu ô này thì `SURFACE_MAY_BE_EMPTY` trở thành nghĩa địa: một surface đã
+   * được đổ đầy từ lâu vẫn nằm trong danh sách miễn trừ, và lần sau nó bị xoá
+   * sạch thì không ô nào đỏ.
+   *
+   * ⛔ Ô này ĐỎ là tin TỐT. Cách sửa là XOÁ dòng miễn trừ, không phải viết lại
+   * lý do cho nó khớp trạng thái mới.
+   */
+  it('không dòng miễn trừ nào hết hạn', () => {
+    const stale = Object.keys(SURFACE_MAY_BE_EMPTY).filter((name) => {
+      const entries = SURFACES[name as keyof typeof SURFACES] as Record<string, unknown> | undefined;
+      return entries !== undefined && Object.keys(entries).length > 0;
+    });
+    expect(
+      stale,
+      `surface đã có khoá nhưng vẫn nằm trong SURFACE_MAY_BE_EMPTY: ${stale.join(', ')}. XOÁ dòng đó đi, đừng sửa lý do.`,
+    ).toEqual([]);
+  });
+
+  it('mọi tên trong SURFACE_MAY_BE_EMPTY là một surface có thật', () => {
+    const unknown = Object.keys(SURFACE_MAY_BE_EMPTY).filter((n) => !(n in SURFACES));
+    expect(unknown, `tên không có trong SURFACES: ${unknown.join(', ')}`).toEqual([]);
+  });
+
+  it('mỗi lý do miễn trừ có ngày và đủ dài để đọc ra được', () => {
+    for (const [name, reason] of Object.entries(SURFACE_MAY_BE_EMPTY)) {
+      expect(reason, `lý do của ${name} phải mở đầu bằng YYYY-MM-DD`).toMatch(
+        /^\d{4}-\d{2}-\d{2}: .{20,}/,
+      );
+    }
   });
 });
 

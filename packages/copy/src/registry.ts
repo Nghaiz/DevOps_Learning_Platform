@@ -28,6 +28,7 @@ import { common, commonIntentionalThree } from './surfaces/common.ts';
 import { error, errorIntentionalThree } from './surfaces/error.ts';
 import { home, homeIntentionalThree } from './surfaces/home.ts';
 import { me, meIntentionalThree } from './surfaces/me.ts';
+import { problem, problemIntentionalThree } from './surfaces/problem.ts';
 import { session, sessionIntentionalThree } from './surfaces/session.ts';
 import { shell, shellIntentionalThree } from './surfaces/shell.ts';
 
@@ -48,6 +49,7 @@ export const SURFACES = {
   home,
   admin,
   author,
+  problem,
   me,
 } as const;
 
@@ -70,6 +72,7 @@ export const SURFACE_PREFIXES = {
   home: ['home'],
   admin: ['admin'],
   author: ['author'],
+  problem: ['problem'],
   me: ['me'],
 } as const satisfies Readonly<Record<keyof typeof SURFACES, readonly string[]>>;
 
@@ -91,6 +94,7 @@ export const MESSAGES = {
   ...home,
   ...admin,
   ...author,
+  ...problem,
   ...me,
 } as const;
 
@@ -112,6 +116,7 @@ export const INTENTIONAL_THREE: IntentionalThree = {
   ...homeIntentionalThree,
   ...adminIntentionalThree,
   ...authorIntentionalThree,
+  ...problemIntentionalThree,
   ...meIntentionalThree,
 };
 
@@ -129,5 +134,6 @@ export const SURFACE_INTENTIONAL_THREE = {
   home: homeIntentionalThree,
   admin: adminIntentionalThree,
   author: authorIntentionalThree,
+  problem: problemIntentionalThree,
   me: meIntentionalThree,
 } as const satisfies Readonly<Record<keyof typeof SURFACES, IntentionalThree>>;
