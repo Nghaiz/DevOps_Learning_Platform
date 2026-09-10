@@ -66,6 +66,12 @@ export type {
   UnknownCapacityHint,
 } from './capacity';
 export { IDE_BOOT_TIMEOUT_MS, IDE_LAYOUT, ideSessionUrl, shouldShowIdePane } from './ide-layout';
+// P16 / 16.D.3 — chuyển từ `app/lessons/[id]/ide-pane.tsx` sang đây. Bài nào
+// bật IDE là quyết định NỘI DUNG, không phải quyết định kiến trúc, nên lab
+// phải với tới được nó. `WorkspacePanel` không đổi một dòng: nó vốn chỉ nhận
+// `editor?: ReactNode`.
+export { IdePane } from './ide-pane.tsx';
+export type { IdePaneProps } from './ide-pane.tsx';
 export { resolveTerminalTheme } from './terminal-theme';
 export { ShellFallbackNotice } from './shell-fallback-notice.tsx';
 export type { ShellFallbackNoticeProps } from './shell-fallback-notice.tsx';

@@ -58,7 +58,13 @@ function stubFetch(statuses: readonly (number | 'network')[]): void {
       if (!url.includes(IDE_URL_FRAGMENT)) {
         throw new Error(`thăm dò gọi nhầm URL: ${url}`);
       }
+      // `noUncheckedIndexedAccess` đang bật, và một `?? 200` để làm nó im lặng
+      // sẽ biến một hàng đợi rỗng thành "mọi lượt đều thành công" — tức một ô
+      // test xanh vì helper hỏng. Ném ra thì hỏng ở đúng chỗ hỏng.
       const status = statuses[Math.min(at, statuses.length - 1)];
+      if (status === undefined) {
+        throw new Error('stubFetch cần ít nhất một mã trạng thái');
+      }
       at += 1;
       if (status === 'network') {
         return Promise.reject(new Error('mạng hỏng'));

@@ -6,6 +6,7 @@ import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
 import { Alert, AlertDescription, Button, ContentView, ProgressBar, StepNav } from '@devops-platform/ui';
 import {
   DEFAULT_PROFILE,
+  IdePane,
   SessionControls,
   ShellFallbackNotice,
   TerminalPane,
@@ -17,7 +18,6 @@ import {
 import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { IdePane } from './ide-pane';
 import { buildPhases, canCheck, phaseKeyForStepIndex } from './phases';
 import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
