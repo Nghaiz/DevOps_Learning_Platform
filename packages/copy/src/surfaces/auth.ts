@@ -94,16 +94,16 @@ export const auth = {
   // ── /reset-password ─────────────────────────────────────────────────────
   //
   // Màn này chỉ tới được từ một liên kết trong thư, mà thư thì chưa gửi được.
-  // Nên nó có HAI trạng thái vắng backend, không phải một: thiếu token (vào
-  // thẳng bằng tay), và có token nhưng không có nơi nào nhận.
+  //
+  // ⛔ KHÔNG có khoá nào cho ca "liên kết thiếu mã". Hai khoá như vậy đã tồn
+  // tại ở lượt đầu và bị xoá cùng nhánh đọc mã ra khỏi query string, thứ mà
+  // `security/rule-08-no-token-in-url.test.ts` bắt được: luật 8 cấm mọi mã đi
+  // qua query string. Không có mã trên URL thì cũng không có ca thiếu mã.
   'auth.reset.meta-title': 'Đặt lại mật khẩu · DevOps Learning Platform',
   'auth.reset.title': 'Đặt lại mật khẩu',
   'auth.reset.description': 'Chọn mật khẩu mới cho tài khoản của bạn.',
   'auth.reset.submit': 'Đặt mật khẩu mới',
   'auth.reset.back': 'Quay lại đăng nhập',
-  'auth.reset.no-token-title': 'Liên kết này thiếu mã đặt lại',
-  'auth.reset.no-token-body':
-    'Trang đặt lại mật khẩu chỉ mở được từ liên kết trong thư, và liên kết đó mang theo một mã dùng một lần. Địa chỉ bạn đang mở không có mã nào.',
   'auth.reset.unavailable-title': 'Chưa đổi được mật khẩu ở đây',
   'auth.reset.unavailable-body':
     'Máy chủ chưa nhận yêu cầu đặt lại mật khẩu, nên mật khẩu của bạn vẫn là mật khẩu cũ. Mọi thứ bạn vừa nhập không được lưu ở đâu cả.',

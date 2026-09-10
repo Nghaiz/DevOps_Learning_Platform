@@ -43,7 +43,10 @@ export function UserMenu({ viewer }: { readonly viewer: Viewer }) {
         throw new Error(`HTTP ${String(response.status)}`);
       }
     } catch (error: unknown) {
-      console.error('[auth] đăng xuất thất bại', error);
+      // Chữ NGƯỜI VẬN HÀNH đọc, nên nó ở lại tiếng Anh và KHÔNG vào
+      // `packages/copy` (§1.7: log không vào bản đồ). Bản trước viết câu này
+      // bằng tiếng Việt có dấu, và cổng T4 của lane bắt đúng nó.
+      console.error('[auth] sign-out request failed', error);
       // KHÔNG điều hướng khi thu hồi thất bại: cookie phiên vẫn còn, nên
       // `/login` sẽ bị `proxy.ts` đẩy ngược về `/me` và người dùng kết luận
       // "bấm đăng xuất không ăn thua" mà không biết vì sao.
