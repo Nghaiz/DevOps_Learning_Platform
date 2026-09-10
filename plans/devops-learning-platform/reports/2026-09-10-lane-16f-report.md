@@ -79,7 +79,8 @@ pnpm vitest run src/components/admin src/app/admin
 | `6bb88fa` | `feat(copy)` bản đồ thông điệp surface `admin.`, 6 cổng T0..T6 xanh |
 | `230b1ac` | `refactor(admin)` tám module thuần đi qua `packages/copy`, dấu cung đầu mỗi màn |
 | `1c0e718` | `feat(admin)` năm màn client đi qua `packages/copy`, cổng T4 hai chiều |
-| *(commit thứ tư)* | `test(admin)` bốn ô test theo kịp bản đồ, và bộ đo tự sửa lỗi của chính nó |
+| `728710d` | `test(admin)` bốn ô test theo kịp bản đồ, và bộ đo tự sửa lỗi của chính nó |
+| `0dda073` | `docs(plan)` chính báo cáo này |
 
 20 file đổi, không file nào ngoài glob sở hữu.
 
