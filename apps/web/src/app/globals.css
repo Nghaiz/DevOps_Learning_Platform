@@ -53,7 +53,10 @@
   /*
    * ── Thương hiệu ĐỎ ────────────────────────────────────────────────────────
    * `oklch(0.519 0.186 26.7)` = `#BC2626`, đo trực tiếp từ file logo gốc
-   * (`apps/web/public/logo-ptit.svg`, nét chữ "PTIT" của wordmark). Không phải
+   * (`apps/web/public/logo-ptit-mark.svg`, nét chữ "PTIT" bên trong biểu tượng).
+   * Bản wordmark kèm dòng "Học viện Công nghệ Bưu chính Viễn thông" đã bị bỏ
+   * theo yêu cầu 2026-09-10: hệ chỉ dùng biểu tượng, không dùng tên học viện
+   * dạng chữ. Không phải
    * một đỏ "trông hợp lý" rồi ghim lại — nó là màu có thật của nhận diện.
    *
    * 6.10:1 trên trắng (đủ cho cả vai trò link, SC 1.4.3), và chữ trắng
