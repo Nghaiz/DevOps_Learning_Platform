@@ -1,8 +1,7 @@
 import type { ReactElement } from 'react';
 import { Badge, ErrorState, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@devops-platform/ui';
-import { t } from '@devops-platform/copy';
+import { renderCopy, t } from '@devops-platform/copy';
 import type { ProblemSubmission } from '@devops-platform/games';
-import { renderCopy } from '../../../../components/catalog/catalog-labels';
 import { formatDuration, formatMoment } from '../problem-labels';
 
 /**

@@ -1,4 +1,4 @@
-import type { TextKey } from '@devops-platform/copy';
+import { renderCopy, type CopyRef, type TextKey } from '@devops-platform/copy';
 import {
   type ProblemDifficulty,
   type ProblemOrderKey,
@@ -6,7 +6,6 @@ import {
   type ProblemTopic,
   type ProblemViewerStatus,
 } from '@devops-platform/games';
-import { renderCopy, type CopyRef } from '../../../components/catalog/catalog-labels';
 
 /**
  * Nhãn + cách định dạng cho trang bài tập OJ. Hàm THUẦN, không JSX, để cả phần

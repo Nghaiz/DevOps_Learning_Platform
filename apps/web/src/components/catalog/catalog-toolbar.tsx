@@ -7,7 +7,7 @@ import {
   type SandboxTierName,
   type ScenarioDifficulty,
 } from '@devops-platform/shared-types/scenario';
-import { t } from '@devops-platform/copy';
+import { renderCopy, t } from '@devops-platform/copy';
 import {
   Button,
   Label,
@@ -25,7 +25,6 @@ import {
   catalogNoun,
   describeResultCount,
   difficultyLabel,
-  renderCopy,
   tierLabel,
   type CatalogKind,
 } from './catalog-labels';

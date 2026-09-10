@@ -1,3 +1,4 @@
+import { renderCopy, type CopyRef } from '@devops-platform/copy';
 import { describe, expect, it } from 'vitest';
 import { SCENARIO_DIFFICULTIES } from '@devops-platform/shared-types/scenario';
 import {
@@ -11,9 +12,7 @@ import {
   describeSearchScope,
   describeSortScope,
   progressStatusLabel,
-  renderCopy,
   type CatalogKind,
-  type CopyRef,
 } from './catalog-labels';
 
 const KINDS: readonly CatalogKind[] = ['lessons', 'labs', 'playgrounds', 'paths', 'quiz'];

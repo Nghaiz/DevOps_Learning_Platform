@@ -1,6 +1,5 @@
-import { t } from '@devops-platform/copy';
+import { t, type CopyRef } from '@devops-platform/copy';
 import type { ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
-import type { CopyRef } from '../../components/catalog/catalog-labels';
 import type { CatalogIconName } from '../../components/catalog/catalog-icons';
 
 /**

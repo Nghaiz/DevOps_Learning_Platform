@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderCopy } from '../catalog/catalog-labels';
+import { renderCopy } from '@devops-platform/copy';
 import { describeSaveOutcome } from './save-outcome';
 
 /**

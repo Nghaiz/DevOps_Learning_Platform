@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderCopy } from '../../components/catalog/catalog-labels';
+import { renderCopy } from '@devops-platform/copy';
 import { SCENARIO_DIFFICULTIES } from '@devops-platform/shared-types/scenario';
 import {
   GAMES,

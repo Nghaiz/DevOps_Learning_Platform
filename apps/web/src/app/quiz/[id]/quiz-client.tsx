@@ -21,10 +21,9 @@ import {
   RadioGroupItem,
   Skeleton,
 } from '@devops-platform/ui';
-import { t, type TextKey } from '@devops-platform/copy';
+import { renderCopy, t, type TextKey } from '@devops-platform/copy';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { renderCopy } from '../../../components/catalog/catalog-labels';
 import {
   MULTIPLE_ANSWER_RULE_KEYS,
   choiceReveal,

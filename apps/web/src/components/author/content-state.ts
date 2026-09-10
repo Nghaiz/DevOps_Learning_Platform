@@ -1,6 +1,5 @@
 import { CONTENT_STATES, type ContentKind, type ContentState } from '@devops-platform/shared-types/authoring';
-import { t, type TextKey } from '@devops-platform/copy';
-import type { CopyRef } from '../catalog/catalog-labels';
+import { t, type CopyRef, type TextKey } from '@devops-platform/copy';
 
 /**
  * Từ vựng TRẠNG THÁI cho trang soạn bài (13.F task 20).

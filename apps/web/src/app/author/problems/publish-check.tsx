@@ -2,9 +2,8 @@
 
 import type { ReactElement } from 'react';
 import { Alert, AlertDescription, AlertTitle, Badge, Button } from '@devops-platform/ui';
-import { count, t, type TextKey } from '@devops-platform/copy';
+import { count, renderCopy, t, type CopyRef, type TextKey } from '@devops-platform/copy';
 import type { ProblemState } from '@devops-platform/games';
-import { renderCopy, type CopyRef } from '../../../components/catalog/catalog-labels';
 import type { FieldIssue } from './cluster-form';
 import { STATE_BADGE, STATE_KEYS } from './problem-labels';
 

@@ -1,10 +1,9 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import { t } from '@devops-platform/copy';
+import { renderCopy, t } from '@devops-platform/copy';
 import { Button, ErrorState } from '@devops-platform/ui';
 import { describeCatalogError } from './catalog-error-kind';
-import { renderCopy } from './catalog-labels';
 
 /**
  * Lỗi tải danh sách danh mục.

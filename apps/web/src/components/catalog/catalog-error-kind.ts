@@ -36,7 +36,7 @@
  * client hiện chưa truyền mã (xem `catalog-error.tsx`) im lặng nhận một chẩn
  * đoán mà không ai đo được.
  */
-import type { CopyRef } from './catalog-labels';
+import { type CopyRef } from '@devops-platform/copy';
 
 export type CatalogErrorKind = 'retryable' | 'stale-cursor' | 'unknown';
 

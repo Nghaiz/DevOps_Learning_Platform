@@ -2,11 +2,11 @@
 
 import { useMemo, type ReactElement, type ReactNode } from 'react';
 import { SCENARIO_DIFFICULTIES, type ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
-import { t } from '@devops-platform/copy';
+import { renderCopy, t } from '@devops-platform/copy';
 import { Button, SearchTabs, type SearchTabItem } from '@devops-platform/ui';
 import { CatalogIcon } from '../../components/catalog/catalog-icons';
 import { FilterChip } from '../../components/catalog/catalog-toolbar';
-import { difficultyLabel, renderCopy } from '../../components/catalog/catalog-labels';
+import { difficultyLabel } from '../../components/catalog/catalog-labels';
 import {
   GAME_TOPICS,
   GAME_TOPIC_LABEL,

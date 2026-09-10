@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import Link from 'next/link';
 import { Play, Timer } from 'lucide-react';
-import { t } from '@devops-platform/copy';
+import { renderCopy, t } from '@devops-platform/copy';
 import { Alert, AlertDescription, Badge, Button, MarkdownView } from '@devops-platform/ui';
 import {
   PROBLEM_TOPIC_LABELS,
@@ -9,7 +9,6 @@ import {
   type ProblemStats,
   type ProblemViewerStatus,
 } from '@devops-platform/games';
-import { renderCopy } from '../../../../components/catalog/catalog-labels';
 import { DifficultyBadge, ViewerStatusBadge } from '../problem-badges';
 import { formatAcceptance, formatTimeLimit } from '../problem-labels';
 

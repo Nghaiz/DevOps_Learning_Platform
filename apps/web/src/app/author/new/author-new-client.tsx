@@ -18,10 +18,9 @@ import {
 } from '@devops-platform/ui';
 import { CONTENT_KINDS, type ContentKind } from '@devops-platform/shared-types/authoring';
 import { scenarioIdSchema } from '@devops-platform/shared-types/scenario';
-import { count, t } from '@devops-platform/copy';
+import { count, renderCopy, t } from '@devops-platform/copy';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { renderCopy } from '../../../components/catalog/catalog-labels';
 import { DraftFormView } from '../../../components/author/draft-form-view';
 import { emptyDraft, toDraftInput, type DraftFormState, type FieldIssue } from '../../../components/author/draft-form';
 import { KIND_KEYS } from '../../../components/author/content-state';

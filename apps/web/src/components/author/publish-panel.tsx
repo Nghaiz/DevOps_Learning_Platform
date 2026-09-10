@@ -16,7 +16,7 @@ import {
   DialogTitle,
   Spinner,
 } from '@devops-platform/ui';
-import { renderCopy } from '../catalog/catalog-labels';
+import { renderCopy } from '@devops-platform/copy';
 import type { PreviewPayload } from './draft-from-preview';
 import { describeScriptReport, summarizeScriptChecks, type ScriptWarningView } from './script-warning';
 import type { PublishPhase } from './publish-machine';

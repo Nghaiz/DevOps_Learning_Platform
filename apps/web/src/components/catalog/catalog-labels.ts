@@ -1,4 +1,4 @@
-import { t, type Params, type TextKey } from '@devops-platform/copy';
+import { t, type CopyRef, type TextKey } from '@devops-platform/copy';
 import type { BadgeVariant } from '@devops-platform/ui';
 import type { SandboxTierName, ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
 
@@ -23,45 +23,23 @@ import type { SandboxTierName, ScenarioDifficulty } from '@devops-platform/share
  *
  * ## Vì sao các hàm này KHÔNG nằm trong `packages/copy`
  *
- * Hợp đồng §1.6 nói chúng đi cùng sang đó. Chúng không sang được:
- * `packages/copy/package.json` khai đúng bốn lối vào (`.`, `./types`,
- * `./registry`, `./scan`) và không lối nào chở được một hàm khai trong
- * `surfaces/`; mở thêm một lối phải sửa `package.json` hoặc `t.ts`, hai file mà
- * §6.1 khoá cho L0. Thứ §1.6 thật sự mua là "mọi nhánh là một mục tĩnh trong
- * bản đồ", và điều đó đạt đủ khi bản đồ ở bên kia còn nhánh ở bên này: bộ dò
- * đọc bản đồ, không đọc bộ chọn.
- */
-
-/**
- * Một tham chiếu tới bản đồ thông điệp: khoá cộng tham số, chưa dựng thành câu.
+ * Hợp đồng §1.6 nói chúng đi cùng sang đó. Chúng không sang được, nhưng KHÔNG
+ * vì lý do từng ghi ở đây ("`package.json` khai đúng bốn lối vào"). Lý do thật
+ * nằm ở KIỂU: các hàm này nhận kiểu MIỀN của `apps/web` (`SandboxTierName`,
+ * `ScenarioDifficulty`, `ProblemRow`), nên kéo chúng sang là kéo cả cây kiểu của
+ * ứng dụng vào một gói khai "không có khối `dependencies`" như một hợp đồng.
  *
- * ⚠ Kiểu này CỐ Ý mất phần kiểm tham số ở tầng biên dịch. `t('catalog.pager.page')`
- * viết thẳng thì TypeScript đòi đúng `{ page: number }`; đi qua `CopyRef` thì
- * `params` chỉ còn là `Params`. Đó là cái giá của việc một hàm chọn trả về
- * nhiều khoá có chữ ký khác nhau, và nó được bù bằng test: mỗi nhánh của mỗi bộ
- * chọn có một ca DỰNG RA CÂU và so với chữ thật, nên một tham số sai tên hiện
- * ra ngay dưới dạng chuỗi thiếu chỗ chứ không lọt.
+ * Thứ §1.6 thật sự mua là "mọi nhánh là một mục tĩnh trong bản đồ", và điều đó
+ * đạt đủ khi bản đồ ở bên kia còn nhánh ở bên này: bộ dò đọc bản đồ, không đọc
+ * bộ chọn.
  *
- * Khoá thì VẪN được kiểm: `TextKey` là union các khoá chữ có thật, nên gõ sai
- * tên khoá là lỗi biên dịch.
+ * ⚠ `CopyRef` và `renderCopy` thì ĐÃ sang, ngày 2026-09-11, và chúng là phản ví
+ * dụ cho lý lẽ cũ: cả hai chỉ cần `TextKey` và `Params`, hai kiểu vốn đã sống
+ * trong `t.ts`, nên không đòi lối vào mới nào. Trước đó bốn cây khác
+ * (`components/author`, `app/author/problems`, `app/(session)/problems`,
+ * `app/quiz`) phải import ngược vào file của lane 16.C chỉ để lấy chúng. Lý do
+ * đầy đủ nằm ở `packages/copy/src/t.ts`.
  */
-export interface CopyRef {
-  readonly key: TextKey;
-  readonly params?: Params;
-}
-
-/**
- * Dựng một `CopyRef` thành câu.
- *
- * Một phép ép kiểu, ở đúng MỘT chỗ, và nó an toàn lúc chạy: `t()` tự phân biệt
- * mục tĩnh với mục động bằng `typeof entry === 'function'`, nên truyền thừa
- * tham số cho một mục tĩnh không gây gì, và truyền đúng tham số cho một mục
- * động thì chạy đúng.
- */
-export function renderCopy(ref: CopyRef): string {
-  const call = t as unknown as (key: TextKey, params?: Params) => string;
-  return ref.params === undefined ? call(ref.key) : call(ref.key, ref.params);
-}
 
 /** Loại danh mục. Tập cố định, đúng 5 giá trị. */
 export type CatalogKind = 'lessons' | 'labs' | 'playgrounds' | 'paths' | 'quiz';

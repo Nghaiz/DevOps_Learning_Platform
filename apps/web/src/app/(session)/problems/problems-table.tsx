@@ -1,9 +1,8 @@
 import Link from 'next/link';
 import type { ReactElement } from 'react';
-import { t } from '@devops-platform/copy';
+import { renderCopy, t } from '@devops-platform/copy';
 import { Badge, Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@devops-platform/ui';
 import { PROBLEM_TOPIC_LABELS, type ProblemWithStats } from '@devops-platform/games';
-import { renderCopy } from '../../../components/catalog/catalog-labels';
 import { DifficultyBadge, ViewerStatusBadge } from './problem-badges';
 import { formatAcceptance, formatTimeLimit, joinTopics } from './problem-labels';
 

@@ -1,9 +1,9 @@
+import { renderCopy } from '@devops-platform/copy';
 import type { ReactElement, ReactNode } from 'react';
 import {
   describePageScope,
   describeSearchScope,
   describeSortScope,
-  renderCopy,
   type CatalogKind,
 } from './catalog-labels';
 

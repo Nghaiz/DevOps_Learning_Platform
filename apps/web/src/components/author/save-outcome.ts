@@ -1,4 +1,4 @@
-import type { CopyRef } from '../catalog/catalog-labels';
+import { type CopyRef } from '@devops-platform/copy';
 
 /**
  * Kết quả một lượt `authoring.update` — và vì sao nó cần một hàm riêng.

@@ -18,10 +18,9 @@ import {
   TabsList,
   TabsTrigger,
 } from '@devops-platform/ui';
-import { t } from '@devops-platform/copy';
+import { renderCopy, t } from '@devops-platform/copy';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
-import { renderCopy } from '../../components/catalog/catalog-labels';
 import {
   countByFilter,
   describeItem,

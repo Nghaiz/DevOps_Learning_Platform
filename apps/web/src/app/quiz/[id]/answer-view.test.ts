@@ -5,7 +5,7 @@ import {
   type QuizFull,
   type QuizQuestionResult,
 } from '@devops-platform/shared-types/quiz';
-import { renderCopy, type CopyRef } from '../../../components/catalog/catalog-labels';
+import { renderCopy, type CopyRef } from '@devops-platform/copy';
 import { MULTIPLE_ANSWER_RULE_KEYS, choiceReveal, summarizeAnswers } from './answer-view';
 
 /**

@@ -17,10 +17,9 @@ import {
   TabsTrigger,
   useToast,
 } from '@devops-platform/ui';
-import { count, t } from '@devops-platform/copy';
+import { count, renderCopy, t } from '@devops-platform/copy';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { renderCopy } from '../../../components/catalog/catalog-labels';
 import { DraftFormView } from '../../../components/author/draft-form-view';
 import {
   toDraftInput,

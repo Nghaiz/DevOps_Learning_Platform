@@ -2,9 +2,9 @@
 
 import type { ReactElement, ReactNode } from 'react';
 import Link from 'next/link';
-import { t } from '@devops-platform/copy';
+import { renderCopy, t } from '@devops-platform/copy';
 import { Button, EmptyState } from '@devops-platform/ui';
-import { describeCatalogEmpty, renderCopy, type CatalogKind } from './catalog-labels';
+import { describeCatalogEmpty, type CatalogKind } from './catalog-labels';
 
 /**
  * Trạng thái rỗng của trang danh mục.

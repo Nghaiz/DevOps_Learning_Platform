@@ -1,10 +1,9 @@
-import type { TextKey } from '@devops-platform/copy';
+import { type CopyRef, type TextKey } from '@devops-platform/copy';
 import type {
   QuizForLearner,
   QuizMultipleAnswerRule,
   QuizQuestionResult,
 } from '@devops-platform/shared-types/quiz';
-import type { CopyRef } from '../../../components/catalog/catalog-labels';
 
 /**
  * Mô hình hiển thị của trang làm quiz — hàm THUẦN, tách khỏi cây component.

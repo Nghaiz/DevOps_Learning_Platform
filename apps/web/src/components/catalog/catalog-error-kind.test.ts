@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FIRST_PAGE, currentCursor, pageNumber, pushCursor, type CursorStack } from '../../lib/cursor-stack';
 import { NO_FILTER, buildCatalogListInput } from './catalog-input';
 import { describeCatalogError } from './catalog-error-kind';
-import { renderCopy, type CopyRef } from './catalog-labels';
+import { renderCopy, type CopyRef } from '@devops-platform/copy';
 
 /**
  * `hint` nay là `CopyRef` chứ không phải câu (§1.6 của p16-copy.md), nên mọi
