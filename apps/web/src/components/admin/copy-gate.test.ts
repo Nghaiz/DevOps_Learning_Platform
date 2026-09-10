@@ -150,7 +150,15 @@ describe('T4 chiều ngược · mọi khoá của surface admin đều có nơi
     'admin.ts',
   );
 
-  const source = readFileSync(SURFACE, 'utf8');
+  /*
+    Cắt ở `adminIntentionalThree` TRƯỚC khi trích khoá. Bảng miễn trừ đúng ba
+    dùng cùng một hình dạng dòng (hai dấu cách, một chuỗi `admin.*`, dấu hai
+    chấm), nên một regex chạy trên cả file đọc ba TIỀN TỐ nhóm thành ba khoá
+    chết. Đó là một ô đỏ về chính bộ đo, không phải về sản phẩm.
+  */
+  const whole = readFileSync(SURFACE, 'utf8');
+  const cut = whole.indexOf('export const adminIntentionalThree');
+  const source = cut === -1 ? whole : whole.slice(0, cut);
   const keys = [...source.matchAll(/^ {2}'(admin\.[a-z0-9.-]+)':/gm)].map((m) => m[1] as string);
   const callSites = FILES.map((file) => readFileSync(file, 'utf8')).join('\n');
 
