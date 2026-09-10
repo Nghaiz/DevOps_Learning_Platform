@@ -208,7 +208,7 @@ export function LoopStoryClient(): ReactElement {
               )}
             >
               <p className="text-xs font-medium tabular-nums text-muted-foreground">
-                {t('home.loop.stage-position', { n: index + 1, total: STAGE_COUNT })}
+                {t('home.stage.position', { n: index + 1, total: STAGE_COUNT })}
               </p>
               <h3
                 className={cn(

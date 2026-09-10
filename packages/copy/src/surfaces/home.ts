@@ -75,8 +75,19 @@ export const home = {
   'home.loop.heading': 'Một vòng, bảy chặng',
   'home.loop.lede':
     'Đây là đường đi của một thay đổi, từ lúc bạn gõ tới lúc người dùng nhận. Chặng sáu là chặng bạn không phải làm gì.',
-  'home.loop.stage-position': (p: { n: number; total: number }) =>
-    `Chặng ${p.n} trên ${p.total}`,
+
+  /*
+   * Nhãn vị trí nằm dưới tiền tố `home.stage`, KHÔNG dưới `home.loop`. Nó là
+   * nhãn của một CHẶNG, không phải chữ của dải, và chỗ đứng đó cũng là chỗ giữ
+   * `home.loop` ở hai khoá thay vì ba.
+   *
+   * Con số ba đã xuất hiện ở đây một lần thật: bản nháp có thêm một khoá mô tả
+   * cảnh 3D cho trình đọc màn hình, bỏ đi vì lớp canvas mang `aria-hidden`, và
+   * nhóm tụt từ bốn xuống ba. Cổng T3 đỏ đúng lúc đó. Cách sửa là xem lại chỗ
+   * đứng của khoá, không phải thêm một dòng miễn trừ cho một con số ba không
+   * mang nghĩa gì.
+   */
+  'home.stage.position': (p: { n: number; total: number }) => `Chặng ${p.n} trên ${p.total}`,
 
   // ── Bảy chặng: tiêu đề ────────────────────────────────────────────────
   'home.stage-title.laptop': 'Máy của bạn',
