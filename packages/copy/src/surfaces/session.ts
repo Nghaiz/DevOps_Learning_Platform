@@ -213,7 +213,11 @@ export const session = {
   'session.task.state.running': 'Đang chấm',
   'session.task.state.passed': 'Đạt',
   'session.task.state.failed': 'Chưa đạt',
-  'session.task.state.infra': 'Chưa chấm được',
+  // ⚠ Chuỗi này bị `e2e/flows/lesson.flow.spec.ts` neo bằng regex `^(...)`. Nó
+  // phải là "Không chấm được", không phải "Chưa chấm được": hai câu đọc gần
+  // giống nhau nhưng chỉ một câu làm luồng e2e xanh, và luồng đó đỏ vì một lý
+  // do ĐÚNG (một trong ba nhánh đã biến mất khỏi màn hình).
+  'session.task.state.infra': 'Không chấm được',
   // Cùng nhóm `state` vì nó LÀ một nhãn trạng thái, chỉ là bản có thêm mã thoát.
   // Để nó ở `session.task.*` sẽ đẩy nhóm đó thành đúng ba khoá anh em, và T3
   // đúng khi bắt: nhóm ấy không phải một bộ ba có chủ ý, nó chỉ tình cờ ba.
