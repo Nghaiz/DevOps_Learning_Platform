@@ -543,7 +543,8 @@ luận nhầm rằng nó thừa.
 
 ```ts
 interactive?: boolean;                            // mặc định FALSE
-accent?: 'basic' | 'intermediate' | 'advanced';   // dải màu độ khó ở viền trái
+accent?: 'basic' | 'intermediate' | 'advanced'   // cung màu độ khó ở góc trên-trái
+       | 'pending';                                // độ khó CHƯA BIẾT (khung chờ tải)
 ```
 
 `interactive` bật hover: đổi viền sang `border-input`, nâng bóng lên
@@ -561,11 +562,27 @@ có handler bấm.** Hiện có đúng một nơi — `CatalogCard`
 2026-09-06). Khung chờ (skeleton) trong cùng file cố ý KHÔNG truyền: một ô đang
 tải thì chưa bấm được.
 
-`accent` vẽ dải `border-l-4` màu độ khó ở viền trái. Hậu tố khớp token
-`--difficulty-*`, nên nó mang **cùng chỗ lệch `basic`/`beginner`** ở §4c —
-`DIFFICULTY_ACCENT` trong `catalog-labels.ts` là chỗ nối. Dải màu một mình KHÔNG
+`accent` vẽ **một cung màu ở góc trên-trái** — vòng ellipse hở của motif
+(`packages/motion/src/motif.ts`), bậc nét `ARC_STROKE_HAIRLINE`, cắt theo góc bo
+bởi một lớp bọc `absolute inset-0 overflow-hidden`. Hậu tố ba giá trị đầu khớp
+token `--difficulty-*`, nên nó mang **cùng chỗ lệch `basic`/`beginner`** ở §4c —
+`DIFFICULTY_ACCENT` trong `catalog-labels.ts` là chỗ nối. Màu một mình KHÔNG
 đủ cho 1.4.1; nó đi kèm `Badge` độ khó có icon trong cùng thẻ, và đó mới là thứ
-mang nghĩa.
+mang nghĩa — điều đó càng đúng với cung 2px hơn là với dải 4px cũ.
+
+`'pending'` (xám `--muted`) là độ khó **chưa biết**, dành cho khung chờ tải.
+Nó là một giá trị của `accent` chứ không phải một cung xám do nơi gọi tự dựng:
+hình học của cung do `card.tsx` sở hữu, và một bản chép ở `catalog-grid.tsx` sẽ
+lệch vào lần sửa thứ hai — lúc đó khung chờ và thẻ thật không còn cùng hình, mà
+bố cục nhảy khi dữ liệu về chính là thứ khung chờ sinh ra để chặn.
+
+> **Đổi hình ngày 2026-09-11 (lane 16.L0).** Bản trước vẽ `border-l-4
+> border-l-difficulty-*` — một dải phẳng ở viền trái. Design §3 chốt thẻ danh
+> mục dùng "một cung màu ở góc thay cho viền trái phẳng", và `Card` là chỗ duy
+> nhất phát ra hình đó. `Card` nay luôn mang `relative` (cung định vị tuyệt đối
+> theo thẻ) và nhận `children` tường minh thay vì để chúng đi qua `{...props}`.
+> `packages/ui/src/card.test.tsx` chuyển toàn bộ khẳng định cũ sang hình mới —
+> không ô nào bị xoá.
 
 ### 4e. Ba bậc bóng — `shadow-elevation-1|2|3`
 

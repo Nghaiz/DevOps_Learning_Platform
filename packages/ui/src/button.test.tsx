@@ -369,7 +369,7 @@ describe('Button — khe icon', () => {
      * và `getByRole` không thể thấy. Chỉ `<Spinner>` dùng ĐỘC LẬP mới giữ
      * `role="status"` — đó là ca mà test ở khối trên kiểm.
      */
-    const spinner = document.querySelector('svg.animate-spin');
+    const spinner = document.querySelector('svg[data-slot="spinner"]');
     expect(spinner, 'nhánh loading phải còn Spinner đè giữa').not.toBeNull();
     expect(spinner?.closest('[aria-hidden="true"]')).not.toBeNull();
   });
