@@ -716,6 +716,32 @@
  * stroke-dashoffset var(--motion-slow) var(--ease-out)`), và cảnh 3D trang chủ
  * — nơi rAF là bắt buộc — phải có cổng reduced-motion ở MỨC JS (`matchMedia`).
  */
+
+/*
+ * ── Cung quay của trạng thái tải ──────────────────────────────────────────
+ * Chủ sở hữu của tên này là `packages/motion` (`ARC_SPIN_ANIMATION_NAME`), nhưng
+ * `@keyframes` KHÔNG khai inline được nên nó phải sống trong một stylesheet, và
+ * `globals.css` là stylesheet duy nhất do L0 sở hữu.
+ *
+ * ⚠ Thiếu khối này thì `animation: dlp-arc-sweep ...` trỏ vào một tên không tồn
+ * tại. Trình duyệt BỎ QUA trong im lặng: không lỗi, không cảnh báo, không log —
+ * cung chỉ đứng yên ở dạng ĐẦY, trông y như một thanh tiến độ đã hoàn thành.
+ * `packages/motion/src/motif.test.ts` có một ca đọc chính file này và đối chiếu
+ * tên, nên lần lệch sau sẽ đỏ chứ không lặng lẽ.
+ *
+ * Khối `@media` ngay dưới phủ được nó: `animation-duration: 0.01ms` cộng
+ * `animation-iteration-count: 1` biến vòng lặp vô hạn thành một lượt vẽ tĩnh
+ * ở dạng đầy — đúng ý cho người bật cờ giảm chuyển động.
+ */
+@keyframes dlp-arc-sweep {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

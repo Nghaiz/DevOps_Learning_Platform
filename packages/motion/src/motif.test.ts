@@ -459,3 +459,56 @@ describe('biên React', () => {
     expect(_spinnerIsSvgProps.strokeDasharray).toBe(1);
   });
 });
+
+// ── @keyframes phải TỒN TẠI trong stylesheet, không chỉ được đặt tên ─────────
+//
+// `arcSpinnerProps()` phát ra `animation: dlp-arc-sweep ...`. Nếu stylesheet
+// không khai khối `@keyframes` cùng tên, trình duyệt BỎ QUA khai báo đó trong
+// im lặng — không lỗi, không cảnh báo — và cung đứng yên ở dạng ĐẦY, trông y
+// như một thanh tiến độ đã hoàn thành. Đó là hỏng ở phía nguy hiểm: người học
+// đọc ra "xong" trong khi thực tế là "đang tải".
+//
+// `packages/motion` không sở hữu stylesheet nào, nên nó không thể tự bảo đảm
+// điều này — chỉ có thể ĐO. Ca dưới đọc thẳng `globals.css` (file do L0 sở hữu)
+// và bắt lệch tên ngay lần sau.
+
+const GLOBALS_CSS_URL = new URL('../../../apps/web/src/app/globals.css', import.meta.url);
+
+function readGlobalsCss(): string | null {
+  try {
+    return readFileSync(GLOBALS_CSS_URL, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+function declaresKeyframes(css: string, name: string): boolean {
+  return new RegExp(`@keyframes\\s+${name}\\s*\\{`).test(css);
+}
+
+describe('§8.3 cung quay — @keyframes có mặt trong stylesheet', () => {
+  const css = readGlobalsCss();
+
+  it.runIf(css !== null)('globals.css khai đúng tên mà arcSpinnerProps trỏ tới', () => {
+    expect(css).not.toBeNull();
+    expect(declaresKeyframes(css ?? '', ARC_SPIN_ANIMATION_NAME)).toBe(true);
+  });
+
+  it.runIf(css !== null)('khối đó chạy stroke-dashoffset 1 → 0', () => {
+    const block = new RegExp(
+      `@keyframes\\s+${ARC_SPIN_ANIMATION_NAME}\\s*\\{([\\s\\S]*?)\\n\\}`,
+    ).exec(css ?? '');
+    expect(block).not.toBeNull();
+    const body = block?.[1] ?? '';
+    expect(body).toMatch(/from\s*\{[^}]*stroke-dashoffset:\s*1\s*;?[^}]*\}/);
+    expect(body).toMatch(/to\s*\{[^}]*stroke-dashoffset:\s*0\s*;?[^}]*\}/);
+  });
+
+  // Đối chứng dương: bộ dò phải ĐỎ được. Không có ca này thì `toBe(true)` ở trên
+  // cũng xanh với một regex hỏng khớp mọi thứ.
+  it('bộ dò bắt được stylesheet THIẾU khối, và không nhận nhầm tên khác', () => {
+    expect(declaresKeyframes(':root{--x:1}', ARC_SPIN_ANIMATION_NAME)).toBe(false);
+    expect(declaresKeyframes('@keyframes dlp-arc-sweep-v2 {from{}}', 'dlp-arc-sweep')).toBe(false);
+    expect(declaresKeyframes(ARC_SPIN_KEYFRAMES_CSS, ARC_SPIN_ANIMATION_NAME)).toBe(true);
+  });
+});
