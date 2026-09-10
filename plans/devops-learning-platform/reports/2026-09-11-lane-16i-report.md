@@ -16,7 +16,7 @@ Một ô ghi ĐẠT mà không có bằng chứng thì không có giá trị, n�
 |---|---|---|---|
 | 1 | `SCREENS` phủ 32 màn, `MIN_SCREENS` = 32, 0 lỗi axe serious/critical trên mọi màn | **KHÔNG ĐẠT** | `SCREENS.length === 32`, `MIN_SCREENS = 32` ✓ (`70e8005`). Nhưng axe tìm thấy **1 lỗi mức serious** trên `/paths/:id` — `color-contrast`, chi tiết ở §7.1. Ngoài ra 11 màn vai-trò SKIP và `/problems/:code` KHÔNG MỞ ĐƯỢC (danh mục rỗng, §7.3). Đo được: 21 pass / 2 fail / 12 skip. |
 | 2 | `csp.spec.ts` xanh trên 32 màn, không nới một chỉ thị CSP nào | **ĐẠT (có điều kiện)** | **0 vi phạm CSP** trên mọi màn mở được: 25 pass / 1 fail / 11 skip — và ô đỏ duy nhất là `/problems/:code` KHÔNG MỞ ĐƯỢC (§7.3), không phải một vi phạm CSP. Không một chỉ thị nào bị nới: `git diff 8e5b2af..HEAD -- apps/web/e2e/csp.spec.ts` **rỗng**, và lane không chạm mã sản phẩm. Điều kiện còn thiếu: 11 màn vai-trò chưa đo. |
-| 3 | `KEYBOARD_SCREENS` ≥ 10, gồm `/labs/:id` và `/lessons/:id`, có ca thoát focus khỏi terminal | **ĐẠT (mã) · CHƯA CHẠY** | `KEYBOARD_SCREENS.length === 10`, `MIN_KEYBOARD_SCREENS = 10`, kèm phép kiểm theo DANH TÍNH (`REQUIRED_KEYBOARD_PATHS`) chứ không chỉ theo số lượng. Ca thoát focus đã có sẵn từ 13.H: `test.describe('D10 — thoát terminal bằng Esc Esc')`, ô `Esc ĐƠN vẫn tới PTY, và Esc Esc rời khỏi terminal`. ⚠ Ô D10 đó cần **phiên sandbox thật** nên nó `skip` ở môi trường cục bộ — xem §7. |
+| 3 | `KEYBOARD_SCREENS` ≥ 10, gồm `/labs/:id` và `/lessons/:id`, có ca thoát focus khỏi terminal | **ĐẠT (mã) · CHƯA CHẠY** | `KEYBOARD_SCREENS.length === 10`, `MIN_KEYBOARD_SCREENS = 10`, kèm phép kiểm theo DANH TÍNH (`REQUIRED_KEYBOARD_PATHS`) chứ không chỉ theo số lượng. Ca thoát focus đã có sẵn từ 13.H: `test.describe('D10 — thoát terminal bằng Esc Esc')`, ô `Esc ĐƠN vẫn tới PTY, và Esc Esc rời khỏi terminal`. ⚠ Ô D10 đó cần **phiên sandbox thật** nên nó `skip` ở môi trường cục bộ — xem §6.2. |
 | 4 | Grep màu trần rỗng trên `apps/web/src` và `packages/ui/src`, trừ `packages/terminal/src/**/themes.ts` | **ĐẠT** | `node scripts/check-design-tokens.mjs` → `exit=0`, quét **562 file / 4 vùng**, 4 file miễn trừ có ghi lý do. Kèm đối chứng **hai chiều** của chính script: bắt đủ 13 mẫu bẩn, không kêu trên 20 mẫu sạch. |
 | 5 | Test contrast tính lại mọi token PTIT, trộn alpha trong sRGB mã hoá gamma | **ĐẠT** | `packages/ui/src/theme/tokens.contract.test.ts`, chạy trong lượt `turbo run test --force` (ui: 872/872 xanh, 0 skip). |
 | 6 | `packages/copy`: 0 ký tự `—`, 0 chuỗi mất dấu; cùng phép kiểm mất dấu chạy trên `content/**` | **ĐẠT** | `packages/copy/src/copy.contract.test.ts` + `scan.control.test.ts` (đối chứng của chính bộ dò), copy: 52/52 xanh. |
@@ -351,9 +351,10 @@ lồng của `problems.list` và báo đúng "0 mục", thay vì ném `TypeError
 
 | # | Việc | Vì sao chưa xong |
 |---|---|---|
-| 1 | Đọc kết quả lượt quét a11y/CSP/responsive trên 32 màn | đang chạy nền khi report chốt (§6) |
-| 2 | `promote-role.sh` + chạy lại với `E2E_REQUIRE_ROLES=1` | 8 màn vai-trò đang skip; skip không phải xanh |
-| 3 | Chạy `keyboard.spec.ts` (10 màn × 3 ô) | tốn nhất trong suite: ô dấu-focus chụp tới 2×18 ảnh mỗi màn |
+| 1 | **Sửa 2 lỗi sản phẩm ở §7.1 và §7.2** | thuộc lane khác; lane này chỉ đo, không sửa |
+| 2 | `promote-role.sh` + chạy lại với `E2E_REQUIRE_ROLES=1` | **11 màn vai-trò chưa từng được audit** (33 ô skip); skip không phải xanh |
+| 3 | Seed bảng `problems` rồi đo lại 3 ô ở §7.3 | DB dev rỗng; harness ném đúng thay vì bịa id |
+| 3b | Chạy `keyboard.spec.ts` (10 màn × 3 ô) | tốn nhất trong suite: ô dấu-focus chụp tới 2×18 ảnh mỗi màn; chưa chạy trong phiên này |
 | 4 | Chạy lượt nghiệm thu trên CỤM sau khi P16 deploy, kèm `E2E_REQUIRE_SESSION=1` | cụm đang chạy mã trước P16; `/register`, `/problems`, `/games` ở đó trả 404 |
 | 5 | Siết `HOME_LCP_BUDGET_MS` theo lượt NGUỘI của cụm | §3, điều kiện kết thúc đã ghi trong chú thích `perf.spec.ts` |
 | 6 | 10 ô cần mắt người của lane motif | 3 ô đo được bằng máy đã chuyển thành test (§4); 7 ô còn lại vẫn là phán quyết bằng mắt |
