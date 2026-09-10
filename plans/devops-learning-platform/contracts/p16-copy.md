@@ -405,6 +405,18 @@ export const INTENTIONAL_THREE: Readonly<Record<string, string>> = {
 Giá trị phải khớp `/^\d{4}-\d{2}-\d{2}: .{20,}/`. Một dấu tích không bắt ai phải nghĩ; một câu có
 lý do thì bắt.
 
+> **⚠ Đính chính 2026-09-10 — `session.tier` ở trên là minh hoạ ĐỊNH DẠNG, không phải phán quyết
+> về surface.** Lane 16.D đọc nó như một chỉ dẫn đặt chỗ và dựng `session.tier.*` trong surface
+> `session.`; lane 16.C song song dựng `catalog.tier.*`. Gộp lại thành hai bản của cùng ba chuỗi,
+> và **không cổng nào bắt được** — T4 chỉ gác một chiều ("không chuỗi nào ngoài bản đồ"), không có
+> cổng nào gác chiều "không khoá nào thiếu nơi gọi".
+>
+> Đã xoá `session.tier.*` (0 nơi gọi) và giữ `catalog.tier.*` (4 nơi gọi, đều ở catalog). Luật đặt
+> chỗ vẫn là §1.7: một surface dùng thì chuỗi ở nơi tiêu thụ; **hai** surface trở lên mới sang
+> `common.` với L0 là người thêm. Khi viết ví dụ cho một cổng, chọn tiền tố của một nhóm ĐÃ TỒN TẠI
+> hoặc ghi rõ "ví dụ, không phải chỗ đặt" — lane đọc hợp đồng theo nghĩa đen, và đó là điều đúng
+> đắn cần làm với một hợp đồng.
+
 *Ghi chú kỹ thuật cho L0:* đã cân nhắc ép định dạng ngày ở tầng kiểu bằng
 `` `${number}-${number}-${number}: ${string}` ``, nhưng `${number}` có rủi ro không khớp phân đoạn
 có số 0 đứng đầu (`09`). Nên luật ngày kiểm bằng test. Nếu L0 xác nhận kiểu chạy đúng trên bản

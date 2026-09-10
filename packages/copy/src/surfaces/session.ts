@@ -25,19 +25,22 @@ import type { Counted, IntentionalThree, Surface } from '../types.ts';
  *    quyết định CÓ hiện hay không, không viết câu.
  * 3. **Nhãn độ khó và nhãn tiến độ danh mục.** Chúng thuộc `catalog.`.
  *
- * ## `session.tier.*` nằm ở đây chứ không ở `catalog.`
+ * ## `session.tier.*` đã bị XOÁ: nhãn hạng sandbox ở `catalog.`
  *
- * Theo đúng chỉ dẫn của hợp đồng. Kèm NGUYÊN VĂN khối chú thích của
- * `catalog-labels.ts:10-15`, vì đó là một phán quyết biên tập chứ không phải
- * một ghi chú:
+ * Lane 16.D dựng ba khoá đó ở đây vì §3.3 của hợp đồng viết ví dụ
+ * `INTENTIONAL_THREE` dưới tên `session.tier`. Sau khi gộp 16.C, hoá ra mọi nơi
+ * gọi đều bên catalog (`labs/lessons/playgrounds` client + `catalog-toolbar`),
+ * và `session.tier.*` có **0 nơi gọi**, tức là một nghĩa địa, đúng thứ mà mục
+ * 1 ở trên từ chối dựng cho `session.slots`.
  *
- *   Tier giữ NGUYÊN tên kỹ thuật, không dịch và không kèm lời hứa ("nhẹ hơn",
- *   "an toàn hơn"). Ba runtime này khác nhau ở thứ đo được trên hạ tầng cụ thể,
- *   và một tính từ dán ở đây sẽ là một khẳng định mà trang danh mục không có dữ
- *   liệu để bảo vệ.
+ * §1.7 chỉ bắt chuyển sang `common.` khi HAI surface trở lên dùng chung. Một
+ * surface dùng thì chuỗi ở đúng nơi tiêu thụ. Ví dụ ở §3.3 là minh hoạ ĐỊNH
+ * DẠNG của `INTENTIONAL_THREE`, không phải phán quyết về surface. Hợp đồng đã
+ * được sửa để nói rõ điều đó.
  *
- * ⚠ Call site hôm nay vẫn là `components/catalog/catalog-labels.ts` (lane
- * 16.C). Ba khoá dưới đây có mặt để 16.C chuyển sang, và lane 16.D đã báo lead.
+ * Ngày nào một trang phiên thật sự cần nhãn hạng, nó là lần đầu có HAI surface
+ * dùng chung, và lúc đó đường đúng là `common.tier.*` do L0 thêm, không phải
+ * chép một bản thứ hai về đây.
  */
 export const session = {
   // ── Pha phiên (`session-machine.ts`) ──────────────────────────────────────
@@ -53,11 +56,6 @@ export const session = {
   'session.phase.exited': 'Shell đã thoát',
   'session.phase.expired': 'Phiên đã kết thúc',
   'session.phase.error': 'Lỗi',
-
-  // ── Hạng sandbox ─────────────────────────────────────────────────────────
-  'session.tier.sysbox': 'Sysbox',
-  'session.tier.gvisor': 'gVisor',
-  'session.tier.kata': 'Kata',
 
   // ── Sức chứa: nhánh CHƯA BIẾT và nhánh HẾT CHỖ ───────────────────────────
   //
@@ -312,12 +310,12 @@ export const session = {
 /**
  * Nhóm đúng ba khoá anh em, khai tường minh kèm ngày và lý do.
  *
- * Dòng `session.tier` là dòng hợp đồng `p16-copy.md` §3.3 đã viết sẵn.
+ * RỖNG kể từ 2026-09-10: mục duy nhất là `session.tier`, và ba khoá đó đã sang
+ * `catalog.` cùng nơi gọi của chúng (xem khối đầu file). Giữ export rỗng thay vì
+ * xoá hẳn vì `registry.ts` (file của L0) nhập nó theo tên; một surface thiếu
+ * export này là đỏ ở T0.
  */
-export const sessionIntentionalThree = {
-  'session.tier':
-    '2026-09-10: đúng ba runtime sandbox tồn tại (sysbox, gvisor, kata), khớp SandboxTierName.',
-} as const satisfies IntentionalThree;
+export const sessionIntentionalThree = {} as const satisfies IntentionalThree;
 
 /**
  * Khoá đếm, giữ kiểu tường minh để `count()` nhận ra.
