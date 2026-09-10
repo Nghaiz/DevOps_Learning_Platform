@@ -31,6 +31,8 @@
  * *hàng 1 có hiện không* và *hàng 2 cao bao nhiêu*.
  */
 
+import { t } from '@devops-platform/copy';
+
 export type WorkspaceTabId = 'editor' | 'terminal';
 
 export const EDITOR_TAB = 'editor';
@@ -78,8 +80,8 @@ export function hasDisplayUtility(className: string): boolean {
 }
 
 export const WORKSPACE_TAB_LABEL: Readonly<Record<WorkspaceTabId, string>> = {
-  editor: 'Editor',
-  terminal: 'Terminal',
+  editor: t('session.workspace.tab-editor'),
+  terminal: t('session.workspace.tab-terminal'),
 };
 
 export function isWorkspaceTab(value: unknown): value is WorkspaceTabId {

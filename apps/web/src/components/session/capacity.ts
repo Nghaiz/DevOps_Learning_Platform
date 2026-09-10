@@ -36,6 +36,7 @@
  * không liên quan.
  */
 
+import { t } from '@devops-platform/copy';
 import { DEFAULT_PROFILE, describeProfileCapacity } from '../shell/capacity';
 
 // Cùng MỘT kiểu, không phải hai kiểu trùng hình dạng: C5 giữ tên, vỏ giữ định
@@ -79,7 +80,7 @@ export interface UnknownCapacityHint {
 
 export type CapacityHint = KnownCapacityHint | UnknownCapacityHint;
 
-const UNKNOWN_LABEL = 'Chưa rõ sức chứa';
+const UNKNOWN_LABEL = t('session.capacity.unknown-label');
 
 /**
  * Vì sao KHÔNG biết — nói ra chứ không nuốt.
@@ -89,16 +90,15 @@ const UNKNOWN_LABEL = 'Chưa rõ sức chứa';
  * mới lên), server không khai profile đó, payload hỏng.
  */
 function unknownDetail(view: ProfileCapacityView, profile: string): string {
-  const head =
-    profile === DEFAULT_PROFILE
-      ? 'Chưa đọc được sức chứa nên không nói được còn mấy chỗ.'
-      : 'Chưa đọc được sức chứa cho loại bài này nên không nói được còn mấy chỗ.';
   const why = !view.quotaReadable
     ? view.quotaError === ''
-      ? ' Máy chủ không đọc được hạn mức của cụm.'
-      : ` Máy chủ không đọc được hạn mức của cụm: ${view.quotaError}.`
-    : ' Máy chủ chưa khai trần cho loại bài này.';
-  return `${head}${why} Bạn vẫn bấm Bắt đầu được — nếu hết chỗ thì hệ thống sẽ từ chối và báo lại ngay.`;
+      ? t('session.capacity.why-quota-unreadable')
+      : t('session.capacity.why-quota-error', { error: view.quotaError })
+    : t('session.capacity.why-no-profile-cap');
+
+  return profile === DEFAULT_PROFILE
+    ? t('session.capacity.unknown-default', { why })
+    : t('session.capacity.unknown-profile', { why });
 }
 
 /**
@@ -152,13 +152,7 @@ export function describeCapacity(
  * sao con số có thể bi quan.
  */
 function exhaustedWarning(profile: string): string {
-  const head =
-    profile === DEFAULT_PROFILE
-      ? 'Sandbox đang đầy theo hạn mức đọc gần nhất.'
-      : 'Loại bài này đang hết chỗ theo hạn mức đọc gần nhất.';
-  return (
-    `${head} Bạn vẫn bấm Bắt đầu được — con số này là cận dưới (chưa tính máy đang ấm sẵn), ` +
-    'nên có thể vẫn vào được; nhưng nhiều khả năng sẽ bị từ chối. Hãy thử lại sau vài phút, ' +
-    'hoặc kết thúc một phiên khác bạn đang mở ở trang Của tôi.'
-  );
+  return profile === DEFAULT_PROFILE
+    ? t('session.capacity.exhausted-default')
+    : t('session.capacity.exhausted-profile');
 }

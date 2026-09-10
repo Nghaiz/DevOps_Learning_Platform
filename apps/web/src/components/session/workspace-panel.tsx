@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ExternalLink, SquareTerminal, FileCode2 } from 'lucide-react';
+import { t } from '@devops-platform/copy';
 import { cn } from '@devops-platform/ui';
 import { WorkspaceLayoutProvider } from './workspace-layout';
 import {
@@ -259,7 +260,7 @@ export function WorkspacePanel({
         {tabs.length > 1 ? (
           <div
             role="tablist"
-            aria-label="Khoang làm việc"
+            aria-label={t('session.workspace.tablist')}
             aria-orientation="horizontal"
             className="flex min-w-0 items-center gap-1 overflow-x-auto"
             onKeyDown={handleTablistKeyDown}
@@ -293,7 +294,7 @@ export function WorkspacePanel({
               href={popOutUrl}
               target="_blank"
               rel="noopener noreferrer"
-              title="Mở tab này ra một cửa sổ riêng"
+              title={t('session.workspace.popout-title')}
               className={cn(
                 'flex size-6 items-center justify-center rounded text-muted-foreground',
                 'transition-colors duration-(--motion-fast) hover:bg-accent hover:text-accent-foreground',
@@ -301,7 +302,7 @@ export function WorkspacePanel({
               )}
             >
               <ExternalLink aria-hidden="true" className="size-4" />
-              <span className="sr-only">Mở tab này ra cửa sổ riêng</span>
+              <span className="sr-only">{t('session.workspace.popout-sr')}</span>
             </a>
           )}
         </div>
@@ -340,7 +341,7 @@ export function WorkspacePanel({
         <div
           role="separator"
           aria-orientation="horizontal"
-          aria-label="Kéo để đổi chiều cao khoang terminal"
+          aria-label={t('session.workspace.separator')}
           aria-valuenow={terminalPercent}
           aria-valuemin={TERMINAL_PERCENT_MIN}
           aria-valuemax={TERMINAL_PERCENT_MAX}
