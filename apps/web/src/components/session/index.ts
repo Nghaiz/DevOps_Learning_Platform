@@ -72,6 +72,15 @@ export { IDE_BOOT_TIMEOUT_MS, IDE_LAYOUT, ideSessionUrl, shouldShowIdePane } fro
 // `editor?: ReactNode`.
 export { IdePane } from './ide-pane.tsx';
 export type { IdePaneProps } from './ide-pane.tsx';
+
+// P16 / 16.D.4 — danh sách kiểm nhiệm vụ, NĂM trạng thái nhìn được. `infra`
+// (lượt chấm không chạy được) tách khỏi `failed` (bài làm chưa đạt): trước đó
+// hai thứ vẽ ra cùng một viên badge, và một ô "chưa đạt" bảo người học đi sửa
+// bài làm trong khi thứ hỏng là cụm.
+export { TaskChecklist } from './task-checklist.tsx';
+export type { TaskChecklistItem, TaskChecklistProps } from './task-checklist.tsx';
+export { countByVisualState, outcomeKind, resolveTaskVisualState } from './task-checklist';
+export type { StoredTaskState, TaskOutcomeKind, TaskVisualState } from './task-checklist';
 export { resolveTerminalTheme } from './terminal-theme';
 export { ShellFallbackNotice } from './shell-fallback-notice.tsx';
 export type { ShellFallbackNoticeProps } from './shell-fallback-notice.tsx';
