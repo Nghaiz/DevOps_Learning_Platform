@@ -37,7 +37,7 @@ export type PlacementZone =
   | 'node'
   /** Pod chưa xếp lịch (`nodeName === null`): dải chờ phía TRƯỚC, không có bệ dưới chân. */
   | 'pending'
-  /** Logical resource; grouped by its connections when present. */
+  /** Logical resource; grouped by kind when connections are present. */
   | 'shelf';
 
 export interface ObjectPlacement {
@@ -380,7 +380,8 @@ export function computeLayout(view: ClusterView): SceneLayout {
       `${object.kind}:${object.namespace ?? ''}:${object.name}:${object.uid}`,
     ]),
   );
-  const connected = arrangeConnections(objects, edges, labels);
+  const kinds = new Map(view.objects.map((object) => [object.uid, object.kind]));
+  const connected = arrangeConnections(objects, edges, labels, kinds);
   objects.splice(0, objects.length, ...connected);
   const objectByUid = new Map(view.objects.map((object) => [object.uid, object]));
   const nodePositions = new Map(

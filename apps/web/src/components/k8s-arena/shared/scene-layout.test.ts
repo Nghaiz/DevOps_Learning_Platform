@@ -179,6 +179,70 @@ describe('podGrid', () => {
 });
 
 describe('dense mixed-resource layouts', () => {
+  it('keeps each kind in one compact block across hosts, owners and disconnected resources', () => {
+    const objects = [
+      ...['a', 'b', 'c'].map((name) =>
+        serviceView(`node-${name}`, `node-${name}`, { kind: 'Node' }),
+      ),
+      serviceView('deploy', 'deploy', { kind: 'Deployment' }),
+      serviceView('rs', 'rs', { kind: 'ReplicaSet' }),
+      serviceView('cron', 'cron', { kind: 'CronJob' }),
+      serviceView('job-a', 'job-a', { kind: 'Job' }),
+      serviceView('job-b', 'job-b', { kind: 'Job' }),
+      serviceView('job-isolated', 'job-isolated', { kind: 'Job' }),
+      podView('pod-a', 'pod-a', { nodeName: 'node-a' }),
+      podView('pod-b', 'pod-b', { nodeName: 'node-b' }),
+      podView('pod-c', 'pod-c', { nodeName: 'node-c' }),
+      podView('pod-isolated', 'pod-isolated', { nodeName: null }),
+    ];
+    const view = clusterView({
+      nodes: ['a', 'b', 'c'].map((name) => nodeView(`node-${name}`)),
+      objects,
+      edges: [
+        { fromUid: 'deploy', toUid: 'rs', kind: 'owns', healthy: true },
+        { fromUid: 'rs', toUid: 'pod-a', kind: 'owns', healthy: true },
+        { fromUid: 'cron', toUid: 'job-a', kind: 'owns', healthy: true },
+        { fromUid: 'job-a', toUid: 'pod-b', kind: 'owns', healthy: false },
+        { fromUid: 'job-b', toUid: 'pod-c', kind: 'owns', healthy: true },
+        ...['a', 'b', 'c'].map((name) => ({
+          fromUid: `node-${name}`,
+          toUid: `pod-${name}`,
+          kind: 'runs-on' as const,
+          healthy: true,
+        })),
+      ],
+    });
+    const layout = computeLayout(view);
+    const kinds = new Map(objects.map((object) => [object.uid, object.kind]));
+    for (const kind of ['Node', 'Job', 'Pod']) {
+      const members = layout.objects.filter((object) => kinds.get(object.uid) === kind);
+      const minX = Math.min(...members.map((object) => object.position.x));
+      const maxX = Math.max(...members.map((object) => object.position.x));
+      const minZ = Math.min(...members.map((object) => object.position.z));
+      const maxZ = Math.max(...members.map((object) => object.position.z));
+      expect(maxX - minX, `${kind} must form a compact block`).toBeLessThan(7);
+      if (kind === 'Pod') {
+        expect(maxZ - minZ, 'Pods may wrap into adjacent rows').toBeLessThan(2.5);
+      } else {
+        expect(maxZ - minZ, `${kind} must share a row`).toBe(0);
+      }
+      for (const other of layout.objects.filter((object) => kinds.get(object.uid) !== kind)) {
+        expect(
+          other.position.x >= minX &&
+            other.position.x <= maxX &&
+            other.position.z >= minZ &&
+            other.position.z <= maxZ,
+          `${other.uid} must not split ${kind}`,
+        ).toBe(false);
+      }
+    }
+    expect(layout.edges).toEqual(view.edges);
+    expect(
+      computeLayout({ ...view, objects: [...objects].reverse(), edges: [...view.edges].reverse() })
+        .objects,
+    ).toEqual(layout.objects);
+  });
+
   for (const copies of [1, 4, 12]) {
     it(`separates every resource kind with ${copies} instances of each kind`, () => {
       const objects = (Object.keys(KINDS) as ResourceKind[]).flatMap((kind) =>

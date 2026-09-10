@@ -19,18 +19,20 @@ interface Group {
   depth: number;
 }
 
-/** Layered graph layout. Ownership families are indivisible rectangular blocks;
+/** Layered graph layout. Resource kinds are indivisible rectangular blocks;
  * alternating barycenter sweeps shorten secondary connections without splitting
- * siblings. Dense families wrap into rows instead of orbiting a central hub. */
+ * a kind. Without kind metadata, fall back to ownership families. Dense blocks
+ * wrap into rows instead of orbiting a central hub. */
 export function arrangeConnections(
   objects: readonly ObjectPlacement[],
   edges: readonly EdgePlacement[],
   labels: ReadonlyMap<string, string> = new Map(),
+  kinds: ReadonlyMap<string, string> = new Map(),
 ): ObjectPlacement[] {
   if (!edges.length || !objects.length) return [...objects];
   const key = JSON.stringify([
     objects
-      .map((o) => [o.uid, o.size, labels.get(o.uid) ?? ''])
+      .map((o) => [o.uid, o.size, labels.get(o.uid) ?? '', kinds.get(o.uid) ?? ''])
       .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
     edges.map((e) => `${e.fromUid}:${e.toUid}:${e.kind}`).sort(),
   ]);
@@ -53,6 +55,18 @@ export function arrangeConnections(
   const host = new Map(
     valid.filter((edge) => edge.kind === 'runs-on').map((edge) => [edge.toUid, edge.fromUid]),
   );
+  // Layout flow is separate from the real arrow direction. Hosts precede
+  // workloads; ownership/access chains extend away from workloads on the other
+  // side (Node -> Pod -> ReplicaSet -> Deployment, Pod -> Service -> Ingress).
+  // Mounts already run from consumer to dependency. Untyped callers retain
+  // the original graph direction.
+  const layoutEdges = valid.map((edge) =>
+    kinds.has(edge.fromUid) &&
+    kinds.has(edge.toUid) &&
+    (edge.kind === 'owns' || edge.kind === 'selects' || edge.kind === 'routes')
+      ? { ...edge, fromUid: edge.toUid, toUid: edge.fromUid }
+      : edge,
+  );
   // Accept stronger semantic edges first. Reject only rank constraints that
   // would close a cycle; every original relationship is still rendered.
   const reaches = (start: string, goal: string): boolean => {
@@ -67,14 +81,31 @@ export function arrangeConnections(
     }
     return false;
   };
-  for (const edge of valid) {
+  for (let index = 0; index < valid.length; index++) {
+    const edge = valid[index]!;
     neighbors.get(edge.fromUid)!.add(edge.toUid);
     neighbors.get(edge.toUid)!.add(edge.fromUid);
     if (edge.kind === 'owns' && !owner.has(edge.toUid)) owner.set(edge.toUid, edge.fromUid);
-    if (!outgoing.get(edge.fromUid)!.includes(edge.toUid) && !reaches(edge.toUid, edge.fromUid)) {
-      outgoing.get(edge.fromUid)!.push(edge.toUid);
-      incoming.get(edge.toUid)!.push(edge.fromUid);
+    const flow = layoutEdges[index]!;
+    if (!outgoing.get(flow.fromUid)!.includes(flow.toUid) && !reaches(flow.toUid, flow.fromUid)) {
+      outgoing.get(flow.fromUid)!.push(flow.toUid);
+      incoming.get(flow.toUid)!.push(flow.fromUid);
     }
+  }
+  // Keep the entire kind in one component, even across unrelated ownership
+  // trees or when a resource has no edges. These are layout-only neighbors;
+  // they never enter the relationships or the directed rank constraints.
+  const kindMembers = new Map<string, string[]>();
+  for (const id of byId.keys()) {
+    const kind = kinds.get(id);
+    if (kind === undefined) continue;
+    const members = kindMembers.get(kind) ?? [];
+    if (members.length) {
+      neighbors.get(members[0]!)!.add(id);
+      neighbors.get(id)!.add(members[0]!);
+    }
+    members.push(id);
+    kindMembers.set(kind, members);
   }
   const pending = new Set([...byId.keys()].sort());
   const components: string[][] = [],
@@ -92,24 +123,28 @@ export function arrangeConnections(
     if (component.length === 1) isolated.push(first);
     else components.push(component.sort());
   }
+  const kindRanks = kinds.size ? rankResourceKinds([...byId.keys()], layoutEdges, kinds) : null;
   const groups = components.map((ids) => {
     const rank = new Map<string, number>();
-    const remaining = new Set(ids);
-    while (remaining.size) {
-      for (const id of remaining) {
-        if (incoming.get(id)!.some((parent) => !rank.has(parent))) continue;
-        rank.set(id, Math.max(0, ...incoming.get(id)!.map((parent) => rank.get(parent)! + 1)));
-        remaining.delete(id);
+    if (kindRanks !== null) {
+      for (const id of ids) rank.set(id, kindRanks.get(id)!);
+    } else {
+      const remaining = new Set(ids);
+      while (remaining.size) {
+        for (const id of remaining) {
+          if (incoming.get(id)!.some((parent) => !rank.has(parent))) continue;
+          rank.set(id, Math.max(0, ...incoming.get(id)!.map((parent) => rank.get(parent)! + 1)));
+          remaining.delete(id);
+        }
       }
-    }
-    // Infrastructure belongs immediately behind its hosted workload band,
-    // rather than alongside unrelated top-level controllers several rows away.
-    for (const id of ids) {
-      const hosted = valid
-        .filter((edge) => edge.kind === 'runs-on' && edge.fromUid === id)
-        .map((edge) => edge.toUid);
-      if (hosted.length && !incoming.get(id)!.length)
-        rank.set(id, Math.max(0, Math.min(...hosted.map((child) => rank.get(child)!)) - 1));
+      // Preserve the original infrastructure adjustment for untyped graphs.
+      for (const id of ids) {
+        const hosted = valid
+          .filter((edge) => edge.kind === 'runs-on' && edge.fromUid === id)
+          .map((edge) => edge.toUid);
+        if (hosted.length && !incoming.get(id)!.length)
+          rank.set(id, Math.max(0, Math.min(...hosted.map((child) => rank.get(child)!)) - 1));
+      }
     }
     const layers: Block[][] = [];
     const maxCols = Math.max(3, Math.ceil(Math.sqrt(ids.length) * 1.35));
@@ -118,12 +153,31 @@ export function arrangeConnections(
       for (const id of ids.filter((id) => rank.get(id) === level)) {
         const family =
           owner.get(id) ?? (incoming.get(id)!.length === 1 ? incoming.get(id)![0]! : `self:${id}`);
-        const blockKey = host.has(id) ? `${family}:host:${host.get(id)}` : family;
+        const kind = kinds.get(id);
+        const blockKey =
+          kind !== undefined
+            ? `kind:${kind}`
+            : host.has(id)
+              ? `${family}:host:${host.get(id)}`
+              : family;
         const bucket = families.get(blockKey) ?? [];
         bucket.push(id);
         families.set(blockKey, bucket);
       }
-      layers.push([...families.values()].map((family) => makeBlock(family, maxCols, byId)));
+      if (families.size) {
+        layers.push(
+          [...families.values()].map((family) =>
+            makeBlock(
+              family.sort(
+                (a, b) =>
+                  (labels.get(a) ?? a).localeCompare(labels.get(b) ?? b) || a.localeCompare(b),
+              ),
+              maxCols,
+              byId,
+            ),
+          ),
+        );
+      }
     }
     const locations = new Map<string, number>();
     const place = (layer: Block[]): void => {
@@ -186,19 +240,7 @@ export function arrangeConnections(
             (edge.kind === 'owns' ? 3 : 1),
         0,
       );
-      for (let i = 0; i < componentEdges.length; i++)
-        for (let j = i + 1; j < componentEdges.length; j++) {
-          const a = componentEdges[i]!,
-            b = componentEdges[j]!;
-          if (
-            rank.get(a.fromUid) !== rank.get(b.fromUid) ||
-            rank.get(a.toUid) !== rank.get(b.toUid)
-          )
-            continue;
-          const sourceOrder = locations.get(a.fromUid)! - locations.get(b.fromUid)!;
-          const targetOrder = locations.get(a.toUid)! - locations.get(b.toUid)!;
-          if (sourceOrder * targetOrder < 0) cost += GUTTER * 8;
-        }
+      cost += countCrossings(componentEdges, rank, locations) * GUTTER * 8;
       return cost;
     };
     let bestScore = score(),
@@ -337,6 +379,7 @@ export function arrangeConnections(
       { ...o, position: { ...o.position, x: o.position.x - centerX, z: o.position.z - centerZ } },
     ]),
   );
+  arrangeKindMembers(final, kindMembers, valid, labels);
   if (layoutCache.size >= 4) layoutCache.delete(layoutCache.keys().next().value!);
   layoutCache.set(
     key,
@@ -348,6 +391,191 @@ export function arrangeConnections(
 function priority(edge: EdgePlacement): number {
   return { owns: 0, routes: 1, selects: 2, 'runs-on': 3, mounts: 4 }[edge.kind];
 }
+
+/** Rank whole kinds, not individual objects. Collapsing an acyclic object
+ * graph can introduce a kind cycle; omit only the conflicting layout
+ * constraint and keep every real edge. Missing kinds are separate vertices. */
+function rankResourceKinds(
+  ids: readonly string[],
+  edges: readonly EdgePlacement[],
+  kinds: ReadonlyMap<string, string>,
+): Map<string, number> {
+  const vertex = (id: string): string =>
+    kinds.has(id) ? `kind:${kinds.get(id)!}` : `object:${id}`;
+  const keys = [...new Set(ids.map(vertex))].sort();
+  const outgoing = new Map(keys.map((key) => [key, new Set<string>()]));
+  const incoming = new Map(keys.map((key) => [key, new Set<string>()]));
+  const reaches = (start: string, target: string): boolean => {
+    const pending = [start],
+      seen = new Set<string>();
+    while (pending.length) {
+      const key = pending.pop()!;
+      if (key === target) return true;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pending.push(...outgoing.get(key)!);
+    }
+    return false;
+  };
+  // Hosting is the anchor when malformed/cyclic relationships conflict.
+  const strength = (edge: EdgePlacement): number => (edge.kind === 'runs-on' ? -1 : priority(edge));
+  const constraints = [...edges].sort(
+    (a, b) =>
+      strength(a) - strength(b) ||
+      vertex(a.fromUid).localeCompare(vertex(b.fromUid)) ||
+      vertex(a.toUid).localeCompare(vertex(b.toUid)),
+  );
+  for (const edge of constraints) {
+    const from = vertex(edge.fromUid),
+      to = vertex(edge.toUid);
+    if (from === to || outgoing.get(from)!.has(to) || reaches(to, from)) continue;
+    outgoing.get(from)!.add(to);
+    incoming.get(to)!.add(from);
+  }
+  const ranks = new Map<string, number>();
+  const pending = new Set(keys);
+  while (pending.size) {
+    for (const key of pending) {
+      const parents = [...incoming.get(key)!];
+      if (parents.some((parent) => !ranks.has(parent))) continue;
+      ranks.set(key, Math.max(0, ...parents.map((parent) => ranks.get(parent)! + 1)));
+      pending.delete(key);
+    }
+  }
+  return new Map(ids.map((id) => [id, ranks.get(vertex(id))!]));
+}
+
+/** Keep each kind's occupied slots, but put connected members nearest their
+ * neighbors in both axes. A name only breaks ties; idle members must not take
+ * the near side of a block while active members route across the whole block.
+ * Every accepted swap reduces total connection length without moving a block. */
+function arrangeKindMembers(
+  placements: Map<string, ObjectPlacement>,
+  kinds: ReadonlyMap<string, readonly string[]>,
+  edges: readonly EdgePlacement[],
+  labels: ReadonlyMap<string, string>,
+): void {
+  const links = new Map([...placements.keys()].map((id) => [id, [] as string[]]));
+  for (const edge of edges) {
+    links.get(edge.fromUid)!.push(edge.toUid);
+    links.get(edge.toUid)!.push(edge.fromUid);
+  }
+  const groups = [...kinds.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, ids]) =>
+      [...ids].sort(
+        (a, b) =>
+          links.get(b)!.length - links.get(a)!.length ||
+          (labels.get(a) ?? a).localeCompare(labels.get(b) ?? b) ||
+          a.localeCompare(b),
+      ),
+    );
+  const cost = (id: string, position: ObjectPlacement['position'], exclude: string): number =>
+    links.get(id)!.reduce((sum, neighbor) => {
+      // A link between the swapped members has the same length after a swap.
+      if (neighbor === exclude) return sum;
+      const target = placements.get(neighbor)!.position;
+      return sum + Math.hypot(position.x - target.x, position.z - target.z);
+    }, 0);
+  // Bounded relaxation also lets neighboring kinds respond to one another.
+  for (let pass = 0; pass < 6; pass++) {
+    let changed = false;
+    for (const ids of groups) {
+      for (const id of ids) {
+        if (!links.get(id)!.length) continue;
+        const current = placements.get(id)!;
+        let candidates = ids;
+        if (ids.length > 32) {
+          // Bound expensive edge-cost evaluations for dense kinds. Every
+          // member is still handled; only its candidate search is limited.
+          const neighbors = links.get(id)!;
+          let targetX = 0,
+            targetZ = 0;
+          for (const neighbor of neighbors) {
+            const position = placements.get(neighbor)!.position;
+            targetX += position.x / neighbors.length;
+            targetZ += position.z / neighbors.length;
+          }
+          const nearest: { id: string; distance: number }[] = [];
+          for (const candidateId of ids) {
+            const candidate = placements.get(candidateId)!;
+            if (candidateId === id || candidate.size !== current.size) continue;
+            const distance =
+              (candidate.position.x - targetX) ** 2 + (candidate.position.z - targetZ) ** 2;
+            const index = nearest.findIndex((entry) => distance < entry.distance);
+            if (index >= 0) nearest.splice(index, 0, { id: candidateId, distance });
+            else if (nearest.length < 16) nearest.push({ id: candidateId, distance });
+            if (nearest.length > 16) nearest.pop();
+          }
+          candidates = nearest.map((entry) => entry.id);
+        }
+        let best: ObjectPlacement | undefined;
+        let bestDelta = -1e-8;
+        for (const candidateId of candidates) {
+          if (candidateId === id) continue;
+          const candidate = placements.get(candidateId)!;
+          // Equal footprints keep all existing clearance guarantees intact.
+          if (candidate.size !== current.size) continue;
+          const delta =
+            cost(id, candidate.position, candidateId) -
+            cost(id, current.position, candidateId) +
+            cost(candidateId, current.position, id) -
+            cost(candidateId, candidate.position, id);
+          if (delta < bestDelta) {
+            best = candidate;
+            bestDelta = delta;
+          }
+        }
+        if (best === undefined) continue;
+        placements.set(id, {
+          ...current,
+          position: { ...current.position, x: best.position.x, z: best.position.z },
+        });
+        placements.set(best.uid, {
+          ...best,
+          position: { ...best.position, x: current.position.x, z: current.position.z },
+        });
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+}
+
+/** Count strict inversions in O(E log E). Kind grouping can merge many small
+ * components, so comparing every edge pair would stall large scene layouts. */
+function countCrossings(
+  edges: readonly EdgePlacement[],
+  rank: ReadonlyMap<string, number>,
+  locations: ReadonlyMap<string, number>,
+): number {
+  const bands = new Map<string, { source: number; target: number }[]>();
+  for (const edge of edges) {
+    const key = `${rank.get(edge.fromUid)}:${rank.get(edge.toUid)}`;
+    const band = bands.get(key) ?? [];
+    band.push({ source: locations.get(edge.fromUid)!, target: locations.get(edge.toUid)! });
+    bands.set(key, band);
+  }
+  let crossings = 0;
+  for (const band of bands.values()) {
+    // Equal-source edges must not count against one another.
+    band.sort((a, b) => a.source - b.source || a.target - b.target);
+    const targets = [...new Set(band.map((edge) => edge.target))].sort((a, b) => a - b);
+    const indices = new Map(targets.map((target, index) => [target, index + 1]));
+    const tree = new Array<number>(targets.length + 1).fill(0);
+    let seen = 0;
+    for (const edge of band) {
+      const index = indices.get(edge.target)!;
+      let atOrBelow = 0;
+      for (let i = index; i > 0; i -= i & -i) atOrBelow += tree[i]!;
+      crossings += seen - atOrBelow;
+      for (let i = index; i < tree.length; i += i & -i) tree[i] = tree[i]! + 1;
+      seen++;
+    }
+  }
+  return crossings;
+}
+
 function makeBlock(ids: string[], maxCols: number, byId: Map<string, ObjectPlacement>): Block {
   const size = Math.max(...ids.map((id) => byId.get(id)!.size));
   const pitch = Math.max(2.4, size * 2 + 1.2);
