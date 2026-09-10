@@ -133,8 +133,26 @@ web:
   # `/games/k8s` trả 404 suốt từ đó, trong khi 4/4 deployment `Running 1/1` và
   # mọi lệnh helm đều xanh. Nguyên nhân gốc là danh sách COPY trong
   # `apps/web/Dockerfile` thiếu `packages/games`; đã vá cùng lượt này.
+  # p15b (2026-09-10): như p15a, thêm ba bản vá sau lượt đo —
+  #   `checkTask` đi MỘT lượt `GetSession` (p15a đi hai: một cho probe setup, một
+  #   cho lượt chấm, tức thêm một vòng gRPC trên đúng đường nóng mà P15 làm nhẹ),
+  #   nút Chấm xám trong cửa sổ "chưa biết" nay có câu giải thích, và một chú
+  #   thích sai về `disown` được sửa. Đường cong tải ở report đo trên `p15a`, và
+  #   nó VẪN ĐÚNG cho p15b: không bản vá nào chạm đường phóng setup hay
+  #   `setupStatus`.
+  #
+  # p15a (2026-09-10): setup của lab ra khỏi đường request (P15 / 15.C hướng B)
+  #   + setup hỏng trả khe quota ngay (15.A) + câu báo lỗi mang stderr (15.B).
+  #   CHỈ tầng web, không đụng proto — orchestrator/gateway/migrator giữ `p14a`.
+  #
+  # ⚠ NHẢY p14b → p15a, BỎ QUA p14c VÀ p14d. Đó không phải lỗi gõ: cụm đang chạy
+  #   `dlp-web:p14d` trong khi dòng này còn ghi `p14b`, tức hai lượt build P14 đã
+  #   vào cụm bằng đường ngoài helm và file này tụt lại — đúng chế độ hỏng mà
+  #   khối "TAG THEO TỪNG THÀNH PHẦN" ở đầu file mô tả, tái diễn. Đặt `p15a` ở
+  #   đây vừa deploy P15 vừa đưa file về khớp cụm. `p14d` vẫn còn trên node nên
+  #   đường lùi là sửa lại một dòng này rồi chạy `12-helm-deploy.sh`.
   image:
-    tag: p14b
+    tag: p15b
   replicaCount: 1
   # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
   # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ
