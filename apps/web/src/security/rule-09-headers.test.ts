@@ -12,6 +12,38 @@ import { proxy } from '../proxy';
  * response, kể cả trang chính `/`).
  */
 describe('luật 9 — security headers', () => {
+  it.each(['http://localhost:3000', 'http://127.0.0.1:3000', 'http://[::1]:3000'])(
+    'keeps HTTP loopback redirects usable at %s without relaxing script policy',
+    (origin) => {
+      const response = proxy(new NextRequest(`${origin}/paths/linux`));
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toMatch(/^http:\/\/.+\/login/);
+      const csp = response.headers.get('Content-Security-Policy');
+      expect(csp).not.toContain('upgrade-insecure-requests');
+      expect(csp).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+      expect(csp).toContain("object-src 'none'");
+      expect(response.headers.get('Strict-Transport-Security')).toContain('max-age=63072000');
+    },
+  );
+
+  it.each([
+    'https://localhost:3000',
+    'https://127.0.0.1',
+    'https://[::1]',
+    'http://example.com',
+    'https://example.com',
+    'http://localhost.example.com',
+    'http://192.168.1.1',
+  ])('retains insecure-request upgrading outside HTTP loopback: %s', (origin) => {
+    const response = proxy(
+      new NextRequest(`${origin}/paths/linux`, {
+        headers: { 'x-forwarded-host': 'localhost', 'x-forwarded-proto': 'http' },
+      }),
+    );
+    expect(response.headers.get('Content-Security-Policy')).toContain('upgrade-insecure-requests');
+    expect(buildCsp('test-nonce')).toContain('upgrade-insecure-requests');
+  });
+
   it('buildCsp chứa các directive khoá chặt: frame-ancestors none, object-src none', () => {
     const csp = buildCsp('test-nonce');
     expect(csp).toContain("frame-ancestors 'none'");

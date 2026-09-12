@@ -4,7 +4,9 @@
 (cơ chế theme) · `packages/ui/src/**` (component). Hợp đồng C1/C2 gốc:
 [`plans/devops-learning-platform/phase-13-exec.md`](../plans/devops-learning-platform/phase-13-exec.md) §2.
 
-Cập nhật 2026-09-13: landing được dựng lại hoàn toàn, không vòng trang trí hay 3D. Xem [quy tắc giao diện hiện hành](design-guidelines.md). Các primitive tiến độ và cảnh K8s Arena giữ phạm vi riêng.
+<!-- updated 260913 -->
+
+Cập nhật 2026-09-13: landing dùng hành trình 3D nhiều màu xuyên suốt luồng DOM tự nhiên: bốn chương và năm điểm neo ở nội dung phía dưới, với mô hình lớn luân phiên vị trí. Một canvas trong suốt theo viewport dùng camera `viewOffset` để bám điểm neo; không ghim nội dung, dùng vòng trắng trang trí hoặc lưới thẻ. Bảng màu RGB `--journey-*` trong `globals.css` dành riêng cho cảnh và vùng kể chuyện; token giao diện chung không đổi. Xem [quy tắc giao diện hiện hành](design-guidelines.md#landing) cho cuộn xuôi/ngược, terminal minh hoạ và chế độ giảm chuyển động dùng hình tĩnh không GPU. Kết quả nghiệm thu nằm trong báo cáo runtime; primitive tiến độ dùng chung và K8s Arena vẫn có phạm vi riêng.
 
 ## 0. Nguyên tắc
 

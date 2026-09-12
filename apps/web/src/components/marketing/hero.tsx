@@ -4,19 +4,19 @@ import { t } from '@devops-platform/copy';
 import { LabPreview } from './lab-preview';
 import styles from './landing.module.css';
 
-/** Product-first opening: the visual is a working, explicitly illustrative demo. */
+/** After the illustrated journey, try a concrete command before entering a real lab. */
 export function Hero({ children }: { readonly children: ReactNode }) {
   return (
-    <section className={styles.hero} aria-labelledby="home-title">
+    <section className={styles.hero} aria-labelledby="home-practice-title">
       <p className={styles.eyebrow}>
         <Terminal size={17} aria-hidden="true" />
         {t('home.hero.eyebrow')}
       </p>
       <div className={styles.heroHeading}>
-        <h1 id="home-title" className={styles.heroTitle}>
+        <h2 id="home-practice-title" className={styles.heroTitle}>
           {t('home.hero.title')}
           <span>{t('home.hero.title-accent')}</span>
-        </h1>
+        </h2>
         <div className={styles.heroIntroduction}>
           <p className={styles.heroLede}>{t('home.hero.lede')}</p>
           {children}

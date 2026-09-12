@@ -1,0 +1,33 @@
+{
+  "skill": "t1k:cook",
+  "mode": "parallel",
+  "task": "Rebuild the whole landing with natural document scrolling, large alternating 3D models, reversible effects throughout the page and a colorful interactive terminal.",
+  "scoutSummary": "Next16 App Router; R3F/Three already installed. Latest user rejected the initial pinned theater: four naturally flowing chapters and five continuation anchors now drive one transparent viewport canvas. Camera/model assembly, lower section depth and terminal scan/progress respond to native scroll without executing commands. Real local browser testing also exposed HTTP loopback CSP redirect upgrading; a narrowly scoped URL predicate fixes it while preserving all other security directives.",
+  "acceptanceCriteria": [
+    "Four naturally flowing story chapters, large left/right model placement and reversible camera/assembly progression across all nine document anchors.",
+    "Colorful terminal depth, scan, syntax and pipeline effects follow scroll; actual preview execution requires explicit Run.",
+    "Fault/recovery interactions reflected in scene and accessible HTML, clear simulation disclosure.",
+    "Responsive native scrolling, reduced-motion and unsupported-WebGL fallback, no shared-layout Three import.",
+    "Fresh build/lint/typecheck/copy/token/bundle gates, actual WebGL screenshot inspection and honest frame timing.",
+    "Independent review and current design documentation."
+  ],
+  "touchpoints": [
+    "apps/web marketing and homepage",
+    "packages/copy home surface",
+    "globals landing RGB tokens",
+    "guest landing Playwright config/spec",
+    "request-aware CSP upgrade directive and security proxy regression tests"
+  ],
+  "publicContracts": [
+    "experience-contract.ts JourneySceneProps",
+    "Existing CTA/catalog/terminal preview and shell landmarks",
+    "Existing bundle/copy/token gates",
+    "Optional URL argument to security header builder; secure default preserved"
+  ],
+  "blastRadius": [
+    "Landing appearance and GPU lifecycle",
+    "Home copy/OG image",
+    "Guest E2E harness",
+    "Only HTTP localhost/127.0.0.1/[::1] omit insecure-request upgrading; other headers and authentication remain enforced"
+  ]
+}

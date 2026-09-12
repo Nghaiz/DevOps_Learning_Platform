@@ -1,7 +1,47 @@
 import type { IntentionalThree, Surface } from '../types.ts';
 
-/** Landing copy: a practical workbench and the published learning paths. */
+/** Landing copy: a scroll-driven DevOps journey, workbench and published learning paths. */
 export const home = {
+  'home.journey.label': 'Hành trình từ dòng lệnh đến hệ thống',
+  'home.journey.heading': 'Từ một dòng lệnh.',
+  'home.journey.accent': 'Đến cả hệ thống.',
+  'home.journey.lede':
+    'Cuộn để theo chân ứng dụng qua từng bước. Sau đó, tự tay vận hành trong lab của bạn.',
+  'home.journey.scroll': 'Cuộn để khám phá',
+  'home.journey.skip': 'Đến lộ trình học',
+  'home.journey.fallback':
+    'Sơ đồ hành trình: viết lệnh, đóng gói, triển khai và quan sát hệ thống.',
+  'home.journey.reduced': 'Chế độ ít chuyển động. Chọn từng bước để khám phá.',
+  'home.journey.disclosure': 'Mô phỏng minh hoạ. Lab thật mở sau khi đăng nhập.',
+  'home.journey.fault': 'Thử dừng một node',
+  'home.journey.recover': 'Khôi phục node',
+  'home.journey.idle': 'Hệ thống sẵn sàng nhận yêu cầu.',
+  'home.journey.fault-status': 'Một node đã dừng. Yêu cầu được chuyển sang node còn lại.',
+  'home.journey.recovered-status': 'Node đã trở lại. Các bản sao tiếp tục phục vụ yêu cầu.',
+  'home.journey.stage0.kicker': '01 / LINUX',
+  'home.journey.stage0.title': 'Mọi thứ bắt đầu\ntừ một dòng lệnh.',
+  'home.journey.stage0.body':
+    'Một máy trạm. Một ý tưởng. Làm quen với hệ điều hành, kiểm tra tiến trình và đưa ứng dụng đầu tiên lên chạy.',
+  'home.journey.stage0.command': '$ ./start.sh',
+  'home.journey.stage0.status': 'Tiến trình ứng dụng đã khởi động',
+  'home.journey.stage1.kicker': '02 / DOCKER',
+  'home.journey.stage1.title': 'Đóng gói ý tưởng.\nChạy ở bất cứ đâu.',
+  'home.journey.stage1.body':
+    'Mã nguồn và môi trường được đóng vào image. Khởi chạy container để thấy ứng dụng hoạt động trong một không gian riêng.',
+  'home.journey.stage1.command': '$ docker build -t my-app .',
+  'home.journey.stage1.status': 'Image đã sẵn sàng để triển khai',
+  'home.journey.stage2.kicker': '03 / KUBERNETES',
+  'home.journey.stage2.title': 'Một ứng dụng.\nCả cụm cùng chạy.',
+  'home.journey.stage2.body':
+    'Khai báo trạng thái bạn muốn. Kubernetes phân phối các bản sao tới node, nối mạng và giữ ứng dụng luôn sẵn sàng.',
+  'home.journey.stage2.command': '$ kubectl apply -f deployment.yaml',
+  'home.journey.stage2.status': 'Các bản sao đã được phân phối tới cụm',
+  'home.journey.stage3.kicker': '04 / VẬN HÀNH',
+  'home.journey.stage3.title': 'Nhìn thấy sự cố.\nHiểu cách phục hồi.',
+  'home.journey.stage3.body':
+    'Theo dõi đường đi của yêu cầu. Thử dừng một node, quan sát tuyến còn hoạt động rồi đưa hệ thống trở lại trạng thái ổn định.',
+  'home.journey.stage3.command': '$ kubectl get pods -o wide',
+  'home.journey.stage3.status': 'Các node đang phục vụ yêu cầu',
   'home.identity.name': 'PTIT / DevOps Learning Platform',
   'home.footer.note': 'Từ dòng lệnh đầu tiên đến hệ thống bạn tự vận hành.',
   'home.hero.eyebrow': 'Không gian thực hành DevOps',
@@ -18,6 +58,15 @@ export const home = {
   'home.cta.paths': 'Xem lộ trình',
 
   'home.preview.name': 'Bàn thực hành',
+  'home.preview.flow-label': 'Tiến trình minh hoạ',
+  'home.preview.flow-read': 'Đọc nhiệm vụ',
+  'home.preview.flow-run': 'Chạy ví dụ',
+  'home.preview.flow-result': 'Xem kết quả',
+  'home.preview.scroll-note':
+    'Cuộn để theo dõi tiến trình minh hoạ. Lệnh chỉ chạy khi bạn chọn Chạy ví dụ.',
+  'home.preview.prompt': 'learner@devops',
+  'home.preview.directory': '~/playground',
+  'home.preview.output-label': 'Kết quả đầu ra',
   'home.preview.disclosure': 'Bản minh hoạ tương tác',
   'home.preview.topic-label': 'Chọn công nghệ để xem ví dụ',
   'home.preview.task-label': 'Nhiệm vụ của bạn',

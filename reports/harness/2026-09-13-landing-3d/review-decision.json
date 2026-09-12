@@ -1,0 +1,17 @@
+{
+  "decision": "PASS",
+  "score": 9,
+  "criticalCount": 0,
+  "acceptanceCoverage": [
+    "Independent source review covers natural four-chapter/nine-anchor flow, large model placement, demand rendering, lifecycle and static fallback.",
+    "Terminal effects preserve explicit Run behavior; keyboard chapter selection transfers focus to destination.",
+    "Local HTTP CSP exception is exact loopback only; default/HTTPS/external directives, nonce and auth gates retained."
+  ],
+  "regressionProof": [
+    "reports/2026-09-13-landing-3d-review.md",
+    "reports/harness/2026-09-13-landing-3d/edge-scout.md",
+    "60 passing marketing/security/proxy unit tests."
+  ],
+  "blockingReasons": [],
+  "contractStatus": "CHANGED"
+}

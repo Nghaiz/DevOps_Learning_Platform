@@ -1,0 +1,11 @@
+{
+  "highRisk": true,
+  "reasons": [
+    "Landing visual replacement, WebGL lifecycle and responsive scrolling require real browser verification.",
+    "HTTP loopback CSP exception needs production/nonloopback regression coverage.",
+    "User explicitly authorized autonomous full implementation and design decisions, including codebase changes; no remote deployment is performed."
+  ],
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": true
+}

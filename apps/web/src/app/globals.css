@@ -182,6 +182,19 @@
   --brand-ink: oklch(0.362 0.031 269.7);
   --brand-navy: oklch(0.247 0.107 263.7);
 
+  /* Landing diorama: RGB values are shared with the Three.js material adapter.
+   * This cinematic surface keeps its contrast in both application themes. */
+  --journey-bg: rgb(10, 16, 33);
+  --journey-panel: rgb(22, 32, 52);
+  --journey-ink: rgb(238, 245, 255);
+  --journey-muted: rgb(163, 183, 210);
+  --journey-coral: rgb(255, 126, 107);
+  --journey-cyan: rgb(82, 209, 247);
+  --journey-violet: rgb(171, 149, 255);
+  --journey-mint: rgb(109, 230, 185);
+  --journey-amber: rgb(255, 205, 117);
+  --journey-metal: rgb(84, 107, 135);
+
   /*
    * ── Độ khó ────────────────────────────────────────────────────────────────
    * GIỮ NGUYÊN byte-identical từ hệ trước. `p16-tokens.md` §0 đặt ba nhóm

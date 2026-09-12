@@ -39,7 +39,7 @@ export const contentType = 'image/png';
  * người khác nhìn thấy. Bản trước mang một ký tự U+2014 ở đây; nó được thay
  * bằng dấu chấm, không bằng một ký tự khác trông giống nó.
  */
-export const alt = `${t('home.og.title')}. ${t('home.og.subtitle')}`;
+export const alt = `${t('home.journey.heading')} ${t('home.journey.accent')}`;
 
 const BRAND_NAVY = '#051A53';
 const TEXT_PRIMARY = '#FFFFFF';
@@ -80,7 +80,7 @@ export default async function OpengraphImage(): Promise<ImageResponse> {
           color: TEXT_SECONDARY,
         }}
       >
-        {t('home.demo.docker.command')}
+        {t('home.journey.stage2.command')}
       </div>
 
       <div
@@ -92,7 +92,7 @@ export default async function OpengraphImage(): Promise<ImageResponse> {
           lineHeight: 1.1,
         }}
       >
-        {t('home.og.title')}
+        {t('home.journey.heading')}
       </div>
       <div
         style={{
@@ -103,7 +103,7 @@ export default async function OpengraphImage(): Promise<ImageResponse> {
           color: TEXT_SECONDARY,
         }}
       >
-        {t('home.og.subtitle')}
+        {t('home.journey.accent')}
       </div>
     </div>,
     {
