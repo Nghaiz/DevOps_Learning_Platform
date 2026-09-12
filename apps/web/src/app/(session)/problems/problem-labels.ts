@@ -1,4 +1,4 @@
-import { renderCopy, type CopyRef, type TextKey } from '@devops-platform/copy';
+import { renderCopy, type CopyRef, type StaticTextKey } from '@devops-platform/copy';
 import {
   type ProblemDifficulty,
   type ProblemOrderKey,
@@ -41,7 +41,9 @@ import {
  * `Record<T, string>`, và bắt mỗi nơi gọi tự dựng lại phép ánh xạ này là chép
  * cùng một vòng lặp ra bốn chỗ.
  */
-function labelsFrom<T extends string>(keys: Readonly<Record<T, TextKey>>): Readonly<Record<T, string>> {
+function labelsFrom<T extends string>(
+  keys: Readonly<Record<T, StaticTextKey>>,
+): Readonly<Record<T, string>> {
   const out = {} as Record<T, string>;
   /*
     `Object.entries` khai kiểu khoá là `string`, và TypeScript từ chối ép thẳng
@@ -52,7 +54,10 @@ function labelsFrom<T extends string>(keys: Readonly<Record<T, TextKey>>): Reado
     ⚠ Lỗi này chỉ đỏ ở `next build`, KHÔNG đỏ ở `turbo run typecheck`. Hai pha
     dùng hai cấu hình khác nhau, nên `typecheck` xanh không thay được `build`.
   */
-  for (const [value, key] of Object.entries(keys) as unknown as readonly (readonly [T, TextKey])[]) {
+  for (const [value, key] of Object.entries(keys) as unknown as readonly (readonly [
+    T,
+    StaticTextKey,
+  ])[]) {
     out[value] = renderCopy({ key });
   }
   return out;
@@ -64,7 +69,7 @@ function labelsFrom<T extends string>(keys: Readonly<Record<T, TextKey>>): Reado
  * Hợp đồng khai `ProblemViewerStatus` là một union nhưng KHÔNG kèm mảng hằng
  * như `PROBLEM_TOPICS`, nên mảng này phải khai ở đây. Hai cái gác giữ nó khỏi
  * trôi khi union đổi: `satisfies` chặn chiều "mảng có phần tử không thuộc
- * union", còn `Record<ProblemViewerStatus, TextKey>` của bảng khoá ngay dưới
+ * union", còn `Record<ProblemViewerStatus, StaticTextKey>` của bảng khoá ngay dưới
  * chặn chiều "union có thành viên mảng chưa liệt kê", thêm một trạng thái thứ
  * tư vào hợp đồng sẽ làm bảng khoá đỏ ngay, chứ không lặng lẽ biến mất khỏi bộ
  * lọc.
@@ -79,7 +84,7 @@ export const PROBLEM_VIEWER_STATUS_KEYS = {
   solved: 'catalog.problems.viewer.solved',
   attempted: 'catalog.problems.viewer.attempted',
   untouched: 'catalog.problems.viewer.untouched',
-} as const satisfies Record<ProblemViewerStatus, TextKey>;
+} as const satisfies Record<ProblemViewerStatus, StaticTextKey>;
 
 export const PROBLEM_VIEWER_STATUS_LABELS = labelsFrom(PROBLEM_VIEWER_STATUS_KEYS);
 
@@ -190,14 +195,17 @@ export function formatMoment(iso: string): string {
  * Dấu phẩy là DẤU NỐI, không phải chữ biên tập, nên nó không vào bản đồ thông
  * điệp. Chữ của từng chủ đề tới từ `PROBLEM_TOPIC_LABELS` của `packages/games`.
  */
-export function joinTopics(topics: readonly ProblemTopic[], labels: Readonly<Record<ProblemTopic, string>>): string {
+export function joinTopics(
+  topics: readonly ProblemTopic[],
+  labels: Readonly<Record<ProblemTopic, string>>,
+): string {
   return topics.map((topic) => labels[topic]).join(', ');
 }
 
 /**
  * Khoá nhãn cho bốn khoá sắp xếp của hợp đồng.
  *
- * `Record<ProblemOrderKey, TextKey>` chứ không phải một mảng cặp: thêm một khoá
+ * `Record<ProblemOrderKey, StaticTextKey>` chứ không phải một mảng cặp: thêm một khoá
  * vào `PROBLEM_ORDER_KEYS` mà quên nhãn sẽ đỏ ngay ở đây, thay vì hiện ra một
  * mục trống trong ô chọn. Và KHÔNG có `title`, hợp đồng loại nó vì collation
  * Postgres không khớp JavaScript với tiếng Việt có dấu, mà lệch thứ tự dưới
@@ -208,13 +216,13 @@ export const PROBLEM_ORDER_KEY_LABELS = {
   difficulty: 'catalog.problems.order-difficulty',
   solverCount: 'catalog.problems.order-solvers',
   createdAt: 'catalog.problems.order-created',
-} as const satisfies Record<ProblemOrderKey, TextKey>;
+} as const satisfies Record<ProblemOrderKey, StaticTextKey>;
 
 export const PROBLEM_ORDER_LABELS = labelsFrom(PROBLEM_ORDER_KEY_LABELS);
 
 export const PROBLEM_DIRECTION_KEY_LABELS = {
   asc: 'catalog.problems.direction-asc',
   desc: 'catalog.problems.direction-desc',
-} as const satisfies Record<'asc' | 'desc', TextKey>;
+} as const satisfies Record<'asc' | 'desc', StaticTextKey>;
 
 export const PROBLEM_DIRECTION_LABELS = labelsFrom(PROBLEM_DIRECTION_KEY_LABELS);

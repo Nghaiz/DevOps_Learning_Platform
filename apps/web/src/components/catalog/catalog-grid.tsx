@@ -92,7 +92,8 @@ export function CatalogCard(props: {
   // Spread có điều kiện, không `accent={... : undefined}`: repo bật
   // `exactOptionalPropertyTypes`, nên truyền tường minh `undefined` vào một prop
   // khai `accent?: CardAccent` là lỗi kiểu, không phải "bỏ prop".
-  const accent = props.difficulty === undefined ? {} : { accent: DIFFICULTY_ACCENT[props.difficulty] };
+  const accent =
+    props.difficulty === undefined ? {} : { accent: DIFFICULTY_ACCENT[props.difficulty] };
 
   return (
     <li>
@@ -102,7 +103,9 @@ export function CatalogCard(props: {
       >
         <Card interactive {...accent} className="flex h-full flex-col gap-3 p-5">
           <div className="flex items-start justify-between gap-3">
-            <h3 className="text-xl leading-snug font-semibold text-balance text-foreground">{props.title}</h3>
+            <h2 className="text-xl leading-snug font-semibold text-balance text-foreground">
+              {props.title}
+            </h2>
             {statusLabel !== null && status !== undefined && (
               <Badge variant={PROGRESS_STATUS_BADGE[status] ?? 'status-todo'}>{statusLabel}</Badge>
             )}
@@ -111,7 +114,9 @@ export function CatalogCard(props: {
           {(props.difficulty !== undefined || props.flag !== undefined) && (
             <div className="flex flex-wrap items-center gap-2">
               {props.difficulty !== undefined && (
-                <Badge variant={DIFFICULTY_BADGE[props.difficulty]}>{difficultyLabel(props.difficulty)}</Badge>
+                <Badge variant={DIFFICULTY_BADGE[props.difficulty]}>
+                  {difficultyLabel(props.difficulty)}
+                </Badge>
               )}
               {props.flag !== undefined && (
                 <Badge variant="outline" icon={<CatalogIcon name={props.flag.icon} />}>
@@ -121,14 +126,20 @@ export function CatalogCard(props: {
             </div>
           )}
 
-          <p className="line-clamp-2 min-h-10 text-sm text-muted-foreground">{props.description ?? ''}</p>
+          <p className="line-clamp-2 min-h-10 text-sm text-muted-foreground">
+            {props.description ?? ''}
+          </p>
 
           {(props.meta !== undefined || props.tags !== undefined) && (
             <div className="mt-auto flex flex-col gap-2">
               {props.meta !== undefined && props.meta.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {props.meta.map((item) => (
-                    <Badge key={item.label} variant="secondary" icon={<CatalogIcon name={item.icon} />}>
+                    <Badge
+                      key={item.label}
+                      variant="secondary"
+                      icon={<CatalogIcon name={item.icon} />}
+                    >
                       {item.label}
                     </Badge>
                   ))}

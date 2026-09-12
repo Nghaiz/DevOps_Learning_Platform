@@ -49,7 +49,7 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t('me.password.title')}</CardTitle>
+          <CardTitle as="h2">{t('me.password.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <Alert>
@@ -83,7 +83,9 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
         revokeOtherSessions: false,
       });
       if (result.error != null) {
-        setError(describePasswordChangeError(result.error.code ?? null, result.error.message ?? null));
+        setError(
+          describePasswordChangeError(result.error.code ?? null, result.error.message ?? null),
+        );
         return;
       }
       setDone(true);
@@ -105,7 +107,7 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
         }}
       >
         <CardHeader>
-          <CardTitle>{t('me.password.title')}</CardTitle>
+          <CardTitle as="h2">{t('me.password.title')}</CardTitle>
           <CardDescription>
             {t('me.password.description', { min: MIN_PASSWORD_LENGTH })}
           </CardDescription>

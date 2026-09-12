@@ -13,7 +13,9 @@
 
 ## 0. Thứ tự thi công
 
-Hôm nay có ~5.300 chuỗi UI viết thẳng trong TSX và **không có tầng i18n nào**. `packages/copy` là
+<!-- updated 260913 -->
+
+Mốc khảo sát 2026-09-10 có ~5.300 chuỗi UI viết thẳng trong TSX và **không có tầng i18n nào**. Đây là số liệu trước khi chuyển copy, không phải số chuỗi còn tồn tại hiện nay. `packages/copy` là
 bản đồ thông điệp duy nhất mà mọi lane ghi chuỗi người dùng đọc qua đó.
 
 Nó **không phải** một framework i18n. Có đúng một locale (`vi`), không có `locale` chạy theo
@@ -49,7 +51,7 @@ export type Static = string;
  * Chuỗi có tham số. Tên tham số nằm TRONG kiểu, nên gọi sai tên là lỗi biên
  * dịch chứ không phải một chuỗi `{name}` còn nguyên trên màn hình.
  */
-export type Dynamic<P extends Params = Params> = (params: P) => string;
+export type Dynamic<P extends Params = never> = (params: P) => string;
 
 /**
  * Đếm. Ba nhánh, cả ba do người viết soạn, không nhánh nào suy ra được.
@@ -91,7 +93,7 @@ export interface ErrorEntry {
   readonly retryAfterSec?: number;
 }
 
-export type DynamicError<P extends Params = Params> = (params: P) => ErrorEntry;
+export type DynamicError<P extends Params = never> = (params: P) => ErrorEntry;
 
 export type Entry = Static | Dynamic | Counted | List | ErrorEntry | DynamicError;
 
@@ -196,7 +198,8 @@ ngữ pháp:
 export function describeCatalogEmpty(args: Args): string;
 
 // ĐÚNG: mọi nhánh đều là một khoá tĩnh, bộ dò quét được toàn bộ.
-export function describeCatalogEmpty(args: Args): { key: TextKey; params?: Params };
+import type { CopyRef } from '@devops-platform/copy';
+export function describeCatalogEmpty(args: Args): CopyRef;
 ```
 
 Đây không phải chuyện phong cách. Một hàm trả về câu ghép tại chỗ thì cổng gạch ngang dài chỉ soi
@@ -207,6 +210,10 @@ Khối chú thích ở `catalog-labels.ts:10-15` (từ chối gắn tính từ v
 từ dán ở đây sẽ là một khẳng định mà trang danh mục không có dữ liệu để bảo vệ") đi sang **nguyên
 văn**. Cả khối ở dòng 39-50 (cấm khẳng định tổng số mục khi server chỉ trả `nextCursor`) cũng vậy.
 Đó là chuẩn biên tập của dự án này, và nó phải sống ở nơi giữ chuỗi.
+
+`CopyRef` và `renderCopy` hiện thuộc `packages/copy/src/t.ts`, export qua `@devops-platform/copy`. Không khai bản sao trong apps/web. Đây là union phân biệt theo key: khoá tĩnh cấm params; khoá động bắt đúng params của thông điệp. Gọi sai hoặc thiếu tham số là lỗi biên dịch. Các bộ chọn author/catalog trả CopyRef; renderCopy dựng chuỗi ở nơi hiển thị.
+
+Các API tương thích `PROBLEM_TOPIC_LABELS` và `PROBLEM_DIFFICULTY_LABELS` vẫn export từ packages/games, nhưng từng giá trị gọi `t('problem.topic.*')` hoặc `t('problem.difficulty.*')`. Nguồn chữ duy nhất là `packages/copy/src/surfaces/problem.ts`; games giữ union phân loại và bảng ánh xạ đủ khoá, không sở hữu bản chép nhãn tiếng Việt.
 
 ### 1.7 Thêm một khoá
 
@@ -227,14 +234,14 @@ packages/copy/
   package.json          # @devops-platform/copy, zero runtime deps, dựng giống packages/shared-types
   src/
     types.ts            # §1.1
-    t.ts                # §1.3
+    t.ts                # §1.3 + typed CopyRef/renderCopy
     registry.ts         # gộp surface, suy ra CopyKey. CHỈ L0 sửa.
     scan.ts             # bộ dò thuần, export ra để test gọi
     diacritic-words.ts  # hai danh sách từ ở §3.2
     diacritic-allow.ts  # miễn trừ, có ngày và lý do
     surfaces/
       common.ts  error.ts  shell.ts  auth.ts  catalog.ts
-      session.ts home.ts   admin.ts  author.ts  me.ts
+      session.ts home.ts   admin.ts  author.ts  me.ts  problem.ts
     copy.contract.test.ts   # cổng
     scan.control.test.ts    # đối chứng dương cho từng bộ dò
 ```
@@ -643,9 +650,9 @@ Phép thử 2 là phép quyết định khi phép 1 lưỡng lự. Bản đồ t
 định; nội dung là một tập mở lớn dần theo số bài. Đổ nội dung vào bản đồ là biến bản đồ thành một
 CMS viết bằng TypeScript, và lúc đó cổng ở §3 phải chạy trên 60.000 từ mỗi lượt CI.
 
-**Riêng `packages/games/**` còn một lý do thứ hai, mạnh hơn:** design §12 chốt không lane nào của
-P16 ghi vào đó, vì một phiên song song đang sửa `components/k8s-arena/**`. Trích 39.250 từ ra khỏi
-package đó là ghi vào đúng vùng cấm.
+<!-- updated 260913 -->
+
+**Phạm vi `packages/games/**` hiện hành:** lời dẫn và thoại theo màn vẫn là nội dung, không chuyển vào bản đồ. Quy định tránh ghi đồng thời của design §12 thuộc thời điểm chia lane ban đầu. Lượt đóng nợ P16 đã chuyển riêng nhãn UI cố định `PROBLEM_*_LABELS` sang nguồn copy theo §1.6, giữ nguyên API tương thích và không di chuyển nội dung màn chơi. Các số lượng file/từ ở trên là số liệu khảo sát ban đầu, không phải bộ đếm hiện hành.
 
 ### 5.2 Vùng xám và phán quyết
 

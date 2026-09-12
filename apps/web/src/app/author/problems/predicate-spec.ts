@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import { PREDICATE_NAMES, type PredicateName } from '@devops-platform/games';
 import { kind, name, node, num, ns, sel, text, type PredicateSpec } from './predicate-arg-types';
 
@@ -35,111 +36,211 @@ import { kind, name, node, num, ns, sel, text, type PredicateSpec } from './pred
  */
 
 export const PREDICATE_SPECS: Readonly<Record<PredicateName, PredicateSpec>> = {
-  'resource-exists': { label: 'Tài nguyên tồn tại', args: [kind(), name(), ns(false)] },
-  'resource-absent': { label: 'Tài nguyên đã bị xoá', args: [kind(), name(), ns(false)] },
+  'resource-exists': {
+    label: t('problem.predicate-spec-tai-nguyen-ton-tai'),
+    args: [kind(), name(), ns(false)],
+  },
+  'resource-absent': {
+    label: t('problem.predicate-spec-tai-nguyen-da-bi-xoa'),
+    args: [kind(), name(), ns(false)],
+  },
 
   'pod-running': {
-    label: 'Có pod khớp đang Running',
-    args: [ns(), name(false), sel('labelSelector', 'Bộ chọn nhãn', false)],
+    label: t('problem.predicate-spec-co-pod-khop-dang-running'),
+    args: [
+      ns(),
+      name(false),
+      sel('labelSelector', t('problem.predicate-arg-types-bo-chon-nhan'), false),
+    ],
     requireOneOf: ['name', 'labelSelector'],
   },
   'pod-count-running': {
-    label: 'Đủ số pod khớp đang Running',
-    args: [ns(), sel(), num('min', 'Số pod tối thiểu')],
+    label: t('problem.predicate-spec-du-so-pod-khop-dang-running'),
+    args: [ns(), sel(), num('min', t('problem.predicate-spec-so-pod-toi-thieu'))],
   },
-  'pod-no-reason': { label: 'Không pod khớp nào mang reason lỗi', args: [ns(), sel()] },
-  'pod-on-node': { label: 'Pod nằm trên đúng node', args: [ns(), name(), node()] },
-  'pod-not-on-node': { label: 'Pod KHÔNG nằm trên node đó', args: [ns(), name(), node()] },
-  'all-pods-healthy': { label: 'Mọi pod trong namespace đều khoẻ', args: [ns()] },
+  'pod-no-reason': {
+    label: t('problem.predicate-spec-khong-pod-khop-nao-mang-reason-loi'),
+    args: [ns(), sel()],
+  },
+  'pod-on-node': {
+    label: t('problem.predicate-spec-pod-nam-tren-dung-node'),
+    args: [ns(), name(), node()],
+  },
+  'pod-not-on-node': {
+    label: t('problem.predicate-spec-pod-khong-nam-tren-node-do'),
+    args: [ns(), name(), node()],
+  },
+  'all-pods-healthy': {
+    label: t('problem.predicate-spec-moi-pod-trong-namespace-deu-khoe'),
+    args: [ns()],
+  },
 
   'deployment-ready': {
-    label: 'Deployment đủ replica SẴN SÀNG',
-    args: [name(), ns(), num('replicas', 'Số replica sẵn sàng')],
+    label: t('problem.predicate-spec-deployment-du-replica-san-sang'),
+    args: [name(), ns(), num('replicas', t('problem.predicate-spec-so-replica-san-sang'))],
   },
   'replicas-at-least': {
-    label: 'Workload có ít nhất N replica',
-    args: [kind(), name(), ns(), num('n', 'Số replica tối thiểu')],
+    label: t('problem.predicate-spec-workload-co-it-nhat-n-replica'),
+    args: [kind(), name(), ns(), num('n', t('problem.predicate-spec-so-replica-toi-thieu'))],
   },
   'container-image-is': {
-    label: 'Container chạy đúng image',
-    args: [kind(), name(), ns(), text('image', 'Image đầy đủ, gồm cả tag')],
+    label: t('problem.predicate-spec-container-chay-dung-image'),
+    args: [
+      kind(),
+      name(),
+      ns(),
+      text('image', t('problem.predicate-spec-image-day-du-gom-ca-tag')),
+    ],
   },
-  'resource-limits-set': { label: 'Đã khai cả requests lẫn limits', args: [kind(), name(), ns()] },
+  'resource-limits-set': {
+    label: t('problem.predicate-spec-da-khai-ca-requests-lan-limits'),
+    args: [kind(), name(), ns()],
+  },
   'probe-configured': {
-    label: 'Đã cấu hình probe',
-    args: [kind(), name(), ns(), { key: 'probe', label: 'Loại probe', type: 'probe', required: true }],
+    label: t('problem.predicate-spec-da-cau-hinh-probe'),
+    args: [
+      kind(),
+      name(),
+      ns(),
+      {
+        key: 'probe',
+        label: t('problem.predicate-spec-loai-probe'),
+        type: 'probe',
+        required: true,
+      },
+    ],
   },
-  'job-succeeded': { label: 'Job kết thúc Succeeded', args: [name(), ns()] },
+  'job-succeeded': {
+    label: t('problem.predicate-spec-job-ket-thuc-succeeded'),
+    args: [name(), ns()],
+  },
   'cronjob-schedule-is': {
-    label: 'CronJob đúng lịch',
-    args: [name(), ns(), text('schedule', 'Lịch dạng cron, ví dụ 0 3 * * *')],
+    label: t('problem.predicate-spec-cronjob-dung-lich'),
+    args: [name(), ns(), text('schedule', t('problem.predicate-spec-lich-dang-cron-vi-du-0-3'))],
   },
 
   'service-has-endpoints': {
-    label: 'Service có endpoint',
-    args: [name(), ns(), num('min', 'Số endpoint tối thiểu (mặc định 1)', false)],
+    label: t('problem.predicate-spec-service-co-endpoint'),
+    args: [
+      name(),
+      ns(),
+      num('min', t('problem.predicate-spec-so-endpoint-toi-thieu-mac-dinh-1'), false),
+    ],
   },
   'ingress-routes': {
-    label: 'Ingress định tuyến đúng',
-    args: [name(), ns(), text('path', 'Đường dẫn'), text('serviceName', 'Service đích')],
+    label: t('problem.predicate-spec-ingress-dinh-tuyen-dung'),
+    args: [
+      name(),
+      ns(),
+      text('path', t('problem.predicate-spec-duong-dan')),
+      text('serviceName', t('problem.predicate-spec-service-dich')),
+    ],
   },
   'netpol-allows': {
-    label: 'NetworkPolicy CHO PHÉP luồng này',
-    args: [ns(), sel('fromLabels', 'Nhãn bên gửi'), sel('toLabels', 'Nhãn bên nhận'), num('port', 'Cổng', false)],
+    label: t('problem.predicate-spec-networkpolicy-cho-phep-luong-nay'),
+    args: [
+      ns(),
+      sel('fromLabels', t('problem.predicate-spec-nhan-ben-gui')),
+      sel('toLabels', t('problem.predicate-spec-nhan-ben-nhan')),
+      num('port', t('problem.predicate-spec-cong'), false),
+    ],
   },
   'netpol-denies': {
-    label: 'NetworkPolicy CHẶN luồng này',
-    args: [ns(), sel('fromLabels', 'Nhãn bên gửi'), sel('toLabels', 'Nhãn bên nhận'), num('port', 'Cổng', false)],
+    label: t('problem.predicate-spec-networkpolicy-chan-luong-nay'),
+    args: [
+      ns(),
+      sel('fromLabels', t('problem.predicate-spec-nhan-ben-gui')),
+      sel('toLabels', t('problem.predicate-spec-nhan-ben-nhan')),
+      num('port', t('problem.predicate-spec-cong'), false),
+    ],
   },
   'dns-resolves': {
-    label: 'Phân giải được tên dịch vụ',
-    args: [ns(), text('fromName', 'Pod nguồn'), text('toName', 'Tên dịch vụ cần phân giải')],
+    label: t('problem.predicate-spec-phan-giai-duoc-ten-dich-vu'),
+    args: [
+      ns(),
+      text('fromName', t('problem.predicate-spec-pod-nguon')),
+      text('toName', t('problem.predicate-spec-ten-dich-vu-can-phan-giai')),
+    ],
   },
 
-  'configmap-key-set': { label: 'ConfigMap có key', args: [name(), ns(), text('key', 'Tên key')] },
+  'configmap-key-set': {
+    label: t('problem.predicate-spec-configmap-co-key'),
+    args: [name(), ns(), text('key', t('problem.predicate-spec-ten-key'))],
+  },
   'secret-mounted': {
-    label: 'Secret đã được gắn vào pod',
+    label: t('problem.predicate-spec-secret-da-duoc-gan-vao-pod'),
     args: [
       ns(),
-      text('secretName', 'Tên Secret'),
-      text('podName', 'Tên pod', false),
-      sel('labelSelector', 'Bộ chọn nhãn', false),
+      text('secretName', t('problem.predicate-spec-ten-secret')),
+      text('podName', t('problem.predicate-spec-ten-pod'), false),
+      sel('labelSelector', t('problem.predicate-arg-types-bo-chon-nhan'), false),
     ],
     requireOneOf: ['podName', 'labelSelector'],
   },
-  'pvc-bound': { label: 'PVC ở trạng thái Bound', args: [name(), ns()] },
+  'pvc-bound': { label: t('problem.predicate-spec-pvc-o-trang-thai-bound'), args: [name(), ns()] },
   'volume-mounted': {
-    label: 'Volume đã gắn vào đúng đường dẫn',
+    label: t('problem.predicate-spec-volume-da-gan-vao-dung-duong-dan'),
     args: [
       ns(),
-      text('mountPath', 'Đường dẫn mount'),
-      text('podName', 'Tên pod', false),
-      sel('labelSelector', 'Bộ chọn nhãn', false),
+      text('mountPath', t('problem.predicate-spec-duong-dan-mount')),
+      text('podName', t('problem.predicate-spec-ten-pod'), false),
+      sel('labelSelector', t('problem.predicate-arg-types-bo-chon-nhan'), false),
     ],
     requireOneOf: ['podName', 'labelSelector'],
   },
 
-  'node-ready': { label: 'Node ở trạng thái Ready', args: [node()] },
-  'toleration-matches': { label: 'Pod chịu được taint của node đích', args: [ns(), kind(), name()] },
-  'quota-within-limit': { label: 'Không tài nguyên nào vượt ResourceQuota', args: [ns()] },
-  'hpa-has-metrics': { label: 'HPA có nguồn metric hợp lệ', args: [name(), ns()] },
+  'node-ready': { label: t('problem.node-fields-node-o-trang-thai-ready'), args: [node()] },
+  'toleration-matches': {
+    label: t('problem.predicate-spec-pod-chiu-duoc-taint-cua-node-dich'),
+    args: [ns(), kind(), name()],
+  },
+  'quota-within-limit': {
+    label: t('problem.predicate-spec-khong-tai-nguyen-nao-vuot-resourcequota'),
+    args: [ns()],
+  },
+  'hpa-has-metrics': {
+    label: t('problem.predicate-spec-hpa-co-nguon-metric-hop-le'),
+    args: [name(), ns()],
+  },
   'pdb-satisfied': {
-    label: 'PodDisruptionBudget được thoả',
-    args: [name(), ns(), num('minAvailable', 'minAvailable (mặc định lấy từ spec)', false)],
+    label: t('problem.predicate-spec-poddisruptionbudget-duoc-thoa'),
+    args: [
+      name(),
+      ns(),
+      num('minAvailable', t('problem.predicate-spec-minavailable-mac-dinh-lay-tu-spec'), false),
+    ],
   },
 
   'rbac-allows': {
-    label: 'RBAC CHO PHÉP thao tác',
-    args: [text('serviceAccount', 'ServiceAccount'), ns(), text('verb', 'Động từ, ví dụ get'), text('resource', 'Tài nguyên, ví dụ pods')],
+    label: t('problem.predicate-spec-rbac-cho-phep-thao-tac'),
+    args: [
+      text('serviceAccount', t('problem.resource-service-account')),
+      ns(),
+      text('verb', t('problem.predicate-spec-dong-tu-vi-du-get')),
+      text('resource', t('problem.predicate-spec-tai-nguyen-vi-du-pods')),
+    ],
   },
   'rbac-denies': {
-    label: 'RBAC TỪ CHỐI thao tác',
-    args: [text('serviceAccount', 'ServiceAccount'), ns(), text('verb', 'Động từ, ví dụ get'), text('resource', 'Tài nguyên, ví dụ pods')],
+    label: t('problem.predicate-spec-rbac-tu-choi-thao-tac'),
+    args: [
+      text('serviceAccount', t('problem.resource-service-account')),
+      ns(),
+      text('verb', t('problem.predicate-spec-dong-tu-vi-du-get')),
+      text('resource', t('problem.predicate-spec-tai-nguyen-vi-du-pods')),
+    ],
   },
 
   'no-incident-active': {
-    label: 'Không còn sự cố nào hoạt động',
-    args: [ns(), { key: 'kind', label: 'Chỉ xét một loại sự cố', type: 'incident-kind', required: false }],
+    label: t('problem.predicate-spec-khong-con-su-co-nao-hoat-dong'),
+    args: [
+      ns(),
+      {
+        key: 'kind',
+        label: t('problem.predicate-spec-chi-xet-mot-loai-su-co'),
+        type: 'incident-kind',
+        required: false,
+      },
+    ],
   },
 };
 

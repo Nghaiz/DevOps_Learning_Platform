@@ -1,4 +1,4 @@
-import { t, type CopyRef, type TextKey } from '@devops-platform/copy';
+import { t, type CopyRef, type StaticTextKey } from '@devops-platform/copy';
 import type { BadgeVariant } from '@devops-platform/ui';
 import type { SandboxTierName, ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
 
@@ -34,7 +34,7 @@ import type { SandboxTierName, ScenarioDifficulty } from '@devops-platform/share
  * bộ chọn.
  *
  * ⚠ `CopyRef` và `renderCopy` thì ĐÃ sang, ngày 2026-09-11, và chúng là phản ví
- * dụ cho lý lẽ cũ: cả hai chỉ cần `TextKey` và `Params`, hai kiểu vốn đã sống
+ * dụ cho lý lẽ cũ: cả hai chỉ cần `StaticTextKey` và `Params`, hai kiểu vốn đã sống
  * trong `t.ts`, nên không đòi lối vào mới nào. Trước đó bốn cây khác
  * (`components/author`, `app/author/problems`, `app/(session)/problems`,
  * `app/quiz`) phải import ngược vào file của lane 16.C chỉ để lấy chúng. Lý do
@@ -50,7 +50,7 @@ const NOUN_KEY = {
   playgrounds: 'catalog.noun.playgrounds',
   paths: 'catalog.noun.paths',
   quiz: 'catalog.noun.quiz',
-} as const satisfies Record<CatalogKind, TextKey>;
+} as const satisfies Record<CatalogKind, StaticTextKey>;
 
 /** Danh từ của một loại danh mục, đã dựng thành chữ (nó là THAM SỐ của câu khác). */
 export function catalogNoun(kind: CatalogKind): string {
@@ -63,7 +63,7 @@ const TITLE_KEY = {
   playgrounds: 'catalog.title.playgrounds',
   paths: 'catalog.title.paths',
   quiz: 'catalog.title.quiz',
-} as const satisfies Record<CatalogKind, TextKey>;
+} as const satisfies Record<CatalogKind, StaticTextKey>;
 
 const LEAD_KEY = {
   lessons: 'catalog.lead.lessons',
@@ -71,7 +71,7 @@ const LEAD_KEY = {
   playgrounds: 'catalog.lead.playgrounds',
   paths: 'catalog.lead.paths',
   quiz: 'catalog.lead.quiz',
-} as const satisfies Record<CatalogKind, TextKey>;
+} as const satisfies Record<CatalogKind, StaticTextKey>;
 
 const ERROR_TITLE_KEY = {
   lessons: 'catalog.error-title.lessons',
@@ -79,7 +79,7 @@ const ERROR_TITLE_KEY = {
   playgrounds: 'catalog.error-title.playgrounds',
   paths: 'catalog.error-title.paths',
   quiz: 'catalog.error-title.quiz',
-} as const satisfies Record<CatalogKind, TextKey>;
+} as const satisfies Record<CatalogKind, StaticTextKey>;
 
 export function catalogTitle(kind: CatalogKind): string {
   return t(TITLE_KEY[kind]);
@@ -97,7 +97,7 @@ const DIFFICULTY_KEY = {
   beginner: 'common.difficulty.beginner',
   intermediate: 'common.difficulty.intermediate',
   advanced: 'common.difficulty.advanced',
-} as const satisfies Record<ScenarioDifficulty, TextKey>;
+} as const satisfies Record<ScenarioDifficulty, StaticTextKey>;
 
 /**
  * Ba mức độ khó đọc từ `common.`, KHÔNG từ `catalog.`.
@@ -115,13 +115,13 @@ const TIER_KEY = {
   sysbox: 'catalog.tier.sysbox',
   gvisor: 'catalog.tier.gvisor',
   kata: 'catalog.tier.kata',
-} as const satisfies Record<SandboxTierName, TextKey>;
+} as const satisfies Record<SandboxTierName, StaticTextKey>;
 
 export function tierLabel(tier: SandboxTierName): string {
   return t(TIER_KEY[tier]);
 }
 
-export const PROGRESS_STATUS_KEY: Readonly<Record<string, TextKey>> = {
+export const PROGRESS_STATUS_KEY: Readonly<Record<string, StaticTextKey>> = {
   'not-started': 'catalog.status.not-started',
   'in-progress': 'catalog.status.in-progress',
   completed: 'catalog.status.completed',
@@ -268,7 +268,7 @@ export type CatalogEmptyAction =
   | { readonly kind: 'clear-search' }
   | { readonly kind: 'first-page' }
   | { readonly kind: 'author' }
-  | { readonly kind: 'browse'; readonly href: string; readonly labelKey: TextKey };
+  | { readonly kind: 'browse'; readonly href: string; readonly labelKey: StaticTextKey };
 
 export interface CatalogEmpty {
   readonly title: CopyRef;
@@ -362,7 +362,7 @@ export function describeCatalogEmpty(args: {
  */
 const LEARNER_SUGGESTION: Record<
   CatalogKind,
-  { readonly descriptionKey: TextKey; readonly action: CatalogEmptyAction }
+  { readonly descriptionKey: StaticTextKey; readonly action: CatalogEmptyAction }
 > = {
   lessons: {
     descriptionKey: 'catalog.empty.learner.lessons',

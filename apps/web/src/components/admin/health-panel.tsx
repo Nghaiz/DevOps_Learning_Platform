@@ -66,7 +66,7 @@ export function HealthPanel(): ReactElement {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t('admin.health.title')}</CardTitle>
+          <CardTitle as="h2">{t('admin.health.title')}</CardTitle>
           <CardDescription>{t('admin.health.loading')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -121,7 +121,7 @@ function HealthPanelBody({
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <CardTitle>{t('admin.health.title')}</CardTitle>
+          <CardTitle as="h2">{t('admin.health.title')}</CardTitle>
           <CardDescription className="max-w-prose">
             {summary.headline}
             {at === null ? null : t('admin.health.fetched-at', { at })}
@@ -135,7 +135,7 @@ function HealthPanelBody({
       <CardContent className="flex flex-col gap-6">
         {summary.tone === 'ok' ? null : (
           <Alert variant={summary.tone === 'down' ? 'destructive' : 'warning'}>
-            <AlertTitle>
+            <AlertTitle as="h3">
               {summary.tone === 'down'
                 ? t('admin.health.alert-down-title')
                 : t('admin.health.alert-degraded-title')}
@@ -145,7 +145,7 @@ function HealthPanelBody({
         )}
 
         <div className="flex flex-col gap-1">
-          <h2 className="text-sm font-medium text-foreground">{t('admin.health.pool-title')}</h2>
+          <h3 className="text-sm font-medium text-foreground">{t('admin.health.pool-title')}</h3>
           <p className={pool.known ? 'text-sm text-foreground' : 'text-sm text-muted-foreground'}>
             {pool.text}
           </p>
@@ -166,7 +166,7 @@ function SourceBlock({ source }: { readonly source: HealthSourceView }): ReactEl
   return (
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-sm font-medium text-foreground">{describeSourceName(source.name)}</h2>
+        <h3 className="text-sm font-medium text-foreground">{describeSourceName(source.name)}</h3>
         <Badge variant={reading.badgeVariant}>{reading.label}</Badge>
       </div>
       <p className="max-w-prose text-sm text-muted-foreground">{reading.detail}</p>

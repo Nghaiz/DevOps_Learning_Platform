@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 /**
  * Đọc kết quả `shellcheck` mà KHÔNG gộp "chưa kiểm được" vào "sạch".
  *
@@ -51,20 +52,26 @@ export function describeScriptReport(report: ShellcheckReportView): ScriptCheckL
   if (!report.available) {
     return {
       tone: 'unknown',
-      label: 'Chưa kiểm được',
+      label: t('author.script-warning-chua-kiem-duoc'),
       detail:
         report.unavailableReason === null
-          ? 'Không rõ lý do. Đây KHÔNG phải "script sạch" — chưa có lượt kiểm nào chạy.'
-          : `${report.unavailableReason}. Đây KHÔNG phải "script sạch" — chưa có lượt kiểm nào chạy.`,
+          ? t(
+              'author.script-warning-khong-ro-ly-do-day-khong-phai-script-sach-chua-co-luot-kiem-nao-chay',
+            )
+          : t('author.script-warning-day-khong-phai-script-sach-chua-co-luot-kiem-nao-chay', {
+              reportUnavailablereason: String(report.unavailableReason),
+            }),
     };
   }
   if (report.findings.length === 0) {
-    return { tone: 'clean', label: 'Không có cảnh báo', detail: null };
+    return { tone: 'clean', label: t('author.script-warning-khong-co-canh-bao'), detail: null };
   }
   return {
     tone: 'warn',
-    label: `${String(report.findings.length)} cảnh báo`,
-    detail: 'Cảnh báo KHÔNG chặn xuất bản — script vẫn có thể chạy đúng.',
+    label: t('author.script-warning-canh-bao', {
+      reportFindingsLength: String(report.findings.length),
+    }),
+    detail: t('author.script-warning-canh-bao-khong-chan-xuat-ban-script-van-co-the-chay-dung'),
   };
 }
 
@@ -91,21 +98,33 @@ export function summarizeScriptChecks(
   scriptCount: number,
 ): ScriptSummary {
   if (scriptCount === 0) {
-    return { tone: 'none', label: 'Bài này không có script nào để kiểm' };
+    return { tone: 'none', label: t('author.script-warning-bai-nay-khong-co-script-nao-de-kiem') };
   }
   const unknown = warnings.filter((warning) => !warning.report.available).length;
   if (unknown > 0) {
     return {
       tone: 'unknown',
-      label: `${String(unknown)}/${String(scriptCount)} script CHƯA kiểm được — không kết luận là sạch`,
+      label: t('author.script-warning-script-chua-kiem-duoc-khong-ket-luan-la-sach', {
+        unknown: String(unknown),
+        scriptcount: String(scriptCount),
+      }),
     };
   }
   if (warnings.length > 0) {
     const findings = warnings.reduce((sum, warning) => sum + warning.report.findings.length, 0);
     return {
       tone: 'warn',
-      label: `${String(findings)} cảnh báo trên ${String(warnings.length)}/${String(scriptCount)} script`,
+      label: t('author.script-warning-canh-bao-tren-script', {
+        findings: String(findings),
+        warningsLength: String(warnings.length),
+        scriptcount: String(scriptCount),
+      }),
     };
   }
-  return { tone: 'clean', label: `${String(scriptCount)} script, không có cảnh báo nào` };
+  return {
+    tone: 'clean',
+    label: t('author.script-warning-script-khong-co-canh-bao-nao', {
+      scriptcount: String(scriptCount),
+    }),
+  };
 }

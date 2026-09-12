@@ -100,7 +100,7 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
-          <CardTitle>{t('me.preferences.title')}</CardTitle>
+          <CardTitle as="h2">{t('me.preferences.title')}</CardTitle>
           {dirty && <Badge variant="warning">{t('me.preferences.dirty')}</Badge>}
         </div>
         <CardDescription>{t('me.preferences.description')}</CardDescription>
@@ -127,7 +127,9 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
               ))}
             </SelectContent>
           </Select>
-          <NoticeText notice={describeShellPreference({ shell, activeSessionCount, moreSessions })} />
+          <NoticeText
+            notice={describeShellPreference({ shell, activeSessionCount, moreSessions })}
+          />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -164,7 +166,9 @@ export function PreferencesForm(props: PreferencesFormProps): ReactElement {
                 setSaved(false);
               }}
             />
-            <Label htmlFor={`${fieldId}-leaderboard`}>{t('me.preferences.leaderboard-label')}</Label>
+            <Label htmlFor={`${fieldId}-leaderboard`}>
+              {t('me.preferences.leaderboard-label')}
+            </Label>
           </div>
           <NoticeText notice={describeLeaderboardPreference(leaderboard)} />
         </div>

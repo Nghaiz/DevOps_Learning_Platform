@@ -29,10 +29,7 @@ export function ProblemsClient(): ReactElement {
   const hasNext = query.data?.nextCursor != null;
 
   return (
-    <CatalogPage
-      title={t('catalog.title.problems')}
-      description={t('catalog.lead.problems')}
-    >
+    <CatalogPage title={t('catalog.title.problems')} description={t('catalog.lead.problems')}>
       <ProblemsToolbar controls={controls} />
 
       {query.isPending && <ProblemsTableSkeleton />}
@@ -81,10 +78,10 @@ export function ProblemsClient(): ReactElement {
             "bài khó nhất" đọc thành "bài khó nhất trong 25 dòng này".
           */}
           <CatalogNote>
-            {t(
-              hasNext ? 'catalog.problems.scope-more' : 'catalog.problems.scope-last',
-              { shown: items.length, page: controls.page },
-            )}
+            {t(hasNext ? 'catalog.problems.scope-more' : 'catalog.problems.scope-last', {
+              shown: items.length,
+              page: controls.page,
+            })}
           </CatalogNote>
           <CursorPager
             hasNext={hasNext}
@@ -110,7 +107,12 @@ export function ProblemsClient(): ReactElement {
  */
 function ProblemsTableSkeleton(): ReactElement {
   return (
-    <div className="flex flex-col gap-2" aria-busy="true" aria-live="polite" aria-label="Đang tải danh sách bài">
+    <div
+      className="flex flex-col gap-2"
+      aria-busy="true"
+      aria-live="polite"
+      aria-label={t('problem.problems-client-dang-tai-danh-sach-bai')}
+    >
       {Array.from({ length: 5 }, (_, row) => (
         <div key={row} className="flex gap-3">
           {Array.from({ length: 9 }, (_, column) => (

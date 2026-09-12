@@ -104,49 +104,16 @@ export function count<K extends CountKey>(key: K, n: number): string {
   return entry.many(n);
 }
 
-/**
- * Một tham chiếu tới bản đồ thông điệp: khoá cộng tham số, CHƯA dựng thành câu.
- *
- * ## Vì sao nó ở đây chứ không ở `apps/web`
- *
- * Cho tới 2026-09-11 kiểu này khai trong `apps/web/src/components/catalog/catalog-labels.ts`,
- * một file thuộc lane 16.C, trong khi bốn cây khác (`components/author`,
- * `app/author/problems`, `app/(session)/problems`, `app/quiz`) đều import ngược
- * vào đó. Một lane sở hữu tầng nối của bốn lane khác là một tầng đặt nhầm chỗ:
- * lane nào cũng phải chờ lane 16.C để đổi nó, và không lane nào được phép.
- *
- * Khối chú thích cũ ở `catalog-labels.ts:24-33` giải thích vì sao nó chưa sang
- * được: `package.json` khai đúng bốn lối vào và không lối nào chở được hàm khai
- * trong `surfaces/`. Lý lẽ đó đúng cho các hàm CHỌN, và sai cho chính `CopyRef`:
- * kiểu này chỉ cần `TextKey` và `Params`, cả hai đã sống trong file này. Nó
- * không cần một lối vào mới nào.
- *
- * Các hàm CHỌN (`describeCatalogEmpty`, `describeItem`, `formatDuration`, …) ở
- * lại `apps/web`, và đó là quyết định chứ không phải nợ: chúng nhận kiểu miền
- * của `apps/web` (`ProblemRow`, `SandboxTierName`, `ScenarioDifficulty`), nên
- * kéo chúng sang đây là kéo cả cây kiểu của ứng dụng vào một gói khai "không có
- * khối `dependencies`" như một hợp đồng. Thứ §1.6 thật sự mua là "mọi nhánh là
- * một mục tĩnh trong bản đồ", và điều đó đạt đủ khi bản đồ ở bên này còn nhánh ở
- * bên kia: bộ dò đọc bản đồ, không đọc bộ chọn.
- *
- * ## Đánh đổi ở tầng kiểu
- *
- * ⚠ Kiểu này CỐ Ý mất phần kiểm THAM SỐ ở tầng biên dịch. `t('catalog.pager.page')`
- * viết thẳng thì TypeScript đòi đúng `{ page: number }`; đi qua `CopyRef` thì
- * `params` chỉ còn là `Params`. Đó là cái giá của việc một hàm chọn trả về nhiều
- * khoá có chữ ký khác nhau.
- *
- * Bù bằng test, không bằng lời hứa: mỗi nhánh của mỗi bộ chọn có một ca DỰNG RA
- * CÂU rồi so với chữ thật, nên một tham số sai tên hiện ra ngay dưới dạng chuỗi
- * còn nguyên chỗ trống chứ không lọt.
- *
- * KHOÁ thì vẫn được kiểm: `TextKey` là union các khoá chữ có thật, nên gõ sai
- * tên khoá là lỗi biên dịch.
- */
-export interface CopyRef {
-  readonly key: TextKey;
-  readonly params?: Params;
-}
+/** Khoá chọn thông điệp giữ nguyên kiểu và tính bắt buộc của tham số. */
+export type StaticTextKey = { [K in TextKey]: Messages[K] extends string ? K : never }[TextKey];
+
+export type CopyRef =
+  | { readonly key: StaticTextKey; readonly params?: never }
+  | {
+      [K in Exclude<TextKey, StaticTextKey>]: Messages[K] extends (params: infer P) => string
+        ? { readonly key: K; readonly params: P }
+        : never;
+    }[Exclude<TextKey, StaticTextKey>];
 
 /**
  * Dựng một `CopyRef` thành câu.

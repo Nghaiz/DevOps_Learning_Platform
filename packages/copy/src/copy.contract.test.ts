@@ -17,12 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { DIACRITIC_ALLOW } from './diacritic-allow.ts';
-import {
-  MESSAGES,
-  SURFACE_INTENTIONAL_THREE,
-  SURFACE_PREFIXES,
-  SURFACES,
-} from './registry.ts';
+import { MESSAGES, SURFACE_INTENTIONAL_THREE, SURFACE_PREFIXES, SURFACES } from './registry.ts';
 import {
   renderMessages,
   scanBlocked,
@@ -102,10 +97,7 @@ const CONTRACT_MIN_BYTES = 20_000;
  * miễn trừ nào KHÔNG còn đúng thì cổng ĐỎ, và cách sửa là XOÁ dòng đó, không
  * phải ghim lại một con số mới (`rules/pinned-baseline-test-companion.md`).
  */
-const SURFACE_MAY_BE_EMPTY: Readonly<Record<string, string>> = {
-  problem:
-    '2026-09-11: surface vừa tạo cho vùng bài tập k8s, lane chuyển chuỗi chưa hạ cánh. Xoá dòng này ngay khi khoá đầu tiên vào problem.ts.',
-};
+const SURFACE_MAY_BE_EMPTY: Readonly<Record<string, string>> = {};
 
 describe('T0 · đối chứng rỗng', () => {
   it('danh sách file surface suy ra TỪ KHOÁ của SURFACES, không gõ tay', () => {
@@ -122,7 +114,10 @@ describe('T0 · đối chứng rỗng', () => {
     const seen = new Map<string, string>();
     for (const [surface, prefixes] of Object.entries(SURFACE_PREFIXES)) {
       for (const prefix of prefixes) {
-        expect(seen.has(prefix), `tiền tố "${prefix}" dùng ở cả ${seen.get(prefix)} và ${surface}`).toBe(false);
+        expect(
+          seen.has(prefix),
+          `tiền tố "${prefix}" dùng ở cả ${seen.get(prefix)} và ${surface}`,
+        ).toBe(false);
         seen.set(prefix, surface);
       }
     }
@@ -183,7 +178,8 @@ describe('T0 · đối chứng rỗng', () => {
    */
   it('không dòng miễn trừ nào hết hạn', () => {
     const stale = Object.keys(SURFACE_MAY_BE_EMPTY).filter((name) => {
-      const entries = SURFACES[name as keyof typeof SURFACES] as Record<string, unknown> | undefined;
+      const entries = SURFACES[name as keyof typeof SURFACES] as
+        Record<string, unknown> | undefined;
       return entries !== undefined && Object.keys(entries).length > 0;
     });
     expect(
@@ -224,9 +220,7 @@ describe('T1a · quét NGUỒN, kể cả chú thích', () => {
   });
 
   it('quét được ÍT NHẤT một file, nếu không thì lượt quét này rỗng', () => {
-    expect(walkFiles(SRC_DIR, '.ts').length).toBeGreaterThanOrEqual(
-      Object.keys(SURFACES).length,
-    );
+    expect(walkFiles(SRC_DIR, '.ts').length).toBeGreaterThanOrEqual(Object.keys(SURFACES).length);
   });
 });
 
@@ -260,7 +254,9 @@ describe('T2 · tiếng Việt bị lột dấu', () => {
         (token) => !DIACRITIC_ALLOW.some((a) => a.key === rv.key && a.token === token),
       );
       if (unallowed.length > 0) {
-        offenders.push(`${rv.key}: token [${unallowed.join(', ')}] trong ${JSON.stringify(rv.value)}`);
+        offenders.push(
+          `${rv.key}: token [${unallowed.join(', ')}] trong ${JSON.stringify(rv.value)}`,
+        );
       }
     }
     expect(offenders).toEqual([]);
@@ -277,7 +273,9 @@ describe('T2 · tiếng Việt bị lột dấu', () => {
     const dead = DIACRITIC_ALLOW.filter((entry) => {
       const hit = RENDERED.values.find((rv) => rv.key === entry.key);
       return hit === undefined || !scanStripped(hit.value).matched.includes(entry.token);
-    }).map((entry) => `${entry.key} / ${entry.token}: xoá dòng này, chuỗi nó miễn trừ không còn tồn tại`);
+    }).map(
+      (entry) => `${entry.key} / ${entry.token}: xoá dòng này, chuỗi nó miễn trừ không còn tồn tại`,
+    );
     expect(dead).toEqual([]);
   });
 });
@@ -292,7 +290,9 @@ describe('T3 · đúng ba', () => {
     for (const [name, surface] of Object.entries(SURFACES)) {
       const table = SURFACE_INTENTIONAL_THREE[name as keyof typeof SURFACE_INTENTIONAL_THREE];
       for (const violation of scanThree(surface, table)) {
-        offenders.push(`surfaces/${name}.ts :: ${violation.key} :: ${violation.kind} :: ${violation.detail}`);
+        offenders.push(
+          `surfaces/${name}.ts :: ${violation.key} :: ${violation.kind} :: ${violation.detail}`,
+        );
       }
     }
     expect(offenders).toEqual([]);

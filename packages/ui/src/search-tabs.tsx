@@ -156,6 +156,25 @@ export function SearchTabs(props: SearchTabsProps): ReactElement {
       if (searchRegion !== null && searchRegion.getAttribute('aria-label') !== label) {
         searchRegion.setAttribute('aria-label', label);
       }
+      // The vendor fades both panels but leaves their buttons in the Tab order.
+      // Opacity and pointer-events do not hide controls from keyboard or AT.
+      const expanded = searchRegion?.getAttribute('data-expanded') === 'true';
+      for (const [selector, inactive] of [
+        ['.gooey-search-tabs-tabs-content', expanded],
+        ['.gooey-search-tabs-close-content', !expanded],
+        ['.gooey-search-tabs-input-wrapper', !expanded],
+      ] as const) {
+        const panel = root.querySelector<HTMLElement>(selector);
+        if (!panel) continue;
+        if (inactive && panel.contains(document.activeElement)) {
+          root
+            .querySelector<HTMLElement>(expanded ? 'input' : '.gooey-search-tabs-trigger')
+            ?.focus();
+        }
+        panel.toggleAttribute('inert', inactive);
+        if (inactive) panel.setAttribute('aria-hidden', 'true');
+        else panel.removeAttribute('aria-hidden');
+      }
     };
 
     translate();
@@ -164,7 +183,7 @@ export function SearchTabs(props: SearchTabsProps): ReactElement {
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ['aria-label'],
+      attributeFilter: ['aria-label', 'data-expanded'],
     });
     return () => {
       observer.disconnect();
@@ -179,7 +198,11 @@ export function SearchTabs(props: SearchTabsProps): ReactElement {
       className={cn('inline-flex', className)}
     >
       <GooeySearchTabs
-        tabs={tabs.map((tab) => (tab.icon === undefined ? { value: tab.value, label: tab.label } : { value: tab.value, label: tab.label, icon: tab.icon }))}
+        tabs={tabs.map((tab) =>
+          tab.icon === undefined
+            ? { value: tab.value, label: tab.label }
+            : { value: tab.value, label: tab.label, icon: tab.icon },
+        )}
         {...(activeTab === undefined ? {} : { activeTab })}
         {...(defaultActiveTab === undefined ? {} : { defaultActiveTab })}
         {...(onTabChange === undefined ? {} : { onTabChange })}

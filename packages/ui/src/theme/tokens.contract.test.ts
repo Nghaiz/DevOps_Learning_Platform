@@ -554,13 +554,16 @@ describe('C1 — `@theme inline` sinh được class Tailwind cho mọi token', 
    * cấp cho bảy lane sau một class `bg-brand-star` hợp lệ về cú pháp, và
    * `--brand-star` trên nền sáng đo được **1.23:1**.
    */
-  it.each(C1_BRAND_TOKENS)('%s KHÔNG có dòng `--color-*` — brand không phải màu giao diện', (token) => {
-    expect(
-      themeInline[`--color${token.slice(1)}`],
-      `--color${token.slice(1)} tồn tại ⇒ Tailwind sinh ra bg/text/border cho màu logo. ` +
-        '§1.5 cấm dùng chúng làm màu UI, và một class tồn tại là một class sẽ có người dùng.',
-    ).toBeUndefined();
-  });
+  it.each(C1_BRAND_TOKENS)(
+    '%s KHÔNG có dòng `--color-*` — brand không phải màu giao diện',
+    (token) => {
+      expect(
+        themeInline[`--color${token.slice(1)}`],
+        `--color${token.slice(1)} tồn tại ⇒ Tailwind sinh ra bg/text/border cho màu logo. ` +
+          '§1.5 cấm dùng chúng làm màu UI, và một class tồn tại là một class sẽ có người dùng.',
+      ).toBeUndefined();
+    },
+  );
 
   it('thang bo góc suy ra từ `--radius`, không phải số cứng', () => {
     expect(themeInline['--radius-lg']).toBe('var(--radius)');
@@ -595,6 +598,9 @@ const TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
   ['--card-foreground', '--card'],
   ['--popover-foreground', '--popover'],
   ['--primary-foreground', '--primary'],
+  ['--primary', '--background'],
+  ['--primary', '--card'],
+  ['--primary', '--muted'],
   ['--secondary-foreground', '--secondary'],
   ['--accent-foreground', '--accent'],
   ['--destructive-foreground', '--destructive'],
@@ -815,7 +821,9 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
       const m = /^#([0-9a-fA-F]{6})$/.exec(value);
       if (m?.[1] === undefined) throw new Error(`Không phải hex 6 chữ số: ${value}`);
       const digits = m[1];
-      return [0, 2, 4].map((i) => Number.parseInt(digits.slice(i, i + 2), 16) / 255) as unknown as Srgb;
+      return [0, 2, 4].map(
+        (i) => Number.parseInt(digits.slice(i, i + 2), 16) / 255,
+      ) as unknown as Srgb;
     }
     const WHITE = fromHex('#ffffff');
 
@@ -835,7 +843,10 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
       ['#B89C0E', '#ffffff', 2.6924, '`--brand-star-shadow` — nửa còn lại của lệnh cấm §1.5'],
       ['#051A53', '#ffffff', 16.4176, '`--brand-navy` — nguồn của hue 263.7'],
     ])('%s trên %s = %s:1 (%s)', (fg, bg, expected) => {
-      const measured = contrastRatio(relativeLuminance(fromHex(fg)), relativeLuminance(fromHex(bg)));
+      const measured = contrastRatio(
+        relativeLuminance(fromHex(fg)),
+        relativeLuminance(fromHex(bg)),
+      );
       expect(measured).toBeCloseTo(expected as number, 3);
     });
 
@@ -865,7 +876,11 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
    * đo RIÊNG đó, không phải cho cổng.
    */
   describe('AC-3.1 — bẻ gãy một token, cả pipeline AC-2 phải ĐỎ', () => {
-    const BROKEN = { ...root, '--primary': 'oklch(0.75 0.10 26.7)', '--ring': 'oklch(0.75 0.10 26.7)' };
+    const BROKEN = {
+      ...root,
+      '--primary': 'oklch(0.75 0.10 26.7)',
+      '--ring': 'oklch(0.75 0.10 26.7)',
+    };
 
     it('bảng token giả: `--primary-foreground` trên `--primary` TRƯỢT ngưỡng 4.5', () => {
       const measured = measure(BROKEN, '--primary-foreground', '--primary');
@@ -914,8 +929,9 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
  * ⚠ 2026-09-08 — khối này TỪNG khẳng định điều bất khả thi ấy cho CẢ HAI màu,
  * và với thương hiệu lam thì nó đúng (0 nghiệm, trắng 2.89:1 với `--primary`
  * tối). Thương hiệu đỏ làm nó SAI: đỏ có độ chói tương đối thấp hơn lam ở cùng
- * L, nên trắng nay được **4.2972:1** với `--primary` tối và phép quét cho
- * **317 nghiệm**. Một giá trị `--ring` riêng ĐANG CÓ SẴN.
+ * L. Số đo lịch sử lúc đó là 4.2972:1 và 317 nghiệm. Sau khi nâng primary tối
+ * ngày 2026-09-13 để chữ đạt 4.5 trên muted, trắng đạt 3.1397:1; phép quét bên
+ * dưới tiếp tục kiểm tra sự tồn tại của nghiệm, không ghim số nghiệm cũ.
  *
  * Ta không lấy nó. Lý do là phạm vi, không phải vật lý: `--ring` là vòng focus
  * của MỌI phần tử focus được, nên cho nó một hue riêng là thiết kế lại toàn bộ
@@ -1016,14 +1032,14 @@ describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặ
  * Nên khoảng cách cần đo chính là `--primary` ↔ mặt nền — và ≥3.0 là ngưỡng
  * SC 1.4.11 cho hai thành phần phi-văn-bản cạnh nhau.
  *
- * Khác biệt ở MÀU giữa hai token là 1.0646 (sáng) / 1.5028 (tối) — gần 1.00,
- * tức "cùng một màu". Khác biệt ở CẤU TRÚC là 6.09 / 4.64. Đó là toàn bộ lý do
+ * Khác biệt ở MÀU giữa hai token là 1.0646 (sáng) / 1.1062 (tối) — gần 1.00,
+ * tức "cùng một màu". Khác biệt ở CẤU TRÚC trên nền là 6.09 / 6.31. Đó là lý do
  * luật §2.2 nằm ở hình dạng chứ không ở sắc độ.
  */
 describe('AC-4 — luật hai kênh sống sót khi KHỬ MÀU', () => {
   it.each([
     ['sáng (:root)', root, 6.0885, 6.0885],
-    ['tối (.dark)', dark, 4.6415, 4.2009],
+    ['tối (.dark)', dark, 6.3056, 5.7071],
   ])(
     '%s: mặt `primary` ĐẶC vs mặt `destructive` RỖNG ≥ 3.0:1 trên cả trang lẫn card',
     (_label, theme, onBackground, onCard) => {
@@ -1040,16 +1056,19 @@ describe('AC-4 — luật hai kênh sống sót khi KHỬ MÀU', () => {
 
   it.each([
     ['sáng (:root)', root, 1.0646],
-    ['tối (.dark)', dark, 1.5028],
-  ])('%s: hai token đỏ cách nhau %s:1 — gần 1.00, nên MÀU không tách được chúng', (_label, theme, expected) => {
-    const measured = measure(theme as Record<string, string>, '--primary', '--destructive');
-    expect(measured).toBeCloseTo(expected as number, 3);
-    expect(
-      measured,
-      'nếu dòng này ĐỎ vì hai màu đã cách nhau ≥3.0 thì luật hai kênh §2.2 mất lý do tồn tại — ' +
-        'và đó là một thay đổi hợp đồng, không phải một con số cần cập nhật ở đây.',
-    ).toBeLessThan(3);
-  });
+    ['tối (.dark)', dark, 1.1062],
+  ])(
+    '%s: hai token đỏ cách nhau %s:1 — gần 1.00, nên MÀU không tách được chúng',
+    (_label, theme, expected) => {
+      const measured = measure(theme as Record<string, string>, '--primary', '--destructive');
+      expect(measured).toBeCloseTo(expected as number, 3);
+      expect(
+        measured,
+        'nếu dòng này ĐỎ vì hai màu đã cách nhau ≥3.0 thì luật hai kênh §2.2 mất lý do tồn tại — ' +
+          'và đó là một thay đổi hợp đồng, không phải một con số cần cập nhật ở đây.',
+      ).toBeLessThan(3);
+    },
+  );
 });
 
 /**
@@ -1067,40 +1086,15 @@ describe('AC-4 — luật hai kênh sống sót khi KHỬ MÀU', () => {
  * commit — một tài liệu còn dặn tránh một khoảng trống không còn tồn tại thì
  * đang dạy sai.
  *
- * ── Khoảng trống MỚI, còn mở, và vì sao nó được pin chứ không được sửa ─────
- *
- * `--primary` là màu của LINK (§1.4 nói rõ "link"), và `Button variant="link"`
- * render `text-primary`. Ở nhánh TỐI nó KHÔNG đạt SC 1.4.3 trên hai mặt:
- * `--card` 4.2009 và `--muted` 3.5448 (trên `--background` thì đạt: 4.6415).
- *
- * Bảng §1.6 của hợp đồng biết điều này — nhánh tối chỉ đặt ngưỡng **3.0** cho
- * `--primary`/`--card`, trong khi nhánh sáng đặt "3.0 **và** 4.5". Tức hợp
- * đồng KHÔNG khẳng định link-trên-card đạt ở chế độ tối. Nó cũng không nói ra
- * rằng như vậy là một khoảng trống, nên nếu không pin ở đây thì nó không tồn
- * tại ở đâu cả.
- *
- * Sửa được, nhưng không phải ở lane này: cần một token riêng cho màu link
- * (hoặc gạch chân bắt buộc, thứ SC 1.4.1 chấp nhận thay cho tương phản màu) —
- * cả hai đều là thay đổi hợp đồng.
+ * 2026-09-12: khoảng trống primary tối đã đóng. Ba cặp link với
+ * background/card/muted nay nằm trong TEXT_PAIRS, ngưỡng 4.5 ở cả hai theme.
  */
-describe('khoảng trống CÒN MỞ — `--primary` làm màu link ở nhánh tối', () => {
-  it('trên `--card` CHƯA đạt 4.5:1 (đo 4.2009) ⇒ đừng đặt link primary trên mặt card ở chế độ tối', () => {
-    const measured = measure(dark, '--primary', '--card');
-    expect(measured).toBeLessThan(4.5);
-    expect(
-      measured,
-      'ĐỎ vì đã ĐẠT 4.5 là TIN MỪNG: xoá cả khối này và thêm ["--primary","--card"] vào TEXT_PAIRS. ' +
-        'Tuyệt đối KHÔNG cập nhật con số trong test cho khớp giá trị mới.',
-    ).toBeGreaterThanOrEqual(3);
-  });
-
-  it('trên `--background` thì ĐẠT — khoảng trống là của MẶT, không phải của màu', () => {
-    expect(measure(dark, '--primary', '--background')).toBeGreaterThanOrEqual(4.5);
-  });
-
-  it('nhánh sáng đạt trên cả ba mặt — nên đây KHÔNG phải một trần của chính màu đỏ', () => {
-    for (const surface of ['--background', '--card', '--muted'] as const) {
-      expect(measure(root, '--primary', surface)).toBeGreaterThanOrEqual(4.5);
+describe('đối chứng hồi quy màu link tối', () => {
+  it('màu cũ không đạt trên card và muted, màu hiện tại đạt cả hai', () => {
+    const previous = { ...dark, '--primary': 'oklch(0.61 0.238 26.7)' };
+    for (const surface of ['--card', '--muted'] as const) {
+      expect(measure(previous, '--primary', surface)).toBeLessThan(4.5);
+      expect(measure(dark, '--primary', surface)).toBeGreaterThanOrEqual(4.5);
     }
   });
 });

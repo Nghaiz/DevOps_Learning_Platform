@@ -1,7 +1,15 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
-import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ui';
+import {
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@devops-platform/ui';
 import { TextField, issueFor } from '../../../components/author/field';
 import type { FieldIssue } from './cluster-form';
 import type { PredicateArgSpec } from './predicate-arg-types';
@@ -32,10 +40,16 @@ export function ObjectiveArgField(props: {
   readonly nodes: readonly string[];
   readonly controlId: string;
 }): ReactElement {
-  const label = props.spec.required ? props.spec.label : `${props.spec.label} (tuỳ chọn)`;
+  const label = props.spec.required
+    ? props.spec.label
+    : t('problem.objective-arg-field-tuy-chon', { propsSpecLabel: String(props.spec.label) });
   const error = issueFor(props.issues, props.path);
 
-  if (props.spec.type === 'resource-kind' || props.spec.type === 'incident-kind' || props.spec.type === 'probe') {
+  if (
+    props.spec.type === 'resource-kind' ||
+    props.spec.type === 'incident-kind' ||
+    props.spec.type === 'probe'
+  ) {
     const options =
       props.spec.type === 'resource-kind'
         ? RESOURCE_KINDS.map((kind) => ({ value: kind, label: kind }))
@@ -43,7 +57,10 @@ export function ObjectiveArgField(props: {
           ? INCIDENT_KINDS.map((kind) => ({ value: kind, label: INCIDENT_LABELS[kind] }))
           : PROBE_VALUES.map((probe) => ({
               value: probe,
-              label: probe === 'readiness' ? 'readiness: sẵn sàng nhận lưu lượng' : 'liveness: còn sống',
+              label:
+                probe === 'readiness'
+                  ? t('problem.objective-arg-field-readiness-san-sang-nhan-luu-luong')
+                  : t('problem.objective-arg-field-liveness-con-song'),
             }));
 
     return (
@@ -56,10 +73,12 @@ export function ObjectiveArgField(props: {
           }}
         >
           <SelectTrigger id={props.controlId}>
-            <SelectValue placeholder="Chọn…" />
+            <SelectValue placeholder={t('problem.objective-arg-field-chon')} />
           </SelectTrigger>
           <SelectContent>
-            {!props.spec.required && <SelectItem value="khong">Không đặt</SelectItem>}
+            {!props.spec.required && (
+              <SelectItem value="khong">{t('problem.objective-arg-field-khong-dat')}</SelectItem>
+            )}
             {options.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
@@ -73,7 +92,11 @@ export function ObjectiveArgField(props: {
   }
 
   const suggestions =
-    props.spec.type === 'namespace' ? props.namespaces : props.spec.type === 'node' ? props.nodes : [];
+    props.spec.type === 'namespace'
+      ? props.namespaces
+      : props.spec.type === 'node'
+        ? props.nodes
+        : [];
 
   return (
     <div className="flex flex-col gap-1">
@@ -83,14 +106,17 @@ export function ObjectiveArgField(props: {
         onChange={props.onChange}
         error={error}
         inputMode={props.spec.type === 'number' ? 'numeric' : undefined}
-        {...(props.spec.type === 'selector' ? { placeholder: 'app=web,tier=front' } : {})}
         {...(props.spec.type === 'selector'
-          ? { hint: 'Dạng -l của kubectl: cặp k=v ngăn bằng dấu phẩy.' }
+          ? { placeholder: t('problem.objective-arg-field-app-web-tier-front') }
+          : {})}
+        {...(props.spec.type === 'selector'
+          ? { hint: t('problem.objective-arg-field-dang-l-cua-kubectl-cap-k-v-ngan-bang-dau-phay') }
           : {})}
       />
       {suggestions.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Đang có trong cụm: {suggestions.map((item) => item).join(', ')}
+          {t('problem.objective-arg-field-dang-co-trong-cum')}{' '}
+          {suggestions.map((item) => item).join(', ')}
         </p>
       )}
     </div>

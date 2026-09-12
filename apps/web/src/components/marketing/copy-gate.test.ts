@@ -77,8 +77,8 @@ describe('T4 · glob của lane 16.E không còn chuỗi người dùng nằm ng
     const names = FILES.map((f) => path.basename(f));
     // Vài file mốc, đủ để một lượt đổi tên thư mục làm ô này đỏ ngay.
     expect(names).toContain('hero.tsx');
-    expect(names).toContain('loop-story-client.tsx');
-    expect(names).toContain('loop-scene.tsx');
+    expect(names).toContain('lab-preview.tsx');
+    expect(names).toContain('curriculum.tsx');
     expect(names).toContain('catalog-stats.tsx');
     expect(names).toContain('page.tsx');
     expect(names).toContain('opengraph-image.tsx');

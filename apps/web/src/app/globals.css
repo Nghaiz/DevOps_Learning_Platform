@@ -396,10 +396,11 @@
   /*
    * Cùng hue 26.7, nhưng L đi NGƯỢC chiều nhánh sáng và lý do là ảnh gương của
    * nhau: ở `:root` chữ trên nút là TRẮNG nên contrast kéo L xuống; ở đây chữ
-   * là GẦN ĐEN nên contrast kéo L LÊN. `#F11B26` — đậm và bão hoà nhất mà ngân
-   * sách contrast còn cho phép (4.64:1 với `--primary-foreground`).
+   * là GẦN ĐEN nên contrast kéo L LÊN. L=0.68, C=0.19 giữ màu trong sRGB
+   * và cho chữ link đạt 4.82:1 trên muted, 5.71:1 trên card; chữ trên nút
+   * đạt 6.31:1. Ring giữ cùng màu, trắng trong khe focus vẫn đạt 3.14:1.
    */
-  --primary: oklch(0.61 0.238 26.7);
+  --primary: oklch(0.68 0.19 26.7);
   --primary-foreground: oklch(0.145 0.016 263.7);
   --secondary: oklch(0.269 0.016 263.7);
   --secondary-foreground: oklch(0.97 0.008 263.7);
@@ -443,7 +444,7 @@
    * tường minh của SC 1.4.11.
    */
   --input: oklch(1 0 0 / 38%);
-  --ring: oklch(0.61 0.238 26.7);
+  --ring: oklch(0.68 0.19 26.7);
 
   /*
    * ⚠ KHÔNG có `--brand-*` ở đây, và đó là quyết định có cổng gác, không phải

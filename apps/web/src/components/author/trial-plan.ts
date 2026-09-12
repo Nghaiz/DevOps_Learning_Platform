@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import type { PreviewPayload } from './draft-from-preview';
 
 /**
@@ -38,7 +39,11 @@ export interface TrialStepPlan {
   readonly description: string;
 }
 
-function phaseSteps(label: string, phase: { setup: { foreground: string | null; background: string | null } } | null, human: string): TrialStepPlan[] {
+function phaseSteps(
+  label: string,
+  phase: { setup: { foreground: string | null; background: string | null } } | null,
+  human: string,
+): TrialStepPlan[] {
   if (phase === null) {
     return [];
   }
@@ -49,14 +54,14 @@ function phaseSteps(label: string, phase: { setup: { foreground: string | null; 
     out.push({
       label: `${label}.setup.background`,
       mustPass: false,
-      description: `${human} — setup chạy ẩn`,
+      description: t('author.trial-plan-setup-chay-an', { human: String(human) }),
     });
   }
   if (phase.setup.foreground !== null && phase.setup.foreground !== '') {
     out.push({
       label: `${label}.setup.foreground`,
       mustPass: false,
-      description: `${human} — setup hiện trong terminal`,
+      description: t('author.trial-plan-setup-hien-trong-terminal', { human: String(human) }),
     });
   }
   return out;
@@ -69,18 +74,26 @@ export function trialPlanFor(payload: PreviewPayload): readonly TrialStepPlan[] 
       if (lesson === null) {
         return [];
       }
-      const plan: TrialStepPlan[] = [...phaseSteps('intro', lesson.intro, 'Mở đầu')];
+      const plan: TrialStepPlan[] = [
+        ...phaseSteps('intro', lesson.intro, t('author.draft-form-view-mo-dau')),
+      ];
       for (const step of lesson.steps) {
         const at = `steps[${String(step.index)}]`;
-        const human = `Bước ${String(step.index + 1)}`;
+        const human = t('author.preview-phases-buoc', {
+          stepIndex1: String(step.index + 1),
+        });
         if (step.setup.background !== null && step.setup.background !== '') {
-          plan.push({ label: `${at}.setup.background`, mustPass: false, description: `${human} — setup chạy ẩn` });
+          plan.push({
+            label: `${at}.setup.background`,
+            mustPass: false,
+            description: t('author.trial-plan-setup-chay-an', { human: String(human) }),
+          });
         }
         if (step.setup.foreground !== null && step.setup.foreground !== '') {
           plan.push({
             label: `${at}.setup.foreground`,
             mustPass: false,
-            description: `${human} — setup hiện trong terminal`,
+            description: t('author.trial-plan-setup-hien-trong-terminal', { human: String(human) }),
           });
         }
         if (step.verifyScript !== null && step.verifyScript !== '') {
@@ -90,11 +103,11 @@ export function trialPlanFor(payload: PreviewPayload): readonly TrialStepPlan[] 
             // chạy thử: một bài mà bước chấm không bao giờ đạt là một bài người
             // học không thể hoàn thành.
             mustPass: true,
-            description: `${human} — script chấm (phải đạt)`,
+            description: t('author.trial-plan-script-cham-phai-dat', { human: String(human) }),
           });
         }
       }
-      plan.push(...phaseSteps('finish', lesson.finish, 'Kết thúc'));
+      plan.push(...phaseSteps('finish', lesson.finish, t('author.draft-form-view-ket-thuc')));
       return plan;
     }
     case 'lab': {
@@ -105,14 +118,20 @@ export function trialPlanFor(payload: PreviewPayload): readonly TrialStepPlan[] 
       // Nhãn `setup.setup.*`: server gọi `phaseScripts('setup', { setup: body.setup })`,
       // và hàm đó tự nối `.setup.<kênh>`. Trông thừa nhưng nó là chuỗi THẬT nằm
       // trong `publish_error`, nên khớp đúng nó mới ghép được kết quả.
-      const plan: TrialStepPlan[] = phaseSteps('setup', { setup: lab.setup }, 'Chuẩn bị môi trường');
+      const plan: TrialStepPlan[] = phaseSteps(
+        'setup',
+        { setup: lab.setup },
+        t('author.draft-form-view-chuan-bi-moi-truong'),
+      );
       for (const task of lab.tasks) {
         plan.push({
           label: `task[${task.id}].verifyScript`,
           // KHÁC bài học: task của lab được chấm trên môi trường CHƯA làm gì, nên
           // một verify đúng sẽ trượt ở đây. Lượt thử chỉ đòi script chạy được.
           mustPass: false,
-          description: `Task "${task.title}" — script chấm (chỉ cần chạy được)`,
+          description: t('author.trial-plan-task-script-cham-chi-can-chay-duoc', {
+            taskTitle: String(task.title),
+          }),
         });
       }
       return plan;
@@ -133,7 +152,12 @@ export interface TrialStepResult {
 
 /** Lỗi xuất bản đã tách nghĩa. */
 export type PublishFailure =
-  | { readonly kind: 'step'; readonly label: string; readonly exitCode: string; readonly output: string }
+  | {
+      readonly kind: 'step';
+      readonly label: string;
+      readonly exitCode: string;
+      readonly output: string;
+    }
   | { readonly kind: 'invalid'; readonly message: string }
   | { readonly kind: 'other'; readonly message: string };
 
@@ -158,7 +182,7 @@ export function parsePublishFailure(error: string): PublishFailure {
       output: match[3] ?? '',
     };
   }
-  if (error.startsWith('Nội dung không hợp lệ:')) {
+  if (error.startsWith(t('author.trial-plan-noi-dung-khong-hop-le'))) {
     return { kind: 'invalid', message: error };
   }
   return { kind: 'other', message: error };
@@ -198,9 +222,9 @@ export function mergeTrialOutcome(
 }
 
 export const TRIAL_STATUS_LABELS: Readonly<Record<TrialStepStatus, string>> = {
-  passed: 'Đạt',
-  ran: 'Đã chạy',
-  failed: 'Trượt',
-  skipped: 'Chưa chạy',
-  pending: 'Đang chờ',
+  passed: t('author.trial-plan-dat'),
+  ran: t('author.trial-plan-da-chay'),
+  failed: t('author.trial-plan-truot'),
+  skipped: t('author.trial-plan-chua-chay'),
+  pending: t('author.trial-plan-dang-cho'),
 };

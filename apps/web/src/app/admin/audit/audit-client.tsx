@@ -62,7 +62,7 @@ export function AdminAuditClient(): ReactElement {
   return (
     <AdminSection title={t('admin.audit.title')} description={t('admin.audit.description')}>
       <Alert>
-        <AlertTitle>{t('admin.audit.alert-title')}</AlertTitle>
+        <AlertTitle as="h2">{t('admin.audit.alert-title')}</AlertTitle>
         <AlertDescription>{t('admin.audit.alert-body')}</AlertDescription>
       </Alert>
 
@@ -163,11 +163,6 @@ function AuditError({
 }): ReactElement {
   const failure = err('admin.error.audit-list', { reason });
   return (
-    <ErrorState
-      title={failure.what}
-      message={failure.next}
-      onRetry={onRetry}
-      retrying={retrying}
-    />
+    <ErrorState title={failure.what} message={failure.next} onRetry={onRetry} retrying={retrying} />
   );
 }

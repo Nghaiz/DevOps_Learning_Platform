@@ -1,0 +1,12 @@
+{
+  "redisDatabase": 13,
+  "redisKeysBefore": 6,
+  "redisKeysAfter": 0,
+  "removedDedicatedAccounts": 1,
+  "remainingDisposableResetAccounts": 0,
+  "remainingRuntimeListeners": 0,
+  "sandboxNamespacePresent": false,
+  "mailpitMessages": 0,
+  "privateEnvironmentAndAuthStateRemoved": true,
+  "preservedHealthyContainers": ["postgres", "redis", "mailpit"]
+}

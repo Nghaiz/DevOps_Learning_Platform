@@ -14,7 +14,7 @@ import { t } from '@devops-platform/copy';
  * VÌ SAO VẪN KHÔNG VI PHẠM LỆNH CẤM SINH ẢNH BẰNG MODEL (phase-16.md 16.A.10):
  * `ImageResponse` render JSX thành PNG bằng Satori + resvg lúc build. Đây là
  * hình học và chữ do mã quyết định, không phải một ảnh raster do model vẽ ra rồi
- * commit. Cùng tinh thần với motif ellipse: hình học thắng minh hoạ.
+ * commit. Chữ và dòng lệnh phản ánh nội dung của landing hiện tại.
  *
  * ⚠ MÀU VIẾT THẲNG Ở ĐÂY LÀ CỐ Ý, và file này nằm trong `KNOWN_HARDCODED` của
  * `scripts/check-design-tokens.mjs`. Satori nhận màu qua thuộc tính style của
@@ -44,7 +44,6 @@ export const alt = `${t('home.og.title')}. ${t('home.og.subtitle')}`;
 const BRAND_NAVY = '#051A53';
 const TEXT_PRIMARY = '#FFFFFF';
 const TEXT_SECONDARY = '#C8D2E6';
-const BRAND_RED = '#DE221A';
 
 async function loadFont(weight: 400 | 700): Promise<ArrayBuffer> {
   const url = new URL(`./og-fonts/be-vietnam-pro-${weight}.ttf`, import.meta.url);
@@ -56,62 +55,57 @@ export default async function OpengraphImage(): Promise<ImageResponse> {
   const [regular, bold] = await Promise.all([loadFont(400), loadFont(700)]);
 
   return new ImageResponse(
-    (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        backgroundColor: BRAND_NAVY,
+        padding: '90px',
+        fontFamily: 'Be Vietnam Pro',
+      }}
+    >
       <div
         style={{
-          width: '100%',
-          height: '100%',
           display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          backgroundColor: BRAND_NAVY,
-          padding: '90px',
-          fontFamily: 'Be Vietnam Pro',
+          position: 'absolute',
+          top: 80,
+          left: 90,
+          right: 90,
+          padding: '24px 0',
+          borderBottom: `1px solid ${TEXT_SECONDARY}`,
+          fontSize: 28,
+          color: TEXT_SECONDARY,
         }}
       >
-        {/*
-         * Cung ellipse của motif — cùng hình học với `packages/motion/motif`,
-         * viết thẳng ra `d` vì Satori không nhận `<svg>` lồng phức tạp qua
-         * component. Nghiêng đã nướng vào toạ độ, giống lý do motif không phát
-         * `transform="rotate(...)"`.
-         */}
-        <div style={{ display: 'flex', position: 'absolute', top: 48, right: 72 }}>
-          <svg width="330" height="330" viewBox="0 0 100 100">
-            <path
-              d="M 40.262 18.044 A 42 30 22 1 0 79.203 33.778"
-              fill="none"
-              stroke={BRAND_RED}
-              strokeWidth="4"
-              strokeLinecap="round"
-              opacity="0.45"
-            />
-          </svg>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            fontSize: 60,
-            fontWeight: 700,
-            color: TEXT_PRIMARY,
-            lineHeight: 1.1,
-          }}
-        >
-          {t('home.og.title')}
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            marginTop: 20,
-            fontSize: 30,
-            fontWeight: 400,
-            color: TEXT_SECONDARY,
-          }}
-        >
-          {t('home.og.subtitle')}
-        </div>
+        {t('home.demo.docker.command')}
       </div>
-    ),
+
+      <div
+        style={{
+          display: 'flex',
+          fontSize: 60,
+          fontWeight: 700,
+          color: TEXT_PRIMARY,
+          lineHeight: 1.1,
+        }}
+      >
+        {t('home.og.title')}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          marginTop: 20,
+          fontSize: 30,
+          fontWeight: 400,
+          color: TEXT_SECONDARY,
+        }}
+      >
+        {t('home.og.subtitle')}
+      </div>
+    </div>,
     {
       ...size,
       fonts: [

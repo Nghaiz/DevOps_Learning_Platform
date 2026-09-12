@@ -140,11 +140,40 @@ describe('sổ dịch nhãn a11y — rà hai chiều trên chính bundle đang c
 });
 
 describe('nhãn tiếng Anh KHÔNG còn sống sót trong DOM', () => {
+  it('loại control đang ẩn khỏi bàn phím và trả focus về nút mở khi đóng', async () => {
+    const { container } = renderTabs();
+    const opener = container.querySelector('.gooey-search-tabs-trigger') as HTMLElement;
+    const close = container.querySelector('.gooey-search-tabs-close-content') as HTMLElement;
+    const tabs = container.querySelector('[role="tablist"]') as HTMLElement;
+    expect(close.hasAttribute('inert')).toBe(true);
+    expect(close.getAttribute('aria-hidden')).toBe('true');
+    expect(tabs.hasAttribute('inert')).toBe(false);
+
+    fireEvent.click(opener);
+    await waitFor(() => {
+      expect(tabs.hasAttribute('inert')).toBe(true);
+      expect(tabs.getAttribute('aria-hidden')).toBe('true');
+      expect(close.hasAttribute('inert')).toBe(false);
+      expect(close.hasAttribute('aria-hidden')).toBe(false);
+    });
+    close.focus();
+    fireEvent.click(close);
+    await waitFor(() => {
+      expect(close.hasAttribute('inert')).toBe(true);
+      expect(tabs.hasAttribute('inert')).toBe(false);
+      expect(document.activeElement).toBe(opener);
+    });
+  });
+
   it('nhãn lúc thu gọn đã được dịch, và bản tiếng Anh biến mất', () => {
     const { container } = renderTabs();
-    const labels = [...container.querySelectorAll('[aria-label]')].map((n) => n.getAttribute('aria-label'));
+    const labels = [...container.querySelectorAll('[aria-label]')].map((n) =>
+      n.getAttribute('aria-label'),
+    );
     for (const english of Object.keys(ARIA_LABEL_VI)) {
-      expect(labels, `"${english}" còn trong DOM ⇒ effect dịch nhãn không chạy`).not.toContain(english);
+      expect(labels, `"${english}" còn trong DOM ⇒ effect dịch nhãn không chạy`).not.toContain(
+        english,
+      );
     }
     // Đối chứng dương: phải có ÍT NHẤT một nhãn đã dịch, nếu không thì khẳng
     // định "không còn tiếng Anh" cũng đúng với một cây rỗng.
@@ -173,14 +202,17 @@ describe('nhãn tiếng Anh KHÔNG còn sống sót trong DOM', () => {
     const opener = container.querySelector('button[aria-label]') as HTMLElement;
     fireEvent.click(opener);
     await waitFor(() => {
-      const labels = [...container.querySelectorAll('[aria-label]')].map((n) => n.getAttribute('aria-label'));
+      const labels = [...container.querySelectorAll('[aria-label]')].map((n) =>
+        n.getAttribute('aria-label'),
+      );
       // Đối chứng dương của chính ô này: ô nhập PHẢI đã mount, nếu không thì
       // "không còn tiếng Anh" cũng đúng với một cây chưa mở.
       expect(container.querySelector('input')).not.toBeNull();
       for (const english of Object.keys(ARIA_LABEL_VI)) {
-        expect(labels, `"${english}" xuất hiện SAU khi mở ⇒ observer không bắt được render của con`).not.toContain(
-          english,
-        );
+        expect(
+          labels,
+          `"${english}" xuất hiện SAU khi mở ⇒ observer không bắt được render của con`,
+        ).not.toContain(english);
       }
     });
   });

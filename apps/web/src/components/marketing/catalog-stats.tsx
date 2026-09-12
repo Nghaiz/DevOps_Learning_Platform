@@ -3,6 +3,7 @@ import { t, type TextKey } from '@devops-platform/copy';
 import { Skeleton } from '@devops-platform/ui';
 import { HomeSection } from './home-section';
 import { readCatalogCounts, type CatalogKind } from './catalog-stats.server';
+import styles from './landing.module.css';
 
 /**
  * "Trong nền tảng có gì" — bốn con số ĐỌC TỪ SERVER.
@@ -52,8 +53,8 @@ const TILES: readonly {
   },
 ];
 
-const GRID = 'grid gap-4 sm:grid-cols-2 min-[769px]:grid-cols-4';
-const TILE = 'flex flex-col gap-2 rounded-lg border border-border bg-card p-5 shadow-elevation-1';
+const GRID = styles.catalogGrid;
+const TILE = styles.catalogItem;
 
 export async function CatalogStats() {
   const counts = await readCatalogCounts();
@@ -68,19 +69,16 @@ export async function CatalogStats() {
   const somethingMissing = TILES.some((tile) => counts[tile.kind] === null);
 
   return (
-    <HomeSection labelledBy="co-gi" innerClassName="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h2 id="co-gi" className="text-xl font-semibold text-foreground">
-          {t('home.catalog.heading')}
-        </h2>
-        <p className="max-w-2xl text-sm text-muted-foreground">{t('home.catalog.lede')}</p>
+    <HomeSection labelledBy="co-gi" innerClassName={styles.catalogInner}>
+      <div className={styles.catalogHeading}>
+        <h2 id="co-gi">{t('home.catalog.heading')}</h2>
+        <p>{t('home.catalog.lede')}</p>
       </div>
 
       <div className={GRID}>
-        {TILES.map(({ kind, label, note, icon: Icon }) => (
+        {TILES.map(({ kind, label, note }) => (
           <div key={kind} className={TILE}>
-            <Icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
-            <p className="text-3xl font-bold tabular-nums text-foreground">
+            <p className={styles.catalogCount}>
               {counts[kind] === null ? (
                 <>
                   <span aria-hidden="true">-</span>
@@ -90,8 +88,8 @@ export async function CatalogStats() {
                 counts[kind]
               )}
             </p>
-            <p className="text-sm font-medium text-foreground">{t(label)}</p>
-            <p className="text-xs text-pretty text-muted-foreground">{t(note)}</p>
+            <p className={styles.catalogLabel}>{t(label)}</p>
+            <p className={styles.catalogNote}>{t(note)}</p>
           </div>
         ))}
       </div>
@@ -112,7 +110,7 @@ export async function CatalogStats() {
  */
 export function CatalogStatsSkeleton() {
   return (
-    <HomeSection innerClassName="flex flex-col gap-6">
+    <HomeSection innerClassName={styles.catalogInner}>
       <div className="flex flex-col gap-2">
         <Skeleton className="h-7 w-56" />
         <Skeleton className="h-5 w-80 max-w-full" />

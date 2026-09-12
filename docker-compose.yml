@@ -90,6 +90,17 @@ services:
     extra_hosts:
       - 'host.docker.internal:host-gateway'
 
+  # Controlled local delivery: docker compose --profile mail up -d mailpit.
+  # No relay is configured; this inbox cannot deliver to real recipients.
+  mailpit:
+    image: axllent/mailpit:v1.29.4
+    container_name: dlp-mailpit
+    restart: 'no'
+    profiles: ['mail']
+    ports:
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
+
 volumes:
   postgres_data:
   redis_data:

@@ -138,12 +138,16 @@ function GameSoonCard({ game }: { readonly game: GameEntry }): ReactElement {
     <li>
       <Card accent={DIFFICULTY_ACCENT[game.difficulty]} className="flex h-full flex-col gap-3 p-5">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="text-xl leading-snug font-semibold text-balance text-foreground">{game.title}</h3>
+          <h2 className="text-xl leading-snug font-semibold text-balance text-foreground">
+            {game.title}
+          </h2>
           <Badge variant="status-todo">{t('catalog.games.soon')}</Badge>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={DIFFICULTY_BADGE[game.difficulty]}>{difficultyLabel(game.difficulty)}</Badge>
+          <Badge variant={DIFFICULTY_BADGE[game.difficulty]}>
+            {difficultyLabel(game.difficulty)}
+          </Badge>
         </div>
 
         <p className="line-clamp-2 min-h-10 text-sm text-muted-foreground">{game.description}</p>
@@ -205,10 +209,11 @@ function ChallengeNote(): ReactElement {
         {t('catalog.games.challenge-title')}
       </h2>
       <p className="max-w-(--measure) text-sm text-muted-foreground">
-        CTF cho bạn quyền root trong một sandbox thật để đi tìm cờ. Vì nó chạy trên hạ tầng chứ không
-        phải trong trình duyệt, <strong className="font-semibold text-foreground">CTF tốn một sandbox</strong>{' '}
-        và <strong className="font-semibold text-foreground">cần đăng nhập</strong>, ngược hẳn với bốn game ở
-        trên. Bài CTF nằm cùng chỗ với Lab; lọc theo sandbox gVisor để tìm.
+        CTF cho bạn quyền root trong một sandbox thật để đi tìm cờ. Vì nó chạy trên hạ tầng chứ
+        không phải trong trình duyệt,{' '}
+        <strong className="font-semibold text-foreground">CTF tốn một sandbox</strong> và{' '}
+        <strong className="font-semibold text-foreground">cần đăng nhập</strong>, ngược hẳn với bốn
+        game ở trên. Bài CTF nằm cùng chỗ với Lab; lọc theo sandbox gVisor để tìm.
       </p>
       <div>
         <Button variant="outline" size="sm" asChild>

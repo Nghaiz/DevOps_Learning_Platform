@@ -67,7 +67,7 @@ export function ProfileForm(props: {
     <Card>
       <form onSubmit={onSubmit}>
         <CardHeader>
-          <CardTitle>{t('me.profile.title')}</CardTitle>
+          <CardTitle as="h2">{t('me.profile.title')}</CardTitle>
           <CardDescription>{t('me.profile.description')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

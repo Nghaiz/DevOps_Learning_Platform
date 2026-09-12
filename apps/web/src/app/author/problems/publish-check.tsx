@@ -2,7 +2,7 @@
 
 import type { ReactElement } from 'react';
 import { Alert, AlertDescription, AlertTitle, Badge, Button } from '@devops-platform/ui';
-import { count, renderCopy, t, type CopyRef, type TextKey } from '@devops-platform/copy';
+import { count, renderCopy, t, type CopyRef, type StaticTextKey } from '@devops-platform/copy';
 import type { ProblemState } from '@devops-platform/games';
 import type { FieldIssue } from './cluster-form';
 import { STATE_BADGE, STATE_KEYS } from './problem-labels';
@@ -54,13 +54,17 @@ export function PublishCheck(props: {
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
-        <h2 className="text-lg font-semibold text-foreground">{t('author.problem.publish.heading')}</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {t('author.problem.publish.heading')}
+        </h2>
         <Badge variant={STATE_BADGE[props.state]}>{t(STATE_KEYS[props.state])}</Badge>
       </div>
 
       {blocked ? (
         <Alert variant="destructive">
-          <AlertTitle>{count('author.problem.publish.blocked-title', props.issues.length)}</AlertTitle>
+          <AlertTitle>
+            {count('author.problem.publish.blocked-title', props.issues.length)}
+          </AlertTitle>
           <AlertDescription>
             <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
               {props.issues.map((issue) => (
@@ -80,7 +84,11 @@ export function PublishCheck(props: {
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Button type="button" disabled={blocked || props.busy || props.state === 'published'} onClick={props.onPublish}>
+        <Button
+          type="button"
+          disabled={blocked || props.busy || props.state === 'published'}
+          onClick={props.onPublish}
+        >
           {props.state === 'published'
             ? t('author.problem.publish.already')
             : t('author.problem.publish.submit')}
@@ -96,10 +104,18 @@ export function PublishCheck(props: {
       </div>
 
       <div className="flex flex-col gap-2 rounded-md border border-destructive/40 p-4">
-        <h3 className="text-sm font-medium text-foreground">{t('author.problem.publish.danger-heading')}</h3>
+        <h3 className="text-sm font-medium text-foreground">
+          {t('author.problem.publish.danger-heading')}
+        </h3>
         <p className="text-xs text-muted-foreground">{t('author.problem.publish.danger-body')}</p>
         <div>
-          <Button type="button" variant="destructive" size="sm" disabled={props.busy} onClick={props.onDelete}>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            disabled={props.busy}
+            onClick={props.onDelete}
+          >
             {t('author.problem.publish.delete')}
           </Button>
         </div>
@@ -137,7 +153,9 @@ function describePath(path: string): CopyRef {
 
   if (groupKey === undefined || !Number.isInteger(index)) {
     const own = FIELD_KEYS[path];
-    return own === undefined ? { key: 'author.problem.path-unknown', params: { path } } : { key: own };
+    return own === undefined
+      ? { key: 'author.problem.path-unknown', params: { path } }
+      : { key: own };
   }
 
   const group = t(groupKey);
@@ -160,7 +178,7 @@ function describePath(path: string): CopyRef {
 }
 
 /** Bốn nhóm có chỉ số trong `FieldIssue.path`. */
-const GROUP_KEYS: Readonly<Record<string, TextKey>> = {
+const GROUP_KEYS: Readonly<Record<string, StaticTextKey>> = {
   objectives: 'author.problem.group.objectives',
   hints: 'author.problem.group.hints',
   nodes: 'author.problem.group.nodes',
@@ -176,7 +194,7 @@ const GROUP_KEYS: Readonly<Record<string, TextKey>> = {
  * tình cờ đổi được, còn `timeLimitSec` thì `time-limit-sec` mới đúng máy móc mà
  * khoá bản đồ là `time-limit`. Ánh xạ tường minh, không ghép chuỗi.
  */
-const FIELD_KEYS: Readonly<Record<string, TextKey>> = {
+const FIELD_KEYS: Readonly<Record<string, StaticTextKey>> = {
   title: 'author.problem.field.title',
   slug: 'author.problem.field.slug',
   statement: 'author.problem.field.statement',

@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
 import {
   Button,
@@ -43,13 +44,13 @@ export function ResourceFields(props: {
           {props.resource.name === '' ? '' : ` / ${props.resource.name}`}
         </h4>
         <Button type="button" variant="ghost" size="sm" onClick={props.onRemove}>
-          Xoá
+          {t('common.action.delete')}
         </Button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`kind-${props.resource.key}`}>Loại</Label>
+          <Label htmlFor={`kind-${props.resource.key}`}>{t('problem.resource-fields-loai')}</Label>
           <Select
             value={props.resource.kind}
             onValueChange={(value) => {
@@ -70,7 +71,7 @@ export function ResourceFields(props: {
         </div>
 
         <TextField
-          label="Tên"
+          label={t('problem.predicate-arg-types-ten')}
           value={props.resource.name}
           onChange={(name) => {
             props.onChange({ name });
@@ -81,23 +82,25 @@ export function ResourceFields(props: {
 
       {clusterScoped ? (
         <p className="text-xs text-muted-foreground">
-          <code className="font-mono">{props.resource.kind}</code> có phạm vi cluster nên không thuộc namespace
-          nào, ô Namespace bị bỏ qua.
+          <code className="font-mono">{props.resource.kind}</code>{' '}
+          {t(
+            'problem.resource-fields-co-pham-vi-cluster-nen-khong-thuoc-namespace-nao-o-namespace-bi-bo-qua',
+          )}
         </p>
       ) : (
         <TextField
-          label="Namespace"
+          label={t('problem.cluster-fields-namespace')}
           value={props.resource.namespace}
           onChange={(namespace) => {
             props.onChange({ namespace });
           }}
           error={issueFor(props.issues, `${base}.namespace`)}
-          hint="Phải là một trong các namespace đã khai ở trên."
+          hint={t('problem.resource-fields-phai-la-mot-trong-cac-namespace-da-khai-o-tren')}
         />
       )}
 
       <TextAreaField
-        label="Phần thân (JSON)"
+        label={t('problem.resource-fields-phan-than-json')}
         value={props.resource.specJson}
         onChange={(specJson) => {
           props.onChange({ specJson });
@@ -105,11 +108,15 @@ export function ResourceFields(props: {
         rows={6}
         mono
         error={issueFor(props.issues, `${base}.spec`)}
-        hint="Hình dạng tuỳ loại tài nguyên. Engine chỉ đọc những field nó cần và bỏ qua phần còn lại."
+        hint={t(
+          'problem.resource-fields-hinh-dang-tuy-loai-tai-nguyen-engine-chi-doc-nhung-field-no-can-va-bo-qua-p',
+        )}
       />
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`incident-${props.resource.key}`}>Gieo sẵn sự cố (tuỳ chọn)</Label>
+        <Label htmlFor={`incident-${props.resource.key}`}>
+          {t('problem.resource-fields-gieo-san-su-co-tuy-chon')}
+        </Label>
         <Select
           value={props.resource.seededIncident === '' ? 'khong' : props.resource.seededIncident}
           onValueChange={(value) => {
@@ -122,7 +129,7 @@ export function ResourceFields(props: {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="khong">Không gieo sự cố</SelectItem>
+            <SelectItem value="khong">{t('problem.resource-fields-khong-gieo-su-co')}</SelectItem>
             {INCIDENT_KINDS.map((kind) => (
               <SelectItem key={kind} value={kind}>
                 {INCIDENT_LABELS[kind]}

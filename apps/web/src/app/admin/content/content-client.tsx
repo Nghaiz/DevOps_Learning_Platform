@@ -85,7 +85,7 @@ export function AdminContentClient(): ReactElement {
         mục 24 muốn tránh.
       */}
       <Alert variant="warning">
-        <AlertTitle>{t('admin.content.alert-title')}</AlertTitle>
+        <AlertTitle as="h2">{t('admin.content.alert-title')}</AlertTitle>
         <AlertDescription>{t('admin.content.alert-body')}</AlertDescription>
       </Alert>
 
@@ -246,7 +246,9 @@ function ContentRow({ item }: { readonly item: ContentItem }): ReactElement {
         <Badge variant={contentStateVariant(item.state)}>{describeContentState(item.state)}</Badge>
       </TableCell>
       <TableCell className="font-mono text-xs text-muted-foreground">{item.authorId}</TableCell>
-      <TableCell className="text-sm text-muted-foreground">{formatMoment(item.updatedAt)}</TableCell>
+      <TableCell className="text-sm text-muted-foreground">
+        {formatMoment(item.updatedAt)}
+      </TableCell>
       <TableCell className="text-right">
         <Button
           variant="outline"

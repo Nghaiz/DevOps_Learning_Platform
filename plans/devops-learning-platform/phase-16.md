@@ -1,11 +1,43 @@
 # Phase 16 — Dựng lại toàn bộ frontend theo nhận diện PTIT
 
 **Mức chi tiết:** DETAILED · **Effort:** XL · **Blocked by:** không · **Blocks:** không
-**SSOT thiết kế:** [`plans/reports/2026-09-10-p16-frontend-rebuild-design.md`](../reports/2026-09-10-p16-frontend-rebuild-design.md)
+**SSOT thiết kế:** [thiết kế nền](../reports/2026-09-10-p16-frontend-rebuild-design.md), cập nhật bởi
+[quyết định làm lại landing ngày 2026-09-12](../reports/2026-09-12-p16-landing-rebuild.md) và
+[hướng dẫn giao diện hiện tại](../../docs/design-guidelines.md).
 **Hợp đồng:** [`contracts/p16-tokens.md`](contracts/p16-tokens.md) · [`contracts/p16-copy.md`](contracts/p16-copy.md) · [`contracts/p16-workspace.md`](contracts/p16-workspace.md)
 
-> Chặng này **không brainstorm lại**. Mọi quyết định thiết kế đã chốt trong design doc và trong
-> bốn lượt hỏi ngày 2026-09-10. Chỗ nào design đã nói, plan này trỏ tới chứ không chép lại.
+> Chỉ đạo mới nhất của chủ dự án thay thế phần landing trong thiết kế ngày 2026-09-10:
+> dựng lại toàn bộ, bỏ vòng trắng, ellipse, 3D và bố cục lưới thẻ. Các hợp đồng còn lại tiếp tục áp dụng.
+
+## Trạng thái hiện tại — 2026-09-13
+
+**`16.0`..`16.I`: COMPLETE trong phạm vi P16 đã chốt.** Chặng hoàn thiện
+ngày 2026-09-12–13 xử lý cả nợ đã liệt kê và thay toàn bộ landing theo chỉ đạo mới. Không dùng
+kết quả của trang vòng 3D cũ để nghiệm thu trang thay thế.
+
+| Mốc | Trạng thái và bằng chứng hiện tại |
+|---|---|
+| Landing thay thế | Đã triển khai và review 9/10: bố cục liên tục, terminal minh hoạ Linux/Docker/Kubernetes, bốn lộ trình có thật; không vòng/3D/lưới thẻ. Bốn ca trình duyệt sáng/tối, desktop/mobile đã qua lại trong lượt nghiệm thu cuối trên build `HZG3aU7v-lBMcBxxAFsSE`. |
+| Copy và hợp đồng dùng chung | 466 chuỗi từ 31 file đã chuyển; 44 lỗi có hướng xử lý; `CopyRef` kiểm đúng cặp khoá/tham số; `PROBLEM_*_LABELS` giữ API và đọc surface `problem`. |
+| Reset mật khẩu và vòng đời phiên | SMTP thật, mã 15 phút dùng một lần, thu hồi phiên/cookie/refresh. Ba P2 và khe hở cạnh tranh refresh đã sửa, reviewer không còn lỗi chặn. |
+| Nguồn bài tập và P15 | 10 bài published đã có nguồn seed trong git; P15 đã sửa ở `5d90ad1` + `6d8d2fc`, 50 regression trong phiên này xanh. |
+| Build và kiểm tra mã | Bảy package: **28/28 task ép chạy, 0 cache**; web đầy đủ **153 suite / 1747 test xanh** ở mốc trước các sửa UI cuối. Sau sửa traversal chạy lại **12 test**; sau sửa UI/heading chạy lại **371 test UI + 30 test web**, đều qua. Build cuối `HZG3aU7v-lBMcBxxAFsSE`, lint và typecheck xanh. Các tập test có phần giao nhau, không cộng tổng. |
+| Bundle, token và env | Bundle: xterm có ở đúng **4/4** route terminal, **33** route khác sạch; nền chung **1,047,523 B / 1,150,000 B** trên build cuối. Cổng token quét **560 file / 4 vùng**, giữ bốn miễn trừ có lý do. Env: **95 biến / 4 scope** khớp. Antipattern quét **602 file**, bốn phê duyệt khớp đúng statement của menu Arena đã được reviewer kiểm, không sửa mã sản phẩm Arena. |
+| Nghiệm thu cuối 16.I | **COMPLETE: 171/171 qua, 0 lỗi, 0 skip, 0 retry, 6.2 phút** trên build cuối. Gồm **36 axe + 37 CSP** phủ đủ **32 màn**, **44 keyboard** với D10/PTY thật và SearchTabs native, **41 responsive**, **4 motif**, **4 perf**, **1 SMTP**, **4 visual**. Đã sửa cả focus ẩn, bốn màn author tràn 390px và 15 vấn đề heading moderate. |
+
+Bằng chứng: [tổng hợp chốt pha](../../reports/p16-2026-09-13-finalization.md),
+[review độc lập](../../reports/p16-2026-09-12-review.md),
+[runtime và cách chạy lại](../../reports/p16-2026-09-12-runtime.md).
+
+**Mọi lượt E2E phải khai** `E2E_START_SERVER=1`, `E2E_BASE_URL=http://localhost:3000`,
+`E2E_ORIGIN=http://localhost:3000`. Nghiệm thu quyền và terminal còn bật
+`E2E_REQUIRE_ROLES=1` và `E2E_REQUIRE_SESSION=1`. Không dùng máy chủ cũ để thay cho build vừa đo.
+
+<details>
+<summary>Lịch sử triển khai 2026-09-10–11 — số đo và khoản dở tại thời điểm đó</summary>
+
+Các trạng thái, số lượng test, thiếu nguồn seed, reset chưa có backend và thiết kế vòng 3D
+dưới đây là lịch sử. Trạng thái hiện tại ở bảng trên và bảng đóng nợ §8.
 
 **Trạng thái 2026-09-10:** `16.0` XONG (ba hợp đồng trên `main`). `16.A` XONG trên nhánh
 `feat/p16-frontend-rebuild` — 20 commit, `turbo run build lint typecheck test` = `Tasks: 32
@@ -161,6 +193,8 @@ trước khi fan-out.
 
 ---
 
+</details>
+
 ## 1. Objective
 
 Đập và dựng lại toàn bộ frontend: bố cục, thiết kế, màu, nội dung, văn phong. Bao gồm cả phía
@@ -168,15 +202,18 @@ admin và author. Trừ `apps/web/src/components/k8s-arena/**`.
 
 Ba đích đo được:
 
-1. **32 màn hình** đi qua cổng a11y và CSP, 0 lỗi axe mức serious và critical. Hôm nay là 22, và
-   bảy màn games/problems đang không có cổng nào.
+1. **32 màn hình** đi qua cổng a11y và CSP, 0 lỗi axe mức serious và critical. Mốc nền khi lập
+   plan là 22; bổ sung games/problems và các trang xác thực vào kiểm tra thực tế.
 2. Mọi chuỗi người dùng đọc đi qua `packages/copy`, có test gác luật gạch ngang dài và luật đủ
    dấu tiếng Việt.
 3. Terminal giữ nguyên node cha qua mọi lượt đổi tab, có test khẳng định.
 
 ---
 
-## 2. Prior-art — cái gì đã có, và tôi đã tìm ở đâu
+## 2. Prior-art — khảo sát nền ngày 2026-09-10
+
+Các mô tả “đã có” và “không có” trong mục này là trạng thái trước triển khai, không phải danh
+sách thiếu hiện tại. Kết quả hoàn thiện được đối chiếu ở đầu plan và §8.
 
 Phạm vi tìm: `apps/web/src/**`, `packages/{ui,terminal,games,scenario,shared-types}/src/**`,
 `content/**`, `apps/web/e2e/**`, `docs/**`, `plans/devops-learning-platform/**`. Bốn agent đọc
@@ -211,6 +248,9 @@ song song ngày 2026-09-10.
 ---
 
 ## 3. Task list
+
+Giữ cấu trúc yêu cầu gốc để truy được việc đã làm. Mô tả nền trong các lane B/C/D là lúc lập
+plan; trạng thái hiện tại ở đầu file. 16.E và phần reset của 16.B đã được cập nhật theo chỉ đạo mới.
 
 ### 16.0 — Ba hợp đồng (TUẦN TỰ, chặn mọi lane)
 
@@ -281,15 +321,9 @@ liệt kê test cụ thể kèm đối chứng dương.
    `https://ptit.edu.vn/wp-content/uploads/2024/05/logo-ptit-1.svg` (vector thật, đã kiểm 200).
    Commit vào repo vì `img-src 'self' data:` không cho hotlink.
 
-   **⛔ Không sinh ảnh bằng model.** Chốt 2026-09-10. Mọi hình ảnh trong hệ dựng từ SVG, CSS và
-   chính cảnh 3D. Không có ảnh raster minh hoạ, kể cả cho trạng thái rỗng và bảy chặng trang chủ.
-   OG image cũng dựng bằng SVG.
-
-   Ba lý do, không phải một: dự án không có API key nào (kiểm 2026-09-10, đọc TÊN biến trong
-   `.env` và `apps/web/.env`, không đọc giá trị); ảnh sinh ra phải commit vào repo vì
-   `img-src 'self' data:` không cho hotlink, tức là gánh thêm dung lượng vĩnh viễn; và một ảnh
-   minh hoạ chung chung yếu hơn hẳn motif ellipse trong việc mang nhận diện. Hình học thắng ở cả
-   ba mặt.
+   Giữ quyết định không dùng ảnh raster sinh bằng model cho đợt này. Landing mới dùng chữ,
+   CSS và ví dụ terminal có nghĩa; OG image dùng SVG đã bỏ ellipse. Không còn yêu cầu cảnh
+   3D hoặc bảy chặng trang chủ sau chỉ đạo 2026-09-12–13.
 
 **Ô nghiệm thu 16.A:**
 
@@ -316,7 +350,7 @@ Commit bằng dạng pathspec: `git commit -m "..." -- <đường dẫn cụ th�
 | **16.B** vỏ + xác thực | `components/shell/**`, `app/login`, `app/register`, `app/forgot-password`, `app/reset-password` | M |
 | **16.C** trang chọn bài | `components/catalog/**`, `app/{lessons,labs,paths,playgrounds,quiz}/page+client`, `app/games/**`, `app/(session)/problems/**` | L |
 | **16.D** khoang lab | `components/session/**`, `app/labs/[id]/**`, `app/lessons/[id]/**`, `app/session/[id]/terminal/**` | L |
-| **16.E** trang chủ 3D | `components/marketing/**`, `app/page.tsx`, `app/home-cta.tsx` | L |
+| **16.E** landing thực hành DevOps | `components/marketing/**`, `app/page.tsx`, `app/home-cta.tsx` | L |
 | **16.F** admin | `app/admin/**`, `components/admin/**` | M |
 | **16.G** author | `app/author/**`, `components/author/**` | L |
 | **16.H** me + settings | `app/me/**`, `app/settings/**`, `components/me/**` | M |
@@ -355,10 +389,11 @@ Vỏ hôm nay là thanh trên `h-14` dính, có drawer trái cho mobile. Giữ h
 Bốn trang xác thực tách riêng. `/login` hôm nay gộp cả đăng nhập lẫn đăng ký trong một thẻ 218
 dòng; tách ra.
 
-⚠ `/forgot-password` và `/reset-password` **chưa có backend gửi mail**. Đợt này là frontend-only.
-Dựng đủ giao diện và trạng thái, nhưng trạng thái thành công **phải nói đúng rằng tính năng chưa
-bật**. Một form gửi vào hư không mà hiện "Đã gửi mail, kiểm hộp thư của bạn" là nói dối người
-dùng.
+`/forgot-password` và `/reset-password` đã có backend SMTP trong đợt đóng nợ 2026-09-12–13.
+Form xác nhận đã tiếp nhận yêu cầu, không khẳng định thư đã tới hộp thư. Cùng phản hồi cho tài
+khoản có/không có thật; mã nhập qua POST, hết hạn sau 15 phút, dùng một lần. Reset thành công
+thu hồi cookie, phiên và refresh token, kể cả khi refresh đang xoay đồng thời. Cấu hình SMTP
+và giới hạn vận hành: [hướng dẫn reset](../../docs/env/06-password-reset-smtp.md).
 
 Đăng xuất giữ nguyên đường `/api/auth/logout`, **không** đổi sang `authClient.signOut()`: chỉ
 route đó thu hồi refresh token (`components/shell/user-menu.tsx`).
@@ -394,19 +429,24 @@ Icon `ResourceKind` lấy từ `packages/ui` (16.A mục 8), không import từ 
 
 **Cấm:** hồi sinh đa terminal. Test vắng mặt phải đi theo sang mã mới.
 
-#### 16.E — trang chủ 3D
+#### 16.E — landing thực hành DevOps, thay thế toàn bộ cảnh 3D
 
-Bảy chặng theo design §7. Kỹ thuật theo design §7.1 và §7.2:
+Quyết định ngày 2026-09-12–13 của chủ dự án thay thế yêu cầu bảy chặng 3D trong design §7.
 
-- **Không dùng `ScrollControls` của drei.** Nó render chữ vào một React root thứ hai tách rời,
-  nên chữ trang chủ mất HTML server. Dùng cuộn tài liệu gốc, ghi vào `ref`, `useFrame` đọc
-  `ref`, `frameloop="demand"`, gọi `invalidate()` mỗi lượt cuộn.
-- **Không dùng `<Text>` của drei.** Nó kéo `troika-worker-utils`, thứ dò worker bằng
-  `new Worker(blob:)`, và CSP không có `worker-src`. Dùng nhãn DOM đè lên canvas.
-- **Không dùng asset nén Draco / KTX2 / meshopt.** Loader của chúng cần WebAssembly.
-- Canvas không được là phần tử LCP. `next/dynamic` với `ssr: false` gọi **bên trong** một
-  component `'use client'`.
-- Dò WebGL2 phải có `failIfMajorPerformanceCaveat: true`.
+1. Hero chữ lớn, lời giới thiệu ngắn, CTA đúng trạng thái đăng nhập.
+2. Một vùng minh hoạ terminal có thao tác Linux/Docker/Kubernetes, chạy và đặt lại. Công bố rõ
+   đây là ví dụ tương tác với kết quả mẫu, không kết nối sandbox thật.
+3. Số nội dung đọc từ server, phân biệt lỗi đọc với số 0; không dựng số người học hay hoạt động giả.
+4. Danh sách liên tục gồm bốn lộ trình có ID thật, giải thích cách thực hành và CTA cuối.
+5. Không vòng, ellipse, canvas, WebGL, cảnh cuộn hay lưới thẻ. Đã xoá nguồn cảnh và copy cũ sau
+   kiểm tra nơi gọi. Arena giữ ranh giới riêng.
+6. Chữ đi qua `home.*`; native button có trạng thái truy cập được, vùng kết quả live polite,
+   đổi chủ đề xoá kết quả cũ. Token PTIT và font hiện có được giữ.
+7. Nghiệm thu bằng thao tác thật và ảnh desktop/mobile sáng/tối, chuyển theme khi đang mở,
+   reduced-motion, không tràn ngang, axe/CSP/LCP trên build hiện tại.
+
+Báo cáo triển khai: [landing thay thế](../../reports/p16-2026-09-12-landing.md). Ảnh vòng 3D cũ
+chỉ là lịch sử; việc bỏ yêu cầu nhìn cảnh 3D là thay đổi phạm vi theo người dùng, không phải ca test bỏ qua.
 
 #### 16.F — admin · 16.G — author · 16.H — me + settings
 
@@ -426,8 +466,9 @@ logic, không phải phần nhìn.
    mới.
 2. `KEYBOARD_SCREENS` từ 4 lên **≥10**, bắt buộc gồm `/labs/:id` và `/lessons/:id`, và phải
    khẳng định thoát được focus khỏi terminal bằng bàn phím.
-3. Ngân sách LCP mới cho `/`, đo trên cụm lab, ghi số đo vào chú thích như `perf.spec.ts` đang
-   làm. Cổng hiện tại chỉ đo `/lessons`.
+3. Ngân sách LCP mới cho `/`, đo trên build production cục bộ với bộ ba biến E2E bắt buộc,
+   ghi số đo và môi trường thật vào báo cáo. Giữ phép đo `/lessons`. Không gọi số đo cục bộ là
+   số đo production/cụm lab.
 4. `responsive.spec.ts`: **giữ nguyên hình dạng hiện tại**, thêm phủ.
 
    Suite này không phải một lượt quét mù qua mọi màn. Nó đo **hành vi tại đúng ngưỡng**, kèm đối
@@ -457,6 +498,9 @@ logic, không phải phần nhìn.
 
 ## 4. Team Layout
 
+Bảng sau là bố trí dự kiến ngày 2026-09-10. Đợt hoàn thiện 2026-09-12–13 dùng agent đang có,
+chia quyền sở hữu file và tái dùng slot; không tuyên bố đã chạy đồng thời theo con số dự kiến.
+
 | Chặng | Teammate | Agent | model | Worktree | Song song |
 |---|---|---|---|---|---|
 | 16.0 | 3 người viết hợp đồng | `t1k-docs-manager` | opus | không (chỉ ghi `plans/`) | 3 |
@@ -481,10 +525,10 @@ của một background sub-agent **không** tới được người spawn.
 | Mất bất biến terminal khi viết lại khoang lab | 4 | 5 | **20** | Test bất biến viết TRƯỚC khi dựng lại. `contracts/p16-workspace.md` là điều kiện vào lane 16.D. Hỏng kiểu này im lặng và người học là người phát hiện. |
 | 149 test bị xoá cùng mã cũ, không ai thay | 4 | 4 | **16** | Chuyển **khẳng định**, không chuyển mã. Mỗi lane phải chỉ ra test tương đương trước khi xoá bản cũ. 16.I đối chiếu tổng số test trước và sau. |
 | Hai lane cùng ghi một file ngoài danh mục sở hữu | 3 | 5 | **15** | Một worktree mỗi lane. Cấm `git add .`/`-A`/`commit -a`. File không thuộc lane nào (`globals.css`, `packages/ui/src/index.ts`, `e2e/routes.ts`) do 16.A và 16.I sở hữu độc quyền, ghi tên trong brief. |
-| Cảnh 3D bỏ qua reduced-motion vì chỉ dựa vào CSS | 3 | 4 | 12 | Cổng mức JS. Khối `@media` phổ quát **không thể** dừng `requestAnimationFrame`. |
-| `<Text>` của drei bắn `securitypolicyviolation` | 3 | 3 | 9 | Cấm dùng, thay bằng nhãn DOM. Tái hiện bằng bộ thu của `csp.spec.ts` trước khi tin cả hai chiều. |
+| Nghiệm thu nhầm ảnh hoặc build landing cũ | 3 | 4 | 12 | Cảnh 3D đã xoá theo người dùng. Ghi BUILD_ID và base của mọi lượt; kiểm ảnh trang thay thế và native controls. |
+| Gọi cùng lúc E2E và build làm mất build đang đo | 3 | 3 | 9 | Build hoàn tất riêng trước E2E; không cho turbo ghi `.next` khi server nghiệm thu đang chạy. |
 | Sửa quiz/lộ trình mà quên seed lại | 3 | 3 | 9 | `scripts/seed-content.mjs` phải chạy sau khi sửa `content/*.json`. Sửa mà không seed thì không có gì đổi và **không có lỗi nào**. |
-| Trang reset mật khẩu trông như chạy được | 2 | 4 | 8 | Trạng thái thành công nói đúng rằng tính năng chưa bật. |
+| SMTP nhận yêu cầu nhưng chưa giao thư | 2 | 4 | 8 | UI chỉ xác nhận tiếp nhận. Thử SMTP thật/Mailpit, lỗi provider và riêng tư tài khoản; chưa có hàng đợi bền vững, cần Secret của provider khi triển khai thật. |
 | Gói 0.x đổi API | 2 | 3 | 6 | Vendor `goey-toast` vào repo; ghim chính xác `gooey-search-tabs`. |
 | Phiên song song của chủ dự án đè file | 1 | 5 | 5 | Phiên kia ở `components/k8s-arena/**`. Không lane nào ghi vào đó. Điểm tiếp xúc duy nhất là test đối chiếu icon, và nó chỉ đọc. |
 
@@ -501,7 +545,7 @@ Ba dòng ≥15 phải có mitigation xong trước khi lane tương ứng bắt 
 | 16.B vỏ + xác thực | M (3d) | song song |
 | 16.C trang chọn bài | L (1wk) | song song · ưu tiên cao |
 | 16.D khoang lab | L (1wk) | song song · ưu tiên cao · rủi ro cao nhất |
-| 16.E trang chủ 3D | L (1wk) | song song |
+| 16.E landing thực hành DevOps | L (1wk) | Thay thiết kế 3D theo chỉ đạo 2026-09-12–13. |
 | 16.F admin | M (3d) | song song |
 | 16.G author | L (1wk) | song song · lane nặng nhất trong ba lane quản trị |
 | 16.H me + settings | M (3d) | song song |
@@ -518,8 +562,9 @@ cùng lúc, và nó chỉ có thật nếu ba hợp đồng ở 16.0 đủ chặ
 1. `SCREENS` phủ 32 màn, `MIN_SCREENS` = 32, 0 lỗi axe serious/critical trên mọi màn.
 2. `csp.spec.ts` xanh trên 32 màn, **không nới một chỉ thị CSP nào**.
 3. `KEYBOARD_SCREENS` ≥ 10, gồm `/labs/:id` và `/lessons/:id`, có ca thoát focus khỏi terminal.
-4. Grep màu trần rỗng trên `apps/web/src` và `packages/ui/src`. Ngoại lệ duy nhất:
-   `packages/terminal/src/**/themes.ts`.
+4. Cổng màu trần xanh trên `apps/web/src` và `packages/ui/src`, có đối chứng âm/dương.
+   Miễn trừ theo tên trong `KNOWN_HARDCODED` phải có lý do và kiểm hết hạn; gồm ranh giới
+   xterm và phạm vi Arena ghi ở §8. Không gọi kết quả này là toàn repo tuyệt đối không có màu thô.
 5. Test contrast tính lại mọi token PTIT, trộn alpha trong sRGB mã hoá gamma.
 6. `packages/copy`: 0 ký tự `—`, 0 chuỗi mất dấu. Cùng phép kiểm mất dấu chạy trên `content/**`.
 7. Hợp đồng bốn trạng thái xanh, kèm đối chứng dương.
@@ -531,56 +576,49 @@ cùng lúc, và nó chỉ có thật nếu ba hợp đồng ở 16.0 đủ chặ
     bất kỳ con số test nào** — turbo dừng sau task đỏ, nên các suite phía sau **chưa chạy**, và
     một báo cáo trích số từ lượt đó là báo cáo về một suite không tồn tại.
 
+    Đợt 2026-09-12–13 chạy đủ bốn loại kiểm tra bằng lịch tách có chủ ý: bảy package qua
+    `turbo --force` (**28/28, 0 cache**); web chạy build, lint, typecheck và toàn bộ test riêng.
+    Lý do: `typecheck` trong turbo phụ thuộc `build`, có thể ghi lại `.next` lúc E2E dùng nó;
+    lượng worker đồng thời cũng gây timeout trên máy Windows. Đây không phải lời khai một
+    lượt turbo **32/32** mới. Log từng bước được giữ; lượt chạy rộng đã đỏ trước đó được ghi
+    là thất bại, không dùng phần xanh của chúng thay cho kết quả cuối.
+
 ---
 
-## 8. Ngoài phạm vi, nói rõ để không ai tưởng đã làm
+## 8. Đóng nợ và ranh giới còn áp dụng
 
-- **Ba lỗi lab của `phase-15.md`**: setup hỏng ăn mất khe quota, thông báo lỗi chỉ có mã thoát,
-  setup timeout ở load ~43. Chủ dự án chốt đợt này chỉ frontend. Sau P16, lab sẽ đẹp và **vẫn**
-  báo "Còn 0 chỗ" một tiếng sau năm lượt setup hỏng.
-- **Backend gửi mail đặt lại mật khẩu.** Giao diện có, đường nối chưa.
-- **`components/k8s-arena/**` và `packages/games/**`.** Không đụng.
-- **Cổng kích thước bundle.** Vẫn không có. Ô AC "không kéo xterm.js vào trang không có
-  terminal" của `phase-14-exec.md` vẫn không có phép đo nào.
+Chỉ đạo ngày 2026-09-12 mở rộng đợt hoàn thiện sang các khoản dưới đây. Không còn coi SMTP,
+nguồn problems, copy hay bundle là việc tự động để dành sau P16.
 
-- **Bốn khoản dở của 16.C, chốt 2026-09-10.** `problems-table.tsx` (9 tiêu đề cột + caption) và
-  `problem-labels.ts` (4 bảng nhãn + 3 hàm định dạng) còn chuỗi tại chỗ; `app/(session)/problems/[code]/**`
-  (4 file) chưa động; chuỗi trong `app/quiz/[id]/quiz-client.tsx` **cố ý dừng** — 378 dòng form
-  nhiều trạng thái, chuyển nửa vời để lại hai nguồn chữ trong một file. Phần hình của quiz đã theo token.
+| Khoản được yêu cầu xử lý | Kết quả và chứng cứ |
+|---|---|
+| Hai màn problems không có dữ liệu để tới | **Đã đóng**: `ad197a3` thêm 10 bài, `cc28626` gộp lane SEED; DB cục bộ đọc lại đủ 10 bài published `K8S-0001`..`K8S-0010`. **36 axe + 37 CSP trên đủ 32 màn qua**, gồm hai route thiếu dữ liệu trước đây và kiểm heading bổ sung. |
+| Keyboard chưa chạy với terminal thật | **Đã đóng**: gateway/orchestrator nối sandbox Sysbox thật, đợi READY và dọn phiên của test. Toàn bộ **44 ca keyboard** qua ở lượt cuối, gồm D10 xác minh PTY thật, byte Escape, thoát focus và cặp thao tác chậm; SearchTabs native không còn focus vào nội dung ẩn. |
+| Chưa nhìn cảnh 3D | **Yêu cầu được thay thế bởi chủ dự án**: xoá toàn bộ cảnh và vòng landing. Đã nhìn ảnh trang mới và qua bốn ca trình duyệt; không coi ảnh 3D cũ là nghiệm thu mới. |
+| 13 file author và nhóm 10 + 8 của author/problems | **Đã chuyển toàn bộ file sản phẩm còn dở**: 466 chuỗi / 31 file và 44 lỗi có `what`/`next`. AST gate giữ đúng fixture được miễn và không còn file sản phẩm bị hoãn. Số “8” cũ gồm fixture; bảy helper sản phẩm đã chuyển. [Báo cáo copy](../../reports/p16-2026-09-12-copy.md). |
+| Copy catalog, problem detail, quiz | **Đã đóng các phần sản phẩm còn dở**. Gate quét đủ năm cây và có đối chứng hai chiều; copy 63 test và kiểm kiểu đều qua. |
+| `CopyRef` sai tầng; nhãn problem ngoài bản đồ | **Đã đóng**: `86a32e4` chuyển `CopyRef`/`renderCopy` về `packages/copy`; đợt này thêm kiểm cặp khoá/tham số ở compile time. Nhãn game giữ tên export, lấy câu qua surface `problem`; `games → copy`, không có phụ thuộc ngược. |
+| Bốn bộ chọn biên tập ở `apps/web` | **Chốt ranh giới theo kiểu miền**: selector ở ứng dụng và trả `CopyRef`; câu ở copy. Không kéo kiểu miền ứng dụng vào gói copy không có runtime dependency. Hợp đồng được cập nhật, thiếu kiểm tham số cũ đã được đóng bằng correlated union và ca compile âm/dương. |
+| Ba lỗi lab P15 | **Đã sửa trước phiên này** ở `5d90ad1` + `6d8d2fc`, chọn hướng B chạy setup nền. [Báo cáo P15](reports/2026-09-10-verify-p15.md) có quota/pod, lỗi browser và thử tải thật. Chạy lại 50 regression xanh; không tuyên bố đo lại đường cong tải trong phiên P16. |
+| Backend reset mật khẩu | **Đã triển khai và kiểm SMTP thật**: 21 ca integration/form/privacy; trình duyệt lấy thư từ Mailpit, nhập mã và đăng nhập bằng mật khẩu mới thành công. Secret SMTP production phải cung cấp khi triển khai; chưa có provider production và không gửi thư tới người dùng thật. [Báo cáo backend](../../reports/p16-2026-09-12-backend.md). |
+| Cổng bundle | **Đã có và đã đo lại**: `c27e4e4` + `607193d`, gộp `1e5e8c2`; chạy `pnpm bundle:check` riêng sau build. 4/4 route có terminal nhận xterm, 33 route còn lại không nhận; mọi trần byte đạt. |
+| Chữ primary tối thiếu tương phản | **Đã sửa** thành `oklch(0.68 0.19 26.7)`. Tỷ lệ background **6.3056**, card **5.7071**, muted **4.8157**; ba cặp đi vào `TEXT_PAIRS` ngưỡng 4.5 và giữ màu cũ làm đối chứng âm. |
 
-- **Bốn bộ chọn biên tập ở lại `apps/web`, lệch chữ hợp đồng §1.6.** Hợp đồng bảo chúng sang
-  `packages/copy`, nhưng exports map của gói khai đúng bốn lối vào và không lối nào chở hàm trong
-  `surfaces/`; `package.json` và `t.ts` đều là file khoá của L0. Phần cốt lõi của §1.6 vẫn giữ —
-  bộ chọn trả `CopyRef` chứ không trả câu, nên bộ dò quét đủ mọi nhánh. Cái mất là kiểm THAM SỐ ở
-  tầng biên dịch, bù bằng test dựng-ra-câu từng nhánh. Muốn đóng hẳn thì L0 phải thêm một lối vào
-  cho `surfaces/`, và đó là quyết định ảnh hưởng cả bảy lane.
+Ranh giới sản phẩm vẫn cần nói rõ:
 
-- **Mười ba file nhóm trường của `components/author/**` còn chuỗi tại chỗ, chốt 2026-09-10.**
-  `draft-meta-fields.tsx` (380 dòng), `publish-panel.tsx` (395), `step-list-fields.tsx` (214),
-  `asset-manager.tsx` (212) và chín file khác. 16.G1 **cố ý dừng** ở ranh giới sạch thay vì
-  chuyển nửa vời, cùng lý lẽ 16.C đã dừng ở `quiz-client.tsx`: chuyển một nửa để lại hai nguồn
-  chữ trong một file, và đó là trạng thái tệ hơn cả hai đầu. Ô cấm gạch ngang dài thì ĐÃ đóng cho
-  toàn bộ vùng này (21 chuỗi ở bảy file) — nợ còn lại đúng là phần đi qua `packages/copy`.
+- **Tab Editor của lab chưa được thêm.** `Lab` chưa có `interfaceLayout`; việc dời `IdePane`
+  chỉ gỡ rào cản component. Hiện trang lab chủ ý không truyền `editor`. Không dùng kết quả
+  keyboard terminal để khẳng định lab đã có IDE; đây là mở rộng schema/nội dung ngoài phần
+  dựng lại giao diện đang nghiệm thu.
+- **Arena giữ phạm vi riêng.** Không dựng lại `components/k8s-arena/**`; miễn màu của
+  `arena.css` và `node-geometry.ts` vẫn là miễn theo phạm vi có tên, phải rà lại khi Arena được
+  đưa vào yêu cầu thiết kế. `packages/games` chỉ mở phạm vi phần nhãn problem nêu trên.
+- **Gửi thư đã nhận không phải giao thư bền vững.** `Next after()` có thể bị ngắt khi tiến
+  trình chết; chưa có hàng đợi bền vững. UI và tài liệu ghi đúng giới hạn này.
 
-- **`CopyRef` đang sống nhầm tầng, cần L0 quyết sau khi gộp hết.** Nó khai trong
-  `components/catalog/catalog-labels.ts` — file của lane 16.C — nhưng nó là tầng nối `apps/web`
-  với `packages/copy`, và tính đến 16.G1 đã có bốn cây import nó. 16.G1 không tự chuyển vì file
-  thuộc lane khác. Chuyển nó là đụng cả bốn cây, nên là quyết định của L0, không phải của một lane.
-
-- **Lab vẫn chưa có tab Editor.** Rào cản kiến trúc đã gỡ (`IdePane` nay ở `components/session/`),
-  rào cản còn lại là kiểu `Lab` không có `interfaceLayout` — cần sửa lược đồ + server, ngoài phạm
-  vi frontend-only của đợt này.
-
-- **`--primary` ở nhánh TỐI không đạt 4.5:1 cho chữ link.** Đo được 4.20:1 trên `--card` và
-  3.54:1 trên `--muted`; SC 1.4.3 đòi 4.5 cho chữ thường. Bảng §1.6 nhánh tối chỉ đặt ngưỡng 3.0
-  nên hợp đồng không tự mâu thuẫn, nhưng nó cũng không nói ra rằng đây là khoảng trống. Đã đặt
-  absence pin **có companion hai chiều** trong `packages/ui/src/theme/tokens.contract.test.ts` —
-  pin đỏ khi con số đạt 4.5, và lúc đó phải XOÁ pin rồi đưa cặp vào `TEXT_PAIRS`, không ghim lại
-  số mới (`rules/pinned-baseline-test-companion.md`). Chốt 2026-09-10: sửa màu ở lượt sau, vì đổi
-  `--primary` nhánh tối kéo theo tính lại cả bảng §1.6 sau khi 858 ô đã xanh.
-
-- **`arena.css` (43 dòng) và `node-geometry.ts` (6 dòng) được miễn cổng màu trần.** Ghi trong
-  `KNOWN_HARDCODED` của `scripts/check-design-tokens.mjs`, khối "RÀ LẠI". Đây là miễn theo **phạm
-  vi**, không phải ranh giới thư viện ngoài như xterm.js — nó PHẢI hết hạn khi arena vào phạm vi.
-  Không có hai dòng đó thì cổng đỏ ngay khi vào CI và sẽ bị gỡ khỏi CI, tức luật §9 lại tiếp tục
-  không gác gì.
+Lượt core đầu **157 qua / 8 lỗi / 0 skip** được giữ làm lịch sử điều tra. Hai ca terminal,
+hai lỗi focus SearchTabs ẩn và bốn lỗi author tràn 390px đã được sửa; 15 vấn đề heading moderate
+cũng được xử lý bổ sung. Lượt cuối **171/171 qua, 0 lỗi/skip/retry** trên build
+`HZG3aU7v-lBMcBxxAFsSE` đóng 16.I. Bằng chứng cuối:
+[log E2E](../../reports/p16-2026-09-12-e2e-all-final.log),
+[artefact trình duyệt](../../reports/harness/2026-09-12-p16-runtime/acceptance-all-green/).

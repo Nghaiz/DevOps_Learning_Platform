@@ -1,3 +1,4 @@
+import { errText } from '@devops-platform/copy';
 import type { ContentKind } from '@devops-platform/shared-types/authoring';
 import { labTaskIdSchema } from '@devops-platform/shared-types/lab';
 import type {
@@ -163,13 +164,22 @@ function optionalInt(
   // ra 12, `Number('1e3')` ra 1000, và `Number('')` ra 0 — cả ba đều nhận vào
   // những chuỗi mà người gõ không hề định nghĩa như vậy.
   if (!DIGITS_ONLY.test(text)) {
-    return { ok: false, issue: { path, message: 'Chỉ nhận số nguyên dương' } };
+    return {
+      ok: false,
+      issue: { path, message: errText('author.draft-form-chi-nhan-so-nguyen-duong') },
+    };
   }
   const value = Number(text);
   if (value < bounds.min || value > bounds.max) {
     return {
       ok: false,
-      issue: { path, message: `Phải nằm trong khoảng ${String(bounds.min)}–${String(bounds.max)}` },
+      issue: {
+        path,
+        message: errText('author.draft-form-phai-nam-trong-khoang', {
+          boundsMin: String(bounds.min),
+          boundsMax: String(bounds.max),
+        }),
+      },
     };
   }
   return { ok: true, value };
@@ -208,10 +218,16 @@ export function toDraftInput(kind: ContentKind, form: DraftFormState): DraftInpu
   const issues: FieldIssue[] = [];
 
   if (form.title.trim() === '') {
-    issues.push({ path: 'title', message: 'Tiêu đề không được để trống' });
+    issues.push({
+      path: 'title',
+      message: errText('author.draft-form-tieu-de-khong-duoc-de-trong'),
+    });
   }
   if (form.backendImageId.trim() === '') {
-    issues.push({ path: 'backendImageId', message: 'Image id không được để trống' });
+    issues.push({
+      path: 'backendImageId',
+      message: errText('author.draft-form-image-id-khong-duoc-de-trong'),
+    });
   }
 
   // Tách giá trị ra biến ngay tại chỗ kiểm thay vì đọc `x.value` ở cuối hàm:
@@ -223,7 +239,10 @@ export function toDraftInput(kind: ContentKind, form: DraftFormState): DraftInpu
   if (minutes.ok) minutesValue = minutes.value;
   else issues.push(minutes.issue);
 
-  const threshold = optionalInt(form.passThresholdPercent, 'passThresholdPercent', { min: 1, max: 100 });
+  const threshold = optionalInt(form.passThresholdPercent, 'passThresholdPercent', {
+    min: 1,
+    max: 100,
+  });
   let thresholdValue: number | null = null;
   if (threshold.ok) thresholdValue = threshold.value;
   else issues.push(threshold.issue);
@@ -246,7 +265,8 @@ export function toDraftInput(kind: ContentKind, form: DraftFormState): DraftInpu
       } else {
         issues.push({
           path: `${at}.taskId`,
-          message: parsed.error.issues[0]?.message ?? 'id task không hợp lệ',
+          message:
+            parsed.error.issues[0]?.message ?? errText('author.draft-form-id-task-khong-hop-le'),
         });
       }
     }

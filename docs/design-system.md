@@ -1,8 +1,10 @@
-# Hệ thiết kế — SSOT (13.A)
+# Hệ thiết kế — SSOT (P16)
 
 **Nguồn:** `apps/web/src/app/globals.css` (token + dark mode) · `packages/ui/src/theme/theme-provider.tsx`
 (cơ chế theme) · `packages/ui/src/**` (component). Hợp đồng C1/C2 gốc:
 [`plans/devops-learning-platform/phase-13-exec.md`](../plans/devops-learning-platform/phase-13-exec.md) §2.
+
+Cập nhật 2026-09-13: landing được dựng lại hoàn toàn, không vòng trang trí hay 3D. Xem [quy tắc giao diện hiện hành](design-guidelines.md). Các primitive tiến độ và cảnh K8s Arena giữ phạm vi riêng.
 
 ## 0. Nguyên tắc
 
@@ -23,6 +25,63 @@ migrate, chưa migrate lúc 13.A merge là đúng kế hoạch, không phải l�
 `packages/terminal/src/**/themes.ts` là **ngoại lệ tường minh** (grep AC gốc ở
 `phase-13-exec.md` §5 đã ghi rõ) — bảng màu ANSI của terminal là dữ liệu cấu hình
 xterm.js, không phải class Tailwind, không đi qua hệ token này.
+
+## 1. Token màu hiện hành (P16, 2026-09-13)
+
+<!-- updated 260913 -->
+
+Nguồn giá trị: `apps/web/src/app/globals.css`. Nguồn phép đo và ngưỡng: `packages/ui/src/theme/tokens.contract.test.ts`. Bảng P13 được giữ trong khối lịch sử bên dưới, không dùng làm giá trị hiện hành.
+
+| Biến CSS | Class Tailwind | Vai trò | Sáng | Tối |
+|---|---|---|---|---|
+| `--background` | `bg-background` | Nền trang | `oklch(1 0 0)` | `oklch(0.145 0.016 263.7)` |
+| `--foreground` | `text-foreground` | Chữ chính | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
+| `--card` | `bg-card` | Nền thẻ/card | `oklch(1 0 0)` | `oklch(0.205 0.016 263.7)` |
+| `--card-foreground` | `text-card-foreground` | Chữ trong card | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
+| `--popover` | `bg-popover` | Nền popover/dropdown/select | `oklch(1 0 0)` | `oklch(0.205 0.016 263.7)` |
+| `--popover-foreground` | `text-popover-foreground` | Chữ trong popover | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
+| `--primary` | `bg-primary` / `text-primary` | Hành động chính, link, focus ring mặc định | `oklch(0.519 0.186 26.7)` | `oklch(0.68 0.19 26.7)` |
+| `--primary-foreground` | `text-primary-foreground` | Chữ trên nền primary | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
+| `--secondary` | `bg-secondary` | Hành động phụ, nút Copy/Chạy trong code block | `oklch(0.97 0.005 263.7)` | `oklch(0.269 0.016 263.7)` |
+| `--secondary-foreground` | `text-secondary-foreground` | Chữ trên nền secondary | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
+| `--muted` | `bg-muted` | Nền mờ (Skeleton, code block, hàng bảng hover) | `oklch(0.97 0.005 263.7)` | `oklch(0.269 0.016 263.7)` |
+| `--muted-foreground` | `text-muted-foreground` | Chữ phụ/ghi chú | `oklch(0.5 0.024 269.7)` | `oklch(0.72 0.018 263.7)` |
+| `--accent` | `bg-accent` | Hover/focus của item tương tác (menu, tab) | `oklch(0.951 0.023 26.7)` | `oklch(0.269 0.016 263.7)` |
+| `--accent-foreground` | `text-accent-foreground` | Chữ trên nền accent | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
+| `--destructive` | `bg-destructive` | Hành động/trạng thái phá huỷ, lỗi | `oklch(0.505 0.192 29)` | `oklch(0.704 0.175 29)` |
+| `--destructive-foreground` | `text-destructive-foreground` | Chữ trên nền destructive | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
+| `--success` | `bg-success` | Trạng thái thành công, badge "Đạt" | `oklch(0.518 0.146 150.741)` | `oklch(0.696 0.17 150.741)` |
+| `--success-foreground` | `text-success-foreground` | Chữ trên nền success | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
+| `--warning` | `bg-warning` | Cảnh báo (chạm hardCap, sức chứa thấp) | `oklch(0.541 0.15 55.98)` | `oklch(0.769 0.188 70.08)` |
+| `--warning-foreground` | `text-warning-foreground` | Chữ trên nền warning | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
+| `--border` | `border-border` | Viền mặc định | `oklch(0.912 0.008 263.7)` | `oklch(1 0 0 / 12%)` |
+| `--input` | `border-input`, `bg-input` (Switch off) | Viền ô nhập, nền Switch tắt | `oklch(0.63 0.014 263.7)` | `oklch(1 0 0 / 38%)` |
+| `--ring` | `focus-visible:ring-ring` **+ `ring-offset-2 ring-offset-background`** | Vòng focus — bằng primary, nên KHÔNG được vẽ sát mặt nút (§1a) | `oklch(0.519 0.186 26.7)` | `oklch(0.68 0.19 26.7)` |
+| `--radius` | `rounded-lg` (= `--radius-lg`) | Bo góc gốc | `0.75rem` | `kế thừa :root` |
+
+
+### Tương phản hiện hành
+
+Các tỷ lệ dưới đây lấy từ số đo token P16, không lấy từ bảng P13. Chữ thường cần 4.5:1; ranh giới control cần 3:1. `TEXT_PAIRS` và `NON_TEXT_PAIRS` trong bộ kiểm thử là danh sách đầy đủ được cưỡng chế.
+
+| Cặp | Tỷ lệ hiện hành |
+|---|---|
+| primary sáng / background hoặc card | 6.0885:1 |
+| primary tối / background | 6.3056459:1 |
+| primary tối / card | 5.7070919:1 |
+| primary tối / muted | 4.8157422:1 |
+| trắng tinh / primary tối | 3.1396889:1 |
+| primary sáng / destructive sáng | 1.0646:1 |
+| primary tối / destructive tối | 1.1061929:1 |
+
+Primary tối là `oklch(0.68 0.19 26.7)`, dùng được làm chữ trên background/card/muted. Trắng tinh trên primary tối chỉ đạt 3.1397:1, nên chữ nút dùng `--primary-foreground` tối, không dùng trắng. Focus giữ `--ring === --primary`; phải có offset để vòng focus không nằm sát nền primary. Hai màu đỏ không đủ tách nghĩa: primary nền đặc; destructive nền rỗng, viền và TriangleAlert.
+
+### Bản ghi P13 đã thay thế
+
+<details>
+<summary>Lịch sử token và tỷ lệ P13; không dùng để triển khai P16</summary>
+
+Toàn bộ giá trị, bảng đo và kết luận định lượng trong khối này là lịch sử trước P16. Chúng giải thích các quyết định cũ; bảng hiện hành phía trên và phép kiểm trong mã nguồn thay thế chúng.
 
 ## 1. Token màu
 
@@ -296,14 +355,12 @@ sáng thành `oklch(0.505 0.192 29)`, đo lại được **5.9429** (sáng) và 
 ở cả hai theme. Ghim lại 5.94 sẽ biến một lần sửa thành một baseline vĩnh viễn
 mà không ai rà lại — `rules/pinned-baseline-test-companion.md` cấm đúng điều đó.
 
-⚠ **Khoảng trống CÒN MỞ, ở chỗ khác:** `--primary` là màu của **link** (§1 bảng
-token nói rõ), và ở nhánh **tối** nó chỉ đạt **4.2009:1** trên `--card` và
-**3.5448:1** trên `--muted` — dưới 4.5. Trên `--background` thì đạt (4.6415).
-Bảng §1.6 của `p16-tokens.md` chỉ đặt ngưỡng 3.0 cho nhánh tối nên hợp đồng
-không tự mâu thuẫn, nhưng nó cũng không nói ra rằng đây là một khoảng trống.
-Được ghim bằng một absence pin có companion hai chiều ở `tokens.contract.test.ts`.
-Sửa triệt để cần một token màu link riêng, hoặc gạch chân bắt buộc (SC 1.4.1
-chấp nhận) — cả hai đều là thay đổi hợp đồng.
+**Khoảng trống link tối đã đóng (2026-09-12):** `--primary` và `--ring` dùng
+`oklch(0.68 0.19 26.7)`, nằm trong sRGB. Tương phản link trên background/card/muted
+lần lượt **6.3056/5.7071/4.8157:1**; chữ trên nút đạt **6.3056:1**. Trắng cạnh
+ring vẫn đạt **3.1397:1**. Ba cặp link nằm trong `TEXT_PAIRS`, ngưỡng 4.5 cho cả
+hai theme; đối chứng màu cũ chứng minh test phát hiện hồi quy. Gạch chân giúp
+nhận dạng link nhưng không thay thế yêu cầu tương phản chữ SC 1.4.3.
 
 **`Alert` KHÔNG đổi, và đó là kết luận có số.** Nó vốn đã là dạng nhạt + viền, và
 không có biến thể alert nào tô nền `--primary` đặc để mà lẫn. Nhãn ở đó là
@@ -324,6 +381,9 @@ lạnh dưới điểm nhấn đỏ là tương phản có chủ ý.
 tối) và `--difficulty-intermediate` (hue 65) cách primary 31–45°, và đọc ra nâu/hổ
 phách (`#ae5100`, `#975c16` ở nhánh sáng) chứ không cùng họ với `#e31029`. Cái
 thật sự sát là `--destructive` ở 2.3° — và đó chính là lý do mục này tồn tại.
+
+
+</details>
 
 ## 2. Cơ chế dark mode (D2)
 

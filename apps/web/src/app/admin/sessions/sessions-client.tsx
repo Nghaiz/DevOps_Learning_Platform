@@ -67,7 +67,7 @@ export function AdminSessionsClient({ viewerId }: { readonly viewerId: string })
   return (
     <AdminSection title={t('admin.sessions.title')} description={t('admin.sessions.description')}>
       <Alert>
-        <AlertTitle>{t('admin.sessions.alert-title')}</AlertTitle>
+        <AlertTitle as="h2">{t('admin.sessions.alert-title')}</AlertTitle>
         <AlertDescription>{t('admin.sessions.alert-body')}</AlertDescription>
       </Alert>
 

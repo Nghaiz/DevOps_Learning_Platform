@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 /**
  * Kiểu và bộ dựng cho bảng tham số vị từ. Tách khỏi `predicate-spec.ts` để bảng
  * 32 dòng ở đó đọc được trong một màn hình — bảng mới là thứ người ta mở ra xem.
@@ -35,19 +36,33 @@ export interface PredicateSpec {
 
 export const kind = (required = true): PredicateArgSpec => ({
   key: 'kind',
-  label: 'Loại tài nguyên',
+  label: t('problem.predicate-arg-types-loai-tai-nguyen'),
   type: 'resource-kind',
   required,
 });
-export const name = (required = true): PredicateArgSpec => ({ key: 'name', label: 'Tên', type: 'text', required });
+export const name = (required = true): PredicateArgSpec => ({
+  key: 'name',
+  label: t('problem.predicate-arg-types-ten'),
+  type: 'text',
+  required,
+});
 export const ns = (required = true): PredicateArgSpec => ({
   key: 'namespace',
-  label: 'Namespace',
+  label: t('problem.cluster-fields-namespace'),
   type: 'namespace',
   required,
 });
-export const node = (): PredicateArgSpec => ({ key: 'nodeName', label: 'Tên node', type: 'node', required: true });
-export const sel = (key = 'labelSelector', label = 'Bộ chọn nhãn', required = true): PredicateArgSpec => ({
+export const node = (): PredicateArgSpec => ({
+  key: 'nodeName',
+  label: t('problem.node-fields-ten-node'),
+  type: 'node',
+  required: true,
+});
+export const sel = (
+  key = 'labelSelector',
+  label = t('problem.predicate-arg-types-bo-chon-nhan'),
+  required = true,
+): PredicateArgSpec => ({
   key,
   label,
   type: 'selector',

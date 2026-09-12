@@ -1,0 +1,10 @@
+{
+  "highRisk": true,
+  "autoStopRequired": true,
+  "humanApproved": true,
+  "largeDiff": true,
+  "reasons": [
+    "User explicitly authorized autonomous full codebase/env/SSH/Docker changes; new auth reset flow requires independent security review and real integration proof.",
+    "Large copy migration preserves public APIs and existing tests; landing original design superseded by explicit user instruction."
+  ]
+}

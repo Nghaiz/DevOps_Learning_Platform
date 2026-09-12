@@ -30,10 +30,7 @@ import { draftFromBody, draftFromPreview } from '../../../components/author/draf
 import { AssetManager } from '../../../components/author/asset-manager';
 import { PreviewPanel } from '../../../components/author/preview-panel';
 import { PublishPanel } from '../../../components/author/publish-panel';
-import {
-  PUBLISH_POLL_INTERVAL_MS,
-  publishPhase,
-} from '../../../components/author/publish-machine';
+import { PUBLISH_POLL_INTERVAL_MS, publishPhase } from '../../../components/author/publish-machine';
 import { basePublishedIdOf } from '../../../components/author/draft-id';
 import { describeSaveOutcome } from '../../../components/author/save-outcome';
 import {
@@ -185,7 +182,10 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
     },
   });
 
-  const checkQuery = api.authoring.check.useQuery({ id: contentId }, { enabled: false, retry: false });
+  const checkQuery = api.authoring.check.useQuery(
+    { id: contentId },
+    { enabled: false, retry: false },
+  );
 
   const publish = api.authoring.publish.useMutation({
     onSuccess: () => {
@@ -203,7 +203,10 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
   const archive = api.authoring.archive.useMutation({
     onSuccess: () => {
       void utils.authoring.list.invalidate();
-      toast({ title: t('author.edit.archived.title'), description: t('author.edit.archived.body') });
+      toast({
+        title: t('author.edit.archived.title'),
+        description: t('author.edit.archived.body'),
+      });
     },
     onError: (error) => {
       setServerError(describeTrpcError(error));
@@ -216,7 +219,6 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
     row: item,
     baseRow,
   });
-
 
   const onSave = (): void => {
     if (form === null || item === null) {
@@ -270,7 +272,10 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
   return (
     <Shell>
       <header className="flex flex-col gap-2">
-        <Link href="/author" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+        <Link
+          href="/author"
+          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+        >
           {'← '}
           {t('author.nav.back-to-list')}
         </Link>
@@ -287,13 +292,16 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
         <Alert variant="warning">
           <AlertTitle>{t('author.edit.live-warning.title')}</AlertTitle>
           <AlertDescription>
-            {renderCopy({ key: 'author.edit.live-warning.body', params: { draftId: `${item.id}__draft` } })}
+            {renderCopy({
+              key: 'author.edit.live-warning.body',
+              params: { draftId: `${item.id}__draft` },
+            })}
           </AlertDescription>
         </Alert>
       )}
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="h-auto max-w-full flex-wrap justify-start [&>[data-slot=tabs-trigger]]:min-h-11">
           <TabsTrigger value="soan">{t('author.edit.tab.compose')}</TabsTrigger>
           <TabsTrigger value="xem-truoc">{t('author.edit.tab.preview')}</TabsTrigger>
           <TabsTrigger value="tep">{t('author.edit.tab.assets')}</TabsTrigger>
@@ -331,7 +339,10 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
                       {issues.map((issue) => (
                         <li key={issue.path}>
                           <code className="font-mono">{issue.path}</code>
-                          {renderCopy({ key: 'author.issues.row', params: { message: issue.message } })}
+                          {renderCopy({
+                            key: 'author.issues.row',
+                            params: { message: issue.message },
+                          })}
                         </li>
                       ))}
                     </ul>

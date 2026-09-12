@@ -1,3 +1,4 @@
+import { t } from '@devops-platform/copy';
 import type { PreviewPayload } from './draft-from-preview';
 
 /**
@@ -23,21 +24,26 @@ export function previewPhases(payload: PreviewPayload): readonly PreviewPhase[] 
       }
       const phases: PreviewPhase[] = [];
       if (lesson.intro !== null) {
-        phases.push({ key: 'intro', label: lesson.intro.title ?? 'Mở đầu', markdown: lesson.intro.markdown });
+        phases.push({
+          key: 'intro',
+          label: lesson.intro.title ?? t('author.draft-form-view-mo-dau'),
+          markdown: lesson.intro.markdown,
+        });
       }
       for (const step of lesson.steps) {
         phases.push({
           key: `step-${String(step.index)}`,
           // `index + 1` cho người đọc, `index` cho máy: `progress.step_index` là
           // 0-based và không được đổi ở đây.
-          label: step.title ?? `Bước ${String(step.index + 1)}`,
+          label:
+            step.title ?? t('author.preview-phases-buoc', { stepIndex1: String(step.index + 1) }),
           markdown: step.markdown,
         });
       }
       if (lesson.finish !== null) {
         phases.push({
           key: 'finish',
-          label: lesson.finish.title ?? 'Kết thúc',
+          label: lesson.finish.title ?? t('author.draft-form-view-ket-thuc'),
           markdown: lesson.finish.markdown,
         });
       }

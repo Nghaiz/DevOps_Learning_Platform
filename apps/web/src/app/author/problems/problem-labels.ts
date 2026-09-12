@@ -1,4 +1,4 @@
-import type { TextKey } from '@devops-platform/copy';
+import type { StaticTextKey } from '@devops-platform/copy';
 import type { BadgeVariant } from '@devops-platform/ui';
 import type { ProblemDifficulty, ProblemState } from '@devops-platform/games';
 
@@ -21,7 +21,7 @@ import type { ProblemDifficulty, ProblemState } from '@devops-platform/games';
  *
  * `STATE_LABELS` từng giữ ba chuỗi tiếng Việt. Chúng đã sang
  * `packages/copy/src/surfaces/author.ts` dưới tiền tố `author.problem.state.`,
- * và bảng dưới đây trả `TextKey`. Đổi này không phải chuyện phong cách: một
+ * và bảng dưới đây trả `StaticTextKey`. Đổi này không phải chuyện phong cách: một
  * bảng chuỗi ở tầng ứng dụng thì cổng gạch ngang dài và cổng mất dấu của
  * `packages/copy` không soi tới, nên hai luật đó không có hiệu lực trên nó.
  *
@@ -36,7 +36,7 @@ export const DIFFICULTY_BADGE = {
   expert: 'difficulty-expert',
 } satisfies Record<ProblemDifficulty, BadgeVariant>;
 
-export const STATE_KEYS: Readonly<Record<ProblemState, TextKey>> = {
+export const STATE_KEYS: Readonly<Record<ProblemState, StaticTextKey>> = {
   draft: 'author.problem.state.draft',
   published: 'author.problem.state.published',
   archived: 'author.problem.state.archived',
@@ -64,6 +64,6 @@ export type StateFilter = (typeof STATE_FILTERS)[number];
  * `filterLabelKey`: giữ tên cũ cho một kiểu trả về mới là cách chắc chắn để nơi
  * gọi tiếp theo dựng thẳng nó vào JSX và in ra chuỗi khoá.
  */
-export function filterLabelKey(filter: StateFilter): TextKey {
+export function filterLabelKey(filter: StateFilter): StaticTextKey {
   return filter === 'all' ? 'author.problem.filter-all' : STATE_KEYS[filter];
 }

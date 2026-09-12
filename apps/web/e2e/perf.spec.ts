@@ -179,7 +179,8 @@ async function readLcp(page: Page): Promise<LcpSample | null> {
 
 async function readNavigation(page: Page): Promise<NavSample> {
   return page.evaluate(() => {
-    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    const nav = performance.getEntriesByType('navigation')[0] as
+      PerformanceNavigationTiming | undefined;
     return {
       responseStart: nav?.responseStart ?? 0,
       domContentLoaded: nav?.domContentLoadedEventEnd ?? 0,
@@ -373,7 +374,7 @@ test(`LCP ${TARGET_PATH}`, async ({ page }, testInfo) => {
 
 // ═══════════════════════════ P16 §16.I mục 3 — ngân sách LCP cho `/` (trang chủ)
 
-/** Trang chủ. 16.E dựng lại nó với một cảnh 3D; xem khối ngân sách bên dưới. */
+/** Trang chủ hiện dùng nội dung HTML và bản minh hoạ terminal tương tác. */
 const HOME_PATH = '/';
 
 /**
@@ -405,13 +406,10 @@ const HOME_PATH = '/';
  * CÙNG một lượt chạy, cùng máy, cùng build. Tỉ số `/` ÷ `/lessons` là thứ mang
  * nghĩa qua các môi trường; con số tuyệt đối thì không. Report §3 ghi cả hai.
  *
- * Vì sao ngân sách của `/` KHÔNG bằng của `/lessons`:
- *   - `/` là màn **anon**, nội dung là HTML server render, không có lượt fetch
- *     tRPC ở client trước khi có nội dung — nên nó phải NHANH HƠN `/lessons`;
- *   - nhưng nó tải thêm bundle của cảnh 3D. Bàn giao 16.E nói rõ canvas KHÔNG
- *     được là phần tử LCP, và ô dưới khẳng định đúng điều đó — nếu canvas trở
- *     thành phần tử LCP thì con số này sẽ đo thời điểm WebGL vẽ xong, tức đo
- *     một thứ khác hẳn thứ ta định gác.
+ * Cả hai trang giữ ngân sách nghiệm thu 2500ms. Sau yêu cầu thay landing ngày
+ * 2026-09-13, `/` là nội dung HTML server render và bản minh hoạ terminal;
+ * cảnh 3D cũ đã được gỡ hoàn toàn. Các mẫu 2026-09-11 ở trên chỉ là lịch sử,
+ * lượt chạy hiện tại luôn ghi mẫu mới của cả hai trang vào artifact.
  */
 const HOME_LCP_BUDGET_MS = 2500;
 
@@ -458,24 +456,11 @@ test.describe('LCP trang chủ', () => {
 
     const sample = lcp as LcpSample;
 
-    /*
-      Bàn giao 16.E, chép nguyên văn: "Canvas không được là phần tử LCP."
-
-      Ô này không phải một phép đo hiệu năng thứ hai — nó là điều kiện để con số
-      ở trên có nghĩa. LCP của một canvas đo thời điểm WebGL vẽ khung đầu; LCP
-      của khối chữ hero đo thời điểm người dùng đọc được trang. Hai đại lượng
-      khác nhau đội cùng một cái tên, và chỉ cái sau là thứ ngân sách này gác.
-
-      Nó cũng bắt được một hồi quy thật: nếu bảy thẻ chặng (HTML server, luôn có
-      mặt theo bàn giao 16.E) ngừng render, canvas sẽ TRỞ THÀNH phần tử lớn
-      nhất — và trang mất sạch nội dung tĩnh mà không ô nào khác kêu.
-    */
+    // Nội dung đọc được phải có mặt trong lần paint đầu của landing.
     expect(
       sample.tag,
-      `Phần tử LCP của ${HOME_PATH} là <${sample.tag}>. Bàn giao 16.E: canvas ` +
-        `KHÔNG được là phần tử LCP — trang chủ phải vẽ xong nội dung HTML trước ` +
-        `khi cảnh 3D lên. Thấy canvas ở đây nghĩa là nội dung tĩnh đã biến mất ` +
-        `hoặc bị đẩy xuống dưới nếp gấp.`,
+      `Phần tử LCP của ${HOME_PATH} là <${sample.tag}>; landing phải hiển thị ` +
+        `nội dung HTML đọc được ngay trong lần paint đầu.`,
     ).not.toBe('canvas');
 
     if (sample.startTime < HOME_LCP_BUDGET_MS * BUDGET_DECORATION_RATIO) {

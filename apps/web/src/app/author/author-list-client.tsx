@@ -69,7 +69,9 @@ export function AuthorListClient() {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('author.list.title')}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            {t('author.list.title')}
+          </h1>
           <p className="text-sm text-muted-foreground">{t('author.list.lead')}</p>
         </div>
         <Button asChild>
@@ -108,7 +110,7 @@ export function AuthorListClient() {
               setFilter(value as StateFilter);
             }}
           >
-            <TabsList>
+            <TabsList className="h-auto max-w-full flex-wrap justify-start [&>[data-slot=tabs-trigger]]:min-h-11">
               {STATE_FILTERS.map((value) => (
                 <TabsTrigger key={value} value={value}>
                   {renderCopy({
@@ -186,7 +188,9 @@ function ItemCard({ item, now }: { readonly item: AuthoredItem; readonly now: Da
             <p className="text-sm text-muted-foreground">
               {renderCopy(describeItem(item))} · <code className="font-mono">{item.id}</code>
             </p>
-            <p className="text-xs text-muted-foreground">{renderCopy(describeUpdatedAt(item.updatedAt, now))}</p>
+            <p className="text-xs text-muted-foreground">
+              {renderCopy(describeUpdatedAt(item.updatedAt, now))}
+            </p>
           </div>
           <Button asChild variant="outline" size="sm">
             <Link href={`/author/${encodeURIComponent(item.id)}`}>{t('common.action.open')}</Link>
@@ -197,7 +201,9 @@ function ItemCard({ item, now }: { readonly item: AuthoredItem; readonly now: Da
           <Alert variant="destructive">
             <AlertTitle>{t('author.list.publish-failed.title')}</AlertTitle>
             <AlertDescription>
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">{failure}</pre>
+              <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs">
+                {failure}
+              </pre>
               <p className="mt-2">{t('author.list.publish-failed.next')}</p>
             </AlertDescription>
           </Alert>

@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
 import {
   Badge,
@@ -37,10 +38,12 @@ export function ClassifyFields(props: {
 
   return (
     <section className="flex flex-col gap-5">
-      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">Phân loại</h2>
+      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
+        {t('problem.classify-fields-phan-loai')}
+      </h2>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="problem-difficulty">Độ khó</Label>
+        <Label htmlFor="problem-difficulty">{t('problem.classify-fields-do-kho')}</Label>
         <div className="flex items-center gap-3">
           <Select
             value={props.form.difficulty}
@@ -64,13 +67,16 @@ export function ClassifyFields(props: {
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground">
-          Bốn bậc, cố ý khác ba bậc của bài lab. Ranh giới Khó / Rất khó là thứ người làm dựa vào để chọn bài kế
-          tiếp.
+          {t(
+            'problem.classify-fields-bon-bac-co-y-khac-ba-bac-cua-bai-lab-ranh-gioi-kho-rat-kho-la-thu-nguoi-lam',
+          )}
         </p>
       </div>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-foreground">Chủ đề, chọn 1 đến 3</legend>
+        <legend className="text-sm font-medium text-foreground">
+          {t('problem.classify-fields-chu-de-chon-1-den-3')}
+        </legend>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {PROBLEM_TOPICS.map((topic) => (
             <TopicBox
@@ -97,13 +103,15 @@ export function ClassifyFields(props: {
 
       <div className="flex flex-col gap-2">
         <TextField
-          label="Tag tự do"
+          label={t('problem.classify-fields-tag-tu-do')}
           value={props.form.tagsText}
           onChange={(tagsText) => {
             props.onChange({ tagsText });
           }}
-          placeholder="crashloop, chẩn đoán, image"
-          hint="Ngăn bằng dấu phẩy. Tự chuẩn hoá về chữ thường không dấu và gạch nối khi lưu."
+          placeholder={t('problem.classify-fields-crashloop-chan-doan-image')}
+          hint={t(
+            'problem.classify-fields-ngan-bang-dau-phay-tu-chuan-hoa-ve-chu-thuong-khong-dau-va-gach-noi-khi-luu',
+          )}
         />
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
@@ -125,11 +133,11 @@ export function ClassifyFields(props: {
               props.onChange({ hasTimeLimit: checked });
             }}
           />
-          <Label htmlFor="problem-time-limit">Đặt hạn giờ</Label>
+          <Label htmlFor="problem-time-limit">{t('problem.classify-fields-dat-han-gio')}</Label>
         </div>
         {props.form.hasTimeLimit ? (
           <TextField
-            label="Hạn giờ (giây)"
+            label={t('problem.classify-fields-han-gio-giay')}
             value={props.form.timeLimitSec}
             onChange={(timeLimitSec) => {
               props.onChange({ timeLimitSec });
@@ -139,20 +147,24 @@ export function ClassifyFields(props: {
           />
         ) : (
           <p className="text-xs text-muted-foreground">
-            Không giới hạn giờ. Không phải bài nào cũng nên chạy đua: bài chẩn đoán cần thời gian để đọc.
+            {t(
+              'problem.classify-fields-khong-gioi-han-gio-khong-phai-bai-nao-cung-nen-chay-dua-bai-chan-doan-can-t',
+            )}
           </p>
         )}
       </div>
 
       <TextField
-        label="Số nước đi chuẩn (tuỳ chọn)"
+        label={t('problem.classify-fields-so-nuoc-di-chuan-tuy-chon')}
         value={props.form.parMoves}
         onChange={(parMoves) => {
           props.onChange({ parMoves });
         }}
         inputMode="numeric"
         error={issueFor(props.issues, 'parMoves')}
-        hint="Dùng để chấm sao. Để trống nghĩa là không chấm theo số nước đi."
+        hint={t(
+          'problem.classify-fields-dung-de-cham-sao-de-trong-nghia-la-khong-cham-theo-so-nuoc-di',
+        )}
       />
 
       <AllowedResourcesFields form={props.form} onChange={props.onChange} issues={props.issues} />

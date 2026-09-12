@@ -62,7 +62,7 @@ export function AuthFrame({
       <div className="flex items-center justify-center px-4 py-12 min-[769px]:px-8">
         <Card className="w-full max-w-sm">
           <CardHeader>
-            <CardTitle>{title}</CardTitle>
+            <CardTitle as="h1">{title}</CardTitle>
             <CardDescription>{description}</CardDescription>
           </CardHeader>
           <CardContent>{children}</CardContent>
@@ -114,9 +114,9 @@ function AuthBrandPanel() {
         <p className="text-sm font-medium tracking-wide text-muted-foreground">
           {t('shell.brand.name')}
         </p>
-        <h2 className="text-3xl leading-tight font-semibold tracking-tight text-foreground">
+        <p className="text-3xl leading-tight font-semibold tracking-tight text-foreground">
           {t('auth.frame.headline')}
-        </h2>
+        </p>
         <p className="text-base text-muted-foreground">{t('auth.frame.body')}</p>
       </div>
     </div>

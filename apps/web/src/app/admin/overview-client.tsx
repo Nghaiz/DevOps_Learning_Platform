@@ -39,14 +39,11 @@ import { useCapacity } from '../../components/shell/use-capacity';
  */
 export function AdminOverviewClient(): ReactElement {
   return (
-    <AdminSection
-      title={t('admin.overview.title')}
-      description={t('admin.overview.description')}
-    >
+    <AdminSection title={t('admin.overview.title')} description={t('admin.overview.description')}>
       <CapacityCard />
       <HealthPanel />
       <Alert>
-        <AlertTitle>{t('admin.overview.audit-title')}</AlertTitle>
+        <AlertTitle as="h2">{t('admin.overview.audit-title')}</AlertTitle>
         <AlertDescription>
           {t('admin.overview.audit-body')}{' '}
           <Link
@@ -69,7 +66,7 @@ function CapacityCard(): ReactElement {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{t('admin.capacity.title')}</CardTitle>
+          <CardTitle as="h2">{t('admin.capacity.title')}</CardTitle>
           <CardDescription className="max-w-prose">
             {/*
               `loading` và `error` là hai chuyện khác nhau và không được gộp:
@@ -116,7 +113,7 @@ function CapacityCard(): ReactElement {
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <CardTitle>{t('admin.capacity.title')}</CardTitle>
+          <CardTitle as="h2">{t('admin.capacity.title')}</CardTitle>
           <CardDescription>
             {at === null
               ? t('admin.capacity.fetched-unknown')

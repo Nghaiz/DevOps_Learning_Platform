@@ -124,7 +124,7 @@ không cần đo lại.
 | `--card-foreground` | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` | Chữ trong thẻ. |
 | `--popover` | `oklch(1 0 0)` | `oklch(0.205 0.016 263.7)` | Mặt popover/dropdown/select. |
 | `--popover-foreground` | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` | Chữ trong popover. |
-| `--primary` | `oklch(0.519 0.186 26.7)` ← `#BC2626` | `oklch(0.610 0.238 26.7)` ≈ `#F11B26` | Nút hành động chính (nền ĐẶC), link, vòng focus. |
+| `--primary` | `oklch(0.519 0.186 26.7)` ← `#BC2626` | `oklch(0.680 0.190 26.7)` | Nút hành động chính (nền ĐẶC), link, vòng focus. |
 | `--primary-foreground` | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` | Chữ trên mặt primary. |
 | `--secondary` | `oklch(0.97 0.005 263.7)` | `oklch(0.269 0.016 263.7)` ≈ `#22262E` | Nút phụ, nút Copy/Chạy trong code block. |
 | `--secondary-foreground` | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` | Chữ trên mặt secondary. |
@@ -140,7 +140,7 @@ không cần đo lại.
 | `--warning-foreground` | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` | Chữ trên mặt warning. |
 | `--border` | `oklch(0.912 0.008 263.7)` | `oklch(1 0 0 / 12%)` | Ranh giới **trang trí**: viền thẻ, kẻ dòng bảng, `Separator`. |
 | `--input` | `oklch(0.63 0.014 263.7)` | `oklch(1 0 0 / 38%)` | Ranh giới **nhận dạng control**: viền `Input`/`Textarea`/`Select`/`Checkbox`/`Button outline`, rãnh `Switch` lúc tắt. |
-| `--ring` | `oklch(0.519 0.186 26.7)` | `oklch(0.610 0.238 26.7)` | Vòng focus. **BẰNG `--primary` theo thiết kế** — xem §1.7. |
+| `--ring` | `oklch(0.519 0.186 26.7)` | `oklch(0.680 0.190 26.7)` | Vòng focus. **BẰNG `--primary` theo thiết kế** — xem §1.7. |
 | `--radius` | `0.75rem` | *(không lặp — xem §5)* | Bo góc gốc, mọi bậc suy từ đây. |
 
 **`--input` ≠ `--border`, và đó là quyết định, không phải sót.** shadcn để hai cái bằng nhau;
@@ -243,23 +243,24 @@ Ví dụ đúng, để đối chiếu: `--input` tối = trắng 38% trên `--ba
 | `--muted-foreground` / `--background` | 4.5 | 7.98 |
 | `--muted-foreground` / `--card` | 4.5 | 7.22 |
 | `--muted-foreground` / `--muted` | 4.5 | 6.09 |
-| `--primary-foreground` / `--primary` | 4.5 | **4.64** |
+| `--primary-foreground` / `--primary` | 4.5 | **6.31** |
 | `--destructive-foreground` / `--destructive` | 4.5 | 6.98 |
 | `--success-foreground` / `--success` | 4.5 | 7.82 (kế thừa) |
 | `--warning-foreground` / `--warning` | 4.5 | 9.23 (kế thừa) |
 | `--destructive` / `--background` | 4.5 và 3.0 | 6.98 |
 | `--destructive` / `--card` | 4.5 và 3.0 | 6.31 |
 | `--destructive` / `--muted` | 4.5 | **5.33** |
-| `--primary` / `--background` | 3.0 | 4.64 |
-| `--primary` / `--card` | 3.0 | **4.20** |
+| `--primary` / `--background` | 4.5 | 6.31 |
+| `--primary` / `--card` | 4.5 | **5.71** |
+| `--primary` / `--muted` | 4.5 | **4.82** |
 | `--input` / `--background` | 3.0 | **3.49** |
 | `--input` / `--card` | 3.0 | 3.56 |
 | `--input` / `--muted` | 3.0 | **3.42** |
-| `--ring` / `--background` | 3.0 | 4.64 |
-| `--ring` / `--card` | 3.0 | 4.20 |
+| `--ring` / `--background` | 3.0 | 6.31 |
+| `--ring` / `--card` | 3.0 | 5.71 |
 | `--border` / `--background` | — (trang trí) | 1.33 |
 | `--ring` / `--primary` | miễn trừ có điều kiện (§1.7) | **1.00** |
-| `--primary` / `--destructive` | — | **1.50** |
+| `--primary` / `--destructive` | — | **1.11** |
 | `--brand-star` / `--background` | cho phép (đây là nền duy nhất của nó) | **16.15** |
 
 **Khoảng trống của hệ cũ đã ĐÓNG, và phải xoá pin cũ chứ không ghim lại số mới.**
@@ -271,6 +272,10 @@ Ví dụ đúng, để đối chiếu: `--input` tối = trắng 38% trên `--ba
 `--destructive` / `--muted` vào `TEXT_PAIRS` ở cả hai theme. Đặt lại một pin mới ở đây là biến
 một lần sửa thành một baseline vĩnh viễn.
 
+<!-- updated 260913 -->
+
+Số đo cập nhật 2026-09-13 cho primary tối: background 6.3056459:1, card 5.7070919:1, muted 4.8157422:1. Trắng tinh trên primary tối 3.1396889:1, đủ làm đối chứng focus 3:1 nhưng không đủ làm chữ thường 4.5:1. Bộ kiểm thử token giữ ngưỡng và số đo chuẩn.
+
 ### 1.7 Vòng focus: `--ring` = `--primary`, nên nó KHÔNG được vẽ sát mặt nút
 
 Ràng buộc này giữ nguyên từ hệ hiện tại, và hệ quả của nó cũng giữ nguyên: mọi vòng focus nằm
@@ -279,7 +284,7 @@ sát một mặt `bg-primary` đều là **1.00:1**, tức vô hình, ở cả h
 
 | Cơ chế | Dùng ở | Màu KỀ vòng focus |
 |---|---|---|
-| `ring-offset-2` + `ring-offset-background` | `Button`, `Switch`, `Checkbox` | `--background`/`--card` — 6.10 sáng / 4.64 tối |
+| `ring-offset-2` + `ring-offset-background` | `Button`, `Switch`, `Checkbox` | `--background`/`--card` — 6.0885 sáng / 6.3056 tối trên background; 5.7071 tối trên card |
 | `ring-current` | `StepNav`, nút đóng `Toast` | `text-*-foreground` của chính bề mặt, đã gác ≥4.5 |
 
 Hai class của cơ chế thứ nhất **bắt buộc đi cùng nhau**. Thiếu `ring-offset-background` thì
@@ -300,7 +305,7 @@ màu nền trang không hề kề nó.
 
 | | Sáng | Tối |
 |---|---|---|
-| `--primary` vs `--destructive` | **1.06:1** | **1.50:1** |
+| `--primary` vs `--destructive` | **1.06:1** | **1.1062:1** |
 
 Ngưỡng thấp nhất để mắt tách được hai thành phần phi-văn-bản cạnh nhau là 3.0. 1.06 không gần
 ngưỡng đó, nó gần **1.00** — tức là "cùng một màu". Nếu cả hai cùng tô nền đặc thì nút "Lưu" và
@@ -330,10 +335,10 @@ Quy hai nút về độ chói tương đối (chính là kênh xám mà ảnh đ
 
 | | mặt nút `primary` | mặt nút `destructive` lúc nghỉ | chênh |
 |---|---|---|---|
-| Sáng | Y = 0.1222 | Y = 1.0000 (trong suốt ⇒ lộ `--background`) | **6.10:1** |
-| Tối | Y = 0.1962 | Y = 0.0030 | **4.64:1** |
+| Sáng | `--primary` sáng | trong suốt, lộ `--background` | **6.0885:1** |
+| Tối | `--primary` tối (`oklch(0.68 0.19 26.7)`) | trong suốt, lộ `--background` | **6.3056:1** |
 
-Khác biệt ở **màu** là 1.06. Khác biệt ở **cấu trúc** là 6.10 và 4.64. Xoá sạch sắc độ thì vẫn
+Khác biệt ở **màu** là 1.0646 sáng / 1.1062 tối. Khác biệt ở **cấu trúc** trên background là 6.0885 sáng / 6.3056 tối. Xoá sạch sắc độ thì vẫn
 còn một "khối đặc tối" đứng cạnh một "khung rỗng sáng". Đó là toàn bộ lý do luật nằm ở hình dạng.
 
 ### 2.4 Vì sao lúc nghỉ là trong suốt chứ không phải `bg-destructive/10`
@@ -439,7 +444,7 @@ sung:
 
 | Token | Giá trị | @360px | @1440px | Dùng cho |
 |---|---|---|---|---|
-| `--section-y` | `clamp(3rem, 2rem + 4.44vw, 6rem)` | 48px | **95.94px** | `padding-block` của một chặng trang chủ / trang tiếp thị |
+| `--section-y` | `clamp(3rem, 2rem + 4.44vw, 6rem)` | 48px | **95.94px** | `padding-block` của một phần nội dung trang tiếp thị |
 
 Một token này là lý do trang chủ bảy chặng không cần điểm ngắt nào cho nhịp dọc.
 
@@ -471,12 +476,10 @@ Một token này là lý do trang chủ bảy chặng không cần điểm ngắ
 | `sm` | badge, chip, checkbox, ô nhỏ |
 | `md` | button, input, select, textarea |
 | `lg` | card, dialog, popover |
-| `xl` | panel hero, khối 3D, modal trên màn rộng |
+| `xl` | panel ứng dụng và modal trên màn rộng; landing không có khối 3D |
 | `full` | pill, avatar, đầu nét của cung tiến độ |
 
-**0.75rem chứ không 0.625rem của hệ cũ.** Motif của cả hệ là một vòng ellipse (§8); một bo góc
-nhỏ hơn đọc ra "hộp có góc vát" thay vì "hình cong". 12px là bậc nhỏ nhất mà một thẻ 320px vẫn
-đọc ra cong ở góc.
+**0.75rem chứ không 0.625rem của hệ cũ.** Đây là bậc bo góc của component dùng chung. Landing có bố cục biên tập riêng, không lấy ellipse làm hình trang trí và không dùng lưới thẻ.
 
 ⚠ **`--radius` CỐ Ý chỉ khai ở `:root`, cấm lặp ở `.dark`.** Nó là số đo hình học, không phải
 màu, và `.dark` đặt trên `<html>` nên `:root` vẫn khớp cùng phần tử — giá trị luôn phân giải
@@ -555,13 +558,9 @@ transition chứ không bằng rAF (xem §8.4).
 
 ---
 
-## 8. Motif ellipse — token, không phải mô tả
+## 8. Motif ellipse cho primitive tiến độ, không áp dụng landing
 
-Logo PTIT có một vòng **ellipse hở** quét quanh chữ PTIT và không khép lại. Biểu tượng phổ quát
-của DevOps là vòng lặp CI/CD. Lõi của Kubernetes, mà chính bài học của dự án gọi tên ở
-`packages/games/src/k8s/levels/l06.ts:68`, là **reconciliation loop**. Cùng một hình, cùng một
-ý. Nó phải là **một** hình dùng chung, không phải hai hình vẽ riêng ở trang chủ và ở khoang lab
-rồi lệch nhau ở lần sửa thứ hai. Đó là lý do `packages/motion` tồn tại.
+Cập nhật 2026-09-13: người dùng đã yêu cầu bỏ toàn bộ vòng và 3D khỏi landing. Hero, các phần kể chuyện và ảnh OpenGraph không được dựng lại motif này. Các token/hàm ở packages/motion vẫn phục vụ primitive tiến độ dùng chung; chúng không phải yêu cầu trang trí mọi màn. K8s Arena giữ cảnh riêng theo công năng mô phỏng.
 
 ### 8.1 Hình học, trong hệ toạ độ chuẩn hoá
 
@@ -584,7 +583,7 @@ Cung chạy `120° → 420°`, tức khe hở nằm ở nêm `60°..120°` (phí
 |---|---|---|
 | `--arc-stroke-hairline` | `2` | cung nhỏ ở góc thẻ danh mục, chấm chỉ mục |
 | `--arc-stroke` | `4` | mặc định: thanh tiến độ, trạng thái tải, trạng thái rỗng |
-| `--arc-stroke-heavy` | `6` | cung nhiệm vụ trong khoang lab, cung hero |
+| `--arc-stroke-heavy` | `6` | cung nhiệm vụ trong khoang lab |
 
 Bắt buộc trên mọi phần tử cung:
 
@@ -612,13 +611,12 @@ Cài đặt **bắt buộc** như sau, và đây là ràng buộc kỹ thuật c
 phần trăm, đủ để nhìn thấy nhưng không đủ để ai gọi tên. `pathLength="1"` bắt trình duyệt tự
 chuẩn hoá độ dài thật của đường về đúng `1`, nên ánh xạ `0..1` là **chính xác** ở mọi tỉ lệ.
 
-Ba chỗ tiêu thụ, cùng một hàm:
+Các chỗ tiêu thụ tiến độ, cùng một hàm:
 
 | Chỗ | `p` là gì |
 |---|---|
 | thanh tiến độ bài học | số bước xong / tổng bước |
 | bảng nhiệm vụ khoang lab | nhiệm vụ đạt / tổng nhiệm vụ |
-| chặng trang chủ | tiến độ cuộn của chặng hiện tại |
 
 **Trạng thái tải** = cung tự vẽ ra rồi tự thu lại, `--motion-slow` mỗi chiều, lặp vô hạn.
 **Trạng thái rỗng** = chính vòng ellipse hở, bên trong không có gì.
@@ -634,8 +632,7 @@ Lý do là §7: khối `prefers-reduced-motion` hiện có phủ được `trans
 động tuân thủ reduced-motion mà không cần thêm một cổng nào. Một cung chạy bằng rAF sẽ *trông
 như* tuân thủ trong khi nó vẫn quay — đúng lớp lỗi "xanh mà không chứng minh gì".
 
-Ngoại lệ duy nhất là cảnh 3D trang chủ, nơi rAF là bắt buộc; ở đó cổng reduced-motion phải nằm ở
-**mức JS** và mỗi chặng là một khung tĩnh (design §7.3).
+Landing không còn canvas/rAF hoặc cảnh 3D. Cảnh K8s Arena vẫn phải kiểm soát chuyển động ở mức JS; CSS reduced-motion không thể tự dừng rAF.
 
 ### 8.5 Màu của cung
 
@@ -751,7 +748,7 @@ Bắt buộc. Một cổng chưa từng thấy đỏ thì chưa được chứng
 - `variant="destructive"` render `bg-transparent` + `border-destructive` + một `TriangleAlert`
   mang `aria-hidden="true"`. Thiếu icon ⇒ đỏ.
 - **Khẳng định khử màu:** độ chói tương đối của mặt `primary` lúc nghỉ so với mặt `destructive`
-  lúc nghỉ ≥ **3.0:1** ở cả hai theme (đo được 6.10 sáng / 4.64 tối). Đây là thứ chứng minh luật
+  lúc nghỉ ≥ **3.0:1** ở cả hai theme (đo được 6.0885 sáng / 6.3056 tối trên background; 5.7071 tối trên card). Đây là thứ chứng minh luật
   sống sót khi bỏ hết sắc độ.
 - jsdom không tính computed style, nên phép gác là **class quyết định màu**, không phải sự tồn
   tại phần tử — kiểm sự tồn tại là một test không bao giờ đỏ được.

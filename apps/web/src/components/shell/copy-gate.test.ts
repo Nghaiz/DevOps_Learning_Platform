@@ -66,7 +66,11 @@ function collect(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const FILES: readonly string[] = LANE_DIRS.flatMap((dir) => collect(path.join(SRC_ROOT, dir)));
+const FILES: readonly string[] = [
+  ...LANE_DIRS.flatMap((dir) => collect(path.join(SRC_ROOT, dir))),
+  // Password reset email is part of the auth surface and runs on the server.
+  path.join(SRC_ROOT, 'server', 'auth', 'password-reset-mail.ts'),
+];
 
 describe('T4 · glob của lane 16.B không còn chuỗi người dùng nằm ngoài bản đồ', () => {
   /*
@@ -89,6 +93,7 @@ describe('T4 · glob của lane 16.B không còn chuỗi người dùng nằm ng
     expect(names).toContain('register-form.tsx');
     expect(names).toContain('forgot-password-form.tsx');
     expect(names).toContain('reset-password-form.tsx');
+    expect(names).toContain('password-reset-mail.ts');
   });
 
   it('không file nguồn nào còn literal tiếng Việt', () => {

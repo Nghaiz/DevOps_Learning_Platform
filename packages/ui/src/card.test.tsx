@@ -15,6 +15,16 @@ function cardClasses(container: HTMLElement): readonly string[] {
 }
 
 describe('Card — tương thích ngược', () => {
+  it('preserves h3 by default and allows a page or section heading without changing its styles', () => {
+    const { rerender } = render(<CardTitle>Title</CardTitle>);
+    const defaultTitle = screen.getByRole('heading', { level: 3, name: 'Title' });
+    const style = defaultTitle.className;
+    rerender(<CardTitle as="h1">Title</CardTitle>);
+    expect(screen.getByRole('heading', { level: 1, name: 'Title' }).className).toBe(style);
+    rerender(<CardTitle as="h2">Title</CardTitle>);
+    expect(screen.getByRole('heading', { level: 2, name: 'Title' }).className).toBe(style);
+  });
+
   it('Card + CardTitle + CardDescription render trực tiếp không cần CardHeader', () => {
     render(
       <Card>
@@ -65,9 +75,10 @@ describe('Card — độ nổi và chuyển động', () => {
      * Nên `shadow-sm` phải được GỠ khỏi nguồn, không thể trông chờ cn() dọn.
      * Để lại cả hai thì thứ tự nguồn CSS quyết định bóng nào thắng.
      */
-    expect(classes, 'shadow-sm còn sót ⇒ hai luật box-shadow cùng sống, thứ tự nguồn quyết định').not.toContain(
-      'shadow-sm',
-    );
+    expect(
+      classes,
+      'shadow-sm còn sót ⇒ hai luật box-shadow cùng sống, thứ tự nguồn quyết định',
+    ).not.toContain('shadow-sm');
   });
 
   it('chuyển tiếp chạy theo token `--motion-base` + `ease-out`, không phải số cứng', () => {
@@ -84,7 +95,9 @@ describe('Card — độ nổi và chuyển động', () => {
     const classes = cardClasses(container);
     expect(classes).not.toContain('hover:shadow-elevation-2');
     expect(classes).not.toContain('motion-safe:hover:-translate-y-0.5');
-    expect(container.querySelector('[data-slot="card"]')?.getAttribute('data-interactive')).toBeNull();
+    expect(
+      container.querySelector('[data-slot="card"]')?.getAttribute('data-interactive'),
+    ).toBeNull();
   });
 
   it('`interactive` bật nhấc nhẹ + `--elevation-2` khi hover', () => {
@@ -92,7 +105,9 @@ describe('Card — độ nổi và chuyển động', () => {
     const classes = cardClasses(container);
     expect(classes).toContain('hover:shadow-elevation-2');
     expect(classes).toContain('hover:border-input');
-    expect(container.querySelector('[data-slot="card"]')?.getAttribute('data-interactive')).toBe('true');
+    expect(container.querySelector('[data-slot="card"]')?.getAttribute('data-interactive')).toBe(
+      'true',
+    );
   });
 
   /**
@@ -106,9 +121,10 @@ describe('Card — độ nổi và chuyển động', () => {
     const { container } = render(<Card interactive>Nội dung</Card>);
     const classes = cardClasses(container);
     expect(classes).toContain('motion-safe:hover:-translate-y-0.5');
-    expect(classes, 'nhấc trần ⇒ vẫn giật dưới prefers-reduced-motion, chỉ là giật tức thì').not.toContain(
-      'hover:-translate-y-0.5',
-    );
+    expect(
+      classes,
+      'nhấc trần ⇒ vẫn giật dưới prefers-reduced-motion, chỉ là giật tức thì',
+    ).not.toContain('hover:-translate-y-0.5');
   });
 });
 
@@ -148,13 +164,17 @@ describe('Card — cung màu độ khó', () => {
       accentArc(container).getAttribute('stroke-width'),
       'thiếu bề dày ⇒ cung có màu mà không có nét',
     ).toBe(String(ARC_STROKE_HAIRLINE));
-    expect(accentArc(container).getAttribute('d'), 'cung không phải ellipse của motif').toBe(ARC_PATH_D);
+    expect(accentArc(container).getAttribute('d'), 'cung không phải ellipse của motif').toBe(
+      ARC_PATH_D,
+    );
   });
 
   it('không truyền `accent` ⇒ không có cung nào', () => {
     const { container } = render(<Card>Nội dung</Card>);
     expect(container.querySelector('[data-slot="card-accent"]')).toBeNull();
-    expect(cardClasses(container).filter((name) => name.startsWith('text-difficulty-'))).toEqual([]);
+    expect(cardClasses(container).filter((name) => name.startsWith('text-difficulty-'))).toEqual(
+      [],
+    );
   });
 
   it('cung không đụng viền chung — `border-border` vẫn còn cho cả bốn cạnh', () => {
@@ -162,7 +182,9 @@ describe('Card — cung màu độ khó', () => {
     const classes = cardClasses(container);
     expect(classes).toContain('border-border');
     // Dải `border-l-4` cũ ĐÃ ĐI: để sót nó lại thì thẻ mang cả hai chỉ dấu.
-    expect(classes, 'dải viền trái cũ còn sót ⇒ hai chỉ dấu độ khó cùng lúc').not.toContain('border-l-4');
+    expect(classes, 'dải viền trái cũ còn sót ⇒ hai chỉ dấu độ khó cùng lúc').not.toContain(
+      'border-l-4',
+    );
     expect(container.querySelector('[data-slot="card-accent"]')).not.toBeNull();
   });
 
@@ -175,7 +197,10 @@ describe('Card — cung màu độ khó', () => {
     const { container } = render(<Card accent="basic">Nội dung</Card>);
     const wrapper = container.querySelector('[data-slot="card-accent"]');
     expect((wrapper?.getAttribute('class') ?? '').split(/\s+/)).toContain('pointer-events-none');
-    expect(wrapper?.getAttribute('aria-hidden'), 'cung lặp lại điều Badge đã nói ⇒ phải ẩn với AT').toBe('true');
+    expect(
+      wrapper?.getAttribute('aria-hidden'),
+      'cung lặp lại điều Badge đã nói ⇒ phải ẩn với AT',
+    ).toBe('true');
   });
 
   /**

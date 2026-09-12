@@ -21,7 +21,7 @@ import {
   RadioGroupItem,
   Skeleton,
 } from '@devops-platform/ui';
-import { renderCopy, t, type TextKey } from '@devops-platform/copy';
+import { renderCopy, t, type StaticTextKey } from '@devops-platform/copy';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import {
@@ -71,7 +71,7 @@ const REVEAL_CLASS: Record<ChoiceReveal, string> = {
  * cổng chứ không phải chỗ chưa viết: trước khi nộp mọi lựa chọn đều là `none`,
  * nên một chuỗi ở ô đó là lối duy nhất để lộ đúng/sai sớm.
  */
-const REVEAL_NOTE: Record<ChoiceReveal, TextKey | null> = {
+const REVEAL_NOTE: Record<ChoiceReveal, StaticTextKey | null> = {
   none: null,
   correct: 'catalog.quiz.reveal-correct',
   missed: 'catalog.quiz.reveal-missed',
@@ -156,7 +156,9 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
 
       {/* AC #6 — quy tắc chấm đứng TRƯỚC câu hỏi đầu tiên, không phải sau khi nộp. */}
       <Card className="flex flex-col gap-1 p-4 shadow-elevation-1">
-        <span className="text-sm font-medium text-foreground">{t('catalog.quiz.grading-title')}</span>
+        <span className="text-sm font-medium text-foreground">
+          {t('catalog.quiz.grading-title')}
+        </span>
         <span className="text-sm text-muted-foreground">
           {renderCopy({ key: MULTIPLE_ANSWER_RULE_KEYS[quiz.multipleAnswerRule] })}
         </span>
@@ -256,29 +258,31 @@ function QuestionCard({
         key={choice.id}
         className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm ${REVEAL_CLASS[reveal]}`}
       >
-          {/*
+        {/*
             Radix `RadioGroupItem`/`Checkbox` + `Label htmlFor` — bấm vào chữ
             chọn đúng ô, và ô nhận focus bằng bàn phím. `<input>` trần trước đây
             không đi theo token C1 nên nó là ô duy nhất trên trang không đổi màu
             khi bật dark mode.
           */}
-          {single ? (
-            <RadioGroupItem value={choice.id} id={controlId} disabled={locked} />
-          ) : (
-            <Checkbox
-              id={controlId}
-              checked={checked}
-              disabled={locked}
-              onCheckedChange={() => {
-                onToggle(choice.id);
-              }}
-            />
-          )}
-          <Label htmlFor={controlId} className="flex-1 cursor-pointer font-normal">
-            {choice.markdown}
-          </Label>
+        {single ? (
+          <RadioGroupItem value={choice.id} id={controlId} disabled={locked} />
+        ) : (
+          <Checkbox
+            id={controlId}
+            checked={checked}
+            disabled={locked}
+            onCheckedChange={() => {
+              onToggle(choice.id);
+            }}
+          />
+        )}
+        <Label htmlFor={controlId} className="flex-1 cursor-pointer font-normal">
+          {choice.markdown}
+        </Label>
         {note !== null && (
-          <span className="shrink-0 text-xs text-muted-foreground">{renderCopy({ key: note })}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {renderCopy({ key: note })}
+          </span>
         )}
       </div>
     );
@@ -348,9 +352,7 @@ function ScoreBanner({
     <div
       role="status"
       className={`flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3 ${
-        result.score.passed
-          ? 'border-success/30 bg-success/10'
-          : 'border-warning/30 bg-warning/10'
+        result.score.passed ? 'border-success/30 bg-success/10' : 'border-warning/30 bg-warning/10'
       }`}
     >
       <span className="text-xl font-semibold text-foreground">
@@ -393,7 +395,9 @@ function PageShell({
         <Link href="/quiz" className="text-sm text-muted-foreground hover:text-foreground">
           <span aria-hidden>←</span> {t('catalog.quiz.back')}
         </Link>
-        <h1 className="text-4xl font-semibold tracking-tight text-balance text-foreground">{title}</h1>
+        <h1 className="text-4xl font-semibold tracking-tight text-balance text-foreground">
+          {title}
+        </h1>
       </header>
       {children}
     </div>

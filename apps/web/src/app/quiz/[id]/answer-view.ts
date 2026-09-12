@@ -1,4 +1,4 @@
-import { type CopyRef, type TextKey } from '@devops-platform/copy';
+import { type CopyRef, type StaticTextKey } from '@devops-platform/copy';
 import type {
   QuizForLearner,
   QuizMultipleAnswerRule,
@@ -36,7 +36,7 @@ import type {
 /**
  * KHOÁ của quy tắc chấm, chọn theo `quiz.multipleAnswerRule` TRONG PAYLOAD.
  *
- * `Record<QuizMultipleAnswerRule, TextKey>` chứ không một chuỗi viết cứng:
+ * `Record<QuizMultipleAnswerRule, StaticTextKey>` chứ không một chuỗi viết cứng:
  * server sở hữu luật chấm, và một câu chữ FE tự viết sẽ trôi khỏi cách chấm
  * thật ở lần đầu tiên server đổi luật (`docs/quiz-format.md` § "Quy tắc này
  * hiện trên UI TRƯỚC khi làm"). Kiểu `Record` trên union còn làm việc thêm một
@@ -47,7 +47,7 @@ import type {
  */
 export const MULTIPLE_ANSWER_RULE_KEYS = {
   'all-or-nothing': 'catalog.quiz.rule-all-or-nothing',
-} as const satisfies Record<QuizMultipleAnswerRule, TextKey>;
+} as const satisfies Record<QuizMultipleAnswerRule, StaticTextKey>;
 
 /**
  * Vai trò hiển thị của MỘT lựa chọn, SAU khi đã có kết quả.

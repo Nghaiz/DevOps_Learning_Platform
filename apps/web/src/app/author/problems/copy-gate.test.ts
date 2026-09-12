@@ -52,24 +52,8 @@ const LANE_DIR = import.meta.dirname;
  * hai vế trên vẫn chạy đúng.
  */
 const DEFERRED: Readonly<Record<string, string>> = {
-  'allowed-resources-fields.tsx': '2026-09-10: nhóm trường, lane 16.G2 hết ngân sách lượt và dừng ở ranh giới sạch thay vì chuyển nửa vời',
-  'classify-fields.tsx': '2026-09-10: nhóm trường, cùng lý do',
-  'cluster-fields.tsx': '2026-09-10: nhóm trường, cùng lý do',
-  'cluster-json-fields.tsx': '2026-09-10: nhóm trường, cùng lý do',
-  'hint-fields.tsx': '2026-09-10: nhóm trường, cùng lý do',
-  'node-fields.tsx': '2026-09-10: nhóm trường, cùng lý do',
-  'objective-arg-field.tsx': '2026-09-10: nhóm trường, cùng lý do',
-  'objective-fields.tsx': '2026-09-10: nhóm trường, cùng lý do',
-  'resource-fields.tsx': '2026-09-10: nhóm trường, cùng lý do',
-  'statement-fields.tsx': '2026-09-10: nhóm trường, cùng lý do',
-  'cluster-to-spec.ts': '2026-09-10: cùng lý do tầng logic thuần',
-  'predicate-arg-types.ts': '2026-09-10: cùng lý do tầng logic thuần',
-  'predicate-spec.ts': '2026-09-10: cùng lý do tầng logic thuần',
-  'problem-draft.ts': '2026-09-10: cùng lý do tầng logic thuần',
-  'problem-json.ts': '2026-09-10: cùng lý do tầng logic thuần',
-  'problem-test-fixture.ts': '2026-09-10: dữ liệu mẫu cho test, chữ trong đó là RUỘT bài mẫu chứ không phải vỏ màn hình',
-  'problem-validate.ts': '2026-09-10: cùng lý do tầng logic thuần',
-  'vocabulary.ts': '2026-09-10: bảng từ vựng vị từ, chặn bởi số VỊ TỪ chứ không bởi số màn hình, cần lead chốt vỏ hay ruột trước khi chuyển',
+  'problem-test-fixture.ts':
+    '2026-09-12: dữ liệu bài tập phục vụ test, không được import từ mã sản phẩm; cổng AST kiểm riêng ranh giới này',
 };
 
 function collect(dir: string, out: string[] = []): string[] {

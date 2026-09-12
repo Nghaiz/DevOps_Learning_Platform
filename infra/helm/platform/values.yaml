@@ -46,6 +46,9 @@ web:
     # KHÔNG đòi betterAuthSecret. Đây là đường prod: giá trị thật không đi qua
     # `--set` nên không nằm lại trong shell history / `helm get values` / log CI.
     existingSecret: ''
+    # Separate optional Secret containing SMTP_HOST/PORT/TLS/USER/PASSWORD/FROM.
+    # Empty disables password reset delivery; credentials never enter Helm values.
+    smtpExistingSecret: ''
     betterAuthUrl: 'http://localhost:3000'
     # Origin công khai của app (metadataBase). Rỗng = biến bị omit hẳn. KHÁC
     # betterAuthUrl về vai trò dù thường trùng giá trị: cái kia là base để dựng
@@ -807,6 +810,12 @@ networkPolicy:
         - '10.96.0.0/12' # service CIDR cluster (mặc định kubeadm)
         - '10.244.0.0/16' # pod CIDR cluster (mặc định Calico)
         - '192.168.0.0/16' # mạng node/VM lab
+
+    # Required when SMTP is enabled under platform network isolation. Restrict
+    # to the provider's published CIDRs and submission port (587 or 465).
+    smtpEgress: []
+    # - cidr: 203.0.113.10/32
+    #   port: 587
 
     # Chiều scrape của Prometheus (P3/3.D). Là rule RIÊNG theo đúng ghi chú đã
     # cắm sẵn ở khối 9 của templates/platform-networkpolicy.yaml: "Nếu sau này

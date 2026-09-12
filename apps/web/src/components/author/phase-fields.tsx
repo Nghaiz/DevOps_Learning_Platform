@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
 import { Switch, Label } from '@devops-platform/ui';
 import type { PhaseFormState } from './draft-form';
@@ -27,16 +28,16 @@ export function PhaseFields(props: {
   return (
     <div className="flex flex-col gap-4">
       <TextField
-        label="Tiêu đề phần"
+        label={t('author.phase-fields-tieu-de-phan')}
         value={value.title}
         onChange={(title) => {
           patch({ title });
         }}
         disabled={disabled}
-        hint="Bỏ trống cũng được, nội dung upstream thường không có."
+        hint={t('author.phase-fields-bo-trong-cung-duoc-noi-dung-upstream-thuong-khong-co')}
       />
       <TextAreaField
-        label={props.markdownLabel ?? 'Nội dung (Markdown)'}
+        label={props.markdownLabel ?? t('author.phase-fields-noi-dung-markdown')}
         rows={8}
         mono
         value={value.markdown}
@@ -46,13 +47,16 @@ export function PhaseFields(props: {
         disabled={disabled}
         hint={
           <>
-            Khối code có thể mang nút chạy: dùng cú pháp khối code của nội dung nền tảng. Ảnh trỏ tới{' '}
-            <code className="font-mono">./assets/&lt;khoá&gt;</code>, lấy khoá ở tab Tệp đính kèm.
+            {t(
+              'author.phase-fields-khoi-code-co-the-mang-nut-chay-dung-cu-phap-khoi-code-cua-noi-dung-nen-tang',
+            )}{' '}
+            <code className="font-mono">{t('author.phase-fields-assets-lt-khoa-gt')}</code>
+            {t('author.phase-fields-lay-khoa-o-tab-tep-dinh-kem')}
           </>
         }
       />
       <TextAreaField
-        label="Setup foreground"
+        label={t('author.draft-form-view-setup-foreground')}
         rows={3}
         mono
         value={value.setupForeground}
@@ -60,10 +64,10 @@ export function PhaseFields(props: {
           patch({ setupForeground });
         }}
         disabled={disabled}
-        hint="Chạy bằng bash, hiện trong terminal người học."
+        hint={t('author.phase-fields-chay-bang-bash-hien-trong-terminal-nguoi-hoc')}
       />
       <TextAreaField
-        label="Setup background"
+        label={t('author.draft-form-view-setup-background')}
         rows={3}
         mono
         value={value.setupBackground}
@@ -71,10 +75,10 @@ export function PhaseFields(props: {
           patch({ setupBackground });
         }}
         disabled={disabled}
-        hint="Chạy bằng bash, ẩn."
+        hint={t('author.phase-fields-chay-bang-bash-an')}
       />
       <TextAreaField
-        label="Script chấm"
+        label={t('author.phase-fields-script-cham')}
         rows={3}
         mono
         value={value.verifyScript}
@@ -82,7 +86,7 @@ export function PhaseFields(props: {
           patch({ verifyScript });
         }}
         disabled={disabled}
-        hint="Đạt khi exit code = 0. Bỏ trống nghĩa là phần này không chấm."
+        hint={t('author.phase-fields-dat-khi-exit-code-0-bo-trong-nghia-la-phan-nay-khong-cham')}
       />
     </div>
   );
@@ -98,7 +102,12 @@ export function PhaseToggle(props: {
 }): ReactElement {
   return (
     <div className="flex items-center gap-2">
-      <Switch id={props.id} checked={props.checked} disabled={props.disabled} onCheckedChange={props.onChange} />
+      <Switch
+        id={props.id}
+        checked={props.checked}
+        disabled={props.disabled}
+        onCheckedChange={props.onChange}
+      />
       <Label htmlFor={props.id} className="font-normal">
         {props.label}
       </Label>

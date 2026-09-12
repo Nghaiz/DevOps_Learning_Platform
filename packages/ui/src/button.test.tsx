@@ -56,7 +56,9 @@ describe('Button — variant ánh xạ đúng class token', () => {
     ['icon', 'size-10'],
   ] as const)('size=%s có class %s', (size, expectedClass) => {
     render(<Button size={size}>Nút</Button>);
-    expect(screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/)).toContain(expectedClass);
+    expect(screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/)).toContain(
+      expectedClass,
+    );
   });
 
   it('mặc định là primary/md khi không truyền variant/size', () => {
@@ -205,7 +207,9 @@ describe('Button — asChild', () => {
     const classes = screen.getByRole('link', { name: 'Đi tới bài học' }).className.split(/\s+/);
     expect(classes).not.toContain('pointer-events-none');
     expect(classes).not.toContain('opacity-50');
-    expect(screen.getByRole('link', { name: 'Đi tới bài học' }).getAttribute('aria-disabled')).toBeNull();
+    expect(
+      screen.getByRole('link', { name: 'Đi tới bài học' }).getAttribute('aria-disabled'),
+    ).toBeNull();
   });
 });
 
@@ -225,9 +229,10 @@ describe('Button — vòng focus tách khỏi mặt nút (miễn trừ SC 1.4.11
       render(<Button variant={variant}>Nút</Button>);
       const classes = screen.getByRole('button', { name: 'Nút' }).className.split(/\s+/);
       expect(classes).toContain('focus-visible:ring-offset-2');
-      expect(classes, 'thiếu ring-offset-background ⇒ khe offset màu #fff, trắng trên nền tối').toContain(
-        'focus-visible:ring-offset-background',
-      );
+      expect(
+        classes,
+        'thiếu ring-offset-background ⇒ khe offset màu #fff, trắng trên nền tối',
+      ).toContain('focus-visible:ring-offset-background');
     },
   );
 
@@ -272,7 +277,9 @@ describe('Button — Spinner lúc loading phải có màu riêng, không thừa 
     expect(wrapper).not.toBeNull();
     const classes = (wrapper as HTMLElement).className.split(/\s+/);
     expect(classes).toContain(tone);
-    expect(classes, '`text-current` chính là thứ đã làm Spinner vô hình').not.toContain('text-current');
+    expect(classes, '`text-current` chính là thứ đã làm Spinner vô hình').not.toContain(
+      'text-current',
+    );
   });
 
   /**
@@ -282,7 +289,9 @@ describe('Button — Spinner lúc loading phải có màu riêng, không thừa 
    */
   it('nút loading VẪN mang `text-transparent` — nên lớp bọc buộc phải tự có màu', () => {
     render(<Button loading>Lưu</Button>);
-    expect(screen.getByRole('button', { name: 'Lưu' }).className.split(/\s+/)).toContain('text-transparent');
+    expect(screen.getByRole('button', { name: 'Lưu' }).className.split(/\s+/)).toContain(
+      'text-transparent',
+    );
   });
 
   /**
@@ -292,7 +301,9 @@ describe('Button — Spinner lúc loading phải có màu riêng, không thừa 
    */
   it('`Spinner` dùng độc lập vẫn giữ `text-current` — chỉ lớp bọc trong Button mới cần màu riêng', () => {
     render(<Spinner />);
-    expect(screen.getByRole('status', { name: 'Đang tải' }).getAttribute('class')).toContain('text-current');
+    expect(screen.getByRole('status', { name: 'Đang tải' }).getAttribute('class')).toContain(
+      'text-current',
+    );
   });
 });
 /**
@@ -302,7 +313,10 @@ describe('Button — Spinner lúc loading phải có màu riêng, không thừa 
 describe('Button — khe icon', () => {
   it('`iconLeft` render TRƯỚC nhãn, `iconRight` render SAU', () => {
     render(
-      <Button iconLeft={<svg data-testid="trái" aria-hidden="true" />} iconRight={<svg data-testid="phải" aria-hidden="true" />}>
+      <Button
+        iconLeft={<svg data-testid="trái" aria-hidden="true" />}
+        iconRight={<svg data-testid="phải" aria-hidden="true" />}
+      >
         Bắt đầu
       </Button>,
     );
@@ -316,9 +330,7 @@ describe('Button — khe icon', () => {
   });
 
   it('icon KHÔNG chen vào accessible name của nút', () => {
-    render(
-      <Button iconLeft={<svg aria-hidden="true" />}>Lưu</Button>,
-    );
+    render(<Button iconLeft={<svg aria-hidden="true" />}>Lưu</Button>);
     // Tìm được bằng đúng tên "Lưu" nghĩa là icon không đóng góp chữ nào.
     expect(screen.getByRole('button', { name: 'Lưu' })).toBeDefined();
   });
@@ -350,7 +362,10 @@ describe('Button — khe icon', () => {
     );
     const link = screen.getByRole('link', { name: 'Đi tới bài học' });
     expect(link.textContent).toBe('Đi tới bài học');
-    expect(screen.queryByTestId('trái'), 'Slot không thể nhận node anh em — xem chú thích single-child').toBeNull();
+    expect(
+      screen.queryByTestId('trái'),
+      'Slot không thể nhận node anh em — xem chú thích single-child',
+    ).toBeNull();
   });
 
   it('nút đang `loading` vẫn giữ nguyên icon trong luồng (bề rộng không nhảy)', () => {
@@ -405,12 +420,12 @@ describe('Button — khe icon', () => {
  * Quy ra độ chói tương đối (chính là kênh xám mà ảnh đen trắng giữ lại): nền
  * nút primary là một khối ĐẶC, còn nền nút destructive lúc nghỉ TRONG SUỐT nên
  * nó lộ ra mặt bên dưới. Chênh lệch đo được **6.0885:1** ở nhánh sáng và
- * **4.6415:1** ở nhánh tối (trên `--card`: 6.0885 / 4.2009). Tức ngay cả khi
+ * **6.3056:1** ở nhánh tối (trên `--card`: 6.0885 / 5.7071). Tức ngay cả khi
  * xoá sạch sắc độ, hai nút vẫn là "khối đặc tối" cạnh "khung rỗng sáng".
  *
- * ⚠ Bốn con số trên ĐÃ ĐỔI ngày 2026-09-10 (trước là 4.82 / 4.61, tính cho
- * `--primary` = `#e31029` của hệ cũ). `p16-tokens.md` đặt `--primary` sáng
- * thành `#BC2626`, nên khoảng cách rộng ra.
+ * Số đo cập nhật ngày 2026-09-13: primary tối là oklch(0.68 0.19 26.7).
+ * Giá trị hiện hành và ngưỡng nằm ở theme/tokens.contract.test.ts;
+ * chú thích này chỉ giải thích sự khác nhau giữa mặt đặc và mặt rỗng.
  *
  * Vế SỐ HỌC của khẳng định này KHÔNG nằm ở đây mà ở
  * `theme/tokens.contract.test.ts` § "AC-4 — luật hai kênh sống sót khi KHỬ
@@ -420,8 +435,7 @@ describe('Button — khe icon', () => {
  * chúng là thứ jsdom thật sự quan sát được.
  */
 describe('Button — primary vs destructive phân biệt được khi KHỬ MÀU (quyết định #1, 14.A)', () => {
-  const classesOf = (name: string) =>
-    screen.getByRole('button', { name }).className.split(/\s+/);
+  const classesOf = (name: string) => screen.getByRole('button', { name }).className.split(/\s+/);
 
   it('primary tô nền ĐẶC và KHÔNG có viền; destructive có viền và KHÔNG tô nền', () => {
     render(
@@ -434,12 +448,17 @@ describe('Button — primary vs destructive phân biệt được khi KHỬ MÀU
     const destructive = classesOf('Xoá');
 
     expect(primary).toContain('bg-primary');
-    expect(primary, 'primary có viền thì nó mất đúng dấu hiệu tách nó khỏi destructive').not.toContain('border');
+    expect(
+      primary,
+      'primary có viền thì nó mất đúng dấu hiệu tách nó khỏi destructive',
+    ).not.toContain('border');
 
     expect(destructive).toContain('border');
     expect(destructive).toContain('border-destructive');
     expect(destructive).toContain('bg-transparent');
-    expect(destructive, 'nền đặc quay lại ⇒ hai nút lại trông như nhau khi khử màu').not.toContain('bg-destructive');
+    expect(destructive, 'nền đặc quay lại ⇒ hai nút lại trông như nhau khi khử màu').not.toContain(
+      'bg-destructive',
+    );
   });
 
   it('hai nút KHÔNG chung bất kỳ class nền/viền/chữ nào — khác biệt là cấu trúc, không phải sắc độ', () => {

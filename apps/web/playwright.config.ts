@@ -94,7 +94,9 @@ export default defineConfig({
   ...(startServer
     ? {
         webServer: {
-          command: 'pnpm start',
+          command: process.env.E2E_GATEWAY_URL
+            ? 'node e2e/scripts/start-local-server.mjs'
+            : 'pnpm start',
           url: `${E2E_BASE_URL}/login`,
           // `reuseExistingServer: false` — bám vào một server có sẵn nghĩa là
           // đo một build CŨ mà vẫn báo cáo như build vừa tạo. Cổng nào bận thì

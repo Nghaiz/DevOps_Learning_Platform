@@ -61,6 +61,16 @@ spec:
             - name: http
               containerPort: {{ .Values.web.service.port }}
           env:
+            {{- with .Values.web.env.smtpExistingSecret }}
+            {{- $smtpSecret := . }}
+            {{- range list "SMTP_HOST" "SMTP_PORT" "SMTP_TLS" "SMTP_USER" "SMTP_PASSWORD" "SMTP_FROM" }}
+            - name: {{ . }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $smtpSecret | quote }}
+                  key: {{ . }}
+            {{- end }}
+            {{- end }}
             # DATABASE_URL/REDIS_URL: OMIT khi rỗng thay vì set chuỗi rỗng —
             # env.ts coi '' y như thiếu (throw). /api/health cố ý không đụng DB
             # nên probe vẫn phản ánh đúng "process sống".

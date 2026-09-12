@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
 import { Checkbox, Label, Switch } from '@devops-platform/ui';
 import type { ResourceKind } from '@devops-platform/games';
@@ -30,11 +31,15 @@ export function AllowedResourcesFields(props: {
             props.onChange({ restrictResources: checked });
           }}
         />
-        <Label htmlFor="problem-restrict">Giới hạn loại tài nguyên người làm được tạo</Label>
+        <Label htmlFor="problem-restrict">
+          {t('problem.allowed-resources-fields-gioi-han-loai-tai-nguyen-nguoi-lam-duoc-tao')}
+        </Label>
       </div>
       {!props.form.restrictResources ? (
         <p className="text-xs text-muted-foreground">
-          Cho dùng mọi loại. Khác hẳn &quot;chọn nhưng để trống&quot;: cái đó nghĩa là không tạo được gì.
+          {t(
+            'problem.allowed-resources-fields-cho-dung-moi-loai-khac-han-chon-nhung-de-trong-cai-do-nghia-la-khong-tao-du',
+          )}
         </p>
       ) : (
         <>

@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import { useState, type ReactElement } from 'react';
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '@devops-platform/ui';
 import { TextAreaField, issueFor } from '../../../components/author/field';
@@ -41,13 +42,17 @@ export function ClusterFields(props: {
   };
   const patchResource = (index: number, patch: Partial<ResourceFormState>): void => {
     props.onChange({
-      resources: props.cluster.resources.map((resource, i) => (i === index ? { ...resource, ...patch } : resource)),
+      resources: props.cluster.resources.map((resource, i) =>
+        i === index ? { ...resource, ...patch } : resource,
+      ),
     });
   };
 
   return (
     <section className="flex flex-col gap-5">
-      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">Trạng thái cụm ban đầu</h2>
+      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
+        {t('problem.cluster-fields-trang-thai-cum-ban-dau')}
+      </h2>
 
       <Tabs
         value={tab}
@@ -56,14 +61,16 @@ export function ClusterFields(props: {
         }}
       >
         <TabsList>
-          <TabsTrigger value="bieu-mau">Biểu mẫu</TabsTrigger>
-          <TabsTrigger value="json">Dán JSON</TabsTrigger>
+          <TabsTrigger value="bieu-mau">{t('problem.cluster-fields-bieu-mau')}</TabsTrigger>
+          <TabsTrigger value="json">{t('problem.cluster-fields-dan-json')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="bieu-mau">
           <div className="flex flex-col gap-6 pt-2">
             <div className="flex flex-col gap-3">
-              <h3 className="text-sm font-semibold text-foreground">Node</h3>
+              <h3 className="text-sm font-semibold text-foreground">
+                {t('problem.cluster-fields-node')}
+              </h3>
               {props.cluster.nodes.map((node, index) => (
                 <NodeFields
                   key={node.key}
@@ -88,13 +95,13 @@ export function ClusterFields(props: {
                     props.onChange({ nodes: [...props.cluster.nodes, emptyNode(props.nextKey())] });
                   }}
                 >
-                  Thêm node
+                  {t('problem.cluster-fields-them-node')}
                 </Button>
               </div>
             </div>
 
             <TextAreaField
-              label="Namespace"
+              label={t('problem.cluster-fields-namespace')}
               value={props.cluster.namespacesText}
               onChange={(namespacesText) => {
                 props.onChange({ namespacesText });
@@ -102,15 +109,20 @@ export function ClusterFields(props: {
               rows={3}
               mono
               error={issueFor(props.issues, 'namespaces')}
-              hint="Mỗi dòng một namespace. Tài nguyên chỉ đặt được vào namespace đã khai ở đây."
+              hint={t(
+                'problem.cluster-fields-moi-dong-mot-namespace-tai-nguyen-chi-dat-duoc-vao-namespace-da-khai-o-day',
+              )}
             />
 
             <div className="flex flex-col gap-3">
-              <h3 className="text-sm font-semibold text-foreground">Tài nguyên</h3>
+              <h3 className="text-sm font-semibold text-foreground">
+                {t('problem.cluster-fields-tai-nguyen')}
+              </h3>
               {props.cluster.resources.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Chưa có tài nguyên nào. Một bài chẩn đoán thường bắt đầu bằng một workload đã hỏng sẵn; một bài
-                  dựng từ đầu thì để trống chỗ này.
+                  {t(
+                    'problem.cluster-fields-chua-co-tai-nguyen-nao-mot-bai-chan-doan-thuong-bat-dau-bang-mot-workload-d',
+                  )}
                 </p>
               )}
               {props.cluster.resources.map((resource, index) => (
@@ -123,7 +135,9 @@ export function ClusterFields(props: {
                     patchResource(index, patch);
                   }}
                   onRemove={() => {
-                    props.onChange({ resources: props.cluster.resources.filter((_, i) => i !== index) });
+                    props.onChange({
+                      resources: props.cluster.resources.filter((_, i) => i !== index),
+                    });
                   }}
                 />
               ))}
@@ -133,10 +147,12 @@ export function ClusterFields(props: {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    props.onChange({ resources: [...props.cluster.resources, emptyResource(props.nextKey())] });
+                    props.onChange({
+                      resources: [...props.cluster.resources, emptyResource(props.nextKey())],
+                    });
                   }}
                 >
-                  Thêm tài nguyên
+                  {t('problem.cluster-fields-them-tai-nguyen')}
                 </Button>
               </div>
             </div>

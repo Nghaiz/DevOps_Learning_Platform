@@ -1,7 +1,7 @@
 import { randomBytes, createHash } from 'node:crypto';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
-import type { Database } from '../db/client';
-import { authRefreshTokens } from '../db/schema';
+import { and, eq, gt, inArray, isNull } from 'drizzle-orm';
+import type { Database, DbOrTx } from '../db/client';
+import { authRefreshTokens, sessions, users, verifications } from '../db/schema';
 
 /**
  * Refresh token TÁCH BIỆT khỏi access JWT và khỏi session cookie của Better Auth
@@ -32,6 +32,25 @@ export async function issueRefreshToken(
   userId: string,
   rotatedFrom?: string,
 ): Promise<IssuedRefreshToken> {
+  return withUserLock(db, userId, (tx) => insertRefreshToken(tx, userId, rotatedFrom));
+}
+
+async function withUserLock<T>(
+  db: Database,
+  userId: string,
+  work: (tx: DbOrTx) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update');
+    return work(tx);
+  });
+}
+
+async function insertRefreshToken(
+  db: DbOrTx,
+  userId: string,
+  rotatedFrom?: string,
+): Promise<IssuedRefreshToken> {
   const raw = generateRawToken();
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000);
 
@@ -43,6 +62,40 @@ export async function issueRefreshToken(
   });
 
   return { raw, expiresAt };
+}
+
+/** Bootstrap must recheck the session after waiting for concurrent reset revocation. */
+export async function issueRefreshTokenForSession(
+  db: Database,
+  userId: string,
+  sessionId: string,
+): Promise<IssuedRefreshToken | null> {
+  return withUserLock(db, userId, async (tx) => {
+    const [session] = await tx
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.id, sessionId),
+          eq(sessions.userId, userId),
+          gt(sessions.expiresAt, new Date()),
+        ),
+      )
+      .limit(1);
+    return session ? insertRefreshToken(tx, userId) : null;
+  });
+}
+
+/** Serialize reset revocation with refresh rotation and session bootstrap. */
+export async function revokeUserCredentials(db: Database, userId: string): Promise<void> {
+  return withUserLock(db, userId, async (tx) => {
+    await tx
+      .update(authRefreshTokens)
+      .set({ revokedAt: new Date() })
+      .where(eq(authRefreshTokens.userId, userId));
+    await tx.delete(sessions).where(eq(sessions.userId, userId));
+    await tx.delete(verifications).where(eq(verifications.value, userId));
+  });
 }
 
 export type RefreshOutcome =
@@ -67,7 +120,18 @@ export type RefreshOutcome =
  */
 export async function rotateRefreshToken(db: Database, rawToken: string): Promise<RefreshOutcome> {
   const hash = hashToken(rawToken);
+  const [owner] = await db
+    .select({ userId: authRefreshTokens.userId })
+    .from(authRefreshTokens)
+    .where(eq(authRefreshTokens.tokenHash, hash))
+    .limit(1);
+  if (!owner) return { ok: false, reason: 'not_found' };
+  // Claim, successor insertion and replay revocation share one user lock with reset.
+  // A transaction around the claim alone would still let reset miss its new child.
+  return withUserLock(db, owner.userId, (tx) => rotateLocked(tx, hash));
+}
 
+async function rotateLocked(db: DbOrTx, hash: string): Promise<RefreshOutcome> {
   const [claimed] = await db
     .update(authRefreshTokens)
     .set({ revokedAt: new Date() })
@@ -93,7 +157,7 @@ export async function rotateRefreshToken(db: Database, rawToken: string): Promis
     return { ok: false, reason: 'expired' };
   }
 
-  const token = await issueRefreshToken(db, claimed.userId, claimed.id);
+  const token = await insertRefreshToken(db, claimed.userId, claimed.id);
   return { ok: true, userId: claimed.userId, token };
 }
 
@@ -106,13 +170,13 @@ export async function rotateRefreshToken(db: Database, rawToken: string): Promis
  * chuỗi (D — thứ kẻ trộm đang cầm) thoát nạn. Duyệt bằng SELECT id theo tầng,
  * revoke mắt nào còn sống, rồi đi tiếp bằng TOÀN BỘ id con.
  *
- * Lặp theo tầng thay vì CTE đệ quy — chuỗi rotation thực tế ngắn, Drizzle chưa có
- * API recursive CTE gọn; LIMIT 100 tầng làm phanh an toàn chống dữ liệu vòng
- * (không thể xảy ra qua issueRefreshToken, nhưng phanh rẻ hơn niềm tin).
+ * Duyệt hết chuỗi hữu hạn, nhớ ID đã thăm để dừng nếu dữ liệu bị tạo vòng.
+ * Không giới hạn số thế hệ: token ở thế hệ 101 cũng phải bị thu hồi.
  */
-async function revokeDescendants(db: Database, rootId: string): Promise<void> {
+async function revokeDescendants(db: DbOrTx, rootId: string): Promise<void> {
   let frontier = [rootId];
-  for (let depth = 0; depth < 100 && frontier.length > 0; depth += 1) {
+  const visited = new Set(frontier);
+  while (frontier.length > 0) {
     const children = await db
       .select({ id: authRefreshTokens.id })
       .from(authRefreshTokens)
@@ -120,7 +184,9 @@ async function revokeDescendants(db: Database, rootId: string): Promise<void> {
     if (children.length === 0) {
       return;
     }
-    const childIds = children.map((child) => child.id);
+    const childIds = children.map((child) => child.id).filter((id) => !visited.has(id));
+    if (childIds.length === 0) return;
+    for (const id of childIds) visited.add(id);
     await db
       .update(authRefreshTokens)
       .set({ revokedAt: new Date() })
@@ -132,8 +198,17 @@ async function revokeDescendants(db: Database, rootId: string): Promise<void> {
 /** Thu hồi một refresh token (logout). Idempotent — token không tồn tại thì bỏ qua. */
 export async function revokeRefreshToken(db: Database, rawToken: string): Promise<void> {
   const hash = hashToken(rawToken);
-  await db
-    .update(authRefreshTokens)
-    .set({ revokedAt: new Date() })
-    .where(and(eq(authRefreshTokens.tokenHash, hash), isNull(authRefreshTokens.revokedAt)));
+  const [owner] = await db
+    .select({ userId: authRefreshTokens.userId, id: authRefreshTokens.id })
+    .from(authRefreshTokens)
+    .where(eq(authRefreshTokens.tokenHash, hash))
+    .limit(1);
+  if (!owner) return;
+  await withUserLock(db, owner.userId, async (tx) => {
+    await tx
+      .update(authRefreshTokens)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(authRefreshTokens.tokenHash, hash), isNull(authRefreshTokens.revokedAt)));
+    await revokeDescendants(tx, owner.id);
+  });
 }

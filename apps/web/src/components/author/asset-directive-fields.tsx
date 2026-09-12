@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
 import { Alert, AlertDescription, Button, Card, CardContent } from '@devops-platform/ui';
 import type { AssetDirectiveFormState } from './draft-form';
@@ -34,8 +35,12 @@ export function AssetDirectiveFields(props: {
     <div className="flex flex-col gap-4">
       <Alert>
         <AlertDescription>
-          Khối này KHÔNG tải tệp lên. Nó khai một file <em>đã có trong image sandbox</em> và chỗ cần chép tới
-          trong pod. Muốn nhúng ảnh vào bài thì dùng tab <strong>Tệp đính kèm</strong>.
+          {t('author.asset-directive-fields-khoi-nay-khong-tai-tep-len-no-khai-mot-file')}{' '}
+          <em>{t('author.asset-directive-fields-da-co-trong-image-sandbox')}</em>{' '}
+          {t(
+            'author.asset-directive-fields-va-cho-can-chep-toi-trong-pod-muon-nhung-anh-vao-bai-thi-dung-tab',
+          )}{' '}
+          <strong>{t('author.edit.tab.assets')}</strong>.
         </AlertDescription>
       </Alert>
 
@@ -43,7 +48,9 @@ export function AssetDirectiveFields(props: {
         <Card key={asset.key}>
           <CardContent className="flex flex-col gap-4 py-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">Chỉ thị {index + 1}</h3>
+              <h3 className="text-sm font-semibold text-foreground">
+                {t('author.asset-directive-fields-chi-thi')} {index + 1}
+              </h3>
               <Button
                 variant="ghost"
                 size="sm"
@@ -52,46 +59,46 @@ export function AssetDirectiveFields(props: {
                   onChange(value.filter((_, i) => i !== index));
                 }}
               >
-                Xoá
+                {t('common.action.delete')}
               </Button>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
-                label="Host"
+                label={t('author.asset-directive-fields-host')}
                 value={asset.host}
                 onChange={(host) => {
                   patchAt(index, { host });
                 }}
                 disabled={disabled}
-                placeholder="host01"
+                placeholder={t('author.asset-directive-fields-host01')}
               />
               <TextField
-                label="File"
+                label={t('author.asset-directive-fields-file')}
                 value={asset.file}
                 onChange={(file) => {
                   patchAt(index, { file });
                 }}
                 disabled={disabled}
-                placeholder="start.sh"
+                placeholder={t('author.asset-directive-fields-start-sh')}
               />
               <TextField
-                label="Đích trong pod"
+                label={t('author.asset-directive-fields-dich-trong-pod')}
                 value={asset.target}
                 onChange={(target) => {
                   patchAt(index, { target });
                 }}
                 disabled={disabled}
-                placeholder="/root/"
+                placeholder={t('author.asset-directive-fields-root')}
               />
               <TextField
-                label="chmod"
+                label={t('author.asset-directive-fields-chmod')}
                 value={asset.chmod}
                 onChange={(chmod) => {
                   patchAt(index, { chmod });
                 }}
                 disabled={disabled}
-                placeholder="0755"
-                hint="Bỏ trống thì giữ quyền mặc định."
+                placeholder={t('author.asset-directive-fields-0755')}
+                hint={t('author.asset-directive-fields-bo-trong-thi-giu-quyen-mac-dinh')}
               />
             </div>
           </CardContent>
@@ -100,7 +107,7 @@ export function AssetDirectiveFields(props: {
 
       <div>
         <Button variant="outline" onClick={props.onAdd} disabled={disabled}>
-          Thêm chỉ thị
+          {t('author.asset-directive-fields-them-chi-thi')}
         </Button>
       </div>
     </div>

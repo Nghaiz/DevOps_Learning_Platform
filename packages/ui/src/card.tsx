@@ -138,7 +138,10 @@ export function Card({ interactive = false, accent, className, children, ...prop
         'relative rounded-lg border border-border bg-card p-6 text-card-foreground',
         'shadow-elevation-1',
         'transition-[box-shadow,transform,border-color] duration-[var(--motion-base)] ease-out',
-        interactive && ['hover:border-input hover:shadow-elevation-2', 'motion-safe:hover:-translate-y-0.5'],
+        interactive && [
+          'hover:border-input hover:shadow-elevation-2',
+          'motion-safe:hover:-translate-y-0.5',
+        ],
         className,
       )}
       {...props}
@@ -151,15 +154,38 @@ export function Card({ interactive = false, accent, className, children, ...prop
 
 /** Vùng đầu thẻ — dùng khi cần bọc `CardTitle` + `CardDescription` + hành động cạnh nhau. */
 export function CardHeader({ className, ...props }: ComponentProps<'div'>) {
-  return <div data-slot="card-header" className={cn('mb-4 flex flex-col gap-1.5', className)} {...props} />;
+  return (
+    <div
+      data-slot="card-header"
+      className={cn('mb-4 flex flex-col gap-1.5', className)}
+      {...props}
+    />
+  );
 }
 
-export function CardTitle({ className, ...props }: ComponentProps<'h3'>) {
-  return <h3 data-slot="card-title" className={cn('text-lg font-semibold text-foreground', className)} {...props} />;
+/** Choose heading semantics from the surrounding page; keep presentation independent. */
+export function CardTitle({
+  as: Heading = 'h3',
+  className,
+  ...props
+}: ComponentProps<'h3'> & { readonly as?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' }) {
+  return (
+    <Heading
+      data-slot="card-title"
+      className={cn('text-lg font-semibold text-foreground', className)}
+      {...props}
+    />
+  );
 }
 
 export function CardDescription({ className, ...props }: ComponentProps<'p'>) {
-  return <p data-slot="card-description" className={cn('text-sm text-muted-foreground', className)} {...props} />;
+  return (
+    <p
+      data-slot="card-description"
+      className={cn('text-sm text-muted-foreground', className)}
+      {...props}
+    />
+  );
 }
 
 export function CardContent({ className, ...props }: ComponentProps<'div'>) {
@@ -168,6 +194,10 @@ export function CardContent({ className, ...props }: ComponentProps<'div'>) {
 
 export function CardFooter({ className, ...props }: ComponentProps<'div'>) {
   return (
-    <div data-slot="card-footer" className={cn('mt-4 flex items-center gap-2', className)} {...props} />
+    <div
+      data-slot="card-footer"
+      className={cn('mt-4 flex items-center gap-2', className)}
+      {...props}
+    />
   );
 }

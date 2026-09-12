@@ -3,8 +3,17 @@ import { headers } from 'next/headers';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { jwt } from 'better-auth/plugins';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
+import { deleteSessionCookie } from 'better-auth/cookies';
+import { z } from 'zod';
 import { getDb } from '../db/client';
 import * as schema from '../db/schema';
+import { revokeUserCredentials } from './tokens';
+import {
+  PASSWORD_RESET_TTL_SECONDS,
+  schedulePasswordResetMail,
+  verifyPasswordResetSmtp,
+} from './password-reset-mail';
 import {
   betterAuthSecret,
   betterAuthUrl,
@@ -55,71 +64,127 @@ export const GATEWAY_AUD = 'gateway';
  */
 function buildAuth() {
   return betterAuth({
-  baseURL: betterAuthUrl(),
-  secret: betterAuthSecret(),
-  database: drizzleAdapter(getDb(), {
-    provider: 'pg',
-    schema: {
-      ...schema,
-      user: schema.users,
-      session: schema.sessions,
-      account: schema.accounts,
-      verification: schema.verifications,
-      jwks: schema.jwks,
-    },
-  }),
-  user: {
-    additionalFields: {
-      role: {
-        type: 'string',
-        required: true,
-        defaultValue: 'user',
-        input: false, // client không tự đặt role của chính nó khi đăng ký.
-      },
-    },
-  },
-  emailAndPassword: {
-    enabled: true,
-    autoSignIn: true,
-  },
-  socialProviders: {
-    google: {
-      clientId: googleClientId(),
-      clientSecret: googleClientSecret(),
-    },
-    microsoft: {
-      clientId: microsoftClientId(),
-      clientSecret: microsoftClientSecret(),
-    },
-  },
-  session: {
-    // Cookie phiên (luật 8): httpOnly + Secure + SameSite. Better Auth tự bật Secure
-    // khi NODE_ENV=production; dev qua http://localhost cố tình để Secure tắt, không
-    // thì trình duyệt sẽ không gửi cookie lại và không ai đăng nhập được ở local.
-    expiresIn: 60 * 60 * 24 * 7, // 7 ngày — khớp TTL refresh token (auth/tokens.ts)
-    updateAge: 60 * 60 * 24,
-  },
-  advanced: {
-    defaultCookieAttributes: {
-      httpOnly: true,
-      sameSite: 'lax',
-    },
-  },
-  plugins: [
-    jwt({
-      // KHÔNG set header `set-auth-jwt` trên /get-session: token này mang
-      // aud=orchestrator (credential gọi service nội bộ) — để plugin tự đính vào
-      // response là trao nó cho JS phía trình duyệt, trái luật 8 ("token chỉ ở
-      // httpOnly cookie") và xuyên thủng ranh giới BFF. JWT chỉ được mint server-side
-      // qua auth/jwt.ts khi BFF gọi gRPC.
-      disableSettingJwtHeader: true,
-      jwt: {
-        audience: ORCHESTRATOR_AUD,
-        expirationTime: ACCESS_TOKEN_TTL,
-        issuer: betterAuthUrl(),
+    baseURL: betterAuthUrl(),
+    secret: betterAuthSecret(),
+    database: drizzleAdapter(getDb(), {
+      provider: 'pg',
+      schema: {
+        ...schema,
+        user: schema.users,
+        session: schema.sessions,
+        account: schema.accounts,
+        verification: schema.verifications,
+        jwks: schema.jwks,
       },
     }),
-  ],
+    user: {
+      additionalFields: {
+        role: {
+          type: 'string',
+          required: true,
+          defaultValue: 'user',
+          input: false, // client không tự đặt role của chính nó khi đăng ký.
+        },
+      },
+    },
+    emailAndPassword: {
+      enabled: true,
+      autoSignIn: true,
+      resetPasswordTokenExpiresIn: PASSWORD_RESET_TTL_SECONDS,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, token }) => {
+        try {
+          await schedulePasswordResetMail(user.email, token);
+        } catch {
+          throw new APIError('SERVICE_UNAVAILABLE', { code: 'RESET_DELIVERY_UNAVAILABLE' });
+        }
+      },
+      onPasswordReset: async ({ user }) => {
+        // The platform refresh cookie is independent of Better Auth sessions.
+        // Revoke both and invalidate every older reset code for this account.
+        await revokeUserCredentials(getDb(), user.id);
+      },
+    },
+    verification: {
+      storeIdentifier: { default: 'plain', overrides: { 'reset-password': 'hashed' } },
+    },
+    rateLimit: {
+      customRules: {
+        '/request-password-reset': { window: 60, max: 3 },
+        '/reset-password': { window: 60, max: 5 },
+      },
+    },
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/request-password-reset') return;
+        // HTTP rate limiting and global origin middleware precede this hook.
+        if (!z.object({ email: z.email() }).strict().safeParse(ctx.body).success) {
+          throw new APIError('BAD_REQUEST', { code: 'INVALID_RESET_REQUEST' });
+        }
+        try {
+          await verifyPasswordResetSmtp();
+        } catch {
+          throw new APIError('SERVICE_UNAVAILABLE', { code: 'RESET_DELIVERY_UNAVAILABLE' });
+        }
+      }),
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/reset-password') return;
+        if (!z.object({ status: z.literal(true) }).safeParse(ctx.context.returned).success) return;
+        // Clear the browser as well as the database. Otherwise proxy's cookie
+        // presence gate redirects the now-logged-out user between /login and /me.
+        deleteSessionCookie(ctx);
+        ctx.setCookie('refresh_token', '', {
+          path: '/api/auth',
+          maxAge: 0,
+          httpOnly: true,
+          sameSite: 'lax',
+        });
+        ctx.setCookie('access_token', '', {
+          path: '/',
+          maxAge: 0,
+          httpOnly: true,
+          sameSite: 'lax',
+        });
+      }),
+    },
+    socialProviders: {
+      google: {
+        clientId: googleClientId(),
+        clientSecret: googleClientSecret(),
+      },
+      microsoft: {
+        clientId: microsoftClientId(),
+        clientSecret: microsoftClientSecret(),
+      },
+    },
+    session: {
+      // Cookie phiên (luật 8): httpOnly + Secure + SameSite. Better Auth tự bật Secure
+      // khi NODE_ENV=production; dev qua http://localhost cố tình để Secure tắt, không
+      // thì trình duyệt sẽ không gửi cookie lại và không ai đăng nhập được ở local.
+      expiresIn: 60 * 60 * 24 * 7, // 7 ngày — khớp TTL refresh token (auth/tokens.ts)
+      updateAge: 60 * 60 * 24,
+    },
+    advanced: {
+      defaultCookieAttributes: {
+        httpOnly: true,
+        sameSite: 'lax',
+      },
+    },
+    plugins: [
+      jwt({
+        // KHÔNG set header `set-auth-jwt` trên /get-session: token này mang
+        // aud=orchestrator (credential gọi service nội bộ) — để plugin tự đính vào
+        // response là trao nó cho JS phía trình duyệt, trái luật 8 ("token chỉ ở
+        // httpOnly cookie") và xuyên thủng ranh giới BFF. JWT chỉ được mint server-side
+        // qua auth/jwt.ts khi BFF gọi gRPC.
+        disableSettingJwtHeader: true,
+        jwt: {
+          audience: ORCHESTRATOR_AUD,
+          expirationTime: ACCESS_TOKEN_TTL,
+          issuer: betterAuthUrl(),
+        },
+      }),
+    ],
   });
 }
 
@@ -179,6 +244,6 @@ export function getAuth(): Auth {
  * nào vừa đổi phiên vừa đọc lại nó. Nếu một ngày có, chỗ đó phải gọi thẳng
  * `getAuth().api.getSession` và ghi rõ lý do.
  */
-export const readRequestSession = cache(
-  async () => getAuth().api.getSession({ headers: await headers() }),
+export const readRequestSession = cache(async () =>
+  getAuth().api.getSession({ headers: await headers() }),
 );

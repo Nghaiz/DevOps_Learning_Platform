@@ -4,18 +4,8 @@ import type { ErrorEntry, IntentionalThree, Surface } from '../types.ts';
  * Surface `auth.`, sở hữu bởi lane 16.B (L1). Phủ bốn màn xác thực:
  * `/login`, `/register`, `/forgot-password`, `/reset-password`.
  *
- * ## ⚠ Hai màn dưới CHƯA có đường gửi thư, và chữ ở đây phải nói ra điều đó
- *
- * `phase-16.md` 16.B: `/forgot-password` và `/reset-password` chưa có backend
- * gửi mail. Đợt này là frontend-only. Một form gửi vào hư không mà hiện "Đã
- * gửi mail, kiểm hộp thư của bạn" là nói dối người dùng, và nó hỏng ở đúng file
- * này chứ không ở tầng nào khác.
- *
- * Nên KHÔNG có khoá nào tên `sent`, `check-inbox` hay `email-sent` trong bản đồ
- * này. Thứ thay chỗ chúng là `auth.forgot.unavailable-*` và
- * `auth.reset.unavailable-*`, và cả hai nói thẳng rằng đường gửi chưa nối. Ngày
- * backend lên thì XOÁ chúng và thêm khoá thành công thật, đừng sửa câu tại chỗ
- * để nó nghe giống thành công.
+ * Yêu cầu gửi mã chỉ xác nhận tiếp nhận, không xác nhận thư đã tới hộp thư.
+ * Phản hồi không tiết lộ một địa chỉ có tài khoản hay chưa.
  *
  * ## Mọi lỗi là `ErrorEntry`, và KHÔNG có lỗi nào từ Better Auth đi thẳng ra
  *
@@ -78,18 +68,14 @@ export const auth = {
   // ── /forgot-password ────────────────────────────────────────────────────
   'auth.forgot.meta-title': 'Quên mật khẩu · DevOps Learning Platform',
   'auth.forgot.title': 'Quên mật khẩu',
-  'auth.forgot.description':
-    'Nhập email của tài khoản. Khi đường gửi thư được bật, bạn sẽ nhận một liên kết đặt lại mật khẩu.',
-  'auth.forgot.submit': 'Gửi liên kết đặt lại',
+  'auth.forgot.description': 'Nhập email của tài khoản để nhận mã đặt lại mật khẩu.',
+  'auth.forgot.submit': 'Gửi mã đặt lại mật khẩu',
+  'auth.forgot.pending': 'Đang gửi yêu cầu…',
+  'auth.forgot.success-title': 'Yêu cầu đã được tiếp nhận',
+  'auth.forgot.success-body': (p: { email: string }) =>
+    `Nếu ${p.email} có tài khoản, hãy kiểm tra hộp thư và thư rác để lấy mã. Mã có hiệu lực trong 15 phút. Nếu chưa thấy thư, thử lại sau ít phút hoặc liên hệ quản trị viên lớp.`,
+  'auth.forgot.next': 'Nhập mã đặt lại mật khẩu',
   'auth.forgot.back': 'Quay lại đăng nhập',
-  'auth.forgot.notice-title': 'Đường gửi thư chưa được bật',
-  'auth.forgot.notice-body':
-    'Máy chủ chưa nối phần gửi thư, nên biểu mẫu này chưa gửi được gì. Phần giao diện đã dựng xong và sẽ chạy ngay khi đường gửi lên.',
-  'auth.forgot.unavailable-title': 'Không có thư nào được gửi đi',
-  'auth.forgot.unavailable-body': (p: { email: string }) =>
-    `Biểu mẫu đã nhận ${p.email} nhưng máy chủ chưa có đường gửi thư, nên không có thư nào đang trên đường tới hộp thư đó. Đừng chờ.`,
-  'auth.forgot.unavailable-next':
-    'Nhắn cho quản trị viên lớp để họ đặt lại mật khẩu giúp bạn, hoặc đăng nhập bằng Google hay Microsoft nếu tài khoản của bạn có liên kết sẵn.',
 
   // ── /reset-password ─────────────────────────────────────────────────────
   //
@@ -101,14 +87,19 @@ export const auth = {
   // qua query string. Không có mã trên URL thì cũng không có ca thiếu mã.
   'auth.reset.meta-title': 'Đặt lại mật khẩu · DevOps Learning Platform',
   'auth.reset.title': 'Đặt lại mật khẩu',
-  'auth.reset.description': 'Chọn mật khẩu mới cho tài khoản của bạn.',
+  'auth.reset.description':
+    'Nhập mã trong email đặt lại mật khẩu và chọn mật khẩu mới cho tài khoản của bạn.',
+  'auth.reset.code': 'Mã đặt lại mật khẩu',
+  'auth.reset.code-hint': 'Sao chép mã trong email đặt lại mật khẩu.',
+  'auth.reset.pending': 'Đang đổi mật khẩu…',
+  'auth.reset.success-title': 'Đã đổi mật khẩu',
+  'auth.reset.success-body':
+    'Bạn có thể đăng nhập bằng mật khẩu mới. Các phiên đăng nhập cũ đã được kết thúc.',
+  'auth.mail.reset-subject': 'Mã đặt lại mật khẩu DevOps PTIT',
+  'auth.mail.reset-body': (p: { code: string; url: string }) =>
+    `Bạn vừa yêu cầu đặt lại mật khẩu DevOps PTIT.\n\nMã đặt lại mật khẩu: ${p.code}\n\nMở trang này và nhập mã cùng mật khẩu mới:\n${p.url}\n\nMã có hiệu lực trong 15 phút. Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này.`,
   'auth.reset.submit': 'Đặt mật khẩu mới',
   'auth.reset.back': 'Quay lại đăng nhập',
-  'auth.reset.unavailable-title': 'Chưa đổi được mật khẩu ở đây',
-  'auth.reset.unavailable-body':
-    'Máy chủ chưa nhận yêu cầu đặt lại mật khẩu, nên mật khẩu của bạn vẫn là mật khẩu cũ. Mọi thứ bạn vừa nhập không được lưu ở đâu cả.',
-  'auth.reset.unavailable-next':
-    'Nhắn cho quản trị viên lớp để họ đổi mật khẩu giúp bạn. Phần này bật lên cùng lúc với đường gửi thư.',
 
   // ── Lỗi ─────────────────────────────────────────────────────────────────
   //
@@ -118,6 +109,14 @@ export const auth = {
   'auth.error.sign-in': {
     what: 'Đăng nhập không thành công.',
     next: 'Kiểm tra lại email và mật khẩu rồi thử lần nữa. Nếu không nhớ mật khẩu, dùng liên kết ngay dưới nút.',
+  } satisfies ErrorEntry,
+  'auth.error.reset-request': {
+    what: 'Chưa gửi được yêu cầu đặt lại mật khẩu.',
+    next: 'Thử lại sau ít phút. Nếu vẫn gặp lỗi, liên hệ quản trị viên lớp để kiểm tra đường gửi thư.',
+  } satisfies ErrorEntry,
+  'auth.error.reset-invalid': {
+    what: 'Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.',
+    next: 'Yêu cầu một mã mới rồi sao chép đầy đủ mã trong email gần nhất.',
   } satisfies ErrorEntry,
   'auth.error.sign-up': {
     what: 'Tạo tài khoản không thành công.',

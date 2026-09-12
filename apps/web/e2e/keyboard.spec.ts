@@ -181,7 +181,9 @@ async function activeHandle(page: Page): Promise<ElementHandle<HTMLElement> | nu
  * colors` đang chạy dở hoặc một con trỏ nhấp nháy trong ô input sẽ làm hai ảnh
  * khác nhau vì lý do chẳng liên quan gì tới focus — ô AC khi đó xanh vì nhiễu.
  */
-async function focusIndicatorChanges(page: Page): Promise<'changed' | 'identical' | 'unmeasurable'> {
+async function focusIndicatorChanges(
+  page: Page,
+): Promise<'changed' | 'identical' | 'unmeasurable'> {
   const handle = await activeHandle(page);
   if (handle === null) {
     return 'unmeasurable';
@@ -347,7 +349,9 @@ test.describe('bàn phím — thứ tự và dấu focus', () => {
         ).not.toBe(previous);
         visited.push(info.path);
       }
-      expect(visited.length, `Tab không tới được phần tử nào trên ${screen.path}`).toBeGreaterThan(0);
+      expect(visited.length, `Tab không tới được phần tử nào trên ${screen.path}`).toBeGreaterThan(
+        0,
+      );
     });
   }
 
@@ -473,6 +477,36 @@ test.describe('bàn phím — đi hết luồng chính', () => {
     });
   }
 
+  test('ô tìm kiếm chỉ đưa control đang hiện vào vòng Tab khi mở và đóng', async ({ page }) => {
+    await openScreen(page, '/lessons', 'user');
+    await parkMouse(page);
+    const search = page.getByRole('search');
+    const opener = search.getByRole('button', { name: 'Mở ô tìm kiếm', exact: true });
+    const close = search.getByRole('button', { name: 'Đóng ô tìm kiếm', exact: true });
+    await expect(opener).toBeVisible();
+    await expect(close).toHaveCount(0);
+    for (let i = 0; i < 30; i += 1) {
+      await page.keyboard.press('Tab');
+      if ((await activeInfo(page))?.label === 'Mở ô tìm kiếm') break;
+    }
+    await expect(opener).toBeFocused();
+    await page.keyboard.press('Enter');
+    const input = search.getByRole('textbox', { name: 'Ô nhập từ khoá', exact: true });
+    await expect(input).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(close).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(input).toBeFocused();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Enter');
+    await expect(opener).toBeFocused();
+    await expect(close).toHaveCount(0);
+    await page.keyboard.press('Tab');
+    const next = await activeInfo(page);
+    expect(next).not.toBeNull();
+    expect(next?.label).not.toMatch(/Đóng ô tìm kiếm|Ô nhập từ khoá/);
+  });
+
   test('mở bài học đầu tiên từ /lessons chỉ bằng bàn phím', async ({ page }) => {
     await openScreen(page, '/lessons', 'user');
 
@@ -524,6 +558,15 @@ test.describe('bàn phím — đi hết luồng chính', () => {
 // ═══════════════════════════════════════════════════ D10 — Esc trong terminal
 
 test.describe('D10 — thoát terminal bằng Esc Esc', () => {
+  test.afterEach(async ({ page }) => {
+    // Only end the session this test opened. Leaving it alive consumes a real
+    // sandbox slot and makes a later test depend on this test's cleanup.
+    const end = page.getByRole('button', { name: 'Kết thúc phiên', exact: true });
+    if (await end.isVisible()) {
+      await end.press('Enter');
+      await expect(end).toBeHidden({ timeout: 60_000 });
+    }
+  });
   /**
    * ⚠⚠ TIỀN ĐỀ CỦA TOÀN BỘ NHÓM NÀY — đọc trước khi tin bất kỳ ô nào bên dưới.
    *
@@ -584,9 +627,10 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
 
     const fast = stamps[1]!.t - stamps[0]!.t;
     const slow = stamps[2]!.t - stamps[1]!.t;
-    expect(fast, `hai lần nhấn liền nhau cách ${fast}ms — không nằm trong cửa sổ D10`).toBeLessThanOrEqual(
-      ESCAPE_WINDOW_MS,
-    );
+    expect(
+      fast,
+      `hai lần nhấn liền nhau cách ${fast}ms — không nằm trong cửa sổ D10`,
+    ).toBeLessThanOrEqual(ESCAPE_WINDOW_MS);
     expect(
       slow,
       `hai lần nhấn cách nhau 700ms thật nhưng timeStamp chỉ chênh ${slow}ms. ` +
@@ -613,7 +657,10 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
     await openScreen(page, `/playgrounds/${encodeURIComponent(id)}`, 'user');
 
     const start = page.getByRole('button', { name: 'Bắt đầu' });
-    await expect(start, 'không thấy nút "Bắt đầu" — trang playground đã đổi hình dạng?').toBeVisible();
+    await expect(
+      start,
+      'không thấy nút "Bắt đầu" — trang playground đã đổi hình dạng?',
+    ).toBeVisible();
     await start.press('Enter');
 
     const terminal = page.getByTestId('dlp-terminal');
@@ -626,7 +673,12 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
     // thì phím Escape đi vào một container chưa có ai nghe, và ô sẽ đỏ vì lý do
     // sai ("Esc không tới PTY" trong khi PTY chưa từng được nối).
     await terminal.locator('textarea').first().waitFor({ state: 'attached', timeout: 30_000 });
-    await page.waitForTimeout(500);
+    // A textarea also exists while the WebSocket is connecting or rejected.
+    // The READY control frame is the observable proof of the real gateway
+    // handshake; the slow Esc case must not pass on a disconnected terminal.
+    await expect(
+      page.locator('[aria-live="polite"]').getByText('Sandbox sẵn sàng', { exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
     return 'ok';
   }
 
@@ -634,7 +686,7 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
     return process.env.E2E_REQUIRE_SESSION === '1';
   }
 
-  test('Esc ĐƠN vẫn tới PTY, và Esc Esc rời khỏi terminal', async ({ page, api }) => {
+  test('Esc ĐƠN vẫn tới PTY, và Esc Esc rời khỏi terminal', async ({ page, api }, testInfo) => {
     test.setTimeout(240_000);
 
     // Bắt frame WebSocket TRƯỚC khi phiên mở. Đây là bằng chứng duy nhất không
@@ -745,6 +797,23 @@ test.describe('D10 — thoát terminal bằng Esc Esc', () => {
       'D10 chốt CẢ HAI byte Esc vẫn được thả cho PTY (một \\x1b thừa là vô hại ở ' +
         'mọi TUI, còn một nhánh code có quyền huỷ sự kiện thì sớm muộn sẽ huỷ nhầm).',
     ).toBeGreaterThanOrEqual(2);
+    await testInfo.attach('terminal-escape-evidence.json', {
+      contentType: 'application/json',
+      body: Buffer.from(
+        JSON.stringify(
+          {
+            realGatewayReady: true,
+            singleEscapeBytes: beforePair - before,
+            fastPairEscapeBytes: sentEscapes.length - beforePair,
+            focusOutsideTerminal: !((await activeInfo(page))?.inTerminal ?? false),
+            escapeWindowMs: ESCAPE_WINDOW_MS,
+          },
+          null,
+          2,
+        ),
+      ),
+    });
+    await page.screenshot({ path: testInfo.outputPath('terminal-escape.png') });
   });
 
   test(`Esc … hơn ${ESCAPE_WINDOW_MS}ms … Esc thì KHÔNG rời terminal`, async ({ page, api }) => {

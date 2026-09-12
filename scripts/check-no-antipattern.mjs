@@ -146,11 +146,10 @@ const RULES = [
     id: 'chan-contextmenu',
     why: 'chặn chuột phải — giết menu ngữ cảnh của trình đọc màn hình, cản đúng người không gian lận',
     // Bắt MỌI handler `contextmenu`, không chỉ handler có `preventDefault`: thân
-    // hàm thường nằm ở dòng khác nên một mẫu "cùng dòng" sẽ tuột, và repo này
-    // hôm nay không có menu chuột phải hợp lệ nào.
+    // hàm thường nằm ở dòng khác nên một mẫu "cùng dòng" sẽ tuột.
     //
     // Nếu sau này CẦN một menu ngữ cảnh thật (cây file, bảng dữ liệu) thì đó là
-    // một quyết định phải qua lead, và dòng đó được thêm vào CLEAN kèm lý do —
+    // một quyết định phải qua lead, và dòng đó được khai chính xác bên dưới —
     // KHÔNG có lối thoát nội tuyến kiểu `// antipattern: allow`.
     src:
       String.raw`addEventListener\(\s*['"\x60]contextmenu` +
@@ -194,6 +193,34 @@ const RULES = [
       String.raw`|_0x[0-9a-f]{4,}`,
   },
 ];
+
+// K8s Arena has a real canvas action menu (node actions and scene actions),
+// not an anti-cheat blocker. Approved 2026-09-13 during P16 closure. Keep the
+// exception at the exact wiring statements, never at directory/file scope.
+const APPROVED_CONTEXT_MENUS = [
+  [
+    'apps/web/src/components/k8s-arena/arena-contract.ts',
+    'readonly onContextMenu: (uid: string, screen: ScreenPoint) => void;',
+  ],
+  ['apps/web/src/components/k8s-arena/arena-root.tsx', 'onContextMenu={openContextMenu}'],
+  [
+    'apps/web/src/components/k8s-arena/scene/pointer-picking.tsx',
+    'const onContextMenu = (event: MouseEvent): void => {',
+  ],
+  [
+    'apps/web/src/components/k8s-arena/scene/pointer-picking.tsx',
+    "canvas.addEventListener('contextmenu', onContextMenu);",
+  ],
+];
+
+function approvedContextMenu(hit, file) {
+  return (
+    hit.rule === 'chan-contextmenu' &&
+    APPROVED_CONTEXT_MENUS.some(
+      ([approvedFile, statement]) => file === approvedFile && hit.text === statement,
+    )
+  );
+}
 
 const COMPILED = RULES.map((r) => ({ ...r, re: new RegExp(r.src.normalize('NFC'), 'giu') }));
 
@@ -278,7 +305,7 @@ function scanTree() {
 
       files++;
       for (const h of scanText(buf.toString('utf8'), { ext })) {
-        hits.push({ ...h, file: rel });
+        if (!approvedContextMenu(h, rel)) hits.push({ ...h, file: rel });
       }
     }
   }
@@ -420,6 +447,24 @@ function selfTest() {
   const fails = [];
   const exercised = new Set();
 
+  for (const [file, statement] of APPROVED_CONTEXT_MENUS) {
+    const [hit] = scanText(statement, { ext: '.tsx' });
+    if (!hit || !approvedContextMenu(hit, file)) fails.push(`MENU HỢP LỆ BỊ KÊU OAN: ${file}`);
+    if (hit && approvedContextMenu(hit, 'apps/web/src/other.tsx'))
+      fails.push(`MIỄN TRỪ LAN SANG FILE KHÁC: ${file}`);
+    for (const [, , dirty] of DIRTY) {
+      if (
+        scanText(dirty, { ext: '.tsx' }).some((candidate) => approvedContextMenu(candidate, file))
+      ) {
+        fails.push(`MIỄN TRỪ CHE MÃ CẤM TRONG CÙNG FILE: ${file}`);
+      }
+    }
+    const source = readFileSync(join(REPO, file), 'utf8');
+    if (!source.split(/\r?\n/).some((line) => line.trim() === statement)) {
+      fails.push(`MIỄN TRỪ ĐÃ ÔI: ${file} / ${statement}`);
+    }
+  }
+
   for (const [tag, expectedRule, line] of DIRTY) {
     const hits = scanText(line, { ext: '.tsx' });
     if (hits.length === 0) {
@@ -500,8 +545,8 @@ const { hits, files } = scanTree();
 
 if (hits.length === 0) {
   console.log(
-    `✓ không có mã dò devtools / chặn chuột phải / bắt phím tắt / gỡ lỗi / làm rối — ` +
-      `đã quét ${files} file trong ${ROOTS.length} vùng.`,
+    `✓ không có mã chống gian lận bị cấm — ` +
+      `đã quét ${files} file trong ${ROOTS.length} vùng; ${APPROVED_CONTEXT_MENUS.length} dòng nối menu hành động Arena được duyệt riêng.`,
   );
   process.exit(0);
 }

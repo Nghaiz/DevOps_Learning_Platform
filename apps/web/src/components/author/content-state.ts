@@ -1,5 +1,9 @@
-import { CONTENT_STATES, type ContentKind, type ContentState } from '@devops-platform/shared-types/authoring';
-import { t, type CopyRef, type TextKey } from '@devops-platform/copy';
+import {
+  CONTENT_STATES,
+  type ContentKind,
+  type ContentState,
+} from '@devops-platform/shared-types/authoring';
+import { t, type CopyRef, type StaticTextKey } from '@devops-platform/copy';
 
 /**
  * Từ vựng TRẠNG THÁI cho trang soạn bài (13.F task 20).
@@ -43,13 +47,13 @@ export interface AuthoredItem {
   readonly publishedAt: string | null;
 }
 
-export const KIND_KEYS: Readonly<Record<ContentKind, TextKey>> = {
+export const KIND_KEYS: Readonly<Record<ContentKind, StaticTextKey>> = {
   lesson: 'author.kind.lesson',
   lab: 'author.kind.lab',
   playground: 'author.kind.playground',
 };
 
-export const STATE_KEYS: Readonly<Record<ContentState, TextKey>> = {
+export const STATE_KEYS: Readonly<Record<ContentState, StaticTextKey>> = {
   draft: 'author.state.draft',
   publishing: 'author.state.publishing',
   published: 'author.state.published',
@@ -57,19 +61,20 @@ export const STATE_KEYS: Readonly<Record<ContentState, TextKey>> = {
 };
 
 /** Variant `Badge` (C2) cho từng trạng thái: một bảng, không phải một chuỗi ternary. */
-export const STATE_BADGE: Readonly<Record<ContentState, 'default' | 'secondary' | 'success' | 'warning' | 'outline'>> =
-  {
-    draft: 'secondary',
-    publishing: 'warning',
-    published: 'success',
-    archived: 'outline',
-  };
+export const STATE_BADGE: Readonly<
+  Record<ContentState, 'default' | 'secondary' | 'success' | 'warning' | 'outline'>
+> = {
+  draft: 'secondary',
+  publishing: 'warning',
+  published: 'success',
+  archived: 'outline',
+};
 
 /** Bộ lọc của trang danh sách: bốn trạng thái + một mục "tất cả". */
 export const STATE_FILTERS = ['all', ...CONTENT_STATES] as const;
 export type StateFilter = (typeof STATE_FILTERS)[number];
 
-export function filterLabelKey(filter: StateFilter): TextKey {
+export function filterLabelKey(filter: StateFilter): StaticTextKey {
   return filter === 'all' ? 'author.list.filter.all' : STATE_KEYS[filter];
 }
 
@@ -81,7 +86,10 @@ export function filterLabelKey(filter: StateFilter): TextKey {
  * truyền, nên lọc ở client là chỗ DUY NHẤT có thể lọc. Hệ quả cần nói thẳng
  * với người soạn: con số ở mỗi tab là **toàn bộ**, không phải "trang này".
  */
-export function filterByState(items: readonly AuthoredItem[], filter: StateFilter): readonly AuthoredItem[] {
+export function filterByState(
+  items: readonly AuthoredItem[],
+  filter: StateFilter,
+): readonly AuthoredItem[] {
   return filter === 'all' ? items : items.filter((item) => item.state === filter);
 }
 
@@ -93,7 +101,9 @@ export function filterByState(items: readonly AuthoredItem[], filter: StateFilte
  * nhật bằng tay. Một `useState` ở đây là một bản sao sẽ lệch đúng vào lúc
  * `invalidate` chạy mà không ai để ý.
  */
-export function countByFilter(items: readonly AuthoredItem[]): Readonly<Record<StateFilter, number>> {
+export function countByFilter(
+  items: readonly AuthoredItem[],
+): Readonly<Record<StateFilter, number>> {
   const counts: Record<StateFilter, number> = {
     all: items.length,
     draft: 0,

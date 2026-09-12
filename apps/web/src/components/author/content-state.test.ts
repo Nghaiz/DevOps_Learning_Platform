@@ -17,8 +17,7 @@ import {
  * về CHỮ phải dựng câu trước rồi mới so. Đây là cùng khuôn `catalog-labels.test`
  * của lane 16.C: kiểu trả về đổi, khẳng định KHÔNG đổi.
  */
-const say = (ref: { key: Parameters<typeof renderCopy>[0]['key']; params?: Record<string, string | number> }): string =>
-  renderCopy(ref);
+const say = (ref: Parameters<typeof renderCopy>[0]): string => renderCopy(ref);
 
 function item(over: Partial<AuthoredItem> = {}): AuthoredItem {
   return {
@@ -41,7 +40,11 @@ describe('filterByState', () => {
   });
 
   it('lọc đúng một trạng thái', () => {
-    const items = [item(), item({ id: 'b', state: 'published' }), item({ id: 'c', state: 'archived' })];
+    const items = [
+      item(),
+      item({ id: 'b', state: 'published' }),
+      item({ id: 'c', state: 'archived' }),
+    ];
     expect(filterByState(items, 'published').map((i) => i.id)).toEqual(['b']);
   });
 });
@@ -58,7 +61,13 @@ describe('countByFilter', () => {
   });
 
   it('danh sách rỗng ra 0 ở mọi ô, không phải undefined', () => {
-    expect(countByFilter([])).toEqual({ all: 0, draft: 0, publishing: 0, published: 0, archived: 0 });
+    expect(countByFilter([])).toEqual({
+      all: 0,
+      draft: 0,
+      publishing: 0,
+      published: 0,
+      archived: 0,
+    });
   });
 });
 
@@ -73,7 +82,10 @@ describe('sortByRecent', () => {
 
   it('cùng mốc thì phá hoà bằng id — thứ tự ổn định giữa hai lượt render', () => {
     const same = '2026-09-06T00:00:00.000Z';
-    const sorted = sortByRecent([item({ id: 'b', updatedAt: same }), item({ id: 'a', updatedAt: same })]);
+    const sorted = sortByRecent([
+      item({ id: 'b', updatedAt: same }),
+      item({ id: 'a', updatedAt: same }),
+    ]);
     expect(sorted.map((i) => i.id)).toEqual(['a', 'b']);
   });
 
@@ -109,9 +121,9 @@ describe('describeItem — nhãn nói đúng thứ ta biết', () => {
 
 describe('lastPublishFailure', () => {
   it('draft + có publishError = lượt xuất bản gần nhất đã trượt', () => {
-    expect(lastPublishFailure(item({ publishError: 'steps[0].verifyScript trượt (exit 1):\nboom' }))).toContain(
-      'exit 1',
-    );
+    expect(
+      lastPublishFailure(item({ publishError: 'steps[0].verifyScript trượt (exit 1):\nboom' })),
+    ).toContain('exit 1');
   });
 
   it('bài đã xuất bản KHÔNG mang theo lỗi cũ ra màn hình', () => {

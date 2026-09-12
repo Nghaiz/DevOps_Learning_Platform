@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
 import { Alert, AlertDescription, Button, Card, CardContent } from '@devops-platform/ui';
 import type { ContentKind } from '@devops-platform/shared-types/authoring';
@@ -26,7 +27,7 @@ export function StepListFields(props: {
   readonly disabled?: boolean | undefined;
 }): ReactElement {
   const { kind, steps, onChange, issues, disabled } = props;
-  const noun = kind === 'lab' ? 'task' : 'bước';
+  const noun = kind === 'lab' ? t('author.step-task-noun') : t('author.preview-panel-buoc');
 
   const patchAt = (index: number, part: Partial<StepFormState>): void => {
     onChange(steps.map((step, i) => (i === index ? { ...step, ...part } : step)));
@@ -52,7 +53,8 @@ export function StepListFields(props: {
       {steps.length === 0 && (
         <Alert variant="warning">
           <AlertDescription>
-            Chưa có {noun} nào. Xuất bản sẽ bị từ chối: schema đòi ít nhất một {noun}.
+            {t('author.step-list-fields-chua-co')} {noun}{' '}
+            {t('author.step-list-fields-nao-xuat-ban-se-bi-tu-choi-schema-doi-it-nhat-mot')} {noun}.
           </AlertDescription>
         </Alert>
       )}
@@ -64,7 +66,8 @@ export function StepListFields(props: {
             <CardContent className="flex flex-col gap-4 py-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-foreground">
-                  {kind === 'lab' ? 'Task' : 'Bước'} {index + 1}
+                  {kind === 'lab' ? t('author.step-task') : t('author.step-list-fields-buoc')}{' '}
+                  {index + 1}
                 </h3>
                 <div className="flex gap-1">
                   <Button
@@ -75,7 +78,7 @@ export function StepListFields(props: {
                       moveBy(index, -1);
                     }}
                   >
-                    Lên
+                    {t('author.step-list-fields-len')}
                   </Button>
                   <Button
                     variant="ghost"
@@ -85,7 +88,7 @@ export function StepListFields(props: {
                       moveBy(index, 1);
                     }}
                   >
-                    Xuống
+                    {t('author.step-list-fields-xuong')}
                   </Button>
                   <Button
                     variant="ghost"
@@ -95,37 +98,43 @@ export function StepListFields(props: {
                       removeAt(index);
                     }}
                   >
-                    Xoá
+                    {t('common.action.delete')}
                   </Button>
                 </div>
               </div>
 
               {kind === 'lab' && (
                 <TextField
-                  label="Id task"
+                  label={t('author.step-list-fields-id-task')}
                   value={step.taskId}
                   onChange={(taskId) => {
                     patchAt(index, { taskId });
                   }}
                   error={issueFor(issues, `${at}.taskId`)}
                   disabled={disabled}
-                  placeholder="tim-tien-trinh-ngon-cpu"
-                  hint="Chỉ [a-z0-9-]. Định danh BỀN: đổi sau khi có người làm bài sẽ làm kết quả cũ gắn sai task."
+                  placeholder={t('author.step-list-fields-tim-tien-trinh-ngon-cpu')}
+                  hint={t(
+                    'author.step-list-fields-chi-a-z0-9-dinh-danh-ben-doi-sau-khi-co-nguoi-lam-bai-se-lam-ket-qua-cu-gan',
+                  )}
                 />
               )}
 
               <TextField
-                label="Tiêu đề"
+                label={t('author.draft-meta-fields-tieu-de')}
                 value={step.title}
                 onChange={(title) => {
                   patchAt(index, { title });
                 }}
                 disabled={disabled}
-                hint={kind === 'lab' ? 'Bắt buộc khi xuất bản lab.' : 'Bỏ trống cũng được.'}
+                hint={
+                  kind === 'lab'
+                    ? t('author.step-list-fields-bat-buoc-khi-xuat-ban-lab')
+                    : t('author.step-list-fields-bo-trong-cung-duoc')
+                }
               />
 
               <TextAreaField
-                label="Nội dung (Markdown)"
+                label={t('author.phase-fields-noi-dung-markdown')}
                 rows={6}
                 mono
                 value={step.markdown}
@@ -138,7 +147,7 @@ export function StepListFields(props: {
               {kind === 'lesson' && (
                 <div className="grid gap-4 lg:grid-cols-2">
                   <TextAreaField
-                    label="Setup foreground"
+                    label={t('author.draft-form-view-setup-foreground')}
                     rows={3}
                     mono
                     value={step.setupForeground}
@@ -148,7 +157,7 @@ export function StepListFields(props: {
                     disabled={disabled}
                   />
                   <TextAreaField
-                    label="Setup background"
+                    label={t('author.draft-form-view-setup-background')}
                     rows={3}
                     mono
                     value={step.setupBackground}
@@ -161,7 +170,7 @@ export function StepListFields(props: {
               )}
 
               <TextAreaField
-                label="Script chấm"
+                label={t('author.phase-fields-script-cham')}
                 rows={4}
                 mono
                 value={step.verifyScript}
@@ -171,15 +180,19 @@ export function StepListFields(props: {
                 disabled={disabled}
                 hint={
                   kind === 'lab'
-                    ? 'Bắt buộc: một task không chấm được thì luôn ở trạng thái chưa đạt. Đạt khi exit code = 0.'
-                    : 'Bỏ trống nghĩa là bước này chỉ dẫn giải, không chấm. Đạt khi exit code = 0.'
+                    ? t(
+                        'author.step-list-fields-bat-buoc-mot-task-khong-cham-duoc-thi-luon-o-trang-thai-chua-dat-dat-khi-ex',
+                      )
+                    : t(
+                        'author.step-list-fields-bo-trong-nghia-la-buoc-nay-chi-dan-giai-khong-cham-dat-khi-exit-code-0',
+                      )
                 }
               />
 
               {kind === 'lab' && (
                 <div className="grid gap-4 sm:grid-cols-2">
                   <TextField
-                    label="Trọng số"
+                    label={t('author.step-list-fields-trong-so')}
                     value={step.weight}
                     inputMode="numeric"
                     onChange={(weight) => {
@@ -187,10 +200,12 @@ export function StepListFields(props: {
                     }}
                     error={issueFor(issues, `${at}.weight`)}
                     disabled={disabled}
-                    hint="Bỏ trống thì loader áp 1, mọi task nặng như nhau."
+                    hint={t(
+                      'author.step-list-fields-bo-trong-thi-loader-ap-1-moi-task-nang-nhu-nhau',
+                    )}
                   />
                   <TextField
-                    label="Gợi ý"
+                    label={t('author.problem.field.hints')}
                     value={step.hint}
                     onChange={(hint) => {
                       patchAt(index, { hint });
@@ -206,7 +221,7 @@ export function StepListFields(props: {
 
       <div>
         <Button variant="outline" onClick={props.onAdd} disabled={disabled}>
-          Thêm {noun}
+          {t('author.step-list-fields-them')} {noun}
         </Button>
       </div>
     </div>

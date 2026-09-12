@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getAuth } from '../../../../server/auth/config';
-import { issueRefreshToken, rotateRefreshToken } from '../../../../server/auth/tokens';
+import { issueRefreshTokenForSession, rotateRefreshToken } from '../../../../server/auth/tokens';
 import { getDb } from '../../../../server/db/client';
 
 /**
@@ -46,7 +46,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (session === null) {
       return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
     }
-    const issued = await issueRefreshToken(db, session.user.id);
+    const issued = await issueRefreshTokenForSession(db, session.user.id, session.session.id);
+    if (issued === null) {
+      return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    }
     rawRefresh = issued.raw;
     refreshExpiresAt = issued.expiresAt;
   } else {
@@ -60,7 +63,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Chỉ trả hạn của refresh cookie. KHÔNG trả access token dưới bất kỳ hình thức
   // nào (body cũng như cookie) — xem ghi chú đầu file.
-  const response = NextResponse.json({ ok: true, refreshExpiresAt: refreshExpiresAt.toISOString() });
+  const response = NextResponse.json({
+    ok: true,
+    refreshExpiresAt: refreshExpiresAt.toISOString(),
+  });
 
   response.cookies.set(REFRESH_COOKIE, rawRefresh, {
     httpOnly: true,

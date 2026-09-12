@@ -1,3 +1,4 @@
+import { errText, t } from '@devops-platform/copy';
 import type { FieldIssue } from './cluster-form';
 import { clusterToSpec } from './cluster-to-spec';
 import type { ProblemFormState } from './problem-form';
@@ -26,37 +27,56 @@ export function publishIssues(form: ProblemFormState): readonly FieldIssue[] {
   const issues: FieldIssue[] = [];
 
   if (form.title.trim() === '') {
-    issues.push({ path: 'title', message: 'Bài phải có tên.' });
+    issues.push({ path: 'title', message: errText('problem.problem-validate-bai-phai-co-ten') });
   }
 
   const slug = form.slug.trim() === '' ? toSlug(form.title) : toSlug(form.slug);
   if (!SLUG_PATTERN.test(slug)) {
     issues.push({
       path: 'slug',
-      message: 'Slug phải là chữ thường, số và gạch nối, ví dụ "pod-khong-khoi-dong".',
+      message: errText(
+        'problem.problem-validate-slug-phai-la-chu-thuong-so-va-gach-noi-vi-du-pod-khong-khoi-dong',
+      ),
     });
   }
 
   const words = countWords(form.statement);
   if (words === 0) {
-    issues.push({ path: 'statement', message: 'Đề bài không được để trống.' });
+    issues.push({
+      path: 'statement',
+      message: errText('problem.problem-validate-de-bai-khong-duoc-de-trong'),
+    });
   } else if (words > STATEMENT_WORD_LIMIT) {
     issues.push({
       path: 'statement',
-      message: `Đề bài dài ${String(words)} từ, vượt trần ${String(STATEMENT_WORD_LIMIT)} từ. Cắt ${String(words - STATEMENT_WORD_LIMIT)} từ.`,
+      message: errText('problem.problem-validate-de-bai-dai-tu-vuot-tran-tu-cat-tu', {
+        words: String(words),
+        statementWordLimit: String(STATEMENT_WORD_LIMIT),
+        wordsStatementWordLimit: String(words - STATEMENT_WORD_LIMIT),
+      }),
     });
   }
 
   if (form.topics.length === 0) {
-    issues.push({ path: 'topics', message: 'Chọn ít nhất một chủ đề.' });
+    issues.push({
+      path: 'topics',
+      message: errText('problem.problem-validate-chon-it-nhat-mot-chu-de'),
+    });
   } else if (form.topics.length > 3) {
-    issues.push({ path: 'topics', message: 'Tối đa ba chủ đề. Nhiều hơn nghĩa là bài đang làm quá nhiều việc.' });
+    issues.push({
+      path: 'topics',
+      message: errText(
+        'problem.problem-validate-toi-da-ba-chu-de-nhieu-hon-nghia-la-bai-dang-lam-qua-nhieu-viec',
+      ),
+    });
   }
 
   if (form.restrictResources && form.allowedResources.length === 0) {
     issues.push({
       path: 'allowedResources',
-      message: 'Đã bật giới hạn loại tài nguyên nhưng chưa chọn loại nào, nên người làm sẽ không tạo được gì.',
+      message: errText(
+        'problem.problem-validate-da-bat-gioi-han-loai-tai-nguyen-nhung-chua-chon-loai-nao-nen-nguoi-lam-se-k',
+      ),
     });
   }
 
@@ -64,7 +84,10 @@ export function publishIssues(form: ProblemFormState): readonly FieldIssue[] {
   if (!cluster.ok) {
     issues.push(...cluster.issues);
   } else if (cluster.value.nodes.length === 0) {
-    issues.push({ path: 'nodes', message: 'Cụm phải có ít nhất một node.' });
+    issues.push({
+      path: 'nodes',
+      message: errText('problem.problem-validate-cum-phai-co-it-nhat-mot-node'),
+    });
   }
 
   issues.push(...objectiveIssues(form));
@@ -89,13 +112,18 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
   const issues: FieldIssue[] = [];
 
   if (form.objectives.length === 0) {
-    issues.push({ path: 'objectives', message: 'Bài phải có ít nhất một mục tiêu.' });
+    issues.push({
+      path: 'objectives',
+      message: errText('problem.problem-validate-bai-phai-co-it-nhat-mot-muc-tieu'),
+    });
     return issues;
   }
   if (!form.objectives.some((objective) => objective.required)) {
     issues.push({
       path: 'objectives',
-      message: 'Cần ít nhất một mục tiêu BẮT BUỘC. Bài chỉ toàn mục tiêu thưởng thì qua ngay khi vừa mở.',
+      message: errText(
+        'problem.problem-validate-can-it-nhat-mot-muc-tieu-bat-buoc-bai-chi-toan-muc-tieu-thuong-thi-qua-ngay',
+      ),
     });
   }
 
@@ -104,16 +132,25 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
     const path = `objectives.${String(index)}`;
     const id = objective.id.trim();
     if (id !== '' && seen.has(id)) {
-      issues.push({ path: `${path}.id`, message: `Trùng định danh mục tiêu "${id}".` });
+      issues.push({
+        path: `${path}.id`,
+        message: errText('problem.problem-validate-trung-dinh-danh-muc-tieu', { id: String(id) }),
+      });
     }
     seen.add(id);
 
     if (objective.label.trim() === '') {
-      issues.push({ path: `${path}.label`, message: 'Mục tiêu phải có nhãn tiếng Việt.' });
+      issues.push({
+        path: `${path}.label`,
+        message: errText('problem.problem-draft-muc-tieu-phai-co-nhan-tieng-viet'),
+      });
     }
 
     if (objective.check === '') {
-      issues.push({ path: `${path}.check`, message: 'Chưa chọn vị từ kiểm tra.' });
+      issues.push({
+        path: `${path}.check`,
+        message: errText('problem.problem-draft-chua-chon-vi-tu-kiem-tra'),
+      });
       return;
     }
     if (!isPredicateName(objective.check)) {
@@ -122,7 +159,10 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
       // qua được, và lỗi đó chỉ lộ ra khi đã có người ngồi làm.
       issues.push({
         path: `${path}.check`,
-        message: `Vị từ "${String(objective.check)}" không có trong bảng tra, nên bài này sẽ không bao giờ qua được.`,
+        message: errText(
+          'problem.problem-validate-vi-tu-khong-co-trong-bang-tra-nen-bai-nay-se-khong-bao-gio-qua-duoc',
+          { objectiveCheck: String(objective.check) },
+        ),
       });
       return;
     }
@@ -130,7 +170,12 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
     const spec = PREDICATE_SPECS[objective.check];
     for (const argSpec of spec.args) {
       if (argSpec.required && (objective.args[argSpec.key] ?? '').trim() === '') {
-        issues.push({ path: `${path}.args.${argSpec.key}`, message: `Thiếu tham số bắt buộc "${argSpec.label}".` });
+        issues.push({
+          path: `${path}.args.${argSpec.key}`,
+          message: errText('problem.problem-validate-thieu-tham-so-bat-buoc', {
+            argspecLabel: String(argSpec.label),
+          }),
+        });
       }
     }
     if (spec.requireOneOf !== undefined) {
@@ -138,10 +183,13 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
       if (!filled) {
         const labels = spec.requireOneOf
           .map((key) => spec.args.find((arg) => arg.key === key)?.label ?? key)
-          .join(' hoặc ');
+          .join(t('problem.objective-fields-hoac'));
         issues.push({
           path: `${path}.args.${spec.requireOneOf[0] ?? ''}`,
-          message: `Phải điền ${labels}. Thiếu cả hai thì vị từ luôn trả sai.`,
+          message: errText(
+            'problem.problem-validate-phai-dien-thieu-ca-hai-thi-vi-tu-luon-tra-sai',
+            { labels: String(labels) },
+          ),
         });
       }
     }
@@ -158,18 +206,30 @@ function hintIssues(form: ProblemFormState): readonly FieldIssue[] {
     const path = `hints.${String(index)}`;
     const id = hint.id.trim();
     if (id === '') {
-      issues.push({ path: `${path}.id`, message: 'Gợi ý phải có định danh.' });
+      issues.push({
+        path: `${path}.id`,
+        message: errText('problem.problem-draft-goi-y-phai-co-dinh-danh'),
+      });
     } else if (seen.has(id)) {
-      issues.push({ path: `${path}.id`, message: `Trùng định danh gợi ý "${id}".` });
+      issues.push({
+        path: `${path}.id`,
+        message: errText('problem.problem-validate-trung-dinh-danh-goi-y', { id: String(id) }),
+      });
     }
     seen.add(id);
 
     if (hint.text.trim() === '') {
-      issues.push({ path: `${path}.text`, message: 'Gợi ý phải có nội dung.' });
+      issues.push({
+        path: `${path}.text`,
+        message: errText('problem.problem-draft-goi-y-phai-co-noi-dung'),
+      });
     }
     const penalty = Number(hint.penaltyPoints.trim());
     if (!Number.isFinite(penalty) || penalty < 0) {
-      issues.push({ path: `${path}.penaltyPoints`, message: 'Điểm bị trừ phải là số không âm.' });
+      issues.push({
+        path: `${path}.penaltyPoints`,
+        message: errText('problem.problem-validate-diem-bi-tru-phai-la-so-khong-am'),
+      });
     }
   });
 
