@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
 import { cn } from '../cn.ts';
 import { SCROLL_REGION_FOCUS } from './scroll-region.ts';
+import { embeddedHeadingLevel, type HeadingLevel } from './heading-level.ts';
 
 export interface MarkdownViewProps {
   readonly markdown: string;
@@ -103,33 +104,89 @@ function MarkdownImage({
 }
 
 /** Render markdown thành React element thật — KHÔNG dangerouslySetInnerHTML. */
+/**
+ * Phát thẻ heading đúng cấp SAU khi dời, còn lớp CSS thì theo cấp NGUỒN.
+ *
+ * Hai trục tách nhau có chủ đích: cấp thẻ là việc của trình đọc màn hình, còn
+ * cỡ chữ là việc của mắt. Ghép chúng lại sẽ làm sáu file nhập từ upstream đổi
+ * cỡ chữ chỉ vì ta sửa ngữ nghĩa — một thay đổi thị giác không ai yêu cầu.
+ */
+function Heading({
+  markdown,
+  level,
+  className,
+  children,
+}: {
+  readonly markdown: string;
+  readonly level: HeadingLevel;
+  readonly className: string;
+  readonly children: ReactNode;
+}) {
+  const Tag = `h${String(embeddedHeadingLevel(markdown, level))}` as 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+  return <Tag className={className}>{children}</Tag>;
+}
+
 export function MarkdownView({ markdown, resolveAssetUrl }: MarkdownViewProps) {
   const inline = isMidSentenceFragment(markdown);
 
   const components: Components = {
     p: inline ? InlineParagraph : BlockParagraph,
-    // ⚠ HẠ MỘT BẬC: `#` của markdown thành `<h2>`, không phải `<h1>`.
-    //
-    // TRANG đã có `<h1>` của nó (tiêu đề bài học / lab / lộ trình). Nội dung do
-    // tác giả viết là phần NHÚNG bên trong trang đó, nên `#` của họ là mức hai
-    // của tài liệu, không phải mức một. Ánh xạ thẳng `h1 → <h1>` cho ra HAI `h1`
-    // trên một trang ngay khi bài học nào mở đầu bằng `# …` — và đó là hầu hết.
-    //
-    // Đo trên cụm 2026-09-07, luồng 4 (lộ trình → mở item) đỏ với:
-    //     strict mode violation: getByRole('heading', { level: 1 }) resolved to 2:
-    //       <h1 class="text-sm …">Làm quen sandbox DevOps</h1>      ← trang
-    //       <h1 class="mt-4 mb-2 text-xl …">Tạo tệp đầu tiên</h1>   ← markdown
-    // Chú ý cả nghịch lý thị giác trong chính hai dòng đó: `h1` của TRANG là
-    // `text-sm`, còn `h1` của NỘI DUNG là `text-xl` — người đọc thấy tiêu đề
-    // phụ to hơn tiêu đề chính.
-    //
-    // Lớp CSS giữ NGUYÊN theo từng mức, nên giao diện không đổi một pixel; chỉ
-    // thẻ đổi. `####` trở đi vẫn rơi về mặc định của react-markdown như trước —
-    // cố ý không đụng, vì nội dung sâu tới mức đó chưa xuất hiện và một ánh xạ
-    // bịa ra sẽ là mã chưa ai dùng.
-    h1: ({ children }) => <h2 className="mt-4 mb-2 text-xl font-semibold text-foreground">{children}</h2>,
-    h2: ({ children }) => <h3 className="mt-4 mb-2 text-lg font-semibold text-foreground">{children}</h3>,
-    h3: ({ children }) => <h4 className="mt-3 mb-1 text-base font-semibold text-foreground">{children}</h4>,
+    /*
+      ⚠ DỜI CẤP, không ánh xạ cứng — xem `heading-level.ts`.
+
+      TRANG đã có `<h1>` của nó (tiêu đề bài học / lab / lộ trình). Nội dung do
+      tác giả viết là phần NHÚNG bên trong trang đó, nên cấp nhỏ nhất của họ
+      là mức hai của tài liệu, không phải mức một. Ánh xạ thẳng `h1 → <h1>` cho ra
+      HAI `h1` trên một trang ngay khi bài học nào mở đầu bằng `# …`.
+
+      Đo trên cụm 2026-09-07, luồng 4 (lộ trình → mở item) đỏ với:
+          strict mode violation: getByRole('heading', { level: 1 }) resolved to 2:
+            <h1 class="text-sm …">Làm quen sandbox DevOps</h1>      ← trang
+            <h1 class="mt-4 mb-2 text-xl …">Tạo tệp đầu tiên</h1>   ← markdown
+      Chú ý cả nghịch lý thị giác trong chính hai dòng đó: `h1` của TRANG là
+      `text-sm`, còn `h1` của NỘI DUNG là `text-xl` — người đọc thấy tiêu đề
+      phụ to hơn tiêu đề chính.
+
+      ⚠ BẢN TRƯỚC hạ ĐÚNG MỘT BẬC (`#`→h2, `##`→h3, `###`→h4), và phép đó
+      chỉ đúng với tài liệu mở đầu bằng `#`. Sáu file trong `content/` mở đầu bằng
+      `##` hoặc `###`, và chúng rơi thẳng xuống h3/h4 ngay sau `<h1>` của trang —
+      nhảy cấp, tức `heading-order` của axe đỏ. `embeddedHeadingLevel` dời theo
+      cấp NHỎNHẤT của chính tài liệu nên cả hai quy ước đều ra `<h2>`.
+
+      LỚP CSS giữ theo CẤP NGUỒN, không theo cấp sau khi dời: giao diện không
+      đổi một pixel ở 50 file đang mở bằng `#`, và ở sáu file kia thứ tự to-nhỏ
+      vốn đã đúng sẵn. Đây là thay đổi NGỬA NGHĨA, không phải thay đổi thiết kế.
+    */
+    h1: ({ children }) => (
+      <Heading markdown={markdown} level={1} className="mt-4 mb-2 text-xl font-semibold text-foreground">
+        {children}
+      </Heading>
+    ),
+    h2: ({ children }) => (
+      <Heading markdown={markdown} level={2} className="mt-4 mb-2 text-lg font-semibold text-foreground">
+        {children}
+      </Heading>
+    ),
+    h3: ({ children }) => (
+      <Heading markdown={markdown} level={3} className="mt-3 mb-1 text-base font-semibold text-foreground">
+        {children}
+      </Heading>
+    ),
+    h4: ({ children }) => (
+      <Heading markdown={markdown} level={4} className="mt-3 mb-1 text-sm font-semibold text-foreground">
+        {children}
+      </Heading>
+    ),
+    h5: ({ children }) => (
+      <Heading markdown={markdown} level={5} className="mt-2 mb-1 text-sm font-semibold text-foreground">
+        {children}
+      </Heading>
+    ),
+    h6: ({ children }) => (
+      <Heading markdown={markdown} level={6} className="mt-2 mb-1 text-sm font-semibold text-muted-foreground">
+        {children}
+      </Heading>
+    ),
     ul: ({ children }) => <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">{children}</ul>,
     ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground">{children}</ol>,
     li: ({ children }) => <li className="leading-relaxed">{children}</li>,
