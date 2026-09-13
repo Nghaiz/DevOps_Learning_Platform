@@ -40,12 +40,20 @@ import {
  * qua được. Bỏ câu `DELETE FROM learning_paths` ⇒ ô này đỏ với đúng lỗi khoá
  * ngoại đã giết `me-idor.test.ts`.
  *
- * ⚠ Nó gọi `purgeOwnFixtures`, KHÔNG gọi `purgeLeakedFixtures`, và lý do là
- * một cái đua đã đo được: fixture "già" mà ô này dựng ra là mục tiêu HỢP LỆ
- * của lượt dọn ở `beforeAll` của mọi file test khác. Chạy 163 file song song
- * thì `me-idor` dọn mất nó trước, `removed` về 0, và ô đỏ vì một file khác dọn
- * hộ — một ô đỏ không nói gì về thứ tự xoá. Hai hàm đi CHUNG `runOrderedPurge`,
- * nên gọi bản-gọi-tên-đích-danh vẫn gác đúng thứ tự ấy mà không ai cướp được.
+ * ⚠ Hai điều ở ô này là để tránh một cái đua ĐÃ ĐO ĐƯỢC, không phải phòng xa.
+ *
+ * Fixture của nó dùng dấu thời gian HIỆN TẠI, và nó gọi `purgeOwnFixtures` chứ
+ * không gọi `purgeLeakedFixtures`. Lý do: một dòng vừa khớp khuôn fixture vừa
+ * đủ già là mục tiêu HỢP LỆ của lượt dọn ở `beforeAll` của mọi file test khác.
+ * Bản đầu của ô này dựng fixture "già" cho giống rác thật, và dưới tải 163 file
+ * song song thì một file khác dọn mất `learning_paths` trước — `removed` về 1
+ * thay vì 2, và ô đỏ vì một file khác dọn hộ. Một ô đỏ như thế không nói gì về
+ * thứ tự xoá.
+ *
+ * Fixture MỚI thì không ai cướp được: ngưỡng tuổi che nó khỏi mọi lượt dọn theo
+ * khuôn (đúng thứ ô đối chứng âm cuối file khẳng định), còn `purgeOwnFixtures`
+ * không lọc tuổi nên vẫn xoá được nó. Hai hàm đi CHUNG `runOrderedPurge`, nên
+ * gọi bản-gọi-tên-đích-danh vẫn gác đúng thứ tự ấy.
  *
  * ## Ô thứ tư: ĐỐI CHỨNG ÂM cho ngưỡng tuổi
  *
@@ -148,8 +156,8 @@ describe('purgeLeakedFixtures — hợp đồng với lược đồ thật', () 
 
   it('thứ tự xoá đi qua được đúng hình rác đã làm bản trước chết', async () => {
     const db = testDb();
-    const userId = agedId('u-purge', PURGE_MIN_AGE_MS * 2);
-    const pathId = agedId('lp-purge', PURGE_MIN_AGE_MS * 2);
+    const userId = agedId('u-purge', 0);
+    const pathId = agedId('lp-purge', 0);
 
     await db.execute(sql`
       INSERT INTO users (id, email, name, email_verified, created_at, updated_at)
