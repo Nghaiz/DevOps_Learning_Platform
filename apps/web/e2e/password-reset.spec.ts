@@ -13,6 +13,16 @@ test('password reset — request email, consume code, revoke old session and sig
   page,
   playwright,
 }) => {
+  /*
+    ⚠ Ô này TỰ TẮT khi thiếu `E2E_MAILPIT_URL`, and no CI job sets that variable
+    (`grep E2E_MAILPIT_URL .github/workflows/ci.yml` → 0 hits; the web job runs
+    `e2e:a11y` only). So this suite has never run in CI: it is a LOCAL gate, and
+    a silently-skipped test reads exactly like a passing one in a summary line.
+
+    Stated here rather than fixed, because giving CI a Mailpit sink plus a real
+    Postgres is an infrastructure change, not a test change. Run it locally with
+    `E2E_MAILPIT_URL` and `DATABASE_URL` set; see `docs/env/06-password-reset-smtp.md`.
+  */
   test.skip(!mailboxUrl, 'Set E2E_MAILPIT_URL to the local Mailpit inbox for this SMTP flow.');
   test.setTimeout(120_000);
   expect(new URL(E2E_BASE_URL).hostname).toMatch(/^(localhost|127\.0\.0\.1|\[::1\])$/);

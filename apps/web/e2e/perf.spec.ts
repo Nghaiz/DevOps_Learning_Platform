@@ -406,10 +406,15 @@ const HOME_PATH = '/';
  * CÙNG một lượt chạy, cùng máy, cùng build. Tỉ số `/` ÷ `/lessons` là thứ mang
  * nghĩa qua các môi trường; con số tuyệt đối thì không. Report §3 ghi cả hai.
  *
- * Cả hai trang giữ ngân sách nghiệm thu 2500ms. Sau yêu cầu thay landing ngày
- * 2026-09-13, `/` là nội dung HTML server render và bản minh hoạ terminal;
- * cảnh 3D cũ đã được gỡ hoàn toàn. Các mẫu 2026-09-11 ở trên chỉ là lịch sử,
- * lượt chạy hiện tại luôn ghi mẫu mới của cả hai trang vào artifact.
+ * Cả hai trang giữ ngân sách nghiệm thu 2500ms. Các mẫu 2026-09-11 ở trên chỉ
+ * là lịch sử; lượt chạy hiện tại luôn ghi mẫu mới của cả hai trang vào artifact.
+ *
+ * ⚠ Chú thích ở đây từng ghi "cảnh 3D cũ đã được gỡ hoàn toàn" theo chỉ đạo
+ * 2026-09-12. Chỉ đạo đó bị ĐẢO NGƯỢC cùng ngày 2026-09-13 và `d5bf768` đưa lại
+ * một hành trình 3D cuộn toàn trang. Câu cũ vì thế SAI, và nó nguy hiểm hơn một
+ * câu sai bình thường: cùng lượt sửa đó đã xoá luôn phần lý giải vì sao
+ * `<canvas>` không được là phần tử LCP, để lại một khẳng định không ai còn biết
+ * lý do. Phần lý giải được khôi phục ngay dưới khẳng định ấy.
  */
 const HOME_LCP_BUDGET_MS = 2500;
 
@@ -456,11 +461,25 @@ test.describe('LCP trang chủ', () => {
 
     const sample = lcp as LcpSample;
 
-    // Nội dung đọc được phải có mặt trong lần paint đầu của landing.
+    /*
+      Nội dung đọc được phải có mặt trong lần paint đầu của landing.
+
+      ⛔ Vì sao `<canvas>` bị loại TÊN, chứ không chỉ đo thời gian: landing nay
+      CÓ một canvas WebGL phủ toàn trang (`components/marketing/experience-scene.tsx`).
+      Nếu chính nó là phần tử LCP thì phép đo đang khen một khung hình GPU chứ
+      không phải nội dung người học đọc được — và một trang chỉ vẽ canvas kịp
+      hạn vẫn là một trang trắng chữ đối với người dùng lẫn bộ máy tìm kiếm.
+      Cảnh nạp LƯỜI và đứng sau nội dung HTML, nên tên thẻ ở đây là phép kiểm
+      rằng thứ tự đó còn đúng.
+
+      Khẳng định này có TRƯỚC cảnh 3D và sống sót qua cả hai lần đổi chiều chỉ
+      đạo. Đừng gỡ nó khi landing đổi hình lần nữa.
+    */
     expect(
       sample.tag,
       `Phần tử LCP của ${HOME_PATH} là <${sample.tag}>; landing phải hiển thị ` +
-        `nội dung HTML đọc được ngay trong lần paint đầu.`,
+        `nội dung HTML đọc được ngay trong lần paint đầu, không phải khung hình ` +
+        `đầu của canvas 3D.`,
     ).not.toBe('canvas');
 
     if (sample.startTime < HOME_LCP_BUDGET_MS * BUDGET_DECORATION_RATIO) {

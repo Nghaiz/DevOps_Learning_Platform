@@ -21,6 +21,13 @@ loads Three. The matching game-positive check first enters a real level from the
 chooser, then waits for the unchanged scene channel and scans actual JS markers.
 Both boundary cases pass (2/2, 12.0 seconds) on this same build, using the explicit
 local variables and a guest config at `.artifacts/landing-boundary.config.ts`.
+
+> **Correction, 2026-09-13.** That config path is untracked: `apps/web/e2e/.gitignore`
+> excludes `.artifacts/`, so nobody could reproduce this result from a clean checkout.
+> The two cases themselves are in `games.spec.ts` and run in the DEFAULT profile, so
+> the evidence is real; only the cited command was unreproducible. Reproduce with
+> `pnpm --filter @devops-platform/web e2e:bundle-boundary` (added the same day), which
+> selects the same cases by name from the tracked config.
 The initial positive probe timed out on the level chooser before that harness
 correction; it was not a rendered-scene pass. Authenticated isolation checks remain.
 Every application browser invocation explicitly used the following variables:

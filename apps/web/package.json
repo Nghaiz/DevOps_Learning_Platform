@@ -20,6 +20,12 @@
     "e2e": "playwright test",
     "//e2e:a11y": "Đúng hai spec mà job CI `web-a11y` chạy trên `next start` cục bộ (không cần sandbox/cụm). `keyboard`/`perf`/`@flow` KHÔNG ở đây: chúng cần phiên sandbox thật hoặc một phép đo thời gian mà runner chia sẻ CPU không đo nổi.",
     "e2e:a11y": "playwright test a11y.spec.ts csp.spec.ts",
+    "//e2e:landing3d": "Suite nghiệm thu 3D của landing. TÁCH khỏi profile mặc định vì nó khẳng định render bằng GPU THẬT và một ngân sách khung hình: headless shell mặc định có thể rơi vào SwiftShader, và khi đó ô AC đỏ vì môi trường chứ không vì mã. `playwright.config.ts` loại nó bằng `testIgnore`, còn `e2e/landing.config.ts` nhận lại bằng `testIgnore: []` cộng full Chromium. ⚠ Script này tồn tại vì suốt một thời gian KHÔNG lệnh nào trong repo gọi tới suite đó — 16 ca chỉ chạy được bằng một câu lệnh nhớ trong đầu, tức trên thực tế là không chạy. CI vẫn KHÔNG chạy nó (runner không có GPU); đây là lệnh cho máy dựng.",
+    "e2e:landing3d": "playwright test -c e2e/landing.config.ts",
+    "//e2e:landing-video": "Bản quay màn hình tuỳ chọn của landing, KHÔNG phải một cổng. Tách khỏi lượt đo khung hình vì mã hoá video làm lệch chính phép đo đó. `landing-walk.capture.ts` mang đuôi `.capture.ts` nên `testMatch` mặc định (`.spec.ts`) không thấy nó.",
+    "e2e:landing-video": "playwright test -c e2e/landing-video.config.ts",
+    "//e2e:bundle-boundary": "Hai ô ranh giới bundle của `three`: vế DƯƠNG (có trong JS của /games/k8s, sau khi vào một màn thật) và vế ÂM (không có trong JS của /login). Cả hai nằm trong profile MẶC ĐỊNH nên `pnpm e2e` cũng chạy chúng; script này chỉ để chạy riêng khi cần dẫn lại bằng chứng. ⚠ Báo cáo 2026-09-13 từng trích một config nằm dưới `e2e/.artifacts/`, mà thư mục đó bị `.gitignore` chặn — bằng chứng khi ấy không ai tái lập được từ repo. Lệnh này là đường tái lập có thật.",
+    "e2e:bundle-boundary": "playwright test games.spec.ts --grep \"three\"",
     "e2e:flow": "playwright test --grep @flow"
   },
   "dependencies": {

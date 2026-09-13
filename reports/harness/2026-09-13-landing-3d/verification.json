@@ -71,11 +71,11 @@
       "summary": "Default191 cases retains4landingvisual, excludes hardware-only suite; dedicated20 cases unchanged. E2E lint/typecheck passed after config and boundary-test corrections."
     },
     {
-      "command": "E2E_START_SERVER=1 E2E_BASE_URL=http://localhost:3000 E2E_ORIGIN=http://localhost:3000 pnpm exec playwright test -c e2e/.artifacts/landing-boundary.config.ts",
+      "command": "E2E_START_SERVER=1 E2E_BASE_URL=http://localhost:3000 E2E_ORIGIN=http://localhost:3000 pnpm --filter @devops-platform/web e2e:bundle-boundary",
       "status": "pass",
       "exitCode": 0,
       "timestamp": "2026-09-12T19:23:06.0656748Z",
-      "summary": "2/2 passed in12.0seconds: actual game scene loads Three (choose real level first); public/login does not load Three. Same production build; existing markers/scene-channel and auth-route checks retained."
+      "summary": "2/2 passed in12.0seconds: actual game scene loads Three (choose real level first); public/login does not load Three. Same production build; existing markers/scene-channel and auth-route checks retained. Lệnh gốc trích một config dưới e2e/.artifacts/, thư mục bị .gitignore chặn — không tái lập được từ checkout sạch. Hai ca nằm trong games.spec.ts và chạy ở profile MẶC ĐỊNH, nên bằng chứng là thật; chỉ lệnh trích dẫn là không tái lập được. Thay bằng script e2e:bundle-boundary (thêm cùng ngày) chọn đúng hai ca đó từ config đã được theo dõi."
     }
   ],
   "beforeAfter": "Pinned theater replaced with four naturally scrolling chapters and five lower-content anchors. Large 3D models alternate sides with camera/assembly changes and fault/recovery routing. Colorful terminal effects track scroll without executing commands. Lead inspected actual desktop/mobile scenes and terminal screenshots. Local HTTP CSP upgrading and keyboard destination focus defects corrected; touch-driver failure reproduced on a plain control then replaced with verified native touch packets. Final production suite passes20/20."
