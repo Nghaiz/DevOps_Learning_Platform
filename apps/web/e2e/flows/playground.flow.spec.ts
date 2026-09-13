@@ -232,10 +232,33 @@ test.describe('luồng 7 — sân chơi', { tag: '@flow' }, () => {
       dưới đây là chỗ duy nhất trong suite luồng nói ra điều đó. Hai vùng sống
       thì trình đọc màn hình đọc hai lần cho một lần đổi pha.
     */
-    const announcer = page.locator('[aria-live="polite"]');
+    /*
+      ⚠ Đếm TRONG vùng phiên, không đếm trên cả trang — và đây là một phép thu
+      hẹp CÓ LÝ DO, không phải một lần nới tay để ô đỏ thành xanh.
+
+      Bản trước đếm `[aria-live="polite"]` trên toàn trang và ra 2, nên ô đỏ. Hai
+      vùng đó là: badge pha của `SessionControls` (chủ ý, đúng thứ D10 nói tới),
+      và **container của Sonner** do `app/layout.tsx:141` gắn `<Toaster />` cho
+      MỌI trang. Cái thứ hai là vùng thông báo toàn cục của ứng dụng; nó không
+      nói về pha phiên và không tồn tại vì trang sân chơi.
+
+      D10 chốt rằng *pha phiên* chỉ được đọc ra từ MỘT chỗ. Gom một vùng toàn
+      cục vào phép đếm ấy là đo sai đối tượng: ô sẽ đỏ ở mọi trang có toast, kể
+      cả khi phần sân chơi hoàn toàn đúng. Nên neo vào vùng phiên.
+
+      ⛔ Để giữ ô này KHÔNG yếu đi, nó vẫn khẳng định hai vế: đúng một vùng sống
+      trong khoang phiên, VÀ vùng đó là vùng của `SessionControls` chứ không
+      phải một vùng nào khác tình cờ lọt vào.
+    */
+    const sessionRegion = page.getByTestId('dlp-session-controls');
+    const announcer = sessionRegion.locator('[aria-live="polite"]');
+    await expect(
+      sessionRegion,
+      'Không thấy khoang điều khiển phiên — trang sân chơi đã đổi hình dạng?',
+    ).toBeVisible();
     await expect(
       announcer,
-      'Trang sân chơi phải có ĐÚNG một vùng aria-live (D10). Nhiều hơn một ⇒ trình ' +
+      'Khoang phiên phải có ĐÚNG một vùng aria-live (D10). Nhiều hơn một ⇒ trình ' +
         'đọc màn hình đọc lặp mỗi lần đổi pha; không có cái nào ⇒ người dùng mù không ' +
         'bao giờ biết phiên đã sẵn sàng.',
     ).toHaveCount(1);

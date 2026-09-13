@@ -21,6 +21,7 @@ import {
   startSandbox,
   test,
 } from './flow-kit';
+import { t } from '@devops-platform/copy';
 import { firstItemId } from '../fixtures/api';
 import { openScreen } from '../fixtures/nav';
 
@@ -37,21 +38,37 @@ test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
 
     await openScreen(page, `/labs/${encodeURIComponent(labId ?? '')}`, 'user');
 
-    // ── 1. Bảng task ────────────────────────────────────────────────────────
-    // Neo vào `TableCaption` — chuỗi đó do chính `TaskTable` phát ra, nên nó
-    // phân biệt được "bảng task" với bảng xếp hạng ở tab bên cạnh.
+    /*
+      ── 1. Danh sách nhiệm vụ ────────────────────────────────────────────────
+
+      ⚠ Neo vào `aria-label` của danh sách, lấy TỪ BẢN ĐỒ COPY.
+
+      Bản trước tìm một `<table>` với `columnheader "Nhiệm vụ"` và đếm `tbody tr`,
+      cộng một caption viết thẳng. Trang lab đã đổi hình ở `0487000 feat(lab):
+      trang lab dùng danh sách kiểm` — nay là `<ul aria-label>` chứa `<li><button>`
+      (`components/session/task-checklist.tsx`), không còn bảng nhiệm vụ nào.
+      Spec giữ bản chép cũ nên đỏ, và nó đỏ vì HARNESS lạc hậu, không vì sản phẩm
+      sai. (Bảng xếp hạng ở tab bên cạnh VẪN là `<table>`; các ô của nó bên dưới
+      giữ nguyên.)
+
+      Cùng lý do như `path.flow`: một chuỗi viết thẳng trong spec là bản sao thứ
+      hai của dữ liệu, và bản sao thì trôi. `t()` làm phép kiểm nói đúng điều nó
+      muốn nói.
+
+      Ô ĐẾM giữ nguyên tinh thần cũ: một danh sách rỗng vẫn "hiện ra", nên phải
+      đếm mục chứ không chỉ kiểm danh sách có mặt.
+    */
+    const taskList = page.getByRole('list', { name: t('session.lab.checklist-legend') });
     await expect(
-      page.getByText('Bấm một nhiệm vụ để đọc đề và chấm riêng nhiệm vụ đó.'),
+      taskList,
+      'Không thấy danh sách nhiệm vụ của lab. Trang đã đổi hình dạng?',
     ).toBeVisible();
 
-    const taskTable = page.locator('table', {
-      has: page.getByRole('columnheader', { name: 'Nhiệm vụ' }),
-    });
-    const taskRows = taskTable.locator('tbody tr');
+    const taskRows = taskList.getByRole('listitem');
     await expect(
       taskRows,
-      'Bảng task render 0 hàng. Một bảng rỗng vẫn "hiện ra" nên phép kiểm phải ' +
-        'đếm hàng, không chỉ kiểm bảng có mặt.',
+      'Danh sách nhiệm vụ render 0 mục. Một danh sách rỗng vẫn "hiện ra" nên phép ' +
+        'kiểm phải đếm mục, không chỉ kiểm danh sách có mặt.',
     ).not.toHaveCount(0);
 
     // ── 2. Bắt đầu lần thử, rồi chấm MỘT task ───────────────────────────────
@@ -63,8 +80,8 @@ test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
       : 'Bắt đầu';
     await startSandbox(page, startLabel);
 
-    // Ô tiêu đề task là một `<button>` thật (chủ ý của `TaskTable`) — bấm nó mở
-    // đề của đúng task đó.
+    // Mỗi mục là một `<button>` thật (chủ ý của `TaskChecklist`) — bấm nó mở đề
+    // của đúng nhiệm vụ đó.
     await taskRows.first().getByRole('button').first().click();
 
     const checkTask = page.getByRole('button', { name: 'Chấm nhiệm vụ này' });

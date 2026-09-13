@@ -116,7 +116,14 @@ export function SessionControls({
   const urgent = remainingMs !== null && remainingMs < TTL_URGENT_MS;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    /*
+      `data-testid` ở gốc khoang: harness cần NEO vào đúng vùng phiên khi đếm
+      vùng aria-live. Đếm trên cả trang gom luôn container của Sonner
+      (`app/layout.tsx` gắn `<Toaster />` cho mọi trang), và khi ấy phép kiểm D10
+      đỏ ở mọi trang có toast kể cả khi khoang phiên hoàn toàn đúng — tức đo sai
+      đối tượng. Xem `e2e/flows/playground.flow.spec.ts`.
+    */
+    <div data-testid="dlp-session-controls" className="flex flex-wrap items-center gap-2">
       {/*
         MỘT vùng aria-live duy nhất cho cả badge lẫn câu lý do (D10).
         Tách làm hai vùng sống thì trình đọc màn hình đọc hai lần cho một lần

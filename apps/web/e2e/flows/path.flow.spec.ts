@@ -16,6 +16,7 @@
  * item khoá nào để kiểm — luồng ghi nhận điều đó thay vì im lặng đi qua.
  */
 
+import { t } from '@devops-platform/copy';
 import { expect, test } from './flow-kit';
 import { firstItemId } from '../fixtures/api';
 import { openScreen, settle } from '../fixtures/nav';
@@ -45,7 +46,19 @@ test.describe('luồng 4 — lộ trình', { tag: '@flow' }, () => {
     // ── 2. Ổ khoá — chiều (b) ───────────────────────────────────────────────
     // "Còn khoá" là `stateLabel` của `path-view.ts` cho `state: 'locked'`. Item
     // mang nhãn đó KHÔNG được có nút "Mở" cạnh nó.
-    const lockedCards = page.locator('ol > li').filter({ hasText: 'Còn khoá' });
+    /*
+      ⚠ Chuỗi lấy từ BẢN ĐỒ COPY, không viết thẳng vào spec.
+
+      Bản trước ghi thẳng `'Còn khoá — hoàn thành phần trước đó thì phần này tự
+      mở.'` với một gạch ngang dài. Copy sau đó đổi sang dấu phẩy ở `746c932`
+      ("copy mới, và bỏ hai gạch ngang dài") và ô này đỏ — không phải vì sản
+      phẩm sai, mà vì spec giữ một bản chép đã lỗi thời. Một chuỗi viết thẳng
+      trong harness là một bản sao thứ hai của dữ liệu, và bản sao thì trôi.
+
+      Đọc qua `t()` thì phép kiểm nói đúng điều nó muốn nói: "trang hiện ĐÚNG
+      câu mà bản đồ copy khai cho trạng thái này", bất kể câu đó là gì hôm nay.
+    */
+    const lockedCards = page.locator('ol > li').filter({ hasText: t('catalog.path.state-locked') });
     const lockedCount = await lockedCards.count();
     if (lockedCount > 0) {
       await expect(
@@ -54,7 +67,7 @@ test.describe('luồng 4 — lộ trình', { tag: '@flow' }, () => {
           'học bấm vào thứ server sẽ từ chối — ổ khoá chỉ còn ở tầng server.',
       ).toHaveCount(0);
       await expect(
-        lockedCards.first().getByText('Còn khoá — hoàn thành phần trước đó thì phần này tự mở.'),
+        lockedCards.first().getByText(t('catalog.path.note-locked')),
         'Phần bị khoá không nói lý do. Một ổ khoá câm đọc ra như trang hỏng.',
       ).toBeVisible();
     } else {
