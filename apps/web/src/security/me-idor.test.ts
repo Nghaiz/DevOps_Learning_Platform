@@ -13,7 +13,14 @@ import {
   userPreferences,
   users,
 } from '../server/db/schema';
-import { closeTestDb, ctxFor, purgeLeakedFixtures, testDb, uniqueId } from './test-helpers';
+import {
+  closeTestDb,
+  ctxFor,
+  purgeLeakedFixtures,
+  purgeOwnFixtures,
+  testDb,
+  uniqueId,
+} from './test-helpers';
 
 /**
  * `me.*` — IDOR (P13 C4, luật 1).
@@ -229,12 +236,20 @@ beforeAll(async () => {
  * rò rỉ của một suite khác. Rác test làm một phép kiểm sản phẩm đỏ, và nó đỏ
  * theo cách trỏ vào sai chỗ.
  *
- * Xoá `users` là đủ cho phần lớn: `schema.ts` khai `onDelete: 'cascade'` cho mọi
- * khoá ngoại trỏ về nó. `content_items` và `quizzes` không trỏ về `users` bằng
- * khoá cascade nên phải xoá riêng — `purgeLeakedFixtures` lo cả ba.
+ * ⚠ Dùng `purgeOwnFixtures` (gọi tên đích danh), KHÔNG dùng
+ * `purgeLeakedFixtures`. Lượt dọn theo khuôn id có lọc tuổi 15 phút để không
+ * cướp fixture của một file test chạy song song, nên nó sẽ KHÔNG xoá được
+ * fixture vừa gieo của chính suite này — `afterAll` mà gọi nó thì thành một
+ * lượt dọn không dọn gì, và 237 dòng rác lại bắt đầu tích tụ y như cũ.
+ *
+ * Xoá hai user là đủ cho phần lớn phần còn lại: `schema.ts` khai
+ * `onDelete: 'cascade'` cho mọi khoá ngoại trỏ về `users` TRỪ bốn cột
+ * `author_id` (`content_items`, `learning_paths`, `quizzes`, `problems`) và
+ * `quiz_attempts.quiz_id`. `purgeOwnFixtures` xoá đúng năm chỗ đó trước, theo
+ * thứ tự — xem `test-helpers.ts`.
  */
 afterAll(async () => {
-  await purgeLeakedFixtures(testDb());
+  await purgeOwnFixtures(testDb(), [ME.id, OTHER.id]);
   await closeTestDb();
 });
 
