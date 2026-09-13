@@ -12,11 +12,26 @@ sẽ là người học, và thứ họ thấy chỉ là "terminal tự nhiên �
 Đây không phải một bản tóm tắt mã cũ. Đây là **yêu cầu đối với mã mới**. Mã cũ được phép biến
 mất hoàn toàn; các mệnh đề dưới đây thì không.
 
+> ### ⚠ ĐỌC TRƯỚC — SỬA ĐỔI 3, chỉ đạo 2026-09-13
+>
+> Chủ dự án chốt: *"ở tab IDE, không còn terminal nằm bên dưới IDE nữa, chỉ đơn giản tab IDE thì
+> hiện IDE, tab terminal thì hiện terminal, hết."* Mô hình kiểu KillerCoda của SỬA ĐỔI 2 (một dải
+> terminal neo đáy tab Editor, kèm thanh kéo chỉnh chiều cao) **đã bị gỡ khỏi mã**, và file này
+> đã sửa theo.
+>
+> Bốn chỗ ĐỔI NGHĨA, không phải chỗ diễn đạt lại: **§1** (bất biến là *không đổi cha*, **không**
+> phải *không bao giờ `hidden`*), **§3.1** (hai hàng loại trừ nhau, hết phần trăm), **§4.2 + §5.1**
+> (các hàm và chuỗi phần trăm bị thu hồi), **§8** AC-3 / AC-4 / AC-7.
+>
+> Bất cứ chỗ nào trong file còn nói ngược lại là chỗ bị sót: **sửa nó, đừng lấy nó làm căn cứ giao
+> việc.** Lý do của mệnh lệnh đó nằm ở §3.2, nơi kể lại đúng một lần văn bản cũ nằm lại trong
+> chính file này rồi đẻ ra một nhiệm vụ đã chết.
+
 Bản gốc của mọi lý lẽ nằm trong lịch sử git tại các file sau (đọc trước khi xoá, không đọc sau):
 
 | Đường dẫn | Thứ nó giữ |
 |---|---|
-| `apps/web/src/components/session/workspace-panel.tsx` | Bất biến terminal, bẫy `hidden`, ngăn xếp ba con tĩnh |
+| `apps/web/src/components/session/workspace-panel.tsx` | Bất biến terminal, bẫy `hidden`, ngăn xếp hai con tĩnh |
 | `apps/web/src/components/session/workspace-tabs.ts` | Mô hình thuần, hai tab, khoá storage |
 | `apps/web/src/components/session/workspace-layout.tsx` | Chuỗi hình học, `requestAnimationFrame` |
 | `apps/web/src/components/session/single-terminal-contract.test.ts` | Phép kiểm SỰ VẮNG MẶT của đa terminal |
@@ -27,7 +42,7 @@ Bản gốc của mọi lý lẽ nằm trong lịch sử git tại các file sau
 
 ---
 
-## 1. ⛔ BẤT BIẾN SỐNG-CHẾT — terminal không đổi cha, không unmount, không bị ẩn
+## 1. ⛔ BẤT BIẾN SỐNG-CHẾT — terminal không đổi cha, không unmount (ẩn thì ĐƯỢC)
 
 ### 1.1 Mệnh đề
 
@@ -35,10 +50,22 @@ Phần tử DOM chứa xterm, tính từ lúc phiên mở tới lúc phiên đó
 
 1. **KHÔNG BAO GIỜ đổi cha.** Cùng một node cha, cùng một vị trí trong danh sách con.
 2. **KHÔNG BAO GIỜ unmount.** Không render có điều kiện, không đổi `key`, không nhảy nhánh.
-3. **KHÔNG BAO GIỜ mang `hidden`**, không mang `display: none`, không nằm trong một tổ tiên
-   đang `hidden`.
+3. **KHÔNG BAO GIỜ nằm dưới một TỔ TIÊN đang `hidden`.** Một `hidden` đặt nhầm lên ngăn xếp dọc
+   thay vì lên đúng một hàng sẽ ẩn terminal ở cả hai tab, không lỗi không log.
+4. **CHÍNH hàng terminal thì ĐƯỢC PHÉP mang `hidden`**, và ở mô hình hiện tại nó mang thật: ẩn ở
+   tab Editor, hiện ở tab Terminal.
 
-Chuyển tab được phép đổi đúng **hai** thứ: hàng editor ẩn/hiện, và chiều cao hàng terminal.
+⚠ Vế 4 vừa ĐẢO CHIỀU so với bản trước, và đây là chỗ dễ đọc sai nhất của cả file. SỬA ĐỔI 2 ghi
+"terminal KHÔNG BAO GIỜ mang `hidden`", nhưng câu đó **chưa bao giờ là một ràng buộc kỹ thuật**:
+nó là hệ quả của một LỰA CHỌN THIẾT KẾ kiểu KillerCoda, nơi terminal có mặt ở cả hai tab nên
+chẳng có lúc nào để ẩn. Chỉ đạo 2026-09-13 thay lựa chọn đó, nên câu đó đi theo. Thứ giữ người
+học khỏi mất phiên là vế 1 và vế 2, **không phải** vế 4.
+
+Ranh giới đúng-sai gói trong một câu: **ẩn là một thuộc tính, gỡ là một lượt unmount.** `hidden`
+để nguyên node tại chỗ trong cây React, nó chỉ thôi được vẽ; cây không bị chạm tới. Đổi cha, đổi
+`key`, hay bỏ node khỏi cây thì chạm, và §1.2 là thứ xảy ra ngay sau đó.
+
+Chuyển tab đổi đúng **một** thứ: hàng nào mang `hidden`. Hai hàng loại trừ nhau (§3.1).
 
 ### 1.2 Hậu quả nếu vi phạm — nêu tường minh vì nó không tự hiện ra
 
@@ -57,27 +84,32 @@ khoang.
 ### 1.3 Vì sao hàng editor phải LUÔN được render — React so trùng theo VỊ TRÍ
 
 React đối chiếu các con **tĩnh** (không có `key`) của một phần tử theo **chỉ số vị trí**, không
-theo kiểu component. Bỏ hẳn hàng 1 khi bài không có editor thì hai con còn lại **trượt lên một
-bậc**:
+theo kiểu component. Ngăn xếp nay có HAI con. Bỏ hẳn hàng 1 khi bài không có editor thì con còn
+lại **trượt lên một bậc**:
 
 ```
 CÓ editor                    BỎ HẲN hàng 1 (SAI)
-index 0: <div editor>        index 0: <div separator>
-index 1: <div separator>     index 1: <div terminal>   ← React khớp với separator cũ
-index 2: <div terminal>      (không còn index 2)       ← terminal cũ bị UNMOUNT
+index 0: <div editor>        index 0: <div terminal>   ← React khớp với hàng editor cũ
+index 1: <div terminal>      (không còn index 1)       ← terminal cũ bị UNMOUNT
 ```
 
-React thấy vị trí 1 đổi từ "separator" sang "terminal" ⇒ huỷ cây cũ, dựng cây mới. Tức xterm bị
-unmount, tức §1.1 vỡ, tức §1.2 xảy ra. Cùng lý do đó áp cho **thanh kéo**: nó cũng `hidden` chứ
-không render có điều kiện.
+React thấy vị trí 0 đổi từ "editor" sang "terminal" ⇒ huỷ cây cũ, dựng cây mới. Tức xterm bị
+unmount, tức §1.1 vỡ, tức §1.2 xảy ra. Nên hàng 1 vẫn phải được render kể cả ở bài không có
+editor: chỉ `hidden`, không bỏ.
+
+⚠ **Mệnh đề thật là "số con tĩnh phải là một HẰNG SỐ ở mọi lượt render"**, không phải "phải là
+ba" hay "phải là hai". SỬA ĐỔI 3 xoá vĩnh viễn thanh kéo, tức ngăn xếp đi từ ba con xuống hai, và
+điều đó AN TOÀN: đó là một thay đổi ở mức mã nguồn, mọi lượt render của bản mới đều thấy đúng hai
+con. Thứ bị cấm là một **nhánh điều kiện lúc chạy** làm số con nhảy giữa hai lượt render của cùng
+một phiên.
 
 ### 1.4 Hình dạng JSX ĐÚNG
 
-Ngăn xếp dọc, **ba con tĩnh, luôn có mặt, luôn đúng thứ tự này**:
+Ngăn xếp dọc, **hai con tĩnh, luôn có mặt, luôn đúng thứ tự này**:
 
 ```tsx
-<div ref={stackRef} className={cn('flex min-h-0 flex-1 flex-col', dragging && 'select-none')}>
-  {/* Hàng 1 — editor. `hidden` khi vắng hoặc khi ở tab Terminal.
+<div className="flex min-h-0 flex-1 flex-col">
+  {/* Hàng 1 — editor. `hidden` khi vắng editor hoặc khi ở tab Terminal.
       ⛔ KHÔNG có tiện ích `display` ở đây. `flex-1`/`min-h-0`/`min-w-0` KHÔNG phải `display`. */}
   <div
     id={editorPanelId}
@@ -87,18 +119,13 @@ Ngăn xếp dọc, **ba con tĩnh, luôn có mặt, luôn đúng thứ tự này
     <div className="h-full w-full">{editor}</div>
   </div>
 
-  {/* Thanh kéo — `hidden`, KHÔNG render có điều kiện (§1.3). */}
+  {/* Hàng 2 — TERMINAL. Cùng cha, cùng vị trí, ở mọi lượt render.
+      `hidden` NGƯỢC hàng 1, và chịu cùng lệnh cấm `display`. */}
   <div
-    role="separator"
-    aria-orientation="horizontal"
-    hidden={!editorVisible}
-    tabIndex={editorVisible ? 0 : -1}
-    className="h-1.5 shrink-0 grow-0 cursor-row-resize touch-none bg-border"
-    /* …pointer + key handlers… */
-  />
-
-  {/* Hàng 2 — TERMINAL. ⛔ KHÔNG BAO GIỜ `hidden`. Chỉ đổi flex. */}
-  <div id={terminalPanelId} className="min-h-0 min-w-0 overflow-hidden" style={terminalRowStyle}>
+    id={terminalPanelId}
+    hidden={editorVisible}
+    className="min-h-0 min-w-0 flex-1 overflow-hidden"
+  >
     <WorkspaceLayoutProvider layout={layout}>
       <div className="h-full w-full">{terminal}</div>
     </WorkspaceLayoutProvider>
@@ -106,26 +133,38 @@ Ngăn xếp dọc, **ba con tĩnh, luôn có mặt, luôn đúng thứ tự này
 </div>
 ```
 
-`terminalRowStyle` là **toàn bộ** khác biệt hình học giữa hai tab:
+**Không còn style nội tuyến nào trên hai hàng.** Toàn bộ khác biệt hình học giữa hai tab nằm ở
+đúng một thuộc tính `hidden`; hàng đang hiện mang `flex-1` nên nó chiếm trọn khoang. Cả cơ chế
+phần trăm của SỬA ĐỔI 2 đã bị gỡ hẳn cùng thanh kéo sinh ra nó:
+`TERMINAL_PERCENT_DEFAULT/MIN/MAX/STEP`, `clampTerminalPercent`, `nextTerminalPercentOnKey`,
+`terminalRowStyle`, và trường `terminalPercent` trong storage.
 
-```ts
-const terminalRowStyle: CSSProperties = editorVisible
-  ? { flexBasis: `${String(terminalPercent)}%`, flexGrow: 0, flexShrink: 0 }
-  : { flexBasis: 'auto', flexGrow: 1, flexShrink: 1 };
-```
-
-⚠ Nhánh dưới **bắt buộc** `flexGrow: 1`. Giữ `flexBasis` phần trăm khi hàng 1 đã `display:none`
-thì khoang chỉ đầy 40% và 60% còn lại là một mảng trống — không lỗi, chỉ xấu và khó truy.
+⚠ **Gỡ chứ không để lại dạng ẩn.** Một `[role="separator"]` không bao giờ hiện được là mã chết, và
+mã chết trong cây này là thứ người đọc sau sẽ tưởng còn dùng. `workspace-panel.test.tsx` khẳng
+định không còn `separator` nào ở BẤT KỲ tổ hợp nào, và `workspace-panel.dom.test.tsx` khẳng định
+nó vắng mặt ở cả cây DOM lẫn cây trợ năng.
 
 ### 1.5 Ba thứ CẤM viết trong khoang này
 
 ```tsx
 {activeTab === 'terminal' ? <Terminal/> : <><Editor/><Terminal/></>}  // ⛔ hai nhánh = hai cây
-<div hidden={activeTab !== 'terminal'}>{terminal}</div>                // ⛔ ẩn terminal
+{activeTab === 'terminal' && <div>{terminal}</div>}                   // ⛔ gỡ khỏi cây = unmount
 {hasEditor && <EditorRow/>}                                           // ⛔ trượt vị trí (§1.3)
 ```
 
 `key` động trên hàng terminal cũng nằm trong danh sách cấm: đổi `key` là ép React unmount.
+
+⚠ **Phân biệt hai thứ trông giống nhau trên màn hình và khác nhau hoàn toàn dưới cây React.** Đây
+là chỗ SỬA ĐỔI 3 dễ bị đọc thành "đã phá một bất biến an toàn", nên viết ra thành bảng:
+
+| Viết thế này | Kết quả |
+|---|---|
+| `<div hidden={editorVisible}>{terminal}</div>` | **ĐƯỢC.** Node ở nguyên chỗ, chỉ thôi được vẽ. Đây chính là cách dựng "tab IDE chỉ có IDE" |
+| Render `{terminal}` ở **hai nhánh JSX khác nhau** | ⛔ **CẤM.** Hai nhánh là hai cây; React unmount cây cũ |
+| `{điều kiện && <TerminalRow/>}` | ⛔ **CẤM.** Vắng mặt ở một lượt render là unmount, và nó kéo theo §1.3 |
+
+Dòng thứ nhất TRƯỚC ĐÂY nằm trong danh sách cấm này, với lý do "ẩn terminal". Lý do đó đã hết hiệu
+lực (§1.1). Hai dòng dưới thì không, và chúng mới là thứ giữ WebSocket của người học sống.
 
 ### 1.6 `min-w-0` / `min-h-0` là bắt buộc, không phải trang trí
 
@@ -137,6 +176,26 @@ terminal đo đúng chiều cao thay vì bị nội dung đẩy tràn ra ngoài 
 Kèm theo, ở tầng CSS của gói terminal: `.xterm` phải có `height: 100%`. xterm tự đặt
 `position: relative` cho `.xterm-screen` nhưng **không** tự chiếm hết container; thiếu dòng đó
 thì `proposeDimensions()` đọc chiều cao 0 ở lần đo đầu và `measure()` trả về mặc định 80×24.
+
+### 1.7 Ẩn terminal có làm vỡ xterm không — không, và chốt nằm ở đâu
+
+Đây là phản bác đúng chỗ nhất với vế "`hidden` thì được" của §1.1, nên trả lời thẳng.
+
+Một phần tử `display:none` đo ra 0×0. Một lượt `fit()` chạy lúc đó mà không ai chặn sẽ chốt số
+cột/hàng rác rồi đẩy một frame `resize` 1 cột xuống PTY của pod, và mọi TUI đang chạy vỡ bố cục
+(đường đi đầy đủ ở §5.4). Chốt **ĐÃ CÓ**, ở đúng tầng thấp nhất: thân `fit()` trong
+`packages/terminal/src/terminal-core.ts` gọi `tryMeasure()` TRƯỚC rồi `return` ngay khi phép đo
+trả `null`, mà container 0×0 làm `tryMeasure()` trả `null` ở ngay vế đầu
+(`clientWidth < 1 || clientHeight < 1`). Nên lượt fit lúc vừa ẩn là một no-op THẬT, không phải
+một lượt may mắn.
+
+Chiều ngược lại thì vẫn cần fit, và đó là đường đang chạy: terminal hiện lại ⇒ kích thước đổi từ
+0×0 sang kích thước thật ⇒ `workspaceLayoutToken` đổi giá trị ⇒ `useFitOnLayoutChange` chạy lại ⇒
+`requestAnimationFrame` ⇒ `fit()` sau khi trình duyệt đã tính xong bố cục (§5.1, §5.2).
+
+⛔ **Đừng dựng thêm một chốt thứ hai** ở `workspace-tabs.ts` hay `workspace-panel.tsx` kiểu "chặn
+fit khi đang ẩn". Cửa đã khoá ở tầng dưới; chốt thứ hai chỉ thêm một chỗ để hai tầng lệch nhau,
+và tầng trên là tầng không đo được container.
 
 ---
 
@@ -161,8 +220,15 @@ Danh sách tiện ích Tailwind đặt `display` (không đầy đủ, nhưng đ
 </div>
 ```
 
-Ở tab Terminal, hàng editor **vẫn chiếm chỗ**. Người học thấy một mảng trắng bên trên terminal,
-và terminal chỉ còn 40% khoang dù đang ở tab toàn màn hình.
+Ở tab Terminal, hàng editor **vẫn chiếm chỗ**. Hai hàng cùng mang `flex-1`, nên khoang bị chia
+đôi: người học thấy một mảng trắng bên trên và terminal chỉ còn nửa khoang, dù đang ở tab lẽ ra
+toàn màn hình.
+
+⚠ Từ SỬA ĐỔI 3, bẫy này áp cho **CẢ HAI hàng**, không chỉ hàng 1. Hàng terminal nay cũng mang
+`hidden` (ở tab Editor), nên một tiện ích `display` lọt vào `className` của nó cho ra triệu chứng
+đối xứng: ở tab Editor, terminal vẫn hiện và ăn nửa khoang của Theia. Đừng làm yếu mục này khi
+đọc §1.1 — §1.1 nói `hidden` là **hợp lệ**, còn §2 nói `hidden` **rất dễ bị vô hiệu trong im
+lặng**; hai điều đó cùng đúng, và điều thứ hai mới là thứ phải có test gác.
 
 ### 2.3 ĐÚNG
 
@@ -191,8 +257,16 @@ type WorkspaceTabId = 'editor' | 'terminal';   // ĐÚNG hai giá trị
 
 | Tab | Hàng 1 (editor) | Hàng 2 (terminal) |
 |---|---|---|
-| `editor` | hiện | neo đáy, mặc định 40% |
-| `terminal` | `hidden` | chiếm trọn khoang |
+| `editor` | hiện, chiếm trọn khoang | **`hidden`** |
+| `terminal` | `hidden` | hiện, chiếm trọn khoang |
+
+**Hai hàng loại trừ nhau ở mọi trạng thái**, đúng chỉ đạo 2026-09-13. Đây là bảng đã đổi: SỬA ĐỔI
+2 ghi ô trên bên phải là "neo đáy, mặc định 40%", tức hai hàng cùng hiện ở tab Editor. Không còn
+trạng thái đó, và không còn giá trị trung gian nào giữa hai dòng này.
+
+⚠ Một bản cài đặt quên ẩn hàng 2 vẫn **trông đúng ở tab Terminal** (hàng 1 ẩn, terminal đầy
+khoang) và chỉ sai ở tab Editor. Nên phép kiểm phải khẳng định CẢ HAI chiều, không chỉ chiều dễ
+(§8 AC-3).
 
 Bài không khai `layout: ide` ⇒ chỉ có tab `terminal`, và thanh tab vẽ một **nhãn tĩnh** chứ
 không vẽ `role="tablist"`: một tablist một mục là nhiễu thị giác chứ không phải chức năng, và
@@ -200,21 +274,22 @@ trình đọc màn hình sẽ đọc "tab 1 trên 1". Ở trạng thái đó hai
 `role="tabpanel"` — không có tab thì không có tabpanel, và trỏ `aria-labelledby` vào một id
 không tồn tại là vi phạm `aria-valid-attr-value` của axe.
 
-Hằng số hình học, chép nguyên sang mã mới:
+Hằng số hình học còn lại, chép nguyên sang mã mới:
 
 | Hằng | Giá trị | Lý do |
 |---|---|---|
-| `TERMINAL_PERCENT_DEFAULT` | 40 | Bố cục kiểu KillerCoda |
-| `TERMINAL_PERCENT_MIN` | 15 | Sàn 0 thì terminal cao 0: vẫn mounted (đúng §1) nhưng người dùng không còn chỗ nào để nắm mà kéo ngược — tự khoá mình ra khỏi terminal |
-| `TERMINAL_PERCENT_MAX` | 85 | Giữ lại một dải editor đủ để nhận ra nó còn đó |
-| `TERMINAL_PERCENT_STEP` | 4 | Mỗi lần nhấn mũi tên |
 | chiều cao thanh tab | `h-9 shrink-0`, **mọi trạng thái** | Bất cứ thứ gì xuất hiện/biến mất quanh terminal đều làm `ResizeObserver` bắn và fit lại **đúng lúc người dùng đang gõ** |
 
-⚠ Điều đã cân nhắc và **chấp nhận**: ở tab Editor, hàng 2 (`tabpanel` của tab Terminal) VẪN hiện
-dù tab Terminal không được chọn. Đó là đúng mô hình — tab ở đây quyết định *editor có chiếm chỗ
-không*, còn terminal thì luôn có mặt — nhưng nó lệch khuôn tabpanel thông thường. Đổi hàng 2 sang
-`role="region"` sẽ làm tab Terminal mất `aria-controls` hợp lệ, tức đổi một chỗ lệch nhỏ lấy một
-chỗ lệch to hơn. **Không sửa lại chỗ này ở P16.**
+⚠ **Bốn hằng `TERMINAL_PERCENT_*` đã bị THU HỒI** cùng thanh kéo (SỬA ĐỔI 3). Bảng này từng khai
+`DEFAULT` 40, `MIN` 15, `MAX` 85, `STEP` 4 kèm lý do từng con số; không còn thứ gì đọc chúng, và
+mã mới **không được** dựng lại. Hàng đang hiện dùng `flex-1`, hết.
+
+⚠ **Chỗ lệch ARIA mà SỬA ĐỔI 2 phải chấp nhận đã TỰ HẾT.** Bản trước có một `tabpanel` hiện trong
+khi tab của nó không được chọn (hàng 2 ở tab Editor), và mục này từng kết luận "không sửa lại chỗ
+này ở P16" vì đổi sang `role="region"` sẽ làm tab Terminal mất `aria-controls` hợp lệ. Nay hai
+hàng loại trừ nhau nên mỗi `tabpanel` hiện đúng khi tab của nó được chọn: khuôn ARIA khớp, không
+còn gì phải đánh đổi. Giữ `role="tabpanel"` trên **cả hai** hàng khi có hai tab, và bỏ trên cả
+hai khi chỉ còn một.
 
 ### 3.2 Đa terminal đã bị xoá có chủ ý — và phải NẰM YÊN
 
@@ -257,13 +332,20 @@ Cách chia hiện tại **đúng và phải sống sót qua đợt viết lại*
 
 | Tầng | File | Nội dung |
 |---|---|---|
-| **Quyết định** | `workspace-tabs.ts` (hàm THUẦN, không import React) | tab nào có, tab nào hợp lệ, hàng 1 hiện không, phần trăm bao nhiêu, phím nào đi đâu, lưu vào khoá nào, chuỗi hình học là gì |
-| **Vẽ** | `workspace-panel.tsx` | JSX, ARIA, sự kiện con trỏ, `useState`/`useEffect` |
+| **Quyết định** | `workspace-tabs.ts` (hàm THUẦN, không import React) | tab nào có, tab nào hợp lệ, hàng 1 hiện không, phím nào đi đâu, lưu vào khoá nào, chuỗi hình học là gì |
+| **Vẽ** | `workspace-panel.tsx` | JSX, ARIA, `useEffect` ghi nhớ tab |
 
 Danh sách hàm thuần bắt buộc có (tên giữ nguyên để phép kiểm chuyển thẳng sang được):
-`listWorkspaceTabs`, `resolveActiveTab`, `isEditorVisible`, `clampTerminalPercent`,
-`nextTerminalPercentOnKey`, `nextTabOnKey`, `workspaceLayoutToken`, `workspaceStorageKey`,
-`parseWorkspaceState`, `readWorkspaceState`, `writeWorkspaceState`, `browserStorage`.
+`listWorkspaceTabs`, `resolveActiveTab`, `isEditorVisible`, `nextTabOnKey`,
+`workspaceLayoutToken`, `workspaceStorageKey`, `parseWorkspaceState`, `readWorkspaceState`,
+`writeWorkspaceState`, `browserStorage`, `hasDisplayUtility`.
+
+⚠ `clampTerminalPercent` và `nextTerminalPercentOnKey` đã **rời khỏi danh sách này** cùng thanh
+kéo (SỬA ĐỔI 3). Chúng từng nằm ở đây; không có call-site nào còn gọi, và mã mới không dựng lại.
+
+⚠ `isEditorVisible` nay mang **hai** nghĩa cùng lúc: hàng 1 hiện ĐÚNG KHI hàng 2 ẩn, và ngược
+lại. Trước SỬA ĐỔI 3 hai hàng cùng hiện ở tab Editor nên chỉ hàng 1 phụ thuộc vào nó. Một hàm thứ
+hai kiểu `isTerminalVisible` là thừa và là chỗ để hai vế lệch nhau: dùng phủ định tại chỗ.
 
 ### 4.1 Vì sao tách — ⚠ LÝ DO ĐÃ ĐỔI, kết luận thì không
 
@@ -277,11 +359,11 @@ per-file là đường duy nhất còn sống.
 
 Tách vẫn đúng, chỉ đổi lý do: **một quyết định là hàm thuần thì khẳng định được thẳng bằng bảng
 vào/ra, không phải suy ngược từ cây DOM**, và không phải trả giá dựng một jsdom cho mỗi ca. Một
-ca kiểu `expect(workspaceLayoutToken({activeTab:'terminal',hasEditor:true,terminalPercent:70}))
+ca kiểu `expect(workspaceLayoutToken({activeTab:'terminal',hasEditor:true}))
 .toBe('terminal-full')` nói đúng một điều và đỏ đúng khi điều đó sai. Cùng khẳng định ấy viết qua
-DOM thì phải render, phải query, phải đọc `style.flexBasis`, và mỗi bước là một chỗ để ô test
-xanh vì lý do khác với lý do ta nghĩ. Việc **dây nối** giữa hàm thuần và DOM thì đã có file DOM
-riêng gác (§8).
+DOM thì phải render, phải query, phải đọc thuộc tính `hidden` của đúng hàng, và mỗi bước là một
+chỗ để ô test xanh vì lý do khác với lý do ta nghĩ. Việc **dây nối** giữa hàm thuần và DOM thì đã
+có file DOM riêng gác (§8).
 
 ### 4.2 Quy tắc kèm theo, đều đã trả giá một lần
 
@@ -297,37 +379,41 @@ truyền hai khoá: một call-site quên là một lần trộn, và trộn th�
 client cho cùng một cây, tức lỗi hydrate. Cần một cờ `restored` chặn lượt GHI đầu tiên, không thì
 effect ghi đè giá trị vừa lưu bằng mặc định của cha, ngay trước khi kịp đọc nó.
 
-**⚠ `percentRef` — bản sao ĐỒNG BỘ của phần trăm, và nó không thừa.** Effect khôi phục và effect
-ghi chạy trong CÙNG một lượt commit. Nếu effect ghi đọc phần trăm từ state thì nó đọc giá trị của
-lượt render **vừa rồi** — tức mặc định 40 — và ghi đè đúng con số vừa khôi phục được. Triệu
-chứng: kéo lên 70%, phiên này vẫn 70%, lần vào sau về 40%. Không có gì báo.
-
-**`clampTerminalPercent(NaN)` trả về MẶC ĐỊNH, không kẹp.** `Math.min`/`Math.max` với `NaN` lan
-`NaN` ra ngoài, và `flexBasis: "NaN%"` là khai báo CSS không hợp lệ — trình duyệt bỏ qua nó trong
-im lặng, khoang về kích thước tự nhiên, không có gì báo.
+**⚠ Cờ `restored` không thừa, và lớp lỗi nó chặn thì lớn hơn cái tên của nó.** Effect khôi phục và
+effect ghi chạy trong CÙNG một lượt commit, nên effect ghi đọc được giá trị của lượt render
+**vừa rồi** (tức mặc định của cha) và ghi đè đúng thứ vừa khôi phục được. Triệu chứng: chọn tab
+Terminal, phiên này vẫn đúng, lần vào sau về mặc định. Không có gì báo. `workspace-panel.dom.test
+.tsx` giữ một ô hồi quy riêng cho vòng khôi-phục-rồi-ghi này.
 
 **Hàm phím trả `null` cho phím ngoài khuôn**, để call-site biết **không được** `preventDefault()`.
 Nuốt mọi phím sẽ chặn cả `Tab` (đường thoát) lẫn phím tắt trình duyệt.
 
-**Ghi storage đúng một lần lúc thả** (`pointerup`), không ghi ở mỗi `pointermove` — sự kiện đó
-bắn hàng chục lần/giây và ghi mỗi lần là I/O đồng bộ thừa. Nhấn phím thì ngược lại: mỗi lần nhấn
-là một bước chốt rời rạc, ghi ngay.
+**Ghi storage ngay khi đổi tab.** Đổi tab là một sự kiện RỜI RẠC (một cú bấm hoặc một lần nhấn
+phím), không phải một dòng sự kiện liên tục, nên không cần gộp hay hoãn.
 
 **Bọc `localStorage` trong try/catch** ở cả đọc lẫn ghi — nó **NÉM** trong một số chế độ riêng
 tư. Bố cục là thứ "tiện thêm"; nó không được phép làm sập trang.
 
-**`setPointerCapture` chứ không listener trên `window`** — giữ được luồng kéo cả khi con trỏ rời
-khỏi thanh lúc kéo nhanh, và chạy luôn cho cảm ứng. `releasePointerCapture` bọc try/catch (phần
-tử có thể unmount giữa chừng).
+**`SplitPane` của `packages/ui` giữ nguyên vai trò chia NGANG** (nội dung ⇄ khoang), với
+`min-w-0`/`min-h-0` ở §1.6. Nó chia ngang và chỉ chia ngang (`flex-row`, đọc `event.clientX`,
+`cursor-col-resize`, `aria-orientation="vertical"`).
 
-**`select-none` khi đang kéo** — không có nó thì con trỏ quét qua nội dung editor và bôi đen chữ
-trong lúc người dùng chỉ định đổi chiều cao.
+#### Đã THU HỒI cùng thanh kéo (SỬA ĐỔI 3) — ghi ra để không ai dựng lại
 
-**Không dùng `SplitPane` của `packages/ui` cho thanh kéo dọc.** Nó chia NGANG và chỉ chia ngang
-(`flex-row`, đọc `event.clientX`, `cursor-col-resize`, `aria-orientation="vertical"`). Nới nó
-thành hai chiều là sửa file của lane khác; một thanh kéo dọc tối giản tại chỗ rẻ hơn và không
-đụng ai. `SplitPane` giữ nguyên vai trò chia ngang (nội dung ⇄ khoang), với `min-w-0`/`min-h-0`
-ở §1.6.
+Năm quy tắc dưới từng nằm trong mục này, mỗi cái đã trả giá một lần. Chúng **không còn chủ thể**:
+khoang không có thanh kéo nào nữa. Ghi lại tường minh thay vì xoá lặng, đúng tinh thần §3.2.
+
+| Quy tắc cũ | Bài học chung còn dùng được ở chỗ khác |
+|---|---|
+| `percentRef` — bản sao đồng bộ của phần trăm | Hai effect trong cùng một lượt commit đọc của nhau qua state là đọc giá trị cũ; ref mới thấy giá trị của lượt này |
+| `clampTerminalPercent(NaN)` trả MẶC ĐỊNH, không kẹp | `Math.min`/`Math.max` lan `NaN`, và một khai báo CSS không hợp lệ bị trình duyệt bỏ qua **trong im lặng** |
+| Ghi storage lúc `pointerup`, không ghi mỗi `pointermove` | Sự kiện bắn hàng chục lần/giây thì mỗi lượt ghi là I/O đồng bộ thừa |
+| `setPointerCapture` chứ không listener trên `window` | Giữ được luồng kéo khi con trỏ rời phần tử, và chạy luôn cho cảm ứng |
+| `select-none` khi đang kéo | Không có nó thì con trỏ bôi đen chữ trong lúc người dùng chỉ định đổi kích thước |
+
+⛔ Nếu một lane thấy mình cần lại **bất kỳ** dòng nào trong bảng này, đó là dấu hiệu đang dựng lại
+thanh kéo. Dừng và hỏi chủ dự án, đừng tự khôi phục: chỉ đạo 2026-09-13 là một quyết định sản
+phẩm, không phải một lượt dọn mã.
 
 ---
 
@@ -340,19 +426,22 @@ không thể tự gọi `fit()`; nó chỉ biết hình học. Nó phát một *
 (`WorkspaceLayoutProvider`), và component cầm handle (`TerminalPane`) nghe chuỗi đó.
 
 ```ts
-workspaceLayoutToken({ activeTab, hasEditor, terminalPercent }): string
-//  hàng 1 ẩn      → 'terminal-full'
-//  hàng 1 hiện    → `editor-split:${clampTerminalPercent(terminalPercent)}`
+workspaceLayoutToken({ activeTab, hasEditor }): string
+//  hàng 1 hiện (tab Editor của bài CÓ editor) → 'editor-only'
+//  còn lại                                     → 'terminal-full'
 ```
 
-⛔ **Vì sao chuỗi chứ không phải cờ "đang hiện":** ở mô hình này terminal không bao giờ bị ẩn,
-nên một cờ hiện/ẩn đứng yên `true` **mãi mãi** và effect fit sẽ KHÔNG BAO GIỜ chạy lại — một
-đường dây trông vẫn còn nguyên nhưng không dẫn điện. Thứ thật sự đổi là **kích thước**: chuyển
-tab (40% → 100%) và kéo thanh chia. Chuỗi đổi đúng ở hai lúc đó.
+⚠ **Chuỗi nay có ĐÚNG hai giá trị, và tham số `terminalPercent` đã biến mất khỏi chữ ký.** SỬA
+ĐỔI 2 nhét phần trăm vào một nhánh (`editor-split:${…}`) để lượt kéo thanh cũng sinh fit; không
+còn thanh kéo thì không còn lượt đó, và một giá trị thừa trong chuỗi là một lượt fit thừa.
 
-⚠ Khi hàng 1 đang ẩn, phần trăm **không** được vào chuỗi. Người dùng ở tab Terminal thì terminal
-chiếm trọn khoang bất kể phần trăm đã lưu là bao nhiêu; nhét nó vào sẽ đẻ một lượt fit thừa mỗi
-lần khôi phục giá trị từ storage.
+⛔ **Vì sao vẫn là một CHUỖI chứ không phải một cờ — ⚠ LÝ DO ĐÃ ĐỔI, kết luận thì không.** Lý do
+cũ: terminal không bao giờ bị ẩn, nên một cờ hiện/ẩn đứng yên `true` **mãi mãi** và effect fit sẽ
+không bao giờ chạy lại. Vế đó chết cùng SỬA ĐỔI 3, vì nay hàng 2 ẩn/hiện thật và một cờ cũng đổi
+đúng hai lần như chuỗi. Chuỗi ở lại vì hai lý do nhỏ hơn nhưng có thật: đọc log hay devtools ra
+được **TÊN** của bố cục thay vì `true`/`false`, và nó giữ nguyên kiểu `string` mà
+`WorkspaceLayoutProvider` cùng giá trị mặc định `'standalone'` đang dùng. Đổi sang boolean là sửa
+ba file để đổi lấy đúng con số không.
 
 **Giá trị mặc định của context là một HẰNG (`'standalone'`)**, và đó là phần quan trọng:
 `TerminalPane` còn được dùng ngoài panel (nhánh hẹp của split, hoặc một trang dựng thẳng nó). Ở
@@ -392,8 +481,13 @@ MỚI. Terminal nối lại sau khi bố cục đã đổi mà effect không ch�
 cột mặc định của xterm.
 
 ⚠ **Không còn tham số `visible`.** Một lượt fit "thừa" là vô hại (`fit()` tự no-op khi đã
-`dispose()` hoặc container 0×0); giữ một cờ luôn `true` chỉ để trông giống bản cũ là giữ một
-nhánh chết.
+`dispose()` hoặc container 0×0, xem §1.7); giữ một cờ luôn `true` chỉ để trông giống bản cũ là
+giữ một nhánh chết.
+
+⚠ Từ SỬA ĐỔI 3, đường này chạy ở **mọi** lượt chuyển tab và mỗi lượt đi qua một trạng thái 0×0
+thật (hàng vừa bị ẩn, hoặc hàng vừa hiện mà bố cục chưa tính xong). `requestAnimationFrame` vì
+thế không còn là một mấu chốt lý thuyết: nó là thứ duy nhất tách lượt đo khỏi khung hình mà
+terminal còn đang `display:none`.
 
 `runFitAfterLayout` là **toàn bộ** thân effect tách ra thành hàm thuần, không phải một hàm bọc
 lấy lệ — nên test nó là test đúng thứ chạy thật. Thứ duy nhất còn ngoài tầm test là mảng deps.
@@ -532,7 +626,12 @@ terminal** — chỉ thiếu trình soạn thảo. "Không tải được IDE" m
 
 ## 7. Cái ĐỔI ở P16 (thiết kế §8)
 
-Năm thay đổi, và **không có thay đổi nào trong §1–§6**:
+⚠ Câu mở của mục này, viết ngày 2026-09-10, là "năm thay đổi, và **không có thay đổi nào trong
+§1–§6**". Vế sau **hết đúng** từ chỉ đạo 2026-09-13: §1, §3.1, §4 và §5.1 đều đã đổi (xem khối
+đầu file). Năm mục dưới đây thì không đổi, và mục 2 nói về `SplitPane` chia NGANG, không phải
+thanh kéo dọc đã bị gỡ.
+
+Năm thay đổi:
 
 1. **Trang lab và lesson vào immersive.** Hôm nay vỏ ứng dụng vẫn hiện đầy đủ trên trang lab (chỉ
    `/games/k8s` chạy immersive); thanh nav toàn cục ăn **56px** chiều cao trên một màn hình mà
@@ -625,21 +724,84 @@ gì nữa.
   `hidden`. Không có vế này thì một `queryByTestId` trượt (trả `null`) cũng làm vế "có `hidden`"
   xanh một cách rỗng tuếch.
 
-### AC-3 — hàng terminal KHÔNG BAO GIỜ mang `hidden`
+⚠ Từ SỬA ĐỔI 3, phép quét "toàn bộ cây ở cả hai tab" **bắt buộc phải chạm hàng 2**: hàng terminal
+nay cũng mang `hidden` (ở tab Editor), nên nó đã trở thành đối tượng của AC-2 chứ không chỉ hàng
+1. Đây là chỗ AC-2 và §2 gặp nhau: §1.1 cho phép `hidden`, còn AC-2 gác việc `hidden` đó không bị
+một tiện ích `display` vô hiệu trong im lặng.
 
-Ở cả hai tab, ở cả `hasEditor` true lẫn false: `expect(terminalRow).not.toHaveAttribute('hidden')`
-và tổ tiên của nó cũng không.
-**Đối chứng dương:** cùng phép kiểm áp lên hàng 1 ở tab Terminal phải **đỏ** (hàng 1 *phải* có
-`hidden`) — chứng minh phép dò thuộc tính thật sự đọc được DOM.
+### AC-3 — hai hàng ẩn NGƯỢC nhau, không tổ tiên nào bị ẩn, node luôn còn sống
+
+⚠ **Ô này ĐỔI NGHĨA ở SỬA ĐỔI 3.** Bản trước khẳng định "hàng terminal KHÔNG BAO GIỜ mang
+`hidden`"; mệnh đề đó nay sai và không còn nên đúng (§1.1). Thứ còn nguyên là **ba** vế khác
+nhau, và phải khẳng định cả ba:
+
+```
+với mọi tổ hợp (hasEditor ∈ {true,false}) × (activeTab ∈ {editor,terminal}):
+  → expect(terminalRow.hidden).toBe(hasEditor && activeTab === 'editor')
+       // ẩn ĐÚNG KHI editor đang chiếm khoang, không lúc nào khác
+  → không TỔ TIÊN nào của hàng terminal mang `hidden`
+  → node terminal `isConnected === true`      // ẩn ≠ gỡ khỏi cây
+```
+
+Vế **tổ tiên** gác một lỗi khác hẳn vế thứ nhất: một `hidden` đặt nhầm lên ngăn xếp dọc thay vì
+lên đúng một hàng sẽ ẩn terminal ở CẢ HAI tab, không lỗi không log. Vế **`isConnected`** là vế
+phân biệt `hidden` (an toàn) với unmount (đóng WebSocket của người học); nó là chỗ AC-3 nối vào
+§1.1.
+
+⚠ Vế tổ tiên chỉ nói được trên DOM sống. Markup tĩnh cho biết thẻ nào mang `hidden`, nhưng "thẻ
+đó có phải tổ tiên của hàng terminal không" là câu hỏi về **cây**, không phải về chuỗi.
+
+**Đối chứng dương (hai vế, cần cả hai):**
+- *Phép dò đọc được DOM*: hàng 1 phải bị bắt là ẩn ở tab Terminal. Không có vế này thì một phép
+  dò luôn trả `false` cũng làm mọi ô trên xanh.
+- *Chiều mới cũng được gác*: hàng 2 phải bị bắt là ẩn ở tab Editor. Thiếu vế này thì một bản cài
+  đặt **quên hẳn** `hidden={editorVisible}` vẫn xanh, tức đúng cái hồi quy mà SỬA ĐỔI 3 sinh ra
+  để chặn.
+
+✅ **Đã đo, không phải suy luận (2026-09-13):** gỡ `hidden={editorVisible}` khỏi
+`workspace-panel.tsx` làm **4 ô đỏ**, trải trên **cả hai** file test. Nên cổng này đỏ được, không
+phải một ô xanh trang trí. Ô nào đỏ thì tra ở bảng ngay dưới; nếu một lượt sửa sau này làm con số
+đó tụt xuống 0, thứ hỏng là phép kiểm chứ không phải mã.
+
+Ô hiện có, để ai sửa tiếp biết mình đang đụng vào đâu:
+
+| File | Ô |
+|---|---|
+| `workspace-panel.dom.test.tsx` | describe `AC-3 — không TỔ TIÊN nào của hàng terminal bị ẩn, và node luôn còn sống` (bốn tổ hợp + hai đối chứng dương ngược chiều nhau) |
+| `workspace-panel.dom.test.tsx` | `hai hàng loại trừ nhau: tab Editor ẩn terminal, tab Terminal ẩn editor` |
+| `workspace-panel.test.tsx` | describe `§Y1 — terminal KHÔNG đổi cha; hai hàng loại trừ nhau`, gồm `node terminal luôn có trong markup, và hai hàng ẩn/hiện NGƯỢC nhau` và `hàng terminal luôn ở CÙNG vị trí con trong ngăn xếp (con thứ 2)` |
+| `workspace-panel.test.tsx` | describe `SỬA ĐỔI 3 — khoang chỉ có một hàng hiện, và không còn thanh kéo`, gồm `không còn separator nào ở BẤT KỲ tổ hợp nào` |
+
+⚠ Mọi ô §Y6 cũ về thanh kéo (kéo bằng chuột, bằng phím, kẹp phần trăm) **đã bị xoá cùng tính
+năng**. Không khôi phục; xem bảng thu hồi ở §4.2.
 
 ### AC-4 — bảng vào/ra của các hàm thuần (không cần DOM)
 
-`workspaceLayoutToken`, `clampTerminalPercent`, `resolveActiveTab`, `isEditorVisible`,
-`listWorkspaceTabs`, `nextTabOnKey`, `nextTerminalPercentOnKey`, `workspaceStorageKey`,
-`parseWorkspaceState`. Ít nhất phải có các ca: `hasEditor=false` luôn ra `'terminal-full'`;
-phần trăm **không** vào chuỗi khi hàng 1 ẩn; `clampTerminalPercent(NaN)` ra **40**; phím ngoài
-khuôn ra `null`; khoá `:ide` ≠ khoá `:plain`; bản ghi mô hình cũ
-(`{"activeTab":"terminal-1"}`) ra `null`.
+`workspaceLayoutToken`, `resolveActiveTab`, `isEditorVisible`, `listWorkspaceTabs`,
+`nextTabOnKey`, `workspaceStorageKey`, `parseWorkspaceState`. Ít nhất phải có các ca:
+`hasEditor=false` luôn ra `'terminal-full'`; chuyển tab **ĐỔI** chuỗi còn cùng tab ra **CÙNG**
+chuỗi (không fit thừa); phím ngoài khuôn ra `null`; khoá `:ide` ≠ khoá `:plain`; bản ghi mô hình
+cũ (`{"activeTab":"terminal-1"}`) ra `null`.
+
+⛔ **Ca bắt buộc của SỬA ĐỔI 3 — bản ghi cũ KHÔNG bị từ chối cả gói:**
+
+```
+parseWorkspaceState('{"activeTab":"terminal","terminalPercent":70}')
+  → { activeTab: 'terminal' }        // bỏ trường thừa, KHÔNG trả null
+parseWorkspaceState('{"terminalPercent":40}')
+  → null                             // thiếu activeTab thì vẫn từ chối
+```
+
+Đây là một lựa chọn **cố ý**, không phải một chỗ lỏng tay. Một bản ghi còn `terminalPercent` vẫn
+khai đúng cái tab mà người dùng đã chọn; trường thừa chỉ mô tả một thanh kéo không còn tồn tại.
+Từ chối cả bản ghi sẽ làm mọi người đang dùng mất tab đã nhớ ở đúng lượt cập nhật này, tức một
+hồi quy im lặng đổi lấy đúng con số không. Ngược lại, một `activeTab` **không hợp lệ** vẫn phải ra
+`null`: im lặng chấp nhận nó sẽ mở bài ở một trạng thái không ai chọn.
+
+⚠ Hai ca đã rời khỏi danh sách này cùng thanh kéo: "phần trăm không vào chuỗi khi hàng 1 ẩn" và
+"`clampTerminalPercent(NaN)` ra 40". Không có hàm nào để gọi nữa; đừng dựng lại ô test theo trí
+nhớ.
+
 **Đối chứng dương:** ca khẳng định hai id hợp lệ **vẫn được nhận** — không có nó thì một hàm luôn
 trả `false`/`null` cũng làm mọi ca "từ chối" xanh.
 
@@ -662,8 +824,13 @@ mù, không phải vì sạch**.
 
 Nằm trong cổng bàn phím của lane L8 (mở từ 4 lên tối thiểu 10 màn). Bắt buộc gồm: đi được vào và
 **thoát được focus khỏi terminal bằng bàn phím**; roving tabindex trên thanh tab (đúng **một** tab
-trong vòng `Tab`, mũi tên đi giữa các tab); thanh kéo nhận `Tab` khi hiện và **không** nhận khi
-ẩn (`tabIndex={editorVisible ? 0 : -1}`); 0 lỗi axe mức serious/critical.
+trong vòng `Tab`, mũi tên đi giữa các tab); 0 lỗi axe mức serious/critical.
+
+⚠ Vế "thanh kéo nhận `Tab` khi hiện và không nhận khi ẩn (`tabIndex={editorVisible ? 0 : -1}`)"
+đã bị **thu hồi** cùng thanh kéo. Thay vào đó là một mệnh đề ngược dấu: **không được còn
+`role="separator"` nào** trong DOM lẫn trong cây trợ năng, ở bất kỳ tổ hợp
+`hasEditor` × `activeTab` nào. Một thanh kéo không bao giờ hiện được vẫn ngốn một chặng `Tab`
+trong ngân sách 30 lần mà cổng bàn phím gác.
 
 ### AC-8 — khoang IDE
 
