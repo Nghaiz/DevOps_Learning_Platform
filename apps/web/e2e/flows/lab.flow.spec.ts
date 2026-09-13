@@ -16,6 +16,7 @@
 
 import {
   SANDBOX_FLOW_TIMEOUT_MS,
+  SESSION_READY_TIMEOUT_MS,
   endSandbox,
   expect,
   startSandbox,
@@ -86,12 +87,32 @@ test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
 
     const checkTask = page.getByRole('button', { name: 'Chấm nhiệm vụ này' });
     await expect(checkTask).toBeVisible();
+    /*
+      ⏱ Chờ theo mốc PHA PHIÊN, không theo trần mặc định 15s.
+
+      `lab-client` khoá nút này vì BA lý do, không phải hai: chưa có lần thử,
+      lần thử đã nộp, HOẶC `setupPending` — vế thứ ba thêm ở P15/15.C, khi
+      setup của lab chuyển sang chạy NỀN để người học không bị chặn ở màn
+      trắng. Chú thích cũ ở đây chỉ liệt kê hai, nên nó kết luận sai rằng một
+      nút xám sau khi Bắt đầu thành công là mâu thuẫn. Không mâu thuẫn: đó là
+      cửa sổ setup đang chạy.
+
+      Setup của lab k8s đi đường LẠNH mất 17-26s (đo ở P15), tức LUÔN vượt
+      trần 15s mặc định của `toBeEnabled()`. Ô này vì thế đỏ một cách có hệ
+      thống trên lab k8s và xanh trên lab linux — tính chất "đỏ tùy lab đứng đầu
+      danh mục" đúng là thứ làm người đọc đi truy sai chỗ.
+
+      Dùng `SESSION_READY_TIMEOUT_MS` thay vì một con số mới: đây vẫn là "chờ pha
+      phiên đổi", cùng thứ mà `startSandbox` đã chờ.
+    */
     await expect(
       checkTask,
-      'Nút "Chấm nhiệm vụ này" đang bị khoá dù phiên đã mở. `lab-client` chỉ khoá ' +
-        'nó khi chưa có lần thử hoặc lần thử đã nộp — cả hai đều mâu thuẫn với ' +
-        'việc vừa bấm Bắt đầu thành công.',
-    ).toBeEnabled();
+      'Nút "Chấm nhiệm vụ này" còn khoá sau khi phiên đã mở VÀ setup đã có đủ ' +
+        'thời gian chạy. `lab-client` khoá nó ở ba trường hợp: chưa có lần thử, ' +
+        'lần thử đã nộp, hoặc `setupPending`. Hai cái đầu mâu thuẫn với việc vừa ' +
+        'bấm Bắt đầu thành công; cái thứ ba nghĩa là setup chạy quá lâu hoặc đã ' +
+        'chết — đọc banner setup trên trang để biết cái nào.',
+    ).toBeEnabled({ timeout: SESSION_READY_TIMEOUT_MS });
     await checkTask.click();
 
     // Ba nhánh của `CheckResultPanel`, y như luồng 1: luồng khẳng định đường
