@@ -189,3 +189,181 @@ Commit sau mỗi lane. Ba điểm phải dừng lại báo cáo thay vì tự qu
 
 - Bất kỳ ô nghiệm thu §1 nào không đạt sau ba lần thử — dừng, hỏi kiến trúc, không thử lần bốn.
 - Bất kỳ lúc nào cách duy nhất để một cổng xanh là nới chính cổng đó.
+
+---
+
+## 5. Kết quả đo được — lượt đóng ngày 2026-09-13/14
+
+Phần này ghi **số đọc trực tiếp**, không ghi lời khai. Mỗi dòng nói rõ nó đo trên build nào,
+vì trong đợt này đã có một lần `.next` bị ghi đè giữa lượt chạy và làm hỏng hai bảng số.
+
+### 5.1 Cổng tĩnh
+
+| Lệnh | Kết quả |
+|---|---|
+| `turbo run typecheck lint test build --force` | `Tasks: 32 successful, 32 total`, 2m9s |
+| `pnpm tokens:check` | exit 0 — 570 file / 4 vùng |
+| `pnpm antipattern:check` | exit 0 — 615 file / 7 vùng |
+| `node scripts/env-check.mjs` | exit 0 — 97 biến / 4 scope |
+| `pnpm bundle:check` | exit 0 — 4/4 route terminal chạm chunk xterm, 33 route còn lại không; nền chung 1 050 234 B / trần 1 150 000 B |
+
+Đơn vị, sau khi đóng nợ: web **1812**, ui **932**, games 402, scenario 289, terminal 133,
+motion 110, copy 71, shared-types 48.
+
+⚠ **Đọc `Tasks: X/Y` trước khi trích bất kỳ con số test nào.** Hai lượt turbo đầu của đợt này
+dừng ở `28/31` và `29/31` vì `@devops-platform/web#test` đỏ — bốn task sau nó **chưa chạy**, nên
+một bảng "mọi gói xanh" dựng trên hai lượt ấy sẽ là bảng bịa.
+
+### 5.2 Bốn lỗi sản phẩm mà rác test đang che
+
+Bốn lỗi dưới đây có **cùng một hình dạng**, và đó là điều đáng ghi nhất của đợt này: một ô
+nghiệm thu xanh vì nó đo phải một thứ rỗng, chứ không vì thứ nó gác đang đúng.
+
+| Lỗi | Vì sao ô gác không đỏ | Đóng ở |
+|---|---|---|
+| `/me` trôi ngang **308px** ở khung 390px | cả nhóm `@responsive` đăng nhập bị SKIP suốt; lượt này là lượt ĐẦU TIÊN nó chạy thật | `589418b` |
+| `axe heading-order` trên `/lessons/ckad-configmap-as-files` | `axe /lessons/:id` mở bài ĐẦU danh mục, mà bài đầu là một fixture rò rỉ RỖNG — trang trống thì axe luôn sạch | `3a1a1c1` |
+| `purgeLeakedFixtures` chết ở khoá ngoại `learning_paths` | hàm dựng ra để dọn rác lại là thứ chặn việc dọn; `me-idor` đỏ ở `beforeAll` | `d84b088` |
+| Hai file test ăn fixture của nhau khi chạy song song | cái đua CÓ SẴN, bị chính lỗi khoá ngoại che — lượt dọn luôn chết nên chưa bao giờ xoá được gì | `d84b088` |
+
+Hai lỗi đầu chỉ hiện ra **sau khi** 237 dòng fixture rò rỉ bị dọn. Nói cách khác: rác test
+không chỉ làm bẩn DB, nó còn làm hai ô nghiệm thu nói dối theo hướng có lợi.
+
+### 5.3 `/me` — thủ phạm không phải thứ thông điệp lỗi đoán
+
+Thông điệp của ô đó gợi ý "một `min-w-*` cứng, một bảng không bọc `overflow-x`, hoặc một hàng
+flex không cho xuống dòng". Không phải cái nào trong ba. Bảng rộng 762px **cuộn trong khung
+đúng như thiết kế**; thứ lọt ra ngoài là một `<span class="sr-only">` rộng **1px** trong `<th>`.
+
+`sr-only` của Tailwind là `position:absolute`. Không ancestor nào trong chuỗi được định vị, nên
+containing block của nó rơi về initial containing block — nó thoát vùng cắt của `overflow-x-auto`
+và kéo dài `scrollWidth` của cả tài liệu.
+
+| trạng thái | `document.documentElement.scrollWidth` |
+|---|---|
+| nguyên trạng | **698** |
+| ẩn mọi `.sr-only` | 390 |
+| thêm `position:relative` cho khối bọc `<table>` | 390 |
+
+`MeTableScroll` được một lane thêm vào đúng để chữa lỗi này, và **không chữa được gì** — `Table`
+của `packages/ui` vốn đã tự bọc `overflow-x-auto`, nên nó chỉ dựng lớp cuộn thứ hai lồng ngoài,
+cũng không được định vị. Đã gỡ.
+
+### 5.4 Heading của nội dung nhập từ upstream
+
+`markdown-view` hạ đúng một bậc (`#`→h2). Phép đó chỉ đúng với tài liệu mở đầu bằng `#`. Đếm
+trên `content/` ngày 2026-09-14: **61 file — 50 mở bằng `#`, 2 bằng `##`, 4 bằng `###`**, 5 không
+có heading. Sáu file lệch nằm trong ba scenario nhập từ upstream, nên cấp mở đầu là quy ước của
+người viết upstream chứ không phải của ta — sửa sáu file là sửa triệu chứng, lần nhập sau sẽ
+mang về đúng chuyện đó. `embeddedHeadingLevel` dời theo cấp NHỎ NHẤT của chính tài liệu; 50 file
+kia không đổi lấy một thẻ, và lớp CSS giữ theo cấp NGUỒN nên giao diện không đổi một pixel.
+
+### 5.5 Ba ô đỏ vì đồng hồ, không vì khẳng định sai
+
+Cả ba dừng ở đúng `testTimeout: 15_000`. Đo riêng từng file so với lúc 163 file chạy song song:
+
+| ô | một mình | dưới tải | tỉ lệ |
+|---|---|---|---|
+| `revoke-descendants` "số lượt truy vấn KHÔNG tăng theo độ dài chuỗi" | 1188ms | >15 000ms | 12× |
+| `rule-07` "replay thu hồi … sau hơn 100 thế hệ rotation" | 2049ms | >15 000ms | 7× |
+| `paths-quiz-authz` "cùng quiz xuất hiện ở cả hai lộ trình" | 187ms | 15 186ms | **80×** |
+
+Hai ô đầu gieo chuỗi tuần tự và độ sâu CHÍNH LÀ thứ chúng khẳng định, nên chúng nhận trần riêng
+60s kèm số đo — rút độ sâu là làm yếu phép đo cho đồng hồ dễ chịu. Ô thứ ba chậm gấp 80 lần, tức
+khác loại: nó là ô ĐẦU của file nên gánh cả lượt nạp `content/**` từ đĩa; chữa bằng cách hâm nóng
+trong `beforeAll`, đúng cách `me-idor.test.ts` đã chữa cùng chuyện này.
+
+**Chứng minh không phải hồi quy** (chứ không phải suy đoán): lùi tạm ba file về `HEAD~2` rồi chạy
+lại cùng tải — bản cũ đỏ **11 ô / 7 file**, bản mới đỏ 2, và đúng hai ô còn lại cũng đỏ ở bản cũ.
+
+### 5.6 Mọi cổng mới đều đã bị phá thử
+
+Một cổng chưa từng thấy đỏ là một cổng chưa được chứng minh. Bảng dưới là các lượt phá đã chạy
+thật, kèm kết quả:
+
+| Phá | Kết quả |
+|---|---|
+| bỏ `relative` khỏi khối bọc `<table>` | ô mới ĐỎ; ô cũ (`.overflow-x-auto` có tồn tại) vẫn XANH — đúng lý do nó không gác được gì |
+| bỏ câu `DELETE FROM learning_paths` | ĐỎ, đúng lỗi khoá ngoại đã giết `me-idor` |
+| bỏ một dòng khỏi `PURGE_HANDLED_BLOCKING_FKS` | ĐỎ, đúng tên `learning_paths.author_id` |
+| thêm một dòng sổ đăng ký không tồn tại | ĐỎ, đòi xoá dòng ôi |
+| hạ `PURGE_MIN_AGE_MS` về 0 | ĐỎ — đối chứng âm của ngưỡng tuổi |
+| cho lượt dọn KHÔNG LÀM GÌ | ĐỎ 2 ô — vế xuôi bắt được |
+| đưa `embeddedHeadingLevel` về "hạ đúng một bậc" | ĐỎ 3 ô |
+
+### 5.7 Bảy ô `games.spec.ts` vẫn đỏ, và đó là quyết định
+
+Không nối lại ở đợt này. Lý do đầy đủ ở `phase-16.md` §8; tóm tắt: `app/games/k8s/page.tsx` nay
+render `<ArenaEntry>`, còn các ô đó viết theo API `<K8sGame levels createSession>` của bản trước
+lượt viết lại arena, và ngưỡng của P17 (§AC-K, §AC-7) khác ngưỡng chúng đang khẳng định. Viết lại
+bây giờ là dựng test cho một tính năng P17 chưa làm, rồi P17 lại phải viết đè.
+
+### 5.8 `lab.flow` — ô đỏ cuối, và nó KHÔNG phải lỗi của nhánh này
+
+Lượt E2E cuối: **183 đỗ / 8 đỏ / 0 skip / 191**, 11.5 phút, build `7iJSHysqKs5GLLzLxJaHU`.
+Tám ô đỏ = bảy ô `games.spec.ts` (đỏ có chủ đích, §5.7) + `flows/lab.flow.spec.ts`.
+
+`lab.flow` đỏ **tái hiện được** khi chạy một mình, nên nó không phải flake và không phải tải.
+
+**Triệu chứng đọc từ giao diện** (dò trực tiếp bằng một spec tạm, 2026-09-14):
+
+```
+t=8s …93s   chấm=xám   "Môi trường của bài đang được dựng — đợi vài giây rồi chấm lại."
+t=98s       chấm=xám   "Dựng môi trường của bài thất bại (exit 1): Cluster con chua san sang
+                        sau 90s (0/1 node Ready). … · [dlp-k8s] docker run thất bại"
+```
+
+**Nguyên nhân, đọc từ `dockerd.log` bên trong chính pod đã hỏng** — không suy đoán:
+
+```
+dial tcp 10.103.164.91:5000: i/o timeout
+  → mirror platform-registry-mirror.dlp-registry.svc:5000 KHÔNG tới được
+  → fallback registry-1.docker.io → 127.0.0.1:80 connection refused
+  → Handler for POST /images/create returned error … status=500
+```
+
+Vế thứ hai đúng như thiết kế: sandbox không có internet, và `hostAliases` ghim
+`registry-1.docker.io` về loopback. Vế thứ nhất mới là lỗi.
+
+**Vì sao mirror không tới được:** netpol ingress của nó nhận namespace theo **TÊN**, không theo
+nhãn vai trò:
+
+```yaml
+# netpol platform-registry-mirror-allow-ingress-sandbox, ns dlp-registry
+ingress:
+- from:
+  - namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: dlp-sandbox
+```
+
+Harness E2E dựng sandbox trong namespace riêng `dlp-e2e-p16` (`start-services.mjs`,
+`SANDBOX_NAMESPACE`), nên mọi pod ở đó bị cắt khỏi mirror.
+
+**Đối chứng hai chiều, đo được:**
+
+| namespace | `docker pull rancher/k3s:v1.34.1-k3s1` |
+|---|---|
+| `dlp-sandbox` (đúng tên trong netpol) | **thành công, 8 giây** kể cả lượt LẠNH sau khi `docker rmi` |
+| `dlp-e2e-p16` (harness E2E) | i/o timeout tới mirror |
+
+**Không phải hồi quy của nhánh:** `git diff --stat main...HEAD -- content/labs/dlp-k8s-broken-deploy
+deploy/ services/ scripts/sandbox*` trả về **rỗng**. Commit cuối chạm lab đó là `5b83f14`, trước
+nhánh này.
+
+**Bài học đáng giữ, rộng hơn một ô test:** một netpol chọn namespace theo TÊN biến mọi bản
+triển khai đặt sandbox ở namespace tên khác thành một bản **im lặng không kéo được ảnh** — và
+triệu chứng nổi lên là "cluster con không sẵn sàng sau 90s", trỏ vào k3s chứ không trỏ vào mạng.
+Ba tầng chẩn đoán nằm giữa nguyên nhân và triệu chứng.
+
+**CHƯA ĐÓNG, cần người dùng quyết.** Hai đường, cả hai đều vượt ranh giới của nhánh này:
+
+1. **Nới netpol** cho namespace E2E (hoặc đổi nó sang chọn theo NHÃN thay vì theo tên). Đây là
+   đường đúng về lâu dài, nhưng nó sửa chính sách mạng của cụm đang chạy.
+2. **Trỏ orchestrator E2E về `dlp-sandbox`**. ⛔ KHÔNG nên: `platform-orchestrator` đang chạy
+   trong cụm và đã quản namespace đó, nên sẽ có HAI orchestrator trên một namespace — đúng cái
+   bẫy lệch warm pool đã ghi ("orchestrator giao tên pod đã chết").
+
+Một đường thứ ba, đắt hơn nhưng đóng luôn cả lớp vấn đề: nạp sẵn ảnh k3s vào chính image sandbox
+để đường lạnh không cần mirror. Đó là quyết định phạm vi P7 kèm chi phí dung lượng, không phải
+việc của chặng đóng nợ này.

@@ -683,6 +683,44 @@ Ranh giới sản phẩm vẫn cần nói rõ:
   và dọn-khi-quá-hạn. Bảy ô nghiệm thu chạy trên Postgres thật, mỗi ô đã được kiểm bằng cách
   phá mã sản phẩm để xác nhận nó đỏ được.
 
+---
+
+## 8bis. Lượt ĐÓNG NỢ 2026-09-13/14 — số cuối
+
+Kế hoạch và toàn bộ số đo: [`phase-16-closure.md`](phase-16-closure.md) §5.
+
+| Phép đo | Kết quả |
+|---|---|
+| `turbo run typecheck lint test build --force` | `Tasks: 32 successful, 32 total` |
+| Đơn vị | web **1812**, ui **932**, games 402, scenario 289, terminal 133, motion 110, copy 71, shared-types 48 |
+| 4 cổng tĩnh (tokens / antipattern / env / bundle) | exit 0 cả bốn |
+| E2E profile mặc định, build `7iJSHysqKs5GLLzLxJaHU` | **183 đỗ / 8 đỏ / 0 skip / 191**, 11,5 phút |
+
+Tám ô đỏ = bảy ô `games.spec.ts` đỏ có chủ đích (§8 ở trên) + `flows/lab.flow.spec.ts`.
+
+⚠ **`lab.flow` đỏ vì HẠ TẦNG, và nó chưa đóng.** Netpol ingress của registry mirror nhận
+namespace theo **TÊN** (`kubernetes.io/metadata.name: dlp-sandbox`), còn harness E2E dựng sandbox
+trong `dlp-e2e-p16` — nên pod ở đó không kéo được ảnh k3s, cluster con không lên, và nút Chấm
+ở lại trạng thái khoá. Đối chứng hai chiều: cùng lệnh `docker pull` thành công trong 8 giây ở
+một pod `dlp-sandbox`, kể cả lượt lạnh. `git diff main...HEAD` trên `content/labs/dlp-k8s-broken-deploy`,
+`deploy/`, `services/`, `scripts/sandbox*` là **rỗng** — nhánh này không chạm đường đó.
+Đường đóng và vì sao nó vượt ranh giới chặng này: `phase-16-closure.md` §5.8.
+
+**Bốn lỗi sản phẩm đóng ở lượt này đều có cùng một hình dạng**, và đó là điều đáng ghi
+nhất: một ô nghiệm thu xanh vì nó đo phải một thứ RỖNG, chứ không vì thứ nó gác đang đúng.
+
+| Lỗi | Vì sao ô gác không đỏ |
+|---|---|
+| `/me` trôi ngang 308px ở 390px | cả nhóm `@responsive` đăng nhập bị SKIP suốt; lượt này là lượt ĐẦU TIÊN nó chạy thật |
+| `axe heading-order` trên `/lessons/ckad-configmap-as-files` | ô mở bài ĐẦU danh mục, mà bài đầu là một fixture rò rỉ RỖNG — trang trống thì axe luôn sạch |
+| `purgeLeakedFixtures` chết ở khoá ngoại | hàm dựng ra để dọn rác lại là thứ chặn việc dọn |
+| Hai file test ăn fixture của nhau khi chạy song song | cái đua CÓ SẴN, bị chính lỗi khoá ngoại che — lượt dọn luôn chết nên chưa bao giờ xoá được gì |
+
+Hai lỗi đầu chỉ hiện ra **sau khi** 237 dòng fixture rò rỉ bị dọn. Rác test không chỉ làm bẩn
+DB; nó còn làm hai ô nghiệm thu nói dối theo hướng có lợi.
+
+---
+
 Lượt core đầu **157 qua / 8 lỗi / 0 skip** được giữ làm lịch sử điều tra. Hai ca terminal,
 hai lỗi focus SearchTabs ẩn và bốn lỗi author tràn 390px đã được sửa; 15 vấn đề heading moderate
 cũng được xử lý bổ sung. Lượt cuối **171/171 qua, 0 lỗi/skip/retry** trên build
