@@ -25,7 +25,7 @@ import { describeTrpcError } from '../../lib/trpc';
 import { summarizeLabAttempt, summarizeQuizAttempt } from './attempt-summary';
 import { summarizeLessonProgress } from './lesson-progress';
 import { formatMoment } from '../../lib/format-moment';
-import { MeSection, MeTableScroll } from './me-section';
+import { MeSection } from './me-section';
 import { useCursorPages } from './use-cursor-pages';
 import {
   describeEmptyPage,
@@ -105,46 +105,44 @@ function LessonHistory(): ReactElement {
         />
       }
     >
-      <MeTableScroll>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('me.lessons.col.lesson')}</TableHead>
-              <TableHead>{t('me.lessons.col.status')}</TableHead>
-              <TableHead>{t('me.lessons.col.updated')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(progress.data?.items ?? []).map((row) => {
-              const summary = summarizeLessonProgress({
-                stepIndex: row.stepIndex,
-                completedAt: row.completedAt,
-              });
-              return (
-                <TableRow key={row.id}>
-                  <TableCell>
-                    <Link
-                      href={`/lessons/${row.lessonId}`}
-                      className="rounded-md font-mono text-xs outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {row.lessonId}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="flex flex-wrap items-center gap-2">
-                    <Badge variant={summary.variant}>{summary.label}</Badge>
-                    {summary.detail !== null && (
-                      <span className="text-xs text-muted-foreground">{summary.detail}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {formatMoment(row.updatedAt)}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </MeTableScroll>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('me.lessons.col.lesson')}</TableHead>
+            <TableHead>{t('me.lessons.col.status')}</TableHead>
+            <TableHead>{t('me.lessons.col.updated')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {(progress.data?.items ?? []).map((row) => {
+            const summary = summarizeLessonProgress({
+              stepIndex: row.stepIndex,
+              completedAt: row.completedAt,
+            });
+            return (
+              <TableRow key={row.id}>
+                <TableCell>
+                  <Link
+                    href={`/lessons/${row.lessonId}`}
+                    className="rounded-md font-mono text-xs outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {row.lessonId}
+                  </Link>
+                </TableCell>
+                <TableCell className="flex flex-wrap items-center gap-2">
+                  <Badge variant={summary.variant}>{summary.label}</Badge>
+                  {summary.detail !== null && (
+                    <span className="text-xs text-muted-foreground">{summary.detail}</span>
+                  )}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {formatMoment(row.updatedAt)}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </HistoryFrame>
   );
 }
@@ -182,50 +180,48 @@ function LabHistory(): ReactElement {
         />
       }
     >
-      <MeTableScroll>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('me.labs.col.lab')}</TableHead>
-              <TableHead>{t('me.labs.col.result')}</TableHead>
-              <TableHead>{t('me.labs.col.score')}</TableHead>
-              <TableHead>{t('me.labs.col.duration')}</TableHead>
-              <TableHead>{t('me.labs.col.started')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(attempts.data?.items ?? []).map((item) => {
-              const summary = summarizeLabAttempt({
-                status: item.status,
-                score: item.score,
-                durationSeconds: item.durationSeconds,
-              });
-              return (
-                <TableRow key={item.attempt.id}>
-                  <TableCell>
-                    <Link
-                      href={`/labs/${item.labId}`}
-                      className="rounded-md outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {item.labTitle ?? item.labId}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={summary.statusVariant}>{summary.statusLabel}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{summary.scoreLabel}</TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {summary.durationLabel}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {formatMoment(item.attempt.startedAt)}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </MeTableScroll>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('me.labs.col.lab')}</TableHead>
+            <TableHead>{t('me.labs.col.result')}</TableHead>
+            <TableHead>{t('me.labs.col.score')}</TableHead>
+            <TableHead>{t('me.labs.col.duration')}</TableHead>
+            <TableHead>{t('me.labs.col.started')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {(attempts.data?.items ?? []).map((item) => {
+            const summary = summarizeLabAttempt({
+              status: item.status,
+              score: item.score,
+              durationSeconds: item.durationSeconds,
+            });
+            return (
+              <TableRow key={item.attempt.id}>
+                <TableCell>
+                  <Link
+                    href={`/labs/${item.labId}`}
+                    className="rounded-md outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {item.labTitle ?? item.labId}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={summary.statusVariant}>{summary.statusLabel}</Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{summary.scoreLabel}</TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {summary.durationLabel}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {formatMoment(item.attempt.startedAt)}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </HistoryFrame>
   );
 }
@@ -260,42 +256,40 @@ function QuizHistory(): ReactElement {
         />
       }
     >
-      <MeTableScroll>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('me.quizzes.col.quiz')}</TableHead>
-              <TableHead>{t('me.quizzes.col.result')}</TableHead>
-              <TableHead>{t('me.quizzes.col.score')}</TableHead>
-              <TableHead>{t('me.quizzes.col.submitted')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(attempts.data?.items ?? []).map((item) => {
-              const summary = summarizeQuizAttempt({ score: item.score });
-              return (
-                <TableRow key={item.attemptId}>
-                  <TableCell>
-                    <Link
-                      href={`/quiz/${item.quizId}`}
-                      className="rounded-md outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {item.quizTitle ?? item.quizId}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={summary.statusVariant}>{summary.statusLabel}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{summary.scoreLabel}</TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {formatMoment(item.submittedAt)}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </MeTableScroll>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('me.quizzes.col.quiz')}</TableHead>
+            <TableHead>{t('me.quizzes.col.result')}</TableHead>
+            <TableHead>{t('me.quizzes.col.score')}</TableHead>
+            <TableHead>{t('me.quizzes.col.submitted')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {(attempts.data?.items ?? []).map((item) => {
+            const summary = summarizeQuizAttempt({ score: item.score });
+            return (
+              <TableRow key={item.attemptId}>
+                <TableCell>
+                  <Link
+                    href={`/quiz/${item.quizId}`}
+                    className="rounded-md outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {item.quizTitle ?? item.quizId}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={summary.statusVariant}>{summary.statusLabel}</Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{summary.scoreLabel}</TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {formatMoment(item.submittedAt)}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </HistoryFrame>
   );
 }

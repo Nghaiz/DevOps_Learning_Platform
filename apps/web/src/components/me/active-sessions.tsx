@@ -34,7 +34,7 @@ import {
   shortSessionId,
 } from './session-summary';
 import { formatMoment } from '../../lib/format-moment';
-import { MeSection, MeTableScroll } from './me-section';
+import { MeSection } from './me-section';
 import { useCursorPages } from './use-cursor-pages';
 import { describeEmptyPage, shouldShowPager, type HistoryPageState } from './history-page-notice';
 
@@ -173,52 +173,50 @@ export function ActiveSessions(): ReactElement {
           {emptyNotice !== null ? (
             <EmptyState title={emptyNotice.title} description={emptyNotice.description} />
           ) : (
-            <MeTableScroll>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('me.sessions.col.id')}</TableHead>
-                    <TableHead>{t('me.sessions.col.status')}</TableHead>
-                    <TableHead>{t('me.sessions.col.opened')}</TableHead>
-                    <TableHead>{t('me.sessions.col.expires')}</TableHead>
-                    <TableHead>
-                      <span className="sr-only">{t('me.sessions.col.actions')}</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sessions.data.items.map((session) => {
-                    const status = describeMySessionStatus(session.status);
-                    return (
-                      <TableRow key={session.id}>
-                        <TableCell className="font-mono text-xs">{session.id}</TableCell>
-                        <TableCell>
-                          <Badge variant={status.variant}>{status.label}</Badge>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {formatMoment(session.createdAt)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {describeSessionExpiry(session.expiresAt, now)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setEndError(null);
-                              setPendingId(session.id);
-                            }}
-                          >
-                            {t('me.sessions.end')}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </MeTableScroll>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('me.sessions.col.id')}</TableHead>
+                  <TableHead>{t('me.sessions.col.status')}</TableHead>
+                  <TableHead>{t('me.sessions.col.opened')}</TableHead>
+                  <TableHead>{t('me.sessions.col.expires')}</TableHead>
+                  <TableHead>
+                    <span className="sr-only">{t('me.sessions.col.actions')}</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sessions.data.items.map((session) => {
+                  const status = describeMySessionStatus(session.status);
+                  return (
+                    <TableRow key={session.id}>
+                      <TableCell className="font-mono text-xs">{session.id}</TableCell>
+                      <TableCell>
+                        <Badge variant={status.variant}>{status.label}</Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {formatMoment(session.createdAt)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {describeSessionExpiry(session.expiresAt, now)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEndError(null);
+                            setPendingId(session.id);
+                          }}
+                        >
+                          {t('me.sessions.end')}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
 
           {shouldShowPager(shape) && (

@@ -83,14 +83,24 @@ export function MeSection(props: {
   );
 }
 
-/**
- * Bảng nào cũng vào khối cuộn ngang của RIÊNG nó.
- *
- * Ba bảng của lane mang id phiên đầy đủ (36 ký tự) và tiêu đề lab/quiz do tác
- * giả đặt. Ở 390px chúng đẩy cả trang trôi ngang, thứ ô nghiệm thu 16.I mục 4
- * cấm. Bọc ở đây thay vì ở `packages/ui/src/table.tsx` vì gói đó ngoài glob của
- * lane, và đổi nó là quyết định ảnh hưởng mọi lane.
- */
-export function MeTableScroll({ children }: { readonly children: ReactNode }): ReactElement {
-  return <div className="w-full overflow-x-auto">{children}</div>;
-}
+/*
+  ⚠ `MeTableScroll` đã bị GỠ, 2026-09-13 — và lý do đáng ghi lại, vì nó là một
+  bản vá đúng ý định nhưng không hề có tác dụng.
+
+  Nó bọc mỗi bảng trong `<div className="w-full overflow-x-auto">` để chặn trôi
+  ngang ở 390px. Chú thích của nó ghi "bọc ở đây thay vì ở
+  `packages/ui/src/table.tsx` vì gói đó ngoài glob của lane" — tức chỗ đặt là
+  một ràng buộc phạm vi lane, không phải một quyết định thiết kế. Hai điều
+  người viết không biết:
+
+   1. `packages/ui`'s `Table` VỐN ĐÃ tự bọc `overflow-x-auto`. Nên cái này chỉ
+      dựng thêm một lớp cuộn thứ hai lồng ngoài, không lớp nào cắt thêm được gì.
+   2. Trang vẫn tràn — 308px ở `/me` — vì thủ phạm là một `<span class="sr-only">`
+      (`position:absolute`) trong `<th>`, và KHÔNG lớp nào trong hai lớp được
+      định vị, nên nó thoát khỏi cả hai.
+
+  Thuốc thật là một chữ `relative` trên khối bọc của `Table`, đã đặt ở
+  `packages/ui/src/table.tsx` kèm bảng số đo. Sau đó lớp này thành thuần tuý dư,
+  nên gỡ — giữ lại là để một người sau đọc chú thích cũ rồi tin rằng bảng ở
+  `/me` được bảo vệ ở đây.
+*/
