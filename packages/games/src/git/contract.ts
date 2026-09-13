@@ -299,6 +299,24 @@ export type PendingOp =
       readonly target: Oid;
       readonly originalHead: Oid;
       readonly conflicts: readonly ConflictFile[];
+    }
+  | {
+      /**
+       * `git stash pop`/`apply` lên một worktree đã đổi là một phép trộn BA NGẢ
+       * thật, và nó xung đột được.
+       *
+       * Nhánh này thêm 2026-09-14 sau khi lane nội dung chỉ ra lỗ: ba đường đi
+       * là cấm áp khi worktree bẩn, mượn nhánh `merge`, hoặc nhánh riêng. Chọn
+       * nhánh riêng vì hai đường kia đều nói dối ở chỗ người chơi đọc nhiều
+       * nhất — cấm áp thì xoá mất đúng tình huống bài G22 dạy (cất việc rồi lấy
+       * lại khi ngữ cảnh đã đổi), còn mượn `merge` thì `git merge --abort` trở
+       * thành lệnh gỡ một stash, và người học sẽ mang nhầm lẫn đó ra git thật.
+       */
+      readonly kind: 'stash';
+      /** Mục stash đang áp. Còn nguyên trong `Repo.stash` cho tới khi giải xong. */
+      readonly stashOid: Oid;
+      readonly originalHead: Oid;
+      readonly conflicts: readonly ConflictFile[];
     };
 
 /** Một dòng trong kịch bản `git rebase -i` (bài G12). */
@@ -331,6 +349,37 @@ export interface Repo {
   readonly reflog: Reflog;
   readonly stash: readonly StashEntry[];
   readonly pending: PendingOp | null;
+  /** `null` = không có phiên bisect nào đang chạy. Xem `BisectState`. */
+  readonly bisect: BisectState | null;
+}
+
+/**
+ * Phiên `git bisect` đang chạy (bài G32).
+ *
+ * ⚠ Đây là trường RIÊNG, KHÔNG phải một nhánh của `PendingOp`, và sự khác nhau
+ * đó có nghĩa. `PendingOp` mô tả một thao tác **đang kẹt và chặn đường** —
+ * người chơi phải `--continue` hoặc `--abort` mới làm được việc khác. Bisect
+ * không chặn gì cả: giữa hai lần `good`/`bad` người chơi vẫn chạy test, vẫn đọc
+ * log, vẫn `show` một commit. Nhét nó vào `PendingOp` sẽ bắt mọi lệnh khác phải
+ * hỏi "đang bisect à?" rồi từ chối, tức là biến một công cụ điều tra thành một
+ * cái khoá.
+ *
+ * Thêm 2026-09-14 sau khi lane nội dung báo G32 chưa hiện thực được: trạng thái
+ * bisect phải sống QUA NHIỀU LỆNH và không có chỗ nào giữ nó.
+ */
+export interface BisectState {
+  /** Commit người chơi đã khẳng định là TỐT. */
+  readonly good: readonly Oid[];
+  /** Commit đã khẳng định là HỎNG. */
+  readonly bad: Oid | null;
+  /** HEAD trước khi bisect bắt đầu. `git bisect reset` quay về đây. */
+  readonly originalHead: Head;
+  /**
+   * Ứng viên còn lại, đã sắp. Tính lại sau mỗi lần `good`/`bad` chứ không cập
+   * nhật tăng dần: một trường suy ra được lưu sẵn sẽ nói dối ngay lần đầu ai đó
+   * đổi cách thu hẹp khoảng.
+   */
+  readonly remaining: readonly Oid[];
 }
 
 /** Trạng thái một pull request mô phỏng (bài G23–G24). */
@@ -781,6 +830,11 @@ export interface GitLevel {
   /**
    * Lệnh người chơi được dùng ở level này, dạng động từ git (`add`, `commit`).
    * `null` = không giới hạn.
+   *
+   * ⚠ `'pr'` LÀ một giá trị hợp lệ ở đây dù nó không phải động từ của git thật.
+   * Vòng PR (bài G23–G24) mô phỏng thao tác trên trang web của nhà cung cấp,
+   * không phải một lệnh dòng lệnh — nhưng người chơi vẫn gõ nó ở cùng ô lệnh,
+   * nên nó đi qua cùng bộ phân tích và cùng danh sách này.
    *
    * ⚠ `null` nghĩa là CHO DÙNG MỌI LỆNH. Một mảng rỗng `[]` mang nghĩa NGƯỢC
    * LẠI — cấm mọi lệnh — và đó là cái bẫy đã cắn một lần ở `k8s/problem.ts`.

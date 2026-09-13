@@ -109,6 +109,7 @@ export function emptyRepo(defaultBranch = 'main'): Repo {
     reflog: {},
     stash: [],
     pending: null,
+    bisect: null,
   };
 }
 
@@ -168,12 +169,29 @@ export function setRef(
 }
 
 /**
- * Xoá một ref. Reflog của nó **Ở LẠI** — đó chính là cách cứu một nhánh đã xoá
- * (bài G27): `git branch -D feature` xoá con trỏ, không xoá lịch sử dịch chuyển
- * của nó, nên `git reflog feature` vẫn nói commit cuối nằm ở đâu.
+ * Xoá một ref, và **XOÁ LUÔN reflog riêng của nó**.
+ *
+ * ⚠ Bản đầu của hàm này GIỮ LẠI reflog, và đó là sai — sai theo cách làm cả bài
+ * G27 mất ý nghĩa. Sửa 2026-09-14 sau khi lane nội dung chỉ ra mâu thuẫn.
+ *
+ * git thật xoá `.git/logs/refs/heads/<nhánh>` cùng lúc với con trỏ, nên sau
+ * `git branch -D feature` thì `git reflog feature` KHÔNG còn gì. Đường cứu thật
+ * là reflog của **HEAD**: HEAD đã từng trỏ vào commit đó lúc bạn còn đứng trên
+ * nhánh, và dòng ấy còn nguyên.
+ *
+ * Giữ lại reflog của nhánh sẽ làm G27 thành một bài một bước (`git reflog
+ * feature` rồi tạo lại), và tệ hơn, nó dạy một phản xạ **không chạy được trên
+ * git thật** — đúng thứ một công cụ dạy học không bao giờ được làm. Bài học thật
+ * của G27 là: con trỏ mất không có nghĩa commit mất, và HEAD nhớ đường về.
+ *
+ * `objects` vẫn không mất gì. Đó mới là thứ bất biến.
  */
 export function deleteRef(repo: Repo, ref: RefName): Repo {
-  return { ...repo, refs: withoutKey(repo.refs, ref) };
+  return {
+    ...repo,
+    refs: withoutKey(repo.refs, ref),
+    reflog: withoutKey(repo.reflog, ref),
+  };
 }
 
 function appendReflog(reflog: Reflog, ref: RefName, entry: ReflogEntry): Reflog {
