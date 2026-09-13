@@ -114,101 +114,56 @@ export function resolveActiveTab(requested: WorkspaceTabId, hasEditor: boolean):
 }
 
 /**
- * Hàng 1 (Theia) có hiện không. Đây là biến DUY NHẤT mà việc chuyển tab đổi —
- * cùng với chiều cao hàng 2.
+ * Hàng 1 (Theia) có hiện không.
+ *
+ * SỬA ĐỔI 3 (2026-09-13) làm hàm này mang cả hai nghĩa cùng lúc: hàng 1 hiện
+ * ĐÚNG KHI hàng 2 ẩn, và ngược lại. Trước đó hai hàng cùng hiện ở tab Editor
+ * nên chỉ hàng 1 phụ thuộc vào nó.
  */
 export function isEditorVisible(activeTab: WorkspaceTabId, hasEditor: boolean): boolean {
   return hasEditor && activeTab === EDITOR_TAB;
-}
-
-// ── Chiều cao khoang terminal ở tab Editor (§Y6) ─────────────────────────────
-
-/** Mặc định ~40% chiều cao khoang, theo §Y6. */
-export const TERMINAL_PERCENT_DEFAULT = 40;
-
-/**
- * Trần/sàn của thanh kéo.
- *
- * Sàn 15% chứ không 0: một terminal cao 0 vẫn MOUNTED (đúng §Y1) nhưng người
- * dùng không nhìn thấy gì và cũng không còn chỗ nào để nắm mà kéo ngược lại —
- * tức một cách vô tình tự khoá mình ra khỏi terminal. Trần 85% giữ lại một dải
- * editor đủ để nhận ra nó vẫn ở đó.
- */
-export const TERMINAL_PERCENT_MIN = 15;
-export const TERMINAL_PERCENT_MAX = 85;
-
-/** Mỗi lần nhấn mũi tên đổi 4 điểm phần trăm — thô đủ để cảm nhận, mịn đủ để chỉnh. */
-export const TERMINAL_PERCENT_STEP = 4;
-
-/**
- * Kẹp về [MIN, MAX] và làm tròn.
- *
- * `NaN` (giá trị rác trong storage, hoặc một phép chia cho chiều cao 0) trả về
- * MẶC ĐỊNH chứ không kẹp: `Math.min`/`Math.max` với NaN lan NaN ra ngoài, và
- * một `flexBasis: "NaN%"` là khai báo CSS không hợp lệ — trình duyệt bỏ qua nó
- * trong im lặng và khoang trở về kích thước tự nhiên, không có gì báo.
- */
-export function clampTerminalPercent(value: number): number {
-  if (!Number.isFinite(value)) {
-    return TERMINAL_PERCENT_DEFAULT;
-  }
-  return Math.round(Math.min(TERMINAL_PERCENT_MAX, Math.max(TERMINAL_PERCENT_MIN, value)));
-}
-
-/**
- * Phần trăm mới khi nhấn phím trên thanh kéo, `null` cho phím ngoài khuôn.
- *
- * `null` để call-site biết KHÔNG được `preventDefault()` — nuốt mọi phím ở đây
- * sẽ chặn cả `Tab` (đường thoát khỏi thanh kéo) lẫn phím tắt của trình duyệt.
- *
- * Mũi tên LÊN làm terminal CAO THÊM: thanh kéo đi lên thì phần dưới nó rộng ra.
- */
-export function nextTerminalPercentOnKey(key: string, percent: number): number | null {
-  switch (key) {
-    case 'ArrowUp':
-      return clampTerminalPercent(percent + TERMINAL_PERCENT_STEP);
-    case 'ArrowDown':
-      return clampTerminalPercent(percent - TERMINAL_PERCENT_STEP);
-    case 'Home':
-      return TERMINAL_PERCENT_MIN;
-    case 'End':
-      return TERMINAL_PERCENT_MAX;
-    default:
-      return null;
-  }
 }
 
 /**
  * ⛔ §Y1 — dấu hiệu "hình học của khoang terminal vừa đổi", để `TerminalPane`
  * biết phải gọi `handle.fit()`.
  *
- * Vì sao là một CHUỖI chứ không phải một cờ "đang hiện": ở mô hình mới terminal
- * không bao giờ bị ẩn, nên một cờ hiện/ẩn đứng yên mãi mãi và effect fit sẽ
- * KHÔNG BAO GIỜ chạy lại. Thứ thật sự đổi là kích thước — chuyển tab (40% →
- * 100%) và kéo thanh chia. Chuỗi này đổi đúng ở hai lúc đó.
+ * ## SỬA ĐỔI 3 (2026-09-13) — hai hàng loại trừ nhau, không còn chia đôi
  *
- * ⚠ Khi hàng 1 đang ẩn, phần trăm KHÔNG được vào chuỗi: người dùng ở tab
- * Terminal thì terminal chiếm trọn khoang bất kể phần trăm đã lưu là bao nhiêu.
- * Nhét nó vào sẽ đẻ ra một lượt fit thừa mỗi lần khôi phục giá trị từ storage —
- * một lần đo lại xterm không mang tin gì mới.
+ * Chỉ đạo của chủ dự án: tab IDE hiện IDE, tab Terminal hiện terminal, hết.
+ * Nên chuỗi này chỉ còn hai giá trị, và cơ chế phần trăm chiều cao đã bị gỡ
+ * hẳn cùng thanh kéo (`TERMINAL_PERCENT_*`, `clampTerminalPercent`,
+ * `nextTerminalPercentOnKey`). Gỡ chứ không để lại dạng ẩn: một thanh kéo
+ * không bao giờ hiện được là mã chết, và mã chết trong file này là thứ người
+ * đọc sau sẽ tưởng còn dùng.
+ *
+ * ⚠ Vì sao vẫn là một CHUỖI chứ không phải một cờ boolean: nó vẫn phải ĐỔI ở
+ * mỗi lượt chuyển tab để `useFitOnLayoutChange` chạy lại. Một cờ "terminal
+ * đang hiện" cũng đổi đúng hai lần như thế, nên ở đây chuỗi không hơn cờ về
+ * chức năng — nó hơn ở chỗ đọc log/devtools ra được TÊN của bố cục, và nó giữ
+ * nguyên kiểu `string` mà `WorkspaceLayoutProvider` và giá trị mặc định
+ * `'standalone'` đang dùng.
+ *
+ * ⚠ Lượt fit khi terminal vừa bị ẩn là VÔ HẠI và cố ý không chặn ở đây:
+ * `TerminalHandle.fit()` đo trước rồi mới phát, và container 0×0 làm phép đo
+ * trả `null` nên không có `resize` nào tới PTY (`packages/terminal/src/
+ * terminal-core.ts`, thân `fit()`). Chặn thêm một lần nữa ở tầng này là dựng
+ * một cái chốt thứ hai cho một cửa đã khoá.
  */
 export function workspaceLayoutToken(input: {
   readonly activeTab: WorkspaceTabId;
   readonly hasEditor: boolean;
-  readonly terminalPercent: number;
 }): string {
-  const { activeTab, hasEditor, terminalPercent } = input;
-  if (!isEditorVisible(activeTab, hasEditor)) {
-    return 'terminal-full';
-  }
-  return `editor-split:${String(clampTerminalPercent(terminalPercent))}`;
+  return isEditorVisible(input.activeTab, input.hasEditor) ? 'editor-only' : 'terminal-full';
 }
 
 /**
  * Điều hướng bàn phím theo khuôn `tablist` NGANG của ARIA APG: mũi tên
  * trái/phải có VÒNG LẠI, `Home`/`End` nhảy về hai đầu.
  *
- * Trả `null` khi phím không thuộc khuôn — cùng lý do như `nextTerminalPercentOnKey`.
+ * Trả `null` khi phím không thuộc khuôn, để call-site biết KHÔNG được
+ * `preventDefault()`: nuốt mọi phím ở đây sẽ chặn cả `Tab` (đường thoát khỏi
+ * thanh tab) lẫn phím tắt của trình duyệt.
  */
 export function nextTabOnKey(
   key: string,
@@ -239,8 +194,6 @@ export function nextTabOnKey(
 
 export interface StoredWorkspaceState {
   readonly activeTab: WorkspaceTabId;
-  /** Chiều cao khoang terminal ở tab Editor, tính bằng phần trăm (§Y6). */
-  readonly terminalPercent: number;
 }
 
 export interface StorageLike {
@@ -256,8 +209,7 @@ export interface StorageLike {
  * `dlp-lesson-split-ide` trong `app/lessons/[id]/lesson-client.tsx`). Ở đây còn
  * khó thấy hơn: một `activeTab: 'editor'` lưu từ bài IDE, đọc lại ở bài thường,
  * bị `resolveActiveTab` kẹp im lặng — nên triệu chứng là "tab đã lưu không có
- * tác dụng" chứ không phải một lỗi ai đó đi tìm. Và phần trăm chiều cao thì
- * hoàn toàn vô nghĩa ở bài không có editor.
+ * tác dụng" chứ không phải một lỗi ai đó đi tìm.
  *
  * Hậu tố sinh ở đây thay vì bắt call-site truyền hai khoá: một call-site quên
  * là một lần trộn, và trộn thì không có gì báo.
@@ -267,11 +219,18 @@ export function workspaceStorageKey(base: string, hasEditor: boolean): string {
 }
 
 /**
- * ⚠ Hình dạng lưu ĐÃ ĐỔI ở SỬA ĐỔI 2 (`split` → `terminalPercent`, và
- * `terminal-1` không còn là một tab hợp lệ). Bản ghi cũ vì thế trả `null` và
- * người dùng nhận lại mặc định — đúng ý: một `{"activeTab":"terminal-1"}` đọc
- * theo luật mới là một tab không tồn tại, và im lặng chấp nhận nó sẽ mở bài ở
- * một trạng thái không ai chọn.
+ * ⚠ Hình dạng lưu đã đổi HAI lần. SỬA ĐỔI 2: `split` → `terminalPercent`, và
+ * `terminal-1` thôi là một tab hợp lệ. SỬA ĐỔI 3 (2026-09-13): bỏ hẳn
+ * `terminalPercent` cùng thanh kéo.
+ *
+ * ⚠ Lần này CỐ Ý không từ chối bản ghi cũ. Một `{"activeTab":"terminal",
+ * "terminalPercent":70}` vẫn khai đúng cái tab mà người dùng đã chọn; trường
+ * thừa chỉ mô tả một thanh kéo không còn tồn tại. Từ chối cả bản ghi sẽ làm
+ * mọi người đang dùng mất tab đã nhớ ở đúng lượt cập nhật này — một hồi quy
+ * im lặng để đổi lấy đúng con số không.
+ *
+ * Ngược lại, một `activeTab` không hợp lệ VẪN trả `null`: im lặng chấp nhận nó
+ * sẽ mở bài ở một trạng thái không ai chọn.
  */
 export function parseWorkspaceState(raw: string | null): StoredWorkspaceState | null {
   if (raw === null) {
@@ -289,11 +248,10 @@ export function parseWorkspaceState(raw: string | null): StoredWorkspaceState | 
   }
   const record = parsed as Record<string, unknown>;
   const tab = record['activeTab'];
-  const percent = record['terminalPercent'];
-  if (!isWorkspaceTab(tab) || typeof percent !== 'number' || !Number.isFinite(percent)) {
+  if (!isWorkspaceTab(tab)) {
     return null;
   }
-  return { activeTab: tab, terminalPercent: clampTerminalPercent(percent) };
+  return { activeTab: tab };
 }
 
 /**

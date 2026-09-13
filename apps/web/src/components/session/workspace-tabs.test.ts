@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  TERMINAL_PERCENT_DEFAULT,
-  TERMINAL_PERCENT_MAX,
-  TERMINAL_PERCENT_MIN,
-  clampTerminalPercent,
   isEditorVisible,
   listWorkspaceTabs,
   nextTabOnKey,
-  nextTerminalPercentOnKey,
   parseWorkspaceState,
   readWorkspaceState,
   resolveActiveTab,
@@ -73,88 +68,33 @@ describe('isEditorVisible — biến DUY NHẤT mà chuyển tab đổi', () => 
   */
 });
 
-describe('clampTerminalPercent', () => {
-  it('kẹp về [MIN, MAX] và làm tròn', () => {
-    expect(clampTerminalPercent(40.4)).toBe(40);
-    expect(clampTerminalPercent(0)).toBe(TERMINAL_PERCENT_MIN);
-    expect(clampTerminalPercent(-30)).toBe(TERMINAL_PERCENT_MIN);
-    expect(clampTerminalPercent(100)).toBe(TERMINAL_PERCENT_MAX);
-  });
-
-  it('NaN/Infinity ⇒ MẶC ĐỊNH, không lan ra ngoài', () => {
-    // `Math.min`/`Math.max` với NaN lan NaN, và `flexBasis: "NaN%"` là khai báo
-    // CSS không hợp lệ — trình duyệt bỏ qua trong im lặng và khoang trở về kích
-    // thước tự nhiên, không có gì báo. Ca thật: chia cho một `rect.height` = 0.
-    expect(clampTerminalPercent(Number.NaN)).toBe(TERMINAL_PERCENT_DEFAULT);
-    expect(clampTerminalPercent(Number.POSITIVE_INFINITY)).toBe(TERMINAL_PERCENT_DEFAULT);
-  });
-});
-
-describe('nextTerminalPercentOnKey — bàn phím trên thanh kéo', () => {
-  it('mũi tên LÊN làm terminal cao thêm, XUỐNG thì thấp đi', () => {
-    // Thanh kéo đi lên ⇒ phần dưới nó (terminal) rộng ra.
-    expect(nextTerminalPercentOnKey('ArrowUp', 40)).toBeGreaterThan(40);
-    expect(nextTerminalPercentOnKey('ArrowDown', 40)).toBeLessThan(40);
-  });
-
-  it('Home/End nhảy về hai đầu', () => {
-    expect(nextTerminalPercentOnKey('Home', 40)).toBe(TERMINAL_PERCENT_MIN);
-    expect(nextTerminalPercentOnKey('End', 40)).toBe(TERMINAL_PERCENT_MAX);
-  });
-
-  it('không vượt biên khi đã ở sát mép', () => {
-    expect(nextTerminalPercentOnKey('ArrowUp', TERMINAL_PERCENT_MAX)).toBe(TERMINAL_PERCENT_MAX);
-    expect(nextTerminalPercentOnKey('ArrowDown', TERMINAL_PERCENT_MIN)).toBe(TERMINAL_PERCENT_MIN);
-  });
-
-  it('null cho phím ngoài khuôn — call-site KHÔNG được preventDefault', () => {
-    // Nuốt mọi phím ở đây sẽ chặn cả `Tab` (đường thoát khỏi thanh kéo) lẫn
-    // phím tắt của trình duyệt.
-    expect(nextTerminalPercentOnKey('Tab', 40)).toBeNull();
-    expect(nextTerminalPercentOnKey('ArrowLeft', 40)).toBeNull();
-    expect(nextTerminalPercentOnKey('a', 40)).toBeNull();
-  });
-});
-
 describe('workspaceLayoutToken — dấu hiệu "phải fit() lại" (§Y1)', () => {
   /**
    * ⛔ Ô quan trọng nhất của file.
    *
-   * `TerminalPane` gọi `handle.fit()` mỗi khi chuỗi này đổi. Nếu chuyển tab
-   * KHÔNG đổi chuỗi thì terminal giữ số cột/hàng của bố cục cũ sau khi khoang
-   * đã cao gấp đôi — dòng gãy cho tới lần resize sau, và không có gì báo.
+   * `TerminalPane` gọi `handle.fit()` mỗi khi chuỗi này đổi. SỬA ĐỔI 3 làm nó
+   * quan trọng hơn chứ không kém: ở tab Editor terminal bị `hidden`, tức đo ra
+   * 0×0. Chuyển về tab Terminal là đi từ 0×0 sang kích thước thật — không đổi
+   * chuỗi thì không có lượt fit nào, và xterm giữ nguyên số cột mặc định.
    */
   it('chuyển tab ĐỔI chuỗi', () => {
-    const split = workspaceLayoutToken({ activeTab: 'editor', hasEditor: true, terminalPercent: 40 });
-    const full = workspaceLayoutToken({ activeTab: 'terminal', hasEditor: true, terminalPercent: 40 });
-    expect(split).not.toBe(full);
+    const editorOnly = workspaceLayoutToken({ activeTab: 'editor', hasEditor: true });
+    const terminalFull = workspaceLayoutToken({ activeTab: 'terminal', hasEditor: true });
+    expect(editorOnly).not.toBe(terminalFull);
   });
 
-  it('kéo thanh chia ĐỔI chuỗi', () => {
-    // §Y6: đổi chiều cao cũng là đổi kích thước, nên nó cũng phải kéo theo một
-    // lượt fit — không chỉ lúc chuyển tab.
-    const a = workspaceLayoutToken({ activeTab: 'editor', hasEditor: true, terminalPercent: 40 });
-    const b = workspaceLayoutToken({ activeTab: 'editor', hasEditor: true, terminalPercent: 70 });
-    expect(a).not.toBe(b);
-  });
-
-  it('cùng hình học ⇒ CÙNG chuỗi (không fit thừa)', () => {
-    const a = workspaceLayoutToken({ activeTab: 'editor', hasEditor: true, terminalPercent: 40 });
-    const b = workspaceLayoutToken({ activeTab: 'editor', hasEditor: true, terminalPercent: 40.2 });
-    expect(a).toBe(b);
-  });
-
-  it('ở tab Terminal, phần trăm KHÔNG vào chuỗi', () => {
-    // Terminal chiếm trọn khoang bất kể phần trăm đã lưu là bao nhiêu. Nhét nó
-    // vào sẽ đẻ ra một lượt fit thừa mỗi lần khôi phục giá trị từ storage.
-    const a = workspaceLayoutToken({ activeTab: 'terminal', hasEditor: true, terminalPercent: 20 });
-    const b = workspaceLayoutToken({ activeTab: 'terminal', hasEditor: true, terminalPercent: 80 });
-    expect(a).toBe(b);
+  it('cùng tab ⇒ CÙNG chuỗi (không fit thừa)', () => {
+    expect(workspaceLayoutToken({ activeTab: 'editor', hasEditor: true })).toBe(
+      workspaceLayoutToken({ activeTab: 'editor', hasEditor: true }),
+    );
   });
 
   it('bài không có editor luôn là "toàn khoang"', () => {
-    expect(workspaceLayoutToken({ activeTab: 'editor', hasEditor: false, terminalPercent: 40 })).toBe(
-      workspaceLayoutToken({ activeTab: 'terminal', hasEditor: false, terminalPercent: 40 }),
+    // `resolveActiveTab` đã kẹp về `terminal`, nhưng token phải tự đúng kể cả
+    // khi ai đó gọi thẳng với `activeTab: 'editor'` — nếu không, một bài thường
+    // nhận một chuỗi "editor-only" và terminal bị fit theo một bố cục không có.
+    expect(workspaceLayoutToken({ activeTab: 'editor', hasEditor: false })).toBe(
+      workspaceLayoutToken({ activeTab: 'terminal', hasEditor: false }),
     );
   });
 });
@@ -206,16 +146,11 @@ describe('workspaceStorageKey — bố cục ide và bố cục thường KHÔNG
 
   it('trạng thái lưu ở bố cục ide KHÔNG đọc được từ bố cục thường', () => {
     const storage = fakeStorage();
-    writeWorkspaceState(
-      workspaceStorageKey('lesson', true),
-      { activeTab: 'editor', terminalPercent: 70 },
-      storage,
-    );
+    writeWorkspaceState(workspaceStorageKey('lesson', true), { activeTab: 'editor' }, storage);
 
     expect(readWorkspaceState(workspaceStorageKey('lesson', false), storage)).toBeNull();
     expect(readWorkspaceState(workspaceStorageKey('lesson', true), storage)).toEqual({
       activeTab: 'editor',
-      terminalPercent: 70,
     });
   });
 });
@@ -223,19 +158,43 @@ describe('workspaceStorageKey — bố cục ide và bố cục thường KHÔNG
 describe('parseWorkspaceState — giá trị rác không được làm sập bố cục', () => {
   it('đọc lại đúng thứ đã ghi', () => {
     const storage = fakeStorage();
-    writeWorkspaceState('k', { activeTab: 'terminal', terminalPercent: 55 }, storage);
-    expect(readWorkspaceState('k', storage)).toEqual({ activeTab: 'terminal', terminalPercent: 55 });
+    writeWorkspaceState('k', { activeTab: 'terminal' }, storage);
+    expect(readWorkspaceState('k', storage)).toEqual({ activeTab: 'terminal' });
   });
 
   /**
-   * ⚠ Bản ghi của mô hình CŨ phải trả `null`, không được đọc "một nửa".
+   * ⚠ Bản ghi của mô hình SỬA ĐỔI 1 vẫn phải trả `null`.
    *
-   * `terminal-1` không còn là tab hợp lệ, và `split` không còn là chiều cao. Im
-   * lặng chấp nhận một trong hai sẽ mở bài ở một trạng thái không ai chọn.
+   * `terminal-1` không còn là tab hợp lệ. Im lặng chấp nhận nó sẽ mở bài ở một
+   * trạng thái không ai chọn.
    */
-  it('bản ghi mô hình cũ (terminal-1 / split) ⇒ null, người dùng nhận mặc định', () => {
+  it('tab của mô hình cũ (terminal-1) ⇒ null, người dùng nhận mặc định', () => {
     expect(parseWorkspaceState('{"activeTab":"terminal-1","split":false}')).toBeNull();
-    expect(parseWorkspaceState('{"activeTab":"editor","split":true}')).toBeNull();
+  });
+
+  /**
+   * ⚠ Đối chứng cho một quyết định CỐ Ý của SỬA ĐỔI 3, không phải một chỗ nới tay.
+   *
+   * Bản ghi của SỬA ĐỔI 2 mang thêm `terminalPercent`, mô tả một thanh kéo nay
+   * không còn tồn tại. Trường đó bị BỎ QUA chứ không làm hỏng cả bản ghi: cái
+   * `activeTab` trong đó vẫn khai đúng tab mà người dùng đã chọn. Từ chối cả
+   * bản ghi sẽ làm mọi người đang dùng mất tab đã nhớ ở đúng lượt cập nhật này
+   * — một hồi quy im lặng để đổi lấy đúng con số không.
+   */
+  it('bản ghi SỬA ĐỔI 2 (có terminalPercent thừa) vẫn đọc được, chỉ bỏ trường thừa', () => {
+    expect(parseWorkspaceState('{"activeTab":"editor","split":true}')).toEqual({
+      activeTab: 'editor',
+    });
+    expect(parseWorkspaceState('{"activeTab":"terminal","terminalPercent":70}')).toEqual({
+      activeTab: 'terminal',
+    });
+    expect(parseWorkspaceState('{"activeTab":"editor","terminalPercent":"rác"}')).toEqual({
+      activeTab: 'editor',
+    });
+  });
+
+  it('bản ghi chỉ có activeTab (hình dạng SỬA ĐỔI 3) đọc được', () => {
+    expect(parseWorkspaceState('{"activeTab":"editor"}')).toEqual({ activeTab: 'editor' });
   });
 
   it('null cho JSON hỏng, hình dạng sai, hoặc tab lạ', () => {
@@ -244,17 +203,7 @@ describe('parseWorkspaceState — giá trị rác không được làm sập b�
     expect(parseWorkspaceState('"chuỗi"')).toBeNull();
     expect(parseWorkspaceState('null')).toBeNull();
     expect(parseWorkspaceState('{"activeTab":"terminal-9","terminalPercent":40}')).toBeNull();
-    expect(parseWorkspaceState('{"activeTab":"editor"}')).toBeNull();
-    expect(parseWorkspaceState('{"activeTab":"editor","terminalPercent":"40"}')).toBeNull();
-  });
-
-  it('phần trăm ngoài biên bị KẸP lúc đọc, không bị vứt', () => {
-    // Khác với một trường sai KIỂU: 999 vẫn là một con số người dùng từng kéo
-    // tới (hoặc một bản ghi từ máy có biên khác), nên kẹp còn hơn trả mặc định.
-    expect(parseWorkspaceState('{"activeTab":"editor","terminalPercent":999}')).toEqual({
-      activeTab: 'editor',
-      terminalPercent: TERMINAL_PERCENT_MAX,
-    });
+    expect(parseWorkspaceState('{"terminalPercent":40}')).toBeNull();
   });
 
   it('storage ném (chế độ riêng tư) ⇒ trả null / không ném ra ngoài', () => {
@@ -268,14 +217,14 @@ describe('parseWorkspaceState — giá trị rác không được làm sập b�
     };
     expect(readWorkspaceState('k', throwing)).toBeNull();
     expect(() => {
-      writeWorkspaceState('k', { activeTab: 'editor', terminalPercent: 40 }, throwing);
+      writeWorkspaceState('k', { activeTab: 'editor' }, throwing);
     }).not.toThrow();
   });
 
   it('storage null (SSR) ⇒ không đọc, không ghi, không ném', () => {
     expect(readWorkspaceState('k', null)).toBeNull();
     expect(() => {
-      writeWorkspaceState('k', { activeTab: 'editor', terminalPercent: 40 }, null);
+      writeWorkspaceState('k', { activeTab: 'editor' }, null);
     }).not.toThrow();
   });
 });
