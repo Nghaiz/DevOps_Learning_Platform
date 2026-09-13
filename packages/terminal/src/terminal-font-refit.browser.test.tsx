@@ -44,8 +44,20 @@ import {
  *   1. `TERMINAL_FONT_FAMILY` CÓ CHỦ Ý để `"CaskaydiaCove Nerd Font Mono"` và
  *      `"Cascadia Mono"` ngay sau webfont. Máy nào cài sẵn Cascadia — mọi máy
  *      Windows có Windows Terminal — thì metric trước-font BẰNG sau-font.
- *      `shadowLocalFallbacks()` dưới đây che hai font đó nên ca test không phụ
- *      thuộc máy; không có nó thì suite xanh/đỏ tuỳ máy cài font gì.
+ *      `shadowLocalFallbacks()` dưới đây che hai font đó; không có nó thì suite
+ *      xanh/đỏ tuỳ máy cài font gì.
+ *
+ *      ⚠ SỬA 2026-09-14 — câu "nên ca test không phụ thuộc máy" đứng ở đây
+ *      trước kia là SAI, và nó đã che một ô CI đỏ suốt. Che hai font CÓ TÊN chỉ
+ *      đẩy stack xuống `monospace` CHUNG, mà `monospace` lại là một font khác
+ *      nhau trên từng hệ điều hành. Đo được: trên Windows advance `monospace`
+ *      7.697 vs webfont 8.203 — KHÁC nhau, nhưng renderer làm tròn bề rộng ô về
+ *      8 ở CẢ HAI nên ra cùng 78 cột; trên runner Ubuntu chênh lệch sống sót qua
+ *      phép làm tròn và ra 74 vs 78. Ca "metric KHÔNG đổi" vì thế xanh trên
+ *      Windows, đỏ trên CI. Nó nay dựng tiền đề bằng THỨ TỰ chứ không bằng phông
+ *      dự phòng — xem khối lý do tại chính ca đó. Các ca còn lại vẫn dùng
+ *      `shadowLocalFallbacks()` và vẫn đúng, vì chúng chỉ cần hai metric KHÁC
+ *      nhau, không cần khác một lượng cụ thể.
  *   2. Renderer WebGL LÀM TRÒN bề rộng ô về số nguyên px: đo cùng một trang,
  *      cùng lớp che font — terminal trần cho `_charSizeService.width` 7.697 và
  *      cell 7.7 (81 cột), còn `createTerminalCore` (đủ addon) cho 8.203 và cell
@@ -77,6 +89,14 @@ const LOCAL_FALLBACKS = ['CaskaydiaCove Nerd Font Mono', 'Cascadia Mono'];
 
 /** Cỡ chữ khởi tạo là 14 (`terminal-core.ts`); 24 đủ xa để số cột chắc chắn đổi. */
 const FONT_SIZE_CHANGED = 24;
+
+/**
+ * Cỡ chữ THỨ BA, chỉ dùng cho đối chứng dương ở ca cuối. Phải KHÁC cả 14 lẫn
+ * `FONT_SIZE_CHANGED` — lý do đầy đủ ở chỗ dùng, tóm tắt: quay về 14 sẽ cho lại
+ * đúng kích thước mà `notifyResize` đang giữ trong `lastNotified`, và phép dedup
+ * ở đó nuốt mất lượt phát khiến chính đối chứng dương thành một ca không thể đỏ.
+ */
+const FONT_SIZE_THIRD = 18;
 
 /**
  * `new URL(..., import.meta.url)` chứ không `import ... from '...?url'`: dạng
@@ -311,15 +331,48 @@ describe('A5 — đo lại sau khi font tải xong', () => {
     // mount — mang đúng con số mà frame `init` vừa gửi xong. Mỗi frame control
     // thừa là một lần chạm rate-limit của G8 mà không mang tin gì.
     //
-    // Chạy đúng đường thật: webfont tải xong nhưng metric không đổi. Đó chính là
-    // trạng thái 7/7 lượt đo trên cụm, nên ca này gác đúng ca phổ biến nhất.
+    // ⚠ TIỀN ĐỀ DỰNG BẰNG THỨ TỰ, KHÔNG BẰNG BỘ PHÔNG CỦA MÁY.
+    //
+    // Bản trước gọi `loadRealFont()` SAU `create()` rồi kỳ vọng metric không
+    // đổi. Tiền đề đó chỉ đúng khi phông dự phòng của máy tình cờ ra cùng số cột
+    // với webfont — và nó tự mâu thuẫn với ca đối chứng vendor ngay trên, nơi
+    // `advanceOf(webfont)` BẮT BUỘC phải khác `advanceOf('monospace')`. Đo
+    // 2026-09-14: Windows xanh (7.697 vs 8.203, renderer làm tròn cell về 8 ở cả
+    // hai ⇒ 78 cột), runner Ubuntu của CI đỏ (74 vs 78).
+    //
+    // Nạp font TRƯỚC `create()` thì metric xterm cache lúc `terminal.open()` ĐÃ
+    // là metric của webfont: `"DLPTerminalNF"` đứng ĐẦU `TERMINAL_FONT_FAMILY`
+    // nên phép so khớp dừng ngay ở đó và phông hệ thống KHÔNG bao giờ được hỏi
+    // tới. Lượt remeasure của `refitAfterFontLoad()` đo lại CHÍNH font ấy ⇒ cùng
+    // con số, trên mọi máy, không còn một đại lượng nào của máy chạy len vào.
+    // Đo được ở đây: `_charSizeService.width` = 8.203125 cả trước lẫn sau lượt
+    // remeasure, cell 8, 78×16.
+    //
+    // Và đây cũng là đường PHỔ BIẾN NHẤT khi chạy thật, chứ không phải một cảnh
+    // dựng cho dễ: font nằm sẵn trong cache trình duyệt thì nó đã có mặt lúc
+    // terminal mount, đúng trạng thái 7/7 lượt đo trên cụm.
+    await loadRealFont();
+
     const onResize = vi.fn<(size: TerminalDimensions) => void>();
     core = create(onResize);
     await sleep(SETTLE_MS);
     onResize.mockClear();
 
+    // Đổi cỡ chữ rồi `measure()` — KHÔNG phải để đụng vào metric font, mà để
+    // tách `lastNotified` ra khỏi kích thước THẬT, đúng như đường thật làm: kết
+    // quả `measure()` đi trong frame `init` (contract §3) chứ không qua
+    // `notifyResize`, nên `lastNotified` ở lại con số cũ.
+    //
+    // Thiếu bước này thì `lastNotified` TRÙNG kích thước hiện tại, phép dedup
+    // trong `notifyResize` đỡ hộ, và ca test không còn phân biệt được
+    // `refitAfterFontLoad()` CÓ so với `terminal.cols/rows` hay không — tức nó
+    // gác một bất biến mà nó không thể thấy bị phá. Có bước này thì gỡ RIÊNG
+    // khối dedup trong `refitAfterFontLoad()` là ca này đỏ ngay.
+    core.terminal.options.fontSize = FONT_SIZE_CHANGED;
+    await sleep(SETTLE_MS);
     const initSize = core.measure();
-    await loadRealFont();
+    expect(onResize).not.toHaveBeenCalled();
+
     core.refitAfterFontLoad();
 
     expect({ cols: core.terminal.cols, rows: core.terminal.rows }).toEqual(initSize);
@@ -327,6 +380,25 @@ describe('A5 — đo lại sau khi font tải xong', () => {
 
     await sleep(SETTLE_MS);
     expect(onResize).not.toHaveBeenCalled();
+
+    // ĐỐI CHỨNG DƯƠNG — BẮT BUỘC, và là thứ đã thiếu ở một bản sửa bị vứt ngày
+    // 2026-09-14. Không có nó, mọi assertion trên xanh Y HỆT khi
+    // `refitAfterFontLoad()` chết hẳn: `tryMeasure()` trả `null`,
+    // `remeasureCharSize()` thành no-op, hay cả thân hàm bị xoá. Một ca không
+    // thể đỏ tệ hơn một ca đỏ trung thực, nên phần này khẳng định đường phát VẪN
+    // SỐNG trong đúng cảnh vừa đo ở trên.
+    //
+    // ⛔ KHÔNG `measure()` trước lời gọi dưới: `measure()` tự fit nên nó ăn mất
+    // chính thay đổi mà `refitAfterFontLoad()` phải phát hiện — cùng cái bẫy đã
+    // ghi ở ca ngay trên.
+    core.terminal.options.fontSize = FONT_SIZE_THIRD;
+    await sleep(SETTLE_MS);
+    core.refitAfterFontLoad();
+
+    const revived: TerminalDimensions = { cols: core.terminal.cols, rows: core.terminal.rows };
+    expect(revived).not.toEqual(initSize);
+    expect(onResize).toHaveBeenCalledTimes(1);
+    expect(onResize).toHaveBeenCalledWith(revived);
   });
 
   it('sau dispose: refitAfterFontLoad() no-op im lặng', async () => {
