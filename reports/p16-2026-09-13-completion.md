@@ -1,5 +1,15 @@
 # P16 — kết quả tích hợp
 
+> **PHÂN ĐỊNH — phần landing của báo cáo này mô tả trạng thái TRƯỚC lượt 3D cùng ngày.**
+> Build `HZG3aU7v-lBMcBxxAFsSE` mang landing không-3D của chỉ đạo 2026-09-12. Sau đó trong ngày
+> 2026-09-13, chủ dự án đảo ngược **riêng phần 3D** và yêu cầu hành trình 3D cuộn toàn trang; bản
+> đó triển khai ở `d5bf768`, nghiệm thu riêng **20/20** trên build `I7eYNXwmu3q9KzrnjDpAr`. Vì
+> vậy câu "xoá toàn bộ cảnh vòng/3D" ở mục Phạm vi bên dưới chỉ đúng cho lượt này và **không còn
+> mô tả trang chủ hiện tại**. Lệnh cấm vòng trắng vô nghĩa thì vẫn còn hiệu lực, nên dòng "yêu
+> cầu bỏ vòng áp dụng landing" ở phần sau không bị rút. Mọi phần khác của báo cáo — copy, SMTP
+> reset, a11y/CSP, bundle, thu hồi phiên — giữ nguyên hiệu lực, và không số đo nào ở đây bị sửa.
+> Landing hiện hành: [2026-09-13-landing-3d-completion.md](2026-09-13-landing-3d-completion.md).
+
 Trạng thái: hoàn tất phạm vi P16. Lượt cuối đạt **171/171 E2E, 0 lỗi, 0 skip, 0 retry**, 374.3 giây trên build production cục bộ `HZG3aU7v-lBMcBxxAFsSE`.
 
 ## Phạm vi đã thực hiện

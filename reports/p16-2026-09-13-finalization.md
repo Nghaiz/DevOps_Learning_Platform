@@ -1,5 +1,15 @@
 # P16 — Trạng thái chốt pha
 
+> **PHÂN ĐỊNH — phần landing của báo cáo này mô tả trạng thái TRƯỚC lượt 3D cùng ngày.**
+> Dòng "chỉ đạo mới của người dùng thay toàn bộ landing: bỏ vòng trắng, ellipse, 3D và lưới thẻ"
+> ở mục Phạm vi ghi lại chỉ đạo **2026-09-12**. Cuối ngày 2026-09-13 chủ dự án đảo ngược **riêng
+> phần 3D** và yêu cầu hành trình 3D cuộn toàn trang, triển khai ở `d5bf768` và nghiệm thu riêng
+> **20/20** trên build `I7eYNXwmu3q9KzrnjDpAr`. Vòng trắng, ellipse trang trí và lưới thẻ vẫn bị
+> cấm; chỉ 3D được mở lại. Build `HZG3aU7v-lBMcBxxAFsSE` nói tới bên dưới mang landing không-3D,
+> nên kết quả 171/171 của nó không nghiệm thu cho trang chủ hiện tại — các màn còn lại thì vẫn
+> có hiệu lực. Không số đo nào ở đây bị sửa. Landing hiện hành:
+> [2026-09-13-landing-3d-completion.md](2026-09-13-landing-3d-completion.md).
+
 Ngày: 2026-09-13, Asia/Bangkok. Phiên triển khai bắt đầu 2026-09-12.
 
 **Trạng thái: COMPLETE trong phạm vi P16 đã chốt.** Lượt nghiệm thu cuối **171/171 qua,
