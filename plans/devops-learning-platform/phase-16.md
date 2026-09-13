@@ -642,8 +642,19 @@ Ranh giới sản phẩm vẫn cần nói rõ:
   đưa vào yêu cầu thiết kế. `packages/games` chỉ mở phạm vi phần nhãn problem nêu trên.
   Chủ dự án đã chốt lại ngày 2026-09-13 rằng Arena **ở ngoài phạm vi P16** và là đầu vào của P17;
   hai dòng miễn trừ màu ở trên vì vậy vẫn giữ nguyên, chờ P17 rà lại chứ không đóng ở chặng này.
-- **Gửi thư đã nhận không phải giao thư bền vững.** `Next after()` có thể bị ngắt khi tiến
-  trình chết; chưa có hàng đợi bền vững. UI và tài liệu ghi đúng giới hạn này.
+- **Việc gửi thư đã nhận nay bền vững, nhưng vẫn KHÔNG phải "đảm bảo gửi".** Nhận một yêu
+  cầu là commit một dòng `password_reset_outbox`, nên tiến trình chết giữa chừng không còn
+  xoá được việc đã nhận — trước đó `after()` bị ngắt là mất thư, không dấu vết, không log.
+  `after()` vẫn gửi ngay nên độ trễ đường bình thường không đổi; một lượt quét 60 giây trong
+  mỗi tiến trình web nhặt lại dòng của tiến trình đã chết, và `FOR UPDATE SKIP LOCKED` (một
+  transaction mỗi dòng) khiến nhiều replica quét song song không gửi trùng. Gửi xong thì xoá
+  dòng; hỏng thì lùi hạn theo luỹ thừa, tối đa 5 lượt, tất cả nằm trong TTL 15 phút của mã.
+  **Giới hạn CÒN LẠI, ghi đúng ở UI và tài liệu:** mọi replica web cùng chết thì không ai
+  quét — dòng nằm lại DB tới khi có replica sống lại, không mất nhưng không có mốc thời gian
+  nào được hứa. Cột `code` giữ mã ở dạng bản rõ (bảng `verifications` vẫn chỉ giữ băm) —
+  đánh đổi có chủ ý để mã sống sót qua cái chết của tiến trình, chặn hai đầu bằng xoá-khi-gửi-xong
+  và dọn-khi-quá-hạn. Bảy ô nghiệm thu chạy trên Postgres thật, mỗi ô đã được kiểm bằng cách
+  phá mã sản phẩm để xác nhận nó đỏ được.
 
 Lượt core đầu **157 qua / 8 lỗi / 0 skip** được giữ làm lịch sử điều tra. Hai ca terminal,
 hai lỗi focus SearchTabs ẩn và bốn lỗi author tràn 390px đã được sửa; 15 vấn đề heading moderate

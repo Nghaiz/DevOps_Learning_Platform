@@ -52,14 +52,30 @@ The chart rejects an enabled SMTP Secret with isolated platform networking but n
 
 ## Delivery and privacy
 
-The API validates and rate-limits the request before checking SMTP connectivity. A provider outage gives the same 503 response for known and unknown addresses. An accepted request does not promise delivery or disclose account existence. Next `after()` performs recipient-specific delivery after the response; a rejected recipient produces a sanitized operational error, never a code/address/password in logs. Users can retry or contact the administrator if mail does not arrive.
+The API validates and rate-limits the request before checking SMTP connectivity. A provider outage gives the same 503 response for known and unknown addresses. An accepted request does not promise delivery or disclose account existence.
 
-`after()` is supported by `next start`. Preserve graceful termination so in-flight work can finish. This path does not provide a durable mail queue: an abrupt process kill can lose an accepted delivery, so the UI explicitly confirms request acceptance rather than sending success. The user's next request generates another code; older codes are invalidated after a successful reset.
+Accepting a request commits one row to the `password_reset_outbox` table, and that committed row is what "accepted" means. The SMTP round-trip still happens after the response, so recipient acceptance cannot disclose account existence through response timing. A rejected recipient produces a sanitized operational error: never a code, address, or password, in logs or in the stored `last_error`. Users can retry or contact the administrator if mail does not arrive.
+
+## Durable delivery
+
+A drain runs immediately after the response through Next `after()`, so normal-path latency is what it was before the queue existed. A second drain sweeps every 60 seconds inside each web process. That sweep exists for one case `after()` cannot cover: the process that accepted the request died before finishing the send. Its row is still in the database, and only another process looking will find it.
+
+Rows are claimed with `SELECT ... FOR UPDATE SKIP LOCKED`, one transaction per row, so every replica can sweep concurrently without sending a message twice. A successful send deletes the row. A failed send records a sanitized error, increments `attempts`, and backs off exponentially: attempts land at 0s, +30s, +90s, +210s, +450s, then stop at five. All five fall inside the 15-minute code lifetime, so no attempt is spent on a code that is already dead. Any row past `expires_at` is deleted without sending, including one that exhausted its attempts.
+
+**This is not a delivery guarantee, and should not be described as one.** If every web replica is down, nothing sweeps. Rows stay in the database and are sent when a replica returns, with no promised deadline. That is the difference from the previous `after()`-only path, where an abrupt kill lost the accepted delivery outright with no record. The UI still confirms request acceptance rather than sending success. The user's next request generates another code; older codes are invalidated after a successful reset. Preserve graceful termination so in-flight work can still finish normally.
+
+To inspect a backlog, read `attempts`, `next_attempt_at`, and `last_error` on that table. Those three columns are the intended diagnostic surface; the sweep itself logs counts only.
+
+The `code` column holds the reset code in cleartext, unlike `verifications`, which keeps only its hash. This is a deliberate trade: retrying after a crash requires the code to outlive the process, and a code cannot be hashed because the email has to carry the plaintext. Exposure is bounded at both ends, by deleting the row the moment it is sent and purging it unsent once expired.
+
+This change adds no environment variable. The table ships in migration `0010_equal_sunspot.sql`, which the chart's `migrate-job` Helm hook applies before web and orchestrator start; locally, run `pnpm --filter @devops-platform/web db:migrate`.
 
 ## Verification
 
 The integration suite starts a real TCP SMTP sink on an ephemeral loopback port, creates a dedicated account in Postgres, and invokes the actual Better Auth HTTP handler. It checks delivery, hashed identifiers, expiry, code replay, password changes, session and refresh revocation, browser cookie expiry, identical known/unknown error behavior, and rejection before SMTP for malformed/throttled requests. It cleans up its own account and verification rows. It needs the same database as the existing security integration tests, but no external mail provider or Docker inbox.
 
+A second suite covers the queue against real Postgres, because what it checks is database behavior: `SKIP LOCKED` claiming, rollback when a process dies mid-transaction, and due-time comparison. A stubbed database handle would answer each of those with the assumption under test. It runs in its own Postgres schema, built with `LIKE ... INCLUDING ALL`, so its drains cannot consume rows belonging to the suite above when vitest runs both files in parallel.
+
 ```sh
-pnpm --filter @devops-platform/web exec vitest run src/server/auth/password-reset.integration.test.ts src/app/reset-password/password-reset-forms.test.tsx
+pnpm --filter @devops-platform/web exec vitest run src/server/auth/password-reset.integration.test.ts src/server/auth/password-reset-outbox.integration.test.ts src/app/reset-password/password-reset-forms.test.tsx
 ```
