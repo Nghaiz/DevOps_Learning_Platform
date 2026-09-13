@@ -12,6 +12,7 @@ import {
   PASSWORD_RESET_RETRY_BASE_MS,
   drainPasswordResetOutbox,
   enqueuePasswordResetMail,
+  verifyPasswordResetOutbox,
   type PasswordResetSender,
 } from './password-reset-outbox';
 
@@ -308,5 +309,50 @@ describe('hàng đợi bền vững cho thư đặt lại mật khẩu', () => {
     expect(stored).not.toContain('smtp-user@provider.test');
     expect(stored).toContain('[redacted]');
     expect(stored.length).toBeLessThanOrEqual(200);
+  });
+});
+
+/**
+ * ⛔ Bảng vắng mặt phải làm phép thăm dò NÉM — nếu không, nó là một cổng luôn xanh.
+ *
+ * `verifyPasswordResetOutbox` chạy trong `before` hook của
+ * `/request-password-reset`, TRƯỚC lượt tra cứu tài khoản, để một nhánh hạ tầng
+ * hỏng trả cùng 503 cho MỌI địa chỉ. Không có nó, chỉ email CÓ tài khoản nhận
+ * 503 (vì `sendResetPassword` chỉ chạy cho chúng) còn email không tồn tại nhận
+ * 200 — một kênh liệt kê tài khoản.
+ *
+ * ⚠ PHẠM VI của ô này, nói thẳng: nó kiểm PHÉP THĂM DÒ, không kiểm phần nối dây.
+ * Việc "cả hai probe nằm cùng một `try` trước lượt tra cứu" được giữ bằng cấu
+ * trúc mã trong `auth/config.ts`, không bằng ô test này. Một lượt đo đầu-cuối
+ * cần dựng một môi trường thiếu đúng bảng đó trong lúc better-auth đang chạy.
+ */
+describe('verifyPasswordResetOutbox — cân bằng nhánh hỏng của DB', () => {
+  it('bảng có thật ⇒ không ném', async () => {
+    await expect(verifyPasswordResetOutbox(db)).resolves.toBeUndefined();
+  });
+
+  it('bảng vắng mặt ⇒ NÉM, để hook trả 503 cho mọi địa chỉ', async () => {
+    // Một handle trỏ vào một schema rỗng: cùng client, cùng kiểu, không có bảng.
+    const empty = `${TEST_SCHEMA}_missing`;
+    const admin = postgres(databaseUrl(), { max: 1 });
+    try {
+      await admin.unsafe(`DROP SCHEMA IF EXISTS ${empty} CASCADE`);
+      await admin.unsafe(`CREATE SCHEMA ${empty}`);
+    } finally {
+      await admin.end();
+    }
+    const client = postgres(databaseUrl(), { max: 1, connection: { search_path: empty } });
+    const bare = drizzle(client, { schema }) as unknown as Database;
+    try {
+      await expect(verifyPasswordResetOutbox(bare)).rejects.toThrow();
+    } finally {
+      await client.end();
+      const cleanup = postgres(databaseUrl(), { max: 1 });
+      try {
+        await cleanup.unsafe(`DROP SCHEMA IF EXISTS ${empty} CASCADE`);
+      } finally {
+        await cleanup.end();
+      }
+    }
   });
 });

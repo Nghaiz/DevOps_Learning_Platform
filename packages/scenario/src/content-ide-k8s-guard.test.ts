@@ -115,13 +115,48 @@ function readContentTree(): readonly ContentItem[] {
         typeof iface === 'object' && iface !== null
           ? (iface as Record<string, unknown>)['layout']
           : undefined;
-      if (typeof imageId !== 'string') {
-        continue;
-      }
-      items.push({ rel, imageId, layout: typeof layout === 'string' ? layout : null });
+      /*
+        ⚠ Thiếu `backend.imageid` KHÔNG được bỏ qua im lặng.
+
+        Bản đầu `continue` ở đây, và hậu quả là một mục khai `layout: ide` mà
+        thiếu khối `backend` trở nên VÔ HÌNH với cổng — đúng chiều hỏng mà cổng
+        này tồn tại để chặn. Nay nó vào danh sách với `imageId: ''`, và phép dò
+        bên dưới coi một imageid không phân giải được là vi phạm.
+      */
+      items.push({
+        rel,
+        imageId: typeof imageId === 'string' ? imageId : '',
+        layout: typeof layout === 'string' ? layout : null,
+      });
     }
   }
   return items;
+}
+
+/**
+ * ⛔ PHÉP DÒ, viết ĐÚNG MỘT LẦN.
+ *
+ * Ô thật và ô đối chứng dương đều gọi hàm này. Bản đầu viết lại cùng biểu thức
+ * `.filter().filter()` ở cả hai chỗ, và đó là một đối chứng KHÔNG chứng minh gì:
+ * phá bản thật thì bản chép trong ô đối chứng vẫn xanh, nên ô đối chứng chỉ
+ * khẳng định rằng một đoạn mã nó tự viết ra chạy đúng. Một review độc lập bắt
+ * được điều này (Q5, 2026-09-13).
+ *
+ * Hai vế của phép dò, và vế thứ hai không thừa:
+ *  1. mục khai `layout: 'ide'` VÀ image mang năng lực `kubernetes` ⇒ vi phạm.
+ *  2. mục khai `layout: 'ide'` mà imageid KHÔNG phân giải được ⇒ cũng vi phạm.
+ *     `mapBackendImage` trả `null` cho một imageid lạ (hoặc rỗng, xem N9 ở trên),
+ *     và một phép lọc chỉ hỏi `?.includes('kubernetes') === true` sẽ đọc `null`
+ *     thành "không phải k8s" — tức bỏ qua đúng những mục ta không biết gì về chúng.
+ */
+function offendingItems(items: readonly ContentItem[]): readonly string[] {
+  return items
+    .filter((item) => item.layout === 'ide')
+    .filter((item) => {
+      const mapping = mapBackendImage(item.imageId);
+      return mapping === null || mapping.capabilities.includes('kubernetes');
+    })
+    .map((item) => `${item.rel} (imageid=${item.imageId || '<thiếu>'})`);
 }
 
 describe('TestNoContentIsBothIdeAndK8s — cổng nội dung ide + kubernetes', () => {
@@ -156,10 +191,7 @@ describe('TestNoContentIsBothIdeAndK8s — cổng nội dung ide + kubernetes', 
   });
 
   it('không mục nào vừa `ide` vừa đòi kubernetes', () => {
-    const offenders = items
-      .filter((item) => item.layout === 'ide')
-      .filter((item) => mapBackendImage(item.imageId)?.capabilities.includes('kubernetes') === true)
-      .map((item) => `${item.rel} (imageid=${item.imageId})`);
+    const offenders = offendingItems(items);
 
     expect(
       offenders,
@@ -173,17 +205,24 @@ describe('TestNoContentIsBothIdeAndK8s — cổng nội dung ide + kubernetes', 
    * ⛔ Nửa DƯƠNG. Không có nó, một `mapBackendImage` trả `null` cho mọi thứ,
    * hoặc một phép lọc `layout === 'ide'` gõ sai, cũng làm ô trên xanh mãi mãi.
    */
-  it('đối chứng dương — cùng phép dò BẮT được một mục vi phạm dựng sẵn', () => {
+  it('đối chứng dương — CHÍNH phép dò đang chạy bắt được ba ca dựng sẵn', () => {
+    /*
+      Gọi `offendingItems` — cùng hàm mà ô thật gọi. Đây là điều khiến ô này
+      chứng minh được một điều: phá phép dò thì CẢ HAI ô cùng đỏ.
+    */
     const fake: readonly ContentItem[] = [
-      { rel: 'scenarios/gia-dinh-vi-pham', imageId: 'kubernetes-kubeadm-1node', layout: 'ide' },
-      { rel: 'scenarios/khong-vi-pham', imageId: 'ubuntu', layout: 'ide' },
+      { rel: 'scenarios/ide-va-k8s', imageId: 'kubernetes-kubeadm-1node', layout: 'ide' },
+      { rel: 'scenarios/ide-imageid-la', imageId: 'khong-co-trong-bang', layout: 'ide' },
+      { rel: 'scenarios/ide-thieu-backend', imageId: '', layout: 'ide' },
+      { rel: 'scenarios/ide-khong-k8s', imageId: 'ubuntu', layout: 'ide' },
+      { rel: 'scenarios/k8s-khong-ide', imageId: 'kubernetes-kubeadm-1node', layout: null },
     ];
-    const offenders = fake
-      .filter((item) => item.layout === 'ide')
-      .filter((item) => mapBackendImage(item.imageId)?.capabilities.includes('kubernetes') === true)
-      .map((item) => item.rel);
 
-    expect(offenders).toEqual(['scenarios/gia-dinh-vi-pham']);
+    expect(offendingItems(fake).map((s) => s.split(' ')[0])).toEqual([
+      'scenarios/ide-va-k8s',
+      'scenarios/ide-imageid-la',
+      'scenarios/ide-thieu-backend',
+    ]);
   });
 
   /**

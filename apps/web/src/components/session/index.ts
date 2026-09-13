@@ -19,9 +19,18 @@ export { useResolvedTerminalTheme } from './use-resolved-terminal-theme';
 export { WorkspaceSplit } from './workspace-split.tsx';
 export type { WorkspaceSplitProps } from './workspace-split.tsx';
 
-// §Y1/§Y4 — khoang phải kiểu KillerCoda: MỘT terminal, hiện ở CẢ HAI tab (neo
-// đáy ~40% ở tab Editor, toàn khoang ở tab Terminal). ⛔ Bất biến của nó:
-// terminal KHÔNG đổi cha và KHÔNG BAO GIỜ bị ẩn — đọc chú thích đầu
+// §Y1/§Y4 — khoang phải: HAI tab loại trừ nhau, dùng chung MỘT terminal. Tab
+// nào tới lượt thì chiếm trọn khoang, hàng kia mang `hidden` (SỬA ĐỔI 3, chỉ
+// đạo 2026-09-13; bản trước dựng theo KillerCoda với một dải terminal neo đáy
+// ~40% ở tab Editor, dải đó đã bị gỡ cùng thanh kéo sinh ra nó).
+//
+// ⛔ Bất biến của nó là: terminal KHÔNG đổi node cha và KHÔNG unmount. Nó KHÔNG
+// phải "terminal không bao giờ bị ẩn", như bản trước của chính dòng này viết.
+// `hidden` để nguyên node tại chỗ trong cây React, nó chỉ thôi được vẽ; đổi cha
+// hay bỏ khỏi cây mới là unmount, tức đóng WebSocket và mất phiên của người học
+// mà không lỗi nào bắn. Câu "không bao giờ ẩn" là hệ quả của LỰA CHỌN THIẾT KẾ
+// KillerCoda (terminal có mặt ở cả hai tab), chưa bao giờ là ràng buộc kỹ
+// thuật, nên nó đi theo khi lựa chọn đó bị thay. Đọc chú thích đầu
 // `workspace-panel.tsx` trước khi sửa.
 export { WorkspacePanel } from './workspace-panel.tsx';
 export type { WorkspacePanelProps } from './workspace-panel.tsx';

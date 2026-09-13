@@ -14,6 +14,7 @@ import {
   schedulePasswordResetMail,
   verifyPasswordResetSmtp,
 } from './password-reset-mail';
+import { verifyPasswordResetOutbox } from './password-reset-outbox';
 import {
   betterAuthSecret,
   betterAuthUrl,
@@ -121,8 +122,28 @@ function buildAuth() {
         if (!z.object({ email: z.email() }).strict().safeParse(ctx.body).success) {
           throw new APIError('BAD_REQUEST', { code: 'INVALID_RESET_REQUEST' });
         }
+        /*
+          ⛔ Cả HAI phép thăm dò phải nằm ở ĐÂY, trước lượt tra cứu tài khoản.
+
+          `sendResetPassword` chỉ chạy cho email CÓ tài khoản (better-auth trả
+          200 cứng cho email không tồn tại mà không gọi nó). Nên bất kỳ nhánh
+          hỏng nào chỉ ném TRONG `sendResetPassword` sẽ đẻ ra:
+
+              email CÓ tài khoản    ⇒ 503
+              email KHÔNG tài khoản ⇒ 200
+
+          tức một kênh liệt kê tài khoản, và `forgot-password-form.tsx` phơi
+          đúng khác biệt đó ra màn hình. Đặt phép thăm dò TRƯỚC lượt tra cứu làm
+          mọi địa chỉ nhận cùng một câu trả lời khi hạ tầng hỏng.
+
+          SMTP đã được cân bằng theo cách này từ trước. Hàng đợi (2026-09-13)
+          thêm một nhánh hỏng thứ hai — bảng `password_reset_outbox` chưa tồn
+          tại vì bản triển khai lên trước migration `0010` — và nhánh đó chưa
+          ai cân bằng cho tới lượt này.
+        */
         try {
           await verifyPasswordResetSmtp();
+          await verifyPasswordResetOutbox(getDb());
         } catch {
           throw new APIError('SERVICE_UNAVAILABLE', { code: 'RESET_DELIVERY_UNAVAILABLE' });
         }

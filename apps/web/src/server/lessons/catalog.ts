@@ -105,7 +105,20 @@ export const RUNTIME_SUPPORTED_CAPABILITIES: readonly ScenarioCapability[] = [
  */
 export function profileForCapabilities(
   capabilities: readonly ScenarioCapability[],
-  interfaceLayout: string | null = null,
+  /**
+   * ⛔ BẮT BUỘC, không có mặc định — và đây là một quyết định, không phải sự
+   * khó tính.
+   *
+   * Một `= null` ở đây làm mọi caller quên truyền mà VẪN BIÊN DỊCH, và hậu quả
+   * không phải một lỗi: pod xin đúng RAM của bài thường, chạy bình thường, chỉ
+   * là không có Theia — trong khi giao diện vẫn vẽ tab Editor và iframe trắng
+   * vĩnh viễn. `server/labs/session.ts` đã cố ý làm trường của nó bắt buộc với
+   * đúng lý lẽ này; lớp bảo vệ đó vô nghĩa nếu chính hàm bên dưới lại có default.
+   *
+   * Một review độc lập chỉ ra rằng đã có call-site một-đối-số khi còn default
+   * (Q6, 2026-09-13). Nay compiler là thứ giữ bất biến, không phải quy ước.
+   */
+  interfaceLayout: string | null,
 ): string {
   // Thứ tự KHÔNG hoán đổi được: `multi-node` phải xét TRƯỚC. Một bài
   // multi-node cũng mang `kubernetes`, nên kiểm `kubernetes` trước sẽ trả

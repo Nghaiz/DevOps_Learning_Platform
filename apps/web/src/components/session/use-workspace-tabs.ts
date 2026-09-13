@@ -44,9 +44,16 @@ import {
  * đoán: **cái đua nó che cũng biến mất**, chứ không phải bị giấu đi. Không tạo
  * window mới thì không có shell mới, không có `stty`, không có gì để xả.
  *
- * "Tách đôi" cũng không cần thay thế: tab Editor ĐÃ LÀ bố cục hai khoang
- * (editor trên, terminal neo đáy), nên nút cũ chỉ còn là một đường thứ hai tới
- * đúng thứ tab Editor đang làm.
+ * "Tách đôi" cũng không cần thay thế — nhưng ⚠ LÝ DO ĐÃ ĐỔI, kết luận thì không.
+ *
+ * Lý do của SỬA ĐỔI 2 là "tab Editor ĐÃ LÀ bố cục hai khoang (editor trên,
+ * terminal neo đáy), nên nút tách đôi chỉ là một đường thứ hai tới đúng thứ tab
+ * Editor đang làm". Tiền đề đó chết cùng SỬA ĐỔI 3: hai tab nay LOẠI TRỪ nhau,
+ * không tab nào là bố cục hai khoang.
+ *
+ * Kết luận vẫn đứng, vì một lý do đơn giản hơn: chỉ có MỘT phiên terminal, nên
+ * không có gì để tách. Nút tách đôi cũ chia hai terminal, và terminal thứ hai
+ * đã biến mất từ SỬA ĐỔI 2.
  */
 
 /** Ctrl+C. Gửi RIÊNG, không bao giờ nối vào chuỗi lệnh (xem `exec`). */

@@ -95,14 +95,19 @@ export const playgroundsRouter = createTRPCRouter({
        * thật. Lệch đối số là màn hình đếm chỗ cho một pod khác pod sắp tạo, đúng
        * chế độ hỏng 2026-09-07.
        *
-       * ⚠ HAI đối số từ 2026-09-13. `createSandboxSession` nay chuyển
-       * `interfaceLayout` xuống `profileForCapabilities`, nên lý do cũ để bỏ nó
-       * ở đây (nhãn sẽ hứa một profile mà pod không xin) đã hết hiệu lực.
+       * ⚠ HAI đối số từ 2026-09-13, và đối số thứ hai nay là BẮT BUỘC: nó không
+       * còn mặc định `null`, nên quên truyền là một lỗi biên dịch chứ không còn
+       * là một kỷ luật ai đó phải nhớ. Lý do cũ để bỏ nó ở đây (nhãn sẽ hứa một
+       * profile mà pod không xin) cũng đã hết hiệu lực từ lượt
+       * `createSandboxSession` chuyển `interfaceLayout` xuống
+       * `profileForCapabilities`.
        *
-       * Hôm nay KHÔNG sân chơi nào khai `interface.layout: ide` — bản khai duy
-       * nhất trong repo là `content/scenarios/dlp-ide-config-edit`, một bài học.
-       * Nên lượt này không đổi hành vi của bất kỳ sân chơi đang có nào; nó chỉ
-       * làm chỗ này ngừng là một cái bẫy cho sân chơi IDE đầu tiên.
+       * Hôm nay KHÔNG sân chơi nào khai `interface.layout: ide`, nhưng repo có
+       * HAI bản khai, đều nằm ngoài nhánh playground: `dlp-ide-config-edit`
+       * (một bài học, trong `content/scenarios/`) và `dlp-linux-triage` (một
+       * lab, trong `content/labs/`). Nên lượt này không đổi hành vi của bất kỳ
+       * sân chơi đang có nào; nó chỉ làm chỗ này ngừng là một cái bẫy cho sân
+       * chơi IDE đầu tiên.
        */
       profile: profileForCapabilities(playground.capabilities, playground.interfaceLayout),
       // Playground KHÔNG có `requiresCapabilities` (schema `.pick()` bỏ nó có

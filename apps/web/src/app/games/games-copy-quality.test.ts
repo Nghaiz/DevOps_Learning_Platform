@@ -38,12 +38,32 @@ import { GAMES, GAME_TOPIC_LABEL, GAME_META } from './games-catalog';
  * thẳng, nó vẫn nằm trong tầm cổng này.
  */
 
+/**
+ * Những trường của `GameEntry` KHÔNG phải chữ người dùng đọc.
+ *
+ * ⚠ Danh sách này là vế NGƯỢC, và nó tồn tại vì vế xuôi không gác được gì.
+ *
+ * Bản đầu của bộ thu liệt kê tay các trường chữ (`title`, `description`). Thêm
+ * một trường chữ mới vào `GameEntry` thì không ô nào đỏ — trường mới chỉ đơn
+ * giản không được quét, im lặng. Một review độc lập bắt được (N10, 2026-09-13).
+ *
+ * Nay bộ thu quét MỌI giá trị chuỗi của mỗi mục và chỉ bỏ những khoá được khai
+ * ở đây. Thêm một trường chữ mới ⇒ nó tự vào phạm vi quét. Thêm một trường
+ * KHÔNG phải chữ (id, href, enum) mà quên khai ở đây ⇒ ô dưới đỏ và bắt người
+ * thêm phải quyết định, thay vì để phép quét tự đoán.
+ */
+const NON_PROSE_FIELDS: ReadonlySet<string> = new Set(['id', 'href', 'difficulty', 'topics']);
+
 /** Mọi chuỗi người dùng ĐỌC ĐƯỢC trên `/games`, kèm chỗ nó đến từ đâu. */
 function userFacingStrings(): ReadonlyArray<readonly [string, string]> {
   const out: Array<readonly [string, string]> = [];
   for (const game of GAMES) {
-    out.push([`GAMES[${game.id}].title`, game.title]);
-    out.push([`GAMES[${game.id}].description`, game.description]);
+    for (const [key, value] of Object.entries(game)) {
+      if (NON_PROSE_FIELDS.has(key) || typeof value !== 'string') {
+        continue;
+      }
+      out.push([`GAMES[${game.id}].${key}`, value]);
+    }
   }
   for (const [topic, label] of Object.entries(GAME_TOPIC_LABEL)) {
     out.push([`GAME_TOPIC_LABEL.${topic}`, label]);
@@ -66,9 +86,24 @@ describe('app/games — chất lượng chữ hiển thị', () => {
   it('thu được chuỗi thật để quét (chống cổng chạy trên tập rỗng)', () => {
     expect(strings.length).toBeGreaterThan(0);
     expect(strings.every(([, value]) => value.length > 0)).toBe(true);
-    // Bốn game × 2 trường là sàn tối thiểu của hình dạng hiện tại; nếu cây dữ
-    // liệu đổi hẳn thì ô này đỏ và người sửa phải đọc lại bộ thu ở trên.
     expect(strings.filter(([where]) => where.startsWith('GAMES['))).not.toHaveLength(0);
+  });
+
+  /**
+   * ⛔ Nửa chống-ôi của `NON_PROSE_FIELDS`.
+   *
+   * Một danh sách miễn trừ chỉ lớn dần thì thành nghĩa địa. Ô này đỏ khi một
+   * khoá trong đó không còn tồn tại trên `GameEntry` — lúc ấy việc phải làm là
+   * XOÁ dòng đó, không phải thêm một trường cho khớp sổ.
+   */
+  it('mỗi khoá trong NON_PROSE_FIELDS còn tồn tại thật trên GameEntry', () => {
+    const first = GAMES[0];
+    expect(first, 'GAMES rỗng — không có gì để đối chiếu').toBeDefined();
+    const actual = new Set(Object.keys(first ?? {}));
+    const stale = [...NON_PROSE_FIELDS].filter((k) => !actual.has(k));
+    expect(stale, 'xoá các khoá này khỏi NON_PROSE_FIELDS, chúng không còn trên GameEntry').toEqual(
+      [],
+    );
   });
 
   it('không chuỗi nào mang gạch ngang dài hay dấu chấm giữa sai nhịp', () => {

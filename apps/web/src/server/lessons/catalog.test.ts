@@ -26,13 +26,13 @@ describe('profileForCapabilities', () => {
     // đó xét `kubernetes` trước, hàm trả 'k8s' và bài hai node nhận một pod
     // 1Gi vừa đủ cho MỘT node. Node phụ đội trần rồi bị kubelet đuổi, và triệu
     // chứng — "thỉnh thoảng chỉ thấy một node" — không trỏ về hàm này ở đâu cả.
-    expect(profileForCapabilities(['kubernetes', 'multi-node'])).toBe('k8s-multinode');
+    expect(profileForCapabilities(['kubernetes', 'multi-node'], null)).toBe('k8s-multinode');
     // Và thứ tự trong mảng đầu vào cũng không được ảnh hưởng tới kết quả.
-    expect(profileForCapabilities(['multi-node', 'kubernetes'])).toBe('k8s-multinode');
+    expect(profileForCapabilities(['multi-node', 'kubernetes'], null)).toBe('k8s-multinode');
   });
 
   it('chỉ kubernetes ⇒ k8s', () => {
-    expect(profileForCapabilities(['kubernetes'])).toBe('k8s');
+    expect(profileForCapabilities(['kubernetes'], null)).toBe('k8s');
   });
 
   it('layout ide ⇒ profile ide', () => {
@@ -64,8 +64,8 @@ describe('profileForCapabilities', () => {
     // Rỗng có nghĩa CỐ ĐỊNH là "profile mặc định của namespace" (LimitRange lo),
     // không phải "chưa biết" — orchestrator TỪ CHỐI một tên lạ nhưng CHẤP NHẬN
     // chuỗi rỗng, nên trả nhầm một tên ở đây sẽ hỏng, còn trả rỗng thì không.
-    expect(profileForCapabilities([])).toBe('');
-    expect(profileForCapabilities(['docker'])).toBe('');
+    expect(profileForCapabilities([], null)).toBe('');
+    expect(profileForCapabilities(['docker'], null)).toBe('');
   });
 });
 

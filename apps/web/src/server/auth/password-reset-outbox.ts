@@ -49,6 +49,40 @@ export interface PasswordResetDrainResult {
  * hồ. DB lệch nhanh hơn tiến trình vài chục giây là đủ để một dòng vừa ghi bị
  * đọc thành "chưa đến hạn" — im lặng hoãn thư tới lượt quét định kỳ.
  */
+/**
+ * Bảng outbox có sẵn sàng nhận việc không — hỏi TRƯỚC khi tra cứu tài khoản.
+ *
+ * ## Vì sao phép kiểm này tồn tại: một kênh LIỆT KÊ TÀI KHOẢN
+ *
+ * `sendResetPassword` chỉ chạy cho email CÓ tài khoản — better-auth trả 200
+ * cứng cho email không tồn tại mà không gọi nó. Nên nếu lượt ghi outbox ném
+ * (bản triển khai mới lên trước khi migration `0010` chạy, DB không ghi được,
+ * quyền thiếu), kết quả là:
+ *
+ *   email CÓ tài khoản   ⇒ 503
+ *   email KHÔNG tài khoản ⇒ 200
+ *
+ * và `forgot-password-form.tsx` phơi đúng khác biệt đó ra màn hình. Người dò
+ * chỉ cần đọc mã trạng thái là biết địa chỉ nào có thật — đúng thứ mà toàn bộ
+ * phần còn lại của luồng này (cùng phản hồi cho mọi địa chỉ, gửi SAU response)
+ * được dựng để chặn.
+ *
+ * `verifyPasswordResetSmtp()` đã cân bằng nhánh SMTP theo đúng cách này từ
+ * trước; hàng đợi thêm một nhánh hỏng mới mà không ai cân bằng. Hàm này là vế
+ * còn thiếu. Một review độc lập chỉ ra (Q2, 2026-09-13).
+ *
+ * ## Giới hạn, nói thẳng
+ *
+ * Đây là phép kiểm ĐỌC. Nó bắt được ca áp đảo (bảng chưa tồn tại / DB không với
+ * tới được) nhưng KHÔNG chứng minh ghi được: đĩa đầy, quyền chỉ-đọc, hay một
+ * ràng buộc bị vi phạm vẫn lọt qua. Dùng một lượt ghi-rồi-xoá thật sẽ đóng nốt,
+ * nhưng nó biến MỌI request quên-mật-khẩu thành hai lượt ghi DB trên một route
+ * công khai — đổi một kênh hẹp lấy một bề mặt từ chối dịch vụ rộng hơn.
+ */
+export async function verifyPasswordResetOutbox(db: Database): Promise<void> {
+  await db.select({ id: passwordResetOutbox.id }).from(passwordResetOutbox).limit(1);
+}
+
 export async function enqueuePasswordResetMail(
   db: Database,
   entry: { email: string; code: string; expiresAt: Date },

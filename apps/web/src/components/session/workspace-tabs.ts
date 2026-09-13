@@ -1,9 +1,12 @@
 /**
  * §Y1/§Y4 — mô hình khoang làm việc, tách khỏi React.
  *
- * Mọi quyết định "hàng nào hiện, terminal cao bao nhiêu, phím nào đi đâu, lưu
- * vào khoá nào" nằm ở đây dưới dạng hàm THUẦN. `workspace-panel.tsx` chỉ vẽ ra
- * kết quả.
+ * Mọi quyết định "hàng nào hiện, phím nào đi đâu, lưu vào khoá nào" nằm ở đây
+ * dưới dạng hàm THUẦN. `workspace-panel.tsx` chỉ vẽ ra kết quả.
+ *
+ * ⚠ Danh sách trên từng có "terminal cao bao nhiêu". SỬA ĐỔI 3 gỡ cơ chế phần
+ * trăm chiều cao cùng thanh kéo, nên đó không còn là một quyết định của file
+ * này, cũng không còn là một quyết định của ai.
  *
  * Vì sao tách — ⚠ LÝ DO ĐÃ ĐỔI, kết luận thì không. Bản trước ghi "`apps/web`
  * chạy vitest ở `environment: 'node'`, không jsdom, không RTL", tức là một
@@ -18,17 +21,29 @@
  * trả giá dựng một jsdom cho mỗi ca. Việc *dây nối* giữa các hàm này với DOM
  * thì đã có file DOM ở trên gác.
  *
- * ## Mô hình sau SỬA ĐỔI 2 — MỘT terminal, hiện ở CẢ HAI tab
+ * ## Mô hình sau SỬA ĐỔI 3 (2026-09-13) — HAI tab loại trừ nhau
  *
  * Trước đây có ba tab (`editor` + hai tab terminal ánh xạ sang tmux window) và
- * một nút "tách đôi". Nay chỉ còn hai tab và MỘT phiên terminal:
+ * một nút "tách đôi". SỬA ĐỔI 2 rút về hai tab và MỘT phiên terminal, nhưng vẫn
+ * cho terminal neo đáy ~40% ở tab Editor. Chỉ đạo 2026-09-13 bỏ nốt dải neo đáy
+ * đó cùng thanh kéo:
  *
- * - tab `editor`   ⇒ hàng 1 (Theia) hiện, hàng 2 (terminal) neo đáy ~40%
- * - tab `terminal` ⇒ hàng 1 ẩn, hàng 2 chiếm trọn khoang
+ * - tab `editor`   ⇒ hàng 1 (Theia) chiếm trọn khoang, hàng 2 (terminal) `hidden`
+ * - tab `terminal` ⇒ hàng 1 `hidden`, hàng 2 chiếm trọn khoang
  *
- * ⛔ Terminal KHÔNG BAO GIỜ bị ẩn và không bao giờ đổi cha (§Y1) — nên ở đây
- * không có hàm nào trả về "terminal có hiện không". Câu hỏi duy nhất còn lại là
- * *hàng 1 có hiện không* và *hàng 2 cao bao nhiêu*.
+ * ⛔ Bất biến §Y1 là terminal KHÔNG đổi cha và KHÔNG unmount. Nó KHÔNG phải
+ * "terminal không bao giờ bị ẩn", như bản trước của chính khối này viết:
+ * `hidden` để nguyên node tại chỗ trong cây React nên nó hợp lệ, còn đổi cha
+ * hay bỏ node khỏi cây mới đóng WebSocket của người học. Câu "không bao giờ ẩn"
+ * là hệ quả của một LỰA CHỌN THIẾT KẾ kiểu KillerCoda, chưa bao giờ là ràng
+ * buộc kỹ thuật, nên nó đi theo khi lựa chọn đó bị thay.
+ *
+ * Kéo theo đó, câu "ở đây không có hàm nào trả về terminal-có-hiện-không" cũng
+ * hết đúng: `isEditorVisible` bên dưới CHÍNH LÀ hàm đó, vì hai hàng nay loại
+ * trừ nhau (hàng 1 hiện đúng khi hàng 2 ẩn, và ngược lại). Một hàm
+ * `isTerminalVisible` riêng là thừa và là chỗ để hai vế lệch nhau: dùng phủ
+ * định tại chỗ. Còn vế "hàng 2 cao bao nhiêu" thì mất hẳn chủ thể, cùng
+ * `TERMINAL_PERCENT_*` và thanh kéo.
  */
 
 import { t } from '@devops-platform/copy';

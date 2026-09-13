@@ -236,10 +236,18 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     định định tuyến nào để mang, nên một `options` object chỉ còn một trường là
     một lớp bọc không nói thêm gì.
 
-    Exec KHÔNG chuyển tab nữa — terminal hiện ở cả hai tab, nên không có gì để
-    chuyển tới; chỉ gõ rồi `focus()`. Việc giữ `\x03` là một sự kiện bàn phím
-    RIÊNG (không nối vào chuỗi lệnh) nằm trong `useWorkspaceTabs` vì cả ba trang
-    học cần đúng một bản của quyết định đó.
+    Exec CHUYỂN TAB khi terminal đang bị ẩn, rồi mới gõ và `focus()`.
+
+    ⚠ Chú thích ở đây trước SỬA ĐỔI 3 viết ngược: "exec KHÔNG chuyển tab nữa, vì
+    terminal hiện ở cả hai tab, nên không có gì để chuyển tới". Tiền đề đó là
+    của mô hình SỬA ĐỔI 2 và đã bị bãi bỏ, nhưng câu chú thích thì nằm lại và
+    giữ hành vi sai thêm một nhịp: ở tab Editor hàng terminal nay mang `hidden`,
+    nên lệnh được gõ vào một khoang người học không nhìn thấy, và `focus()` trên
+    một phần tử trong cây `display:none` là no-op IM LẶNG. Đường đi đầy đủ nằm ở
+    `use-workspace-tabs.ts`.
+
+    Việc giữ `\x03` là một sự kiện bàn phím RIÊNG (không nối vào chuỗi lệnh)
+    cũng nằm ở đó, vì cả ba trang học cần đúng một bản của quyết định đó.
   */
   const onExec = tabs.exec;
 
@@ -421,8 +429,11 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       <div className="min-h-0 flex-1">
         {/*
           D8 + §Y1 — khoang phải là `WorkspacePanel`: tab Editor (chỉ khi bài khai
-          `interface.layout: ide`) + tab Terminal, và MỘT terminal duy nhất hiện
-          ở CẢ HAI tab (neo đáy ~40% ở tab Editor, toàn khoang ở tab Terminal).
+          `interface.layout: ide`) + tab Terminal, HAI tab loại trừ nhau và dùng
+          chung MỘT terminal. Tab nào tới lượt thì chiếm trọn khoang, hàng kia
+          mang `hidden` (SỬA ĐỔI 3, 2026-09-13; bản trước cho terminal neo đáy
+          ~40% ở tab Editor, dải đó đã bị gỡ). Terminal vẫn KHÔNG đổi cha và
+          KHÔNG unmount: `hidden` chỉ thôi vẽ, nó không chạm vào cây React.
 
           `WorkspaceSplit` GIỮ NGUYÊN và vẫn bọc ngoài: nó trả lời một câu khác
           hẳn — chia trái/phải bao nhiêu, và gập thế nào dưới 768px. Thay nó
@@ -450,10 +461,14 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
               {...(showIde ? { editor: <IdePane sessionId={sessionId} /> } : {})}
               /*
                 ⛔ MỘT node terminal, truyền THẲNG. `terminals` (Map) của bản
-                trước đã biến mất cùng terminal thứ hai — kéo theo nút '+', nút
-                '×' và nút tách đôi. Tab Editor ĐÃ LÀ bố cục hai khoang (editor
-                trên, chính cái terminal này neo đáy ~40%), nên không còn gì để
-                tách và không còn tab nào để đóng.
+                trước đã biến mất cùng terminal thứ hai, kéo theo nút '+', nút
+                '×' và nút tách đôi. Một phiên terminal thì không còn tab nào để
+                đóng và không còn gì để tách: hai tab ở đây là hai KHUNG NHÌN
+                lên cùng một terminal, không phải hai terminal.
+
+                Lý do cũ chép ở đây là "tab Editor ĐÃ LÀ bố cục hai khoang,
+                editor trên và terminal neo đáy ~40%". Bố cục đó đã bị gỡ ở SỬA
+                ĐỔI 3 (2026-09-13); kết luận thì không đổi.
               */
               terminal={terminalPane}
               activeTab={tabs.activeTab}
