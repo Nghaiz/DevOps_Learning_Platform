@@ -238,7 +238,7 @@ function deleteBranches(repo: Repo, names: readonly string[], force: boolean): R
           'bad-usage',
           `Không xoá được \`${name}\`: branch này chưa được merge vào chỗ bạn đang đứng.`,
           `Commit ${shortOid(oid)} của \`${name}\` không nằm trong lịch sử của \`${head === null ? 'HEAD' : shortOid(head)}\`, nên xoá con trỏ này là để lại một nhánh công việc không còn ai trỏ tới.`,
-          `Merge nó trước, hoặc xoá bất chấp bằng \`git branch -D ${name}\` — commit vẫn còn trong kho và \`git reflog ${name}\` chỉ ra chỗ chúng nằm.`,
+          `Merge nó trước, hoặc xoá bất chấp bằng \`git branch -D ${name}\` — commit vẫn còn trong kho, và \`git reflog\` (reflog của HEAD) chỉ ra chỗ chúng nằm.`,
         ),
       );
     }
@@ -254,11 +254,16 @@ function deleteBranches(repo: Repo, names: readonly string[], force: boolean): R
   }
   output.push(
     line(
-      'Xoá branch chỉ xoá CON TRỎ. Commit vẫn nằm trong kho, và reflog của branch vừa xoá vẫn còn nguyên.',
+      'Xoá branch chỉ xoá CON TRỎ — commit vẫn nằm nguyên trong kho. Nhưng reflog RIÊNG của branch thì mất cùng nó, đúng như git thật.',
       'hint',
     ),
   );
-  output.push(line(`Tìm lại bằng: \`git reflog ${names[0] ?? '<tên>'}\``, 'hint'));
+  output.push(
+    line(
+      'Đường về là reflog của HEAD: hồi bạn còn đứng trên branch đó, HEAD đã từng trỏ vào commit cuối của nó. Gõ `git reflog` (không tham số) để thấy.',
+      'hint',
+    ),
+  );
   return opOk(next, output);
 }
 
@@ -367,8 +372,9 @@ export function gitBranch(repo: Repo, options: BranchOptions): RepoOpResult {
         ),
       );
     }
-    // Không truyền `logicalTime`: xoá ref KHÔNG ghi reflog (xem `deleteRef` của
-    // `repo.ts`), và chính điều đó làm bài G27 giải được.
+    // Không truyền `logicalTime`: `deleteRef` không ghi thêm dòng reflog nào —
+    // nó XOÁ reflog riêng của branch (sửa 2026-09-14, xem chú thích của
+    // `deleteRef`). Đường cứu của bài G27 vì vậy là reflog của HEAD.
     return deleteBranches(repo, names, force);
   }
 

@@ -25,15 +25,7 @@ import { shortOid } from '../hash.ts';
 import { commitContents, firstParentChain, getCommit, reachableFrom } from '../objects.ts';
 import { resolveRevision, revisionError } from '../refs-resolve.ts';
 import { headOid, refsAt, shortRefName } from '../repo.ts';
-import {
-  diffContents,
-  line,
-  opFail,
-  opOk,
-  renderDiffPairs,
-  type DiffBodyRenderer,
-  type RepoOpResult,
-} from './basic.ts';
+import { diffContents, line, opFail, opOk, renderDiffPairs, type RepoOpResult } from './basic.ts';
 
 /**
  * Chưa có commit nào để xem.
@@ -190,12 +182,8 @@ export function gitLog(repo: Repo, options: LogOptions = {}): RepoOpResult {
 
 export interface ShowOptions {
   readonly rev?: string | undefined;
-  /**
-   * Bộ vẽ thân diff, do lane `diff.ts` cấp. Vắng mặt thì lệnh in danh sách file
-   * thay đổi kèm loại thay đổi — xem chú thích của `DiffBodyRenderer` ở
-   * `basic.ts` về việc vì sao nó là tham số chứ không phải một `import`.
-   */
-  readonly renderBody?: DiffBodyRenderer | undefined;
+  /** Số dòng ngữ cảnh quanh mỗi hunk. Bỏ trống thì dùng mặc định của `diff.ts`. */
+  readonly context?: number | undefined;
 }
 
 /**
@@ -257,7 +245,7 @@ export function gitShow(repo: Repo, options: ShowOptions = {}): RepoOpResult {
   if (pairs.length === 0) {
     output.push(line('Commit này không đổi file nào so với cha thứ nhất.', 'plain'));
   } else {
-    output.push(...renderDiffPairs(pairs, options.renderBody));
+    output.push(...renderDiffPairs(pairs, options.context));
   }
 
   return opOk(repo, output);

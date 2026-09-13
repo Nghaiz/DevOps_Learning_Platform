@@ -268,9 +268,16 @@ export function resolveRevision(repo: Repo, input: string): RefResolution {
  *
  * Có `HEAD` trong danh sách vì `git switch HAED` phải gợi ra `HEAD`, và vì đó
  * là "ref" người chơi gõ nhiều thứ hai sau tên branch.
+ *
+ * ⚠ NHƯNG chỉ khi HEAD phân giải được. Trên một repo chưa commit lần nào, HEAD
+ * trỏ vào một branch chưa sinh ra — liệt kê nó ra sẽ biến câu giải thích tốt
+ * nhất của `notARefError` ("Repo này chưa có ref nào — chưa commit lần nào thì
+ * cũng chưa có branch nào") thành một câu vô nghĩa là "Ref đang có: `HEAD`",
+ * đúng lúc người chơi mới bắt đầu và cần câu kia nhất.
  */
 export function knownRefNames(repo: Repo): readonly string[] {
-  const seen: Record<string, true> = { HEAD: true };
+  const seen: Record<string, true> = {};
+  if (headOid(repo) !== null) seen['HEAD'] = true;
   for (const ref of sortedKeys(repo.refs)) {
     if (isBranch(ref) || isRemoteRef(ref) || isTag(ref)) seen[shortRefName(ref)] = true;
     else seen[ref] = true;

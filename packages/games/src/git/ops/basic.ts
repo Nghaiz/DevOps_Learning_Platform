@@ -35,13 +35,13 @@ import type {
   Repo,
 } from '../contract.ts';
 import { sortedEntries, sortedKeys } from '../deterministic.ts';
+import { formatUnifiedDiff, linesEqual } from '../diff.ts';
 import { gitError } from '../errors.ts';
 import { shortOid } from '../hash.ts';
 import { commitContents, commitTree, getBlob, makeBlob, makeTree, putObject } from '../objects.ts';
 import { resolveRevision, revisionError } from '../refs-resolve.ts';
 import {
   allPaths,
-  blobOid,
   headContents,
   headOid,
   moveHead,
@@ -618,21 +618,6 @@ export interface DiffPair {
   readonly change: DiffChange;
 }
 
-/**
- * Vẽ THÂN một diff (các hunk `+`/`-`), do chỗ gọi cấp.
- *
- * ⛔ File này **không** hiện thực thuật toán diff, và sự vắng mặt đó là chủ ý:
- * `git/diff.ts` (lane khác) sở hữu phép so theo dòng, và viết bản thứ hai ở đây
- * là đúng thứ `development-principles.md` § SSOT cấm. Nhận qua tham số chứ
- * không `import` vì lúc file này ra đời `diff.ts` chưa tồn tại — một `import`
- * vào module chưa có sẽ làm cả package đỏ ở typecheck.
- *
- * Không cấp renderer thì `gitDiff` và `gitShow` in danh sách file thay đổi kèm
- * loại thay đổi. Đó là output ĐÚNG và đầy đủ ở mức của nó (`git diff
- * --name-status`), không phải một chỗ trống giả vờ.
- */
-export type DiffBodyRenderer = (pair: DiffPair) => readonly OutputLine[];
-
 /** Hai bản ghi nội dung → danh sách cặp khác nhau, đã sắp theo đường dẫn. */
 export function diffContents(
   before: Readonly<Record<FilePath, Lines>>,
@@ -657,9 +642,7 @@ export function diffContents(
       out.push({ path, before: left, after: [], change: 'deleted' });
       continue;
     }
-    // So bằng chính phép băm mà `status` dùng, nên hai lệnh không thể bất đồng
-    // về việc một file có đổi hay không.
-    if (blobOid(left) === blobOid(right)) continue;
+    if (linesEqual(left, right)) continue;
     out.push({ path, before: left, after: right, change: 'modified' });
   }
   return out;
@@ -669,7 +652,10 @@ export interface DiffOptions {
   /** `true` = so index với HEAD ("thứ sắp được commit"). `false` = worktree với index. */
   readonly staged?: boolean | undefined;
   readonly paths?: readonly FilePath[] | undefined;
-  readonly renderBody?: DiffBodyRenderer | undefined;
+  /**
+   * Số dòng ngữ cảnh quanh mỗi hunk. Bỏ trống thì dùng mặc định của `diff.ts`.
+   */
+  readonly context?: number | undefined;
 }
 
 /**
@@ -711,18 +697,24 @@ const CHANGE_LABEL: Readonly<Record<DiffChange, string>> = {
  */
 export function renderDiffPairs(
   pairs: readonly DiffPair[],
-  render?: DiffBodyRenderer | undefined,
+  context?: number | undefined,
 ): readonly OutputLine[] {
   const output: OutputLine[] = [];
   for (const pair of pairs) {
-    if (render === undefined) {
-      output.push(line(`${label(CHANGE_LABEL[pair.change])}${pair.path}`, 'plain'));
-      continue;
-    }
     output.push(line(`diff --git a/${pair.path} b/${pair.path}`, 'plain'));
+    output.push(line(`${label(CHANGE_LABEL[pair.change])}${pair.path}`, 'plain'));
+    // `/dev/null` ở một trong hai vế là cách git nói "file này mới sinh ra" hoặc
+    // "file này biến mất" — và `formatUnifiedDiff` cố ý KHÔNG in hai dòng này vì
+    // chỉ tầng engine mới biết đường dẫn và biết ca nào là ca nào.
     output.push(line(pair.change === 'added' ? '--- /dev/null' : `--- a/${pair.path}`));
     output.push(line(pair.change === 'deleted' ? '+++ /dev/null' : `+++ b/${pair.path}`));
-    output.push(...render(pair));
+    const body =
+      context === undefined
+        ? formatUnifiedDiff(pair.before, pair.after)
+        : formatUnifiedDiff(pair.before, pair.after, context);
+    for (const text of body) {
+      output.push(line(text, text.startsWith('+') ? 'success' : text.startsWith('-') ? 'error' : 'plain'));
+    }
   }
   return output;
 }
@@ -739,7 +731,7 @@ export function gitDiff(repo: Repo, options: DiffOptions = {}): RepoOpResult {
 
   return opOk(repo, [
     line(`Khác biệt giữa ${scope}:`),
-    ...renderDiffPairs(pairs, options.renderBody),
+    ...renderDiffPairs(pairs, options.context),
   ]);
 }
 
@@ -811,7 +803,7 @@ export function gitCheckoutPaths(repo: Repo, options: CheckoutPathsOptions): Rep
     const lines = source[path];
     if (lines === undefined) continue;
     const current = repo.worktree[path];
-    if (current === undefined || blobOid(current) !== blobOid(lines)) overwritten.push(path);
+    if (current === undefined || !linesEqual(current, lines)) overwritten.push(path);
     next = writeFile(next, path, lines);
     if (options.rev !== undefined) {
       const [objects, oid] = putObject(next.objects, makeBlob(lines));
