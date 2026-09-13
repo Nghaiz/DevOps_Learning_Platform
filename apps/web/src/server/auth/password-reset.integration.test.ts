@@ -8,7 +8,7 @@ import { GET, POST } from '../../app/api/auth/[...all]/route';
 import { getAuth } from './config';
 import { issueRefreshToken, rotateRefreshToken } from './tokens';
 import { passwordResetSmtpConfig, sendPasswordResetMail } from './password-reset-mail';
-import { sessions, users, verifications } from '../db/schema';
+import { passwordResetOutbox, sessions, users, verifications } from '../db/schema';
 import { testDb, closeTestDb } from '../../security/test-helpers';
 
 const background = vi.hoisted(() => ({ tasks: [] as Array<() => Promise<void>> }));
@@ -118,6 +118,10 @@ describe('password reset delivery and credential lifecycle', () => {
   });
 
   afterAll(async () => {
+    // The recipient-rejection case leaves a failed outbox row behind on purpose:
+    // it is backing off, not finished. Left in place it would hold this account's
+    // plaintext code in the shared development database until something drained it.
+    await testDb().delete(passwordResetOutbox).where(eq(passwordResetOutbox.email, email));
     if (userId) {
       await testDb().delete(verifications).where(eq(verifications.value, userId));
       await testDb().delete(users).where(eq(users.id, userId));
