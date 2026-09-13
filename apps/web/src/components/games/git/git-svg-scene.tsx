@@ -69,6 +69,7 @@ import {
   type SceneNodeId,
   type ScenePlacedNode,
   type SceneProps,
+  type SceneRefBadge,
   type SceneRepo,
 } from '../shared/scene-props.ts';
 import { ACCENT_STYLE, EDGE_STYLE, REF_STYLE, cssVar } from './git-palette.ts';
@@ -546,7 +547,7 @@ function CommitNode({
 }: {
   readonly spot: ScenePlacedNode;
   readonly top: number;
-  readonly refs: readonly import('../shared/scene-props.ts').SceneRefBadge[];
+  readonly refs: readonly SceneRefBadge[];
   readonly selected: boolean;
   readonly hovered: boolean;
   readonly onSelect: (id: SceneNodeId | null) => void;
@@ -662,7 +663,7 @@ function RefBadge({
   x,
   y,
 }: {
-  readonly badge: import('../shared/scene-props.ts').SceneRefBadge;
+  readonly badge: SceneRefBadge;
   readonly x: number;
   readonly y: number;
 }): ReactElement {

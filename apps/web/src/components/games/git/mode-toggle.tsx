@@ -23,7 +23,7 @@
  */
 
 import { type ReactElement } from 'react';
-import { Tooltip, TooltipContent, TooltipTrigger, cn } from '@devops-platform/ui';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from '@devops-platform/ui';
 import {
   RENDERER_MODES,
   rendererModeReasonText,
@@ -45,51 +45,61 @@ export interface ModeToggleProps {
 }
 
 export function ModeToggle({ resolved, enabled, onChange }: ModeToggleProps): ReactElement {
+  /*
+   * `TooltipProvider` ngay tại đây, dù thanh trên đã có một cái bọc ngoài.
+   *
+   * `Tooltip.Root` của Radix NÉM khi không tìm thấy provider nào, nên một
+   * component tự bọc thì dùng được ở mọi chỗ — kể cả trong test, kể cả nếu lane
+   * HUD sau này đặt nó ngoài thanh trên. Provider lồng nhau là hợp lệ ở Radix
+   * và cái trong cùng thắng, nên không có tác dụng phụ nào.
+   */
   return (
-    <div
-      className="flex items-center gap-0.5 rounded-md bg-muted p-0.5"
-      role="group"
-      aria-label="Chế độ hiển thị đồ thị"
-    >
-      {RENDERER_MODES.map((mode) => {
-        const usable = enabled.includes(mode);
-        const active = resolved.mode === mode;
-        const text = MODE_TEXT[mode];
-        const why = usable
-          ? active
-            ? rendererModeReasonText(resolved)
-            : `Chuyển sang ${text.full}.`
-          : `${text.full} sắp có. Bản 2D là chế độ đầy đủ, không phải bản rút gọn.`;
+    <TooltipProvider delayDuration={300}>
+      <div
+        className="flex items-center gap-0.5 rounded-md bg-muted p-0.5"
+        role="group"
+        aria-label="Chế độ hiển thị đồ thị"
+      >
+        {RENDERER_MODES.map((mode) => {
+          const usable = enabled.includes(mode);
+          const active = resolved.mode === mode;
+          const text = MODE_TEXT[mode];
+          const why = usable
+            ? active
+              ? rendererModeReasonText(resolved)
+              : `Chuyển sang ${text.full}.`
+            : `${text.full} sắp có. Bản 2D là chế độ đầy đủ, không phải bản rút gọn.`;
 
-        return (
-          <Tooltip key={mode}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-pressed={active}
-                aria-disabled={!usable}
-                aria-label={`${text.full}${usable ? '' : ' — sắp có'}`}
-                title={why}
-                onClick={() => {
-                  if (usable && !active) onChange(mode);
-                }}
-                className={cn(
-                  'flex h-6 min-w-9 items-center justify-center rounded-sm px-1.5 font-mono text-[11px] font-semibold',
-                  'outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
-                  !usable
-                    ? 'cursor-not-allowed text-muted-foreground/70'
-                    : active
-                      ? 'bg-background text-foreground shadow-elevation-1'
-                      : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {text.short}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{why}</TooltipContent>
-          </Tooltip>
-        );
-      })}
-    </div>
+          return (
+            <Tooltip key={mode}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-pressed={active}
+                  aria-disabled={!usable}
+                  aria-label={`${text.full}${usable ? '' : ' — sắp có'}`}
+                  title={why}
+                  onClick={() => {
+                    if (usable && !active) onChange(mode);
+                  }}
+                  className={cn(
+                    'flex h-6 min-w-9 items-center justify-center rounded-sm px-1.5 font-mono text-[11px] font-semibold',
+                    'outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                    !usable
+                      ? 'cursor-not-allowed text-muted-foreground/70'
+                      : active
+                        ? 'bg-background text-foreground shadow-elevation-1'
+                        : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {text.short}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{why}</TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+    </TooltipProvider>
   );
 }

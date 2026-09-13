@@ -377,9 +377,25 @@ export function refsAt(view: SceneView, repo: SceneRepo, oid: string): readonly 
  * nên phép gán này thuộc về tầng này chứ không thuộc `layoutDag`.
  *
  * Luật: đi theo chuỗi **cha thứ nhất** từ mỗi tip, ref nào tới trước thì giữ.
- * Duyệt ref theo `shortName` tăng dần để kết quả không phụ thuộc thứ tự mảng.
  * Cha thứ nhất chứ không phải mọi cha: cha thứ hai của một commit merge thuộc
  * về nhánh KHÁC, và kéo nó vào cùng làn là xoá mất chỗ hai nhánh gặp nhau.
+ *
+ * ⚠ **THỨ TỰ DUYỆT REF LÀ MỘT QUYẾT ĐỊNH SẢN PHẨM, KHÔNG PHẢI CHI TIẾT.** Bản
+ * đầu duyệt theo `shortName` tăng dần cho tất định, và test bắt được hệ quả
+ * ngay: trong một kho có `main` và `feature` cùng đi qua `c1←c2`, chữ `feature`
+ * sắp trước nên nó chiếm luôn phần THÂN CHUNG, và làn chính của đồ thị mang
+ * nhãn `feature` trong khi nó là đường của `main`. Nhãn sai ở đúng chỗ người
+ * học nhìn nhiều nhất.
+ *
+ * Thứ tự hiện tại, ba mức, tất định ở cả ba:
+ *
+ *  1. **Nhánh HEAD đang đứng đi trước.** Thân chung thuộc về nhánh người chơi
+ *     đang ở — đó là thứ họ đang theo dõi, và là thứ mọi công cụ git thật vẽ ở
+ *     làn chính.
+ *  2. **Chuỗi cha-thứ-nhất DÀI HƠN đi trước.** Một nhánh dài hơn gần như luôn
+ *     là thân, còn nhánh ngắn là cành mọc ra từ nó.
+ *  3. `shortName` tăng dần — hoà thì phải có một phép cắt tuỳ tiện, và tuỳ tiện
+ *     một cách tất định.
  */
 export function laneHints(view: SceneView, repo: SceneRepo): Readonly<Record<string, string>> {
   const parents = new Map<string, readonly string[]>();
@@ -387,15 +403,33 @@ export function laneHints(view: SceneView, repo: SceneRepo): Readonly<Record<str
     if (node.repo === repo) parents.set(node.oid, node.parents);
   }
 
+  const chainLength = (from: string): number => {
+    let cursor: string | undefined = from;
+    let n = 0;
+    const seen = new Set<string>();
+    while (cursor !== undefined && parents.has(cursor) && !seen.has(cursor)) {
+      seen.add(cursor);
+      n++;
+      cursor = parents.get(cursor)?.[0];
+    }
+    return n;
+  };
+
   const hints: Record<string, string> = {};
   const tips = view.refs
     .filter((ref) => ref.repo === repo && ref.kind !== 'head')
-    .sort((a, b) => a.shortName.localeCompare(b.shortName));
+    .map((ref) => ({ ref, length: chainLength(ref.oid) }))
+    .sort(
+      (a, b) =>
+        Number(b.ref.isCurrent) - Number(a.ref.isCurrent) ||
+        b.length - a.length ||
+        a.ref.shortName.localeCompare(b.ref.shortName),
+    );
 
-  for (const tip of tips) {
-    let cursor: string | undefined = tip.oid;
+  for (const { ref } of tips) {
+    let cursor: string | undefined = ref.oid;
     while (cursor !== undefined && parents.has(cursor) && hints[cursor] === undefined) {
-      hints[cursor] = tip.shortName;
+      hints[cursor] = ref.shortName;
       cursor = parents.get(cursor)?.[0];
     }
   }
