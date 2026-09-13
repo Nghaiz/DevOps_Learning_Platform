@@ -20,6 +20,25 @@ export type {
 } from './core/types.ts';
 export { STORAGE_KEY_PREFIX, storageKey } from './core/types.ts';
 
+/*
+ * Nhật ký hành động dùng chung — CHUYỂN từ `k8s/contract.ts` lên `core/` ngày
+ * 2026-09-14 (P17 §17.A.2). Lý do đầy đủ ở đầu `core/run-log.ts`.
+ *
+ * Ba tên `GameAction` / `GameActionKind` / `RunLog` giữ NGUYÊN ở barrel này dù
+ * đổi nhà: chúng đã có chỗ dùng ngoài package (`apps/web/src/server/problems/`,
+ * `components/k8s-arena/`), và đổi tên ở barrel là một thay đổi phá vỡ không
+ * mua được gì.
+ */
+export type {
+  GameAction,
+  GameActionBase,
+  GameActionKind,
+  GitGameAction,
+  K8sActionShape,
+  ResourceRefLike,
+  RunLog,
+} from './core/run-log.ts';
+
 export type {
   ChaosWave,
   Challenge,
@@ -30,8 +49,9 @@ export type {
   EventView,
   CreateSession,
   CreateSessionOptions,
-  GameAction,
-  GameActionKind,
+  K8sGameAction,
+  K8sGameActionKind,
+  K8sRunLog,
   K8sSession,
   IncidentKind,
   Level,
@@ -45,7 +65,6 @@ export type {
   ResourceKind,
   ResourceSpec,
   ResourceRef,
-  RunLog,
   SessionPhase,
   SessionStatus,
 } from './k8s/contract.ts';

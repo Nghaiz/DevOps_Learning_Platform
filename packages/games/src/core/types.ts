@@ -11,7 +11,24 @@
  * package cố ý bỏ `types: ["node"]` để một lần lạc tay là đỏ ngay ở typecheck.
  */
 
-export type GameId = 'k8s' | 'pipeline' | 'netpol' | 'dockerfile';
+/**
+ * Mọi game của trụ cột ③.
+ *
+ * ⚠ `'pipeline'` GIỮ LẠI dù không có game nào mang id đó và đợt P17 không làm
+ * nó. Xoá một nhánh khỏi union này là **đổi hợp đồng lưu trữ**: khoá
+ * `localStorage` là `dlp.games.v1.<gameId>` (xem `storageKey` ở cuối file), nên
+ * một người đã có bản lưu dưới `dlp.games.v1.pipeline` sẽ thấy `progress.ts`
+ * không còn đường nào đọc nó ra. Mất tiến độ không kèm lỗi, không kèm cảnh báo.
+ *
+ * `'git'` và `'cicd'` thêm ở 17.A (P17). Chỉ `'git'` có engine ở đợt này;
+ * `'cicd'` khai trước theo đúng lý do trên — bản lưu sinh ra trước khi game
+ * xong vẫn phải đọc lại được.
+ *
+ * Vì sao `'cicd'` chứ không dùng lại `'pipeline'`: quyết định #2 của design doc
+ * là thiết kế lại từ đầu và rộng hơn CI thuần (có CD, môi trường, rollback,
+ * GitOps). Hai id khác nhau vì hai game khác nhau, không phải vì đặt tên lại.
+ */
+export type GameId = 'k8s' | 'pipeline' | 'netpol' | 'dockerfile' | 'git' | 'cicd';
 
 /** Cùng thang với `--difficulty-*` của hệ thiết kế — đừng đặt thang thứ hai. */
 export type Difficulty = 'basic' | 'intermediate' | 'advanced';
