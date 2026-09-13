@@ -32,13 +32,20 @@ import {
  *    một khoá ngoại được đổi sang cascade (hoặc bảng bị xoá) thì dòng khai báo
  *    thành rác, và việc phải làm là XOÁ dòng đó, không phải để nó nằm lại.
  *
- * ## Ô thứ ba: hàm dọn CHẠY ĐƯỢC trên dữ liệu chặn thật
+ * ## Ô thứ ba: thứ tự xoá CHẠY ĐƯỢC trên dữ liệu chặn thật
  *
  * Hai ô trên là hợp đồng lược đồ; chúng vẫn xanh nếu ai đó giữ đúng sổ đăng ký
  * mà viết sai thứ tự `DELETE`. Ô thứ ba dựng đúng hình rác đã làm hàm cũ chết
  * (một user fixture + một `learning_paths` thuộc về nó) rồi đòi lượt dọn đi
  * qua được. Bỏ câu `DELETE FROM learning_paths` ⇒ ô này đỏ với đúng lỗi khoá
  * ngoại đã giết `me-idor.test.ts`.
+ *
+ * ⚠ Nó gọi `purgeOwnFixtures`, KHÔNG gọi `purgeLeakedFixtures`, và lý do là
+ * một cái đua đã đo được: fixture "già" mà ô này dựng ra là mục tiêu HỢP LỆ
+ * của lượt dọn ở `beforeAll` của mọi file test khác. Chạy 163 file song song
+ * thì `me-idor` dọn mất nó trước, `removed` về 0, và ô đỏ vì một file khác dọn
+ * hộ — một ô đỏ không nói gì về thứ tự xoá. Hai hàm đi CHUNG `runOrderedPurge`,
+ * nên gọi bản-gọi-tên-đích-danh vẫn gác đúng thứ tự ấy mà không ai cướp được.
  *
  * ## Ô thứ tư: ĐỐI CHỨNG ÂM cho ngưỡng tuổi
  *
@@ -139,7 +146,7 @@ describe('purgeLeakedFixtures — hợp đồng với lược đồ thật', () 
     return `${prefix}-${stamp}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
-  it('dọn được đúng hình rác đã làm bản trước chết', async () => {
+  it('thứ tự xoá đi qua được đúng hình rác đã làm bản trước chết', async () => {
     const db = testDb();
     const userId = agedId('u-purge', PURGE_MIN_AGE_MS * 2);
     const pathId = agedId('lp-purge', PURGE_MIN_AGE_MS * 2);
@@ -155,8 +162,12 @@ describe('purgeLeakedFixtures — hợp đồng với lược đồ thật', () 
       VALUES (${pathId}, ${userId}, 'draft', 'Purge fixture path', now(), now())
     `);
 
-    const removed = await purgeLeakedFixtures(db);
-    expect(removed).toBeGreaterThanOrEqual(2);
+    const removed = await purgeOwnFixtures(db, [userId]);
+    expect(
+      removed,
+      'Lượt dọn không xoá được gì. Nếu nó ném lỗi khoá ngoại thì thứ tự `DELETE` ' +
+        'trong `runOrderedPurge` đã sai — xem `PURGE_HANDLED_BLOCKING_FKS`.',
+    ).toBeGreaterThanOrEqual(2);
 
     const left = await db.execute(sql`
       SELECT
@@ -166,6 +177,32 @@ describe('purgeLeakedFixtures — hợp đồng với lược đồ thật', () 
     const row = (left as unknown as ReadonlyArray<Record<string, unknown>>)[0];
     expect(Number(row?.['u'] ?? -1)).toBe(0);
     expect(Number(row?.['p'] ?? -1)).toBe(0);
+  });
+
+  /**
+   * ⛔ Vế XUÔI của ngưỡng tuổi: dòng ĐỦ GIÀ phải bị dọn.
+   *
+   * Không có ô này thì đối chứng âm ngay dưới được thoả bởi một hàm dọn KHÔNG
+   * LÀM GÌ — "fixture mới còn sống" đúng cả khi không có lượt dọn nào chạy.
+   *
+   * Chỉ khẳng định TRẠNG THÁI CUỐI, không khẳng định số dòng đã xoá: một file
+   * test chạy song song có thể dọn hộ dòng này trước, và khi đó `removed` về 0
+   * trong khi kết luận ta cần ("dòng già không còn") vẫn đúng.
+   */
+  it('vế xuôi — dòng đủ già KHÔNG sống sót qua lượt dọn', async () => {
+    const db = testDb();
+    const userId = agedId('u-stale', PURGE_MIN_AGE_MS * 2);
+
+    await db.execute(sql`
+      INSERT INTO users (id, email, name, email_verified, created_at, updated_at)
+      VALUES (${userId}, ${`${userId}@dlp.local`}, 'Stale fixture', false, now(), now())
+    `);
+
+    await purgeLeakedFixtures(db);
+
+    const left = await db.execute(sql`SELECT count(*) AS n FROM users WHERE id = ${userId}`);
+    const row = (left as unknown as ReadonlyArray<Record<string, unknown>>)[0];
+    expect(Number(row?.['n'] ?? -1)).toBe(0);
   });
 
   it('đối chứng âm — fixture VỪA tạo sống sót qua lượt dọn', async () => {

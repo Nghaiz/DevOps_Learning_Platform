@@ -85,6 +85,22 @@ afterAll(async () => {
 });
 
 describe('thu hồi chuỗi hậu duệ dưới khoá hàng users', () => {
+  /*
+    ⏱ Trần RIÊNG, không dùng `testTimeout: 15_000` của gói.
+
+    Ô này gieo hai chuỗi (3 và 40 thế hệ) và mỗi thế hệ là một round-trip DB
+    kèm một lượt băm — cố ý tuần tự, vì rotation là một chuỗi. Đo 2026-09-13:
+    **1188ms** khi file chạy một mình. Nhưng `vitest` chạy 163 file song song
+    trên cùng một Postgres và cùng số lõi, và dưới tải đó cùng ô này vượt
+    15 000ms — đỏ vì máy bận, không vì số lượt truy vấn sai.
+
+    ⚠ KHÔNG rút `DEEP_DEPTH` để lách: độ sâu CHÍNH LÀ thứ ô này khẳng định
+    ("số lượt không tăng theo độ dài chuỗi"). Rút nó là làm yếu phép đo để
+    đồng hồ dễ chịu hơn.
+
+    60 000ms ≈ 50 lần số đo chạy-một-mình, nên nó vẫn đỏ được nếu việc thu hồi
+    thật sự thoái hoá thành O(n) round-trip.
+  */
   it('số lượt truy vấn KHÔNG tăng theo độ dài chuỗi', async () => {
     const userId = await seedUser();
 
@@ -105,7 +121,7 @@ describe('thu hồi chuỗi hậu duệ dưới khoá hàng users', () => {
     // biến thành KHÔNG LÀM GÌ — số lượt khi ấy cũng bằng nhau.
     expect(await rotateRefreshToken(db, shallow.tail)).toEqual({ ok: false, reason: 'revoked' });
     expect(await rotateRefreshToken(db, deep.tail)).toEqual({ ok: false, reason: 'revoked' });
-  });
+  }, 60_000);
 
   it('bảng có index trên rotated_from, không chỉ trên user_id', async () => {
     // Một lượt round-trip vẫn có thể là một lượt QUÉT BẢNG: CTE đệ quy tra
