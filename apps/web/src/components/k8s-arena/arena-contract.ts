@@ -32,7 +32,7 @@
 import type {
   ClusterView,
   DispatchOutcome,
-  GameAction,
+  K8sGameAction,
   ResourceKind,
   ResourceRef,
 } from '@devops-platform/games';
@@ -520,7 +520,7 @@ export const PALETTE_GROUP_LABELS: Readonly<Record<PaletteGroup, string>> = {
  * lỗ hổng gian lận.
  */
 export interface ArenaDispatch {
-  (action: GameAction): void;
+  (action: K8sGameAction): void;
 }
 
 /**

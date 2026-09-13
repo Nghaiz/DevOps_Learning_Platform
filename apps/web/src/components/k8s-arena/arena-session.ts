@@ -25,7 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type {
   ClusterView,
   DispatchOutcome,
-  GameAction,
+  K8sGameAction,
   K8sEngineSession,
   Level,
   ResourceRef,
@@ -49,7 +49,7 @@ export interface ArenaSessionHandle {
   /** Ảnh chụp có tiết chế, dành cho các bảng HUD. */
   readonly view: ClusterView;
   readonly status: SessionStatus;
-  readonly dispatch: (action: GameAction) => void;
+  readonly dispatch: (action: K8sGameAction) => void;
   /**
    * Sửa manifest và NGHE engine trả lời — đường của ô soạn thảo YAML.
    *
@@ -157,7 +157,7 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
   const status = useMemo(() => session?.getStatus() ?? EMPTY_STATUS, [session, view]);
 
   const dispatch = useCallback(
-    (action: GameAction) => {
+    (action: K8sGameAction) => {
       const result = sessionRef.current?.dispatchDetailed(action);
       if (result && !result.accepted)
         toast({
@@ -174,7 +174,7 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
     if (current === null) {
       return { output: 'Phiên chưa sẵn sàng.', accepted: false };
     }
-    return current.dispatchDetailed({ tick: current.getView().tick, kind: 'edit', target, yaml });
+    return current.dispatchDetailed({ gameId: 'k8s', tick: current.getView().tick, kind: 'edit', target, yaml });
   }, []);
 
   const runCommand = useCallback((command: string): string => {

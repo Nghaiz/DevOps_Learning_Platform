@@ -22,7 +22,7 @@
  * Lệnh chỉ SINH RA CHỮ thì phải đi kênh `terminal`, nơi có chỗ hiện chữ.
  */
 
-import type { GameAction, ObjectView, ResourceRef } from '@devops-platform/games';
+import type { K8sGameAction, ObjectView, ResourceRef } from '@devops-platform/games';
 import { ROLLOUT_KINDS, SCALABLE_KINDS } from './inspector-types.ts';
 
 export type ArenaActionId =
@@ -251,16 +251,16 @@ export function buildAction(
   object: ObjectView,
   tick: number,
   replicas: number,
-): GameAction | null {
+): K8sGameAction | null {
   switch (id) {
     case 'scale':
       return SCALABLE_KINDS.includes(object.kind)
-        ? { tick, kind: 'scale', target: refOf(object), replicas }
+        ? { gameId: 'k8s', tick, kind: 'scale', target: refOf(object), replicas }
         : null;
     case 'delete':
       return UNDELETABLE.includes(object.kind)
         ? null
-        : { tick, kind: 'delete', target: refOf(object) };
+        : { gameId: 'k8s', tick, kind: 'delete', target: refOf(object) };
     default:
       return null;
   }
