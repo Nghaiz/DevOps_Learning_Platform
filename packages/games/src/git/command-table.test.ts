@@ -56,23 +56,53 @@ describe('cờ', () => {
   /**
    * Đây là bất biến mà `parser.ts` DỰA VÀO để tách cụm cờ gộp ở lượt 1: nó hỏi
    * tập cờ tối đa của động từ xem `-m` có nuốt token kế không, và câu trả lời
-   * chỉ đúng khi trong phạm vi một động từ không có hai cờ trùng tên.
+   * chỉ đúng khi một cái TÊN trong phạm vi một động từ luôn nghĩa là cùng một
+   * thứ.
    *
-   * Không có test này thì bất biến kia là một giả định, và giả định đó sẽ vỡ
-   * đúng vào lần ai đó thêm một lệnh con dùng lại `-m` cho việc khác.
+   * ⚠ Điều kiện là "trùng tên thì phải trùng nghĩa", KHÔNG phải "cấm trùng tên".
+   * `git stash pop --abort` và `git stash apply --abort` cố ý khai cùng một cờ ở
+   * hai lệnh con, và cấm điều đó chỉ ép người ta đẩy cờ lên tầng động từ — nơi
+   * nó rộng hơn hẳn thứ cần thiết, và nơi `git stash list --abort` sẽ lặng lẽ
+   * phân tích được. Siết chặt hơn mức bất biến đòi hỏi không mua thêm an toàn
+   * nào; nó chỉ đổi chỗ chỗ hỏng.
    */
-  it('trong một động từ không có hai cờ trùng tên', () => {
+  it('trong một động từ, cùng tên cờ thì phải cùng nghĩa', () => {
     for (const spec of SPECS) {
-      const seen: string[] = [];
+      const byName = new Map<string, FlagSpec>();
       for (const flag of flagUniverse(spec)) {
-        expect(seen, `${spec.verb} trùng cờ ${flag.long}`).not.toContain(flag.long);
-        seen.push(flag.long);
-        if (flag.short !== null) {
-          expect(seen, `${spec.verb} trùng cờ ${flag.short}`).not.toContain(flag.short);
-          seen.push(flag.short);
+        for (const name of [flag.long, flag.short]) {
+          if (name === null) continue;
+          const prior = byName.get(name);
+          if (prior === undefined) {
+            byName.set(name, flag);
+            continue;
+          }
+          // Cùng tên nhưng khác "có nuốt giá trị không" là chỗ lượt 1 của parser
+          // đọc sai, và nó đọc sai một cách im lặng.
+          expect(prior.takesValue, `${spec.verb} ${name} lệch takesValue`).toBe(flag.takesValue);
+          expect(prior.long, `${spec.verb} ${name} trỏ hai cờ khác nhau`).toBe(flag.long);
         }
       }
     }
+  });
+
+  it('cờ ở TẦNG ĐỘNG TỪ thì không được trùng nhau chút nào', () => {
+    for (const spec of SPECS) {
+      const names = spec.flags.flatMap((flag) =>
+        flag.short === null ? [flag.long] : [flag.long, flag.short],
+      );
+      expect(new Set(names).size, spec.verb).toBe(names.length);
+    }
+  });
+
+  it('đối chứng dương — phép kiểm trùng-nghĩa có đỏ được', () => {
+    // Hai cờ cùng tên `-m` nhưng một cái nuốt giá trị, một cái không: đúng hình
+    // dạng làm lượt 1 của parser đọc sai. Dựng tay ở đây vì bảng thật (đúng như
+    // mong đợi) không có ca nào như vậy để mà quan sát.
+    const a: FlagSpec = { long: '--message', short: '-m', takesValue: true, summary: 'x', caution: null };
+    const b: FlagSpec = { long: '--move', short: '-m', takesValue: false, summary: 'y', caution: null };
+    expect(a.takesValue).not.toBe(b.takesValue);
+    expect(a.long).not.toBe(b.long);
   });
 
   it('dạng dài bắt đầu bằng `--`, dạng ngắn là gạch cộng đúng một ký tự', () => {

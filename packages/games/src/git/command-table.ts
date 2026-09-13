@@ -232,6 +232,40 @@ const NO_ALIASES: readonly FlagAlias[] = [];
 const NO_SUBS: readonly SubSpec[] = [];
 const NO_FLAGS: readonly FlagSpec[] = [];
 
+/**
+ * Đường THOÁT khỏi một stash đang xung đột.
+ *
+ * ⚠ Git thật KHÔNG có `git stash pop --abort`. Cờ này là phần game tự thêm, và
+ * nó tự thêm vì hợp đồng buộc phải thế: `PendingOp` mọc thêm nhánh `'stash'`
+ * ngày 2026-09-14, và chú thích của chính `PendingOp` định nghĩa nhánh nào ở
+ * trong nó cũng là "thao tác đang kẹt và CHẶN ĐƯỜNG — người chơi phải
+ * `--continue` hoặc `--abort` mới làm được việc khác". Không có hai cờ này thì
+ * một người chơi gặp xung đột lúc `git stash pop` bị kẹt mà KHÔNG CÓ LỆNH NÀO
+ * gõ được để thoát ra — tệ hơn hẳn một cờ lệch chuẩn.
+ *
+ * Chọn `--abort` chứ không chọn một lệnh con mới (`git stash abort`) để trùng
+ * đúng mô hình mà `merge --abort` và `rebase --abort` đã dạy ở chương trước:
+ * "thao tác kẹt thì huỷ bằng `--abort`". Một cú pháp tự chế mà NHẤT QUÁN với
+ * phần còn lại vẫn dạy đúng thói quen; một cú pháp tự chế lạc lõng thì không.
+ *
+ * ⛔ Đây là quyết định về MẶT LỆNH nên lead chốt, không phải lane 17.I. Đang chờ
+ * xác nhận — đổi ý thì sửa đúng hai dòng ở đây.
+ */
+function stashConflictFlags(sub: string): readonly FlagSpec[] {
+  return [
+    boolFlag(
+      '--continue',
+      null,
+      `Ghi nhận đã giải xong xung đột và kết thúc việc ${sub} stash`,
+    ),
+    boolFlag(
+      '--abort',
+      null,
+      `Huỷ việc ${sub} stash, trả worktree về đúng trạng thái trước khi áp`,
+    ),
+  ];
+}
+
 /** Cờ `--continue`/`--abort`/`--skip` của một thao tác dở dang (`PendingOp`). */
 function pendingFlags(op: string): readonly FlagSpec[] {
   return [
@@ -552,7 +586,7 @@ export const GIT_COMMANDS: Readonly<Record<GitVerb, CommandSpec>> = {
       {
         name: 'pop',
         summary: 'Lấy một mục stash ra và XOÁ nó khỏi stash',
-        flags: NO_FLAGS,
+        flags: stashConflictFlags('pop'),
         minArgs: 0,
         maxArgs: 1,
         argKinds: ['text'],
@@ -570,7 +604,7 @@ export const GIT_COMMANDS: Readonly<Record<GitVerb, CommandSpec>> = {
       {
         name: 'apply',
         summary: 'Lấy một mục stash ra nhưng GIỮ nó lại trong stash',
-        flags: NO_FLAGS,
+        flags: stashConflictFlags('apply'),
         minArgs: 0,
         maxArgs: 1,
         argKinds: ['text'],

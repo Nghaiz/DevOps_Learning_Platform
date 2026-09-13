@@ -236,6 +236,18 @@ describe('lệnh con', () => {
     expect(error.code).toBe('unknown-flag');
     expect(error.message).toContain('git stash pop');
   });
+
+  /**
+   * Hợp đồng mọc thêm nhánh `PendingOp` kind `'stash'` ngày 2026-09-14, và
+   * `PendingOp` theo định nghĩa là thao tác CHẶN ĐƯỜNG. Không có hai cờ này thì
+   * người chơi gặp xung đột lúc `git stash pop` bị kẹt mà không có lệnh nào gõ
+   * được để thoát ra.
+   */
+  it('stash đang xung đột có đường thoát, và chỉ ở đúng lệnh con cần nó', () => {
+    expect(hasFlag(ok('git stash pop --abort'), '--abort')).toBe(true);
+    expect(hasFlag(ok('git stash apply --continue'), '--continue')).toBe(true);
+    expect(err('git stash list --abort').code).toBe('unknown-flag');
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
