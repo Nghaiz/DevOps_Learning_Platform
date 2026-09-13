@@ -154,6 +154,26 @@ export function useWorkspaceTabs(options: WorkspaceTabsOptions): WorkspaceTabsCo
       if (interrupt) {
         terminal.sendInput(CTRL_C);
       }
+      /*
+        ⚠ Lệnh đi NGAY, trước cả lượt `fit()` của tab vừa hiện — và đó là lựa
+        chọn, không phải chỗ bỏ sót.
+
+        Ở một bài IDE chưa từng mở tab Terminal, xterm chưa bao giờ đo được kích
+        thước thật (nó bị `hidden` từ lúc mount, và `fit()` no-op ở 0×0), nên PTY
+        còn ở mặc định 80×24. Lệnh vì thế echo ra ở bề rộng cũ rồi mới được
+        reflow khi `workspaceLayoutToken` đổi ⇒ rAF ⇒ `fit()` ⇒ `resize`. Người
+        học thấy một nhịp chữ xô lệch.
+
+        Đổi lại là gì, nếu hoãn `sendInput` tới sau lượt fit: lệnh sẽ phụ thuộc
+        vào việc cha CÓ áp tab mới hay không. `activeTab` là prop ĐIỀU KHIỂN —
+        panel chỉ được YÊU CẦU đổi — nên một cha từ chối (hoặc đổi ý) biến một
+        cú bấm "chạy" thành không-làm-gì, im lặng. Một nhịp reflow thì người
+        dùng thấy và tự hiểu; một lệnh không chạy thì không.
+
+        Nên: gửi ngay, chịu một nhịp reflow. KHÔNG dựng khoảng chờ phỏng đoán để
+        né nó — đó đúng là thứ SỬA ĐỔI 2 đã gỡ, và cái đua nó che sẽ quay lại
+        cùng nó.
+      */
       terminal.sendInput(`${command}\n`);
       if (!terminalHidden) {
         // Đang hiện sẵn ⇒ focus ngay. KHÔNG đi qua effect: `setChosenTab` với

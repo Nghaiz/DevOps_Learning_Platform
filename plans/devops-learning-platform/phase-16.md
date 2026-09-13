@@ -633,10 +633,20 @@ nguồn problems, copy hay bundle là việc tự động để dành sau P16.
 
 Ranh giới sản phẩm vẫn cần nói rõ:
 
-- **Tab Editor của lab chưa được thêm.** `Lab` chưa có `interfaceLayout`; việc dời `IdePane`
-  chỉ gỡ rào cản component. Hiện trang lab chủ ý không truyền `editor`. Không dùng kết quả
-  keyboard terminal để khẳng định lab đã có IDE; đây là mở rộng schema/nội dung ngoài phần
-  dựng lại giao diện đang nghiệm thu.
+- **✅ Tab Editor của lab — ĐÃ ĐÓNG 2026-09-13.** Câu cũ ở đây ("`Lab` chưa có
+  `interfaceLayout`") **sai sự thật**: `labSchema` extend `contentBaseSchema`, vốn đã khai
+  trường đó, và `packages/scenario/src/lab-loader.ts` đã đọc `file.interface?.layout` từ
+  trước. Rào cản thật nằm ở SERVER và chỉ là một đối số: `createSandboxSession` gọi
+  `profileForCapabilities(capabilities)` mà không chuyển `interfaceLayout` xuống, nên pod
+  không xin profile `ide` và không chạy Theia. Ghi lại chỗ sai này vì nó đã giữ một việc
+  ba-dòng nằm ngoài phạm vi suốt một pha.
+
+  `content/labs/dlp-linux-triage` nay khai `interface.layout: ide` và là lab đầu tiên làm
+  thế. ⚠ **Hệ quả về sức chứa, ghi ra để nó là một con số có tên:** phiên của lab đó rút
+  profile `ide` (`requests` 768Mi) thay vì mặc định của LimitRange (256Mi), nên nó chiếm
+  chỗ của ba phiên thường. Trần đồng thời theo từng profile đã đo và ghi ở
+  [`docs/ide-choice.md`](../../docs/ide-choice.md) §3: ~21 phiên ở 256Mi, ~7 ở 768Mi. Bật
+  thêm lab IDE thứ hai thì đọc lại con số đó trước, đừng bật rồi mới đếm.
 - **Arena giữ phạm vi riêng.** Không dựng lại `components/k8s-arena/**`; miễn màu của
   `arena.css` và `node-geometry.ts` vẫn là miễn theo phạm vi có tên, phải rà lại khi Arena được
   đưa vào yêu cầu thiết kế. `packages/games` chỉ mở phạm vi phần nhãn problem nêu trên.
