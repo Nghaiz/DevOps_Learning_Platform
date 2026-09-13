@@ -286,6 +286,14 @@ export const authRefreshTokens = pgTable(
   (table) => [
     uniqueIndex('auth_refresh_tokens_token_hash_key').on(table.tokenHash),
     index('auth_refresh_tokens_user_id_idx').on(table.userId),
+    /**
+     * Phép duyệt chuỗi khi phát hiện replay đi theo `rotated_from`, không theo
+     * `user_id` — index ở trên không phục vụ nó. Phép duyệt ấy chạy TRONG
+     * transaction đang giữ khoá hàng `users`, nên một lượt quét bảng ở đó là
+     * thời gian mọi request khác của cùng tài khoản phải xếp hàng. Một review
+     * độc lập chỉ ra (N7, 2026-09-13).
+     */
+    index('auth_refresh_tokens_rotated_from_idx').on(table.rotatedFrom),
   ],
 );
 
