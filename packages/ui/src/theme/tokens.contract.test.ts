@@ -161,6 +161,48 @@ const C1_BRAND_TOKENS = [
 ] as const;
 
 /**
+ * Bảng màu của CẢNH 3D trên landing (`d5bf768`, chỉ đạo 2026-09-13).
+ *
+ * ## Vì sao là một nhóm riêng chứ không phải thêm dòng vào `C1_COLOR_TOKENS`
+ *
+ * Hai lý do, cả hai đều là quyết định:
+ *
+ * 1. **Bất biến theo theme, cùng luật với `C1_BRAND_TOKENS`.** Cảnh có bảng màu
+ *    riêng và cố ý giống nhau ở sáng lẫn tối. Nhét vào `C1_COLOR_TOKENS` sẽ làm
+ *    ô "token có mặt ở CẢ HAI theme" đỏ, và cách duy nhất để nó xanh lại là
+ *    nhân đôi mười dòng vào `.dark` — tức bịa ra một biến thể theme mà thiết kế
+ *    không đòi, chỉ để chiều một phép kiểm.
+ * 2. **Dạng `rgb()`, không phải `oklch()`.** Three.js nhận màu qua API JS và
+ *    KHÔNG phân giải `var()` lẫn `oklch()`; cảnh đọc các token này bằng
+ *    `getComputedStyle` rồi dựng `THREE.Color`. Cùng loại ranh giới thư viện
+ *    ngoài mà `scripts/check-design-tokens.mjs` đã ghi cho xterm.js.
+ *
+ * ⛔ KHÔNG map sang `@theme inline`. Cùng lý lẽ nửa-hay-bị-quên của
+ * `C1_BRAND_TOKENS`: một `bg-journey-coral` tồn tại là một class sẽ có người
+ * dùng, và màu cảnh chưa từng qua bảng contrast của hệ giao diện.
+ *
+ * ## Vì sao nhóm này ra đời muộn
+ *
+ * Mười token đã CHẠY THẬT trong `globals.css` từ `d5bf768` mà không nhóm nào
+ * khai, nên ô "không có token THỪA ngoài hợp đồng C1" ĐỎ kể từ commit đó. Không
+ * ai thấy: lane 3D chỉ chạy các suite trọng tâm (marketing, security, proxy,
+ * copy) và `packages/ui` không nằm trong số đó. Đây đúng là hình dạng một lượt
+ * "xanh" được tính trên tập không chứa cái cổng biết nói không.
+ */
+const C1_JOURNEY_TOKENS = [
+  '--journey-bg',
+  '--journey-panel',
+  '--journey-ink',
+  '--journey-muted',
+  '--journey-coral',
+  '--journey-cyan',
+  '--journey-violet',
+  '--journey-mint',
+  '--journey-amber',
+  '--journey-metal',
+] as const;
+
+/**
  * Số đo HÌNH HỌC — bề rộng khối văn xuôi, nhịp dọc một chặng, và motif ellipse
  * (`p16-tokens.md` §3.3, §4, §8.1, §8.2). Cùng luật với `--radius`: khai một
  * lần ở `:root`, cấm lặp ở `.dark`.
@@ -497,7 +539,7 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
    *    một dòng `--text-base` xuống `.dark`, nó sẽ ghi đè bảng theme của
    *    Tailwind ở đúng một nhánh và không có gì khác kêu lên.
    */
-  it.each([...C1_BRAND_TOKENS, ...THEME_BLOCK_TOKENS] as const)(
+  it.each([...C1_BRAND_TOKENS, ...C1_JOURNEY_TOKENS, ...THEME_BLOCK_TOKENS] as const)(
     '%s CỐ Ý vắng mặt ở .dark',
     (token) => {
       expect(
@@ -514,6 +556,7 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
       ...C1_ELEVATION_TOKENS,
       ...C1_MOTION_TOKENS,
       ...C1_BRAND_TOKENS,
+      ...C1_JOURNEY_TOKENS,
       ...C1_GEOMETRY_TOKENS,
       '--radius',
     ];
@@ -561,6 +604,26 @@ describe('C1 — `@theme inline` sinh được class Tailwind cho mọi token', 
         themeInline[`--color${token.slice(1)}`],
         `--color${token.slice(1)} tồn tại ⇒ Tailwind sinh ra bg/text/border cho màu logo. ` +
           '§1.5 cấm dùng chúng làm màu UI, và một class tồn tại là một class sẽ có người dùng.',
+      ).toBeUndefined();
+    },
+  );
+
+  /**
+   * Cùng nửa-hay-bị-quên ấy, cho bảng màu cảnh 3D.
+   *
+   * Chú thích của `C1_JOURNEY_TOKENS` viết rằng không được map chúng sang
+   * `@theme inline`. Không có ô này thì câu đó chỉ là một câu văn: map
+   * `--color-journey-coral` là cấp một `bg-journey-coral` hợp lệ về cú pháp cho
+   * mọi lane sau, và màu cảnh chưa từng đi qua bảng contrast của hệ giao diện —
+   * chúng được chọn để trông đẹp dưới ánh sáng GPU, không để chở chữ.
+   */
+  it.each(C1_JOURNEY_TOKENS)(
+    '%s KHÔNG có dòng `--color-*` — màu cảnh không phải màu giao diện',
+    (token) => {
+      expect(
+        themeInline[`--color${token.slice(1)}`],
+        `--color${token.slice(1)} tồn tại ⇒ Tailwind sinh ra bg/text/border cho màu cảnh 3D. ` +
+          'Chúng chưa qua bảng contrast, và một class tồn tại là một class sẽ có người dùng.',
       ).toBeUndefined();
     },
   );
