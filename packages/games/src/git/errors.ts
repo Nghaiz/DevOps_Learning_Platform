@@ -59,11 +59,13 @@ export function editDistance(a: string, b: string): number {
   // Hai hàng trước đó là đủ cho OSA; ma trận đầy đủ chỉ tốn bộ nhớ.
   let twoBack: number[] = [];
   let oneBack: number[] = [];
-  let current: number[] = [];
   for (let j = 0; j <= b.length; j += 1) oneBack.push(j);
 
   for (let i = 1; i <= a.length; i += 1) {
-    current = [i];
+    // Khai TRONG vòng lặp: kết quả đọc ra từ `oneBack` sau vòng, nên `current`
+    // không sống qua được một lượt. Khai ngoài kèm `= []` là một giá trị không
+    // ai đọc — đúng thứ `no-useless-assignment` gác.
+    const current: number[] = [i];
     for (let j = 1; j <= b.length; j += 1) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
       let best = Math.min(

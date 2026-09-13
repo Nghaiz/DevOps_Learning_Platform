@@ -299,9 +299,3 @@ function sortBots(bots: readonly BotAction[]): readonly BotAction[] {
     return a.author < b.author ? -1 : a.author > b.author ? 1 : 0;
   });
 }
-
-/** Bản sao cục bộ của `headOid` để `world-spec.ts` không phải import vòng qua `repo.ts`. */
-function headOidOf(repo: Repo): Oid | null {
-  if (repo.head.type === 'detached') return repo.head.oid;
-  return repo.refs[repo.head.ref] ?? null;
-}

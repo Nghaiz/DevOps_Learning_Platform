@@ -93,7 +93,6 @@ import {
   noOperation,
   ok,
   operationInProgress,
-  oursLabelOf,
   untrackedWorktree,
   worktreeAt,
   wrongPendingKind,

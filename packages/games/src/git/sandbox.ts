@@ -36,7 +36,7 @@ import type {
 } from './contract.ts';
 import { compareKeys, sortedEntries, sortedKeys } from './deterministic.ts';
 import { commitContents, getCommit, reachableFrom } from './objects.ts';
-import { branchNames, branchRef, headOid, isBranch, isTag, shortRefName, tagRef } from './repo.ts';
+import { branchNames, branchRef, headOid, isBranch, isTag, shortRefName } from './repo.ts';
 import { buildWorld } from './world-spec.ts';
 import { hashRepoState } from './hash.ts';
 

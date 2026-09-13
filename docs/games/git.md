@@ -242,12 +242,69 @@ chiều-xuống của sổ cái báo dòng miễn trừ cho một file sạch l�
 
 ---
 
-## 9. Còn nợ
+## 9. Sandbox
+
+Kho tự do, không mục tiêu, không chấm. Mở từ nút **Mở sandbox** trên màn chọn level.
+
+Năm thao tác: đặt lại · hoàn tác từng bước · nhập/xuất cây JSON · bật/tắt `origin` · chọn một
+trong bốn kịch bản khởi tạo (`kho-trong`, `kho-roi`, `kho-vua-hong`, `hai-kho`).
+
+**Sandbox mượn nguyên engine**, qua `sandboxLevel(spec)` — một `GitLevel` giả với
+`objectives: []` và `allowedCommands: null`. Nó cần đúng bốn thứ của engine (điều phối lệnh,
+đồng hồ logic, bot, ngăn xếp hoàn tác) mà cả bốn đã đúng ở `engine.ts`; viết một engine riêng
+là cách chắc chắn nhất để hai đường đi lệch nhau, rồi một lỗi chỉ tái hiện được ở một bên.
+
+⛔ **Màn này không hiện ô kết quả.** `verdictOf` trên mảng mục tiêu rỗng trả "đạt", nên một ô
+kết quả ở đây sẽ vĩnh viễn nói "AC (0/0)" — nói dối một cách trông rất hợp lệ.
+
+### Xuất / nhập
+
+Đi qua `WorldSpec`, **không** qua `GitWorld`. Lý do thật là lý do thứ hai: Oid sinh từ nội
+dung, nên một `GitWorld` xuất ra rồi nhập lại ở một bản engine có phép băm khác sẽ mang Oid
+không khớp gì cả — và nó không nổ, nó im lặng trỏ vào khoảng không. `WorldSpec` dùng id nội bộ
+(`c1`, `c2`) nên sống sót qua mọi lần đổi cách băm.
+
+Phép chiếu ngược `worldToSpec` **mất thông tin có chủ ý**: reflog, stash, thao tác dở dang và
+commit mồ côi đều không sang. Xuất một sandbox đang giữa một `rebase` dở rồi nhập lại sẽ cho
+một kho SẠCH — đúng hành vi, nhưng phải nói ra.
+
+`importSandboxJson` trả `null` thay vì ném: chuỗi đến từ ngoài hệ thống (dán từ URL, từ file
+người khác gửi). `buildWorld` ném khi spec sai và ném là đúng ở tầng đó; ở đây phải nuốt lại
+để một lần dán nhầm không thành trang lỗi.
+
+### `origin` bật được hay không là một câu hỏi về spec
+
+`OriginSpec.branches` ánh xạ tên → **id commit spec**. Trên `kho-trong` chưa có commit nào, nên
+không có gì để trỏ vào, và một id không tồn tại làm `buildWorld` **ném** — tức trang sập, chứ
+không phải "nút không ăn". `withOrigin` trả `null` ở trường hợp đó và giao diện **tắt hẳn nút**.
+
+### Đổi spec dựng lại phiên, và dựng lại phiên xoá ngăn xếp hoàn tác
+
+Đổi kịch bản, bật/tắt origin, hay nhập một cây đều thay cả thế giới — undo qua một lần như vậy
+thì hoàn về đâu? Hành vi đúng, nhưng màn hình phải nói ra, nếu không người dùng tưởng Ctrl+Z hỏng.
+
+### AC-Q đo ở HAI tầng, và tầng thứ hai không thừa
+
+| Tầng | File | Bắt được gì |
+|---|---|---|
+| Đơn vị | `packages/games/src/git/sandbox.test.ts` | Phép chiếu ngược và vòng băm |
+| Trình duyệt | `apps/web/e2e/games-git-sandbox.spec.ts` | Dây nối từ ô textarea tới engine |
+
+Ô đơn vị gọi thẳng `exportSandboxJson`/`importSandboxJson`, nên nó xanh kể cả khi giao diện nối
+nhầm hai nút đó — nhập xong quên dựng lại phiên, hay dựng lại phiên từ spec CŨ.
+
+⚠ Chính đối chứng dương của ô e2e đã bắt một lỗi nằm trong ô đơn vị: nó gõ
+`git write note.md "xin chao"` (sai cú pháp; đúng là `-c "<nội dung>"`), ba trong bốn lệnh lỗi,
+mà ô vẫn xanh vì chỉ khẳng định hash đổi — hash đã đổi từ `checkout -b` ở dòng trên. Bài học
+chung: một ô khẳng định "trạng thái đã tiến" mà không nói tiến **cái gì** thì gần như không gác gì.
+
+---
+
+## 10. Còn nợ
 
 | Việc | Trạng thái |
 |---|---|
 | **17.K — tầng 3D** | Chưa làm. Chủ dự án chốt hoãn sang một chặng riêng; đường 2D là đường được đánh bóng duy nhất ở đợt này. `resolveRendererMode({ has3d: false })` là MỘT chỗ để đổi khi nó xong |
-| **17.Q — sandbox** | Chưa làm. Chặn Level Builder ở P18 |
 | Mô phỏng mù màu trên ảnh chụp cảnh thật (§17.C.5 vế hai) | Chưa làm. Bù bằng kênh hình học: mọi cặp trong 6 trạng thái khác nhau ở ≥2 kênh ngoài màu |
 | `PendingOp` nhánh `'stash'` | Khai trong hợp đồng, `ops/stash.ts` đã nối phép trộn ba ngả thật. `pop --abort` hiện vứt thay đổi cục bộ chưa commit vì nhánh đó chưa mang ảnh chụp worktree |
 | `GitOpResult` / `RepoOpResult` | Hai kiểu trùng nhau từng trường, do hai lane khai. Nên gom về `contract.ts` |

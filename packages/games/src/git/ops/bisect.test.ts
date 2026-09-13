@@ -180,7 +180,7 @@ describe('trạng thái phiên bisect', () => {
   });
 
   it('thiếu một trong hai mốc thì không phải lỗi, chỉ là chưa hỏi được', () => {
-    const { repo, oids } = chain(15);
+    const { repo } = chain(15);
     const started = gitBisectStart(repo, null, null, at(100));
 
     expect(started.error).toBeNull();

@@ -58,6 +58,10 @@
 
 import type { Difficulty } from '../core/types.ts';
 import type { RngState } from '../core/rng.ts';
+// Hai dòng dưới KHÔNG tạo vòng: `core/run-log.ts` và `core/session-status.ts`
+// tự khai hình dạng của chúng và không import ngược lại `git/contract.ts`.
+import type { GitGameAction, RunLog } from '../core/run-log.ts';
+import type { SessionStatus } from '../core/session-status.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. OBJECT STORE
@@ -927,7 +931,7 @@ export interface GitDispatchOutcome {
 export interface GitSession {
   getWorld(): GitWorld;
   getView(): GitView;
-  getStatus(): import('../core/session-status.ts').SessionStatus;
+  getStatus(): SessionStatus;
   subscribe(listener: () => void): () => void;
   /** Chạy một dòng lệnh thô. Đây là đường DUY NHẤT trạng thái đổi. */
   run(command: string): GitDispatchOutcome;
@@ -936,9 +940,7 @@ export interface GitSession {
   /** Hoàn tác một bước (17.I.3). Không ghi vào nhật ký — xem chú thích dưới. */
   undo(): boolean;
   redo(): boolean;
-  getLog(): import('../core/run-log.ts').RunLog<
-    import('../core/run-log.ts').GitGameAction
-  >;
+  getLog(): RunLog<GitGameAction>;
   getOutput(): readonly OutputLine[];
 }
 
