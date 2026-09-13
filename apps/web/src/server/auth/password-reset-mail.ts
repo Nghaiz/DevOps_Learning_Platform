@@ -3,41 +3,66 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { after } from 'next/server';
 import { z } from 'zod';
 import { t } from '@devops-platform/copy';
+import { getDb } from '../db/client';
 import { betterAuthUrl } from '../env';
+import {
+  drainPasswordResetOutbox,
+  enqueuePasswordResetMail,
+  type PasswordResetDrainResult,
+} from './password-reset-outbox';
 
 export const PASSWORD_RESET_TTL_SECONDS = 15 * 60;
 
-const deliveryRequest = new AsyncLocalStorage<Array<() => Promise<void>>>();
+/** How many rows this request accepted. Absent store = called outside the HTTP wrapper. */
+const deliveryRequest = new AsyncLocalStorage<{ queued: number }>();
 
-/** Deliver after the response so recipient acceptance cannot disclose account existence. */
+/**
+ * Deliver after the response so recipient acceptance cannot disclose account existence.
+ *
+ * The row itself is written during the request; only the SMTP round-trip is
+ * deferred. That is the exchange this boundary was always protecting: a remote
+ * provider takes hundreds of milliseconds and can reject a recipient outright,
+ * whereas the local insert is the same order of magnitude as the verification
+ * row Better Auth already writes for an existing account on this same path.
+ */
 export async function withPasswordResetDelivery(
   handler: () => Promise<Response>,
 ): Promise<Response> {
-  return deliveryRequest.run([], async () => {
+  return deliveryRequest.run({ queued: 0 }, async () => {
     const response = await handler();
-    const deliveries = deliveryRequest.getStore() ?? [];
-    if (deliveries.length > 0) {
+    if ((deliveryRequest.getStore()?.queued ?? 0) > 0) {
       after(async () => {
-        for (const deliver of deliveries) {
-          try {
-            await deliver();
-          } catch {
-            console.error(
-              '[auth] Password reset email delivery failed; inspect SMTP provider health.',
-            );
-          }
-        }
+        await deliverQueuedPasswordResetMail();
       });
     }
     return response;
   });
 }
 
-/** Server API callers outside the HTTP wrapper still await delivery. */
+/**
+ * Accept the delivery durably, then let the queue own the send.
+ *
+ * A committed row survives the process; the previous in-memory callback did not.
+ * Callers therefore learn whether the work was ACCEPTED, not whether SMTP took
+ * it — which is the honest promise, and the one the UI already makes.
+ */
 export async function schedulePasswordResetMail(email: string, code: string): Promise<void> {
-  const deliveries = deliveryRequest.getStore();
-  if (deliveries) deliveries.push(() => sendPasswordResetMail(email, code));
-  else await sendPasswordResetMail(email, code);
+  await enqueuePasswordResetMail(getDb(), {
+    email,
+    code,
+    expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_SECONDS * 1000),
+  });
+  const request = deliveryRequest.getStore();
+  if (request) request.queued += 1;
+  // Server API callers outside the HTTP wrapper still await an attempt. A failed
+  // attempt is now recorded and retried instead of thrown: the row is already
+  // accepted, so raising here would report loss that did not happen.
+  else await deliverQueuedPasswordResetMail();
+}
+
+/** The production-wired drain: this app's database, this module's SMTP sender. */
+export async function deliverQueuedPasswordResetMail(): Promise<PasswordResetDrainResult> {
+  return drainPasswordResetOutbox({ db: getDb(), send: sendPasswordResetMail });
 }
 
 const smtpSchema = z.object({
