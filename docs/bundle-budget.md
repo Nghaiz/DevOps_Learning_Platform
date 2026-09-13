@@ -63,20 +63,65 @@ Turbopack vẫn liệt chunk đó trong `entryJSFiles` của route. Nên cột b
 lúc mở". Điều đó vẫn đủ cho ô AC: một route không có chunk trong tập của mình
 thì chứng minh được là không bao giờ tải nó, bằng đường nào cũng vậy.
 
-## Số đo cơ sở (2026-09-11)
+## Số đo cơ sở (2026-09-13)
 
-Build sạch trên Windows, `NEXT_OUTPUT` không đặt. 62 chunk JS, 37 route có chunk.
+Build sạch trên Windows, `NEXT_OUTPUT` không đặt. **63 chunk JS, 37 route có chunk.**
+Nguồn: `reports/2026-09-13-landing-3d-bundle-final.log`.
 
 | Đại lượng | Đo được | Trần |
 |---|---:|---:|
-| Nền chung (7 chunk, ≥90% route) | 998 512 B (975 KB) | 1 150 000 B |
+| Nền chung (7 chunk, ≥90% route) | 1 050 883 B (1026 KB) | 1 150 000 B |
 | Chunk xterm (1 chunk, đúng 4 route) | 535 793 B (523 KB) | 620 000 B |
-| Route nặng nhất — `/labs/[id]` (có terminal) | 1 654 621 B | 1 850 000 B |
-| Route nặng nhì — `/games/k8s` (three.js, **không** terminal) | 1 433 087 B | 1 850 000 B |
-| Route nhẹ nhất — `/dashboard` | 998 512 B | — |
+| Route nặng nhất — `/labs/[id]` (có terminal) | 1 707 005 B | 1 850 000 B |
+| Route nặng nhất KHÔNG có terminal — `/games/k8s` | 1 486 667 B | 1 850 000 B |
+| Trang chủ `/` (three.js nạp lười, không terminal) | 1 080 511 B | 1 850 000 B |
+| Route nhẹ nhất — `/dashboard` | 1 050 883 B | — |
 
 Bốn route có terminal: `/labs/[id]`, `/lessons/[id]`, `/playgrounds/[id]`,
 `/session/[id]/terminal`. 33 route còn lại không với tới xterm.
+
+### ⚠ `/games/k8s` không còn là route duy nhất dùng three.js
+
+Bảng cũ gọi nó là "route nặng nhì (three.js, **không** terminal)". Hai vế đó nay đều sai:
+
+- **Không còn nặng nhì.** Ba route terminal nữa đã vượt nó (`/lessons/[id]` 1 700 190 B,
+  `/playgrounds/[id]` 1 692 774 B, `/session/[id]/terminal` 1 595 178 B), nên nó đứng **thứ năm**
+  toàn cục. Nó vẫn là route nặng nhất trong nhóm không có terminal, và đó mới là điều đáng ghi.
+- **Không còn là nơi duy nhất có three.js.** Từ 2026-09-13 trang chủ `/` cũng chạm three.js qua
+  hành trình 3D cuộn, nạp lười bằng `next/dynamic({ ssr: false })`.
+
+Vì cách nạp khác nhau, hai route đọc ra rất khác nhau trong bảng trên: `/games/k8s` kéo three
+vào tập chunk của chính route (1 486 667 B, 10 chunk), còn `/` chỉ 1 080 511 B với 9 chunk —
+**hơn nền chung 29 628 B**. Khoảng cách đó không có nghĩa là trang chủ nhẹ hơn khi dùng thật:
+manifest route **không liệt kê mọi chunk Three/R3F nạp lười**. Lượt đo runtime thật của trang
+chủ ngày 2026-09-13 ghi **16 chunk JS, 679 373 B encoded body, 2 438 813 B decoded body và
+684 173 B transfer** (`reports/2026-09-13-landing-3d-completion.md`). Đây đúng là bẫy đã ghi ở
+mục "với tới được ≠ tải ngay" ở trên, chỉ khác chiều: ở đây manifest **thiếu** chunk chứ không
+thừa.
+
+### Nền chung đi từ 998 512 B lên 1 050 883 B ở đâu
+
+Chênh **+52 371 B** so với mốc 2026-09-11 cũ, và **phần lớn không phải do lane 3D**. Ba lượt đo
+cùng một script, đọc từ ba log trong `reports/`:
+
+| Mốc | Nền chung | Chunk | `/labs/[id]` | `/games/k8s` | `/` | Log |
+|---|---:|---:|---:|---:|---:|---|
+| 2026-09-11 | 998 512 B | 62 | 1 654 621 B | 1 433 087 B | — | (bảng cũ của tài liệu này) |
+| 2026-09-12 (landing KHÔNG 3D) | 1 047 523 B | 60 | 1 703 645 B | 1 483 274 B | 1 055 658 B | `p16-2026-09-12-bundle-final.log` |
+| 2026-09-13 (landing 3D) | 1 050 883 B | 63 | 1 707 005 B | 1 486 667 B | 1 080 511 B | `2026-09-13-landing-3d-bundle-final.log` |
+
+- **+49 011 B** rơi vào khoảng 09-11 → 09-12, tức đợt dựng lại landing P16 **trước khi** 3D quay
+  lại. Nền chung tăng thì mọi route tăng theo cùng một lượng, nên `/labs/[id]` (+49 024 B) và
+  `/games/k8s` (+50 187 B) dịch gần đúng bằng nền.
+- **+3 360 B** rơi vào 09-12 → 09-13, là phần lane 3D thật sự thêm vào nền chung. Đúng bằng mức
+  `/labs/[id]` tăng trong cùng khoảng (+3 360 B), tức lane 3D **không** đẩy thêm gì riêng cho các
+  route terminal.
+- Phần nặng của lane 3D nằm ở route chủ, không ở nền: `/` đi từ 1 055 658 B (8 chunk) lên
+  1 080 511 B (9 chunk), tức phần riêng của route tăng từ 8 135 B lên 29 628 B so với nền.
+- Chunk xterm **không đổi** qua cả ba lượt: 535 793 B, đúng 4 route.
+
+Không trần nào bị sửa trong hai lượt này. Nền chung ở 1 050 883 / 1 150 000 B còn **99 117 B**
+dư (8,6%), và đó là con số cần nhìn trước khi thêm bất cứ thứ gì vào nền.
 
 ## Nới trần / miễn trừ
 
