@@ -35,7 +35,7 @@ const DIRECTIONS = ['asc', 'desc'] as const;
  * `problems.list` nhận `filter.query` và lọc trên TOÀN BỘ kho, còn năm trang
  * danh mục chỉ lọc được trên trang server vừa trả về. Hai màn vì vậy dùng hai
  * nhãn khác nhau (`catalog.problems.search-label` so với
- * `catalog.toolbar.search-label`), và màn này KHÔNG mang câu cảnh báo phạm vi.
+ * nhãn “trong trang” của các màn lọc-tại-chỗ), và màn này KHÔNG mang câu cảnh báo phạm vi.
  * Mượn câu đó sang đây sẽ cảnh báo về một giới hạn không tồn tại, và một cảnh
  * báo sai chỗ dạy người dùng bỏ qua cảnh báo đúng chỗ.
  *

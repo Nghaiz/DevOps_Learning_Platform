@@ -81,7 +81,7 @@ export const GAMES: readonly GameEntry[] = [
     title: 'Đường ống',
     href: null,
     description:
-      'Nối các bước của một pipeline CI/CD thành đồ thị chạy được — build, test, quét, phát hành. Sai thứ tự thì pipeline đỏ.',
+      'Nối các bước của một pipeline CI/CD thành đồ thị chạy được: build, test, quét, phát hành. Sai thứ tự thì pipeline đỏ.',
     difficulty: 'intermediate',
     topics: ['cicd'],
   },

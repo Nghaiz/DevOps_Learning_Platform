@@ -134,7 +134,6 @@ export const catalog = {
   'catalog.toolbar.all': 'Tất cả',
   'catalog.toolbar.difficulty-legend': 'Độ khó',
   'catalog.toolbar.tier-legend': 'Sandbox',
-  'catalog.toolbar.topic-legend': 'Chủ đề',
 
   /*
    * Nhãn nói “trong trang” NGAY TRÊN điều khiển, không chờ tới câu cảnh báo
@@ -144,13 +143,6 @@ export const catalog = {
    */
   'catalog.toolbar.sort-label': 'Sắp xếp (trong trang)',
 
-  /*
-   * Cùng lý do như nhãn sắp xếp, và mạnh hơn một bậc: người ta tin một ô tìm
-   * hơn tin một ô sắp xếp. Không nói “trong trang” ở đây thì một kết quả rỗng
-   * đọc thành “kho không có”, trong khi nó chỉ có nghĩa là “trang đang mở
-   * không có”.
-   */
-  'catalog.toolbar.search-label': 'Tìm trong trang',
   'catalog.toolbar.search-placeholder': 'Tên hoặc mô tả',
 
   /*
@@ -332,10 +324,9 @@ export const catalog = {
   // ── Bài tập (`/problems`) ─────────────────────────────────────────────
   /*
    * ⚠ Ô tìm của `/problems` là ô tìm THẬT: `problems.list` nhận
-   * `filter.query` và lọc trên toàn bộ kho. Nó KHÔNG dùng
-   * `catalog.toolbar.search-label` (“Tìm trong trang”) vì câu đó nói về một
-   * giới hạn mà màn này không có, và một cảnh báo sai chỗ dạy người dùng bỏ
-   * qua cảnh báo đúng chỗ.
+   * `filter.query` và lọc trên toàn bộ kho. Nên nó có nhãn riêng nói “trong
+   * kho”, không mượn câu “trong trang” của các màn lọc-tại-chỗ: một cảnh báo
+   * sai chỗ dạy người dùng bỏ qua cảnh báo đúng chỗ.
    */
   'catalog.problems.search-region': 'Tìm trong kho bài tập',
   'catalog.problems.search-label': 'Tìm theo mã bài hoặc tên',
