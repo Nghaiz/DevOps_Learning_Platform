@@ -1,4 +1,4 @@
-import { t } from '@devops-platform/copy';
+import type { CopyRef } from '@devops-platform/copy';
 import type { PreviewPayload } from './draft-from-preview';
 
 /**
@@ -11,7 +11,21 @@ import type { PreviewPayload } from './draft-from-preview';
  */
 export interface PreviewPhase {
   readonly key: string;
-  readonly label: string;
+  /**
+   * Chuỗi khi nhãn là RUỘT (tiêu đề tác giả tự gõ cho một phase hay một task),
+   * `CopyRef` khi nhãn là VỎ (mở đầu, kết thúc, `Bước N`).
+   *
+   * Hai kiểu chứ không một, và đó chính là ranh giới §5.1: một tiêu đề tác giả
+   * gõ bị chặn bởi số MỤC NỘI DUNG nên nó không bao giờ thành khoá, còn ba nhãn
+   * mặc định bị chặn bởi số MÀN HÌNH nên chúng phải là mục tĩnh trong bản đồ.
+   *
+   * ⚠ Nói ra giới hạn: hợp nhất kiểu như vậy KHÔNG thêm được rào biên dịch nào,
+   * vì một câu tiếng Việt viết thẳng vẫn là `string` và vẫn gán được. Thứ gác
+   * nhánh đó là cổng T4 xuôi (`ui-source-coverage.test.ts` quét đúng thư mục
+   * này). Cái union mua được là chỗ DỰNG câu: nhánh vỏ dựng ở nơi hiển thị, nên
+   * ba khoá mặc định không bị ghép sẵn thành chuỗi trong một hàm thuần.
+   */
+  readonly label: string | CopyRef;
   readonly markdown: string;
 }
 
@@ -26,7 +40,7 @@ export function previewPhases(payload: PreviewPayload): readonly PreviewPhase[] 
       if (lesson.intro !== null) {
         phases.push({
           key: 'intro',
-          label: lesson.intro.title ?? t('author.draft-form-view-mo-dau'),
+          label: lesson.intro.title ?? { key: 'author.draft-form-view-mo-dau' },
           markdown: lesson.intro.markdown,
         });
       }
@@ -35,15 +49,17 @@ export function previewPhases(payload: PreviewPayload): readonly PreviewPhase[] 
           key: `step-${String(step.index)}`,
           // `index + 1` cho người đọc, `index` cho máy: `progress.step_index` là
           // 0-based và không được đổi ở đây.
-          label:
-            step.title ?? t('author.preview-phases-buoc', { stepIndex1: String(step.index + 1) }),
+          label: step.title ?? {
+            key: 'author.preview-phases-buoc',
+            params: { stepIndex1: String(step.index + 1) },
+          },
           markdown: step.markdown,
         });
       }
       if (lesson.finish !== null) {
         phases.push({
           key: 'finish',
-          label: lesson.finish.title ?? t('author.draft-form-view-ket-thuc'),
+          label: lesson.finish.title ?? { key: 'author.draft-form-view-ket-thuc' },
           markdown: lesson.finish.markdown,
         });
       }

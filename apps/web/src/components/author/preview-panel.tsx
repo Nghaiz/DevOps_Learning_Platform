@@ -5,6 +5,7 @@ import { useState, type ReactElement } from 'react';
 import { Alert, AlertDescription, AlertTitle, Button, ContentView } from '@devops-platform/ui';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
 import type { PreviewPayload } from './draft-from-preview';
+import { renderCopy } from '@devops-platform/copy';
 import { previewPhases, resolveContentAssetUrl } from './preview-phases';
 
 /**
@@ -85,7 +86,7 @@ export function PreviewPanel(props: {
                 setActiveKey(phase.key);
               }}
             >
-              {phase.label}
+              {typeof phase.label === 'string' ? phase.label : renderCopy(phase.label)}
             </Button>
           ))}
         </div>

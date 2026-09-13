@@ -1,7 +1,20 @@
+import { renderCopy, type CopyRef } from '@devops-platform/copy';
 import { describe, expect, it } from 'vitest';
 import type { Lab } from '@devops-platform/shared-types/lab';
 import type { Scenario } from '@devops-platform/shared-types/scenario';
 import { previewPhases, resolveContentAssetUrl } from './preview-phases';
+
+/**
+ * Dựng nhãn về câu. `PreviewPhase.label` là `string | CopyRef`: chuỗi khi tác
+ * giả tự gõ tiêu đề, `CopyRef` khi rơi về nhãn mặc định. Ô test khẳng định CHỮ,
+ * nên nó phải đi qua đúng chỗ rẽ đó thay vì đọc `.key`.
+ */
+function say(label: string | CopyRef | undefined): string {
+  if (label === undefined) {
+    return '';
+  }
+  return typeof label === 'string' ? label : renderCopy(label);
+}
 
 const lesson: Scenario = {
   id: 'dlp-bai',
@@ -40,15 +53,15 @@ describe('previewPhases — bài học', () => {
   });
 
   it('mở đầu/kết thúc mang nhãn chữ — KHÔNG bị đánh số chung với bước', () => {
-    expect(phases[0]?.label).toBe('Mở đầu');
-    expect(phases[3]?.label).toBe('Xong');
+    expect(say(phases[0]?.label)).toBe('Mở đầu');
+    expect(say(phases[3]?.label)).toBe('Xong');
     // Bước không tên đánh số từ 1 cho người đọc, nhưng khoá vẫn 0-based.
-    expect(phases[1]?.label).toBe('Bước 1');
+    expect(say(phases[1]?.label)).toBe('Bước 1');
     expect(phases[1]?.key).toBe('step-0');
   });
 
   it('bước có tiêu đề thì dùng tiêu đề', () => {
-    expect(phases[2]?.label).toBe('Bước có tên');
+    expect(say(phases[2]?.label)).toBe('Bước có tên');
   });
 
   it('bài không có mở đầu/kết thúc chỉ ra đúng các bước', () => {

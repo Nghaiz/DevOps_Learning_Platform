@@ -26,10 +26,12 @@ import {
 } from './script-warning';
 import type { PublishPhase } from './publish-machine';
 import {
-  TRIAL_STATUS_LABELS,
+  TRIAL_STATUS_KEYS,
   mergeTrialOutcome,
   parsePublishFailure,
   trialPlanFor,
+  type TrialStepPlan,
+  type TrialStepResult,
   type TrialStepStatus,
 } from './trial-plan';
 
@@ -222,7 +224,7 @@ function CheckReport(props: {
         variant={summary.tone === 'warn' || summary.tone === 'unknown' ? 'warning' : 'default'}
       >
         <AlertTitle>
-          {t('author.publish-panel-shellcheck')} {summary.label}
+          {t('author.publish-panel-shellcheck')} {renderCopy(summary.label)}
         </AlertTitle>
         <AlertDescription>
           {props.warnings.length === 0 ? (
@@ -236,10 +238,12 @@ function CheckReport(props: {
                     <span className="flex flex-wrap items-center gap-2">
                       <code className="font-mono text-xs">{warning.path}</code>
                       <Badge variant={view.tone === 'unknown' ? 'warning' : 'secondary'}>
-                        {view.label}
+                        {renderCopy(view.label)}
                       </Badge>
                     </span>
-                    {view.detail !== null && <span className="text-xs">{view.detail}</span>}
+                    {view.detail !== null && (
+                      <span className="text-xs">{renderCopy(view.detail)}</span>
+                    )}
                     {warning.report.findings.map((f) => (
                       <span key={`${String(f.line)}-${f.code}`} className="font-mono text-xs">
                         {t('author.publish-panel-dong')} {f.line} · {f.code} · {f.message}
@@ -320,7 +324,7 @@ function PhaseReport({ phase }: { readonly phase: PublishPhase }): ReactElement 
 
 function TrialReport(props: {
   readonly phase: PublishPhase;
-  readonly plan: readonly { label: string; mustPass: boolean; description: string }[];
+  readonly plan: readonly TrialStepPlan[];
   readonly publishError: string | null;
 }): ReactElement {
   if (props.plan.length === 0) {
@@ -429,10 +433,7 @@ const STATUS_BADGE: Readonly<
 };
 
 function TrialTable(props: {
-  readonly rows: readonly {
-    plan: { label: string; description: string };
-    status: TrialStepStatus;
-  }[];
+  readonly rows: readonly TrialStepResult[];
 }): ReactElement {
   return (
     <ol className="flex flex-col gap-1">
@@ -441,8 +442,8 @@ function TrialTable(props: {
           key={row.plan.label}
           className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2"
         >
-          <Badge variant={STATUS_BADGE[row.status]}>{TRIAL_STATUS_LABELS[row.status]}</Badge>
-          <span className="text-sm text-foreground">{row.plan.description}</span>
+          <Badge variant={STATUS_BADGE[row.status]}>{renderCopy(TRIAL_STATUS_KEYS[row.status])}</Badge>
+          <span className="text-sm text-foreground">{renderCopy(row.plan.description)}</span>
           <code className="font-mono text-xs text-muted-foreground">{row.plan.label}</code>
         </li>
       ))}

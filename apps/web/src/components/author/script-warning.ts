@@ -1,4 +1,4 @@
-import { t } from '@devops-platform/copy';
+import type { CopyRef } from '@devops-platform/copy';
 /**
  * Đọc kết quả `shellcheck` mà KHÔNG gộp "chưa kiểm được" vào "sạch".
  *
@@ -42,36 +42,54 @@ export interface ScriptWarningView {
 
 export type ScriptCheckTone = 'clean' | 'warn' | 'unknown';
 
+/**
+ * Bộ CHỌN, nên nó trả `CopyRef` chứ không trả câu (§1.6 của `p16-copy.md`).
+ *
+ * Ba nhánh dưới đây là ba mục tĩnh trong `surfaces/author.ts`, nên bộ dò của
+ * gói copy soi được cả ba. Một hàm ghép câu tại chỗ chỉ để lộ nhánh mà probe đi
+ * vào, và nhánh còn lại đi thẳng ra người soạn không qua cổng nào.
+ *
+ * `detail` đi cùng `label`: cùng một hàm, cùng một lý do. Để lại một nửa dưới
+ * dạng chuỗi đã dựng thì nửa đó vẫn ghép tại chỗ, và lý do trên chỉ đúng một nửa.
+ */
 export interface ScriptCheckLabel {
   readonly tone: ScriptCheckTone;
-  readonly label: string;
-  readonly detail: string | null;
+  readonly label: CopyRef;
+  readonly detail: CopyRef | null;
 }
 
 export function describeScriptReport(report: ShellcheckReportView): ScriptCheckLabel {
   if (!report.available) {
     return {
       tone: 'unknown',
-      label: t('author.script-warning-chua-kiem-duoc'),
+      label: { key: 'author.script-warning-chua-kiem-duoc' },
       detail:
         report.unavailableReason === null
-          ? t(
-              'author.script-warning-khong-ro-ly-do-day-khong-phai-script-sach-chua-co-luot-kiem-nao-chay',
-            )
-          : t('author.script-warning-day-khong-phai-script-sach-chua-co-luot-kiem-nao-chay', {
-              reportUnavailablereason: String(report.unavailableReason),
-            }),
+          ? {
+              key: 'author.script-warning-khong-ro-ly-do-day-khong-phai-script-sach-chua-co-luot-kiem-nao-chay',
+            }
+          : {
+              key: 'author.script-warning-day-khong-phai-script-sach-chua-co-luot-kiem-nao-chay',
+              params: { reportUnavailablereason: String(report.unavailableReason) },
+            },
     };
   }
   if (report.findings.length === 0) {
-    return { tone: 'clean', label: t('author.script-warning-khong-co-canh-bao'), detail: null };
+    return {
+      tone: 'clean',
+      label: { key: 'author.script-warning-khong-co-canh-bao' },
+      detail: null,
+    };
   }
   return {
     tone: 'warn',
-    label: t('author.script-warning-canh-bao', {
-      reportFindingsLength: String(report.findings.length),
-    }),
-    detail: t('author.script-warning-canh-bao-khong-chan-xuat-ban-script-van-co-the-chay-dung'),
+    label: {
+      key: 'author.script-warning-canh-bao',
+      params: { reportFindingsLength: String(report.findings.length) },
+    },
+    detail: {
+      key: 'author.script-warning-canh-bao-khong-chan-xuat-ban-script-van-co-the-chay-dung',
+    },
   };
 }
 
@@ -90,7 +108,8 @@ export function describeScriptReport(report: ShellcheckReportView): ScriptCheckL
  */
 export interface ScriptSummary {
   readonly tone: ScriptCheckTone | 'none';
-  readonly label: string;
+  /** Tham chiếu bản đồ, cùng lý do như `ScriptCheckLabel.label` ở trên. */
+  readonly label: CopyRef;
 }
 
 export function summarizeScriptChecks(
@@ -98,33 +117,40 @@ export function summarizeScriptChecks(
   scriptCount: number,
 ): ScriptSummary {
   if (scriptCount === 0) {
-    return { tone: 'none', label: t('author.script-warning-bai-nay-khong-co-script-nao-de-kiem') };
+    return {
+      tone: 'none',
+      label: { key: 'author.script-warning-bai-nay-khong-co-script-nao-de-kiem' },
+    };
   }
   const unknown = warnings.filter((warning) => !warning.report.available).length;
   if (unknown > 0) {
     return {
       tone: 'unknown',
-      label: t('author.script-warning-script-chua-kiem-duoc-khong-ket-luan-la-sach', {
-        unknown: String(unknown),
-        scriptcount: String(scriptCount),
-      }),
+      label: {
+        key: 'author.script-warning-script-chua-kiem-duoc-khong-ket-luan-la-sach',
+        params: { unknown: String(unknown), scriptcount: String(scriptCount) },
+      },
     };
   }
   if (warnings.length > 0) {
     const findings = warnings.reduce((sum, warning) => sum + warning.report.findings.length, 0);
     return {
       tone: 'warn',
-      label: t('author.script-warning-canh-bao-tren-script', {
-        findings: String(findings),
-        warningsLength: String(warnings.length),
-        scriptcount: String(scriptCount),
-      }),
+      label: {
+        key: 'author.script-warning-canh-bao-tren-script',
+        params: {
+          findings: String(findings),
+          warningsLength: String(warnings.length),
+          scriptcount: String(scriptCount),
+        },
+      },
     };
   }
   return {
     tone: 'clean',
-    label: t('author.script-warning-script-khong-co-canh-bao-nao', {
-      scriptcount: String(scriptCount),
-    }),
+    label: {
+      key: 'author.script-warning-script-khong-co-canh-bao-nao',
+      params: { scriptcount: String(scriptCount) },
+    },
   };
 }

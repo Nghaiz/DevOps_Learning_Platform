@@ -1,4 +1,4 @@
-import { t } from '@devops-platform/copy';
+import { t, type CopyRef } from '@devops-platform/copy';
 import type { PreviewPayload } from './draft-from-preview';
 
 /**
@@ -35,8 +35,18 @@ export interface TrialStepPlan {
   readonly label: string;
   /** `true` = phải trả exit 0 thì lượt xuất bản mới đạt. */
   readonly mustPass: boolean;
-  /** Câu tiếng Việt cho người soạn — server chỉ có nhãn máy. */
-  readonly description: string;
+  /**
+   * Câu tiếng Việt cho người soạn; server chỉ có nhãn máy.
+   *
+   * `CopyRef` chứ không chuỗi đã dựng (§1.6): bốn nhánh mô tả bên dưới là bốn
+   * mục tĩnh trong `surfaces/author.ts`, nên bộ dò soi được cả bốn chứ không
+   * chỉ nhánh mà một test đi vào.
+   *
+   * `label` ngay trên KHÔNG đổi, và đó là cố ý: nó là định danh script của
+   * server, phải khớp từng ký tự với `TrialStep.label`. Một khoá bản đồ ở đó
+   * sẽ làm `mergeTrialOutcome` không ghép được kết quả nào.
+   */
+  readonly description: CopyRef;
 }
 
 function phaseSteps(
@@ -54,14 +64,20 @@ function phaseSteps(
     out.push({
       label: `${label}.setup.background`,
       mustPass: false,
-      description: t('author.trial-plan-setup-chay-an', { human: String(human) }),
+      description: {
+        key: 'author.trial-plan-setup-chay-an',
+        params: { human: String(human) },
+      },
     });
   }
   if (phase.setup.foreground !== null && phase.setup.foreground !== '') {
     out.push({
       label: `${label}.setup.foreground`,
       mustPass: false,
-      description: t('author.trial-plan-setup-hien-trong-terminal', { human: String(human) }),
+      description: {
+        key: 'author.trial-plan-setup-hien-trong-terminal',
+        params: { human: String(human) },
+      },
     });
   }
   return out;
@@ -86,14 +102,20 @@ export function trialPlanFor(payload: PreviewPayload): readonly TrialStepPlan[] 
           plan.push({
             label: `${at}.setup.background`,
             mustPass: false,
-            description: t('author.trial-plan-setup-chay-an', { human: String(human) }),
+            description: {
+              key: 'author.trial-plan-setup-chay-an',
+              params: { human: String(human) },
+            },
           });
         }
         if (step.setup.foreground !== null && step.setup.foreground !== '') {
           plan.push({
             label: `${at}.setup.foreground`,
             mustPass: false,
-            description: t('author.trial-plan-setup-hien-trong-terminal', { human: String(human) }),
+            description: {
+              key: 'author.trial-plan-setup-hien-trong-terminal',
+              params: { human: String(human) },
+            },
           });
         }
         if (step.verifyScript !== null && step.verifyScript !== '') {
@@ -103,7 +125,10 @@ export function trialPlanFor(payload: PreviewPayload): readonly TrialStepPlan[] 
             // chạy thử: một bài mà bước chấm không bao giờ đạt là một bài người
             // học không thể hoàn thành.
             mustPass: true,
-            description: t('author.trial-plan-script-cham-phai-dat', { human: String(human) }),
+            description: {
+              key: 'author.trial-plan-script-cham-phai-dat',
+              params: { human: String(human) },
+            },
           });
         }
       }
@@ -129,9 +154,10 @@ export function trialPlanFor(payload: PreviewPayload): readonly TrialStepPlan[] 
           // KHÁC bài học: task của lab được chấm trên môi trường CHƯA làm gì, nên
           // một verify đúng sẽ trượt ở đây. Lượt thử chỉ đòi script chạy được.
           mustPass: false,
-          description: t('author.trial-plan-task-script-cham-chi-can-chay-duoc', {
-            taskTitle: String(task.title),
-          }),
+          description: {
+            key: 'author.trial-plan-task-script-cham-chi-can-chay-duoc',
+            params: { taskTitle: String(task.title) },
+          },
         });
       }
       return plan;
@@ -221,10 +247,20 @@ export function mergeTrialOutcome(
   }));
 }
 
-export const TRIAL_STATUS_LABELS: Readonly<Record<TrialStepStatus, string>> = {
-  passed: t('author.trial-plan-dat'),
-  ran: t('author.trial-plan-da-chay'),
-  failed: t('author.trial-plan-truot'),
-  skipped: t('author.trial-plan-chua-chay'),
-  pending: t('author.trial-plan-dang-cho'),
+/**
+ * Nhãn trạng thái: KHOÁ chứ không chữ.
+ *
+ * Đổi tên khỏi `TRIAL_STATUS_LABELS` vì giá trị không còn là nhãn. Một cái tên
+ * nói "labels" trong khi chở khoá là một cái bẫy đọc, và ở đây nó là bẫy có
+ * thật: cả hai đều là chuỗi, nên in nhầm khoá ra màn hình không làm tsc đỏ.
+ *
+ * Bảng nằm ở file này vì `TrialStepStatus` là union của chính nó; nơi vẽ chỉ
+ * việc dựng bằng `renderCopy`.
+ */
+export const TRIAL_STATUS_KEYS: Readonly<Record<TrialStepStatus, CopyRef>> = {
+  passed: { key: 'author.trial-plan-dat' },
+  ran: { key: 'author.trial-plan-da-chay' },
+  failed: { key: 'author.trial-plan-truot' },
+  skipped: { key: 'author.trial-plan-chua-chay' },
+  pending: { key: 'author.trial-plan-dang-cho' },
 };
