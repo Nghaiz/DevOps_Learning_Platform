@@ -9,11 +9,26 @@ import { deliverQueuedPasswordResetMail } from './password-reset-mail';
  * gửi xong. Dòng của nó nằm lại trong DB và không request nào của nó sẽ chạy nữa;
  * chỉ một tiến trình khác quét lên mới thấy.
  *
- * ⚠ GIỚI HẠN, ghi thẳng ra chứ không gọi đây là "đảm bảo gửi": nếu MỌI replica
+ * ⚠ GIỚI HẠN 1, ghi thẳng ra chứ không gọi đây là "đảm bảo gửi": nếu MỌI replica
  * web đều chết thì không còn ai quét. Dòng vẫn nằm nguyên trong DB và được gửi
  * khi có replica sống lại — không mất, nhưng cũng không có mốc thời gian nào được
  * hứa hẹn. Việc chạy quét ở mọi replica là an toàn: `SKIP LOCKED` trong
  * `drainPasswordResetOutbox` lo phần không gửi trùng.
+ *
+ * ⚠ GIỚI HẠN 2, ĐO ĐƯỢC chứ không suy ra: `register()` của Next KHÔNG chạy lúc
+ * tiến trình khởi động — nó chạy ở REQUEST ĐẦU TIÊN. Nên một replica chưa phục
+ * vụ request nào thì chưa hề bắt đầu đếm chu kỳ, và đồng hồ 60 giây dưới đây
+ * tính từ lượt truy cập đầu chứ không từ lúc pod Ready.
+ *
+ * Phép đo, 2026-09-13, build `sm_yNBJEbf9NkB1GRCWkF`: nhét một dòng có
+ * `expires_at` trong quá khứ rồi `next start` trên một cổng riêng. Sau 87 giây
+ * KHÔNG có request nào, dòng vẫn còn và không có dòng log nào. Gửi đúng một
+ * `GET /login` thì log `sweep: sent=0 failed=0 expired=1` hiện ngay và dòng
+ * biến mất. Nếu `register()` chạy lúc boot thì nhịp 60 giây đã dọn nó ở mốc 60.
+ *
+ * Hệ quả thực tế nhỏ (replica web nào cũng nhận traffic), nhưng nó bác bỏ cách
+ * đọc "cứ có tiến trình sống là có người quét" — và đó là cách đọc mà một người
+ * đang truy một thư chưa tới sẽ dùng.
  */
 export const PASSWORD_RESET_OUTBOX_SWEEP_MS = 60_000;
 
