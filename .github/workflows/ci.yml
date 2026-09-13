@@ -27,26 +27,44 @@
 # tj-actions/changed-files (2025). Dependabot nâng SHA giúp (.github/dependabot.yml).
 name: CI
 
-# ⏸ TẠM DỪNG 2026-09-04 — giai đoạn phát triển nhanh tới hết phase 14.
+# ▶ ĐANG CHẠY LẠI TỪ 2026-09-14 — khối `on:` gốc đã bỏ comment, nguyên văn như
+# trước lúc tạm dừng. Điều kiện gỡ ("hoàn thành phase 14") đã qua được hai chặng:
+# lúc bật lại đang đóng P16 để sang P17.
 #
-# Workflow này KHÔNG còn tự chạy. Nó chỉ chạy khi gọi tay (nút "Run workflow"
-# trên tab Actions, hoặc `gh workflow run ci.yml`). Lý do, phạm vi, và LỆNH BẬT
-# LẠI: `docs/ci-paused.md`.
+# ── LỊCH SỬ: VÌ SAO TỪNG TẮT (giữ lại, đừng xoá) ──────────────────────────────
 #
-# Quét secret KHÔNG bị tắt — nó tách sang `.github/workflows/secret-scan.yml` và
-# vẫn chạy mọi push. Đó là cổng duy nhất mà hỏng thì bật lại CI sau không cứu
-# được (secret lọt vào lịch sử git ⇒ phải xoay khoá + rewrite history).
+# ⏸ 2026-09-04 → 2026-09-14. Chủ dự án quyết: dồn sức làm hết các phase, không
+# chờ cổng. Suốt quãng đó workflow này chỉ chạy khi GỌI TAY, nên bảy cổng gom về
+# `ci-ok` không gác một dòng nào; branch protection trên `main` cũng gỡ cùng lúc.
+# Danh sách đầy đủ những thứ KHÔNG được bảo đảm trong quãng đó nằm ở
+# `docs/ci-paused.md` — tài liệu đó nay là hồ sơ lịch sử, không phải hướng dẫn.
 #
-# Khối `on:` gốc giữ nguyên ở đây, comment lại, để bật lại là bỏ comment:
+# Hai cổng được TÁCH RA để vẫn chạy trong lúc CI tắt:
+# `.github/workflows/secret-scan.yml` (quét secret — cổng duy nhất mà hỏng thì
+# bật lại CI sau KHÔNG cứu được, vì secret đã vào lịch sử git thì phải xoay khoá
+# + rewrite history) và `.github/workflows/no-commerce.yml` (ràng buộc sản phẩm).
+# ⚠ Cả hai nay TRÙNG với job `secret-scan` + `no-commerce` vẫn còn nguyên trong
+# file này (và nằm trong `ci-ok.needs`) ⇒ mỗi cổng chạy HAI lượt. Phân tích +
+# khuyến nghị bỏ cái nào: `docs/ci-paused.md` § "Trùng workflow sau khi bật lại".
 #
-#   push:
-#     branches: [main]
-#     tags: ['v*']
-#   pull_request:
+# ── HAI THỨ KHÔNG ĐƯỢC ĐỘNG VÀO KHỐI `on:` DƯỚI ĐÂY ───────────────────────────
 #
-# (KHÔNG để `push:` trần: với branch trong chính repo này, GitHub bắn CẢ `push`
-# LẪN `pull_request` ⇒ mọi PR chạy CI hai lần, tốn đôi số phút runner.)
+# ⚠ KHÔNG để `push:` TRẦN. Với branch nằm trong chính repo này, GitHub bắn CẢ
+# `push` LẪN `pull_request` ⇒ mọi PR chạy CI hai lượt, tốn đôi số phút runner.
+# `push:` ở đây chỉ nghe `main` + tag `v*`; nhánh feature đi đường `pull_request:`.
+#
+# ⚠ KHÔNG thêm `paths:` ở cấp workflow. `ci-ok` là required check, mà một required
+# check bị skip-vì-`paths` thì GitHub treo nó ở "Expected — Waiting" VĨNH VIỄN ⇒
+# khoá merge (rules/ci-cd-trigger-design.md #3). Cần lọc thì lọc ở cấp step bằng
+# `if:`. Cảnh báo này lặp lại tại chỗ ở từng job nhạy cảm bên dưới.
+#
+# `workflow_dispatch:` giữ lại: vẫn cần để chạy tay một lượt đầy đủ trên `main`
+# (`gh workflow run ci.yml --ref main`) mà không phải đẩy một commit rỗng.
 on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
   workflow_dispatch:
 
 # Least privilege cấp workflow: mặc định của GITHUB_TOKEN rộng hơn nhiều thứ CI
