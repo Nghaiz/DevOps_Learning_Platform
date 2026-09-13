@@ -177,6 +177,43 @@ này không có ngoại lệ "chỉ là trang trí": chúng mang nghĩa thành t
 cấm dùng làm màu giao diện không phải vì contrast mà vì **vai trò**: hai đỏ trong cùng một màn
 hình là hai đỏ, người dùng đọc ra "có hai nghĩa" ở chỗ chỉ có một.
 
+### 1.5a Token cảnh landing — dữ liệu cho Three.js, KHÔNG phải màu giao diện
+
+Thêm ngày 2026-09-13 cùng hành trình 3D cuộn toàn trang. Khai **một lần** ở `:root`
+(`apps/web/src/app/globals.css:187-196`), **cấm lặp ở `.dark`**: bảng màu này cố ý giống hệt ở
+cả hai theme, và đó là lý do cảnh không cần một theme observer.
+
+| Token | Giá trị trong `globals.css` | Vai trong cảnh |
+|---|---|---|
+| `--journey-bg` | `rgb(10, 16, 33)` | nền diorama |
+| `--journey-panel` | `rgb(22, 32, 52)` | mặt phẳng đế, thân panel |
+| `--journey-ink` | `rgb(238, 245, 255)` | ánh sáng môi trường, nét sáng nhất |
+| `--journey-muted` | `rgb(163, 183, 210)` | bề mặt phụ, chi tiết lùi về sau |
+| `--journey-coral` | `rgb(255, 126, 107)` | trạng thái sự cố |
+| `--journey-cyan` | `rgb(82, 209, 247)` | container, đèn bán cầu |
+| `--journey-violet` | `rgb(171, 149, 255)` | rack cụm, ánh sáng nền đất |
+| `--journey-mint` | `rgb(109, 230, 185)` | tín hiệu sẵn sàng, trạng thái đã phục hồi |
+| `--journey-amber` | `rgb(255, 205, 117)` | LED, điểm nhấn ấm |
+| `--journey-metal` | `rgb(84, 107, 135)` | khung kim loại, chi tiết viền |
+
+**Vì sao RGB chứ không `oklch()` như 24 token ở §1.4.** Three.js nhận màu qua **API JavaScript**
+(`THREE.Color`), không qua CSS cascade. Adapter
+`apps/web/src/components/marketing/experience-palette.ts:42` đọc từng token bằng
+`getComputedStyle().getPropertyValue()` rồi đưa chuỗi thô sang Three. Đó là **cùng loại ranh giới
+thư viện ngoài** với xterm.js và Satori, đã ghi trong `scripts/check-design-tokens.mjs`
+(`:163-166` xterm `ITheme`, `:182-186` Satori — "không phân giải `var(--token)` và không hiểu
+`oklch()`"). Một chuỗi `oklch(...)` truyền thẳng vào `THREE.Color` không lỗi ra tiếng: nó để vật
+thể **trắng**.
+
+⚠ **Bộ phân tích phải nhận cả hex, không chỉ `rgb()`.** Trình tối ưu CSS của bản production nén
+`rgb(10, 16, 33)` thành `#0a1021`. Bản đầu tiên của adapter chỉ chấp nhận tiền tố `rgb` nên
+**từ chối toàn bộ mười token đúng** và cảnh không bao giờ hiện — lỗi này đã xảy ra thật, ghi ở
+`reports/2026-09-13-landing-3d-completion.md` § "Defects closed during verification".
+`parseJourneyColor` hiện nhận `rgb()` (dạng phẩy, dạng khoảng trắng, dạng phần trăm) và hex 3/6
+chữ số; giá trị ngoài biên bị **từ chối** để palette thiếu không âm thầm dựng ra vật thể trắng
+(`experience-palette.ts:19-33`, `:43`). Bảng giá trị sau nén nằm ở
+`apps/web/src/components/marketing/experience-palette.test.ts:8-17`.
+
 ### 1.6 Bảng tương phản
 
 Ngưỡng: **4.5** cho chữ (SC 1.4.3, cỡ thường), **3.0** cho thành phần phi-văn-bản và ranh giới
@@ -476,10 +513,10 @@ Một token này là lý do trang chủ bảy chặng không cần điểm ngắ
 | `sm` | badge, chip, checkbox, ô nhỏ |
 | `md` | button, input, select, textarea |
 | `lg` | card, dialog, popover |
-| `xl` | panel ứng dụng và modal trên màn rộng; landing không có khối 3D |
+| `xl` | panel ứng dụng và modal trên màn rộng. Cảnh 3D của landing không đi qua bậc này: nó là hình khối WebGL, không có `border-radius` |
 | `full` | pill, avatar, đầu nét của cung tiến độ |
 
-**0.75rem chứ không 0.625rem của hệ cũ.** Đây là bậc bo góc của component dùng chung. Landing có bố cục biên tập riêng, không lấy ellipse làm hình trang trí và không dùng lưới thẻ.
+**0.75rem chứ không 0.625rem của hệ cũ.** Đây là bậc bo góc của component dùng chung. Landing có bố cục biên tập riêng, không lấy ellipse làm hình trang trí và không dùng lưới thẻ. Hành trình 3D thêm ngày 2026-09-13 không đổi điều đó: các chặng vẫn là section chảy tự nhiên, và cảnh nằm ở một lớp `position: fixed` riêng (`apps/web/src/components/marketing/experience.module.css:8-13`), không phải một khối bo góc trong luồng.
 
 ⚠ **`--radius` CỐ Ý chỉ khai ở `:root`, cấm lặp ở `.dark`.** Nó là số đo hình học, không phải
 màu, và `.dark` đặt trên `<html>` nên `:root` vẫn khớp cùng phần tử — giá trị luôn phân giải
@@ -560,7 +597,22 @@ transition chứ không bằng rAF (xem §8.4).
 
 ## 8. Motif ellipse cho primitive tiến độ, không áp dụng landing
 
-Cập nhật 2026-09-13: người dùng đã yêu cầu bỏ toàn bộ vòng và 3D khỏi landing. Hero, các phần kể chuyện và ảnh OpenGraph không được dựng lại motif này. Các token/hàm ở packages/motion vẫn phục vụ primitive tiến độ dùng chung; chúng không phải yêu cầu trang trí mọi màn. K8s Arena giữ cảnh riêng theo công năng mô phỏng.
+**Cập nhật 2026-09-12 — bỏ 3D khỏi landing.** Chủ dự án yêu cầu xoá toàn bộ vòng và cảnh 3D khỏi
+trang chủ. Hero, các phần kể chuyện và ảnh OpenGraph không dựng lại motif này.
+
+**Cập nhật 2026-09-13 — ĐẢO NGƯỢC phần 3D.** Chủ dự án yêu cầu một hành trình 3D cuộn toàn
+trang, và nó đã được triển khai ở `d5bf768`. Trang chủ nay có cảnh thật: toàn trang bọc trong
+`ScrollExperience` (`apps/web/src/app/page.tsx:8,15-35`), một `<Canvas>` duy nhất đi theo các
+mốc neo đo được. Hợp đồng landing hiện hành là
+[`plans/reports/2026-09-13-landing-3d-scroll.md`](../../reports/2026-09-13-landing-3d-scroll.md);
+bằng chứng nghiệm thu ở [`reports/2026-09-13-landing-3d-completion.md`](../../../reports/2026-09-13-landing-3d-completion.md)
+(20/20 ca trình duyệt, review nguồn 9/10).
+
+**Cái KHÔNG đảo ngược:** lệnh cấm vòng trắng vô nghĩa vẫn còn nguyên. Landing 3D dùng bàn làm
+việc, container và cụm máy chủ có hình khối đọc được — nó **không** lấy motif ellipse ở §8 làm
+hình trang trí. Đó là lý do tiêu đề mục này vẫn đúng: motif ellipse phục vụ primitive tiến độ
+dùng chung ở `packages/motion`, không phải một yêu cầu trang trí áp lên mọi màn. K8s Arena giữ
+cảnh riêng theo công năng mô phỏng.
 
 ### 8.1 Hình học, trong hệ toạ độ chuẩn hoá
 
@@ -632,7 +684,23 @@ Lý do là §7: khối `prefers-reduced-motion` hiện có phủ được `trans
 động tuân thủ reduced-motion mà không cần thêm một cổng nào. Một cung chạy bằng rAF sẽ *trông
 như* tuân thủ trong khi nó vẫn quay — đúng lớp lỗi "xanh mà không chứng minh gì".
 
-Landing không còn canvas/rAF hoặc cảnh 3D. Cảnh K8s Arena vẫn phải kiểm soát chuyển động ở mức JS; CSS reduced-motion không thể tự dừng rAF.
+**Landing NẰM TRONG cổng mức JS đó, và không được miễn.** Từ 2026-09-13 trang chủ có
+`<Canvas frameloop="demand">` (`apps/web/src/components/marketing/experience-scene.tsx:41-43`) và
+một vòng `useFrame` thật (`:115`, tự gọi `invalidate()` ở `:228`), nên khối CSS ở §7 không chạm
+tới được nó. Cổng thật nằm ở `apps/web/src/components/marketing/scroll-experience.tsx`: `:118`
+đọc `useReducedMotion()`, và `:301` **không mount canvas** khi cờ bật — không phải dừng vòng lặp
+mà là không dựng nó ra. Kèm theo: `:119` đẩy trạng thái cảnh sang `fallback` (sơ đồ tĩnh đọc
+được), `:201` ép quãng dịch chuyển của mọi mục về `0`, `:252` bỏ hẳn parallax con trỏ, `:281` đổi
+cuộn tới chặng sang `instant`. Bên trong cảnh, `experience-scene.tsx:228` chỉ gọi `invalidate()`
+khi `moving && active && !reducedMotion`.
+
+`frameloop="demand"` **không** thay được cổng đó. Nó chỉ nói "vẽ khi có người yêu cầu"; vẫn phải
+có ai đó quyết định không yêu cầu nữa. Một cảnh demand mà cuộn trang vẫn gọi `invalidate()` thì
+chạy y như cảnh vẽ liên tục.
+
+Cảnh K8s Arena cũng chịu đúng luật này: kiểm soát chuyển động ở mức JS, vì CSS reduced-motion
+không dừng được rAF. Quy tắc chung, không có ngoại lệ theo trang: **bề mặt nào có rAF thì bề mặt
+đó phải tự mang cổng JS của nó.**
 
 ### 8.5 Màu của cung
 
