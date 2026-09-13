@@ -110,6 +110,43 @@ Selector theo DANH SÁCH component — matchExpressions vì NetworkPolicy không
 phép OR nào khác. Gọi:
   {{ include "platform.netpolComponents" (dict "context" . "components" (list "web" "gateway")) }}
 */}}
+{{/*
+Nhãn VAI TRÒ của một namespace chứa pod sandbox. Phát ra ĐÚNG một cặp key: value,
+dùng ở hai nơi phải khớp nhau tuyệt đối:
+  · sandbox-namespace.yaml            — đóng nhãn lên namespace
+  · registry-mirror-networkpolicy.yaml — namespaceSelector của ingress vào mirror
+
+⛔ VÌ SAO KHÔNG CHỌN NAMESPACE THEO TÊN NỮA.
+Bản trước viết thẳng `kubernetes.io/metadata.name: {{ .Values.sandbox.namespace }}`,
+tức quyền vào mirror được cấp cho một CHUỖI TÊN chứ cho một vai trò. Hệ quả: mọi
+namespace sandbox khác — namespace e2e, một lượt đo, một môi trường thứ hai trên
+cùng cụm — bị cắt khỏi mirror, và triệu chứng KHÔNG nói ra điều đó. Pod lên
+Running, netpol hợp lệ, `kubectl get netpol` trông bình thường; thứ duy nhất nhìn
+thấy là `dockerd` trong pod báo `i/o timeout` tới IP mirror rồi rơi về
+registry-1.docker.io, mà sandbox không có internet nên treo tiếp tới hết giờ.
+Cái giá đó đã phải trả ít nhất hai lần: `docs/k8s-in-pod.md` §"Namespace đo"
+khai một NetworkPolicy TẠM (`p7-measure-temp-allow-ingress`) chỉ để namespace đo
+`dlp-p7` tới được mirror, kèm nghĩa vụ nhớ xoá nó sau; và namespace e2e
+`dlp-e2e-p16` dính đúng chế độ đó ở P16 (lab.flow hết giờ vì setup dựng k3s con
+không kéo nổi `rancher/k3s`).
+
+Đây KHÔNG phải nới lỏng biên tin cậy. Trước: phải SỞ HỮU cái tên `dlp-sandbox`.
+Sau: phải MANG được nhãn này. Cả hai đều là thao tác mức cluster-admin lúc tạo
+namespace — pod sandbox không có RBAC nào trên đối tượng Namespace, nên không tự
+cấp cho mình được. Đổi lại, hợp đồng thôi phụ thuộc vào một chuỗi tên duy nhất.
+
+⛔ LÀ HẰNG SỐ TEMPLATE, KHÔNG PHẢI KHOÁ TRONG values.yaml — CỐ Ý.
+Một `namespaceSelector.matchLabels` RỖNG KHÔNG khớp-không-gì; nó khớp MỌI
+namespace. Nên nếu cặp nhãn này đến từ values, thì đúng một lần
+`helm upgrade --reuse-values` (cờ đó không nạp key mới của values.yaml — xem
+platform.mtlsFsGroup, repo này đã dính một lần) là đủ để render ra selector rỗng
+và mở mirror cho toàn cụm, trong im lặng, với helm báo xanh. Hằng số trong
+template không có key nào để đánh rơi.
+*/}}
+{{- define "platform.sandboxRoleLabel" -}}
+platform.dlp/role: sandbox
+{{- end -}}
+
 {{- define "platform.netpolComponents" -}}
 matchLabels:
   app.kubernetes.io/name: {{ include "platform.name" .context }}

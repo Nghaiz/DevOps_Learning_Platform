@@ -5,8 +5,8 @@
 # Mirror có đường ra internet, nên nó là thành phần PHẢI được rào chặt nhất sau
 # sandbox. Bốn policy:
 #   1. default-deny cả hai chiều (mọi traffic khác phải có allow riêng).
-#   2. ingress: CHỈ từ pod trong ns sandbox, CHỈ cổng registry. Không mở cho ns
-#      khác — web/gateway/orchestrator không kéo image qua đây.
+#   2. ingress: CHỈ từ namespace MANG NHÃN VAI TRÒ sandbox, CHỈ cổng registry.
+#      Không mở cho ns khác — web/gateway/orchestrator không kéo image qua đây.
 #   3. egress DNS tới CoreDNS (resolve registry-1.docker.io).
 #   4. egress internet 443 để fetch upstream, EXCEPT dải nội bộ cụm — mirror bị
 #      chiếm cũng KHÔNG thành đường vòng vào apiserver/pod/IMDS.
@@ -39,8 +39,11 @@ spec:
   ingress:
     - from:
         - namespaceSelector:
+            {{- /* Chọn theo NHÃN VAI TRÒ, không theo TÊN namespace. Lý lẽ đầy đủ
+                   (và vì sao đây không phải nới lỏng biên tin cậy) nằm ở
+                   platform.sandboxRoleLabel trong _helpers.tpl. */}}
             matchLabels:
-              kubernetes.io/metadata.name: {{ .Values.sandbox.namespace }}
+              {{- include "platform.sandboxRoleLabel" . | nindent 14 }}
       ports:
         - protocol: TCP
           port: {{ .Values.registryMirror.service.port }}
