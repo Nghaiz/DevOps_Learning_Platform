@@ -26,6 +26,35 @@ import { t } from '@devops-platform/copy';
 import { firstItemId } from '../fixtures/api';
 import { openScreen } from '../fixtures/nav';
 
+/*
+  ⛔ DỌN PHIÊN KỂ CẢ KHI Ô ĐỎR — thiếu vế này, mỗi lượt đỏ tự làm khó lượt sau.
+
+  `endSandbox` chỉ được gọi ở cuối ca, nên bất kỳ thất bại nào trước đó đều
+  **bỏ lại một pod** sống tới hết `SESSION_TTL` (mặc định 1 giờ). Lab này dùng
+  profile k8s, quota namespace là `pods: 6` và một khe đã thuộc pod ấm — tức chỉ
+  4-5 lượt đỏ liên tiếp là kẹt namespace nguyên một tiếng.
+
+  Điều làm nó đắt hơn vẻ: lúc đó triệu chứng ĐỔI DẠNG. Đo được 2026-09-14, một
+  lượt tái hiện chết ở `flow-kit.ts:176` với `ResourceExhausted` (quota đầy) chứ
+  không chết ở chỗ bug thật — người đọc đi truy quota trong khi nguyên nhân nằm
+  chỗ khác hẳn. Một ô đỏ tự bỏa ra nguyên nhân giả cho lượt sau là tồi tệ hơn một
+  ô đỏ bình thường.
+
+  Tốt nhất có thể, KHÔNG khẳng định: đây là lượt dọn, không phải phép kiểm. Ném ở
+  đây sẽ che mất thất bại THẬT của ca.
+*/
+test.afterEach(async ({ page }) => {
+  const end = page.getByRole('button', { name: 'Kết thúc phiên' });
+  try {
+    if (await end.count()) {
+      await end.click({ timeout: 15_000 });
+      await expect(end).toBeHidden({ timeout: 60_000 });
+    }
+  } catch {
+    // Phiên có thể chưa từng dựng, hoặc trang đã đóng. Reaper là lưới cuối.
+  }
+});
+
 test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
   test('bảng task → chấm từng task → điểm tổng → bảng xếp hạng', async ({ page, api }) => {
     test.setTimeout(SANDBOX_FLOW_TIMEOUT_MS);
@@ -145,9 +174,21 @@ test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
     await submit.click();
     // Sau khi nộp, `lab-client` khoá lượt chấm lại và hiện câu lý do đó. Đây là
     // dấu hiệu quan sát được của "đã nộp", không phải một khoảng chờ.
-    await expect(
-      page.getByText('Lần thử này đã nộp — không chấm lại được. Bấm Bắt đầu để mở lần thử mới.'),
-    ).toBeVisible({ timeout: 60_000 });
+    /*
+      ⚠ LẤY CÂU TỪ BẢN ĐỒ COPY, không chép lại.
+
+      Bản trước chép thẳng "Đã nộp — không chấm lại được", trong khi
+      `session.lab.blocked-submitted` đã đổi sang "đã nộp NÊN không chấm lại
+      được". Lệch ĐÚNG MỘT TỪ, và ô đỏ trong khi sản phẩm làm đúng mọi thứ:
+      đã nộp, đã khoá lượt chấm, đã hiện câu lý do.
+
+      Cùng lớp với ba spec đã sửa ở `5a49353` và `9e546f7`: harness chép một bản
+      câu chữ rồi để nó trôi. Neo vào `t()` thì lần biên tập sau không làm ô này
+      đỏ nữa, mà vẫn gác đúng điều nó gác.
+    */
+    await expect(page.getByText(t('session.lab.blocked-submitted'))).toBeVisible({
+      timeout: 60_000,
+    });
 
     // ── 5. Bảng xếp hạng ────────────────────────────────────────────────────
     const leaderboardTab = page.getByRole('tab', { name: 'Bảng xếp hạng' });
