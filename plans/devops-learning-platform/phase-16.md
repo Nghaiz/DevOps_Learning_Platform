@@ -2,27 +2,36 @@
 
 **Mức chi tiết:** DETAILED · **Effort:** XL · **Blocked by:** không · **Blocks:** không
 **SSOT thiết kế:** [thiết kế nền](../reports/2026-09-10-p16-frontend-rebuild-design.md), cập nhật bởi
-[quyết định làm lại landing ngày 2026-09-12](../reports/2026-09-12-p16-landing-rebuild.md) và
+[quyết định làm lại landing ngày 2026-09-12](../reports/2026-09-12-p16-landing-rebuild.md), rồi bởi
+[hợp đồng landing 3D cuộn toàn trang ngày 2026-09-13](../reports/2026-09-13-landing-3d-scroll.md)
+— bản 09-13 là hợp đồng landing đang có hiệu lực, thay phần landing của cả hai bản trên — và
 [hướng dẫn giao diện hiện tại](../../docs/design-guidelines.md).
 **Hợp đồng:** [`contracts/p16-tokens.md`](contracts/p16-tokens.md) · [`contracts/p16-copy.md`](contracts/p16-copy.md) · [`contracts/p16-workspace.md`](contracts/p16-workspace.md)
 
-> Chỉ đạo mới nhất của chủ dự án thay thế phần landing trong thiết kế ngày 2026-09-10:
-> dựng lại toàn bộ, bỏ vòng trắng, ellipse, 3D và bố cục lưới thẻ. Các hợp đồng còn lại tiếp tục áp dụng.
+> **Landing đã đổi hướng hai lần trong chặng này.** 2026-09-12: chủ dự án thay phần landing của
+> thiết kế 2026-09-10 — dựng lại toàn bộ, bỏ vòng trắng, ellipse, 3D và bố cục lưới thẻ.
+> 2026-09-13: chủ dự án **đảo ngược riêng phần 3D** và yêu cầu một hành trình 3D cuộn toàn trang;
+> bản này đã triển khai ở `d5bf768`. Lệnh cấm vòng trắng vô nghĩa, ellipse trang trí và lưới thẻ
+> **vẫn còn hiệu lực** — chỉ 3D được mở lại. Các hợp đồng còn lại tiếp tục áp dụng.
 
 ## Trạng thái hiện tại — 2026-09-13
 
 **`16.0`..`16.I`: COMPLETE trong phạm vi P16 đã chốt.** Chặng hoàn thiện
-ngày 2026-09-12–13 xử lý cả nợ đã liệt kê và thay toàn bộ landing theo chỉ đạo mới. Không dùng
-kết quả của trang vòng 3D cũ để nghiệm thu trang thay thế.
+ngày 2026-09-12–13 xử lý cả nợ đã liệt kê và thay toàn bộ landing theo chỉ đạo mới. Landing đi
+qua **ba bản** trong chặng này: bản vòng trắng bảy chặng của thiết kế 2026-09-10, bản bỏ 3D ngày
+2026-09-12, và bản hành trình 3D cuộn toàn trang ngày 2026-09-13 đang chạy. **Mỗi bản chỉ được
+nghiệm thu bằng bằng chứng của chính nó**, theo cả hai chiều: không lấy ảnh của bản cũ chứng nhận
+bản mới, và cũng không lấy kết quả 20/20 của bản 09-13 chứng nhận những gì bản 09-12 đã ghi.
 
 | Mốc | Trạng thái và bằng chứng hiện tại |
 |---|---|
-| Landing thay thế | Đã triển khai và review 9/10: bố cục liên tục, terminal minh hoạ Linux/Docker/Kubernetes, bốn lộ trình có thật; không vòng/3D/lưới thẻ. Bốn ca trình duyệt sáng/tối, desktop/mobile đã qua lại trong lượt nghiệm thu cuối trên build `HZG3aU7v-lBMcBxxAFsSE`. |
+| Landing — bản 2026-09-13, ĐANG CHẠY | **Hành trình 3D cuộn toàn trang**, triển khai ở `d5bf768`, review nguồn độc lập 9/10. Bốn chặng chảy tự nhiên cộng năm mốc neo ở phần dưới trang; một `<Canvas frameloop="demand">` duy nhất đi theo mốc neo đo được; reduced-motion **không mount canvas** mà dùng sơ đồ tĩnh đọc được. **20/20 ca trình duyệt qua** trên build `I7eYNXwmu3q9KzrnjDpAr`: 0 lỗi, 0 skip, 0 retry, 144,9 giây. Vẫn không vòng trắng vô nghĩa và không lưới thẻ. [Hợp đồng](../reports/2026-09-13-landing-3d-scroll.md) · [nghiệm thu](../../reports/2026-09-13-landing-3d-completion.md). |
+| Landing — bản 2026-09-12, ĐÃ BỊ THAY | Bố cục liên tục không 3D, terminal minh hoạ Linux/Docker/Kubernetes, bốn lộ trình có thật. Review 9/10; bốn ca trình duyệt sáng/tối, desktop/mobile qua trên build `HZG3aU7v-lBMcBxxAFsSE`. Giữ làm lịch sử, không dùng nghiệm thu cho bản 09-13. |
 | Copy và hợp đồng dùng chung | 466 chuỗi từ 31 file đã chuyển; 44 lỗi có hướng xử lý; `CopyRef` kiểm đúng cặp khoá/tham số; `PROBLEM_*_LABELS` giữ API và đọc surface `problem`. |
 | Reset mật khẩu và vòng đời phiên | SMTP thật, mã 15 phút dùng một lần, thu hồi phiên/cookie/refresh. Ba P2 và khe hở cạnh tranh refresh đã sửa, reviewer không còn lỗi chặn. |
 | Nguồn bài tập và P15 | 10 bài published đã có nguồn seed trong git; P15 đã sửa ở `5d90ad1` + `6d8d2fc`, 50 regression trong phiên này xanh. |
 | Build và kiểm tra mã | Bảy package: **28/28 task ép chạy, 0 cache**; web đầy đủ **153 suite / 1747 test xanh** ở mốc trước các sửa UI cuối. Sau sửa traversal chạy lại **12 test**; sau sửa UI/heading chạy lại **371 test UI + 30 test web**, đều qua. Build cuối `HZG3aU7v-lBMcBxxAFsSE`, lint và typecheck xanh. Các tập test có phần giao nhau, không cộng tổng. |
-| Bundle, token và env | Bundle: xterm có ở đúng **4/4** route terminal, **33** route khác sạch; nền chung **1,047,523 B / 1,150,000 B** trên build cuối. Cổng token quét **560 file / 4 vùng**, giữ bốn miễn trừ có lý do. Env: **95 biến / 4 scope** khớp. Antipattern quét **602 file**, bốn phê duyệt khớp đúng statement của menu Arena đã được reviewer kiểm, không sửa mã sản phẩm Arena. |
+| Bundle, token và env | Số của **build 09-13 `I7eYNXwmu3q9KzrnjDpAr`**: xterm có ở đúng **4/4** route terminal, **33** route khác sạch; nền chung **1 050 883 B / 1 150 000 B**; cổng token quét **567 file**, giữ bốn miễn trừ có lý do; antipattern quét **612 file**, bốn phê duyệt Arena khớp đúng statement đã được reviewer kiểm, không sửa mã sản phẩm Arena. Env **95 biến / 4 scope** khớp (đo ở lượt 09-12, lane 3D không chạm env). Số của build 09-12 `HZG3aU7v-lBMcBxxAFsSE` — nền chung 1 047 523 B, token 560 file, antipattern 602 file — giữ làm lịch sử. Phân rã chênh lệch nền chung: [`docs/bundle-budget.md`](../../docs/bundle-budget.md). |
 | Nghiệm thu cuối 16.I | **COMPLETE: 171/171 qua, 0 lỗi, 0 skip, 0 retry, 6.2 phút** trên build cuối. Gồm **36 axe + 37 CSP** phủ đủ **32 màn**, **44 keyboard** với D10/PTY thật và SearchTabs native, **41 responsive**, **4 motif**, **4 perf**, **1 SMTP**, **4 visual**. Đã sửa cả focus ẩn, bốn màn author tràn 390px và 15 vấn đề heading moderate. |
 
 Bằng chứng: [tổng hợp chốt pha](../../reports/p16-2026-09-13-finalization.md),
@@ -321,9 +330,13 @@ liệt kê test cụ thể kèm đối chứng dương.
    `https://ptit.edu.vn/wp-content/uploads/2024/05/logo-ptit-1.svg` (vector thật, đã kiểm 200).
    Commit vào repo vì `img-src 'self' data:` không cho hotlink.
 
-   Giữ quyết định không dùng ảnh raster sinh bằng model cho đợt này. Landing mới dùng chữ,
-   CSS và ví dụ terminal có nghĩa; OG image dùng SVG đã bỏ ellipse. Không còn yêu cầu cảnh
-   3D hoặc bảy chặng trang chủ sau chỉ đạo 2026-09-12–13.
+   Giữ quyết định không dùng ảnh raster sinh bằng model cho đợt này. OG image dùng SVG đã bỏ
+   ellipse, và **vẫn là SVG tĩnh** sau khi 3D quay lại ngày 2026-09-13: cảnh WebGL không vào
+   được ảnh OpenGraph, nên phần này không đổi theo chỉ đạo mới.
+
+   Yêu cầu "bảy chặng trang chủ" của thiết kế 2026-09-10 đã bỏ và không quay lại. Bản 2026-09-13
+   là bốn chặng cộng năm mốc neo, dựng bằng hình khối thủ tục trong Three.js — không ảnh raster,
+   không GLB, không texture hay HDRI tải về, nên nó không chạm vào quyết định tài nguyên ở trên.
 
 **Ô nghiệm thu 16.A:**
 
@@ -429,24 +442,38 @@ Icon `ResourceKind` lấy từ `packages/ui` (16.A mục 8), không import từ 
 
 **Cấm:** hồi sinh đa terminal. Test vắng mặt phải đi theo sang mã mới.
 
-#### 16.E — landing thực hành DevOps, thay thế toàn bộ cảnh 3D
+#### 16.E — landing thực hành DevOps
 
-Quyết định ngày 2026-09-12–13 của chủ dự án thay thế yêu cầu bảy chặng 3D trong design §7.
+Quyết định ngày **2026-09-12** của chủ dự án thay yêu cầu bảy chặng 3D trong design §7 bằng một
+trang không 3D. Quyết định ngày **2026-09-13 đảo ngược riêng phần 3D**: trang chủ nay là hành
+trình 3D cuộn toàn trang (`d5bf768`).
+
+Bảy mục dưới đây là hợp đồng của bản 09-12. **Chỉ mục 5 bị thay**; sáu mục còn lại vẫn áp dụng
+nguyên vẹn cho bản 09-13.
 
 1. Hero chữ lớn, lời giới thiệu ngắn, CTA đúng trạng thái đăng nhập.
 2. Một vùng minh hoạ terminal có thao tác Linux/Docker/Kubernetes, chạy và đặt lại. Công bố rõ
    đây là ví dụ tương tác với kết quả mẫu, không kết nối sandbox thật.
 3. Số nội dung đọc từ server, phân biệt lỗi đọc với số 0; không dựng số người học hay hoạt động giả.
 4. Danh sách liên tục gồm bốn lộ trình có ID thật, giải thích cách thực hành và CTA cuối.
-5. Không vòng, ellipse, canvas, WebGL, cảnh cuộn hay lưới thẻ. Đã xoá nguồn cảnh và copy cũ sau
-   kiểm tra nơi gọi. Arena giữ ranh giới riêng.
+5. ~~Không vòng, ellipse, canvas, WebGL, cảnh cuộn hay lưới thẻ.~~ **Mục này đã bị thay ngày
+   2026-09-13.** Còn cấm: vòng trắng vô nghĩa, ellipse trang trí, lưới thẻ, cướp cuộn và trạng
+   thái backend giả. Canvas / WebGL / cảnh cuộn nay **được phép và là yêu cầu** — hợp đồng ở
+   [`2026-09-13-landing-3d-scroll.md`](../reports/2026-09-13-landing-3d-scroll.md). Nguồn cảnh và
+   copy của bản vòng trắng (thiết kế 2026-09-10) vẫn đã xoá sau kiểm tra nơi gọi; bản 09-13 là mã
+   mới trong `components/marketing/`, không hồi sinh mã đó. Arena giữ ranh giới riêng.
 6. Chữ đi qua `home.*`; native button có trạng thái truy cập được, vùng kết quả live polite,
    đổi chủ đề xoá kết quả cũ. Token PTIT và font hiện có được giữ.
 7. Nghiệm thu bằng thao tác thật và ảnh desktop/mobile sáng/tối, chuyển theme khi đang mở,
    reduced-motion, không tràn ngang, axe/CSP/LCP trên build hiện tại.
 
-Báo cáo triển khai: [landing thay thế](../../reports/p16-2026-09-12-landing.md). Ảnh vòng 3D cũ
-chỉ là lịch sử; việc bỏ yêu cầu nhìn cảnh 3D là thay đổi phạm vi theo người dùng, không phải ca test bỏ qua.
+Báo cáo triển khai: [landing 3D cuộn toàn trang — bản đang chạy](../../reports/2026-09-13-landing-3d-completion.md)
+· [landing không-3D ngày 2026-09-12 — đã bị thay](../../reports/p16-2026-09-12-landing.md). Ảnh
+vòng trắng của thiết kế 2026-09-10 chỉ là lịch sử và không nghiệm thu cho bản nào sau nó.
+
+Ghi lại cho đúng diễn biến: ngày 2026-09-12 việc "chưa nhìn cảnh 3D" được xử lý bằng **miễn trừ
+phạm vi** (không còn cảnh để nhìn). Chỉ đạo 2026-09-13 rút tiền đề đó, nên khoản này nay đóng
+bằng **bằng chứng thật** chứ không bằng miễn trừ — xem §8.
 
 #### 16.F — admin · 16.G — author · 16.H — me + settings
 
@@ -525,7 +552,7 @@ của một background sub-agent **không** tới được người spawn.
 | Mất bất biến terminal khi viết lại khoang lab | 4 | 5 | **20** | Test bất biến viết TRƯỚC khi dựng lại. `contracts/p16-workspace.md` là điều kiện vào lane 16.D. Hỏng kiểu này im lặng và người học là người phát hiện. |
 | 149 test bị xoá cùng mã cũ, không ai thay | 4 | 4 | **16** | Chuyển **khẳng định**, không chuyển mã. Mỗi lane phải chỉ ra test tương đương trước khi xoá bản cũ. 16.I đối chiếu tổng số test trước và sau. |
 | Hai lane cùng ghi một file ngoài danh mục sở hữu | 3 | 5 | **15** | Một worktree mỗi lane. Cấm `git add .`/`-A`/`commit -a`. File không thuộc lane nào (`globals.css`, `packages/ui/src/index.ts`, `e2e/routes.ts`) do 16.A và 16.I sở hữu độc quyền, ghi tên trong brief. |
-| Nghiệm thu nhầm ảnh hoặc build landing cũ | 3 | 4 | 12 | Cảnh 3D đã xoá theo người dùng. Ghi BUILD_ID và base của mọi lượt; kiểm ảnh trang thay thế và native controls. |
+| Nghiệm thu nhầm ảnh hoặc build landing cũ | 3 | 4 | 12 | **Rủi ro TĂNG sau 2026-09-13**: landing có ba bản trong cùng một chặng (vòng trắng 09-10, không-3D 09-12, 3D cuộn 09-13), nên "ảnh có cảnh 3D" không còn phân biệt được bản nào — mitigation cũ "cảnh 3D đã xoá" đã hết hiệu lực. Ghi BUILD_ID và base của MỌI lượt: bản đang chạy `I7eYNXwmu3q9KzrnjDpAr`, bản 09-12 `HZG3aU7v-lBMcBxxAFsSE`. Kiểm ảnh kèm BUILD_ID, không kiểm ảnh trần; kiểm cả native controls. |
 | Gọi cùng lúc E2E và build làm mất build đang đo | 3 | 3 | 9 | Build hoàn tất riêng trước E2E; không cho turbo ghi `.next` khi server nghiệm thu đang chạy. |
 | Sửa quiz/lộ trình mà quên seed lại | 3 | 3 | 9 | `scripts/seed-content.mjs` phải chạy sau khi sửa `content/*.json`. Sửa mà không seed thì không có gì đổi và **không có lỗi nào**. |
 | SMTP nhận yêu cầu nhưng chưa giao thư | 2 | 4 | 8 | UI chỉ xác nhận tiếp nhận. Thử SMTP thật/Mailpit, lỗi provider và riêng tư tài khoản; chưa có hàng đợi bền vững, cần Secret của provider khi triển khai thật. |
@@ -545,7 +572,7 @@ Ba dòng ≥15 phải có mitigation xong trước khi lane tương ứng bắt 
 | 16.B vỏ + xác thực | M (3d) | song song |
 | 16.C trang chọn bài | L (1wk) | song song · ưu tiên cao |
 | 16.D khoang lab | L (1wk) | song song · ưu tiên cao · rủi ro cao nhất |
-| 16.E landing thực hành DevOps | L (1wk) | Thay thiết kế 3D theo chỉ đạo 2026-09-12–13. |
+| 16.E landing thực hành DevOps | L (1wk) | Bỏ thiết kế 3D theo chỉ đạo 2026-09-12, rồi dựng lại hành trình 3D cuộn toàn trang theo chỉ đạo 2026-09-13. **Hai lượt dựng landing, một ô effort** — con số L này không còn phản ánh công thật đã bỏ ra. |
 | 16.F admin | M (3d) | song song |
 | 16.G author | L (1wk) | song song · lane nặng nhất trong ba lane quản trị |
 | 16.H me + settings | M (3d) | song song |
@@ -594,7 +621,7 @@ nguồn problems, copy hay bundle là việc tự động để dành sau P16.
 |---|---|
 | Hai màn problems không có dữ liệu để tới | **Đã đóng**: `ad197a3` thêm 10 bài, `cc28626` gộp lane SEED; DB cục bộ đọc lại đủ 10 bài published `K8S-0001`..`K8S-0010`. **36 axe + 37 CSP trên đủ 32 màn qua**, gồm hai route thiếu dữ liệu trước đây và kiểm heading bổ sung. |
 | Keyboard chưa chạy với terminal thật | **Đã đóng**: gateway/orchestrator nối sandbox Sysbox thật, đợi READY và dọn phiên của test. Toàn bộ **44 ca keyboard** qua ở lượt cuối, gồm D10 xác minh PTY thật, byte Escape, thoát focus và cặp thao tác chậm; SearchTabs native không còn focus vào nội dung ẩn. |
-| Chưa nhìn cảnh 3D | **Yêu cầu được thay thế bởi chủ dự án**: xoá toàn bộ cảnh và vòng landing. Đã nhìn ảnh trang mới và qua bốn ca trình duyệt; không coi ảnh 3D cũ là nghiệm thu mới. |
+| Chưa nhìn cảnh 3D | **Đã đóng ngày 2026-09-13 bằng cảnh 3D MỚI, không phải bằng miễn trừ.** Ngày 2026-09-12 khoản này được ghi "miễn" với lý do landing không còn cảnh để nhìn; chỉ đạo 2026-09-13 đã rút chính tiền đề đó, nên miễn trừ cũ hết hiệu lực. Cảnh hành trình cuộn toàn trang đã được nhìn thật: **20/20 ca trình duyệt** qua trên build `I7eYNXwmu3q9KzrnjDpAr` (0 lỗi, 0 skip, 0 retry, 144,9 giây), có ảnh desktop/mobile/terminal, đo khung hình trên RTX 4060 (trung vị 4,2 ms, p95 12,5 ms so với mốc 32 ms, tối đa 33,4 ms) và kiểm ngủ/thức của demand rendering (220→220 ở cảnh đầu, 369→369 ở cảnh dưới, rồi tăng lại sau input). Ảnh vòng trắng cũ vẫn chỉ là lịch sử. [Nghiệm thu](../../reports/2026-09-13-landing-3d-completion.md) · [runtime](../../reports/2026-09-13-landing-3d-runtime.md). |
 | 13 file author và nhóm 10 + 8 của author/problems | **Đã chuyển toàn bộ file sản phẩm còn dở**: 466 chuỗi / 31 file và 44 lỗi có `what`/`next`. AST gate giữ đúng fixture được miễn và không còn file sản phẩm bị hoãn. Số “8” cũ gồm fixture; bảy helper sản phẩm đã chuyển. [Báo cáo copy](../../reports/p16-2026-09-12-copy.md). |
 | Copy catalog, problem detail, quiz | **Đã đóng các phần sản phẩm còn dở**. Gate quét đủ năm cây và có đối chứng hai chiều; copy 63 test và kiểm kiểu đều qua. |
 | `CopyRef` sai tầng; nhãn problem ngoài bản đồ | **Đã đóng**: `86a32e4` chuyển `CopyRef`/`renderCopy` về `packages/copy`; đợt này thêm kiểm cặp khoá/tham số ở compile time. Nhãn game giữ tên export, lấy câu qua surface `problem`; `games → copy`, không có phụ thuộc ngược. |
@@ -613,6 +640,8 @@ Ranh giới sản phẩm vẫn cần nói rõ:
 - **Arena giữ phạm vi riêng.** Không dựng lại `components/k8s-arena/**`; miễn màu của
   `arena.css` và `node-geometry.ts` vẫn là miễn theo phạm vi có tên, phải rà lại khi Arena được
   đưa vào yêu cầu thiết kế. `packages/games` chỉ mở phạm vi phần nhãn problem nêu trên.
+  Chủ dự án đã chốt lại ngày 2026-09-13 rằng Arena **ở ngoài phạm vi P16** và là đầu vào của P17;
+  hai dòng miễn trừ màu ở trên vì vậy vẫn giữ nguyên, chờ P17 rà lại chứ không đóng ở chặng này.
 - **Gửi thư đã nhận không phải giao thư bền vững.** `Next after()` có thể bị ngắt khi tiến
   trình chết; chưa có hàng đợi bền vững. UI và tài liệu ghi đúng giới hạn này.
 
