@@ -366,7 +366,22 @@ export interface MergeFileInput {
 }
 
 export interface MergeFileOutput {
-  /** Nội dung ghi vào worktree. Xung đột thì ĐÃ chèn marker. */
+  /**
+   * Nội dung ghi vào worktree. Xung đột thì ĐÃ chèn marker.
+   *
+   * ⚠ Khác `Diff3Result.merged` của `diff3.ts` ở đúng ca xung đột: bên đó
+   * `merged` chỉ có nghĩa khi KHÔNG xung đột (ca xung đột nó trả `ours` làm hệ
+   * quy chiếu cho `MergeHunk.start`, không phải một lời giải). Bộ điều phối lệnh
+   * nối hai bên bằng đúng bốn dòng:
+   *
+   * ```ts
+   * const mergeFile: MergeFileFn = ({ base, ours, theirs, oursLabel, theirsLabel }) => {
+   *   const r = merge3(base, ours, theirs);
+   *   const merged = r.conflicted ? renderConflict(r.hunks, oursLabel, theirsLabel) : r.merged;
+   *   return { merged, hunks: r.hunks, conflicted: r.conflicted };
+   * };
+   * ```
+   */
   readonly merged: Lines;
   readonly hunks: readonly MergeHunk[];
   readonly conflicted: boolean;
@@ -383,7 +398,8 @@ export interface MergeFileOutput {
  */
 export type MergeFileFn = (input: MergeFileInput) => MergeFileOutput;
 
-interface RevertPlan {
+/** Kết quả quyết định-theo-file của một phép trộn ba ngả. */
+export interface ThreeWayPlan {
   readonly contents: Record<FilePath, Lines>;
   readonly conflicts: readonly ConflictFile[];
 }
@@ -427,7 +443,7 @@ export function gitRevert(
 
   if (plan.conflicts.length > 0) {
     // Ngoại lệ CÓ TÊN của hợp đồng: `merge-conflict` trả repo ĐÃ đổi.
-    const [store, index] = stageResolved(repo, plan);
+    const [store, index] = stageNonConflicted(repo, plan);
     const staged = setIndex({ ...repo, objects: store }, index);
     const withTree = setWorktree(staged, { ...untrackedWorktree(repo), ...plan.contents });
     const pending: Repo = {
@@ -529,25 +545,30 @@ export function gitRevertAbort(repo: Repo): GitOpResult {
 /**
  * Quyết định cho TỪNG file: lấy bên nào, hay phải trộn theo dòng.
  *
- * `base = commit bị đảo`, `theirs = cha của nó`, `ours = HEAD`. Ba luật, theo
- * đúng thứ tự:
+ * Ba luật, theo đúng thứ tự:
  *
- *  1. `base == theirs` ⇒ commit đó không đụng file này ⇒ giữ `ours`.
- *  2. `base == ours`   ⇒ HEAD chưa đụng file này kể từ đó ⇒ lấy thẳng `theirs`
+ *  1. `base == theirs` ⇒ phía kia không đụng file này ⇒ giữ `ours`.
+ *  2. `base == ours`   ⇒ phía ta chưa đụng file này ⇒ lấy thẳng `theirs`
  *                        (kể cả khi `theirs` là "file không tồn tại", tức xoá).
  *  3. còn lại          ⇒ hai bên cùng sửa ⇒ trộn theo dòng.
  *
- * Luật 1 và 2 là phép trộn TẦM THƯỜNG ở mức file; chỉ luật 3 mới cần diff3.
+ * Luật 1 và 2 là phép trộn TẦM THƯỜNG ở mức FILE; chỉ luật 3 mới cần diff3. Tách
+ * hai tầng ra là chủ ý: phần lớn file trong một merge đời thực rơi vào luật 1
+ * hoặc 2, và gọi diff3 cho chúng chỉ tốn công mà kết quả không đổi.
+ *
+ * Dùng chung cho `revert` (base = commit bị đảo, theirs = cha của nó) và cho
+ * `stash apply` (base = commit lúc cất, theirs = ảnh chụp đã cất). Hai lệnh đó
+ * khác nhau ở chỗ CHỌN ba ngả, không khác ở luật hợp nhất.
  */
-function planRevert(
-  repo: Repo,
-  target: Oid,
-  parent: Oid | null,
-  mergeFile: MergeFileFn,
-): RevertPlan {
-  const base = commitContents(repo.objects, target);
-  const theirs = commitContents(repo.objects, parent);
-  const ours = headContents(repo);
+export function planThreeWay(input: {
+  readonly base: Readonly<Record<FilePath, Lines>>;
+  readonly ours: Readonly<Record<FilePath, Lines>>;
+  readonly theirs: Readonly<Record<FilePath, Lines>>;
+  readonly oursLabel: string;
+  readonly theirsLabel: string;
+  readonly mergeFile: MergeFileFn;
+}): ThreeWayPlan {
+  const { base, ours, theirs, oursLabel, theirsLabel, mergeFile } = input;
 
   const paths: Record<FilePath, true> = {};
   for (const p of sortedKeys(base)) paths[p] = true;
@@ -556,8 +577,6 @@ function planRevert(
 
   const contents: Record<FilePath, Lines> = {};
   const conflicts: ConflictFile[] = [];
-  const oursLabel = oursLabelOf(repo);
-  const theirsLabel = `cha của ${shortOid(target)}`;
 
   for (const path of sortedKeys(paths)) {
     const inBase = Object.hasOwn(base, path);
@@ -585,15 +604,40 @@ function planRevert(
 }
 
 /**
- * Index trong lúc revert đang xung đột: file đã giải quyết được staged sẵn, file
- * còn xung đột GIỮ NGUYÊN ô index cũ.
+ * Ba ngả của `git revert C`: `base = C`, `ours = HEAD`, `theirs = cha của C`.
+ *
+ * Chọn ba ngả như vậy mới là phần riêng của revert — phép hợp nhất thì dùng
+ * chung `planThreeWay`.
+ */
+function planRevert(
+  repo: Repo,
+  target: Oid,
+  parent: Oid | null,
+  mergeFile: MergeFileFn,
+): ThreeWayPlan {
+  return planThreeWay({
+    base: commitContents(repo.objects, target),
+    ours: headContents(repo),
+    theirs: commitContents(repo.objects, parent),
+    oursLabel: oursLabelOf(repo),
+    theirsLabel: `cha của ${shortOid(target)}`,
+    mergeFile,
+  });
+}
+
+/**
+ * Index trong lúc một phép trộn đang xung đột: file đã giải quyết được staged
+ * sẵn, file còn xung đột GIỮ NGUYÊN ô index cũ.
  *
  * Giữ nguyên ô cũ là cách mô hình này thay cho "unmerged stage" của git thật:
  * worktree lúc này chứa marker nên `blobOid(worktree) !== index[path]`, và phép
  * kiểm của `--continue` tự động đỏ cho tới khi người chơi `git add`. Không cần
  * thêm một trường trạng thái nào vào hợp đồng.
  */
-function stageResolved(repo: Repo, plan: RevertPlan): readonly [ObjectStore, Index] {
+export function stageNonConflicted(
+  repo: Repo,
+  plan: ThreeWayPlan,
+): readonly [ObjectStore, Index] {
   const conflicted = new Set(plan.conflicts.map((c) => c.path));
   let store = repo.objects;
   const index: Record<FilePath, Oid> = {};
@@ -619,7 +663,7 @@ function stageResolved(repo: Repo, plan: RevertPlan): readonly [ObjectStore, Ind
  * hoặc file đã bị xoá khỏi cả hai vùng. `blobOid` băm mà KHÔNG ghi vào kho —
  * một phép kiểm chỉ đọc không được làm kho phình ra.
  */
-function isResolved(repo: Repo, path: FilePath): boolean {
+export function isResolved(repo: Repo, path: FilePath): boolean {
   const inIndex = Object.hasOwn(repo.index, path);
   const inWork = Object.hasOwn(repo.worktree, path);
   if (!inIndex && !inWork) return true;

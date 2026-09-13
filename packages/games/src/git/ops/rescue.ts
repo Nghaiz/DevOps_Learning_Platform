@@ -34,72 +34,33 @@
  * Nói cách khác: reflog ở game này là **đường cứu hộ**, không phải **dây neo**.
  * Nó nhớ commit nằm ở đâu; nó không giữ commit lại.
  *
- * Gốc thật sự, ĐỦ danh sách — thiếu một cái là báo oan một commit đang sống:
+ * Gốc thật sự — mọi ref, `headOid` (**quan trọng nhất khi detached**, vì lúc đó
+ * HEAD là thứ duy nhất giữ commit và `repo.refs` không hề nhắc tới nó), mọi
+ * `stash[].oid`, và `pending.originalHead`.
  *
- *   1. mọi ref trong `repo.refs` (kể cả `refs/remotes/origin/*` và `refs/tags/*`)
- *   2. `headOid(repo)` — **quan trọng nhất khi detached**, vì lúc đó HEAD là thứ
- *      duy nhất giữ commit và `repo.refs` không hề nhắc tới nó
- *   3. mọi `stash[].oid`
- *   4. mọi Oid mà một `pending` op đang tham chiếu — `--abort` quay về được thì
- *      commit đó đang sống theo đúng nghĩa
+ * ⛔ Danh sách đó do `predicates.ts` sở hữu qua `liveRoots()`, và file này IMPORT
+ * chứ không có bản riêng. Hai định nghĩa "với tới được" khác nhau nghĩa là vị từ
+ * chấm bài và lệnh `git fsck` nói hai điều khác nhau về CÙNG một commit — người
+ * chơi thấy `fsck` liệt kê một commit là mồ côi trong khi bài vẫn chấm nó là còn
+ * sống, và không ai chẩn đoán nổi.
  */
 
-import type { GitError, Oid, OutputLine, RefName, Repo } from '../contract.ts';
-import { compareKeys, sortedKeys } from '../deterministic.ts';
-import { notARefError } from '../errors.ts';
-import { shortOid } from '../hash.ts';
+import type { Oid, OutputLine, RefName, Repo } from '../contract.ts';
+import { sortedKeys } from '../deterministic.ts';
+import { nearestNames } from '../errors.ts';
 import { getCommit, reachableFrom } from '../objects.ts';
-import { headOid, readReflog, shortRefName } from '../repo.ts';
-import { fail, line, ok, type GitOpResult } from './reset.ts';
+import { liveRoots } from '../predicates.ts';
+import { readReflog, shortRefName } from '../repo.ts';
+import { shortOid } from '../hash.ts';
+import { line, ok, type GitOpResult } from './reset.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. REACHABILITY
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Mọi Oid neo một commit lại. Trả mảng ĐÃ SẮP — thứ tự không ảnh hưởng kết quả
- * của `reachableFrom`, nhưng một hàm public trả thứ tự đổi theo thứ tự chèn là
- * đúng loại bất định §2.2 mục 3 cảnh báo, và nó sẽ cắn ở một test rất lâu sau.
- */
-export function reachableRoots(repo: Repo): readonly Oid[] {
-  const roots: Oid[] = [];
-
-  for (const ref of sortedKeys(repo.refs)) {
-    const oid = repo.refs[ref];
-    if (oid !== undefined) roots.push(oid);
-  }
-
-  const head = headOid(repo);
-  if (head !== null) roots.push(head);
-
-  for (const entry of repo.stash) roots.push(entry.oid);
-
-  const pending = repo.pending;
-  if (pending !== null) {
-    roots.push(pending.originalHead);
-    switch (pending.kind) {
-      case 'merge':
-        roots.push(pending.theirs);
-        break;
-      case 'rebase':
-        roots.push(pending.onto);
-        for (const step of pending.remaining) roots.push(step.oid);
-        break;
-      case 'cherry-pick':
-        for (const pick of pending.picks) roots.push(pick);
-        break;
-      case 'revert':
-        roots.push(pending.target);
-        break;
-    }
-  }
-
-  return [...roots].sort(compareKeys);
-}
-
 /** Commit này còn ref/HEAD/stash/pending nào với tới được không. */
 export function isReachable(repo: Repo, oid: Oid): boolean {
-  return reachableFrom(repo.objects, reachableRoots(repo)).has(oid);
+  return reachableFrom(repo.objects, liveRoots(repo)).has(oid);
 }
 
 /**
@@ -110,7 +71,7 @@ export function isReachable(repo: Repo, oid: Oid): boolean {
  * ý, và liệt kê chúng ra chỉ làm ngập đúng thứ người chơi đang tìm.
  */
 export function unreachableCommits(repo: Repo): readonly Oid[] {
-  const live = reachableFrom(repo.objects, reachableRoots(repo));
+  const live = reachableFrom(repo.objects, liveRoots(repo));
   const out: Oid[] = [];
   for (const oid of sortedKeys(repo.objects)) {
     if (live.has(oid)) continue;
@@ -127,11 +88,17 @@ export function unreachableCommits(repo: Repo): readonly Oid[] {
 /**
  * `git reflog [<ref>]`. `ref === null` ⇒ reflog của `HEAD`, đúng như git thật.
  *
- * ⚠ Ref đã bị XOÁ vẫn đọc được reflog, và đó là cả bài G27: `git branch -D
- * feature` bỏ con trỏ nhưng `deleteRef()` giữ lại nhật ký dịch chuyển, nên
- * `git reflog feature` vẫn nói commit cuối của nó nằm ở đâu. Nên phép kiểm ở
- * đây hỏi "có nhật ký không", KHÔNG hỏi "ref có tồn tại không" — đảo hai câu
- * hỏi đó là làm bài G27 không giải được.
+ * ⚠ Ref đã bị XOÁ thì nhật ký RIÊNG của nó mất theo (`deleteRef` xoá cả hai, đúng
+ * như git thật xoá `.git/logs/refs/heads/<nhánh>`). Nên `git reflog feature` sau
+ * `git branch -D feature` KHÔNG còn gì, và đó là hành vi đúng: đường cứu thật của
+ * bài G27 là reflog của **HEAD** — HEAD đã từng trỏ vào commit đó lúc người chơi
+ * còn đứng trên nhánh, và dòng ấy còn nguyên.
+ *
+ * ⛔ Và hàm này KHÔNG BAO GIỜ trả lỗi. Một ref không còn (hay chưa từng có) cho ra
+ * một câu trả lời RỖNG kèm chỉ đường, không phải `not-a-ref`. Lý do: người chơi ở
+ * bài G27 gõ đúng thứ họ tưởng sẽ chạy, và ném lỗi vào mặt họ ở đúng khoảnh khắc
+ * đó là tái tạo lại "blind-testing effect" mà §17.I.4 sinh ra để chống. Gợi ý tên
+ * gần đúng vẫn còn — nó chỉ chuyển từ `suggest` của một lỗi sang một dòng `hint`.
  */
 export function gitReflog(repo: Repo, ref: RefName | null): GitOpResult {
   const target: RefName = ref ?? 'HEAD';
@@ -139,10 +106,10 @@ export function gitReflog(repo: Repo, ref: RefName | null): GitOpResult {
   const label = target === 'HEAD' ? 'HEAD' : shortRefName(target);
 
   if (entries.length === 0) {
-    if (target !== 'HEAD' && !Object.hasOwn(repo.refs, target)) {
-      return fail(repo, unknownReflogRef(repo, target));
+    if (target === 'HEAD' || Object.hasOwn(repo.refs, target)) {
+      return ok(repo, [line(`\`${label}\` chưa từng dịch chuyển lần nào.`, 'hint')]);
     }
-    return ok(repo, [line(`\`${label}\` chưa từng dịch chuyển lần nào.`, 'hint')]);
+    return ok(repo, deletedRefAnswer(repo, label));
   }
 
   const output: OutputLine[] = entries.map((entry, i) =>
@@ -157,13 +124,22 @@ export function gitReflog(repo: Repo, ref: RefName | null): GitOpResult {
   return ok(repo, output);
 }
 
-function unknownReflogRef(repo: Repo, target: RefName): GitError {
-  const known = sortedKeys(repo.refs).map(shortRefName);
-  return notARefError(
-    shortRefName(target),
-    known,
-    'Ref này chưa từng tồn tại, nên cũng chưa từng có nhật ký dịch chuyển nào. (Một ref đã bị xoá thì KHÁC: nhật ký của nó ở lại, và `git reflog` vẫn đọc được.)',
-  );
+/** Câu trả lời thành thật cho một ref không còn: rỗng, kèm đường đi tiếp. */
+function deletedRefAnswer(repo: Repo, label: string): readonly OutputLine[] {
+  const output: OutputLine[] = [
+    line(`Không có nhật ký nào cho \`${label}\`.`, 'warn'),
+    line(
+      'Ref này không tồn tại. Nếu nó vừa bị xoá thì nhật ký riêng của nó đã mất theo — git thật cũng vậy.',
+      'hint',
+    ),
+    line(
+      'Đường cứu là nhật ký của HEAD: gõ `git reflog` (không tham số) để xem HEAD đã từng đứng ở đâu.',
+      'hint',
+    ),
+  ];
+  const near = nearestNames(label, sortedKeys(repo.refs).map(shortRefName), 1)[0];
+  if (near !== undefined) output.push(line(`Hoặc ý bạn là \`${near}\`?`, 'hint'));
+  return output;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
