@@ -675,6 +675,22 @@ export interface CommitSpec {
   /** Mặc định `'Bạn'`. Đặt tên khác để dựng lịch sử có nhiều người. */
   readonly author?: string;
   /**
+   * Đồng hồ logic tường minh. Vắng ⇒ suy từ VỊ TRÍ trong mảng `commits`.
+   *
+   * ⚠ Trường này KHÔNG dành cho người soạn level — viết tay nó là mời một lịch
+   * sử có thời gian đi lùi. Nó tồn tại cho **một** chỗ: phép chiếu ngược
+   * `worldToSpec` của sandbox (§17.Q).
+   *
+   * `logicalTime` đi vào phép băm, nên suy lại nó từ vị trí mảng sẽ cho Oid
+   * KHÁC Oid gốc. Vòng xuất-nhập khi đó giữ đúng hình dạng và nội dung nhưng
+   * đổi mọi Oid, và ô nghiệm thu AC-Q ("hash trạng thái không đổi") đỏ — đúng
+   * như phép đo đã bắt được ở lượt chạy đầu tiên.
+   *
+   * Giữ nó tường minh cho vế MẠNH của AC-Q: xuất rồi nhập lại cho ra đúng từng
+   * Oid, không chỉ đúng hình dạng.
+   */
+  readonly logicalTime?: number;
+  /**
    * Thay đổi file so với cha thứ nhất. `null` = xoá file.
    *
    * Chuỗi được tách theo `\n` thành `Lines`; mảng dùng nguyên. Cho phép chuỗi vì

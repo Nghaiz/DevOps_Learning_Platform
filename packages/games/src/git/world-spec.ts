@@ -110,7 +110,11 @@ function applyCommitSpec(state: BuildState, spec: CommitSpec, index: number): vo
     message: spec.message,
     author: spec.author ?? 'Bạn',
     // Vị trí trong mảng, KHÔNG phải bộ đếm duyệt. Xem chú thích đầu file.
-    logicalTime: index + 1,
+    //
+    // `spec.logicalTime` tường minh thắng, và nó có đúng MỘT chỗ dùng: phép
+    // chiếu ngược của sandbox (§17.Q). Không có nó thì vòng xuất-nhập đổi mọi
+    // Oid, vì `logicalTime` đi vào phép băm.
+    logicalTime: spec.logicalTime ?? index + 1,
   });
 
   state.repo = { ...state.repo, objects: storeAfterCommit };

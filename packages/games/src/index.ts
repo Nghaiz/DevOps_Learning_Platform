@@ -130,6 +130,26 @@ export { buildView } from './git/view.ts';
 export type { ViewHints } from './git/view.ts';
 export { buildWorld } from './git/world-spec.ts';
 export { shortOid } from './git/hash.ts';
+
+/*
+ * Sandbox (§17.Q). Mở export NGAY vì bài học của `CHALLENGES`: một kiểu mà không
+ * ai ngoài package với tới được là một kiểu chưa tồn tại, và nó không đỏ ở đâu
+ * cả — qua typecheck, qua lint, có cả test tham chiếu nên trông vẫn sống.
+ *
+ * `worldToSpec` là thứ Level Builder của P18 cần: dựng cây trong sandbox rồi
+ * lấy làm trạng thái đầu hoặc trạng thái đích.
+ */
+export type { SandboxExport, SandboxScenario } from './git/sandbox.ts';
+export {
+  SANDBOX_SCENARIOS,
+  SANDBOX_SCENARIO_LABEL,
+  exportSandbox,
+  exportSandboxJson,
+  importSandboxJson,
+  sandboxSpec,
+  sandboxStateHash,
+  worldToSpec,
+} from './git/sandbox.ts';
 export { GIT_PREDICATE_NAMES, evaluateObjectives, verdictOf } from './git/predicates.ts';
 export type { ObjectiveResult, Verdict } from './git/predicates.ts';
 export { GIT_VERBS, isGitVerb } from './git/command-table.ts';
