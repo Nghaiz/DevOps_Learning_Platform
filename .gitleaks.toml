@@ -43,4 +43,50 @@ regexes = [
   # mật — nó là giá trị ngẫu nhiên client tự sinh mỗi lần bắt tay. Neo theo đúng
   # giá trị trong RFC, không nới ra cả header.
   '''dGhlIHNhbXBsZSBub25jZQ==''',
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # DANH SÁCH ĐÓNG — 4 fixture của commit 451a595, thêm 2026-09-14.
+  #
+  # ⛔ ĐỪNG THÊM DÒNG NÀO VÀO KHỐI NÀY. Nó tồn tại để dọn một commit đã nằm sẵn
+  #    trong lịch sử, KHÔNG phải để làm chỗ đổ cho fixture mới. Fixture mới phải
+  #    đặt tên theo quy ước `ci-only-*` ở ba dòng đầu allowlist này — một dòng
+  #    đã có sẵn sẽ phủ, và danh sách không dài thêm. Khối này chỉ được co lại,
+  #    không bao giờ nở ra.
+  #
+  # Chúng là gì: 3 mật khẩu và 1 token GIẢ trong test đặt lại mật khẩu, do
+  # `generic-api-key` bắt vì hình dạng chữ-số. Không giá trị nào mở được gì:
+  # chúng chỉ chạy trong Postgres/SMTP dựng tạm của runner rồi biến mất cùng
+  # container. Đọc thẳng từ commit 2026-09-14:
+  #
+  #   apps/web/src/security/password-reset.integration.test.ts:43  OLD_PASSWORD
+  #   apps/web/src/security/password-reset.integration.test.ts:44  NEW_PASSWORD
+  #   apps/web/src/security/password-reset.integration.test.ts:219 newPassword
+  #   apps/web/src/server/auth/mail.test.ts:137                    fakeToken
+  #
+  # Bán kính đã ĐO, không suy đoán: `git log --all -S<giá trị>` cho ĐÚNG MỘT
+  # commit (451a595) cho cả bốn, và `git grep` trong cây làm việc cho 0 kết quả.
+  # Nên bốn dòng dưới không che được gì ngoài chính commit đó.
+  #
+  # ─── NỬA CHỐNG-ÔI: khi nào bốn dòng này thành rác, và ai xoá ───────────────
+  #
+  # Chúng chỉ còn đáng giữ chừng nào 451a595 còn được tham chiếu tới. Kiểm bằng
+  # một lệnh, mất một giây:
+  #
+  #     git branch -a --contains 451a595
+  #
+  #   · CÓ ra ref  ⇒ còn cần, giữ nguyên.
+  #   · KHÔNG ra gì ⇒ bốn dòng này đã thành rác, XOÁ CẢ KHỐI ngay trong lượt đó.
+  #
+  # Ai xoá: người gỡ nhánh `lane/p16d-auth` (đó là ref duy nhất còn giữ commit
+  # này — cả bản local lẫn bản trên origin). Gộp nhánh KHÔNG tự làm khối này
+  # hết hạn: squash-merge giữ nguyên ref của lane, nên commit vẫn được quét.
+  #
+  # Cách đóng lại cho đẹp, nếu có ai đụng vào lane này lần nữa: đổi tên bốn
+  # fixture sang quy ước `ci-only-*` ngay trong lượt đó, rồi xoá khối này — chứ
+  # không phải viết thêm ngoại lệ. Không làm ở đây được vì việc đó cần viết lại
+  # lịch sử một nhánh đã push.
+  '''MatKhauCu-12345''',
+  '''MatKhauMoi-67890''',
+  '''MotMatKhauDaiHon-1''',
+  '''tokAbc123XYZ''',
 ]
