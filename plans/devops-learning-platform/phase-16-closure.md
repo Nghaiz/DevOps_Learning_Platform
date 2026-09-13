@@ -367,3 +367,146 @@ Ba tầng chẩn đoán nằm giữa nguyên nhân và triệu chứng.
 Một đường thứ ba, đắt hơn nhưng đóng luôn cả lớp vấn đề: nạp sẵn ảnh k3s vào chính image sandbox
 để đường lạnh không cần mirror. Đó là quyết định phạm vi P7 kèm chi phí dung lượng, không phải
 việc của chặng đóng nợ này.
+
+#### 5.8b — ĐÃ ĐÓNG 2026-09-14, và nó có BA tầng chứ không phải một
+
+`lab.flow` nay ĐỖ. Ba nguyên nhân xếp chồng, mỗi cái che cái trước:
+
+**Tầng 1 — netpol chọn namespace theo TÊN.** Đóng ở `92d33fb`: chart phát nhãn
+`platform.dlp/role: sandbox` và netpol của mirror chọn theo nhãn đó.
+
+⚠ Nhãn là **hằng số template, cố ý không phải khoá values**. `matchLabels` rỗng
+không khớp-không-gì mà khớp **MỌI** namespace, nên nếu nó đến từ values thì đúng
+một lần `helm upgrade --reuse-values` (cờ đó không nạp key mới) là đủ mở mirror
+cho toàn cụm trong im lặng, với helm báo xanh. Hằng số không có key nào để đánh
+rơi. Cùng họ với bài học `helm-reuse-values-drops-new-keys`.
+
+Đo: mirror trả 200 từ CẢ ns prod lẫn ns e2e; đúng 2/11 namespace mang nhãn — tập
+vào được mirror đi từ `{dlp-sandbox}` thành `{dlp-sandbox, dlp-e2e-p16}`.
+
+**Tầng 2 — chuỗi viết thẳng lệch ĐÚNG MỘT TỪ.** Sau khi mirror thông, luồng đi
+tới tận bước nộp bài rồi chết ở:
+
+```
+trang render : Lần thử này đã nộp NÊN không chấm lại được. …
+spec chờ     : Lần thử này đã nộp —   không chấm lại được. …
+```
+
+Sản phẩm làm đúng mọi thứ. Đóng ở `42f2a40` bằng `t('session.lab.blocked-submitted')`.
+
+**Tầng 3 — spec không dọn phiên khi ĐỎ, và đây là tầng làm hai tầng kia khó thấy.**
+`endSandbox` chỉ chạy ở cuối ca, nên mọi thất bại bỏ lại một pod. Lượt sau chết
+vì `ResourceExhausted` — **triệu chứng đổi dạng**, trỏ người đọc đi truy quota
+trong khi nguyên nhân nằm chỗ khác. Đóng bằng `afterEach` best-effort (nuốt lỗi:
+ném ở đó sẽ che mất thất bại THẬT của ca).
+
+**Một câu trong báo cáo trước SAI, sửa lại ở đây.** Pod rò KHÔNG "sống tới hết
+`SESSION_TTL` = 1 giờ". `internal/config/config.go:66` nói thẳng: hạn thật do
+`ExtendDefault` quyết định theo `expires_at = min(now + extend, created_at +
+HARD_CAP)`; `SESSION_TTL` chỉ là hạn cho tới heartbeat ĐẦU TIÊN. Đọc Redis xác
+nhận: hai phiên còn sống mang TTL 2577s và 222s, không phải một mốc cố định.
+
+**Trần đồng thời bị chặn bởi đại lượng nào** — không phải `pods`. Với profile
+`k8s` (requests 500m/1Gi, limits 4/2Gi) và quota namespace (`requests.cpu: 4`,
+`requests.memory: 5Gi`, `limits.cpu: 20`, `pods: 6`), ở 4 pod thì `limits.cpu`
+đã là 18/20 — thêm một pod là 22, vượt. Tức `pods: 6` KHÔNG bao giờ là ràng buộc
+thật. Cùng bài học với `capacity-ceiling-needs-quota-and-limitrange`.
+
+**Chưa kết luận, ghi để không đọc nhầm:** mọi dòng `session đã reap` trong log
+orchestrator đều mang `"actor":"user"`, chưa có dòng nào của lượt quét định kỳ
+dù `REAP_INTERVAL` là 60s. Điều đó CÓ THỂ chỉ nghĩa là các phiên trước đều được
+kết thúc tường minh nên sweep không có việc. Nó KHÔNG chứng minh sweep chạy được.
+Muốn biết thì phải bỏ một phiên hết hạn rồi xem sweep có dọn không.
+
+---
+
+## 6. Chốt sổ — 2026-09-14
+
+### 6.1 Số cuối
+
+| Phép đo | Kết quả |
+|---|---|
+| `turbo run typecheck lint test build --force` | **`Tasks: 32 successful, 32 total`** |
+| Đơn vị | web **1812** · ui **932** · games 402 · scenario 289 · terminal 133 · motion 110 · copy 71 · shared-types 48 |
+| 4 cổng tĩnh (tokens / antipattern / env / bundle) | exit 0 cả bốn |
+| **CI đầy đủ (`ci.yml`, event `pull_request`)** | **`ci-ok: success` — 9/9 job** |
+| E2E profile mặc định | **184 đỗ / 7 đỏ / 0 skip / 191**, 10,1 phút |
+
+Bảy ô đỏ là ĐÚNG bảy dòng `games.spec.ts` đã ghi ở `phase-16.md` §8 là đỏ có chủ
+đích của P17: 273, 445, 455, 536, 641, 784, 948. **Không còn ô đỏ nào ngoài giải
+thích.**
+
+### 6.2 CI: từ 4 job đỏ trên `main` xuống 0
+
+Đối chứng là lượt `ci.yml` gần nhất trên chính `main` (run `34526505858`,
+2026-09-10) — không phải trí nhớ:
+
+| Job | `main` 09-10 | nhánh này |
+|---|---|---|
+| `Web (axe + CSP)` | ❌ | ✅ |
+| `Terminal (Chromium)` | ❌ | ✅ |
+| `Secret scan (gitleaks)` | ❌ | ✅ |
+| `Go (build + vet + test + lint + vuln)` | ❌ | ✅ |
+| 5 job còn lại | ✅ | ✅ |
+| **`ci-ok`** | ❌ | **✅** |
+
+⚠ **Bốn job đỏ đó KHÔNG ai thấy suốt 10 ngày**, vì `ci.yml` bị tạm dừng từ
+2026-09-04 (chỉ còn `workflow_dispatch`). Trong thời gian đó `gh pr checks` trên
+một PR trả **4 check pass** và `mergeStateStatus: CLEAN` — nhưng bốn cái đó chỉ
+là `secret-scan.yml` + `no-commerce.yml`, mỗi cái chạy hai lần. Bảy cổng chất
+lượng thật không chạy một dòng nào. Đọc "CI xanh" ở trạng thái đó là đúng dạng
+[`green-that-proves-nothing`]: xanh vì không ai hỏi.
+
+### 6.3 Việc hạ tầng / cấu hình đã làm
+
+| Việc | Trạng thái |
+|---|---|
+| `ci.yml` bật lại (`push: main`+tag, `pull_request`, `workflow_dispatch`) | xong |
+| `no-commerce.yml` xoá (trùng sạch; bản trong `ci.yml` nằm trong `ci-ok.needs`) | xong |
+| `secret-scan.yml` thu hẹp còn `push: branches-ignore: [main]` | xong |
+| `sha_pinning_required` bật trên repo | xong |
+| `nanoid` 3.3.17 → 3.3.19 (cảnh báo Dependabot HIGH duy nhất) | xong |
+| netpol mirror chọn theo NHÃN, không theo TÊN namespace | xong |
+| **branch protection trên `main`, required check `ci-ok`** | xong |
+
+**Chia phạm vi workflow, đo được:** trước đây một lần push sinh **5 run**; nay
+**2** (`CI` qua `pull_request`, `Secret scan` qua `push` trên nhánh feature). Và
+không còn check TRÙNG TÊN trên PR — điều đó quan trọng vì branch protection khớp
+required-check theo tên.
+
+**Branch protection — vì sao từng lựa chọn:**
+
+- required check là **`ci-ok`** chứ không phải 9 tên job. Chính `ci.yml` đã lập
+  luận: "khai 7 job làm 7 required check nghĩa là mỗi lần thêm/đổi tên job phải
+  vào Settings sửa tay, và quên là mất cổng trong im lặng".
+- `strict: false` — không bắt rebase mỗi lần `main` nhích.
+- **0 approval bắt buộc** — repo một người; đòi 1 approval là tự khoá, vì không
+  ai duyệt được PR của chính mình.
+- `enforce_admins: false` — luôn còn một đường vượt cho chủ repo.
+- KHÔNG đặt `Secret scan (gitleaks)` làm required riêng: sau khi chia phạm vi nó
+  không còn chạy ở event `pull_request`, nên required sẽ treo `Expected —
+  Waiting` vĩnh viễn và khoá merge (bẫy ghi ở `ci-cd-trigger-design` §3). Vế
+  gitleaks trên PR đã nằm trong `ci-ok`.
+
+Kiểm ngay sau khi bật: `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN`.
+
+### 6.4 Còn nợ lại, có tên
+
+Không đóng ở chặng này, ghi ra để P17 không phải tìm lại:
+
+1. **Bảy ô `games.spec.ts`** — ô nghiệm thu của P17 (§AC-K, §AC-7). Xem
+   `phase-16.md` §8.
+2. **Arena** — ngoài phạm vi P16 theo quyết định 2026-09-13; hai dòng miễn trừ
+   màu trong `KNOWN_HARDCODED` chờ P17 rà lại.
+3. **Copilot review không chạy được** — cả hai lượt trên PR #119 trả *"the user
+   who requested the review has reached their quota limit"*. Ruleset
+   `copilot-code-review` vẫn bật nhưng thực tế không sinh ra gì. Đây là quota
+   tài khoản, không sửa được từ repo.
+4. **7 PR Dependabot đang mở**, cũ nhất 2026-09-07, trong đó hai bump MAJOR
+   (`vitest` 4→5, `@vitest/browser-playwright` 4→5) — không nên gộp mù.
+5. **22 khoá `common.*`/`unit.*` vẫn ghim** trong cổng khoá chết — quyết định
+   biên tập của chủ surface.
+6. **`scripts/git-hooks/pre-push` vẫn `exit 0`** và
+   **`.claude/t1k-artifact-gate.disabled` còn nguyên** — hai thứ tạm dừng cùng
+   đợt với `ci.yml` mà chưa bật lại.
+7. **Sweep định kỳ của reaper CHƯA được chứng minh chạy được** — xem §5.8b.
