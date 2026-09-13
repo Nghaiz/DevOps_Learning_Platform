@@ -27,6 +27,39 @@ export const PASSWORD_RESET_RETRY_BASE_MS = 30_000;
 /** Số dòng tối đa một lượt drain xử lý. Mỗi dòng là MỘT transaction riêng. */
 export const PASSWORD_RESET_OUTBOX_BATCH = 20;
 
+/**
+ * Số dòng một lượt drain CHẠY THEO REQUEST được phép xử lý — cố ý là 1.
+ *
+ * Đường `after()` chạy SAU khi response đã trả, nên người dùng không chờ nó;
+ * cái giá thật là một kết nối trong pool (`max: 10`) bị giữ suốt lượt SMTP, vì
+ * `deliverOneDueRow` gửi ngay TRONG transaction. Với lô 20, một request giữ
+ * được kết nối đó tới 20 × 15s = 300 giây để gửi thư CỦA NGƯỜI KHÁC — mười
+ * request như vậy vét sạch pool, và thứ chết theo là các request đang phục vụ
+ * người dùng trực tiếp.
+ *
+ * Vì sao 1 là ĐỦ chứ không phải một nhát cắt liều: mỗi request nhận đúng MỘT
+ * dòng, nên lô 1 làm thông lượng của đường `after()` bằng đúng tốc độ dòng được
+ * nhận vào — hàng đợi không thể phình ra vì đường này. Và ở trạng thái bình
+ * thường (không tồn đọng) chỉ có đúng một dòng đến hạn, chính là dòng vừa nhận;
+ * hành vi khi ấy KHÔNG khác lô 20 một chút nào.
+ *
+ * Bù tồn đọng là việc của lượt quét định kỳ, nơi lô vẫn là
+ * `PASSWORD_RESET_OUTBOX_BATCH`: nó chạy trên timer, không nằm trên đường của
+ * request nào, và đã có chốt `inFlight` chặn chồng lượt.
+ *
+ * Cái giá phải nhận, nói thẳng: khi ĐANG tồn đọng, dòng được gửi có thể không
+ * phải dòng của request này (truy vấn đến-hạn xếp theo `next_attempt_at` tăng
+ * dần — cũ trước), nên thư của nó lùi tới lượt quét sau, tối đa 60 giây.
+ *
+ * ⚠ GIỚI HẠN còn lại: trần này bó MỖI request, không bó SỐ request đồng thời.
+ * SMTP treo cộng đủ nhiều request vẫn vét được pool, chỉ là lâu hơn 20 lần.
+ * Chốt thật cho việc đó là một hàng rào đồng thời (như `inFlight` của lượt
+ * quét) hoặc một pool riêng cho việc nền — chưa làm.
+ *
+ * Một review độc lập chỉ ra (N4, 2026-09-13).
+ */
+export const PASSWORD_RESET_REQUEST_BATCH = 1;
+
 const REDACTED = '[redacted]';
 const MAX_LAST_ERROR_LENGTH = 200;
 

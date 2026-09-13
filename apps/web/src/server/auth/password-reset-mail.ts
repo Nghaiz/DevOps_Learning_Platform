@@ -6,6 +6,7 @@ import { t } from '@devops-platform/copy';
 import { getDb } from '../db/client';
 import { betterAuthUrl } from '../env';
 import {
+  PASSWORD_RESET_REQUEST_BATCH,
   drainPasswordResetOutbox,
   enqueuePasswordResetMail,
   type PasswordResetDrainResult,
@@ -32,7 +33,10 @@ export async function withPasswordResetDelivery(
     const response = await handler();
     if ((deliveryRequest.getStore()?.queued ?? 0) > 0) {
       after(async () => {
-        await deliverQueuedPasswordResetMail();
+        // Lô CỦA REQUEST, không phải lô của lượt quét — xem
+        // `PASSWORD_RESET_REQUEST_BATCH`. Một request không được chở tồn đọng
+        // của người khác trên một kết nối của pool.
+        await deliverQueuedPasswordResetMail(PASSWORD_RESET_REQUEST_BATCH);
       });
     }
     return response;
@@ -57,12 +61,22 @@ export async function schedulePasswordResetMail(email: string, code: string): Pr
   // Server API callers outside the HTTP wrapper still await an attempt. A failed
   // attempt is now recorded and retried instead of thrown: the row is already
   // accepted, so raising here would report loss that did not happen.
-  else await deliverQueuedPasswordResetMail();
+  else await deliverQueuedPasswordResetMail(PASSWORD_RESET_REQUEST_BATCH);
 }
 
-/** The production-wired drain: this app's database, this module's SMTP sender. */
-export async function deliverQueuedPasswordResetMail(): Promise<PasswordResetDrainResult> {
-  return drainPasswordResetOutbox({ db: getDb(), send: sendPasswordResetMail });
+/**
+ * The production-wired drain: this app's database, this module's SMTP sender.
+ *
+ * `limit` is REQUIRED on purpose. The two callers want different sizes — a
+ * request-scoped drain must stay tiny, the periodic sweep may take the full
+ * batch — and a default here would let a new caller pick one by accident and
+ * still compile. (Same reasoning the review applied to `profileForCapabilities`
+ * in Q6: a default parameter is an invariant the compiler stops holding.)
+ */
+export async function deliverQueuedPasswordResetMail(
+  limit: number,
+): Promise<PasswordResetDrainResult> {
+  return drainPasswordResetOutbox({ db: getDb(), send: sendPasswordResetMail, limit });
 }
 
 const smtpSchema = z.object({

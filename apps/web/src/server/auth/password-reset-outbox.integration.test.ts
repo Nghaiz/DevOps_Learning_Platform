@@ -9,6 +9,8 @@ import * as schema from '../db/schema';
 import { passwordResetOutbox } from '../db/schema';
 import {
   PASSWORD_RESET_MAX_ATTEMPTS,
+  PASSWORD_RESET_OUTBOX_BATCH,
+  PASSWORD_RESET_REQUEST_BATCH,
   PASSWORD_RESET_RETRY_BASE_MS,
   drainPasswordResetOutbox,
   enqueuePasswordResetMail,
@@ -274,6 +276,38 @@ describe('hàng đợi bền vững cho thư đặt lại mật khẩu', () => {
       expired: 2,
     });
     expect(sent).toEqual([[fresh.email, fresh.code]]);
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it('lô của request gửi ĐÚNG MỘT dòng dù có nhiều dòng cùng đến hạn', async () => {
+    // Ô này gác GIÁ TRỊ của `PASSWORD_RESET_REQUEST_BATCH` bằng hành vi, không
+    // bằng một phép so hằng-với-hằng: ba dòng đến hạn, một dòng được gửi. Nâng
+    // hằng lên thì ô đỏ ngay.
+    const entries = [makeEntry(), makeEntry(), makeEntry()];
+    for (const entry of entries) await enqueuePasswordResetMail(db, entry);
+
+    const sent: Array<[string, string]> = [];
+    expect(
+      await drainPasswordResetOutbox({
+        db,
+        send: recorder(sent),
+        limit: PASSWORD_RESET_REQUEST_BATCH,
+      }),
+    ).toEqual({ sent: 1, failed: 0, expired: 0 });
+    expect(await rows()).toHaveLength(2);
+
+    // Đối chứng: lượt quét với lô đầy đủ vét nốt phần còn lại. Không có vế này,
+    // ô trên vẫn xanh kể cả khi lượt drain hỏng tới mức chỉ gửi nổi một dòng.
+    expect(
+      (
+        await drainPasswordResetOutbox({
+          db,
+          send: recorder(sent),
+          limit: PASSWORD_RESET_OUTBOX_BATCH,
+        })
+      ).sent,
+    ).toBe(2);
+    expect(sent).toHaveLength(3);
     expect(await rows()).toHaveLength(0);
   });
 

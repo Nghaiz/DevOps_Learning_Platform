@@ -5,6 +5,7 @@ import {
   startPasswordResetOutboxWorker,
   stopPasswordResetOutboxWorker,
 } from './password-reset-outbox-worker';
+import { PASSWORD_RESET_OUTBOX_BATCH, PASSWORD_RESET_REQUEST_BATCH } from './password-reset-outbox';
 
 /**
  * Lượt quét định kỳ là đường phục hồi DUY NHẤT cho dòng của một tiến trình đã
@@ -46,6 +47,17 @@ describe('lượt quét định kỳ hàng đợi thư đặt lại mật khẩu
     stop();
     await vi.advanceTimersByTimeAsync(PASSWORD_RESET_OUTBOX_SWEEP_MS * 5);
     expect(drain).toHaveBeenCalledTimes(3);
+  });
+
+  it('lượt quét dùng lô ĐẦY ĐỦ — nó là chỗ duy nhất bù được tồn đọng', async () => {
+    // Đường `after()` của request bị bó về `PASSWORD_RESET_REQUEST_BATCH` để
+    // không giữ kết nối pool lâu. Nếu lượt quét cũng bị bó theo thì KHÔNG còn
+    // đường nào vét tồn đọng, và hàng đợi chỉ tiêu hao bằng đúng tốc độ nạp vào.
+    startPasswordResetOutboxWorker();
+    await vi.advanceTimersByTimeAsync(PASSWORD_RESET_OUTBOX_SWEEP_MS);
+
+    expect(drain).toHaveBeenCalledWith(PASSWORD_RESET_OUTBOX_BATCH);
+    expect(PASSWORD_RESET_OUTBOX_BATCH).toBeGreaterThan(PASSWORD_RESET_REQUEST_BATCH);
   });
 
   it('gọi nhiều lần không tạo thêm timer', async () => {

@@ -1,4 +1,5 @@
 import { deliverQueuedPasswordResetMail } from './password-reset-mail';
+import { PASSWORD_RESET_OUTBOX_BATCH } from './password-reset-outbox';
 
 /**
  * Lượt quét ĐỊNH KỲ cho hàng đợi thư đặt lại mật khẩu.
@@ -65,7 +66,11 @@ async function sweep(): Promise<void> {
   if (inFlight) return;
   inFlight = true;
   try {
-    const result = await deliverQueuedPasswordResetMail();
+    // Lô ĐẦY ĐỦ ở đây, khác đường `after()`: lượt quét chạy trên timer, không
+    // nằm trên đường của request nào, và chốt `inFlight` ở trên đã chặn chồng
+    // lượt. Đây là chỗ duy nhất bù được tồn đọng — xem
+    // `PASSWORD_RESET_REQUEST_BATCH`.
+    const result = await deliverQueuedPasswordResetMail(PASSWORD_RESET_OUTBOX_BATCH);
     if (result.sent + result.failed + result.expired > 0) {
       // Chỉ ĐẾM, không có địa chỉ lẫn mã. Mức `warn` chứ không phải thông tin
       // thường: đường bình thường là `after()` gửi ngay trong request, nên một
