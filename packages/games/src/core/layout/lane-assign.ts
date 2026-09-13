@@ -24,7 +24,12 @@
  * còn giảm được cắt cạnh mà không phá tính ổn định.
  */
 
-import { compareKeys } from '../../git/deterministic.ts';
+/*
+ * Không import `compareKeys` ở đây, và đó không phải thiếu sót: file này KHÔNG
+ * sắp xếp gì theo chuỗi cả. Nó nhận mảng đã ở thứ tự chuẩn tắc từ
+ * `dag-layout.ts` và chỉ còn sắp theo SỐ (trung vị, chỉ số làn). Thêm một phép
+ * so chuỗi vào đây là thêm một chỗ nữa có thể lệch khỏi thứ tự mà bên gọi đã chốt.
+ */
 
 export interface LaneNode {
   readonly id: string;
