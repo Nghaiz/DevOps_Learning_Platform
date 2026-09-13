@@ -170,8 +170,6 @@ export const home = {
   'home.start.title': 'Lệnh tiếp theo,\nbạn tự gõ.',
   'home.start.description':
     'Tạo tài khoản, chọn bài đầu tiên và mở terminal. Phần còn lại bắt đầu từ những gì bạn thử.',
-  'home.og.title': 'DevOps Learning Platform',
-  'home.og.subtitle': 'Học DevOps bằng lab sandbox chạy thật',
 } as const satisfies Surface<'home'>;
 
 export const homeIntentionalThree = {

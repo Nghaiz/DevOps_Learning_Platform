@@ -7,10 +7,12 @@ import type { ErrorEntry, IntentionalThree, Surface } from '../types.ts';
  *
  * ## Tên sản phẩm chính tắc được khai ở ĐÂY
  *
- * `shell.brand.name` là bản chính tắc, theo quyết định của lead. Lane 16.E đã
- * có một bản riêng ở `home.og.title` cho thẻ Open Graph; hai bản cùng tồn tại
- * có chủ ý trong đợt này và việc gộp thuộc về L0 sau khi mọi lane gộp xong
- * (đã ghi vào mục 8 của `phase-16.md`). Đừng sửa bản của lane khác từ đây.
+ * `shell.brand.name` là bản chính tắc, theo quyết định của lead, và nay là bản
+ * DUY NHẤT. Lane 16.E từng giữ một bản riêng ở `home.og.title` cho thẻ Open
+ * Graph; hai bản cùng tồn tại có chủ ý cho tới khi mọi lane gộp xong, và lượt
+ * gộp đó đã làm (2026-09-13): `home.og.title` cùng `home.og.subtitle` bị xoá vì
+ * chúng giống TỪNG KÝ TỰ với `shell.brand.name` và `common.og-description`,
+ * hai khoá mà `app/layout.tsx` đang thật sự đọc cho khối `openGraph`.
  *
  * Ba biến thể độ dài là ba chuỗi khác nhau chứ không phải một chuỗi bị cắt:
  * ở 360px thanh đầu trang phải chứa nút menu, tên, nút giao diện và avatar,

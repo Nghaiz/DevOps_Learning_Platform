@@ -157,7 +157,27 @@ function collect(dir: string, out: string[] = []): string[] {
 }
 
 /**
- * Nền đã pin: 36 khoá ĐANG chết khi cổng này được dựng.
+ * Nền đã pin: 22 khoá còn lại sau lượt đóng nợ.
+ *
+ * Cổng này đo ra 36 khoá chết lúc dựng. 14 trong số đó đã được xử lý ngay trong
+ * cùng nhánh, theo quyết định của lead ("không để lại nợ"):
+ *
+ * · 7 khoá XOÁ vì màn hình của chúng không còn tồn tại. Bốn khoá
+ *   `session.lab.checklist-caption|col-task|col-weight|col-state` là caption và
+ *   tên cột của một `<table>` đã bị `task-checklist.tsx` thay bằng danh sách
+ *   kiểm; `session.workspace.separator` là thanh kéo chia đôi đã gỡ hẳn (không
+ *   còn `[role="separator"]` nào, và `workspace-panel.test.tsx` khẳng định đúng
+ *   điều đó); `session.ide.booting-status` và `session.ide.open-new-tab-error`
+ *   là bản nhãn thứ hai cho hai chỗ mà `ide-pane.tsx` đã dựng bằng
+ *   `session.ide.booting-title|booting-detail` và `session.ide.open-new-tab`.
+ * · 5 khoá `error.*` NỐI DÂY vào `apps/web/src/server/trpc/init.ts`, đúng năm
+ *   literal mà §4 hợp đồng đã chốt chữ để thay.
+ * · 2 khoá `home.og.*` XOÁ vì chúng giống TỪNG KÝ TỰ với `shell.brand.name` và
+ *   `common.og-description`, hai khoá mà `app/layout.tsx` đang thật sự đọc.
+ *   `shell.ts` đã ghi sẵn rằng việc gộp thuộc về L0 "sau khi mọi lane gộp
+ *   xong"; lượt này là lúc đó.
+ *
+ * 22 khoá còn lại dưới đây là vốn từ dùng chung của L0.
  *
  * Đây là một nền pin, nên nó mang đủ nghĩa vụ của `pinned-baseline-test-companion`:
  * pin theo TÊN chứ không theo SỐ ĐẾM (36 khoá chết khác vẫn là 36), và có ô
@@ -206,32 +226,6 @@ const KNOWN_UNCALLED: Readonly<Record<string, string>> = {
       'unit.day',
       'unit.point',
     ],
-  ),
-  ...pin(
-    '2026-09-13: chữ đã chốt từng chữ ở §4 hợp đồng để thay năm literal trong apps/web/src/server/trpc/init.ts, nhưng lượt nối dây đó chưa làm. Cả surface error hiện có 0 nơi gọi.',
-    [
-      'error.auth.unauthenticated',
-      'error.rate.trpc',
-      'error.authz.not-owner',
-      'error.authz.need-author',
-      'error.authz.need-admin',
-    ],
-  ),
-  ...pin(
-    '2026-09-13: soạn cho khoang làm việc, khoang IDE và bảng nhiệm vụ của lab, nhưng component tương ứng dựng nhãn bằng đường khác. Chủ surface session quyết định nối hay xoá.',
-    [
-      'session.workspace.separator',
-      'session.ide.booting-status',
-      'session.ide.open-new-tab-error',
-      'session.lab.checklist-caption',
-      'session.lab.col-task',
-      'session.lab.col-weight',
-      'session.lab.col-state',
-    ],
-  ),
-  ...pin(
-    '2026-09-13: tên và mô tả cho thẻ Open Graph, khai ở 16.E nhưng generateMetadata chưa đọc tới. Xem report lane 16.E dòng 202.',
-    ['home.og.title', 'home.og.subtitle'],
   ),
 };
 

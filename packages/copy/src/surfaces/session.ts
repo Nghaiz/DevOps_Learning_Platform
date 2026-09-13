@@ -106,7 +106,6 @@ export const session = {
   'session.workspace.tab-terminal': 'Terminal',
   'session.workspace.popout-title': 'Mở tab này ra một cửa sổ riêng',
   'session.workspace.popout-sr': 'Mở tab này ra cửa sổ riêng',
-  'session.workspace.separator': 'Kéo để đổi chiều cao khoang terminal',
 
   /*
     ⚠ KHÔNG có khoá `session.topbar.*`, và đó là một quyết định chứ không phải
@@ -131,7 +130,6 @@ export const session = {
   'session.ide.pane-title': 'Trình soạn thảo',
   'session.ide.iframe-title': 'Trình soạn thảo trong sandbox',
   'session.ide.no-session': 'Trình soạn thảo mở cùng sandbox. Bấm Bắt đầu để dựng phiên.',
-  'session.ide.booting-status': 'IDE đang khởi động…',
   'session.ide.booting-title': 'Đang dựng trình soạn thảo',
   // Con số 20 giây là số ĐO ĐƯỢC ở P6 (khởi động nguội Theia), không phải một
   // ước lượng lịch sự. Nói ra nó là cách duy nhất hai mươi giây chờ đọc ra là
@@ -142,7 +140,6 @@ export const session = {
   'session.ide.reload': 'Tải lại IDE',
   'session.ide.retry': 'Thử lại',
   'session.ide.open-new-tab': 'Mở trong tab mới',
-  'session.ide.open-new-tab-error': 'Mở trong tab mới để xem lỗi máy chủ',
   'session.ide.reason-http': (p: { status: number }) =>
     `máy chủ trả HTTP ${p.status} cho đường /ide`,
   'session.ide.reason-timeout': (p: { seconds: number }) =>
@@ -159,7 +156,6 @@ export const session = {
   'session.lab.loading': 'Đang tải lab…',
   'session.lab.tasks-tab': (p: { count: number }) => `Nhiệm vụ (${p.count})`,
   'session.lab.leaderboard-tab': 'Bảng xếp hạng',
-  'session.lab.checklist-caption': 'Bấm một nhiệm vụ để đọc đề và chấm riêng nhiệm vụ đó.',
   'session.lab.checklist-legend': 'Nhiệm vụ của lab',
   'session.lab.check-one': 'Chấm nhiệm vụ này',
   'session.lab.hint': 'Gợi ý',
@@ -183,9 +179,6 @@ export const session = {
   'session.lab.col-learner': 'Người học',
   'session.lab.col-score': 'Điểm',
   'session.lab.col-time': 'Thời gian',
-  'session.lab.col-task': 'Nhiệm vụ',
-  'session.lab.col-weight': 'Trọng số',
-  'session.lab.col-state': 'Trạng thái',
   'session.lab.unsupported': (p: { capabilities: string }) =>
     `Lab này cần ${p.capabilities}. Nền tảng chưa chạy được những năng lực đó, nên một số lệnh trong lab sẽ báo lỗi. Bạn vẫn mở được để đọc nội dung và làm các nhiệm vụ còn lại.`,
   'session.lab.reload': 'Tải lại',
