@@ -4,6 +4,13 @@ Status: **VERIFIED AND READY FOR LOCAL COMMIT.** 2026-09-13. The independently r
 
 ## Delivered behavior
 
+Final harness closure also separates the hardware-only 3D profile from default
+software-renderer E2E discovery. Dedicated discovery remains 20 cases; default
+discovery retains 191 cases, including the existing four landing visual checks.
+The public Three isolation negative control moves to `/login` because landing
+3D is now intentional. Its game-positive counterpart enters a real level before
+sampling. Both bundle boundary checks pass on the final build (2/2, 12.0 seconds).
+
 The page now scrolls naturally through four narrative chapters and five anchors in the lower content. One transparent GPU canvas moves large colorful workstation, container and cluster models between alternating page positions. Assembly, camera orbit and incident/recovery routing follow scroll position in both directions. HTML sections move normally; there is no pinned theater or hidden chapter swap.
 
 The terminal is a colorful workbench with scroll-linked pipeline progress and finite result effects. Scrolling changes its presentation without executing a command. Explicit Run, Reset and topic controls retain their behavior, and the copy identifies illustrated commands and cluster states as demonstrations. Existing catalog data, curriculum links and account CTAs remain integrated.

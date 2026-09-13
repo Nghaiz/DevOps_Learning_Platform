@@ -8,6 +8,7 @@ delete guestBase.globalSetup;
 export default defineConfig(guestBase, {
   testDir: '.',
   testMatch: /landing-(?:3d|visual)\.spec\.ts/,
+  testIgnore: [],
   use: {
     storageState: { cookies: [], origins: [] },
     // Full Chromium uses the same graphics path as the interactive browser.

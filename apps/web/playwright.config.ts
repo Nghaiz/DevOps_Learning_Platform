@@ -33,6 +33,10 @@ if (startServer) {
 
 export default defineConfig({
   testDir: './e2e',
+  // The 3D acceptance suite asserts real hardware rendering and a frame budget.
+  // Run it with e2e/landing.config.ts, which selects full Chromium explicitly;
+  // the default headless shell/CI software renderer is not that environment.
+  testIgnore: '**/landing-3d.spec.ts',
   outputDir: `${ARTIFACTS_DIR}/test-results`,
   globalSetup: './e2e/global-setup.ts',
 

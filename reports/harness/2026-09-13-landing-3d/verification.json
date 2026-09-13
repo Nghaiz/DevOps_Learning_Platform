@@ -62,6 +62,20 @@
       "exitCode": 0,
       "timestamp": "2026-09-12T19:10:25.832Z",
       "summary": "20/20 passed without retries/skips on build I7eYNXwmu3q9KzrnjDpAr. Native wheel/reverse/keyboard/touch, both themes at mobile/desktop, reduced motion, WebGL unavailable/lost context/chunk failure, full-page progression and explicit terminal execution, real guest login redirect. RTX4060 D3D11: p95 12.5ms, median4.2ms, max33.4ms, 180RAF/181draws, zero observed long tasks; DOM LCP216ms. Hardware-local measurement, not universal/mobile hardware performance."
+    },
+    {
+      "command": "E2E_START_SERVER=1 E2E_BASE_URL=http://localhost:3000 E2E_ORIGIN=http://localhost:3000 pnpm exec playwright test --list (base and dedicated landing.config.ts)",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T19:23:06.0559238Z",
+      "summary": "Default191 cases retains4landingvisual, excludes hardware-only suite; dedicated20 cases unchanged. E2E lint/typecheck passed after config and boundary-test corrections."
+    },
+    {
+      "command": "E2E_START_SERVER=1 E2E_BASE_URL=http://localhost:3000 E2E_ORIGIN=http://localhost:3000 pnpm exec playwright test -c e2e/.artifacts/landing-boundary.config.ts",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T19:23:06.0656748Z",
+      "summary": "2/2 passed in12.0seconds: actual game scene loads Three (choose real level first); public/login does not load Three. Same production build; existing markers/scene-channel and auth-route checks retained."
     }
   ],
   "beforeAfter": "Pinned theater replaced with four naturally scrolling chapters and five lower-content anchors. Large 3D models alternate sides with camera/assembly changes and fault/recovery routing. Colorful terminal effects track scroll without executing commands. Lead inspected actual desktop/mobile scenes and terminal screenshots. Local HTTP CSP upgrading and keyboard destination focus defects corrected; touch-driver failure reproduced on a plain control then replaced with verified native touch packets. Final production suite passes20/20."

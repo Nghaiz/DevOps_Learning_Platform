@@ -10,6 +10,19 @@ whose models travel through the page. The rejected pinned version is historical.
 
 Guest-only full Chromium, one worker, Windows ANGLE Direct3D11. The config starts a
 fresh production server, never reuses one, and creates no authenticated account.
+The default E2E profile excludes `landing-3d.spec.ts` because its headless shell
+may use software rendering; `landing.config.ts` explicitly includes it and keeps
+the real-GPU/frame-budget assertions. Existing `landing-visual.spec.ts` remains
+in both profiles. This isolates the hardware prerequisite without relaxing it.
+Post-run discovery confirms 191 default cases (four existing landing visual cases,
+no hardware-only cases) and all 20 dedicated cases. The existing public Three
+isolation check now targets `/login`, since the requested landing intentionally
+loads Three. The matching game-positive check first enters a real level from the
+chooser, then waits for the unchanged scene channel and scans actual JS markers.
+Both boundary cases pass (2/2, 12.0 seconds) on this same build, using the explicit
+local variables and a guest config at `.artifacts/landing-boundary.config.ts`.
+The initial positive probe timed out on the level chooser before that harness
+correction; it was not a rendered-scene pass. Authenticated isolation checks remain.
 Every application browser invocation explicitly used the following variables:
 
 ```powershell

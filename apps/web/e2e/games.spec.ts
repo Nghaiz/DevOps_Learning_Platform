@@ -9,7 +9,7 @@
  * 1. **Thu tất rồi lọc, đừng rình vài URL đã đoán.** "Không có lời gọi nào" phải
  *    khác với "không có lời gọi nào tôi tình cờ nhìn". Xem `traceRequests`.
  * 2. **Mọi phép kiểm vắng mặt phải có nửa DƯƠNG.** Một matcher gõ sai báo "sạch"
- *    trên mọi trang, mãi mãi. Nên `three` không-có-ở-`/` chỉ đáng tin khi
+ *    trên mọi trang, mãi mãi. Nên `three` không-có-ở-`/login` chỉ đáng tin khi
  *    `three` CÓ-ở-`/games/k8s` cùng một matcher.
  * 3. **Thiếu bằng chứng thì nói thiếu, đừng thay bằng phép kiểm yếu hơn.** Cổng
  *    "≤ 25 draw call với 200 pod" mà chạy trên một cluster 0 pod sẽ XANH và
@@ -257,9 +257,7 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
           () => undefined,
         ),
       );
-      await expect
-        .poll(() => trace.apiCalls().length, { timeout: 10_000 })
-        .toBeGreaterThan(0);
+      await expect.poll(() => trace.apiCalls().length, { timeout: 10_000 }).toBeGreaterThan(0);
 
       const probes = trace.apiCalls();
       trace.stop();
@@ -357,13 +355,15 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
       ).toEqual([]);
     });
 
-    // ═════════════════════════════ 2. `three` chỉ nằm trong route game (nửa dương)
+    // ═════════════════════ 2. `three` ở route 3D, không lan vào shell dùng chung
 
     test('đối chứng dương — `three` CÓ trong JS của /games/k8s', async ({ page }, testInfo) => {
       test.setTimeout(120_000);
 
       /*
-        Nửa DƯƠNG của ô "three không có ở `/`, `/lessons`, `/dashboard`".
+        Nửa DƯƠNG của ô "three không có ở `/login`, `/lessons`, `/dashboard`".
+        Landing nay có 3D theo yêu cầu thiết kế mới; /login là đối chứng công khai
+        không có 3D để tiếp tục chứng minh chunk không lan vào shell dùng chung.
 
         Không có ô này, một dấu vết gõ sai trong THREE_MARKERS sẽ báo "sạch" trên
         mọi trang và ô AC sẽ xanh vĩnh viễn mà không đo gì — đúng hình dạng
@@ -371,6 +371,8 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
       */
       const scripts = traceScripts(page);
       await openScreen(page, GAME_PATH, 'anon');
+      // This route opens the level chooser; mount a real arena before sampling.
+      await chooseLevel(page, 'Dựng pod đầu tiên');
       // Chunk `three` chỉ được YÊU CẦU ở lần render đầu của scene (`next/dynamic`),
       // nên phải chờ scene mount xong mới chốt danh sách script.
       await waitForSceneChannel(page);
@@ -398,33 +400,38 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
       ).not.toEqual([]);
     });
 
-    test('`three` KHÔNG có trong JS của `/` (§6)', async ({ page }, testInfo) => {
+    test('`three` KHÔNG có trong JS của `/login` (shared-shell isolation)', async ({
+      page,
+    }, testInfo) => {
       test.setTimeout(120_000);
 
       const scripts = traceScripts(page);
-      await openScreen(page, '/', 'anon');
+      await openScreen(page, '/login', 'anon');
       await page.waitForTimeout(1_000);
 
       const landed = new URL(page.url()).pathname;
-      expect(landed, `Muốn đo bundle của \`/\` nhưng đã hạ cánh ở ${landed}`).toBe('/');
+      expect(landed, `Muốn đo bundle của \`/login\` nhưng đã hạ cánh ở ${landed}`).toBe('/login');
 
       const urls = scripts.urls();
       scripts.stop();
       const { hits, scanned, bytes } = await findMarkers(page, urls, THREE_MARKERS);
 
-      await attachJson(testInfo, 'games-three-absent-root.json', {
-        path: '/',
+      await attachJson(testInfo, 'games-three-absent-login.json', {
+        path: '/login',
         scannedScripts: scanned,
         scannedBytes: bytes,
         hits,
         scripts: urls.map((u) => new URL(u).pathname),
       });
 
-      expect(scanned, 'Không thu được script nào trên `/` — không có gì để kết luận').toBeGreaterThan(0);
+      expect(
+        scanned,
+        'Không thu được script nào trên `/login` — không có gì để kết luận',
+      ).toBeGreaterThan(0);
       expect(
         hits,
-        `\`three\` có mặt trong bundle của \`/\`: ${hits.map((h) => `${h.marker} @ ${h.url}`).join(', ')}. ` +
-          `§4.3 nói \`import 'three'\` chỉ được nằm trong đúng một file lazy của route game.`,
+        `\`three\` có mặt trong bundle của \`/login\`: ${hits.map((h) => `${h.marker} @ ${h.url}`).join(', ')}. ` +
+          `Các route 3D phải tải renderer riêng, không kéo Three vào shell dùng chung.`,
       ).toEqual([]);
     });
 
@@ -938,9 +945,7 @@ test.describe('games — trụ cột ③', { tag: '@games' }, () => {
 
     // ═══════════════════════════════════════════ 6. bậc chất lượng tự dò (§9.5)
 
-    test('bậc chất lượng tự hạ xuống `low` dưới SwiftShader (§9.5)', async ({
-      page,
-    }, testInfo) => {
+    test('bậc chất lượng tự hạ xuống `low` dưới SwiftShader (§9.5)', async ({ page }, testInfo) => {
       test.setTimeout(120_000);
 
       await openScreen(page, GAME_PATH, 'anon');

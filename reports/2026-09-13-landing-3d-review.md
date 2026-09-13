@@ -1,5 +1,24 @@
 # Landing 3D Scroll — Independent Code Review
 
+## Final game positive-control activation — bounded re-review
+
+**PASS.** The positive case now calls the existing `chooseLevel(page, 'Dựng pod đầu tiên')` after opening `/games/k8s` and before the unchanged scene-mount wait. That helper asserts the real level button is visible and clicks it. Script collection already starts before route navigation, so it also captures the renderer chunk requested by level activation. The nonempty scan, Three matcher and positive assertion remain unchanged; no fake scene or relaxed assertion was introduced.
+
+The lead reports the final positive/negative bundle pair **2/2 passed in 12 seconds on the same production build**; `/login` remained clean in both attempts. The earlier positive failure stopped at the level chooser, which did not mount the scene being measured. The activation fix addresses that harness precondition and changes no application source. Review is frozen with no unresolved Critical or Important finding.
+
+## Final harness profile isolation — accepted
+
+**PASS.** The base configuration excludes exactly `**/landing-3d.spec.ts`; the dedicated landing configuration resets `testIgnore:[]` and retains full Chromium, its narrow test match and the unchanged hardware/frame-budget assertions. `landing-visual.spec.ts` remains in both profiles. This separates environment prerequisites explicitly: the hardware suite is not part of generic headless-shell discovery.
+
+Independent discovery used all three required local E2E variables plus `--list --reporter=list`; it did not start a browser or overwrite JSON acceptance results.
+
+| Profile | Total discovered | landing-3d | landing-visual | Exit |
+|---|---:|---:|---:|---:|
+| Base | 191 tests in 16 files | 0 | 4 | 0 |
+| Dedicated landing | 20 tests in 2 files | 16 | 4 | 0 |
+
+The runtime report separately records the actual 20/20 hardware-profile run. Application source approval is unchanged. The older Three negative control is also correctly retargeted from the now-3D home route to `/login`: its script collector, nonempty-scan assertion and Three matcher remain; it verifies the landed path explicitly. The game positive assertions and authenticated `/lessons`/`/dashboard` checks remain intact. The final activation correction and successful two-case execution are recorded above.
+
 ## Follow-up re-review — focus and local HTTP redirects
 
 **SOURCE FIXES ACCEPTED.** Inspected the actual patches in `scroll-experience.tsx`, `server/security/headers.ts`, `proxy.ts`, `security/rule-09-headers.test.ts` and the new keyboard regression in `e2e/landing-3d.spec.ts`.
