@@ -41,8 +41,8 @@ export function ObjectiveArgField(props: {
   readonly controlId: string;
 }): ReactElement {
   const label = props.spec.required
-    ? props.spec.label
-    : t('problem.objective-arg-field-tuy-chon', { propsSpecLabel: String(props.spec.label) });
+    ? t(props.spec.label)
+    : t('problem.objective-arg-field-tuy-chon', { propsSpecLabel: t(props.spec.label) });
   const error = issueFor(props.issues, props.path);
 
   if (

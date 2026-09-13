@@ -110,7 +110,7 @@ export function ObjectiveFields(props: {
           <SelectContent>
             {PREDICATE_NAMES.map((predicate) => (
               <SelectItem key={predicate} value={predicate}>
-                {PREDICATE_SPECS[predicate].label}: {predicate}
+                {t(PREDICATE_SPECS[predicate].label)}: {predicate}
               </SelectItem>
             ))}
           </SelectContent>
@@ -144,7 +144,10 @@ export function ObjectiveFields(props: {
         <p className="text-xs text-muted-foreground">
           {t('problem.objective-fields-phai-dien-it-nhat-mot-trong')}{' '}
           {spec.requireOneOf
-            .map((key) => spec.args.find((arg) => arg.key === key)?.label ?? key)
+            .map((key) => {
+              const arg = spec.args.find((candidate) => candidate.key === key);
+              return arg === undefined ? key : t(arg.label);
+            })
             .join(t('problem.objective-fields-hoac'))}
           {t(
             'problem.objective-fields-thieu-ca-hai-thi-vi-tu-luon-tra-sai-va-bai-khong-bao-gio-qua-duoc',

@@ -1,4 +1,3 @@
-import { t } from '@devops-platform/copy';
 import { PREDICATE_NAMES, type PredicateName } from '@devops-platform/games';
 import { kind, name, node, num, ns, sel, text, type PredicateSpec } from './predicate-arg-types';
 
@@ -37,206 +36,206 @@ import { kind, name, node, num, ns, sel, text, type PredicateSpec } from './pred
 
 export const PREDICATE_SPECS: Readonly<Record<PredicateName, PredicateSpec>> = {
   'resource-exists': {
-    label: t('problem.predicate-spec-tai-nguyen-ton-tai'),
+    label: 'problem.predicate-spec-tai-nguyen-ton-tai',
     args: [kind(), name(), ns(false)],
   },
   'resource-absent': {
-    label: t('problem.predicate-spec-tai-nguyen-da-bi-xoa'),
+    label: 'problem.predicate-spec-tai-nguyen-da-bi-xoa',
     args: [kind(), name(), ns(false)],
   },
 
   'pod-running': {
-    label: t('problem.predicate-spec-co-pod-khop-dang-running'),
+    label: 'problem.predicate-spec-co-pod-khop-dang-running',
     args: [
       ns(),
       name(false),
-      sel('labelSelector', t('problem.predicate-arg-types-bo-chon-nhan'), false),
+      sel('labelSelector', 'problem.predicate-arg-types-bo-chon-nhan', false),
     ],
     requireOneOf: ['name', 'labelSelector'],
   },
   'pod-count-running': {
-    label: t('problem.predicate-spec-du-so-pod-khop-dang-running'),
-    args: [ns(), sel(), num('min', t('problem.predicate-spec-so-pod-toi-thieu'))],
+    label: 'problem.predicate-spec-du-so-pod-khop-dang-running',
+    args: [ns(), sel(), num('min', 'problem.predicate-spec-so-pod-toi-thieu')],
   },
   'pod-no-reason': {
-    label: t('problem.predicate-spec-khong-pod-khop-nao-mang-reason-loi'),
+    label: 'problem.predicate-spec-khong-pod-khop-nao-mang-reason-loi',
     args: [ns(), sel()],
   },
   'pod-on-node': {
-    label: t('problem.predicate-spec-pod-nam-tren-dung-node'),
+    label: 'problem.predicate-spec-pod-nam-tren-dung-node',
     args: [ns(), name(), node()],
   },
   'pod-not-on-node': {
-    label: t('problem.predicate-spec-pod-khong-nam-tren-node-do'),
+    label: 'problem.predicate-spec-pod-khong-nam-tren-node-do',
     args: [ns(), name(), node()],
   },
   'all-pods-healthy': {
-    label: t('problem.predicate-spec-moi-pod-trong-namespace-deu-khoe'),
+    label: 'problem.predicate-spec-moi-pod-trong-namespace-deu-khoe',
     args: [ns()],
   },
 
   'deployment-ready': {
-    label: t('problem.predicate-spec-deployment-du-replica-san-sang'),
-    args: [name(), ns(), num('replicas', t('problem.predicate-spec-so-replica-san-sang'))],
+    label: 'problem.predicate-spec-deployment-du-replica-san-sang',
+    args: [name(), ns(), num('replicas', 'problem.predicate-spec-so-replica-san-sang')],
   },
   'replicas-at-least': {
-    label: t('problem.predicate-spec-workload-co-it-nhat-n-replica'),
-    args: [kind(), name(), ns(), num('n', t('problem.predicate-spec-so-replica-toi-thieu'))],
+    label: 'problem.predicate-spec-workload-co-it-nhat-n-replica',
+    args: [kind(), name(), ns(), num('n', 'problem.predicate-spec-so-replica-toi-thieu')],
   },
   'container-image-is': {
-    label: t('problem.predicate-spec-container-chay-dung-image'),
+    label: 'problem.predicate-spec-container-chay-dung-image',
     args: [
       kind(),
       name(),
       ns(),
-      text('image', t('problem.predicate-spec-image-day-du-gom-ca-tag')),
+      text('image', 'problem.predicate-spec-image-day-du-gom-ca-tag'),
     ],
   },
   'resource-limits-set': {
-    label: t('problem.predicate-spec-da-khai-ca-requests-lan-limits'),
+    label: 'problem.predicate-spec-da-khai-ca-requests-lan-limits',
     args: [kind(), name(), ns()],
   },
   'probe-configured': {
-    label: t('problem.predicate-spec-da-cau-hinh-probe'),
+    label: 'problem.predicate-spec-da-cau-hinh-probe',
     args: [
       kind(),
       name(),
       ns(),
       {
         key: 'probe',
-        label: t('problem.predicate-spec-loai-probe'),
+        label: 'problem.predicate-spec-loai-probe',
         type: 'probe',
         required: true,
       },
     ],
   },
   'job-succeeded': {
-    label: t('problem.predicate-spec-job-ket-thuc-succeeded'),
+    label: 'problem.predicate-spec-job-ket-thuc-succeeded',
     args: [name(), ns()],
   },
   'cronjob-schedule-is': {
-    label: t('problem.predicate-spec-cronjob-dung-lich'),
-    args: [name(), ns(), text('schedule', t('problem.predicate-spec-lich-dang-cron-vi-du-0-3'))],
+    label: 'problem.predicate-spec-cronjob-dung-lich',
+    args: [name(), ns(), text('schedule', 'problem.predicate-spec-lich-dang-cron-vi-du-0-3')],
   },
 
   'service-has-endpoints': {
-    label: t('problem.predicate-spec-service-co-endpoint'),
+    label: 'problem.predicate-spec-service-co-endpoint',
     args: [
       name(),
       ns(),
-      num('min', t('problem.predicate-spec-so-endpoint-toi-thieu-mac-dinh-1'), false),
+      num('min', 'problem.predicate-spec-so-endpoint-toi-thieu-mac-dinh-1', false),
     ],
   },
   'ingress-routes': {
-    label: t('problem.predicate-spec-ingress-dinh-tuyen-dung'),
+    label: 'problem.predicate-spec-ingress-dinh-tuyen-dung',
     args: [
       name(),
       ns(),
-      text('path', t('problem.predicate-spec-duong-dan')),
-      text('serviceName', t('problem.predicate-spec-service-dich')),
+      text('path', 'problem.predicate-spec-duong-dan'),
+      text('serviceName', 'problem.predicate-spec-service-dich'),
     ],
   },
   'netpol-allows': {
-    label: t('problem.predicate-spec-networkpolicy-cho-phep-luong-nay'),
+    label: 'problem.predicate-spec-networkpolicy-cho-phep-luong-nay',
     args: [
       ns(),
-      sel('fromLabels', t('problem.predicate-spec-nhan-ben-gui')),
-      sel('toLabels', t('problem.predicate-spec-nhan-ben-nhan')),
-      num('port', t('problem.predicate-spec-cong'), false),
+      sel('fromLabels', 'problem.predicate-spec-nhan-ben-gui'),
+      sel('toLabels', 'problem.predicate-spec-nhan-ben-nhan'),
+      num('port', 'problem.predicate-spec-cong', false),
     ],
   },
   'netpol-denies': {
-    label: t('problem.predicate-spec-networkpolicy-chan-luong-nay'),
+    label: 'problem.predicate-spec-networkpolicy-chan-luong-nay',
     args: [
       ns(),
-      sel('fromLabels', t('problem.predicate-spec-nhan-ben-gui')),
-      sel('toLabels', t('problem.predicate-spec-nhan-ben-nhan')),
-      num('port', t('problem.predicate-spec-cong'), false),
+      sel('fromLabels', 'problem.predicate-spec-nhan-ben-gui'),
+      sel('toLabels', 'problem.predicate-spec-nhan-ben-nhan'),
+      num('port', 'problem.predicate-spec-cong', false),
     ],
   },
   'dns-resolves': {
-    label: t('problem.predicate-spec-phan-giai-duoc-ten-dich-vu'),
+    label: 'problem.predicate-spec-phan-giai-duoc-ten-dich-vu',
     args: [
       ns(),
-      text('fromName', t('problem.predicate-spec-pod-nguon')),
-      text('toName', t('problem.predicate-spec-ten-dich-vu-can-phan-giai')),
+      text('fromName', 'problem.predicate-spec-pod-nguon'),
+      text('toName', 'problem.predicate-spec-ten-dich-vu-can-phan-giai'),
     ],
   },
 
   'configmap-key-set': {
-    label: t('problem.predicate-spec-configmap-co-key'),
-    args: [name(), ns(), text('key', t('problem.predicate-spec-ten-key'))],
+    label: 'problem.predicate-spec-configmap-co-key',
+    args: [name(), ns(), text('key', 'problem.predicate-spec-ten-key')],
   },
   'secret-mounted': {
-    label: t('problem.predicate-spec-secret-da-duoc-gan-vao-pod'),
+    label: 'problem.predicate-spec-secret-da-duoc-gan-vao-pod',
     args: [
       ns(),
-      text('secretName', t('problem.predicate-spec-ten-secret')),
-      text('podName', t('problem.predicate-spec-ten-pod'), false),
-      sel('labelSelector', t('problem.predicate-arg-types-bo-chon-nhan'), false),
+      text('secretName', 'problem.predicate-spec-ten-secret'),
+      text('podName', 'problem.predicate-spec-ten-pod', false),
+      sel('labelSelector', 'problem.predicate-arg-types-bo-chon-nhan', false),
     ],
     requireOneOf: ['podName', 'labelSelector'],
   },
-  'pvc-bound': { label: t('problem.predicate-spec-pvc-o-trang-thai-bound'), args: [name(), ns()] },
+  'pvc-bound': { label: 'problem.predicate-spec-pvc-o-trang-thai-bound', args: [name(), ns()] },
   'volume-mounted': {
-    label: t('problem.predicate-spec-volume-da-gan-vao-dung-duong-dan'),
+    label: 'problem.predicate-spec-volume-da-gan-vao-dung-duong-dan',
     args: [
       ns(),
-      text('mountPath', t('problem.predicate-spec-duong-dan-mount')),
-      text('podName', t('problem.predicate-spec-ten-pod'), false),
-      sel('labelSelector', t('problem.predicate-arg-types-bo-chon-nhan'), false),
+      text('mountPath', 'problem.predicate-spec-duong-dan-mount'),
+      text('podName', 'problem.predicate-spec-ten-pod', false),
+      sel('labelSelector', 'problem.predicate-arg-types-bo-chon-nhan', false),
     ],
     requireOneOf: ['podName', 'labelSelector'],
   },
 
-  'node-ready': { label: t('problem.node-fields-node-o-trang-thai-ready'), args: [node()] },
+  'node-ready': { label: 'problem.node-fields-node-o-trang-thai-ready', args: [node()] },
   'toleration-matches': {
-    label: t('problem.predicate-spec-pod-chiu-duoc-taint-cua-node-dich'),
+    label: 'problem.predicate-spec-pod-chiu-duoc-taint-cua-node-dich',
     args: [ns(), kind(), name()],
   },
   'quota-within-limit': {
-    label: t('problem.predicate-spec-khong-tai-nguyen-nao-vuot-resourcequota'),
+    label: 'problem.predicate-spec-khong-tai-nguyen-nao-vuot-resourcequota',
     args: [ns()],
   },
   'hpa-has-metrics': {
-    label: t('problem.predicate-spec-hpa-co-nguon-metric-hop-le'),
+    label: 'problem.predicate-spec-hpa-co-nguon-metric-hop-le',
     args: [name(), ns()],
   },
   'pdb-satisfied': {
-    label: t('problem.predicate-spec-poddisruptionbudget-duoc-thoa'),
+    label: 'problem.predicate-spec-poddisruptionbudget-duoc-thoa',
     args: [
       name(),
       ns(),
-      num('minAvailable', t('problem.predicate-spec-minavailable-mac-dinh-lay-tu-spec'), false),
+      num('minAvailable', 'problem.predicate-spec-minavailable-mac-dinh-lay-tu-spec', false),
     ],
   },
 
   'rbac-allows': {
-    label: t('problem.predicate-spec-rbac-cho-phep-thao-tac'),
+    label: 'problem.predicate-spec-rbac-cho-phep-thao-tac',
     args: [
-      text('serviceAccount', t('problem.resource-service-account')),
+      text('serviceAccount', 'problem.resource-service-account'),
       ns(),
-      text('verb', t('problem.predicate-spec-dong-tu-vi-du-get')),
-      text('resource', t('problem.predicate-spec-tai-nguyen-vi-du-pods')),
+      text('verb', 'problem.predicate-spec-dong-tu-vi-du-get'),
+      text('resource', 'problem.predicate-spec-tai-nguyen-vi-du-pods'),
     ],
   },
   'rbac-denies': {
-    label: t('problem.predicate-spec-rbac-tu-choi-thao-tac'),
+    label: 'problem.predicate-spec-rbac-tu-choi-thao-tac',
     args: [
-      text('serviceAccount', t('problem.resource-service-account')),
+      text('serviceAccount', 'problem.resource-service-account'),
       ns(),
-      text('verb', t('problem.predicate-spec-dong-tu-vi-du-get')),
-      text('resource', t('problem.predicate-spec-tai-nguyen-vi-du-pods')),
+      text('verb', 'problem.predicate-spec-dong-tu-vi-du-get'),
+      text('resource', 'problem.predicate-spec-tai-nguyen-vi-du-pods'),
     ],
   },
 
   'no-incident-active': {
-    label: t('problem.predicate-spec-khong-con-su-co-nao-hoat-dong'),
+    label: 'problem.predicate-spec-khong-con-su-co-nao-hoat-dong',
     args: [
       ns(),
       {
         key: 'kind',
-        label: t('problem.predicate-spec-chi-xet-mot-loai-su-co'),
+        label: 'problem.predicate-spec-chi-xet-mot-loai-su-co',
         type: 'incident-kind',
         required: false,
       },

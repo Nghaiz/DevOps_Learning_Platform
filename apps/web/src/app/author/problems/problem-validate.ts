@@ -173,7 +173,7 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
         issues.push({
           path: `${path}.args.${argSpec.key}`,
           message: errText('problem.problem-validate-thieu-tham-so-bat-buoc', {
-            argspecLabel: String(argSpec.label),
+            argspecLabel: t(argSpec.label),
           }),
         });
       }
@@ -182,7 +182,10 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
       const filled = spec.requireOneOf.some((key) => (objective.args[key] ?? '').trim() !== '');
       if (!filled) {
         const labels = spec.requireOneOf
-          .map((key) => spec.args.find((arg) => arg.key === key)?.label ?? key)
+          .map((key) => {
+            const arg = spec.args.find((candidate) => candidate.key === key);
+            return arg === undefined ? key : t(arg.label);
+          })
           .join(t('problem.objective-fields-hoac'));
         issues.push({
           path: `${path}.args.${spec.requireOneOf[0] ?? ''}`,

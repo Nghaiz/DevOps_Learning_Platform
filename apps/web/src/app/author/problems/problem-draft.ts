@@ -67,7 +67,7 @@ function readArg(spec: PredicateArgSpec, raw: string, path: string, issues: Fiel
   if (!Number.isFinite(parsed)) {
     issues.push({
       path,
-      message: errText('problem.problem-draft-phai-la-so', { specLabel: String(spec.label) }),
+      message: errText('problem.problem-draft-phai-la-so', { specLabel: t(spec.label) }),
     });
     return undefined;
   }
