@@ -647,6 +647,23 @@ Ranh giới sản phẩm vẫn cần nói rõ:
   chỗ của ba phiên thường. Trần đồng thời theo từng profile đã đo và ghi ở
   [`docs/ide-choice.md`](../../docs/ide-choice.md) §3: ~21 phiên ở 256Mi, ~7 ở 768Mi. Bật
   thêm lab IDE thứ hai thì đọc lại con số đó trước, đừng bật rồi mới đếm.
+- **Bảy ô `games.spec.ts` ĐỎ có chủ đích, và chúng là ô nghiệm thu của P17.** Đo
+  2026-09-13 trên lượt E2E profile mặc định: `games.spec.ts` các ô ở dòng 273, 445, 455,
+  536, 641, 784, 948 đỏ. Chúng KHÔNG phải hồi quy của P16 — commit cuối chạm file đó trên
+  `main` là `e6435a0 test(games): nối lại ba cổng hiệu năng với giao diện arena mới
+  **(còn dở)**`, tự đánh dấu là chưa xong.
+
+  Nguyên nhân đã truy tĩnh, không suy đoán: `app/games/k8s/page.tsx` nay render
+  `<ArenaEntry>` của `components/k8s-arena/`, còn các ô đó viết theo API `<K8sGame levels
+  createSession>` của bản trước lượt viết lại arena. Một ô trong số đó tự ghi lý do vào
+  chính thông điệp lỗi ("phụ thuộc CHƯA XONG, không phải một hồi quy"), dù nay thông điệp
+  ấy đã lỗi thời một phần: `packages/games/src/index.ts:83` ĐÃ export `LEVELS`.
+
+  ⛔ **Không nối lại chúng ở P16.** `phase-17.md` §AC-K và §AC-7 sở hữu đúng phần này
+  ("draw call < 100 ở level đông nhất, có số đo ghi lại"), và ngưỡng của P17 khác ngưỡng
+  các ô hiện tại đang khẳng định — viết lại bây giờ là dựng test cho một tính năng P17
+  chưa làm, rồi P17 lại phải viết đè. Cùng ranh giới với dòng Arena ngay dưới.
+
 - **Arena giữ phạm vi riêng.** Không dựng lại `components/k8s-arena/**`; miễn màu của
   `arena.css` và `node-geometry.ts` vẫn là miễn theo phạm vi có tên, phải rà lại khi Arena được
   đưa vào yêu cầu thiết kế. `packages/games` chỉ mở phạm vi phần nhãn problem nêu trên.
