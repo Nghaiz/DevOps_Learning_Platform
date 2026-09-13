@@ -1,5 +1,5 @@
 /**
- * `git stash` — push / pop / apply / list / drop.
+ * `git stash` — push / pop / apply / list / drop, kèm `pop --continue` / `--abort`.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * STASH SINH RA VÌ WORKTREE DÙNG CHUNG (misfit MIT, bài G22)
@@ -24,28 +24,53 @@
  *
  *     stash commit
  *       ├─ tree      = ảnh chụp WORKTREE lúc cất
- *       ├─ parents[0]= commit HEAD lúc cất
+ *       ├─ parents[0]= commit HEAD lúc cất  ← đây là `base` của phép trộn khi áp
  *       └─ parents[1]= "index commit" — tree của nó là ảnh chụp INDEX lúc cất
  *
- * ⚠ `parents[1]` LUÔN là index commit. `pop`/`apply` đọc đúng vị trí đó, nên
- * đổi thứ tự hai cha là làm index phục hồi sai mà không lỗi nào báo.
+ * ⚠ Thứ tự hai cha là hợp đồng nội bộ của file này: `parents[0]` là mốc so sánh,
+ * `parents[1]` là ảnh chụp index. Đổi chỗ chúng thì index phục hồi sai và phép
+ * trộn lấy sai base — cả hai đều hỏng trong im lặng.
  *
  * ═══════════════════════════════════════════════════════════════════════════
- * CỐ TÌNH BỎ — đọc trước khi tưởng là thiếu sót
+ * ÁP STASH LÀ MỘT PHÉP TRỘN BA NGẢ THẬT, VÀ NÓ XUNG ĐỘT ĐƯỢC
  * ═══════════════════════════════════════════════════════════════════════════
  *
- *  - **`pop`/`apply` không trộn ba ngả.** Git thật áp stash như một merge và có
- *    thể xung đột. Ở đây stash được PHỦ lên worktree hiện tại (đường dẫn trùng
- *    thì bên stash thắng, đường dẫn chỉ có ở hiện tại thì giữ nguyên). Level
- *    chương 2–3 dùng stash để dọn worktree trước khi đổi branch, không dùng nó
- *    làm bài xung đột — bài xung đột là `merge`/`rebase`, nơi nó dạy được nhiều
- *    hơn.
- *  - **`-u` / `--include-untracked`.** Stash ở đây chỉ cất file ĐÃ TRACK, đúng
- *    như `git stash` trần. File chưa track nằm nguyên tại chỗ.
+ * `base` = commit lúc cất · `ours` = worktree HIỆN TẠI · `theirs` = ảnh chụp đã
+ * cất. Bản đầu của file này chỉ PHỦ stash lên worktree, và đó là sai: hai thay
+ * đổi chồng nhau sẽ mất một cái mà không ai báo gì.
+ *
+ * Xung đột đặt `PendingOp` nhánh `'stash'` (thêm vào hợp đồng 2026-09-14). Hợp
+ * đồng đã cân nhắc và LOẠI hai đường khác: cấm áp khi worktree bẩn thì xoá mất
+ * đúng tình huống G22 dạy (cất việc rồi lấy lại khi ngữ cảnh đã đổi), còn mượn
+ * nhánh `merge` thì `git merge --abort` trở thành lệnh gỡ một stash và người học
+ * mang nhầm lẫn đó ra git thật.
+ *
+ * ⚠ **Xung đột thì mục stash KHÔNG bị bỏ, kể cả với `pop`** — và nó cũng không
+ * bị bỏ sau `--continue`. Đúng như git thật: "If the stash application causes
+ * conflicts, the stash entry is not removed." Người chơi tự `git stash drop` khi
+ * đã hài lòng. Nhờ vậy nhánh `'stash'` không cần nhớ mình là `pop` hay `apply` —
+ * một trường hợp hiếm khi hành vi đúng của git cũng là hành vi ít trạng thái nhất.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * CỐ TÌNH BỎ / LỆCH KHỎI GIT THẬT — đọc trước khi tưởng là thiếu sót
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ *  - **`--index` không có, và `pop` LUÔN phục hồi index.** Git thật chỉ phục hồi
+ *    index khi có `--index`. Lệch cố ý: ô nghiệm thu của lane đòi `push` rồi
+ *    `pop` trả worktree **và index** về đúng như trước, và một phép phục hồi
+ *    nửa vời là thứ khó dạy hơn hẳn cả hai đầu mút.
+ *  - **`-u` / `--include-untracked`.** Chỉ cất file ĐÃ TRACK, đúng như `git
+ *    stash` trần. File chưa track nằm nguyên tại chỗ ở mọi lệnh trong file này.
  *  - **Xoá file.** Một file đã track nhưng bị xoá khỏi worktree lúc cất sẽ quay
  *    lại sau `pop`. Mô hình tree không có khái niệm "mục đã xoá", và dựng một
  *    khái niệm như vậy chỉ để phục vụ một ca không level nào dùng là đúng thứ
  *    YAGNI cấm.
+ *  - **`pop --abort` đưa index và worktree về theo `originalHead`**, tức vứt luôn
+ *    thay đổi cục bộ đang dở của người chơi. `PendingOp` nhánh `'stash'` chỉ mang
+ *    một `originalHead: Oid`, không mang được ảnh chụp worktree trước khi áp, nên
+ *    đó là thứ xa nhất dữ liệu hiện có với tới. Mục stash thì an toàn tuyệt đối
+ *    (nó không bị bỏ), nên thứ mất là phần người chơi chưa commit — và output nói
+ *    thẳng điều đó bằng giọng `warn` trước khi làm. Xem báo cáo lane 17.F.
  */
 
 import type {
@@ -77,12 +102,21 @@ import {
   shortRefName,
   statusEntries,
 } from '../repo.ts';
+import { mergeFile as diff3MergeFile } from './merge.ts';
 import {
   fail,
   indexFromCommit,
+  isResolved,
   line,
+  noOperation,
   ok,
+  operationInProgress,
+  planThreeWay,
+  untrackedWorktree,
+  worktreeAt,
+  wrongPendingKind,
   type GitOpResult,
+  type MergeFileFn,
   type OpContext,
 } from './reset.ts';
 
@@ -126,6 +160,15 @@ function badStashIndex(repo: Repo, wanted: string): GitError {
   );
 }
 
+function unbornForStash(): GitError {
+  return gitError(
+    'bad-usage',
+    'Chưa có commit nào nên chưa stash được.',
+    'Stash cất thay đổi SO VỚI một commit. Branch chưa sinh ra thì không có mốc nào để so.',
+    'Tạo commit đầu tiên trước: `git add .` rồi `git commit -m "commit đầu"`.',
+  );
+}
+
 /** Đường dẫn ĐÃ TRACK: có ở commit HEAD hoặc có ở index. */
 function trackedPaths(repo: Repo): readonly FilePath[] {
   const seen: Record<FilePath, true> = {};
@@ -153,26 +196,16 @@ export function gitStashPush(
   message: string | null,
   ctx: OpContext,
 ): GitOpResult {
+  if (repo.pending !== null) return fail(repo, operationInProgress(repo));
+
   const head = headOid(repo);
-  if (head === null) {
-    return fail(
-      repo,
-      gitError(
-        'bad-usage',
-        'Chưa có commit nào nên chưa stash được.',
-        'Stash cất thay đổi SO VỚI một commit. Branch chưa sinh ra thì không có mốc nào để so.',
-        'Tạo commit đầu tiên trước: `git add .` rồi `git commit -m "commit đầu"`.',
-      ),
-    );
-  }
+  if (head === null) return fail(repo, unbornForStash());
 
   // Không có gì để cất KHÔNG phải lỗi — git thật cũng chỉ in một dòng rồi thoát
-  // bình thường. Dựng một mã lỗi cho nó sẽ làm `git stash` trong một script
-  // (hay trong một lời giải mẫu của level) đỏ vì repo đang sạch.
+  // bình thường. Dựng một mã lỗi cho nó sẽ làm `git stash` trong một lời giải
+  // mẫu của level đỏ chỉ vì repo đang sạch.
   if (!hasTrackedChanges(repo)) {
-    return ok(repo, [
-      line('Không có thay đổi nào để cất — worktree đang khớp HEAD.', 'hint'),
-    ]);
+    return ok(repo, [line('Không có thay đổi nào để cất — worktree đang khớp HEAD.', 'hint')]);
   }
 
   const branch = branchLabel(repo, head);
@@ -198,7 +231,6 @@ export function gitStashPush(
   });
   const [store4, stashOid] = writeCommit(store3, {
     tree: worktreeTree,
-    // ⚠ Thứ tự hai cha là hợp đồng nội bộ của file này. Xem chú thích đầu file.
     parents: [head, indexCommit],
     message: label,
     author: ctx.author,
@@ -235,18 +267,47 @@ export function gitStashPush(
 // pop / apply
 // ═══════════════════════════════════════════════════════════════════════════
 
+/*
+ * `mergeFile` có GIÁ TRỊ MẶC ĐỊNH là phép trộn THẬT (`ops/merge.ts` gói
+ * `diff3.ts`), không phải một bản rút gọn.
+ *
+ * Mặc định chứ không bắt buộc truyền, vì hai thứ khác nhau: một tham số bắt buộc
+ * bảo vệ khỏi việc quên nối dây, còn ở đây cái mặc định CHÍNH LÀ dây đã nối —
+ * không có đường nào để `git stash pop` chạy mà thiếu phép trộn. Tham số vẫn còn
+ * để test tiêm được bản giả, và đó là công dụng duy nhất của nó.
+ *
+ * ⚠ Đây KHÔNG phải một fallback im lặng: không có nhánh nào "thiếu thì bỏ qua".
+ * Bản đầu của hai hàm này bắt buộc truyền, và hệ quả là `dispatch.ts` — file của
+ * lane khác — đỏ ở hai dòng mà lane này không được sửa.
+ */
+
 /** `git stash apply` — áp lại và **GIỮ** mục trong stash. */
-export function gitStashApply(repo: Repo, at: number): GitOpResult {
-  return applyEntry(repo, at, false);
+export function gitStashApply(
+  repo: Repo,
+  at: number,
+  mergeFile: MergeFileFn = diff3MergeFile,
+): GitOpResult {
+  return applyEntry(repo, at, false, mergeFile);
 }
 
-/** `git stash pop` — áp lại rồi **BỎ** mục khỏi stash. */
-export function gitStashPop(repo: Repo, at: number): GitOpResult {
-  return applyEntry(repo, at, true);
+/** `git stash pop` — áp lại rồi **BỎ** mục khỏi stash (trừ khi xung đột). */
+export function gitStashPop(
+  repo: Repo,
+  at: number,
+  mergeFile: MergeFileFn = diff3MergeFile,
+): GitOpResult {
+  return applyEntry(repo, at, true, mergeFile);
 }
 
-function applyEntry(repo: Repo, at: number, drop: boolean): GitOpResult {
+function applyEntry(
+  repo: Repo,
+  at: number,
+  drop: boolean,
+  mergeFile: MergeFileFn,
+): GitOpResult {
+  if (repo.pending !== null) return fail(repo, operationInProgress(repo));
   if (repo.stash.length === 0) return fail(repo, emptyStash());
+
   const entry = repo.stash[at];
   if (entry === undefined) return fail(repo, badStashIndex(repo, `stash@{${at}}`));
 
@@ -263,14 +324,62 @@ function applyEntry(repo: Repo, at: number, drop: boolean): GitOpResult {
     );
   }
 
-  const stashedWorktree = commitContents(repo.objects, entry.oid);
-  const indexCommit = stashCommit.parents[1] ?? null;
-  const stashedIndex = indexFromCommit(repo, indexCommit);
+  const head = headOid(repo);
+  if (head === null) return fail(repo, unbornForStash());
 
-  const worktree: Record<FilePath, Lines> = { ...repo.worktree, ...stashedWorktree };
+  const plan = planThreeWay({
+    base: commitContents(repo.objects, stashCommit.parents[0] ?? null),
+    ours: repo.worktree,
+    theirs: commitContents(repo.objects, entry.oid),
+    oursLabel: 'worktree hiện tại',
+    theirsLabel: `stash@{${at}}`,
+    mergeFile,
+  });
+
+  if (plan.conflicts.length > 0) {
+    /*
+     * Index GIỮ NGUYÊN ở ca xung đột — cố ý, và khác hẳn ca sạch bên dưới.
+     *
+     * Git thật cũng không phục hồi index khi áp stash bị xung đột. Quan trọng
+     * hơn: nó làm phép kiểm của `--continue` tự động đúng, vì worktree lúc này
+     * chứa marker nên `blobOid(worktree[p]) !== index[p]` cho tới khi người chơi
+     * `git add`. Stage sẵn ở đây sẽ đánh dấu "đã giải quyết" cho một file còn
+     * đầy marker `<<<<<<<`.
+     *
+     * Và KHÔNG dùng `stageNonConflicted` như `revert`: ở đó `ours` là nội dung
+     * commit HEAD (toàn file đã track), còn ở đây `ours` là cả worktree, nên nó
+     * sẽ `git add` luôn những file chưa track mà người chơi không hề yêu cầu.
+     */
+    const withTree = setWorktree(repo, plan.contents);
+    const pending: Repo = {
+      ...withTree,
+      pending: {
+        kind: 'stash',
+        stashOid: entry.oid,
+        originalHead: head,
+        conflicts: plan.conflicts,
+      },
+    };
+    return {
+      repo: pending,
+      output: [
+        line(`Áp \`stash@{${at}}\` gây xung đột.`, 'error'),
+        ...plan.conflicts.map((c) => line(`  xung đột: ${c.path}`, 'error')),
+        line(`Mục \`stash@{${at}}\` KHÔNG bị bỏ — nó còn nguyên cho tới khi bạn tự drop.`, 'hint'),
+        line('Sửa file, `git add` từng file đã sửa, rồi `git stash pop --continue`.', 'hint'),
+      ],
+      error: gitError(
+        'merge-conflict',
+        `Nội dung đã cất chạm vào dòng mà worktree hiện tại cũng đã sửa.`,
+        `${plan.conflicts.length} file có phần chồng nhau nên git không tự quyết được giữ bên nào. Đây chính là tình huống bài G22 dạy: cất việc đi rồi lấy lại khi ngữ cảnh đã đổi.`,
+        '`git status` liệt kê file đang xung đột. Sửa xong thì `git add <file>` rồi `git stash pop --continue`.',
+      ),
+    };
+  }
+
+  const stashedIndex = indexFromCommit(repo, stashCommit.parents[1] ?? null);
   const index: Record<FilePath, Oid> = { ...repo.index, ...stashedIndex };
-
-  const applied = setWorktree(setIndex(repo, index), worktree);
+  const applied = setWorktree(setIndex(repo, index), plan.contents);
   const next: Repo = drop
     ? { ...applied, stash: repo.stash.filter((_, i) => i !== at) }
     : applied;
@@ -290,6 +399,70 @@ function applyEntry(repo: Repo, at: number, drop: boolean): GitOpResult {
     );
   }
   return ok(next, output);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// pop --continue / --abort
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** `git stash pop --continue` sau khi người chơi đã sửa và `git add`. */
+export function gitStashApplyContinue(repo: Repo): GitOpResult {
+  const pending = repo.pending;
+  if (pending === null) return fail(repo, noOperation('stash pop'));
+  if (pending.kind !== 'stash') return fail(repo, wrongPendingKind(pending.kind, 'stash pop'));
+
+  const unresolved = pending.conflicts
+    .map((c) => c.path)
+    .filter((path) => !isResolved(repo, path));
+  if (unresolved.length > 0) {
+    return fail(
+      repo,
+      gitError(
+        'unmerged-paths',
+        `Còn ${unresolved.length} file chưa được đánh dấu là đã giải quyết.`,
+        `Git biết một file đã xong khi nội dung của nó được \`git add\` vào index. Chưa add: ${unresolved.map((p) => `\`${p}\``).join(', ')}.`,
+        `Sửa xong thì \`git add ${unresolved[0] ?? '<file>'}\`, rồi \`git stash pop --continue\`.`,
+      ),
+    );
+  }
+
+  const cleared: Repo = { ...repo, pending: null };
+  const at = cleared.stash.findIndex((entry) => entry.oid === pending.stashOid);
+  return ok(cleared, [
+    line('Đã áp xong phần đã cất.', 'success'),
+    at < 0
+      ? line('Mục stash tương ứng không còn trong danh sách.', 'hint')
+      : line(
+          `\`stash@{${at}}\` vẫn còn — xung đột thì git KHÔNG tự bỏ mục đi. Hài lòng rồi thì \`git stash drop\`.`,
+          'hint',
+        ),
+  ]);
+}
+
+/**
+ * `git stash pop --abort` — bỏ phép áp đang dở.
+ *
+ * ⚠ Đưa index và worktree về theo `originalHead`, tức **vứt luôn thay đổi cục bộ
+ * chưa commit** của người chơi. Đó là thứ xa nhất dữ liệu của `PendingOp` nhánh
+ * `'stash'` với tới (nó chỉ mang một `Oid`, không mang ảnh chụp worktree trước
+ * khi áp). Mục stash thì an toàn — nó không bị bỏ — nên thứ mất chỉ là phần chưa
+ * commit, và dòng `warn` dưới đây nói thẳng điều đó.
+ */
+export function gitStashApplyAbort(repo: Repo): GitOpResult {
+  const pending = repo.pending;
+  if (pending === null) return fail(repo, noOperation('stash pop'));
+  if (pending.kind !== 'stash') return fail(repo, wrongPendingKind(pending.kind, 'stash pop'));
+
+  const back = pending.originalHead;
+  const restored: Repo = {
+    ...setWorktree(setIndex(repo, indexFromCommit(repo, back)), worktreeAt(repo, back)),
+    pending: null,
+  };
+  return ok(restored, [
+    line(`Đã huỷ phép áp stash. Index và worktree về đúng ${shortOid(back)}.`, 'success'),
+    line('Thay đổi chưa commit ở file đã track đã mất. Mục stash thì còn nguyên.', 'warn'),
+    line(`File chưa track không bị đụng tới (${sortedKeys(untrackedWorktree(repo)).length} file).`, 'hint'),
+  ]);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

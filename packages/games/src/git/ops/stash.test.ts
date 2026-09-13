@@ -2,15 +2,42 @@ import { describe, expect, it } from 'vitest';
 import type { FilePath, Lines, Oid, Repo } from '../contract.ts';
 import { getCommit, makeBlob, putObject, writeCommit, writeContents } from '../objects.ts';
 import { blobOid, emptyRepo, headOid, setIndex, setWorktree } from '../repo.ts';
-import { advanceHead, indexFromCommit, type OpContext } from './reset.ts';
+import {
+  advanceHead,
+  indexFromCommit,
+  type MergeFileFn,
+  type OpContext,
+} from './reset.ts';
 import {
   gitStashApply,
+  gitStashApplyAbort,
+  gitStashApplyContinue,
   gitStashDrop,
   gitStashList,
   gitStashPop,
   gitStashPush,
   parseStashIndex,
 } from './stash.ts';
+
+/*
+ * Bản trộn giả cho các ca TẦM THƯỜNG (một bên không đổi so với base). Nó ném
+ * ngay khi bị gọi, nên nó vừa là stub vừa là phép khẳng định: vòng tròn
+ * push → pop trên một worktree không ai đụng vào phải giải được ở mức FILE,
+ * không cần tới diff3. Một hiện thực gọi diff3 cho mọi file vẫn cho kết quả
+ * đúng — và vẫn phải đỏ ở đây.
+ */
+const neverMerge: MergeFileFn = () => {
+  throw new Error('phép trộn theo dòng không được gọi ở ca tầm thường');
+};
+
+/** Bản trộn giả luôn báo xung đột, dựng nội dung có marker. */
+const alwaysConflict: MergeFileFn = (input) => ({
+  merged: ['<<<<<<<', ...input.ours, '=======', ...input.theirs, '>>>>>>>'],
+  hunks: [
+    { start: 0, base: input.base, ours: input.ours, theirs: input.theirs, conflicted: true },
+  ],
+  conflicted: true,
+});
 
 function at(logicalTime: number): OpContext {
   return { logicalTime, author: 'Bạn' };
@@ -127,7 +154,7 @@ describe('gitStashPop — vòng tròn push rồi pop', () => {
   it('worktree và index về ĐÚNG như trước khi cất', () => {
     const before = dirtyRepo();
     const pushed = gitStashPush(before, null, at(2)).repo;
-    const popped = gitStashPop(pushed, 0);
+    const popped = gitStashPop(pushed, 0, neverMerge);
 
     expect(popped.error).toBeNull();
     expect(popped.repo.worktree).toEqual(before.worktree);
@@ -149,7 +176,7 @@ describe('gitStashPop — vòng tròn push rồi pop', () => {
     const before = repo;
 
     const pushed = gitStashPush(repo, null, at(2)).repo;
-    const popped = gitStashPop(pushed, 0).repo;
+    const popped = gitStashPop(pushed, 0, neverMerge).repo;
 
     expect(popped.worktree['a.txt']).toEqual(['3']);
     expect(popped.index['a.txt']).toBe(blobOid(['2']));
@@ -159,14 +186,14 @@ describe('gitStashPop — vòng tròn push rồi pop', () => {
 
   it('stash trống ⇒ stash-empty, trạng thái không đổi', () => {
     const repo = dirtyRepo();
-    const result = gitStashPop(repo, 0);
+    const result = gitStashPop(repo, 0, neverMerge);
     expect(result.error?.code).toBe('stash-empty');
     expect(result.repo).toBe(repo);
   });
 
   it('chỉ số ngoài khoảng ⇒ bad-usage', () => {
     const pushed = gitStashPush(dirtyRepo(), null, at(2)).repo;
-    const result = gitStashPop(pushed, 3);
+    const result = gitStashPop(pushed, 3, neverMerge);
     expect(result.error?.code).toBe('bad-usage');
     expect(result.repo).toBe(pushed);
   });
@@ -177,11 +204,11 @@ describe('gitStashApply — áp lại nhưng GIỮ mục', () => {
     const before = dirtyRepo();
     const pushed = gitStashPush(before, null, at(2)).repo;
 
-    const applied = gitStashApply(pushed, 0).repo;
+    const applied = gitStashApply(pushed, 0, neverMerge).repo;
     expect(applied.stash.length).toBe(1);
     expect(applied.worktree).toEqual(before.worktree);
 
-    const popped = gitStashPop(pushed, 0).repo;
+    const popped = gitStashPop(pushed, 0, neverMerge).repo;
     expect(popped.stash.length).toBe(0);
   });
 });
@@ -218,6 +245,111 @@ describe('gitStashList / gitStashDrop', () => {
   it('drop trên stash trống ⇒ stash-empty', () => {
     const repo = dirtyRepo();
     expect(gitStashDrop(repo, 0).error?.code).toBe('stash-empty');
+  });
+});
+
+describe('áp stash khi worktree đã đổi — phép trộn ba ngả thật', () => {
+  /*
+   * Bản đầu của `stash.ts` chỉ PHỦ stash lên worktree. Nhóm test này là thứ
+   * chứng minh cách đó sai: với phép phủ, ô dưới đây xanh mà thay đổi cục bộ
+   * biến mất không dấu vết.
+   */
+  function conflicted(): { readonly before: Repo; readonly popped: ReturnType<typeof gitStashPop> } {
+    let repo = emptyRepo();
+    repo = commitFiles(repo, { 'a.txt': ['1'] }, 'c1', 1);
+    repo = write(repo, 'a.txt', ['1', 'việc đang cất']);
+    const pushed = gitStashPush(repo, null, at(2)).repo;
+    // Sau khi cất, sửa CHÍNH file đó theo một hướng khác.
+    const diverged = write(pushed, 'a.txt', ['1', 'việc làm sau khi cất']);
+    return { before: diverged, popped: gitStashPop(diverged, 0, alwaysConflict) };
+  }
+
+  it('đặt pending kind `stash` và GIỮ mục lại, dù là `pop`', () => {
+    const { popped } = conflicted();
+
+    expect(popped.error?.code).toBe('merge-conflict');
+    expect(popped.repo.pending?.kind).toBe('stash');
+    // ⛔ `pop` xung đột KHÔNG bỏ mục — đúng như git thật.
+    expect(popped.repo.stash.length).toBe(1);
+    expect(popped.repo.worktree['a.txt']?.[0]).toBe('<<<<<<<');
+  });
+
+  it('index GIỮ NGUYÊN ở ca xung đột, nên `--continue` đỏ cho tới khi `git add`', () => {
+    const { before, popped } = conflicted();
+    expect(popped.repo.index).toEqual(before.index);
+
+    const tooSoon = gitStashApplyContinue(popped.repo);
+    expect(tooSoon.error?.code).toBe('unmerged-paths');
+    expect(tooSoon.repo).toBe(popped.repo);
+  });
+
+  it('`--continue` sau khi `git add` xoá pending và nhắc tự drop', () => {
+    const { popped } = conflicted();
+    const resolved = stage(write(popped.repo, 'a.txt', ['1', 'gộp tay']), 'a.txt');
+
+    const done = gitStashApplyContinue(resolved);
+    expect(done.error).toBeNull();
+    expect(done.repo.pending).toBeNull();
+    expect(done.repo.stash.length).toBe(1);
+    expect(done.output.some((l) => l.text.includes('git stash drop'))).toBe(true);
+  });
+
+  it('`--abort` xoá pending, giữ mục stash, và NÓI RÕ là mất phần chưa commit', () => {
+    const { popped } = conflicted();
+    const back = gitStashApplyAbort(popped.repo);
+
+    expect(back.error).toBeNull();
+    expect(back.repo.pending).toBeNull();
+    expect(back.repo.stash.length).toBe(1);
+    expect(back.repo.worktree).toEqual({ 'a.txt': ['1'] });
+    expect(back.output.some((l) => l.tone === 'warn')).toBe(true);
+  });
+
+  it('`--continue` / `--abort` khi không có gì dở dang ⇒ no-operation-in-progress', () => {
+    const repo = dirtyRepo();
+    expect(gitStashApplyContinue(repo).error?.code).toBe('no-operation-in-progress');
+    expect(gitStashApplyAbort(repo).error?.code).toBe('no-operation-in-progress');
+  });
+
+  /*
+   * ⛔ ĐỐI CHỨNG CHO VIỆC NỐI DÂY. Mọi ô khác trong nhóm này tiêm `alwaysConflict`,
+   * nên chúng xanh kể cả khi `gitStashPop` mặc định KHÔNG nối vào phép trộn thật.
+   * Ô này không truyền gì cả: nó chạy đúng đường mà `dispatch.ts` chạy, và nó đỏ
+   * nếu giá trị mặc định bị gỡ hay trỏ vào một bản rút gọn.
+   */
+  it('không truyền phép trộn ⇒ vẫn dùng diff3 THẬT và vẫn phát hiện xung đột', () => {
+    let repo = emptyRepo();
+    repo = commitFiles(repo, { 'a.txt': ['1'] }, 'c1', 1);
+    repo = write(repo, 'a.txt', ['1', 'việc đang cất']);
+    const pushed = gitStashPush(repo, null, at(2)).repo;
+    const diverged = write(pushed, 'a.txt', ['1', 'việc làm sau khi cất']);
+
+    const popped = gitStashPop(diverged, 0);
+
+    expect(popped.error?.code).toBe('merge-conflict');
+    expect(popped.repo.pending?.kind).toBe('stash');
+    // Marker do `renderConflict` thật sinh ra, không phải do stub của test.
+    expect(popped.repo.worktree['a.txt']?.some((l) => l.startsWith('<<<<<<<'))).toBe(true);
+    expect(popped.repo.worktree['a.txt']?.some((l) => l.startsWith('>>>>>>>'))).toBe(true);
+  });
+
+  it('hai bên sửa GIỐNG HỆT nhau ⇒ diff3 thật KHÔNG báo xung đột', () => {
+    let repo = emptyRepo();
+    repo = commitFiles(repo, { 'a.txt': ['1'] }, 'c1', 1);
+    repo = write(repo, 'a.txt', ['1', 'cùng một dòng']);
+    const pushed = gitStashPush(repo, null, at(2)).repo;
+    const same = write(pushed, 'a.txt', ['1', 'cùng một dòng']);
+
+    const popped = gitStashPop(same, 0);
+    expect(popped.error).toBeNull();
+    expect(popped.repo.worktree['a.txt']).toEqual(['1', 'cùng một dòng']);
+  });
+
+  it('file chưa track KHÔNG bị đụng tới khi áp', () => {
+    const before = dirtyRepo();
+    const pushed = gitStashPush(before, null, at(2)).repo;
+    const popped = gitStashPop(pushed, 0, neverMerge).repo;
+    expect(popped.worktree['ghi-chu.txt']).toEqual(['chưa track']);
   });
 });
 
