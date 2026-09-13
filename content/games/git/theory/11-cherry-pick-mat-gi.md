@@ -19,7 +19,7 @@ A ─ B ─── F ── D'          main      (D' mang thay đổi của D)
 Nội dung thì được chép sang. Thứ **không** được chép sang là quan hệ. `D'` không có
 đường nào đi ngược về `D`. Với git, đó là hai commit không liên quan gì đến nhau.
 
-## Cái mất là mối liên hệ, và hoá đơn tới sau
+## Cái mất là mối liên hệ, và cái giá phải trả tới sau
 
 Điều này nghe trừu tượng cho tới lúc bạn merge. Giả sử vài ngày sau bạn merge cả
 nhánh `feature` vào `main`. Git đi tìm tổ tiên chung, thấy `B`, rồi so ba ngả giữa

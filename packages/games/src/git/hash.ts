@@ -44,10 +44,21 @@
 import type { CommitObject, GitObject, Lines, Oid, TreeObject } from './contract.ts';
 import { compareKeys } from './deterministic.ts';
 
-/** Nền tảng FNV-1a 64 bit. Hằng số chuẩn, không phải số tự nghĩ ra. */
-const FNV_OFFSET_BASIS = 0xcbf29ce484222325n;
-const FNV_PRIME = 0x100000001b3n;
-const MASK_64 = 0xffffffffffffffffn;
+/**
+ * Nền tảng FNV-1a 64 bit. Hằng số chuẩn, không phải số tự nghĩ ra.
+ *
+ * ⚠ Dựng bằng `BigInt('0x…')` chứ KHÔNG bằng literal `0x…n`, và lý do là cơ
+ * học chứ không phải sở thích: `apps/web/tsconfig.json` nhắm `target: "ES2017"`,
+ * và ở mức đó `tsc` từ chối literal BigInt (TS2737) — kể cả khi runtime thật
+ * hoàn toàn có BigInt. Package này nằm trong đồ thị typecheck của `apps/web`,
+ * nên nó phải viết được ở target thấp nhất mà bất kỳ consumer nào dùng.
+ *
+ * Đường còn lại là nâng target của `apps/web`, và đó là một thay đổi chạm cả
+ * bundle đầu ra của ứng dụng — quá rộng để đổi lấy ba dòng hằng số.
+ */
+const FNV_OFFSET_BASIS = BigInt('0xcbf29ce484222325');
+const FNV_PRIME = BigInt('0x100000001b3');
+const MASK_64 = BigInt('0xffffffffffffffff');
 
 /**
  * FNV-1a 64 bit trên các **đơn vị mã UTF-8** của chuỗi.
