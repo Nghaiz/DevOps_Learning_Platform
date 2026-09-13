@@ -1,4 +1,4 @@
-import { and, asc, eq, lt, lte } from 'drizzle-orm';
+import { and, asc, eq, inArray, lt, lte } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { passwordResetOutbox } from '../db/schema';
 
@@ -140,11 +140,28 @@ export async function drainPasswordResetOutbox(options: {
  * Tách khỏi vòng lặp bên dưới vì truy vấn đến-hạn CỐ TÌNH bỏ qua dòng đã chạm
  * `PASSWORD_RESET_MAX_ATTEMPTS` — không có lượt dọn theo tập này thì đúng những
  * dòng đó nằm lại vĩnh viễn, mang theo mã ở dạng bản rõ.
+ *
+ * ⛔ `SKIP LOCKED` ở đây KHÔNG phải để tránh gửi trùng (lượt dọn không gửi gì) —
+ * nó để lượt dọn không BỊ CHẶN. Một dòng đang được replica khác gửi bị khoá suốt
+ * lượt SMTP (tới ~15s theo `socketTimeout`); một `DELETE … WHERE expires_at <=
+ * now()` trần sẽ xếp hàng chờ đúng dòng đó. Mà lượt dọn chạy ở ĐẦU mỗi lượt
+ * drain, nên nó không chỉ hoãn việc dọn: nó hoãn cả lượt drain đứng sau. Bỏ qua
+ * dòng đang bị khoá là đúng nghiệp vụ — dòng đó đang được xử lý, và nếu nó thật
+ * sự đã hết hạn thì chính transaction kia xoá nó (xem `deliverOneDueRow`); còn
+ * không thì lượt dọn sau nhặt. Một review độc lập chỉ ra (N3, 2026-09-13).
+ *
+ * Vị từ nằm ở SUBQUERY chứ không ở `DELETE`: `FOR UPDATE SKIP LOCKED` là mệnh đề
+ * của `SELECT`, `DELETE` không có mệnh đề tương đương.
  */
 async function purgeExpired(db: Database): Promise<number> {
+  const expired = db
+    .select({ id: passwordResetOutbox.id })
+    .from(passwordResetOutbox)
+    .where(lte(passwordResetOutbox.expiresAt, new Date()))
+    .for('update', { skipLocked: true });
   const purged = await db
     .delete(passwordResetOutbox)
-    .where(lte(passwordResetOutbox.expiresAt, new Date()))
+    .where(inArray(passwordResetOutbox.id, expired))
     .returning({ id: passwordResetOutbox.id });
   return purged.length;
 }

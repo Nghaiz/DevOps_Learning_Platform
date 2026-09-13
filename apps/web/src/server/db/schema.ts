@@ -335,7 +335,17 @@ export const passwordResetOutbox = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },
-  (table) => [index('password_reset_outbox_next_attempt_at_idx').on(table.nextAttemptAt)],
+  (table) => [
+    index('password_reset_outbox_next_attempt_at_idx').on(table.nextAttemptAt),
+    /**
+     * Lượt dọn dòng quá hạn quét theo `expires_at`, KHÔNG theo `next_attempt_at`
+     * — hai vị từ khác nhau, nên index ở trên không phục vụ nó. Lượt dọn ấy chạy
+     * ở ĐẦU MỖI lượt drain (mỗi request đã nhận việc, cộng một lượt quét 60 giây
+     * trên MỌI replica), nên thiếu index này nó là một lượt quét toàn bảng lặp
+     * lại mãi. Một review độc lập chỉ ra (N3, 2026-09-13).
+     */
+    index('password_reset_outbox_expires_at_idx').on(table.expiresAt),
+  ],
 );
 
 export type PasswordResetOutboxRow = typeof passwordResetOutbox.$inferSelect;

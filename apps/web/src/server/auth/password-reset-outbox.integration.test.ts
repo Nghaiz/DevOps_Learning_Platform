@@ -313,6 +313,97 @@ describe('hàng đợi bền vững cho thư đặt lại mật khẩu', () => {
 });
 
 /**
+ * ⛔ Lượt dọn hết-hạn chạy ở ĐẦU mỗi lượt drain, nên thứ gì CHẶN nó cũng chặn
+ * luôn lượt gửi đứng sau nó. Hai ô dưới đây gác hai thứ giữ cho lượt dọn không
+ * kẹt vào một dòng đang được replica khác gửi: `SKIP LOCKED` (không xếp hàng
+ * chờ) và index trên `expires_at` (không quét toàn bảng mỗi 60 giây). Một review
+ * độc lập chỉ ra (N3, 2026-09-13).
+ */
+describe('lượt dọn hết hạn không kẹt vào dòng đang được gửi', () => {
+  /**
+   * Ngưỡng "đã bị chặn". Lượt dọn thật mất vài mili-giây; một lượt dọn xếp hàng
+   * sau khoá của replica khác thì chờ tới `socketTimeout` (~15s). 3 giây nằm
+   * giữa hai bậc đó cách xa cả hai — nó KHÔNG phải một phép đo hiệu năng.
+   */
+  const BLOCKED_AFTER_MS = 3_000;
+
+  it('một dòng đang bị khoá không chặn việc dọn các dòng hết hạn khác', async () => {
+    const held = { ...makeEntry(), expiresAt: new Date(Date.now() - 1_000) };
+    const other = { ...makeEntry(), expiresAt: new Date(Date.now() - 1_000) };
+    await enqueuePasswordResetMail(db, held);
+    await enqueuePasswordResetMail(db, other);
+
+    let release!: () => void;
+    const holding = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked!: () => void;
+    // ⚠ Phải ĐỢI khoá được cầm thật rồi mới drain. `sql.begin` trả về ngay, nên
+    // không có chốt này thì lượt drain chạy TRƯỚC câu `FOR UPDATE` và dọn cả hai
+    // dòng — ô xanh mà chẳng gác gì (đã thấy ở lượt chạy đầu).
+    const acquired = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    // Một replica khác đang GỬI `held`: transaction của nó giữ khoá hàng đó suốt
+    // lượt SMTP. Dựng lại đúng hình dạng ấy bằng SQL thô.
+    const holder = sql.begin(async (tx) => {
+      await tx`SELECT id FROM password_reset_outbox WHERE email = ${held.email} FOR UPDATE`;
+      locked();
+      await holding;
+    });
+    await acquired;
+
+    try {
+      const drained = drainPasswordResetOutbox({ db, send: recorder([]) }).then((result) => ({
+        kind: 'drained' as const,
+        result,
+      }));
+      const outcome = await Promise.race([
+        drained,
+        new Promise<{ kind: 'blocked' }>((resolve) => {
+          setTimeout(() => resolve({ kind: 'blocked' }), BLOCKED_AFTER_MS);
+        }),
+      ]);
+
+      expect(outcome.kind, 'lượt dọn phải bỏ qua dòng bị khoá, không xếp hàng chờ nó').toBe(
+        'drained',
+      );
+      if (outcome.kind !== 'drained') return;
+      // `other` bị dọn; `held` bị BỎ QUA, không bị dọn và cũng không chặn ai.
+      expect(outcome.result).toEqual({ sent: 0, failed: 0, expired: 1 });
+      expect((await rows()).map((row) => row.email)).toEqual([held.email]);
+    } finally {
+      release();
+      await holder;
+    }
+
+    // Đối chứng: hết khoá thì chính dòng đó ĐƯỢC dọn. Không có vế này, ô trên vẫn
+    // xanh kể cả khi `SKIP LOCKED` biến thành "bỏ qua vĩnh viễn".
+    expect(await drainPasswordResetOutbox({ db, send: recorder([]) })).toEqual({
+      sent: 0,
+      failed: 0,
+      expired: 1,
+    });
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it('bảng THẬT có index trên expires_at, không chỉ trên next_attempt_at', async () => {
+    // Hỏi `public` chứ không hỏi schema test: thứ đang được gác là bảng mà sản
+    // phẩm chạy trên, và nó chỉ có index này nếu migration đã chạy thật.
+    const indexes = await sql<Array<{ indexdef: string }>>`
+      SELECT indexdef FROM pg_indexes
+      WHERE schemaname = 'public' AND tablename = 'password_reset_outbox'
+    `;
+    // Khớp theo CỘT chứ không theo tên index: đổi tên index không phải hồi quy,
+    // mất cột mới là.
+    expect(
+      indexes.some((index) => /\(expires_at\)/.test(index.indexdef)),
+      `chỉ thấy: ${indexes.map((index) => index.indexdef).join(' | ')}`,
+    ).toBe(true);
+  });
+});
+
+/**
  * ⛔ Bảng vắng mặt phải làm phép thăm dò NÉM — nếu không, nó là một cổng luôn xanh.
  *
  * `verifyPasswordResetOutbox` chạy trong `before` hook của
