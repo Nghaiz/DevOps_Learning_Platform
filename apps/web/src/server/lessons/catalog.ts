@@ -120,6 +120,12 @@ export function profileForCapabilities(
   // profile lớn hơn (k8s) và ĐỂ NGỎ, có `TestNoContentIsBothIdeAndK8s` gác:
   // bài đầu tiên vừa `ide` vừa `kubernetes` sẽ làm test đó đỏ, và lúc ấy việc
   // phải làm là ĐO, không phải nới test.
+  //
+  // ⚠ Cổng ấy sống ở `packages/scenario/src/content-ide-k8s-guard.test.ts`.
+  // Đường dẫn được ghi ra vì suốt một thời gian dòng trên viện dẫn một cái tên
+  // KHÔNG TỒN TẠI ở đâu trong repo — hai chỗ trong mã dựa vào một cái chốt
+  // không có thật, và không có gì báo. Dựng thật 2026-09-13. Đổi tên file thì
+  // đổi cả dòng này và ghi chú của `content/scenarios/dlp-ide-config-edit`.
   if (capabilities.includes('multi-node')) return 'k8s-multinode';
   if (capabilities.includes('kubernetes')) return 'k8s';
   // 6.E: một pod có IDE đỉnh 660Mi (IDE + bài cùng lúc), 783Mi qua ba lượt tải
