@@ -26,6 +26,7 @@
 import type {
   CommitSpec,
   FilePath,
+  GitLevel,
   GitWorld,
   Lines,
   Oid,
@@ -356,4 +357,81 @@ export function sandboxStateHash(world: GitWorld): string {
     index: world.local.index,
     worktree: world.local.worktree,
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. Bật / tắt origin
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Bật `origin` cho một spec chưa có.
+ *
+ * Trả `null` khi KHÔNG bật được — spec chưa có commit nào (`kho-trong`), nên
+ * không có gì để nhánh của origin trỏ vào. `OriginSpec.branches` ánh xạ tên →
+ * **id commit spec**, và một id không tồn tại làm `buildWorld` ném.
+ *
+ * ⛔ Không "im lặng bỏ qua" ở trường hợp đó: giao diện phải tắt hẳn nút và nói
+ * vì sao, chứ không phải bấm xong rồi chẳng có gì xảy ra.
+ *
+ * `tracking` đặt bằng CHÍNH commit đó, tức local đang đồng bộ với origin. Đó là
+ * điểm xuất phát trung tính; muốn dựng cảnh lệch nhau thì gõ lệnh, vì chính việc
+ * làm-cho-lệch là bài học (G14–G15).
+ */
+export function withOrigin(spec: WorldSpec): WorldSpec | null {
+  if (spec.origin !== undefined) return spec;
+
+  const branches = spec.branches ?? {};
+  const at = branches['main'] ?? sortedKeys(branches).map((k) => branches[k])[0] ?? null;
+  if (at === undefined || at === null) return null;
+
+  return { ...spec, origin: { branches: { main: at }, tracking: { main: at } } };
+}
+
+/** Tắt `origin`. Luôn làm được — một kho không có remote là kho hợp lệ. */
+export function withoutOrigin(spec: WorldSpec): WorldSpec {
+  if (spec.origin === undefined) return spec;
+  const { origin: _removed, ...rest } = spec;
+  return rest;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. Level giả để mượn lại engine
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Bọc một `WorldSpec` thành `GitLevel` để `createGitSession` chạy được trên nó.
+ *
+ * Sandbox cần đúng bốn thứ của engine — điều phối lệnh, đồng hồ logic, bot, và
+ * ngăn xếp hoàn tác — mà cả bốn đều đã đúng ở `engine.ts`. Viết một "engine
+ * sandbox" riêng là cách chắc chắn nhất để hai đường đi lệch nhau, rồi một lỗi
+ * chỉ tái hiện được ở sandbox.
+ *
+ * Ba trường đáng chú ý:
+ *
+ *  - `objectives: []` — không chấm. `verdictOf` trên mảng rỗng trả "đạt", nên
+ *    giao diện sandbox **không được hiện ô kết quả**; hiện thì nó luôn nói "AC"
+ *    và câu đó vô nghĩa.
+ *  - `allowedCommands: null` — cho dùng MỌI lệnh. ⚠ `[]` mang nghĩa NGƯỢC LẠI
+ *    (cấm tất), và đó là cái bẫy đã cắn `k8s/problem.ts` một lần.
+ *  - `solutionCommands`/`altSolutionCommands` rỗng — AC-8/AC-9 duyệt `GIT_LEVELS`,
+ *    mà level này KHÔNG nằm trong mảng đó, nên không ô nào chạy hai trường này.
+ */
+export function sandboxLevel(spec: WorldSpec): GitLevel {
+  return {
+    id: 'git-sandbox',
+    chapter: 1,
+    title: 'Sandbox',
+    mission: 'Không có mục tiêu — gõ gì cũng được.',
+    brief: 'Kho tự do để thử lệnh. Không chấm, không tính tiến độ.',
+    difficulty: 'basic',
+    setup: spec,
+    allowedCommands: null,
+    objectives: [],
+    hints: [],
+    teaching: { primer: '', cheatsheet: [], takeaways: [] },
+    theoryId: null,
+    solutionCommands: [],
+    altSolutionCommands: [],
+    par: 0,
+  };
 }

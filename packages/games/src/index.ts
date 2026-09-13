@@ -146,8 +146,11 @@ export {
   exportSandbox,
   exportSandboxJson,
   importSandboxJson,
+  sandboxLevel,
   sandboxSpec,
   sandboxStateHash,
+  withOrigin,
+  withoutOrigin,
   worldToSpec,
 } from './git/sandbox.ts';
 export { GIT_PREDICATE_NAMES, evaluateObjectives, verdictOf } from './git/predicates.ts';

@@ -14,12 +14,15 @@ import {
   SANDBOX_SCENARIOS,
   exportSandboxJson,
   importSandboxJson,
+  sandboxLevel,
   sandboxSpec,
   sandboxStateHash,
+  withOrigin,
+  withoutOrigin,
   worldToSpec,
 } from './sandbox.ts';
 import { buildWorld } from './world-spec.ts';
-import { runCommands } from './engine.ts';
+import { createGitSession, runCommands } from './engine.ts';
 import { GIT_LEVELS } from './levels/index.ts';
 import { getCommit, hasObject, reachableFrom } from './objects.ts';
 import { branchRef, headOid } from './repo.ts';
@@ -137,5 +140,88 @@ describe('nhập dữ liệu không tin được', () => {
     });
     expect(() => importSandboxJson(bad)).not.toThrow();
     expect(importSandboxJson(bad)).toBeNull();
+  });
+});
+
+describe('bật / tắt origin (17.Q)', () => {
+  it('bật được trên spec CÓ commit, và origin thật sự xuất hiện trong world', () => {
+    const on = withOrigin(sandboxSpec('kho-roi'));
+    expect(on).not.toBeNull();
+    if (on === null) return;
+    expect(buildWorld(on, 1).origin).not.toBeNull();
+  });
+
+  it('KHÔNG bật được trên kho trống, và trả null thay vì spec hỏng', () => {
+    // Đối chứng của cả cặp: nếu `withOrigin` cứ trả spec kèm origin trỏ vào một
+    // id không tồn tại thì `buildWorld` sẽ NÉM — tức giao diện sập, chứ không
+    // phải "nút không ăn". Ô này chốt rằng ta phát hiện ở tầng spec.
+    expect(withOrigin(sandboxSpec('kho-trong'))).toBeNull();
+  });
+
+  it('tắt rồi bật lại cho một world vẫn dựng được', () => {
+    const off = withoutOrigin(sandboxSpec('hai-kho'));
+    expect(off.origin).toBeUndefined();
+    expect(buildWorld(off, 1).origin).toBeNull();
+
+    const back = withOrigin(off);
+    expect(back).not.toBeNull();
+    if (back === null) return;
+    expect(buildWorld(back, 1).origin).not.toBeNull();
+  });
+
+  it('bật trên spec ĐÃ có origin thì giữ nguyên, không ghi đè', () => {
+    // `hai-kho` cố ý để `origin/main` LỆCH khỏi `main` — đó là cả bài G14–G15.
+    // Một `withOrigin` ngây thơ sẽ đặt lại tracking = main và xoá mất cảnh đó.
+    const spec = sandboxSpec('hai-kho');
+    expect(withOrigin(spec)).toBe(spec);
+  });
+});
+
+describe('sandboxLevel — mượn lại engine', () => {
+  it('chạy được một chuỗi lệnh thật và trạng thái tiến', () => {
+    const level = sandboxLevel(sandboxSpec('kho-roi'));
+    const session = createGitSession({ level });
+    const before = sandboxStateHash(session.getWorld());
+
+    // ⚠ Cú pháp là `git write <path> -c "<nội dung>"`. Bản đầu của ô này viết
+    // `git write note.md "xin chao"` — SAI, và ô vẫn XANH: hash đã đổi từ lệnh
+    // `checkout -b` ở trên, còn ref `thu-nghiem` cũng do chính lệnh đó tạo. Ba
+    // trong bốn lệnh lỗi mà ô không hề biết. Nên bây giờ mỗi lệnh tự khẳng định
+    // nó KHÔNG lỗi, và cuối cùng khẳng định có commit MỚI.
+    for (const cmd of [
+      'git checkout -b thu-nghiem',
+      'git write note.md -c "xin chao"',
+      'git add note.md',
+      'git commit -m "Ghi chu"',
+    ]) {
+      const outcome = session.run(cmd);
+      expect(outcome.result.error, cmd + ' -> ' + JSON.stringify(outcome.result.error)).toBeNull();
+    }
+
+    const after = session.getWorld();
+    expect(sandboxStateHash(after)).not.toBe(before);
+    expect(Object.keys(after.local.refs)).toContain('refs/heads/thu-nghiem');
+    // Commit MỚI phải tồn tại — đây là thứ ô cũ không hề đo.
+    expect(headOid(after.local)).not.toBe(headOid(buildWorld(sandboxSpec('kho-roi'), 1).local));
+    expect(after.local.worktree['note.md']).toEqual(['xin chao']);
+  });
+
+  it('hoàn tác đưa hash về đúng giá trị cũ', () => {
+    const session = createGitSession({ level: sandboxLevel(sandboxSpec('kho-roi')) });
+    const before = sandboxStateHash(session.getWorld());
+    session.run('git checkout -b thu-nghiem');
+    expect(sandboxStateHash(session.getWorld())).not.toBe(before);
+    expect(session.undo()).toBe(true);
+    expect(sandboxStateHash(session.getWorld())).toBe(before);
+  });
+
+  it('KHÔNG giới hạn lệnh — `allowedCommands` là null, không phải mảng rỗng', () => {
+    // `[]` mang nghĩa NGƯỢC LẠI (cấm tất). Ô này gác đúng cái bẫy đó: nếu ai
+    // đổi sang `[]` thì lệnh dưới đây sẽ bị từ chối thay vì chạy.
+    const level = sandboxLevel(sandboxSpec('kho-roi'));
+    expect(level.allowedCommands).toBeNull();
+    const session = createGitSession({ level });
+    const outcome = session.run('git branch bat-ky');
+    expect(outcome.result.error, 'lệnh bị từ chối — `allowedCommands` đang chặn').toBeNull();
   });
 });

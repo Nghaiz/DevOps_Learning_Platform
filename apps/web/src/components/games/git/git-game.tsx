@@ -11,10 +11,11 @@ import {
   verdictOf,
   type GitEngineSession,
   type GitLevel,
-  type OutputLine,
   type TheoryDoc,
 } from '@devops-platform/games';
 
+import { CommandBar, OutputLog } from './git-console';
+import { GitSandbox } from './git-sandbox';
 import { GitSvgScene } from './git-svg-scene';
 import { ModeToggle } from './mode-toggle';
 import { buildSceneLayouts, type SceneView } from '../shared/scene-props';
@@ -56,13 +57,30 @@ export interface GitGameProps {
 
 export function GitGame({ theory, initialLevelId }: GitGameProps): ReactElement {
   const [levelId, setLevelId] = useState<string | null>(initialLevelId);
+  const [sandbox, setSandbox] = useState(false);
   const level = useMemo(
     () => GIT_LEVELS.find((l) => l.id === levelId) ?? null,
     [levelId],
   );
 
+  if (sandbox) {
+    return (
+      <GitSandbox
+        onExit={() => {
+          setSandbox(false);
+        }}
+      />
+    );
+  }
   if (level === null) {
-    return <LevelPicker onPick={setLevelId} />;
+    return (
+      <LevelPicker
+        onPick={setLevelId}
+        onSandbox={() => {
+          setSandbox(true);
+        }}
+      />
+    );
   }
   return (
     <GitLevelScreen
@@ -129,7 +147,13 @@ const CHAPTER_TITLE: Record<1 | 2 | 3, string> = {
   3: 'Chương 3 · Cứu hộ',
 };
 
-function LevelPicker({ onPick }: { readonly onPick: (id: string) => void }): ReactElement {
+function LevelPicker({
+  onPick,
+  onSandbox,
+}: {
+  readonly onPick: (id: string) => void;
+  readonly onSandbox: () => void;
+}): ReactElement {
   return (
     <div className="flex flex-col gap-8 p-6">
       <header className="flex flex-col gap-2">
@@ -138,6 +162,15 @@ function LevelPicker({ onPick }: { readonly onPick: (id: string) => void }): Rea
           Gõ lệnh git thật trên một kho mô phỏng chạy hoàn toàn trong trình duyệt. Không tốn
           sandbox, không cần đăng nhập, tiến độ lưu ngay trên máy bạn.
         </p>
+        <div>
+          <button
+            type="button"
+            onClick={onSandbox}
+            className="rounded-md border border-input px-3 py-1.5 text-sm text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            Mở sandbox
+          </button>
+        </div>
       </header>
 
       {([1, 2, 3] as const).map((chapter) => (
@@ -193,9 +226,6 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
     setTick((n) => n + 1);
   }, []);
 
-  const [input, setInput] = useState('');
-  const [history, setHistory] = useState<readonly string[]>([]);
-  const [historyAt, setHistoryAt] = useState<number | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [showTheory, setShowTheory] = useState(false);
@@ -211,15 +241,18 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
   const sceneView = view as unknown as SceneView;
   const layouts = useMemo(() => buildSceneLayouts(sceneView, layoutDag), [sceneView]);
 
-  const submit = useCallback(() => {
-    const raw = input.trim();
-    if (raw === '') return;
-    session.run(raw);
-    setHistory((h) => [raw, ...h]);
-    setHistoryAt(null);
-    setInput('');
+  const submit = useCallback(
+    (command: string) => {
+      session.run(command);
+      redraw();
+    },
+    [session, redraw],
+  );
+
+  const undo = useCallback(() => {
+    session.undo();
     redraw();
-  }, [input, session, redraw]);
+  }, [session, redraw]);
 
   return (
     <div className="flex h-full flex-col">
@@ -352,78 +385,9 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
 
       {/* ── Bản ghi lệnh + ô lệnh, rộng hết chiều ngang ─────────────────── */}
       <div className="border-t border-input">
-        <div
-          className="max-h-40 overflow-auto px-4 py-2 font-mono text-xs"
-          role="log"
-          aria-label="Kết quả lệnh"
-          aria-live="polite"
-        >
-          {output.map((line, i) => (
-            <OutputRow key={`${String(i)}:${line.text}`} line={line} />
-          ))}
-        </div>
-        <form
-          className="flex items-center gap-2 border-t border-input px-4 py-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
-          }}
-        >
-          <label htmlFor="git-command" className="font-mono text-sm text-muted-foreground">
-            $
-          </label>
-          <input
-            id="git-command"
-            name="git-command"
-            value={input}
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="git status"
-            onChange={(e) => {
-              setInput(e.target.value);
-            }}
-            onKeyDown={(e) => {
-              // ↑↓ duyệt lịch sử lệnh (17.I.3). Ctrl+Z hoàn tác một bước.
-              if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                const next = historyAt === null ? 0 : Math.min(historyAt + 1, history.length - 1);
-                if (history[next] !== undefined) {
-                  setHistoryAt(next);
-                  setInput(history[next]);
-                }
-              } else if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                if (historyAt === null) return;
-                const next = historyAt - 1;
-                if (next < 0) {
-                  setHistoryAt(null);
-                  setInput('');
-                } else {
-                  setHistoryAt(next);
-                  setInput(history[next] ?? '');
-                }
-              } else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                session.undo();
-                redraw();
-              }
-            }}
-            className="flex-1 bg-transparent font-mono text-sm text-foreground focus-visible:outline-none"
-          />
-        </form>
+        <OutputLog output={output} />
+        <CommandBar onSubmit={submit} onUndo={undo} />
       </div>
     </div>
   );
-}
-
-const TONE_CLASS: Record<OutputLine['tone'], string> = {
-  plain: 'text-muted-foreground',
-  success: 'text-success',
-  warn: 'text-warning',
-  error: 'text-destructive',
-  hint: 'text-status-progress',
-};
-
-function OutputRow({ line }: { readonly line: OutputLine }): ReactElement {
-  return <div className={TONE_CLASS[line.tone]}>{line.text}</div>;
 }
