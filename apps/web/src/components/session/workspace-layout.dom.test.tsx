@@ -77,14 +77,23 @@ function stableHandle(): { handle: { fit: () => void }; fit: ReturnType<typeof v
 
 describe('AC-5 — fit chạy khi bố cục đổi, và CHỈ khi đó', () => {
   it('đổi `layout` ⇒ đúng MỘT lượt fit thêm', () => {
+    /*
+      ⚠ Dùng đúng hai chuỗi mà `workspaceLayoutToken` PHÁT THẬT.
+
+      Bản trước lấy `editor-split:40` / `editor-split:70` làm giá trị harness.
+      `useFitOnLayoutChange` nhận `layout: string` bất kỳ nên ô vẫn xanh, nhưng
+      hai chuỗi đó thuộc mô hình chia đôi đã bị gỡ ở SỬA ĐỔI 3 — người đọc sau
+      sẽ tưởng token còn phát dạng đó. Một harness nói sai về hợp đồng nó đang
+      đo thì rẻ tiền hơn một lỗi, và khó thấy hơn.
+    */
     const { handle, fit } = stableHandle();
-    const { rerender } = render(<Harness layout="editor-split:40" handle={handle} />);
+    const { rerender } = render(<Harness layout="editor-only" handle={handle} />);
     expect(fit).toHaveBeenCalledTimes(1);
 
     rerender(<Harness layout="terminal-full" handle={handle} />);
     expect(fit).toHaveBeenCalledTimes(2);
 
-    rerender(<Harness layout="editor-split:70" handle={handle} />);
+    rerender(<Harness layout="editor-only" handle={handle} />);
     expect(fit).toHaveBeenCalledTimes(3);
   });
 
