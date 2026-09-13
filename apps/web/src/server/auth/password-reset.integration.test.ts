@@ -3,11 +3,15 @@ import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import type * as NextServer from 'next/server';
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET, POST } from '../../app/api/auth/[...all]/route';
 import { getAuth } from './config';
 import { issueRefreshToken, rotateRefreshToken } from './tokens';
-import { passwordResetSmtpConfig, sendPasswordResetMail } from './password-reset-mail';
+import {
+  forgetPasswordResetSmtpProbe,
+  passwordResetSmtpConfig,
+  sendPasswordResetMail,
+} from './password-reset-mail';
 import { passwordResetOutbox, sessions, users, verifications } from '../db/schema';
 import { testDb, closeTestDb } from '../../security/test-helpers';
 
@@ -35,6 +39,12 @@ describe('password reset delivery and credential lifecycle', () => {
   let unavailable = false;
   let connections = 0;
   let signedInCookies = '';
+
+  // Mỗi ô bắt đầu như một replica vừa khởi động: không ô nào được thừa hưởng kết
+  // quả thăm dò SMTP mà ô trước để lại (xem Q3 ở `password-reset-mail.ts`).
+  beforeEach(() => {
+    forgetPasswordResetSmtpProbe();
+  });
 
   async function request(path: string, body: unknown, extraHeaders: Record<string, string> = {}) {
     const response = await POST(
@@ -230,12 +240,18 @@ describe('password reset delivery and credential lifecycle', () => {
     log.mockRestore();
     rejectMail = false;
     unavailable = true;
+    // Phép thăm dò SMTP nhớ kết quả trong một cửa sổ ngắn (Q3), nên một nhà cung
+    // cấp vừa sập trong CÙNG một ô test vẫn đang được nhớ là "sống". Cửa sổ đó là
+    // hành vi cố ý; ô nghiệm thu của riêng nó nằm ở
+    // `password-reset-smtp-probe.test.ts`. Ở đây ta dựng một replica vừa dò lại.
+    forgetPasswordResetSmtpProbe();
     for (const address of [email, 'missing@example.test']) {
       const failure = await request('request-password-reset', { email: address });
       expect(failure.status).toBe(503);
       expect(await failure.json()).toEqual({ code: 'RESET_DELIVERY_UNAVAILABLE' });
     }
     unavailable = false;
+    forgetPasswordResetSmtpProbe();
     vi.stubEnv('SMTP_USER', 'private-user');
     vi.stubEnv('SMTP_PASSWORD', 'private-password');
     expect(() => passwordResetSmtpConfig()).toThrow('Plain SMTP is restricted');

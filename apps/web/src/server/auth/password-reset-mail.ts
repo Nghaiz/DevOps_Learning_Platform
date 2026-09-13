@@ -135,15 +135,108 @@ function smtpTransport(config: ReturnType<typeof passwordResetSmtpConfig>) {
   });
 }
 
-/** Check provider connectivity before account lookup; outages affect every email equally. */
+const SMTP_UNAVAILABLE = 'Password reset SMTP provider is unavailable.';
+
+/**
+ * Cửa sổ ghi nhớ một lượt thăm dò ĐẠT. Dài hơn cửa sổ của lượt hỏng vì hai
+ * hướng sai lệch không cùng giá: nhớ nhầm "đang sống" chỉ khiến thư rơi vào
+ * hàng đợi rồi được thử lại, còn nhớ nhầm "đang chết" chặn người dùng THẬT khỏi
+ * đặt lại mật khẩu.
+ */
+const SMTP_PROBE_OK_TTL_MS = 30_000;
+const SMTP_PROBE_FAIL_TTL_MS = 5_000;
+
+let smtpProbe: { ok: boolean; until: number } | null = null;
+let smtpProbeInFlight: Promise<void> | null = null;
+
+/**
+ * Quên kết quả thăm dò đang nhớ. KHÔNG có caller nào trong sản phẩm.
+ *
+ * Tồn tại cho ô nghiệm thu: một SMTP giả đổi trạng thái trong vài mili-giây, tức
+ * đúng thứ mà cửa sổ ghi nhớ được thiết kế để CHẬM nhận ra. Không có hàm này,
+ * ô nào muốn dựng "nhà cung cấp vừa sập" đều phải chờ hết cửa sổ thật.
+ */
+export function forgetPasswordResetSmtpProbe(): void {
+  smtpProbe = null;
+  smtpProbeInFlight = null;
+}
+
+/**
+ * Hỏi nhà cung cấp có sống không, TRƯỚC lượt tra cứu tài khoản — nhưng nhiều
+ * nhất một lượt hỏi cho mỗi cửa sổ, cho cả tiến trình.
+ *
+ * ## Vì sao ghi nhớ
+ *
+ * Bản trước dựng một transport MỚI và `verify()` cho MỌI request trên một route
+ * CÔNG KHAI, với `connectionTimeout`/`greetingTimeout` 10 giây. Hai hệ quả: một
+ * request có thể bị giữ 10-20 giây, và mỗi request là một kết nối TCP nữa tới
+ * nhà cung cấp — thứ mà chính nhà cung cấp sẽ chặn trước khi ta kịp lo. Giới hạn
+ * tần suất của better-auth không cứu được: nó lưu ở BỘ NHỚ, nên N replica là
+ * N×3 lượt/phút/IP, và IP thì nhiều.
+ *
+ * Hai chốt: gộp các lượt ĐỒNG THỜI vào chung một promise, và nhớ KẾT QUẢ trong
+ * một cửa sổ ngắn. Trần trở thành một lượt thăm dò mỗi cửa sổ mỗi replica.
+ *
+ * ## ⛔ Vì sao nó KHÔNG mở lại kênh liệt kê tài khoản
+ *
+ * Phép thăm dò này nằm trước lượt tra cứu tài khoản để một nhánh hạ tầng hỏng
+ * trả CÙNG câu trả lời cho mọi địa chỉ (xem `config.ts`). Bộ nhớ ở đây là MỘT ô
+ * duy nhất cho cả tiến trình, **không nhận địa chỉ nào làm khoá** — hàm còn
+ * không có tham số email để mà khoá theo. Nên mọi địa chỉ trong cùng một cửa sổ
+ * nhận đúng một kết quả; không có đường nhanh cho email có thật và đường chậm
+ * cho email bịa.
+ *
+ * Kênh thời gian cũng không mở ra: lượt ĐẦU của mỗi cửa sổ trả chậm, các lượt
+ * sau trả nhanh, và thứ quyết định là THỨ TỰ ĐẾN chứ không phải địa chỉ. Đảo
+ * thứ tự hai địa chỉ thì kết quả đảo theo — tức không đo được gì về địa chỉ.
+ *
+ * ## Cái giá, nói thẳng
+ *
+ * Nhà cung cấp sập giữa cửa sổ thì phải tới `SMTP_PROBE_OK_TTL_MS` mới bị nhận
+ * ra. Trong khoảng đó request đi tiếp và trả 200 — nhưng 200 cho CẢ HAI nhánh
+ * (tài khoản có thật thì ghi một dòng outbox rồi trả 200; không có thật thì
+ * better-auth trả 200 sẵn), nên vế cân bằng vẫn nguyên. Thứ mất là tính KỊP
+ * THỜI của mã 503, không phải tính đối xứng của nó; và dòng đã ghi thì hàng đợi
+ * thử lại, không mất.
+ *
+ * Một review độc lập chỉ ra (Q3, 2026-09-13).
+ */
 export async function verifyPasswordResetSmtp(): Promise<void> {
-  const transport = smtpTransport(passwordResetSmtpConfig());
+  // Cấu hình phân giải MỖI LƯỢT, không nằm trong bộ nhớ: nó chỉ đọc env chứ
+  // không chạm socket (tức không phải thứ Q3 nói tới), và một cấu hình hỏng phải
+  // hiện ra ngay — nhớ nó lại thì một lượt sửa env phải chờ hết cửa sổ mới ăn.
+  const config = passwordResetSmtpConfig();
+
+  const remembered = smtpProbe;
+  if (remembered !== null && Date.now() < remembered.until) {
+    if (remembered.ok) return;
+    throw new Error(SMTP_UNAVAILABLE);
+  }
+
+  // `??=` chứ không phải gán mới: request thứ hai đến giữa lúc lượt thăm dò đầu
+  // còn đang chạy sẽ CHỜ CHUNG nó, không mở thêm kết nối.
+  smtpProbeInFlight ??= probePasswordResetSmtp(config);
+  await smtpProbeInFlight;
+}
+
+async function probePasswordResetSmtp(
+  config: ReturnType<typeof passwordResetSmtpConfig>,
+): Promise<void> {
   try {
-    await transport.verify();
+    const transport = smtpTransport(config);
+    try {
+      await transport.verify();
+    } finally {
+      transport.close();
+    }
+    smtpProbe = { ok: true, until: Date.now() + SMTP_PROBE_OK_TTL_MS };
   } catch {
-    throw new Error('Password reset SMTP provider is unavailable.');
+    smtpProbe = { ok: false, until: Date.now() + SMTP_PROBE_FAIL_TTL_MS };
+    throw new Error(SMTP_UNAVAILABLE);
   } finally {
-    transport.close();
+    // Xoá TRƯỚC khi promise này settle, nên lượt gọi sau đọc `smtpProbe` vừa ghi
+    // ở trên thay vì bám vào một promise đã xong.
+    smtpProbeInFlight = null;
   }
 }
 
