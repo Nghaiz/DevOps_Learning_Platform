@@ -45,7 +45,7 @@
 import type { GitError, Oid, RefName, Repo } from './contract.ts';
 import { sortedKeys } from './deterministic.ts';
 import { gitError, notARefError } from './errors.ts';
-import { getCommit } from './objects.ts';
+import { getCommit, reachableFrom } from './objects.ts';
 import {
   branchRef,
   headOid,
@@ -55,6 +55,7 @@ import {
   remoteRef,
   shortRefName,
   tagRef,
+  readReflog,
 } from './repo.ts';
 
 /** Độ dài đầy đủ của một `Oid` — xem `hash.ts`. */
@@ -121,9 +122,14 @@ function isHexString(text: string): boolean {
  */
 function parseRevision(input: string): ParsedRevision | null {
   let cursor = 0;
+  // `@{n}` nằm TRONG phần base, không phải một bước `~`/`^`. Nhảy qua cả khối
+  // ngoặc nhọn để `HEAD@{1}~2` tách đúng thành base `HEAD@{1}` + bước `~2`.
+  let inBrace = false;
   while (cursor < input.length) {
     const char = input[cursor];
-    if (char === '~' || char === '^') break;
+    if (char === '{') inBrace = true;
+    else if (char === '}') inBrace = false;
+    else if (!inBrace && (char === '~' || char === '^')) break;
     cursor += 1;
   }
   const base = input.slice(0, cursor);
@@ -173,7 +179,121 @@ type BaseResolution =
   | { readonly oid: Oid; readonly ref: RefName | null }
   | RefResolutionFailure;
 
+/**
+ * `:/<chữ>` — tìm commit theo LỜI NHẮN.
+ *
+ * Đây là cú pháp CÓ THẬT của git (`gitrevisions`, dạng `:/text`), và ở game này
+ * nó gánh thêm một vai mà git thật không có.
+ *
+ * **Khác git thật ở một chỗ, có chủ ý:** git thật chỉ tìm trong các commit với
+ * tới được. Ở đây, nếu không tìm thấy trong tập với-tới-được thì ta tìm tiếp
+ * trong TOÀN BỘ kho. Lý do là cả chương 3: "cứu một commit đã mất" nghĩa là trỏ
+ * vào một commit mà **không ref nào tới được**, và người chơi không có cách nào
+ * gõ Oid của nó ra — Oid sinh từ nội dung, không ai đọc thuộc.
+ *
+ * Đường đi thật của người chơi là `git fsck --lost-found` (nó IN RA Oid), rồi
+ * copy Oid đó. `:/<chữ>` là đường cho `solutionCommands` của ô nghiệm thu AC-8,
+ * vốn phải viết được TRƯỚC khi biết Oid. Không có nó thì 4 level chương 3 không
+ * có lời giải tự động hoá được, và chúng sẽ im lặng biến mất khỏi phép đo.
+ *
+ * Ưu tiên commit với-tới-được trước là để `:/` không bất ngờ trỏ vào một bản cũ
+ * sau rebase, khi cả bản cũ lẫn bản mới cùng mang một lời nhắn.
+ */
+function resolveMessageSearch(repo: Repo, text: string): BaseResolution {
+  if (text === '') return 'bad-syntax';
+
+  const pick = (oids: readonly Oid[]): Oid | null => {
+    let best: Oid | null = null;
+    let bestTime = -1;
+    for (const oid of oids) {
+      const commit = getCommit(repo.objects, oid);
+      if (commit === null || !commit.message.includes(text)) continue;
+      // Mới nhất thắng, hoà thì Oid nhỏ hơn — tie-break phải tất định, nếu
+      // không thì cùng một lượt chơi cho hai kết quả ở hai lần chạy.
+      if (commit.logicalTime > bestTime || (commit.logicalTime === bestTime && best !== null && oid < best)) {
+        bestTime = commit.logicalTime;
+        best = oid;
+      }
+    }
+    return best;
+  };
+
+  const roots: Oid[] = [];
+  for (const ref of sortedKeys(repo.refs)) {
+    const oid = repo.refs[ref];
+    if (oid !== undefined) roots.push(oid);
+  }
+  const head = headOid(repo);
+  if (head !== null) roots.push(head);
+  for (const entry of repo.stash) roots.push(entry.oid);
+
+  const live = pick([...reachableFrom(repo.objects, roots)].sort());
+  if (live !== null) return { oid: live, ref: null };
+
+  const anywhere = pick(sortedKeys(repo.objects));
+  return anywhere === null ? 'not-found' : { oid: anywhere, ref: null };
+}
+
+/**
+ * `<ref>@{n}` — mục thứ `n` trong nhật ký dịch chuyển, đếm từ 0 (mới nhất).
+ *
+ * Ba nguồn, theo đúng thứ tự git thật tra:
+ *
+ *  1. `stash@{n}` đọc thẳng danh sách stash. Nó KHÔNG phải reflog — `refs/stash`
+ *     là một ref có nhật ký riêng ở git thật, nhưng ở đây stash là một mảng và
+ *     đọc thẳng nó vừa đúng vừa ngắn hơn.
+ *  2. `HEAD@{n}` đọc reflog của `HEAD`.
+ *  3. `<branch>@{n}` đọc reflog của chính branch đó.
+ *
+ * ⚠ Điểm 3 có một hệ quả bắt buộc phải biết: sau `git branch -D x`, reflog riêng
+ * của `x` **mất theo** (xem `deleteRef` ở `repo.ts`), nên `x@{1}` không còn gì.
+ * Đó là hành vi của git thật và là lý do bài G27 phải đi qua reflog của HEAD.
+ */
+function resolveAtBrace(repo: Repo, refName: string, n: number): BaseResolution {
+  if (refName === 'stash') {
+    const entry = repo.stash[n];
+    return entry === undefined ? 'not-found' : { oid: entry.oid, ref: null };
+  }
+
+  const full = refName === 'HEAD' || refName === '@' ? 'HEAD' : branchRef(refName);
+  const log = readReflog(repo, full);
+  const entry = log[n];
+  if (entry !== undefined) return { oid: entry.to, ref: null };
+
+  // Nhật ký ngắn hơn `n`. Mục CUỐI ghi lần dịch chuyển đầu tiên, và `from` của
+  // nó là chỗ ref đứng trước đó — một bước nữa về quá khứ mà mảng không có mục
+  // riêng. Không có vế này thì `HEAD@{1}` ngay sau lệnh đầu tiên của một lượt
+  // chơi trả `not-found`, và đó đúng là lúc người chơi cần nó nhất.
+  const last = log[log.length - 1];
+  if (last !== undefined && n === log.length && last.from !== null) {
+    return { oid: last.from, ref: null };
+  }
+  return 'not-found';
+}
+
 function resolveBaseName(repo: Repo, name: string): BaseResolution {
+  // ── `:/<chữ>` — tìm theo lời nhắn ──
+  if (name.startsWith(':/')) return resolveMessageSearch(repo, name.slice(2));
+
+  // ── `@{n}` — đi lùi trong NHẬT KÝ DỊCH CHUYỂN, không trong lịch sử ──
+  //
+  // Đây là cả chương 3. `HEAD~1` hỏi "cha của commit hiện tại"; `HEAD@{1}` hỏi
+  // "chỗ HEAD đứng một bước TRƯỚC". Hai câu hỏi khác hẳn nhau, và chính sự khác
+  // đó làm reflog cứu được thứ mà `log` không nhìn thấy: sau `reset --hard`,
+  // `HEAD~1` đi về phía tổ tiên của chỗ MỚI, còn `HEAD@{1}` đưa bạn về chỗ CŨ.
+  //
+  // Thiếu cú pháp này thì 6 trong 8 level chương 3 không có lời giải nào, và ô
+  // nghiệm thu AC-8 đã bắt được đúng điều đó ở lần chạy đầu tiên.
+  const at = name.indexOf('@{');
+  if (at !== -1 && name.endsWith('}')) {
+    const refPart = name.slice(0, at);
+    const indexPart = name.slice(at + 2, name.length - 1);
+    if (!/^\d+$/.test(indexPart)) return 'bad-syntax';
+    const n = Number.parseInt(indexPart, 10);
+    if (!Number.isSafeInteger(n)) return 'bad-syntax';
+    return resolveAtBrace(repo, refPart === '' || refPart === '@' ? 'HEAD' : refPart, n);
+  }
+
   // `@` là bí danh của `HEAD` — git thật nhận nó từ 1.8.5 và người chơi gõ nó
   // vì nó ngắn.
   if (name === 'HEAD' || name === '@') {

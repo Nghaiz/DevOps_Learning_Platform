@@ -110,7 +110,12 @@ function findByMessage(repo: Repo, message: string, onlyReachable: boolean): Oid
   let bestTime = Number.POSITIVE_INFINITY;
   for (const oid of [...pool].sort(compareKeys)) {
     const commit = getCommit(repo.objects, oid);
-    if (commit === null || commit.message !== message) continue;
+    // Khớp chính xác TRƯỚC, khớp một phần SAU — cùng ngữ nghĩa với `:/<chữ>` ở
+    // `refs-resolve.ts`. Cần vế thứ hai vì vài commit do engine tự đặt tên mang
+    // thêm dữ liệu vào lời nhắn (`WIP on main: a3f1c9 …`, `Thêm bộ lọc (#1)`),
+    // và một level không được phép biết trước hình dạng đó.
+    if (commit === null) continue;
+    if (commit.message !== message && !commit.message.includes(message)) continue;
     if (commit.logicalTime < bestTime) {
       bestTime = commit.logicalTime;
       best = oid;
@@ -305,7 +310,12 @@ export function evaluatePredicate(
       const message = argString(args, 'message');
       if (ref === null || message === null || world.origin === null) return false;
       const oid = resolveShortRef(world.origin, ref);
-      return oid !== null && getCommit(world.origin.objects, oid)?.message === message;
+      if (oid === null) return false;
+      const actual = getCommit(world.origin.objects, oid)?.message;
+      // Khớp một phần, cùng lý do với `findByMessage`: `pr merge --squash` đặt
+      // lời nhắn `"<tiêu đề> (#<số>)"`, và một level không nên phải biết trước
+      // cách engine ghép chuỗi đó.
+      return actual !== undefined && (actual === message || actual.includes(message));
     }
 
     case 'trackingUpToDate': {

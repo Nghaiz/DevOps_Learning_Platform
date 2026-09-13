@@ -475,7 +475,18 @@ export function parseGitCommand(input: string): ParseResult {
   const usage = sub === null ? spec.usage : sub.usage;
 
   const counted = args.length + (pathsCountAsArgs(shape) ? scanned.paths.length : 0);
-  if (counted < shape.minArgs || counted > shape.maxArgs) {
+  // Một cờ trong `argsSatisfiedBy` thay được tham số vị trí — xem chú thích của
+  // trường đó ở `command-table.ts`. Chỉ nới SÀN, không nới trần: `git add -A a b`
+  // vẫn phải tuân `maxArgs`.
+  // ⚠ Đọc `scanned.flags`, KHÔNG đọc `flags`. Biến `flags` được khai phía DƯỚI
+  // và ở đây nó còn trong vùng chết tạm thời — bản đầu đọc nó, và hậu quả là
+  // MỌI lệnh đều ném `ReferenceError` ngay ở lượt phân tích đầu tiên. Không có
+  // ô nghiệm thu AC-8 thì lỗi đó chỉ lộ ra lúc có người chơi gõ lệnh.
+  const satisfiedByFlag = (shape.argsSatisfiedBy ?? []).some((long) =>
+    scanned.flags.some((hit) => hit.spec.long === long),
+  );
+  const floor = satisfiedByFlag ? 0 : shape.minArgs;
+  if (counted < floor || counted > shape.maxArgs) {
     return {
       ok: false,
       error: badArityError(

@@ -69,7 +69,8 @@ export type GitVerb =
   | 'push'
   | 'pull'
   | 'remote'
-  | 'pr';
+  | 'pr'
+  | 'write';
 
 /**
  * Cùng danh sách, ở dạng **giá trị chạy được**.
@@ -106,6 +107,7 @@ export const GIT_VERBS = [
   'pull',
   'remote',
   'pr',
+  'write',
 ] as const;
 
 /* Chiều 1 — mọi phần tử của mảng phải là một động từ có thật trong union. */
@@ -174,6 +176,18 @@ export interface ArgShape {
    * nghĩa là vị trí 0 là remote, mọi vị trí từ 1 trở đi là branch.
    */
   readonly argKinds: readonly ArgKind[];
+  /**
+   * Cờ THAY ĐƯỢC tham số vị trí.
+   *
+   * `git add` một mình là lỗi ("nói rõ đưa CÁI GÌ vào index"), nhưng
+   * `git add -A` hợp lệ mà không có tham số nào. Hai điều đó cùng đúng, và
+   * `minArgs` một mình không diễn đạt được cả hai.
+   *
+   * Cách sai đã thử và đã bị cổng bắt: hạ `minArgs` xuống 0. Nó làm `git add`
+   * trần đi lọt, và phép kiểm đó là thứ duy nhất chặn một người mới gõ `git add`
+   * rồi tưởng mọi thứ đã vào index.
+   */
+  readonly argsSatisfiedBy?: readonly string[];
   /** Dòng cú pháp hiện trong lỗi sai số tham số. Tiếng Việt trong ngoặc nhọn. */
   readonly usage: string;
 }
@@ -311,6 +325,7 @@ export const GIT_COMMANDS: Readonly<Record<GitVerb, CommandSpec>> = {
     defaultSub: null,
     minArgs: 1,
     maxArgs: Number.POSITIVE_INFINITY,
+    argsSatisfiedBy: ['--all'],
     argKinds: ['path'],
     usage: 'git add <đường-dẫn>… | git add . | git add -A',
     usageError:
@@ -449,7 +464,20 @@ export const GIT_COMMANDS: Readonly<Record<GitVerb, CommandSpec>> = {
   checkout: {
     verb: 'checkout',
     summary: 'Chuyển branch, hoặc lấy lại nội dung file từ một ref',
-    flags: [valueFlag('--branch', '-b', 'Tạo branch mới tại vị trí hiện tại rồi chuyển sang')],
+    flags: [
+      valueFlag('--branch', '-b', 'Tạo branch mới tại vị trí hiện tại rồi chuyển sang'),
+      // Hai cờ này CHỈ có nghĩa khi đang xung đột, và chúng là dạng git THẬT
+      // (`-2`/`-3` trong `git checkout --help`). Không có chúng thì bài G17 chỉ
+      // giải được bằng cách sửa tay trong trình soạn thảo, tức nó không có
+      // `solutionCommands` chạy được và ô AC-8 mất một level.
+      // ⚠ git thật có dạng ngắn `-2`/`-3` cho hai cờ này, và game CỐ Ý không
+      // nhận chúng. Cổng ở `command-table.test.ts` đòi dạng ngắn là một CHỮ
+      // CÁI, và luật đó đáng giữ: nó bắt được lỗi gõ nhầm ở 25 động từ khác.
+      // Đổi lấy việc mất hai bí danh mà hầu như không ai gõ là một đánh đổi
+      // rẻ — dạng dài mới là thứ bài G17 dạy.
+      boolFlag('--ours', null, 'Khi đang xung đột: lấy phía của bạn cho file đó'),
+      boolFlag('--theirs', null, 'Khi đang xung đột: lấy phía kia cho file đó'),
+    ],
     aliases: NO_ALIASES,
     subs: NO_SUBS,
     defaultSub: null,
@@ -484,6 +512,11 @@ export const GIT_COMMANDS: Readonly<Record<GitVerb, CommandSpec>> = {
     summary: 'Trộn lịch sử của một branch khác vào branch hiện tại',
     flags: [
       boolFlag('--abort', null, 'Huỷ merge đang dở, đưa repo về đúng trạng thái trước khi merge'),
+      // ⚠ Thiếu cờ này thì một người chơi đã GIẢI XONG xung đột không có lệnh
+      // nào để đóng merge lại: `git commit` từ chối khi `repo.pending !== null`
+      // (xem `ops/basic.ts`), và họ kẹt ở trạng thái nửa chừng. Ô nghiệm thu
+      // AC-8 bắt được đúng chỗ này ở bài G17.
+      boolFlag('--continue', null, 'Đóng merge lại sau khi đã giải hết xung đột và `git add`'),
       boolFlag('--no-ff', null, 'Luôn tạo commit merge, kể cả khi fast-forward được'),
       boolFlag('--squash', null, 'Gom mọi thay đổi vào index nhưng KHÔNG tạo commit merge'),
     ],
@@ -505,6 +538,14 @@ export const GIT_COMMANDS: Readonly<Record<GitVerb, CommandSpec>> = {
       valueFlag('--onto', null, 'Chọn điểm gốc mới, tách khỏi phép chọn tự động'),
       ...pendingFlags('rebase'),
       boolFlag('--skip', null, 'Bỏ qua commit đang kẹt rồi chạy tiếp'),
+      // ⚠ CỜ CỦA GAME, không có ở git thật.
+      //
+      // `git rebase -i` thật mở một trình soạn thảo — một bước tương tác mà
+      // `RunLog` không ghi lại được và một test tự động không gõ được vào. Giao
+      // diện vẫn cho người chơi kéo thả kịch bản như bình thường; `--script` là
+      // hình dạng mà thao tác đó được GHI LẠI, cùng lý do `setSpeed` của game
+      // K8s không đi vào nhật ký.
+      valueFlag('--script', null, 'Kịch bản rebase tương tác, ví dụ pick,squash,drop (cờ của game)'),
     ],
     aliases: NO_ALIASES,
     subs: NO_SUBS,
@@ -747,7 +788,7 @@ export const GIT_COMMANDS: Readonly<Record<GitVerb, CommandSpec>> = {
     summary: 'Đẩy commit của branch cục bộ lên remote',
     flags: [
       withCaution(
-        boolFlag('--force', null, 'Ghi đè branch trên remote bất chấp lịch sử bên đó'),
+        boolFlag('--force', '-f', 'Ghi đè branch trên remote bất chấp lịch sử bên đó'),
         '`--force-with-lease` tồn tại và làm đúng việc bạn muốn: nó từ chối ghi đè khi remote đã có commit mà bạn CHƯA nhìn thấy. `--force` thì không kiểm gì cả, nên nó xoá được commit của đồng đội mà bạn không hề biết.',
       ),
       boolFlag(
@@ -906,6 +947,24 @@ export const GIT_COMMANDS: Readonly<Record<GitVerb, CommandSpec>> = {
     usage: 'git pr <open|list|review|merge> …',
     usageError:
       '`git pr` một mình không làm gì cả. Nói rõ việc cần làm: `open`, `list`, `review` hay `merge`.',
+  },
+  write: {
+    verb: 'write',
+    summary: 'Ghi nội dung vào một file trong worktree (lệnh của game, thay cho trình soạn thảo)',
+    flags: [
+      valueFlag('--content', '-c', 'Nội dung file, dùng \n để xuống dòng'),
+      boolFlag('--append', '-a', 'Nối vào cuối file thay vì ghi đè'),
+      boolFlag('--delete', '-d', 'Xoá file khỏi worktree'),
+    ],
+    aliases: NO_ALIASES,
+    subs: NO_SUBS,
+    defaultSub: null,
+    minArgs: 1,
+    maxArgs: 1,
+    argKinds: ['path'],
+    usage: 'git write <đường-dẫn> -c "nội dung" | git write <đường-dẫn> -d',
+    usageError:
+      '`git write` cần biết ghi vào file nào. Nêu đúng một đường dẫn.',
   },
 };
 

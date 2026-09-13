@@ -346,11 +346,12 @@ const GOOD_USE: Readonly<Record<GitVerb, string>> = {
   pull: 'git pull --rebase origin main',
   remote: 'git remote add origin /kho/goc',
   pr: 'git pr merge 3 --squash',
+  write: 'git write config.yml -c "port: 3000"',
 };
 
 const BAD_USE: Readonly<Record<GitVerb, string>> = {
   init: 'git init a b',
-  add: 'git add',
+  add: 'git add --khong-co-co-nay src/a.ts',
   commit: 'git commit thua-tham-so',
   status: 'git status main',
   diff: 'git diff --stagd',
@@ -375,6 +376,7 @@ const BAD_USE: Readonly<Record<GitVerb, string>> = {
   pull: 'git pull --rebse',
   remote: 'git remote add origin',
   pr: 'git pr',
+  write: 'git write',
 };
 
 describe('mọi lệnh — dùng đúng', () => {

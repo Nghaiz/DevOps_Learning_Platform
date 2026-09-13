@@ -467,7 +467,17 @@ export type GitErrorCode =
   | 'branch-exists'
   | 'branch-missing'
   | 'branch-checked-out'
-  | 'detached-head-warning'
+  /** `git branch -d` một nhánh chưa merge. `-D` bỏ qua phép kiểm này. */
+  | 'branch-not-merged'
+  /** `git tag` trùng tên một tag đã có. */
+  | 'tag-exists'
+  /**
+   * Chuyển nhánh/checkout khi worktree bẩn, hoặc sắp đè một file chưa track.
+   *
+   * Thông báo của mã này PHẢI nhắc tới `git stash` — đó là cầu nối sang bài G22,
+   * và một người học bị chặn mà không được chỉ đường sẽ đi tìm cách ép lệnh chạy.
+   */
+  | 'local-changes-would-be-lost'
   | 'non-fast-forward'
   | 'stale-lease'
   | 'merge-conflict'
@@ -478,6 +488,19 @@ export type GitErrorCode =
   | 'stash-empty'
   | 'unmerged-paths'
   | 'not-allowed-here';
+
+/*
+ * ⚠ KHÔNG có mã `detached-head-warning`, và sự vắng mặt đó là một quyết định.
+ *
+ * Bản đầu của union này có nó. Lane thao tác nền chỉ ra rằng nó KHÔNG dùng được
+ * qua đường `error`: §5 ghim "error ≠ null ⇒ trạng thái CŨ không đổi" (ngoại lệ
+ * duy nhất là `merge-conflict`/`unmerged-paths`), trong khi `git checkout <oid>`
+ * thì HEAD **đã** dời rồi mới cảnh báo. Một mã lỗi đi kèm trạng thái đã đổi sẽ
+ * phá đúng cái bất biến mà `undo` và việc phát lại dựa vào.
+ *
+ * Detached HEAD được báo bằng một `OutputLine` giọng `warn`. Đó là hình dạng
+ * đúng: nó là một lời nhắc, không phải một lệnh bị từ chối.
+ */
 
 /**
  * Lỗi **GIẢI THÍCH TRẠNG THÁI**, không chỉ báo sai. Đây là §17.I.4 và nó là một

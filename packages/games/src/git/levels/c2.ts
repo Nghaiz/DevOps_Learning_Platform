@@ -394,7 +394,7 @@ bạn được.
     branches: { main: 'me' },
     origin: { branches: { main: 'o1' }, tracking: { main: 'c3' } },
   },
-  allowedCommands: ['pull', 'fetch', 'merge', 'add', 'commit', 'status', 'diff', 'log'],
+  allowedCommands: ['pull', 'fetch', 'merge', 'checkout', 'add', 'commit', 'status', 'diff', 'log'],
   objectives: [
     {
       id: 'khong-con-marker',
@@ -473,14 +473,18 @@ Không thích thì \`git merge --abort\` quay về trạng thái trước, khôn
     'git pull',
     'git checkout --theirs config.yml',
     'git add config.yml',
-    'git commit -m "Hợp nhất, lấy port 9090"',
+    // ⚠ `git commit` KHÔNG kết thúc merge ở engine này: `ops/basic.ts` từ chối
+    // khi `repo.pending !== null`, và việc đóng một thao tác dở dang thuộc về
+    // `ops/merge.ts`. Khác git thật một chút, và khác có chủ ý — nó làm ranh
+    // giới giữa hai tầng nhìn thấy được thay vì ẩn trong một lệnh.
+    'git merge --continue',
   ],
   altSolutionCommands: [
     'git fetch',
     'git merge origin/main',
     'git checkout --ours config.yml',
     'git add config.yml',
-    'git commit -m "Hợp nhất, giữ port 3000"',
+    'git merge --continue',
   ],
   par: 4,
 };
@@ -489,7 +493,7 @@ export const G18: GitLevel = {
   id: 'git-18-conflict-khong-phai-loi',
   chapter: 2,
   title: 'Conflict không phải lỗi: đọc, chọn, hoặc rút lui',
-  mission: 'Thử merge, đọc xung đột, rồi rút lui an toàn bằng --abort.',
+  mission: 'Dọn sạch dấu xung đột còn sót và đưa worktree về đúng bản của bạn.',
   brief: `
 Lần này có xung đột ở **hai file cùng lúc**, và bạn quyết định chưa giải bây giờ.
 
@@ -508,8 +512,39 @@ merge, và tránh merge là tránh làm việc nhóm.
     ],
     branches: { main: 'me' },
     origin: { branches: { main: 'o1' }, tracking: { main: 'c3' } },
+    /*
+     * ⚠ Worktree bắt đầu Ở TRẠNG THÁI CÒN MARKER, và đó là một bản sửa thiết kế
+     * chứ không phải trang trí.
+     *
+     * Bản đầu của level này đặt mục tiêu "không còn thao tác dở dang + file về
+     * đúng bản của bạn", rồi bảo người chơi merge và `--abort`. Ô nghiệm thu
+     * "level đã thắng sẵn lúc mở ra" bắt ngay: `--abort` khôi phục về đúng
+     * trạng thái ban đầu, nên trạng thái ĐÍCH bằng trạng thái ĐẦU và level qua
+     * được bằng cách KHÔNG LÀM GÌ.
+     *
+     * Đó là lỗi thật, không phải lỗi của phép đo. Một level mà "không làm gì"
+     * cũng thắng thì nó không dạy gì cả, và bộ chấm theo trạng thái không có
+     * cách nào phân biệt — đúng như thiết kế, vì nó cố ý không đọc lệnh đã gõ.
+     *
+     * Cách sửa giữ nguyên bài học ("rút lui là an toàn"): cho người chơi bắt
+     * đầu Ở GIỮA đống đổ nát mà một lần merge hỏng để lại, và việc phải làm là
+     * dọn nó. Phần `--abort` chuyển sang bài giảng, nơi nó thuộc về.
+     */
+    worktree: {
+      'config.yml': [
+        '<<<<<<< HEAD',
+        'port: 3000',
+        '||||||| tổ tiên chung',
+        'port: 8080',
+        '=======',
+        'port: 9090',
+        '>>>>>>> origin/main',
+        'host: localhost',
+      ],
+      'app.js': ['start()', 'mine()'],
+    },
   },
-  allowedCommands: ['merge', 'fetch', 'pull', 'status', 'diff', 'log', 'add', 'commit'],
+  allowedCommands: ['merge', 'fetch', 'pull', 'checkout', 'status', 'diff', 'log', 'add', 'commit', 'write'],
   objectives: [
     {
       id: 'khong-do-dang',
@@ -578,8 +613,8 @@ sinh ra commit rất kỳ lạ về sau.
     ],
   },
   theoryId: '18-conflict-khong-phai-loi',
-  solutionCommands: ['git fetch', 'git merge origin/main', 'git merge --abort'],
-  altSolutionCommands: ['git pull', 'git merge --abort'],
+  solutionCommands: ['git checkout -- config.yml'],
+  altSolutionCommands: ['git write config.yml -c "port: 3000"', 'git write config.yml -c "host: localhost" --append'],
   par: 3,
 };
 
@@ -776,7 +811,7 @@ export const G21: GitLevel = {
   id: 'git-21-force-with-lease',
   chapter: 2,
   title: '`--force-with-lease`: cùng ý định, khác hậu quả',
-  mission: 'Thử ghi đè an toàn và để git chặn bạn lại đúng lúc.',
+  mission: 'Bị lease chặn, rồi làm đúng: lấy việc của Linh về trước khi đẩy.',
   brief: `
 Cùng tình huống G20, nhưng lần này bạn dùng cờ an toàn.
 
@@ -800,27 +835,39 @@ Nói cách khác: \`--force\` nói "tôi muốn ghi đè". \`--force-with-lease\
     // tracking cố tình LỆCH origin: bạn nhớ me1, origin đã ở o1.
     origin: { branches: { main: 'o1' }, tracking: { main: 'me1' } },
   },
-  allowedCommands: ['push', 'fetch', 'log', 'status', 'reflog'],
+  allowedCommands: ['push', 'fetch', 'rebase', 'log', 'status', 'reflog'],
   objectives: [
     {
-      id: 'linh-con-song',
-      label: 'Commit của Linh vẫn còn người trỏ tới',
-      check: 'commitReachable',
+      // ⚠ KHÔNG dùng `commitReachable`: vị từ đó đọc kho LOCAL, còn commit của
+      // Linh chỉ tồn tại ở `origin`. Đo sai vế thì ô đỏ dù lệnh chạy đúng, và
+      // ô nghiệm thu AC-9 đã bắt được đúng chỗ này.
+      id: 'linh-con-trong-kho',
+      label: 'Commit của Linh vẫn nằm trong kho, cứu lại được',
+      check: 'commitInStore',
       args: { message: 'Linh push sau lần fetch của tôi' },
       required: true,
     },
     {
-      id: 'origin-chua-doi',
-      label: 'origin/main chưa bị ghi đè',
+      /*
+       * ⚠ Ô này thay cho "origin chưa bị ghi đè" ở bản đầu, và lý do là một lỗi
+       * thiết kế mà AC-8 bắt được: nếu trạng thái ĐÍCH là "không có gì đổi" thì
+       * level đã thắng sẵn lúc mở ra, và nó qua được bằng cách không làm gì.
+       *
+       * Bài học vẫn nguyên — người chơi VẪN bị `--force-with-lease` chặn ở lần
+       * thử đầu — nhưng level nay đòi họ đi nốt phần còn lại: lấy việc của Linh
+       * về, rồi mới đẩy.
+       */
+      id: 'da-day-len-duoc',
+      label: 'origin cuối cùng đã nhận việc của bạn',
       check: 'originRefPointsAtMessage',
-      args: { ref: 'main', message: 'Linh push sau lần fetch của tôi' },
+      args: { ref: 'main', message: 'Việc của tôi, bản đã dọn' },
       required: true,
     },
     {
-      id: 'toi-van-con',
-      label: 'Việc của bạn vẫn nguyên ở local',
-      check: 'refPointsAtMessage',
-      args: { ref: 'main', message: 'Việc của tôi, bản đã dọn' },
+      id: 'dong-bo',
+      label: 'Ref theo dõi khớp origin',
+      check: 'trackingUpToDate',
+      args: { ref: 'main' },
       required: true,
     },
   ],
@@ -855,8 +902,21 @@ khỏi thứ bạn **chưa nhìn thấy**, không bảo vệ khỏi thứ bạn 
     ],
   },
   theoryId: '21-force-with-lease',
-  solutionCommands: ['git push --force-with-lease'],
-  altSolutionCommands: ['git push --force-with-lease origin main'],
+  /*
+   * Hai bước, và bước ĐẦU cố ý thất bại.
+   *
+   * `--force-with-lease` từ chối vì ref theo dõi của bạn còn nhớ trạng thái cũ.
+   * `git fetch` cập nhật bản ghi nhớ đó, và sau đó CÙNG MỘT LỆNH chạy được.
+   *
+   * Đó chính là câu quan trọng nhất của bài: cờ này bảo vệ bạn khỏi thứ bạn
+   * CHƯA NHÌN THẤY, không bảo vệ khỏi thứ bạn đã nhìn rồi vẫn quyết định đè.
+   */
+  solutionCommands: [
+    'git push --force-with-lease',
+    'git fetch',
+    'git push --force-with-lease',
+  ],
+  altSolutionCommands: ['git fetch', 'git push --force-with-lease origin main'],
   par: 1,
 };
 
@@ -887,7 +947,7 @@ mục, dù có mười nhánh.
     head: 'main',
     worktree: { 'app.js': 'start()\n// đang viết dở, chưa xong' },
   },
-  allowedCommands: ['stash', 'switch', 'checkout', 'add', 'commit', 'status', 'log', 'branch'],
+  allowedCommands: ['stash', 'switch', 'checkout', 'write', 'add', 'commit', 'status', 'log', 'branch'],
   objectives: [
     {
       id: 've-main',
@@ -956,6 +1016,7 @@ bạn muốn áp cùng một phần dở lên nhiều nhánh.
   solutionCommands: [
     'git stash',
     'git switch hotfix',
+    'git write hotfix.js -c "da-va"',
     'git add hotfix.js',
     'git commit -m "Vá lỗi gấp"',
     'git switch main',
@@ -964,6 +1025,7 @@ bạn muốn áp cùng một phần dở lên nhiều nhánh.
   altSolutionCommands: [
     'git stash push -m "dang do"',
     'git checkout hotfix',
+    'git write hotfix.js -c "da-va-cach-khac"',
     'git add -A',
     'git commit -m "Vá lỗi gấp"',
     'git checkout main',
@@ -1000,12 +1062,12 @@ Mở PR, đọc nhận xét của người review, sửa, rồi merge.
       {
         atLogicalTime: 2,
         author: 'Linh',
-        script: ['pr review 1 --request-changes -m "Thiếu xử lý chuỗi rỗng"'],
+        script: ['git pr review 1 --request-changes -m "Thiếu xử lý chuỗi rỗng"'],
         announce: 'Linh đã để lại nhận xét trên PR #1: thiếu xử lý chuỗi rỗng.',
       },
     ],
   },
-  allowedCommands: ['pr', 'add', 'commit', 'push', 'log', 'status', 'switch', 'checkout'],
+  allowedCommands: ['pr', 'write', 'add', 'commit', 'push', 'log', 'status', 'switch', 'checkout'],
   objectives: [
     {
       id: 'pr-da-merge',
@@ -1047,9 +1109,9 @@ Vòng PR có bốn nhịp:
 định. Push thêm là PR đổi nội dung, không cần mở PR mới.
 `.trim(),
     cheatsheet: [
-      { command: 'pr open --title "..."', explain: 'Mở PR từ nhánh hiện tại vào main.' },
-      { command: 'pr list', explain: 'Xem các PR đang mở và trạng thái review.' },
-      { command: 'pr merge <số>', explain: 'Hợp nhất PR.' },
+      { command: 'git pr open --title "..."', explain: 'Mở PR từ nhánh hiện tại vào main.' },
+      { command: 'git pr list', explain: 'Xem các PR đang mở và trạng thái review.' },
+      { command: 'git pr merge <số>', explain: 'Hợp nhất PR.' },
     ],
     takeaways: [
       'PR là lớp của nhà cung cấp, không phải khái niệm của git.',
@@ -1058,20 +1120,22 @@ Vòng PR có bốn nhịp:
   },
   theoryId: '23-vong-pr',
   solutionCommands: [
-    'pr open --title "Thêm tính năng tìm kiếm"',
+    'git pr open --title "Thêm tính năng tìm kiếm"',
     'git status',
+    'git write search.js -c "tim() + guard chuoi rong"',
     'git add search.js',
     'git commit -m "Xử lý chuỗi rỗng"',
     'git push',
-    'pr merge 1',
+    'git pr merge 1',
   ],
   altSolutionCommands: [
-    'pr open --title "Tìm kiếm"',
+    'git pr open --title "Tìm kiếm"',
     'git log',
+    'git write search.js -c "tim() + kiem tra rong"',
     'git add -A',
     'git commit -m "Xử lý chuỗi rỗng"',
     'git push origin tinh-nang',
-    'pr merge 1 --squash',
+    'git pr merge 1 --squash',
   ],
   par: 6,
 };
@@ -1115,17 +1179,13 @@ Dùng squash.
       required: true,
     },
     {
-      id: 'main-mot-commit-moi',
-      label: 'main chỉ dài thêm đúng 1 commit',
-      check: 'commitCount',
-      args: { ref: 'main', count: 4 },
-      required: true,
-    },
-    {
-      id: 'main-thang',
-      label: 'main không có commit merge',
-      check: 'historyLinear',
-      args: { ref: 'main' },
+      // ⚠ `pr merge` trộn ở ORIGIN; kho local không đổi cho tới khi người chơi
+      // `pull`. Đo `commitCount` trên `main` local sẽ luôn đỏ dù lệnh chạy
+      // đúng — AC-8 bắt được đúng chỗ này.
+      id: 'main-o-origin-co-bo-loc',
+      label: 'main ở origin đã nhận bộ lọc, gộp thành một commit',
+      check: 'originRefPointsAtMessage',
+      args: { ref: 'main', message: 'Thêm bộ lọc (#1)' },
       required: true,
     },
     {
@@ -1159,9 +1219,9 @@ Sau squash, ba commit gốc vẫn nằm trong kho của nhánh nguồn. Xoá nh�
 mất người trỏ tới.
 `.trim(),
     cheatsheet: [
-      { command: 'pr merge <số>', explain: 'Merge thường, tạo commit hai cha.' },
-      { command: 'pr merge <số> --squash', explain: 'Gộp cả nhánh thành một commit.' },
-      { command: 'pr merge <số> --rebase', explain: 'Đặt từng commit lên đầu main, thẳng.' },
+      { command: 'git pr merge <số>', explain: 'Merge thường, tạo commit hai cha.' },
+      { command: 'git pr merge <số> --squash', explain: 'Gộp cả nhánh thành một commit.' },
+      { command: 'git pr merge <số> --rebase', explain: 'Đặt từng commit lên đầu main, thẳng.' },
     ],
     takeaways: [
       'Ba nút merge cho ba hình dạng lịch sử khác nhau.',
@@ -1170,11 +1230,14 @@ mất người trỏ tới.
     ],
   },
   theoryId: '24-ba-nut-merge',
-  solutionCommands: ['pr open --title "Thêm bộ lọc"', 'pr merge 1 --squash'],
+  solutionCommands: ['git pr open --title "Thêm bộ lọc"', 'git pr merge 1 --squash'],
   altSolutionCommands: [
-    'pr open --title "Bộ lọc"',
-    'pr list',
-    'pr merge 1 --squash',
+    // ⚠ Tiêu đề PR phải GIỐNG lời giải thứ nhất: `pr merge --squash` đặt lời
+    // nhắn là `"<tiêu đề> (#<số>)"`, nên đổi tiêu đề là đổi trạng thái đích.
+    // AC-9 bắt được đúng chỗ này khi hai lời giải dùng hai tiêu đề khác nhau.
+    'git pr open --title "Thêm bộ lọc"',
+    'git pr list',
+    'git pr merge 1 --squash',
   ],
   par: 2,
 };

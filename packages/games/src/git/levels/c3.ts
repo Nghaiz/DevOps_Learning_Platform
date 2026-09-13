@@ -109,12 +109,22 @@ xảy ra trên máy này.
     ],
   },
   theoryId: '25-reflog-nhat-ky-dich-chuyen',
-  solutionCommands: [
-    'git checkout main^',
+  /*
+   * ⚠ `main^` KHÔNG trỏ vào "Bản thử nghiệm" — c2 và c3 cùng có cha là c1, nên
+   * c2 nằm NGOÀI mạch của main. Đó chính là tình huống level dạy, và nó cũng là
+   * lý do lời giải phải đi đường khác.
+   *
+   * `:/<chữ>` là cú pháp có thật của git (`gitrevisions`), ở game này được nới
+   * để tìm cả commit không với tới được — xem `refs-resolve.ts`. Người chơi thật
+   * đi bằng `git fsck --lost-found` rồi copy Oid; `:/` là đường viết được cho
+   * `solutionCommands`, vốn phải tồn tại TRƯỚC khi biết Oid.
+   */
+  solutionCommands: ['git branch tim-lai ":/Bản thử nghiệm"'],
+  altSolutionCommands: [
+    'git checkout ":/Bản thử nghiệm"',
+    'git branch tim-lai',
     'git switch main',
-    'git branch tim-lai HEAD@{1}',
   ],
-  altSolutionCommands: ['git branch tim-lai main^'],
   par: 3,
 };
 
@@ -163,6 +173,23 @@ vẫn giữ nguyên, và reflog vẫn nhớ HEAD từng ở đâu.
       label: 'Lịch sử đủ 4 commit',
       check: 'commitCount',
       args: { ref: 'main', count: 4 },
+      required: true,
+    },
+    {
+      /*
+       * ⚠ Ô này thêm sau khi AC-8 bắt được rằng level "đã thắng sẵn lúc mở ra":
+       * trạng thái ĐÍCH (main ở commit cuối, đủ 4 commit) bằng đúng trạng thái
+       * ĐẦU, nên level qua được bằng cách KHÔNG LÀM GÌ.
+       *
+       * `reflogHasOp` vẫn là một phép đo TRẠNG THÁI, không phải một phép khớp
+       * lệnh: reflog LÀ một phần của repo, và nhiều đường lệnh khác nhau đều
+       * ghi op `reset` vào đó. Nên ô này không vi phạm nguyên tắc §3.3, và
+       * AC-9 vẫn chứng minh được điều nó sinh ra để chứng minh.
+       */
+      id: 'da-tu-gay-su-co',
+      label: 'reflog ghi lại một lần reset (bạn đã thật sự gây ra rồi sửa)',
+      check: 'reflogHasOp',
+      args: { ref: 'HEAD', op: 'reset' },
       required: true,
     },
   ],
@@ -217,7 +244,7 @@ export const G27: GitLevel = {
   id: 'git-27-cuu-nhanh-da-xoa',
   chapter: 3,
   title: 'Cứu một nhánh đã xoá',
-  mission: 'Dựng lại nhánh tinh-nang sau khi lỡ xoá nó.',
+  mission: 'Dựng lại nhánh tinh-nang mà bạn vừa lỡ xoá bằng `git branch -D`.',
   brief: `
 Bạn xoá \`tinh-nang\` bằng \`git branch -D\` vì tưởng đã merge rồi. Chưa merge.
 
@@ -235,8 +262,20 @@ Dựng lại nhánh.
       { id: 'c1', message: 'Nền', changes: { 'a.js': 'v1' } },
       { id: 'f1', parents: ['c1'], message: 'Tính năng chưa merge', changes: { 'f.js': 'chua-merge()' } },
     ],
-    branches: { main: 'c1', 'tinh-nang': 'f1' },
-    head: 'tinh-nang',
+    /*
+     * ⚠ `tinh-nang` CỐ Ý không có trong `branches`, nên commit `f1` nằm trong
+     * kho mà KHÔNG ref nào trỏ tới ngay từ lúc level mở ra.
+     *
+     * Bản đầu dựng sẵn nhánh rồi bảo người chơi tự xoá. Ô nghiệm thu "level đã
+     * thắng sẵn lúc mở ra" bắt ngay: mục tiêu là "nhánh tồn tại và trỏ đúng
+     * chỗ", mà lúc mở ra nó đã đúng như vậy — level qua được bằng cách KHÔNG
+     * LÀM GÌ.
+     *
+     * Đặt người chơi vào SAU sự cố thì trạng thái đích khác hẳn trạng thái đầu,
+     * và bài học ("con trỏ mất không có nghĩa commit mất") còn nguyên.
+     */
+    branches: { main: 'c1' },
+    head: 'main',
   },
   allowedCommands: ['branch', 'switch', 'checkout', 'reflog', 'log', 'status', 'fsck'],
   objectives: [
@@ -303,16 +342,11 @@ từng ghé qua.
     ],
   },
   theoryId: '27-cuu-nhanh-da-xoa',
-  solutionCommands: [
-    'git switch main',
-    'git branch -D tinh-nang',
-    'git branch tinh-nang HEAD@{1}',
-  ],
+  solutionCommands: ['git fsck --lost-found', 'git branch tinh-nang ":/Tính năng chưa merge"'],
   altSolutionCommands: [
+    'git checkout ":/Tính năng chưa merge"',
+    'git branch tinh-nang',
     'git switch main',
-    'git branch -D tinh-nang',
-    'git fsck --lost-found',
-    'git branch tinh-nang main@{0}',
   ],
   par: 3,
 };
@@ -487,6 +521,15 @@ Ba đường ra, và biết cả ba là điều kiện để không hoảng:
       args: { ref: 'main', message: 'main đổi cfg' },
       required: true,
     },
+    {
+      // Cùng lý do với ô `da-tu-gay-su-co` của G26: không có ô này thì trạng
+      // thái đích bằng trạng thái đầu và level thắng sẵn.
+      id: 'da-thu-rebase',
+      label: 'reflog ghi lại một lần rebase (bạn đã thật sự thử rồi rút lui)',
+      check: 'reflogHasOp',
+      args: { ref: 'HEAD', op: 'rebase' },
+      required: true,
+    },
   ],
   hints: [
     'Bắt đầu bằng `git rebase main`. Nó sẽ kẹt ngay ở commit đầu tiên.',
@@ -529,7 +572,7 @@ trường hợp nào abort làm mất việc.
   },
   theoryId: '29-rebase-do-dang',
   solutionCommands: ['git rebase main', 'git rebase --abort'],
-  altSolutionCommands: ['git rebase origin', 'git rebase --abort'],
+  altSolutionCommands: ['git rebase --onto main HEAD~2', 'git rebase --abort'],
   par: 2,
 };
 
@@ -574,6 +617,8 @@ nằm trong đó.
       id: 'con-trong-kho',
       label: 'Commit stash vẫn nằm trong kho',
       check: 'commitInStore',
+      // Khớp một phần: lời nhắn thật là `WIP on main: <oid> <lời nhắn commit>`,
+      // và level không nên phải biết trước cách engine ghép chuỗi đó.
       args: { message: 'WIP on main' },
       required: true,
     },
@@ -619,13 +664,21 @@ Thứ tự thử khi mất việc, từ rẻ tới đắt:
     'git stash',
     'git stash drop',
     'git fsck --lost-found',
-    'git branch cuu-stash stash@{0}',
+    'git branch cuu-stash ":/WIP"',
   ],
+  /*
+   * ⚠ Lời giải thứ hai KHÔNG dùng `-m "..."`, và đó là chủ ý: ô nghiệm thu
+   * `con-trong-kho` tìm commit theo lời nhắn `WIP on main`, mà đặt lời nhắn
+   * riêng sẽ thay luôn chuỗi đó. Chỗ này AC-9 bắt được, và bài học rút ra là
+   * một ô chấm theo lời nhắn thì phụ thuộc chuỗi do ENGINE sinh — nên nó chỉ
+   * dùng được khi mọi đường giải đều đi qua cùng một chuỗi.
+   */
   altSolutionCommands: [
-    'git stash push -m "viec quan trong"',
+    'git stash',
     'git stash drop',
-    'git fsck --lost-found',
-    'git branch cuu-stash HEAD@{1}',
+    'git checkout ":/WIP"',
+    'git branch cuu-stash',
+    'git switch main',
   ],
   par: 4,
 };
@@ -720,8 +773,13 @@ Cứu xong thì bàn với người đã force-push trước khi đẩy lại. �
     ],
   },
   theoryId: '31-cuu-viec-bi-force-push',
-  solutionCommands: ['git fsck --lost-found', 'git branch viec-cua-toi main@{1}'],
-  altSolutionCommands: ['git reflog', 'git branch viec-cua-toi HEAD@{1}'],
+  solutionCommands: ['git fsck --lost-found', 'git branch viec-cua-toi ":/Việc của tôi"'],
+  altSolutionCommands: [
+    'git reflog',
+    'git checkout ":/Việc của tôi"',
+    'git branch viec-cua-toi',
+    'git switch main',
+  ],
   par: 2,
 };
 
@@ -819,20 +877,18 @@ sau, không xen kẽ. Lỗi chập chờn làm bisect chỉ sai chỗ và không
     ],
   },
   theoryId: '32-bisect-tim-commit-hong',
+  /*
+   * Chuỗi bisect ở đây là phần DẠY; dòng `git branch` cuối là phần GHI LẠI.
+   * Bộ chấm đọc trạng thái nên nó không đòi người chơi đi đúng chuỗi này — AC-9
+   * chứng minh điều đó bằng một lời giải không dùng bisect chút nào.
+   */
   solutionCommands: [
     'git bisect start',
     'git bisect bad',
     'git bisect good main~7',
-    'git bisect bad',
-    'git bisect good',
-    'git bisect bad',
-    'git branch thu-pham HEAD',
     'git bisect reset',
+    'git branch thu-pham ":/Làm hỏng test"',
   ],
-  altSolutionCommands: [
-    'git branch thu-pham main~3',
-    'git bisect start',
-    'git bisect reset',
-  ],
+  altSolutionCommands: ['git branch thu-pham ":/Làm hỏng test"'],
   par: 8,
 };
