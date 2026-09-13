@@ -370,6 +370,32 @@ describe('hình học của cảnh', () => {
     expect(segments).toBeGreaterThan(5);
   });
 
+  it('cạnh cha-con dùng ĐƯỜNG ĐÃ ĐỊNH TUYẾN của layout, không rơi về đường dự phòng', () => {
+    /*
+      Ô này gác một hồi quy KHÔNG ĐỎ Ở ĐÂU KHÁC. `GitEdgeView` chạy từ CON về
+      CHA, còn `LaidOutEdge` chạy từ CHA về CON — hai quy ước ngược nhau, cả hai
+      đều đúng ở tầng của mình. Nếu phép so không bắt chéo thì mọi `find` trượt,
+      mọi cạnh rơi về `elbowPath`, và kết quả vẫn góc vuông, vẫn nối đúng hai
+      đầu, vẫn qua hết các ô khác. Chỉ có điều cạnh không còn đi theo làn mà
+      tầng layout đã tính.
+    */
+    const { container } = render(<GitSvgScene {...props()} />);
+    const groups = [...container.querySelectorAll('[data-edge]')];
+    expect(groups.length).toBeGreaterThan(4);
+
+    const routed = groups.filter((g) => g.getAttribute('data-routed') === 'layout');
+    const fallback = groups.filter((g) => g.getAttribute('data-routed') === 'fallback');
+
+    // 4 cạnh cha-con của local + 1 của origin đều có đường trong layout.
+    expect(routed.length).toBe(5);
+    // Chỉ hai cạnh remote-mirror mới được phép dùng đường dự phòng: chúng bắc
+    // qua khoảng trống giữa hai kho nên KHÔNG nằm trong layout của kho nào.
+    expect(fallback.map((g) => g.getAttribute('data-edge'))).toEqual([
+      'local:c1->origin:c1#remote-mirror',
+      'local:c2->origin:c2#remote-mirror',
+    ]);
+  });
+
   it('hai kho tách rời: không commit origin nào chồng lên vùng của local', () => {
     const { container } = render(<GitSvgScene {...props()} />);
     const bottoms: number[] = [];

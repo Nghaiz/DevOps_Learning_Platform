@@ -385,6 +385,19 @@ export function GitSvgScene(props: GitSvgSceneProps): ReactElement {
       <g aria-hidden="true">
         {edges.map((edge) => {
           const style = EDGE_STYLE[edge.kind];
+          /*
+           * ⚠ HAI DANH SÁCH CẠNH CHẠY NGƯỢC CHIỀU NHAU. Không phải một chỗ
+           * cẩu thả — cả hai đều đúng theo quy ước của tầng mình:
+           *
+           *   `GitEdgeView`  : `from` = CON, `to` = CHA  (chiều con trỏ của git)
+           *   `LaidOutEdge`  : `from` = CHA, `to` = CON  (chiều thời gian)
+           *
+           * Nên phép so phải BẮT CHÉO. Đảo nhầm không gây lỗi gì thấy được: mọi
+           * `find` trượt, `routed` thành `undefined`, và mọi cạnh lặng lẽ rơi
+           * về `elbowPath` — vẫn góc vuông, vẫn nối đúng hai đầu, chỉ là không
+           * còn đi theo làn mà tầng layout đã tính. Một hồi quy không đỏ ở đâu
+           * cả; `data-routed` dưới đây là thứ làm nó đỏ được trong test.
+           */
           const routed =
             edge.repo === null
               ? null
@@ -403,7 +416,11 @@ export function GitSvgScene(props: GitSvgSceneProps): ReactElement {
               ? elbowPath(from, to)
               : orthogonalPath(routed.points, topOf(edge.repo as SceneRepo));
           return (
-            <g key={edge.key}>
+            <g
+              key={edge.key}
+              data-edge={edge.key}
+              data-routed={routed === undefined || routed === null ? 'fallback' : 'layout'}
+            >
               <path
                 d={d}
                 fill="none"
