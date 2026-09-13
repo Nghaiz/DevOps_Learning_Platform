@@ -8,6 +8,9 @@
   "backend": {
     "imageid": "ubuntu"
   },
+  "interface": {
+    "layout": "ide"
+  },
   "tasks": [
     {
       "id": "find-kill-runaway",

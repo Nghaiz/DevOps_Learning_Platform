@@ -31,6 +31,7 @@ import {
   type BadgeVariant,
 } from '@devops-platform/ui';
 import {
+  IdePane,
   SessionControls,
   ShellFallbackNotice,
   TaskChecklist,
@@ -39,6 +40,7 @@ import {
   WorkspaceSplit,
   outcomeKind,
   resolveTaskVisualState,
+  shouldShowIdePane,
   useResolvedTerminalTheme,
 } from '../../../components/session';
 import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
@@ -209,25 +211,33 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
   }, [attemptId, labId, submit, utils]);
 
   /*
-    C5 — lab vẫn KHÔNG có tab Editor, nhưng LÝ DO đã đổi ở P16.
+    C5 — lab CÓ tab Editor từ 2026-09-13, và chú thích cũ ở đây đã SAI SỰ THẬT.
 
-    Rào cản kiến trúc đã gỡ: `IdePane` nay sống ở `components/session/` (16.D.3),
-    nên lab với tới được nó. Rào cản còn lại là NỘI DUNG, và nó có thật: kiểu
-    `Lab` (`packages/shared-types/src/lab.ts`) KHÔNG có trường `interfaceLayout`,
-    nên không bài lab nào khai được rằng nó muốn IDE.
+    Bản trước viết rằng kiểu `Lab` không có trường `interfaceLayout`. Kiểm lại
+    thì `labSchema` extend `contentBaseSchema`, mà `contentBaseSchema` khai
+    `interfaceLayout: z.string().nullable()` — nên trường đó đã có sẵn, và
+    `packages/scenario/src/lab-loader.ts` cũng đã đọc `file.interface?.layout`
+    từ trước. Rào cản thật nằm ở SERVER, chỉ một đối số: `createSandboxSession`
+    gọi `profileForCapabilities(capabilities)` mà không chuyển `interfaceLayout`
+    xuống, nên pod không xin profile `ide` và không chạy Theia. Đã sửa cùng lượt
+    này ở `server/labs/session.ts` + `routers/labs.ts`.
 
     ⛔ Đừng thay bằng `shouldShowIdePane(profile)`. `profile` là profile TÀI
     NGUYÊN (`''` · `ide` · `k8s`), do `profileForCapabilities` tính từ năng lực;
     `interfaceLayout` là một trường nội dung khác hẳn. `ide-layout.ts` đã ghi vì
     sao phép so đó phải trùng byte với phép so ở server: nới tay ⇒ iframe trỏ
     vào một pod không chạy Theia và trắng vĩnh viễn.
-
-    Mở IDE cho lab vì vậy cần một trường trong lược đồ lab cộng một lượt sửa
-    server, tức là ngoài phạm vi "chỉ frontend" của P16.
   */
+  /*
+    ⚠ Đọc từ `labQuery.data`, KHÔNG từ `lab` — `lab` được gỡ ra bên dưới, SAU
+    các `return` sớm, còn hook thì phải gọi ở trên chúng. Bài chưa tải xong thì
+    `undefined`, và điều đó không sao: chưa có bài thì chưa có tab Editor. Cùng
+    khuôn với `scenario?.interfaceLayout ?? null` ở trang bài học.
+  */
+  const showIde = shouldShowIdePane(labQuery.data?.lab.interfaceLayout ?? null);
   const tabs = useWorkspaceTabs({
     terminal: session.terminal,
-    hasEditor: false,
+    hasEditor: showIde,
     sessionId: session.state.sessionId,
   });
 
@@ -557,16 +567,17 @@ export function LabClient({ labId, userId }: { labId: string; userId: string }):
           side={
             <WorkspacePanel
               /*
-                Không truyền `editor`: lab chưa có khoang IDE nào (xem chú thích
-                ở `useWorkspaceTabs` phía trên). Vắng prop = panel không vẽ tab
-                Editor, và vì khi đó chỉ còn MỘT mục thì nó bỏ luôn thanh
-                tablist — một tablist một mục là nhiễu thị giác chứ không phải
-                chức năng (§Y4). Nút mở-ra-cửa-sổ-riêng vẫn còn trên thanh.
+                `editor` chỉ truyền khi bài KHAI `interface.layout: ide`. Vắng
+                prop = panel không vẽ tab Editor, và vì khi đó chỉ còn MỘT mục
+                thì nó bỏ luôn thanh tablist — một tablist một mục là nhiễu thị
+                giác chứ không phải chức năng (§Y4). Nút mở-ra-cửa-sổ-riêng vẫn
+                còn trên thanh.
 
                 ⛔ MỘT node terminal, truyền THẲNG. `terminals` (Map),
                 `onAddTerminal`, `onCloseTerminal`, `split` đã biến mất cùng
                 terminal thứ hai (§Y4).
               */
+              {...(showIde ? { editor: <IdePane sessionId={session.state.sessionId} /> } : {})}
               terminal={terminalPane}
               activeTab={tabs.activeTab}
               onActivate={tabs.onActivate}

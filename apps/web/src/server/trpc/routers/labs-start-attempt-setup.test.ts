@@ -33,6 +33,14 @@ const holder = vi.hoisted(() => ({
   /** Thứ tự các việc có tác dụng phụ, để khẳng định setup đi TRƯỚC lượt ghi DB. */
   nhatKy: [] as string[],
   /**
+   * Tham số của lượt `createSandboxSession` gần nhất.
+   *
+   * Cần vì `profileForLab` (dùng cho NHÃN ở `labs.get`) và lượt tạo pod thật là
+   * HAI chỗ gọi khác nhau, và bất biến giữa chúng là "cùng biểu thức". Một unit
+   * test chỉ đọc nhãn sẽ xanh nguyên khi pod xin một profile khác.
+   */
+  sandboxParams: null as Record<string, unknown> | null,
+  /**
    * Khe quota đang bị CHIẾM, theo sessionId.
    *
    * ⛔ Đây là vế khiến bộ này khẳng định được SỐ KHE chứ chỉ "có ném lỗi". Bảng
@@ -66,7 +74,14 @@ vi.mock('../../labs/catalog', async (importOriginal) => {
       estimatedMinutes: 10,
       source: null,
       backend: { imageid: 'ubuntu' },
-      interface: null,
+      interface: { layout: 'ide' },
+      /*
+        ⚠ `interfaceLayout` là trường của DTO `Lab` (loader dịch từ
+        `interface.layout`), và nó phải khác `null` ở fixture này — một ô khẳng
+        định `null === null` sẽ xanh y hệt khi router quên chuyển trường đi.
+      */
+      interfaceLayout: 'ide',
+      capabilities: [],
       tier: 'standard',
       toolset: holder.toolset,
       tasks: [{ id: 't1', title: 'T1', weight: 1, hint: null, verifyScript: 'true', body: '' }],
@@ -81,8 +96,9 @@ vi.mock('../../labs/session', async (importOriginal) => {
   const real = await importOriginal<typeof LabsSession>();
   return {
     ...real,
-    createSandboxSession: async () => {
+    createSandboxSession: async (_ctx: unknown, params: Record<string, unknown>) => {
       holder.nhatKy.push('createSandboxSession');
+      holder.sandboxParams = params;
       holder.kheDangChiem.add('sess-1');
       return { session: { id: 'sess-1' } };
     },
@@ -181,6 +197,7 @@ async function goiCheckTask(): Promise<unknown> {
 
 beforeEach(() => {
   holder.nhatKy = [];
+  holder.sandboxParams = null;
   holder.kheDangChiem = new Set();
   holder.exitCode = 0;
   holder.output = '';
@@ -415,5 +432,44 @@ describe('labs.setupStatus', () => {
     expect(out.state).toBe('failed');
     expect(holder.nhatKy.filter((v) => v.startsWith('reap:'))).toHaveLength(0);
     expect(holder.kheDangChiem.has('sess-1')).toBe(true);
+  });
+});
+
+/**
+ * ⛔ Lab CÓ khai `interface.layout: ide` thì pod phải XIN profile `ide`.
+ *
+ * Đây là mắt xích từng đứt suốt P13-P16, và nó đứt ở đúng MỘT đối số:
+ * `createSandboxSession` gọi `profileForCapabilities(params.capabilities)` mà
+ * không chuyển `interfaceLayout` xuống. Hậu quả không phải một lỗi — nó là một
+ * pod chạy đúng, xin đúng RAM của bài thường, và KHÔNG chạy Theia. Giao diện
+ * vẫn vẽ tab Editor, iframe trỏ vào `/ide/session/...`, và người học nhìn một
+ * khoang trắng vĩnh viễn. Không log, không exception.
+ *
+ * Bộ này gác CALL-SITE, cùng lớp với phần còn lại của file: `profileForLab`
+ * (nhãn ở `labs.get`) và lượt tạo pod là hai chỗ gọi khác nhau, nên một ô chỉ
+ * đọc nhãn sẽ xanh nguyên trong khi pod xin một profile khác.
+ */
+describe('startAttempt chuyển `interfaceLayout` của bài xuống lượt tạo pod', () => {
+  it('lab khai `ide` ⇒ `createSandboxSession` nhận đúng `interfaceLayout: "ide"`', async () => {
+    const caller = appRouter.createCaller(ctx);
+    await caller.labs.startAttempt({ labId: 'lab-test', idempotencyKey: 'idem-ide' });
+
+    expect(holder.sandboxParams, 'không lượt tạo sandbox nào được ghi lại').not.toBeNull();
+    expect(holder.sandboxParams?.['interfaceLayout']).toBe('ide');
+  });
+
+  /**
+   * Nửa DƯƠNG của ô trên. Không có nó, một `interfaceLayout` được chốt cứng
+   * thành `'ide'` ở router cũng làm ô trên xanh — và khi ấy mọi lab thường sẽ
+   * xin một pod 768Mi mà không ai cần.
+   */
+  it('đối chứng dương — trường đi theo BÀI, không phải một hằng chốt cứng', async () => {
+    const caller = appRouter.createCaller(ctx);
+    await caller.labs.startAttempt({ labId: 'lab-test', idempotencyKey: 'idem-caps' });
+
+    // Cùng lượt đó phải mang `capabilities` của chính bài — nếu params được
+    // dựng từ hằng thì hai trường này không thể cùng khớp fixture.
+    expect(holder.sandboxParams?.['capabilities']).toEqual([]);
+    expect(holder.sandboxParams?.['tier']).toBe('standard');
   });
 });

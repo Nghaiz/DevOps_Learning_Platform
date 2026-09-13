@@ -79,6 +79,17 @@ export async function createSandboxSession(
      * được cấp bao nhiêu RAM, cùng lý do `userId` không nằm trong input.
      */
     capabilities: readonly ScenarioCapability[];
+    /**
+     * `interface.layout` mà NỘI DUNG khai (`'ide'` hoặc `null`). Cùng nguồn tin
+     * cậy với `capabilities`: nội dung khai, không phải client.
+     *
+     * ⛔ BẮT BUỘC, không có mặc định. Một default `null` ở đây làm caller quên
+     * truyền mà vẫn biên dịch, và hậu quả là pod không xin profile `ide` trong
+     * khi giao diện vẫn vẽ tab Editor — iframe trỏ vào một pod không chạy Theia
+     * và trắng vĩnh viễn. Đó đúng là lớp lỗi mà `ide-layout.ts` mô tả, nên chỗ
+     * này fail-loud ở compile time thay vì im lặng lúc chạy.
+     */
+    interfaceLayout: string | null;
   },
 ): Promise<NewSandbox> {
   const headers = await callHeaders(ctx.user.id, ctx.user.role);
@@ -89,7 +100,7 @@ export async function createSandboxSession(
         tier: tierToProto(params.tier),
         ttlSeconds: params.ttlSeconds,
         idempotencyKey: params.idempotencyKey,
-        profile: profileForCapabilities(params.capabilities),
+        profile: profileForCapabilities(params.capabilities, params.interfaceLayout),
       },
       { headers },
     ),

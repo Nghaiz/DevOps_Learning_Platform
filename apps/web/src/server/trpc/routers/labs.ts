@@ -199,15 +199,20 @@ function describeUnreadySetup(probe: SetupProbe): string {
 /**
  * Profile mà pod của lab này xin.
  *
- * ⚠ MỘT đối số, cố ý: `createSandboxSession` (`server/labs/session.ts`) gọi
- * `profileForCapabilities(params.capabilities)` và KHÔNG chuyển `interfaceLayout`
- * xuống. Nên với lab, `interface.layout: ide` hôm nay KHÔNG nâng profile. Thêm
- * đối số thứ hai ở đây sẽ làm nhãn hứa một profile mà pod không xin — tức đổi
- * một lời nói dối lấy một lời nói dối khác. Đường đúng là sửa
- * `createSandboxSession` rồi sửa CẢ HAI cùng lúc; file đó ngoài sở hữu lượt này.
+ * ⚠ HAI đối số từ 2026-09-13, và phải giữ khớp với `startAttempt`.
+ *
+ * Bản trước chỉ truyền `capabilities`, vì `createSandboxSession` khi ấy không
+ * chuyển `interfaceLayout` xuống — nên `interface.layout: ide` của một lab
+ * KHÔNG nâng profile, và thêm đối số ở riêng chỗ này sẽ làm nhãn hứa một
+ * profile mà pod không xin. Chú thích cũ ghi đúng đường sửa: chữa
+ * `createSandboxSession` rồi chữa CẢ HAI cùng lúc. Đó là việc vừa làm.
+ *
+ * ⛔ Bất biến còn nguyên: biểu thức ở đây phải TRÙNG với biểu thức mà
+ * `startAttempt` đưa cho `createSandboxSession`. Lệch một đối số là màn hình
+ * đếm chỗ cho một pod khác pod sắp tạo — chế độ hỏng 2026-09-07, và nó im lặng.
  */
 function profileForLab(lab: Lab): string {
-  return profileForCapabilities(sandboxCapabilities(lab));
+  return profileForCapabilities(sandboxCapabilities(lab), lab.interfaceLayout);
 }
 
 /** `attemptId` là khoá duy nhất thật sự; `labId` trong input chỉ để đối chiếu — lệch cũng NOT_FOUND, không lộ thêm gì. */
@@ -346,6 +351,7 @@ export const labsRouter = createTRPCRouter({
       idempotencyKey: input.idempotencyKey,
       // CÙNG biểu thức mà `get` đưa cho `profileForLab` — xem `sandboxCapabilities`.
       capabilities: sandboxCapabilities(lab),
+      interfaceLayout: lab.interfaceLayout,
     });
 
     /*
