@@ -574,6 +574,177 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
   });
 });
 
+/**
+ * ── Bảng màu cảnh 3D phải ở dạng `THREE.Color` ĐỌC ĐƯỢC ─────────────────────
+ *
+ * Chú thích của `C1_JOURNEY_TOKENS` đã hứa điều này bằng chữ từ lúc nhóm ra
+ * đời: "Dạng `rgb()`, không phải `oklch()`. Three.js nhận màu qua API JS và
+ * KHÔNG phân giải `var()` lẫn `oklch()`". Nhưng KHÔNG ô nào khẳng định nó, nên
+ * lời hứa đó tự do trôi: đổi mười dòng trong `globals.css` sang `oklch()` cho
+ * đồng bộ với phần còn lại của bảng token là một lượt sửa trông hợp lý, CSS
+ * hợp lệ, contrast không đổi, mọi ô hiện có vẫn xanh, và cảnh 3D hiện đen
+ * kịt vì `new THREE.Color('oklch(...)')` không đọc được chuỗi đó.
+ *
+ * Hỏng ở phía im lặng, đúng hạng với ba thứ mà khối đầu file liệt kê.
+ *
+ * ## Tập dạng được nhận, và vì sao hẹp
+ *
+ * Nhận `rgb(r, g, b)` và hex. Đây đều là literal sRGB 8-bit mà `THREE.Color` và
+ * người đọc hiểu giống hệt nhau.
+ *
+ * `hsl()` thì `THREE.Color.setStyle` CŨNG đọc được, và vẫn bị từ chối ở đây:
+ * hợp đồng ghi `rgb()`, nên một ngày nào đó muốn dùng `hsl()` là một quyết
+ * định đổi hợp đồng, không phải một lượt sửa lặng lẽ. Ô này đỏ lúc đó là đỏ
+ * ĐÚNG, và thông báo nói thẳng ra điều ấy để người sửa không tưởng mình gặp lỗi.
+ *
+ * Từ chối luôn giá trị có kênh alpha (`rgba()`, `rgb(... / ...)`): `THREE.Color`
+ * BỎ alpha trong im lặng, nên một token trong suốt hiện đúng trong CSS và hiện
+ * đục trong cảnh, không có gì báo.
+ */
+interface ThreeColorReading {
+  readonly ok: boolean;
+  /** Ba kênh 8-bit khi đọc được, `null` khi không. */
+  readonly rgb: readonly [number, number, number] | null;
+  readonly why: string;
+}
+
+const RGB_FORM = /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/;
+const HEX_FORM = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/**
+ * Hàm đo DUY NHẤT của khối này. Ô thật và mọi ô đối chứng gọi chính nó, nên một
+ * lượt nới regex làm ô đối chứng đỏ ngay thay vì làm ô thật xanh trong im lặng.
+ */
+function threeReadableColor(value: string): ThreeColorReading {
+  const text = value.trim();
+
+  const rgb = RGB_FORM.exec(text);
+  if (rgb !== null) {
+    const channels = [rgb[1], rgb[2], rgb[3]].map((part) => Number(part));
+    const bad = channels.find((n) => n > 255);
+    if (bad !== undefined) {
+      return { ok: false, rgb: null, why: `kênh ${String(bad)} vượt 255` };
+    }
+    return {
+      ok: true,
+      rgb: [channels[0] ?? 0, channels[1] ?? 0, channels[2] ?? 0],
+      why: '',
+    };
+  }
+
+  const hex = HEX_FORM.exec(text);
+  if (hex !== null) {
+    const digits = hex[1] ?? '';
+    const full =
+      digits.length === 3
+        ? digits
+            .split('')
+            .map((d) => d + d)
+            .join('')
+        : digits;
+    return {
+      ok: true,
+      rgb: [
+        Number.parseInt(full.slice(0, 2), 16),
+        Number.parseInt(full.slice(2, 4), 16),
+        Number.parseInt(full.slice(4, 6), 16),
+      ],
+      why: '',
+    };
+  }
+
+  const fn = /^([a-z-]+)\(/i.exec(text);
+  if (fn !== null) {
+    return {
+      ok: false,
+      rgb: null,
+      why: `${fn[1] ?? '?'}() — chỉ nhận rgb(r, g, b) hoặc hex, xem khối chú thích của C1_JOURNEY_TOKENS`,
+    };
+  }
+  return { ok: false, rgb: null, why: 'không phải rgb(r, g, b) cũng không phải hex' };
+}
+
+/**
+ * Đọc `:root` từ MỘT văn bản CSS rồi soi mười token cảnh.
+ *
+ * Nhận `cssText` làm tham số chứ không đọc biến `css` ở ngoài, và đó là điều
+ * kiện để ô đối chứng dưới đây chạy được: nó dựng một bản `globals.css` đã hỏng
+ * TRONG BỘ NHỚ rồi đưa vào đây, nên phép đối chứng đi qua đúng bộ phân tích
+ * khối, đúng danh sách token và đúng bộ dò mà ô thật dùng, mà không phải ghi
+ * một byte nào vào file sản phẩm.
+ */
+function journeyColorViolations(cssText: string): string[] {
+  const declared = declarations(blockBody(cssText, ':root'));
+  return C1_JOURNEY_TOKENS.flatMap((token) => {
+    const value = declared[token];
+    if (value === undefined) {
+      return [`${token}: không khai ở :root`];
+    }
+    const reading = threeReadableColor(value);
+    return reading.ok ? [] : [`${token}: ${reading.why}`];
+  });
+}
+
+describe('C1 — mười token cảnh 3D ở dạng THREE.Color đọc được', () => {
+  it('không token nào ở dạng Three không phân giải được', () => {
+    expect(
+      journeyColorViolations(css),
+      'Cảnh 3D đọc các token này bằng getComputedStyle rồi dựng THREE.Color. ' +
+        'Một dạng màu Three không phân giải được cho ra cảnh đen kịt, và KHÔNG có ' +
+        'lỗi CSS, lỗi build hay lỗi runtime nào kêu lên.',
+    ).toEqual([]);
+  });
+
+  it('đọc ra đúng GIÁ TRỊ, không chỉ đúng hình dạng', () => {
+    // Không có ô này thì một bộ dò luôn trả `ok: true` cũng làm ô trên xanh.
+    expect(threeReadableColor(root['--journey-bg'] ?? '').rgb).toEqual([10, 16, 33]);
+    expect(threeReadableColor(root['--journey-ink'] ?? '').rgb).toEqual([238, 245, 255]);
+  });
+
+  it('đối chứng dương trên CHÍNH globals.css: đổi đúng một token sang oklch()', () => {
+    const from = '--journey-bg: rgb(10, 16, 33);';
+    const to = '--journey-bg: oklch(0.18 0.03 260);';
+    // Hai ô dưới đây gác chính phép đối chứng: một mẫu không còn khớp, hoặc một
+    // phép thay không đổi được gì, sẽ biến ô này thành xanh khống.
+    expect(css, 'mẫu đối chứng không còn khớp globals.css, sửa lại mẫu').toContain(from);
+    const doctored = css.replace(from, to);
+    expect(doctored, 'phép thay không đổi được gì, ô đối chứng đang rỗng').not.toBe(css);
+
+    expect(journeyColorViolations(doctored)).toEqual([
+      '--journey-bg: oklch() — chỉ nhận rgb(r, g, b) hoặc hex, xem khối chú thích của C1_JOURNEY_TOKENS',
+    ]);
+  });
+
+  it('đối chứng dương: token biến mất khỏi :root cũng ĐỎ, không im lặng bỏ qua', () => {
+    const doctored = css.replace('--journey-metal: rgb(84, 107, 135);', '');
+    expect(doctored).not.toBe(css);
+    expect(journeyColorViolations(doctored)).toEqual(['--journey-metal: không khai ở :root']);
+  });
+
+  it.each([
+    ['var(--brand-navy)', 'var'],
+    ['oklch(0.18 0.03 260)', 'oklch'],
+    ['color(display-p3 0.1 0.2 0.3)', 'color'],
+    ['lab(50% 20 -30)', 'lab'],
+    ['hsl(210 50% 20%)', 'hsl'],
+    ['rgba(10, 16, 33, 0.5)', 'rgba'],
+    ['rgb(10 16 33 / 50%)', 'rgb'],
+    ['rebeccapurple', 'tên màu'],
+  ])('%s bị từ chối', (value) => {
+    expect(threeReadableColor(value).ok, `${value} lọt qua bộ dò`).toBe(false);
+  });
+
+  it('đối chứng âm: dạng hợp lệ KHÔNG bị báo nhầm', () => {
+    // Một cổng đỏ cả với lời giải đúng là một cổng sẽ bị gỡ.
+    expect(threeReadableColor('rgb(0, 0, 0)').ok).toBe(true);
+    expect(threeReadableColor('  rgb(255, 255, 255)  ').ok).toBe(true);
+    expect(threeReadableColor('#0a1021').rgb).toEqual([10, 16, 33]);
+    expect(threeReadableColor('#abc').rgb).toEqual([170, 187, 204]);
+    // Ngoài thang 8-bit thì từ chối, vì THREE.Color kẹp giá trị trong im lặng.
+    expect(threeReadableColor('rgb(300, 0, 0)').ok).toBe(false);
+  });
+});
+
 describe('C1 — `@theme inline` sinh được class Tailwind cho mọi token', () => {
   it.each(C1_COLOR_TOKENS)('%s có `--color-*` trỏ đúng về nó', (token) => {
     const mapped = themeInline[`--color${token.slice(1)}`];
