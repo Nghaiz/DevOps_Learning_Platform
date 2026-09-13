@@ -74,7 +74,7 @@ describe('getView — tham chiếu ổn định', () => {
   it('trả tham chiếu MỚI sau khi trạng thái thật sự đổi', () => {
     const session = createSession({ level: level(), seed: 1, autoTick: false });
     const before = session.getView();
-    session.dispatch({ tick: 0, kind: 'apply', yaml: POD_YAML });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'apply', yaml: POD_YAML });
     expect(session.getView()).not.toBe(before);
     session.dispose();
   });
@@ -82,7 +82,7 @@ describe('getView — tham chiếu ổn định', () => {
   it('hành động KHÔNG đổi trạng thái thì giữ nguyên tham chiếu', () => {
     const session = createSession({ level: level(), seed: 1, autoTick: false });
     const before = session.getView();
-    session.dispatch({ tick: 0, kind: 'hint', index: 0 });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'hint', index: 0 });
     expect(session.getView()).toBe(before);
     session.dispose();
   });
@@ -92,18 +92,19 @@ describe('getStatus', () => {
   it('objectivesMet tính lại, và MẤT lại được khi người chơi xoá đi', () => {
     const session = createSession({ level: level(), seed: 1, autoTick: false });
     expect(session.getStatus().objectivesMet).toEqual([]);
-    session.dispatch({ tick: 0, kind: 'apply', yaml: POD_YAML });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'apply', yaml: POD_YAML });
     expect(session.getStatus().objectivesMet).toEqual(['co-pod']);
     expect(session.getStatus().phase).toBe('won');
 
     // Mục tiêu đã tích QUAY VỀ chưa-tích. Đó là một điều đúng về Kubernetes:
     // trạng thái mong muốn phải được duy trì, không phải đạt một lần rồi thôi.
     session.dispatch({
+      gameId: 'k8s',
       tick: 0,
       kind: 'delete',
       target: { kind: 'Pod', namespace: 'hoc-tap', name: 'web' },
     });
-    session.dispatch({ tick: 0, kind: 'wait', ticks: 61 });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'wait', ticks: 61 });
     expect(session.getStatus().objectivesMet).toEqual([]);
     expect(session.getStatus().phase).toBe('playing');
     session.dispose();
@@ -111,10 +112,10 @@ describe('getStatus', () => {
 
   it('đếm nước đi và gợi ý theo đúng SSOT của reducer', () => {
     const session = createSession({ level: level(), seed: 1, autoTick: false });
-    session.dispatch({ tick: 0, kind: 'apply', yaml: POD_YAML });
-    session.dispatch({ tick: 0, kind: 'hint', index: 0 });
-    session.dispatch({ tick: 0, kind: 'hint', index: 0 });
-    session.dispatch({ tick: 0, kind: 'wait', ticks: 2 });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'apply', yaml: POD_YAML });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'hint', index: 0 });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'hint', index: 0 });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'wait', ticks: 2 });
     const status = session.getStatus();
     expect(status.movesUsed).toBe(1);
     expect(status.hintsRevealed).toBe(1);
@@ -125,8 +126,8 @@ describe('getStatus', () => {
 describe('log hành động', () => {
   it('ghi tick THẬT của mô phỏng, không phải tick bên gọi truyền vào', () => {
     const session = createSession({ level: level(), seed: 1, autoTick: false });
-    session.dispatch({ tick: 0, kind: 'wait', ticks: 10 });
-    session.dispatch({ tick: 999, kind: 'apply', yaml: POD_YAML });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'wait', ticks: 10 });
+    session.dispatch({ gameId: 'k8s', tick: 999, kind: 'apply', yaml: POD_YAML });
     const log = session.getLog();
     expect(log.actions[1]?.tick).toBe(10);
     session.dispose();
@@ -134,7 +135,7 @@ describe('log hành động', () => {
 
   it('hành động KHÔNG hợp lệ không vào log — nên không lane nào phải loại nó khi đếm', () => {
     const session = createSession({ level: level(), seed: 1, autoTick: false });
-    session.dispatch({ tick: 0, kind: 'apply', yaml: 'khong: [phai' });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'apply', yaml: 'khong: [phai' });
     expect(session.getLog().actions).toHaveLength(0);
     expect(session.getStatus().movesUsed).toBe(0);
     session.dispose();
@@ -174,7 +175,7 @@ describe('đồng hồ', () => {
     session.dispose();
     vi.advanceTimersByTime(TICK_MS * 50);
     expect(session.getView().tick).toBe(afterThree);
-    session.dispatch({ tick: 0, kind: 'apply', yaml: POD_YAML });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'apply', yaml: POD_YAML });
     expect(session.getLog().actions).toHaveLength(0);
   });
 });
@@ -186,13 +187,13 @@ describe('subscribe', () => {
     const unsubscribe = session.subscribe(() => {
       calls += 1;
     });
-    session.dispatch({ tick: 0, kind: 'apply', yaml: POD_YAML });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'apply', yaml: POD_YAML });
     expect(calls).toBe(1);
     // `hint` không đụng tới cụm — không được đánh thức renderer.
-    session.dispatch({ tick: 0, kind: 'hint', index: 0 });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'hint', index: 0 });
     expect(calls).toBe(1);
     unsubscribe();
-    session.dispatch({ tick: 0, kind: 'wait', ticks: 5 });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'wait', ticks: 5 });
     expect(calls).toBe(1);
     session.dispose();
   });
@@ -212,7 +213,7 @@ describe('namespace mặc định', () => {
 
   it('lệnh không kèm -n chạy trong namespace của level', () => {
     const session = createSession({ level: level(), seed: 1, autoTick: false });
-    session.dispatch({ tick: 0, kind: 'apply', yaml: POD_YAML });
+    session.dispatch({ gameId: 'k8s', tick: 0, kind: 'apply', yaml: POD_YAML });
     expect(session.getStatus().objectivesMet).toEqual(['co-pod']);
     session.dispose();
   });

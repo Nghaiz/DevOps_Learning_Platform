@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GameAction, Level } from './contract.ts';
+import type { K8sGameAction, Level } from './contract.ts';
 import { countHints, countMoves, initialState, reduce, replay } from './reducer.ts';
 import { advance } from './tick.ts';
 import { podRuntime } from './model.ts';
@@ -75,11 +75,11 @@ spec:
 `;
 
 describe('tất định — điều kiện sống còn của xác minh chống gian lận', () => {
-  const actions: readonly GameAction[] = [
-    { tick: 0, kind: 'apply', yaml: DEPLOY_YAML },
-    { tick: 4, kind: 'wait', ticks: 20 },
-    { tick: 30, kind: 'scale', target: { kind: 'Deployment', namespace: 'hoc-tap', name: 'web' }, replicas: 4 },
-    { tick: 40, kind: 'wait', ticks: 30 },
+  const actions: readonly K8sGameAction[] = [
+    { gameId: 'k8s', tick: 0, kind: 'apply', yaml: DEPLOY_YAML },
+    { gameId: 'k8s', tick: 4, kind: 'wait', ticks: 20 },
+    { gameId: 'k8s', tick: 30, kind: 'scale', target: { kind: 'Deployment', namespace: 'hoc-tap', name: 'web' }, replicas: 4 },
+    { gameId: 'k8s', tick: 40, kind: 'wait', ticks: 30 },
   ];
 
   it('cùng seed + cùng chuỗi action ⇒ CÙNG ClusterView, chạy hai lần', () => {
@@ -100,7 +100,7 @@ describe('tất định — điều kiện sống còn của xác minh chống g
 
   it('chỉ tua tới, không tua lùi — action có tick nhỏ hơn không đảo ngược mô phỏng', () => {
     const forward = advance(initialState(level(), 7), 50);
-    const result = reduce(forward, { tick: 3, kind: 'wait', ticks: 0 }, 'hoc-tap');
+    const result = reduce(forward, { gameId: 'k8s', tick: 3, kind: 'wait', ticks: 0 }, 'hoc-tap');
     expect(result.state.tick).toBe(50);
   });
 });
@@ -108,7 +108,7 @@ describe('tất định — điều kiện sống còn của xác minh chống g
 describe('apply', () => {
   it('tạo pod rồi đưa được nó tới Running', () => {
     let state = initialState(level(), 1);
-    state = reduce(state, { tick: 0, kind: 'apply', yaml: POD_YAML }, 'hoc-tap').state;
+    state = reduce(state, { gameId: 'k8s', tick: 0, kind: 'apply', yaml: POD_YAML }, 'hoc-tap').state;
     const created = state.objects.find((object) => object.name === 'web');
     expect(created?.kind).toBe('Pod');
     expect(created?.namespace).toBe('hoc-tap');
@@ -127,10 +127,10 @@ describe('apply', () => {
    */
   it('áp lại giữ nguyên uid và createdTick', () => {
     let state = initialState(level(), 1);
-    state = reduce(state, { tick: 0, kind: 'apply', yaml: POD_YAML }, 'hoc-tap').state;
+    state = reduce(state, { gameId: 'k8s', tick: 0, kind: 'apply', yaml: POD_YAML }, 'hoc-tap').state;
     const before = state.objects.find((object) => object.name === 'web');
     state = advance(state, 10);
-    state = reduce(state, { tick: 10, kind: 'apply', yaml: POD_YAML }, 'hoc-tap').state;
+    state = reduce(state, { gameId: 'k8s', tick: 10, kind: 'apply', yaml: POD_YAML }, 'hoc-tap').state;
     const after = state.objects.find((object) => object.name === 'web');
     expect(after?.uid).toBe(before?.uid);
     expect(after?.createdTick).toBe(before?.createdTick);
@@ -138,7 +138,7 @@ describe('apply', () => {
 
   it('YAML hỏng KHÔNG được nhận và không đổi trạng thái', () => {
     const state = initialState(level(), 1);
-    const result = reduce(state, { tick: 0, kind: 'apply', yaml: 'khong: [phai' }, 'hoc-tap');
+    const result = reduce(state, { gameId: 'k8s', tick: 0, kind: 'apply', yaml: 'khong: [phai' }, 'hoc-tap');
     expect(result.accepted).toBe(false);
     expect(result.state).toBe(state);
     expect(result.output).toContain('Không áp được manifest');
@@ -146,7 +146,7 @@ describe('apply', () => {
 
   it('Deployment sinh ReplicaSet rồi ReplicaSet mới sinh Pod — đủ ba tầng', () => {
     let state = initialState(level(), 5);
-    state = reduce(state, { tick: 0, kind: 'apply', yaml: DEPLOY_YAML }, 'hoc-tap').state;
+    state = reduce(state, { gameId: 'k8s', tick: 0, kind: 'apply', yaml: DEPLOY_YAML }, 'hoc-tap').state;
     state = advance(state, 40);
     const kinds = state.objects.map((object) => object.kind);
     expect(kinds).toContain('Deployment');
@@ -162,11 +162,11 @@ describe('delete', () => {
    */
   it('pod vào Terminating trước, biến mất sau grace period', () => {
     let state = initialState(level(), 1);
-    state = reduce(state, { tick: 0, kind: 'apply', yaml: POD_YAML }, 'hoc-tap').state;
+    state = reduce(state, { gameId: 'k8s', tick: 0, kind: 'apply', yaml: POD_YAML }, 'hoc-tap').state;
     state = advance(state, 12);
     state = reduce(
       state,
-      { tick: state.tick, kind: 'delete', target: { kind: 'Pod', namespace: 'hoc-tap', name: 'web' } },
+      { gameId: 'k8s', tick: state.tick, kind: 'delete', target: { kind: 'Pod', namespace: 'hoc-tap', name: 'web' } },
       'hoc-tap',
     ).state;
     const terminating = state.objects.find((object) => object.name === 'web');
@@ -179,11 +179,12 @@ describe('delete', () => {
 
   it('xoá Deployment kéo theo ReplicaSet và Pod của nó', () => {
     let state = initialState(level(), 5);
-    state = reduce(state, { tick: 0, kind: 'apply', yaml: DEPLOY_YAML }, 'hoc-tap').state;
+    state = reduce(state, { gameId: 'k8s', tick: 0, kind: 'apply', yaml: DEPLOY_YAML }, 'hoc-tap').state;
     state = advance(state, 40);
     state = reduce(
       state,
       {
+        gameId: 'k8s',
         tick: state.tick,
         kind: 'delete',
         target: { kind: 'Deployment', namespace: 'hoc-tap', name: 'web' },
@@ -197,7 +198,7 @@ describe('delete', () => {
     const state = initialState(level(), 1);
     const result = reduce(
       state,
-      { tick: 0, kind: 'delete', target: { kind: 'Pod', namespace: 'hoc-tap', name: 'ma' } },
+      { gameId: 'k8s', tick: 0, kind: 'delete', target: { kind: 'Pod', namespace: 'hoc-tap', name: 'ma' } },
       'hoc-tap',
     );
     expect(result.accepted).toBe(false);
@@ -208,9 +209,9 @@ describe('delete', () => {
 describe('scale', () => {
   it('đặt số mong muốn, controller mới là thứ tạo pod', () => {
     let state = initialState(level(), 5);
-    state = reduce(state, { tick: 0, kind: 'apply', yaml: DEPLOY_YAML }, 'hoc-tap').state;
+    state = reduce(state, { gameId: 'k8s', tick: 0, kind: 'apply', yaml: DEPLOY_YAML }, 'hoc-tap').state;
     const target = { kind: 'Deployment', namespace: 'hoc-tap', name: 'web' } as const;
-    const scaled = reduce(state, { tick: 0, kind: 'scale', target, replicas: 5 }, 'hoc-tap');
+    const scaled = reduce(state, { gameId: 'k8s', tick: 0, kind: 'scale', target, replicas: 5 }, 'hoc-tap');
     // Ngay sau `scale` CHƯA có pod nào — đó là mô hình mà Kubernetes dạy: lệnh
     // ghi một con số, vòng điều hoà mới làm thế giới khớp con số đó.
     expect(scaled.state.objects.filter((object) => object.kind === 'Pod')).toHaveLength(0);
@@ -219,10 +220,11 @@ describe('scale', () => {
 
   it('không scale được Pod — Pod không có replicas', () => {
     let state = initialState(level(), 1);
-    state = reduce(state, { tick: 0, kind: 'apply', yaml: POD_YAML }, 'hoc-tap').state;
+    state = reduce(state, { gameId: 'k8s', tick: 0, kind: 'apply', yaml: POD_YAML }, 'hoc-tap').state;
     const result = reduce(
       state,
       {
+        gameId: 'k8s',
         tick: 0,
         kind: 'scale',
         target: { kind: 'Pod', namespace: 'hoc-tap', name: 'web' },
@@ -236,14 +238,14 @@ describe('scale', () => {
 });
 
 describe('phép đếm nước đi — phải khớp verify.ts của lane G', () => {
-  const log: readonly GameAction[] = [
-    { tick: 0, kind: 'apply', yaml: POD_YAML },
-    { tick: 1, kind: 'hint', index: 0 },
-    { tick: 2, kind: 'hint', index: 0 },
-    { tick: 3, kind: 'hint', index: 1 },
-    { tick: 4, kind: 'wait', ticks: 10 },
-    { tick: 14, kind: 'kubectl', command: 'kubectl get pods' },
-    { tick: 15, kind: 'delete', target: { kind: 'Pod', namespace: 'hoc-tap', name: 'web' } },
+  const log: readonly K8sGameAction[] = [
+    { gameId: 'k8s', tick: 0, kind: 'apply', yaml: POD_YAML },
+    { gameId: 'k8s', tick: 1, kind: 'hint', index: 0 },
+    { gameId: 'k8s', tick: 2, kind: 'hint', index: 0 },
+    { gameId: 'k8s', tick: 3, kind: 'hint', index: 1 },
+    { gameId: 'k8s', tick: 4, kind: 'wait', ticks: 10 },
+    { gameId: 'k8s', tick: 14, kind: 'kubectl', command: 'kubectl get pods' },
+    { gameId: 'k8s', tick: 15, kind: 'delete', target: { kind: 'Pod', namespace: 'hoc-tap', name: 'web' } },
   ];
 
   it('đếm đúng năm loại, bỏ wait và hint', () => {

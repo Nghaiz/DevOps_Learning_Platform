@@ -16,11 +16,12 @@ import { describe, expect, it } from 'vitest';
 import type {
   ClusterView,
   CreateSessionOptions,
+  K8sRunLog,
   K8sSession,
   Level,
-  RunLog,
   SessionStatus,
 } from '../k8s/contract.ts';
+import type { RunLog } from './run-log.ts';
 import type { RunResult } from './types.ts';
 import {
   checkDeterminism,
@@ -100,15 +101,22 @@ const throwingEngine: ReplayEngine<FakeState> = {
 const LEVEL = 'k8s-01-pod-dau-tien';
 const SEED = 424242;
 
-const genuineLog: RunLog = {
+/*
+ * `K8sRunLog`, không phải `RunLog` rộng: fixture này cũng đóng vai nhật ký của
+ * một `K8sSession` giả ở cuối file (`getLog()` phải trả đúng `K8sRunLog`). Mọi
+ * chỗ khác trong file nhận dạng rộng, và `K8sRunLog` gán được vào đó — mảng
+ * `readonly` là hiệp biến, xem chú thích `RunLog<A>` ở `core/run-log.ts`.
+ */
+const genuineLog: K8sRunLog = {
+  gameId: 'k8s',
   levelId: LEVEL,
   seed: SEED,
   actions: [
-    { tick: 0, kind: 'apply', yaml: 'web' },
-    { tick: 3, kind: 'wait', ticks: 2 },
-    { tick: 5, kind: 'apply', yaml: 'db' },
-    { tick: 8, kind: 'hint', index: 0 },
-    { tick: 9, kind: 'kubectl', command: 'get pods' },
+    { gameId: 'k8s', tick: 0, kind: 'apply', yaml: 'web' },
+    { gameId: 'k8s', tick: 3, kind: 'wait', ticks: 2 },
+    { gameId: 'k8s', tick: 5, kind: 'apply', yaml: 'db' },
+    { gameId: 'k8s', tick: 8, kind: 'hint', index: 0 },
+    { gameId: 'k8s', tick: 9, kind: 'kubectl', command: 'get pods' },
   ],
 };
 
@@ -166,7 +174,7 @@ describe('verifyRun — chiều dương', () => {
   });
 
   it('nhật ký rỗng vẫn hợp lệ (người chơi bỏ cuộc ngay) — 0 điểm, 0 objective', () => {
-    const emptyLog: RunLog = { levelId: LEVEL, seed: SEED, actions: [] };
+    const emptyLog: RunLog = { gameId: 'k8s', levelId: LEVEL, seed: SEED, actions: [] };
     const tally = tallyLog(emptyLog);
     const state = deterministicEngine.init(LEVEL, SEED);
     const claimed: RunResult = {
@@ -249,11 +257,12 @@ describe('verifyRun — chiều âm (đây mới là chiều chứng minh đư�
 describe('verifyRun — nhật ký sai hình dạng', () => {
   it('tick lùi ⇒ log-hong, không phải khong-khop', () => {
     const badLog: RunLog = {
+      gameId: 'k8s',
       levelId: LEVEL,
       seed: SEED,
       actions: [
-        { tick: 5, kind: 'apply', yaml: 'web' },
-        { tick: 2, kind: 'apply', yaml: 'db' },
+        { gameId: 'k8s', tick: 5, kind: 'apply', yaml: 'web' },
+        { gameId: 'k8s', tick: 2, kind: 'apply', yaml: 'db' },
       ],
     };
     const result = verifyRun(badLog, genuineResult(), deterministicEngine);
@@ -263,6 +272,7 @@ describe('verifyRun — nhật ký sai hình dạng', () => {
 
   it('kind lạ ⇒ log-hong (dữ liệu từ localStorage không có kiểu lúc chạy)', () => {
     const badLog = {
+      gameId: 'k8s',
       levelId: LEVEL,
       seed: SEED,
       actions: [{ tick: 0, kind: 'sudo-win', yaml: 'thang-luon' }],
@@ -277,9 +287,10 @@ describe('verifyRun — nhật ký sai hình dạng', () => {
 
   it('tick âm ⇒ log-hong', () => {
     const badLog: RunLog = {
+      gameId: 'k8s',
       levelId: LEVEL,
       seed: SEED,
-      actions: [{ tick: -1, kind: 'apply', yaml: 'web' }],
+      actions: [{ gameId: 'k8s', tick: -1, kind: 'apply', yaml: 'web' }],
     };
     expect(verifyRun(badLog, genuineResult(), deterministicEngine).status).toBe('log-hong');
   });
@@ -315,7 +326,7 @@ describe('phân biệt "người chơi sửa dữ liệu" với "engine của ta
   });
 
   it('verifyRun không bao giờ ném, kể cả trên dữ liệu rác', () => {
-    const garbage = { levelId: LEVEL, seed: Number.NaN, actions: null } as unknown as RunLog;
+    const garbage = { gameId: 'k8s', levelId: LEVEL, seed: Number.NaN, actions: null } as unknown as RunLog;
     expect(() => verifyRun(garbage, genuineResult(), deterministicEngine)).not.toThrow();
   });
 });
@@ -358,7 +369,7 @@ describe('tallyLog', () => {
   });
 
   it('nhật ký rỗng ⇒ toàn số 0, không ném', () => {
-    expect(tallyLog({ levelId: LEVEL, seed: SEED, actions: [] })).toEqual({
+    expect(tallyLog({ gameId: 'k8s', levelId: LEVEL, seed: SEED, actions: [] })).toEqual({
       commandsUsed: 0,
       hintsUsed: 0,
       lastTick: 0,

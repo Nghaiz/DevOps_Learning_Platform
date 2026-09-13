@@ -18,7 +18,13 @@
  * này hay bất cứ thứ gì nó gọi.
  */
 
-import type { GameAction, Level, ResourceRef } from './contract.ts';
+/*
+ * `K8sGameAction`, KHÔNG phải `GameAction` rộng của `core/run-log.ts`: file này
+ * đọc `action.target.kind` ở ba chỗ, và dạng rộng chỉ cho `target.kind: string`
+ * — một `'Deploymnet'` gõ nhầm sẽ đi qua typecheck. Xem `k8s/contract.ts`
+ * § `K8sGameAction`.
+ */
+import type { K8sGameAction, Level, ResourceRef } from './contract.ts';
 import type { ClusterState, K8sObject } from './model.ts';
 import { seedIncidents } from './incidents.ts';
 import {
@@ -70,7 +76,7 @@ export interface ReduceResult {
  * từ `RunLog` để xác minh, nên hai bên PHẢI dùng cùng một tập; lệch một loại là
  * mọi lượt chơi trung thực đều bị gắn cờ gian lận.
  */
-export const COMMAND_KINDS: ReadonlySet<GameAction['kind']> = new Set([
+export const COMMAND_KINDS: ReadonlySet<K8sGameAction['kind']> = new Set([
   'apply',
   'delete',
   'scale',
@@ -78,11 +84,11 @@ export const COMMAND_KINDS: ReadonlySet<GameAction['kind']> = new Set([
   'kubectl',
 ]);
 
-export function countMoves(actions: readonly GameAction[]): number {
+export function countMoves(actions: readonly K8sGameAction[]): number {
   return actions.filter((action) => COMMAND_KINDS.has(action.kind)).length;
 }
 
-export function countHints(actions: readonly GameAction[]): number {
+export function countHints(actions: readonly K8sGameAction[]): number {
   // Đếm CHỈ SỐ KHÁC NHAU, không đếm số lần bấm: mở lại gợi ý số 1 ba lần vẫn là
   // một gợi ý đã dùng. Đếm số lần bấm sẽ phạt người chơi vì đọc lại.
   return new Set(
@@ -112,12 +118,12 @@ export function initialState(level: Level, seed: number): ClusterState {
 }
 
 /** Tua mô phỏng tới `tick` rồi áp hành động. Xem chú thích đầu file về tua lùi. */
-export function reduce(state: ClusterState, action: GameAction, namespace = 'default'): ReduceResult {
+export function reduce(state: ClusterState, action: K8sGameAction, namespace = 'default'): ReduceResult {
   const advanced = advance(state, Math.max(0, action.tick - state.tick));
   return apply(advanced, action, namespace);
 }
 
-function apply(state: ClusterState, action: GameAction, namespace: string): ReduceResult {
+function apply(state: ClusterState, action: K8sGameAction, namespace: string): ReduceResult {
   switch (action.kind) {
     case 'wait':
       return { state: advance(state, action.ticks), output: '', accepted: true };
@@ -139,7 +145,7 @@ function apply(state: ClusterState, action: GameAction, namespace: string): Redu
 }
 
 /** Phát lại từ số không. Đây là hàm mà `verify.ts` của lane G gọi. */
-export function replay(level: Level, seed: number, actions: readonly GameAction[]): ClusterState {
+export function replay(level: Level, seed: number, actions: readonly K8sGameAction[]): ClusterState {
   let state = initialState(level, seed);
   for (const action of actions) {
     state = reduce(state, action).state;
