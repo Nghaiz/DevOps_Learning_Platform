@@ -35,6 +35,18 @@ packages:
 # Bỏ override khi drizzle-kit tự lên esbuild 0.28+ và dọn @esbuild-kit.
 overrides:
   esbuild: ^0.28.1
+  # GHSA nanoid: bộ sinh tuỳ biến LẶP VÔ HẠN khi size là số không nguyên. Dính
+  # < 3.3.18; Dependabot báo mức HIGH, phạm vi runtime.
+  #
+  # Không có đường nâng trực tiếp: nanoid vào GIÁN TIẾP qua postcss, mà postcss
+  # đến từ next@16.3.4, @tailwindcss/postcss và vite — ba chủ sở hữu khác nhau,
+  # không ai trong số đó ghim nanoid. Chờ cả ba tự lên là chờ vô hạn định.
+  #
+  # 3.3.17 -> 3.3.18 là patch bump trong cùng major/minor nên không có bề mặt
+  # API nào đổi.
+  #
+  # Bỏ override khi postcss tự đòi >= 3.3.18.
+  nanoid: ^3.3.18
 
 # pnpm chặn postinstall script theo mặc định (supply-chain). esbuild cần script đó
 # để nạp binary đúng nền tảng; thiếu nó thì vitest / tsx / drizzle-kit không chạy.
