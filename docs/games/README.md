@@ -9,18 +9,33 @@ tại: nội dung tương tác mà chi phí vận hành bằng không.
 
 ---
 
-## Bốn game
+## Sáu game
 
 | Game | `GameId` | Trạng thái | Tài liệu |
 |---|---|---|---|
 | Cứu hộ cluster Kubernetes | `k8s` | **Đã hiện thực** (P14 đợt 1): 30+ level, chaos, sandbox, challenges | hợp đồng ở `packages/games/src/k8s/contract.ts` |
-| Đường ống | `pipeline` | Thiết kế, chưa code | [`pipeline.md`](pipeline.md) |
+| Phòng thí nghiệm Git | `git` | **Đã hiện thực** (P17): 32 level, engine git tự viết, renderer SVG 2D | [`git.md`](git.md) |
+| Đường ống CI/CD | `cicd` | Thiết kế, chưa code | [`../../plans/reports/2026-09-11-brainstorm-git-cicd-games.md`](../../plans/reports/2026-09-11-brainstorm-git-cicd-games.md) §4 |
+| Đường ống (bản cũ) | `pipeline` | Tài liệu tham khảo, **không hiện thực** | [`pipeline.md`](pipeline.md) |
 | Mê cung mạng | `netpol` | Thiết kế, chưa code | [`netpol.md`](netpol.md) |
 | Lò rèn Image | `dockerfile` | Thiết kế, chưa code | [`dockerfile.md`](dockerfile.md) |
 
 Ba ô "sắp có" trên `/games` là **lựa chọn có ý thức, không phải thiếu sót**
 ([`phase-14-exec.md`](../../plans/devops-learning-platform/phase-14-exec.md) §1 quyết
 định 4): một game hoàn chỉnh có giá trị hơn bốn game dở dang.
+
+⚠ **`pipeline` giữ trong `GameId` dù không bao giờ hiện thực.** Xoá một nhánh khỏi union
+là đổi hợp đồng lưu trữ: khoá `localStorage` là `dlp.games.v1.<gameId>`, nên một bản lưu
+cũ sẽ mất đường đọc ra, không lỗi, không cảnh báo. Game CI/CD dùng id mới `cicd` vì nó là
+một thiết kế khác hẳn (có CD, môi trường, rollback, GitOps), không phải bản đổi tên.
+
+### ⚠ Đính chính một câu sai đã đứng ở tài liệu này
+
+Bản trước viết rằng ba game còn lại "là DOM thật" trong khi game K8s là 3D. **Sai.** Ba
+tài liệu `pipeline.md` / `netpol.md` / `dockerfile.md` đều được THIẾT KẾ cho 2D, nhưng
+chúng là thiết kế chưa code, nên không có "DOM thật" nào tồn tại. Game K8s dùng
+`three@0.185.1` + `@react-three/fiber` (scene thật ở `apps/web/src/components/k8s-arena/scene/`),
+và game Git dùng **renderer SVG 2D** — không phải DOM thường, không phải canvas.
 
 Mỗi tài liệu thiết kế có một mục **"cái nó dạy được mà Kubernetes Game không dạy được"** và một
 mục **"chỗ ý tưởng này yếu"**. Mục thứ hai không phải khiêm tốn theo phép lịch sự: nó là
