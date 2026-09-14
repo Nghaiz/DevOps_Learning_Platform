@@ -341,31 +341,54 @@ func TestByteGoTruocInitKhongBiMat(t *testing.T) {
 func TestResizeToiDuocPTY(t *testing.T) {
 	sizes := make(chan remotecommand.TerminalSize, 4)
 	exec := &fakeExecutor{fn: func(ctx context.Context, o remotecommand.StreamOptions) error {
-		for i := 0; i < 2; i++ {
+		// Vòng lặp, đúng như client-go: đọc tới khi Next() trả nil.
+		for {
 			s := o.TerminalSizeQueue.Next()
 			if s == nil {
 				return nil
 			}
-			sizes <- *s
+			select {
+			case sizes <- *s:
+			case <-ctx.Done():
+				return nil
+			}
 		}
-		<-ctx.Done()
-		return nil
 	}}
 	h := newBridge(t, exec, alwaysAlive)
 	h.sendInit(t, 80, 24)
 	h.sendControl(t, map[string]any{"type": "resize", "cols": 200, "rows": 50})
 
-	// Bỏ qua giá trị init, lấy giá trị resize.
-	<-sizes
-	select {
-	case s := <-sizes:
-		if s.Width != 200 || s.Height != 50 {
-			t.Fatalf("resize = %dx%d, muốn 200x50", s.Width, s.Height)
+	// ⛔ ĐỪNG viết lại thành "bỏ giá trị đầu coi là init, giá trị THỨ HAI phải là
+	// resize". Bản trước viết đúng như thế và nó đỏ NGẪU NHIÊN theo tải máy:
+	// `sizeQueue.push` coalesce CÓ CHỦ Ý trên buffer 1, nên khi init và resize
+	// cùng vào hàng trước lượt `Next()` đầu tiên thì hàng chỉ CÒN 200x50 — và
+	// bản cũ vứt đúng giá trị nó đang đợi, rồi treo tới hết 5 giây.
+	//
+	// Đo được 2026-09-14, tất định: cho executor ngủ 300ms trước `Next()` đầu
+	// tiên ⇒ 3/3 lượt, giá trị đầu tiên đã là 200x50 và KHÔNG có giá trị thứ
+	// hai. Cùng lúc đó máy rảnh chạy 30/30 xanh (kể cả GOMAXPROCS=1, 100 lượt)
+	// — nên đây là ô đỏ theo LỊCH GOROUTINE, không phải theo mã sản phẩm. Nó
+	// đã đỏ thật trên CI run 34802901298.
+	//
+	// Hợp đồng THẬT chỉ hứa một điều: kích thước CUỐI tới được PTY. Đó là thứ ô
+	// này gác, và nó vẫn đỏ đúng lúc cần — resize không tới thì chỉ có 80x24
+	// chạy qua, hết giờ, đỏ.
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case s := <-sizes:
+			if s.Width == 200 && s.Height == 50 {
+				_ = h.client.Close(websocket.StatusNormalClosure, "")
+				return
+			}
+			if s.Width != 80 || s.Height != 24 {
+				t.Fatalf("kích thước lạ %dx%d — chỉ chờ 80x24 (init) hoặc 200x50 (resize)",
+					s.Width, s.Height)
+			}
+		case <-deadline:
+			t.Fatal("resize không tới được PTY")
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("resize không tới được PTY")
 	}
-	_ = h.client.Close(websocket.StatusNormalClosure, "")
 }
 
 // ⛔ `Next()` PHẢI BLOCK khi hàng rỗng, KHÔNG được trả nil.

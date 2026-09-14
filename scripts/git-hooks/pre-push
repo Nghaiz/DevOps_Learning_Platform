@@ -9,16 +9,6 @@
 #
 # Cần đẩy thật? `git push --no-verify` — một cờ, đủ để bạn phải cố ý gõ nó.
 
-# ⏸ TẠM DỪNG 2026-09-04 — giai đoạn phát triển nhanh tới hết phase 14.
-#
-# Branch protection trên GitHub đã gỡ và ci.yml chuyển sang workflow_dispatch,
-# nên hàng rào này không còn hàng rào nào để bảo vệ — giữ nó chỉ tạo ra một lượt
-# `--no-verify` mỗi lần push, tức là dạy tay quen bấm cờ bỏ qua kiểm tra.
-#
-# BẬT LẠI: xoá khối này (hoặc `git revert` commit đã thêm nó) + mở lại branch
-# protection. Đầy đủ ở `docs/ci-paused.md`.
-exit 0
-
 PROTECTED='main'
 
 while read -r _local_ref _local_sha remote_ref _remote_sha; do
@@ -30,7 +20,7 @@ while read -r _local_ref _local_sha remote_ref _remote_sha; do
   printf '    git switch -c <ten-nhanh>\n'
   printf '    git push -u origin <ten-nhanh>\n'
   printf '    gh pr create --fill\n'
-  printf '    gh pr merge --squash --auto      # tự merge khi CI xanh\n\n'
+  printf '    gh pr merge --merge --auto       # tự merge khi CI xanh\n\n'
   printf '  Thật sự cần đẩy thẳng (CI hỏng, sửa gấp): git push --no-verify\n\n'
   exit 1
 done

@@ -31,6 +31,7 @@ import {
   THROWAWAY_PASSWORD,
   isSessionCookie,
 } from './env';
+import { cleanSandboxNamespace } from './sandbox-namespace';
 
 export type E2EAccount = {
   email: string;
@@ -42,6 +43,13 @@ export type E2EAccount = {
 
 export default async function globalSetup(_config: FullConfig): Promise<void> {
   mkdirSync(ARTIFACTS_DIR, { recursive: true });
+
+  // Lượt dọn TỰ LÀNH, chạy trước mọi thứ khác. globalTeardown lo ca kết thúc
+  // bình thường; ca thật sự nguy hiểm là lượt trước bị GIẾT giữa chừng, vì khi
+  // đó teardown của nó không bao giờ chạy và pod rơi lại chiếm trọn
+  // ResourceQuota (`pods: 1`) của namespace. Lượt chạy này sẽ chết bằng
+  // ResourceExhausted — một triệu chứng trỏ đi truy capacity thay vì truy rác.
+  await cleanSandboxNamespace('setup');
 
   const api = await request.newContext({
     baseURL: E2E_BASE_URL,
