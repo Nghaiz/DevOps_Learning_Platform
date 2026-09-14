@@ -36,6 +36,7 @@ import { PREDICATE_NAMES } from './predicate-names.ts';
 import { PREDICATES } from './predicates.ts';
 import { PROBLEM_TOPICS, PROBLEM_TOPIC_LABELS } from './problem.ts';
 import { ALL_KINDS } from './resources.ts';
+import type { K8sEngineSession } from './session.ts';
 import { createSession } from './session.ts';
 
 // ── Định danh ───────────────────────────────────────────────────────────────
@@ -291,12 +292,27 @@ export function gradeK8sProblem(input: {
   }
 
   let state: ClusterState;
-  const session = createSession({
-    level: replayLevel(initialState),
-    seed: seed ?? K8S_UNSEEDED_REPLAY_SEED,
-    autoTick: false,
-  });
+  /*
+   * ⚠ `createSession` phải nằm TRONG `try`, và đây là một lỗi thật đã bị chính
+   * test của file này bắt (2026-09-14).
+   *
+   * `initialState` tới đây dưới dạng `unknown` (xem `problem-plugins.ts`), nên
+   * một spec sai loại LỌT được qua tầng kiểu: `createCluster` lặp trên
+   * `spec.resources` và ném `TypeError` khi trường đó vắng. Dựng phiên ở ngoài
+   * `try` nghĩa là ngoại lệ đó bay thẳng ra khỏi `grade`, qua cả điểm cuối HTTP,
+   * thành một lỗi 500 không ai đọc được — trong khi hợp đồng đã có sẵn ô đúng
+   * cho nó là `CE` kèm câu nói rõ.
+   *
+   * `session` do đó phải là `let ... | null`: nhánh ném có thể xảy ra TRƯỚC khi
+   * phiên tồn tại, nên `finally` không được giả định là nó đã có.
+   */
+  let session: K8sEngineSession | null = null;
   try {
+    session = createSession({
+      level: replayLevel(initialState),
+      seed: seed ?? K8S_UNSEEDED_REPLAY_SEED,
+      autoTick: false,
+    });
     for (const action of actions) {
       /*
        * `as` sau khi đã biết `gameId === 'k8s'` (bộ gọi ở `problem-plugins.ts`
@@ -315,7 +331,7 @@ export function gradeK8sProblem(input: {
   } finally {
     // `K8sSession` giữ một vòng lặp thời gian và tự nói phải gọi `dispose()`.
     // `finally` chứ không phải cuối hàm: nhánh ném ở trên cũng phải dọn.
-    session.dispose();
+    session?.dispose();
   }
 
   const passed: string[] = [];
