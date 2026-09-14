@@ -236,7 +236,11 @@ export function ProblemEditor(props: {
 
         <TabsContent value="thu">
           <div className="pt-4">
-            <ArenaPreview code={props.code} hasUnsavedChanges={props.hasUnsavedChanges} />
+            <ArenaPreview
+              code={props.code}
+              gameId={props.form.gameId}
+              hasUnsavedChanges={props.hasUnsavedChanges}
+            />
           </div>
         </TabsContent>
 

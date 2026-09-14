@@ -362,6 +362,9 @@ export const author = {
   'author.problem.arena.stale-body':
     'Bạn đang có thay đổi chưa lưu. Đấu trường nạp bài từ máy chủ theo mã, nên nó không thấy những gì bạn vừa sửa. Lưu trước rồi hãy mở.',
   'author.problem.arena.open': (p: { code: string }) => `Mở đấu trường với bài ${p.code}`,
+  'author.problem.arena.no-route-title': 'Game này chưa có đường xem trước',
+  'author.problem.arena.no-route-body': (p: { game: string }) =>
+    `Đấu trường nhận bài qua tham số truy vấn, và hôm nay chỉ route của Kubernetes đọc tham số đó. Bài ${p.game} vẫn lưu và vẫn xuất bản được; chỉ nút thử tại chỗ là chưa có. Nối được nó đòi một chế độ chơi mới trong game đó, không phải một nút bấm.`,
 
   // ── Tab JSON, chuyển bài giữa các môi trường ───────────────────────────────
   'author.problem.json.heading': 'Xuất và nhập JSON',

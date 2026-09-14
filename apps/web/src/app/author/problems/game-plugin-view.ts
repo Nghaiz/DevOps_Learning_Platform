@@ -37,7 +37,7 @@ import {
  * một nhãn thiếu không ném. Khai đủ thì thêm `GameId` thứ bảy là một lỗi biên
  * dịch ngay tại đây.
  */
-const GAME_NAME: Readonly<Record<GameId, string>> = {
+export const GAME_NAME: Readonly<Record<GameId, string>> = {
   k8s: t('author.problem.game.name.k8s'),
   git: t('author.problem.game.name.git'),
   pipeline: t('author.problem.game.name.pipeline'),
@@ -170,6 +170,42 @@ export function pluginViewFor(gameId: GameId): GamePluginView | null {
       specEditor === 'cluster' ? t('author.problem.tab.cluster') : t('author.problem.tab.spec'),
     canSeed,
   };
+}
+
+/**
+ * Đường vào đấu trường để XEM TRƯỚC một bài, theo game. `null` = game đó chưa
+ * có đường vào nào (§18.D.5).
+ *
+ * ## Vì sao một bảng tra chứ không phải `/games/${gameId}?problem=`
+ *
+ * Bởi vì công thức đó SAI, và nó sai theo kiểu im lặng. Đo 2026-09-15:
+ * `app/games/git/page.tsx` chỉ đọc `?level=` và bỏ qua mọi tham số khác, còn
+ * game Git là game THEO LEVEL (`GIT_LEVEL_IDS`), không có chế độ bài OJ. Một
+ * link `/games/git?problem=GIT-0001` vì thế mở ra một ván Git bình thường ở
+ * level mặc định: không lỗi, không 404, không dòng log nào — người soạn bấm
+ * "xem trước", thấy một game chạy, và kết luận rằng bài của họ đã xem trước
+ * được.
+ *
+ * Bốn game còn lại (`pipeline`, `netpol`, `dockerfile`, `cicd`) thậm chí chưa
+ * có route nào, nên link tới đó là một 404 thẳng.
+ *
+ * ## Nối Git vào đây KHÔNG phải việc của §18.D.5
+ *
+ * Nó đòi một chế độ chơi mới trong `GitGame`: nạp bài theo mã, dựng thế giới từ
+ * `WorldSpec` của bài thay vì từ level, chấm theo testcase. Đó là §18.C làm lại
+ * một lần nữa cho engine Git, không phải một nút bấm. Khai ra ở đây là cách nói
+ * thật về thứ hôm nay có.
+ *
+ * ⚠ Thêm một dòng vào bảng này là một lời KHAI rằng route đó đọc `?problem=`.
+ * Trước khi thêm, mở chính `app/games/<gameId>/page.tsx` và đọc `searchParams`.
+ */
+const PREVIEW_ROUTE_BY_GAME: Readonly<Partial<Record<GameId, string>>> = {
+  k8s: '/games/k8s',
+};
+
+export function problemPreviewHref(gameId: GameId, code: string): string | null {
+  const route = PREVIEW_ROUTE_BY_GAME[gameId];
+  return route === undefined ? null : `${route}?problem=${encodeURIComponent(code)}`;
 }
 
 /**
