@@ -102,6 +102,42 @@ mã thoát**, chứ không suy từ hình dạng dòng chữ.
 
 ---
 
+### 0.3 Hai món nợ phát hiện trong lúc làm, chưa vá
+
+**a) Một lượt `CE` THẬT đọc lại thành `WA (0/5)`.**
+
+`submit.ts` ghi một lượt không chấm được với `passed = []` và `total > 0`, nên
+đọc lại `problemVerdictOf(0, 5)` trả `WA`, và dòng lịch sử hiện `WA (0/5)`.
+
+⚠ **Đừng vá bằng cách đoán từ `passed.length === 0`** — một lượt `WA (0/5)` thật
+(người làm chạy được nhưng không qua case nào) cũng có `passed` rỗng. Hai ca khác
+nhau về nguyên nhân, giống hệt nhau về dữ liệu đang lưu.
+
+Vá đúng cần **một cột thứ ba mang lý do hỏng**. `failedReason` không lưu được vì
+nó là câu tiếng Việt chứ không phải dữ liệu; cần một mã ngắn (enum) bên cạnh.
+
+Đã vá một nửa ở tầng hiển thị: `total === 0` nay hiện *"chưa chấm theo testcase"*
+thay vì `CE`, vì in `CE` lên một lượt cũ là nói với người chơi rằng bài của họ
+sai cú pháp trong khi không hề. Nửa còn lại (`CE` thật, `total > 0`) chưa vá được
+mà không thêm cột.
+
+**b) Cổng chống rule-of-three của `packages/copy` mù với tên phẳng.**
+
+`groupBySiblingPrefix` cắt khoá bằng `split('.')`, nên mọi khoá `catalog.problem.*`
+rơi chung một nhóm đã lớn hơn ba. Hệ quả đo được:
+
+- dòng `'catalog.problem.verdict'` trong `catalogIntentionalThree` **không miễn
+  trừ nhóm nào** — nó đang không làm gì cả;
+- vế chống-ôi ở `scan.ts:233` dùng `startsWith(prefix + '.')`, trong khi khoá
+  thật viết `verdict-ac` bằng **gạch nối**, nên nó cũng không báo dòng đó đã ôi.
+
+Tức là một dòng miễn trừ vô tác dụng đang nằm đó và **không cổng nào nói ra**.
+Đây đúng hình dạng `rules/prefix-grouping-gate-blind-to-flat-names.md`. Cách kiểm
+bản vá: gỡ MỘT dòng miễn trừ đang có tác dụng thật và xác nhận cổng đỏ **đúng tên
+nhóm đó**; nếu nó đỏ chung chung thì bản vá chưa đúng.
+
+---
+
 ## 1. Quyết định chi phối
 
 Từ design §1, và một làm rõ bổ sung ngày 2026-09-11:
