@@ -33,15 +33,18 @@
  * nó chỉ đọc `tick` và `kind`, nên nó đúng với mọi game — đó là toàn bộ lý do
  * ba kiểu kia chuyển lên `core/`. Kéo `K8sGameAction` vào đây là trói ngược cơ
  * chế chống gian lận về lại đúng một game.
+ *
+ * Từ 18.A thì câu trên là MỘT SỰ THẬT ĐO ĐƯỢC chứ không còn là mong muốn: file
+ * này không import gì từ `k8s/` nữa, và adapter K8s duy nhất từng ở đây
+ * (`sessionReplayEngine`) đã sang `k8s/replay-engine.ts`. Ô nghiệm thu AC-A của
+ * `plans/devops-learning-platform/phase-18.md` đo đúng điều đó — nó grep các
+ * dòng import trỏ sang một package game và phải trả rỗng.
+ *
+ * ⚠ Ô đó đo PHỤ THUỘC, không đo chính tả: nhắc tên `K8sSession` trong một câu
+ * chú thích như ngay bên dưới là hợp lệ và cố ý. Bản cũ của ô nghiệm thu grep
+ * chữ `ClusterSpec` nên tự làm mình đỏ vì văn xuôi; đừng dựng lại kiểu đo đó.
  */
 import type { GameAction, GameActionKind, RunLog } from './run-log.ts';
-import type {
-  CreateSession,
-  K8sGameAction,
-  K8sSession,
-  Level,
-  SessionStatus,
-} from '../k8s/contract.ts';
 import type { RunResult } from './types.ts';
 import { lastActionTick, stableStringify } from './integrity.ts';
 
@@ -231,70 +234,14 @@ export interface ReplayEngine<TState> {
   dispose?(state: TState): void;
 }
 
-/**
- * Dựng `ReplayEngine` từ `CreateSession` THẬT của lane B.
- *
- * Đây là adapter mà chỗ dùng thật sẽ gọi; `ReplayEngine` bên trên vẫn là kiểu
- * generic để (a) test được bằng engine giả, kể cả engine cố tình không tất định,
- * và (b) game sau không phải là Kubernetes vẫn tái dùng được `verifyRun`.
- *
- * ⚠ `autoTick: false` là BẮT BUỘC, không phải một tuỳ chọn hiệu năng. Bật lên
- * thì mô phỏng tiến theo đồng hồ tường, và một lần phát lại trên máy chậm sẽ ra
- * kết quả khác lần phát lại trên máy nhanh — xác minh mất hết ý nghĩa và mọi
- * người chơi hợp lệ bị gắn cờ. Phát lại KHÔNG được phụ thuộc thời gian thật.
- *
- * `project` trả thẳng `getView()` (tức `ClusterView`) thay vì bốc vài field: mô
- * hình lúc chạy của lane B còn `ready` và `restartCount` là các trục riêng của
- * `phase`, và sẽ còn dày lên nữa. So trên hình chiếu đầy đủ thì phép so vẫn đúng
- * khi mô hình lớn thêm; bốc tay field thì im lặng mù dần.
+/*
+ * `sessionReplayEngine` KHÔNG còn ở đây kể từ 18.A — nó đã chuyển sang
+ * `k8s/replay-engine.ts`. Nó là adapter của ĐÚNG MỘT game: nó kéo vào năm kiểu
+ * K8s (`CreateSession`, `K8sGameAction`, `K8sSession`, `Level`,
+ * `SessionStatus`), tức là trói `core/` vào Kubernetes đúng theo cách khối chú
+ * thích đầu file cấm. Giao diện `ReplayEngine` ở trên vẫn generic và vẫn ở đây;
+ * mỗi game tự dựng hiện thực của mình trong package của nó.
  */
-export function sessionReplayEngine(
-  createSession: CreateSession,
-  level: Level,
-  scoreRun: (status: SessionStatus, tally: RunTally) => number,
-): ReplayEngine<K8sSession> {
-  return {
-    init: (levelId, seed) => {
-      // Nhật ký thuộc level khác thì phát lại vô nghĩa — ném để thành
-      // `phat-lai-loi` (lỗi của ta / của dữ liệu), chứ không âm thầm chấm sai.
-      if (levelId !== level.id) {
-        throw new Error(`nhật ký thuộc level "${levelId}" nhưng được phát lại trên "${level.id}"`);
-      }
-      return createSession({ level, seed, autoTick: false });
-    },
-    reduce: (session, action) => {
-      /*
-       * `ReplayEngine.reduce` nhận DẠNG RỘNG (mọi game), còn `K8sSession.dispatch`
-       * đòi `K8sGameAction`. Chỗ thu hẹp phải ở đây, và phải THU HẸP CÓ KIỂM —
-       * `as` trần sẽ đẩy một action của game Git vào reducer K8s, nơi nó rơi vào
-       * nhánh `default` và biến mất KHÔNG một tiếng động: phát lại ra một trạng
-       * thái thiếu, điểm lệch, và `verifyRun` báo `khong-khop` — tức là đổ lỗi
-       * cho người chơi vì một lỗi ghép engine của ta.
-       *
-       * Ném thì `verifyRun` bắt thành `phat-lai-loi`, đúng ô "lỗi của ta hoặc
-       * của dữ liệu, KHÔNG phải bằng chứng gian lận".
-       */
-      if (action.gameId !== 'k8s') {
-        throw new Error(
-          `nhật ký của game "${action.gameId}" không phát lại được trên engine K8s`,
-        );
-      }
-      /*
-       * Vẫn cần `as` sau phép kiểm: `core/` chỉ biết `target` là `ResourceRefLike`
-       * (`kind: string`), còn `dispatch` đòi `ResourceRef` (`kind: ResourceKind`).
-       * Kiểm lại `kind` ở đây là chép `resolveKind` sang chỗ thứ hai; và không cần
-       * — một `kind` bịa ra không tra ra object nào trong `reducer.ts`, nên hành
-       * động không được chấp nhận và phát lại lệch đúng như nó phải lệch.
-       */
-      session.dispatch(action as K8sGameAction);
-      return session;
-    },
-    objectivesMet: (session) => session.getStatus().objectivesMet,
-    score: (session, tally) => scoreRun(session.getStatus(), tally),
-    project: (session) => session.getView(),
-    dispose: (session) => session.dispose(),
-  };
-}
 
 interface ReplayOutcome {
   readonly objectivesMet: readonly string[];
