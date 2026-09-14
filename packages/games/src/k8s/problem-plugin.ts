@@ -321,7 +321,7 @@ export function gradeK8sProblem(input: {
        * (`kind: ResourceKind`). Kiểm lại `kind` ở đây là chép `resolveKind` sang
        * chỗ thứ hai, và không cần — một `kind` bịa ra không tra ra object nào
        * trong `reducer.ts` nên hành động không được chấp nhận, đúng như nó phải.
-       * Cùng lập luận `core/verify.ts:sessionReplayEngine` đã ghi.
+       * Cùng lập luận `k8s/replay-engine.ts:sessionReplayEngine` đã ghi.
        */
       session.dispatch(action as K8sGameAction);
     }

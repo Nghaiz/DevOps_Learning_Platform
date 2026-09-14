@@ -126,7 +126,7 @@ export class UnknownProblemGameError extends Error {
  * plugin K8s khai `A = K8sActionShape`, nên bên trong nó `action.gameId` LUÔN là
  * `'k8s'` ở tầng kiểu và phép kiểm đó sẽ là mã chết. Chỉ ở đây — nơi kiểu thật
  * sự rộng (`GameAction`) — phép kiểm mới có nghĩa. Đây đúng là ca mà
- * `core/verify.ts:sessionReplayEngine` đã ghi lại: một action Git lọt vào reducer
+ * `k8s/replay-engine.ts:sessionReplayEngine` đã ghi lại: một action Git lọt vào reducer
  * K8s rơi vào nhánh `default` và biến mất KHÔNG một tiếng động, cho ra một trạng
  * thái thiếu và một verdict đổ lỗi cho người chơi.
  */
