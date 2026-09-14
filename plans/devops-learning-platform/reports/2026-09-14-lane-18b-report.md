@@ -80,8 +80,8 @@ Khôi phục `solver.ts` từ bản sao lưu ⇒ `13 passed (13)`, và `git diff
 | B.4 đường chi tiết | `server/problems/get.ts` | Xong |
 | B.4 danh sách testcase trên trang bài | `app/(session)/problems/[code]/problem-testcases.tsx` | Xong, đã nối |
 | B.3 + B.5 suy verdict | `server/problems/verdict-view.ts` | Xong |
-| B.3 + B.5 vẽ verdict | `app/(session)/problems/[code]/problem-verdict.tsx` | Xong, **chưa có chỗ gọi** (§5.4) |
-| B.3 verdict của lượt vừa nộp | `server/problems/submit.ts` → `SubmitProblemResult.grade` | Xong, **không lưu được** (§5.2) |
+| B.3 + B.5 vẽ verdict | `app/(session)/problems/[code]/problem-verdict.tsx` | Xong, **chưa có chỗ gọi** (§4.4) |
+| B.3 verdict của lượt vừa nộp | `server/problems/submit.ts` → `SubmitProblemResult.grade` | Xong, **không lưu được** (§4.2) |
 
 **AC-B đo được:** `verdict-view.test.ts` § `AC-B — 5 testcase, qua 4` khẳng định
 đúng câu của plan — verdict `WA`, phân số `4/5`, và `failed` bằng đúng
@@ -177,19 +177,29 @@ có cột `solved`, mà `solved` đếm theo mục tiêu **bắt buộc** còn v
 > **Cần lead giao:** nối đấu trường vào `problems.submit` (thuộc
 > `components/k8s-arena/**`, không phải lane này).
 
-### 4.5 Ba export của lane engine chưa có mặt
+### 4.5 Ba export của lane engine — CHƯA có lúc bắt đầu, ĐÃ có lúc kết thúc
 
-`packages/games/src/problem-plugins.ts` **chưa tồn tại** lúc lane này làm
+Lúc lane này bắt đầu, `packages/games/src/problem-plugins.ts` **chưa tồn tại**
 (`PROBLEM_PLUGINS`, `problemPluginMeta`, `gradeProblemRun` đều 0 kết quả khi grep).
+Theo brief, lane này **không** tạo file đó và **không** dựng một bản chấm song
+song. B.3/B.4/B.5 làm được trọn vẹn bằng các kiểu đã mở sẵn qua barrel
+(`Testcase`, `TestcaseTeaser`, `GradeResult`, `ProblemVerdict`, `problemVerdictOf`),
+nên không có chỗ nào phải chờ.
 
-Theo brief, lane này **không** tự tạo file đó và **không** dựng một bản chấm song
-song. Ba việc B.3/B.4/B.5 được làm bằng các kiểu đã có sẵn qua barrel
-(`Testcase`, `TestcaseTeaser`, `GradeResult`, `ProblemVerdict`, `problemVerdictOf`,
-`Submission`), nên không có chỗ nào phải chờ.
+Lane engine landed trong cùng phiên (`bdc1dfd`, `ae7ed23`). Đã kiểm lại: cả bốn
+kiểu lane này dựa vào — `Testcase`, `TestcaseTeaser`, `GradeResult`,
+`problemVerdictOf` — **không đổi một dòng nào**. Hai chỗ hợp đồng đổi thật
+(`seed: number | null` → `number`, thêm `targetState?`) không chạm mã của lane này.
 
-Khi `gradeProblemRun` landed, chỗ nối là `server/problems/submit.ts`: nó đang suy
-`passed` từ `claimed.objectivesMet` đã qua xác minh phát lại, và sẽ đổi sang gọi
-thẳng `gradeProblemRun`.
+**Chỗ nối còn lại, KHÔNG thuộc 18.B.** `server/problems/submit.ts` đang suy
+`passed` từ `claimed.objectivesMet` **đã qua xác minh phát lại** — hợp lệ, vì
+`verifyRun` chỉ trả `da-xac-minh` khi số phát lại bằng đúng số đã khai. Đổi nó
+sang gọi thẳng `gradeProblemRun` là **§18.C** (chấm lại phía server), không phải
+§18.B, nên lane này để nguyên thay vì lấn sang. Khi đổi, hai thứ đi kèm:
+
+- bắt `UnknownProblemGameError` (hàm NÉM thay vì trả `GradeResult` rỗng);
+- lúc đó máy chủ có tập `passed` của CHÍNH MÌNH, nên nhánh gượng `khong-khop`
+  ở §4.3 có thể biến mất khỏi bài toán verdict hoàn toàn.
 
 ---
 
@@ -203,6 +213,15 @@ thẳng `gradeProblemRun`.
 | `testcases.test.ts` + `verdict-view.test.ts` | **xanh**, 29/29 |
 | `solver-wire.integration.test.ts` (HTTP thật, Postgres thật) | **xanh**, 2/2 |
 | Đối chứng dương ô chống rò | **đỏ đúng 3 ô** khi gỡ phép che |
+| `pnpm --filter web test` (toàn bộ) | **xanh**, 180 file / 2166 ô |
+| `pnpm --filter web build` (`next build` thật) | **xanh**, `/problems` và `/problems/[code]` đều dựng |
+| Chạy lại `src/server/problems/` sau khi lane 18.A landed | **xanh**, 7 file / 95 ô |
+
+⚠ `pnpm --filter web test` với mặc định song song **hết RAM** trên máy này
+(`FATAL ERROR: Committing semi space failed`, exit 134) khi các lane khác đang
+chạy cùng lúc: đo được 41 tiến trình `node` và 6.5 GB trống trên 40 GB. Đó là
+tranh tài nguyên, không phải một ô đỏ. Chạy lại với `--maxWorkers=3` ⇒ xanh toàn
+bộ. Xem bẫy §6.1 về việc `--poolOptions` không còn ở CLI của vitest 4.
 
 ---
 
