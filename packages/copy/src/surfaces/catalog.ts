@@ -551,6 +551,25 @@ export const catalog = {
   'catalog.problem.verdict-region': 'Kết quả lượt nộp',
   'catalog.problem.verdict-unnamed': 'Testcase ẩn chưa hiện tên',
 
+  /*
+    ── Nộp bài từ đấu trường (18.C) ────────────────────────────────────────
+
+    Nhóm này ra đời cùng chỗ gọi `problems.submit` ĐẦU TIÊN của ứng dụng. Tới
+    2026-09-14 đấu trường chưa từng nộp bài về máy chủ, nên `verdict-*` ở trên
+    có test mà chưa có màn hình nào.
+
+    ⛔ `submit-kept` KHÔNG phải một câu an ủi. Nó nói một sự thật kiểm chứng
+    được: nhật ký lượt chơi vẫn nằm trong engine, nên bấm thử lại nộp lại ĐÚNG
+    lượt đó chứ không bắt chơi lại. Bỏ câu này thì một lượt nộp hỏng đọc ra như
+    mất lượt, và người chơi thoát ra chơi lại từ đầu mà không cần phải thế.
+  */
+  'catalog.problem.submit-region': 'Nộp bài',
+  'catalog.problem.submit-action': 'Nộp bài',
+  'catalog.problem.submit-pending': 'Đang nộp bài…',
+  'catalog.problem.submit-failed': 'Chưa nộp được bài',
+  'catalog.problem.submit-kept':
+    'Lượt chơi vẫn còn nguyên, bấm thử lại là nộp lại đúng lượt này.',
+
   // ── Chi tiết một lộ trình (`/paths/[id]`) ─────────────────────────────
   //
   // Ổ khoá vẽ trên màn này là HÌNH ẢNH của một luật chạy ở server, không phải

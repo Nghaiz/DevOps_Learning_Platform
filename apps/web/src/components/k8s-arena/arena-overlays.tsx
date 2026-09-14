@@ -15,7 +15,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import type { Level, NodeView, ObjectView } from '@devops-platform/games';
-import { computeScore } from '@devops-platform/games';
 import type { ArenaModeContext, CameraCommand, QualityTier, ScreenPoint } from './arena-contract';
 import type { ArenaSessionHandle } from './arena-session';
 import { ArenaAnnouncer } from './arena-announcer';
@@ -32,6 +31,9 @@ import { MetricsPanel } from './hud/metrics-panel';
 import { HeaderMetrics } from './hud/header-metrics';
 import { useMetricsHistory } from './hud/use-metrics-history';
 import { recordRun } from './level-progress';
+import { buildRunResult } from './run-result';
+import { useProblemSubmit } from './use-problem-submit';
+import { ProblemSubmitPanel } from './hud/problem-submit-panel';
 import { IncidentsPanel } from './hud/incidents-panel';
 import { Minimap } from './hud/minimap';
 import { SettingsPanel } from './hud/settings-panel';
@@ -182,6 +184,13 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
   );
 
   useRecordWin(level, engine, props.startedAt);
+  /*
+   * Nộp bài về máy chủ — CHỈ ở chế độ bài tập. Hook tự trả `idle` khi
+   * `mode.problemCode` là `null`, nên nó gọi vô điều kiện ở đây: một hook gọi
+   * sau một nhánh `if` là thứ React cấm, và chế độ có thể đổi khi người chơi
+   * rời bài tập về chơi màn thường.
+   */
+  const submitState = useProblemSubmit(level, engine, mode, props.startedAt);
   /*
    * Lịch sử số liệu thu ở ĐÂY, không thu trong `MetricsPanel`. Dải trên thanh
    * trên cùng luôn hiện nên mẫu phải được thu dù bảng có mở hay không; thu ở hai
@@ -356,6 +365,8 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
           className="pointer-events-auto absolute bottom-20 left-1/2 z-20 -translate-x-1/2"
         />
       ) : null}
+
+      {mode.mode === 'problem' ? <ProblemSubmitPanel state={submitState} /> : null}
     </div>
   );
 }
@@ -379,25 +390,12 @@ function useRecordWin(level: Level, engine: ArenaSessionHandle, startedAt: numbe
       return;
     }
     writtenRef.current = true;
-    recordRun({
-      gameId: 'k8s',
-      levelId: level.id,
-      seed: engine.seed,
-      startedAt,
-      finishedAt: Date.now(),
-      objectivesMet: engine.status.objectivesMet,
-      objectivesTotal: level.objectives.length,
-      commandsUsed: engine.status.movesUsed,
-      hintsUsed: engine.status.hintsRevealed,
-      score: computeScore({
-        objectivesMet: engine.status.objectivesMet.length,
-        objectivesTotal: level.objectives.length,
-        movesUsed: engine.status.movesUsed,
-        parMoves: level.parMoves,
-        hintsUsed: engine.status.hintsRevealed,
-        hintsAvailable: level.hints.length,
-      }),
-    });
+    /*
+     * Cùng một phép dựng với `claimed` của lượt nộp — xem `run-result.ts`. Hai
+     * bản dựng song song lệch trong im lặng, và phần lệch chỉ lộ ra dưới dạng
+     * một verdict `CE` "phát lại ra kết quả khác".
+     */
+    recordRun(buildRunResult(level, engine, startedAt, Date.now()));
     /*
      * `engine.status` cố ý KHÔNG nằm trong mảng phụ thuộc: nó đổi danh tính mỗi
      * nhịp, và effect này chỉ quan tâm tới đúng khoảnh khắc pha chuyển sang
