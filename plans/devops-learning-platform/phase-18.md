@@ -181,7 +181,12 @@ nhóm đó**; nếu nó đỏ chung chung thì bản vá chưa đúng.
 > Hôm nay thứ duy nhất chặn là **quy ước** "nhóm ba thật thì đặt lồng"
 > (`surfaces/shell.ts:161`, `surfaces/me.ts:349`) — và quy ước thì chỉ review mới
 > bắt được. Số đo nằm trong chú thích `scan.ts` để lượt sau khỏi đo lại.
-> **Quyết định cần: chịu rủi ro tên phẳng, hay trả 27 dòng lý do.**
+>
+> **ĐÃ CHỐT (chủ dự án, 2026-09-15): giữ quy ước, chịu rủi ro tên phẳng.** Không
+> đổi `groupBySiblingPrefix`. Rủi ro được chấp nhận tường minh: một lane đặt tên
+> phẳng cho một nhóm ba THẬT vẫn đi qua T3 vô hình, và chỉ review bắt được. Đừng
+> mở lại quyết định này mà không có số đo mới — ba phương án và giá của chúng đã
+> đo một lần rồi.
 
 ---
 
@@ -224,6 +229,24 @@ quả cho dữ liệu đang có):
 3. `problemAsLevel` nay NÉM khi `gameId !== 'k8s'`, và `submitProblem` có cổng
    game riêng trả câu nói được. Nhánh đó trước 0015 là **mã chết**; 0015 làm nó
    thành mã có đường tới.
+4. **Mọi lượt không xác minh được nay hiện `CE`** (chốt bởi chủ dự án
+   2026-09-15). Trước đó chỉ `engine-khong-tat-dinh` về `CE`; ba trạng thái còn
+   lại rơi vào `gradeProblemRun`, nên một lượt `khong-khop` đọc ra `AC` cạnh
+   `solved: false, score: 0` — ba câu mâu thuẫn trên cùng một dòng, và
+   `verdictFromVerify` thì vẫn nói `CE`. Hai phần của mã trả lời khác nhau cho
+   cùng một lượt; nay chỉ còn một câu trả lời.
+
+   ⚠ **Cái giá, phải biết trước khi mở chế độ thi:** `verifyLabel` đã ghi rằng
+   `khong-khop` KHÔNG phân biệt được "người chơi sửa dữ liệu" với "bản lưu tới
+   từ engine phiên bản cũ". Nên một người học mở tab từ hôm qua, sau một lượt
+   deploy đổi engine, nay nhận `CE` *"không chấm được"* thay vì `WA (n/m)` —
+   không có phản hồi theo từng testcase. Đó là hệ quả trực tiếp của quyết định,
+   không phải một lỗi. Nếu tần suất đó cao thì chỗ sửa là **giảm lệch phiên bản**
+   (buộc tải lại khi engine đổi), không phải nới cổng.
+
+   Hệ quả kỹ thuật kèm theo, có lợi: nhánh không-xác-minh không gọi
+   `gradeProblemRun` nữa, nên máy chủ bỏ được một lượt phát lại toàn bộ nhật ký
+   cho đúng những lượt không dùng tới kết quả ấy.
 
 ⚠ **Đường GHI vẫn chỉ nhận bài K8s** — `problemBodyShape` (`validate.ts`) còn
 `initialState: clusterSpecSchema`, `topics: z.enum(PROBLEM_TOPICS)`,
@@ -462,6 +485,12 @@ lưu chưa có cột). Cổng số 1 không dựng được trước khi cột �
 >
 > ⛔ **Đừng dựng cổng số 1 trước khi chốt câu đó.** Không phải vì thận trọng — vì
 > đã đo được rằng bản hiển nhiên của nó làm hỏng mọi lượt nộp.
+>
+> **ĐÃ CHỐT (chủ dự án, 2026-09-15): HOÃN, ghi nợ.** Không dựng cổng nào đợt này.
+> Cột `seedable` đã có nên nền sẵn sàng; quyết định (a) hay (b) để lại cho người
+> mở §18.G, và phép đo ở trên là thứ họ cần đọc trước. Rủi ro chỉ hiện thực hoá
+> khi chế độ thi mở — ngoài kỳ thi, seed do người nộp mang lên là hành vi CỐ Ý
+> của hợp đồng, không phải lỗ hổng.
 
 ⚠ **Đồng hồ.** Memory dự án có một bẫy đã cắn: VM ngủ làm vỡ ô nghiệm thu treo theo đồng hồ, và
 đồng hồ VM lệch ~59s so với máy chủ. Trong chế độ thi, lệch nhỏ còn nguy hơn lệch lớn vì số vẫn
