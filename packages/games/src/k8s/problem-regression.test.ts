@@ -696,6 +696,51 @@ describe('CHẤM — engine cho ra đúng kết quả cũ', () => {
     }
   });
 
+  it('đối chứng âm: đổi tham số một mục tiêu thì kết quả chấm PHẢI đổi', () => {
+    /*
+     * Bảng `ANH_CHUP_CHAM` chỉ có giá trị nếu nó thật sự đang ĐO cái gì đó. Một
+     * engine hỏng tới mức mọi vị từ trả `false` vẫn khớp được phần lớn bảng, vì
+     * phần lớn ô trong bảng là mảng rỗng — `toEqual([])` trông y hệt nhau ở
+     * "chưa ai làm gì nên chưa đạt" và ở "phép đo đã chết".
+     *
+     * Ô này hỏi ngược lại: nếu ta CỐ Ý làm sai một mục tiêu, bảng có phản ứng
+     * không. `giu-readiness` của K8S-0002 đang là `guard` (đạt ngay từ tick 0);
+     * trỏ nó sang một namespace không tồn tại thì vị từ phải trả `false` và nó
+     * phải rơi khỏi `guards`. Nếu nó KHÔNG rơi, nghĩa là `probe-configured`
+     * không đọc tham số của nó nữa — và lúc đó mọi ô xanh ở trên đều vô nghĩa.
+     */
+    const goc = baiTheoMa('K8S-0002');
+    const beoSai: Problem = {
+      ...goc,
+      objectives: goc.objectives.map((muc) =>
+        muc.id === 'giu-readiness'
+          ? { ...muc, args: { ...(muc.args ?? {}), namespace: 'namespace-khong-ton-tai' } }
+          : muc,
+      ),
+    };
+    expect(chupCham(goc).guards).toEqual(['giu-readiness']);
+    expect(chupCham(beoSai).guards).toEqual([]);
+  });
+
+  it('đối chứng âm: bỏ `seededIncident` thì sự cố PHẢI biến mất khỏi trạng thái đầu', () => {
+    /*
+     * Cặp đôi của ô "sự cố gieo sẵn thật sự có mặt". Ô kia khẳng định có; ô này
+     * khẳng định phép đếm đó phản ứng với dữ liệu chứ không phải một hằng số.
+     * Không có nó thì một `seedIncidents` trả về danh sách cứng vẫn qua được ô
+     * kia ở đúng những bài có số sự cố trùng khớp.
+     */
+    const goc = baiTheoMa('K8S-0001');
+    const khongSuCo: Problem = {
+      ...goc,
+      initialState: {
+        ...goc.initialState,
+        resources: goc.initialState.resources.map(({ seededIncident: _bo, ...phanConLai }) => phanConLai),
+      },
+    };
+    expect(initialState(bocThanhLevel(goc), HAT_GIONG).incidents.length).toBe(3);
+    expect(initialState(bocThanhLevel(khongSuCo), HAT_GIONG).incidents.length).toBe(0);
+  });
+
   it('phân loại goal/guard tất định: cùng hạt giống, hai lần gọi, cùng kết quả', () => {
     /*
      * Toàn bộ hệ chấm lại phía máy chủ (18.C) đứng trên lời hứa "phát lại tất
@@ -814,6 +859,22 @@ describe('CHẤM — điểm trên bài seed thật', () => {
  * im lặng mất tác dụng đúng lúc kiểu được nới ra thành liên hợp.
  */
 type KhongGanDuoc<A, B> = [A] extends [B] ? never : true;
+
+/**
+ * Đối chứng cho chính cơ chế gác ở trên, và nó là thứ giữ ba ô kiểu bên dưới
+ * khỏi thành đồ trang trí.
+ *
+ * `Problem` hiển nhiên gán được vào chính nó, nên `KhongGanDuoc<Problem, Problem>`
+ * PHẢI là `never`, và dòng dưới PHẢI không biên dịch được. `@ts-expect-error` đảo
+ * phép thử lại: nếu dòng này lỡ biên dịch được — tức ai đó "sửa" `KhongGanDuoc`
+ * thành một kiểu luôn trả `true` — thì `tsc` báo TS2578 *"Unused '@ts-expect-error'
+ * directive"* và cả gói ĐỎ.
+ *
+ * Không có dòng này, một `KhongGanDuoc` hỏng sẽ làm ba ô kiểu bên dưới xanh vĩnh
+ * viễn, kể cả sau khi lớp che gợi ý đã bị gỡ hoàn toàn.
+ */
+// @ts-expect-error — gán được vào chính nó ⇒ `KhongGanDuoc` phải trả `never`
+const _tuKiemCoCheGac: KhongGanDuoc<Problem, Problem> = true;
 
 describe('HIỂN THỊ — gợi ý chưa mở KHÔNG được mang text', () => {
   /**
