@@ -126,6 +126,27 @@ export async function submitProblem(
   claimed: RunResult,
 ): Promise<SubmitProblemResult> {
   assertSubmitRateLimit(userId);
+  /*
+   * ⛔ CỔNG GAME. Điểm cuối này chấm bằng engine K8s và CHỈ engine K8s:
+   * `problemReplayEngine` → `problemAsLevel` dựng một `Level` của K8s.
+   *
+   * Cổng này là MỚI và nó tồn tại vì migration 0015 vừa mở đường tới đây. Trước
+   * 0015 mọi dòng trong bảng `problems` đều là bài K8s nên nhánh này không tới
+   * được — nó là mã chết. Từ 0015 cột `game_id` chở được `'git'`, và chỗ tra bài
+   * ở `routers/problems.ts` lọc theo `code` + `state` chứ không theo game. Tức
+   * là một bài Git `published` ĐÃ CÓ ĐƯỜNG đi vào đây.
+   *
+   * Không dựa vào phép ném của `problemAsLevel`: nó ném `Error` trần, tức người
+   * nộp nhận 500 kèm một câu về "bộ mô phỏng". Ở đây nói đúng tên vấn đề, và
+   * `INTERNAL_SERVER_ERROR` chứ không phải `BAD_REQUEST` vì người nộp không làm
+   * gì sai — một bài Git xuất bản mà chưa có đường nộp là lỗi cấu hình nền tảng.
+   */
+  if (problem.gameId !== 'k8s') {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: `Bài "${problem.code}" thuộc game "${problem.gameId}", nhưng điểm cuối này chỉ chấm được bài K8s`,
+    });
+  }
   if (log.levelId !== expectedLogLevelId(problem)) {
     // Kiểm trước để trả một câu nói được. Để `sessionReplayEngine.init` tự ném
     // thì nó về dưới dạng `phat-lai-loi` — nhãn ấy nghĩa là "lỗi bộ mô phỏng"

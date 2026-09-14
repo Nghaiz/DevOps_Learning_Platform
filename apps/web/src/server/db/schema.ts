@@ -1296,11 +1296,17 @@ export const problems = pgTable(
      * dối về nội dung, và đổi tên cột là một migration dữ liệu không mua thêm
      * điều gì.
      *
-     * ⚠ `$type<Testcase[]>` là hình dạng của các lượt GHI MỚI, không phải lời
-     * hứa về mọi dòng: dòng viết trước 18.B mang `required` và KHÔNG mang
-     * `visible`. Đừng đọc cột này trực tiếp — `problems/testcases.ts`
-     * (`problemTestcases`) là biên đọc, nó nhận `readonly unknown[]` đúng vì lý
-     * do đó và mặc định `visible: true` cho dòng cũ.
+     * ⚠ `$type<Testcase[]>` là hình dạng ĐÍCH sau §18.D.1, KHÔNG phải hình dạng
+     * của các lượt ghi hôm nay — và chỗ này từng khai quá, sửa lại 2026-09-15
+     * theo phép đo của lane dọn tầng máy chủ. Chừng nào `problemBodyShape`
+     * (`validate.ts`) chưa mở sang đa-game thì đường GHI vẫn đẻ ra hình dạng
+     * `Objective` (có `required`, không có `visible`), và `crud.ts` phải ép kiểu
+     * ở biên ghi — ép kiểu đó có ghi chú tại chỗ và §18.D.1 là chỗ gỡ nó.
+     *
+     * Dòng viết trước 18.B cũng mang `required` và không mang `visible`. Nên
+     * ĐỪNG đọc cột này trực tiếp — `problems/testcases.ts` (`problemTestcases`)
+     * là biên đọc, nó nhận `readonly unknown[]` đúng vì lý do đó và mặc định
+     * `visible: true` cho dòng cũ.
      */
     objectives: jsonb('objectives').$type<Testcase[]>().notNull(),
     /** `null` = cho dùng mọi loại tài nguyên. Một mảng đủ 26 loại KHÔNG tương đương. */
