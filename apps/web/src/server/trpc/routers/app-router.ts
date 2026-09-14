@@ -3,6 +3,7 @@ import { adminRouter } from './admin';
 import { authoringRouter } from './authoring';
 import { authRouter } from './auth';
 import { capacityRouter } from './capacity';
+import { classesRouter } from './classes';
 import { labsRouter } from './labs';
 import { lessonsRouter } from './lessons';
 import { meRouter } from './me';
@@ -17,6 +18,7 @@ export const appRouter = createTRPCRouter({
   auth: authRouter,
   authoring: authoringRouter,
   capacity: capacityRouter,
+  classes: classesRouter,
   labs: labsRouter,
   lessons: lessonsRouter,
   me: meRouter,

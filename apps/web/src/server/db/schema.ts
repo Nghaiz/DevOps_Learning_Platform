@@ -1409,3 +1409,117 @@ export type NewProblemHintRevealRow = typeof problemHintReveals.$inferInsert;
 
 export type ProblemSubmissionRow = typeof problemSubmissions.$inferSelect;
 export type NewProblemSubmissionRow = typeof problemSubmissions.$inferInsert;
+
+/**
+ * Lớp học (18.F).
+ *
+ * ## Chủ lớp là một CỘT, không phải một dòng thành viên
+ *
+ * `class_members` chứa ĐÚNG sinh viên. Chủ lớp nằm ở `classes.owner_id`, trỏ
+ * tới một tài khoản `admin`. Hai lý do, và cái thứ hai mới là cái nặng:
+ *
+ *  · Một bảng thành viên mang cả chủ lẫn học viên cần thêm một cột `role` để
+ *    phân biệt, mà cột đó chỉ có một giá trị thật (`student`) ở mọi dòng còn
+ *    lại. Một cột chỉ mang một giá trị không mang tin gì.
+ *  · Nó làm câu hỏi "ai được xem bảng điểm lớp này" có HAI nguồn trả lời
+ *    (`owner_id` và một dòng `class_members.role = 'teacher'`), và hai nguồn
+ *    thì sớm muộn lệch nhau. Ở đây câu hỏi đó có một nguồn duy nhất.
+ *
+ * ## ⛔ Những cột đã CÂN NHẮC RỒI BỎ vì suy ra được
+ *
+ * Repo đã bác đúng khuôn này bốn lần (`problems` không có `solver_count`,
+ * `attempt_count`, `acceptance_rate`; `sessions_audit` không có `status`), nên
+ * danh sách này là để lần thứ năm không phải tranh luận lại:
+ *
+ * | Cột bị bỏ | Tính từ đâu |
+ * |---|---|
+ * | `classes.member_count` | `count(*)` trên `class_members` |
+ * | `classes.average_score` | gộp `problem_submissions` theo tập thành viên |
+ * | `classes.owner_name` / `owner_email` | join `users` |
+ * | `class_members.role` | hằng số; chủ lớp đã là `classes.owner_id` |
+ * | `class_members.solved_count` / `last_submitted_at` | gộp `problem_submissions` |
+ *
+ * Cả năm đều là cùng một cái bẫy: rẻ lúc ghi, rồi phải giữ đồng bộ bằng trigger
+ * hoặc cron mãi mãi, và chúng sẽ lệch. `server/classes/scoreboard.ts` tính
+ * chúng tại chỗ dùng.
+ *
+ * ## Vai trò: KHÔNG có `teacher`
+ *
+ * Chủ dự án chốt 2026-09-11: giảng viên dùng lại `admin`. Cái giá đã được ghi
+ * rõ trong `plans/devops-learning-platform/phase-18.md` §2 (một giảng viên được
+ * cấp `admin` có TOÀN QUYỀN hệ thống). Đây là đánh đổi có chủ ý ở quy mô một
+ * lớp NCKH, không phải sơ suất. Đừng "sửa" nó bằng cách thêm một vai trò thứ tư
+ * mà không đổi quyết định ở plan trước.
+ */
+export const classes = pgTable(
+  'classes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    /** Mô tả ngắn, không bắt buộc. `null` = người tạo không nhập gì. */
+    description: text('description'),
+    /**
+     * Chủ lớp. PHẢI là một tài khoản `admin` lúc tạo, và điều đó kiểm ở tầng
+     * ứng dụng (`adminProcedure`) chứ không ở lược đồ: Postgres không có ràng
+     * buộc "khoá ngoại tới một dòng có role = 'admin'" mà không dùng trigger,
+     * và một trigger ở đây sẽ khoá cứng một quyết định (§ Vai trò ở trên) mà
+     * plan đã nói là có thể phải tách lại về sau.
+     *
+     * ⚠ `cascade`, KHÁC tiền lệ `content_items.author_id` (NO ACTION). Lý do
+     * có thật chứ không phải sao chép nhầm: một bài học không chủ vẫn là nội
+     * dung người học đọc được, nên chặn xoá tác giả là đúng; còn một lớp không
+     * chủ thì KHÔNG ai mở được (mọi điểm cuối của lớp đứng sau `adminProcedure`
+     * và lọc theo `owner_id`), tức nó là dữ liệu không với tới được. Chuyển chủ
+     * lớp chưa có đường nào ở chặng này.
+     */
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** `precision: 3` — cùng lý do keyset đã ghi ở `problems.created_at`. */
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Keyset của `classes.list`: `(created_at desc, id desc)`.
+    index('classes_created_idx').on(table.createdAt, table.id),
+    // Một chủ lớp không có hai lớp trùng tên. Bấm hai lần nút "Tạo lớp" là
+    // chuyện thường, và hai dòng trùng tên thì không ai phân biệt được lớp nào
+    // là lớp mình vừa thêm sinh viên vào.
+    uniqueIndex('classes_owner_name_key').on(table.ownerId, table.name),
+  ],
+);
+
+/**
+ * Thành viên lớp — CHỈ sinh viên. Xem chú thích của `classes`.
+ *
+ * Khoá chính GỘP `(class_id, user_id)`: "đã ở trong lớp" là một quan hệ, không
+ * phải một chuỗi sự kiện. Một `uuid` riêng sẽ cho phép hai dòng cùng nghĩa tồn
+ * tại song song, và lúc đó phép đếm sĩ số có hai câu trả lời.
+ *
+ * Cả hai khoá ngoại đều `cascade`: xoá lớp thì danh sách thành viên của nó hết
+ * nghĩa, xoá tài khoản thì tư cách thành viên cũng vậy. KHÔNG có bản ghi nào ở
+ * đây cần sống lâu hơn hai bảng gốc — khác `sessions_audit`, bảng này không
+ * phải nhật ký.
+ */
+export const classMembers = pgTable(
+  'class_members',
+  {
+    classId: uuid('class_id')
+      .notNull()
+      .references(() => classes.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    joinedAt: timestamp('joined_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ name: 'class_members_pk', columns: [table.classId, table.userId] }),
+    // "Những lớp mà người này đang ở trong" — khoá chính gộp mở đầu bằng
+    // `class_id` nên không phục vụ được chiều tra ngược này.
+    index('class_members_user_idx').on(table.userId),
+  ],
+);
+
+export type ClassRow = typeof classes.$inferSelect;
+export type NewClassRow = typeof classes.$inferInsert;
+export type ClassMemberRow = typeof classMembers.$inferSelect;
+export type NewClassMemberRow = typeof classMembers.$inferInsert;
