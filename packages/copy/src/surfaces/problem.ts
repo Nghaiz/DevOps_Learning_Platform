@@ -154,9 +154,6 @@ export const problem = {
   'problem.objective-fields-hoac': ' hoặc ',
   'problem.objective-fields-thieu-ca-hai-thi-vi-tu-luon-tra-sai-va-bai-khong-bao-gio-qua-duoc':
     '. Thiếu cả hai thì vị từ luôn trả sai, và bài không bao giờ qua được.',
-  'problem.objective-fields-bat-buoc-khong-dat-thi-khong-qua-bai':
-    'Bắt buộc: không đạt thì không qua bài',
-  'problem.objective-fields-thuong-an-diem-khong-chan': 'Thưởng: ăn điểm, không chặn',
   'problem.predicate-arg-types-loai-tai-nguyen': 'Loại tài nguyên',
   'problem.predicate-arg-types-ten': 'Tên',
   'problem.predicate-arg-types-bo-chon-nhan': 'Bộ chọn nhãn',
@@ -303,11 +300,6 @@ export const problem = {
     what: 'Bài phải có ít nhất một mục tiêu.',
     next: 'Sửa ô được đánh dấu rồi thử lại.',
   },
-  'problem.problem-validate-can-it-nhat-mot-muc-tieu-bat-buoc-bai-chi-toan-muc-tieu-thuong-thi-qua-ngay':
-    {
-      what: 'Cần ít nhất một mục tiêu BẮT BUỘC. Bài chỉ toàn mục tiêu thưởng thì qua ngay khi vừa mở.',
-      next: 'Sửa ô được đánh dấu rồi thử lại.',
-    },
   'problem.problem-validate-trung-dinh-danh-muc-tieu': (p: { id: string }) => ({
     what: `Trùng định danh mục tiêu "${p.id}".`,
     next: 'Sửa ô được đánh dấu rồi thử lại.',

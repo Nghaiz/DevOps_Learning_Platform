@@ -1,15 +1,17 @@
 import { errText, t } from '@devops-platform/copy';
 import {
+  GAME_IDS,
   PROBLEM_DIFFICULTIES,
-  PROBLEM_TOPICS,
   type ClusterSpec,
+  type GameId,
   type Problem,
   type ProblemDifficulty,
-  type ProblemTopic,
+  type ProblemTopicId,
   type ResourceKind,
   type Testcase,
 } from '@devops-platform/games';
 import { clusterFromSpec } from './cluster-form';
+import { DEFAULT_AUTHOR_GAME, pluginViewFor } from './game-plugin-view';
 import {
   emptyForm,
   formFromProblem,
@@ -110,8 +112,38 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
   // thứ người ta hay chép ra từ một chỗ khác, và từ chối nó không bảo vệ được gì.
   const body = asRecord(outer['problem']) ?? outer;
 
+  /*
+   * `gameId` đọc từ file, mặc định K8s.
+   *
+   * Mặc định chứ không bắt buộc vì định dạng xuất (`ProblemExport`, `version: 1`)
+   * ra đời TRƯỚC khi hợp đồng có `gameId`, nên mọi file đã nằm trong máy người
+   * khác đều thiếu khoá này — và mọi file đó đều là bài K8s, đúng bằng DEFAULT
+   * mà migration 0015 chọn cho cột. Giá trị lạ thì BỎ và báo trong `dropped`,
+   * cùng luật với chủ đề và độ khó.
+   */
+  const rawGame = asStringOr(body['gameId'], '');
+  const validGame = (GAME_IDS as readonly string[]).includes(rawGame);
+  const gameId: GameId = validGame ? (rawGame as GameId) : DEFAULT_AUTHOR_GAME;
+
   const cluster = asRecord(body['initialState']);
-  if (cluster === null || !Array.isArray(cluster['nodes'])) {
+  if (cluster === null) {
+    return {
+      ok: false,
+      message: errText(
+        'problem.problem-json-thieu-initialstate-hoac-initialstate-nodes-khong-phai-mang',
+      ),
+    };
+  }
+  /*
+   * Phép kiểm `nodes` là hình dạng của RIÊNG K8s, nên nó chỉ chạy cho K8s.
+   *
+   * Áp nó cho mọi game sẽ từ chối mọi file bài Git bằng một câu nói về `nodes` —
+   * một khái niệm không tồn tại trong `WorldSpec`. Với game khác, biên này chỉ
+   * đòi `initialState` là một object, đúng bằng thứ biên GHI ở máy chủ hứa; xem
+   * `server/problems/validate.ts` § `refineByGame` về vì sao không viết một
+   * schema thứ hai cho từng game ở tầng ứng dụng.
+   */
+  if (gameId === 'k8s' && !Array.isArray(cluster['nodes'])) {
     return {
       ok: false,
       message: errText(
@@ -133,10 +165,20 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
     );
   }
 
-  const topics: ProblemTopic[] = [];
+  if (!validGame && rawGame !== '') {
+    dropped.push(t('problem.problem-json-chu-de-khong-co-trong-tap-dong', { topic: rawGame }));
+  }
+
+  /*
+   * Tập chủ đề hợp lệ tới từ PLUGIN của game trong file, không từ chín chủ đề
+   * K8s. Dùng danh sách K8s cho một file Git sẽ đánh rơi TOÀN BỘ chủ đề của nó
+   * — và lượt nhập vẫn báo thành công, chỉ kèm một danh sách `dropped` dài.
+   */
+  const allowedTopics = new Set((pluginViewFor(gameId)?.topics ?? []).map((option) => option.id));
+  const topics: ProblemTopicId[] = [];
   for (const topic of Array.isArray(body['topics']) ? body['topics'] : []) {
-    if (typeof topic === 'string' && (PROBLEM_TOPICS as readonly string[]).includes(topic)) {
-      topics.push(topic as ProblemTopic);
+    if (typeof topic === 'string' && allowedTopics.has(topic)) {
+      topics.push(topic);
     } else {
       dropped.push(
         t('problem.problem-json-chu-de-khong-co-trong-tap-dong', { topic: String(topic) }),
@@ -175,6 +217,11 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
    * Một tham số nêu đúng những trường nó cần thì không có chỗ cho thứ đó.
    */
   const shaped: LoadedProblemFields = {
+    gameId,
+    // Cờ chỉ nhận `true` khi file khai đúng boolean `true`. Chiều an toàn, và
+    // cùng luật với `visible` ở biên đọc: một năng lực phải được ghi TƯỜNG MINH.
+    // `formFromProblem` còn tắt nó thêm lần nữa khi plugin không có `seedSpec`.
+    seedable: body['seedable'] === true,
     slug: asStringOr(body['slug'], ''),
     title: asStringOr(body['title'], ''),
     statement: asStringOr(body['statement'], ''),
@@ -204,10 +251,18 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
   const form = formFromProblem(shaped, nextKey);
   return {
     ok: true,
-    // `clusterFromSpec` chạy lại trên chính `initialState` vừa nhận để mọi ô
-    // node/tài nguyên có khoá React mới — nếu không, hai lượt nhập liên tiếp
-    // dùng lại khoá cũ và React giữ nguyên giá trị ô đang gõ dở.
-    form: { ...form, cluster: clusterFromSpec(initialState, nextKey) },
+    /*
+     * `clusterFromSpec` chạy lại trên chính `initialState` vừa nhận để mọi ô
+     * node/tài nguyên có khoá React mới — nếu không, hai lượt nhập liên tiếp
+     * dùng lại khoá cũ và React giữ nguyên giá trị ô đang gõ dở.
+     *
+     * ⚠ CHỈ cho K8s. Với game khác, `initialState` không phải `ClusterSpec` và
+     * `clusterFromSpec` sẽ ném — biến một lượt nhập file Git hợp lệ thành một
+     * màn hình trắng. `formFromProblem` đã dựng `cluster` rỗng cho ca đó, và
+     * trường ấy không được trình soạn đọc khi `specEditor` là `generic`.
+     */
+    form:
+      gameId === 'k8s' ? { ...form, cluster: clusterFromSpec(initialState, nextKey) } : form,
     dropped,
   };
 }

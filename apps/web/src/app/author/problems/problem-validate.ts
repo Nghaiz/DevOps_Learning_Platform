@@ -2,6 +2,7 @@ import { errText, t } from '@devops-platform/copy';
 import type { FieldIssue } from './cluster-form';
 import { clusterToSpec } from './cluster-to-spec';
 import type { ProblemFormState } from './problem-form';
+import { pluginViewFor } from './game-plugin-view';
 import { toProblemDraft } from './problem-draft';
 import { PREDICATE_SPECS, isPredicateName } from './predicate-spec';
 import { SLUG_PATTERN, STATEMENT_WORD_LIMIT, countWords, toSlug } from './text-tools';
@@ -80,14 +81,25 @@ export function publishIssues(form: ProblemFormState): readonly FieldIssue[] {
     });
   }
 
-  const cluster = clusterToSpec(form.cluster);
-  if (!cluster.ok) {
-    issues.push(...cluster.issues);
-  } else if (cluster.value.nodes.length === 0) {
-    issues.push({
-      path: 'nodes',
-      message: errText('problem.problem-validate-cum-phai-co-it-nhat-mot-node'),
-    });
+  /*
+   * Phép kiểm cụm chỉ chạy cho game dùng biểu mẫu cụm viết tay.
+   *
+   * `form.cluster` luôn tồn tại (nó được GIỮ NGUYÊN khi đổi game, xem
+   * `formWithGame`), nên chạy vô điều kiện sẽ báo "cụm phải có ít nhất một node"
+   * trên một bài Git — một lỗi trỏ vào một tab không hiện ra, tức người soạn
+   * không có đường nào sửa. Trạng thái ban đầu của game khác được kiểm ở
+   * `toProblemDraft` (qua `specFromText`) và ở biên ghi.
+   */
+  if (pluginViewFor(form.gameId)?.specEditor === 'cluster') {
+    const cluster = clusterToSpec(form.cluster);
+    if (!cluster.ok) {
+      issues.push(...cluster.issues);
+    } else if (cluster.value.nodes.length === 0) {
+      issues.push({
+        path: 'nodes',
+        message: errText('problem.problem-validate-cum-phai-co-it-nhat-mot-node'),
+      });
+    }
   }
 
   issues.push(...objectiveIssues(form));
@@ -118,14 +130,21 @@ function objectiveIssues(form: ProblemFormState): readonly FieldIssue[] {
     });
     return issues;
   }
-  if (!form.objectives.some((objective) => objective.required)) {
-    issues.push({
-      path: 'objectives',
-      message: errText(
-        'problem.problem-validate-can-it-nhat-mot-muc-tieu-bat-buoc-bai-chi-toan-muc-tieu-thuong-thi-qua-ngay',
-      ),
-    });
-  }
+  /*
+   * ⛔ ĐÃ GỠ 2026-09-15 — phép kiểm `some(o => o.required)`, và chiều của thay
+   * đổi là NỚI chứ không phải dọn dẹp.
+   *
+   * Hai cổng đang nói hai điều khác nhau về cùng một bài, ghi trong plan §0.4:
+   * `publish-gate.ts` (máy chủ) đã nới về `objectives.length === 0` từ 18.B theo
+   * quyết định #20 (*"một testcase thì luôn chặn"*), trong khi file này còn đòi
+   * ít nhất một mục tiêu BẮT BUỘC. Client chặt hơn server thì không mất an
+   * toàn, nhưng nó đang chặn một bài mà máy chủ sẵn sàng xuất bản — và kể từ
+   * §18.D.2 thì `ObjectiveFormState` không còn `required` để mà đếm, nên phép
+   * kiểm này không chỉ lệch mà còn không biểu diễn được.
+   *
+   * Vế "bài phải có ít nhất một mục tiêu" nằm ngay phía trên và KHÔNG mất — đó
+   * đúng là câu mà cổng máy chủ hỏi.
+   */
 
   const seen = new Set<string>();
   form.objectives.forEach((objective, index) => {

@@ -35,7 +35,7 @@ export function validForm(): ProblemFormState {
         label: 'Deployment thanh-toan có đủ 3 replica sẵn sàng',
         check: 'deployment-ready',
         args: { name: 'thanh-toan', namespace: 'thanh-toan', replicas: '3' },
-        required: true,
+        visible: true,
       },
     ],
   };

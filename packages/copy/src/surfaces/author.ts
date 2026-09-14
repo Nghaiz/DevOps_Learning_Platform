@@ -305,9 +305,9 @@ export const author = {
     'Chọn game trước. Biểu mẫu trạng thái ban đầu, tập chủ đề và bảng vị từ đều đổi theo game.',
   'author.problem.game.locked':
     'Bài đã lưu thì không đổi game được: đổi game là đổi luôn kiểu của trạng thái ban đầu. Muốn soạn cho game khác thì tạo bài mới.',
-  'author.problem.game.not-persistable-title': 'Game này chưa lưu được',
-  'author.problem.game.not-persistable-body':
-    'Biểu mẫu chạy đầy đủ, nhưng hợp đồng lưu trữ chưa mang được game của bài: bảng bài chỉ giữ trạng thái ban đầu dạng cụm Kubernetes. Soạn thử và xuất JSON thì được; bấm lưu sẽ bị máy chủ từ chối.',
+  // Hai khoa `not-persistable-*` DA XOA 2026-09-15 cung voi PERSISTABLE_GAMES:
+  // chung noi rang bang bai chi giu duoc trang thai ban dau dang cum Kubernetes,
+  // va dieu do thoi dung tu khi §18.D.1 nua sau mo problemBodyShape sang da-game.
   'author.problem.game.no-plugin-title': 'Game này chưa có bài tập',
   'author.problem.game.no-plugin-body':
     'Chưa có engine chấm cho game này nên chưa soạn bài cho nó được. Chọn một game khác trong danh sách.',
@@ -322,8 +322,34 @@ export const author = {
   'author.problem.spec.list-as-json':
     'Danh sách này nhập bằng JSON: một mảng các object. Biểu mẫu lặp có nút thêm, xoá, đổi thứ tự thì chưa dựng cho ô dạng này.',
 
+  'author.problem.spec.unreadable-field': (p: { label: string }) =>
+    `Ô "${p.label}" chưa đọc ngược được: kiểm lại cú pháp JSON hoặc giá trị số.`,
+
   'author.problem.objectives.heading': 'Mục tiêu',
   'author.problem.objectives.add': 'Thêm mục tiêu',
+  // §18.D.2: doi thu tu. Nhan ngan tren nut, cau day du trong aria-label kem so
+  // thu tu: mot hang nut giong het nhau lap lai N lan la thu trinh doc man hinh
+  // doc thanh "nut, nut, nut" ma khong biet dang o muc tieu nao (AC-8).
+  'author.problem.objectives.move-up-short': 'Lên',
+  'author.problem.objectives.move-down-short': 'Xuống',
+  'author.problem.objectives.move-up': (p: { n: number }) =>
+    `Đưa mục tiêu ${String(p.n)} lên trên`,
+  'author.problem.objectives.move-down': (p: { n: number }) =>
+    `Đưa mục tiêu ${String(p.n)} xuống dưới`,
+  // §18.B.4: an/hien. Nhan noi HE QUA cho nguoi hoc, khong noi trang thai:
+  // "an" mot minh khong noi ra rang nguoi lam VAN dem duoc no trong mau so n/m.
+  'author.problem.objectives.visible-on':
+    'Hiện: người làm đọc được nhãn này trước khi nộp.',
+  'author.problem.objectives.visible-off':
+    'Ẩn: người làm biết có testcase này (nó nằm trong mẫu số n/m) nhưng chỉ đọc được nhãn sau khi nộp.',
+
+  // §18.D.6: co seedable. Cau "unavailable" mo ta TINH TRANG THAT: khong plugin
+  // nao khai seedSpec, nen hom nay khong game nao sinh de theo seed duoc.
+  'author.problem.seedable.label': 'Sinh đề theo seed',
+  'author.problem.seedable.available':
+    'Bật thì mỗi lượt làm nhận một đề sinh từ seed riêng. Kỳ thi dùng "mỗi sinh viên một đề" chỉ nhận bài đã bật cờ này.',
+  'author.problem.seedable.unavailable':
+    'Chưa bật được: engine của game này chưa sinh được đề theo seed, nên bật cờ chỉ là một lời hứa không ai thực hiện: mọi sinh viên vẫn nhận cùng một đề. Máy chủ cũng từ chối bài bật cờ này.',
 
   // ── Tab Thử, mở đấu trường 3D ──────────────────────────────────────────────
   'author.problem.arena.heading': 'Thử trong đấu trường',
@@ -714,4 +740,6 @@ export const authorIntentionalThree = {
     '2026-09-10: đúng ba route tồn tại dưới app/author/problems (danh sách, soạn mới, sửa theo mã), kiểm bằng ba file page.tsx trong cây đó. Route thứ tư phải thêm một page.tsx trước, và lúc đó nhóm này thôi là ba.',
   'author.problem.state':
     '2026-09-10: đúng ba giá trị tồn tại trong PROBLEM_STATES tại packages/games/src/k8s/problem.ts dòng 85 (draft, published, archived). Đây là union KHÁC với ContentState của author.state, thứ có bốn giá trị vì thêm publishing.',
+  'author.problem.seedable':
+    '2026-09-15: dung ba khoa vi o danh dau nay co dung hai trang thai HIEN THI (bat duoc / chua bat duoc) cong mot nhan, khong phai mot phan loai ba. Cau available va unavailable khong thay the nhau duoc: mot cau mo ta nang luc khi plugin khai seedSpec, cau kia mo ta TINH TRANG THAT hom nay (khong plugin nao khai no, xem core/problem-plugin.ts). Gop hai cau lam mot la hua mot thu chua ton tai. Khoa thu tu chi xuat hien khi co trang thai hien thi thu ba.',
 } as const satisfies IntentionalThree;

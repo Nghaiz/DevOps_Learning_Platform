@@ -130,3 +130,92 @@ export function invalidJsonFields(
   }
   return issues;
 }
+
+export interface SpecFromTextResult {
+  readonly value: Readonly<Record<string, unknown>>;
+  /** Ô không đọc ngược được. `value` vẫn mang phần đọc được — xem khối dưới. */
+  readonly issues: readonly SpecTextIssue[];
+}
+
+/**
+ * Map chuỗi → spec. Phép ĐỌC NGƯỢC của `specToText`, và là thứ làm biểu mẫu
+ * dựng-từ-plugin LƯU được thay vì chỉ hiện được.
+ *
+ * ## Vì sao nó tới muộn hơn `specToText`
+ *
+ * Trước §18.D.1 nửa sau, biên ghi chỉ nhận `ClusterSpec`, nên biểu mẫu của mọi
+ * game khác K8s là một màn hình soạn được mà bấm Lưu thì máy chủ từ chối. Chiều
+ * đi (`specToText`) đủ cho việc đó; chiều về chưa có ai gọi. Hai chú thích trong
+ * file này đã nhắc tên một hàm `readSpecText` — nó CHƯA BAO GIỜ tồn tại, và đây
+ * là hàm chúng nói tới, đặt đúng tên của phép đối xứng (`specToText` ↔
+ * `specFromText`).
+ *
+ * ## Trả về CẢ hai phần thay vì một `Result` loại trừ nhau
+ *
+ * Một `{ ok: false }` sẽ vứt bỏ phần đã đọc được, và chỗ gọi (`toProblemDraft`)
+ * thì cần cả hai: nó gom lỗi của mọi mục trong biểu mẫu để hiện một lượt, chứ
+ * không dừng ở lỗi đầu tiên. Cùng khuôn `clusterToSpec` đang dùng.
+ *
+ * ## Phép đối xứng KHÔNG hoàn hảo, và chỗ nó lệch phải nói ra
+ *
+ * `specToText` ánh xạ cả `undefined` lẫn `[]` thành `''` (xem `toText`), nên
+ * chiều về không phân biệt được hai thứ đó: một `string-list` để trống đọc
+ * ngược thành `[]`, không thành "khoá vắng mặt". Với `ClusterSpec.namespaces`
+ * (bắt buộc, `[]` hợp lệ) thì đúng; với một game có trường mảng TUỲ CHỌN mà
+ * `[]` khác nghĩa `undefined` thì sai. Chưa có trường nào như vậy trong hai
+ * plugin hôm nay. Trường vô hướng để trống thì BỎ HẲN KHOÁ — đó là chiều an
+ * toàn, vì `''` gửi lên là một giá trị, còn khoá vắng mặt là "chưa điền".
+ */
+export function specFromText(
+  fields: readonly AuthorField[],
+  text: SpecTextState,
+): SpecFromTextResult {
+  const value: Record<string, unknown> = {};
+  const issues: SpecTextIssue[] = [];
+
+  for (const field of fields) {
+    const raw = text[field.path] ?? '';
+    const trimmed = raw.trim();
+
+    if (field.kind === 'boolean') {
+      // Luôn ghi, kể cả `false`: một cờ vắng mặt và một cờ tắt là hai thứ khác
+      // nhau với `exactOptionalPropertyTypes`, và ô đánh dấu trên màn hình luôn
+      // có một trong hai trạng thái — không có trạng thái "chưa trả lời".
+      value[field.path] = raw === 'true';
+      continue;
+    }
+    if (field.kind === 'string-list') {
+      value[field.path] = parseLines(raw);
+      continue;
+    }
+    if (field.kind === 'select' && field.multiple) {
+      value[field.path] = trimmed === '' ? [] : trimmed.split(',').map((item) => item.trim());
+      continue;
+    }
+    if (trimmed === '') {
+      continue;
+    }
+    if (isJsonShaped(field)) {
+      try {
+        value[field.path] = JSON.parse(trimmed);
+      } catch {
+        issues.push({ path: field.path, label: field.label });
+      }
+      continue;
+    }
+    if (field.kind === 'number') {
+      const parsed = Number(trimmed);
+      // `Number('')` là 0 — đã loại ở nhánh rỗng phía trên, nếu không thì một ô
+      // số để trống sẽ lặng lẽ thành số 0, tức một giá trị người soạn không gõ.
+      if (!Number.isFinite(parsed) || (field.integer && !Number.isInteger(parsed))) {
+        issues.push({ path: field.path, label: field.label });
+        continue;
+      }
+      value[field.path] = parsed;
+      continue;
+    }
+    value[field.path] = trimmed;
+  }
+
+  return { value, issues };
+}

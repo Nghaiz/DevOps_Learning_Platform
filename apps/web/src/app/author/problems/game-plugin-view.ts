@@ -85,22 +85,20 @@ const SPEC_EDITOR_BY_GAME: Readonly<Partial<Record<GameId, SpecEditorKind>>> = {
   k8s: 'cluster',
 };
 
-/**
- * Game LƯU được một bài hôm nay.
+/*
+ * ⛔ `PERSISTABLE_GAMES` ĐÃ XOÁ 2026-09-15. Ghi lại vì nó là một danh sách cố ý
+ * tự huỷ, không phải một cờ tính năng ai đó quên dọn.
  *
- * Đây là một giới hạn THẬT của hợp đồng lưu trữ, không phải một cờ tính năng.
- * `Problem` (`packages/games/src/k8s/problem.ts`) khai `initialState: ClusterSpec`
- * và KHÔNG có `gameId`; schema input của `problems.create` / `problems.update`
- * cũng vậy. Nên một bài Git soạn xong hôm nay không có chỗ nào để lưu `gameId`,
- * và `initialState` của nó sẽ trượt Zod ở máy chủ.
+ * Nó liệt kê game LƯU được, và hôm đó chỉ có K8s: biên ghi khai
+ * `initialState: clusterSpecSchema` và không có ô nào cho `gameId`, nên một bài
+ * Git soạn xong sẽ trượt Zod ở máy chủ. Chú thích cũ hẹn *"xoá đi khi §18.D đưa
+ * `gameId` cùng `initialState` đa-game vào hợp đồng lưu trữ, và lúc đó nó phải
+ * xoá HẲN chứ không phải thêm dần từng game vào"*. Đó chính là đợt này.
  *
- * Hiện giới hạn đó lên MÀN HÌNH thay vì để người soạn gõ xong rồi nhận một lỗi
- * 400 không đọc được: mất công của người đang viết dở là cái giá đắt nhất trang
- * này có thể bắt ai đó trả. Danh sách này xoá đi khi 18.A.2 / 18.D đưa `gameId`
- * cùng `initialState` đa-game vào hợp đồng lưu trữ, và lúc đó nó phải xoá HẲN
- * chứ không phải thêm dần từng game vào.
+ * Điều kiện lưu được nay trùng khít với điều kiện soạn được — CÓ PLUGIN — và
+ * `pluginViewFor` đã trả `null` cho ca không có plugin. Một danh sách thứ hai
+ * nói cùng điều đó là một chỗ để trôi.
  */
-const PERSISTABLE_GAMES: readonly GameId[] = ['k8s'];
 
 // -- Hinh dang tra ve -------------------------------------------------------
 
@@ -121,8 +119,20 @@ export interface GamePluginView {
   readonly specEditor: SpecEditorKind;
   /** Nhãn tab trạng thái ban đầu. Khác nhau giữa các game, và cố ý vậy. */
   readonly specTabLabel: string;
-  /** Xem `PERSISTABLE_GAMES`. `false` nghĩa là soạn được, chưa lưu được. */
-  readonly persistable: boolean;
+  /**
+   * §18.D.6 — plugin của game này có SINH ĐƯỢC đề theo seed không.
+   *
+   * ⚠ Hôm nay là `false` cho MỌI game: `GameProblemPlugin.seedSpec` là tuỳ chọn
+   * và không plugin nào khai nó (`core/problem-plugin.ts` nói thẳng vậy). Nên
+   * ô đánh dấu `seedable` trên biểu mẫu bị vô hiệu hoá ở khắp nơi, và đó là mô
+   * tả đúng tình trạng chứ không phải một tính năng chưa bật.
+   *
+   * Đọc từ `PROBLEM_PLUGINS` chứ không từ một danh sách viết tay: ngày một
+   * plugin khai `seedSpec`, ô đánh dấu tự mở ra mà không ai phải nhớ sửa thêm
+   * chỗ thứ hai. Một danh sách song song thì sẽ quên, và quên ở đây nghĩa là
+   * một năng lực có thật mà không ai dùng được.
+   */
+  readonly canSeed: boolean;
 }
 
 /**
@@ -145,6 +155,9 @@ export function pluginViewFor(gameId: GameId): GamePluginView | null {
     return null;
   }
   const specEditor = SPEC_EDITOR_BY_GAME[gameId] ?? 'generic';
+  // `problemPluginMeta` cố ý KHÔNG chở `seedSpec` (nó là `Pick` của phần đọc
+  // được mà không cần biết `Spec`), nên phải tra bảng đăng ký một lượt nữa.
+  const canSeed = PROBLEM_PLUGINS[gameId]?.seedSpec !== undefined;
   return {
     gameId,
     codePrefix: meta.codePrefix,
@@ -155,7 +168,7 @@ export function pluginViewFor(gameId: GameId): GamePluginView | null {
     specEditor,
     specTabLabel:
       specEditor === 'cluster' ? t('author.problem.tab.cluster') : t('author.problem.tab.spec'),
-    persistable: PERSISTABLE_GAMES.includes(gameId),
+    canSeed,
   };
 }
 

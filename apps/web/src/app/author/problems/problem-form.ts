@@ -1,7 +1,7 @@
 import type {
   ClusterSpec,
   GameId,
-  Problem,
+  ProblemBase,
   ProblemDifficulty,
   ProblemHint,
   ProblemTopicId,
@@ -25,7 +25,20 @@ import { specToText, type SpecTextState } from './spec-text';
  * `authorId` là field kẻ tấn công điền được), `state` đổi qua `publish`/`archive`,
  * hai mốc thời gian do DB ghi.
  */
-export type ProblemDraftInput = Omit<Problem, 'code' | 'state' | 'authorId' | 'createdAt' | 'updatedAt'>;
+export type ProblemDraftInput = Omit<
+  ProblemBase<unknown>,
+  'code' | 'state' | 'authorId' | 'createdAt' | 'updatedAt' | 'testcases'
+> & {
+  /**
+   * Tên LỊCH SỬ của cùng một thứ. Hợp đồng miền gọi nó `testcases`; cột DB, gói
+   * tin lên dây và file JSON xuất ra đều gọi `objectives`, và hai cái sau nằm
+   * trong máy người khác nên không đổi được. `server/problems/validate.ts` §
+   * `ProblemBody` có bảng ba tên và lý do đầy đủ.
+   */
+  readonly objectives: readonly Testcase[];
+  /** ⚠ K8s-only — xem khối nợ ở `server/problems/dto.ts` § `StoredProblem`. */
+  readonly allowedResources: readonly ResourceKind[] | null;
+};
 
 export interface ObjectiveFormState {
   readonly key: string;
@@ -42,7 +55,22 @@ export interface ObjectiveFormState {
    * chuyển sang payload, nên nó không rò ra ngoài.
    */
   args: Readonly<Record<string, string>>;
-  required: boolean;
+  /**
+   * §18.D.2 — người làm có thấy testcase này TRƯỚC khi nộp không.
+   *
+   * ⛔ KHÔNG phải `required` đổi tên, và chỗ này là chỗ dễ nhầm nhất của cả lane.
+   * `server/problems/testcases.ts` đầu file có bảng so sánh: `required` hỏi
+   * *không đạt thì có chặn không*, `visible` hỏi *có được XEM trước khi nộp
+   * không*. Hai câu hỏi khác nhau, và ánh xạ `required: false` → `visible: false`
+   * sẽ biến một mục tiêu THƯỞNG cũ thành một testcase ẨN — đổi nghĩa dữ liệu
+   * đang có mà không ai ra lệnh.
+   *
+   * `required` biến mất theo quyết định #20 (*"một testcase thì luôn chặn — đó
+   * là nghĩa của AC"*), nên bài cũ nạp lên nhận `visible: true` SUY TỪ ĐỊNH
+   * NGHĨA của biên đọc (`problemTestcases`: chỉ một `false` tường minh mới ẩn),
+   * không suy từ giá trị `required` cũ — biên đọc đã không còn chở nó.
+   */
+  visible: boolean;
 }
 
 export interface HintFormState {
@@ -62,18 +90,21 @@ export interface ProblemFormState {
    * Game của bài. Quyết định biểu mẫu trạng thái ban đầu, tập chủ đề, và bảng
    * vị từ dùng cho testcase.
    *
-   * ## Vì sao nó ở trong FORM mà chưa ở trong payload
-   *
-   * `Problem` chưa có `gameId` và `initialState` của nó vẫn khai `ClusterSpec`
-   * (xem `PERSISTABLE_GAMES` trong `game-plugin-view.ts`). Nên hôm nay trường
-   * này chỉ lái GIAO DIỆN; nó không đi lên máy chủ, và trang cảnh báo thẳng khi
-   * game đang chọn chưa lưu được.
-   *
-   * Giữ nó trong form ngay từ bây giờ chứ không đợi hợp đồng lưu trữ: phần
-   * "biểu mẫu đổi theo plugin" là thứ §18.A.6 đòi, và nó đo được ngay mà không
-   * cần một cột DB nào.
+   * ⛔ ĐÃ ĐI LÊN MÁY CHỦ từ 2026-09-15. Bản trước của chú thích này nói trường
+   * chỉ lái GIAO DIỆN và không đi lên máy chủ, vì `problemBodyShape` khi đó
+   * không có ô nào cho nó. §18.D.1 nửa sau mở ô đó, nên `toProblemDraft` nay
+   * phát `gameId` thật và `PERSISTABLE_GAMES` đã xoá.
    */
   gameId: GameId;
+  /**
+   * §18.D.6 — bài có sinh được đề theo seed không.
+   *
+   * ⚠ Hôm nay LUÔN `false` trên thực tế, và giao diện nói thẳng lý do: không
+   * plugin nào khai `seedSpec`, nên bật cờ là hứa một thứ chưa có gì thực hiện.
+   * Cả `formWithGame` lẫn biên ghi đều ép nó về `false` khi plugin thiếu
+   * `seedSpec` — hai lớp, vì giao diện không phải cổng.
+   */
+  seedable: boolean;
   /**
    * Trạng thái ban đầu cho game KHÔNG dùng biểu mẫu viết tay, giữ ở dạng map
    * chuỗi theo `path` của `authorFields`. Xem `spec-text.ts` về lý do là chuỗi.
@@ -121,7 +152,45 @@ export interface ProblemFormState {
 }
 
 export function emptyObjective(key: string): ObjectiveFormState {
-  return { key, id: '', label: '', check: '', args: {}, required: true };
+  // `visible: true` là mặc định AN TOÀN, cùng chiều với biên đọc: một testcase
+  // ẩn ngoài ý muốn giấu mất đề bài của người làm, còn một testcase hiện ngoài
+  // ý muốn chỉ làm bài dễ hơn dự định. Hai lỗi không cùng giá.
+  return { key, id: '', label: '', check: '', args: {}, visible: true };
+}
+
+/**
+ * Đổi chỗ một mục tiêu với hàng xóm của nó — §18.D.2.
+ *
+ * Hàm THUẦN và nằm ngoài JSX, cùng lý lẽ đã ghi cho `formWithGame`: ô nghiệm thu
+ * đo được nó mà không phải dựng DOM, và một phép hoán vị sai chỗ thì chỉ lộ ra
+ * khi có người bấm đúng nút ở đúng vị trí đầu/cuối danh sách.
+ *
+ * Trả về CHÍNH mảng cũ khi nước đi ra ngoài biên, chứ không phải một bản sao:
+ * React so sánh theo tham chiếu, nên một bản sao đồng nội dung vẫn làm cả tab
+ * render lại và làm `hasUnsavedChanges` bật lên sau một cú bấm không đổi gì.
+ *
+ * ⚠ `key` đi THEO phần tử, không theo vị trí. Nếu đổi chỗ mà giữ `key` tại chỗ
+ * thì React giữ nguyên DOM cũ ở mỗi ô và giá trị đang gõ dở nhảy sang mục tiêu
+ * khác — đúng lỗi mà `problem-json.ts` đã ghi lại cho `clusterFromSpec`.
+ */
+export function moveObjective(
+  objectives: readonly ObjectiveFormState[],
+  index: number,
+  delta: -1 | 1,
+): readonly ObjectiveFormState[] {
+  const target = index + delta;
+  if (index < 0 || target < 0 || target >= objectives.length) {
+    return objectives;
+  }
+  const next = [...objectives];
+  const moved = next[index];
+  const swapped = next[target];
+  if (moved === undefined || swapped === undefined) {
+    return objectives;
+  }
+  next[index] = swapped;
+  next[target] = moved;
+  return next;
 }
 
 export function emptyHint(key: string): HintFormState {
@@ -160,12 +229,23 @@ export function specTextForGame(gameId: GameId): SpecTextState {
  * `specEditor` của plugin quyết, nên một `cluster` không ai đọc thì vô hại.
  */
 export function formWithGame(form: ProblemFormState, gameId: GameId): ProblemFormState {
-  return { ...form, gameId, specText: specTextForGame(gameId), topics: [] };
+  return {
+    ...form,
+    gameId,
+    specText: specTextForGame(gameId),
+    topics: [],
+    // `seedable` TẮT khi game mới không sinh được đề theo seed. Giữ nguyên cờ
+    // đang bật sẽ để lại một ô đánh dấu vừa BẬT vừa BỊ VÔ HIỆU HOÁ trên màn
+    // hình — người soạn không tắt được nó, và lượt Lưu bị máy chủ từ chối bằng
+    // một lỗi trỏ vào ô họ không bấm được.
+    seedable: form.seedable && (pluginViewFor(gameId)?.canSeed ?? false),
+  };
 }
 
 export function emptyForm(nextKey: () => string): ProblemFormState {
   return {
     gameId: DEFAULT_AUTHOR_GAME,
+    seedable: false,
     specText: specTextForGame(DEFAULT_AUTHOR_GAME),
     title: '',
     slug: '',
@@ -203,6 +283,16 @@ export function emptyForm(nextKey: () => string): ProblemFormState {
  * thứ máy chủ không hứa.
  */
 export interface LoadedProblemFields {
+  /**
+   * Game của bài đã lưu. TUỲ CHỌN, và đó là lời khai của hai người gọi chứ
+   * không phải chỗ bỏ lỏng: `problem-json.ts` dựng object này từ một file có
+   * thể được xuất ra TRƯỚC khi định dạng có khoá `gameId`, nên đòi bắt buộc là
+   * đòi một thứ dữ liệu cũ không có. Vắng mặt ⇒ `DEFAULT_AUTHOR_GAME`, đúng
+   * nghĩa "mọi bài viết trước 0015 đều là bài K8s" mà migration đã chọn làm
+   * DEFAULT của cột.
+   */
+  readonly gameId?: GameId;
+  readonly seedable?: boolean;
   readonly slug: string;
   readonly title: string;
   readonly statement: string;
@@ -222,27 +312,41 @@ export function formFromProblem(
   problem: LoadedProblemFields,
   nextKey: () => string,
 ): ProblemFormState {
+  /*
+   * ⛔ ĐỌC `gameId` THẬT từ 2026-09-15 — bản trước chốt cứng `DEFAULT_AUTHOR_GAME`.
+   *
+   * Nó chốt cứng vì nửa GHI chưa theo kịp: `problemBodyShape` khai
+   * `initialState: clusterSpecSchema`, nên đọc `gameId` thật sẽ cho một biểu mẫu
+   * MỞ được bài Git rồi lưu đè nó bằng một `ClusterSpec`. Chú thích cũ nói rõ
+   * *"hai nửa phải đi cùng một lượt"*, và đây là lượt đó: biên ghi nay nhận
+   * `gameId` cùng `initialState` đa-game.
+   */
+  const gameId = problem.gameId ?? DEFAULT_AUTHOR_GAME;
+  const view = pluginViewFor(gameId);
+  /*
+   * Trạng thái ban đầu đi về ĐÚNG MỘT trong hai trường, do `specEditor` quyết.
+   *
+   * `cluster` và `specText` cùng tồn tại trong form nhưng mỗi lượt soạn chỉ có
+   * một trường được trình soạn đọc (xem chú thích `ProblemFormState.specText`).
+   * Nạp nhầm trường là một lỗi im lặng: biểu mẫu hiện ra trống trơn, người soạn
+   * bấm Lưu, và bản gốc bị ghi đè bằng một spec rỗng.
+   */
+  const usesClusterForm = view === null || view.specEditor === 'cluster';
+  const loadedSpec =
+    typeof problem.initialState === 'object' && problem.initialState !== null
+      ? (problem.initialState as Readonly<Record<string, unknown>>)
+      : null;
+
   return {
-    /*
-     * VẪN chốt cứng K8s, dù hợp đồng NAY đã có `gameId` để đọc ra.
-     *
-     * Bản trước của dòng này hẹn: *"Ngày hợp đồng có `gameId` thì dòng này đọc
-     * từ bài"*. Ngày đó chưa tới, và lý do nằm ở nửa GHI chứ không ở nửa ĐỌC:
-     * `server/problems/validate.ts` § `problemBodyShape` vẫn khai
-     * `initialState: clusterSpecSchema` và `topics: z.enum(PROBLEM_TOPICS)`, tức
-     * payload lưu vẫn là K8s và chỉ K8s.
-     *
-     * Đọc `gameId` từ bài ngay bây giờ sẽ cho một biểu mẫu MỞ được bài Git rồi
-     * lưu đè nó bằng một `ClusterSpec` — `toProblemDraft` luôn phát
-     * `initialState: cluster.value`. Một trang mở được mà lưu thì hỏng dữ liệu
-     * còn tệ hơn một trang nói thẳng là chưa hỗ trợ, và
-     * `game-plugin-view.ts` § `PERSISTABLE_GAMES` đang nói thẳng điều đó.
-     *
-     * Hai nửa phải đi cùng một lượt, và lượt đó là §18.D — không phải lane này,
-     * vốn không sở hữu `src/server/`.
-     */
-    gameId: DEFAULT_AUTHOR_GAME,
-    specText: specTextForGame(DEFAULT_AUTHOR_GAME),
+    gameId,
+    // `seedable` của bài thắng, nhưng chỉ khi plugin còn sinh được đề theo seed.
+    // Một bài cũ khai `true` trên một plugin đã gỡ `seedSpec` mà nạp lên thành
+    // `true` sẽ là một ô bật-mà-không-tắt-được, y hệt ca ở `formWithGame`.
+    seedable: (problem.seedable ?? false) && (view?.canSeed ?? false),
+    specText:
+      usesClusterForm || view === null || loadedSpec === null
+        ? specTextForGame(gameId)
+        : specToText(view.authorFields, loadedSpec),
     title: problem.title,
     slug: problem.slug,
     statement: problem.statement,
@@ -269,7 +373,9 @@ export function formFromProblem(
      * trong DB còn nguyên. `development-principles.md` § "Errors Over Silent
      * Fallbacks" là luật, và đây đúng là ca nó nói tới.
      */
-    cluster: clusterFromSpec(problem.initialState as ClusterSpec, nextKey),
+    cluster: usesClusterForm
+      ? clusterFromSpec(problem.initialState as ClusterSpec, nextKey)
+      : emptyCluster(nextKey),
     objectives: problem.testcases.map((testcase) => ({
       key: nextKey(),
       id: testcase.id,
@@ -282,33 +388,21 @@ export function formFromProblem(
       check: testcase.check as PredicateName,
       args: stringifyArgs(testcase.args),
       /*
-       * ⛔ `true` là HẰNG SỐ của hợp đồng, KHÔNG phải `visible` đọc ngược.
+       * ĐỌC THẲNG `visible` — cùng một trường, không phải một phép suy.
        *
-       * `testcases.ts` đầu file có bảng so sánh, và hai trường trả lời hai câu
-       * khác nhau: `required` hỏi *không đạt thì có chặn không*, `visible` hỏi
-       * *người làm có được XEM trước khi nộp không*. Ánh xạ cái này sang cái kia
-       * là đổi nghĩa dữ liệu mà không ai ra lệnh — đúng thứ hợp đồng cấm.
+       * Bản trước ghi cứng `required: true` và giải thích rằng ô `required` trên
+       * màn hình đang mất dần ý nghĩa. §18.D.2 gỡ hẳn nó: `ObjectiveFormState`
+       * nay mang `visible`, nên biên nạp chỉ việc chở giá trị sang.
        *
-       * `Testcase` KHÔNG còn `required` để mà đọc, và quyết định #20 nói vì sao:
-       * *"một testcase thì luôn chặn — đó là nghĩa của `AC`"*. Nên dưới mô hình
-       * mới, giá trị đúng của ô này là `true` cho mọi case — suy từ định nghĩa,
-       * không suy từ một trường khác.
-       *
-       * ⚠ HỆ QUẢ PHẢI NÓI RA: một bài CŨ có mục tiêu `required: false` nay nạp
-       * lên form thành `true`, và lượt Lưu kế tiếp ghi `true` xuống DB. Đó là
-       * một phép đổi dữ liệu, không phải một lượt đọc trong suốt. Nó KHÔNG
-       * tránh được ở đây — `problemTestcases` đã bỏ `required` ở biên đọc nên
-       * hàm này không còn thấy giá trị cũ — và nó KHỚP với hướng mà lead vừa
-       * chọn ở `server/problems/publish-gate.ts`: cổng xuất bản bỏ hẳn phép
-       * kiểm `some(o => o.required)` vì *"dưới mô hình mới thì mọi case đều
-       * chặn"*. Ghi ra đây thay vì để người sau tìm thấy nó trong một diff DB.
-       *
-       * Ô `required` trên màn hình vì thế đang mất dần ý nghĩa. Gỡ nó phải đi
-       * cùng lượt đổi `problemBodyShape` ở `validate.ts` (vẫn đòi
-       * `required: z.boolean()`) và thêm ô `visible` — §18.D.2, không phải lane
-       * này.
+       * ⛔ Dòng này KHÔNG phải `required` đọc ngược, dù nó đứng đúng chỗ dòng đó
+       * từng đứng. Giá trị tới từ `problemTestcases` — biên đọc đã bỏ `required`
+       * và dựng `visible` theo luật *"chỉ một `false` TƯỜNG MINH mới làm testcase
+       * ẩn"*, nên một mục tiêu THƯỞNG cũ (`required: false`) nạp lên thành
+       * `visible: true`, không thành testcase ẩn. Đó là chiều đúng: nó đổi cái
+       * bài đó CHẤM thế nào (theo #20, mọi case đều chặn), chứ không đổi cái
+       * người làm ĐƯỢC XEM.
        */
-      required: true,
+      visible: testcase.visible,
     })),
     hints: problem.hints.map((hint) => ({
       key: nextKey(),

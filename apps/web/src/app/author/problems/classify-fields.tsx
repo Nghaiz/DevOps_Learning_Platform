@@ -42,6 +42,8 @@ export function ClassifyFields(props: {
   readonly issues: readonly FieldIssue[];
   /** Tập chủ đề ĐÓNG của game đang chọn. Rỗng khi game chưa có plugin. */
   readonly topics: readonly ProblemTopicOption[];
+  /** Plugin của game đang chọn có `seedSpec` không — xem `GamePluginView.canSeed`. */
+  readonly canSeed: boolean;
 }): ReactElement {
   const tags = parseTags(props.form.tagsText);
 
@@ -180,6 +182,44 @@ export function ClassifyFields(props: {
           'problem.classify-fields-dung-de-cham-sao-de-trong-nghia-la-khong-cham-theo-so-nuoc-di',
         )}
       />
+
+      {/*
+        §18.D.6 — cờ `seedable`, và câu giải thích phải nói ĐÚNG SỰ THẬT HÔM NAY.
+
+        ⛔ `GameProblemPlugin.seedSpec` là TUỲ CHỌN và **không plugin nào khai
+        nó** (`core/problem-plugin.ts` nói thẳng vậy). Nên hôm nay không game nào
+        sinh được đề theo seed, và một ô đánh dấu bật được sẽ là một lời hứa
+        chưa có gì thực hiện: bài khai `seedable: true` đi vào một kỳ thi
+        `per-student` sẽ phát CÙNG MỘT đề cho mọi sinh viên, im lặng, vì nó
+        không lỗi ở đâu cả (§18.G.3).
+
+        Vô hiệu hoá kèm lý do thay vì ẩn hẳn: ẩn thì người soạn không biết khái
+        niệm này tồn tại, và sẽ đi hỏi. Biên ghi cũng từ chối `seedable: true`
+        cho game không có `seedSpec` — giao diện không phải cổng.
+      */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <Switch
+            id="problem-seedable"
+            checked={props.form.seedable}
+            disabled={!props.canSeed}
+            onCheckedChange={(checked) => {
+              props.onChange({ seedable: checked });
+            }}
+          />
+          <Label
+            htmlFor="problem-seedable"
+            className={props.canSeed ? undefined : 'text-muted-foreground'}
+          >
+            {t('author.problem.seedable.label')}
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {props.canSeed
+            ? t('author.problem.seedable.available')
+            : t('author.problem.seedable.unavailable')}
+        </p>
+      </div>
 
       <AllowedResourcesFields form={props.form} onChange={props.onChange} issues={props.issues} />
     </section>

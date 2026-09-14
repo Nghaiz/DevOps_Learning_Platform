@@ -15,7 +15,12 @@ import { HintListFields } from './hint-fields';
 import { JsonTransfer } from './json-transfer';
 import { ObjectiveFields } from './objective-fields';
 import { PluginFields } from './plugin-fields';
-import { emptyObjective, formWithGame, type ProblemFormState } from './problem-form';
+import {
+  emptyObjective,
+  formWithGame,
+  moveObjective,
+  type ProblemFormState,
+} from './problem-form';
 import { StatementFields } from './statement-fields';
 
 /**
@@ -128,6 +133,10 @@ export function ProblemEditor(props: {
               onChange={patch}
               issues={props.issues}
               topics={view?.topics ?? []}
+              // §18.D.6 — `false` khi plugin không khai `seedSpec`, tức HÔM NAY
+              // là mọi game. `ClassifyFields` vô hiệu hoá ô đánh dấu và nói ra
+              // lý do thay vì để người soạn bật một cờ không có tác dụng.
+              canSeed={view?.canSeed ?? false}
             />
           </div>
         </TabsContent>
@@ -174,6 +183,8 @@ export function ProblemEditor(props: {
                 namespaces={namespaces}
                 nodes={nodeNames}
                 canRemove={props.form.objectives.length > 1}
+                canMoveUp={index > 0}
+                canMoveDown={index < props.form.objectives.length - 1}
                 onChange={(part) => {
                   patch({
                     objectives: props.form.objectives.map((item, i) =>
@@ -183,6 +194,9 @@ export function ProblemEditor(props: {
                 }}
                 onRemove={() => {
                   patch({ objectives: props.form.objectives.filter((_, i) => i !== index) });
+                }}
+                onMove={(delta) => {
+                  patch({ objectives: moveObjective(props.form.objectives, index, delta) });
                 }}
               />
             ))}

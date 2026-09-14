@@ -73,13 +73,14 @@ export function GameSelectField(props: {
         </p>
       </div>
 
-      {view !== null && !view.persistable && (
-        <Alert variant="destructive">
-          <AlertTitle>{t('author.problem.game.not-persistable-title')}</AlertTitle>
-          <AlertDescription>{t('author.problem.game.not-persistable-body')}</AlertDescription>
-        </Alert>
-      )}
-
+      {/*
+        Cảnh báo "game này chưa lưu được" ĐÃ GỠ 2026-09-15 cùng với
+        `PERSISTABLE_GAMES`. Nó nói rằng bảng bài chỉ giữ được trạng thái ban đầu
+        dạng cụm Kubernetes — điều đó thôi đúng từ khi §18.D.1 nửa sau mở
+        `problemBodyShape` sang đa-game. Một cảnh báo đỏ nói sai làm người soạn
+        không dám bấm Lưu vào một đường lưu đang chạy tốt, nên để lại còn tệ hơn
+        gỡ đi.
+      */}
       {view === null && (
         <Alert>
           <AlertTitle>{t('author.problem.game.no-plugin-title')}</AlertTitle>
