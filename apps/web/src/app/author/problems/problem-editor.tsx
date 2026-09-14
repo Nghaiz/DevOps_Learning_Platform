@@ -15,7 +15,7 @@ import { HintListFields } from './hint-fields';
 import { JsonTransfer } from './json-transfer';
 import { ObjectiveFields } from './objective-fields';
 import { PluginFields } from './plugin-fields';
-import { emptyObjective, specTextForGame, type ProblemFormState } from './problem-form';
+import { emptyObjective, formWithGame, type ProblemFormState } from './problem-form';
 import { StatementFields } from './statement-fields';
 
 /**
@@ -74,16 +74,10 @@ export function ProblemEditor(props: {
         // cụm đã dựng, đổi lấy một lỗi 400.
         canChange={props.code === null}
         onChange={(gameId) => {
-          props.onChange({
-            ...props.form,
-            gameId,
-            specText: specTextForGame(gameId),
-            // Chủ đề XOÁ theo game, không giữ lại. Tập chủ đề là ĐÓNG theo
-            // plugin, nên một chủ đề K8s còn sót lại trên một bài Git sẽ trượt
-            // cổng kiểm ở máy chủ mà không hiện ra ở đâu trên giao diện: ô của
-            // nó đã biến mất khỏi màn hình.
-            topics: [],
-          });
+          // Phép đổi nằm ở `formWithGame` chứ không viết thẳng ở đây: nó phải
+          // đổi ba thứ cùng lúc, và một hàm thuần thì ô nghiệm thu đo được mà
+          // không phải dựng DOM.
+          props.onChange(formWithGame(props.form, gameId));
         }}
       />
 

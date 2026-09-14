@@ -140,6 +140,26 @@ export function specTextForGame(gameId: GameId): SpecTextState {
   return specToText(view.authorFields, spec);
 }
 
+/**
+ * Đổi game của một bản nháp đang soạn.
+ *
+ * Hàm THUẦN và nằm ngoài JSX, để ô nghiệm thu đo được nó mà không phải dựng
+ * DOM: ba thứ phải đổi cùng lúc, và bỏ sót một trong ba là một lỗi im lặng.
+ *
+ * - `specText` nạp lại từ `initialSpec()` của game mới. Giữ lại bản cũ nghĩa là
+ *   một `WorldSpec` của Git mang các khoá của `ClusterSpec`.
+ * - `topics` XOÁ. Tập chủ đề là ĐÓNG theo plugin, nên một chủ đề K8s còn sót
+ *   trên một bài Git sẽ trượt cổng kiểm ở máy chủ mà không hiện ra ở đâu trên
+ *   màn hình: ô của nó đã biến mất khỏi biểu mẫu.
+ *
+ * `cluster` thì GIỮ NGUYÊN, và đó là chủ ý: người soạn đổi sang Git để xem thử
+ * rồi đổi về K8s không nên mất cụm đã dựng. Trường nào được đọc là do
+ * `specEditor` của plugin quyết, nên một `cluster` không ai đọc thì vô hại.
+ */
+export function formWithGame(form: ProblemFormState, gameId: GameId): ProblemFormState {
+  return { ...form, gameId, specText: specTextForGame(gameId), topics: [] };
+}
+
 export function emptyForm(nextKey: () => string): ProblemFormState {
   return {
     gameId: DEFAULT_AUTHOR_GAME,
