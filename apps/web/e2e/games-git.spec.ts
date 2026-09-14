@@ -20,12 +20,22 @@
  *
  * ══ Chạy ══════════════════════════════════════════════════════════════════
  *
- *   E2E_START_SERVER=1 E2E_BASE_URL=http://127.0.0.1:3000 \
- *   E2E_ORIGIN=http://127.0.0.1:3000 \
+ *   E2E_START_SERVER=1 E2E_BASE_URL=http://localhost:3000 \
+ *   E2E_ORIGIN=http://localhost:3000 \
  *   pnpm --filter web e2e --grep @games-git
  *
  * ⚠ Thiếu `E2E_START_SERVER=1` thì Playwright trỏ vào CỤM, tức đo một binary
  * khác binary vừa sửa. Đây là bẫy đã cắn repo này trước đó.
+ *
+ * ⚠ **`localhost`, KHÔNG phải `127.0.0.1`** — dù hai cái trỏ cùng một máy.
+ * `next start` phát ở `http://localhost:3000`, và Better Auth so `E2E_ORIGIN`
+ * với `betterAuthUrl` **theo chuỗi**, không theo địa chỉ đã phân giải. Sai chỗ
+ * này thì `global-setup` chết ở 403 `INVALID_ORIGIN` và **không một ô nào
+ * chạy** — bản hướng dẫn trước của chính file này ghi `127.0.0.1` và đã làm
+ * đúng chuyện đó (2026-09-14).
+ *
+ * Và mã thoát KHÔNG cứu được: lớp bọc `pnpm` in `[exited with code 0]` ở cuối
+ * trong khi dòng thật là `Exit status 1`. Đọc số ô đã chạy, đừng đọc mã thoát.
  */
 
 import { expect, test } from './fixtures/api';
@@ -121,55 +131,6 @@ test.describe('Game Git — ô nghiệm thu P17', { tag: '@games-git' }, () => {
     await page.keyboard.press('ArrowUp');
     await expect(command).toHaveValue('git status');
   });
-});
-
-/**
- * AC-5 — cảnh KHÔNG-WebGL.
- *
- * Project riêng vì cờ `--disable-3d-apis` phải đặt lúc khởi động trình duyệt,
- * không đặt được ở giữa một test.
- */
-test.describe('Game Git — AC-5 đường 2D khi không có WebGL', { tag: '@games-git-no3d' }, () => {
-  test('đối chứng dương: project này THẬT SỰ không có WebGL2', async ({ page }) => {
-    await openScreen(page, GIT_PATH, 'user');
-    const support = await page.evaluate(() => {
-      try {
-        return document.createElement('canvas').getContext('webgl2') === null
-          ? 'unavailable'
-          : 'available';
-      } catch {
-        return 'unavailable';
-      }
-    });
-    expect(
-      support,
-      'Cờ `--disable-3d-apis` không có tác dụng — mọi ô AC-5 dưới đây sẽ xanh mà ' +
-        'chưa bao giờ chạy cảnh không-WebGL. ⚠ Tắt hardware acceleration KHÔNG đủ: ' +
-        'Chromium rơi về SwiftShader và vẫn cấp context.',
-    ).toBe('unavailable');
-  });
-
-  test('chơi hết một level bằng đường 2D', async ({ page }) => {
-    await openScreen(page, GIT_PATH, 'user');
-    await settle(page);
-
-    await page.getByRole('button', { name: /Commit là một object bất biến/ }).click();
-    await settle(page);
-
-    // Cảnh SVG phải có mặt và có node thật.
-    const svg = page.locator('svg[role="group"]').first();
-    await expect(svg).toBeVisible();
-
-    const command = page.getByLabel('$');
-    await command.fill('git add ghi-chu.md');
-    await command.press('Enter');
-    await command.fill('git commit -m "Ghi chú đầu tiên"');
-    await command.press('Enter');
-    await page.waitForTimeout(400);
-
-    await expect(page.getByTestId('git-verdict')).toContainText('AC');
-  });
-
   /**
    * **AC-7 — draw call < 100 ở level đông nhất.**
    *
@@ -323,4 +284,53 @@ test.describe('Game Git — AC-5 đường 2D khi không có WebGL', { tag: '@ga
     ).toBe(small.calls);
     expect(large.calls, 'AC-7: draw call phải < 100 ở level đông nhất').toBeLessThan(100);
   });
+});
+
+/**
+ * AC-5 — cảnh KHÔNG-WebGL.
+ *
+ * Project riêng vì cờ `--disable-3d-apis` phải đặt lúc khởi động trình duyệt,
+ * không đặt được ở giữa một test.
+ */
+test.describe('Game Git — AC-5 đường 2D khi không có WebGL', { tag: '@games-git-no3d' }, () => {
+  test('đối chứng dương: project này THẬT SỰ không có WebGL2', async ({ page }) => {
+    await openScreen(page, GIT_PATH, 'user');
+    const support = await page.evaluate(() => {
+      try {
+        return document.createElement('canvas').getContext('webgl2') === null
+          ? 'unavailable'
+          : 'available';
+      } catch {
+        return 'unavailable';
+      }
+    });
+    expect(
+      support,
+      'Cờ `--disable-3d-apis` không có tác dụng — mọi ô AC-5 dưới đây sẽ xanh mà ' +
+        'chưa bao giờ chạy cảnh không-WebGL. ⚠ Tắt hardware acceleration KHÔNG đủ: ' +
+        'Chromium rơi về SwiftShader và vẫn cấp context.',
+    ).toBe('unavailable');
+  });
+
+  test('chơi hết một level bằng đường 2D', async ({ page }) => {
+    await openScreen(page, GIT_PATH, 'user');
+    await settle(page);
+
+    await page.getByRole('button', { name: /Commit là một object bất biến/ }).click();
+    await settle(page);
+
+    // Cảnh SVG phải có mặt và có node thật.
+    const svg = page.locator('svg[role="group"]').first();
+    await expect(svg).toBeVisible();
+
+    const command = page.getByLabel('$');
+    await command.fill('git add ghi-chu.md');
+    await command.press('Enter');
+    await command.fill('git commit -m "Ghi chú đầu tiên"');
+    await command.press('Enter');
+    await page.waitForTimeout(400);
+
+    await expect(page.getByTestId('git-verdict')).toContainText('AC');
+  });
+
 });

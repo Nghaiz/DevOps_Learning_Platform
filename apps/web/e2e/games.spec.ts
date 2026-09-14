@@ -24,8 +24,8 @@
  *
  * ══ Chạy ════════════════════════════════════════════════════════════════════
  *
- *   E2E_START_SERVER=1 E2E_BASE_URL=http://127.0.0.1:3000 \
- *   E2E_ORIGIN=http://127.0.0.1:3000 pnpm --filter @devops-platform/web e2e --grep @games
+ *   E2E_START_SERVER=1 E2E_BASE_URL=http://localhost:3000 \
+ *   E2E_ORIGIN=http://localhost:3000 pnpm --filter @devops-platform/web e2e --grep @games
  *
  * `@games` đặt bằng dạng OPTION (`{ tag }`) chứ không phải hậu tố trong tên —
  * và MỌI test, kể cả các ô tiền đề/đối chứng, nằm TRONG một khối đã gắn tag: một
