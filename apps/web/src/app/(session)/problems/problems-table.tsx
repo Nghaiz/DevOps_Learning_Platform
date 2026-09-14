@@ -1,11 +1,23 @@
 import Link from 'next/link';
 import type { ReactElement } from 'react';
+import type { inferRouterOutputs } from '@trpc/server';
 import { renderCopy, t } from '@devops-platform/copy';
 import { Badge, Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@devops-platform/ui';
 import { PROBLEM_TOPIC_LABELS } from '@devops-platform/games';
-import type { SolverProblemWithStats } from '../../../server/problems/solver';
+import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { DifficultyBadge, ViewerStatusBadge } from './problem-badges';
 import { formatAcceptance, formatTimeLimit, joinTopics } from './problem-labels';
+
+/**
+ * Một hàng ĐÚNG NHƯ NÓ TỚI QUA DÂY.
+ *
+ * Suy từ router thay vì mượn `SolverProblemWithStats` của `server/`: xem khối
+ * chú thích cùng việc ở `[code]/problem-overview.tsx`. Ngắn gọn —
+ * `initialState: unknown` làm kiểu trên dây khai trường đó TUỲ CHỌN, và một
+ * kiểu viết ở tầng máy chủ đòi nó BẮT BUỘC thì không nhận nổi thứ chính máy chủ
+ * gửi đi.
+ */
+type ProblemRow = inferRouterOutputs<AppRouter>['problems']['list']['items'][number];
 
 /** Số tag hiện thẳng trên hàng. Quá số này thì gộp thành "+N": một hàng bảng không phải chỗ liệt kê hết. */
 const TAGS_SHOWN = 3;
@@ -25,7 +37,7 @@ const TAGS_SHOWN = 3;
  * legend là nhãn của bộ lọc, một `col` là tên cột, và dùng chung khoá nghĩa là
  * sửa nhãn bộ lọc thì tiêu đề bảng đổi theo mà không ai định thế.
  */
-export function ProblemsTable({ items }: { readonly items: readonly SolverProblemWithStats[] }): ReactElement {
+export function ProblemsTable({ items }: { readonly items: readonly ProblemRow[] }): ReactElement {
   return (
     <Table>
       <TableCaption>{t('catalog.problems.table-caption')}</TableCaption>

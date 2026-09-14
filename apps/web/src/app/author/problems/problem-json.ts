@@ -7,9 +7,15 @@ import {
   type ProblemDifficulty,
   type ProblemTopic,
   type ResourceKind,
+  type Testcase,
 } from '@devops-platform/games';
 import { clusterFromSpec } from './cluster-form';
-import { emptyForm, formFromProblem, type ProblemFormState } from './problem-form';
+import {
+  emptyForm,
+  formFromProblem,
+  type LoadedProblemFields,
+  type ProblemFormState,
+} from './problem-form';
 import { toProblemDraft } from './problem-draft';
 import { RESOURCE_KINDS } from './vocabulary';
 
@@ -154,16 +160,21 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
     }
   }
 
+  const initialState = cluster as unknown as ClusterSpec;
+
   /**
-   * Dựng một `Problem` giả để dùng lại `formFromProblem` — SSOT của phép đổi
-   * bài→form. Viết một đường nạp thứ hai ở đây là dựng một chỗ để trôi: hai
-   * đường nạp sẽ đọc `args` của mục tiêu theo hai cách sau vài lần sửa.
+   * Dựng đầu vào giả để dùng lại `formFromProblem` — SSOT của phép đổi bài→form.
+   * Viết một đường nạp thứ hai ở đây là dựng một chỗ để trôi: hai đường nạp sẽ
+   * đọc `args` của mục tiêu theo hai cách sau vài lần sửa.
    *
-   * Năm field máy chủ cấp điền giá trị giữ chỗ vì `formFromProblem` không đọc
-   * tới chúng; chúng không rời khỏi hàm này.
+   * ⚠ Kiểu nay là `LoadedProblemFields` chứ không phải `Problem`, và năm field
+   * máy chủ cấp (`code`, `state`, `authorId`, hai mốc thời gian) BIẾN MẤT thay
+   * vì mang giá trị giữ chỗ. Đó là cải thiện chứ không phải mất mát: giá trị
+   * giữ chỗ là dữ liệu bịa nằm trong một object trông như bài thật, và lần sau
+   * ai đó đọc `shaped.code` sẽ nhận `K8S-0000` mà không có gì nói rằng nó giả.
+   * Một tham số nêu đúng những trường nó cần thì không có chỗ cho thứ đó.
    */
-  const shaped: Problem = {
-    code: 'K8S-0000',
+  const shaped: LoadedProblemFields = {
     slug: asStringOr(body['slug'], ''),
     title: asStringOr(body['title'], ''),
     statement: asStringOr(body['statement'], ''),
@@ -173,17 +184,21 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
       ? body['tags'].filter((t): t is string => typeof t === 'string')
       : [],
     timeLimitSec: typeof body['timeLimitSec'] === 'number' ? body['timeLimitSec'] : null,
-    initialState: cluster as unknown as ClusterSpec,
-    objectives: Array.isArray(body['objectives'])
-      ? (body['objectives'] as Problem['objectives'])
-      : base.objectives.map((o) => ({ id: o.id, label: o.label, check: '', required: o.required })),
+    initialState,
+    /*
+     * Khoá trong FILE vẫn là `objectives`, và đó không phải sơ suất: định dạng
+     * xuất (`ProblemExport`) là thứ đã nằm trong file của người khác, nên đổi
+     * tên khoá ở đây làm mọi file đã xuất trước đó nhập vào thành bài rỗng —
+     * im lặng, vì nhánh `Array.isArray` chỉ rơi sang mặc định. Cột DB cũng giữ
+     * tên `objectives` vì đúng lý do đó (xem chú thích cột ở `schema.ts`).
+     * Chỉ KIỂU trong bộ nhớ đổi sang `Testcase`.
+     */
+    testcases: Array.isArray(body['objectives'])
+      ? body['objectives'].map(toImportedTestcase)
+      : base.objectives.map((o) => ({ id: o.id, label: o.label, check: '', visible: true })),
     allowedResources: Array.isArray(rawAllowed) ? allowed : null,
     hints: Array.isArray(body['hints']) ? (body['hints'] as Problem['hints']) : [],
     parMoves: typeof body['parMoves'] === 'number' ? body['parMoves'] : null,
-    state: 'draft',
-    authorId: null,
-    createdAt: '',
-    updatedAt: '',
   };
 
   const form = formFromProblem(shaped, nextKey);
@@ -192,7 +207,31 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
     // `clusterFromSpec` chạy lại trên chính `initialState` vừa nhận để mọi ô
     // node/tài nguyên có khoá React mới — nếu không, hai lượt nhập liên tiếp
     // dùng lại khoá cũ và React giữ nguyên giá trị ô đang gõ dở.
-    form: { ...form, cluster: clusterFromSpec(shaped.initialState, nextKey) },
+    form: { ...form, cluster: clusterFromSpec(initialState, nextKey) },
     dropped,
+  };
+}
+
+/**
+ * Một phần tử `objectives` trong file JSON → `Testcase` của hợp đồng.
+ *
+ * Mức TIN dữ liệu giữ nguyên như bản trước (file nhập vào vốn được ép kiểu
+ * thẳng); thứ thêm vào chỉ là `visible`, vì `Testcase` đòi nó còn định dạng file
+ * thì chưa bao giờ ghi nó.
+ *
+ * Luật mặc định chép nguyên từ `server/problems/testcases.ts` — *"chỉ một
+ * `false` TƯỜNG MINH mới làm testcase ẩn"* — chứ không tự đặt một luật thứ hai:
+ * file cũ không có khoá này thì mọi case hiện, đúng bằng hành vi hôm nay, và
+ * file tương lai có `visible: false` thì nhập vào vẫn giữ được ý đó. Hai biên
+ * đọc cùng một cột mà mặc định khác nhau là chỗ dữ liệu bắt đầu lệch.
+ */
+function toImportedTestcase(raw: unknown): Testcase {
+  const row = asRecord(raw) ?? {};
+  return {
+    id: asStringOr(row['id'], ''),
+    label: asStringOr(row['label'], ''),
+    check: asStringOr(row['check'], ''),
+    ...(asRecord(row['args']) === null ? {} : { args: asRecord(row['args']) as Readonly<Record<string, unknown>> }),
+    visible: row['visible'] !== false,
   };
 }

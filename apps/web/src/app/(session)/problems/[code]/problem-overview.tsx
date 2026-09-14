@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import Link from 'next/link';
 import { Play, Timer } from 'lucide-react';
+import type { inferRouterOutputs } from '@trpc/server';
 import { renderCopy, t } from '@devops-platform/copy';
 import { Alert, AlertDescription, Badge, Button, MarkdownView } from '@devops-platform/ui';
 import {
@@ -8,9 +9,27 @@ import {
   type ProblemStats,
   type ProblemViewerStatus,
 } from '@devops-platform/games';
-import type { SolverProblem } from '../../../../server/problems/solver';
+import type { AppRouter } from '../../../../server/trpc/routers/app-router';
 import { DifficultyBadge, ViewerStatusBadge } from '../problem-badges';
-import { formatAcceptance, formatTimeLimit } from '../problem-labels';
+import { formatAcceptance, formatTimeLimit, topicLabel } from '../problem-labels';
+
+/**
+ * Bài ĐÚNG NHƯ NÓ TỚI QUA DÂY, suy từ router thay vì khai lại.
+ *
+ * ⚠ Bản trước nhận `SolverProblem` nhập thẳng từ `server/problems/solver.ts`, và
+ * nó vỡ ngay khi `StoredProblem.initialState` đổi sang `unknown`: `unknown` bao
+ * gồm cả `undefined`, nên kiểu đầu ra tRPC suy ra khai `initialState?: unknown`
+ * — TUỲ CHỌN — trong khi `SolverProblem` đòi BẮT BUỘC. Với
+ * `exactOptionalPropertyTypes: true` thì hai hình dạng đó không gán được cho
+ * nhau, và lời khai đúng là lời khai của dây: `JSON.stringify` bỏ hẳn khoá mang
+ * `undefined`, nên trường đó THẬT SỰ có thể không tới.
+ *
+ * Suy từ `inferRouterOutputs` là khuôn đang dùng ở chín trang client khác của
+ * app (`labs`, `lessons`, `paths`, `admin/*`…); hai trang `problems` là ngoại lệ
+ * duy nhất còn với tay vào `server/` để mượn kiểu. Đưa chúng về khuôn chung thì
+ * component không thể đòi một hình dạng mà máy chủ không gửi.
+ */
+type ProblemDetail = inferRouterOutputs<AppRouter>['problems']['byCode'];
 
 /**
  * Phần đầu trang bài: định danh, phân loại, hạn giờ, đề bài, và nút vào đấu
@@ -18,11 +37,11 @@ import { formatAcceptance, formatTimeLimit } from '../problem-labels';
  */
 export function ProblemOverview(props: {
   /**
-   * ⚠ `SolverProblem`, KHÔNG phải `ProblemForSolver` của `packages/games`.
-   * Kiểu kia còn mang `objectives` (tức `check` + `args` của cách chấm) và
-   * trang này chưa bao giờ đọc tới nó. Xem `server/problems/solver.ts`.
+   * ⚠ Bản ĐÃ CHE của máy chủ, không phải `ProblemBase` của `packages/games`.
+   * Kiểu kia còn mang `check` + `args` của cách chấm và trang này chưa bao giờ
+   * đọc tới chúng. Xem `server/problems/solver.ts`.
    */
-  readonly problem: SolverProblem;
+  readonly problem: ProblemDetail['problem'];
   readonly stats: ProblemStats;
   readonly viewerStatus: ProblemViewerStatus | null;
 }): ReactElement {
@@ -36,9 +55,15 @@ export function ProblemOverview(props: {
         <div className="flex flex-wrap items-center gap-2">
           <DifficultyBadge value={problem.difficulty} />
           <ViewerStatusBadge value={viewerStatus} />
+          {/*
+            `topicLabel` chứ không tra thẳng bảng: `topics` nay là
+            `ProblemTopicId` (chuỗi mờ) nên bảng nhãn K8s không còn phủ hết, và
+            một phép tra hụt vẽ ra `Badge` RỖNG chứ không báo lỗi. Lý do đầy đủ
+            — gồm cả vì sao không tra qua plugin — ở `problem-labels.ts`.
+          */}
           {problem.topics.map((topic) => (
             <Badge key={topic} variant="secondary" icon={null}>
-              {PROBLEM_TOPIC_LABELS[topic]}
+              {topicLabel(topic, PROBLEM_TOPIC_LABELS)}
             </Badge>
           ))}
           {problem.tags.map((tag) => (

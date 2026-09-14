@@ -1,9 +1,12 @@
 import type {
+  ClusterSpec,
   GameId,
   Problem,
   ProblemDifficulty,
+  ProblemHint,
   ProblemTopicId,
   ResourceKind,
+  Testcase,
 } from '@devops-platform/games';
 import type { PredicateName } from '@devops-platform/games';
 import { clusterFromSpec, emptyCluster, type ClusterFormState } from './cluster-form';
@@ -183,13 +186,61 @@ export function emptyForm(nextKey: () => string): ProblemFormState {
   };
 }
 
+/**
+ * ĐÚNG những trường `formFromProblem` đọc — không phải cả `StoredProblem`.
+ *
+ * Khai hẹp ở đây thay vì nhập `StoredProblem` từ `server/problems/dto.ts` vì
+ * hàm này có HAI người gọi với hai hình dạng khác nhau:
+ * `[code]/problem-edit-client.tsx` đưa vào thứ đến qua dây (`problems.forEdit`),
+ * còn `problem-json.ts` dựng một object bằng tay từ file JSON nhập vào. Một
+ * tham số nêu rõ nó cần gì thì cả hai cùng thoả mà không bên nào phải giả vờ là
+ * một bài đầy đủ.
+ *
+ * `initialState` khai TUỲ CHỌN chứ không bắt buộc, và đó là lời khai của dây chứ
+ * không phải một chỗ bỏ lỏng: hợp đồng đổi nó sang `unknown`, `unknown` bao gồm
+ * `undefined`, nên kiểu đầu ra tRPC suy ra là `initialState?: unknown` —
+ * `JSON.stringify` bỏ hẳn khoá mang `undefined`. Đòi bắt buộc ở đây là đòi một
+ * thứ máy chủ không hứa.
+ */
+export interface LoadedProblemFields {
+  readonly slug: string;
+  readonly title: string;
+  readonly statement: string;
+  readonly difficulty: ProblemDifficulty;
+  readonly topics: readonly ProblemTopicId[];
+  readonly tags: readonly string[];
+  readonly timeLimitSec: number | null;
+  readonly parMoves: number | null;
+  readonly allowedResources: readonly ResourceKind[] | null;
+  readonly initialState?: unknown;
+  readonly testcases: readonly Testcase[];
+  readonly hints: readonly ProblemHint[];
+}
+
 /** Đọc một bài đã lưu về form. Mọi số thành chuỗi, mọi `null` thành cờ tắt. */
-export function formFromProblem(problem: Problem, nextKey: () => string): ProblemFormState {
+export function formFromProblem(
+  problem: LoadedProblemFields,
+  nextKey: () => string,
+): ProblemFormState {
   return {
-    // Mọi bài ĐÃ LƯU đều là K8s, và đó là một sự thật của hợp đồng chứ không
-    // phải một giả định tiện tay: `Problem` không có `gameId` để đọc ra, và
-    // `initialState` của nó khai đúng `ClusterSpec`. Ngày hợp đồng có `gameId`
-    // thì dòng này đọc từ bài, và `PERSISTABLE_GAMES` biến mất cùng lúc.
+    /*
+     * VẪN chốt cứng K8s, dù hợp đồng NAY đã có `gameId` để đọc ra.
+     *
+     * Bản trước của dòng này hẹn: *"Ngày hợp đồng có `gameId` thì dòng này đọc
+     * từ bài"*. Ngày đó chưa tới, và lý do nằm ở nửa GHI chứ không ở nửa ĐỌC:
+     * `server/problems/validate.ts` § `problemBodyShape` vẫn khai
+     * `initialState: clusterSpecSchema` và `topics: z.enum(PROBLEM_TOPICS)`, tức
+     * payload lưu vẫn là K8s và chỉ K8s.
+     *
+     * Đọc `gameId` từ bài ngay bây giờ sẽ cho một biểu mẫu MỞ được bài Git rồi
+     * lưu đè nó bằng một `ClusterSpec` — `toProblemDraft` luôn phát
+     * `initialState: cluster.value`. Một trang mở được mà lưu thì hỏng dữ liệu
+     * còn tệ hơn một trang nói thẳng là chưa hỗ trợ, và
+     * `game-plugin-view.ts` § `PERSISTABLE_GAMES` đang nói thẳng điều đó.
+     *
+     * Hai nửa phải đi cùng một lượt, và lượt đó là §18.D — không phải lane này,
+     * vốn không sở hữu `src/server/`.
+     */
     gameId: DEFAULT_AUTHOR_GAME,
     specText: specTextForGame(DEFAULT_AUTHOR_GAME),
     title: problem.title,
@@ -203,19 +254,61 @@ export function formFromProblem(problem: Problem, nextKey: () => string): Proble
     parMoves: problem.parMoves === null ? '' : String(problem.parMoves),
     restrictResources: problem.allowedResources !== null,
     allowedResources: problem.allowedResources ?? [],
-    cluster: clusterFromSpec(problem.initialState, nextKey),
-    objectives: problem.objectives.map((objective) => ({
+    /*
+     * Phép ép `unknown` → `ClusterSpec`, có tên và có lý do.
+     *
+     * Bảo chứng KHÔNG mất, nó chỉ đổi chỗ: trước đây kiểu `Problem` giữ nó, giờ
+     * cổng ghi giữ nó (`clusterSpecSchema` ở `validate.ts`) cộng với việc mọi
+     * dòng trong DB đều là K8s. Hành vi giữ NGUYÊN từng bit so với bản trước —
+     * `clusterFromSpec` vẫn nhận đúng object cũ.
+     *
+     * ⚠ Cố ý KHÔNG bọc một nhánh phòng hờ kiểu `?? emptyCluster(nextKey)`. Nó
+     * trông an toàn hơn và thật ra nguy hiểm hơn: một spec lạ sẽ hiện thành biểu
+     * mẫu TRỐNG, người soạn bấm Lưu, và bản gốc bị ghi đè bằng một cụm rỗng —
+     * mất dữ liệu trong im lặng. Để nó ném thì lỗi dừng ở màn hình soạn và bài
+     * trong DB còn nguyên. `development-principles.md` § "Errors Over Silent
+     * Fallbacks" là luật, và đây đúng là ca nó nói tới.
+     */
+    cluster: clusterFromSpec(problem.initialState as ClusterSpec, nextKey),
+    objectives: problem.testcases.map((testcase) => ({
       key: nextKey(),
-      id: objective.id,
-      label: objective.label,
+      id: testcase.id,
+      label: testcase.label,
       // Vị từ đọc từ DB có thể là một tên đã bị gỡ khỏi bảng tra (bài cũ, hợp
       // đồng mới). Ép kiểu ở đây là cố ý: form phải MỞ được bài đó để người soạn
       // sửa, còn việc chặn nằm ở `problem-validate.ts` — nó kiểm tên có trong
       // bảng hay không và nói ra. Chặn ngay ở khâu nạp thì bài hỏng thành bài
       // không mở nổi.
-      check: objective.check as PredicateName,
-      args: stringifyArgs(objective.args),
-      required: objective.required,
+      check: testcase.check as PredicateName,
+      args: stringifyArgs(testcase.args),
+      /*
+       * ⛔ `true` là HẰNG SỐ của hợp đồng, KHÔNG phải `visible` đọc ngược.
+       *
+       * `testcases.ts` đầu file có bảng so sánh, và hai trường trả lời hai câu
+       * khác nhau: `required` hỏi *không đạt thì có chặn không*, `visible` hỏi
+       * *người làm có được XEM trước khi nộp không*. Ánh xạ cái này sang cái kia
+       * là đổi nghĩa dữ liệu mà không ai ra lệnh — đúng thứ hợp đồng cấm.
+       *
+       * `Testcase` KHÔNG còn `required` để mà đọc, và quyết định #20 nói vì sao:
+       * *"một testcase thì luôn chặn — đó là nghĩa của `AC`"*. Nên dưới mô hình
+       * mới, giá trị đúng của ô này là `true` cho mọi case — suy từ định nghĩa,
+       * không suy từ một trường khác.
+       *
+       * ⚠ HỆ QUẢ PHẢI NÓI RA: một bài CŨ có mục tiêu `required: false` nay nạp
+       * lên form thành `true`, và lượt Lưu kế tiếp ghi `true` xuống DB. Đó là
+       * một phép đổi dữ liệu, không phải một lượt đọc trong suốt. Nó KHÔNG
+       * tránh được ở đây — `problemTestcases` đã bỏ `required` ở biên đọc nên
+       * hàm này không còn thấy giá trị cũ — và nó KHỚP với hướng mà lead vừa
+       * chọn ở `server/problems/publish-gate.ts`: cổng xuất bản bỏ hẳn phép
+       * kiểm `some(o => o.required)` vì *"dưới mô hình mới thì mọi case đều
+       * chặn"*. Ghi ra đây thay vì để người sau tìm thấy nó trong một diff DB.
+       *
+       * Ô `required` trên màn hình vì thế đang mất dần ý nghĩa. Gỡ nó phải đi
+       * cùng lượt đổi `problemBodyShape` ở `validate.ts` (vẫn đòi
+       * `required: z.boolean()`) và thêm ô `visible` — §18.D.2, không phải lane
+       * này.
+       */
+      required: true,
     })),
     hints: problem.hints.map((hint) => ({
       key: nextKey(),
