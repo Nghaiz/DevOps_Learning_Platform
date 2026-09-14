@@ -31,6 +31,8 @@ function edge(from: Vec3, to: Vec3, over = false): Routed3D {
   return {
     key: `${from.join(',')}->${to.join(',')}`,
     kind: over ? 'remote-mirror' : 'parent',
+    fromId: `local:${from.join(',')}`,
+    toId: `${over ? 'origin' : 'local'}:${to.join(',')}`,
     from,
     to,
     crossesGap: over,

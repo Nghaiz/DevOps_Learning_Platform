@@ -115,7 +115,12 @@
  * bảng số trong chú thích.
  */
 
-import type { SceneAccent, SceneEdgeKind, SceneRefKind } from '../shared/scene-props.ts';
+import type {
+  SceneAccent,
+  SceneEdgeKind,
+  SceneRefKind,
+  SceneRepo,
+} from '../shared/scene-props.ts';
 
 /** Tên biến CSS, dùng qua `cssVar()`. Không bao giờ là một giá trị màu. */
 export type ColorToken = string;
@@ -327,3 +332,20 @@ export function edgeStroke(kind: SceneEdgeKind): string {
 export function accentLabel(accent: SceneAccent): string {
   return ACCENT_STYLE[accent].label;
 }
+
+/**
+ * Tên hai kho, đọc ra cho người dùng.
+ *
+ * Ở đây vì **cùng một lý do** với `accentLabel()` ngay trên: hai renderer nói
+ * hai câu khác nhau về cùng một thứ là một lỗi a11y không cổng nào bắt được.
+ * Trước đó hai chuỗi này nằm riêng trong `git-svg-scene.tsx` và tầng 3D phải
+ * chép nguyên văn sang — tức đã có hai bản, và bản thứ hai sẽ lệch vào đúng
+ * ngày ai đó sửa một bên.
+ *
+ * Giữ nguyên văn tiếng Anh trong ngoặc: `local` và `origin` là tên thật của hai
+ * remote trong git, và người chơi sẽ gõ chính hai chữ đó vào ô lệnh.
+ */
+export const REPO_LABEL: Readonly<Record<SceneRepo, string>> = {
+  local: 'Kho trên máy bạn (local)',
+  origin: 'Kho từ xa (origin)',
+};

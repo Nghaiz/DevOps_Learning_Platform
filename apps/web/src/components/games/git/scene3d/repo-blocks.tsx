@@ -48,6 +48,7 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import { useThree } from '@react-three/fiber';
 
 import type { SceneLayout, SceneRepo } from '../../shared/scene-props.ts';
+import { REPO_LABEL } from '../git-palette.ts';
 import {
   NODE_RADIUS,
   X_STEP,
@@ -58,22 +59,6 @@ import {
   type Vec3,
 } from './scene3d-contract.ts';
 import type { GitSceneThreeColors } from './use-git-scene-colors.ts';
-
-/**
- * ⚠ **BẢN SAO CỦA `REPO_LABEL` TRONG `git-svg-scene.tsx:236`, CHỜ ĐƯỢC GỘP.**
- *
- * Bản gốc không `export`, và `git-svg-scene.tsx` không thuộc lane nào của 17.K
- * nên đợt này không đụng tới được. Nhà đúng của hai chuỗi này là `git-palette.ts`
- * — chính file đó đã đặt `accentLabel()` ở tầng chung với lý do y hệt: "hai
- * renderer nói hai câu khác nhau về cùng một commit là một lỗi a11y không cổng
- * nào bắt được". Đây là cùng một lỗi, chỉ ở mức kho thay vì mức commit.
- *
- * Giữ NGUYÊN VĂN bản gốc. Sửa một bên mà quên bên kia là đúng cái bẫy vừa mô tả.
- */
-const REPO_LABEL: Readonly<Record<SceneRepo, string>> = {
-  local: 'Kho trên máy bạn (local)',
-  origin: 'Kho từ xa (origin)',
-};
 
 /**
  * Mặt nền, theo Y.

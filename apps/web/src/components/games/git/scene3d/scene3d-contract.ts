@@ -194,6 +194,17 @@ export interface Placed3D {
 export interface Routed3D {
   readonly key: SceneEdgeKey3D;
   readonly kind: SceneResolvedEdge['kind'];
+  /**
+   * Id hai đầu (`sceneNodeId(repo, oid)`) — **cùng khoá với `Placed3D.id`**.
+   *
+   * Mang sẵn vì nếu không, tầng cạnh chỉ có `key` (một chuỗi tổng hợp dạng
+   * `local:a->local:b#parent`) và buộc phải **cắt chuỗi** để biết cạnh nào chạm
+   * commit đang chọn — đúng cái bẫy mà `Placed3D.oid` được thêm để chữa, chỉ
+   * dịch xuống một tầng. Lane C báo, và nó đang chặn một việc thật: làm mờ cạnh
+   * không liên quan khi người chơi chọn một commit.
+   */
+  readonly fromId: string;
+  readonly toId: string;
   readonly from: Vec3;
   readonly to: Vec3;
   /** `true` với `remote-mirror` — cạnh bắc qua khoảng trống giữa hai kho. */
@@ -287,9 +298,27 @@ export function deviationY(lane: number): number {
  *
  * ⚠ Đây KHÔNG phải một `console.warn` trang trí. Hai tầng chồng lên nhau trông
  * giống một bug render ngẫu nhiên và sẽ tốn một buổi để lần ra.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * `extraLift` — THỨ BA LANE ĐÃ TỰ VÁ RIÊNG TRƯỚC KHI THAM SỐ NÀY TỒN TẠI
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Hàm này chỉ đo độ lệch nhánh của **node**, nhưng tên nó hứa nhiều hơn thế. Nó
+ * mù với mọi thứ khác nhô lên: cung của cạnh `remote-mirror`, nhãn nổi trên
+ * node, và vòm của chuyển động `reflog`.
+ *
+ * Và đó không phải một suy đoán: **ba lane độc lập đâm vào đúng chỗ này và mỗi
+ * lane tự vá cục bộ** — `edge-route-3d.ts` chặn trần cung, `label-priority.test.ts`
+ * ghim khe hở, `motion-script.ts` tự giới hạn `arcLift()`. Ba bản vá riêng cho
+ * một khe hở là dấu hiệu cổng đặt sai tầng, không phải dấu hiệu ba lane bất cẩn.
+ *
+ * `extraLift` là chỗ đúng cho phần nhô thêm đó: phần cao nhất mà **bất cứ thứ
+ * gì khác** dựng lên trên đỉnh node. Mặc định `0` KHÔNG phải một fallback im
+ * lặng — nó là câu trả lời đúng cho câu hỏi hẹp "chỉ riêng node có chạm không",
+ * và những chỗ hỏi đúng câu hẹp đó vẫn gọi một tham số như trước.
  */
-export function assertPlanesClearOfDag(maxDeviation: number): string | null {
-  const top = maxDeviation * Y_STEP + MAX_NODE_HALF_EXTENT;
+export function assertPlanesClearOfDag(maxDeviation: number, extraLift = 0): string | null {
+  const top = maxDeviation * Y_STEP + MAX_NODE_HALF_EXTENT + extraLift;
   if (top < PLATE_FLOOR) return null;
   return (
     `Vùng DAG cao tới y=${top.toFixed(2)} nhưng mặt phẳng HEAD nằm ở y=${String(PLATE_FLOOR)}. ` +
@@ -345,7 +374,15 @@ export function place3d(props: SceneProps): Scene3DPlacement {
     // một `undefined` lọt xuống đây thành `NaN` trong buffer geometry, mà `NaN`
     // trong một BufferAttribute làm three vứt TOÀN BỘ draw call đó — im lặng.
     if (from === undefined || to === undefined) continue;
-    edges.push({ key: e.key, kind: e.kind, from, to, crossesGap: e.kind === 'remote-mirror' });
+    edges.push({
+      key: e.key,
+      kind: e.kind,
+      fromId: e.from,
+      toId: e.to,
+      from,
+      to,
+      crossesGap: e.kind === 'remote-mirror',
+    });
   }
 
   /*
@@ -358,12 +395,25 @@ export function place3d(props: SceneProps): Scene3DPlacement {
    * có mặt ở Worktree mà chưa có ở Index: mọi file phía sau nó lệch một cột, và
    * hình ảnh "rơi xuống" thành "rơi chéo sang bên".
    */
+  /*
+   * ⚠ MỘT phép so chuỗi cho cả hai chỗ, không phải hai.
+   *
+   * Bản đầu đánh số cột bằng `.sort()` trần (thứ tự UTF-16) rồi sắp mảng plate
+   * bằng `localeCompare` — hai phép so **khác nhau** trên cùng một tập đường
+   * dẫn. Với đường dẫn ASCII chúng trùng nhau nên không ai thấy gì; với đường
+   * dẫn tiếng Việt thì không (`localeCompare` xếp `đ` sau `d`, UTF-16 xếp nó
+   * sau `z`). Lane E tìm ra. Cùng một họ lỗi với chuyện Postgres và JS bất đồng
+   * về thứ tự tiếng Việt — và cùng một cách chữa: chọn MỘT phép so, gọi nó ở
+   * mọi chỗ.
+   */
+  const byPath = (a: string, b: string): number => a.localeCompare(b, 'vi');
+
   const column = new Map<string, number>();
-  for (const path of [...new Set(props.view.files.map((f) => f.path))].sort()) {
+  for (const path of [...new Set(props.view.files.map((f) => f.path))].sort(byPath)) {
     column.set(path, column.size);
   }
   const plates: Plate3D[] = [...props.view.files]
-    .sort((a, b) => a.zone.localeCompare(b.zone) || a.path.localeCompare(b.path))
+    .sort((a, b) => a.zone.localeCompare(b.zone) || byPath(a.path, b.path))
     .map((cell) => ({
       key: plateKey(cell),
       path: cell.path,
