@@ -47,13 +47,13 @@ import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { useThree } from '@react-three/fiber';
 
-import type { SceneRepo } from '../../shared/scene-props.ts';
+import type { SceneLayout, SceneRepo } from '../../shared/scene-props.ts';
 import {
   NODE_RADIUS,
   X_STEP,
   Z_STEP,
+  deviationY,
   laneZ,
-  type Placed3D,
   type Scene3DLayerProps,
   type Vec3,
 } from './scene3d-contract.ts';
@@ -113,48 +113,50 @@ interface BlockBox {
 }
 
 /**
- * Hộp bao của MỘT kho.
+ * Hộp bao của MỘT kho, đo từ `SceneLayout` của chính kho đó.
  *
- * Trả `null` khi kho không có commit nào được vẽ — vẽ một khối rỗng nói dối
- * rằng có một kho ở đó, mà ở chương 1 thì `origin` chưa tồn tại.
+ * ⚠ **Đo từ layout, KHÔNG quét `placement.nodes`.** Bản đầu của file này quét
+ * node để suy ra `depth`/`lane` lớn nhất — đúng thứ docblock của
+ * `Scene3DLayerProps.layouts` cảnh báo: "tầng 3D phải dựng lại hình dạng
+ * `SceneLayout` từ `placement.nodes`". Hai lý do nó sai, ngoài chuyện SSOT:
  *
- * ⚠ Số làn của `origin` **không có trong `Scene3DPlacement`** (hợp đồng chỉ phơi
- * `localLaneCount`, đủ để `laneZ()` tính độ dời, không đủ để biết khối kia rộng
- * bao nhiêu). Suy ra từ `lane` lớn nhất của chính các node — đúng theo định
- * nghĩa, nhưng đây là một lỗ hổng của hợp đồng chứ không phải một lựa chọn.
+ *  1. **Khối co giãn theo từng lệnh.** Quét node cho biên bám sát tập commit
+ *     ĐANG hiện, nên mỗi `commit` mới làm cả khối nhảy rộng ra một bước. Ranh
+ *     giới một cái kho không đổi khi bạn thêm một commit vào nó.
+ *  2. **Làn trống vẫn thuộc về kho.** `layoutDag` cấp làn cho một nhánh kể cả
+ *     khi commit ngoài cùng của nhánh đó tạm không được vẽ; biên đo từ node sẽ
+ *     cắt mất phần làn đó, rồi nhánh "chui ra ngoài khối" khi nó hiện lại.
+ *
+ * Trả `null` khi layout rỗng — vẽ một khối rỗng nói dối rằng có một kho ở đó,
+ * mà ở chương 1 thì `origin` chưa tồn tại.
  */
 function blockOf(
-  nodes: readonly Placed3D[],
+  layout: SceneLayout | null,
   repo: SceneRepo,
   localLaneCount: number,
 ): BlockBox | null {
-  const mine = nodes.filter((n) => n.repo === repo);
-  if (mine.length === 0) return null;
-
-  let minDepth = Infinity;
-  let maxDepth = -Infinity;
-  let maxLane = 0;
-  let maxY = 0;
-  for (const n of mine) {
-    if (n.depth < minDepth) minDepth = n.depth;
-    if (n.depth > maxDepth) maxDepth = n.depth;
-    if (n.lane > maxLane) maxLane = n.lane;
-    if (n.position[1] > maxY) maxY = n.position[1];
-  }
+  if (layout === null || layout.laneCount <= 0 || layout.depthCount <= 0) return null;
 
   const padX = X_STEP * PAD_RATIO;
   const padZ = Z_STEP * PAD_RATIO;
-  // Làn 0 và làn `maxLane` qua `laneZ()`, không qua công thức chép tay.
+  // `depth` chạy 0..depthCount-1 và `lane` chạy 0..laneCount-1 — đó là hợp đồng
+  // của `SceneLayout`, và `place3d()` đặt node đúng theo hai khoảng đó.
+  const lastLane = layout.laneCount - 1;
+  // Làn đầu và làn cuối qua `laneZ()`, không qua công thức chép tay.
   const nearZ = laneZ(repo, 0, localLaneCount);
-  const farZ = laneZ(repo, maxLane, localLaneCount);
+  const farZ = laneZ(repo, lastLane, localLaneCount);
+  // `MAIN_LANE` là 0, nên bậc lệch lớn nhất mà khối này chứa được chính là
+  // `lastLane`. Dùng `deviationY()` chứ không nhân `Y_STEP` tay: chiều Y có
+  // nghĩa và công thức của nó thuộc hợp đồng.
+  const ceilingY = deviationY(lastLane) + NODE_RADIUS + POST_HEADROOM;
 
   return {
     repo,
-    minX: minDepth * X_STEP - padX,
-    maxX: maxDepth * X_STEP + padX,
+    minX: -padX,
+    maxX: (layout.depthCount - 1) * X_STEP + padX,
     minZ: Math.min(nearZ, farZ) - padZ,
     maxZ: Math.max(nearZ, farZ) + padZ,
-    topY: FLOOR_Y + Math.max(POST_MIN_HEIGHT, maxY + NODE_RADIUS + POST_HEADROOM - FLOOR_Y),
+    topY: FLOOR_Y + Math.max(POST_MIN_HEIGHT, ceilingY - FLOOR_Y),
   };
 }
 
@@ -254,6 +256,7 @@ export interface RepoBlocksProps extends Scene3DLayerProps {
 export function RepoBlocks({
   placement,
   view,
+  layouts,
   colors,
   colorsVersion,
 }: RepoBlocksProps): ReactElement {
@@ -262,15 +265,20 @@ export function RepoBlocks({
 
   const boxes = useMemo(() => {
     const out: BlockBox[] = [];
-    const local = blockOf(placement.nodes, 'local', placement.localLaneCount);
+    const local = blockOf(layouts.local, 'local', placement.localLaneCount);
     if (local !== null) out.push(local);
-    // Khối `origin` chỉ tồn tại khi level có kho từ xa. Cả chương 1 chạy một kho.
+    /*
+     * Khối `origin` cần CẢ HAI điều kiện. `view.hasOrigin` là ý định của level
+     * (chương 1 chạy một kho), còn `layouts.origin` là thứ thật sự có bố cục —
+     * `buildSceneLayouts()` trả `null` cho nó đúng khi `hasOrigin` sai, nhưng
+     * đọc cả hai thì lớp này không phụ thuộc vào việc bất biến đó còn đúng.
+     */
     if (view.hasOrigin) {
-      const origin = blockOf(placement.nodes, 'origin', placement.localLaneCount);
+      const origin = blockOf(layouts.origin, 'origin', placement.localLaneCount);
       if (origin !== null) out.push(origin);
     }
     return out;
-  }, [placement.nodes, placement.localLaneCount, view.hasOrigin]);
+  }, [layouts.local, layouts.origin, placement.localLaneCount, view.hasOrigin]);
 
   const floors = useMemo(() => {
     const geometry = buildFloors(boxes);
