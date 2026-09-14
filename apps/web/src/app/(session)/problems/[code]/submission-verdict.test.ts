@@ -14,7 +14,7 @@ const CE = t('catalog.problem.verdict-ce');
 const UNGRADED = t('catalog.problem.subs-verdict-ungraded');
 
 describe('AC — dòng lịch sử total === 0 KHÔNG hiện chữ CE', () => {
-  const label = submissionVerdictLabel({ passed: [], total: 0 });
+  const label = submissionVerdictLabel({ passed: [], total: 0, failedCode: null });
 
   it('không phải nhãn CE', () => {
     expect(label).not.toBe(CE);
@@ -40,21 +40,73 @@ describe('AC — dòng lịch sử total === 0 KHÔNG hiện chữ CE', () => {
    * không lệch khỏi hàm suy.
    */
   it('total âm cũng đi chung một nhánh', () => {
-    expect(submissionVerdictLabel({ passed: [], total: -1 })).toBe(UNGRADED);
+    expect(submissionVerdictLabel({ passed: [], total: -1, failedCode: null })).toBe(UNGRADED);
+  });
+});
+
+/**
+ * ĐẢO một ô đã từng gác một KHE, không phải thêm ô mới.
+ *
+ * Bản trước của `submission-verdict.ts` ghi thẳng rằng nó không vá được ca này:
+ * một lượt `CE` thật mang `passed = []` và `total = <số testcase>`, nên
+ * `problemVerdictOf(0, 5)` đọc lại thành `WA (0/5)` — hệ thống nói người chơi
+ * trượt 5 case trong khi lượt chơi chưa từng chạy tới nơi. Cột `failedCode`
+ * (migration 0015) đóng khe đó, nên chỗ này khẳng định trạng thái LÀNH thay vì
+ * chốt lại con số cũ.
+ *
+ * Hai ô, và ô thứ hai mới là ô khó: chỉ kiểm "ra CE" thì một hàm luôn trả CE
+ * cũng qua. Phải kiểm rằng nó KHÔNG còn ra `WA (0/5)` — đúng cái nhãn sai mà
+ * khe cũ sinh ra.
+ */
+describe('CE thật (failedCode khác null) KHÔNG còn đọc ra thành WA', () => {
+  const ce = { passed: [], total: 5, failedCode: 'engine-khong-tat-dinh' } as const;
+
+  it('hiện đúng nhãn CE', () => {
+    expect(submissionVerdictLabel(ce)).toBe(CE);
+  });
+
+  it('không còn là WA (0/5) như trước khi có cột failedCode', () => {
+    expect(submissionVerdictLabel(ce)).not.toBe(
+      t('catalog.problem.verdict-wa', { passed: 0, total: 5 }),
+    );
+  });
+
+  /*
+   * ĐỐI CHỨNG cho chính ô trên: cùng `passed`/`total`, khác MỖI `failedCode`.
+   * Nếu bỏ ô này thì một hàm bỏ qua `failedCode` và luôn trả CE cho `passed`
+   * rỗng vẫn qua được cả hai ô trên — mà đó đúng là phép đoán hợp đồng cấm
+   * (`passed.length === 0` không phân biệt được hai nguyên nhân).
+   */
+  it('cùng con số nhưng failedCode null thì vẫn là WA thật', () => {
+    expect(submissionVerdictLabel({ passed: [], total: 5, failedCode: null })).toBe(
+      t('catalog.problem.verdict-wa', { passed: 0, total: 5 }),
+    );
+  });
+
+  /*
+   * `failedCode` khác `null` THẮNG cả một bộ số trông như AC. Máy chủ chốt mã
+   * hỏng lúc nộp, và hợp đồng nói `passed`/`total` của một lượt `CE` "không nói
+   * lên gì" — nên đọc chúng để lật lại verdict là tin vào đúng hai con số đã bị
+   * tuyên là vô nghĩa.
+   */
+  it('mã hỏng thắng cả khi passed trông như đã qua hết', () => {
+    expect(
+      submissionVerdictLabel({ passed: ['t1', 't2'], total: 2, failedCode: 'log-hong' }),
+    ).toBe(CE);
   });
 });
 
 describe('hai nhánh còn lại vẫn ra đúng verdict', () => {
   it('qua hết testcase ra AC', () => {
-    expect(submissionVerdictLabel({ passed: ['t1', 't2'], total: 2 })).toBe(
+    expect(submissionVerdictLabel({ passed: ['t1', 't2'], total: 2, failedCode: null })).toBe(
       t('catalog.problem.verdict-ac'),
     );
   });
 
   it('qua một phần ra WA kèm phân số của LÚC NỘP', () => {
-    expect(submissionVerdictLabel({ passed: ['t1', 't2', 't4', 't5'], total: 5 })).toBe(
-      t('catalog.problem.verdict-wa', { passed: 4, total: 5 }),
-    );
+    expect(
+      submissionVerdictLabel({ passed: ['t1', 't2', 't4', 't5'], total: 5, failedCode: null }),
+    ).toBe(t('catalog.problem.verdict-wa', { passed: 4, total: 5 }));
   });
 
   /*
@@ -64,8 +116,8 @@ describe('hai nhánh còn lại vẫn ra đúng verdict', () => {
    * đọc theo con số lịch sử.
    */
   it('không tự tính lại mẫu số từ độ dài passed', () => {
-    expect(submissionVerdictLabel({ passed: ['t1', 't2', 't3', 't4'], total: 7 })).toBe(
-      t('catalog.problem.verdict-wa', { passed: 4, total: 7 }),
-    );
+    expect(
+      submissionVerdictLabel({ passed: ['t1', 't2', 't3', 't4'], total: 7, failedCode: null }),
+    ).toBe(t('catalog.problem.verdict-wa', { passed: 4, total: 7 }));
   });
 });

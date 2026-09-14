@@ -1,5 +1,5 @@
 import { t } from '@devops-platform/copy';
-import { problemVerdictOf, type ProblemSubmission } from '@devops-platform/games';
+import { gradeFromSubmission, type ProblemSubmission } from '@devops-platform/games';
 
 /**
  * Nhãn verdict cho MỘT DÒNG LỊCH SỬ nộp bài. §18.C, việc 3.
@@ -29,21 +29,39 @@ import { problemVerdictOf, type ProblemSubmission } from '@devops-platform/games
  * hẳn một nhãn mờ, nên `total <= 0` đọc ra thành một câu chỉ nói đúng thứ nó
  * biết: lượt này chưa được chấm theo testcase.
  *
- * ⚠ ĐỪNG đọc hàm này thành "lịch sử không bao giờ sai". Nó CÒN một khe nữa mà
- * lane này không vá được: một lượt `CE` thật sự được `submit.ts` ghi xuống với
- * `passed = []` và `total = <số testcase của bài>`, tức `total > 0`. Đọc lại,
- * `problemVerdictOf(0, 5)` trả `WA`, nên dòng đó hiện ra là `WA (0/5)` chứ không
- * phải `CE`. Phân biệt được hai thứ cần một cột thứ ba (lý do hỏng), và
- * `failedReason` là một câu tiếng Việt chứ không phải dữ liệu nên không lưu
- * thẳng được. Đã báo lead. Đừng vá bằng cách đoán từ `passed.length === 0`:
- * một lượt `WA (0/5)` thật cũng có `passed` rỗng.
+ * ## ✅ KHE ĐÃ VÁ 2026-09-15 — cột thứ ba đã có
+ *
+ * Bản trước ghi ở đây một khe không vá được: một lượt `CE` thật được `submit.ts`
+ * ghi xuống với `passed = []` và `total = <số testcase của bài>`, tức
+ * `total > 0`, nên `problemVerdictOf(0, 5)` đọc lại thành `WA (0/5)`. Chẩn đoán
+ * lúc đó đúng và đã nêu đúng cái cần: *"phân biệt được hai thứ cần một cột thứ
+ * ba (lý do hỏng)"*.
+ *
+ * Cột đó nay tồn tại — `ProblemSubmission.failedCode` (migration 0015) — nên
+ * hàm này đi qua `gradeFromSubmission`, thứ đọc CẢ BA trường. Hợp đồng nói rõ vì
+ * sao `failedCode` không phải một trường suy ra được: `passed = []` với
+ * `total = 5` xảy ra ở cả một lượt `CE` do engine không tất định LẪN một lượt
+ * `WA (0/5)` thật. Hai nguyên nhân, dữ liệu giống hệt.
+ *
+ * ⛔ VẪN đừng đoán từ `passed.length === 0` — lời cảnh báo cũ còn nguyên hiệu
+ * lực, nó chỉ không còn là lựa chọn duy nhất nữa.
+ *
+ * ⚠ Và `subs-verdict-ungraded` KHÔNG bị `CE` nuốt mất: `gradeFromSubmission` trả
+ * `CE` cho CẢ hai ca — `failedCode` khác `null` (hỏng thật) và `total <= 0`
+ * (dòng cũ / bài chưa có testcase). Chỉ ca ĐẦU mới được in ra chữ `CE`; ca sau
+ * giữ nguyên câu mờ, đúng lý lẽ ở khối trên và đúng như `packages/copy` đã ghi
+ * cạnh khoá đó. Gộp hai ca lại là quay về đúng lỗi mà cả khối chú thích này
+ * sinh ra để tránh: đổ lỗi sai cú pháp cho người chơi vì một thiếu sót của hệ
+ * thống.
  */
 export function submissionVerdictLabel(
-  submission: Pick<ProblemSubmission, 'passed' | 'total'>,
+  submission: Pick<ProblemSubmission, 'passed' | 'total' | 'failedCode'>,
 ): string {
-  const verdict = problemVerdictOf(submission.passed.length, submission.total);
+  const { verdict } = gradeFromSubmission(submission);
   if (verdict === 'CE') {
-    return t('catalog.problem.subs-verdict-ungraded');
+    return submission.failedCode === null
+      ? t('catalog.problem.subs-verdict-ungraded')
+      : t('catalog.problem.verdict-ce');
   }
   if (verdict === 'AC') {
     return t('catalog.problem.verdict-ac');
