@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { PROBLEM_TOPICS } from '@devops-platform/games';
+import { PROBLEM_PLUGINS, PROBLEM_TOPICS } from '@devops-platform/games';
 import { formatProblemCode } from './next-code';
 import { STATEMENT_MAX_WORDS, countWords, publishIssues } from './publish-gate';
 import { problemBodySchema } from './validate';
 
 const BODY = {
+  gameId: 'k8s' as const,
+  seedable: false,
   slug: 'pod-dau-tien',
   title: 'Pod đầu tiên',
   statement: 'Dựng một pod tên web.',
@@ -17,10 +19,29 @@ const BODY = {
     namespaces: ['ns'],
     resources: [{ kind: 'Pod' as const, name: 'web', namespace: 'ns', spec: {} }],
   },
-  objectives: [{ id: 'o1', label: 'Xong', check: 'resource-exists', required: true }],
+  objectives: [{ id: 'o1', label: 'Xong', check: 'resource-exists', visible: true }],
   allowedResources: null,
   hints: [{ id: 'h1', text: 'gợi ý', penaltyPoints: 10 }],
   parMoves: 3,
+};
+
+/**
+ * Bài Git tối thiểu — ĐỐI CHỨNG DƯƠNG cho việc biên ghi đã thật sự đa-game.
+ *
+ * Không có nó thì mọi ô "từ chối X" bên dưới cũng xanh trên một schema từ chối
+ * MỌI bài không phải K8s, tức đúng trạng thái trước đợt này.
+ *
+ * `initialState` là một object tuỳ ý chứ không phải một `WorldSpec` thật, và đó
+ * là ĐÚNG thứ biên này hứa: với game không phải K8s nó chỉ đòi một object. Xem
+ * khối `refineByGame` về vì sao không viết schema thứ hai cho `WorldSpec` ở đây.
+ */
+const GIT_BODY = {
+  ...BODY,
+  gameId: 'git' as const,
+  slug: 'commit-dau-tien',
+  topics: [PROBLEM_PLUGINS['git']?.topics[0]?.id ?? ''],
+  initialState: { branches: {}, commits: {} },
+  objectives: [{ id: 'o1', label: 'Xong', check: 'branch-exists', visible: true }],
 };
 
 describe('biên ghi của bài tập', () => {
@@ -41,6 +62,97 @@ describe('biên ghi của bài tập', () => {
     for (const topic of PROBLEM_TOPICS) {
       expect(problemBodySchema.safeParse({ ...BODY, topics: [topic] }).success, topic).toBe(true);
     }
+  });
+
+  it('tập chủ đề đóng theo GAME, không theo một danh sách dùng chung', () => {
+    /*
+     * ⛔ Đây là ô gác thật của việc nới `topics` xuống `z.string()`. Nếu một
+     * ngày ai đó bỏ `refineByGame` đi, dòng đầu sẽ xanh (chuỗi nào cũng hợp lệ)
+     * và ô này đỏ đúng chỗ.
+     *
+     * Chủ đề K8s trên một bài Git phải bị từ chối: nó lọt qua thì bài Git mang
+     * một chủ đề nói về Pod, và ô chọn chủ đề của game đó không có dòng nào để
+     * người soạn thấy mà sửa.
+     */
+    expect(problemBodySchema.safeParse({ ...GIT_BODY, topics: ['workload'] }).success).toBe(false);
+    // Đối chứng dương ở chiều ngược lại: chủ đề THẬT của Git qua được.
+    expect(problemBodySchema.safeParse(GIT_BODY).success).toBe(true);
+  });
+
+  it('nhận một bài Git — biên ghi không còn khoá vào K8s', () => {
+    expect(problemBodySchema.safeParse(GIT_BODY).success).toBe(true);
+    // `initialState` của Git KHÔNG đi qua `clusterSpecSchema`: một object không
+    // có `nodes` vẫn qua. Đây là khoảng trống có chủ ý, đo được ở đây thay vì
+    // chỉ nằm trong chú thích.
+    expect(problemBodySchema.safeParse({ ...GIT_BODY, initialState: { gi: 'do' } }).success).toBe(
+      true,
+    );
+    // Nhưng KHÔNG phải object thì vẫn chặn — cột `initial_state` là `notNull`.
+    expect(problemBodySchema.safeParse({ ...GIT_BODY, initialState: 'chuoi' }).success).toBe(false);
+    expect(problemBodySchema.safeParse({ ...GIT_BODY, initialState: null }).success).toBe(false);
+  });
+
+  it('K8s giữ NGUYÊN độ chặt cũ sau khi chuyển sang refine', () => {
+    // Phép nới ở `topics`/`initialState` chỉ được áp cho game KHÁC. Nếu
+    // `clusterSpecSchema` thôi chạy cho K8s thì ba ô dưới đây xanh hết, và một
+    // `Deploymnet` gõ nhầm lại lọt vào DB như trước khi cổng này tồn tại.
+    expect(problemBodySchema.safeParse({ ...BODY, initialState: { gi: 'do' } }).success).toBe(false);
+    expect(
+      problemBodySchema.safeParse({
+        ...BODY,
+        initialState: { ...BODY.initialState, khoaLa: 1 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('từ chối game chưa có engine chấm — lưu bài cho nó là lưu bài không ai chấm được', () => {
+    expect(problemBodySchema.safeParse({ ...GIT_BODY, gameId: 'cicd' }).success).toBe(false);
+    // Và từ chối cả `gameId` không thuộc `GAME_IDS`, ở tầng `z.enum`.
+    expect(problemBodySchema.safeParse({ ...GIT_BODY, gameId: 'khong-co' }).success).toBe(false);
+  });
+
+  it('chặn `seedable: true` khi plugin không sinh được đề theo seed — §18.G.3', () => {
+    /*
+     * Hôm nay KHÔNG plugin nào khai `seedSpec` (`core/problem-plugin.ts:215`
+     * nói thẳng vậy), nên cả hai game đều phải bị chặn. Ô này sẽ ĐỎ vào đúng
+     * ngày một plugin khai `seedSpec` — và lúc đó nó phải được INVERT (bỏ game
+     * ấy ra, khẳng định nó bật được), không phải nới cho xanh.
+     */
+    for (const body of [BODY, GIT_BODY]) {
+      const plugin = PROBLEM_PLUGINS[body.gameId];
+      const expected = plugin?.seedSpec !== undefined;
+      expect(
+        problemBodySchema.safeParse({ ...body, seedable: true }).success,
+        body.gameId,
+      ).toBe(expected);
+    }
+    // Đối chứng dương: `seedable: false` không bị cổng này đụng tới.
+    expect(problemBodySchema.safeParse({ ...BODY, seedable: false }).success).toBe(true);
+  });
+
+  it('testcase mang `visible`, và KHÔNG còn nhận `required`', () => {
+    const withRequired = {
+      ...BODY,
+      objectives: [{ id: 'o1', label: 'Xong', check: 'resource-exists', required: true }],
+    };
+    // `.strict()` từ chối field lạ, nên một payload của bản cũ bị chặn thay vì
+    // được nhận-rồi-bỏ-qua — trang soạn cũ sẽ báo lỗi chứ không lưu im lặng một
+    // testcase thiếu `visible`.
+    expect(problemBodySchema.safeParse(withRequired).success).toBe(false);
+    // Và `visible` là BẮT BUỘC: không có mặc định ở biên ghi (xem `testcaseSchema`).
+    const withoutVisible = {
+      ...BODY,
+      objectives: [{ id: 'o1', label: 'Xong', check: 'resource-exists' }],
+    };
+    expect(problemBodySchema.safeParse(withoutVisible).success).toBe(false);
+    // Đối chứng dương: `visible: false` — năng lực MỚI của §18.D.2 — ghi được.
+    const hidden = {
+      ...BODY,
+      objectives: [{ id: 'o1', label: 'Xong', check: 'resource-exists', visible: false }],
+    };
+    const parsed = problemBodySchema.safeParse(hidden);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.objectives[0]?.visible).toBe(false);
   });
 
   it('từ chối loại tài nguyên gõ sai', () => {
@@ -84,7 +196,10 @@ describe('biên ghi của bài tập', () => {
       },
     };
     const parsed = problemBodySchema.parse(withUndefined);
-    expect(Object.hasOwn(parsed.initialState.nodes[0] ?? {}, 'taints')).toBe(false);
+    // `initialState` nay khai `unknown` ở hợp đồng (kiểu đúng phụ thuộc
+    // `gameId`), nên phép đọc sâu phải nói rõ mình đang giả định hình dạng K8s.
+    const nodes = (parsed.initialState as { nodes: readonly unknown[] }).nodes;
+    expect(Object.hasOwn(nodes[0] ?? {}, 'taints')).toBe(false);
   });
 });
 

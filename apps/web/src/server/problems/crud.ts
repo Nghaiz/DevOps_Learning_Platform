@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { count, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { ProblemState, Testcase } from '@devops-platform/games';
+import type { ProblemState } from '@devops-platform/games';
 import type { Database } from '../db/client';
 import { isUniqueViolation } from '../db/pg-errors';
 import { problems, problemSubmissions } from '../db/schema';
@@ -180,13 +180,14 @@ async function setState(db: Database, code: string, state: ProblemState): Promis
  * Nó cũng là chỗ khẳng định lần nữa rằng `code`/`authorId`/`state` KHÔNG tới từ
  * body: chúng không có trong hàm này, nên không có đường nào cho chúng đi qua.
  *
- * ⚠ KHÔNG có `gameId`/`seedable`/`targetState`, và đó không phải chỗ quên. Cả ba
- * cột mới của 0015 đều có DEFAULT (`'k8s'`, `false`, `null`), nên đường ghi hôm
- * nay vẫn đẻ ra đúng một bài K8s không seed được — y như trước 18.A. Mở ba
- * trường đó ra body là §18.D.1 nửa sau, thuộc lane soạn bài.
+ * ⛔ ĐÃ MỞ 2026-09-15 (§18.D.1 nửa sau). Bản trước bỏ qua `gameId`/`seedable`/
+ * `targetState` và dựa vào DEFAULT của migration 0015 (`'k8s'`, `false`, `null`),
+ * nên mọi bài ghi ra đều là bài K8s không seed được — kể cả khi người soạn chọn
+ * Git trên màn hình. Ba dòng dưới đây là thứ làm ô chọn game có tác dụng thật.
  */
 function toRowValues(body: ProblemBody) {
   return {
+    gameId: body.gameId,
     slug: body.slug,
     title: body.title,
     statement: body.statement,
@@ -196,29 +197,36 @@ function toRowValues(body: ProblemBody) {
     timeLimitSec: body.timeLimitSec,
     initialState: body.initialState,
     /*
-     * ⚠ TRẠNG THÁI TRUNG GIAN — §18.D.1 gỡ phép ép này. Đừng chép nó đi chỗ khác.
+     * `targetState` vắng mặt ⇒ ghi `null`, KHÔNG bỏ khoá.
      *
-     * Cột `objectives` nay khai `$type<Testcase[]>` (18.B), còn `problemBodyShape`
-     * vẫn chỉ nhận hình dạng `Objective` cũ: CÓ `required`, KHÔNG có `visible`.
-     * Hai hình dạng không so sánh được với nhau nên TypeScript đúng khi từ chối.
-     * Mở body sang hình dạng mới là việc của lane soạn bài, không phải của lane
-     * này — nên phép ép ở đây nói đúng một điều: *giá trị này là hình dạng CŨ*.
-     *
-     * ⛔ ĐỪNG "dọn" bằng cách ánh xạ sang `Testcase` rồi bỏ `required`. Đo được,
-     * không phải phỏng đoán: `replay.ts` § `isSolved` còn lọc
-     * `objectives.filter((o) => o.required)` và trả `false` khi tập đó rỗng —
-     * nên bỏ `required` lúc ghi sẽ làm MỌI lượt nộp vào một bài được sửa sau bản
-     * này đọc ra "chưa giải", im lặng, không ô test nào ở lane này đỏ.
-     *
-     * An toàn vì biên ĐỌC không tin cột này: `problemTestcases` nhận
-     * `readonly unknown[]` và mặc định `visible: true` — đúng con đường mà mọi
-     * dòng viết trước 18.B đang đi. Dòng mới chỉ là một dòng cũ nữa, không phải
-     * một hình dạng thứ ba.
+     * Hai thứ trông giống nhau và khác nhau ở `update`: bỏ khoá thì `.set()` của
+     * Drizzle GIỮ NGUYÊN giá trị cũ trong cột, nên một người soạn xoá trạng thái
+     * đích của bài sẽ thấy nó quay lại sau khi tải trang. Ghi `null` tường minh
+     * là phép xoá thật. Hợp đồng (`ProblemBase.targetState?`) dùng "vắng mặt"
+     * còn cột dùng `null`; đây là chỗ đổi giữa hai quy ước đó.
      */
-    objectives: [...body.objectives] as unknown as Testcase[],
+    targetState: body.targetState ?? null,
+    /*
+     * ⛔ Phép ép `as unknown as Testcase[]` ĐÃ GỠ ở đợt này — ghi lại vì lý do nó
+     * tồn tại đã chết, chứ không phải vì nó được "dọn".
+     *
+     * Nó có mặt vì hai hình dạng không so sánh được: cột khai `$type<Testcase[]>`
+     * (có `visible`), còn `problemBodyShape` khi đó nhận `Objective` cũ (có
+     * `required`). Nay `testcaseSchema` ở `validate.ts` nhận đúng `Testcase`, nên
+     * hai đầu khớp nhau thật và phép ép không còn gì để nói.
+     *
+     * ⚠ Chú thích cũ ở đây cảnh báo rằng `replay.ts` § `isSolved` lọc
+     * `objectives.filter((o) => o.required)` nên bỏ `required` sẽ làm mọi lượt
+     * nộp đọc ra "chưa giải". Cảnh báo đó nay SAI — đo lại 2026-09-15:
+     * `isSolved` đã đổi sang `problem.testcases.every(...)` trên MỌI testcase
+     * (plan §0.4 mục 1). Để nguyên một cảnh báo đã hết hiệu lực thì lần sau sẽ
+     * có người tin nó và không dám gỡ.
+     */
+    objectives: [...body.objectives],
     allowedResources: body.allowedResources === null ? null : [...body.allowedResources],
     hints: [...body.hints],
     parMoves: body.parMoves,
+    seedable: body.seedable,
   };
 }
 
