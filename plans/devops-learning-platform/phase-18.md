@@ -18,8 +18,26 @@
 | Trang soạn bài có sẵn | **Có, và khá đầy đủ.** `apps/web/src/app/author/problems/` — `cluster-fields`, `node-fields`, `objective-fields`, `predicate-spec`, `arena-preview`, `json-transfer`, `problem-editor`. Đây là tài sản, không phải nợ. |
 | Có khái niệm "kỳ thi" | **Không.** Không bảng `exam`, không `exam_attempt`, không khái niệm lớp/nhóm học. |
 | Có khái niệm "lớp" | **Không.** `/admin/users` quản lý người dùng phẳng. **Chốt 2026-09-11: dùng lại role `admin` cho giảng viên**, không thêm role mới. |
-| Bảng `problems` có dữ liệu | **Rỗng trên cài đặt sạch**, và **không có nguồn seed nào** — `content/` không có thư mục `problems`, `seed-content.mjs` không nạp bảng đó. Đây là lý do 4 ô e2e của P16 đỏ (`/problems/:code` và `/author/problems/:code`). P18 phải đóng chuyện này. |
+| Bảng `problems` có dữ liệu | ~~**Rỗng trên cài đặt sạch**, và **không có nguồn seed nào**~~ → **ĐÃ LẠC HẬU, xem dòng dưới.** |
 | `Objective` hiện có trọng số | **Có `required: boolean`**, không có trọng số số học. Khớp với mô hình testcase đã chốt. |
+
+### 0.1 Đính chính sau khi P17 gộp (đo lại 2026-09-14)
+
+Bảng §0 ở trên scout ngày **2026-09-11**. P17 gộp vào `main` ngày **2026-09-14**
+(`6f19cbe`), P17b gộp cùng ngày (`24499ab`), và ba dòng của bảng đã hết đúng. Ghi
+lại thay vì sửa đè, vì một plan không nói mình đã sai ở đâu là một plan người sau
+vẫn tin.
+
+| Plan viết | Mã nói gì (đo 2026-09-14) | Hệ quả |
+|---|---|---|
+| "không có nguồn seed nào" cho bảng `problems` | **Có.** `packages/games/src/k8s/problems-seed/` có 10 bài (`k8s-0001`…`k8s-0010`), export qua barrel là `PROBLEMS_SEED`, và `scripts/seed-content.mjs` nạp chúng (dòng 126, 283, 652) kèm cổng đếm lại số dòng đã ghi | **18.D.7 gần như đã xong.** Việc còn lại là xác minh AC-4 trên một cài đặt sạch thật, không phải viết nguồn seed mới |
+| `git/problem-plugin.ts` dùng `GitRepoSpec` (18.A.5) | **Không có kiểu nào tên đó.** Kiểu thật là `WorldSpec` (`git/contract.ts:796`) | Đổi tên trong plan, không đổi mã |
+| `core/` sạch, chỉ cần chuyển `Problem` lên | `core/verify.ts` **còn 5 import kiểu** từ `../k8s/contract.ts` | Món nợ thêm cho 18.A — xem khối cảnh báo ở AC-A |
+
+Một dòng nữa không sai nhưng thiếu: plan §18.B.1 đặt tên kiểu là `Verdict`. Tên đó
+**đã có chủ** — `git/predicates.ts:383` khai `Verdict` cho LEVEL (một object có
+`bonusMet`). Bản của bài OJ mang tên `ProblemVerdict`; lý do đầy đủ ghi tại chỗ
+khai trong `core/problem.ts`.
 
 ---
 
@@ -53,7 +71,27 @@ vì nó động vào code có người đang dùng.
 | A.7 | Chạy lại A.1. Nếu đỏ một dòng thì dừng, không đi tiếp. | 2h |
 
 **AC-A:** test A.1 xanh trước và sau, **không sửa test** · chọn `gameId` trên `/author/problems`
-đổi form đúng plugin · `grep -n "ClusterSpec" packages/games/src/core/` trả **rỗng**.
+đổi form đúng plugin · `core/` không phụ thuộc game nào, đo bằng lệnh dưới.
+
+> ⚠ **Ô đo đã được sửa ngày 2026-09-14 — bản cũ đo nhầm thứ.** Plan viết
+> `grep -n "ClusterSpec" packages/games/src/core/` phải trả rỗng. Lệnh đó đếm cả
+> **văn xuôi**: khối chú thích giải thích *vì sao* `core/` không được biết
+> `ClusterSpec` sẽ tự làm chính ô này đỏ. Một ô nghiệm thu chỉ có thể qua bằng
+> cách cấm nhắc tên vấn đề trong chú thích là một ô đỏ vì lý do sai.
+>
+> Thứ cần đo là **phụ thuộc**, không phải chính tả:
+>
+> ```bash
+> grep -rn "from '\.\./k8s\|from '\.\./git" packages/games/src/core/ --include=*.ts
+> ```
+>
+> Đo ngày 2026-09-14, lệnh này **không rỗng**: `core/verify.ts` và
+> `core/verify.test.ts` còn import `CreateSession`, `K8sGameAction`, `K8sSession`,
+> `Level`, `SessionStatus` từ `../k8s/contract.ts`. 17.A.2 đã chuyển phần *chạy*
+> lên dạng rộng (chú thích trong file nói rõ điều đó) nhưng **năm import kiểu thì
+> còn lại**. Plan không nhắc món này — nó thuộc 18.A, và nó chặn 18.C: `verify.ts`
+> chính là bộ phát lại chống gian lận mà chấm-lại-phía-server dựa vào, nên nó
+> không thể còn dính vào một game.
 
 ⚠ `PROBLEM_DIFFICULTIES` (4 bậc, `easy|medium|hard|expert`) **cố ý khác**
 `SCENARIO_DIFFICULTIES` (3 bậc). Đừng ánh xạ ngầm giữa hai thang — comment trong
