@@ -102,9 +102,9 @@ mã thoát**, chứ không suy từ hình dạng dòng chữ.
 
 ---
 
-### 0.3 Hai món nợ phát hiện trong lúc làm, chưa vá
+### 0.3 Hai món nợ phát hiện trong lúc làm — (a) ĐÃ VÁ, (b) vá một nửa
 
-**a) Một lượt `CE` THẬT đọc lại thành `WA (0/5)`.**
+**a) Một lượt `CE` THẬT đọc lại thành `WA (0/5)`. — ĐÃ VÁ 2026-09-15.**
 
 `submit.ts` ghi một lượt không chấm được với `passed = []` và `total > 0`, nên
 đọc lại `problemVerdictOf(0, 5)` trả `WA`, và dòng lịch sử hiện `WA (0/5)`.
@@ -121,6 +121,29 @@ thay vì `CE`, vì in `CE` lên một lượt cũ là nói với người chơi 
 sai cú pháp trong khi không hề. Nửa còn lại (`CE` thật, `total > 0`) chưa vá được
 mà không thêm cột.
 
+> **Đã đóng ở migration 0015** (`problem_submissions.fail_code`) + `PROBLEM_FAILURE_CODES`
+> ở `core/problem.ts`. Ô gác: nhóm `AC-3` trong
+> `apps/web/src/server/problems/submission-grade.integration.test.ts`, trong đó ô
+> quan trọng nhất là **đối chứng**: hai dòng có `passed`/`total` GIỐNG HỆT nhau
+> đọc ra hai verdict khác nhau. Nếu ô đó xanh khi `failedCode` bị bỏ qua thì cột
+> thứ ba đang không làm gì.
+>
+> ⚠ **Một ngõ cụt đã đi vào, ghi lại để lượt sau khỏi đi lại.** Đo lần đầu
+> `grep "verdict: 'CE'"` trên `packages/games` ra **ba** chỗ dựng `CE`, và **cả
+> ba đều có `total: 0`** — từ đó gần như kết luận rằng §0.3a tự nó sai, rằng
+> không đường nào đẻ ra `CE` với `total > 0`. Kết luận đó SAI, và nó sai vì phép
+> đo chỉ nhìn `packages/games`. Đường thật nằm ở `apps/web`:
+>
+> ```ts
+> // submit.ts — gradeSubmission
+> if (status === 'engine-khong-tat-dinh') return gradeOf(status, [], testcases.length);
+> ```
+>
+> `gradeOf` nhận `total` là **số testcase của bài**, không phải `0` của plugin.
+> Bài học: một phép đo trên MỘT package không kết luận được về hành vi của cả
+> hệ; đúng hình dạng `rules/negative-result-scope.md` — "không có đường nào"
+> luôn là một câu về phạm vi đã tìm.
+
 **b) Cổng chống rule-of-three của `packages/copy` mù với tên phẳng.**
 
 `groupBySiblingPrefix` cắt khoá bằng `split('.')`, nên mọi khoá `catalog.problem.*`
@@ -135,6 +158,84 @@ Tức là một dòng miễn trừ vô tác dụng đang nằm đó và **không
 Đây đúng hình dạng `rules/prefix-grouping-gate-blind-to-flat-names.md`. Cách kiểm
 bản vá: gỡ MỘT dòng miễn trừ đang có tác dụng thật và xác nhận cổng đỏ **đúng tên
 nhóm đó**; nếu nó đỏ chung chung thì bản vá chưa đúng.
+
+> **2026-09-15 — vá NỬA SAU, nửa trước còn mở và cần chủ dự án chốt.**
+>
+> Đã vá (`2286706`): vế chống-ôi đổi từ `startsWith(prefix + '.')` sang
+> `isDescendantKey`, nhận cả `.` lẫn `-`. Nó lập tức báo `catalog.problem.verdict`
+> là ôi, và dòng đó **đã xoá** — vế "làm cho nó thật sự miễn trừ một nhóm" là bất
+> khả: tiền tố ấy có **5** khoá con phẳng (8 nếu tính ba khoá `-note`), mà không
+> độ mịn nào biến 5 hay 8 thành 3. Đối chứng dương đã chạy trên một dòng khác
+> (`common.difficulty`) và cổng đỏ đúng tên nhóm đó kèm đúng ba thành viên.
+>
+> **Còn mở:** `groupBySiblingPrefix` vẫn cắt bằng `split('.')`, nên một nhóm ba
+> THẬT đặt tên phẳng vẫn đi qua T3 vô hình. Lane đã đo giá của cả ba cách sửa
+> trên 11 surface, và không cách nào miễn phí:
+>
+> | Phương án | Nhóm ba MỚI phải khai lý do | Nhóm ba MẤT (hồi quy) |
+> |---|---|---|
+> | Cắt ở dấu phân cách **cuối cùng** | ~40 | **6** |
+> | Gom ở **mọi** ranh giới | 47 | 1 |
+> | Dấu chấm + bóc **một** tầng gạch nối | 27 | 0 |
+>
+> Hôm nay thứ duy nhất chặn là **quy ước** "nhóm ba thật thì đặt lồng"
+> (`surfaces/shell.ts:161`, `surfaces/me.ts:349`) — và quy ước thì chỉ review mới
+> bắt được. Số đo nằm trong chú thích `scan.ts` để lượt sau khỏi đo lại.
+> **Quyết định cần: chịu rủi ro tên phẳng, hay trả 27 dòng lý do.**
+
+---
+
+### 0.4 Tầng KHO LƯU đã theo kịp 18.A (2026-09-15)
+
+Đợt trước đóng 18.A ở tầng miền (`core/problem.ts`) và tầng giao diện
+(`/author/problems` đổi biểu mẫu theo plugin), và ô AC-A xanh. Nhưng ô AC-A chỉ
+đo `packages/games/src/core/` — nó **không nhìn xuống kho lưu**, và kho lưu thì
+không đi theo:
+
+| Đo 2026-09-15, TRƯỚC đợt này | Kết quả |
+|---|---|
+| `grep -n "game_id\|gameId" apps/web/src/server/db/schema.ts` | **rỗng** |
+| `problems.initial_state` | `jsonb.$type<ClusterSpec>()` — hình dạng K8s |
+| `problems.topics` | `text('topics', { enum: PROBLEM_TOPICS })` — tập chủ đề K8s |
+| `problems.seedable` | không có cột (hợp đồng đã khai trường) |
+
+Hệ quả: một bài Git soạn xong qua giao diện mới **không có chỗ nào để lưu**.
+"OJ đa-game" đúng ở hai tầng trên và sai ở tầng dưới cùng.
+
+**Migration 0015 — thuần THÊM cột, không viết lại dòng nào.** `game_id`
+(mặc định `'k8s'`, đúng nghĩa cho dòng cũ), `seedable` (mặc định `false`, chiều
+an toàn), `target_state`, và `problem_submissions.fail_code`. `topics` gỡ enum ở
+tầng **kiểu** thôi — cột trong Postgres vốn đã là `text[]` theo một quyết định
+cũ, nên không có thay đổi dữ liệu.
+
+`StoredProblem` (`apps/web/src/server/problems/dto.ts`) là DTO game-neutral thay
+`Problem` của K8s trên toàn đường đọc. Nó đặt ở `apps/web` chứ không ở `core/`
+vì phải chở `allowedResources` kiểu `ResourceKind` — đặt vào `core/` là tự làm
+AC-A đỏ. Nợ `allowedResources` ghi tên tại chỗ khai.
+
+**Ba chỗ ĐỔI NGHĨA trong đợt này** (không phải dọn dẹp — ghi ra vì chúng đổi kết
+quả cho dữ liệu đang có):
+
+1. `isSolved` đọc MỌI testcase, trước chỉ đọc `required`. Theo #20, và không
+   khôi phục được: `problemTestcases` không chở `required` qua biên đọc.
+2. `publishIssues` đổi "có ít nhất một objective `required`" → "có ít nhất một
+   testcase". Vị từ cũ đọc `required` trên dữ liệu mới luôn ra `undefined`, tức
+   nó sẽ từ chối xuất bản MỌI bài soạn theo mô hình mới.
+3. `problemAsLevel` nay NÉM khi `gameId !== 'k8s'`, và `submitProblem` có cổng
+   game riêng trả câu nói được. Nhánh đó trước 0015 là **mã chết**; 0015 làm nó
+   thành mã có đường tới.
+
+⚠ **Đường GHI vẫn chỉ nhận bài K8s** — `problemBodyShape` (`validate.ts`) còn
+`initialState: clusterSpecSchema`, `topics: z.enum(PROBLEM_TOPICS)`,
+`required: z.boolean()`. Đó là §18.D.1-nửa-sau, chưa làm. Hệ quả phải biết:
+`crud.ts:191` có một `as unknown as Testcase[]` ở biên ghi, và
+`formFromProblem` còn chốt cứng `gameId: DEFAULT_AUTHOR_GAME` — đọc `gameId`
+thật lúc này sẽ mở một bài Git rồi ghi đè nó bằng một `ClusterSpec`.
+
+⚠ **Hai cổng đang lệch nghĩa nhau:** `problem-validate.ts:121` (client) vẫn hỏi
+`some(o => o.required)` trong khi `publish-gate.ts` (server) đã nới về
+`length === 0`. Client chặt hơn server nên an toàn, nhưng hai bên nay nói hai
+điều khác nhau về cùng một bài — gộp lại khi §18.D.1 mở đường ghi.
 
 ---
 
@@ -324,6 +425,43 @@ nó không chạm tới.
 
 ⚠ Kèm theo: bảng `problems` **chưa có cột `seedable`** (hợp đồng có trường, kho
 lưu chưa có cột). Cổng số 1 không dựng được trước khi cột đó tồn tại.
+
+> **2026-09-15 — cột đã có; cổng số 1 thì KHÔNG dựng được, và lý do quan trọng
+> hơn cái cột.**
+>
+> Cột `problems.seedable` vào ở migration 0015 (mặc định `false`). Nhưng khi bắt
+> tay dựng cổng số 1 thì đo ra một thứ làm cả vế đó **sai như đang viết**:
+>
+> ```ts
+> // apps/web/src/components/k8s-arena/arena-session.ts:133
+> const seedRef = useRef(Math.floor(Math.random() * 2 ** 31));
+> ```
+>
+> Đấu trường K8s sinh seed **NGẪU NHIÊN mỗi phiên**. Nên một cổng đòi
+> `seed === K8S_UNSEEDED_REPLAY_SEED` (`0`) sẽ **từ chối MỌI lượt nộp K8s** — xác
+> suất qua là 1 trên 2³¹. Đó đúng là thảm hoạ mà `core/problem.ts` § `Submission.seed`
+> mô tả: *"nhìn từ phía người dùng, nó giống hệt một hệ thống từ chối người chơi
+> ngẫu nhiên."* Dựng cổng theo chữ của plan hôm nay là tự gây ra nó.
+>
+> Và seed đó **không phải rác**: nó là chuỗi ngẫu nhiên người chơi đang thấy, và
+> `classifyObjectives(level, seedRef.current)` phân loại mục tiêu theo chính nó.
+> Ép nó về một hằng là đổi lối chơi, không phải siết bảo mật.
+>
+> ⚠ Đo thêm, và nó đổi cả khung: `GameProblemPlugin.seedSpec?` là **tuỳ chọn và
+> KHÔNG plugin nào khai nó** (`core/problem-plugin.ts:215` nói thẳng *"cả hai
+> plugin đều cố ý không khai"*). Nghĩa là hôm nay seed **không hề đổi
+> `initialState`** của bài — nó chỉ đổi chuỗi ngẫu nhiên của mô phỏng. Nên câu
+> *"người nộp tự chọn thế giới đầu"* chưa đúng theo nghĩa đen; thứ họ chọn được
+> là **dòng sự cố**, vẫn làm bài dễ đi nhưng là một mối nguy khác và nhỏ hơn.
+>
+> **Việc còn lại, cho người làm §18.G — một quyết định trước, rồi mới tới mã:**
+> bài không seedable nên (a) dùng seed cố định lúc CHƠI, đổi lại mất tính đa dạng
+> mỗi lượt, hay (b) giữ seed ngẫu nhiên và chỉ gác seed **bên trong một
+> `exam_attempt`**, nơi máy chủ tự cấp seed và có cái để so? Vế (b) không chặn gì
+> ngoài kỳ thi, và nó phải đợi bảng `exam_attempt` (§18.G.1) tồn tại.
+>
+> ⛔ **Đừng dựng cổng số 1 trước khi chốt câu đó.** Không phải vì thận trọng — vì
+> đã đo được rằng bản hiển nhiên của nó làm hỏng mọi lượt nộp.
 
 ⚠ **Đồng hồ.** Memory dự án có một bẫy đã cắn: VM ngủ làm vỡ ô nghiệm thu treo theo đồng hồ, và
 đồng hồ VM lệch ~59s so với máy chủ. Trong chế độ thi, lệch nhỏ còn nguy hơn lệch lớn vì số vẫn
