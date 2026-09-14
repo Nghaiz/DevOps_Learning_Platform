@@ -1,9 +1,11 @@
 import { asc, desc, eq, getTableColumns, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type {
+  Problem,
   ProblemListOptions,
   ProblemOrderKey,
   ProblemPage,
-  ProblemWithStats,
+  ProblemStats,
+  ProblemViewerStatus,
 } from '@devops-platform/games';
 import type { Database } from '../db/client';
 import { problems } from '../db/schema';
@@ -12,7 +14,12 @@ import { decodeProblemCursor, encodeProblemCursor } from './cursor';
 import { toProblemDTO } from './dto';
 import { afterCursorWhere, filterWhere } from './list-where';
 import { revealedHintsFor } from './reveals';
-import { toSolverProblem } from './solver';
+import {
+  toHintTeasers,
+  toSolverProblem,
+  type SolverProblemPage,
+  type SolverProblemWithStats,
+} from './solver';
 import { problemStatsSubquery, toProblemStats, toViewerStatus, viewerStatusSubquery } from './stats-sql';
 import {
   allOf,
@@ -43,6 +50,72 @@ export interface ListProblemsInput {
  * được nếu nó chỉ là một bí danh trong danh sách `SELECT`.
  */
 export async function listProblems(db: Database, input: ListProblemsInput): Promise<ProblemPage> {
+  const page = await listProblemRows(db, input);
+  return {
+    items: page.rows.map((row) => ({
+      // ⚠ Giữ NGUYÊN hình dạng cũ (`objectives` còn nguyên) vì đường này phục
+      // vụ `problems.mine`, và `app/author/problems/problem-list-client.tsx`
+      // khai `row: ProblemWithStats`. File đó thuộc lane khác và chưa được giao,
+      // nên thu hẹp kiểu ở đây sẽ làm typecheck của nó đỏ.
+      //
+      // KHÔNG phải một lỗ rò: `mine` là `authorProcedure` và đã chặn phạm vi về
+      // bài của chính người gọi (`admin` thấy mọi bài — vẫn là người được phép
+      // đọc cách chấm). Lỗ rò là đường của NGƯỜI HỌC, và nó đi
+      // `listProblemsForSolver` ngay dưới.
+      problem: {
+        ...row.problem,
+        hints: toHintTeasers(row.problem.hints, row.revealed),
+      },
+      stats: row.stats,
+      viewerStatus: row.viewerStatus,
+    })),
+    nextCursor: page.nextCursor,
+  };
+}
+
+/**
+ * Danh sách cho NGƯỜI HỌC — §18.B.4.
+ *
+ * ⛔ Khác `listProblems` đúng một chỗ và đó là chỗ quan trọng nhất: `objectives`
+ * KHÔNG đi ra dây. Trước bản này, mỗi lần tải `/problems` gửi `check` và `args`
+ * của cả hai mươi bài xuống trình duyệt — cách chấm của cả một trang kho bài,
+ * cho một người chưa mở bài nào. Đọc `solver.ts` § `SolverProblem`.
+ *
+ * Hàm riêng chứ không phải một cờ trên `listProblems`, cùng lý lẽ mà `get.ts`
+ * đã ghi: nhánh che và nhánh không che là hai quyết định bảo mật, và một tham
+ * số boolean là chỗ lần "đơn giản hoá" sau sẽ gộp nhầm.
+ */
+export async function listProblemsForSolver(
+  db: Database,
+  input: ListProblemsInput,
+): Promise<SolverProblemPage> {
+  const page = await listProblemRows(db, input);
+  const items: SolverProblemWithStats[] = page.rows.map((row) => ({
+    // `viewerStatus` là thứ quyết định nhãn testcase ẩn có mở hay không, và nó
+    // gộp ra từ `problem_submissions` trong chính truy vấn trên — không phải
+    // một cờ client gửi lên.
+    problem: toSolverProblem(row.problem, row.revealed, row.viewerStatus !== 'untouched'),
+    stats: row.stats,
+    viewerStatus: row.viewerStatus,
+  }));
+  return { items, nextCursor: page.nextCursor };
+}
+
+interface ProblemRowsPage {
+  readonly rows: readonly {
+    readonly problem: Problem;
+    readonly revealed: ReadonlySet<string>;
+    readonly stats: ProblemStats;
+    readonly viewerStatus: ProblemViewerStatus;
+  }[];
+  readonly nextCursor: string | null;
+}
+
+/**
+ * Truy vấn dùng chung cho cả hai đường trên. Trả `Problem` ĐẦY ĐỦ — phép che là
+ * việc của chỗ gọi, và nó phải là bước cuối cùng trước khi dữ liệu ra dây.
+ */
+async function listProblemRows(db: Database, input: ListProblemsInput): Promise<ProblemRowsPage> {
   const { options } = input;
   const orderBy: ProblemOrderKey = options.orderBy ?? 'code';
   const direction = options.direction ?? 'asc';
@@ -53,7 +126,7 @@ export async function listProblems(db: Database, input: ListProblemsInput): Prom
     // Giao của "state người gọi xin" và "state họ được thấy" là rỗng — ví dụ một
     // người học lọc `['draft']`. Trả trang rỗng, KHÔNG trả lỗi: một lỗi ở đây sẽ
     // xác nhận rằng có bản nháp tồn tại, và đó chính là thứ `draft` phải giấu.
-    return { items: [], nextCursor: null };
+    return { rows: [], nextCursor: null };
   }
 
   const stats = problemStatsSubquery(db);
@@ -113,15 +186,14 @@ export async function listProblems(db: Database, input: ListProblemsInput): Prom
     page.map((row) => row.code),
   );
 
-  const items: ProblemWithStats[] = page.map((row) => ({
-    problem: toSolverProblem(toProblemDTO(row), revealed.get(row.code) ?? new Set<string>()),
-    stats: toProblemStats(row.attemptCount, row.solverCount),
-    viewerStatus: toViewerStatus(row.viewerSolved),
-  }));
-
   const last = page[page.length - 1];
   return {
-    items,
+    rows: page.map((row) => ({
+      problem: toProblemDTO(row),
+      revealed: revealed.get(row.code) ?? new Set<string>(),
+      stats: toProblemStats(row.attemptCount, row.solverCount),
+      viewerStatus: toViewerStatus(row.viewerSolved),
+    })),
     nextCursor: hasMore && last !== undefined ? encodeProblemCursor(orderBy, last) : null,
   };
 }

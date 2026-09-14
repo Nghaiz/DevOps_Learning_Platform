@@ -14,7 +14,7 @@ import {
 import { findHint, toProblemDTO } from '../../problems/dto';
 import { getProblemForViewer } from '../../problems/get';
 import { codeInput, listProblemsInput, toListOptions } from '../../problems/list-input';
-import { listProblems } from '../../problems/list';
+import { listProblems, listProblemsForSolver } from '../../problems/list';
 import { recordHintReveal } from '../../problems/reveals';
 import { listMySubmissions } from '../../problems/submissions';
 import { submitProblem } from '../../problems/submit';
@@ -51,8 +51,15 @@ import { authorProcedure, createTRPCRouter, listInputSchema, protectedProcedure 
 export const problemsRouter = createTRPCRouter({
   // ── Người học ─────────────────────────────────────────────────────────────
 
+  /**
+   * Kho bài cho người học.
+   *
+   * ⛔ `listProblemsForSolver`, KHÔNG phải `listProblems` — §18.B.4. Bản kia giữ
+   * `objectives` nguyên vẹn cho trang soạn bài; gọi nhầm nó ở đây là gửi `check`
+   * và `args` của cả hai mươi bài mỗi trang xuống trình duyệt.
+   */
   list: protectedProcedure.input(listProblemsInput).query(async ({ ctx, input }) =>
-    listProblems(ctx.db, {
+    listProblemsForSolver(ctx.db, {
       visibility: problemVisibilityFor(ctx.user),
       viewerId: ctx.user.id,
       options: toListOptions(input),
