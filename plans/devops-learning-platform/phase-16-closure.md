@@ -510,3 +510,123 @@ Không đóng ở chặng này, ghi ra để P17 không phải tìm lại:
    **`.claude/t1k-artifact-gate.disabled` còn nguyên** — hai thứ tạm dừng cùng
    đợt với `ci.yml` mà chưa bật lại.
 7. **Sweep định kỳ của reaper CHƯA được chứng minh chạy được** — xem §5.8b.
+
+### 6.5 Trả nốt bảy món trên — 2026-09-14, đợt sau
+
+Bảng §6.4 viết lúc đóng chặng. Đợt này đi qua từng dòng và đo lại. Bốn món đóng
+được, ba món không đóng từ repo. Đợt đo cũng lòi ra năm thứ **không có trong
+bảng đó** — ghi ở §6.5.3, vì chúng là phần đắt nhất của lượt này.
+
+| § | Món | Kết cục |
+|---|---|---|
+| 1 | Bảy ô `games.spec.ts` | vẫn là ô nghiệm thu P17, không rời phạm vi |
+| 2 | Arena | quyết định của chủ dự án, không đổi |
+| 3 | Copilot review hết quota | quota tài khoản, không sửa được từ repo |
+| 4 | 7 PR Dependabot | **3 gộp · 1 đóng + ghim · 2 hoãn có tên · 1 chờ** |
+| 5 | 22 khoá `common.*`/`unit.*` | quyết định biên tập, không đổi |
+| 6 | `pre-push` + artifact gate | **ĐÓNG** |
+| 7 | Sweep định kỳ của reaper | **ĐÓNG — và câu hỏi cũ hỏi sai chỗ** |
+
+#### 6.5.1 §7 — sweep của reaper: bằng chứng có sẵn, chỉ là tôi nhìn nhầm bảng
+
+§5.8b viết: *"mọi dòng `session đã reap` trong log orchestrator đều mang
+`actor:"user"`, chưa có dòng nào của lượt quét định kỳ"*. Quan sát đó **đúng**,
+nhưng kết luận rút ra từ nó thì không — vì dòng log ấy **cấu trúc không thể**
+chứa bằng chứng cần tìm.
+
+Đường hết-hạn không đi qua dòng đó. `handleExpiredKey` và
+`sweepClaimedWithoutSession` đều gọi `Service.ReapExpired`, mà hàm này ghi một
+**dòng audit `event='expired'`** xuống Postgres, không phải dòng log mang
+`actor`. Trường `actor` chỉ tồn tại trên đường reap tường minh (người dùng /
+admin). Tìm đường hết-hạn trong dòng có `actor` là tìm mãi không thấy, và cái
+"không thấy" đó đọc ra như "chưa chạy bao giờ".
+
+Đo lại, đúng chỗ:
+
+| Phép đo | Số | Nói lên điều gì |
+|---|---|---|
+| `sessions_audit` where `event='expired'` | **229 dòng**, gần nhất 2026-09-10 | đường hết-hạn đã chạy 229 lần |
+| `dlp_reaper_keyspace_events_total` | **4** | tầng 1 (keyspace expiry) đang nhận event thật |
+| `dlp_reaper_quarantine_reaped_total` | **1** | sweep định kỳ đã LÀM VIỆC, không chỉ quay vòng |
+| `dlp_reaper_stale_image_pods_total` | **3** | sweep phát hiện pod ấm chạy image cũ |
+| `dlp_reaper_sweep_failures_total` | **1** | sweep có lỗi một lần — xem dưới |
+
+Và `--notify-keyspace-events Ex` có thật trong
+`infra/helm/platform/templates/datastore-redis.yaml`, tức tầng 1 được nối dây
+chứ không chỉ được viết ra.
+
+**Một lỗi sweep, đã truy ra:** `2026-09-14T00:27:41Z`,
+`dial tcp 10.96.0.1:443: connect: no route to host` — đợt NIC flap làm mất
+control-plane, không phải lỗi reaper. Các vòng sweep sau đó chạy bình thường
+(chính `quarantine_reaped` và `stale_image_pods` ở trên là bằng chứng).
+
+`dlp_reaper_claimed_orphan_total = 0` không mâu thuẫn: tầng 2c chỉ tăng khi tầng
+1 **lỡ** một event. Bằng 0 nghĩa là tầng 1 đang không lỡ cái nào.
+
+#### 6.5.2 §6 — và ô kiểm hook hoá ra là một ô xanh không gác gì
+
+`scripts/git-hooks/pre-push` đã gỡ khối tạm dừng + `exit 0`; cờ
+`.claude/t1k-artifact-gate.disabled` đã xoá (nó lên tiếng ngay ở lượt commit kế
+tiếp, nên biết chắc là đã sống lại). Branch protection thì đã bật từ trước.
+
+Nhưng lúc kiểm lại mới thấy `check-repo-settings.mjs` gác hook bằng đúng một câu
+hỏi: `git config core.hooksPath` có bằng `scripts/git-hooks` không. Suốt mười
+ngày hook nằm đúng chỗ với `exit 0` ở dòng 20 — và ô đó **xanh mỗi lượt**.
+
+Đã tách làm hai ô; ô mới CHẠY THẬT hook với một dòng stdin giả lập rồi đọc mã
+thoát. Phá thử: nhét lại `exit 0` ⇒ ô mới đỏ, gỡ ra ⇒ xanh, còn ô `core.hooksPath`
+**xanh ở cả hai ca**. Kiểm thêm đúng đường git đi (`git push --dry-run`): chặn
+`main` (exit 1), cho qua nhánh phụ (exit 0).
+
+#### 6.5.3 Năm thứ đợt này lòi ra, không có trong §6.4
+
+1. **`ci.yml` trên `main` đang ĐỎ.** `ci-ok` xanh, nhưng job `images` đỏ ở
+   `web` và `sandbox-base`: `moby/buildkit` trả `502 Bad Gateway` lúc boot
+   buildx. Hạ tầng Docker Hub, không phải mã. Chạy lại ⇒ xanh. Đáng ghi vì
+   `ci-ok` xanh mà run vẫn đỏ là trạng thái dễ đọc lướt thành "ổn".
+2. **Pod rò rỉ 8 tiếng trong `dlp-e2e-p16`**, image `p14a`. Quota ns đó là
+   `pods: 1` nên nó **chặn lượt E2E kế tiếp**. Đã xoá, và đã vá bằng lượt dọn ở
+   cả `globalSetup` lẫn `globalTeardown` (xem commit `fix(e2e)`).
+3. **`TestResizeToiDuocPTY` đỏ theo tải máy, không theo mã.** Nó đỏ trên một PR
+   không đụng dòng Go nào. `sizeQueue.push` coalesce có chủ ý trên buffer 1, nên
+   bài test — vốn vứt giá trị đầu coi là init rồi đợi giá trị thứ hai — vứt đúng
+   thứ nó đang đợi. Ép cho tất định bằng 300ms ngủ trước `Next()` đầu tiên: 3/3.
+4. **`.gitattributes` thiếu `scripts/git-hooks/*`.** Hook không có đuôi `.sh` nên
+   rơi vào `* text=auto` ⇒ checkout Windows cho CRLF. Khối ngay trên đã vá đúng
+   lớp lỗi này cho `images/sandbox-base/bin/*` và bỏ sót hook.
+5. **`check-repo-settings.mjs` lạc hậu hơn `docs/env/04`.** Nó vẫn đòi
+   `required_linear_history: true` và squash-only, trong khi tài liệu đã chuyển
+   sang merge-commit từ 2026-09-08 — và merge commit có hai cha nên linear
+   history **bắt buộc phải tắt**. Sửa script theo tài liệu, không sửa repo theo
+   script. Riêng `strict` là lệch thật, đã đặt lại `true`. Nay `pnpm repo:check`
+   18/18.
+
+#### 6.5.4 §4 — bảy PR Dependabot, từng cái
+
+| PR | Nội dung | Kết cục |
+|---|---|---|
+| #110 | zod 4.4.3 → 4.5.4 | gộp |
+| #108 | lucide-react 1.40.0 → 1.44.0 | gộp |
+| #120 | nhóm dev-dependencies, 6 bản minor/patch | gộp |
+| #104 | **ubuntu 24.04 → 26.04** + golang 1.26.6 → 1.27.1 | **đóng**, ghim ubuntu major |
+| #109 | **vitest 4 → 5** | hoãn, có tên |
+| #107 | **@vitest/browser-playwright 4 → 5** | hoãn, đi cặp với #109 |
+| #105 | go-modules (k8s.io/* 0.36.3 → 0.37.0) | chờ đo riêng |
+
+**#104 — vì sao đóng chứ không gộp.** `ubuntu` trong `images/sandbox-base` không
+phải dependency, nó là **hệ điều hành trong sandbox của người học**. Đổi major là
+đổi phiên bản apt, bash, coreutils, docker CLI, git — tức đổi output của gần như
+mọi bài lab. CI chỉ chứng minh được image *dựng được*. Đã thêm dòng ignore cho
+`ubuntu` major trong `.github/dependabot.yml`, cùng khuôn với dòng `node` đã có.
+Bump golang vẫn nhận qua PR sau.
+
+**#109 + #107 — việc có tên cho chặng sau.** Nâng major test-runner phải đọc
+changelog rồi chạy lại cả 8 gói unit **và** browser mode (gpu-on / gpu-off /
+safari15). Không gộp mù được: bản 4 từng **bỏ `environmentMatchGlobs`** và cấu
+hình hỏng trong im lặng — lọt typecheck, không báo lỗi, chỉ đơn giản không làm gì
+(xem memory `vitest4-removed-environmentmatchglobs`). Một lượt CI xanh trên chính
+cấu hình có thể đã lỗi thời **không** phải bằng chứng.
+
+**#105 — chưa đóng.** k8s.io/* 0.36.3 → 0.37.0 chạm client-go, tức chạm đúng tầng
+reaper + pool. Cổng Go (build + vet + test + lint + vuln) đủ sức bắt lỗi biên
+dịch, nhưng đổi hành vi client-go thì không. Cần một lượt đo riêng.
