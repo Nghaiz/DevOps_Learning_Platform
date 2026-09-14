@@ -10,6 +10,13 @@
 # xa nhất có thể khỏi nguyên nhân. Cùng lý lẽ với `*.sh`, chỉ khác là phải gọi
 # tên vì không có đuôi để khớp.
 images/sandbox-base/bin/* text eol=lf
+
+# Git hook cũng là script shell không đuôi, và cũng bị bỏ sót đúng như trên:
+# `pre-push` ra `text: auto` ⇒ checkout trên Windows (core.autocrlf=true) cho
+# CRLF. Thêm ở đây 2026-09-14, lúc gỡ khối tạm dừng trong hook — một hàng rào
+# vừa bật lại mà file của nó có nguy cơ CRLF thì là hàng rào không đáng tin.
+scripts/git-hooks/* text eol=lf
+
 *.yaml text eol=lf
 *.yml  text eol=lf
 
