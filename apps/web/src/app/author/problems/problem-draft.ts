@@ -1,5 +1,5 @@
 import { errText, t } from '@devops-platform/copy';
-import type { Objective, ProblemHint } from '@devops-platform/games';
+import type { Objective, ProblemHint, ProblemTopic } from '@devops-platform/games';
 import type { FieldIssue } from './cluster-form';
 import { clusterToSpec } from './cluster-to-spec';
 import type { ObjectiveFormState, ProblemDraftInput, ProblemFormState } from './problem-form';
@@ -205,7 +205,20 @@ export function toProblemDraft(form: ProblemFormState): DraftResult {
       title: form.title.trim(),
       statement: form.statement,
       difficulty: form.difficulty,
-      topics: form.topics,
+      /*
+       * Phép ép DUY NHẤT từ chủ đề dạng mờ về union K8s, và nó còn đúng vì hai
+       * lý do đo được, không phải vì tiện:
+       *
+       * 1. Chỉ K8s lưu được hôm nay (`PERSISTABLE_GAMES` ở `game-plugin-view.ts`),
+       *    nên mọi `form.topics` tới được đây đều là chủ đề K8s thật.
+       * 2. Ô chọn chủ đề chỉ dựng từ `pluginViewFor(gameId).topics`, tức người
+       *    soạn không gõ tay được một chuỗi lạ vào đây.
+       *
+       * Máy chủ vẫn kiểm lại (chủ đề phải nằm trong tập của plugin), nên phép
+       * ép này không phải chỗ gác cuối. Ngày `ProblemDraftInput` nhận chủ đề
+       * dạng mờ thì XOÁ hẳn phép ép chứ đừng nới nó ra.
+       */
+      topics: form.topics as readonly ProblemTopic[],
       tags: parseTags(form.tagsText),
       timeLimitSec,
       initialState: cluster.value,

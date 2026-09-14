@@ -288,6 +288,39 @@ export const author = {
   'author.problem.tab.arena': 'Thử',
   'author.problem.tab.json': 'JSON',
   'author.problem.tab.publish': 'Xuất bản',
+  'author.problem.tab.spec': 'Trạng thái ban đầu',
+
+  // -- Chon game, va gioi han lưu tru hom nay --------------------------------
+  // Ten SAU GameId, khong phai hai game co plugin: GAME_NAME trong
+  // game-plugin-view.ts khai Record<GameId, string> toan phan, nen thieu mot
+  // khoa o day la mot loi bien dich chu khong phai mot dong trong tren o chon.
+  'author.problem.game.name.k8s': 'Kubernetes Arena',
+  'author.problem.game.name.git': 'Git Quest',
+  'author.problem.game.name.pipeline': 'Pipeline',
+  'author.problem.game.name.netpol': 'Network Policy',
+  'author.problem.game.name.dockerfile': 'Dockerfile',
+  'author.problem.game.name.cicd': 'CI/CD',
+  'author.problem.game.label': 'Game',
+  'author.problem.game.hint':
+    'Chọn game trước. Biểu mẫu trạng thái ban đầu, tập chủ đề và bảng vị từ đều đổi theo game.',
+  'author.problem.game.locked':
+    'Bài đã lưu thì không đổi game được: đổi game là đổi luôn kiểu của trạng thái ban đầu. Muốn soạn cho game khác thì tạo bài mới.',
+  'author.problem.game.not-persistable-title': 'Game này chưa lưu được',
+  'author.problem.game.not-persistable-body':
+    'Biểu mẫu chạy đầy đủ, nhưng hợp đồng lưu trữ chưa mang được game của bài: bảng bài chỉ giữ trạng thái ban đầu dạng cụm Kubernetes. Soạn thử và xuất JSON thì được; bấm lưu sẽ bị máy chủ từ chối.',
+  'author.problem.game.no-plugin-title': 'Game này chưa có bài tập',
+  'author.problem.game.no-plugin-body':
+    'Chưa có engine chấm cho game này nên chưa soạn bài cho nó được. Chọn một game khác trong danh sách.',
+  'author.problem.game.no-topics':
+    'Game đang chọn chưa khai chủ đề nào, nên chưa chọn được chủ đề cho bài.',
+
+  // -- Bieu mau trang thai ban dau dung tu plugin ----------------------------
+  'author.problem.spec.no-fields':
+    'Plugin của game này chưa mô tả ô nhập nào cho trạng thái ban đầu.',
+  'author.problem.spec.line-per-value': 'Mỗi dòng một giá trị.',
+  'author.problem.spec.json-hint': 'Nhập JSON. Sai cú pháp thì lượt lưu bị chặn.',
+  'author.problem.spec.list-as-json':
+    'Danh sách này nhập bằng JSON: một mảng các object. Biểu mẫu lặp có nút thêm, xoá, đổi thứ tự thì chưa dựng cho ô dạng này.',
 
   'author.problem.objectives.heading': 'Mục tiêu',
   'author.problem.objectives.add': 'Thêm mục tiêu',

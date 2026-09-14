@@ -1,6 +1,14 @@
-import type { Problem, ProblemDifficulty, ProblemTopic, ResourceKind } from '@devops-platform/games';
+import type {
+  GameId,
+  Problem,
+  ProblemDifficulty,
+  ProblemTopicId,
+  ResourceKind,
+} from '@devops-platform/games';
 import type { PredicateName } from '@devops-platform/games';
 import { clusterFromSpec, emptyCluster, type ClusterFormState } from './cluster-form';
+import { DEFAULT_AUTHOR_GAME, initialSpecFor, pluginViewFor } from './game-plugin-view';
+import { specToText, type SpecTextState } from './spec-text';
 
 /**
  * Mô hình FORM của một bài OJ, và hình dạng payload gửi lên router `problems`.
@@ -47,11 +55,51 @@ export interface HintFormState {
 }
 
 export interface ProblemFormState {
+  /**
+   * Game của bài. Quyết định biểu mẫu trạng thái ban đầu, tập chủ đề, và bảng
+   * vị từ dùng cho testcase.
+   *
+   * ## Vì sao nó ở trong FORM mà chưa ở trong payload
+   *
+   * `Problem` chưa có `gameId` và `initialState` của nó vẫn khai `ClusterSpec`
+   * (xem `PERSISTABLE_GAMES` trong `game-plugin-view.ts`). Nên hôm nay trường
+   * này chỉ lái GIAO DIỆN; nó không đi lên máy chủ, và trang cảnh báo thẳng khi
+   * game đang chọn chưa lưu được.
+   *
+   * Giữ nó trong form ngay từ bây giờ chứ không đợi hợp đồng lưu trữ: phần
+   * "biểu mẫu đổi theo plugin" là thứ §18.A.6 đòi, và nó đo được ngay mà không
+   * cần một cột DB nào.
+   */
+  gameId: GameId;
+  /**
+   * Trạng thái ban đầu cho game KHÔNG dùng biểu mẫu viết tay, giữ ở dạng map
+   * chuỗi theo `path` của `authorFields`. Xem `spec-text.ts` về lý do là chuỗi.
+   *
+   * Với K8s thì trường này không được đọc: biểu mẫu viết tay `cluster` mới là
+   * nguồn. Hai trường cùng lúc trông như hai nguồn cho một sự thật, nhưng mỗi
+   * lượt soạn chỉ có ĐÚNG MỘT trường được trình soạn đọc, và `specEditor` của
+   * plugin nói ra trường nào.
+   */
+  specText: SpecTextState;
   title: string;
   slug: string;
   statement: string;
   difficulty: ProblemDifficulty;
-  topics: readonly ProblemTopic[];
+  /**
+   * Chủ đề đang chọn, giữ ở kiểu MỜ (`ProblemTopicId` = `string`) chứ không ở
+   * union đóng của K8s.
+   *
+   * `core/problem.ts` đã chuyển tập đóng từ `core/` xuống từng plugin, đúng vì
+   * lý do này: chín tên chủ đề K8s là tri thức về Kubernetes, và một bài Git
+   * không chọn chủ đề trong một danh sách nói về Pod. Giữ union K8s ở tầng form
+   * thì mỗi lần bấm một ô chủ đề của game khác là một phép ép kiểu.
+   *
+   * Tập đóng KHÔNG mất: ô chọn chỉ dựng từ `pluginViewFor(gameId).topics`, và
+   * máy chủ kiểm lại chủ đề của bài có nằm trong tập của plugin không. Phép ép
+   * về union K8s còn đúng MỘT chỗ, ở `problem-draft.ts`, và nó có chú thích
+   * nói vì sao còn đúng.
+   */
+  topics: readonly ProblemTopicId[];
   /** Ô tự do ngăn bằng dấu phẩy; chuẩn hoá thường + gạch nối lúc chuyển payload. */
   tagsText: string;
   hasTimeLimit: boolean;
@@ -77,8 +125,25 @@ export function emptyHint(key: string): HintFormState {
   return { key, id: '', text: '', penaltyPoints: '10' };
 }
 
+/**
+ * Ô nhập của biểu mẫu dựng-từ-plugin, nạp sẵn `initialSpec()` của game.
+ *
+ * Trả `{}` khi game chưa có plugin. Đó là câu trả lời hợp lệ, không phải lỗi:
+ * trang hiện một trạng thái rỗng đọc được (xem `GameSelectField`).
+ */
+export function specTextForGame(gameId: GameId): SpecTextState {
+  const view = pluginViewFor(gameId);
+  const spec = initialSpecFor(gameId);
+  if (view === null || spec === null) {
+    return {};
+  }
+  return specToText(view.authorFields, spec);
+}
+
 export function emptyForm(nextKey: () => string): ProblemFormState {
   return {
+    gameId: DEFAULT_AUTHOR_GAME,
+    specText: specTextForGame(DEFAULT_AUTHOR_GAME),
     title: '',
     slug: '',
     statement: '',
@@ -101,6 +166,12 @@ export function emptyForm(nextKey: () => string): ProblemFormState {
 /** Đọc một bài đã lưu về form. Mọi số thành chuỗi, mọi `null` thành cờ tắt. */
 export function formFromProblem(problem: Problem, nextKey: () => string): ProblemFormState {
   return {
+    // Mọi bài ĐÃ LƯU đều là K8s, và đó là một sự thật của hợp đồng chứ không
+    // phải một giả định tiện tay: `Problem` không có `gameId` để đọc ra, và
+    // `initialState` của nó khai đúng `ClusterSpec`. Ngày hợp đồng có `gameId`
+    // thì dòng này đọc từ bài, và `PERSISTABLE_GAMES` biến mất cùng lúc.
+    gameId: DEFAULT_AUTHOR_GAME,
+    specText: specTextForGame(DEFAULT_AUTHOR_GAME),
     title: problem.title,
     slug: problem.slug,
     statement: problem.statement,

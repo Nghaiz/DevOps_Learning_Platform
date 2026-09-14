@@ -9,10 +9,13 @@ import { ClassifyFields } from './classify-fields';
 import { ClusterFields } from './cluster-fields';
 import type { ClusterFormState, FieldIssue } from './cluster-form';
 import { parseList } from './text-tools';
+import { GameSelectField } from './game-select-field';
+import { pluginViewFor } from './game-plugin-view';
 import { HintListFields } from './hint-fields';
 import { JsonTransfer } from './json-transfer';
 import { ObjectiveFields } from './objective-fields';
-import { emptyObjective, type ProblemFormState } from './problem-form';
+import { PluginFields } from './plugin-fields';
+import { emptyObjective, specTextForGame, type ProblemFormState } from './problem-form';
 import { StatementFields } from './statement-fields';
 
 /**
@@ -54,8 +57,36 @@ export function ProblemEditor(props: {
     .map((node) => node.name.trim())
     .filter((name) => name !== '');
 
+  /**
+   * Plugin của game đang chọn. `null` khi game chưa có bài tập, và đó là một
+   * câu trả lời hợp lệ chứ không phải lỗi (`GameSelectField` hiện trạng thái
+   * rỗng cho ca đó).
+   */
+  const view = pluginViewFor(props.form.gameId);
+
   return (
     <div className="flex flex-col gap-6">
+      <GameSelectField
+        gameId={props.form.gameId}
+        // Đổi game trên một bài ĐÃ LƯU là đổi cả kiểu `initialState` của nó,
+        // mà máy chủ chưa có đường nhận chuyện đó. Khoá ô lại ở trang sửa thì
+        // giới hạn nhìn thấy được; để mở thì người soạn đổi xong rồi mất bản
+        // cụm đã dựng, đổi lấy một lỗi 400.
+        canChange={props.code === null}
+        onChange={(gameId) => {
+          props.onChange({
+            ...props.form,
+            gameId,
+            specText: specTextForGame(gameId),
+            // Chủ đề XOÁ theo game, không giữ lại. Tập chủ đề là ĐÓNG theo
+            // plugin, nên một chủ đề K8s còn sót lại trên một bài Git sẽ trượt
+            // cổng kiểm ở máy chủ mà không hiện ra ở đâu trên giao diện: ô của
+            // nó đã biến mất khỏi màn hình.
+            topics: [],
+          });
+        }}
+      />
+
       <Tabs
         value={tab}
         onValueChange={(value) => {
@@ -64,7 +95,14 @@ export function ProblemEditor(props: {
       >
         <TabsList className="h-auto max-w-full flex-wrap justify-start [&>[data-slot=tabs-trigger]]:min-h-11">
           <TabsTrigger value="mo-ta">{t('author.problem.tab.statement')}</TabsTrigger>
-          <TabsTrigger value="cum">{t('author.problem.tab.cluster')}</TabsTrigger>
+          {/*
+            Nhãn tab tới từ PLUGIN, không phải một hằng: "Cụm ban đầu" đúng với
+            K8s và sai với mọi game khác. Đây cũng là dấu hiệu rẻ nhất trên màn
+            hình cho thấy ô chọn game đã ăn.
+          */}
+          <TabsTrigger value="cum">
+            {view?.specTabLabel ?? t('author.problem.tab.spec')}
+          </TabsTrigger>
           <TabsTrigger value="muc-tieu">
             {t('author.problem.tab.objectives', { n: props.form.objectives.length })}
           </TabsTrigger>
@@ -86,21 +124,45 @@ export function ProblemEditor(props: {
               issues={props.issues}
               code={props.code}
             />
-            <ClassifyFields form={props.form} onChange={patch} issues={props.issues} />
+            {/*
+              Tập chủ đề tới từ plugin của game đang chọn. Chín chủ đề K8s
+              không còn là danh sách dùng chung, và truyền `[]` khi game chưa
+              có plugin là đúng nghĩa: chưa có bài tập thì chưa có chủ đề nào.
+            */}
+            <ClassifyFields
+              form={props.form}
+              onChange={patch}
+              issues={props.issues}
+              topics={view?.topics ?? []}
+            />
           </div>
         </TabsContent>
 
         <TabsContent value="cum">
           <div className="pt-4">
-            <ClusterFields
-              cluster={props.form.cluster}
-              issues={props.issues}
-              nextKey={props.nextKey}
-              onChange={patchCluster}
-              onReplace={(cluster) => {
-                props.onChange({ ...props.form, cluster });
-              }}
-            />
+            {view !== null && view.specEditor === 'generic' ? (
+              <PluginFields
+                fields={view.authorFields}
+                value={props.form.specText}
+                issues={props.issues}
+                onChange={(path, next) => {
+                  props.onChange({
+                    ...props.form,
+                    specText: { ...props.form.specText, [path]: next },
+                  });
+                }}
+              />
+            ) : (
+              <ClusterFields
+                cluster={props.form.cluster}
+                issues={props.issues}
+                nextKey={props.nextKey}
+                onChange={patchCluster}
+                onReplace={(cluster) => {
+                  props.onChange({ ...props.form, cluster });
+                }}
+              />
+            )}
           </div>
         </TabsContent>
 
