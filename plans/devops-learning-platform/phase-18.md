@@ -263,6 +263,32 @@ Test tự động, không thử tay.
 | G.6 | Bảng điểm lớp: ai làm bài nào, `AC` hay `WA (n/m)`, sai testcase nào | 4h |
 | G.7 | Xuất CSV | 3h |
 
+⚠ **CỔNG SEED — nợ đã ghi 2026-09-14, chưa có, và G.3 một mình KHÔNG đủ.**
+
+Lane dựng nửa máy chủ của đường nộp bài phát hiện: `submit.ts` nhận `log.seed`
+**không điều kiện**. Điều đó ĐÚNG cho việc chấm ngoài kỳ thi, và nó là hệ quả cố
+ý của quyết định "lượt nộp mang theo seed đã dùng" (xem `core/problem.ts`
+§ `Submission.seed`, và commit `ae7ed23`).
+
+Nhưng khi chế độ thi mở, cùng một tính chất đó đọc thành: **người nộp tự chọn
+thế giới đầu**. Ai cũng gửi lên được một seed sinh ra cấu hình dễ nhất, và không
+có gì từ chối.
+
+Hai vế phải làm, không phải một:
+
+1. **Cổng phía `submit`** (chưa có): với bài `seedable: false`, seed gửi lên phải
+   bằng đúng seed bài quy định. Với bài `seedable: true` trong một kỳ thi, seed
+   phải bằng đúng seed đã cấp cho `exam_attempt` của chính người đó.
+2. **G.3** như plan đã ghi: chặn bài `seedable: false` lọt vào kỳ thi
+   `per-student`.
+
+G.3 gác lúc **soạn đề**, cổng trên gác lúc **nộp**. Thiếu cái thứ hai thì một đề
+soạn đúng luật vẫn bị lách ở bước nộp, và G.3 sẽ trông như đang bảo vệ một thứ
+nó không chạm tới.
+
+⚠ Kèm theo: bảng `problems` **chưa có cột `seedable`** (hợp đồng có trường, kho
+lưu chưa có cột). Cổng số 1 không dựng được trước khi cột đó tồn tại.
+
 ⚠ **Đồng hồ.** Memory dự án có một bẫy đã cắn: VM ngủ làm vỡ ô nghiệm thu treo theo đồng hồ, và
 đồng hồ VM lệch ~59s so với máy chủ. Trong chế độ thi, lệch nhỏ còn nguy hơn lệch lớn vì số vẫn
 trông hợp lý. Mọi mốc phải lấy từ **một nguồn duy nhất là server**.
