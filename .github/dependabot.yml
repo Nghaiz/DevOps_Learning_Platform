@@ -115,7 +115,17 @@ updates:
       # đợt làm việc có đo: dựng image, chạy lại bộ lab trên cụm, đối chiếu từng
       # bước chấm. Bỏ dòng này khi đợt đó bắt đầu, đừng bỏ để "thử xem CI có
       # xanh không".
+      #
+      # ⚠ PHẢI CHẶN CẢ MINOR, và đây là lỗ hổng của chính dòng này lúc mới thêm.
+      # Với Ubuntu, ranh giới LTS KHÔNG trùng ranh giới major/minor: `24.04` là
+      # LTS (5 năm), còn `24.10` là bản lẻ chỉ được hỗ trợ 9 tháng — mà
+      # Dependabot đọc `24.04 → 24.10` là một bump MINOR. Đo thật 2026-09-14:
+      # sau khi chặn major, PR #125 quay lại đề xuất đúng `24.04 → 24.10`. Chặn
+      # major một mình là gác đúng cái mình nghĩ tới và bỏ lọt cái đang tới.
+      # Cùng lý lẽ với dòng `node` ngay trên, chỉ khác là node dùng tag `NN-alpine`
+      # nên nó chỉ nhảy major, còn ubuntu nhảy được cả hai kiểu.
       - dependency-name: 'ubuntu'
-        update-types: ['version-update:semver-major']
+        update-types:
+          ['version-update:semver-major', 'version-update:semver-minor']
     commit-message:
       prefix: 'chore'
