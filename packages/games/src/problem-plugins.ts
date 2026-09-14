@@ -34,12 +34,19 @@ import { K8S_PROBLEM_PLUGIN } from './k8s/problem-plugin.ts';
  *
  * ── VÌ SAO CÓ MỘT PHÉP ÉP KIỂU Ở ĐÂY, VÀ VÌ SAO NÓ KHÔNG GIẤU GÌ ──
  *
- * `ProblemPluginRegistry` giữ `GameProblemPlugin<never, GameAction>`.
- * `never` làm đúng việc nó phải làm ở các vị trí THAM SỐ (`grade` nhận
- * `initialState`), nhưng `Spec` còn xuất hiện ở một vị trí TRẢ VỀ:
- * `initialSpec(): Spec`. Chiều đó là hiệp biến, nên `() => ClusterSpec` KHÔNG
- * gán được vào `() => never` — không một plugin thật nào gán thẳng vào bảng
- * được, kể cả plugin viết hoàn toàn đúng hợp đồng.
+ * KHÔNG một plugin thật nào gán thẳng vào bảng được, kể cả plugin viết hoàn toàn
+ * đúng hợp đồng. Đo ngày 2026-09-14 bằng cách bỏ hai phép ép rồi chạy
+ * `pnpm --filter @devops-platform/games typecheck`:
+ *
+ *     src/problem-plugins.ts(56,3): error TS2375: Type
+ *     'GameProblemPlugin<ClusterSpec, K8sActionShape>' is not assignable to type
+ *     'GameProblemPlugin<never, GameAction>' with 'exactOptionalPropertyTypes: true'.
+ *
+ * ⚠ Đừng đọc lướt mã lỗi đó. TS2375 nói về `exactOptionalPropertyTypes`, tức là
+ * thứ chặn ĐẦU TIÊN là thuộc tính TUỲ CHỌN `seedSpec?` chứ không phải `never` —
+ * cả hai plugin đều cố ý KHÔNG khai `seedSpec`. `never` ở vị trí trả về của
+ * `initialSpec(): Spec` là một chỗ chặn thứ hai ĐÁNG NGỜ nhưng CHƯA được tách
+ * ra đo riêng: `tsc` dừng ở lỗi đầu nên chưa có bằng chứng cho vế thứ hai.
  *
  * Phép ép được đặt ở ĐÚNG MỘT chỗ (đây) thay vì rải ở mỗi chỗ dùng, và nó không
  * che mất gì: `K8S_PROBLEM_PLUGIN` / `GIT_PROBLEM_PLUGIN` vẫn được khai bằng
@@ -47,10 +54,8 @@ import { K8S_PROBLEM_PLUGIN } from './k8s/problem-plugin.ts';
  * chúng, nên mọi sai lệch hợp đồng vẫn đỏ tại nơi sinh ra. Bảng này chỉ dùng cho
  * việc LIỆT KÊ và cho `gradeProblemRun` ngay dưới.
  *
- * ⚠ Đã báo lead: nếu muốn bỏ phép ép này thì tham số của bảng phải là `unknown`
- * chứ không phải `never` (phương thức trong TypeScript so sánh hai chiều, nên
- * `unknown` vẫn nhận được ở vị trí tham số mà KHÔNG cần `any`). Đó là một thay
- * đổi của `core/problem-plugin.ts`, file lead sở hữu.
+ * ⚠ Đã báo lead: sửa tận gốc là việc của `core/problem-plugin.ts` (lead sở hữu),
+ * không phải của file này.
  */
 export const PROBLEM_PLUGINS: ProblemPluginRegistry = {
   k8s: K8S_PROBLEM_PLUGIN as unknown as GameProblemPlugin<never, GameAction>,
