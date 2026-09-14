@@ -2,7 +2,6 @@ import {
   problemVerdictOf,
   type GradeResult,
   type ProblemVerdict,
-  type Testcase,
   type TestcaseTeaser,
   type VerifyStatus,
 } from '@devops-platform/games';
