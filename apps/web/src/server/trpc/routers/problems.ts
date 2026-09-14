@@ -23,6 +23,14 @@ import { problemVisibilityFor, visibleProblemWhere } from '../../problems/visibi
 import { authorProcedure, createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
 
 /**
+ * Trần số hành động trong một `RunLog` gửi lên — §18.C.4.
+ *
+ * Xem khối chú thích tại chỗ dùng (`submit.input.runLog.actions`) về vì sao trần
+ * nằm ở schema input chứ không nằm trong `submitProblem`, và vì sao con số này.
+ */
+const MAX_LOG_ACTIONS = 20_000;
+
+/**
  * `problems.*` — hệ bài tập kiểu OJ (P14 lane D).
  *
  * Hợp đồng: `packages/games/src/k8s/problem.ts`. File này hiện thực đúng nó và
@@ -144,6 +152,30 @@ export const problemsRouter = createTRPCRouter({
             gameId: z.literal('k8s').default('k8s'),
             levelId: z.string().min(1),
             seed: z.number().int(),
+            /*
+              * Trần độ dài — §18.C.4, nửa "giới hạn độ dài `actions[]`".
+              *
+              * ⛔ Trần phải nằm ở ĐÂY, trong schema input, chứ không ở trong
+              * `submitProblem`. Một mảng mười triệu phần tử đã được phân tích,
+              * cấp phát và giữ trong bộ nhớ TRƯỚC khi bất kỳ dòng nào của
+              * `submitProblem` chạy; kiểm `actions.length` ở đó là kiểm sau khi
+              * đã trả giá. Zod từ chối ngay tại biên.
+              *
+              * Vì sao là một con số chứ không phải "đủ lớn để không ai chạm":
+              * máy chủ phát lại nhật ký HAI lần (`verifyRun` bắt engine không
+              * tất định) rồi chạy mọi vị từ, nên độ dài nhật ký nhân thẳng vào
+              * thời gian CPU của một lượt nộp. Cùng với trần nhịp 6 lượt/phút ở
+              * `submit.ts`, hai con số này chốt được trần tải của một tài khoản.
+              *
+              * 20.000 chọn theo cái nó phải cho phép: `parMoves` của bài khó
+              * nhất trong repo là hai chữ số, và một lượt chơi thật gồm lệnh +
+              * tick + gợi ý vẫn nằm trong hàng nghìn. Hai chục nghìn rộng hơn
+              * một lượt chơi thật rất xa và hẹp hơn một vòng lặp sinh dữ liệu.
+              *
+              * ⚠ Thông điệp nói ra con số. Một `400` trần trên một nhật ký dài
+              * đọc ra như "lượt chơi của tôi hỏng", và người chơi sẽ chơi lại
+              * rồi hỏng y hệt.
+              */
             actions: z
               .array(
                 z.looseObject({
@@ -152,6 +184,9 @@ export const problemsRouter = createTRPCRouter({
                   tick: z.number(),
                 }),
               )
+              .max(MAX_LOG_ACTIONS, {
+                message: `Nhật ký lượt chơi vượt trần ${String(MAX_LOG_ACTIONS)} hành động`,
+              })
               .readonly(),
           }),
           claimed: z.object({
