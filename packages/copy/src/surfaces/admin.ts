@@ -394,6 +394,128 @@ export const admin = {
     what: `Không lưu trữ được bài: ${p.message}`,
     next: 'Đọc lại danh sách để xem trạng thái hiện tại trước khi thử lại.',
   }),
+
+  // ── /admin/classes, lớp học (18.F) ──────────────────────────────────────
+  //
+  // Màn thứ SÁU của nhánh quản trị. Chú thích đầu file nói năm màn là cố định
+  // bởi D12; con số đó đã cũ kể từ khi phase-18 §2 giao 18.F vào /admin, và lý
+  // do nằm ở chính quyết định vai trò: giảng viên dùng lại role `admin`, nên
+  // lớp học không có chỗ nào khác để ở.
+  //
+  // Chữ ở đây gọi người trong lớp là "sinh viên", không gọi là "thành viên"
+  // chung chung: bảng `class_members` theo định nghĩa chỉ chứa sinh viên, còn
+  // chủ lớp là một cột riêng. Dùng một từ mơ hồ cho một tập đã rõ sẽ làm người
+  // đọc màn hình tưởng chủ lớp cũng nằm trong bảng.
+  'admin.classes.title': 'Lớp học',
+  'admin.classes.description':
+    'Tạo lớp, thêm sinh viên, xem bảng điểm. Mỗi lớp thuộc về tài khoản quản trị đã tạo ra nó.',
+  'admin.classes.back': 'Về danh sách lớp',
+
+  'admin.classes.create-name-label': 'Tên lớp',
+  'admin.classes.create-name-placeholder': 'D21CQCN01-B',
+  'admin.classes.create-desc-label': 'Mô tả (không bắt buộc)',
+  'admin.classes.create-desc-placeholder': 'Học kỳ 1, nhóm thực hành thứ Ba',
+  'admin.classes.create-submit': 'Tạo lớp',
+
+  'admin.classes.col-name': 'Lớp',
+  'admin.classes.col-owner': 'Chủ lớp',
+  'admin.classes.col-members': 'Sĩ số',
+  'admin.classes.col-created': 'Ngày tạo',
+  'admin.classes.col-actions': 'Thao tác',
+  'admin.classes.open': 'Mở lớp',
+  'admin.classes.no-description': 'Không có mô tả',
+
+  'admin.classes.empty-title': 'Chưa có lớp nào',
+  'admin.classes.empty-body': 'Tạo lớp đầu tiên bằng ô phía trên, rồi thêm sinh viên bằng email.',
+  // Câu tự đính chính phạm vi, cùng khuôn `admin.users.note`: bảng chỉ nói về
+  // TRANG đang xem, nên một con số đọc ra như tổng của cả hệ là một khẳng định
+  // sai.
+  'admin.classes.note': (p: { count: number; page: number }): string =>
+    `Đang hiện ${String(p.count)} lớp ở trang ${String(p.page)}`,
+  'admin.classes.note-more': ', còn trang tiếp theo.',
+  'admin.classes.created-toast-title': (p: { name: string }): string => `Đã tạo lớp ${p.name}`,
+  'admin.classes.created-toast-body': 'Mở lớp để thêm sinh viên bằng email.',
+
+  'admin.classes.detail-owner': (p: { owner: string }): string => `Chủ lớp: ${p.owner}`,
+  'admin.classes.members-title': 'Sinh viên',
+  'admin.classes.members-description':
+    'Thêm bằng email của tài khoản đã đăng ký. Chủ lớp không nằm trong danh sách này.',
+  'admin.classes.add-email-label': 'Email sinh viên',
+  'admin.classes.add-email-placeholder': 'sinhvien@ptit.edu.vn',
+  'admin.classes.add-submit': 'Thêm vào lớp',
+  'admin.classes.member-col-student': 'Sinh viên',
+  'admin.classes.member-col-joined': 'Vào lớp',
+  'admin.classes.members-empty-title': 'Lớp chưa có sinh viên nào',
+  'admin.classes.members-empty-body':
+    'Nhập email của một tài khoản đã đăng ký vào ô phía trên. Tài khoản chưa đăng ký thì chưa thêm được.',
+  'admin.classes.members-note': (p: { count: number; page: number }): string =>
+    `Đang hiện ${String(p.count)} sinh viên ở trang ${String(p.page)}`,
+  'admin.classes.added-toast-title': (p: { email: string }): string => `Đã thêm ${p.email}`,
+  'admin.classes.added-toast-body': 'Bảng điểm sẽ tính cả người vừa thêm.',
+  'admin.classes.remove': 'Bỏ khỏi lớp',
+  'admin.classes.remove-title': (p: { name: string }): string => `Bỏ ${p.name} khỏi lớp?`,
+  'admin.classes.remove-body':
+    'Lịch sử làm bài của người này KHÔNG bị xoá, chỉ tư cách thành viên lớp. Thêm lại được bất cứ lúc nào.',
+  'admin.classes.remove-confirm': 'Bỏ khỏi lớp',
+  'admin.classes.removed-toast-title': (p: { name: string }): string => `Đã bỏ ${p.name} khỏi lớp`,
+  'admin.classes.removed-toast-body': 'Bảng điểm không còn tính người này nữa.',
+
+  'admin.classes.scoreboard-title': 'Bảng điểm',
+  // Phạm vi phải nói ra: bảng này chỉ đọc `problem_submissions`, tức là hệ bài
+  // tập kiểu OJ. Lượt làm lab và lượt làm trắc nghiệm không vào đây, và một
+  // bảng tên là "Bảng điểm" mà im lặng về chuyện đó sẽ bị đọc là điểm tổng kết.
+  'admin.classes.scoreboard-description':
+    'Chỉ tính bài tập kiểu OJ. Lượt làm lab và bài trắc nghiệm không nằm trong bảng này.',
+  'admin.classes.score-col-student': 'Sinh viên',
+  'admin.classes.score-col-attempted': 'Đã thử',
+  'admin.classes.score-col-solved': 'Đã giải',
+  'admin.classes.score-col-total': 'Tổng điểm',
+  'admin.classes.score-col-last': 'Nộp gần nhất',
+  'admin.classes.never-submitted': 'Chưa nộp',
+  'admin.classes.score-empty-title': 'Chưa có gì để chấm',
+  'admin.classes.score-empty-body': 'Thêm sinh viên vào lớp, bảng điểm sẽ hiện ngay khi có lượt nộp.',
+  // Điểm mỗi bài lấy bản CAO NHẤT, không cộng dồn mọi lượt. Nói ra vì hai cách
+  // tính cho hai con số rất khác nhau và người đọc không đoán được là cách nào.
+  'admin.classes.score-note': 'Mỗi bài tính điểm cao nhất của người đó, không cộng dồn các lượt nộp lại.',
+
+  'admin.error.classes-list': (p: { reason: string }): ErrorEntry => ({
+    what: `Không đọc được danh sách lớp: ${p.reason}`,
+    next: 'Bấm Thử lại. Nếu vẫn lỗi, kiểm xem BFF có kết nối được Postgres không.',
+  }),
+  'admin.error.class-get': (p: { reason: string }): ErrorEntry => ({
+    what: `Không mở được lớp: ${p.reason}`,
+    next: 'Quay về danh sách lớp. Lớp có thể vừa bị xoá cùng tài khoản chủ lớp.',
+  }),
+  // `CONFLICT` là phán quyết có chủ đích của `createClass` (trùng tên), nên câu
+  // của máy chủ đã đúng và chỉ cần thêm phần nên làm gì.
+  'admin.error.class-create-conflict': (p: { message: string }): ErrorEntry => ({
+    what: `${p.message}.`,
+    next: 'Đặt một tên khác, hoặc mở lớp đã có trong danh sách bên dưới.',
+  }),
+  'admin.error.class-create-other': (p: { message: string }): ErrorEntry => ({
+    what: `Không tạo được lớp: ${p.message}`,
+    next: 'Tải lại danh sách để xem lớp đã được tạo chưa trước khi thử lại.',
+  }),
+  'admin.error.class-members': (p: { reason: string }): ErrorEntry => ({
+    what: `Không đọc được danh sách sinh viên: ${p.reason}`,
+    next: 'Bấm Thử lại. Bảng điểm bên dưới vẫn đọc độc lập với danh sách này.',
+  }),
+  'admin.error.class-add-known': (p: { message: string }): ErrorEntry => ({
+    what: `${p.message}.`,
+    next: 'Kiểm lại email, hoặc bảo sinh viên đăng ký tài khoản trước.',
+  }),
+  'admin.error.class-add-other': (p: { message: string }): ErrorEntry => ({
+    what: `Không thêm được sinh viên: ${p.message}`,
+    next: 'Tải lại danh sách để xem người đó đã vào lớp chưa trước khi thử lại.',
+  }),
+  'admin.error.class-remove': (p: { message: string }): ErrorEntry => ({
+    what: `Không bỏ được sinh viên khỏi lớp: ${p.message}`,
+    next: 'Tải lại danh sách để xem người đó còn trong lớp không trước khi thử lại.',
+  }),
+  'admin.error.class-scoreboard': (p: { reason: string }): ErrorEntry => ({
+    what: `Không đọc được bảng điểm: ${p.reason}`,
+    next: 'Bấm Thử lại. Danh sách sinh viên phía trên vẫn đọc độc lập với bảng này.',
+  }),
 } as const satisfies Surface<'admin'>;
 
 export const adminIntentionalThree = {
