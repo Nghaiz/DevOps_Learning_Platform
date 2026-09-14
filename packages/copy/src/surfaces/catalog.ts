@@ -711,6 +711,28 @@ export const catalog = {
   'catalog.loading.grid': 'Đang tải danh sách',
 } as const satisfies Surface<'catalog'>;
 
+/**
+ * KHÔNG có dòng `catalog.problem.verdict` ở đây, và đó là kết quả của một phép
+ * đo chứ không phải một chỗ bỏ sót.
+ *
+ * Dòng đó tồn tại từ 18.C với một lý do viết đúng (PROBLEM_VERDICTS có đúng ba
+ * thành viên AC/WA/CE). Nhưng nó chưa bao giờ miễn trừ nhóm nào: `scanThree`
+ * gom khoá theo tiền tố có dấu chấm, còn ba nhãn verdict đặt PHẲNG
+ * (`catalog.problem.verdict-ac`), nên chúng rơi vào nhóm `catalog.problem`
+ * vốn đông hàng chục thành viên. Không nhóm nào tên `catalog.problem.verdict`
+ * từng được dựng ra để mà miễn trừ.
+ *
+ * Đổi độ mịn của phép gom KHÔNG cứu được dòng này: tiền tố `catalog.problem.verdict`
+ * có năm khoá con phẳng (ac, wa, ce, region, unnamed), tám nếu tính cả ba khoá
+ * `-note`. Năm hay tám thì cũng không phải ba.
+ *
+ * Đường duy nhất làm nó sống lại là ĐẶT LỒNG ba nhãn kia
+ * (`catalog.problem.verdict.ac/.wa/.ce`), đúng quy ước mà `surfaces/shell.ts`
+ * và `surfaces/me.ts` đã ghi. Việc đó phải sửa chỗ gọi trong
+ * `apps/web/src/app/(session)/problems/[code]/`, ngoài phạm vi lượt sửa này.
+ * Lúc ai đó làm, dòng miễn trừ cũ nằm nguyên văn trong báo cáo
+ * `reports/2026-09-15-lane-copy-gate-report.md` để chép lại.
+ */
 export const catalogIntentionalThree = {
   'catalog.problems.viewer':
     '2026-09-10: ProblemViewerStatus là union đóng ba thành viên (solved, attempted, untouched) trong packages/games, và Record<ProblemViewerStatus, TextKey> ở problem-labels.ts giữ hai bên khớp. Thành viên thứ tư phải sửa union trước.',
@@ -720,8 +742,6 @@ export const catalogIntentionalThree = {
     '2026-09-10: đúng ba runtime tồn tại trong hợp đồng dữ liệu SandboxTierName (sysbox, gvisor, kata), kiểm tại packages/shared-types/src/scenario.ts. Hạng thứ tư nào cũng phải sửa schema trước, và lúc đó nhóm này thôi là ba.',
   'catalog.status':
     '2026-09-10: đúng ba trạng thái tồn tại trong PROGRESS_STATUSES tại apps/web/src/server/trpc/routers/lessons.ts dòng 61 (not-started, in-progress, completed). Trang danh mục đọc thẳng giá trị đó, nên nhóm này bằng đúng miền dữ liệu chứ không phải một lựa chọn trình bày.',
-  'catalog.problem.verdict':
-    '2026-09-14: đúng ba verdict tồn tại trong PROBLEM_VERDICTS tại packages/games/src/core/problem.ts (AC, WA, CE). Hợp đồng nói thẳng vì sao KHÔNG có TLE/RE/MLE: game chạy trên một thế giới mô phỏng trong trình duyệt, không có tiến trình để hết giờ và không có bộ nhớ để tràn. Nhãn thứ tư nào cũng phải sửa union trước, và lúc đó nhóm này thôi là ba.',
   'catalog.error-hint':
     '2026-09-10: đúng ba câu vì CatalogErrorKind là union đóng ba nhánh (retryable, stale-cursor, unknown) tại apps/web/src/components/catalog/catalog-error-kind.ts. Hai lớp lỗi đòi hành động ngược nhau và nhánh thứ ba cố ý nói ít; thêm một câu thứ tư là thêm một nhánh phân loại, không phải thêm một câu.',
 } as const satisfies IntentionalThree;

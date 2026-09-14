@@ -185,6 +185,30 @@ describe('đối chứng · scanThree', () => {
     const stale = { x: '2026-09-10: ly do cu con dai hon hai muoi ky tu nhung da het hieu luc' };
     expect(scanThree(surface, stale).map((v) => v.kind)).toContain('stale-intentional-three');
   });
+
+  /**
+   * Nửa còn lại của vế chống-ôi, và nó từng MÙ.
+   *
+   * Bảng miễn trừ viết tiền tố có dấu chấm (`x.verdict`) trong khi khoá thật
+   * đặt PHẲNG bằng gạch nối (`x.verdict-ac`). Phép kiểm cũ hỏi
+   * `startsWith(prefix + '.')`, tức bắt buộc một dấu chấm, nên nó không thấy
+   * hậu duệ nào và im lặng bỏ qua. Hậu quả đo được ở 18.C: dòng
+   * `catalog.problem.verdict` nằm trong `catalogIntentionalThree` mà không
+   * miễn trừ nhóm nào, cũng không bị báo là ôi.
+   *
+   * Surface ở đây cố ý chỉ có HAI khoá: ba khoá thì nhóm `x` cũng thành nhóm
+   * ba và đẻ thêm một vi phạm `three-siblings`, làm mờ đúng thứ đang đo.
+   */
+  it('miễn trừ trỏ vào nhóm đặt tên PHẲNG cũng phải ĐỎ, không chỉ tên có dấu chấm', () => {
+    const surface = { 'x.verdict-ac': 'AC', 'x.verdict-wa': 'WA' };
+    const stale = {
+      'x.verdict': '2026-09-15: ly do con dai hon hai muoi ky tu nhung nhom da doi ten',
+    };
+    const found = scanThree(surface, stale);
+    expect(found).toHaveLength(1);
+    expect(found[0]?.kind).toBe('stale-intentional-three');
+    expect(found[0]?.key).toBe('x.verdict');
+  });
 });
 
 describe('đối chứng · groupBySiblingPrefix', () => {
