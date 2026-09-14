@@ -160,9 +160,18 @@ test.describe('Game Git — ô nghiệm thu P17', { tag: '@games-git' }, () => {
    *     là một lỗi KHÔNG ném, không đỏ, và ô này là chỗ rẻ nhất bắt được.
    *
    * Và khẳng định chính **mạnh hơn** ngưỡng của plan: draw call phải **KHÔNG
-   * ĐỔI** khi số object tăng. `< 100` chỉ nói cảnh hiện tại đủ nhỏ; `toBe` nói
+   * ĐỔI** khi số commit tăng. `< 100` chỉ nói cảnh hiện tại đủ nhỏ; `toBe` nói
    * kiến trúc instancing thật sự gộp lô, và đó mới là thứ K.4 phải bảo đảm cho
    * mọi level sau này.
+   *
+   * ⚠ **Phép so đó phải đặt giữa mốc HAI và mốc BA, không phải một và hai.**
+   * Bản đầu của ô này so `small` với `large` và đỏ ở 18 → 20 — nhưng mã KHÔNG
+   * sai, khẳng định mới sai. Đồ thị lớn lên làm xuất hiện thêm **loại** accent
+   * và loại cạnh, mà mỗi loại kích hoạt một lô instance. Instancing hứa draw
+   * call tăng theo **số loại** (có trần cứng: 5 khối + 1 ký hiệu + 4 bó cạnh +
+   * chấm nối + khối kho), **không** theo số commit (không có trần). Đòi bất
+   * biến ở mốc mà loại còn đang xuất hiện là đòi một thứ mạnh hơn cả kiến trúc
+   * lẫn K.4, và nó sẽ đỏ mãi vì một lý do không phải lỗi.
    */
   test('AC-7 — draw call không tăng theo số commit, và < 100', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
@@ -257,7 +266,33 @@ test.describe('Game Git — ô nghiệm thu P17', { tag: '@games-git' }, () => {
     ]);
     const large = await measure();
 
-    await attachJson(testInfo, 'git-ac7-drawcalls.json', { small, large });
+    /*
+     * Mốc THỨ BA — và đây mới là mốc mang khẳng định chính.
+     *
+     * Giữa `small` và `large`, draw call ĐƯỢC PHÉP tăng: đồ thị lớn lên làm xuất
+     * hiện thêm LOẠI accent (commit vừa tạo mang `fresh`) và thêm loại cạnh, mà
+     * mỗi loại kích hoạt một lô instance. Đo được 18 → 20 ở lượt chạy
+     * 2026-09-14. Đó chính là thứ instancing hứa: draw call tăng theo **số
+     * loại**, không theo **số commit** — số loại có trần cứng (5 khối + 1 ký
+     * hiệu + 4 bó cạnh + chấm nối + khối kho), số commit thì không.
+     *
+     * Nên phép so đúng là giữa `large` và `larger`: tới lúc này mọi loại đã có
+     * mặt, nên thêm commit KHÔNG được thêm một lệnh vẽ nào. Một kiến trúc vẽ
+     * mỗi commit một Mesh sẽ đỏ ở đây và không thể đỏ ở chỗ khác.
+     */
+    await runCommands([
+      'git commit --allow-empty -m "m3"',
+      'git commit --allow-empty -m "m4"',
+      'git commit --allow-empty -m "m5"',
+      'git commit --allow-empty -m "m6"',
+      'git commit --allow-empty -m "m7"',
+      'git commit --allow-empty -m "m8"',
+      'git commit --allow-empty -m "m9"',
+      'git commit --allow-empty -m "m10"',
+    ]);
+    const larger = await measure();
+
+    await attachJson(testInfo, 'git-ac7-drawcalls.json', { small, large, larger });
 
     // ── Tiền đề: phép đo này thật sự đã chạy ─────────────────────────────
     expect(
@@ -276,13 +311,38 @@ test.describe('Game Git — ô nghiệm thu P17', { tag: '@games-git' }, () => {
       'bảng màu rơi về màu xám dự phòng — cảnh đang vẽ nhưng không vẽ đúng màu nào',
     ).toBeNull();
 
-    // ── Khẳng định chính ─────────────────────────────────────────────────
+    /*
+     * ⚠ Tiền đề này đo TRIANGLES, không đo `objects` — và sự khác nhau đó chính
+     * là nội dung của ô.
+     *
+     * `objects` đếm object trong scene. Thêm commit vào một `InstancedMesh` đã
+     * có sẵn **không** tạo object mới; đó đúng là việc instancing làm. Đo được
+     * 17 → 17 ở lượt chạy 2026-09-14, và bản đầu của tiền đề này đỏ vì tưởng đó
+     * là "8 lệnh không vào được cảnh".
+     *
+     * `three` nhân số tam giác với `instanceCount` (`info.update(count, mode,
+     * instanceCount)`), nên TRIANGLES là đại lượng duy nhất trong kênh đo thật
+     * sự theo dõi số commit đang được vẽ. Nó tăng ⇒ 8 commit đã vào cảnh; và
+     * `calls` đứng yên cùng lúc ⇒ chúng vào mà không tốn thêm lệnh vẽ nào. Hai
+     * vế đó cạnh nhau mới là bằng chứng của K.4.
+     */
     expect(
-      large.calls,
-      'draw call tăng theo số commit — kiến trúc instancing không gộp lô. Đây là ' +
-        'thứ K.4 phải bảo đảm cho MỌI level sau này, không chỉ level đang đo.',
-    ).toBe(small.calls);
-    expect(large.calls, 'AC-7: draw call phải < 100 ở level đông nhất').toBeLessThan(100);
+      larger.triangles,
+      'số tam giác không tăng ở mốc thứ ba — 8 lệnh commit không vào được cảnh, nên ' +
+        'phép so large↔larger là so cùng một cảnh với chính nó',
+    ).toBeGreaterThan(large.triangles);
+
+    // ── Khẳng định chính ─────────────────────────────────────────────────
+    //
+    // large → larger: mọi LOẠI đã xuất hiện từ trước, nên 8 commit mới không
+    // được thêm một lệnh vẽ nào. Một kiến trúc vẽ mỗi commit một Mesh đỏ ở đây.
+    expect(
+      larger.calls,
+      'draw call tăng theo số COMMIT (không phải theo số loại) — kiến trúc ' +
+        'instancing không gộp lô. Đây là thứ K.4 phải bảo đảm cho MỌI level sau ' +
+        'này, không chỉ level đang đo.',
+    ).toBe(large.calls);
+    expect(larger.calls, 'AC-7: draw call phải < 100 ở level đông nhất').toBeLessThan(100);
   });
 });
 
