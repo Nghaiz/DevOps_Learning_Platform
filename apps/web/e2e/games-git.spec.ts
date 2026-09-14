@@ -112,6 +112,74 @@ test.describe('Game Git — ô nghiệm thu P17', { tag: '@games-git' }, () => {
     await scanAxe(page, testInfo, 'games-git-man-choi');
   });
 
+  /**
+   * **AC-6 trên chế độ 3D** — cho tới P17b, ô AC-6 ở trên chưa BAO GIỜ quét cảnh 3D.
+   *
+   * Nó mở level rồi quét ngay, mà mặc định là 2D (`fallback: '2d'` trong
+   * `useRendererChoice` — 2D là chế độ ngang hàng, không phải đường lùi). Nên
+   * đường 3D đi vào sản phẩm với **zero** phép đo a11y.
+   *
+   * Đó không phải "chưa hoàn hảo", nó là một ô xanh đang nói về một thứ khác
+   * với thứ người đọc tưởng nó nói (`rules/green-that-proves-nothing.md`).
+   *
+   * Và nó gác đúng thứ đắt nhất của lane D: cả lý do chọn **pool `<span>` DOM**
+   * thay vì `drei <Html>` hay chữ nướng vào texture canvas là "trình đọc màn
+   * hình đọc được". Lý do đó chưa từng có cổng nào kiểm — nếu lớp nhãn bị
+   * `aria-hidden`, hoặc `<Canvas>` nuốt mất vai trò của nó, thì quyết định kiến
+   * trúc ấy trả giá mà không mua được gì.
+   *
+   * Quét **cả hai theme**: bảng màu 3D đọc từ token CSS qua một phần tử dò, và
+   * nhánh tối đi qua một tập token khác hẳn — một lượt quét ở theme sáng không
+   * nói gì về nhánh kia.
+   */
+  test('AC-6 — axe 0 vi phạm ở chế độ 3D, cả hai theme', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+
+    await openScreen(page, GIT_PATH, 'user');
+    await settle(page);
+    await page.getByRole('button', { name: /Commit là một object bất biến/ }).click();
+    await settle(page);
+
+    const toggle3d = page.getByRole('button', { name: 'Cảnh 3D' });
+    await expect(
+      toggle3d,
+      'nút 3D vẫn bị khoá — `has3d` chưa bật, hoặc bản đang phục vụ cũ hơn mã. ' +
+        '⚠ `next start` KHÔNG build lại: chạy `pnpm --filter web build` trước.',
+    ).toBeEnabled();
+    await toggle3d.click();
+
+    // Cảnh 3D nạp động — đợi kênh đo, đừng đợi một khoảng thời gian cố định.
+    await page.waitForFunction(
+      () => typeof (globalThis as { __dlpGitScene?: unknown }).__dlpGitScene === 'function',
+      null,
+      { timeout: 60_000 },
+    );
+    await settle(page);
+
+    // ── Tiền đề: cảnh 3D THẬT SỰ đang hiện ───────────────────────────────
+    //
+    // Thiếu nó thì một lượt quét trên trang trống cũng cho "0 vi phạm", và ô
+    // này trở thành thứ nó vừa được viết ra để thay thế.
+    await expect(
+      page.locator('canvas'),
+      'không có <canvas> nào — cảnh 3D chưa mount, nên 0 vi phạm là 0 vi phạm của một trang trống',
+    ).toBeVisible();
+
+    await scanAxe(page, testInfo, 'games-git-3d-theme-sang');
+
+    // ── Nhánh tối ────────────────────────────────────────────────────────
+    await page.evaluate(() => {
+      document.documentElement.classList.add('dark');
+    });
+    await page.waitForTimeout(600); // MutationObserver đọc lại token + xin một khung
+    await expect(
+      page.locator('html.dark'),
+      'lớp .dark không bám được — lượt quét thứ hai đang đo lại đúng theme sáng',
+    ).toHaveCount(1);
+
+    await scanAxe(page, testInfo, 'games-git-3d-theme-toi');
+  });
+
   test('AC-L — điều hướng bàn phím đủ cho thao tác chính', async ({ page }) => {
     await openScreen(page, GIT_PATH, 'user');
     await settle(page);
@@ -302,10 +370,22 @@ test.describe('Game Git — ô nghiệm thu P17', { tag: '@games-git' }, () => {
         'đây sẽ xanh mà chưa bao giờ đo cảnh.',
     ).toBeGreaterThan(1);
     expect(small.triangles, 'cảnh rỗng — không có hình nào để đếm').toBeGreaterThan(small.objects);
+    /*
+     * ⚠ Tiền đề này đo TRIANGLES chứ không đo `objects`, cùng lý do với tiền đề
+     * mốc ba bên dưới — và nó đã đỏ một lần vì dùng `objects`.
+     *
+     * `objects` đếm object trong scene, tức số LÔ instance đang bật, tức số
+     * LOẠI accent/cạnh có mặt. Con số đó đổi khi bản vá `ViewHints` làm `fresh`
+     * sống lại (18fd316), và một tiền đề bám vào nó là bám vào thứ thay đổi vì
+     * lý do không liên quan tới điều đang được hỏi.
+     *
+     * `three` nhân tam giác với `instanceCount`, nên TRIANGLES theo dõi đúng số
+     * commit đang được vẽ — thứ 14 lệnh kia thật sự làm tăng.
+     */
     expect(
-      large.objects,
-      'số object không tăng sau 14 lệnh — engine chưa nối, nên hai lần đo là cùng một cảnh',
-    ).toBeGreaterThan(small.objects);
+      large.triangles,
+      'số tam giác không tăng sau 14 lệnh — engine chưa nối, nên hai lần đo là cùng một cảnh',
+    ).toBeGreaterThan(small.triangles);
     expect(
       small.colorsDegraded,
       'bảng màu rơi về màu xám dự phòng — cảnh đang vẽ nhưng không vẽ đúng màu nào',
