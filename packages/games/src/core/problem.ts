@@ -234,10 +234,32 @@ export interface TestcaseTeaser {
  * ⚠ Cố ý KHÔNG có `TLE`/`RE`/`MLE` như một OJ chấm code. Game chạy trong trình
  * duyệt trên một thế giới mô phỏng: không có tiến trình để hết giờ, không có bộ
  * nhớ để tràn. Thêm chúng vào đây là chép một từ vựng không có nghĩa ở đây.
+ *
+ * ── VÌ SAO TÊN LÀ `ProblemVerdict` CHỨ KHÔNG PHẢI `Verdict` ──
+ *
+ * Plan §18.B.1 viết `Verdict 'AC' | 'WA' | 'CE'`. Cái tên trần đó **đã có chủ**:
+ * `git/predicates.ts:383` khai `Verdict` là một *object*
+ * `{ accepted, passedCount, totalCount, failedIds, bonusMet }`, và nó đang được
+ * mở ra ngoài qua barrel. Hai thứ khác hẳn nhau:
+ *
+ * | | `git/predicates.ts` `Verdict` | `ProblemVerdict` (ở đây) |
+ * |---|---|---|
+ * | Dùng cho | LEVEL | bài OJ |
+ * | Hình dạng | object có số liệu | một nhãn |
+ * | Mục tiêu thưởng | CÓ (`bonusMet`) | không — `Testcase` cố ý bỏ `required` |
+ *
+ * Nên đây không phải "đổi tên cho khỏi trùng" mà là hai khái niệm thật sự khác
+ * nhau. Chồng tên lên nhau sẽ cho ra một `import { Verdict }` mà người đọc
+ * không biết mình đang cầm cái nào.
+ *
+ * ⚠ NỢ ĐÃ GHI TÊN, đừng để nó chìm: cái tên `Verdict` trần ở `git/predicates.ts`
+ * quá rộng so với thứ nó mô tả (nó là kết quả chấm một LEVEL GIT). Đổi nó thành
+ * `GitLevelVerdict` là việc đúng, nhưng nó đụng mã đang chạy nên thuộc một bước
+ * dịch chuyển riêng của 18.A — không gộp vào commit thêm-mới này.
  */
-export const VERDICTS = ['AC', 'WA', 'CE'] as const;
+export const PROBLEM_VERDICTS = ['AC', 'WA', 'CE'] as const;
 
-export type Verdict = (typeof VERDICTS)[number];
+export type ProblemVerdict = (typeof PROBLEM_VERDICTS)[number];
 
 /**
  * Suy verdict từ kết quả chấm. **Hàm thuần, một nguồn sự thật duy nhất.**
@@ -245,8 +267,12 @@ export type Verdict = (typeof VERDICTS)[number];
  * Cả client (hiển thị ngay) và server (chấm lại, §18.C) đều gọi hàm này. Đó
  * chính là điều làm phép so verdict ở §18.C.3 có nghĩa: nếu hai bên dùng hai
  * phép suy khác nhau thì một lệch nhau nói về hai hàm chứ không nói gì về engine.
+ *
+ * `total <= 0` ⇒ `CE`, không phải `AC`. Một bài không có testcase nào thì chưa
+ * chấm được, và "qua hết 0 testcase" là đúng về mặt logic nhưng sai về mặt ý
+ * nghĩa — nó sẽ phát `AC` cho mọi lượt nộp vào một bài soạn dở.
  */
-export function verdictOf(passedCount: number, total: number): Verdict {
+export function problemVerdictOf(passedCount: number, total: number): ProblemVerdict {
   if (total <= 0) return 'CE';
   return passedCount >= total ? 'AC' : 'WA';
 }
@@ -362,7 +388,7 @@ export interface Submission<A extends GameAction = GameAction> {
  * đọc còn khó hơn), nhưng có test gác.
  */
 export interface GradeResult {
-  readonly verdict: Verdict;
+  readonly verdict: ProblemVerdict;
   readonly passed: readonly string[];
   readonly total: number;
   /** Chỉ khác `null` khi verdict là `CE`. Câu tiếng Việt nói lỗi ở đâu. */

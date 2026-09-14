@@ -307,6 +307,50 @@ export {
   isProblemCode,
 } from './k8s/problem.ts';
 
+// ── Hợp đồng OJ đa-game (18.A.2 / 18.A.3) ───────────────────────────────────
+/*
+ * ⚠ TRẠNG THÁI TRUNG GIAN CÓ CHỦ Ý — đọc trước khi "dọn cho gọn".
+ *
+ * Khối này chỉ mở những tên CHỈ CÓ ở `core/`. Chín tên nữa (`ProblemDifficulty`,
+ * `PROBLEM_DIFFICULTIES`, `PROBLEM_DIFFICULTY_LABELS`, `ProblemState`,
+ * `PROBLEM_STATES`, `ProblemHint`, `ProblemHintTeaser`, `ProblemForSolver`,
+ * `isProblemCode`) hiện TỒN TẠI Ở CẢ HAI chỗ — `core/problem.ts` và
+ * `k8s/problem.ts` — nên re-export cả hai ở đây là lỗi trùng tên, không phải
+ * một lựa chọn.
+ *
+ * Hợp nhất chúng là bước dịch chuyển KẾ TIẾP của 18.A: `k8s/problem.ts` bỏ bản
+ * khai của mình và re-export từ `core/`. Tách làm hai commit là cố ý (§6 của
+ * plan: mỗi commit một bước lùi lại được) — commit này thuần thêm mới, không
+ * một dòng mã đang chạy nào đổi nghĩa.
+ *
+ * ⚠ `isProblemCode` KHÔNG phải cùng một hàm ở hai nơi: bản `core/` nhận thêm
+ * tham số tiền tố. Lúc hợp nhất phải sửa mọi chỗ gọi, không chỉ đổi đường import.
+ */
+export type {
+  AuthorField,
+  GameProblemPlugin,
+  ProblemPluginMeta,
+  ProblemPluginRegistry,
+} from './core/problem-plugin.ts';
+export type {
+  GradeResult,
+  ProblemBase,
+  ProblemRunLog,
+  ProblemTopicId,
+  ProblemTopicOption,
+  ReplayRequest,
+  ProblemVerdict,
+  Submission,
+  Testcase,
+  TestcaseTeaser,
+} from './core/problem.ts';
+export {
+  PROBLEM_CODE_SUFFIX_DIGITS,
+  PROBLEM_VERDICTS,
+  problemCodePattern,
+  problemVerdictOf,
+} from './core/problem.ts';
+
 // ── Chấm điểm ───────────────────────────────────────────────────────────────
 /*
  * Mở export 2026-09-08 theo yêu cầu của tầng máy chủ OJ, và lý do đáng ghi lại.
