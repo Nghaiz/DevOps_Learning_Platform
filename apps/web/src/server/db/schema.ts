@@ -1685,3 +1685,155 @@ export type ClassRow = typeof classes.$inferSelect;
 export type NewClassRow = typeof classes.$inferInsert;
 export type ClassMemberRow = typeof classMembers.$inferSelect;
 export type NewClassMemberRow = typeof classMembers.$inferInsert;
+
+// ── Kỳ thi (§18.G) ──────────────────────────────────────────────────────────
+
+/**
+ * Cách sinh đề cho một kỳ thi.
+ *
+ * - `fixed` — mọi sinh viên nhận CÙNG một seed, do người ra đề chốt lúc tạo.
+ * - `per-student` — mỗi `exam_attempt` nhận một seed riêng do MÁY CHỦ cấp.
+ *
+ * ⚠ `per-student` chỉ có nghĩa với bài `seedable: true`. Cổng §18.G.3 chặn
+ * chuyện đưa bài `seedable: false` vào một kỳ thi `per-student`, và nó gác lúc
+ * SOẠN ĐỀ. Thiếu nó thì mỗi sinh viên nhận một đề khác độ khó mà không ai biết.
+ */
+export const EXAM_SEED_STRATEGIES = ['fixed', 'per-student'] as const;
+export type ExamSeedStrategy = (typeof EXAM_SEED_STRATEGIES)[number];
+export const examSeedStrategy = pgEnum('exam_seed_strategy', EXAM_SEED_STRATEGIES);
+
+/**
+ * Một kỳ thi: một lớp, một danh sách bài, một khoảng thời gian.
+ *
+ * ## ⚠ LỆCH khỏi ghi chú bàn giao của lane 18.F, và đây là lý do
+ *
+ * Báo cáo `2026-09-14-lane-18f-report.md` §6 đề nghị `exam.class_id` dùng
+ * NO ACTION, lập luận rằng *"một kỳ thi là bản ghi lịch sử"*. Lập luận đó đúng
+ * về giá trị, nhưng thi hành bằng NO ACTION ở ĐÂY đẻ ra một đường xoá hỏng:
+ * `classes.owner_id` đã là `cascade` từ 18.F, nên `DELETE` một tài khoản giảng
+ * viên sẽ cascade xuống `classes`, và lượt xoá lớp đó bị NO ACTION của bảng này
+ * CHẶN. Kết quả là xoá một người dùng thất bại với một lỗi khoá ngoại thô, ở
+ * một chỗ không ai đoán được — và nó chỉ xảy ra với những giảng viên đã ra đề.
+ *
+ * Nên cả hai khoá ngoại ở đây đều `cascade`, đi theo đúng quyết định mà 18.F đã
+ * chấp nhận tường minh (xoá giảng viên là xoá lớp và danh sách thành viên của
+ * họ).
+ *
+ * ⛔ CÁI GIÁ, nói thẳng: xoá lớp là xoá luôn điểm thi của lớp đó. Thứ bù lại
+ * KHÔNG phải một khoá ngoại mà là §18.G.7 — xuất CSV — và đó là lý do thật sự
+ * để G.7 tồn tại chứ không phải sự tiện lợi. Muốn giữ điểm thì xuất trước khi
+ * xoá. Nếu sau này cần lưu trữ thật (bảng `exam_archive`, hoặc xoá mềm) thì đây
+ * là chỗ đọc trước khi đổi.
+ *
+ * ## `problem_codes` là MẢNG, và thứ tự của nó có nghĩa
+ *
+ * Thứ tự người ra đề xếp là thứ tự sinh viên thấy. Một bảng nối
+ * `exam_problems (exam_id, code, position)` biểu diễn được đúng thứ đó và còn
+ * cho khoá ngoại tới `problems`, nhưng nó mua một bảng và một `position` phải
+ * tự giữ liên tục để đổi lấy một ràng buộc mà tầng ứng dụng đã kiểm. Với một đề
+ * vài chục bài thì mảng là câu trả lời đúng.
+ *
+ * ⚠ Hệ quả đi kèm: xoá một bài trong `problems` KHÔNG làm sạch mã của nó khỏi
+ * các đề cũ. Đường đọc phải chịu được một mã không tra ra bài.
+ */
+export const exams = pgTable(
+  'exams',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    classId: uuid('class_id')
+      .notNull()
+      .references(() => classes.id, { onDelete: 'cascade' }),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    problemCodes: text('problem_codes').array().notNull(),
+    durationMinutes: integer('duration_minutes').notNull(),
+    seedStrategy: examSeedStrategy('seed_strategy').notNull(),
+    /**
+     * Seed dùng chung khi `seed_strategy = 'fixed'`. `null` khi `per-student`.
+     *
+     * Không gộp được vào `exam_attempts.seed`: với `fixed` thì seed phải tồn
+     * tại TRƯỚC khi có lượt làm bài đầu tiên, nếu không thì người mở trước và
+     * người mở sau nhận hai đề khác nhau mà cả hai đều tưởng mình thi chung.
+     */
+    fixedSeed: integer('fixed_seed'),
+    /** `null` = mở ngay. */
+    opensAt: timestamp('opens_at', { withTimezone: true, precision: 3 }),
+    /**
+     * `null` = không có hạn chót tuyệt đối; chỉ đồng hồ riêng của từng lượt
+     * quyết định. Khi có, hạn thật của một lượt là **cái nào tới trước** giữa
+     * `started_at + duration` và mốc này.
+     */
+    closesAt: timestamp('closes_at', { withTimezone: true, precision: 3 }),
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Keyset của `exams.list`: `(created_at desc, id desc)`, cùng khuôn `classes`.
+    index('exams_created_idx').on(table.createdAt, table.id),
+    index('exams_class_idx').on(table.classId),
+  ],
+);
+
+/**
+ * Lượt làm bài của MỘT sinh viên trong MỘT kỳ thi.
+ *
+ * ## Ba thứ KHÔNG có ở đây, và mỗi thứ vì một lý do khác nhau
+ *
+ * 1. **`deadline`** — bằng `min(started_at + duration_minutes, exams.closes_at)`.
+ *    Tính ở chỗ dùng. Lưu nó là vi phạm thẳng quy ước No Derived Fields của
+ *    repo, và cái giá cụ thể: sửa `closes_at` của kỳ thi xong thì cột lưu sẵn
+ *    thành sai mà không gì báo.
+ * 2. **`auto_submitted`** — suy được: `submitted_at >= deadline`. Nộp tay LUÔN
+ *    xảy ra trước hạn (máy chủ từ chối sau hạn), còn lượt tự nộp thì đúng bằng
+ *    hạn. Hai ca không chồng nhau, nên một cột cờ ở đây chỉ là một bản sao có
+ *    thể lệch.
+ * 3. **`score`** — gộp từ `problem_submissions`. Cùng lý do đã ghi ở
+ *    `core/problem.ts` § `Submission`: điểm là `passed.length / total`.
+ *
+ * ## Còn `duration_minutes` thì CÓ, và nó KHÔNG phải trường suy ra
+ *
+ * Nó là **ảnh chụp** thời lượng của kỳ thi tại thời điểm mở lượt, giống giá lúc
+ * đặt hàng. Chốt bởi chủ dự án 2026-09-15. Đọc thẳng `exams.duration_minutes`
+ * thì một giảng viên sửa giờ giữa chừng sẽ rút ngắn đồng hồ dưới chân người
+ * đang làm bài, và ở mức rút đủ nhiều thì bài tự nộp ngay lập tức.
+ *
+ * ## `seed` do MÁY CHỦ cấp, và đó là cả điểm của cột này
+ *
+ * Ngoài kỳ thi, `Submission.seed` do người nộp mang lên — hành vi CỐ Ý của hợp
+ * đồng (xem `core/problem.ts` § `Submission.seed`). Trong kỳ thi thì tính chất
+ * đó đọc thành "người nộp tự chọn dòng sự cố của mình", nên cột này là thứ máy
+ * chủ có để SO. Cổng đối chiếu nằm ở đường nộp bài; nó chỉ gác trong phạm vi
+ * một `exam_attempt` và không đổi gì bên ngoài (chốt bởi chủ dự án 2026-09-15,
+ * phương án (b) trong plan §18.G).
+ */
+export const examAttempts = pgTable(
+  'exam_attempts',
+  {
+    examId: uuid('exam_id')
+      .notNull()
+      .references(() => exams.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    seed: integer('seed').notNull(),
+    durationMinutes: integer('duration_minutes').notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+    /** `null` = chưa bấm nộp. KHÔNG có nghĩa là "còn giờ" — xem § deadline. */
+    submittedAt: timestamp('submitted_at', { withTimezone: true, precision: 3 }),
+  },
+  (table) => [
+    // Một người MỘT lượt cho mỗi kỳ thi. Khoá chính gộp nói ra điều đó bằng
+    // lược đồ; một `uuid` riêng sẽ cho phép hai lượt song song tồn tại, và lúc
+    // ấy "sinh viên này được mấy điểm" có hai câu trả lời.
+    primaryKey({ name: 'exam_attempts_pk', columns: [table.examId, table.userId] }),
+    // "Những kỳ thi người này đã vào" — khoá chính mở đầu bằng `exam_id` nên
+    // không phục vụ được chiều tra ngược.
+    index('exam_attempts_user_idx').on(table.userId),
+  ],
+);
+
+export type ExamRow = typeof exams.$inferSelect;
+export type NewExamRow = typeof exams.$inferInsert;
+export type ExamAttemptRow = typeof examAttempts.$inferSelect;
+export type NewExamAttemptRow = typeof examAttempts.$inferInsert;
