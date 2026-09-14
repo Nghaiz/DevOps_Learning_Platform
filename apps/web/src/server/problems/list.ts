@@ -1,9 +1,8 @@
 import { asc, desc, eq, getTableColumns, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type {
-  Problem,
+  ProblemHintTeaser,
   ProblemListOptions,
   ProblemOrderKey,
-  ProblemPage,
   ProblemStats,
   ProblemViewerStatus,
 } from '@devops-platform/games';
@@ -11,7 +10,7 @@ import type { Database } from '../db/client';
 import { problems } from '../db/schema';
 import { MAX_LIST_LIMIT } from '../trpc/init';
 import { decodeProblemCursor, encodeProblemCursor } from './cursor';
-import { toProblemDTO } from './dto';
+import { toProblemDTO, type StoredProblem } from './dto';
 import { afterCursorWhere, filterWhere } from './list-where';
 import { revealedHintsFor } from './reveals';
 import {
@@ -41,6 +40,41 @@ export interface ListProblemsInput {
 }
 
 /**
+ * Hình dạng mà đường NGƯỜI SOẠN (`problems.mine`) nhận.
+ *
+ * ⚠ Khai tại đây chứ không lấy `ProblemWithStats` của `packages/games`, và đó là
+ * hệ quả trực tiếp của 18.A chạm tới tầng kho lưu — không phải một kiểu đẻ thêm
+ * cho vui. `ProblemWithStats` dựng trên `Problem` của K8s, kiểu còn khai
+ * `objectives` và `topics: readonly ProblemTopic[]`; `toProblemDTO` nay trả
+ * `StoredProblem` (game-neutral) với `testcases` và `topics: readonly string[]`.
+ * Giữ tên cũ ở đây là để một kiểu nói dối về giá trị nó mô tả.
+ *
+ * ⛔ `testcases` ĐẦY ĐỦ (còn `check`/`args`), KHÁC hẳn `SolverProblem`. Đó là
+ * hành vi hôm nay và nó KHÔNG phải một lỗ rò: `mine` là `authorProcedure` và đã
+ * chặn phạm vi về bài của chính người gọi (`admin` thấy mọi bài — vẫn là người
+ * được phép đọc cách chấm). Lỗ rò là đường của NGƯỜI HỌC, và nó đi
+ * `listProblemsForSolver` với `toSolverProblem` che testcase.
+ *
+ * ⚠ Hệ quả đã biết, đã báo lead: `app/author/problems/problem-list-client.tsx`
+ * còn khai `row: ProblemWithStats`, nên nó đỏ cho tới khi lane giao diện soạn
+ * bài đổi sang kiểu này. Giữ hình dạng cũ ở đây để nó xanh là giữ một bản sao
+ * thứ hai của hợp đồng đã bị thay — và bản sao đó sẽ trôi.
+ */
+export interface AuthorProblemWithStats {
+  readonly problem: Omit<StoredProblem, 'hints'> & {
+    readonly hints: readonly ProblemHintTeaser[];
+  };
+  readonly stats: ProblemStats;
+  /** Trạng thái của NGƯỜI ĐANG XEM. Luôn có: mọi procedure đều đã đăng nhập. */
+  readonly viewerStatus: ProblemViewerStatus;
+}
+
+export interface AuthorProblemPage {
+  readonly items: readonly AuthorProblemWithStats[];
+  readonly nextCursor: string | null;
+}
+
+/**
  * Danh sách bài — lọc, sắp, phân trang keyset, kèm số liệu gộp.
  *
  * Một truy vấn duy nhất cho cả ba việc, nhờ hai truy vấn con `LEFT JOIN` vào:
@@ -49,19 +83,15 @@ export interface ListProblemsInput {
  * một cột của quan hệ đã join, nên `WHERE` tham chiếu được nó — điều không làm
  * được nếu nó chỉ là một bí danh trong danh sách `SELECT`.
  */
-export async function listProblems(db: Database, input: ListProblemsInput): Promise<ProblemPage> {
+export async function listProblems(
+  db: Database,
+  input: ListProblemsInput,
+): Promise<AuthorProblemPage> {
   const page = await listProblemRows(db, input);
   return {
     items: page.rows.map((row) => ({
-      // ⚠ Giữ NGUYÊN hình dạng cũ (`objectives` còn nguyên) vì đường này phục
-      // vụ `problems.mine`, và `app/author/problems/problem-list-client.tsx`
-      // khai `row: ProblemWithStats`. File đó thuộc lane khác và chưa được giao,
-      // nên thu hẹp kiểu ở đây sẽ làm typecheck của nó đỏ.
-      //
-      // KHÔNG phải một lỗ rò: `mine` là `authorProcedure` và đã chặn phạm vi về
-      // bài của chính người gọi (`admin` thấy mọi bài — vẫn là người được phép
-      // đọc cách chấm). Lỗ rò là đường của NGƯỜI HỌC, và nó đi
-      // `listProblemsForSolver` ngay dưới.
+      // ⚠ Che gợi ý nhưng KHÔNG che testcase — xem khối `AuthorProblemWithStats`
+      // ở trên về vì sao hai đường (soạn / học) cố ý khác nhau đúng ở chỗ này.
       problem: {
         ...row.problem,
         hints: toHintTeasers(row.problem.hints, row.revealed),
@@ -103,7 +133,7 @@ export async function listProblemsForSolver(
 
 interface ProblemRowsPage {
   readonly rows: readonly {
-    readonly problem: Problem;
+    readonly problem: StoredProblem;
     readonly revealed: ReadonlySet<string>;
     readonly stats: ProblemStats;
     readonly viewerStatus: ProblemViewerStatus;
@@ -112,8 +142,9 @@ interface ProblemRowsPage {
 }
 
 /**
- * Truy vấn dùng chung cho cả hai đường trên. Trả `Problem` ĐẦY ĐỦ — phép che là
- * việc của chỗ gọi, và nó phải là bước cuối cùng trước khi dữ liệu ra dây.
+ * Truy vấn dùng chung cho cả hai đường trên. Trả `StoredProblem` ĐẦY ĐỦ (gợi ý
+ * nguyên văn, testcase còn `check`/`args`) — phép che là việc của chỗ gọi, và nó
+ * phải là bước cuối cùng trước khi dữ liệu ra dây.
  */
 async function listProblemRows(db: Database, input: ListProblemsInput): Promise<ProblemRowsPage> {
   const { options } = input;

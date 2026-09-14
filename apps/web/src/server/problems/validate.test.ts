@@ -103,21 +103,37 @@ describe('cổng xuất bản chặt hơn cổng lưu nháp', () => {
     expect(publishIssues(exact)).toEqual([]);
   });
 
-  it('chặn bài không có mục tiêu bắt buộc nào', () => {
-    const issues = publishIssues({
-      ...BODY,
-      objectives: [{ id: 'o1', required: false }],
-    });
+  /*
+   * ⛔ Ô này THAY một ô đã chết, không phải sửa kỳ vọng cho xanh. Chiều của thay
+   * đổi là NỚI, và nó phải đọc ra được từ đây — xem
+   * `rules/pinned-baseline-test-companion.md`.
+   *
+   * Bản trước: `chặn bài không có mục tiêu bắt buộc nào`, dựng
+   * `objectives: [{ id: 'o1', required: false }]` và đòi cổng ĐỎ. Bất biến đó
+   * chết theo quyết định #20 — `core/problem.ts` § `Testcase` bỏ hẳn `required`
+   * (*"một testcase thì luôn chặn — đó là nghĩa của AC"*), nên "mục tiêu bắt
+   * buộc" không còn là một khái niệm để mà đếm. Cổng (`publish-gate.ts`) nay hỏi
+   * một câu khác: *có case nào không*.
+   *
+   * Nên ca cũ không được viết lại cho qua — nó bị XOÁ, và đúng cái đầu vào từng
+   * làm nó đỏ giờ là đối chứng dương của ô mới: một case duy nhất, không nhãn
+   * "bắt buộc", PHẢI xuất bản được.
+   */
+  it('chặn bài KHÔNG CÓ testcase nào — bài không chấm được thì không ra mắt', () => {
+    const issues = publishIssues({ ...BODY, objectives: [] });
     expect(issues.map((issue: { path: PropertyKey[] }) => issue.path)).toContainEqual(['objectives']);
+    // Đối chứng dương, và là ca mà cổng CŨ từ chối. Thiếu vế này thì một cổng
+    // từ chối MỌI bài cũng làm vế trên xanh.
+    expect(publishIssues({ ...BODY, objectives: [{ id: 'o1' }] })).toEqual([]);
   });
 
   it('chặn id trùng ở cả mục tiêu lẫn gợi ý', () => {
+    // Bất biến này KHÔNG chết theo #20: bên chấm khử trùng theo `id`, nên hai
+    // case cùng id vẫn làm điểm sai. Chỉ bỏ `required` khỏi fixture — nó không
+    // còn tồn tại trong hình dạng cổng đọc, chứ ô test thì vẫn gác đúng thứ cũ.
     const issues = publishIssues({
       ...BODY,
-      objectives: [
-        { id: 'o1', required: true },
-        { id: 'o1', required: true },
-      ],
+      objectives: [{ id: 'o1' }, { id: 'o1' }],
       hints: [{ id: 'h1' }, { id: 'h1' }],
     });
     expect(issues).toHaveLength(2);

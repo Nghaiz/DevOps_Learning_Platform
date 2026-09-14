@@ -1,13 +1,13 @@
 import { TRPCError } from '@trpc/server';
 import { count, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { Problem, ProblemState } from '@devops-platform/games';
+import type { ProblemState, Testcase } from '@devops-platform/games';
 import type { Database } from '../db/client';
 import { isUniqueViolation } from '../db/pg-errors';
 import { problems, problemSubmissions } from '../db/schema';
 import type { AuthedUser } from '../trpc/init';
 import { findProblemForWrite } from './authz';
-import { toProblemDTO } from './dto';
+import { toProblemDTO, type StoredProblem } from './dto';
 import { nextProblemCode } from './next-code';
 import { publishIssues } from './publish-gate';
 import type { ProblemBody } from './validate';
@@ -34,7 +34,7 @@ export async function createProblem(
   db: Database,
   authorId: string,
   body: ProblemBody,
-): Promise<Problem> {
+): Promise<StoredProblem> {
   for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt += 1) {
     const code = await nextProblemCode(db);
     try {
@@ -69,7 +69,7 @@ export async function updateProblem(
   user: AuthedUser,
   code: string,
   body: ProblemBody,
-): Promise<Problem> {
+): Promise<StoredProblem> {
   await findProblemForWrite(db, user, code);
   if (await slugTaken(db, body.slug, code)) {
     throw new TRPCError({ code: 'CONFLICT', message: `Slug "${body.slug}" đã có bài khác dùng` });
@@ -100,7 +100,7 @@ export async function publishProblem(
   db: Database,
   user: AuthedUser,
   code: string,
-): Promise<Problem> {
+): Promise<StoredProblem> {
   const row = await findProblemForWrite(db, user, code);
   const issues = publishIssues({
     statement: row.statement,
@@ -121,7 +121,7 @@ export async function archiveProblem(
   db: Database,
   user: AuthedUser,
   code: string,
-): Promise<Problem> {
+): Promise<StoredProblem> {
   await findProblemForWrite(db, user, code);
   return setState(db, code, 'archived');
 }
@@ -156,7 +156,7 @@ export async function deleteProblem(
   return { code };
 }
 
-async function setState(db: Database, code: string, state: ProblemState): Promise<Problem> {
+async function setState(db: Database, code: string, state: ProblemState): Promise<StoredProblem> {
   const rows = await db
     .update(problems)
     .set({ state, updatedAt: new Date() })
@@ -179,6 +179,11 @@ async function setState(db: Database, code: string, state: ProblemState): Promis
  *
  * Nó cũng là chỗ khẳng định lần nữa rằng `code`/`authorId`/`state` KHÔNG tới từ
  * body: chúng không có trong hàm này, nên không có đường nào cho chúng đi qua.
+ *
+ * ⚠ KHÔNG có `gameId`/`seedable`/`targetState`, và đó không phải chỗ quên. Cả ba
+ * cột mới của 0015 đều có DEFAULT (`'k8s'`, `false`, `null`), nên đường ghi hôm
+ * nay vẫn đẻ ra đúng một bài K8s không seed được — y như trước 18.A. Mở ba
+ * trường đó ra body là §18.D.1 nửa sau, thuộc lane soạn bài.
  */
 function toRowValues(body: ProblemBody) {
   return {
@@ -190,7 +195,27 @@ function toRowValues(body: ProblemBody) {
     tags: [...body.tags],
     timeLimitSec: body.timeLimitSec,
     initialState: body.initialState,
-    objectives: [...body.objectives],
+    /*
+     * ⚠ TRẠNG THÁI TRUNG GIAN — §18.D.1 gỡ phép ép này. Đừng chép nó đi chỗ khác.
+     *
+     * Cột `objectives` nay khai `$type<Testcase[]>` (18.B), còn `problemBodyShape`
+     * vẫn chỉ nhận hình dạng `Objective` cũ: CÓ `required`, KHÔNG có `visible`.
+     * Hai hình dạng không so sánh được với nhau nên TypeScript đúng khi từ chối.
+     * Mở body sang hình dạng mới là việc của lane soạn bài, không phải của lane
+     * này — nên phép ép ở đây nói đúng một điều: *giá trị này là hình dạng CŨ*.
+     *
+     * ⛔ ĐỪNG "dọn" bằng cách ánh xạ sang `Testcase` rồi bỏ `required`. Đo được,
+     * không phải phỏng đoán: `replay.ts` § `isSolved` còn lọc
+     * `objectives.filter((o) => o.required)` và trả `false` khi tập đó rỗng —
+     * nên bỏ `required` lúc ghi sẽ làm MỌI lượt nộp vào một bài được sửa sau bản
+     * này đọc ra "chưa giải", im lặng, không ô test nào ở lane này đỏ.
+     *
+     * An toàn vì biên ĐỌC không tin cột này: `problemTestcases` nhận
+     * `readonly unknown[]` và mặc định `visible: true` — đúng con đường mà mọi
+     * dòng viết trước 18.B đang đi. Dòng mới chỉ là một dòng cũ nữa, không phải
+     * một hình dạng thứ ba.
+     */
+    objectives: [...body.objectives] as unknown as Testcase[],
     allowedResources: body.allowedResources === null ? null : [...body.allowedResources],
     hints: [...body.hints],
     parMoves: body.parMoves,

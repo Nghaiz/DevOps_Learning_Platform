@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Problem } from '@devops-platform/games';
+import type { StoredProblem } from './dto';
 import { problemTestcases, toAuthorTestcaseTeasers, toTestcaseTeasers } from './testcases';
 import { toAuthorProblem, toSolverProblem } from './solver';
 
@@ -41,9 +41,20 @@ function rawObjectives(): readonly unknown[] {
   ];
 }
 
-function problemFixture(): Problem {
+/**
+ * Bài đúng như KHO LƯU trả ra: `StoredProblem`, tức cột thô đã đi qua biên đọc
+ * `problemTestcases` — y hệt thứ `toProblemDTO` dựng. Trước 18.A chỗ này là
+ * `Problem` của K8s và phải ép ba lần (`as never` × 2 + `as Problem`); hợp đồng
+ * mới khai `initialState: unknown` nên fixture nay không cần một phép ép nào,
+ * và đó là dấu hiệu nó mô tả đúng giá trị thật chứ không phải được nhét vào kiểu.
+ *
+ * ⚠ KHÔNG còn trường `objectives`, và ô `không rò cách chấm ra dây` bên dưới vì
+ * thế đã đổi nghĩa — đọc chú thích tại chỗ trước khi tin vào nó.
+ */
+function problemFixture(): StoredProblem {
   return {
     code: 'K8S-0042',
+    gameId: 'k8s',
     slug: 'bai-mau',
     title: 'Bài mẫu',
     statement: 'Đề bài.',
@@ -51,16 +62,17 @@ function problemFixture(): Problem {
     topics: ['workload'],
     tags: [],
     timeLimitSec: null,
-    initialState: { nodes: [], namespaces: [], resources: [] } as never,
-    objectives: rawObjectives() as never,
+    initialState: { nodes: [], namespaces: [], resources: [] },
+    testcases: problemTestcases(rawObjectives()),
     allowedResources: null,
     hints: [{ id: 'h1', text: 'Nội dung gợi ý', penaltyPoints: 50 }],
     parMoves: null,
+    seedable: false,
     state: 'published',
     authorId: null,
     createdAt: '2026-09-14T00:00:00.000Z',
     updatedAt: '2026-09-14T00:00:00.000Z',
-  } as Problem;
+  };
 }
 
 describe('problemTestcases — đọc cột jsonb', () => {
@@ -151,7 +163,24 @@ describe('không rò cách chấm ra dây', () => {
     expect(wire).not.toContain(SECRET_ARG);
     // Cả nhãn của testcase ẩn — vế "chỉ hiện tên SAU KHI NỘP".
     expect(wire).not.toContain('Nhãn bí mật của testcase ẩn');
-    // Và cột `objectives` cũ không được đi kèm theo đường vòng nào.
+    /*
+     * ⚠ 2026-09-15 — VẾ NÀY ĐÃ MẤT PHẦN LỚN SỨC GÁC, ghi ra thay vì để nó trông
+     * như một lớp bảo vệ. Đừng đọc nó như ba vế trên.
+     *
+     * Khi nó được viết, `toSolverProblem` nhận `Problem` của K8s (CÓ cột thô
+     * `objectives`) và phải huỷ cấu trúc nó ra khỏi `...rest`; quên một chữ là
+     * cả cột đi ra dây, và vế này đỏ. Sau 18.A, hàm đó nhận `StoredProblem` —
+     * kiểu KHÔNG khai `objectives`, và chỗ dựng duy nhất (`toProblemDTO`) liệt
+     * kê từng field nên không giá trị nào lúc chạy mang cột đó nữa. Không còn
+     * nguồn nào phát ra nó ⇒ vế này không còn ĐỎ ĐƯỢC vì lý do nó sinh ra.
+     *
+     * Giữ lại vì một dòng là rẻ và cái tên vẫn đáng chặn (§18.D.1 sắp viết lại
+     * đường ghi và có thể lại đụng cột thô). Nhưng phép gác THẬT của ô này là ba
+     * vế trên — `SECRET_CHECK`/`SECRET_ARG`/nhãn ẩn — vì chúng đỏ ngay khi ai đó
+     * trả `Testcase` đầy đủ, dưới BẤT KỲ tên trường nào.
+     *
+     * Chỗ đúng cho phép gác đã mất: một ô trên chính `toProblemDTO`. Đã báo lead.
+     */
     expect(wire).not.toContain('"objectives"');
   });
 
@@ -170,6 +199,8 @@ describe('không rò cách chấm ra dây', () => {
 
     expect(wire).not.toContain(SECRET_CHECK);
     expect(wire).not.toContain(SECRET_ARG);
+    // Cùng cảnh báo với ô trên: vế `"objectives"` nay không còn nguồn nào phát
+    // ra để mà đỏ. Hai vế trên mới là phép gác.
     expect(wire).not.toContain('"objectives"');
     // Gợi ý thì ngược lại: tác giả đọc được nguyên văn.
     expect(wire).toContain('Nội dung gợi ý');

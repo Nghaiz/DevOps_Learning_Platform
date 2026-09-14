@@ -182,6 +182,15 @@ export const problemsRouter = createTRPCRouter({
       if (row === undefined) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Không có bài đó' });
       }
+      /*
+       * ⚠ NỢ ĐÃ GHI TÊN, phát hiện khi dọn 18.A nhưng KHÔNG sửa được ở đây.
+       *
+       * Thủ tục này tra bài CHỈ theo `code` + `state`. Từ migration 0015 bảng có
+       * cột `game_id`, nên một bài `game_id = 'git'` đi lọt vào đây rồi được giao
+       * cho một đường chấm chỉ biết K8s. Trước 0015 chuyện đó bất khả vì mọi
+       * dòng đều là K8s — cổng thiếu này KHÔNG phải mã chết, nó mới vừa thành
+       * mã có đường tới. Cổng theo `gameId` thuộc `submit.ts`/§18.G. Đã báo lead.
+       */
       return submitProblem(
         ctx.db,
         toProblemDTO(row),
