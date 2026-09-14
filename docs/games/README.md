@@ -14,7 +14,7 @@ tại: nội dung tương tác mà chi phí vận hành bằng không.
 | Game | `GameId` | Trạng thái | Tài liệu |
 |---|---|---|---|
 | Cứu hộ cluster Kubernetes | `k8s` | **Đã hiện thực** (P14 đợt 1): 30+ level, chaos, sandbox, challenges | hợp đồng ở `packages/games/src/k8s/contract.ts` |
-| Phòng thí nghiệm Git | `git` | **Đã hiện thực** (P17): 32 level, engine git tự viết, renderer SVG 2D | [`git.md`](git.md) |
+| Phòng thí nghiệm Git | `git` | **Đã hiện thực** (P17 engine + 2D, **P17b** 3D): 32 level, engine git tự viết, **hai renderer ngang hàng** — SVG 2D (mặc định) và cảnh 3D three.js | [`git.md`](git.md) |
 | Đường ống CI/CD | `cicd` | Thiết kế, chưa code | [`../../plans/reports/2026-09-11-brainstorm-git-cicd-games.md`](../../plans/reports/2026-09-11-brainstorm-git-cicd-games.md) §4 |
 | Đường ống (bản cũ) | `pipeline` | Tài liệu tham khảo, **không hiện thực** | [`pipeline.md`](pipeline.md) |
 | Mê cung mạng | `netpol` | Thiết kế, chưa code | [`netpol.md`](netpol.md) |
@@ -31,11 +31,25 @@ một thiết kế khác hẳn (có CD, môi trường, rollback, GitOps), khôn
 
 ### ⚠ Đính chính một câu sai đã đứng ở tài liệu này
 
-Bản trước viết rằng ba game còn lại "là DOM thật" trong khi game K8s là 3D. **Sai.** Ba
-tài liệu `pipeline.md` / `netpol.md` / `dockerfile.md` đều được THIẾT KẾ cho 2D, nhưng
-chúng là thiết kế chưa code, nên không có "DOM thật" nào tồn tại. Game K8s dùng
-`three@0.185.1` + `@react-three/fiber` (scene thật ở `apps/web/src/components/k8s-arena/scene/`),
-và game Git dùng **renderer SVG 2D** — không phải DOM thường, không phải canvas.
+Bản trước viết rằng ba game còn lại "là DOM thật" trong khi game K8s là 3D. **Sai**, và
+vế "chưa code" vẫn đúng khi kiểm lại ngày 2026-09-14: dưới
+`apps/web/src/components/games/` chỉ có thư mục `git/` — `pipeline` / `netpol` /
+`dockerfile` không có một component nào, nên không có "DOM thật" nào tồn tại để mà mô
+tả sai hay đúng. Ba tài liệu `pipeline.md` / `netpol.md` / `dockerfile.md` đều được
+THIẾT KẾ cho 2D, và chúng vẫn chỉ là thiết kế.
+
+Hai vế còn lại **đã đổi**, nên câu đính chính cũ nay cũng cần đính chính:
+
+- Game K8s vẫn dùng `three@0.185.1` + `@react-three/fiber`, scene thật ở
+  `apps/web/src/components/k8s-arena/scene/`.
+- Game Git **không còn là "renderer SVG 2D"**. Từ P17b nó có **hai** renderer ngang
+  hàng đọc chung một `SceneProps`: SVG 2D (mặc định, DOM thật, không canvas) và cảnh 3D
+  `three` nạp động. Lựa chọn nhớ ở `localStorage`; 2D là chế độ ngang hàng chứ không
+  phải bản dự phòng — bốn lý do ở [`git.md`](git.md) §6b.
+
+Bài học chung của cả hai lần: một câu mô tả kiến trúc trong tài liệu chỉ mục **hết hạn
+theo chặng**, và nó hết hạn trong im lặng. Sửa nó thì kiểm lại bằng `ls`/`grep` thay vì
+chép lại câu đính chính lần trước.
 
 Mỗi tài liệu thiết kế có một mục **"cái nó dạy được mà Kubernetes Game không dạy được"** và một
 mục **"chỗ ý tưởng này yếu"**. Mục thứ hai không phải khiêm tốn theo phép lịch sự: nó là
