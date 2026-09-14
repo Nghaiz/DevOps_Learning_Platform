@@ -187,9 +187,8 @@ ra, khẳng định nó bật được), không phải nới cho xanh.
 4. **Cổng xuất bản không đòi có ít nhất một testcase HIỆN.** Một bài ẩn hết testcase xuất
    bản được, và người học không đọc được điều kiện nào. Có thể đúng (`TestcaseTeaser` cố ý
    giữ mẫu số `n/m` trung thực), có thể là một foot-gun. Không thêm vì không ai ra lệnh.
-5. **Chưa có ô test riêng cho `moveObjective` và `specFromText`.** Cả hai là hàm thuần,
-   ngoài JSX, đo được không cần DOM — chúng được viết ra ở đúng chỗ đó để test được. Chưa
-   viết vì hết lượt; đây là món nợ gần nhất.
+5. ~~Chưa có ô test riêng cho `moveObjective` và `specFromText`.~~ **ĐÃ ĐÓNG** —
+   `spec-round-trip.test.ts`, 7 ô. Xem §9.
 
 ---
 
@@ -224,9 +223,47 @@ commit của lane này dùng pathspec tường minh nên chúng không bị cu�
 |---|---|
 | `pnpm --filter @devops-platform/web typecheck` | exit 0 (`tsc --noEmit` + e2e tsconfig) |
 | `pnpm --filter @devops-platform/web lint` | exit 0 |
-| `npx vitest run src/app/author/problems src/server/problems` | **Tests 144 passed (144)**, 12 file |
+| `npx vitest run src/app/author/problems src/server/problems` | **Tests 151 passed (151)**, 13 file |
 | `pnpm --filter @devops-platform/copy test` | **Tests 72 passed (72)**, 5 file |
 
 Bốn cổng của `packages/copy` từng đỏ giữa chừng và đã xanh: T1a/T1b (em-dash trong nguồn
 `packages/copy`), T3 (nhóm ba `author.problem.seedable` nay khai lý do trong
 `authorIntentionalThree`), T4 (3 khoá chết **xoá**, không đổ vào `KNOWN_UNCALLED`).
+
+---
+
+## 9. `spec-round-trip.test.ts` — hai hàm thuần của lượt này
+
+Bảy ô, đo `moveObjective` (§18.D.2) và `specFromText` (§18.D.1) mà không cần DOM. Chúng
+được viết ra ngoài JSX đúng để đo được ở đây.
+
+Ô vòng tròn `spec → text → spec` chạy trên **mô tả form THẬT** của plugin K8s
+(`plugin.authorFields` + `plugin.initialSpec()`), không trên một bộ `AuthorField` bịa: một
+mô tả tự chế chỉ chứng minh hai hàm hợp nhau, không chứng minh chúng chở nổi thứ trang soạn
+bài thật sự gửi qua. Kèm một ô T0 đòi `fields`/`spec` không rỗng — thiếu nó thì mọi ô dưới
+cũng xanh trên một `fields` rỗng.
+
+**Một ngoại lệ có lý do đo được.** Ô "vô hướng để trống thì bỏ hẳn khoá" phải dùng mô tả tự
+dựng, vì `K8S_AUTHOR_FIELDS` ở TẦNG ĐẦU **không có ô vô hướng nào**: ba khối của nó là
+`list` và `string-list`, còn `text`/`number` chỉ tồn tại ở trường con bên trong `list` — mà
+`specToText`/`specFromText` cố ý chỉ đọc tầng đầu. Bản đầu của ô này đi tìm ô vô hướng trong
+plugin thật và ĐỎ vì không có. Nhánh ấy vẫn là nhánh thật của `specFromText` và sẽ chạy ngay
+khi một plugin khai một ô vô hướng ở tầng đầu.
+
+### Đối chứng dương
+
+Phá hai hàm cùng lúc — `specFromText` ghi `''` cho ô vô hướng rỗng, `moveObjective` trả
+`[...objectives]` ở biên:
+
+```
+× nước đi ra biên trả về CHÍNH mảng cũ, không phải bản sao
+× ô vô hướng để TRỐNG thì bỏ hẳn khoá, không gửi chuỗi rỗng
+      Tests  2 failed | 5 passed (7)
+```
+
+Ô "biên" so bằng `toBe` chứ không `toEqual`, và đó là cả điểm của nó: React so theo tham
+chiếu, nên một bản sao đồng nội dung vẫn làm cả tab render lại và bật `hasUnsavedChanges`
+sau một cú bấm không đổi gì — `toEqual` sẽ xanh với cả hai và không gác được gì.
+
+Khôi phục bằng `cp` từ bản sao, `git status` xác nhận cả hai file biến mất khỏi danh sách
+sửa đổi.
