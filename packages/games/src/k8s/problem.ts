@@ -304,5 +304,33 @@ export interface ProblemSubmission {
   readonly movesUsed: number;
   /** Id các gợi ý đã mở — dùng để trừ điểm, và để biết bài nào gợi ý quá khó hiểu. */
   readonly hintsRevealed: readonly string[];
+  /**
+   * Id các testcase ĐÃ QUA tại lượt nộp này. Rỗng ở lượt `CE`.
+   *
+   * Id chứ không phải chỉ số, cùng lý do `core/problem.ts` § `Submission.passed`
+   * đã ghi: chỉ số vỡ ngay khi tác giả đổi thứ tự testcase.
+   */
+  readonly passed: readonly string[];
+  /**
+   * Số testcase của bài TẠI THỜI ĐIỂM NỘP.
+   *
+   * ⚠ Trường này KHÔNG vi phạm quy ước No Derived Fields của repo
+   * (`rules/code-conventions.md`), và chỗ này đáng đọc kỹ vì vế suy-ra-được rất
+   * hay nấp cạnh một vế hợp lệ. `total` **không** suy được từ bài lúc đọc ra, vì
+   * bài có thể đã bị sửa sau lượt nộp. Nó là một **sự thật lịch sử**: "lúc nộp,
+   * bài có bấy nhiêu testcase". Không chốt lại tại thời điểm nộp thì một lượt
+   * `WA (4/5)` hôm nay sẽ tự đọc thành `WA (4/7)` ngay sau khi tác giả thêm hai
+   * case, mà không một dòng mã nào đổi. `passed` cũng vậy.
+   *
+   * ⛔ Vẫn KHÔNG có trường `verdict`, và đó mới là vế suy-ra-được thật: verdict
+   * tính được từ `(passed.length, total)` qua `problemVerdictOf`, nên lưu thêm
+   * nó là lưu cùng một sự thật hai lần.
+   *
+   * ⚠ `0` là giá trị mặc định của cột trước 18.C, nên một dòng cũ đọc ra `total
+   * === 0` KHÔNG có nghĩa "bài không có testcase nào". Ba nguyên nhân dồn vào
+   * một biểu hiện, và tầng hiển thị phải tự xử: xem `submissionVerdictLabel` ở
+   * `apps/web/src/app/(session)/problems/[code]/submission-verdict.ts`.
+   */
+  readonly total: number;
   readonly submittedAt: string;
 }

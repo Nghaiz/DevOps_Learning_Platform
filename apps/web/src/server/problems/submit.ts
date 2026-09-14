@@ -7,13 +7,14 @@ import {
   verifyRun,
   type GradeResult,
   type Problem,
+  type ProblemSubmission,
   type RunLog,
   type RunResult,
   type VerifyStatus,
 } from '@devops-platform/games';
 import type { Database } from '../db/client';
 import { problemSubmissions } from '../db/schema';
-import { toSubmissionDTO, type ProblemSubmissionWithGrade } from './dto';
+import { toSubmissionDTO } from './dto';
 import { hintIdsFromLog, isSolved, problemReplayEngine, expectedLogLevelId } from './replay';
 import { revealedHintsForOne } from './reveals';
 import { problemTestcases } from './testcases';
@@ -23,7 +24,7 @@ import { gradeOf } from './verdict-view';
 const PG_INT4_MAX = 2_147_483_647;
 
 export interface SubmitProblemResult {
-  readonly submission: ProblemSubmissionWithGrade;
+  readonly submission: ProblemSubmission;
   /** Vì sao lượt này được (hay không được) tính điểm. Tầng UI hiển thị nhãn từ `verifyLabel`. */
   readonly verifyStatus: VerifyStatus;
   /** Chi tiết máy móc để ghi log và để gỡ lỗi — KHÔNG phải nhãn cho người dùng. */

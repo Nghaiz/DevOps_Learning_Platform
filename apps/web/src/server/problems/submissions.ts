@@ -1,11 +1,12 @@
 import { TRPCError } from '@trpc/server';
 import { and, desc, eq, lt, or } from 'drizzle-orm';
+import type { ProblemSubmission } from '@devops-platform/games';
 import type { Database } from '../db/client';
 import { problemSubmissions } from '../db/schema';
-import { toSubmissionDTO, type ProblemSubmissionWithGrade } from './dto';
+import { toSubmissionDTO } from './dto';
 
 export interface SubmissionPage {
-  readonly items: readonly ProblemSubmissionWithGrade[];
+  readonly items: readonly ProblemSubmission[];
   readonly nextCursor: string | null;
 }
 

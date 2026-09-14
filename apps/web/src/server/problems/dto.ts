@@ -33,29 +33,25 @@ export function toProblemDTO(row: ProblemRow): Problem {
 }
 
 /**
- * `ProblemSubmission` + mô hình testcase (§18.B.2).
+ * Dòng `problem_submissions` → DTO đi qua dây (§18.B.2).
  *
- * ⚠ KHE TRONG HỢP ĐỒNG, đã báo lead — đây là chỗ nó lộ ra. `core/problem.ts` §
- * `Submission` KHAI `passed`/`total`, nhưng `k8s/problem.ts` §
- * `ProblemSubmission` (kiểu mà tầng web thật sự đi qua dây) thì KHÔNG. Hai kiểu
- * mô tả cùng một thứ và đã lệch nhau. Lane này không sở hữu `packages/games`
- * nên mở rộng tại biên web thay vì sửa hợp đồng sau lưng lead.
+ * ⛔ ĐÃ ĐÓNG 2026-09-14, giữ lại vì nó giải thích một kiểu vừa BIẾN MẤT. Bản
+ * trước của file này khai `ProblemSubmissionWithGrade extends ProblemSubmission`
+ * để thêm `passed`/`total` tại biên web, vì `k8s/problem.ts` §
+ * `ProblemSubmission` chưa có hai trường đó trong khi `core/problem.ts` §
+ * `Submission` đã có. Đó là một khe trong hợp đồng, và cái `extends` chỉ là băng
+ * dán của lane không sở hữu `packages/games`.
  *
- * `extends` chứ không phải một kiểu mới: mọi chỗ đang nhận `ProblemSubmission`
- * vẫn nhận được, nên phần mở rộng không bắt ai đổi gì.
+ * Khe đã được vá ở đúng chỗ của nó: `ProblemSubmission` nay khai `passed`/`total`.
+ * Kiểu mở rộng vì thế không còn lý do tồn tại, và giữ nó lại sẽ thành một tên
+ * thứ hai cho cùng một hình dạng, tức đúng thứ § SSOT của
+ * `rules/development-principles.md` cấm.
  *
- * ⛔ KHÔNG thêm một trường `verdict` ở đây. Verdict suy được từ `(passed, total)`
- * qua `problemVerdictOf`, và gửi kèm nó là gửi cùng một sự thật hai lần —
- * `gradeFromSubmission` ở `verdict-view.ts` là chỗ suy DUY NHẤT.
+ * ⛔ KHÔNG thêm một trường `verdict` vào đây. Verdict suy được từ
+ * `(passed.length, total)` qua `problemVerdictOf`, nên gửi kèm nó là gửi cùng
+ * một sự thật hai lần. `gradeFromSubmission` là chỗ suy DUY NHẤT.
  */
-export interface ProblemSubmissionWithGrade extends ProblemSubmission {
-  /** Id các testcase đã qua. Rỗng ở lượt `CE`. */
-  readonly passed: readonly string[];
-  /** Số testcase của bài LÚC NỘP — sự thật lịch sử, xem chú thích cột ở `schema.ts`. */
-  readonly total: number;
-}
-
-export function toSubmissionDTO(row: ProblemSubmissionRow): ProblemSubmissionWithGrade {
+export function toSubmissionDTO(row: ProblemSubmissionRow): ProblemSubmission {
   return {
     id: row.id,
     problemCode: row.problemCode,
