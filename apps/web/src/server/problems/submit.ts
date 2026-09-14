@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import {
   UnknownProblemGameError,
+  gradeOf,
   gradeProblemRun,
   isVerified,
   tallyLog,
@@ -18,7 +19,6 @@ import { toSubmissionDTO } from './dto';
 import { hintIdsFromLog, isSolved, problemReplayEngine, expectedLogLevelId } from './replay';
 import { revealedHintsForOne } from './reveals';
 import { problemTestcases } from './testcases';
-import { gradeOf } from './verdict-view';
 
 /** Trần của `integer` Postgres — vượt là `22003`, tức 500 thay vì một câu nói được. */
 const PG_INT4_MAX = 2_147_483_647;

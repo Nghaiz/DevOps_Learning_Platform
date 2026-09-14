@@ -1,10 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Level } from '@devops-platform/games';
+import { toVerdictView, type Level, type VerdictView } from '@devops-platform/games';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
-import { toVerdictView, type VerdictView } from '../../server/problems/verdict-view';
 import type { ArenaModeContext } from './arena-contract';
 import type { ArenaSessionHandle } from './arena-session';
 import { buildRunResult } from './run-result';
@@ -19,23 +18,30 @@ import { buildRunResult } from './run-result';
  * về máy chủ, nên cả đường chấm-lại phía máy chủ là mã không ai đi qua, và
  * `problem-verdict.tsx` có test nhưng chưa có màn hình. Hook này là chỗ nối.
  *
- * ## Vì sao import `toVerdictView` từ `src/server/problems/`
+ * ## Vì sao import `toVerdictView` từ `@devops-platform/games`
  *
- * Vì đó là NGUỒN DUY NHẤT được phép suy verdict: nó gọi `problemVerdictOf` của
- * `packages/games`, và §18.C.3 nói phép so verdict client-với-server chỉ có
- * nghĩa khi hai bên dùng chung một hàm. Viết một bản thứ hai ở đây — kể cả một
- * dòng `passed === total` trông vô hại — là làm phép so đó nói về hai hàm thay
- * vì nói về engine.
+ * Vì đó là NGUỒN DUY NHẤT được phép suy verdict: nó gọi `problemVerdictOf`, và
+ * §18.C.3 nói phép so verdict client-với-server chỉ có nghĩa khi hai bên dùng
+ * chung một hàm. Viết một bản thứ hai ở đây, kể cả một dòng `passed === total`
+ * trông vô hại, là làm phép so đó nói về hai hàm thay vì nói về engine.
  *
- * `verdict-view.ts` thuần: nó chỉ import `@devops-platform/games`, không chạm
- * `node:*`, không chạm DB. Không có `server-only` ở đầu file. Và đấu trường đã
- * kéo chính barrel đó vào bundle client sẵn (`arena-session.ts` gọi
- * `createSession`), nên nhánh import này không thêm gì mới vào bundle.
+ * ⛔ ĐÍNH CHÍNH 2026-09-14, và đọc kỹ vì bản trước của chính khối này là thứ đã
+ * sai. Nó ghi rằng hook này import `toVerdictView` từ
+ * `apps/web/src/server/problems/verdict-view.ts` và biện hộ rằng làm vậy an
+ * toàn vì file kia "thuần". Lời biện hộ đó đúng về sự kiện nhưng sai về kết
+ * luận: một file `'use client'` import GIÁ TRỊ từ `src/server/` chỉ đứng được
+ * chừng nào không ai thêm `import 'server-only'` vào file kia, và điều kiện đó
+ * không phải một bảo đảm mà là một sự tình cờ. Đo được hôm đó: đúng MỘT file
+ * trong cả `apps/web` ở tình trạng ấy, và nó là file này.
  *
- * ⚠ Nếu lane máy chủ thêm `import 'server-only'` vào `verdict-view.ts` thì
- * `next build` sẽ đỏ ngay tại đây. Đường sửa đúng khi đó KHÔNG phải là chép
- * `toVerdictView` sang tầng client, mà là đẩy nó xuống `packages/games` —
- * chỗ `problemVerdictOf` đã ở. Đã báo lead.
+ * Đã sửa ở gốc thay vì dán băng tại đây: `verdict-view.ts` chuyển xuống
+ * `packages/games/src/core/`, cạnh `problemVerdictOf`. Đó là chỗ đúng của nó vì
+ * nó là phép suy dùng chung cho cả hai phía chứ không phải mã máy chủ, và từ
+ * nay "cùng một hàm" là một sự thật của cấu trúc thư mục chứ không còn là một
+ * lời hứa trong chú thích.
+ *
+ * Nhánh import này không thêm gì vào bundle: đấu trường đã kéo chính barrel đó
+ * vào bundle client sẵn (`arena-session.ts` gọi `createSession`).
  *
  * ## Vì sao phải gọi `byCode` một lần nữa ở đây
  *

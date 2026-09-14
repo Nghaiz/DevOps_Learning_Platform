@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { problemVerdictOf, type VerifyStatus } from '@devops-platform/games';
+import {
+  compileErrorReason,
+  gradeOf,
+  problemVerdictOf,
+  toVerdictView,
+  verdictFromVerify,
+  type VerifyStatus,
+} from '@devops-platform/games';
 import { problemTestcases, toTestcaseTeasers } from './testcases';
-import { compileErrorReason, gradeOf, toVerdictView, verdictFromVerify } from './verdict-view';
 
 /**
  * §18.B.3 (hiển thị verdict) và §18.B.5 (`CE`).

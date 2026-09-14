@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { eq, inArray } from 'drizzle-orm';
+import { gradeFromSubmission } from '@devops-platform/games';
 import {
   closeTestDb,
   ctxFor,
@@ -11,7 +12,6 @@ import {
 import { problemSubmissions, problems, users } from '../db/schema';
 import { appRouter } from '../trpc/routers/app-router';
 import { problemTestcases } from './testcases';
-import { gradeFromSubmission } from './verdict-view';
 
 /**
  * §18.C — `passed`/`total` là SỰ THẬT LỊCH SỬ, không phải một phép suy lúc đọc.

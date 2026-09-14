@@ -2,14 +2,14 @@ import type { ReactElement } from 'react';
 import { CircleAlert, CircleCheck, CircleX } from 'lucide-react';
 import { t } from '@devops-platform/copy';
 import { Badge } from '@devops-platform/ui';
-import type { VerdictView } from '../../../../server/problems/verdict-view';
+import type { VerdictView } from '@devops-platform/games';
 
 /**
  * Verdict của một lượt nộp — §18.B.3 và §18.B.5.
  *
  * ⛔ Component KHÔNG tự suy verdict và KHÔNG tự tính phân số. Nó nhận
- * `VerdictView` đã dựng sẵn ở `server/problems/verdict-view.ts`, nơi duy nhất
- * gọi `problemVerdictOf` của `packages/games`. Viết `passed === total` ở đây sẽ
+ * `VerdictView` đã dựng sẵn ở `packages/games/src/core/verdict-view.ts`, nơi
+ * duy nhất gọi `problemVerdictOf`. Viết `passed === total` ở đây sẽ
  * làm phép so verdict client-với-server của §18.C.3 nói về hai hàm thay vì nói
  * về engine.
  *
