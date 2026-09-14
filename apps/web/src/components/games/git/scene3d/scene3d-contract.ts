@@ -98,8 +98,19 @@ export const PLATE_Y = {
   worktree: 14.0,
 } as const satisfies Record<SceneFileCell['zone'], number>;
 
-/** Y thấp nhất mà một mặt phẳng ô file chiếm. Vùng DAG không được chạm tới. */
-export const PLATE_FLOOR = PLATE_Y.head;
+/**
+ * Phần một ô file được phép **nhô XUỐNG** dưới dải Y của mặt phẳng nó.
+ *
+ * Không phải 0: ô `deleted` chìm xuống để trạng thái "đã xoá" đọc được bằng
+ * hình học chứ không chỉ bằng màu (đo được 0.29 ở bản của lane D). `PLATE_FLOOR`
+ * trừ đi hằng số này, nếu không thì biên an toàn khai báo rộng hơn biên thật
+ * đúng một bậc làn — và một cổng nới tay hơn nó tự nói là loại cổng tệ nhất:
+ * nó vẫn xanh ở đúng lúc thứ nó gác bắt đầu hỏng.
+ */
+export const PLATE_OVERHANG = 0.5;
+
+/** Y thấp nhất mà một mặt phẳng ô file chiếm, ĐÃ trừ phần nhô xuống. */
+export const PLATE_FLOOR = PLATE_Y.head - PLATE_OVERHANG;
 
 /** Khoảng cách giữa hai ô file liền nhau trên cùng một mặt phẳng. */
 export const PLATE_CELL_STEP = 1.6;
@@ -127,6 +138,17 @@ export type Vec3 = readonly [number, number, number];
 export interface Placed3D {
   /** `sceneNodeId(repo, oid)`. Khoá SSOT, dùng cho cả bắt tia lẫn AC-B. */
   readonly id: string;
+  /**
+   * Oid **thô**, chưa gắn kho.
+   *
+   * Mang sẵn ở đây vì `refsAt(view, repo, oid)` và `laneHints()` đều khoá theo
+   * oid thô, còn `id` là `repo:oid`. Thiếu trường này thì **mỗi** lane phải tự
+   * dựng một bảng tra từ `view.nodes` — hoặc, tệ hơn, cắt chuỗi `id`, thứ chạy
+   * đúng cho tới đúng ngày định dạng `id` đổi rồi hỏng **im lặng** ở mọi chỗ
+   * cùng lúc. Lane D đã phải vòng qua chỗ này; thêm một trường rẻ hơn nhiều so
+   * với bốn bản sao của cùng một bảng tra.
+   */
+  readonly oid: string;
   readonly repo: SceneRepo;
   readonly accent: SceneAccent;
   readonly shortOid: string;
@@ -173,6 +195,17 @@ export interface Scene3DLayerProps {
   readonly placement: Scene3DPlacement;
   readonly view: SceneProps['view'];
   readonly interaction: SceneProps['interaction'];
+  /**
+   * Layout gốc ô lưới, đi kèm nguyên vẹn.
+   *
+   * Cần vì `laneLabels()` — SSOT của bảng làn→tên, **dùng chung với renderer
+   * 2D** — nhận một `SceneLayout`, không nhận `Placed3D[]`. Thiếu trường này
+   * thì tầng 3D phải dựng lại hình dạng `SceneLayout` từ `placement.nodes`
+   * (lane D đã phải làm vậy), hoặc tự suy lại phép hoà tên làn — mà tự suy lại
+   * là đúng thứ docblock của `laneLabels()` cảnh báo sẽ lệch khỏi bản 2D. Hai
+   * renderer gọi hai tên khác nhau cho cùng một làn là lỗi không cổng nào bắt.
+   */
+  readonly layouts: SceneProps['layouts'];
 }
 
 /** Kết quả đặt chỗ trọn cảnh. */
@@ -247,6 +280,7 @@ export function place3d(props: SceneProps): Scene3DPlacement {
     const deviation = Math.abs(p.lane - MAIN_LANE);
     return {
       id: p.id,
+      oid: p.node.oid,
       repo: p.node.repo,
       accent: p.node.accent,
       shortOid: p.node.shortOid,
