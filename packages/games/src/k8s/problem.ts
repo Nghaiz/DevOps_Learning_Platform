@@ -18,6 +18,7 @@
  * tới khi 10 bài cũ được chuyển hết sang đây; xem `problem-migration.md`.
  */
 
+import type { ProblemFailureCode } from '../core/problem.ts';
 import type { ClusterSpec, Objective, ResourceKind } from './contract.ts';
 import { t } from '@devops-platform/copy';
 
@@ -330,7 +331,23 @@ export interface ProblemSubmission {
    * === 0` KHÔNG có nghĩa "bài không có testcase nào". Ba nguyên nhân dồn vào
    * một biểu hiện, và tầng hiển thị phải tự xử: xem `submissionVerdictLabel` ở
    * `apps/web/src/app/(session)/problems/[code]/submission-verdict.ts`.
+   *
+   * 2026-09-15: `failedCode` ngay dưới tách được một trong ba nguyên nhân đó.
    */
   readonly total: number;
+  /**
+   * VÌ SAO lượt này không chấm được. `null` khi nó chấm được bình thường.
+   *
+   * ⛔ Đây KHÔNG phải một trường suy ra được, dù nó nằm cạnh hai trường vừa bị
+   * tuyên là suy được. Phân biệt bằng một câu hỏi: đọc `(passed, total)` có
+   * dựng lại được nó không? Không — `passed = []` với `total = 5` xảy ra ở CẢ
+   * một lượt `CE` do engine không tất định (máy chủ bỏ mọi con số) LẪN một lượt
+   * `WA (0/5)` thật (người làm không qua case nào). Hai nguyên nhân, dữ liệu
+   * giống hệt. Xem `core/problem.ts` § `PROBLEM_FAILURE_CODES`.
+   *
+   * ⚠ `null` mang HAI nghĩa: lượt chấm được, **hoặc** dòng ghi trước migration
+   * 0015. Phân biệt bằng `total` — xem hợp đồng nêu trên.
+   */
+  readonly failedCode: ProblemFailureCode | null;
   readonly submittedAt: string;
 }

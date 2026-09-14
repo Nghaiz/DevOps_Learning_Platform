@@ -18,7 +18,7 @@ export type {
   GameSettings,
   RunResult,
 } from './core/types.ts';
-export { STORAGE_KEY_PREFIX, storageKey } from './core/types.ts';
+export { GAME_IDS, STORAGE_KEY_PREFIX, storageKey } from './core/types.ts';
 
 /*
  * Nhật ký hành động dùng chung — CHUYỂN từ `k8s/contract.ts` lên `core/` ngày
@@ -356,6 +356,7 @@ export type {
   ProblemTopicId,
   ProblemTopicOption,
   ReplayRequest,
+  ProblemFailureCode,
   ProblemVerdict,
   Submission,
   Testcase,
@@ -363,6 +364,7 @@ export type {
 } from './core/problem.ts';
 export {
   PROBLEM_CODE_SUFFIX_DIGITS,
+  PROBLEM_FAILURE_CODES,
   PROBLEM_VERDICTS,
   problemCodePattern,
   problemVerdictOf,
@@ -437,9 +439,11 @@ export type { ErasedProblemPlugin } from './core/problem-plugin.ts';
  */
 export type { FailedTestcaseView, VerdictView } from './core/verdict-view.ts';
 export {
+  compileErrorCode,
   compileErrorReason,
   gradeFromSubmission,
   gradeOf,
+  problemFailureMessage,
   toVerdictView,
   verdictFromVerify,
 } from './core/verdict-view.ts';

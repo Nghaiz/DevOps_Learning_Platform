@@ -423,11 +423,65 @@ export interface Submission<A extends GameAction = GameAction> {
 }
 
 /**
+ * Vì sao một lượt KHÔNG chấm được — mã ngắn, lưu được xuống cột.
+ *
+ * ## Cột này tồn tại vì `passed`/`total` KHÔNG phân biệt nổi hai ca
+ *
+ * Nợ ghi ở `plans/devops-learning-platform/phase-18.md` §0.3a. Hai dòng dưới đây
+ * là hai dòng DB khác nhau về nguyên nhân và **giống hệt nhau về dữ liệu**:
+ *
+ * | `passed` | `total` | Nguyên nhân thật | Đọc lại bằng `problemVerdictOf` |
+ * |---|---|---|---|
+ * | `[]` | `5` | engine không tất định ⇒ máy chủ bỏ mọi con số | `WA` ❌ sai |
+ * | `[]` | `5` | người làm chạy được nhưng không qua case nào | `WA` ✅ đúng |
+ *
+ * ⛔ Nên **đừng đoán nguyên nhân từ `passed.length === 0`** — phép đoán đó đúng
+ * ở dòng trên và sai ở dòng dưới, mà hai dòng thì không phân biệt được. Đường ra
+ * duy nhất là một cột thứ ba, và đây là kiểu của nó.
+ *
+ * `failedReason` KHÔNG thay được cột này: nó là một câu tiếng Việt viết cho
+ * người đọc, sẽ được sửa chữ lúc nào đó, và so chuỗi tiếng Việt để suy nguyên
+ * nhân là đúng cái bẫy mà `submit.ts` đã tránh khi bắt `UnknownProblemGameError`
+ * theo LỚP thay vì theo thông điệp.
+ *
+ * ## Vì sao dùng lại nguyên văn tập giá trị của `VerifyStatus`
+ *
+ * Bốn mã đầu là bốn nhánh `CE` của `verdictFromVerify`, chép nguyên tên. Một
+ * vốn từ thay vì hai: chỗ ghi lấy thẳng `VerifyStatus`, và `compileErrorReason`
+ * dựng lại đúng câu tiếng Việt cũ từ mã đã lưu mà không cần bảng ánh xạ thứ hai.
+ * Hai mã cuối không tới từ `verifyRun` nên phải tự khai.
+ *
+ * ⚠ `null` ở cột này mang HAI nghĩa, và chỗ đọc phải xử cả hai:
+ * lượt không phải `CE` (bình thường), **và** dòng ghi trước migration 0015 — lúc
+ * đó cột chưa tồn tại nên không dòng cũ nào mang mã. Phân biệt bằng `total`:
+ * `total > 0` + `null` là một `WA`/`AC` thật; `total === 0` + `null` là dòng cũ.
+ */
+export const PROBLEM_FAILURE_CODES = [
+  /** Nhật ký sai hình dạng — lượt chơi không chạy tới nơi. */
+  'log-hong',
+  /** Reducer ném giữa chừng khi phát lại. */
+  'phat-lai-loi',
+  /** Hai lần phát lại ra hai kết quả. ĐÂY là ca `total > 0` ở bảng trên. */
+  'engine-khong-tat-dinh',
+  /** Phát lại ra kết quả khác lời khai của client. */
+  'khong-khop',
+  /** Bài chưa có testcase nào tại thời điểm nộp ⇒ `total === 0`. */
+  'chua-co-testcase',
+  /** Nhật ký chứa hành động của một game khác với game của bài. */
+  'sai-game',
+] as const;
+
+export type ProblemFailureCode = (typeof PROBLEM_FAILURE_CODES)[number];
+
+/**
  * Kết quả chấm một lượt — thứ cả client và server tính ra, và §18.C.3 đem so.
  *
  * `CE` mang `passed` rỗng và `failedReason` khác `null`; hai verdict còn lại thì
  * ngược lại. Không ép bất biến đó bằng kiểu (một union bốn nhánh cho ba verdict
  * đọc còn khó hơn), nhưng có test gác.
+ *
+ * `failedCode` đi CÙNG NHỊP với `failedReason` — cả hai khác `null` đúng khi
+ * verdict là `CE`. Chúng không thừa nhau: một cái để người đọc, một cái để lưu.
  */
 export interface GradeResult {
   readonly verdict: ProblemVerdict;
@@ -435,6 +489,8 @@ export interface GradeResult {
   readonly total: number;
   /** Chỉ khác `null` khi verdict là `CE`. Câu tiếng Việt nói lỗi ở đâu. */
   readonly failedReason: string | null;
+  /** Chỉ khác `null` khi verdict là `CE`. Mã ngắn, lưu xuống cột được. */
+  readonly failedCode: ProblemFailureCode | null;
 }
 
 /**

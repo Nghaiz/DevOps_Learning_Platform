@@ -257,7 +257,7 @@ function replayLevel(initialState: ClusterSpec): Level {
 }
 
 function compileError(reason: string): GradeResult {
-  return { verdict: 'CE', passed: [], total: 0, failedReason: reason };
+  return { verdict: 'CE', passed: [], total: 0, failedReason: reason, failedCode: 'phat-lai-loi' };
 }
 
 /**
@@ -378,6 +378,7 @@ export function gradeK8sProblem(input: {
     passed,
     total: testcases.length,
     failedReason: null,
+    failedCode: null,
   };
 }
 

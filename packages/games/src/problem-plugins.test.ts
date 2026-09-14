@@ -235,7 +235,13 @@ describe('gradeProblemRun — verdict', () => {
         testcases: [POD_CO, POD_KHAC_KHONG_CO],
         seed: K8S_UNSEEDED_REPLAY_SEED,
       }),
-    ).toEqual({ verdict: 'AC', passed: ['co-web', 'khong-co-api'], total: 2, failedReason: null });
+    ).toEqual({
+      verdict: 'AC',
+      passed: ['co-web', 'khong-co-api'],
+      total: 2,
+      failedReason: null,
+      failedCode: null,
+    });
   });
 
   /*
@@ -309,6 +315,7 @@ describe('gradeProblemRun — verdict', () => {
       passed: ['co-nhanh-moi'],
       total: 1,
       failedReason: null,
+      failedCode: null,
     });
   });
 });
@@ -461,6 +468,7 @@ describe('graphShapeMatches — chạy thật khi bài có `targetState`', () =>
       passed: ['hinh-dang'],
       total: 1,
       failedReason: null,
+      failedCode: null,
     });
   });
 

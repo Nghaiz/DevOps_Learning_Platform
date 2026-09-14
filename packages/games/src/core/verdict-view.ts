@@ -1,6 +1,7 @@
 import {
   problemVerdictOf,
   type GradeResult,
+  type ProblemFailureCode,
   type ProblemVerdict,
   type TestcaseTeaser,
 } from './problem.ts';
@@ -87,12 +88,43 @@ export function verdictFromVerify(
  * hai thứ đó là sai.
  */
 export function compileErrorReason(status: VerifyStatus, total: number): string | null {
+  const code = compileErrorCode(status, total);
+  return code === null ? null : problemFailureMessage(code);
+}
+
+/**
+ * Cùng phép phân nhánh với `compileErrorReason`, nhưng trả MÃ thay vì câu chữ.
+ *
+ * Hai hàm đi cặp và `compileErrorReason` gọi hàm này chứ không tự phân nhánh
+ * lần nữa — nếu không thì sửa một nhánh ở một chỗ là đủ để câu chữ và mã lưu
+ * xuống DB nói hai điều khác nhau về cùng một lượt, và không cổng nào bắt được.
+ */
+export function compileErrorCode(
+  status: VerifyStatus,
+  total: number,
+): ProblemFailureCode | null {
   if (status === 'da-xac-minh') {
     // `total <= 0` vẫn ra `CE` qua `problemVerdictOf`, và nó KHÔNG phải lỗi của
     // người làm — bài chưa có testcase nào thì chưa chấm được.
-    return total <= 0 ? 'Bài này chưa có testcase nào nên chưa chấm được.' : null;
+    return total <= 0 ? 'chua-co-testcase' : null;
   }
-  switch (status) {
+  // Bốn nhánh còn lại trùng tên với chính `VerifyStatus`, có chủ ý — xem khối
+  // chú thích `PROBLEM_FAILURE_CODES` ở `core/problem.ts`.
+  return status;
+}
+
+/**
+ * Mã hỏng → câu tiếng Việt. **SSOT của mọi câu đi kèm `CE`.**
+ *
+ * Tách ra để một lượt đọc-lại-từ-DB dựng lại đúng câu mà lượt nộp đã hiện: chỗ
+ * ghi lưu mã, chỗ đọc tra lại câu, và không có bản sao thứ hai của bảng chữ.
+ *
+ * ⚠ `sai-game` ở đây là bản CHUNG. Đường trực tiếp (`problem-plugins.ts`) dựng
+ * một câu chi tiết hơn có kèm tên hai game, vì lúc đó nó còn cầm hai cái tên;
+ * đọc lại từ cột thì không còn, nên câu ngắn là thứ trung thực nhất nói được.
+ */
+export function problemFailureMessage(code: ProblemFailureCode): string {
+  switch (code) {
     case 'log-hong':
       return 'Nhật ký của lượt chơi sai hình dạng nên không phát lại được.';
     case 'phat-lai-loi':
@@ -101,6 +133,10 @@ export function compileErrorReason(status: VerifyStatus, total: number): string 
       return 'Hai lần phát lại cùng một nhật ký cho hai kết quả khác nhau.';
     case 'khong-khop':
       return 'Phát lại ra kết quả khác với kết quả trình duyệt gửi lên, nên không chấm được lượt này.';
+    case 'chua-co-testcase':
+      return 'Bài này chưa có testcase nào nên chưa chấm được.';
+    case 'sai-game':
+      return 'Nhật ký của lượt chơi thuộc một game khác với game của bài.';
   }
 }
 
@@ -122,6 +158,7 @@ export function gradeOf(
     passed: verdict === 'CE' ? [] : passed,
     total,
     failedReason: verdict === 'CE' ? compileErrorReason(status, total) : null,
+    failedCode: verdict === 'CE' ? compileErrorCode(status, total) : null,
   };
 }
 
@@ -138,27 +175,48 @@ export function gradeOf(
  * viết tay. Cùng lý do đã ghi ở đầu file: §18.C.3 đem so verdict hai bên, và hai
  * phép suy khác nhau thì một lệch nhau nói về hai hàm chứ không nói gì về engine.
  *
- * ⚠ HAI THỨ LỊCH SỬ KHÔNG CHỞ NỔI, nói ra thay vì để người sau tự vấp:
+ * ## Cột thứ ba đã có — `failedCode` (migration 0015)
  *
- *  · `total === 0` đọc ra `CE` — đúng cho một lượt không chấm được, nhưng CŨNG
- *    đúng cho một dòng ghi TRƯỚC 18.C (mặc định của migration) và cho một bài
- *    chưa có testcase nào. Ba nguyên nhân, một biểu hiện.
- *  · `failedReason` KHÔNG lưu được — nó là một câu tiếng Việt, không phải dữ
- *    liệu. Câu dưới đây vì thế nói đúng cái nó biết ("không chấm lại được") và
- *    không đoán lý do. Muốn phân biệt ba nguyên nhân trên thì cần một cột thứ
- *    ba, và lane này bị ⛔ không thêm cột. Đã báo lead.
+ * Trước 0015 hàm này chỉ có `passed`/`total`, và hai khe dưới đây là hậu quả.
+ * Cả hai nay đóng được, nên ghi lại cả khe lẫn cách đóng:
+ *
+ *  · **`CE` thật đọc ra `WA (0/5)`.** `submit.ts` ở nhánh `engine-khong-tat-dinh`
+ *    ghi `passed = []` với `total = <số testcase>`, tức `total > 0`. Suy bằng
+ *    `problemVerdictOf(0, 5)` thì ra `WA`. ⛔ Không sửa được bằng cách đoán từ
+ *    `passed.length === 0` — một `WA (0/5)` THẬT cũng có `passed` rỗng. Nay
+ *    `failedCode !== null` là lời khai chốt lúc nộp và nó THẮNG phép suy.
+ *  · **`total === 0` gộp ba nguyên nhân** (lượt không chấm được · dòng ghi TRƯỚC
+ *    18.C · bài chưa có testcase nào). Nay `chua-co-testcase` tách được ca thứ
+ *    ba, còn dòng cũ thì mang `failedCode === null` — xem bảng hai-nghĩa-của-null
+ *    ở `PROBLEM_FAILURE_CODES`.
+ *
+ * `failedReason` vẫn KHÔNG được lưu (nó là câu tiếng Việt, không phải dữ liệu);
+ * nó được **dựng lại** từ mã qua `problemFailureMessage`, nên lịch sử hiện đúng
+ * câu mà lượt nộp đã hiện chứ không phải một câu chung chung.
  */
 export function gradeFromSubmission(submission: {
   readonly passed: readonly string[];
   readonly total: number;
+  readonly failedCode: ProblemFailureCode | null;
 }): GradeResult {
-  const verdict = problemVerdictOf(submission.passed.length, submission.total);
+  // Mã hỏng thắng phép suy: nó là thứ máy chủ CHỐT lúc nộp, còn `passed`/`total`
+  // ở một lượt `CE` vốn đã được hợp đồng tuyên là "không nói lên gì".
+  const verdict: ProblemVerdict =
+    submission.failedCode !== null
+      ? 'CE'
+      : problemVerdictOf(submission.passed.length, submission.total);
   return {
     verdict,
     passed: verdict === 'CE' ? [] : submission.passed,
     total: submission.total,
     failedReason:
-      verdict === 'CE' ? 'Lượt này không chấm được, và lịch sử không lưu lý do.' : null,
+      verdict !== 'CE'
+        ? null
+        : submission.failedCode !== null
+          ? problemFailureMessage(submission.failedCode)
+          : // `CE` mà không có mã ⇒ dòng ghi trước 0015. Nói đúng cái biết được.
+            'Lượt này không chấm được, và lịch sử không lưu lý do.',
+    failedCode: submission.failedCode,
   };
 }
 

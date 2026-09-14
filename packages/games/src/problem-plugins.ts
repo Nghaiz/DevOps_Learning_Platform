@@ -174,6 +174,7 @@ export function gradeProblemRun(input: {
         passed: [],
         total: 0,
         failedReason: `nhật ký chứa hành động của game "${action.gameId}" nhưng bài thuộc game "${gameId}"`,
+        failedCode: 'sai-game',
       };
     }
   }

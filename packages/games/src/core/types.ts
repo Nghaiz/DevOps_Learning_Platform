@@ -28,7 +28,9 @@
  * là thiết kế lại từ đầu và rộng hơn CI thuần (có CD, môi trường, rollback,
  * GitOps). Hai id khác nhau vì hai game khác nhau, không phải vì đặt tên lại.
  */
-export type GameId = 'k8s' | 'pipeline' | 'netpol' | 'dockerfile' | 'git' | 'cicd';
+export const GAME_IDS = ['k8s', 'pipeline', 'netpol', 'dockerfile', 'git', 'cicd'] as const;
+
+export type GameId = (typeof GAME_IDS)[number];
 
 /** Cùng thang với `--difficulty-*` của hệ thiết kế — đừng đặt thang thứ hai. */
 export type Difficulty = 'basic' | 'intermediate' | 'advanced';
