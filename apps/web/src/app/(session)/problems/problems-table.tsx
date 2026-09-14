@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import type { inferRouterOutputs } from '@trpc/server';
 import { renderCopy, t } from '@devops-platform/copy';
 import { Badge, Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@devops-platform/ui';
-import { PROBLEM_TOPIC_LABELS } from '@devops-platform/games';
+import { problemTopicLabels } from '@devops-platform/games';
 import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { DifficultyBadge, ViewerStatusBadge } from './problem-badges';
 import { formatAcceptance, formatTimeLimit, joinTopics } from './problem-labels';
@@ -72,7 +72,7 @@ export function ProblemsTable({ items }: { readonly items: readonly ProblemRow[]
               <DifficultyBadge value={problem.difficulty} />
             </TableCell>
             <TableCell className="text-sm text-muted-foreground">
-              {joinTopics(problem.topics, PROBLEM_TOPIC_LABELS)}
+              {joinTopics(problem.topics, problemTopicLabels(problem.gameId))}
             </TableCell>
             <TableCell>
               <TagCell tags={problem.tags} />

@@ -5,7 +5,7 @@ import type { inferRouterOutputs } from '@trpc/server';
 import { renderCopy, t } from '@devops-platform/copy';
 import { Alert, AlertDescription, Badge, Button, MarkdownView } from '@devops-platform/ui';
 import {
-  PROBLEM_TOPIC_LABELS,
+  problemTopicLabels,
   type ProblemStats,
   type ProblemViewerStatus,
 } from '@devops-platform/games';
@@ -56,14 +56,16 @@ export function ProblemOverview(props: {
           <DifficultyBadge value={problem.difficulty} />
           <ViewerStatusBadge value={viewerStatus} />
           {/*
-            `topicLabel` chứ không tra thẳng bảng: `topics` nay là
-            `ProblemTopicId` (chuỗi mờ) nên bảng nhãn K8s không còn phủ hết, và
-            một phép tra hụt vẽ ra `Badge` RỖNG chứ không báo lỗi. Lý do đầy đủ
-            — gồm cả vì sao không tra qua plugin — ở `problem-labels.ts`.
+            Bảng nhãn tra theo `problem.gameId`, không phải bảng K8s cố định
+            (§18.D, 2026-09-15). Trước lượt này một bài Git mang chủ đề
+            `branching` tra hụt và vẽ ra `Badge` RỖNG — không lỗi, không log,
+            không test nào đỏ. `problemTopicLabels` nhập DỮ LIỆU LÁ chứ không
+            nhập plugin, nên nó không kéo engine vào route này; lý do đầy đủ ở
+            `packages/games/src/problem-topic-labels.ts`.
           */}
           {problem.topics.map((topic) => (
             <Badge key={topic} variant="secondary" icon={null}>
-              {topicLabel(topic, PROBLEM_TOPIC_LABELS)}
+              {topicLabel(topic, problemTopicLabels(problem.gameId))}
             </Badge>
           ))}
           {problem.tags.map((tag) => (

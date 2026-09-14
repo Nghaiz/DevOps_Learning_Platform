@@ -224,23 +224,34 @@ export function formatMoment(iso: string): string {
  * SAU `next build`. Một lựa chọn "đúng hơn" ở đây sẽ xanh hết mọi ô rồi làm đỏ
  * một cổng mà lane này không chạy tới.
  *
- * Đường thoát duy nhất còn lại — nhập thẳng `GIT_PROBLEM_TOPICS` (một mảng
- * thuần, không chạm engine) — cũng đóng: barrel KHÔNG mở tên đó ra, và
- * `packages/games` chỉ khai đúng MỘT subpath (`.`) nên không deep-import được.
- * Mở nó là việc trong `packages/games`, ngoài đường sở hữu của lane này.
+ * ## ── MÓN NỢ NÀY ĐÃ ĐÓNG 2026-09-15 (§18.D) ──
  *
- * ## Nên: tra được thì lấy nhãn, không thì hiện chính id
+ * Đường thoát đã mở, đúng theo phương án một trong hai phương án ghi ở đây:
+ * `packages/games` tách `git/problem-topics.ts` (mảng thuần, không chạm engine),
+ * dựng `problem-topic-labels.ts` tra theo `gameId` từ DỮ LIỆU LÁ, và mở
+ * `problemTopicLabels` ra barrel. Hai chỗ gọi — `problems-table.tsx` và
+ * `[code]/problem-overview.tsx` — nay truyền bảng theo `problem.gameId` thay
+ * cho `PROBLEM_TOPIC_LABELS` cố định.
  *
- * `branching` đọc được và đúng; một ô trống thì không. Hôm nay nhánh phòng hờ
- * CHƯA chạm được: `game-plugin-view.ts` § `PERSISTABLE_GAMES` nói mọi bài trong
- * DB đều là K8s, nên mọi chủ đề đều tra ra nhãn thật.
+ * Ràng buộc bundle ở trên KHÔNG mất, nó chỉ chuyển thành một ô gác: vì chính
+ * `tsc`/`eslint`/`vitest` mù với bundle, `packages/games/src/problem-topic-labels.test.ts`
+ * đi theo đồ thị nhập tương đối và đỏ nếu đồ thị chạm bất kỳ module engine nào.
+ * Đối chứng dương đã chạy: nối `problem-topic-labels.ts` qua
+ * `git/problem-plugin.ts` làm ô đó đỏ và gọi đúng tên `git/problem-plugin.ts` +
+ * `git/engine.ts`.
  *
- * ── MÓN NỢ ĐÃ GHI TÊN ──
+ * ⚠ Lời khai cũ ở đây — *"`PERSISTABLE_GAMES` nói mọi bài trong DB đều là K8s,
+ * nên mọi chủ đề đều tra ra nhãn thật"* — đã HẾT ĐÚNG từ migration 0015. Hằng
+ * đó cũng đã xoá. Giữ lại câu này thay vì xoá đè, vì một chú thích không nói
+ * mình từng sai ở đâu là một chú thích người sau vẫn tin.
  *
- * Ngày §18.D cho lưu bài đa-game, nhãn phải tới từ một nguồn theo `gameId` mà
- * KHÔNG kéo engine — hoặc `packages/games` tách một module chỉ-chủ-đề và mở nó
- * ra barrel, hoặc máy chủ gửi kèm nhãn cùng bài. Cả hai đều nằm ngoài
- * `apps/web/src/app/`. Đã báo lead.
+ * ## Vẫn còn hở: THANH LỌC chủ đề
+ *
+ * `problems-toolbar.tsx` còn liệt kê đúng chín chủ đề K8s (`PROBLEM_TOPICS`),
+ * nên một bài Git hiện nhãn đúng trong bảng nhưng KHÔNG lọc theo chủ đề được.
+ * Đó là một quyết định giao diện chứ không phải một phép tra: gộp cả mười bảy
+ * chủ đề vào một danh sách phẳng đổi hẳn trải nghiệm lọc, và thanh lọc có lẽ
+ * nên theo game đang chọn. Chưa làm, và chưa hỏi.
  */
 export function topicLabel(topic: ProblemTopicId, labels: Readonly<Record<string, string>>): string {
   return labels[topic] ?? topic;
