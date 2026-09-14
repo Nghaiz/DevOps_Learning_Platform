@@ -99,6 +99,13 @@
       "when": 1789384385868,
       "tag": "0013_watery_baron_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789387735776,
+      "tag": "0014_spotty_hiroim",
+      "breakpoints": true
     }
   ]
 }

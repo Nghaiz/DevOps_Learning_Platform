@@ -32,7 +32,30 @@ export function toProblemDTO(row: ProblemRow): Problem {
   };
 }
 
-export function toSubmissionDTO(row: ProblemSubmissionRow): ProblemSubmission {
+/**
+ * `ProblemSubmission` + mô hình testcase (§18.B.2).
+ *
+ * ⚠ KHE TRONG HỢP ĐỒNG, đã báo lead — đây là chỗ nó lộ ra. `core/problem.ts` §
+ * `Submission` KHAI `passed`/`total`, nhưng `k8s/problem.ts` §
+ * `ProblemSubmission` (kiểu mà tầng web thật sự đi qua dây) thì KHÔNG. Hai kiểu
+ * mô tả cùng một thứ và đã lệch nhau. Lane này không sở hữu `packages/games`
+ * nên mở rộng tại biên web thay vì sửa hợp đồng sau lưng lead.
+ *
+ * `extends` chứ không phải một kiểu mới: mọi chỗ đang nhận `ProblemSubmission`
+ * vẫn nhận được, nên phần mở rộng không bắt ai đổi gì.
+ *
+ * ⛔ KHÔNG thêm một trường `verdict` ở đây. Verdict suy được từ `(passed, total)`
+ * qua `problemVerdictOf`, và gửi kèm nó là gửi cùng một sự thật hai lần —
+ * `gradeFromSubmission` ở `verdict-view.ts` là chỗ suy DUY NHẤT.
+ */
+export interface ProblemSubmissionWithGrade extends ProblemSubmission {
+  /** Id các testcase đã qua. Rỗng ở lượt `CE`. */
+  readonly passed: readonly string[];
+  /** Số testcase của bài LÚC NỘP — sự thật lịch sử, xem chú thích cột ở `schema.ts`. */
+  readonly total: number;
+}
+
+export function toSubmissionDTO(row: ProblemSubmissionRow): ProblemSubmissionWithGrade {
   return {
     id: row.id,
     problemCode: row.problemCode,
@@ -42,6 +65,8 @@ export function toSubmissionDTO(row: ProblemSubmissionRow): ProblemSubmission {
     durationSeconds: row.durationSeconds,
     movesUsed: row.movesUsed,
     hintsRevealed: row.hintsRevealed,
+    passed: row.passed,
+    total: row.total,
     submittedAt: row.submittedAt.toISOString(),
   };
 }

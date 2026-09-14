@@ -104,6 +104,41 @@ export function gradeOf(
   };
 }
 
+/**
+ * Dựng lại `GradeResult` từ một dòng LỊCH SỬ — §18.C, việc 3.
+ *
+ * Đây là chỗ *"lịch sử nộp bài hiện `WA (n/m)`"* được tính, và nó chỉ tính được
+ * vì hai cột `passed`/`total` đã chốt tại thời điểm nộp. Đọc lại từ bài NGÀY HÔM
+ * NAY sẽ cho một mẫu số khác — chú thích cột `total` ở `schema.ts` nói rõ vì sao.
+ *
+ * ⛔ Verdict suy qua `problemVerdictOf`, không phải `passed.length === total`
+ * viết tay. Cùng lý do đã ghi ở đầu file: §18.C.3 đem so verdict hai bên, và hai
+ * phép suy khác nhau thì một lệch nhau nói về hai hàm chứ không nói gì về engine.
+ *
+ * ⚠ HAI THỨ LỊCH SỬ KHÔNG CHỞ NỔI, nói ra thay vì để người sau tự vấp:
+ *
+ *  · `total === 0` đọc ra `CE` — đúng cho một lượt không chấm được, nhưng CŨNG
+ *    đúng cho một dòng ghi TRƯỚC 18.C (mặc định của migration) và cho một bài
+ *    chưa có testcase nào. Ba nguyên nhân, một biểu hiện.
+ *  · `failedReason` KHÔNG lưu được — nó là một câu tiếng Việt, không phải dữ
+ *    liệu. Câu dưới đây vì thế nói đúng cái nó biết ("không chấm lại được") và
+ *    không đoán lý do. Muốn phân biệt ba nguyên nhân trên thì cần một cột thứ
+ *    ba, và lane này bị ⛔ không thêm cột. Đã báo lead.
+ */
+export function gradeFromSubmission(submission: {
+  readonly passed: readonly string[];
+  readonly total: number;
+}): GradeResult {
+  const verdict = problemVerdictOf(submission.passed.length, submission.total);
+  return {
+    verdict,
+    passed: verdict === 'CE' ? [] : submission.passed,
+    total: submission.total,
+    failedReason:
+      verdict === 'CE' ? 'Lượt này không chấm được, và lịch sử không lưu lý do.' : null,
+  };
+}
+
 // ── Mô hình hiển thị ────────────────────────────────────────────────────────
 
 /**

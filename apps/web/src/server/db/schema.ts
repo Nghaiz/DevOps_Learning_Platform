@@ -1343,6 +1343,42 @@ export const problemSubmissions = pgTable(
     movesUsed: integer('moves_used').notNull(),
     /** Id gợi ý đã mở, đọc ra từ các action `hint` trong nhật ký. */
     hintsRevealed: text('hints_revealed').array().notNull(),
+    /**
+     * Id các testcase ĐÃ QUA của lượt này — mô hình testcase (§18.B.2).
+     *
+     * ID CHỨ KHÔNG PHẢI CHỈ SỐ, và hợp đồng `core/problem.ts` § `Submission`
+     * nói thẳng vì sao: *"chỉ số vỡ khi tác giả đổi thứ tự."* Một mảng `[0,1,3]`
+     * lưu hôm nay sẽ trỏ sang ba testcase khác ngay lần đầu người soạn kéo một
+     * dòng lên trên, và không có gì đỏ để báo.
+     *
+     * Máy chủ tự chấm bằng `gradeProblemRun` (phát lại nhật ký), không đọc lời
+     * khai của client — `server/problems/submit.ts`.
+     *
+     * Rỗng ở lượt `CE`: hợp đồng `GradeResult` bắt *"`CE` mang `passed` rỗng"*.
+     */
+    passed: text('passed').array().notNull().default([]),
+    /**
+     * Số testcase của bài TẠI THỜI ĐIỂM NỘP.
+     *
+     * ⚠ KHÔNG vi phạm quy ước No Derived Fields (`rules/code-conventions.md`),
+     * và lý do phải nằm ngay đây vì vế suy-ra-được hay nấp cạnh vế hợp lệ: số
+     * này **không** suy được từ bài lúc đọc ra, vì bài có thể đã bị sửa SAU lượt
+     * nộp. Nó là một **sự thật lịch sử** — "lúc nộp, bài có bấy nhiêu testcase".
+     * Không chốt lại tại thời điểm nộp thì một lượt `WA (4/5)` hôm nay sẽ tự đọc
+     * thành `WA (4/7)` sau khi tác giả thêm hai case, và cả lịch sử làm bài của
+     * mọi người lặng lẽ đổi nghĩa. `core/problem.ts` § `Submission` ghi cùng một
+     * điều cho `passed`.
+     *
+     * ⛔ Cặp `(passed, total)` KHÔNG được bổ sung một cột điểm-theo-testcase:
+     * điểm là `passed.length / total`, tính ở chỗ dùng. Cột `score` bên trên là
+     * của mô hình cũ (0..1000 theo gợi ý và số nước) — một đại lượng KHÁC, đừng
+     * gộp hai thứ.
+     *
+     * `0` ở dòng cũ (trước 18.C) là đúng nghĩa chứ không phải chỗ giữ chỗ:
+     * `problemVerdictOf(_, 0)` trả `CE`, và một lượt nộp ghi trước khi có bộ
+     * chấm testcase thật sự **không chấm được** theo mô hình này.
+     */
+    total: integer('total').notNull().default(0),
     /** `precision: 3` — cùng lý do keyset đã ghi ở `problems.created_at`. */
     submittedAt: timestamp('submitted_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   },

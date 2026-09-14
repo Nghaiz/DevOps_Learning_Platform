@@ -1,18 +1,19 @@
 import { TRPCError } from '@trpc/server';
 import {
+  UnknownProblemGameError,
+  gradeProblemRun,
   isVerified,
   tallyLog,
   verifyRun,
   type GradeResult,
   type Problem,
-  type ProblemSubmission,
   type RunLog,
   type RunResult,
   type VerifyStatus,
 } from '@devops-platform/games';
 import type { Database } from '../db/client';
 import { problemSubmissions } from '../db/schema';
-import { toSubmissionDTO } from './dto';
+import { toSubmissionDTO, type ProblemSubmissionWithGrade } from './dto';
 import { hintIdsFromLog, isSolved, problemReplayEngine, expectedLogLevelId } from './replay';
 import { revealedHintsForOne } from './reveals';
 import { problemTestcases } from './testcases';
@@ -22,7 +23,7 @@ import { gradeOf } from './verdict-view';
 const PG_INT4_MAX = 2_147_483_647;
 
 export interface SubmitProblemResult {
-  readonly submission: ProblemSubmission;
+  readonly submission: ProblemSubmissionWithGrade;
   /** Vì sao lượt này được (hay không được) tính điểm. Tầng UI hiển thị nhãn từ `verifyLabel`. */
   readonly verifyStatus: VerifyStatus;
   /** Chi tiết máy móc để ghi log và để gỡ lỗi — KHÔNG phải nhãn cho người dùng. */
@@ -30,15 +31,13 @@ export interface SubmitProblemResult {
   /**
    * Verdict của lượt vừa nộp — §18.B.3 và §18.B.5.
    *
-   * ⚠ KHÔNG được lưu xuống DB, và điều đó có hệ quả phải biết: `passed`/`total`
-   * ở đây là số ĐÚNG tại thời điểm này, nhưng bảng `problem_submissions` chưa
-   * có cột nào chở chúng, nên lịch sử nộp bài KHÔNG đọc lại được `WA (4/5)`.
+   * ĐÃ ĐƯỢC LƯU kể từ 18.C: `passed`/`total` nằm ở hai cột cùng tên trên
+   * `problem_submissions`, nên lịch sử nộp bài đọc lại được `WA (4/5)` — xem
+   * `submission.passed` / `submission.total` ngay trong chính kết quả này, và
+   * `gradeFromSubmission` ở `verdict-view.ts` cho đường dựng lại từ một dòng cũ.
    *
-   * Hợp đồng `core/problem.ts` § `Submission` nói rõ vì sao hai trường đó phải
-   * là SỰ THẬT LỊCH SỬ chốt tại thời điểm nộp chứ không suy lại từ bài hôm nay:
-   * một lượt `WA (4/5)` hôm nay sẽ tự đọc thành `WA (4/7)` sau khi tác giả thêm
-   * hai case. Cột `passed text[]` + `total integer` nằm ở `db/schema.ts`, file
-   * lane này không sở hữu. Đã báo lead.
+   * Hai giá trị ở đây và hai cột kia là MỘT, không phải hai bản sao: cả hai lấy
+   * từ cùng một `GradeResult` bên dưới. Đừng tính lại `passed` ở chỗ đọc.
    */
   readonly grade: GradeResult;
 }
@@ -51,6 +50,7 @@ export interface SubmitProblemResult {
  *
  * | Cột | Lấy từ đâu |
  * |---|---|
+ * | `passed` / `total` | `gradeProblemRun` — máy chủ tự phát lại nhật ký và tự chấm từng testcase |
  * | `score` | Chỉ ghi khi phát lại KHỚP; lúc đó `claimed.score` đã được chứng minh bằng chính số phát lại ra |
  * | `solved` | Tính từ `objectivesMet` đã phát lại, theo các mục tiêu `required` |
  * | `movesUsed` | Đếm từ `log.actions` theo `COMMAND_KINDS` |
@@ -61,6 +61,14 @@ export interface SubmitProblemResult {
  * nhưng `verifyRun` chỉ trả `da-xac-minh` khi số phát lại ra bằng đúng số đã
  * khai, nên ở nhánh đó hai giá trị là một. Lấy `claimed.score` khi CHƯA xác minh
  * mới là tin client — và nhánh đó ghi 0.
+ *
+ * ⚠ `passed` KHÔNG đi qua cổng `verifyRun`, và đó là một khác biệt có chủ ý chứ
+ * không phải một chỗ lỏng. `gradeProblemRun` không đọc `claimed` một chữ nào: nó
+ * phát lại `log.actions` trên `problem.initialState` rồi chạy vị từ của từng
+ * testcase trên trạng thái CUỐI. Kết quả của nó là sự thật của máy chủ dù client
+ * khai gì. Hai cột cũ (`score`, `solved`) thì khác — chúng thuộc mô hình
+ * `Objective` cũ, và giá trị duy nhất máy chủ cầm cho chúng LÀ lời khai, nên
+ * chúng phải đi qua cổng.
  *
  * Một lượt không xác minh được VẪN được ghi, với `solved: false, score: 0`.
  * `verify.ts` §8.3.3 nói rõ: đó vẫn là dữ liệu của người dùng, nó chỉ mất quyền
@@ -97,6 +105,7 @@ export async function submitProblem(
   const verdict = verifyRun(log, claimed, engine);
   const verified = isVerified(verdict);
   const tally = tallyLog(log);
+  const grade = gradeSubmission(problem, log, verdict.status);
 
   const rows = await db
     .insert(problemSubmissions)
@@ -110,6 +119,10 @@ export async function submitProblem(
       // Đã khử trùng và sắp ở trên: hai lượt nộp cùng tập gợi ý ra cùng một
       // mảng, nên chỗ đọc so sánh được mà không phải tự sắp lại.
       hintsRevealed: revealedIds,
+      // ⛔ Chép NGUYÊN VĂN từ `grade`, không tính lại từ `problem.objectives`:
+      // hai phép tính là hai cơ hội lệch, và cái lệch đó sẽ nằm im trong DB.
+      passed: [...grade.passed],
+      total: grade.total,
     })
     .returning();
 
@@ -125,8 +138,70 @@ export async function submitProblem(
     submission: toSubmissionDTO(row),
     verifyStatus: verdict.status,
     verifyDetail: verdict.detail,
-    grade: gradeOf(verdict.status, passedTestcaseIds(problem, claimed), testcaseTotal(problem)),
+    grade,
   };
+}
+
+/**
+ * Chấm lượt này theo MÔ HÌNH TESTCASE — máy chủ tự phát lại, tự chạy vị từ.
+ *
+ * ⛔ `gradeProblemRun` là hàm dùng chung của cả client lẫn máy chủ, và đó không
+ * phải chuyện gọn gàng: §18.C.3 đem so verdict hai bên, nên hai bên chấm bằng
+ * hai đoạn mã khác nhau thì một lệch nhau chỉ nói về hai hàm chứ không nói gì về
+ * lượt chơi. Đừng viết lại `passed === total` ở đây.
+ *
+ * ## `seed` lấy từ NHẬT KÝ, không phải một hằng
+ *
+ * `log.seed` là số client đã dùng THẬT để dựng thế giới đầu. Tự đặt một hằng ở
+ * đây là mở lại đúng cái hố mà `core/problem.ts` § `Submission.seed` ghi lại:
+ * hai bên chọn hai hằng khác nhau (`K8S_UNSEEDED_REPLAY_SEED = 0` vs
+ * `GIT_UNSEEDED_REPLAY_SEED = 1`) thì máy chủ phát lại trên một thế giới KHÁC,
+ * và mọi lượt nộp hợp lệ đều bị từ chối — nhìn từ phía người dùng nó giống hệt
+ * một hệ thống từ chối người chơi ngẫu nhiên.
+ *
+ * ## `engine-khong-tat-dinh` là nhánh DUY NHẤT còn phải hỏi `verifyRun`
+ *
+ * `gradeProblemRun` phát lại MỘT lần, nên nó không phát hiện được một engine
+ * không tất định — nó chỉ trả một trong nhiều kết quả có thể, trông hoàn toàn
+ * bình thường. `verifyRun` phát lại hai lần và bắt được. Ở nhánh đó không con số
+ * nào đáng tin, kể cả số của chính lần phát lại này, nên `passed` bị bỏ và
+ * verdict về `CE` — đúng nghĩa mà hợp đồng gán cho `CE`: *"lượt chơi không chạy
+ * tới nơi, nên `passed`/`total` không nói lên gì."*
+ *
+ * Bốn trạng thái còn lại của `verifyRun` KHÔNG cần hỏi: log hỏng hay reducer ném
+ * thì chính `gradeProblemRun` cũng trả `CE` (plugin bọc phần phát lại trong
+ * `try/catch`), còn `khong-khop` chỉ nói rằng *lời khai điểm* của client sai —
+ * một câu về `claimed`, không phải một câu về nhật ký.
+ */
+function gradeSubmission(problem: Problem, log: RunLog, status: VerifyStatus): GradeResult {
+  const testcases = problemTestcases(problem.objectives);
+  if (status === 'engine-khong-tat-dinh') {
+    return gradeOf(status, [], testcases.length);
+  }
+  try {
+    return gradeProblemRun({
+      gameId: log.gameId,
+      initialState: problem.initialState,
+      actions: log.actions,
+      testcases,
+      seed: log.seed,
+    });
+  } catch (error) {
+    if (error instanceof UnknownProblemGameError) {
+      // ⛔ Bắt theo LỚP, không so chuỗi thông điệp: thông điệp là tiếng Việt cho
+      // người đọc và sẽ được sửa lại lúc nào đó; lớp thì không đổi trong im lặng.
+      //
+      // `INTERNAL_SERVER_ERROR` chứ không phải `BAD_REQUEST`: người nộp không
+      // làm gì sai. Một bài `published` thuộc game chưa có plugin chấm là một
+      // lỗi CẤU HÌNH của nền tảng, và trả 400 sẽ gửi người dùng đi sửa lượt chơi
+      // của họ.
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Bài này thuộc game "${error.gameId}" nhưng hệ thống chưa có bộ chấm cho game đó`,
+      });
+    }
+    throw error;
+  }
 }
 
 /**
@@ -146,37 +221,4 @@ function claimedDurationSeconds(claimed: RunResult): number {
     return 0;
   }
   return Math.min(Math.round(millis / 1000), PG_INT4_MAX);
-}
-
-/**
- * Id các testcase ĐÃ QUA của lượt này.
- *
- * ⛔ Chỉ trả tập thật khi phát lại ĐÃ XÁC MINH — `gradeOf` là chỗ ép điều đó, và
- * nó bỏ tập này đi ở mọi nhánh khác. Lý do phải nói ra: `claimed.objectivesMet`
- * là LỜI KHAI của client, và nó chỉ trở thành sự thật sau khi `verifyRun` chứng
- * minh phát lại ra đúng con số đã khai. Đọc nó mà không qua cổng đó là tin
- * client — đúng thứ mà cả `submit.ts` này tồn tại để không làm.
- *
- * Khử trùng bằng `Set`: một engine trả id trùng sẽ đẩy `passed.length` vượt
- * `total` và cho ra `AC` cho một lượt chưa qua hết.
- */
-function passedTestcaseIds(problem: Problem, claimed: RunResult): readonly string[] {
-  const ids = new Set(problem.objectives.map((objective) => objective.id));
-  // Lọc theo id THẬT của bài: một nhật ký thuộc bản đề cũ có thể mang id không
-  // còn tồn tại, và đếm nó vào mẫu số hôm nay là đếm một testcase đã bị xoá.
-  return [...new Set(claimed.objectivesMet)].filter((id) => ids.has(id));
-}
-
-/**
- * Mẫu số của `n/m`.
- *
- * Đếm MỌI testcase, không chỉ những cái `required` — và đó là chỗ mô hình
- * testcase khác mô hình objective. `core/problem.ts` § `Testcase` nói thẳng:
- * *"Một testcase thì luôn chặn — đó là nghĩa của `AC`."* Cột `solved` bên dưới
- * vẫn đếm theo `required` (hành vi cũ, một câu hỏi khác), nên hai số có thể
- * lệch nhau ở bài có mục tiêu thưởng: `solved: true` mà verdict `WA`. Đó là hợp
- * đồng mới nói đúng, không phải một lỗi.
- */
-function testcaseTotal(problem: Problem): number {
-  return problemTestcases(problem.objectives).length;
 }
