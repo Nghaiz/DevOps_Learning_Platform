@@ -85,10 +85,34 @@ ranh giới là tên file, không phải "khu vực".
 | **C** | K.5 cạnh rẽ góc vuông · K.8 hai khối kho | `edge-route-3d.ts(+test)` · `lane-edges.tsx` · `repo-blocks.tsx` |
 | **D** | K.6 nhãn · K.3 ba mặt phẳng | `label-priority.ts(+test)` · `scene-labels-3d.tsx` · `file-plates.tsx` |
 | **E** | K.7 chuyển động mang thông tin | `motion-script.ts(+test)` · `motion-runner.tsx` · `scene3d-contract.test.ts` |
-| **lead** | hợp thành + bật công tắc + AC-7 | `scene3d-contract.ts` · `scene3d/index.ts` · `git-scene-3d.tsx` · `git-game.tsx` · `e2e/games.spec.ts` |
+| **lead** | hợp thành + bật công tắc + AC-7 | `scene3d-contract.ts` · `scene3d-tokens.ts` · `use-git-scene-colors.ts` · `scene3d/index.ts` · `git-scene-3d.tsx` · `git-game.tsx` · `e2e/games-git.spec.ts` |
 
 Commit dạng pathspec, một lane một commit trở lên. `K.2` không có lane riêng vì nó **là** nền
 hợp đồng — nó đã xong trước khi fan-out.
+
+### Bảy lỗi hợp đồng mà các lane tìm ra khi hiện thực
+
+Ghi lại vì đây là **kết quả đáng giá nhất của cách chia việc này**, không phải một phụ lục. Ba
+trong bảy cái lead sẽ không tự tìm ra: chúng chỉ lộ khi có người thật sự dựng mã lên trên hợp đồng.
+
+| # | Lỗi | Lane | Hậu quả nếu để nguyên |
+|---|---|---|---|
+| 1 | Không ai sở hữu cầu nối token CSS → `THREE.Color` | D | Ba bản cài đặt của một phép phân giải màu, lệch nhau mà không cổng nào bắt |
+| 2 | `bounds` bỏ sót ba mặt phẳng ô file | A | Bấm khung-toàn-bộ **cắt sạch K.3 khỏi màn hình** |
+| 3 | `assertPlanesClearOfDag()` lạc quan 18% | B | Tính bằng `NODE_RADIUS` trong khi `head` phóng 1.18 — cổng xanh đúng lúc DAG chạm mặt phẳng |
+| 4 | "X dùng chung cho hai kho" là **lời khai, không phải cổng** | B | Cạnh `remote-mirror` đi chéo ở đúng những level dạy `push`/`fetch` |
+| 5 | `Routed3D` không mang id hai đầu | C | Tầng cạnh phải **cắt chuỗi** khoá; chặn hẳn việc làm mờ cạnh không liên quan |
+| 6 | `REPO_LABEL` có hai bản | C | Hai renderer nói hai câu khác nhau về cùng một kho |
+| 7 | `place3d` dùng **hai** phép so chuỗi trên cùng tập đường dẫn | E | Trùng nhau với ASCII nên vô hình; lệch với tiếng Việt |
+
+**Và một mẫu hình đáng chú ý hơn bất kỳ lỗi đơn lẻ nào:** ba lane độc lập đâm vào cùng khe hở
+của `assertPlanesClearOfDag()` (nó mù với cung cạnh, nhãn, và vòm `reflog`) rồi mỗi lane **tự vá
+cục bộ**. Ba bản vá riêng cho một khe hở là dấu hiệu cổng đặt sai tầng, không phải dấu hiệu ba
+lane bất cẩn. Nay nó nhận `extraLift`.
+
+**Bài học cho lần fan-out sau:** hợp đồng phải pin cả **ai sở hữu hạ tầng dùng chung**, không chỉ
+hình dạng dữ liệu. Lỗi #1 là lỗi duy nhất chặn một lane lại giữa chừng, và nó là lỗi duy nhất
+không nằm trong bất kỳ kiểu dữ liệu nào.
 
 ---
 
