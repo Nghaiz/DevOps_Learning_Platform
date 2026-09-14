@@ -242,7 +242,13 @@ Chỉ là đường dẫn trong chú thích, không phải import — typecheck 
 ⚠ Cùng commit đó làm `packages/games` **đỏ typecheck** ở thời điểm viết báo cáo:
 `src/index.ts(176,3): error TS2305: Module '"./core/verify.ts"' has no exported
 member 'sessionReplayEngine'`. Barrel là file lead sở hữu nên lane này không
-chạm. **Lead cần wire lại dòng 176 của barrel.**
+chạm.
+
+**Đã được gỡ trước khi lane này đóng lượt**: lead sửa barrel ngay trong cây làm
+việc (chưa commit lúc đo), và `pnpm --filter @devops-platform/games typecheck`
+trả **0** trở lại ở `df94dbd`. Ghi lại vì con số typecheck ở §2 đo tại `aca4f88`,
+trước quãng đỏ đó — nếu không nói ra thì hai phép đo trong cùng báo cáo trông
+như mâu thuẫn nhau.
 
 ---
 
