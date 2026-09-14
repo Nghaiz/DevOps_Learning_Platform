@@ -630,3 +630,83 @@ cấu hình có thể đã lỗi thời **không** phải bằng chứng.
 **#105 — chưa đóng.** k8s.io/* 0.36.3 → 0.37.0 chạm client-go, tức chạm đúng tầng
 reaper + pool. Cổng Go (build + vet + test + lint + vuln) đủ sức bắt lỗi biên
 dịch, nhưng đổi hành vi client-go thì không. Cần một lượt đo riêng.
+
+### 6.6 Chốt sổ đợt trả nợ — 2026-09-14, cuối ngày
+
+Lượt ở §6.5 dừng ở "đã vá, chờ CI". Đây là kết cục thật, cùng những thứ nó lòi ra.
+
+#### 6.6.1 Đã vào `main`
+
+| PR | Nội dung | Ghi chú |
+|---|---|---|
+| #110 · #108 · #120 | zod 4.5.4 · lucide-react 1.44 · nhóm dev-deps | ba bump minor |
+| #123 | ba thứ tạm dừng cùng đợt `ci.yml` + một ô kiểm gác rỗng | xem §6.5.2 |
+| #131 | gỡ barrel Zod khỏi nền chung | −359 911 B mọi route |
+| #124 | **P17 — Phòng thí nghiệm Git**, 34 commit | kèm vá side effect của P17 |
+| #132 | ghim 5 image về `sha-6f19cbe` | |
+| #104 | **đóng**, ghim `ubuntu` major trong dependabot | §6.5.4 |
+
+`main` = `6f19cbe` (gộp P17) → `ac7557f` (ghim tag).
+
+#### 6.6.2 Cụm đã cập nhật, kiểm từ hai đầu
+
+5 image nạp bằng `11-sideload-images.sh` và **khẳng định lại trên node** (script cố ý
+không tin bước import tự báo). `12-helm-deploy.sh` rsync chart TƯƠI từ repo rồi upgrade.
+
+**Smoke 7/7 PASS** — rollout 3 deployment, image khớp chart, warm pool 3/3, `/api/health`
+qua Traefik 200, và probe vòng đời phiên chạy trọn `create → claim → reap`.
+
+Kiểm thêm ngoài smoke:
+
+- `/games/git` trả **200** — route này KHÔNG tồn tại ở `sha-b22749d`, nên nó là bằng
+  chứng trực tiếp rằng trình duyệt nhận build mới, không phải bản cache.
+- Trang phục vụ mang `BUILD_ID = UiMav48XidOec3tYP4ld-`, **khớp** BUILD_ID đọc từ chính
+  image CI.
+- TTFB: lượt đầu 13,9s, bốn lượt sau **0,77–1,14s**. Lượt đầu là cold start sau rollout;
+  đừng đọc một mẫu nguội thành hồi quy. (Mốc "trước" cùng ngày: 4,7s ở tải 48.)
+
+#### 6.6.3 Hai món nợ cũ đóng bằng phép đo, không bằng lời
+
+**AC-10 của P17** — báo cáo P17 ghi ô này chỉ đúng cho một image *dựng tại chỗ*, vì
+workflow `images` chỉ chạy khi push vào `main`. Nay đo trên **đúng image CI**
+`ghcr.io/nghaiz/dlp-web:sha-6f19cbe`: **32 file `.md`, 0 file rỗng**, frontmatter thật.
+Kiểm FILE chứ không kiểm THƯ MỤC — `.dockerignore` từng bóc sạch markdown mà thư mục
+vẫn còn, và `ls` thì xanh.
+
+**`phase-1.md:808` — "thứ tự Trivy mới CHƯA TỪNG chạy thật"** vì job `images` chỉ chạy
+trên `main`. Nay đã chạy, và chạy đúng thứ tự thiết kế (build-để-quét → báo cáo →
+cổng chặn → rồi mới push):
+
+```
+dlp-web:scan (alpine 3.24.1)   Total: 2 (HIGH: 2, CRITICAL: 0)
+cổng chặn CRITICAL             "lượt quét hoàn tất, 0 CRITICAL."
+```
+
+#### 6.6.4 Còn nợ MỚI, có tên
+
+1. **CVE-2026-14456, 2 HIGH trong image web.** `libcrypto3` + `libssl3` của alpine
+   3.24.1 ở `3.5.7-r0`; **đã có bản vá `3.5.8-r0`**. Lỗi là DoS trong *QUIC server*, mà
+   image này chạy Next.js không có QUIC — khả năng khai thác gần như không, nên không
+   chặn. Nhưng nó **fixable**, khác hẳn nhóm HIGH do `next` ghim mà ta không tự vá được
+   (lý lẽ ghi trong `ci.yml` cho việc chặn ở CRITICAL thay vì HIGH). Đường vá: nâng base
+   alpine hoặc thêm `apk upgrade` cho hai gói này.
+2. **`dependency-review` có thể thêm lại.** `ci.yml` ghi job này bị gỡ vì nó đòi GitHub
+   Advanced Security trên repo **private**. Repo thành public ngày 2026-09-14 ⇒ điều
+   kiện gỡ đã hết hiệu lực.
+3. **Trần ngân sách bundle nay quá lỏng.** Nền chung dư **32%** (786 785 / 1 150 000) so
+   với 8,6% của mốc cũ. Cổng dư 32% không bắt được một bump cỡ 91KB — đúng cỡ `zod` vừa
+   cộng vào. Xem `docs/bundle-budget.md` § "Đo lại 2026-09-14".
+4. **`secret-scan.yml` chỉ quét commit của PR** (`ScanPullRequest`), không quét toàn bộ
+   lịch sử. Lượt quét đầy đủ đầu tiên chạy tay 2026-09-14: **688 commit, 20,04 MB, 0 rò
+   rỉ** — và đối chứng dương đã chạy được trước khi tin (xem memory
+   `gitleaks-allowlists-the-aws-doc-key`: mẫu `AKIAIOSFODNN7EXAMPLE` bị allowlist nên
+   một đối chứng dựng trên nó trượt IM LẶNG).
+5. **Ba PR Dependabot cố ý để mở:** #105 (k8s.io/* 0.36.3→0.37.0, chạm client-go tức
+   chạm tầng reaper + pool), #107 + #109 (vitest 4→5, cặp major). Lý do đã bình luận
+   ngay trên từng PR.
+6. **VM lab bị bão hoà bởi dự án KHÁC.** `Ironfront.Serve` ×2 ăn ~140% CPU mỗi cái trên
+   máy 12 vCPU; load chạm **98,8** lúc cao nhất, xuống ~30 khi deploy. Mọi phép đo thời
+   gian trên cụm trong quãng đó đều phải ghi kèm tải, nếu không nó đọc ra thành lỗi sản
+   phẩm.
+7. **Repo nay là public.** Contribution không còn cần cờ *"Include private contributions"*;
+   đổi lại, mọi commit và mọi tài liệu trong `plans/`, `docs/` đều đọc được công khai.
