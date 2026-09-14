@@ -12,13 +12,17 @@
  *    (`git/contract.ts:796`) và nó mô tả cả origin lẫn bot chứ không chỉ một
  *    repo, nên tên trong plan còn hẹp hơn thứ nó chỉ vào.
  *
- * 2. **`graphShapeMatches` khai được nhưng dùng KHÔNG được.** Vị từ đó so hình
- *    dạng DAG với một **thế giới ĐÍCH** (`GitLevel.target`), mà `ProblemBase`
- *    chỉ có `initialState` — không có ô nào cho cây đích. Nó vẫn nằm trong
- *    `predicateNames` vì hợp đồng đòi danh sách đó khớp hai chiều với hiện thực,
- *    nhưng `grade` trả `CE` kèm câu nói rõ khi một testcase gọi tới nó. Xem khối
- *    chú thích ở `gradeGitProblem` về lý do `CE` chứ không phải để nó lặng lẽ
- *    trượt.
+ * 2. ~~**`graphShapeMatches` khai được nhưng dùng KHÔNG được.**~~ ĐÃ GỠ
+ *    2026-09-14. Lời khai cũ đúng ở thời điểm viết: vị từ đó so hình dạng DAG
+ *    với một **thế giới ĐÍCH**, mà `ProblemBase` không có ô nào chứa cây đích,
+ *    nên `grade` buộc phải trả `CE` cho MỌI testcase gọi tới nó — một vị từ hợp
+ *    lệ ở bảng từ vựng mà không bao giờ chạy được.
+ *
+ *    Lead đã sửa tận gốc ở `ae7ed23`: `ProblemBase.targetState?: Spec`. Nay
+ *    `grade` nhận `targetState?` và vị từ CHẠY THẬT khi bài có khai. `CE` vẫn
+ *    còn, nhưng đã thu hẹp đúng vào ca nó phải nói: bài **dùng**
+ *    `graphShapeMatches` mà **không khai** `targetState` — một bài soạn thiếu,
+ *    và nó phải ồn ào chứ không lặng lẽ trượt.
  *
  * 3. **Lệnh gõ sai KHÔNG thành `CE` ở bước này.** §18.B.5 mới là chỗ quyết định
  *    chính sách đó, và nó cần một quyết định thật (một lệnh sai giữa chừng rồi
@@ -35,6 +39,7 @@ import type { GitGameAction } from '../core/run-log.ts';
 import type { GitLevel, GitPredicateName, GitWorld, WorldSpec } from './contract.ts';
 import { createGitSession } from './engine.ts';
 import { GIT_PREDICATE_NAMES, evaluatePredicate } from './predicates.ts';
+import { buildWorld } from './world-spec.ts';
 
 // ── Định danh ───────────────────────────────────────────────────────────────
 
@@ -46,16 +51,22 @@ import { GIT_PREDICATE_NAMES, evaluatePredicate } from './predicates.ts';
 export const GIT_PROBLEM_CODE_PREFIX = 'GIT';
 
 /**
- * Seed dùng khi bài KHÔNG seedable (`seed === null`).
+ * Seed mà CLIENT dùng khi bắt đầu một bài Git không seedable.
  *
- * `1` chứ không phải `0`, và có lý do cụ thể: `createGitSession` đã lấy `1` làm
- * mặc định của chính nó (`engine.ts:99`, `options.seed ?? 1`). Đặt một số khác ở
- * đây nghĩa là một lượt chấm OJ dựng thế giới KHÁC mọi đường git còn lại của
- * repo — đúng loại lệch mà không ai nghĩ tới khi đi tìm nguyên nhân.
+ * ⛔ ĐỔI VAI 2026-09-14 (`ae7ed23`), KHÔNG bị xoá. Trước đó hằng này là mặc định
+ * lúc **CHẤM**: `grade` nhận `seed: number | null` và tự điền hằng này khi gặp
+ * `null`. Đó là chỗ hỏng — plugin K8s điền `0`, plugin này điền `1`, nên client
+ * chơi trên một thế giới đầu còn server phát lại trên một thế giới đầu KHÁC, và
+ * mọi lượt nộp HỢP LỆ đều bị từ chối. `Submission.seed` nay là một số THẬT mang
+ * theo lượt nộp, nên không phía nào tra hằng lúc chấm nữa.
  *
- * Vì sao phải export: client chấm tại chỗ và server chấm lại bắt buộc nạp CÙNG
- * một số. Hai bên lệch seed là hai thế giới đầu khác nhau trước cả lệnh đầu
- * tiên, và mọi lượt nộp hợp lệ đều bị từ chối.
+ * Vai còn lại vẫn cần và vẫn đúng: đây là số client nạp vào `createGitSession`
+ * khi mở một bài không seedable, rồi ghi vào `Submission.seed`.
+ *
+ * ⚠ Giá trị PHẢI là `1`, không phải `0`. `createGitSession` đã lấy `1` làm mặc
+ * định của chính nó (`engine.ts:99`, `options.seed ?? 1`). Đặt một số khác ở đây
+ * nghĩa là một lượt chơi OJ dựng thế giới KHÁC mọi đường git còn lại của repo —
+ * đúng loại lệch mà không ai nghĩ tới khi đi tìm nguyên nhân.
  */
 export const GIT_UNSEEDED_REPLAY_SEED = 1;
 
@@ -189,10 +200,15 @@ export const GIT_AUTHOR_FIELDS: readonly AuthorField[] = [
 // ── Chấm ────────────────────────────────────────────────────────────────────
 
 /**
- * Vị từ cần một thế giới ĐÍCH, thứ mà bài OJ không có chỗ để khai.
+ * Vị từ chỉ chạy được khi bài khai `targetState`.
  *
- * Giữ thành một hằng chứ không viết thẳng chuỗi trong `if`: test khoá được nó,
- * và ngày `ProblemBase` có ô cho cây đích thì chỗ phải sửa là một, không phải ba.
+ * Ngày `ProblemBase` có ô cho cây đích đã tới (`ae7ed23`), nên hằng này không
+ * còn là danh sách "vị từ không dùng được" mà là danh sách **điều kiện tiên
+ * quyết**: gọi một tên trong đây mà bài không khai `targetState` là một bài soạn
+ * thiếu, và `gradeGitProblem` trả `CE` kèm câu nói rõ.
+ *
+ * Vẫn giữ thành một hằng chứ không viết thẳng chuỗi trong `if`: test khoá được
+ * nó, và ngày có vị từ thứ hai cần cây đích thì chỗ phải sửa là một.
  */
 const PREDICATES_NEEDING_TARGET: readonly GitPredicateName[] = ['graphShapeMatches'];
 
@@ -209,8 +225,13 @@ const PREDICATES_NEEDING_TARGET: readonly GitPredicateName[] = ['graphShapeMatch
  * thế giới cuối. Đi vòng qua `objectives` sẽ kéo theo `required` — thứ mà
  * `Testcase` cố ý KHÔNG có (`core/problem.ts` giải thích vì sao).
  *
- * `target` để `undefined`: không có cây đích, và `PREDICATES_NEEDING_TARGET` ở
- * trên là chỗ chuyện đó được nói ra thành lời thay vì âm thầm trượt.
+ * ⚠ `target` để `undefined` NGAY CẢ KHI bài có khai `targetState`, và đó không
+ * phải một chỗ bỏ sót. `createGitSession` dựng cây đích vào một biến nội bộ
+ * (`buildTarget`, `engine.ts:93`) mà `GitEngineSession` KHÔNG có hàm nào trả ra,
+ * nên điền vào đây chỉ tốn một lượt `buildWorld` thứ hai mà `gradeGitProblem`
+ * không đọc được. Phiên này cũng có `objectives: []` nên không có gì bên trong
+ * engine dùng tới `target`. Bộ chấm tự dựng cây đích bằng ĐÚNG một lệnh
+ * `buildWorld(targetState, seed)` — cùng biểu thức, cùng seed, cùng kết quả.
  */
 function replayLevel(setup: WorldSpec): GitLevel {
   return {
@@ -253,11 +274,17 @@ function compileError(reason: string): GradeResult {
  * một testcase vĩnh viễn đỏ trông y hệt một lời giải sai:
  *
  * - **Vị từ không có trong `GIT_PREDICATE_NAMES`** — tác giả gõ nhầm tên.
- * - **Vị từ cần cây đích** (`graphShapeMatches`) — `evaluatePredicate` trả
- *   `false` khi `target === null`, tức là testcase đó không bao giờ qua được.
- *   Đây chính xác là hình dạng lỗi mà `development-principles.md` §"Errors Over
- *   Silent Fallbacks" cấm: một nhánh trả giá trị hợp lệ để che một điều kiện
- *   không thoả được.
+ * - **Vị từ cần cây đích mà bài KHÔNG khai `targetState`** (`graphShapeMatches`)
+ *   — `evaluatePredicate` trả `false` khi `target === null`, tức là testcase đó
+ *   không bao giờ qua được. Đây chính xác là hình dạng lỗi mà
+ *   `development-principles.md` §"Errors Over Silent Fallbacks" cấm: một nhánh
+ *   trả giá trị hợp lệ để che một điều kiện không thoả được.
+ *
+ *   ⚠ Phép kiểm này hẹp đi từ `ae7ed23` và phải giữ đúng bề rộng đó: bài CÓ khai
+ *   `targetState` thì vị từ chạy thật, không `CE`. Nới ra thành "mọi lần gọi
+ *   `graphShapeMatches` đều `CE`" là quay lại đúng chỗ hỏng cũ (một vị từ khai
+ *   được nhưng dùng không được); siết vào thành "im lặng trả `false`" là quay
+ *   lại chỗ hỏng còn tệ hơn (một bài không ai giải được, không ai biết vì sao).
  *
  * Hành động `hint` được BỎ QUA có chủ ý: nó không đụng tới repo (`engine.ts:228`
  * chỉ sửa `hintsRevealed` và dòng output), và level tổng hợp ở đây có
@@ -267,11 +294,12 @@ function compileError(reason: string): GradeResult {
  */
 export function gradeGitProblem(input: {
   readonly initialState: WorldSpec;
+  readonly targetState?: WorldSpec;
   readonly actions: readonly GitGameAction[];
   readonly testcases: readonly Testcase[];
-  readonly seed: number | null;
+  readonly seed: number;
 }): GradeResult {
-  const { initialState, actions, testcases, seed } = input;
+  const { initialState, targetState, actions, testcases, seed } = input;
 
   if (testcases.length === 0) {
     return compileError('bài chưa có testcase nào nên không chấm được');
@@ -282,18 +310,47 @@ export function gradeGitProblem(input: {
     if (!known.includes(testcase.check)) {
       return compileError(`testcase "${testcase.id}" gọi vị từ không tồn tại: "${testcase.check}"`);
     }
-    if ((PREDICATES_NEEDING_TARGET as readonly string[]).includes(testcase.check)) {
+    if (
+      targetState === undefined &&
+      (PREDICATES_NEEDING_TARGET as readonly string[]).includes(testcase.check)
+    ) {
       return compileError(
-        `vị từ "${testcase.check}" cần một cây đích, mà bài OJ không khai được cây đích`,
+        `vị từ "${testcase.check}" cần một cây đích, mà bài này không khai "targetState"`,
       );
     }
   }
 
   let world: GitWorld;
+  /*
+   * Cây đích, dựng bằng CÙNG seed với thế giới đầu.
+   *
+   * Cùng seed là bắt buộc chứ không phải cho gọn: `buildWorld` nuôi RNG của bot
+   * từ seed, nên hai seed khác nhau cho hai cây đích khác nhau — và một cây đích
+   * lệch làm `graphShapeMatches` trượt trên một lời giải ĐÚNG. `engine.ts:93`
+   * (`buildTarget`) dựng đích bằng đúng biểu thức này, cũng bằng đúng seed của
+   * phiên; đây là chỗ thứ hai phải khớp với nó.
+   *
+   * `null` (không phải `undefined`) vì đó là thứ `evaluatePredicate` nhận.
+   */
+  let target: GitWorld | null = null;
+  if (targetState !== undefined) {
+    /*
+     * `try` RIÊNG, không gộp vào khối phát lại ngay dưới. Một `targetState` soạn
+     * hỏng và một nhật ký chạy hỏng là hai chuyện khác nhau, và gộp lại thì câu
+     * `CE` nói "phát lại nhật ký lỗi" cho một lượt chơi chưa hề được phát lại —
+     * người đọc đi tìm sai chỗ ngay từ dòng đầu.
+     */
+    try {
+      target = buildWorld(targetState, seed);
+    } catch (error) {
+      return compileError(`cây đích của bài dựng không được: ${errorText(error)}`);
+    }
+  }
+
   try {
     const session = createGitSession({
       level: replayLevel(initialState),
-      seed: seed ?? GIT_UNSEEDED_REPLAY_SEED,
+      seed,
       // Phát lại không bao giờ hoàn tác, nên một ngăn xếp 50 khung là bộ nhớ giữ
       // lại mà không ai đọc. `replayGitLog` đã dùng đúng giá trị này.
       undoDepth: 0,
@@ -311,7 +368,7 @@ export function gradeGitProblem(input: {
   const passed: string[] = [];
   for (const testcase of testcases) {
     try {
-      if (evaluatePredicate(world, null, testcase.check as GitPredicateName, testcase.args)) {
+      if (evaluatePredicate(world, target, testcase.check as GitPredicateName, testcase.args)) {
         passed.push(testcase.id);
       }
     } catch (error) {

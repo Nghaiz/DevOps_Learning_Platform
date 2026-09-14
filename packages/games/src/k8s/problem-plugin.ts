@@ -48,18 +48,27 @@ import { createSession } from './session.ts';
 export const K8S_PROBLEM_CODE_PREFIX = 'K8S';
 
 /**
- * Seed dùng khi bài KHÔNG seedable (`seed === null`).
+ * Seed mà CLIENT dùng khi bắt đầu một bài K8s không seedable.
  *
- * ⚠ Đây KHÔNG mâu thuẫn với luật *"đừng dùng `0` làm không-có-seed"* ở
+ * ⛔ ĐỔI VAI 2026-09-14 (`ae7ed23`), KHÔNG bị xoá. Lời khai cũ nói hằng này là
+ * câu trả lời cho *"hai bên có dùng CÙNG một số không"*, và nó SAI — không phải
+ * vì lập luận hỏng mà vì nó chỉ đúng trong phạm vi một plugin. Plugin Git công
+ * bố hằng cùng vai với giá trị `1`; hai hằng lệch nhau nghĩa là client chơi trên
+ * một thế giới đầu còn server phát lại trên một thế giới đầu KHÁC. Một hằng
+ * không đảm bảo được sự thống nhất giữa hai phía khi mỗi phía tra một hằng khác
+ * nhau.
+ *
+ * Cách chặn nằm ở hợp đồng chứ không ở đây: `Submission.seed` nay là một số
+ * THẬT mang theo lượt nộp, và `grade` dùng thẳng số đó. Không phía nào tra hằng
+ * lúc chấm nữa, nên không có gì để lệch.
+ *
+ * Vai còn lại vẫn cần: đây là số client nạp vào `createSession` khi mở một bài
+ * không seedable, rồi ghi vào `Submission.seed`.
+ *
+ * ⚠ `0` ở đây KHÔNG mâu thuẫn với luật *"đừng dùng `0` làm không-có-seed"* ở
  * `core/problem.ts`. Luật đó nói về chỗ **LƯU**: một cột `seed` mà `0` vừa nghĩa
  * là seed số không vừa nghĩa là không có seed thì không ai gỡ ra được. Ở đây
- * không lưu gì — engine BẮT BUỘC phải nhận một số để dựng trạng thái đầu, nên
- * câu hỏi không phải "lưu gì" mà "hai bên có dùng CÙNG một số không".
- *
- * Hằng này là câu trả lời, và nó phải được export: client chấm tại chỗ và server
- * chấm lại phải nạp cùng một số, nếu không thì mọi lượt nộp hợp lệ vào một bài
- * không-seedable đều lệch trạng thái đầu và bị từ chối — một lỗi trông giống hệt
- * "hệ thống từ chối người chơi ngẫu nhiên".
+ * `0` là một seed thật, được chọn và được ghi lại như mọi seed khác.
  */
 export const K8S_UNSEEDED_REPLAY_SEED = 0;
 
@@ -95,18 +104,22 @@ export const K8S_PROBLEM_TOPICS: readonly ProblemTopicOption[] = PROBLEM_TOPICS.
  * (`apps/web/src/app/author/problems/cluster-fields.tsx`): node, namespace, tài
  * nguyên.
  *
- * ⚠ HAI CHỖ PHẢI DÙNG `json`, và cả hai đều là giới hạn THẬT chứ không phải lười:
+ * ⚠ CÒN ĐÚNG MỘT CHỖ DÙNG `json`, và nó là giới hạn THẬT chứ không phải lười:
+ * `resources[].spec` là `Record<string, unknown>` với hình dạng tuỳ 26 loại tài
+ * nguyên — `contract.ts:110` đã chốt là cố ý lỏng. Đây đúng là "van an toàn có
+ * chủ ý" mà `AuthorField` mô tả, không phải một chỗ bỏ dở.
  *
- * 1. `namespaces` là `readonly string[]` — một **danh sách giá trị đơn**, mà
- *    `AuthorField` chưa có dạng nào cho nó: `list` mô tả danh sách của một NHÓM
- *    trường con (mỗi mục là một object), `text` mô tả đúng một chuỗi. Trang soạn
- *    bài hiện dùng textarea "mỗi dòng một namespace" rồi tự tách — một quy ước
- *    nằm trong mã giao diện, không nằm trong kiểu. Đã báo lead; tới khi hợp đồng
- *    có `kind: 'string-list'` thì `json` là bản mô tả TRUNG THỰC nhất, vì nó
- *    không hứa một widget mà tầng UI chưa dựng được.
- * 2. `resources[].spec` là `Record<string, unknown>` với hình dạng tuỳ 26 loại
- *    tài nguyên — `contract.ts:110` đã chốt là cố ý lỏng. Đây đúng là "van an
- *    toàn có chủ ý" mà `AuthorField` mô tả, không phải một chỗ bỏ dở.
+ * ⛔ `namespaces` ĐÃ RỜI KHỎI `json` ngày 2026-09-14. Lời khai cũ ở đây nói đúng
+ * chỗ hỏng — `readonly string[]` là một **danh sách giá trị đơn**, mà `list` thì
+ * lặp một NHÓM trường con còn `text` thì đúng một chuỗi, nên `json` là bản mô tả
+ * trung thực nhất *vào lúc đó* — và nó kết bằng "đã báo lead". Lead đã thêm
+ * `kind: 'string-list'` ở `ae7ed23`, nên chỗ này chuyển sang dùng nó. Ép người
+ * soạn gõ `["default","kube-system"]` đúng cú pháp JSON cho một thứ đáng lẽ là ô
+ * nhập có nút thêm/xoá không còn là "trung thực", nó chỉ còn là lạc hậu.
+ *
+ * `minItems: 1` thay cho `required: true` cũ, và mang đúng nghĩa mạnh hơn:
+ * `required` chỉ đòi trường có mặt, nên một mảng RỖNG vẫn qua — mà một cụm không
+ * namespace nào thì không đặt được tài nguyên nào vào đâu.
  *
  * Mọi chữ hiển thị lấy từ khoá đã có trong `packages/copy` — file này KHÔNG thêm
  * khoá mới, vì trang soạn bài K8s đã đặt hết chúng từ trước.
@@ -149,13 +162,17 @@ export const K8S_AUTHOR_FIELDS: readonly AuthorField[] = [
     ],
   },
   {
-    kind: 'json',
+    kind: 'string-list',
     path: 'namespaces',
     label: t('problem.cluster-fields-namespace'),
     help: t(
       'problem.cluster-fields-moi-dong-mot-namespace-tai-nguyen-chi-dat-duoc-vao-namespace-da-khai-o-day',
     ),
-    required: true,
+    // Dùng lại khoá của `label`: nhãn một mục trong danh sách namespace ĐÚNG là
+    // "Namespace". Thêm một khoá chữ thứ hai chỉ để chứa cùng một từ là dựng một
+    // bản dịch thứ hai sẽ lệch vào lần đầu ai sửa một trong hai.
+    itemLabel: t('problem.cluster-fields-namespace'),
+    minItems: 1,
   },
   {
     kind: 'list',
@@ -273,9 +290,19 @@ function compileError(reason: string): GradeResult {
  */
 export function gradeK8sProblem(input: {
   readonly initialState: ClusterSpec;
+  /**
+   * Khai để khớp hợp đồng, KHÔNG đọc — và sự vắng mặt đó là một lời khai.
+   *
+   * `targetState` phục vụ lối chấm "so hình dạng với một trạng thái đích", thứ
+   * mà 32 vị từ K8s không có cái nào làm: `PREDICATES` nhận `(state, args)` và
+   * hỏi những câu tuyệt đối ("có Pod tên X không", "Deployment Y đủ replica
+   * chưa"), không có câu nào cần một cụm thứ hai để so. Nhận rồi bỏ qua là đúng;
+   * ngày nào K8s có một vị từ kiểu `graphShapeMatches` thì đây là chỗ nối vào.
+   */
+  readonly targetState?: ClusterSpec;
   readonly actions: readonly K8sActionShape[];
   readonly testcases: readonly Testcase[];
-  readonly seed: number | null;
+  readonly seed: number;
 }): GradeResult {
   const { initialState, actions, testcases, seed } = input;
 
@@ -310,7 +337,7 @@ export function gradeK8sProblem(input: {
   try {
     session = createSession({
       level: replayLevel(initialState),
-      seed: seed ?? K8S_UNSEEDED_REPLAY_SEED,
+      seed,
       autoTick: false,
     });
     for (const action of actions) {

@@ -17,7 +17,8 @@
  * trong `core/`.
  */
 
-import type { GameProblemPlugin, ProblemPluginMeta, ProblemPluginRegistry } from './core/problem-plugin.ts';
+import type { ProblemPluginMeta, ProblemPluginRegistry } from './core/problem-plugin.ts';
+import { eraseProblemPlugin } from './core/problem-plugin.ts';
 import type { GradeResult, Testcase } from './core/problem.ts';
 import type { GameAction } from './core/run-log.ts';
 import type { GameId } from './core/types.ts';
@@ -32,34 +33,38 @@ import { K8S_PROBLEM_PLUGIN } from './k8s/problem-plugin.ts';
  * điều đó ở tầng kiểu: thiếu một khoá là **thiếu một khoá**, không phải một
  * nhánh `default` âm thầm.
  *
- * ── VÌ SAO CÓ MỘT PHÉP ÉP KIỂU Ở ĐÂY, VÀ VÌ SAO NÓ KHÔNG GIẤU GÌ ──
+ * ── PHÉP ÉP KIỂU ĐÃ RỜI KHỎI FILE NÀY ──
  *
- * KHÔNG một plugin thật nào gán thẳng vào bảng được, kể cả plugin viết hoàn toàn
- * đúng hợp đồng. Đo ngày 2026-09-14 bằng cách bỏ hai phép ép rồi chạy
- * `pnpm --filter @devops-platform/games typecheck`:
+ * ⛔ Lịch sử, giữ lại vì nó là bằng chứng cho hình dạng của hợp đồng hôm nay.
+ * Bản đầu của file này mang hai dòng `as unknown as GameProblemPlugin<never,
+ * GameAction>`, không phải vì hai plugin viết sai mà vì bảng KHÔNG NHẬN NỔI
+ * plugin nào — kể cả plugin viết hoàn toàn đúng hợp đồng. Đo ngày 2026-09-14
+ * bằng cách bỏ hai phép ép rồi chạy `pnpm --filter @devops-platform/games
+ * typecheck`:
  *
  *     src/problem-plugins.ts(56,3): error TS2375: Type
  *     'GameProblemPlugin<ClusterSpec, K8sActionShape>' is not assignable to type
  *     'GameProblemPlugin<never, GameAction>' with 'exactOptionalPropertyTypes: true'.
  *
- * ⚠ Đừng đọc lướt mã lỗi đó. TS2375 nói về `exactOptionalPropertyTypes`, tức là
- * thứ chặn ĐẦU TIÊN là thuộc tính TUỲ CHỌN `seedSpec?` chứ không phải `never` —
- * cả hai plugin đều cố ý KHÔNG khai `seedSpec`. `never` ở vị trí trả về của
- * `initialSpec(): Spec` là một chỗ chặn thứ hai ĐÁNG NGỜ nhưng CHƯA được tách
- * ra đo riêng: `tsc` dừng ở lỗi đầu nên chưa có bằng chứng cho vế thứ hai.
+ * Lead nhận lời khai đó và sửa tận gốc ở `ae7ed23`: bảng nay giữ
+ * `ErasedProblemPlugin`, và `eraseProblemPlugin()` là chỗ DUY NHẤT được phép ép
+ * — có tên, có khối chú thích nói rõ vì sao phép ép không bỏ được (tham số
+ * `initialState: Spec` NGHỊCH BIẾN, nên một hàm nhận `ClusterSpec` không bao giờ
+ * gán được vào chỗ đòi hàm nhận kiểu rộng hơn).
  *
- * Phép ép được đặt ở ĐÚNG MỘT chỗ (đây) thay vì rải ở mỗi chỗ dùng, và nó không
- * che mất gì: `K8S_PROBLEM_PLUGIN` / `GIT_PROBLEM_PLUGIN` vẫn được khai bằng
- * kiểu ĐẦY ĐỦ (`GameProblemPlugin<ClusterSpec, K8sActionShape>`) ở file của
- * chúng, nên mọi sai lệch hợp đồng vẫn đỏ tại nơi sinh ra. Bảng này chỉ dùng cho
- * việc LIỆT KÊ và cho `gradeProblemRun` ngay dưới.
+ * Khác biệt thật giữa hai cách viết không nằm ở số phép ép mà ở chỗ ĐẶT nó: một
+ * `as unknown as` viết tay ở mỗi chỗ dùng là mỗi chỗ một cơ hội ép nhầm thứ
+ * khác; `eraseProblemPlugin` nhận tham số ở kiểu ĐẦY ĐỦ, nên đưa nhầm một object
+ * không phải plugin vào đây vẫn đỏ ngay tại dòng này.
  *
- * ⚠ Đã báo lead: sửa tận gốc là việc của `core/problem-plugin.ts` (lead sở hữu),
- * không phải của file này.
+ * Chuyện này KHÔNG mất an toàn: `K8S_PROBLEM_PLUGIN` / `GIT_PROBLEM_PLUGIN` vẫn
+ * được khai bằng kiểu đầy đủ ở file của chúng, nên mọi sai lệch hợp đồng vẫn đỏ
+ * tại nơi sinh ra. Bảng này chỉ dùng cho việc LIỆT KÊ và cho `gradeProblemRun`
+ * ngay dưới.
  */
 export const PROBLEM_PLUGINS: ProblemPluginRegistry = {
-  k8s: K8S_PROBLEM_PLUGIN as unknown as GameProblemPlugin<never, GameAction>,
-  git: GIT_PROBLEM_PLUGIN as unknown as GameProblemPlugin<never, GameAction>,
+  k8s: eraseProblemPlugin(K8S_PROBLEM_PLUGIN),
+  git: eraseProblemPlugin(GIT_PROBLEM_PLUGIN),
 };
 
 // ── Tra bảng ────────────────────────────────────────────────────────────────
@@ -133,11 +138,29 @@ export class UnknownProblemGameError extends Error {
 export function gradeProblemRun(input: {
   readonly gameId: GameId;
   readonly initialState: unknown;
+  /**
+   * Trạng thái ĐÍCH của bài (`ProblemBase.targetState`), với bài chấm bằng cách
+   * so hình dạng. `undefined` với phần lớn bài — xem khối chú thích ở
+   * `core/problem.ts`.
+   *
+   * ⚠ Hàm này chỉ NỐI DÂY, không diễn giải. Quyết định "thiếu `targetState` mà
+   * testcase cần thì làm gì" thuộc về plugin, vì chỉ plugin biết vị từ nào cần
+   * đích — `GIT_PROBLEM_PLUGIN` trả `CE` kèm câu nói rõ, `K8S_PROBLEM_PLUGIN`
+   * không có vị từ nào cần nên nhận rồi bỏ qua.
+   */
+  readonly targetState?: unknown;
   readonly actions: readonly GameAction[];
   readonly testcases: readonly Testcase[];
-  readonly seed: number | null;
+  /**
+   * Seed ĐÃ DÙNG THẬT cho lượt chơi, luôn là một số.
+   *
+   * ⛔ Từng là `number | null`, và hàm này khi đó chuyển thẳng `null` xuống để
+   * mỗi plugin tự điền hằng riêng — hai plugin điền hai số khác nhau (`0` và
+   * `1`). `ae7ed23` bỏ hẳn chỗ cho phép hai bên tự chọn; xem `Submission.seed`.
+   */
+  readonly seed: number;
 }): GradeResult {
-  const { gameId, initialState, actions, testcases, seed } = input;
+  const { gameId, initialState, targetState, actions, testcases, seed } = input;
 
   const plugin = PROBLEM_PLUGINS[gameId];
   if (plugin === undefined) {
@@ -166,10 +189,26 @@ export function gradeProblemRun(input: {
    */
   const grade = plugin.grade as (input: {
     readonly initialState: unknown;
+    readonly targetState?: unknown;
     readonly actions: readonly GameAction[];
     readonly testcases: readonly Testcase[];
-    readonly seed: number | null;
+    readonly seed: number;
   }) => GradeResult;
 
-  return grade({ initialState, actions, testcases, seed });
+  /*
+   * ⚠ Trải có điều kiện, KHÔNG viết thẳng `targetState`.
+   *
+   * `exactOptionalPropertyTypes: true` phân biệt "không có khoá" với "có khoá,
+   * giá trị `undefined`" — mà hai thứ đó mang nghĩa khác nhau ở đây: plugin Git
+   * đọc `targetState === undefined` để quyết định có `CE` hay không, và một khoá
+   * hiện diện với giá trị `undefined` vẫn đọc ra đúng như vắng mặt hôm nay nhưng
+   * là chỗ một phép kiểm `'targetState' in input` tương lai sẽ trả lời sai.
+   */
+  return grade({
+    initialState,
+    ...(targetState === undefined ? {} : { targetState }),
+    actions,
+    testcases,
+    seed,
+  });
 }

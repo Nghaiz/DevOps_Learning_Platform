@@ -19,12 +19,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { Testcase } from './core/problem.ts';
 import type { GameAction } from './core/run-log.ts';
-import type { GitWorld } from './git/contract.ts';
+import type { GitWorld, WorldSpec } from './git/contract.ts';
 import type { ClusterSpec } from './k8s/contract.ts';
 import { evaluatePredicate } from './git/predicates.ts';
 import { GIT_PROBLEM_PLUGIN, GIT_UNSEEDED_REPLAY_SEED } from './git/problem-plugin.ts';
 import { buildWorld } from './git/world-spec.ts';
-import { K8S_PROBLEM_PLUGIN } from './k8s/problem-plugin.ts';
+import { K8S_PROBLEM_PLUGIN, K8S_UNSEEDED_REPLAY_SEED } from './k8s/problem-plugin.ts';
 import { PREDICATES } from './k8s/predicates.ts';
 import {
   PROBLEM_PLUGINS,
@@ -64,6 +64,42 @@ const POD_KHONG_CO_NHUNG_CO = testcase('web-phai-vang', 'resource-absent', {
   name: 'web',
   namespace: 'default',
 });
+
+/**
+ * Seed mà client nạp khi mở một bài KHÔNG seedable, tra theo game.
+ *
+ * ⚠ Hai số này cố ý KHÁC nhau (`0` và `1`) và bảng này giữ nguyên sự khác nhau
+ * đó thay vì gộp về một hằng chung. Đó chính là chỗ hợp đồng cũ hỏng: khi `grade`
+ * còn nhận `seed: number | null`, mỗi plugin tự điền hằng của mình cho `null`, và
+ * hai số khác nhau nghĩa là hai thế giới đầu khác nhau. `ae7ed23` bỏ nhánh đó —
+ * lượt nộp mang theo số đã dùng — nên sự khác nhau này nay vô hại, và một test
+ * chạy trên CẢ HAI số là bằng chứng cho điều đó.
+ */
+const SEED_MAC_DINH = {
+  k8s: K8S_UNSEEDED_REPLAY_SEED,
+  git: GIT_UNSEEDED_REPLAY_SEED,
+} as const;
+
+/**
+ * Cây ĐÍCH cho bài Git: đúng thế giới đầu, cộng thêm nhánh `tinh-nang`.
+ *
+ * Dựng từ `graphSignature` (`git/predicates.ts:137`) chứ không đoán: chữ ký đó
+ * là danh sách `<tên nhánh>:<chuỗi commit theo cha thứ nhất>`, nên THÊM MỘT
+ * NHÁNH là thay đổi nhỏ nhất làm chữ ký khác đi mà vẫn nằm trong tầm một lệnh
+ * người chơi gõ được (`git branch tinh-nang`).
+ *
+ * Chọn như vậy để cặp test dưới đo đúng một điều: vị từ chuyển từ trượt sang đạt
+ * VÌ hành động của người chơi, không phải vì hai spec vốn đã giống nhau.
+ */
+function gitDichThemNhanh(): WorldSpec {
+  return {
+    commits: [{ id: 'c1', message: 'khoi tao du an', changes: { 'README.md': 'Du an mau' } }],
+    branches: { main: 'c1', 'tinh-nang': 'c1' },
+    head: 'main',
+  };
+}
+
+const HINH_DANG_KHOP = testcase('hinh-dang', 'graphShapeMatches', {});
 
 // ── Bảng đăng ký ────────────────────────────────────────────────────────────
 
@@ -141,11 +177,19 @@ describe('predicateNames — khớp hiện thực CẢ HAI CHIỀU', () => {
    * đợi test. Thứ test này thêm vào là phép kiểm RUNTIME rằng mỗi tên thật sự
    * chạy được và trả về boolean — một `switch` vét cạn vẫn có thể ném.
    */
+  /*
+   * ⚠ KHÔNG còn `continue` nào ở vòng lặp này, và đó là điểm của lượt sửa
+   * 2026-09-14. Bản trước bỏ qua `graphShapeMatches` vì không có cây đích để
+   * truyền, nên tên duy nhất cần một tham số thứ hai lại là tên duy nhất không
+   * ai kiểm — đúng chỗ mà một vị từ hỏng sống sót được lâu nhất. Nay truyền một
+   * cây đích thật cho mọi tên: vị từ nào không dùng `target` thì bỏ qua nó, và
+   * phép đo không yếu đi.
+   */
   it('git: mọi tên chạy được và trả boolean', () => {
     const world = gitWorldBanDau();
+    const target = buildWorld(gitDichThemNhanh(), GIT_UNSEEDED_REPLAY_SEED);
     for (const name of GIT_PROBLEM_PLUGIN.predicateNames) {
-      if (name === 'graphShapeMatches') continue; // cần cây đích, xem khối CE dưới
-      expect(typeof evaluatePredicate(world, null, name as never, {}), name).toBe('boolean');
+      expect(typeof evaluatePredicate(world, target, name as never, {}), name).toBe('boolean');
     }
   });
 });
@@ -189,7 +233,7 @@ describe('gradeProblemRun — verdict', () => {
         initialState: CUM_MOT_POD,
         actions: [],
         testcases: [POD_CO, POD_KHAC_KHONG_CO],
-        seed: null,
+        seed: K8S_UNSEEDED_REPLAY_SEED,
       }),
     ).toEqual({ verdict: 'AC', passed: ['co-web', 'khong-co-api'], total: 2, failedReason: null });
   });
@@ -205,7 +249,7 @@ describe('gradeProblemRun — verdict', () => {
       initialState: CUM_MOT_POD,
       actions: [],
       testcases: [POD_CO, POD_KHONG_CO_NHUNG_CO],
-      seed: null,
+      seed: K8S_UNSEEDED_REPLAY_SEED,
     });
     expect(ket_qua.verdict).toBe('WA');
     expect(ket_qua.passed).toEqual(['co-web']);
@@ -244,7 +288,7 @@ describe('gradeProblemRun — verdict', () => {
           namespace: 'default',
         }),
       ],
-      seed: null,
+      seed: K8S_UNSEEDED_REPLAY_SEED,
     });
     // ConfigMap bị xoá ⇒ `resource-absent` đạt. Nếu action bị bỏ qua thì đây là
     // `WA`, và đó chính là hình dạng lỗi "action biến mất không một tiếng động"
@@ -258,7 +302,7 @@ describe('gradeProblemRun — verdict', () => {
       initialState: GIT_PROBLEM_PLUGIN.initialSpec(),
       actions: [{ gameId: 'git', tick: 0, kind: 'command', command: 'git branch tinh-nang' }],
       testcases: [testcase('co-nhanh-moi', 'refExists', { ref: 'tinh-nang' })],
-      seed: null,
+      seed: GIT_UNSEEDED_REPLAY_SEED,
     });
     expect(ket_qua).toEqual({
       verdict: 'AC',
@@ -287,7 +331,7 @@ describe('gradeProblemRun — bài không chấm được thì nói ra', () => {
         initialState: {},
         actions: [],
         testcases: [POD_CO],
-        seed: null,
+        seed: K8S_UNSEEDED_REPLAY_SEED,
       }),
     ).toThrow(UnknownProblemGameError);
   });
@@ -299,7 +343,7 @@ describe('gradeProblemRun — bài không chấm được thì nói ra', () => {
       initialState: CUM_MOT_POD,
       actions: [la],
       testcases: [POD_CO],
-      seed: null,
+      seed: K8S_UNSEEDED_REPLAY_SEED,
     });
     expect(ket_qua.verdict).toBe('CE');
     expect(ket_qua.failedReason).toContain('git');
@@ -311,7 +355,7 @@ describe('gradeProblemRun — bài không chấm được thì nói ra', () => {
       initialState: PROBLEM_PLUGINS[gameId]?.initialSpec(),
       actions: [],
       testcases: [],
-      seed: null,
+      seed: SEED_MAC_DINH[gameId],
     });
     expect(ket_qua.verdict).toBe('CE');
     expect(ket_qua.failedReason).not.toBeNull();
@@ -328,25 +372,31 @@ describe('gradeProblemRun — bài không chấm được thì nói ra', () => {
       initialState: PROBLEM_PLUGINS[gameId]?.initialSpec(),
       actions: [],
       testcases: [testcase('go-nham', 'khong-co-vi-tu-nao-ten-the-nay', {})],
-      seed: null,
+      seed: SEED_MAC_DINH[gameId],
     });
     expect(ket_qua.verdict).toBe('CE');
     expect(ket_qua.failedReason).toContain('khong-co-vi-tu-nao-ten-the-nay');
   });
 
   /*
-   * `graphShapeMatches` có hiện thực và có tên trong `predicateNames`, nhưng cần
-   * một cây ĐÍCH mà `ProblemBase` không có ô để khai. Nếu để `evaluatePredicate`
-   * trả `false` như bình thường thì testcase đó không bao giờ qua được và không
-   * ai biết tại sao.
+   * Bài DÙNG `graphShapeMatches` mà KHÔNG khai `targetState` — một bài soạn
+   * thiếu. `evaluatePredicate` trả `false` khi `target === null`, nên để nó chạy
+   * bình thường thì testcase đó không bao giờ qua được và trông y hệt một lời
+   * giải sai.
+   *
+   * ⚠ Phạm vi của ô này HẸP ĐI từ `ae7ed23` và phải giữ đúng bề rộng đó: nó gác
+   * ca THIẾU `targetState`, không còn gác mọi lần gọi `graphShapeMatches`. Ô
+   * chứng minh chiều ngược lại (có `targetState` thì vị từ chạy thật) nằm ở
+   * describe ngay dưới — một vị từ chỉ được kiểm ở nhánh lỗi là một vị từ chưa
+   * ai biết có chạy đúng không.
    */
-  it('git: vị từ cần cây đích thì `CE` kèm lý do', () => {
+  it('git: vị từ cần cây đích mà bài không khai `targetState` thì `CE` kèm lý do', () => {
     const ket_qua = gradeProblemRun({
       gameId: 'git',
       initialState: GIT_PROBLEM_PLUGIN.initialSpec(),
       actions: [],
-      testcases: [testcase('hinh-dang', 'graphShapeMatches', {})],
-      seed: null,
+      testcases: [HINH_DANG_KHOP],
+      seed: GIT_UNSEEDED_REPLAY_SEED,
     });
     expect(ket_qua.verdict).toBe('CE');
     expect(ket_qua.failedReason).toContain('cây đích');
@@ -363,10 +413,101 @@ describe('gradeProblemRun — bài không chấm được thì nói ra', () => {
       initialState: { day: 'khong phai ClusterSpec' },
       actions: [],
       testcases: [POD_CO],
-      seed: null,
+      seed: K8S_UNSEEDED_REPLAY_SEED,
     });
     expect(ket_qua.verdict).toBe('CE');
     expect(ket_qua.failedReason).not.toBeNull();
+  });
+});
+
+// ── `targetState` — vị từ so hình dạng CHẠY THẬT ────────────────────────────
+
+/**
+ * Ô gác cho thứ `ae7ed23` vừa mở ra, và nó cố ý đo chiều ĐẠT chứ không chỉ chiều
+ * trượt.
+ *
+ * Trước lượt sửa đó, `graphShapeMatches` chỉ được kiểm ở một chỗ duy nhất: bài
+ * thiếu cây đích thì `CE`. Một vị từ chỉ có bằng chứng ở nhánh lỗi là một vị từ
+ * chưa ai biết có chạy đúng không — nó có thể ném, có thể luôn trả `false`, có
+ * thể so nhầm cây, và không phép đo nào của repo này nói ra được.
+ *
+ * Cặp dưới đây khoá cả hai chiều trên CÙNG một cây đích, khác nhau đúng một
+ * hành động của người chơi. Khác một hành động là điều kiện: nếu chỉ có ô `AC`
+ * thì một hiện thực "luôn trả `true`" vẫn xanh, và nếu chỉ có ô `WA` thì hiện
+ * thực cũ "luôn trả `false`" cũng xanh.
+ */
+describe('graphShapeMatches — chạy thật khi bài có `targetState`', () => {
+  const BAI_CO_DICH = {
+    gameId: 'git' as const,
+    initialState: GIT_PROBLEM_PLUGIN.initialSpec(),
+    targetState: gitDichThemNhanh(),
+    testcases: [HINH_DANG_KHOP],
+    seed: GIT_UNSEEDED_REPLAY_SEED,
+  };
+
+  /*
+   * Bắt được: vị từ không bao giờ đạt (hiện thực cũ trả `false` vì `target ===
+   * null`), hoặc `targetState` không được nối từ `gradeProblemRun` xuống
+   * `plugin.grade` — cả hai đọc ra thành `WA` trên một lời giải ĐÚNG, tức là hệ
+   * thống từ chối một người làm đúng.
+   */
+  it('lệnh của người chơi làm hình dạng KHỚP cây đích thì `AC`', () => {
+    const ket_qua = gradeProblemRun({
+      ...BAI_CO_DICH,
+      actions: [{ gameId: 'git', tick: 0, kind: 'command', command: 'git branch tinh-nang' }],
+    });
+    expect(ket_qua).toEqual({
+      verdict: 'AC',
+      passed: ['hinh-dang'],
+      total: 1,
+      failedReason: null,
+    });
+  });
+
+  /*
+   * Bắt được: một hiện thực "luôn trả `true`", và — quan trọng hơn — bắt được
+   * việc `CE` bị nới lại thành "mọi lần gọi `graphShapeMatches` đều `CE`". Ở đây
+   * bài CÓ khai `targetState`, nên verdict phải là `WA` (người chơi chưa làm tới
+   * đích) chứ tuyệt đối không phải `CE` (bài soạn hỏng).
+   */
+  it('chưa gõ lệnh thì hình dạng LỆCH cây đích, ra `WA` chứ không phải `CE`', () => {
+    const ket_qua = gradeProblemRun({ ...BAI_CO_DICH, actions: [] });
+    expect(ket_qua.verdict).toBe('WA');
+    expect(ket_qua.passed).toEqual([]);
+    expect(ket_qua.total).toBe(1);
+  });
+
+  /*
+   * Cây đích dựng bằng CÙNG seed với thế giới đầu — `gradeGitProblem` gọi
+   * `buildWorld(targetState, seed)` bằng đúng seed của phiên. Bắt được: ai đó
+   * đóng đinh một seed riêng cho cây đích, thứ làm `graphShapeMatches` trượt
+   * trên lời giải đúng ở mọi bài có bot.
+   */
+  it('seed khác vẫn `AC`: cây đích đi theo seed của lượt chơi', () => {
+    const ket_qua = gradeProblemRun({
+      ...BAI_CO_DICH,
+      seed: 12345,
+      actions: [{ gameId: 'git', tick: 0, kind: 'command', command: 'git branch tinh-nang' }],
+    });
+    expect(ket_qua.verdict).toBe('AC');
+  });
+
+  /*
+   * K8s nhận `targetState` rồi BỎ QUA — 32 vị từ của nó không có cái nào cần một
+   * cụm thứ hai để so. Bắt được: một lượt nối dây làm K8s ném hoặc đổi verdict
+   * chỉ vì hợp đồng thêm một trường nó không dùng.
+   */
+  it('k8s: `targetState` không đổi kết quả vì không vị từ nào đọc tới', () => {
+    const chung = {
+      gameId: 'k8s' as const,
+      initialState: CUM_MOT_POD,
+      actions: [],
+      testcases: [POD_CO, POD_KHAC_KHONG_CO],
+      seed: K8S_UNSEEDED_REPLAY_SEED,
+    };
+    expect(gradeProblemRun({ ...chung, targetState: CUM_MOT_POD })).toEqual(
+      gradeProblemRun(chung),
+    );
   });
 });
 
@@ -389,7 +530,7 @@ describe('grade — tất định', () => {
       initialState: CUM_MOT_POD,
       actions: [{ gameId: 'k8s' as const, tick: 0, kind: 'wait' as const, ticks: 7 }],
       testcases: [POD_CO, POD_KHONG_CO_NHUNG_CO],
-      seed: null,
+      seed: K8S_UNSEEDED_REPLAY_SEED,
     };
     expect(gradeProblemRun(dau_vao)).toEqual(gradeProblemRun(dau_vao));
   });
@@ -402,7 +543,7 @@ describe('grade — tất định', () => {
         { gameId: 'git' as const, tick: 0, kind: 'command' as const, command: 'git branch a' },
       ],
       testcases: [testcase('co-a', 'refExists', { ref: 'a' })],
-      seed: null,
+      seed: GIT_UNSEEDED_REPLAY_SEED,
     };
     expect(gradeProblemRun(dau_vao)).toEqual(gradeProblemRun(dau_vao));
   });
