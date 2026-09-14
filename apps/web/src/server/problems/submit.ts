@@ -229,24 +229,37 @@ export async function submitProblem(
  * và mọi lượt nộp hợp lệ đều bị từ chối — nhìn từ phía người dùng nó giống hệt
  * một hệ thống từ chối người chơi ngẫu nhiên.
  *
- * ## `engine-khong-tat-dinh` là nhánh DUY NHẤT còn phải hỏi `verifyRun`
+ * ## MỌI trạng thái không-xác-minh-được đều về `CE` — đổi 2026-09-15
  *
- * `gradeProblemRun` phát lại MỘT lần, nên nó không phát hiện được một engine
- * không tất định — nó chỉ trả một trong nhiều kết quả có thể, trông hoàn toàn
- * bình thường. `verifyRun` phát lại hai lần và bắt được. Ở nhánh đó không con số
- * nào đáng tin, kể cả số của chính lần phát lại này, nên `passed` bị bỏ và
- * verdict về `CE` — đúng nghĩa mà hợp đồng gán cho `CE`: *"lượt chơi không chạy
- * tới nơi, nên `passed`/`total` không nói lên gì."*
+ * Bản trước chỉ đặc cách `engine-khong-tat-dinh`, với lý lẽ: log hỏng hay reducer
+ * ném thì `gradeProblemRun` cũng tự trả `CE`, còn `khong-khop` *"chỉ nói rằng lời
+ * khai điểm của client sai — một câu về `claimed`, không phải một câu về nhật ký"*.
  *
- * Bốn trạng thái còn lại của `verifyRun` KHÔNG cần hỏi: log hỏng hay reducer ném
- * thì chính `gradeProblemRun` cũng trả `CE` (plugin bọc phần phát lại trong
- * `try/catch`), còn `khong-khop` chỉ nói rằng *lời khai điểm* của client sai —
- * một câu về `claimed`, không phải một câu về nhật ký.
+ * Lý lẽ đó nghe được nhưng nó để lại một chỗ mà HAI phần của mã trả lời khác
+ * nhau cho cùng một lượt, và review đối kháng 2026-09-15 đo ra:
+ * `verdictFromVerify` ánh xạ `khong-khop` → `CE`, trong khi đường này để
+ * `gradeProblemRun` trả `AC`. Dòng ghi xuống mang `solved: false, score: 0`
+ * (đúng) cạnh `passed` đầy đủ và `failCode: null`, nên lịch sử hiện **`AC`** cho
+ * một lượt vừa TRƯỢT xác minh. Người học đọc ra "AC, 0 điểm, chưa giải" — ba câu
+ * mâu thuẫn nhau trên cùng một dòng.
+ *
+ * Chủ dự án chốt (2026-09-15): hiện `CE`. `CE` trong hợp đồng nghĩa là *"lượt
+ * chơi không chạy tới nơi, nên `passed`/`total` không nói lên gì"*, và một lượt
+ * không chứng minh được chính nó đúng là ca đó.
+ *
+ * Hệ quả phụ, đáng có: nhánh không-xác-minh nay KHÔNG gọi `gradeProblemRun` nữa,
+ * nên máy chủ bỏ được một lượt phát lại toàn bộ nhật ký cho đúng những lượt
+ * không dùng tới kết quả ấy.
+ *
+ * ⚠ `gradeProblemRun` vẫn là chỗ chấm DUY NHẤT cho nhánh đã xác minh — đừng viết
+ * lại `passed === total` ở đây; §18.C.3 đem so verdict hai bên.
  */
 function gradeSubmission(problem: StoredProblem, log: RunLog, status: VerifyStatus): GradeResult {
   // Đã qua biên đọc ở `toProblemDTO` — KHÔNG gọi `problemTestcases` lần nữa.
   const testcases = problem.testcases;
-  if (status === 'engine-khong-tat-dinh') {
+  if (status !== 'da-xac-minh') {
+    // `gradeOf` tự ánh xạ từng `VerifyStatus` sang mã hỏng tương ứng, nên cột
+    // `fail_code` nay chốt được CẢ BỐN nhánh `CE` chứ không riêng một nhánh.
     return gradeOf(status, [], testcases.length);
   }
   try {

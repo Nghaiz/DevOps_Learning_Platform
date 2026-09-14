@@ -1296,14 +1296,18 @@ export const problems = pgTable(
      * dối về nội dung, và đổi tên cột là một migration dữ liệu không mua thêm
      * điều gì.
      *
-     * ⚠ `$type<Testcase[]>` là hình dạng ĐÍCH sau §18.D.1, KHÔNG phải hình dạng
-     * của các lượt ghi hôm nay — và chỗ này từng khai quá, sửa lại 2026-09-15
-     * theo phép đo của lane dọn tầng máy chủ. Chừng nào `problemBodyShape`
-     * (`validate.ts`) chưa mở sang đa-game thì đường GHI vẫn đẻ ra hình dạng
-     * `Objective` (có `required`, không có `visible`), và `crud.ts` phải ép kiểu
-     * ở biên ghi — ép kiểu đó có ghi chú tại chỗ và §18.D.1 là chỗ gỡ nó.
+     * ⚠ `$type<Testcase[]>` mô tả đúng các lượt GHI MỚI kể từ §18.D.1 nửa sau
+     * (2026-09-15): `problemBodyShape` nay đòi `visible` trên từng testcase và
+     * không nhận `required`, nên biên ghi không còn phải ép kiểu.
      *
-     * Dòng viết trước 18.B cũng mang `required` và không mang `visible`. Nên
+     * Khối này đã SAI hai lần theo hai hướng ngược nhau trong cùng một ngày —
+     * ghi lại vì đó là cái bẫy của một chú thích mô tả trạng thái đang chuyển:
+     * bản đầu khai quá (nói lượt ghi mới đã đúng hình dạng khi đường ghi còn đẻ
+     * ra `Objective`), bản sửa lại khai thiếu (nói `crud.ts` còn phải ép kiểu
+     * sau khi phép ép đã được gỡ). Chú thích trỏ sang file khác thì ôi theo file
+     * khác — đọc `crud.ts` trước khi tin câu này.
+     *
+     * Dòng viết trước 18.B vẫn mang `required` và không mang `visible`. Nên
      * ĐỪNG đọc cột này trực tiếp — `problems/testcases.ts` (`problemTestcases`)
      * là biên đọc, nó nhận `readonly unknown[]` đúng vì lý do đó và mặc định
      * `visible: true` cho dòng cũ.

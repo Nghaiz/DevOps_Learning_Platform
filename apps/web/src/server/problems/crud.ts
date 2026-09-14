@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { count, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { ProblemState } from '@devops-platform/games';
+import type { GameId, ProblemState } from '@devops-platform/games';
 import type { Database } from '../db/client';
 import { isUniqueViolation } from '../db/pg-errors';
 import { problems, problemSubmissions } from '../db/schema';
@@ -70,15 +70,20 @@ export async function updateProblem(
   code: string,
   body: ProblemBody,
 ): Promise<StoredProblem> {
-  await findProblemForWrite(db, user, code);
+  const current = await findProblemForWrite(db, user, code);
   if (await slugTaken(db, body.slug, code)) {
     throw new TRPCError({ code: 'CONFLICT', message: `Slug "${body.slug}" đã có bài khác dùng` });
   }
+  await assertGameIdChangeAllowed(db, code, current.gameId, body.gameId);
   const rows = await db
     .update(problems)
     // `code`, `authorId`, `state` KHÔNG nằm trong `body` (schema không khai
     // chúng), nên phép `set` này không có đường đổi chủ sở hữu hay đổi trạng
     // thái — đó là ràng buộc của KIỂU, không phải của một dòng kiểm tra.
+    //
+    // ⚠ `gameId` thì KHÁC: nó ĐÃ nằm trong `body` từ 2026-09-15 (§18.D.1 nửa
+    // sau), nên danh sách ba trường trên KHÔNG còn che hết. Ràng buộc của nó là
+    // một dòng kiểm tra thật — `assertGameIdChangeAllowed` ngay trên.
     .set({ ...toRowValues(body), updatedAt: new Date() })
     .where(eq(problems.code, code))
     .returning();
@@ -141,11 +146,7 @@ export async function deleteProblem(
   code: string,
 ): Promise<{ readonly code: string }> {
   await findProblemForWrite(db, user, code);
-  const rows = await db
-    .select({ total: count() })
-    .from(problemSubmissions)
-    .where(eq(problemSubmissions.problemCode, code));
-  const total = rows[0]?.total ?? 0;
+  const total = await submissionCount(db, code);
   if (total > 0) {
     throw new TRPCError({
       code: 'CONFLICT',
@@ -228,6 +229,61 @@ function toRowValues(body: ProblemBody) {
     parMoves: body.parMoves,
     seedable: body.seedable,
   };
+}
+
+/**
+ * Đổi `gameId` chỉ được phép khi bài CHƯA có ai nộp.
+ *
+ * ## Vì sao cần cổng này, và vì sao nó xuất hiện muộn
+ *
+ * Trước §18.D.1 nửa sau, `gameId` không có trong `ProblemBody` nên không có
+ * đường nào đổi nó — chú thích ở `updateProblem` nói *"không có đường đổi chủ
+ * sở hữu hay đổi trạng thái"* và liệt kê đúng ba trường. Mở biên ghi sang đa-game
+ * đã thêm một trường thứ tư vào `body` mà **không** cập nhật danh sách đó, và
+ * review đối kháng 2026-09-15 đo ra khoảng trống.
+ *
+ * Kịch bản hỏng nếu để trống: `K8S-0042` đã `published`, đã có 30 lượt nộp. Tác
+ * giả mở trang sửa, đổi game sang Git. `state` KHÔNG bị đưa về `draft`, nên từ
+ * giây đó mọi lượt nộp nhận `INTERNAL_SERVER_ERROR` (cổng game ở `submit.ts`),
+ * và 30 dòng lịch sử cũ mang `passed` là id testcase của một game không còn tồn
+ * tại — `WA (2/5)` tính trên những case đã biến mất.
+ *
+ * ## Vì sao mốc là "đã có lượt nộp" chứ không phải "đã xuất bản"
+ *
+ * Cùng lý lẽ và cùng tiền lệ với `deleteProblem` ngay trên: thứ không được phá
+ * là LỊCH SỬ CỦA NGƯỜI HỌC, không phải trạng thái của bài. Một bài `published`
+ * chưa ai đụng vào thì đổi game vẫn an toàn; một bài `draft` mà ai đó đã nộp thử
+ * thì không. Chặn theo `state` sẽ vừa cấm nhầm ca đầu vừa bỏ lọt ca sau.
+ *
+ * Tác giả muốn đổi game một bài đã có người nộp thì tạo bài mới — mã bài là thứ
+ * người ta đọc cho nhau nghe, và đổi ruột dưới một mã cũ là đổi nghĩa của mọi
+ * câu đã nói về nó.
+ */
+async function assertGameIdChangeAllowed(
+  db: Database,
+  code: string,
+  currentGameId: GameId,
+  nextGameId: GameId,
+): Promise<void> {
+  if (currentGameId === nextGameId) {
+    return;
+  }
+  const total = await submissionCount(db, code);
+  if (total > 0) {
+    throw new TRPCError({
+      code: 'CONFLICT',
+      message: `Bài đã có ${String(total)} lượt nộp nên không đổi được game (${currentGameId} sang ${nextGameId}) — lịch sử làm bài sẽ trỏ vào testcase của một game khác. Hãy tạo bài mới.`,
+    });
+  }
+}
+
+/** Số lượt nộp của một bài. Một nguồn cho cả cổng xoá lẫn cổng đổi game. */
+async function submissionCount(db: Database, code: string): Promise<number> {
+  const rows = await db
+    .select({ total: count() })
+    .from(problemSubmissions)
+    .where(eq(problemSubmissions.problemCode, code));
+  return rows[0]?.total ?? 0;
 }
 
 /** `exceptCode` cho phép một bài giữ nguyên slug của chính nó khi sửa. */
