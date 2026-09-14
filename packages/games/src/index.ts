@@ -420,6 +420,30 @@ export { GIT_UNSEEDED_REPLAY_SEED } from './git/problem-plugin.ts';
  */
 export type { ErasedProblemPlugin } from './core/problem-plugin.ts';
 
+/*
+ * Mô hình hiển thị verdict. CHUYỂN NHÀ 2026-09-14 từ
+ * `apps/web/src/server/problems/verdict-view.ts` xuống đây.
+ *
+ * Vì sao phải chuyển: `use-problem-submit.ts` khai `'use client'` và import một
+ * GIÁ TRỊ từ `src/server/`. Đã đo, đó là file DUY NHẤT trong cả `apps/web` làm
+ * điều đó. `next build` xanh vì hàm thuần, nhưng nó mong manh theo nghĩa đen:
+ * một dòng `import 'server-only'` thêm vào file kia là đỏ ngay, và đỏ ở phía
+ * người khác chứ không phía người gõ dòng đó.
+ *
+ * Vì sao chỗ này là chỗ đúng chứ không phải chép sang client: §18.C.3 sẽ đem
+ * verdict của client và của server ra SO. Hai bên phải suy bằng CÙNG một hàm —
+ * chép ra hai bản là làm phép so đó mất nghĩa, vì lúc lệch nhau ta không biết
+ * mình đang phát hiện engine sai hay hai hàm sai khác nhau.
+ */
+export type { FailedTestcaseView, VerdictView } from './core/verdict-view.ts';
+export {
+  compileErrorReason,
+  gradeFromSubmission,
+  gradeOf,
+  toVerdictView,
+  verdictFromVerify,
+} from './core/verdict-view.ts';
+
 // ── Chấm điểm ───────────────────────────────────────────────────────────────
 /*
  * Mở export 2026-09-08 theo yêu cầu của tầng máy chủ OJ, và lý do đáng ghi lại.
