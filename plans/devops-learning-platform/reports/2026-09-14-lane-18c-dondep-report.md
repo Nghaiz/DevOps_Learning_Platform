@@ -4,7 +4,7 @@ Nhánh `feat/p18-oj-exam`. Ba commit đã push: `06fa1b5`, `f659a6e`, `58d1a71`.
 
 | Món | Trạng thái |
 |---|---|
-| 1. `verdict-view.ts` đặt sai tầng | **LÀM MỘT NỬA.** File mới đã có ở `packages/games/src/core/verdict-view.ts`; chưa rewire, chưa xoá bản cũ. Chờ lead mở barrel. |
+| 1. `verdict-view.ts` đặt sai tầng | **XONG** ở `baf85fd`, sau khi lead wire barrel ở `419c4d3`. |
 | 2. `ProblemSubmission` thiếu `passed`/`total` | XONG |
 | 3. `CE` gộp ba nguyên nhân | XONG |
 
@@ -36,7 +36,33 @@ export {
 } from './core/verdict-view.ts';
 ```
 
-### Bước 3 còn lại (chưa làm)
+### Bước 3: ĐÃ LÀM (`baf85fd`)
+
+Năm chỗ gọi đã đổi sang `@devops-platform/games`, và
+`apps/web/src/server/problems/verdict-view.ts` đã xoá.
+
+`verdict-view.test.ts` **ở lại `apps/web`** đúng như đã lường: nó dùng
+`problemTestcases`/`toTestcaseTeasers` từ `./testcases` của apps/web.
+
+Ba hit `grep` còn lại trỏ tới đường dẫn cũ đều là **văn xuôi chú thích**, không
+phải import: hai trong đó cố ý giữ lại vì chúng đang ghi lịch sử (`index.ts:425`
+của lead, và khối đính chính trong `use-problem-submit.ts`). Hit thứ ba ở
+`problem-verdict.tsx:11` thì đã sai sự thật nên đã sửa.
+
+#### Ô nghiệm thu của bước 3
+
+| Ô | Kết quả |
+|---|---|
+| `next build` | **exit 0** |
+| `grep` file `'use client'` import giá trị từ `apps/web/src/server/` | **RỖNG** (trước khi sửa: đúng một dòng, `use-problem-submit.ts:7`) |
+| `apps/web` typecheck + lint | exit 0 |
+| `packages/games` typecheck | exit 0 |
+| vitest `verdict` + `use-problem-submit`, `--maxWorkers=3` | 3 file / 25 test xanh |
+
+Đo cả **trước và sau** cho ô grep, vì một lệnh grep ra rỗng cũng ra rỗng khi nó
+sai cú pháp. Trước khi sửa nó trả đúng một dòng, nên nó có bắt được thật.
+
+### Bước 3, bản kế hoạch lúc chưa làm (giữ để đối chiếu)
 
 1. `apps/web/src/components/k8s-arena/use-problem-submit.ts` đổi sang import từ
    `@devops-platform/games` (nó là file `'use client'` duy nhất đang import giá
