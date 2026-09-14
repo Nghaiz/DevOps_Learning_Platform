@@ -1,14 +1,15 @@
 import type { ReactElement, ReactNode } from 'react';
 import Link from 'next/link';
 import type { ScenarioDifficulty } from '@devops-platform/shared-types/scenario';
+import { t } from '@devops-platform/copy';
 import { Badge, Card, Skeleton } from '@devops-platform/ui';
 import { CatalogIcon, type CatalogIconName } from './catalog-icons';
 import {
   DIFFICULTY_ACCENT,
   DIFFICULTY_BADGE,
-  DIFFICULTY_LABEL,
   PROGRESS_STATUS_BADGE,
-  PROGRESS_STATUS_LABEL,
+  difficultyLabel,
+  progressStatusLabel,
 } from './catalog-labels';
 
 /** Lưới thẻ. `<ul role="list">` tường minh vì `list-style: none` của Tailwind gỡ vai trò list ở Safari/VoiceOver. */
@@ -52,8 +53,9 @@ export interface CatalogCardFlag {
  * KHÔNG đỏ ở đâu cả — lưới chỉ đơn giản mất hover, và trông y như trước khi
  * sửa. Thẻ này nằm trong `<Link>` nên nó là chỗ hợp lệ để bật.
  *
- * `accent` cho dải độ khó (một `border-l-4` thật, không phải khối tuyệt đối tự
- * kê), và `Badge` cho chip độ khó + huy hiệu trạng thái. Cả hai đã mang sẵn
+ * `accent` cho cung độ khó ở góc (design §3 — `packages/ui/src/card.tsx` sở hữu
+ * hình học của nó, ở đây chỉ chọn màu), và `Badge` cho chip độ khó + huy hiệu
+ * trạng thái. Cả hai đã mang sẵn
  * icon riêng theo biến thể, nên ràng buộc "phân biệt bằng cả màu lẫn hình" được
  * giữ ở tầng primitive theo MẶC ĐỊNH — không phụ thuộc vào việc chỗ gọi có nhớ
  * hay không.
@@ -85,12 +87,13 @@ export function CatalogCard(props: {
   readonly tags?: readonly string[];
 }): ReactElement {
   const status = props.status;
-  const statusLabel = status === undefined ? null : (PROGRESS_STATUS_LABEL[status] ?? status);
+  const statusLabel = status === undefined ? null : (progressStatusLabel(status) ?? status);
 
   // Spread có điều kiện, không `accent={... : undefined}`: repo bật
   // `exactOptionalPropertyTypes`, nên truyền tường minh `undefined` vào một prop
   // khai `accent?: CardAccent` là lỗi kiểu, không phải "bỏ prop".
-  const accent = props.difficulty === undefined ? {} : { accent: DIFFICULTY_ACCENT[props.difficulty] };
+  const accent =
+    props.difficulty === undefined ? {} : { accent: DIFFICULTY_ACCENT[props.difficulty] };
 
   return (
     <li>
@@ -100,7 +103,9 @@ export function CatalogCard(props: {
       >
         <Card interactive {...accent} className="flex h-full flex-col gap-3 p-5">
           <div className="flex items-start justify-between gap-3">
-            <h3 className="text-base leading-snug font-semibold text-foreground">{props.title}</h3>
+            <h2 className="text-xl leading-snug font-semibold text-balance text-foreground">
+              {props.title}
+            </h2>
             {statusLabel !== null && status !== undefined && (
               <Badge variant={PROGRESS_STATUS_BADGE[status] ?? 'status-todo'}>{statusLabel}</Badge>
             )}
@@ -109,7 +114,9 @@ export function CatalogCard(props: {
           {(props.difficulty !== undefined || props.flag !== undefined) && (
             <div className="flex flex-wrap items-center gap-2">
               {props.difficulty !== undefined && (
-                <Badge variant={DIFFICULTY_BADGE[props.difficulty]}>{DIFFICULTY_LABEL[props.difficulty]}</Badge>
+                <Badge variant={DIFFICULTY_BADGE[props.difficulty]}>
+                  {difficultyLabel(props.difficulty)}
+                </Badge>
               )}
               {props.flag !== undefined && (
                 <Badge variant="outline" icon={<CatalogIcon name={props.flag.icon} />}>
@@ -119,14 +126,20 @@ export function CatalogCard(props: {
             </div>
           )}
 
-          <p className="line-clamp-2 min-h-10 text-sm text-muted-foreground">{props.description ?? ''}</p>
+          <p className="line-clamp-2 min-h-10 text-sm text-muted-foreground">
+            {props.description ?? ''}
+          </p>
 
           {(props.meta !== undefined || props.tags !== undefined) && (
             <div className="mt-auto flex flex-col gap-2">
               {props.meta !== undefined && props.meta.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {props.meta.map((item) => (
-                    <Badge key={item.label} variant="secondary" icon={<CatalogIcon name={item.icon} />}>
+                    <Badge
+                      key={item.label}
+                      variant="secondary"
+                      icon={<CatalogIcon name={item.icon} />}
+                    >
                       {item.label}
                     </Badge>
                   ))}
@@ -166,20 +179,23 @@ export function CatalogCard(props: {
  * lên khi rê chuột lại chẳng dẫn tới đâu là đúng lời hứa suông mà mặc định
  * `false` của `Card` sinh ra để chặn.
  *
- * Viền trái dùng `border-l-muted` chứ không phải một `--difficulty-*` cụ thể:
- * lúc chưa có dữ liệu thì độ khó là thứ CHƯA BIẾT, và tô sẵn một màu độ khó là
- * đoán — người dùng sẽ thấy màu đổi khi dữ liệu về.
+ * Cung dùng `accent="pending"` (xám `--muted`) chứ không phải một `--difficulty-*`
+ * cụ thể: lúc chưa có dữ liệu thì độ khó là thứ CHƯA BIẾT, và tô sẵn một màu độ
+ * khó là đoán — người dùng sẽ thấy màu đổi khi dữ liệu về. Đi qua `accent` chứ
+ * không tự dựng một cung xám tại chỗ, để khung chờ và thẻ thật dùng CHUNG một
+ * hình học; hai bản chép sẽ lệch, và bố cục nhảy lúc dữ liệu về là đúng thứ
+ * khung chờ sinh ra để chặn.
  */
 export function CatalogGridSkeleton({ count = 6 }: { readonly count?: number }): ReactElement {
   return (
     <div
       role="status"
       aria-live="polite"
-      aria-label="Đang tải danh sách"
+      aria-label={t('catalog.loading.grid')}
       className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
     >
       {Array.from({ length: count }, (_unused, index) => (
-        <Card key={index} className="flex h-full flex-col gap-3 border-l-4 border-l-muted p-5">
+        <Card key={index} accent="pending" className="flex h-full flex-col gap-3 p-5">
           <div className="flex items-start justify-between gap-3">
             <Skeleton className="h-5 w-3/5" />
             <Skeleton className="h-5 w-20 shrink-0" />

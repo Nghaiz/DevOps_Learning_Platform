@@ -1,3 +1,4 @@
+import { errText } from '@devops-platform/copy';
 import { initTRPC, TRPCError } from '@trpc/server';
 import type { FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch';
 import { z, ZodError } from 'zod';
@@ -150,7 +151,7 @@ export const protectedProcedure = t.procedure
       // 94 lượt `new TRPCError` của repo từng thiếu `message`.
       throw new TRPCError({
         code: 'UNAUTHORIZED',
-        message: 'Bạn chưa đăng nhập hoặc phiên đã hết hạn. Hãy đăng nhập lại rồi thử lại.',
+        message: errText('error.auth.unauthenticated'),
       });
     }
     return next({ ctx: { ...ctx, user: ctx.user } });
@@ -159,7 +160,18 @@ export const protectedProcedure = t.procedure
     const maxRequests = type === 'mutation' ? TRPC_MUTATION_LIMIT_PER_MIN : TRPC_QUERY_LIMIT_PER_MIN;
     const key = `trpc:${type}:${ctx.user.id}`;
     if (!checkRateLimit(key, Date.now(), RATE_LIMIT_WINDOW_MS, maxRequests)) {
-      throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Quá nhiều request — thử lại sau' });
+      // Con số đi TỪ nơi thực thi hạn mức vào câu chữ, không gõ lại trong bản
+      // đồ: middleware là nguồn sự thật của `maxRequests` và của cửa sổ, nên
+      // một con số thứ hai trong `surfaces/error.ts` sẽ là nguồn sự thật thứ
+      // hai cho cùng một hằng. Câu cũ nói "thử lại sau" mà không nói sau BAO
+      // LÂU, đúng thứ luật `next` ở §4 hợp đồng cấm.
+      throw new TRPCError({
+        code: 'TOO_MANY_REQUESTS',
+        message: errText('error.rate.trpc', {
+          limit: maxRequests,
+          windowSec: RATE_LIMIT_WINDOW_MS / 1000,
+        }),
+      });
     }
     return next();
   });
@@ -173,7 +185,7 @@ export function assertOwnerOrAdmin(ctx: { user: AuthedUser }, ownerId: string): 
     return;
   }
   if (ctx.user.id !== ownerId) {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'Không có quyền trên resource này' });
+    throw new TRPCError({ code: 'FORBIDDEN', message: errText('error.authz.not-owner') });
   }
 }
 
@@ -188,7 +200,7 @@ export function assertOwnerOrAdmin(ctx: { user: AuthedUser }, ownerId: string): 
  */
 export const authorProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== 'author' && ctx.user.role !== 'admin') {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'Cần quyền soạn bài' });
+    throw new TRPCError({ code: 'FORBIDDEN', message: errText('error.authz.need-author') });
   }
   return next();
 });
@@ -203,7 +215,7 @@ export const authorProcedure = protectedProcedure.use(({ ctx, next }) => {
  */
 export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== 'admin') {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'Cần quyền quản trị' });
+    throw new TRPCError({ code: 'FORBIDDEN', message: errText('error.authz.need-admin') });
   }
   return next();
 });

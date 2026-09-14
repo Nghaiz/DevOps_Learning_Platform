@@ -6,11 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspacePanel, type WorkspacePanelProps } from './workspace-panel';
 import {
   EDITOR_TAB,
-  TERMINAL_PERCENT_DEFAULT,
-  TERMINAL_PERCENT_MAX,
-  TERMINAL_PERCENT_MIN,
-  TERMINAL_PERCENT_STEP,
   TERMINAL_TAB,
+  hasDisplayUtility,
   workspaceStorageKey,
   type WorkspaceTabId,
 } from './workspace-tabs';
@@ -109,14 +106,18 @@ function mount(overrides: Partial<WorkspacePanelProps> = {}): {
 function ControlledPanel({
   initialTab = EDITOR_TAB,
   hasEditor = true,
+  storageKey,
 }: {
   readonly initialTab?: WorkspaceTabId;
   readonly hasEditor?: boolean;
+  /** Truyền vào khi ô test cần quan sát vòng khôi-phục-rồi-ghi trên storage THẬT. */
+  readonly storageKey?: string;
 }): ReactElement {
   const [tab, setTab] = useState<WorkspaceTabId>(initialTab);
   return (
     <WorkspacePanel
       {...(hasEditor ? { editor: <span data-testid={EDITOR_NODE}>EDITOR</span> } : {})}
+      {...(storageKey === undefined ? {} : { storageKey })}
       terminal={<span data-testid={TERMINAL_NODE}>TERMINAL</span>}
       activeTab={tab}
       onActivate={setTab}
@@ -138,30 +139,13 @@ function row(suffix: 'editor' | 'terminal'): HTMLElement {
   return el as HTMLElement;
 }
 
-/**
- * Thanh kéo, lấy qua DOM chứ KHÔNG qua `getByRole`.
- *
- * `getByRole` đọc cây trợ năng, mà ở tab Terminal thanh này mang `hidden` nên nó
- * đã RỜI khỏi cây đó (một khẳng định riêng ở cuối file). Ở đây ta cần chính cái
- * phần tử DOM để bắn sự kiện lên nó ở cả hai trạng thái.
- */
-function separator(): HTMLElement {
-  const el = document.querySelector<HTMLElement>('[role="separator"]');
-  expect(el, 'không tìm thấy thanh kéo').not.toBeNull();
-  return el as HTMLElement;
-}
-
 function tab(name: 'Editor' | 'Terminal'): HTMLElement {
   return screen.getByRole('tab', { name });
 }
 
-function percentNow(): string | null {
-  return separator().getAttribute('aria-valuenow');
-}
-
-function savedState(key: string = IDE_KEY): { activeTab: string; terminalPercent: number } | null {
+function savedState(key: string = IDE_KEY): { activeTab: string } | null {
   const raw = localStorage.getItem(key);
-  return raw === null ? null : (JSON.parse(raw) as { activeTab: string; terminalPercent: number });
+  return raw === null ? null : (JSON.parse(raw) as { activeTab: string });
 }
 
 // ── Bấm chuột lên tab ───────────────────────────────────────────────────────
@@ -276,31 +260,58 @@ describe('chuyển tab THẬT trong DOM (có cha giữ state)', () => {
     expect(row('editor').hidden).toBe(true);
   });
 
-  it('chuyển tab đổi hình học hàng terminal (§Y6): dải 40% ⇄ chiếm trọn khoang', async () => {
+  /**
+   * ⛔ SỬA ĐỔI 3 — ô đo đúng chỉ đạo "tab IDE thì hiện IDE, tab terminal thì
+   * hiện terminal, hết".
+   *
+   * Hai hàng phải LOẠI TRỪ nhau ở mọi trạng thái. Một bản cài đặt quên ẩn hàng
+   * 2 sẽ trông vẫn đúng ở tab Terminal (hàng 1 ẩn, terminal đầy khoang) và chỉ
+   * sai ở tab Editor — nên phải khẳng định CẢ HAI chiều, không chỉ chiều dễ.
+   */
+  it('hai hàng loại trừ nhau: tab Editor ẩn terminal, tab Terminal ẩn editor', async () => {
     render(<ControlledPanel />);
-    expect(row('terminal').style.flexBasis).toBe(`${String(TERMINAL_PERCENT_DEFAULT)}%`);
-    expect(row('terminal').style.flexGrow).toBe('0');
+    expect(row('editor').hidden).toBe(false);
+    expect(row('terminal').hidden).toBe(true);
 
     await userEvent.click(tab('Terminal'));
+    expect(row('editor').hidden).toBe(true);
+    expect(row('terminal').hidden).toBe(false);
 
-    // Giữ nguyên 40% ở đây thì hàng editor `display:none` không chiếm chỗ mà
-    // terminal vẫn chỉ 40% — 60% còn lại là một mảng trống.
-    expect(row('terminal').style.flexGrow).toBe('1');
-    expect(row('terminal').style.flexBasis).toBe('auto');
+    await userEvent.click(tab('Editor'));
+    expect(row('editor').hidden).toBe(false);
+    expect(row('terminal').hidden).toBe(true);
   });
 
-  it('thanh kéo rời/vào vòng Tab và cây trợ năng theo tab', async () => {
+  /**
+   * Hàng đang hiện phải CHIẾM TRỌN khoang.
+   *
+   * Không có ô này thì một hàng `flex-basis` cũ còn sót lại vẫn "hiện" đúng
+   * theo `.hidden` mà chỉ cao 40%, và 60% còn lại là một mảng trống — đúng
+   * triệu chứng mà ô §Y6 cũ ở chỗ này từng gác.
+   */
+  it('hàng đang hiện chiếm trọn khoang, không còn dải phần trăm nào', async () => {
     render(<ControlledPanel />);
-    expect(screen.getByRole('separator')).toBe(separator());
-    expect(separator().getAttribute('tabindex')).toBe('0');
+    expect(row('terminal').style.flexBasis).toBe('');
+    expect(row('editor').className).toContain('flex-1');
 
     await userEvent.click(tab('Terminal'));
+    expect(row('terminal').className).toContain('flex-1');
+  });
 
-    // `hidden` ⇒ ra khỏi cây trợ năng. `queryByRole` là thứ duy nhất trong repo
-    // nói được điều này: markup tĩnh không tính được cây trợ năng.
+  /**
+   * ⛔ Thanh kéo đã bị GỠ, không phải ẩn đi.
+   *
+   * Ô này là đối chứng cho quyết định đó: để lại một `[role="separator"]` không
+   * bao giờ hiện được là mã chết, và mã chết trong cây này là thứ người đọc sau
+   * sẽ tưởng còn dùng.
+   */
+  it('không còn thanh kéo nào trong DOM lẫn trong cây trợ năng', async () => {
+    render(<ControlledPanel />);
+    expect(document.querySelector('[role="separator"]')).toBeNull();
     expect(screen.queryByRole('separator')).toBeNull();
-    expect(separator().hidden).toBe(true);
-    expect(separator().getAttribute('tabindex')).toBe('-1');
+
+    await userEvent.click(tab('Terminal'));
+    expect(document.querySelector('[role="separator"]')).toBeNull();
   });
 });
 
@@ -366,247 +377,58 @@ describe('⛔ §Y1 — chuyển tab KHÔNG dựng lại node terminal', () => {
   });
 });
 
-// ── §Y6 — bàn phím trên thanh kéo ───────────────────────────────────────────
-
-describe('§Y6 — bàn phím trên thanh kéo đổi chiều cao THẬT', () => {
-  /*
-    `nextTerminalPercentOnKey` (hàm thuần) đã được phủ. Thứ đo ở đây là hai sợi
-    dây khác: phím → state, và state → CẢ `aria-valuenow` LẪN `flex-basis`. Hai
-    thứ sau phải luôn khớp nhau — một bản đọc lệch nguồn (ví dụ `aria-valuenow`
-    lấy từ state còn style lấy từ một biến cũ) là một thanh kéo nói dối với
-    trình đọc màn hình.
-  */
-  it('ArrowUp làm terminal CAO THÊM; aria-valuenow và flex-basis đi cùng nhau', () => {
-    mount({ activeTab: EDITOR_TAB });
-    expect(percentNow()).toBe(String(TERMINAL_PERCENT_DEFAULT));
-    expect(row('terminal').style.flexBasis).toBe(`${String(TERMINAL_PERCENT_DEFAULT)}%`);
-
-    fireEvent.keyDown(separator(), { key: 'ArrowUp' });
-
-    const raised = TERMINAL_PERCENT_DEFAULT + TERMINAL_PERCENT_STEP;
-    expect(percentNow()).toBe(String(raised));
-    expect(row('terminal').style.flexBasis).toBe(`${String(raised)}%`);
-  });
-
-  it('ArrowDown làm terminal THẤP đi', () => {
-    mount({ activeTab: EDITOR_TAB });
-    fireEvent.keyDown(separator(), { key: 'ArrowDown' });
-    const lowered = TERMINAL_PERCENT_DEFAULT - TERMINAL_PERCENT_STEP;
-    expect(percentNow()).toBe(String(lowered));
-    expect(row('terminal').style.flexBasis).toBe(`${String(lowered)}%`);
-  });
-
-  it('Home/End nhảy về hai đầu và KẸP ở đó', () => {
-    mount({ activeTab: EDITOR_TAB });
-    fireEvent.keyDown(separator(), { key: 'Home' });
-    expect(percentNow()).toBe(String(TERMINAL_PERCENT_MIN));
-    // Nhấn thêm ở sát mép không được vượt biên.
-    fireEvent.keyDown(separator(), { key: 'ArrowDown' });
-    expect(percentNow()).toBe(String(TERMINAL_PERCENT_MIN));
-
-    fireEvent.keyDown(separator(), { key: 'End' });
-    expect(percentNow()).toBe(String(TERMINAL_PERCENT_MAX));
-    fireEvent.keyDown(separator(), { key: 'ArrowUp' });
-    expect(percentNow()).toBe(String(TERMINAL_PERCENT_MAX));
-  });
-
-  it('phím trong khuôn bị preventDefault, phím ngoài khuôn thì KHÔNG', () => {
-    mount({ activeTab: EDITOR_TAB });
-
-    const inModel = createEvent.keyDown(separator(), { key: 'ArrowUp' });
-    fireEvent(separator(), inModel);
-    expect(inModel.defaultPrevented).toBe(true);
-
-    // ⚠ Chốt giá trị SAU ArrowUp, không so lại với mặc định: ô này bắt đầu bằng
-    // một phím CÓ tác dụng, nên "không đổi gì" nghĩa là không đổi so với 44 —
-    // không phải so với 40. Bản đầu so nhầm với mặc định và đỏ, đúng lý do đó.
-    const before = percentNow();
-
-    const outside = createEvent.keyDown(separator(), { key: 'PageUp' });
-    fireEvent(separator(), outside);
-    expect(outside.defaultPrevented).toBe(false);
-    // `PageUp` là phím cuộn của trình duyệt, không phải của ta — nuốt nó là lấy
-    // mất đường cuộn trang của người dùng bàn phím.
-    expect(percentNow()).toBe(before);
-  });
-});
-
-// ── Kéo bằng con trỏ ────────────────────────────────────────────────────────
-
-describe('§Y6 — kéo thanh chia bằng con trỏ', () => {
-  /**
-   * jsdom KHÔNG có bộ tính bố cục và KHÔNG cài pointer capture.
-   *
-   * Đo 2026-09-08 trên jsdom đã cài: `getBoundingClientRect()` trả toàn số 0,
-   * còn `Element.prototype.setPointerCapture` là `undefined` — mà
-   * `handlePointerDown` gọi thẳng nó, không bọc try/catch, nên không có hai thứ
-   * dưới đây thì mọi ô trong khối này ném `TypeError` ngay ở `pointerdown`.
-   *
-   * Hai stub này CẤP thứ jsdom thiếu; chúng không thay thế logic nào của
-   * component (phép tính phần trăm và nhịp ghi storage vẫn là mã thật chạy).
-   *
-   * ⚠ Giới hạn phải nói thẳng: vì `setPointerCapture` là hàm rỗng, khối này
-   * KHÔNG chứng minh con trỏ thật sự bị "bắt" khi kéo nhanh ra ngoài thanh. Đó
-   * là hành vi của trình duyệt thật và chỉ Playwright mới gác được.
-   */
-  const STACK_BOTTOM = 400;
-  const STACK_HEIGHT = 400;
-  const captured: number[] = [];
-
-  beforeEach(() => {
-    captured.length = 0;
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      right: 800,
-      bottom: STACK_BOTTOM,
-      width: 800,
-      height: STACK_HEIGHT,
-      toJSON: () => ({}),
-    } as DOMRect);
-
-    // `defineProperty` chứ không `vi.spyOn`: spy trên một thuộc tính KHÔNG tồn
-    // tại thì vitest ném "does not exist" — nên phải tự đặt vào rồi tự gỡ ra.
-    Object.defineProperty(Element.prototype, 'setPointerCapture', {
-      value: (id: number) => {
-        captured.push(id);
-      },
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(Element.prototype, 'releasePointerCapture', {
-      value: () => undefined,
-      configurable: true,
-      writable: true,
-    });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    delete (Element.prototype as unknown as Record<string, unknown>)['setPointerCapture'];
-    delete (Element.prototype as unknown as Record<string, unknown>)['releasePointerCapture'];
-  });
-
-  function drag(clientY: number): void {
-    fireEvent.pointerDown(separator(), { pointerId: 7 });
-    fireEvent.pointerMove(separator(), { pointerId: 7, clientY });
-  }
-
-  it('đo từ ĐÁY lên: kéo LÊN làm terminal cao thêm', () => {
-    mount({ activeTab: EDITOR_TAB });
-    drag(100);
-    // (400 - 100) / 400 * 100 = 75. Một bản đo từ ĐỈNH xuống sẽ ra 25 — cùng
-    // một con số hợp lệ, ngược hướng, và không hàm thuần nào bắt được vì phép
-    // đảo chiều này chỉ sống trong thân component.
-    expect(percentNow()).toBe('75');
-    expect(row('terminal').style.flexBasis).toBe('75%');
-    expect(captured).toEqual([7]);
-  });
-
-  it('kéo XUỐNG làm terminal thấp đi, và bị KẸP ở sàn', () => {
-    mount({ activeTab: EDITOR_TAB });
-    drag(300);
-    expect(percentNow()).toBe('25');
-
-    fireEvent.pointerMove(separator(), { pointerId: 7, clientY: 390 });
-    // (400 - 390) / 400 * 100 = 2.5 ⇒ kẹp về sàn, không phải 2 hay 3.
-    expect(percentNow()).toBe(String(TERMINAL_PERCENT_MIN));
-  });
-
-  it('pointermove khi CHƯA bấm xuống không đổi gì', () => {
-    mount({ activeTab: EDITOR_TAB });
-    fireEvent.pointerMove(separator(), { pointerId: 7, clientY: 100 });
-    expect(percentNow()).toBe(String(TERMINAL_PERCENT_DEFAULT));
-  });
-
-  it('đang kéo thì KHOÁ bôi đen chữ, thả ra thì bỏ khoá', () => {
-    mount({ activeTab: EDITOR_TAB });
-    const stack = row('terminal').parentElement;
-    expect(stack).not.toBeNull();
-
-    fireEvent.pointerDown(separator(), { pointerId: 7 });
-    expect(stack?.className).toContain('select-none');
-
-    fireEvent.pointerUp(separator(), { pointerId: 7 });
-    expect(stack?.className).not.toContain('select-none');
-  });
-
-  it('ghi storage ĐÚNG MỘT LẦN lúc THẢ, không phải mỗi lần pointermove', () => {
-    /*
-      `pointermove` bắn hàng chục lần/giây; ghi ở mỗi lần là I/O đồng bộ thừa.
-      Nhịp này là một quyết định nằm HẲN trong thân component — không hàm thuần
-      nào mang nó, và markup tĩnh thì không có sự kiện nào để quan sát.
-    */
-    mount({ activeTab: EDITOR_TAB, storageKey: STORAGE_BASE });
-    expect(savedState()?.terminalPercent).toBe(TERMINAL_PERCENT_DEFAULT);
-
-    drag(100);
-    // Đã đổi trên màn hình…
-    expect(percentNow()).toBe('75');
-    // …nhưng CHƯA chốt xuống storage.
-    expect(savedState()?.terminalPercent).toBe(TERMINAL_PERCENT_DEFAULT);
-
-    fireEvent.pointerUp(separator(), { pointerId: 7 });
-    expect(savedState()?.terminalPercent).toBe(75);
-  });
-});
-
 // ── Ghi nhớ qua localStorage ────────────────────────────────────────────────
 
 describe('ghi nhớ qua localStorage — hai effect chạy cùng một nhịp commit', () => {
-  it('khôi phục chiều cao đã lưu vào DOM ngay lúc mount', () => {
-    localStorage.setItem(IDE_KEY, JSON.stringify({ activeTab: EDITOR_TAB, terminalPercent: 70 }));
-    mount({ activeTab: EDITOR_TAB, storageKey: STORAGE_BASE });
-    expect(percentNow()).toBe('70');
-    expect(row('terminal').style.flexBasis).toBe('70%');
+  /**
+   * ⚠ Đối chứng TƯƠNG THÍCH NGƯỢC của SỬA ĐỔI 3, và nó gác một hồi quy im lặng.
+   *
+   * Bản ghi cũ còn mang `terminalPercent`. Nếu `parseWorkspaceState` từ chối cả
+   * bản ghi vì trường thừa đó, thì mọi người đang dùng mất tab đã nhớ ở đúng
+   * lượt cập nhật này — không lỗi, không log, chỉ là "tab đã lưu không có tác
+   * dụng nữa".
+   */
+  it('bản ghi cũ có terminalPercent vẫn khôi phục được TAB', () => {
+    localStorage.setItem(IDE_KEY, JSON.stringify({ activeTab: TERMINAL_TAB, terminalPercent: 70 }));
+    const { onActivate } = mount({ activeTab: EDITOR_TAB, storageKey: STORAGE_BASE });
+    expect(onActivate.mock.calls).toEqual([[TERMINAL_TAB]]);
   });
 
   it('tab đã lưu khác tab cha đang giữ ⇒ YÊU CẦU cha đổi, đúng một lần, đúng tab', () => {
-    localStorage.setItem(IDE_KEY, JSON.stringify({ activeTab: TERMINAL_TAB, terminalPercent: 40 }));
+    localStorage.setItem(IDE_KEY, JSON.stringify({ activeTab: TERMINAL_TAB }));
     const { onActivate } = mount({ activeTab: EDITOR_TAB, storageKey: STORAGE_BASE });
     // Panel KHÔNG tự đổi tab (prop điều khiển, §Y4) — nó chỉ được phép yêu cầu.
     expect(onActivate.mock.calls).toEqual([[TERMINAL_TAB]]);
   });
 
   it('tab đã lưu TRÙNG tab cha ⇒ KHÔNG gọi onActivate thừa', () => {
-    localStorage.setItem(IDE_KEY, JSON.stringify({ activeTab: EDITOR_TAB, terminalPercent: 40 }));
+    localStorage.setItem(IDE_KEY, JSON.stringify({ activeTab: EDITOR_TAB }));
     const { onActivate } = mount({ activeTab: EDITOR_TAB, storageKey: STORAGE_BASE });
     expect(onActivate).not.toHaveBeenCalled();
   });
 
-  it('⚠ HỒI QUY: lượt ghi cùng nhịp commit KHÔNG được đè giá trị vừa khôi phục', () => {
-    /*
-      Lớp lỗi mà `percentRef` trong `useWorkspaceMemory` tồn tại để chặn, và là
-      lý do duy nhất của cái ref đó.
-
-      Effect khôi phục và effect ghi-khi-đổi-tab chạy trong CÙNG một lượt commit.
-      Nếu effect ghi đọc `terminalPercent` từ state, nó đọc giá trị của lượt
-      render vừa rồi — tức mặc định 40 — và ghi đè đúng con số vừa khôi phục.
-      Triệu chứng ngoài đời: kéo lên 70%, phiên này vẫn 70%, lần vào sau về 40%.
-      Không có gì báo.
-
-      Bỏ `percentRef` đi thì ô này ĐỎ (ra 40). Đó là điều làm nó không phải một
-      ô xanh trang trí.
-    */
-    localStorage.setItem(IDE_KEY, JSON.stringify({ activeTab: EDITOR_TAB, terminalPercent: 70 }));
-    mount({ activeTab: EDITOR_TAB, storageKey: STORAGE_BASE });
-    expect(savedState()?.terminalPercent).toBe(70);
-  });
-
-  it('nhấn phím trên thanh kéo CHỐT ngay — không đợi một sự kiện "thả" nào', () => {
-    mount({ activeTab: EDITOR_TAB, storageKey: STORAGE_BASE });
-    fireEvent.keyDown(separator(), { key: 'End' });
-    expect(savedState()).toEqual({
-      activeTab: EDITOR_TAB,
-      terminalPercent: TERMINAL_PERCENT_MAX,
-    });
+  /**
+   * ⚠ HỒI QUY: effect khôi phục và effect ghi chạy trong CÙNG một lượt commit.
+   *
+   * `restoredRef` là thứ duy nhất chặn lượt ghi đầu tiên. Bỏ nó đi thì effect
+   * ghi chạy trước khi effect khôi phục kịp đọc, và nó ghi đè bản ghi đã lưu
+   * bằng tab mặc định của cha — nên lần vào sau nữa cũng không khôi phục được.
+   * Triệu chứng ngoài đời: chọn tab Terminal, hai lần vào sau vẫn về Editor.
+   * Không có gì báo.
+   *
+   * ⚠ Ô này BẮT BUỘC dùng cha THẬT. Với một `onActivate` giả, panel không bao
+   * giờ nhận được tab mới, nên nó ghi lại đúng tab cha đang giữ — và đó là hành
+   * vi ĐÚNG, không phải lỗi. Đo bằng cha giả ở đây là đo nhầm chính cái giả đó.
+   */
+  it('⚠ HỒI QUY: vòng khôi-phục-rồi-ghi KHÔNG được đè tab đã lưu', () => {
+    localStorage.setItem(IDE_KEY, JSON.stringify({ activeTab: TERMINAL_TAB }));
+    render(<ControlledPanel initialTab={EDITOR_TAB} storageKey={STORAGE_BASE} />);
+    expect(savedState()).toEqual({ activeTab: TERMINAL_TAB });
   });
 
   it('KHÔNG truyền storageKey ⇒ không đụng vào localStorage', () => {
-    mount({ activeTab: EDITOR_TAB });
-    fireEvent.keyDown(separator(), { key: 'End' });
+    const { onActivate } = mount({ activeTab: EDITOR_TAB });
+    expect(onActivate).not.toHaveBeenCalled();
     expect(localStorage.length).toBe(0);
   });
 
@@ -630,20 +452,239 @@ describe('ghi nhớ qua localStorage — hai effect chạy cùng một nhịp co
 // ── Bài không có editor ─────────────────────────────────────────────────────
 
 describe('bài không có editor — hình dạng một mục', () => {
-  it('không có tab nào, nhưng terminal và thanh kéo VẪN trong DOM (§Y1)', () => {
+  it('không có tab nào, nhưng CẢ HAI hàng vẫn trong DOM (§Y1)', () => {
     mount({ editor: undefined, activeTab: TERMINAL_TAB });
     expect(screen.queryByRole('tablist')).toBeNull();
     expect(screen.queryAllByRole('tab')).toHaveLength(0);
     expect(screen.getByTestId(TERMINAL_NODE).isConnected).toBe(true);
-    // Cả ba con tĩnh còn nguyên — chỉ ẩn, không bị gỡ.
+    // Cả hai con tĩnh còn nguyên — chỉ ẩn, không bị gỡ. Gỡ hàng 1 sẽ đẩy hàng 2
+    // lên vị trí của nó và React unmount cái xterm.
     expect(row('editor').hidden).toBe(true);
-    expect(separator().hidden).toBe(true);
     expect(row('terminal').hidden).toBe(false);
   });
+});
 
-  it('thanh kéo RỜI cây trợ năng và RỜI vòng Tab', () => {
-    mount({ editor: undefined, activeTab: TERMINAL_TAB });
-    expect(screen.queryByRole('separator')).toBeNull();
-    expect(separator().getAttribute('tabindex')).toBe('-1');
+// ── AC-1 · ĐỐI CHỨNG DƯƠNG cho phép đo danh tính node ───────────────────────
+
+/**
+ * Hợp đồng `p16-workspace.md` §8 AC-1 đòi một đối chứng dương, và cho tới
+ * 2026-09-10 nó KHÔNG có: file này chỉ khẳng định `expect(after).toBe(before)`
+ * trên panel thật.
+ *
+ * Vì sao thiếu nó là một lỗ hổng thật chứ không phải thủ tục: ô AC-1 xanh khi
+ * hai tham chiếu bằng nhau. Một `getByTestId` trả về CÙNG một phần tử vì lý do
+ * khác hẳn — ví dụ panel không hề render lại (prop `activeTab` không tới nơi),
+ * hoặc `userEvent.click` bắn vào một nút không nối gì — cũng cho `toBe` xanh.
+ * Lúc đó ô quan trọng nhất của cả lane đang đo "không có gì đổi" thay vì đo
+ * "React giữ nguyên node qua một lượt reconcile".
+ *
+ * Nên phép đo được tách thành MỘT hàm, và hàm đó chạy hai lần: một lần trên
+ * panel thật (phải `toBe`), một lần trên một component CỐ Ý SAI theo đúng hình
+ * dạng §1.5 (phải `not.toBe`). Chỉ khi cả hai cùng đúng thì AC-1 mới nói được
+ * điều nó tuyên bố.
+ */
+
+/** Đúng MỘT phép đo, dùng cho cả panel thật lẫn component cố ý sai. */
+function terminalNodeIdentityAcrossTabSwitch(ui: (tab: WorkspaceTabId) => ReactElement): {
+  readonly sameNode: boolean;
+  readonly sameParent: boolean;
+} {
+  const { rerender } = render(ui(EDITOR_TAB));
+  const before = screen.getByTestId(TERMINAL_NODE);
+  const beforeParent = before.parentElement;
+
+  rerender(ui(TERMINAL_TAB));
+  const after = screen.getByTestId(TERMINAL_NODE);
+
+  return { sameNode: after === before, sameParent: after.parentElement === beforeParent };
+}
+
+describe('⛔ AC-1 — phép đo danh tính node ĐỎ được (đối chứng dương)', () => {
+  /**
+   * Hình dạng cấm số 1 của §1.5: hai nhánh JSX = hai cây.
+   *
+   * ```tsx
+   * {activeTab === 'terminal' ? <Terminal/> : <><Editor/><Terminal/></>}
+   * ```
+   *
+   * React so trùng con theo VỊ TRÍ và theo KIỂU phần tử. Ở vị trí 0 nó thấy một
+   * `<div>` ở nhánh này và một Fragment ở nhánh kia — hai kiểu khác nhau ⇒ huỷ
+   * cây cũ, dựng cây mới. Đó chính là `terminal.dispose()` + WebSocket đóng mà
+   * §1.2 mô tả, và nó không phát ra một lỗi nào.
+   */
+  function ForbiddenTwoBranchPanel({ activeTab }: { readonly activeTab: WorkspaceTabId }) {
+    const terminalRow = (
+      <div className="min-h-0 min-w-0 overflow-hidden">
+        <span data-testid={TERMINAL_NODE}>TERMINAL</span>
+      </div>
+    );
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {activeTab === TERMINAL_TAB ? (
+          terminalRow
+        ) : (
+          <>
+            <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+              <span data-testid={EDITOR_NODE}>EDITOR</span>
+            </div>
+            {terminalRow}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  it('component cố ý sai (hai nhánh JSX) ⇒ node terminal ĐỔI — phép đo không mù', () => {
+    const measured = terminalNodeIdentityAcrossTabSwitch((activeTab) => (
+      <ForbiddenTwoBranchPanel activeTab={activeTab} />
+    ));
+
+    expect(
+      measured.sameNode,
+      'phép đo danh tính đang MÙ: nó không phân biệt được một node bị dựng lại ' +
+        'với một node giữ nguyên. Mọi khẳng định §Y1 phía trên vì thế không ' +
+        'chứng minh gì. Sửa phép đo TRƯỚC, đừng sửa panel.',
+    ).toBe(false);
+  });
+
+  it('panel THẬT, đo bằng ĐÚNG hàm đó ⇒ node và cha đều giữ nguyên', () => {
+    // Cùng một `terminalNodeIdentityAcrossTabSwitch`, cùng một lượt chạy. Đây
+    // là thứ biến ô trên thành một đối chứng chứ không phải một test riêng lẻ
+    // về một component đồ chơi.
+    const measured = terminalNodeIdentityAcrossTabSwitch((activeTab) => (
+      <WorkspacePanel {...baseProps({ activeTab })} />
+    ));
+
+    expect(measured.sameNode).toBe(true);
+    expect(measured.sameParent).toBe(true);
   });
 });
+
+// ── AC-2 · quét TOÀN BỘ cây DOM ở CẢ HAI tab ────────────────────────────────
+
+describe('AC-2 — mọi phần tử [hidden] trong cây đều không mang tiện ích display', () => {
+  /**
+   * `workspace-panel.test.tsx` quét chuỗi markup SSR; ô này quét cây DOM SỐNG.
+   * Hai thứ khác nhau: markup là lượt render đầu, còn DOM là thứ còn lại sau
+   * hydrate và sau mọi lượt đổi class do state gây ra.
+   *
+   * Danh sách tiện ích đến từ `workspace-tabs.ts`, không chép tay — xem chú
+   * thích tại chỗ khai.
+   */
+  function hiddenOffenders(): readonly string[] {
+    return [...document.querySelectorAll<HTMLElement>('[hidden]')]
+      .filter((el) => hasDisplayUtility(el.className))
+      .map((el) => `${el.tagName.toLowerCase()}.${el.className}`);
+  }
+
+  const CASES: readonly { readonly label: string; readonly props: Partial<WorkspacePanelProps> }[] =
+    [
+      { label: 'có editor · tab Editor', props: { activeTab: EDITOR_TAB } },
+      { label: 'có editor · tab Terminal', props: { activeTab: TERMINAL_TAB } },
+      { label: 'không editor · tab Terminal', props: { editor: undefined, activeTab: TERMINAL_TAB } },
+    ];
+
+  for (const testCase of CASES) {
+    it(`${testCase.label} — không phần tử [hidden] nào mang display`, () => {
+      mount(testCase.props);
+      expect(hiddenOffenders()).toEqual([]);
+    });
+  }
+
+  it('đối chứng dương (bộ quét): một cây giả `<div hidden class="flex">` bị BẮT', () => {
+    // Không có ô này thì một `hiddenOffenders` luôn trả mảng rỗng — vì
+    // `querySelectorAll` trượt, vì `className` rỗng trên SVG, vì bất cứ lý do
+    // nào — cũng làm ba ô trên xanh.
+    const scratch = document.createElement('div');
+    scratch.innerHTML = '<div hidden class="min-h-0 flex flex-col"></div>';
+    document.body.append(scratch);
+
+    expect(hiddenOffenders()).toEqual(['div.min-h-0 flex flex-col']);
+
+    scratch.remove();
+  });
+
+  it('đối chứng dương (query trúng đích): ở tab Editor, hàng 1 KHÔNG mang `hidden`', () => {
+    // Vế còn lại của AC-2. Không có nó thì một `row('editor')` trượt (trả một
+    // phần tử luôn `hidden`, hoặc luôn không) cũng làm vế "có `hidden`" xanh
+    // một cách rỗng tuếch.
+    mount({ activeTab: EDITOR_TAB });
+    expect(row('editor').hidden).toBe(false);
+
+    cleanup();
+    mount({ activeTab: TERMINAL_TAB });
+    expect(row('editor').hidden).toBe(true);
+  });
+});
+
+// ── AC-3 · không tổ tiên nào của hàng terminal bị ẩn, và node luôn còn sống ──
+
+describe('AC-3 — không TỔ TIÊN nào của hàng terminal bị ẩn, và node luôn còn sống', () => {
+  /**
+   * ⚠ Ô này ĐÃ ĐỔI NGHĨA ở SỬA ĐỔI 3, và chỗ đổi là chỗ phải đọc kỹ.
+   *
+   * Bản trước khẳng định hàng terminal KHÔNG BAO GIỜ mang `hidden`. Điều đó
+   * không còn đúng và không còn nên đúng: chỉ đạo 2026-09-13 là tab IDE chỉ có
+   * IDE, nên ở tab Editor hàng 2 phải ẩn.
+   *
+   * Thứ CÒN NGUYÊN là bất biến thật, và nó là hai vế khác nhau:
+   *
+   * 1. Không TỔ TIÊN nào của hàng terminal được mang `hidden`. Một `hidden` đặt
+   *    nhầm lên ngăn xếp dọc (thay vì lên đúng một hàng) sẽ ẩn terminal ở CẢ
+   *    HAI tab, và triệu chứng là terminal biến mất không lỗi không log.
+   * 2. Node terminal luôn `isConnected` — ẩn là thôi được vẽ, không phải bị gỡ
+   *    khỏi cây. Đây là vế phân biệt `hidden` (an toàn) với unmount (đóng
+   *    WebSocket của người học).
+   *
+   * Vế "tổ tiên" là vế mà `workspace-panel.test.tsx` không nói được: markup
+   * tĩnh cho biết thẻ nào mang `hidden`, nhưng "thẻ đó có phải tổ tiên của hàng
+   * terminal không" là một câu hỏi về cây, không phải về chuỗi.
+   */
+  function hiddenAncestors(el: HTMLElement): readonly string[] {
+    const out: string[] = [];
+    for (let node = el.parentElement; node !== null; node = node.parentElement) {
+      if (node.hidden) {
+        out.push(`${node.tagName.toLowerCase()}#${node.id}`);
+      }
+    }
+    return out;
+  }
+
+  for (const hasEditor of [true, false]) {
+    for (const activeTab of [EDITOR_TAB, TERMINAL_TAB] as const) {
+      it(`hasEditor=${String(hasEditor)} · tab ${activeTab} — node terminal sống, không tổ tiên nào ẩn`, () => {
+        mount({ ...(hasEditor ? {} : { editor: undefined }), activeTab });
+
+        const terminalRow = row('terminal');
+        // Chính hàng 2: ẩn ĐÚNG KHI editor đang chiếm khoang, không lúc nào khác.
+        expect(terminalRow.hidden).toBe(hasEditor && activeTab === EDITOR_TAB);
+        // Tổ tiên: không bao giờ.
+        expect(hiddenAncestors(terminalRow)).toEqual([]);
+        // Ẩn ≠ gỡ. Đây là vế giữ WebSocket sống.
+        expect(screen.getByTestId(TERMINAL_NODE).isConnected).toBe(true);
+      });
+    }
+  }
+
+  it('đối chứng dương: cùng phép dò báo ĐÚNG rằng hàng 1 bị ẩn ở tab Terminal', () => {
+    // Chứng minh `.hidden` thật sự đọc được DOM. Không có ô này thì một phép dò
+    // luôn trả `false` cũng làm bốn ô trên xanh.
+    mount({ activeTab: TERMINAL_TAB });
+    expect(row('editor').hidden).toBe(true);
+    expect(hiddenAncestors(screen.getByTestId(EDITOR_NODE))).toEqual([
+      `div#${row('editor').id}`,
+    ]);
+  });
+
+  it('đối chứng dương chiều ngược: hàng 2 bị ẩn ở tab Editor', () => {
+    // Nửa DƯƠNG của vế mới. Nếu bản cài đặt quên `hidden={editorVisible}` thì
+    // ô này ĐỎ — nếu không có nó, bốn ô trên vẫn xanh với một hàng 2 không bao
+    // giờ ẩn, tức đúng cái hồi quy mà SỬA ĐỔI 3 sinh ra để chặn.
+    mount({ activeTab: EDITOR_TAB });
+    expect(row('terminal').hidden).toBe(true);
+    expect(hiddenAncestors(screen.getByTestId(TERMINAL_NODE))).toEqual([
+      `div#${row('terminal').id}`,
+    ]);
+  });
+});
+

@@ -1,0 +1,46 @@
+/** Stable relationship indices used by the scene's batched GPU buffers. */
+export const RELATION_KINDS = ['owns', 'runs-on', 'selects', 'routes', 'mounts'] as const;
+export type RelationKind = (typeof RELATION_KINDS)[number];
+export const EDGE_SEGMENTS = 32;
+export interface EdgePoint {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+export function relationIndex(kind: RelationKind): number {
+  return RELATION_KINDS.indexOf(kind);
+}
+/** Alternating lanes distinguish multiple relationships between the same pair. */
+export function fanOffset(index: number): number {
+  return index <= 0 ? 0 : index % 2 === 1 ? Math.ceil(index / 2) : -index / 2;
+}
+export function pairKey(a: string, b: string): string {
+  return a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`;
+}
+
+/** Smooth raised arc, with fixed-size endpoint gaps. Its bounded height and
+ * stable duplicate lanes remain independent of the camera, and cost O(segments). */
+export function writeCurve(out: number[], a: EdgePoint, b: EdgePoint, fan: number): void {
+  const dx = b.x - a.x,
+    dz = b.z - a.z,
+    distance = Math.hypot(dx, dz);
+  const safe = Math.max(distance, 0.001);
+  const height =
+    Math.min(2.2, 0.32 + Math.sqrt(distance) * 0.34) + Math.min(0.3, Math.abs(fan) * 0.08);
+  const bend = Math.max(-0.75, Math.min(0.75, fan * 0.3));
+  const nx = distance < 0.001 ? 1 : -dz / safe,
+    nz = dx / safe;
+  const trim = Math.min(0.11, 0.28 / safe);
+  const point = (t: number): void => {
+    const arch = 4 * t * (1 - t);
+    out.push(
+      a.x + dx * t + nx * bend * arch,
+      a.y + (b.y - a.y) * t + height * arch,
+      a.z + dz * t + nz * bend * arch,
+    );
+  };
+  for (let i = 0; i < EDGE_SEGMENTS; i++) {
+    point(trim + (i / EDGE_SEGMENTS) * (1 - trim * 2));
+    point(trim + ((i + 1) / EDGE_SEGMENTS) * (1 - trim * 2));
+  }
+}

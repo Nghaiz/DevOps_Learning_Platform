@@ -21,10 +21,11 @@ import {
   RadioGroupItem,
   Skeleton,
 } from '@devops-platform/ui';
+import { renderCopy, t, type StaticTextKey } from '@devops-platform/copy';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import {
-  MULTIPLE_ANSWER_RULE_TEXT,
+  MULTIPLE_ANSWER_RULE_KEYS,
   choiceReveal,
   summarizeAnswers,
   type ChoiceReveal,
@@ -43,7 +44,12 @@ import {
  *    test) chứ không qua một biểu thức nội suy giữa JSX. ⛔ Không nới kiểu, không
  *    `as`, không đọc field nào ngoài `outcome.*` để suy đúng/sai.
  * 2. **Quy tắc chấm hiện TRƯỚC khi làm** (AC #6), câu chữ lấy TỪ PAYLOAD
- *    (`quiz.multipleAnswerRule`) — xem `MULTIPLE_ANSWER_RULE_TEXT`.
+ *    (`quiz.multipleAnswerRule`) — xem `MULTIPLE_ANSWER_RULE_KEYS`.
+ *
+ * ## Chữ của file này nằm ở `packages/copy`, surface `catalog.quiz.*`
+ *
+ * Kể cả ba nhãn `REVEAL_NOTE`. Chúng dựng được CHỈ sau khi `quiz.submit` trả
+ * kết quả, và vai trò `none` (trạng thái trước khi nộp) cố ý không có nhãn nào.
  *
  * Quiz là loại nội dung DUY NHẤT không cần sandbox (`docs/quiz-format.md`), nên
  * trang này cố ý KHÔNG dùng khung phiên C5: không có phiên nào để bắt đầu, kết
@@ -60,11 +66,16 @@ const REVEAL_CLASS: Record<ChoiceReveal, string> = {
   'wrong-pick': 'border-destructive/50 bg-destructive/10',
 };
 
-const REVEAL_NOTE: Record<ChoiceReveal, string | null> = {
+/**
+ * Nhãn chữ của ba vai trò lộ ra SAU khi nộp. `none` không có nhãn, và đó là
+ * cổng chứ không phải chỗ chưa viết: trước khi nộp mọi lựa chọn đều là `none`,
+ * nên một chuỗi ở ô đó là lối duy nhất để lộ đúng/sai sớm.
+ */
+const REVEAL_NOTE: Record<ChoiceReveal, StaticTextKey | null> = {
   none: null,
-  correct: 'Bạn chọn đúng',
-  missed: 'Đáp án đúng — bạn chưa chọn',
-  'wrong-pick': 'Bạn chọn nhưng không đúng',
+  correct: 'catalog.quiz.reveal-correct',
+  missed: 'catalog.quiz.reveal-missed',
+  'wrong-pick': 'catalog.quiz.reveal-wrong-pick',
 };
 
 export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
@@ -80,9 +91,9 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
 
   if (query.isPending) {
     return (
-      <PageShell title="Đang tải…">
+      <PageShell title={t('catalog.quiz.loading-title')}>
         <div role="status" aria-busy="true" className="flex flex-col gap-3">
-          <span className="sr-only">Đang tải quiz…</span>
+          <span className="sr-only">{t('catalog.quiz.loading-sr')}</span>
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-32 w-full" />
@@ -93,9 +104,9 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
 
   if (query.isError) {
     return (
-      <PageShell title="Quiz">
+      <PageShell title={t('catalog.title.quiz')}>
         <ErrorState
-          title="Không mở được quiz này"
+          title={t('catalog.quiz.error-title')}
           message={describeTrpcError(query.error)}
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
@@ -144,13 +155,15 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
       )}
 
       {/* AC #6 — quy tắc chấm đứng TRƯỚC câu hỏi đầu tiên, không phải sau khi nộp. */}
-      <Card className="flex flex-col gap-1 p-4">
-        <span className="text-sm font-medium text-foreground">Cách chấm</span>
-        <span className="text-sm text-muted-foreground">
-          {MULTIPLE_ANSWER_RULE_TEXT[quiz.multipleAnswerRule]}
+      <Card className="flex flex-col gap-1 p-4 shadow-elevation-1">
+        <span className="text-sm font-medium text-foreground">
+          {t('catalog.quiz.grading-title')}
         </span>
         <span className="text-sm text-muted-foreground">
-          Đạt từ {quiz.passThresholdPercent}% số câu. Làm lại bao nhiêu lần cũng được.
+          {renderCopy({ key: MULTIPLE_ANSWER_RULE_KEYS[quiz.multipleAnswerRule] })}
+        </span>
+        <span className="text-sm text-muted-foreground">
+          {t('catalog.quiz.threshold', { percent: quiz.passThresholdPercent })}
         </span>
       </Card>
 
@@ -163,9 +176,9 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
       */}
       {!graded && (
         <div role="status" className="rounded-lg border border-border bg-card px-4 py-3">
-          <p className="text-sm font-medium text-foreground">{progress.label}</p>
+          <p className="text-sm font-medium text-foreground">{renderCopy(progress.label)}</p>
           {progress.caveat !== null && (
-            <p className="mt-1 text-xs text-muted-foreground">{progress.caveat}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{renderCopy(progress.caveat)}</p>
           )}
         </div>
       )}
@@ -189,8 +202,8 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
       {submit.isError && (
         <Alert variant="destructive">
           <AlertDescription className="text-foreground">
-            Không nộp được bài: {describeTrpcError(submit.error)} — các lựa chọn của bạn vẫn còn
-            trên màn hình, bấm Nộp bài để thử lại.
+            {t('catalog.quiz.submit-failed', { reason: describeTrpcError(submit.error) })}{' '}
+            {t('catalog.quiz.submit-failed-note')}
           </AlertDescription>
         </Alert>
       )}
@@ -198,12 +211,10 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
       {result === null ? (
         <div className="flex flex-col gap-2">
           <Button onClick={onSubmit} loading={submit.isPending} className="self-start">
-            Nộp bài
+            {t('catalog.quiz.submit')}
           </Button>
           {progress.unansweredCount > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Bạn vẫn nộp được khi còn câu bỏ trống — chúng sẽ tính là sai.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('catalog.quiz.submit-with-blanks')}</p>
           )}
         </div>
       ) : (
@@ -215,7 +226,7 @@ export function QuizClient({ quizId }: { quizId: string }): React.ReactElement {
             setSelected({});
           }}
         >
-          Làm lại từ đầu
+          {t('catalog.quiz.restart')}
         </Button>
       )}
     </PageShell>
@@ -239,6 +250,7 @@ function QuestionCard({
 
   const choices = question.choices.map((choice) => {
     const reveal = choiceReveal(outcome, choice.id, selectedChoiceIds);
+    const note = REVEAL_NOTE[reveal];
     const checked = selectedChoiceIds.includes(choice.id);
     const controlId = `${question.id}--${choice.id}`;
     return (
@@ -246,49 +258,51 @@ function QuestionCard({
         key={choice.id}
         className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm ${REVEAL_CLASS[reveal]}`}
       >
-          {/*
+        {/*
             Radix `RadioGroupItem`/`Checkbox` + `Label htmlFor` — bấm vào chữ
             chọn đúng ô, và ô nhận focus bằng bàn phím. `<input>` trần trước đây
             không đi theo token C1 nên nó là ô duy nhất trên trang không đổi màu
             khi bật dark mode.
           */}
-          {single ? (
-            <RadioGroupItem value={choice.id} id={controlId} disabled={locked} />
-          ) : (
-            <Checkbox
-              id={controlId}
-              checked={checked}
-              disabled={locked}
-              onCheckedChange={() => {
-                onToggle(choice.id);
-              }}
-            />
-          )}
-          <Label htmlFor={controlId} className="flex-1 cursor-pointer font-normal">
-            {choice.markdown}
-          </Label>
-        {REVEAL_NOTE[reveal] !== null && (
-          <span className="shrink-0 text-xs text-muted-foreground">{REVEAL_NOTE[reveal]}</span>
+        {single ? (
+          <RadioGroupItem value={choice.id} id={controlId} disabled={locked} />
+        ) : (
+          <Checkbox
+            id={controlId}
+            checked={checked}
+            disabled={locked}
+            onCheckedChange={() => {
+              onToggle(choice.id);
+            }}
+          />
+        )}
+        <Label htmlFor={controlId} className="flex-1 cursor-pointer font-normal">
+          {choice.markdown}
+        </Label>
+        {note !== null && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {renderCopy({ key: note })}
+          </span>
         )}
       </div>
     );
   });
 
   return (
-    <Card className="flex flex-col gap-3 p-4">
+    <Card className="flex flex-col gap-3 p-4 shadow-elevation-1">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-sm font-medium text-foreground">
+        <h2 className="text-base font-medium text-foreground">
           {question.ordinal + 1}. {question.markdown}
         </h2>
         {outcome != null && (
           <Badge variant={outcome.correct ? 'success' : 'warning'}>
-            {outcome.correct ? 'Đúng' : 'Chưa đúng'}
+            {outcome.correct ? t('catalog.quiz.answer-correct') : t('catalog.quiz.answer-wrong')}
           </Badge>
         )}
       </div>
 
       <span className="text-xs text-muted-foreground">
-        {single ? 'Chọn một đáp án' : 'Chọn nhiều đáp án'}
+        {single ? t('catalog.quiz.pick-one') : t('catalog.quiz.pick-many')}
       </span>
 
       {/*
@@ -338,19 +352,25 @@ function ScoreBanner({
     <div
       role="status"
       className={`flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3 ${
-        result.score.passed
-          ? 'border-success/30 bg-success/10'
-          : 'border-warning/30 bg-warning/10'
+        result.score.passed ? 'border-success/30 bg-success/10' : 'border-warning/30 bg-warning/10'
       }`}
     >
-      <span className="text-lg font-semibold text-foreground">
-        {result.score.correctCount}/{result.score.questionCount} câu — {result.score.percent}%
+      <span className="text-xl font-semibold text-foreground">
+        {t('catalog.quiz.score', {
+          correct: result.score.correctCount,
+          total: result.score.questionCount,
+          percent: result.score.percent,
+        })}
       </span>
       {/* Mốc đi kèm điểm: "60%" một mình không nói được đạt hay chưa. */}
       <span className="text-sm text-foreground">
-        {result.score.passed ? 'Đạt' : 'Chưa đạt'} (mốc {threshold}%)
+        {result.score.passed
+          ? t('catalog.quiz.verdict-pass', { threshold })
+          : t('catalog.quiz.verdict-fail', { threshold })}
       </span>
-      <span className="text-sm text-muted-foreground">Lần làm thứ {result.attemptNumber}</span>
+      <span className="text-sm text-muted-foreground">
+        {t('catalog.quiz.attempt-number', { n: result.attemptNumber })}
+      </span>
     </div>
   );
 }
@@ -367,10 +387,17 @@ function PageShell({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
       <header className="flex flex-col gap-1">
+        {/*
+          Mũi tên là TRANG TRÍ, nên nó `aria-hidden` và không vào bản đồ thông
+          điệp: trình đọc màn hình đọc nó ra thành tên ký tự và câu nghe được sẽ
+          dài hơn câu nhìn thấy mà không thêm nghĩa nào.
+        */}
         <Link href="/quiz" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Quiz
+          <span aria-hidden>←</span> {t('catalog.quiz.back')}
         </Link>
-        <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
+        <h1 className="text-4xl font-semibold tracking-tight text-balance text-foreground">
+          {title}
+        </h1>
       </header>
       {children}
     </div>

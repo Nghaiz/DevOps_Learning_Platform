@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TRPCError } from '@trpc/server';
 import { eq, inArray } from 'drizzle-orm';
-import { closeTestDb, ctxFor, testDb, uniqueId } from '../../../security/test-helpers';
+import {
+  closeTestDb,
+  ctxFor,
+  purgeLeakedFixtures,
+  testDb,
+  uniqueId,
+} from '../../../security/test-helpers';
 import { contentItems, contentSteps, users } from '../../db/schema';
 import { appRouter } from './app-router';
 import { draftIdFor } from './authoring';
@@ -39,6 +45,16 @@ function draftPayload(id: string, over: Record<string, unknown> = {}): Record<st
 }
 
 beforeAll(async () => {
+  /*
+    ⛔ Dọn rác của những lượt TRƯỚC, trước khi gieo lượt này.
+
+    `afterAll` không chạy khi tiến trình không sống tới đó — Ctrl-C, một ô ném
+    ngoài `it`, máy sập. Mọi rác đã đo được trong `content_items` đều đến từ
+    đúng chế độ hỏng đó. Một lượt dọn ở ĐÂY thì tự lành: lượt sau luôn dọn hộ
+    lượt trước, nên rác không tích tụ được qua nhiều lượt.
+  */
+  await purgeLeakedFixtures(testDb());
+
   const db = testDb();
   for (const id of [AUTHOR_A, AUTHOR_B]) {
     await db.insert(users).values({ id, name: id, email: `${id}@example.test` });

@@ -1,3 +1,4 @@
+import { errText, t } from '@devops-platform/copy';
 import type { ClusterSpec, NodeSpec, ResourceSpec } from '@devops-platform/games';
 import type { ClusterFormState, FieldIssue } from './cluster-form';
 import { parseKeyValueLines, parseList } from './text-tools';
@@ -13,12 +14,20 @@ import { isClusterScoped } from './vocabulary';
 function readInt(raw: string, path: string, label: string, issues: FieldIssue[]): number | null {
   const trimmed = raw.trim();
   if (trimmed === '') {
-    issues.push({ path, message: `${label} chưa khai.` });
+    issues.push({
+      path,
+      message: errText('problem.cluster-to-spec-chua-khai', { label: String(label) }),
+    });
     return null;
   }
   const value = Number(trimmed);
   if (!Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
-    issues.push({ path, message: `${label} phải là số nguyên không âm.` });
+    issues.push({
+      path,
+      message: errText('problem.cluster-to-spec-phai-la-so-nguyen-khong-am', {
+        label: String(label),
+      }),
+    });
     return null;
   }
   return value;
@@ -30,7 +39,9 @@ function readInt(raw: string, path: string, label: string, issues: FieldIssue[])
  */
 export function clusterToSpec(
   form: ClusterFormState,
-): { readonly ok: true; readonly value: ClusterSpec } | { readonly ok: false; readonly issues: readonly FieldIssue[] } {
+):
+  | { readonly ok: true; readonly value: ClusterSpec }
+  | { readonly ok: false; readonly issues: readonly FieldIssue[] } {
   const issues: FieldIssue[] = [];
   const nodes: NodeSpec[] = [];
   const seenNodes = new Set<string>();
@@ -39,14 +50,25 @@ export function clusterToSpec(
     const path = `nodes.${String(index)}`;
     const name = node.name.trim();
     if (name === '') {
-      issues.push({ path: `${path}.name`, message: 'Node phải có tên.' });
+      issues.push({
+        path: `${path}.name`,
+        message: errText('problem.cluster-to-spec-node-phai-co-ten'),
+      });
     } else if (seenNodes.has(name)) {
-      issues.push({ path: `${path}.name`, message: `Trùng tên node "${name}".` });
+      issues.push({
+        path: `${path}.name`,
+        message: errText('problem.cluster-to-spec-trung-ten-node', { name: String(name) }),
+      });
     }
     seenNodes.add(name);
 
-    const cpu = readInt(node.cpu, `${path}.cpu`, 'CPU (milli-core)', issues);
-    const memory = readInt(node.memory, `${path}.memory`, 'Bộ nhớ (MiB)', issues);
+    const cpu = readInt(node.cpu, `${path}.cpu`, t('problem.resource-cpu'), issues);
+    const memory = readInt(
+      node.memory,
+      `${path}.memory`,
+      t('problem.cluster-to-spec-bo-nho-mib'),
+      issues,
+    );
     if (name === '' || cpu === null || memory === null) {
       return;
     }
@@ -65,7 +87,10 @@ export function clusterToSpec(
 
   const namespaces = parseList(form.namespacesText);
   if (namespaces.length === 0) {
-    issues.push({ path: 'namespaces', message: 'Cần ít nhất một namespace.' });
+    issues.push({
+      path: 'namespaces',
+      message: errText('problem.cluster-to-spec-can-it-nhat-mot-namespace'),
+    });
   }
 
   const resources: ResourceSpec[] = [];
@@ -73,7 +98,10 @@ export function clusterToSpec(
     const path = `resources.${String(index)}`;
     const name = resource.name.trim();
     if (name === '') {
-      issues.push({ path: `${path}.name`, message: 'Tài nguyên phải có tên.' });
+      issues.push({
+        path: `${path}.name`,
+        message: errText('problem.cluster-to-spec-tai-nguyen-phai-co-ten'),
+      });
     }
 
     // Loại phạm vi cluster mang namespace rỗng — đó là quy ước của `lookup` trong
@@ -81,11 +109,17 @@ export function clusterToSpec(
     const namespace = isClusterScoped(resource.kind) ? '' : resource.namespace.trim();
     if (!isClusterScoped(resource.kind)) {
       if (namespace === '') {
-        issues.push({ path: `${path}.namespace`, message: 'Tài nguyên có namespace phải khai namespace.' });
+        issues.push({
+          path: `${path}.namespace`,
+          message: errText('problem.cluster-to-spec-tai-nguyen-co-namespace-phai-khai-namespace'),
+        });
       } else if (!namespaces.includes(namespace)) {
         issues.push({
           path: `${path}.namespace`,
-          message: `Namespace "${namespace}" chưa được khai ở danh sách namespace.`,
+          message: errText(
+            'problem.cluster-to-spec-namespace-chua-duoc-khai-o-danh-sach-namespace',
+            { namespace: String(namespace) },
+          ),
         });
       }
     }
@@ -116,7 +150,9 @@ export function clusterToSpec(
 
 function parseSpecJson(
   raw: string,
-): { readonly ok: true; readonly value: Readonly<Record<string, unknown>> } | { readonly ok: false; readonly message: string } {
+):
+  | { readonly ok: true; readonly value: Readonly<Record<string, unknown>> }
+  | { readonly ok: false; readonly message: string } {
   const trimmed = raw.trim();
   if (trimmed === '') {
     return { ok: true, value: {} };
@@ -125,10 +161,22 @@ function parseSpecJson(
   try {
     parsed = JSON.parse(trimmed);
   } catch (error) {
-    return { ok: false, message: `JSON không đọc được: ${error instanceof Error ? error.message : 'lỗi cú pháp'}` };
+    return {
+      ok: false,
+      message: errText('problem.cluster-json-fields-json-khong-doc-duoc', {
+        value1: String(
+          error instanceof Error ? error.message : t('problem.cluster-json-fields-loi-cu-phap'),
+        ),
+      }),
+    };
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return { ok: false, message: 'Phần thân phải là một object JSON, không phải mảng hay giá trị đơn.' };
+    return {
+      ok: false,
+      message: errText(
+        'problem.cluster-to-spec-phan-than-phai-la-mot-object-json-khong-phai-mang-hay-gia-tri-don',
+      ),
+    };
   }
   return { ok: true, value: parsed as Readonly<Record<string, unknown>> };
 }

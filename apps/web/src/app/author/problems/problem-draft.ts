@@ -1,3 +1,4 @@
+import { errText, t } from '@devops-platform/copy';
 import type { Objective, ProblemHint } from '@devops-platform/games';
 import type { FieldIssue } from './cluster-form';
 import { clusterToSpec } from './cluster-to-spec';
@@ -22,14 +23,24 @@ export type DraftResult =
   | { readonly ok: true; readonly value: ProblemDraftInput }
   | { readonly ok: false; readonly issues: readonly FieldIssue[] };
 
-function readOptionalInt(raw: string, path: string, label: string, issues: FieldIssue[]): number | null {
+function readOptionalInt(
+  raw: string,
+  path: string,
+  label: string,
+  issues: FieldIssue[],
+): number | null {
   const trimmed = raw.trim();
   if (trimmed === '') {
     return null;
   }
   const value = Number(trimmed);
   if (!Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
-    issues.push({ path, message: `${label} phải là số nguyên không âm.` });
+    issues.push({
+      path,
+      message: errText('problem.cluster-to-spec-phai-la-so-nguyen-khong-am', {
+        label: String(label),
+      }),
+    });
     return null;
   }
   return value;
@@ -54,23 +65,38 @@ function readArg(spec: PredicateArgSpec, raw: string, path: string, issues: Fiel
   }
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
-    issues.push({ path, message: `${spec.label} phải là số.` });
+    issues.push({
+      path,
+      message: errText('problem.problem-draft-phai-la-so', { specLabel: t(spec.label) }),
+    });
     return undefined;
   }
   return parsed;
 }
 
-function toObjective(form: ObjectiveFormState, index: number, issues: FieldIssue[]): Objective | null {
+function toObjective(
+  form: ObjectiveFormState,
+  index: number,
+  issues: FieldIssue[],
+): Objective | null {
   const path = `objectives.${String(index)}`;
   if (form.check === '' || !isPredicateName(form.check)) {
-    issues.push({ path: `${path}.check`, message: 'Chưa chọn vị từ kiểm tra.' });
+    issues.push({
+      path: `${path}.check`,
+      message: errText('problem.problem-draft-chua-chon-vi-tu-kiem-tra'),
+    });
     return null;
   }
 
   const spec = PREDICATE_SPECS[form.check];
   const args: Record<string, unknown> = {};
   for (const argSpec of spec.args) {
-    const value = readArg(argSpec, form.args[argSpec.key] ?? '', `${path}.args.${argSpec.key}`, issues);
+    const value = readArg(
+      argSpec,
+      form.args[argSpec.key] ?? '',
+      `${path}.args.${argSpec.key}`,
+      issues,
+    );
     if (value !== undefined) {
       args[argSpec.key] = value;
     }
@@ -81,7 +107,10 @@ function toObjective(form: ObjectiveFormState, index: number, issues: FieldIssue
   if (id === '' || label === '') {
     issues.push({
       path: `${path}.${id === '' ? 'id' : 'label'}`,
-      message: id === '' ? 'Mục tiêu phải có định danh.' : 'Mục tiêu phải có nhãn tiếng Việt.',
+      message:
+        id === ''
+          ? errText('problem.problem-draft-muc-tieu-phai-co-dinh-danh')
+          : errText('problem.problem-draft-muc-tieu-phai-co-nhan-tieng-viet'),
     });
     return null;
   }
@@ -119,25 +148,49 @@ export function toProblemDraft(form: ProblemFormState): DraftResult {
     const path = `hints.${String(index)}`;
     const id = hint.id.trim();
     if (id === '') {
-      issues.push({ path: `${path}.id`, message: 'Gợi ý phải có định danh.' });
+      issues.push({
+        path: `${path}.id`,
+        message: errText('problem.problem-draft-goi-y-phai-co-dinh-danh'),
+      });
     }
     const text = hint.text.trim();
     if (text === '') {
-      issues.push({ path: `${path}.text`, message: 'Gợi ý phải có nội dung.' });
+      issues.push({
+        path: `${path}.text`,
+        message: errText('problem.problem-draft-goi-y-phai-co-noi-dung'),
+      });
     }
-    const penalty = readOptionalInt(hint.penaltyPoints, `${path}.penaltyPoints`, 'Điểm bị trừ', issues);
+    const penalty = readOptionalInt(
+      hint.penaltyPoints,
+      `${path}.penaltyPoints`,
+      t('problem.hint-fields-diem-bi-tru'),
+      issues,
+    );
     if (id !== '' && text !== '') {
       hints.push({ id, text, penaltyPoints: penalty ?? 0 });
     }
   });
 
   const timeLimitSec = form.hasTimeLimit
-    ? readOptionalInt(form.timeLimitSec, 'timeLimitSec', 'Hạn giờ (giây)', issues)
+    ? readOptionalInt(
+        form.timeLimitSec,
+        'timeLimitSec',
+        t('problem.classify-fields-han-gio-giay'),
+        issues,
+      )
     : null;
   if (form.hasTimeLimit && timeLimitSec === null) {
-    issues.push({ path: 'timeLimitSec', message: 'Đã bật hạn giờ thì phải khai số giây.' });
+    issues.push({
+      path: 'timeLimitSec',
+      message: errText('problem.problem-draft-da-bat-han-gio-thi-phai-khai-so-giay'),
+    });
   }
-  const parMoves = readOptionalInt(form.parMoves, 'parMoves', 'Số nước đi chuẩn', issues);
+  const parMoves = readOptionalInt(
+    form.parMoves,
+    'parMoves',
+    t('problem.problem-draft-so-nuoc-di-chuan'),
+    issues,
+  );
 
   if (issues.length > 0 || !cluster.ok) {
     return { ok: false, issues };

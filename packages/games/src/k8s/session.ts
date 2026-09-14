@@ -32,6 +32,7 @@ import type {
 import type { ClusterState } from './model.ts';
 import { findByUid } from './model.ts';
 import { describeObject } from './describe.ts';
+import { toManifestYaml } from './manifest-yaml.ts';
 import { COMMAND_KINDS, countHints, countMoves, initialState, reduce } from './reducer.ts';
 import { TICK_MS, advance } from './tick.ts';
 import { toView } from './view.ts';
@@ -101,9 +102,32 @@ export function sessionPhase(objectives: readonly Objective[], met: readonly str
  * diện `K8sSession` cố ý không mang (nó là hợp đồng tối thiểu). Lane E ép kiểu
  * xuống `K8sEngineSession` khi cần `runCommand` cho thanh lệnh.
  */
+/**
+ * Kết quả người dùng nhìn thấy được của một `dispatch`.
+ *
+ * Tồn tại vì `K8sSession.dispatch` trả `void`, nên `ReduceResult.output` — nơi
+ * engine ghi *"Không lưu được thay đổi: …"* — bị vứt đi trước khi tới giao diện.
+ * Hệ quả đo được: bấm Lưu trên một YAML sai cú pháp thì KHÔNG CÓ GÌ xảy ra và
+ * không có gì nói tại sao, đúng thứ mà `development-principles.md` §"Errors Over
+ * Silent Fallbacks" cấm.
+ */
+export interface DispatchOutcome {
+  /** Văn bản engine phát ra. Chuỗi rỗng khi hành động không có gì để nói. */
+  readonly output: string;
+  /** `false` ⇒ hành động bị TỪ CHỐI và không vào `RunLog`. */
+  readonly accepted: boolean;
+}
+
 export interface K8sEngineSession extends K8sSession {
   /** Gõ một lệnh vào thanh lệnh. Trả về văn bản để in ra, và tự ghi vào log. */
   runCommand(command: string): string;
+  /**
+   * Như `dispatch`, nhưng TRẢ LẠI thứ engine nói.
+   *
+   * `dispatch` giữ nguyên chữ ký `void` của hợp đồng tối thiểu và uỷ quyền vào
+   * đây, nên chỉ có MỘT đường áp hành động — không có nhánh thứ hai để lệch.
+   */
+  dispatchDetailed(action: GameAction): DispatchOutcome;
   /** Đọc trạng thái thô — dùng cho test và cho `verify.ts`, KHÔNG cho renderer. */
   getState(): ClusterState;
   /**
@@ -130,6 +154,20 @@ export interface K8sEngineSession extends K8sSession {
    * trạng thái thô, và chỉ có một bộ sinh mô tả cho cả thanh lệnh lẫn tab Mô tả.
    */
   describe(uid: string): string | null;
+  /**
+   * Manifest YAML ĐẦY ĐỦ của một object, tra theo uid. `null` = không có object
+   * nào mang uid đó.
+   *
+   * ⛔ Đây là thứ ô soạn thảo YAML phải đọc, KHÔNG phải `objectToYaml` của tầng
+   * giao diện. `objectToYaml` tuần tự hoá `ObjectView` — một phép chiếu để hiển
+   * thị, không mang `spec` — nên lưu lại bản đó sẽ XOÁ SẠCH spec của tài nguyên
+   * (`edit` thay nguyên `spec` bằng những gì YAML nói). Đã xảy ra thật:
+   * `manifest-yaml.ts` ghi lại đo đạc.
+   *
+   * Cùng lý do tồn tại với `describe`: dựng nó cần `ClusterState` đầy đủ, mà
+   * `getState()` ghi rõ là KHÔNG dành cho renderer.
+   */
+  manifest(uid: string): string | null;
 }
 
 export function createSession(options: CreateSessionOptions): K8sEngineSession {
@@ -204,6 +242,30 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
     }
   }
 
+  /**
+   * Đường DUY NHẤT áp một hành động. Cả `dispatch` lẫn `dispatchDetailed` gọi
+   * vào đây, nên không có nhánh thứ hai để hai bên lệch nhau.
+   *
+   * ⚠ `action.tick` bị GHI ĐÈ bằng tick hiện tại của mô phỏng.
+   *
+   * Bên gọi không có cách nào biết tick hiện tại mà không đọc trạng thái, và một
+   * `tick` sai trong log làm bản phát lại lệch — reducer sẽ tua tới một thời
+   * điểm khác thời điểm hành động thật sự xảy ra. Ghi đè ở đây là chỗ duy nhất
+   * biết chắc con số đúng.
+   */
+  function applyAction(action: GameAction): DispatchOutcome {
+    if (disposed) {
+      return { output: '', accepted: false };
+    }
+    const stamped = { ...action, tick: state.tick } as GameAction;
+    const result = reduce(state, stamped, namespace);
+    if (result.accepted) {
+      actions.push(stamped);
+    }
+    commit(result.state);
+    return { output: result.output, accepted: result.accepted };
+  }
+
   startTimer();
 
   return {
@@ -230,24 +292,19 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
       };
     },
 
-    /**
-     * ⚠ `action.tick` bị GHI ĐÈ bằng tick hiện tại của mô phỏng.
-     *
-     * Bên gọi không có cách nào biết tick hiện tại mà không đọc trạng thái, và
-     * một `tick` sai trong log làm bản phát lại lệch — reducer sẽ tua tới một
-     * thời điểm khác thời điểm hành động thật sự xảy ra. Ghi đè ở đây là chỗ duy
-     * nhất biết chắc con số đúng.
-     */
     dispatch(action: GameAction): void {
-      if (disposed) {
-        return;
-      }
-      const stamped = { ...action, tick: state.tick } as GameAction;
-      const result = reduce(state, stamped, namespace);
-      if (result.accepted) {
-        actions.push(stamped);
-      }
-      commit(result.state);
+      /*
+       * Uỷ quyền qua BIẾN CỤC BỘ, không qua `this.dispatchDetailed`. Bên gọi
+       * hoàn toàn có thể rút method ra khỏi phiên (`const { dispatch } =
+       * session`) — `arena-session.ts` bọc chúng trong `useCallback` — và lúc
+       * đó `this` là `undefined`, tức mọi hành động của người chơi ném ở dòng
+       * đầu tiên.
+       */
+      applyAction(action);
+    },
+
+    dispatchDetailed(action: GameAction): DispatchOutcome {
+      return applyAction(action);
     },
 
     runCommand(command: string): string {
@@ -274,6 +331,11 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
     describe(uid: string): string | null {
       const object = findByUid(state, uid);
       return object === null ? null : describeObject(state, object);
+    },
+
+    manifest(uid: string): string | null {
+      const object = findByUid(state, uid);
+      return object === null ? null : toManifestYaml(object);
     },
 
     setSpeed(multiplier: number): void {

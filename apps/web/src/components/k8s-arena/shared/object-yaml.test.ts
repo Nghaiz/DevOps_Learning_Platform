@@ -15,7 +15,20 @@ describe('yamlScalar', () => {
    * nó sang `kubectl` thật sẽ gõ một giá trị khác với thứ họ vừa đọc.
    */
   it('đóng ngoặc chuỗi mà YAML sẽ đọc thành boolean', () => {
-    for (const value of ['no', 'yes', 'on', 'off', 'true', 'false', 'null', 'NO', 'Yes', '~', 'y', 'n']) {
+    for (const value of [
+      'no',
+      'yes',
+      'on',
+      'off',
+      'true',
+      'false',
+      'null',
+      'NO',
+      'Yes',
+      '~',
+      'y',
+      'n',
+    ]) {
       expect(yamlScalar(value), value).toBe(`'${value}'`);
     }
   });
@@ -52,15 +65,25 @@ describe('yamlScalar', () => {
 describe('objectToYaml', () => {
   it('in pod đang chạy theo thứ tự kubectl quen thuộc', () => {
     expect(objectToYaml(podView('u-1', 'web-1'))).toBe(
-      ['kind: Pod', 'metadata:', '  name: web-1', '  namespace: default', 'status:', '  phase: Running', '  nodeName: node-a'].join(
-        '\n',
-      ),
+      [
+        'kind: Pod',
+        'metadata:',
+        '  name: web-1',
+        '  namespace: default',
+        'status:',
+        '  phase: Running',
+        '  nodeName: node-a',
+      ].join('\n'),
     );
   });
 
   it('in reason khi có sự cố', () => {
     const yaml = objectToYaml(
-      podView('u-1', 'web-1', { phase: 'Running', reason: 'CrashLoopBackOff', statusToken: 'destructive' }),
+      podView('u-1', 'web-1', {
+        phase: 'Running',
+        reason: 'CrashLoopBackOff',
+        statusToken: 'destructive',
+      }),
     );
     expect(yaml).toContain('  phase: Running');
     expect(yaml).toContain('  reason: CrashLoopBackOff');
@@ -72,7 +95,9 @@ describe('objectToYaml', () => {
    * một phase, mà nó chưa bao giờ là.
    */
   it('giữ phase và reason tách nhau trên hai dòng', () => {
-    const lines = objectToYaml(podView('u-1', 'x', { phase: 'Running', reason: 'OOMKilled' })).split('\n');
+    const lines = objectToYaml(
+      podView('u-1', 'x', { phase: 'Running', reason: 'OOMKilled' }),
+    ).split('\n');
     expect(lines.filter((l) => l.trim().startsWith('phase:'))).toHaveLength(1);
     expect(lines.filter((l) => l.trim().startsWith('reason:'))).toHaveLength(1);
   });
@@ -99,7 +124,9 @@ describe('objectToYaml', () => {
   });
 
   it('không có node thì không in nodeName', () => {
-    expect(objectToYaml(podView('u-1', 'x', { nodeName: null, phase: 'Pending' }))).not.toContain('nodeName');
+    expect(objectToYaml(podView('u-1', 'x', { nodeName: null, phase: 'Pending' }))).not.toContain(
+      'nodeName',
+    );
   });
 });
 

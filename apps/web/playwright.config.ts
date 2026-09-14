@@ -33,6 +33,10 @@ if (startServer) {
 
 export default defineConfig({
   testDir: './e2e',
+  // The 3D acceptance suite asserts real hardware rendering and a frame budget.
+  // Run it with e2e/landing.config.ts, which selects full Chromium explicitly;
+  // the default headless shell/CI software renderer is not that environment.
+  testIgnore: '**/landing-3d.spec.ts',
   outputDir: `${ARTIFACTS_DIR}/test-results`,
   globalSetup: './e2e/global-setup.ts',
 
@@ -94,7 +98,9 @@ export default defineConfig({
   ...(startServer
     ? {
         webServer: {
-          command: 'pnpm start',
+          command: process.env.E2E_GATEWAY_URL
+            ? 'node e2e/scripts/start-local-server.mjs'
+            : 'pnpm start',
           url: `${E2E_BASE_URL}/login`,
           // `reuseExistingServer: false` — bám vào một server có sẵn nghĩa là
           // đo một build CŨ mà vẫn báo cáo như build vừa tạo. Cổng nào bận thì

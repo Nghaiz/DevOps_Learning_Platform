@@ -1,3 +1,4 @@
+import { errText } from '@devops-platform/copy';
 import {
   CONTENT_ASSET_TYPES,
   MAX_CONTENT_ASSET_BYTES,
@@ -37,16 +38,21 @@ export function extensionOf(filename: string): string {
 
 export function validateAssetFile(file: { name: string; size: number }): AssetFileIssue | null {
   if (file.size === 0) {
-    return { message: 'Tệp rỗng. Chọn lại một tệp có nội dung.' };
+    return { message: errText('author.asset-upload-tep-rong-chon-lai-mot-tep-co-noi-dung') };
   }
   if (file.size > MAX_CONTENT_ASSET_BYTES) {
     return {
-      message: `Tệp ${formatBytes(file.size)} vượt trần ${formatBytes(MAX_CONTENT_ASSET_BYTES)}. Nén ảnh lại rồi thử lại.`,
+      message: errText('author.asset-upload-tep-vuot-tran-nen-anh-lai-roi-thu-lai', {
+        formatbytesFileSize: String(formatBytes(file.size)),
+        formatbytesMaxContentAssetBytes: String(formatBytes(MAX_CONTENT_ASSET_BYTES)),
+      }),
     };
   }
   if (!CONTENT_ASSET_TYPES.has(extensionOf(file.name))) {
     return {
-      message: `Chỉ nhận ${[...CONTENT_ASSET_TYPES.keys()].join(', ')}. Đổi định dạng rồi thử lại.`,
+      message: errText('author.asset-upload-chi-nhan-doi-dinh-dang-roi-thu-lai', {
+        contentAssetTypesKeysJoin: String([...CONTENT_ASSET_TYPES.keys()].join(', ')),
+      }),
     };
   }
   return null;

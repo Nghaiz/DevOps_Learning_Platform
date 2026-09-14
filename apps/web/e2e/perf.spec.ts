@@ -179,7 +179,8 @@ async function readLcp(page: Page): Promise<LcpSample | null> {
 
 async function readNavigation(page: Page): Promise<NavSample> {
   return page.evaluate(() => {
-    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    const nav = performance.getEntriesByType('navigation')[0] as
+      PerformanceNavigationTiming | undefined;
     return {
       responseStart: nav?.responseStart ?? 0,
       domContentLoaded: nav?.domContentLoadedEventEnd ?? 0,
@@ -369,4 +370,137 @@ test(`LCP ${TARGET_PATH}`, async ({ page }, testInfo) => {
       `tệ nhất 1496ms lúc nguội) và bằng đúng ô AC 13.H mục 29. Nhưng nó đo trên ` +
       `một cụm RẢNH — kiểm load/PSI của node trước khi kết luận là hồi quy.`,
   ).toBeLessThan(LCP_BUDGET_MS);
+});
+
+// ═══════════════════════════ P16 §16.I mục 3 — ngân sách LCP cho `/` (trang chủ)
+
+/** Trang chủ hiện dùng nội dung HTML và bản minh hoạ terminal tương tác. */
+const HOME_PATH = '/';
+
+/**
+ * Ngân sách LCP cho `/` — **đã đo 2026-09-11**.
+ *
+ * Một lượt `npx playwright test perf.spec.ts` trên `next start` cục bộ (Windows,
+ * build của nhánh `feat/p16-i-gates`, Postgres + Redis trong docker):
+ *
+ *   | màn | LCP (ms) | TTFB (ms) | sau TTFB (ms) | phần tử LCP |
+ *   |------|---------:|----------:|--------------:|---|
+ *   | `/`         | **152** | 43 | 109 | `<h1>` «Học DevOps bằng cách gõ lệnh thật» |
+ *   | `/lessons`  |     360 | 22 | 338 | `<h3>` «CKAD: ConfigMap as Files…» |
+ *
+ * Đối chứng dương của cùng lượt: tiêm 2000ms trễ vào tài liệu ⇒ LCP 380 → 2544ms
+ * (chênh 2164ms). Đồng hồ bám hiện thực, không in ra một hằng số.
+ *
+ * `/` nhanh hơn `/lessons` **2.4×** đúng như dự đoán: nó không có lượt fetch tRPC
+ * ở client trước khi có nội dung. Tỉ số 0.42 là thứ mang nghĩa khi so hai môi
+ * trường; con số tuyệt đối thì không.
+ *
+ * ⚠ ĐỌC TRƯỚC KHI SO VỚI `LCP_BUDGET_MS`: hai con số này KHÔNG đo trên cùng
+ * một máy. `LCP_BUDGET_MS` (2500) đo trên **cụm lab** ngày 2026-09-07 với ảnh
+ * `dlp-web:p13a`. Ngân sách dưới đây đo bằng `next start` **cục bộ** trên máy
+ * dựng, vì bản frontend P16 (tám lane, gộp 2026-09-11) **chưa được deploy lên
+ * cụm** — chạy suite lên cụm là đo một binary khác hẳn cái vừa build, và
+ * `/register`, `/problems`, `/games` ở đó còn trả 404.
+ *
+ * Để hai con số vẫn SO ĐƯỢC với nhau, lượt đo ghi cả `/` lẫn `/lessons` trong
+ * CÙNG một lượt chạy, cùng máy, cùng build. Tỉ số `/` ÷ `/lessons` là thứ mang
+ * nghĩa qua các môi trường; con số tuyệt đối thì không. Report §3 ghi cả hai.
+ *
+ * Cả hai trang giữ ngân sách nghiệm thu 2500ms. Các mẫu 2026-09-11 ở trên chỉ
+ * là lịch sử; lượt chạy hiện tại luôn ghi mẫu mới của cả hai trang vào artifact.
+ *
+ * ⚠ Chú thích ở đây từng ghi "cảnh 3D cũ đã được gỡ hoàn toàn" theo chỉ đạo
+ * 2026-09-12. Chỉ đạo đó bị ĐẢO NGƯỢC cùng ngày 2026-09-13 và `d5bf768` đưa lại
+ * một hành trình 3D cuộn toàn trang. Câu cũ vì thế SAI, và nó nguy hiểm hơn một
+ * câu sai bình thường: cùng lượt sửa đó đã xoá luôn phần lý giải vì sao
+ * `<canvas>` không được là phần tử LCP, để lại một khẳng định không ai còn biết
+ * lý do. Phần lý giải được khôi phục ngay dưới khẳng định ấy.
+ */
+const HOME_LCP_BUDGET_MS = 2500;
+
+/**
+ * Cờ trung thực. `true` khi con số trên chưa có mẫu đo thật đứng sau.
+ * `perf-lcp-home.json` chở nó ra artifact để một lượt chạy tự khai, thay vì để
+ * người đọc phải tin chú thích.
+ */
+const HOME_BUDGET_IS_PROVISIONAL = false;
+
+test.describe('LCP trang chủ', () => {
+  // `/` là màn anon. Mở nó bằng storageState của một tài khoản đã đăng nhập là
+  // đo một biến thể khác của trang (vỏ có nav đầy đủ, có thể có redirect), nên
+  // jar cookie phải rỗng — cùng lý do `a11y.spec.ts` đã ghi.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test(`LCP ${HOME_PATH} nằm trong ngân sách`, async ({ page }, testInfo) => {
+    await installLcpCollector(page);
+    await openScreen(page, HOME_PATH, 'anon');
+    await waitForLcpSettled(page);
+
+    const lcp = await readLcp(page);
+    const nav = await readNavigation(page);
+
+    await attachSample(testInfo, 'perf-lcp-home.json', {
+      path: HOME_PATH,
+      lcpMs: lcp === null ? null : Math.round(lcp.startTime),
+      lcpElement:
+        lcp === null ? null : { tag: lcp.tag, id: lcp.id, text: lcp.text, size: lcp.size },
+      ttfbMs: Math.round(nav.responseStart),
+      domContentLoadedMs: Math.round(nav.domContentLoaded),
+      loadEndMs: Math.round(nav.loadEnd),
+      afterTtfbMs: lcp === null ? null : Math.round(lcp.startTime - nav.responseStart),
+      budgetMs: HOME_LCP_BUDGET_MS,
+      budgetIsProvisional: HOME_BUDGET_IS_PROVISIONAL,
+      observedRatio: lcp === null ? null : Number((lcp.startTime / HOME_LCP_BUDGET_MS).toFixed(3)),
+    });
+
+    expect(
+      lcp,
+      `Không thu được entry LCP nào trên ${HOME_PATH}. Đây là "không đo được", ` +
+        `KHÔNG phải "LCP tốt".`,
+    ).not.toBeNull();
+
+    const sample = lcp as LcpSample;
+
+    /*
+      Nội dung đọc được phải có mặt trong lần paint đầu của landing.
+
+      ⛔ Vì sao `<canvas>` bị loại TÊN, chứ không chỉ đo thời gian: landing nay
+      CÓ một canvas WebGL phủ toàn trang (`components/marketing/experience-scene.tsx`).
+      Nếu chính nó là phần tử LCP thì phép đo đang khen một khung hình GPU chứ
+      không phải nội dung người học đọc được — và một trang chỉ vẽ canvas kịp
+      hạn vẫn là một trang trắng chữ đối với người dùng lẫn bộ máy tìm kiếm.
+      Cảnh nạp LƯỜI và đứng sau nội dung HTML, nên tên thẻ ở đây là phép kiểm
+      rằng thứ tự đó còn đúng.
+
+      Khẳng định này có TRƯỚC cảnh 3D và sống sót qua cả hai lần đổi chiều chỉ
+      đạo. Đừng gỡ nó khi landing đổi hình lần nữa.
+    */
+    expect(
+      sample.tag,
+      `Phần tử LCP của ${HOME_PATH} là <${sample.tag}>; landing phải hiển thị ` +
+        `nội dung HTML đọc được ngay trong lần paint đầu, không phải khung hình ` +
+        `đầu của canvas 3D.`,
+    ).not.toBe('canvas');
+
+    if (sample.startTime < HOME_LCP_BUDGET_MS * BUDGET_DECORATION_RATIO) {
+      testInfo.annotations.push({
+        type: 'ngân-sách-quá-thưa',
+        description:
+          `LCP ${HOME_PATH} đo được ${Math.round(sample.startTime)}ms, bằng ` +
+          `${Math.round((sample.startTime / HOME_LCP_BUDGET_MS) * 100)}% ngân sách ` +
+          `${HOME_LCP_BUDGET_MS}ms. Ngân sách bằng ô AC chung (2.5s, biên "good" ` +
+          `của Core Web Vitals), không phải một ngưỡng harness tự đặt — nên "thưa" ` +
+          `ở đây nghĩa là trang nhanh hơn yêu cầu.`,
+      });
+    }
+
+    expect(
+      sample.startTime,
+      `LCP ${HOME_PATH} = ${Math.round(sample.startTime)}ms, vượt ngân sách ` +
+        `${HOME_LCP_BUDGET_MS}ms.\n` +
+        `⚠ TTFB của lượt này là ${Math.round(nav.responseStart)}ms. Nếu TTFB chiếm ` +
+        `phần lớn con số thì đây là máy chậm, không phải trang chậm.\n` +
+        `⚠ Phần tử LCP: <${sample.tag}> «${sample.text}».`,
+    ).toBeLessThan(HOME_LCP_BUDGET_MS);
+  });
 });

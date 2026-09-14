@@ -24,7 +24,7 @@ import type { Level } from '../contract.ts';
 export const l05: Level = {
   id: 'k8s-05-hai-container-chung-mot-pod',
   chapter: 1,
-  title: 'Hai container, một pod',
+  title: 'Ghép hai container vào chung một pod',
   mission: 'Dựng pod `don-hang` gồm hai container dùng chung một volume, rồi đưa nó tới Running.',
   brief: `Ứng dụng \`don-hang\` ghi log ra file trong \`/var/log/app\` thay vì ra stdout. Bạn
 không sửa được image của nó, và hệ thống thu log của công ty chỉ đọc stdout.

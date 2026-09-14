@@ -1,3 +1,4 @@
+import { arrangeConnections } from './connection-layout';
 /**
  * Bố cục 3D — TOÁN THUẦN, không `three`, không DOM.
  *
@@ -32,11 +33,11 @@ export interface NodePlacement {
 
 /** Vùng một object được đặt vào — quyết định cả hình dạng lẫn ý nghĩa. */
 export type PlacementZone =
-  /** Pod đã xếp lịch: đứng trên bệ của node. */
+  /** Scheduled Pod or Node. */
   | 'node'
   /** Pod chưa xếp lịch (`nodeName === null`): dải chờ phía TRƯỚC, không có bệ dưới chân. */
   | 'pending'
-  /** Không phải Pod (Service, ConfigMap, PVC…): kệ phía sau. */
+  /** Logical resource; grouped by kind when connections are present. */
   | 'shelf';
 
 export interface ObjectPlacement {
@@ -71,11 +72,10 @@ export const PLATFORM_DEPTH = 3.2;
 export const PLATFORM_HEIGHT = 0.26;
 export const PLATFORM_GAP = 1.15;
 /** Mép trong của bệ — pod không đặt sát rìa, nếu không bóng đổ bị cắt cụt ở cạnh. */
-const PLATFORM_PADDING = 0.42;
 
 export const POD_SIZE = 0.6;
-const POD_GAP_MIN = 0.16;
-const POD_GAP_PREFERRED = 0.34;
+
+const POD_GAP_PREFERRED = 1.05;
 /**
  * Độ cao NGHỈ của pod trên mặt bệ (§9.2 "lơ lửng rất nhẹ") — không phải biên độ bồng bềnh.
  *
@@ -92,14 +92,26 @@ const POD_GAP_PREFERRED = 0.34;
 export const POD_HOVER = 0.06;
 
 const SHELF_Z = -3.6;
-const SHELF_SPACING = 1.35;
-const SHELF_Y = 0.95;
+const SHELF_SPACING = 2.2;
+const SHELF_Y = 0.23;
 const SHELF_SIZE = 0.52;
 
 const PENDING_Z = 3.7;
-const PENDING_SPACING = 0.92;
-const PENDING_Y = 0.42;
+
+const PENDING_Y = 0.23;
 const PENDING_SIZE = 0.52;
+
+/**
+ * Vùng trên mặt bệ dành cho pod: tâm và chiều sâu.
+ *
+ * Bệ sâu `PLATFORM_DEPTH` và tâm ở `z = 0`, nhưng mô hình tủ máy chủ chiếm phần
+ * SAU, nên pod chỉ có phần trước. Hai hằng này ghim đúng phần đó, và `podGrid`
+ * đọc chúng để bước lưới không bao giờ đẩy hàng cuối ra khỏi bệ.
+ */
+const POD_ZONE_CENTER_Z = 0.5;
+
+/** Tủ máy chủ lùi hẳn ra sau, nhường phần trước của bệ cho pod. */
+const RACK_Z = -1.0;
 
 /**
  * ⚠ Thứ tự đầu vào KHÔNG được quyết định vị trí.
@@ -133,22 +145,34 @@ export function platformX(index: number, total: number): number {
  * (`POD_GAP_MIN`): dưới sàn đó pod dính nhau và không đếm được bằng mắt, lúc ấy
  * thà để tràn nhẹ ra mép bệ còn hơn vẽ ra một khối đặc.
  */
-export function podGrid(count: number): { readonly cols: number; readonly rows: number; readonly pitch: number } {
+export function podGrid(count: number): {
+  readonly cols: number;
+  readonly rows: number;
+  readonly pitch: number;
+} {
   if (count <= 0) {
     return { cols: 0, rows: 0, pitch: 0 };
   }
   const cols = Math.ceil(Math.sqrt(count));
   const rows = Math.ceil(count / cols);
-  const usable = PLATFORM_WIDTH - PLATFORM_PADDING * 2;
-  const preferred = POD_SIZE + POD_GAP_PREFERRED;
-  const fitted = cols > 1 ? (usable - POD_SIZE) / (cols - 1) : preferred;
-  const pitch = Math.max(POD_SIZE + POD_GAP_MIN, Math.min(preferred, fitted));
+  const pitch = POD_SIZE + POD_GAP_PREFERRED;
   return { cols, rows, pitch };
 }
 
-function placePodsOnPlatform(pods: readonly ObjectView[], platformCenterX: number): ObjectPlacement[] {
-  const { cols, rows, pitch } = podGrid(pods.length);
-  const top = PLATFORM_HEIGHT / 2 + POD_SIZE / 2 + POD_HOVER;
+/**
+ * Pod đứng GIỮA vùng dành cho pod trên mặt bệ, căn giữa theo cả hai trục.
+ *
+ * Bản trước neo vào `z = 1.3 + row · pitch` — một mép cố định ở phía trước. Với
+ * một hàng thì pod đã nằm ngay mép bệ; với hai hàng thì hàng sau rơi hẳn ra
+ * ngoài. Căn giữa thì lưới lớn nhỏ thế nào cũng ở trong bệ, và bệ trông như cái
+ * khay đựng chứ không như cái mép để pod rơi khỏi.
+ */
+function placePodsOnPlatform(
+  pods: readonly ObjectView[],
+  platformCenterX: number,
+): ObjectPlacement[] {
+  const { cols, pitch } = podGrid(pods.length);
+  const top = PLATFORM_HEIGHT + 0.01;
   return pods.map((pod, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
@@ -158,40 +182,98 @@ function placePodsOnPlatform(pods: readonly ObjectView[], platformCenterX: numbe
       position: {
         x: platformCenterX + (col - (cols - 1) / 2) * pitch,
         y: top,
-        z: (row - (rows - 1) / 2) * pitch,
+        z: POD_ZONE_CENTER_Z + row * pitch,
       },
       size: POD_SIZE,
     };
   });
 }
 
-function placeInRow(
+/**
+ * Xếp một nhóm thành LƯỚI có bề ngang giới hạn, căn giữa quanh gốc.
+ *
+ * ⚠ Bản trước là `placeInRow`: một hàng thẳng KHÔNG có giới hạn bề ngang. Hai
+ * mươi ConfigMap kéo thành một vệt rộng 27 đơn vị, camera phải lùi ra xa để ôm
+ * hết, và chính cụm — thứ người chơi cần nhìn — co lại còn một nhúm ở giữa
+ * khung. Mỗi món trên vệt đó lại kéo một sợi dây vắt ngang cả cảnh.
+ *
+ * Lưới thì bề ngang có trần, nên bán kính cảnh tăng theo `sqrt(n)` thay vì theo
+ * `n`, và dây ngắn lại theo.
+ */
+function placeInGrid(
   items: readonly ObjectView[],
   spacing: number,
   y: number,
   z: number,
   size: number,
   zone: PlacementZone,
+  maxWidth: number,
+  /** `+1` xếp các hàng phụ ra xa gốc, `−1` xếp lại gần. */
+  rowDirection: number,
 ): ObjectPlacement[] {
-  return items.map((item, i) => ({
-    uid: item.uid,
-    zone,
-    position: { x: (i - (items.length - 1) / 2) * spacing, y, z },
-    size,
-  }));
+  if (items.length === 0) {
+    return [];
+  }
+  const cols = Math.max(1, Math.min(items.length, Math.floor(maxWidth / spacing)));
+  return items.map((item, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    // Hàng cuối thường không đầy; căn giữa RIÊNG nó để lưới không lệch hẳn sang trái.
+    const inRow = Math.min(cols, items.length - row * cols);
+    return {
+      uid: item.uid,
+      zone,
+      position: {
+        x: (col - (inRow - 1) / 2) * spacing,
+        y,
+        z: z + row * spacing * rowDirection,
+      },
+      size,
+    };
+  });
 }
 
-function placeNodes(nodes: readonly NodeView[]): NodePlacement[] {
-  const sorted = [...nodes].sort(byName);
-  return sorted.map((node, i) => ({
-    name: node.name,
-    ready: node.ready,
-    cpuUsed: node.cpuUsed,
-    memoryUsed: node.memoryUsed,
-    position: { x: platformX(i, sorted.length), y: 0, z: 0 },
-    width: PLATFORM_WIDTH,
-    depth: PLATFORM_DEPTH,
-  }));
+function placeNodes(nodes: readonly NodeView[], objects: readonly ObjectView[]): NodePlacement[] {
+  const complete = new Map(nodes.map((node) => [node.name, node]));
+  for (const object of objects) {
+    if (object.kind === 'Node' && !complete.has(object.name)) {
+      complete.set(object.name, {
+        name: object.name,
+        ready: object.statusToken === 'success',
+        cpuUsed: 0,
+        memoryUsed: 0,
+      });
+    }
+  }
+  const sorted = [...complete.values()].sort(byName);
+  const dimensions = sorted.map((node) => {
+    const count = objects.filter(
+      (object) => object.kind === 'Pod' && object.nodeName === node.name,
+    ).length;
+    const grid = podGrid(count);
+    return {
+      width: Math.max(PLATFORM_WIDTH, (grid.cols - 1) * grid.pitch + POD_SIZE + 1.4),
+      depth: Math.max(PLATFORM_DEPTH, (grid.rows - 1) * grid.pitch + 3.2),
+    };
+  });
+  const totalWidth =
+    dimensions.reduce((sum, item) => sum + item.width, 0) +
+    Math.max(0, sorted.length - 1) * PLATFORM_GAP;
+  let left = -totalWidth / 2;
+  return sorted.map((node, i) => {
+    const { width, depth } = dimensions[i]!;
+    const x = left + width / 2;
+    left += width + PLATFORM_GAP;
+    return {
+      name: node.name,
+      ready: node.ready,
+      cpuUsed: node.cpuUsed,
+      memoryUsed: node.memoryUsed,
+      position: { x, y: 0, z: (depth - PLATFORM_DEPTH) / 2 },
+      width,
+      depth,
+    };
+  });
 }
 
 /**
@@ -204,11 +286,24 @@ function placeNodes(nodes: readonly NodeView[]): NodePlacement[] {
  * trên một node là dạy sai mô hình Kubernetes.
  */
 export function computeLayout(view: ClusterView): SceneLayout {
-  const nodes = placeNodes(view.nodes);
+  const nodes = placeNodes(view.nodes, view.objects);
   const nodeX = new Map(nodes.map((n) => [n.name, n.position.x]));
 
   const pods = [...view.objects.filter((o) => o.kind === 'Pod')].sort(byUid);
-  const others = [...view.objects.filter((o) => o.kind !== 'Pod')].sort(byUid);
+  /*
+   * Kệ sắp theo LOẠI rồi mới tới tên, không sắp theo `uid`.
+   *
+   * `uid` là ngẫu nhiên, nên ba Service và ba ConfigMap nằm xen kẽ nhau dọc kệ,
+   * và mỗi sợi dây phải vắt qua vài món không liên quan để tới đích. Gom theo
+   * loại thì các món cùng họ đứng liền nhau, dây đi thẳng hơn, và người chơi
+   * quét mắt tìm "chỗ để ConfigMap" thay vì đọc từng nhãn.
+   *
+   * Vẫn TẤT ĐỊNH — điều kiện thật sự mà chú thích của `byUid` nói tới: `kind` và
+   * `name` của một object không đổi qua các tick, nên vị trí vẫn bất biến.
+   */
+  const others = [...view.objects.filter((o) => o.kind !== 'Pod' && o.kind !== 'Node')].sort(
+    (a, b) => (a.kind === b.kind ? byName(a, b) : a.kind < b.kind ? -1 : 1),
+  );
 
   const scheduled = new Map<string, ObjectView[]>();
   const pending: ObjectView[] = [];
@@ -233,24 +328,78 @@ export function computeLayout(view: ClusterView): SceneLayout {
   }
 
   const objects: ObjectPlacement[] = [];
+  for (const object of [...view.objects.filter((object) => object.kind === 'Node')].sort(byUid)) {
+    objects.push({
+      uid: object.uid,
+      zone: 'node',
+      position: { x: nodeX.get(object.name) ?? 0, y: 0.43, z: RACK_Z },
+      size: 0.95,
+    });
+  }
   for (const node of nodes) {
     objects.push(...placePodsOnPlatform(scheduled.get(node.name) ?? [], node.position.x));
   }
-  objects.push(...placeInRow(pending, PENDING_SPACING, PENDING_Y, PENDING_Z, PENDING_SIZE, 'pending'));
-  objects.push(...placeInRow(others, SHELF_SPACING, SHELF_Y, SHELF_Z, SHELF_SIZE, 'shelf'));
+  /*
+   * Bề ngang của kệ và dải chờ bám theo bề ngang của hàng bệ, không phải một số
+   * cố định: cụm một node thì kệ hẹp, cụm bốn node thì kệ rộng ra theo. Sàn
+   * `PLATFORM_WIDTH * 2` để cụm một node vẫn có chỗ cho vài món trên một hàng.
+   */
+  const clusterWidth = Math.max(
+    PLATFORM_WIDTH * 2,
+    nodes.reduce((sum, node) => sum + node.width + PLATFORM_GAP, 0),
+    Math.ceil(Math.sqrt(others.length)) * SHELF_SPACING,
+  );
+  const pendingZ = Math.max(
+    PENDING_Z,
+    ...nodes.map((node) => node.position.z + node.depth / 2 + 2),
+  );
+  objects.push(
+    ...placeInGrid(
+      pending,
+      SHELF_SPACING,
+      PENDING_Y,
+      pendingZ,
+      PENDING_SIZE,
+      'pending',
+      clusterWidth,
+      1,
+    ),
+  );
+  objects.push(
+    ...placeInGrid(others, SHELF_SPACING, SHELF_Y, SHELF_Z, SHELF_SIZE, 'shelf', clusterWidth, -1),
+  );
 
   const known = new Set(objects.map((o) => o.uid));
   const edges = view.edges
     .filter((e) => known.has(e.fromUid) && known.has(e.toUid))
     .map((e) => ({ fromUid: e.fromUid, toUid: e.toUid, kind: e.kind, healthy: e.healthy }));
 
+  const labels = new Map(
+    view.objects.map((object) => [
+      object.uid,
+      `${object.kind}:${object.namespace ?? ''}:${object.name}:${object.uid}`,
+    ]),
+  );
+  const kinds = new Map(view.objects.map((object) => [object.uid, object.kind]));
+  const connected = arrangeConnections(objects, edges, labels, kinds);
+  objects.splice(0, objects.length, ...connected);
+  const objectByUid = new Map(view.objects.map((object) => [object.uid, object]));
+  const nodePositions = new Map(
+    objects
+      .filter((object) => objectByUid.get(object.uid)?.kind === 'Node')
+      .map((object) => [objectByUid.get(object.uid)!.name, object.position]),
+  );
+  const finalNodes = nodes.map((node) => ({
+    ...node,
+    position: nodePositions.get(node.name) ?? node.position,
+  }));
   let radius = PLATFORM_WIDTH;
   for (const o of objects) {
     radius = Math.max(radius, Math.hypot(o.position.x, o.position.z) + o.size);
   }
-  for (const n of nodes) {
+  for (const n of finalNodes) {
     radius = Math.max(radius, Math.abs(n.position.x) + PLATFORM_WIDTH / 2);
   }
 
-  return { nodes, objects, edges, radius };
+  return { nodes: finalNodes, objects, edges, radius };
 }

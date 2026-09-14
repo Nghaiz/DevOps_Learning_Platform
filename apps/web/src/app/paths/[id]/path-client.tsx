@@ -13,6 +13,7 @@ import {
   ErrorState,
   Skeleton,
 } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import {
@@ -51,9 +52,9 @@ export function PathClient({ pathId }: { pathId: string }): React.ReactElement {
 
   if (query.isPending) {
     return (
-      <PageShell title="Đang tải…">
+      <PageShell title={t('catalog.path.loading')}>
         <div role="status" aria-busy="true" className="flex flex-col gap-3">
-          <span className="sr-only">Đang tải lộ trình…</span>
+          <span className="sr-only">{t('catalog.path.loading')}</span>
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-20 w-full" />
@@ -64,9 +65,9 @@ export function PathClient({ pathId }: { pathId: string }): React.ReactElement {
 
   if (query.isError) {
     return (
-      <PageShell title="Lộ trình">
+      <PageShell title={t('catalog.path.back')}>
         <ErrorState
-          title="Không mở được lộ trình này"
+          title={t('catalog.path.error-title')}
           message={describeTrpcError(query.error)}
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
@@ -99,7 +100,7 @@ export function PathClient({ pathId }: { pathId: string }): React.ReactElement {
           // trạng thái trên màn hình lúc này đã CŨ so với server.
           setOpenError({
             key: view.key,
-            message: `${describeTrpcError(error)} Bấm "Tải lại" để xem trạng thái mới nhất.`,
+            message: t('catalog.path.open-failed', { reason: describeTrpcError(error) }),
           });
         },
       },
@@ -110,7 +111,7 @@ export function PathClient({ pathId }: { pathId: string }): React.ReactElement {
   return (
     <PageShell title={path.title}>
       {path.description !== null && (
-        <p className="text-sm text-muted-foreground">{path.description}</p>
+        <p className="max-w-(--measure) text-lg text-muted-foreground">{path.description}</p>
       )}
 
       {/*
@@ -122,7 +123,7 @@ export function PathClient({ pathId }: { pathId: string }): React.ReactElement {
       <div role="status" className="flex flex-wrap items-center gap-3">
         <Badge variant={progress.finished ? 'success' : 'secondary'}>{progress.label}</Badge>
         {path.sequential && (
-          <Badge variant="outline">Học tuần tự — phần sau mở khi phần trước đạt</Badge>
+          <Badge variant="outline">{t('catalog.path.sequential')}</Badge>
         )}
         {progress.nextLabel !== null && (
           <span className="text-sm text-muted-foreground">{progress.nextLabel}</span>
@@ -131,11 +132,11 @@ export function PathClient({ pathId }: { pathId: string }): React.ReactElement {
 
       {views.length === 0 ? (
         <EmptyState
-          title="Lộ trình này chưa có phần nào"
-          description="Người soạn chưa xếp nội dung vào đây. Bạn có thể học tự do ở danh mục bài học."
+          title={t('catalog.path.empty-title')}
+          description={t('catalog.path.empty-body')}
           action={
             <Button variant="outline" asChild>
-              <Link href="/lessons">Xem danh mục bài học</Link>
+              <Link href="/lessons">{t('catalog.path.empty-cta')}</Link>
             </Button>
           }
         />
@@ -179,7 +180,20 @@ function PathItemCard({
   const openable = view.openability === 'open';
 
   return (
-    <Card className={`flex flex-col gap-3 p-4 ${openable ? '' : 'opacity-80'}`}>
+    /*
+     * KHÔNG làm mờ thẻ khi bước chưa mở.
+     *
+     * Bản trước dùng `opacity-80`, và nó nhân xuống mọi con — kể cả
+     * `text-muted-foreground text-xs` vốn đã nằm sát sàn 4.5:1. Lượt nghiệm thu
+     * 16.I đo được axe `color-contrast` mức SERIOUS ở đúng đây. Test contrast
+     * của `packages/ui` không bắt được: nó tính tương phản của TOKEN, còn
+     * opacity áp ở tầng cha lúc render, sau khi token đã qua cổng.
+     *
+     * Trạng thái "chưa mở" không mất đi: `<Badge variant={view.stateVariant}>`
+     * ngay bên dưới nói ra nó bằng chữ, và chữ thì đọc được bằng trình đọc màn
+     * hình còn lớp mờ thì không. Lớp mờ là tín hiệu THỪA mua bằng khả năng đọc.
+     */
+    <Card className="flex flex-col gap-3 p-4 shadow-elevation-1">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">{view.ordinalLabel}</span>
@@ -189,7 +203,7 @@ function PathItemCard({
           <Badge variant={view.stateVariant}>{view.stateLabel}</Badge>
           {openable && (
             <Button size="sm" onClick={onOpen} loading={opening}>
-              Mở
+              {t('catalog.path.open')}
             </Button>
           )}
         </div>
@@ -202,9 +216,7 @@ function PathItemCard({
         khoá: một item vừa khoá vừa thủng vẫn phải hiện cả hai.
       */}
       {view.missingContent && (
-        <p className="text-xs text-destructive">
-          Không nạp được nội dung này (đã lưu trữ hoặc sai mã) — hãy báo người soạn lộ trình.
-        </p>
+        <p className="text-xs text-destructive">{t('catalog.path.note-missing')}</p>
       )}
 
       {!openable && !view.missingContent && view.note !== null && (
@@ -216,7 +228,7 @@ function PathItemCard({
           <AlertDescription className="flex flex-wrap items-center gap-3 text-foreground">
             <span>{error}</span>
             <Button size="sm" variant="secondary" onClick={onReload}>
-              Tải lại
+              {t('catalog.path.reload')}
             </Button>
           </AlertDescription>
         </Alert>
@@ -236,9 +248,9 @@ function PageShell({
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
       <header className="flex flex-col gap-1">
         <Link href="/paths" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Lộ trình
+          ← {t('catalog.path.back')}
         </Link>
-        <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
+        <h1 className="text-4xl font-semibold tracking-tight text-balance text-foreground">{title}</h1>
       </header>
       {children}
     </div>

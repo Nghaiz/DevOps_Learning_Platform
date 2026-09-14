@@ -21,6 +21,8 @@
  * `components/shell` được, chiều ngược lại thì không.
  */
 
+import { t } from '@devops-platform/copy';
+
 /** Cặp số tối thiểu để nói được câu "còn N chỗ". Dùng chung cho vỏ lẫn khung phiên. */
 export interface CapacitySnapshot {
   readonly activeSessions: number;
@@ -188,27 +190,35 @@ export function readCapacity(
  */
 export function describeCapacity(view: CapacityView): CapacityReading {
   const level = levelOf(view.activeSessions, view.softCapacity);
-  const load = `Đang chạy ${String(view.activeSessions)}/${String(view.softCapacity)} phiên (trần cứng ${String(view.hardCapacity)}).`;
+  const load = t('shell.capacity.load', {
+    active: view.activeSessions,
+    soft: view.softCapacity,
+    hard: view.hardCapacity,
+  });
 
   if (level.tone === 'full') {
     return {
       ...level,
-      label: 'Hết chỗ',
-      // Người dùng gặp 429 mà không được báo trước là lỗi thiết kế (13.B mục 7)
-      // — nên câu này phải nói cả việc phải làm, không chỉ tình trạng.
-      detail: `${load} Bắt đầu phiên mới lúc này sẽ bị từ chối. Chờ vài phút rồi thử lại, hoặc kết thúc một phiên đang mở ở trang Của tôi.`,
+      label: t('shell.capacity.full-label'),
+      // Người dùng gặp 429 mà không được báo trước là lỗi thiết kế (13.B mục 7),
+      // nên câu này phải nói cả việc phải làm, không chỉ tình trạng.
+      detail: t('shell.capacity.full-detail', { load, note: '' }),
     };
   }
 
   if (level.tone === 'low') {
     return {
       ...level,
-      label: `Chỉ còn ${String(level.remaining)} chỗ`,
-      detail: `${load} Sắp hết chỗ — nếu bạn định làm lab, hãy bắt đầu sớm.`,
+      label: t('shell.capacity.low-label', { remaining: level.remaining }),
+      detail: t('shell.capacity.low-detail', { load, note: '' }),
     };
   }
 
-  return { ...level, label: `Còn ${String(level.remaining)} chỗ`, detail: load };
+  return {
+    ...level,
+    label: t('shell.capacity.ok-label', { remaining: level.remaining }),
+    detail: t('shell.capacity.ok-detail', { load, note: '' }),
+  };
 }
 
 /**
@@ -279,31 +289,41 @@ export function describeProfileCapacity(
   }
   const total = Math.max(0, Math.trunc(slots.slotsTotal));
   const isDefault = profile === DEFAULT_PROFILE;
-  const scope = isDefault ? 'cho bài thường' : 'cho bài này';
-  const load = `Còn ${String(level.remaining)}/${String(total)} chỗ ${scope}.`;
+  const scope = isDefault
+    ? t('shell.capacity.scope-default')
+    : t('shell.capacity.scope-profile');
+  const load = t('shell.capacity.profile-load', {
+    remaining: level.remaining,
+    total,
+    scope,
+  });
   // Chỉ dán ở profile mặc định: trên trang một bài cụ thể thì con số ĐÃ đúng
   // bài đó, và nhắc thêm chỉ làm người đọc nghi ngờ con số vừa đọc.
   const note = isDefault
-    ? ' Bài có IDE hoặc lab Kubernetes tốn nhiều tài nguyên hơn nên có trần riêng, thấp hơn số này.'
+    ? t('shell.capacity.profile-note')
     : '';
 
   if (level.tone === 'full') {
     return {
       ...level,
-      label: 'Hết chỗ',
-      // Người dùng gặp 429 mà không được báo trước là lỗi thiết kế (13.B mục 7)
-      // — nên câu này phải nói cả việc phải làm, không chỉ tình trạng.
-      detail: `${load} Bắt đầu phiên mới lúc này sẽ bị từ chối. Chờ vài phút rồi thử lại, hoặc kết thúc một phiên đang mở ở trang Của tôi.${note}`,
+      label: t('shell.capacity.full-label'),
+      // Người dùng gặp 429 mà không được báo trước là lỗi thiết kế (13.B mục 7),
+      // nên câu này phải nói cả việc phải làm, không chỉ tình trạng.
+      detail: t('shell.capacity.full-detail', { load, note }),
     };
   }
   if (level.tone === 'low') {
     return {
       ...level,
-      label: `Chỉ còn ${String(level.remaining)} chỗ`,
-      detail: `${load} Sắp hết chỗ — nếu bạn định làm lab, hãy bắt đầu sớm.${note}`,
+      label: t('shell.capacity.low-label', { remaining: level.remaining }),
+      detail: t('shell.capacity.low-detail', { load, note }),
     };
   }
-  return { ...level, label: `Còn ${String(level.remaining)} chỗ`, detail: `${load}${note}` };
+  return {
+    ...level,
+    label: t('shell.capacity.ok-label', { remaining: level.remaining }),
+    detail: t('shell.capacity.ok-detail', { load, note }),
+  };
 }
 
 /**

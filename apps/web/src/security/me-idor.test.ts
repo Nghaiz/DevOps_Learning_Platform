@@ -13,7 +13,14 @@ import {
   userPreferences,
   users,
 } from '../server/db/schema';
-import { closeTestDb, ctxFor, testDb, uniqueId } from './test-helpers';
+import {
+  closeTestDb,
+  ctxFor,
+  purgeLeakedFixtures,
+  purgeOwnFixtures,
+  testDb,
+  uniqueId,
+} from './test-helpers';
 
 /**
  * `me.*` — IDOR (P13 C4, luật 1).
@@ -188,6 +195,16 @@ async function seedOnce(): Promise<void> {
  * kiểu flaky làm người đọc mất niềm tin vào một ô AC thật.
  */
 beforeAll(async () => {
+  /*
+    ⛔ Dọn rác của những lượt TRƯỚC, trước khi gieo lượt này.
+
+    `afterAll` không chạy khi tiến trình không sống tới đó — Ctrl-C, một ô ném
+    ngoài `it`, máy sập. Mọi rác đã đo được trong `content_items` đều đến từ
+    đúng chế độ hỏng đó. Một lượt dọn ở ĐÂY thì tự lành: lượt sau luôn dọn hộ
+    lượt trước, nên rác không tích tụ được qua nhiều lượt.
+  */
+  await purgeLeakedFixtures(testDb());
+
   await seedOnce();
 
   // ⚠ HÂM NÓNG nguồn nội dung Ở ĐÂY, không để nó rơi vào test đầu tiên.
@@ -205,7 +222,34 @@ beforeAll(async () => {
   await (await caller(ME)).me.listLabAttempts({ limit: 1 });
 }, 60_000);
 
+/**
+ * ⛔ DỌN. Suite này từng KHÔNG dọn gì, và cái giá đã đo được.
+ *
+ * Bản trước của khối này chỉ có `closeTestDb()`. Fixture lab được chèn với
+ * `state: 'published'` (bắt buộc, xem lý lẽ ở chỗ chèn), nên mỗi lượt chạy để
+ * lại VĨNH VIỄN một lab published trong danh mục công khai. Đo 2026-09-13:
+ * **237 dòng `Lab IDOR fixture`** trong `content_items` của Postgres dev, tức
+ * khoảng 237 lượt chạy, và vẫn đang tích tụ.
+ *
+ * Hậu quả không dừng ở một bảng lem nhem: `e2e/flows/lesson.flow.spec.ts`
+ * KHÔNG THỂ đỗ trên DB đó, vì bài học published duy nhất còn lại là một fixture
+ * rò rỉ của một suite khác. Rác test làm một phép kiểm sản phẩm đỏ, và nó đỏ
+ * theo cách trỏ vào sai chỗ.
+ *
+ * ⚠ Dùng `purgeOwnFixtures` (gọi tên đích danh), KHÔNG dùng
+ * `purgeLeakedFixtures`. Lượt dọn theo khuôn id có lọc tuổi 15 phút để không
+ * cướp fixture của một file test chạy song song, nên nó sẽ KHÔNG xoá được
+ * fixture vừa gieo của chính suite này — `afterAll` mà gọi nó thì thành một
+ * lượt dọn không dọn gì, và 237 dòng rác lại bắt đầu tích tụ y như cũ.
+ *
+ * Xoá hai user là đủ cho phần lớn phần còn lại: `schema.ts` khai
+ * `onDelete: 'cascade'` cho mọi khoá ngoại trỏ về `users` TRỪ bốn cột
+ * `author_id` (`content_items`, `learning_paths`, `quizzes`, `problems`) và
+ * `quiz_attempts.quiz_id`. `purgeOwnFixtures` xoá đúng năm chỗ đó trước, theo
+ * thứ tự — xem `test-helpers.ts`.
+ */
 afterAll(async () => {
+  await purgeOwnFixtures(testDb(), [ME.id, OTHER.id]);
   await closeTestDb();
 });
 

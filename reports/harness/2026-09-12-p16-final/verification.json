@@ -1,0 +1,118 @@
+{
+  "commands": [
+    {
+      "command": "pnpm exec turbo run build lint typecheck test --force --concurrency=1 --filter=!@devops-platform/web",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "28/28 tasks, zero cache; all seven packages passed. Evidence: reports/p16-2026-09-12-packages-final.log"
+    },
+    {
+      "command": "pnpm --filter @devops-platform/web exec vitest run --maxWorkers=2",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "153 suites, 1747 passed, zero skipped. Subsequent changed code covered by focused reruns below. Evidence: reports/p16-2026-09-12-web-tests-final.log"
+    },
+    {
+      "command": "pnpm --filter @devops-platform/web exec vitest run src/security/rule-07-refresh-rotation.test.ts src/server/auth/refresh-races.integration.test.ts --maxWorkers=2",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "12 passed, includes real PostgreSQL barriers and 101-generation revocation. Evidence: reports/p16-2026-09-12-refresh-tests.log"
+    },
+    {
+      "command": "pnpm --filter @devops-platform/ui exec vitest run src/card.test.tsx src/alert.test.tsx src/search-tabs.test.tsx src/theme/tokens.contract.test.ts",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "4 suites, 371 passed after final component changes. Evidence: reports/p16-2026-09-13-ui-final.log"
+    },
+    {
+      "command": "pnpm --filter @devops-platform/web exec vitest run src/app/reset-password/password-reset-forms.test.tsx src/components/author/author-copy-ui.test.tsx src/components/marketing/lab-preview.test.tsx src/app/games/games-catalog.test.ts --maxWorkers=2",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "4 suites, 30 passed after final heading changes. Evidence: reports/p16-2026-09-13-web-ui-final.log"
+    },
+    {
+      "command": "pnpm --filter @devops-platform/web build",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "Fresh production BUILD_ID HZG3aU7v-lBMcBxxAFsSE; compilation, TypeScript and prerender passed. Evidence: reports/p16-2026-09-12-build-final.log"
+    },
+    {
+      "command": "pnpm --filter @devops-platform/web lint",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "Full maintained web source/harness lint passed. Disposable e2e/.artifacts excluded; maintained e2e/scripts remain checked. Evidence: reports/p16-2026-09-12-web-lint-final.log"
+    },
+    {
+      "command": "pnpm --filter @devops-platform/web exec tsc --noEmit",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "Final web typecheck passed; UI package typecheck and scoped lint also passed. Evidence: reports/p16-2026-09-12-web-types-final.log"
+    },
+    {
+      "command": "pnpm bundle:check",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "Shared 1047523B < 1150000B; xterm 535793B reaches all 4 terminal routes and none of 33 other routes. Evidence: reports/p16-2026-09-12-bundle-final.log"
+    },
+    {
+      "command": "pnpm tokens:check",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "560 files, four explicit boundary exemptions, positive/negative controls passed. Evidence: reports/p16-2026-09-12-tokens-final.log"
+    },
+    {
+      "command": "pnpm env:check",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "95 variables across four scopes; code, examples, Helm and CI agree. Evidence: reports/p16-2026-09-12-env-final.log"
+    },
+    {
+      "command": "pnpm antipattern:check",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "602 files, existing 20 dirty/18 clean controls plus exact Arena action-menu wiring exception controls passed. Evidence: reports/p16-2026-09-12-antipattern-final.log"
+    },
+    {
+      "command": "pnpm exec prettier --check <explicit changed source files>",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "All matched files use Prettier code style; generated evidence and Helm templates excluded by scope. Evidence: reports/p16-2026-09-12-format-final.log"
+    },
+    {
+      "command": "E2E_START_SERVER=1 E2E_BASE_URL=http://localhost:3000 E2E_ORIGIN=http://localhost:3000 node apps/web/e2e/.artifacts/runtime/run-playwright.mjs acceptance-all-green a11y.spec.ts csp.spec.ts responsive.spec.ts keyboard.spec.ts motif.spec.ts perf.spec.ts password-reset.spec.ts landing-visual.spec.ts",
+      "status": "pass",
+      "exitCode": 0,
+      "timestamp": "2026-09-12T17:40:33.057Z",
+      "summary": "171 passed, zero failed/skipped/retries, 374.3s on HZG3aU7v-lBMcBxxAFsSE; required roles and real sandbox enabled. Evidence: reports/harness/2026-09-12-p16-runtime/acceptance-all-green/summary.json"
+    }
+  ],
+  "beforeAfter": {
+    "initial": "Read commit history and local work before editing; only three original root screenshots were untracked. Seed, CopyRef relocation and bundle gate already existed in recent commits.",
+    "fixedFailures": [
+      "Initial whole-workspace concurrency caused a timeout; resource-bounded uncached package tests and web tests passed without relaxing timeouts.",
+      "Windows preferences test selected WSL bash and wrong HOME; Git Bash plus fixture guard fixed it.",
+      "Independent review found SMTP before throttling, stale reset cookies, refresh/reset race, and a 100-generation revocation limit; all fixed with regression evidence.",
+      "First core run was 157/165 with 8 failures; hidden search controls, author wrapping, and ambiguous READY selector corrected. Fifteen moderate heading issues were subsequently fixed and promoted into the blocking gate.",
+      "User explicitly retired the loop/3D landing; old screenshots are historical and no longer acceptance evidence."
+    ],
+    "final": "32 route axe reports have empty violations arrays; 32 CSP routes passed; real PTY Escape proof, responsive author screens, SMTP and final landing captures passed.",
+    "limits": [
+      "Axe left color-contrast incomplete on eight routes; no universal WCAG certification is claimed. Token contrast tests and manual visual inspection are separate evidence.",
+      "SMTP was measured through Mailpit/local SMTP, not an Internet mail provider. No production deployment is claimed.",
+      "Lab Editor schema extension and K8s Arena feature/style work remain outside this P16 scope."
+    ]
+  }
+}

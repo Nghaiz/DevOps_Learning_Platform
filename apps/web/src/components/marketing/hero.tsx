@@ -1,40 +1,36 @@
 import type { ReactNode } from 'react';
-import { Terminal } from 'lucide-react';
-import { HomeSection } from './home-section';
+import { ArrowDown, Terminal } from 'lucide-react';
+import { t } from '@devops-platform/copy';
+import { LabPreview } from './lab-preview';
+import styles from './landing.module.css';
 
-/**
- * Dải mở đầu trang chủ.
- *
- * Câu tiêu đề giữ NGUYÊN VĂN — "Học DevOps bằng cách gõ lệnh thật". Nó nói
- * đúng thứ nền tảng làm và không có gì để cải thiện; thay đổi ở đây thuần là
- * SỨC NẶNG THỊ GIÁC: cỡ chữ nhảy từ `text-3xl/4xl` lên `text-3xl/5xl`, thêm
- * một nhãn nhỏ phía trên, và cả dải đặt trên nền `--muted` có kẻ đáy nên nó
- * đọc ra là một khối chứ không phải phần trên của một cột chữ trôi.
- *
- * `children` là chỗ cắm nút hành động. Nút đó (`app/home-cta.tsx`) là Client
- * Component vì nó đọc `useViewer()`, còn dải này thuần server — nhận qua slot
- * thay vì import thẳng giữ đúng chiều phụ thuộc (`components/` không import
- * ngược lên `app/`) và giữ dải này không phải `'use client'`.
- */
+/** After the illustrated journey, try a concrete command before entering a real lab. */
 export function Hero({ children }: { readonly children: ReactNode }) {
   return (
-    <HomeSection innerClassName="flex flex-col gap-6 py-14 min-[769px]:py-20">
-      {/* Nhãn dẫn. Icon `aria-hidden` vì nó đi kèm chữ ngay bên cạnh. */}
-      <p className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-        <Terminal aria-hidden="true" className="size-3.5 shrink-0 text-primary" />
-        Sandbox Kubernetes dựng riêng, mở trong vài giây
+    <section className={styles.hero} aria-labelledby="home-practice-title">
+      <p className={styles.eyebrow}>
+        <Terminal size={17} aria-hidden="true" />
+        {t('home.hero.eyebrow')}
       </p>
-
-      <h1 className="max-w-3xl text-3xl font-bold tracking-tight text-balance text-foreground min-[769px]:text-5xl">
-        Học DevOps bằng cách gõ lệnh thật
-      </h1>
-
-      <p className="max-w-2xl text-base text-pretty text-muted-foreground min-[769px]:text-lg">
-        Bài học, lab và playground đều chạy trong một sandbox Kubernetes dựng riêng cho bạn,
-        mở trong vài giây và tự dọn khi bạn xong.
-      </p>
-
-      {children}
-    </HomeSection>
+      <div className={styles.heroHeading}>
+        <h2 id="home-practice-title" className={styles.heroTitle}>
+          {t('home.hero.title')}
+          <span>{t('home.hero.title-accent')}</span>
+        </h2>
+        <div className={styles.heroIntroduction}>
+          <p className={styles.heroLede}>{t('home.hero.lede')}</p>
+          {children}
+          <p className={styles.heroFootnote}>{t('home.hero.footnote')}</p>
+        </div>
+      </div>
+      <LabPreview />
+      <div className={styles.heroBottom}>
+        <p>{t('home.hero.preview-note')}</p>
+        <a href="#lo-trinh" className={styles.textLink}>
+          {t('home.hero.scroll-hint')}
+          <ArrowDown size={16} aria-hidden="true" />
+        </a>
+      </div>
+    </section>
   );
 }

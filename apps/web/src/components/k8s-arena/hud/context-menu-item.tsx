@@ -8,6 +8,13 @@ export interface ContextMenuItemProps {
   /** Câu giải thích ngắn hiện khi rê chuột — nói HỆ QUẢ, không nhắc lại nhãn. */
   readonly hint: string;
   readonly danger?: boolean;
+  /**
+   * Mục có mặt nhưng chưa dùng được (ví dụ "Sắp xếp lại" khi chưa kéo gì).
+   *
+   * Ẩn hẳn thì menu đổi chiều cao giữa hai lần mở và người dùng mất chỗ neo thị
+   * giác; để đó và tắt thì họ đọc được rằng chức năng CÓ, chỉ là chưa tới lúc.
+   */
+  readonly disabled?: boolean;
   readonly onSelect: () => void;
 }
 
@@ -22,16 +29,24 @@ export interface ContextMenuItemProps {
  * `disabled`, và ngữ nghĩa cho trình đọc màn hình. Dựng lại bằng `div` là ba
  * thứ phải tự viết và ba chỗ để viết sai.
  */
-export function ContextMenuItem({ label, hint, danger = false, onSelect }: ContextMenuItemProps): ReactElement {
+export function ContextMenuItem({
+  label,
+  hint,
+  danger = false,
+  disabled = false,
+  onSelect,
+}: ContextMenuItemProps): ReactElement {
   return (
     <button
       type="button"
       role="menuitem"
       title={hint}
+      disabled={disabled}
       onClick={onSelect}
       className={cn(
         'block w-full px-3 py-1.5 text-left text-xs transition-colors',
         'hover:bg-muted focus-visible:bg-muted focus-visible:outline-none',
+        'disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent',
         danger ? 'text-destructive' : 'text-foreground',
       )}
     >

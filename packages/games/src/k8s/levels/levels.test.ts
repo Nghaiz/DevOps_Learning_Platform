@@ -375,7 +375,9 @@ describe('CHAOS_WAVES — leo thang', () => {
     for (const dot of CHAOS_WAVES.slice(0, 4)) {
       for (const cap of capDeNham) {
         const trung = dot.incidents.filter((s) => cap.includes(s));
-        expect(trung.length, `đợt ${String(dot.wave)} › ${trung.join(', ')}`).toBeLessThanOrEqual(1);
+        expect(trung.length, `đợt ${String(dot.wave)} › ${trung.join(', ')}`).toBeLessThanOrEqual(
+          1,
+        );
       }
     }
   });

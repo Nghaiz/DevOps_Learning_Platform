@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
 import {
   Button,
@@ -51,36 +52,46 @@ export function ObjectiveFields(props: {
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border p-4">
       <div className="flex items-start justify-between gap-3">
-        <h4 className="text-sm font-medium text-foreground">Mục tiêu {String(props.index + 1)}</h4>
-        <Button type="button" variant="ghost" size="sm" disabled={!props.canRemove} onClick={props.onRemove}>
-          Xoá
+        <h4 className="text-sm font-medium text-foreground">
+          {t('problem.objective-fields-muc-tieu')} {String(props.index + 1)}
+        </h4>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!props.canRemove}
+          onClick={props.onRemove}
+        >
+          {t('common.action.delete')}
         </Button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <TextField
-          label="Định danh"
+          label={t('problem.hint-fields-dinh-danh')}
           value={props.objective.id}
           onChange={(id) => {
             props.onChange({ id });
           }}
           error={issueFor(props.issues, `${base}.id`)}
-          hint="Ổn định — lịch sử nộp bài tham chiếu tới nó."
+          hint={t('problem.objective-fields-on-dinh-lich-su-nop-bai-tham-chieu-toi-no')}
         />
         <TextField
-          label="Nhãn tiếng Việt"
+          label={t('problem.objective-fields-nhan-tieng-viet')}
           value={props.objective.label}
           onChange={(label) => {
             props.onChange({ label });
           }}
           error={issueFor(props.issues, `${base}.label`)}
-          placeholder="Deployment thanh-toan có đủ 3 replica sẵn sàng"
-          hint="Nói người làm phải làm ĐƯỢC gì, không nói làm THẾ NÀO."
+          placeholder={t('problem.objective-fields-deployment-thanh-toan-co-du-3-replica-san-sang')}
+          hint={t('problem.objective-fields-noi-nguoi-lam-phai-lam-duoc-gi-khong-noi-lam-the-nao')}
         />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`objective-check-${props.objective.key}`}>Vị từ kiểm tra</Label>
+        <Label htmlFor={`objective-check-${props.objective.key}`}>
+          {t('problem.objective-fields-vi-tu-kiem-tra')}
+        </Label>
         {/*
           Truyền `value` bằng cách RẢI có điều kiện chứ không truyền `undefined`:
           `exactOptionalPropertyTypes` của repo phân biệt "không khai prop" với
@@ -94,12 +105,12 @@ export function ObjectiveFields(props: {
           }}
         >
           <SelectTrigger id={`objective-check-${props.objective.key}`}>
-            <SelectValue placeholder="Chọn một trong 32 vị từ…" />
+            <SelectValue placeholder={t('problem.objective-fields-chon-mot-trong-32-vi-tu')} />
           </SelectTrigger>
           <SelectContent>
             {PREDICATE_NAMES.map((predicate) => (
               <SelectItem key={predicate} value={predicate}>
-                {PREDICATE_SPECS[predicate].label} — {predicate}
+                {t(PREDICATE_SPECS[predicate].label)}: {predicate}
               </SelectItem>
             ))}
           </SelectContent>
@@ -131,9 +142,16 @@ export function ObjectiveFields(props: {
 
       {spec?.requireOneOf !== undefined && (
         <p className="text-xs text-muted-foreground">
-          Phải điền ít nhất một trong:{' '}
-          {spec.requireOneOf.map((key) => spec.args.find((arg) => arg.key === key)?.label ?? key).join(' hoặc ')}.
-          Thiếu cả hai thì vị từ luôn trả sai, và bài không bao giờ qua được.
+          {t('problem.objective-fields-phai-dien-it-nhat-mot-trong')}{' '}
+          {spec.requireOneOf
+            .map((key) => {
+              const arg = spec.args.find((candidate) => candidate.key === key);
+              return arg === undefined ? key : t(arg.label);
+            })
+            .join(t('problem.objective-fields-hoac'))}
+          {t(
+            'problem.objective-fields-thieu-ca-hai-thi-vi-tu-luon-tra-sai-va-bai-khong-bao-gio-qua-duoc',
+          )}
         </p>
       )}
 
@@ -146,7 +164,9 @@ export function ObjectiveFields(props: {
           }}
         />
         <Label htmlFor={requiredId}>
-          {props.objective.required ? 'Bắt buộc — không đạt thì không qua bài' : 'Thưởng — ăn điểm, không chặn'}
+          {props.objective.required
+            ? t('problem.objective-fields-bat-buoc-khong-dat-thi-khong-qua-bai')
+            : t('problem.objective-fields-thuong-an-diem-khong-chan')}
         </Label>
       </div>
     </div>

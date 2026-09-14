@@ -12,7 +12,7 @@ import type { Level } from '../contract.ts';
 export const l32: Level = {
   id: 'k8s-32-policy-chan-nham-thu-khong-ai-nghi',
   chapter: 6,
-  title: 'Policy đúng ý định, và vẫn cắt nhầm một đường',
+  title: 'Mở lại đường giám sát bị policy cắt',
   mission: 'Cho `thu-thap-metric` gọi được `kho-van` cổng 9100, trong khi `khach-la` vẫn bị chặn.',
   brief: `Tuần trước namespace \`giao-van\` được siết bằng NetworkPolicy \`chi-cho-frontend\`:
 chỉ pod tầng frontend mới gọi được vào \`kho-van\`.

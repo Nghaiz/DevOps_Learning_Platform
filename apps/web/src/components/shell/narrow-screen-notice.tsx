@@ -1,4 +1,5 @@
 import { Alert, AlertDescription, AlertTitle, cn } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 import { TERMINAL_MIN_WIDTH_PX } from './breakpoints';
 
 /**
@@ -13,12 +14,8 @@ import { TERMINAL_MIN_WIDTH_PX } from './breakpoints';
 export function NarrowScreenNotice({ className }: { readonly className?: string }) {
   return (
     <Alert variant="warning" className={cn('m-4', className)}>
-      <AlertTitle>Cần màn hình rộng hơn (≥{TERMINAL_MIN_WIDTH_PX}px) để mở terminal</AlertTitle>
-      <AlertDescription>
-        Terminal cần ít nhất 80 cột để lệnh không bị ngắt dòng giữa chừng. Hãy xoay ngang
-        thiết bị hoặc mở lại trang này trên máy tính. Phần nội dung bài học phía trên vẫn
-        đọc và học được bình thường.
-      </AlertDescription>
+      <AlertTitle>{t('shell.narrow.title', { minWidth: TERMINAL_MIN_WIDTH_PX })}</AlertTitle>
+      <AlertDescription>{t('shell.narrow.body')}</AlertDescription>
     </Alert>
   );
 }

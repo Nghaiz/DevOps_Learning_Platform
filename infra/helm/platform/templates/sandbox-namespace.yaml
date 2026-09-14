@@ -21,6 +21,11 @@ metadata:
   name: {{ .Values.sandbox.namespace }}
   labels:
     {{- include "platform.componentLabels" (dict "context" . "component" "sandbox-namespace") | nindent 4 }}
+    {{- /* Nhãn VAI TRÒ — thứ registry-mirror-networkpolicy.yaml chọn để cấp
+           đường vào mirror. Trước đây quyền đó bám vào TÊN namespace, nên mọi
+           namespace sandbox khác (đo, e2e, môi trường thứ hai) bị cắt khỏi
+           mirror trong im lặng. Xem platform.sandboxRoleLabel trong _helpers.tpl. */}}
+    {{- include "platform.sandboxRoleLabel" . | nindent 4 }}
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/enforce-version: latest
     pod-security.kubernetes.io/audit: restricted

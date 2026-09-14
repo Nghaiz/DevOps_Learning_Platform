@@ -1,8 +1,12 @@
-# Hệ thiết kế — SSOT (13.A)
+# Hệ thiết kế — SSOT (P16)
 
 **Nguồn:** `apps/web/src/app/globals.css` (token + dark mode) · `packages/ui/src/theme/theme-provider.tsx`
 (cơ chế theme) · `packages/ui/src/**` (component). Hợp đồng C1/C2 gốc:
 [`plans/devops-learning-platform/phase-13-exec.md`](../plans/devops-learning-platform/phase-13-exec.md) §2.
+
+<!-- updated 260913 -->
+
+Cập nhật 2026-09-13: landing dùng hành trình 3D nhiều màu xuyên suốt luồng DOM tự nhiên: bốn chương và năm điểm neo ở nội dung phía dưới, với mô hình lớn luân phiên vị trí. Một canvas trong suốt theo viewport dùng camera `viewOffset` để bám điểm neo; không ghim nội dung, dùng vòng trắng trang trí hoặc lưới thẻ. Bảng màu RGB `--journey-*` trong `globals.css` dành riêng cho cảnh và vùng kể chuyện; token giao diện chung không đổi. Xem [quy tắc giao diện hiện hành](design-guidelines.md#landing) cho cuộn xuôi/ngược, terminal minh hoạ và chế độ giảm chuyển động dùng hình tĩnh không GPU. Kết quả nghiệm thu nằm trong báo cáo runtime; primitive tiến độ dùng chung và K8s Arena vẫn có phạm vi riêng.
 
 ## 0. Nguyên tắc
 
@@ -23,6 +27,63 @@ migrate, chưa migrate lúc 13.A merge là đúng kế hoạch, không phải l�
 `packages/terminal/src/**/themes.ts` là **ngoại lệ tường minh** (grep AC gốc ở
 `phase-13-exec.md` §5 đã ghi rõ) — bảng màu ANSI của terminal là dữ liệu cấu hình
 xterm.js, không phải class Tailwind, không đi qua hệ token này.
+
+## 1. Token màu hiện hành (P16, 2026-09-13)
+
+<!-- updated 260913 -->
+
+Nguồn giá trị: `apps/web/src/app/globals.css`. Nguồn phép đo và ngưỡng: `packages/ui/src/theme/tokens.contract.test.ts`. Bảng P13 được giữ trong khối lịch sử bên dưới, không dùng làm giá trị hiện hành.
+
+| Biến CSS | Class Tailwind | Vai trò | Sáng | Tối |
+|---|---|---|---|---|
+| `--background` | `bg-background` | Nền trang | `oklch(1 0 0)` | `oklch(0.145 0.016 263.7)` |
+| `--foreground` | `text-foreground` | Chữ chính | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
+| `--card` | `bg-card` | Nền thẻ/card | `oklch(1 0 0)` | `oklch(0.205 0.016 263.7)` |
+| `--card-foreground` | `text-card-foreground` | Chữ trong card | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
+| `--popover` | `bg-popover` | Nền popover/dropdown/select | `oklch(1 0 0)` | `oklch(0.205 0.016 263.7)` |
+| `--popover-foreground` | `text-popover-foreground` | Chữ trong popover | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
+| `--primary` | `bg-primary` / `text-primary` | Hành động chính, link, focus ring mặc định | `oklch(0.519 0.186 26.7)` | `oklch(0.68 0.19 26.7)` |
+| `--primary-foreground` | `text-primary-foreground` | Chữ trên nền primary | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
+| `--secondary` | `bg-secondary` | Hành động phụ, nút Copy/Chạy trong code block | `oklch(0.97 0.005 263.7)` | `oklch(0.269 0.016 263.7)` |
+| `--secondary-foreground` | `text-secondary-foreground` | Chữ trên nền secondary | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
+| `--muted` | `bg-muted` | Nền mờ (Skeleton, code block, hàng bảng hover) | `oklch(0.97 0.005 263.7)` | `oklch(0.269 0.016 263.7)` |
+| `--muted-foreground` | `text-muted-foreground` | Chữ phụ/ghi chú | `oklch(0.5 0.024 269.7)` | `oklch(0.72 0.018 263.7)` |
+| `--accent` | `bg-accent` | Hover/focus của item tương tác (menu, tab) | `oklch(0.951 0.023 26.7)` | `oklch(0.269 0.016 263.7)` |
+| `--accent-foreground` | `text-accent-foreground` | Chữ trên nền accent | `oklch(0.362 0.031 269.7)` | `oklch(0.97 0.008 263.7)` |
+| `--destructive` | `bg-destructive` | Hành động/trạng thái phá huỷ, lỗi | `oklch(0.505 0.192 29)` | `oklch(0.704 0.175 29)` |
+| `--destructive-foreground` | `text-destructive-foreground` | Chữ trên nền destructive | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
+| `--success` | `bg-success` | Trạng thái thành công, badge "Đạt" | `oklch(0.518 0.146 150.741)` | `oklch(0.696 0.17 150.741)` |
+| `--success-foreground` | `text-success-foreground` | Chữ trên nền success | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
+| `--warning` | `bg-warning` | Cảnh báo (chạm hardCap, sức chứa thấp) | `oklch(0.541 0.15 55.98)` | `oklch(0.769 0.188 70.08)` |
+| `--warning-foreground` | `text-warning-foreground` | Chữ trên nền warning | `oklch(0.985 0 0)` | `oklch(0.145 0.016 263.7)` |
+| `--border` | `border-border` | Viền mặc định | `oklch(0.912 0.008 263.7)` | `oklch(1 0 0 / 12%)` |
+| `--input` | `border-input`, `bg-input` (Switch off) | Viền ô nhập, nền Switch tắt | `oklch(0.63 0.014 263.7)` | `oklch(1 0 0 / 38%)` |
+| `--ring` | `focus-visible:ring-ring` **+ `ring-offset-2 ring-offset-background`** | Vòng focus — bằng primary, nên KHÔNG được vẽ sát mặt nút (§1a) | `oklch(0.519 0.186 26.7)` | `oklch(0.68 0.19 26.7)` |
+| `--radius` | `rounded-lg` (= `--radius-lg`) | Bo góc gốc | `0.75rem` | `kế thừa :root` |
+
+
+### Tương phản hiện hành
+
+Các tỷ lệ dưới đây lấy từ số đo token P16, không lấy từ bảng P13. Chữ thường cần 4.5:1; ranh giới control cần 3:1. `TEXT_PAIRS` và `NON_TEXT_PAIRS` trong bộ kiểm thử là danh sách đầy đủ được cưỡng chế.
+
+| Cặp | Tỷ lệ hiện hành |
+|---|---|
+| primary sáng / background hoặc card | 6.0885:1 |
+| primary tối / background | 6.3056459:1 |
+| primary tối / card | 5.7070919:1 |
+| primary tối / muted | 4.8157422:1 |
+| trắng tinh / primary tối | 3.1396889:1 |
+| primary sáng / destructive sáng | 1.0646:1 |
+| primary tối / destructive tối | 1.1061929:1 |
+
+Primary tối là `oklch(0.68 0.19 26.7)`, dùng được làm chữ trên background/card/muted. Trắng tinh trên primary tối chỉ đạt 3.1397:1, nên chữ nút dùng `--primary-foreground` tối, không dùng trắng. Focus giữ `--ring === --primary`; phải có offset để vòng focus không nằm sát nền primary. Hai màu đỏ không đủ tách nghĩa: primary nền đặc; destructive nền rỗng, viền và TriangleAlert.
+
+### Bản ghi P13 đã thay thế
+
+<details>
+<summary>Lịch sử token và tỷ lệ P13; không dùng để triển khai P16</summary>
+
+Toàn bộ giá trị, bảng đo và kết luận định lượng trong khối này là lịch sử trước P16. Chúng giải thích các quyết định cũ; bảng hiện hành phía trên và phép kiểm trong mã nguồn thay thế chúng.
 
 ## 1. Token màu
 
@@ -285,14 +346,23 @@ không cứu nổi — `--destructive` sáng chỉ đạt 4.7647:1 trên nền t
 lớp phủ đều ăn vào đúng phần dư mỏng đó; muốn đạt 4.5 thì tint phải hạ xuống /03,
 lúc ấy không còn là tint nữa. Bỏ hẳn tint giữ nguyên 4.7647 (sáng) / 6.8443 (tối).
 
-⚠ **Khoảng trống đã đo:** trên `bg-muted` nhánh **sáng**, `text-destructive` chỉ
-được **4.3686:1** — dưới 4.5. Đừng đặt nút/badge `destructive` vào khối `bg-muted`
-ở nhánh sáng. Ba nơi gọi thật hiện nay (`confirm-dialog`, `publish-panel`,
-`active-sessions`) đều nằm trên mặt dialog/card nên không chạm giới hạn này. Sửa
-triệt để cần một token đỏ đậm hơn cho chữ (ví dụ `oklch(0.52 0.19 27.325)` cho
-5.083:1) — tức thêm token vào C1, một thay đổi hợp đồng. Khoảng trống được ghim
-bằng một *absence pin* ở `tokens.contract.test.ts`: chính lúc nó ĐỎ là lúc khoảng
-trống đã đóng, và khi đó phải xoá test rồi thêm cặp vào `TEXT_PAIRS`.
+✅ **Khoảng trống trên `bg-muted` ĐÃ ĐÓNG (2026-09-10).** Chỗ này trước đây dặn
+"đừng đặt nút/badge `destructive` vào khối `bg-muted` ở nhánh sáng", vì
+`text-destructive` chỉ được **4.3686:1** ở đó. `p16-tokens.md` đặt `--destructive`
+sáng thành `oklch(0.505 0.192 29)`, đo lại được **5.9429** (sáng) và **5.3271**
+(tối) — cả hai vượt 4.5, nên lời dặn ấy không còn đúng và đã được gỡ.
+
+*Absence pin* tương ứng ở `tokens.contract.test.ts` cũng bị **xoá**, không phải
+"cập nhật con số": cặp `--destructive`/`--muted` nay nằm thẳng trong `TEXT_PAIRS`
+ở cả hai theme. Ghim lại 5.94 sẽ biến một lần sửa thành một baseline vĩnh viễn
+mà không ai rà lại — `rules/pinned-baseline-test-companion.md` cấm đúng điều đó.
+
+**Khoảng trống link tối đã đóng (2026-09-12):** `--primary` và `--ring` dùng
+`oklch(0.68 0.19 26.7)`, nằm trong sRGB. Tương phản link trên background/card/muted
+lần lượt **6.3056/5.7071/4.8157:1**; chữ trên nút đạt **6.3056:1**. Trắng cạnh
+ring vẫn đạt **3.1397:1**. Ba cặp link nằm trong `TEXT_PAIRS`, ngưỡng 4.5 cho cả
+hai theme; đối chứng màu cũ chứng minh test phát hiện hồi quy. Gạch chân giúp
+nhận dạng link nhưng không thay thế yêu cầu tương phản chữ SC 1.4.3.
 
 **`Alert` KHÔNG đổi, và đó là kết luận có số.** Nó vốn đã là dạng nhạt + viền, và
 không có biến thể alert nào tô nền `--primary` đặc để mà lẫn. Nhãn ở đó là
@@ -313,6 +383,9 @@ lạnh dưới điểm nhấn đỏ là tương phản có chủ ý.
 tối) và `--difficulty-intermediate` (hue 65) cách primary 31–45°, và đọc ra nâu/hổ
 phách (`#ae5100`, `#975c16` ở nhánh sáng) chứ không cùng họ với `#e31029`. Cái
 thật sự sát là `--destructive` ở 2.3° — và đó chính là lý do mục này tồn tại.
+
+
+</details>
 
 ## 2. Cơ chế dark mode (D2)
 
@@ -406,6 +479,8 @@ phải "bỏ quên".
 | `Kbd` | n/a | n/a | n/a | n/a |
 | `MarkdownView` | n/a (render đồng bộ từ chuỗi đã có trong tay — không có pha tải) | n/a (chuỗi rỗng ra khối rỗng; "không có nội dung" là quyết định của nơi gọi, không phải của trình render) | n/a (không I/O nên không có lỗi riêng; markdown hỏng vẫn render ra text) | n/a (chỉ đọc, không có control nào để vô hiệu) |
 | `ContentView`/`SplitPane`/`StepNav`/`ProgressBar` | giữ API cũ (P2/2.D) — nơi gọi (trang bài học) bọc `Skeleton` NGOÀI cụm | n/a (bài học luôn có ít nhất một bước; danh sách rỗng là lỗi dữ liệu, chặn từ trước khi render) | nơi gọi bọc `ErrorState` NGOÀI cụm — tầng primitive không có trạng thái lỗi riêng | `StepNav` tự tính disable nút Trước/Tiếp theo vị trí `activeKey` |
+| `SearchTabs` | n/a (lọc chạy ở nơi gọi; khung chờ thuộc về danh sách BÊN DƯỚI, không thuộc thanh tìm) | n/a (thanh tìm luôn có ít nhất một tab; "không có kết quả" hiện bằng `EmptyState` của danh sách) | n/a (không I/O — nó chỉ phát `onSearch`/`onTabChange`) | n/a (gói ngoài `gooey-search-tabs@0.2.0` không có prop `disabled`; nơi gọi cần khoá thì không render nó — xem §4f) |
+| `ResourceIcon` | n/a (glyph tĩnh, không có pha tải) | n/a | n/a (`kind` là union đóng 26 giá trị nên không có nhánh "không biết loại") | n/a (không tương tác — không nhận focus, không có handler) |
 
 ### 4b. `Button` — biến thể, `asChild`/`loading`, icon
 
@@ -530,7 +605,8 @@ luận nhầm rằng nó thừa.
 
 ```ts
 interactive?: boolean;                            // mặc định FALSE
-accent?: 'basic' | 'intermediate' | 'advanced';   // dải màu độ khó ở viền trái
+accent?: 'basic' | 'intermediate' | 'advanced'   // cung màu độ khó ở góc trên-trái
+       | 'pending';                                // độ khó CHƯA BIẾT (khung chờ tải)
 ```
 
 `interactive` bật hover: đổi viền sang `border-input`, nâng bóng lên
@@ -548,11 +624,27 @@ có handler bấm.** Hiện có đúng một nơi — `CatalogCard`
 2026-09-06). Khung chờ (skeleton) trong cùng file cố ý KHÔNG truyền: một ô đang
 tải thì chưa bấm được.
 
-`accent` vẽ dải `border-l-4` màu độ khó ở viền trái. Hậu tố khớp token
-`--difficulty-*`, nên nó mang **cùng chỗ lệch `basic`/`beginner`** ở §4c —
-`DIFFICULTY_ACCENT` trong `catalog-labels.ts` là chỗ nối. Dải màu một mình KHÔNG
+`accent` vẽ **một cung màu ở góc trên-trái** — vòng ellipse hở của motif
+(`packages/motion/src/motif.ts`), bậc nét `ARC_STROKE_HAIRLINE`, cắt theo góc bo
+bởi một lớp bọc `absolute inset-0 overflow-hidden`. Hậu tố ba giá trị đầu khớp
+token `--difficulty-*`, nên nó mang **cùng chỗ lệch `basic`/`beginner`** ở §4c —
+`DIFFICULTY_ACCENT` trong `catalog-labels.ts` là chỗ nối. Màu một mình KHÔNG
 đủ cho 1.4.1; nó đi kèm `Badge` độ khó có icon trong cùng thẻ, và đó mới là thứ
-mang nghĩa.
+mang nghĩa — điều đó càng đúng với cung 2px hơn là với dải 4px cũ.
+
+`'pending'` (xám `--muted`) là độ khó **chưa biết**, dành cho khung chờ tải.
+Nó là một giá trị của `accent` chứ không phải một cung xám do nơi gọi tự dựng:
+hình học của cung do `card.tsx` sở hữu, và một bản chép ở `catalog-grid.tsx` sẽ
+lệch vào lần sửa thứ hai — lúc đó khung chờ và thẻ thật không còn cùng hình, mà
+bố cục nhảy khi dữ liệu về chính là thứ khung chờ sinh ra để chặn.
+
+> **Đổi hình ngày 2026-09-11 (lane 16.L0).** Bản trước vẽ `border-l-4
+> border-l-difficulty-*` — một dải phẳng ở viền trái. Design §3 chốt thẻ danh
+> mục dùng "một cung màu ở góc thay cho viền trái phẳng", và `Card` là chỗ duy
+> nhất phát ra hình đó. `Card` nay luôn mang `relative` (cung định vị tuyệt đối
+> theo thẻ) và nhận `children` tường minh thay vì để chúng đi qua `{...props}`.
+> `packages/ui/src/card.test.tsx` chuyển toàn bộ khẳng định cũ sang hình mới —
+> không ô nào bị xoá.
 
 ### 4e. Ba bậc bóng — `shadow-elevation-1|2|3`
 

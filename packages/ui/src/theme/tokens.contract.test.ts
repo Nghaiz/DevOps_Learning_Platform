@@ -44,7 +44,8 @@ function workspaceRoot(): string {
   for (;;) {
     if (existsSync(join(dir, 'pnpm-workspace.yaml'))) return dir;
     const parent = dirname(dir);
-    if (parent === dir) throw new Error('Không tìm thấy gốc workspace (pnpm-workspace.yaml) từ ' + process.cwd());
+    if (parent === dir)
+      throw new Error('Không tìm thấy gốc workspace (pnpm-workspace.yaml) từ ' + process.cwd());
     dir = parent;
   }
 }
@@ -88,12 +89,35 @@ const C1_COLOR_TOKENS = [
   '--difficulty-intermediate-foreground',
   '--difficulty-advanced',
   '--difficulty-advanced-foreground',
+  '--difficulty-expert',
+  '--difficulty-expert-foreground',
   '--status-progress',
   '--status-progress-foreground',
   '--status-done',
   '--status-done-foreground',
   '--status-locked',
   '--status-locked-foreground',
+
+  /*
+   * Màu theo LOẠI tài nguyên Kubernetes.
+   *
+   * Tám token này là bảng màu chung của arena: renderer 3D đọc chúng qua
+   * `scene-tokens.ts`, bảng công cụ bên trái và màn chọn màn dùng đúng chúng cho
+   * icon. Cùng một nguồn cố ý — nếu Pod xanh dương ở bảng mà xanh lá trong cảnh
+   * thì người chơi phải học hai hệ màu cho một khái niệm.
+   *
+   * KHÔNG có cặp `-foreground`: chúng không bao giờ làm NỀN cho chữ. Chúng tô
+   * thân khối 3D và nét icon, nên ràng buộc của chúng là tương phản với NỀN
+   * CẢNH, không phải với chữ đặt lên trên.
+   */
+  '--kind-pod',
+  '--kind-controller',
+  '--kind-batch',
+  '--kind-network',
+  '--kind-config',
+  '--kind-storage',
+  '--kind-security',
+  '--kind-cluster',
 ] as const;
 
 type ColorToken = (typeof C1_COLOR_TOKENS)[number];
@@ -113,6 +137,117 @@ const C1_ELEVATION_TOKENS = ['--elevation-1', '--elevation-2', '--elevation-3'] 
  * không đổi theo theme. Lặp lại chỉ tạo thêm một chỗ để quên đồng bộ.
  */
 const C1_MOTION_TOKENS = ['--motion-fast', '--motion-base', '--motion-slow', '--ease-out'] as const;
+
+/**
+ * Token THƯƠNG HIỆU (`p16-tokens.md` §1.5) — tái hiện nhận diện, KHÔNG phải màu
+ * giao diện.
+ *
+ * Hai ràng buộc, và cả hai đều là quyết định chứ không phải chỗ bỏ sót:
+ *
+ * 1. **Chỉ ở `:root`, CẤM lặp ở `.dark`.** Một màu logo đổi theo theme thì
+ *    không còn là màu logo.
+ * 2. **KHÔNG có dòng `--color-brand-*` trong `@theme inline`.** Đây là nửa còn
+ *    lại, và nó là nửa hay bị quên: nếu map, Tailwind sinh ra `bg-brand-star`
+ *    và `text-brand-emblem` — tức cấp cho mọi lane một đường tắt hợp lệ về mặt
+ *    cú pháp để tô giao diện bằng màu logo. `--brand-star` trên nền sáng đo
+ *    được 1.23:1; một class tồn tại là một class sẽ có người dùng.
+ */
+const C1_BRAND_TOKENS = [
+  '--brand-emblem',
+  '--brand-star',
+  '--brand-star-shadow',
+  '--brand-ink',
+  '--brand-navy',
+] as const;
+
+/**
+ * Bảng màu của CẢNH 3D trên landing (`d5bf768`, chỉ đạo 2026-09-13).
+ *
+ * ## Vì sao là một nhóm riêng chứ không phải thêm dòng vào `C1_COLOR_TOKENS`
+ *
+ * Hai lý do, cả hai đều là quyết định:
+ *
+ * 1. **Bất biến theo theme, cùng luật với `C1_BRAND_TOKENS`.** Cảnh có bảng màu
+ *    riêng và cố ý giống nhau ở sáng lẫn tối. Nhét vào `C1_COLOR_TOKENS` sẽ làm
+ *    ô "token có mặt ở CẢ HAI theme" đỏ, và cách duy nhất để nó xanh lại là
+ *    nhân đôi mười dòng vào `.dark` — tức bịa ra một biến thể theme mà thiết kế
+ *    không đòi, chỉ để chiều một phép kiểm.
+ * 2. **Dạng `rgb()`, không phải `oklch()`.** Three.js nhận màu qua API JS và
+ *    KHÔNG phân giải `var()` lẫn `oklch()`; cảnh đọc các token này bằng
+ *    `getComputedStyle` rồi dựng `THREE.Color`. Cùng loại ranh giới thư viện
+ *    ngoài mà `scripts/check-design-tokens.mjs` đã ghi cho xterm.js.
+ *
+ * ⛔ KHÔNG map sang `@theme inline`. Cùng lý lẽ nửa-hay-bị-quên của
+ * `C1_BRAND_TOKENS`: một `bg-journey-coral` tồn tại là một class sẽ có người
+ * dùng, và màu cảnh chưa từng qua bảng contrast của hệ giao diện.
+ *
+ * ## Vì sao nhóm này ra đời muộn
+ *
+ * Mười token đã CHẠY THẬT trong `globals.css` từ `d5bf768` mà không nhóm nào
+ * khai, nên ô "không có token THỪA ngoài hợp đồng C1" ĐỎ kể từ commit đó. Không
+ * ai thấy: lane 3D chỉ chạy các suite trọng tâm (marketing, security, proxy,
+ * copy) và `packages/ui` không nằm trong số đó. Đây đúng là hình dạng một lượt
+ * "xanh" được tính trên tập không chứa cái cổng biết nói không.
+ */
+const C1_JOURNEY_TOKENS = [
+  '--journey-bg',
+  '--journey-panel',
+  '--journey-ink',
+  '--journey-muted',
+  '--journey-coral',
+  '--journey-cyan',
+  '--journey-violet',
+  '--journey-mint',
+  '--journey-amber',
+  '--journey-metal',
+] as const;
+
+/**
+ * Số đo HÌNH HỌC — bề rộng khối văn xuôi, nhịp dọc một chặng, và motif ellipse
+ * (`p16-tokens.md` §3.3, §4, §8.1, §8.2). Cùng luật với `--radius`: khai một
+ * lần ở `:root`, cấm lặp ở `.dark`.
+ *
+ * `--arc-*` nằm ở đây chứ không ở `packages/motion` vì cung được TIÊU THỤ ở ba
+ * chỗ (thanh tiến độ bài học, bảng nhiệm vụ khoang lab, chặng trang chủ) và
+ * `globals.css` là nguồn duy nhất mà cả ba đọc được.
+ */
+const C1_GEOMETRY_TOKENS = [
+  '--measure',
+  '--section-y',
+  '--arc-rx',
+  '--arc-ry',
+  '--arc-tilt',
+  '--arc-start',
+  '--arc-sweep',
+  '--arc-gap',
+  '--arc-stroke-hairline',
+  '--arc-stroke',
+  '--arc-stroke-heavy',
+] as const;
+
+/**
+ * Token khai trong khối `@theme` (không `inline`) — Tailwind vừa phát chúng ra
+ * `:root` vừa sinh tiện ích. Chúng KHÔNG nằm trong khối `:root` do ta viết, nên
+ * phép kiểm "không token thừa" ở dưới không thấy chúng; nhưng AC-1 vẫn đòi
+ * khẳng định chúng VẮNG MẶT ở `.dark`.
+ */
+const THEME_BLOCK_TOKENS = [
+  '--spacing',
+  '--text-2xs',
+  '--text-xs',
+  '--text-sm',
+  '--text-base',
+  '--text-lg',
+  '--text-xl',
+  '--text-2xl',
+  '--text-3xl',
+  '--text-4xl',
+  '--text-5xl',
+  '--leading-tight',
+  '--leading-snug',
+  '--leading-normal',
+  '--leading-loose',
+] as const;
 
 /**
  * Cắt khối top-level theo độ sâu ngoặc thay vì regex `\{([\s\S]*?)\}` — khối
@@ -167,7 +302,9 @@ interface Oklch {
 }
 
 function parseOklch(value: string): Oklch {
-  const match = /^oklch\(\s*([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s*(?:\/\s*([0-9.]+)(%?)\s*)?\)$/.exec(value);
+  const match = /^oklch\(\s*([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s*(?:\/\s*([0-9.]+)(%?)\s*)?\)$/.exec(
+    value,
+  );
   if (match === null) throw new Error(`Không phải oklch(): ${value}`);
   const [, l, c, h, a, pct] = match;
   const alpha = a === undefined ? 1 : pct === '%' ? Number(a) / 100 : Number(a);
@@ -248,7 +385,13 @@ function contrastRatio(a: number, b: number): number {
 
 /** `#rrggbb` 8-bit — để đối chứng đối chiếu được với số học làm tay. */
 function toHex(rgb: Srgb): string {
-  return `#${rgb.map((channel) => Math.round(clamp(channel) * 255).toString(16).padStart(2, '0')).join('')}`;
+  return `#${rgb
+    .map((channel) =>
+      Math.round(clamp(channel) * 255)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
 }
 
 /**
@@ -293,15 +436,30 @@ function composite(color: Oklch, backdrop: Srgb | undefined): Srgb {
  * người dùng thật sự nhìn thấy là 12% của nó. Thiếu nền thì NÉM LỖI, không im
  * lặng bỏ qua alpha.
  */
-function resolve(theme: Record<string, string>, token: ColorToken, backdrop?: Srgb): Srgb {
+function resolve(
+  theme: Record<string, string>,
+  /*
+   * `ColorToken | BrandToken`, KHÔNG phải `string`: nới thành `string` sẽ để
+   * một lỗi chính tả (`'--forground'`) đi qua biên dịch và chỉ ném lúc chạy,
+   * với thông điệp "không có ở cả theme lẫn :root" — đọc ra như một token bị
+   * xoá chứ không như một cái tên gõ sai.
+   */
+  token: ColorToken | (typeof C1_BRAND_TOKENS)[number],
+  backdrop?: Srgb,
+): Srgb {
   const raw = theme[token] ?? root[token];
   if (raw === undefined) throw new Error(`Token ${token} không có ở cả theme lẫn :root`);
   const parsed = parseOklch(raw);
-  if (parsed.alpha < 1 && backdrop === undefined) throw new Error(`${token} trong suốt — cần nền để đè lên`);
+  if (parsed.alpha < 1 && backdrop === undefined)
+    throw new Error(`${token} trong suốt — cần nền để đè lên`);
   return composite(parsed, backdrop);
 }
 
-function measure(theme: Record<string, string>, foreground: ColorToken, background: ColorToken): number {
+function measure(
+  theme: Record<string, string>,
+  foreground: ColorToken,
+  background: ColorToken,
+): number {
   const bg = resolve(theme, background);
   const fg = resolve(theme, foreground, bg);
   return contrastRatio(relativeLuminance(fg), relativeLuminance(bg));
@@ -336,32 +494,72 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
   });
 
   it.each(C1_COLOR_TOKENS)('%s khai ở .dark', (token) => {
-    expect(dark[token], `${token} thiếu trong .dark — chế độ tối sẽ kế thừa màu sáng trong im lặng`).toBeDefined();
+    expect(
+      dark[token],
+      `${token} thiếu trong .dark — chế độ tối sẽ kế thừa màu sáng trong im lặng`,
+    ).toBeDefined();
   });
 
   it.each(C1_ELEVATION_TOKENS)('%s khai ở CẢ HAI theme', (token) => {
     expect(root[token], `${token} thiếu trong :root`).toBeDefined();
-    expect(dark[token], `${token} thiếu trong .dark — thẻ ở chế độ tối sẽ đeo bóng của nhánh sáng`).toBeDefined();
+    expect(
+      dark[token],
+      `${token} thiếu trong .dark — thẻ ở chế độ tối sẽ đeo bóng của nhánh sáng`,
+    ).toBeDefined();
   });
 
   it('bóng của .dark KHÁC bóng của :root (chép nguyên sang là hỏng câm)', () => {
     for (const token of C1_ELEVATION_TOKENS) {
-      expect(dark[token], `${token} ở .dark trùng y hệt :root — bóng lạnh nhạt vô hình trên nền tối`).not.toBe(
-        root[token],
-      );
+      expect(
+        dark[token],
+        `${token} ở .dark trùng y hệt :root — bóng lạnh nhạt vô hình trên nền tối`,
+      ).not.toBe(root[token]);
     }
   });
 
-  it.each([...C1_MOTION_TOKENS, '--radius'] as const)(
+  it.each([...C1_MOTION_TOKENS, ...C1_GEOMETRY_TOKENS, '--radius'] as const)(
     '%s khai ở :root và CỐ Ý vắng ở .dark (số đo, không phải màu — không đổi theo theme)',
     (token) => {
       expect(root[token]).toBeDefined();
-      expect(dark[token], `${token} bị lặp ở .dark — thêm một chỗ để quên đồng bộ, đổi lấy con số không`).toBeUndefined();
+      expect(
+        dark[token],
+        `${token} bị lặp ở .dark — thêm một chỗ để quên đồng bộ, đổi lấy con số không`,
+      ).toBeUndefined();
+    },
+  );
+
+  /**
+   * AC-1 của `p16-tokens.md` §10 đòi khẳng định VẮNG MẶT ở `.dark` cho cả năm
+   * token thương hiệu và toàn bộ thang chữ/giãn dòng/khoảng cách. Hai nhóm này
+   * vắng vì hai lý do KHÁC nhau, nên chúng được tách khỏi khối trên:
+   *
+   *  • `--brand-*` vắng vì màu logo KHÔNG được đổi theo theme (§1.5);
+   *  • `--text-*`/`--leading-*`/`--spacing` vắng vì chúng sống trong khối
+   *    `@theme` chứ không trong `:root` do ta viết — nếu một ngày ai đó chép
+   *    một dòng `--text-base` xuống `.dark`, nó sẽ ghi đè bảng theme của
+   *    Tailwind ở đúng một nhánh và không có gì khác kêu lên.
+   */
+  it.each([...C1_BRAND_TOKENS, ...C1_JOURNEY_TOKENS, ...THEME_BLOCK_TOKENS] as const)(
+    '%s CỐ Ý vắng mặt ở .dark',
+    (token) => {
+      expect(
+        dark[token],
+        `${token} xuất hiện ở .dark. Màu logo đổi theo theme thì không còn là màu logo; ` +
+          'thang chữ đổi theo theme thì bố cục nhảy khi người dùng gạt công tắc.',
+      ).toBeUndefined();
     },
   );
 
   it('không có token THỪA ngoài hợp đồng C1 (thêm token = phải sửa C1 + docs/design-system.md)', () => {
-    const expected = [...C1_COLOR_TOKENS, ...C1_ELEVATION_TOKENS, ...C1_MOTION_TOKENS, '--radius'];
+    const expected = [
+      ...C1_COLOR_TOKENS,
+      ...C1_ELEVATION_TOKENS,
+      ...C1_MOTION_TOKENS,
+      ...C1_BRAND_TOKENS,
+      ...C1_JOURNEY_TOKENS,
+      ...C1_GEOMETRY_TOKENS,
+      '--radius',
+    ];
     expect(Object.keys(root).toSorted()).toEqual(expected.toSorted());
   });
 
@@ -376,26 +574,239 @@ describe('C1 — token có mặt ở CẢ HAI theme', () => {
   });
 });
 
+/**
+ * ── Bảng màu cảnh 3D phải ở dạng `THREE.Color` ĐỌC ĐƯỢC ─────────────────────
+ *
+ * Chú thích của `C1_JOURNEY_TOKENS` đã hứa điều này bằng chữ từ lúc nhóm ra
+ * đời: "Dạng `rgb()`, không phải `oklch()`. Three.js nhận màu qua API JS và
+ * KHÔNG phân giải `var()` lẫn `oklch()`". Nhưng KHÔNG ô nào khẳng định nó, nên
+ * lời hứa đó tự do trôi: đổi mười dòng trong `globals.css` sang `oklch()` cho
+ * đồng bộ với phần còn lại của bảng token là một lượt sửa trông hợp lý, CSS
+ * hợp lệ, contrast không đổi, mọi ô hiện có vẫn xanh, và cảnh 3D hiện đen
+ * kịt vì `new THREE.Color('oklch(...)')` không đọc được chuỗi đó.
+ *
+ * Hỏng ở phía im lặng, đúng hạng với ba thứ mà khối đầu file liệt kê.
+ *
+ * ## Tập dạng được nhận, và vì sao hẹp
+ *
+ * Nhận `rgb(r, g, b)` và hex. Đây đều là literal sRGB 8-bit mà `THREE.Color` và
+ * người đọc hiểu giống hệt nhau.
+ *
+ * `hsl()` thì `THREE.Color.setStyle` CŨNG đọc được, và vẫn bị từ chối ở đây:
+ * hợp đồng ghi `rgb()`, nên một ngày nào đó muốn dùng `hsl()` là một quyết
+ * định đổi hợp đồng, không phải một lượt sửa lặng lẽ. Ô này đỏ lúc đó là đỏ
+ * ĐÚNG, và thông báo nói thẳng ra điều ấy để người sửa không tưởng mình gặp lỗi.
+ *
+ * Từ chối luôn giá trị có kênh alpha (`rgba()`, `rgb(... / ...)`): `THREE.Color`
+ * BỎ alpha trong im lặng, nên một token trong suốt hiện đúng trong CSS và hiện
+ * đục trong cảnh, không có gì báo.
+ */
+interface ThreeColorReading {
+  readonly ok: boolean;
+  /** Ba kênh 8-bit khi đọc được, `null` khi không. */
+  readonly rgb: readonly [number, number, number] | null;
+  readonly why: string;
+}
+
+const RGB_FORM = /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/;
+const HEX_FORM = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/**
+ * Hàm đo DUY NHẤT của khối này. Ô thật và mọi ô đối chứng gọi chính nó, nên một
+ * lượt nới regex làm ô đối chứng đỏ ngay thay vì làm ô thật xanh trong im lặng.
+ */
+function threeReadableColor(value: string): ThreeColorReading {
+  const text = value.trim();
+
+  const rgb = RGB_FORM.exec(text);
+  if (rgb !== null) {
+    const channels = [rgb[1], rgb[2], rgb[3]].map((part) => Number(part));
+    const bad = channels.find((n) => n > 255);
+    if (bad !== undefined) {
+      return { ok: false, rgb: null, why: `kênh ${String(bad)} vượt 255` };
+    }
+    return {
+      ok: true,
+      rgb: [channels[0] ?? 0, channels[1] ?? 0, channels[2] ?? 0],
+      why: '',
+    };
+  }
+
+  const hex = HEX_FORM.exec(text);
+  if (hex !== null) {
+    const digits = hex[1] ?? '';
+    const full =
+      digits.length === 3
+        ? digits
+            .split('')
+            .map((d) => d + d)
+            .join('')
+        : digits;
+    return {
+      ok: true,
+      rgb: [
+        Number.parseInt(full.slice(0, 2), 16),
+        Number.parseInt(full.slice(2, 4), 16),
+        Number.parseInt(full.slice(4, 6), 16),
+      ],
+      why: '',
+    };
+  }
+
+  const fn = /^([a-z-]+)\(/i.exec(text);
+  if (fn !== null) {
+    return {
+      ok: false,
+      rgb: null,
+      why: `${fn[1] ?? '?'}() — chỉ nhận rgb(r, g, b) hoặc hex, xem khối chú thích của C1_JOURNEY_TOKENS`,
+    };
+  }
+  return { ok: false, rgb: null, why: 'không phải rgb(r, g, b) cũng không phải hex' };
+}
+
+/**
+ * Đọc `:root` từ MỘT văn bản CSS rồi soi mười token cảnh.
+ *
+ * Nhận `cssText` làm tham số chứ không đọc biến `css` ở ngoài, và đó là điều
+ * kiện để ô đối chứng dưới đây chạy được: nó dựng một bản `globals.css` đã hỏng
+ * TRONG BỘ NHỚ rồi đưa vào đây, nên phép đối chứng đi qua đúng bộ phân tích
+ * khối, đúng danh sách token và đúng bộ dò mà ô thật dùng, mà không phải ghi
+ * một byte nào vào file sản phẩm.
+ */
+function journeyColorViolations(cssText: string): string[] {
+  const declared = declarations(blockBody(cssText, ':root'));
+  return C1_JOURNEY_TOKENS.flatMap((token) => {
+    const value = declared[token];
+    if (value === undefined) {
+      return [`${token}: không khai ở :root`];
+    }
+    const reading = threeReadableColor(value);
+    return reading.ok ? [] : [`${token}: ${reading.why}`];
+  });
+}
+
+describe('C1 — mười token cảnh 3D ở dạng THREE.Color đọc được', () => {
+  it('không token nào ở dạng Three không phân giải được', () => {
+    expect(
+      journeyColorViolations(css),
+      'Cảnh 3D đọc các token này bằng getComputedStyle rồi dựng THREE.Color. ' +
+        'Một dạng màu Three không phân giải được cho ra cảnh đen kịt, và KHÔNG có ' +
+        'lỗi CSS, lỗi build hay lỗi runtime nào kêu lên.',
+    ).toEqual([]);
+  });
+
+  it('đọc ra đúng GIÁ TRỊ, không chỉ đúng hình dạng', () => {
+    // Không có ô này thì một bộ dò luôn trả `ok: true` cũng làm ô trên xanh.
+    expect(threeReadableColor(root['--journey-bg'] ?? '').rgb).toEqual([10, 16, 33]);
+    expect(threeReadableColor(root['--journey-ink'] ?? '').rgb).toEqual([238, 245, 255]);
+  });
+
+  it('đối chứng dương trên CHÍNH globals.css: đổi đúng một token sang oklch()', () => {
+    const from = '--journey-bg: rgb(10, 16, 33);';
+    const to = '--journey-bg: oklch(0.18 0.03 260);';
+    // Hai ô dưới đây gác chính phép đối chứng: một mẫu không còn khớp, hoặc một
+    // phép thay không đổi được gì, sẽ biến ô này thành xanh khống.
+    expect(css, 'mẫu đối chứng không còn khớp globals.css, sửa lại mẫu').toContain(from);
+    const doctored = css.replace(from, to);
+    expect(doctored, 'phép thay không đổi được gì, ô đối chứng đang rỗng').not.toBe(css);
+
+    expect(journeyColorViolations(doctored)).toEqual([
+      '--journey-bg: oklch() — chỉ nhận rgb(r, g, b) hoặc hex, xem khối chú thích của C1_JOURNEY_TOKENS',
+    ]);
+  });
+
+  it('đối chứng dương: token biến mất khỏi :root cũng ĐỎ, không im lặng bỏ qua', () => {
+    const doctored = css.replace('--journey-metal: rgb(84, 107, 135);', '');
+    expect(doctored).not.toBe(css);
+    expect(journeyColorViolations(doctored)).toEqual(['--journey-metal: không khai ở :root']);
+  });
+
+  it.each([
+    ['var(--brand-navy)', 'var'],
+    ['oklch(0.18 0.03 260)', 'oklch'],
+    ['color(display-p3 0.1 0.2 0.3)', 'color'],
+    ['lab(50% 20 -30)', 'lab'],
+    ['hsl(210 50% 20%)', 'hsl'],
+    ['rgba(10, 16, 33, 0.5)', 'rgba'],
+    ['rgb(10 16 33 / 50%)', 'rgb'],
+    ['rebeccapurple', 'tên màu'],
+  ])('%s bị từ chối', (value) => {
+    expect(threeReadableColor(value).ok, `${value} lọt qua bộ dò`).toBe(false);
+  });
+
+  it('đối chứng âm: dạng hợp lệ KHÔNG bị báo nhầm', () => {
+    // Một cổng đỏ cả với lời giải đúng là một cổng sẽ bị gỡ.
+    expect(threeReadableColor('rgb(0, 0, 0)').ok).toBe(true);
+    expect(threeReadableColor('  rgb(255, 255, 255)  ').ok).toBe(true);
+    expect(threeReadableColor('#0a1021').rgb).toEqual([10, 16, 33]);
+    expect(threeReadableColor('#abc').rgb).toEqual([170, 187, 204]);
+    // Ngoài thang 8-bit thì từ chối, vì THREE.Color kẹp giá trị trong im lặng.
+    expect(threeReadableColor('rgb(300, 0, 0)').ok).toBe(false);
+  });
+});
+
 describe('C1 — `@theme inline` sinh được class Tailwind cho mọi token', () => {
   it.each(C1_COLOR_TOKENS)('%s có `--color-*` trỏ đúng về nó', (token) => {
     const mapped = themeInline[`--color${token.slice(1)}`];
-    expect(mapped, `thiếu --color${token.slice(1)} ⇒ class bg/text/border tương ứng KHÔNG được sinh ra`).toBe(
-      `var(${token})`,
-    );
+    expect(
+      mapped,
+      `thiếu --color${token.slice(1)} ⇒ class bg/text/border tương ứng KHÔNG được sinh ra`,
+    ).toBe(`var(${token})`);
   });
 
   it.each(C1_ELEVATION_TOKENS)('%s có `--shadow-*` trỏ đúng về nó', (token) => {
     const mapped = themeInline[`--shadow${token.slice(1)}`];
-    expect(mapped, `thiếu --shadow${token.slice(1)} ⇒ class shadow-elevation-* KHÔNG được sinh ra`).toBe(
-      `var(${token})`,
-    );
+    expect(
+      mapped,
+      `thiếu --shadow${token.slice(1)} ⇒ class shadow-elevation-* KHÔNG được sinh ra`,
+    ).toBe(`var(${token})`);
   });
+
+  /**
+   * Nửa còn lại của §1.5, và là nửa hay bị quên. Thiếu nó thì lệnh cấm "brand
+   * không phải màu giao diện" chỉ là một câu văn: map `--color-brand-star` là
+   * cấp cho bảy lane sau một class `bg-brand-star` hợp lệ về cú pháp, và
+   * `--brand-star` trên nền sáng đo được **1.23:1**.
+   */
+  it.each(C1_BRAND_TOKENS)(
+    '%s KHÔNG có dòng `--color-*` — brand không phải màu giao diện',
+    (token) => {
+      expect(
+        themeInline[`--color${token.slice(1)}`],
+        `--color${token.slice(1)} tồn tại ⇒ Tailwind sinh ra bg/text/border cho màu logo. ` +
+          '§1.5 cấm dùng chúng làm màu UI, và một class tồn tại là một class sẽ có người dùng.',
+      ).toBeUndefined();
+    },
+  );
+
+  /**
+   * Cùng nửa-hay-bị-quên ấy, cho bảng màu cảnh 3D.
+   *
+   * Chú thích của `C1_JOURNEY_TOKENS` viết rằng không được map chúng sang
+   * `@theme inline`. Không có ô này thì câu đó chỉ là một câu văn: map
+   * `--color-journey-coral` là cấp một `bg-journey-coral` hợp lệ về cú pháp cho
+   * mọi lane sau, và màu cảnh chưa từng đi qua bảng contrast của hệ giao diện —
+   * chúng được chọn để trông đẹp dưới ánh sáng GPU, không để chở chữ.
+   */
+  it.each(C1_JOURNEY_TOKENS)(
+    '%s KHÔNG có dòng `--color-*` — màu cảnh không phải màu giao diện',
+    (token) => {
+      expect(
+        themeInline[`--color${token.slice(1)}`],
+        `--color${token.slice(1)} tồn tại ⇒ Tailwind sinh ra bg/text/border cho màu cảnh 3D. ` +
+          'Chúng chưa qua bảng contrast, và một class tồn tại là một class sẽ có người dùng.',
+      ).toBeUndefined();
+    },
+  );
 
   it('thang bo góc suy ra từ `--radius`, không phải số cứng', () => {
     expect(themeInline['--radius-lg']).toBe('var(--radius)');
     for (const key of ['--radius-sm', '--radius-md', '--radius-xl']) {
       expect(themeInline[key]).toContain('calc(var(--radius)');
     }
+    // `--radius-full` là hằng hình học (pill), không suy từ `--radius` — ghim
+    // để nó là một ngoại lệ CÓ TÊN, không phải một dòng lọt lưới.
+    expect(themeInline['--radius-full']).toBe('9999px');
   });
 
   it('`--font-sans` đặt Be Vietnam Pro trước, kèm fallback thật (D3)', () => {
@@ -421,6 +832,9 @@ const TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
   ['--card-foreground', '--card'],
   ['--popover-foreground', '--popover'],
   ['--primary-foreground', '--primary'],
+  ['--primary', '--background'],
+  ['--primary', '--card'],
+  ['--primary', '--muted'],
   ['--secondary-foreground', '--secondary'],
   ['--accent-foreground', '--accent'],
   ['--destructive-foreground', '--destructive'],
@@ -438,12 +852,29 @@ const TEXT_PAIRS: ReadonlyArray<readonly [ColorToken, ColorToken]> = [
    */
   ['--destructive', '--background'],
   ['--destructive', '--card'],
+  /*
+   * ✅ 2026-09-10 — KHOẢNG TRỐNG ĐÃ ĐÓNG, và dòng này là cách đóng nó cho đúng.
+   *
+   * `--destructive` sáng trước đây là `oklch(0.577 0.245 27.325)`, chỉ được
+   * **4.3686:1** trên `--muted` — dưới 4.5. Khoảng trống đó được ghim bằng một
+   * *absence pin* riêng ở cuối file này, kèm một câu dặn ở
+   * `docs/design-system.md` §1c ("đừng đặt nút destructive vào khối
+   * `bg-muted`"). `p16-tokens.md` đặt giá trị mới `oklch(0.505 0.192 29)`, đo
+   * lại được **5.9429** (sáng) và **5.3271** (tối).
+   *
+   * Theo `rules/pinned-baseline-test-companion.md`: pin đỏ vì gap đã đóng thì
+   * ĐẢO nó, không "cập nhật con số". Nên absence pin bị XOÁ hẳn và cặp này vào
+   * thẳng `TEXT_PAIRS` — ghim lại 5.94 sẽ biến một lần sửa thành một baseline
+   * vĩnh viễn mà không ai rà lại.
+   */
+  ['--destructive', '--muted'],
   ['--success-foreground', '--success'],
   ['--warning-foreground', '--warning'],
   // Chữ TRÊN chip độ khó / trạng thái.
   ['--difficulty-basic-foreground', '--difficulty-basic'],
   ['--difficulty-intermediate-foreground', '--difficulty-intermediate'],
   ['--difficulty-advanced-foreground', '--difficulty-advanced'],
+  ['--difficulty-expert-foreground', '--difficulty-expert'],
   ['--status-progress-foreground', '--status-progress'],
   ['--status-done-foreground', '--status-done'],
   ['--status-locked-foreground', '--status-locked'],
@@ -602,6 +1033,107 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
     expect(() => resolve(dark, '--input')).toThrow(/trong suốt/);
   });
 
+  /**
+   * AC-3.2 — bốn cặp có ĐÁP ÁN BIẾT TRƯỚC, độc lập với mọi token.
+   *
+   * Đây là vế thay cho đối chứng cũ vốn chỉ khẳng định "4.01 < 9.48": một phép
+   * so sánh hai con số do CHÍNH phép đo sinh ra không chứng minh phép đo đúng,
+   * nó chỉ chứng minh phép đo nhất quán với chính nó
+   * (`rules/green-that-proves-nothing.md`).
+   *
+   * Bốn con số dưới đây tính tay trong `p16-tokens.md` §1.1–§1.2 theo đúng chuỗi
+   * sRGB → tuyến tính → độ chói, và ba trong bốn đã được công bố độc lập ở
+   * `docs/design-system.md` §2.1. Lệch một dòng ⇒ MÃ ĐO sai, không phải màu sai.
+   *
+   * Đi từ HEX chứ không từ oklch là có chủ ý: nó bỏ qua ma trận oklch→sRGB, nên
+   * nếu ma trận đó hỏng thì khối này vẫn đúng và khối `toHex()` ở trên mới đỏ —
+   * hai khối hỏng vì hai lý do khác nhau, đúng thứ cần để định vị lỗi.
+   */
+  describe('AC-3.2 — cặp có đáp án biết trước, không phụ thuộc token nào', () => {
+    /** `#rrggbb` → sRGB đã mã hoá gamma. */
+    function fromHex(value: string): Srgb {
+      const m = /^#([0-9a-fA-F]{6})$/.exec(value);
+      if (m?.[1] === undefined) throw new Error(`Không phải hex 6 chữ số: ${value}`);
+      const digits = m[1];
+      return [0, 2, 4].map(
+        (i) => Number.parseInt(digits.slice(i, i + 2), 16) / 255,
+      ) as unknown as Srgb;
+    }
+    const WHITE = fromHex('#ffffff');
+
+    /*
+     * Ghim tới chữ số thứ TƯ, không phải thứ hai. `toBeCloseTo(x, 2)` cho biên
+     * ±0.005, và `#373D4E` rơi đúng 10.824999 — lệch 0.005001 so với "10.83"
+     * làm tròn, tức một đối chứng đúng vẫn ĐỎ. Số nào cũng có sẵn đủ chữ số
+     * trong `p16-tokens.md` §1.1–§1.2, nên dùng thẳng số đó và bỏ hẳn khâu làm
+     * tròn: một đối chứng mà biên của nó rộng hơn sai số nó định bắt thì không
+     * gác gì, còn một đối chứng đỏ vì làm tròn thì bị tắt trong hai tuần.
+     */
+    it.each([
+      ['#ffffff', '#000000', 21.0, 'trần lý thuyết WCAG'],
+      ['#BC2626', '#ffffff', 6.0985, '`--primary` sáng trên trắng (hợp đồng §1.2)'],
+      ['#EFF003', '#ffffff', 1.2255, '`--brand-star` trên trắng — CON SỐ của lệnh cấm §1.5'],
+      ['#373D4E', '#ffffff', 10.825, '`--brand-ink` = `--foreground` sáng (hợp đồng §1.2)'],
+      ['#B89C0E', '#ffffff', 2.6924, '`--brand-star-shadow` — nửa còn lại của lệnh cấm §1.5'],
+      ['#051A53', '#ffffff', 16.4176, '`--brand-navy` — nguồn của hue 263.7'],
+    ])('%s trên %s = %s:1 (%s)', (fg, bg, expected) => {
+      const measured = contrastRatio(
+        relativeLuminance(fromHex(fg)),
+        relativeLuminance(fromHex(bg)),
+      );
+      expect(measured).toBeCloseTo(expected as number, 3);
+    });
+
+    it('`#EFF003` trên ĐEN = 17.14:1 — cùng màu, cùng phép đo, nền khác ⇒ kết luận khác', () => {
+      // Chốt rằng lệnh cấm §1.5 là về CẶP chứ không về màu: chính `#EFF003` bị
+      // cấm trên nền sáng lại là màu duy nhất được phép làm dấu thành tựu trên
+      // nền tối. Một đối chứng chỉ đo một phía sẽ đọc ra "vàng này luôn xấu".
+      expect(
+        contrastRatio(relativeLuminance(fromHex('#EFF003')), relativeLuminance(fromHex('#000000'))),
+      ).toBeCloseTo(17.1355, 3);
+      expect(WHITE).toEqual([1, 1, 1]);
+    });
+  });
+
+  /**
+   * AC-3.1 — TOKEN BỊ BẺ GÃY CÓ CHỦ ĐÍCH, chạy lại TRỌN pipeline của AC-2.
+   *
+   * Một cổng chưa từng thấy đỏ thì chưa được chứng minh là đang gác gì. Ở đây
+   * `--primary` bị ép thành `oklch(0.75 0.10 26.7)` — một hồng nhạt mà chữ
+   * trắng `--primary-foreground` chỉ đọc được ~2.3:1 — rồi CHÍNH `measure()`
+   * chạy trên bảng giả đó. Nếu nó không đỏ thì phép đo hỏng, chứ không phải
+   * token tốt.
+   *
+   * ⚠ Bảng giả kế thừa `root` bằng spread, nên nó đi qua đúng `resolve()`,
+   * đúng `composite()`, đúng `relativeLuminance()` — không có đường tắt nào.
+   * Một đối chứng tự dựng lại phép đo bằng số học riêng sẽ chứng minh cho phép
+   * đo RIÊNG đó, không phải cho cổng.
+   */
+  describe('AC-3.1 — bẻ gãy một token, cả pipeline AC-2 phải ĐỎ', () => {
+    const BROKEN = {
+      ...root,
+      '--primary': 'oklch(0.75 0.10 26.7)',
+      '--ring': 'oklch(0.75 0.10 26.7)',
+    };
+
+    it('bảng token giả: `--primary-foreground` trên `--primary` TRƯỢT ngưỡng 4.5', () => {
+      const measured = measure(BROKEN, '--primary-foreground', '--primary');
+      expect(measured).toBeLessThan(4.5);
+      // Ghim luôn con số (2.2192), để "đỏ" ở đây có nghĩa là "đỏ vì lý do này"
+      // chứ không phải "đỏ vì bảng giả tình cờ ném lỗi ở một chỗ khác".
+      expect(measured).toBeCloseTo(2.2192, 3);
+    });
+
+    it('bảng token giả: `--primary` trên `--background` TRƯỢT cả ngưỡng 3.0 của SC 1.4.11', () => {
+      expect(measure(BROKEN, '--primary', '--background')).toBeLessThan(3);
+    });
+
+    it('bảng token THẬT vượt cả hai ngưỡng đó — nếu không, đối chứng trên vô nghĩa', () => {
+      expect(measure(root, '--primary-foreground', '--primary')).toBeGreaterThanOrEqual(4.5);
+      expect(measure(root, '--primary', '--background')).toBeGreaterThanOrEqual(3);
+    });
+  });
+
   it('giá trị `--input` sáng ĐÃ TỪNG hỏng: 0.922 cho 1.26:1, dưới ngưỡng 3:1', () => {
     // Ghim lại con số của lỗi đã sửa. Nếu ai đó đưa `--input` về 0.922 thì
     // khối `NON_TEXT_PAIRS` ở trên đỏ; test này giải thích vì sao con số cũ
@@ -631,8 +1163,9 @@ describe('đối chứng — phép đo contrast ra đúng số đã biết, và 
  * ⚠ 2026-09-08 — khối này TỪNG khẳng định điều bất khả thi ấy cho CẢ HAI màu,
  * và với thương hiệu lam thì nó đúng (0 nghiệm, trắng 2.89:1 với `--primary`
  * tối). Thương hiệu đỏ làm nó SAI: đỏ có độ chói tương đối thấp hơn lam ở cùng
- * L, nên trắng nay được **4.2972:1** với `--primary` tối và phép quét cho
- * **317 nghiệm**. Một giá trị `--ring` riêng ĐANG CÓ SẴN.
+ * L. Số đo lịch sử lúc đó là 4.2972:1 và 317 nghiệm. Sau khi nâng primary tối
+ * ngày 2026-09-13 để chữ đạt 4.5 trên muted, trắng đạt 3.1397:1; phép quét bên
+ * dưới tiếp tục kiểm tra sự tồn tại của nghiệm, không ghim số nghiệm cũ.
  *
  * Ta không lấy nó. Lý do là phạm vi, không phải vật lý: `--ring` là vòng focus
  * của MỌI phần tử focus được, nên cho nó một hue riêng là thiết kế lại toàn bộ
@@ -676,7 +1209,10 @@ describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặ
     const solutions: number[] = [];
     for (let step = 0; step <= LUMINANCE_STEPS; step += 1) {
       const candidate = step / LUMINANCE_STEPS;
-      if (contrastRatio(candidate, cardLuminance) >= 3 && contrastRatio(candidate, fillLuminance) >= 3) {
+      if (
+        contrastRatio(candidate, cardLuminance) >= 3 &&
+        contrastRatio(candidate, fillLuminance) >= 3
+      ) {
         solutions.push(candidate);
       }
     }
@@ -709,37 +1245,123 @@ describe('miễn trừ CÓ CHỨNG MINH — `--ring` cạnh mặt nút tô đặ
    * nên nó được gộp về chung phép quét với `--destructive` ở trên.
    */
   it('chế độ tối: trắng tinh ĐẠT ≥3:1 với `--primary` — nên miễn trừ của nó là lựa chọn, không phải bất khả thi', () => {
-    expect(contrastRatio(1, relativeLuminance(resolve(dark, '--primary')))).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(1, relativeLuminance(resolve(dark, '--primary')))).toBeGreaterThanOrEqual(
+      3,
+    );
   });
 });
 
 /**
- * Khoảng trống ĐÃ ĐO của biến thể `destructive` dạng viền (14.A quyết định #1).
+ * AC-4, vế SỐ HỌC của luật hai kênh (`p16-tokens.md` §2.3).
  *
- * Nhãn nút/badge destructive lúc nghỉ là `text-destructive` trên nền trang.
- * `TEXT_PAIRS` đã gác nó ≥4.5 trên `--background` và `--card`. Trên `--muted`
- * nhánh SÁNG thì KHÔNG đạt — và con số đó được ghim ở đây thay vì giấu đi.
+ * `button.test.tsx` và `badge.test.tsx` gác vế CẤU TRÚC — class nào đi ra DOM,
+ * icon có mặt hay không. Vế còn lại là một phép đo, và nó phải sống ở đây vì
+ * đây là nơi có chuỗi oklch → sRGB → độ chói; chép cả chuỗi đó sang một test
+ * component để có một con số là dựng bản thứ hai của phép đo, rồi hai bản trôi
+ * khỏi nhau.
  *
- * Nguyên nhân là một cái TRẦN, không phải một chỗ chỉnh sai: `--destructive`
- * sáng chỉ đạt 4.7647:1 trên nền trắng tinh, nên bất kỳ mặt nào tối hơn trắng
- * đều ăn vào phần dư mỏng đó. Sửa được bằng một token đỏ đậm hơn cho chữ —
- * nhưng đó là thêm token vào C1, tức một thay đổi hợp đồng, không phải việc của
- * lane này.
+ * Điều được chứng minh: bỏ HẾT sắc độ thì hai nút vẫn khác nhau. Mặt nút
+ * `primary` là `bg-primary` ĐẶC; mặt nút `destructive` lúc nghỉ là
+ * `bg-transparent`, tức nó LỘ RA mặt bên dưới (`--background` hoặc `--card`).
+ * Nên khoảng cách cần đo chính là `--primary` ↔ mặt nền — và ≥3.0 là ngưỡng
+ * SC 1.4.11 cho hai thành phần phi-văn-bản cạnh nhau.
  *
- * ⚠ Đây là một ABSENCE PIN theo `rules/pinned-baseline-test-companion.md`: nó
- * tự làm companion cho chính mình, vì chính lúc nó ĐỎ là lúc khoảng trống đã
- * đóng. Khi đó việc phải làm là XOÁ test này và thêm `['--destructive',
- * '--muted']` vào `TEXT_PAIRS` — tuyệt đối không nới con số ở đây.
+ * Khác biệt ở MÀU giữa hai token là 1.0646 (sáng) / 1.1062 (tối) — gần 1.00,
+ * tức "cùng một màu". Khác biệt ở CẤU TRÚC trên nền là 6.09 / 6.31. Đó là lý do
+ * luật §2.2 nằm ở hình dạng chứ không ở sắc độ.
  */
-describe('khoảng trống đã đo — nhãn destructive trên `--muted`', () => {
-  it('nhánh sáng CHƯA đạt 4.5:1 (đo 4.3686) ⇒ đừng đặt nút destructive trong khối `bg-muted`', () => {
-    const measured = measure(root, '--destructive', '--muted');
-    expect(measured).toBeCloseTo(4.3686, 3);
-    expect(measured, 'nếu dòng này đỏ vì đã ĐẠT 4.5 thì xoá cả test, thêm cặp vào TEXT_PAIRS').toBeLessThan(4.5);
+describe('AC-4 — luật hai kênh sống sót khi KHỬ MÀU', () => {
+  it.each([
+    ['sáng (:root)', root, 6.0885, 6.0885],
+    ['tối (.dark)', dark, 6.3056, 5.7071],
+  ])(
+    '%s: mặt `primary` ĐẶC vs mặt `destructive` RỖNG ≥ 3.0:1 trên cả trang lẫn card',
+    (_label, theme, onBackground, onCard) => {
+      const overBackground = measure(theme as Record<string, string>, '--primary', '--background');
+      const overCard = measure(theme as Record<string, string>, '--primary', '--card');
+      expect(overBackground).toBeGreaterThanOrEqual(3);
+      expect(overCard).toBeGreaterThanOrEqual(3);
+      // Ghim số đo, để "xanh" ở đây có nghĩa là "xanh vì đúng khoảng cách này"
+      // chứ không phải "xanh vì một token nào đó tình cờ đủ xa".
+      expect(overBackground).toBeCloseTo(onBackground as number, 3);
+      expect(overCard).toBeCloseTo(onCard as number, 3);
+    },
+  );
+
+  it.each([
+    ['sáng (:root)', root, 1.0646],
+    ['tối (.dark)', dark, 1.1062],
+  ])(
+    '%s: hai token đỏ cách nhau %s:1 — gần 1.00, nên MÀU không tách được chúng',
+    (_label, theme, expected) => {
+      const measured = measure(theme as Record<string, string>, '--primary', '--destructive');
+      expect(measured).toBeCloseTo(expected as number, 3);
+      expect(
+        measured,
+        'nếu dòng này ĐỎ vì hai màu đã cách nhau ≥3.0 thì luật hai kênh §2.2 mất lý do tồn tại — ' +
+          'và đó là một thay đổi hợp đồng, không phải một con số cần cập nhật ở đây.',
+      ).toBeLessThan(3);
+    },
+  );
+});
+
+/**
+ * ✅ 2026-09-10 — ABSENCE PIN "nhãn destructive trên `--muted`" ĐÃ BỊ XOÁ khỏi
+ * chỗ này, và đó là chiều-đóng-gap của `rules/pinned-baseline-test-companion.md`
+ * hoạt động đúng như nó dặn.
+ *
+ * Pin cũ ghim 4.3686 (dưới 4.5) và tự làm companion cho chính mình: nó ĐỎ đúng
+ * lúc khoảng trống đóng. `p16-tokens.md` hạ `--destructive` sáng xuống
+ * `oklch(0.505 0.192 29)`, đo lại 5.9429 — pin đỏ, và việc phải làm là XOÁ nó
+ * rồi đưa cặp vào `TEXT_PAIRS` (đã làm, xem chú thích tại chỗ ở đó). Ghim lại
+ * 5.94 sẽ là "đổi tên hiện tại thành kỳ vọng", đúng thứ luật cấm.
+ *
+ * Câu dặn tương ứng ở `docs/design-system.md` §1c cũng đã được gỡ trong CÙNG
+ * commit — một tài liệu còn dặn tránh một khoảng trống không còn tồn tại thì
+ * đang dạy sai.
+ *
+ * 2026-09-12: khoảng trống primary tối đã đóng. Ba cặp link với
+ * background/card/muted nay nằm trong TEXT_PAIRS, ngưỡng 4.5 ở cả hai theme.
+ */
+describe('đối chứng hồi quy màu link tối', () => {
+  it('màu cũ không đạt trên card và muted, màu hiện tại đạt cả hai', () => {
+    const previous = { ...dark, '--primary': 'oklch(0.61 0.238 26.7)' };
+    for (const surface of ['--card', '--muted'] as const) {
+      expect(measure(previous, '--primary', surface)).toBeLessThan(4.5);
+      expect(measure(dark, '--primary', surface)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
+/**
+ * §1.5 — `--brand-star` và `--brand-star-shadow` BỊ CẤM trên nền sáng, và lệnh
+ * cấm đó ở đây là một CON SỐ chứ không phải một lời dặn.
+ *
+ * Chúng mang nghĩa "thành tựu", tức mang thông tin, nên ngưỡng thấp nhất áp
+ * dụng được là 3.0 của SC 1.4.11 — không có nhánh "chỉ là trang trí" để lách.
+ * `--brand-star` được 1.2247 và `--brand-star-shadow` 2.6954 trên nền trắng.
+ *
+ * Đây KHÔNG phải absence pin chờ ngày đóng: hai giá trị này là màu THƯƠNG HIỆU
+ * cố định, chúng sẽ không sáng lên. Cái được gác là "nếu ai đó đổi một trong
+ * hai để cho vừa nền sáng thì đó là đổi nhận diện, và phải đi qua hợp đồng".
+ */
+describe('§1.5 — sao vàng chỉ sống trên nền tối', () => {
+  it('`--brand-star` trên nền SÁNG dưới 3.0 (1.2247) ⇒ cấm, không có ngoại lệ trang trí', () => {
+    const bg = resolve(root, '--background');
+    const star = resolve(root, '--brand-star', bg);
+    expect(contrastRatio(relativeLuminance(star), relativeLuminance(bg))).toBeLessThan(3);
   });
 
-  it('nhánh tối thì ĐẠT — khoảng trống chỉ có ở nhánh sáng, không phải cả hai', () => {
-    expect(measure(dark, '--destructive', '--muted')).toBeGreaterThanOrEqual(4.5);
+  it('`--brand-star-shadow` trên nền SÁNG cũng dưới 3.0 (2.6954) ⇒ cùng lệnh cấm', () => {
+    const bg = resolve(root, '--background');
+    const shade = resolve(root, '--brand-star-shadow', bg);
+    expect(contrastRatio(relativeLuminance(shade), relativeLuminance(bg))).toBeLessThan(3);
+  });
+
+  it('`--brand-star` trên nền TỐI đạt 16.15 — đó là mặt nền DUY NHẤT của nó', () => {
+    const bg = resolve(dark, '--background');
+    const star = resolve(dark, '--brand-star', bg);
+    expect(contrastRatio(relativeLuminance(star), relativeLuminance(bg))).toBeGreaterThanOrEqual(3);
   });
 });
 
@@ -773,11 +1395,17 @@ const KNOWN_OUT_OF_GAMUT: Readonly<Record<string, string>> = {
   // giá trị đó nằm TRONG gamut với dư 0.00534 chroma — chừa biên có chủ ý, xem
   // phép quét L ghi ở `globals.css`. Không dòng nào bị chỉnh cho "khớp danh
   // sách"; danh sách co lại vì màu thật sự đã vào gamut.
-  ':root --destructive': 'oklch(0.577 0.245 27.325) — chroma 0.245 vượt gamut ở L=0.577',
-  ':root --success': 'oklch(0.518 0.146 150.741) — chroma 0.146 vượt gamut ở L=0.518',
-  ':root --warning': 'oklch(0.541 0.15 55.98) — chroma 0.15 vượt gamut ở L=0.541',
-  '.dark --destructive': 'oklch(0.704 0.191 22.216) — chroma 0.191 vượt gamut ở L=0.704',
-  '.dark --warning': 'oklch(0.769 0.188 70.08) — chroma 0.188 vượt gamut ở L=0.769',
+  //
+  // ✅ 2026-09-10 — HAI dòng nữa đã được XOÁ, cùng cơ chế: `:root --destructive`
+  // (cũ `oklch(0.577 0.245 27.325)`) và `.dark --destructive` (cũ
+  // `oklch(0.704 0.191 22.216)`). `p16-tokens.md` đặt chúng thành
+  // `oklch(0.505 0.192 29)` và `oklch(0.704 0.175 29)`, cả hai nằm TRONG gamut.
+  // Cổng chiều-xuống báo hai dòng hết hạn, nên hai dòng bị xoá — token KHÔNG bị
+  // chỉnh ngược cho khớp sổ. Còn lại đúng ba dòng, và cả ba là token KẾ THỪA mà
+  // §1.4 đánh dấu "(kế thừa)", tức nằm ngoài phạm vi đợt này.
+  ':root --success': 'oklch(0.518 0.146 150.741) — chroma 0.146 vượt gamut ở L=0.518 (kế thừa)',
+  ':root --warning': 'oklch(0.541 0.15 55.98) — chroma 0.15 vượt gamut ở L=0.541 (kế thừa)',
+  '.dark --warning': 'oklch(0.769 0.188 70.08) — chroma 0.188 vượt gamut ở L=0.769 (kế thừa)',
 };
 
 describe('gamut sRGB — số đo chỉ đúng khi màu nằm trong gamut', () => {
@@ -787,17 +1415,21 @@ describe('gamut sRGB — số đo chỉ đúng khi màu nằm trong gamut', () =
     expect(inSrgbGamut('oklch(0.7 0.4 262.881)')).toBe(false);
   });
 
-  const entries = ([
-    [':root', root],
-    ['.dark', dark],
-  ] as const).flatMap(([label, theme]) =>
+  const entries = (
+    [
+      [':root', root],
+      ['.dark', dark],
+    ] as const
+  ).flatMap(([label, theme]) =>
     Object.entries(theme)
       .filter(([, value]) => value.startsWith('oklch('))
       .map(([token, value]) => ({ key: `${label} ${token}`, value })),
   );
 
   it('CHIỀU LÊN — không token nào ngoài gamut mà chưa được ghi nợ', () => {
-    const undeclared = entries.filter((e) => !inSrgbGamut(e.value) && KNOWN_OUT_OF_GAMUT[e.key] === undefined);
+    const undeclared = entries.filter(
+      (e) => !inSrgbGamut(e.value) && KNOWN_OUT_OF_GAMUT[e.key] === undefined,
+    );
     expect(
       undeclared.map((e) => `${e.key} = ${e.value}`),
       'token ngoài gamut MỚI: trình duyệt sẽ gamut-map nó khác với clamp của phép đo, nên tỉ lệ đo được ' +
@@ -819,7 +1451,7 @@ describe('gamut sRGB — số đo chỉ đúng khi màu nằm trong gamut', () =
   it('token độ khó / trạng thái đều TRONG gamut (số đo của chúng là số thật)', () => {
     const semantic = entries.filter((e) => /--(difficulty|status)-/.test(e.key));
     // Nếu bộ lọc hụt, khối này xanh vì rỗng — ghim số lượng để không xanh khống.
-    expect(semantic).toHaveLength(24);
+    expect(semantic).toHaveLength(28);
     expect(semantic.filter((e) => !inSrgbGamut(e.value)).map((e) => e.key)).toEqual([]);
   });
 });
@@ -834,7 +1466,10 @@ describe('D4 — prefers-reduced-motion khai một lần, dùng chung', () => {
   const block = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*?)\n\}/.exec(css)?.[1];
 
   it('có khối @media (prefers-reduced-motion: reduce)', () => {
-    expect(block, 'thiếu khối reduced-motion ⇒ mọi lane phải tự nhớ, tức sẽ có lane quên').toBeDefined();
+    expect(
+      block,
+      'thiếu khối reduced-motion ⇒ mọi lane phải tự nhớ, tức sẽ có lane quên',
+    ).toBeDefined();
   });
 
   it('phủ bằng bộ chọn phổ quát — tiện ích Tailwind KHÔNG đọc --motion-*', () => {

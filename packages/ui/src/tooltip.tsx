@@ -19,7 +19,20 @@ export function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-50 rounded-md bg-foreground px-3 py-1.5 text-xs text-background shadow-md',
+          /*
+           * `border border-border` KHÔNG phải trang trí: hợp đồng §6 cấm dùng
+           * bóng làm cơ chế tương phản duy nhất, vì Windows High Contrast bỏ
+           * hẳn `box-shadow` — một mặt nổi chỉ tách khỏi nền bằng bóng thì biến
+           * mất với người bật chế độ đó. Tooltip này còn tách bằng MÀU (mặt đảo
+           * `bg-foreground` trên `bg-background` = 10.83:1), nên viền là lớp
+           * bảo hiểm thứ hai chứ không phải lớp duy nhất.
+           *
+           * `rounded-md` chứ không `rounded-lg`: tooltip cao 28px, một bo góc
+           * 12px trên một hộp cao 28px đọc ra gần như viên thuốc. Thang §5 xếp
+           * nó cùng bậc với nút/ô nhập.
+           */
+          'z-50 rounded-md border border-border bg-foreground px-3 py-1.5 text-xs text-background',
+          'shadow-elevation-3',
           className,
         )}
         {...props}

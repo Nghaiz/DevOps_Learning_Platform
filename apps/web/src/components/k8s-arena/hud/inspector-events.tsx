@@ -1,47 +1,123 @@
 'use client';
 
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
+import { AlertTriangle, CheckCircle2, Info, Search, XCircle } from 'lucide-react';
 import type { EventView } from '@devops-platform/games';
 import { cn } from '@devops-platform/ui';
-import { EVENT_LEVEL_CLASS, EVENT_LEVEL_LABEL } from './inspector-types.ts';
+import { HIDDEN_SCROLL } from './inspector-frame.tsx';
+import { EVENT_LEVEL_LABEL } from './inspector-types.ts';
+import './events.css';
 
 export interface InspectorEventsProps {
-  /**
-   * Sự kiện của đúng object đang chọn — `InspectorPanel` lọc theo `involvedUid`
-   * trước khi truyền xuống.
-   */
   readonly events: readonly EventView[];
+  readonly tick: number;
+  readonly scope?: 'resource' | 'cluster';
 }
 
-/** Tab Sự kiện của bảng thông số. Mới nhất lên trên — chẩn đoán đọc từ hiện tại lùi về. */
-export function InspectorEvents({ events }: InspectorEventsProps): ReactElement {
-  if (events.length === 0) {
-    return (
-      <p className="py-6 text-center text-xs text-muted-foreground">
-        Chưa có sự kiện nào gắn với tài nguyên này.
-      </p>
-    );
-  }
+type Filter = 'all' | EventView['level'];
+const FILTERS: readonly Filter[] = ['all', 'error', 'warning', 'info'];
+const ICON = { info: Info, warning: AlertTriangle, error: XCircle };
 
-  const newestFirst = [...events].reverse();
+/** Shared readable history; visible severity labels never rely on colour alone. */
+export function InspectorEvents({
+  events,
+  tick,
+  scope = 'resource',
+}: InspectorEventsProps): ReactElement {
+  const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
+  const counts = { all: events.length, error: 0, warning: 0, info: 0 };
+  for (const event of events) counts[event.level] += 1;
+  const shown = events
+    .filter(
+      (event) =>
+        (filter === 'all' || event.level === filter) &&
+        event.message.toLocaleLowerCase('vi').includes(query.trim().toLocaleLowerCase('vi')),
+    )
+    .slice()
+    .reverse();
 
   return (
-    <ol className="flex flex-col divide-y divide-border">
-      {newestFirst.map((event, index) => (
-        // Khoá gồm cả chỉ số: hai sự kiện cùng tick với cùng nội dung là chuyện
-        // bình thường (hai container của một pod hỏng cùng lúc vì cùng nguyên
-        // nhân), và khoá trùng sẽ làm React bỏ hẳn dòng thứ hai.
-        <li
-          key={`${String(event.tick)}-${String(index)}-${event.message}`}
-          className="flex gap-2 py-1.5 text-xs"
-        >
-          <span aria-hidden="true" className="shrink-0 font-mono text-[11px] text-muted-foreground">
-            t{event.tick}
-          </span>
-          <span className="sr-only">{EVENT_LEVEL_LABEL[event.level]}:</span>
-          <span className={cn('min-w-0 wrap-break-word', EVENT_LEVEL_CLASS[event.level])}>{event.message}</span>
-        </li>
-      ))}
-    </ol>
+    <div className="arena-event-feed">
+      <div className="arena-event-tools">
+        <div className="arena-event-filters" role="group" aria-label="Lọc mức độ sự kiện">
+          {FILTERS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={filter === option}
+              onClick={() => {
+                setFilter(option);
+              }}
+            >
+              {option === 'all' ? 'Tất cả' : EVENT_LEVEL_LABEL[option]}{' '}
+              <span>{counts[option]}</span>
+            </button>
+          ))}
+        </div>
+        <label className="arena-event-search">
+          <Search aria-hidden size={15} />
+          <input
+            aria-label="Tìm trong nội dung sự kiện"
+            placeholder="Tìm nội dung sự kiện…"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
+          />
+        </label>
+        <p className="arena-event-caption">Mới nhất ở trên · Mốc là bước mô phỏng của cụm</p>
+      </div>
+      <ol
+        tabIndex={0}
+        aria-label={scope === 'cluster' ? 'Nhật ký sự kiện của cụm' : 'Sự kiện của tài nguyên'}
+        className={cn('arena-event-list', HIDDEN_SCROLL)}
+      >
+        {shown.map((event, index) => {
+          const Icon = ICON[event.level];
+          const delta = Math.max(0, tick - event.tick);
+          return (
+            <li
+              key={`${event.tick}-${index}-${event.message}`}
+              className="arena-event-card"
+              data-level={event.level}
+            >
+              <span className="arena-event-symbol">
+                <Icon aria-hidden size={16} />
+              </span>
+              <div className="arena-event-content">
+                <div className="arena-event-meta">
+                  <strong>{EVENT_LEVEL_LABEL[event.level]}</strong>
+                  <span>
+                    Mốc {event.tick}
+                    {scope === 'resource'
+                      ? ` · ${delta === 0 ? 'vừa xong' : `${delta} bước trước`}`
+                      : ''}
+                  </span>
+                </div>
+                <p>{event.message}</p>
+              </div>
+            </li>
+          );
+        })}
+        {shown.length === 0 ? (
+          <li className="arena-event-empty">
+            <CheckCircle2 aria-hidden size={24} />
+            <strong>
+              {events.length === 0 ? 'Chưa có hoạt động được ghi lại' : 'Không có sự kiện phù hợp'}
+            </strong>
+            <p>
+              {events.length === 0
+                ? 'Khi cụm xếp lịch, khởi động hoặc gặp lỗi, diễn biến sẽ xuất hiện tại đây.'
+                : 'Thử chọn Tất cả hoặc đổi nội dung tìm kiếm.'}
+            </p>
+          </li>
+        ) : null}
+      </ol>
+      <p className="arena-event-footer">
+        {shown.length} / {events.length} sự kiện · Nhật ký ghi lại diễn biến, không phải số sự cố
+        đang mở.
+      </p>
+    </div>
   );
 }

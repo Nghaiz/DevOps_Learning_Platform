@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
+import { t } from '@devops-platform/copy';
 import { redirect } from 'next/navigation';
 import { readCanAuthor, readViewerSession } from '../../components/catalog/viewer-role.server';
 import { QuizClient } from './quiz-client';
 
 export const metadata: Metadata = {
-  title: 'Quiz — DevOps Learning Platform',
+  title: t('catalog.meta-title.quiz'),
 };
 
 /**

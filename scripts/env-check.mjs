@@ -230,6 +230,35 @@ const SCOPES = [
   },
 ];
 
+/**
+ * Biến do RUNTIME TỰ ĐẶT, không phải cấu hình của ai.
+ *
+ * Chiều miễn trừ này NGƯỢC với `# env-check: allow-unused` (khai rồi mà chưa ai
+ * đọc). Ở đây là: code ĐỌC nhưng `.env.example` KHÔNG được khai.
+ *
+ * ⛔ Và "không được khai" là chủ ý, không phải một chỗ lười. `.env.example` là
+ * thứ người mới clone repo copy sang `.env` rồi điền. Khai `NEXT_RUNTIME` ở đó
+ * là mời họ tự đặt nó — mà đặt sai thì `instrumentation.ts` hoặc bỏ qua runtime
+ * nodejs thật, hoặc khởi động worker trong runtime edge vốn không có timer nền
+ * lẫn kết nối Postgres. Một dòng trong file mẫu là một dòng sẽ có người sửa.
+ *
+ * Tiêu chí vào danh sách này, cả hai vế đều phải đúng: (1) một framework hoặc
+ * container tự đặt nó, (2) người vận hành đặt nó là SAI. Biến chỉ "thường không
+ * cần đặt" thì dùng dạng OPTIONAL (`# FOO=bar`), không dùng chỗ này.
+ */
+const FRAMEWORK_INJECTED = new Map([
+  [
+    'NEXT_RUNTIME',
+    'Next tự đặt `nodejs` hoặc `edge` theo runtime đang chạy đoạn mã đó. ' +
+      '`src/instrumentation.ts` đọc nó để KHÔNG khởi động worker nền trong runtime edge.',
+  ],
+  [
+    'NEXT_PHASE',
+    'Next tự đặt `phase-production-build` trong `next build`. `src/instrumentation.ts` ' +
+      'đọc nó để không mở kết nối Postgres trong bước dựng ảnh Docker (bước đó không có DATABASE_URL).',
+  ],
+]);
+
 // -------------------------------------------------------------------- checks
 
 const errors = [];
@@ -240,6 +269,25 @@ for (const scope of SCOPES) {
   const declared = new Set([...active, ...optional]);
 
   for (const [name, where] of scope.used) {
+    if (FRAMEWORK_INJECTED.has(name)) {
+      /*
+        Nửa CHỐNG ÔI của miễn trừ này, và nó chạy đúng chiều ngược lại.
+
+        Một miễn trừ chỉ bỏ qua thì sẽ sống mãi kể cả khi tiền đề của nó sai.
+        Ở đây tiền đề là "người vận hành KHÔNG được đặt biến này", nên phép kiểm
+        đúng là: nếu có ai khai nó trong `.env.example` thì miễn trừ này đã sai,
+        và cổng phải ĐỎ chứ không phải im lặng chấp nhận cả hai.
+      */
+      if (declared.has(name)) {
+        fail(
+          scope.name,
+          `${name} được khai trong ${scope.envFile}, nhưng nó nằm trong FRAMEWORK_INJECTED ` +
+            `của scripts/env-check.mjs: ${FRAMEWORK_INJECTED.get(name)} ` +
+            'Xoá dòng khai đó, hoặc xoá mục miễn trừ nếu nó đã hết đúng.',
+        );
+      }
+      continue;
+    }
     if (!declared.has(name)) {
       fail(scope.name, `code đọc ${name} (${where}) nhưng ${scope.envFile} không khai nó`);
     }

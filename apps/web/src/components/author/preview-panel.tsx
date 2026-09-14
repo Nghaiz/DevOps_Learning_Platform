@@ -1,9 +1,11 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import { useState, type ReactElement } from 'react';
 import { Alert, AlertDescription, AlertTitle, Button, ContentView } from '@devops-platform/ui';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
 import type { PreviewPayload } from './draft-from-preview';
+import { renderCopy } from '@devops-platform/copy';
 import { previewPhases, resolveContentAssetUrl } from './preview-phases';
 
 /**
@@ -33,10 +35,13 @@ export function PreviewPanel(props: {
   if (props.payload.kind === 'playground') {
     return (
       <Alert>
-        <AlertTitle>Playground không có nội dung để xem trước</AlertTitle>
+        <AlertTitle>
+          {t('author.preview-panel-playground-khong-co-noi-dung-de-xem-truoc')}
+        </AlertTitle>
         <AlertDescription>
-          Người học nhận đúng một sandbox trống với tier, capability và thời hạn đã khai ở tab Soạn. Không có
-          bước nào, không có script chấm nào.
+          {t(
+            'author.preview-panel-nguoi-hoc-nhan-dung-mot-sandbox-trong-voi-tier-capability-va-thoi-han-da-kh',
+          )}
         </AlertDescription>
       </Alert>
     );
@@ -45,10 +50,15 @@ export function PreviewPanel(props: {
   if (active === null) {
     return (
       <Alert variant="warning">
-        <AlertTitle>Chưa có gì để xem trước</AlertTitle>
+        <AlertTitle>{t('author.preview-panel-chua-co-gi-de-xem-truoc')}</AlertTitle>
         <AlertDescription>
-          Bài này chưa có {props.payload.kind === 'lab' ? 'task' : 'bước'} nào, hoặc nguồn nội dung chưa nhận bản
-          nháp. Thêm nội dung ở tab Soạn, rồi quay lại đây.
+          {t('author.preview-panel-bai-nay-chua-co')}{' '}
+          {props.payload.kind === 'lab'
+            ? t('author.step-task-noun')
+            : t('author.preview-panel-buoc')}{' '}
+          {t(
+            'author.preview-panel-nao-hoac-nguon-noi-dung-chua-nhan-ban-nhap-them-noi-dung-o-tab-soan-roi-qua',
+          )}
         </AlertDescription>
       </Alert>
     );
@@ -58,8 +68,9 @@ export function PreviewPanel(props: {
     <div className="flex flex-col gap-4">
       <Alert>
         <AlertDescription>
-          Đây là chính khung nội dung của trình học. Nút chạy trên khối code bị vô hiệu hoá vì xem trước không
-          dựng sandbox — đúng như trình học khi người dùng chưa bắt đầu phiên.
+          {t(
+            'author.preview-panel-day-la-chinh-khung-noi-dung-cua-trinh-hoc-nut-chay-tren-khoi-code-bi-vo-hie',
+          )}
         </AlertDescription>
       </Alert>
 
@@ -75,7 +86,7 @@ export function PreviewPanel(props: {
                 setActiveKey(phase.key);
               }}
             >
-              {phase.label}
+              {typeof phase.label === 'string' ? phase.label : renderCopy(phase.label)}
             </Button>
           ))}
         </div>

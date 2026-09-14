@@ -59,7 +59,10 @@ export type BadgeVariant =
  * `theme/tokens.contract.test.ts` mô tả).
  */
 const badgeVariants = cva(
-  'inline-flex w-fit shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap',
+  // §5 xếp badge/chip vào bậc `sm` (`calc(var(--radius) - 6px)` = 6px). Bậc `md`
+  // cũ là bậc của nút/ô nhập; một chip cao 20px đeo bo góc 9px đọc ra viên thuốc
+  // dở dang — không phải chip, cũng không phải pill.
+  'inline-flex w-fit shrink-0 items-center gap-1 rounded-sm border px-2 py-0.5 text-xs font-medium whitespace-nowrap',
   {
     variants: {
       variant: {

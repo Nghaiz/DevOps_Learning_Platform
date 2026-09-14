@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, type ReactElement } from 'react';
-import { Clock, LogOut, Pause, Settings, Star } from 'lucide-react';
+import { type ReactElement } from 'react';
+import { Clock, LogOut, Pause, Settings, ShieldAlert } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from '@devops-platform/ui';
 import type { Objective } from '@devops-platform/games';
 
@@ -29,8 +29,8 @@ const SPEEDS: readonly number[] = [0, 1, 2, 4];
  * (chủ dự án báo 2026-09-08). Nếu sau này lead bọc HUD trong một khối đã nằm
  * dưới thanh, đổi `HUD_TOP_OFFSET` về `'top-0'` là xong — một dòng.
  */
-export const TOP_BAR_HEIGHT = 'h-12';
-export const HUD_TOP_OFFSET = 'top-12';
+export const TOP_BAR_HEIGHT = 'h-16';
+export const HUD_TOP_OFFSET = 'top-16';
 
 /**
  * Vùng cuộn được nhưng KHÔNG hiện thanh trượt.
@@ -52,14 +52,36 @@ export interface TopBarProps {
   readonly objectives: readonly Objective[];
   /** `SessionStatus.objectivesMet`. */
   readonly metIds: readonly string[];
+  /**
+   * `ObjectiveKinds.guards` — mục tiêu đúng sẵn mà người chơi phải GIỮ.
+   *
+   * Bị loại khỏi thanh tiến độ. Đếm chúng làm mọi bài mở ra ở một tỉ lệ khác 0
+   * cho một việc chưa ai làm — chủ dự án đọc đúng nó thành *"tôi vừa vào mà đã
+   * có task được hoàn thành rồi"*.
+   */
+  readonly guardIds: readonly string[];
   /** `Date.now()` lúc vào bài. Thanh tự đếm từ đó, không nhận một con số đổi mỗi giây qua prop. */
   readonly startedAt: number;
-  /** 0..3. Điểm sao do tầng chấm điểm tính, thanh chỉ hiển thị. */
-  readonly stars: number;
+  readonly simulationTick?: number;
+  /**
+   * Dải số liệu cụm, do bên gọi dựng (`HeaderMetrics`).
+   *
+   * Nhận vào dưới dạng node chứ không dựng tại chỗ: thanh này không được biết
+   * `ClusterView` — nó chỉ nhận những gì cần vẽ. Ba ngôi sao trước đây chiếm
+   * đúng chỗ này và không bao giờ đổi giá trị cho tới lúc thắng.
+   */
+  readonly metrics?: ReactElement | null;
   /** Nhịp hiện tại; `0` = đang tạm dừng. */
   readonly speed: number;
   readonly onSpeedChange: (multiplier: number) => void;
   readonly onExit: () => void;
+  /**
+   * Mở bảng CÀI ĐẶT.
+   *
+   * Trước đây nút này mở ngăn tra cứu: biểu tượng nói "cài đặt", nhãn nói "trợ
+   * giúp bài học", và cú bấm mở một thứ thứ ba. Ngăn tra cứu có nút riêng ở
+   * thanh công cụ dưới.
+   */
   readonly onSettings: () => void;
 }
 
@@ -75,72 +97,90 @@ export function TopBar({
   title,
   objectives,
   metIds,
-  startedAt,
-  stars,
+  guardIds,
+  simulationTick = 0,
+  metrics = null,
   speed,
   onSpeedChange,
   onExit,
   onSettings,
 }: TopBarProps): ReactElement {
-  const [now, setNow] = useState(startedAt);
-
-  /*
-   * Đồng hồ đếm theo ĐỒNG HỒ TREO TƯỜNG, kể cả lúc mô phỏng tạm dừng — và đó là
-   * lựa chọn, không phải sót. Dừng mô phỏng để ngồi nghĩ vẫn là thời gian đã
-   * tiêu; một đồng hồ đứng lại lúc tạm dừng biến "tạm dừng" thành nước đi tối ưu
-   * để ăn điểm thời gian.
-   */
-  useEffect(() => {
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [startedAt]);
-
   const met = new Set(metIds);
-  const required = objectives.filter((objective) => objective.required);
+  const guard = new Set(guardIds);
+  const required = objectives.filter((objective) => objective.required && !guard.has(objective.id));
+  /* Ràng buộc "phải giữ" bị VỠ là tin xấu, và nó phải thấy được mà không cần mở thẻ nhiệm vụ. */
+  const brokenGuards = objectives.filter(
+    (objective) => guard.has(objective.id) && !met.has(objective.id),
+  ).length;
   const done = required.filter((objective) => met.has(objective.id)).length;
-  const percent = required.length === 0 ? 0 : Math.round((done / required.length) * 100);
 
   return (
     <TooltipProvider delayDuration={300}>
-      <header className={cn('pointer-events-auto flex shrink-0 items-center gap-3 border-b border-border bg-card px-3', TOP_BAR_HEIGHT)}>
+      <header
+        className={cn(
+          'arena-topbar pointer-events-auto flex shrink-0 items-center gap-3 border-b border-border bg-card px-3',
+          TOP_BAR_HEIGHT,
+        )}
+      >
         <IconButton label="Thoát bài" onClick={onExit}>
           <LogOut className="size-4" />
         </IconButton>
 
-        <div className="flex min-w-0 items-baseline gap-2">
-          <span className="font-mono text-xs font-semibold text-muted-foreground">{code}</span>
+        <div className="arena-title flex min-w-0 flex-col justify-center gap-1">
+          <span
+            className="arena-level-code font-mono text-xs font-semibold text-muted-foreground"
+            title={code}
+          >
+            KUBERNETES ARENA · {code.split('-')[1]?.padStart(2, '0') ?? code}
+          </span>
           <h1 className="truncate text-sm font-semibold text-foreground">{title}</h1>
         </div>
 
-        <div className="ml-2 flex min-w-24 max-w-40 flex-1 items-center gap-2">
-          <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-status-done transition-[width] duration-(--motion-base) ease-out"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          <span className="font-mono text-xs text-muted-foreground" aria-label={`Đã đạt ${done} trên ${required.length} mục tiêu`}>
-            {done}/{required.length}
+        {/*
+         * Mục tiêu còn lại, ở dạng MỘT con số.
+         *
+         * Thanh tiến độ cũ đã gỡ: nó lặp lại đúng con số ngay cạnh nó, rồi lặp
+         * lại lần nữa cả danh sách mục tiêu trong thẻ nhiệm vụ ở ngay bên dưới —
+         * ba lần cùng một thông tin trên một màn hình, và nó chiếm mất chỗ của
+         * dải số liệu (xem `header-metrics.tsx`).
+         */}
+        <span
+          className="arena-objectives shrink-0 font-mono text-xs text-muted-foreground"
+          title="Tiến độ nhiệm vụ"
+          aria-label={`Đã đạt ${done} trên ${required.length} mục tiêu`}
+        >
+          <span className={done === required.length ? 'text-success' : 'text-foreground'}>
+            {done}
           </span>
-        </div>
-
-        <div className="ml-auto flex items-center gap-1 text-muted-foreground" aria-label={`${stars} trên 3 sao`}>
-          {[1, 2, 3].map((position) => (
-            <Star
-              key={position}
-              aria-hidden
-              className={cn('size-4', position <= stars ? 'fill-warning text-warning' : 'text-input')}
-            />
-          ))}
-        </div>
-
-        <span className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
-          <Clock className="size-3.5" aria-hidden />
-          {formatElapsed(now - startedAt)}
+          /{required.length}
+          <small className="arena-progress-caption"> mục tiêu</small>
         </span>
 
-        <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5" role="group" aria-label="Tốc độ mô phỏng">
+        <div className="arena-header-status ml-auto flex min-w-0 items-center gap-3">{metrics}</div>
+
+        {brokenGuards === 0 ? null : (
+          <span
+            className="arena-guard-alarm flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+            title="Bạn đã làm hỏng một thứ mà bài yêu cầu giữ nguyên. Mở thẻ nhiệm vụ để xem là thứ gì."
+          >
+            <ShieldAlert className="size-3.5" aria-hidden />
+            {brokenGuards}
+          </span>
+        )}
+
+        <span
+          title="Thời gian mô phỏng"
+          className="arena-clock flex items-center gap-1 font-mono text-xs text-muted-foreground"
+        >
+          <Clock className="size-3.5" aria-hidden />
+          {formatElapsed(simulationTick * 500)}
+        </span>
+
+        <div
+          className="arena-speed-control flex items-center gap-0.5 rounded-md bg-muted p-0.5"
+          role="group"
+          aria-label="Tốc độ mô phỏng"
+        >
           {SPEEDS.map((value) => (
             <SpeedButton key={value} value={value} current={speed} onPick={onSpeedChange} />
           ))}
@@ -218,6 +258,11 @@ function IconButton({
 function formatElapsed(elapsedMs: number): string {
   const total = Math.max(0, Math.floor(elapsedMs / 1000));
   const seconds = String(total % 60).padStart(2, '0');
-  const minutes = total < 3600 ? String(Math.floor(total / 60)) : String(Math.floor(total / 60) % 60).padStart(2, '0');
-  return total < 3600 ? `${minutes}:${seconds}` : `${Math.floor(total / 3600)}:${minutes}:${seconds}`;
+  const minutes =
+    total < 3600
+      ? String(Math.floor(total / 60))
+      : String(Math.floor(total / 60) % 60).padStart(2, '0');
+  return total < 3600
+    ? `${minutes}:${seconds}`
+    : `${Math.floor(total / 3600)}:${minutes}:${seconds}`;
 }

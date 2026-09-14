@@ -218,8 +218,13 @@ describe('orderSeries + formatLabels', () => {
     expect(isHighlightSeries('dlp_gateway_sessions')).toBe(false);
   });
 
-  it('không nhãn thì hiện dấu gạch, không phải ô trống', () => {
-    expect(formatLabels({})).toBe('—');
+  /*
+    Bản cũ trả U+2014 cho series không nhãn. Ký tự đó vi phạm luật số 3 của
+    design §5, và nó còn đọc ra như "giá trị bị giấu" thay vì "series này vốn
+    không có nhãn nào". Câu thay thế nói đúng chuyện thứ hai.
+  */
+  it('không nhãn thì hiện một câu, không phải ô trống và không phải gạch ngang', () => {
+    expect(formatLabels({})).toBe('không nhãn');
   });
 
   it('nhãn sắp theo tên nên hai lượt đọc không nhảy chỗ', () => {

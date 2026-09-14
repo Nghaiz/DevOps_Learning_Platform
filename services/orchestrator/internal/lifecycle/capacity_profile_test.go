@@ -180,7 +180,7 @@ func TestGetCapacityTaiDungMauThuan20260907(t *testing.T) {
 
 	// ── Vế 3: hai vế MÂU THUẪN, và đó là cả lý do bản vá tồn tại. ─────────
 	ide := resp.GetProfileCapacity()["ide"]
-	if int32(legacyRemaining) == ide.GetSlotsFree() {
+	if legacyRemaining == ide.GetSlotsFree() {
 		t.Fatal("công thức cũ và trần-theo-profile cho CÙNG một số trên trạng thái này ⇒ " +
 			"ca này không phân biệt được hai công thức, và cổng ở trên chưa chứng minh gì")
 	}

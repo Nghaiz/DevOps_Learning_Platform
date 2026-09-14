@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, type ReactElement } from 'react';
+import { err, t } from '@devops-platform/copy';
+import type { ErrorEntry } from '@devops-platform/copy/types';
 import {
   Badge,
   Button,
@@ -32,6 +34,7 @@ import {
   shortSessionId,
 } from './session-summary';
 import { formatMoment } from '../../lib/format-moment';
+import { MeSection } from './me-section';
 import { useCursorPages } from './use-cursor-pages';
 import { describeEmptyPage, shouldShowPager, type HistoryPageState } from './history-page-notice';
 
@@ -64,7 +67,7 @@ export function ActiveSessions(): ReactElement {
   const capacity = useCapacity();
 
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [endError, setEndError] = useState<string | null>(null);
+  const [endError, setEndError] = useState<ErrorEntry | null>(null);
 
   const endSession = api.me.endSession.useMutation({
     onSuccess: async () => {
@@ -110,42 +113,43 @@ export function ActiveSessions(): ReactElement {
     hasNext: sessions.data?.nextCursor != null,
   };
   const emptyNotice = describeEmptyPage(shape, {
-    title: 'Bạn không có phiên nào đang mở',
-    description:
-      'Phiên được tạo khi bạn bắt đầu một bài học, lab hoặc playground, và tự hết hạn khi tới giờ.',
+    title: t('me.sessions.empty-title'),
+    description: t('me.sessions.empty-description'),
   });
 
-  return (
-    <section aria-labelledby="phien-dang-mo" className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="phien-dang-mo" className="text-lg font-medium text-foreground">
-          Phiên đang mở
-        </h2>
-        {/*
-          `null` = CHƯA BIẾT, khác hẳn "biết là đã đầy" (xem `readProfileCapacity`).
-          Chưa có payload thì không vẽ gì; có payload mà quota đọc lỗi thì NÓI RA
-          là chưa rõ — ⛔ không lấp bằng `softCapacity`, chính con số đó đã in
-          "Còn 14 chỗ" trong lúc server trả 429.
-        */}
-        {reading !== null && (
-          <Badge variant={capacityBadgeVariant(reading.tone)} title={reading.detail}>
-            {reading.label}
-          </Badge>
-        )}
-        {capacityUnknown && (
-          <Badge
-            variant="outline"
-            title="Máy chủ chưa đọc được hạn mức của cụm, nên không nói được còn mấy chỗ."
-          >
-            Chưa rõ sức chứa
-          </Badge>
-        )}
-      </div>
+  const listError = sessions.isError
+    ? err('me.error.sessions-load', { reason: describeTrpcError(sessions.error) })
+    : null;
 
+  return (
+    <MeSection
+      id="phien-dang-mo"
+      title={t('me.sessions.title')}
+      badge={
+        <>
+          {/*
+            `null` = CHƯA BIẾT, khác hẳn "biết là đã đầy" (xem `readProfileCapacity`).
+            Chưa có payload thì không vẽ gì; có payload mà quota đọc lỗi thì NÓI RA
+            là chưa rõ — ⛔ không lấp bằng `softCapacity`, chính con số đó đã in
+            "Còn 14 chỗ" trong lúc server trả 429.
+          */}
+          {reading !== null && (
+            <Badge variant={capacityBadgeVariant(reading.tone)} title={reading.detail}>
+              {reading.label}
+            </Badge>
+          )}
+          {capacityUnknown && (
+            <Badge variant="outline" title={t('me.capacity.unknown-detail')}>
+              {t('me.capacity.unknown')}
+            </Badge>
+          )}
+        </>
+      }
+    >
       {endError !== null && (
         <ErrorState
-          title="Không kết thúc được phiên"
-          message={endError}
+          title={endError.what}
+          message={endError.next}
           onRetry={() => {
             setEndError(null);
             void sessions.refetch();
@@ -155,10 +159,10 @@ export function ActiveSessions(): ReactElement {
 
       {sessions.isPending && <Skeleton className="h-32 w-full" />}
 
-      {sessions.isError && (
+      {listError !== null && (
         <ErrorState
-          title="Không tải được danh sách phiên"
-          message={describeTrpcError(sessions.error)}
+          title={listError.what}
+          message={listError.next}
           onRetry={() => void sessions.refetch()}
           retrying={sessions.isFetching}
         />
@@ -172,12 +176,12 @@ export function ActiveSessions(): ReactElement {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Phiên</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead>Mở lúc</TableHead>
-                  <TableHead>Hạn</TableHead>
+                  <TableHead>{t('me.sessions.col.id')}</TableHead>
+                  <TableHead>{t('me.sessions.col.status')}</TableHead>
+                  <TableHead>{t('me.sessions.col.opened')}</TableHead>
+                  <TableHead>{t('me.sessions.col.expires')}</TableHead>
                   <TableHead>
-                    <span className="sr-only">Hành động</span>
+                    <span className="sr-only">{t('me.sessions.col.actions')}</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -190,10 +194,10 @@ export function ActiveSessions(): ReactElement {
                       <TableCell>
                         <Badge variant={status.variant}>{status.label}</Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
                         {formatMoment(session.createdAt)}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
                         {describeSessionExpiry(session.expiresAt, now)}
                       </TableCell>
                       <TableCell>
@@ -205,7 +209,7 @@ export function ActiveSessions(): ReactElement {
                             setPendingId(session.id);
                           }}
                         >
-                          Kết thúc
+                          {t('me.sessions.end')}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -240,17 +244,22 @@ export function ActiveSessions(): ReactElement {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Kết thúc phiên {pendingId === null ? '' : shortSessionId(pendingId)}?
+              {t('me.sessions.confirm-title', {
+                id: pendingId === null ? '' : shortSessionId(pendingId),
+              })}
             </DialogTitle>
-            <DialogDescription>
-              Máy sandbox bị thu hồi ngay và mọi thứ chưa lưu trong đó sẽ mất. Chỗ này được trả lại
-              cho lớp, và bạn mở phiên mới bất cứ lúc nào.
-            </DialogDescription>
+            <DialogDescription>{t('me.sessions.confirm-description')}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="ghost">Để nguyên</Button>
+              <Button variant="ghost">{t('me.sessions.confirm-keep')}</Button>
             </DialogClose>
+            {/*
+              Luật hai kênh của §2: `destructive` lúc nghỉ là viền + chữ, đảo
+              sang nền đặc khi hover, và `Button` của `packages/ui` tự gắn icon
+              `TriangleAlert`. 1.06:1 giữa `--primary` và `--destructive` là lý
+              do icon bắt buộc, không phải trang trí.
+            */}
             <Button
               variant="destructive"
               loading={endSession.isPending}
@@ -260,12 +269,12 @@ export function ActiveSessions(): ReactElement {
                 }
               }}
             >
-              Kết thúc phiên
+              {t('me.sessions.confirm-end')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </MeSection>
   );
 }
 

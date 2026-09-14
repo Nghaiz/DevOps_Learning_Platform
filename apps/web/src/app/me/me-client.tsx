@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import type { ReactElement } from 'react';
+import { t } from '@devops-platform/copy';
 import { Button } from '@devops-platform/ui';
 import { ActiveSessions } from '../../components/me/active-sessions';
 import { HistoryTabs } from '../../components/me/history-tabs';
 import { LearningNow } from '../../components/me/learning-now';
+import { MePageHeader } from '../../components/me/me-section';
 
 /**
  * Trang "Của tôi" (13.E mục 17-19).
@@ -36,17 +38,15 @@ import { LearningNow } from '../../components/me/learning-now';
 export function MeClient(): ReactElement {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold text-foreground">Của tôi</h1>
-          <p className="text-sm text-muted-foreground">
-            Lộ trình đang dở, phiên đang mở, và lịch sử học của bạn.
-          </p>
-        </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/settings">Hồ sơ &amp; cài đặt</Link>
-        </Button>
-      </header>
+      <MePageHeader
+        title={t('me.page.me-title')}
+        description={t('me.page.me-subtitle')}
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/settings">{t('me.page.me-settings-link')}</Link>
+          </Button>
+        }
+      />
 
       <LearningNow />
       <ActiveSessions />

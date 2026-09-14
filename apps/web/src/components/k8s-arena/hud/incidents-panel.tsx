@@ -1,47 +1,28 @@
 'use client';
 
 import { useMemo, useState, type ReactElement } from 'react';
+import { AlertTriangle, ArrowUpRight, CheckCircle2 } from 'lucide-react';
 import type { ObjectView } from '@devops-platform/games';
-import { Badge, cn } from '@devops-platform/ui';
+import { cn } from '@devops-platform/ui';
 import { HIDDEN_SCROLL, PanelFrame } from './inspector-frame.tsx';
 import { INCIDENT_LABEL } from './incidents-labels.ts';
 import { objectLabel, type IncidentView } from './inspector-types.ts';
+import './events.css';
 
 type IncidentFilter = 'active' | 'resolved' | 'all';
-
-const FILTER_LABEL: Readonly<Record<IncidentFilter, string>> = {
-  active: 'Đang xảy ra',
-  resolved: 'Đã xử lý',
-  all: 'Tất cả',
-};
-
+const FILTER_LABEL = { active: 'Cần xử lý', resolved: 'Đã xử lý', all: 'Tất cả' };
 const FILTER_ORDER: readonly IncidentFilter[] = ['active', 'resolved', 'all'];
 
 export interface IncidentsPanelProps {
-  /**
-   * Sự cố của cụm.
-   *
-   * ⚠ KHÔNG lấy được từ `ClusterView` — hợp đồng engine không có trường nào cho
-   * sự cố, dù `ClusterState.incidents` tồn tại ở tầng trong. Cha phải bơm vào.
-   * Xem bảng chỗ lệch hợp đồng ở đầu `inspector-types.ts`.
-   */
   readonly incidents: readonly IncidentView[];
-  /** Để tra tên tài nguyên bị ảnh hưởng từ `targetUid`. */
   readonly objects: readonly ObjectView[];
   readonly tick: number;
-  /** Chọn tài nguyên bị ảnh hưởng. Cha đặt `selectedUid` VÀ phát lệnh camera `focus`. */
   readonly onSelect: (uid: string) => void;
   readonly onClose: () => void;
   readonly className?: string;
 }
 
-/**
- * Danh sách sự cố — bật bằng phím `I` (`ARENA_KEYS.toggleIncidents`).
- *
- * Mặc định lọc "Đang xảy ra": người mở bảng này gần như luôn đang đi tìm thứ
- * cần sửa NGAY. Lịch sử đã xử lý vẫn tra được, nhưng nó không phải thứ chắn
- * đường lúc mở.
- */
+/** Active issues lead; historical events are explicitly distinguished from open incidents. */
 export function IncidentsPanel({
   incidents,
   objects,
@@ -51,30 +32,55 @@ export function IncidentsPanel({
   className,
 }: IncidentsPanelProps): ReactElement {
   const [filter, setFilter] = useState<IncidentFilter>('active');
-
   const byUid = useMemo(() => new Map(objects.map((object) => [object.uid, object])), [objects]);
-
-  const shown = incidents.filter((incident) => {
-    switch (filter) {
-      case 'active':
-        return incident.resolvedTick === null;
-      case 'resolved':
-        return incident.resolvedTick !== null;
-      case 'all':
-        return true;
-    }
-  });
-
-  const activeCount = incidents.reduce((acc, incident) => (incident.resolvedTick === null ? acc + 1 : acc), 0);
+  const activeCount = incidents.filter((incident) => incident.resolvedTick === null).length;
+  const counts = {
+    active: activeCount,
+    resolved: incidents.length - activeCount,
+    all: incidents.length,
+  };
+  const shown = incidents
+    .filter(
+      (incident) =>
+        filter === 'all' ||
+        (filter === 'active' ? incident.resolvedTick === null : incident.resolvedTick !== null),
+    )
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(a.resolvedTick !== null) - Number(b.resolvedTick !== null) ||
+        b.startedTick - a.startedTick,
+    );
 
   return (
     <PanelFrame
-      title={`Sự cố (${String(activeCount)} đang xảy ra)`}
+      title="Sự cố của cụm"
       closeLabel="Đóng danh sách sự cố"
       onClose={onClose}
-      className={cn('absolute top-3 left-1/2 z-20 w-96 max-w-[calc(100%-1.5rem)] -translate-x-1/2', className)}
-      headerExtra={
-        <div role="group" aria-label="Lọc sự cố" className="flex shrink-0 gap-1">
+      className={cn(
+        'arena-incident-window absolute top-3 left-1/2 z-20 -translate-x-1/2',
+        className,
+      )}
+    >
+      <div className="arena-incident-summary" data-active={activeCount > 0}>
+        {activeCount > 0 ? (
+          <AlertTriangle aria-hidden size={22} />
+        ) : (
+          <CheckCircle2 aria-hidden size={22} />
+        )}
+        <div>
+          <strong>
+            {activeCount > 0 ? `${activeCount} sự cố cần bạn xử lý` : 'Không có sự cố đang mở'}
+          </strong>
+          <p>
+            {activeCount > 0
+              ? 'Chọn tài nguyên để xem trạng thái và tìm nguyên nhân.'
+              : 'Tiếp tục theo dõi cụm hoặc xem lại các sự cố đã xử lý.'}
+          </p>
+        </div>
+      </div>
+      <div className="arena-event-tools">
+        <div role="group" aria-label="Lọc sự cố" className="arena-event-filters">
           {FILTER_ORDER.map((option) => (
             <button
               key={option}
@@ -83,69 +89,84 @@ export function IncidentsPanel({
               onClick={() => {
                 setFilter(option);
               }}
-              className={cn(
-                'rounded-md px-2 py-1 text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                filter === option
-                  ? 'bg-muted text-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
             >
-              {FILTER_LABEL[option]}
+              {FILTER_LABEL[option]} <span>{counts[option]}</span>
             </button>
           ))}
         </div>
-      }
-    >
-      <ul className={cn('flex max-h-72 min-h-0 flex-col divide-y divide-border', HIDDEN_SCROLL)}>
+        <p className="arena-event-caption">
+          1. Chọn tài nguyên → 2. Đọc trạng thái, sự kiện → 3. Điều chỉnh cấu hình
+        </p>
+      </div>
+      <ul
+        tabIndex={0}
+        aria-label="Danh sách sự cố"
+        className={cn('arena-incident-list', HIDDEN_SCROLL)}
+      >
         {shown.map((incident) => {
           const target = byUid.get(incident.targetUid) ?? null;
           const active = incident.resolvedTick === null;
-          // Thời lượng TÍNH tại đây, không lưu: sự cố còn sống thì đo tới tick
-          // hiện tại, đã xử lý thì đo tới tick xử lý.
-          const spanned = (incident.resolvedTick ?? tick) - incident.startedTick;
+          const spanned = Math.max(0, (incident.resolvedTick ?? tick) - incident.startedTick);
           return (
-            <li key={`${incident.kind}-${incident.targetUid}-${String(incident.startedTick)}`}>
-              <button
-                type="button"
-                // Vô hiệu khi tài nguyên đã bị xoá: bay camera tới một uid không
-                // còn trong cảnh sẽ không làm gì cả, và "bấm không ăn" đọc ra như
-                // giao diện hỏng chứ không như "thứ đó đã biến mất".
-                disabled={target === null}
-                onClick={() => {
-                  if (target !== null) {
-                    onSelect(target.uid);
-                  }
-                }}
-                className={cn(
-                  'flex w-full flex-col gap-0.5 px-3 py-2 text-left transition-colors',
-                  'enabled:hover:bg-muted focus-visible:bg-muted focus-visible:outline-none',
-                  'disabled:cursor-default disabled:opacity-60',
+            <li
+              key={`${incident.kind}-${incident.targetUid}-${incident.startedTick}`}
+              className="arena-incident-card"
+              data-active={active}
+            >
+              <div className="arena-incident-top">
+                <span className="arena-incident-status">
+                  {active ? (
+                    <AlertTriangle aria-hidden size={13} />
+                  ) : (
+                    <CheckCircle2 aria-hidden size={13} />
+                  )}
+                  {active ? 'Cần xử lý' : 'Đã xử lý'}
+                </span>
+                <span>{spanned} bước mô phỏng</span>
+              </div>
+              <h3>{INCIDENT_LABEL[incident.kind]}</h3>
+              <p className="arena-incident-target">
+                {target === null ? 'Tài nguyên đã bị xoá' : objectLabel(target)}
+              </p>
+              <div className="arena-incident-bottom">
+                <span>
+                  Bắt đầu: mốc {incident.startedTick}
+                  {incident.resolvedTick !== null
+                    ? ` · Kết thúc: mốc ${incident.resolvedTick}`
+                    : ''}
+                </span>
+                {target === null ? (
+                  <span>Không còn trên bản đồ</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelect(target.uid);
+                    }}
+                  >
+                    Xem tài nguyên <ArrowUpRight aria-hidden size={14} />
+                  </button>
                 )}
-              >
-                <span className="flex items-center gap-2">
-                  <Badge variant={active ? 'destructive' : 'success'}>{active ? 'Đang xảy ra' : 'Đã xử lý'}</Badge>
-                  <span className="min-w-0 flex-1 truncate text-xs text-foreground">
-                    {INCIDENT_LABEL[incident.kind]}
-                  </span>
-                </span>
-                <span className="flex justify-between gap-2 text-[11px] text-muted-foreground">
-                  <span className="min-w-0 truncate font-mono">
-                    {target === null ? 'tài nguyên đã bị xoá' : objectLabel(target)}
-                  </span>
-                  <span className="shrink-0 font-mono">
-                    t{incident.startedTick} · {spanned} tick
-                  </span>
-                </span>
-              </button>
+              </div>
             </li>
           );
         })}
+        {shown.length === 0 ? (
+          <li className="arena-event-empty">
+            <CheckCircle2 aria-hidden size={26} />
+            <strong>
+              {filter === 'active'
+                ? 'Cụm chưa ghi nhận sự cố đang mở'
+                : 'Chưa có sự cố trong mục này'}
+            </strong>
+            <p>
+              {filter === 'resolved'
+                ? 'Các sự cố được khắc phục sẽ được lưu ở đây để bạn xem lại.'
+                : 'Sự cố sẽ xuất hiện khi cụm phát hiện vấn đề cần kiểm tra.'}
+            </p>
+          </li>
+        ) : null}
       </ul>
-      {shown.length === 0 ? (
-        <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-          {filter === 'active' ? 'Cụm đang không có sự cố nào.' : 'Không có sự cố nào khớp bộ lọc.'}
-        </p>
-      ) : null}
     </PanelFrame>
   );
 }

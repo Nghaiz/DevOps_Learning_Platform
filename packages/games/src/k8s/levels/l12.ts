@@ -9,7 +9,7 @@ import type { Level } from '../contract.ts';
 export const l12: Level = {
   id: 'k8s-12-service-dau-tien',
   chapter: 3,
-  title: 'Một địa chỉ ổn định cho ba pod hay đổi',
+  title: 'Đặt một địa chỉ cố định cho ba pod',
   mission: 'Tạo Service `web` kiểu ClusterIP trong `san-pham` sao cho nó có đủ 3 endpoint.',
   brief: `Deployment \`web\` trong namespace \`san-pham\` đang chạy 3 pod khoẻ mạnh. Nhưng
 không có gì trong cluster gọi được chúng.

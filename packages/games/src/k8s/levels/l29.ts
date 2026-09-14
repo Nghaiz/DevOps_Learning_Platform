@@ -13,7 +13,7 @@ import type { Level } from '../contract.ts';
 export const l29: Level = {
   id: 'k8s-29-probe-giet-app-khoi-dong-cham',
   chapter: 6,
-  title: 'Cái đồng hồ báo tử tự mình bấm',
+  title: 'Nới liveness probe cho app khởi động chậm',
   mission: 'Đưa `kho-du-lieu` về 3 replica chạy ổn định mà vẫn giữ liveness probe.',
   brief: `Deployment \`kho-du-lieu\` trong namespace \`phan-tich\` restart liên tục. Hai công
 cụ từ chương trước đều không cho câu trả lời: log \`--previous\` sạch và đứt ngang,

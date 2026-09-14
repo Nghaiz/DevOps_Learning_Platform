@@ -17,6 +17,19 @@ COPY packages/ui/package.json packages/ui/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/terminal/package.json packages/terminal/package.json
 COPY packages/scenario/package.json packages/scenario/package.json
+COPY packages/games/package.json packages/games/package.json
+COPY packages/copy/package.json packages/copy/package.json
+COPY packages/motion/package.json packages/motion/package.json
+# Hạn tải mặc định của pnpm là 60s MỖI request. Đủ khi có build cache, KHÔNG đủ
+# khi lớp này phải kéo lại toàn bộ dep từ registry trên đường truyền chậm: đo
+# 2026-09-09 ở ~1.5 MB/s, riêng `next` tarball mất 27s và các gói lớn
+# (playwright, three, @mediapipe) chạm trần rồi ném
+# `TimeoutError: The operation was aborted due to timeout` — build đỏ ở dòng
+# ngay dưới, và thông điệp trỏ vào `--frozen-lockfile` nên đọc ra như "lockfile
+# lệch" chứ không như lỗi mạng. Nới hạn + thêm lượt thử lại đổi chế độ hỏng đó
+# thành "chậm nhưng xong"; nó KHÔNG nới lỏng gì về tính tất định của lockfile.
+ENV npm_config_fetch_timeout=600000 \
+    npm_config_fetch_retries=5
 # --frozen-lockfile: build KHÔNG được tự ý sửa lockfile — lệch lockfile phải lộ ra
 # ở CI (pnpm install thường), không phải âm thầm re-resolve trong image build.
 RUN pnpm install --frozen-lockfile
@@ -32,6 +45,9 @@ COPY packages/ui packages/ui
 COPY packages/shared-types packages/shared-types
 COPY packages/terminal packages/terminal
 COPY packages/scenario packages/scenario
+COPY packages/games packages/games
+COPY packages/copy packages/copy
+COPY packages/motion packages/motion
 ENV NEXT_TELEMETRY_DISABLED=1
 # Bật standalone TẠI ĐÂY (không hardcode trong next.config.ts): trên Windows dev,
 # bước trace standalone tạo symlink → EPERM; chỉ image Docker cần standalone.
@@ -47,6 +63,29 @@ ENV NEXT_OUTPUT=standalone
 # `packages/terminal` ở 1.F, và `packages/scenario` là lượt thứ hai: nó có
 # package.json từ 2.A, nhưng tới 2.B mới có ai import nó — nên cảnh báo cũ ("chưa
 # có manifest, chưa cần copy") đã hết đúng trước khi có ai đọc lại nó.
+#
+# LƯỢT THỨ BA — `packages/games` (2026-09-09). Đúng hình dạng cảnh báo trên, và
+# lần này nó im lặng lâu hơn cả hai lần trước: PR games gộp lúc 18:25 ngày
+# 2026-09-08, còn image `p14a` đang chạy trên cụm được build lúc 02:41 CÙNG NGÀY
+# — tức 16 tiếng TRƯỚC khi package tồn tại. Nên không lần build nào đỏ, `helm`
+# vẫn xanh, 4/4 deployment vẫn `Running 1/1`, và triệu chứng ở phía người dùng
+# là `/games/k8s` trả 404 trên cụm trong khi chạy tốt ở máy dev.
+#
+# LƯỢT THỨ TƯ — `packages/copy` VÀ `packages/motion` (2026-09-14). Cùng hình dạng,
+# và lần này im lặng LÂU NHẤT trong cả bốn: `ci.yml` bị tạm dừng từ 2026-09-04 nên
+# job `images` không chạy một lần nào, kể cả khi PR #116 và #118 gộp vào `main`
+# ngày 09-11. Lần build ĐẦU TIÊN sau đó là 2026-09-14, và nó đỏ ngay:
+#     @devops-platform/games:build: src/k8s/problem.ts(22,19):
+#       error TS2307: Cannot find module '@devops-platform/copy'
+# — trỏ vào một file `.ts` của `games`, không trỏ vào Dockerfile, đúng như cảnh
+# báo trên đã nói.
+#
+# Bài học chung của cả bốn lượt: danh sách này KHÔNG tự đỏ khi thiếu — nó chỉ đỏ
+# ở lần build ĐẦU TIÊN sau khi có người import package mới. Trước đó nó im.
+#
+# ⛔ Bốn lần là đủ để thôi dựa vào trí nhớ. `apps/web/dockerfile-workspace.test.ts` nay
+# đối chiếu danh sách này với `packages/*` thật và ĐỎR khi thiếu một gói — ở
+# tầng `pnpm test`, tức trước cả lượt build image.
 RUN pnpm turbo run build
 
 # ---------------------------------------------------------------- migrator

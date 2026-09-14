@@ -1,5 +1,6 @@
 'use client';
 
+import { errText, t } from '@devops-platform/copy';
 import { useState, type ReactElement } from 'react';
 import { Alert, AlertDescription, AlertTitle, Button, Textarea } from '@devops-platform/ui';
 import type { ClusterSpec } from '@devops-platform/games';
@@ -38,12 +39,14 @@ export function ClusterJsonFields(props: {
     draft ??
     (current.ok
       ? JSON.stringify(current.value, null, 2)
-      : '// Biểu mẫu đang có ô sai nên chưa đọc ra JSON được. Sửa ở tab Biểu mẫu, hoặc dán một cụm mới vào đây.');
+      : t(
+          'problem.cluster-json-fields-bieu-mau-dang-co-o-sai-nen-chua-doc-ra-json-duoc-sua-o-tab-bieu-mau-hoac-da',
+        ));
 
   return (
     <div className="flex flex-col gap-3 pt-2">
       <Textarea
-        aria-label="Trạng thái cụm dạng JSON"
+        aria-label={t('problem.cluster-json-fields-trang-thai-cum-dang-json')}
         className="font-mono text-xs"
         rows={18}
         value={text}
@@ -55,7 +58,7 @@ export function ClusterJsonFields(props: {
 
       {error !== null && (
         <Alert variant="destructive">
-          <AlertTitle>Không áp dụng được</AlertTitle>
+          <AlertTitle>{t('problem.cluster-json-fields-khong-ap-dung-duoc')}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -74,7 +77,9 @@ export function ClusterJsonFields(props: {
             const recheck = clusterToSpec(form);
             if (!recheck.ok) {
               setError(
-                `Cụm đọc được nhưng chưa hợp lệ: ${recheck.issues.map((issue) => issue.message).join(' ')}`,
+                t('problem.cluster-json-fields-cum-doc-duoc-nhung-chua-hop-le', {
+                  value1: String(recheck.issues.map((issue) => issue.message).join(' ')),
+                }),
               );
               return;
             }
@@ -83,7 +88,7 @@ export function ClusterJsonFields(props: {
             props.onApply(form);
           }}
         >
-          Áp dụng vào biểu mẫu
+          {t('problem.cluster-json-fields-ap-dung-vao-bieu-mau')}
         </Button>
         {draft !== null && (
           <Button
@@ -94,7 +99,7 @@ export function ClusterJsonFields(props: {
               setError(null);
             }}
           >
-            Bỏ thay đổi
+            {t('problem.cluster-json-fields-bo-thay-doi')}
           </Button>
         )}
       </div>
@@ -104,19 +109,42 @@ export function ClusterJsonFields(props: {
 
 function readClusterJson(
   raw: string,
-): { readonly ok: true; readonly value: ClusterSpec } | { readonly ok: false; readonly message: string } {
+):
+  | { readonly ok: true; readonly value: ClusterSpec }
+  | { readonly ok: false; readonly message: string } {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    return { ok: false, message: `JSON không đọc được: ${error instanceof Error ? error.message : 'lỗi cú pháp'}` };
+    return {
+      ok: false,
+      message: errText('problem.cluster-json-fields-json-khong-doc-duoc', {
+        value1: String(
+          error instanceof Error ? error.message : t('problem.cluster-json-fields-loi-cu-phap'),
+        ),
+      }),
+    };
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return { ok: false, message: 'Phải là một object JSON có ba khoá nodes, namespaces, resources.' };
+    return {
+      ok: false,
+      message: t(
+        'problem.cluster-json-fields-phai-la-mot-object-json-co-ba-khoa-nodes-namespaces-resources',
+      ),
+    };
   }
   const record = parsed as Record<string, unknown>;
-  if (!Array.isArray(record['nodes']) || !Array.isArray(record['namespaces']) || !Array.isArray(record['resources'])) {
-    return { ok: false, message: 'Thiếu một trong ba khoá bắt buộc: nodes, namespaces, resources (đều phải là mảng).' };
+  if (
+    !Array.isArray(record['nodes']) ||
+    !Array.isArray(record['namespaces']) ||
+    !Array.isArray(record['resources'])
+  ) {
+    return {
+      ok: false,
+      message: t(
+        'problem.cluster-json-fields-thieu-mot-trong-ba-khoa-bat-buoc-nodes-namespaces-resources-deu-phai-la-man',
+      ),
+    };
   }
   return { ok: true, value: parsed as ClusterSpec };
 }

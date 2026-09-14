@@ -302,6 +302,17 @@ spec:
         - protocol: TCP
           port: {{ include "platform.orchestratorHttpContainerPort" . }}
     {{- include "platform.netpolDatastoreEgress" (dict "context" . "stores" (list "postgres" "redis")) | nindent 4 }}
+{{- if and .Values.web.env.smtpExistingSecret (empty $np.smtpEgress) }}
+{{- fail "SMTP enabled under platform NetworkPolicy requires networkPolicy.platform.smtpEgress with provider CIDR and port." }}
+{{- end }}
+{{- range $np.smtpEgress }}
+    - to:
+        - ipBlock:
+            cidr: {{ required "smtpEgress.cidr is required" .cidr | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ required "smtpEgress.port is required" .port }}
+{{- end }}
 {{- if $np.webExternalEgress.enabled }}
     # ── Egress RA NGOÀI CỤM cho web — MẶC ĐỊNH TẮT ──────────────────────────
     # Cần khi bật đăng nhập bằng IdP ngoài: Better Auth gọi phía SERVER tới

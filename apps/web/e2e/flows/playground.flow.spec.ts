@@ -74,6 +74,7 @@ import {
   expect,
   test,
 } from './flow-kit';
+import { t } from '@devops-platform/copy';
 import { trpcQuery } from '../fixtures/api';
 import { openScreen, settle } from '../fixtures/nav';
 
@@ -232,10 +233,33 @@ test.describe('luồng 7 — sân chơi', { tag: '@flow' }, () => {
       dưới đây là chỗ duy nhất trong suite luồng nói ra điều đó. Hai vùng sống
       thì trình đọc màn hình đọc hai lần cho một lần đổi pha.
     */
-    const announcer = page.locator('[aria-live="polite"]');
+    /*
+      ⚠ Đếm TRONG vùng phiên, không đếm trên cả trang — và đây là một phép thu
+      hẹp CÓ LÝ DO, không phải một lần nới tay để ô đỏ thành xanh.
+
+      Bản trước đếm `[aria-live="polite"]` trên toàn trang và ra 2, nên ô đỏ. Hai
+      vùng đó là: badge pha của `SessionControls` (chủ ý, đúng thứ D10 nói tới),
+      và **container của Sonner** do `app/layout.tsx:141` gắn `<Toaster />` cho
+      MỌI trang. Cái thứ hai là vùng thông báo toàn cục của ứng dụng; nó không
+      nói về pha phiên và không tồn tại vì trang sân chơi.
+
+      D10 chốt rằng *pha phiên* chỉ được đọc ra từ MỘT chỗ. Gom một vùng toàn
+      cục vào phép đếm ấy là đo sai đối tượng: ô sẽ đỏ ở mọi trang có toast, kể
+      cả khi phần sân chơi hoàn toàn đúng. Nên neo vào vùng phiên.
+
+      ⛔ Để giữ ô này KHÔNG yếu đi, nó vẫn khẳng định hai vế: đúng một vùng sống
+      trong khoang phiên, VÀ vùng đó là vùng của `SessionControls` chứ không
+      phải một vùng nào khác tình cờ lọt vào.
+    */
+    const sessionRegion = page.getByTestId('dlp-session-controls');
+    const announcer = sessionRegion.locator('[aria-live="polite"]');
+    await expect(
+      sessionRegion,
+      'Không thấy khoang điều khiển phiên — trang sân chơi đã đổi hình dạng?',
+    ).toBeVisible();
     await expect(
       announcer,
-      'Trang sân chơi phải có ĐÚNG một vùng aria-live (D10). Nhiều hơn một ⇒ trình ' +
+      'Khoang phiên phải có ĐÚNG một vùng aria-live (D10). Nhiều hơn một ⇒ trình ' +
         'đọc màn hình đọc lặp mỗi lần đổi pha; không có cái nào ⇒ người dùng mù không ' +
         'bao giờ biết phiên đã sẵn sàng.',
     ).toHaveCount(1);
@@ -255,8 +279,23 @@ test.describe('luồng 7 — sân chơi', { tag: '@flow' }, () => {
         `phân biệt sân chơi với ba trình học kia: người ta bỏ ~40 giây dựng một ` +
         `sandbox trống thì phải biết trước nó tự đóng khi nào.`,
     ).toBeVisible();
+    /*
+      ⚠ LẤY CÂU TỪ BẢN ĐỒ COPY, không chép lại nó bằng regex.
+
+      Bản trước khớp một regex mở đầu bằng chữ `phiên` VIẾT THƯỜNG. Câu
+      thật trong `session.playground.empty` là "Bấm Bắt đầu để dựng sandbox và mở
+      terminal. Phiên tự đóng sau 30 phút." — `Phiên` MỞ ĐẦU một câu nên nó
+      viết HOA, và `getByText` với RegExp thì PHÂN BIỆT hoa thường.
+
+      Ô đỏ vì đúng một chữ cái, trong khi thông điệp lỗi nói về "hai con số TTL
+      khác nhau" — nó trỏ người đọc đi truy một lỗi không hề tồn tại.
+
+      Neo vào `t()` thì lần đổi chữ sau không làm ô này đỏ nữa, mà vẫn giữ
+      nguyên điều nó gác: khoang terminal phải nói ĐÚNG con số TTL server trả,
+      vì `ttlMinutes` đi thẳng vào tham số của câu.
+    */
     await expect(
-      page.getByText(new RegExp(`phiên tự đóng sau\\s*${String(ttlMinutes)}\\s*phút`)),
+      page.getByText(t('session.playground.empty', { minutes: ttlMinutes })),
       'Khoang terminal chưa có phiên phải nói cùng con số TTL đó. Hai chỗ trên ' +
         'cùng một màn hình nói hai con số khác nhau còn tệ hơn không nói.',
     ).toBeVisible();

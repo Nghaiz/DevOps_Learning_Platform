@@ -11,7 +11,7 @@ export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
 const buttonVariants = cva(
   [
     'inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap',
-    'transition-colors outline-none',
+    'transition-colors duration-[var(--motion-fast)] ease-out outline-none',
     /*
      * `ring-offset-2` và `ring-offset-background` đi CÙNG NHAU, không tách được.
      *
@@ -242,7 +242,7 @@ export function Button(props: ButtonProps) {
          * (xem chú thích single-child bên dưới). Áp nó khi `asChild` cho ra
          * một liên kết chữ tàng hình KHÔNG có gì thay thế: đo được bằng
          * `tailwind-merge` nuốt mất `text-primary-foreground`, và
-         * `document.querySelectorAll('svg.animate-spin').length === 0`.
+         * `document.querySelectorAll('svg[data-slot="spinner"]').length === 0`.
          */
         !asChild && loading && 'relative text-transparent',
         /*

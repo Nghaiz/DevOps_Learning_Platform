@@ -1,3 +1,4 @@
+import { renderCopy, type CopyRef } from '@devops-platform/copy';
 import { describe, expect, it } from 'vitest';
 import {
   describeScriptReport,
@@ -5,6 +6,15 @@ import {
   type ScriptWarningView,
   type ShellcheckReportView,
 } from './script-warning';
+
+/**
+ * Dựng câu, để mọi ô dưới đây vẫn khẳng định CHỮ người soạn đọc chứ không
+ * khẳng định một khoá. Bộ chọn nay trả `CopyRef` theo §1.6; nếu ô test đọc
+ * thẳng `.key` thì nó xanh với mọi giá trị, kể cả chuỗi rỗng.
+ */
+function say(ref: CopyRef | null): string {
+  return ref === null ? '' : renderCopy(ref);
+}
 
 function report(over: Partial<ShellcheckReportView> = {}): ShellcheckReportView {
   return { available: true, findings: [], unavailableReason: null, ...over };
@@ -21,13 +31,15 @@ describe('describeScriptReport — "chưa kiểm được" KHÁC "sạch"', () =
 
   it('nhãn KHÔNG được chứa chữ nào nói rằng script đã qua', () => {
     const view = describeScriptReport(report({ available: false, unavailableReason: 'timeout' }));
-    expect(view.label).toBe('Chưa kiểm được');
-    expect(view.label).not.toContain('Không có cảnh báo');
-    expect(view.detail).toContain('KHÔNG phải "script sạch"');
+    expect(say(view.label)).toBe('Chưa kiểm được');
+    expect(say(view.label)).not.toContain('Không có cảnh báo');
+    expect(say(view.detail)).toContain('KHÔNG phải "script sạch"');
   });
 
   it('lý do không chạy được đi kèm để người soạn biết phải làm gì', () => {
-    expect(describeScriptReport(report({ available: false, unavailableReason: 'timeout' })).detail).toContain(
+    expect(
+      say(describeScriptReport(report({ available: false, unavailableReason: 'timeout' })).detail),
+    ).toContain(
       'timeout',
     );
   });
@@ -35,7 +47,7 @@ describe('describeScriptReport — "chưa kiểm được" KHÁC "sạch"', () =
   it('thiếu lý do vẫn KHÔNG được rơi về clean', () => {
     const view = describeScriptReport(report({ available: false }));
     expect(view.tone).toBe('unknown');
-    expect(view.detail).toContain('Không rõ lý do');
+    expect(say(view.detail)).toContain('Không rõ lý do');
   });
 
   it('chạy được và sạch mới là clean', () => {
@@ -45,8 +57,8 @@ describe('describeScriptReport — "chưa kiểm được" KHÁC "sạch"', () =
   it('chạy được và có phát hiện là warn, kèm câu nói rõ nó không chặn', () => {
     const view = describeScriptReport(report({ findings: [finding, { ...finding, line: 9 }] }));
     expect(view.tone).toBe('warn');
-    expect(view.label).toBe('2 cảnh báo');
-    expect(view.detail).toContain('KHÔNG chặn');
+    expect(say(view.label)).toBe('2 cảnh báo');
+    expect(say(view.detail)).toContain('KHÔNG chặn');
   });
 });
 
@@ -63,8 +75,8 @@ describe('summarizeScriptChecks — một script chưa kiểm được kéo cả
   it('trộn "có cảnh báo" với "chưa kiểm được" thì tóm tắt phải là unknown', () => {
     const summary = summarizeScriptChecks([unavailable, withFindings], 5);
     expect(summary.tone).toBe('unknown');
-    expect(summary.label).toContain('CHƯA kiểm được');
-    expect(summary.label).toContain('không kết luận là sạch');
+    expect(say(summary.label)).toContain('CHƯA kiểm được');
+    expect(say(summary.label)).toContain('không kết luận là sạch');
   });
 
   it('mọi script chạy được, có cảnh báo, thì là warn', () => {
@@ -74,13 +86,13 @@ describe('summarizeScriptChecks — một script chưa kiểm được kéo cả
   it('có script và không có cảnh báo nào mới được nói là sạch', () => {
     const summary = summarizeScriptChecks([], 4);
     expect(summary.tone).toBe('clean');
-    expect(summary.label).toBe('4 script, không có cảnh báo nào');
+    expect(say(summary.label)).toBe('4 script, không có cảnh báo nào');
   });
 
   it('KHÔNG có script nào là một trạng thái RIÊNG, không phải "sạch"', () => {
     const summary = summarizeScriptChecks([], 0);
     expect(summary.tone).toBe('none');
     expect(summary.tone).not.toBe('clean');
-    expect(summary.label).toContain('không có script nào');
+    expect(say(summary.label)).toContain('không có script nào');
   });
 });

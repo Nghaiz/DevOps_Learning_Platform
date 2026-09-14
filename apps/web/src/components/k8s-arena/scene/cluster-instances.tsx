@@ -1,200 +1,190 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactElement, type RefObject } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { useFrame } from '@react-three/fiber';
+import type { ResourceKind } from '@devops-platform/games';
 import { TIER_FEATURES } from '../shared/scene-quality';
-import type { QualityTier } from '../arena-contract';
-import { GLOW_SCALE, INITIAL_CAPACITY, LAYER_GLOW } from './scene-constants';
+import { RESOURCE_HSL, RESOURCE_KINDS } from '../shared/resource-identity';
+import { type QualityTier } from '../arena-contract';
+import { STATUS_TINT, TERMINATING_FADE } from '../shared/status-tint';
+import { INITIAL_CAPACITY } from './scene-constants';
 import type { SceneRuntime } from './scene-entry';
 import type { ArenaColors } from './use-arena-colors';
+import { createResourceGeometry } from './resource-geometry';
+
+const MATRIX = new THREE.Matrix4();
+const POSITION = new THREE.Vector3();
+const SCALE = new THREE.Vector3();
+const COLOR = new THREE.Color();
+const ROTATION = new THREE.Quaternion();
+const KINDS = RESOURCE_KINDS;
 
 /**
- * Toàn bộ pod và object của cụm trong ĐÚNG HAI lệnh vẽ — một cho thân, một cho
- * quầng sáng — bất kể có 2 hay 200 vật.
+ * Một lô instance của MỘT loại tài nguyên.
  *
- * Đây là ràng buộc hiệu năng quan trọng nhất của cảnh, và nó cũng là thứ dễ mất
- * nhất: chỉ cần đổi sang một `<mesh>` cho mỗi pod là số lệnh vẽ đi theo số pod,
- * và ở 200 pod thì nó giết khung hình trên máy không GPU rời.
- *
- * ⚠ Vật tạm nằm ở tầm module. Luật này dễ vi phạm nhất vì mã vi phạm
- * (`new THREE.Vector3(...)` trong vòng lặp) trông hoàn toàn vô hại.
+ * `uids` ánh xạ chỉ số instance cục bộ về uid. Nó KHÔNG còn phục vụ việc bắn tia
+ * — vùng bấm đã chuyển sang `hit-proxy.tsx` vì mô hình chi tiết ở đây rỗng ruột
+ * và cho ra một vùng bấm thủng lỗ chỗ — nhưng vẫn cần cho chính vòng ghi bên
+ * dưới, và nó là thứ duy nhất nói instance thứ `i` của lô này là vật nào.
  */
-const TMP_MATRIX = new THREE.Matrix4();
-const TMP_POS = new THREE.Vector3();
-const TMP_SCALE = new THREE.Vector3();
-const TMP_COLOR = new THREE.Color();
-const IDENTITY_QUAT = new THREE.Quaternion();
+interface ResourceBatch {
+  readonly kind: ResourceKind;
+  readonly color: THREE.Color;
+  readonly mesh: THREE.InstancedMesh;
+  readonly uids: string[];
+}
 
 export interface ClusterInstancesProps {
   readonly runtime: SceneRuntime;
   readonly colors: ArenaColors;
+  /** Tăng mỗi lần token được đọc lại (đổi theme). Xem effect tô màu lô. */
+  readonly colorsVersion: number;
   readonly tier: QualityTier;
-  /** Mesh thân — bên bắn tia dò trúng đích cần đúng đối tượng này. */
-  readonly bodyRef: RefObject<THREE.InstancedMesh | null>;
 }
 
-function createInstanced(
+function instance(
   geometry: THREE.BufferGeometry,
   material: THREE.Material,
-  count: number,
-  shadows: boolean,
+  capacity: number,
 ): THREE.InstancedMesh {
-  const mesh = new THREE.InstancedMesh(geometry, material, count);
+  const mesh = new THREE.InstancedMesh(geometry, material, capacity);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  mesh.castShadow = shadows;
-  mesh.receiveShadow = shadows;
-  // Cụm nằm gọn trong khung hình gần như mọi lúc; phép cắt theo khối bao của
-  // instance thì lại phải tính lại hình cầu bao mỗi khi vật động đậy.
   mesh.frustumCulled = false;
   mesh.count = 0;
-  // Gọi một lần để three cấp phát `instanceColor`; sau đó chỉ ghi đè.
-  mesh.setColorAt(0, TMP_COLOR.setRGB(1, 1, 1));
+  mesh.setColorAt(0, COLOR.setRGB(1, 1, 1));
   mesh.instanceColor?.setUsage(THREE.DynamicDrawUsage);
   return mesh;
 }
 
-export function ClusterInstances({ runtime, colors, tier, bodyRef }: ClusterInstancesProps): ReactElement {
+/** One body draw per populated kind plus one status-ring draw for the whole cluster. */
+export function ClusterInstances({
+  runtime,
+  colors,
+  colorsVersion,
+  tier,
+}: ClusterInstancesProps): ReactElement {
   const features = TIER_FEATURES[tier];
   const [capacity, setCapacity] = useState(INITIAL_CAPACITY);
-
-  const geometry = useMemo(
-    () => new RoundedBoxGeometry(1, 1, 1, features.roundedSegments, 0.16),
+  const geometries = useMemo(
+    () => KINDS.map((kind) => createResourceGeometry(kind, features.roundedSegments)),
     [features.roundedSegments],
   );
-
-  const bodyMaterial = useMemo(
+  const material = useMemo(
     () =>
-      /*
-       * Nhám và gần như không kim loại. Bản cũ để `roughness` 0.38 + độ phản
-       * chiếu cao và kết quả là node đỏ bóng trông như một cục xà phòng — một
-       * bề mặt bóng loáng đọc ra là "nhựa", còn thứ ta muốn là "thiết bị".
-       */
-      new THREE.MeshStandardMaterial({ roughness: 0.62, metalness: 0.08, envMapIntensity: 0.5 }),
+      new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.34,
+        metalness: 0.28,
+        envMapIntensity: 0.75,
+      }),
     [],
   );
-
-  const glowMaterial = useMemo(
+  const batches = useMemo<readonly ResourceBatch[]>(
+    () =>
+      KINDS.map((kind, index) => ({
+        kind,
+        color: new THREE.Color(),
+        uids: [] as string[],
+        mesh: instance(geometries[index]!, material, capacity),
+      })),
+    [geometries, material, capacity],
+  );
+  const byKind = useMemo(() => new Map(batches.map((batch) => [batch.kind, batch])), [batches]);
+  const ringGeometry = useMemo(
+    () => new THREE.TorusGeometry(0.57, 0.022, 6, 40).rotateX(Math.PI / 2),
+    [],
+  );
+  const ringMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
         transparent: true,
-        opacity: 0.42,
-        blending: THREE.AdditiveBlending,
+        opacity: 0.5,
         depthWrite: false,
-        // Chỉ mặt SAU. Mặt trước sẽ phủ một lớp màu lên chính thân vật và làm
-        // bay mất chất liệu vừa dựng được; mặt sau bị thân che nên phần còn
-        // nhìn thấy đúng là một vành sáng ôm lấy đường bao.
-        side: THREE.BackSide,
         toneMapped: false,
       }),
     [],
   );
-
-  const body = useMemo(
-    () => createInstanced(geometry, bodyMaterial, capacity, features.shadows),
-    [geometry, bodyMaterial, capacity, features.shadows],
+  const rings = useMemo(
+    () => instance(ringGeometry, ringMaterial, capacity),
+    [ringGeometry, ringMaterial, capacity],
   );
-  const glow = useMemo(() => {
-    const mesh = createInstanced(geometry, glowMaterial, capacity, false);
-    mesh.layers.set(LAYER_GLOW);
-    return mesh;
-  }, [geometry, glowMaterial, capacity]);
 
   useEffect(() => {
-    bodyRef.current = body;
-    return () => {
-      bodyRef.current = null;
-    };
-  }, [body, bodyRef]);
+    for (const batch of batches) {
+      const color = RESOURCE_HSL[batch.kind];
+      batch.color.setHSL(color.h, color.s, color.l, THREE.SRGBColorSpace);
+    }
+  }, [batches, colorsVersion]);
 
-  // `dispose()` của InstancedMesh chỉ giải phóng buffer instance; geometry và
-  // material được DÙNG LẠI, nên `renderer.info.memory.geometries` đứng yên qua
-  // mọi chu kỳ sinh/xoá — đúng thứ cổng đo bộ nhớ khẳng định.
-  useEffect(() => () => body.dispose(), [body]);
-  useEffect(() => () => glow.dispose(), [glow]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  useEffect(() => () => bodyMaterial.dispose(), [bodyMaterial]);
-  useEffect(() => () => glowMaterial.dispose(), [glowMaterial]);
+  useEffect(() => () => batches.forEach(({ mesh }) => mesh.dispose()), [batches]);
+  useEffect(() => () => geometries.forEach((geometry) => geometry.dispose()), [geometries]);
+  useEffect(() => () => material.dispose(), [material]);
+  useEffect(() => () => rings.dispose(), [rings]);
+  useEffect(() => () => ringGeometry.dispose(), [ringGeometry]);
+  useEffect(() => () => ringMaterial.dispose(), [ringMaterial]);
 
   useFrame(() => {
-    const list = runtime.visible;
-    if (list.length > capacity) {
-      // Nhân đôi rồi để React dựng lại mesh ở lượt sau. Khung hình này vẽ thiếu
-      // vài vật — thà thiếu một khung hình còn hơn ghi ra ngoài mảng instance,
-      // chỗ mà three KHÔNG ném lỗi mà chỉ lặng lẽ vẽ sai.
-      let next = capacity;
-      while (next < list.length) {
-        next *= 2;
-      }
-      setCapacity(next);
+    if (runtime.visible.length > capacity) {
+      setCapacity(2 ** Math.ceil(Math.log2(runtime.visible.length)));
     }
-
-    const count = Math.min(list.length, capacity);
-    for (let i = 0; i < count; i += 1) {
-      const entry = list[i];
-      if (entry === undefined) {
-        continue;
-      }
-      TMP_POS.set(entry.x, entry.drawY, entry.z);
-      TMP_SCALE.setScalar(entry.drawScale);
-      TMP_MATRIX.compose(TMP_POS, IDENTITY_QUAT, TMP_SCALE);
-      body.setMatrixAt(i, TMP_MATRIX);
+    for (const batch of batches) {
+      batch.mesh.count = 0;
+      batch.uids.length = 0;
+    }
+    let ringCount = 0;
+    for (const entry of runtime.visible) {
+      const batch = byKind.get(entry.kind);
+      if (batch === undefined || batch.mesh.count >= capacity) continue;
+      const index = batch.mesh.count++;
+      batch.uids[index] = entry.uid;
+      POSITION.set(entry.x, entry.drawY, entry.z);
+      SCALE.setScalar(entry.drawScale);
+      MATRIX.compose(POSITION, ROTATION, SCALE);
+      batch.mesh.setMatrixAt(index, MATRIX);
+      COLOR.copy(batch.color);
       /*
-       * Thân mang màu LOẠI, không phải màu trạng thái: trong một cụm khoẻ mạnh
-       * thì MỌI vật đều `success`, nên tô thân theo trạng thái cho ra một rừng
-       * khối xanh lá giống hệt nhau và không phân biệt nổi Service với Pod. Màu
-       * loại lấy chung nguồn với bảng công cụ nên một khái niệm chỉ có một màu.
-       *
-       * Trạng thái không mất đi — nó ra quầng sáng và viền, và với vật đang hỏng
-       * thì thân còn pha mạnh về phía màu trạng thái, để pod lỗi vẫn đọc ra ở
-       * bậc thấp nơi quầng sáng bị tắt.
+       * Trạng thái pha vào màu thân theo THANG ĐỘ (`STATUS_TINT`), không theo
+       * một cờ `failing` nhị phân. Xem `shared/status-tint.ts` về việc vì sao —
+       * gọn lại: cờ nhị phân bỏ sót hẳn `Pending`, và nó cào bằng một cảnh báo
+       * nhẹ với một pod đã chết.
        */
-      const accent = colors.kind[entry.accent];
-      if (accent === undefined) {
-        TMP_COLOR.copy(colors.body[entry.token]);
-      } else {
-        TMP_COLOR.copy(accent);
-        if (entry.failing) {
-          TMP_COLOR.lerp(colors.glow[entry.token], 0.55);
-        } else if (entry.terminating) {
-          TMP_COLOR.lerp(colors.platform, 0.5);
-        }
+      const tint = STATUS_TINT[entry.token];
+      if (tint > 0) COLOR.lerp(colors.glow[entry.token], tint);
+      if (entry.terminating) COLOR.lerp(colors.platform, TERMINATING_FADE);
+      batch.mesh.setColorAt(index, COLOR);
+      if (ringCount < capacity) {
+        POSITION.y -= entry.drawScale * 0.46;
+        MATRIX.compose(POSITION, ROTATION, SCALE);
+        rings.setMatrixAt(ringCount, MATRIX);
+        COLOR.copy(colors.glow[entry.token]).multiplyScalar(0.65 + entry.drawGlow * 0.35);
+        rings.setColorAt(ringCount++, COLOR);
       }
-      body.setColorAt(i, TMP_COLOR);
-
-      TMP_SCALE.setScalar(entry.drawScale * GLOW_SCALE);
-      TMP_MATRIX.compose(TMP_POS, IDENTITY_QUAT, TMP_SCALE);
-      glow.setMatrixAt(i, TMP_MATRIX);
-      TMP_COLOR.copy(colors.glow[entry.token]).multiplyScalar(entry.drawGlow);
-      glow.setColorAt(i, TMP_COLOR);
     }
-
-    body.count = count;
-    // Bậc thấp bỏ hẳn quầng sáng: nó là thứ đầu tiên đáng bỏ khi máy yếu, vì nó
-    // là không khí chứ không phải thông tin.
-    glow.count = tier === 'low' ? 0 : count;
-    body.instanceMatrix.needsUpdate = true;
-    glow.instanceMatrix.needsUpdate = true;
-    if (body.instanceColor !== null) {
-      body.instanceColor.needsUpdate = true;
+    for (const { mesh } of batches) {
+      mesh.castShadow = features.shadows;
+      mesh.receiveShadow = features.shadows;
+      mesh.visible = mesh.count > 0;
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor !== null) mesh.instanceColor.needsUpdate = true;
+      /*
+       * KHÔNG xoá `boundingSphere` ở đây nữa. Nó từng cần vì tia dò bắn thẳng
+       * vào các lô này; giờ tia bắn vào `hit-proxy.tsx`, và `frustumCulled` đã
+       * `false` nên hình cầu bao không được dùng vào việc gì khác. Xoá nó mỗi
+       * khung hình là bắt three tính lại bao ngoài của 26 lưới cho không.
+       */
     }
-    if (glow.instanceColor !== null) {
-      glow.instanceColor.needsUpdate = true;
-    }
-    /*
-     * Hình cầu bao của InstancedMesh được nhớ lại và KHÔNG tự mất hiệu lực khi
-     * ma trận instance đổi. Bên bắn tia dùng nó làm phép loại nhanh, nên một
-     * hình cầu cũ = pod mới sinh không bấm được. Bỏ nhớ ở đây, three tính lại
-     * lười ngay lần bắn tia kế tiếp.
-     */
-    body.boundingSphere = null;
+    rings.count = ringCount;
+    rings.instanceMatrix.needsUpdate = true;
+    if (rings.instanceColor !== null) rings.instanceColor.needsUpdate = true;
   });
 
   return (
     <>
-      <primitive object={body} />
-      <primitive object={glow} />
+      {batches.map(({ kind, mesh }) => (
+        <primitive key={kind} object={mesh} />
+      ))}
+      <primitive object={rings} />
     </>
   );
 }

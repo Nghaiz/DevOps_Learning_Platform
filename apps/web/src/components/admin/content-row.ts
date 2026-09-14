@@ -1,9 +1,10 @@
+import { err, t } from '@devops-platform/copy';
 import type { BadgeVariant } from '@devops-platform/ui';
 import { CONTENT_KINDS, CONTENT_STATES } from '@devops-platform/shared-types/authoring';
 import type { ContentKind, ContentState } from '@devops-platform/shared-types/authoring';
 
 /**
- * Nhãn cho bảng nội dung của `/admin/content` (13.G) — hàm thuần, test được.
+ * Nhãn cho bảng nội dung của `/admin/content` (13.G), hàm thuần, test được.
  *
  * ## Không có procedure `admin.content.*`, và đó là quyết định đúng
  *
@@ -14,18 +15,13 @@ import type { ContentKind, ContentState } from '@devops-platform/shared-types/au
  * ghi thứ hai lên cùng bảng, tức thêm một chỗ để hai đường trôi khỏi nhau.
  */
 
-const KIND_LABEL: Readonly<Record<ContentKind, string>> = {
-  lesson: 'Bài học',
-  lab: 'Lab',
-  playground: 'Playground',
-};
+function isContentKind(value: string): value is ContentKind {
+  return (CONTENT_KINDS as readonly string[]).includes(value);
+}
 
-const STATE_LABEL: Readonly<Record<ContentState, string>> = {
-  draft: 'Nháp',
-  publishing: 'Đang xuất bản',
-  published: 'Đã xuất bản',
-  archived: 'Đã lưu trữ',
-};
+function isContentState(value: string): value is ContentState {
+  return (CONTENT_STATES as readonly string[]).includes(value);
+}
 
 const STATE_VARIANT: Readonly<Record<ContentState, BadgeVariant>> = {
   draft: 'outline',
@@ -39,17 +35,24 @@ export const CONTENT_STATE_FILTERS: readonly (ContentState | 'all')[] = ['all', 
 
 export const CONTENT_KIND_LIST: readonly ContentKind[] = CONTENT_KINDS;
 
-/** Nhãn loại nội dung; giá trị lạ giữ nguyên chuỗi gốc thay vì thành ô trống. */
+/**
+ * Nhãn loại nội dung; giá trị lạ giữ nguyên chuỗi gốc thay vì thành ô trống.
+ *
+ * Phép thu hẹp đi qua `CONTENT_KINDS` chứ không qua một phép ép kiểu: `t()` chỉ
+ * nhận khoá có thật, nên `admin.content-kind.${kind}` phải chứng minh được
+ * `kind` thuộc union trước khi ghép. Bản cũ dùng `KIND_LABEL[kind as ContentKind]`,
+ * và phép ép đó cho một `undefined` lúc chạy mà tầng kiểu không thấy.
+ */
 export function describeContentKind(kind: string): string {
-  return KIND_LABEL[kind as ContentKind] ?? kind;
+  return isContentKind(kind) ? t(`admin.content-kind.${kind}`) : kind;
 }
 
 export function describeContentState(state: string): string {
-  return STATE_LABEL[state as ContentState] ?? state;
+  return isContentState(state) ? t(`admin.content-state.${state}`) : state;
 }
 
 export function contentStateVariant(state: string): BadgeVariant {
-  return STATE_VARIANT[state as ContentState] ?? 'warning';
+  return isContentState(state) ? STATE_VARIANT[state] : 'warning';
 }
 
 export interface ArchivePlan {
@@ -65,7 +68,7 @@ export interface ArchivePlan {
  *
  * Lưu trữ KHÔNG phải xoá, và câu chữ phải nói ra: `progress.lesson_id` và
  * `lab_attempts.lab_id` là cột text KHÔNG có khoá ngoại, nên xoá một bài sẽ làm
- * chúng trỏ vào hư không trong im lặng — tiến độ của người học biến mất khỏi
+ * chúng trỏ vào hư không trong im lặng, tức tiến độ của người học biến mất khỏi
  * màn hình mà không ai biết vì sao. Đó là lý do `authoring.ts` chỉ có `archive`.
  */
 export function planArchive(input: {
@@ -73,16 +76,19 @@ export function planArchive(input: {
   readonly kind: string;
   readonly state: string;
 }): ArchivePlan {
-  const what = `${describeContentKind(input.kind)} "${input.title}"`;
-  const title = `Lưu trữ ${what}?`;
-  const confirmLabel = 'Lưu trữ';
+  const what = t('admin.archive.what', {
+    kind: describeContentKind(input.kind),
+    title: input.title,
+  });
+  const title = t('admin.archive.title', { what });
+  const confirmLabel = t('admin.archive.confirm');
 
   if (input.state === 'archived') {
     return {
       allowed: false,
-      blockedReason: 'Bài này đã ở trạng thái lưu trữ rồi.',
+      blockedReason: t('admin.archive.blocked-archived'),
       title,
-      body: `${what} đã được lưu trữ.`,
+      body: t('admin.archive.body-archived', { what }),
       confirmLabel,
     };
   }
@@ -90,10 +96,9 @@ export function planArchive(input: {
   if (input.state === 'publishing') {
     return {
       allowed: false,
-      blockedReason:
-        'Bài đang chạy thử xuất bản. Đợi lượt chạy thử kết thúc rồi lưu trữ, để kết quả chạy thử không ghi đè trạng thái vừa đặt.',
+      blockedReason: t('admin.archive.blocked-publishing'),
       title,
-      body: `${what} đang trong lượt chạy thử xuất bản.`,
+      body: t('admin.archive.body-publishing', { what }),
       confirmLabel,
     };
   }
@@ -102,11 +107,15 @@ export function planArchive(input: {
     allowed: true,
     blockedReason: null,
     title,
-    body:
-      `${what} sẽ biến khỏi danh mục người học, nhưng KHÔNG bị xoá: tiến độ và lượt làm lab đã ghi ` +
-      'vẫn trỏ đúng vào nó. Người soạn vẫn mở lại và xuất bản lại được.',
+    body: t('admin.archive.body', { what }),
     confirmLabel,
   };
+}
+
+/** Câu lỗi khi lưu trữ hỏng. Ghép hai nửa vì `ConfirmDialog` chỉ có một khe `error`. */
+export function describeArchiveError(message: string): string {
+  const entry = err('admin.error.archive', { message });
+  return `${entry.what} ${entry.next}`;
 }
 
 /**
@@ -138,7 +147,7 @@ export function orderContent<T extends ContentRowLike>(rows: readonly T[]): read
 }
 
 function rankContent(row: ContentRowLike): number {
-  // Bài lỗi xuất bản nằm ngay sau bài đang chạy — nó là việc CẦN LÀM, và nếu để
+  // Bài lỗi xuất bản nằm ngay sau bài đang chạy: nó là việc CẦN LÀM, và nếu để
   // nó chìm theo thứ tự thời gian thì không ai thấy cho tới khi người soạn hỏi.
   if (row.state !== 'publishing' && row.publishError !== null) {
     return 1;
@@ -146,7 +155,7 @@ function rankContent(row: ContentRowLike): number {
   return STATE_ORDER[row.state] ?? 5;
 }
 
-/** Lọc theo trạng thái ở CLIENT — `authoring.list` không nhận tham số lọc và trả về cả danh sách. */
+/** Lọc theo trạng thái ở CLIENT; `authoring.list` không nhận tham số lọc và trả về cả danh sách. */
 export function filterContentByState<T extends { readonly state: string }>(
   rows: readonly T[],
   state: string,

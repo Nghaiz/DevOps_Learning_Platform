@@ -1,0 +1,1 @@
+CREATE INDEX "auth_refresh_tokens_rotated_from_idx" ON "auth_refresh_tokens" USING btree ("rotated_from");

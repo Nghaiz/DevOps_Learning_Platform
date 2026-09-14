@@ -97,6 +97,7 @@ PORT=3000
 | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Azure Portal (Entra ID) | khi cần đăng nhập Microsoft thật | [03-microsoft-entra.md](03-microsoft-entra.md) |
 | Branch protection, merge, Copilot review, Dependabot | GitHub repo Settings | **đã cấu hình sẵn** — kiểm bằng `pnpm repo:check` | [04-github-repo-settings.md](04-github-repo-settings.md) |
 | Secret lúc deploy Helm | tự tạo trên cluster | khi deploy lên k8s | [05-helm-secrets-deploy.md](05-helm-secrets-deploy.md) |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | nhà cung cấp email hoặc Mailpit cục bộ | khi bật đặt lại mật khẩu qua email | [06-password-reset-smtp.md](06-password-reset-smtp.md) |
 
 **Không còn mục nào phải bấm tay trong Settings.** Toàn bộ cấu hình repo đã áp
 dụng qua `gh api` — kiểm bằng `pnpm repo:check` (17 mục).

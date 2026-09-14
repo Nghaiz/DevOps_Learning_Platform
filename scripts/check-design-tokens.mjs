@@ -59,20 +59,25 @@ const SELF = fileURLToPath(import.meta.url);
 const REPO = resolve(SELF, '..', '..');
 
 // ─────────────────────────────────────────────────────────────── vùng quét
-const ROOTS = [
-  'apps/web/src',
-  'packages/ui/src',
-  'packages/terminal/src',
-];
+const ROOTS = ['apps/web/src', 'packages/ui/src', 'packages/terminal/src'];
 
 // `packages/games/src` chỉ tồn tại từ phase 14 — quét nếu có, không bắt buộc,
 // để script này chạy được cả trên nhánh chưa có package đó.
 const OPTIONAL_ROOTS = ['packages/games/src'];
 
 const IGNORE_DIRS = new Set([
-  'node_modules', '.git', '.next', '.turbo', '.artifacts',
-  'dist', 'build', 'coverage', 'gen', 'test-results',
-  'playwright-report', '__snapshots__',
+  'node_modules',
+  '.git',
+  '.next',
+  '.turbo',
+  '.artifacts',
+  'dist',
+  'build',
+  'coverage',
+  'gen',
+  'test-results',
+  'playwright-report',
+  '__snapshots__',
 ]);
 
 const SCAN_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.css']);
@@ -165,20 +170,51 @@ const KNOWN_HARDCODED = [
   // mốc sentinel `'#000000'` dùng để phát hiện gán `fillStyle` trượt; lane E sau
   // đó viết lại chỗ đó không cần hằng hex nữa, cổng báo dòng miễn trừ HẾT HẠN,
   // nên dòng bị xoá. KHÔNG thêm màu cứng lại cho "khớp sổ cái".
+  // ✅ 2026-09-09 — `apps/web/src/components/games/k8s-scene-lazy.tsx` ĐÃ ĐƯỢC
+  // XOÁ khỏi sổ này: cả thư mục `components/games/` không còn tồn tại (arena
+  // dựng lại ở `components/k8s-arena/`), nên dòng miễn trừ cho `0xffffff` của
+  // `DirectionalLight` không còn gác gì cả. Cổng tự báo dòng đã hết hạn và đây
+  // là chiều-xuống của sổ cái hoạt động đúng lần thứ hai. Ánh sáng ở bản mới
+  // đọc màu từ token qua `use-arena-colors.ts`, nên không cần miễn trừ nào.
+
   {
-    file: 'apps/web/src/components/games/k8s-scene-lazy.tsx',
-    allow: [
-      {
-        match: '0xffffff',
-        context: /(?:Directional|Hemisphere|Ambient|Point|Spot)Light\s*\(/,
-        reason:
-          'Ánh sáng TRẮNG là sự VẮNG MẶT của sắc độ, không phải một màu thương ' +
-          'hiệu — và `THREE.*Light` nhận màu qua tham số số học của API JS, không ' +
-          'đọc được var(--token). Cùng hình dạng với dòng xterm ITheme ở trên. ' +
-          '⚠ Miễn trừ này CHỈ cho giá trị trắng trên dòng khởi tạo Light: mọi màu ' +
-          'cứng khác trong file (material, fog, background) VẪN bị bắt.',
-      },
-    ],
+    file: 'apps/web/src/app/opengraph-image.tsx',
+    reason:
+      'Satori (nền của `next/og`) nhận màu qua thuộc tính style của JS và KHÔNG ' +
+      'chạy CSS cascade — nó không phân giải `var(--token)` và không hiểu ' +
+      '`oklch()`. Cùng loại ranh giới với xterm.js. Ba hằng trong file LẤY TỪ ' +
+      'token thương hiệu của globals.css, đã quy đổi sang hex.',
+  },
+
+  // ⏳ 2026-09-10 — HAI DÒNG DƯỚI LÀ MIỄN TRỪ THEO **PHẠM VI**, KHÔNG PHẢI THEO
+  // RANH GIỚI THƯ VIỆN NGOÀI. Đó là khác biệt quan trọng: dòng `xterm.js` ở trên
+  // sẽ KHÔNG BAO GIỜ hết hạn (API JS không đọc được `var(--token)`), còn hai dòng
+  // này PHẢI hết hạn.
+  //
+  // Lý do: `plans/devops-learning-platform/phase-16.md` mục 1 và mục 8 đặt
+  // `components/k8s-arena/**` ra NGOÀI phạm vi P16, và lúc P16 chạy thì một phiên
+  // khác đang sửa chính thư mục đó. Cổng này được nối vào CI ở cùng ngày; nếu
+  // không có hai dòng miễn trừ thì nó đỏ ngay từ commit đầu và sẽ bị gỡ khỏi CI —
+  // tức luật §9 lại tiếp tục không gác gì, đúng thứ AC-8 tồn tại để chặn.
+  //
+  // ⚠ RÀ LẠI KHI ARENA VÀO PHẠM VI. Đây không phải giấy phép vĩnh viễn cho arena
+  // đứng ngoài hệ token — nó là một khoản nợ có tên và có ngày. Cổng tự báo dòng
+  // hết hạn khi file hết vi phạm, và lúc đó XOÁ dòng chứ đừng thêm màu cứng lại
+  // cho khớp sổ cái.
+  {
+    file: 'apps/web/src/components/k8s-arena/arena.css',
+    reason:
+      'Stylesheet riêng của arena, 43 màu trần. NGOÀI phạm vi P16 (phase-16.md ' +
+      'mục 1 + mục 8). Đây là nợ hệ token thật, không phải ranh giới thư viện ' +
+      'ngoài — rà lại khi arena vào phạm vi. Ghi nợ 2026-09-10.',
+  },
+  {
+    file: 'apps/web/src/components/k8s-arena/scene/node-geometry.ts',
+    reason:
+      'Màu material của hình học 3D truyền qua API JS của three.js, không qua ' +
+      'CSS — cùng loại ranh giới với xterm.js. Vẫn để trong khối RÀ LẠI vì phần ' +
+      'còn lại của arena chưa dọn; khi arena vào phạm vi thì cân nhắc cho nó đọc ' +
+      'token qua `use-arena-colors.ts` như ánh sáng đã làm. Ghi nợ 2026-09-10.',
   },
 ];
 
@@ -210,7 +246,14 @@ function scanText(text, { ext }) {
       rule.re.lastIndex = 0;
       let m;
       while ((m = rule.re.exec(raw)) !== null) {
-        hits.push({ line: i + 1, col: m.index + 1, rule: rule.id, why: rule.why, match: m[0], text: trimmed });
+        hits.push({
+          line: i + 1,
+          col: m.index + 1,
+          rule: rule.id,
+          why: rule.why,
+          match: m[0],
+          text: trimmed,
+        });
         if (m.index === rule.re.lastIndex) rule.re.lastIndex++;
       }
     }
@@ -239,7 +282,9 @@ function scanTree() {
   const missing = ROOTS.filter((r) => !existsSync(join(REPO, r)));
   if (missing.length) {
     console.error(`LỖI CẤU HÌNH: vùng quét không tồn tại: ${missing.join(', ')}`);
-    console.error('Thư mục bị đổi tên/di chuyển ⇒ sửa ROOTS trong scripts/check-design-tokens.mjs.');
+    console.error(
+      'Thư mục bị đổi tên/di chuyển ⇒ sửa ROOTS trong scripts/check-design-tokens.mjs.',
+    );
     process.exit(2);
   }
 
@@ -291,7 +336,7 @@ const DIRTY = [
   ['hex-6', "const BRAND = '#e31029';", '.ts'],
   ['hex-3', "el.style.color = '#f08';", '.ts'],
   ['hex-8-alpha', "const OVERLAY = '#00000080';", '.ts'],
-  ['hex-trong-style', '<div style={{ backgroundColor: \'#3b82f6\' }} />', '.tsx'],
+  ['hex-trong-style', "<div style={{ backgroundColor: '#3b82f6' }} />", '.tsx'],
   ['hex-trong-css', '  border-color: #e5e5e5;', '.css'],
   ['three-0x', 'const mat = new THREE.MeshBasicMaterial({ color: 0xff0000 });', '.ts'],
   ['opacity-modifier', '<div className="bg-slate-700/50" />', '.tsx'],
@@ -308,7 +353,10 @@ const CLEAN = [
   // Class ngữ nghĩa — đúng thứ cổng này BẢO VỆ, nên chúng phải im lặng đi qua.
   ["        primary: 'bg-primary text-primary-foreground hover:bg-primary/90',", '.tsx'],
   ["        destructive: 'border-destructive bg-transparent text-destructive',", '.tsx'],
-  ["  'difficulty-basic': 'border-transparent bg-difficulty-basic text-difficulty-basic-foreground',", '.tsx'],
+  [
+    "  'difficulty-basic': 'border-transparent bg-difficulty-basic text-difficulty-basic-foreground',",
+    '.tsx',
+  ],
   ['<div className="bg-muted text-muted-foreground border-input" />', '.tsx'],
   ['<span className="bg-status-progress text-status-done-foreground" />', '.tsx'],
   // Tiện ích KHÔNG phải màu, nhưng có chữ số — đúng chỗ một mẫu ẩu sẽ kêu oan.
@@ -376,7 +424,8 @@ function selfTest() {
   }
   for (const [line, ext] of CLEAN) {
     const hits = scanText(line, { ext });
-    if (hits.length) fails.push(`SẠCH BỊ KÊU OAN  [${hits[0].rule} khớp "${hits[0].match}"]  ${line}`);
+    if (hits.length)
+      fails.push(`SẠCH BỊ KÊU OAN  [${hits[0].rule} khớp "${hits[0].match}"]  ${line}`);
   }
 
   // Đối chứng cho CHÍNH bộ lọc chú thích: nếu `isCommentLine` luôn trả `true`
@@ -420,7 +469,9 @@ const stale = KNOWN_HARDCODED.flatMap((e) =>
     ? seenExempt.has(e.file)
       ? []
       : [e.file]
-    : e.allow.filter((a) => !seenExempt.has(`${e.file} :: ${a.match}`)).map((a) => `${e.file} :: ${a.match}`),
+    : e.allow
+        .filter((a) => !seenExempt.has(`${e.file} :: ${a.match}`))
+        .map((a) => `${e.file} :: ${a.match}`),
 );
 
 if (hits.length === 0 && stale.length === 0) {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
+import { ARC_PATH_D } from '@devops-platform/motion/motif';
 import { StepNav, type StepNavItem } from './step-nav.tsx';
 import { ProgressBar } from './progress-bar.tsx';
 
@@ -63,6 +64,25 @@ describe('StepNav', () => {
  * là devDependency và được nạp ở `vitest.setup.ts` — bản đầu của chú thích này
  * nói ngược lại và đã hết đúng.)
  */
+/**
+ * Cung tiến độ — phần MANG TIẾN ĐỘ, tức `<path>` thứ hai (thứ nhất là rãnh).
+ *
+ * Đọc `--p` chứ không `stroke-dashoffset`: `arcProgressProps` đặt
+ * `stroke-dashoffset: calc(1 - var(--p))`, một biểu thức KHÔNG tính ra số nếu
+ * không có CSSOM thật — và jsdom không có. `--p` là nơi con số thật sự sống,
+ * nên nó là thứ duy nhất đo được ở tầng này. Việc `calc()` đó có nội suy mượt
+ * trên trình duyệt thật hay không thuộc ô đo của 16.I.
+ */
+function arcProgress(bar: HTMLElement): HTMLElement {
+  const paths = bar.querySelectorAll('path');
+  expect(paths.length, 'cung tiến độ phải có ĐỦ rãnh + phần đã đi qua').toBe(2);
+  return paths[1] as unknown as HTMLElement;
+}
+
+function arcP(bar: HTMLElement): number {
+  return Number(arcProgress(bar).style.getPropertyValue('--p'));
+}
+
 describe('ProgressBar', () => {
   it('tính đúng phần trăm và đặt các thuộc tính aria progressbar', () => {
     render(<ProgressBar value={3} max={10} label="Tiến độ" />);
@@ -70,17 +90,38 @@ describe('ProgressBar', () => {
     expect(bar.getAttribute('aria-valuenow')).toBe('3');
     expect(bar.getAttribute('aria-valuemin')).toBe('0');
     expect(bar.getAttribute('aria-valuemax')).toBe('10');
-    const fill = bar.firstChild as HTMLElement;
-    expect(fill.style.width).toBe('30%');
+    // Bản `border-l-4`/`width: 30%` cũ đo bề rộng của khối tô. Cùng mệnh đề,
+    // đọc trên hình mới: 3/10 ⇒ cung quét 30% của 300°.
+    expect(arcP(bar)).toBeCloseTo(0.3, 6);
     expect(screen.getByText('Tiến độ')).not.toBeNull();
   });
 
-  it('max = 0 không tạo ra NaN trong style width — trả về 0% thay vì chia cho 0', () => {
+  it('cung vẽ ĐÚNG ellipse hở của motif, không phải một hình tự dựng', () => {
+    render(<ProgressBar value={3} max={10} />);
+    const bar = screen.getByRole('progressbar');
+    for (const path of bar.querySelectorAll('path')) {
+      expect(path.getAttribute('d'), 'cung lệch khỏi ARC_PATH_D ⇒ khe hở không còn đúng phía').toBe(ARC_PATH_D);
+    }
+  });
+
+  /**
+   * `pathLength={1}` KHÔNG phải trang trí: chu vi ellipse không có công thức
+   * sơ cấp, nên thiếu nó thì `stroke-dasharray: 1` đo trên độ dài THẬT và
+   * `p = 1` không khép vào mép khe hở — lệch vài phần trăm, đủ thấy mà không
+   * đủ để ai gọi tên. Xem `arcProgressProps` ở `packages/motion`.
+   */
+  it('cung chuẩn hoá độ dài về 1 (`pathLength`), không tự tính chu vi', () => {
+    render(<ProgressBar value={1} max={4} />);
+    const progress = arcProgress(screen.getByRole('progressbar'));
+    expect(progress.getAttribute('pathLength')).toBe('1');
+    expect(progress.getAttribute('stroke-dasharray')).toBe('1');
+  });
+
+  it('max = 0 không tạo ra NaN trong tiến độ — trả về 0 thay vì chia cho 0', () => {
     render(<ProgressBar value={0} max={0} />);
     const bar = screen.getByRole('progressbar');
-    const fill = bar.firstChild as HTMLElement;
-    expect(fill.style.width).toBe('0%');
-    expect(fill.style.width).not.toContain('NaN');
+    expect(arcProgress(bar).style.getPropertyValue('--p')).toBe('0');
+    expect(arcProgress(bar).getAttribute('style') ?? '').not.toContain('NaN');
   });
 });
 
@@ -187,22 +228,33 @@ describe('ProgressBar — số phần trăm cho mắt, không đọc lại cho A
     expect(screen.getByText('33%').getAttribute('aria-hidden')).toBe('true');
   });
 
-  it('đầy 100% thì thanh đổi sang tông status-done, chưa đầy thì status-progress', () => {
+  /**
+   * Tông màu đọc trên `getAttribute('class')`, KHÔNG trên `.className`: phần
+   * tử mang tông giờ là một `<svg>`, và `SVGElement.className` là một
+   * `SVGAnimatedString` chứ không phải chuỗi — `toContain` trên nó xanh/đỏ vì
+   * lý do chẳng liên quan gì tới màu.
+   *
+   * `text-*` chứ không `bg-*`: cung lấy `stroke: currentColor` (§8.5) nên màu
+   * đi qua màu CHỮ của phần tử, không qua nền.
+   */
+  it('đầy 100% thì cung đổi sang tông status-done, chưa đầy thì status-progress', () => {
     const { unmount } = render(<ProgressBar value={4} max={4} />);
-    const full = screen.getByRole('progressbar').firstChild as HTMLElement;
-    expect(full.className).toContain('bg-status-done');
-    expect(full.className).not.toContain('bg-status-progress');
+    const full = screen.getByRole('progressbar').firstChild as SVGElement;
+    expect(full.getAttribute('class')).toContain('text-status-done');
+    expect(full.getAttribute('class')).not.toContain('text-status-progress');
     unmount();
 
     render(<ProgressBar value={1} max={4} />);
-    const partial = screen.getByRole('progressbar').firstChild as HTMLElement;
-    expect(partial.className).toContain('bg-status-progress');
+    const partial = screen.getByRole('progressbar').firstChild as SVGElement;
+    expect(partial.getAttribute('class')).toContain('text-status-progress');
   });
 
-  it('vẫn ĐÚNG MỘT style inline (bề rộng) — không thêm style runtime mới cho CSP gánh', () => {
+  it('vẫn ĐÚNG MỘT style inline (cung) — không thêm style runtime mới cho CSP gánh', () => {
     const { container } = render(<ProgressBar value={2} max={4} label="Tiến độ" />);
     const withStyle = container.querySelectorAll('[style]');
-    expect(withStyle.length).toBe(1);
-    expect((withStyle[0] as HTMLElement).style.width).toBe('50%');
+    expect(withStyle.length, 'mỗi style inline là một lý do nữa để CSP giữ style-src unsafe-inline').toBe(1);
+    // Bản cũ: `width: 50%` trên khối tô. Bản này: `--p` trên cung. Cùng một
+    // ngân sách, cùng một con số.
+    expect((withStyle[0] as HTMLElement).style.getPropertyValue('--p')).toBe('0.5');
   });
 });

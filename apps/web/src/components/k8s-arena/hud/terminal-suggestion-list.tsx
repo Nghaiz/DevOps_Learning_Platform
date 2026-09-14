@@ -1,49 +1,48 @@
 'use client';
-
-import type { ReactElement } from 'react';
-import { cn } from '@devops-platform/ui';
-import type { Suggestion } from './terminal-suggest-vocab.ts';
-import { HUD_SCROLL_HIDDEN } from './top-bar.tsx';
-
+import { useEffect, useRef, type ReactElement } from 'react';
+import type { Suggestion } from './terminal-suggest-vocab';
 export interface TerminalSuggestionListProps {
+  readonly id: string;
   readonly suggestions: readonly Suggestion[];
   readonly highlight: number;
+  readonly onPick: (value: string) => void;
 }
-
-/**
- * Danh sách gợi ý nằm ngay trên ô nhập.
- *
- * Trả `null` khi rỗng chứ không render một khung trống: một dải xám không có gì
- * trong đó đọc ra là "đang tải" hoặc "hỏng", mà thật ra nó chỉ đang nói "không
- * có gợi ý nào cho thứ bạn vừa gõ".
- *
- * ⚠ Không phải `role="listbox"` / `option`: mẫu combobox của WAI-ARIA đòi ô nhập
- * mang `aria-activedescendant` trỏ tới mục đang chọn, và khai một nửa mẫu đó còn
- * tệ hơn không khai — trình đọc màn hình sẽ thông báo một hộp chọn mà bàn phím
- * không đi được theo cách nó vừa hứa. Ở đây là một `<ul>` thường, và cái đang
- * chọn nói bằng `aria-current`.
- */
 export function TerminalSuggestionList({
+  id,
   suggestions,
   highlight,
-}: TerminalSuggestionListProps): ReactElement | null {
-  if (suggestions.length === 0) {
-    return null;
-  }
+  onPick,
+}: TerminalSuggestionListProps): ReactElement {
+  const ref = useRef<HTMLUListElement>(null);
   const index = Math.min(highlight, suggestions.length - 1);
+  useEffect(() => {
+    const list = ref.current,
+      item = list?.children[index];
+    if (list && item instanceof HTMLElement) {
+      if (item.offsetTop < list.scrollTop) list.scrollTop = item.offsetTop;
+      else if (item.offsetTop + item.offsetHeight > list.scrollTop + list.clientHeight)
+        list.scrollTop = item.offsetTop + item.offsetHeight - list.clientHeight;
+    }
+  }, [index]);
   return (
-    <ul className={cn('max-h-40 overflow-y-auto border-t border-border bg-muted px-1 py-1', HUD_SCROLL_HIDDEN)}>
-      {suggestions.map((item, position) => (
+    <ul
+      ref={ref}
+      id={id}
+      role="listbox"
+      aria-label="Hoàn thành lệnh"
+      className="arena-terminal-suggestions"
+    >
+      {suggestions.map((item, i) => (
         <li
           key={item.value}
-          aria-current={position === index}
-          className={cn(
-            'flex items-baseline gap-2 rounded-sm px-2 py-0.5 text-xs',
-            position === index ? 'bg-accent text-accent-foreground' : 'text-muted-foreground',
-          )}
+          id={`${id}-${i}`}
+          role="option"
+          aria-selected={i === index}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onPick(item.value)}
         >
-          <span className="font-mono text-foreground">{item.value}</span>
-          <span className="truncate">{item.hint}</span>
+          <code>{item.value}</code>
+          <span>{item.hint}</span>
         </li>
       ))}
     </ul>

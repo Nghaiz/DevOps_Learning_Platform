@@ -1,7 +1,9 @@
 import { BookOpen, FlaskConical, ListChecks, SquareTerminal, type LucideIcon } from 'lucide-react';
+import { t, type TextKey } from '@devops-platform/copy';
 import { Skeleton } from '@devops-platform/ui';
 import { HomeSection } from './home-section';
 import { readCatalogCounts, type CatalogKind } from './catalog-stats.server';
+import styles from './landing.module.css';
 
 /**
  * "Trong nền tảng có gì" — bốn con số ĐỌC TỪ SERVER.
@@ -9,7 +11,9 @@ import { readCatalogCounts, type CatalogKind } from './catalog-stats.server';
  * Mô tả từng loại lấy lại nguyên ý các chuỗi đang hiện ở chính trang danh mục
  * tương ứng (`lessons-client.tsx`, `labs-client.tsx`, `playgrounds-client.tsx`,
  * `quiz-client.tsx`) — cùng một giọng, và người dùng gặp lại đúng câu đó khi
- * bấm vào.
+ * bấm vào. Hai trong bốn câu đó mang U+2014 và đã được viết lại bằng dấu phẩy
+ * lúc chuyển sang `packages/copy`; ký tự cũ không được thay bằng một ký tự khác
+ * trông giống nó.
  *
  * Bốn ô KHÔNG phải liên kết, cố ý: mọi đường danh mục đều sau cổng đăng nhập
  * (`proxy.ts` đẩy khách qua `/login`), nên một ô trông bấm được mà bấm vào lại
@@ -19,43 +23,43 @@ import { readCatalogCounts, type CatalogKind } from './catalog-stats.server';
  */
 const TILES: readonly {
   readonly kind: CatalogKind;
-  readonly label: string;
-  readonly note: string;
+  readonly label: TextKey;
+  readonly note: TextKey;
   readonly icon: LucideIcon;
 }[] = [
   {
     kind: 'lessons',
-    label: 'Bài học',
-    note: 'Từng bước có hướng dẫn, mỗi bài mở một sandbox riêng.',
+    label: 'home.catalog-label.lessons',
+    note: 'home.catalog-note.lessons',
     icon: BookOpen,
   },
   {
     kind: 'labs',
-    label: 'Lab',
-    note: 'Một tập nhiệm vụ độc lập — tự chấm rồi nộp khi sẵn sàng.',
+    label: 'home.catalog-label.labs',
+    note: 'home.catalog-note.labs',
     icon: FlaskConical,
   },
   {
     kind: 'playgrounds',
-    label: 'Playground',
-    note: 'Sandbox trống, không bài, không chấm — để thử lệnh.',
+    label: 'home.catalog-label.playgrounds',
+    note: 'home.catalog-note.playgrounds',
     icon: SquareTerminal,
   },
   {
     kind: 'quizzes',
-    label: 'Quiz',
-    note: 'Bộ câu hỏi tự chấm, nộp xong mới thấy điểm và giải thích.',
+    label: 'home.catalog-label.quizzes',
+    note: 'home.catalog-note.quizzes',
     icon: ListChecks,
   },
 ];
 
-const GRID = 'grid gap-4 sm:grid-cols-2 min-[769px]:grid-cols-4';
-const TILE = 'flex flex-col gap-2 rounded-lg border border-border bg-card p-5 shadow-elevation-1';
+const GRID = styles.catalogGrid;
+const TILE = styles.catalogItem;
 
 export async function CatalogStats() {
   const counts = await readCatalogCounts();
 
-  // Cả bốn lượt đọc đều hỏng ⇒ ẩn hẳn dải. Bốn dấu gạch ngang cạnh nhau không
+  // Cả bốn lượt đọc đều hỏng ⇒ ẩn hẳn dải. Bốn dấu gạch nối cạnh nhau không
   // nói được gì cho người đọc và trông như trang bị vỡ; sự cố đã nằm trong
   // `console.error` của tầng server, đúng nơi người vận hành nhìn.
   if (TILES.every((tile) => counts[tile.kind] === null)) {
@@ -65,41 +69,33 @@ export async function CatalogStats() {
   const somethingMissing = TILES.some((tile) => counts[tile.kind] === null);
 
   return (
-    <HomeSection labelledBy="co-gi" innerClassName="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h2 id="co-gi" className="text-xl font-semibold text-foreground">
-          Trong nền tảng có gì
-        </h2>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Đếm từ nội dung đã xuất bản, ngay lúc bạn mở trang.
-        </p>
+    <HomeSection labelledBy="co-gi" innerClassName={styles.catalogInner}>
+      <div className={styles.catalogHeading}>
+        <h2 id="co-gi">{t('home.catalog.heading')}</h2>
+        <p>{t('home.catalog.lede')}</p>
       </div>
 
       <div className={GRID}>
-        {TILES.map(({ kind, label, note, icon: Icon }) => (
+        {TILES.map(({ kind, label, note }) => (
           <div key={kind} className={TILE}>
-            <Icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
-            <p className="text-3xl font-bold tabular-nums text-foreground">
+            <p className={styles.catalogCount}>
               {counts[kind] === null ? (
                 <>
-                  <span aria-hidden="true">–</span>
-                  <span className="sr-only">chưa đọc được số lượng</span>
+                  <span aria-hidden="true">-</span>
+                  <span className="sr-only">{t('home.catalog.unknown-count')}</span>
                 </>
               ) : (
                 counts[kind]
               )}
             </p>
-            <p className="text-sm font-medium text-foreground">{label}</p>
-            <p className="text-xs text-pretty text-muted-foreground">{note}</p>
+            <p className={styles.catalogLabel}>{t(label)}</p>
+            <p className={styles.catalogNote}>{t(note)}</p>
           </div>
         ))}
       </div>
 
       {somethingMissing ? (
-        <p className="text-sm text-muted-foreground">
-          Một vài con số chưa đọc được vì máy chủ nội dung không trả lời. Phần còn lại của trang
-          vẫn dùng được — tải lại sau ít phút để thấy đủ.
-        </p>
+        <p className="text-sm text-muted-foreground">{t('home.catalog.partial')}</p>
       ) : null}
     </HomeSection>
   );
@@ -114,7 +110,7 @@ export async function CatalogStats() {
  */
 export function CatalogStatsSkeleton() {
   return (
-    <HomeSection innerClassName="flex flex-col gap-6">
+    <HomeSection innerClassName={styles.catalogInner}>
       <div className="flex flex-col gap-2">
         <Skeleton className="h-7 w-56" />
         <Skeleton className="h-5 w-80 max-w-full" />
@@ -129,7 +125,7 @@ export function CatalogStatsSkeleton() {
           </div>
         ))}
       </div>
-      <span className="sr-only">Đang đọc số lượng nội dung.</span>
+      <span className="sr-only">{t('home.catalog.loading')}</span>
     </HomeSection>
   );
 }

@@ -47,21 +47,17 @@ export function sampleFrom(view: ClusterView): MetricSample {
   };
 }
 
-/**
- * Thêm một mẫu, cắt bớt phần vượt cửa sổ.
- *
- * Mẫu trùng `tick` với mẫu cuối bị BỎ QUA thay vì ghi đè: React có thể render
- * lại nhiều lần trong cùng một tick mô phỏng (đổi tab, rê chuột, đổi theme), và
- * ghi mỗi lần render sẽ làm trục hoành dày lên ở đúng những chỗ người dùng
- * tương tác nhiều — một đồ thị nói về thao tác chuột chứ không nói về cụm.
- */
+/** One sample per tick; replace paused edits and reset when a new run starts. */
 export function pushSample(
   history: readonly MetricSample[],
   sample: MetricSample,
 ): readonly MetricSample[] {
   const last = history.at(-1);
-  if (last !== undefined && last.tick >= sample.tick) {
-    return history;
+  if (last !== undefined && sample.tick < last.tick) return [sample];
+  if (last !== undefined && last.tick === sample.tick) {
+    if (last.cpu === sample.cpu && last.memory === sample.memory && last.pods === sample.pods)
+      return history;
+    return [...history.slice(0, -1), sample];
   }
   const next = [...history, sample];
   return next.length > METRICS_WINDOW ? next.slice(next.length - METRICS_WINDOW) : next;

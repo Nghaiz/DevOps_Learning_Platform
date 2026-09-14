@@ -12,7 +12,14 @@ import { isDialogOpen, isTypingTarget } from './overlay-manager-keys.ts';
  * chúng thì một người bấm Esc mấy lần cho chắc sẽ tự làm trống màn hình của mình
  * rồi không biết đường lấy lại — và bảng tạo tài nguyên là thứ họ cần nhất.
  */
-const ESC_DISMISSES: readonly OverlayId[] = ['terminal', 'codex', 'metrics', 'incidents', 'eventLog'];
+const ESC_DISMISSES: readonly OverlayId[] = [
+  'terminal',
+  'codex',
+  'metrics',
+  'incidents',
+  'eventLog',
+  'settings',
+];
 
 /** Phím → lớp. Đọc thẳng `ARENA_KEYS` nên bảng trợ giúp và mã không bao giờ nói hai phím khác nhau. */
 const KEY_TO_OVERLAY: Readonly<Record<string, OverlayId>> = {
@@ -21,6 +28,7 @@ const KEY_TO_OVERLAY: Readonly<Record<string, OverlayId>> = {
   [ARENA_KEYS.toggleIncidents]: 'incidents',
   [ARENA_KEYS.toggleCodex]: 'codex',
   [ARENA_KEYS.toggleEventLog]: 'eventLog',
+  [ARENA_KEYS.toggleSettings]: 'settings',
 };
 
 export interface OverlayManagerOptions {
@@ -36,6 +44,8 @@ export interface OverlayManagerOptions {
   readonly codexAvailable?: boolean;
   readonly onCamera?: (kind: 'reset' | 'frame-all') => void;
   readonly onPauseResume?: () => void;
+  /** Trả mọi tài nguyên đã kéo về chỗ bố cục tự động tính. */
+  readonly onAutoAlign?: () => void;
   readonly onCommandPalette?: () => void;
 }
 
@@ -80,7 +90,9 @@ export function useOverlayManager(options: OverlayManagerOptions = {}): OverlayM
   }, []);
 
   const toggle = useCallback((id: OverlayId): void => {
-    setStack((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+    setStack((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
   }, []);
 
   const closeTopmost = useCallback((): void => {
@@ -136,6 +148,10 @@ export function useOverlayManager(options: OverlayManagerOptions = {}): OverlayM
       }
       if (key === ARENA_KEYS.frameAll) {
         optionsRef.current.onCamera?.('frame-all');
+        return;
+      }
+      if (key === ARENA_KEYS.autoAlign) {
+        optionsRef.current.onAutoAlign?.();
         return;
       }
       if (key === ARENA_KEYS.commandPalette) {

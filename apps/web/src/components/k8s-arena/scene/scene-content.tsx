@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef, type ReactElement, type RefObject } from 'react';
-import type * as THREE from 'three';
 import { useThree } from '@react-three/fiber';
 import type { ArenaSceneProps, QualityTier } from '../arena-contract';
 import { CameraRig } from './camera-rig';
 import { ClusterInstances } from './cluster-instances';
 import { FramePump } from './frame-pump';
+import { HitProxy, type HitProxyHandle } from './hit-proxy';
+import { LayoutSync } from './layout-sync';
 import { NodePlatforms } from './node-platforms';
 import { PointerPicking } from './pointer-picking';
 import { RelationEdges } from './relation-edges';
@@ -31,6 +32,8 @@ export interface SceneContentProps {
    */
   readonly selectedUid: string | null;
   readonly hoveredUid: string | null;
+  readonly showLabels: boolean;
+  readonly showEdges: boolean;
 }
 
 /**
@@ -51,27 +54,45 @@ export function SceneContent({
   labelLayer,
   selectedUid,
   hoveredUid,
+  showLabels,
+  showEdges,
 }: SceneContentProps): ReactElement {
   const invalidate = useThree((s) => s.invalidate);
-  const bodyRef = useRef<THREE.InstancedMesh | null>(null);
-  const runtime = useMemo(
-    () => createSceneRuntime(() => propsRef.current.getView()),
-    [propsRef],
-  );
+  const proxyRef = useRef<HitProxyHandle | null>(null);
+  const runtime = useMemo(() => createSceneRuntime(() => propsRef.current.getView()), [propsRef]);
 
   // Chọn / rê / đổi theme / đổi bậc đều là thứ NHÌN THẤY ĐƯỢC nhưng không sinh
   // ra chuyển động nào, nên không có gì khác xin khung hình hộ chúng.
   useEffect(() => {
     invalidate();
-  }, [invalidate, colorsVersion, tier, selectedUid, hoveredUid]);
+  }, [invalidate, colorsVersion, tier, selectedUid, hoveredUid, showLabels, showEdges]);
 
   return (
     <>
       <FramePump runtime={runtime} propsRef={propsRef} tier={tier} reducedMotion={reducedMotion} />
       <SceneLighting runtime={runtime} colors={colors} colorsVersion={colorsVersion} tier={tier} />
       <NodePlatforms runtime={runtime} colors={colors} colorsVersion={colorsVersion} tier={tier} />
-      <ClusterInstances runtime={runtime} colors={colors} tier={tier} bodyRef={bodyRef} />
-      <RelationEdges runtime={runtime} colors={colors} colorsVersion={colorsVersion} />
+      <ClusterInstances
+        runtime={runtime}
+        colors={colors}
+        colorsVersion={colorsVersion}
+        tier={tier}
+      />
+      {/*
+        Hình bao bấm được. Nằm NGAY SAU bộ ghi instance vì nó đọc cùng một
+        `runtime.visible` trong cùng khung hình — đảo thứ tự thì hộp bấm trễ một
+        khung so với vật, và ở tốc độ kéo bình thường chỗ trễ đó thấy được.
+      */}
+      <HitProxy runtime={runtime} proxyRef={proxyRef} />
+      <RelationEdges
+        runtime={runtime}
+        colors={colors}
+        colorsVersion={colorsVersion}
+        visible={showEdges}
+        tier={tier}
+        propsRef={propsRef}
+        reducedMotion={reducedMotion}
+      />
       <SelectionHalo
         runtime={runtime}
         propsRef={propsRef}
@@ -79,8 +100,9 @@ export function SceneContent({
         colorsVersion={colorsVersion}
       />
       <CameraRig runtime={runtime} propsRef={propsRef} reducedMotion={reducedMotion} />
-      <PointerPicking runtime={runtime} propsRef={propsRef} bodyRef={bodyRef} />
-      <SceneLabels runtime={runtime} propsRef={propsRef} layer={labelLayer} />
+      <PointerPicking runtime={runtime} propsRef={propsRef} proxyRef={proxyRef} />
+      <SceneLabels runtime={runtime} propsRef={propsRef} layer={showLabels ? labelLayer : null} />
+      <LayoutSync runtime={runtime} propsRef={propsRef} />
       <SceneEffects tier={tier} />
     </>
   );

@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import { useRef, useState, type ReactElement } from 'react';
 import {
   Alert,
@@ -52,7 +53,12 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
   const upload = api.authoring.uploadAsset.useMutation({
     onSuccess: (asset) => {
       void utils.authoring.listAssets.invalidate();
-      toast({ title: 'Đã tải lên', description: `Dán đoạn markdown ở bảng dưới để nhúng ${asset.filename}.` });
+      toast({
+        title: t('author.asset-manager-da-tai-len'),
+        description: t('author.asset-manager-dan-doan-markdown-o-bang-duoi-de-nhung', {
+          assetFilename: String(asset.filename),
+        }),
+      });
     },
     onError: (error) => {
       setLocalError(describeTrpcError(error));
@@ -62,7 +68,7 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
   const remove = api.authoring.deleteAsset.useMutation({
     onSuccess: () => {
       void utils.authoring.listAssets.invalidate();
-      toast({ title: 'Đã xoá tệp' });
+      toast({ title: t('author.asset-manager-da-xoa-tep') });
     },
     onError: (error) => {
       setLocalError(describeTrpcError(error));
@@ -77,7 +83,11 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
       return;
     }
     const buffer = await file.arrayBuffer();
-    upload.mutate({ id: contentId, filename: file.name, base64: bytesToBase64(new Uint8Array(buffer)) });
+    upload.mutate({
+      id: contentId,
+      filename: file.name,
+      base64: bytesToBase64(new Uint8Array(buffer)),
+    });
   };
 
   const assets = listQuery.data ?? [];
@@ -85,11 +95,12 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
   return (
     <div className="flex flex-col gap-4">
       <Alert>
-        <AlertTitle>Ảnh nhúng trong nội dung bài</AlertTitle>
+        <AlertTitle>{t('author.asset-manager-anh-nhung-trong-noi-dung-bai')}</AlertTitle>
         <AlertDescription>
-          Nhận {[...CONTENT_ASSET_TYPES.keys()].join(', ')}, tối đa 2 MB mỗi tệp. Đây KHÔNG phải khối &quot;Chép
-          file vào pod&quot; ở tab Soạn — khối đó khai file có sẵn trong image sandbox, còn ở đây là ảnh hiện
-          trong bài.
+          {t('author.asset-manager-nhan')} {[...CONTENT_ASSET_TYPES.keys()].join(', ')}
+          {t(
+            'author.asset-manager-toi-da-2-mb-moi-tep-day-khong-phai-khoi-chep-file-vao-pod-o-tab-soan-khoi-d',
+          )}
         </AlertDescription>
       </Alert>
 
@@ -116,13 +127,13 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
             fileInput.current?.click();
           }}
         >
-          Chọn tệp để tải lên
+          {t('author.asset-manager-chon-tep-de-tai-len')}
         </Button>
       </div>
 
       {localError !== null && (
         <Alert variant="destructive">
-          <AlertTitle>Không tải lên được</AlertTitle>
+          <AlertTitle>{t('author.asset-manager-khong-tai-len-duoc')}</AlertTitle>
           <AlertDescription>{localError}</AlertDescription>
         </Alert>
       )}
@@ -131,7 +142,7 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
 
       {listQuery.isError && (
         <ErrorState
-          title="Không tải được danh sách tệp"
+          title={t('author.asset-manager-khong-tai-duoc-danh-sach-tep')}
           message={describeTrpcError(listQuery.error)}
           onRetry={() => void listQuery.refetch()}
           retrying={listQuery.isFetching}
@@ -140,8 +151,10 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
 
       {listQuery.isSuccess && assets.length === 0 && (
         <EmptyState
-          title="Chưa có tệp nào"
-          description="Tải một ảnh lên rồi dán đoạn markdown vào ô nội dung của bước để nhúng nó."
+          title={t('author.asset-manager-chua-co-tep-nao')}
+          description={t(
+            'author.asset-manager-tai-mot-anh-len-roi-dan-doan-markdown-vao-o-noi-dung-cua-buoc-de-nhung-no',
+          )}
         />
       )}
 
@@ -149,10 +162,10 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Tên tệp</TableHead>
-              <TableHead>Đoạn markdown để nhúng</TableHead>
-              <TableHead>Tải lên</TableHead>
-              <TableHead>Hành động</TableHead>
+              <TableHead>{t('author.asset-manager-ten-tep')}</TableHead>
+              <TableHead>{t('author.asset-manager-doan-markdown-de-nhung')}</TableHead>
+              <TableHead>{t('author.asset-manager-tai-len')}</TableHead>
+              <TableHead>{t('author.asset-manager-hanh-dong')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -164,7 +177,9 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
                   <TableCell>
                     <code className="font-mono text-xs break-all">{snippet}</code>
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{asset.uploadedAt.slice(0, 10)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {asset.uploadedAt.slice(0, 10)}
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button
@@ -180,24 +195,32 @@ export function AssetManager({ contentId }: { readonly contentId: string }): Rea
                               // ngữ cảnh bảo mật). Đoạn markdown vẫn hiện ở
                               // cột bên cạnh nên người soạn bôi đen chép tay
                               // được — nói ra thay vì im lặng không làm gì.
-                              setLocalError('Trình duyệt không cho chép tự động. Bôi đen đoạn markdown rồi chép tay.');
+                              setLocalError(
+                                t(
+                                  'author.asset-manager-trinh-duyet-khong-cho-chep-tu-dong-boi-den-doan-markdown-roi-chep-tay',
+                                ),
+                              );
                             },
                           );
                         }}
                       >
-                        {copiedKey === asset.storageKey ? 'Đã chép' : 'Chép'}
+                        {copiedKey === asset.storageKey
+                          ? t('author.asset-manager-da-chep')
+                          : t('author.asset-manager-chep')}
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         disabled={remove.isPending}
-                        title="Xoá thật. Markdown còn tham chiếu tệp này sẽ hiện ảnh hỏng."
+                        title={t(
+                          'author.asset-manager-xoa-that-markdown-con-tham-chieu-tep-nay-se-hien-anh-hong',
+                        )}
                         onClick={() => {
                           setLocalError(null);
                           remove.mutate({ id: contentId, storageKey: asset.storageKey });
                         }}
                       >
-                        Xoá
+                        {t('common.action.delete')}
                       </Button>
                     </div>
                   </TableCell>

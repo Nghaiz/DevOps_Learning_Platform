@@ -28,13 +28,13 @@ export const PLATFORM_CAPACITY = 32;
  * thì bước giãn nhãn hết chỗ trống và bắt đầu ẩn hàng loạt, mà một màn hình phủ
  * kín chữ cũng không ai đọc.
  */
-export const MAX_LABELS = 28;
+export const MAX_LABELS = 64;
 /** Nửa chiều cao hộp bao nhãn, pixel. Khớp với `text-[10px]` + padding dọc. */
 export const LABEL_HALF_HEIGHT = 9;
 /** Bề rộng ước lượng mỗi ký tự ở `text-[10px]` font mono, pixel. */
 export const LABEL_CHAR_WIDTH = 5.4;
 export const LABEL_NUDGE_STEP = 15;
-export const LABEL_MAX_NUDGES = 4;
+export const LABEL_MAX_NUDGES = 8;
 
 /**
  * Nhịp bắn tia tối đa, mili-giây (~30 lần/giây).
@@ -46,6 +46,26 @@ export const LABEL_MAX_NUDGES = 4;
 export const PICK_INTERVAL_MS = 33;
 /** Rê quá ngần này pixel giữa nhấn và nhả thì đó là thao tác xoay camera, không phải một cú bấm. */
 export const CLICK_SLOP_PX = 5;
+
+/**
+ * Hộp bấm rộng hơn vật bao nhiêu lần (`hit-proxy.tsx`).
+ *
+ * SÀN là 1.0 — nhỏ hơn thì có phần vật nhìn thấy mà bấm không trúng, đúng lỗi
+ * hộp này sinh ra để sửa. TRẦN là khoảng cách giữa hai vật gần nhau nhất: pod
+ * trên cùng một bệ cách nhau ít nhất `POD_SIZE + POD_GAP_MIN` = 0.76 trong khi
+ * cạnh hộp là `POD_SIZE × hệ số`; ở 1.12 ra 0.672, vẫn còn khe 0.088 nên không
+ * pod nào ăn cắp cú bấm của pod bên cạnh.
+ */
+export const HIT_PADDING = 1.12;
+
+/**
+ * Kéo quá ngần này pixel kể từ lúc nhấn thì bắt đầu KÉO VẬT.
+ *
+ * Cao hơn `CLICK_SLOP_PX` một chút là có chủ ý: ngưỡng thấp hơn sẽ biến mọi cú
+ * bấm hơi rung tay thành một cú kéo, và người chơi vô tình xê dịch cả cụm chỉ
+ * vì muốn chọn một pod.
+ */
+export const DRAG_START_PX = 7;
 
 /** Hệ số phóng của quầng sáng quanh vật. */
 export const GLOW_SCALE = 1.34;

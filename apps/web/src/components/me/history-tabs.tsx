@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactElement, ReactNode } from 'react';
+import { err, t } from '@devops-platform/copy';
 import {
   Badge,
   CursorPager,
@@ -24,6 +25,7 @@ import { describeTrpcError } from '../../lib/trpc';
 import { summarizeLabAttempt, summarizeQuizAttempt } from './attempt-summary';
 import { summarizeLessonProgress } from './lesson-progress';
 import { formatMoment } from '../../lib/format-moment';
+import { MeSection } from './me-section';
 import { useCursorPages } from './use-cursor-pages';
 import {
   describeEmptyPage,
@@ -52,15 +54,12 @@ import {
  */
 export function HistoryTabs(): ReactElement {
   return (
-    <section aria-labelledby="lich-su" className="flex flex-col gap-3">
-      <h2 id="lich-su" className="text-lg font-medium text-foreground">
-        Lịch sử học
-      </h2>
+    <MeSection id="lich-su" title={t('me.history.title')}>
       <Tabs defaultValue="lessons">
         <TabsList>
-          <TabsTrigger value="lessons">Bài học</TabsTrigger>
-          <TabsTrigger value="labs">Lab</TabsTrigger>
-          <TabsTrigger value="quizzes">Quiz</TabsTrigger>
+          <TabsTrigger value="lessons">{t('me.history.tab.lessons')}</TabsTrigger>
+          <TabsTrigger value="labs">{t('me.history.tab.labs')}</TabsTrigger>
+          <TabsTrigger value="quizzes">{t('me.history.tab.quizzes')}</TabsTrigger>
         </TabsList>
         <TabsContent value="lessons">
           <LessonHistory />
@@ -72,7 +71,7 @@ export function HistoryTabs(): ReactElement {
           <QuizHistory />
         </TabsContent>
       </Tabs>
-    </section>
+    </MeSection>
   );
 }
 
@@ -86,8 +85,8 @@ function LessonHistory(): ReactElement {
     <HistoryFrame
       state={progress}
       blank={{
-        title: 'Chưa có bài học nào',
-        description: 'Mở một bài học và tiến độ của bạn sẽ hiện ở đây.',
+        title: t('me.lessons.blank-title'),
+        description: t('me.lessons.blank-description'),
       }}
       page={{
         page: pages.page,
@@ -109,9 +108,9 @@ function LessonHistory(): ReactElement {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Bài học</TableHead>
-            <TableHead>Trạng thái</TableHead>
-            <TableHead>Cập nhật</TableHead>
+            <TableHead>{t('me.lessons.col.lesson')}</TableHead>
+            <TableHead>{t('me.lessons.col.status')}</TableHead>
+            <TableHead>{t('me.lessons.col.updated')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -136,7 +135,7 @@ function LessonHistory(): ReactElement {
                     <span className="text-xs text-muted-foreground">{summary.detail}</span>
                   )}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="whitespace-nowrap text-muted-foreground">
                   {formatMoment(row.updatedAt)}
                 </TableCell>
               </TableRow>
@@ -158,8 +157,8 @@ function LabHistory(): ReactElement {
     <HistoryFrame
       state={attempts}
       blank={{
-        title: 'Chưa có lần thử lab nào',
-        description: 'Bắt đầu một lab và mọi lần thử của bạn sẽ được ghi lại ở đây.',
+        title: t('me.labs.blank-title'),
+        description: t('me.labs.blank-description'),
       }}
       page={{
         page: pages.page,
@@ -184,11 +183,11 @@ function LabHistory(): ReactElement {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Lab</TableHead>
-            <TableHead>Kết quả</TableHead>
-            <TableHead>Điểm</TableHead>
-            <TableHead>Thời lượng</TableHead>
-            <TableHead>Bắt đầu</TableHead>
+            <TableHead>{t('me.labs.col.lab')}</TableHead>
+            <TableHead>{t('me.labs.col.result')}</TableHead>
+            <TableHead>{t('me.labs.col.score')}</TableHead>
+            <TableHead>{t('me.labs.col.duration')}</TableHead>
+            <TableHead>{t('me.labs.col.started')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -212,8 +211,10 @@ function LabHistory(): ReactElement {
                   <Badge variant={summary.statusVariant}>{summary.statusLabel}</Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{summary.scoreLabel}</TableCell>
-                <TableCell className="text-muted-foreground">{summary.durationLabel}</TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {summary.durationLabel}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
                   {formatMoment(item.attempt.startedAt)}
                 </TableCell>
               </TableRow>
@@ -235,8 +236,8 @@ function QuizHistory(): ReactElement {
     <HistoryFrame
       state={attempts}
       blank={{
-        title: 'Chưa có lượt làm quiz nào',
-        description: 'Làm một quiz và kết quả từng lượt sẽ hiện ở đây.',
+        title: t('me.quizzes.blank-title'),
+        description: t('me.quizzes.blank-description'),
       }}
       page={{
         page: pages.page,
@@ -258,10 +259,10 @@ function QuizHistory(): ReactElement {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Quiz</TableHead>
-            <TableHead>Kết quả</TableHead>
-            <TableHead>Điểm</TableHead>
-            <TableHead>Nộp lúc</TableHead>
+            <TableHead>{t('me.quizzes.col.quiz')}</TableHead>
+            <TableHead>{t('me.quizzes.col.result')}</TableHead>
+            <TableHead>{t('me.quizzes.col.score')}</TableHead>
+            <TableHead>{t('me.quizzes.col.submitted')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -281,7 +282,7 @@ function QuizHistory(): ReactElement {
                   <Badge variant={summary.statusVariant}>{summary.statusLabel}</Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{summary.scoreLabel}</TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="whitespace-nowrap text-muted-foreground">
                   {formatMoment(item.submittedAt)}
                 </TableCell>
               </TableRow>
@@ -324,10 +325,15 @@ function HistoryFrame(props: {
   }
 
   if (state.isError) {
+    // Hai nửa vào hai khe RIÊNG: `what` là tiêu đề, `next` là câu dưới. Ghép
+    // chúng rồi đổ cả cục vào `message` sẽ để `title` rơi về mặc định của
+    // `ErrorState`, thứ nói một chuyện khác với chuyện vừa hỏng.
+    const entry = err('me.error.history-load', { reason: describeTrpcError(state.error) });
     return (
       <div className="mt-4">
         <ErrorState
-          message={describeTrpcError(state.error)}
+          title={entry.what}
+          message={entry.next}
           onRetry={() => void state.refetch()}
           retrying={state.isFetching}
         />

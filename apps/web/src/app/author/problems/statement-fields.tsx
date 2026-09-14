@@ -1,7 +1,15 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import { useState, type ReactElement } from 'react';
-import { Button, MarkdownView, Tabs, TabsContent, TabsList, TabsTrigger } from '@devops-platform/ui';
+import {
+  Button,
+  MarkdownView,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@devops-platform/ui';
 import { TextAreaField, TextField, issueFor } from '../../../components/author/field';
 import type { FieldIssue } from './cluster-form';
 import type { ProblemFormState } from './problem-form';
@@ -35,26 +43,36 @@ export function StatementFields(props: {
 
   return (
     <section className="flex flex-col gap-5">
-      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">Mô tả</h2>
+      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
+        {t('problem.statement-fields-mo-ta')}
+      </h2>
 
       <TextField
-        label="Tên bài"
+        label={t('problem.statement-fields-ten-bai')}
         value={props.form.title}
         onChange={(title) => {
           // Slug tự điền CHỈ khi còn trống. Không có cờ "đã chạm tay" nào cả:
           // trạng thái đã nói đủ, và một cờ ẩn là một chỗ để lệch. Khi người
           // soạn đã gõ slug thì gõ lại tên không bao giờ đè lên nữa.
-          props.onChange(props.form.slug.trim() === '' ? { title, slug: toSlug(title) } : { title });
+          props.onChange(
+            props.form.slug.trim() === '' ? { title, slug: toSlug(title) } : { title },
+          );
         }}
         error={issueFor(props.issues, 'title')}
-        placeholder="Pod không khởi động được sau khi đổi image"
+        placeholder={t('problem.statement-fields-pod-khong-khoi-dong-duoc-sau-khi-doi-image')}
       />
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-foreground">Mã bài</span>
+        <span className="text-sm font-medium text-foreground">
+          {t('problem.statement-fields-ma-bai')}
+        </span>
         <p className="text-sm text-muted-foreground">
           {props.code === null ? (
-            <>Máy chủ cấp khi bạn lưu lần đầu. Mã ổn định vĩnh viễn, không đổi kể cả khi bạn sửa đề.</>
+            <>
+              {t(
+                'problem.statement-fields-may-chu-cap-khi-ban-luu-lan-dau-ma-on-dinh-vinh-vien-khong-doi-ke-ca-khi-ba',
+              )}
+            </>
           ) : (
             <code className="font-mono text-foreground">{props.code}</code>
           )}
@@ -63,7 +81,7 @@ export function StatementFields(props: {
 
       <div className="flex flex-col gap-2">
         <TextField
-          label="Slug trong URL"
+          label={t('problem.statement-fields-slug-trong-url')}
           value={props.form.slug}
           onChange={(slug) => {
             props.onChange({ slug });
@@ -71,8 +89,13 @@ export function StatementFields(props: {
           error={issueFor(props.issues, 'slug')}
           hint={
             <>
-              Chữ thường, số và gạch nối. Slug đổi được khi sửa tên bài — khác mã bài, thứ không bao giờ đổi. Sẽ
-              lưu thành <code className="font-mono">{slugPreview === '' ? '(trống)' : toSlug(slugPreview)}</code>.
+              {t(
+                'problem.statement-fields-chu-thuong-so-va-gach-noi-slug-doi-duoc-khi-sua-ten-bai-khac-ma-bai-la-thu',
+              )}{' '}
+              <code className="font-mono">
+                {slugPreview === '' ? t('problem.statement-fields-trong') : toSlug(slugPreview)}
+              </code>
+              .
             </>
           }
         />
@@ -86,7 +109,7 @@ export function StatementFields(props: {
               props.onChange({ slug: toSlug(props.form.title) });
             }}
           >
-            Sinh lại từ tên bài
+            {t('problem.statement-fields-sinh-lai-tu-ten-bai')}
           </Button>
         </div>
       </div>
@@ -99,26 +122,32 @@ export function StatementFields(props: {
           }}
         >
           <TabsList>
-            <TabsTrigger value="viet">Viết đề</TabsTrigger>
-            <TabsTrigger value="xem">Xem trước</TabsTrigger>
+            <TabsTrigger value="viet">{t('problem.statement-fields-viet-de')}</TabsTrigger>
+            <TabsTrigger value="xem">{t('problem.statement-fields-xem-truoc')}</TabsTrigger>
           </TabsList>
           <TabsContent value="viet">
             <TextAreaField
-              label="Đề bài (markdown)"
+              label={t('problem.statement-fields-de-bai-markdown')}
               value={props.form.statement}
               onChange={(statement) => {
                 props.onChange({ statement });
               }}
               rows={10}
               error={issueFor(props.issues, 'statement')}
-              placeholder={'Namespace `thanh-toan` có một Deployment không lên nổi replica nào.\n\nTìm nguyên nhân và đưa nó về đủ 3 replica sẵn sàng.'}
-              hint="Bài OJ KHÔNG dạy lý thuyết — chỉ nói đề. Kiến thức nền để người làm tự tra."
+              placeholder={t(
+                'problem.statement-fields-namespace-thanh-toan-co-mot-deployment-khong-len-noi-replica-nao-tim-nguyen',
+              )}
+              hint={t(
+                'problem.statement-fields-bai-oj-khong-day-ly-thuyet-chi-noi-de-kien-thuc-nen-de-nguoi-lam-tu-tra',
+              )}
             />
           </TabsContent>
           <TabsContent value="xem">
             <div className="rounded-md border border-border bg-card p-4">
               {props.form.statement.trim() === '' ? (
-                <p className="text-sm text-muted-foreground">Chưa có gì để xem trước.</p>
+                <p className="text-sm text-muted-foreground">
+                  {t('problem.statement-fields-chua-co-gi-de-xem-truoc')}
+                </p>
               ) : (
                 <MarkdownView markdown={props.form.statement} resolveAssetUrl={() => null} />
               )}
@@ -131,7 +160,13 @@ export function StatementFields(props: {
   );
 }
 
-function WordMeter({ words, remaining }: { readonly words: number; readonly remaining: number }): ReactElement {
+function WordMeter({
+  words,
+  remaining,
+}: {
+  readonly words: number;
+  readonly remaining: number;
+}): ReactElement {
   const over = remaining < 0;
   const near = !over && words >= STATEMENT_WORD_LIMIT * 0.8;
   /*
@@ -144,12 +179,16 @@ function WordMeter({ words, remaining }: { readonly words: number; readonly rema
 
   return (
     <p className={`text-xs ${tone}`} aria-live="polite">
-      {String(words)}/{String(STATEMENT_WORD_LIMIT)} từ.{' '}
+      {String(words)}/{String(STATEMENT_WORD_LIMIT)} {t('problem.statement-fields-tu')}{' '}
       {over
-        ? `Vượt trần — phải cắt ${String(-remaining)} từ mới xuất bản được.`
+        ? t('problem.statement-fields-vuot-tran-phai-cat-tu-moi-xuat-ban-duoc', {
+            remaining: String(-remaining),
+          })
         : near
-          ? `Còn ${String(remaining)} từ. Bài OJ nói đề, không giảng bài.`
-          : `Còn ${String(remaining)} từ.`}
+          ? t('problem.statement-fields-con-tu-bai-oj-noi-de-khong-giang-bai', {
+              remaining: String(remaining),
+            })
+          : t('problem.statement-fields-con-tu', { remaining: String(remaining) })}
     </p>
   );
 }

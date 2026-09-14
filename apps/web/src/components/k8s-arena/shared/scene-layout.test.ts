@@ -1,3 +1,4 @@
+import { KINDS, type ResourceKind } from '@devops-platform/games';
 import { describe, expect, it } from 'vitest';
 import {
   PLATFORM_GAP,
@@ -41,12 +42,45 @@ describe('computeLayout', () => {
     expect(computeLayout(b)).toEqual(computeLayout(a));
   });
 
-  it('pod đứng TRÊN mặt bệ, không lún vào trong', () => {
+  it('pod đứng sát mặt bệ', () => {
     const layout = computeLayout(clusterView());
-    const floor = PLATFORM_HEIGHT / 2 + POD_SIZE / 2;
+    const floor = -PLATFORM_HEIGHT / 2 + POD_SIZE / 2;
     for (const object of layout.objects) {
       if (object.zone === 'node') {
         expect(object.position.y).toBeGreaterThan(floor);
+        expect(object.position.y).toBeLessThan(0.35);
+      }
+    }
+  });
+
+  /**
+   * Pod phải nằm TRONG mặt bệ, ở mọi số lượng.
+   *
+   * Ô này thay cho một ô cũ chỉ khẳng định `z > 0.6` — một ngưỡng bám vào hằng
+   * số `z = 1.3` của bản cũ chứ không bám vào điều thật sự cần đúng. Và vì nó
+   * chỉ gác cận DƯỚI, nó xanh nguyên trong khi hàng pod thứ hai đã rơi hẳn ra
+   * ngoài mép trước của bệ (đo ở level 13, 2026-09-09). Ở đây gác cả hai cận,
+   * trên cả hai trục, và quét từ 1 tới 12 pod để bắt đúng lúc lưới sinh thêm hàng.
+   */
+  it('pod nằm trong mặt bệ dù có bao nhiêu pod', () => {
+    for (let count = 1; count <= 40; count += 1) {
+      const objects = Array.from({ length: count }, (_, i) =>
+        podView(`p-${String(i).padStart(2, '0')}`, `pod-${i}`, { nodeName: 'node-a' }),
+      );
+      const layout = computeLayout(clusterView({ objects }));
+      const platform = layout.nodes.find((n) => n.name === 'node-a');
+      expect(platform).toBeDefined();
+      const placed = layout.objects.filter((o) => o.zone === 'node');
+      expect(placed).toHaveLength(count);
+      for (const pod of placed) {
+        const dx = Math.abs(pod.position.x - (platform?.position.x ?? 0));
+        const dz = Math.abs(pod.position.z - (platform?.position.z ?? 0));
+        expect(dx + POD_SIZE / 2, `${count} pod: tràn ngang`).toBeLessThanOrEqual(
+          platform!.width / 2,
+        );
+        expect(dz + POD_SIZE / 2, `${count} pod: tràn dọc`).toBeLessThanOrEqual(
+          platform!.depth / 2,
+        );
       }
     }
   });
@@ -60,7 +94,9 @@ describe('computeLayout', () => {
   });
 
   it('pod chưa xếp lịch xuống dải chờ phía trước, không lên bệ', () => {
-    const view = clusterView({ objects: [podView('u-1', 'web-1', { nodeName: null, phase: 'Pending' })] });
+    const view = clusterView({
+      objects: [podView('u-1', 'web-1', { nodeName: null, phase: 'Pending' })],
+    });
     const layout = computeLayout(view);
     expect(layout.objects[0]?.zone).toBe('pending');
     expect(layout.objects[0]?.position.z).toBeGreaterThan(0);
@@ -111,7 +147,9 @@ describe('computeLayout', () => {
   });
 
   it('không có hai pod nào trùng vị trí, kể cả khi đông', () => {
-    const pods = Array.from({ length: 24 }, (_, i) => podView(`u-${String(i).padStart(2, '0')}`, `web-${String(i)}`));
+    const pods = Array.from({ length: 24 }, (_, i) =>
+      podView(`u-${String(i).padStart(2, '0')}`, `web-${String(i)}`),
+    );
     const layout = computeLayout(clusterView({ nodes: [nodeView('node-a')], objects: pods }));
     const keys = layout.objects.map((o) => `${o.position.x.toFixed(4)}:${o.position.z.toFixed(4)}`);
     expect(new Set(keys).size).toBe(pods.length);
@@ -138,4 +176,112 @@ describe('podGrid', () => {
       expect(podGrid(n).pitch).toBeGreaterThan(POD_SIZE);
     }
   });
+});
+
+describe('dense mixed-resource layouts', () => {
+  it('keeps each kind in one compact block across hosts, owners and disconnected resources', () => {
+    const objects = [
+      ...['a', 'b', 'c'].map((name) =>
+        serviceView(`node-${name}`, `node-${name}`, { kind: 'Node' }),
+      ),
+      serviceView('deploy', 'deploy', { kind: 'Deployment' }),
+      serviceView('rs', 'rs', { kind: 'ReplicaSet' }),
+      serviceView('cron', 'cron', { kind: 'CronJob' }),
+      serviceView('job-a', 'job-a', { kind: 'Job' }),
+      serviceView('job-b', 'job-b', { kind: 'Job' }),
+      serviceView('job-isolated', 'job-isolated', { kind: 'Job' }),
+      podView('pod-a', 'pod-a', { nodeName: 'node-a' }),
+      podView('pod-b', 'pod-b', { nodeName: 'node-b' }),
+      podView('pod-c', 'pod-c', { nodeName: 'node-c' }),
+      podView('pod-isolated', 'pod-isolated', { nodeName: null }),
+    ];
+    const view = clusterView({
+      nodes: ['a', 'b', 'c'].map((name) => nodeView(`node-${name}`)),
+      objects,
+      edges: [
+        { fromUid: 'deploy', toUid: 'rs', kind: 'owns', healthy: true },
+        { fromUid: 'rs', toUid: 'pod-a', kind: 'owns', healthy: true },
+        { fromUid: 'cron', toUid: 'job-a', kind: 'owns', healthy: true },
+        { fromUid: 'job-a', toUid: 'pod-b', kind: 'owns', healthy: false },
+        { fromUid: 'job-b', toUid: 'pod-c', kind: 'owns', healthy: true },
+        ...['a', 'b', 'c'].map((name) => ({
+          fromUid: `node-${name}`,
+          toUid: `pod-${name}`,
+          kind: 'runs-on' as const,
+          healthy: true,
+        })),
+      ],
+    });
+    const layout = computeLayout(view);
+    const kinds = new Map(objects.map((object) => [object.uid, object.kind]));
+    for (const kind of ['Node', 'Job', 'Pod']) {
+      const members = layout.objects.filter((object) => kinds.get(object.uid) === kind);
+      const minX = Math.min(...members.map((object) => object.position.x));
+      const maxX = Math.max(...members.map((object) => object.position.x));
+      const minZ = Math.min(...members.map((object) => object.position.z));
+      const maxZ = Math.max(...members.map((object) => object.position.z));
+      expect(maxX - minX, `${kind} must form a compact block`).toBeLessThan(7);
+      if (kind === 'Pod') {
+        expect(maxZ - minZ, 'Pods may wrap into adjacent rows').toBeLessThan(2.5);
+      } else {
+        expect(maxZ - minZ, `${kind} must share a row`).toBe(0);
+      }
+      for (const other of layout.objects.filter((object) => kinds.get(object.uid) !== kind)) {
+        expect(
+          other.position.x >= minX &&
+            other.position.x <= maxX &&
+            other.position.z >= minZ &&
+            other.position.z <= maxZ,
+          `${other.uid} must not split ${kind}`,
+        ).toBe(false);
+      }
+    }
+    expect(layout.edges).toEqual(view.edges);
+    expect(
+      computeLayout({ ...view, objects: [...objects].reverse(), edges: [...view.edges].reverse() })
+        .objects,
+    ).toEqual(layout.objects);
+  });
+
+  for (const copies of [1, 4, 12]) {
+    it(`separates every resource kind with ${copies} instances of each kind`, () => {
+      const objects = (Object.keys(KINDS) as ResourceKind[]).flatMap((kind) =>
+        Array.from({ length: copies }, (_, i) =>
+          serviceView(`${kind}-${i}`, `${kind}-${i}`, {
+            kind,
+            nodeName: kind === 'Pod' ? 'node-a' : null,
+          }),
+        ),
+      );
+      // Include a dense scheduled workload plus pending pods; shelves must not
+      // consume either region even when all 26 resource kinds are present.
+      objects.push(...Array.from({ length: 80 }, (_, i) => podView(`scheduled-${i}`, `work-${i}`)));
+      objects.push(
+        ...Array.from({ length: 30 }, (_, i) =>
+          podView(`pending-${i}`, `wait-${i}`, { nodeName: null }),
+        ),
+      );
+      const view = clusterView({ objects });
+      const layout = computeLayout(view);
+      expect(layout.objects).toHaveLength(objects.length);
+      expect(
+        computeLayout({
+          ...view,
+          objects: [...objects].reverse(),
+          nodes: [...view.nodes].reverse(),
+        }),
+      ).toEqual(layout);
+      for (let i = 0; i < layout.objects.length; i++) {
+        const a = layout.objects[i]!;
+        expect(Object.values(a.position).every(Number.isFinite)).toBe(true);
+        for (let j = i + 1; j < layout.objects.length; j++) {
+          const b = layout.objects[j]!;
+          const distance = Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z);
+          expect(distance, `${a.uid} overlaps ${b.uid}`).toBeGreaterThan(
+            (a.size + b.size) / 2 + 0.45,
+          );
+        }
+      }
+    });
+  }
 });

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import { ARC_PATH_D, ARC_STROKE } from '@devops-platform/motion/motif';
 import { EmptyState } from './empty-state.tsx';
 import { Button } from './button.tsx';
 
@@ -75,5 +76,56 @@ describe('EmptyState — icon', () => {
     const html = (container.firstElementChild as HTMLElement).outerHTML;
     expect(html).not.toMatch(/class="[^"]*#[0-9a-fA-F]{3,8}/);
     expect(html).not.toMatch(/\b(slate|gray|zinc|neutral)-[0-9]{2,3}\b/);
+  });
+});
+
+/**
+ * Design §3: trạng thái rỗng là "vòng ellipse hở, **bên trong không có gì**".
+ *
+ * Vế thứ hai là vế dễ mất nhất, và mất im lặng: một `<circle fill>` nền, một
+ * đĩa `bg-muted` ở lớp bọc, hay một glyph nhét vào giữa đều render ra bình
+ * thường và trông "đầy đặn hơn" với mắt chưa đọc design. Nên nó có cổng riêng
+ * chứ không gộp vào ô kiểm hình.
+ */
+describe('EmptyState — vòng ellipse hở của motif', () => {
+  it('hình mặc định vẽ ĐÚNG `ARC_PATH_D`, nét đầy đủ', () => {
+    const { container } = render(<EmptyState title="Chưa có lab nào" />);
+    const path = container.querySelector('svg path');
+    expect(path, 'không có cung nào ⇒ trạng thái rỗng mất hình chủ đạo').not.toBeNull();
+    expect(path?.getAttribute('d')).toBe(ARC_PATH_D);
+    expect(path?.getAttribute('stroke-width')).toBe(String(ARC_STROKE));
+  });
+
+  it('vòng RỖNG RUỘT — không tô nền, không hình nào khác nằm trong', () => {
+    const { container } = render(<EmptyState title="Chưa có lab nào" />);
+    const svg = container.querySelector('svg');
+    expect(svg?.querySelectorAll('path')).toHaveLength(1);
+    expect(
+      svg?.querySelectorAll('circle, rect, ellipse, image, text'),
+      'có hình khác bên trong vòng ⇒ trái design §3 "bên trong không có gì"',
+    ).toHaveLength(0);
+    expect(container.querySelector('svg path')?.getAttribute('fill')).toBe('none');
+  });
+
+  /**
+   * Đĩa `rounded-full bg-muted` của bản `Inbox` đã bị GỠ. Một vòng hở mà bên
+   * trong có mảng đặc thì nó không còn hở — và đĩa đó nằm ở LỚP BỌC nên phép
+   * kiểm trên `<svg>` ở trên không với tới được.
+   */
+  it('lớp bọc không còn đĩa nền', () => {
+    const { container } = render(<EmptyState title="Chưa có lab nào" />);
+    const wrapper = container.querySelector('[aria-hidden="true"]');
+    const classes = (wrapper?.getAttribute('class') ?? '').split(/\s+/);
+    expect(classes).not.toContain('bg-muted');
+    expect(classes).not.toContain('rounded-full');
+  });
+
+  it('cung KHÔNG mang khe hở đã khép — vòng hở là điểm của cả hình', () => {
+    const { container } = render(<EmptyState title="Chưa có lab nào" />);
+    // `ARC_PATH_D` là một lệnh `A` đơn (cung 300°), không phải `Z` khép kín.
+    // Một ai đó "sửa" nó thành vòng khép sẽ thêm `Z` hoặc đổi sang `<ellipse>`.
+    const d = container.querySelector('svg path')?.getAttribute('d') ?? '';
+    expect(d.trim().endsWith('Z'), 'vòng bị khép lại ⇒ bỏ motif').toBe(false);
+    expect(d).toContain('A');
   });
 });

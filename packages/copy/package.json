@@ -1,0 +1,31 @@
+{
+  "name": "@devops-platform/copy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "//exports": "Không có barrel `src/index.ts`: cây thư mục ở p16-copy.md §1.8 không có file đó, và một barrel ở đây chỉ để `apps/web/src/server` kéo theo cả bộ dò của `scan.ts` vào bundle client. `.` trỏ thẳng vào `t.ts` (t/err/errText/list/count cộng type re-export), `./scan` là subpath mà `scripts/seed-content.mjs` cần theo §5.3 mà KHÔNG kéo theo MESSAGES.",
+  "exports": {
+    ".": "./src/t.ts",
+    "./types": "./src/types.ts",
+    "./registry": "./src/registry.ts",
+    "./scan": "./src/scan.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "//dependencies": "KHÔNG có khối `dependencies`, và đó là hợp đồng chứ không phải tình cờ (p16-copy.md §1.8). Gói này được import từ CẢ `apps/web/src/server` LẪN client component, nên một runtime dep ở đây là một dep của cả hai phía. Thêm bất kỳ dòng nào vào đây là đổi hợp đồng, không phải sửa lỗi build.",
+  "//typescript": "Alias TS6/TS7 song song — xem giải thích ở package.json gốc: `tsc` = TS7 native, `typescript` = shim TS6 cho typescript-eslint API.",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.4.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "eslint": "^10.9.1",
+    "eslint-config-prettier": "^10.1.8",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.68.0",
+    "vitest": "^4.1.11"
+  }
+}

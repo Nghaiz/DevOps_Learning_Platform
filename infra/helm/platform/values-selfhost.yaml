@@ -34,7 +34,7 @@ global:
 # ca "CI chết", xây tay ở đúng commit rồi side-load vẫn là đường lùi hợp lệ —
 # nhưng phải KHAI ra, vì `sha-` tự nó trông y hệt tag của CI.
 image:
-  tag: sha-2b79fd3
+  tag: sha-b22749d
 
 # ⛔ TAG THEO TỪNG THÀNH PHẦN — SỬA Ở P12/12.A (2026-09-04) SAU MỘT SỰ CỐ THẬT.
 #
@@ -77,7 +77,7 @@ migrate:
   image:
     # Bản duy nhất có trên node. Migrator chạy như pre-upgrade hook nên tag sai
     # ở đây làm HỎNG CẢ LƯỢT UPGRADE, không chỉ hỏng một pod.
-    tag: p14a
+    tag: sha-b22749d
 
 # Ingress + TLS KHÔNG đặt ở đây, có chủ ý: `ingress.host`, `corsAllowedOrigins`
 # và `betterAuthUrl` đều chứa IP của node, mà IP đó khác nhau ở mỗi máy lab —
@@ -124,8 +124,35 @@ web:
   # markdown hạ một bậc heading, đường polling của trang soạn bài, và tắt phép dò
   # JIT của Zod. KHÔNG đụng proto nên KHÔNG có ràng buộc "web và orchestrator lên
   # cùng lượt" của §3bis; orchestrator/gateway/migrator giữ nguyên `p13`.
+  #
+  # p14b (2026-09-09): đợt dựng lại giao diện arena + màn chọn màn + 36 tên màn.
+  # CHỈ tầng web, không đụng proto — orchestrator/gateway/migrator giữ `p14a`.
+  #
+  # ⚠ Đây cũng là image ĐẦU TIÊN chứa `/games/k8s`. Bản `p14a` được build lúc
+  # 02:41 ngày 2026-09-08, còn PR games gộp lúc 18:25 CÙNG NGÀY — nên trên cụm
+  # `/games/k8s` trả 404 suốt từ đó, trong khi 4/4 deployment `Running 1/1` và
+  # mọi lệnh helm đều xanh. Nguyên nhân gốc là danh sách COPY trong
+  # `apps/web/Dockerfile` thiếu `packages/games`; đã vá cùng lượt này.
+  # p15b (2026-09-10): như p15a, thêm ba bản vá sau lượt đo —
+  #   `checkTask` đi MỘT lượt `GetSession` (p15a đi hai: một cho probe setup, một
+  #   cho lượt chấm, tức thêm một vòng gRPC trên đúng đường nóng mà P15 làm nhẹ),
+  #   nút Chấm xám trong cửa sổ "chưa biết" nay có câu giải thích, và một chú
+  #   thích sai về `disown` được sửa. Đường cong tải ở report đo trên `p15a`, và
+  #   nó VẪN ĐÚNG cho p15b: không bản vá nào chạm đường phóng setup hay
+  #   `setupStatus`.
+  #
+  # p15a (2026-09-10): setup của lab ra khỏi đường request (P15 / 15.C hướng B)
+  #   + setup hỏng trả khe quota ngay (15.A) + câu báo lỗi mang stderr (15.B).
+  #   CHỈ tầng web, không đụng proto — orchestrator/gateway/migrator giữ `p14a`.
+  #
+  # ⚠ NHẢY p14b → p15a, BỎ QUA p14c VÀ p14d. Đó không phải lỗi gõ: cụm đang chạy
+  #   `dlp-web:p14d` trong khi dòng này còn ghi `p14b`, tức hai lượt build P14 đã
+  #   vào cụm bằng đường ngoài helm và file này tụt lại — đúng chế độ hỏng mà
+  #   khối "TAG THEO TỪNG THÀNH PHẦN" ở đầu file mô tả, tái diễn. Đặt `p15a` ở
+  #   đây vừa deploy P15 vừa đưa file về khớp cụm. `p14d` vẫn còn trên node nên
+  #   đường lùi là sửa lại một dòng này rồi chạy `12-helm-deploy.sh`.
   image:
-    tag: p14a
+    tag: sha-b22749d
   replicaCount: 1
   # ⛔ `rateLimitTrustProxy` CỐ Ý KHÔNG nằm ở đây — xem web-deployment.yaml.
   # Bản đầu của chặng 3.A đặt nó `'1'` ngay trong hồ sơ này, và đó là một lỗ
@@ -176,7 +203,7 @@ orchestrator:
   # — xem k8s.hostAliasesDockerHub. Bản này xây TAY ở máy dev rồi side-load, KHÔNG
   # phải CI publish; nói ra vì `p12fix` tự nó không phân biệt được hai đường ấy.
   image:
-    tag: p14a
+    tag: sha-b22749d
   replicaCount: 1
   env:
     # Image pod lab: mặc định của template là `image.registry`+`image.tag`, tức
@@ -190,7 +217,7 @@ orchestrator:
     # `connect: connection refused` ⇒ mọi request `/ide` là 503. Tức đường IDE
     # chưa từng phục vụ được gì trên cụm này, và ô AC 6 (layout `ide`) lẫn phép
     # đo CSP cho `/ide` đều bị chặn ở đó chứ không ở mã.
-    sandboxImage: ghcr.io/nghaiz/dlp-sandbox-base:p14a
+    sandboxImage: ghcr.io/nghaiz/dlp-sandbox-base:sha-b22749d
     # 3 pod ấm, không 1 — đóng nợ của 3.I mắt 3–5 và 2026-08-16-concurrent-build-load.
     #
     # Số đo làm cơ sở (18 người vào cùng lúc, POOL_TARGET=1): 17/18 đi cold path,
@@ -255,7 +282,7 @@ gateway:
   # Theia từ chối mọi lượt nâng cấp socket thiếu token đó — nên `/ide` dựng được
   # vỏ (200) mà `socket.io` trả 403: IDE không có backend. Không có gì trên cụm
   # phát hiện được: `rollout status` xanh, pod `Running 1/1`, trang gốc 200.
-    tag: p14a
+    tag: sha-b22749d
   # 2 replica từ chặng 3.H. Gateway stateless đã được KIỂM CHỨNG chứ không chỉ
   # được khẳng định: không map/registry session→conn nào ở package-level hay
   # struct field; đích exec đọc từ Redis mỗi lần connect, và trần WS đồng thời

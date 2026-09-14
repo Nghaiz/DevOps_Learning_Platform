@@ -12,7 +12,7 @@ import type { Level } from '../contract.ts';
 export const l15: Level = {
   id: 'k8s-15-goi-nham-ten-dns',
   chapter: 3,
-  title: 'Tên gọi được ở namespace này, không gọi được ở namespace kia',
+  title: 'Gọi đúng tên DNS xuyên namespace',
   mission: 'Sửa cấu hình `don-hang` để nó phân giải và gọi được Service kho hàng, giữ pod chạy.',
   brief: `Dịch vụ \`don-hang\` cần hỏi tồn kho trước khi chốt đơn. Nó gọi
 \`http://kho-hang\` — đúng cái tên mà đội kho đã đưa.

@@ -11,7 +11,7 @@ import type { Level } from '../contract.ts';
 export const l14: Level = {
   id: 'k8s-14-endpoint-du-ma-van-loi',
   chapter: 3,
-  title: 'Lần này endpoint đầy đủ, và vẫn hỏng',
+  title: 'Chỉnh Service trỏ đúng cổng container',
   mission:
     'Sửa Service `kho-hang` chuyển request tới đúng cổng container đang nghe, giữ nguyên 3 endpoint.',
   brief: `Cũng triệu chứng như hôm qua: request tới Service \`kho-hang\` trong namespace

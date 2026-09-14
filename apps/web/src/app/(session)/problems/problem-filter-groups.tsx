@@ -2,6 +2,7 @@
 
 import { useId, useState, type ReactElement } from 'react';
 import { X } from 'lucide-react';
+import { t } from '@devops-platform/copy';
 import { Badge, Button, Checkbox, Input, Label } from '@devops-platform/ui';
 
 /**
@@ -80,9 +81,9 @@ export function TagFilter(props: {
   return (
     <div className="flex flex-col gap-2">
       <Label htmlFor={inputId} className="text-xs font-medium text-muted-foreground">
-        Tag
+        {t('catalog.problems.tag-legend')}
       </Label>
-      <p className="text-xs text-muted-foreground">Chọn nhiều tag = bài phải có ĐỦ mọi tag.</p>
+      <p className="text-xs text-muted-foreground">{t('catalog.problems.tag-hint')}</p>
       <form
         className="flex gap-2"
         onSubmit={(event) => {
@@ -94,13 +95,13 @@ export function TagFilter(props: {
         <Input
           id={inputId}
           value={draft}
-          placeholder="ví dụ: ingress"
+          placeholder={t('catalog.problems.tag-placeholder')}
           onChange={(event) => {
             setDraft(event.target.value);
           }}
         />
         <Button type="submit" variant="outline" size="sm" disabled={draft.trim() === ''}>
-          Thêm
+          {t('catalog.problems.tag-add')}
         </Button>
       </form>
       {props.tags.length > 0 && (
@@ -116,7 +117,7 @@ export function TagFilter(props: {
                 */}
                 <button
                   type="button"
-                  aria-label={`Bỏ tag ${tag}`}
+                  aria-label={t('catalog.problems.tag-remove', { tag })}
                   className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   onClick={() => {
                     props.onRemove(tag);

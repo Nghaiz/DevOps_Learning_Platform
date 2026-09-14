@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { parseContentBlocks } from '@devops-platform/scenario/content-blocks';
+import { errText, t } from '@devops-platform/copy';
 import { Alert, AlertDescription, Button, ContentView, ProgressBar, StepNav } from '@devops-platform/ui';
 import {
   DEFAULT_PROFILE,
+  IdePane,
   SessionControls,
   ShellFallbackNotice,
   TerminalPane,
@@ -17,7 +19,6 @@ import {
 import { useWorkspaceTabs } from '../../../components/session/use-workspace-tabs';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { IdePane } from './ide-pane';
 import { buildPhases, canCheck, phaseKeyForStepIndex } from './phases';
 import { summarizeProgress } from './progress';
 import { useLessonSession } from './use-lesson-session';
@@ -235,21 +236,29 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     định định tuyến nào để mang, nên một `options` object chỉ còn một trường là
     một lớp bọc không nói thêm gì.
 
-    Exec KHÔNG chuyển tab nữa — terminal hiện ở cả hai tab, nên không có gì để
-    chuyển tới; chỉ gõ rồi `focus()`. Việc giữ `\x03` là một sự kiện bàn phím
-    RIÊNG (không nối vào chuỗi lệnh) nằm trong `useWorkspaceTabs` vì cả ba trang
-    học cần đúng một bản của quyết định đó.
+    Exec CHUYỂN TAB khi terminal đang bị ẩn, rồi mới gõ và `focus()`.
+
+    ⚠ Chú thích ở đây trước SỬA ĐỔI 3 viết ngược: "exec KHÔNG chuyển tab nữa, vì
+    terminal hiện ở cả hai tab, nên không có gì để chuyển tới". Tiền đề đó là
+    của mô hình SỬA ĐỔI 2 và đã bị bãi bỏ, nhưng câu chú thích thì nằm lại và
+    giữ hành vi sai thêm một nhịp: ở tab Editor hàng terminal nay mang `hidden`,
+    nên lệnh được gõ vào một khoang người học không nhìn thấy, và `focus()` trên
+    một phần tử trong cây `display:none` là no-op IM LẶNG. Đường đi đầy đủ nằm ở
+    `use-workspace-tabs.ts`.
+
+    Việc giữ `\x03` là một sự kiện bàn phím RIÊNG (không nối vào chuỗi lệnh)
+    cũng nằm ở đó, vì cả ba trang học cần đúng một bản của quyết định đó.
   */
   const onExec = tabs.exec;
 
   if (query.isPending) {
-    return <Centered>Đang tải bài học…</Centered>;
+    return <Centered>{t('session.lesson.loading')}</Centered>;
   }
   if (query.isError) {
     return <Centered tone="error">{describeTrpcError(query.error)}</Centered>;
   }
   if (scenario === null || active === null) {
-    return <Centered tone="error">Không tìm thấy bài học này.</Centered>;
+    return <Centered tone="error">{t('session.lesson.not-found')}</Centered>;
   }
 
   const blocks = parseContentBlocks(active.phase.markdown);
@@ -294,9 +303,9 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
             onClick={onCheck}
             disabled={sessionId === null || check?.kind === 'running'}
             loading={check?.kind === 'running'}
-            title={sessionId === null ? 'Hãy bắt đầu phiên trước' : undefined}
+            title={sessionId === null ? t('session.lesson.check-blocked') : undefined}
           >
-            Kiểm tra
+            {t('session.lesson.check')}
           </Button>
           <CheckResultPanel outcome={check} />
         </div>
@@ -309,10 +318,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       session={session}
       theme={terminalTheme}
       placeholder={
-        <span>
-          Bấm <span className="font-semibold text-foreground">Bắt đầu</span> để dựng sandbox và
-          mở terminal.
-        </span>
+        <span>{t('session.terminal.empty')}</span>
       }
     />
   );
@@ -326,7 +332,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
     <div className="flex min-h-0 flex-1 flex-col bg-background text-foreground">
       <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2">
         <Link href="/lessons" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Bài học
+          {t('session.lesson.back')}
         </Link>
         <h1 className="text-sm font-semibold">{scenario.title}</h1>
 
@@ -371,9 +377,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       {unsupported.length > 0 && (
         <Alert variant="warning" className="rounded-none border-x-0 border-t-0">
           <AlertDescription className="text-foreground">
-            Bài này cần <strong>{unsupported.join(', ')}</strong> — nền tảng chưa chạy được
-            những năng lực đó, nên một số lệnh trong bài sẽ báo lỗi. Bạn vẫn mở được để đọc
-            nội dung.
+            {t('session.lesson.unsupported', { capabilities: unsupported.join(', ') })}
           </AlertDescription>
         </Alert>
       )}
@@ -403,7 +407,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       {setupError !== null && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertDescription className="flex flex-wrap items-center gap-3 text-foreground">
-            <span>Không chuẩn bị được môi trường bài học: {setupError}</span>
+            <span>{errText('session.lesson.error.setup', { reason: setupError })}</span>
             <Button
               size="sm"
               variant="secondary"
@@ -412,7 +416,7 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
                 setSetupAttempt((n) => n + 1);
               }}
             >
-              Thử lại
+              {t('session.lesson.retry')}
             </Button>
           </AlertDescription>
         </Alert>
@@ -425,8 +429,11 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
       <div className="min-h-0 flex-1">
         {/*
           D8 + §Y1 — khoang phải là `WorkspacePanel`: tab Editor (chỉ khi bài khai
-          `interface.layout: ide`) + tab Terminal, và MỘT terminal duy nhất hiện
-          ở CẢ HAI tab (neo đáy ~40% ở tab Editor, toàn khoang ở tab Terminal).
+          `interface.layout: ide`) + tab Terminal, HAI tab loại trừ nhau và dùng
+          chung MỘT terminal. Tab nào tới lượt thì chiếm trọn khoang, hàng kia
+          mang `hidden` (SỬA ĐỔI 3, 2026-09-13; bản trước cho terminal neo đáy
+          ~40% ở tab Editor, dải đó đã bị gỡ). Terminal vẫn KHÔNG đổi cha và
+          KHÔNG unmount: `hidden` chỉ thôi vẽ, nó không chạm vào cây React.
 
           `WorkspaceSplit` GIỮ NGUYÊN và vẫn bọc ngoài: nó trả lời một câu khác
           hẳn — chia trái/phải bao nhiêu, và gập thế nào dưới 768px. Thay nó
@@ -454,10 +461,14 @@ export function LessonClient({ scenarioId }: { readonly scenarioId: string }): R
               {...(showIde ? { editor: <IdePane sessionId={sessionId} /> } : {})}
               /*
                 ⛔ MỘT node terminal, truyền THẲNG. `terminals` (Map) của bản
-                trước đã biến mất cùng terminal thứ hai — kéo theo nút '+', nút
-                '×' và nút tách đôi. Tab Editor ĐÃ LÀ bố cục hai khoang (editor
-                trên, chính cái terminal này neo đáy ~40%), nên không còn gì để
-                tách và không còn tab nào để đóng.
+                trước đã biến mất cùng terminal thứ hai, kéo theo nút '+', nút
+                '×' và nút tách đôi. Một phiên terminal thì không còn tab nào để
+                đóng và không còn gì để tách: hai tab ở đây là hai KHUNG NHÌN
+                lên cùng một terminal, không phải hai terminal.
+
+                Lý do cũ chép ở đây là "tab Editor ĐÃ LÀ bố cục hai khoang,
+                editor trên và terminal neo đáy ~40%". Bố cục đó đã bị gỡ ở SỬA
+                ĐỔI 3 (2026-09-13); kết luận thì không đổi.
               */
               terminal={terminalPane}
               activeTab={tabs.activeTab}

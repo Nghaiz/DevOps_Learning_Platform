@@ -137,7 +137,7 @@ func newBridge(t *testing.T, exec *fakeExecutor, alive podexec.SessionAliveFunc,
 	reg := prometheus.NewRegistry()
 	met := metrics.New(reg)
 
-	logDst := io.Writer(io.Discard)
+	logDst := io.Discard
 	if o.logs != nil {
 		logDst = o.logs
 	}

@@ -1,11 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactElement,
+} from 'react';
 import type { ObjectView } from '@devops-platform/games';
 import { cn } from '@devops-platform/ui';
 import type { ArenaDispatch, ScreenPoint } from '../arena-contract.ts';
 import { ContextMenuItem } from './context-menu-item.tsx';
-import { availableActions, buildAction } from './inspector-action-list.ts';
+import { availableActions, buildAction, commandFor } from './inspector-action-list.ts';
 import { objectLabel } from './inspector-types.ts';
 
 /** Khoảng chừa tối thiểu tới mép khung nhìn khi menu phải lật. */
@@ -28,9 +35,13 @@ export interface ArenaContextMenuProps {
   readonly anchor: ScreenPoint | null;
   readonly tick: number;
   readonly dispatch: ArenaDispatch;
+  /** Chạy một câu `kubectl` trong terminal — đường của mọi hành động sinh ra chữ. */
+  readonly onRunCommand: (command: string) => void;
   readonly onClose: () => void;
-  /** Mở bảng thông số cho object này. */
+  /** Mở bảng thông số cho object này. Camera KHÔNG di chuyển. */
   readonly onInspect: (uid: string) => void;
+  /** Bay camera tới object này rồi chọn nó. */
+  readonly onFocus: (uid: string) => void;
 }
 
 /**
@@ -46,8 +57,10 @@ export function ArenaContextMenu({
   anchor,
   tick,
   dispatch,
+  onRunCommand,
   onClose,
   onInspect,
+  onFocus,
 }: ArenaContextMenuProps): ReactElement | null {
   const menuRef = useRef<HTMLDivElement>(null);
   const [placed, setPlaced] = useState<ScreenPoint | null>(null);
@@ -75,7 +88,7 @@ export function ArenaContextMenu({
     // So sánh trước khi ghi: `setState` vô điều kiện trong `useLayoutEffect` là
     // một vòng lặp vẽ vô tận, và nó biểu hiện thành treo tab chứ không thành lỗi.
     setPlaced((current) => (current?.x === next.x && current.y === next.y ? current : next));
-  }, [anchor, object]);
+  }, [anchor, object?.uid]);
 
   // Đóng khi bấm ra ngoài. Nghe `pointerdown` chứ không `click`: người dùng bấm
   // chuột phải chỗ khác sẽ mở menu mới, và `click` không bắn cho nút phải nên
@@ -94,14 +107,14 @@ export function ArenaContextMenu({
     return () => {
       document.removeEventListener('pointerdown', onPointerDown, true);
     };
-  }, [object, onClose]);
+  }, [object?.uid, onClose]);
 
   // Đưa tiêu điểm vào mục đầu để người dùng bàn phím đi tiếp được ngay.
   useEffect(() => {
     if (object !== null) {
       menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
     }
-  }, [object, anchor]);
+  }, [object?.uid, anchor]);
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
@@ -115,7 +128,9 @@ export function ArenaContextMenu({
         return;
       }
       event.preventDefault();
-      const items = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
+      const items = [
+        ...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []),
+      ];
       if (items.length === 0) {
         return;
       }
@@ -125,7 +140,9 @@ export function ArenaContextMenu({
       // đúng cú pháp modulo nhưng sai trực giác.
       const next =
         index === -1
-          ? (down ? 0 : items.length - 1)
+          ? down
+            ? 0
+            : items.length - 1
           : // Vòng lại hai đầu — WAI-ARIA APG cho menu. Kẹt ở mục cuối làm
             // người dùng tưởng bàn phím hỏng.
             (index + (down ? 1 : -1) + items.length) % items.length;
@@ -162,9 +179,17 @@ export function ArenaContextMenu({
       </p>
       <ContextMenuItem
         label="Xem thông số"
-        hint="Mở bảng bên phải với trạng thái, YAML, sự kiện và mô tả."
+        hint="Mở bảng bên phải với trạng thái, YAML (sửa được), sự kiện và mô tả."
         onSelect={() => {
           onInspect(object.uid);
+          onClose();
+        }}
+      />
+      <ContextMenuItem
+        label="Bay tới đây"
+        hint="Đưa camera tới sát tài nguyên này. Bấm chọn thường KHÔNG làm camera di chuyển."
+        onSelect={() => {
+          onFocus(object.uid);
           onClose();
         }}
       />
@@ -175,6 +200,28 @@ export function ArenaContextMenu({
           hint={action.hint}
           danger={action.danger}
           onSelect={() => {
+            /*
+             * Hành động sinh ra CHỮ đi qua terminal, không qua `dispatch`.
+             * `dispatch` vứt kết quả đi trừ khi engine từ chối, nên "Xem log"
+             * qua đường đó là một cú bấm không có gì xảy ra — xem khối tài liệu
+             * đầu `inspector-action-list.ts`.
+             */
+            if (action.channel === 'terminal') {
+              const command = commandFor(action.id, object);
+              if (command !== null) {
+                onRunCommand(command);
+              }
+              onClose();
+              return;
+            }
+            if (action.id === 'delete') {
+              // Xoá không hoàn tác được ⇒ hỏi lại. Menu chuột phải không có chỗ
+              // cho một hộp thoại, nên nó chuyển sang bảng thông số — nơi hộp
+              // xác nhận đã có sẵn và nơi người dùng thấy được mình sắp xoá gì.
+              onInspect(object.uid);
+              onClose();
+              return;
+            }
             const built = buildAction(action.id, object, tick, UNUSED_REPLICAS);
             if (built !== null) {
               dispatch(built);

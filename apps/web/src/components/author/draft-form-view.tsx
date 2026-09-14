@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement, ReactNode } from 'react';
 import { Alert, AlertDescription } from '@devops-platform/ui';
 import type { ContentKind } from '@devops-platform/shared-types/authoring';
@@ -36,16 +37,23 @@ export function DraftFormView(props: {
 
   return (
     <div className="flex flex-col gap-8">
-      <Section title="Thông tin chung">
-        <DraftMetaFields kind={kind} value={value} onChange={onChange} issues={issues} disabled={disabled} />
+      <Section title={t('author.draft-form-view-thong-tin-chung')}>
+        <DraftMetaFields
+          kind={kind}
+          value={value}
+          onChange={onChange}
+          issues={issues}
+          disabled={disabled}
+        />
       </Section>
 
       {kind === 'playground' && (
-        <Section title="Nội dung">
+        <Section title={t('author.draft-form-view-noi-dung')}>
           <Alert>
             <AlertDescription>
-              Playground là một sandbox trống — không có bước, không có script chấm. Người học nhận đúng một môi
-              trường và thời hạn đã khai ở trên.
+              {t(
+                'author.draft-form-view-playground-la-mot-sandbox-trong-khong-co-buoc-khong-co-script-cham-nguoi-ho',
+              )}
             </AlertDescription>
           </Alert>
         </Section>
@@ -53,10 +61,10 @@ export function DraftFormView(props: {
 
       {kind === 'lesson' && (
         <>
-          <Section title="Mở đầu">
+          <Section title={t('author.draft-form-view-mo-dau')}>
             <PhaseToggle
               id="phase-intro"
-              label="Bài có phần mở đầu"
+              label={t('author.draft-form-view-bai-co-phan-mo-dau')}
               checked={value.hasIntro}
               disabled={disabled}
               onChange={(hasIntro) => {
@@ -74,7 +82,7 @@ export function DraftFormView(props: {
             )}
           </Section>
 
-          <Section title="Các bước">
+          <Section title={t('author.draft-form-view-cac-buoc')}>
             <StepListFields
               kind="lesson"
               steps={value.steps}
@@ -89,10 +97,10 @@ export function DraftFormView(props: {
             />
           </Section>
 
-          <Section title="Kết thúc">
+          <Section title={t('author.draft-form-view-ket-thuc')}>
             <PhaseToggle
               id="phase-finish"
-              label="Bài có phần kết thúc"
+              label={t('author.draft-form-view-bai-co-phan-ket-thuc')}
               checked={value.hasFinish}
               disabled={disabled}
               onChange={(hasFinish) => {
@@ -114,13 +122,14 @@ export function DraftFormView(props: {
 
       {kind === 'lab' && (
         <>
-          <Section title="Chuẩn bị môi trường">
+          <Section title={t('author.draft-form-view-chuan-bi-moi-truong')}>
             <p className="text-sm text-muted-foreground">
-              Chạy MỘT lần khi dựng lab. Lab cố ý không có setup theo từng task: thứ tự làm task là tuỳ người
-              học, nên một setup gắn với task thứ n sẽ chạy hoặc không tuỳ đường đi.
+              {t(
+                'author.draft-form-view-chay-mot-lan-khi-dung-lab-lab-co-y-khong-co-setup-theo-tung-task-thu-tu-lam',
+              )}
             </p>
             <TextAreaField
-              label="Setup foreground"
+              label={t('author.draft-form-view-setup-foreground')}
               rows={3}
               mono
               value={value.setupForeground}
@@ -130,7 +139,7 @@ export function DraftFormView(props: {
               }}
             />
             <TextAreaField
-              label="Setup background"
+              label={t('author.draft-form-view-setup-background')}
               rows={3}
               mono
               value={value.setupBackground}
@@ -141,7 +150,7 @@ export function DraftFormView(props: {
             />
           </Section>
 
-          <Section title="Các task">
+          <Section title={t('author.draft-form-view-cac-task')}>
             <StepListFields
               kind="lab"
               steps={value.steps}
@@ -159,7 +168,7 @@ export function DraftFormView(props: {
       )}
 
       {kind !== 'playground' && (
-        <Section title="Chép file vào pod">
+        <Section title={t('author.draft-form-view-chep-file-vao-pod')}>
           <AssetDirectiveFields
             value={value.assets}
             disabled={disabled}
@@ -168,7 +177,10 @@ export function DraftFormView(props: {
             }}
             onAdd={() => {
               patch({
-                assets: [...value.assets, { key: nextKey(), host: 'host01', file: '', target: '', chmod: '' }],
+                assets: [
+                  ...value.assets,
+                  { key: nextKey(), host: 'host01', file: '', target: '', chmod: '' },
+                ],
               });
             }}
           />
@@ -178,7 +190,13 @@ export function DraftFormView(props: {
   );
 }
 
-function Section({ title, children }: { readonly title: string; readonly children: ReactNode }): ReactElement {
+function Section({
+  title,
+  children,
+}: {
+  readonly title: string;
+  readonly children: ReactNode;
+}): ReactElement {
   return (
     <section className="flex flex-col gap-4">
       <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">{title}</h2>

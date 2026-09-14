@@ -18,6 +18,7 @@ type OrbitControlsHandle = ComponentRef<typeof OrbitControls>;
 const TMP_DIR = new THREE.Vector3();
 const GOAL_POSITION = new THREE.Vector3();
 const GOAL_TARGET = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
 
 /** Hệ số giảm chấn của chuyển động bay tới. Độc lập nhịp khung hình qua `1 - exp(-dt·k)`. */
 const FLY_DAMP = 3.4;
@@ -50,6 +51,7 @@ export interface CameraRigProps {
  */
 export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps): ReactElement {
   const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
   const controlsRef = useRef<OrbitControlsHandle | null>(null);
   const flyingRef = useRef(false);
@@ -59,7 +61,54 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
 
   /** Khoảng cách đủ ôm trọn cụm mà vẫn chừa lề. Mọi hệ số lấy từ hợp đồng. */
   function frameDistance(): number {
-    return Math.max(CAMERA_TUNING.minFrameDistance, runtime.radius * CAMERA_TUNING.frameFillFactor);
+    const aspectMargin = Math.max(1, size.height / Math.max(1, size.width - 80));
+    return Math.min(
+      CAMERA_TUNING.maxDistance * 0.75,
+      Math.max(CAMERA_TUNING.minFrameDistance, runtime.radius * CAMERA_TUNING.frameFillFactor) *
+        aspectMargin,
+    );
+  }
+
+  /**
+   * Ghi `GOAL_*` cho khung "nhìn cả cụm", theo ĐÚNG các hệ số trong hợp đồng.
+   *
+   * ⚠ Bản trước viết thẳng `set(d·0.48, d·0.72, d·0.88)` ngay tại hai chỗ gọi,
+   * bất chấp chú thích đầu file nói mọi con số phải lấy từ `CAMERA_TUNING`. Hai
+   * hệ quả đo được: độ dài của vec-tơ đó là `d·1.234`, nên camera lùi xa hơn 23%
+   * so với `frameFillFactor` tính ra; và hệ số cao thực tế là `0.72/1.234 =
+   * 0.583`, không phải `frameHeightFactor = 0.46` mà hợp đồng khai. Kết quả là
+   * cụm nhỏ hơn và cao hơn dự tính — nửa dưới khung bỏ trống, đúng thứ nhìn ra
+   * là "giao diện trống trải".
+   *
+   * Ở đây độ cao lấy từ `frameHeightFactor`, phần ngang là phần còn lại của tam
+   * giác vuông, nên `|position − target|` bằng ĐÚNG `distance`.
+   */
+  function frameAll(distance: number): void {
+    const height = distance * CAMERA_TUNING.frameHeightFactor;
+    const horizontal = Math.sqrt(Math.max(0, distance * distance - height * height));
+    const [ax, az] = CAMERA_TUNING.frameAzimuth;
+    GOAL_TARGET.set(0, 0, 0);
+    GOAL_POSITION.set(horizontal * ax, height, horizontal * az);
+    biasForHud(distance);
+  }
+
+  /**
+   * Dời cả camera lẫn điểm ngắm sang trái, để cụm hiện ra giữa phần màn hình
+   * KHÔNG bị HUD che. Dời cả hai nên hướng nhìn không đổi — đây là một cú lia,
+   * không phải một cú xoay.
+   */
+  function biasForHud(distance: number): void {
+    const bias: number = CAMERA_TUNING.frameLeftBias;
+    if (bias === 0) {
+      return;
+    }
+    const aspect = Math.max(0.1, size.width / Math.max(1, size.height));
+    const frustumWidth = 2 * distance * Math.tan((CAMERA_TUNING.fov * Math.PI) / 360) * aspect;
+    // Vec-tơ "sang phải" của camera = hướng nhìn × trục đứng.
+    TMP_DIR.copy(GOAL_TARGET).sub(GOAL_POSITION).normalize().cross(UP).normalize();
+    TMP_DIR.multiplyScalar(-frustumWidth * bias);
+    GOAL_POSITION.add(TMP_DIR);
+    GOAL_TARGET.add(TMP_DIR);
   }
 
   /** Ghi `GOAL_*` cho một điểm ngắm, giữ nguyên hướng nhìn hiện tại. */
@@ -90,8 +139,7 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
 
     const distance = frameDistance();
     if (command.kind === 'reset') {
-      GOAL_TARGET.set(0, 0, 0);
-      GOAL_POSITION.set(0, distance * CAMERA_TUNING.frameHeightFactor, distance);
+      frameAll(distance);
     } else if (command.kind === 'frame-all') {
       // Giữ nguyên hướng nhìn hiện tại: người dùng vừa chọn một góc, "đóng khung
       // tất cả" không có lý do gì để cướp lại góc đó — nó chỉ cần lùi ra đủ xa.
@@ -106,13 +154,18 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
       if (node === undefined) {
         return;
       }
-      aimAt(node.x, PLATFORM_HEIGHT / 2, 0, CAMERA_TUNING.focusDistance);
+      aimAt(node.x, PLATFORM_HEIGHT / 2, node.z, CAMERA_TUNING.focusDistance);
     } else {
       const entry = command.uid === undefined ? undefined : runtime.entries.get(command.uid);
       if (entry === undefined) {
         return;
       }
-      aimAt(entry.x, entry.drawY, entry.z, Math.max(CAMERA_TUNING.minDistance + 1, CAMERA_TUNING.focusDistance));
+      aimAt(
+        entry.x,
+        entry.drawY,
+        entry.z,
+        Math.max(CAMERA_TUNING.minDistance + 1, CAMERA_TUNING.focusDistance),
+      );
     }
 
     framedRef.current = true;
@@ -138,6 +191,20 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
 
   useFrame((_state, dt) => {
     /*
+     * ⛔ KHÔNG ghi `controls.enabled` ở đây. `pointer-picking.tsx` là người sở
+     * hữu duy nhất của cờ đó (luật 4 trong khối tài liệu của nó). Bản trước ghi
+     * nó MỖI KHUNG HÌNH theo `runtime.draggingUid`; hai người ghi một cờ nghĩa là
+     * khi effect dò chuột bị dựng lại giữa cú kéo, `draggingUid` còn sót khác
+     * `null` và vòng lặp này tắt camera vĩnh viễn.
+     *
+     * Cú kéo vẫn phải HUỶ lệnh bay: camera bay trong lúc người chơi đang kéo thì
+     * mặt phẳng kéo trượt dưới tay họ.
+     */
+    if (runtime.draggingUid !== null) {
+      flyingRef.current = false;
+      return;
+    }
+    /*
      * Đóng khung lần đầu ngay khi cụm có hình dạng thật — không làm lúc mount,
      * vì khi đó chưa có lần `sync()` nào nên `radius` còn là giá trị khởi tạo và
      * camera sẽ đóng khung một cụm rỗng rồi đứng yên ở đó.
@@ -145,8 +212,7 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
     if (!framedRef.current && runtime.structureVersion > 0) {
       framedRef.current = true;
       const distance = frameDistance();
-      GOAL_TARGET.set(0, 0, 0);
-      GOAL_POSITION.set(0, distance * CAMERA_TUNING.frameHeightFactor, distance);
+      frameAll(distance);
       departure();
     }
     if (!flyingRef.current) {
@@ -168,7 +234,7 @@ export function CameraRig({ runtime, propsRef, reducedMotion }: CameraRigProps):
     <OrbitControls
       ref={controlsRef}
       makeDefault
-      enableDamping
+      enableDamping={false}
       dampingFactor={CAMERA_TUNING.dampingFactor}
       minPolarAngle={CAMERA_TUNING.minPolarAngle}
       maxPolarAngle={CAMERA_TUNING.maxPolarAngle}

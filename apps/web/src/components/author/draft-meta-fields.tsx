@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
 import {
   Checkbox,
@@ -55,35 +56,41 @@ export function DraftMetaFields(props: {
   return (
     <div className="flex flex-col gap-5">
       <TextField
-        label="Tiêu đề"
+        label={t('author.draft-meta-fields-tieu-de')}
         value={value.title}
         onChange={(title) => {
           patch({ title });
         }}
         error={issueFor(issues, 'title')}
         disabled={disabled}
-        placeholder="Ví dụ: Chẩn đoán tiến trình ngốn CPU"
+        placeholder={t('author.draft-meta-fields-vi-du-chan-doan-tien-trinh-ngon-cpu')}
       />
 
       <TextAreaField
-        label="Mô tả"
+        label={t('author.problem.tab.statement')}
         rows={2}
         value={value.description}
         onChange={(description) => {
           patch({ description });
         }}
-        hint="Một câu hiện trên thẻ ở trang danh mục. Bỏ trống cũng được."
+        hint={t(
+          'author.draft-meta-fields-mot-cau-hien-tren-the-o-trang-danh-muc-bo-trong-cung-duoc',
+        )}
         disabled={disabled}
       />
 
       {kind !== 'playground' && (
         <div className="grid gap-5 sm:grid-cols-2">
           <Field
-            label="Độ khó"
+            label={t('author.draft-meta-fields-do-kho')}
             hint={
               kind === 'lesson'
-                ? 'Bắt buộc khi xuất bản — schema bài học không nhận giá trị trống.'
-                : 'Bắt buộc khi xuất bản — schema lab không nhận giá trị trống.'
+                ? t(
+                    'author.draft-meta-fields-bat-buoc-khi-xuat-ban-schema-bai-hoc-khong-nhan-gia-tri-trong',
+                  )
+                : t(
+                    'author.draft-meta-fields-bat-buoc-khi-xuat-ban-schema-lab-khong-nhan-gia-tri-trong',
+                  )
             }
           >
             {({ id, describedBy }) => (
@@ -100,7 +107,9 @@ export function DraftMetaFields(props: {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={RADIX_UNSET}>Chưa chọn</SelectItem>
+                  <SelectItem value={RADIX_UNSET}>
+                    {t('author.draft-meta-fields-chua-chon')}
+                  </SelectItem>
                   {SCENARIO_DIFFICULTIES.map((level) => (
                     <SelectItem key={level} value={level}>
                       {DIFFICULTY_LABELS[level]}
@@ -112,21 +121,26 @@ export function DraftMetaFields(props: {
           </Field>
 
           <TextField
-            label="Thời lượng ước tính (phút)"
+            label={t('author.draft-meta-fields-thoi-luong-uoc-tinh-phut')}
             value={value.estimatedMinutes}
             inputMode="numeric"
             onChange={(estimatedMinutes) => {
               patch({ estimatedMinutes });
             }}
             error={issueFor(issues, 'estimatedMinutes')}
-            hint="Bỏ trống nếu chưa ước tính được."
+            hint={t('author.draft-meta-fields-bo-trong-neu-chua-uoc-tinh-duoc')}
             disabled={disabled}
           />
         </div>
       )}
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Tier sandbox" hint="Cụm hiện chạy sysbox; hai tier còn lại chưa có node nào phục vụ.">
+        <Field
+          label={t('author.draft-meta-fields-tier-sandbox')}
+          hint={t(
+            'author.draft-meta-fields-cum-hien-chay-sysbox-hai-tier-con-lai-chua-co-node-nao-phuc-vu',
+          )}
+        >
           {({ id, describedBy }) => (
             <Select
               value={value.tier}
@@ -149,7 +163,12 @@ export function DraftMetaFields(props: {
           )}
         </Field>
 
-        <Field label="Giao diện" hint="IDE mở thêm khung soạn thảo cạnh terminal (layout ide của P6).">
+        <Field
+          label={t('author.draft-meta-fields-giao-dien')}
+          hint={t(
+            'author.draft-meta-fields-ide-mo-them-khung-soan-thao-canh-terminal-layout-ide-cua-p6',
+          )}
+        >
           {({ id, describedBy }) => (
             <Select
               value={value.interfaceLayout === '' ? RADIX_UNSET : 'ide'}
@@ -162,8 +181,12 @@ export function DraftMetaFields(props: {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={RADIX_UNSET}>Terminal thường</SelectItem>
-                <SelectItem value="ide">IDE (nội dung | editor | terminal)</SelectItem>
+                <SelectItem value={RADIX_UNSET}>
+                  {t('author.draft-meta-fields-terminal-thuong')}
+                </SelectItem>
+                <SelectItem value="ide">
+                  {t('author.draft-meta-fields-ide-noi-dung-editor-terminal')}
+                </SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -185,10 +208,13 @@ export function DraftMetaFields(props: {
         hoặc chọn thiếu.
       */}
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-foreground">Bộ công cụ thêm cho bài này</legend>
+        <legend className="text-sm font-medium text-foreground">
+          {t('author.draft-meta-fields-bo-cong-cu-them-cho-bai-nay')}
+        </legend>
         <p className="text-xs text-muted-foreground">
-          Mặc định không bật gì — sandbox đã có sẵn bộ lệnh thường dùng. Chỉ chọn thứ nội dung bài
-          thật sự gõ tới: mỗi công cụ là một lượt cài trong pod lúc mở phiên.
+          {t(
+            'author.draft-meta-fields-mac-dinh-khong-bat-gi-sandbox-da-co-san-bo-lenh-thuong-dung-chi-chon-thu-no',
+          )}
         </p>
         <div className="grid gap-x-6 gap-y-3 pt-1 sm:grid-cols-2">
           {SANDBOX_TOOLS.map((tool) => (
@@ -210,21 +236,28 @@ export function DraftMetaFields(props: {
       </fieldset>
 
       <TextField
-        label="Backend image id"
+        label={t('author.draft-meta-fields-backend-image-id')}
         value={value.backendImageId}
         onChange={(backendImageId) => {
           patch({ backendImageId });
         }}
         error={issueFor(issues, 'backendImageId')}
-        hint="Nguyên văn imageid của upstream. Giữ để truy nguyên; nó KHÔNG quyết định sandbox chạy gì — phần đó do capability bên dưới."
+        hint={t(
+          'author.draft-meta-fields-nguyen-van-imageid-cua-upstream-giu-de-truy-nguyen-no-khong-quyet-dinh-sand',
+        )}
         disabled={disabled}
       />
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-foreground">Capability sandbox phải có</legend>
+        <legend className="text-sm font-medium text-foreground">
+          {t('author.draft-meta-fields-capability-sandbox-phai-co')}
+        </legend>
         <p className="text-xs text-muted-foreground">
-          Chọn thiếu thì người học gặp <code className="font-mono">command not found</code> giữa bài; chọn thừa
-          thì bài chiếm một sandbox nặng hơn mức cần.
+          {t('author.draft-meta-fields-chon-thieu-thi-nguoi-hoc-gap')}{' '}
+          <code className="font-mono">{t('author.draft-meta-fields-command-not-found')}</code>{' '}
+          {t(
+            'author.draft-meta-fields-giua-bai-chon-thua-thi-bai-chiem-mot-sandbox-nang-hon-muc-can',
+          )}
         </p>
         <div className="flex flex-wrap gap-4 pt-1">
           {SCENARIO_CAPABILITIES.map((capability) => (
@@ -248,18 +281,20 @@ export function DraftMetaFields(props: {
       {kind === 'lab' && (
         <div className="grid gap-5 sm:grid-cols-2">
           <TextField
-            label="Mốc đạt (%)"
+            label={t('author.draft-meta-fields-moc-dat')}
             value={value.passThresholdPercent}
             inputMode="numeric"
             onChange={(passThresholdPercent) => {
               patch({ passThresholdPercent });
             }}
             error={issueFor(issues, 'passThresholdPercent')}
-            hint="Tính theo tổng trọng số các task đã đạt. Bắt buộc khi xuất bản lab."
+            hint={t(
+              'author.draft-meta-fields-tinh-theo-tong-trong-so-cac-task-da-dat-bat-buoc-khi-xuat-ban-lab',
+            )}
             disabled={disabled}
           />
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="lab-leaderboard">Bảng xếp hạng</Label>
+            <Label htmlFor="lab-leaderboard">{t('author.draft-meta-fields-bang-xep-hang')}</Label>
             <div className="flex items-center gap-2 pt-1.5">
               <Switch
                 id="lab-leaderboard"
@@ -270,7 +305,9 @@ export function DraftMetaFields(props: {
                 }}
               />
               <span className="text-sm text-muted-foreground">
-                {value.leaderboard ? 'Bật cho lab này' : 'Tắt (mặc định của nền tảng)'}
+                {value.leaderboard
+                  ? t('author.draft-meta-fields-bat-cho-lab-nay')
+                  : t('author.draft-meta-fields-tat-mac-dinh-cua-nen-tang')}
               </span>
             </div>
           </div>
@@ -279,14 +316,16 @@ export function DraftMetaFields(props: {
 
       {kind === 'playground' && (
         <TextField
-          label="TTL phiên (giây)"
+          label={t('author.draft-meta-fields-ttl-phien-giay')}
           value={value.ttlSeconds}
           inputMode="numeric"
           onChange={(ttlSeconds) => {
             patch({ ttlSeconds });
           }}
           error={issueFor(issues, 'ttlSeconds')}
-          hint="300–7200. Con số này hiện cho người học TRƯỚC khi họ bấm Bắt đầu, nên đặt quá trần là một lời hứa hạ tầng sẽ phá."
+          hint={t(
+            'author.draft-meta-fields-300-toi-7200-con-so-nay-hien-cho-nguoi-hoc-truoc-khi-ho-bam-bat-dau-nen-dat',
+          )}
           disabled={disabled}
         />
       )}
@@ -295,9 +334,9 @@ export function DraftMetaFields(props: {
 }
 
 const DIFFICULTY_LABELS: Readonly<Record<(typeof SCENARIO_DIFFICULTIES)[number], string>> = {
-  beginner: 'Cơ bản',
-  intermediate: 'Trung cấp',
-  advanced: 'Nâng cao',
+  beginner: t('common.difficulty.beginner'),
+  intermediate: t('common.difficulty.intermediate'),
+  advanced: t('common.difficulty.advanced'),
 };
 
 /**
@@ -309,14 +348,18 @@ const DIFFICULTY_LABELS: Readonly<Record<(typeof SCENARIO_DIFFICULTIES)[number],
  * thật sự gõ vào nội dung bài, và là chỗ lệch dễ mất thời gian nhất.
  */
 const TOOL_DESCRIPTIONS: Readonly<Record<SandboxTool, string>> = {
-  btop: 'Theo dõi CPU, RAM và tiến trình theo thời gian thực — bản dễ nhìn của top.',
-  tldr: 'Ví dụ dùng nhanh cho một lệnh, thay cho việc đọc hết trang man.',
-  ripgrep: 'Tìm chuỗi trong cả cây thư mục, rất nhanh. Lệnh gõ là rg.',
-  fd: 'Tìm file theo tên với cú pháp ngắn hơn find. Lệnh gõ là fd.',
-  duf: 'Xem dung lượng đĩa còn trống theo từng phân vùng, dạng bảng.',
-  ncdu: 'Duyệt thư mục theo dung lượng để tìm chỗ đang chiếm đĩa.',
-  delta: 'Tô màu và canh cột cho git diff, dễ đọc phần khác biệt hơn.',
-  yq: 'Đọc và sửa YAML/JSON từ dòng lệnh — hay dùng với manifest Kubernetes.',
+  btop: t(
+    'author.draft-meta-fields-theo-doi-cpu-ram-va-tien-trinh-theo-thoi-gian-thuc-ban-de-nhin-cua-top',
+  ),
+  tldr: t('author.draft-meta-fields-vi-du-dung-nhanh-cho-mot-lenh-thay-cho-viec-doc-het-trang-man'),
+  ripgrep: t('author.draft-meta-fields-tim-chuoi-trong-ca-cay-thu-muc-rat-nhanh-lenh-go-la-rg'),
+  fd: t('author.draft-meta-fields-tim-file-theo-ten-voi-cu-phap-ngan-hon-find-lenh-go-la-fd'),
+  duf: t('author.draft-meta-fields-xem-dung-luong-dia-con-trong-theo-tung-phan-vung-dang-bang'),
+  ncdu: t('author.draft-meta-fields-duyet-thu-muc-theo-dung-luong-de-tim-cho-dang-chiem-dia'),
+  delta: t('author.draft-meta-fields-to-mau-va-canh-cot-cho-git-diff-de-doc-phan-khac-biet-hon'),
+  yq: t(
+    'author.draft-meta-fields-doc-va-sua-yaml-json-tu-dong-lenh-hay-dung-voi-manifest-kubernetes',
+  ),
 };
 
 function ToolBox(props: {

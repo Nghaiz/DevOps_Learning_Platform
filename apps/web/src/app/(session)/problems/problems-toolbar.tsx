@@ -1,8 +1,9 @@
 'use client';
 
 import { useId, useState, type ReactElement } from 'react';
-import { Search } from 'lucide-react';
-import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
+import { Label, SearchTabs, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ui';
+import { Button } from '@devops-platform/ui';
 import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_DIFFICULTY_LABELS,
@@ -29,22 +30,45 @@ const DIRECTIONS = ['asc', 'desc'] as const;
  * lọc, không phân loại, không mã bài. Một trình chấm bài mà không lọc được thì
  * chỉ dùng được khi số bài còn đếm trên đầu ngón tay.
  *
- * Ô TÌM commit khi bấm Enter hoặc rời ô, KHÔNG commit theo từng phím. Lý do là
- * lịch sử duyệt: mỗi lần ghi bộ lọc là một mục lịch sử, nên gõ "nginx" theo
- * từng phím sẽ chôn trang trước dưới năm mục rác và nút quay lại thành vô dụng
- * — đúng thứ mà yêu cầu "bấm quay lại được" đòi phải giữ.
+ * ## Ô tìm ở đây là ô tìm THẬT, và đó là chỗ khác năm trang danh mục
+ *
+ * `problems.list` nhận `filter.query` và lọc trên TOÀN BỘ kho, còn năm trang
+ * danh mục chỉ lọc được trên trang server vừa trả về. Hai màn vì vậy dùng hai
+ * nhãn khác nhau (`catalog.problems.search-label` so với
+ * nhãn “trong trang” của các màn lọc-tại-chỗ), và màn này KHÔNG mang câu cảnh báo phạm vi.
+ * Mượn câu đó sang đây sẽ cảnh báo về một giới hạn không tồn tại, và một cảnh
+ * báo sai chỗ dạy người dùng bỏ qua cảnh báo đúng chỗ.
+ *
+ * ## `SearchTabs` ở đây chạy KHÔNG có tab, và đó là quyết định
+ *
+ * Bốn chiều lọc của màn này (độ khó, trạng thái, chủ đề, tag) đều là NHIỀU LỰA
+ * CHỌN: người dùng bật cùng lúc `easy` và `medium`, và luật gộp còn khác nhau
+ * giữa chủ đề (HOẶC) với tag (VÀ). Một hàng tab là điều khiển MỘT lựa chọn; ánh
+ * xạ nó vào bất kỳ chiều nào ở đây sẽ hoặc âm thầm bỏ các lựa chọn khác khi
+ * người ta bấm tab, hoặc hiện một tab "đang chọn" trong khi thật ra có ba giá
+ * trị đang bật. Cả hai đều là điều khiển nói dối. `SearchTabs` xử lý
+ * `tabs: []` sẵn nên ô tìm vẫn dùng được mà không phải bịa ra một trục.
+ *
+ * ## Ô TÌM commit khi bấm Enter, KHÔNG commit theo từng phím
+ *
+ * Lý do là lịch sử duyệt: mỗi lần ghi bộ lọc là một mục lịch sử, nên gõ "nginx"
+ * theo từng phím sẽ chôn trang trước dưới năm mục rác và nút quay lại thành vô
+ * dụng, đúng thứ mà yêu cầu "bấm quay lại được" đòi phải giữ.
+ *
+ * Vì vậy `onSearchChange` chỉ nuôi bản nháp còn `onSearch` (Enter) mới commit.
+ * Đây là chỗ khác năm trang danh mục lần thứ hai: ở đó ô tìm là state cục bộ
+ * không đụng URL nên commit theo từng phím là đúng.
  */
 export function ProblemsToolbar({ controls }: { readonly controls: ProblemControls }): ReactElement {
-  const searchId = useId();
   const orderId = useId();
   const directionId = useId();
   const committed = controls.query.filter.query ?? '';
   const [draft, setDraft] = useState(committed);
 
   // Bộ lọc đổi từ NƠI KHÁC (nút xoá lọc, hoặc người dùng bấm quay lại) thì ô
-  // tìm phải theo. So khoá đã commit thay vì `useEffect` đồng bộ hai chiều —
-  // hai nguồn cho một ô nhập là cách chắc chắn để có một lượt render mà ô hiện
-  // một đằng còn URL nói một nẻo.
+  // tìm phải theo. So khoá đã commit thay vì `useEffect` đồng bộ hai chiều: hai
+  // nguồn cho một ô nhập là cách chắc chắn để có một lượt render mà ô hiện một
+  // đằng còn URL nói một nẻo.
   const [syncedWith, setSyncedWith] = useState(committed);
   if (syncedWith !== committed) {
     setSyncedWith(committed);
@@ -54,38 +78,23 @@ export function ProblemsToolbar({ controls }: { readonly controls: ProblemContro
   return (
     <div className="flex flex-col gap-5 rounded-lg border border-border bg-card p-4 shadow-elevation-1">
       <div className="flex flex-wrap items-end gap-4">
-        <form
-          className="flex min-w-64 flex-1 flex-col gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            controls.setSearch(draft);
-          }}
-        >
-          <Label htmlFor={searchId} className="text-xs font-medium text-muted-foreground">
-            Tìm theo mã bài hoặc tên
-          </Label>
-          <div className="flex gap-2">
-            <Input
-              id={searchId}
-              type="search"
-              value={draft}
-              placeholder="K8S-0042 hoặc pod treo"
-              onChange={(event) => {
-                setDraft(event.target.value);
-              }}
-              onBlur={() => {
-                controls.setSearch(draft);
-              }}
-            />
-            <Button type="submit" variant="outline" size="sm" iconLeft={<Search aria-hidden className="size-4" />}>
-              Tìm
-            </Button>
-          </div>
-        </form>
+        <div className="flex min-w-64 flex-1 flex-col gap-2">
+          <span className="text-xs font-medium text-muted-foreground">
+            {t('catalog.problems.search-label')}
+          </span>
+          <SearchTabs
+            tabs={[]}
+            value={draft}
+            onSearchChange={setDraft}
+            onSearch={controls.setSearch}
+            placeholder={t('catalog.problems.search-placeholder')}
+            label={t('catalog.problems.search-region')}
+          />
+        </div>
 
         <div className="flex w-44 flex-col gap-2">
           <Label htmlFor={orderId} className="text-xs font-medium text-muted-foreground">
-            Sắp xếp theo
+            {t('catalog.problems.order-label')}
           </Label>
           <Select
             value={controls.query.orderBy}
@@ -108,7 +117,7 @@ export function ProblemsToolbar({ controls }: { readonly controls: ProblemContro
 
         <div className="flex w-36 flex-col gap-2">
           <Label htmlFor={directionId} className="text-xs font-medium text-muted-foreground">
-            Chiều
+            {t('catalog.problems.direction-label')}
           </Label>
           <Select
             value={controls.query.direction}
@@ -130,28 +139,28 @@ export function ProblemsToolbar({ controls }: { readonly controls: ProblemContro
         </div>
 
         <Button variant="ghost" size="sm" onClick={controls.clearFilters} disabled={!controls.hasActiveFilter}>
-          Xoá bộ lọc
+          {t('catalog.action.clear-filter')}
         </Button>
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
         <FilterChecklist
-          legend="Độ khó"
+          legend={t('catalog.problems.difficulty-legend')}
           options={PROBLEM_DIFFICULTIES}
           labels={PROBLEM_DIFFICULTY_LABELS}
           selected={controls.query.filter.difficulty ?? []}
           onToggle={controls.toggleDifficulty}
         />
         <FilterChecklist
-          legend="Trạng thái của bạn"
+          legend={t('catalog.problems.status-legend')}
           options={PROBLEM_VIEWER_STATUSES}
           labels={PROBLEM_VIEWER_STATUS_LABELS}
           selected={controls.query.filter.viewerStatus ?? []}
           onToggle={controls.toggleViewerStatus}
         />
         <FilterChecklist
-          legend="Chủ đề"
-          hint="Chọn nhiều chủ đề = bài khớp BẤT KỲ chủ đề nào."
+          legend={t('catalog.problems.topic-legend')}
+          hint={t('catalog.problems.topic-hint')}
           options={PROBLEM_TOPICS}
           labels={PROBLEM_TOPIC_LABELS}
           selected={controls.query.filter.topics ?? []}

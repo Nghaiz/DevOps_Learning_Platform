@@ -1,0 +1,1 @@
+CREATE INDEX "password_reset_outbox_expires_at_idx" ON "password_reset_outbox" USING btree ("expires_at");

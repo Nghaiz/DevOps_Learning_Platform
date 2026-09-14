@@ -41,7 +41,7 @@ describe('summarizePathProgress', () => {
     const summary = summarizePathProgress({ passedCount: 1, itemCount: 3, nextItemId: null });
 
     expect(summary.label).toBe('Đã đạt 1/3 phần');
-    expect(summary.nextLabel).toBe('Không còn phần nào đang mở — mở khoá bằng cách đạt phần trước đó');
+    expect(summary.nextLabel).toBe('Không còn phần nào đang mở. Đạt phần trước đó để mở khoá.');
     expect(summary.nextLabel).not.toContain('tất cả');
   });
 

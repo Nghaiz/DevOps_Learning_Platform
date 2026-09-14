@@ -17,6 +17,7 @@ import {
   TabsTrigger,
   useToast,
 } from '@devops-platform/ui';
+import { count, renderCopy, t } from '@devops-platform/copy';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { DraftFormView } from '../../../components/author/draft-form-view';
@@ -29,16 +30,13 @@ import { draftFromBody, draftFromPreview } from '../../../components/author/draf
 import { AssetManager } from '../../../components/author/asset-manager';
 import { PreviewPanel } from '../../../components/author/preview-panel';
 import { PublishPanel } from '../../../components/author/publish-panel';
-import {
-  PUBLISH_POLL_INTERVAL_MS,
-  publishPhase,
-} from '../../../components/author/publish-machine';
+import { PUBLISH_POLL_INTERVAL_MS, publishPhase } from '../../../components/author/publish-machine';
 import { basePublishedIdOf } from '../../../components/author/draft-id';
 import { describeSaveOutcome } from '../../../components/author/save-outcome';
 import {
   describeItem,
   STATE_BADGE,
-  STATE_LABELS,
+  STATE_KEYS,
   type AuthoredItem,
 } from '../../../components/author/content-state';
 
@@ -171,8 +169,8 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
       void utils.authoring.get.invalidate();
       const outcome = describeSaveOutcome(result, contentId);
       toast({
-        title: outcome.title,
-        ...(outcome.detail === null ? {} : { description: outcome.detail }),
+        title: renderCopy(outcome.title),
+        ...(outcome.detail === null ? {} : { description: renderCopy(outcome.detail) }),
         variant: outcome.tone === 'warning' ? 'default' : 'success',
       });
       if (outcome.navigate) {
@@ -184,7 +182,10 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
     },
   });
 
-  const checkQuery = api.authoring.check.useQuery({ id: contentId }, { enabled: false, retry: false });
+  const checkQuery = api.authoring.check.useQuery(
+    { id: contentId },
+    { enabled: false, retry: false },
+  );
 
   const publish = api.authoring.publish.useMutation({
     onSuccess: () => {
@@ -202,7 +203,10 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
   const archive = api.authoring.archive.useMutation({
     onSuccess: () => {
       void utils.authoring.list.invalidate();
-      toast({ title: 'Đã lưu trữ', description: 'Bài biến khỏi danh mục người học; tiến độ đã có vẫn còn.' });
+      toast({
+        title: t('author.edit.archived.title'),
+        description: t('author.edit.archived.body'),
+      });
     },
     onError: (error) => {
       setServerError(describeTrpcError(error));
@@ -215,7 +219,6 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
     row: item,
     baseRow,
   });
-
 
   const onSave = (): void => {
     if (form === null || item === null) {
@@ -238,7 +241,7 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
     return (
       <Shell>
         <ErrorState
-          title="Không tải được bài"
+          title={t('author.edit.load-error.title')}
           message={describeTrpcError(listQuery.error)}
           onRetry={() => void listQuery.refetch()}
           retrying={listQuery.isFetching}
@@ -250,11 +253,11 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
     return (
       <Shell>
         <ErrorState
-          title="Không có bài đó"
-          message={`Không tìm thấy "${contentId}" trong danh sách bài của bạn. Có thể id sai, hoặc bài thuộc về tác giả khác.`}
+          title={t('author.edit.not-found.title')}
+          message={renderCopy({ key: 'author.edit.not-found.body', params: { id: contentId } })}
         />
         <Button variant="outline" asChild>
-          <Link href="/author">Về danh sách bài</Link>
+          <Link href="/author">{t('author.nav.back-to-list')}</Link>
         </Button>
       </Shell>
     );
@@ -269,35 +272,40 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
   return (
     <Shell>
       <header className="flex flex-col gap-2">
-        <Link href="/author" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← Về danh sách bài
+        <Link
+          href="/author"
+          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+        >
+          {'← '}
+          {t('author.nav.back-to-list')}
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">{item.title}</h1>
-          <Badge variant={STATE_BADGE[item.state]}>{STATE_LABELS[item.state]}</Badge>
+          <Badge variant={STATE_BADGE[item.state]}>{t(STATE_KEYS[item.state])}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          {describeItem(item)} · <code className="font-mono">{item.id}</code>
+          {renderCopy(describeItem(item))} · <code className="font-mono">{item.id}</code>
         </p>
       </header>
 
       {item.state === 'published' && (
         <Alert variant="warning">
-          <AlertTitle>Bài này đang chạy cho người học</AlertTitle>
+          <AlertTitle>{t('author.edit.live-warning.title')}</AlertTitle>
           <AlertDescription>
-            Lưu sẽ KHÔNG sửa bản đang chạy. Máy chủ tạo một bản nháp kế nhiệm{' '}
-            <code className="font-mono">{item.id}__draft</code>; nội dung của nó chỉ thay thế bản đang chạy khi
-            bạn xuất bản bản nháp đó.
+            {renderCopy({
+              key: 'author.edit.live-warning.body',
+              params: { draftId: `${item.id}__draft` },
+            })}
           </AlertDescription>
         </Alert>
       )}
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="soan">Soạn</TabsTrigger>
-          <TabsTrigger value="xem-truoc">Xem trước</TabsTrigger>
-          <TabsTrigger value="tep">Tệp đính kèm</TabsTrigger>
-          <TabsTrigger value="xuat-ban">Xuất bản</TabsTrigger>
+        <TabsList className="h-auto max-w-full flex-wrap justify-start [&>[data-slot=tabs-trigger]]:min-h-11">
+          <TabsTrigger value="soan">{t('author.edit.tab.compose')}</TabsTrigger>
+          <TabsTrigger value="xem-truoc">{t('author.edit.tab.preview')}</TabsTrigger>
+          <TabsTrigger value="tep">{t('author.edit.tab.assets')}</TabsTrigger>
+          <TabsTrigger value="xuat-ban">{t('author.edit.tab.publish')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="soan" className="flex flex-col gap-6 pt-4">
@@ -305,7 +313,7 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
 
           {bodyQuery.isError && (
             <ErrorState
-              title="Không nạp được nội dung bài"
+              title={t('author.edit.body-error.title')}
               message={describeTrpcError(bodyQuery.error)}
               onRetry={() => void bodyQuery.refetch()}
               retrying={bodyQuery.isFetching}
@@ -325,12 +333,16 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
 
               {issues.length > 0 && (
                 <Alert variant="destructive">
-                  <AlertTitle>Còn {issues.length} ô cần sửa</AlertTitle>
+                  <AlertTitle>{count('author.issues.title', issues.length)}</AlertTitle>
                   <AlertDescription>
                     <ul className="list-disc pl-5">
                       {issues.map((issue) => (
                         <li key={issue.path}>
-                          <code className="font-mono">{issue.path}</code> — {issue.message}
+                          <code className="font-mono">{issue.path}</code>
+                          {renderCopy({
+                            key: 'author.issues.row',
+                            params: { message: issue.message },
+                          })}
                         </li>
                       ))}
                     </ul>
@@ -340,14 +352,14 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
 
               {serverError !== null && (
                 <Alert variant="destructive">
-                  <AlertTitle>Không lưu được</AlertTitle>
+                  <AlertTitle>{t('author.edit.save-error.title')}</AlertTitle>
                   <AlertDescription>{serverError}</AlertDescription>
                 </Alert>
               )}
 
               <div className="flex gap-3">
                 <Button onClick={onSave} loading={update.isPending}>
-                  Lưu
+                  {t('common.action.save')}
                 </Button>
               </div>
             </>
@@ -358,7 +370,7 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
           {previewQuery.isPending && <Loading />}
           {previewQuery.isError && (
             <ErrorState
-              title="Không xem trước được"
+              title={t('author.edit.preview.error.title')}
               message={describeTrpcError(previewQuery.error)}
               onRetry={() => void previewQuery.refetch()}
               retrying={previewQuery.isFetching}
@@ -367,17 +379,11 @@ export function AuthorEditClient({ contentId }: { readonly contentId: string }) 
           {previewData !== null && <PreviewPanel contentId={contentId} payload={previewData} />}
           {previewRejected && (
             <Alert variant="warning">
-              <AlertTitle>Bản nháp chưa qua schema xuất bản</AlertTitle>
-              <AlertDescription>
-                Nguồn nội dung từ chối bản nháp này nên không có gì để dựng. Chạy Kiểm tra ở tab Xuất bản để
-                biết field nào còn thiếu.
-              </AlertDescription>
+              <AlertTitle>{t('author.edit.preview.rejected.title')}</AlertTitle>
+              <AlertDescription>{t('author.edit.preview.rejected.body')}</AlertDescription>
             </Alert>
           )}
-          <p className="text-sm text-muted-foreground">
-            Xem trước dựng từ bản ĐÃ LƯU, không từ ô nhập đang gõ. Lưu trước rồi mở lại tab này để thấy thay
-            đổi.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('author.edit.preview.note')}</p>
         </TabsContent>
 
         <TabsContent value="tep" className="pt-4">

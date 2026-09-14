@@ -1,0 +1,29 @@
+{
+  "date": "2026-09-13",
+  "visualBuildId": "HZG3aU7v-lBMcBxxAFsSE",
+  "coreBuildId": "HZG3aU7v-lBMcBxxAFsSE",
+  "E2E_START_SERVER": "1",
+  "E2E_BASE_URL": "http://localhost:3000",
+  "E2E_ORIGIN": "http://localhost:3000",
+  "E2E_REQUIRE_ROLES": "1",
+  "E2E_REQUIRE_SESSION": "1",
+  "E2E_GATEWAY_URL": "http://127.0.0.1:8082",
+  "E2E_NEXT_PORT": "3001",
+  "E2E_MAILPIT_URL": "http://127.0.0.1:8025",
+  "sandboxNamespace": "dlp-e2e-p16",
+  "redisDatabase": 13,
+  "browser": "Chromium",
+  "workers": 1,
+  "retries": 0,
+  "roleObservedByGlobalSetup": "admin",
+  "coreSuites": [
+    "a11y.spec.ts",
+    "csp.spec.ts",
+    "responsive.spec.ts",
+    "keyboard.spec.ts",
+    "motif.spec.ts",
+    "perf.spec.ts",
+    "password-reset.spec.ts",
+    "landing-visual.spec.ts"
+  ]
+}

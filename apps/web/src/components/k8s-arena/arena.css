@@ -1,0 +1,946 @@
+/* Arena-only surfaces: the surrounding learning platform retains its theme. */
+.arena-root {
+  --arena-panel: #141c29;
+  --arena-border: #2b3749;
+  --arena-muted: #a6b5c9;
+  --arena-cyan: #78dce8;
+  color-scheme: dark;
+}
+.arena-root .arena-topbar {
+  background: #111824f2;
+  border-color: var(--arena-border);
+  height: 56px;
+  gap: 16px;
+  padding-inline: 18px;
+}
+.arena-title {
+  flex: 1;
+  overflow: hidden;
+}
+.arena-level-code {
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--arena-cyan);
+  letter-spacing: 0.08em;
+}
+.arena-title h1 {
+  font-size: 13px;
+}
+.arena-topbar button {
+  flex-shrink: 0;
+}
+.arena-topbar [role='group'] {
+  flex-shrink: 0;
+  border: 1px solid var(--arena-border);
+  background: #0b121d;
+}
+.arena-topbar [aria-pressed='true'] {
+  background: #233d50;
+  color: #a7f0fa;
+}
+/*
+  HAI cột — giữ nguyên theo chỉ đạo của chủ dự án (2026-09-08).
+
+  ⚠ Đệm dưới 34px KHÔNG phải số làm đẹp, và đừng hạ nó xuống. Bảng cao hơn khung
+  nhìn (đo ở 1600×900: cần 1079px, có 844px), nên nó phải cuộn — và dải mờ báo
+  "còn nữa ở dưới" cao đúng 24px, phủ lên đáy vùng cuộn. Với đệm cũ 22px, hàng
+  công cụ CUỐI nằm lọt dưới dải mờ ngay cả khi đã cuộn hết cỡ: người dùng thấy
+  một hàng bị cắt ngang và kết luận bảng "bị che mất, không cuộn xuống được"
+  (chủ dự án báo đúng câu đó). 34px > 24px nên hàng cuối luôn thoát khỏi dải mờ
+  khi chạm đáy.
+*/
+.arena-root .arena-palette {
+  width: 108px;
+  top: 56px;
+  padding: 12px 7px 34px;
+  background: #111824f5;
+  border-color: var(--arena-border);
+  box-shadow: 8px 0 30px #00000015;
+  scrollbar-width: none;
+}
+.arena-palette > div {
+  gap: 5px;
+}
+/* Dải mờ nằm NGOÀI `<aside>` nên nó không thừa hưởng bề rộng — phải bám tay. */
+.arena-root .arena-palette-fade {
+  width: 108px;
+}
+.arena-tool-group {
+  padding: 15px 0 7px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--arena-muted);
+}
+.arena-tool-group:first-child {
+  padding-top: 0;
+}
+.arena-tool {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 54px;
+  padding: 5px 2px;
+  border: 1px solid color-mix(in srgb, var(--resource-color) 30%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--resource-color) 10%, #111824);
+  color: #edf4ff;
+  font-size: 9px;
+  font-weight: 550;
+  line-height: 1.15;
+  cursor: pointer;
+  transition:
+    background 150ms,
+    border-color 150ms,
+    transform 150ms;
+}
+.arena-tool-symbol {
+  display: grid;
+  place-items: center;
+  height: 24px;
+  color: var(--resource-color);
+}
+.arena-tool:hover {
+  background: color-mix(in srgb, var(--resource-color) 20%, #111824);
+  border-color: var(--resource-color);
+  transform: translateY(-1px);
+}
+.arena-tool:focus-visible {
+  outline: 2px solid var(--resource-color);
+  outline-offset: 2px;
+}
+/*
+  Ô của loại tài nguyên mà BÀI HỌC xoay quanh.
+
+  Đây là một dấu nhấn, KHÔNG phải một cái khoá — mọi ô đều bấm được ở mọi bài
+  (chỉ đạo 2026-09-08). Bản trước dùng class `.arena-tool-locked` để làm mờ và
+  chặn bấm; nó đã bị gỡ hẳn cùng cơ chế đó.
+*/
+.arena-tool-featured {
+  border-color: var(--resource-color);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--resource-color) 35%, transparent);
+}
+.arena-tool-featured::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--resource-color);
+}
+.arena-tool-key {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  font-size: 8px;
+  color: var(--arena-muted);
+  font-weight: 400;
+}
+.arena-root .arena-mission {
+  top: 72px;
+  left: 124px;
+  width: 304px;
+  max-width: calc(100% - 140px);
+  max-height: calc(100% - 155px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  border: 1px solid var(--arena-border);
+  border-radius: 12px;
+  background: #141c29ed;
+  box-shadow: 0 12px 40px #00000024;
+}
+.arena-mission > header {
+  padding: 12px 14px;
+}
+.arena-mission > header > span:first-of-type {
+  color: var(--arena-cyan);
+  letter-spacing: 0.12em;
+}
+.arena-mission > div {
+  padding: 14px;
+  gap: 14px;
+}
+.arena-mission-goal {
+  line-height: 1.65;
+  color: #dce6f4;
+}
+.arena-mission-goal p {
+  margin: 0;
+}
+.arena-mission ul {
+  gap: 10px;
+}
+.arena-mission li {
+  line-height: 1.6;
+}
+.arena-mission li > span:nth-child(2) {
+  line-height: 1.6;
+}
+.arena-root .arena-inspector {
+  top: 72px;
+  bottom: 80px;
+  background: #141c29f5;
+  border-color: var(--arena-border);
+  border-radius: 12px;
+}
+.arena-dock {
+  position: absolute;
+  bottom: 18px;
+  left: calc(50% + 54px);
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  max-width: calc(100% - 132px);
+  overflow-x: auto;
+  scrollbar-width: none;
+  pointer-events: auto;
+  white-space: nowrap;
+  border: 1px solid var(--arena-border);
+  border-radius: 13px;
+  background: #141c29f2;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 30px #00000040;
+}
+.arena-dock button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 10px;
+  color: #b6c5d9;
+  border-radius: 7px;
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    color 150ms,
+    background 150ms;
+}
+.arena-dock button:hover,
+.arena-dock button[aria-pressed='true'] {
+  background: #23384a;
+  color: #a7edf4;
+}
+.arena-dock button:focus-visible {
+  outline: 2px solid var(--arena-cyan);
+  outline-offset: -2px;
+}
+.arena-dock svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.arena-dock kbd {
+  font-size: 9px;
+  opacity: 0.6;
+}
+.arena-dock-divider {
+  height: 22px;
+  border-left: 1px solid var(--arena-border);
+}
+.arena-root .arena-minimap {
+  bottom: 84px;
+}
+@media (max-width: 1100px) {
+  .arena-title h1 {
+    display: none;
+  }
+  .arena-dock button span,
+  .arena-dock kbd {
+    display: none;
+  }
+  .arena-dock button {
+    width: 38px;
+  }
+}
+@media (max-width: 640px) {
+  .arena-root .arena-topbar {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+  .arena-stars,
+  .arena-clock {
+    display: none;
+  }
+  .arena-progress {
+    min-width: 34px;
+    max-width: 52px;
+    margin-left: 0;
+  }
+  .arena-progress > div {
+    display: none;
+  }
+  .arena-root .arena-palette {
+    width: 72px;
+    padding-inline: 4px;
+  }
+  .arena-root .arena-palette-fade {
+    width: 72px;
+  }
+  .arena-palette > div {
+    grid-template-columns: 1fr;
+  }
+  .arena-tool-group {
+    grid-column: span 1;
+    font-size: 8px;
+    text-align: center;
+  }
+  .arena-tool {
+    min-height: 52px;
+    font-size: 10px;
+  }
+  .arena-root .arena-mission {
+    left: 84px;
+    top: 66px;
+    max-width: calc(100% - 96px);
+    width: 304px;
+  }
+  .arena-mission > header {
+    padding: 9px 10px;
+  }
+  .arena-mission > div {
+    padding: 10px;
+    gap: 9px;
+  }
+  .arena-mission-goal {
+    font-size: 12px;
+  }
+  .arena-root .arena-mission {
+    max-height: 36vh;
+  }
+
+  .arena-root .arena-inspector {
+    max-width: calc(100% - 92px);
+    right: 10px;
+    top: 66px;
+    bottom: 76px;
+  }
+  .arena-dock {
+    left: calc(50% + 36px);
+    bottom: 12px;
+    max-width: calc(100% - 86px);
+  }
+  .arena-dock button {
+    min-width: 30px;
+    width: 30px;
+    padding: 6px;
+  }
+  .arena-root .arena-minimap {
+    right: 12px;
+    bottom: 76px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arena-tool,
+  .arena-dock button {
+    transition: none;
+  }
+  .arena-tool:hover {
+    transform: none;
+  }
+}
+
+/* ── Chuông báo ràng buộc "phải giữ" đã vỡ ─────────────────────────────── */
+.arena-root .arena-guard-alarm {
+  flex-shrink: 0;
+  color: #ffb4b4;
+  background: #4a1f27;
+  border: 1px solid #7d3340;
+}
+
+/* ── Khối "phải giữ nguyên" trong thẻ nhiệm vụ ─────────────────────────── */
+.arena-mission-guards {
+  padding-top: 10px;
+  border-top: 1px dashed var(--arena-border);
+}
+
+/* ── Bảng cài đặt ──────────────────────────────────────────────────────── */
+.arena-settings {
+  position: absolute;
+  right: 16px;
+  top: 72px;
+  z-index: 30;
+  width: 290px;
+  max-width: calc(100% - 32px);
+  max-height: calc(100% - 160px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--arena-border);
+  border-radius: 12px;
+  background: #141c29f5;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 40px #00000033;
+}
+.arena-settings > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  color: var(--arena-cyan);
+  border-bottom: 1px solid var(--arena-border);
+}
+.arena-settings > header h2 {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.arena-settings-close {
+  margin-left: auto;
+  padding: 2px;
+  border-radius: 6px;
+  color: var(--arena-muted);
+  cursor: pointer;
+}
+.arena-settings-close:hover {
+  color: #edf4ff;
+  background: #23384a;
+}
+.arena-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px;
+  /* Cuộn được, thanh trượt ẩn — xem `NO_VISIBLE_SCROLLBARS` trong hợp đồng. */
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.arena-settings-body::-webkit-scrollbar {
+  display: none;
+}
+.arena-settings-body h3 {
+  margin-bottom: 8px;
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--arena-muted);
+}
+.arena-settings-row {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--arena-border);
+  border-radius: 9px;
+  background: #0b121d;
+}
+.arena-settings-row button {
+  flex: 1;
+  min-height: 28px;
+  padding: 4px 2px;
+  border-radius: 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--arena-muted);
+  cursor: pointer;
+  transition:
+    background 150ms,
+    color 150ms;
+}
+.arena-settings-row button:hover {
+  color: #edf4ff;
+}
+.arena-settings-row button[aria-pressed='true'] {
+  background: #233d50;
+  color: #a7f0fa;
+}
+.arena-settings-wide {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--arena-border);
+  border-radius: 9px;
+  background: #0b121d;
+  color: #dce6f4;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 150ms,
+    border-color 150ms;
+}
+.arena-settings-wide:hover:not(:disabled) {
+  background: #1a2635;
+  border-color: var(--arena-cyan);
+}
+.arena-settings-wide:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.arena-settings-wide[aria-pressed='true'] {
+  background: #233d50;
+  color: #a7f0fa;
+}
+.arena-settings-wide kbd {
+  margin-left: auto;
+  font-size: 9px;
+  opacity: 0.6;
+}
+.arena-settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  font-size: 12px;
+  color: #dce6f4;
+  cursor: pointer;
+}
+.arena-settings-toggle > span {
+  flex: 1;
+}
+.arena-settings-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--arena-muted);
+}
+.arena-settings-note svg {
+  margin-top: 2px;
+}
+@media (max-width: 640px) {
+  .arena-settings {
+    right: 10px;
+    top: 66px;
+    width: calc(100% - 92px);
+    max-height: 60vh;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arena-settings-row button,
+  .arena-settings-wide {
+    transition: none;
+  }
+}
+
+/* Console occupies its own stable layer; focus never scrolls an offscreen panel. */
+.arena-root,
+.arena-overlays {
+  overflow: clip;
+}
+.arena-terminal {
+  --console-height: min(350px, 48dvh);
+  position: absolute;
+  left: 124px;
+  right: 18px;
+  bottom: 84px;
+  z-index: 50;
+  height: var(--console-height);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--arena-border);
+  border-radius: 14px;
+  background: var(--arena-panel);
+  color: inherit;
+  overflow: hidden;
+  box-shadow: 0 18px 64px #0008;
+  isolation: isolate;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate3d(0, calc(100% + 100px), 0);
+  transition:
+    transform 320ms cubic-bezier(0.4, 0, 0.8, 0.2),
+    opacity 240ms ease,
+    visibility 0s 320ms;
+}
+.arena-terminal[data-open='true'] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0);
+  transition:
+    transform 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 200ms ease,
+    visibility 0s;
+}
+.arena-terminal-header {
+  height: 46px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--arena-border);
+  color: var(--arena-cyan);
+}
+.arena-terminal-header strong {
+  font: 600 13px var(--font-mono, monospace);
+}
+.arena-terminal-session {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--arena-muted);
+}
+.arena-terminal-hint {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--arena-muted);
+}
+.arena-terminal-header button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--arena-muted);
+}
+.arena-terminal-header button:hover {
+  background: var(--arena-border);
+  color: var(--arena-cyan);
+}
+.arena-terminal-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  flex: 1;
+  min-height: 0;
+}
+.arena-terminal-output {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--arena-panel), black 24%);
+}
+.arena-terminal-output > div:last-child {
+  padding: 14px 18px;
+  line-height: 1.7;
+  overscroll-behavior: contain;
+}
+.arena-terminal-welcome {
+  padding: 22px 20px 0;
+  color: var(--arena-muted);
+}
+.arena-terminal-welcome > span,
+.arena-terminal-section-title {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--arena-muted);
+}
+.arena-terminal-welcome p {
+  font-size: 13px;
+  margin: 10px 0;
+}
+.arena-terminal-welcome code {
+  color: var(--arena-cyan);
+}
+.arena-terminal-welcome small {
+  font-size: 11px;
+}
+.arena-terminal-completions {
+  min-height: 0;
+  min-width: 0;
+  border-left: 1px solid var(--arena-border);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.arena-terminal-section-title {
+  padding-inline: 6px;
+}
+.arena-terminal-suggestions {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  min-height: 0;
+}
+.arena-terminal-suggestions li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 7px 9px;
+  cursor: pointer;
+}
+.arena-terminal-suggestions li[aria-selected='true'] {
+  border-color: color-mix(in srgb, var(--arena-cyan), transparent 70%);
+  background: color-mix(in srgb, var(--arena-cyan), transparent 92%);
+}
+.arena-terminal-suggestions li:hover {
+  background: var(--arena-border);
+}
+.arena-terminal-suggestions code {
+  font-size: 12px;
+  color: var(--arena-cyan);
+  overflow-wrap: anywhere;
+}
+.arena-terminal-suggestions li > span,
+.arena-terminal-tip {
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--arena-muted);
+}
+.arena-terminal-tip {
+  padding: 0 6px;
+}
+.arena-terminal-input {
+  height: 54px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border-top: 1px solid var(--arena-border);
+}
+.arena-terminal-input > span {
+  color: var(--arena-cyan);
+}
+.arena-terminal-input input {
+  flex: 1;
+  min-width: 0;
+  font: 13px var(--font-mono, monospace);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: inherit;
+}
+.arena-terminal-input:focus-within {
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--arena-cyan), transparent 35%);
+}
+.arena-terminal-input button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--arena-cyan);
+  border: 1px solid var(--arena-border);
+  border-radius: 7px;
+  padding: 5px 9px;
+}
+.arena-terminal-input button:disabled {
+  opacity: 0.35;
+}
+.arena-terminal button:focus-visible {
+  outline: 2px solid var(--arena-cyan);
+  outline-offset: 2px;
+}
+.arena-overlays[data-terminal-open='true'] .arena-minimap {
+  opacity: 0;
+  pointer-events: none;
+}
+.arena-overlays[data-terminal-open='true'] .arena-inspector {
+  bottom: calc(min(350px, 48dvh) + 96px);
+}
+@media (max-width: 850px) {
+  .arena-terminal {
+    left: 84px;
+    right: 10px;
+    bottom: 80px;
+    --console-height: min(360px, 52dvh);
+  }
+  .arena-terminal-body {
+    grid-template-columns: minmax(0, 1fr) 210px;
+  }
+  .arena-terminal-session,
+  .arena-terminal-hint {
+    display: none;
+  }
+  .arena-terminal-header strong {
+    margin-right: auto;
+  }
+}
+@media (max-width: 560px) {
+  .arena-terminal {
+    left: 8px;
+    right: 8px;
+    bottom: 76px;
+  }
+  .arena-terminal-body {
+    grid-template-columns: minmax(0, 1fr) 140px;
+  }
+  .arena-terminal-completions {
+    padding: 10px 4px;
+  }
+  .arena-terminal-suggestions li > span {
+    display: none;
+  }
+  .arena-terminal-welcome {
+    padding: 14px 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arena-terminal {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Command completions stay anchored directly above the prompt. */
+.arena-terminal-body {
+  display: flex;
+}
+.arena-terminal-output {
+  flex: 1;
+}
+.arena-terminal-completions {
+  position: absolute;
+  left: 16px;
+  bottom: 62px;
+  z-index: 3;
+  width: min(610px, calc(100% - 32px));
+  max-height: 214px;
+  padding: 10px;
+  border: 1px solid var(--arena-border);
+  border-radius: 10px;
+  background: var(--arena-panel);
+  box-shadow: 0 10px 36px #0009;
+}
+.arena-terminal-completions[hidden] {
+  display: none;
+}
+.arena-terminal-suggestions li {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+.arena-terminal-suggestions code {
+  flex: 0 0 145px;
+}
+.arena-terminal-suggestions li > span {
+  display: block;
+}
+.arena-terminal-section-title {
+  font-size: 9px;
+}
+
+/* Header: identity, cluster health, then playback controls. */
+.arena-root .arena-topbar {
+  height: 64px;
+  gap: 14px;
+  padding: 0 18px;
+  background: #101722;
+  box-shadow: 0 3px 18px #0003;
+}
+.arena-title {
+  flex: 1 1 260px;
+  align-items: flex-start;
+}
+.arena-title .arena-level-code {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+}
+.arena-title h1 {
+  max-width: 100%;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.arena-objectives {
+  padding: 8px 10px;
+  border: 1px solid var(--arena-border);
+  border-radius: 8px;
+}
+.arena-progress-caption {
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--arena-muted);
+}
+.arena-header-status {
+  flex: 0 1 auto;
+}
+.arena-header-metrics {
+  min-height: 42px;
+  border-inline: 1px solid var(--arena-border);
+  border-radius: 0;
+  padding-inline: 16px;
+}
+.arena-clock {
+  min-width: 58px;
+  font-variant-numeric: tabular-nums;
+}
+.arena-speed-control button {
+  min-width: 30px;
+  height: 30px;
+}
+.arena-root .arena-palette {
+  top: 64px;
+}
+.arena-metrics-panel {
+  position: absolute;
+  top: 80px;
+  right: 18px;
+  bottom: 84px;
+  width: min(420px, calc(100% - 140px));
+  z-index: 45;
+  background: var(--arena-panel);
+  border-radius: 14px;
+}
+.arena-metrics-panel > header {
+  padding: 14px 18px;
+}
+.arena-metrics-body {
+  flex: 1;
+  overscroll-behavior: contain;
+}
+.arena-metrics-body > * {
+  flex-shrink: 0;
+}
+.arena-metrics-nodes li {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--arena-border);
+}
+@media (max-width: 1150px) {
+  .arena-header-metrics {
+    gap: 12px;
+    padding-inline: 10px;
+  }
+  .arena-header-metrics svg {
+    display: none;
+  }
+  .arena-progress-caption {
+    display: none;
+  }
+}
+@media (max-width: 850px) {
+  .arena-header-status {
+    display: none;
+  }
+  .arena-root .arena-topbar {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+  .arena-title h1 {
+    display: block;
+    font-size: 12px;
+  }
+  .arena-title .arena-level-code {
+    font-size: 8px;
+  }
+  .arena-metrics-panel {
+    left: 84px;
+    right: 10px;
+    width: auto;
+  }
+  .arena-overlays[data-terminal-open='true'] .arena-inspector {
+    visibility: hidden;
+  }
+  .arena-terminal-suggestions code {
+    flex-basis: 105px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arena-terminal,
+  .arena-terminal[data-open='true'] {
+    transition: none;
+    transform: none;
+  }
+}

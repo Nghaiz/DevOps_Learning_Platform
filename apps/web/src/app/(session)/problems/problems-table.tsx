@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import type { ReactElement } from 'react';
+import { renderCopy, t } from '@devops-platform/copy';
 import { Badge, Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@devops-platform/ui';
 import { PROBLEM_TOPIC_LABELS, type ProblemWithStats } from '@devops-platform/games';
 import { DifficultyBadge, ViewerStatusBadge } from './problem-badges';
 import { formatAcceptance, formatTimeLimit, joinTopics } from './problem-labels';
 
-/** Số tag hiện thẳng trên hàng. Quá số này thì gộp thành "+N" — một hàng bảng không phải chỗ liệt kê hết. */
+/** Số tag hiện thẳng trên hàng. Quá số này thì gộp thành "+N": một hàng bảng không phải chỗ liệt kê hết. */
 const TAGS_SHOWN = 3;
 
 /**
@@ -17,22 +18,27 @@ const TAGS_SHOWN = 3;
  * ⚠ Ô mã bài là `<th scope="row">`, không phải `<td>`. Với bảng chín cột thì
  * trình đọc màn hình đọc "tên cột + giá trị" cho mỗi ô; thiếu đầu hàng thì
  * người dùng nghe chín giá trị rời mà không biết chúng thuộc bài nào.
+ *
+ * Chín tiêu đề cột đi qua `packages/copy` bằng chín khoá RIÊNG, không dùng lại
+ * bốn khoá `*-legend` của thanh lọc dù bốn trong số chúng đang trùng chữ: một
+ * legend là nhãn của bộ lọc, một `col` là tên cột, và dùng chung khoá nghĩa là
+ * sửa nhãn bộ lọc thì tiêu đề bảng đổi theo mà không ai định thế.
  */
 export function ProblemsTable({ items }: { readonly items: readonly ProblemWithStats[] }): ReactElement {
   return (
     <Table>
-      <TableCaption>Bấm vào tên bài để xem đề và bắt đầu làm.</TableCaption>
+      <TableCaption>{t('catalog.problems.table-caption')}</TableCaption>
       <TableHeader>
         <TableRow>
-          <TableHead scope="col">Mã bài</TableHead>
-          <TableHead scope="col">Tên bài</TableHead>
-          <TableHead scope="col">Độ khó</TableHead>
-          <TableHead scope="col">Chủ đề</TableHead>
-          <TableHead scope="col">Tag</TableHead>
-          <TableHead scope="col">Tỉ lệ giải</TableHead>
-          <TableHead scope="col">Người giải</TableHead>
-          <TableHead scope="col">Hạn giờ</TableHead>
-          <TableHead scope="col">Trạng thái</TableHead>
+          <TableHead scope="col">{t('catalog.problems.col-code')}</TableHead>
+          <TableHead scope="col">{t('catalog.problems.col-title')}</TableHead>
+          <TableHead scope="col">{t('catalog.problems.col-difficulty')}</TableHead>
+          <TableHead scope="col">{t('catalog.problems.col-topics')}</TableHead>
+          <TableHead scope="col">{t('catalog.problems.col-tags')}</TableHead>
+          <TableHead scope="col">{t('catalog.problems.col-acceptance')}</TableHead>
+          <TableHead scope="col">{t('catalog.problems.col-solvers')}</TableHead>
+          <TableHead scope="col">{t('catalog.problems.col-time-limit')}</TableHead>
+          <TableHead scope="col">{t('catalog.problems.col-status')}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -59,13 +65,15 @@ export function ProblemsTable({ items }: { readonly items: readonly ProblemWithS
               <TagCell tags={problem.tags} />
             </TableCell>
             {/*
-              `tabular-nums` để cột số không nhảy bề rộng giữa các hàng — với
+              `tabular-nums` để cột số không nhảy bề rộng giữa các hàng: với
               phân trang cursor thì mỗi trang là một tập số khác nhau, và cột
               đổi bề rộng mỗi lần sang trang đọc như trang bị vẽ lại.
             */}
-            <TableCell className="tabular-nums">{formatAcceptance(stats)}</TableCell>
+            <TableCell className="tabular-nums">{renderCopy(formatAcceptance(stats))}</TableCell>
             <TableCell className="tabular-nums">{stats.solverCount}</TableCell>
-            <TableCell className="text-sm text-muted-foreground">{formatTimeLimit(problem.timeLimitSec)}</TableCell>
+            <TableCell className="text-sm text-muted-foreground">
+              {renderCopy(formatTimeLimit(problem.timeLimitSec))}
+            </TableCell>
             <TableCell>
               <ViewerStatusBadge value={viewerStatus} />
             </TableCell>
@@ -78,7 +86,12 @@ export function ProblemsTable({ items }: { readonly items: readonly ProblemWithS
 
 function TagCell({ tags }: { readonly tags: readonly string[] }): ReactElement {
   if (tags.length === 0) {
-    return <span className="text-sm text-muted-foreground">—</span>;
+    /*
+      CHỮ, không phải một ký tự gạch. Bản cũ vẽ U+2014 trần ở đây; trình đọc màn
+      hình đọc ký tự đó ra thành tên của nó hoặc bỏ qua hẳn, nên ô đó vốn đã
+      không nói được điều nó định nói.
+    */
+    return <span className="text-sm text-muted-foreground">{t('catalog.problems.no-tag')}</span>;
   }
   const shown = tags.slice(0, TAGS_SHOWN);
   const hidden = tags.length - shown.length;
@@ -92,12 +105,12 @@ function TagCell({ tags }: { readonly tags: readonly string[] }): ReactElement {
       ))}
       {/*
         `title` mang danh sách đầy đủ cho chuột; chữ hiện ra đã nói rõ "còn N
-        tag nữa" nên không cần `aria-label` thay thế — nhãn nhìn thấy được và
+        tag nữa" nên không cần `aria-label` thay thế, nhãn nhìn thấy được và
         nhãn nghe được là một.
       */}
       {hidden > 0 && (
         <span className="text-xs text-muted-foreground" title={tags.join(', ')}>
-          còn {hidden} tag nữa
+          {t('catalog.problems.tags-more', { n: hidden })}
         </span>
       )}
     </div>

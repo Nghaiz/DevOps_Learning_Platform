@@ -62,9 +62,7 @@ const SIGNED_IN_HOME = '/me';
  * sẽ nuốt cả `/lessons-public` hay `/lessonsfoo` — gác nhầm thứ không định gác.
  */
 export function matchesProtected(pathname: string): boolean {
-  return PROTECTED_PATHS.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+  return PROTECTED_PATHS.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 // Cảnh báo skip-rate-limit chỉ log MỘT lần mỗi process — không spam mỗi request,
@@ -105,7 +103,7 @@ export function proxy(request: NextRequest): NextResponse {
   const nonce = btoa(crypto.randomUUID());
 
   function secured(response: NextResponse): NextResponse {
-    applySecurityHeaders(response.headers, nonce);
+    applySecurityHeaders(response.headers, nonce, new URL(request.url));
     applyCorsHeaders(response.headers, origin);
     return response;
   }
@@ -143,7 +141,7 @@ export function proxy(request: NextRequest): NextResponse {
   // preflight fail dù origin được phép).
   if (request.method === 'OPTIONS' && pathname.startsWith('/api/')) {
     const preflight = new NextResponse(null, { status: 204 });
-    applySecurityHeaders(preflight.headers, nonce);
+    applySecurityHeaders(preflight.headers, nonce, new URL(request.url));
     applyCorsPreflightHeaders(
       preflight.headers,
       origin,

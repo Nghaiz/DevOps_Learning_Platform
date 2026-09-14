@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, Monitor, Moon, Sun, type LucideIcon } from 'lucide-react';
+import { t } from '@devops-platform/copy';
 import {
   Button,
   DropdownMenu,
@@ -18,9 +19,9 @@ const CHOICES: readonly {
   readonly label: string;
   readonly icon: LucideIcon;
 }[] = [
-  { value: 'light', label: 'Sáng', icon: Sun },
-  { value: 'dark', label: 'Tối', icon: Moon },
-  { value: 'system', label: 'Theo hệ thống', icon: Monitor },
+  { value: 'light', label: t('shell.theme.choice.light'), icon: Sun },
+  { value: 'dark', label: t('shell.theme.choice.dark'), icon: Moon },
+  { value: 'system', label: t('shell.theme.choice.system'), icon: Monitor },
 ];
 
 /**
@@ -40,8 +41,12 @@ const CHOICES: readonly {
  * PAINT (xem `app/layout.tsx`), nên icon đúng đã hiện ngay khung hình đầu tiên,
  * không nháy.
  *
- * Icon KHÔNG mang nhãn (`aria-hidden`); tên khả truy cập do `sr-only` cấp —
+ * Icon KHÔNG mang nhãn (`aria-hidden`); tên khả truy cập do `sr-only` cấp, vì
  * nút chỉ có icon nên nếu thiếu chuỗi đó nó sẽ vô danh với trình đọc màn hình.
+ *
+ * Ba lựa chọn là đúng ba giá trị của union `ThemeChoice`, và lý do được khai ở
+ * `shellIntentionalThree['shell.theme.choice']` để cổng T3 của `packages/copy`
+ * chấp nhận nhóm ba đó thay vì bắt nó im lặng đi qua.
  */
 export function ThemeToggle() {
   const { choice, setChoice } = useTheme();
@@ -52,11 +57,11 @@ export function ThemeToggle() {
         <Button variant="ghost" size="sm" className="w-8 px-0">
           <Sun aria-hidden="true" className="size-4 dark:hidden" />
           <Moon aria-hidden="true" className="hidden size-4 dark:block" />
-          <span className="sr-only">Giao diện</span>
+          <span className="sr-only">{t('shell.theme.label')}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44">
-        <DropdownMenuLabel>Giao diện</DropdownMenuLabel>
+        <DropdownMenuLabel>{t('shell.theme.label')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {CHOICES.map(({ value, label, icon: Icon }) => (
           <DropdownMenuItem
@@ -71,7 +76,7 @@ export function ThemeToggle() {
             {choice === value ? (
               <>
                 <Check aria-hidden="true" className="size-4 shrink-0 text-primary" />
-                <span className="sr-only">(đang dùng)</span>
+                <span className="sr-only">{t('shell.theme.current')}</span>
               </>
             ) : null}
           </DropdownMenuItem>

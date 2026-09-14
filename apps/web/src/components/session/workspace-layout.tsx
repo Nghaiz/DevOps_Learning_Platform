@@ -10,13 +10,22 @@ import { createContext, useContext, useEffect, type ReactElement, type ReactNode
  *
  * Bản trước mang một cờ boolean "vùng của bạn đang HIỆN hay đang ẩn", vì lúc
  * đó tab không hoạt bị ẩn bằng `hidden` và terminal có thể là cái bị ẩn. SỬA
- * ĐỔI 2 bỏ hẳn khả năng đó: terminal LUÔN hiện ở cả hai tab (§Y1), nên một cờ
- * hiện/ẩn sẽ đứng yên `true` mãi mãi và effect fit KHÔNG BAO GIỜ chạy lại —
- * một đường dây trông vẫn còn nguyên nhưng không còn dẫn điện.
+ * ĐỔI 2 dựng mô hình kiểu KillerCoda, nơi terminal có mặt ở CẢ HAI tab: cờ đó
+ * đứng yên `true` mãi mãi, effect fit không bao giờ chạy lại, và thứ còn lại là
+ * một đường dây trông vẫn nguyên mà không dẫn điện. Nên kênh này mang một CHUỖI
+ * mô tả hình học (`workspaceLayoutToken`) thay vì một cờ.
  *
- * Thứ thật sự đổi bây giờ là **kích thước**: chuyển tab (terminal ~40% → 100%)
- * và kéo thanh chia ngang. Nên kênh này mang một CHUỖI mô tả hình học hiện tại
- * (`workspaceLayoutToken`), và mọi lần chuỗi đó đổi là một lần phải fit lại.
+ * ⚠ LÝ DO ĐÓ ĐÃ CHẾT cùng SỬA ĐỔI 3 (2026-09-13), kết luận thì không. Hai tab
+ * nay loại trừ nhau nên hàng terminal ẩn/hiện THẬT, và một cờ cũng sẽ đổi đúng
+ * hai lần như chuỗi. Chuỗi ở lại vì hai lý do nhỏ hơn nhưng có thật: đọc log
+ * hay devtools ra được TÊN của bố cục thay vì `true`/`false`, và nó giữ nguyên
+ * kiểu `string` mà `WorkspaceLayoutProvider` cùng giá trị mặc định
+ * `'standalone'` bên dưới đang dùng. Đổi sang boolean là sửa ba file để đổi lấy
+ * đúng con số không.
+ *
+ * Thứ làm chuỗi đổi giá trị là một lượt chuyển tab, và từ SỬA ĐỔI 3 mỗi lượt
+ * chuyển đều đi qua một trạng thái 0×0 thật (hàng vừa bị ẩn, hoặc hàng vừa hiện
+ * mà bố cục chưa tính xong). Mọi lần chuỗi đổi là một lần phải fit lại.
  *
  * ## Vì sao cần một context, không phải một prop
  *
@@ -90,10 +99,15 @@ export const animationFrameScheduler: FitScheduler = (run) => {
  * định của gói, và file cần DOM tự bật jsdom + RTL bằng docblock
  * `// @vitest-environment jsdom` (xem `workspace-panel.dom.test.tsx`).
  *
- * ⚠ KHÔNG còn tham số `visible`. Ở mô hình mới terminal không bao giờ bị ẩn, và
- * một lượt fit "thừa" cũng vô hại: `TerminalHandle.fit()` của §C3 tự no-op khi
- * terminal đã `dispose()` hoặc khi container còn 0×0 (xem `terminal-core.ts`).
- * Giữ lại một cờ luôn `true` chỉ để trông giống bản cũ là giữ một nhánh chết.
+ * ⚠ KHÔNG còn tham số `visible`, và lý do KHÔNG phải "terminal không bao giờ bị
+ * ẩn" như bản trước của dòng này viết: từ SỬA ĐỔI 3 hàng terminal ẩn thật ở tab
+ * Editor. Lý do thật là một lượt fit "thừa" vốn vô hại: `TerminalHandle.fit()`
+ * của §C3 tự no-op khi terminal đã `dispose()` hoặc khi container còn 0×0
+ * (`tryMeasure()` trong `terminal-core.ts` đo cái hộp TRƯỚC rồi `return` ngay
+ * khi phép đo trả `null`). Chốt đó nằm ở tầng thấp nhất và đã đủ, nên ở đây
+ * KHÔNG dựng thêm một chốt "chặn fit khi đang ẩn" thứ hai: tầng này là tầng
+ * không đo được container (`p16-workspace.md` §1.7). Giữ lại một cờ chỉ để
+ * trông giống bản cũ là giữ một nhánh chết.
  *
  * Trả `undefined` khi không có gì để làm — đúng hình dạng mà `useEffect` chờ.
  */

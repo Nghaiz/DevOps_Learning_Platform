@@ -1,7 +1,7 @@
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applySessionPreferences, type SessionForPreferences } from './preferences';
 import type { ScriptOutcome, ScriptRequest } from '../lessons/validate';
@@ -22,13 +22,11 @@ import type { PreferencesView } from '../me/preferences';
  */
 
 const { runScriptSpy, readPrefsSpy } = vi.hoisted(() => ({
-  runScriptSpy: vi.fn(
-    (_req: ScriptRequest): Promise<ScriptOutcome> =>
-      Promise.resolve({ passed: true, exitCode: 0, output: '', truncated: false }),
+  runScriptSpy: vi.fn((_req: ScriptRequest): Promise<ScriptOutcome> =>
+    Promise.resolve({ passed: true, exitCode: 0, output: '', truncated: false }),
   ),
-  readPrefsSpy: vi.fn(
-    (_db: unknown, _userId: string): Promise<PreferencesView> =>
-      Promise.resolve({ defaultShell: 'bash', terminalTheme: null, leaderboardNamePublic: false }),
+  readPrefsSpy: vi.fn((_db: unknown, _userId: string): Promise<PreferencesView> =>
+    Promise.resolve({ defaultShell: 'bash', terminalTheme: null, leaderboardNamePublic: false }),
   ),
 }));
 
@@ -74,7 +72,11 @@ describe('applySessionPreferences — ba shell, một đường dẫn cố đị
     ['zsh', '/usr/bin/zsh'],
     ['pwsh', '/usr/bin/pwsh'],
   ] as const)('defaultShell=%s → gọi runner MỘT LẦN với script chứa %s', async (shell, path) => {
-    readPrefsSpy.mockResolvedValue({ defaultShell: shell, terminalTheme: null, leaderboardNamePublic: false });
+    readPrefsSpy.mockResolvedValue({
+      defaultShell: shell,
+      terminalTheme: null,
+      leaderboardNamePublic: false,
+    });
 
     const out = await applySessionPreferences(ctx, fixtureSession(), fakeLogger());
 
@@ -96,7 +98,11 @@ describe('applySessionPreferences — ba shell, một đường dẫn cố đị
   });
 
   it('script KHÔNG chứa gì ngoài đường dẫn tra bảng — không có input người dùng nào được nội suy vào', async () => {
-    readPrefsSpy.mockResolvedValue({ defaultShell: 'zsh', terminalTheme: null, leaderboardNamePublic: false });
+    readPrefsSpy.mockResolvedValue({
+      defaultShell: 'zsh',
+      terminalTheme: null,
+      leaderboardNamePublic: false,
+    });
     await applySessionPreferences(
       { db: {} as never, user: { id: '"; rm -rf / #', role: 'user' } },
       fixtureSession(),
@@ -112,7 +118,11 @@ describe('applySessionPreferences — ba shell, một đường dẫn cố đị
 
 describe('applySessionPreferences — pod chưa được cấp (cold path)', () => {
   it('podName rỗng → KHÔNG gọi runner, preferencesApplied:false, có log warn', async () => {
-    readPrefsSpy.mockResolvedValue({ defaultShell: 'zsh', terminalTheme: null, leaderboardNamePublic: false });
+    readPrefsSpy.mockResolvedValue({
+      defaultShell: 'zsh',
+      terminalTheme: null,
+      leaderboardNamePublic: false,
+    });
     const logger = fakeLogger();
 
     const out = await applySessionPreferences(ctx, fixtureSession({ podName: '' }), logger);
@@ -123,7 +133,11 @@ describe('applySessionPreferences — pod chưa được cấp (cold path)', () 
   });
 
   it('podName vắng mặt (undefined) → cùng hành vi', async () => {
-    readPrefsSpy.mockResolvedValue({ defaultShell: 'zsh', terminalTheme: null, leaderboardNamePublic: false });
+    readPrefsSpy.mockResolvedValue({
+      defaultShell: 'zsh',
+      terminalTheme: null,
+      leaderboardNamePublic: false,
+    });
     const out = await applySessionPreferences(
       ctx,
       { id: 'sess-fixture', expiresAt: fixtureSession().expiresAt },
@@ -134,14 +148,22 @@ describe('applySessionPreferences — pod chưa được cấp (cold path)', () 
   });
 
   it('session vắng mặt hoàn toàn (undefined) → cùng hành vi, không ném', async () => {
-    readPrefsSpy.mockResolvedValue({ defaultShell: 'zsh', terminalTheme: null, leaderboardNamePublic: false });
+    readPrefsSpy.mockResolvedValue({
+      defaultShell: 'zsh',
+      terminalTheme: null,
+      leaderboardNamePublic: false,
+    });
     const out = await applySessionPreferences(ctx, undefined, fakeLogger());
     expect(out).toEqual({ preferencesApplied: false });
     expect(runScriptSpy).not.toHaveBeenCalled();
   });
 
   it('thiếu expiresAt → KHÔNG gọi runner, preferencesApplied:false', async () => {
-    readPrefsSpy.mockResolvedValue({ defaultShell: 'zsh', terminalTheme: null, leaderboardNamePublic: false });
+    readPrefsSpy.mockResolvedValue({
+      defaultShell: 'zsh',
+      terminalTheme: null,
+      leaderboardNamePublic: false,
+    });
     const out = await applySessionPreferences(
       ctx,
       { id: 'sess-fixture', podName: 'pod-fixture', expiresAt: undefined },
@@ -154,8 +176,17 @@ describe('applySessionPreferences — pod chưa được cấp (cold path)', () 
 
 describe('applySessionPreferences — runner thất bại', () => {
   it('script áp shell thất bại (passed:false) → preferencesApplied:false, KHÔNG NÉM, có log kèm exitCode', async () => {
-    readPrefsSpy.mockResolvedValue({ defaultShell: 'zsh', terminalTheme: null, leaderboardNamePublic: false });
-    runScriptSpy.mockResolvedValue({ passed: false, exitCode: 17, output: 'no such file', truncated: false });
+    readPrefsSpy.mockResolvedValue({
+      defaultShell: 'zsh',
+      terminalTheme: null,
+      leaderboardNamePublic: false,
+    });
+    runScriptSpy.mockResolvedValue({
+      passed: false,
+      exitCode: 17,
+      output: 'no such file',
+      truncated: false,
+    });
     const logger = fakeLogger();
 
     const out = await applySessionPreferences(ctx, fixtureSession(), logger);
@@ -184,12 +215,25 @@ describe('applySessionPreferences — runner thất bại', () => {
  */
 describe('script áp shell — idempotent khi CHẠY THẬT bằng bash', () => {
   let home = '';
+  // Windows' system32/bash is WSL: it ignores the Windows HOME override.
+  // Resolve Git Bash from Git's own installation instead of relying on PATH.
+  const bash =
+    process.platform === 'win32'
+      ? resolve(
+          execFileSync('git', ['--exec-path'], { encoding: 'utf8' }).trim(),
+          '../../../bin/bash.exe',
+        )
+      : 'bash';
 
   beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), 'dlp-prefs-'));
+    writeFileSync(join(home, '.dlp-preferences-fixture'), basename(home));
     // Trạng thái BAN ĐẦU thật của pod: dòng skel `set -g default-shell
     // /usr/bin/zsh` (images/sandbox-base/skel/.tmux.conf), KHÔNG phải file rỗng.
-    writeFileSync(join(home, '.tmux.conf'), 'set -g status off\nset -g default-shell /usr/bin/zsh\n');
+    writeFileSync(
+      join(home, '.tmux.conf'),
+      'set -g status off\nset -g default-shell /usr/bin/zsh\n',
+    );
   });
 
   afterEach(() => {
@@ -197,18 +241,30 @@ describe('script áp shell — idempotent khi CHẠY THẬT bằng bash', () => 
   });
 
   function runScript(script: string): void {
-    const result = spawnSync('bash', ['-s'], { input: script, env: { ...process.env, HOME: home }, encoding: 'utf8' });
+    // Fail before executing the product script if the shell escaped the fixture.
+    const guard = `test "$(cat "$HOME/.dlp-preferences-fixture" 2>/dev/null)" = '${basename(home)}' || exit 97\n`;
+    const result = spawnSync(bash, ['--noprofile', '--norc', '-s'], {
+      input: guard + script,
+      env: { ...process.env, HOME: home },
+      encoding: 'utf8',
+    });
     if (result.status !== 0) {
       throw new Error(`script thoát ${String(result.status)}: ${result.stderr}`);
     }
   }
 
   function confLines(): string[] {
-    return readFileSync(join(home, '.tmux.conf'), 'utf8').split('\n').filter((line) => line !== '');
+    return readFileSync(join(home, '.tmux.conf'), 'utf8')
+      .split('\n')
+      .filter((line) => line !== '');
   }
 
   async function scriptFor(shell: 'bash' | 'zsh' | 'pwsh'): Promise<string> {
-    readPrefsSpy.mockResolvedValue({ defaultShell: shell, terminalTheme: null, leaderboardNamePublic: false });
+    readPrefsSpy.mockResolvedValue({
+      defaultShell: shell,
+      terminalTheme: null,
+      leaderboardNamePublic: false,
+    });
     await applySessionPreferences(ctx, fixtureSession(), fakeLogger());
     return lastRunScriptRequest().script;
   }

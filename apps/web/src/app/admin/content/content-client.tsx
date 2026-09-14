@@ -3,6 +3,7 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import Link from 'next/link';
 import type { inferRouterOutputs } from '@trpc/server';
+import { err, t } from '@devops-platform/copy';
 import {
   Alert,
   AlertDescription,
@@ -34,6 +35,7 @@ import { ConfirmDialog } from '../../../components/admin/confirm-dialog';
 import {
   CONTENT_STATE_FILTERS,
   contentStateVariant,
+  describeArchiveError,
   describeContentKind,
   describeContentState,
   filterContentByState,
@@ -52,14 +54,14 @@ type ContentItem = inferRouterOutputs<AppRouter>['authoring']['list'][number];
  * `authorProcedure` đã cho `admin` qua; `listAuthoredBy(db, null)` với vai trò
  * admin trả bài của MỌI người ở MỌI trạng thái; `assertContentOwner` bỏ qua
  * phép kiểm chủ sở hữu khi vai trò là `admin`. Một cặp `admin.content.*` song
- * song chỉ để đổi tên là thêm một đường ghi thứ hai lên cùng một bảng — tức
+ * song chỉ để đổi tên là thêm một đường ghi thứ hai lên cùng một bảng, tức
  * thêm một chỗ để hai đường trôi khỏi nhau. Hợp đồng C4 nói thẳng: "Không proc
  * mới."
  *
  * ## Lọc + sắp ở client, có chủ ý
  *
  * `authoring.list` là query KHÔNG tham số và trả về CẢ danh sách (không cursor).
- * Nên lọc ở client không phải là "trang vơi bất định" như bẫy của 13.C — ở đây
+ * Nên lọc ở client không phải là "trang vơi bất định" như bẫy của 13.C; ở đây
  * không có trang nào để vơi. Nếu về sau `authoring.list` có phân trang thật thì
  * bộ lọc PHẢI đi xuống server cùng lúc; ghi lại ở đây để lần đó không ai quên.
  */
@@ -73,10 +75,7 @@ export function AdminContentClient(): ReactElement {
   );
 
   return (
-    <AdminSection
-      title="Nội dung"
-      description="Bài học, lab và playground của mọi người soạn — mọi trạng thái, kể cả nháp."
-    >
+    <AdminSection title={t('admin.content.title')} description={t('admin.content.description')}>
       {/*
         Lưu trữ KHÔNG ghi `admin_audit`, và điều đó phải nói ra chứ không giấu.
         `authoring.archive` là procedure của người soạn (`authorProcedure`); nó
@@ -86,16 +85,13 @@ export function AdminContentClient(): ReactElement {
         mục 24 muốn tránh.
       */}
       <Alert variant="warning">
-        <AlertTitle>Lưu trữ không ghi vào nhật ký quản trị</AlertTitle>
-        <AlertDescription>
-          Nút Lưu trữ đi qua đường của người soạn bài, không phải đường quản trị, nên nó không tạo
-          dòng nào ở trang Nhật ký. Hai hành động có ghi nhật ký là đổi vai trò và kết thúc phiên.
-        </AlertDescription>
+        <AlertTitle as="h2">{t('admin.content.alert-title')}</AlertTitle>
+        <AlertDescription>{t('admin.content.alert-body')}</AlertDescription>
       </Alert>
 
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex min-w-52 flex-col gap-1.5">
-          <Label htmlFor="admin-content-state">Trạng thái</Label>
+          <Label htmlFor="admin-content-state">{t('admin.content.state-label')}</Label>
           <Select value={state} onValueChange={setState}>
             <SelectTrigger id="admin-content-state">
               <SelectValue />
@@ -103,79 +99,103 @@ export function AdminContentClient(): ReactElement {
             <SelectContent>
               {CONTENT_STATE_FILTERS.map((option) => (
                 <SelectItem key={option} value={option}>
-                  {option === 'all' ? 'Tất cả' : describeContentState(option)}
+                  {option === 'all' ? t('admin.content.state-all') : describeContentState(option)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <Button variant="outline" onClick={() => void query.refetch()} loading={query.isFetching}>
-          Đọc lại
+          {t('admin.content.refetch')}
         </Button>
       </div>
 
       {query.isPending ? (
         <Skeleton className="h-64 w-full" />
       ) : query.isError ? (
-        <ErrorState
-          title="Không tải được danh sách nội dung"
-          message={`${describeTrpcError(query.error)} Bấm Thử lại; nếu vẫn lỗi, kiểm kết nối tới cơ sở dữ liệu.`}
+        <ContentError
+          reason={describeTrpcError(query.error)}
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
         />
       ) : rows.length === 0 ? (
         <EmptyState
-          title={state === 'all' ? 'Chưa có nội dung nào' : 'Không có bài nào ở trạng thái này'}
+          title={
+            state === 'all'
+              ? t('admin.content.empty-title-all')
+              : t('admin.content.empty-title-filtered')
+          }
           description={
             state === 'all'
-              ? 'Chưa ai soạn bài trên nền tảng. Nội dung nướng sẵn trong image không nằm ở bảng này.'
-              : 'Đổi bộ lọc trạng thái để xem các bài khác.'
+              ? t('admin.content.empty-body-all')
+              : t('admin.content.empty-body-filtered')
           }
           action={
             state === 'all' ? (
               <Button asChild variant="outline">
-                <Link href="/author">Mở trang soạn bài</Link>
+                <Link href="/author">{t('admin.content.open-author')}</Link>
               </Button>
             ) : (
               <Button variant="outline" onClick={() => setState('all')}>
-                Xem tất cả
+                {t('admin.content.show-all')}
               </Button>
             )
           }
         />
       ) : (
         <div className="flex flex-col gap-3">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Bài</TableHead>
-                <TableHead>Loại</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead>Người soạn</TableHead>
-                <TableHead>Sửa gần nhất</TableHead>
-                <TableHead className="text-right">Hành động</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((item) => (
-                <ContentRow key={item.id} item={item} />
-              ))}
-            </TableBody>
-          </Table>
+          <div className="w-full overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('admin.content.col-title')}</TableHead>
+                  <TableHead>{t('admin.content.col-kind')}</TableHead>
+                  <TableHead>{t('admin.content.col-state')}</TableHead>
+                  <TableHead>{t('admin.content.col-author')}</TableHead>
+                  <TableHead>{t('admin.content.col-updated')}</TableHead>
+                  <TableHead className="text-right">{t('admin.content.col-actions')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((item) => (
+                  <ContentRow key={item.id} item={item} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
 
           {/*
-            `authoring.list` trả CẢ danh sách nên con số này là tổng thật — khác
-            hẳn bảng người dùng và bảng phiên (có cursor), nơi đếm trên một trang
-            đã cắt sẽ là một khẳng định sai về cả hệ thống.
+            `authoring.list` trả CẢ danh sách nên con số này là tổng thật, khác
+            hẳn bảng người dùng và bảng phiên (có cursor), nơi đếm trên một
+            trang đã cắt sẽ là một khẳng định sai về cả hệ thống.
           */}
           <AdminNote>
             {state === 'all'
-              ? `${rows.length} bài, đây là toàn bộ danh sách (không phân trang).`
-              : `${rows.length} bài khớp bộ lọc, trong tổng ${query.data.length} bài.`}
+              ? t('admin.content.note-all', { count: rows.length })
+              : t('admin.content.note-filtered', {
+                  count: rows.length,
+                  total: query.data.length,
+                })}
           </AdminNote>
         </div>
       )}
     </AdminSection>
+  );
+}
+
+/** Hai nửa của `ErrorEntry` vào hai khe của `ErrorState`. */
+function ContentError({
+  reason,
+  onRetry,
+  retrying,
+}: {
+  readonly reason: string;
+  readonly onRetry: () => void;
+  readonly retrying: boolean;
+}): ReactElement {
+  const failure = err('admin.error.content-list', { reason });
+  return (
+    <ErrorState title={failure.what} message={failure.next} onRetry={onRetry} retrying={retrying} />
   );
 }
 
@@ -193,15 +213,13 @@ function ContentRow({ item }: { readonly item: ContentItem }): ReactElement {
       setServerError(null);
       toast({
         variant: 'success',
-        title: 'Đã lưu trữ',
-        description: `"${item.title}" không còn hiện trong danh mục người học. Tiến độ đã ghi vẫn giữ nguyên.`,
+        title: t('admin.content.toast-title'),
+        description: t('admin.content.toast-body', { title: item.title }),
       });
       void utils.authoring.list.invalidate();
     },
     onError: (error) => {
-      setServerError(
-        `${describeTrpcError(error)} Đọc lại danh sách để xem trạng thái hiện tại trước khi thử lại.`,
-      );
+      setServerError(describeArchiveError(describeTrpcError(error)));
     },
   });
 
@@ -218,7 +236,7 @@ function ContentRow({ item }: { readonly item: ContentItem }): ReactElement {
           */}
           {item.publishError === null ? null : (
             <span className="text-xs text-destructive">
-              Xuất bản lỗi: {item.publishError}
+              {t('admin.content.publish-error', { reason: item.publishError })}
             </span>
           )}
         </div>
@@ -240,7 +258,7 @@ function ContentRow({ item }: { readonly item: ContentItem }): ReactElement {
             setOpen(true);
           }}
         >
-          Lưu trữ
+          {t('admin.content.archive-button')}
         </Button>
 
         <ConfirmDialog

@@ -175,6 +175,16 @@ interface TrialContext {
   readonly role: string;
   readonly tier: SandboxTierName;
   readonly capabilities: readonly ScenarioCapability[];
+  /**
+   * `interface.layout` mà bản nháp khai.
+   *
+   * ⚠ Trường này VẮNG cho tới 2026-09-13, và nó vắng một cách im lặng:
+   * `profileForCapabilities` khi ấy có tham số thứ hai MẶC ĐỊNH `null`, nên chỗ
+   * gọi bên dưới biên dịch sạch trong khi lượt thử xin một pod KHÔNG có Theia.
+   * Người soạn một bài IDE vì thế chạy thử trong đúng cái môi trường mà người
+   * học sẽ không gặp. Bỏ default ⇒ compiler chỉ thẳng ra chỗ này.
+   */
+  readonly interfaceLayout: string | null;
 }
 
 /**
@@ -193,7 +203,7 @@ async function runTrial(ctx: TrialContext, plan: readonly TrialStep[]): Promise<
         tier: tierToProto(ctx.tier),
         ttlSeconds: TRIAL_TTL_SECONDS,
         idempotencyKey: randomUUID(),
-        profile: profileForCapabilities(ctx.capabilities),
+        profile: profileForCapabilities(ctx.capabilities, ctx.interfaceLayout),
       },
       { headers },
     ),
@@ -311,6 +321,7 @@ export async function runPublishTrial(
           role: actor.role,
           tier: tierOrThrow(body.item.tier),
           capabilities: body.item.capabilities.filter(isCapability),
+          interfaceLayout: body.item.interfaceLayout,
         },
         trialPlan(kind, body),
       );

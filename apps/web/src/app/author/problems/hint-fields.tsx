@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
 import { Button } from '@devops-platform/ui';
 import { TextAreaField, TextField, issueFor } from '../../../components/author/field';
@@ -21,19 +22,24 @@ export function HintListFields(props: {
 }): ReactElement {
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">Gợi ý</h2>
+      <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
+        {t('problem.hint-fields-goi-y')}
+      </h2>
 
       {props.hints.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          Chưa có gợi ý nào. Bài không có gợi ý vẫn xuất bản được — nhưng với bài Khó trở lên, một gợi ý mở đầu
-          thường là thứ giữ người làm ở lại thay vì bỏ dở.
+          {t(
+            'problem.hint-fields-chua-co-goi-y-nao-bai-khong-co-goi-y-van-xuat-ban-duoc-nhung-voi-bai-kho-tr',
+          )}
         </p>
       )}
 
       {props.hints.map((hint, index) => (
         <div key={hint.key} className="flex flex-col gap-3 rounded-md border border-border p-4">
           <div className="flex items-start justify-between gap-3">
-            <h4 className="text-sm font-medium text-foreground">Gợi ý {String(index + 1)}</h4>
+            <h4 className="text-sm font-medium text-foreground">
+              {t('problem.hint-fields-goi-y')} {String(index + 1)}
+            </h4>
             <Button
               type="button"
               variant="ghost"
@@ -42,41 +48,49 @@ export function HintListFields(props: {
                 props.onChange(props.hints.filter((_, i) => i !== index));
               }}
             >
-              Xoá
+              {t('common.action.delete')}
             </Button>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <TextField
-              label="Định danh"
+              label={t('problem.hint-fields-dinh-danh')}
               value={hint.id}
               onChange={(id) => {
-                props.onChange(props.hints.map((item, i) => (i === index ? { ...item, id } : item)));
+                props.onChange(
+                  props.hints.map((item, i) => (i === index ? { ...item, id } : item)),
+                );
               }}
               error={issueFor(props.issues, `hints.${String(index)}.id`)}
-              hint="Lịch sử mở gợi ý lưu theo id này — đổi là mồ côi dữ liệu cũ."
+              hint={t(
+                'problem.hint-fields-lich-su-mo-goi-y-luu-theo-id-nay-doi-la-mo-coi-du-lieu-cu',
+              )}
             />
             <TextField
-              label="Điểm bị trừ"
+              label={t('problem.hint-fields-diem-bi-tru')}
               value={hint.penaltyPoints}
               onChange={(penaltyPoints) => {
-                props.onChange(props.hints.map((item, i) => (i === index ? { ...item, penaltyPoints } : item)));
+                props.onChange(
+                  props.hints.map((item, i) => (i === index ? { ...item, penaltyPoints } : item)),
+                );
               }}
               inputMode="numeric"
               error={issueFor(props.issues, `hints.${String(index)}.penaltyPoints`)}
-              hint="0 = miễn phí."
+              hint={t('problem.hint-fields-0-mien-phi')}
             />
           </div>
 
           <TextAreaField
-            label="Nội dung"
+            label={t('problem.hint-fields-noi-dung')}
             value={hint.text}
             onChange={(text) => {
-              props.onChange(props.hints.map((item, i) => (i === index ? { ...item, text } : item)));
+              props.onChange(
+                props.hints.map((item, i) => (i === index ? { ...item, text } : item)),
+              );
             }}
             rows={3}
             error={issueFor(props.issues, `hints.${String(index)}.text`)}
-            hint="Gợi ý sau nên cụ thể hơn gợi ý trước."
+            hint={t('problem.hint-fields-goi-y-sau-nen-cu-the-hon-goi-y-truoc')}
           />
         </div>
       ))}
@@ -88,10 +102,13 @@ export function HintListFields(props: {
           size="sm"
           onClick={() => {
             const next = emptyHint(props.nextKey());
-            props.onChange([...props.hints, { ...next, id: `goi-y-${String(props.hints.length + 1)}` }]);
+            props.onChange([
+              ...props.hints,
+              { ...next, id: `goi-y-${String(props.hints.length + 1)}` },
+            ]);
           }}
         >
-          Thêm gợi ý
+          {t('problem.hint-fields-them-goi-y')}
         </Button>
       </div>
     </section>

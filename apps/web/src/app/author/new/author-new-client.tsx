@@ -18,11 +18,12 @@ import {
 } from '@devops-platform/ui';
 import { CONTENT_KINDS, type ContentKind } from '@devops-platform/shared-types/authoring';
 import { scenarioIdSchema } from '@devops-platform/shared-types/scenario';
+import { count, renderCopy, t } from '@devops-platform/copy';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 import { DraftFormView } from '../../../components/author/draft-form-view';
 import { emptyDraft, toDraftInput, type DraftFormState, type FieldIssue } from '../../../components/author/draft-form';
-import { KIND_LABELS } from '../../../components/author/content-state';
+import { KIND_KEYS } from '../../../components/author/content-state';
 import { TextField } from '../../../components/author/field';
 
 /**
@@ -59,7 +60,7 @@ export function AuthorNewClient() {
   const create = api.authoring.create.useMutation({
     onSuccess: (result) => {
       void utils.authoring.list.invalidate();
-      toast({ title: 'Đã tạo bản nháp', description: 'Người học chưa thấy bài này cho tới khi bạn xuất bản.' });
+      toast({ title: t('author.new.created.title'), description: t('author.new.created.body') });
       router.push(`/author/${encodeURIComponent(result.id)}`);
     },
     onError: (error) => {
@@ -73,7 +74,7 @@ export function AuthorNewClient() {
     const collected: FieldIssue[] = [];
     const parsedId = scenarioIdSchema.safeParse(id.trim());
     if (!parsedId.success) {
-      collected.push({ path: 'id', message: parsedId.error.issues[0]?.message ?? 'id không hợp lệ' });
+      collected.push({ path: 'id', message: parsedId.error.issues[0]?.message ?? t('author.new.id.invalid') });
     }
 
     const payload = toDraftInput(kind, form);
@@ -96,22 +97,20 @@ export function AuthorNewClient() {
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10">
       <header className="flex flex-col gap-1">
         <Link href="/author" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← Về danh sách bài
+          {'← '}
+          {t('author.nav.back-to-list')}
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Tạo bài mới</h1>
-        <p className="text-sm text-muted-foreground">
-          Bài mới luôn ở trạng thái Nháp. Bạn lưu được một bản viết dở — kiểm tra định dạng chỉ diễn ra lúc xuất
-          bản.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('author.new.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('author.new.lead')}</p>
       </header>
 
       <section className="flex flex-col gap-5">
         <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
-          Định danh — không sửa lại được
+          {t('author.new.identity-heading')}
         </h2>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="content-kind">Loại nội dung</Label>
+          <Label htmlFor="content-kind">{t('author.new.kind.label')}</Label>
           <Select
             value={kind}
             onValueChange={(next) => {
@@ -124,24 +123,23 @@ export function AuthorNewClient() {
             <SelectContent>
               {CONTENT_KINDS.map((value) => (
                 <SelectItem key={value} value={value}>
-                  {KIND_LABELS[value]}
+                  {t(KIND_KEYS[value])}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <p id="content-kind-hint" className="text-xs text-muted-foreground">
-            Bài học dẫn từng bước · Lab giao việc rồi chấm · Playground là sandbox trống. Không đổi được sau khi
-            tạo.
+            {t('author.new.kind.hint')}
           </p>
         </div>
 
         <TextField
-          label="Id"
+          label={t('author.new.id.label')}
           value={id}
           onChange={setId}
           error={idIssue}
-          placeholder="dlp-chan-doan-cpu"
-          hint="Chỉ [a-z0-9-], 3–63 ký tự. Id đi vào bảng tiến độ và điểm của người học, nên nó là vĩnh viễn — đổi id sau này sẽ làm tiến độ cũ mồ côi."
+          placeholder={t('author.new.id.placeholder')}
+          hint={t('author.new.id.hint')}
         />
       </section>
 
@@ -156,12 +154,13 @@ export function AuthorNewClient() {
 
       {issues.length > 0 && (
         <Alert variant="destructive">
-          <AlertTitle>Còn {issues.length} ô cần sửa</AlertTitle>
+          <AlertTitle>{count('author.issues.title', issues.length)}</AlertTitle>
           <AlertDescription>
             <ul className="list-disc pl-5">
               {issues.map((issue) => (
                 <li key={issue.path}>
-                  <code className="font-mono">{issue.path}</code> — {issue.message}
+                  <code className="font-mono">{issue.path}</code>
+                  {renderCopy({ key: 'author.issues.row', params: { message: issue.message } })}
                 </li>
               ))}
             </ul>
@@ -171,20 +170,20 @@ export function AuthorNewClient() {
 
       {serverError !== null && (
         <Alert variant="destructive">
-          <AlertTitle>Không tạo được bài</AlertTitle>
+          <AlertTitle>{t('author.new.error.title')}</AlertTitle>
           <AlertDescription>
             {serverError}
-            <p className="mt-2">Sửa theo thông báo trên rồi bấm lại. Nếu id đã có người dùng, hãy đổi id.</p>
+            <p className="mt-2">{t('author.new.error.next')}</p>
           </AlertDescription>
         </Alert>
       )}
 
       <div className="flex gap-3">
         <Button onClick={onSubmit} loading={create.isPending}>
-          Tạo bản nháp
+          {t('author.new.submit')}
         </Button>
         <Button variant="ghost" asChild>
-          <Link href="/author">Huỷ</Link>
+          <Link href="/author">{t('common.action.cancel')}</Link>
         </Button>
       </div>
     </div>

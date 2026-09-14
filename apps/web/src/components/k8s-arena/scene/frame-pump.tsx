@@ -2,13 +2,22 @@
 
 import { useEffect, useRef, type RefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { TIER_FEATURES, createTierController, detectRendererString, tierFromRenderer } from '../shared/scene-quality';
+import {
+  TIER_FEATURES,
+  createTierController,
+  detectRendererString,
+  tierFromRenderer,
+} from '../shared/scene-quality';
 import type { ArenaSceneProps, QualityTier } from '../arena-contract';
 import type { SceneRuntime } from './scene-entry';
 
 /**
- * Số liệu cho cổng đo e2e. Cùng hình dạng với cửa sổ của bản cũ
- * (`__dlpK8sScene`) để harness không phải học một hợp đồng thứ hai.
+ * Số liệu cho cổng đo e2e, phát ra ở `globalThis.__dlpArenaScene`.
+ *
+ * ⚠ TÊN NÀY LÀ MỘT HỢP ĐỒNG với `e2e/games-harness.ts`. Bản cũ phát ở
+ * `__dlpK8sScene`; đợt dựng lại arena đổi tên mà không đổi bên đọc, và hậu quả
+ * là mọi ô hiệu năng của `@games` báo "không đo được" trong im lặng suốt từ đó —
+ * một cổng không đỏ, chỉ ngừng đo. Đổi tên ở đây thì phải đổi cả bên kia.
  */
 export interface ArenaSceneStats {
   readonly calls: number;
@@ -60,7 +69,14 @@ export function FramePump({ runtime, propsRef, tier, reducedMotion }: FramePumpP
   const invalidate = useThree((s) => s.invalidate);
   const elapsedRef = useRef(0);
   const framesRef = useRef(0);
-  const insideRef = useRef(false);
+  /**
+   * Canvas có đang nằm trong tầm nhìn không (`IntersectionObserver`).
+   *
+   * Đây là cái gác ĐÚNG cho hoạt ảnh nền, thay cho `insideRef` cũ vốn hỏi "con
+   * trỏ có trong canvas không". Khởi tạo `true` vì cảnh vào khung ngay lúc mở
+   * màn; observer sẽ sửa lại trong lượt gọi đầu nếu không phải vậy.
+   */
+  const visibleRef = useRef(true);
   const structureRef = useRef(-1);
   const tierRef = useRef(tier);
   tierRef.current = tier;
@@ -87,24 +103,33 @@ export function FramePump({ runtime, propsRef, tier, reducedMotion }: FramePumpP
 
   useEffect(() => {
     const canvas = gl.domElement;
-    const enter = (): void => {
-      insideRef.current = true;
-      invalidate();
-    };
-    const leave = (): void => {
-      insideRef.current = false;
-    };
     const visibility = (): void => {
       if (document.visibilityState === 'visible') {
         invalidate();
       }
     };
-    canvas.addEventListener('pointerenter', enter);
-    canvas.addEventListener('pointerleave', leave);
+    /*
+     * Cảnh cuộn ra khỏi màn hình thì không cần vẽ nữa — nhưng "ra khỏi màn hình"
+     * phải đo bằng `IntersectionObserver`, không bằng vị trí con trỏ. Ngưỡng 0
+     * nghĩa là chỉ cần một pixel còn thấy được là còn vẽ.
+     */
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[entries.length - 1];
+        if (entry === undefined) {
+          return;
+        }
+        visibleRef.current = entry.isIntersecting;
+        if (entry.isIntersecting) {
+          invalidate();
+        }
+      },
+      { threshold: 0 },
+    );
+    observer.observe(canvas);
     document.addEventListener('visibilitychange', visibility);
     return () => {
-      canvas.removeEventListener('pointerenter', enter);
-      canvas.removeEventListener('pointerleave', leave);
+      observer.disconnect();
       document.removeEventListener('visibilitychange', visibility);
     };
   }, [gl, invalidate]);
@@ -115,7 +140,10 @@ export function FramePump({ runtime, propsRef, tier, reducedMotion }: FramePumpP
   useEffect(() => {
     const detected = tierFromRenderer(detectRendererString(gl.getContext()));
     if (detected === 'low' && tierRef.current !== 'low') {
-      propsRef.current.onQualityDowngrade('low', 'GPU đổ hoạ bằng phần mềm — đã tắt hậu kỳ và bóng đổ');
+      propsRef.current.onQualityDowngrade(
+        'low',
+        'GPU đổ hoạ bằng phần mềm — đã tắt hậu kỳ và bóng đổ',
+      );
     }
   }, [gl, propsRef]);
 
@@ -132,13 +160,24 @@ export function FramePump({ runtime, propsRef, tier, reducedMotion }: FramePumpP
     elapsedRef.current += dt;
 
     /*
-     * Bồng bềnh CHỈ khi tab đang hiện VÀ con trỏ ở trong khung, và không bao giờ
-     * ở bậc thấp. Đây là chỗ hoà giải hai yêu cầu ngược nhau: cảnh phải sống,
-     * và cảnh tĩnh không được vẽ. Không khí có giá của nó, và giá đó chỉ đáng
-     * trả khi người dùng đang thật sự nhìn vào khung.
+     * Bồng bềnh khi tab đang hiện và cảnh còn nằm trong tầm nhìn, và không bao
+     * giờ ở bậc thấp.
+     *
+     * ⛔ KHÔNG gác theo "con trỏ có ở trong canvas không". Bản trước có
+     * `insideRef.current &&` ở đây và đó là một lỗi trải nghiệm đo được: mọi
+     * bảng HUD (thanh trên, dock, bảng thông số, bản đồ, số liệu) đều bắt sự
+     * kiện chuột, nên vừa đưa con trỏ ra khỏi khung 3D là `pointerleave` bắn,
+     * `bobActive` tắt, không ai gọi `invalidate()` nữa, và vòng lặp
+     * `frameloop="demand"` DỪNG HẲN. Cả cụm chết cứng giữa nhịp bồng bềnh —
+     * đúng lúc người chơi đang đọc bảng bên phải và vẫn nhìn thấy cảnh.
+     *
+     * Thứ thật sự đáng gác là "người dùng có nhìn thấy cảnh không", và câu đó
+     * được trả lời bởi `visibilityState` (tab bị ẩn) cộng với `visibleRef`
+     * (canvas bị cuộn ra khỏi màn hình — `IntersectionObserver` bên dưới), chứ
+     * không phải bởi vị trí con trỏ.
      */
     const bobActive =
-      insideRef.current &&
+      visibleRef.current &&
       document.visibilityState === 'visible' &&
       tierRef.current !== 'low' &&
       !reducedMotion;

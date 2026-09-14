@@ -228,6 +228,9 @@ const NOT_IN_CHECKLIST: Readonly<Record<string, string>> = {
   THEME_STORAGE_KEY: 'hằng chuỗi',
   THEME_INIT_SCRIPT: 'hằng chuỗi (script nhúng trước paint, §2)',
   SCROLL_REGION_FOCUS: 'hằng chuỗi class focus cho vùng cuộn — xem lesson/scroll-region.ts',
+  RESOURCE_ICON: 'bảng DỮ LIỆU kind → glyph, không render gì; hợp đồng của nó là resource-icon.contract.test.ts',
+  RESOURCE_KINDS: 'hằng mảng 26 khoá, mirror của union ở @devops-platform/games',
+  RESOURCE_KIND_ACCENT: 'bảng DỮ LIỆU kind → tên token --kind-*, không render gì',
 };
 
 /** Tên export mà tài liệu PHẢI mô tả. */

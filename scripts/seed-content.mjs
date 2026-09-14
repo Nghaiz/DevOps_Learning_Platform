@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Nạp LỘ TRÌNH + QUIZ từ `content/` vào Postgres. Chạy lại bao nhiêu lần cũng ra
- * cùng một trạng thái.
+ * Nạp LỘ TRÌNH + QUIZ (từ `content/`) và BÀI TẬP OJ (từ `packages/games`) vào
+ * Postgres. Chạy lại bao nhiêu lần cũng ra cùng một trạng thái.
  *
  * VÌ SAO CẦN NÓ
  * -------------
@@ -11,6 +11,15 @@
  * hai nguồn ở đó chỉ liệt kê `content_items`). Hệ quả đo được ngày 2026-09-06
  * trên cụm thật: `learning_paths = 0`, `quizzes = 0`, và `/paths` + `/quiz` rỗng
  * trơn trong khi `/lessons` + `/labs` đầy đủ.
+ *
+ * `problems` (hệ OJ) là loại THỨ BA cùng cảnh ngộ, và cảnh ngộ của nó khó thấy
+ * hơn một bậc: dữ liệu seed ĐÃ nằm sẵn trong repo — `PROBLEMS_SEED`, 10 bài ở
+ * `packages/games/src/k8s/problems-seed/` — nhưng grep toàn repo ngày
+ * 2026-09-11 cho thấy KHÔNG file nào import nó ngoài chính test của nó. Nên
+ * bảng `problems` rỗng trên mọi cài đặt sạch, `/problems/:code` và
+ * `/author/problems/:code` không có mã nào để mở, trong khi `next-code.ts` viết
+ * như thể `K8S-0001`… đã có sẵn trong DB. Dữ liệu có mặt mà không ai nạp thì
+ * đúng bằng không có dữ liệu, chỉ khó tìm hơn.
  *
  * Script này là đường nạp cho một cụm mới. Nó KHÔNG phải nguồn nội dung thứ ba:
  * sau khi chạy, SSOT lúc đọc vẫn là Postgres — đúng những bảng mà trang soạn
@@ -30,6 +39,14 @@
  * con (`quiz_questions`, `quiz_choices`, `learning_path_items`) bị XOÁ SẠCH theo
  * cha rồi chèn lại, tất cả trong MỘT giao dịch. Không có nhánh "nếu đã có thì
  * bỏ qua" nào để hiểu sai, và không cột `hash` nào phải giữ đồng bộ.
+ *
+ * `problems` chỉ có vế cha (`ON CONFLICT (code) DO UPDATE`) và KHÔNG xoá gì cả:
+ * một bài không có hàng con, còn thứ trỏ vào nó — `problem_submissions`,
+ * `problem_hint_reveals` — là lịch sử người học, thứ tuyệt đối không được xoá
+ * theo một lượt seed. `created_at` cố ý KHÔNG nằm trong mệnh đề `DO UPDATE`: nó
+ * là một khoá sắp xếp của hợp đồng (`PROBLEM_ORDER_KEYS`) và đi vào con trỏ
+ * keyset, nên đổi nó ở mỗi lần seed là xáo lại thứ tự danh mục dưới chân người
+ * đang lật trang.
  *
  * An toàn với lịch sử người học: `quiz_answers.question_id` và các id trong
  * `selected_choice_ids` là TEXT bền do tác giả đặt, không phải uuid của hàng —
@@ -71,7 +88,7 @@
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SELF = fileURLToPath(import.meta.url);
 const REPO = resolve(SELF, '..', '..');
@@ -79,6 +96,35 @@ const PATHS_DIR = join(REPO, 'content', 'paths');
 const QUIZZES_DIR = join(REPO, 'content', 'quizzes');
 const SCENARIOS_DIR = join(REPO, 'content', 'scenarios');
 const LABS_DIR = join(REPO, 'content', 'labs');
+
+/**
+ * Bài tập OJ: nguồn là TypeScript trong `packages/games`, KHÔNG phải JSON trong
+ * `content/`.
+ *
+ * Không chép mười bài ra JSON. Một bản chép là nguồn thứ hai của cùng một sự
+ * thật, và `problems-seed.test.ts` — thứ đang gác trần 150 từ, giá gợi ý tăng
+ * dần, và "mọi `check` phải nằm trong `PREDICATE_NAMES`" — chỉ gác bản gốc. Bản
+ * chép sẽ lệch, và lệch trong im lặng.
+ *
+ * ĐỌC THẲNG FILE, không qua tên package `@devops-platform/games`. Đo ngày
+ * 2026-09-11: subpath DUY NHẤT mà package khai (`.` → `src/index.ts`) KHÔNG nạp
+ * được bằng `node` trần — `src/k8s/yaml.ts` nằm dưới barrel đó và dùng
+ * *parameter property*, thứ mà chế độ strip-only của Node 24 từ chối thẳng:
+ * `SyntaxError: TypeScript parameter property is not supported in strip-only
+ * mode`. Nhánh `problems-seed/` thì chỉ có dữ liệu và `import type` — toàn cú
+ * pháp xoá-được — nên nó nạp thẳng được, không cần tsx, không cần bundler,
+ * không cần thêm một bước build vào mọi nơi chạy seed.
+ *
+ * Đánh đổi ghi thẳng ra: script với tay vào bố cục bên trong của package thay vì
+ * đi qua `exports`, nên đổi tên thư mục `problems-seed/` sẽ làm nó đổ. Đổi lại
+ * là một lượt import đổ NGAY, có tên file trong thông báo — chứ không phải một
+ * bảng `problems` rỗng mà triệu chứng là "e2e báo danh mục rỗng" ở cách đó ba
+ * tầng. Bỏ hẳn `--experimental-transform-types` vì CI gọi `node
+ * scripts/seed-content.mjs` trần, và một script tự sinh lại chính mình kèm cờ
+ * là chi phí lớn hơn hẳn cái nó mua.
+ */
+const PROBLEMS_MODULE = join(REPO, 'packages', 'games', 'src', 'k8s', 'problems-seed', 'index.ts');
+const PROBLEM_CONTRACT_MODULE = join(REPO, 'packages', 'games', 'src', 'k8s', 'problem.ts');
 
 const AUTHOR_ID = process.env.SEED_AUTHOR_ID?.trim() || 'dlp-catalog-author';
 const AUTHOR_EMAIL = process.env.SEED_AUTHOR_EMAIL?.trim() || 'catalog@dlp.local';
@@ -223,6 +269,59 @@ function checkPath({ name, data: path }, quizIds, lessonIds, labIds, issues) {
   }
 }
 
+/**
+ * Nạp `PROBLEMS_SEED` + hằng của hợp đồng, bằng chính Node đang chạy script.
+ *
+ * ⚠ Ngược hẳn cách quiz/lộ trình được kiểm ở trên: ở đó luật được CHÉP thành
+ * regex vì nguồn luật (`packages/shared-types`) không nạp được bằng node trần.
+ * `problem.ts` thì nạp được (chỉ có `import type`), nên ở đây ta dùng THẲNG
+ * `PROBLEM_STATES` của hợp đồng — không có bản sao thứ hai nào để lệch.
+ */
+async function readProblems() {
+  const seed = await import(pathToFileURL(PROBLEMS_MODULE).href);
+  const contract = await import(pathToFileURL(PROBLEM_CONTRACT_MODULE).href);
+  const problems = seed.PROBLEMS_SEED;
+  if (!Array.isArray(problems)) {
+    throw new Error(`${PROBLEMS_MODULE}: không export mảng PROBLEMS_SEED`);
+  }
+  return { problems, states: new Set(contract.PROBLEM_STATES) };
+}
+
+/**
+ * Kiểm bài tập — CỐ Ý HẸP, và cái hẹp đó là một quyết định chứ không phải bỏ sót.
+ *
+ * `publishIssues` (`apps/web/src/server/problems/publish-gate.ts`) gác bốn điều
+ * kiện xuất bản: đề ≤150 từ, có ít nhất một mục tiêu bắt buộc, id mục tiêu duy
+ * nhất, id gợi ý duy nhất. CẢ BỐN đã được `problems-seed.test.ts` khẳng định
+ * trên chính mười bài này, và suite đó chạy trong CI. Chép lại chúng ở đây là
+ * duplicate logic không mua thêm một phép kiểm nào — chỉ thêm một chỗ để lệch.
+ *
+ * Ba điều dưới đây thì KHÔNG chỗ nào khác gác, vì chúng là điều kiện của lượt
+ * GHI này chứ không phải của dữ liệu:
+ *   1. mảng rỗng — một lượt seed "thành công" mà chèn 0 dòng là đúng chế độ hỏng
+ *      mà cả script này tồn tại để chặn;
+ *   2. `state` ngoài tập enum — Postgres sẽ ném `invalid input value for enum`
+ *      giữa giao dịch, một câu không nêu tên bài nào sai;
+ *   3. không bài nào `published` — `problems.list` của người học lọc cứng
+ *      `state = 'published'` (`problems/visibility.ts`), nên mười bài `draft`
+ *      nạp thành công vẫn để `/problems` rỗng trơn. Đó là một lượt seed XANH
+ *      chẳng chứng minh gì.
+ */
+function checkProblems(problems, states, issues) {
+  if (problems.length === 0) {
+    issues.push('PROBLEMS_SEED rỗng — không có bài nào để nạp');
+    return;
+  }
+  for (const problem of problems) {
+    if (!states.has(problem.state)) {
+      issues.push(`bài ${problem.code} → state "${problem.state}" không nằm trong problem_state`);
+    }
+  }
+  if (!problems.some((problem) => problem.state === 'published')) {
+    issues.push('không bài nào ở state "published" — nạp xong /problems vẫn rỗng với người học');
+  }
+}
+
 // ────────────────────────────────────────────────────────────── sinh SQL
 
 /**
@@ -242,7 +341,33 @@ function lit(value) {
   return `$${TAG}$${text}$${TAG}$`;
 }
 
-function buildSql(quizzes, paths) {
+/**
+ * `text[]` cho `problems.topics` / `problems.tags` — KHÔNG phải jsonb.
+ *
+ * Bảng dùng `text[]` + GIN để phục vụ `&&` (chủ đề: HOẶC) và `@>` (tag: VÀ);
+ * xem khối chú thích cột `topics` trong `schema.ts`. Ép `::text[]` tường minh vì
+ * `ARRAY[]` rỗng không có kiểu suy ra được, và Postgres từ chối nó.
+ */
+function textArray(values) {
+  const items = [...(values ?? [])];
+  return items.length === 0 ? 'ARRAY[]::text[]' : `ARRAY[${items.map(lit).join(', ')}]::text[]`;
+}
+
+/** jsonb, hoặc `NULL` thật khi giá trị là `null` — `'null'::jsonb` là thứ KHÁC. */
+function jsonbLit(value) {
+  return value === null || value === undefined ? 'NULL' : `${lit(JSON.stringify(value))}::jsonb`;
+}
+
+/** Số nguyên hoặc `NULL`. `lit()` sẽ bọc số thành chuỗi nên không dùng được ở đây. */
+function intLit(value) {
+  if (value === null || value === undefined) return 'NULL';
+  if (!Number.isInteger(value)) {
+    throw new Error(`giá trị "${String(value)}" phải là số nguyên`);
+  }
+  return String(value);
+}
+
+function buildSql(quizzes, paths, problems) {
   const out = [];
   const w = (line) => out.push(line);
 
@@ -336,6 +461,71 @@ function buildSql(quizzes, paths) {
     w('');
   }
 
+  // ── `author_id` = tác giả thư viện, KHÔNG phải `null` như trong file seed ──
+  //
+  // `Problem.authorId` của cả mười file là `null`, và ba khối chú thích
+  // (`problem.ts`, `schema.ts`, `problems/authz.ts`) đều mô tả bài seed là "bài
+  // không có tác giả là một tài khoản". Lượt ghi này CỐ Ý đi khác, và cái giá —
+  // ba chú thích kia thành lỗi thời — được ghi ra ở đây thay vì giấu đi.
+  //
+  // Vì sao đi khác: cùng lý do `quizzes`/`learning_paths` có chủ. Cổng "KHÔNG
+  // GIÀNH BÀI CỦA NGƯỜI KHÁC" ở ngay trên so `author_id <> AUTHOR_ID`; với
+  // `NULL` thì phép so cho `NULL`, cổng không bao giờ nổ, và một lượt seed sẽ
+  // âm thầm `DO UPDATE` đè lên bài mà một người thật vừa soạn nếu mã trùng.
+  // Chủ sở hữu là thứ làm cổng đó có nghĩa.
+  //
+  // ⚠ ĐÍNH CHÍNH một lý do NGHE HỢP LÝ NHƯNG SAI, để lần sau không ai lặp lại:
+  // *không* phải "để `/author/problems/:code` chạm tới được bằng tài khoản
+  // author thường". Đã đọc mã: `problems.mine` lọc `eq(problems.authorId,
+  // authorScope)` với `authorScope = ctx.user.id` cho mọi vai không phải admin
+  // (`routers/problems.ts` § mine). Một author KHÁC vẫn nhận 0 dòng — dù
+  // `author_id` là `NULL` hay là `dlp-catalog-author`, vì cả hai đều khác id của
+  // họ. Thứ thực sự mở được màn đó là vai **admin**: `authorScope = null` nên bộ
+  // lọc chủ sở hữu biến mất, và `visibleProblemWhere` cho admin nhận mọi state.
+  // Harness e2e đi đúng cửa đó (`roleSatisfies`: admin thoả 'author').
+  //
+  // Bảo mật KHÔNG lỏng đi: `assertProblemOwner` vẫn trả `NOT_FOUND` cho mọi
+  // author khác, và tác giả thư viện KHÔNG có hàng `accounts` nên không ai đăng
+  // nhập được thành nó. "Chỉ admin sửa được bài seed" vẫn đúng nguyên văn.
+  for (const problem of problems) {
+    w(`-- bai tap: ${problem.code}`);
+    w('DO $own$ BEGIN');
+    w(
+      `  IF EXISTS (SELECT 1 FROM problems WHERE code = ${lit(problem.code)} AND author_id <> ${lit(AUTHOR_ID)}) THEN`,
+    );
+    w(
+      `    RAISE EXCEPTION 'bai % da ton tai va thuoc tac gia khac — seed KHONG de len noi dung nguoi khac soan', ${lit(problem.code)};`,
+    );
+    w('  END IF;');
+    w('END $own$;');
+    w('INSERT INTO problems (');
+    w('  code, slug, title, statement, difficulty, topics, tags, time_limit_sec,');
+    w('  initial_state, objectives, allowed_resources, hints, par_moves, state, author_id,');
+    w('  created_at, updated_at');
+    w(') VALUES (');
+    w(
+      `  ${lit(problem.code)}, ${lit(problem.slug)}, ${lit(problem.title)}, ${lit(problem.statement)},`,
+    );
+    w(
+      `  ${lit(problem.difficulty)}, ${textArray(problem.topics)}, ${textArray(problem.tags)}, ${intLit(problem.timeLimitSec)},`,
+    );
+    w(
+      `  ${jsonbLit(problem.initialState)}, ${jsonbLit(problem.objectives)}, ${jsonbLit(problem.allowedResources)}, ${jsonbLit(problem.hints)},`,
+    );
+    w(`  ${intLit(problem.parMoves)}, ${lit(problem.state)}, ${lit(AUTHOR_ID)},`);
+    w(`  ${lit(problem.createdAt)}, ${lit(problem.updatedAt)}`);
+    w(')');
+    // `created_at` vắng mặt ở đây là CÓ Ý — xem khối "IDEMPOTENT" ở đầu file.
+    w('ON CONFLICT (code) DO UPDATE SET');
+    w('  slug = EXCLUDED.slug, title = EXCLUDED.title, statement = EXCLUDED.statement,');
+    w('  difficulty = EXCLUDED.difficulty, topics = EXCLUDED.topics, tags = EXCLUDED.tags,');
+    w('  time_limit_sec = EXCLUDED.time_limit_sec, initial_state = EXCLUDED.initial_state,');
+    w('  objectives = EXCLUDED.objectives, allowed_resources = EXCLUDED.allowed_resources,');
+    w('  hints = EXCLUDED.hints, par_moves = EXCLUDED.par_moves, state = EXCLUDED.state,');
+    w('  author_id = EXCLUDED.author_id, updated_at = now();');
+    w('');
+  }
+
   w('COMMIT;');
   w('');
   return out.join('\n');
@@ -343,7 +533,38 @@ function buildSql(quizzes, paths) {
 
 // ───────────────────────────────────────────────────────────────── chạy
 
-async function execute(sqlText) {
+/**
+ * ĐỌC LẠI từ DB sau khi COMMIT, và so với thứ vừa gửi đi.
+ *
+ * Không phải nghi lễ. Dòng tổng kết mà script in ra trước đây đếm ĐẦU VÀO —
+ * số file JSON đọc được — chứ không đếm dòng trong bảng, nên nó in ra
+ * "đã nạp: 3 lộ trình / 4 quiz" y hệt nhau dù giao dịch có ghi được gì hay
+ * không. Đó đúng lớp "một cái xanh chẳng chứng minh gì" ở
+ * `rules/green-that-proves-nothing.md`: phép đo lấy từ nguồn không thể chứa
+ * bằng chứng cần chứng minh.
+ *
+ * Phép đọc lại này chỉ tồn tại trên đường THỰC THI. Đường `--print` in SQL cho
+ * người khác chạy bằng `psql`, nên nó không có kết nối nào để đọc lại — ai chạy
+ * đường đó phải tự đếm, và `docs/content-sources.md` nói ra điều đó.
+ */
+async function verifySeeded(sql, expectations) {
+  const lech = [];
+  for (const { table, column, values, label } of expectations) {
+    if (values.length === 0) continue;
+    const rows = await sql.unsafe(
+      `SELECT count(*)::int AS n FROM ${table} WHERE ${column} IN (${values.map(lit).join(', ')})`,
+    );
+    const n = Number(rows[0]?.n ?? 0);
+    if (n !== values.length) {
+      lech.push(`${label}: gửi ${values.length} dòng vào ${table}, đọc lại được ${n}`);
+    }
+  }
+  if (lech.length > 0) {
+    throw new Error(`giao dịch báo xong nhưng đọc lại KHÔNG khớp:\n  · ${lech.join('\n  · ')}`);
+  }
+}
+
+async function execute(sqlText, expectations) {
   // Driver `postgres` được phân giải từ cây phụ thuộc của apps/web: script này
   // sống ở gốc repo, nơi package.json chỉ có eslint/prettier/turbo/tsc. Trỏ
   // createRequire vào apps/web/package.json là dùng ĐÚNG driver mà app dùng,
@@ -363,6 +584,7 @@ async function execute(sqlText) {
   const sql = postgres(process.env.DATABASE_URL, { max: 1 });
   try {
     await sql.unsafe(sqlText);
+    await verifySeeded(sql, expectations);
   } finally {
     await sql.end({ timeout: 5 });
   }
@@ -375,6 +597,7 @@ async function main() {
 
   const quizzes = readJsonDir(QUIZZES_DIR);
   const paths = readJsonDir(PATHS_DIR);
+  const { problems, states } = await readProblems();
 
   const issues = [];
   const quizIds = new Set(quizzes.map((entry) => entry.data.id));
@@ -382,6 +605,7 @@ async function main() {
   const labIds = new Set(subdirs(LABS_DIR));
   for (const entry of quizzes) checkQuiz(entry, issues);
   for (const entry of paths) checkPath(entry, quizIds, lessonIds, labIds, issues);
+  checkProblems(problems, states, issues);
 
   if (issues.length > 0) {
     console.error(`[seed] nội dung KHÔNG hợp lệ — ${issues.length} vấn đề, không ghi gì cả:`);
@@ -395,16 +619,18 @@ async function main() {
     0,
   );
   const itemCount = paths.reduce((n, entry) => n + entry.data.items.length, 0);
+  const publishedProblems = problems.filter((problem) => problem.state === 'published').length;
   const summary =
     `${paths.length} lộ trình / ${itemCount} item · ` +
-    `${quizzes.length} quiz / ${questionCount} câu / ${choiceCount} lựa chọn`;
+    `${quizzes.length} quiz / ${questionCount} câu / ${choiceCount} lựa chọn · ` +
+    `${problems.length} bài tập (${publishedProblems} published)`;
 
   if (checkOnly) {
     console.error(`[seed] nội dung hợp lệ: ${summary}`);
     return;
   }
 
-  const sqlText = buildSql(quizzes, paths);
+  const sqlText = buildSql(quizzes, paths, problems);
 
   if (printOnly) {
     process.stdout.write(sqlText);
@@ -419,8 +645,13 @@ async function main() {
     process.exit(2);
   }
 
-  await execute(sqlText);
-  console.error(`[seed] đã nạp: ${summary} (tác giả ${AUTHOR_ID})`);
+  const ids = (entries) => entries.map((entry) => entry.data.id);
+  await execute(sqlText, [
+    { table: 'learning_paths', column: 'id', label: 'lộ trình', values: ids(paths) },
+    { table: 'quizzes', column: 'id', label: 'quiz', values: ids(quizzes) },
+    { table: 'problems', column: 'code', label: 'bài tập', values: problems.map((p) => p.code) },
+  ]);
+  console.error(`[seed] đã nạp và đọc lại khớp: ${summary} (tác giả ${AUTHOR_ID})`);
 }
 
 main().catch((error) => {

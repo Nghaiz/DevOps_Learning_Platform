@@ -12,7 +12,7 @@ import type { Level } from '../contract.ts';
 export const l33: Level = {
   id: 'k8s-33-quyen-vua-du-khong-hon',
   chapter: 6,
-  title: 'Vừa đủ quyền, và không hơn một chút nào',
+  title: 'Cấp RBAC vừa đủ, không dư một quyền',
   mission: 'Cấp cho `bot-giam-sat` đúng quyền get và list pod trong `van-hanh`, không hơn.',
   brief: `Bảng điều khiển \`bang-dieu-khien\` cần liệt kê pod trong namespace \`van-hanh\`,
 nhưng mọi lời gọi tới API server đều trả về **403 Forbidden**.

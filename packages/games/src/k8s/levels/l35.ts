@@ -12,7 +12,7 @@ import type { Level } from '../contract.ts';
 export const l35: Level = {
   id: 'k8s-35-hpa-khong-co-gi-de-tinh',
   chapter: 6,
-  title: 'Tự động co giãn, mà không co giãn gì cả',
+  title: 'Cấp metric cho HPA đang đứng im',
   mission: 'Làm cho HPA `api` đọc được metric và co giãn được, tối thiểu 3 replica.',
   brief: `Namespace \`nen-tang\` có HorizontalPodAutoscaler \`api\` khai rất rõ: giữ CPU quanh
 70%, co giãn giữa 3 và 10 replica.

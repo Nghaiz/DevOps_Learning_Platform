@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import Link from 'next/link';
 import { Play, Timer } from 'lucide-react';
+import { renderCopy, t } from '@devops-platform/copy';
 import { Alert, AlertDescription, Badge, Button, MarkdownView } from '@devops-platform/ui';
 import {
   PROBLEM_TOPIC_LABELS,
@@ -41,9 +42,17 @@ export function ProblemOverview(props: {
             </Badge>
           ))}
         </div>
+        {/*
+          Cả câu là MỘT khoá, không phải ba mảnh ghép trong JSX: mẫu số là thứ
+          nói cho người đọc biết tỉ lệ kia đáng tin tới đâu, nên nó không được
+          rơi ra khỏi câu khi ai đó sửa layout.
+        */}
         <p className="text-sm text-muted-foreground">
-          Tỉ lệ giải {formatAcceptance(stats)} · {stats.solverCount} người đã giải trên {stats.attemptCount} người đã
-          thử
+          {t('catalog.problem.stats', {
+            acceptance: renderCopy(formatAcceptance(stats)),
+            solvers: stats.solverCount,
+            attempts: stats.attemptCount,
+          })}
         </p>
       </div>
 
@@ -61,14 +70,18 @@ export function ProblemOverview(props: {
         <Alert variant="warning">
           <Timer aria-hidden className="size-4" />
           <AlertDescription>
-            <strong className="font-medium">Bài này có hạn giờ: {formatTimeLimit(problem.timeLimitSec)}.</strong> Đồng
-            hồ bắt đầu chạy khi bạn mở đấu trường, không phải khi bạn đọc đề.
+            <strong className="font-medium">
+              {t('catalog.problem.time-limit-lead', {
+                limit: renderCopy(formatTimeLimit(problem.timeLimitSec)),
+              })}
+            </strong>{' '}
+            {t('catalog.problem.time-limit-note')}
           </AlertDescription>
         </Alert>
       )}
 
       <div className="rounded-lg border border-border bg-card p-5 shadow-elevation-1">
-        <h2 className="mb-3 text-sm font-medium text-muted-foreground">Đề bài</h2>
+        <h2 className="mb-3 text-sm font-medium text-muted-foreground">{t('catalog.problem.statement')}</h2>
         {/*
           `resolveAssetUrl` luôn trả `null`: hệ bài tập chưa có đường phục vụ tệp
           đính kèm, nên một ảnh tương đối trong đề là thứ KHÔNG tải được. Trả
@@ -88,11 +101,11 @@ export function ProblemOverview(props: {
         <Button asChild size="lg">
           <Link href={`/games/k8s?problem=${encodeURIComponent(problem.code)}`}>
             <Play aria-hidden className="size-4" />
-            Bắt đầu làm bài
+            {t('catalog.problem.start')}
           </Link>
         </Button>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/problems">Về danh sách bài</Link>
+          <Link href="/problems">{t('catalog.problem.back')}</Link>
         </Button>
       </div>
     </section>

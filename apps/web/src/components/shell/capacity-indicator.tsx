@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge, Skeleton, Tooltip, TooltipContent, TooltipTrigger, cn } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 import { describeProfileCapacity, formatFetchedAt, type CapacityTone } from './capacity';
 import { useCapacity } from './use-capacity';
 
@@ -74,11 +75,10 @@ export function CapacityIndicator() {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="outline">Chưa đọc được sức chứa</Badge>
+          <Badge variant="outline">{t('shell.capacity.unread-badge')}</Badge>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
-          {error} Số chỗ trống sẽ tự hiện lại khi máy chủ trả lời; nếu vẫn trống sau vài
-          phút, tải lại trang.
+          {t('shell.capacity.unread-body', { error })}
         </TooltipContent>
       </Tooltip>
     );
@@ -100,18 +100,18 @@ export function CapacityIndicator() {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="outline">Chưa rõ sức chứa</Badge>
+          <Badge variant="outline">{t('shell.capacity.unknown-badge')}</Badge>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
-          <p>
-            Máy chủ chưa đọc được hạn mức tài nguyên của cụm, nên số chỗ trống chưa tính
-            được. Bạn vẫn bấm Bắt đầu được — nếu hết chỗ thật thì phiên sẽ bị từ chối kèm
-            lý do.
-          </p>
+          <p>{t('shell.capacity.unknown-body')}</p>
           {data.quotaError === '' ? null : (
-            <p className="mt-1 text-xs opacity-80">Lý do: {data.quotaError}</p>
+            <p className="mt-1 text-xs opacity-80">
+              {t('shell.capacity.quota-reason', { reason: data.quotaError })}
+            </p>
           )}
-          {at === null ? null : <p className="mt-1 text-xs opacity-80">Đọc lúc {at}.</p>}
+          {at === null ? null : (
+            <p className="mt-1 text-xs opacity-80">{t('shell.capacity.read-at', { at })}</p>
+          )}
         </TooltipContent>
       </Tooltip>
     );
@@ -132,11 +132,11 @@ export function CapacityIndicator() {
       </TooltipTrigger>
       <TooltipContent className="max-w-xs">
         <p>{reading.detail}</p>
-        {at === null ? null : <p className="mt-1 text-xs opacity-80">Đọc lúc {at}.</p>}
+        {at === null ? null : (
+          <p className="mt-1 text-xs opacity-80">{t('shell.capacity.read-at', { at })}</p>
+        )}
         {error === null ? null : (
-          <p className="mt-1 text-xs opacity-80">
-            Số liệu có thể đã cũ — lượt đọc gần nhất lỗi: {error}
-          </p>
+          <p className="mt-1 text-xs opacity-80">{t('shell.capacity.stale', { error })}</p>
         )}
       </TooltipContent>
     </Tooltip>

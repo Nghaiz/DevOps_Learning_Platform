@@ -42,42 +42,167 @@ interface PaletteMeta {
  * giữ nguyên thứ tự chèn), nên không có bảng thứ tự thứ hai để lệch nhau.
  */
 const PALETTE_META = {
-  Pod: { short: 'Pod', group: 'workload', hotkey: 1, hint: 'Đơn vị chạy nhỏ nhất — một hoặc vài container dùng chung mạng và ổ đĩa.' },
-  Deployment: { short: 'Deploy', group: 'workload', hotkey: 2, hint: 'Giữ đúng N bản sao pod và cuộn phiên bản mới không gián đoạn.' },
-  ReplicaSet: { short: 'RS', group: 'workload', hotkey: null, hint: 'Tầng dưới của Deployment — giữ số bản sao. Thường không tạo tay.' },
-  StatefulSet: { short: 'STS', group: 'workload', hotkey: null, hint: 'Cho ứng dụng có trạng thái: tên pod ổn định, ổ đĩa riêng từng pod.' },
-  DaemonSet: { short: 'DS', group: 'workload', hotkey: null, hint: 'Đúng một pod trên MỖI node — agent log, agent metric.' },
-  Job: { short: 'Job', group: 'workload', hotkey: 8, hint: 'Chạy tới khi xong rồi dừng — không khởi động lại vô hạn như Deployment.' },
-  CronJob: { short: 'CronJob', group: 'workload', hotkey: null, hint: 'Tạo Job theo lịch định kỳ.' },
-  HorizontalPodAutoscaler: { short: 'HPA', group: 'workload', hotkey: null, hint: 'Tự tăng giảm số bản sao theo tải đo được.' },
-  PodDisruptionBudget: { short: 'PDB', group: 'workload', hotkey: null, hint: 'Chặn việc bảo trì làm rơi quá nhiều pod cùng lúc.' },
+  Pod: {
+    short: 'Pod',
+    group: 'workload',
+    hotkey: 1,
+    hint: 'Đơn vị chạy nhỏ nhất — một hoặc vài container dùng chung mạng và ổ đĩa.',
+  },
+  Deployment: {
+    short: 'Deploy',
+    group: 'workload',
+    hotkey: 2,
+    hint: 'Giữ đúng N bản sao pod và cuộn phiên bản mới không gián đoạn.',
+  },
+  ReplicaSet: {
+    short: 'RS',
+    group: 'workload',
+    hotkey: null,
+    hint: 'Tầng dưới của Deployment — giữ số bản sao. Thường không tạo tay.',
+  },
+  StatefulSet: {
+    short: 'STS',
+    group: 'workload',
+    hotkey: null,
+    hint: 'Cho ứng dụng có trạng thái: tên pod ổn định, ổ đĩa riêng từng pod.',
+  },
+  DaemonSet: {
+    short: 'DS',
+    group: 'workload',
+    hotkey: null,
+    hint: 'Đúng một pod trên MỖI node — agent log, agent metric.',
+  },
+  Job: {
+    short: 'Job',
+    group: 'workload',
+    hotkey: 8,
+    hint: 'Chạy tới khi xong rồi dừng — không khởi động lại vô hạn như Deployment.',
+  },
+  CronJob: {
+    short: 'CronJob',
+    group: 'workload',
+    hotkey: null,
+    hint: 'Tạo Job theo lịch định kỳ.',
+  },
+  HorizontalPodAutoscaler: {
+    short: 'HPA',
+    group: 'workload',
+    hotkey: null,
+    hint: 'Tự tăng giảm số bản sao theo tải đo được.',
+  },
+  PodDisruptionBudget: {
+    short: 'PDB',
+    group: 'workload',
+    hotkey: null,
+    hint: 'Chặn việc bảo trì làm rơi quá nhiều pod cùng lúc.',
+  },
 
-  Service: { short: 'Svc', group: 'network', hotkey: 3, hint: 'Một địa chỉ ổn định trỏ tới nhóm pod khớp selector.' },
-  Ingress: { short: 'Ing', group: 'network', hotkey: 6, hint: 'Định tuyến HTTP từ ngoài vào Service theo host và path.' },
-  NetworkPolicy: { short: 'NetPol', group: 'network', hotkey: null, hint: 'Tường lửa ở tầng pod — mặc định K8s cho mọi pod nói chuyện với nhau.' },
+  Service: {
+    short: 'Svc',
+    group: 'network',
+    hotkey: 3,
+    hint: 'Một địa chỉ ổn định trỏ tới nhóm pod khớp selector.',
+  },
+  Ingress: {
+    short: 'Ing',
+    group: 'network',
+    hotkey: 6,
+    hint: 'Định tuyến HTTP từ ngoài vào Service theo host và path.',
+  },
+  NetworkPolicy: {
+    short: 'NetPol',
+    group: 'network',
+    hotkey: null,
+    hint: 'Tường lửa ở tầng pod — mặc định K8s cho mọi pod nói chuyện với nhau.',
+  },
 
-  ConfigMap: { short: 'CM', group: 'config', hotkey: 4, hint: 'Cấu hình dạng văn bản, tách khỏi image.' },
-  Secret: { short: 'Secret', group: 'config', hotkey: 5, hint: 'Như ConfigMap nhưng cho dữ liệu nhạy cảm.' },
-  ServiceAccount: { short: 'SA', group: 'config', hotkey: null, hint: 'Danh tính mà pod dùng khi gọi API server.' },
+  ConfigMap: {
+    short: 'CM',
+    group: 'config',
+    hotkey: 4,
+    hint: 'Cấu hình dạng văn bản, tách khỏi image.',
+  },
+  Secret: {
+    short: 'Secret',
+    group: 'config',
+    hotkey: 5,
+    hint: 'Như ConfigMap nhưng cho dữ liệu nhạy cảm.',
+  },
+  ServiceAccount: {
+    short: 'SA',
+    group: 'config',
+    hotkey: null,
+    hint: 'Danh tính mà pod dùng khi gọi API server.',
+  },
   Role: { short: 'Role', group: 'config', hotkey: null, hint: 'Bộ quyền trong MỘT namespace.' },
-  RoleBinding: { short: 'RB', group: 'config', hotkey: null, hint: 'Gắn một Role vào một danh tính.' },
-  ClusterRole: { short: 'CRole', group: 'config', hotkey: null, hint: 'Bộ quyền phạm vi toàn cụm.' },
-  ClusterRoleBinding: { short: 'CRB', group: 'config', hotkey: null, hint: 'Gắn một ClusterRole vào một danh tính, toàn cụm.' },
+  RoleBinding: {
+    short: 'RB',
+    group: 'config',
+    hotkey: null,
+    hint: 'Gắn một Role vào một danh tính.',
+  },
+  ClusterRole: {
+    short: 'CRole',
+    group: 'config',
+    hotkey: null,
+    hint: 'Bộ quyền phạm vi toàn cụm.',
+  },
+  ClusterRoleBinding: {
+    short: 'CRB',
+    group: 'config',
+    hotkey: null,
+    hint: 'Gắn một ClusterRole vào một danh tính, toàn cụm.',
+  },
 
-  PersistentVolumeClaim: { short: 'PVC', group: 'storage', hotkey: 7, hint: 'Yêu cầu ổ đĩa: cần bao nhiêu, kiểu truy cập nào.' },
-  PersistentVolume: { short: 'PV', group: 'storage', hotkey: null, hint: 'Ổ đĩa thật trong cụm, thứ mà PVC được khớp vào.' },
-  StorageClass: { short: 'SC', group: 'storage', hotkey: null, hint: 'Loại ổ đĩa — quyết định PVC được cấp phát thế nào.' },
+  PersistentVolumeClaim: {
+    short: 'PVC',
+    group: 'storage',
+    hotkey: 7,
+    hint: 'Yêu cầu ổ đĩa: cần bao nhiêu, kiểu truy cập nào.',
+  },
+  PersistentVolume: {
+    short: 'PV',
+    group: 'storage',
+    hotkey: null,
+    hint: 'Ổ đĩa thật trong cụm, thứ mà PVC được khớp vào.',
+  },
+  StorageClass: {
+    short: 'SC',
+    group: 'storage',
+    hotkey: null,
+    hint: 'Loại ổ đĩa — quyết định PVC được cấp phát thế nào.',
+  },
 
-  Namespace: { short: 'NS', group: 'cluster', hotkey: 9, hint: 'Vách ngăn logic chia cụm thành nhiều vùng tên riêng.' },
-  ResourceQuota: { short: 'Quota', group: 'cluster', hotkey: null, hint: 'Trần tài nguyên cho cả một namespace.' },
-  LimitRange: { short: 'Limits', group: 'cluster', hotkey: null, hint: 'Mức mặc định và mức trần cho từng container trong namespace.' },
+  Namespace: {
+    short: 'NS',
+    group: 'cluster',
+    hotkey: 9,
+    hint: 'Vách ngăn logic chia cụm thành nhiều vùng tên riêng.',
+  },
+  ResourceQuota: {
+    short: 'Quota',
+    group: 'cluster',
+    hotkey: null,
+    hint: 'Trần tài nguyên cho cả một namespace.',
+  },
+  LimitRange: {
+    short: 'Limits',
+    group: 'cluster',
+    hotkey: null,
+    hint: 'Mức mặc định và mức trần cho từng container trong namespace.',
+  },
   /*
    * `Node` có mặt để `satisfies` đủ theo kiểu, và vì một level dạy về taint /
    * nodeSelector có thể mở nó ra. Trong hầu hết level nó nằm ngoài
    * `allowedResources` nên ô hiện mờ kèm lời giải thích — đúng trạng thái người
    * chơi cần thấy: loại này CÓ thật, chỉ là bài này không dùng tới.
    */
-  Node: { short: 'Node', group: 'cluster', hotkey: null, hint: 'Máy chạy pod. Ở cụm thật node do hạ tầng cấp, không tạo bằng manifest.' },
+  Node: {
+    short: 'Node',
+    group: 'cluster',
+    hotkey: null,
+    hint: 'Máy chạy pod. Ở cụm thật node do hạ tầng cấp, không tạo bằng manifest.',
+  },
 } as const satisfies Record<ResourceKind, PaletteMeta>;
 
 /**

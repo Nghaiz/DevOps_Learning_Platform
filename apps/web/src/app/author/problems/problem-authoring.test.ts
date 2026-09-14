@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { t } from '@devops-platform/copy';
 import { PREDICATE_NAMES } from '@devops-platform/games';
 import { PREDICATE_SPECS } from './predicate-spec';
 import { INCIDENT_KINDS, RESOURCE_KINDS } from './vocabulary';
@@ -14,10 +15,10 @@ describe('bảng vị từ bám sát hợp đồng', () => {
   it('mọi vị từ có nhãn tiếng Việt và mọi tham số có nhãn', () => {
     for (const name of PREDICATE_NAMES) {
       const spec = PREDICATE_SPECS[name];
-      expect(spec.label.trim(), name).not.toBe('');
+      expect(t(spec.label).trim(), name).not.toBe('');
       for (const arg of spec.args) {
         expect(arg.key.trim(), `${name}.${arg.key}`).not.toBe('');
-        expect(arg.label.trim(), `${name}.${arg.key}`).not.toBe('');
+        expect(t(arg.label).trim(), `${name}.${arg.key}`).not.toBe('');
       }
     }
   });

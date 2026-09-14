@@ -44,7 +44,7 @@ export interface MinimapProps {
  * thập ở đây sẽ hứa một hành động (bỏ hẳn lớp) mà nó không làm.
  */
 export function Minimap({ view, onSelectNode, className }: MinimapProps): ReactElement {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const podsByNode = useMemo(() => {
     const map = new Map<string, ObjectView[]>();
@@ -102,14 +102,22 @@ export function Minimap({ view, onSelectNode, className }: MinimapProps): ReactE
         </span>
         <ChevronDown
           aria-hidden="true"
-          className={cn('size-4 shrink-0 transition-transform', collapsed ? '-rotate-90' : 'rotate-0')}
+          className={cn(
+            'size-4 shrink-0 transition-transform',
+            collapsed ? '-rotate-90' : 'rotate-0',
+          )}
         />
       </button>
 
       {collapsed ? null : (
         // Cụm nhiều node thì bản đồ vẫn phải nằm gọn trong màn hình; cuộn được
         // nhưng không có thanh trượt nào hiện ra.
-        <div className={cn('flex max-h-[45vh] flex-col gap-1.5 border-t border-border p-2', HIDDEN_SCROLL)}>
+        <div
+          className={cn(
+            'flex max-h-[45vh] flex-col gap-1.5 border-t border-border p-2',
+            HIDDEN_SCROLL,
+          )}
+        >
           {view.nodes.map((node) => (
             <button
               key={node.name}
@@ -126,7 +134,12 @@ export function Minimap({ view, onSelectNode, className }: MinimapProps): ReactE
             >
               <span className="flex items-baseline justify-between gap-2 text-[11px]">
                 <span className="min-w-0 truncate font-mono">{node.name}</span>
-                <span className={cn('shrink-0', node.ready ? 'text-muted-foreground' : 'text-destructive')}>
+                <span
+                  className={cn(
+                    'shrink-0',
+                    node.ready ? 'text-muted-foreground' : 'text-destructive',
+                  )}
+                >
                   {node.ready ? `${String(Math.round(node.cpuUsed * 100))}%` : 'NotReady'}
                 </span>
               </span>
@@ -158,7 +171,9 @@ function PodDots({ pods }: { readonly pods: readonly ObjectView[] }): ReactEleme
       {shown.map((pod) => (
         <span key={pod.uid} className={cn('size-2 rounded-[2px]', DOT_CLASS[pod.statusToken])} />
       ))}
-      {extra > 0 ? <span className="ml-0.5 text-[10px] text-muted-foreground">+{extra}</span> : null}
+      {extra > 0 ? (
+        <span className="ml-0.5 text-[10px] text-muted-foreground">+{extra}</span>
+      ) : null}
     </span>
   );
 }

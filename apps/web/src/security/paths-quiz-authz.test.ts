@@ -106,7 +106,25 @@ beforeAll(async () => {
     { pathId: PATH_FREE, ordinal: 0, itemKind: 'lesson', itemId: LESSON_ID },
     { pathId: PATH_FREE, ordinal: 1, itemKind: 'quiz', itemId: QUIZ_ID },
   ]);
-});
+
+  /*
+    ⚠ HÂM NÓNG nguồn nội dung Ở ĐÂY, không để nó rơi vào test đầu tiên.
+
+    `paths.get` đi qua `readPathDetail` → nguồn nội dung, và lượt gọi ĐẦU TIÊN
+    nạp `content/**` từ đĩa. Chi phí một-lần đó rơi vào ô chạy trước, và ô đó
+    chịu trần `testTimeout: 15_000` của gói chứ không phải ngân sách 60s của
+    `beforeAll`.
+
+    Đo 2026-09-13: ô "cùng quiz xuất hiện ở cả hai lộ trình" chạy **187ms** khi
+    file chạy một mình, nhưng **15 186ms và ĐỎ** khi 163 file chạy song song —
+    gấp 80 lần, trong khi hai ô tuần tự nặng hơn nó chỉ chậm 7–12 lần. Khoảng
+    chênh đó là phần nạp đĩa, không phải phần ô này gác.
+
+    `me-idor.test.ts` đã gặp đúng chuyện này và chữa đúng cách này; ghi lại đây
+    để lần thứ ba không phải truy lại từ đầu.
+  */
+  await caller(LEARNER).paths.get({ pathId: PATH_SEQ });
+}, 60_000);
 
 afterAll(async () => {
   const db = testDb();

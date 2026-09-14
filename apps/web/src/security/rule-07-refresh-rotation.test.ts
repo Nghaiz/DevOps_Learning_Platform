@@ -118,6 +118,27 @@ describe('luật 7 — refresh token rotation + revocation', () => {
     expect(refreshClear).toContain('/api/auth');
   });
 
+  /*
+    ⏱ Trần RIÊNG — cùng lý lẽ với `revoke-descendants.integration.test.ts`.
+
+    101 lượt rotation tuần tự, mỗi lượt một round-trip DB kèm băm. Đo
+    2026-09-13: **2049ms** khi file chạy một mình, nhưng vượt 15 000ms dưới
+    tải 163 file song song. Con số 101 là thứ ô này khẳng định ("hơn 100 thế
+    hệ"), nên nó không được rút.
+  */
+  it('replay thu hồi token còn sống sau hơn 100 thế hệ rotation', async () => {
+    const root = await issueRefreshToken(testDb(), userId);
+    let latest = root.raw;
+    for (let generation = 0; generation < 101; generation += 1) {
+      const outcome = await rotateRefreshToken(testDb(), latest);
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) throw new Error('Could not build the refresh chain');
+      latest = outcome.token.raw;
+    }
+    expect(await rotateRefreshToken(testDb(), root.raw)).toEqual({ ok: false, reason: 'revoked' });
+    expect(await rotateRefreshToken(testDb(), latest)).toEqual({ ok: false, reason: 'revoked' });
+  }, 60_000);
+
   it('route /api/auth/refresh: KHÔNG có session cookie lẫn refresh_token cookie → 401', async () => {
     // Mô phỏng "chỉ có access token, không có gì khác" — access token (JWT) không
     // phải cookie session của Better Auth cũng không phải refresh_token, nên dù

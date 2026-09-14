@@ -38,7 +38,12 @@ const DISTANCE_EPSILON = 0.25;
  * đổi mỗi lần cấu trúc cụm đổi, mà cấu trúc đổi vài lần một giây trong một ván
  * chơi bận — biến nó thành state là ép React dựng lại cả cây scene ở nhịp đó.
  */
-export function SceneLighting({ runtime, colors, colorsVersion, tier }: SceneLightingProps): ReactElement {
+export function SceneLighting({
+  runtime,
+  colors,
+  colorsVersion,
+  tier,
+}: SceneLightingProps): ReactElement {
   const features = TIER_FEATURES[tier];
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);

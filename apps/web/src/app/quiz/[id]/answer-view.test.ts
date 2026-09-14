@@ -5,7 +5,18 @@ import {
   type QuizFull,
   type QuizQuestionResult,
 } from '@devops-platform/shared-types/quiz';
-import { MULTIPLE_ANSWER_RULE_TEXT, choiceReveal, summarizeAnswers } from './answer-view';
+import { renderCopy, type CopyRef } from '@devops-platform/copy';
+import { MULTIPLE_ANSWER_RULE_KEYS, choiceReveal, summarizeAnswers } from './answer-view';
+
+/**
+ * `label` và `caveat` nay là `CopyRef` chứ không phải câu (§1.6 của
+ * `p16-copy.md`), nên mọi khẳng định về CHỮ phải đi qua `renderCopy`. Dựng ra
+ * câu thật cũng là thứ bù lại phần kiểm THAM SỐ mà `CopyRef` bỏ ở tầng biên
+ * dịch: một tham số sai tên hiện ra ngay dưới dạng chuỗi thiếu chỗ.
+ */
+function say(ref: CopyRef | null): string {
+  return ref === null ? '' : renderCopy(ref);
+}
 
 function outcome(over: Partial<QuizQuestionResult> = {}): QuizQuestionResult {
   return {
@@ -88,17 +99,17 @@ describe('summarizeAnswers — nhãn đếm câu ĐÃ CHỌN, không phải câu
     const progress = summarizeAnswers(learnerQuiz(['q1', 'q2', 'q3']), { q1: ['a'], q3: ['b'] });
     expect(progress.answeredCount).toBe(2);
     expect(progress.unansweredCount).toBe(1);
-    expect(progress.label).toBe('Đã chọn đáp án cho 2/3 câu');
-    expect(progress.caveat).toContain('Còn 1 câu chưa chọn');
-    expect(progress.caveat).toContain('tính là sai');
+    expect(say(progress.label)).toBe('Đã chọn đáp án cho 2/3 câu');
+    expect(say(progress.caveat)).toContain('Còn 1 câu chưa chọn');
+    expect(say(progress.caveat)).toContain('tính là sai');
     // ⛔ Nhãn KHÔNG được khẳng định gì về đúng/sai — client chưa biết.
-    expect(progress.label).not.toContain('đúng');
+    expect(say(progress.label)).not.toContain('đúng');
   });
 
   it('mảng rỗng KHÔNG tính là đã trả lời (bỏ chọn hết phải quay về chưa trả lời)', () => {
     const progress = summarizeAnswers(learnerQuiz(['q1', 'q2']), { q1: [], q2: [] });
     expect(progress.answeredCount).toBe(0);
-    expect(progress.label).toBe('Đã chọn đáp án cho 0/2 câu');
+    expect(say(progress.label)).toBe('Đã chọn đáp án cho 0/2 câu');
   });
 
   it('trả lời hết ⇒ không còn câu nhắc thừa', () => {
@@ -108,9 +119,12 @@ describe('summarizeAnswers — nhãn đếm câu ĐÃ CHỌN, không phải câu
   });
 });
 
-describe('MULTIPLE_ANSWER_RULE_TEXT — câu chữ lấy theo luật TRONG PAYLOAD', () => {
+describe('MULTIPLE_ANSWER_RULE_KEYS — câu chữ lấy theo luật TRONG PAYLOAD', () => {
   it('phủ đúng luật server đang khai, và nói ra "không có điểm một phần"', () => {
-    const text = MULTIPLE_ANSWER_RULE_TEXT[QUIZ_MULTIPLE_ANSWER_RULE];
+    // Dựng ra CÂU chứ không chỉ so khoá: một khoá trỏ đúng chỗ nhưng chữ bên
+    // kia đã bị viết lại thành thứ khác vẫn là hỏng, và chỉ phép dựng câu mới
+    // thấy được.
+    const text = renderCopy({ key: MULTIPLE_ANSWER_RULE_KEYS[QUIZ_MULTIPLE_ANSWER_RULE] });
     expect(text).toContain('ĐÚNG và ĐỦ');
     expect(text).toContain('không có điểm một phần');
   });

@@ -185,9 +185,15 @@ describe('ContentView — markdown thường', () => {
 
     const { container } = render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
 
-    // Mức 3, không phải 2 — xem test "nội dung nhúng không tranh h1" bên dưới:
-    // markdown hạ MỘT bậc vì TRANG đã giữ `h1`.
-    expect(screen.getByRole('heading', { level: 3, name: 'Bước 1' })).toBeDefined();
+    // Mức 2: `##` là cấp NHỎNHẤT của tài liệu này, nên nó là đỉnh của phần
+    // nội dung và phải nằm ngay dưới `<h1>` của trang.
+    //
+    // ⚠ Ô này từng khẳng định mức 3, theo luật cũ "hạ đúng một bậc". Luật ấy
+    // giả định mọi tài liệu mở đầu bằng `#`, và sáu file trong `content/` thì
+    // không — chúng rơi xuống h3/h4 ngay sau `<h1>`, tức nhảy cấp, tức
+    // `heading-order` của axe đỏ trên `/lessons/ckad-configmap-as-files`. Xem
+    // `heading-level.ts`.
+    expect(screen.getByRole('heading', { level: 2, name: 'Bước 1' })).toBeDefined();
     const strong = container.querySelector('strong');
     expect(strong).not.toBeNull();
     expect(strong?.textContent).toBe('kubectl');
@@ -214,6 +220,52 @@ describe('ContentView — markdown thường', () => {
 
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
     expect(screen.getByRole('heading', { level: 2, name: 'Tạo tệp đầu tiên' })).toBeDefined();
+  });
+
+  /**
+   * ⛛ Tài liệu KHÔNG mở đầu bằng `#` — sáu file thật trong `content/`.
+   *
+   * Đây là ca mà luật "hạ đúng một bậc" làm hỏng: `###` thành `<h4>` ngay sau
+   * `<h1>` của trang, nhảy qua cả h2 lẫn h3. Khẳng định CẢ HAI chiều — đỉnh ra
+   * đúng `h2`, VÀ độ sâu tương đối giữ nguyên — vì chỉ kiểm vế đầu thì một
+   * phép "dồn mọi heading về h2" cũng xanh, mà như thế là xoá cấu trúc chứ
+   * không phải sửa nó.
+   */
+  it('tài liệu mở bằng `###` cũng bắt đầu ở h2, và giữ độ sâu tương đối', () => {
+    const blocks: ContentBlock[] = [
+      {
+        kind: 'markdown',
+        markdown: '### Tổng quan\n\nNội dung.\n\n#### Chi tiết\n\nThêm.',
+      },
+    ];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
+
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'Tổng quan' })).toBeDefined();
+    expect(screen.getByRole('heading', { level: 3, name: 'Chi tiết' })).toBeDefined();
+  });
+
+  /**
+   * ⚠ Dòng `# …` bên trong khối mã là CHÚ THÍCH SHELL, không phải heading.
+   *
+   * Đọc nhầm nó thành cấp 1 sẽ kéo cả tài liệu dời sai một bậc — im lặng, và
+   * vẫn đúng ở những tài liệu không có khối mã, nên rất khó thấy. Bài học
+   * DevOps thì gần như bài nào cũng có khối mã shell.
+   */
+  it('`#` trong khối mã không bị đếm như một heading', () => {
+    const blocks: ContentBlock[] = [
+      {
+        kind: 'markdown',
+        markdown:
+          '## Bước 1\n\n```bash\n# cài đặt kubectl\napt-get install -y kubectl\n```\n',
+      },
+    ];
+
+    render(<ContentView blocks={blocks} resolveAssetUrl={noResolve} />);
+
+    // Nếu `# cài đặt kubectl` bị đếm, cấp nhỏ nhất thành 1 và `##` rơi về h3.
+    expect(screen.getByRole('heading', { level: 2, name: 'Bước 1' })).toBeDefined();
   });
 
   it('placeholder {{TRAFFIC_HOST1_80}} giữ nguyên dạng text — không có tầng thay thế', () => {

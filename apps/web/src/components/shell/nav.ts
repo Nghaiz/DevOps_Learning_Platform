@@ -2,10 +2,14 @@
  * Điều hướng — hợp đồng **C6** (`plans/devops-learning-platform/phase-13-exec.md` §2).
  *
  * Dữ liệu THUẦN: không JSX, không import React, không import gì từ `server/**`.
- * Đó là điều kiện để CẢ HAI phía dùng chung một nguồn — `app/layout.tsx`
+ * `@devops-platform/copy` KHÔNG phá điều kiện đó: gói này khai zero runtime
+ * dependency như một hợp đồng (xem khối `//dependencies` trong package.json của
+ * nó), và `t()` là một phép tra bảng thuần. Đó là điều kiện để CẢ HAI phía dùng chung một nguồn — `app/layout.tsx`
  * (Server Component, gọi `normalizeRole`) và `app-shell.tsx` (Client Component,
  * đọc bảng nav) — mà không kéo Better Auth/DB vào bundle trình duyệt.
  */
+
+import { t } from '@devops-platform/copy';
 
 export type ViewerRole = 'user' | 'author' | 'admin';
 
@@ -31,22 +35,28 @@ export interface NavItem {
  * ở cuối. Nhãn giữ nguyên chữ "Games" theo đúng hợp đồng — thuật ngữ ở lại
  * tiếng Anh như `Lab`, `Playground`, `Quiz` bên cạnh.
  *
- * ⚠ Thêm một mục ở đây là sửa BA file cùng lúc: `nav-icons.ts` (thiếu icon thì
- * `nav-icons.test.ts` đỏ) và `nav.test.ts` (`toEqual` ghim từng chữ). Đó là
- * thiết kế — hai phép kiểm đó tồn tại để không ai thêm được một mục nửa vời.
+ * ⚠ Nhãn nay đến từ `packages/copy` (`shell.nav.*`). Bảng dưới đây vẫn là SSOT
+ * của THỨ TỰ và của cặp (href, khoá); chữ hiển thị là SSOT của bản đồ copy. Ô
+ * `nav.test.ts` cố ý ghim chữ VIẾT THẲNG chứ không ghim `t('shell.nav.lessons')`:
+ * so bản đồ với chính nó thì ô đó xanh với mọi giá trị, kể cả chuỗi rỗng.
+ *
+ * ⚠ Thêm một mục ở đây là sửa BỐN file cùng lúc: `packages/copy/src/surfaces/
+ * shell.ts` (khoá và chữ), `nav-icons.ts` (thiếu icon thì `nav-icons.test.ts`
+ * đỏ) và `nav.test.ts` (`toEqual` ghim từng chữ). Đó là thiết kế: ba phép kiểm
+ * đó tồn tại để không ai thêm được một mục nửa vời.
  *
  * ⛔ Thêm mục ở đây KHÔNG tự động gác đăng nhập cho đường đó. Cổng là
  * `PROTECTED_PATHS` trong `proxy.ts`, và `/games` cố ý KHÔNG có trong đó: game
  * chạy hoàn toàn ở trình duyệt, tiến độ ở `localStorage`.
  */
 export const PRIMARY_NAV: readonly NavItem[] = [
-  { href: '/lessons', label: 'Bài học' },
-  { href: '/labs', label: 'Lab' },
-  { href: '/playgrounds', label: 'Playground' },
-  { href: '/paths', label: 'Lộ trình' },
-  { href: '/quiz', label: 'Quiz' },
-  { href: '/games', label: 'Games' },
-  { href: '/me', label: 'Của tôi' },
+  { href: '/lessons', label: t('shell.nav.lessons') },
+  { href: '/labs', label: t('shell.nav.labs') },
+  { href: '/playgrounds', label: t('shell.nav.playgrounds') },
+  { href: '/paths', label: t('shell.nav.paths') },
+  { href: '/quiz', label: t('shell.nav.quiz') },
+  { href: '/games', label: t('shell.nav.games') },
+  { href: '/me', label: t('shell.nav.me') },
 ];
 
 interface RoleGatedItem extends NavItem {
@@ -55,9 +65,9 @@ interface RoleGatedItem extends NavItem {
 }
 
 const USER_MENU_NAV: readonly RoleGatedItem[] = [
-  { href: '/settings', label: 'Hồ sơ & cài đặt', roles: 'all' },
-  { href: '/author', label: 'Soạn bài', roles: ['author', 'admin'] },
-  { href: '/admin', label: 'Quản trị', roles: ['admin'] },
+  { href: '/settings', label: t('shell.account.menu.settings'), roles: 'all' },
+  { href: '/author', label: t('shell.account.menu.author'), roles: ['author', 'admin'] },
+  { href: '/admin', label: t('shell.account.menu.admin'), roles: ['admin'] },
 ];
 
 /**

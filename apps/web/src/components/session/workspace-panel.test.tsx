@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { WorkspacePanel, type WorkspacePanelProps } from './workspace-panel';
+import { DISPLAY_UTILITIES, hasDisplayUtility } from './workspace-tabs';
 
 /**
  * §Y1/§Y4/§Y6 — các bất biến của `WorkspacePanel`, kiểm trên MARKUP THẬT.
@@ -101,36 +102,71 @@ const ALL_STATES: readonly Partial<WorkspacePanelProps>[] = [
 
 // ── Bất biến sống-chết §Y1 ──────────────────────────────────────────────────
 
-describe('§Y1 — terminal KHÔNG đổi cha, KHÔNG bị ẩn', () => {
+describe('§Y1 — terminal KHÔNG đổi cha; hai hàng loại trừ nhau', () => {
   /**
-   * ⛔ Đây là ô AC quan trọng nhất của lane này.
+   * ⛔ Đây là ô AC quan trọng nhất của lane này, và nó ĐÃ ĐỔI NGHĨA ở SỬA ĐỔI 3.
    *
-   * Ẩn hoặc dời hàng terminal = unmount xterm = đóng WebSocket = mất phiên làm
-   * việc của người học, không có thông báo lỗi nào. Ô này quét MỌI tổ hợp
-   * (hai tab × có/không editor).
+   * Bản trước khẳng định hàng terminal không bao giờ mang `hidden`. Chỉ đạo
+   * 2026-09-13 ("tab IDE thì hiện IDE, tab terminal thì hiện terminal, hết")
+   * làm điều đó thôi đúng: ở tab Editor hàng 2 PHẢI ẩn.
+   *
+   * Thứ còn nguyên là bất biến thật: node terminal không bao giờ RỜI markup.
+   * Dời hoặc gỡ nó = unmount xterm = đóng WebSocket = mất phiên làm việc của
+   * người học, không có thông báo lỗi nào. `hidden` thì chỉ là thôi được vẽ.
+   *
+   * Ô này quét MỌI tổ hợp (hai tab × có/không editor) và khẳng định CẢ HAI vế
+   * của phép loại trừ — một bản quên ẩn hàng 2 vẫn trông đúng ở tab Terminal.
    */
-  it('hàng terminal KHÔNG BAO GIỜ mang `hidden`, ở mọi tổ hợp', () => {
+  it('node terminal luôn có trong markup, và hai hàng ẩn/hiện NGƯỢC nhau', () => {
     for (const state of ALL_STATES) {
       const html = render(state);
-      expect(html, JSON.stringify(state)).toContain(TERMINAL_MARK);
-      expect(isHidden(terminalRow(html)), JSON.stringify(state)).toBe(false);
+
+      /*
+        ⚠ Nhãn KHÔNG được dựng bằng `JSON.stringify(state)`.
+
+        `JSON.stringify` BỎ mọi thuộc tính mang giá trị `undefined`, và
+        `ALL_STATES` mã hoá bài-không-có-editor bằng đúng một `editor: undefined`
+        tường minh để ĐÈ giá trị mặc định của `render()`. Nên hai trạng thái
+        khác hẳn nhau cùng in ra `{"activeTab":"editor"}`, và một ô đỏ trỏ vào
+        cái nhãn đó dẫn người đọc đi tìm sai trạng thái. Chính bẫy này đã tốn
+        một lượt chẩn đoán lúc viết ô test này.
+
+        Cùng lý do đó, "bài có editor" phải hỏi khoá có được KHAI hay không,
+        không hỏi giá trị của nó.
+      */
+      const hasEditor = !('editor' in state) || state.editor !== undefined;
+      const label = `activeTab=${String(state.activeTab)} hasEditor=${String(hasEditor)}`;
+
+      // Vế bất biến: node terminal có mặt ở MỌI trạng thái, không bao giờ bị gỡ.
+      expect(html, label).toContain(TERMINAL_MARK);
+
+      // Vế chỉ đạo mới: đúng một hàng hiện.
+      const editorHidden = isHidden(rowById(html, '-panel-editor'));
+      const terminalHidden = isHidden(terminalRow(html));
+      expect(terminalHidden, `${label}: hai hàng phải loại trừ nhau`).toBe(!editorHidden);
+
+      // Và hàng hiện phải là hàng của tab đang chọn.
+      const editorTabActive = state.activeTab === 'editor' && hasEditor;
+      expect(editorHidden, `${label}: hàng editor`).toBe(!editorTabActive);
     }
   });
 
-  it('hàng terminal luôn ở CÙNG vị trí con trong ngăn xếp (con thứ 3)', () => {
+  it('hàng terminal luôn ở CÙNG vị trí con trong ngăn xếp (con thứ 2)', () => {
     // React so trùng con tĩnh theo VỊ TRÍ. Nếu ở một trạng thái nào đó ngăn xếp
-    // chỉ còn 2 con thì hàng terminal trượt lên khớp vị trí của thanh kéo — tức
-    // React unmount cái xterm và mount lại một `<div>` rỗng. Đếm số con của
+    // chỉ còn 1 con thì hàng terminal trượt lên khớp vị trí của hàng editor —
+    // tức React unmount cái xterm và mount lại một `<div>` rỗng. Đếm số con của
     // ngăn xếp là cách gần nhất mà markup tĩnh cho phép để gác điều đó.
+    //
+    // SỬA ĐỔI 3 gỡ thanh kéo, nên ngăn xếp đi từ ba con xuống HAI. Đó là một
+    // thay đổi ở mức mã nguồn, không phải một nhánh điều kiện lúc chạy — số con
+    // vẫn là hằng số ở mọi trạng thái, và đó mới là thứ bất biến đòi hỏi.
     for (const state of ALL_STATES) {
       const html = render(state);
       // Ngăn xếp = thẻ mang `flex-col` thứ hai (thẻ đầu là gốc panel).
       const columns = openTags(html).filter((tag) => classOf(tag).split(/\s+/).includes('flex-col'));
       expect(columns.length, JSON.stringify(state)).toBeGreaterThanOrEqual(2);
-      // Ba con tĩnh: hàng editor (tabpanel/id), thanh kéo (separator), hàng
-      // terminal (style nội tuyến). Cả ba phải có mặt ở MỌI trạng thái.
+      // Hai con tĩnh, cả hai phải có mặt ở MỌI trạng thái.
       expect(html, JSON.stringify(state)).toContain('-panel-editor');
-      expect(tagsWithRole(html, 'separator'), JSON.stringify(state)).toHaveLength(1);
       expect(html, JSON.stringify(state)).toContain('-panel-terminal');
     }
   });
@@ -156,67 +192,91 @@ describe('bẫy CSS: phần tử mang `hidden` không được mang tiện ích 
    * `<div hidden class="flex">` VẪN HIỆN — và thuộc tính `hidden` thành ra vô
    * nghĩa mà không có gì báo. Test này là thứ duy nhất trong repo nói ra.
    */
-  const DISPLAY_UTILITIES = new Set([
-    'flex',
-    'grid',
-    'block',
-    'inline',
-    'inline-flex',
-    'inline-block',
-    'inline-grid',
-    'table',
-    'contents',
-    'flow-root',
-    'list-item',
-  ]);
+  /*
+    ⚠ Danh sách và phép so khớp KHÔNG chép tay ở đây: cả hai đến từ
+    `workspace-tabs.ts` (`DISPLAY_UTILITIES` / `hasDisplayUtility`), cùng nguồn
+    mà `workspace-panel.dom.test.tsx` đọc. Hai bản chép là hai bản sẽ lệch, và
+    khi lệch thì mỗi bên vẫn xanh theo bản của riêng nó.
+  */
 
   it('không thẻ nào vừa có `hidden` vừa có class display', () => {
     for (const state of ALL_STATES) {
       const offenders = openTags(render(state))
         .filter(isHidden)
-        .filter((tag) => classOf(tag).split(/\s+/).some((c) => DISPLAY_UTILITIES.has(c)));
+        .filter((tag) => hasDisplayUtility(classOf(tag)));
       expect(offenders, JSON.stringify(state)).toEqual([]);
     }
   });
 
-  it('có ít nhất MỘT thẻ mang `hidden` ở tab Terminal — đối chứng dương', () => {
+  it('có ít nhất MỘT thẻ mang `hidden` ở tab Terminal — đối chứng dương (query trúng đích)', () => {
     // Không có ô này thì ô trên xanh một cách vô nghĩa khi `hidden` biến mất
     // hoàn toàn khỏi markup vì một lý do khác.
     expect(openTags(render({ activeTab: 'terminal' })).filter(isHidden).length).toBeGreaterThan(0);
   });
+
+  /*
+    ⚠ ĐỐI CHỨNG DƯƠNG THỨ HAI — hợp đồng §8 AC-2 đòi CẢ HAI vế, và vế này là vế
+    thiếu cho tới 2026-09-10.
+
+    Vế trên chứng minh "có thẻ mang `hidden` để mà quét". Vế này chứng minh "bộ
+    quét NHÌN THẤY vi phạm khi vi phạm có thật". Không có nó thì một
+    `hasDisplayUtility` luôn trả `false` (danh sách rỗng, `classOf` trượt regex,
+    một lượt refactor đổi dấu phân tách) cũng làm ô chính xanh — xanh vì mù, chứ
+    không phải vì sạch.
+  */
+  it('đối chứng dương: bộ quét ĐỎ được trên một cây giả cố ý sai', () => {
+    const BAD = '<div hidden="" class="min-h-0 flex flex-col"></div>';
+    const offenders = openTags(BAD)
+      .filter(isHidden)
+      .filter((tag) => hasDisplayUtility(classOf(tag)));
+
+    expect(offenders).toHaveLength(1);
+  });
+
+  it('đối chứng ÂM: tiện ích kích thước cạnh `hidden` KHÔNG bị coi là vi phạm', () => {
+    // `flex-1` / `flex-col` / `overflow-hidden` chứa chuỗi con của một tiện ích
+    // display nhưng KHÔNG đặt `display`. Một bộ quét dùng `includes` sẽ đỏ ở
+    // đây, rồi bị nới ra cho tới lúc không gác gì nữa (§2.1).
+    const OK = '<div hidden="" class="min-h-0 min-w-0 flex-1 flex-col overflow-hidden"></div>';
+    expect(openTags(OK).filter(isHidden).filter((tag) => hasDisplayUtility(classOf(tag)))).toEqual(
+      [],
+    );
+  });
+
+  it('danh sách tiện ích display không rỗng — chống một cổng rỗng đội lốt cổng sạch', () => {
+    expect(DISPLAY_UTILITIES.length).toBeGreaterThanOrEqual(12);
+    expect(DISPLAY_UTILITIES).toContain('flex');
+    expect(DISPLAY_UTILITIES).toContain('table-cell');
+  });
 });
 
-// ── §Y6 — chiều cao khoang terminal ─────────────────────────────────────────
+// ── SỬA ĐỔI 3 — hàng đang hiện chiếm trọn khoang, không còn thanh kéo ──────
 
-describe('§Y6 — chiều cao khoang terminal', () => {
-  it('tab Editor: hàng terminal là một dải CỐ ĐỊNH ~40%', () => {
-    const style = styleOf(terminalRow(render({ activeTab: 'editor' })));
-    expect(style).toContain('flex-basis:40%');
-    expect(style).toContain('flex-grow:0');
+describe('SỬA ĐỔI 3 — khoang chỉ có một hàng hiện, và không còn thanh kéo', () => {
+  it('hàng terminal không mang style nội tuyến nào (không còn dải phần trăm)', () => {
+    // Bản trước đặt `flex-basis:40%` ở tab Editor. Một style sót lại sẽ làm hàng
+    // hiện chỉ cao 40% và phần còn lại là một mảng trống.
+    expect(styleOf(terminalRow(render({ activeTab: 'terminal' })))).toBe('');
+    expect(styleOf(terminalRow(render({ activeTab: 'editor' })))).toBe('');
   });
 
-  it('tab Terminal: hàng terminal GIÃN ra chiếm trọn khoang', () => {
-    // Giữ `flex-basis: 40%` ở đây thì hàng editor `display:none` không chiếm
-    // chỗ, terminal vẫn chỉ 40%, và 60% còn lại là một mảng trống.
-    const style = styleOf(terminalRow(render({ activeTab: 'terminal' })));
-    expect(style).toContain('flex-grow:1');
-    expect(style).not.toContain('flex-basis:40%');
+  it('cả hai hàng đều mang `flex-1` để chiếm trọn khoang khi tới lượt', () => {
+    const html = render({ activeTab: 'terminal' });
+    expect(classOf(terminalRow(html)).split(/\s+/)).toContain('flex-1');
+    expect(classOf(rowById(html, '-panel-editor')).split(/\s+/)).toContain('flex-1');
   });
 
-  it('thanh kéo là một `separator` NGANG, kéo được bằng bàn phím', () => {
-    const separator = tagsWithRole(render({ activeTab: 'editor' }), 'separator')[0] ?? '';
-    expect(separator).toContain('aria-orientation="horizontal"');
-    expect(separator).toContain('tabindex="0"');
-    expect(separator).toContain('aria-valuenow="40"');
-    expect(classOf(separator).split(/\s+/)).toContain('cursor-row-resize');
-  });
-
-  it('thanh kéo ẩn và RỜI vòng Tab khi hàng editor không hiện', () => {
-    // Một thanh kéo `hidden` mà vẫn `tabindex="0"` là một chặng Tab chết —
-    // `e2e/keyboard.spec.ts` gác ngân sách 30 lần Tab.
-    const separator = tagsWithRole(render({ activeTab: 'terminal' }), 'separator')[0] ?? '';
-    expect(isHidden(separator)).toBe(true);
-    expect(separator).toContain('tabindex="-1"');
+  /**
+   * ⛔ Đối chứng cho quyết định GỠ thanh kéo thay vì ẩn nó.
+   *
+   * Một `[role="separator"]` không bao giờ hiện được là mã chết, và mã chết
+   * trong cây này là thứ người đọc sau sẽ tưởng còn dùng. Nó cũng từng là một
+   * chặng Tab chết mà `e2e/keyboard.spec.ts` phải gác bằng ngân sách 30 lần Tab.
+   */
+  it('không còn `separator` nào ở BẤT KỲ tổ hợp nào', () => {
+    for (const state of ALL_STATES) {
+      expect(tagsWithRole(render(state), 'separator'), JSON.stringify(state)).toHaveLength(0);
+    }
   });
 });
 

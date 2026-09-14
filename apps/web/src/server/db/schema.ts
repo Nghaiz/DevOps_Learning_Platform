@@ -286,11 +286,78 @@ export const authRefreshTokens = pgTable(
   (table) => [
     uniqueIndex('auth_refresh_tokens_token_hash_key').on(table.tokenHash),
     index('auth_refresh_tokens_user_id_idx').on(table.userId),
+    /**
+     * Phép duyệt chuỗi khi phát hiện replay đi theo `rotated_from`, không theo
+     * `user_id` — index ở trên không phục vụ nó. Phép duyệt ấy chạy TRONG
+     * transaction đang giữ khoá hàng `users`, nên một lượt quét bảng ở đó là
+     * thời gian mọi request khác của cùng tài khoản phải xếp hàng. Một review
+     * độc lập chỉ ra (N7, 2026-09-13).
+     */
+    index('auth_refresh_tokens_rotated_from_idx').on(table.rotatedFrom),
   ],
 );
 
 export type AuthRefreshToken = typeof authRefreshTokens.$inferSelect;
 export type NewAuthRefreshToken = typeof authRefreshTokens.$inferInsert;
+
+/**
+ * Hàng đợi gửi thư đặt lại mật khẩu (P16 §8).
+ *
+ * Vì sao có bảng này: trước đó việc gửi nằm gọn trong `after()` của Next — chạy
+ * SAU khi response đã trả, nên tiến trình chết giữa chừng là thư bốc hơi, không
+ * dấu vết, không log. Ghi được một dòng ở đây = đã NHẬN việc, và cái chết của
+ * tiến trình không còn xoá được việc đã nhận.
+ *
+ * ⚠ `code` là BÍ MẬT NGẮN HẠN nằm ở dạng BẢN RÕ trong DB. Đây là đánh đổi có
+ * chủ ý chứ không phải sơ suất: muốn gửi lại được sau khi tiến trình chết thì mã
+ * phải sống sót qua cái chết đó, mà mã thì KHÔNG băm được — thư gửi cho người
+ * dùng buộc phải chứa bản rõ. (Bảng `verifications` vẫn chỉ giữ BĂM của mã; đây
+ * là bản sao thứ hai, có tuổi thọ ngắn hơn.) Cửa sổ phơi bày bị chặn ở cả hai
+ * đầu: dòng bị XOÁ ngay khi gửi xong, và dòng quá `expires_at` bị dọn mà không
+ * gửi. CẤM log cột này, CẤM để nó lọt vào `last_error` — xem
+ * `server/auth/password-reset-outbox.ts`.
+ *
+ * ⛔ CẤM cột suy ra được (`rules/code-conventions.md`): KHÔNG có `state`/
+ * `status`/`sent_at`/`failed`. "Đang chờ" = dòng còn tồn tại; "hết lượt thử" =
+ * `attempts` chạm trần; "đã gửi" = không còn dòng. Cả ba đọc được từ thứ đã lưu.
+ *
+ * `expires_at` thì KHÔNG phải cột suy ra được, dù nhìn qua giống
+ * `created_at + PASSWORD_RESET_TTL_SECONDS`: nó ghi lại TTL ĐANG CÓ HIỆU LỰC lúc
+ * dòng được tạo. Đổi hằng TTL thì công thức đó trả về một thời điểm khác với thời
+ * điểm mã thật sự chết, nên `created_at` một mình không khôi phục được nó. Cùng
+ * lập luận với `verifications.expires_at` và `auth_refresh_tokens.expires_at` ở
+ * trên — hai bảng auth đã có sẵn đều lưu cả hai mốc.
+ */
+export const passwordResetOutbox = pgTable(
+  'password_reset_outbox',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    /** BẢN RÕ — xem cảnh báo ở chú thích bảng. */
+    code: text('code').notNull(),
+    /** Số lượt gửi đã THẤT BẠI. Chạm `PASSWORD_RESET_MAX_ATTEMPTS` là ngừng thử. */
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    /** ĐÃ LÀM SẠCH trước khi ghi: không chứa địa chỉ người nhận lẫn mã. */
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('password_reset_outbox_next_attempt_at_idx').on(table.nextAttemptAt),
+    /**
+     * Lượt dọn dòng quá hạn quét theo `expires_at`, KHÔNG theo `next_attempt_at`
+     * — hai vị từ khác nhau, nên index ở trên không phục vụ nó. Lượt dọn ấy chạy
+     * ở ĐẦU MỖI lượt drain (mỗi request đã nhận việc, cộng một lượt quét 60 giây
+     * trên MỌI replica), nên thiếu index này nó là một lượt quét toàn bảng lặp
+     * lại mãi. Một review độc lập chỉ ra (N3, 2026-09-13).
+     */
+    index('password_reset_outbox_expires_at_idx').on(table.expiresAt),
+  ],
+);
+
+export type PasswordResetOutboxRow = typeof passwordResetOutbox.$inferSelect;
+export type NewPasswordResetOutboxRow = typeof passwordResetOutbox.$inferInsert;
 
 /**
  * === Labs (P8 — trụ cột ②) ===

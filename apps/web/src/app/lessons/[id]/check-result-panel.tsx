@@ -2,6 +2,7 @@
 
 import type { ReactElement } from 'react';
 import { CircleCheck, CircleX, Unplug } from 'lucide-react';
+import { t } from '@devops-platform/copy';
 import { cn, SCROLL_REGION_FOCUS } from '@devops-platform/ui';
 
 /**
@@ -68,9 +69,9 @@ export function CheckResultPanel({ outcome }: { outcome: CheckOutcome | null }):
       >
         <Unplug aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
         <div className="min-w-0">
-          <p className="font-medium">Không chấm được</p>
+          <p className="font-medium">{t('session.task.state.infra')}</p>
           <p className="mt-1 text-muted-foreground">
-            Đây là trục trặc của hệ thống, không phải bài làm của bạn chưa đạt. {outcome.message}
+            {t('session.task.infra-note')} {outcome.message}
           </p>
         </div>
       </div>
@@ -100,7 +101,9 @@ export function CheckResultPanel({ outcome }: { outcome: CheckOutcome | null }):
           aria-hidden
           className={cn('size-4 shrink-0', passed ? 'text-status-done' : 'text-destructive')}
         />
-        {passed ? 'Đạt' : `Chưa đạt (exit ${String(outcome.exitCode)})`}
+        {passed
+          ? t('session.task.state.passed')
+          : t('session.task.state.failed-with-exit', { code: outcome.exitCode })}
       </p>
       {outcome.output.trim() !== '' && (
         /*
@@ -112,7 +115,7 @@ export function CheckResultPanel({ outcome }: { outcome: CheckOutcome | null }):
          */
         <pre
           tabIndex={0}
-          aria-label="Kết quả lệnh chấm"
+          aria-label={t('session.task.result-title')}
           className={cn(
             'mt-2 max-h-48 overflow-auto rounded bg-background/60 p-2 font-mono text-xs',
             SCROLL_REGION_FOCUS,

@@ -3,6 +3,7 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from '@devops-platform/ui';
 import type { ProblemState } from '@devops-platform/games';
+import { t } from '@devops-platform/copy';
 import { ArenaPreview } from './arena-preview';
 import { ClassifyFields } from './classify-fields';
 import { ClusterFields } from './cluster-fields';
@@ -49,7 +50,9 @@ export function ProblemEditor(props: {
   };
 
   const namespaces = parseList(props.form.cluster.namespacesText);
-  const nodeNames = props.form.cluster.nodes.map((node) => node.name.trim()).filter((name) => name !== '');
+  const nodeNames = props.form.cluster.nodes
+    .map((node) => node.name.trim())
+    .filter((name) => name !== '');
 
   return (
     <div className="flex flex-col gap-6">
@@ -59,19 +62,30 @@ export function ProblemEditor(props: {
           setTab(value);
         }}
       >
-        <TabsList>
-          <TabsTrigger value="mo-ta">Mô tả</TabsTrigger>
-          <TabsTrigger value="cum">Cụm ban đầu</TabsTrigger>
-          <TabsTrigger value="muc-tieu">Mục tiêu ({String(props.form.objectives.length)})</TabsTrigger>
-          <TabsTrigger value="goi-y">Gợi ý ({String(props.form.hints.length)})</TabsTrigger>
-          <TabsTrigger value="thu">Thử</TabsTrigger>
-          <TabsTrigger value="json">JSON</TabsTrigger>
-          {props.publishTab !== undefined && <TabsTrigger value="xuat-ban">Xuất bản</TabsTrigger>}
+        <TabsList className="h-auto max-w-full flex-wrap justify-start [&>[data-slot=tabs-trigger]]:min-h-11">
+          <TabsTrigger value="mo-ta">{t('author.problem.tab.statement')}</TabsTrigger>
+          <TabsTrigger value="cum">{t('author.problem.tab.cluster')}</TabsTrigger>
+          <TabsTrigger value="muc-tieu">
+            {t('author.problem.tab.objectives', { n: props.form.objectives.length })}
+          </TabsTrigger>
+          <TabsTrigger value="goi-y">
+            {t('author.problem.tab.hints', { n: props.form.hints.length })}
+          </TabsTrigger>
+          <TabsTrigger value="thu">{t('author.problem.tab.arena')}</TabsTrigger>
+          <TabsTrigger value="json">{t('author.problem.tab.json')}</TabsTrigger>
+          {props.publishTab !== undefined && (
+            <TabsTrigger value="xuat-ban">{t('author.problem.tab.publish')}</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="mo-ta">
           <div className="flex flex-col gap-8 pt-4">
-            <StatementFields form={props.form} onChange={patch} issues={props.issues} code={props.code} />
+            <StatementFields
+              form={props.form}
+              onChange={patch}
+              issues={props.issues}
+              code={props.code}
+            />
             <ClassifyFields form={props.form} onChange={patch} issues={props.issues} />
           </div>
         </TabsContent>
@@ -92,7 +106,9 @@ export function ProblemEditor(props: {
 
         <TabsContent value="muc-tieu">
           <section className="flex flex-col gap-4 pt-4">
-            <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">Mục tiêu</h2>
+            <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">
+              {t('author.problem.objectives.heading')}
+            </h2>
             {props.form.objectives.map((objective, index) => (
               <ObjectiveFields
                 key={objective.key}
@@ -104,7 +120,9 @@ export function ProblemEditor(props: {
                 canRemove={props.form.objectives.length > 1}
                 onChange={(part) => {
                   patch({
-                    objectives: props.form.objectives.map((item, i) => (i === index ? { ...item, ...part } : item)),
+                    objectives: props.form.objectives.map((item, i) =>
+                      i === index ? { ...item, ...part } : item,
+                    ),
                   });
                 }}
                 onRemove={() => {
@@ -127,7 +145,7 @@ export function ProblemEditor(props: {
                   });
                 }}
               >
-                Thêm mục tiêu
+                {t('author.problem.objectives.add')}
               </Button>
             </div>
           </section>
@@ -170,7 +188,9 @@ export function ProblemEditor(props: {
         )}
       </Tabs>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">{props.actions}</div>
+      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+        {props.actions}
+      </div>
     </div>
   );
 }

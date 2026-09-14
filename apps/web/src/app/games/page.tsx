@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
+import { t } from '@devops-platform/copy';
 import { GamesClient } from './games-client';
 
 export const metadata: Metadata = {
-  title: 'Games — DevOps Learning Platform',
-  description:
-    'Game DevOps chạy trong trình duyệt: không tốn sandbox, không cần đăng nhập. Thử thách CTF nằm cạnh, và nó tốn một sandbox.',
+  title: t('catalog.meta-title.games'),
+  description: t('catalog.games.meta-description'),
 };
 
 /**

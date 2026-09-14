@@ -1,5 +1,6 @@
 'use client';
 
+import { errText } from '@devops-platform/copy';
 import { useMemo, useState } from 'react';
 import type { CreatedSession } from '@devops-platform/terminal';
 import { api } from '../../../lib/trpc-react';
@@ -62,7 +63,7 @@ export function useLessonSession(scenarioId: string): LessonSession {
         });
         const session = result.session;
         if (session === null || session === undefined) {
-          throw new Error('Máy chủ không trả về phiên nào.');
+          throw new Error(errText('session.error.no-session'));
         }
         setPreferencesApplied(result.preferencesApplied);
         return session;

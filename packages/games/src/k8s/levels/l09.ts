@@ -14,7 +14,7 @@ import type { Level } from '../contract.ts';
 export const l09: Level = {
   id: 'k8s-09-rollout-treo-giua-chung',
   chapter: 2,
-  title: 'Rollout dừng giữa chừng lúc 2 giờ sáng',
+  title: 'Gỡ rollout treo giữa chừng',
   mission:
     'Đưa Deployment `api` về 6 replica sẵn sàng trên image có thật, không pod nào còn lý do lỗi.',
   brief: `Pipeline CI vừa đẩy một bản lên production rồi báo đỏ. Deployment \`api\` trong

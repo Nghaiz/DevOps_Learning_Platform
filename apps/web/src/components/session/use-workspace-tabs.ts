@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TerminalHandle } from '@devops-platform/terminal';
 /*
   Import THẲNG từng file, KHÔNG qua barrel `../../../components/session`.
@@ -15,7 +15,13 @@ import type { TerminalHandle } from '@devops-platform/terminal';
   phải nền chung — nên ràng buộc "đừng đi qua barrel" vẫn nguyên).
 */
 import { ideSessionUrl } from './ide-layout';
-import { EDITOR_TAB, TERMINAL_TAB, resolveActiveTab, type WorkspaceTabId } from './workspace-tabs';
+import {
+  EDITOR_TAB,
+  TERMINAL_TAB,
+  isEditorVisible,
+  resolveActiveTab,
+  type WorkspaceTabId,
+} from './workspace-tabs';
 
 /**
  * Trạng thái tab của `WorkspacePanel` + đường gõ lệnh vào terminal (§Y3/§Y4).
@@ -38,9 +44,16 @@ import { EDITOR_TAB, TERMINAL_TAB, resolveActiveTab, type WorkspaceTabId } from 
  * đoán: **cái đua nó che cũng biến mất**, chứ không phải bị giấu đi. Không tạo
  * window mới thì không có shell mới, không có `stty`, không có gì để xả.
  *
- * "Tách đôi" cũng không cần thay thế: tab Editor ĐÃ LÀ bố cục hai khoang
- * (editor trên, terminal neo đáy), nên nút cũ chỉ còn là một đường thứ hai tới
- * đúng thứ tab Editor đang làm.
+ * "Tách đôi" cũng không cần thay thế — nhưng ⚠ LÝ DO ĐÃ ĐỔI, kết luận thì không.
+ *
+ * Lý do của SỬA ĐỔI 2 là "tab Editor ĐÃ LÀ bố cục hai khoang (editor trên,
+ * terminal neo đáy), nên nút tách đôi chỉ là một đường thứ hai tới đúng thứ tab
+ * Editor đang làm". Tiền đề đó chết cùng SỬA ĐỔI 3: hai tab nay LOẠI TRỪ nhau,
+ * không tab nào là bố cục hai khoang.
+ *
+ * Kết luận vẫn đứng, vì một lý do đơn giản hơn: chỉ có MỘT phiên terminal, nên
+ * không có gì để tách. Nút tách đôi cũ chia hai terminal, và terminal thứ hai
+ * đã biến mất từ SỬA ĐỔI 2.
  */
 
 /** Ctrl+C. Gửi RIÊNG, không bao giờ nối vào chuỗi lệnh (xem `exec`). */
@@ -90,17 +103,50 @@ export function useWorkspaceTabs(options: WorkspaceTabsOptions): WorkspaceTabsCo
     setChosenTab(tab);
   }, []);
 
-  /*
-    §Y3 — exec KHÔNG chuyển tab.
+  /**
+   * ⛔ Đợi một lượt render rồi mới `focus()`, vì tab vừa được chuyển.
+   *
+   * `focus()` trên một phần tử nằm trong cây `display:none` là một **no-op im
+   * lặng** — không ném, không cảnh báo. Nên nó phải chạy SAU khi hàng terminal
+   * thôi mang `hidden`, tức sau lượt commit của React.
+   */
+  const focusAfterSwitch = useRef(false);
 
-    Terminal luôn hiện ở cả hai tab (§Y1), nên không có gì để chuyển tới. Đây là
-    chỗ sửa đổi này rẻ hơn bản trước: bản trước phải chuyển tab rồi mới gõ, và
-    nhánh "tab đích chưa tồn tại" còn phải chờ một khoảng phỏng đoán.
+  /*
+    §Y3 — exec CHUYỂN TAB khi terminal đang bị ẩn.
+
+    ⚠ Chú thích ở đây trước SỬA ĐỔI 3 viết: "exec KHÔNG chuyển tab, vì terminal
+    luôn hiện ở cả hai tab (§Y1), nên không có gì để chuyển tới." Tiền đề đó là
+    của mô hình SỬA ĐỔI 2 và đã bị SỬA ĐỔI 3 bãi bỏ: ở tab Editor, hàng terminal
+    nay mang `hidden`.
+
+    Không sửa theo thì hỏng như sau, và nó hỏng IM LẶNG — đây là chế độ hỏng mà
+    khối chú thích này tồn tại để chặn:
+
+      1. Bài IDE mở mặc định ở tab Editor (xem `activeTab` phía trên).
+      2. Người học bấm nút chạy trên một khối `{{exec}}`.
+      3. `sendInput` gửi lệnh THẬT xuống pod — terminal vẫn mounted, chỉ không
+         được vẽ.
+      4. `focus()` trên phần tử đang `display:none` không làm gì.
+      5. Màn hình không đổi. Không lỗi, không toast. Bấm lại vài lần là lệnh
+         chạy vài lần trong pod mà người học không hề biết.
+
+    ⚠ Và điều này KHÔNG dựng lại khoảng chờ phỏng đoán mà SỬA ĐỔI 2 đã gỡ. Thứ
+    phải chờ ngày ấy là một shell MỚI trong một tmux window mới (`stty` xả sạch
+    input đang chờ). Ở đây không có shell mới: terminal là CÙNG một node, cùng
+    một pty, chỉ đang bị ẩn — nên `sendInput` đúng ngay lập tức và không có gì
+    để đua. Chỉ `focus()` cần đợi, và nó đợi một lượt COMMIT của React, không
+    đợi một con số đoán.
   */
   const exec = useCallback(
     (command: string, interrupt: boolean) => {
       if (terminal === null) {
         return;
+      }
+      const terminalHidden = isEditorVisible(activeTab, hasEditor);
+      if (terminalHidden) {
+        setChosenTab(TERMINAL_TAB);
+        focusAfterSwitch.current = true;
       }
       // `exec-interrupt` = Ctrl+C RỒI mới tới lệnh. Gửi Ctrl+C riêng chứ không
       // nối vào chuỗi: chúng là hai sự kiện bàn phím, và nối lại thì ký tự huỷ
@@ -108,11 +154,48 @@ export function useWorkspaceTabs(options: WorkspaceTabsOptions): WorkspaceTabsCo
       if (interrupt) {
         terminal.sendInput(CTRL_C);
       }
+      /*
+        ⚠ Lệnh đi NGAY, trước cả lượt `fit()` của tab vừa hiện — và đó là lựa
+        chọn, không phải chỗ bỏ sót.
+
+        Ở một bài IDE chưa từng mở tab Terminal, xterm chưa bao giờ đo được kích
+        thước thật (nó bị `hidden` từ lúc mount, và `fit()` no-op ở 0×0), nên PTY
+        còn ở mặc định 80×24. Lệnh vì thế echo ra ở bề rộng cũ rồi mới được
+        reflow khi `workspaceLayoutToken` đổi ⇒ rAF ⇒ `fit()` ⇒ `resize`. Người
+        học thấy một nhịp chữ xô lệch.
+
+        Đổi lại là gì, nếu hoãn `sendInput` tới sau lượt fit: lệnh sẽ phụ thuộc
+        vào việc cha CÓ áp tab mới hay không. `activeTab` là prop ĐIỀU KHIỂN —
+        panel chỉ được YÊU CẦU đổi — nên một cha từ chối (hoặc đổi ý) biến một
+        cú bấm "chạy" thành không-làm-gì, im lặng. Một nhịp reflow thì người
+        dùng thấy và tự hiểu; một lệnh không chạy thì không.
+
+        Nên: gửi ngay, chịu một nhịp reflow. KHÔNG dựng khoảng chờ phỏng đoán để
+        né nó — đó đúng là thứ SỬA ĐỔI 2 đã gỡ, và cái đua nó che sẽ quay lại
+        cùng nó.
+      */
       terminal.sendInput(`${command}\n`);
-      terminal.focus();
+      if (!terminalHidden) {
+        // Đang hiện sẵn ⇒ focus ngay. KHÔNG đi qua effect: `setChosenTab` với
+        // giá trị y hệt không sinh lượt render nào (React bỏ qua), nên effect
+        // sẽ không chạy lại và focus sẽ không bao giờ tới.
+        terminal.focus();
+      }
     },
-    [terminal],
+    [terminal, activeTab, hasEditor],
   );
+
+  useEffect(() => {
+    if (!focusAfterSwitch.current || terminal === null) {
+      return;
+    }
+    if (isEditorVisible(activeTab, hasEditor)) {
+      // Cha chưa áp tab mới (hoặc đã đổi ý). Giữ cờ, chờ lượt sau.
+      return;
+    }
+    focusAfterSwitch.current = false;
+    terminal.focus();
+  }, [activeTab, hasEditor, terminal]);
 
   /*
     Nút mở ra cửa sổ riêng (§C7). Tab Editor đi thẳng tới Theia do gateway phục

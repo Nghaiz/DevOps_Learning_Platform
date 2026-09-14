@@ -1,3 +1,4 @@
+import type { StaticTextKey } from '@devops-platform/copy';
 import type { BadgeVariant } from '@devops-platform/ui';
 import type { ProblemDifficulty, ProblemState } from '@devops-platform/games';
 
@@ -15,6 +16,18 @@ import type { ProblemDifficulty, ProblemState } from '@devops-platform/games';
  * chụp màn hình.
  *
  * Ánh xạ tường minh, và `satisfies Record<…>` bắt nó phải đủ bốn bậc.
+ *
+ * ## Chữ không còn ở đây, chỉ còn KHOÁ (P16 / 16.G2)
+ *
+ * `STATE_LABELS` từng giữ ba chuỗi tiếng Việt. Chúng đã sang
+ * `packages/copy/src/surfaces/author.ts` dưới tiền tố `author.problem.state.`,
+ * và bảng dưới đây trả `StaticTextKey`. Đổi này không phải chuyện phong cách: một
+ * bảng chuỗi ở tầng ứng dụng thì cổng gạch ngang dài và cổng mất dấu của
+ * `packages/copy` không soi tới, nên hai luật đó không có hiệu lực trên nó.
+ *
+ * ⛔ KHÔNG gộp với `author.state.*` của `components/author/content-state.ts`.
+ * Đó là `ContentState` (bốn giá trị, có `publishing`); đây là `ProblemState`
+ * (ba giá trị). Chúng trùng chữ ở hai mục và không trùng miền.
  */
 export const DIFFICULTY_BADGE = {
   easy: 'difficulty-basic',
@@ -23,10 +36,10 @@ export const DIFFICULTY_BADGE = {
   expert: 'difficulty-expert',
 } satisfies Record<ProblemDifficulty, BadgeVariant>;
 
-export const STATE_LABELS: Readonly<Record<ProblemState, string>> = {
-  draft: 'Nháp',
-  published: 'Đã xuất bản',
-  archived: 'Lưu trữ',
+export const STATE_KEYS: Readonly<Record<ProblemState, StaticTextKey>> = {
+  draft: 'author.problem.state.draft',
+  published: 'author.problem.state.published',
+  archived: 'author.problem.state.archived',
 };
 
 /**
@@ -44,6 +57,13 @@ export const STATE_FILTERS = ['all', 'draft', 'published', 'archived'] as const;
 
 export type StateFilter = (typeof STATE_FILTERS)[number];
 
-export function filterLabel(filter: StateFilter): string {
-  return filter === 'all' ? 'Tất cả' : STATE_LABELS[filter];
+/**
+ * Trả KHOÁ chứ không trả nhãn, và tên hàm nói ra điều đó.
+ *
+ * Cùng lý do `filterLabel` của `components/author/content-state.ts` đổi thành
+ * `filterLabelKey`: giữ tên cũ cho một kiểu trả về mới là cách chắc chắn để nơi
+ * gọi tiếp theo dựng thẳng nó vào JSX và in ra chuỗi khoá.
+ */
+export function filterLabelKey(filter: StateFilter): StaticTextKey {
+  return filter === 'all' ? 'author.problem.filter-all' : STATE_KEYS[filter];
 }

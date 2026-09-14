@@ -14,6 +14,7 @@ import {
   Input,
   Label,
 } from '@devops-platform/ui';
+import { t } from '@devops-platform/copy';
 import { authClient } from '../../lib/auth-client';
 import {
   MIN_PASSWORD_LENGTH,
@@ -48,11 +49,11 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Mật khẩu</CardTitle>
+          <CardTitle as="h2">{t('me.password.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <Alert>
-            <AlertTitle>Không có mật khẩu để đổi</AlertTitle>
+            <AlertTitle>{t('me.password.hidden-title')}</AlertTitle>
             <AlertDescription>{section.reason}</AlertDescription>
           </Alert>
         </CardContent>
@@ -82,7 +83,9 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
         revokeOtherSessions: false,
       });
       if (result.error != null) {
-        setError(describePasswordChangeError(result.error.code ?? null, result.error.message ?? null));
+        setError(
+          describePasswordChangeError(result.error.code ?? null, result.error.message ?? null),
+        );
         return;
       }
       setDone(true);
@@ -104,15 +107,15 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
         }}
       >
         <CardHeader>
-          <CardTitle>Mật khẩu</CardTitle>
+          <CardTitle as="h2">{t('me.password.title')}</CardTitle>
           <CardDescription>
-            Cần mật khẩu hiện tại để xác nhận. Mật khẩu mới tối thiểu {MIN_PASSWORD_LENGTH} ký tự.
+            {t('me.password.description', { min: MIN_PASSWORD_LENGTH })}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex max-w-md flex-col gap-4">
           <PasswordField
             id={`${fieldId}-current`}
-            label="Mật khẩu hiện tại"
+            label={t('me.password.field.current')}
             autoComplete="current-password"
             value={current}
             onChange={(value) => {
@@ -122,7 +125,7 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
           />
           <PasswordField
             id={`${fieldId}-next`}
-            label="Mật khẩu mới"
+            label={t('me.password.field.next')}
             autoComplete="new-password"
             value={next}
             onChange={(value) => {
@@ -132,7 +135,7 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
           />
           <PasswordField
             id={`${fieldId}-confirm`}
-            label="Nhập lại mật khẩu mới"
+            label={t('me.password.field.confirm')}
             autoComplete="new-password"
             value={confirm}
             onChange={(value) => {
@@ -149,15 +152,13 @@ export function PasswordForm({ hasPassword }: { readonly hasPassword: boolean })
 
           {done && (
             <Alert variant="success">
-              <AlertDescription>
-                Đã đổi mật khẩu. Các phiên đăng nhập khác của bạn vẫn giữ nguyên.
-              </AlertDescription>
+              <AlertDescription>{t('me.password.done')}</AlertDescription>
             </Alert>
           )}
 
           <div>
             <Button type="submit" loading={saving}>
-              Đổi mật khẩu
+              {t('me.password.submit')}
             </Button>
           </div>
         </CardContent>

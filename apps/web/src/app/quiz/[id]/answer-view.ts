@@ -1,3 +1,4 @@
+import { type CopyRef, type StaticTextKey } from '@devops-platform/copy';
 import type {
   QuizForLearner,
   QuizMultipleAnswerRule,
@@ -33,18 +34,20 @@ import type {
  */
 
 /**
- * Câu chữ của quy tắc chấm, chọn theo `quiz.multipleAnswerRule` TRONG PAYLOAD.
+ * KHOÁ của quy tắc chấm, chọn theo `quiz.multipleAnswerRule` TRONG PAYLOAD.
  *
- * `Record<QuizMultipleAnswerRule, …>` chứ không một chuỗi viết cứng: server sở
- * hữu luật chấm, và một câu chữ FE tự viết sẽ trôi khỏi cách chấm thật ở lần
- * đầu tiên server đổi luật (`docs/quiz-format.md` § "Quy tắc này hiện trên UI
- * TRƯỚC khi làm"). Kiểu `Record` trên union còn làm việc thêm một luật chấm
- * thứ hai ĐỎ ở typecheck thay vì lặng lẽ hiện chuỗi rỗng.
+ * `Record<QuizMultipleAnswerRule, StaticTextKey>` chứ không một chuỗi viết cứng:
+ * server sở hữu luật chấm, và một câu chữ FE tự viết sẽ trôi khỏi cách chấm
+ * thật ở lần đầu tiên server đổi luật (`docs/quiz-format.md` § "Quy tắc này
+ * hiện trên UI TRƯỚC khi làm"). Kiểu `Record` trên union còn làm việc thêm một
+ * luật chấm thứ hai ĐỎ ở typecheck thay vì lặng lẽ hiện chuỗi rỗng.
+ *
+ * Chữ nằm ở `packages/copy` (`catalog.quiz.rule-*`); ở đây chỉ còn phép ánh xạ
+ * luật sang khoá.
  */
-export const MULTIPLE_ANSWER_RULE_TEXT: Record<QuizMultipleAnswerRule, string> = {
-  'all-or-nothing':
-    'Câu nhiều đáp án: phải chọn ĐÚNG và ĐỦ mọi đáp án đúng mới được tính điểm — không có điểm một phần.',
-};
+export const MULTIPLE_ANSWER_RULE_KEYS = {
+  'all-or-nothing': 'catalog.quiz.rule-all-or-nothing',
+} as const satisfies Record<QuizMultipleAnswerRule, StaticTextKey>;
 
 /**
  * Vai trò hiển thị của MỘT lựa chọn, SAU khi đã có kết quả.
@@ -79,10 +82,15 @@ export interface AnswerProgress {
   readonly answeredCount: number;
   readonly questionCount: number;
   readonly unansweredCount: number;
-  /** Nhãn hiện cho người học. Nói đúng thứ client biết trước khi nộp. */
-  readonly label: string;
-  /** `null` khi đã trả lời hết — không có gì để nhắc thêm. */
-  readonly caveat: string | null;
+  /**
+   * Nhãn hiện cho người học. Nói đúng thứ client biết trước khi nộp.
+   *
+   * `CopyRef` chứ không phải câu đã ghép, theo §1.6 của `p16-copy.md`: một hàm
+   * ghép câu tại chỗ thì cổng chữ chỉ soi được nhánh mà test gọi tới.
+   */
+  readonly label: CopyRef;
+  /** `null` khi đã trả lời hết, không có gì để nhắc thêm. */
+  readonly caveat: CopyRef | null;
 }
 
 /**
@@ -106,10 +114,13 @@ export function summarizeAnswers(
     answeredCount,
     questionCount,
     unansweredCount,
-    label: `Đã chọn đáp án cho ${String(answeredCount)}/${String(questionCount)} câu`,
+    label: {
+      key: 'catalog.quiz.progress',
+      params: { answered: answeredCount, total: questionCount },
+    },
     caveat:
       unansweredCount > 0
-        ? `Còn ${String(unansweredCount)} câu chưa chọn — câu bỏ trống tính là sai và vẫn nằm ở mẫu số.`
+        ? { key: 'catalog.quiz.progress-caveat', params: { blank: unansweredCount } }
         : null,
   };
 }

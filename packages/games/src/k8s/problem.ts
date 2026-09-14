@@ -19,6 +19,7 @@
  */
 
 import type { ClusterSpec, Objective, ResourceKind } from './contract.ts';
+import { t } from '@devops-platform/copy';
 
 // ── Phân loại ───────────────────────────────────────────────────────────────
 
@@ -47,17 +48,17 @@ export const PROBLEM_TOPICS = [
 
 export type ProblemTopic = (typeof PROBLEM_TOPICS)[number];
 
-/** Nhãn tiếng Việt hiển thị trên bộ lọc. SSOT — đừng viết lại ở tầng UI. */
+/** Giữ API nhãn cũ; mọi chữ hiển thị lấy từ bản đồ copy duy nhất. */
 export const PROBLEM_TOPIC_LABELS: Readonly<Record<ProblemTopic, string>> = {
-  workload: 'Workload',
-  scheduling: 'Lập lịch',
-  networking: 'Mạng',
-  storage: 'Lưu trữ',
-  config: 'Cấu hình',
-  security: 'Bảo mật',
-  scaling: 'Co giãn',
-  observability: 'Quan sát',
-  troubleshooting: 'Gỡ sự cố',
+  workload: t('problem.topic.workload'),
+  scheduling: t('problem.topic.scheduling'),
+  networking: t('problem.topic.networking'),
+  storage: t('problem.topic.storage'),
+  config: t('problem.topic.config'),
+  security: t('problem.topic.security'),
+  scaling: t('problem.topic.scaling'),
+  observability: t('problem.topic.observability'),
+  troubleshooting: t('problem.topic.troubleshooting'),
 };
 
 /**
@@ -75,10 +76,10 @@ export const PROBLEM_DIFFICULTIES = ['easy', 'medium', 'hard', 'expert'] as cons
 export type ProblemDifficulty = (typeof PROBLEM_DIFFICULTIES)[number];
 
 export const PROBLEM_DIFFICULTY_LABELS: Readonly<Record<ProblemDifficulty, string>> = {
-  easy: 'Dễ',
-  medium: 'Trung bình',
-  hard: 'Khó',
-  expert: 'Rất khó',
+  easy: t('problem.difficulty.easy'),
+  medium: t('problem.difficulty.medium'),
+  hard: t('problem.difficulty.hard'),
+  expert: t('problem.difficulty.expert'),
 };
 
 /** Vòng đời bài. `draft` không hiện với người học, kể cả khi biết URL. */

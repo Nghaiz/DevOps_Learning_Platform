@@ -13,6 +13,9 @@ export default tseslint.config(
       '**/.next/**',
       '**/.turbo/**',
       '**/coverage/**',
+      // Disposable browser captures and local runtime helpers; maintained E2E
+      // specs and e2e/scripts remain linted.
+      '**/e2e/.artifacts/**',
       '**/gen/**',
       // next-env.d.ts do Next TỰ SINH và tự ghi đè mỗi lần dev/build — không
       // sửa tay được (triple-slash reference là format Next chọn), nên không lint.

@@ -61,6 +61,16 @@ spec:
             - name: http
               containerPort: {{ .Values.web.service.port }}
           env:
+            {{- with .Values.web.env.smtpExistingSecret }}
+            {{- $smtpSecret := . }}
+            {{- range list "SMTP_HOST" "SMTP_PORT" "SMTP_TLS" "SMTP_USER" "SMTP_PASSWORD" "SMTP_FROM" }}
+            - name: {{ . }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $smtpSecret | quote }}
+                  key: {{ . }}
+            {{- end }}
+            {{- end }}
             # DATABASE_URL/REDIS_URL: OMIT khi rỗng thay vì set chuỗi rỗng —
             # env.ts coi '' y như thiếu (throw). /api/health cố ý không đụng DB
             # nên probe vẫn phản ánh đúng "process sống".
@@ -218,12 +228,32 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+            # ⚠ `timeoutSeconds` mặc định của Kubernetes là 1 GIÂY, và một giây
+            # là quá chặt cho một ứng dụng SSR Node bị giới hạn 250m CPU trên
+            # một node chạy CẢ control-plane LẪN cụm quan sát.
+            #
+            # Đo được 2026-09-09: node ở load average 82 (12 vCPU, 1.4% idle,
+            # riêng prometheus+loki+promtail+grafana+node_exporter đã ~140% CPU),
+            # `/api/health` quá 1s, readiness đỏ, rồi liveness giết container —
+            # trong khi `next-server` chỉ dùng 12.5% CPU và ứng dụng hoàn toàn
+            # khoẻ. Triệu chứng phía người dùng là 502 Bad Gateway từ Traefik,
+            # tức nó đọc ra như "web hỏng" chứ không đọc ra như "node hết CPU".
+            #
+            # 5 giây vẫn phát hiện được một tiến trình CHẾT (nó từ chối kết nối
+            # ngay, không đợi hết giờ) — thứ nới ra là dung sai với một node
+            # đang bận, không phải dung sai với một app hỏng.
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /api/health
               port: http
             initialDelaySeconds: 15
             periodSeconds: 20
+            timeoutSeconds: 5
+            # Giết một container vì ba lần chậm liên tiếp là quá vội khi node có
+            # thể bận vài chục giây liền; readiness đã gỡ pod khỏi Service trong
+            # lúc đó nên không ai bị phục vụ bởi một pod đang ngộp.
+            failureThreshold: 6
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}
           {{- if ne .Values.platform.grpcMtlsMode "off" }}

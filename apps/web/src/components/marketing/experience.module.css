@@ -1,0 +1,713 @@
+/* The canvas is a viewport-sized transparent layer; every article stays in normal document flow. */
+.journey {
+  position: relative;
+  isolation: isolate;
+  color: var(--journey-ink);
+  background: var(--journey-bg);
+}
+.sceneLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.masthead {
+  position: absolute;
+  inset: 16px 5% auto;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+.identity {
+  max-width: 165px;
+  color: var(--journey-muted);
+  font:
+    9px/1.6 var(--font-mono),
+    monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  color: var(--journey-ink);
+  font-size: 10px;
+}
+.skip:hover {
+  color: var(--journey-coral);
+}
+.chapter {
+  --chapter-color: var(--journey-coral);
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 95svh;
+  padding: 52px 24px 22px;
+  scroll-margin-top: 57px;
+}
+.chapter[data-journey-chapter='0'] {
+  padding-top: 105px;
+}
+.chapter[data-journey-chapter='1'] {
+  --chapter-color: var(--journey-cyan);
+}
+.chapter[data-journey-chapter='2'] {
+  --chapter-color: var(--journey-violet);
+}
+.chapter[data-journey-chapter='3'] {
+  --chapter-color: var(--journey-mint);
+}
+.chapterAtmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 75% 65%,
+    color-mix(in srgb, var(--chapter-color) 10%, transparent),
+    transparent 63%
+  );
+}
+.chapter:nth-of-type(even) .chapterAtmosphere {
+  background: radial-gradient(
+    ellipse at 20% 55%,
+    color-mix(in srgb, var(--chapter-color) 9%, transparent),
+    transparent 65%
+  );
+}
+.story {
+  position: relative;
+  align-self: center;
+  min-width: 0;
+  transform: translateY(var(--section-travel, 0px));
+}
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  color: var(--chapter-color);
+  font:
+    10px/1.5 var(--font-mono),
+    monospace;
+  letter-spacing: 0.09em;
+}
+.kicker > span {
+  width: 18px;
+  height: 2px;
+  background: currentColor;
+}
+.title {
+  margin: 0;
+  color: var(--journey-ink);
+  white-space: pre-line;
+  font-size: clamp(2.1rem, 8.8vw, 3.5rem);
+  font-weight: 600;
+  letter-spacing: -0.057em;
+  line-height: 1.19;
+  text-wrap: balance;
+}
+.title > span {
+  display: block;
+  color: var(--chapter-color);
+}
+.description {
+  max-width: 420px;
+  margin-top: 22px;
+  color: var(--journey-muted);
+  font-size: 13px;
+  line-height: 1.85;
+  text-wrap: pretty;
+}
+.entryActions > div {
+  margin-top: 24px;
+  gap: 12px 18px;
+}
+.entryActions a {
+  font-size: 11px;
+}
+.entryActions a:first-child {
+  padding: 11px 14px;
+}
+.command {
+  margin-top: 28px;
+  padding-left: 15px;
+  border-left: 1px solid color-mix(in srgb, var(--chapter-color) 42%, transparent);
+}
+.command code {
+  display: block;
+  color: var(--chapter-color);
+  font:
+    11px/1.8 var(--font-mono),
+    monospace;
+  overflow-wrap: anywhere;
+}
+.command > span {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin-top: 7px;
+  color: var(--journey-muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.visualAnchor {
+  --anchor-scale: 0.98;
+  position: relative;
+  width: 100%;
+  min-height: 310px;
+  height: 42svh;
+  max-height: 460px;
+  align-self: center;
+  pointer-events: none;
+}
+.chapterNumber {
+  position: absolute;
+  z-index: -1;
+  right: 0;
+  top: 9%;
+  color: color-mix(in srgb, var(--chapter-color) 9%, transparent);
+  font:
+    200 10rem/1 var(--font-mono),
+    monospace;
+  letter-spacing: -0.12em;
+  transform: translateY(calc(var(--section-travel, 0px) * -2));
+}
+.sceneCaption {
+  position: absolute;
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  color: var(--journey-muted);
+  font-size: 9px;
+  line-height: 1.7;
+}
+.sceneCaption > span {
+  width: 4px;
+  height: 4px;
+  flex-shrink: 0;
+  background: var(--chapter-color);
+}
+.journeyFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--journey-muted) 20%, transparent);
+}
+.scrollHint {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--journey-muted);
+  font-size: 10px;
+}
+.stageNavigation {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+.stageNavigation button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 0;
+  color: var(--journey-muted);
+  font:
+    9px/1.6 var(--font-mono),
+    monospace;
+  text-align: center;
+  white-space: normal;
+  cursor: pointer;
+  border-top: 2px solid transparent;
+  transition:
+    color 180ms ease,
+    border-color 180ms ease;
+}
+.stageNavigation button:hover {
+  color: var(--journey-ink);
+}
+.stageNavigation button[aria-current='step'] {
+  border-top-color: var(--journey-coral);
+  color: var(--journey-coral);
+}
+.skip:focus-visible,
+.stageNavigation button:focus-visible,
+.eventButtons button:focus-visible {
+  outline: 2px solid var(--journey-amber);
+  outline-offset: 3px;
+}
+.progressTrack {
+  position: fixed;
+  z-index: 45;
+  top: 57px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  pointer-events: none;
+}
+.progressTrack > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--journey-coral),
+    var(--journey-cyan),
+    var(--journey-violet),
+    var(--journey-mint)
+  );
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.eventControls {
+  margin-top: 22px;
+}
+.eventButtons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.eventButtons button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--journey-coral) 65%, transparent);
+  border-radius: 4px;
+  color: var(--journey-coral);
+  background: color-mix(in srgb, var(--journey-coral) 7%, var(--journey-bg));
+  cursor: pointer;
+  font-size: 10px;
+}
+.eventButtons button:nth-child(2) {
+  border-color: color-mix(in srgb, var(--journey-mint) 65%, transparent);
+  color: var(--journey-mint);
+  background: color-mix(in srgb, var(--journey-mint) 7%, var(--journey-bg));
+}
+.eventButtons button:hover:not(:disabled) {
+  background: var(--journey-panel);
+  border-color: currentColor;
+}
+.eventButtons button:disabled {
+  color: var(--journey-muted);
+  border-color: color-mix(in srgb, var(--journey-muted) 24%, transparent);
+  background: var(--journey-bg);
+  cursor: default;
+}
+.eventControls > p {
+  max-width: 360px;
+  margin-top: 12px;
+  color: var(--journey-muted);
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+/* The renderer continues to travel beside and behind genuine content, not additional blank spacers. */
+.continuation {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+}
+.continuationAnchor {
+  --anchor-scale: 0.68;
+  position: absolute;
+  width: 30%;
+  height: 300px;
+  right: 0;
+  top: 0;
+  pointer-events: none;
+}
+.continuation[data-kind='catalog'] .continuationAnchor {
+  --anchor-scale: 0.42;
+  right: auto;
+  left: 0;
+  top: -70px;
+}
+.continuation[data-kind='curriculum'] .continuationAnchor {
+  --anchor-scale: 0.65;
+  right: 0;
+  width: 20%;
+  top: 38%;
+}
+.continuation[data-kind='practice'] .continuationAnchor {
+  --anchor-scale: 0.7;
+  right: auto;
+  left: 0;
+  width: 20%;
+  top: 32%;
+}
+.continuation[data-kind='closing'] .continuationAnchor {
+  --anchor-scale: 0.85;
+  right: 0;
+  top: 25%;
+}
+.continuationContent {
+  position: relative;
+  transform: translateY(var(--section-travel, 0px));
+}
+.continuationContent > section {
+  background: transparent;
+}
+.continuation[data-kind='catalog'] {
+  border-block: 1px solid color-mix(in srgb, var(--journey-cyan) 18%, transparent);
+}
+.continuation[data-kind='catalog'] .continuationContent {
+  background: color-mix(in srgb, var(--journey-bg) 72%, transparent);
+}
+.continuation[data-kind='curriculum'] .continuationContent {
+  background: linear-gradient(
+    90deg,
+    var(--journey-bg),
+    color-mix(in srgb, var(--journey-bg) 75%, transparent) 65%,
+    transparent
+  );
+}
+.continuation[data-kind='practice'] .continuationContent {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--journey-bg) 75%, transparent),
+    var(--journey-bg) 70%
+  );
+}
+.continuation[data-kind='closing'] .continuationContent {
+  background: linear-gradient(
+    90deg,
+    var(--journey-bg),
+    color-mix(in srgb, var(--journey-bg) 70%, transparent) 60%,
+    transparent
+  );
+}
+/* A sculptural CSS diagram remains intentional even when no GPU is available. */
+.schematic {
+  position: absolute;
+  inset: 10% 9% 18%;
+  display: grid;
+  place-items: center;
+}
+.schematicFlow {
+  display: flex;
+  align-items: end;
+  width: 100%;
+  gap: 7%;
+  transform: rotateX(14deg) rotateY(-12deg) rotateZ(-5deg);
+  transform-style: preserve-3d;
+}
+.schematicWorkstation {
+  width: 37%;
+  flex-shrink: 0;
+}
+.schematicScreen {
+  height: 100px;
+  padding: 13px;
+  background: var(--journey-panel);
+  border: 5px solid var(--journey-coral);
+  border-radius: 7px;
+  box-shadow: 7px 7px 0 color-mix(in srgb, var(--journey-coral) 40%, var(--journey-bg));
+  color: var(--journey-coral);
+}
+.schematicScreen svg {
+  width: 22px;
+  height: 22px;
+}
+.schematicScreen i {
+  display: block;
+  width: 80%;
+  height: 3px;
+  background: var(--journey-mint);
+  margin-top: 5px;
+}
+.schematicScreen i:nth-child(3) {
+  width: 55%;
+}
+.schematicScreen i:nth-child(4) {
+  width: 65%;
+}
+.schematicStand {
+  height: 22px;
+  width: 13px;
+  margin-inline: auto;
+  background: var(--journey-coral);
+}
+.schematicKeyboard {
+  height: 11px;
+  background: var(--journey-metal);
+  transform: skew(-22deg);
+  border-radius: 2px;
+  width: 90%;
+  margin-inline: auto;
+}
+.schematicContainers {
+  display: grid;
+  gap: 10px;
+  width: 22%;
+  padding-bottom: 8px;
+}
+.schematicContainers > div {
+  display: grid;
+  place-items: center;
+  height: 48px;
+  border: 1px solid var(--journey-cyan);
+  color: var(--journey-bg);
+  background: var(--journey-cyan);
+  box-shadow: 6px 5px 0 color-mix(in srgb, var(--journey-cyan) 43%, var(--journey-bg));
+  border-radius: 3px;
+}
+.schematicCluster {
+  display: flex;
+  gap: 5px;
+  align-items: end;
+  width: 30%;
+  padding-bottom: 7px;
+}
+.schematicNode {
+  width: 32%;
+  height: 100px;
+  padding: 15px 4px 6px;
+  color: var(--journey-violet);
+  background: var(--journey-panel);
+  border: 1px solid var(--journey-violet);
+  border-radius: 4px;
+  box-shadow: 5px 5px 0 color-mix(in srgb, var(--journey-violet) 30%, var(--journey-bg));
+}
+.schematicNode:nth-child(2) {
+  height: 120px;
+}
+.schematicNode svg {
+  width: 100%;
+}
+.schematicNode i {
+  display: block;
+  height: 2px;
+  background: var(--journey-metal);
+  margin-top: 6px;
+}
+.schematicNode b {
+  display: block;
+  width: 4px;
+  height: 4px;
+  margin-top: 10px;
+  background: var(--journey-mint);
+}
+.schematicCluster[data-event='fault'] .schematicNode:first-child {
+  border-color: var(--journey-coral);
+  color: var(--journey-coral);
+}
+.schematicCluster[data-event='fault'] .schematicNode:first-child b {
+  background: var(--journey-coral);
+}
+
+@media (min-width: 768px) {
+  .masthead {
+    inset: 22px 5% auto;
+  }
+  .identity {
+    max-width: none;
+    font-size: 10px;
+  }
+  .skip {
+    font-size: 12px;
+  }
+  .chapter {
+    padding: 90px 6% 48px;
+  }
+  .chapter[data-journey-chapter='0'] {
+    padding-top: 120px;
+  }
+  .title {
+    max-width: 720px;
+    font-size: clamp(3rem, 6.5vw, 5.3rem);
+  }
+  .description {
+    font-size: 14px;
+  }
+  .visualAnchor {
+    height: 55svh;
+    max-height: 600px;
+  }
+  .sceneCaption {
+    font-size: 10px;
+  }
+  .chapterNumber {
+    font-size: 16rem;
+    right: 10%;
+  }
+  .journeyFooter {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .stageNavigation {
+    min-width: 420px;
+  }
+  .stageNavigation button {
+    font-size: 10px;
+    padding: 15px 10px;
+  }
+  .schematic {
+    inset-inline: 18%;
+  }
+}
+@media (min-width: 1024px) {
+  .chapter {
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.1fr);
+    align-items: center;
+    column-gap: 3%;
+    min-height: 100svh;
+    padding: 70px 5.5%;
+  }
+  .chapter[data-journey-chapter='0'] {
+    min-height: calc(100svh - 57px);
+    padding-top: 90px;
+    padding-bottom: 32px;
+  }
+  .story {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .chapter[data-journey-chapter='1'] .story,
+  .chapter[data-journey-chapter='3'] .story {
+    grid-column: 2;
+    padding-left: 9%;
+  }
+  .chapter[data-journey-chapter='1'] .visualAnchor,
+  .chapter[data-journey-chapter='3'] .visualAnchor {
+    grid-column: 1;
+  }
+  .visualAnchor {
+    --anchor-scale: 0.78;
+    grid-column: 2;
+    grid-row: 1;
+    height: 74svh;
+    min-height: 500px;
+    max-height: 800px;
+  }
+  .title {
+    font-size: clamp(2.8rem, 4.55vw, 5.4rem);
+    line-height: 1.2;
+  }
+  .description {
+    max-width: 390px;
+    margin-top: 28px;
+    font-size: 14px;
+    line-height: 1.9;
+  }
+  .kicker {
+    margin-bottom: 27px;
+    font-size: 11px;
+  }
+  .entryActions > div {
+    margin-top: 30px;
+    gap: 12px 20px;
+  }
+  .entryActions a {
+    font-size: 12px;
+  }
+  .entryActions a:first-child {
+    padding: 13px 17px;
+  }
+  .command {
+    margin-top: 36px;
+  }
+  .command code {
+    font-size: 12px;
+  }
+  .command > span {
+    font-size: 11px;
+  }
+  .sceneCaption {
+    left: 6%;
+    right: 3%;
+    bottom: 8%;
+  }
+  .chapterNumber {
+    font-size: 18rem;
+    right: 4%;
+    top: 5%;
+  }
+  .journeyFooter {
+    grid-column: 1 / -1;
+    padding-top: 0;
+  }
+  .stageNavigation {
+    min-width: 52%;
+  }
+  .stageNavigation button {
+    padding-block: 20px;
+    font-size: 11px;
+  }
+  .eventButtons button {
+    font-size: 11px;
+    padding: 10px 12px;
+  }
+  .schematic {
+    inset: 24% 5% 20%;
+  }
+  .schematicScreen {
+    height: 160px;
+    padding: 24px 20px;
+    border-width: 7px;
+  }
+  .schematicScreen svg {
+    width: 34px;
+    height: 34px;
+  }
+  .schematicScreen i {
+    height: 4px;
+    margin-top: 8px;
+  }
+  .schematicStand {
+    height: 35px;
+    width: 22px;
+  }
+  .schematicKeyboard {
+    height: 18px;
+  }
+  .schematicContainers {
+    gap: 15px;
+  }
+  .schematicContainers > div {
+    height: 75px;
+  }
+  .schematicNode {
+    height: 150px;
+    padding: 20px 7px 8px;
+  }
+  .schematicNode:nth-child(2) {
+    height: 178px;
+  }
+  .schematicNode i {
+    height: 3px;
+    margin-top: 10px;
+  }
+}
+@media (min-width: 1600px) {
+  .chapter {
+    padding-inline: 7%;
+  }
+  .description {
+    font-size: 15px;
+  }
+  .visualAnchor {
+    --anchor-scale: 0.82;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stageNavigation button {
+    transition: none;
+  }
+  .story,
+  .continuationContent,
+  .chapterNumber,
+  .schematicFlow {
+    transform: none;
+  }
+}

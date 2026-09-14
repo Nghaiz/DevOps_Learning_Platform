@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import type { ReactElement } from 'react';
 import { Button, Label, Switch } from '@devops-platform/ui';
 import { TextAreaField, TextField, issueFor } from '../../../components/author/field';
@@ -27,7 +28,9 @@ export function NodeFields(props: {
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border p-4">
       <div className="flex items-start justify-between gap-3">
-        <h4 className="text-sm font-medium text-foreground">Node {String(props.index + 1)}</h4>
+        <h4 className="text-sm font-medium text-foreground">
+          {t('problem.cluster-fields-node')} {String(props.index + 1)}
+        </h4>
         <Button
           type="button"
           variant="ghost"
@@ -35,23 +38,23 @@ export function NodeFields(props: {
           disabled={!props.canRemove}
           onClick={props.onRemove}
         >
-          Xoá
+          {t('common.action.delete')}
         </Button>
       </div>
 
       <TextField
-        label="Tên node"
+        label={t('problem.node-fields-ten-node')}
         value={props.node.name}
         onChange={(name) => {
           props.onChange({ name });
         }}
         error={issueFor(props.issues, `${base}.name`)}
-        placeholder="node-1"
+        placeholder={t('problem.node-fields-node-1')}
       />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <TextField
-          label="CPU (milli-core, 1 core = 1000)"
+          label={t('problem.node-fields-cpu-milli-core-1-core-1000')}
           value={props.node.cpu}
           onChange={(cpu) => {
             props.onChange({ cpu });
@@ -60,7 +63,7 @@ export function NodeFields(props: {
           error={issueFor(props.issues, `${base}.cpu`)}
         />
         <TextField
-          label="Bộ nhớ (MiB)"
+          label={t('problem.cluster-to-spec-bo-nho-mib')}
           value={props.node.memory}
           onChange={(memory) => {
             props.onChange({ memory });
@@ -78,31 +81,31 @@ export function NodeFields(props: {
             props.onChange({ ready });
           }}
         />
-        <Label htmlFor={switchId}>Node ở trạng thái Ready</Label>
+        <Label htmlFor={switchId}>{t('problem.node-fields-node-o-trang-thai-ready')}</Label>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <TextAreaField
-          label="Nhãn"
+          label={t('problem.node-fields-nhan')}
           value={props.node.labels}
           onChange={(labels) => {
             props.onChange({ labels });
           }}
           rows={3}
           mono
-          placeholder={'disktype=ssd\nzone=a'}
-          hint="Mỗi dòng một cặp k=v."
+          placeholder={t('problem.node-labels-example')}
+          hint={t('problem.node-fields-moi-dong-mot-cap-k-v')}
         />
         <TextAreaField
-          label="Taint"
+          label={t('problem.node-fields-taint')}
           value={props.node.taints}
           onChange={(taints) => {
             props.onChange({ taints });
           }}
           rows={3}
           mono
-          placeholder="dedicated=gpu:NoSchedule"
-          hint="Mỗi dòng một taint."
+          placeholder={t('problem.node-fields-dedicated-gpu-noschedule')}
+          hint={t('problem.node-fields-moi-dong-mot-taint')}
         />
       </div>
     </div>

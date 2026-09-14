@@ -1,0 +1,30 @@
+{
+  "skill": "t1k:cook",
+  "mode": "parallel",
+  "task": "Complete Phase16 and listed debts; fully rebuild landing after user explicitly rejected cards and all ring/3D visuals.",
+  "scoutSummary": "Read phase16 contracts, current git history and local tree. Seed, CopyRef relocation, bundle checker and P15 already shipped; remaining author copy/reset delivery/browser proof needed. User replaced original landing design twice; latest removes the entire loop.",
+  "acceptanceCriteria": [
+    "All32 routes axe/CSP zero serious/critical violations; keyboard escapes real sandbox terminal.",
+    "All requested author/problem copy migrated with typed contracts and regression gates.",
+    "Password reset works through real SMTP sink with privacy, rate limits, expiry and cookie revocation.",
+    "New landing has no decorative rings/3D or card grids, works at390px with real interaction proof.",
+    "Fresh build/lint/typecheck/unit and bundle budget pass, plan/docs and independent review reflect final state."
+  ],
+  "touchpoints": [
+    "apps/web marketing, author, auth and e2e",
+    "packages/copy and games problem labels",
+    "packages/ui dark tokens",
+    "local sandbox runtime and SMTP configuration"
+  ],
+  "publicContracts": [
+    "plans/devops-learning-platform/contracts/p16-copy.md",
+    "plans/devops-learning-platform/contracts/p16-tokens.md",
+    "plans/devops-learning-platform/contracts/p16-workspace.md",
+    "Better Auth routes and shared games label exports"
+  ],
+  "blastRadius": [
+    "UI visible copy/landing/theme",
+    "Password reset security and SMTP operations",
+    "E2E runtime setup isolated namespace and RedisDB13"
+  ]
+}

@@ -449,7 +449,7 @@ export interface ObjectView {
 export interface EdgeView {
   readonly fromUid: string;
   readonly toUid: string;
-  readonly kind: 'owns' | 'selects' | 'mounts' | 'routes';
+  readonly kind: 'owns' | 'selects' | 'mounts' | 'routes' | 'runs-on';
   /** `false` = quan hệ ĐÁNG LẼ có nhưng đang đứt (selector lệch label) — vẽ nét đứt. */
   readonly healthy: boolean;
 }

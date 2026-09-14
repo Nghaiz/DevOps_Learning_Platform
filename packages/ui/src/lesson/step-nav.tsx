@@ -134,7 +134,7 @@ export function StepNav(props: StepNavProps): ReactElement {
               onClick={() => onSelect(item.key)}
               className={cn(
                 'flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm font-medium',
-                'transition-colors',
+                'transition-colors duration-[var(--motion-fast)] ease-out',
                 MOTION_FAST,
                 /*
                  * `ring-current`, KHÔNG phải `ring-ring`. Bước đang chọn là

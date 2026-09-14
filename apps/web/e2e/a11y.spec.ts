@@ -38,7 +38,16 @@ import { MIN_SCREENS, SCREENS, roleSatisfies, screenLabel, type Screen } from '.
  * vì hạ ngưỡng chung xuống `moderate` (sẽ kéo theo hàng chục luật khác và biến
  * cổng thành tiếng ồn).
  */
-const MUST_NOT_FIRE = ['landmark-unique', 'landmark-no-duplicate-main', 'landmark-one-main'];
+// P16 runtime exposed 15 pages whose missing h1 or skipped heading level was
+// moderate, so they passed the old severity floor. Keep both semantic rules
+// explicit: restoring that defect must fail even when its severity is unchanged.
+const MUST_NOT_FIRE = [
+  'landmark-unique',
+  'landmark-no-duplicate-main',
+  'landmark-one-main',
+  'heading-order',
+  'page-has-heading-one',
+];
 
 type Verdict = { blocking: Result[]; other: Result[]; passCount: number };
 
@@ -165,6 +174,20 @@ test('đối chứng dương — axe PHẢI bắt được một trang cố tìn
 });
 
 // ────────────────────────────────────────────────────────── màn hình công khai
+
+test('đối chứng heading — thiếu h1 và nhảy cấp đều bị cổng ngữ nghĩa chặn', async ({
+  page,
+}, testInfo) => {
+  await page.goto('/login');
+  await page.setContent(`<!doctype html><html lang="vi"><head><title>Đối chứng heading</title></head>
+    <body><main><h2>Mục chính thiếu h1</h2><h4>Mục con nhảy cấp</h4>
+    <p>Nội dung cố tình vi phạm cấu trúc heading.</p></main></body></html>`);
+  const verdict = await scan(page, testInfo, 'heading-negative-control');
+  expect(verdict.blocking.map((violation) => violation.id)).toEqual(
+    expect.arrayContaining(['heading-order', 'page-has-heading-one']),
+  );
+  expect(() => assertClean(verdict, 'heading-negative-control')).toThrow();
+});
 
 test.describe('a11y — công khai (chưa đăng nhập)', () => {
   // `/login` chuyển hướng về `/me` khi ĐÃ có phiên (proxy.ts AUTH_ONLY_PATHS),

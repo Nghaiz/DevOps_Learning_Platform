@@ -1,3 +1,4 @@
+import { errText, t } from '@devops-platform/copy';
 import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_TOPICS,
@@ -47,7 +48,11 @@ export function exportProblemJson(form: ProblemFormState, code: string | null): 
   if (body === null) {
     // Không xuất một bài chưa chuyển được sang payload: file đó sẽ nhập lại
     // không nổi, và người mang nó đi chỉ phát hiện ra ở đầu bên kia.
-    throw new Error('Bài đang có ô sai nên chưa xuất được. Sửa các lỗi được nêu rồi xuất lại.');
+    throw new Error(
+      errText(
+        'problem.problem-json-bai-dang-co-o-sai-nen-chua-xuat-duoc-sua-cac-loi-duoc-neu-roi-xuat-lai',
+      ),
+    );
   }
   const payload: ProblemExport = { format: 'k8s-problem', version: 1, code, problem: body };
   return JSON.stringify(payload, null, 2);
@@ -81,12 +86,19 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    return { ok: false, message: `JSON không đọc được: ${error instanceof Error ? error.message : 'lỗi cú pháp'}` };
+    return {
+      ok: false,
+      message: errText('problem.cluster-json-fields-json-khong-doc-duoc', {
+        value1: String(
+          error instanceof Error ? error.message : t('problem.cluster-json-fields-loi-cu-phap'),
+        ),
+      }),
+    };
   }
 
   const outer = asRecord(parsed);
   if (outer === null) {
-    return { ok: false, message: 'Nội dung phải là một object JSON.' };
+    return { ok: false, message: errText('problem.problem-json-noi-dung-phai-la-mot-object-json') };
   }
   // Nhận cả file bọc (`{ format, problem }`) lẫn object bài trần — bài trần là
   // thứ người ta hay chép ra từ một chỗ khác, và từ chối nó không bảo vệ được gì.
@@ -94,7 +106,12 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
 
   const cluster = asRecord(body['initialState']);
   if (cluster === null || !Array.isArray(cluster['nodes'])) {
-    return { ok: false, message: 'Thiếu `initialState` hoặc `initialState.nodes` không phải mảng.' };
+    return {
+      ok: false,
+      message: errText(
+        'problem.problem-json-thieu-initialstate-hoac-initialstate-nodes-khong-phai-mang',
+      ),
+    };
   }
 
   const dropped: string[] = [];
@@ -103,7 +120,11 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
   const difficulty = asStringOr(body['difficulty'], '');
   const validDifficulty = (PROBLEM_DIFFICULTIES as readonly string[]).includes(difficulty);
   if (difficulty !== '' && !validDifficulty) {
-    dropped.push(`độ khó "${difficulty}" không thuộc bốn bậc hợp lệ — đã đặt lại thành "Dễ"`);
+    dropped.push(
+      t('problem.problem-json-do-kho-khong-thuoc-bon-bac-hop-le-da-dat-lai-thanh-de', {
+        difficulty: String(difficulty),
+      }),
+    );
   }
 
   const topics: ProblemTopic[] = [];
@@ -111,7 +132,9 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
     if (typeof topic === 'string' && (PROBLEM_TOPICS as readonly string[]).includes(topic)) {
       topics.push(topic as ProblemTopic);
     } else {
-      dropped.push(`chủ đề "${String(topic)}" không có trong tập đóng`);
+      dropped.push(
+        t('problem.problem-json-chu-de-khong-co-trong-tap-dong', { topic: String(topic) }),
+      );
     }
   }
 
@@ -122,7 +145,11 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
       if (typeof kind === 'string' && RESOURCE_KINDS.includes(kind as ResourceKind)) {
         allowed.push(kind as ResourceKind);
       } else {
-        dropped.push(`loại tài nguyên "${String(kind)}" không có trong 26 loại`);
+        dropped.push(
+          t('problem.problem-json-loai-tai-nguyen-khong-co-trong-26-loai', {
+            kind: String(kind),
+          }),
+        );
       }
     }
   }
@@ -142,7 +169,9 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
     statement: asStringOr(body['statement'], ''),
     difficulty: validDifficulty ? (difficulty as ProblemDifficulty) : 'easy',
     topics,
-    tags: Array.isArray(body['tags']) ? body['tags'].filter((t): t is string => typeof t === 'string') : [],
+    tags: Array.isArray(body['tags'])
+      ? body['tags'].filter((t): t is string => typeof t === 'string')
+      : [],
     timeLimitSec: typeof body['timeLimitSec'] === 'number' ? body['timeLimitSec'] : null,
     initialState: cluster as unknown as ClusterSpec,
     objectives: Array.isArray(body['objectives'])

@@ -1,5 +1,6 @@
 'use client';
 
+import { t } from '@devops-platform/copy';
 import { useState, type ReactElement } from 'react';
 import {
   Alert,
@@ -16,14 +17,21 @@ import {
   DialogTitle,
   Spinner,
 } from '@devops-platform/ui';
+import { renderCopy } from '@devops-platform/copy';
 import type { PreviewPayload } from './draft-from-preview';
-import { describeScriptReport, summarizeScriptChecks, type ScriptWarningView } from './script-warning';
+import {
+  describeScriptReport,
+  summarizeScriptChecks,
+  type ScriptWarningView,
+} from './script-warning';
 import type { PublishPhase } from './publish-machine';
 import {
-  TRIAL_STATUS_LABELS,
+  TRIAL_STATUS_KEYS,
   mergeTrialOutcome,
   parsePublishFailure,
   trialPlanFor,
+  type TrialStepPlan,
+  type TrialStepResult,
   type TrialStepStatus,
 } from './trial-plan';
 
@@ -62,14 +70,17 @@ export function PublishPanel(props: {
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-foreground">1. Kiểm tra trước</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {t('author.publish-panel-1-kiem-tra-truoc')}
+        </h2>
         <p className="text-sm text-muted-foreground">
-          Kiểm tra không đổi trạng thái bài và không tốn sandbox nào. Nó chạy đúng schema mà lượt xuất bản sẽ
-          dùng, cộng thêm shellcheck cho từng script.
+          {t(
+            'author.publish-panel-kiem-tra-khong-doi-trang-thai-bai-va-khong-ton-sandbox-nao-no-chay-dung-sch',
+          )}
         </p>
         <div>
           <Button variant="outline" onClick={props.onCheck} loading={props.checking}>
-            Kiểm tra
+            {t('author.publish-panel-kiem-tra')}
           </Button>
         </div>
 
@@ -96,18 +107,23 @@ export function PublishPanel(props: {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-foreground">2. Xuất bản</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {t('author.publish-panel-2-xuat-ban')}
+        </h2>
         <p className="text-sm text-muted-foreground">
-          Xuất bản dựng một sandbox thật và chạy lần lượt mọi script của bài. Việc này mất vài phút — riêng dựng
-          sandbox cho bài Kubernetes đã tới ~49 giây. Bạn đóng tab được; lượt chạy thử không dừng theo.
+          {t(
+            'author.publish-panel-xuat-ban-dung-mot-sandbox-that-va-chay-lan-luot-moi-script-cua-bai-viec-nay',
+          )}
         </p>
         <div className="flex flex-wrap gap-3">
           <Button
             onClick={props.onPublish}
             loading={props.phase.kind === 'submitting'}
-            disabled={blocked || props.phase.kind === 'running' || props.phase.kind === 'submitting'}
+            disabled={
+              blocked || props.phase.kind === 'running' || props.phase.kind === 'submitting'
+            }
           >
-            Xuất bản
+            {t('author.problem.publish.submit')}
           </Button>
           {props.canArchive && (
             <Button
@@ -117,13 +133,15 @@ export function PublishPanel(props: {
               }}
               disabled={props.archiving}
             >
-              Lưu trữ
+              {t('author.problem.state.archived')}
             </Button>
           )}
         </div>
         {blocked && (
           <p className="text-sm text-muted-foreground">
-            Nút Xuất bản đang tắt vì lượt kiểm tra còn lỗi định dạng ở trên. Sửa rồi kiểm tra lại.
+            {t(
+              'author.publish-panel-nut-xuat-ban-dang-tat-vi-luot-kiem-tra-con-loi-dinh-dang-o-tren-sua-roi-kie',
+            )}
           </p>
         )}
 
@@ -131,23 +149,25 @@ export function PublishPanel(props: {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-foreground">3. Kết quả chạy thử</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {t('author.publish-panel-3-ket-qua-chay-thu')}
+        </h2>
         <TrialReport phase={props.phase} plan={plan} publishError={props.publishError} />
       </section>
 
       <Dialog open={confirmArchive} onOpenChange={setConfirmArchive}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Lưu trữ bài này?</DialogTitle>
+            <DialogTitle>{t('author.publish-panel-luu-tru-bai-nay')}</DialogTitle>
             <DialogDescription>
-              Bài sẽ biến khỏi danh mục người học. Tiến độ và điểm đã có KHÔNG bị xoá — nền tảng không xoá nội
-              dung, vì tiến độ trỏ tới id bài bằng cột text không có khoá ngoại, nên xoá sẽ làm tiến độ cũ mồ côi
-              trong im lặng.
+              {t(
+                'author.publish-panel-bai-se-bien-khoi-danh-muc-nguoi-hoc-tien-do-va-diem-da-co-khong-bi-xoa-nen',
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="ghost">Huỷ</Button>
+              <Button variant="ghost">{t('common.action.cancel')}</Button>
             </DialogClose>
             <Button
               variant="destructive"
@@ -157,7 +177,7 @@ export function PublishPanel(props: {
                 props.onArchive();
               }}
             >
-              Lưu trữ
+              {t('author.problem.state.archived')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -177,17 +197,22 @@ function CheckReport(props: {
     <div className="flex flex-col gap-3">
       {props.issues.length === 0 ? (
         <Alert variant="success">
-          <AlertTitle>Định dạng hợp lệ</AlertTitle>
-          <AlertDescription>Bài qua đúng schema mà lượt xuất bản sẽ dùng.</AlertDescription>
+          <AlertTitle>{t('author.publish-panel-dinh-dang-hop-le')}</AlertTitle>
+          <AlertDescription>
+            {t('author.publish-panel-bai-qua-dung-schema-ma-luot-xuat-ban-se-dung')}
+          </AlertDescription>
         </Alert>
       ) : (
         <Alert variant="destructive">
-          <AlertTitle>{props.issues.length} lỗi định dạng — chặn xuất bản</AlertTitle>
+          <AlertTitle>
+            {props.issues.length} {t('author.publish-panel-loi-dinh-dang-chan-xuat-ban')}
+          </AlertTitle>
           <AlertDescription>
             <ul className="list-disc pl-5">
               {props.issues.map((issue) => (
                 <li key={`${issue.path}-${issue.message}`}>
-                  <code className="font-mono">{issue.path}</code> — {issue.message}
+                  <code className="font-mono">{issue.path}</code>
+                  {renderCopy({ key: 'author.issues.row', params: { message: issue.message } })}
                 </li>
               ))}
             </ul>
@@ -195,11 +220,15 @@ function CheckReport(props: {
         </Alert>
       )}
 
-      <Alert variant={summary.tone === 'warn' || summary.tone === 'unknown' ? 'warning' : 'default'}>
-        <AlertTitle>Shellcheck: {summary.label}</AlertTitle>
+      <Alert
+        variant={summary.tone === 'warn' || summary.tone === 'unknown' ? 'warning' : 'default'}
+      >
+        <AlertTitle>
+          {t('author.publish-panel-shellcheck')} {renderCopy(summary.label)}
+        </AlertTitle>
         <AlertDescription>
           {props.warnings.length === 0 ? (
-            <p>Cảnh báo shellcheck không bao giờ chặn xuất bản.</p>
+            <p>{t('author.publish-panel-canh-bao-shellcheck-khong-bao-gio-chan-xuat-ban')}</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {props.warnings.map((warning) => {
@@ -208,12 +237,16 @@ function CheckReport(props: {
                   <li key={warning.path} className="flex flex-col gap-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <code className="font-mono text-xs">{warning.path}</code>
-                      <Badge variant={view.tone === 'unknown' ? 'warning' : 'secondary'}>{view.label}</Badge>
+                      <Badge variant={view.tone === 'unknown' ? 'warning' : 'secondary'}>
+                        {renderCopy(view.label)}
+                      </Badge>
                     </span>
-                    {view.detail !== null && <span className="text-xs">{view.detail}</span>}
+                    {view.detail !== null && (
+                      <span className="text-xs">{renderCopy(view.detail)}</span>
+                    )}
                     {warning.report.findings.map((f) => (
                       <span key={`${String(f.line)}-${f.code}`} className="font-mono text-xs">
-                        dòng {f.line} · {f.code} · {f.message}
+                        {t('author.publish-panel-dong')} {f.line} · {f.code} · {f.message}
                       </span>
                     ))}
                   </li>
@@ -236,47 +269,53 @@ function PhaseReport({ phase }: { readonly phase: PublishPhase }): ReactElement 
       return (
         <Alert>
           <AlertDescription className="flex items-center gap-2">
-            <Spinner size="sm" /> Đang gửi yêu cầu xuất bản…
+            <Spinner size="sm" /> {t('author.publish-panel-dang-gui-yeu-cau-xuat-ban')}
           </AlertDescription>
         </Alert>
       );
     case 'running':
       return (
         <Alert variant="warning">
-          <AlertTitle>Đang chạy thử trong sandbox</AlertTitle>
+          <AlertTitle>{t('author.publish-panel-dang-chay-thu-trong-sandbox')}</AlertTitle>
           <AlertDescription className="flex items-center gap-2">
             <Spinner size="sm" />
-            Trang đang hỏi lại máy chủ vài giây một lần. Máy chủ KHÔNG báo đang chạy tới bước nào — chỉ có kết
-            quả cuối, nên bảng dưới còn trống cho tới lúc đó.
+            {t(
+              'author.publish-panel-trang-dang-hoi-lai-may-chu-vai-giay-mot-lan-may-chu-khong-bao-dang-chay-toi',
+            )}
           </AlertDescription>
         </Alert>
       );
     case 'passed':
       return (
         <Alert variant="success">
-          <AlertTitle>Đã xuất bản</AlertTitle>
+          <AlertTitle>{t('author.problem.publish.already')}</AlertTitle>
           <AlertDescription>
             {phase.promotedTo === null
-              ? 'Bài đã lên và người học thấy được.'
-              : `Bản nháp đã thay thế bài đang chạy "${phase.promotedTo}" và tự biến mất. Từ giờ hãy sửa trên id đó.`}
+              ? t('author.publish-panel-bai-da-len-va-nguoi-hoc-thay-duoc')
+              : t(
+                  'author.publish-panel-ban-nhap-da-thay-the-bai-dang-chay-va-tu-bien-mat-tu-gio-hay-sua-tren-id-do',
+                  { phasePromotedto: String(phase.promotedTo) },
+                )}
           </AlertDescription>
         </Alert>
       );
     case 'failed':
       return (
         <Alert variant="destructive">
-          <AlertTitle>Lượt chạy thử trượt — bài quay về Nháp</AlertTitle>
-          <AlertDescription>Chi tiết ở bảng dưới. Sửa chỗ được nêu rồi xuất bản lại.</AlertDescription>
+          <AlertTitle>{t('author.publish-panel-luot-chay-thu-truot-bai-quay-ve-nhap')}</AlertTitle>
+          <AlertDescription>
+            {t('author.publish-panel-chi-tiet-o-bang-duoi-sua-cho-duoc-neu-roi-xuat-ban-lai')}
+          </AlertDescription>
         </Alert>
       );
     case 'lost':
       return (
         <Alert variant="warning">
-          <AlertTitle>Không còn dấu vết của lượt chạy thử</AlertTitle>
+          <AlertTitle>{t('author.publish-panel-khong-con-dau-vet-cua-luot-chay-thu')}</AlertTitle>
           <AlertDescription>
-            Bài quay về Nháp mà máy chủ không ghi lại lý do nào. Thường là tiến trình chạy thử bị mất giữa chừng
-            (pod web khởi động lại), hoặc lượt chạy đã quá hạn treo. Bấm Xuất bản lại; nếu lặp lại nhiều lần thì
-            báo người vận hành.
+            {t(
+              'author.publish-panel-bai-quay-ve-nhap-ma-may-chu-khong-ghi-lai-ly-do-nao-thuong-la-tien-trinh-ch',
+            )}
           </AlertDescription>
         </Alert>
       );
@@ -285,14 +324,15 @@ function PhaseReport({ phase }: { readonly phase: PublishPhase }): ReactElement 
 
 function TrialReport(props: {
   readonly phase: PublishPhase;
-  readonly plan: readonly { label: string; mustPass: boolean; description: string }[];
+  readonly plan: readonly TrialStepPlan[];
   readonly publishError: string | null;
 }): ReactElement {
   if (props.plan.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Bài này không có script nào. Lượt chạy thử của nó là chính việc sandbox dựng lên được với tier và
-        capability đã khai.
+        {t(
+          'author.publish-panel-bai-nay-khong-co-script-nao-luot-chay-thu-cua-no-la-chinh-viec-sandbox-dung',
+        )}
       </p>
     );
   }
@@ -301,9 +341,13 @@ function TrialReport(props: {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-sm text-muted-foreground">
-          Chưa chạy lần nào. Đây là những gì lượt xuất bản sẽ chạy, đúng thứ tự:
+          {t(
+            'author.publish-panel-chua-chay-lan-nao-day-la-nhung-gi-luot-xuat-ban-se-chay-dung-thu-tu',
+          )}
         </p>
-        <TrialTable rows={props.plan.map((plan) => ({ plan, status: 'pending' as TrialStepStatus }))} />
+        <TrialTable
+          rows={props.plan.map((plan) => ({ plan, status: 'pending' as TrialStepStatus }))}
+        />
       </div>
     );
   }
@@ -312,10 +356,13 @@ function TrialReport(props: {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-sm text-muted-foreground">
-          Đang chạy. Máy chủ không phát tiến độ từng bước, nên mọi dòng dưới đây còn ở &quot;Đang chờ&quot; cho
-          tới khi có kết quả cuối — đó là thứ ta biết, không phải thứ đang xảy ra.
+          {t(
+            'author.publish-panel-dang-chay-may-chu-khong-phat-tien-do-tung-buoc-nen-moi-dong-duoi-day-con-o',
+          )}
         </p>
-        <TrialTable rows={props.plan.map((plan) => ({ plan, status: 'pending' as TrialStepStatus }))} />
+        <TrialTable
+          rows={props.plan.map((plan) => ({ plan, status: 'pending' as TrialStepStatus }))}
+        />
       </div>
     );
   }
@@ -331,10 +378,14 @@ function TrialReport(props: {
   if (merged === null) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>Không khớp được lỗi với bước nào của bài</AlertTitle>
+        <AlertTitle>
+          {t('author.publish-panel-khong-khop-duoc-loi-voi-buoc-nao-cua-bai')}
+        </AlertTitle>
         <AlertDescription>
           <p>
-            Nội dung bài có thể đã đổi sau lượt xuất bản đó. Đây là nguyên văn lỗi máy chủ ghi lại:
+            {t(
+              'author.publish-panel-noi-dung-bai-co-the-da-doi-sau-luot-xuat-ban-do-day-la-nguyen-van-loi-may-c',
+            )}
           </p>
           <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap font-mono text-xs">
             {props.publishError ?? (props.phase.kind === 'failed' ? props.phase.error : '')}
@@ -350,14 +401,18 @@ function TrialReport(props: {
       {failure !== null && failure.kind === 'step' && (
         <div className="flex flex-col gap-1">
           <p className="text-sm font-medium text-foreground">
-            Output của <code className="font-mono">{failure.label}</code> (exit {failure.exitCode})
+            {t('author.publish-panel-output-cua')}{' '}
+            <code className="font-mono">{failure.label}</code> {t('author.publish-panel-exit')}{' '}
+            {failure.exitCode})
           </p>
-          <pre className="max-h-60 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">{failure.output}</pre>
+          <pre className="max-h-60 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">
+            {failure.output}
+          </pre>
         </div>
       )}
       {failure !== null && failure.kind !== 'step' && (
         <Alert variant="destructive">
-          <AlertTitle>Trượt trước khi chạy được bước nào</AlertTitle>
+          <AlertTitle>{t('author.publish-panel-truot-truoc-khi-chay-duoc-buoc-nao')}</AlertTitle>
           <AlertDescription>
             <pre className="whitespace-pre-wrap font-mono text-xs">{failure.message}</pre>
           </AlertDescription>
@@ -367,7 +422,9 @@ function TrialReport(props: {
   );
 }
 
-const STATUS_BADGE: Readonly<Record<TrialStepStatus, 'success' | 'secondary' | 'destructive' | 'outline'>> = {
+const STATUS_BADGE: Readonly<
+  Record<TrialStepStatus, 'success' | 'secondary' | 'destructive' | 'outline'>
+> = {
   passed: 'success',
   ran: 'secondary',
   failed: 'destructive',
@@ -376,7 +433,7 @@ const STATUS_BADGE: Readonly<Record<TrialStepStatus, 'success' | 'secondary' | '
 };
 
 function TrialTable(props: {
-  readonly rows: readonly { plan: { label: string; description: string }; status: TrialStepStatus }[];
+  readonly rows: readonly TrialStepResult[];
 }): ReactElement {
   return (
     <ol className="flex flex-col gap-1">
@@ -385,8 +442,8 @@ function TrialTable(props: {
           key={row.plan.label}
           className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2"
         >
-          <Badge variant={STATUS_BADGE[row.status]}>{TRIAL_STATUS_LABELS[row.status]}</Badge>
-          <span className="text-sm text-foreground">{row.plan.description}</span>
+          <Badge variant={STATUS_BADGE[row.status]}>{renderCopy(TRIAL_STATUS_KEYS[row.status])}</Badge>
+          <span className="text-sm text-foreground">{renderCopy(row.plan.description)}</span>
           <code className="font-mono text-xs text-muted-foreground">{row.plan.label}</code>
         </li>
       ))}

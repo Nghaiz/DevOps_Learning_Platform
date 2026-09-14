@@ -11,7 +11,7 @@ import type { Level } from '../contract.ts';
 export const l13: Level = {
   id: 'k8s-13-endpoint-rong',
   chapter: 3,
-  title: 'Service có đó, mà gọi không ai trả lời',
+  title: 'Nối lại Service đang không có endpoint',
   mission:
     'Làm Service `api` trong `don-hang` có đủ 4 endpoint, không đụng số replica của Deployment.',
   brief: `Đội frontend báo mọi request tới \`http://api.don-hang.svc.cluster.local\` đều

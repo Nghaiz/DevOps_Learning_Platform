@@ -1,0 +1,350 @@
+{
+  "stats": {
+    "startTime": "2026-09-12T17:31:17.977Z",
+    "duration": 374294.13700000005,
+    "expected": 171,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "files": {
+    "a11y.spec.ts": {
+      "passed": 36,
+      "failed": 0,
+      "skipped": 0
+    },
+    "csp.spec.ts": {
+      "passed": 37,
+      "failed": 0,
+      "skipped": 0
+    },
+    "keyboard.spec.ts": {
+      "passed": 44,
+      "failed": 0,
+      "skipped": 0
+    },
+    "landing-visual.spec.ts": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0
+    },
+    "motif.spec.ts": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0
+    },
+    "password-reset.spec.ts": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    "perf.spec.ts": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0
+    },
+    "responsive.spec.ts": {
+      "passed": 41,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "failures": [],
+  "axe": [
+    {
+      "title": "axe / [anon]",
+      "url": "http://localhost:3000/",
+      "passes": 39,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /login [anon]",
+      "url": "http://localhost:3000/login",
+      "passes": 39,
+      "incomplete": [
+        "color-contrast"
+      ],
+      "violations": []
+    },
+    {
+      "title": "axe /register [anon]",
+      "url": "http://localhost:3000/register",
+      "passes": 39,
+      "incomplete": [
+        "color-contrast"
+      ],
+      "violations": []
+    },
+    {
+      "title": "axe /forgot-password [anon]",
+      "url": "http://localhost:3000/forgot-password",
+      "passes": 39,
+      "incomplete": [
+        "color-contrast"
+      ],
+      "violations": []
+    },
+    {
+      "title": "axe /reset-password [anon]",
+      "url": "http://localhost:3000/reset-password",
+      "passes": 39,
+      "incomplete": [
+        "color-contrast"
+      ],
+      "violations": []
+    },
+    {
+      "title": "axe /lessons [user]",
+      "url": "http://localhost:3000/lessons",
+      "passes": 38,
+      "incomplete": [
+        "color-contrast"
+      ],
+      "violations": []
+    },
+    {
+      "title": "axe /lessons/:id [user]",
+      "url": "http://localhost:3000/lessons/bai-1788902510267-f2xgl8",
+      "passes": 34,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /labs [user]",
+      "url": "http://localhost:3000/labs",
+      "passes": 38,
+      "incomplete": [
+        "color-contrast"
+      ],
+      "violations": []
+    },
+    {
+      "title": "axe /labs/:id [user]",
+      "url": "http://localhost:3000/labs/dlp-k8s-broken-deploy",
+      "passes": 40,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /playgrounds [user]",
+      "url": "http://localhost:3000/playgrounds",
+      "passes": 38,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /playgrounds/:id [user]",
+      "url": "http://localhost:3000/playgrounds/dlp-docker-playground",
+      "passes": 34,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /paths [user]",
+      "url": "http://localhost:3000/paths",
+      "passes": 37,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /paths/:id [user]",
+      "url": "http://localhost:3000/paths/dlp-path-docker-tu-so-0",
+      "passes": 36,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /quiz [user]",
+      "url": "http://localhost:3000/quiz",
+      "passes": 37,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /quiz/:id [user]",
+      "url": "http://localhost:3000/quiz/dlp-quiz-docker-co-ban",
+      "passes": 37,
+      "incomplete": [
+        "color-contrast"
+      ],
+      "violations": []
+    },
+    {
+      "title": "axe /me [user]",
+      "url": "http://localhost:3000/me",
+      "passes": 37,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /settings [user]",
+      "url": "http://localhost:3000/settings",
+      "passes": 41,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /games [user]",
+      "url": "http://localhost:3000/games",
+      "passes": 38,
+      "incomplete": [
+        "color-contrast"
+      ],
+      "violations": []
+    },
+    {
+      "title": "axe /games/k8s [user]",
+      "url": "http://localhost:3000/games/k8s",
+      "passes": 35,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /problems [user]",
+      "url": "http://localhost:3000/problems",
+      "passes": 43,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /problems/:code [user]",
+      "url": "http://localhost:3000/problems/K8S-0001",
+      "passes": 36,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /author [author]",
+      "url": "http://localhost:3000/author",
+      "passes": 39,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /author/new [author]",
+      "url": "http://localhost:3000/author/new",
+      "passes": 38,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /author/:id [author]",
+      "url": "http://localhost:3000/author/bai-1788902507368-ndxu9x",
+      "passes": 40,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /author/problems [author]",
+      "url": "http://localhost:3000/author/problems",
+      "passes": 39,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /author/problems/new [author]",
+      "url": "http://localhost:3000/author/problems/new",
+      "passes": 40,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /author/problems/:code [author]",
+      "url": "http://localhost:3000/author/problems/K8S-0001",
+      "passes": 40,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /admin [admin]",
+      "url": "http://localhost:3000/admin",
+      "passes": 39,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /admin/users [admin]",
+      "url": "http://localhost:3000/admin/users",
+      "passes": 42,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /admin/sessions [admin]",
+      "url": "http://localhost:3000/admin/sessions",
+      "passes": 34,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /admin/content [admin]",
+      "url": "http://localhost:3000/admin/content",
+      "passes": 39,
+      "incomplete": [],
+      "violations": []
+    },
+    {
+      "title": "axe /admin/audit [admin]",
+      "url": "http://localhost:3000/admin/audit",
+      "passes": 38,
+      "incomplete": [],
+      "violations": []
+    }
+  ],
+  "perf": [
+    {
+      "name": "perf-positive-control.json",
+      "baselineMs": 432,
+      "delayedMs": 2780,
+      "injectedDelayMs": 2000,
+      "observedGapMs": 2348
+    },
+    {
+      "name": "perf-lcp-lessons.json",
+      "path": "/lessons",
+      "lcpMs": 584,
+      "lcpElement": {
+        "tag": "h2",
+        "id": "",
+        "text": "CKAD: ConfigMap as Files (Mount into NGINX html)",
+        "size": 22475
+      },
+      "ttfbMs": 39,
+      "domContentLoadedMs": 83,
+      "loadEndMs": 312,
+      "afterTtfbMs": 546,
+      "budgetMs": 2500,
+      "budgetIsProvisional": false,
+      "observedRatio": 0.234
+    },
+    {
+      "name": "perf-lcp-home.json",
+      "path": "/",
+      "lcpMs": 132,
+      "lcpElement": {
+        "tag": "span",
+        "id": "",
+        "text": "Tự tay vận hành.",
+        "size": 56826
+      },
+      "ttfbMs": 15,
+      "domContentLoadedMs": 44,
+      "loadEndMs": 183,
+      "afterTtfbMs": 118,
+      "budgetMs": 2500,
+      "budgetIsProvisional": false,
+      "observedRatio": 0.053
+    }
+  ],
+  "terminal": [
+    {
+      "realGatewayReady": true,
+      "singleEscapeBytes": 1,
+      "fastPairEscapeBytes": 2,
+      "focusOutsideTerminal": true,
+      "escapeWindowMs": 500
+    }
+  ],
+  "cspRoutes": 32
+}

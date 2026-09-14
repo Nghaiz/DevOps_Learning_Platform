@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { t } from '@devops-platform/copy';
 import type { ReactElement, ReactNode } from 'react';
 import { LoaderCircle, Terminal } from 'lucide-react';
 import type { ThemeName } from '@devops-platform/terminal/themes';
@@ -44,7 +45,7 @@ function TerminalBootFrame(): ReactElement {
       */}
       <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
         <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-        Đang mở terminal…
+        {t('session.terminal.booting')}
       </p>
     </div>
   );
@@ -65,7 +66,7 @@ const TerminalSurfaceLazy = dynamic(() => import('./terminal-surface-lazy'), {
  * duyệt của trình đọc màn hình, nên câu đầu tiên người dùng nghe phải nói được
  * cách ra.
  */
-const TERMINAL_ARIA_LABEL = 'Terminal sandbox. Nhấn Esc hai lần để rời khỏi terminal.';
+const TERMINAL_ARIA_LABEL = t('session.terminal.aria-label');
 
 export interface TerminalPaneProps {
   readonly session: SandboxSession;
@@ -83,15 +84,24 @@ export function TerminalPane({ session, theme, placeholder }: TerminalPaneProps)
   /**
    * §C3/§Y1 — fit lại khi HÌNH HỌC của khoang chứa đổi.
    *
-   * Khoang này có thể nằm ở hàng 2 của `WorkspacePanel`, nơi terminal LUÔN hiện
-   * nhưng đổi chiều cao: ~40% neo đáy ở tab Editor, toàn khoang ở tab Terminal,
-   * cộng thanh kéo của §Y6. Không gọi lại `fit()` thì xterm giữ số cột/hàng của
-   * bố cục cũ và dòng bị gãy cho tới lần resize sau.
+   * Khoang này có thể nằm ở hàng 2 của `WorkspacePanel`. Từ SỬA ĐỔI 3
+   * (2026-09-13) hai tab loại trừ nhau: ở tab Terminal hàng 2 chiếm trọn
+   * khoang, ở tab Editor nó mang `hidden` và đo ra 0×0. Không gọi lại `fit()`
+   * thì xterm giữ số cột/hàng của bố cục cũ và dòng bị gãy cho tới lần resize
+   * sau.
    *
-   * ⚠ Đây KHÔNG còn là chuyện ẩn/hiện. Bản trước nghe một cờ boolean "vùng đang
-   * hiện"; ở mô hình mới cờ đó đứng yên `true` mãi mãi, nên effect sẽ không bao
-   * giờ chạy lại — một đường dây trông vẫn còn nguyên mà không dẫn điện. Chuỗi
-   * `layout` đổi đúng vào hai lúc kích thước thật sự đổi.
+   * ⚠ File này nghe CHUỖI `layout` chứ không nghe một cờ ẩn/hiện, và đó là lý
+   * do hành vi ở đây không phải sửa gì khi mô hình đổi. Bản trước từng thử một
+   * cờ boolean "vùng đang hiện": dưới mô hình SỬA ĐỔI 2 (terminal có mặt ở cả
+   * hai tab) cờ đó đứng yên `true` mãi mãi nên effect không bao giờ chạy lại,
+   * một đường dây trông vẫn nguyên mà không dẫn điện. Chuỗi thì đổi ở mọi lượt
+   * chuyển tab, dù lượt đó là đổi chiều cao (mô hình cũ) hay ẩn/hiện thật (mô
+   * hình nay). Chú thích cũ ở đây viết "đây KHÔNG còn là chuyện ẩn/hiện"; câu
+   * đó đã hết đúng, còn kết luận thì không đổi.
+   *
+   * Lượt fit rơi vào đúng lúc hàng đang ẩn là một no-op THẬT, không phải một
+   * lượt may mắn: `fit()` trong `terminal-core.ts` đo cái hộp trước và `return`
+   * khi container còn 0×0 (`p16-workspace.md` §1.7).
    *
    * Ngoài panel (nhánh hẹp của `WorkspaceSplit`, hoặc một trang dựng thẳng nó)
    * giá trị mặc định là một hằng, nên hook này chỉ chạy một lần lúc mount.
@@ -120,7 +130,7 @@ export function TerminalPane({ session, theme, placeholder }: TerminalPaneProps)
   const wideEnough = useMinWidth(TERMINAL_MIN_WIDTH_PX);
 
   const header = (
-    <PaneHeader icon={<Terminal />} title="Terminal">
+    <PaneHeader icon={<Terminal />} title={t('session.terminal.title')}>
       <SessionStatusPill phase={session.state.phase} />
     </PaneHeader>
   );
@@ -157,7 +167,7 @@ export function TerminalPane({ session, theme, placeholder }: TerminalPaneProps)
             <Terminal className="size-6" />
           </span>
           <div className="max-w-sm text-sm text-muted-foreground">
-            {placeholder ?? <span>Bấm Bắt đầu để dựng sandbox và mở terminal.</span>}
+            {placeholder ?? <span>{t('session.terminal.empty')}</span>}
           </div>
         </div>
       </div>
@@ -193,7 +203,8 @@ export function TerminalPane({ session, theme, placeholder }: TerminalPaneProps)
           'group-focus-within:border-status-progress group-focus-within:text-foreground'
         }
       >
-        Nhấn <Kbd>Esc</Kbd> <Kbd>Esc</Kbd> để rời khỏi terminal
+        {t('session.terminal.escape-hint-prefix')} <Kbd>Esc</Kbd> <Kbd>Esc</Kbd>{' '}
+        {t('session.terminal.escape-hint-suffix')}
       </p>
     </div>
   );

@@ -10,7 +10,7 @@ export function Switch({ className, ...props }: ComponentProps<typeof RadixSwitc
       data-slot="switch"
       className={cn(
         'peer inline-flex h-5 w-9 shrink-0 items-center rounded-full border border-transparent',
-        'bg-input transition-colors outline-none',
+        'bg-input transition-colors duration-[var(--motion-fast)] ease-out outline-none',
         /*
          * Lúc BẬT rãnh là `bg-primary`, mà `--ring` = `--primary`, nên vòng
          * focus vẽ sát mặt rãnh cho 1.00:1. Cùng một hỏng và cùng một cách sửa
@@ -25,7 +25,8 @@ export function Switch({ className, ...props }: ComponentProps<typeof RadixSwitc
     >
       <RadixSwitch.Thumb
         className={cn(
-          'pointer-events-none block size-4 translate-x-0.5 rounded-full bg-background shadow-sm transition-transform',
+          'pointer-events-none block size-4 translate-x-0.5 rounded-full bg-background shadow-elevation-1',
+          'transition-transform duration-[var(--motion-fast)] ease-out',
           'data-[state=checked]:translate-x-[18px]',
         )}
       />

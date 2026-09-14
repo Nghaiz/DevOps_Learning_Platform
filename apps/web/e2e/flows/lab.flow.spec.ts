@@ -16,13 +16,44 @@
 
 import {
   SANDBOX_FLOW_TIMEOUT_MS,
+  SESSION_READY_TIMEOUT_MS,
   endSandbox,
   expect,
   startSandbox,
   test,
 } from './flow-kit';
+import { t } from '@devops-platform/copy';
 import { firstItemId } from '../fixtures/api';
 import { openScreen } from '../fixtures/nav';
+
+/*
+  ⛔ DỌN PHIÊN KỂ CẢ KHI Ô ĐỎR — thiếu vế này, mỗi lượt đỏ tự làm khó lượt sau.
+
+  `endSandbox` chỉ được gọi ở cuối ca, nên bất kỳ thất bại nào trước đó đều
+  **bỏ lại một pod** sống tới hết `SESSION_TTL` (mặc định 1 giờ). Lab này dùng
+  profile k8s, quota namespace là `pods: 6` và một khe đã thuộc pod ấm — tức chỉ
+  4-5 lượt đỏ liên tiếp là kẹt namespace nguyên một tiếng.
+
+  Điều làm nó đắt hơn vẻ: lúc đó triệu chứng ĐỔI DẠNG. Đo được 2026-09-14, một
+  lượt tái hiện chết ở `flow-kit.ts:176` với `ResourceExhausted` (quota đầy) chứ
+  không chết ở chỗ bug thật — người đọc đi truy quota trong khi nguyên nhân nằm
+  chỗ khác hẳn. Một ô đỏ tự bỏa ra nguyên nhân giả cho lượt sau là tồi tệ hơn một
+  ô đỏ bình thường.
+
+  Tốt nhất có thể, KHÔNG khẳng định: đây là lượt dọn, không phải phép kiểm. Ném ở
+  đây sẽ che mất thất bại THẬT của ca.
+*/
+test.afterEach(async ({ page }) => {
+  const end = page.getByRole('button', { name: 'Kết thúc phiên' });
+  try {
+    if (await end.count()) {
+      await end.click({ timeout: 15_000 });
+      await expect(end).toBeHidden({ timeout: 60_000 });
+    }
+  } catch {
+    // Phiên có thể chưa từng dựng, hoặc trang đã đóng. Reaper là lưới cuối.
+  }
+});
 
 test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
   test('bảng task → chấm từng task → điểm tổng → bảng xếp hạng', async ({ page, api }) => {
@@ -37,21 +68,37 @@ test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
 
     await openScreen(page, `/labs/${encodeURIComponent(labId ?? '')}`, 'user');
 
-    // ── 1. Bảng task ────────────────────────────────────────────────────────
-    // Neo vào `TableCaption` — chuỗi đó do chính `TaskTable` phát ra, nên nó
-    // phân biệt được "bảng task" với bảng xếp hạng ở tab bên cạnh.
+    /*
+      ── 1. Danh sách nhiệm vụ ────────────────────────────────────────────────
+
+      ⚠ Neo vào `aria-label` của danh sách, lấy TỪ BẢN ĐỒ COPY.
+
+      Bản trước tìm một `<table>` với `columnheader "Nhiệm vụ"` và đếm `tbody tr`,
+      cộng một caption viết thẳng. Trang lab đã đổi hình ở `0487000 feat(lab):
+      trang lab dùng danh sách kiểm` — nay là `<ul aria-label>` chứa `<li><button>`
+      (`components/session/task-checklist.tsx`), không còn bảng nhiệm vụ nào.
+      Spec giữ bản chép cũ nên đỏ, và nó đỏ vì HARNESS lạc hậu, không vì sản phẩm
+      sai. (Bảng xếp hạng ở tab bên cạnh VẪN là `<table>`; các ô của nó bên dưới
+      giữ nguyên.)
+
+      Cùng lý do như `path.flow`: một chuỗi viết thẳng trong spec là bản sao thứ
+      hai của dữ liệu, và bản sao thì trôi. `t()` làm phép kiểm nói đúng điều nó
+      muốn nói.
+
+      Ô ĐẾM giữ nguyên tinh thần cũ: một danh sách rỗng vẫn "hiện ra", nên phải
+      đếm mục chứ không chỉ kiểm danh sách có mặt.
+    */
+    const taskList = page.getByRole('list', { name: t('session.lab.checklist-legend') });
     await expect(
-      page.getByText('Bấm một nhiệm vụ để đọc đề và chấm riêng nhiệm vụ đó.'),
+      taskList,
+      'Không thấy danh sách nhiệm vụ của lab. Trang đã đổi hình dạng?',
     ).toBeVisible();
 
-    const taskTable = page.locator('table', {
-      has: page.getByRole('columnheader', { name: 'Nhiệm vụ' }),
-    });
-    const taskRows = taskTable.locator('tbody tr');
+    const taskRows = taskList.getByRole('listitem');
     await expect(
       taskRows,
-      'Bảng task render 0 hàng. Một bảng rỗng vẫn "hiện ra" nên phép kiểm phải ' +
-        'đếm hàng, không chỉ kiểm bảng có mặt.',
+      'Danh sách nhiệm vụ render 0 mục. Một danh sách rỗng vẫn "hiện ra" nên phép ' +
+        'kiểm phải đếm mục, không chỉ kiểm danh sách có mặt.',
     ).not.toHaveCount(0);
 
     // ── 2. Bắt đầu lần thử, rồi chấm MỘT task ───────────────────────────────
@@ -63,18 +110,38 @@ test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
       : 'Bắt đầu';
     await startSandbox(page, startLabel);
 
-    // Ô tiêu đề task là một `<button>` thật (chủ ý của `TaskTable`) — bấm nó mở
-    // đề của đúng task đó.
+    // Mỗi mục là một `<button>` thật (chủ ý của `TaskChecklist`) — bấm nó mở đề
+    // của đúng nhiệm vụ đó.
     await taskRows.first().getByRole('button').first().click();
 
     const checkTask = page.getByRole('button', { name: 'Chấm nhiệm vụ này' });
     await expect(checkTask).toBeVisible();
+    /*
+      ⏱ Chờ theo mốc PHA PHIÊN, không theo trần mặc định 15s.
+
+      `lab-client` khoá nút này vì BA lý do, không phải hai: chưa có lần thử,
+      lần thử đã nộp, HOẶC `setupPending` — vế thứ ba thêm ở P15/15.C, khi
+      setup của lab chuyển sang chạy NỀN để người học không bị chặn ở màn
+      trắng. Chú thích cũ ở đây chỉ liệt kê hai, nên nó kết luận sai rằng một
+      nút xám sau khi Bắt đầu thành công là mâu thuẫn. Không mâu thuẫn: đó là
+      cửa sổ setup đang chạy.
+
+      Setup của lab k8s đi đường LẠNH mất 17-26s (đo ở P15), tức LUÔN vượt
+      trần 15s mặc định của `toBeEnabled()`. Ô này vì thế đỏ một cách có hệ
+      thống trên lab k8s và xanh trên lab linux — tính chất "đỏ tùy lab đứng đầu
+      danh mục" đúng là thứ làm người đọc đi truy sai chỗ.
+
+      Dùng `SESSION_READY_TIMEOUT_MS` thay vì một con số mới: đây vẫn là "chờ pha
+      phiên đổi", cùng thứ mà `startSandbox` đã chờ.
+    */
     await expect(
       checkTask,
-      'Nút "Chấm nhiệm vụ này" đang bị khoá dù phiên đã mở. `lab-client` chỉ khoá ' +
-        'nó khi chưa có lần thử hoặc lần thử đã nộp — cả hai đều mâu thuẫn với ' +
-        'việc vừa bấm Bắt đầu thành công.',
-    ).toBeEnabled();
+      'Nút "Chấm nhiệm vụ này" còn khoá sau khi phiên đã mở VÀ setup đã có đủ ' +
+        'thời gian chạy. `lab-client` khoá nó ở ba trường hợp: chưa có lần thử, ' +
+        'lần thử đã nộp, hoặc `setupPending`. Hai cái đầu mâu thuẫn với việc vừa ' +
+        'bấm Bắt đầu thành công; cái thứ ba nghĩa là setup chạy quá lâu hoặc đã ' +
+        'chết — đọc banner setup trên trang để biết cái nào.',
+    ).toBeEnabled({ timeout: SESSION_READY_TIMEOUT_MS });
     await checkTask.click();
 
     // Ba nhánh của `CheckResultPanel`, y như luồng 1: luồng khẳng định đường
@@ -107,9 +174,21 @@ test.describe('luồng 2 — lab', { tag: '@flow' }, () => {
     await submit.click();
     // Sau khi nộp, `lab-client` khoá lượt chấm lại và hiện câu lý do đó. Đây là
     // dấu hiệu quan sát được của "đã nộp", không phải một khoảng chờ.
-    await expect(
-      page.getByText('Lần thử này đã nộp — không chấm lại được. Bấm Bắt đầu để mở lần thử mới.'),
-    ).toBeVisible({ timeout: 60_000 });
+    /*
+      ⚠ LẤY CÂU TỪ BẢN ĐỒ COPY, không chép lại.
+
+      Bản trước chép thẳng "Đã nộp — không chấm lại được", trong khi
+      `session.lab.blocked-submitted` đã đổi sang "đã nộp NÊN không chấm lại
+      được". Lệch ĐÚNG MỘT TỪ, và ô đỏ trong khi sản phẩm làm đúng mọi thứ:
+      đã nộp, đã khoá lượt chấm, đã hiện câu lý do.
+
+      Cùng lớp với ba spec đã sửa ở `5a49353` và `9e546f7`: harness chép một bản
+      câu chữ rồi để nó trôi. Neo vào `t()` thì lần biên tập sau không làm ô này
+      đỏ nữa, mà vẫn gác đúng điều nó gác.
+    */
+    await expect(page.getByText(t('session.lab.blocked-submitted'))).toBeVisible({
+      timeout: 60_000,
+    });
 
     // ── 5. Bảng xếp hạng ────────────────────────────────────────────────────
     const leaderboardTab = page.getByRole('tab', { name: 'Bảng xếp hạng' });
