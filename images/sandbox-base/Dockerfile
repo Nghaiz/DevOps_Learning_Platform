@@ -43,7 +43,7 @@
 ARG INCLUDE_IDE=0
 ARG THEIA_IMAGE=ghcr.io/eclipse-theia/theia-ide/theia-ide@sha256:595d34047d91223b5d55fd5b611bb10981154c4b28de9271b2578f996f323751
 
-FROM --platform=linux/amd64 ubuntu:24.04 AS base
+FROM --platform=linux/amd64 ubuntu:24.10 AS base
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Hai binary tải thẳng — GHIM VERSION + SHA256.
