@@ -221,7 +221,7 @@ phút, mở lại sau 5 phút ⇒ bài đã tự nộp · CSV mở được bằ
 
 | # | Ô | Đo bằng |
 |---|---|---|
-| AC-1 | Không hồi quy bài K8s | Test 18.A.1 xanh trước và sau, **không sửa test** |
+| AC-1 | Không hồi quy bài K8s | Test 18.A.1 xanh trước và sau, **không sửa test** — và phải chạy **CẢ HAI** lệnh, xem dưới |
 | AC-2 | Toàn cây xanh | `turbo run build lint typecheck test --force`, đọc `Tasks: X/Y` trước khi trích số |
 | AC-3 | Server chấm lại thật | Verdict client bị sửa tay vẫn ra đúng từ server, có test env node |
 | AC-4 | 4 ô e2e đỏ của P16 đóng | `/problems/:code` + `/author/problems/:code` render trên cài đặt sạch |
@@ -230,6 +230,28 @@ phút, mở lại sau 5 phút ⇒ bài đã tự nộp · CSV mở được bằ
 | AC-7 | Đồng hồ thi | Đổi giờ máy khách không ảnh hưởng; tự nộp khi đóng tab |
 | AC-8 | a11y | axe 0 vi phạm trên màn soạn bài, màn làm bài, bảng điểm |
 | AC-9 | CSV tiếng Việt | Mở bằng Excel không vỡ dấu |
+
+> ⚠ **AC-1 chạy `test` thôi là CHƯA đo (phát hiện của lane 18.A.1, 2026-09-14).**
+>
+> Ba ô gác cho bất biến nguy hiểm nhất — *"gợi ý chưa mở không mang `text`"* —
+> là cổng ở tầng **KIỂU**. Chúng đỏ ở `tsc`, **không đỏ ở `vitest`**: phá
+> `ProblemHintTeaser.text` bằng cách bỏ `| null` cho ra `TS2322` trong khi
+> vitest vẫn báo 23/23 xanh.
+>
+> Nên 18.A.7 phải chạy **hai lệnh, và đọc cả hai**:
+>
+> ```bash
+> pnpm --filter @devops-platform/games typecheck
+> pnpm --filter @devops-platform/games test
+> ```
+>
+> Chạy mỗi `test` rồi tuyên bố xanh là bỏ qua đúng nhóm gác cho lỗ hổng đã
+> từng phải vá một lần (một API trả thẳng `Problem` xuống trình duyệt làm việc
+> trừ điểm gợi ý chỉ còn là hoạt cảnh).
+>
+> Hai bẫy đọc kết quả đi kèm: `pnpm ... | tail` **nuốt mã thoát** (đọc
+> `${PIPESTATUS[0]}`), và vitest **thoát 0 khi mọi test bị skip** — nên phải đọc
+> con số `Tests N passed` cụ thể, không chỉ đọc mã thoát.
 
 ---
 
