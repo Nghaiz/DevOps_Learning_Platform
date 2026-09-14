@@ -18,6 +18,8 @@ COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/terminal/package.json packages/terminal/package.json
 COPY packages/scenario/package.json packages/scenario/package.json
 COPY packages/games/package.json packages/games/package.json
+COPY packages/copy/package.json packages/copy/package.json
+COPY packages/motion/package.json packages/motion/package.json
 # Hạn tải mặc định của pnpm là 60s MỖI request. Đủ khi có build cache, KHÔNG đủ
 # khi lớp này phải kéo lại toàn bộ dep từ registry trên đường truyền chậm: đo
 # 2026-09-09 ở ~1.5 MB/s, riêng `next` tarball mất 27s và các gói lớn
@@ -44,6 +46,8 @@ COPY packages/shared-types packages/shared-types
 COPY packages/terminal packages/terminal
 COPY packages/scenario packages/scenario
 COPY packages/games packages/games
+COPY packages/copy packages/copy
+COPY packages/motion packages/motion
 ENV NEXT_TELEMETRY_DISABLED=1
 # Bật standalone TẠI ĐÂY (không hardcode trong next.config.ts): trên Windows dev,
 # bước trace standalone tạo symlink → EPERM; chỉ image Docker cần standalone.
@@ -67,8 +71,21 @@ ENV NEXT_OUTPUT=standalone
 # vẫn xanh, 4/4 deployment vẫn `Running 1/1`, và triệu chứng ở phía người dùng
 # là `/games/k8s` trả 404 trên cụm trong khi chạy tốt ở máy dev.
 #
-# Bài học chung của cả ba lượt: danh sách này KHÔNG tự đỏ khi thiếu — nó chỉ đỏ
+# LƯỢT THỨ TƯ — `packages/copy` VÀ `packages/motion` (2026-09-14). Cùng hình dạng,
+# và lần này im lặng LÂU NHẤT trong cả bốn: `ci.yml` bị tạm dừng từ 2026-09-04 nên
+# job `images` không chạy một lần nào, kể cả khi PR #116 và #118 gộp vào `main`
+# ngày 09-11. Lần build ĐẦU TIÊN sau đó là 2026-09-14, và nó đỏ ngay:
+#     @devops-platform/games:build: src/k8s/problem.ts(22,19):
+#       error TS2307: Cannot find module '@devops-platform/copy'
+# — trỏ vào một file `.ts` của `games`, không trỏ vào Dockerfile, đúng như cảnh
+# báo trên đã nói.
+#
+# Bài học chung của cả bốn lượt: danh sách này KHÔNG tự đỏ khi thiếu — nó chỉ đỏ
 # ở lần build ĐẦU TIÊN sau khi có người import package mới. Trước đó nó im.
+#
+# ⛔ Bốn lần là đủ để thôi dựa vào trí nhớ. `apps/web/dockerfile-workspace.test.ts` nay
+# đối chiếu danh sách này với `packages/*` thật và ĐỎR khi thiếu một gói — ở
+# tầng `pnpm test`, tức trước cả lượt build image.
 RUN pnpm turbo run build
 
 # ---------------------------------------------------------------- migrator
