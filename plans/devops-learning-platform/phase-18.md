@@ -65,20 +65,40 @@ Ba phép đo, ngày 2026-09-14:
 Node không giải nổi, vitest giải được — qua kho ảo `.pnpm`, nơi `jsdom` chỉ có
 mặt vì bốn package kia kéo nó vào. Ô gác này **không có phụ thuộc của riêng nó**.
 
-Vì sao đây là nợ chứ không phải chuyện nhỏ: khi đường giải hỏng, vitest **không
-báo lỗi** — nó in `Test Files no tests` và **thoát 0**. Một suite xanh lúc đó
-nghĩa là ô gác sống còn đã ngừng chạy, và không ai biết. Đúng hình dạng
-`rules/green-that-proves-nothing.md`. Lane báo nó đỏ lúc 18:19 và xanh lúc 18:35
-cùng ngày, tức là **chập chờn**, không phải đã lành.
+**⛔ ĐÍNH CHÍNH LỜI CỦA CHÍNH MỤC NÀY (đo 2026-09-14 19:18).**
 
-**Vá:** thêm `"jsdom": "^30.0.1"` vào `devDependencies` của
-`packages/games/package.json` (đúng phiên bản bốn package kia dùng), chạy
-`pnpm install`, rồi xác nhận `require.resolve` giải được.
+Bản đầu của mục này viết: *"khi đường giải hỏng, vitest không báo lỗi — nó in
+`Test Files no tests` và **thoát 0**"*, rồi gọi đó là một ca của
+`rules/green-that-proves-nothing.md`. **Đã chạy đối chứng, và câu đó SAI.**
 
-**Ô nghiệm thu của bản vá — không chỉ "test xanh":** sau khi vá, cố tình đổi tên
-`determinism.jsdom.test.ts` thành một môi trường không tồn tại và xác nhận vitest
-**đỏ** thay vì `no tests`. Nếu nó vẫn thoát 0 thì bản vá chưa đóng được lỗ hổng
-thật, chỉ đóng được triệu chứng.
+Đổi docblock sang `@vitest-environment khong-ton-tai-gi-ca` rồi chạy:
+
+```
+ Test Files  no tests
+      Tests  no tests
+     Errors  1 error
+rc=1
+```
+
+Nó in `no tests` **kèm một dòng `Errors` và thoát 1**. Nó ĐỎ. Không im lặng, và
+không phải một ca green-that-proves-nothing. Lời khai cũ suy ra từ chữ "no tests"
+mà không chạy thử — đúng loại lỗi mục này sinh ra để bắt, chỉ là bắt người viết
+nó. Lane báo ô này **đỏ** lúc 18:19, và "đỏ" lẽ ra đã đủ để bác bỏ "thoát 0".
+
+**Bản vá vẫn giữ, nhưng vì lý do khác và nhỏ hơn.** Một phụ thuộc không khai mà
+giải được nhờ kho ảo `.pnpm` là thứ hoạt động cho tới khi bốn package kia bỏ
+`jsdom`, hoặc cho tới một lượt cài có thứ tự khác. Nó là **mong manh**, không
+phải **âm thầm** — khi vỡ thì CI đỏ chứ không xanh giả.
+
+**Đã vá 2026-09-14:** thêm `"jsdom": "^30.0.1"` vào `devDependencies` của
+`packages/games/package.json` (đúng phiên bản bốn package kia dùng) + `pnpm
+install`. Đo lại: `require.resolve('jsdom', { paths: ['packages/games'] })` nay
+**giải được** (trước đó `MODULE_NOT_FOUND`), và `determinism.jsdom.test.ts` chạy
+5/5.
+
+**Bài học giữ lại, vì nó đáng hơn bản vá:** "`no tests`" KHÔNG đồng nghĩa "thoát
+0". Trước khi gọi một thứ là green-that-proves-nothing thì phải **phá nó và xem
+mã thoát**, chứ không suy từ hình dạng dòng chữ.
 
 ---
 
