@@ -552,6 +552,26 @@ export const catalog = {
   'catalog.problem.verdict-unnamed': 'Testcase ẩn chưa hiện tên',
 
   /*
+    Verdict đọc lại từ LỊCH SỬ nộp bài (18.C).
+
+    `subs-verdict-ungraded` KHÔNG phải một cách nói khác của `CE`, và đó là cả
+    lý do nó tồn tại. `problemVerdictOf(_, 0)` trả `CE`, và điều đó ĐÚNG với vai
+    trò một verdict lúc CHẤM. Nhưng cột `total` mặc định `0`, nên trong lịch sử
+    một `total === 0` gộp BA nguyên nhân khác hẳn nhau: lượt thật sự không chấm
+    được, dòng ghi trước 18.C khi cột chưa tồn tại, và bài chưa có testcase nào.
+
+    `CE` nghĩa là lỗi cú pháp. In nó lên một lượt nộp cũ là nói với người chơi
+    rằng bài của họ sai cú pháp trong khi không hề. Một nhãn sai theo hướng đổ
+    lỗi cho người dùng tệ hơn hẳn một nhãn mờ, nên nhãn này cố ý chỉ nói đúng
+    thứ nó biết, và không đoán nguyên nhân nào trong ba.
+
+    ⛔ Phân biệt được ba nguyên nhân đó cần một cột thứ ba trên
+    `problem_submissions`. Đừng đổi chữ ở đây để giả vờ đã phân biệt được.
+  */
+  'catalog.problem.subs-col-verdict': 'Verdict',
+  'catalog.problem.subs-verdict-ungraded': 'Chưa chấm theo testcase',
+
+  /*
     ── Nộp bài từ đấu trường (18.C) ────────────────────────────────────────
 
     Nhóm này ra đời cùng chỗ gọi `problems.submit` ĐẦU TIÊN của ứng dụng. Tới

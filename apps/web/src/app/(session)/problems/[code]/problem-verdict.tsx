@@ -18,18 +18,21 @@ import type { VerdictView } from '../../../../server/problems/verdict-view';
  * điểm của §18.B.5, lượt chơi không chạy tới nơi thì `passed`/`total` không nói
  * lên gì và `0/5` là một lời nói dối.
  *
- * ── CHƯA CÓ CHỖ GỌI, và ghi ra đây thay vì để người sau tưởng là sót ──
+ * ── ĐÃ CÓ CHỖ GỌI kể từ 2026-09-14 ──
  *
- * Không màn nào trong `apps/web` gọi `problems.submit` (kiểm bằng grep
- * 2026-09-14: đúng 0 chỗ ngoài chính router và `submit.ts`). Nút "Bắt đầu làm
- * bài" đưa người dùng sang `/games/k8s?problem=<mã>`, và đấu trường chưa nộp
- * bài về máy chủ bao giờ. Nên component này có test nhưng chưa có màn hình.
+ * ⛔ ĐÍNH CHÍNH. Bản trước của khối này nói "không màn nào trong `apps/web` gọi
+ * `problems.submit`" và "component này có test nhưng chưa có màn hình". Cả hai
+ * câu đã hết đúng trong cùng ngày: `use-problem-submit.ts` nộp lượt chơi từ đấu
+ * trường và dựng `VerdictView` từ kết quả máy chủ trả. Giữ lại lời đính chính
+ * thay vì xoá lặng, vì một chú thích sai nguy hiểm hơn một chú thích thiếu.
  *
- * KHÔNG dựng một chỗ gọi giả trên `/problems/[code]`: trang đó chỉ có cột
- * `solved` của lịch sử nộp, mà `solved` đếm theo mục tiêu BẮT BUỘC còn verdict
- * đếm theo MỌI testcase. Hai số lệch nhau ở bài có mục tiêu thưởng, nên vẽ
- * `AC` từ `solved` là vẽ một verdict có thể sai. Bảng `problem_submissions`
- * còn thiếu `passed text[]` + `total integer` để làm việc đó cho đúng. Đã báo lead.
+ * Câu thứ ba của bản cũ cũng đã hết đúng: `problem_submissions` NAY CÓ
+ * `passed text[]` + `total integer`. Nhưng kết luận rút ra từ nó thì vẫn nguyên
+ * giá trị, nên đọc kỹ chỗ này: lịch sử nộp bài KHÔNG vẽ verdict từ cột `solved`.
+ * `solved` đếm theo mục tiêu BẮT BUỘC còn verdict đếm theo MỌI testcase, nên ở
+ * bài có mục tiêu thưởng hai số lệch nhau một cách hợp lệ. Lịch sử vẽ verdict
+ * qua `submissionVerdictLabel` ở `./submission-verdict.ts`, đọc thẳng hai cột
+ * mới, và đó cũng là nơi `total === 0` được dịch thành một nhãn KHÁC `CE`.
  */
 export function ProblemVerdict({ view }: { readonly view: VerdictView }): ReactElement {
   return (
