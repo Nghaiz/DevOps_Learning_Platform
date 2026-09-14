@@ -5,7 +5,7 @@ import {
   tallyLog,
   verifyRun,
   type GameAction,
-  type Problem,
+  type Testcase,
   type RunLog,
   type RunResult,
 } from '@devops-platform/games';
@@ -17,15 +17,17 @@ import {
   problemReplayEngine,
   problemScoreRun,
 } from './replay';
+import type { StoredProblem } from './dto';
 
 /**
  * Bài tối thiểu chạy được thật trên engine: một node, một namespace, mục tiêu là
  * dựng một pod. Dùng `resource-exists` + `pod-running` — hai vị từ mà `l01` dùng,
  * nên chúng chắc chắn có trong bảng `PREDICATES`.
  */
-function makeProblem(overrides: Partial<Problem> = {}): Problem {
+function makeProblem(overrides: Partial<StoredProblem> = {}): StoredProblem {
   return {
     code: 'K8S-0001',
+    gameId: 'k8s',
     slug: 'pod-dau-tien',
     title: 'Pod đầu tiên',
     statement: 'Dựng một pod tên `web` trong namespace `hoc-tap`.',
@@ -38,20 +40,20 @@ function makeProblem(overrides: Partial<Problem> = {}): Problem {
       namespaces: ['hoc-tap'],
       resources: [],
     },
-    objectives: [
+    testcases: [
       {
         id: 'pod-ton-tai',
         label: 'Có một pod tên `web`',
         check: 'resource-exists',
         args: { kind: 'Pod', name: 'web', namespace: 'hoc-tap' },
-        required: true,
+        visible: true,
       },
       {
         id: 'pod-chay',
         label: 'Pod `web` đang Running',
         check: 'pod-running',
         args: { namespace: 'hoc-tap', name: 'web' },
-        required: false,
+        visible: true,
       },
     ],
     allowedResources: null,
@@ -60,6 +62,7 @@ function makeProblem(overrides: Partial<Problem> = {}): Problem {
       { id: 'goi-y-2', text: 'Image `nginx:1.27-alpine`.', penaltyPoints: 120 },
     ],
     parMoves: 1,
+    seedable: false,
     state: 'published',
     authorId: null,
     createdAt: '2026-09-08T00:00:00.000Z',
@@ -85,12 +88,12 @@ const APPLY_POD: GameAction = {
   ].join('\n'),
 };
 
-function makeLog(problem: Problem, actions: readonly GameAction[]): RunLog {
+function makeLog(problem: StoredProblem, actions: readonly GameAction[]): RunLog {
   return { gameId: 'k8s', levelId: problem.code, seed: 12345, actions };
 }
 
 /** Chạy phát lại một lần để lấy con số THẬT mà engine sinh ra cho nhật ký này. */
-function replayedScore(problem: Problem, log: RunLog, revealedIds: readonly string[]): number {
+function replayedScore(problem: StoredProblem, log: RunLog, revealedIds: readonly string[]): number {
   const engine = problemReplayEngine(problem, revealedIds);
   const state = engine.init(log.levelId, log.seed);
   try {
@@ -104,7 +107,7 @@ function replayedScore(problem: Problem, log: RunLog, revealedIds: readonly stri
   }
 }
 
-function makeClaim(problem: Problem, log: RunLog, score: number, objectivesMet: readonly string[]): RunResult {
+function makeClaim(problem: StoredProblem, log: RunLog, score: number, objectivesMet: readonly string[]): RunResult {
   const tally = tallyLog(log);
   return {
     gameId: 'k8s',
@@ -113,7 +116,7 @@ function makeClaim(problem: Problem, log: RunLog, score: number, objectivesMet: 
     startedAt: 1_000,
     finishedAt: 61_000,
     objectivesMet,
-    objectivesTotal: problem.objectives.length,
+    objectivesTotal: problem.testcases.length,
     commandsUsed: tally.commandsUsed,
     hintsUsed: tally.hintsUsed,
     score,
@@ -249,23 +252,41 @@ describe('xác minh đầu-cuối bằng verifyRun', () => {
   });
 });
 
-describe('isSolved đọc mục tiêu BẮT BUỘC', () => {
-  it('đủ mục tiêu bắt buộc là đã giải, dù thiếu mục tiêu thưởng', () => {
-    expect(isSolved(makeProblem(), ['pod-ton-tai'])).toBe(true);
+/*
+ * ⚠ NHÓM NÀY ĐỔI NGHĨA Ở 18.B, và ghi lại thay vì lặng lẽ sửa kỳ vọng cho xanh.
+ *
+ * Bản cũ tên là "isSolved đọc mục tiêu BẮT BUỘC" và gác một bất biến nay đã
+ * CHẾT: quyết định #20 bỏ hẳn khái niệm mục tiêu thưởng (*"Objective =
+ * testcase"*, và `core/problem.ts` § `Testcase` bỏ `required` vì *"một testcase
+ * thì luôn chặn"*). Ô "đủ phần bắt buộc là đã giải dù thiếu mục tiêu thưởng"
+ * mô tả một hành vi KHÔNG CÒN ĐÚNG, nên nó bị đảo chứ không bị chỉnh số.
+ *
+ * Ô thứ ba thì ngược lại — bất biến của nó CÒN SỐNG (tập rỗng không được tự
+ * động là "đã giải"), chỉ cách dựng dữ liệu là chết: nó dựng ca đó bằng
+ * `required: false` cho mọi mục tiêu, một câu không còn diễn đạt được gì. Dựng
+ * lại bằng một bài KHÔNG CÓ testcase nào, đúng thứ nó định gác từ đầu.
+ */
+describe('isSolved đọc MỌI testcase', () => {
+  it('đạt hết testcase mới là đã giải', () => {
+    expect(isSolved(makeProblem(), ['pod-ton-tai', 'pod-chay'])).toBe(true);
   });
 
-  it('thiếu mục tiêu bắt buộc thì chưa giải, dù có mục tiêu thưởng', () => {
+  it('ĐẢO NGHĨA từ 18.B: đạt một phần thì CHƯA giải', () => {
+    // Trước #20 đây là `true` — `pod-chay` là mục tiêu thưởng nên không chặn.
+    // Từ #20 mọi testcase đều chặn, nên thiếu một cái là chưa giải.
+    expect(isSolved(makeProblem(), ['pod-ton-tai'])).toBe(false);
+  });
+
+  it('thiếu testcase khác cũng chưa giải', () => {
     expect(isSolved(makeProblem(), ['pod-chay'])).toBe(false);
   });
 
-  it('bài không có mục tiêu bắt buộc nào thì KHÔNG tự động là đã giải', () => {
+  it('bài KHÔNG CÓ testcase nào thì KHÔNG tự động là đã giải', () => {
     // "Mọi phần tử của tập rỗng đều thoả" là đúng về logic và sai về sản phẩm:
     // nó cho không điểm cho một bài dữ liệu đã hỏng.
-    const problem = makeProblem();
-    const noRequired = makeProblem({
-      objectives: problem.objectives.map((objective) => ({ ...objective, required: false })),
-    });
-    expect(isSolved(noRequired, ['pod-ton-tai', 'pod-chay'])).toBe(false);
+    const noTestcases = makeProblem({ testcases: [] as readonly Testcase[] });
+    expect(isSolved(noTestcases, [])).toBe(false);
+    expect(isSolved(noTestcases, ['pod-ton-tai', 'pod-chay'])).toBe(false);
   });
 });
 
@@ -281,7 +302,7 @@ describe('đọc gợi ý đã mở ra từ nhật ký', () => {
   });
 });
 
-function objectivesFrom(problem: Problem, log: RunLog): readonly string[] {
+function objectivesFrom(problem: StoredProblem, log: RunLog): readonly string[] {
   const engine = problemReplayEngine(problem, []);
   const state = engine.init(log.levelId, log.seed);
   try {

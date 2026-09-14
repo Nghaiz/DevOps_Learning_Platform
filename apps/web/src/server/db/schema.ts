@@ -17,13 +17,13 @@ import {
   CONTENT_STATES,
 } from '@devops-platform/shared-types/authoring';
 import {
+  GAME_IDS,
   PROBLEM_DIFFICULTIES,
+  PROBLEM_FAILURE_CODES,
   PROBLEM_STATES,
-  PROBLEM_TOPICS,
-  type ClusterSpec,
-  type Objective,
   type ProblemHint,
   type ResourceKind,
+  type Testcase,
 } from '@devops-platform/games';
 import { LEARNING_PATH_STATES, PATH_ITEM_KINDS } from '@devops-platform/shared-types/path';
 import { QUIZ_QUESTION_KINDS, QUIZ_STATES } from '@devops-platform/shared-types/quiz';
@@ -1202,6 +1202,31 @@ export const problems = pgTable(
      * không cần một chỉ mục thứ hai cho nó.
      */
     code: text('code').primaryKey(),
+    /**
+     * Game nào chấm bài này — §18.A, cột thêm ở migration 0015.
+     *
+     * ## Vì sao cột này tới MUỘN, và vì sao muộn là một lỗi chứ không phải thứ tự
+     *
+     * 18.A đã tổng quát `Problem` ở tầng miền (`core/problem.ts` khai `gameId`)
+     * và ở tầng giao diện (`/author/problems` đổi biểu mẫu theo plugin), nhưng
+     * **kho lưu thì không đi theo**. Hệ quả đo được ngày 2026-09-15: một bài Git
+     * soạn xong qua giao diện mới không có chỗ nào để lưu, vì mọi cột ở đây đều
+     * mang hình dạng K8s. "OJ đa-game" đúng ở hai tầng trên và sai ở tầng dưới
+     * cùng — tức là chưa đúng.
+     *
+     * ## `'k8s'` là mặc định ĐÚNG NGHĨA cho dòng cũ
+     *
+     * Không phải chỗ giữ chỗ: mọi dòng viết trước 0015 thật sự LÀ bài K8s —
+     * `initial_state` của chúng là `ClusterSpec`, `topics` của chúng nằm trong
+     * `PROBLEM_TOPICS` của K8s. Backfill bằng một hằng khác sẽ là bịa.
+     *
+     * ⚠ Tập giá trị là toàn bộ `GAME_IDS`, KHÔNG phải tập game đã có plugin
+     * chấm. Một bài `draft` của game chưa có engine là hợp lệ và nên lưu được;
+     * thứ phải chặn là **xuất bản** nó, và chỗ chặn là `publish-gate.ts` —
+     * `submit.ts` ném `INTERNAL_SERVER_ERROR` nếu một bài `published` thuộc game
+     * không có plugin, nên cổng xuất bản là thứ giữ cho nhánh đó không tới được.
+     */
+    gameId: text('game_id', { enum: GAME_IDS }).notNull().default('k8s'),
     /** Nằm trong URL, sinh từ tiêu đề, ĐỔI ĐƯỢC. Duy nhất riêng, xem index dưới. */
     slug: text('slug').notNull(),
     title: text('title').notNull(),
@@ -1228,23 +1253,83 @@ export const problems = pgTable(
      * gác, nhưng gác ở biên GHI bằng chính `PROBLEM_TOPICS` (SSOT của hợp đồng)
      * chứ không bằng một bản sao thứ hai của danh sách nằm trong DB.
      *
-     * Kiểu TypeScript vẫn hẹp nhờ `{ enum: PROBLEM_TOPICS }`: cột ra kiểu
-     * `ProblemTopic[]`, không phải `string[]`.
+     * ⚠ `{ enum: PROBLEM_TOPICS }` ĐÃ GỠ ở 0015, và đây là chỗ dễ đọc nhầm nhất
+     * trong cả khối này. `PROBLEM_TOPICS` là tập chủ đề **của riêng K8s**; từ
+     * 18.A mỗi plugin mang tập chủ đề riêng (`GIT_PROBLEM_TOPICS`, …) và hợp
+     * đồng đã nới `ProblemTopicId = string`. Giữ enum cũ ở đây nghĩa là một bài
+     * Git hợp lệ bị TypeScript từ chối ngay tại chỗ ghi.
+     *
+     * Việc gác tập đóng KHÔNG mất đi, nó chỉ đổi chỗ đúng hơn: biên ghi hỏi
+     * plugin của `game_id` xem chủ đề có thuộc tập của game đó không. Một danh
+     * sách hợp nhất mọi game nằm ở tầng DB sẽ nhận `git-rebase` cho một bài K8s
+     * — hẹp về kiểu mà rộng về nghĩa, tức là sai.
      */
-    topics: text('topics', { enum: PROBLEM_TOPICS }).array().notNull(),
+    topics: text('topics').array().notNull(),
     /** Phân loại tự do, đã chuẩn hoá thường + gạch nối. Rỗng là hợp lệ. */
     tags: text('tags').array().notNull(),
     /** `null` = không giới hạn giờ — không phải bài nào cũng nên chạy đua. */
     timeLimitSec: integer('time_limit_sec'),
-    /** `ClusterSpec` — đọc nguyên khối để dựng phiên mô phỏng, không lọc theo phần tử. */
-    initialState: jsonb('initial_state').$type<ClusterSpec>().notNull(),
-    objectives: jsonb('objectives').$type<Objective[]>().notNull(),
+    /**
+     * Trạng thái đầu của thế giới — `ClusterSpec` với K8s, `WorldSpec` với Git.
+     * Đọc nguyên khối để dựng phiên mô phỏng, không lọc theo phần tử.
+     *
+     * ⛔ `$type<unknown>()` là CHỦ Ý, không phải chỗ chưa làm xong. Hợp đồng
+     * `ProblemBase<Spec>` nói rõ vì sao `Spec` là tham số kiểu chứ không phải
+     * một union: kiểu đúng của cột này phụ thuộc `game_id` của CHÍNH DÒNG ĐÓ,
+     * và TypeScript không diễn đạt được ràng buộc liên-cột. Một union
+     * `ClusterSpec | WorldSpec` trông hẹp hơn mà không hẹp thật — nó vẫn cho
+     * `ClusterSpec` lọt vào một dòng `game_id = 'git'`, chỉ là im lặng hơn.
+     *
+     * Chỗ hẹp lại là `gradeProblemRun`, vốn đã nhận `initialState: unknown` và
+     * ép kiểu SAU khi tra plugin theo `gameId` (`problem-plugins.ts`). Đó là
+     * điểm duy nhất trong hệ biết đủ hai vế để nói kiểu nào đúng.
+     */
+    initialState: jsonb('initial_state').$type<unknown>().notNull(),
+    /**
+     * Trạng thái ĐÍCH, với bài chấm bằng cách so hình dạng (`graphShapeMatches`
+     * của Git). `null` với phần lớn bài. Cùng lý lẽ `unknown` như trên.
+     */
+    targetState: jsonb('target_state').$type<unknown>(),
+    /**
+     * Testcase của bài. Tên cột giữ nguyên `objectives` **có chủ ý**: quyết định
+     * #20 của thiết kế nói thẳng *"Objective = testcase"*, nên cái tên không nói
+     * dối về nội dung, và đổi tên cột là một migration dữ liệu không mua thêm
+     * điều gì.
+     *
+     * ⚠ `$type<Testcase[]>` là hình dạng của các lượt GHI MỚI, không phải lời
+     * hứa về mọi dòng: dòng viết trước 18.B mang `required` và KHÔNG mang
+     * `visible`. Đừng đọc cột này trực tiếp — `problems/testcases.ts`
+     * (`problemTestcases`) là biên đọc, nó nhận `readonly unknown[]` đúng vì lý
+     * do đó và mặc định `visible: true` cho dòng cũ.
+     */
+    objectives: jsonb('objectives').$type<Testcase[]>().notNull(),
     /** `null` = cho dùng mọi loại tài nguyên. Một mảng đủ 26 loại KHÔNG tương đương. */
     allowedResources: jsonb('allowed_resources').$type<ResourceKind[]>(),
     /** `ProblemHint[]` — gợi ý CÓ GIÁ, nên mỗi cái cần `id` và `penaltyPoints`. */
     hints: jsonb('hints').$type<ProblemHint[]>().notNull(),
     /** `null` = không chấm theo số nước đi; `computeScore` đọc 0 đúng nghĩa đó. */
     parMoves: integer('par_moves'),
+    /**
+     * Bài này có sinh được đề theo seed không — §18.D.6, cột thêm ở 0015.
+     *
+     * ## Mặc định `false`, và chiều mặc định là phần quan trọng
+     *
+     * `false` là hướng AN TOÀN, không phải hướng tiện. Cờ này gác một thứ có
+     * hậu quả thật: §18.G.3 cấm đưa bài `seedable: false` vào kỳ thi dùng
+     * `per-student`, vì mỗi sinh viên sẽ nhận một đề **khác độ khó** mà không ai
+     * biết. Mặc định `true` cho hàng trăm dòng cũ là tuyên bố chúng sinh đề được
+     * — một lời khai chưa ai kiểm — và cái giá của việc sai là một kỳ thi không
+     * công bằng, phát hiện ra sau khi đã chấm.
+     *
+     * Sai theo chiều `false` thì cái giá là một bài không được chọn vào đề thi
+     * cho tới khi tác giả bật cờ. Ồn ào, sửa được, không ai mất điểm.
+     *
+     * ⚠ Cột này MỘT MÌNH không đóng được §18.G. Nó gác lúc SOẠN ĐỀ. Còn cổng thứ
+     * hai gác lúc NỘP — `submit.ts` hiện nhận `log.seed` vô điều kiện, nên
+     * người nộp tự chọn được thế giới đầu của mình. Hai cổng, hai thời điểm; xem
+     * `phase-18.md` §18.G khối "CỔNG SEED".
+     */
+    seedable: boolean('seedable').notNull().default(false),
     state: problemState('state').notNull().default('draft'),
     /**
      * `null` với bài seed trong repo — chúng không có tài khoản tác giả.
@@ -1379,6 +1464,37 @@ export const problemSubmissions = pgTable(
      * chấm testcase thật sự **không chấm được** theo mô hình này.
      */
     total: integer('total').notNull().default(0),
+    /**
+     * VÌ SAO lượt này không chấm được. `null` khi nó chấm được bình thường.
+     *
+     * ## Cột này tồn tại vì hai cột trên KHÔNG phân biệt nổi hai ca
+     *
+     * Nợ ghi ở `phase-18.md` §0.3a, đo lại ngày 2026-09-15. Đường đẻ ra nó là
+     * `submit.ts` nhánh `engine-khong-tat-dinh`:
+     *
+     * ```ts
+     * if (status === 'engine-khong-tat-dinh') return gradeOf(status, [], testcases.length);
+     * ```
+     *
+     * Nó ghi `passed = []` với `total = <số testcase>`, tức `total > 0`. Đọc lại
+     * bằng `problemVerdictOf(0, 5)` ra `WA`, nên lịch sử hiện `WA (0/5)` cho một
+     * lượt mà máy chủ đã kết luận là KHÔNG chấm được.
+     *
+     * ⛔ Và không sửa được bằng cách suy từ `passed.length === 0`: một `WA (0/5)`
+     * THẬT — người làm chạy được nhưng không qua case nào — có dữ liệu giống hệt.
+     * Hai nguyên nhân, một biểu hiện; cột thứ ba là đường ra duy nhất.
+     *
+     * Cột lưu MÃ (`PROBLEM_FAILURE_CODES`) chứ không lưu câu tiếng Việt: câu chữ
+     * viết cho người đọc và sẽ được sửa, còn mã thì không đổi trong im lặng.
+     * `problemFailureMessage` dựng lại câu từ mã, nên lịch sử hiện đúng câu mà
+     * lượt nộp đã hiện.
+     *
+     * ⚠ `null` mang HAI nghĩa và chỗ đọc phải xử cả hai: lượt chấm được bình
+     * thường, **và** dòng ghi trước 0015 (cột chưa tồn tại). Phân biệt bằng
+     * `total`: `total > 0` + `null` là `WA`/`AC` thật; `total === 0` + `null` là
+     * dòng cũ chưa chấm theo testcase.
+     */
+    failCode: text('fail_code', { enum: PROBLEM_FAILURE_CODES }),
     /** `precision: 3` — cùng lý do keyset đã ghi ở `problems.created_at`. */
     submittedAt: timestamp('submitted_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   },

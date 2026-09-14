@@ -5,14 +5,15 @@ import {
   sessionReplayEngine,
   type Difficulty,
   type K8sSession,
+  type ClusterSpec,
   type Level,
-  type Problem,
   type ProblemDifficulty,
   type ReplayEngine,
   type RunLog,
   type RunTally,
   type SessionStatus,
 } from '@devops-platform/games';
+import type { StoredProblem } from './dto';
 
 /**
  * Dựng bộ phát lại cho một bài OJ.
@@ -31,7 +32,7 @@ import {
  * và `submit.ts` kiểm trước để trả một câu nói được thay vì một `phat-lai-loi`
  * chung chung.
  */
-export function expectedLogLevelId(problem: Problem): string {
+export function expectedLogLevelId(problem: StoredProblem): string {
   return problem.code;
 }
 
@@ -79,7 +80,22 @@ export function problemDifficultyToLevelDifficultyLossy(
  * `teaching` rỗng là đúng nghĩa chứ không phải chỗ giữ chỗ: một `Problem` theo
  * định nghĩa là bài KHÔNG dạy (`problem.ts` mở đầu bằng đúng bảng phân vai đó).
  */
-export function problemAsLevel(problem: Problem): Level {
+export function problemAsLevel(problem: StoredProblem): Level {
+  /*
+   * ⛔ CHỐT NARROW K8s. `Level` là kiểu của game K8s, nên hàm này chỉ đúng
+   * với bài K8s — và từ 18.A kho lưu chở được bài của game khác.
+   *
+   * Ném thay vì ép im lặng: `StoredProblem.initialState` là `unknown` (kiểu
+   * đúng phụ thuộc `gameId` — xem `dto.ts`), nên một `as ClusterSpec` không
+   * kiểm gì sẽ đưa một `WorldSpec` của Git xuống reducer K8s. Triệu chứng khi
+   * đó là `phat-lai-loi` giữa lượt chấm, tức một lỗi CẤU HÌNH đọc ra thành "bộ
+   * mô phỏng hỏng". Ném ở đây nói đúng tên vấn đề.
+   */
+  if (problem.gameId !== 'k8s') {
+    throw new Error(
+      `problemAsLevel chỉ dựng được Level của K8s, nhưng bài "${problem.code}" thuộc game "${problem.gameId}"`,
+    );
+  }
   return {
     id: expectedLogLevelId(problem),
     chapter: 0,
@@ -92,9 +108,27 @@ export function problemAsLevel(problem: Problem): Level {
     mission: problem.title,
     brief: problem.statement,
     difficulty: problemDifficultyToLevelDifficultyLossy(problem.difficulty),
-    initialState: problem.initialState,
+    initialState: problem.initialState as ClusterSpec,
     allowedResources: problem.allowedResources ?? ALL_KINDS,
-    objectives: problem.objectives,
+    /*
+     * `required: true` cho MỌI testcase — quyết định #20 được thi hành, không
+     * phải một giá trị điền cho đủ: *"Objective = testcase"*, và
+     * `core/problem.ts` § `Testcase` bỏ `required` vì *"một testcase thì luôn
+     * chặn — đó là nghĩa của `AC`"*.
+     *
+     * ⚠ ĐỔI NGHĨA với dữ liệu CŨ: một bài soạn trước 18.B có mục tiêu
+     * thưởng (`required: false`) thì từ nay mục tiêu đó CHẶN. Thông tin
+     * `required` đã mất ở biên đọc (`problemTestcases` không chở nó sang
+     * `Testcase`), nên đây không phải chỗ khôi phục được — nó là chỗ ghi lại
+     * rằng nó đã mất.
+     */
+    objectives: problem.testcases.map((testcase) => ({
+      id: testcase.id,
+      label: testcase.label,
+      check: testcase.check,
+      ...(testcase.args === undefined ? {} : { args: testcase.args }),
+      required: true,
+    })),
     hints: problem.hints.map((hint) => hint.text),
     parMoves: problem.parMoves ?? 0,
     teaches: [],
@@ -121,13 +155,13 @@ export function problemAsLevel(problem: Problem): Level {
  * - `parMoves` truyền thẳng `null`; hàm dùng chung tự xử lý.
  */
 export function problemScoreRun(
-  problem: Problem,
+  problem: StoredProblem,
   revealedHintIds: readonly string[],
 ): (status: SessionStatus, tally: RunTally) => number {
   return (status, tally) =>
     scoreProblemRun({
       objectivesMet: new Set(status.objectivesMet).size,
-      objectivesTotal: problem.objectives.length,
+      objectivesTotal: problem.testcases.length,
       movesUsed: tally.commandsUsed,
       parMoves: problem.parMoves,
       hints: problem.hints,
@@ -136,7 +170,7 @@ export function problemScoreRun(
 }
 
 export function problemReplayEngine(
-  problem: Problem,
+  problem: StoredProblem,
   revealedHintIds: readonly string[],
 ): ReplayEngine<K8sSession> {
   return sessionReplayEngine(
@@ -154,7 +188,7 @@ export function problemReplayEngine(
  * thì bỏ qua — một nhật ký thuộc bản đề CŨ hơn không được làm cả lượt nộp nổ;
  * `verifyRun` sẽ tự bắt nó ở chỗ điểm không khớp.
  */
-export function hintIdsFromLog(problem: Problem, log: RunLog): readonly string[] {
+export function hintIdsFromLog(problem: StoredProblem, log: RunLog): readonly string[] {
   const ids: string[] = [];
   for (const action of log.actions) {
     if (action.kind !== 'hint') {
@@ -169,20 +203,26 @@ export function hintIdsFromLog(problem: Problem, log: RunLog): readonly string[]
 }
 
 /**
- * Đã giải được chưa — theo các mục tiêu BẮT BUỘC.
+ * Đã giải được chưa — theo MỌI testcase.
  *
- * Mục tiêu thưởng (`required: false`) ăn điểm nhưng không chặn, nên một lượt đạt
- * hết phần bắt buộc vẫn là "đã giải". Đọc `objectivesMet` ĐÃ ĐƯỢC PHÁT LẠI XÁC
- * MINH, không phải một cờ client gửi lên.
+ * ⚠ ĐỔI NGHĨA ở 18.B, ghi lại vì cổng này bị SIẾT chứ không phải được dọn. Bản
+ * cũ chỉ đếm mục tiêu `required: true` và bỏ qua mục tiêu thưởng. Quyết định #20
+ * bỏ hẳn khái niệm đó — mọi testcase đều chặn — nên một bài cũ có mục tiêu
+ * thưởng nay đòi đạt cả nó mới được tính là "đã giải".
+ *
+ * Không có đường giữ hành vi cũ ở đây kể cả khi muốn: `problemTestcases` ở biên
+ * đọc không chở `required` sang `Testcase`, nên tới hàm này thì thông tin ấy đã
+ * không còn tồn tại. Chỗ duy nhất còn phân biệt được là cột jsonb thô.
+ *
+ * Đọc `objectivesMet` ĐÃ PHÁT LẠI XÁC MINH, không phải một cờ client gửi lên.
  */
-export function isSolved(problem: Problem, objectivesMet: readonly string[]): boolean {
+export function isSolved(problem: StoredProblem, objectivesMet: readonly string[]): boolean {
   const met = new Set(objectivesMet);
-  const required = problem.objectives.filter((objective) => objective.required);
-  // Bài không có mục tiêu bắt buộc nào là bài không chấm được — trả `false` thay
-  // vì `true` theo kiểu "mọi phần tử của tập rỗng đều thoả". Cổng xuất bản chặn
+  // Bài không có testcase nào là bài không chấm được — trả `false` thay vì
+  // `true` theo kiểu "mọi phần tử của tập rỗng đều thoả". Cổng xuất bản chặn
   // hình dạng đó, nên tới được đây nghĩa là dữ liệu đã hỏng ở đâu đó.
-  if (required.length === 0) {
+  if (problem.testcases.length === 0) {
     return false;
   }
-  return required.every((objective) => met.has(objective.id));
+  return problem.testcases.every((testcase) => met.has(testcase.id));
 }

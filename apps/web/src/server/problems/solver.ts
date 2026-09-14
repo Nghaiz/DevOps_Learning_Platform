@@ -1,12 +1,12 @@
 import type {
-  Problem,
   ProblemHint,
   ProblemHintTeaser,
   ProblemStats,
   ProblemViewerStatus,
   TestcaseTeaser,
 } from '@devops-platform/games';
-import { problemTestcases, toAuthorTestcaseTeasers, toTestcaseTeasers } from './testcases';
+import type { StoredProblem } from './dto';
+import { toAuthorTestcaseTeasers, toTestcaseTeasers } from './testcases';
 
 /**
  * Hình dạng bài tập mà NGƯỜI HỌC nhận qua dây.
@@ -37,12 +37,18 @@ import { problemTestcases, toAuthorTestcaseTeasers, toTestcaseTeasers } from './
  *
  * ⚠ Đây là chỗ dọn khi 18.A hợp nhất hai bản khai: lúc `ProblemForSolver` của
  * `core/` ra tới barrel, kiểu dưới đây bỏ đi và chỗ dùng đổi sang nó. Đã báo lead.
+ *
+ * 2026-09-15: nền đã đổi một nửa — `Omit` nay chạy trên `StoredProblem` (DTO
+ * game-neutral) thay vì `Problem` của K8s, và trường bị cắt đổi tên từ
+ * `objectives` thành `testcases` theo hợp đồng `ProblemBase`. Việc thay hẳn
+ * bằng `ProblemForSolver` vẫn còn đó: nó không ôm được `allowedResources`, thứ
+ * chỉ K8s có và `StoredProblem` đang chở — xem khối nợ ở `dto.ts`.
  */
-export type SolverProblem = Omit<Problem, 'hints' | 'objectives'> & {
+export type SolverProblem = Omit<StoredProblem, 'hints' | 'testcases'> & {
   readonly hints: readonly ProblemHintTeaser[];
   /**
-   * Thay chỗ của `objectives`. Testcase ẩn giữ nguyên phần tử để mẫu số `n/m`
-   * trung thực, chỉ `label` là `null` — xem `toTestcaseTeasers`.
+   * Bản ĐÃ CHE của `StoredProblem.testcases`. Testcase ẩn giữ nguyên phần tử để
+   * mẫu số `n/m` trung thực, chỉ `label` là `null` — xem `toTestcaseTeasers`.
    */
   readonly testcases: readonly TestcaseTeaser[];
 };
@@ -84,19 +90,19 @@ export interface SolverProblemPage {
  * đánh đổi mà `penaltyPoints` sinh ra để diễn đạt.
  */
 export function toSolverProblem(
-  problem: Problem,
+  problem: StoredProblem,
   revealedIds: ReadonlySet<string>,
   hasSubmitted: boolean,
 ): SolverProblem {
-  // Huỷ cấu trúc để `objectives` KHÔNG đi tiếp qua `rest`. Viết
-  // `{ ...problem, testcases }` sẽ mang theo `objectives` nguyên vẹn và kiểu
-  // vẫn xanh (thừa trường không phải lỗi ở một biểu thức không phải object
-  // literal) — đúng cái bẫy mà `TestcaseTeaser` sinh ra để chặn.
-  const { hints, objectives, ...rest } = problem;
+  // Huỷ cấu trúc để `testcases` ĐẦY ĐỦ (có `check`/`args`) KHÔNG đi tiếp qua
+  // `rest`. Viết `{ ...problem, testcases }` sẽ mang theo bản đầy đủ tới lúc bị
+  // ghi đè, và kiểu vẫn xanh (thừa trường không phải lỗi ở một biểu thức không
+  // phải object literal) — đúng cái bẫy mà `TestcaseTeaser` sinh ra để chặn.
+  const { hints, testcases, ...rest } = problem;
   return {
     ...rest,
     hints: toHintTeasers(hints, revealedIds),
-    testcases: toTestcaseTeasers(problemTestcases(objectives), hasSubmitted),
+    testcases: toTestcaseTeasers(testcases, hasSubmitted),
   };
 }
 
@@ -131,8 +137,8 @@ export function toHintTeasers(
  * quay về phụ thuộc vào một nhánh `if` chạy đúng. Người soạn cần bản đầy đủ thì
  * đi `problems.forEdit`, đường đó trả `Problem` và có cổng chủ sở hữu riêng.
  */
-export function toAuthorProblem(problem: Problem): SolverProblem {
-  const { hints, objectives, ...rest } = problem;
+export function toAuthorProblem(problem: StoredProblem): SolverProblem {
+  const { hints, testcases, ...rest } = problem;
   return {
     ...rest,
     hints: hints.map((hint) => ({
@@ -141,6 +147,6 @@ export function toAuthorProblem(problem: Problem): SolverProblem {
       revealed: true,
       text: hint.text,
     })),
-    testcases: toAuthorTestcaseTeasers(problemTestcases(objectives)),
+    testcases: toAuthorTestcaseTeasers(testcases),
   };
 }

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { eq, inArray } from 'drizzle-orm';
-import { gradeFromSubmission } from '@devops-platform/games';
+import { gradeFromSubmission, type ProblemFailureCode } from '@devops-platform/games';
 import {
   closeTestDb,
   ctxFor,
@@ -254,16 +254,72 @@ describe('AC-2 — sửa bài SAU khi nộp không viết lại lịch sử', ()
 
   it('lịch sử dựng lại verdict `WA (4/5)` từ hai cột đã chốt', async () => {
     const page = (await get('problems.mySubmissions', { code: CODE, limit: 10 })) as {
-      items: { passed: string[]; total: number }[];
+      items: { passed: string[]; total: number; failedCode: ProblemFailureCode | null }[];
     };
     const item = page.items[0];
     expect(item).toBeDefined();
+    // Lượt này chấm được, nên KHÔNG có mã hỏng. Đây là vế đối chứng của nhóm
+    // AC-3 ngay dưới: nếu `failedCode` khác `null` ở đây thì phép so bên dưới
+    // sẽ xanh vì lý do sai.
+    expect(item?.failedCode ?? null).toBeNull();
 
-    const grade = gradeFromSubmission({ passed: item?.passed ?? [], total: item?.total ?? 0 });
+    const grade = gradeFromSubmission({
+      passed: item?.passed ?? [],
+      total: item?.total ?? 0,
+      failedCode: item?.failedCode ?? null,
+    });
     expect(grade.verdict).toBe('WA');
     expect(grade.passed).toHaveLength(4);
     expect(grade.total).toBe(5);
     // Đúng chuỗi mà người học đọc trong lịch sử nộp bài.
     expect(`${grade.verdict} (${grade.passed.length}/${grade.total})`).toBe('WA (4/5)');
+  });
+});
+
+/*
+ * AC-3 — nợ §0.3a của `phase-18.md`, đóng ở migration 0015.
+ *
+ * Nhóm này KHÔNG đi qua HTTP, và đó là chủ ý: nó gác phép ĐỌC LẠI, tức hàm
+ * `gradeFromSubmission` chạy trên đúng hình dạng ba cột mà DB trả ra. Dựng một
+ * lượt `engine-khong-tat-dinh` thật qua dây đòi một engine cố tình không tất
+ * định — một đồ giả sẽ chỉ chứng minh rằng đồ giả hoạt động.
+ *
+ * Ô quan trọng nhất là ô thứ hai: hai dòng có `passed`/`total` GIỐNG HỆT nhau
+ * phải đọc ra hai verdict khác nhau. Nếu nó xanh khi `failedCode` bị bỏ qua thì
+ * cột thứ ba đang không làm gì.
+ */
+describe('AC-3 — `CE` thật không còn đọc lại thành `WA (0/5)`', () => {
+  it('lượt CE do engine không tất định đọc ra `CE`, không phải `WA`', () => {
+    const grade = gradeFromSubmission({
+      passed: [],
+      total: 5,
+      failedCode: 'engine-khong-tat-dinh',
+    });
+    expect(grade.verdict).toBe('CE');
+    // `fraction` không được in cho `CE` — xem `VerdictView`.
+    expect(grade.failedReason).toBe(
+      'Hai lần phát lại cùng một nhật ký cho hai kết quả khác nhau.',
+    );
+  });
+
+  it('ĐỐI CHỨNG: cùng `passed`/`total` nhưng KHÔNG có mã thì vẫn là `WA (0/5)`', () => {
+    // Đây là ca mà một bản vá "đoán từ `passed.length === 0`" sẽ làm hỏng: một
+    // người chạy được bài nhưng không qua case nào cũng có `passed` rỗng.
+    const grade = gradeFromSubmission({ passed: [], total: 5, failedCode: null });
+    expect(grade.verdict).toBe('WA');
+    expect(`${grade.verdict} (${grade.passed.length}/${grade.total})`).toBe('WA (0/5)');
+    expect(grade.failedReason).toBeNull();
+  });
+
+  it('dòng ghi TRƯỚC 0015 (`total` 0, không mã) vẫn đọc là `CE` không đoán lý do', () => {
+    const grade = gradeFromSubmission({ passed: [], total: 0, failedCode: null });
+    expect(grade.verdict).toBe('CE');
+    expect(grade.failedReason).toBe('Lượt này không chấm được, và lịch sử không lưu lý do.');
+  });
+
+  it('bài chưa có testcase nào nói đúng lý do của nó', () => {
+    const grade = gradeFromSubmission({ passed: [], total: 0, failedCode: 'chua-co-testcase' });
+    expect(grade.verdict).toBe('CE');
+    expect(grade.failedReason).toBe('Bài này chưa có testcase nào nên chưa chấm được.');
   });
 });

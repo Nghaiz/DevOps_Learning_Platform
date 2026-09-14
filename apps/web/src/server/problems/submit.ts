@@ -7,21 +7,63 @@ import {
   tallyLog,
   verifyRun,
   type GradeResult,
-  type Problem,
   type ProblemSubmission,
   type RunLog,
   type RunResult,
   type VerifyStatus,
 } from '@devops-platform/games';
 import type { Database } from '../db/client';
+import { RATE_LIMIT_WINDOW_MS, checkRateLimit } from '../security/rate-limit';
 import { problemSubmissions } from '../db/schema';
-import { toSubmissionDTO } from './dto';
+import { toSubmissionDTO, type StoredProblem } from './dto';
 import { hintIdsFromLog, isSolved, problemReplayEngine, expectedLogLevelId } from './replay';
 import { revealedHintsForOne } from './reveals';
-import { problemTestcases } from './testcases';
 
 /** Trần của `integer` Postgres — vượt là `22003`, tức 500 thay vì một câu nói được. */
 const PG_INT4_MAX = 2_147_483_647;
+
+/**
+ * Trần nhịp nộp bài — §18.C.4, nửa "giới hạn nhịp".
+ *
+ * ## Vì sao cần một trần RIÊNG khi đã có trần mutation chung
+ *
+ * `protectedProcedure` đã kẹp mọi mutation ở `TRPC_MUTATION_LIMIT_PER_MIN = 20`
+ * mỗi phút. Trần đó bảo vệ tRPC nói chung; nó không nhìn thấy rằng MỘT lượt nộp
+ * bài đắt hơn hẳn một mutation thường — máy chủ phát lại toàn bộ nhật ký **hai
+ * lần** (`verifyRun` phát hai lượt để bắt engine không tất định) rồi chạy mọi vị
+ * từ. Hai mươi lượt như thế mỗi phút mỗi người là một cần gạt khuếch đại tải
+ * sẵn có, không cần lỗ hổng nào.
+ *
+ * Con số 6 chọn theo cái nó phải cho phép: một người làm bài thật nộp lại sau
+ * mỗi lần sửa, tức hàng chục giây một lượt. Sáu lượt/phút vẫn rộng hơn nhịp đó
+ * và hẹp hơn nhịp của một vòng lặp.
+ *
+ * ⚠ Khoá theo `userId` chứ không theo IP — cùng lý lẽ đã ghi ở `trpc/init.ts`:
+ * IP tới từ header giả mạo được, `userId` tới từ session cookie.
+ *
+ * ⚠ Kế thừa nguyên giới hạn của `checkRateLimit`: bucket in-memory PER-PROCESS,
+ * nên nhiều pod web = mỗi pod một bucket, và hạn mức thật rộng hơn con số này
+ * đúng N lần. Đủ cho một replica; chỗ sửa khi cần chặt là bucket dùng chung qua
+ * Redis, ghi sẵn ở `trpc/init.ts`.
+ */
+const SUBMIT_LIMIT_PER_MIN = 6;
+
+/**
+ * Trần nhịp nộp — ném `TOO_MANY_REQUESTS` khi vượt.
+ *
+ * Đặt ở `submitProblem` chứ không ở middleware của router: đây là trần của chính
+ * VIỆC NỘP BÀI, nên nó phải đi cùng hàm nộp bài. Một chỗ gọi thứ hai tới
+ * `submitProblem` (đường thi ở §18.G sẽ có) thừa hưởng trần này mà không phải
+ * nhớ tự gắn lại.
+ */
+function assertSubmitRateLimit(userId: string): void {
+  if (!checkRateLimit(`problems:submit:${userId}`, Date.now(), RATE_LIMIT_WINDOW_MS, SUBMIT_LIMIT_PER_MIN)) {
+    throw new TRPCError({
+      code: 'TOO_MANY_REQUESTS',
+      message: `Bạn đang nộp bài quá nhanh — tối đa ${String(SUBMIT_LIMIT_PER_MIN)} lượt mỗi phút. Hãy đợi một chút rồi nộp lại.`,
+    });
+  }
+}
 
 export interface SubmitProblemResult {
   readonly submission: ProblemSubmission;
@@ -78,11 +120,12 @@ export interface SubmitProblemResult {
  */
 export async function submitProblem(
   db: Database,
-  problem: Problem,
+  problem: StoredProblem,
   userId: string,
   log: RunLog,
   claimed: RunResult,
 ): Promise<SubmitProblemResult> {
+  assertSubmitRateLimit(userId);
   if (log.levelId !== expectedLogLevelId(problem)) {
     // Kiểm trước để trả một câu nói được. Để `sessionReplayEngine.init` tự ném
     // thì nó về dưới dạng `phat-lai-loi` — nhãn ấy nghĩa là "lỗi bộ mô phỏng"
@@ -124,6 +167,11 @@ export async function submitProblem(
       // hai phép tính là hai cơ hội lệch, và cái lệch đó sẽ nằm im trong DB.
       passed: [...grade.passed],
       total: grade.total,
+      // ⛔ Chép từ `grade` như hai dòng trên, cùng một lý do. Đây là vế đóng khe
+      // §0.3a: nhánh `engine-khong-tat-dinh` ngay dưới ghi `passed = []` với
+      // `total > 0`, và nếu không chốt mã ở đây thì đọc lại sẽ ra `WA (0/n)`
+      // cho một lượt máy chủ đã kết luận là KHÔNG chấm được.
+      failCode: grade.failedCode,
     })
     .returning();
 
@@ -174,8 +222,9 @@ export async function submitProblem(
  * `try/catch`), còn `khong-khop` chỉ nói rằng *lời khai điểm* của client sai —
  * một câu về `claimed`, không phải một câu về nhật ký.
  */
-function gradeSubmission(problem: Problem, log: RunLog, status: VerifyStatus): GradeResult {
-  const testcases = problemTestcases(problem.objectives);
+function gradeSubmission(problem: StoredProblem, log: RunLog, status: VerifyStatus): GradeResult {
+  // Đã qua biên đọc ở `toProblemDTO` — KHÔNG gọi `problemTestcases` lần nữa.
+  const testcases = problem.testcases;
   if (status === 'engine-khong-tat-dinh') {
     return gradeOf(status, [], testcases.length);
   }
