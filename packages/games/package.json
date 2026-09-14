@@ -3,6 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "//sideEffects": "Không file nào dưới src/ chạy gì ở tầng module — đã quét, và src/git/levels/index.ts từng là ngoại lệ DUY NHẤT (xem chú thích ở đó). Lời khai này là thứ cho phép bundler bỏ những export không ai dùng khỏi barrel; thiếu nó thì mọi route chạm @devops-platform/games đều cõng CẢ engine k8s lẫn engine git. Thêm bất kỳ lời gọi nào ở tầng module mà không sửa dòng này là biến nó thành lời nói dối, và bundler sẽ im lặng tin.",
+  "sideEffects": false,
   "//exports": "Chỉ MỘT subpath và nó phải an toàn cho trình duyệt: không file nào dưới src/ được import node:*. Package này chạy TRONG bundle client (game là frontend-only, phase-14 §14.A.1) — kéo node:fs vào đây thì chỉ `next build` đỏ, còn typecheck/lint/test vẫn xanh. Đó đúng là hình dạng lỗi packages/scenario đã trả giá ngày 2026-09-04.",
   "exports": {
     ".": "./src/index.ts"

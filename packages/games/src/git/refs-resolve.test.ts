@@ -287,11 +287,36 @@ describe('resolveRevision — ba lý do hỏng', () => {
  * serialize. Vòng lặp thì tự tìm lại. Với 65536 rổ, xác suất chưa đụng độ sau
  * 3000 lượt là dưới 10^-27 — nhưng vẫn ném lỗi rõ ràng thay vì treo im lặng.
  */
-function collidingRepo(): {
+interface CollidingFixture {
   readonly repo: Repo;
   readonly prefix: string;
   readonly matches: readonly Oid[];
-} {
+}
+
+/**
+ * Nhớ lại kết quả giữa các ô.
+ *
+ * ⚠ Dựng cái này KHÔNG rẻ: mỗi `addCommit` trả một `Repo` MỚI, tức copy cả
+ * object store, nên vòng lặp là O(n²) theo số commit — và tới lúc đụng độ 4 hex
+ * thì n đã vài trăm. Hai ô dùng fixture này; gọi hai lần là trả giá hai lần.
+ *
+ * Đo được 2026-09-14: chạy riêng thì hai ô mất 8,7s và 6,3s, còn dưới tải song
+ * song của `turbo` thì CẢ HAI vượt trần 5000ms và làm cổng toàn cây đỏ — trong
+ * khi chạy một mình vẫn xanh. Đúng họ lỗi `turbo-parallel-load-times-out-io-tests`.
+ *
+ * Nhớ lại thì rẻ và KHÔNG đổi ngữ nghĩa: fixture thuần tất định (Oid sinh từ nội
+ * dung, không có đồng hồ, không có ngẫu nhiên), nên lượt thứ hai nhận đúng cây
+ * mà lượt đầu dựng ra.
+ */
+let collidingCache: CollidingFixture | null = null;
+
+function collidingRepo(): CollidingFixture {
+  if (collidingCache !== null) return collidingCache;
+  collidingCache = buildCollidingRepo();
+  return collidingCache;
+}
+
+function buildCollidingRepo(): CollidingFixture {
   let repo = emptyRepo();
   const seen: Record<string, Oid> = {};
   for (let index = 0; index < 3000; index += 1) {

@@ -14,7 +14,6 @@
  */
 
 import type { GitLevel } from '../contract.ts';
-import { GIT_LEVEL_IDS } from '../level-ids.ts';
 
 import { G01, G02, G03, G04, G05, G06 } from './c1-01-06.ts';
 import { G07, G08, G09, G10, G11, G12 } from './c1-07-12.ts';
@@ -56,35 +55,28 @@ export function gitLevelsOfChapter(chapter: 1 | 2 | 3): readonly GitLevel[] {
   return GIT_LEVELS.filter((level) => level.chapter === chapter);
 }
 
-/**
- * Kiểm tra lúc **nạp module** rằng mảng khớp hợp đồng `level-ids.ts`.
+/*
+ * ⛔ KHÔNG khẳng định-lúc-nạp-module ở đây.
  *
- * ⚠ Đây KHÔNG phải thay cho test — `levels.test.ts` vẫn kiểm đủ. Nó tồn tại vì
- * một lệch giữa hai file này là loại lỗi **im lặng**: một level thiếu chỉ làm
- * danh sách ngắn đi một dòng, và không ai để ý cho tới khi có người chơi tới
- * cuối chương và thấy hụt.
+ * File này TỪNG gọi `assertLevelsMatchContract()` ở tầng module để bắt lệch giữa
+ * `GIT_LEVELS` và `level-ids.ts`. Ý định đúng, chỗ đặt sai, và cái giá chỉ lộ ra
+ * khi đo bundle thật:
  *
- * Ném ngay lúc import thì lỗi nổ ở chỗ dễ chẩn đoán nhất: `next build` đỏ, hoặc
- * test đầu tiên chạm vào module này đỏ, kèm câu nói ra chính xác id nào lệch.
+ * Một lời gọi ở tầng module là **side effect**, và side effect làm cả module
+ * không tree-shake được. Module này import cả 32 file level, mỗi file kéo theo
+ * engine — nên `packages/games` trở thành một khối không chia được, và MỌI route
+ * chạm vào barrel đều cõng nguyên game Git. Đo được 2026-09-14: chunk 369.938 B
+ * chứa engine git nằm ở **7 route**, trong đó 6 route không liên quan gì tới game
+ * Git (`/games/k8s` và 5 route `problems`). Nó đẩy `/games/k8s` vượt trần ngân
+ * sách bundle và làm cổng CI đỏ.
+ *
+ * Phép kiểm đó **dư thừa hoàn toàn**: `levels.test.ts` đã khẳng định đúng cùng một
+ * điều (`expect(GIT_LEVELS.map(l => l.id)).toEqual([...GIT_LEVEL_IDS])`) — cùng số
+ * lượng, cùng thứ tự — và nó chạy ở CI. Docblock cũ của chính phép kiểm này cũng
+ * đã viết "KHÔNG phải thay cho test".
+ *
+ * Nên: giữ phép kiểm ở tầng test, bỏ nó khỏi tầng import. Kèm theo đó,
+ * `package.json` khai `"sideEffects": false` — lời khai ấy CHỈ đúng khi file này
+ * không còn lời gọi nào ở tầng module. Thêm một cái vào đây là làm lời khai đó
+ * thành lời nói dối, và bundler sẽ im lặng tin nó.
  */
-function assertLevelsMatchContract(): void {
-  const actual = GIT_LEVELS.map((l) => l.id);
-  const expected = [...GIT_LEVEL_IDS];
-
-  if (actual.length !== expected.length) {
-    throw new Error(
-      `GIT_LEVELS có ${actual.length} level nhưng level-ids.ts khai ${expected.length}. ` +
-        `Hai file phải khớp cả số lượng lẫn thứ tự.`,
-    );
-  }
-  for (let i = 0; i < expected.length; i++) {
-    if (actual[i] !== expected[i]) {
-      throw new Error(
-        `GIT_LEVELS[${i}] là '${actual[i] ?? '<thiếu>'}' nhưng level-ids.ts khai ` +
-          `'${expected[i] ?? '<thiếu>'}'. Sửa mảng, đừng sửa level-ids.ts — id là hợp đồng đóng băng.`,
-      );
-    }
-  }
-}
-
-assertLevelsMatchContract();
