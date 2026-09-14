@@ -349,6 +349,11 @@ function MemberRow({
           }}
           title={t('admin.classes.remove-title', { name: member.name })}
           body={t('admin.classes.remove-body')}
+          // Không có nước đi nào bị CHẶN trước ở đây, khác `/admin/users` (nơi
+          // một admin không được tự hạ quyền mình). Bỏ một sinh viên khỏi lớp
+          // luôn hợp lệ, nên `null` là câu trả lời đúng chứ không phải một chỗ
+          // chưa điền.
+          blockedReason={null}
           error={serverError}
           confirmLabel={t('admin.classes.remove-confirm')}
           confirming={remove.isPending}
