@@ -21,7 +21,7 @@
 | `GameId` có `'git'` | **Không.** `packages/games/src/core/types.ts:15` — `'k8s' \| 'pipeline' \| 'netpol' \| 'dockerfile'`. |
 | Camera game K8s | `OrbitControls` phối cảnh, xoay tự do (`scene/camera-rig.tsx`). Hai game mới dùng ortho snap góc — **cố ý khác**, xem design §1.1(c). |
 | Cổng màu là script hay lệnh tay | Là **script CI** từ P14 (`check-design-tokens`, P16 đo 552 file / 4 vùng, có đối chứng hai chiều). Không phải lệnh tay nữa. |
-| `packages/games/src` nằm trong `ROOTS` của `check-no-commerce.mjs` | **Không.** Vùng quét là `apps/web/{src,e2e,drizzle}`, `packages/{ui,scenario,shared-types,terminal}/src`, `content`. Package game sinh ra sau script nên rơi ra ngoài. **Chốt 2026-09-11: giữ nguyên, không thêm vào vùng quét** — xem 17.C.3. |
+| `packages/games/src` nằm trong `ROOTS` của `check-no-commerce.mjs` | ~~**Không.**~~ **DÒNG NÀY SAI — sửa 2026-09-14 khi hiện thực.** Nó CÓ nằm trong `ROOTS`, và đã nằm từ **2026-09-08**, commit `5c3815c` ("cổng chống-thương-mại chưa từng quét packages/games/src") — tức là trước cả lượt scout viết ra dòng này ba ngày. Bản scout đọc một bản script đã cũ. Hệ quả: quyết định ở 17.C.3 dựng trên một tiền đề sai; xem chỗ đó để biết đã xử thế nào. |
 | `packages/games` có thể `import node:*` | **Không, và đó là cố ý.** `tsconfig` của package bỏ `types: ["node"]` để một lần lạc tay là đỏ ngay ở typecheck. Ràng buộc này **giúp** §17.J chứ không cản: mã thuần chạy được ở cả trình duyệt và Node. |
 
 ---
@@ -81,7 +81,7 @@ Design §9 mục 2 nói thẳng: "tự do hoàn toàn" về màu chưa được 
 |---|---|---|
 | C.1 | Đăng ký ngoại lệ tường minh cho `apps/web/src/components/games/git/**` và `.../cicd/**` trong `check-design-tokens`. Tiền lệ: `packages/terminal/src/**/themes.ts`. Ghi lý do ngay tại chỗ. | 2h |
 | C.2 | **Đối chứng dương cho ngoại lệ:** một test chứng minh cổng vẫn đỏ khi hex trần xuất hiện **ngoài** vùng ngoại lệ. Không có nó thì ngoại lệ có thể vô tình nuốt cả `apps/web/src`. | 2h |
-| C.3 | **Đã chốt: KHÔNG thêm `packages/games/src` vào `ROOTS` của `check-no-commerce.mjs`** (chủ dự án, 2026-09-11). Việc ở đây là *ghi quyết định đó vào comment đầu script* để người sau không mở lại. Hệ quả: game được dùng từ vựng CI/CD tự nhiên (`checkout`, `deploy`, `release`) mà không phải lách tên. Cái giá đã biết: một vùng mã lớn không có cổng gác chống-thương-mại. | 1h |
+| C.3 | ~~**Đã chốt: KHÔNG thêm `packages/games/src` vào `ROOTS`**~~ — **ô này dựng trên một tiền đề SAI, xem §0.** `packages/games/src` đã Ở TRONG `ROOTS` từ `5c3815c`; "không thêm vào" là một việc không tồn tại, còn cách duy nhất để đạt ý định của nó là **gỡ root ra**, mà gỡ ra là mở toang lại đúng vùng mã `5c3815c` vừa đóng. **Đã làm thay (2026-09-14):** giữ nguyên root, và khai một **ngoại lệ ba chiều** — đường dẫn + luật + đúng MỘT từ khoá — kèm đối chứng dương ba hướng. Game vẫn dùng được từ vựng git tự nhiên, cổng vẫn gác phần còn lại, và một từ khoá thương mại thật vẫn đỏ. | 1h |
 | C.4 | Bảng màu game Git: khai bảng riêng, mã hoá **ba kênh** cho mỗi trạng thái (màu + hình học + chuyển động), theo design §4.6. | 3h |
 | C.5 | Kiểm tương phản **cả hai theme** cho bảng màu đó, kèm mô phỏng mù màu trên ảnh chụp cảnh thật. Ghi số đo. | 3h |
 
@@ -192,7 +192,15 @@ bằng chuột) · axe 0 vi phạm trên màn chơi.
 `ls` vẫn xanh vì thư mục vẫn tồn tại. Và `content/` đọc lúc chạy **không** được Next trace, nên
 phải `COPY` tường minh trong Dockerfile.
 
-**AC-M:** kiểm **FILE cụ thể** có mặt trong image (`docker run --rm <img> cat /app/content/games/git/theory/01-commit-la-object.md | head -1`), **không** kiểm thư mục · M.2 xanh cả hai chiều.
+**AC-M:** kiểm **FILE cụ thể** có mặt trong image, **không** kiểm thư mục · M.2 xanh cả hai chiều.
+
+⚠ Đường dẫn `/app/...` mà bản plan đầu viết là **SAI** (sửa 2026-09-14 sau khi đo trong image thật): `apps/web/Dockerfile` đặt `WORKDIR /repo`, nên `/app` KHÔNG tồn tại. Lệnh đúng:
+
+```
+docker run --rm <img> cat /repo/content/games/git/theory/01-commit-la-object.md | head -1
+```
+
+Bẫy đi kèm: `/app/...` không tồn tại làm `cat` lỗi, và một ô nghiệm thu đọc mã thoát mà không đọc NỘI DUNG sẽ đọc "file rỗng" và "thư mục sai" ra cùng một kết quả.
 
 ### 17.N–17.P — Level (L, ~2 tuần)
 

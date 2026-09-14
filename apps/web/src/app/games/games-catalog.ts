@@ -25,7 +25,7 @@ import type { CatalogIconName } from '../../components/catalog/catalog-icons';
  * được mà không phải dựng DOM.
  */
 
-export const GAME_TOPICS = ['kubernetes', 'cicd', 'network', 'container'] as const;
+export const GAME_TOPICS = ['kubernetes', 'cicd', 'network', 'container', 'git'] as const;
 export type GameTopic = (typeof GAME_TOPICS)[number];
 
 /**
@@ -38,6 +38,7 @@ export const GAME_TOPIC_LABEL: Record<GameTopic, string> = {
   cicd: t('catalog.games.topic.cicd'),
   network: t('catalog.games.topic.network'),
   container: t('catalog.games.topic.container'),
+  git: t('catalog.games.topic.git'),
 };
 
 export interface GameEntry {
@@ -75,6 +76,24 @@ export const GAMES: readonly GameEntry[] = [
       'Dựng rồi cứu một cluster: tạo pod, phơi service, chịu sự cố ngẫu nhiên. Mỗi level là một cluster hỏng theo một kiểu khác nhau.',
     difficulty: 'beginner',
     topics: ['kubernetes'],
+  },
+  {
+    /*
+     * Game thứ hai chơi được, thêm ở P17.
+     *
+     * ⚠ `id` ở đây là `string` tự do, KHÔNG phải `GameId` của
+     * `@devops-platform/games`. Hai trục đó hiện không nối với nhau và tên cũng
+     * không trùng (danh mục dùng `pipeline`, union dùng `cicd`). Nối chúng lại
+     * sẽ là một thay đổi có chủ ý đáng ghi ra, không phải hệ quả tự nhiên của
+     * việc mở union — nên ở đây vẫn là một chuỗi.
+     */
+    id: 'git',
+    title: 'Phòng thí nghiệm Git',
+    href: '/games/git',
+    description:
+      'Gõ lệnh git thật trên một kho mô phỏng chạy trong trình duyệt. Ba chương: nắn lịch sử, làm việc nhóm, và cứu commit tưởng đã mất.',
+    difficulty: 'beginner',
+    topics: ['git'],
   },
   {
     id: 'pipeline',

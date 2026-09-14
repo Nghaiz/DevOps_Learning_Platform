@@ -220,6 +220,74 @@ function isCommentLine(trimmed, ext) {
   return false;
 }
 
+
+// ───────────────────────── miễn trừ THEO TỪ KHOÁ, HAI CHIỀU
+//
+// Hẹp theo BA chiều cùng lúc: đường dẫn, luật, và đúng một từ. Không phải một
+// dòng "bỏ qua thư mục này".
+//
+// ⚠ ĐỌC TRƯỚC KHI SỬA: `plans/devops-learning-platform/phase-17.md` §0 ghi
+// rằng `packages/games/src` KHÔNG nằm trong vùng quét của cổng này, và §17.C.3
+// chốt "giữ nguyên, không thêm vào vùng quét" dựa trên điều đó. **Tiền đề đó
+// SAI.** `packages/games/src` đã được thêm vào `ROOTS` ngày 2026-09-08 ở commit
+// `5c3815c` ("cổng chống-thương-mại chưa từng quét packages/games/src"), tức là
+// TRƯỚC khi scout của P17 chạy. Scout đọc một trạng thái đã cũ.
+//
+// Nên quyết định thật sự phải làm không phải "thêm hay không thêm vùng quét"
+// mà là: vùng quét ĐÃ có, và game Git hợp pháp cần nói `checkout`. Gỡ
+// `packages/games/src` khỏi `ROOTS` sẽ mở toang lại đúng vùng mã mà `5c3815c`
+// vừa đóng, và nó mở toang trong im lặng — cổng vẫn xanh, chỉ là không quét gì.
+//
+// Ý định của chủ dự án ("game được dùng từ vựng CI/CD tự nhiên mà không phải
+// lách tên") được giữ nguyên bằng miễn trừ dưới đây, và cái giá nhỏ hơn hẳn:
+// mất đúng MỘT từ trên MỘT luật ở MỘT thư mục, thay vì mất cả một vùng mã.
+//
+// Ba luật còn lại vẫn gác đầy đủ trên `git/`, và chúng mới là ba luật thật sự
+// bắt được một paywall: không ai dựng trang bán hàng bằng chữ `checkout` trong
+// một bảng lệnh git — họ viết "gói cước", "99k/tháng", hay "nâng cấp gói".
+//
+//   • chiều lên  — một từ bị cấm xuất hiện ngoài danh sách ⇒ đỏ.
+//   • chiều xuống — một dòng miễn trừ không còn khớp gì ⇒ CŨNG đỏ, và việc phải
+//     làm là XOÁ dòng đó, không phải thêm từ đó lại cho khớp sổ.
+const KEYWORD_EXEMPTIONS = [
+  {
+    pathPrefix: 'packages/games/src/git/',
+    ruleId: 'en-thương-mại',
+    tokens: ['checkout'],
+    reason:
+      '`git checkout` là một trong 26 động từ của engine game Git (bảng lệnh, ' +
+      'bộ định tuyến, level, test). Nó là từ vựng git, không phải từ vựng bán hàng.',
+  },
+  {
+    pathPrefix: 'content/games/git/theory/',
+    ruleId: 'en-thương-mại',
+    tokens: ['checkout'],
+    reason:
+      'Bài lý thuyết game Git dạy `git checkout` (detached HEAD, khôi phục file, ' +
+      'điều hướng lúc bisect). Không dạy được nó mà không viết ra tên lệnh.',
+  },
+
+  // ✅ 2026-09-14 — dòng cho `apps/web/src/components/games/git/` ĐÃ BỊ XOÁ ngay
+  // trong lần chạy đầu tiên, và đó là chiều-xuống hoạt động.
+  //
+  // Tôi thêm nó theo PHỎNG ĐOÁN rằng tầng giao diện cũng nhắc `checkout`; nó
+  // không nhắc. Một dòng miễn trừ viết theo phỏng đoán trông y hệt một dòng cần
+  // thiết, và không có chiều-xuống thì nó nằm đó mãi, che một thư mục mà ngày
+  // nào đó thật sự dựng một trang thanh toán.
+];
+
+/** `true` nếu hit này nằm trong một dòng miễn trừ. Ghi nhận để rà chiều xuống. */
+function exemptionFor(file, hit) {
+  return (
+    KEYWORD_EXEMPTIONS.find(
+      (e) =>
+        file.startsWith(e.pathPrefix) &&
+        e.ruleId === hit.rule &&
+        e.tokens.includes(hit.match.toLowerCase()),
+    ) ?? null
+  );
+}
+
 // ─────────────────────────────────────────────────────────────── quét
 function scanText(text, { isContent, ext }) {
   const hits = [];
@@ -265,6 +333,7 @@ function* walk(dir) {
 }
 
 function scanTree() {
+  const seenExemptions = new Set();
   const hits = [];
   let files = 0;
 
@@ -292,11 +361,16 @@ function scanTree() {
       files++;
       const isContent = rel.startsWith('content/');
       for (const h of scanText(buf.toString('utf8'), { isContent, ext })) {
+        const exemption = exemptionFor(rel, h);
+        if (exemption !== null) {
+          seenExemptions.add(`${exemption.pathPrefix}::${exemption.ruleId}::${h.match.toLowerCase()}`);
+          continue;
+        }
         hits.push({ ...h, file: rel });
       }
     }
   }
-  return { hits, files };
+  return { hits, files, seenExemptions };
 }
 
 // ─────────────────────────────────────────────────────────── đối chứng
@@ -436,7 +510,30 @@ const onlySelfTest = process.argv.includes('--self-test');
 if (!selfTest()) process.exit(2);
 if (onlySelfTest) process.exit(0);
 
-const { hits, files } = scanTree();
+const { hits, files, seenExemptions } = scanTree();
+
+/*
+ * CHIỀU XUỐNG của sổ cái: một dòng miễn trừ không còn khớp gì là một dòng CHẾT.
+ *
+ * Không có vế này thì sổ cái là một nghĩa địa: nó lớn dần, không ai dám xoá, và
+ * mỗi dòng chết là một chỗ mà từ khoá đó có thể quay lại mà không ai thấy.
+ */
+const staleExemptions = KEYWORD_EXEMPTIONS.flatMap((e) =>
+  e.tokens
+    .filter((tok) => !seenExemptions.has(`${e.pathPrefix}::${e.ruleId}::${tok}`))
+    .map((tok) => `${e.pathPrefix} :: ${e.ruleId} :: ${tok}`),
+);
+
+if (staleExemptions.length > 0) {
+  console.error(`
+✗ ${staleExemptions.length} dòng miễn trừ đã HẾT HẠN trong KEYWORD_EXEMPTIONS:
+`);
+  for (const line of staleExemptions) console.error(`   ${line}`);
+  console.error('');
+  console.error('Vùng đó nay đã sạch từ khoá ấy. Đó là TIN MỪNG: XOÁ dòng khỏi sổ.');
+  console.error('Tuyệt đối không thêm từ khoá lại cho "khớp sổ cái".');
+  process.exit(1);
+}
 
 if (hits.length === 0) {
   console.log(

@@ -27,13 +27,19 @@
  * @see docs/games/anti-cheat.md
  */
 
+/*
+ * `GameAction` / `GameActionKind` / `RunLog` tới từ `core/run-log.ts` kể từ
+ * 17.A.2, KHÔNG còn từ `k8s/contract.ts`. File này cố ý làm việc trên DẠNG RỘNG:
+ * nó chỉ đọc `tick` và `kind`, nên nó đúng với mọi game — đó là toàn bộ lý do
+ * ba kiểu kia chuyển lên `core/`. Kéo `K8sGameAction` vào đây là trói ngược cơ
+ * chế chống gian lận về lại đúng một game.
+ */
+import type { GameAction, GameActionKind, RunLog } from './run-log.ts';
 import type {
   CreateSession,
-  GameAction,
-  GameActionKind,
+  K8sGameAction,
   K8sSession,
   Level,
-  RunLog,
   SessionStatus,
 } from '../k8s/contract.ts';
 import type { RunResult } from './types.ts';
@@ -137,8 +143,28 @@ export const COMMAND_KINDS: readonly GameActionKind[] = [
   'scale',
   'edit',
   'kubectl',
+  /*
+   * `'command'` là action DUY NHẤT của game Git (`GitGameAction` ở
+   * `core/run-log.ts`) — một dòng lệnh người chơi gõ. Nó thuộc về đây vì danh
+   * sách này định nghĩa "cái gì tính là MỘT LỆNH", và ở game Git thì gõ lệnh là
+   * toàn bộ tương tác. Bỏ nó ra thì `tallyLog` đếm `commandsUsed = 0` cho mọi
+   * lượt chơi Git, và mọi lượt khai một con số thật sẽ rơi vào `khong-khop` —
+   * tức toàn bộ người chơi game Git bị gắn cờ oan, đúng cái hỏng mà chú thích
+   * bên trên cảnh báo.
+   *
+   * Không có `'wait'` phía Git: thời gian ở đó chỉ nhích khi có lệnh chạy, nên
+   * "chờ xem" không phải một hành động. Xem `GitGameAction`.
+   */
+  'command',
 ];
 
+/**
+ * MỌI `kind` hợp lệ. Phải VÉT CẠN `GameActionKind` — một kind thiếu ở đây làm
+ * `logShapeError` từ chối một nhật ký lành với lý do "kind lạ".
+ *
+ * Hôm nay: 5 kind lệnh K8s + `'command'` của Git (đều ở `COMMAND_KINDS`) + hai
+ * kind không-phải-lệnh dùng chung là `'hint'` và `'wait'`.
+ */
 const ACTION_KINDS: readonly GameActionKind[] = [...COMMAND_KINDS, 'hint', 'wait'];
 
 /** Những con số suy ra ĐƯỢC từ chính nhật ký, nên không cần tin lời khai. */
@@ -237,7 +263,30 @@ export function sessionReplayEngine(
       return createSession({ level, seed, autoTick: false });
     },
     reduce: (session, action) => {
-      session.dispatch(action);
+      /*
+       * `ReplayEngine.reduce` nhận DẠNG RỘNG (mọi game), còn `K8sSession.dispatch`
+       * đòi `K8sGameAction`. Chỗ thu hẹp phải ở đây, và phải THU HẸP CÓ KIỂM —
+       * `as` trần sẽ đẩy một action của game Git vào reducer K8s, nơi nó rơi vào
+       * nhánh `default` và biến mất KHÔNG một tiếng động: phát lại ra một trạng
+       * thái thiếu, điểm lệch, và `verifyRun` báo `khong-khop` — tức là đổ lỗi
+       * cho người chơi vì một lỗi ghép engine của ta.
+       *
+       * Ném thì `verifyRun` bắt thành `phat-lai-loi`, đúng ô "lỗi của ta hoặc
+       * của dữ liệu, KHÔNG phải bằng chứng gian lận".
+       */
+      if (action.gameId !== 'k8s') {
+        throw new Error(
+          `nhật ký của game "${action.gameId}" không phát lại được trên engine K8s`,
+        );
+      }
+      /*
+       * Vẫn cần `as` sau phép kiểm: `core/` chỉ biết `target` là `ResourceRefLike`
+       * (`kind: string`), còn `dispatch` đòi `ResourceRef` (`kind: ResourceKind`).
+       * Kiểm lại `kind` ở đây là chép `resolveKind` sang chỗ thứ hai; và không cần
+       * — một `kind` bịa ra không tra ra object nào trong `reducer.ts`, nên hành
+       * động không được chấp nhận và phát lại lệch đúng như nó phải lệch.
+       */
+      session.dispatch(action as K8sGameAction);
       return session;
     },
     objectivesMet: (session) => session.getStatus().objectivesMet,

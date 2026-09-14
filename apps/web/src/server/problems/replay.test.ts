@@ -69,6 +69,7 @@ function makeProblem(overrides: Partial<Problem> = {}): Problem {
 }
 
 const APPLY_POD: GameAction = {
+  gameId: 'k8s',
   tick: 0,
   kind: 'apply',
   yaml: [
@@ -85,7 +86,7 @@ const APPLY_POD: GameAction = {
 };
 
 function makeLog(problem: Problem, actions: readonly GameAction[]): RunLog {
-  return { levelId: problem.code, seed: 12345, actions };
+  return { gameId: 'k8s', levelId: problem.code, seed: 12345, actions };
 }
 
 /** Chạy phát lại một lần để lấy con số THẬT mà engine sinh ra cho nhật ký này. */
@@ -157,11 +158,11 @@ describe('chấm điểm khi phát lại', () => {
   it('chỉ trừ MỘT lần cho mỗi gợi ý, dù nhật ký lặp lại lần mở', () => {
     const problem = makeProblem();
     const openTwice = makeLog(problem, [
-      { tick: 0, kind: 'hint', index: 0 },
-      { tick: 1, kind: 'hint', index: 0 },
+      { gameId: 'k8s', tick: 0, kind: 'hint', index: 0 },
+      { gameId: 'k8s', tick: 1, kind: 'hint', index: 0 },
       APPLY_POD,
     ]);
-    const openOnce = makeLog(problem, [{ tick: 0, kind: 'hint', index: 0 }, APPLY_POD]);
+    const openOnce = makeLog(problem, [{ gameId: 'k8s', tick: 0, kind: 'hint', index: 0 }, APPLY_POD]);
     expect(replayedScore(problem, openTwice, hintIdsFromLog(problem, openTwice))).toBe(
       replayedScore(problem, openOnce, hintIdsFromLog(problem, openOnce)),
     );
@@ -241,7 +242,7 @@ describe('xác minh đầu-cuối bằng verifyRun', () => {
 
   it('nhật ký của bài KHÁC thì phát lại thất bại, không âm thầm chấm', () => {
     const problem = makeProblem();
-    const foreign: RunLog = { levelId: 'K8S-9999', seed: 1, actions: [] };
+    const foreign: RunLog = { gameId: 'k8s', levelId: 'K8S-9999', seed: 1, actions: [] };
     const engine = problemReplayEngine(problem, []);
     const claim = makeClaim(problem, foreign, 0, []);
     expect(verifyRun(foreign, claim, engine).status).not.toBe('da-xac-minh');
@@ -272,8 +273,8 @@ describe('đọc gợi ý đã mở ra từ nhật ký', () => {
   it('lấy id theo index, bỏ qua index ngoài phạm vi', () => {
     const problem = makeProblem();
     const log = makeLog(problem, [
-      { tick: 0, kind: 'hint', index: 1 },
-      { tick: 1, kind: 'hint', index: 99 },
+      { gameId: 'k8s', tick: 0, kind: 'hint', index: 1 },
+      { gameId: 'k8s', tick: 1, kind: 'hint', index: 99 },
       APPLY_POD,
     ]);
     expect(hintIdsFromLog(problem, log)).toEqual(['goi-y-2']);

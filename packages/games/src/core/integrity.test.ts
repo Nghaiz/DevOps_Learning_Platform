@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { RunLog } from '../k8s/contract.ts';
+import type { RunLog } from './run-log.ts';
 import type { GameSave, RunResult } from './types.ts';
 import {
   SCORE_MAX,
@@ -38,11 +38,12 @@ const cleanRun: RunResult = {
 };
 
 const cleanLog: RunLog = {
+  gameId: 'k8s',
   levelId: 'k8s-01-pod-dau-tien',
   seed: 1234,
   actions: [
-    { tick: 0, kind: 'apply', yaml: 'kind: Pod\nmetadata:\n  name: web' },
-    { tick: 12, kind: 'kubectl', command: 'get pods' },
+    { gameId: 'k8s', tick: 0, kind: 'apply', yaml: 'kind: Pod\nmetadata:\n  name: web' },
+    { gameId: 'k8s', tick: 12, kind: 'kubectl', command: 'get pods' },
   ],
 };
 
@@ -177,7 +178,7 @@ describe('lastActionTick', () => {
   });
 
   it('nhật ký rỗng ⇒ 0', () => {
-    expect(lastActionTick({ levelId: 'x', seed: 1, actions: [] })).toBe(0);
+    expect(lastActionTick({ gameId: 'k8s', levelId: 'x', seed: 1, actions: [] })).toBe(0);
   });
 });
 

@@ -24,7 +24,12 @@
  * @see docs/games/anti-cheat.md
  */
 
-import type { RunLog } from '../k8s/contract.ts';
+/*
+ * `RunLog` tới từ `core/run-log.ts` kể từ 17.A.2. Dạng RỘNG là đúng ở đây: cả
+ * `lastActionTick` lẫn `checkPlausibility` chỉ đọc `action.tick`, nên chúng đúng
+ * với mọi game — xem đầu `core/run-log.ts`.
+ */
+import type { RunLog } from './run-log.ts';
 import type { GameSave, RunResult } from './types.ts';
 
 // ── Chuỗi hoá ổn định ───────────────────────────────────────────────────────

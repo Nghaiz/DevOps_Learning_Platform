@@ -84,6 +84,9 @@ export const SCREENS: Screen[] = [
 
   { path: '/games', auth: 'user' },
   { path: '/games/k8s', auth: 'user' },
+  // Màn thứ ba của trụ cột ③, thêm ở P17. Vào lượt quét axe + CSP như mọi màn
+  // khác — game chạy 100% client nhưng trang vẫn là một trang của ứng dụng.
+  { path: '/games/git', auth: 'user' },
   { path: '/problems', auth: 'user' },
   { path: '/problems/:code', auth: 'user', idFrom: 'problems.list' },
 
@@ -109,7 +112,7 @@ export const SCREENS: Screen[] = [
  * tổng kết vẫn ghi "0 lỗi serious/critical". Ô này biến việc rút ngắn thành
  * một lỗi ĐỎ, có tên.
  */
-export const MIN_SCREENS = 32;
+export const MIN_SCREENS = 33;
 
 /** Vai trò `admin` bao hàm `author` (C6: /author cho author|admin). */
 export function roleSatisfies(actual: string, required: AuthLevel): boolean {

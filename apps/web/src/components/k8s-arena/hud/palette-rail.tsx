@@ -138,7 +138,7 @@ function PaletteRailView({
     if (pending === null) {
       return;
     }
-    dispatch({ tick: getTick(), kind: 'apply', yaml: buildManifest(pending.entry.kind, name) });
+    dispatch({ gameId: 'k8s', tick: getTick(), kind: 'apply', yaml: buildManifest(pending.entry.kind, name) });
     setPending(null);
   };
 

@@ -99,6 +99,7 @@ export const catalog = {
   'catalog.meta-title.quiz': 'Quiz · DevOps Learning Platform',
   'catalog.meta-title.games': 'Games · DevOps Learning Platform',
   'catalog.meta-title.games-k8s': 'Kubernetes Arena · DevOps Learning Platform',
+  'catalog.meta-title.games-git': 'Phòng thí nghiệm Git · DevOps Learning Platform',
   'catalog.meta-title.problems': 'Bài tập · DevOps Learning Platform',
 
   /**
@@ -114,6 +115,8 @@ export const catalog = {
     'Game DevOps chạy trong trình duyệt: không tốn sandbox, không cần đăng nhập. Thử thách CTF nằm cạnh, và nó tốn một sandbox.',
   'catalog.games.k8s-meta-description':
     'Dựng và cứu một cluster Kubernetes qua từng level, ngay trong trình duyệt.',
+  'catalog.games.git-meta-description':
+    'Gõ lệnh git thật trên một kho mô phỏng: nắn lịch sử, giải conflict, cứu commit đã mất.',
 
   // ── Đoạn dẫn của bảy màn ──────────────────────────────────────────────
   'catalog.lead.lessons': 'Mỗi bài mở một sandbox riêng. Tiến độ chỉ mình bạn thấy.',
@@ -311,6 +314,9 @@ export const catalog = {
   'catalog.games.topic.cicd': 'CI/CD',
   'catalog.games.topic.network': 'Mạng',
   'catalog.games.topic.container': 'Container',
+  // `git` là chủ đề THỨ NĂM, thêm ở P17. Giữ tiếng Anh vì đó là tên công cụ,
+  // không phải một khái niệm cần dịch.
+  'catalog.games.topic.git': 'Git',
 
   'catalog.games.soon': 'Sắp có',
   'catalog.games.difficulty-legend': 'Độ khó khi bắt đầu',

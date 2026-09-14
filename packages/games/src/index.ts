@@ -20,6 +20,25 @@ export type {
 } from './core/types.ts';
 export { STORAGE_KEY_PREFIX, storageKey } from './core/types.ts';
 
+/*
+ * Nhật ký hành động dùng chung — CHUYỂN từ `k8s/contract.ts` lên `core/` ngày
+ * 2026-09-14 (P17 §17.A.2). Lý do đầy đủ ở đầu `core/run-log.ts`.
+ *
+ * Ba tên `GameAction` / `GameActionKind` / `RunLog` giữ NGUYÊN ở barrel này dù
+ * đổi nhà: chúng đã có chỗ dùng ngoài package (`apps/web/src/server/problems/`,
+ * `components/k8s-arena/`), và đổi tên ở barrel là một thay đổi phá vỡ không
+ * mua được gì.
+ */
+export type {
+  GameAction,
+  GameActionBase,
+  GameActionKind,
+  GitGameAction,
+  K8sActionShape,
+  ResourceRefLike,
+  RunLog,
+} from './core/run-log.ts';
+
 export type {
   ChaosWave,
   Challenge,
@@ -30,8 +49,9 @@ export type {
   EventView,
   CreateSession,
   CreateSessionOptions,
-  GameAction,
-  GameActionKind,
+  K8sGameAction,
+  K8sGameActionKind,
+  K8sRunLog,
   K8sSession,
   IncidentKind,
   Level,
@@ -45,13 +65,107 @@ export type {
   ResourceKind,
   ResourceSpec,
   ResourceRef,
-  RunLog,
   SessionPhase,
   SessionStatus,
 } from './k8s/contract.ts';
 
 export type { PredicateName } from './k8s/predicate-names.ts';
 export { PREDICATE_NAMES } from './k8s/predicate-names.ts';
+
+// ── Game Git (P17) ──────────────────────────────────────────────────────────
+/*
+ * Mở export ngay khi tầng giao diện cần, và đó là bài học rút từ `CHALLENGES`
+ * của game K8s: 10 bài tập nằm trong package suốt một thời gian dài, chạy được,
+ * có test tham chiếu, mà KHÔNG bao giờ được thêm vào barrel — nên không
+ * component nào import được, và người dùng cuối chưa từng nhìn thấy bài nào.
+ * Mã chết không đỏ ở đâu cả.
+ *
+ * Lane renderer 2D đã đo được đúng khoảng hở này lần thứ hai: `exports` của
+ * package chỉ có subpath `"."`, nên deep import bị chặn, và họ phải dựng một
+ * shim cấu trúc thay vì import `GitView`/`DagLayout` thật. Ba dòng dưới đây là
+ * thứ gỡ shim đó.
+ */
+export type {
+  BisectState,
+  BlobObject,
+  BotAction,
+  CommitNodeView,
+  CommitObject,
+  CommitSpec,
+  ConflictFile,
+  EdgeKind,
+  FileCellView,
+  FilePath,
+  GitEdgeView,
+  GitError,
+  GitErrorCode,
+  GitLevel,
+  GitObject,
+  GitObjective,
+  GitPredicateName,
+  GitTeaching,
+  GitView,
+  GitWorld,
+  Head,
+  Lines,
+  MergeHunk,
+  Oid,
+  OriginSpec,
+  OutputLine,
+  OutputTone,
+  PendingOp,
+  PullRequest,
+  RefBadgeView,
+  RefName,
+  Repo,
+  TreeObject,
+  WorldSpec,
+} from './git/contract.ts';
+
+export { GIT_LEVELS, findGitLevel, gitLevelsOfChapter } from './git/levels/index.ts';
+export { GIT_LEVEL_IDS, GIT_THEORY_IDS, theoryIdForLevel } from './git/level-ids.ts';
+export type { GitEngineSession } from './git/engine.ts';
+export { createGitSession, replayGitLog, runCommands } from './git/engine.ts';
+export { buildView } from './git/view.ts';
+export type { ViewHints } from './git/view.ts';
+export { buildWorld } from './git/world-spec.ts';
+export { shortOid } from './git/hash.ts';
+
+/*
+ * Sandbox (§17.Q). Mở export NGAY vì bài học của `CHALLENGES`: một kiểu mà không
+ * ai ngoài package với tới được là một kiểu chưa tồn tại, và nó không đỏ ở đâu
+ * cả — qua typecheck, qua lint, có cả test tham chiếu nên trông vẫn sống.
+ *
+ * `worldToSpec` là thứ Level Builder của P18 cần: dựng cây trong sandbox rồi
+ * lấy làm trạng thái đầu hoặc trạng thái đích.
+ */
+export type { SandboxExport, SandboxScenario } from './git/sandbox.ts';
+export {
+  SANDBOX_SCENARIOS,
+  SANDBOX_SCENARIO_LABEL,
+  exportSandbox,
+  exportSandboxJson,
+  importSandboxJson,
+  sandboxLevel,
+  sandboxSpec,
+  sandboxStateHash,
+  withOrigin,
+  withoutOrigin,
+  worldToSpec,
+} from './git/sandbox.ts';
+export { GIT_PREDICATE_NAMES, evaluateObjectives, verdictOf } from './git/predicates.ts';
+export type { ObjectiveResult, Verdict } from './git/predicates.ts';
+export { GIT_VERBS, isGitVerb } from './git/command-table.ts';
+export type { GitVerb } from './git/command-table.ts';
+export { parseGitCommand } from './git/parser.ts';
+export { suggest } from './git/suggest.ts';
+export type { SuggestContext } from './git/suggest.ts';
+export type { TheoryDoc, TheoryFrontmatter, TheoryIssue } from './git/theory.ts';
+export { countProseWords, expectedReadMinutes, validateTheoryDocs } from './git/theory.ts';
+
+// Tầng bố cục dùng chung — renderer SVG 2D và renderer 3D (P17b) cùng gọi.
+export type { DagLayout, DagNode, LaidOutEdge, LaidOutNode } from './core/layout/index.ts';
+export { layoutDag } from './core/layout/index.ts';
 
 // ── Chống gian lận (lane G) ─────────────────────────────────────────────────
 export type { ReplayEngine, RunTally, VerifyResult, VerifyStatus } from './core/verify.ts';

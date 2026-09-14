@@ -11,6 +11,7 @@
  */
 
 import type { Difficulty } from '../core/types.ts';
+import type { K8sActionShape, RunLog } from '../core/run-log.ts';
 
 // ── Tài nguyên ──────────────────────────────────────────────────────────────
 
@@ -496,20 +497,23 @@ export interface IncidentView {
   readonly resolvedTick: number | null;
 }
 
-// ── Nhật ký hành động — nền tảng của xác minh chống gian lận ────────────────
+// ── Nhật ký hành động — nền tảng của xác minh chống gian lận ────────────
 
 /**
- * Mọi thứ người chơi làm đều là một `GameAction` được ghi lại theo thứ tự.
+ * ⚠ `GameAction`, `GameActionKind` và `RunLog` ĐÃ CHUYỂN LÊN `core/run-log.ts`
+ * ngày 2026-09-14 (P17 §17.A.2). Chúng không định nghĩa ở file này nữa.
  *
- * ⛔ Đây KHÔNG phải một tiện ích cho tính năng replay. Nó là cơ chế chống gian lận
- * duy nhất thật sự hoạt động trong trình duyệt: điểm số chỉ được công nhận khi
- * chạy lại `actions` qua reducer thuần từ cùng `seed` cho ra đúng kết quả đã khai.
- * Sửa tay `score` trong `localStorage` sẽ không phát lại được.
+ * Lý do đầy đủ nằm ở đầu `core/run-log.ts`; bản rút gọn: `GameAction.kind` ở
+ * đây là union ĐÓNG của K8s, nên cơ chế chống gian lận bằng phát lại tất định —
+ * `core/verify.ts`, `core/integrity.ts`, `apps/web/src/server/problems/replay.ts`
+ * — chỉ dùng được cho đúng một game, dù cả ba vốn đã nằm ở tầng dùng chung.
  *
- * Hệ quả bắt buộc cho lane B: reducer phải TẤT ĐỊNH tuyệt đối. Không
- * `Math.random()`, không `Date.now()`, không `Map` lặp theo thứ tự chèn ở chỗ
- * kết quả phụ thuộc thứ tự. Mọi ngẫu nhiên đi qua `core/rng.ts` có hạt giống.
+ * `ResourceRef` Ở LẠI đây, và đó là chủ ý: nó là khoá tự nhiên của Kubernetes
+ * (kind, namespace, name) và không có nghĩa gì ở game khác. `core/` biết action
+ * K8s có một `target` ba trường qua `ResourceRefLike`; nó không biết
+ * `ResourceKind` là gì, và không cần biết.
  */
+
 /**
  * Định danh một tài nguyên. Đây là khoá TỰ NHIÊN của Kubernetes: bộ ba
  * (kind, namespace, name) là duy nhất theo đúng định nghĩa của K8s.
@@ -525,42 +529,28 @@ export interface ResourceRef {
   readonly name: string;
 }
 
+
 /**
- * Hình dạng `payload` theo từng `kind`. Union phân biệt, KHÔNG phải
- * `Record<string, unknown>`.
+ * Action của game K8s ở độ chính xác ĐẦY ĐỦ — `target` là `ResourceRef` thật,
+ * không phải `ResourceRefLike` rộng của `core/`.
  *
- * Bản đầu của hợp đồng này để `payload` lỏng, và lane E đã đúng khi dừng lại
- * báo lead: hai lane sẽ mỗi bên tự nghĩ ra một hình dạng, CẢ HAI đều typecheck,
- * và chỗ lệch chỉ lộ lúc chạy. Đó đúng là hỏng hóc mà
- * `rules/contract-first-integration.md` sinh ra để chặn.
+ * Đây là kiểu mà `reducer.ts` và mọi chỗ ĐỌC `action.target.kind` phải dùng.
+ * Dùng `GameAction` (dạng rộng) ở đó thì `target.kind` chỉ còn là `string` và
+ * một `'Deploymnet'` gõ nhầm đi qua typecheck.
  */
-export type GameAction =
-  /** Người chơi gõ vào thanh lệnh. Chuỗi thô, `kubectl.ts` tự phân tích. */
-  | { readonly tick: number; readonly kind: 'kubectl'; readonly command: string }
-  /** Áp một manifest. Tài nguyên đích nằm trong chính YAML, nên không có `target`. */
-  | { readonly tick: number; readonly kind: 'apply'; readonly yaml: string }
-  | { readonly tick: number; readonly kind: 'edit'; readonly target: ResourceRef; readonly yaml: string }
-  | { readonly tick: number; readonly kind: 'delete'; readonly target: ResourceRef }
-  | { readonly tick: number; readonly kind: 'scale'; readonly target: ResourceRef; readonly replicas: number }
-  /**
-   * Mở gợi ý thứ `index` (đếm từ 0). Không mang `levelId`: một `RunLog` thuộc
-   * đúng một level và đã ghi `levelId` ở cấp trên — nhắc lại là một field suy ra
-   * được, đúng thứ quy ước của repo cấm.
-   */
-  | { readonly tick: number; readonly kind: 'hint'; readonly index: number }
-  /** Để mô phỏng chạy tiếp mà không làm gì. Đây là cách người chơi "chờ xem". */
-  | { readonly tick: number; readonly kind: 'wait'; readonly ticks: number };
+export type K8sGameAction = K8sActionShape<ResourceRef>;
 
-/** Rút gọn cho chỗ chỉ cần phân loại. */
-export type GameActionKind = GameAction['kind'];
+/** Rút gọn cho chỗ chỉ cần phân loại action K8s. */
+export type K8sGameActionKind = K8sGameAction['kind'];
 
-
-/** Một lượt chơi đầy đủ, đủ để phát lại từ số không. */
-export interface RunLog {
-  readonly levelId: string;
-  readonly seed: number;
-  readonly actions: readonly GameAction[];
-}
+/**
+ * Nhật ký của một lượt chơi K8s.
+ *
+ * `RunLog` tổng quát nhận tham số action để từng game thu hẹp về đúng action
+ * của nó. Mảng `readonly` là hiệp biến nên `K8sRunLog` gán được vào `RunLog`
+ * rộng mà `core/verify.ts` nhận.
+ */
+export type K8sRunLog = RunLog<K8sGameAction>;
 
 // ── Phiên chơi: ranh giới lane B (engine) ↔ lane D/E (giao diện) ────────────
 
@@ -587,9 +577,9 @@ export interface K8sSession {
   getStatus(): SessionStatus;
   /** Trả về hàm huỷ đăng ký. */
   subscribe(listener: () => void): () => void;
-  dispatch(action: GameAction): void;
+  dispatch(action: K8sGameAction): void;
   /** Nhật ký đầy đủ để phát lại — nền tảng của xác minh chống gian lận (§8.3). */
-  getLog(): RunLog;
+  getLog(): K8sRunLog;
   /**
    * Đổi nhịp phát của mô phỏng (1 = thường, 2 = gấp đôi, …).
    *

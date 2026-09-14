@@ -196,7 +196,7 @@ export function MissionCard({
               variant="ghost"
               className="flex-1"
               disabled={!hasMoreHints}
-              onClick={() => dispatch({ tick: getTick(), kind: 'hint', index: hintsRevealed })}
+              onClick={() => dispatch({ gameId: 'k8s', tick: getTick(), kind: 'hint', index: hintsRevealed })}
             >
               <Lightbulb className="size-3.5" aria-hidden />
               {hasMoreHints

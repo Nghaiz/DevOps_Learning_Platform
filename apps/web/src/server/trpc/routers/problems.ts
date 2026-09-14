@@ -116,10 +116,36 @@ export const problemsRouter = createTRPCRouter({
       z
         .object({
           code: problemCodeSchema,
+          /*
+           * `gameId` thêm ở 17.A và CÓ `.default('k8s')` ở cả hai tầng, cố ý.
+           *
+           * Nhật ký do client dựng và một tab đang mở vẫn đang chạy bản trước
+           * 17.A — nhật ký nó gửi lên KHÔNG có `gameId` ở đâu cả. Bắt buộc
+           * trường này là biến mọi lượt nộp đang bay trên dây thành 400, và
+           * người chơi mất lượt vừa chơi xong mà không hiểu vì sao.
+           *
+           * Giá trị mặc định đúng là `'k8s'` vì đây là endpoint nộp bài OJ của
+           * game K8s — `claimed.gameId` ngay bên dưới đã chốt `z.literal('k8s')`
+           * từ trước. Một game khác sẽ có endpoint của nó, không dùng lại chỗ này.
+           *
+           * ⚠ Mặc định ở CẢ `actions[]`, không chỉ ở gốc: `sessionReplayEngine`
+           * kiểm `action.gameId !== 'k8s'` trước khi đưa xuống reducer K8s và
+           * NÉM khi lệch, nên một action thiếu `gameId` sẽ thành `phat-lai-loi`
+           * cho mọi lượt nộp từ client cũ.
+           */
           runLog: z.object({
+            gameId: z.literal('k8s').default('k8s'),
             levelId: z.string().min(1),
             seed: z.number().int(),
-            actions: z.array(z.looseObject({ kind: z.string(), tick: z.number() })).readonly(),
+            actions: z
+              .array(
+                z.looseObject({
+                  gameId: z.literal('k8s').default('k8s'),
+                  kind: z.string(),
+                  tick: z.number(),
+                }),
+              )
+              .readonly(),
           }),
           claimed: z.object({
             gameId: z.literal('k8s'),

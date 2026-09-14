@@ -15,9 +15,22 @@ import {
 } from './games-catalog';
 
 describe('GAMES — hình dạng dữ liệu', () => {
-  it('bốn mục: một chơi được, ba sắp có', () => {
-    expect(GAMES).toHaveLength(4);
-    expect(GAMES.filter((game) => game.href !== null).map((game) => game.id)).toEqual(['k8s']);
+  /*
+   * ⚠ Ô này là một PIN theo DANH TÍNH, không theo số đếm — và đó là lý do nó
+   * sửa được một cách an toàn.
+   *
+   * P17 thêm game Git, nên con số đi từ 4 lên 5 và tập "chơi được" đi từ
+   * `['k8s']` lên `['k8s','git']`. Hướng đi LÊN vì có thêm một game thật, không
+   * phải vì một game cũ hỏng — nên việc phải làm là cập nhật danh sách, không
+   * phải nới ô. Nếu một ngày nào đó một id BIẾN MẤT khỏi vế "chơi được" thì đó
+   * là hồi quy và ô này phải đỏ.
+   */
+  it('năm mục: hai chơi được, ba sắp có', () => {
+    expect(GAMES).toHaveLength(5);
+    expect(GAMES.filter((game) => game.href !== null).map((game) => game.id)).toEqual([
+      'k8s',
+      'git',
+    ]);
     expect(GAMES.filter((game) => game.href === null).map((game) => game.id)).toEqual([
       'pipeline',
       'maze',
@@ -106,6 +119,7 @@ describe('filterGames', () => {
   it('lọc theo độ khó chỉ giữ đúng mức đó', () => {
     expect(filterGames(GAMES, { topic: 'all', difficulty: 'beginner' }).map((g) => g.id)).toEqual([
       'k8s',
+      'git',
       'forge',
     ]);
     expect(filterGames(GAMES, { topic: 'all', difficulty: 'advanced' }).map((g) => g.id)).toEqual([

@@ -97,7 +97,39 @@ export default defineConfig({
      */
   },
 
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      // Ô `@games-git-no3d` CHỈ chạy ở project dưới. Không có `grepInvert` thì
+      // nó chạy ở CẢ HAI, và đối chứng dương của nó sẽ đỏ ở đây một cách đúng
+      // đắn (project này CÓ WebGL) — tức một ô xanh-ở-đúng-chỗ bị đọc thành
+      // một ô đỏ. Đã đo: lượt đầu tiên đỏ đúng như vậy.
+      grepInvert: /@games-git-no3d/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    /*
+     * Project riêng CHỈ để chạy ô AC-5 của P17: cảnh KHÔNG có WebGL.
+     *
+     * ⚠ `--disable-3d-apis` chứ KHÔNG phải `--disable-gpu`. Tắt hardware
+     * acceleration không xoá WebGL2 — Chromium rơi về SwiftShader (rasterize
+     * bằng CPU) và VẪN cấp context, nên một ô nghiệm thu "đã kiểm đường 2D"
+     * chạy dưới `--disable-gpu` sẽ xanh mà chưa bao giờ chạy cảnh không-WebGL.
+     *
+     * Cờ phải đặt lúc khởi động trình duyệt nên nó không đặt được ở giữa một
+     * test — đó là lý do đây là một project chứ không phải một `test.use`.
+     *
+     * `grepInvert` ở project `chromium` giữ hai bên không giẫm nhau: ô AC-5
+     * chỉ chạy ở đây, và mọi ô khác chỉ chạy ở kia.
+     */
+    {
+      name: 'chromium-no-webgl',
+      grep: /@games-git-no3d/,
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: { args: ['--disable-3d-apis'] },
+      },
+    },
+  ],
 
   ...(startServer
     ? {

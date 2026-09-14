@@ -21,11 +21,11 @@
 import type {
   ClusterView,
   CreateSessionOptions,
-  GameAction,
+  K8sGameAction,
+  K8sRunLog,
   K8sSession,
   Level,
   Objective,
-  RunLog,
   SessionPhase,
   SessionStatus,
 } from './contract.ts';
@@ -127,7 +127,7 @@ export interface K8sEngineSession extends K8sSession {
    * `dispatch` giữ nguyên chữ ký `void` của hợp đồng tối thiểu và uỷ quyền vào
    * đây, nên chỉ có MỘT đường áp hành động — không có nhánh thứ hai để lệch.
    */
-  dispatchDetailed(action: GameAction): DispatchOutcome;
+  dispatchDetailed(action: K8sGameAction): DispatchOutcome;
   /** Đọc trạng thái thô — dùng cho test và cho `verify.ts`, KHÔNG cho renderer. */
   getState(): ClusterState;
   /**
@@ -176,7 +176,7 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
   const namespace = defaultNamespace(level);
 
   let state = initialState(level, seed);
-  const actions: GameAction[] = [];
+  const actions: K8sGameAction[] = [];
   const listeners = new Set<() => void>();
 
   let cachedView: ClusterView = toView(state);
@@ -253,11 +253,11 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
    * điểm khác thời điểm hành động thật sự xảy ra. Ghi đè ở đây là chỗ duy nhất
    * biết chắc con số đúng.
    */
-  function applyAction(action: GameAction): DispatchOutcome {
+  function applyAction(action: K8sGameAction): DispatchOutcome {
     if (disposed) {
       return { output: '', accepted: false };
     }
-    const stamped = { ...action, tick: state.tick } as GameAction;
+    const stamped = { ...action, tick: state.tick } as K8sGameAction;
     const result = reduce(state, stamped, namespace);
     if (result.accepted) {
       actions.push(stamped);
@@ -292,7 +292,7 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
       };
     },
 
-    dispatch(action: GameAction): void {
+    dispatch(action: K8sGameAction): void {
       /*
        * Uỷ quyền qua BIẾN CỤC BỘ, không qua `this.dispatchDetailed`. Bên gọi
        * hoàn toàn có thể rút method ra khỏi phiên (`const { dispatch } =
@@ -303,7 +303,7 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
       applyAction(action);
     },
 
-    dispatchDetailed(action: GameAction): DispatchOutcome {
+    dispatchDetailed(action: K8sGameAction): DispatchOutcome {
       return applyAction(action);
     },
 
@@ -311,7 +311,7 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
       if (disposed) {
         return '';
       }
-      const action: GameAction = { tick: state.tick, kind: 'kubectl', command };
+      const action: K8sGameAction = { gameId: 'k8s', tick: state.tick, kind: 'kubectl', command };
       const result = reduce(state, action, namespace);
       if (result.accepted) {
         actions.push(action);
@@ -320,8 +320,8 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
       return result.output;
     },
 
-    getLog(): RunLog {
-      return { levelId: level.id, seed, actions: [...actions] };
+    getLog(): K8sRunLog {
+      return { gameId: 'k8s', levelId: level.id, seed, actions: [...actions] };
     },
 
     getState(): ClusterState {
@@ -395,7 +395,7 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
 function buildStatus(
   state: ClusterState,
   level: Level,
-  actions: readonly GameAction[],
+  actions: readonly K8sGameAction[],
 ): SessionStatus {
   const met = evaluateObjectives(state, level.objectives);
   return {
