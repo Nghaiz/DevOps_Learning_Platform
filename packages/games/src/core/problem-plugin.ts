@@ -91,6 +91,23 @@ export type AuthorField =
       readonly maxItems?: number;
     }
   | {
+      /**
+       * Danh sách chuỗi phẳng — `ClusterSpec.namespaces` là ca đã gặp thật.
+       *
+       * Thêm 2026-09-14 theo báo cáo lane 18.A.4. Không dựng được bằng `list`
+       * (nhánh đó lặp một NHÓM trường con, còn đây mỗi phần tử là một chuỗi
+       * trần), và ép qua `json` thì bắt người soạn gõ `["default","kube-system"]`
+       * đúng cú pháp JSON cho một thứ đáng lẽ là một ô nhập có nút thêm/xoá.
+       */
+      readonly kind: 'string-list';
+      readonly path: string;
+      readonly label: string;
+      readonly help?: string;
+      readonly itemLabel: string;
+      readonly minItems?: number;
+      readonly maxItems?: number;
+    }
+  | {
       /** Van an toàn — xem khối chú thích trên. Dùng có chừng mực. */
       readonly kind: 'json';
       readonly path: string;
@@ -158,9 +175,19 @@ export interface GameProblemPlugin<Spec, A extends GameAction = GameAction> {
    */
   grade(input: {
     readonly initialState: Spec;
+    /** Cây đích, chỉ với bài chấm bằng so hình dạng. Xem `ProblemBase.targetState`. */
+    readonly targetState?: Spec;
     readonly actions: readonly A[];
     readonly testcases: readonly Testcase[];
-    readonly seed: number | null;
+    /**
+     * Số THẬT, không bao giờ `null`.
+     *
+     * ⛔ ĐÍNH CHÍNH 2026-09-14: bản đầu khai `number | null` và bắt mỗi plugin
+     * tự chọn một hằng thay cho `null`. Lý do đầy đủ ở `Submission.seed` trong
+     * `problem.ts` — tóm tắt: hai hằng đó đã lệch nhau ngay (0 và 1), và hai
+     * seed khác nhau là hai thế giới đầu khác nhau trước cả lệnh đầu tiên.
+     */
+    readonly seed: number;
   }): GradeResult;
 
   /**
@@ -178,18 +205,67 @@ export interface GameProblemPlugin<Spec, A extends GameAction = GameAction> {
 // ── Bảng đăng ký ────────────────────────────────────────────────────────────
 
 /**
- * ⚠ Kiểu này cố ý dùng `GameProblemPlugin<never>` chứ không phải
- * `GameProblemPlugin<unknown>` hay `<any>`.
+ * Plugin ở dạng **đã xoá kiểu `Spec`** — hình dạng mà một bảng đăng ký chứa
+ * nhiều game có thể giữ.
  *
- * Bảng đăng ký giữ nhiều plugin có `Spec` KHÁC nhau, nên tại chỗ tra bảng ta
- * không biết `Spec` là gì — và đó là sự thật, đừng che nó bằng `any`. Chỗ nào
- * cần kiểu cụ thể thì tra plugin theo hằng đã biết kiểu (`K8S_PROBLEM_PLUGIN`),
- * không tra qua bảng. Bảng dành cho việc **liệt kê** (dựng dropdown chọn game,
- * kiểm mã bài, kiểm chủ đề) — những việc chỉ chạm phần không phụ thuộc `Spec`.
+ * ⛔ ĐÍNH CHÍNH 2026-09-14. Bản đầu khai bảng là
+ * `Partial<Record<GameId, GameProblemPlugin<never, GameAction>>>` kèm một lời
+ * giải thích tự tin rằng `never` là chỗ chặn. Lane 18.A.4 đo lại và **`tsc` nói
+ * khác**: lỗi là `TS2375`, về `exactOptionalPropertyTypes` ở thuộc tính tuỳ chọn
+ * `seedSpec?` — cả hai plugin đều cố ý không khai nó. Vế `never` vẫn đáng ngờ
+ * nhưng chưa tách ra đo riêng được, vì `tsc` dừng ở lỗi đầu.
+ *
+ * Hệ quả thực tế: bảng kiểu đó **không nhận nổi plugin nào**, và lane buộc phải
+ * rải `as unknown as` ở chỗ dùng. Một hợp đồng bắt người dùng nó phải ép kiểu để
+ * thoả mãn chính nó là một hợp đồng sai, không phải một người dùng cẩu thả.
+ *
+ * ── Vì sao phép ép KHÔNG thể bỏ hẳn ──
+ *
+ * Xoá kiểu ở đây là thật, không phải lười: `grade` nhận `initialState: Spec`, và
+ * tham số thì **nghịch biến** — một hàm nhận `ClusterSpec` không gán được vào
+ * chỗ đòi hàm nhận `unknown`. Không có cách khai nào làm biến mất điều đó.
+ *
+ * Nên hợp đồng **thừa nhận** phép ép thay vì giả vờ không cần: `eraseProblemPlugin`
+ * là chỗ DUY NHẤT được ép, nó có tên, và nó nói rõ mình đang đánh đổi gì. Phép ép
+ * rải rác thì mỗi chỗ là một cơ hội ép nhầm thứ; phép ép có tên thì chỉ có một
+ * chỗ để đọc lại.
+ *
+ * Điều này KHÔNG mất an toàn: `K8S_PROBLEM_PLUGIN` / `GIT_PROBLEM_PLUGIN` vẫn
+ * được khai bằng kiểu ĐẦY ĐỦ tại file của chúng, nên mọi sai lệch hợp đồng vẫn
+ * đỏ tại nơi sinh ra. Bảng chỉ dùng để **liệt kê** và để `gradeProblemRun` tra —
+ * cả hai đều ép lại về kiểu cụ thể ngay sau khi biết `gameId`.
  */
-export type ProblemPluginRegistry = Readonly<
-  Partial<Record<GameId, GameProblemPlugin<never, GameAction>>>
->;
+export interface ErasedProblemPlugin {
+  readonly gameId: GameId;
+  readonly codePrefix: string;
+  readonly topics: readonly ProblemTopicOption[];
+  readonly predicateNames: readonly string[];
+  readonly authorFields: readonly AuthorField[];
+  initialSpec(): unknown;
+  grade(input: {
+    readonly initialState: never;
+    readonly targetState?: never;
+    readonly actions: readonly GameAction[];
+    readonly testcases: readonly Testcase[];
+    readonly seed: number;
+  }): GradeResult;
+  seedSpec?(base: never, seed: number): unknown;
+}
+
+/**
+ * Chỗ DUY NHẤT được phép ép kiểu khi đưa một plugin vào bảng đăng ký.
+ *
+ * Nhận plugin ở kiểu đầy đủ (nên sai hợp đồng vẫn đỏ ở chỗ gọi), trả về dạng đã
+ * xoá `Spec`. Đọc khối chú thích của `ErasedProblemPlugin` về lý do phép ép này
+ * không bỏ được.
+ */
+export function eraseProblemPlugin<S, A extends GameAction>(
+  plugin: GameProblemPlugin<S, A>,
+): ErasedProblemPlugin {
+  return plugin as unknown as ErasedProblemPlugin;
+}
+
+export type ProblemPluginRegistry = Readonly<Partial<Record<GameId, ErasedProblemPlugin>>>;
 
 /**
  * Phần của plugin đọc được mà KHÔNG cần biết `Spec`.

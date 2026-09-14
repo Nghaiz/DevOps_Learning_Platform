@@ -307,6 +307,24 @@ export interface ProblemBase<Spec> {
   /** `null` = không giới hạn giờ. Không phải bài nào cũng nên chạy đua. */
   readonly timeLimitSec: number | null;
   readonly initialState: Spec;
+  /**
+   * Trạng thái ĐÍCH, khi bài chấm bằng cách so hình dạng thay vì bằng vị từ rời.
+   *
+   * Thêm 2026-09-14 vì một vị từ **khai được nhưng dùng không được**: lane
+   * 18.A.5 đưa `graphShapeMatches` vào `predicateNames` của plugin Git, rồi
+   * phát hiện `ProblemBase` không có ô nào chứa cây đích để so — nên nó buộc
+   * phải trả `CE` kèm lý do. Một vị từ hợp lệ ở bảng từ vựng mà không bao giờ
+   * chạy được là đúng loại mã chết không đỏ ở đâu cả.
+   *
+   * `?` chứ không bắt buộc: phần lớn bài chấm bằng vị từ trên trạng thái cuối và
+   * không có khái niệm "đích". Bài nào dùng `graphShapeMatches` thì phải có ô
+   * này, và cổng kiểm của plugin là chỗ khẳng định điều đó — không phải kiểu.
+   *
+   * ⚠ Cùng một ô này là thứ §18.E.1 cần: Level Builder có hai nút "Đặt làm
+   * trạng thái đầu" và "Đặt làm đích". Hai nhu cầu, một ô — đừng thêm ô thứ hai
+   * cho Builder.
+   */
+  readonly targetState?: Spec;
   /** Ít nhất một. Một bài không có testcase là một bài không chấm được. */
   readonly testcases: readonly Testcase[];
   readonly hints: readonly ProblemHint[];
@@ -364,11 +382,35 @@ export interface Submission<A extends GameAction = GameAction> {
   readonly problemCode: string;
   readonly gameId: GameId;
   /**
-   * Seed sinh đề. `null` với bài không seedable — KHÔNG dùng `0` làm "không có
-   * seed", vì `0` là một seed hợp lệ và hai nghĩa dùng chung một giá trị là chỗ
-   * không ai phát hiện ra lỗi.
+   * Seed ĐÃ DÙNG THẬT cho lượt chơi này. Luôn là một số.
+   *
+   * ⛔ ĐÍNH CHÍNH 2026-09-14 — bản đầu của hợp đồng này khai `number | null`
+   * ("`null` = bài không seedable"), và đó là một lỗi thiết kế, không phải một
+   * lựa chọn. Lane 18.A.4/18.A.5 đo ra hệ quả: engine **bắt buộc** nhận một số
+   * để dựng trạng thái đầu, nên `null` buộc mỗi plugin phải công bố một hằng
+   * "không-seed" của riêng nó — và hai hằng đó đã lệch nhau ngay từ dòng đầu
+   * tiên (`K8S_UNSEEDED_REPLAY_SEED = 0`, `GIT_UNSEEDED_REPLAY_SEED = 1`).
+   *
+   * Hai số khác nhau ở đây không đọc ra thành một lỗi. Nó đọc ra thành: client
+   * chơi trên một thế giới đầu, server phát lại trên một thế giới đầu KHÁC, và
+   * mọi lượt nộp HỢP LỆ đều bị từ chối. Nhìn từ phía người dùng, nó giống hệt
+   * một hệ thống từ chối người chơi ngẫu nhiên.
+   *
+   * Cách chặn là bỏ hẳn chỗ cho phép hai bên tự chọn: lượt nộp **mang theo số
+   * đã dùng**, server phát lại bằng đúng số đó. Không phía nào tra hằng lúc
+   * chấm, nên không có gì để lệch.
+   *
+   * ⚠ Hằng mặc định của mỗi plugin KHÔNG biến mất — nó vẫn đúng và vẫn cần, chỉ
+   * đổi vai: nó là số client dùng khi BẮT ĐẦU một bài không seedable (và với
+   * Git nó phải là `1`, khớp mặc định của `createGitSession`, nếu không lượt
+   * chấm OJ sẽ dựng thế giới khác mọi đường git còn lại của repo). Nó là mặc
+   * định lúc chơi, không còn là mặc định lúc chấm.
+   *
+   * ⚠ Cổng gác đi kèm, thuộc §18.G: với bài `seedable: false`, server phải
+   * KIỂM rằng seed gửi lên đúng bằng seed bài quy định. Không có cổng đó thì
+   * "mang theo số đã dùng" thành "người nộp tự chọn thế giới đầu dễ nhất".
    */
-  readonly seed: number | null;
+  readonly seed: number;
   /** Nhật ký hành động, đủ để phát lại. Xem `RunLog` ở `core/run-log.ts`. */
   readonly actions: readonly A[];
   /** Id các testcase ĐÃ QUA. Id chứ không phải chỉ số — chỉ số vỡ khi tác giả đổi thứ tự. */
@@ -406,7 +448,8 @@ export interface GradeResult {
 export interface ReplayRequest<A extends GameAction = GameAction> {
   readonly problemCode: string;
   readonly gameId: GameId;
-  readonly seed: number | null;
+  /** Số thật, không bao giờ `null` — xem khối chú thích ở `Submission.seed`. */
+  readonly seed: number;
   readonly actions: readonly A[];
 }
 
