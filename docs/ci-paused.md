@@ -1,9 +1,10 @@
 # CI từng TẠM DỪNG — nay ĐÃ BẬT LẠI (2026-09-14)
 
 > **Tài liệu này KHÔNG còn là hướng dẫn vận hành.** Trạng thái nó mô tả —
-> "ci.yml chỉ chạy khi gọi tay" — đã chấm dứt ngày 2026-09-14. Giữ lại vì hai
-> lý do: (1) hồ sơ lịch sử, để người sau hiểu vì sao một quãng lịch sử git không
-> có cổng nào gác; (2) ba việc dọn dẹp CHƯA làm xong, liệt kê ở § "Còn nợ lại".
+> "ci.yml chỉ chạy khi gọi tay" — đã chấm dứt ngày 2026-09-14, và ba việc dọn
+> dẹp còn lại cũng đóng nốt trong cùng ngày. Giữ lại làm hồ sơ lịch sử, để người
+> sau hiểu vì sao một quãng lịch sử git không có cổng nào gác — và đọc được hai
+> ô nghiệm thu đã từng xanh mà chẳng gác gì, ở § "Ba việc dọn dẹp".
 >
 > Ba file workflow đang trỏ vào tài liệu này — `ci.yml`, `secret-scan.yml`,
 > `no-commerce.yml` — nên đừng đổi tên file, sửa nội dung tại chỗ.
@@ -68,42 +69,67 @@ nào**. Lần chạy `ci.yml` gần nhất trước hôm bật lại là run `34
 Đây đúng là chế độ hỏng mà `rules/green-that-proves-nothing.md` mô tả: một ô
 xanh không thể đỏ vì thứ người đọc tưởng nó gác.
 
-## Còn nợ lại — ba việc CHƯA làm, không nằm trong lượt bật lại này
+## Ba việc dọn dẹp — ĐÃ ĐÓNG NỐT 2026-09-14
 
-Lượt 2026-09-14 chỉ sửa `on:` của `ci.yml` (+ tài liệu này). Ba thứ sau vẫn ở
-trạng thái "đang tạm dừng", đã đo lại ngày 2026-09-14:
+Lượt bật lại buổi sáng chỉ sửa `on:` của `ci.yml` và để lại ba thứ vẫn ở trạng
+thái "đang tạm dừng". Cả ba đóng trong ngày, đo lại từng cái:
 
-| Thứ | Trạng thái đo được | Nằm ở |
+| Thứ | Trạng thái cuối | Bằng chứng |
 |---|---|---|
-| Branch protection `main` | **VẪN GỠ** — `gh api repos/:owner/:repo/branches/main/protection` trả `404 Branch not protected` | GitHub repo settings |
-| Hook `pre-push` chặn push thẳng `main` | **VẪN no-op** (`exit 0` ở dòng 20) | `scripts/git-hooks/pre-push` |
-| Hook local `workflow-artifact-gate` | **VẪN tắt** (file cờ còn đó) | `.claude/t1k-artifact-gate.disabled` — xoá file là bật lại |
+| Branch protection `main` | **BẬT** — required check `ci-ok`, `strict: true` | `pnpm repo:check` 18/18 |
+| Hook `pre-push` chặn push thẳng `main` | **CHẶN THẬT** — khối tạm dừng + `exit 0` đã gỡ | chạy hook với stdin giả lập ⇒ exit != 0 |
+| Hook local `workflow-artifact-gate` | **BẬT** — file cờ đã xoá | `.claude/t1k-artifact-gate.disabled` không còn |
 
-`git config core.hooksPath` = `scripts/git-hooks` ✓ (không cần trỏ lại).
+`git config core.hooksPath` = `scripts/git-hooks` ✓.
 
-### ⚠ Thứ tự bắt buộc khi khôi phục branch protection
+### Ô kiểm hook cũ là một ô xanh không chứng minh gì
+
+`scripts/check-repo-settings.mjs` từng kiểm hook bằng đúng một câu hỏi:
+`git config core.hooksPath` có bằng `scripts/git-hooks` không. Suốt mười ngày
+tạm dừng, câu trả lời là **có** — file nằm đúng chỗ, đường trỏ đúng, ô xanh mỗi
+lượt — trong khi dòng `exit 0` ở đầu file làm hook không chặn gì cả.
+
+Nay ô đó tách làm hai, và ô thứ hai **chạy thật** hook với một dòng stdin giả
+lập push vào `main`, rồi đọc mã thoát. Đã phá thử: nhét lại `exit 0` ⇒ ô đỏ;
+gỡ ra ⇒ ô xanh. Ô `core.hooksPath` thì xanh ở **cả hai** ca — đó chính là lý do
+nó không thay thế được ô mới.
+
+### Hai ô khác đỏ oan vì script gác lạc hậu hơn tài liệu
+
+Cùng lượt này phát hiện `check-repo-settings.mjs` vẫn khẳng định chính sách
+merge **trước** ngày 2026-09-08:
+
+| Script đòi | Tài liệu (`docs/env/04` §1–2, đổi 2026-09-08) |
+|---|---|
+| `required_linear_history: true` | **false** — merge commit có hai cha, bật cờ là kẹt mọi PR |
+| squash-only | **merge-commit only** — squash nén nhánh dài thành một commit, mất đường bisect |
+
+Cấu hình repo thật khớp tài liệu; script mới là thứ sai. Đã sửa script theo tài
+liệu, không sửa repo theo script. Chỉ `strict` là lệch thật (đặt `false` lúc bật
+protection, tài liệu đòi `true`) — đã đặt lại `true`.
+
+### Khôi phục branch protection — thứ tự vẫn còn giá trị
+
+Giữ lại ghi chú này vì lần sau gỡ/bật lại protection vẫn cần nó.
 
 Bản sao lưu `docs/branch-protection-main.backup.json` khai
 `required_status_checks.contexts` = `["ci-ok"]`, `strict: true`,
 `enforce_admins: false`, `required_approving_review_count: 0`.
 
-**Đừng khôi phục trước khi `ci-ok` xanh được trên `main`.** Ngay lúc bật lại,
-`main` còn hai job đỏ có sẵn (`Terminal (Chromium)` và `Secret scan (gitleaks)`
-— run `34772290507` trên nhánh `feat/p16-debt-closure` đỏ 3 job, trong đó job
-`Go` đã sửa ở commit `8069285`). `ci-ok` có `if: always()` và kiểm
-`needs.*.result` nên nó đỏ theo. Bật `strict: true` với một required check đang
-đỏ là khoá sạch đường merge, kể cả PR không liên quan.
-
-Thứ tự đúng: **sửa cho `ci-ok` xanh trên `main` trước → rồi mới khôi phục
-protection**. Lệnh khôi phục (đọc thẳng từ bản sao lưu):
+**Đừng khôi phục trước khi `ci-ok` xanh được trên `main`.** `ci-ok` có
+`if: always()` và kiểm `needs.*.result`, nên một job đỏ là nó đỏ theo; bật
+`strict: true` với một required check đang đỏ là khoá sạch đường merge, kể cả PR
+không liên quan. Thứ tự đúng: **sửa cho `ci-ok` xanh trên `main` trước → rồi mới
+khôi phục protection.** Lệnh khôi phục (đọc thẳng từ bản sao lưu):
 
 ```bash
 node -e "const d=require('./docs/branch-protection-main.backup.json');const r=d.required_pull_request_reviews||{};const rev={};for(const k of Object.keys(r))if(!k.endsWith('url'))rev[k]=r[k];process.stdout.write(JSON.stringify({required_status_checks:{strict:d.required_status_checks.strict,contexts:d.required_status_checks.contexts},enforce_admins:d.enforce_admins.enabled,required_pull_request_reviews:rev,restrictions:null}))" > bp.json
 gh api -X PUT repos/:owner/:repo/branches/main/protection --input bp.json && rm bp.json
 ```
 
-Sau đó `pnpm repo:check` (`scripts/check-repo-settings.mjs`) phải xanh trở lại —
-suốt quãng tạm dừng nó đỏ, và **đó là đỏ ĐÚNG**, đừng sửa script cho nó xanh.
+Sau đó `pnpm repo:check` phải xanh trở lại — suốt quãng tạm dừng nó đỏ, và **đó
+là đỏ ĐÚNG**, đừng sửa script cho nó xanh.
+
 
 ## Trùng workflow sau khi bật lại
 

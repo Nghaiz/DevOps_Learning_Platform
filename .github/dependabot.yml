@@ -106,5 +106,16 @@ updates:
       # package.json + `node-version` trong CI, ba chỗ phải khớp).
       - dependency-name: 'node'
         update-types: ['version-update:semver-major']
+      # `ubuntu` là BỀ MẶT SẢN PHẨM, không phải dependency. Nó là hệ điều hành
+      # trong sandbox của người học: đổi major là đổi phiên bản apt, bash,
+      # coreutils, docker CLI, git — tức đổi output của gần như mọi bài lab,
+      # trong khi CI chỉ chứng minh được image DỰNG ĐƯỢC.
+      #
+      # Chặn 2026-09-14 sau PR #104 (24.04 → 26.04), đóng không gộp. Nâng là một
+      # đợt làm việc có đo: dựng image, chạy lại bộ lab trên cụm, đối chiếu từng
+      # bước chấm. Bỏ dòng này khi đợt đó bắt đầu, đừng bỏ để "thử xem CI có
+      # xanh không".
+      - dependency-name: 'ubuntu'
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: 'chore'

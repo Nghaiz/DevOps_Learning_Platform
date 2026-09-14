@@ -39,6 +39,10 @@ export default defineConfig({
   testIgnore: '**/landing-3d.spec.ts',
   outputDir: `${ARTIFACTS_DIR}/test-results`,
   globalSetup: './e2e/global-setup.ts',
+  // Dọn pod sandbox rơi lại trong namespace E2E dùng-một-lần. Không làm gì
+  // khi E2E_SANDBOX_NAMESPACE trống (mặc định: harness trỏ vào cụm, và
+  // reaper của cụm tự lo). Xem e2e/sandbox-namespace.ts.
+  globalTeardown: './e2e/global-teardown.ts',
 
   /**
    * `workers: 1` + `fullyParallel: false` — CỐ Ý, và không phải vì "cho chắc":
