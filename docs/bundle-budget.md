@@ -80,6 +80,45 @@ Nguồn: `reports/2026-09-13-landing-3d-bundle-final.log`.
 Bốn route có terminal: `/labs/[id]`, `/lessons/[id]`, `/playgrounds/[id]`,
 `/session/[id]/terminal`. 33 route còn lại không với tới xterm.
 
+### Đo lại 2026-09-14 — mọi route NHỎ ĐI ~260KB dù thêm cả P17
+
+Nguồn: CI run `34809642334` trên `main@6f19cbe` (job TypeScript → `bundle:check`).
+
+| Đại lượng | 2026-09-13 | 2026-09-14 | Δ | Trần |
+|---|---:|---:|---:|---:|
+| Nền chung (7 chunk) | 1 051 155 B | **786 785 B** | −264 370 | 1 150 000 B |
+| Chunk xterm (4 route) | 535 793 B | 535 829 B | +36 | 620 000 B |
+| Route nặng nhất — `/labs/[id]` | 1 707 005 B | **1 441 705 B** | −265 300 | 1 850 000 B |
+| Nặng nhất KHÔNG terminal — `/games/k8s` | 1 486 940 B | **1 226 905 B** | −260 035 | 1 850 000 B |
+| Trang chủ `/` | 1 080 511 B | **816 773 B** | −263 738 | 1 850 000 B |
+| Nhẹ nhất — `/dashboard` | 1 050 883 B | **786 785 B** | −264 098 | — |
+
+Điều đáng chú ý là **hướng** của nó. Cùng lượt này `main` nhận thêm trọn chặng P17
+(32 level game Git, engine, renderer SVG) **và** ba bản nâng dependency — trong đó
+`zod 4.4.3 → 4.5.4` một mình cộng 91 364 B vào nền chung. Vậy mà mọi route vẫn nhỏ
+đi. Hai bản vá giải thích toàn bộ khoảng chênh:
+
+1. **Side effect tầng module** trong `packages/games/src/git/levels/index.ts` — một
+   lời gọi khẳng định làm cả module không tree-shake được, kéo theo 32 file level và
+   engine Git. Chunk 369 938 B chứa engine nằm ở **7/38 route**, gồm `/games/k8s` và
+   5 route `problems` — những trang không có một dòng nào của game Git. Gỡ lời gọi
+   (phép kiểm đó đã trùng với `levels.test.ts`) + khai `"sideEffects": false`:
+   `/games/k8s` −271 162 B, chunk engine còn **1/38 route**.
+2. **Barrel Zod bị NEO vào nền chung** — `apps/web/src/lib/zod-jitless.ts` nhập
+   `{ z } from 'zod'` chỉ để bật cờ `jitless`, và `app-shell.tsx` **cố ý** giữ tham
+   chiếu để bundler khỏi cắt module. App-shell nằm trong cây mọi trang ⇒ cả barrel
+   classic của Zod vào nền chung, để đặt một boolean. Đổi sang
+   `import { config } from 'zod/v4/core'` (cùng một hàm — `config === z.config`, đã
+   chạy để kiểm chứ không suy từ tài liệu): nền chung −359 911 B, 7 chunk → 6.
+
+**Không trần nào bị sửa ở lượt này**, và đó là điều đúng: cổng đỏ vì một hồi quy
+thật, và cách đóng nó là gỡ hồi quy chứ không nới trần (`pinned-baseline-test-companion`).
+
+⚠ **Trần nay rất lỏng và đó là một khoản nợ mới.** Nền chung ở 786 785 / 1 150 000
+còn dư **363 215 B (32%)**, so với 8,6% của mốc cũ. Một cổng dư 32% sẽ **không** bắt
+được lần bump 91KB tiếp theo — chính là cỡ mà `zod` vừa cộng vào. Hạ trần là quyết
+định của chủ dự án, không phải việc cổng tự làm; ghi ra đây để nó không trôi.
+
 ### ⚠ `/games/k8s` không còn là route duy nhất dùng three.js
 
 Bảng cũ gọi nó là "route nặng nhì (three.js, **không** terminal)". Hai vế đó nay đều sai:
