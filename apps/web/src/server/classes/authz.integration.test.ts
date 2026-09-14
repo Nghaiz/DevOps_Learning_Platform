@@ -4,6 +4,7 @@ import { inArray } from 'drizzle-orm';
 import {
   closeTestDb,
   ctxFor,
+  procedureLeaks,
   purgeLeakedFixtures,
   testDb,
   uniqueId,
@@ -127,37 +128,6 @@ describe('AC-F · bảng điểm lớp', () => {
     expect(board.rows.map((row) => row.userId)).not.toContain(ADMIN);
   });
 });
-
-/**
- * Cổng cấu trúc. Xem mục 3 ở chú thích đầu file.
- *
- * Phép đo là HÀNH VI (gọi thật rồi xem ném gì), không phải đọc middleware: một
- * phép đọc `_def` phải tự dựng lại cách tRPC xâu chuỗi middleware, và bản dựng
- * lại đó sẽ trôi khỏi thật ở lần nâng cấp tRPC kế tiếp.
- *
- * Gọi với input RỖNG là cố ý: trong tRPC v11, `.input()` lắp bộ phân giải vào
- * SAU middleware của `adminProcedure`, nên một người không phải admin nhận
- * `FORBIDDEN` trước khi Zod kịp chạy. Nhờ vậy cổng này không cần biết từng
- * procedure ăn input hình gì, và nó vẫn đúng với procedure mà lane sau thêm.
- */
-async function procedureLeaks(
-  procedureNames: readonly string[],
-  call: (name: string) => Promise<unknown>,
-): Promise<readonly string[]> {
-  const leaked: string[] = [];
-  for (const name of procedureNames) {
-    try {
-      await call(name);
-      leaked.push(`${name} (không ném gì)`);
-    } catch (error) {
-      if (!(error instanceof TRPCError) || error.code !== 'FORBIDDEN') {
-        const code = error instanceof TRPCError ? error.code : 'không phải TRPCError';
-        leaked.push(`${name} (${code})`);
-      }
-    }
-  }
-  return leaked;
-}
 
 describe('18.F.3 · MỌI procedure của classes.* đứng sau adminProcedure', () => {
   const names = Object.keys(classesRouter._def.procedures);

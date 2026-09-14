@@ -4,6 +4,8 @@ import { authoringRouter } from './authoring';
 import { authRouter } from './auth';
 import { capacityRouter } from './capacity';
 import { classesRouter } from './classes';
+import { examSittingRouter } from './exam-sitting';
+import { examsRouter } from './exams';
 import { labsRouter } from './labs';
 import { lessonsRouter } from './lessons';
 import { meRouter } from './me';
@@ -19,6 +21,11 @@ export const appRouter = createTRPCRouter({
   authoring: authoringRouter,
   capacity: capacityRouter,
   classes: classesRouter,
+  // `exams` = soạn đề + chấm, admin-only. `examSitting` = màn làm bài của
+  // người học. Hai router tách hẳn nhau là một yêu cầu tường minh của lane
+  // 18.F, không phải một lựa chọn thẩm mỹ — xem chú thích đầu mỗi file.
+  examSitting: examSittingRouter,
+  exams: examsRouter,
   labs: labsRouter,
   lessons: lessonsRouter,
   me: meRouter,

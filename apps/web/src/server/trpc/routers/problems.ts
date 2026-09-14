@@ -18,6 +18,9 @@ import { listProblems, listProblemsForSolver } from '../../problems/list';
 import { recordHintReveal } from '../../problems/reveals';
 import { listMySubmissions } from '../../problems/submissions';
 import { submitProblem } from '../../problems/submit';
+import type { Database } from '../../db/client';
+import { examSubmissionRejection } from '../../exams/attempt-seed';
+import { getAttemptFor, getExamForStudent } from '../../exams/crud';
 import { problemBodySchema, problemCodeSchema, problemUpdateSchema } from '../../problems/validate';
 import { problemVisibilityFor, visibleProblemWhere } from '../../problems/visibility';
 import { authorProcedure, createTRPCRouter, listInputSchema, protectedProcedure } from '../init';
@@ -189,6 +192,20 @@ export const problemsRouter = createTRPCRouter({
               })
               .readonly(),
           }),
+          /*
+           * §18.G — lượt nộp TRONG một kỳ thi mang theo `examId`.
+           *
+           * `.optional()`, và đó là điều kiện để nó không phá gì: mọi lượt nộp
+           * ngoài kỳ thi (toàn bộ lưu lượng hôm nay) đi qua đây không đổi một
+           * dòng nào. Chỉ khi trường này có mặt thì ba cổng của kỳ thi mới chạy.
+           *
+           * ⚠ Nó KHÔNG phải một lời khai đáng tin: ai cũng gửi lên được một
+           * `examId` bất kỳ. Thứ làm nó an toàn là `getExamForStudent` lọc theo
+           * tư cách thành viên lớp, và `getAttemptFor` lọc theo `ctx.user.id` —
+           * một `examId` của lớp khác trả NOT_FOUND. Nói cách khác, trường này
+           * chọn LUẬT áp dụng, không cấp quyền nào.
+           */
+          examId: z.string().uuid().optional(),
           claimed: z.object({
             gameId: z.literal('k8s'),
             levelId: z.string().min(1),
@@ -218,14 +235,13 @@ export const problemsRouter = createTRPCRouter({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Không có bài đó' });
       }
       /*
-       * ⚠ NỢ ĐÃ GHI TÊN, phát hiện khi dọn 18.A nhưng KHÔNG sửa được ở đây.
-       *
-       * Thủ tục này tra bài CHỈ theo `code` + `state`. Từ migration 0015 bảng có
-       * cột `game_id`, nên một bài `game_id = 'git'` đi lọt vào đây rồi được giao
-       * cho một đường chấm chỉ biết K8s. Trước 0015 chuyện đó bất khả vì mọi
-       * dòng đều là K8s — cổng thiếu này KHÔNG phải mã chết, nó mới vừa thành
-       * mã có đường tới. Cổng theo `gameId` thuộc `submit.ts`/§18.G. Đã báo lead.
+       * ⚠ Chú thích cũ ở đây ghi rằng cổng theo `gameId` "đã báo lead" và chưa
+       * có. Đo lại 2026-09-15: nó CÓ, ở `problems/submit.ts` — một bài không
+       * phải K8s nhận `INTERNAL_SERVER_ERROR` với câu gọi đúng tên game. Giữ
+       * câu này thay vì xoá đè, vì một dòng "chưa làm" còn lại trên một việc đã
+       * làm sẽ khiến người sau đi làm lần thứ hai.
        */
+      await assertExamRules(ctx, input, row.code);
       return submitProblem(
         ctx.db,
         toProblemDTO(row),
@@ -285,3 +301,58 @@ export const problemsRouter = createTRPCRouter({
     return toProblemDTO(row);
   }),
 });
+
+/**
+ * Ba cổng của một lượt nộp TRONG kỳ thi (§18.G, "cổng số 1").
+ *
+ * Không có `examId` thì không làm gì cả — mọi lượt nộp ngoài kỳ thi đi qua đây
+ * không đổi một dòng nào, và seed do người nộp mang lên vẫn là hành vi CỐ Ý của
+ * hợp đồng (`core/problem.ts` § `Submission.seed`).
+ *
+ * ## Vì sao cổng nằm ở ĐÂY chứ không trong `submitProblem`
+ *
+ * `submitProblem` trả lời câu "bài làm này đúng tới đâu". Cổng này trả lời câu
+ * "lượt nộp này có được tính không" — hai câu khác nhau, và gộp chúng sẽ bắt
+ * `submitProblem` phải biết về kỳ thi, tức nó không dùng lại được cho đường nộp
+ * thường. Cổng chạy TRƯỚC, nên một lượt bị từ chối không tốn một lượt phát lại
+ * toàn bộ nhật ký.
+ *
+ * ## `FORBIDDEN` chứ không `BAD_REQUEST`
+ *
+ * Người nộp không gửi lên dữ liệu hỏng; họ gửi một lượt hợp lệ mà luật kỳ thi
+ * không nhận. `BAD_REQUEST` sẽ dẫn họ đi sửa bài làm, trong khi thứ cần sửa là
+ * việc họ đã hết giờ, hoặc đang làm một bài ngoài đề.
+ */
+async function assertExamRules(
+  ctx: { db: Database; user: { id: string } },
+  input: { examId?: string | undefined; runLog: { seed: number } },
+  problemCode: string,
+): Promise<void> {
+  if (input.examId === undefined) {
+    return;
+  }
+  const now = new Date();
+  // Lọc theo tư cách thành viên lớp. Một `examId` của lớp khác trả NOT_FOUND ở
+  // đây, nên trường `examId` trên dây không cấp thêm quyền nào.
+  const exam = await getExamForStudent(ctx.db, input.examId, ctx.user.id);
+  const attempt = await getAttemptFor(ctx.db, input.examId, ctx.user.id);
+  if (attempt === null) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Bạn chưa mở lượt thi này, nên bài nộp không được tính',
+    });
+  }
+  const rejection = examSubmissionRejection(
+    {
+      problemCodes: exam.problemCodes,
+      attemptSeed: attempt.seed,
+      attempt,
+      closesAt: exam.closesAt,
+    },
+    { problemCode, seed: input.runLog.seed },
+    now,
+  );
+  if (rejection !== null) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: rejection });
+  }
+}

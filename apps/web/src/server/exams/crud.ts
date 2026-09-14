@@ -16,8 +16,9 @@ import type { ExamProblemFacts } from './compose-gate';
  * ý như `classes/crud.ts`: mọi đường vào soạn đề là `adminProcedure`, và một
  * phép kiểm thứ hai ở đây sẽ là nguồn sự thật thứ hai cho cùng một câu hỏi.
  *
- * ⚠ Ngoại lệ, và nó KHÁC `classes`: ba hàm cuối file (`startAttempt`,
- * `getAttemptFor`, `submitAttempt`) phục vụ NGƯỜI HỌC. Chúng nhận `userId` và
+ * ⚠ Ngoại lệ, và nó KHÁC `classes`: năm hàm cuối file (`getAttemptFor`,
+ * `startAttempt`, `submitAttempt`, `listExamsForStudent`, `getExamForStudent`)
+ * phục vụ NGƯỜI HỌC. Chúng nhận `userId` và
  * lọc cứng theo nó — đó là phép kiểm quyền duy nhất chúng có, và nó nằm ở đây
  * chứ không ở router vì nó là một điều kiện của truy vấn, không phải một cổng
  * đứng trước. Gọi chúng với một `userId` không phải của người đang đăng nhập
@@ -436,4 +437,114 @@ export async function listAttemptRows(
     .innerJoin(users, eq(users.id, examAttempts.userId))
     .where(eq(examAttempts.examId, examId))
     .orderBy(users.name, examAttempts.userId);
+}
+
+/**
+ * Kỳ thi mà NGƯỜI NÀY được vào — lọc cứng theo tư cách thành viên lớp.
+ *
+ * ⛔ Đây là một trong ba hàm phục vụ người học, và phép lọc `class_members` là
+ * cổng quyền DUY NHẤT của nó. Không có `adminProcedure` nào đứng trước, nên
+ * gọi nó với một `userId` không phải của người đang đăng nhập là đường duy nhất
+ * làm rò danh sách kỳ thi của lớp khác.
+ *
+ * KHÔNG trả `fixed_seed`: người học không cần biết seed của kỳ thi, và một khi
+ * nó đi qua dây thì cổng seed lúc nộp chỉ còn gác được những người không mở
+ * DevTools.
+ */
+export interface StudentExamSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly className: string;
+  readonly problemCodes: readonly string[];
+  readonly durationMinutes: number;
+  readonly opensAt: string | null;
+  readonly closesAt: string | null;
+  /** `null` = chưa mở lượt nào. */
+  readonly startedAt: string | null;
+  readonly submittedAt: string | null;
+}
+
+export async function listExamsForStudent(
+  db: Database,
+  userId: string,
+): Promise<readonly StudentExamSummary[]> {
+  const rows = await db
+    .select({
+      id: exams.id,
+      title: exams.title,
+      className: classes.name,
+      problemCodes: exams.problemCodes,
+      durationMinutes: exams.durationMinutes,
+      opensAt: exams.opensAt,
+      closesAt: exams.closesAt,
+      startedAt: examAttempts.startedAt,
+      submittedAt: examAttempts.submittedAt,
+    })
+    .from(exams)
+    .innerJoin(classes, eq(classes.id, exams.classId))
+    .innerJoin(
+      classMembers,
+      and(eq(classMembers.classId, exams.classId), eq(classMembers.userId, userId)),
+    )
+    .leftJoin(
+      examAttempts,
+      and(eq(examAttempts.examId, exams.id), eq(examAttempts.userId, userId)),
+    )
+    .orderBy(desc(exams.createdAt), desc(exams.id));
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    className: row.className,
+    problemCodes: row.problemCodes,
+    durationMinutes: row.durationMinutes,
+    opensAt: row.opensAt?.toISOString() ?? null,
+    closesAt: row.closesAt?.toISOString() ?? null,
+    startedAt: row.startedAt?.toISOString() ?? null,
+    submittedAt: row.submittedAt?.toISOString() ?? null,
+  }));
+}
+
+/**
+ * Một kỳ thi, nhìn từ phía người học, kèm cửa sổ thời gian thô để người gọi tự
+ * tính hạn bằng `clock.ts`.
+ *
+ * NOT_FOUND cho cả ca "không có kỳ thi đó" lẫn ca "có nhưng bạn không thuộc
+ * lớp": người ngoài lớp không cần biết kỳ thi này tồn tại.
+ */
+export async function getExamForStudent(
+  db: Database,
+  examId: string,
+  userId: string,
+): Promise<{
+  readonly id: string;
+  readonly title: string;
+  readonly className: string;
+  readonly problemCodes: readonly string[];
+  readonly durationMinutes: number;
+  readonly opensAt: Date | null;
+  readonly closesAt: Date | null;
+}> {
+  const [row] = await db
+    .select({
+      id: exams.id,
+      title: exams.title,
+      className: classes.name,
+      problemCodes: exams.problemCodes,
+      durationMinutes: exams.durationMinutes,
+      opensAt: exams.opensAt,
+      closesAt: exams.closesAt,
+    })
+    .from(exams)
+    .innerJoin(classes, eq(classes.id, exams.classId))
+    .innerJoin(
+      classMembers,
+      and(eq(classMembers.classId, exams.classId), eq(classMembers.userId, userId)),
+    )
+    .where(eq(exams.id, examId))
+    .limit(1);
+  if (row === undefined) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Không có kỳ thi đó' });
+  }
+  return row;
 }
