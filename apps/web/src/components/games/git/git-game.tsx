@@ -129,6 +129,34 @@ const GitScene3D = dynamic(() => import('./scene3d/index.ts').then((m) => m.GitS
   ),
 });
 
+/**
+ * Hậu kỳ (bloom) có bật không. Tắt bằng `?fx=off`.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ĐÂY LÀ ĐIỀU KIỆN ĐỂ Ô AC-7 CÓ NGHĨA, KHÔNG PHẢI MỘT CỜ GỠ LỖI TIỆN TAY
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `EffectComposer` reset `renderer.info.render` ở **mỗi** lần `render()`, và
+ * pass cuối là một tam giác phủ toàn màn hình — nên `calls` đọc ra là **1** và
+ * `triangles` là **1**, bất kể cảnh có 2 hay 2000 object. Một ô nghiệm thu viết
+ * `expect(calls).toBeLessThan(100)` khi bloom đang bật sẽ XANH mãi mãi và
+ * **chứng minh đúng zero điều gì** (`rules/green-that-proves-nothing.md`).
+ *
+ * Arena giải bằng cách ghim bậc chất lượng qua bảng cài đặt; game Git không có
+ * bảng cài đặt, nên công tắc là tham số URL. Nó cố ý **không** có nút bấm: đây
+ * không phải một lựa chọn của người chơi, nó là một đường để ĐO.
+ *
+ * Đọc một lần lúc mount, không theo dõi thay đổi — đổi `?fx=` giữa chừng thì
+ * tải lại trang.
+ */
+function useEffectsEnabled(): boolean {
+  const [enabled] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return new URLSearchParams(window.location.search).get('fx') !== 'off';
+  });
+  return enabled;
+}
+
 function useRendererChoice(): {
   readonly resolved: ResolvedMode;
   readonly setMode: (mode: RendererMode) => void;
@@ -254,6 +282,7 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
   const [showTheory, setShowTheory] = useState(false);
 
   const { resolved, setMode } = useRendererChoice();
+  const effects = useEffectsEnabled();
 
   const world = session.getWorld();
   const view = buildView(world);
@@ -310,6 +339,7 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
         <div className={resolved.mode === '3d' ? 'min-h-0 flex-1' : 'min-h-0 flex-1 overflow-auto p-4'}>
           {resolved.mode === '3d' ? (
             <GitScene3D
+              effects={effects}
               scene={{
                 view: sceneView,
                 layouts,
