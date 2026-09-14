@@ -142,7 +142,10 @@ function writeKindPositions(routes: readonly EdgeRoute3D[]): {
       dropped.push(route.key);
       continue;
     }
-    positions.push(...segment);
+    // Nối bằng vòng lặp chứ không `push(...segment)`: dạng trải bung mỗi phần
+    // tử thành một ĐỐI SỐ, và một level đủ đông sẽ vượt trần số đối số của
+    // engine — lỗi đó nổ ra ở chỗ không liên quan gì tới nguyên nhân.
+    for (const n of segment) positions.push(n);
     // Chấm nối nằm ở đầu phía CON. `sceneEdges()` dựng cạnh theo chiều
     // con → cha (`{ from: 'c2', to: 'c1' }`), nên đó là `points[0]`; đánh dấu ở
     // đầu kia sẽ gắn chấm vào commit CHA, tức nói sai chiều của quan hệ.
@@ -203,6 +206,16 @@ export function LaneEdges({
         const lines = new LineSegments2(geometry, material);
         lines.frustumCulled = false;
         lines.renderOrder = 2;
+        /*
+         * ⚠ Ẩn CHO TỚI KHI có buffer. Hình học được đổ ở `useEffect`, còn đối
+         * tượng sinh ra ở đây — giữa hai mốc đó có một cửa sổ mà vòng lặp vẽ của
+         * r3f có thể chạy. `LineSegmentsGeometry` lúc này chưa có `instanceStart`
+         * và `instanceCount` của `InstancedBufferGeometry` mặc định là `Infinity`,
+         * nên một khung hình rơi vào cửa sổ đó gọi `drawElementsInstanced` với số
+         * thể hiện vô hạn. `visible = false` làm `projectObject` bỏ qua hẳn đối
+         * tượng, nên nó cũng không tốn một lệnh vẽ nào khi loại cạnh này rỗng.
+         */
+        lines.visible = false;
 
         let joints: THREE.Points | null = null;
         if (style.joint) {
@@ -219,6 +232,9 @@ export function LaneEdges({
           joints = new THREE.Points(jointGeometry, jointMaterial);
           joints.frustumCulled = false;
           joints.renderOrder = 3;
+          // Cùng lý do như `lines.visible` ở trên, và ở đây còn gắt hơn: hình
+          // học này chưa có cả thuộc tính `position`.
+          joints.visible = false;
         }
 
         return { kind, geometry, material, lines, joints };
