@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import {
@@ -108,7 +109,25 @@ export function GitGame({ theory, initialLevelId }: GitGameProps): ReactElement 
  * `'unavailable'`: gộp lại sẽ làm trang nháy chế độ lúc hydrate, và nó xoá mất
  * sự khác nhau giữa "máy không chạy nổi 3D" với "chưa đo được".
  */
-const ENABLED_MODES: readonly RendererMode[] = ['2d'];
+const ENABLED_MODES: readonly RendererMode[] = ['2d', '3d'];
+
+/**
+ * Tầng 3D nạp động, `ssr: false`.
+ *
+ * ⚠ Cả hai vế đều bắt buộc. `ssr: false` vì `three` đụng `window`/`canvas` lúc
+ * dựng; **nạp động** vì gói 3D nặng ~631KB và một `import` tĩnh sẽ kéo nó vào
+ * bundle của mọi người chơi, kể cả người ở chế độ 2D và kể cả người chưa từng
+ * mở game. P17 đã trả giá đúng chỗ này một lần (`44f8e39`), và cổng CI
+ * `bundle:check` gác nó.
+ */
+const GitScene3D = dynamic(() => import('./scene3d/index.ts').then((m) => m.GitScene3D), {
+  ssr: false,
+  loading: () => (
+    <p className="p-4 text-sm text-muted-foreground" role="status">
+      Đang nạp cảnh 3D…
+    </p>
+  ),
+});
 
 function useRendererChoice(): {
   readonly resolved: ResolvedMode;
@@ -124,9 +143,13 @@ function useRendererChoice(): {
   const resolved = resolveRendererMode({
     stored,
     support,
-    // 17.K chưa làm ở đợt này — chủ dự án đã chốt hoãn tầng 3D sang một chặng
-    // sau. Đây là MỘT chỗ để đổi khi nó xong.
-    has3d: false,
+    // 17.K đã xong ở P17b. Đây là chỗ duy nhất phải đổi, đúng như bản ghi đóng
+    // chặng P17 dự trù.
+    has3d: true,
+    // Mặc định vẫn là 2D dù máy chạy được 3D. Chế độ 2D là NGANG HÀNG chứ không
+    // phải đường lùi (ràng buộc 3 của chặng), nó nạp ngay và không tốn 631KB;
+    // ai muốn 3D thì bấm một lần và lựa chọn đó được nhớ.
+    fallback: '2d',
   });
 
   const setMode = useCallback((mode: RendererMode) => {
@@ -284,18 +307,34 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* ── Khung cảnh ───────────────────────────────────────────────── */}
-        <div className="min-h-0 flex-1 overflow-auto p-4">
-          <GitSvgScene
-            view={sceneView}
-            layouts={layouts}
-            interaction={{
-              selectedId: selected,
-              hoveredId: hovered,
-              onSelect: setSelected,
-              onHover: setHovered,
-            }}
-            label={`Đồ thị commit của level ${level.title}`}
-          />
+        <div className={resolved.mode === '3d' ? 'min-h-0 flex-1' : 'min-h-0 flex-1 overflow-auto p-4'}>
+          {resolved.mode === '3d' ? (
+            <GitScene3D
+              scene={{
+                view: sceneView,
+                layouts,
+                interaction: {
+                  selectedId: selected,
+                  hoveredId: hovered,
+                  onSelect: setSelected,
+                  onHover: setHovered,
+                },
+              }}
+              label={`Đồ thị commit của level ${level.title}`}
+            />
+          ) : (
+            <GitSvgScene
+              view={sceneView}
+              layouts={layouts}
+              interaction={{
+                selectedId: selected,
+                hoveredId: hovered,
+                onSelect: setSelected,
+                onHover: setHovered,
+              }}
+              label={`Đồ thị commit của level ${level.title}`}
+            />
+          )}
         </div>
 
         {/* ── Cột phải ─────────────────────────────────────────────────── */}

@@ -118,7 +118,7 @@ export function readGitSceneColors(
   let degraded = false;
 
   for (const token of GIT_SCENE_TOKENS) {
-    let rgb: Rgb | null = null;
+    let rgb: Rgb | null;
     try {
       probe.style.color = `var(${token})`;
       rgb = resolve(getComputed(probe));

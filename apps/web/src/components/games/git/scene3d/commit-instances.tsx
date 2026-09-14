@@ -206,6 +206,16 @@ export interface CommitInstancesProps extends Scene3DLayerProps {
   readonly colors: GitSceneThreeColors;
   /** Tăng mỗi lần token được đọc lại (đổi theme). Dùng làm dep ghi lại màu lô. */
   readonly colorsVersion: number;
+  /**
+   * Nhận lô instance của accent bật `bloom`, để gốc hợp thành đưa vào
+   * `<SelectiveBloom selection>`.
+   *
+   * ⚠ Không có đường này thì cờ `ACCENT_3D[...].bloom` là **trang trí**: file
+   * này khai nó, không ai đọc, và K.10 trở thành một dòng chú thích thay vì một
+   * hiệu ứng. Gọi với `null` khi lô biến mất, nếu không bloom bám vào một mesh
+   * đã `dispose()`.
+   */
+  readonly onBloomMesh?: (mesh: THREE.InstancedMesh | null) => void;
 }
 
 export function CommitInstances({
@@ -213,6 +223,7 @@ export function CommitInstances({
   interaction,
   colors,
   colorsVersion,
+  onBloomMesh,
 }: CommitInstancesProps): ReactElement {
   const invalidate = useThree((s) => s.invalidate);
 
@@ -266,6 +277,41 @@ export function CommitInstances({
       }),
     [materialHandle, capacity],
   );
+
+  /*
+   * Lô cần bloom, suy ra từ chính `ACCENT_3D` chứ không viết thẳng `'ringed'`.
+   *
+   * Viết thẳng tên khối là dựng một bản sao thứ hai của quyết định "accent nào
+   * phát sáng", và bản sao đó sẽ lệch vào đúng ngày ai đó đổi `bloom` sang một
+   * accent khác — âm thầm, vì cả hai chỗ đều "trông đúng" khi đọc riêng.
+   *
+   * ⚠ Trả về `null` khi nhiều accent bật `bloom` mà chúng KHÔNG cùng một khối:
+   * selection là một mesh, nên hai khối khác nhau không biểu diễn được. Thà tắt
+   * bloom còn hơn phát sáng nhầm lô. `accent-3d.test.ts` gác chuyện chỉ một
+   * accent bật cờ, nên nhánh này chỉ chạy nếu ô đó bị nới ra.
+   */
+  const bloomBatchIndex = useMemo(() => {
+    const solids = new Set(
+      Object.values(ACCENT_3D)
+        .filter((a) => a.bloom)
+        .map((a) => a.solid),
+    );
+    if (solids.size !== 1) return -1;
+    const [only] = [...solids];
+    return only === undefined ? -1 : NODE_SOLIDS.indexOf(only);
+  }, []);
+
+  useEffect(() => {
+    if (onBloomMesh === undefined) return;
+    const mesh = bloomBatchIndex < 0 ? undefined : batches[bloomBatchIndex]?.mesh;
+    onBloomMesh(mesh ?? null);
+    // Gỡ tham chiếu khi lô bị dựng lại: `batches` tự `dispose()` ở effect dọn
+    // dẹp phía trên, và một `SelectiveBloom` còn trỏ vào mesh đã dispose sẽ vẽ
+    // ra một khung đen thay vì không vẽ gì.
+    return () => {
+      onBloomMesh(null);
+    };
+  }, [batches, bloomBatchIndex, onBloomMesh]);
 
   const atlas = useMemo(() => createSigilAtlas(SIGIL_CELLS), []);
   const sigilMaterial = useMemo(
