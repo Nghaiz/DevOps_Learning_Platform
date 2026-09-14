@@ -173,11 +173,28 @@ export {
   COMMAND_KINDS,
   checkDeterminism,
   isVerified,
-  sessionReplayEngine,
   tallyLog,
   verifyLabel,
   verifyRun,
 } from './core/verify.ts';
+
+/*
+ * `sessionReplayEngine` CHUYỂN NHÀ 2026-09-14 (18.A): `core/verify.ts` →
+ * `k8s/replay-engine.ts`. Tên export giữ NGUYÊN, và đó là điều làm bước này an
+ * toàn — `apps/web/src/server/problems/{replay,submit}.ts` import qua gốc
+ * package (`exports` chỉ mở đúng subpath `"."`), nên chúng không phải sửa một
+ * dòng nào.
+ *
+ * Vì sao phải chuyển: hàm này là ADAPTER của riêng game K8s — nó là chỗ duy
+ * nhất trong cả `core/verify.ts` chạm `CreateSession`/`K8sSession`/`Level`. Để
+ * nó ở `core/` thì bộ phát lại chống gian lận bị trói về đúng một game, và một
+ * bài Git không có đường đi qua bộ xác minh. Chính `core/verify.ts` đã tự dặn
+ * điều đó ở đầu file từ 17.A.2; nửa còn lại của lời dặn mới trả xong hôm nay.
+ *
+ * Ô đo: `grep -rn "from '../k8s\|from '../git" packages/games/src/core/` trả
+ * rỗng. Đây là bản ĐÃ SỬA của AC-A — bản trong plan đếm cả văn xuôi nên đo nhầm.
+ */
+export { sessionReplayEngine } from './k8s/replay-engine.ts';
 
 export { SCORE_MAX, checkPlausibility, checkSave, checksum, stampSave } from './core/integrity.ts';
 
@@ -350,6 +367,29 @@ export {
   problemCodePattern,
   problemVerdictOf,
 } from './core/problem.ts';
+
+/*
+ * Bảng đăng ký plugin (18.A.4 / 18.A.5). Đây là đường DUY NHẤT để tầng máy chủ
+ * và tầng giao diện chấm một lượt nộp — cả hai phía gọi cùng `gradeProblemRun`.
+ *
+ * ⚠ Vì sao phải mở NGAY chứ không đợi "khi nào cần": bài học `CHALLENGES` của
+ * game K8s, đã ghi ở khối đầu phần Game Git bên trên — 10 bài nằm trong package
+ * rất lâu, chạy được, có test tham chiếu, mà KHÔNG bao giờ vào barrel, nên không
+ * component nào import được và người dùng chưa từng thấy bài nào. Mã chết không
+ * đỏ ở đâu cả.
+ *
+ * `UnknownProblemGameError` mở cùng, và đó không phải thừa: `gradeProblemRun`
+ * NÉM khi `gameId` chưa có plugin thay vì trả một `GradeResult` rỗng. Phía gọi
+ * cần bắt được đúng lớp đó để trả một câu nói được cho người dùng — không có nó
+ * thì chỗ gọi chỉ còn cách so chuỗi thông điệp, và một lần sửa chính tả sẽ làm
+ * nhánh bắt lỗi im lặng ngừng khớp.
+ */
+export {
+  PROBLEM_PLUGINS,
+  UnknownProblemGameError,
+  gradeProblemRun,
+  problemPluginMeta,
+} from './problem-plugins.ts';
 
 // ── Chấm điểm ───────────────────────────────────────────────────────────────
 /*
