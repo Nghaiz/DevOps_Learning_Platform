@@ -201,9 +201,20 @@ export function gitOpSkip(repo: Repo, verb: PendingKind, ctx: OpContext): Pendin
 // 4. MÔ TẢ TRẠNG THÁI KẸT (cho `git status` và cho HUD)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Động từ người chơi phải gõ để gỡ. Cùng tên với `kind`, trừ chỗ nó khác. */
+/**
+ * Động từ người chơi phải gõ để gỡ. Cùng tên với `kind`, trừ chỗ nó khác.
+ *
+ * ⚠ `'stash'` LÀ chỗ nó khác, và hàm này tồn tại chính vì chỗ đó. Bản đầu trả
+ * thẳng `kind`, nên `git status` lúc kẹt in ra `git stash --continue` — một
+ * chuỗi bộ phân tích TỪ CHỐI với `unknown-flag`, vì `git stash` không nêu lệnh
+ * con thì được hiểu là `git stash push`, và `push` không khai hai cờ đó. Người
+ * chơi đang kẹt đọc `git status`, gõ đúng thứ nó bảo, và nhận một lỗi.
+ *
+ * Bốn nhánh kia trùng nhau giữa `kind` và động từ nên không ai để ý — đó là lý
+ * do ô gác ở `dispatch.test.ts` kiểm CẢ NĂM chứ không kiểm riêng nhánh này.
+ */
 export function pendingVerb(pending: PendingOp): string {
-  return pending.kind;
+  return pending.kind === 'stash' ? 'stash pop' : pending.kind;
 }
 
 /**

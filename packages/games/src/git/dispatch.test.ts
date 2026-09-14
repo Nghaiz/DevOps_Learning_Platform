@@ -24,7 +24,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { GitWorld, Lines, Repo } from './contract.ts';
+import type { GitWorld, Lines, PendingOp, Repo } from './contract.ts';
 import { dispatchCommand, type DispatchDeps, type DispatchResult } from './dispatch.ts';
 import { parseGitCommand } from './parser.ts';
 import { sandboxLevel } from './sandbox.ts';
@@ -33,6 +33,7 @@ import { blobOid, emptyRepo, headOid, setIndex, setWorktree } from './repo.ts';
 import { makeBlob, putObject, writeCommit, writeContents } from './objects.ts';
 import { advanceHead, indexFromCommit } from './ops/reset.ts';
 import { gitStashPush } from './ops/stash.ts';
+import { pendingStatusLines } from './ops/pending.ts';
 
 /* `deps.level` hiện chưa được nhánh nào đọc (`void deps` trong dispatch.ts) —
  * một level sandbox rỗng là đủ, và nó không lôi 32 level thật vào test này. */
@@ -195,5 +196,109 @@ describe('`git stash pop` không cờ vẫn là lệnh áp stash', () => {
     expect(applied.error).toBeNull();
     expect(applied.world.local.worktree['a.txt']).toEqual(['1', 'việc đang cất']);
     expect(applied.world.local.stash.length).toBe(1);
+  });
+});
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * MỌI LỆNH GAME BẢO NGƯỜI CHƠI GÕ THÌ PHẢI GÕ ĐƯỢC
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Ô gác cho cả một LỚP lỗi, không cho một ca. Lớp đó là: engine in ra một chuỗi
+ * lệnh, bộ phân tích từ chối chuỗi đó, và không có gì đỏ ở đâu — vì bên in và
+ * bên đọc chưa bao giờ gặp nhau trong một test.
+ *
+ * Đã bắt được một ca thật: `pendingVerb` trả thẳng `kind`, nên nhánh `'stash'`
+ * in ra `git stash --continue`, và bộ phân tích trả `unknown-flag` (`git stash`
+ * không nêu lệnh con ⇒ hiểu là `git stash push`, mà `push` không khai hai cờ
+ * đó). Bốn nhánh kia trùng nhau giữa `kind` và động từ nên đi lọt.
+ */
+describe('`git status` lúc kẹt chỉ in ra lệnh GÕ ĐƯỢC', () => {
+  function repoWithCommit(): Repo {
+    return commitOne(emptyRepo(), 'a.txt', ['1']);
+  }
+
+  /** Mọi chuỗi `git …` nằm trong dấu nháy ngược của output. */
+  function quotedCommands(lines: readonly { readonly text: string }[]): readonly string[] {
+    const out: string[] = [];
+    for (const l of lines) {
+      for (const m of l.text.matchAll(/`(git [^`]+)`/g)) {
+        const cmd = m[1];
+        if (cmd !== undefined) out.push(cmd);
+      }
+    }
+    return out;
+  }
+
+  const base = repoWithCommit();
+  const oid = headOid(base) ?? '';
+  const cases: readonly { readonly name: string; readonly pending: PendingOp }[] = [
+    {
+      name: 'merge',
+      pending: {
+        kind: 'merge',
+        theirs: oid,
+        theirsLabel: 'feature',
+        originalHead: oid,
+        conflicts: [],
+      },
+    },
+    {
+      name: 'rebase',
+      pending: {
+        kind: 'rebase',
+        onto: oid,
+        originalHead: oid,
+        originalRef: null,
+        remaining: [],
+        conflicts: [],
+      },
+    },
+    {
+      name: 'cherry-pick',
+      pending: { kind: 'cherry-pick', picks: [oid], originalHead: oid, conflicts: [] },
+    },
+    { name: 'revert', pending: { kind: 'revert', target: oid, originalHead: oid, conflicts: [] } },
+    {
+      name: 'stash',
+      pending: {
+        kind: 'stash',
+        stashOid: oid,
+        originalHead: oid,
+        worktreeBefore: {},
+        indexBefore: {},
+        conflicts: [],
+      },
+    },
+  ];
+
+  it('tiền đề: mỗi nhánh THẬT SỰ in ra ít nhất một lệnh', () => {
+    // Thiếu ô này thì ô dưới xanh kể cả khi `pendingStatusLines` in ra một dòng
+    // trống — "mọi lệnh đều gõ được" là mệnh đề rỗng trên tập rỗng.
+    for (const { name, pending } of cases) {
+      const found = quotedCommands(pendingStatusLines({ ...base, pending }));
+      expect(found.length, `nhánh ${name} không in ra lệnh nào`).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('cả năm nhánh: mọi lệnh in ra đều qua được bộ phân tích', () => {
+    for (const { name, pending } of cases) {
+      for (const cmd of quotedCommands(pendingStatusLines({ ...base, pending }))) {
+        const parsed = parseGitCommand(cmd);
+        expect(
+          parsed.ok ? 'OK' : `${parsed.error.code}`,
+          `nhánh ${name} bảo người chơi gõ \`${cmd}\` mà lệnh đó không chạy được`,
+        ).toBe('OK');
+      }
+    }
+  });
+
+  it('nhánh stash in ra `stash pop`, không phải `stash` trần', () => {
+    // Ghim đích danh ca đã hỏng: `git stash --continue` trả `unknown-flag`.
+    const texts = pendingStatusLines({ ...base, pending: cases[4]?.pending ?? null }).map(
+      (l) => l.text,
+    );
+    expect(texts.some((t) => t.includes('`git stash pop --continue`'))).toBe(true);
+    expect(texts.some((t) => t.includes('`git stash --continue`'))).toBe(false);
   });
 });
