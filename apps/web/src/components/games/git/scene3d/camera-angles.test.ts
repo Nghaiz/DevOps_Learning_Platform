@@ -357,6 +357,7 @@ describe('giảm chấn', () => {
 function placedNode(id: string, position: Vec3): Placed3D {
   return {
     id,
+    oid: id.slice(id.indexOf(':') + 1),
     repo: id.startsWith('origin:') ? 'origin' : 'local',
     accent: 'normal',
     shortOid: id.slice(id.indexOf(':') + 1),
@@ -375,6 +376,7 @@ function placement(nodes: readonly Placed3D[]): Scene3DPlacement {
     plates: [],
     localLaneCount: 1,
     bounds: WIDE_BOUNDS,
+    depthDisagreement: 0,
   };
 }
 

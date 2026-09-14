@@ -36,6 +36,11 @@
  * `local` và khối `origin`. Đó là điều làm cho `push`/`fetch` đọc được: vật thể
  * bay ngang qua khoảng trống theo đúng phương Z, không chéo.
  *
+ * ⚠ **Điều đó KHÔNG được bảo đảm bằng xây dựng** — đừng đọc câu trên như một
+ * bảo đảm. `depth` đến từ hai lượt `layoutDag` độc lập, và chúng chỉ khớp khi
+ * mỗi tập node đóng-với-tổ-tiên. `Scene3DPlacement.depthDisagreement` **đếm**
+ * chỗ vỡ; xem `depthDisagreementOf()` để biết vì sao phải đếm thay vì khai.
+ *
  * ⚠ **Y mang đúng MỘT biến ở tầng DAG.** Ba mặt phẳng HEAD/Index/Worktree của
  * K.3 KHÔNG tranh trục Y với độ lệch nhánh: chúng là một **tầng khác** (ô file),
  * đặt ở ba dải Y nằm HẲN TRÊN vùng DAG (`PLATE_Y`), cách vùng DAG một khoảng
@@ -124,8 +129,33 @@ export const PLATE_CELL_STEP = 1.6;
  */
 export const PLATE_Z = -2 * Z_STEP;
 
-/** Bán kính ô commit — lane hình học và lane bắt tia dùng CHUNG con số này. */
+/**
+ * Nửa cạnh hộp bao ô commit ở cỡ gốc — lane hình học và lane bắt tia dùng CHUNG
+ * con số này.
+ *
+ * "Nửa cạnh hộp bao", **không phải bán kính cầu**: mọi hình khối của
+ * `accent-3d.ts` dựng ở cỡ đơn vị rồi phóng lên `2 * NODE_RADIUS * scale`.
+ */
 export const NODE_RADIUS = 0.62;
+
+/**
+ * Trần hệ số phóng mà một accent được phép dùng.
+ *
+ * Tồn tại vì một lý do đo được: `ACCENT_3D` phóng `head` lên **1.18** để nó nổi
+ * hơn các accent khác, nên ô commit cao nhất **không** cao `NODE_RADIUS` mà cao
+ * `NODE_RADIUS * 1.18`. `assertPlanesClearOfDag()` từng tính bằng `NODE_RADIUS`
+ * trần trụi, tức **lạc quan 18%** — nó trả `null` trong khi DAG đã chạm mặt
+ * phẳng HEAD. Một cổng nới tay hơn thứ nó gác vẫn xanh đúng vào lúc bắt đầu
+ * hỏng, và đó là kiểu hỏng tệ nhất (`rules/green-that-proves-nothing.md`).
+ *
+ * Hợp đồng khai **trần**; `accent-3d.ts` phải nằm dưới nó. Đặt 1.25 chứ không
+ * đặt đúng 1.18 để một accent mới có chỗ mà không phải sửa hợp đồng — nhưng
+ * vượt 1.25 thì phải sửa ở đây, có chủ ý, chứ không âm thầm nới cổng.
+ */
+export const MAX_NODE_SCALE = 1.25;
+
+/** Nửa cao thật lớn nhất mà một ô commit có thể chiếm. */
+export const MAX_NODE_HALF_EXTENT = NODE_RADIUS * MAX_NODE_SCALE;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Kiểu
@@ -215,8 +245,17 @@ export interface Scene3DPlacement {
   readonly plates: readonly Plate3D[];
   /** Số làn của khối `local`. Khối `origin` bắt đầu sau nó + `REPO_LANE_GAP`. */
   readonly localLaneCount: number;
-  /** Hộp bao của toàn cảnh — camera dùng để khung-toàn-bộ. */
+  /** Hộp bao của toàn cảnh — node VÀ ba mặt phẳng ô file. Camera khung-toàn-bộ đọc nó. */
   readonly bounds: { readonly min: Vec3; readonly max: Vec3 };
+  /**
+   * Số commit có mặt ở **cả hai kho** mà `depth` không khớp. `0` là lành.
+   *
+   * Khác 0 nghĩa là bất biến "X dùng chung cho cả hai kho" đã vỡ, và cạnh
+   * `remote-mirror` sẽ đi chéo thay vì thẳng theo Z. Gốc hợp thành phải phát nó
+   * ra cảnh báo dev — đừng nuốt. Xem `depthDisagreementOf()` để biết vì sao đây
+   * là một phép đo chứ không phải một dòng chú thích.
+   */
+  readonly depthDisagreement: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -250,7 +289,7 @@ export function deviationY(lane: number): number {
  * giống một bug render ngẫu nhiên và sẽ tốn một buổi để lần ra.
  */
 export function assertPlanesClearOfDag(maxDeviation: number): string | null {
-  const top = maxDeviation * Y_STEP + NODE_RADIUS;
+  const top = maxDeviation * Y_STEP + MAX_NODE_HALF_EXTENT;
   if (top < PLATE_FLOOR) return null;
   return (
     `Vùng DAG cao tới y=${top.toFixed(2)} nhưng mặt phẳng HEAD nằm ở y=${String(PLATE_FLOOR)}. ` +
@@ -342,13 +381,35 @@ export function place3d(props: SceneProps): Scene3DPlacement {
     edges,
     plates,
     localLaneCount,
-    bounds: boundsOf(nodes),
+    bounds: boundsOf(nodes, plates),
+    depthDisagreement: depthDisagreementOf(nodes),
   };
 }
 
-function boundsOf(nodes: readonly Placed3D[]): Scene3DPlacement['bounds'] {
-  if (nodes.length === 0) {
-    return { min: [0, 0, 0], max: [0, 0, 0] };
+/**
+ * Hộp bao của **toàn cảnh** — node VÀ ba mặt phẳng ô file.
+ *
+ * ⚠ Bản đầu chỉ duyệt `nodes`, và đó là một lỗi có hậu quả nhìn thấy được:
+ * `assertPlanesClearOfDag()` bảo đảm vùng DAG luôn nằm **dưới** `PLATE_FLOOR`,
+ * nên ba mặt phẳng ô file nằm **hoàn toàn ngoài** hộp bao — bấm khung-toàn-bộ
+ * sẽ cắt sạch cả K.3 khỏi màn hình. Camera lúc đó làm đúng thứ `bounds` nói;
+ * chính `bounds` mới là thứ không mô tả cả cảnh. Lane A tìm ra khi nối camera.
+ *
+ * Cạnh không cần duyệt: hai đầu cạnh đều là node, và cung của cạnh qua khoảng
+ * trống giữa hai kho vồng theo Z — nằm trong bao của hai đầu ở trục X/Y, còn
+ * phần vồng thì `edge-route-3d.ts` giữ trong biên mà nó tự khai.
+ */
+function boundsOf(
+  nodes: readonly Placed3D[],
+  plates: readonly Plate3D[],
+): Scene3DPlacement['bounds'] {
+  if (nodes.length === 0 && plates.length === 0) {
+    // Đệm cả nhánh rỗng: một hộp bao suy biến `[0,0,0]..[0,0,0]` bắt camera
+    // chia cho 0 khi tính khung-toàn-bộ.
+    return {
+      min: [-MAX_NODE_HALF_EXTENT, -MAX_NODE_HALF_EXTENT, -MAX_NODE_HALF_EXTENT],
+      max: [MAX_NODE_HALF_EXTENT, MAX_NODE_HALF_EXTENT, MAX_NODE_HALF_EXTENT],
+    };
   }
   let minX = Infinity;
   let minY = Infinity;
@@ -356,19 +417,54 @@ function boundsOf(nodes: readonly Placed3D[]): Scene3DPlacement['bounds'] {
   let maxX = -Infinity;
   let maxY = -Infinity;
   let maxZ = -Infinity;
-  for (const n of nodes) {
-    const [x, y, z] = n.position;
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (z < minZ) minZ = z;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
-    if (z > maxZ) maxZ = z;
-  }
-  return {
-    min: [minX - NODE_RADIUS, minY - NODE_RADIUS, minZ - NODE_RADIUS],
-    max: [maxX + NODE_RADIUS, maxY + NODE_RADIUS, maxZ + NODE_RADIUS],
+  const eat = ([x, y, z]: Vec3, pad: number): void => {
+    if (x - pad < minX) minX = x - pad;
+    if (y - pad < minY) minY = y - pad;
+    if (z - pad < minZ) minZ = z - pad;
+    if (x + pad > maxX) maxX = x + pad;
+    if (y + pad > maxY) maxY = y + pad;
+    if (z + pad > maxZ) maxZ = z + pad;
   };
+  for (const n of nodes) eat(n.position, MAX_NODE_HALF_EXTENT);
+  for (const p of plates) eat(p.position, Math.max(PLATE_CELL_STEP / 2, PLATE_OVERHANG));
+  return { min: [minX, minY, minZ], max: [maxX, maxY, maxZ] };
+}
+
+/**
+ * Đo bất biến "**X dùng chung cho cả hai kho**" thay vì khai nó.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * VÌ SAO ĐÂY LÀ PHÉP ĐO CHỨ KHÔNG PHẢI MỘT DÒNG CHÚ THÍCH
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Đầu file này từng viết bất biến đó như thể nó được bảo đảm bằng xây dựng.
+ * **Không phải.** `place3d()` lấy `depth` từ HAI lượt `layoutDag` **độc lập**
+ * trên hai tập node khác nhau. Đọc `core/layout/dag-layout.ts` → `computeDepths`:
+ * `depth` là **đường dài nhất từ một gốc** trong đúng tập được đưa vào. Nên hai
+ * lượt cho cùng một kết quả **với điều kiện** mỗi tập node đóng-với-tổ-tiên
+ * (chứa mọi tổ tiên của mọi commit trong nó) — đúng với kho git thật, nhưng
+ * **không có dòng mã nào ở đây khẳng định điều kiện đó**.
+ *
+ * Nếu điều kiện vỡ, hậu quả không phải một lỗi ném ra: cạnh `remote-mirror` đi
+ * **chéo** thay vì thẳng theo Z, và nó đi chéo đúng ở những level dạy
+ * `push`/`fetch` — tức là ở đúng chỗ hình ảnh đó phải nói lên điều gì.
+ *
+ * Nên: đếm, và phát ra. Một giả định được đo là một giả định; một giả định
+ * trong chú thích là một lời khai (`rules/green-that-proves-nothing.md`).
+ *
+ * @returns số oid có mặt ở CẢ HAI kho mà `depth` không khớp. `0` là lành.
+ */
+function depthDisagreementOf(nodes: readonly Placed3D[]): number {
+  const local = new Map<string, number>();
+  for (const n of nodes) if (n.repo === 'local') local.set(n.oid, n.depth);
+
+  let disagreements = 0;
+  for (const n of nodes) {
+    if (n.repo !== 'origin') continue;
+    const mirror = local.get(n.oid);
+    if (mirror !== undefined && mirror !== n.depth) disagreements += 1;
+  }
+  return disagreements;
 }
 
 /** Độ lệch nhánh lớn nhất trong cảnh — đầu vào của `assertPlanesClearOfDag`. */
