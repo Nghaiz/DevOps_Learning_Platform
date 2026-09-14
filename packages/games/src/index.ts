@@ -324,6 +324,14 @@ export {
   isProblemCode,
 } from './k8s/problem.ts';
 
+// ── Nhãn chủ đề theo game (§18.D) ───────────────────────────────────────────
+/*
+ * Mở ra vì `/problems` phải gọi được nó, và nó là đường DUY NHẤT tra nhãn chủ
+ * đề không kéo engine — `PROBLEM_PLUGINS` kéo cả hai. Lý do đầy đủ nằm trong
+ * chính file đó.
+ */
+export { problemTopicLabels } from './problem-topic-labels.ts';
+
 // ── Hợp đồng OJ đa-game (18.A.2 / 18.A.3) ───────────────────────────────────
 /*
  * ⚠ TRẠNG THÁI TRUNG GIAN CÓ CHỦ Ý — đọc trước khi "dọn cho gọn".
