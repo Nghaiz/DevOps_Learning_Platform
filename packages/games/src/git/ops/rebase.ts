@@ -59,7 +59,7 @@
  * rebase một lịch sử có merge thì cái merge đó biến mất.
  */
 
-import type { GitError, Oid, OutputLine, PendingOp, RebaseStep, RefName, Repo } from '../contract.ts';
+import type { GitError, Oid, OutputLine, PendingOp, RebaseStep, RefName, Repo, RepoOpResult } from '../contract.ts';
 import { gitError } from '../errors.ts';
 import { shortOid } from '../hash.ts';
 import {
@@ -96,7 +96,6 @@ import {
   untrackedWorktree,
   worktreeAt,
   wrongPendingKind,
-  type GitOpResult,
   type OpContext,
 } from './reset.ts';
 import {
@@ -177,7 +176,7 @@ function squashWithoutBase(action: string): GitError {
 // 2. `git rebase`
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function gitRebase(repo: Repo, options: RebaseOptions, ctx: OpContext): GitOpResult {
+export function gitRebase(repo: Repo, options: RebaseOptions, ctx: OpContext): RepoOpResult {
   if (repo.pending !== null) return fail(repo, operationInProgress(repo));
   if (getCommit(repo.objects, options.onto) === null) {
     return fail(repo, notACommitError(options.onto));
@@ -264,7 +263,7 @@ interface RunState {
   readonly prefix: readonly OutputLine[];
 }
 
-function runSteps(repo: Repo, steps: readonly RebaseStep[], state: RunState): GitOpResult {
+function runSteps(repo: Repo, steps: readonly RebaseStep[], state: RunState): RepoOpResult {
   let current = repo;
   let produced = state.produced;
   const output: OutputLine[] = [...state.prefix];
@@ -476,7 +475,7 @@ function syncWorktree(repo: Repo, oid: Oid): Repo {
  * Đây là chỗ DUY NHẤT branch dịch chuyển trong cả một lượt rebase, và cũng là
  * chỗ commit cũ chính thức mất ref cuối cùng trỏ tới nó.
  */
-function finishRebase(repo: Repo, state: RunState, output: readonly OutputLine[]): GitOpResult {
+function finishRebase(repo: Repo, state: RunState, output: readonly OutputLine[]): RepoOpResult {
   const cursor = headOid(repo);
   if (cursor === null) return fail(repo, unbornHeadError('rebase'));
 
@@ -522,7 +521,7 @@ function requireRebase(
   return { pending };
 }
 
-export function rebaseContinue(repo: Repo, ctx: OpContext): GitOpResult {
+export function rebaseContinue(repo: Repo, ctx: OpContext): RepoOpResult {
   const found = requireRebase(repo);
   if ('error' in found) return fail(repo, found.error);
   const pending = found.pending;
@@ -567,7 +566,7 @@ export function rebaseContinue(repo: Repo, ctx: OpContext): GitOpResult {
  * Bản cũ của commit bị bỏ vẫn nằm trong kho như mọi commit khác của lượt rebase
  * này. "Bỏ" ở đây nghĩa là *không áp lại*, không phải *xoá đi*.
  */
-export function rebaseSkip(repo: Repo, ctx: OpContext): GitOpResult {
+export function rebaseSkip(repo: Repo, ctx: OpContext): RepoOpResult {
   const found = requireRebase(repo);
   if ('error' in found) return fail(repo, found.error);
   const pending = found.pending;
@@ -614,7 +613,7 @@ export function rebaseSkip(repo: Repo, ctx: OpContext): GitOpResult {
  * phải gắn HEAD về chỗ cũ và trả index + worktree. Những commit đã áp lại được
  * trước lúc kẹt thành mồ côi — vẫn trong kho, `git reflog` nhớ.
  */
-export function rebaseAbort(repo: Repo, ctx: OpContext): GitOpResult {
+export function rebaseAbort(repo: Repo, ctx: OpContext): RepoOpResult {
   const found = requireRebase(repo);
   if ('error' in found) return fail(repo, found.error);
   const pending = found.pending;

@@ -294,15 +294,26 @@ describe('áp stash khi worktree đã đổi — phép trộn ba ngả thật', 
     expect(done.output.some((l) => l.text.includes('git stash drop'))).toBe(true);
   });
 
-  it('`--abort` xoá pending, giữ mục stash, và NÓI RÕ là mất phần chưa commit', () => {
-    const { popped } = conflicted();
+  it('`--abort` xoá pending, giữ mục stash, và KHÔNG vứt thay đổi chưa commit', () => {
+    const { before, popped } = conflicted();
     const back = gitStashApplyAbort(popped.repo);
 
     expect(back.error).toBeNull();
     expect(back.repo.pending).toBeNull();
     expect(back.repo.stash.length).toBe(1);
-    expect(back.repo.worktree).toEqual({ 'a.txt': ['1'] });
-    expect(back.output.some((l) => l.tone === 'warn')).toBe(true);
+    expect(back.repo.worktree).toEqual(before.worktree);
+    /*
+     * ⚠ Ô này TỪNG ghim đúng hành vi NGƯỢC LẠI — `toEqual({ 'a.txt': ['1'] })`,
+     * tức nội dung của commit HEAD — vì `PendingOp` nhánh `'stash'` khi ấy chưa
+     * mang nổi ảnh chụp worktree, nên `--abort` phục hồi theo `originalHead` và
+     * việc chưa commit của người chơi bay mất.
+     *
+     * Dòng dưới là thứ giữ cho nó không quay lại: `['1']` là dấu vân tay của
+     * phép phục hồi theo commit. Đỏ ở đây nghĩa là ai đó vừa nối `--abort` trở
+     * lại một `Oid`.
+     */
+    expect(back.repo.worktree['a.txt']).toEqual(['1', 'việc làm sau khi cất']);
+    expect(back.repo.worktree['a.txt']).not.toEqual(['1']);
   });
 
   it('`--continue` / `--abort` khi không có gì dở dang ⇒ no-operation-in-progress', () => {
@@ -365,5 +376,104 @@ describe('parseStashIndex', () => {
     expect(parseStashIndex('stash@{x}')).toBeNull();
     expect(parseStashIndex('main')).toBeNull();
     expect(parseStashIndex('stash@{1}x')).toBeNull();
+  });
+});
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * `--abort` KHÔNG ĐƯỢC LÀM MẤT VIỆC CHƯA COMMIT (nợ P17, đóng 2026-09-14)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Nhóm này dựng một worktree bẩn ở CẢ BA vùng — một sửa đổi đã `git add`, một
+ * sửa đổi mới chỉ nằm trong worktree, và một file chưa bao giờ được track — rồi
+ * đòi `--abort` trả về đủ cả ba. Bản cũ phục hồi theo `originalHead` nên trả về
+ * nội dung commit HEAD và xoá sạch cả ba.
+ *
+ * Vì sao đáng một nhóm riêng thay vì thêm một dòng vào nhóm trên: đây là mất dữ
+ * liệu của người chơi, và nó phản đúng bài học chương 3 ("git có đường lui").
+ */
+describe('`stash pop --abort` trả worktree về ĐÚNG trạng thái trước khi áp', () => {
+  /** Xung đột dựng trên một worktree bẩn ở cả ba vùng. */
+  function richConflict(): { readonly before: Repo; readonly popped: ReturnType<typeof gitStashPop> } {
+    let repo = emptyRepo();
+    repo = commitFiles(repo, { 'a.txt': ['1'], 'b.txt': ['x'] }, 'c1', 1);
+    repo = write(repo, 'a.txt', ['1', 'việc đang cất']);
+    const pushed = gitStashPush(repo, null, at(2)).repo;
+
+    let diverged = write(pushed, 'a.txt', ['1', 'việc làm sau khi cất']);
+    diverged = stage(diverged, 'a.txt');
+    // Sửa TIẾP sau khi add, để index và worktree khác nhau — nếu `--abort` chỉ
+    // phục hồi một trong hai vùng thì ô dưới bắt được.
+    diverged = write(diverged, 'a.txt', ['1', 'việc làm sau khi cất', 'và sửa thêm nữa']);
+    diverged = write(diverged, 'b.txt', ['x', 'đụng cả file thứ hai']);
+    diverged = write(diverged, 'ghi-chu.txt', ['chưa track bao giờ']);
+
+    return { before: diverged, popped: gitStashPop(diverged, 0, alwaysConflict) };
+  }
+
+  it('tiền đề: phép áp THẬT SỰ đổi worktree', () => {
+    // Không có ô này thì mọi ô dưới vẫn xanh kể cả khi `gitStashPop` không làm
+    // gì cả — "khôi phục về như cũ" là mệnh đề rỗng khi không có gì đổi.
+    const { before, popped } = richConflict();
+    expect(popped.error?.code).toBe('merge-conflict');
+    expect(popped.repo.worktree).not.toEqual(before.worktree);
+    expect(popped.repo.worktree['a.txt']?.[0]).toBe('<<<<<<<');
+  });
+
+  it('`PendingOp` mang ảnh chụp TRƯỚC khi áp, không phải bản đã chèn marker', () => {
+    const { before, popped } = richConflict();
+    const pending = popped.repo.pending;
+
+    expect(pending?.kind).toBe('stash');
+    if (pending?.kind !== 'stash') return;
+    expect(pending.worktreeBefore).toEqual(before.worktree);
+    expect(pending.indexBefore).toEqual(before.index);
+    // Bẫy một dòng: chụp `withTree` thay vì `repo` cho ra worktree ĐÃ có marker,
+    // và `--abort` khi ấy "khôi phục" về đúng đống marker người chơi muốn thoát.
+    expect(pending.worktreeBefore['a.txt']?.[0]).not.toBe('<<<<<<<');
+  });
+
+  it('trả lại đủ cả ba vùng: đã add, chưa add, và file chưa track', () => {
+    const { before, popped } = richConflict();
+    const back = gitStashApplyAbort(popped.repo);
+
+    expect(back.error).toBeNull();
+    expect(back.repo.pending).toBeNull();
+    expect(back.repo.worktree).toEqual(before.worktree);
+    expect(back.repo.index).toEqual(before.index);
+
+    // Nêu đích danh từng thứ: `toEqual` trên cả worktree đỏ với một thông báo
+    // khó đọc, còn ba dòng này nói thẳng cái gì đã mất trong bản cũ.
+    expect(back.repo.worktree['a.txt']).toEqual(['1', 'việc làm sau khi cất', 'và sửa thêm nữa']);
+    expect(back.repo.worktree['b.txt']).toEqual(['x', 'đụng cả file thứ hai']);
+    expect(back.repo.worktree['ghi-chu.txt']).toEqual(['chưa track bao giờ']);
+  });
+
+  it('index giữ được phần ĐÃ `git add` — nó cũng là việc chưa commit', () => {
+    const { before, popped } = richConflict();
+    // Tiền đề: index khác HEAD. Thiếu nó thì "index về như cũ" và "index về theo
+    // HEAD" cho cùng một kết quả, và ô này không phân biệt được hai hành vi.
+    expect(before.index['a.txt']).not.toBe(blobOid(['1']));
+
+    const back = gitStashApplyAbort(popped.repo);
+    expect(back.repo.index['a.txt']).toBe(blobOid(['1', 'việc làm sau khi cất']));
+  });
+
+  it('KHÔNG phục hồi theo commit HEAD — dấu vân tay của lỗi cũ', () => {
+    const { popped } = richConflict();
+    const back = gitStashApplyAbort(popped.repo);
+
+    // Ba dòng này là toàn bộ hành vi cũ, viết ra dưới dạng phủ định.
+    expect(back.repo.worktree['a.txt']).not.toEqual(['1']);
+    expect(back.repo.worktree['b.txt']).not.toEqual(['x']);
+    expect(back.repo.index['a.txt']).not.toBe(blobOid(['1']));
+    // Và không còn dòng `warn` nào, vì không còn gì để cảnh báo là sắp mất.
+    expect(back.output.some((l) => l.tone === 'warn')).toBe(false);
+  });
+
+  it('mục stash vẫn còn nguyên sau `--abort`', () => {
+    const { popped } = richConflict();
+    const back = gitStashApplyAbort(popped.repo);
+    expect(back.repo.stash.length).toBe(1);
   });
 });

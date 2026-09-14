@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { Oid, OutputLine, Repo } from '../contract.ts';
+import type { Oid, OutputLine, Repo, RepoOpResult } from '../contract.ts';
 import { writeCommit, writeContents } from '../objects.ts';
 import { branchRef, emptyRepo, headOid, setRef, writeFile } from '../repo.ts';
-import { gitAdd, gitCommit, type RepoOpResult } from './basic.ts';
+import { gitAdd, gitCommit } from './basic.ts';
 import { gitLog, gitShow } from './inspect.ts';
 
 function need<T>(value: T | undefined | null, what: string): T {

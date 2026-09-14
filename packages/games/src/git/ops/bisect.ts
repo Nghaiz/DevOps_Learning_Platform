@@ -33,7 +33,7 @@
  * một chuỗi câu hỏi ở mọi máy, mọi lần phát lại.
  */
 
-import type { BisectState, GitError, Oid, OutputLine, Repo } from '../contract.ts';
+import type { BisectState, GitError, Oid, OutputLine, Repo, RepoOpResult } from '../contract.ts';
 import { compareKeys } from '../deterministic.ts';
 import { gitError } from '../errors.ts';
 import { shortOid } from '../hash.ts';
@@ -46,7 +46,6 @@ import {
   line,
   ok,
   worktreeAt,
-  type GitOpResult,
   type OpContext,
 } from './reset.ts';
 
@@ -121,7 +120,7 @@ export function gitBisectStart(
   bad: Oid | null,
   good: Oid | null,
   ctx: OpContext,
-): GitOpResult {
+): RepoOpResult {
   if (repo.bisect !== null) {
     return fail(
       repo,
@@ -172,7 +171,7 @@ export function gitBisectMark(
   verdict: 'good' | 'bad',
   target: Oid | null,
   ctx: OpContext,
-): GitOpResult {
+): RepoOpResult {
   const state = repo.bisect;
   if (state === null) return fail(repo, noBisect(verdict));
 
@@ -200,7 +199,7 @@ export function gitBisectMark(
  * chi tiết này đi thì người chơi kết thúc bisect xong bị bỏ lại ở detached HEAD
  * mà không hiểu vì sao — đúng loại trải nghiệm làm người ta sợ git.
  */
-export function gitBisectReset(repo: Repo, ctx: OpContext): GitOpResult {
+export function gitBisectReset(repo: Repo, ctx: OpContext): RepoOpResult {
   const state = repo.bisect;
   if (state === null) return fail(repo, noBisect('reset'));
 
@@ -235,7 +234,7 @@ export function gitBisectReset(repo: Repo, ctx: OpContext): GitOpResult {
  * công bố kết quả. Cả ba nhánh đều KHÔNG phải lỗi — bisect là một phiên nhiều
  * bước, và "còn thiếu một mốc" là trạng thái bình thường của nó.
  */
-function advance(repo: Repo, ctx: OpContext, prefix: readonly OutputLine[]): GitOpResult {
+function advance(repo: Repo, ctx: OpContext, prefix: readonly OutputLine[]): RepoOpResult {
   const state = repo.bisect;
   if (state === null) return ok(repo, prefix);
   const output: OutputLine[] = [...prefix];

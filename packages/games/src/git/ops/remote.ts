@@ -66,6 +66,7 @@ import type {
   OutputLine,
   RefName,
   Repo,
+  RepoOpResult,
 } from '../contract.ts';
 import { sortedEntries, sortedKeys } from '../deterministic.ts';
 import { gitError } from '../errors.ts';
@@ -95,7 +96,6 @@ import {
   tagRef,
 } from '../repo.ts';
 import { line } from './basic.ts';
-import type { RepoOpResult } from './basic.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 0. KẾT QUẢ Ở TẦNG THẾ GIỚI
@@ -104,10 +104,13 @@ import type { RepoOpResult } from './basic.ts';
 /**
  * Kết quả một thao tác chạm CẢ HAI kho.
  *
- * ⚠ Khác `RepoOpResult` của `basic.ts` (và `GitOpResult` của `reset.ts` — hai
- * lane khai trùng một kiểu, lead nên gom) đúng một chỗ: nó mang `GitWorld`.
+ * ⚠ Khác `RepoOpResult` của `contract.ts` đúng một chỗ: nó mang `GitWorld`.
  * Không thao tác nào ở đây biểu diễn được bằng một `Repo` duy nhất, vì `push`
- * đọc local ghi origin và `fetch` đọc origin ghi local.
+ * đọc local ghi origin và `fetch` đọc origin ghi local. Đó là một khác biệt
+ * THẬT về nghĩa, nên khi ba bản khai trùng nhau được gộp về `RepoOpResult`
+ * (2026-09-14) thì kiểu này cố ý ở lại — gộp nó vào sẽ xoá mất ranh giới
+ * tầng-Repo ↔ tầng-World, thứ duy nhất `dispatch.ts` dựa vào để biết khi nào
+ * phải nâng `Repo → GitWorld`.
  *
  * ⛔ Bất biến: `error !== null` ⇒ `world` là **tham chiếu đầu vào**. Ngoại lệ có
  * tên duy nhất là `merge-conflict` đi ra từ `gitPull` (thao tác merge được tiêm
@@ -677,9 +680,10 @@ function pushDelete(
  * `ops/remote.ts` KHÔNG import `ops/merge.ts` — nên hai lane test được độc lập,
  * và file này không đỏ theo mỗi lần lane merge đổi chữ ký nội bộ.
  *
- * Kiểu trả về là cấu trúc `{ repo, output, error }` — khớp cả `RepoOpResult` của
- * `basic.ts` lẫn `GitOpResult` của `reset.ts`, nên lane merge chọn kiểu nào cũng
- * gắn vào được.
+ * Kiểu trả về là `RepoOpResult` của `contract.ts`. Trước 2026-09-14 đây là một
+ * cấu trúc `{ repo, output, error }` cố ý khớp CẢ HAI bản khai trùng nhau lúc
+ * bấy giờ, để lane merge chọn bản nào cũng gắn vào được — và chính chỗ này là
+ * bằng chứng hai bản đó cùng NGHĨA chứ không chỉ cùng trường, tức là gộp được.
  */
 export type MergeIntoHead = (
   repo: Repo,

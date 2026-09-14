@@ -18,14 +18,14 @@
  * hai cho cùng một câu hỏi "lịch sử này hình gì".
  */
 
-import type { Oid, OutputLine, Repo } from '../contract.ts';
+import type { Oid, OutputLine, Repo, RepoOpResult } from '../contract.ts';
 import { compareKeys, sortedKeys } from '../deterministic.ts';
 import { gitError } from '../errors.ts';
 import { shortOid } from '../hash.ts';
 import { commitContents, firstParentChain, getCommit, reachableFrom } from '../objects.ts';
 import { resolveRevision, revisionError } from '../refs-resolve.ts';
 import { headOid, refsAt, shortRefName } from '../repo.ts';
-import { diffContents, line, opFail, opOk, renderDiffPairs, type RepoOpResult } from './basic.ts';
+import { diffContents, line, opFail, opOk, renderDiffPairs } from './basic.ts';
 
 /**
  * Chưa có commit nào để xem.

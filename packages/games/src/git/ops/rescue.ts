@@ -45,14 +45,14 @@
  * sống, và không ai chẩn đoán nổi.
  */
 
-import type { Oid, OutputLine, RefName, Repo } from '../contract.ts';
+import type { Oid, OutputLine, RefName, Repo, RepoOpResult } from '../contract.ts';
 import { sortedKeys } from '../deterministic.ts';
 import { nearestNames } from '../errors.ts';
 import { getCommit, reachableFrom } from '../objects.ts';
 import { liveRoots } from '../predicates.ts';
 import { readReflog, shortRefName } from '../repo.ts';
 import { shortOid } from '../hash.ts';
-import { line, ok, type GitOpResult } from './reset.ts';
+import { line, ok } from './reset.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. REACHABILITY
@@ -100,7 +100,7 @@ export function unreachableCommits(repo: Repo): readonly Oid[] {
  * đó là tái tạo lại "blind-testing effect" mà §17.I.4 sinh ra để chống. Gợi ý tên
  * gần đúng vẫn còn — nó chỉ chuyển từ `suggest` của một lỗi sang một dòng `hint`.
  */
-export function gitReflog(repo: Repo, ref: RefName | null): GitOpResult {
+export function gitReflog(repo: Repo, ref: RefName | null): RepoOpResult {
   const target: RefName = ref ?? 'HEAD';
   const entries = readReflog(repo, target);
   const label = target === 'HEAD' ? 'HEAD' : shortRefName(target);
@@ -154,7 +154,7 @@ function deletedRefAnswer(repo: Repo, label: string): readonly OutputLine[] {
  * thì không có cách nào biết cái nào là thứ mình vừa mất — họ phải `git show`
  * từng cái. Ở một công cụ dạy học thì vòng đó là chi phí thuần tuý.
  */
-export function gitFsck(repo: Repo, lostFound: boolean): GitOpResult {
+export function gitFsck(repo: Repo, lostFound: boolean): RepoOpResult {
   const dangling = unreachableCommits(repo);
   if (dangling.length === 0) {
     return ok(repo, [
@@ -185,6 +185,6 @@ export function gitFsck(repo: Repo, lostFound: boolean): GitOpResult {
 }
 
 /** Dạng có cờ, tên đúng như lệnh người chơi gõ. */
-export function gitFsckLostFound(repo: Repo): GitOpResult {
+export function gitFsckLostFound(repo: Repo): RepoOpResult {
   return gitFsck(repo, true);
 }

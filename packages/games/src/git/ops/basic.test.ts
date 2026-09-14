@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Lines, OutputLine, Repo } from '../contract.ts';
+import type { Lines, OutputLine, Repo, RepoOpResult } from '../contract.ts';
 import { sortedEntries } from '../deterministic.ts';
 import { getCommit, hasObject } from '../objects.ts';
 import {
@@ -21,7 +21,6 @@ import {
   gitInit,
   gitStatus,
   indexContents,
-  type RepoOpResult,
 } from './basic.ts';
 
 function need<T>(value: T | undefined | null, what: string): T {

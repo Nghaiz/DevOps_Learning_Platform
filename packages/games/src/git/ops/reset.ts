@@ -63,6 +63,7 @@ import type {
   OutputLine,
   OutputTone,
   Repo,
+  RepoOpResult,
   Worktree,
 } from '../contract.ts';
 import { sortedEntries, sortedKeys } from '../deterministic.ts';
@@ -109,35 +110,16 @@ export interface OpContext {
   readonly author: string;
 }
 
-/**
- * Kết quả một thao tác ở tầng `Repo`.
- *
- * ⚠ Đây là bản sao THU NHỎ của `CommandResult` ở `contract.ts`, khác đúng một
- * chỗ: nó mang `Repo` chứ không mang `GitWorld`. Tầng này cố ý không biết gì về
- * `origin`, `bots`, hay `logicalTime` toàn cục — tầng điều phối lệnh nâng
- * `Repo → GitWorld`. Nếu lane khác cũng tự khai một kiểu y hệt thì lead nên gom
- * về `contract.ts`; xem báo cáo lane 17.F.
- *
- * Khi `error !== null` thì `repo` là trạng thái **CŨ, không đổi** — trừ đúng
- * một ngoại lệ có tên trong hợp đồng: `merge-conflict` trả repo ĐÃ đặt pending
- * op, vì xung đột không phải lỗi của người chơi mà là bài học.
- */
-export interface GitOpResult {
-  readonly repo: Repo;
-  readonly output: readonly OutputLine[];
-  readonly error: GitError | null;
-}
-
 export function line(text: string, tone: OutputTone = 'plain'): OutputLine {
   return { text, tone };
 }
 
-export function ok(repo: Repo, output: readonly OutputLine[] = []): GitOpResult {
+export function ok(repo: Repo, output: readonly OutputLine[] = []): RepoOpResult {
   return { repo, output, error: null };
 }
 
 /** Lỗi ⇒ trạng thái CŨ, không đổi. Đây là chỗ duy nhất bất biến đó được viết ra. */
-export function fail(repo: Repo, error: GitError): GitOpResult {
+export function fail(repo: Repo, error: GitError): RepoOpResult {
   return { repo, output: [], error };
 }
 
@@ -252,7 +234,7 @@ export function gitReset(
   target: Oid,
   mode: ResetMode,
   ctx: OpContext,
-): GitOpResult {
+): RepoOpResult {
   if (getCommit(repo.objects, target) === null) return fail(repo, notACommit(target));
 
   // ⚠ Tính TRƯỚC khi đụng vào index: định nghĩa "chưa track" đọc cả index lẫn
@@ -307,7 +289,7 @@ export function gitResetPaths(
   repo: Repo,
   target: Oid,
   paths: readonly FilePath[],
-): GitOpResult {
+): RepoOpResult {
   if (getCommit(repo.objects, target) === null) return fail(repo, notACommit(target));
   const tree = indexFromCommit(repo, target);
 
@@ -418,7 +400,7 @@ export function gitRevert(
   target: Oid,
   mergeFile: MergeFileFn,
   ctx: OpContext,
-): GitOpResult {
+): RepoOpResult {
   if (repo.pending !== null) return fail(repo, operationInProgress(repo));
 
   const commit = getCommit(repo.objects, target);
@@ -471,7 +453,7 @@ export function gitRevert(
 }
 
 /** `git revert --continue` sau khi người chơi đã sửa và `git add`. */
-export function gitRevertContinue(repo: Repo, ctx: OpContext): GitOpResult {
+export function gitRevertContinue(repo: Repo, ctx: OpContext): RepoOpResult {
   const pending = repo.pending;
   if (pending === null) return fail(repo, noOperation('revert'));
   if (pending.kind !== 'revert') return fail(repo, wrongPendingKind(pending.kind, 'revert'));
@@ -525,7 +507,7 @@ export function gitRevertContinue(repo: Repo, ctx: OpContext): GitOpResult {
  * `advanceHead`: ghi một mục reflog cho một ref không dịch chuyển là bịa ra lịch
  * sử, và `git reflog` sẽ hiện một dòng ứng với việc không xảy ra.
  */
-export function gitRevertAbort(repo: Repo): GitOpResult {
+export function gitRevertAbort(repo: Repo): RepoOpResult {
   const pending = repo.pending;
   if (pending === null) return fail(repo, noOperation('revert'));
   if (pending.kind !== 'revert') return fail(repo, wrongPendingKind(pending.kind, 'revert'));
@@ -686,7 +668,7 @@ function commitRevert(
   head: Oid,
   ctx: OpContext,
   op: string,
-): GitOpResult {
+): RepoOpResult {
   const [store, tree] = writeContents(repo.objects, contents);
   const headCommit = getCommit(repo.objects, head);
   if (headCommit !== null && headCommit.tree === tree) {

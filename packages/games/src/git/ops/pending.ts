@@ -17,21 +17,23 @@
  * | `rebase`      | `./rebase.ts` |
  * | `cherry-pick` | `./cherry-pick.ts` |
  * | `revert`      | `./reset.ts` — lane cứu hộ sở hữu, KHÔNG viết lại ở đây |
- * | `stash`       | ở đây, và chỉ vì chưa lane nào sinh ra nhánh này — xem dưới |
+ * | `stash`       | `./stash.ts` — lane stash sở hữu, KHÔNG viết lại ở đây |
  *
  * ═══════════════════════════════════════════════════════════════════════════
- * NHÁNH `stash` HIỆN CHƯA CÓ AI SINH RA — ghi ra để không ai tưởng là quên
+ * NHÁNH `stash` TỪNG CÓ BẢN THỨ HAI NGAY TRONG FILE NÀY — đã gỡ 2026-09-14
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Hợp đồng khai nhánh `'stash'` với lý do "`git stash pop` lên một worktree đã
- * đổi là một phép trộn BA NGẢ thật, và nó xung đột được". Nhưng `./stash.ts`
- * hiện **PHỦ** stash lên worktree thay vì trộn (nó nói thẳng điều đó ở phần "cố
- * tình bỏ"), nên trong toàn bộ engine hiện tại **không đường nào đặt ra một
- * `PendingOp` kind `'stash'`**.
+ * Bản đầu của file này tự hiện thực `--continue`/`--abort` cho stash, với lý do
+ * ghi tại chỗ là "chưa lane nào sinh ra nhánh này". Lý do đó đã hết đúng: từ khi
+ * `./stash.ts` trộn ba ngả thật thì `applyEntry` ĐẶT ra `PendingOp` kind
+ * `'stash'`, và `./stash.ts` cũng có sẵn cặp `gitStashApplyContinue` /
+ * `gitStashApplyAbort` của nó.
  *
- * Hai bên không sai — chúng chỉ chưa gặp nhau, và đó là việc của lead. File này
- * vẫn xử nhánh đó cho đủ năm, vì một `switch` thiếu một nhánh sẽ ném hoặc rơi
- * vào `default` im lặng đúng vào ngày ai đó nối dây xong.
+ * Hai bản đã kịp lệch nhau trước khi ai kịp thấy, đúng như cảnh báo ở nhánh
+ * `revert` ngay dưới: bản ở đây tự `git add` giúp file xung đột, còn bản ở
+ * `./stash.ts` cố tình bắt người chơi `git add` lấy — và bản ở kia mới là bản có
+ * test ghim. Triệu chứng nếu không gỡ: cùng một thao tác được chấp nhận ở
+ * `git stash pop --continue` mà bị từ chối ở `git stash --continue`.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * `--skip` KHÔNG CÓ NGHĨA VỚI MỌI THAO TÁC
@@ -48,31 +50,26 @@
  * đúng là sửa chỗ hiểu sai.
  */
 
-import type { GitError, OutputLine, PendingOp, Repo } from '../contract.ts';
+import type { GitError, OutputLine, PendingOp, Repo, RepoOpResult } from '../contract.ts';
 import { gitError } from '../errors.ts';
 import { shortOid } from '../hash.ts';
-import { headOid } from '../repo.ts';
 import {
   fail,
   gitRevertAbort,
   gitRevertContinue,
   line,
   noOperation,
-  ok,
   wrongPendingKind,
-  type GitOpResult,
   type OpContext,
 } from './reset.ts';
 import {
   describeCommit,
   mergeAbort,
   mergeContinue,
-  restoreTo,
-  stageConflicted,
-  unmergedPathsError,
   unresolvedPaths,
   type PendingKind,
 } from './merge.ts';
+import { gitStashApplyAbort, gitStashApplyContinue } from './stash.ts';
 import { rebaseAbort, rebaseContinue, rebaseSkip } from './rebase.ts';
 import {
   cherryPickAbort,
@@ -92,7 +89,7 @@ export type PendingOutcome = PickOutcome;
 
 const NO_DUPLICATES: Readonly<Record<string, string>> = Object.freeze({});
 
-function plain(result: GitOpResult): PendingOutcome {
+function plain(result: RepoOpResult): PendingOutcome {
   return { ...result, duplicateOf: NO_DUPLICATES };
 }
 
@@ -141,29 +138,9 @@ export function gitOpContinue(repo: Repo, verb: PendingKind, ctx: OpContext): Pe
       // ở lệnh này mà bị từ chối ở lệnh kia.
       return plain(gitRevertContinue(repo, ctx));
     case 'stash':
-      return plain(stashContinue(repo, pending));
+      // ⛔ Lane stash sở hữu. Cùng lý lẽ với `revert` ngay trên.
+      return plain(gitStashApplyContinue(repo));
   }
-}
-
-/**
- * `stash --continue` — xác nhận đã giải xong, KHÔNG tạo commit nào.
- *
- * Khác hẳn bốn nhánh kia và khác một cách có lý do: áp một stash không sinh ra
- * commit, nên "xong" ở đây chỉ nghĩa là thôi kẹt. Mục stash vẫn nằm nguyên
- * trong `repo.stash` — người chơi tự `git stash drop` khi thấy đã dùng xong, y
- * như `git stash apply`.
- */
-function stashContinue(repo: Repo, pending: Extract<PendingOp, { kind: 'stash' }>): GitOpResult {
-  const unresolved = unresolvedPaths(repo, pending.conflicts);
-  if (unresolved.length > 0) return fail(repo, unmergedPathsError('stash', unresolved));
-  const staged = stageConflicted(repo, pending.conflicts);
-  return ok({ ...staged, pending: null }, [
-    line('Xung đột đã giải xong. Stash đã được áp lại đầy đủ.', 'success'),
-    line(
-      `Mục \`${shortOid(pending.stashOid)}\` VẪN còn trong stash — áp lại không tự bỏ nó đi. Gõ \`git stash drop\` khi chắc chắn đã dùng xong.`,
-      'hint',
-    ),
-  ]);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -186,12 +163,13 @@ export function gitOpAbort(repo: Repo, verb: PendingKind, ctx: OpContext): Pendi
     case 'revert':
       return plain(gitRevertAbort(repo));
     case 'stash':
-      return plain(
-        ok(restoreTo(repo, headOid(repo) ?? pending.originalHead), [
-          line('Đã huỷ việc áp stash. Worktree về đúng như trước.', 'success'),
-          line('Mục stash không mất — nó chưa bao giờ bị bỏ đi.', 'hint'),
-        ]),
-      );
+      /*
+       * ⛔ Lane stash sở hữu. Bản cũ ở đây gọi `restoreTo(repo, headOid(repo))`,
+       * tức khôi phục theo một COMMIT — và với stash thì đó chính là phép làm
+       * mất việc chưa commit của người chơi. `gitStashApplyAbort` khôi phục theo
+       * ảnh chụp `worktreeBefore`/`indexBefore` trong `PendingOp`.
+       */
+      return plain(gitStashApplyAbort(repo));
   }
 }
 

@@ -69,6 +69,7 @@ import type {
   OutputLine,
   PendingOp,
   Repo,
+  RepoOpResult,
 } from '../contract.ts';
 import { sortedEntries, sortedKeys } from '../deterministic.ts';
 import { gitError } from '../errors.ts';
@@ -101,7 +102,6 @@ import {
   untrackedWorktree,
   worktreeAt,
   wrongPendingKind,
-  type GitOpResult,
   type MergeFileInput,
   type MergeFileOutput,
   type OpContext,
@@ -480,7 +480,7 @@ export function gitMerge(
   target: MergeTarget,
   ctx: OpContext,
   options: MergeOptions = {},
-): GitOpResult {
+): RepoOpResult {
   if (repo.pending !== null) return fail(repo, operationInProgress(repo));
   if (getCommit(repo.objects, target.oid) === null) {
     return fail(repo, notACommitError(target.oid));
@@ -590,7 +590,7 @@ function fastForward(
   target: MergeTarget,
   ctx: OpContext,
   fromUnborn: boolean,
-): GitOpResult {
+): RepoOpResult {
   const moved = advanceHead(repo, target.oid, {
     op: 'merge',
     message: `fast-forward tới ${target.label}`,
@@ -624,7 +624,7 @@ function commitMerge(
   message: string,
   ctx: OpContext,
   prefix: readonly OutputLine[],
-): GitOpResult {
+): RepoOpResult {
   const [store, tree] = writeContents(repo.objects, contents);
   const [store2, oid] = writeCommit(store, {
     tree,
@@ -657,7 +657,7 @@ function commitMerge(
 // 6. `git merge --continue` / `--abort`
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function mergeContinue(repo: Repo, ctx: OpContext): GitOpResult {
+export function mergeContinue(repo: Repo, ctx: OpContext): RepoOpResult {
   const pending = repo.pending;
   if (pending === null) return fail(repo, noOperation('merge'));
   if (pending.kind !== 'merge') return fail(repo, wrongPendingKind(pending.kind, 'merge'));
@@ -702,7 +702,7 @@ export function mergeContinue(repo: Repo, ctx: OpContext): GitOpResult {
  * mục reflog cho một ref không dịch chuyển là bịa ra lịch sử, và `git reflog` sẽ
  * hiện một dòng ứng với việc không xảy ra.
  */
-export function mergeAbort(repo: Repo): GitOpResult {
+export function mergeAbort(repo: Repo): RepoOpResult {
   const pending = repo.pending;
   if (pending === null) return fail(repo, noOperation('merge'));
   if (pending.kind !== 'merge') return fail(repo, wrongPendingKind(pending.kind, 'merge'));

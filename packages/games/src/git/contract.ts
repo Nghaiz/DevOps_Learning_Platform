@@ -320,6 +320,29 @@ export type PendingOp =
       /** Mục stash đang áp. Còn nguyên trong `Repo.stash` cho tới khi giải xong. */
       readonly stashOid: Oid;
       readonly originalHead: Oid;
+      /**
+       * Worktree và index NGAY TRƯỚC khi áp. `--abort` trả về đúng hai cái này.
+       *
+       * ⚠ `originalHead` KHÔNG thay được chúng, và đó là chỗ nhánh này khác hẳn
+       * bốn nhánh kia. `merge` / `rebase` / `cherry-pick` / `revert` đều chỉ
+       * khởi động được từ một worktree sạch, nên với chúng "về lại commit
+       * `originalHead`" đúng bằng "về lại lúc trước khi gõ lệnh". `stash pop`
+       * thì ngược hẳn: lý do DUY NHẤT để gõ nó là worktree đang có việc dở, và
+       * chính phần dở đó là thứ `--abort` phải trả lại. Phần đó chưa bao giờ là
+       * một commit, nên không `Oid` nào dựng lại nó được.
+       *
+       * Ảnh chụp nằm THẲNG ở đây chứ không đi qua một commit ẩn trong
+       * `ObjectStore`, và đó là một lựa chọn chứ không phải đường lười: kho
+       * không bao giờ xoá phần tử (đọc `ObjectStore`), nên một commit ẩn sẽ nằm
+       * lại mãi và hiện lên trong `git fsck --lost-found` — đúng cái danh sách
+       * bài G30 bắt người chơi đọc. Bịa thêm một dòng rác vào đó để phục vụ một
+       * phép undo là trả bằng chính bài học.
+       *
+       * `PendingOp` bị vứt đi khi thao tác kết thúc, nên ảnh chụp không sống lâu
+       * hơn lúc nó còn nghĩa.
+       */
+      readonly worktreeBefore: Worktree;
+      readonly indexBefore: Index;
       readonly conflicts: readonly ConflictFile[];
     };
 
@@ -539,6 +562,52 @@ export interface GitError {
  */
 export interface CommandResult {
   readonly world: GitWorld;
+  readonly output: readonly OutputLine[];
+  readonly error: GitError | null;
+}
+
+/**
+ * Kết quả một thao tác ở tầng `Repo` — bản thu nhỏ của `CommandResult`.
+ *
+ * Khác `CommandResult` đúng một chỗ: nó mang MỘT `Repo` chứ không mang cả
+ * `GitWorld`. Phần lớn thao tác trong `ops/` không chạm tới `origin`, tới bot,
+ * hay tới đồng hồ toàn cục, nên bắt chúng nhận và trả `GitWorld` là bắt chúng
+ * khai một phụ thuộc chúng không dùng. `dispatch.ts` nâng `Repo → GitWorld` ở
+ * đúng một chỗ.
+ *
+ * ⛔ Bất biến: `error !== null` ⇒ `repo` là **tham chiếu đầu vào**, không phải
+ * một bản sao gần giống. Một lệnh hỏng không được để lại nửa tác dụng — đó là
+ * thứ làm người học mất niềm tin vào công cụ nhanh nhất, và nó phá luôn `undo`.
+ * Ngoại lệ DUY NHẤT, có tên: `merge-conflict` và `unmerged-paths` trả `error`
+ * kèm `repo` ĐÃ đổi (pending op được đặt vào), vì xung đột là bài học chứ không
+ * phải lỗi của người chơi.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * GỘP TỪ BA BẢN KHAI TRÙNG NHAU (2026-09-14, nợ P17)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Sáu lane chạy song song đã khai ba lần cùng một kiểu: `RepoOpResult` ở
+ * `ops/basic.ts`, `RepoOpResult` ở `ops/reset.ts`, `RepoLevelResult` ở
+ * `dispatch.ts`. Trước khi gộp, đã kiểm rằng chúng cùng NGHĨA chứ không chỉ
+ * cùng trường — ba bằng chứng, vì "trùng trường" một mình không đủ để gộp:
+ *
+ *  1. Cả ba doc-comment gốc phát biểu CÙNG một bất biến, kể cả cùng nêu đích
+ *     danh `merge-conflict` làm ngoại lệ.
+ *  2. `ops/remote.ts` khai `MergeIntoHead` trả về "cấu trúc khớp cả hai kiểu,
+ *     nên lane merge chọn kiểu nào cũng gắn vào được" — tức hai bên ĐÃ dùng lẫn
+ *     nhau ở một mối nối thật, không phải chỉ giống nhau trên giấy.
+ *  3. `dispatch.ts` nhận kết quả của cả hai họ hàm qua đúng một hàm `lift()`.
+ *
+ * Giữ tên `RepoOpResult` vì nó bắt cặp đúng với `WorldOpResult` ở
+ * `ops/remote.ts`: tương phản mà người đọc cần là **tầng Repo ↔ tầng World**.
+ * `RepoOpResult` không nói lên tương phản đó — ở đây mọi thứ đều là "git" — và
+ * tệ hơn, nó nghe như kiểu ngoài cùng trong khi nó là kiểu trong cùng.
+ *
+ * ⚠ `WorldOpResult` KHÔNG gộp vào đây: nó mang `GitWorld` nên nó thật sự khác
+ * nghĩa, không phải một bản trùng.
+ */
+export interface RepoOpResult {
+  readonly repo: Repo;
   readonly output: readonly OutputLine[];
   readonly error: GitError | null;
 }
