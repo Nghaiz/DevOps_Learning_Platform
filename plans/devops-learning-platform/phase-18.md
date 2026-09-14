@@ -39,6 +39,47 @@ Một dòng nữa không sai nhưng thiếu: plan §18.B.1 đặt tên kiểu l�
 `bonusMet`). Bản của bài OJ mang tên `ProblemVerdict`; lý do đầy đủ ghi tại chỗ
 khai trong `core/problem.ts`.
 
+### 0.2 NỢ CHẶN 18.C — ô gác 17.J.5 đang sống nhờ phụ thuộc của người khác
+
+Phát hiện ngày 2026-09-14 khi lane gỡ `core/verify.ts`. **Chưa vá** (vá đòi
+`pnpm install`, mà lúc phát hiện có hai lane đang chạy test trên cùng cây).
+
+`packages/games/src/git/determinism.jsdom.test.ts` là ô gác của §17.J.5 — điều
+kiện mà plan này gọi thẳng là *"điều kiện sống còn của P18"*: engine phải cho
+cùng kết quả **từng byte** ở Node và ở trình duyệt. Nếu nó sai thì server chấm
+lại ra một số, người chơi thấy một số khác, và mọi lượt nộp hợp lệ đều bị từ chối.
+
+**`packages/games/package.json` KHÔNG khai `jsdom`.** Bốn package khác có test
+jsdom đều khai đúng (`apps/web`, `packages/{motion,terminal,ui}`) — `games` là
+ngoại lệ duy nhất.
+
+Ba phép đo, ngày 2026-09-14:
+
+| Đo | Kết quả |
+|---|---|
+| `grep jsdom packages/games/package.json` | rỗng |
+| `ls packages/games/node_modules/jsdom` | không tồn tại |
+| `require.resolve('jsdom', { paths: ['packages/games'] })` | **`MODULE_NOT_FOUND`** |
+| `npx vitest run src/git/determinism.jsdom.test.ts` | **5 passed**, `environment 17.26s` |
+
+Node không giải nổi, vitest giải được — qua kho ảo `.pnpm`, nơi `jsdom` chỉ có
+mặt vì bốn package kia kéo nó vào. Ô gác này **không có phụ thuộc của riêng nó**.
+
+Vì sao đây là nợ chứ không phải chuyện nhỏ: khi đường giải hỏng, vitest **không
+báo lỗi** — nó in `Test Files no tests` và **thoát 0**. Một suite xanh lúc đó
+nghĩa là ô gác sống còn đã ngừng chạy, và không ai biết. Đúng hình dạng
+`rules/green-that-proves-nothing.md`. Lane báo nó đỏ lúc 18:19 và xanh lúc 18:35
+cùng ngày, tức là **chập chờn**, không phải đã lành.
+
+**Vá:** thêm `"jsdom": "^30.0.1"` vào `devDependencies` của
+`packages/games/package.json` (đúng phiên bản bốn package kia dùng), chạy
+`pnpm install`, rồi xác nhận `require.resolve` giải được.
+
+**Ô nghiệm thu của bản vá — không chỉ "test xanh":** sau khi vá, cố tình đổi tên
+`determinism.jsdom.test.ts` thành một môi trường không tồn tại và xác nhận vitest
+**đỏ** thay vì `no tests`. Nếu nó vẫn thoát 0 thì bản vá chưa đóng được lỗ hổng
+thật, chỉ đóng được triệu chứng.
+
 ---
 
 ## 1. Quyết định chi phối
