@@ -5,7 +5,6 @@ import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react
 import {
   SANDBOX_SCENARIOS,
   SANDBOX_SCENARIO_LABEL,
-  buildView,
   createGitSession,
   exportSandboxJson,
   importSandboxJson,
@@ -88,7 +87,10 @@ export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
   }, [session, redraw]);
 
   const world = session.getWorld();
-  const view = buildView(world);
+  // ⚠ `getView()` chứ không `buildView(world)` — xem khối giải thích ở
+  // `git-game.tsx`. Dựng lại từ `world` vứt mất `ViewHints`, và ba accent
+  // (`fresh`, `duplicate`, `conflicted`) không còn đường nào hiện ra.
+  const view = session.getView();
   const sceneView = view as unknown as SceneView;
   const layouts = useMemo(() => buildSceneLayouts(sceneView, layoutDag), [sceneView]);
 

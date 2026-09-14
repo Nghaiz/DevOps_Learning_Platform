@@ -5,7 +5,6 @@ import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react
 
 import {
   GIT_LEVELS,
-  buildView,
   createGitSession,
   evaluateObjectives,
   layoutDag,
@@ -285,7 +284,25 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
   const effects = useEffectsEnabled();
 
   const world = session.getWorld();
-  const view = buildView(world);
+  /*
+   * ⚠ `session.getView()`, KHÔNG phải `buildView(world)`.
+   *
+   * `buildView(world, hints = {})` — tham số thứ hai mặc định RỖNG, và
+   * `accentFor()` đọc đúng nó để quyết ba trong sáu accent:
+   * `conflictedOids` → `conflicted`, `duplicateOf` → `duplicate`,
+   * `freshOids` → `fresh`. Hints do engine sinh ra THEO TỪNG LỆNH (commit phát
+   * `freshOids`, cherry-pick phát `duplicateOf`, merge xung đột phát
+   * `conflictedOids`) và chỉ sống trong phiên.
+   *
+   * Dựng lại view từ `world` là vứt sạch chúng, nên ba accent đó **chưa bao giờ
+   * hiện ra trong sản phẩm** — dù `git-palette.ts` khai đủ màu/hình/chuyển
+   * động, `accent-3d.ts` khai đủ khối, và test của cả hai đều xanh. Các ô đó
+   * kiểm bảng khai TỰ NHẤT QUÁN, không kiểm có gì được vẽ.
+   *
+   * Tìm ra 2026-09-14 khi phép đo mù màu chỉ dựng được 2/6 accent. Không cổng
+   * nào bắt được, vì không cổng nào đi từ một lệnh git tới một pixel.
+   */
+  const view = session.getView();
   const results = evaluateObjectives(world, null, level.objectives);
   const verdict = verdictOf(results);
   const output = session.getOutput();
