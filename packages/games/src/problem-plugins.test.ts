@@ -556,3 +556,90 @@ describe('grade — tất định', () => {
     expect(gradeProblemRun(dau_vao)).toEqual(gradeProblemRun(dau_vao));
   });
 });
+
+/*
+ * Bất biến `failedCode` ⇔ `CE` — companion mà hợp đồng TUYÊN là có nhưng CHƯA có.
+ *
+ * `core/problem.ts` § `GradeResult` viết: *"`failedCode` đi CÙNG NHỊP với
+ * `failedReason` — cả hai khác `null` đúng khi verdict là `CE`"*, rồi nói thêm
+ * *"không ép bất biến đó bằng kiểu […] nhưng có test gác"*. Câu cuối là một lời
+ * khai về một ô test **không tồn tại** cho tới bản này (review đối kháng
+ * 2026-09-15 đo ra). Một bất biến chỉ được tuyên trong chú thích là một bất biến
+ * không ai giữ.
+ *
+ * Ca nguy nhất là bài KHÔNG CÓ testcase nào: `problemVerdictOf(0, 0)` trả `CE`,
+ * nên nếu `failedCode` để `null` ở đó thì dòng ghi ra mang cặp
+ * `total === 0` + `failedCode === null` — đúng bộ đôi mà `PROBLEM_FAILURE_CODES`
+ * định nghĩa là "dòng ghi TRƯỚC migration 0015". Một bài soạn dở hôm nay sẽ đọc
+ * ra y hệt một dòng lịch sử từ trước khi cột tồn tại.
+ */
+describe('bất biến: `failedCode` khác `null` ĐÚNG KHI verdict là `CE`', () => {
+  const CA: readonly { readonly ten: string; readonly dau_vao: Parameters<typeof gradeProblemRun>[0] }[] = [
+    {
+      ten: 'k8s: qua hết testcase (AC)',
+      dau_vao: {
+        gameId: 'k8s' as const,
+        initialState: K8S_PROBLEM_PLUGIN.initialSpec(),
+        actions: [],
+        testcases: [POD_KHONG_CO_NHUNG_CO],
+        seed: K8S_UNSEEDED_REPLAY_SEED,
+      },
+    },
+    {
+      ten: 'k8s: KHÔNG có testcase nào (CE)',
+      dau_vao: {
+        gameId: 'k8s' as const,
+        initialState: K8S_PROBLEM_PLUGIN.initialSpec(),
+        actions: [],
+        testcases: [],
+        seed: K8S_UNSEEDED_REPLAY_SEED,
+      },
+    },
+    {
+      ten: 'git: KHÔNG có testcase nào (CE)',
+      dau_vao: {
+        gameId: 'git' as const,
+        initialState: GIT_PROBLEM_PLUGIN.initialSpec(),
+        actions: [],
+        testcases: [],
+        seed: GIT_UNSEEDED_REPLAY_SEED,
+      },
+    },
+    {
+      ten: 'nhật ký của game KHÁC (CE)',
+      dau_vao: {
+        gameId: 'k8s' as const,
+        initialState: K8S_PROBLEM_PLUGIN.initialSpec(),
+        actions: [
+          { gameId: 'git' as const, tick: 0, kind: 'command' as const, command: 'git init' },
+        ],
+        testcases: [POD_KHONG_CO_NHUNG_CO],
+        seed: K8S_UNSEEDED_REPLAY_SEED,
+      },
+    },
+  ];
+
+  for (const { ten, dau_vao } of CA) {
+    it(`${ten} — hai trường đi cùng nhịp`, () => {
+      const grade = gradeProblemRun(dau_vao);
+      // Viết dưới dạng tương đương hai chiều chứ không phải hai phép kiểm rời:
+      // một ô chỉ khẳng định "CE thì có mã" vẫn xanh khi MỌI lượt đều có mã.
+      expect(grade.failedCode !== null).toBe(grade.verdict === 'CE');
+      expect(grade.failedReason !== null).toBe(grade.verdict === 'CE');
+    });
+  }
+
+  it('bài rỗng mang ĐÚNG mã `chua-co-testcase`, không phải một mã bất kỳ', () => {
+    // Mã cụ thể mới là thứ tách được ba nguyên nhân của `total === 0`. Một ô chỉ
+    // hỏi "có mã không" sẽ xanh kể cả khi mã đó nói sai nguyên nhân.
+    const grade = gradeProblemRun({
+      gameId: 'k8s' as const,
+      initialState: K8S_PROBLEM_PLUGIN.initialSpec(),
+      actions: [],
+      testcases: [],
+      seed: K8S_UNSEEDED_REPLAY_SEED,
+    });
+    expect(grade.failedCode).toBe('chua-co-testcase');
+    expect(grade.total).toBe(0);
+  });
+});

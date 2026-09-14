@@ -28,7 +28,9 @@ import { t } from '@devops-platform/copy';
 
 import type { AuthorField, GameProblemPlugin } from '../core/problem-plugin.ts';
 import type { GradeResult, ProblemTopicOption, Testcase } from '../core/problem.ts';
-import { problemVerdictOf } from '../core/problem.ts';
+import { problemVerdictOf,
+  type ProblemFailureCode,
+} from '../core/problem.ts';
 import type { K8sActionShape } from '../core/run-log.ts';
 import type { ClusterSpec, K8sGameAction, Level } from './contract.ts';
 import type { ClusterState } from './model.ts';
@@ -256,8 +258,11 @@ function replayLevel(initialState: ClusterSpec): Level {
   };
 }
 
-function compileError(reason: string): GradeResult {
-  return { verdict: 'CE', passed: [], total: 0, failedReason: reason, failedCode: 'phat-lai-loi' };
+function compileError(
+  reason: string,
+  code: ProblemFailureCode = 'phat-lai-loi',
+): GradeResult {
+  return { verdict: 'CE', passed: [], total: 0, failedReason: reason, failedCode: code };
 }
 
 /**
@@ -307,7 +312,11 @@ export function gradeK8sProblem(input: {
   const { initialState, actions, testcases, seed } = input;
 
   if (testcases.length === 0) {
-    return compileError('bài chưa có testcase nào nên không chấm được');
+    // Mã RIÊNG, không dùng `phat-lai-loi` mặc định: đây không phải lỗi phát lại
+    // (chưa phát lại gì cả), và `total === 0` một mình KHÔNG tách được ba nguyên
+    // nhân — xem `PROBLEM_FAILURE_CODES`. Mã sai ở đây làm cột thứ ba mất đúng
+    // cái khả năng nó sinh ra để có.
+    return compileError('bài chưa có testcase nào nên không chấm được', 'chua-co-testcase');
   }
 
   // Tên vị từ kiểm TRƯỚC khi phát lại: một bài soạn hỏng thì báo ngay, không bắt
