@@ -120,13 +120,59 @@ không nằm trong bất kỳ kiểu dữ liệu nào.
 
 | # | Ô | Đo bằng |
 |---|---|---|
-| **AC-7** | draw call < 100 ở level đông nhất | `renderer.info.render.calls` qua kênh `__dlpGitScene`, **ghi số**. ⚠ xem cạm bẫy §5 |
+| **AC-7** | draw call < 100 ở level đông nhất | ✅ **ĐẠT — đã đo 2026-09-14**, xem bảng số ngay dưới |
 | AC-B | hai renderer ra cùng tập node/cạnh | So `sceneNodeIds()`/`sceneEdgeKeys()` — **chính hai hàm đó**, không viết lại phép lọc |
 | AC-5 | đường 2D vẫn dùng được sau khi bật 3D | Playwright `--disable-3d-apis` chơi hết một level, có đối chứng dương |
 | AC-6 | a11y | axe 0 vi phạm ở **chế độ 3D**, cả hai theme. Nhãn DOM phải đọc được bằng trình đọc màn hình |
 | AC-2 | 0 lời gọi backend lúc chơi | Network trace ở chế độ 3D — bật 3D không được kéo theo một lượt tải nào |
 | **mù màu** | món nợ P17 | Mô phỏng protan/deutan/tritan trên **ảnh chụp cảnh thật**, ghi số. Không nhận "thiết kế" thay cho "phép đo" |
 | bundle | 3D không rò sang route khác | `bundle:check`. `three` chỉ được nạp qua `dynamic(…, { ssr: false })` |
+
+### AC-7 — số đo, 2026-09-14
+
+Chromium, `?fx=off`, build production dựng tại chỗ. Kênh `__dlpGitScene`, `gl.info.reset()` ở
+đầu mỗi `useFrame`.
+
+| Mốc | draw call | triangles | objects |
+|---|---|---|---|
+| 2 commit | 18 | 1.356 | 16 |
+| + 2 nhánh, 14 lệnh | 20 | 6.108 | 17 |
+| + 8 commit nữa | **20** | **10.860** | 17 |
+
+**Triangles +78% ở mốc cuối trong khi draw call đứng nguyên ở 20.** Đó là bằng chứng instancing
+gộp lô, không phải một ngưỡng đoán trúng. `20 < 100` ⇒ AC-7 đạt.
+
+**Ba lần ô này đỏ, cả ba đều là phép đo sai chứ không phải mã sai** — ghi lại vì mỗi lần nó
+chỉ lộ ra khi chạy thật, và một dòng `expect(calls).toBeLessThan(100)` sẽ xanh ngay lượt đầu mà
+không dạy được điều nào trong ba điều này:
+
+| # | Thứ sai | Đọc nhầm thành |
+|---|---|---|
+| 1 | `toBe` đặt giữa mốc 1 và 2 | "instancing không gộp lô" |
+| 2 | Tiền đề mốc 3 đo `objects` (17 → 17) | "8 lệnh commit không vào được cảnh" |
+| 3 | `--grep AC-7` khớp cả một ô của `motif.spec.ts` | "AC-7 đỏ ở hai project" |
+
+Cái #2 đáng nhớ nhất: `objects` đếm object trong scene, mà thêm commit vào một `InstancedMesh`
+có sẵn **không** tạo object mới — tiền đề đó vô tình đòi instancing *không* hoạt động. `three`
+nhân tam giác với `instanceCount`, nên **triangles** là đại lượng duy nhất trong kênh đo theo dõi
+được số commit đang vẽ.
+
+### Ba bẫy ở TẦNG NGOÀI ô, không cái nào bị bốn tiền đề bắt
+
+Ô AC-7 mang bốn tiền đề chống-xanh-giả, nhưng cả bốn nằm **bên trong** ô — chúng vô hiệu khi thứ
+hỏng nằm ngoài. Cả ba lần dưới đây đều kết thúc bằng `[exited with code 0]`:
+
+1. **`E2E_ORIGIN=127.0.0.1`** → Better Auth so origin **theo chuỗi** với `betterAuthUrl`
+   (`localhost`), `global-setup` chết ở 403 `INVALID_ORIGIN`, **không một ô nào chạy**. Chỉ dẫn
+   sai này có ở ba spec, đã sửa cả ba.
+2. **Ô nằm nhầm `describe`** → chạy ở project `chromium-no-webgl`, tức một ô đo draw call 3D chạy
+   với WebGL **bị tắt**.
+3. **`next start` không build lại** → đo bản dựng cũ hơn 4 tiếng, nút 3D vẫn `aria-disabled`.
+   `playwright.config.ts` có `reuseExistingServer: false` chặn việc bám vào server đang chạy,
+   nhưng **không** chặn `.next` cũ.
+
+Bài học: **đọc số ô đã chạy, đừng đọc mã thoát.** Lớp bọc `pnpm` in `[exited with code 0]` ngay
+dưới dòng `Exit status 1`.
 
 ---
 
