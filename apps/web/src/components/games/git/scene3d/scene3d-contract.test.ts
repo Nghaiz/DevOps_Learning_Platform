@@ -14,7 +14,7 @@ import {
   laneZ,
   MAIN_LANE,
   maxDeviationOf,
-  NODE_RADIUS,
+  MAX_NODE_HALF_EXTENT,
   PLATE_CELL_STEP,
   PLATE_FLOOR,
   PLATE_OVERHANG,
@@ -297,7 +297,7 @@ describe('K.3 · DAG không được đụng mặt phẳng ô file', () => {
     expect(message).toContain('40');
     expect(message).toContain(String(PLATE_FLOOR));
     // Câu phải nêu độ cao thật của vùng DAG, không chỉ nói "có vi phạm".
-    expect(message).toContain((40 * Y_STEP + NODE_RADIUS).toFixed(2));
+    expect(message).toContain((40 * Y_STEP + MAX_NODE_HALF_EXTENT).toFixed(2));
   });
 
   it('cổng có một BIÊN thật: d qua được thì d+1 đỏ', () => {
@@ -310,8 +310,8 @@ describe('K.3 · DAG không được đụng mặt phẳng ô file', () => {
     expect(assertPlanesClearOfDag(last)).toBeNull();
     expect(assertPlanesClearOfDag(last + 1)).not.toBeNull();
     // Biên khớp với hình học đã khai, không phải một con số rơi từ trên trời.
-    expect(last * Y_STEP + NODE_RADIUS).toBeLessThan(PLATE_FLOOR);
-    expect((last + 1) * Y_STEP + NODE_RADIUS).toBeGreaterThanOrEqual(PLATE_FLOOR);
+    expect(last * Y_STEP + MAX_NODE_HALF_EXTENT).toBeLessThan(PLATE_FLOOR);
+    expect((last + 1) * Y_STEP + MAX_NODE_HALF_EXTENT).toBeGreaterThanOrEqual(PLATE_FLOOR);
   });
 
   it('ba mặt phẳng xếp từ dưới lên HEAD → Index → Worktree, và đều trên vùng DAG', () => {
@@ -425,8 +425,8 @@ describe('hộp bao', () => {
     const { min, max } = p.bounds;
     for (const n of p.nodes) {
       for (const axis of [0, 1, 2] as const) {
-        expect(n.position[axis] - NODE_RADIUS).toBeGreaterThanOrEqual(min[axis]);
-        expect(n.position[axis] + NODE_RADIUS).toBeLessThanOrEqual(max[axis]);
+        expect(n.position[axis] - MAX_NODE_HALF_EXTENT).toBeGreaterThanOrEqual(min[axis]);
+        expect(n.position[axis] + MAX_NODE_HALF_EXTENT).toBeLessThanOrEqual(max[axis]);
       }
     }
     expect(max[0]).toBeGreaterThan(min[0]);

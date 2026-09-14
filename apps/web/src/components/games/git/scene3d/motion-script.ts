@@ -53,7 +53,7 @@
  * hai hàm đó bằng bản ném lỗi rồi chạy cả năm chuyển động) — mạnh hơn grep.
  */
 
-import { NODE_RADIUS, PLATE_FLOOR, type Vec3 } from './scene3d-contract.ts';
+import { MAX_NODE_HALF_EXTENT, PLATE_FLOOR, type Vec3 } from './scene3d-contract.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Easing — bốn hàm đóng, không trạng thái
@@ -275,20 +275,27 @@ export function sinkOf(from: Vec3): Vec3 {
  * Độ nâng THẬT của vòng cung bay, đã trừ chỗ cho mặt phẳng ô file.
  *
  * ⚠ Đây là chỗ vá một khe hở của hợp đồng, không phải một tinh chỉnh thẩm mỹ.
- * `assertPlanesClearOfDag()` chỉ tính `maxDeviation * Y_STEP + NODE_RADIUS` —
- * nó KHÔNG chừa chỗ cho chuyển động thoáng qua của K.7. Ở đúng biên mà cổng đó
- * còn cho qua (độ lệch 15 ⇒ đỉnh DAG y≈8.87, sàn mặt phẳng y=9.0), một vòng
- * cung `ARC_LIFT` 1.1 sẽ xuyên thẳng qua mặt phẳng HEAD — cổng vẫn xanh, và hai
+ * `assertPlanesClearOfDag()` gác vùng DAG **tĩnh** — nó không biết gì về chuyển
+ * động thoáng qua của K.7. Ở đúng biên mà cổng đó còn cho qua, một vòng cung
+ * `ARC_LIFT` đầy đủ sẽ xuyên thẳng qua mặt phẳng HEAD, và cổng vẫn xanh: hai
  * tầng chồng lên nhau trông y hệt một lỗi render ngẫu nhiên.
  *
- * Chặn ở đây thay vì sửa cổng vì hợp đồng thuộc lane khác. Kẹp theo
- * `max(fromY, toY)` là cận trên an toàn cho toàn đường bay: đường bay không bao
- * giờ vượt quá điểm cuối cao hơn cộng độ nâng.
+ * Chặn ở đây thay vì sửa cổng vì hợp đồng thuộc lane khác.
+ *
+ * ⚠ Trừ `MAX_NODE_HALF_EXTENT`, **không** trừ `NODE_RADIUS`. Đó là cùng một bẫy
+ * mà hợp đồng vừa tự sửa trong chính `assertPlanesClearOfDag()`: `ACCENT_3D`
+ * phóng accent `head` lên 1.18, nên ô commit cao nhất cao hơn `NODE_RADIUS` tới
+ * 18%. Dùng bán kính trần trụi ở đây là để lại một khoảng hở nhỏ hơn 18% so với
+ * thứ thật sự cần — và cái chọc thủng mặt phẳng sẽ là ô HEAD, đúng ô người chơi
+ * nhìn nhiều nhất.
+ *
+ * Kẹp theo `max(fromY, toY)` là cận trên an toàn cho TOÀN đường bay: đường bay
+ * không bao giờ vượt quá điểm cuối cao hơn cộng độ nâng.
  *
  * Trả 0 khi không còn chỗ — bay thẳng vẫn đúng nghĩa hơn là bay xuyên tường.
  */
 export function arcLift(fromY: number, toY: number): number {
-  const headroom = PLATE_FLOOR - NODE_RADIUS - Math.max(fromY, toY);
+  const headroom = PLATE_FLOOR - MAX_NODE_HALF_EXTENT - Math.max(fromY, toY);
   return Math.max(0, Math.min(ARC_LIFT, headroom));
 }
 

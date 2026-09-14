@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { NODE_RADIUS, PLATE_FLOOR, type Vec3 } from './scene3d-contract.ts';
+import { MAX_NODE_HALF_EXTENT, PLATE_FLOOR, type Vec3 } from './scene3d-contract.ts';
 import {
   advanceMotion,
   arcLift,
@@ -378,7 +378,7 @@ describe('tất định', () => {
 describe('arcLift · vòng cung không được xuyên qua mặt phẳng ô file', () => {
   /*
     ⚠ Ô này gác một khe hở CÓ THẬT của hợp đồng: `assertPlanesClearOfDag()` chỉ
-    tính `maxDeviation * Y_STEP + NODE_RADIUS` và KHÔNG chừa chỗ cho chuyển động
+    tính `maxDeviation * Y_STEP + MAX_NODE_HALF_EXTENT` và KHÔNG chừa chỗ cho chuyển động
     thoáng qua của K.7. Ở đúng biên mà cổng đó còn cho qua, một vòng cung
     `ARC_LIFT` đầy đủ sẽ đâm lên mặt phẳng HEAD — mà cổng vẫn xanh.
   */
@@ -395,8 +395,8 @@ describe('arcLift · vòng cung không được xuyên qua mặt phẳng ô file
       Ô này vô nghĩa nếu vòng lặp rỗng, nên đếm luôn số mốc đã quét.
     */
     let checked = 0;
-    for (let y = 0; y + NODE_RADIUS < PLATE_FLOOR; y += 0.25) {
-      expect(y + NODE_RADIUS + arcLift(y, y)).toBeLessThanOrEqual(PLATE_FLOOR + 1e-9);
+    for (let y = 0; y + MAX_NODE_HALF_EXTENT < PLATE_FLOOR; y += 0.25) {
+      expect(y + MAX_NODE_HALF_EXTENT + arcLift(y, y)).toBeLessThanOrEqual(PLATE_FLOOR + 1e-9);
       checked += 1;
     }
     expect(checked).toBeGreaterThan(30);
@@ -408,7 +408,7 @@ describe('arcLift · vòng cung không được xuyên qua mặt phẳng ô file
   });
 
   it('kẹp theo điểm cuối CAO HƠN, không theo điểm xuất phát', () => {
-    const high = PLATE_FLOOR - NODE_RADIUS - 0.4;
+    const high = PLATE_FLOOR - MAX_NODE_HALF_EXTENT - 0.4;
     expect(arcLift(0, high)).toBeCloseTo(0.4, 9);
     expect(arcLift(high, 0)).toBe(arcLift(0, high));
     expect(arcLift(0, high)).toBeLessThan(ARC_LIFT);
