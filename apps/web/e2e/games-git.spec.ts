@@ -20,12 +20,22 @@
  *
  * ══ Chạy ══════════════════════════════════════════════════════════════════
  *
- *   E2E_START_SERVER=1 E2E_BASE_URL=http://127.0.0.1:3000 \
- *   E2E_ORIGIN=http://127.0.0.1:3000 \
+ *   E2E_START_SERVER=1 E2E_BASE_URL=http://localhost:3000 \
+ *   E2E_ORIGIN=http://localhost:3000 \
  *   pnpm --filter web e2e --grep @games-git
  *
  * ⚠ Thiếu `E2E_START_SERVER=1` thì Playwright trỏ vào CỤM, tức đo một binary
  * khác binary vừa sửa. Đây là bẫy đã cắn repo này trước đó.
+ *
+ * ⚠ **`localhost`, KHÔNG phải `127.0.0.1`** — dù hai cái trỏ cùng một máy.
+ * `next start` phát ở `http://localhost:3000`, và Better Auth so `E2E_ORIGIN`
+ * với `betterAuthUrl` **theo chuỗi**, không theo địa chỉ đã phân giải. Sai chỗ
+ * này thì `global-setup` chết ở 403 `INVALID_ORIGIN` và **không một ô nào
+ * chạy** — bản hướng dẫn trước của chính file này ghi `127.0.0.1` và đã làm
+ * đúng chuyện đó (2026-09-14).
+ *
+ * Và mã thoát KHÔNG cứu được: lớp bọc `pnpm` in `[exited with code 0]` ở cuối
+ * trong khi dòng thật là `Exit status 1`. Đọc số ô đã chạy, đừng đọc mã thoát.
  */
 
 import { expect, test } from './fixtures/api';
@@ -102,6 +112,74 @@ test.describe('Game Git — ô nghiệm thu P17', { tag: '@games-git' }, () => {
     await scanAxe(page, testInfo, 'games-git-man-choi');
   });
 
+  /**
+   * **AC-6 trên chế độ 3D** — cho tới P17b, ô AC-6 ở trên chưa BAO GIỜ quét cảnh 3D.
+   *
+   * Nó mở level rồi quét ngay, mà mặc định là 2D (`fallback: '2d'` trong
+   * `useRendererChoice` — 2D là chế độ ngang hàng, không phải đường lùi). Nên
+   * đường 3D đi vào sản phẩm với **zero** phép đo a11y.
+   *
+   * Đó không phải "chưa hoàn hảo", nó là một ô xanh đang nói về một thứ khác
+   * với thứ người đọc tưởng nó nói (`rules/green-that-proves-nothing.md`).
+   *
+   * Và nó gác đúng thứ đắt nhất của lane D: cả lý do chọn **pool `<span>` DOM**
+   * thay vì `drei <Html>` hay chữ nướng vào texture canvas là "trình đọc màn
+   * hình đọc được". Lý do đó chưa từng có cổng nào kiểm — nếu lớp nhãn bị
+   * `aria-hidden`, hoặc `<Canvas>` nuốt mất vai trò của nó, thì quyết định kiến
+   * trúc ấy trả giá mà không mua được gì.
+   *
+   * Quét **cả hai theme**: bảng màu 3D đọc từ token CSS qua một phần tử dò, và
+   * nhánh tối đi qua một tập token khác hẳn — một lượt quét ở theme sáng không
+   * nói gì về nhánh kia.
+   */
+  test('AC-6 — axe 0 vi phạm ở chế độ 3D, cả hai theme', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+
+    await openScreen(page, GIT_PATH, 'user');
+    await settle(page);
+    await page.getByRole('button', { name: /Commit là một object bất biến/ }).click();
+    await settle(page);
+
+    const toggle3d = page.getByRole('button', { name: 'Cảnh 3D' });
+    await expect(
+      toggle3d,
+      'nút 3D vẫn bị khoá — `has3d` chưa bật, hoặc bản đang phục vụ cũ hơn mã. ' +
+        '⚠ `next start` KHÔNG build lại: chạy `pnpm --filter web build` trước.',
+    ).toBeEnabled();
+    await toggle3d.click();
+
+    // Cảnh 3D nạp động — đợi kênh đo, đừng đợi một khoảng thời gian cố định.
+    await page.waitForFunction(
+      () => typeof (globalThis as { __dlpGitScene?: unknown }).__dlpGitScene === 'function',
+      null,
+      { timeout: 60_000 },
+    );
+    await settle(page);
+
+    // ── Tiền đề: cảnh 3D THẬT SỰ đang hiện ───────────────────────────────
+    //
+    // Thiếu nó thì một lượt quét trên trang trống cũng cho "0 vi phạm", và ô
+    // này trở thành thứ nó vừa được viết ra để thay thế.
+    await expect(
+      page.locator('canvas'),
+      'không có <canvas> nào — cảnh 3D chưa mount, nên 0 vi phạm là 0 vi phạm của một trang trống',
+    ).toBeVisible();
+
+    await scanAxe(page, testInfo, 'games-git-3d-theme-sang');
+
+    // ── Nhánh tối ────────────────────────────────────────────────────────
+    await page.evaluate(() => {
+      document.documentElement.classList.add('dark');
+    });
+    await page.waitForTimeout(600); // MutationObserver đọc lại token + xin một khung
+    await expect(
+      page.locator('html.dark'),
+      'lớp .dark không bám được — lượt quét thứ hai đang đo lại đúng theme sáng',
+    ).toHaveCount(1);
+
+    await scanAxe(page, testInfo, 'games-git-3d-theme-toi');
+  });
+
   test('AC-L — điều hướng bàn phím đủ cho thao tác chính', async ({ page }) => {
     await openScreen(page, GIT_PATH, 'user');
     await settle(page);
@@ -120,6 +198,231 @@ test.describe('Game Git — ô nghiệm thu P17', { tag: '@games-git' }, () => {
     // ↑ lấy lại lệnh vừa gõ từ lịch sử (17.I.3).
     await page.keyboard.press('ArrowUp');
     await expect(command).toHaveValue('git status');
+  });
+  /**
+   * **AC-7 — draw call < 100 ở level đông nhất.**
+   *
+   * ═════════════════════════════════════════════════════════════════════════
+   * VÌ SAO Ô NÀY DÀI HƠN MỘT DÒNG `expect(calls).toBeLessThan(100)`
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * Vì một dòng như thế **xanh mãi mãi và chứng minh đúng zero điều gì.**
+   *
+   * `EffectComposer` reset `renderer.info.render` ở MỖI lần `render()`, và pass
+   * cuối của nó là một tam giác phủ toàn màn hình — nên với bloom bật, `calls`
+   * đọc ra là **1** bất kể cảnh có 2 hay 2000 object. Arena đã phải ghim bậc
+   * chất lượng cộng ba tiền đề mới khoá được cái bẫy này
+   * (`games.spec.ts` §15.3/15.4); game Git tắt hậu kỳ bằng `?fx=off`.
+   *
+   * Bốn tiền đề dưới đây là thứ phân biệt ô này với một ô trang trí. Chúng gác
+   * **chiều ngược lại** — tức là chúng đỏ khi phép đo KHÔNG chạy:
+   *
+   *  1. `calls > 1` — hậu kỳ thật sự đã tắt. Nếu composer còn sống thì con số
+   *     là 1, và một ngưỡng `< 100` sẽ vẫn xanh.
+   *  2. `triangles > objects` — cảnh có hình thật, không phải một canvas rỗng
+   *     vừa mount xong.
+   *  3. `objects` TĂNG giữa hai mốc — engine đang chạy và cảnh đang lớn lên.
+   *     Một cảnh đứng yên làm bất biến "draw call không tăng theo object" thành
+   *     một câu nói về hai lần đo cùng một thứ.
+   *  4. `colorsDegraded === null` — bảng màu đọc được thật. Cả cảnh xám ngoét
+   *     là một lỗi KHÔNG ném, không đỏ, và ô này là chỗ rẻ nhất bắt được.
+   *
+   * Và khẳng định chính **mạnh hơn** ngưỡng của plan: draw call phải **KHÔNG
+   * ĐỔI** khi số commit tăng. `< 100` chỉ nói cảnh hiện tại đủ nhỏ; `toBe` nói
+   * kiến trúc instancing thật sự gộp lô, và đó mới là thứ K.4 phải bảo đảm cho
+   * mọi level sau này.
+   *
+   * ⚠ **Phép so đó phải đặt giữa mốc HAI và mốc BA, không phải một và hai.**
+   * Bản đầu của ô này so `small` với `large` và đỏ ở 18 → 20 — nhưng mã KHÔNG
+   * sai, khẳng định mới sai. Đồ thị lớn lên làm xuất hiện thêm **loại** accent
+   * và loại cạnh, mà mỗi loại kích hoạt một lô instance. Instancing hứa draw
+   * call tăng theo **số loại** (có trần cứng: 5 khối + 1 ký hiệu + 4 bó cạnh +
+   * chấm nối + khối kho), **không** theo số commit (không có trần). Đòi bất
+   * biến ở mốc mà loại còn đang xuất hiện là đòi một thứ mạnh hơn cả kiến trúc
+   * lẫn K.4, và nó sẽ đỏ mãi vì một lý do không phải lỗi.
+   */
+  test('AC-7 — draw call không tăng theo số commit, và < 100', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+
+    await openScreen(page, `${GIT_PATH}?fx=off`, 'user');
+    await settle(page);
+
+    await page.getByRole('button', { name: /Commit là một object bất biến/ }).click();
+    await settle(page);
+
+    await page.getByRole('button', { name: 'Cảnh 3D' }).click();
+
+    // Cảnh 3D nạp động — đợi kênh đo xuất hiện, đừng đợi một khoảng thời gian.
+    /*
+     * Ép kiểu tại chỗ thay vì `declare global`: tsconfig của `e2e/` không đọc
+     * `src/`, và một bản khai thứ hai ở đây sẽ lệch khỏi `GitSceneStats` mà
+     * không cổng nào bắt — đúng lý do `games-harness.ts:227` nêu cho arena. Bù
+     * lại bằng phép kiểm hình dạng lúc chạy ở `measure()`.
+     */
+    await page.waitForFunction(
+      () => typeof (globalThis as { __dlpGitScene?: unknown }).__dlpGitScene === 'function',
+      null,
+      { timeout: 60_000 },
+    );
+
+    const command = page.getByLabel('$');
+    const runCommands = async (lines: readonly string[]): Promise<void> => {
+      for (const line of lines) {
+        await command.fill(line);
+        await command.press('Enter');
+      }
+      await page.waitForTimeout(400);
+    };
+
+    const measure = async (): Promise<{
+      calls: number;
+      triangles: number;
+      objects: number;
+      colorsDegraded: string | null;
+    }> => {
+      // Ép một khung mới rồi đọc — `frameloop="demand"` nên con số của khung
+      // trước có thể là con số của một cảnh khác.
+      await page.mouse.move(200, 200);
+      await page.waitForTimeout(300);
+      return page.evaluate(() => {
+        const read = (
+          globalThis as {
+            __dlpGitScene?: () => {
+              calls: number;
+              triangles: number;
+              objects: number;
+              colorsDegraded: string | null;
+            };
+          }
+        ).__dlpGitScene;
+        if (read === undefined) throw new Error('kênh đo `__dlpGitScene` biến mất');
+        const s = read();
+        for (const key of ['calls', 'triangles', 'objects'] as const) {
+          if (!Number.isFinite(s[key])) {
+            throw new Error(`\`__dlpGitScene().${key}\` không phải số hữu hạn: ${String(s[key])}`);
+          }
+        }
+        return {
+          calls: s.calls,
+          triangles: s.triangles,
+          objects: s.objects,
+          colorsDegraded: s.colorsDegraded,
+        };
+      });
+    };
+
+    await runCommands(['git add ghi-chu.md', 'git commit -m "một"']);
+    const small = await measure();
+
+    // Nhiều nhánh + nhiều commit: đây là hình dạng làm số LÔ tăng nếu kiến trúc
+    // instancing sai, vì mỗi accent một khối và nhánh phụ đẩy node ra khỏi làn 0.
+    await runCommands([
+      'git branch nhanh-a',
+      'git switch nhanh-a',
+      'git commit --allow-empty -m "a1"',
+      'git commit --allow-empty -m "a2"',
+      'git commit --allow-empty -m "a3"',
+      'git switch main',
+      'git branch nhanh-b',
+      'git switch nhanh-b',
+      'git commit --allow-empty -m "b1"',
+      'git commit --allow-empty -m "b2"',
+      'git commit --allow-empty -m "b3"',
+      'git switch main',
+      'git commit --allow-empty -m "m1"',
+      'git commit --allow-empty -m "m2"',
+    ]);
+    const large = await measure();
+
+    /*
+     * Mốc THỨ BA — và đây mới là mốc mang khẳng định chính.
+     *
+     * Giữa `small` và `large`, draw call ĐƯỢC PHÉP tăng: đồ thị lớn lên làm xuất
+     * hiện thêm LOẠI accent (commit vừa tạo mang `fresh`) và thêm loại cạnh, mà
+     * mỗi loại kích hoạt một lô instance. Đo được 18 → 20 ở lượt chạy
+     * 2026-09-14. Đó chính là thứ instancing hứa: draw call tăng theo **số
+     * loại**, không theo **số commit** — số loại có trần cứng (5 khối + 1 ký
+     * hiệu + 4 bó cạnh + chấm nối + khối kho), số commit thì không.
+     *
+     * Nên phép so đúng là giữa `large` và `larger`: tới lúc này mọi loại đã có
+     * mặt, nên thêm commit KHÔNG được thêm một lệnh vẽ nào. Một kiến trúc vẽ
+     * mỗi commit một Mesh sẽ đỏ ở đây và không thể đỏ ở chỗ khác.
+     */
+    await runCommands([
+      'git commit --allow-empty -m "m3"',
+      'git commit --allow-empty -m "m4"',
+      'git commit --allow-empty -m "m5"',
+      'git commit --allow-empty -m "m6"',
+      'git commit --allow-empty -m "m7"',
+      'git commit --allow-empty -m "m8"',
+      'git commit --allow-empty -m "m9"',
+      'git commit --allow-empty -m "m10"',
+    ]);
+    const larger = await measure();
+
+    await attachJson(testInfo, 'git-ac7-drawcalls.json', { small, large, larger });
+
+    // ── Tiền đề: phép đo này thật sự đã chạy ─────────────────────────────
+    expect(
+      small.calls,
+      'draw call = 1 nghĩa là EffectComposer vẫn sống và đang gộp mọi thứ vào một ' +
+        'tam giác phủ màn hình. `?fx=off` không có tác dụng, và mọi khẳng định dưới ' +
+        'đây sẽ xanh mà chưa bao giờ đo cảnh.',
+    ).toBeGreaterThan(1);
+    expect(small.triangles, 'cảnh rỗng — không có hình nào để đếm').toBeGreaterThan(small.objects);
+    /*
+     * ⚠ Tiền đề này đo TRIANGLES chứ không đo `objects`, cùng lý do với tiền đề
+     * mốc ba bên dưới — và nó đã đỏ một lần vì dùng `objects`.
+     *
+     * `objects` đếm object trong scene, tức số LÔ instance đang bật, tức số
+     * LOẠI accent/cạnh có mặt. Con số đó đổi khi bản vá `ViewHints` làm `fresh`
+     * sống lại (18fd316), và một tiền đề bám vào nó là bám vào thứ thay đổi vì
+     * lý do không liên quan tới điều đang được hỏi.
+     *
+     * `three` nhân tam giác với `instanceCount`, nên TRIANGLES theo dõi đúng số
+     * commit đang được vẽ — thứ 14 lệnh kia thật sự làm tăng.
+     */
+    expect(
+      large.triangles,
+      'số tam giác không tăng sau 14 lệnh — engine chưa nối, nên hai lần đo là cùng một cảnh',
+    ).toBeGreaterThan(small.triangles);
+    expect(
+      small.colorsDegraded,
+      'bảng màu rơi về màu xám dự phòng — cảnh đang vẽ nhưng không vẽ đúng màu nào',
+    ).toBeNull();
+
+    /*
+     * ⚠ Tiền đề này đo TRIANGLES, không đo `objects` — và sự khác nhau đó chính
+     * là nội dung của ô.
+     *
+     * `objects` đếm object trong scene. Thêm commit vào một `InstancedMesh` đã
+     * có sẵn **không** tạo object mới; đó đúng là việc instancing làm. Đo được
+     * 17 → 17 ở lượt chạy 2026-09-14, và bản đầu của tiền đề này đỏ vì tưởng đó
+     * là "8 lệnh không vào được cảnh".
+     *
+     * `three` nhân số tam giác với `instanceCount` (`info.update(count, mode,
+     * instanceCount)`), nên TRIANGLES là đại lượng duy nhất trong kênh đo thật
+     * sự theo dõi số commit đang được vẽ. Nó tăng ⇒ 8 commit đã vào cảnh; và
+     * `calls` đứng yên cùng lúc ⇒ chúng vào mà không tốn thêm lệnh vẽ nào. Hai
+     * vế đó cạnh nhau mới là bằng chứng của K.4.
+     */
+    expect(
+      larger.triangles,
+      'số tam giác không tăng ở mốc thứ ba — 8 lệnh commit không vào được cảnh, nên ' +
+        'phép so large↔larger là so cùng một cảnh với chính nó',
+    ).toBeGreaterThan(large.triangles);
+
+    // ── Khẳng định chính ─────────────────────────────────────────────────
+    //
+    // large → larger: mọi LOẠI đã xuất hiện từ trước, nên 8 commit mới không
+    // được thêm một lệnh vẽ nào. Một kiến trúc vẽ mỗi commit một Mesh đỏ ở đây.
+    expect(
+      larger.calls,
+      'draw call tăng theo số COMMIT (không phải theo số loại) — kiến trúc ' +
+        'instancing không gộp lô. Đây là thứ K.4 phải bảo đảm cho MỌI level sau ' +
+        'này, không chỉ level đang đo.',
+    ).toBe(large.calls);
+    expect(larger.calls, 'AC-7: draw call phải < 100 ở level đông nhất').toBeLessThan(100);
   });
 });
 
@@ -169,4 +472,5 @@ test.describe('Game Git — AC-5 đường 2D khi không có WebGL', { tag: '@ga
 
     await expect(page.getByTestId('git-verdict')).toContainText('AC');
   });
+
 });

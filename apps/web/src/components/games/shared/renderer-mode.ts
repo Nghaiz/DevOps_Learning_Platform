@@ -86,9 +86,13 @@ export interface ResolveModeInput {
   /**
    * Renderer 3D đã tồn tại trong bản dựng này chưa.
    *
-   * Đợt này là `false`: 17.K chưa làm. Nó là một THAM SỐ chứ không phải một
-   * hằng ở đây, để ngày 17.K xong thì chỗ đổi là MỘT chỗ ở tầng trên, và để
-   * test đợt này đóng được cả hai nhánh trước khi nhánh thứ hai có mã thật.
+   * Game Git truyền `true` từ P17b (`git-game.tsx`). Giữ là THAM SỐ chứ không
+   * biến thành hằng: game thứ hai dùng lại cặp renderer này sẽ bắt đầu ở
+   * `false`, và test vẫn phải đóng được cả hai nhánh.
+   *
+   * ⚠ Nhánh `false` nay **không call-site nào chạm tới** — chỉ test giữ nó
+   * sống. Đừng đọc điều đó thành "nhánh chết, dọn đi": nó là điểm vào cho game
+   * kế tiếp, và dọn nó là bắt game đó dựng lại từ đầu.
    */
   readonly has3d: boolean;
   /** Chế độ mặc định khi chưa có lựa chọn tay. */

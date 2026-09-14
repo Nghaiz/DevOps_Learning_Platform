@@ -40,7 +40,7 @@
  * nghiệp sang nhánh phát hành" đọc được: tên người viết bản vá vẫn ở đó.
  */
 
-import type { Oid, OutputLine, PendingOp, Repo } from '../contract.ts';
+import type { Oid, OutputLine, PendingOp, Repo, RepoOpResult } from '../contract.ts';
 import { gitError } from '../errors.ts';
 import { shortOid } from '../hash.ts';
 import {
@@ -64,7 +64,6 @@ import {
   oursLabelOf,
   untrackedWorktree,
   wrongPendingKind,
-  type GitOpResult,
   type OpContext,
 } from './reset.ts';
 import {
@@ -92,12 +91,12 @@ import {
  * lượt vẽ đó — chấp nhận được, vì nó là hiệu ứng nhấn mạnh chứ không phải dữ
  * liệu người chơi cần để giải bài.
  */
-export interface PickOutcome extends GitOpResult {
+export interface PickOutcome extends RepoOpResult {
   readonly duplicateOf: Readonly<Record<Oid, Oid>>;
 }
 
 function withDuplicates(
-  result: GitOpResult,
+  result: RepoOpResult,
   duplicateOf: Readonly<Record<Oid, Oid>>,
 ): PickOutcome {
   return { ...result, duplicateOf };
@@ -377,7 +376,7 @@ export function cherryPickSkip(repo: Repo, ctx: OpContext): PickOutcome {
  * chép xong, nên phải dời nó về `originalHead`. Những bản sao đã tạo thành mồ
  * côi — vẫn nằm nguyên trong kho, `git reflog` còn nhớ, và đó là bài chương 3.
  */
-export function cherryPickAbort(repo: Repo, ctx: OpContext): GitOpResult {
+export function cherryPickAbort(repo: Repo, ctx: OpContext): RepoOpResult {
   const pending = repo.pending;
   if (pending === null) return fail(repo, noOperation('cherry-pick'));
   if (pending.kind !== 'cherry-pick') {

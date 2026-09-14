@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { OutputLine, Repo } from '../contract.ts';
+import type { OutputLine, Repo, RepoOpResult } from '../contract.ts';
 import { hasObject } from '../objects.ts';
 import {
   branchRef,
@@ -11,7 +11,7 @@ import {
   tagRef,
   writeFile,
 } from '../repo.ts';
-import { gitAdd, gitCommit, indexContents, type RepoOpResult } from './basic.ts';
+import { gitAdd, gitCommit, indexContents } from './basic.ts';
 import { gitBranch, gitCheckout, gitSwitch, gitTag } from './branch.ts';
 
 function need<T>(value: T | undefined | null, what: string): T {

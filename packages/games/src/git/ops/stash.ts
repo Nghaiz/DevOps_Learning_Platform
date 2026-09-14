@@ -65,12 +65,25 @@
  *    lại sau `pop`. Mô hình tree không có khái niệm "mục đã xoá", và dựng một
  *    khái niệm như vậy chỉ để phục vụ một ca không level nào dùng là đúng thứ
  *    YAGNI cấm.
- *  - **`pop --abort` đưa index và worktree về theo `originalHead`**, tức vứt luôn
- *    thay đổi cục bộ đang dở của người chơi. `PendingOp` nhánh `'stash'` chỉ mang
- *    một `originalHead: Oid`, không mang được ảnh chụp worktree trước khi áp, nên
- *    đó là thứ xa nhất dữ liệu hiện có với tới. Mục stash thì an toàn tuyệt đối
- *    (nó không bị bỏ), nên thứ mất là phần người chơi chưa commit — và output nói
- *    thẳng điều đó bằng giọng `warn` trước khi làm. Xem báo cáo lane 17.F.
+ *  - **`git stash pop --abort` không có trong git thật.** Game tự thêm, và
+ *    `command-table.ts` đã hứa với người chơi rằng nó "trả worktree về đúng
+ *    trạng thái trước khi áp" — xem `gitStashApplyAbort` để biết vì sao lời hứa
+ *    đó phải đúng từng chữ.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ĐÃ SỬA 2026-09-14 — `--abort` TỪNG làm mất việc chưa commit
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Tới 2026-09-14, `pop --abort` đưa index và worktree về theo `originalHead`,
+ * tức vứt luôn thay đổi cục bộ đang dở của người chơi. Đó không phải một lựa
+ * chọn thiết kế mà là *giới hạn của dữ liệu*: nhánh `'stash'` khi ấy chỉ mang
+ * một `Oid`, và một `Oid` không dựng lại nổi thứ chưa bao giờ là commit.
+ *
+ * Ghi lại vì cái bẫy không nằm ở chỗ dễ nhìn: bốn nhánh `PendingOp` kia phục
+ * hồi bằng `originalHead` và làm thế là ĐÚNG, nên "làm giống bốn nhánh kia" đọc
+ * ra như sự nhất quán trong khi nó chính là lỗi. Chỗ khác nhau là điều kiện
+ * khởi động — bốn nhánh kia chỉ chạy được trên worktree sạch, còn `stash pop`
+ * chỉ được gõ khi worktree đang bẩn.
  */
 
 import type {
@@ -80,6 +93,7 @@ import type {
   Oid,
   OutputLine,
   Repo,
+  RepoOpResult,
   StashEntry,
 } from '../contract.ts';
 import { sortedEntries, sortedKeys } from '../deterministic.ts';
@@ -112,10 +126,7 @@ import {
   ok,
   operationInProgress,
   planThreeWay,
-  untrackedWorktree,
-  worktreeAt,
   wrongPendingKind,
-  type GitOpResult,
   type MergeFileFn,
   type OpContext,
 } from './reset.ts';
@@ -195,7 +206,7 @@ export function gitStashPush(
   repo: Repo,
   message: string | null,
   ctx: OpContext,
-): GitOpResult {
+): RepoOpResult {
   if (repo.pending !== null) return fail(repo, operationInProgress(repo));
 
   const head = headOid(repo);
@@ -286,7 +297,7 @@ export function gitStashApply(
   repo: Repo,
   at: number,
   mergeFile: MergeFileFn = diff3MergeFile,
-): GitOpResult {
+): RepoOpResult {
   return applyEntry(repo, at, false, mergeFile);
 }
 
@@ -295,7 +306,7 @@ export function gitStashPop(
   repo: Repo,
   at: number,
   mergeFile: MergeFileFn = diff3MergeFile,
-): GitOpResult {
+): RepoOpResult {
   return applyEntry(repo, at, true, mergeFile);
 }
 
@@ -304,7 +315,7 @@ function applyEntry(
   at: number,
   drop: boolean,
   mergeFile: MergeFileFn,
-): GitOpResult {
+): RepoOpResult {
   if (repo.pending !== null) return fail(repo, operationInProgress(repo));
   if (repo.stash.length === 0) return fail(repo, emptyStash());
 
@@ -357,6 +368,12 @@ function applyEntry(
         kind: 'stash',
         stashOid: entry.oid,
         originalHead: head,
+        // ⚠ Đọc `repo`, KHÔNG đọc `withTree`. `withTree` đã mang nội dung có
+        // marker; chụp nó thì `--abort` sẽ "khôi phục" về đúng đống marker mà
+        // người chơi đang muốn thoát khỏi. Đây là hai dòng dễ hỏng nhất file
+        // này vì cả hai biến đều là `Repo` hợp lệ nên không kiểu nào cản được.
+        worktreeBefore: repo.worktree,
+        indexBefore: repo.index,
         conflicts: plan.conflicts,
       },
     };
@@ -406,7 +423,7 @@ function applyEntry(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** `git stash pop --continue` sau khi người chơi đã sửa và `git add`. */
-export function gitStashApplyContinue(repo: Repo): GitOpResult {
+export function gitStashApplyContinue(repo: Repo): RepoOpResult {
   const pending = repo.pending;
   if (pending === null) return fail(repo, noOperation('stash pop'));
   if (pending.kind !== 'stash') return fail(repo, wrongPendingKind(pending.kind, 'stash pop'));
@@ -440,28 +457,38 @@ export function gitStashApplyContinue(repo: Repo): GitOpResult {
 }
 
 /**
- * `git stash pop --abort` — bỏ phép áp đang dở.
+ * `git stash pop --abort` — bỏ phép áp đang dở, trả worktree và index về ĐÚNG
+ * lúc trước khi gõ lệnh.
  *
- * ⚠ Đưa index và worktree về theo `originalHead`, tức **vứt luôn thay đổi cục bộ
- * chưa commit** của người chơi. Đó là thứ xa nhất dữ liệu của `PendingOp` nhánh
- * `'stash'` với tới (nó chỉ mang một `Oid`, không mang ảnh chụp worktree trước
- * khi áp). Mục stash thì an toàn — nó không bị bỏ — nên thứ mất chỉ là phần chưa
- * commit, và dòng `warn` dưới đây nói thẳng điều đó.
+ * ⛔ Đây là đường lui KHÔNG ĐƯỢC PHÉP mất dữ liệu, và lý do nằm ở chỗ khác chứ
+ * không ở đây: chương 3 dạy "git không làm mất thứ bạn đã commit", nhưng người
+ * học rút ra bài học rộng hơn là *git có đường lui*. Một lệnh `--abort` của
+ * game tự tay xoá phần chưa commit sẽ dạy ngược lại đúng điều đó, và người chơi
+ * mang bài học ngược ấy ra git thật.
+ *
+ * ⚠ Bản đầu (tới 2026-09-14) phục hồi theo `originalHead`, tức vứt luôn thay
+ * đổi cục bộ chưa commit — không phải vì ai chọn thế mà vì `PendingOp` nhánh
+ * `'stash'` lúc đó chỉ mang một `Oid`. `worktreeBefore` / `indexBefore` trong
+ * hợp đồng là thứ gỡ ràng buộc đó; `originalHead` ở lại vì `predicates.ts` dùng
+ * nó làm gốc reachability, không phải để phục hồi.
+ *
+ * Ba thứ phải quay lại: **worktree**, **index**, **`pending`**. Ref chưa hề dịch
+ * chuyển — áp stash không tạo commit nào — nên cố ý KHÔNG ghi reflog: ghi một
+ * mục cho một ref đứng yên là bịa ra lịch sử.
  */
-export function gitStashApplyAbort(repo: Repo): GitOpResult {
+export function gitStashApplyAbort(repo: Repo): RepoOpResult {
   const pending = repo.pending;
   if (pending === null) return fail(repo, noOperation('stash pop'));
   if (pending.kind !== 'stash') return fail(repo, wrongPendingKind(pending.kind, 'stash pop'));
 
-  const back = pending.originalHead;
   const restored: Repo = {
-    ...setWorktree(setIndex(repo, indexFromCommit(repo, back)), worktreeAt(repo, back)),
+    ...setWorktree(setIndex(repo, pending.indexBefore), pending.worktreeBefore),
     pending: null,
   };
   return ok(restored, [
-    line(`Đã huỷ phép áp stash. Index và worktree về đúng ${shortOid(back)}.`, 'success'),
-    line('Thay đổi chưa commit ở file đã track đã mất. Mục stash thì còn nguyên.', 'warn'),
-    line(`File chưa track không bị đụng tới (${sortedKeys(untrackedWorktree(repo)).length} file).`, 'hint'),
+    line('Đã huỷ phép áp stash. Worktree và index về đúng như trước khi gõ lệnh.', 'success'),
+    line('Thay đổi chưa commit của bạn còn nguyên — `--abort` không vứt gì cả.', 'hint'),
+    line(`Mục \`${shortOid(pending.stashOid)}\` vẫn nằm trong stash, chưa bao giờ bị bỏ đi.`, 'hint'),
   ]);
 }
 
@@ -469,7 +496,7 @@ export function gitStashApplyAbort(repo: Repo): GitOpResult {
 // list / drop
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function gitStashList(repo: Repo): GitOpResult {
+export function gitStashList(repo: Repo): RepoOpResult {
   if (repo.stash.length === 0) {
     return ok(repo, [line('Stash đang trống.', 'hint')]);
   }
@@ -479,7 +506,7 @@ export function gitStashList(repo: Repo): GitOpResult {
   );
 }
 
-export function gitStashDrop(repo: Repo, at: number): GitOpResult {
+export function gitStashDrop(repo: Repo, at: number): RepoOpResult {
   if (repo.stash.length === 0) return fail(repo, emptyStash());
   const entry = repo.stash[at];
   if (entry === undefined) return fail(repo, badStashIndex(repo, `stash@{${at}}`));

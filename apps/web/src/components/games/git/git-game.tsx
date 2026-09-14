@@ -1,10 +1,10 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import {
   GIT_LEVELS,
-  buildView,
   createGitSession,
   evaluateObjectives,
   layoutDag,
@@ -108,7 +108,53 @@ export function GitGame({ theory, initialLevelId }: GitGameProps): ReactElement 
  * `'unavailable'`: gộp lại sẽ làm trang nháy chế độ lúc hydrate, và nó xoá mất
  * sự khác nhau giữa "máy không chạy nổi 3D" với "chưa đo được".
  */
-const ENABLED_MODES: readonly RendererMode[] = ['2d'];
+const ENABLED_MODES: readonly RendererMode[] = ['2d', '3d'];
+
+/**
+ * Tầng 3D nạp động, `ssr: false`.
+ *
+ * ⚠ Cả hai vế đều bắt buộc. `ssr: false` vì `three` đụng `window`/`canvas` lúc
+ * dựng; **nạp động** vì gói 3D nặng ~631KB và một `import` tĩnh sẽ kéo nó vào
+ * bundle của mọi người chơi, kể cả người ở chế độ 2D và kể cả người chưa từng
+ * mở game. P17 đã trả giá đúng chỗ này một lần (`44f8e39`), và cổng CI
+ * `bundle:check` gác nó.
+ */
+const GitScene3D = dynamic(() => import('./scene3d/index.ts').then((m) => m.GitScene3D), {
+  ssr: false,
+  loading: () => (
+    <p className="p-4 text-sm text-muted-foreground" role="status">
+      Đang nạp cảnh 3D…
+    </p>
+  ),
+});
+
+/**
+ * Hậu kỳ (bloom) có bật không. Tắt bằng `?fx=off`.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ĐÂY LÀ ĐIỀU KIỆN ĐỂ Ô AC-7 CÓ NGHĨA, KHÔNG PHẢI MỘT CỜ GỠ LỖI TIỆN TAY
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `EffectComposer` reset `renderer.info.render` ở **mỗi** lần `render()`, và
+ * pass cuối là một tam giác phủ toàn màn hình — nên `calls` đọc ra là **1** và
+ * `triangles` là **1**, bất kể cảnh có 2 hay 2000 object. Một ô nghiệm thu viết
+ * `expect(calls).toBeLessThan(100)` khi bloom đang bật sẽ XANH mãi mãi và
+ * **chứng minh đúng zero điều gì** (`rules/green-that-proves-nothing.md`).
+ *
+ * Arena giải bằng cách ghim bậc chất lượng qua bảng cài đặt; game Git không có
+ * bảng cài đặt, nên công tắc là tham số URL. Nó cố ý **không** có nút bấm: đây
+ * không phải một lựa chọn của người chơi, nó là một đường để ĐO.
+ *
+ * Đọc một lần lúc mount, không theo dõi thay đổi — đổi `?fx=` giữa chừng thì
+ * tải lại trang.
+ */
+function useEffectsEnabled(): boolean {
+  const [enabled] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return new URLSearchParams(window.location.search).get('fx') !== 'off';
+  });
+  return enabled;
+}
 
 function useRendererChoice(): {
   readonly resolved: ResolvedMode;
@@ -124,9 +170,13 @@ function useRendererChoice(): {
   const resolved = resolveRendererMode({
     stored,
     support,
-    // 17.K chưa làm ở đợt này — chủ dự án đã chốt hoãn tầng 3D sang một chặng
-    // sau. Đây là MỘT chỗ để đổi khi nó xong.
-    has3d: false,
+    // 17.K đã xong ở P17b. Đây là chỗ duy nhất phải đổi, đúng như bản ghi đóng
+    // chặng P17 dự trù.
+    has3d: true,
+    // Mặc định vẫn là 2D dù máy chạy được 3D. Chế độ 2D là NGANG HÀNG chứ không
+    // phải đường lùi (ràng buộc 3 của chặng), nó nạp ngay và không tốn 631KB;
+    // ai muốn 3D thì bấm một lần và lựa chọn đó được nhớ.
+    fallback: '2d',
   });
 
   const setMode = useCallback((mode: RendererMode) => {
@@ -231,9 +281,28 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
   const [showTheory, setShowTheory] = useState(false);
 
   const { resolved, setMode } = useRendererChoice();
+  const effects = useEffectsEnabled();
 
   const world = session.getWorld();
-  const view = buildView(world);
+  /*
+   * ⚠ `session.getView()`, KHÔNG phải `buildView(world)`.
+   *
+   * `buildView(world, hints = {})` — tham số thứ hai mặc định RỖNG, và
+   * `accentFor()` đọc đúng nó để quyết ba trong sáu accent:
+   * `conflictedOids` → `conflicted`, `duplicateOf` → `duplicate`,
+   * `freshOids` → `fresh`. Hints do engine sinh ra THEO TỪNG LỆNH (commit phát
+   * `freshOids`, cherry-pick phát `duplicateOf`, merge xung đột phát
+   * `conflictedOids`) và chỉ sống trong phiên.
+   *
+   * Dựng lại view từ `world` là vứt sạch chúng, nên ba accent đó **chưa bao giờ
+   * hiện ra trong sản phẩm** — dù `git-palette.ts` khai đủ màu/hình/chuyển
+   * động, `accent-3d.ts` khai đủ khối, và test của cả hai đều xanh. Các ô đó
+   * kiểm bảng khai TỰ NHẤT QUÁN, không kiểm có gì được vẽ.
+   *
+   * Tìm ra 2026-09-14 khi phép đo mù màu chỉ dựng được 2/6 accent. Không cổng
+   * nào bắt được, vì không cổng nào đi từ một lệnh git tới một pixel.
+   */
+  const view = session.getView();
   const results = evaluateObjectives(world, null, level.objectives);
   const verdict = verdictOf(results);
   const output = session.getOutput();
@@ -284,18 +353,35 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* ── Khung cảnh ───────────────────────────────────────────────── */}
-        <div className="min-h-0 flex-1 overflow-auto p-4">
-          <GitSvgScene
-            view={sceneView}
-            layouts={layouts}
-            interaction={{
-              selectedId: selected,
-              hoveredId: hovered,
-              onSelect: setSelected,
-              onHover: setHovered,
-            }}
-            label={`Đồ thị commit của level ${level.title}`}
-          />
+        <div className={resolved.mode === '3d' ? 'min-h-0 flex-1' : 'min-h-0 flex-1 overflow-auto p-4'}>
+          {resolved.mode === '3d' ? (
+            <GitScene3D
+              effects={effects}
+              scene={{
+                view: sceneView,
+                layouts,
+                interaction: {
+                  selectedId: selected,
+                  hoveredId: hovered,
+                  onSelect: setSelected,
+                  onHover: setHovered,
+                },
+              }}
+              label={`Đồ thị commit của level ${level.title}`}
+            />
+          ) : (
+            <GitSvgScene
+              view={sceneView}
+              layouts={layouts}
+              interaction={{
+                selectedId: selected,
+                hoveredId: hovered,
+                onSelect: setSelected,
+                onHover: setHovered,
+              }}
+              label={`Đồ thị commit của level ${level.title}`}
+            />
+          )}
         </div>
 
         {/* ── Cột phải ─────────────────────────────────────────────────── */}

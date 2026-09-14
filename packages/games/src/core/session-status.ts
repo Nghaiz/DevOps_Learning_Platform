@@ -6,12 +6,12 @@
  * gợi ý", "đã đi mấy nước" là từ vựng của *một game có mục tiêu*, không phải của
  * một cụm K8s.
  *
- * ⚠ `k8s/contract.ts` hiện còn khai bản của riêng nó. Đó là NỢ CÓ TÊN, không
- * phải thiết kế: lúc file này ra đời thì một lane khác đang sửa `k8s/contract.ts`
- * và hai bên cùng ghi một file là cách nhanh nhất để mất việc của nhau
- * (`rules/parallel-teammate-git-index-race.md`). Việc phải làm ngay khi lane đó
- * xong: `k8s/contract.ts` re-export hai kiểu này thay vì tự khai. Hai bản khai
- * song song sẽ lệch, và chúng lệch trong im lặng vì chúng cấu trúc-tương-thích.
+ * ✅ Nợ đã trả 2026-09-14: `k8s/contract.ts` từng khai bản của riêng nó, nay
+ * re-export hai kiểu ở đây. `git/contract.ts` và `git/engine.ts` vốn đã import
+ * thẳng từ file này. Đây là chỗ DUY NHẤT hai kiểu này được khai.
+ *
+ * ⚠ Thêm một trường vào đây là một thay đổi PHÁ VỠ với mọi game: hình dạng này
+ * đi ra ngoài package qua `src/index.ts` và `apps/web` đọc nó.
  */
 
 /**

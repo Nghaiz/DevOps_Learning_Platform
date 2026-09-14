@@ -19,6 +19,7 @@ import type {
   Oid,
   OutputLine,
   Repo,
+  RepoOpResult,
 } from './contract.ts';
 import type { ParsedCommand } from './parser.ts';
 import { pathOperands } from './parser.ts';
@@ -33,7 +34,16 @@ import { gitBranch, gitCheckout, gitSwitch, gitTag } from './ops/branch.ts';
 import { gitLog, gitShow } from './ops/inspect.ts';
 import { gitReset, gitResetPaths, gitRevert, gitRevertAbort, gitRevertContinue } from './ops/reset.ts';
 import { mergeFile } from './ops/merge.ts';
-import { gitStashApply, gitStashDrop, gitStashList, gitStashPop, gitStashPush, parseStashIndex } from './ops/stash.ts';
+import {
+  gitStashApply,
+  gitStashApplyAbort,
+  gitStashApplyContinue,
+  gitStashDrop,
+  gitStashList,
+  gitStashPop,
+  gitStashPush,
+  parseStashIndex,
+} from './ops/stash.ts';
 import { gitFsck, gitReflog } from './ops/rescue.ts';
 import { gitBisectMark, gitBisectReset, gitBisectStart } from './ops/bisect.ts';
 import { gitMerge, mergeAbort, mergeContinue } from './ops/merge.ts';
@@ -54,14 +64,8 @@ export interface DispatchResult {
   readonly hints?: ViewHints;
 }
 
-interface RepoLevelResult {
-  readonly repo: Repo;
-  readonly output: readonly OutputLine[];
-  readonly error: GitError | null;
-}
-
 /** Nâng kết quả tầng `Repo` lên tầng `GitWorld`. */
-function lift(world: GitWorld, r: RepoLevelResult, hints?: ViewHints): DispatchResult {
+function lift(world: GitWorld, r: RepoOpResult, hints?: ViewHints): DispatchResult {
   const next: GitWorld = { ...world, local: r.repo };
   return hints === undefined
     ? { world: next, output: r.output, error: r.error }
@@ -315,10 +319,28 @@ export function dispatchCommand(
           return lift(world, gitStashPush(repo, flagStr(cmd, '--message'), ctx));
         case 'list':
           return lift(world, gitStashList(repo));
+        /*
+         * `pop` và `apply` chung một nhánh vì hai công tắc gỡ xung đột của chúng
+         * là MỘT: `PendingOp` nhánh `'stash'` cố tình không nhớ mình sinh ra từ
+         * `pop` hay `apply` (xem `ops/stash.ts`), nên hai đường gỡ phải trỏ về
+         * cùng một cặp hàm.
+         *
+         * ⚠ Hai dòng `flag(...)` phải đứng TRƯỚC `parseStashIndex`. Tới
+         * 2026-09-14 chúng không tồn tại, và hậu quả không phải một thông báo
+         * "lệnh không hiểu" mà là một thứ tệ hơn: `command-table.ts` khai hai cờ
+         * này nên bộ phân tích NHẬN chúng, rồi nhánh này bỏ qua chúng và đi áp
+         * lại stash từ đầu — để rồi đỏ vì `operationInProgress`. Người chơi đang
+         * kẹt được chính output của game bảo gõ `git stash pop --continue`, gõ
+         * đúng, và không có đường nào ra. Một cờ được KHAI mà không được NỐI thì
+         * không im lặng, nó nói dối.
+         */
         case 'pop':
-          return lift(world, gitStashPop(repo, parseStashIndex(cmd.args[0] ?? null) ?? 0));
-        case 'apply':
-          return lift(world, gitStashApply(repo, parseStashIndex(cmd.args[0] ?? null) ?? 0));
+        case 'apply': {
+          if (flag(cmd, '--abort')) return lift(world, gitStashApplyAbort(repo));
+          if (flag(cmd, '--continue')) return lift(world, gitStashApplyContinue(repo));
+          const at = parseStashIndex(cmd.args[0] ?? null) ?? 0;
+          return lift(world, sub === 'pop' ? gitStashPop(repo, at) : gitStashApply(repo, at));
+        }
         case 'drop':
           return lift(world, gitStashDrop(repo, parseStashIndex(cmd.args[0] ?? null) ?? 0));
         default:
@@ -670,7 +692,7 @@ function resolveConflictSide(
   repo: Repo,
   paths: readonly FilePath[],
   side: 'ours' | 'theirs',
-): RepoLevelResult {
+): RepoOpResult {
   const pending = repo.pending;
   if (pending === null) {
     return {
@@ -731,7 +753,7 @@ function cherryHints(outcome: PickOutcome): ViewHints {
  * về một chỉ thị phát lại được, nếu không thì việc chấm lại phía máy chủ (P18)
  * không phủ hết những gì người chơi làm được.
  */
-function writeFileOp(repo: Repo, cmd: ParsedCommand): RepoLevelResult {
+function writeFileOp(repo: Repo, cmd: ParsedCommand): RepoOpResult {
   const path = cmd.args[0] ?? cmd.paths[0];
   if (path === undefined) {
     return { repo, output: [], error: needsArg('write', 'một đường dẫn') };

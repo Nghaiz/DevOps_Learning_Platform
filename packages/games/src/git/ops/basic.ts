@@ -33,6 +33,7 @@ import type {
   OutputLine,
   OutputTone,
   Repo,
+  RepoOpResult,
 } from '../contract.ts';
 import { sortedEntries, sortedKeys } from '../deterministic.ts';
 import { formatUnifiedDiff, linesEqual } from '../diff.ts';
@@ -57,29 +58,6 @@ import {
 // ═══════════════════════════════════════════════════════════════════════════
 // 0. KIỂU TRẢ VỀ DÙNG CHUNG CHO CẢ TẦNG `ops/`
 // ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Kết quả một thao tác ở tầng repo.
- *
- * ⚠ Khác `CommandResult` của `contract.ts`: cái kia bọc `GitWorld` (hai kho,
- * đồng hồ, bot) và là thứ lane engine trả ra ngoài. Cái này chỉ nói về MỘT
- * `Repo`, vì không thao tác nào trong `ops/basic|branch|inspect` chạm tới
- * `origin` hay tới bot.
- *
- * ⛔ Bất biến: `error !== null` ⇒ `repo` là **tham chiếu đầu vào**, không phải
- * một bản sao gần giống. Ngoại lệ duy nhất có tên nằm ở tầng merge
- * (`merge-conflict` / `unmerged-paths`), không phải ở file này.
- *
- * Ba file `ops/` còn lại (`history.ts`, `merge.ts`, `remote.ts`, do lane khác
- * viết) cũng cần đúng kiểu này. Nó nằm ở đây vì `basic.ts` là file ops nền và
- * vì một file `ops/result.ts` riêng chưa có ai sở hữu — lead muốn dời thì dời,
- * chỗ gọi chỉ phải đổi đường import.
- */
-export interface RepoOpResult {
-  readonly repo: Repo;
-  readonly output: readonly OutputLine[];
-  readonly error: GitError | null;
-}
 
 export function line(text: string, tone: OutputTone = 'plain'): OutputLine {
   return { text, tone };

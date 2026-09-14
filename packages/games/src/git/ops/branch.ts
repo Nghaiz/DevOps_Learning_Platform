@@ -28,7 +28,7 @@
  * cầu nối sang `git stash` (bài G22) nên nó không phải một ngõ cụt.
  */
 
-import type { FilePath, Head, Lines, Oid, OutputLine, RefName, Repo } from '../contract.ts';
+import type { FilePath, Head, Lines, Oid, OutputLine, RefName, Repo, RepoOpResult } from '../contract.ts';
 import { sortedKeys } from '../deterministic.ts';
 import { gitError, notARefError } from '../errors.ts';
 import { shortOid } from '../hash.ts';
@@ -51,7 +51,7 @@ import {
   tagNames,
   tagRef,
 } from '../repo.ts';
-import { line, opFail, opOk, setIndexFromCommit, type RepoOpResult } from './basic.ts';
+import { line, opFail, opOk, setIndexFromCommit } from './basic.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 0. CHUYỂN HEAD — lõi dùng chung của `switch` và `checkout`

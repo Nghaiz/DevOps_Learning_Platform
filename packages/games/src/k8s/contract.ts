@@ -554,15 +554,25 @@ export type K8sRunLog = RunLog<K8sGameAction>;
 
 // ── Phiên chơi: ranh giới lane B (engine) ↔ lane D/E (giao diện) ────────────
 
-export type SessionPhase = 'playing' | 'won' | 'lost';
-
-export interface SessionStatus {
-  readonly phase: SessionPhase;
-  /** id các objective ĐANG đạt. Tính lại mỗi tick — objective có thể đạt rồi mất. */
-  readonly objectivesMet: readonly string[];
-  readonly hintsRevealed: number;
-  readonly movesUsed: number;
-}
+/*
+ * ⛔ Hai kiểu này SỐNG Ở `core/session-status.ts`, không sống ở đây.
+ *
+ * Tới 2026-09-14 file này khai bản của riêng nó, song song với bản ở `core/`.
+ * Đó là nợ có tên chứ không phải thiết kế: lúc bản `core/` ra đời thì một lane
+ * khác đang sửa chính file này, và hai lane cùng ghi một file là cách nhanh
+ * nhất để mất việc của nhau (`rules/parallel-teammate-git-index-race.md`).
+ *
+ * Hai bản khai song song đó lệch trong IM LẶNG, và đó là phần đáng sợ: chúng
+ * cấu trúc-tương-thích, nên TypeScript nhận cả hai chiều gán. Thêm một trường
+ * vào bản này mà quên bản kia thì không có gì đỏ ở đâu cả — chỉ có một chỗ đọc
+ * ra `undefined` rất lâu sau.
+ *
+ * Giữ nguyên `export` ở đây (dạng re-export) chứ không bắt chỗ gọi đổi đường
+ * import: `src/index.ts` là file cả bốn lane cùng chạm và lead sở hữu, nên đổi
+ * nó là một cuộc đua không mua được gì. Tên và hình dạng ra ngoài không đổi.
+ */
+import type { SessionPhase, SessionStatus } from '../core/session-status.ts';
+export type { SessionPhase, SessionStatus };
 
 /**
  * Một phiên chơi. Lane B hiện thực, lane E tiêu thụ. Lane E KHÔNG tự gọi reducer.

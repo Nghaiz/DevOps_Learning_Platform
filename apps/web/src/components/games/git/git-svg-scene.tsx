@@ -72,7 +72,7 @@ import {
   type SceneRefBadge,
   type SceneRepo,
 } from '../shared/scene-props.ts';
-import { ACCENT_STYLE, EDGE_STYLE, REF_STYLE, cssVar } from './git-palette.ts';
+import { ACCENT_STYLE, EDGE_STYLE, REF_STYLE, REPO_LABEL, cssVar } from './git-palette.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Lưới — px. Đây là nơi DUY NHẤT ô lưới của `core/layout/` thành pixel.
@@ -232,11 +232,6 @@ function isNavKey(key: string): key is NavKey {
 // ═══════════════════════════════════════════════════════════════════════════
 // Nhãn đọc ra
 // ═══════════════════════════════════════════════════════════════════════════
-
-const REPO_LABEL: Readonly<Record<SceneRepo, string>> = {
-  local: 'Kho trên máy bạn (local)',
-  origin: 'Kho từ xa (origin)',
-};
 
 /**
  * Câu mô tả một commit cho trình đọc màn hình.
