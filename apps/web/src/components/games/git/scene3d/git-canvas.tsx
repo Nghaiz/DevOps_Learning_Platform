@@ -330,7 +330,16 @@ export function GitCanvas({
         tabIndex={0}
         aria-label="Khung nhìn 3D, điều khiển bằng bàn phím"
         aria-describedby={helpId}
-        aria-keyshortcuts="Q E + - 0 T"
+        /*
+         * ⚠ Phải liệt kê ĐỦ, kể cả `1`–`9`.
+         *
+         * `onKeyDown` ngay dưới và đoạn trợ giúp `sr-only` ngay trên đều nhận
+         * `1`–`9` (nhảy thẳng tới ref thứ N), nhưng thuộc tính này từng bỏ sót
+         * chúng. Người dùng trình đọc màn hình nghe thuộc tính này chứ không
+         * đọc `onKeyDown`, nên thiếu ở đây là thiếu với đúng nhóm mà nó phục vụ
+         * — và không cổng nào so được hai danh sách đó với nhau.
+         */
+        aria-keyshortcuts="Q E Shift+T T 0 + - 1 2 3 4 5 6 7 8 9"
         onKeyDown={onKeyDown}
         className="relative h-full w-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
       >

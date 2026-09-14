@@ -9,11 +9,17 @@
  * người cần nó nhất (người dùng trình đọc màn hình, người đi in báo cáo) là
  * người ít có khả năng đi tìm nhất.
  *
- * ⛔ **Đợt này 3D CHƯA CÓ, và nút 3D vẫn hiện — ở trạng thái disabled.** Ẩn nó
- * đi rồi hiện lại khi 17.K xong là HAI lần đổi giao diện cho cùng một tính
- * năng: lần đầu người dùng học rằng chỉ có một chế độ, lần sau họ phải học lại.
- * Một nút xám kèm chữ "sắp có" nói đúng sự thật ngay từ đầu và không phải dạy
- * lại lần nào.
+ * ⛔ **Nhánh "sắp có" nay KHÔNG call-site nào kích hoạt** — `git-game.tsx`
+ * truyền `enabled={['2d','3d']}` từ P17b, nên cả đường `aria-disabled` lẫn chuỗi
+ * "sắp có" không còn hiện ra ở đâu.
+ *
+ * Giữ lại có chủ ý, không phải quên dọn: `enabled` là một PROP, và game thứ hai
+ * dùng lại component này sẽ bắt đầu với đúng một chế độ. Lý do ban đầu vẫn đúng
+ * cho nó — ẩn nút rồi hiện lại là HAI lần đổi giao diện cho cùng một tính năng,
+ * lần đầu người dùng học rằng chỉ có một chế độ, lần sau phải học lại.
+ *
+ * ⚠ Nhưng đường đó hiện **không có cổng nào gác**. Ai sửa nó sẽ không thấy gì
+ * đỏ. Grep call-site trước khi tin nó còn chạy.
  *
  * ⚠ `disabled` trên `<button>` làm nó **biến mất khỏi thứ tự Tab**, nên lời giải
  * thích "sắp có" sẽ không tới được người dùng bàn phím. Dùng `aria-disabled`
