@@ -99,6 +99,20 @@ export const SCREENS: Screen[] = [
 
   { path: '/admin', auth: 'admin' },
   { path: '/admin/users', auth: 'admin' },
+  /*
+   * §18.F. Lane dựng lớp học tự báo rằng hai màn này CHƯA nằm trong cổng axe —
+   * chúng dùng lại `AdminSection`/`Table`/`EmptyState`/`ErrorState`/`CursorPager`
+   * của các màn `/admin` đang qua cổng, nhưng dùng lại thành phần đã đạt KHÔNG
+   * phải một phép đo. AC-8 của chặng đòi 0 vi phạm axe trên bảng điểm, nên
+   * chúng vào đây để cổng tự nói.
+   *
+   * ⚠ CHỈ thêm màn DANH SÁCH. `/admin/classes/:classId` **cố ý chưa vào**: đoạn
+   * động cần `idFrom` trỏ tới một điểm cuối trả id có thật, và trên một CSDL e2e
+   * chưa có lớp nào thì ô đó sẽ đỏ vì THIẾU DỮ LIỆU chứ không phải vì a11y — một
+   * ô đỏ vì lý do sai còn tệ hơn một ô chưa có. Thêm nó cùng lượt seed lớp mẫu,
+   * không thêm trước.
+   */
+  { path: '/admin/classes', auth: 'admin' },
   { path: '/admin/sessions', auth: 'admin' },
   { path: '/admin/content', auth: 'admin' },
   { path: '/admin/audit', auth: 'admin' },

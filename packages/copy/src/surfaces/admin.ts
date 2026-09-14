@@ -42,6 +42,7 @@ export const admin = {
   'admin.nav.aria': 'Điều hướng quản trị',
   'admin.nav.overview': 'Tổng quan',
   'admin.nav.users': 'Người dùng',
+  'admin.nav.classes': 'Lớp học',
   'admin.nav.sessions': 'Phiên đang chạy',
   'admin.nav.content': 'Nội dung',
   'admin.nav.audit': 'Nhật ký',
@@ -328,6 +329,7 @@ export const admin = {
 
   'admin.audit-target.user': 'Người dùng',
   'admin.audit-target.session': 'Phiên',
+  'admin.audit-target.class': 'Lớp học',
 
   'admin.audit-detail.none': 'không có chi tiết',
   'admin.audit-detail.role-change': (p: { from: string; to: string }) =>
@@ -525,4 +527,6 @@ export const adminIntentionalThree = {
     '2026-09-10: đúng ba loại nội dung tồn tại trong CONTENT_KINDS tại packages/shared-types/src/authoring.ts (lesson, lab, playground). Bảng KIND_LABEL là Record<ContentKind, ...> nên loại thứ tư là lỗi biên dịch trước khi là một câu thiếu.',
   'admin.health.metric':
     '2026-09-10: đúng ba giá trị double của IEEE 754 không phải số hữu hạn (NaN, +Infinity, -Infinity), và formatMetricValue phân nhánh đúng ba lần vì Number.isFinite chia miền thành đúng bốn ca. Không phải một phân loại ba, mà là ba ca còn lại sau khi loại số hữu hạn.',
+  'admin.audit-target':
+    '2026-09-14: đúng ba loại đối tượng mà nhật ký quản trị GHI thật, đọc từ chỗ gọi writeAuditLog chứ không từ một danh sách khai sẵn: user (đổi vai trò), session (buộc dừng), class (tạo/thêm-bớt thành viên, §18.F). Ba là số hiện tại, không phải số đẹp. describeAuditTarget còn một nhánh cuối trả thẳng targetType, nên loại thứ tư vẫn HIỆN RA được, chỉ hiện bằng chuỗi thô tiếng Anh. Đó là lý do nhóm này phải được rà lại mỗi lần thêm một loại đối tượng, khác hẳn admin.role vốn được enum DB gác.',
 } as const satisfies IntentionalThree;

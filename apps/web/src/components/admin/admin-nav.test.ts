@@ -7,10 +7,11 @@ import { ADMIN_NAV, isActiveAdminNav } from './admin-nav';
  * mà không hỏi chủ dự án là đỏ ngay.
  */
 describe('ADMIN_NAV', () => {
-  it('đúng năm màn hình đã chốt', () => {
+  it('đúng sáu màn hình đã chốt', () => {
     expect(ADMIN_NAV.map((item) => item.href)).toEqual([
       '/admin',
       '/admin/users',
+      '/admin/classes',
       '/admin/sessions',
       '/admin/content',
       '/admin/audit',

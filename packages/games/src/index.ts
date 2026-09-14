@@ -391,6 +391,35 @@ export {
   problemPluginMeta,
 } from './problem-plugins.ts';
 
+/*
+ * Seed mặc định LÚC CHƠI của từng game — và đây là dòng gấp nhất của cả khối.
+ *
+ * Sau `ae7ed23`, `Submission.seed` luôn mang số THẬT: client chơi bằng seed nào
+ * thì gửi lên seed đó, server phát lại bằng đúng số đó. Điều đó gỡ hẳn chỗ cho
+ * phép hai bên tự chọn LÚC CHẤM.
+ *
+ * Nhưng nó dời câu hỏi chứ không xoá: **client lấy số ở đâu khi mở một bài
+ * `seedable: false`?** Client sống ở `apps/web`, ngoài package này, và
+ * `packages/games/package.json` chỉ mở đúng một subpath `"."` — nên không export
+ * ở đây thì `apps/web` **sẽ tự đặt một hằng của riêng nó**. Lúc đó lỗ hổng vừa
+ * bịt quay lại nguyên vẹn, chỉ dời từ giữa-hai-plugin sang giữa-client-và-server,
+ * và nó vẫn hiện ra dưới đúng hình dạng cũ: mọi lượt nộp hợp lệ bị từ chối, nhìn
+ * như hệ thống từ chối người chơi ngẫu nhiên.
+ *
+ * ⚠ Hai số CỐ Ý khác nhau (K8s `0`, Git `1`). Đừng "dọn" thành một hằng chung:
+ * `1` của Git khớp mặc định của `createGitSession` (`git/engine.ts:99`), và đổi
+ * nó nghĩa là lượt chấm OJ dựng thế giới khác mọi đường git còn lại của repo.
+ * Lý do đầy đủ ghi tại chỗ khai của từng hằng.
+ */
+export { K8S_UNSEEDED_REPLAY_SEED } from './k8s/problem-plugin.ts';
+export { GIT_UNSEEDED_REPLAY_SEED } from './git/problem-plugin.ts';
+
+/*
+ * `ProblemPluginRegistry` đã ở trên; không có tên phần tử thì consumer cầm được
+ * bảng mà không gọi tên được thứ trong bảng.
+ */
+export type { ErasedProblemPlugin } from './core/problem-plugin.ts';
+
 // ── Chấm điểm ───────────────────────────────────────────────────────────────
 /*
  * Mở export 2026-09-08 theo yêu cầu của tầng máy chủ OJ, và lý do đáng ghi lại.
