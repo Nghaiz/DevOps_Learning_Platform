@@ -414,6 +414,58 @@ export const problem = {
   'problem.cluster-json-fields-loi-cu-phap': 'lỗi cú pháp',
   'problem.resource-cpu': 'CPU (milli-core)',
   'problem.resource-service-account': 'ServiceAccount',
+
+  /*
+   * Chu de bai tap cua game Git (18.A.5).
+   *
+   * Tam muc, tap dong, doi xung voi chin muc `problem.topic.*` cua K8s o dau
+   * file. Id trong ma de tran (`branching`) vi cong kiem luon tra theo `gameId`
+   * cua bai; khoa chu thi phai co doan `git` vi goi copy la mot khong gian ten
+   * phang cho ca du an, va `problem.topic.config` da co chu roi.
+   *
+   * Ghi bang chu khong dau trong khoi chu thich nay la co y: goi `packages/copy`
+   * cam go thang ba ky tu gach dai U+2014 / U+2013 / U+2015 o BAT KY dau trong
+   * file, ke ca chu thich, va bo quet T1a doc ca file duoi dang van ban.
+   */
+  'problem.topic.git.commit': 'Commit và object',
+  'problem.topic.git.branching': 'Nhánh và con trỏ',
+  'problem.topic.git.merging': 'Gộp nhánh',
+  'problem.topic.git.history': 'Nắn lịch sử',
+  'problem.topic.git.remote': 'Kho từ xa',
+  'problem.topic.git.collaboration': 'Làm việc nhóm',
+  'problem.topic.git.conflict': 'Xung đột',
+  'problem.topic.git.recovery': 'Cứu hộ',
+
+  /*
+   * Nhan form soan `WorldSpec` cua bai Git (18.A.5).
+   *
+   * Gan het la o JSON, va `git/problem-plugin.ts` giai thich vi sao: `commits`
+   * la mot DO THI (cha tro vao id cua commit khac trong cung mang, nhanh va the
+   * tro nguoc vao nhung id do), nen mot bieu mau o phang khong kiem duoc rang
+   * tham chieu co that. Cau `help` vi vay phai noi ra hinh dang du lieu, khong
+   * chi dat mot cai ten.
+   */
+  'problem.git-spec.commits': 'Lịch sử commit',
+  'problem.git-spec.commits-help':
+    'Mảng JSON, cha đứng trước con. Mỗi mục cần id và message; parents là mảng id của các mục khác.',
+  'problem.git-spec.branches': 'Nhánh',
+  'problem.git-spec.branches-help': 'Object JSON: tên nhánh ngắn thành id commit trong lịch sử ở trên.',
+  'problem.git-spec.tags': 'Thẻ',
+  'problem.git-spec.head': 'HEAD',
+  'problem.git-spec.head-help':
+    'Tên nhánh ngắn, hoặc {"detached": "<id commit>"}. Để trống nghĩa là main.',
+  'problem.git-spec.worktree': 'File trong thư mục làm việc',
+  'problem.git-spec.worktree-help':
+    'Object JSON: đường dẫn file thành nội dung. Dùng cho file chưa được track.',
+  'problem.git-spec.staged': 'File đã staged sẵn',
+  'problem.git-spec.staged-help': 'Mảng JSON các đường dẫn file. Dùng để dựng bài về reset.',
+  'problem.git-spec.origin': 'Kho từ xa',
+  'problem.git-spec.origin-help':
+    'Origin và ref theo dõi của local. Hai thứ này cố ý tách nhau: origin/main là thứ local NHỚ, không phải thứ origin đang có.',
+  'problem.git-spec.bots': 'Đồng đội tự động',
+  'problem.git-spec.bots-help': 'Hành động của bot theo đồng hồ logic. Dùng cho bài làm việc nhóm.',
+  'problem.git-spec.author': 'Tên tác giả commit',
+  'problem.git-spec.author-help': 'Để trống thì dùng "Bạn".',
 } as const satisfies Surface<'problem'>;
 
 export const problemIntentionalThree = {} as const satisfies IntentionalThree;
