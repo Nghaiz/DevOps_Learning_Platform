@@ -2,7 +2,8 @@ import Link from 'next/link';
 import type { ReactElement } from 'react';
 import { renderCopy, t } from '@devops-platform/copy';
 import { Badge, Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@devops-platform/ui';
-import { PROBLEM_TOPIC_LABELS, type ProblemWithStats } from '@devops-platform/games';
+import { PROBLEM_TOPIC_LABELS } from '@devops-platform/games';
+import type { SolverProblemWithStats } from '../../../server/problems/solver';
 import { DifficultyBadge, ViewerStatusBadge } from './problem-badges';
 import { formatAcceptance, formatTimeLimit, joinTopics } from './problem-labels';
 
@@ -24,7 +25,7 @@ const TAGS_SHOWN = 3;
  * legend là nhãn của bộ lọc, một `col` là tên cột, và dùng chung khoá nghĩa là
  * sửa nhãn bộ lọc thì tiêu đề bảng đổi theo mà không ai định thế.
  */
-export function ProblemsTable({ items }: { readonly items: readonly ProblemWithStats[] }): ReactElement {
+export function ProblemsTable({ items }: { readonly items: readonly SolverProblemWithStats[] }): ReactElement {
   return (
     <Table>
       <TableCaption>{t('catalog.problems.table-caption')}</TableCaption>

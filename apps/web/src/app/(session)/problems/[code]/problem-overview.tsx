@@ -5,10 +5,10 @@ import { renderCopy, t } from '@devops-platform/copy';
 import { Alert, AlertDescription, Badge, Button, MarkdownView } from '@devops-platform/ui';
 import {
   PROBLEM_TOPIC_LABELS,
-  type ProblemForSolver,
   type ProblemStats,
   type ProblemViewerStatus,
 } from '@devops-platform/games';
+import type { SolverProblem } from '../../../../server/problems/solver';
 import { DifficultyBadge, ViewerStatusBadge } from '../problem-badges';
 import { formatAcceptance, formatTimeLimit } from '../problem-labels';
 
@@ -17,7 +17,12 @@ import { formatAcceptance, formatTimeLimit } from '../problem-labels';
  * trường. Không state — mọi thứ đến từ props.
  */
 export function ProblemOverview(props: {
-  readonly problem: ProblemForSolver;
+  /**
+   * ⚠ `SolverProblem`, KHÔNG phải `ProblemForSolver` của `packages/games`.
+   * Kiểu kia còn mang `objectives` (tức `check` + `args` của cách chấm) và
+   * trang này chưa bao giờ đọc tới nó. Xem `server/problems/solver.ts`.
+   */
+  readonly problem: SolverProblem;
   readonly stats: ProblemStats;
   readonly viewerStatus: ProblemViewerStatus | null;
 }): ReactElement {

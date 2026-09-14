@@ -8,6 +8,7 @@ import { api } from '../../../../lib/trpc-react';
 import { describeTrpcError, trpcErrorCode } from '../../../../lib/trpc';
 import { ProblemOverview } from './problem-overview';
 import { ProblemHints } from './problem-hints';
+import { ProblemTestcases } from './problem-testcases';
 import { ProblemSubmissions } from './problem-submissions';
 
 /** Trang chi tiết chỉ hiện trang đầu lịch sử nộp — xem lý do ở `ProblemSubmissions`. */
@@ -97,6 +98,14 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
   return (
     <Shell>
       <ProblemOverview problem={problem} stats={stats} viewerStatus={viewerStatus} />
+      {/*
+        §18.B.4 — danh sách testcase. Nhãn của testcase ẩn đã bị MÁY CHỦ cắt
+        trước khi tới đây (`server/problems/solver.ts`), nên component chỉ vẽ
+        thứ nó nhận được. Đặt trên phần gợi ý vì nó là một phần của ĐỀ BÀI:
+        người làm cần biết bài chấm bằng bao nhiêu testcase trước khi quyết
+        định có mua gợi ý hay không.
+      */}
+      <ProblemTestcases testcases={problem.testcases} />
       <ProblemHints
         hints={problem.hints}
         pendingHintId={reveal.isPending ? (reveal.variables?.hintId ?? null) : null}

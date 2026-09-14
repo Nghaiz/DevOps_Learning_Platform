@@ -512,6 +512,45 @@ export const catalog = {
   'catalog.problem.subs-failed': 'Chưa đạt',
   'catalog.problem.subs-more': 'Còn lượt nộp cũ hơn không hiện ở trang này.',
 
+  /*
+    ── Testcase (18.B.4) ───────────────────────────────────────────────────
+
+    Nhãn testcase ẩn KHÔNG nằm ở đây và không thể nằm ở đây: nó là nội dung
+    của từng bài, do tác giả viết, và máy chủ chỉ gửi nó xuống sau khi người
+    làm đã nộp. Chỗ này chỉ có chữ của KHUNG.
+  */
+  'catalog.problem.tests-title': 'Testcase',
+  'catalog.problem.tests-count': (p: { total: number }) =>
+    `Bài này chấm bằng ${p.total} testcase. Phải qua hết mới được AC.`,
+  'catalog.problem.tests-hidden-note': (p: { hidden: number }) =>
+    `${p.hidden} testcase bị ẩn: bạn chỉ thấy tên chúng sau khi nộp bài.`,
+  'catalog.problem.tests-hidden-why':
+    'Testcase ẩn để một lượt nộp không trở thành một lượt dò đáp án.',
+  'catalog.problem.tests-hidden-item': 'Chưa hiện, nộp bài rồi mới thấy',
+  'catalog.problem.tests-hidden-badge': 'Ẩn',
+  'catalog.problem.tests-empty': 'Bài này chưa có testcase nào nên chưa chấm được.',
+
+  /*
+    ── Verdict (18.B.3, 18.B.5) ────────────────────────────────────────────
+
+    Ba nhãn vì `PROBLEM_VERDICTS` có đúng ba giá trị, xem catalogIntentionalThree.
+
+    ⛔ `WA` KHÔNG có bản không mẫu số. Mẫu số là thứ nói cho người làm biết họ
+    còn cách bao xa, nên nó nằm TRONG câu chứ không ghép ngoài JSX. Và `CE` cố
+    ý KHÔNG nhận tham số nào: lượt chơi không chạy tới nơi thì `passed`/`total`
+    không nói lên gì, nên không có phân số nào để in.
+  */
+  'catalog.problem.verdict-ac': 'AC',
+  'catalog.problem.verdict-wa': (p: { passed: number; total: number }) =>
+    `WA (${p.passed}/${p.total})`,
+  'catalog.problem.verdict-ce': 'CE',
+  'catalog.problem.verdict-ac-note': 'Qua hết testcase.',
+  'catalog.problem.verdict-wa-note': (p: { failed: number }) =>
+    `Còn ${p.failed} testcase chưa qua:`,
+  'catalog.problem.verdict-ce-note': 'Lượt chơi không chạy tới nơi nên chưa chấm được.',
+  'catalog.problem.verdict-region': 'Kết quả lượt nộp',
+  'catalog.problem.verdict-unnamed': 'Testcase ẩn chưa hiện tên',
+
   // ── Chi tiết một lộ trình (`/paths/[id]`) ─────────────────────────────
   //
   // Ổ khoá vẽ trên màn này là HÌNH ẢNH của một luật chạy ở server, không phải
@@ -642,6 +681,8 @@ export const catalogIntentionalThree = {
     '2026-09-10: đúng ba runtime tồn tại trong hợp đồng dữ liệu SandboxTierName (sysbox, gvisor, kata), kiểm tại packages/shared-types/src/scenario.ts. Hạng thứ tư nào cũng phải sửa schema trước, và lúc đó nhóm này thôi là ba.',
   'catalog.status':
     '2026-09-10: đúng ba trạng thái tồn tại trong PROGRESS_STATUSES tại apps/web/src/server/trpc/routers/lessons.ts dòng 61 (not-started, in-progress, completed). Trang danh mục đọc thẳng giá trị đó, nên nhóm này bằng đúng miền dữ liệu chứ không phải một lựa chọn trình bày.',
+  'catalog.problem.verdict':
+    '2026-09-14: đúng ba verdict tồn tại trong PROBLEM_VERDICTS tại packages/games/src/core/problem.ts (AC, WA, CE). Hợp đồng nói thẳng vì sao KHÔNG có TLE/RE/MLE: game chạy trên một thế giới mô phỏng trong trình duyệt, không có tiến trình để hết giờ và không có bộ nhớ để tràn. Nhãn thứ tư nào cũng phải sửa union trước, và lúc đó nhóm này thôi là ba.',
   'catalog.error-hint':
     '2026-09-10: đúng ba câu vì CatalogErrorKind là union đóng ba nhánh (retryable, stale-cursor, unknown) tại apps/web/src/components/catalog/catalog-error-kind.ts. Hai lớp lỗi đòi hành động ngược nhau và nhánh thứ ba cố ý nói ít; thêm một câu thứ tư là thêm một nhánh phân loại, không phải thêm một câu.',
 } as const satisfies IntentionalThree;

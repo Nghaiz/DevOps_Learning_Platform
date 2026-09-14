@@ -3,6 +3,7 @@ import {
   isVerified,
   tallyLog,
   verifyRun,
+  type GradeResult,
   type Problem,
   type ProblemSubmission,
   type RunLog,
@@ -14,6 +15,8 @@ import { problemSubmissions } from '../db/schema';
 import { toSubmissionDTO } from './dto';
 import { hintIdsFromLog, isSolved, problemReplayEngine, expectedLogLevelId } from './replay';
 import { revealedHintsForOne } from './reveals';
+import { problemTestcases } from './testcases';
+import { gradeOf } from './verdict-view';
 
 /** Trần của `integer` Postgres — vượt là `22003`, tức 500 thay vì một câu nói được. */
 const PG_INT4_MAX = 2_147_483_647;
@@ -24,6 +27,20 @@ export interface SubmitProblemResult {
   readonly verifyStatus: VerifyStatus;
   /** Chi tiết máy móc để ghi log và để gỡ lỗi — KHÔNG phải nhãn cho người dùng. */
   readonly verifyDetail: string;
+  /**
+   * Verdict của lượt vừa nộp — §18.B.3 và §18.B.5.
+   *
+   * ⚠ KHÔNG được lưu xuống DB, và điều đó có hệ quả phải biết: `passed`/`total`
+   * ở đây là số ĐÚNG tại thời điểm này, nhưng bảng `problem_submissions` chưa
+   * có cột nào chở chúng, nên lịch sử nộp bài KHÔNG đọc lại được `WA (4/5)`.
+   *
+   * Hợp đồng `core/problem.ts` § `Submission` nói rõ vì sao hai trường đó phải
+   * là SỰ THẬT LỊCH SỬ chốt tại thời điểm nộp chứ không suy lại từ bài hôm nay:
+   * một lượt `WA (4/5)` hôm nay sẽ tự đọc thành `WA (4/7)` sau khi tác giả thêm
+   * hai case. Cột `passed text[]` + `total integer` nằm ở `db/schema.ts`, file
+   * lane này không sở hữu. Đã báo lead.
+   */
+  readonly grade: GradeResult;
 }
 
 /**
@@ -108,6 +125,7 @@ export async function submitProblem(
     submission: toSubmissionDTO(row),
     verifyStatus: verdict.status,
     verifyDetail: verdict.detail,
+    grade: gradeOf(verdict.status, passedTestcaseIds(problem, claimed), testcaseTotal(problem)),
   };
 }
 
@@ -128,4 +146,37 @@ function claimedDurationSeconds(claimed: RunResult): number {
     return 0;
   }
   return Math.min(Math.round(millis / 1000), PG_INT4_MAX);
+}
+
+/**
+ * Id các testcase ĐÃ QUA của lượt này.
+ *
+ * ⛔ Chỉ trả tập thật khi phát lại ĐÃ XÁC MINH — `gradeOf` là chỗ ép điều đó, và
+ * nó bỏ tập này đi ở mọi nhánh khác. Lý do phải nói ra: `claimed.objectivesMet`
+ * là LỜI KHAI của client, và nó chỉ trở thành sự thật sau khi `verifyRun` chứng
+ * minh phát lại ra đúng con số đã khai. Đọc nó mà không qua cổng đó là tin
+ * client — đúng thứ mà cả `submit.ts` này tồn tại để không làm.
+ *
+ * Khử trùng bằng `Set`: một engine trả id trùng sẽ đẩy `passed.length` vượt
+ * `total` và cho ra `AC` cho một lượt chưa qua hết.
+ */
+function passedTestcaseIds(problem: Problem, claimed: RunResult): readonly string[] {
+  const ids = new Set(problem.objectives.map((objective) => objective.id));
+  // Lọc theo id THẬT của bài: một nhật ký thuộc bản đề cũ có thể mang id không
+  // còn tồn tại, và đếm nó vào mẫu số hôm nay là đếm một testcase đã bị xoá.
+  return [...new Set(claimed.objectivesMet)].filter((id) => ids.has(id));
+}
+
+/**
+ * Mẫu số của `n/m`.
+ *
+ * Đếm MỌI testcase, không chỉ những cái `required` — và đó là chỗ mô hình
+ * testcase khác mô hình objective. `core/problem.ts` § `Testcase` nói thẳng:
+ * *"Một testcase thì luôn chặn — đó là nghĩa của `AC`."* Cột `solved` bên dưới
+ * vẫn đếm theo `required` (hành vi cũ, một câu hỏi khác), nên hai số có thể
+ * lệch nhau ở bài có mục tiêu thưởng: `solved: true` mà verdict `WA`. Đó là hợp
+ * đồng mới nói đúng, không phải một lỗi.
+ */
+function testcaseTotal(problem: Problem): number {
+  return problemTestcases(problem.objectives).length;
 }
