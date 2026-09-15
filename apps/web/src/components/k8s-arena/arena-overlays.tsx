@@ -185,16 +185,27 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
 
   useRecordWin(level, engine, props.startedAt);
   /*
-   * Nộp bài về máy chủ — CHỈ ở chế độ bài tập. Hook tự trả `idle` khi
-   * `mode.problem` là `null`, nên nó gọi vô điều kiện ở đây: một hook gọi
-   * sau một nhánh `if` là thứ React cấm, và chế độ có thể đổi khi người chơi
-   * rời bài tập về chơi màn thường.
+   * ⛔ `useProblemSubmit` KHÔNG còn được gọi ở đây — chuyển vào
+   * `ProblemSubmitPanel`, thứ chỉ mount ở chế độ bài tập. Review đối kháng
+   * 2026-09-15 đo ra vì sao, và nó là một lỗi CÓ TỪ TRƯỚC ba commit của lượt
+   * này chứ không phải một hồi quy của chúng:
    *
-   * KHÔNG nhận `level` nữa: lời khai dựng từ `mode.problem` (đề bài), không từ
-   * level tổng hợp. Truyền `level` vào đây từng là đường `buildRunResult` đi, và
-   * đó chính là chỗ công thức điểm lệch khỏi máy chủ.
+   * Hook gọi `api.useUtils()`, và `@trpc/react-query@11.18.0` NÉM
+   * `"Unable to find tRPC Context"` khi không có provider (đo trực tiếp bằng
+   * `renderHook`, không suy từ tài liệu). `app/games/layout.tsx` cố ý không cấp
+   * provider, nên ở chế độ LEVEL — đường `/games/k8s` không có `?problem=` —
+   * lời gọi vô điều kiện ấy làm cả đấu trường ném ngay lúc render.
+   *
+   * Chú thích cũ ở đây khai *"hook tự trả `idle` khi `mode.problem` là `null`"*.
+   * Lời khai đó sai: hook ném ở dòng `api.useUtils()`, tức TRƯỚC khi tới được
+   * nhánh trả `idle`. Một chú thích mô tả một nhánh không với tới được là cách
+   * một lỗi sống sót qua nhiều lượt đọc.
+   *
+   * Luật hook vẫn nguyên: hook được gọi VÔ ĐIỀU KIỆN bên trong
+   * `ProblemSubmitPanel`; thứ có điều kiện là việc RENDER panel — React cho
+   * phép, và đó là khuôn duy nhất vừa giữ luật hook vừa không đòi provider ở
+   * chế độ level.
    */
-  const submitState = useProblemSubmit(engine, mode, props.startedAt);
   /*
    * Lịch sử số liệu thu ở ĐÂY, không thu trong `MetricsPanel`. Dải trên thanh
    * trên cùng luôn hiện nên mẫu phải được thu dù bảng có mở hay không; thu ở hai
@@ -370,7 +381,14 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
         />
       ) : null}
 
-      {mode.mode === 'problem' ? <ProblemSubmitPanel state={submitState} /> : null}
+      {/*
+        Panel tự gọi `useProblemSubmit` — xem khối chú thích ở chỗ `useRecordWin`.
+        Nó chỉ mount ở chế độ bài tập, và chế độ đó là cây con DUY NHẤT có
+        `TrpcQueryProvider` (`arena-problem.tsx` tự cấp).
+      */}
+      {mode.mode === 'problem' ? (
+        <ProblemSubmitPanel engine={engine} mode={mode} startedAt={props.startedAt} />
+      ) : null}
     </div>
   );
 }

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { k8sOjClaim, k8sOjGradable, k8sOjLevel, type K8sOjProblem } from './problem-level';
 import { buildRunResult } from './run-result';
-import { problemAsLevel, problemScoreRun } from '../../server/problems/replay';
+import { hintIdsFromLog, problemAsLevel, problemScoreRun } from '../../server/problems/replay';
 import type { StoredProblem } from '../../server/problems/dto';
 import type { RunLog, SessionStatus } from '@devops-platform/games';
-import { tallyLog } from '@devops-platform/games';
+import { PREDICATE_NAMES, tallyLog } from '@devops-platform/games';
 
 /**
  * Nửa CLIENT của hợp đồng §18.C cho game K8s.
@@ -78,8 +78,8 @@ const PROBLEM_JSON = `{
   "allowedResources": null,
   "parMoves": 4,
   "testcases": [
-    { "id": "t1", "label": "web co 3 ban sao", "check": "replicasAtLeast", "args": { "name": "web", "min": 3 }, "visible": true },
-    { "id": "t2", "label": "khong pod nao loi", "check": "noCrashLoop", "visible": false }
+    { "id": "t1", "label": "web co 3 ban sao", "check": "replicas-at-least", "args": { "name": "web", "min": 3 }, "visible": true },
+    { "id": "t2", "label": "khong pod nao loi", "check": "all-pods-healthy", "visible": false }
   ],
   "hints": [
     { "id": "h1", "text": "Dung lenh scale.", "penaltyPoints": 120 },
@@ -243,6 +243,16 @@ describe('k8sOjLevel khớp problemAsLevel của máy chủ', () => {
     expect(hienThi.some((testcase) => testcase.visible)).toBe(true);
     expect(hienThi.some((testcase) => !testcase.visible)).toBe(true);
     expect(server.objectives[0]?.args).toEqual({ name: 'web', min: 3 });
+    /*
+     * Đối chứng: tên vị từ trong fixture phải THẬT CÓ trong bảng `PREDICATES`.
+     * Một tên bịa (`replicasAtLeast` kiểu camelCase) vẫn làm mọi ô trên xanh —
+     * hai bản dựng chỉ CHÉP chuỗi đó qua — nhưng nó biến fixture thành một bài
+     * mà engine không bao giờ chấm được, và ô nào sau này chạy engine thật trên
+     * fixture này sẽ xanh vì không mục tiêu nào đạt ở CẢ HAI phía.
+     */
+    for (const objective of server.objectives) {
+      expect(PREDICATE_NAMES).toContain(objective.check);
+    }
   });
 
   it('nhãn testcase ẩn không bao giờ là chuỗi rỗng', () => {
@@ -301,7 +311,15 @@ describe('k8sOjClaim khớp cách chấm của máy chủ', () => {
      * đóng lại từ tập đã tính trước khi phát lại. Gợi ý `h1` mở trong nhật ký.
      */
     const status = { objectivesMet } as unknown as SessionStatus;
-    const diemMayChu = problemScoreRun(baiMayChu(), ['h1'])(status, tallyLog(LOG));
+    /*
+     * `revealedHintIds` suy bằng chính hàm của MÁY CHỦ (`hintIdsFromLog`), không
+     * chép hằng `['h1']`. Một hằng chép tay chỉ khẳng định lại niềm tin của
+     * người viết; gọi hàm kia làm ô này so HAI phép suy id gợi ý với nhau, tức
+     * bắt được cả lệch ở phép ánh xạ chỉ-số→id chứ không chỉ lệch ở công thức.
+     */
+    const idMayChu = hintIdsFromLog(baiMayChu(), LOG);
+    expect(idMayChu).toEqual(['h1']);
+    const diemMayChu = problemScoreRun(baiMayChu(), idMayChu)(status, tallyLog(LOG));
 
     expect(claim.score).toBe(diemMayChu);
   });

@@ -232,7 +232,7 @@ function toRowValues(body: ProblemBody) {
 }
 
 /**
- * Đổi `gameId` chỉ được phép khi bài CHƯA có ai nộp.
+ * `gameId` KHÔNG đổi được sau khi bài đã tạo — vô điều kiện.
  *
  * ## Vì sao cần cổng này, và vì sao nó xuất hiện muộn
  *

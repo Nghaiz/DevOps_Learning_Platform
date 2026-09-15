@@ -4,7 +4,9 @@ import type { ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
 import { Button } from '@devops-platform/ui';
 import { ProblemVerdict } from '../../../app/(session)/problems/[code]/problem-verdict';
-import type { ProblemSubmitState } from '../use-problem-submit';
+import { useProblemSubmit } from '../use-problem-submit';
+import type { ArenaModeContext } from '../arena-contract';
+import type { ArenaSessionHandle } from '../arena-session';
 
 /**
  * Bảng nộp bài của chế độ bài tập — chỗ duy nhất trong ứng dụng hiện verdict
@@ -23,8 +25,31 @@ import type { ProblemSubmitState } from '../use-problem-submit';
  * ⚠ `pointer-events-auto` là bắt buộc — vỏ ngoài của `ArenaOverlays` đặt
  * `pointer-events-none`, nên không bật lại thì nút "Nộp bài" bấm không được và
  * không có gì cho thấy vì sao.
+ *
+ * ## ⛔ Component này GỌI hook, không nhận `state` từ ngoài — sửa 2026-09-15
+ *
+ * `ArenaOverlays` từng gọi `useProblemSubmit` rồi truyền `state` xuống. Lời gọi
+ * đó là VÔ ĐIỀU KIỆN, nên nó cũng chạy ở chế độ LEVEL — nơi không có
+ * `TrpcQueryProvider` (`app/games/layout.tsx` cố ý không cấp). `api.useUtils()`
+ * NÉM trong ca đó (`@trpc/react-query@11.18.0`: *"Unable to find tRPC Context"*,
+ * đo trực tiếp bằng `renderHook`), tức cả đấu trường hỏng ngay lúc render ở
+ * đường `/games/k8s` thường.
+ *
+ * Đưa hook vào đây là cách duy nhất vừa giữ luật hook vừa không đòi provider ở
+ * chế độ level: hook gọi vô điều kiện TRONG component, còn việc render component
+ * thì có điều kiện — `ArenaOverlays` chỉ mount nó khi `mode.mode === 'problem'`,
+ * và cây con đó tự cấp provider (`arena-problem.tsx`).
  */
-export function ProblemSubmitPanel({ state }: { readonly state: ProblemSubmitState }): ReactElement {
+export function ProblemSubmitPanel({
+  engine,
+  mode,
+  startedAt,
+}: {
+  readonly engine: ArenaSessionHandle;
+  readonly mode: ArenaModeContext;
+  readonly startedAt: number;
+}): ReactElement {
+  const state = useProblemSubmit(engine, mode, startedAt);
   return (
     <section
       aria-label={t('catalog.problem.submit-region')}
