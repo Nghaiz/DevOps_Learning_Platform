@@ -212,6 +212,19 @@ jobs:
       - name: DB migrate (Drizzle)
         run: pnpm --filter @devops-platform/web db:migrate
 
+      # Job `web-a11y` học bài này từ run 34130030953 và đã seed từ lâu; job `ts`
+      # thì chưa cần — cho tới khi 18.G thêm `exams/authz.integration.test.ts`,
+      # thứ đòi một bài ĐÃ XUẤT BẢN có thật để dựng đề (một mã bịa sẽ bị cổng soạn
+      # đề từ chối, và cả suite sẽ đỏ vì một lý do không liên quan tới quyền).
+      #
+      # ⚠ Triệu chứng KHÔNG đọc ra là "thiếu seed": nó là `Error: DB test chưa có
+      # bài nào đã xuất bản` ném ở `beforeAll`, tức vitest báo FAIL ở mức TỆP chứ
+      # không ở mức một ô. Và nó không tái hiện được trên máy dựng, vì ở đó
+      # `dlp-postgres` đã được seed từ một đợt trước — chính là hình dạng "phép đo
+      # local mạnh hơn CI" mà `docs/` đã ghi.
+      - name: 'Nạp lộ trình + quiz + bài tập (không có nguồn đĩa)'
+        run: node scripts/seed-content.mjs
+
       # `typecheck` phải có mặt tường minh: từ khi alias TS6/TS7, `next build`
       # của apps/web type-check bằng JS API (shim TS6) — chỉ `tsc --noEmit` (TS7)
       # mới là cổng typecheck thật. Thiếu nó thì diff chẩn đoán chỉ-có-ở-TS7
