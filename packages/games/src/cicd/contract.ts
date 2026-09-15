@@ -784,8 +784,25 @@ export interface StepRecord {
 }
 
 /**
- * Vì sao một thực thể phải chờ. Đây là dữ liệu GHI LÚC XẾP LỊCH, không suy lại
- * được sau đó — và nó là thứ làm đường găng tính đúng.
+ * Ràng buộc **quyết định `startedTick`** của một thực thể. Dữ liệu GHI LÚC XẾP
+ * LỊCH, không suy lại được sau đó, và là thứ làm đường găng tính đúng.
+ *
+ * ⚠ SỬA 2026-09-16 (lead). Bản đầu mô tả trường này là "lý do nó không chạy
+ * ngay lúc `readyTick`". Đọc sát chữ đó thì một thực thể chạy đúng `readyTick`
+ * luôn là `none`, nên nhánh `dependency` KHÔNG BAO GIỜ xuất hiện, chuỗi đứt ở
+ * mọi thực thể không phải chờ máy, và câu ngay dưới đây trở thành bất khả thi.
+ * Cách đọc đúng là cách duy nhất làm cả hai nhánh có nghĩa:
+ *
+ * | Tình huống | Ghi |
+ * |---|---|
+ * | `startedTick > readyTick` (phải chờ máy) | `runner`, `instance` = thực thể vừa NHẢ chỗ |
+ * | Chạy đúng `readyTick` và CÓ phụ thuộc | `dependency`, `instance` = phụ thuộc XONG MUỘN NHẤT |
+ * | Không phụ thuộc gì, có máy ngay | `none` |
+ *
+ * Vế giữa nói "xong muộn nhất", KHÔNG phải phần tử đầu trong `dependsOn`: thứ
+ * tự trong mảng là thứ tự người chơi gõ, còn thứ quyết định `readyTick` là cái
+ * xong sau cùng. Hoà thì lấy `InstanceKey` nhỏ nhất theo mã đơn vị, cùng quy
+ * tắc so sánh với hàng đợi (§4 luật 2), không `localeCompare`.
  *
  * ⚠ Đường găng của một đường ống có máy chạy hữu hạn **không phải** đường dài
  * nhất trong DAG. Một stage có thể xong muộn vì nó chờ MÁY chứ không chờ phụ
@@ -795,10 +812,31 @@ export interface StepRecord {
  */
 export type BlockedBy =
   | { readonly kind: 'none' }
-  /** Chờ một thực thể khác xong. */
+  /** Phụ thuộc xong muộn nhất, tức cái đã định ra `readyTick`. */
   | { readonly kind: 'dependency'; readonly instance: InstanceKey }
-  /** Sẵn sàng rồi nhưng không còn máy. `instance` = thực thể đã chiếm chỗ. */
-  | { readonly kind: 'runner'; readonly instance: InstanceKey; readonly runnerClass: RunnerClassId };
+  /**
+   * Sẵn sàng rồi nhưng không còn máy. `instance` = thực thể đã chiếm chỗ.
+   *
+   * ⚠ `commitId` THÊM 2026-09-16 (lead) và nó không thừa. `InstanceKey` chỉ là
+   * `stageId` hoặc `stageId#axes`, không mang commit nào — nên trong một
+   * `PassRecord` nhiều commit, thực thể của commit SAU chờ máy do commit TRƯỚC
+   * giữ sẽ trỏ tới một khoá nằm ngoài `RunRecord.instances` của chính nó, và
+   * hai commit còn dùng y hệt chuỗi khoá nên không phân biệt được. Thiếu trường
+   * này thì đường găng cụt đúng ở những level dạy thông lượng, tức những level
+   * bắt buộc phải có ≥3 commit (§3).
+   *
+   * Điền commit của thực thể ĐANG GIỮ máy, không phải của thực thể đang chờ.
+   *
+   * Vì sao không nhét `commitId` vào chính `InstanceKey`: khoá đó vừa là khoá
+   * sắp hàng đợi vừa là một thành phần của `FlakeDrawKey`, nên đổi nó sẽ đổi
+   * mọi con xúc xắc và mọi thứ tự hàng đợi cùng lúc.
+   */
+  | {
+      readonly kind: 'runner';
+      readonly instance: InstanceKey;
+      readonly runnerClass: RunnerClassId;
+      readonly commitId: CommitId;
+    };
 
 export interface StageInstanceRecord {
   readonly instance: InstanceKey;
