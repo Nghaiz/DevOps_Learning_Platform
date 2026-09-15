@@ -86,12 +86,20 @@ gian lùi khác nhau, có test khẳng định thứ tự (blue-green < canary <
 | C.1 | Phân tích YAML → `WorkflowSpec`. `jobs`/`steps`/`needs`/`strategy.matrix`/`uses`/`continue-on-error`/`environment` | 4h |
 | C.2 | Ghi ngược `WorkflowSpec` → YAML (cần cho Level Builder và cho nút "gợi ý sửa") | 4h |
 | C.3 | Lỗi cú pháp trỏ về **đúng dòng, đúng cột** | 4h |
-| C.4 | Lỗi ngữ nghĩa trỏ về đúng dòng: `needs` trỏ job không tồn tại, DAG có chu trình, matrix rỗng | 4h |
+| C.4 | Lỗi ngữ nghĩa trỏ về đúng dòng: `needs` trỏ job không tồn tại, DAG có chu trình, matrix rỗng, **và hai job trùng tên** | 5h |
 | C.5 | Bước đầu giữ tên `checkout` đúng như GitHub Actions gọi — xem §0 (đã sửa 2026-09-16). Ba việc, theo đúng cơ chế THẬT: (a) engine + level viết đủ `actions/checkout`, vì `MASKS` đã che chuỗi đó — không dựa vào may rủi; (b) **chỉ khi** có một tên stage trần là `checkout` thật sự cần, mới thêm MỘT dòng `KEYWORD_EXEMPTIONS` cho `packages/games/src/cicd/` (và `content/games/cicd/theory/` nếu bài học cần), hẹp theo đúng một từ trên đúng một luật; (c) test khoá khẳng định **miễn trừ còn hiệu lực**, kèm đối chứng dương. ⛔ KHÔNG viết test khẳng định `packages/games/src` vắng mặt trong `ROOTS` — nó đang có mặt, test đó đỏ ngay ngày đầu, và gỡ nó khỏi `ROOTS` sẽ mở toang lại vùng mã mà `5c3815c` vừa đóng, mở toang trong im lặng. | 2h |
 | C.6 | Ranh giới: **chỉ tầng này biết GitHub Actions.** Có test khẳng định `cicd/contract.ts` và `cicd/engine.ts` không chứa chuỗi `uses:`, `actions/`, `runs-on`. | 2h |
 
 **AC-C:** một workflow YAML thật (lấy từ chính `.github/workflows/` của repo, rút gọn) đọc được
-· C.6 xanh, có đối chứng dương.
+· C.6 xanh, có đối chứng dương · **C.4 từ chối được một YAML có hai job trùng tên**.
+
+> ⚠ **Vì sao "hai job trùng tên" là việc của 19.C chứ không của engine** (phát hiện lúc làm
+> 19.A.3, 2026-09-16). `WorkflowSpec.stages` là một mảng, nên hai mục cùng `id` là hình dạng
+> hợp lệ về kiểu, và YAML thì làm ra nó dễ dàng. Engine không có đường xử lý đúng: chọn một
+> mục là bịa ngữ nghĩa, bỏ một mục là bỏ sót cạnh và có thể bỏ sót luôn một chu trình. Hiện
+> `graph.ts` lấy **hợp các cạnh** của mọi mục trùng id và ghim hành vi đó bằng test — đó là
+> lựa chọn an toàn nhất trong các lựa chọn sai, không phải lời giải. Lời giải là chặn ở biên,
+> nơi YAML thành `WorkflowSpec`, trước khi engine nhìn thấy nó.
 
 ### 19.D — Tầng 3D (L, ~1 tuần)
 
