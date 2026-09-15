@@ -10,6 +10,7 @@ import {
   verdictOf,
   type GitEngineSession,
   type GitLevel,
+  type LevelDraft,
   type ObjectiveResult,
   type TheoryDoc,
 } from '@devops-platform/games';
@@ -58,14 +59,52 @@ export interface GitGameProps {
 export function GitGame({ theory, initialLevelId }: GitGameProps): ReactElement {
   const [levelId, setLevelId] = useState<string | null>(initialLevelId);
   const [sandbox, setSandbox] = useState(false);
+  /*
+   * ⚠ Bản nháp của Level Builder (§18.E) sống Ở ĐÂY, không trong `GitSandbox`.
+   *
+   * Nó từng sống trong `GitSandbox`, và chỗ đó đủ đúng cho tới lúc có E.6: "chơi
+   * thử" THAY màn sandbox bằng `GitLevelScreen`, nên `GitSandbox` **unmount**, và
+   * mọi state của nó biến mất. Người soạn bấm chơi thử một lần là mất sạch đề bài.
+   *
+   * Đường lùi còn lại là giữ `GitSandbox` mounted rồi ẩn bằng CSS, và đường đó có
+   * một cái bẫy đã ghi trong dự án: `hidden` thua một utility `display` khác ở
+   * cùng mức đặc hiệu, nên phần tử vẫn hiện mà không báo gì. Nâng state lên đây
+   * rẻ hơn và không dựa vào thứ tự luật CSS.
+   *
+   * `trial` là level đang chơi thử. Nó KHÔNG nằm trong `GIT_LEVELS` — đó chính là
+   * điểm của E.6 — nên đường vào nó là state này chứ không phải `?level=`.
+   */
+  const [draft, setDraft] = useState<LevelDraft | null>(null);
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [trial, setTrial] = useState<GitLevel | null>(null);
+
   const level = useMemo(
     () => GIT_LEVELS.find((l) => l.id === levelId) ?? null,
     [levelId],
   );
 
+  if (trial !== null) {
+    return (
+      <GitLevelScreen
+        key={trial.id}
+        level={trial}
+        theory={theory.find((d) => d.frontmatter.id === trial.theoryId) ?? null}
+        trial={{ solutionCommands: trial.solutionCommands }}
+        exitLabel="← Về Builder"
+        onExit={() => {
+          setTrial(null);
+        }}
+      />
+    );
+  }
   if (sandbox) {
     return (
       <GitSandbox
+        draft={draft}
+        onDraftChange={setDraft}
+        builderOpen={builderOpen}
+        onBuilderOpenChange={setBuilderOpen}
+        onPlayTest={setTrial}
         onExit={() => {
           setSandbox(false);
         }}
@@ -256,9 +295,27 @@ interface LevelScreenProps {
   readonly level: GitLevel;
   readonly theory: TheoryDoc | null;
   readonly onExit: () => void;
+  /**
+   * Có mặt ⇒ đây là lượt CHƠI THỬ một level vừa dựng bằng Builder (§18.E.6), và
+   * màn hiện thêm nút chạy lời giải mẫu.
+   *
+   * Vì sao là một prop chứ không phải một màn riêng: chơi thử phải đi qua ĐÚNG
+   * màn người chơi thật sẽ thấy, nếu không thì "chơi được" chỉ đúng với bản sao.
+   * Và nó chở `solutionCommands` riêng thay vì đọc `level.solutionCommands` để
+   * chỗ gọi nói rõ ý định — một level phát hành cũng có trường đó, nhưng màn chơi
+   * bình thường KHÔNG được mọc ra nút chạy lời giải.
+   */
+  readonly trial?: { readonly solutionCommands: readonly string[] };
+  readonly exitLabel?: string;
 }
 
-function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactElement {
+function GitLevelScreen({
+  level,
+  theory,
+  onExit,
+  trial,
+  exitLabel,
+}: LevelScreenProps): ReactElement {
   /*
    * ⚠ Phiên giữ trong `useRef`, KHÔNG trong `useState`.
    *
@@ -351,6 +408,21 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
     redraw();
   }, [session, redraw]);
 
+  /*
+   * Chạy lời giải mẫu qua ĐÚNG `session.run` mà người chơi đi qua, từng lệnh một.
+   *
+   * KHÔNG gọi `checkSolvable`: hàm đó dựng một phiên RIÊNG để trả một báo cáo, và
+   * nó đã có nút của nó ở §E.7. Ở đây người soạn muốn NHÌN chuỗi lệnh chạy trên
+   * chính cây họ đang xem — bản ghi lệnh, ô kết quả và đồ thị đều phải nhúc nhích.
+   * Gọi `checkSolvable` sẽ để màn hình y nguyên và chỉ ô kết quả đổi, tức trả lời
+   * một câu hỏi khác câu người soạn đang hỏi.
+   */
+  const runSolution = useCallback(() => {
+    if (trial === undefined) return;
+    for (const command of trial.solutionCommands) session.run(command);
+    redraw();
+  }, [trial, session, redraw]);
+
   return (
     <div className="flex h-full flex-col">
       {/* ── Thanh trên ─────────────────────────────────────────────────── */}
@@ -360,12 +432,22 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
           onClick={onExit}
           className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
-          ← Danh sách level
+          {exitLabel ?? '← Danh sách level'}
         </button>
         <span className="text-sm font-medium text-foreground">
           {CHAPTER_TITLE[level.chapter]} · {level.title}
         </span>
         <span className="ml-auto flex items-center gap-3">
+          {trial !== undefined && (
+            <button
+              type="button"
+              onClick={runSolution}
+              data-testid="git-run-solution"
+              className="rounded-md border border-input px-3 py-1 text-xs text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              Chạy lời giải mẫu
+            </button>
+          )}
           <span
             className="text-xs text-muted-foreground"
             aria-live="polite"

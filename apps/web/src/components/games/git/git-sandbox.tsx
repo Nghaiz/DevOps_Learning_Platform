@@ -16,6 +16,7 @@ import {
   withoutOrigin,
   worldToSpec,
   type GitEngineSession,
+  type GitLevel,
   type LevelDraft,
   type SandboxScenario,
   type WorldSpec,
@@ -48,26 +49,32 @@ import { buildSceneLayouts, type SceneView } from '../shared/scene-props';
 
 export interface GitSandboxProps {
   readonly onExit: () => void;
+  /**
+   * Bản nháp của Level Builder (§18.E). `null` = chưa mở Builder lần nào.
+   *
+   * ⚠ State NÂNG LÊN `GitGame` chứ không giữ ở đây, và lý do nằm ở E.6: "chơi
+   * thử" thay màn sandbox bằng `GitLevelScreen`, nên component này **unmount** và
+   * mọi state của nó biến mất. Khối chú thích ở `git-game.tsx` ghi đủ.
+   */
+  readonly draft: LevelDraft | null;
+  readonly onDraftChange: (next: LevelDraft) => void;
+  readonly builderOpen: boolean;
+  readonly onBuilderOpenChange: (open: boolean) => void;
+  readonly onPlayTest: (level: GitLevel) => void;
 }
 
-export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
+export function GitSandbox({
+  onExit,
+  draft,
+  onDraftChange,
+  builderOpen,
+  onBuilderOpenChange,
+  onPlayTest,
+}: GitSandboxProps): ReactElement {
   const [scenario, setScenario] = useState<SandboxScenario>('kho-roi');
   const [spec, setSpec] = useState<WorldSpec>(() => sandboxSpec('kho-roi'));
   const [problem, setProblem] = useState<string | null>(null);
   const [importText, setImportText] = useState('');
-  /*
-   * ⚠ Bản nháp sống Ở ĐÂY chứ không trong `GitLevelBuilder`, và trạng thái
-   * ĐÓNG/MỞ là một biến RIÊNG chứ không phải `draft === null`.
-   *
-   * Hai quyết định, cùng một lý do. Bản nháp phải sống sót qua mọi lần đổi kịch
-   * bản / bật tắt origin / nhập cây — tức qua mọi lần dựng lại phiên — vì "dựng
-   * cây đích" là thao tác thường gặp nhất ở màn này và nó đi qua đúng những nút
-   * đó. Và đóng bảng Builder phải là ẩn đi, không phải vứt đi: gộp hai trạng
-   * thái vào một biến làm một lần bấm nhầm xoá sạch đề bài đang soạn, không hỏi
-   * lại, không hoàn tác được.
-   */
-  const [draft, setDraft] = useState<LevelDraft | null>(null);
-  const [builderOpen, setBuilderOpen] = useState(false);
 
   /*
    * `generation` là thứ DUY NHẤT quyết định khi nào dựng lại phiên.
@@ -145,10 +152,17 @@ export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
   // Chụp lúc BẤM, không chụp lúc render — xem `GitLevelBuilderProps.captureSpec`.
   const captureSpec = useCallback((): WorldSpec => worldToSpec(session.getWorld()), [session]);
 
+  /*
+   * ⚠ ĐÓNG/MỞ là một biến RIÊNG, không phải `draft === null`.
+   *
+   * Gộp hai thứ vào một biến rẻ hơn một dòng và biến một lần bấm nhầm thành xoá
+   * sạch đề bài đang soạn: không hỏi lại, không hoàn tác được. Nên đóng bảng là
+   * ẩn đi, và bản nháp ở lại.
+   */
   const toggleBuilder = useCallback(() => {
-    setDraft((current) => current ?? emptyDraft(worldToSpec(session.getWorld())));
-    setBuilderOpen((open) => !open);
-  }, [session]);
+    if (draft === null) onDraftChange(emptyDraft(worldToSpec(session.getWorld())));
+    onBuilderOpenChange(!builderOpen);
+  }, [draft, onDraftChange, builderOpen, onBuilderOpenChange, session]);
 
   return (
     <div className="flex h-full flex-col">
@@ -192,7 +206,12 @@ export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
           data-testid="git-sandbox-panel"
         >
           {builderOpen && draft !== null && (
-            <GitLevelBuilder captureSpec={captureSpec} draft={draft} onDraftChange={setDraft} />
+            <GitLevelBuilder
+              captureSpec={captureSpec}
+              draft={draft}
+              onDraftChange={onDraftChange}
+              onPlayTest={onPlayTest}
+            />
           )}
 
           <section aria-labelledby="sandbox-kich-ban">

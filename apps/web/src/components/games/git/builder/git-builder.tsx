@@ -14,6 +14,7 @@ import {
   levelFromJson,
   levelToJson,
   type DraftIssue,
+  type GitLevel,
   type GitObjective,
   type GitPredicateName,
   type LevelDraft,
@@ -62,12 +63,21 @@ export interface GitLevelBuilderProps {
   readonly captureSpec: () => WorldSpec;
   readonly draft: LevelDraft;
   readonly onDraftChange: (next: LevelDraft) => void;
+  /**
+   * E.6 — mở level vừa dựng bằng ĐÚNG màn chơi mà người chơi thật sẽ thấy.
+   *
+   * Nhận một `GitLevel` chứ không nhận bản nháp: chỗ gọi chỉ được mời chơi thử
+   * một thứ đã qua `draftToLevel`, nên "chơi thử một level còn lỗi" không diễn
+   * đạt được ở tầng kiểu.
+   */
+  readonly onPlayTest: (level: GitLevel) => void;
 }
 
 export function GitLevelBuilder({
   captureSpec,
   draft,
   onDraftChange,
+  onPlayTest,
 }: GitLevelBuilderProps): ReactElement {
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
@@ -238,11 +248,29 @@ export function GitLevelBuilder({
 
       <DraftIssueList issues={issues} />
 
-      <SolvabilityPanel
-        report={report}
-        blocked={level === null}
-        onRun={runCheck}
-      />
+      <SolvabilityPanel report={report} blocked={level === null} onRun={runCheck} />
+
+      {/* ── E.6 · chơi thử ─────────────────────────────────────────────── */}
+      <section aria-labelledby="builder-choi-thu" className="flex flex-col gap-2">
+        <h3 id="builder-choi-thu" className="text-sm font-semibold text-foreground">
+          Chơi thử
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          Mở level này bằng đúng màn chơi người chơi sẽ thấy. Trong đó có thêm một nút chạy
+          lời giải mẫu để xem chuỗi lệnh đi qua từng bước.
+        </p>
+        <div>
+          <BuilderButton
+            testId="git-builder-play-test"
+            disabled={level === null}
+            onClick={() => {
+              if (level !== null) onPlayTest(level);
+            }}
+          >
+            Chơi thử level này
+          </BuilderButton>
+        </div>
+      </section>
 
       {/* ── E.4 · xuất và nhập ─────────────────────────────────────────── */}
       <section aria-labelledby="builder-xuat" className="flex flex-col gap-2">

@@ -40,6 +40,40 @@ import { t } from '@devops-platform/copy';
 import { ISSUE_TEXT, LIMIT_TEXT } from './builder-copy';
 
 const BUILDER = join(import.meta.dirname, 'git-builder.tsx');
+const GAME = join(import.meta.dirname, '..', 'git-game.tsx');
+const SANDBOX = join(import.meta.dirname, '..', 'git-sandbox.tsx');
+
+/**
+ * Ô gác cho E.6, và nó gác một lớp lỗi MẤT VIỆC TRONG IM LẶNG.
+ *
+ * "Chơi thử" thay màn sandbox bằng `GitLevelScreen`, nên `GitSandbox` unmount.
+ * Nếu bản nháp quay về sống trong `GitSandbox` thì mỗi lần bấm chơi thử là mất
+ * sạch đề bài đang soạn: không lỗi, không cảnh báo, không test nào đỏ — người
+ * soạn chỉ thấy form trống lúc quay lại. Ô dưới đây là thứ duy nhất đứng giữa
+ * lần refactor đó và người dùng.
+ *
+ * ## Phép đối chứng dương đã chạy
+ *
+ * 2026-09-15: thêm `useState<LevelDraft | null>(null)` vào `git-sandbox.tsx` ⇒ ô
+ * "bản nháp không sống trong GitSandbox" ĐỎ. Khôi phục ⇒ xanh lại.
+ */
+describe('E.6 chơi thử không nuốt mất bản nháp', () => {
+  const game = readFileSync(GAME, 'utf8');
+  const sandbox = readFileSync(SANDBOX, 'utf8');
+
+  it('bản nháp KHÔNG sống trong GitSandbox, thứ bị unmount lúc chơi thử', () => {
+    expect(sandbox).not.toMatch(/useState<LevelDraft/);
+  });
+
+  it('bản nháp sống ở GitGame, thứ ở lại suốt lượt chơi thử', () => {
+    expect(game).toMatch(/useState<LevelDraft \| null>/);
+  });
+
+  it('chơi thử dùng lại GitLevelScreen, không dựng một màn chơi thứ hai', () => {
+    // Một bản sao của màn chơi nghĩa là "chơi thử được" chỉ đúng với bản sao đó.
+    expect(game).toMatch(/<GitLevelScreen[\s\S]{0,400}?trial=\{/);
+  });
+});
 
 describe('Builder giữ hai lời hứa về chữ', () => {
   const source = readFileSync(BUILDER, 'utf8');
