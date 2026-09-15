@@ -244,6 +244,8 @@ do tên nó nói.
 | Test web | `pnpm --filter @devops-platform/web test` | **206 file / 2432 ô / 0 skip** | 11:33 |
 | Test copy | `pnpm --filter @devops-platform/copy test` | 5 file / 72 ô | 11:28 |
 | Tích hợp Postgres | trong suite web, `dlp-postgres` đang chạy | 8 ô chạy THẬT | 11:33 |
+| `next build` | `pnpm --filter @devops-platform/web build` | **xanh, thoát 0**, 38/38 trang | 11:41 |
+| Ngân sách bundle | `pnpm bundle:check` | **đạt**, `/games/git/page` 1.168.659 B | 11:44 |
 
 Suite web đầu lane là 201 file / 2365 ô. Lane này thêm **4 file**
 (`problem-code.test.ts` 8 ô, `draft-to-problem.test.ts` 30 ô,
@@ -254,6 +256,25 @@ kia, đang ghi vào cùng cây.
 **Ô AC-2 của đợt (`turbo run build lint typecheck test --force`) CHƯA chạy được sạch**, vì
 `lint` đỏ ở file của lane kia và turbo dừng sau task đỏ nên các suite sau sẽ chưa chạy. Cần
 chạy lại sau khi lane kia hạ cánh.
+
+---
+
+### 7.1 `next build` và `bundle:check` — thứ chúng chứng minh, và thứ chúng KHÔNG
+
+`next build` xanh là phiên bản có nghĩa duy nhất của câu *"ranh giới client/server của panel
+sạch"*: `tsc`, `eslint` và `vitest` đều mù với nó (một component client kéo một module chạm
+`node:fs` vẫn đi qua cả ba). Panel nhập `ProblemBody` bằng `import type` và `lib/trpc` bằng
+`await import`, nên đây là cổng duy nhất thấy được hai đường ấy.
+
+⚠ **`bundle:check` đạt KHÔNG chứng minh rằng nhập động đã giữ `@trpc/client` ra ngoài
+bundle đầu.** Nó chỉ nói `/games/git/page` (1.168.659 B) chưa chạm trần. Không có số ĐỐI
+CHỨNG: muốn có thì phải đổi sang nhập tĩnh rồi build lại, và hai lượt build nữa không nằm
+trong ngân sách lượt của lane. Thứ đang giữ lời hứa là ô gác tĩnh ở §5.2, không phải
+con số này — và đó là một ô đọc NGUỒN, nên nó chặn được lần sửa chứ không đo được byte.
+
+⚠ Cả hai lượt đo trên chạy trên cây CÓ mã chưa commit của lane còn lại (`git-problem.tsx`,
+`git-level-screen.tsx`, `problem-level.ts`). Chúng nói được rằng **cả hai lane cộng lại** build
+được, không nói riêng được về lane nào.
 
 ---
 
