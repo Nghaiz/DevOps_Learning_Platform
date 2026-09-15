@@ -642,3 +642,121 @@ $ playwright test a11y.spec.ts csp.spec.ts games-level-mode.spec.ts
 
 **Trạng thái đợt bốn: đóng.** C2, trần tick, ô e2e chế độ LEVEL — cả ba xong và
 xanh trên CI. Nợ §6.4 giữ nguyên, chưa ai chạm.
+
+---
+
+## 7. Đợt năm (2026-09-15) — C3 đóng, và một dòng nợ bị BÁC BỎ thay vì vá
+
+Phạm vi chốt bởi chủ dự án: **C3 + `objectivesTotal`**. Cả hai đều đổi hình dạng
+sau khi đo — và lần này là trước khi gõ dòng mã đầu, không phải sau.
+
+| Commit | Việc |
+|---|---|
+| `d4d4dfd` | C3: nối `problems.revealHint` vào cả hai game; memo hoá `level` ở `arena-problem` |
+| `9fdd702` | `objectivesTotal`: đối chứng dương cho K8s, thay cho việc nới `verifyRun` |
+
+### 7.1 C3 rộng hơn §5.4 ghi — và Git hỏng NẶNG HƠN K8s
+
+§5.4 xếp C3 là chuyện của đấu trường K8s. Đo ra là cả hai game, và bản Git tệ hơn:
+
+| Game | Người học thấy gì sau khi bấm "gợi ý" |
+|---|---|
+| K8s | Ô hiển thị trống — `mission-card` in `hints[i]`, mà `hints[i]` là `''` |
+| Git | Đúng dòng **"Gợi ý 1: "** — `engine.ts` nội suy chuỗi rỗng đó vào bản ghi |
+
+Điểm trừ THẬT ở cả hai: `hintsUsed` đếm từ nhật ký, và máy chủ còn hợp thêm
+`problem_hint_reveals`. Nên đây không phải lỗi hiển thị — là một lượt mua bán mà
+người mua không nhận được hàng.
+
+Kèm theo, không ai ghi: `key={hint}` ở `git-level-screen` làm **mọi `<li>` mang
+cùng một key** (chuỗi rỗng) ở chế độ OJ. React dựng lại nhầm node giữa các lần
+render và không có gì đỏ.
+
+### 7.2 ⛔ Một bẫy phải vá KÈM, nếu không bản vá tự gây hồi quy
+
+`useArenaSession` dựng lại phiên mỗi khi **định danh** `level` đổi
+(`useEffect(..., [level])`), còn `arena-problem.tsx` trả `k8sOjLevel(problem)`
+**mới mỗi lần render**. Hôm qua bẫy này nằm im vì `ArenaProblemBody` không có
+state nào nên nó gần như không render lại.
+
+Thêm trạng thái gợi ý là đánh thức nó: **mỗi lần mở một gợi ý sẽ xoá sạch tiến độ
+người chơi**, không báo gì, không lỗi nào. Nên `level` nay memo hoá.
+
+Git không dính, và lý do đáng ghi: `sessionRef.current ??= createGitSession(...)`
+dựng đúng một lần bất kể `level` đổi định danh. Hai game đã khác nhau ở đúng chỗ
+này từ trước, và không tài liệu nào nói ra.
+
+### 7.3 `objectivesTotal` — dòng nợ thứ NĂM trích một câu đã lạc hậu
+
+§5.4 và §6.4 ghi *"`objectivesTotal` không nằm trong sáu trường `verifyRun` so.
+Hai bên lệch trường đó thì không ô nào đỏ."* Vế đầu ĐÚNG. Kết luận ngầm — rằng đó
+là khe hở cần vá — **SAI**:
+
+| Nghi vấn | Đo được |
+|---|---|
+| Máy chủ tin `claimed.objectivesTotal`? | **Không.** `replay.ts:174` luôn dùng `problem.testcases.length` |
+| Có lưu lại? | **Không.** `problem_submissions` không có cột đó |
+| Ai đọc? | **Đúng một:** `warnOnVerdictDivergence` — việc của nó là kêu lên khi lệch |
+| Chưa ai gác? | **Git đã có** đối chứng dương từ trước |
+
+Thêm trường này vào `verifyRun` sẽ không đóng đường nào, phải nới `ReplayEngine`
+ở `core/` cho cả hai plugin, và **làm tắt chính cảnh báo đang bắt nó**: lệch ⇒
+`khong-khop` ⇒ `CE`, mà `warnOnVerdictDivergence` thoát sớm ở nhánh `CE`. Đổi một
+dòng log **có tên** lấy một `CE` vô danh — kèm rủi ro biến lệch phiên bản của
+người học lương thiện thành `CE` (§0.4 đã ghi sẵn cái giá đó).
+
+Việc đã làm thay vào đó: bổ **đối chứng dương cho K8s**, game chưa có ô.
+
+⚠ Đây là lần **thứ năm** trong phase này (`rules/debt-lists-quote-stale-docs.md`).
+§6.2 vừa đặt luật *"một dòng nợ phải được TRA LẠI trước khi giao việc theo nó"* —
+đây là lượt đầu áp dụng, và nó **đổi việc phải làm**, không chỉ đổi cách diễn đạt.
+
+### 7.4 Đo được (cây sạch tại `d4d4dfd` + `9fdd702`, `HEAD` không đổi trước/sau)
+
+```
+pnpm exec turbo run build lint typecheck test --force --concurrency=2
+Tasks: 32 successful, 32 total      exit 0
+
+web 2485 · games 1345 · ui 932 · scenario 289
+terminal 133 · motion 110 · copy 72 · shared-types 48   = 5414 ô
+```
+
+So mốc §6.1 (5396): **+18, đúng bằng số ô thêm vào** — 13 ở `web` (5 hook, 7 thẻ
+nhiệm vụ, 1 `objectivesTotal`), 5 ở `games`. **Sáu gói còn lại không đổi một ô.**
+
+Mọi dòng khớp chữ `skip` đã soi từng dòng: một **tên file**
+(`me-history-skipped.test.ts`), hai **notice của Postgres**, bốn **dòng log của
+chính ứng dụng** về `RATE_LIMIT_TRUST_PROXY`. Không dòng tóm tắt vitest nào báo ô
+bị bỏ.
+
+⚠ **Và theo đúng §6.6 bài học 1, con số trên KHÔNG nói gì về CI.** Máy dựng có
+`dlp-postgres` đã seed, nên nó mạnh hơn runner. Đợt này không thêm ô
+`*.integration.test.ts` nào — bốn file mới đều là unit/dom thuần, không chạm DB —
+nên rủi ro đó thấp, nhưng "thấp" không phải "đã đo".
+
+### 7.5 Cả hai cổng mới đều đã được đo ở trạng thái ĐỎ
+
+| Cổng | Cách làm nó đỏ | Kết quả |
+|---|---|---|
+| hook trả `null` khi hỏng | đổi `return null` → `return ''` | `expected '' to be null` — đúng 1 ô, đúng tên |
+| thẻ không trừ điểm khi hỏng | trả lại thứ tự cũ (dispatch trước) | `expected "vi.fn()" to not be called` — đúng 1 ô |
+
+Một ô nữa đỏ **ngoài dự tính** và nó dạy được một điều: ô "chữ không lọt vào nhật
+ký" khẳng định `tick: 0` và nhận `tick: 6` — đồng hồ logic của thế giới sandbox đã
+chạy 6 nhịp trong lúc dựng. Con số đó là **chi tiết của fixture**, không phải thứ
+ô đang gác; nay ô so **tập khoá** của action thay vì một số đoán.
+
+### 7.6 Nợ còn lại
+
+- **`K8S_UNSEEDED_REPLAY_SEED` là mã chết.** Chưa làm.
+- **`allowedCommands` mất khi lưu thành bài** (§4.2). Chưa làm.
+- **Chưa ô nào đo rằng mở Level Builder không gọi mạng** (§4.2) — vẫn chỉ có ô
+  gác tĩnh đọc nguồn.
+- **`lessons-authz` lung lay** (§5.6) — đợt này chạy toàn suite một lượt, xanh,
+  **có** một phiên Claude khác mở trên cùng cây. Một lượt xanh không bác bỏ được
+  một ô đỏ 1/3 lượt. Vẫn mở.
+- **`eslint` OOM** (§6.4) — không tái hiện trong đợt này (1 lượt). Nguyên nhân
+  vẫn chưa xác định.
+- ~~**`objectivesTotal`**~~ — **BÁC BỎ**, xem §7.3. Không phải nợ; đã có ô gác ở
+  cả hai game.
+- ~~**C3**~~ — **ĐÓNG**, và phạm vi thật rộng gấp đôi lời ghi ở §5.4.
