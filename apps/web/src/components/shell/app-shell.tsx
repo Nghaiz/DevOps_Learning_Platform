@@ -3,23 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  BookOpen,
-  Box,
-  Code2,
-  FlaskConical,
-  Gamepad2,
-  GitBranch,
-  GraduationCap,
-  LayoutDashboard,
-  Menu,
-  PenLine,
-  Route,
-  Settings,
-  Terminal,
-  Trophy,
-  Users,
-} from 'lucide-react';
+import { Box, Menu } from 'lucide-react';
 import {
   Alert,
   AlertDescription,
@@ -36,7 +20,14 @@ import {
 import { t } from '@devops-platform/copy';
 import { ZOD_JITLESS_APPLIED } from '../../lib/zod-jitless';
 import { isImmersiveRoute } from './immersive-routes';
-import { type Viewer } from './nav';
+import {
+  PRIMARY_NAV,
+  activeNavItem,
+  navSectionsFor,
+  type NavGroup,
+  type Viewer,
+} from './nav';
+import { NAV_ICONS } from './nav-icons';
 import { CapacityIndicator } from './capacity-indicator';
 import { CapacityProvider, useCapacity } from './use-capacity';
 import { describeProfileCapacity } from './capacity';
@@ -44,37 +35,52 @@ import { ThemeToggle } from './theme-toggle';
 import { UserMenu } from './user-menu';
 import { ViewerProvider } from './viewer-context';
 
-const LEARN = [
-  { href: '/games', label: 'Games', icon: Gamepad2 },
-  { href: '/problems', label: 'Bài tập OJ', icon: Code2 },
-  { href: '/exams', label: 'Kỳ thi', icon: Trophy },
-];
-const LIBRARY = [
-  { href: '/lessons', label: 'Bài học', icon: BookOpen },
-  { href: '/labs', label: 'Labs', icon: Terminal },
-  { href: '/playgrounds', label: 'Playground', icon: FlaskConical },
-  { href: '/paths', label: 'Lộ trình', icon: Route },
-  { href: '/quiz', label: 'Quiz', icon: GraduationCap },
-];
-const STUDIO = [
-  { href: '/author', label: 'Soạn bài', icon: PenLine },
-  { href: '/author/problems', label: 'Problem creator', icon: Code2 },
-  { href: '/games/git?mode=builder', label: 'Level builder', icon: GitBranch },
-];
+/**
+ * Vỏ ứng dụng — đọc điều hướng TỪ `PRIMARY_NAV`, không giữ bảng riêng.
+ *
+ * ⛔ Bản trước (commit 4f6d3ba) khai ba mảng cứng `LEARN`/`LIBRARY`/`STUDIO`
+ * ngay trong file này. Hệ quả đo được: `PRIMARY_NAV` không còn nơi nào render,
+ * nên ba cổng đứng canh nó (`nav.test.ts`, `nav-icons.test.ts`, và cổng AN NINH
+ * `proxy.test.ts`) đo một cấu trúc đã chết, còn chín khoá của `shell.*` thành
+ * mồ côi vì vỏ viết chuỗi cứng. Đừng dựng lại bảng cứng ở đây: mỗi mảng cứng
+ * trong file này là một cổng bị rút ruột mà không lệnh nào kêu.
+ */
+
+/**
+ * `data-area` cho CSS — suy từ NHÓM của mục đang mở, không đọc lại `pathname`.
+ *
+ * Bản trước so `pathname.startsWith('/author')` / `'/admin'` ngay tại đây, tức
+ * là chép kiến thức định tuyến sang một chỗ thứ hai. Bảng này là phép ánh xạ
+ * thuần trên `NavGroup`, và `Record<NavGroup, …>` bắt khai đủ nhóm ở tầng kiểu.
+ */
+const AREA_BY_GROUP: Readonly<Record<NavGroup, string>> = {
+  learn: 'learn',
+  library: 'learn',
+  studio: 'studio',
+  manage: 'admin',
+  account: 'learn',
+};
 
 function Brand() {
   return (
     <Link href="/" className="practice-brand" aria-label={t('shell.brand.home')}>
-      <span>
+      <span aria-hidden="true">
         <Box size={22} strokeWidth={1.7} />
       </span>
       <div>
-        DevOps<small>PRACTICE SPACE</small>
+        {t('shell.brand.medium')}
+        <small>{t('shell.brand.tagline')}</small>
       </div>
     </Link>
   );
 }
 
+/**
+ * `close` = bản trong ngăn kéo ≤768px: mỗi liên kết bọc `DialogClose` để bấm
+ * xong là ngăn kéo đóng, và `<nav>` mang nhãn "thu gọn" để trình đọc màn hình
+ * phân biệt được nó với thanh điều hướng cố định (hai `<nav>` cùng tên trong
+ * một trang là hai landmark không ai phân biệt nổi).
+ */
 function Navigation({
   viewer,
   close = false,
@@ -83,63 +89,38 @@ function Navigation({
   readonly close?: boolean;
 }) {
   const pathname = usePathname();
-  const groups = [
-    { label: 'THỰC HÀNH', items: LEARN },
-    { label: 'THƯ VIỆN', items: LIBRARY },
-    ...(viewer?.role === 'author' || viewer?.role === 'admin'
-      ? [{ label: 'STUDIO', items: STUDIO }]
-      : []),
-    ...(viewer?.role === 'admin'
-      ? [
-          {
-            label: 'QUẢN LÝ',
-            items: [
-              { href: '/admin/exams', label: 'Tổ chức kỳ thi', icon: Trophy },
-              { href: '/admin/classes', label: 'Lớp học', icon: Users },
-              { href: '/admin', label: 'Quản trị', icon: Settings },
-            ],
-          },
-        ]
-      : []),
-  ];
+  const active = activeNavItem(pathname, PRIMARY_NAV);
   return (
-    <nav className="practice-navigation" aria-label="Điều hướng chính">
-      {groups.map((group) => (
-        <section key={group.label}>
-          <h2>{group.label}</h2>
-          {group.items.map(({ href, label, icon: Icon }) => {
-            const active =
-              href === '/games'
-                ? pathname === '/' || pathname === '/games'
-                : href === '/author' || href === '/admin'
-                  ? pathname === href
-                  : pathname === href || pathname.startsWith(`${href}/`);
+    <nav
+      className="practice-navigation"
+      aria-label={close ? t('shell.nav.aria-collapsed') : t('shell.nav.aria')}
+    >
+      {navSectionsFor(viewer).map((section) => (
+        <section key={section.group}>
+          <h2>{section.label}</h2>
+          {section.items.map((item) => {
+            const Icon = NAV_ICONS[item.icon];
+            const isActive = active?.href === item.href;
             const link = (
               <Link
-                href={href}
-                className={cn('practice-nav-item', active && 'is-active')}
-                aria-current={active ? 'page' : undefined}
+                href={item.href}
+                className={cn('practice-nav-item', isActive && 'is-active')}
+                aria-current={isActive ? 'page' : undefined}
               >
-                <Icon size={19} strokeWidth={1.7} />
-                <span>{label}</span>
+                <Icon size={19} strokeWidth={1.7} aria-hidden="true" />
+                <span>{item.label}</span>
               </Link>
             );
             return close ? (
-              <DialogClose asChild key={href}>
+              <DialogClose asChild key={item.href}>
                 {link}
               </DialogClose>
             ) : (
-              <div key={href}>{link}</div>
+              <div key={item.href}>{link}</div>
             );
           })}
         </section>
       ))}
-      {viewer && (
-        <Link className="practice-nav-item practice-personal" href="/me">
-          <LayoutDashboard size={19} />
-          Tiến độ của tôi
-        </Link>
-      )}
     </nav>
   );
 }
@@ -149,13 +130,17 @@ function MobileNavigation({ viewer }: { readonly viewer: Viewer | null }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" className="practice-mobile-trigger" aria-label="Mở điều hướng">
-          <Menu size={21} />
+        <Button
+          variant="ghost"
+          className="practice-mobile-trigger"
+          aria-label={t('shell.drawer.open')}
+        >
+          <Menu size={21} aria-hidden="true" />
         </Button>
       </DialogTrigger>
       <DialogContent aria-describedby={undefined} className="practice-mobile-drawer">
         <DialogHeader>
-          <DialogTitle>DevOps Practice</DialogTitle>
+          <DialogTitle>{t('shell.drawer.title')}</DialogTitle>
         </DialogHeader>
         <Navigation viewer={viewer} close />
       </DialogContent>
@@ -174,9 +159,13 @@ export function AppShell({
   const pathname = usePathname();
   const immersive = isImmersiveRoute(pathname);
   const auth = ['/login', '/register', '/forgot-password', '/reset-password'].includes(pathname);
-  const active = [...LEARN, ...LIBRARY, ...STUDIO].find(
-    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
-  );
+  /*
+    Tính trên TOÀN BỘ `PRIMARY_NAV`, kể cả mục người xem này không thấy: đây là
+    nhãn của trang đang mở, không phải một mục đang sáng. Việc đánh dấu
+    `is-active` thì chạy trên tập đã lọc vai trò ở `Navigation`, nên một mục bị
+    ẩn không bao giờ sáng lên được.
+  */
+  const active = activeNavItem(pathname, PRIMARY_NAV);
   return (
     <ViewerProvider viewer={viewer}>
       <CapacityProvider enabled={viewer !== null}>
@@ -186,16 +175,10 @@ export function AppShell({
             immersive && 'practice-immersive',
             auth && 'practice-auth',
           )}
-          data-area={
-            pathname.startsWith('/author')
-              ? 'studio'
-              : pathname.startsWith('/admin')
-                ? 'admin'
-                : 'learn'
-          }
+          data-area={AREA_BY_GROUP[active?.group ?? 'learn']}
         >
           <a href="#noi-dung" className="practice-skip">
-            Bỏ qua điều hướng
+            {t('shell.skip.label')}
           </a>
           {!immersive && (
             <>
@@ -204,7 +187,8 @@ export function AppShell({
                   <Brand />
                   <Navigation viewer={viewer} />
                   <div className="practice-sidebar-bottom">
-                    <span className="practice-status-dot" /> Học bằng thực hành
+                    <span className="practice-status-dot" aria-hidden="true" />{' '}
+                    {t('shell.sidebar.tagline')}
                   </div>
                 </aside>
               )}
@@ -215,9 +199,33 @@ export function AppShell({
                     <Brand />
                   ) : (
                     <>
-                      <span className="practice-breadcrumb">Workspace</span>
-                      <span aria-hidden="true">/</span>
-                      <strong>{pathname === '/' ? 'Games' : (active?.label ?? 'DevOps')}</strong>
+                      {/*
+                        Hai biến thể độ dài của tên sản phẩm, đổi chỗ ở đúng
+                        `NAV_COLLAPSE_MAX_PX` (768, `breakpoints.ts`).
+
+                        ⚠ Việc ẩn/hiện thuộc về `practice.css` (lane CSS sở
+                        hữu): hai tên class dưới đây là chỗ để nó bám vào. Lớp
+                        Tailwind đi kèm chỉ là bản TẠM cho tới khi luật CSS
+                        đó có mặt, và nó KHÔNG đá nhau khi luật tới: quy tắc
+                        không-layer của `practice.css` thắng utility layer,
+                        nên CSS luôn là tầng quyết định. Gỡ hai lớp Tailwind
+                        ngay khi `practice.css` khai xong.
+
+                        `min-[769px]:`/`max-[768px]:` chứ KHÔNG `md:`: `md:` là
+                        `min-width: 768px`, tức ở đúng 768px cả hai cùng hiện.
+                      */}
+                      <span className="practice-brand-medium max-[768px]:hidden">
+                        {t('shell.brand.medium')}
+                      </span>
+                      <span className="practice-brand-short min-[769px]:hidden">
+                        {t('shell.brand.short')}
+                      </span>
+                      {active !== null && (
+                        <>
+                          <span aria-hidden="true">/</span>
+                          <strong>{active.label}</strong>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -232,7 +240,7 @@ export function AppShell({
                     <UserMenu viewer={viewer} />
                   ) : (
                     <Button asChild size="sm">
-                      <Link href="/login">Đăng nhập</Link>
+                      <Link href="/login">{t('shell.header.sign-in')}</Link>
                     </Button>
                   )}
                 </div>

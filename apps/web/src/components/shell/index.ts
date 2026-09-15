@@ -31,5 +31,21 @@ export type {
   CapacityTone,
 } from './capacity';
 export { useViewer } from './viewer-context';
-export { PRIMARY_NAV, userMenuItems, isActiveNav, normalizeRole } from './nav';
-export type { NavItem, Viewer, ViewerRole } from './nav';
+export {
+  PRIMARY_NAV,
+  userMenuItems,
+  navSectionsFor,
+  isActiveNav,
+  activeNavItem,
+  normalizeRole,
+} from './nav';
+export type {
+  NavItem,
+  PrimaryNavItem,
+  NavGroup,
+  NavIconName,
+  NavAudience,
+  NavSection,
+  Viewer,
+  ViewerRole,
+} from './nav';
