@@ -308,25 +308,145 @@ Chủ dự án chọn giữa ba đường; hai đường kia bị loại vì ngu
 không ghi gì nên nó **vô hình**. Nếu một ngày cần thấy, chỗ thêm là một bộ đếm, không phải một
 dòng `problem_submissions` giả.
 
-### Còn chờ
+### ✅ ĐÃ ĐÓNG — tiền tố mã và `game_id` không lệch được nữa (2026-09-15, `0f086de`)
 
-1. **Tiền tố mã và `game_id` lệch nhau sau một lượt đổi game.** `assertGameIdChangeAllowed` cho
-   phép đổi game một bài chưa có lượt nộp, nên `K8S-0007` có thể mang `game_id='git'`. Không có
-   gì hỏng (mã vẫn duy nhất, vẫn mở được), nhưng vá nó nghĩa là **cấp lại mã khi đổi game** —
-   phá đúng tính ổn định vĩnh viễn mà hợp đồng mã bài hứa.
+Mục này từng đặt câu hỏi dưới dạng nhị phân — *"giữ nguyên, hay cấp lại mã khi đổi game (phá
+tính ổn định vĩnh viễn)?"* — và **cả hai vế đều không cần thiết**, vì nó bỏ sót đường thứ ba:
+**đừng cho đổi game.**
+
+`assertGameIdUnchanged` nay chặn vô điều kiện, bỏ mốc "đã có lượt nộp". Lý lẽ của cổng cũ
+(*"thứ không được phá là LỊCH SỬ CỦA NGƯỜI HỌC"*) đúng nhưng chỉ đếm MỘT trong hai thứ bị phá;
+thứ thứ hai là chính mã bài, và nó vỡ ở **mọi** lượt đổi game kể cả bài chưa ai nộp. Chú thích
+của cổng cũ đã nói ra câu trả lời mà không áp dụng nó: *"đổi ruột dưới một mã cũ là đổi nghĩa
+của mọi câu đã nói về nó."*
+
+⚠ **Không siết gì với người dùng:** `problem-editor.tsx` đã truyền `canChange={props.code === null}`
+từ trước, nên biểu mẫu vốn cấm; chỉ API là còn rộng hơn màn hình. Cái giá thật: tác giả chọn
+nhầm game trên một bản nháp phải tạo bài mới — vài giây, và một số thứ tự bỏ trống trong dãy mã
+là chuyện bình thường.
+
+Phép lọc theo TIỀN TỐ MÃ ở `next-code.ts` **giữ nguyên**, không đổi sang `game_id`: một DB đã
+chạy trước lượt siết có thể còn dòng lệch, và lọc theo một cột không-phải-khoá-chính để tìm
+`max` của khoá chính là đúng nhờ một bất biến ở chỗ khác thay vì đúng tự thân.
 
 ## 4.2 Nợ đã ghi tên, không chặn ai hôm nay
 
 - **`allowedCommands` mất khi lưu thành bài.** `ProblemBase` không có ô cho nó; tệp level xuất
   ra thì giữ, bài lưu DB thì mất, và người soạn không được báo. Chỗ đúng là `authorFields` của
   plugin (§18.A.3).
-- **Đường OJ của K8s hôm nay KHÔNG chạy được**, hai lỗi độc lập và cả hai có TRƯỚC đợt này:
-  `arena-entry.tsx` ở chế độ `problem` vẫn chọn level trong `LEVELS` nên `log.levelId` không bao
-  giờ khớp `expectedLogLevelId`; và `use-problem-submit.ts` gọi `api.*` trong khi
-  `app/games/layout.tsx` cố ý không cấp `TrpcQueryProvider`.
-- **`buildRunResult` của đấu trường K8s dùng `computeScore`, máy chủ dùng `scoreProblemRun`.**
-  Hai công thức ra hai số ngay khi bài có gợi ý được mở ⇒ `CE`. Chưa cắn ai vì đường trên chưa
-  chạy, nhưng nó sẽ cắn đúng lúc đường đó được sửa.
+- **Đường OJ của K8s — ba lỗi đã vá (`4bceeb9` `32ea4fa`), nhưng xem §6: nó NỘP được chứ chưa
+  CHẤM đúng.** Hai lỗi mục này ghi (`arena-entry` chọn level trong `LEVELS`; `use-problem-submit`
+  gọi `api.*` không provider) cộng lỗi công thức điểm ở gạch đầu dòng dưới — cả ba đã đóng.
+- **`buildRunResult` dùng `computeScore`, máy chủ dùng `scoreProblemRun`** — đã vá cùng lượt
+  (`k8sOjClaim` gọi đúng hàm máy chủ gọi). `buildRunResult` giữ nguyên và vẫn đúng cho chế độ
+  LEVEL. Ghi chú của mục này *"chưa cắn ai vì đường trên chưa chạy, nhưng nó sẽ cắn đúng lúc
+  đường đó được sửa"* đã đúng y như vậy — nên ba lỗi được vá trong MỘT lượt thay vì ba.
 - **Chưa ô nào đo rằng mở Level Builder không gọi mạng.** Lời hứa "0 lời gọi backend" của trụ
   cột game hiện được giữ bằng một ô gác TĨNH đọc nguồn (đòi `await import`), không bằng một phép
   đo lúc chạy.
+
+---
+
+## 5. Đợt ba (2026-09-15) — khối B+C, và một lời tuyên bố phải rút lại
+
+`/t1k:cook` trên khối **B+C** (§4.2: "đường OJ của K8s không chạy được" + công thức điểm lệch),
+cộng quyết định §4.1 mà chủ dự án giao lại cho người thi hành tự xử lý.
+
+| Commit | Việc |
+|---|---|
+| `4bceeb9` | `problem-level.ts` + `arena-problem.tsx` + ô gác so hai bản dựng level |
+| `32ea4fa` | Nối chế độ bài tập vào đường chấm máy chủ; gỡ tự-nộp-khi-thắng |
+| `0f086de` | Khoá `game_id` sau khi tạo bài (§4.1) |
+| `c4fa97a` | Vá C1 (đấu trường ném khi CHỌN level) + siết hai chỗ trong ô gác |
+
+### 5.1 Đo được (cây sạch tại `0f086de`, 13:43:58 → 13:50:39 +07)
+
+```
+turbo run build lint typecheck test --force --concurrency=2
+Tasks:  32 successful, 32 total      exit 0      6m37s
+
+web 2467 · games 1334 · ui 932 · scenario 289
+terminal 133 · motion 110 · copy 72 · shared-types 48   = 5385 ô, 0 skip
+```
+
+Ba phép kiểm chống-xanh-giả: `Tasks: 32/32` đọc TRƯỚC mọi con số test · đúng một dòng khớp chữ
+`skip` trong toàn log và nó là **tên file** (`me-history-skipped.test.ts`), không phải ô bị bỏ ·
+32 dòng khớp `ERROR` đều là chuỗi `INTERNAL_SERVER_ERROR` trong một test cố tình đo phép ánh xạ
+lỗi gRPC. So mốc 5366/web 2448: **web +19, đúng bằng số ô thêm vào**, bảy gói còn lại không đổi
+một ô — tức bản vá không chạm gì ngoài phạm vi.
+
+⚠ Một phiên Claude KHÁC đang mở trên cùng repo lúc đo. `HEAD` và `git status` giống nhau trước
+và sau lượt chạy, nên con số trên mô tả đúng `0f086de` — nhưng phép kiểm đó phải làm, không phải
+một thủ tục thừa (§3.1 bài học 3).
+
+### 5.2 ⛔ RÚT LẠI một lời tuyên bố: "đường OJ K8s chạy được" là QUÁ MẠNH
+
+Thông điệp của `4bceeb9` nói đường OJ K8s **chạy được**. Review đối kháng bác bỏ, và phép đo
+đứng về phía review. Câu đúng là: **nộp được, chưa chấm đúng.**
+
+Ghi ra đây thay vì sửa lặng lẽ, vì đây đúng hình dạng `rules/green-that-proves-nothing.md` và
+người viết chính là người rơi vào: ba loại ô gác của lượt này — so-builder-với-builder, mock trọn
+`lib/trpc-react`, và phát-lại-so-phát-lại — **không ô nào có thể phủ định lời tuyên bố đó**. Một
+lời tuyên bố mà bộ ô gác của chính nó cấu trúc không thể bác bỏ thì chưa được kiểm.
+
+### 5.3 ⛔ NỢ CHẶN — C2: phép phát lại K8s không bao giờ tua đồng hồ
+
+**Chốt bởi chủ dự án 2026-09-15: ghi nợ chặn, sửa ở chặng riêng.** Không vá trong đợt này.
+
+Chuỗi, đọc thẳng từ mã:
+
+| Chỗ | Mã |
+|---|---|
+| `k8s/session.ts:260` | `const stamped = { ...action, tick: state.tick }` — tick ĐÃ GHI trong nhật ký bị vứt |
+| `k8s/reducer.ts:121` | `advance(state, Math.max(0, action.tick - state.tick))` ⇒ luôn `0` |
+| `k8s/replay-engine.ts` | phát lại gọi `session.dispatch(action)`, tức đi qua `applyAction` ở trên |
+| `k8s/session.ts:175` | `autoTick` mặc định `true` (chơi thật), phát lại truyền `false` |
+
+Chơi thật: đồng hồ chạy, action được đóng dấu tick tăng dần → nhật ký có tick thật. Phát lại:
+đồng hồ đứng ở 0, mọi tick bị ghi đè về 0, không tick nào tua. Pod sinh ra `Pending` và chỉ lên
+`Running` trong `tick.ts`, nên mọi vị từ đòi `Running` (`deployment-ready`, `all-pods-healthy` —
+bài published thật đang dùng) **không bao giờ đạt**.
+
+⚠ **Triệu chứng KHÔNG phải `CE`, mà là `WA` im lặng.** Lời khai của client nay tới từ
+`problems.tryGrade`, tức từ chính phép phát lại hỏng đó, nên hai bên **khớp nhau ở một câu trả
+lời sai** và `verifyRun` vẫn `da-xac-minh`. Người học giải đúng, nhận `WA`, không có gì nói tại
+sao.
+
+Vì sao không vá kèm: bỏ ghi đè tick nghĩa là **tin lại tick do client gửi lên**, mở một đường
+DoS (tick khổng lồ ⇒ `advance()` đốt CPU) mà chính phép ghi đè đang đóng. Nó cần một quyết định
+về trần, một ô ghè riêng, và một lượt review nữa — `MAX_LOG_ACTIONS` chặn SỐ hành động, không
+chặn ĐỘ LỚN của tick.
+
+**Ô phải ĐỎ trước khi vá:** một lời giải đúng cho một bài dùng `deployment-ready` phải ra `AC`.
+`replay.test.ts:223` không bắt được C2 vì nó tính kỳ vọng **bằng chính phép phát lại** — một ô
+tự điều chỉnh.
+
+### 5.4 Nợ kèm theo, không chặn
+
+- **C3 — mở gợi ý trong đấu trường hiện chuỗi RỖNG.** Wire trả `text: null` cho gợi ý chưa mở,
+  và đấu trường **không bao giờ gọi `problems.revealHint`** (`grep "api\." k8s-arena/` ra đúng ba
+  lời gọi: `byCode`, `submit`, `tryGrade`). Điểm trừ thì có thật (suy từ nhật ký), nên không `CE`
+  — người học mất điểm để đổi lấy một ô trống.
+- **`objectivesTotal` KHÔNG nằm trong sáu trường `verifyRun` so.** Hai bên lệch trường đó thì
+  không ô nào đỏ.
+- **`K8S_UNSEEDED_REPLAY_SEED` là mã chết** — đấu trường luôn sinh seed `Math.random()`
+  (`arena-session.ts:133`), nên `seedable` chưa ai đọc ở đường K8s.
+- **Không ô nào chứng minh chế độ LEVEL render được.** C1 vá xong nhưng ô dom mock trọn
+  `lib/trpc-react` nên cấu trúc không thấy được lỗi đó; chỗ đúng để gác là e2e — mở `/games/k8s`
+  rồi **bấm vào một level**, vì chính màn chọn level là thứ che lỗi suốt thời gian qua.
+
+### 5.5 Bài học về cách đo, không phải về mã
+
+1. **Một ô mock trọn biên ngoài chỉ đo được mã GIỮA hai biên đó.** Ô dom cũ khẳng định "một lượt
+   chơi thắng dẫn tới đúng một lời gọi `problems.submit`" và XANH suốt thời gian chế độ bài tập
+   hoàn toàn không chạy được — cả ba lỗi thật đều nằm ngoài tầm nó.
+2. **Ô gác viết xong xanh ngay đáng ngờ hơn ô đỏ vài lượt.** `problem-level.test.ts` đỏ BỐN lượt
+   liên tiếp — `args`, `hints`, `label` testcase ẩn, rồi tên vị từ bịa — mỗi lượt lộ một sự thật
+   của wire mà người viết không biết. Bốn khác biệt được phép là số ĐO ĐƯỢC, không phải lời khai.
+3. **Fixture nghèo làm đối chứng dương rỗng nghĩa.** Bản đầu dùng `replicasAtLeast`/`noCrashLoop`
+   — không tên nào có trong `PREDICATE_NAMES` (32 khoá kebab-case). Hai bản dựng chỉ CHÉP chuỗi
+   đó qua nên ô vẫn xanh; nay có một ô đòi mọi `check` của fixture thật sự nằm trong bảng.
+4. **Một lane dừng RỖNG vẫn tiêu trọn ngân sách.** Lượt review đầu tiêu 25 lượt rồi để lại một
+   file ba dòng *"review in progress"*. Brief lượt sau mang kỷ luật giao hàng — ghi phát hiện đầu
+   tiên vào file NGAY sau câu hỏi đầu tiên — và nó giao đủ bảy câu. Đây là §3.1 bài học 1 lặp lại
+   lần thứ hai trong cùng một phase.
