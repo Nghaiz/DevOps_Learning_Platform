@@ -16,6 +16,8 @@
     "//scenarios:check": "Chạm mạng (GitHub) nên KHÔNG nằm trong `turbo run test` — so byte nội dung vendor với commit đã ghim trong từng content/scenarios/*/dlp.json.",
     "scenarios:check": "node scripts/vendor-scenarios.mjs --check",
     "repo:check": "node scripts/check-repo-settings.mjs",
+    "//cicd-neutral:check": "Gác AC-4 của game CI/CD: lõi packages/games/src/cicd KHÔNG mang tên nhà cung cấp CI, và stage đầu vẫn tên `clone` (19.C.5). Không cần pnpm install — script chỉ dùng node:fs. Chạy `--self-test` để kiểm riêng đối chứng.",
+    "cicd-neutral:check": "node scripts/check-cicd-vendor-neutral.mjs",
     "antipattern:check": "node scripts/check-no-antipattern.mjs",
     "tokens:check": "node scripts/check-design-tokens.mjs",
     "//bundle:check": "ĐỌC OUTPUT `next build` (.next/server/app/**/page_client-reference-manifest.js + .next/static/chunks) nên PHẢI chạy SAU `pnpm --filter @devops-platform/web build` — chưa build thì nó thoát 2 (`chưa có output build`), không bao giờ xanh khống. `--self-test` chạy được mọi lúc vì luật được kiểm trên dữ liệu bịa.",

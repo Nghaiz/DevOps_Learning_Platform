@@ -1551,12 +1551,46 @@ jobs:
       - name: 'Quét chuỗi giá / gói cước / thanh toán / paywall'
         run: node scripts/check-no-commerce.mjs
 
+  # ─────────────────────────────────── lõi CI/CD trung lập (AC-4, 19.C.6 + C.5)
+  #
+  # `packages/games/src/cicd/contract.ts` §1: lõi KHÔNG được mang tên riêng của
+  # bất kỳ nhà cung cấp CI nào — chỉ tầng đọc/ghi YAML biết nhà cung cấp. Thêm
+  # một nhà cung cấp thứ hai phải là thêm một BỘ ĐỌC, không viết lại lõi.
+  #
+  # Trước cổng này ràng buộc chỉ tồn tại dưới dạng một đoạn văn trong chú thích,
+  # tức là nó đúng đúng chừng nào còn có người nhớ đọc. Cổng cũng khoá tên stage
+  # `clone` (19.C.5): một `checkout` trần trong `cicd/` làm job `no-commerce` ở
+  # trên đỏ với một thông điệp về lệnh cấm thương mại — đúng cơ chế, sai chỗ để
+  # đi tìm. Ở đây người sửa nhận đúng hai đường đi, tại đúng file và dòng.
+  #
+  # KHÔNG `paths:` Ở ĐÂY, cùng lý do với `no-commerce`: job này nằm trong
+  # `ci-ok.needs`, và GitHub báo một required check bị skip-by-paths là
+  # `Expected — Waiting` VĨNH VIỄN ⇒ khoá merge (rules/ci-cd-trigger-design.md #3).
+  #
+  # Không `pnpm install`: script không có dependency nào, chỉ cần node:fs.
+  cicd-neutral:
+    name: 'Lõi CI/CD trung lập (không tên nhà cung cấp)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      # Script tự chạy đối chứng TRƯỚC khi quét: không còn bắt được tập mẫu vi
+      # phạm đã biết thì thoát 2 và không quét gì. Nó cũng thoát 2 khi tìm thấy
+      # 0 file lõi — một cổng quét rỗng thì luôn xanh, và xanh vì KHÔNG ĐO GÌ.
+      - name: 'Quét tên nhà cung cấp trong lõi cicd + khoá tên stage `clone`'
+        run: node scripts/check-cicd-vendor-neutral.mjs
+
   ci-ok:
     name: ci-ok
     # `always()` để job vẫn chạy KHI CÓ need thất bại/bị skip — nếu không, nó bị
     # skip theo và branch protection thấy một check "chưa chạy", treo PR mãi mãi.
     if: always()
-    needs: [proto, ts, go, infra, secret-scan, sandbox-image, terminal-browser, web-a11y, no-commerce]
+    needs: [proto, ts, go, infra, secret-scan, sandbox-image, terminal-browser, web-a11y, no-commerce, cicd-neutral]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
