@@ -604,3 +604,41 @@ xanh-giả, và mỗi cái đóng một đường đã cắn trong phase này:
 | e2e bấm-level | tái hiện C1, dựng lại | `Unable to find tRPC Context...` |
 
 Một cổng chỉ được đo ở trạng thái xanh là một cổng chưa biết có chặn được gì không.
+
+### 6.6 CI xanh — và hai chỗ phép đo của §6.1 tự nó không nói được
+
+Lượt đẩy đầu (`14cedd1`) làm CI ĐỎ: hai job hỏng, cả hai truy về `c3115d8` của
+lane 18.G, thứ **lần đầu lên `origin`** trong chính lượt đẩy đó. Vá ở `e1dfed7`;
+lượt sau `success`, 10/10 job xanh (`Build & push` skipped — nó cũng skipped ở
+lượt xanh 2026-09-14, tức bình thường cho event `pull_request`, và nó nằm NGOÀI
+`ci-ok` nên đừng đọc nó theo chiều nào).
+
+Ô e2e mới **đã chạy trên runner thật**, không nằm trong nhóm skip:
+
+```
+$ playwright test a11y.spec.ts csp.spec.ts games-level-mode.spec.ts
+✓ 82 › games-level-mode.spec.ts › bấm vào một level ⇒ đấu trường dựng được (9.1s)
+```
+
+9,1s trên runner so với 10,2s trên máy dựng — không có dấu hiệu lung lay.
+
+⛔ **Hai bài học về chính §6.1, và chúng làm yếu đi con số ở đó:**
+
+1. **Phép đo local MẠNH HƠN CI, nên một màu xanh local không nói gì về CI.**
+   §6.1 ghi `web 2472 passed, 0 skip`. CI trên **cùng HEAD** cho
+   `2450 passed | 22 skipped | 1 file failed` — `exams/authz.integration.test.ts`
+   ném ở `beforeAll` vì DB chưa seed. Máy dựng có `dlp-postgres` đã seed từ một
+   đợt trước, nên ô đó ở đây xanh **kiểu gì cũng xanh**. Cùng họ với
+   `rules/green-that-proves-nothing.md`, chỉ là ở phía ngược lại: không phải cổng
+   không biết kêu, mà là môi trường đo đã dọn sẵn cái mà cổng định bắt.
+
+   Hệ quả thao tác: **một ô `*.integration.test.ts` mới phải được đo trên một DB
+   CHƯA seed ít nhất một lần**, hoặc coi như chưa biết nó cần gì.
+
+2. **Dòng tóm tắt của một lệnh nền có thể là mã thoát của lệnh CUỐI, không phải
+   của lệnh ta quan tâm.** Lượt theo dõi đầu báo `exit code 0` trong khi log ghi
+   `CI_EXIT=1` — CI đỏ. Cùng bẫy `| tail` nuốt mã thoát mà §3 đã ghi, chỉ đổi
+   hình dạng. Lượt sau kết thúc bằng `exit $W` để mã thoát là của `gh run watch`.
+
+**Trạng thái đợt bốn: đóng.** C2, trần tick, ô e2e chế độ LEVEL — cả ba xong và
+xanh trên CI. Nợ §6.4 giữ nguyên, chưa ai chạm.
