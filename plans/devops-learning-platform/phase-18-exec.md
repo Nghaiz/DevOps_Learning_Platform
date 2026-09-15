@@ -213,6 +213,44 @@ nhau. Bản của lane B đặt đúng chỗ hơn (tầng hàm, bảo vệ mọi
 Loại va chạm này **bản đồ theo tên file không chặn được** — nó cần contract-first, và cái
 contract thiếu ở đây là *"luật này sống ở tầng nào"*.
 
+## 3.2 Đợt hai (khối 4 nửa client + khối 5) — xong, và một khe không đoán được
+
+Hai khối cố ý giữ lại ở §2.1 nay đã hạ cánh. Cả hai lane lại **chạm trần 90 lượt**.
+
+| Khối | Trạng thái |
+|---|---|
+| 4 nửa client — `/games/git?problem=` | xong, `9fe0d21` `7a0e4dc` `292c11b` |
+| 5 — E.5 lưu bản nháp thành `problems` | xong, `74707c8` `e6a3375` `d66620a` `1b8e85e` |
+| Lead vá theo | `9a8ea17` `65c97e0` (đường mở bài theo game) |
+
+### ⛔ Khe WIRE làm đổi phạm vi giao được của khối 4
+
+`toTestcaseTeasers` cắt `check` và `args` của **MỌI** testcase trước khi dữ liệu rời máy chủ —
+kể cả testcase hiện, kể cả với tác giả. Đó là §18.B.4 và nó cố ý.
+
+Hệ quả dây chuyền mà không ai thấy trước khi viết mã: client không có `check` ⇒
+`evaluatePredicate` trả `undefined` ⇒ `objectivesMet` luôn rỗng ⇒ `verifyRun` ra `khong-khop`
+⇒ **`CE` cho một lượt chơi ĐÚNG**. Tức một client chỉ có `problems.byCode` **không nộp bài
+được**, và triệu chứng đọc ra như hệ thống từ chối người chơi ngẫu nhiên.
+
+Đường duy nhất chở đủ dữ liệu hôm nay là `problems.forEdit` (`authorProcedure`). Nên **nộp bài
+Git hiện mở cho TÁC GIẢ bài và admin**; người học vẫn mở bài, đọc đề, gõ lệnh trên đúng thế
+giới của bài, nhưng nút nộp tắt và màn hình **nói ra lý do** thay vì bấm được rồi trả `CE`.
+
+**Cần chủ dự án quyết** (§4.1 dưới). Hai đường: một điểm cuối trả `check`/`args` cho người đang
+làm bài (phá §18.B.4), hay một điểm cuối **chấm thử** ở máy chủ để client không bao giờ cầm
+cách chấm (giữ §18.B.4 nguyên vẹn).
+
+### Bốn chỗ nữa vẫn tin mã bài luôn là `K8S-`
+
+Brief của lane nói ba; đo ra bốn. `next-code.ts`, `problemCodeSchema` (kéo theo
+`byCode`/`publish`/`archive`/`delete`/`forEdit`/`revealHint`/`submit`), hai chỗ giải mã con
+trỏ ở `cursor.ts`, và `[code]/page.tsx` (một bài Git lưu xong trả `notFound()` — lead vá ở
+`65c97e0`). Tập tiền tố nay suy từ `PROBLEM_PLUGINS`, không gõ tay.
+
+⚠ `.slice(4)` từng đúng **vì tình cờ**: `len('K8S-') === len('GIT-')`. Tiền tố đầu tiên dài
+khác sẽ cho `Number` → `NaN` → `padStart` in `"NaN"`, một mã chèn được mà không cổng nào đỏ.
+
 ## 4. Ô nghiệm thu của đợt
 
 - **AC-5** (`phase-18.md` §3): dựng một level chương 1 hoàn chỉnh **chỉ bằng giao diện**, xuất
@@ -222,3 +260,50 @@ contract thiếu ở đây là *"luật này sống ở tầng nào"*.
 - **AC-2:** `turbo run build lint typecheck test --force` đọc `Tasks: X/Y`.
 - **AC-8:** axe 0 vi phạm trên màn Builder.
 - **18.H:** hai file tài liệu tồn tại và mọi đường dẫn trong đó tra lại được.
+
+### Đo được cuối đợt (2026-09-15, cây sạch, `dlp-postgres` chạy)
+
+```
+turbo run build lint typecheck test --force --concurrency=2
+Tasks: 32 successful, 32 total
+
+web 2441 · games 1334 · ui 932 · scenario 289
+terminal 133 · motion 110 · copy 72 · shared-types 48   = 5359 ô, 0 skip
+```
+
+⚠ **`--concurrency=2` là bắt buộc để con số này có nghĩa**, không phải một tuỳ chọn cho đẹp.
+Ở mức song song mặc định, `scenario#lint` thoát **134** (SIGABRT) và bốn ô `scenario` hết giờ
+5000ms trên test đọc đĩa; `packages/ui` rụng một file. Chạy riêng từng gói thì cả ba xanh.
+Đây là `rules/turbo-parallel-load-times-out-io-tests.md`, và nó làm `Tasks: X/Y` dừng ở 22–26
+— tức **mọi con số trong lượt đó vô giá trị**.
+
+⚠ **Postgres phải chạy.** Không có nó, suite web đỏ 110 ô với 1616 lần `ECONNREFUSED`, và
+**184 ô khác SKIP** — một màu xanh chứng minh ít hơn nó trông. Với `dlp-postgres` lên thì
+2441/2441, **0 skip**.
+
+## 4.1 Hai quyết định đang chờ chủ dự án
+
+1. **Người học nộp bài Git bằng đường nào** (§3.2). Đây là chốt chặn duy nhất giữa "tác giả
+   xem trước được" và "người học làm bài được". Hai đường, và chúng khác nhau về nguyên tắc
+   chứ không chỉ về công sức: mở `check`/`args` cho người đang làm bài **phá** §18.B.4 (testcase
+   ẩn), còn một điểm cuối chấm-thử ở máy chủ **giữ** nó.
+2. **Tiền tố mã và `game_id` lệch nhau sau một lượt đổi game.** `assertGameIdChangeAllowed` cho
+   phép đổi game một bài chưa có lượt nộp, nên `K8S-0007` có thể mang `game_id='git'`. Không có
+   gì hỏng (mã vẫn duy nhất, vẫn mở được), nhưng vá nó nghĩa là **cấp lại mã khi đổi game** —
+   phá đúng tính ổn định vĩnh viễn mà hợp đồng mã bài hứa.
+
+## 4.2 Nợ đã ghi tên, không chặn ai hôm nay
+
+- **`allowedCommands` mất khi lưu thành bài.** `ProblemBase` không có ô cho nó; tệp level xuất
+  ra thì giữ, bài lưu DB thì mất, và người soạn không được báo. Chỗ đúng là `authorFields` của
+  plugin (§18.A.3).
+- **Đường OJ của K8s hôm nay KHÔNG chạy được**, hai lỗi độc lập và cả hai có TRƯỚC đợt này:
+  `arena-entry.tsx` ở chế độ `problem` vẫn chọn level trong `LEVELS` nên `log.levelId` không bao
+  giờ khớp `expectedLogLevelId`; và `use-problem-submit.ts` gọi `api.*` trong khi
+  `app/games/layout.tsx` cố ý không cấp `TrpcQueryProvider`.
+- **`buildRunResult` của đấu trường K8s dùng `computeScore`, máy chủ dùng `scoreProblemRun`.**
+  Hai công thức ra hai số ngay khi bài có gợi ý được mở ⇒ `CE`. Chưa cắn ai vì đường trên chưa
+  chạy, nhưng nó sẽ cắn đúng lúc đường đó được sửa.
+- **Chưa ô nào đo rằng mở Level Builder không gọi mạng.** Lời hứa "0 lời gọi backend" của trụ
+  cột game hiện được giữ bằng một ô gác TĨNH đọc nguồn (đòi `await import`), không bằng một phép
+  đo lúc chạy.
