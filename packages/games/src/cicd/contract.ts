@@ -393,6 +393,26 @@ export interface StepSpec {
    * "đỏ thì đi tiếp".
    */
   readonly blocking: boolean;
+  /**
+   * Lệnh bước này chạy, ở dạng TRUNG LẬP. Cả hai tuỳ chọn, và một bước chỉ nên
+   * mang ĐÚNG MỘT trong hai.
+   *
+   * ⚠ THÊM 2026-09-16 (lead), sau khi 19.C.2 chỉ ra hệ quả của việc thiếu chúng:
+   * bản YAML sinh ra có bước chỉ mang `id`/`name`, mà một nhà cung cấp thật sẽ
+   * TỪ CHỐI một bước không có lệnh. Nghĩa là thứ người chơi nhìn thấy trong ô
+   * soạn thảo không phải một workflow chạy được — và một game dạy CI/CD mà hiện
+   * ra cú pháp không hợp lệ thì dạy sai ở đúng chỗ nó tồn tại để dạy đúng.
+   *
+   * `action` là tham chiếu tới một hành động dùng lại; `script` là lệnh chạy
+   * thẳng. Tên đặt trung lập có chủ ý: tầng YAML ánh xạ chúng sang khoá của
+   * từng nhà cung cấp, và lõi không được mang từ vựng của ai (AC-4).
+   *
+   * ⛔ Engine KHÔNG đọc hai trường này. Thời lượng, đỏ giả, cache đều là dữ liệu
+   * của level. Chúng ở đây để tầng YAML phát ra một bản đọc được, không phải để
+   * mô phỏng chạy theo lệnh.
+   */
+  readonly action?: string;
+  readonly script?: string;
   /** Cache bước này khôi phục trước khi chạy. */
   readonly cache?: CacheSpec;
   /**
@@ -481,6 +501,38 @@ export interface StageSpec {
  * động. Ba thứ đó ở §3 và là dữ liệu level. Lý do: người viết workflow ngoài đời
  * cũng không khai chúng, và nếu chúng lọt vào đây thì 19.C.2 (ghi ngược ra YAML)
  * phải bịa ra khoá mà không nhà cung cấp nào có.
+ */
+/*
+ * ⛔ QUYẾT ĐỊNH KIẾN TRÚC 2026-09-16 (lead) — YAML là KHUNG SOẠN, không phải
+ * bản tuần tự hoá.
+ *
+ * 19.C.1/C.2 đo ra rằng CHÍN trường của hợp đồng không có khoá YAML nào chở
+ * được: `StageSpec.retries`, `runnerSlots`, `approval`, và `StepSpec.
+ * durationTicks`, `durationSpreadTicks`, `flake`, `cache`, `requires`,
+ * `produces`. Không nhà cung cấp nào có khoá cho chúng.
+ *
+ * Ba đường, và hai đường đầu đều sai:
+ *
+ *   · Im lặng bỏ ⇒ một level ghi ra rồi đọc lại mất sạch thời lượng và cache.
+ *     Engine vẫn chạy, điểm vẫn ra, chỉ ra SỐ KHÁC, và không gì đỏ.
+ *   · Bịa khoá riêng (`x-dlp-duration:`) ⇒ dạy người chơi một khoá không tồn
+ *     tại ở bất kỳ đâu ngoài game này. Phá đúng thứ game sinh ra để làm.
+ *   · ĐÃ CHỌN: `WorkflowSpec` của level là NGUỒN SỰ THẬT; YAML chỉ chở phần
+ *     người chơi được sửa. Bộ ghi trả kèm `dropped` liệt kê từng trường không
+ *     chở được, và `read(write(spec)) === spec` khi và chỉ khi `dropped` rỗng.
+ *
+ * Bằng chứng cho lựa chọn này nằm ngay trong hợp đồng: `CicdLevel.editable`
+ * liệt kê đúng thứ người chơi được sửa, và `durationTicks` / `flake` /
+ * `requires` KHÔNG có trong danh sách đó.
+ *
+ * Nó còn mua thêm một tính chất không nhắm tới nhưng đáng giữ: **chống gian
+ * lận**. Dữ liệu mô phỏng không đi qua ô soạn thảo, nên không ai sửa
+ * `flakeRate: 0` vào YAML để biến một level thành dễ.
+ *
+ * ⚠ CÒN MỞ, cho 19.E: `editable` có `retries` và `cache`, tức người chơi ĐƯỢC
+ * sửa hai thứ đó — nhưng YAML hiện chưa chở chúng. Hai đường: ánh xạ qua `with:`
+ * của một hành động dùng lại (nhà cung cấp thật làm cache đúng như vậy), hoặc
+ * cho chúng một ô điều khiển riêng ngoài ô soạn YAML. Chưa chốt.
  */
 export interface WorkflowSpec {
   /** Tiếng Việt. Tên hiện ở đầu ô soạn thảo. */
@@ -1144,7 +1196,20 @@ export const CICD_PREDICATE_NAMES = [
   'graphAcyclic',
   /** Stage tồn tại. args: `{ stage }` */
   'stageExists',
-  /** Stage phụ thuộc (bắc cầu) vào stage kia. args: `{ stage, on }` */
+  /**
+   * Stage phụ thuộc (BẮC CẦU) vào stage kia. args: `{ stage, on }`
+   *
+   * ⛔ Bắc cầu, không phải trực tiếp, và đừng "đơn giản hoá" thành trực tiếp.
+   * Mục tiêu của level phát biểu một RÀNG BUỘC THỨ TỰ, không phát biểu một hình
+   * dạng đồ thị: `kiem-tra` phải chạy sau `clone` là thứ cần dạy, còn việc giữa
+   * chúng có một `chuan-bi` hay không là lựa chọn của người chơi. Đọc thành
+   * trực tiếp sẽ loại đúng những lời giải hợp lệ mà AC-F đòi phải có ≥2 (đã
+   * cắn thật ở lời giải B của C01, chuỗi `clone → chuan-bi → kiem-tra`).
+   *
+   * `stageNotDependsOn` là phủ định CHÍNH XÁC của vị từ này, nên nó cũng bắc
+   * cầu. Hai vế đọc theo hai nghĩa khác nhau là một cặp vị từ vừa đúng vừa sai
+   * cùng lúc trên cùng một đồ thị.
+   */
   'stageDependsOn',
   /** Stage KHÔNG phụ thuộc vào stage kia — bài tách song song. args: `{ stage, on }` */
   'stageNotDependsOn',
