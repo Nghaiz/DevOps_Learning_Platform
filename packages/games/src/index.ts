@@ -18,7 +18,7 @@ export type {
   GameSettings,
   RunResult,
 } from './core/types.ts';
-export { GAME_IDS, STORAGE_KEY_PREFIX, storageKey } from './core/types.ts';
+export { DIFFICULTIES, GAME_IDS, STORAGE_KEY_PREFIX, storageKey } from './core/types.ts';
 
 /*
  * Nhật ký hành động dùng chung — CHUYỂN từ `k8s/contract.ts` lên `core/` ngày
@@ -155,6 +155,35 @@ export {
 } from './git/sandbox.ts';
 export { GIT_PREDICATE_NAMES, evaluateObjectives, verdictOf } from './git/predicates.ts';
 export type { ObjectiveResult, Verdict } from './git/predicates.ts';
+
+/**
+ * Level Builder — §18.E.
+ *
+ * `checkSolvable` là cỗ máy của AC-8/AC-9 (chạy lời giải của cả 32 level đang
+ * phát hành) dùng lại nguyên vẹn cho §18.E.7, nên level bạn tự dựng đi qua đúng
+ * phép kiểm mà hàng phát hành đi qua. Nó chứng minh "đường NÀY đi được", KHÔNG
+ * chứng minh "không có đường nào" — xem khối đầu `git/solvability.ts`.
+ */
+export { checkSolvable } from './git/solvability.ts';
+export type { RejectedCommand, SolvabilityReport, UnmetObjective } from './git/solvability.ts';
+export {
+  BUILDER_CANNOT_EXPRESS,
+  CUSTOM_LEVEL_ID_PREFIX,
+  draftFromLevel,
+  draftToLevel,
+  emptyDraft,
+  isCustomLevelId,
+  levelDraftIssues,
+  levelFromJson,
+  levelToJson,
+} from './git/level-draft.ts';
+export type {
+  BuilderLimit,
+  DraftIssue,
+  DraftIssueCode,
+  LevelDraft,
+  LevelExport,
+} from './git/level-draft.ts';
 export { GIT_VERBS, isGitVerb } from './git/command-table.ts';
 export type { GitVerb } from './git/command-table.ts';
 export { parseGitCommand } from './git/parser.ts';
