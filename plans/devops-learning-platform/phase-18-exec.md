@@ -450,3 +450,34 @@ tự điều chỉnh.
    file ba dòng *"review in progress"*. Brief lượt sau mang kỷ luật giao hàng — ghi phát hiện đầu
    tiên vào file NGAY sau câu hỏi đầu tiên — và nó giao đủ bảy câu. Đây là §3.1 bài học 1 lặp lại
    lần thứ hai trong cùng một phase.
+
+### 5.6 Đo lại sau `c4fa97a` — và hai sự cố của chính phép đo
+
+Số ở §5.1 đo tại `0f086de`. Sau `c4fa97a` phải đo lại, và hai lượt đầu ĐỎ vì hai lý do khác nhau.
+
+**Lượt 1 — `Tasks: 28/31`, `@devops-platform/web#lint` đỏ.** Một `import { useProblemSubmit }`
+sót lại ở `arena-overlays.tsx` sau khi hook chuyển sang panel (vá ở `22cc5a8`).
+
+⚠ Trước lượt đó tôi đã chạy `typecheck` (exit 0) và 211 ô k8s-arena (xanh) rồi báo là xong.
+**Cả hai phép ấy mù với một biến thừa** — chỉ `eslint` bắt. Đúng
+`rules/lane-work-never-runs-package-lint`, dẫm lại trong cùng phiên đã đọc nó. Và vì turbo dừng
+sau task đỏ, `web:test` lượt đó **chưa hề chạy**: ai chỉ đọc "không thấy dòng nào đỏ" mà bỏ qua
+`Tasks: X/Y` sẽ trích lại con số test của một HEAD khác.
+
+**Lượt 2 — `Tasks: 28/31`, một ô web đỏ: `lessons-authz.test.ts › phân trang bằng cursor đi hết
+danh sách`.** `InvalidCursorError: bai-1789456432419-tfx7q7`.
+
+Không phải hồi quy, và đây là bằng chứng chứ không phải lời khai: ô nằm ngoài mọi file đợt này
+chạm, và chạy RIÊNG thì **22/22 xanh**. `composite-source.ts:420` chỉ ném `InvalidCursorError`
+khi **không nguồn nào nhận ra cursor VÀ không nguồn nào lỗi** — tức mục cursor trỏ tới đã biến
+mất thật giữa hai trang. Mã cursor mang dấu thời gian, tức một fixture: hình dạng
+`leaked-fixtures-made-gates-measure-emptiness`, nổi lên khi hai tiến trình cùng ghi vào một DB
+(một phiên Claude khác đang mở trên cùng repo, 20 tiến trình node lúc đo).
+
+**Lượt 3 — xanh.** `Tasks: 32 successful, 32 total`, exit 0, 3m46s, cùng bảng số §5.1
+(web 2467 · tổng 5385 ô · 0 skip), chạy trên đúng nội dung nay là `22cc5a8`.
+
+⚠ **Ghi flake kèm số lần, không im lặng cho qua:** `lessons-authz` đỏ **1 trong 3** lượt toàn
+suite. `git log -S` không thấy lịch sử sửa ô này, nên nó chưa từng được nhận diện là lung lay.
+Một ô đỏ dưới tải đồng thời mà xanh khi chạy riêng vẫn là một ô CÓ THẬT sẽ đỏ trong CI — chỗ
+đúng để sửa là cách ly fixture, không phải một lượt chạy lại.
