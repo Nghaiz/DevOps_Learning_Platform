@@ -250,6 +250,60 @@ describe('xác minh đầu-cuối bằng verifyRun', () => {
     const claim = makeClaim(problem, foreign, 0, []);
     expect(verifyRun(foreign, claim, engine).status).not.toBe('da-xac-minh');
   });
+
+  /**
+   * ⛔ ĐỐI CHỨNG DƯƠNG cho `objectivesTotal` — bản K8s của
+   * `git-replay.test.ts` § "client khai AC, máy chủ vẫn nói WA".
+   *
+   * ## Vì sao ô này tồn tại, và vì sao KHÔNG sửa `verifyRun` thay vào đó
+   *
+   * Bảng nợ của kế hoạch (§5.4, §6.4) ghi *"`objectivesTotal` KHÔNG nằm trong
+   * sáu trường `verifyRun` so. Hai bên lệch trường đó thì không ô nào đỏ"*. Vế
+   * đầu ĐÚNG; vế sau — và cái kết luận ngầm rằng đó là một khe hở — thì SAI, và
+   * đo được là sai:
+   *
+   * - `problemScoreRun` (`replay.ts`) và đường chấm đều lấy mẫu số từ
+   *   `problem.testcases.length`. Lời khai của client không được đọc một lần nào.
+   * - `problem_submissions` KHÔNG có cột `objectivesTotal`. Không có gì để lưu
+   *   một con số bịa.
+   * - Chỗ DUY NHẤT đọc `claimed.objectivesTotal` là `warnOnVerdictDivergence`
+   *   (`submit.ts`), và việc của nó chính là kêu lên khi hai bên lệch.
+   *
+   * Nên thêm trường này vào `verifyRun` sẽ không đóng đường nào, lại còn LÀM TẮT
+   * cảnh báo đó: lệch ⇒ `khong-khop` ⇒ `CE`, mà `warnOnVerdictDivergence` thoát
+   * sớm ở nhánh `CE`. Đổi một dòng log có tên lấy một `CE` vô danh.
+   *
+   * Thứ đáng làm là CHỨNG MINH tầng đang chịu lực vẫn chịu được — và Git đã có ô
+   * đó từ trước, K8s thì chưa. Đây là ô còn thiếu.
+   */
+  it('⛔ hạ `objectivesTotal` ⇒ đi LỌT xác minh, nhưng mẫu số thật vẫn của BÀI', () => {
+    const problem = makeProblem();
+    const log = makeLog(problem, [APPLY_POD]);
+    const engine = problemReplayEngine(problem, []);
+    const truth = replayedScore(problem, log, []);
+    const objectivesMet = objectivesFrom(problem, log);
+
+    // Bài có nhiều hơn một testcase, nếu không thì "hạ mẫu số" không có nghĩa.
+    expect(problem.testcases.length).toBeGreaterThan(1);
+    // Và lượt chơi này cố ý KHÔNG qua hết — đó là điều kiện để mẫu số quan trọng.
+    expect(objectivesMet.length).toBeLessThan(problem.testcases.length);
+
+    const suaTay: RunResult = {
+      ...makeClaim(problem, log, truth, objectivesMet),
+      objectivesTotal: objectivesMet.length,
+    };
+
+    // Vế 1 — lời khai này ĐI LỌT tầng xác minh. Không có vế này thì vế 3 xanh vì
+    // một lý do khác (lượt nộp bị chặn sớm) và ô mất hết ý nghĩa.
+    expect(verifyRun(log, suaTay, engine).status).toBe('da-xac-minh');
+
+    // Vế 2 — client tự suy thì ra `AC`: nó chia cho chính mẫu số nó vừa sửa.
+    expect(new Set(suaTay.objectivesMet).size === suaTay.objectivesTotal).toBe(true);
+
+    // Vế 3 — thứ THẬT SỰ chặn: mẫu số của máy chủ đếm từ BÀI, và `isSolved` đọc
+    // mọi testcase. Một lời khai AC không biến lượt này thành đã-giải.
+    expect(isSolved(problem, objectivesMet)).toBe(false);
+  });
 });
 
 /*
