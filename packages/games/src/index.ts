@@ -184,7 +184,7 @@ export type {
   LevelDraft,
   LevelExport,
 } from './git/level-draft.ts';
-export { GIT_VERBS, isGitVerb } from './git/command-table.ts';
+export { GIT_COMMANDS, GIT_VERBS, isGitVerb } from './git/command-table.ts';
 export type { GitVerb } from './git/command-table.ts';
 export { parseGitCommand } from './git/parser.ts';
 export { suggest } from './git/suggest.ts';

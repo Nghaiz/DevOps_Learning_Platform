@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import {
   createGitSession,
@@ -14,7 +14,27 @@ import {
 } from '@devops-platform/games';
 
 import { CommandBar, OutputLog } from './git-console';
-import { GitSvgScene } from './git-svg-scene';
+import { MarkdownView } from '@devops-platform/ui';
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Check,
+  ChevronDown,
+  Flag,
+  GitBranch,
+  Lightbulb,
+  Medal,
+  Redo2,
+  Send,
+  Sparkles,
+  Terminal,
+  Trophy,
+  Undo2,
+} from 'lucide-react';
+import { GitMapStage } from './git-map-stage';
+import { saveGitMilestone } from './git-progress';
+import './git-odyssey.css';
 import { ModeToggle } from './mode-toggle';
 import { buildSceneLayouts, type SceneView } from '../shared/scene-props';
 import {
@@ -170,7 +190,7 @@ function useRendererChoice(): {
  * không phải một ô trống vô hại.
  */
 export interface OjScreenProps {
-  /** Chấm tại chỗ được không. `false` ⇒ đổi cả cách vẽ mục tiêu lẫn nút nộp. */
+  /** Bài có đủ testcase để nộp không. OJ luôn chấm trên máy chủ. */
   readonly gradable: boolean;
   /** Câu nói ra giới hạn, hiện TRÊN MÀN khi `gradable` là `false`. */
   readonly notice: string | null;
@@ -215,6 +235,7 @@ interface LevelScreenProps {
   /** Có mặt ⇒ đây là một lượt làm BÀI OJ. Xem `OjScreenProps`. */
   readonly oj?: OjScreenProps;
   readonly exitLabel?: string;
+  readonly onNext?: (() => void) | undefined;
 }
 
 export function GitLevelScreen({
@@ -224,6 +245,7 @@ export function GitLevelScreen({
   trial,
   oj,
   exitLabel,
+  onNext,
 }: LevelScreenProps): ReactElement {
   /*
    * ⚠ Phiên giữ trong `useRef`, KHÔNG trong `useState`.
@@ -237,7 +259,7 @@ export function GitLevelScreen({
   sessionRef.current ??= createGitSession({ level });
   const session = sessionRef.current;
 
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
   const redraw = useCallback(() => {
     setTick((n) => n + 1);
   }, []);
@@ -245,6 +267,11 @@ export function GitLevelScreen({
   const [selected, setSelected] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [showTheory, setShowTheory] = useState(false);
+  const [tab, setTab] = useState<'mission' | 'guide' | 'refs'>('mission');
+  const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(
+    null,
+  );
+  const [celebrate, setCelebrate] = useState(true);
 
   const { resolved, setMode } = useRendererChoice();
   const effects = useEffectsEnabled();
@@ -305,7 +332,7 @@ export function GitLevelScreen({
    * chỗ trong JSX: ba bản của cùng một điều kiện là ba chỗ để một lần sửa bỏ sót, và bỏ
    * sót ở đây nghĩa là màn hình vừa nói "chấm ở máy chủ" vừa hiện một con số `0/n`.
    */
-  const serverGraded = oj !== undefined && !oj.gradable;
+  const serverGraded = oj !== undefined;
   const output = session.getOutput();
 
   const sceneView = view as unknown as SceneView;
@@ -313,14 +340,24 @@ export function GitLevelScreen({
 
   const submit = useCallback(
     (command: string) => {
-      session.run(command);
+      const outcome = session.run(command);
+      setFeedback({
+        tone: outcome.result.error ? 'error' : 'success',
+        text: outcome.result.error
+          ? 'Lệnh chưa thực hiện được. Xem hướng dẫn ở terminal.'
+          : command + ' · Đã thực hiện',
+      });
       redraw();
     },
     [session, redraw],
   );
 
   const undo = useCallback(() => {
-    session.undo();
+    const changed = session.undo();
+    setFeedback({
+      tone: changed ? 'success' : 'error',
+      text: changed ? 'Đã hoàn tác một bước.' : 'Chưa có bước nào để hoàn tác.',
+    });
     redraw();
   }, [session, redraw]);
 
@@ -335,268 +372,420 @@ export function GitLevelScreen({
    */
   const runSolution = useCallback(() => {
     if (trial === undefined) return;
+    setCelebrate(true);
     for (const command of trial.solutionCommands) session.run(command);
     redraw();
   }, [trial, session, redraw]);
 
+  const status = session.getStatus();
+  const won = !serverGraded && verdict.accepted && results.length > 0;
+  useEffect(() => {
+    if (!won) setCelebrate(true);
+  }, [won]);
+  useEffect(() => {
+    if (oj === undefined && trial === undefined) saveGitMilestone(level.id, won, status.movesUsed);
+  }, [level.id, won, status.movesUsed, oj, trial]);
+  const scene = {
+    view: sceneView,
+    layouts,
+    interaction: {
+      selectedId: selected,
+      hoveredId: hovered,
+      onSelect: setSelected,
+      onHover: setHovered,
+    },
+  };
+
   return (
-    <div className="flex h-full flex-col">
-      {/* ── Thanh trên ─────────────────────────────────────────────────── */}
-      <header className="flex flex-wrap items-center gap-3 border-b border-input px-4 py-2">
-        <button
-          type="button"
-          onClick={onExit}
-          className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        >
-          {exitLabel ?? '← Danh sách level'}
+    <div className="git-odyssey git-play-screen" data-chapter={level.chapter}>
+      <header className="git-play-header">
+        <button type="button" className="git-button git-back-button" onClick={onExit}>
+          <ArrowLeft size={17} />
+          <span>{exitLabel?.replace('← ', '') ?? 'Bản đồ'}</span>
         </button>
-        <span className="text-sm font-medium text-foreground">
-          {CHAPTER_TITLE[level.chapter]} · {level.title}
-        </span>
-        <span className="ml-auto flex items-center gap-3">
-          {trial !== undefined && (
+        <span className="git-header-divider" />
+        <div className="git-play-title">
+          <p className="git-eyebrow">
+            GIT ODYSSEY /{' '}
+            {oj ? 'ĐẤU TRƯỜNG OJ' : trial ? 'LEVEL BUILDER' : CHAPTER_TITLE[level.chapter]}
+          </p>
+          <h1>{level.title}</h1>
+        </div>
+        <div className="git-play-actions">
+          <span className="git-move-count">
+            <Terminal size={14} /> {status.movesUsed} lệnh
+          </span>
+          <ModeToggle resolved={resolved} enabled={ENABLED_MODES} onChange={setMode} />
+          {trial && (
             <button
               type="button"
+              className="git-button"
               onClick={runSolution}
               data-testid="git-run-solution"
-              className="rounded-md border border-input px-3 py-1 text-xs text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
               Chạy lời giải mẫu
             </button>
           )}
-          {oj !== undefined && (
+          {oj && (
             <button
               type="button"
-              onClick={() => {
-                oj.onSubmit(session);
-              }}
+              className="git-button git-button-primary"
               disabled={oj.submitDisabled}
+              onClick={() => oj.onSubmit(session)}
               data-testid="git-oj-submit"
-              className="rounded-md border border-input px-3 py-1 text-xs text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             >
+              <Send size={15} />
               {oj.submitLabel}
             </button>
           )}
-          {/*
-            ⚠ Ở chế độ OJ KHÔNG chấm được tại chỗ, dòng verdict của engine là một
-            con số NÓI DỐI: mọi vị từ trả `undefined` nên nó luôn đọc ra `0/n`, giống
-            hệt một lượt chơi chưa đạt gì. Giấu hẳn nó đi thay vì hiện một con số không
-            có nghĩa — kết quả thật nằm ở `oj.result`, do máy chủ trả về.
-          */}
-          {(oj === undefined || oj.gradable) && (
-            <span
-              className="text-xs text-muted-foreground"
-              aria-live="polite"
-              data-testid="git-verdict"
-            >
-              {verdict.accepted
-                ? `AC (${String(verdict.passedCount)}/${String(verdict.totalCount)})`
-                : `${String(verdict.passedCount)}/${String(verdict.totalCount)} testcase`}
-            </span>
-          )}
-          <ModeToggle resolved={resolved} enabled={ENABLED_MODES} onChange={setMode} />
-        </span>
-      </header>
-
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        {/* ── Khung cảnh ───────────────────────────────────────────────── */}
-        <div className={resolved.mode === '3d' ? 'min-h-0 flex-1' : 'min-h-0 flex-1 overflow-auto p-4'}>
-          {resolved.mode === '3d' ? (
-            <GitScene3D
-              effects={effects}
-              scene={{
-                view: sceneView,
-                layouts,
-                interaction: {
-                  selectedId: selected,
-                  hoveredId: hovered,
-                  onSelect: setSelected,
-                  onHover: setHovered,
-                },
-              }}
-              label={`Đồ thị commit của level ${level.title}`}
-            />
-          ) : (
-            <GitSvgScene
-              view={sceneView}
-              layouts={layouts}
-              interaction={{
-                selectedId: selected,
-                hoveredId: hovered,
-                onSelect: setSelected,
-                onHover: setHovered,
-              }}
-              label={`Đồ thị commit của level ${level.title}`}
-            />
-          )}
         </div>
-
-        {/* ── Cột phải ─────────────────────────────────────────────────── */}
-        <aside className="flex w-full shrink-0 flex-col gap-4 border-t border-input p-4 lg:w-96 lg:border-t-0 lg:border-l">
-          <section aria-labelledby="git-muc-tieu">
-            <h2 id="git-muc-tieu" className="mb-2 text-sm font-semibold text-foreground">
-              Mục tiêu
-            </h2>
-            <p className="mb-3 text-xs text-muted-foreground">{level.mission}</p>
-            <ul className="flex flex-col gap-1">
-              {results.map((r) => (
-                <li key={r.id} className="flex items-start gap-2 text-xs">
-                  {/*
-                    Ba trạng thái, không hai. `☐` khẳng định "chưa đạt"; khi engine
-                    không có `check` để chạy thì lời khẳng định đó SAI, và nó sai theo
-                    kiểu người chơi tin được — họ sửa bài mãi vì màn hình nói họ chưa đạt.
-                  */}
-                  <span aria-hidden="true" className="mt-0.5">
-                    {serverGraded ? '•' : r.met ? '☑' : '☐'}
-                  </span>
-                  <span
-                    className={
-                      !serverGraded && r.met
-                        ? 'text-muted-foreground line-through'
-                        : 'text-foreground'
-                    }
-                  >
-                    {r.label}
-                    {!r.required && <span className="text-muted-foreground"> (thưởng)</span>}
-                  </span>
-                  <span className="sr-only">
-                    {serverGraded ? 'chấm ở máy chủ' : r.met ? 'đã đạt' : 'chưa đạt'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {oj?.notice != null && (
-              <p className="mt-3 rounded-md bg-muted p-2 text-xs text-muted-foreground">
-                {oj.notice}
+      </header>
+      <div className="git-mission-strip">
+        <Flag size={15} />
+        <p>{level.mission}</p>
+        {!serverGraded ? (
+          <span aria-live="polite" data-testid="git-verdict">
+            {won ? '✓ Hoàn thành' : 'Mục tiêu'} {verdict.passedCount}/{verdict.totalCount}
+          </span>
+        ) : (
+          <span>Chấm trên máy chủ</span>
+        )}
+      </div>
+      <div className="git-play-body">
+        <div className="git-play-world">
+          {resolved.mode === '3d' ? (
+            <div className="git-three-stage">
+              <GitScene3D
+                effects={effects}
+                scene={scene}
+                label={'Đồ thị commit của level ' + level.title}
+              />
+            </div>
+          ) : (
+            <GitMapStage scene={scene} feedback={feedback} revision={tick} />
+          )}
+          {won && celebrate && (
+            <section className="git-victory" aria-label="Hoàn thành nhiệm vụ">
+              <div className="git-confetti" aria-hidden="true">
+                {Array.from({ length: 24 }, (_, i) => (
+                  <i
+                    key={i}
+                    style={{
+                      left: ((i * 29) % 100) + '%',
+                      animationDelay: i * 0.045 + 's',
+                      rotate: i * 37 + 'deg',
+                    }}
+                  />
+                ))}
+              </div>
+              <span className="git-victory-medal">
+                <Trophy size={32} />
+              </span>
+              <p className="git-eyebrow">TRẠM ĐÃ ĐƯỢC CHINH PHỤC</p>
+              <h2>Lịch sử nằm trong tay bạn.</h2>
+              <p>
+                Hoàn thành {verdict.passedCount}/{verdict.totalCount} mục tiêu · {status.movesUsed}{' '}
+                lệnh
               </p>
-            )}
-          </section>
-
-          {oj !== undefined && (
-            <section aria-labelledby="git-oj-ket-qua">
-              <h2 id="git-oj-ket-qua" className="mb-2 text-sm font-semibold text-foreground">
-                Kết quả lượt nộp
-              </h2>
-              {/*
-                `aria-live` vì kết quả tới SAU một vòng mạng, không tới cùng lúc người
-                dùng bấm. Không có nó thì người dùng trình đọc màn hình bấm "Nộp bài" rồi
-                không bao giờ biết điều gì xảy ra.
-              */}
-              <p
-                className="text-xs text-muted-foreground"
-                aria-live="polite"
-                data-testid="git-oj-result"
-              >
-                {oj.result ?? 'Chưa nộp lượt nào.'}
-              </p>
-              {oj.failedLabels.length > 0 && (
-                <ul className="mt-2 flex flex-col gap-1">
-                  {oj.failedLabels.map((label) => (
-                    <li key={label} className="text-xs text-foreground">
-                      ✗ {label}
+              {level.teaching.takeaways.length > 0 && (
+                <ul>
+                  {level.teaching.takeaways.map((takeaway) => (
+                    <li key={takeaway}>
+                      <Check size={15} />
+                      {takeaway}
                     </li>
                   ))}
                 </ul>
               )}
+              <div>
+                <button className="git-button" onClick={() => setCelebrate(false)}>
+                  Tiếp tục khám phá
+                </button>
+                {onNext ? (
+                  <button className="git-button git-button-primary" onClick={onNext}>
+                    Trạm tiếp theo
+                    <ArrowRight size={16} />
+                  </button>
+                ) : (
+                  <button className="git-button git-button-primary" onClick={onExit}>
+                    Về {trial ? 'Builder' : 'bản đồ'}
+                    <ArrowRight size={16} />
+                  </button>
+                )}
+              </div>
             </section>
           )}
-
-          {theory !== null && (
-            <section aria-labelledby="git-bai-giang">
-              <h2 id="git-bai-giang" className="mb-2 text-sm font-semibold text-foreground">
-                Bài giảng
-              </h2>
-              <button
-                type="button"
-                aria-expanded={showTheory}
-                onClick={() => {
-                  setShowTheory((v) => !v);
-                }}
-                className="w-full rounded-md border border-input px-3 py-2 text-left text-xs text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              >
-                {theory.frontmatter.title} · {String(theory.frontmatter.readMinutes)} phút đọc
-              </button>
-              {showTheory && (
-                <div className="mt-2 max-h-72 overflow-auto rounded-md bg-muted p-3 text-xs whitespace-pre-wrap text-muted-foreground">
-                  {theory.body}
-                </div>
-              )}
-            </section>
-          )}
-
-          <section aria-labelledby="git-ref-list">
-            <h2 id="git-ref-list" className="mb-2 text-sm font-semibold text-foreground">
-              Ref
-            </h2>
-            <ul className="flex flex-col gap-1 font-mono text-xs">
-              {view.refs.map((r) => (
-                <li key={`${r.repo}:${r.name}`} className="text-muted-foreground">
-                  <span className={r.isCurrent ? 'text-foreground' : undefined}>{r.shortName}</span>
-                  {' → '}
-                  {r.oid.slice(0, 7)}
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section aria-labelledby="git-goi-y">
-            <h2 id="git-goi-y" className="mb-2 text-sm font-semibold text-foreground">
-              Gợi ý
-            </h2>
-            <ul className="flex flex-col gap-1">
-              {/*
-                `key` theo CHỈ SỐ, không theo chữ. Bản trước dùng `key={hint}`, và
-                ở chế độ OJ mọi `hint` là chuỗi rỗng — tức mọi `<li>` mang CÙNG
-                một key. React khi đó dựng lại nhầm node giữa các lần render, và
-                không có gì đỏ. Chỉ số ở đây là khoá đúng: danh sách gợi ý của một
-                level không bao giờ đổi thứ tự trong một lượt chơi.
-              */}
-              {level.hints.map((hint, i) => {
-                const reveal = oj?.hintReveals.get(i);
-                return (
-                  <li key={i}>
-                    <button
-                      type="button"
-                      disabled={reveal?.phase === 'pending'}
-                      onClick={() => {
-                        /* Chế độ dạy: chữ nằm sẵn trong level. */
-                        if (oj === undefined) {
-                          session.revealHint(i);
-                          redraw();
-                          return;
-                        }
-                        /* Chế độ bài: xin trước, có chữ mới trừ điểm. */
-                        void oj.onRevealHint(i).then((text) => {
-                          if (text === null) {
-                            redraw();
-                            return;
-                          }
-                          session.revealHint(i, text);
-                          redraw();
-                        });
-                      }}
-                      className="text-left text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60"
+        </div>
+        <aside className="git-side-panel">
+          <nav className="git-panel-tabs" aria-label="Nội dung nhiệm vụ">
+            <button aria-pressed={tab === 'mission'} onClick={() => setTab('mission')}>
+              <Flag size={15} />
+              {oj ? 'Đề bài' : 'Nhiệm vụ'}
+            </button>
+            <button aria-pressed={tab === 'guide'} onClick={() => setTab('guide')}>
+              <BookOpen size={15} />
+              Cẩm nang
+            </button>
+            <button aria-pressed={tab === 'refs'} onClick={() => setTab('refs')}>
+              <GitBranch size={15} />
+              Refs
+            </button>
+          </nav>
+          <div className="git-panel-content">
+            {tab === 'mission' && (
+              <>
+                <section className="git-objective-section">
+                  <p className="git-eyebrow">
+                    <Flag size={13} /> {oj ? 'ĐỀ BÀI OJ' : 'ĐÍCH ĐẾN CỦA BẠN'}
+                  </p>
+                  <h2>{level.title}</h2>
+                  <div className="git-readable-content">
+                    <MarkdownView
+                      markdown={level.brief || level.mission}
+                      resolveAssetUrl={() => null}
+                    />
+                  </div>
+                  {!serverGraded && (
+                    <div
+                      className="git-objective-progress"
+                      role="progressbar"
+                      aria-label="Tiến độ mục tiêu"
+                      aria-valuenow={verdict.passedCount}
+                      aria-valuemin={0}
+                      aria-valuemax={verdict.totalCount || 1}
                     >
-                      {reveal?.phase === 'pending' ? `Đang mở gợi ý ${i + 1}…` : `Mở gợi ý ${i + 1}`}
+                      <span
+                        style={{
+                          width:
+                            (verdict.totalCount
+                              ? (verdict.passedCount / verdict.totalCount) * 100
+                              : 0) + '%',
+                        }}
+                      />
+                    </div>
+                  )}
+                  <h3>{oj ? 'Tiêu chí chấm bài' : 'Mục tiêu nhiệm vụ'}</h3>
+                  <ul className="git-objective-list">
+                    {results.map((result) => (
+                      <li key={result.id} data-met={!serverGraded && result.met}>
+                        <span className="git-objective-check" aria-hidden="true">
+                          {serverGraded ? '?' : result.met ? <Check size={14} /> : <span />}
+                        </span>
+                        <span>
+                          {result.label}
+                          {!result.required && <small>Thưởng</small>}
+                          <span className="sr-only">
+                            {serverGraded
+                              ? ' — chấm ở máy chủ'
+                              : result.met
+                                ? ' — đã đạt'
+                                : ' — chưa đạt'}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {oj?.notice && <p className="git-inline-notice">{oj.notice}</p>}
+                </section>
+                {oj && (
+                  <section
+                    className="git-oj-result"
+                    data-verdict={
+                      oj.result?.startsWith('AC') ? 'accepted' : oj.result ? 'review' : 'waiting'
+                    }
+                  >
+                    <h3>
+                      <Medal size={18} /> Kết quả lượt nộp gần nhất
+                    </h3>
+                    <p aria-live="polite" data-testid="git-oj-result">
+                      {oj.result ??
+                        'Sẵn sàng khi bạn sẵn sàng. Hoàn thành đề bài rồi nhấn Nộp bài.'}
+                    </p>
+                    {oj.failedLabels.length > 0 && (
+                      <ul>
+                        {oj.failedLabels.map((label, i) => (
+                          <li key={i}>✗ {label}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                )}
+                <section className="git-hints">
+                  <h3>
+                    <Lightbulb size={16} /> Tiếp sức hành trình
+                  </h3>
+                  {level.hints.length === 0 ? (
+                    <p>Nhiệm vụ này không có gợi ý.</p>
+                  ) : (
+                    level.hints.map((_hint, i) => {
+                      const reveal = oj?.hintReveals.get(i);
+                      const revealedText = [...output]
+                        .reverse()
+                        .find((line) => line.text.startsWith('Gợi ý ' + (i + 1) + ': '))?.text;
+                      return (
+                        <div key={i}>
+                          <button
+                            type="button"
+                            className="git-hint-button"
+                            disabled={reveal?.phase === 'pending'}
+                            onClick={() => {
+                              if (!oj) {
+                                session.revealHint(i);
+                                redraw();
+                                return;
+                              }
+                              void oj.onRevealHint(i).then((text) => {
+                                if (text !== null) session.revealHint(i, text);
+                                redraw();
+                              });
+                            }}
+                          >
+                            <span>
+                              <Lightbulb size={14} />
+                              {reveal?.phase === 'pending' ? 'Đang mở…' : 'Mở gợi ý ' + (i + 1)}
+                            </span>
+                            <ChevronDown size={14} />
+                          </button>
+                          {revealedText && <p className="git-revealed-hint">{revealedText}</p>}
+                          {reveal?.phase === 'error' && (
+                            <p role="alert" className="text-destructive">
+                              Không mở được: {reveal.message}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </section>
+              </>
+            )}
+            {tab === 'guide' && (
+              <>
+                <section>
+                  <p className="git-eyebrow">
+                    <BookOpen size={13} /> CẨM NANG THÁM HIỂM
+                  </p>
+                  <h2>Hiểu lệnh. Hiểu lịch sử.</h2>
+                  {level.teaching.primer && (
+                    <div className="git-readable-content">
+                      <MarkdownView markdown={level.teaching.primer} resolveAssetUrl={() => null} />
+                    </div>
+                  )}
+                  <p className="git-inline-notice">
+                    Gõ lệnh ở terminal, nhấn Enter để thực hiện. ↑↓ xem lại lệnh. Ctrl/Cmd + Z hoàn
+                    tác.
+                  </p>
+                </section>
+                <section className="git-cheatsheet">
+                  <h3>Công cụ của nhiệm vụ</h3>
+                  {level.teaching.cheatsheet.length > 0 ? (
+                    level.teaching.cheatsheet.map((entry, i) => (
+                      <div key={i}>
+                        <code>{entry.command}</code>
+                        <p>{entry.explain}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p>Tra cú pháp tại nút “Thư viện lệnh” bên dưới terminal.</p>
+                  )}
+                </section>
+                {level.teaching.pitfalls?.map((pitfall) => (
+                  <p className="git-inline-notice" key={pitfall}>
+                    {pitfall}
+                  </p>
+                ))}
+                {level.teaching.proTips?.map((tip) => (
+                  <p className="git-revealed-hint" key={tip}>
+                    <Sparkles size={14} /> {tip}
+                  </p>
+                ))}
+                {theory && (
+                  <section>
+                    <button
+                      className="git-hint-button"
+                      aria-expanded={showTheory}
+                      onClick={() => setShowTheory((v) => !v)}
+                    >
+                      <BookOpen size={16} />
+                      {theory.frontmatter.title} · {theory.frontmatter.readMinutes} phút
+                      <ChevronDown size={14} />
                     </button>
-                    {reveal?.phase === 'error' ? (
-                      <p role="alert" className="mt-0.5 text-xs text-destructive">
-                        Không mở được: {reveal.message}
-                      </p>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
+                    {showTheory && (
+                      <div className="git-readable-content git-theory">
+                        <MarkdownView markdown={theory.body} resolveAssetUrl={() => null} />
+                      </div>
+                    )}
+                  </section>
+                )}
+              </>
+            )}
+            {tab === 'refs' && (
+              <section>
+                <p className="git-eyebrow">
+                  <GitBranch size={13} /> ĐỊNH VỊ TRONG KHO
+                </p>
+                <h2>Bạn đang ở đâu?</h2>
+                <p className="git-inline-notice">
+                  {view.detached
+                    ? 'Detached HEAD: bạn đang đứng trực tiếp trên một commit.'
+                    : 'HEAD đi cùng nhánh hiện tại. Chọn một ref để tìm commit trên bản đồ.'}
+                </p>
+                <ul className="git-ref-list">
+                  {view.refs.map((ref) => (
+                    <li key={ref.repo + ':' + ref.name}>
+                      <button
+                        onClick={() => setSelected(ref.repo + ':' + ref.oid)}
+                        data-current={ref.isCurrent}
+                      >
+                        <GitBranch size={16} />
+                        <span>
+                          <strong>{ref.shortName}</strong>
+                          <small>
+                            {ref.repo} → {ref.oid.slice(0, 7)}
+                          </small>
+                        </span>
+                        {ref.isCurrent && <b>HEAD</b>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
         </aside>
       </div>
-
-      {/* ── Bản ghi lệnh + ô lệnh, rộng hết chiều ngang ─────────────────── */}
-      <div className="border-t border-input">
+      <section className="git-terminal">
+        <header>
+          <span>
+            <i />
+            <i />
+            <i />
+            <Terminal size={14} /> TERMINAL <small>~/git-odyssey</small>
+          </span>
+          <div>
+            <button type="button" onClick={undo}>
+              <Undo2 size={14} />
+              Hoàn tác
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const changed = session.redo();
+                setFeedback({
+                  tone: changed ? 'success' : 'error',
+                  text: changed ? 'Đã làm lại một bước.' : 'Chưa có bước nào để làm lại.',
+                });
+                redraw();
+              }}
+            >
+              <Redo2 size={14} />
+              Làm lại
+            </button>
+          </div>
+        </header>
         <OutputLog output={output} />
-        <CommandBar onSubmit={submit} onUndo={undo} />
-      </div>
+        <CommandBar onSubmit={submit} onUndo={undo} allowedCommands={level.allowedCommands} />
+      </section>
     </div>
   );
 }

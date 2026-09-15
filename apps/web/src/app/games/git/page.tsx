@@ -71,9 +71,11 @@ export default async function GitGamePage({
 
   return (
     <GitGame
+      key={`${initialProblemCode ?? initialLevelId ?? 'campaign'}-${params.mode === 'builder' ? 'builder' : 'play'}`}
       theory={theory}
       initialLevelId={initialLevelId}
       initialProblemCode={initialProblemCode}
+      initialBuilderOpen={params.mode === 'builder'}
     />
   );
 }

@@ -166,7 +166,10 @@ export function GitLevelBuilder({
   }, [exported, draft]);
 
   return (
-    <div className="flex flex-col gap-5" data-testid="git-builder">
+    <div
+      className="git-builder-panel git-builder-content flex flex-col gap-5"
+      data-testid="git-builder"
+    >
       <BuilderLimits />
 
       {/* ── E.1 · chụp trạng thái ──────────────────────────────────────── */}
@@ -299,8 +302,8 @@ export function GitLevelBuilder({
             Bài lý thuyết đi kèm
           </label>
           <p className="text-[10px] text-muted-foreground">
-            Chọn một trong 32 bài đã có, hoặc để trống. Builder không tạo bài lý thuyết mới:
-            chúng là tệp markdown trong kho, không phải dữ liệu của level.
+            Chọn một trong 32 bài đã có, hoặc để trống. Builder không tạo bài lý thuyết mới: chúng
+            là tệp markdown trong kho, không phải dữ liệu của level.
           </p>
           <select
             id="builder-theory"
@@ -431,8 +434,8 @@ export function GitLevelBuilder({
           Chơi thử
         </h3>
         <p className="text-xs text-muted-foreground">
-          Mở level này bằng đúng màn chơi người chơi sẽ thấy. Trong đó có thêm một nút chạy
-          lời giải mẫu để xem chuỗi lệnh đi qua từng bước.
+          Mở level này bằng đúng màn chơi người chơi sẽ thấy. Trong đó có thêm một nút chạy lời giải
+          mẫu để xem chuỗi lệnh đi qua từng bước.
         </p>
         <div>
           <BuilderButton
@@ -465,7 +468,11 @@ export function GitLevelBuilder({
           className="w-full rounded-md border border-input bg-muted p-2 font-mono text-[10px] text-muted-foreground"
         />
         <div>
-          <BuilderButton onClick={download} disabled={exported === ''} testId="git-builder-download">
+          <BuilderButton
+            onClick={download}
+            disabled={exported === ''}
+            testId="git-builder-download"
+          >
             Tải tệp JSON về
           </BuilderButton>
         </div>
@@ -495,7 +502,11 @@ export function GitLevelBuilder({
           </BuilderButton>
         </div>
         {importError !== null && (
-          <p role="alert" data-testid="git-builder-import-error" className="text-xs text-destructive">
+          <p
+            role="alert"
+            data-testid="git-builder-import-error"
+            className="text-xs text-destructive"
+          >
             {importError}
           </p>
         )}
@@ -553,8 +564,8 @@ function ObjectiveEditor({
         Mục tiêu
       </h3>
       <p className="text-xs text-muted-foreground">
-        Một mục tiêu là một testcase. Level cần ít nhất một mục bắt buộc, nếu không thì verdict
-        đạt không bao giờ tới.
+        Một mục tiêu là một testcase. Level cần ít nhất một mục bắt buộc, nếu không thì verdict đạt
+        không bao giờ tới.
       </p>
 
       {objectives.map((objective, index) => (
@@ -700,8 +711,8 @@ function ArgEditor({
   if (specs.length === 0) {
     return objective.check === 'graphShapeMatches' ? (
       <p className="text-[10px] text-muted-foreground">
-        Vị từ này không nhận tham số. Nó so hình dạng DAG với CÂY ĐÍCH ở khối trên, nên hãy
-        chắc là bạn đã đặt đích.
+        Vị từ này không nhận tham số. Nó so hình dạng DAG với CÂY ĐÍCH ở khối trên, nên hãy chắc là
+        bạn đã đặt đích.
       </p>
     ) : (
       <p className="text-[10px] text-muted-foreground">Vị từ này không nhận tham số.</p>
@@ -781,9 +792,12 @@ function ArgEditor({
         );
       })}
       {missing.length > 0 && (
-        <p className="text-[10px] text-destructive" data-testid={`git-builder-missing-arg-${String(index)}`}>
-          Còn trống tham số bắt buộc: {missing.join(', ')}. Thiếu chúng thì vị từ này trả
-          &quot;chưa đạt&quot; ở mọi trạng thái, và engine không nói ra lý do.
+        <p
+          className="text-[10px] text-destructive"
+          data-testid={`git-builder-missing-arg-${String(index)}`}
+        >
+          Còn trống tham số bắt buộc: {missing.join(', ')}. Thiếu chúng thì vị từ này trả &quot;chưa
+          đạt&quot; ở mọi trạng thái, và engine không nói ra lý do.
         </p>
       )}
     </div>
@@ -826,8 +840,8 @@ function TeachingEditor({
         Tầng dạy học
       </h3>
       <p className="text-xs text-muted-foreground" data-testid="git-builder-teaching-note">
-        Màn chơi Git hôm nay chưa hiện phần này. Nó đi theo tệp level bạn xuất ra, để dùng được
-        ngay khi màn chơi mọc thêm chỗ hiện nó. Bài lý thuyết ở ô trên thì hiện được ngay.
+        Màn chơi Git hôm nay chưa hiện phần này. Nó đi theo tệp level bạn xuất ra, để dùng được ngay
+        khi màn chơi mọc thêm chỗ hiện nó. Bài lý thuyết ở ô trên thì hiện được ngay.
       </p>
       <AreaField
         id="builder-primer"
@@ -909,11 +923,7 @@ function TeachingEditor({
 // Danh sách lỗi của bản nháp
 // ═══════════════════════════════════════════════════════════════════════════
 
-function DraftIssueList({
-  issues,
-}: {
-  readonly issues: readonly DraftIssue[];
-}): ReactElement {
+function DraftIssueList({ issues }: { readonly issues: readonly DraftIssue[] }): ReactElement {
   if (issues.length === 0) {
     return (
       <p className="text-xs text-success" data-testid="git-builder-issues">
@@ -984,7 +994,9 @@ function SolvabilityPanel({
           {t('author.builder.check.run')}
         </BuilderButton>
       </div>
-      {blocked && <p className="text-xs text-muted-foreground">{t('author.builder.check.blocked')}</p>}
+      {blocked && (
+        <p className="text-xs text-muted-foreground">{t('author.builder.check.blocked')}</p>
+      )}
       {report !== null && (
         <div className="flex flex-col gap-2" data-testid="git-builder-check-report">
           <p

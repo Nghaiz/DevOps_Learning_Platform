@@ -5,7 +5,10 @@ import { useMemo, useState, type ReactElement } from 'react';
 
 import { GIT_LEVELS, type GitLevel, type LevelDraft, type TheoryDoc } from '@devops-platform/games';
 
-import { CHAPTER_TITLE, GitLevelScreen } from './git-level-screen';
+import { GitStatusScreen } from './git-status-screen';
+import { GitCampaign } from './git-campaign';
+import './git-odyssey.css';
+import { GitLevelScreen } from './git-level-screen';
 import { GitSandbox } from './git-sandbox';
 
 /**
@@ -24,11 +27,7 @@ import { GitSandbox } from './git-sandbox';
  */
 const GitProblemScreen = dynamic(() => import('./git-problem').then((m) => m.GitProblemScreen), {
   ssr: false,
-  loading: () => (
-    <p className="p-4 text-sm text-muted-foreground" role="status">
-      Đang nạp chế độ làm bài…
-    </p>
-  ),
+  loading: () => <GitStatusScreen text="Đang chuẩn bị đấu trường Git OJ…" />,
 });
 
 /**
@@ -52,6 +51,7 @@ const GitProblemScreen = dynamic(() => import('./git-problem').then((m) => m.Git
  */
 
 export interface GitGameProps {
+  readonly initialBuilderOpen?: boolean;
   /** 32 bài lý thuyết, đọc ở server. Xem `server/games/git-theory.ts`. */
   readonly theory: readonly TheoryDoc[];
   /** Level mở sẵn. `null` = hiện màn chọn level. */
@@ -70,9 +70,10 @@ export function GitGame({
   theory,
   initialLevelId,
   initialProblemCode,
+  initialBuilderOpen = false,
 }: GitGameProps): ReactElement {
   const [levelId, setLevelId] = useState<string | null>(initialLevelId);
-  const [sandbox, setSandbox] = useState(false);
+  const [sandbox, setSandbox] = useState(initialBuilderOpen);
   /*
    * ⚠ Bản nháp của Level Builder (§18.E) sống Ở ĐÂY, không trong `GitSandbox`.
    *
@@ -89,13 +90,10 @@ export function GitGame({
    * điểm của E.6 — nên đường vào nó là state này chứ không phải `?level=`.
    */
   const [draft, setDraft] = useState<LevelDraft | null>(null);
-  const [builderOpen, setBuilderOpen] = useState(false);
+  const [builderOpen, setBuilderOpen] = useState(initialBuilderOpen);
   const [trial, setTrial] = useState<GitLevel | null>(null);
 
-  const level = useMemo(
-    () => GIT_LEVELS.find((l) => l.id === levelId) ?? null,
-    [levelId],
-  );
+  const level = useMemo(() => GIT_LEVELS.find((l) => l.id === levelId) ?? null, [levelId]);
 
   /*
    * BÀI OJ thắng mọi đường vào khác, và nó là một đường MỘT CHIỀU: không có nút nào
@@ -136,7 +134,7 @@ export function GitGame({
   }
   if (level === null) {
     return (
-      <LevelPicker
+      <GitCampaign
         onPick={setLevelId}
         onSandbox={() => {
           setSandbox(true);
@@ -149,64 +147,14 @@ export function GitGame({
       key={level.id}
       level={level}
       theory={theory.find((d) => d.frontmatter.id === level.theoryId) ?? null}
+      onNext={
+        GIT_LEVELS[GIT_LEVELS.indexOf(level) + 1]
+          ? () => setLevelId(GIT_LEVELS[GIT_LEVELS.indexOf(level) + 1]!.id)
+          : undefined
+      }
       onExit={() => {
         setLevelId(null);
       }}
     />
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Màn chọn level
-// ═══════════════════════════════════════════════════════════════════════════
-
-function LevelPicker({
-  onPick,
-  onSandbox,
-}: {
-  readonly onPick: (id: string) => void;
-  readonly onSandbox: () => void;
-}): ReactElement {
-  return (
-    <div className="flex flex-col gap-8 p-6">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold text-foreground">Phòng thí nghiệm Git</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Gõ lệnh git thật trên một kho mô phỏng chạy hoàn toàn trong trình duyệt. Không tốn
-          sandbox, không cần đăng nhập, tiến độ lưu ngay trên máy bạn.
-        </p>
-        <div>
-          <button
-            type="button"
-            onClick={onSandbox}
-            className="rounded-md border border-input px-3 py-1.5 text-sm text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-          >
-            Mở sandbox
-          </button>
-        </div>
-      </header>
-
-      {([1, 2, 3] as const).map((chapter) => (
-        <section key={chapter} className="flex flex-col gap-3">
-          <h2 className="text-lg font-medium text-foreground">{CHAPTER_TITLE[chapter]}</h2>
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {GIT_LEVELS.filter((l) => l.chapter === chapter).map((l) => (
-              <li key={l.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onPick(l.id);
-                  }}
-                  className="flex w-full flex-col gap-1 rounded-lg border border-input bg-card p-4 text-left transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
-                >
-                  <span className="text-sm font-medium text-card-foreground">{l.title}</span>
-                  <span className="text-xs text-muted-foreground">{l.mission}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
   );
 }

@@ -148,7 +148,7 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
   }, [draft, extras]);
 
   return (
-    <section aria-labelledby="builder-luu-bai" className="flex flex-col gap-3">
+    <section aria-labelledby="builder-luu-bai" className="git-builder-publish flex flex-col gap-3">
       <h3 id="builder-luu-bai" className="text-sm font-semibold text-foreground">
         Lưu thành bài tập
       </h3>
@@ -210,8 +210,8 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
         <fieldset className="flex flex-col gap-2 rounded-md border border-input p-3">
           <legend className="px-1 text-xs font-medium text-foreground">Điểm trừ mỗi gợi ý</legend>
           <p className="text-[10px] text-muted-foreground">
-            Gợi ý của level thì miễn phí vì level DẠY. Gợi ý của bài tập có giá vì bài tập THỬ.
-            Để 0 nếu muốn miễn phí.
+            Gợi ý của level thì miễn phí vì level DẠY. Gợi ý của bài tập có giá vì bài tập THỬ. Để 0
+            nếu muốn miễn phí.
           </p>
           {draft.hints.map((hint, index) => (
             <div key={`penalty-${String(index)}`} className="flex items-center gap-2">
@@ -285,10 +285,7 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
       </p>
 
       {issues.length > 0 && (
-        <ul
-          className="flex list-disc flex-col gap-1 pl-5"
-          data-testid="git-builder-save-issues"
-        >
+        <ul className="flex list-disc flex-col gap-1 pl-5" data-testid="git-builder-save-issues">
           {issues.map((issue) => (
             <li key={`${issue.code}-${issue.detail ?? ''}`} className="text-xs text-destructive">
               {t(SAVE_ISSUE_TEXT[issue.code])}
@@ -304,10 +301,7 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
       )}
 
       {losses.length > 0 && (
-        <ul
-          className="flex list-disc flex-col gap-1 pl-5"
-          data-testid="git-builder-save-losses"
-        >
+        <ul className="flex list-disc flex-col gap-1 pl-5" data-testid="git-builder-save-losses">
           {losses.map((loss) => (
             <li key={loss.code} className="text-xs text-warning">
               {t(SAVE_LOSS_TEXT[loss.code])}
@@ -337,20 +331,12 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
       </div>
 
       {status.kind === 'done' && (
-        <p
-          role="status"
-          data-testid="git-builder-save-done"
-          className="text-xs text-foreground"
-        >
+        <p role="status" data-testid="git-builder-save-done" className="text-xs text-foreground">
           {t('author.builder.save.done', { code: status.code })}
         </p>
       )}
       {status.kind === 'error' && (
-        <p
-          role="alert"
-          data-testid="git-builder-save-error"
-          className="text-xs text-destructive"
-        >
+        <p role="alert" data-testid="git-builder-save-error" className="text-xs text-destructive">
           {status.message}
         </p>
       )}

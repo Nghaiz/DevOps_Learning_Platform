@@ -3,9 +3,16 @@
 import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 import { toVerdictView, type GitEngineSession, type VerdictView } from '@devops-platform/games';
 
+import { GitStatusScreen } from './git-status-screen';
 import { GitLevelScreen } from './git-level-screen';
 import { useHintReveal } from '../../../lib/use-hint-reveal';
-import { gitOjClaim, gitOjGradable, gitOjLevel, type GitOjProblem, type GitOjTestcase } from './problem-level';
+import {
+  gitOjClaim,
+  gitOjGradable,
+  gitOjLevel,
+  type GitOjProblem,
+  type GitOjTestcase,
+} from './problem-level';
 import { api, TrpcQueryProvider } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
 
@@ -65,17 +72,6 @@ export function GitProblemScreen({ code }: GitProblemScreenProps): ReactElement 
   );
 }
 
-/** Một dòng trạng thái chiếm trọn màn — dùng cho cả đang tải lẫn lỗi. */
-function ManMotDong({ text, role }: { readonly text: string; readonly role: string }): ReactElement {
-  return (
-    <div className="flex h-full items-center justify-center p-6">
-      <p className="max-w-xl text-sm text-muted-foreground" role={role}>
-        {text}
-      </p>
-    </div>
-  );
-}
-
 function GitProblemBody({ code }: { readonly code: string }): ReactElement {
   const solver = api.problems.byCode.useQuery({ code });
   /*
@@ -100,6 +96,8 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
    */
   const hints = useHintReveal(code);
 
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [view, setView] = useState<VerdictView | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const submitMutation = api.problems.submit.useMutation();
@@ -175,11 +173,14 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
 
   const submit = useCallback(
     (session: GitEngineSession) => {
-      if (problem === null) {
+      if (problem === null || submittingRef.current) {
         return;
       }
+      submittingRef.current = true;
+      setSubmitting(true);
       const log = session.getLog();
       setErrorMessage(null);
+      setView(null);
       void (async () => {
         try {
           /*
@@ -246,6 +247,9 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
            * § Errors Over Silent Fallbacks.
            */
           setErrorMessage(describeTrpcError(error));
+        } finally {
+          submittingRef.current = false;
+          setSubmitting(false);
         }
       })();
     },
@@ -253,13 +257,16 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
   );
 
   if (solver.isPending) {
-    return <ManMotDong text="Đang nạp đề bài…" role="status" />;
+    return <GitStatusScreen text="Đang nạp đề bài và chuẩn bị kho Git của bạn…" />;
   }
   if (solver.isError || problem === null) {
     return (
-      <ManMotDong
+      <GitStatusScreen
+        error
+        onRetry={() => {
+          void solver.refetch();
+        }}
         text={`Không mở được bài ${code}: ${solver.error === null ? 'không có dữ liệu' : describeTrpcError(solver.error)}`}
-        role="alert"
       />
     );
   }
@@ -283,8 +290,8 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
       oj={{
         gradable,
         notice: gradable ? null : CAU_CHUA_NOP_DUOC,
-        submitLabel: submitMutation.isPending ? 'Đang nộp…' : 'Nộp bài',
-        submitDisabled: !gradable || submitMutation.isPending,
+        submitLabel: submitting ? 'Đang chấm và nộp…' : 'Nộp bài',
+        submitDisabled: !gradable || submitting,
         onSubmit: submit,
         result: ketQuaDocDuoc(view, errorMessage),
         failedLabels: (view?.failed ?? []).map(
