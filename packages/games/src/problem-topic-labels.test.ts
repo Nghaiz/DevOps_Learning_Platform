@@ -1,79 +1,27 @@
-import { readFileSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
 import { GAME_IDS } from './core/types.ts';
 import { problemTopicLabels } from './problem-topic-labels.ts';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-
 /**
- * Các module CHỞ ENGINE. Chạm một trong số này từ đồ thị nhập của
- * `problem-topic-labels.ts` là kéo cả engine vào mọi route `problems`.
+ * Hành vi của bảng nhãn. KHÔNG có phép dò đồ thị nhập ở đây.
  *
- * Danh sách theo TÊN FILE chứ không theo tên hàm: `createSession` có thể đổi
- * tên, còn "file này là engine" thì không.
+ * ⛔ Ô gác chống-rò-engine SỐNG Ở `apps/web`, không ở file này, và lý do là một
+ * ràng buộc của chính package này: `packages/games` CỐ Ý không khai
+ * `@types/node`, vì nó chạy trong trình duyệt. Một ô test đọc đĩa (`node:fs`)
+ * làm `pnpm --filter @devops-platform/games typecheck` ĐỎ với `TS2591`, và cách
+ * duy nhất làm nó xanh lại là thêm `@types/node` , tức mở đường cho mã engine
+ * `import` `node:fs` mà không cổng nào kêu. Đổi một ô gác lấy một lỗ hổng lớn
+ * hơn thứ nó gác.
+ *
+ * Ô đó nay ở `apps/web/src/app/(session)/problems/engine-leak.test.ts`, đúng
+ * chỗ hậu quả rơi xuống: cái bị đội lên là BUNDLE của ứng dụng web.
+ *
+ * ⚠ Bài học của lượt này: `npx vitest run` XANH trên file cũ, vì vitest không
+ * kiểm kiểu. Chỉ `tsc` thấy. Plan §3 đã dặn đúng điều đó ("chạy CẢ HAI lệnh"),
+ * và lượt này vi phạm nó.
  */
-const ENGINE_MODULES = [
-  'k8s/session.ts',
-  'k8s/replay-engine.ts',
-  'git/engine.ts',
-  'k8s/problem-plugin.ts',
-  'git/problem-plugin.ts',
-  'core/problem-plugins.ts',
-] as const;
-
-/** Đi theo mọi `import`/`export … from './x.ts'` TƯƠNG ĐỐI, đệ quy. */
-function relativeImportClosure(entry: string): readonly string[] {
-  const seen = new Set<string>();
-  const queue = [resolve(HERE, entry)];
-  while (queue.length > 0) {
-    const file = queue.pop();
-    if (file === undefined || seen.has(file)) {
-      continue;
-    }
-    seen.add(file);
-    const src = readFileSync(file, 'utf8');
-    const specifiers = [...src.matchAll(/from\s+'(\.[^']+)'/gu)].map((match) => match[1]);
-    for (const specifier of specifiers) {
-      if (specifier !== undefined) {
-        queue.push(resolve(dirname(file), specifier));
-      }
-    }
-  }
-  return [...seen].map((file) => relative(HERE, file).split('\\').join('/'));
-}
-
 describe('problemTopicLabels', () => {
-  /*
-   * Ô GÁC CHÍNH của file này, và nó gác một thứ không cổng nào khác thấy.
-   *
-   * `tsc` / `eslint` / `vitest` đều mù với bundle; `bundle:check` thấy nhưng chỉ
-   * chạy SAU `next build`, tức sau khi một PR đã xanh hết mọi ô nhanh. Nên nếu
-   * ai đó "dọn cho gọn" bằng cách tra qua `PROBLEM_PLUGINS`, thứ duy nhất báo
-   * ngay là ô này.
-   */
-  it('đồ thị nhập KHÔNG chạm engine nào — đây là cả lý do file tồn tại', () => {
-    const closure = relativeImportClosure('problem-topic-labels.ts');
-    const leaked = closure.filter((file) =>
-      ENGINE_MODULES.some((engine) => file === engine),
-    );
-    expect(leaked).toEqual([]);
-  });
-
-  /*
-   * ĐỐI CHỨNG DƯƠNG cho phép đo ở trên. Không có ô này thì một `relativeImportClosure`
-   * hỏng (trả mảng rỗng vì regex sai, vì đường dẫn sai, vì đọc nhầm file) cũng
-   * làm ô trên XANH — và nó xanh mãi mãi, đúng hình dạng
-   * `rules/green-that-proves-nothing.md`.
-   */
-  it('phép dò đồ thị THẬT SỰ thấy engine khi có — nếu không, ô trên vô giá trị', () => {
-    const closure = relativeImportClosure('git/problem-plugin.ts');
-    expect(closure).toContain('git/engine.ts');
-  });
-
   it('mọi GameId tra được một bảng, không cái nào undefined', () => {
     for (const gameId of GAME_IDS) {
       expect(problemTopicLabels(gameId)).toBeTypeOf('object');
@@ -88,7 +36,7 @@ describe('problemTopicLabels', () => {
   });
 
   /*
-   * Bài Git mang chủ đề Git phải tra ra nhãn — chính là món nợ §18.A đóng ở
+   * Bài Git mang chủ đề Git phải tra ra nhãn , chính là món nợ §18.A đóng ở
    * đây. Trước lượt này `PROBLEM_TOPIC_LABELS` (chỉ K8s) trả `undefined` và màn
    * hình hiện một Badge RỖNG.
    */
