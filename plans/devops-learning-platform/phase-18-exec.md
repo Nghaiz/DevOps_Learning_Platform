@@ -389,9 +389,11 @@ người viết chính là người rơi vào: ba loại ô gác của lượt n
 `lib/trpc-react`, và phát-lại-so-phát-lại — **không ô nào có thể phủ định lời tuyên bố đó**. Một
 lời tuyên bố mà bộ ô gác của chính nó cấu trúc không thể bác bỏ thì chưa được kiểm.
 
-### 5.3 ⛔ NỢ CHẶN — C2: phép phát lại K8s không bao giờ tua đồng hồ
+### 5.3 ✅ ĐÃ ĐÓNG — C2: phép phát lại K8s không bao giờ tua đồng hồ
 
-**Chốt bởi chủ dự án 2026-09-15: ghi nợ chặn, sửa ở chặng riêng.** Không vá trong đợt này.
+**Chốt bởi chủ dự án 2026-09-15: ghi nợ chặn, sửa ở chặng riêng.** Không vá trong đợt ba.
+Chặng riêng đó là **đợt bốn** — xem §6. Mô tả chuỗi lỗi dưới đây giữ nguyên vì nó
+đúng, nhưng **câu về cái giá của bản vá thì sai** (§6.2).
 
 Chuỗi, đọc thẳng từ mã:
 
@@ -431,9 +433,9 @@ tự điều chỉnh.
   không ô nào đỏ.
 - **`K8S_UNSEEDED_REPLAY_SEED` là mã chết** — đấu trường luôn sinh seed `Math.random()`
   (`arena-session.ts:133`), nên `seedable` chưa ai đọc ở đường K8s.
-- **Không ô nào chứng minh chế độ LEVEL render được.** C1 vá xong nhưng ô dom mock trọn
-  `lib/trpc-react` nên cấu trúc không thấy được lỗi đó; chỗ đúng để gác là e2e — mở `/games/k8s`
-  rồi **bấm vào một level**, vì chính màn chọn level là thứ che lỗi suốt thời gian qua.
+- ~~**Không ô nào chứng minh chế độ LEVEL render được.**~~ ✅ **ĐÓNG ở đợt bốn, và câu này
+  SAI như đang viết** — `games.spec.ts` đã bấm level ở ba ô từ trước C1. Khe thật thấp hơn một
+  tầng: ô đó **chưa bao giờ chạy ở CI**. Xem §6.2.
 
 ### 5.5 Bài học về cách đo, không phải về mã
 
@@ -481,3 +483,124 @@ mất thật giữa hai trang. Mã cursor mang dấu thời gian, tức một fi
 suite. `git log -S` không thấy lịch sử sửa ô này, nên nó chưa từng được nhận diện là lung lay.
 Một ô đỏ dưới tải đồng thời mà xanh khi chạy riêng vẫn là một ô CÓ THẬT sẽ đỏ trong CI — chỗ
 đúng để sửa là cách ly fixture, không phải một lượt chạy lại.
+
+---
+
+## 6. Đợt bốn (2026-09-15) — C2 đóng, trần tick, và ô e2e cuối cùng được CHẠY
+
+Phạm vi chốt bởi chủ dự án: **C2 + trần tick + ô e2e chế độ LEVEL**. C3 và ba món
+nợ nhỏ ở §5.4 để lại, có chủ ý.
+
+| Commit | Việc |
+|---|---|
+| `0f5da8d` | C2: phát lại tua đồng hồ; `honorActionTick`; `MAX_REPLAY_TICK = 1_000_000` gác hai tầng |
+| `4acfec0` | Ô e2e bấm-level, và nối nó vào lệnh CI thật sự gọi (`e2e:a11y` → `e2e:ci`) |
+
+### 6.1 Đo được (cây sạch tại `4acfec0`, HEAD không đổi trước/sau lượt đo)
+
+```
+turbo run build lint typecheck test --force --concurrency=2
+Tasks: 32 successful, 32 total      exit 0      5m11s
+
+turbo run test --force --concurrency=2
+Tasks: 15 successful, 15 total      exit 0
+
+web 2472 · games 1340 · ui 932 · scenario 289
+terminal 133 · motion 110 · copy 72 · shared-types 48   = 5396 ô, 0 skip
+```
+
+So mốc §5.1 (5385): **+11, đúng bằng số ô thêm vào** — 6 ở `games` (2 cho C2, 4 cho
+trần), 5 ở `web` (cổng wire). **Bảy gói còn lại không đổi một ô**, tức bản vá không
+chạm gì ngoài phạm vi. Đúng một dòng khớp chữ `skip` trong toàn log và nó là **tên
+file** (`me-history-skipped.test.ts`), cùng đối chứng §5.1 đã dùng.
+
+`e2e:ci` chạy riêng: exit 0, 55 passed, ô mới **không** nằm trong 27 ô skip. 27 ô đó
+là các màn role-gated đã biết từ §0.5 (cần `E2E_REQUIRE_ROLES=1` + tài khoản admin
+thật) — không phải thứ đợt này gây ra.
+
+### 6.2 ⛔ HAI lời trong plan phải rút lại
+
+**(a) "Bỏ ghi đè tick sẽ mở một đường DoS mà chính phép ghi đè đang đóng" (§5.3) — SAI.**
+
+Phép ghi đè chỉ chạm `tick`, **không** chạm `ticks` của action `wait`, mà
+`reducer.apply` gọi thẳng `advance(state, action.ticks)`. Đối chứng chạy với phép ghi
+đè **còn nguyên**:
+
+```
+tick TRUOC=0 SAU=50000   (client gửi ticks=50000)
+```
+
+Lỗ hổng đã mở sẵn qua một cửa khác. Trần tick là **nợ CŨ**, không phải phí tổn của
+bản vá C2 — và điều đó làm C2 rẻ hơn plan tưởng, không đắt hơn.
+
+Đáng ghi vì lý do ngoài kỹ thuật: câu sai ấy là thứ **giữ C2 nằm lại làm nợ chặn**.
+Một cái giá được ước lượng quá cao cũng hoãn việc y như một rủi ro có thật.
+
+**(b) "Không ô nào chứng minh chế độ LEVEL render được" (§5.4) — SAI như đang viết.**
+
+`games.spec.ts` gọi `chooseLevel(...)` ở ba ô, từ trước C1. Khe thật thấp hơn một
+tầng: job CI `web-a11y` gọi `e2e:a11y`, và script đó liệt kê đúng `a11y.spec.ts
+csp.spec.ts`. **Không lệnh nào trong repo gọi `games.spec.ts`.** C1 sống sót vì thế,
+không vì thiếu người viết ô.
+
+⚠ Đây là lần **thứ tư** trong cùng một phase mà bảng nợ trích một câu đã lạc hậu
+(`rules/debt-lists-quote-stale-docs.md`; ba lần trước ở §0.5 và §3.1). Bốn lần thì
+không còn là xui — quy tắc rút ra: **một dòng nợ phải được TRA LẠI trước khi giao
+việc theo nó**, và lời sửa ghi cạnh dòng cũ chứ không đè lên.
+
+Bài học đắt hơn cả hai bản vá: **một spec không nằm trong lệnh nào CI chạy thì không
+phải cổng, nó là tài liệu.** `password-reset.spec.ts` đã tự ghi đúng nhận xét đó về
+chính nó từ trước, và không ai đọc. Danh sách spec trong `e2e:ci` **LÀ** ranh giới
+giữa cổng và tài liệu.
+
+### 6.3 Ba phép đo đã đổi một quyết định
+
+1. **`advance()` chạy ~927.000 tick/giây** trên level rẻ nhất, và `z.number()` nhận
+   `1e12` (chỉ `Infinity`/`NaN` bị chặn) ⇒ **~12 ngày CPU cho một lượt nộp**. Con số
+   này chốt trần ở 1.000.000 thay vì con số đối xứng đẹp 20.000 (`MAX_LOG_ACTIONS`):
+   ở `TICK_MS = 500` thì 20.000 chỉ là ~2,8 giờ chơi, mà đồng hồ `autoTick` **vẫn
+   chạy khi tab nằm nền** — một tab để qua đêm đã ăn hàng chục nghìn tick.
+2. **Trần phải đặt trên tick TUYỆT ĐỐI**, không trên khoảng cách mỗi bước. 20.000
+   action hợp lệ, mỗi cái nhảy 1e6, vẫn ra 2e10 tick.
+3. **C2 có HAI cửa.** `problem-plugin.ts:gradeK8sProblem` cũng dispatch qua session
+   với `autoTick: false` và **không** đi qua `sessionReplayEngine`. Vá mỗi cửa kia
+   thì `verifyRun` tua đúng còn `grade` vẫn đứng im — hai nửa của cùng một lượt nộp
+   trả lời khác nhau. Brief nói một cửa; đo ra hai.
+
+### 6.4 Nợ còn lại, không chặn ai hôm nay
+
+- **C3** (§5.4) — đấu trường không bao giờ gọi `problems.revealHint`; người học mất
+  điểm để đổi lấy một ô trống. Chưa làm, ngoài phạm vi đợt.
+- **`objectivesTotal`** không nằm trong sáu trường `verifyRun` so. Chưa làm.
+- **`K8S_UNSEEDED_REPLAY_SEED` là mã chết.** Chưa làm.
+- **`lessons-authz` lung lay** (§5.6) — không tái hiện trong đợt này, nhưng cũng
+  không có lượt chạy nào dưới tải đồng thời để bác bỏ. Vẫn mở.
+- ⚠ **Một lượt `eslint` OOM** (exit 134) ngay sau `next build` + `e2e:ci`, rồi xanh
+  khi chạy lại mà không sửa gì (1 trong 2 lượt). Giả thuyết "eslint duyệt 290MB
+  trace của playwright" **đã bị bác bỏ** — `**/e2e/.artifacts/**` vốn nằm trong
+  `ignores`. Nguyên nhân **chưa xác định**; ghi kèm số lần thay vì im lặng cho qua.
+
+### 6.5 Về cách đo, không về mã
+
+**Ô gác viết TRƯỚC, và nó đã ĐỎ đúng chỗ** — `expected [] to include
+'deploy-san-sang'`, `objectivesMet` rỗng hoàn toàn. Ba quyết định làm nó không thể
+xanh-giả, và mỗi cái đóng một đường đã cắn trong phase này:
+
+1. **Chạy trên `createSession` THẬT.** C2 nằm đúng trong phần mà mọi session giả
+   thay thế, nên một ô dựng trên session giả **cấu trúc không thể** bác bỏ lời
+   tuyên bố nó đang gác (§5.5.1, lặp lại).
+2. **Kỳ vọng viết TAY.** `replay.test.ts` lấy kỳ vọng từ `objectivesFrom(...)`, tức
+   so phép phát lại với chính nó — nên nó xanh y nguyên suốt thời gian C2 sống.
+3. **Fixture dùng đồng hồ, không dùng `wait`.** `wait` là đường DUY NHẤT còn tua
+   được khi C2 chưa vá, nên một fixture dùng `wait` sẽ xanh giả và không gác gì.
+
+**Mọi cổng mới đều đã được đo ở trạng thái ĐỎ**, không chỉ ở trạng thái xanh:
+
+| Cổng | Cách làm nó đỏ | Kết quả |
+|---|---|---|
+| C2 | chạy trước khi vá | `expected [] to include 'deploy-san-sang'` |
+| Trần wire | gỡ `superRefine` + `.int().nonnegative()` | 4 ô đỏ đúng tên, ô "tick bình thường đi qua" giữ xanh |
+| `phat-lai-loi` | hạ tick xuống dưới trần | `da-xac-minh` — tức ô kia đỏ vì đúng cổng trần, không vì lệch `levelId` |
+| e2e bấm-level | tái hiện C1, dựng lại | `Unable to find tRPC Context...` |
+
+Một cổng chỉ được đo ở trạng thái xanh là một cổng chưa biết có chặn được gì không.
