@@ -12,6 +12,7 @@ import {
 } from './game-plugin-view';
 import { emptyForm, formWithGame, type ProblemFormState } from './problem-form';
 import { ProblemEditor } from './problem-editor';
+import { GameSelectField } from './game-select-field';
 
 /**
  * Ô nghiệm thu AC-A, vế "chọn `gameId` trên `/author/problems` đổi form đúng
@@ -351,5 +352,57 @@ describe('chon game doi bieu mau soan bai', () => {
     expect(Object.keys(moved.specText)).toContain(GIT_ONLY_PATH);
     expect(Object.keys(moved.specText)).not.toContain(K8S_ONLY_PATH);
     expect(initialSpecFor('git')).not.toBeNull();
+  });
+});
+
+/**
+ * Bài đã lưu thì không đổi game được nữa, và cách KHOÁ nó là một quyết định
+ * trợ năng, không phải một dòng `disabled` tiện tay.
+ *
+ * ## Ô này đỏ khi nào
+ *
+ * | Nếu hỏng thế này | Vế đỏ |
+ * |---|---|
+ * | Quay lại `disabled` trên input | `disabled` phải là `false`, và `user.tab()` không còn rơi vào nhóm |
+ * | Bỏ `aria-disabled` | vế đầu tiên |
+ * | Bỏ chặn `onChange` | `onChange` bị gọi |
+ * | Chặn `onChange` nhưng quên `onKeyDown` | lựa chọn ĐỔI theo mũi tên |
+ * | Chỉ chặn ArrowDown/ArrowUp | vế `{ArrowRight}` đổi lựa chọn |
+ * | Hiện câu gợi ý thay vì câu khoá | `getByText(locked)` không tìm thấy |
+ *
+ * Vế mũi tên là vế dễ quên nhất và cũng là vế người dùng thấy: `aria-disabled`
+ * KHÔNG chặn gì cả, nên radio gốc vẫn tự dời lựa chọn rồi bị React kéo ngược
+ * lại ở lượt render sau. Người dùng thấy lựa chọn nhảy một cái rồi bật về,
+ * không kèm lời giải thích nào.
+ */
+describe('bai da luu: nhom chon game khoa nhung khong bien mat', () => {
+  it('con trong thu tu Tab, giai thich doc duoc, mui ten khong doi duoc gi', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<GameSelectField gameId="k8s" onChange={onChange} canChange={false} />);
+
+    const group = screen.getByRole('group', { name: t('author.problem.game.label') });
+    const radios = within(group).getAllByRole('radio');
+    expect(radios.length).toBeGreaterThan(1);
+
+    for (const radio of radios) {
+      expect(radio.getAttribute('aria-disabled')).toBe('true');
+      // `disabled` THẬT là thứ đẩy cả nhóm ra khỏi thứ tự Tab. Vế này là chỗ
+      // một lượt "dọn dẹp" quay về `disabled={!canChange}` sẽ đỏ.
+      expect((radio as HTMLInputElement).disabled).toBe(false);
+    }
+
+    await user.tab();
+    expect(group.contains(document.activeElement)).toBe(true);
+
+    // Câu KHOÁ, không phải câu gợi ý: hai câu nói hai chuyện khác nhau và chỉ
+    // một trong hai đúng ở trạng thái này.
+    expect(within(group).getByText(t('author.problem.game.locked'))).toBeTruthy();
+
+    const before = radios.map((radio) => (radio as HTMLInputElement).checked);
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{ArrowRight}');
+    expect(radios.map((radio) => (radio as HTMLInputElement).checked)).toEqual(before);
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
