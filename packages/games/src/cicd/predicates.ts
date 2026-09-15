@@ -448,11 +448,35 @@ const greenRateAtLeast: CicdPredicate = (ctx, args) => {
   return rate !== null && axes !== null && axes.greenRate >= rate;
 };
 
+/**
+ * Số lần trúng cache trong cả lượt chấm, dạng SỐ THÔ.
+ *
+ * ⚠ Đây là một PHÉP ĐO, không phải một vị từ: nó không trả lời đạt/không đạt.
+ * Nó tồn tại vì có những câu chỉ nói được bằng cách SO HAI BẢN GHI với nhau, mà
+ * một ngưỡng thì không nói nổi. Câu đắt nhất trong số đó là bài học của C08:
+ *
+ *   bản HỎNG trúng cache NHIỀU HƠN bản đã sửa
+ *
+ * Khoá hẹp thì lặp lại nhiều hơn, nên nó trúng thường xuyên hơn — chỉ là trúng
+ * một bản đã ôi. `cacheHitsAtLeast { count }` không phát biểu được điều đó dù
+ * đặt ngưỡng nào, vì cả hai bản đều vượt mọi ngưỡng hợp lý. Đó cũng chính là lý
+ * do `cacheHitsAtLeast` ở C08 là mục THƯỞNG chứ không bắt buộc: một ô bắt buộc
+ * dựng trên số lần trúng sẽ được thoả mãn bởi chính workflow level đang bảo
+ * người chơi sửa.
+ *
+ * Export ra thay vì để mỗi file test tự đếm: `levels/ci-muon.test.ts` từng giữ
+ * một bản đếm riêng, và một phép đếm viết hai nơi là một phép đếm sẽ lệch ở lần
+ * đầu ai đó đổi nghĩa `cacheHit`. `cacheHitsAtLeast` dưới đây gọi chính hàm
+ * này, nên ngưỡng và số thô không bao giờ đọc ra hai con số khác nhau.
+ */
+export function countCacheHits(record: EvaluationRecord): number {
+  return everyStepWithStage(record).filter((step) => step.cacheHit === true).length;
+}
+
 const cacheHitsAtLeast: CicdPredicate = (ctx, args) => {
   const count = argNumber(args, 'count');
   if (count === null) return false;
-  const hits = everyStepWithStage(ctx.record).filter((step) => step.cacheHit === true).length;
-  return hits >= count;
+  return countCacheHits(ctx.record) >= count;
 };
 
 /**

@@ -24,18 +24,36 @@
  *    cho câu "khác nhau về cách tiếp cận": nếu ai đó sửa cho hai lời giải hội tụ
  *    về cùng một hình dạng, mục thưởng sẽ cùng đạt hoặc cùng trượt, và ô này đỏ.
  *
- * ## Bộ kiểm vị từ nằm ở đây, có chủ ý
+ * ## Bộ chấm: gọi bản CHÍNH TẮC, không giữ bản của riêng mình
  *
- * Kho chưa có `cicd/predicates.ts` — hợp đồng khai `CICD_PREDICATE_NAMES` nhưng
- * chưa lane nào hiện thực bộ chấm. Bộ kiểm dưới đây vì thế là bản ĐỌC HIỂU của
- * lane này về hợp đồng, phạm vi test, không phải một bản thứ hai của tầng chấm:
- * nó cố ý KHÔNG được export, để không ai lỡ tay dùng nó như tầng chấm thật rồi
- * hai bản trôi khỏi nhau trong im lặng. Khi bộ chấm chính tắc lên, thay lời gọi
- * ở đây và xoá bộ kiểm này — đừng để hai bản cùng sống.
+ * File này từng mang một bộ kiểm vị từ riêng, viết khi `cicd/predicates.ts` chưa
+ * tồn tại. Bộ đó đã bị XOÁ và mọi khẳng định dưới đây đi qua `checkObjective()`
+ * / `failingObjectiveIds()` của bản chính tắc. Không phải dọn cho gọn: hai bản
+ * đọc hiểu độc lập cùng một hợp đồng đã trôi khỏi nhau ở ba chỗ đo được, và cả
+ * ba đều chỉ lộ ra khi đặt hai bản cạnh nhau.
  *
- * `danhSachVoTu` ném khi gặp một vị từ chưa hiện thực, thay vì trả `false` hay
- * `true`. Trả `true` biến một vị từ chưa viết thành một mục tiêu luôn đạt; trả
- * `false` biến nó thành một level không giải được. Cả hai đều sai im lặng.
+ * 1. **`graphAcyclic`** — bản cũ đọc `record.error?.kind !== 'cycle'`. Nhưng
+ *    `validateGraph` báo cạnh treo TRƯỚC chu trình, nên một workflow vừa có
+ *    cạnh treo vừa có vòng mang `error.kind === 'unknown-dependency'` và bản cũ
+ *    trả lời *"không có chu trình"* trong khi nó CÓ. Bản chính tắc hỏi
+ *    `findCycle` — đúng câu đang hỏi.
+ * 2. **Cờ `truncated` của đường găng** — bản cũ ở đây tính một chuỗi cắt cụt là
+ *    stage KHÔNG nằm trên đường găng; bản ở `ci-muon.test.ts` tính NGƯỢC LẠI.
+ *    Cùng một bản ghi, hai câu trả lời. Bản chính tắc không đoán: lượt cắt cụt
+ *    vào ô `unknown` và bị loại khỏi mẫu số (`decided = on + off`).
+ * 3. **Thoả bằng cách XOÁ đối tượng đi** — bản cũ để `stageOffCriticalPath`
+ *    xanh khi stage không tồn tại, nên mục thưởng *"đẩy `lint` ra khỏi đường
+ *    găng"* của C04 ăn được bằng cách bỏ hẳn `lint`. Bản chính tắc ĐÒI stage
+ *    tồn tại (luật 4 của `predicates.ts`).
+ *
+ * ## `validateObjectiveArgs` — cổng đi kèm chiều `false`
+ *
+ * Bản chính tắc trả `false` khi tham số thiếu hoặc sai kiểu, KHÔNG ném: một
+ * level viết sai chỉ được phép làm hỏng một mục tiêu, không được làm sập phiên
+ * chơi. Cái giá là lỗi của tác giả level trở nên câm — một mục tiêu gõ nhầm
+ * `stages` thay vì `stage` sẽ vĩnh viễn không đạt và không có gì đỏ ở đâu cả.
+ * Ô `tham số mục tiêu hợp lệ` dưới đây là chỗ lỗi đó được nói to, ở tầng test,
+ * nơi nó rẻ.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -43,173 +61,17 @@ import { describe, expect, it } from 'vitest';
 import { criticalPath } from '../critical-path.ts';
 import { evaluate } from '../engine.ts';
 import { summarizeEvaluation } from '../score.ts';
-import type {
-  CicdLevel,
-  CicdObjective,
-  EvaluationRecord,
-  StageId,
-  StageSpec,
-  WorkflowSpec,
-} from '../contract.ts';
+import type { CicdLevel, CicdObjective, WorkflowSpec } from '../contract.ts';
+import type { CicdScoringContext } from '../predicates.ts';
+import { checkObjective, failingObjectiveIds, validateObjectiveArgs } from '../predicates.ts';
 import { CI_LEVELS_SOM } from './ci-som.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Bộ kiểm vị từ — phạm vi test, KHÔNG export
+// Trợ thủ — chạy engine, lấy mục thưởng. Chấm điểm là việc của `predicates.ts`.
 // ═══════════════════════════════════════════════════════════════════════════
 
-function soNguyen(args: Readonly<Record<string, unknown>> | undefined, khoa: string): number {
-  const gia = args?.[khoa];
-  if (typeof gia !== 'number' || !Number.isFinite(gia)) {
-    throw new Error(`mục tiêu thiếu tham số số học "${khoa}"`);
-  }
-  return gia;
-}
-
-function chuoi(args: Readonly<Record<string, unknown>> | undefined, khoa: string): string {
-  const gia = args?.[khoa];
-  if (typeof gia !== 'string' || gia.length === 0) {
-    throw new Error(`mục tiêu thiếu tham số chuỗi "${khoa}"`);
-  }
-  return gia;
-}
-
-/** Tập stage mà `stageId` phụ thuộc BẮC CẦU. Vắng mặt ⇒ tập rỗng. */
-function phuThuocBacCau(stages: readonly StageSpec[], stageId: StageId): readonly StageId[] {
-  const thay: StageId[] = [];
-  const hang: StageId[] = [...(stages.find((s) => s.id === stageId)?.dependsOn ?? [])];
-  while (hang.length > 0) {
-    const ke = hang.shift();
-    if (ke === undefined || thay.includes(ke)) continue;
-    thay.push(ke);
-    hang.push(...(stages.find((s) => s.id === ke)?.dependsOn ?? []));
-  }
-  return thay;
-}
-
-function demTrungCache(record: EvaluationRecord): number {
-  let n = 0;
-  for (const pass of record.passes) {
-    for (const run of pass.runs) {
-      for (const inst of run.instances) {
-        for (const lanThu of inst.attempts) {
-          for (const buoc of lanThu.steps) {
-            if (buoc.cacheHit === true) n += 1;
-          }
-        }
-      }
-    }
-  }
-  return n;
-}
-
-function coNguyenNhan(record: EvaluationRecord, kind: string): boolean {
-  for (const pass of record.passes) {
-    for (const run of pass.runs) {
-      for (const inst of run.instances) {
-        for (const lanThu of inst.attempts) {
-          if (lanThu.cause?.kind === kind) return true;
-        }
-      }
-    }
-  }
-  return false;
-}
-
-/**
- * Tỷ lệ lượt chạy (mỗi commit của mỗi lượt mô phỏng) có `stage` nằm trên đường
- * găng.
- *
- * ⚠ Một chuỗi `blockedBy` bị cắt cụt (`truncated`) được tính là KHÔNG có stage
- * đó, kể cả khi stage đó có thể nằm ở phần đã mất. Chiều sai này là chiều an
- * toàn cho `stageOnCriticalPath` (không khai bừa), và ô `duong-gang-khong-dut`
- * dưới đây khẳng định chuyện cắt cụt không xảy ra ở bảy level này — nên nó không
- * lặng lẽ làm mềm phép đo.
- */
-function tyLeTrenDuongGang(record: EvaluationRecord, stage: StageId): number {
-  let tong = 0;
-  let trung = 0;
-  for (const pass of record.passes) {
-    for (const run of pass.runs) {
-      tong += 1;
-      const duong = criticalPath(run.instances);
-      if (duong !== null && !duong.truncated && duong.nodes.some((n) => n.stageId === stage)) {
-        trung += 1;
-      }
-    }
-  }
-  return tong === 0 ? 0 : trung / tong;
-}
-
-interface BoiCanh {
-  readonly workflow: WorkflowSpec;
-  readonly record: EvaluationRecord;
-}
-
-function datMucTieu(muc: CicdObjective, ctx: BoiCanh): boolean {
-  const { workflow, record } = ctx;
-  const stages = workflow.stages;
-  const tomTat = summarizeEvaluation(record, workflow);
-
-  switch (muc.check) {
-    case 'graphAcyclic':
-      return record.error?.kind !== 'cycle';
-
-    case 'stageExists':
-      return stages.some((s) => s.id === chuoi(muc.args, 'stage'));
-
-    case 'stageDependsOn':
-      return phuThuocBacCau(stages, chuoi(muc.args, 'stage')).includes(chuoi(muc.args, 'on'));
-
-    case 'stageNotDependsOn':
-      return !phuThuocBacCau(stages, chuoi(muc.args, 'stage')).includes(chuoi(muc.args, 'on'));
-
-    case 'stageCountAtMost':
-      return stages.length <= soNguyen(muc.args, 'max');
-
-    case 'leadTimeUnder':
-      return tomTat !== null && tomTat.axes.leadTimeSeconds < soNguyen(muc.args, 'seconds');
-
-    case 'throughputAtLeast':
-      return tomTat !== null && tomTat.axes.throughputPerHour >= soNguyen(muc.args, 'perHour');
-
-    case 'runnerMinutesUnder':
-      return tomTat !== null && tomTat.axes.runnerMinutes < soNguyen(muc.args, 'minutes');
-
-    case 'greenRateAtLeast':
-      return tomTat !== null && tomTat.axes.greenRate >= soNguyen(muc.args, 'rate');
-
-    case 'cacheHitsAtLeast':
-      return demTrungCache(record) >= soNguyen(muc.args, 'count');
-
-    case 'noFailureCause':
-      return !coNguyenNhan(record, chuoi(muc.args, 'cause'));
-
-    case 'stageNonBlocking': {
-      const stage = stages.find((s) => s.id === chuoi(muc.args, 'stage'));
-      return stage !== undefined && !stage.blocking;
-    }
-
-    case 'stageOnCriticalPath':
-      return tyLeTrenDuongGang(record, chuoi(muc.args, 'stage')) >= soNguyen(muc.args, 'rate');
-
-    case 'stageOffCriticalPath':
-      return 1 - tyLeTrenDuongGang(record, chuoi(muc.args, 'stage')) >= soNguyen(muc.args, 'rate');
-
-    default:
-      // Ném, không trả bừa. Một vị từ chưa hiện thực mà trả `true` là một mục
-      // tiêu luôn đạt; trả `false` là một level không giải được. Cả hai sai im.
-      throw new Error(`vị từ "${muc.check}" chưa có trong bộ kiểm của ci-som.test.ts`);
-  }
-}
-
-function chamWorkflow(level: CicdLevel, workflow: WorkflowSpec): BoiCanh {
+function chamWorkflow(level: CicdLevel, workflow: WorkflowSpec): CicdScoringContext {
   return { workflow, record: evaluate(workflow, level.workload, level.evaluation) };
-}
-
-function mucTruot(level: CicdLevel, ctx: BoiCanh, batBuoc: boolean): readonly string[] {
-  return level.objectives
-    .filter((muc) => muc.required === batBuoc && !datMucTieu(muc, ctx))
-    .map((muc) => muc.id);
 }
 
 function mucThuong(level: CicdLevel): CicdObjective {
@@ -272,6 +134,17 @@ describe('C01–C07 — hình dạng dữ liệu', () => {
       expect(level.teaching.cheatsheet.length).toBeGreaterThan(0);
     },
   );
+
+  it.each(CI_LEVELS_SOM.map((level) => [level.id, level] as const))(
+    '%s — tham số mục tiêu hợp lệ theo `CICD_PREDICATE_ARGS`',
+    (_id, level) => {
+      // Cổng đi kèm chiều `false` của bộ chấm chính tắc. Thiếu ô này thì một mục
+      // tiêu gõ nhầm `stages` thay vì `stage` chỉ lặng lẽ trả `false` — đọc ra
+      // thành "lời giải sai", và người sửa sẽ đi sửa level thay vì sửa mục tiêu.
+      const loi = level.objectives.map((muc) => validateObjectiveArgs(muc)).filter((m) => m !== null);
+      expect(loi).toEqual([]);
+    },
+  );
 });
 
 describe('C01–C07 — hai lời giải chạy qua engine thật', () => {
@@ -280,7 +153,7 @@ describe('C01–C07 — hai lời giải chạy qua engine thật', () => {
     (_id, level) => {
       const ctx = chamWorkflow(level, level.solutionWorkflow);
       expect(ctx.record.error).toBeNull();
-      expect(mucTruot(level, ctx, true)).toEqual([]);
+      expect(failingObjectiveIds(level.objectives, ctx, true)).toEqual([]);
     },
   );
 
@@ -289,7 +162,7 @@ describe('C01–C07 — hai lời giải chạy qua engine thật', () => {
     (_id, level) => {
       const ctx = chamWorkflow(level, level.altSolutionWorkflow);
       expect(ctx.record.error).toBeNull();
-      expect(mucTruot(level, ctx, true)).toEqual([]);
+      expect(failingObjectiveIds(level.objectives, ctx, true)).toEqual([]);
     },
   );
 
@@ -356,7 +229,7 @@ describe('C01–C07 — đối chứng âm', () => {
       // Không có ô này thì ô "lời giải qua được" xanh một cách rỗng: một level
       // mà trạng thái ban đầu đã AC là một level không có gì để làm.
       const ctx = chamWorkflow(level, level.initialWorkflow);
-      expect(mucTruot(level, ctx, true).length).toBeGreaterThan(0);
+      expect(failingObjectiveIds(level.objectives, ctx, true).length).toBeGreaterThan(0);
     },
   );
 });
@@ -370,8 +243,8 @@ describe('C01–C07 — hai lời giải khác nhau thật', () => {
       // trượt, và ô này đỏ ngay. Một cặp "cùng đồ thị đổi tên stage" không đi
       // qua được ô này.
       const thuong = mucThuong(level);
-      const chinh = datMucTieu(thuong, chamWorkflow(level, level.solutionWorkflow));
-      const phu = datMucTieu(thuong, chamWorkflow(level, level.altSolutionWorkflow));
+      const chinh = checkObjective(thuong, chamWorkflow(level, level.solutionWorkflow));
+      const phu = checkObjective(thuong, chamWorkflow(level, level.altSolutionWorkflow));
       expect(chinh).not.toBe(phu);
     },
   );

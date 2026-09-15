@@ -1,231 +1,110 @@
 import { describe, expect, it } from 'vitest';
 
-import type {
-  CicdLevel,
-  CicdObjective,
-  EvaluationRecord,
-  StageId,
-  WorkflowSpec,
-} from '../contract.ts';
-import { criticalPath } from '../critical-path.ts';
+import type { CicdLevel, CicdObjective, EvaluationRecord, WorkflowSpec } from '../contract.ts';
 import { evaluate } from '../engine.ts';
+import type { CicdScoringContext } from '../predicates.ts';
+import {
+  checkObjective,
+  countCacheHits,
+  failingObjectiveIds,
+  validateObjectiveArgs,
+} from '../predicates.ts';
 import { summarizeEvaluation } from '../score.ts';
 import { CI_LEVELS_MUON } from './ci-muon.ts';
 
 /**
  * Ô nghiệm thu AC-F cho bảy level C08–C14.
  *
- * ## Vì sao file này tự hiện thực bộ vị từ
+ * ## Bộ chấm: gọi bản CHÍNH TẮC, không giữ bản của riêng mình
  *
- * `CICD_PREDICATE_NAMES` là một mảng TÊN trong hợp đồng; bảng tra thật sự
- * (lane A.9) chưa có mặt lúc bảy level này được viết. Không có bộ chấm thì câu
- * "level này giải được" chỉ là một lời khai của người viết level — đúng cái mà
- * AC-F tồn tại để bác bỏ.
+ * File này từng tự hiện thực một bộ vị từ, viết khi `cicd/predicates.ts` chưa có
+ * mặt. Bộ đó đã bị XOÁ; mọi khẳng định "level này giải được" giờ đi qua
+ * `checkObjective()` / `failingObjectiveIds()` của bản chính tắc — cùng ba hàm
+ * mà tầng chơi thật sẽ gọi.
  *
- * Nên bộ vị từ dưới đây là bản hiện thực **của riêng test này**, đọc thẳng từ
- * `EvaluationRecord` mà engine thật trả về. Nó cố ý bám sát từng câu mô tả
- * trong `contract.ts`; hai chỗ hợp đồng để ngỏ thì file này ghi ra cách đọc của
- * mình ngay tại chỗ (`stageDependsOn` và `escapedDefectsAtMost`), để khi bảng
- * tra chính thức lên, chỗ lệch nhau là một dòng đọc được chứ không phải một
- * khác biệt hành vi không ai truy ra.
+ * Đây không phải dọn cho gọn. Hai bản đọc hiểu độc lập cùng một hợp đồng ĐÃ trôi
+ * khỏi nhau ở ba chỗ đo được, và cả ba đều biên dịch, đều xanh ở test của chính
+ * nó:
  *
- * ⚠ Đây KHÔNG phải bản chính tắc. Khi `predicates.ts` của A.9 xuất hiện, file
- * này phải chuyển sang gọi nó và xoá bộ dưới đây đi — hai bản khai cùng hình
- * dạng sẽ trôi khỏi nhau ở lần đầu tiên ai đó thêm một vị từ mới, và cả hai vẫn
- * biên dịch.
+ * 1. **`graphAcyclic`** — bản cũ đọc `record.error?.kind !== 'cycle'`. Nhưng
+ *    `validateGraph` báo cạnh treo TRƯỚC chu trình, nên một workflow vừa có
+ *    cạnh treo vừa có vòng mang `error.kind === 'unknown-dependency'` và bản cũ
+ *    trả lời *"không có chu trình"* trong khi nó CÓ.
+ * 2. **Cờ `truncated` của đường găng** — `offCriticalPathRate` (đã xoá) tính một
+ *    chuỗi cắt cụt là stage KHÔNG nằm trên đường găng (nên "off" được cộng);
+ *    bản ở `ci-som.test.ts` tính ngược lại. Cùng một bản ghi, hai câu trả lời.
+ *    Bản chính tắc không đoán: lượt cắt cụt vào ô `unknown` và bị loại khỏi mẫu
+ *    số (`decided = on + off`).
+ * 3. **Thoả bằng cách XOÁ đối tượng đi** — bản cũ để `retriesAtMost` xanh khi
+ *    stage không tồn tại (`stage === undefined || …`), nên mục bắt buộc *"stage
+ *    đóng gói không còn lần thử lại nào"* của C10 ăn được bằng cách bỏ hẳn
+ *    `dong-goi`. Bản chính tắc ĐÒI đối tượng tồn tại (luật 4 của
+ *    `predicates.ts`), cho cả `stageNotDependsOn`, `stageOffCriticalPath`,
+ *    `retriesAtMost` và `cacheNeverHits`.
+ *
+ * ## `validateObjectiveArgs` — cổng đi kèm chiều `false`
+ *
+ * Bản chính tắc trả `false` khi tham số thiếu hoặc sai kiểu, KHÔNG ném: lỗi của
+ * một level chỉ được phép làm hỏng một mục tiêu, không được làm sập phiên chơi.
+ * Cái giá là lỗi của tác giả level trở nên câm. Ô `tham số mục tiêu hợp lệ` dưới
+ * đây là chỗ lỗi đó được nói to, ở tầng test, nơi nó rẻ.
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Bộ vị từ (bản của test)
+// Trợ thủ — chạy engine và ĐO. Chấm điểm là việc của `predicates.ts`.
 // ═══════════════════════════════════════════════════════════════════════════
-
-/** Phụ thuộc BẮC CẦU, đúng như `CICD_PREDICATE_NAMES` mô tả `stageDependsOn`. */
-function dependsOnTransitively(workflow: WorkflowSpec, from: StageId, target: StageId): boolean {
-  const seen = new Set<StageId>();
-  const stack: StageId[] = [from];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (current === undefined || seen.has(current)) continue;
-    seen.add(current);
-    const stage = workflow.stages.find((one) => one.id === current);
-    if (stage === undefined) continue;
-    for (const dep of stage.dependsOn) {
-      if (dep === target) return true;
-      stack.push(dep);
-    }
-  }
-  return false;
-}
-
-function everyAttempt(record: EvaluationRecord) {
-  return record.passes.flatMap((pass) =>
-    pass.runs.flatMap((run) => run.instances.flatMap((instance) => instance.attempts)),
-  );
-}
-
-function everyStepRecord(record: EvaluationRecord) {
-  return everyAttempt(record).flatMap((attempt) => attempt.steps);
-}
-
-/**
- * Khiếm khuyết LỌT XUỐNG: một lần đỏ `latent-defect` mà một lần thử lại sau đó
- * đã che đi.
- *
- * Cách đọc bám đúng chữ của hợp đồng — *"đỏ `latent-defect` bị retry che"*. Nên
- * điều kiện là: thực thể có một lần thử đỏ vì `latent-defect`, VÀ lần thử cuối
- * cùng của nó xanh. Một thực thể đỏ tới cùng thì lỗi đó đã hiện ra, không lọt
- * xuống đâu cả.
- *
- * ⚠ Cách đọc này KHÔNG bắt được lối tránh bằng `blocking: false`: một stage
- * không chặn vẫn ghi `outcome: 'failed'` nên không tính là bị che, dù lỗi vẫn
- * đi thẳng xuống bản phát hành. C11 đóng lối đó bằng CẤU TRÚC — `'blocking'`
- * không nằm trong `editable` của nó — chứ không bằng một vị từ rộng hơn, vì
- * nới định nghĩa ở đây sẽ làm bản test lệch khỏi hợp đồng ở một chỗ không ai
- * đọc lại.
- */
-function escapedDefects(record: EvaluationRecord): number {
-  let total = 0;
-  for (const pass of record.passes) {
-    for (const run of pass.runs) {
-      for (const instance of run.instances) {
-        const last = instance.attempts.at(-1);
-        if (last === undefined || last.outcome !== 'passed') continue;
-        total += instance.attempts.filter(
-          (attempt) =>
-            attempt.cause?.kind === 'flake' && attempt.cause.nature === 'latent-defect',
-        ).length;
-      }
-    }
-  }
-  return total;
-}
-
-/** Tỷ lệ lượt chạy (theo commit) mà stage KHÔNG nằm trên đường găng. */
-function offCriticalPathRate(record: EvaluationRecord, stage: StageId): number {
-  let total = 0;
-  let off = 0;
-  for (const pass of record.passes) {
-    for (const run of pass.runs) {
-      const path = criticalPath(run.instances);
-      total += 1;
-      if (path === null || !path.nodes.some((node) => node.stageId === stage)) off += 1;
-    }
-  }
-  return total === 0 ? 0 : off / total;
-}
-
-function num(args: CicdObjective['args'], key: string): number {
-  const value = args?.[key];
-  if (typeof value !== 'number') {
-    throw new Error(`mục tiêu thiếu tham số số học "${key}"`);
-  }
-  return value;
-}
-
-function text(args: CicdObjective['args'], key: string): string {
-  const value = args?.[key];
-  if (typeof value !== 'string') {
-    throw new Error(`mục tiêu thiếu tham số chuỗi "${key}"`);
-  }
-  return value;
-}
-
-/**
- * Chấm MỘT mục tiêu trên một workflow đã chạy thật.
- *
- * Ném khi gặp một vị từ file này chưa hiện thực. Cố ý ném thay vì trả `false`:
- * một vị từ chưa hiện thực trả `false` sẽ đọc ra thành "lời giải sai", và người
- * đọc kết quả sẽ đi sửa level thay vì sửa bộ chấm.
- */
-function checkObjective(
-  objective: CicdObjective,
-  workflow: WorkflowSpec,
-  record: EvaluationRecord,
-): boolean {
-  const summary = summarizeEvaluation(record, workflow);
-  const axes = summary?.axes ?? null;
-
-  switch (objective.check) {
-    case 'graphAcyclic':
-      return record.error?.kind !== 'cycle';
-    case 'stageExists':
-      return workflow.stages.some((one) => one.id === text(objective.args, 'stage'));
-    case 'stageDependsOn':
-      return dependsOnTransitively(
-        workflow,
-        text(objective.args, 'stage'),
-        text(objective.args, 'on'),
-      );
-    case 'stageNotDependsOn':
-      return !dependsOnTransitively(
-        workflow,
-        text(objective.args, 'stage'),
-        text(objective.args, 'on'),
-      );
-    case 'stageCountAtMost':
-      return workflow.stages.length <= num(objective.args, 'max');
-    case 'leadTimeUnder':
-      return axes !== null && axes.leadTimeSeconds < num(objective.args, 'seconds');
-    case 'throughputAtLeast':
-      return axes !== null && axes.throughputPerHour >= num(objective.args, 'perHour');
-    case 'runnerMinutesUnder':
-      return axes !== null && axes.runnerMinutes < num(objective.args, 'minutes');
-    case 'greenRateAtLeast':
-      return axes !== null && axes.greenRate >= num(objective.args, 'rate');
-    case 'cacheHitsAtLeast':
-      return (
-        everyStepRecord(record).filter((step) => step.cacheHit === true).length >=
-        num(objective.args, 'count')
-      );
-    case 'cacheNeverHits': {
-      const cache = text(objective.args, 'cache');
-      return !workflow.stages.some((stage) =>
-        stage.steps.some((step) => step.cache?.id === cache && hasHit(record, step.id)),
-      );
-    }
-    case 'noFailureCause':
-      return !everyAttempt(record).some(
-        (attempt) => attempt.cause?.kind === text(objective.args, 'cause'),
-      );
-    case 'retriesAtMost': {
-      const stage = workflow.stages.find((one) => one.id === text(objective.args, 'stage'));
-      return stage === undefined || stage.retries <= num(objective.args, 'max');
-    }
-    case 'stageOnCriticalPath':
-      return (
-        1 - offCriticalPathRate(record, text(objective.args, 'stage')) >=
-        num(objective.args, 'rate')
-      );
-    case 'stageOffCriticalPath':
-      return (
-        offCriticalPathRate(record, text(objective.args, 'stage')) >= num(objective.args, 'rate')
-      );
-    case 'escapedDefectsAtMost':
-      return escapedDefects(record) <= num(objective.args, 'max');
-    case 'stageNonBlocking': {
-      const stage = workflow.stages.find((one) => one.id === text(objective.args, 'stage'));
-      return stage !== undefined && !stage.blocking;
-    }
-    default:
-      throw new Error(`vị từ "${objective.check}" chưa có trong bộ chấm của test này`);
-  }
-}
-
-function hasHit(record: EvaluationRecord, stepId: string): boolean {
-  return everyStepRecord(record).some((step) => step.id === stepId && step.cacheHit === true);
-}
 
 function runLevel(level: CicdLevel, workflow: WorkflowSpec): EvaluationRecord {
   return evaluate(workflow, level.workload, level.evaluation);
 }
 
-function failedRequired(level: CicdLevel, workflow: WorkflowSpec): readonly string[] {
-  const record = runLevel(level, workflow);
-  return level.objectives
-    .filter((objective) => objective.required)
-    .filter((objective) => !checkObjective(objective, workflow, record))
-    .map((objective) => objective.id);
+function scoringContext(level: CicdLevel, workflow: WorkflowSpec): CicdScoringContext {
+  return { workflow, record: runLevel(level, workflow) };
 }
+
+function failedRequired(level: CicdLevel, workflow: WorkflowSpec): readonly string[] {
+  return failingObjectiveIds(level.objectives, scoringContext(level, workflow), true);
+}
+
+/**
+ * Mục tiêu tổng hợp, dùng để HỎI bộ chấm chính tắc một câu mà bảy level không
+ * hỏi sẵn.
+ *
+ * Có mặt để C11 dưới đây không phải đọc `escapedDefects` bằng một hàm của riêng
+ * nó. Một phép đếm khiếm khuyết lọt xuống viết lần thứ hai là đúng cái đã trôi
+ * một lần rồi — hỏi bộ chấm thì câu trả lời buộc phải khớp với thứ người chơi
+ * nhận được.
+ */
+function mucTieuTongHop(
+  id: string,
+  check: CicdObjective['check'],
+  args: Readonly<Record<string, unknown>>,
+): CicdObjective {
+  return { id, label: `phép đo nội bộ của test: ${id}`, check, args, required: true };
+}
+
+/** `escapedDefectsAtMost { max: 0 }` — "không khiếm khuyết nào lọt xuống". */
+const KHONG_LOT_KHIEM_KHUYET = mucTieuTongHop('khong-lot-khiem-khuyet', 'escapedDefectsAtMost', {
+  max: 0,
+});
+
+/*
+ * `countCacheHits` nhập từ `predicates.ts` — file này từng giữ một bản đếm
+ * riêng, XOÁ 2026-09-16 (lead).
+ *
+ * ⚠ Nó là một PHÉP ĐO, không phải một bộ chấm: không trả lời "đạt hay không" ở
+ * đâu cả, chỉ đưa một con số để C08 dưới đây SO SÁNH hai workflow. Bộ chấm chỉ
+ * nói được `cacheHitsAtLeast { count }`, tức một NGƯỠNG, và một ngưỡng không
+ * phát biểu nổi câu "bản hỏng trúng nhiều hơn bản đã sửa" — vốn là toàn bộ lý
+ * do `cacheHitsAtLeast` ở C08 là mục THƯỞNG chứ không bắt buộc. Cả hai bản đều
+ * vượt mọi ngưỡng hợp lý, kể cả ngưỡng 30 của chính C08.
+ *
+ * Nên phép đo này cần tồn tại, nhưng nó không cần tồn tại HAI LẦN. Một phép đếm
+ * viết hai nơi sẽ lệch ở lần đầu ai đó đổi nghĩa `cacheHit` (chẳng hạn thôi đếm
+ * lần trúng của một lượt thử lại): hai con số vẫn là số, cả hai vẫn chạy, và
+ * không gì đỏ. `cacheHitsAtLeast` nay gọi chính hàm này, nên ngưỡng và số thô
+ * không bao giờ đọc ra hai con số khác nhau.
+ */
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AC-F — hai lời giải, và một đối chứng âm
@@ -244,6 +123,19 @@ describe('C08–C14 — hợp lệ về cấu trúc', () => {
       expect(level.solutionWorkflow).not.toEqual(level.altSolutionWorkflow);
     }
   });
+
+  it.each(CI_LEVELS_MUON.map((level) => [level.id, level] as const))(
+    '%s — tham số mục tiêu hợp lệ theo `CICD_PREDICATE_ARGS`',
+    (_id, level: CicdLevel) => {
+      // Cổng đi kèm chiều `false` của bộ chấm chính tắc. Thiếu ô này thì một mục
+      // tiêu gõ nhầm `stages` thay vì `stage` chỉ lặng lẽ trả `false` — đọc ra
+      // thành "lời giải sai", và người sửa sẽ đi sửa level thay vì sửa mục tiêu.
+      const loi = level.objectives
+        .map((objective) => validateObjectiveArgs(objective))
+        .filter((message) => message !== null);
+      expect(loi).toEqual([]);
+    },
+  );
 });
 
 describe.each(CI_LEVELS_MUON.map((level) => [level.id, level] as const))(
@@ -309,23 +201,23 @@ describe('C11 — chạy lại che mất lỗi thật', () => {
     expect(c11).toBeDefined();
     if (c11 === undefined) return;
 
-    const ban_dau = runLevel(c11, c11.initialWorkflow);
-    const loi_giai = runLevel(c11, c11.solutionWorkflow);
-    const loi_giai_hai = runLevel(c11, c11.altSolutionWorkflow);
+    const banDau = scoringContext(c11, c11.initialWorkflow);
+    const loiGiai = scoringContext(c11, c11.solutionWorkflow);
+    const loiGiaiHai = scoringContext(c11, c11.altSolutionWorkflow);
 
-    expect(escapedDefects(ban_dau)).toBeGreaterThan(0);
-    expect(escapedDefects(loi_giai)).toBe(0);
-    expect(escapedDefects(loi_giai_hai)).toBe(0);
+    // Hỏi bộ chấm chính tắc, không tự đếm: con số ở đây phải là đúng con số
+    // người chơi nhận được, chứ không phải một cách đọc thứ hai của cùng câu.
+    expect(checkObjective(KHONG_LOT_KHIEM_KHUYET, banDau)).toBe(false);
+    expect(checkObjective(KHONG_LOT_KHIEM_KHUYET, loiGiai)).toBe(true);
+    expect(checkObjective(KHONG_LOT_KHIEM_KHUYET, loiGiaiHai)).toBe(true);
 
-    const xanh = (record: EvaluationRecord, workflow: WorkflowSpec): number =>
-      summarizeEvaluation(record, workflow)?.axes.greenRate ?? 0;
+    const xanh = (ctx: CicdScoringContext): number =>
+      summarizeEvaluation(ctx.record, ctx.workflow)?.axes.greenRate ?? 0;
 
     // Cái giá phải trả, viết thành một phép so sánh: sửa xong thì con số ĐẸP đi
     // xuống. Ô này đỏ nếu ai đó "cân bằng lại" level cho tử tế hơn và vô tình
     // xoá mất chính cái đánh đổi mà level tồn tại để dạy.
-    expect(xanh(ban_dau, c11.initialWorkflow)).toBeGreaterThan(
-      xanh(loi_giai, c11.solutionWorkflow),
-    );
+    expect(xanh(banDau)).toBeGreaterThan(xanh(loiGiai));
   });
 });
 
@@ -340,8 +232,7 @@ describe('C08 — khoá cache quá hẹp', () => {
     expect(c08).toBeDefined();
     if (c08 === undefined) return;
 
-    const dem = (workflow: WorkflowSpec): number =>
-      everyStepRecord(runLevel(c08, workflow)).filter((step) => step.cacheHit === true).length;
+    const dem = (workflow: WorkflowSpec): number => countCacheHits(runLevel(c08, workflow));
 
     // Chính vì bất đẳng thức này mà `cacheHitsAtLeast` ở C08 là mục tiêu THƯỞNG
     // chứ không bắt buộc: một ô nghiệm thu dựng trên số lần trúng sẽ được thoả
