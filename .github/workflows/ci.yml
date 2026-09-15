@@ -1494,7 +1494,7 @@ jobs:
       # E2E_ORIGIN = BETTER_AUTH_URL trong .github/ci.env. Ở đây hai giá trị
       # TÌNH CỜ bằng nhau; chúng vẫn là hai biến vì Origin là thứ Better Auth
       # đối chiếu, còn base là nơi ta điều hướng tới (xem apps/web/e2e/env.ts).
-      - name: 'axe + CSP + chế độ LEVEL của đấu trường + mạng của Level Builder'
+      - name: 'Suite e2e chạy được trên next start (axe · CSP · game · responsive · motif)'
         env:
           E2E_START_SERVER: '1'
           E2E_BASE_URL: http://localhost:3000
