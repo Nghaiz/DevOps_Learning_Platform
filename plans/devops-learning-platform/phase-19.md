@@ -21,7 +21,7 @@
 | Đã có thiết kế CI/CD trong repo | **Có.** `docs/games/pipeline.md` — DAG stage, runner có hạn, flaky, cache key, đường găng. Viết cho 2D, chưa code dòng nào. |
 | Có prior art game 3D dạy CI/CD | **Không tìm thấy**, trong phạm vi 14 truy vấn WebSearch tiếng Anh. Chưa quét itch.io, Steam, GDC vault, kỷ yếu SIGCSE/ITiCSE/CSEE&T. **Đừng viết "chưa từng có" vào báo cáo NCKH trước khi tìm ở đó.** |
 | Đã có ~50 simulator 2D dạy DevOps | **Có** (devops-daily.com/games), gồm Deployment Strategies Simulator và GitOps Workflow Simulator. Đóng góp của game này phải là **hệ thống**, không phải từng khái niệm rời. |
-| `checkout` là tên an toàn cho bước đầu pipeline | **Có, trong phase này.** `scripts/check-no-commerce.mjs` bắt token trần `checkout`, nhưng `packages/games/src` **không** nằm trong `ROOTS`, và chốt 2026-09-11 là giữ nguyên như vậy (xem 17.C.3). Nên game dùng được `checkout` đúng tên GitHub Actions gọi nó. ⚠ Nếu ai đó mở lại quyết định đó thì bước đầu phải đổi tên, và đây là chỗ vỡ đầu tiên. |
+| `checkout` là tên an toàn cho bước đầu pipeline | **Có, nhưng KHÔNG vì lý do đã ghi.** Dòng cũ ở đây viết `packages/games/src` không nằm trong `ROOTS` của `scripts/check-no-commerce.mjs`. **Tiền đề đó SAI** và chính file đó đã nói ra (chú thích ngay trên `KEYWORD_EXEMPTIONS`): `packages/games/src` được thêm vào `ROOTS` ngày **2026-09-08**, commit `5c3815c`, tức là TRƯỚC lượt scout của P17 — scout đọc một trạng thái đã cũ, rồi P19 chép lại. Cơ chế thật đang chạy: (1) `MASKS` che `actions/checkout` và `git checkout` ở **mọi** vùng, nên YAML Actions viết đúng tên thì an toàn; (2) `KEYWORD_EXEMPTIONS` miễn trừ hẹp theo *đường dẫn + luật + đúng một từ*, hiện chỉ phủ `packages/games/src/git/` và `content/games/git/theory/` — **chưa dòng nào phủ `cicd/`**. Sửa lại 2026-09-16. |
 
 ---
 
@@ -87,7 +87,7 @@ gian lùi khác nhau, có test khẳng định thứ tự (blue-green < canary <
 | C.2 | Ghi ngược `WorkflowSpec` → YAML (cần cho Level Builder và cho nút "gợi ý sửa") | 4h |
 | C.3 | Lỗi cú pháp trỏ về **đúng dòng, đúng cột** | 4h |
 | C.4 | Lỗi ngữ nghĩa trỏ về đúng dòng: `needs` trỏ job không tồn tại, DAG có chu trình, matrix rỗng | 4h |
-| C.5 | Bước đầu giữ tên `checkout` đúng như GitHub Actions gọi — xem §0. Việc ở đây là *test khoá* khẳng định `packages/games/src` vẫn ngoài `ROOTS` của `check-no-commerce.mjs`, để nếu ai thêm vào thì đỏ ngay tại chỗ chứ không đỏ ở CI sáu tuần sau. | 1h |
+| C.5 | Bước đầu giữ tên `checkout` đúng như GitHub Actions gọi — xem §0 (đã sửa 2026-09-16). Ba việc, theo đúng cơ chế THẬT: (a) engine + level viết đủ `actions/checkout`, vì `MASKS` đã che chuỗi đó — không dựa vào may rủi; (b) **chỉ khi** có một tên stage trần là `checkout` thật sự cần, mới thêm MỘT dòng `KEYWORD_EXEMPTIONS` cho `packages/games/src/cicd/` (và `content/games/cicd/theory/` nếu bài học cần), hẹp theo đúng một từ trên đúng một luật; (c) test khoá khẳng định **miễn trừ còn hiệu lực**, kèm đối chứng dương. ⛔ KHÔNG viết test khẳng định `packages/games/src` vắng mặt trong `ROOTS` — nó đang có mặt, test đó đỏ ngay ngày đầu, và gỡ nó khỏi `ROOTS` sẽ mở toang lại vùng mã mà `5c3815c` vừa đóng, mở toang trong im lặng. | 2h |
 | C.6 | Ranh giới: **chỉ tầng này biết GitHub Actions.** Có test khẳng định `cicd/contract.ts` và `cicd/engine.ts` không chứa chuỗi `uses:`, `actions/`, `runs-on`. | 2h |
 
 **AC-C:** một workflow YAML thật (lấy từ chính `.github/workflows/` của repo, rút gọn) đọc được
@@ -188,7 +188,8 @@ vào `games-catalog.ts` · bài OJ cho game này qua plugin của 18.A.
 |---|---|---|---|---|
 | Trục Y đổi giữa hai chương làm người chơi mất phương hướng | 4 | 3 | 12 | Màn chuyển tiếp D.4. **Không có phương án lùi** — chủ dự án chốt 2026-09-11 giữ đổi-theo-chương. Màn chuyển tiếp chưa đủ thì làm nó tốt hơn, không đổi mô hình |
 | Lõi rò rỉ tên GitHub, thêm GitLab sau phải viết lại | 3 | 4 | 12 | Test 19.C.6 chạy trong CI, có đối chứng dương |
-| Ai đó thêm `packages/games/src` vào `ROOTS` sau lưng, làm đỏ mọi tên stage | 2 | 3 | 6 | Test khoá ở C.5 đỏ ngay tại chỗ thay vì đỏ ở CI nhiều tuần sau |
+| Một tên stage trần (`checkout`) lọt vào `cicd/` mà chưa có dòng miễn trừ ⇒ cổng chống-thương-mại đỏ | 3 | 2 | 6 | `MASKS` đã che `actions/checkout`, nên đường mặc định là viết đủ tên. Tên trần thì thêm đúng một dòng `KEYWORD_EXEMPTIONS` cho `cicd/` (C.5b). Cổng có chiều xuống nên một dòng miễn trừ thừa cũng đỏ — không thành nghĩa địa |
+| Một phép đo trong plan được chép lại mà không kiểm lại nguồn | 4 | 3 | 12 | Đã cắn thật: §0 dòng 4 của P19 chép nguyên tiền đề sai từ P17 §0, trong khi `check-no-commerce.mjs` đã bác bỏ nó bằng văn bản từ 2026-09-08. Trước khi dùng bất kỳ dòng "hiện trạng đo được" nào, đọc lại chính file nguồn — số dòng đúng không có nghĩa là nội dung còn đúng |
 | Mô hình steady-state kiểu Factorio lọt vào, dạy sai | 2 | 5 | 10 | Comment cảnh báo ở đầu module + review khi làm A.9 |
 | Chương CD nhiều khái niệm hơn thời gian cho phép | 4 | 3 | 12 | Đây là chuỗi **cắt trước tiên** trong toàn bộ ba phase — xem §6 |
 | Đọc mét-ric canary trở thành đoán mò | 3 | 3 | 9 | Nhiễu phải tái lập được bằng seed; level phải có ngưỡng phân biệt được |
