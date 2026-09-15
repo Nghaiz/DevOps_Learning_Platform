@@ -67,7 +67,7 @@ export function AdminExamsClient(): ReactElement {
   return (
     <AdminSection title={t('admin.exams.title')} description={t('admin.exams.description')}>
       <details className="practice-exam-create">
-        <summary>Tạo kỳ thi thực hành</summary>
+        <summary>{t('admin.exams.create-disclosure')}</summary>
         <CreateExamForm onCreated={() => setStack(FIRST_PAGE)} />
       </details>
       <ExamsBody

@@ -526,6 +526,14 @@ export const admin = {
     'Chọn lớp, ra đề và theo dõi kết quả.',
   'admin.exams.back': 'Về danh sách kỳ thi',
 
+  /*
+   * Nhãn của thẻ `<summary>` bung khối tạo kỳ thi, KHÔNG dùng lại
+   * `admin.exams.create-submit` ('Tạo kỳ thi'). Hai vai khác nhau: cái này là
+   * một chỗ để MỞ ra, đọc lên khi khối còn đóng; cái kia là nút xác nhận đã
+   * điền xong. Dùng chung một khoá thì lần đổi chữ nút sẽ đổi luôn nhãn mở, và
+   * màn hình có hai chỗ nói đúng một câu ở hai trạng thái khác nhau.
+   */
+  'admin.exams.create-disclosure': 'Tạo kỳ thi thực hành',
   'admin.exams.create-title-label': 'Tên kỳ thi',
   'admin.exams.create-title-placeholder': 'Giữa kỳ DevOps, nhóm thực hành thứ Ba',
   'admin.exams.create-class-label': 'Lớp',
