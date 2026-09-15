@@ -278,18 +278,89 @@ describe('lessons — luật 4: trần pagination', () => {
     ).rejects.toSatisfy(isTRPCCode('BAD_REQUEST'));
   });
 
+  /**
+   * ⛔ Ô này đi bộ trên một tập DÙNG CHUNG, nên nó phải nói ra điều đó.
+   *
+   * ## Cái đã cắn: đỏ 1 trong 3 lượt toàn suite, xanh mọi lượt chạy riêng
+   *
+   * `InvalidCursorError: bai-1789456432419-tfx7q7`. Đọc từng mảnh thì mã đó khai
+   * trọn nguyên nhân: khuôn `<tiền tố>-<13 chữ số>-<6 ký tự>` là đúng khuôn
+   * `uniqueId()` của `test-helpers.ts` sinh ra, tức **một fixture của suite
+   * khác**, không phải nội dung thật của nền tảng (`loki-quickstart` không có
+   * khối 13 chữ số nào).
+   *
+   * `lessons.list` đọc `scenarioSource()` = `composite([đĩa, DB])`, nên mọi bài
+   * `published` trong `content_items` đều nằm trong danh sách này. Ít nhất năm
+   * suite khác tạo rồi xoá bài `published` mang id fixture
+   * (`repository.integration`, `repository-page-sql.integration`,
+   * `publish-timestamp.integration`, `me-idor`, `paths-quiz-authz`). Vitest chạy
+   * file song song trên cùng một Postgres ⇒ mục mà cursor đang neo vào có thể
+   * biến mất THẬT giữa trang N và trang N+1.
+   *
+   * ## Vì sao KHÔNG vá ở mã sản phẩm
+   *
+   * `composite-source.ts` ném `InvalidCursorError` khi không nguồn nào nhận ra
+   * cursor, và đó là hành vi ĐÚNG — ô ngay phía trên (`cursor không còn hợp lệ →
+   * BAD_REQUEST`) khẳng định chính điều đó, với lý do đã ghi: quay về trang 1
+   * trong im lặng làm infinite-scroll lặp vô hạn. Nới nó ở đây là gỡ một cổng
+   * thật để làm xanh một ô đo sai.
+   *
+   * ## Vì sao KHÔNG lọc, và KHÔNG tiêm nguồn
+   *
+   * `filter` chỉ có `difficulty`/`tier`/`capability`; chọn một giá trị mà fixture
+   * "tình cờ" không dùng là đúng loại đúng-do-may-mắn sẽ hỏng lần sau. Và
+   * `scenarioSource()` là zero-arg THEO HỢP ĐỒNG (`lessons/catalog.ts` ghi thẳng
+   * rằng `scenarioSource(ctx)` sẽ phá một ô AC); mock trọn nó thì phép phân trang
+   * của composite — thứ ô này tồn tại để gác — không còn chạy nữa.
+   *
+   * ## Nên: TÁI NEO có trần, và trần đó là thứ giữ cho ô còn gác được
+   *
+   * Chủ thể của ô là THUẬT TOÁN cursor, còn tiền đề của nó là "danh sách đứng
+   * yên". Khi tiền đề bị một tiến trình khác phá, đi lại từ đầu là phản ứng
+   * đúng. Trần 3 lượt là thứ phân biệt hai ca: một cursor hỏng THẬT vô hiệu ở
+   * mọi lượt nên nó tiêu hết trần rồi đỏ; một lượt xoá đồng thời thì lượt sau đi
+   * trọn. Mọi khẳng định vẫn chạy trên một lượt đi HOÀN CHỈNH, không lượt nào bị
+   * bỏ qua.
+   */
   it('phân trang bằng cursor đi hết danh sách, không lặp mục', async () => {
     const c = await caller(user);
-    const seen: string[] = [];
-    let cursor: string | undefined;
-    for (let page = 0; page < 10; page += 1) {
-      const out: { items: { id: string }[]; nextCursor: string | null } = await c.lessons.list(
-        cursor === undefined ? { limit: 2 } : { limit: 2, cursor },
-      );
-      seen.push(...out.items.map((i) => i.id));
-      if (out.nextCursor === null) break;
-      cursor = out.nextCursor;
+    const LAN_TOI_DA = 3;
+    let seen: string[] = [];
+    let taiNeo = 0;
+
+    for (let lan = 0; lan < LAN_TOI_DA; lan += 1) {
+      seen = [];
+      let cursor: string | undefined;
+      let biPhaGiuaChung = false;
+
+      for (let page = 0; page < 10; page += 1) {
+        let out: { items: { id: string }[]; nextCursor: string | null };
+        try {
+          out = await c.lessons.list(cursor === undefined ? { limit: 2 } : { limit: 2, cursor });
+        } catch (cause) {
+          /*
+           * CHỈ nuốt đúng cái đua đã mô tả ở trên, và chỉ khi đang đi GIỮA
+           * chừng. Một BAD_REQUEST ở trang ĐẦU (`cursor === undefined`) là lỗi
+           * thật — không cursor nào để mất — nên nó ném tiếp. Mọi mã lỗi khác
+           * cũng ném tiếp: bắt rộng ở đây sẽ biến một 500 thành một lượt đi lại.
+           */
+          if (cursor === undefined || !isTRPCCode('BAD_REQUEST')(cause)) throw cause;
+          biPhaGiuaChung = true;
+          taiNeo += 1;
+          break;
+        }
+        seen.push(...out.items.map((i) => i.id));
+        if (out.nextCursor === null) break;
+        cursor = out.nextCursor;
+      }
+
+      if (!biPhaGiuaChung) break;
     }
+
+    expect(
+      taiNeo,
+      `cursor hỏng ở cả ${String(LAN_TOI_DA)} lượt — đây KHÔNG còn là đua fixture`,
+    ).toBeLessThan(LAN_TOI_DA);
     expect(new Set(seen).size).toBe(seen.length);
     expect(seen).toContain(SCENARIO_MULTISTEP);
     expect(seen).toContain(SCENARIO_NO_VERIFY);
