@@ -1368,10 +1368,18 @@ jobs:
     # TypeScript trả giá tải trình duyệt, và khi đỏ thì không đọc ngay được là
     # hỏng typecheck hay hỏng trình duyệt.
     #
-    # PHẠM VI: chỉ `a11y.spec.ts` + `csp.spec.ts` (script `e2e:a11y`). KHÔNG chạy
+    # PHẠM VI: `a11y.spec.ts` + `csp.spec.ts` + `games-level-mode.spec.ts`
+    # (script `e2e:ci`, đổi tên từ `e2e:a11y` ngày 2026-09-15). KHÔNG chạy
     # `@flow`, `keyboard`, `perf` — cả ba cần phiên sandbox thật (orchestrator +
     # gateway + pod k8s) mà runner không có, hoặc một phép đo thời gian mà một
     # runner chia sẻ CPU không đo nổi. Chúng chạy tay trên cụm ở đợt 3.
+    #
+    # ⛔ `games.spec.ts` vẫn KHÔNG ở đây, và đó là một quyết định chứ không phải
+    # một thiếu sót: nó khẳng định render WebGL, số draw call và rò rỉ geometry,
+    # tức nó đo GPU của runner. `games-level-mode.spec.ts` được tách ra chính vì
+    # thế — nó hỏi đúng một câu rẻ và tất định ("cây React có dựng được sau khi
+    # BẤM vào một level không"), câu mà `games.spec.ts` đã hỏi từ lâu nhưng chưa
+    # bao giờ được CHẠY ở đây. Lỗi C1 (`c4fa97a`) sống sót đúng vì khe đó.
     services:
       postgres:
         # Giá trị khớp .github/ci.env — credential GIẢ, sống vài phút trong runner.
@@ -1473,12 +1481,12 @@ jobs:
       # E2E_ORIGIN = BETTER_AUTH_URL trong .github/ci.env. Ở đây hai giá trị
       # TÌNH CỜ bằng nhau; chúng vẫn là hai biến vì Origin là thứ Better Auth
       # đối chiếu, còn base là nơi ta điều hướng tới (xem apps/web/e2e/env.ts).
-      - name: 'axe + CSP (a11y.spec.ts, csp.spec.ts)'
+      - name: 'axe + CSP + chế độ LEVEL của đấu trường'
         env:
           E2E_START_SERVER: '1'
           E2E_BASE_URL: http://localhost:3000
           E2E_ORIGIN: http://localhost:3000
-        run: pnpm --filter @devops-platform/web e2e:a11y
+        run: pnpm --filter @devops-platform/web e2e:ci
 
       # Chẩn đoán cho lượt đỏ, in THẲNG vào log job.
       #
