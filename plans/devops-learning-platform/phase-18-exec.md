@@ -267,8 +267,8 @@ khác sẽ cho `Number` → `NaN` → `padStart` in `"NaN"`, một mã chèn đ�
 turbo run build lint typecheck test --force --concurrency=2
 Tasks: 32 successful, 32 total
 
-web 2441 · games 1334 · ui 932 · scenario 289
-terminal 133 · motion 110 · copy 72 · shared-types 48   = 5359 ô, 0 skip
+web 2448 · games 1334 · ui 932 · scenario 289
+terminal 133 · motion 110 · copy 72 · shared-types 48   = 5366 ô, 0 skip
 ```
 
 ⚠ **`--concurrency=2` là bắt buộc để con số này có nghĩa**, không phải một tuỳ chọn cho đẹp.
@@ -281,13 +281,36 @@ terminal 133 · motion 110 · copy 72 · shared-types 48   = 5359 ô, 0 skip
 **184 ô khác SKIP** — một màu xanh chứng minh ít hơn nó trông. Với `dlp-postgres` lên thì
 2441/2441, **0 skip**.
 
-## 4.1 Hai quyết định đang chờ chủ dự án
+## 4.1 Quyết định
 
-1. **Người học nộp bài Git bằng đường nào** (§3.2). Đây là chốt chặn duy nhất giữa "tác giả
-   xem trước được" và "người học làm bài được". Hai đường, và chúng khác nhau về nguyên tắc
-   chứ không chỉ về công sức: mở `check`/`args` cho người đang làm bài **phá** §18.B.4 (testcase
-   ẩn), còn một điểm cuối chấm-thử ở máy chủ **giữ** nó.
-2. **Tiền tố mã và `game_id` lệch nhau sau một lượt đổi game.** `assertGameIdChangeAllowed` cho
+### ✅ ĐÃ CHỐT — người học nộp bài Git qua điểm cuối CHẤM THỬ ở máy chủ (2026-09-15)
+
+Chủ dự án chọn giữa ba đường; hai đường kia bị loại vì nguyên tắc chứ không vì công sức. Mở
+`check`/`args` cho người đang làm bài **phá** §18.B.4 (ai mở tab Network cũng lập trình ngược
+được điều kiện chấm); chỉ trả testcase HIỆN thì client vẫn không khai đủ `objectivesMet` nên
+`verifyRun` phải nới, tức đụng đúng cổng chống gian lận.
+
+`problems.tryGrade` (`96bf6ef`) phát lại nhật ký ở máy chủ và trả `passed`; client
+(`c3588a0`) bỏ hẳn `forEdit` và không bao giờ cầm cách chấm. §18.B.4 giữ nguyên vẹn.
+
+**Ba cái giá, ghi ra vì không cái nào hiện trên màn:**
+
+1. **Trần nhịp phải DÙNG CHUNG với `submit`.** `passed` chở id của cả testcase ẩn, nên bucket
+   riêng biến đây thành máy tra đáp án: gõ thử, đọc case ẩn nào vừa xanh, lặp. Chung bucket làm
+   tổng lượt dò (thử + nộp) ≤ 6/phút — không rộng hơn việc dò bằng cách nộp đi nộp lại.
+2. **Một lần bấm "Nộp bài" là HAI lượt gọi**, cả hai tiêu một suất ⇒ trần nộp thật 3 lần/phút.
+3. **Lời khai nay là tiếng VỌNG của máy chủ**, nên phép so `objectivesMet`/`score` trong
+   `verifyRun` **không còn là nhân chứng độc lập** cho bài Git. Thứ vẫn gác thật: hai lượt phát
+   lại (tính tất định), cộng `levelId`/`seed`/`commandsUsed`/`hintsUsed` — cả bốn suy từ chính
+   NHẬT KÝ chứ không từ máy chủ.
+
+⚠ Dò bằng nộp để lại DÒNG trong `problem_submissions` nên nó nhìn thấy được; dò bằng chấm thử
+không ghi gì nên nó **vô hình**. Nếu một ngày cần thấy, chỗ thêm là một bộ đếm, không phải một
+dòng `problem_submissions` giả.
+
+### Còn chờ
+
+1. **Tiền tố mã và `game_id` lệch nhau sau một lượt đổi game.** `assertGameIdChangeAllowed` cho
    phép đổi game một bài chưa có lượt nộp, nên `K8S-0007` có thể mang `game_id='git'`. Không có
    gì hỏng (mã vẫn duy nhất, vẫn mở được), nhưng vá nó nghĩa là **cấp lại mã khi đổi game** —
    phá đúng tính ổn định vĩnh viễn mà hợp đồng mã bài hứa.
