@@ -135,6 +135,33 @@ giao cho lane nào.** Cả hai đụng vào file mà lane A và lane B đang s�
 nên chúng là đuôi tuần tự của lead sau khi A và B hạ cánh. Chia nhỏ hơn nữa để ép song song sẽ
 tạo ra đúng loại phụ thuộc vòng mà bản đồ trên dựng ra để tránh.
 
+## 2.2 Nợ chéo lane — `ProblemFilter.topics` còn khoá vào K8s (lane D báo, lead đã tra lại)
+
+Lane D đo được và lead xác nhận từng dòng, 2026-09-15. Ba chỗ chặn ô gác *"bài Git lọc được
+theo chủ đề Git"*, và **cả ba đều nằm ngoài vùng sở hữu của lane D**:
+
+| # | Chỗ | Đo được |
+|---|---|---|
+| 1 | `packages/games/src/k8s/problem.ts` § `ProblemFilter` | `topics?: readonly ProblemTopic[]` — union ĐÓNG 9 chủ đề K8s. `'branching'` không gán được ⇒ đỏ ở `tsc`, trước cả lúc chạy |
+| 2 | `apps/web/src/server/problems/list-input.ts:28` | `z.array(z.enum(PROBLEM_TOPICS))`. `safeParse({topics:['branching']})` → `invalid_value` |
+| 3 | cùng file, `.strict()` | `{gameId:'git'}` → `unrecognized_keys`. Chỉ cần nếu sau này bộ chọn game LỌC danh sách bài |
+
+**Đây là NỢ của 18.A, không phải một quyết định cần bàn.** `core/problem.ts:81` đã khai
+`ProblemTopicId = string` và `:304` đã dùng `readonly ProblemTopicId[]` cho `topics` — hợp đồng
+đã chuyển sang tập-đóng-theo-plugin từ 18.A. `ProblemFilter.topics` là mẩu sót lại của chính
+lượt chuyển đó, và nó lọt qua vì ô AC-A chỉ đo `packages/games/src/core/` chứ không đo
+`k8s/problem.ts`.
+
+**Hoãn có chủ ý, không phải bỏ quên.** (1) và (2) là MỘT thay đổi: `ProblemFilter` được
+`list.ts`/`list-where.ts` tiêu thụ, mà lane B đang ghi vào `server/problems/**` cùng lúc. Nới
+kiểu giữa chừng có thể làm `tsc` của lane B đỏ vì một thay đổi họ không gây ra — một lỗi đến từ
+ngoài lane là thứ đắt nhất để chẩn đoán. **Lead làm cả hai một lượt, sau khi lane B hạ cánh.**
+
+Không mất gì khi hoãn: lane D đã hạ cánh bản **tự khỏi** — bộ chọn game chỉ liệt kê game nào có
+chủ đề mà hợp đồng chở được, suy lúc chạy chứ không chốt cứng, nên `/problems` hôm nay không đổi
+hình và Git tự hiện khi hợp đồng nới. Kèm một pin `@ts-expect-error` làm `tsc` đỏ đúng lúc (1)
+được nới. Pin đó phải được **gỡ**, không được dập cho im — `rules/pinned-baseline-test-companion.md`.
+
 ## 3. Ràng buộc mang theo từ các lane trước
 
 Không phải lời khuyên chung — bốn thứ này đã cắn ít nhất một lần trong chính phase này:
