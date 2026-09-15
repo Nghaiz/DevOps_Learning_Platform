@@ -17,7 +17,7 @@ import { codeInput, listProblemsInput, toListOptions } from '../../problems/list
 import { listProblems, listProblemsForSolver } from '../../problems/list';
 import { recordHintReveal } from '../../problems/reveals';
 import { listMySubmissions } from '../../problems/submissions';
-import { submitProblem } from '../../problems/submit';
+import { submitProblem, tryGradeProblem } from '../../problems/submit';
 import type { Database } from '../../db/client';
 import { examSubmissionRejection } from '../../exams/attempt-seed';
 import { getAttemptFor, getExamForStudent } from '../../exams/crud';
@@ -58,6 +58,77 @@ const MAX_LOG_ACTIONS = 20_000;
  * field như thế trong input là field kẻ tấn công điền được, và mọi kiểm tra sau
  * đó sẽ so giá trị họ cung cấp với chính nó.
  */
+
+/**
+ * Hình dạng `runLog` gửi lên — DÙNG CHUNG cho `submit` và `tryGrade`.
+ *
+ * ⛔ Một bản thứ hai ở `tryGrade` là chỗ hai đường lệch nhau trong im lặng: chấm
+ * thử sẽ nhận một nhật ký mà đường nộp từ chối (hoặc ngược lại), và người dùng
+ * thấy "thử thì đạt, nộp thì trượt" mà không có cách nào biết vì sao. Trần
+ * `MAX_LOG_ACTIONS` và phép thừa kế `gameId` vì thế áp cho CẢ HAI ở đúng một chỗ.
+ */
+const runLogInput = z.object({
+  gameId: z.enum(GAME_IDS).default('k8s'),
+  levelId: z.string().min(1),
+  seed: z.number().int(),
+  /*
+    * Trần độ dài — §18.C.4, nửa "giới hạn độ dài `actions[]`".
+    *
+    * ⛔ Trần phải nằm ở ĐÂY, trong schema input, chứ không ở trong
+    * `submitProblem`. Một mảng mười triệu phần tử đã được phân tích,
+    * cấp phát và giữ trong bộ nhớ TRƯỚC khi bất kỳ dòng nào của
+    * `submitProblem` chạy; kiểm `actions.length` ở đó là kiểm sau khi
+    * đã trả giá. Zod từ chối ngay tại biên.
+    *
+    * Vì sao là một con số chứ không phải "đủ lớn để không ai chạm":
+    * máy chủ phát lại nhật ký HAI lần (`verifyRun` bắt engine không
+    * tất định) rồi chạy mọi vị từ, nên độ dài nhật ký nhân thẳng vào
+    * thời gian CPU của một lượt nộp. Cùng với trần nhịp 6 lượt/phút ở
+    * `submit.ts`, hai con số này chốt được trần tải của một tài khoản.
+    *
+    * 20.000 chọn theo cái nó phải cho phép: `parMoves` của bài khó
+    * nhất trong repo là hai chữ số, và một lượt chơi thật gồm lệnh +
+    * tick + gợi ý vẫn nằm trong hàng nghìn. Hai chục nghìn rộng hơn
+    * một lượt chơi thật rất xa và hẹp hơn một vòng lặp sinh dữ liệu.
+    *
+    * ⚠ Thông điệp nói ra con số. Một `400` trần trên một nhật ký dài
+    * đọc ra như "lượt chơi của tôi hỏng", và người chơi sẽ chơi lại
+    * rồi hỏng y hệt.
+    */
+  actions: z
+    .array(
+      z.looseObject({
+        // Vắng ⇒ thừa kế `runLog.gameId` ở `.transform()` dưới, KHÔNG
+        // mặc định `'k8s'`. Xem khối chú thích đầu `runLog`.
+        gameId: z.enum(GAME_IDS).optional(),
+        kind: z.string(),
+        tick: z.number(),
+      }),
+    )
+    .max(MAX_LOG_ACTIONS, {
+      message: `Nhật ký lượt chơi vượt trần ${String(MAX_LOG_ACTIONS)} hành động`,
+    })
+    .readonly(),
+})
+  /*
+   * Điền `gameId` thiếu cho từng action TỪ chính nhật ký chứa nó.
+   *
+   * Giữ nguyên lá chắn cho client cũ: một tab trước 17.A không gửi
+   * `gameId` ở đâu cả, nên `runLog.gameId` rơi về `'k8s'` và mọi action
+   * thừa kế `'k8s'` — đúng hành vi cũ từng bit. Cái được thêm là một
+   * client Git chỉ cần khai `gameId` MỘT lần ở gốc.
+   *
+   * ⚠ Bộ phát lại kiểm `action.gameId` trước khi đưa xuống reducer và
+   * NÉM khi lệch, nên một action thiếu trường này thành `phat-lai-loi`
+   * — một lỗi CẤU HÌNH đọc ra thành "bộ mô phỏng hỏng".
+   */
+  .transform((log) => ({
+    ...log,
+    actions: log.actions.map((action) => ({
+      ...action,
+      gameId: action.gameId ?? log.gameId,
+    })),
+  }));
 
 export const problemsRouter = createTRPCRouter({
   // ── Người học ─────────────────────────────────────────────────────────────
@@ -162,68 +233,7 @@ export const problemsRouter = createTRPCRouter({
            * `gameId` sẽ nhận `'k8s'`, rồi phép kiểm nhất quán bên dưới từ chối
            * chính lượt nộp hợp lệ của nó.
            */
-          runLog: z.object({
-            gameId: z.enum(GAME_IDS).default('k8s'),
-            levelId: z.string().min(1),
-            seed: z.number().int(),
-            /*
-              * Trần độ dài — §18.C.4, nửa "giới hạn độ dài `actions[]`".
-              *
-              * ⛔ Trần phải nằm ở ĐÂY, trong schema input, chứ không ở trong
-              * `submitProblem`. Một mảng mười triệu phần tử đã được phân tích,
-              * cấp phát và giữ trong bộ nhớ TRƯỚC khi bất kỳ dòng nào của
-              * `submitProblem` chạy; kiểm `actions.length` ở đó là kiểm sau khi
-              * đã trả giá. Zod từ chối ngay tại biên.
-              *
-              * Vì sao là một con số chứ không phải "đủ lớn để không ai chạm":
-              * máy chủ phát lại nhật ký HAI lần (`verifyRun` bắt engine không
-              * tất định) rồi chạy mọi vị từ, nên độ dài nhật ký nhân thẳng vào
-              * thời gian CPU của một lượt nộp. Cùng với trần nhịp 6 lượt/phút ở
-              * `submit.ts`, hai con số này chốt được trần tải của một tài khoản.
-              *
-              * 20.000 chọn theo cái nó phải cho phép: `parMoves` của bài khó
-              * nhất trong repo là hai chữ số, và một lượt chơi thật gồm lệnh +
-              * tick + gợi ý vẫn nằm trong hàng nghìn. Hai chục nghìn rộng hơn
-              * một lượt chơi thật rất xa và hẹp hơn một vòng lặp sinh dữ liệu.
-              *
-              * ⚠ Thông điệp nói ra con số. Một `400` trần trên một nhật ký dài
-              * đọc ra như "lượt chơi của tôi hỏng", và người chơi sẽ chơi lại
-              * rồi hỏng y hệt.
-              */
-            actions: z
-              .array(
-                z.looseObject({
-                  // Vắng ⇒ thừa kế `runLog.gameId` ở `.transform()` dưới, KHÔNG
-                  // mặc định `'k8s'`. Xem khối chú thích đầu `runLog`.
-                  gameId: z.enum(GAME_IDS).optional(),
-                  kind: z.string(),
-                  tick: z.number(),
-                }),
-              )
-              .max(MAX_LOG_ACTIONS, {
-                message: `Nhật ký lượt chơi vượt trần ${String(MAX_LOG_ACTIONS)} hành động`,
-              })
-              .readonly(),
-          })
-            /*
-             * Điền `gameId` thiếu cho từng action TỪ chính nhật ký chứa nó.
-             *
-             * Giữ nguyên lá chắn cho client cũ: một tab trước 17.A không gửi
-             * `gameId` ở đâu cả, nên `runLog.gameId` rơi về `'k8s'` và mọi action
-             * thừa kế `'k8s'` — đúng hành vi cũ từng bit. Cái được thêm là một
-             * client Git chỉ cần khai `gameId` MỘT lần ở gốc.
-             *
-             * ⚠ Bộ phát lại kiểm `action.gameId` trước khi đưa xuống reducer và
-             * NÉM khi lệch, nên một action thiếu trường này thành `phat-lai-loi`
-             * — một lỗi CẤU HÌNH đọc ra thành "bộ mô phỏng hỏng".
-             */
-            .transform((log) => ({
-              ...log,
-              actions: log.actions.map((action) => ({
-                ...action,
-                gameId: action.gameId ?? log.gameId,
-              })),
-            })),
+          runLog: runLogInput,
           /*
            * §18.G — lượt nộp TRONG một kỳ thi mang theo `examId`.
            *
@@ -300,6 +310,45 @@ export const problemsRouter = createTRPCRouter({
         input.runLog as never,
         input.claimed as never,
       );
+    }),
+
+  /**
+   * Chấm THỬ một lượt chơi — không ghi gì, không tính là một lượt nộp.
+   *
+   * Vì sao nó tồn tại (và vì sao hai đường kia bị loại) nằm ở khối chú thích của
+   * `tryGradeProblem` trong `problems/submit.ts`. Tóm tắt: `toTestcaseTeasers`
+   * cắt `check`/`args` của mọi testcase nên client **không tự chấm được**, và
+   * không có đường này thì mọi lượt chơi ĐÚNG của người học trả về `CE`.
+   *
+   * ⛔ Là MUTATION chứ không phải query, dù nó không ghi một dòng nào. Hai lý do,
+   * cả hai đều cơ học chứ không phải quy ước REST:
+   *
+   *  1. Nó tiêu một suất của trần nhịp dùng chung với `submit`. Một query bị mọi
+   *     tầng cache (React Query, prefetch của Next) chạy lại tuỳ ý, và mỗi lượt
+   *     chạy lại đó ăn một suất người dùng không hề tiêu.
+   *  2. Nhật ký là một mảng tới 20.000 phần tử. Query của tRPC đi bằng `GET` với
+   *     input trong URL, và một nhật ký thật sẽ vượt trần độ dài URL của proxy
+   *     trước khi tới được máy chủ.
+   *
+   * ⚠ KHÔNG nhận `examId`. Trong một kỳ thi, "thử xem đạt chưa" là một câu hỏi
+   * khác hẳn và nó phải đi qua ba cổng của kỳ thi (`assertExamRules`) chứ không
+   * đi vòng — mở nó ở đây là mở một đường chấm không bị đồng hồ thi ràng buộc.
+   */
+  tryGrade: protectedProcedure
+    .input(z.object({ code: problemCodeSchema, runLog: runLogInput }).strict())
+    .mutation(async ({ ctx, input }) => {
+      // `published` bắt buộc, cùng lý do và cùng mệnh đề với `submit`: một bài
+      // nháp chấm thử được nghĩa là nội dung chưa ra mắt đã rò qua kết quả chấm.
+      const rows = await ctx.db
+        .select()
+        .from(problems)
+        .where(and(eq(problems.code, input.code), eq(problems.state, 'published')))
+        .limit(1);
+      const row = rows[0];
+      if (row === undefined) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Không có bài đó' });
+      }
+      return tryGradeProblem(toProblemDTO(row), ctx.user.id, input.runLog as never);
     }),
 
   mySubmissions: protectedProcedure

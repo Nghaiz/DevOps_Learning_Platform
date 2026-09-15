@@ -248,6 +248,90 @@ export async function submitProblem(
 }
 
 /**
+ * Chấm thử một lượt chơi mà KHÔNG ghi gì — chốt bởi chủ dự án 2026-09-15.
+ *
+ * ## Vấn đề nó giải, và vì sao hai đường kia bị loại
+ *
+ * `toTestcaseTeasers` cắt `check` và `args` của **MỌI** testcase trước khi dữ
+ * liệu rời máy chủ (§18.B.4, cố ý). Nên một client chỉ có `problems.byCode`
+ * không tự chấm được: `evaluatePredicate` trả `undefined` cho mọi vị từ ⇒
+ * `objectivesMet` rỗng ⇒ `verifyRun` ra `khong-khop` ⇒ **`CE` cho một lượt chơi
+ * ĐÚNG**. Người học đọc ra một hệ thống từ chối họ ngẫu nhiên.
+ *
+ * Hai đường thay thế đã cân và bị loại:
+ *
+ * - **Trả `check`/`args` cho người đang làm bài** — rẻ nhất, và nó PHÁ §18.B.4:
+ *   ai mở tab Network cũng đọc được toàn bộ điều kiện chấm rồi lập trình ngược
+ *   nó mà không cần hiểu bài.
+ * - **Chỉ trả testcase HIỆN** — client vẫn không khai được `objectivesMet` đầy
+ *   đủ, nên `verifyRun` phải nới, tức đụng đúng cổng chống gian lận.
+ *
+ * Đường này giữ §18.B.4 nguyên vẹn: **client không bao giờ cầm cách chấm.**
+ *
+ * ## ⚠ Nó CHIA CHUNG bucket nhịp với `submit`, và đó là phần quan trọng nhất
+ *
+ * `passed` chở id của cả testcase ẩn. Không có trần chung thì đây là một máy tra
+ * đáp án: gõ thử, đọc xem case ẩn nào vừa xanh, lặp lại — đúng thứ mà testcase
+ * ẩn sinh ra để chặn.
+ *
+ * Chung bucket làm tổng số lượt dò (thử + nộp) ≤ `SUBMIT_LIMIT_PER_MIN` mỗi
+ * phút, tức **không rộng hơn** việc dò bằng cách nộp đi nộp lại, thứ vốn đã khả
+ * thi và vốn đã lộ hết nhãn testcase ẩn sau lượt nộp đầu.
+ *
+ * ⚠ Cái giá còn lại, nói thẳng: lượt nộp để lại DÒNG trong `problem_submissions`
+ * nên việc dò bằng nộp là **nhìn thấy được**; chấm thử thì không ghi gì nên dò
+ * bằng nó là **vô hình**. Đổi lại là người học không phải rác hoá lịch sử của
+ * chính mình để biết mình đang ở đâu. Nếu một ngày cần thấy, chỗ thêm là một
+ * bộ đếm, không phải một dòng `problem_submissions` giả.
+ *
+ * ## Vì sao KHÔNG trả `score`
+ *
+ * Điểm suy được từ `(objectivesMet, movesUsed, parMoves, hints, revealedHintIds)`
+ * qua `scoreProblemRun` — một hàm dùng chung mà client đã gọi. Trả thêm một bản
+ * sao của nó là gửi cùng một sự thật hai lần, và bản sao sẽ lệch đúng vào ngày
+ * công thức đổi. Client tự tính từ `passed` trả về đây.
+ *
+ * ## Hai cổng chép từ `submit`, cố ý không nới
+ *
+ * `gameId` và `levelId` kiểm y hệt đường nộp. Một phép chấm thử DỄ TÍNH hơn
+ * đường nộp sẽ dạy người ta rằng bài của họ đã đạt, rồi lượt nộp từ chối —
+ * và họ không có cách nào biết vì sao.
+ */
+export function tryGradeProblem(
+  problem: StoredProblem,
+  userId: string,
+  log: RunLog,
+): GradeResult {
+  assertSubmitRateLimit(userId);
+
+  if (log.gameId !== problem.gameId) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: `Nhật ký khai game "${log.gameId}", nhưng bài "${problem.code}" thuộc game "${problem.gameId}"`,
+    });
+  }
+  if (log.levelId !== expectedLogLevelId(problem)) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: `Nhật ký thuộc bài "${log.levelId}", không phải "${problem.code}"`,
+    });
+  }
+
+  /*
+   * `'da-xac-minh'` truyền thẳng, và nó KHÔNG phải một lời nói dối: nhánh
+   * `status !== 'da-xac-minh'` của `gradeSubmission` tồn tại để chốt mã hỏng cho
+   * một lượt NỘP đã trượt xác minh. Ở đây không có lời khai nào để xác minh —
+   * máy chủ là nguồn duy nhất — nên phép xác minh không áp dụng, và đi vào đúng
+   * nhánh chấm thật là hình dạng đúng.
+   *
+   * Tính tất định vẫn được gác, chỉ là ở chỗ khác: `verifyRun` của đường NỘP
+   * phát lại hai lần. Một lượt chấm thử không cần phát hai lần vì nó không đổi
+   * dữ liệu nào và người dùng sẽ thấy ngay nếu số nhảy.
+   */
+  return gradeSubmission(problem, log, 'da-xac-minh');
+}
+
+/**
  * Xác minh, và đổi một game-thiếu-adapter thành một câu nói được.
  *
  * `verifyProblemRun` ném `UnsupportedReplayGameError` thay vì trả một

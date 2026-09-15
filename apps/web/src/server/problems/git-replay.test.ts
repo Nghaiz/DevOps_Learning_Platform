@@ -33,14 +33,18 @@ import { submitProblem } from './submit';
  * thật. Thứ nó không nói được là hai cột ghi xuống DB — phần đó thuộc
  * `submission-grade.integration.test.ts`.
  *
- * ── ⛔ CÒN HỞ, ĐỌC TRƯỚC KHI TIN ô này là "đầu-cuối" ──
+ * ── Vế "đi qua HTTP thật" — ĐÃ MỞ 2026-09-15 ──
  *
- * Điểm cuối tRPC `problems.submit` hôm nay khai `runLog.gameId:
- * z.literal('k8s')` và `claimed.gameId: z.literal('k8s')`
- * (`server/trpc/routers/problems.ts`), nên một lượt nộp Git bị Zod từ chối
- * TRƯỚC khi `submitProblem` chạy một dòng nào. File router không thuộc lane
- * này. Ô dưới đây vì thế gác đúng phần máy chủ tự chấm; vế "đi qua HTTP thật"
- * mở lại được ngay khi schema đó nới, và bản sao để chép nằm ở
+ * Khối cũ ở đây ghi rằng `problems.submit` khai `runLog.gameId: z.literal('k8s')`
+ * nên một lượt nộp Git bị Zod từ chối trước khi `submitProblem` chạy. Lời khai đó
+ * ĐÚNG lúc viết và đã HẾT ĐÚNG: schema nay là `z.enum(GAME_IDS)` và
+ * `actions[].gameId` thừa kế từ gốc (`bc18b81`).
+ *
+ * Ghi lại thay vì xoá đè, vì một dòng "chưa làm" còn lại trên một việc đã làm sẽ
+ * khiến người sau đi làm lần thứ hai — đúng hình dạng
+ * `rules/debt-lists-quote-stale-docs.md`, thứ phase này đã dính nhiều lần.
+ *
+ * Ô dưới đây vẫn gác đúng phần máy chủ tự chấm; vế đi qua dây thuộc
  * `submission-grade.integration.test.ts`.
  */
 
