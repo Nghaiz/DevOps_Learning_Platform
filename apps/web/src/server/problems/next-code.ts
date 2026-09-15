@@ -26,22 +26,30 @@ export function formatProblemCode(prefix: string, serial: number): string {
  *
  * ## Vì sao lọc theo TIỀN TỐ MÃ, không lọc theo cột `game_id`
  *
- * Hai thứ đó trông như một và không phải một. `crud.ts` §
- * `assertGameIdChangeAllowed` cho phép đổi `gameId` của một bài CHƯA có lượt
- * nộp — chỉ mốc "đã có người nộp" mới chặn. Nên một bài từng là K8s, nay mang
- * `game_id = 'git'`, vẫn giữ mã `K8S-0007` của nó (mã là thứ người ta đọc cho
- * nhau nghe, và hợp đồng nói nó ổn định vĩnh viễn).
+ * Hai thứ đó trông như một và không phải một. Thứ phải duy nhất là `code` —
+ * khoá chính — nên phép tìm `max` phải đi trên chính không gian đó. Lọc theo
+ * `game_id` sẽ bỏ sót một dòng lệch ở phía ngược lại: dãy `K8S-` mất một mã ĐÃ
+ * DÙNG khỏi phép tính `max`, rồi lần tạo bài K8s kế tiếp cấp lại mã đó và đụng
+ * khoá chính mãi mãi.
  *
- * Lọc theo `game_id` sẽ bỏ sót đúng những dòng đó ở phía ngược lại: dãy `K8S-`
- * mất một mã đã dùng khỏi phép tính `max`, rồi lần tạo bài K8s kế tiếp cấp lại
- * `K8S-0007` và đụng khoá chính mãi mãi. Thứ phải duy nhất là `code` — khoá
- * chính — nên phép tìm `max` phải đi trên chính không gian đó.
+ * ## ⛔ ĐÃ ĐÓNG 2026-09-15 — nhưng phép lọc trên vẫn phải giữ nguyên
  *
- * ⚠ Hệ quả để ngỏ, ghi ra chứ không vá ở đây: sau một lượt đổi game, tiền tố mã
- * và `game_id` của dòng ấy lệch nhau vĩnh viễn. Không có gì hỏng (mã vẫn duy
- * nhất, vẫn mở được), nhưng `GIT-0003` có thể là một bài K8s. Vá nó nghĩa là
- * cấp lại mã khi đổi game, tức phá đúng tính ổn định mà hợp đồng hứa — một
- * quyết định cần người ra lệnh, không phải một dòng sửa lặng lẽ.
+ * Bản trước của khối này ghi một hệ quả để ngỏ: sau một lượt đổi game, tiền tố
+ * mã và `game_id` lệch nhau vĩnh viễn, nên `GIT-0003` có thể là một bài K8s. Nó
+ * kết luận rằng vá đi sẽ phải cấp lại mã, tức phá tính ổn định mà hợp đồng hứa.
+ *
+ * Kết luận đó bỏ sót đường thứ ba, và đường thứ ba là đường rẻ nhất: **đừng cho
+ * đổi game.** `crud.ts` § `assertGameIdUnchanged` nay chặn vô điều kiện, nên
+ * tiền tố mã không còn nói dối được về `game_id` — không mã nào bị cấp lại, và
+ * hợp đồng ổn định giữ nguyên. Biểu mẫu soạn bài vốn đã cấm điều này
+ * (`canChange={props.code === null}`); lượt đó chỉ làm API nói cùng một câu.
+ *
+ * ⚠ **Đừng vì thế mà đổi phép lọc trên sang `game_id`.** Hai lý do, và cái thứ
+ * hai đủ một mình: (1) một cơ sở dữ liệu đã chạy TRƯỚC lượt siết này có thể còn
+ * dòng lệch, và chúng không tự sửa; (2) kể cả khi không còn dòng nào lệch, lọc
+ * theo `game_id` vẫn là lọc trên một cột KHÔNG phải khoá chính để tìm `max` của
+ * khoá chính — nó đúng nhờ một bất biến ở chỗ khác thay vì đúng tự thân. Cổng
+ * mới làm phép lọc này thành thừa, không làm nó thành sai.
  *
  * ## Đua
  *

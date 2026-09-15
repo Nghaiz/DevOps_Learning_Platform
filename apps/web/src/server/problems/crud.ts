@@ -74,7 +74,7 @@ export async function updateProblem(
   if (await slugTaken(db, body.slug, code)) {
     throw new TRPCError({ code: 'CONFLICT', message: `Slug "${body.slug}" đã có bài khác dùng` });
   }
-  await assertGameIdChangeAllowed(db, code, current.gameId, body.gameId);
+  await assertGameIdUnchanged(db, code, current.gameId, body.gameId);
   const rows = await db
     .update(problems)
     // `code`, `authorId`, `state` KHÔNG nằm trong `body` (schema không khai
@@ -83,7 +83,7 @@ export async function updateProblem(
     //
     // ⚠ `gameId` thì KHÁC: nó ĐÃ nằm trong `body` từ 2026-09-15 (§18.D.1 nửa
     // sau), nên danh sách ba trường trên KHÔNG còn che hết. Ràng buộc của nó là
-    // một dòng kiểm tra thật — `assertGameIdChangeAllowed` ngay trên.
+    // một dòng kiểm tra thật — `assertGameIdUnchanged` ngay trên.
     .set({ ...toRowValues(body), updatedAt: new Date() })
     .where(eq(problems.code, code))
     .returning();
@@ -248,18 +248,35 @@ function toRowValues(body: ProblemBody) {
  * và 30 dòng lịch sử cũ mang `passed` là id testcase của một game không còn tồn
  * tại — `WA (2/5)` tính trên những case đã biến mất.
  *
- * ## Vì sao mốc là "đã có lượt nộp" chứ không phải "đã xuất bản"
+ * ## ⛔ SIẾT 2026-09-15: chặn VÔ ĐIỀU KIỆN, không còn mốc "đã có lượt nộp"
  *
- * Cùng lý lẽ và cùng tiền lệ với `deleteProblem` ngay trên: thứ không được phá
- * là LỊCH SỬ CỦA NGƯỜI HỌC, không phải trạng thái của bài. Một bài `published`
- * chưa ai đụng vào thì đổi game vẫn an toàn; một bài `draft` mà ai đó đã nộp thử
- * thì không. Chặn theo `state` sẽ vừa cấm nhầm ca đầu vừa bỏ lọt ca sau.
+ * Bản đầu chỉ chặn khi bài đã có người nộp, với lý lẽ *"thứ không được phá là
+ * LỊCH SỬ CỦA NGƯỜI HỌC, không phải trạng thái của bài"*. Lý lẽ đó đúng — và
+ * KHÔNG đủ, vì nó chỉ đếm một trong hai thứ bị phá.
  *
- * Tác giả muốn đổi game một bài đã có người nộp thì tạo bài mới — mã bài là thứ
- * người ta đọc cho nhau nghe, và đổi ruột dưới một mã cũ là đổi nghĩa của mọi
- * câu đã nói về nó.
+ * Thứ thứ hai là chính MÃ BÀI. `nextProblemCode` cấp mã theo tiền tố của game
+ * (`K8S-`, `GIT-`) và hợp đồng hứa mã ổn định vĩnh viễn, nên một lượt đổi game
+ * để lại `K8S-0007` mang `game_id = 'git'` — mãi mãi. Không có gì hỏng lúc chạy
+ * (mã vẫn duy nhất, bài vẫn mở được), nhưng mọi người đọc mã đó sau này đều đọc
+ * sai, và mã bài là thứ người ta đọc cho nhau nghe. Chuyện đó xảy ra ở MỌI lượt
+ * đổi game, kể cả bài chưa ai nộp — tức ở đúng khoảng mà cổng cũ để ngỏ.
+ *
+ * Chú thích của chính cổng cũ đã nói ra câu trả lời mà không áp dụng nó: *"đổi
+ * ruột dưới một mã cũ là đổi nghĩa của mọi câu đã nói về nó."* Điều đó không
+ * phụ thuộc vào việc đã có ai nộp hay chưa.
+ *
+ * ## Không phải một siết mới với người dùng — biểu mẫu vốn đã cấm
+ *
+ * `problem-editor.tsx` truyền `canChange={props.code === null}`, và
+ * `GameSelectField` ghi lý do ngay tại chỗ khai: *"`false` ở trang sửa: đổi game
+ * của một bài đã lưu là đổi cả hợp đồng dữ liệu."* Nên giao diện đã nói KHÔNG từ
+ * trước; chỉ có API là còn nói CÓ-NẾU-CHƯA-AI-NỘP. Lượt này làm máy chủ nói cùng
+ * một câu với màn hình, thay vì để một cổng rộng hơn nằm chờ một client khác.
+ *
+ * Tác giả chọn nhầm game thì tạo bài mới. Với một bản nháp thì đó là vài giây,
+ * và một số thứ tự bị bỏ trống trong dãy mã là chuyện bình thường.
  */
-async function assertGameIdChangeAllowed(
+async function assertGameIdUnchanged(
   db: Database,
   code: string,
   currentGameId: GameId,
@@ -268,13 +285,20 @@ async function assertGameIdChangeAllowed(
   if (currentGameId === nextGameId) {
     return;
   }
+  /*
+   * Số lượt nộp KHÔNG còn là điều kiện — nó chỉ vào CÂU nói ra, vì "bài đã có 12
+   * lượt nộp" nói được nhiều hơn cho người soạn đang bối rối. Cổng thì chặn vô
+   * điều kiện.
+   */
   const total = await submissionCount(db, code);
-  if (total > 0) {
-    throw new TRPCError({
-      code: 'CONFLICT',
-      message: `Bài đã có ${String(total)} lượt nộp nên không đổi được game (${currentGameId} sang ${nextGameId}) — lịch sử làm bài sẽ trỏ vào testcase của một game khác. Hãy tạo bài mới.`,
-    });
-  }
+  const veLichSu =
+    total > 0
+      ? ` Bài đã có ${String(total)} lượt nộp, nên lịch sử làm bài cũng sẽ trỏ vào testcase của một game khác.`
+      : '';
+  throw new TRPCError({
+    code: 'CONFLICT',
+    message: `Không đổi được game của một bài đã tạo (${currentGameId} sang ${nextGameId}): mã "${code}" mang tiền tố của game cũ và mã bài thì ổn định vĩnh viễn.${veLichSu} Hãy tạo bài mới.`,
+  });
 }
 
 /** Số lượt nộp của một bài. Một nguồn cho cả cổng xoá lẫn cổng đổi game. */

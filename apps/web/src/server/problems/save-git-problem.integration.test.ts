@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { like, inArray } from 'drizzle-orm';
+import { eq, like, inArray } from 'drizzle-orm';
 import { GIT_LEVELS, draftFromLevel, type LevelDraft } from '@devops-platform/games';
 import { createDatabase } from '../db/client';
 import { problems, users } from '../db/schema';
@@ -7,7 +7,8 @@ import {
   draftToProblemBody,
   type ProblemExtras,
 } from '../../components/games/git/builder/draft-to-problem';
-import { createProblem } from './crud';
+import { createProblem, updateProblem } from './crud';
+import type { AuthedUser } from '../trpc/init';
 import { problemBodySchema } from './validate';
 
 /**
@@ -186,5 +187,70 @@ describe('lưu bản nháp Builder thành một dòng problems', () => {
     const stored = await createProblem(db, AUTHOR_ID, bodyFor(draft(), `${SLUG_PREFIX} co`));
     expect(stored.seedable).toBe(false);
     expect(stored.allowedResources).toBeNull();
+  });
+});
+
+/**
+ * Cổng đổi game — siết vô điều kiện 2026-09-15.
+ *
+ * ## Vì sao ô này sống ở ĐÂY chứ không ở một file mới
+ *
+ * Nó đo cùng một đường ghi (`crud.ts` trên một bài Git thật đã lưu) và cần đúng
+ * bộ đồ gá trên. Một file mới sẽ phải dựng lại tác giả, bản nháp, và phép dọn —
+ * ba thứ mà một lượt sửa sau này phải nhớ cập nhật ở hai chỗ.
+ *
+ * ## Thứ ô này gác, và thứ nó KHÔNG gác
+ *
+ * Gác: API không còn rộng hơn biểu mẫu. `problem-editor.tsx` truyền
+ * `canChange={props.code === null}` nên màn hình đã cấm đổi game của một bài đã
+ * lưu; cổng cũ ở máy chủ thì vẫn cho, miễn là chưa ai nộp. Khoảng chênh đó là
+ * chỗ `K8S-0007` có thể mang `game_id = 'git'` — vĩnh viễn, vì mã bài ổn định.
+ *
+ * KHÔNG gác: những dòng ĐÃ lệch từ trước lượt siết này. Không có phép đo nào
+ * phân biệt được chúng với một bài cố tình đặt tên lạ, và cấp lại mã cho chúng
+ * là phá đúng thứ cổng này bảo vệ. `nextProblemCode` lọc theo TIỀN TỐ MÃ nên
+ * chúng không làm hỏng việc cấp mã — xem khối chú thích ở `next-code.ts`.
+ */
+describe('không đổi được game của một bài đã tạo', () => {
+  const USER: AuthedUser = { id: AUTHOR_ID, role: 'author' };
+
+  it('từ chối kể cả khi bài CHƯA có lượt nộp nào', async () => {
+    /*
+     * "Chưa ai nộp" là đúng ca mà cổng CŨ cho qua, nên đây là ô đỏ-nếu-ai-đó-nới
+     * lại. Một ô chỉ thử ca "đã có lượt nộp" sẽ xanh trên cả bản cũ lẫn bản mới,
+     * tức không đo gì về lượt siết này.
+     */
+    const stored = await createProblem(db, AUTHOR_ID, bodyFor(draft(), `${SLUG_PREFIX} khoa game`));
+    expect(stored.gameId).toBe('git');
+
+    const doiSangK8s = {
+      ...bodyFor(draft(), `${SLUG_PREFIX} khoa game`),
+      gameId: 'k8s' as const,
+      initialState: { nodes: [], workloads: [] },
+      topics: [],
+    };
+
+    await expect(updateProblem(db, USER, stored.code, doiSangK8s)).rejects.toThrow(
+      /Không đổi được game/u,
+    );
+
+    // Và dòng trong DB KHÔNG đổi — một cổng ném sau khi đã ghi là một cổng hỏng.
+    const rows = await db.select().from(problems).where(eq(problems.code, stored.code)).limit(1);
+    expect(rows[0]?.gameId).toBe('git');
+  });
+
+  it('GIỮ NGUYÊN game thì sửa bình thường — cổng không chặn nhầm', async () => {
+    /*
+     * Đối chứng dương. Không có ô này thì một cổng ném với MỌI lượt `update`
+     * cũng làm ô trên xanh, và trang soạn bài sẽ không lưu được gì nữa.
+     */
+    const stored = await createProblem(db, AUTHOR_ID, bodyFor(draft(), `${SLUG_PREFIX} sua thuong`));
+    const sua = bodyFor(draft(), `${SLUG_PREFIX} sua thuong`);
+    const updated = await updateProblem(db, USER, stored.code, {
+      ...sua,
+      title: `${SLUG_PREFIX} tieu de moi`,
+    });
+    expect(updated.title).toBe(`${SLUG_PREFIX} tieu de moi`);
+    expect(updated.gameId).toBe('git');
   });
 });
