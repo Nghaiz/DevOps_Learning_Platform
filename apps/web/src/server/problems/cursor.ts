@@ -1,10 +1,10 @@
 import { TRPCError } from '@trpc/server';
 import {
   PROBLEM_DIFFICULTIES,
-  isProblemCode,
   type ProblemDifficulty,
   type ProblemOrderKey,
 } from '@devops-platform/games';
+import { isAnyProblemCode } from './problem-code';
 
 /**
  * Con trỏ keyset của danh sách bài.
@@ -71,10 +71,10 @@ function invalid(): never {
 
 export function decodeProblemCursor(cursor: string, orderBy: ProblemOrderKey): ProblemCursor {
   if (orderBy === 'code') {
-    // `code` khớp `K8S-\d{4}`, không bao giờ chứa `:`. Có `:` nghĩa là con trỏ
+    // `code` khớp `<TIỀN TỐ>-\d{4}`, không bao giờ chứa `:`. Có `:` nghĩa là con trỏ
     // của một thứ tự KHÁC còn sót lại (người dùng đổi cách sắp giữa chừng) —
     // nói ra, đừng đọc bừa theo khoá mới.
-    if (!isProblemCode(cursor)) {
+    if (!isAnyProblemCode(cursor)) {
       invalid();
     }
     return { sortValue: null, code: cursor };
@@ -82,7 +82,7 @@ export function decodeProblemCursor(cursor: string, orderBy: ProblemOrderKey): P
 
   const parts = cursor.split(':');
   const [prefix, rawValue, code] = parts;
-  if (parts.length !== 3 || prefix !== PREFIX[orderBy] || code === undefined || !isProblemCode(code)) {
+  if (parts.length !== 3 || prefix !== PREFIX[orderBy] || code === undefined || !isAnyProblemCode(code)) {
     invalid();
   }
   if (rawValue === undefined || rawValue === '') {

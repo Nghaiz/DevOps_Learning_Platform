@@ -36,7 +36,7 @@ export async function createProblem(
   body: ProblemBody,
 ): Promise<StoredProblem> {
   for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt += 1) {
-    const code = await nextProblemCode(db);
+    const code = await nextProblemCode(db, body.gameId);
     try {
       const rows = await db
         .insert(problems)

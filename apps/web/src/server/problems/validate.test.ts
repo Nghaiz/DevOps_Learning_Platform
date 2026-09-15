@@ -263,11 +263,21 @@ describe('đếm từ và định dạng mã bài', () => {
   });
 
   it('mã bài luôn bốn chữ số — đó là thứ làm ORDER BY code đúng bằng so chuỗi', () => {
-    expect(formatProblemCode(1)).toBe('K8S-0001');
-    expect(formatProblemCode(42)).toBe('K8S-0042');
-    expect(formatProblemCode(9999)).toBe('K8S-9999');
+    expect(formatProblemCode('K8S', 1)).toBe('K8S-0001');
+    expect(formatProblemCode('K8S', 42)).toBe('K8S-0042');
+    expect(formatProblemCode('K8S', 9999)).toBe('K8S-9999');
     // Nếu độ dài không cố định thì `K8S-9` đứng sau `K8S-42` theo thứ tự chuỗi,
     // và cả phân trang keyset lẫn phép cấp mã kế tiếp đều sai theo.
-    expect(formatProblemCode(9) < formatProblemCode(42)).toBe(true);
+    expect(formatProblemCode('K8S', 9) < formatProblemCode('K8S', 42)).toBe(true);
+  });
+
+  /*
+   * Tiền tố là THAM SỐ — ô này là thứ đổ nếu ai đó đặt lại một giá trị mặc định
+   * `'K8S'` cho gọn. Một mặc định như thế làm chỗ gọi quên truyền VẫN biên dịch
+   * được, và bài Git nhận một mã `K8S-`.
+   */
+  it('cùng một số thứ tự, hai tiền tố cho hai mã khác nhau', () => {
+    expect(formatProblemCode('GIT', 1)).toBe('GIT-0001');
+    expect(formatProblemCode('GIT', 1)).not.toBe(formatProblemCode('K8S', 1));
   });
 });

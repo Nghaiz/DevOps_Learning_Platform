@@ -2,7 +2,6 @@ import { z } from 'zod';
 import {
   ALL_KINDS,
   GAME_IDS,
-  PROBLEM_CODE_PATTERN,
   PROBLEM_DIFFICULTIES,
   PROBLEM_PLUGINS,
   type GameId,
@@ -10,6 +9,7 @@ import {
   type Testcase,
 } from '@devops-platform/games';
 import type { StoredProblem } from './dto';
+import { ANY_PROBLEM_CODE_PATTERN, PROBLEM_CODE_PREFIXES } from './problem-code';
 
 /**
  * Biên GHI của hệ bài tập. Mọi thứ đi vào `problems` đều qua đây.
@@ -62,7 +62,26 @@ const PG_INT4_MAX = 2_147_483_647;
  */
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
-export const problemCodeSchema = z.string().regex(PROBLEM_CODE_PATTERN, 'Mã bài phải dạng K8S-0042');
+/**
+ * Mã bài của MỌI game có plugin, không riêng K8s.
+ *
+ * ⛔ Khoá này gác nhiều hơn nó trông: `codeInput` (list-input.ts) dựng trên nó,
+ * và `codeInput` là input của `byCode`, `publish`, `archive`, `delete`, `forEdit`,
+ * `revealHint`, `submit`. Giữ nó ở khuôn chỉ-K8s nghĩa là một bài Git lưu xuống
+ * được rồi KHÔNG mở được, KHÔNG xuất bản được, KHÔNG sửa được — và câu lỗi
+ * người soạn nhận là một 400 nói về định dạng mã, thứ không chỉ được vào đâu cả.
+ * Đo 2026-09-15 khi mở đường lưu bản nháp Builder (§18.E.5).
+ *
+ * Câu lỗi nêu một tiền tố THẬT thay vì liệt kê hết: danh sách đầy đủ làm câu
+ * dài ra theo số game, còn người đọc chỉ cần thấy KHUÔN. `?? ` chỉ để kiểu
+ * không rỗng — mảng rỗng là bất khả thi vì `PROBLEM_PLUGINS` luôn có hai mục.
+ */
+export const problemCodeSchema = z
+  .string()
+  .regex(
+    ANY_PROBLEM_CODE_PATTERN,
+    `Mã bài phải dạng ${PROBLEM_CODE_PREFIXES[0] ?? 'K8S'}-0042`,
+  );
 export const problemSlugSchema = z.string().min(1).max(120).regex(SLUG_PATTERN, 'Slug chỉ gồm chữ thường, số và gạch nối');
 export const tagSchema = z.string().min(1).max(40).regex(SLUG_PATTERN, 'Tag chỉ gồm chữ thường, số và gạch nối');
 
