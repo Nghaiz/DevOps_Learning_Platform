@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { ProblemHintTeaser } from '@devops-platform/games';
+import { GAME_IDS, type ProblemHintTeaser } from '@devops-platform/games';
 import { problems } from '../../db/schema';
 import { findProblemForWrite } from '../../problems/authz';
 import {
@@ -142,17 +142,28 @@ export const problemsRouter = createTRPCRouter({
            * trường này là biến mọi lượt nộp đang bay trên dây thành 400, và
            * người chơi mất lượt vừa chơi xong mà không hiểu vì sao.
            *
-           * Giá trị mặc định đúng là `'k8s'` vì đây là endpoint nộp bài OJ của
-           * game K8s — `claimed.gameId` ngay bên dưới đã chốt `z.literal('k8s')`
-           * từ trước. Một game khác sẽ có endpoint của nó, không dùng lại chỗ này.
+           * Giá trị mặc định vẫn là `'k8s'` vì mọi nhật ký THIẾU trường này đều
+           * tới từ một client trước 17.A, và hồi đó chỉ có game K8s.
            *
-           * ⚠ Mặc định ở CẢ `actions[]`, không chỉ ở gốc: `sessionReplayEngine`
-           * kiểm `action.gameId !== 'k8s'` trước khi đưa xuống reducer K8s và
-           * NÉM khi lệch, nên một action thiếu `gameId` sẽ thành `phat-lai-loi`
-           * cho mọi lượt nộp từ client cũ.
+           * ⛔ **Chú thích cũ ở đây viết "Một game khác sẽ có endpoint của nó,
+           * không dùng lại chỗ này". Câu đó KHÔNG còn đúng, và giữ nó lại sẽ dẫn
+           * người sau đi dựng một endpoint thứ hai không cần thiết.**
+           *
+           * Nó được viết khi máy chủ mới chấm được K8s. Từ 18.C, `submitProblem`
+           * tự tách đường theo `gameId` bên trong (`problemAsGitLevel` và
+           * `gitProblemReplayEngine` đứng cạnh bản K8s). Một endpoint thứ hai khi
+           * đó sẽ nhân đôi bốn thứ không liên quan gì tới game: xác thực, trần
+           * nhịp nộp, `MAX_LOG_ACTIONS`, và ba cổng của kỳ thi — rồi chúng sẽ
+           * trôi khỏi nhau ở đúng cái ai đó chỉ sửa một bên.
+           *
+           * ⚠ `actions[].gameId` KHÔNG mặc định `'k8s'` mà **thừa kế từ
+           * `runLog.gameId`** ngay dưới. Chốt cứng `'k8s'` ở đó là một cái bẫy chỉ
+           * lộ ra khi game thứ hai tới: một client Git gửi action không kèm
+           * `gameId` sẽ nhận `'k8s'`, rồi phép kiểm nhất quán bên dưới từ chối
+           * chính lượt nộp hợp lệ của nó.
            */
           runLog: z.object({
-            gameId: z.literal('k8s').default('k8s'),
+            gameId: z.enum(GAME_IDS).default('k8s'),
             levelId: z.string().min(1),
             seed: z.number().int(),
             /*
@@ -182,7 +193,9 @@ export const problemsRouter = createTRPCRouter({
             actions: z
               .array(
                 z.looseObject({
-                  gameId: z.literal('k8s').default('k8s'),
+                  // Vắng ⇒ thừa kế `runLog.gameId` ở `.transform()` dưới, KHÔNG
+                  // mặc định `'k8s'`. Xem khối chú thích đầu `runLog`.
+                  gameId: z.enum(GAME_IDS).optional(),
                   kind: z.string(),
                   tick: z.number(),
                 }),
@@ -191,7 +204,26 @@ export const problemsRouter = createTRPCRouter({
                 message: `Nhật ký lượt chơi vượt trần ${String(MAX_LOG_ACTIONS)} hành động`,
               })
               .readonly(),
-          }),
+          })
+            /*
+             * Điền `gameId` thiếu cho từng action TỪ chính nhật ký chứa nó.
+             *
+             * Giữ nguyên lá chắn cho client cũ: một tab trước 17.A không gửi
+             * `gameId` ở đâu cả, nên `runLog.gameId` rơi về `'k8s'` và mọi action
+             * thừa kế `'k8s'` — đúng hành vi cũ từng bit. Cái được thêm là một
+             * client Git chỉ cần khai `gameId` MỘT lần ở gốc.
+             *
+             * ⚠ Bộ phát lại kiểm `action.gameId` trước khi đưa xuống reducer và
+             * NÉM khi lệch, nên một action thiếu trường này thành `phat-lai-loi`
+             * — một lỗi CẤU HÌNH đọc ra thành "bộ mô phỏng hỏng".
+             */
+            .transform((log) => ({
+              ...log,
+              actions: log.actions.map((action) => ({
+                ...action,
+                gameId: action.gameId ?? log.gameId,
+              })),
+            })),
           /*
            * §18.G — lượt nộp TRONG một kỳ thi mang theo `examId`.
            *
@@ -207,7 +239,9 @@ export const problemsRouter = createTRPCRouter({
            */
           examId: z.string().uuid().optional(),
           claimed: z.object({
-            gameId: z.literal('k8s'),
+            // Không `.default()` ở đây, khác `runLog.gameId`: `claimed` do client
+            // dựng TƯỜNG MINH ở mỗi lượt nộp, không có bản cũ nào thiếu nó.
+            gameId: z.enum(GAME_IDS),
             levelId: z.string().min(1),
             seed: z.number().int(),
             startedAt: z.number().int(),
@@ -240,6 +274,23 @@ export const problemsRouter = createTRPCRouter({
        * phải K8s nhận `INTERNAL_SERVER_ERROR` với câu gọi đúng tên game. Giữ
        * câu này thay vì xoá đè, vì một dòng "chưa làm" còn lại trên một việc đã
        * làm sẽ khiến người sau đi làm lần thứ hai.
+       */
+      /*
+       * ⚠ Phép kiểm *"`gameId` của nhật ký và của lời khai phải khớp `gameId` của
+       * CHÍNH BÀI"* KHÔNG nằm ở đây — nó ở `submitProblem` (`problems/submit.ts`).
+       *
+       * Nó sinh ra CÙNG LÚC với việc nới ba `z.literal('k8s')` ở trên, không phải
+       * sau đó: trước khi nới, schema chỉ nhận đúng một giá trị nên không có gì
+       * để lệch. Nới mà không kèm nó là mở một lỗ trong cùng một lượt sửa — hai
+       * nguồn trả lời cùng một câu hỏi (`verifyProblemRun` tra engine theo
+       * `problem.gameId`, `gradeSubmission` tra plugin theo `log.gameId`), nên
+       * một nhật ký khai `'k8s'` nộp vào bài Git sẽ phát lại trên engine Git rồi
+       * **chấm bằng plugin K8s**.
+       *
+       * Đặt ở tầng hàm chứ không tầng router vì `submitProblem` có caller khác
+       * ngoài đường HTTP này. Một bản sao ở đây sẽ là cổng thứ hai cho cùng một
+       * luật, và hai bản của một luật thì trôi khỏi nhau ở đúng cái ai đó chỉ sửa
+       * một bên.
        */
       await assertExamRules(ctx, input, row.code);
       return submitProblem(
