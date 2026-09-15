@@ -730,6 +730,85 @@ export const author = {
   'author.trial-plan-dang-cho': 'Đang chờ',
   'author.step-task': 'Task',
   'author.step-task-noun': 'task',
+
+  /*
+   * ── Level Builder của game Git, §18.E ────────────────────────────────────
+   *
+   * Khối này chỉ chở phần chữ là BẢN DỊCH CỦA MỘT UNION ĐÓNG bên
+   * `packages/games`: 16 mã `DraftIssueCode` và 2 phần tử
+   * `BUILDER_CANNOT_EXPRESS`. Vỏ còn lại của màn Builder (tiêu đề khối, nhãn
+   * nút, câu chỉ dẫn) nằm thẳng trong `components/games/git/**`, y như
+   * `git-sandbox.tsx` và `git-game.tsx` ngay cạnh nó.
+   *
+   * Ranh giới đó không tuỳ tiện, và nó có cái giá phải nói ra: MỘT màn hình đọc
+   * chữ từ HAI nguồn, nên người sửa chữ phải biết mình đang sửa loại nào. Đổi
+   * lại, hai vế đều có lý do riêng:
+   *
+   * · `level-draft.ts` khai MÃ LỖI chứ không khai câu tiếng Việt, và tự ghi
+   *   "giao diện dựng câu qua packages/copy". Đưa 16 mã vào bản đồ mua được một
+   *   phép vét cạn ở tầng KIỂU: nơi gọi khai `Record<DraftIssueCode, TextKey>`,
+   *   nên thêm mã thứ 17 mà quên câu cho nó là lỗi biên dịch, không phải một
+   *   dòng trống trên màn.
+   * · `ui-source-coverage.test.ts` CỐ Ý không quét cây `components/games`. Kéo
+   *   toàn bộ vỏ của hai màn game vào đây là một lượt viết lại lớn mà không cổng
+   *   nào đòi, và nó sẽ làm ba file cạnh nhau đọc chữ theo hai lối khác nhau.
+   *
+   * `detail` của một issue (mã mục tiêu, tên vị từ, tên lệnh) KHÔNG đi qua đây.
+   * Nó là thứ người soạn tự gõ, và §"Ranh giới VỎ so với RUỘT" ở đầu file đã
+   * chốt phép thử: chặn bởi số MÀN HÌNH thì vào bản đồ, chặn bởi số MỤC NỘI
+   * DUNG thì không. Giao diện in nó trong một thẻ `code` cạnh câu.
+   */
+  'author.builder.issue.id-trong': 'Chưa đặt mã level.',
+  'author.builder.issue.id-sai-dinh-dang':
+    'Mã level sai định dạng. Nó phải mở đầu bằng tiền tố dành riêng cho level tự dựng, rồi tới slug thường không dấu ngăn bằng gạch nối. Tiền tố đó là thứ giữ cho tiến độ đã lưu của 32 level phát hành không bị ghi đè.',
+  'author.builder.issue.tieu-de-trong': 'Chưa đặt tiêu đề.',
+  'author.builder.issue.nhiem-vu-trong':
+    'Chưa viết câu nhiệm vụ. Đây là dòng chữ thường trực duy nhất trên màn chơi.',
+  'author.builder.issue.de-bai-trong': 'Chưa viết đề bài.',
+  'author.builder.issue.khong-co-muc-tieu':
+    'Level chưa có mục tiêu nào. Một mục tiêu là một testcase.',
+  'author.builder.issue.khong-co-muc-tieu-bat-buoc':
+    'Mọi mục tiêu đều là mục thưởng, nên không còn gì chặn người chơi. Level này sẽ không bao giờ ra verdict đạt.',
+  'author.builder.issue.muc-tieu-trung-id': 'Hai mục tiêu đang mang cùng một mã.',
+  'author.builder.issue.vi-tu-khong-ton-tai': 'Vị từ chấm này không có trong engine.',
+  'author.builder.issue.thieu-cay-dich':
+    'Mục tiêu này so hình dạng DAG với cây đích, mà ô cây đích đang trống. Dựng trạng thái bạn muốn tới rồi bấm nút đặt làm đích.',
+  'author.builder.issue.khong-co-loi-giai':
+    'Chưa khai lời giải mẫu. Thiếu nó thì câu "level này qua được" là một lời khai, không phải một phép đo.',
+  'author.builder.issue.tap-lenh-rong':
+    'Tập lệnh cho phép đang rỗng, và rỗng nghĩa là CẤM mọi lệnh. Muốn cho dùng mọi lệnh thì để trắng ô này.',
+  'author.builder.issue.loi-giai-dung-lenh-ngoai-tap':
+    'Lời giải mẫu gọi một lệnh nằm ngoài tập lệnh cho phép. Level đang tự chặn lời giải của chính nó.',
+  'author.builder.issue.par-am': 'Số lệnh chuẩn không nhận giá trị âm.',
+  'author.builder.issue.trang-thai-dau-hong':
+    'Trạng thái đầu không dựng được. Thường là một nhánh trỏ vào commit chưa định nghĩa.',
+  'author.builder.issue.cay-dich-hong':
+    'Cây đích không dựng được. Thường là một nhánh trỏ vào commit chưa định nghĩa.',
+
+  'author.builder.limit.bot-dong-doi':
+    'Đồng đội tự động. Một level cần bot đẩy commit lên origin theo lượt phải soạn tay trong tệp TS, vì mỗi hành động của bot là một dòng lịch trình chứ không phải một trạng thái chụp lại được.',
+  'author.builder.limit.nhieu-luot-chay-co-seed':
+    'Level đổi theo seed. Builder chụp đúng MỘT thế giới, nên một level muốn mỗi người chơi nhận một cây khác nhau vẫn phải soạn tay.',
+
+  /*
+   * ── E.7, và phạm vi của nó ───────────────────────────────────────────────
+   *
+   * `author.builder.check.scope` là câu mà `phase-18.md` §18.E dặn phải hiện
+   * TRÊN MÀN chứ không giấu trong tài liệu. Nó ở đây, cạnh nhãn nút, để không ai
+   * đổi nhãn mà bỏ quên nó.
+   */
+  'author.builder.check.run': 'Kiểm lời giải mẫu',
+  'author.builder.check.scope':
+    'Phép này chạy chuỗi lời giải mẫu bạn vừa khai rồi hỏi nó có đạt hết mục tiêu bắt buộc không. Nó KHÔNG trả lời câu "level này có giải được không": tên nhánh, lời nhắn và đường dẫn đều là tham số tự do nên không gian lệnh git là vô hạn, và không phép dò nào duyệt hết được.',
+  'author.builder.check.pass': (p: { passed: number; total: number }) =>
+    `Lời giải mẫu đạt ${String(p.passed)}/${String(p.total)} mục tiêu bắt buộc.`,
+  'author.builder.check.fail': (p: { passed: number; total: number }) =>
+    `Lời giải mẫu mới đạt ${String(p.passed)}/${String(p.total)} mục tiêu bắt buộc.`,
+  'author.builder.check.unmet': 'Mục tiêu bắt buộc chưa đạt sau khi chạy hết chuỗi lệnh:',
+  'author.builder.check.rejected':
+    'Engine từ chối những lệnh dưới đây. Một lời giải gõ nhầm một lệnh rồi gõ lại đúng vẫn tới được đích, nên đây là thông tin cho người soạn chứ không phải điều kiện trượt.',
+  'author.builder.check.blocked':
+    'Chưa kiểm được: bản nháp còn lỗi ở danh sách trên. Sửa hết rồi bấm lại.',
 } as const satisfies Surface<'author'>;
 
 export const authorIntentionalThree = {

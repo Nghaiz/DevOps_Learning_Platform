@@ -6,6 +6,7 @@ import {
   SANDBOX_SCENARIOS,
   SANDBOX_SCENARIO_LABEL,
   createGitSession,
+  emptyDraft,
   exportSandboxJson,
   importSandboxJson,
   layoutDag,
@@ -15,10 +16,12 @@ import {
   withoutOrigin,
   worldToSpec,
   type GitEngineSession,
+  type LevelDraft,
   type SandboxScenario,
   type WorldSpec,
 } from '@devops-platform/games';
 
+import { GitLevelBuilder } from './builder/git-builder';
 import { CommandBar, OutputLog } from './git-console';
 import { GitSvgScene } from './git-svg-scene';
 import { buildSceneLayouts, type SceneView } from '../shared/scene-props';
@@ -52,6 +55,19 @@ export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
   const [spec, setSpec] = useState<WorldSpec>(() => sandboxSpec('kho-roi'));
   const [problem, setProblem] = useState<string | null>(null);
   const [importText, setImportText] = useState('');
+  /*
+   * ⚠ Bản nháp sống Ở ĐÂY chứ không trong `GitLevelBuilder`, và trạng thái
+   * ĐÓNG/MỞ là một biến RIÊNG chứ không phải `draft === null`.
+   *
+   * Hai quyết định, cùng một lý do. Bản nháp phải sống sót qua mọi lần đổi kịch
+   * bản / bật tắt origin / nhập cây — tức qua mọi lần dựng lại phiên — vì "dựng
+   * cây đích" là thao tác thường gặp nhất ở màn này và nó đi qua đúng những nút
+   * đó. Và đóng bảng Builder phải là ẩn đi, không phải vứt đi: gộp hai trạng
+   * thái vào một biến làm một lần bấm nhầm xoá sạch đề bài đang soạn, không hỏi
+   * lại, không hoàn tác được.
+   */
+  const [draft, setDraft] = useState<LevelDraft | null>(null);
+  const [builderOpen, setBuilderOpen] = useState(false);
 
   /*
    * `generation` là thứ DUY NHẤT quyết định khi nào dựng lại phiên.
@@ -126,6 +142,14 @@ export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
     setImportText('');
   }, [importText, rebuild]);
 
+  // Chụp lúc BẤM, không chụp lúc render — xem `GitLevelBuilderProps.captureSpec`.
+  const captureSpec = useCallback((): WorldSpec => worldToSpec(session.getWorld()), [session]);
+
+  const toggleBuilder = useCallback(() => {
+    setDraft((current) => current ?? emptyDraft(worldToSpec(session.getWorld())));
+    setBuilderOpen((open) => !open);
+  }, [session]);
+
   return (
     <div className="flex h-full flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b border-input px-4 py-2">
@@ -137,6 +161,11 @@ export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
           ← Danh sách level
         </button>
         <span className="text-sm font-medium text-foreground">Sandbox · kho tự do</span>
+        <span className="ml-auto">
+          <SandboxButton onClick={toggleBuilder}>
+            {builderOpen ? 'Đóng Level Builder' : 'Mở Level Builder'}
+          </SandboxButton>
+        </span>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -155,9 +184,17 @@ export function GitSandbox({ onExit }: GitSandboxProps): ReactElement {
         </div>
 
         <aside
-          className="flex w-full shrink-0 flex-col gap-4 border-t border-input p-4 lg:w-96 lg:border-t-0 lg:border-l"
+          className={
+            builderOpen
+              ? 'flex w-full shrink-0 flex-col gap-4 overflow-auto border-t border-input p-4 lg:w-md lg:border-t-0 lg:border-l'
+              : 'flex w-full shrink-0 flex-col gap-4 border-t border-input p-4 lg:w-96 lg:border-t-0 lg:border-l'
+          }
           data-testid="git-sandbox-panel"
         >
+          {builderOpen && draft !== null && (
+            <GitLevelBuilder captureSpec={captureSpec} draft={draft} onDraftChange={setDraft} />
+          )}
+
           <section aria-labelledby="sandbox-kich-ban">
             <h2 id="sandbox-kich-ban" className="mb-2 text-sm font-semibold text-foreground">
               Kịch bản khởi tạo
