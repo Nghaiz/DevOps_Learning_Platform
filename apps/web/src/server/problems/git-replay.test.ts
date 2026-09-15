@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { gradeProblemRun, type RunLog, type RunResult } from '@devops-platform/games';
 import type { StoredProblem } from './dto';
 import { problemAsGitLevel, verifyProblemRun, UnsupportedReplayGameError } from './replay';
+import { submitProblem } from './submit';
 
 /**
  * §18.C cho GAME THỨ HAI — ô gác mà plan tự nói là dễ nói dối.
@@ -288,5 +289,41 @@ describe('game chưa có adapter phát lại nói đúng tên vấn đề', () =
     expect(() => verifyProblemRun(bai, log(LOG_MOT_NUA_JSON), CLAIM_THAT_THA, [])).toThrow(
       UnsupportedReplayGameError,
     );
+  });
+});
+
+// ── `gameId` chốt về MỘT nguồn ──────────────────────────────────────────────
+
+/**
+ * Khe mở ra đúng lúc điểm cuối nhận game thứ hai.
+ *
+ * `verifyProblemRun` tra adapter theo `problem.gameId` (đọc từ DB);
+ * `gradeSubmission` tra plugin theo `log.gameId` (client gửi lên). Hai nguồn cho
+ * cùng một câu hỏi. Chừng nào mọi bài đều là K8s thì chúng luôn bằng nhau và
+ * khe này là mã chết — nên nó chỉ trở thành thật ở đúng lượt thay đổi này, và
+ * phải đóng trong cùng lượt.
+ *
+ * ⚠ Ô này gọi `submitProblem` với `db` là `undefined`, CÓ CHỦ Ý. Phép kiểm chạy
+ * trước dòng chạm DB đầu tiên, nên một `db` thật ở đây chỉ thêm một phụ thuộc
+ * Postgres cho một ô không đo gì về Postgres — và đã có tiền lệ trong repo này
+ * về việc một suite xanh nhờ skip trông y hệt một suite xanh thật. Nếu ai đó
+ * chuyển phép kiểm xuống sau lượt đọc DB, ô này ĐỎ bằng một `TypeError` chứ
+ * không im lặng, và đó là hành vi đúng.
+ */
+describe('nhật ký khai sai game bị từ chối trước khi chạm engine nào', () => {
+  it('`log.gameId` lệch `problem.gameId` ⇒ BAD_REQUEST, nói ra cả hai', async () => {
+    const nhatKy = { ...log(LOG_MOT_NUA_JSON), gameId: 'k8s' } as RunLog;
+    await expect(
+      submitProblem(undefined as never, problem(), 'u-git-sai-game-1', nhatKy, CLAIM_THAT_THA),
+    ).rejects.toThrow(/khai game "k8s"[\s\S]*thuộc game "git"/);
+  });
+
+  it('`claimed.gameId` lệch cũng bị từ chối — dù hôm nay không ai đọc nó', async () => {
+    // Trường này không đi vào phép chấm nào hôm nay. Bỏ qua nó sẽ "chạy đúng"
+    // cho tới ngày ai đó đọc nó và đọc phải một giá trị chưa bao giờ được kiểm.
+    const khai = { ...CLAIM_THAT_THA, gameId: 'k8s' } as RunResult;
+    await expect(
+      submitProblem(undefined as never, problem(), 'u-git-sai-game-2', log(LOG_MOT_NUA_JSON), khai),
+    ).rejects.toThrow(/thuộc game "git"/);
   });
 });

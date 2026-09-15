@@ -153,6 +153,35 @@ export async function submitProblem(
    * phải `BAD_REQUEST` vì người nộp không làm gì sai — một bài xuất bản thuộc
    * game chưa có đường chấm là lỗi cấu hình nền tảng.
    */
+  /*
+   * ⛔ CHỐT `gameId` VỀ MỘT NGUỒN — khe mở ra đúng lúc điểm cuối này nhận game
+   * thứ hai, nên nó phải đóng trong cùng lượt.
+   *
+   * Hai chỗ dưới đây tra hai bảng khác nhau bằng hai trường khác nhau:
+   *
+   * | Chỗ | Tra gì | Bằng trường nào |
+   * |---|---|---|
+   * | `verifyProblemRun` | adapter phát lại | `problem.gameId` (từ DB) |
+   * | `gradeSubmission` → `gradeProblemRun` | plugin chấm | `log.gameId` (client gửi) |
+   *
+   * Chừng nào mọi bài đều là K8s thì hai nguồn luôn bằng nhau và khe này là mã
+   * chết. Từ lúc bài Git nộp được, một nhật ký khai `gameId: 'k8s'` nộp vào bài
+   * Git sẽ phát lại trên engine Git (ném, thành `phat-lai-loi`) rồi chấm bằng
+   * plugin K8s — hai nửa của cùng một lượt chạy trên hai game.
+   *
+   * `BAD_REQUEST` chứ không phải 500: đây là input sai hình dạng do client gửi,
+   * khác hẳn ca "nền tảng thiếu adapter" ở `verifyOrExplain`.
+   *
+   * ⚠ Kiểm CẢ `claimed.gameId`. Nó không đi vào phép chấm nào hôm nay, nên bỏ
+   * qua sẽ "chạy đúng" — cho tới ngày ai đó đọc nó và đọc phải một giá trị chưa
+   * bao giờ được kiểm.
+   */
+  if (log.gameId !== problem.gameId || claimed.gameId !== problem.gameId) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: `Lượt nộp khai game "${log.gameId}"/"${claimed.gameId}", nhưng bài "${problem.code}" thuộc game "${problem.gameId}"`,
+    });
+  }
   if (log.levelId !== expectedLogLevelId(problem)) {
     // Kiểm trước để trả một câu nói được. Để `sessionReplayEngine.init` tự ném
     // thì nó về dưới dạng `phat-lai-loi` — nhãn ấy nghĩa là "lỗi bộ mô phỏng"
