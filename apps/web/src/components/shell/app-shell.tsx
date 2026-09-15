@@ -183,7 +183,7 @@ export function AppShell({
           {!immersive && (
             <>
               {!auth && (
-                <aside className="practice-sidebar">
+                <aside className="practice-sidebar" aria-label={t('shell.sidebar.aria')}>
                   <Brand />
                   <Navigation viewer={viewer} />
                   <div className="practice-sidebar-bottom">

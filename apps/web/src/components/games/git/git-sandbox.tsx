@@ -224,6 +224,22 @@ export function GitSandbox({
               ? 'git-side-panel git-builder-panel git-sandbox-tools git-builder-open'
               : 'git-side-panel git-builder-panel git-sandbox-tools'
           }
+          /*
+           * Tên của landmark `complementary`. Vỏ ứng dụng cũng dựng một
+           * `<aside>` (`app-shell.tsx`), nên hai cái cùng vô danh là vi phạm
+           * `landmark-unique` của axe. `shell.sidebar.aria` đã đặt tên cho cái
+           * kia và một mình nó đủ để cổng xanh; cái tên ở đây là để người dùng
+           * trình đọc màn hình nghe được panel này LÀ gì, chứ không phải nghe
+           * "complementary" trống không.
+           *
+           * Chuỗi viết thẳng, không qua `t()`: cây `components/games/git` chưa
+           * có surface copy nào và nằm ngoài vùng quét của
+           * `ui-source-coverage.test.ts`; cả file này đang viết thẳng mọi nhãn
+           * (`aria-label="Đồ thị commit của sandbox"` ngay phía trên). Nhét nó
+           * vào surface `shell.` sẽ là copy của trò chơi nằm trong bản đồ của
+           * vỏ ứng dụng — chính thứ đầu file `surfaces/shell.ts` cấm.
+           */
+          aria-label="Bảng công cụ sandbox"
           data-testid="git-sandbox-panel"
         >
           <div className="git-builder-heading">

@@ -98,7 +98,20 @@ export const shell = {
   'shell.drawer.open': 'Mở điều hướng',
   'shell.drawer.title': 'Điều hướng',
 
-  // ── Chân thanh bên ──────────────────────────────────────────────────────
+  // ── Thanh bên ───────────────────────────────────────────────────────────
+  //
+  // `shell.sidebar.aria` là TÊN của landmark `complementary` mà `<aside
+  // class="practice-sidebar">` tạo ra. Không phải chữ trang trí: axe có luật
+  // `landmark-unique`, và hai landmark cùng vai mà cùng VÔ DANH thì bị tính là
+  // trùng. Màn sandbox Git dựng landmark `complementary` thứ hai
+  // (`git-sandbox.tsx`), nên trước khi có khoá này `a11y.spec.ts` đỏ ở đó.
+  // Đặt tên cho MỘT trong hai là đủ để hai cái phân biệt được.
+  //
+  // Đặt tên cho cái của vỏ ứng dụng chứ không cho cái của trò chơi là có chủ
+  // ý: thanh bên này có mặt trên MỌI màn không-xác-thực, nên một cái tên ở đây
+  // đóng luôn cả những màn chưa ai mở, kể cả màn level của Git, nơi
+  // `git-level-screen.tsx` cũng dựng một `<aside>` cùng loại.
+  'shell.sidebar.aria': 'Thanh bên điều hướng',
   'shell.sidebar.tagline': 'Học bằng thực hành',
 
   // ── Menu tài khoản ──────────────────────────────────────────────────────

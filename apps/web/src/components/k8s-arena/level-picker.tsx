@@ -125,10 +125,33 @@ export function LevelPicker({ levels, onPick }: LevelPickerProps): ReactElement 
                 onClick={() => {
                   onPick(next.id);
                 }}
+                /*
+                 * Độ pha của mặt nền là một con số CÓ RÀNG BUỘC, không phải một
+                 * lựa chọn thẩm mỹ tự do: chữ ở đây dùng chính `--status-progress`
+                 * làm mực, nên nền càng đậm thì tương phản chữ-trên-nền càng tụt.
+                 *
+                 * Nút nằm trong `.practice-k8s-container > header`, mà luật đó đặt
+                 * `background: var(--card)` (`practice.css`) — nên nền dưới lớp pha
+                 * là `--card`, không phải `--background`. Đo trên đúng nền ấy:
+                 *
+                 *   /15 → 4.392 sáng · 4.425 tối   ← cả HAI đều dưới AA 4.5
+                 *   /12 → 4.589 sáng · 4.668 tối
+                 *   /10 → 4.723 sáng · 4.833 tối   ← chọn cái này
+                 *
+                 * axe chỉ báo nhánh sáng vì lượt quét chạy ở nhánh sáng; nhánh tối
+                 * hỏng y hệt và không ô nào nhìn tới. `/10` sửa cả hai.
+                 *
+                 * Hover đổi sang mặt tô ĐẶC thay vì pha đậm hơn: `/20` cho 4.074 và
+                 * `/25` (bản cũ) còn thấp hơn nữa, tức trạng thái hover vi phạm
+                 * SC 1.4.3 trong khi axe không bao giờ quét nó. Cặp
+                 * `--status-progress-foreground` trên `--status-progress` là cặp đã
+                 * được thiết kế cho nhau (5.23 sáng / 7.32 tối) nên hover vừa rõ
+                 * hơn vừa không còn chỗ hụt.
+                 */
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-lg bg-status-progress/15 px-4 py-2',
+                  'inline-flex items-center gap-2 rounded-lg bg-status-progress/10 px-4 py-2',
                   'text-sm font-medium text-status-progress ring-1 ring-status-progress/40',
-                  'transition-colors hover:bg-status-progress/25',
+                  'transition-colors hover:bg-status-progress hover:text-status-progress-foreground',
                   'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                 )}
               >

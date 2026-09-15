@@ -516,7 +516,15 @@ export function GitLevelScreen({
             </section>
           )}
         </div>
-        <aside className="git-side-panel">
+        {/*
+          Cùng lý do với `<aside>` trong `git-sandbox.tsx`: landmark
+          `complementary` thứ hai trên màn này (cái thứ nhất là thanh bên của
+          vỏ ứng dụng), nên nó cần một cái tên. Chưa ô nào bắt được ca này —
+          `a11y.spec.ts` quét màn sandbox chứ chưa quét một màn level mở trong
+          vỏ ứng dụng — nên nó là cùng một lỗi đang nằm chờ, không phải một lỗi
+          khác.
+        */}
+        <aside className="git-side-panel" aria-label="Bảng nhiệm vụ và cẩm nang">
           <nav className="git-panel-tabs" aria-label="Nội dung nhiệm vụ">
             <button aria-pressed={tab === 'mission'} onClick={() => setTab('mission')}>
               <Flag size={15} />

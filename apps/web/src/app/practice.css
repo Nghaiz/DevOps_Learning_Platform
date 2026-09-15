@@ -197,6 +197,56 @@
 .practice-topbar-title strong {
   font-weight: 500;
 }
+/*
+ * Khối nhận diện khi nó nằm trong THANH ĐẦU TRANG chứ không trong thanh bên.
+ *
+ * Bốn màn xác thực (`/login`, `/register`, `/forgot-password`,
+ * `/reset-password`) render `<Brand/>` vào `.practice-topbar-title`
+ * (`app-shell.tsx`, nhánh `auth`), nên nó mang theo số đo của một thanh bên
+ * rộng 224px: `padding: 22px` bốn phía và `height: 88px` — đặt vào một thanh
+ * cao 68px.
+ *
+ * Hệ quả ĐO ĐƯỢC ở khung 390px, trước lượt sửa này: khối nhận diện chiếm 234px
+ * và KHÔNG co được (tên thương hiệu không có `text-overflow` nên chiều rộng
+ * min-content của nó chính là 234px), nên toàn bộ phần thiếu dồn sang
+ * `.practice-topbar-actions`: hộp còn 116px trong khi nút "Giao diện" + nút
+ * "Đăng nhập" cần 135px. Phần 19px thừa tràn qua mép phải và đẩy
+ * `document.documentElement.scrollWidth` lên 397 — đúng 7px tràn mà
+ * `responsive.spec.ts` báo trên cả bốn màn. Trang chủ `/` KHÔNG tràn vì ở đó
+ * thanh đầu trang render `<span class="practice-brand-short">` chứ không render
+ * `.practice-brand`.
+ *
+ * Hai vế dưới đây, và vì sao cả hai đều cần:
+ *
+ * · `padding: 0; height: auto` — trả lại 44px bề ngang mà thanh bên mượn vào
+ *   đây, và thôi dựng một khối cao 88px bên trong một thanh cao 68px. Đây là
+ *   thứ làm cho ở 390px KHÔNG phần tử nào phải co: 12 + 190 + 16 + 135 + 12.
+ * · `min-width: 0` + cắt bớt tên — là thứ GÁC, không phải thứ làm đẹp. Nó hạ
+ *   min-content của khối nhận diện xuống bằng bề ngang của icon, nên dù màn
+ *   hẹp hơn 390px hay chữ dài ra, phần thiếu được chia cho CẢ hai bên thay vì
+ *   dồn hết sang actions. Thiếu vế này thì lần sau chữ dài thêm là lỗi quay
+ *   lại y hệt, và không cổng nào kêu cho tới lượt e2e.
+ *
+ * ⛔ KHÔNG sửa bằng `.practice-topbar-actions { flex: 0 0 auto }`: vế đó chuyển
+ * phần tràn từ actions sang title, và title vẫn không có `text-overflow` nên
+ * `scrollWidth` không đổi. Nó cũng đụng MỌI màn đã đăng nhập (actions ở đó chở
+ * `UserMenu` + chỉ báo sức chứa), tức đổi bố cục 28 route đang xanh để sửa 4
+ * route đang đỏ.
+ */
+.practice-topbar .practice-brand {
+  height: auto;
+  padding: 0;
+}
+.practice-topbar .practice-brand > div {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.practice-topbar .practice-brand small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .practice-mobile-trigger {
   display: none !important;
 }
