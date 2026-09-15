@@ -20,6 +20,19 @@
   --workspace-sidebar: 224px;
   --workspace-header: 68px;
   --art-surface: #e5ebe7;
+  /*
+   * Mực chữ của nhãn trên tấm nền artwork, TÁCH khỏi `color` của chính tấm nền.
+   *
+   * `color` ở đó là `currentColor` mà SVG artwork vẽ theo (stroke/fill với
+   * opacity .08–.6), nên làm tối nó để đạt tương phản sẽ đổi luôn hình vẽ. Nhãn
+   * là chữ thật và phải qua ngưỡng AA; nét artwork là trang trí (`aria-hidden`)
+   * và không bị đo. Hai việc khác nhau ⇒ hai biến.
+   *
+   * Khai ở `:root` để biến luôn phân giải được kể cả khi markup đổi và nhãn
+   * không còn nằm trong `.practice-game-art` — một `var()` không phân giải sẽ
+   * rơi về màu kế thừa, và đó đúng là cách lỗi tương phản quay lại trong im lặng.
+   */
+  --art-label: #3a6457;
 }
 .dark {
   --background: #171b22;
@@ -339,11 +352,27 @@
   background: #e5ece7;
   color: #3a6457;
   --art-surface: #e5ece7;
+  /* #3a6457 trên #e5ece7 = 5.567:1 — đạt AA cho chữ thường (≥4.5:1). */
+  --art-label: #3a6457;
 }
 .game-git .practice-game-art {
   background: #f3e8dc;
   color: #986746;
   --art-surface: #f3e8dc;
+  /*
+   * ⛔ KHÔNG dùng lại #986746 cho chữ: #986746 trên #f3e8dc chỉ được **3.985:1**,
+   * dưới ngưỡng AA 4.5:1 cho chữ thường — đúng vi phạm `[serious] color-contrast`
+   * mà axe báo trên `.game-git > .practice-game-art > .practice-game-label` ở cả
+   * bốn trang `/`, `/me`, `/games`, `/games/k8s`.
+   *
+   * #7d5436 trên cùng nền = **5.445:1**. Chọn mức này thay vì mức vừa đủ (#8a5c3c
+   * = 4.729:1) để biên không sát ngưỡng, và để hai thẻ game cân nhau về độ đậm
+   * chữ (5.445 so với 5.567 của thẻ k8s).
+   *
+   * Cả hai theme ra CÙNG con số: khối này dùng màu cứng và `.dark` không hề đè
+   * lên nó (`.dark` chỉ xuất hiện một lần trong file, ở khối token đầu trang).
+   */
+  --art-label: #7d5436;
 }
 .practice-game-label {
   position: absolute;
@@ -352,6 +381,7 @@
   font-size: 9px;
   letter-spacing: 1.6px;
   font-weight: 600;
+  color: var(--art-label);
 }
 .game-artwork {
   width: 100%;
@@ -1050,12 +1080,36 @@
     padding: 0 28px;
   }
 }
-@media (max-width: 900px) {
+/*
+ * Nav thu vào ngăn kéo ở ≤768px.
+ *
+ * ⛔ Con số này KHÔNG được tự chọn: nó là `NAV_COLLAPSE_MAX_PX` trong
+ * `components/shell/breakpoints.ts`, và `e2e/responsive.spec.ts` đo đúng biên
+ * 768/769 chứ không đo một cặp 375/1280 dễ dãi.
+ *
+ * Trước 2026-09-16 khối này là `max-width: 900px`. Ở 769px — ô ĐỐI CHỨNG ÂM của
+ * spec — media query cũ vẫn áp, nên `.practice-mobile-trigger` còn hiện
+ * (`inline-flex !important`) và `.practice-sidebar` còn ẩn: đúng thứ ô đó dựng
+ * ra để bắt. Một cặp đo 375/1280 sẽ xanh với cả 900px lẫn 768px, tức không gác
+ * được gì; biên là chỗ duy nhất phân biệt hai cài đặt.
+ *
+ * Đổi `NAV_COLLAPSE_MAX_PX` ⇒ phải đổi con số ở đây. Không có cơ chế nào bắt
+ * CSS đọc hằng TypeScript, nên ràng buộc này do spec giữ, không do trình biên dịch.
+ */
+@media (max-width: 768px) {
   :root {
     --workspace-sidebar: 0px;
   }
+  /*
+   * `!important` ở đây là có chủ ý, không phải quán tính. `<aside>` này do lane
+   * vỏ ứng dụng render và có thể nhận thêm utility class của Tailwind; một
+   * `.flex` (hay thuộc tính `hidden` của HTML) đứng cạnh `display` của utility
+   * sẽ làm phần tử vẫn hiện mà KHÔNG báo gì — bẫy đã ghi trong sổ dự án. Nav
+   * ngang còn hiện ở khung hẹp nghĩa là hai bộ điều hướng cùng tồn tại và người
+   * dùng bàn phím Tab qua cả hai.
+   */
   .practice-sidebar {
-    display: none;
+    display: none !important;
   }
   .practice-mobile-trigger {
     display: inline-flex !important;
