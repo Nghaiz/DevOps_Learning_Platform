@@ -6,11 +6,11 @@ import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react
 import {
   GIT_LEVELS,
   createGitSession,
-  evaluateObjectives,
   layoutDag,
   verdictOf,
   type GitEngineSession,
   type GitLevel,
+  type ObjectiveResult,
   type TheoryDoc,
 } from '@devops-platform/games';
 
@@ -303,7 +303,35 @@ function GitLevelScreen({ level, theory, onExit }: LevelScreenProps): ReactEleme
    * nào bắt được, vì không cổng nào đi từ một lệnh git tới một pixel.
    */
   const view = session.getView();
-  const results = evaluateObjectives(world, null, level.objectives);
+  /*
+   * ⚠ Kết quả mục tiêu đọc từ `session.getStatus()`, KHÔNG tự chấm lại bằng
+   * `evaluateObjectives` với cây đích `null`.
+   *
+   * Cùng lý lẽ với `getView()` ngay trên, và cùng hình dạng lỗi. Bản cũ truyền
+   * `null` làm cây đích, mà `evaluatePredicate` trả `false` CỨNG cho
+   * `graphShapeMatches` khi target là `null` (`predicates.ts:178`) — trong khi
+   * engine chấm bằng cây đích thật dựng từ `level.target` (`engine.ts:135`).
+   *
+   * Hệ quả: một level dùng `graphShapeMatches` hiện mục tiêu đó VĨNH VIỄN đỏ
+   * trên màn, còn engine thì coi là đã đạt. Hai phần của mã trả lời khác nhau về
+   * cùng một level, và phần người chơi nhìn thấy là phần sai.
+   *
+   * Hôm nay chưa ai chạm: không level nào trong 32 level phát hành dùng vị từ đó
+   * (đo 2026-09-15), nên nhánh này là mã chết. **Level Builder (§18.E) làm nó
+   * sống** — "rebase cho ra hình dạng này" chính là loại level mà một builder
+   * trực quan dựng ra tự nhiên nhất.
+   *
+   * Đọc từ engine thay vì dựng lại cây đích ở đây còn tránh một bản sao thứ hai
+   * của hằng seed: `createGitSession` mặc định `seed = 1`, và một `buildWorld(
+   * level.target, <seed khác>)` ở tầng giao diện sẽ so với một cây đích khác.
+   */
+  const met = new Set(session.getStatus().objectivesMet);
+  const results: readonly ObjectiveResult[] = level.objectives.map((o) => ({
+    id: o.id,
+    label: o.label,
+    required: o.required,
+    met: met.has(o.id),
+  }));
   const verdict = verdictOf(results);
   const output = session.getOutput();
 
