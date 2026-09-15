@@ -19,11 +19,9 @@ import {
 } from './problem-labels';
 import {
   PROBLEM_FILTER_GAMES,
-  filterableTopicsFor,
   gameName,
   topicIdsFor,
   topicLabelsFor,
-  topicsFilterable,
 } from './problem-game';
 import { FilterChecklist, TagFilter } from './problem-filter-groups';
 import type { ProblemControls } from './use-problem-controls';
@@ -189,40 +187,37 @@ export function ProblemsToolbar({ controls }: { readonly controls: ProblemContro
  * danh sách chủ đề thì quan hệ "đổi cái này thì cái kia đổi theo" tự hiện ra,
  * và câu `game-hint` chỉ phải xác nhận điều mắt đã thấy.
  *
- * ## Hai nhánh, vì hai nhánh nói hai sự thật khác nhau
+ * ## MỘT nhánh, từ 2026-09-15
  *
- * Game mà hợp đồng chở được chủ đề thì ô đánh dấu bấm được như thường. Game
- * chưa chở được thì chủ đề VẪN HIỆN, nhưng khoá lại kèm một câu lý do — không
- * phải một danh sách rỗng. Danh sách rỗng trả lời sai câu hỏi người dùng đang
- * hỏi: họ muốn biết game này có những chủ đề nào, và câu trả lời "tám chủ đề,
- * chưa lọc được" đúng hơn "không có chủ đề nào".
+ * Bản đầu có hai nhánh vì hợp đồng `ProblemFilter.topics` còn đóng ở chín chủ đề
+ * K8s: game chở được thì ô bấm được, game chưa chở được thì chủ đề vẫn hiện
+ * nhưng KHOÁ kèm lý do. Hợp đồng nới xong thì nhánh thứ hai hết đối tượng.
+ *
+ * Lý lẽ của nhánh khoá vẫn đúng và đáng giữ lại đây phòng khi cần: khoá-kèm-lý-do
+ * đúng hơn một danh sách rỗng, vì danh sách rỗng trả lời sai câu người dùng đang
+ * hỏi — họ muốn biết game này có những chủ đề nào, và "tám chủ đề, chưa lọc
+ * được" đúng hơn "không có chủ đề nào".
  */
 function TopicFilter({ controls }: { readonly controls: ProblemControls }): ReactElement {
   const gameId = controls.query.game;
-  const open = topicsFilterable(gameId);
 
+  /*
+   * Nhánh KHOÁ đã bị GỠ 2026-09-15, cùng lượt nới `ProblemFilter.topics` sang
+   * `ProblemTopicId`. Nó tồn tại vì hợp đồng lọc còn đóng ở chín chủ đề K8s, nên
+   * chủ đề Git hiện ra được mà không gửi đi được; nay mọi game đi qua cùng một
+   * đường và không còn trạng thái thứ hai để hiện.
+   */
   return (
     <div className="flex flex-col gap-3">
       <GameSelect value={gameId} onChange={controls.setGame} />
-      {open ? (
-        <FilterChecklist
-          legend={t('catalog.problems.topic-legend')}
-          hint={t('catalog.problems.topic-hint')}
-          options={filterableTopicsFor(gameId)}
-          labels={topicLabelsFor(gameId)}
-          selected={controls.query.filter.topics ?? []}
-          onToggle={controls.toggleTopic}
-        />
-      ) : (
-        <FilterChecklist
-          legend={t('catalog.problems.topic-legend')}
-          lockedReason={t('catalog.problems.game-locked')}
-          options={topicIdsFor(gameId)}
-          labels={topicLabelsFor(gameId)}
-          selected={[]}
-          onToggle={noop}
-        />
-      )}
+      <FilterChecklist
+        legend={t('catalog.problems.topic-legend')}
+        hint={t('catalog.problems.topic-hint')}
+        options={topicIdsFor(gameId)}
+        labels={topicLabelsFor(gameId)}
+        selected={controls.query.filter.topics ?? []}
+        onToggle={controls.toggleTopic}
+      />
     </div>
   );
 }
@@ -276,11 +271,3 @@ function GameSelect(props: {
   );
 }
 
-/**
- * Chỗ giữ cho `onToggle` của nhánh KHOÁ. Không bao giờ chạy — `FilterChecklist`
- * truyền `disabled` xuống chính `Checkbox` — nhưng chữ ký của nó đòi một hàm,
- * và một hàm rỗng có tên nói rõ hơn một arrow trống đặt tại chỗ.
- */
-function noop(): void {
-  // Cố ý rỗng.
-}

@@ -4,46 +4,32 @@ import { GAME_IDS, PROBLEM_TOPICS, type ProblemFilter } from '@devops-platform/g
 import {
   DEFAULT_PROBLEM_GAME,
   PROBLEM_FILTER_GAMES,
-  filterableTopicsFor,
   gameName,
   parseGame,
   topicIdsFor,
-  topicsFilterable,
 } from './problem-game';
 
 /*
   ────────────────────────────────────────────────────────────────────────────
-  Ô GHIM — ĐỌC TRƯỚC KHI LÀM NÓ XANH LẠI
+  Ô GHIM ĐÃ ĐẢO — 2026-09-15
   ────────────────────────────────────────────────────────────────────────────
 
-  Dòng `@ts-expect-error` dưới đây ghim một KHOẢNG TRỐNG, không ghim một hành vi
-  đúng. Nó nói: "hôm nay `ProblemFilter.topics` còn đóng ở chín chủ đề K8s, nên
-  `'branching'` KHÔNG gán vào đó được."
+  Chỗ này từng là một `@ts-expect-error` ghim KHOẢNG TRỐNG: `ProblemFilter.topics`
+  đóng ở chín chủ đề K8s, nên `'branching'` của game Git không gán vào đó được và
+  khối lọc phải tự khoá.
 
-  ⚠ NÓ ĐỎ THEO CHIỀU NGƯỢC VỚI TRỰC GIÁC. `tsc` chỉ kêu khi phép gán này THÔI
-  không còn lỗi, tức lúc ai đó đã nới hợp đồng. Thông báo sẽ là
-  `Unused '@ts-expect-error' directive` — đọc như "có gì đó vừa hỏng", trong khi
-  sự thật là ngược lại: khoảng trống vừa ĐÓNG.
+  Khoảng trống đã ĐÓNG (`k8s/problem.ts` § ProblemFilter nay dùng `ProblemTopicId`),
+  nên ô ghim được ĐẢO chứ không xoá: dòng dưới nay khẳng định trạng thái LÀNH, và
+  nó đỏ nếu ai đó thu hẹp hợp đồng lại. `rules/pinned-baseline-test-companion.md`
+  cấm đúng nước đi kia — dập một ô ghim cho xanh biến bản vá tạm thành nền vĩnh
+  viễn, và một pin xoá đi không để lại gì thì lần thu hẹp sau không ai bắt được.
 
-  ⛔ Việc phải làm khi nó đỏ là GỠ ô ghim này và BẬT nhánh Git lên:
-
-    1. Xoá `topicsFilterable` + `filterableTopicsFor` khỏi `problem-game.ts`
-       (cả hai chỉ tồn tại vì khoảng trống này).
-    2. `problem-query.ts` lọc chủ đề bằng `topicIdsFor(game)` thay cho
-       `filterableTopicsFor(game)`.
-    3. `problems-toolbar.tsx` bỏ nhánh KHOÁ trong `TopicFilter`; xoá khoá copy
-       `catalog.problems.game-locked`.
-    4. Kiểm lại nửa máy chủ: `problemFilterSchema` ở
-       `apps/web/src/server/problems/list-input.ts` phải nhận id chủ đề của mọi
-       game. Nới kiểu mà quên nửa này thì `tsc` xanh còn người dùng nhận 400.
-
-  ⛔ TUYỆT ĐỐI KHÔNG làm nó im bằng cách đổi `'branching'` thành một chủ đề K8s,
-  thêm `@ts-ignore`, hay xoá riêng dòng ghim. Cả ba đều biến một bản vá tạm
-  thành nền vĩnh viễn, và không ai đọc lại nữa. Luật của dự án cho đúng hình
-  dạng này: `rules/pinned-baseline-test-companion.md`.
+  ⚠ Đây là nửa KIỂU. Nửa còn lại là `problemFilterSchema` ở
+  `apps/web/src/server/problems/list-input.ts` — nới kiểu mà quên nó thì `tsc`
+  xanh còn người dùng nhận 400. Ô cho nửa đó ở `list-input.test.ts`.
 */
-// @ts-expect-error — GHIM: ProblemFilter.topics còn đóng ở 9 chủ đề K8s. Đỏ = hợp đồng ĐÃ nới ⇒ đọc khối trên và BẬT nhánh Git, đừng khoá lại.
-const _gitTopicIsNotCarriableYet: ProblemFilter['topics'] = ['branching'];
+const _moiGameChoDuocChuDe: ProblemFilter['topics'] = ['branching', 'workload'];
+void _moiGameChoDuocChuDe;
 
 describe('bộ chọn game của khối lọc chủ đề', () => {
   it('mọi game có từ vựng chủ đề đều có mặt trong bộ chọn', () => {
@@ -71,7 +57,7 @@ describe('bộ chọn game của khối lọc chủ đề', () => {
 
   it('mặc định là k8s — mọi link ?topic=… đã gửi đi vẫn đọc lại được', () => {
     expect(DEFAULT_PROBLEM_GAME).toBe('k8s');
-    expect(filterableTopicsFor(DEFAULT_PROBLEM_GAME).length).toBeGreaterThan(0);
+    expect(topicIdsFor(DEFAULT_PROBLEM_GAME).length).toBeGreaterThan(0);
   });
 
   it('giá trị game lạ trong URL rơi về mặc định, không ném', () => {
@@ -100,31 +86,30 @@ describe('từ vựng chủ đề đổi theo game', () => {
   });
 });
 
-describe('cổng "chủ đề này hợp đồng chở được không"', () => {
+describe('mọi game có từ vựng đều đi qua được hợp đồng lọc', () => {
   /*
-    ĐỐI CHỨNG HAI CHIỀU. Một vị từ chỉ từng trả `true` là một vị từ chưa chứng
-    minh được gì — nó có thể đang trả `true` cho mọi đầu vào
-    (`rules/green-that-proves-nothing.md`). Hai ô dưới đây ép nó phân biệt.
+    Ô này THAY cho ba ô cũ đo "chủ đề game này hợp đồng chở được không". Ba ô đó
+    đo một khoảng trống, và khoảng trống đã đóng — giữ lại là giữ một phép đo về
+    thứ không còn tồn tại.
+
+    Vế đáng giữ là vế NGƯỢC: từ nay không game nào bị hợp đồng loại, và nếu một
+    ngày ai đó thu hẹp `ProblemFilter.topics` lại thì ô này phải đỏ.
   */
-  it('K8s đi qua được', () => {
-    expect(topicsFilterable('k8s')).toBe(true);
-    expect([...filterableTopicsFor('k8s')]).toEqual([...PROBLEM_TOPICS]);
+  it('mọi game trong bộ chọn đều có từ vựng chủ đề gán được vào bộ lọc', () => {
+    for (const gameId of PROBLEM_FILTER_GAMES) {
+      const topics: ProblemFilter['topics'] = topicIdsFor(gameId);
+      expect(topics?.length ?? 0).toBeGreaterThan(0);
+    }
   });
 
-  it('Git CHƯA đi qua được, nên khối lọc tự khoá thay vì gửi một 400', () => {
-    /*
-      Đo 2026-09-15 trên `problemFilterSchema`:
-        { topics: ['workload'] }  → OK
-        { topics: ['branching'] } → invalid_value, "expected one of workload|…|troubleshooting"
-      Nên nhánh này KHÔNG được gửi đi. Ô ghim ở đầu file là thứ báo khi điều đó đổi.
-    */
-    expect(topicsFilterable('git')).toBe(false);
-    expect([...filterableTopicsFor('git')]).toEqual([]);
+  it('chủ đề của Git gán được — đây là thứ khối 6 bị chặn suốt', () => {
+    const chiGit: ProblemFilter['topics'] = topicIdsFor('git');
+    expect([...(chiGit ?? [])]).toContain('branching');
   });
 
-  it('game không có chủ đề nào KHÔNG được đọc ra là "lọc được"', () => {
-    // `[].every(...)` trả `true` — nên `ids.length > 0` trong vị từ là vế THẬT,
-    // không phải một lượt kiểm thừa. Bỏ nó đi thì bốn game rỗng đều "lọc được".
-    expect(topicsFilterable('pipeline')).toBe(false);
+  it('chín chủ đề K8s vẫn đi qua nguyên vẹn sau khi nới', () => {
+    // Nới một hợp đồng dễ làm hỏng phía đang chạy hơn là phía mới mở.
+    const k8s = topicIdsFor('k8s');
+    expect([...k8s]).toEqual([...PROBLEM_TOPICS]);
   });
 });

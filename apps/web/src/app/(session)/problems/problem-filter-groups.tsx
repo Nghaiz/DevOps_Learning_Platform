@@ -29,31 +29,27 @@ export function FilterChecklist<T extends string>(props: {
   readonly onToggle: (value: T) => void;
   /** Câu giải thích LUẬT gộp khi chọn nhiều — chủ đề là HOẶC, tag là VÀ. */
   readonly hint?: string;
-  /**
-   * Khoá cả nhóm, kèm LÝ DO hiện trên màn hình. Không có lý do thì không khoá
-   * được — đó là điều kiện của chính chữ ký này, không phải một lời khuyên.
+  /*
+   * `lockedReason` TỪNG ở đây và đã bị GỠ 2026-09-15.
    *
-   * Một nhóm ô đánh dấu xám đi mà không nói vì sao là chế độ hỏng tệ nhất trong
-   * ba chế độ có thể: bỏ hẳn nhóm thì người dùng không biết mình mất gì, để nó
-   * bấm được thì họ bấm và không có gì xảy ra, còn khoá-im-lặng thì họ thấy
-   * thứ mình cần, thấy nó không dùng được, và không có đường nào để hiểu.
+   * Nó khoá cả nhóm kèm lý do hiện trên màn, và nó có đúng MỘT chỗ gọi: khối
+   * chủ đề của `/problems`, cho những game mà `ProblemFilter.topics` chưa chở
+   * được. Hợp đồng nới xong thì chỗ gọi đó biến mất, và một prop không ai truyền
+   * là một nhánh không ai chạy.
    *
-   * ⚠ Khoá bằng `disabled` của chính `Checkbox`, KHÔNG bằng `pointer-events`:
-   * phần tử bị `pointer-events: none` vẫn nhận được focus bàn phím và vẫn đổi
-   * trạng thái bằng phím cách — tức nó chỉ khoá đúng người dùng chuột.
+   * Nếu cần khoá lại một ngày nào đó: khoá bằng `disabled` của chính `Checkbox`,
+   * KHÔNG bằng `pointer-events` — phần tử bị `pointer-events: none` vẫn nhận
+   * focus bàn phím và vẫn đổi trạng thái bằng phím cách, tức nó chỉ khoá đúng
+   * người dùng chuột. Và khoá thì phải kèm lý do: một nhóm ô xám đi mà không nói
+   * vì sao là chế độ hỏng tệ nhất trong ba chế độ có thể.
    */
-  readonly lockedReason?: string;
 }): ReactElement {
   const groupId = useId();
-  const locked = props.lockedReason !== undefined;
 
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className="text-xs font-medium text-muted-foreground">{props.legend}</legend>
       {props.hint !== undefined && <p className="text-xs text-muted-foreground">{props.hint}</p>}
-      {props.lockedReason !== undefined && (
-        <p className="text-xs text-muted-foreground">{props.lockedReason}</p>
-      )}
       <div className="flex flex-wrap gap-x-4 gap-y-2">
         {props.options.map((option) => {
           const id = `${groupId}-${option}`;
@@ -61,20 +57,12 @@ export function FilterChecklist<T extends string>(props: {
             <div key={option} className="flex items-center gap-2">
               <Checkbox
                 id={id}
-                disabled={locked}
                 checked={props.selected.includes(option)}
                 onCheckedChange={() => {
                   props.onToggle(option);
                 }}
               />
-              <Label
-                htmlFor={id}
-                className={
-                  locked
-                    ? 'text-sm font-normal text-muted-foreground'
-                    : 'cursor-pointer text-sm font-normal'
-                }
-              >
+              <Label htmlFor={id} className="cursor-pointer text-sm font-normal">
                 {props.labels[option]}
               </Label>
             </div>

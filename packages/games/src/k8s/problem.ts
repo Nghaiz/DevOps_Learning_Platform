@@ -18,7 +18,7 @@
  * tới khi 10 bài cũ được chuyển hết sang đây; xem `problem-migration.md`.
  */
 
-import type { ProblemFailureCode } from '../core/problem.ts';
+import type { ProblemFailureCode, ProblemTopicId } from '../core/problem.ts';
 import type { ClusterSpec, Objective, ResourceKind } from './contract.ts';
 import { t } from '@devops-platform/copy';
 
@@ -241,8 +241,26 @@ export type ProblemViewerStatus = 'solved' | 'attempted' | 'untouched';
 
 export interface ProblemFilter {
   readonly difficulty?: readonly ProblemDifficulty[];
-  /** Nhiều chủ đề = HOẶC (bài khớp bất kỳ chủ đề nào được chọn). */
-  readonly topics?: readonly ProblemTopic[];
+  /**
+   * Nhiều chủ đề = HOẶC (bài khớp bất kỳ chủ đề nào được chọn).
+   *
+   * ⛔ `ProblemTopicId` (chuỗi mờ), **không** phải `ProblemTopic` (union chín chủ
+   * đề K8s ngay trên). Đây là một bộ lọc cho MỌI game, nên nó không được mang
+   * từ vựng của một game.
+   *
+   * Đây là mẩu sót lại của lượt chuyển 18.A, không phải một lựa chọn: hợp đồng
+   * đã chuyển tập-đóng-chủ-đề sang từng plugin từ đợt đó (`core/problem.ts`
+   * § `ProblemTopicId`, và `ProblemBase.topics` đã dùng nó), nhưng dòng này ở
+   * lại. Ô AC-A chỉ đo `packages/games/src/core/` nên nó không nhìn xuống đây.
+   *
+   * Hệ quả đo được 2026-09-15, trước khi nới: `'branching'` của game Git không
+   * gán vào đây được, nên khối lọc chủ đề của `/problems` phải tự KHOÁ cho mọi
+   * game không phải K8s — một tính năng bị chặn ở tầng KIỂU, trước cả lúc chạy.
+   *
+   * ⚠ `Problem.topics` ở trên **giữ nguyên** `readonly ProblemTopic[]`. Nó là
+   * kiểu của bài K8s cụ thể và tập đóng ở đó là đúng; chỉ bộ lọc mới cần rộng.
+   */
+  readonly topics?: readonly ProblemTopicId[];
   /** Nhiều tag = VÀ (bài phải có đủ mọi tag) — cố ý khác luật của `topics`. */
   readonly tags?: readonly string[];
   readonly state?: readonly ProblemState[];

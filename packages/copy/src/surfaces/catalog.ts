@@ -364,7 +364,6 @@ export const catalog = {
   'catalog.problems.game-hint': 'Chọn game để đổi danh sách chủ đề bên dưới.',
   'catalog.problems.game.k8s': 'Kubernetes Game',
   'catalog.problems.game.git': 'Git Game',
-  'catalog.problems.game-locked': 'Bộ lọc chủ đề của game này chưa mở. Chọn game khác để lọc.',
 
   'catalog.problems.tag-legend': 'Tag',
   'catalog.problems.tag-hint': 'Chọn nhiều tag = bài phải có ĐỦ mọi tag.',

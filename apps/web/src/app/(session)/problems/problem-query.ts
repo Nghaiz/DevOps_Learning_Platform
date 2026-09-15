@@ -6,11 +6,10 @@ import {
   type ProblemFilter,
   type ProblemListOptions,
   type ProblemOrderKey,
-  type ProblemTopic,
   type ProblemViewerStatus,
 } from '@devops-platform/games';
 import { PROBLEM_VIEWER_STATUSES } from './problem-labels';
-import { DEFAULT_PROBLEM_GAME, filterableTopicsFor, parseGame } from './problem-game';
+import { DEFAULT_PROBLEM_GAME, parseGame, topicIdsFor } from './problem-game';
 
 /**
  * Bộ mã hoá HAI CHIỀU giữa thanh địa chỉ và bộ lọc danh sách bài.
@@ -127,11 +126,13 @@ export function parseProblemQuery(params: URLSearchParams): ProblemQuery {
     liệt kê nó, tức người dùng thấy bộ lọc đang chạy mà không thấy nó ở đâu để
     tắt.
 
-    ⚠ Hôm nay `filterableTopicsFor` trả RỖNG cho mọi game trừ `k8s`, vì hợp đồng
-    `ProblemFilter.topics` còn đóng ở chín chủ đề K8s. Xem `problem-game.ts`.
+    `topicIdsFor` chứ không `filterableTopicsFor`: hàm sau đã bị GỠ 2026-09-15
+    cùng lượt nới `ProblemFilter.topics` sang `ProblemTopicId`. Trước lượt đó nó
+    trả RỖNG cho mọi game trừ `k8s`, nên khối lọc phải tự khoá; nay mọi game đi
+    qua được hợp đồng nên từ vựng đầy đủ là thứ đúng để so.
   */
   const game = parseGame(params.get(PARAM.game));
-  const topics = keepKnown<ProblemTopic>(splitList(params, PARAM.topic), filterableTopicsFor(game));
+  const topics = keepKnown<string>(splitList(params, PARAM.topic), topicIdsFor(game));
   const viewerStatus = keepKnown<ProblemViewerStatus>(splitList(params, PARAM.status), PROBLEM_VIEWER_STATUSES);
   const tags = [...new Set(splitList(params, PARAM.tag).map(normalizeTag).filter((tag) => tag !== ''))];
   const query = (params.get(PARAM.query) ?? '').trim();
@@ -186,8 +187,9 @@ export function toSearchParams(query: ProblemQuery): URLSearchParams {
     định, và `parseProblemQuery` lọc bỏ mọi chủ đề không thuộc từ vựng đó — bộ
     lọc biến mất khỏi link mà không có dấu hiệu nào.
 
-    Hôm nay hai vế trùng nhau (chỉ `k8s` chở được chủ đề), nên dòng này chưa đổi
-    một URL nào. Nó nằm đây để lúc hợp đồng nới ra thì không ai phải nhớ.
+    Vế thứ hai ĐANG có hiệu lực từ 2026-09-15. Trước lượt nới hợp đồng, chỉ
+    `k8s` chở được chủ đề nên hai vế trùng nhau và dòng này chưa đổi một URL nào;
+    nay một link `?game=git&topic=branching` giữ được cả hai nửa.
   */
   if (query.game !== DEFAULT_PROBLEM_QUERY.game || (filter.topics?.length ?? 0) > 0) {
     params.set(PARAM.game, query.game);

@@ -1,4 +1,4 @@
-import { GAME_IDS, PROBLEM_TOPICS, problemTopicLabels, type GameId, type ProblemTopic } from '@devops-platform/games';
+import { GAME_IDS, problemTopicLabels, type GameId } from '@devops-platform/games';
 import { t } from '@devops-platform/copy';
 
 /**
@@ -70,44 +70,19 @@ export function topicLabelsFor(gameId: GameId): Readonly<Record<string, string>>
   return problemTopicLabels(gameId);
 }
 
-/**
- * Chủ đề của game này có ĐI QUA được hợp đồng lọc không.
+/*
+ * `topicsFilterable` và `filterableTopicsFor` TỪNG ở đây và đã bị GỠ 2026-09-15,
+ * cùng lượt nới `ProblemFilter.topics` sang `ProblemTopicId`.
  *
- * ⛔ Đây là chỗ khối 6 đang bị chặn, và chặn ở tầng KIỂU chứ không phải tầng
- * chạy: `ProblemFilter.topics` khai `readonly ProblemTopic[]`, mà `ProblemTopic`
- * là union đóng chín chủ đề K8s. `'branching'` không gán vào đó được, nên không
- * có cách nào gửi nó đi mà không nói dối `tsc`. Máy chủ nói cùng một câu — đo
- * 2026-09-15, `problemFilterSchema.safeParse({ topics: ['branching'] })` trả
- * `invalid_value` kèm nguyên chín lựa chọn hợp lệ.
+ * Cả hai chỉ tồn tại vì một khoảng trống: hợp đồng lọc khai `readonly
+ * ProblemTopic[]` (union đóng chín chủ đề K8s), nên `'branching'` của game Git
+ * không gán vào đó được và khối lọc phải tự KHOÁ cho mọi game không phải K8s.
+ * Khoảng trống đóng thì chúng hết việc — `topicIdsFor` một mình là đủ.
  *
- * Cả hai chỗ đều NGOÀI vùng sở hữu của lane này (`k8s/problem.ts` là hợp đồng;
- * `server/problems/list-input.ts` là lane B). Nên thay vì ép một phép ép kiểu,
- * khối lọc tự KHOÁ lại và nói ra trên màn hình — xem `catalog.problems.game-locked`.
- *
- * Ô ghim ở `problem-game.test.ts` làm `tsc` ĐỎ đúng lúc hợp đồng được nới, để
- * không ai phải nhớ quay lại đây.
+ * Ghi lại thay vì xoá sạch, vì một hàm biến mất không để lại dấu sẽ được ai đó
+ * viết lại khi họ gặp cùng câu hỏi "chủ đề game này lọc được không". Câu trả lời
+ * từ nay là: được, mọi game.
  */
-export function topicsFilterable(gameId: GameId): boolean {
-  const ids = topicIdsFor(gameId);
-  return ids.length > 0 && ids.every((id) => (PROBLEM_TOPICS as readonly string[]).includes(id));
-}
-
-/**
- * Chủ đề của game này ở dạng hợp đồng CHỞ ĐƯỢC.
- *
- * Lọc từ `PROBLEM_TOPICS` chứ không ép kiểu danh sách của game: `filter` trên
- * một mảng đã đúng kiểu cho ra `ProblemTopic[]` mà không cần một dòng `as` nào,
- * và một phép ép kiểu ở đây chính là thứ sẽ đẩy `'branching'` xuống máy chủ để
- * nhận về 400.
- *
- * ⚠ Hệ quả: thứ tự đến từ `PROBLEM_TOPICS`, không từ từ vựng của game. Hôm nay
- * chỉ `k8s` đi qua nhánh này nên hai thứ tự trùng nhau. Khi hợp đồng nới, hàm
- * này biến mất cùng `topicsFilterable`.
- */
-export function filterableTopicsFor(gameId: GameId): readonly ProblemTopic[] {
-  const ids = new Set(topicIdsFor(gameId));
-  return PROBLEM_TOPICS.filter((id) => ids.has(id));
-}
 
 /** Game có mặt trong bộ chọn: có từ vựng chủ đề VÀ có tên để hiện. */
 export const PROBLEM_FILTER_GAMES: readonly GameId[] = GAME_IDS.filter(

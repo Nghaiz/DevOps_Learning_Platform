@@ -6,7 +6,6 @@ import type {
   GameId,
   ProblemDifficulty,
   ProblemOrderKey,
-  ProblemTopic,
   ProblemViewerStatus,
 } from '@devops-platform/games';
 import { FIRST_PAGE, currentCursor, pageNumber, pushCursor, type CursorStack } from '../../../lib/cursor-stack';
@@ -25,7 +24,12 @@ export interface ProblemControls {
   readonly hasActiveFilter: boolean;
   readonly setGame: (value: GameId) => void;
   readonly toggleDifficulty: (value: ProblemDifficulty) => void;
-  readonly toggleTopic: (value: ProblemTopic) => void;
+  /*
+   * `string`, không `ProblemTopic`: từ 2026-09-15 `ProblemFilter.topics` chở
+   * `ProblemTopicId` nên từ vựng chủ đề đổi theo game đang chọn, và một union
+   * đóng của riêng K8s ở đây sẽ chặn chính chủ đề Git mà bộ chọn vừa liệt kê.
+   */
+  readonly toggleTopic: (value: string) => void;
   readonly toggleViewerStatus: (value: ProblemViewerStatus) => void;
   readonly addTag: (raw: string) => void;
   readonly removeTag: (tag: string) => void;
@@ -132,7 +136,7 @@ export function useProblemControls(): ProblemControls {
       [patch, query.filter],
     ),
     toggleTopic: useCallback(
-      (value: ProblemTopic) => patch({ ...query.filter, topics: toggleIn(query.filter.topics, value) }),
+      (value: string) => patch({ ...query.filter, topics: toggleIn(query.filter.topics, value) }),
       [patch, query.filter],
     ),
     toggleViewerStatus: useCallback(

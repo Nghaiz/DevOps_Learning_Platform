@@ -340,7 +340,6 @@ function GitLevelScreen({
   const { resolved, setMode } = useRendererChoice();
   const effects = useEffectsEnabled();
 
-  const world = session.getWorld();
   /*
    * ⚠ `session.getView()`, KHÔNG phải `buildView(world)`.
    *
