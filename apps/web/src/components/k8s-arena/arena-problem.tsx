@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, type ReactElement } from 'react';
+import { useCallback, useMemo, type ReactElement } from 'react';
 import { api, TrpcQueryProvider } from '../../lib/trpc-react';
+import { useHintReveal } from '../../lib/use-hint-reveal';
 import { describeTrpcError } from '../../lib/trpc';
 import type { ArenaModeContext } from './arena-contract';
 import { ArenaRoot } from './arena-root';
@@ -116,6 +117,28 @@ function ArenaProblemBody({ code }: { readonly code: string }): ReactElement {
    * Chế độ suy MỘT LẦN ở đây rồi truyền xuống, đúng như hợp đồng yêu cầu — cùng
    * luật mà `arena-entry.tsx` theo cho chế độ `level`.
    */
+  /*
+   * Gợi ý xin từ máy chủ — hook sống ở ĐÂY vì đây là cây con duy nhất có
+   * `TrpcQueryProvider`, và nó chỉ tồn tại ở chế độ `problem`. Xem khối chú
+   * thích `onRevealHint` trong `arena-contract.ts` về việc vì sao nó không thể
+   * nằm ở `mission-card.tsx`.
+   */
+  const hints = useHintReveal(code);
+  const revealHint = hints.reveal;
+
+  const onRevealHint = useCallback(
+    async (index: number): Promise<string | null> => {
+      const hint = problem?.hints[index];
+      if (hint === undefined) {
+        // Giao diện đang giữ một bản đề cũ hơn dữ liệu. Không gọi máy chủ với
+        // một id bịa ra; trả `null` để chỗ gọi không trừ điểm.
+        return null;
+      }
+      return revealHint(index, hint.id);
+    },
+    [problem, revealHint],
+  );
+
   const mode = useMemo<ArenaModeContext>(
     () => ({
       mode: 'problem',
@@ -124,9 +147,24 @@ function ArenaProblemBody({ code }: { readonly code: string }): ReactElement {
       codexAvailable: false,
       hintsCostPoints: true,
       problem,
+      hintReveals: hints.reveals,
+      onRevealHint,
     }),
-    [code, problem],
+    [code, problem, hints.reveals, onRevealHint],
   );
+
+  /*
+   * ⛔ `useMemo` ở đây KHÔNG phải tối ưu hoá — nó là điều kiện để phiên chơi
+   * sống sót.
+   *
+   * `useArenaSession` dựng lại phiên mỗi khi ĐỊNH DANH của `level` đổi
+   * (`useEffect(..., [level])`), và `k8sOjLevel(problem)` trả một object MỚI mỗi
+   * lần render. Trước lượt này `ArenaProblemBody` không có state nào nên nó gần
+   * như không render lại, và cái bẫy đó nằm im. Thêm trạng thái gợi ý là đánh
+   * thức nó: mỗi lần mở một gợi ý sẽ dựng lại phiên và xoá sạch tiến độ người
+   * chơi — không báo gì, không lỗi nào.
+   */
+  const level = useMemo(() => (problem === null ? null : k8sOjLevel(problem)), [problem]);
 
   if (solver.isPending) {
     return <ManMotDong text="Đang nạp đề bài…" role="status" />;
@@ -145,14 +183,14 @@ function ArenaProblemBody({ code }: { readonly code: string }): ReactElement {
    * đây là một URL gõ tay. Vẫn phải gác: một URL gõ tay không phải một lý do để
    * hỏng khó hiểu.
    */
-  if (problem === null) {
+  if (problem === null || level === null) {
     return <ManMotDong text={CAU_BAI_KHAC_GAME} role="alert" />;
   }
 
   return (
     <ArenaRoot
       key={problem.code}
-      level={k8sOjLevel(problem)}
+      level={level}
       mode={mode}
       onExit={() => {
         window.location.assign(`/problems/${encodeURIComponent(problem.code)}`);

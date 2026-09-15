@@ -223,7 +223,14 @@ export function k8sOjLevel(problem: K8sOjProblem): Level {
      * mở gợi ý im lặng không xảy ra, và `hintsUsed` của hai bên lệch nhau.
      *
      * `text` là `null` với gợi ý chưa mở (wire người học che nội dung), và chuỗi
-     * rỗng ở đó là đúng nghĩa — engine chỉ in nó ra khi người chơi tự mở.
+     * rỗng ở đây KHÔNG còn là nội dung sẽ hiện ra — nó chỉ giữ chỗ để độ dài
+     * đúng. Chữ thật tới từ `problems.revealHint` lúc người chơi mở, qua
+     * `lib/use-hint-reveal.ts`.
+     *
+     * ⚠ Lời khai cũ ở đây — *"chuỗi rỗng ở đó là đúng nghĩa, engine chỉ in nó ra
+     * khi người chơi tự mở"* — ĐÚNG về cơ chế và SAI về hệ quả: người chơi tự mở
+     * thì đúng là in ra, và thứ in ra là một ô trống sau khi đã trừ điểm. Đó là
+     * C3, vá 2026-09-15.
      */
     hints: problem.hints.map((hint) => hint.text ?? ''),
     /*

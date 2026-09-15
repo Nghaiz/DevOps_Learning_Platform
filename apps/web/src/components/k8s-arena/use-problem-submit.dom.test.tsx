@@ -112,6 +112,12 @@ const mode: ArenaModeContext = {
   codexAvailable: false,
   hintsCostPoints: true,
   problem,
+  /*
+   * Ô này đo ĐƯỜNG NỘP BÀI, không đo gợi ý — nên hai trường gợi ý để trơ.
+   * Đường gợi ý có ô riêng ở `mission-card.hint.dom.test.tsx`.
+   */
+  hintReveals: new Map(),
+  onRevealHint: async () => null,
 };
 
 /**
@@ -214,6 +220,8 @@ describe('nộp bài từ đấu trường', () => {
           codexAvailable: true,
           hintsCostPoints: false,
           problem: null,
+          hintReveals: new Map(),
+          onRevealHint: null,
         },
         1_700_000_000_000,
       ),

@@ -40,6 +40,10 @@ import type {
 // file này, nên không có vòng. Import giá trị từ đó vào đây sẽ kéo phép dựng
 // level vào mọi module đọc hợp đồng — kể cả chế độ `level`.
 import type { K8sOjProblem } from './problem-level';
+// Chỉ KIỂU — `use-hint-reveal.ts` là một hook React và kéo `api` theo; import
+// giá trị từ đó vào hợp đồng sẽ lôi client tRPC vào mọi module đọc hợp đồng, kể
+// cả chế độ `level` vốn phải chạy với 0 lời gọi backend.
+import type { HintReveal } from '../../lib/use-hint-reveal';
 
 // ── Chế độ chơi ─────────────────────────────────────────────────────────────
 
@@ -95,6 +99,29 @@ export interface ArenaModeContext {
   readonly codexAvailable: boolean;
   /** Gợi ý có trừ điểm hay không. `true` ở chế độ `problem`. */
   readonly hintsCostPoints: boolean;
+  /**
+   * Chữ của các gợi ý đã xin máy chủ, theo CHỈ SỐ. Rỗng ở chế độ `level`.
+   *
+   * Ở chế độ `level` chữ gợi ý nằm sẵn trong `LEVELS` nên `level.hints` đã đủ.
+   * Ở chế độ `problem` thì KHÔNG: `problems.byCode` che chữ của gợi ý chưa mở
+   * (§18.B.4), nên `level.hints` toàn chuỗi rỗng và chữ chỉ tới từ
+   * `problems.revealHint`. Xem `lib/use-hint-reveal.ts`.
+   */
+  readonly hintReveals: ReadonlyMap<number, HintReveal>;
+  /**
+   * Xin chữ gợi ý thứ `index`. `null` ở chế độ `level` (không cần xin ai cả).
+   *
+   * ⛔ Trả `null` nghĩa là ĐỪNG trừ điểm — chỗ gọi phải chờ kết quả rồi mới bắn
+   * action `hint`, không được bắn trước. Lý do đầy đủ ở `use-hint-reveal.ts`.
+   *
+   * ⚠ Hàm này KHÔNG được gọi `api.*` ở tầng `mission-card.tsx`: thẻ nhiệm vụ
+   * render ở CẢ HAI chế độ, mà `app/games/layout.tsx` cố ý không cấp
+   * `TrpcQueryProvider`. Một hook tRPC ở đó sẽ ném ngay lúc render đường
+   * `/games/k8s` thường — đúng lỗi C1 đã phải vá ở `c4fa97a`. Nên chủ của hook
+   * là `arena-problem.tsx` (tự cấp provider, chỉ tồn tại ở chế độ `problem`), và
+   * thẻ nhiệm vụ chỉ cầm một callback.
+   */
+  readonly onRevealHint: ((index: number) => Promise<string | null>) | null;
 }
 
 // ── Chất lượng hiển thị ─────────────────────────────────────────────────────

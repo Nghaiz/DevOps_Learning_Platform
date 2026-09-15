@@ -17,8 +17,19 @@ import type { ReactElement } from 'react';
 import dynamic from 'next/dynamic';
 import { LEVELS } from '@devops-platform/games';
 import type { ArenaModeContext } from './arena-contract';
+import type { HintReveal } from '../../lib/use-hint-reveal';
 import { ArenaRoot } from './arena-root';
 import { LevelPicker } from './level-picker';
+
+/**
+ * Một Map rỗng DÙNG CHUNG cho mọi lần render của chế độ `level`.
+ *
+ * Hằng ở module scope chứ không phải `new Map()` trong `useMemo`: mảng phụ
+ * thuộc của `mode` là rỗng, nên một Map dựng tại chỗ vẫn ổn định — nhưng viết
+ * hằng ra ngoài làm điều đó ĐÚNG TỰ THÂN thay vì đúng nhờ một chi tiết của
+ * `useMemo` mà lần sửa sau có thể đánh rơi.
+ */
+const HINT_REVEALS_RONG: ReadonlyMap<number, HintReveal> = new Map();
 
 /**
  * Chế độ làm bài nạp LƯỜI, và đó là điều kiện để giữ lời hứa của trụ cột game.
@@ -84,6 +95,14 @@ function ArenaLevelEntry(): ReactElement {
       // Chế độ `level` không có đề bài nào — `null` là đúng nghĩa, không phải
       // chỗ giữ chỗ.
       problem: null,
+      /*
+       * Chữ gợi ý của chế độ `level` nằm sẵn trong `LEVELS`, nên không có gì để
+       * xin máy chủ. `null` chứ không phải một hàm rỗng: một hàm rỗng luôn trả
+       * `null` sẽ đọc ra thành "xin thất bại" ở chỗ gọi, và nút gợi ý của chế độ
+       * dạy sẽ ngừng hoạt động.
+       */
+      hintReveals: HINT_REVEALS_RONG,
+      onRevealHint: null,
     }),
     [],
   );

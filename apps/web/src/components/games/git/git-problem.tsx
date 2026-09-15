@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react
 import { toVerdictView, type GitEngineSession, type VerdictView } from '@devops-platform/games';
 
 import { GitLevelScreen } from './git-level-screen';
+import { useHintReveal } from '../../../lib/use-hint-reveal';
 import { gitOjClaim, gitOjGradable, gitOjLevel, type GitOjProblem, type GitOjTestcase } from './problem-level';
 import { api, TrpcQueryProvider } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
@@ -91,6 +92,14 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
    */
   const tryGradeMutation = api.problems.tryGrade.useMutation();
 
+  /*
+   * Gợi ý xin từ máy chủ — cùng hook với đấu trường K8s, cố ý.
+   *
+   * Hai bản sao của cùng một luật là chỗ hai game trôi khỏi nhau trong im lặng;
+   * §3.1 của kế hoạch đã ghi đúng một va chạm loại đó trong phase này.
+   */
+  const hints = useHintReveal(code);
+
   const [view, setView] = useState<VerdictView | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const submitMutation = api.problems.submit.useMutation();
@@ -150,6 +159,19 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
   }, [solverProblem]);
 
   const gradable = problem !== null && gitOjGradable(problem);
+
+  const revealHint = hints.reveal;
+  const onRevealHint = useCallback(
+    async (index: number): Promise<string | null> => {
+      const hint = problem?.hints[index];
+      if (hint === undefined) {
+        // Đề trên màn cũ hơn dữ liệu. Không gọi máy chủ với một id bịa ra.
+        return null;
+      }
+      return revealHint(index, hint.id);
+    },
+    [problem, revealHint],
+  );
 
   const submit = useCallback(
     (session: GitEngineSession) => {
@@ -268,6 +290,8 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
         failedLabels: (view?.failed ?? []).map(
           (failed) => failed.label ?? 'Testcase ẩn chưa hiện tên',
         ),
+        hintReveals: hints.reveals,
+        onRevealHint,
       }}
     />
   );

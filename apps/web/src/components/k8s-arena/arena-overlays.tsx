@@ -266,6 +266,8 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
         guardIds={engine.guardObjectiveIds}
         hints={level.hints}
         hintsRevealed={engine.hintsRevealed}
+        hintReveals={mode.hintReveals}
+        onRevealHint={mode.onRevealHint}
         codexAvailable={mode.codexAvailable}
         hintsCostPoints={mode.hintsCostPoints}
         dispatch={engine.dispatch}

@@ -72,7 +72,7 @@ export interface GitEngineSession {
   getLog(): RunLog<GitGameAction>;
   subscribe(listener: () => void): () => void;
   run(command: string): GitDispatchOutcome;
-  revealHint(index: number): void;
+  revealHint(index: number, text?: string): void;
   undo(): boolean;
   redo(): boolean;
 }
@@ -225,13 +225,20 @@ export function createGitSession(options: CreateGitSessionOptions): GitEngineSes
       return () => listeners.delete(listener);
     },
     run,
-    revealHint(index) {
+    revealHint(index, text) {
       if (index < 0 || index >= level.hints.length) return;
       if (index < hintsRevealed) return;
       hintsRevealed = index + 1;
       actions = [...actions, { gameId: 'git', tick: world.logicalTime, kind: 'hint', index }];
-      const text = level.hints[index];
-      if (text !== undefined) output = [...output, { text: `Gợi ý ${index + 1}: ${text}`, tone: 'hint' }];
+      /*
+       * `text` của chỗ gọi thắng `level.hints[index]` — xem chú thích hợp đồng.
+       * `??` chứ không `||`: một gợi ý rỗng do chỗ gọi truyền vào vẫn là lựa
+       * chọn của chỗ gọi, và rơi ngược về `level.hints` ở ca đó là đoán mò.
+       */
+      const noiDung = text ?? level.hints[index];
+      if (noiDung !== undefined && noiDung !== '') {
+        output = [...output, { text: `Gợi ý ${index + 1}: ${noiDung}`, tone: 'hint' }];
+      }
       notify();
     },
     /**

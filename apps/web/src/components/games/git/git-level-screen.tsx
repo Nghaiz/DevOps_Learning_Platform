@@ -25,6 +25,7 @@ import {
   type ResolvedMode,
 } from '../shared/renderer-mode';
 import { detectWebgl2 } from '../shared/webgl-detect';
+import type { HintReveal } from '../../../lib/use-hint-reveal';
 
 /**
  * Màn CHƠI của Phòng thí nghiệm Git — một màn duy nhất cho cả ba đường vào.
@@ -180,6 +181,20 @@ export interface OjScreenProps {
   readonly result: string | null;
   /** Tên testcase chưa qua, theo lần chấm gần nhất của máy chủ. */
   readonly failedLabels: readonly string[];
+  /**
+   * Trạng thái xin chữ gợi ý từ máy chủ, theo chỉ số.
+   *
+   * Bài OJ nạp qua `problems.byCode`, và đường đó CHE chữ của gợi ý chưa mở
+   * (§18.B.4) — nên `level.hints` ở chế độ này toàn chuỗi rỗng. Không có hai
+   * trường này thì nút "Mở gợi ý" trừ điểm rồi đẩy ra đúng chữ *"Gợi ý 1: "*.
+   */
+  readonly hintReveals: ReadonlyMap<number, HintReveal>;
+  /**
+   * Xin chữ gợi ý thứ `index`; `null` ⇒ ĐỪNG mở gợi ý (không trừ điểm).
+   *
+   * Xem `lib/use-hint-reveal.ts` về thứ tự gọi-trước-trừ-sau.
+   */
+  readonly onRevealHint: (index: number) => Promise<string | null>;
 }
 
 interface LevelScreenProps {
@@ -529,20 +544,49 @@ export function GitLevelScreen({
               Gợi ý
             </h2>
             <ul className="flex flex-col gap-1">
-              {level.hints.map((hint, i) => (
-                <li key={hint}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      session.revealHint(i);
-                      redraw();
-                    }}
-                    className="text-left text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                  >
-                    Mở gợi ý {i + 1}
-                  </button>
-                </li>
-              ))}
+              {/*
+                `key` theo CHỈ SỐ, không theo chữ. Bản trước dùng `key={hint}`, và
+                ở chế độ OJ mọi `hint` là chuỗi rỗng — tức mọi `<li>` mang CÙNG
+                một key. React khi đó dựng lại nhầm node giữa các lần render, và
+                không có gì đỏ. Chỉ số ở đây là khoá đúng: danh sách gợi ý của một
+                level không bao giờ đổi thứ tự trong một lượt chơi.
+              */}
+              {level.hints.map((hint, i) => {
+                const reveal = oj?.hintReveals.get(i);
+                return (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      disabled={reveal?.phase === 'pending'}
+                      onClick={() => {
+                        /* Chế độ dạy: chữ nằm sẵn trong level. */
+                        if (oj === undefined) {
+                          session.revealHint(i);
+                          redraw();
+                          return;
+                        }
+                        /* Chế độ bài: xin trước, có chữ mới trừ điểm. */
+                        void oj.onRevealHint(i).then((text) => {
+                          if (text === null) {
+                            redraw();
+                            return;
+                          }
+                          session.revealHint(i, text);
+                          redraw();
+                        });
+                      }}
+                      className="text-left text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60"
+                    >
+                      {reveal?.phase === 'pending' ? `Đang mở gợi ý ${i + 1}…` : `Mở gợi ý ${i + 1}`}
+                    </button>
+                    {reveal?.phase === 'error' ? (
+                      <p role="alert" className="mt-0.5 text-xs text-destructive">
+                        Không mở được: {reveal.message}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         </aside>

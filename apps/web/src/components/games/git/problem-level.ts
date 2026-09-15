@@ -209,8 +209,13 @@ export function gitOjLevel(problem: GitOjProblem): GitLevel {
      * mở gợi ý im lặng không xảy ra, và `hintsUsed` của hai bên lệch nhau.
      *
      * `text` là `null` với gợi ý chưa mở (wire người học che nội dung), và chuỗi
-     * rỗng ở đó là đúng nghĩa — engine chỉ in nó ra khi người chơi tự mở, mà
-     * đường mở gợi ý trong chế độ OJ chưa nối (xem báo cáo lane).
+     * rỗng ở đây chỉ GIỮ CHỖ cho đúng độ dài — nó không còn là nội dung sẽ hiện.
+     * Chữ thật tới từ `problems.revealHint` và đi vào qua tham số thứ hai của
+     * `session.revealHint(index, text)`; xem `lib/use-hint-reveal.ts`.
+     *
+     * ⚠ Vế cuối của lời khai cũ — *"đường mở gợi ý trong chế độ OJ chưa nối"* —
+     * đã nối 2026-09-15 (C3). Trước đó nút "Mở gợi ý" trừ điểm rồi đẩy ra đúng
+     * dòng *"Gợi ý 1: "*, vì `engine.ts` nội suy chính chuỗi rỗng này.
      */
     hints: problem.hints.map((hint) => hint.text ?? ''),
     // Rỗng là đúng nghĩa, không phải chỗ giữ chỗ: một `Problem` theo định nghĩa
