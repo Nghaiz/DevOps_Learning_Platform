@@ -12,6 +12,12 @@ import {
 import type { AppRouter } from '../../../../server/trpc/routers/app-router';
 import { DifficultyBadge, ViewerStatusBadge } from '../problem-badges';
 import { formatAcceptance, formatTimeLimit, topicLabel } from '../problem-labels';
+/*
+ * Nhập từ `lib/`, KHÔNG từ `author/problems/game-plugin-view` — module đó nhập
+ * `PROBLEM_PLUGINS`, và bảng plugin kéo cả hai engine vào bundle của route này.
+ * Xem khối đầu `lib/problem-preview-href.ts` về cái giá đã đo.
+ */
+import { problemPreviewHref } from '../../../../lib/problem-preview-href';
 
 /**
  * Bài ĐÚNG NHƯ NÓ TỚI QUA DÂY, suy từ router thay vì khai lại.
@@ -46,6 +52,7 @@ export function ProblemOverview(props: {
   readonly viewerStatus: ProblemViewerStatus | null;
 }): ReactElement {
   const { problem, stats, viewerStatus } = props;
+  const playHref = problemPreviewHref(problem.gameId, problem.code);
 
   return (
     <section className="flex flex-col gap-5">
@@ -126,16 +133,28 @@ export function ProblemOverview(props: {
       <div className="flex flex-wrap items-center gap-3">
         {/*
           `?problem=<mã>` là đường vào chế độ bài tập của đấu trường — lead chốt
-          2026-09-08 và đọc tham số này ở `app/games/k8s/page.tsx`.
+          2026-09-08.
+
+          ⛔ Đường dẫn tra theo `problem.gameId`, KHÔNG chốt cứng `/games/k8s`.
+          Bản cũ chốt cứng, và nó đúng cho tới migration 0015: từ đó kho lưu chở
+          được bài của game khác, nên một bài Git ở đây mở sang đấu trường K8s —
+          không 404, không lỗi, chỉ là một ván K8s mặc định. Người học kết luận
+          bài hỏng; người soạn kết luận mình lưu nhầm.
+
+          `null` ⇒ game chưa có đường vào nào, và nút KHÔNG hiện. Một nút dẫn tới
+          404 tệ hơn một nút vắng mặt, vì nó hứa một thứ không có.
+
           `asChild` nên icon phải nằm TRONG `<Link>`: Radix Slot đòi đúng một
           phần tử con, thêm node anh em là ném lỗi lúc chạy.
         */}
-        <Button asChild size="lg">
-          <Link href={`/games/k8s?problem=${encodeURIComponent(problem.code)}`}>
-            <Play aria-hidden className="size-4" />
-            {t('catalog.problem.start')}
-          </Link>
-        </Button>
+        {playHref !== null && (
+          <Button asChild size="lg">
+            <Link href={playHref}>
+              <Play aria-hidden className="size-4" />
+              {t('catalog.problem.start')}
+            </Link>
+          </Button>
+        )}
         <Button asChild variant="ghost" size="sm">
           <Link href="/problems">{t('catalog.problem.back')}</Link>
         </Button>

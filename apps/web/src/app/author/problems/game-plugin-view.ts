@@ -172,44 +172,19 @@ export function pluginViewFor(gameId: GameId): GamePluginView | null {
   };
 }
 
-/**
- * Đường vào đấu trường để XEM TRƯỚC một bài, theo game. `null` = game đó chưa
- * có đường vào nào (§18.D.5).
+/*
+ * `problemPreviewHref` chuyển sang `lib/problem-preview-href.ts` ngày 2026-09-15
+ * và được MỞ LẠI ở đây để chỗ gọi cũ không phải đổi.
  *
- * ## Vì sao một bảng tra chứ không phải `/games/${gameId}?problem=`
+ * Lý do chuyển nằm ở chính file này: nó nhập `PROBLEM_PLUGINS`, và bảng đó kéo
+ * theo cả hai engine. `(session)/problems/[code]` cần cùng bảng tra ấy (một bài
+ * Git trước đó mở sang đấu trường K8s), nhưng nhập từ ĐÂY sẽ đẩy engine vào
+ * bundle của mọi trang danh mục bài — đúng cái giá PR #124 đã đo.
  *
- * Bởi vì công thức đó SAI, và nó sai theo kiểu im lặng. Bốn game
- * (`pipeline`, `netpol`, `dockerfile`, `cicd`) chưa có route nào, nên link tới đó
- * là một 404 thẳng. Và tệ hơn 404: một route CÓ tồn tại nhưng không đọc
- * `?problem=` sẽ bỏ qua tham số đó và mở ra một ván bình thường — không lỗi,
- * không 404, không dòng log nào — nên người soạn bấm "xem trước", thấy một
- * game chạy, và kết luận rằng bài của họ đã xem trước được.
- *
- * ## Git bật 2026-09-15 — và nó bật VÌ mã, không vì hết hạn chờ
- *
- * Bản trước của khối này ghi rằng Git trả `null` vì `app/games/git/page.tsx` chỉ
- * đọc `?level=`, và nói rằng nối Git vào đây đòi "§18.C làm lại một lần nữa cho
- * engine Git". Đó chính là thứ đã làm: route nay đọc `params.problem` và dựng thế
- * giới từ `WorldSpec` của bài (`components/games/git/git-problem.tsx`).
- *
- * ⚠ GIỚI HẠN CÒN LẠI, ghi ở đây vì đây là chỗ người soạn đọc: đường xem trước
- * này chơi được và NỘP được cho TÁC GIẢ bài (và admin), vì chỉ `problems.forEdit`
- * chở `check`/`args` của testcase. Một người học mở cùng đường dẫn đó vẫn đọc đề
- * và gõ lệnh được, nhưng chưa nộp được — màn hình nói ra điều đó. Xem khối
- * "CÒN HỞ" đầu `git-problem.tsx`.
- *
- * ⚠ Thêm một dòng vào bảng này là một lời KHAI rằng route đó đọc `?problem=`.
- * Trước khi thêm, mở chính `app/games/<gameId>/page.tsx` và đọc `searchParams`.
+ * ⚠ `engine-leak.test.ts` không bắt được lượt rò đó: nó chỉ đi trong đồ thị nhập
+ * của `packages/games`. Xem khối đầu `lib/problem-preview-href.ts`.
  */
-const PREVIEW_ROUTE_BY_GAME: Readonly<Partial<Record<GameId, string>>> = {
-  k8s: '/games/k8s',
-  git: '/games/git',
-};
-
-export function problemPreviewHref(gameId: GameId, code: string): string | null {
-  const route = PREVIEW_ROUTE_BY_GAME[gameId];
-  return route === undefined ? null : `${route}?problem=${encodeURIComponent(code)}`;
-}
+export { problemPreviewHref } from '../../../lib/problem-preview-href';
 
 /**
  * Trạng thái ban đầu mặc định của một game, lấy từ CHÍNH plugin.
