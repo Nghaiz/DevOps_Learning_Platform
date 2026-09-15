@@ -378,14 +378,28 @@ export function GitSvgScene(props: GitSvgSceneProps): ReactElement {
   );
 
   useEffect(() => {
-    if (interaction.selectedId !== null)
-      nodeRefs.current
-        .get(interaction.selectedId)
-        ?.scrollIntoView({
-          block: 'nearest',
-          inline: 'nearest',
-          behavior: reduced ? 'auto' : 'smooth',
-        });
+    if (interaction.selectedId === null) return;
+    const target = nodeRefs.current.get(interaction.selectedId);
+    /*
+     * ⚠ `scrollIntoView` KHÔNG phải thứ luôn có mặt.
+     *
+     * Trên trình duyệt thật nó nằm ở `Element`, nên một `SVGGElement` có nó.
+     * jsdom thì KHÔNG cài — nên mỗi lượt render với `selectedId` khác `null`
+     * ném `not a function` và làm đỏ một ô chẳng liên quan gì tới cuộn.
+     *
+     * Guard đặt ở ĐÂY, không phải một stub trong file setup dùng chung của
+     * vitest, và đó là một khác biệt về thứ còn nghe được: một stub toàn cục
+     * gắn `scrollIntoView` lên MỌI phần tử, nên nó nuốt luôn trường hợp
+     * `nodeRefs` giữ một thứ không phải node commit (ref callback đăng ký
+     * nhầm, hoặc một entry cũ chưa được dọn). Guard cục bộ chỉ bỏ qua đúng
+     * cái nó biết là thiếu, và để nguyên mọi hỏng hóc khác.
+     */
+    if (target === undefined || typeof target.scrollIntoView !== 'function') return;
+    target.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+      behavior: reduced ? 'auto' : 'smooth',
+    });
   }, [interaction.selectedId, reduced]);
 
   const summary = describeGraph(view.nodes.length, edges.length, regions.length, view.detached);
@@ -643,6 +657,12 @@ function CommitNode({
   const style = ACCENT_STYLE[spot.node.accent];
   const reducedPreference = useReducedMotion();
   const reduced = reducedPreference || !effects;
+  /*
+   * Gốc toạ độ TƯƠNG ĐỐI của hộp node — luôn (0,0), và đó là cố ý: vị trí
+   * tuyệt đối do `motion.g` bao ngoài mang, để commit còn TRƯỢT được sang chỗ
+   * mới khi đồ thị xếp lại sau một lệnh git. Đừng đọc `x`/`y` ở đây thành "node
+   * nằm đâu" — muốn biết chỗ thì đọc `data-node-y` công bố dưới.
+   */
   const x = 0;
   const y = 0;
   const laneColor = [
@@ -665,6 +685,24 @@ function CommitNode({
         role="button"
         tabIndex={0}
         aria-pressed={selected}
+        /*
+         * Hộp TUYỆT ĐỐI của node, công bố ra DOM. Cùng họ với `data-edge` /
+         * `data-routed` ở trên: một thuộc tính tồn tại để một hồi quy vô hình
+         * trở thành đỏ được.
+         *
+         * Vì sao cần: vị trí của node nằm trong `transform` của `motion.g`
+         * BÊN NGOÀI, còn mọi `rect` bên trong dùng toạ độ TƯƠNG ĐỐI so với
+         * hộp (halo ở -9, mặt ở 0). Nên một phép đo đọc `rect` đầu tiên chỉ
+         * đọc được hai hằng số giống hệt nhau ở mọi node — nó trả cùng một số
+         * dù hai kho cách nhau 172px hay chồng khít lên nhau. Ô "hai kho tách
+         * rời" đọc hai thuộc tính này thay vì đoán vị trí từ `rect`.
+         *
+         * ⛔ Đừng thay bằng cách đọc `style.transform` của thẻ cha: chuỗi đó
+         * do framer-motion sinh và đổi dạng được (translate → matrix) mà không
+         * báo ai. Hai thuộc tính này thì lane này sở hữu.
+         */
+        data-node-y={laneY(top, spot.lane)}
+        data-node-h={NODE_H}
         aria-label={commitAriaLabel(
           spot,
           refs.map((r) => `${REF_STYLE[r.kind].label} ${r.shortName}`),
