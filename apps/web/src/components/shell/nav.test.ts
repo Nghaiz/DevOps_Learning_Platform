@@ -15,6 +15,8 @@ describe('PRIMARY_NAV — C6 verbatim', () => {
       { href: '/paths', label: 'Lộ trình' },
       { href: '/quiz', label: 'Quiz' },
       { href: '/games', label: 'Games' },
+      { href: '/problems', label: 'Bài tập' },
+      { href: '/exams', label: 'Kỳ thi' },
       { href: '/me', label: 'Của tôi' },
     ]);
   });

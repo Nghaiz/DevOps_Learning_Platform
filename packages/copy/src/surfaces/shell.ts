@@ -66,6 +66,8 @@ export const shell = {
   'shell.nav.paths': 'Lộ trình',
   'shell.nav.quiz': 'Quiz',
   'shell.nav.games': 'Games',
+  'shell.nav.problems': 'Bài tập',
+  'shell.nav.exams': 'Kỳ thi',
   'shell.nav.me': 'Của tôi',
 
   // ── Ngăn kéo ≤768px ─────────────────────────────────────────────────────

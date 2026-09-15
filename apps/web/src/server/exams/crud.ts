@@ -5,7 +5,7 @@ import type { Database } from '../db/client';
 import { decodeCreatedAtCursor, encodeCreatedAtCursor } from '../db/created-at-cursor';
 import { classMembers, classes, examAttempts, exams, problems, users } from '../db/schema';
 import type { ExamSeedStrategy } from '../db/schema';
-import { isExamOpen } from './clock';
+import { isAttemptClosed, isExamOpen } from './clock';
 import { composeIssues } from './compose-gate';
 import type { ExamProblemFacts } from './compose-gate';
 
@@ -462,11 +462,22 @@ export interface StudentExamSummary {
   /** `null` = chưa mở lượt nào. */
   readonly startedAt: string | null;
   readonly submittedAt: string | null;
+  /**
+   * Lượt đã khoá chưa , vì đã nộp HOẶC vì hết giờ.
+   *
+   * Tính ở máy chủ chứ không để client suy từ `submittedAt`: một lượt hết giờ
+   * mà bỏ dở có `submittedAt = null`, nên client suy ra "đang làm" và hiện thế
+   * mãi cho tới khi người ta mở chính kỳ thi đó. Phép suy đúng cần hạn, mà hạn
+   * cần thời lượng ẢNH CHỤP của từng lượt cộng `closes_at` , tức một phép tính
+   * của máy chủ bị chép sang client. `false` khi chưa mở lượt nào.
+   */
+  readonly closed: boolean;
 }
 
 export async function listExamsForStudent(
   db: Database,
   userId: string,
+  now: Date,
 ): Promise<readonly StudentExamSummary[]> {
   const rows = await db
     .select({
@@ -479,6 +490,7 @@ export async function listExamsForStudent(
       closesAt: exams.closesAt,
       startedAt: examAttempts.startedAt,
       submittedAt: examAttempts.submittedAt,
+      attemptDuration: examAttempts.durationMinutes,
     })
     .from(exams)
     .innerJoin(classes, eq(classes.id, exams.classId))
@@ -502,6 +514,18 @@ export async function listExamsForStudent(
     closesAt: row.closesAt?.toISOString() ?? null,
     startedAt: row.startedAt?.toISOString() ?? null,
     submittedAt: row.submittedAt?.toISOString() ?? null,
+    closed:
+      row.startedAt === null || row.attemptDuration === null
+        ? false
+        : isAttemptClosed(
+            {
+              startedAt: row.startedAt,
+              durationMinutes: row.attemptDuration,
+              submittedAt: row.submittedAt,
+            },
+            row.closesAt,
+            now,
+          ),
   }));
 }
 

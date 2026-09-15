@@ -42,6 +42,7 @@ export const admin = {
   'admin.nav.aria': 'Điều hướng quản trị',
   'admin.nav.overview': 'Tổng quan',
   'admin.nav.users': 'Người dùng',
+  'admin.nav.exams': 'Kỳ thi',
   'admin.nav.classes': 'Lớp học',
   'admin.nav.sessions': 'Phiên đang chạy',
   'admin.nav.content': 'Nội dung',
@@ -518,6 +519,66 @@ export const admin = {
     what: `Không đọc được bảng điểm: ${p.reason}`,
     next: 'Bấm Thử lại. Danh sách sinh viên phía trên vẫn đọc độc lập với bảng này.',
   }),
+
+  // ── Kỳ thi (§18.G.2, §18.G.6, §18.G.7) ────────────────────────────────────
+  'admin.exams.title': 'Kỳ thi',
+  'admin.exams.description':
+    'Ra đề cho một lớp, đặt thời lượng, rồi xem bảng điểm. Đồng hồ và mốc nộp do máy chủ giữ.',
+  'admin.exams.back': 'Về danh sách kỳ thi',
+
+  'admin.exams.create-title-label': 'Tên kỳ thi',
+  'admin.exams.create-title-placeholder': 'Giữa kỳ DevOps, nhóm thực hành thứ Ba',
+  'admin.exams.create-class-label': 'Lớp',
+  'admin.exams.create-class-placeholder': 'Chọn lớp',
+  'admin.exams.create-problems-label': 'Mã bài, mỗi dòng một mã',
+  'admin.exams.create-problems-placeholder': 'K8S-0001\nK8S-0004',
+  'admin.exams.create-duration-label': 'Thời lượng (phút)',
+  'admin.exams.create-strategy-label': 'Cách sinh đề',
+  'admin.exams.create-opens-label': 'Mở lúc (bỏ trống là mở ngay)',
+  'admin.exams.create-closes-label': 'Đóng lúc (bỏ trống là không có hạn chung)',
+  'admin.exams.create-submit': 'Tạo kỳ thi',
+
+  'admin.exams.strategy-fixed': 'Một đề chung cho cả lớp',
+  'admin.exams.strategy-per-student': 'Mỗi người một đề theo seed riêng',
+  'admin.exams.strategy-note':
+    'Đề riêng từng người chỉ nhận những bài bật cờ seedable. Cổng chặn nằm ở máy chủ, nên một đề sai luật bị từ chối ngay lúc tạo chứ không hỏng lúc thi.',
+
+  'admin.exams.col-title': 'Kỳ thi',
+  'admin.exams.col-class': 'Lớp',
+  'admin.exams.col-problems': 'Số bài',
+  'admin.exams.col-duration': 'Thời lượng',
+  'admin.exams.col-attempts': 'Đã vào làm',
+  'admin.exams.col-created': 'Ngày tạo',
+  'admin.exams.col-actions': 'Thao tác',
+  'admin.exams.open': 'Mở kỳ thi',
+
+  'admin.exams.empty-title': 'Chưa có kỳ thi nào',
+  'admin.exams.empty-body':
+    'Tạo kỳ thi đầu tiên bằng ô phía trên. Cần có sẵn một lớp và ít nhất một bài đã xuất bản.',
+  'admin.exams.note': (p: { count: number; page: number }): string =>
+    `${String(p.count)} kỳ thi, trang ${String(p.page)}`,
+  'admin.exams.note-more': ', còn trang tiếp theo.',
+  'admin.exams.created-toast': (p: { title: string }): string => `Đã tạo kỳ thi ${p.title}`,
+
+  'admin.exams.scoreboard-title': 'Bảng điểm',
+  'admin.exams.scoreboard-description':
+    'Mỗi bài một cột. Điểm lấy lượt nộp tốt nhất TRONG cửa sổ thi, nên bài làm trước hôm thi không được tính.',
+  'admin.exams.sb-col-name': 'Họ tên',
+  'admin.exams.sb-col-started': 'Bắt đầu',
+  'admin.exams.sb-col-submitted': 'Nộp lúc',
+  'admin.exams.sb-col-auto': 'Tự nộp',
+  'admin.exams.sb-col-solved': 'Số bài AC',
+  'admin.exams.sb-col-cases': 'Testcase qua',
+  'admin.exams.sb-empty-title': 'Chưa ai vào làm',
+  'admin.exams.sb-empty-body': 'Bảng điểm hiện khi có người mở lượt thi đầu tiên.',
+  'admin.exams.sb-still-working': 'Đang làm',
+
+  'admin.exams.auto-yes': 'Có',
+  'admin.exams.auto-no': 'Không',
+
+  'admin.exams.csv-download': 'Tải CSV',
+  'admin.exams.csv-note':
+    'File kèm BOM UTF-8 nên Excel trên Windows mở không vỡ dấu. Xuất trước khi xoá lớp: xoá lớp là xoá luôn điểm thi của lớp đó.',
 } as const satisfies Surface<'admin'>;
 
 export const adminIntentionalThree = {

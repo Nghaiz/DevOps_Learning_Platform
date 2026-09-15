@@ -56,6 +56,20 @@ export const PRIMARY_NAV: readonly NavItem[] = [
   { href: '/paths', label: t('shell.nav.paths') },
   { href: '/quiz', label: t('shell.nav.quiz') },
   { href: '/games', label: t('shell.nav.games') },
+  /*
+   * `/problems` và `/exams` thêm 2026-09-15 (§18.G), ĐÃ hỏi và được chủ dự án
+   * duyệt đúng như dòng cảnh báo ở trên yêu cầu.
+   *
+   * `/problems` không phải một mục mới của 18.G: đo bằng grep toàn repo ngày
+   * 2026-09-15, trang danh mục bài tập KHÔNG có link vào từ bất kỳ đâu và chỉ
+   * tới được bằng cách gõ URL. Nó là trụ của cả hệ OJ, nên "chưa ai tới được"
+   * là một lỗi đứng im từ P16 chứ không phải một lựa chọn.
+   *
+   * `/exams` phải có mặt vì một kỳ thi có GIỜ: một màn chỉ tới được bằng gõ URL
+   * là một màn sinh viên không tìm ra kịp.
+   */
+  { href: '/problems', label: t('shell.nav.problems') },
+  { href: '/exams', label: t('shell.nav.exams') },
   { href: '/me', label: t('shell.nav.me') },
 ];
 

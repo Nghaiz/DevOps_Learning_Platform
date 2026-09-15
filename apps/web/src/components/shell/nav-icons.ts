@@ -4,9 +4,11 @@ import {
   FlaskConical,
   Gamepad2,
   ListChecks,
+  PencilRuler,
   PenLine,
   Route,
   Settings,
+  Timer,
   ShieldCheck,
   SquareTerminal,
   type LucideIcon,
@@ -35,6 +37,8 @@ export const NAV_ICONS: Readonly<Record<string, LucideIcon>> = {
   '/paths': Route,
   '/quiz': ListChecks,
   '/games': Gamepad2,
+  '/problems': PencilRuler,
+  '/exams': Timer,
   '/me': CircleUser,
 };
 

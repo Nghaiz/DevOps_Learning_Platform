@@ -33,6 +33,21 @@ const PROTECTED_PATHS = [
   '/playgrounds',
   '/paths',
   '/quiz',
+  /*
+   * `/problems` và `/exams` thêm 2026-09-15 (§18.G), và chúng vào đây vì một
+   * CỔNG đòi chứ không vì ai nhớ ra: `proxy.test.ts` khẳng định mọi mục trong
+   * `PRIMARY_NAV` đều được gác, nên lượt thêm hai mục nav đã làm nó đỏ với câu
+   * "thiếu /problems".
+   *
+   * `/problems` KHÔNG phải một đường mới. Nó tồn tại từ P16 và chỉ chưa bao giờ
+   * nằm trong danh sách này , chú thích ở `app/(session)/problems/page.tsx` đã
+   * ghi đúng điều đó và nói rằng thiếu nó chỉ mất lượt chuyển hướng SỚM. Câu ấy
+   * vẫn đúng: cổng thật là `redirect` trong Server Component cộng
+   * `protectedProcedure` ở tầng tRPC. Thêm vào đây là đóng nốt lượt chuyển
+   * hướng sớm, không phải vá một lỗ authz.
+   */
+  '/problems',
+  '/exams',
   '/me',
   '/settings',
   '/author',

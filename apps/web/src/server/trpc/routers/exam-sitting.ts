@@ -46,7 +46,11 @@ const examIdInput = z.object({ examId: z.string().uuid() }).strict();
 export const examSittingRouter = createTRPCRouter({
   /** Những kỳ thi của các lớp mà tôi đang ở trong. */
   list: protectedProcedure.query(async ({ ctx }) => {
-    return { items: await listExamsForStudent(ctx.db, ctx.user.id), serverNow: nowIso() };
+    const now = new Date();
+    return {
+      items: await listExamsForStudent(ctx.db, ctx.user.id, now),
+      serverNow: now.toISOString(),
+    };
   }),
 
   /**
@@ -96,9 +100,6 @@ export const examSittingRouter = createTRPCRouter({
   }),
 });
 
-function nowIso(): string {
-  return new Date().toISOString();
-}
 
 /**
  * Lượt thi như người học được thấy.
