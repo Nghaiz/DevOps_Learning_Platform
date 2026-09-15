@@ -1,15 +1,23 @@
 import { errText, t } from '@devops-platform/copy';
 import {
+  GAME_IDS,
   PROBLEM_DIFFICULTIES,
-  PROBLEM_TOPICS,
   type ClusterSpec,
+  type GameId,
   type Problem,
   type ProblemDifficulty,
-  type ProblemTopic,
+  type ProblemTopicId,
   type ResourceKind,
+  type Testcase,
 } from '@devops-platform/games';
 import { clusterFromSpec } from './cluster-form';
-import { emptyForm, formFromProblem, type ProblemFormState } from './problem-form';
+import { DEFAULT_AUTHOR_GAME, pluginViewFor } from './game-plugin-view';
+import {
+  emptyForm,
+  formFromProblem,
+  type LoadedProblemFields,
+  type ProblemFormState,
+} from './problem-form';
 import { toProblemDraft } from './problem-draft';
 import { RESOURCE_KINDS } from './vocabulary';
 
@@ -104,8 +112,38 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
   // thứ người ta hay chép ra từ một chỗ khác, và từ chối nó không bảo vệ được gì.
   const body = asRecord(outer['problem']) ?? outer;
 
+  /*
+   * `gameId` đọc từ file, mặc định K8s.
+   *
+   * Mặc định chứ không bắt buộc vì định dạng xuất (`ProblemExport`, `version: 1`)
+   * ra đời TRƯỚC khi hợp đồng có `gameId`, nên mọi file đã nằm trong máy người
+   * khác đều thiếu khoá này — và mọi file đó đều là bài K8s, đúng bằng DEFAULT
+   * mà migration 0015 chọn cho cột. Giá trị lạ thì BỎ và báo trong `dropped`,
+   * cùng luật với chủ đề và độ khó.
+   */
+  const rawGame = asStringOr(body['gameId'], '');
+  const validGame = (GAME_IDS as readonly string[]).includes(rawGame);
+  const gameId: GameId = validGame ? (rawGame as GameId) : DEFAULT_AUTHOR_GAME;
+
   const cluster = asRecord(body['initialState']);
-  if (cluster === null || !Array.isArray(cluster['nodes'])) {
+  if (cluster === null) {
+    return {
+      ok: false,
+      message: errText(
+        'problem.problem-json-thieu-initialstate-hoac-initialstate-nodes-khong-phai-mang',
+      ),
+    };
+  }
+  /*
+   * Phép kiểm `nodes` là hình dạng của RIÊNG K8s, nên nó chỉ chạy cho K8s.
+   *
+   * Áp nó cho mọi game sẽ từ chối mọi file bài Git bằng một câu nói về `nodes` —
+   * một khái niệm không tồn tại trong `WorldSpec`. Với game khác, biên này chỉ
+   * đòi `initialState` là một object, đúng bằng thứ biên GHI ở máy chủ hứa; xem
+   * `server/problems/validate.ts` § `refineByGame` về vì sao không viết một
+   * schema thứ hai cho từng game ở tầng ứng dụng.
+   */
+  if (gameId === 'k8s' && !Array.isArray(cluster['nodes'])) {
     return {
       ok: false,
       message: errText(
@@ -127,10 +165,20 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
     );
   }
 
-  const topics: ProblemTopic[] = [];
+  if (!validGame && rawGame !== '') {
+    dropped.push(t('problem.problem-json-chu-de-khong-co-trong-tap-dong', { topic: rawGame }));
+  }
+
+  /*
+   * Tập chủ đề hợp lệ tới từ PLUGIN của game trong file, không từ chín chủ đề
+   * K8s. Dùng danh sách K8s cho một file Git sẽ đánh rơi TOÀN BỘ chủ đề của nó
+   * — và lượt nhập vẫn báo thành công, chỉ kèm một danh sách `dropped` dài.
+   */
+  const allowedTopics = new Set((pluginViewFor(gameId)?.topics ?? []).map((option) => option.id));
+  const topics: ProblemTopicId[] = [];
   for (const topic of Array.isArray(body['topics']) ? body['topics'] : []) {
-    if (typeof topic === 'string' && (PROBLEM_TOPICS as readonly string[]).includes(topic)) {
-      topics.push(topic as ProblemTopic);
+    if (typeof topic === 'string' && allowedTopics.has(topic)) {
+      topics.push(topic);
     } else {
       dropped.push(
         t('problem.problem-json-chu-de-khong-co-trong-tap-dong', { topic: String(topic) }),
@@ -154,16 +202,26 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
     }
   }
 
+  const initialState = cluster as unknown as ClusterSpec;
+
   /**
-   * Dựng một `Problem` giả để dùng lại `formFromProblem` — SSOT của phép đổi
-   * bài→form. Viết một đường nạp thứ hai ở đây là dựng một chỗ để trôi: hai
-   * đường nạp sẽ đọc `args` của mục tiêu theo hai cách sau vài lần sửa.
+   * Dựng đầu vào giả để dùng lại `formFromProblem` — SSOT của phép đổi bài→form.
+   * Viết một đường nạp thứ hai ở đây là dựng một chỗ để trôi: hai đường nạp sẽ
+   * đọc `args` của mục tiêu theo hai cách sau vài lần sửa.
    *
-   * Năm field máy chủ cấp điền giá trị giữ chỗ vì `formFromProblem` không đọc
-   * tới chúng; chúng không rời khỏi hàm này.
+   * ⚠ Kiểu nay là `LoadedProblemFields` chứ không phải `Problem`, và năm field
+   * máy chủ cấp (`code`, `state`, `authorId`, hai mốc thời gian) BIẾN MẤT thay
+   * vì mang giá trị giữ chỗ. Đó là cải thiện chứ không phải mất mát: giá trị
+   * giữ chỗ là dữ liệu bịa nằm trong một object trông như bài thật, và lần sau
+   * ai đó đọc `shaped.code` sẽ nhận `K8S-0000` mà không có gì nói rằng nó giả.
+   * Một tham số nêu đúng những trường nó cần thì không có chỗ cho thứ đó.
    */
-  const shaped: Problem = {
-    code: 'K8S-0000',
+  const shaped: LoadedProblemFields = {
+    gameId,
+    // Cờ chỉ nhận `true` khi file khai đúng boolean `true`. Chiều an toàn, và
+    // cùng luật với `visible` ở biên đọc: một năng lực phải được ghi TƯỜNG MINH.
+    // `formFromProblem` còn tắt nó thêm lần nữa khi plugin không có `seedSpec`.
+    seedable: body['seedable'] === true,
     slug: asStringOr(body['slug'], ''),
     title: asStringOr(body['title'], ''),
     statement: asStringOr(body['statement'], ''),
@@ -173,26 +231,62 @@ export function importProblemJson(raw: string, nextKey: () => string): ImportRes
       ? body['tags'].filter((t): t is string => typeof t === 'string')
       : [],
     timeLimitSec: typeof body['timeLimitSec'] === 'number' ? body['timeLimitSec'] : null,
-    initialState: cluster as unknown as ClusterSpec,
-    objectives: Array.isArray(body['objectives'])
-      ? (body['objectives'] as Problem['objectives'])
-      : base.objectives.map((o) => ({ id: o.id, label: o.label, check: '', required: o.required })),
+    initialState,
+    /*
+     * Khoá trong FILE vẫn là `objectives`, và đó không phải sơ suất: định dạng
+     * xuất (`ProblemExport`) là thứ đã nằm trong file của người khác, nên đổi
+     * tên khoá ở đây làm mọi file đã xuất trước đó nhập vào thành bài rỗng —
+     * im lặng, vì nhánh `Array.isArray` chỉ rơi sang mặc định. Cột DB cũng giữ
+     * tên `objectives` vì đúng lý do đó (xem chú thích cột ở `schema.ts`).
+     * Chỉ KIỂU trong bộ nhớ đổi sang `Testcase`.
+     */
+    testcases: Array.isArray(body['objectives'])
+      ? body['objectives'].map(toImportedTestcase)
+      : base.objectives.map((o) => ({ id: o.id, label: o.label, check: '', visible: true })),
     allowedResources: Array.isArray(rawAllowed) ? allowed : null,
     hints: Array.isArray(body['hints']) ? (body['hints'] as Problem['hints']) : [],
     parMoves: typeof body['parMoves'] === 'number' ? body['parMoves'] : null,
-    state: 'draft',
-    authorId: null,
-    createdAt: '',
-    updatedAt: '',
   };
 
   const form = formFromProblem(shaped, nextKey);
   return {
     ok: true,
-    // `clusterFromSpec` chạy lại trên chính `initialState` vừa nhận để mọi ô
-    // node/tài nguyên có khoá React mới — nếu không, hai lượt nhập liên tiếp
-    // dùng lại khoá cũ và React giữ nguyên giá trị ô đang gõ dở.
-    form: { ...form, cluster: clusterFromSpec(shaped.initialState, nextKey) },
+    /*
+     * `clusterFromSpec` chạy lại trên chính `initialState` vừa nhận để mọi ô
+     * node/tài nguyên có khoá React mới — nếu không, hai lượt nhập liên tiếp
+     * dùng lại khoá cũ và React giữ nguyên giá trị ô đang gõ dở.
+     *
+     * ⚠ CHỈ cho K8s. Với game khác, `initialState` không phải `ClusterSpec` và
+     * `clusterFromSpec` sẽ ném — biến một lượt nhập file Git hợp lệ thành một
+     * màn hình trắng. `formFromProblem` đã dựng `cluster` rỗng cho ca đó, và
+     * trường ấy không được trình soạn đọc khi `specEditor` là `generic`.
+     */
+    form:
+      gameId === 'k8s' ? { ...form, cluster: clusterFromSpec(initialState, nextKey) } : form,
     dropped,
+  };
+}
+
+/**
+ * Một phần tử `objectives` trong file JSON → `Testcase` của hợp đồng.
+ *
+ * Mức TIN dữ liệu giữ nguyên như bản trước (file nhập vào vốn được ép kiểu
+ * thẳng); thứ thêm vào chỉ là `visible`, vì `Testcase` đòi nó còn định dạng file
+ * thì chưa bao giờ ghi nó.
+ *
+ * Luật mặc định chép nguyên từ `server/problems/testcases.ts` — *"chỉ một
+ * `false` TƯỜNG MINH mới làm testcase ẩn"* — chứ không tự đặt một luật thứ hai:
+ * file cũ không có khoá này thì mọi case hiện, đúng bằng hành vi hôm nay, và
+ * file tương lai có `visible: false` thì nhập vào vẫn giữ được ý đó. Hai biên
+ * đọc cùng một cột mà mặc định khác nhau là chỗ dữ liệu bắt đầu lệch.
+ */
+function toImportedTestcase(raw: unknown): Testcase {
+  const row = asRecord(raw) ?? {};
+  return {
+    id: asStringOr(row['id'], ''),
+    label: asStringOr(row['label'], ''),
+    check: asStringOr(row['check'], ''),
+    ...(asRecord(row['args']) === null ? {} : { args: asRecord(row['args']) as Readonly<Record<string, unknown>> }),
+    visible: row['visible'] !== false,
   };
 }

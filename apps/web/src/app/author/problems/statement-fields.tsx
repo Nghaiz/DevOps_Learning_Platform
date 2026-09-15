@@ -1,7 +1,8 @@
 'use client';
 
 import { t } from '@devops-platform/copy';
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
+import { Bold, Code2, List, Heading2 } from 'lucide-react';
 import {
   Button,
   MarkdownView,
@@ -37,6 +38,25 @@ export function StatementFields(props: {
   readonly code: string | null;
 }): ReactElement {
   const [tab, setTab] = useState('viet');
+  const editor = useRef<HTMLDivElement>(null);
+  const insert = (before: string, after: string, fallback: string) => {
+    const input = editor.current?.querySelector('textarea');
+    const start = input?.selectionStart ?? props.form.statement.length;
+    const end = input?.selectionEnd ?? start;
+    const selection = props.form.statement.slice(start, end) || fallback;
+    props.onChange({
+      statement:
+        props.form.statement.slice(0, start) +
+        before +
+        selection +
+        after +
+        props.form.statement.slice(end),
+    });
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(start + before.length, start + before.length + selection.length);
+    });
+  };
   const words = countWords(props.form.statement);
   const remaining = STATEMENT_WORD_LIMIT - words;
   const slugPreview = props.form.slug.trim() === '' ? toSlug(props.form.title) : props.form.slug;
@@ -126,21 +146,68 @@ export function StatementFields(props: {
             <TabsTrigger value="xem">{t('problem.statement-fields-xem-truoc')}</TabsTrigger>
           </TabsList>
           <TabsContent value="viet">
-            <TextAreaField
-              label={t('problem.statement-fields-de-bai-markdown')}
-              value={props.form.statement}
-              onChange={(statement) => {
-                props.onChange({ statement });
-              }}
-              rows={10}
-              error={issueFor(props.issues, 'statement')}
-              placeholder={t(
-                'problem.statement-fields-namespace-thanh-toan-co-mot-deployment-khong-len-noi-replica-nao-tim-nguyen',
-              )}
-              hint={t(
-                'problem.statement-fields-bai-oj-khong-day-ly-thuyet-chi-noi-de-kien-thuc-nen-de-nguoi-lam-tu-tra',
-              )}
-            />
+            <div ref={editor}>
+              <div
+                className="practice-markdown-tools"
+                role="group"
+                aria-label={t('author.problem.markdown.toolbar')}
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('author.problem.markdown.heading')}
+                  onClick={() => insert('\n## ', '\n', t('author.problem.markdown.seed-heading'))}
+                >
+                  <Heading2 size={17} />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('author.problem.markdown.bold')}
+                  onClick={() => insert('**', '**', t('author.problem.markdown.seed-bold'))}
+                >
+                  <Bold size={17} />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('author.problem.markdown.list')}
+                  onClick={() => insert('\n- ', '\n', t('author.problem.markdown.seed-list'))}
+                >
+                  <List size={17} />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('author.problem.markdown.code')}
+                  onClick={() =>
+                    insert('\n```\n', '\n```\n', t('author.problem.markdown.seed-code'))
+                  }
+                >
+                  <Code2 size={17} />
+                </Button>
+                <span>{t('author.problem.markdown.badge')}</span>
+              </div>
+              <TextAreaField
+                label={t('problem.statement-fields-de-bai-markdown')}
+                value={props.form.statement}
+                onChange={(statement) => {
+                  props.onChange({ statement });
+                }}
+                rows={10}
+                error={issueFor(props.issues, 'statement')}
+                placeholder={t(
+                  'problem.statement-fields-namespace-thanh-toan-co-mot-deployment-khong-len-noi-replica-nao-tim-nguyen',
+                )}
+                hint={t(
+                  'problem.statement-fields-bai-oj-khong-day-ly-thuyet-chi-noi-de-kien-thuc-nen-de-nguoi-lam-tu-tra',
+                )}
+              />
+            </div>
           </TabsContent>
           <TabsContent value="xem">
             <div className="rounded-md border border-border bg-card p-4">

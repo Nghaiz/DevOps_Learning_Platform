@@ -43,11 +43,22 @@ export function ObjectiveFields(props: {
   readonly onChange: (patch: Partial<ObjectiveFormState>) => void;
   readonly onRemove: () => void;
   readonly canRemove: boolean;
+  /**
+   * §18.D.2 — đổi thứ tự. `delta` là `-1` (lên) hoặc `+1` (xuống).
+   *
+   * Thứ tự testcase KHÔNG đổi cách chấm (`Submission.passed` lưu **id**, đúng vì
+   * lý do hợp đồng ghi: *"chỉ số vỡ khi tác giả đổi thứ tự"*), nhưng nó là thứ
+   * tự người làm ĐỌC đề. Một bài dẫn từ dễ tới khó đọc khác hẳn cùng bài xáo
+   * trộn, và trước đợt này cách duy nhất để sắp lại là xoá đi gõ lại.
+   */
+  readonly onMove: (delta: -1 | 1) => void;
+  readonly canMoveUp: boolean;
+  readonly canMoveDown: boolean;
 }): ReactElement {
   const base = `objectives.${String(props.index)}`;
   const check = props.objective.check;
   const spec = check !== '' && isPredicateName(check) ? PREDICATE_SPECS[check] : null;
-  const requiredId = `objective-required-${props.objective.key}`;
+  const visibleId = `objective-visible-${props.objective.key}`;
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border p-4">
@@ -55,15 +66,47 @@ export function ObjectiveFields(props: {
         <h4 className="text-sm font-medium text-foreground">
           {t('problem.objective-fields-muc-tieu')} {String(props.index + 1)}
         </h4>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!props.canRemove}
-          onClick={props.onRemove}
-        >
-          {t('common.action.delete')}
-        </Button>
+        <div className="flex items-center gap-1">
+          {/*
+            Nút CHỮ chứ không phải mũi tên trần, và mỗi nút có `aria-label` riêng
+            kèm số thứ tự: AC-8 đòi 0 vi phạm axe trên màn soạn bài, và một hàng
+            nút giống hệt nhau lặp lại N lần là thứ trình đọc màn hình đọc thành
+            "nút, nút, nút" mà không biết đang ở mục tiêu nào.
+          */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!props.canMoveUp}
+            aria-label={t('author.problem.objectives.move-up', { n: props.index + 1 })}
+            onClick={() => {
+              props.onMove(-1);
+            }}
+          >
+            {t('author.problem.objectives.move-up-short')}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!props.canMoveDown}
+            aria-label={t('author.problem.objectives.move-down', { n: props.index + 1 })}
+            onClick={() => {
+              props.onMove(1);
+            }}
+          >
+            {t('author.problem.objectives.move-down-short')}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!props.canRemove}
+            onClick={props.onRemove}
+          >
+            {t('common.action.delete')}
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -155,18 +198,30 @@ export function ObjectiveFields(props: {
         </p>
       )}
 
+      {/*
+        §18.B.4 + §18.D.2 — ô đánh dấu ẨN/HIỆN, thay cho ô "bắt buộc" cũ.
+
+        ⛔ KHÔNG phải ô cũ đổi nhãn. Ô cũ hỏi *không đạt thì có chặn không*, và
+        quyết định #20 đã bỏ hẳn câu hỏi đó (mọi testcase đều chặn — đó là nghĩa
+        của `AC`). Ô này hỏi một câu khác hẳn: *người làm có được XEM testcase
+        này trước khi nộp không*. Bảng so sánh ở `server/problems/testcases.ts`.
+
+        Nhãn nói HỆ QUẢ chứ không nói trạng thái ("ẩn"/"hiện"): người soạn cần
+        biết mình vừa quyết định gì cho người học, và "ẩn" một mình không nói ra
+        rằng người làm vẫn đếm được nó trong mẫu số `n/m`.
+      */}
       <div className="flex items-center gap-3">
         <Switch
-          id={requiredId}
-          checked={props.objective.required}
-          onCheckedChange={(required) => {
-            props.onChange({ required });
+          id={visibleId}
+          checked={props.objective.visible}
+          onCheckedChange={(visible) => {
+            props.onChange({ visible });
           }}
         />
-        <Label htmlFor={requiredId}>
-          {props.objective.required
-            ? t('problem.objective-fields-bat-buoc-khong-dat-thi-khong-qua-bai')
-            : t('problem.objective-fields-thuong-an-diem-khong-chan')}
+        <Label htmlFor={visibleId}>
+          {props.objective.visible
+            ? t('author.problem.objectives.visible-on')
+            : t('author.problem.objectives.visible-off')}
         </Label>
       </div>
     </div>

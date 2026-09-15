@@ -89,6 +89,15 @@ export const SCREENS: Screen[] = [
   { path: '/games/git', auth: 'user' },
   { path: '/problems', auth: 'user' },
   { path: '/problems/:code', auth: 'user', idFrom: 'problems.list' },
+  /*
+   * §18.G. CHỈ màn danh sách, cùng lý do đã ghi cho `/admin/classes` bên dưới:
+   * `/exams/:examId` cần một kỳ thi có thật, và trên CSDL e2e chưa có kỳ thi
+   * nào thì ô đó đỏ vì THIẾU DỮ LIỆU chứ không phải vì a11y.
+   *
+   * Màn danh sách vẫn đo được thật: nó render trạng thái rỗng (`EmptyState`),
+   * và trạng thái rỗng là thứ mọi sinh viên thấy trước kỳ thi đầu tiên.
+   */
+  { path: '/exams', auth: 'user' },
 
   { path: '/author', auth: 'author' },
   { path: '/author/new', auth: 'author' },
@@ -99,6 +108,25 @@ export const SCREENS: Screen[] = [
 
   { path: '/admin', auth: 'admin' },
   { path: '/admin/users', auth: 'admin' },
+  /*
+   * §18.F. Lane dựng lớp học tự báo rằng hai màn này CHƯA nằm trong cổng axe —
+   * chúng dùng lại `AdminSection`/`Table`/`EmptyState`/`ErrorState`/`CursorPager`
+   * của các màn `/admin` đang qua cổng, nhưng dùng lại thành phần đã đạt KHÔNG
+   * phải một phép đo. AC-8 của chặng đòi 0 vi phạm axe trên bảng điểm, nên
+   * chúng vào đây để cổng tự nói.
+   *
+   * ⚠ CHỈ thêm màn DANH SÁCH. `/admin/classes/:classId` **cố ý chưa vào**: đoạn
+   * động cần `idFrom` trỏ tới một điểm cuối trả id có thật, và trên một CSDL e2e
+   * chưa có lớp nào thì ô đó sẽ đỏ vì THIẾU DỮ LIỆU chứ không phải vì a11y — một
+   * ô đỏ vì lý do sai còn tệ hơn một ô chưa có. Thêm nó cùng lượt seed lớp mẫu,
+   * không thêm trước.
+   */
+  { path: '/admin/classes', auth: 'admin' },
+  // §18.G.2. Màn này có một BIỂU MẪU thật (ô chọn lớp, radio chọn cách sinh đề,
+  // hai ô datetime), nên nó không chỉ là một bảng dùng lại thành phần đã đạt ,
+  // nó là màn `/admin` có nhiều điều khiển nhập liệu nhất từ trước tới nay và
+  // vì thế là màn đáng quét axe nhất trong nhánh này.
+  { path: '/admin/exams', auth: 'admin' },
   { path: '/admin/sessions', auth: 'admin' },
   { path: '/admin/content', auth: 'admin' },
   { path: '/admin/audit', auth: 'admin' },
@@ -112,7 +140,7 @@ export const SCREENS: Screen[] = [
  * tổng kết vẫn ghi "0 lỗi serious/critical". Ô này biến việc rút ngắn thành
  * một lỗi ĐỎ, có tên.
  */
-export const MIN_SCREENS = 33;
+export const MIN_SCREENS = 35;
 
 /** Vai trò `admin` bao hàm `author` (C6: /author cho author|admin). */
 export function roleSatisfies(actual: string, required: AuthLevel): boolean {

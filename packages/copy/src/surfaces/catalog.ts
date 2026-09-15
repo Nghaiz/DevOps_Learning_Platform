@@ -121,17 +121,17 @@ export const catalog = {
   // ── Đoạn dẫn của bảy màn ──────────────────────────────────────────────
   'catalog.lead.lessons': 'Mỗi bài mở một sandbox riêng. Tiến độ chỉ mình bạn thấy.',
   'catalog.lead.labs':
-    'Mỗi lab giao một tập nhiệm vụ độc lập. Làm theo thứ tự bất kỳ, tự chấm từng nhiệm vụ rồi nộp bài khi sẵn sàng.',
+    'Giải quyết nhiệm vụ trên môi trường thật.',
   'catalog.lead.playgrounds':
-    'Sandbox trống, không bài, không chấm điểm. Thử lệnh trước khi vào một bài học hoặc lab thật.',
+    'Môi trường trống để thử lệnh và dựng hệ thống.',
   'catalog.lead.paths':
-    'Nhiều bài gom theo thứ tự. Mở lộ trình để thấy phần nào đã mở khoá và phần nào còn chờ.',
+    'Học theo thứ tự, theo dõi từng chặng.',
   'catalog.lead.quiz':
-    'Bộ câu hỏi tự chấm. Nộp xong mới thấy điểm và giải thích; trong lúc làm bài, đáp án không nằm trong dữ liệu trình duyệt nhận.',
+    'Trả lời câu hỏi. Xem điểm và giải thích sau khi nộp.',
   'catalog.lead.games':
     'Game chạy hoàn toàn trong trình duyệt: không tốn sandbox, không cần đăng nhập, tiến độ lưu ngay trên máy bạn. Độ khó ghi trên thẻ là mức lúc BẮT ĐẦU, mỗi game còn tăng dần qua nhiều level.',
   'catalog.lead.problems':
-    'Mỗi bài là một cluster hỏng hoặc một yêu cầu cần dựng. Không có phần giảng: bạn tự biết hoặc tự tra, rồi thao tác cho tới khi mọi mục tiêu xanh.',
+    'Chọn game, tìm bài phù hợp và nộp lời giải.',
 
   // ── Thanh công cụ ─────────────────────────────────────────────────────
   'catalog.toolbar.all': 'Tất cả',
@@ -273,7 +273,14 @@ export const catalog = {
     'Chưa có bộ câu hỏi nào được xuất bản. Làm một lab để tự kiểm bằng thao tác thật trước đã.',
 
   'catalog.empty.games.title': 'Không có game nào khớp bộ lọc',
-  'catalog.empty.games.body': 'Bốn game vẫn ở đó, bỏ bớt điều kiện lọc để xem lại toàn bộ.',
+  /*
+   * ⚠ Bản cũ viết "Bốn game vẫn ở đó". `games-catalog.ts` có NĂM mục, nên câu
+   * đó đã sai từ lúc mục thứ năm được thêm, và sai trong im lặng: không cổng
+   * nào đếm giúp một con số nằm trong văn xuôi. Bỏ số đi là cách duy nhất làm
+   * câu này không hỏng lại ở lần thêm game tiếp theo; cần nói số thì dùng
+   * `catalog.games.count`, khoá đó nhận tham số.
+   */
+  'catalog.empty.games.body': 'Các game vẫn ở đó, bỏ bớt điều kiện lọc để xem lại toàn bộ.',
 
   // ── Nhãn hành động của trạng thái rỗng ────────────────────────────────
   'catalog.action.first-page': 'Về đầu danh sách',
@@ -324,8 +331,19 @@ export const catalog = {
   'catalog.games.no-login': 'Không cần đăng nhập',
   'catalog.games.count': (p: { shown: number }) => `${p.shown} game`,
   'catalog.games.count-filtered': (p: { shown: number }) => `${p.shown} game khớp bộ lọc`,
-  'catalog.games.challenge-title': 'Thử thách CTF, thứ nằm cạnh game và tốn chỗ thật',
-  'catalog.games.challenge-cta': 'Xem Lab',
+  /*
+   * ⛔ `catalog.games.challenge-title` và `catalog.games.challenge-cta` ĐÃ XOÁ
+   * 2026-09-16. Chúng mô tả một khối "Thử thách CTF → Xem Lab" nằm cạnh danh
+   * sách game; bản dựng lại `4f6d3ba` bỏ khối đó và thay bằng thẻ studio
+   * ("Tạo thử thách của bạn" → Problem creator / Level builder / Soạn bài học),
+   * là một thứ khác hẳn về nghĩa.
+   *
+   * Cổng `dead-key` cho hai đường: nối vào chỗ đáng ra phải dùng, hoặc xoá.
+   * Ở đây KHÔNG có chỗ đáng ra phải dùng, và nhét chúng lên thẻ studio là gắn
+   * chữ CTF vào một khối nói về soạn bài, tức làm bản đồ nói dối để cổng xanh.
+   * Muốn khối CTF quay lại thì thêm khoá cùng lúc với khối đó, không phải giữ
+   * sẵn chữ cho một giao diện chưa ai định dựng.
+   */
 
   // ── Bài tập (`/problems`) ─────────────────────────────────────────────
   /*
@@ -343,6 +361,53 @@ export const catalog = {
   'catalog.problems.status-legend': 'Trạng thái của bạn',
   'catalog.problems.topic-legend': 'Chủ đề',
   'catalog.problems.topic-hint': 'Chọn nhiều chủ đề = bài khớp BẤT KỲ chủ đề nào.',
+
+  /*
+    Bộ chọn game của khối lọc chủ đề (§18 khối 6).
+
+    Câu `game-hint` nói ra đúng thứ điều khiển này LÀM, và nó cố ý KHÔNG hứa lọc
+    danh sách bài theo game: chọn "Git Game" chỉ đổi danh sách chủ đề bên dưới.
+    Hứa thừa một vế ở đây là dạy người dùng đọc sai mọi lần sau , họ sẽ chọn
+    game rồi chờ bảng đổi, thấy nó không đổi, và kết luận trang hỏng.
+
+    Tên game để dạng NGƯỜI DÙNG đọc ("Kubernetes Game") chứ không phải id kỹ
+    thuật (`k8s`): id là chuyện của kho lưu, còn đây là một danh sách người ta
+    phải nhận ra tên trong đó.
+
+    Hai khoá lồng dưới `catalog.problems.game`, chưa chạm cổng rule-of-three.
+    Game thứ ba có chủ đề sẽ làm cổng đó bật , đúng lúc cần một lời khai, vì khi
+    ấy nhóm này thật sự thành một phân loại.
+  */
+  'catalog.problems.game-legend': 'Game',
+  'catalog.problems.game-hint': 'Chọn game để đổi danh sách chủ đề bên dưới.',
+  'catalog.problems.game.k8s': 'Kubernetes Game',
+  'catalog.problems.game.git': 'Git Game',
+
+  /*
+   * Nhãn của HÀNG NÚT chọn game ở đầu trang, khoá riêng chứ không mượn
+   * `game-legend`.
+   *
+   * Hai điều khiển này chở cùng một giá trị nhưng KHÔNG cùng một câu: hàng nút
+   * ở đầu trang đứng một mình nên nhãn của nó phải tự nói ra đây là game của
+   * cái gì, còn `game-legend` đứng ngay trên danh sách chủ đề trong khối lọc
+   * chi tiết nên một chữ "Game" là đủ. Dùng chung một khoá thì sửa nhãn cho
+   * một chỗ sẽ đổi chỗ kia, đúng cái bẫy mà khối chú thích của nhóm `col-*`
+   * bên dưới đã ghi.
+   *
+   * ⚠ Hai bộ chọn game cùng hiện trên một màn là một chỗ THỪA có thật, không
+   * phải ý đồ của bản đồ chữ. Đã ghi vào báo cáo chặng cho lead quyết.
+   */
+  'catalog.problems.game-switch-label': 'Game của bài tập',
+
+  /*
+   * Thanh `<details>` gom bốn khối lọc phụ. Tách làm hai khoá vì vế thứ hai chỉ
+   * hiện khi có bộ lọc đang bật; nhét cả hai vào một khoá thì nơi gọi phải cắt
+   * chuỗi để giấu nửa sau. Dấu chấm giữa là DẤU NỐI nên nó ở nơi gọi, không ở
+   * đây, cùng luật với `joinTopics`.
+   */
+  'catalog.problems.advanced-summary': 'Bộ lọc chi tiết',
+  'catalog.problems.advanced-active': 'Đang áp dụng',
+
   'catalog.problems.tag-legend': 'Tag',
   'catalog.problems.tag-hint': 'Chọn nhiều tag = bài phải có ĐỦ mọi tag.',
   'catalog.problems.tag-placeholder': 'ví dụ: ingress',
@@ -368,6 +433,23 @@ export const catalog = {
    * Một `legend` là nhãn của một bộ lọc nhiều lựa chọn, một `col` là tên cột
    * của bảng; chúng đổi vì hai lý do khác nhau, và dùng chung một khoá nghĩa
    * là sửa nhãn bộ lọc thì tiêu đề bảng đổi theo mà không ai định thế.
+   *
+   * ## Chín khoá, SÁU cột, từ 2026-09-16
+   *
+   * `docs/frontend-practice-redesign.md` chốt bảng SÁU cột: mã bài và tên bài
+   * gộp vào cột đầu, còn chủ đề và tag xuống dòng phụ ngay dưới tên bài. Chín
+   * khoá ở lại đủ chín, và không khoá nào thành mồ côi, vì phép gộp KHÔNG bỏ
+   * dữ liệu nào đi, nó chỉ đổi chỗ đặt nhãn:
+   *
+   * · `col-code` + `col-title` ghép bằng dấu chấm giữa thành tiêu đề cột đầu.
+   *   Một cột chở hai thứ thì tiêu đề nói cả hai; để mỗi `col-title` là nói
+   *   thiếu đúng cái mà người ta quét mắt tìm trước tiên.
+   * · `col-topics` + `col-tags` thành nhãn của dòng phụ. Trước khi gộp, hai
+   *   cột riêng đã tự phân biệt; sau khi gộp, hai danh sách nằm cạnh nhau dùng
+   *   chung một dấu ngăn nên KHÔNG còn phân biệt được. Nhãn ở đây trả lại đúng
+   *   thứ phép gộp lấy mất.
+   * · `no-tag` vì thế cũng sống lại: một nhãn "Tag" đứng trước chỗ trống đọc ra
+   *   như màn hình vỡ, chứ không đọc ra là bài này không có tag nào.
    */
   'catalog.problems.table-caption': 'Bấm vào tên bài để xem đề và bắt đầu làm.',
   'catalog.problems.col-code': 'Mã bài',
@@ -389,6 +471,10 @@ export const catalog = {
    * bỏ qua hẳn), nên ô đó vốn đã không nói được điều nó định nói.
    */
   'catalog.problems.no-tag': 'Không có',
+  /*
+   * Ngưỡng cắt nằm ở `problems-table.tsx` (`VISIBLE_TAGS`), không ở đây: đó là
+   * một ràng buộc BỀ RỘNG của ô bảng, không phải một quyết định biên tập.
+   */
   'catalog.problems.tags-more': (p: { n: number }) => `còn ${p.n} tag nữa`,
 
   /*
@@ -450,8 +536,59 @@ export const catalog = {
   'catalog.problem.not-found-body':
     'Mã bài có dạng K8S-0042. Kiểm tra lại đường dẫn, hoặc tìm bài từ danh sách.',
   'catalog.problem.back': 'Về danh sách bài',
+  /*
+   * Lối về của KHUNG TRANG, khác `catalog.problem.back` ở trên vốn là nhãn nút
+   * trong khối lỗi/không-tìm-thấy.
+   *
+   * Hai câu khác nhau vì hai chỗ đứng khác nhau: nút trong khối lỗi là lối
+   * thoát duy nhất còn lại nên nó nói đủ câu, còn lối về ở đầu trang nằm cạnh
+   * nội dung bài và phải ngắn để không tranh chỗ với tên bài. Mũi tên nằm
+   * TRONG chuỗi chứ không ở nơi gọi: nó là một phần của nhãn người đọc thấy,
+   * và tách ra thì bản đồ không còn chở trọn câu mà màn hình hiện.
+   */
+  'catalog.problem.back-lobby': '← Bài tập OJ',
   'catalog.problem.error-title': 'Không tải được bài',
   'catalog.problem.loading': 'Đang tải bài tập',
+
+  /*
+   * ── Ba tab của trang chi tiết ────────────────────────────────────────────
+   *
+   * Nhãn TAB, không dùng lại tiêu đề khối bên trong (`hints-title`,
+   * `subs-title`, `tests-title`) dù `tab-hints` đang trùng chữ với
+   * `hints-title`. Một tab là nhãn ĐIỀU HƯỚNG, phải ngắn và ngang hàng với hai
+   * tab kia; một tiêu đề khối là nhãn NỘI DUNG, đọc khi đã ở trong khối. Chúng
+   * đổi vì hai lý do khác nhau, và `subs-title` ("Lượt nộp của bạn") đã cho
+   * thấy chỗ lệch: một tab mang câu đó sẽ dài gấp đôi hai tab còn lại.
+   *
+   * Đặt PHẲNG dưới `catalog.problem` chứ không lồng thành
+   * `catalog.problem.tab.*`. Lồng vào thì ba tab thành một nhóm ba mà cổng T3
+   * nhìn thấy và đòi một dòng miễn trừ, trong khi đây không phải một phân loại
+   * ba: số tab là số khối nội dung của trang, và khối thứ tư nào cũng chỉ là
+   * thêm một khối. Khối chú thích cuối file ghi đúng chuyện đã xảy ra khi có
+   * người khai miễn trừ cho một nhóm mà cổng chưa từng dựng ra.
+   */
+  'catalog.problem.tabs-label': 'Chi tiết bài tập',
+  'catalog.problem.tab-checks': 'Điều kiện chấm',
+  'catalog.problem.tab-hints': 'Gợi ý',
+  'catalog.problem.tab-submissions': 'Lịch sử nộp',
+
+  /*
+   * ── Đầu trang bản Git ────────────────────────────────────────────────────
+   *
+   * Trang chi tiết đổi hẳn khung khi bài thuộc game Git (`git-oj-lobby`), và
+   * năm chuỗi này là chữ của khung đó. Chúng ở `catalog.problem.*` vì đây là
+   * MÀN chi tiết bài tập, theo luật chọn file theo màn hình ở đầu file, chứ
+   * không phải ở `catalog.games.*` vốn nói về thẻ game trong danh mục.
+   *
+   * `GIT` và `ODYSSEY` tách hai khoá vì nơi gọi tô đậm nửa sau. Gộp một khoá
+   * thì nơi gọi phải cắt chuỗi để tô, đúng lý do đã tách
+   * `time-limit-lead` với `time-limit-note`.
+   */
+  'catalog.problem.git-brand-name': 'GIT',
+  'catalog.problem.git-brand-suffix': 'ODYSSEY',
+  'catalog.problem.git-brand-tagline': 'ĐẤU TRƯỜNG THỬ THÁCH',
+  'catalog.problem.git-lead': 'Giải bài Git bằng lệnh.',
+  'catalog.problem.git-grading-note': 'CHẤM BÀI TRÊN MÁY CHỦ',
 
   /*
    * Ba con số trong một câu, và câu này KHÔNG được rút gọn thành "tỉ lệ giải X%":
@@ -511,6 +648,84 @@ export const catalog = {
   'catalog.problem.subs-solved': 'Đã giải',
   'catalog.problem.subs-failed': 'Chưa đạt',
   'catalog.problem.subs-more': 'Còn lượt nộp cũ hơn không hiện ở trang này.',
+
+  /*
+    ── Testcase (18.B.4) ───────────────────────────────────────────────────
+
+    Nhãn testcase ẩn KHÔNG nằm ở đây và không thể nằm ở đây: nó là nội dung
+    của từng bài, do tác giả viết, và máy chủ chỉ gửi nó xuống sau khi người
+    làm đã nộp. Chỗ này chỉ có chữ của KHUNG.
+  */
+  'catalog.problem.tests-title': 'Testcase',
+  'catalog.problem.tests-count': (p: { total: number }) =>
+    `Bài này chấm bằng ${p.total} testcase. Phải qua hết mới được AC.`,
+  'catalog.problem.tests-hidden-note': (p: { hidden: number }) =>
+    `${p.hidden} testcase bị ẩn: bạn chỉ thấy tên chúng sau khi nộp bài.`,
+  'catalog.problem.tests-hidden-why':
+    'Testcase ẩn để một lượt nộp không trở thành một lượt dò đáp án.',
+  'catalog.problem.tests-hidden-item': 'Chưa hiện, nộp bài rồi mới thấy',
+  'catalog.problem.tests-hidden-badge': 'Ẩn',
+  'catalog.problem.tests-empty': 'Bài này chưa có testcase nào nên chưa chấm được.',
+
+  /*
+    ── Verdict (18.B.3, 18.B.5) ────────────────────────────────────────────
+
+    Ba nhãn vì `PROBLEM_VERDICTS` có đúng ba giá trị, xem catalogIntentionalThree.
+
+    ⛔ `WA` KHÔNG có bản không mẫu số. Mẫu số là thứ nói cho người làm biết họ
+    còn cách bao xa, nên nó nằm TRONG câu chứ không ghép ngoài JSX. Và `CE` cố
+    ý KHÔNG nhận tham số nào: lượt chơi không chạy tới nơi thì `passed`/`total`
+    không nói lên gì, nên không có phân số nào để in.
+  */
+  'catalog.problem.verdict-ac': 'AC',
+  'catalog.problem.verdict-wa': (p: { passed: number; total: number }) =>
+    `WA (${p.passed}/${p.total})`,
+  'catalog.problem.verdict-ce': 'CE',
+  'catalog.problem.verdict-ac-note': 'Qua hết testcase.',
+  'catalog.problem.verdict-wa-note': (p: { failed: number }) =>
+    `Còn ${p.failed} testcase chưa qua:`,
+  'catalog.problem.verdict-ce-note': 'Lượt chơi không chạy tới nơi nên chưa chấm được.',
+  'catalog.problem.verdict-region': 'Kết quả lượt nộp',
+  'catalog.problem.verdict-unnamed': 'Testcase ẩn chưa hiện tên',
+
+  /*
+    Verdict đọc lại từ LỊCH SỬ nộp bài (18.C).
+
+    `subs-verdict-ungraded` KHÔNG phải một cách nói khác của `CE`, và đó là cả
+    lý do nó tồn tại. `problemVerdictOf(_, 0)` trả `CE`, và điều đó ĐÚNG với vai
+    trò một verdict lúc CHẤM. Nhưng cột `total` mặc định `0`, nên trong lịch sử
+    một `total === 0` gộp BA nguyên nhân khác hẳn nhau: lượt thật sự không chấm
+    được, dòng ghi trước 18.C khi cột chưa tồn tại, và bài chưa có testcase nào.
+
+    `CE` nghĩa là lỗi cú pháp. In nó lên một lượt nộp cũ là nói với người chơi
+    rằng bài của họ sai cú pháp trong khi không hề. Một nhãn sai theo hướng đổ
+    lỗi cho người dùng tệ hơn hẳn một nhãn mờ, nên nhãn này cố ý chỉ nói đúng
+    thứ nó biết, và không đoán nguyên nhân nào trong ba.
+
+    ⛔ Phân biệt được ba nguyên nhân đó cần một cột thứ ba trên
+    `problem_submissions`. Đừng đổi chữ ở đây để giả vờ đã phân biệt được.
+  */
+  'catalog.problem.subs-col-verdict': 'Verdict',
+  'catalog.problem.subs-verdict-ungraded': 'Chưa chấm theo testcase',
+
+  /*
+    ── Nộp bài từ đấu trường (18.C) ────────────────────────────────────────
+
+    Nhóm này ra đời cùng chỗ gọi `problems.submit` ĐẦU TIÊN của ứng dụng. Tới
+    2026-09-14 đấu trường chưa từng nộp bài về máy chủ, nên `verdict-*` ở trên
+    có test mà chưa có màn hình nào.
+
+    ⛔ `submit-kept` KHÔNG phải một câu an ủi. Nó nói một sự thật kiểm chứng
+    được: nhật ký lượt chơi vẫn nằm trong engine, nên bấm thử lại nộp lại ĐÚNG
+    lượt đó chứ không bắt chơi lại. Bỏ câu này thì một lượt nộp hỏng đọc ra như
+    mất lượt, và người chơi thoát ra chơi lại từ đầu mà không cần phải thế.
+  */
+  'catalog.problem.submit-region': 'Nộp bài',
+  'catalog.problem.submit-action': 'Nộp bài',
+  'catalog.problem.submit-pending': 'Đang nộp bài…',
+  'catalog.problem.submit-failed': 'Chưa nộp được bài',
+  'catalog.problem.submit-kept':
+    'Lượt chơi vẫn còn nguyên, bấm thử lại là nộp lại đúng lượt này.',
 
   // ── Chi tiết một lộ trình (`/paths/[id]`) ─────────────────────────────
   //
@@ -633,6 +848,28 @@ export const catalog = {
   'catalog.loading.grid': 'Đang tải danh sách',
 } as const satisfies Surface<'catalog'>;
 
+/**
+ * KHÔNG có dòng `catalog.problem.verdict` ở đây, và đó là kết quả của một phép
+ * đo chứ không phải một chỗ bỏ sót.
+ *
+ * Dòng đó tồn tại từ 18.C với một lý do viết đúng (PROBLEM_VERDICTS có đúng ba
+ * thành viên AC/WA/CE). Nhưng nó chưa bao giờ miễn trừ nhóm nào: `scanThree`
+ * gom khoá theo tiền tố có dấu chấm, còn ba nhãn verdict đặt PHẲNG
+ * (`catalog.problem.verdict-ac`), nên chúng rơi vào nhóm `catalog.problem`
+ * vốn đông hàng chục thành viên. Không nhóm nào tên `catalog.problem.verdict`
+ * từng được dựng ra để mà miễn trừ.
+ *
+ * Đổi độ mịn của phép gom KHÔNG cứu được dòng này: tiền tố `catalog.problem.verdict`
+ * có năm khoá con phẳng (ac, wa, ce, region, unnamed), tám nếu tính cả ba khoá
+ * `-note`. Năm hay tám thì cũng không phải ba.
+ *
+ * Đường duy nhất làm nó sống lại là ĐẶT LỒNG ba nhãn kia
+ * (`catalog.problem.verdict.ac/.wa/.ce`), đúng quy ước mà `surfaces/shell.ts`
+ * và `surfaces/me.ts` đã ghi. Việc đó phải sửa chỗ gọi trong
+ * `apps/web/src/app/(session)/problems/[code]/`, ngoài phạm vi lượt sửa này.
+ * Lúc ai đó làm, dòng miễn trừ cũ nằm nguyên văn trong báo cáo
+ * `reports/2026-09-15-lane-copy-gate-report.md` để chép lại.
+ */
 export const catalogIntentionalThree = {
   'catalog.problems.viewer':
     '2026-09-10: ProblemViewerStatus là union đóng ba thành viên (solved, attempted, untouched) trong packages/games, và Record<ProblemViewerStatus, TextKey> ở problem-labels.ts giữ hai bên khớp. Thành viên thứ tư phải sửa union trước.',
@@ -645,3 +882,4 @@ export const catalogIntentionalThree = {
   'catalog.error-hint':
     '2026-09-10: đúng ba câu vì CatalogErrorKind là union đóng ba nhánh (retryable, stale-cursor, unknown) tại apps/web/src/components/catalog/catalog-error-kind.ts. Hai lớp lỗi đòi hành động ngược nhau và nhánh thứ ba cố ý nói ít; thêm một câu thứ tư là thêm một nhánh phân loại, không phải thêm một câu.',
 } as const satisfies IntentionalThree;
+

@@ -9,13 +9,43 @@ describe('cổng xuất bản', () => {
     expect(publishIssues(validForm())).toEqual([]);
   });
 
-  it('chặn khi không có mục tiêu bắt buộc nào', () => {
+  /*
+   * ⛔ Ô NÀY THAY một ô đã chết, không phải sửa kỳ vọng cho xanh. Chiều của thay
+   * đổi là NỚI, và nó phải đọc ra được từ đây — xem
+   * `rules/pinned-baseline-test-companion.md`.
+   *
+   * Bản trước: `chặn khi không có mục tiêu bắt buộc nào`, dựng mọi mục tiêu với
+   * `required: false` và đòi cổng ĐỎ. Bất biến đó chết theo quyết định #20:
+   * `ObjectiveFormState` không còn `required` để mà đếm, nên ô cũ không chỉ lệch
+   * mà còn không biểu diễn được.
+   *
+   * Đây cũng là vế CLIENT của phép gộp hai cổng lệch nghĩa (plan §0.4): máy chủ
+   * (`server/problems/publish-gate.ts`) đã hỏi `objectives.length === 0` từ 18.B,
+   * và ô này khẳng định client nay hỏi cùng một câu.
+   */
+  it('chặn bài KHÔNG CÓ mục tiêu nào — cùng câu hỏi máy chủ đang hỏi', () => {
     const form = validForm();
-    const issues = publishIssues({
-      ...form,
-      objectives: form.objectives.map((objective) => ({ ...objective, required: false })),
-    });
+    const issues = publishIssues({ ...form, objectives: [] });
     expect(issues.some((issue) => issue.path === 'objectives')).toBe(true);
+    // Đối chứng dương, và là ca mà cổng CŨ từ chối: một mục tiêu duy nhất,
+    // không có khái niệm "bắt buộc", PHẢI xuất bản được. Thiếu vế này thì một cổng
+    // từ chối MỌI bài cũng làm vế trên xanh.
+    expect(publishIssues(form).some((issue) => issue.path === 'objectives')).toBe(false);
+  });
+
+  /*
+   * Ô giữ chính chỗ đổi nghĩa nguy hiểm nhất của §18.D.2: `visible` KHÔNG được
+   * đứng vào chỗ `required` cũ. Một testcase ẨN vẫn là một testcase chặn, nên nó
+   * không được làm cổng xuất bản đỏ — nếu ô này đỏ thì đâu đó vừa ánh xạ
+   * `visible: false` thành "không bắt buộc".
+   */
+  it('testcase ẨN vẫn xuất bản được — ẩn khác với không bắt buộc', () => {
+    const form = validForm();
+    const hidden = {
+      ...form,
+      objectives: form.objectives.map((objective) => ({ ...objective, visible: false })),
+    };
+    expect(publishIssues(hidden).some((issue) => issue.path === 'objectives')).toBe(false);
   });
 
   it('chặn khi vị từ không có trong bảng tra', () => {
@@ -90,7 +120,7 @@ describe('cổng xuất bản', () => {
       ...form,
       objectives: [
         {
-          ...(form.objectives[0] ?? { key: 't', id: 'x', label: 'y', required: true }),
+          ...(form.objectives[0] ?? { key: 't', id: 'x', label: 'y', visible: true }),
           key: nextKey(),
           check: 'pod-running',
           args: { namespace: 'default' },

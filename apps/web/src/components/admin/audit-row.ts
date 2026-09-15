@@ -37,12 +37,20 @@ export function describeAuditAction(action: string): string {
 }
 
 export function describeAuditTarget(targetType: string, targetId: string): string {
+  /*
+   * `class` thêm 2026-09-14 (§18.F). Không có nhánh này thì ba hành động lớp
+   * học hiện ra trong bảng nhật ký là chữ `class` trần — rơi về nhánh cuối, tức
+   * KHÔNG hỏng, chỉ lạc quẻ giữa một bảng toàn tiếng Việt. Đó đúng là loại lỗi
+   * không ai báo và cũng không ai sửa.
+   */
   const type =
     targetType === 'user'
       ? t('admin.audit-target.user')
       : targetType === 'session'
         ? t('admin.audit-target.session')
-        : targetType;
+        : targetType === 'class'
+          ? t('admin.audit-target.class')
+          : targetType;
   return targetId.trim() === ''
     ? t('admin.audit.target-unknown-id', { type })
     : t('admin.audit.target', { type, id: targetId });

@@ -30,7 +30,12 @@ export function countWords(markdown: string): number {
  */
 export interface PublishCandidate {
   readonly statement: string;
-  readonly objectives: readonly { readonly id: string; readonly required: boolean }[];
+  /**
+   * Testcase của bài (cột `objectives` — xem chú thích cột ở `schema.ts` về vì
+   * sao tên cột giữ nguyên). Chỉ cần `id`: cổng này hỏi "có case nào không" và
+   * "id có trùng không", không hỏi nội dung.
+   */
+  readonly objectives: readonly { readonly id: string }[];
   readonly hints: readonly { readonly id: string }[];
 }
 
@@ -45,11 +50,26 @@ export function publishIssues(body: PublishCandidate): readonly z.core.$ZodIssue
       input: body.statement,
     });
   }
-  if (!body.objectives.some((objective) => objective.required)) {
+  /*
+   * ⚠ ĐỔI NGHĨA Ở 18.B, ghi lại vì đây là một cổng bị NỚI chứ không phải một
+   * dòng dọn dẹp. Bản cũ hỏi `objectives.some((o) => o.required)`.
+   *
+   * Quyết định #20 của thiết kế bỏ hẳn khái niệm mục tiêu-không-bắt-buộc:
+   * *"Objective = testcase"*, và `core/problem.ts` § `Testcase` nói thẳng vì sao
+   * `required` không còn — *"một testcase thì luôn chặn — đó là nghĩa của `AC`"*.
+   * Một vị từ đọc `required` trên dữ liệu mới luôn ra `undefined`, tức cổng sẽ
+   * từ chối xuất bản MỌI bài soạn theo mô hình mới. Giữ nguyên là hỏng, không
+   * phải là an toàn.
+   *
+   * Cái mất: một bài CŨ có objective nhưng không cái nào `required` nay xuất bản
+   * được. Dưới mô hình mới thì đó là đúng — mọi case đều chặn — nên nó không
+   * phải một lỗ hổng mà là hệ quả trực tiếp của #20.
+   */
+  if (body.objectives.length === 0) {
     issues.push({
       code: 'custom',
       path: ['objectives'],
-      message: 'Cần ít nhất một mục tiêu bắt buộc — không có thì bài không chấm được',
+      message: 'Cần ít nhất một testcase — không có thì bài không chấm được',
       input: body.objectives,
     });
   }

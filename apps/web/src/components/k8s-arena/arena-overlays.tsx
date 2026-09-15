@@ -15,7 +15,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import type { Level, NodeView, ObjectView } from '@devops-platform/games';
-import { computeScore } from '@devops-platform/games';
 import type { ArenaModeContext, CameraCommand, QualityTier, ScreenPoint } from './arena-contract';
 import type { ArenaSessionHandle } from './arena-session';
 import { ArenaAnnouncer } from './arena-announcer';
@@ -32,6 +31,8 @@ import { MetricsPanel } from './hud/metrics-panel';
 import { HeaderMetrics } from './hud/header-metrics';
 import { useMetricsHistory } from './hud/use-metrics-history';
 import { recordRun } from './level-progress';
+import { buildRunResult } from './run-result';
+import { ProblemSubmitPanel } from './hud/problem-submit-panel';
 import { IncidentsPanel } from './hud/incidents-panel';
 import { Minimap } from './hud/minimap';
 import { SettingsPanel } from './hud/settings-panel';
@@ -183,6 +184,28 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
 
   useRecordWin(level, engine, props.startedAt);
   /*
+   * ⛔ `useProblemSubmit` KHÔNG còn được gọi ở đây — chuyển vào
+   * `ProblemSubmitPanel`, thứ chỉ mount ở chế độ bài tập. Review đối kháng
+   * 2026-09-15 đo ra vì sao, và nó là một lỗi CÓ TỪ TRƯỚC ba commit của lượt
+   * này chứ không phải một hồi quy của chúng:
+   *
+   * Hook gọi `api.useUtils()`, và `@trpc/react-query@11.18.0` NÉM
+   * `"Unable to find tRPC Context"` khi không có provider (đo trực tiếp bằng
+   * `renderHook`, không suy từ tài liệu). `app/games/layout.tsx` cố ý không cấp
+   * provider, nên ở chế độ LEVEL — đường `/games/k8s` không có `?problem=` —
+   * lời gọi vô điều kiện ấy làm cả đấu trường ném ngay lúc render.
+   *
+   * Chú thích cũ ở đây khai *"hook tự trả `idle` khi `mode.problem` là `null`"*.
+   * Lời khai đó sai: hook ném ở dòng `api.useUtils()`, tức TRƯỚC khi tới được
+   * nhánh trả `idle`. Một chú thích mô tả một nhánh không với tới được là cách
+   * một lỗi sống sót qua nhiều lượt đọc.
+   *
+   * Luật hook vẫn nguyên: hook được gọi VÔ ĐIỀU KIỆN bên trong
+   * `ProblemSubmitPanel`; thứ có điều kiện là việc RENDER panel — React cho
+   * phép, và đó là khuôn duy nhất vừa giữ luật hook vừa không đòi provider ở
+   * chế độ level.
+   */
+  /*
    * Lịch sử số liệu thu ở ĐÂY, không thu trong `MetricsPanel`. Dải trên thanh
    * trên cùng luôn hiện nên mẫu phải được thu dù bảng có mở hay không; thu ở hai
    * nơi là thu thừa một nơi. Xem `use-metrics-history.ts`.
@@ -243,6 +266,8 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
         guardIds={engine.guardObjectiveIds}
         hints={level.hints}
         hintsRevealed={engine.hintsRevealed}
+        hintReveals={mode.hintReveals}
+        onRevealHint={mode.onRevealHint}
         codexAvailable={mode.codexAvailable}
         hintsCostPoints={mode.hintsCostPoints}
         dispatch={engine.dispatch}
@@ -356,6 +381,15 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
           className="pointer-events-auto absolute bottom-20 left-1/2 z-20 -translate-x-1/2"
         />
       ) : null}
+
+      {/*
+        Panel tự gọi `useProblemSubmit` — xem khối chú thích ở chỗ `useRecordWin`.
+        Nó chỉ mount ở chế độ bài tập, và chế độ đó là cây con DUY NHẤT có
+        `TrpcQueryProvider` (`arena-problem.tsx` tự cấp).
+      */}
+      {mode.mode === 'problem' ? (
+        <ProblemSubmitPanel engine={engine} mode={mode} startedAt={props.startedAt} />
+      ) : null}
     </div>
   );
 }
@@ -379,25 +413,12 @@ function useRecordWin(level: Level, engine: ArenaSessionHandle, startedAt: numbe
       return;
     }
     writtenRef.current = true;
-    recordRun({
-      gameId: 'k8s',
-      levelId: level.id,
-      seed: engine.seed,
-      startedAt,
-      finishedAt: Date.now(),
-      objectivesMet: engine.status.objectivesMet,
-      objectivesTotal: level.objectives.length,
-      commandsUsed: engine.status.movesUsed,
-      hintsUsed: engine.status.hintsRevealed,
-      score: computeScore({
-        objectivesMet: engine.status.objectivesMet.length,
-        objectivesTotal: level.objectives.length,
-        movesUsed: engine.status.movesUsed,
-        parMoves: level.parMoves,
-        hintsUsed: engine.status.hintsRevealed,
-        hintsAvailable: level.hints.length,
-      }),
-    });
+    /*
+     * Cùng một phép dựng với `claimed` của lượt nộp — xem `run-result.ts`. Hai
+     * bản dựng song song lệch trong im lặng, và phần lệch chỉ lộ ra dưới dạng
+     * một verdict `CE` "phát lại ra kết quả khác".
+     */
+    recordRun(buildRunResult(level, engine, startedAt, Date.now()));
     /*
      * `engine.status` cố ý KHÔNG nằm trong mảng phụ thuộc: nó đổi danh tính mỗi
      * nhịp, và effect này chỉ quan tâm tới đúng khoảnh khắc pha chuyển sang

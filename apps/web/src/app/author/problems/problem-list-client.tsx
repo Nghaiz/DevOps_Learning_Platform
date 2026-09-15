@@ -16,15 +16,25 @@ import {
   TabsList,
   TabsTrigger,
 } from '@devops-platform/ui';
+import type { inferRouterOutputs } from '@trpc/server';
 import { t } from '@devops-platform/copy';
-import {
-  PROBLEM_DIFFICULTY_LABELS,
-  PROBLEM_TOPIC_LABELS,
-  type ProblemWithStats,
-} from '@devops-platform/games';
+import { PROBLEM_DIFFICULTY_LABELS } from '@devops-platform/games';
+import type { AppRouter } from '../../../server/trpc/routers/app-router';
 import { api } from '../../../lib/trpc-react';
 import { describeTrpcError } from '../../../lib/trpc';
-import { DIFFICULTY_BADGE, STATE_BADGE, STATE_FILTERS, STATE_KEYS, filterLabelKey, type StateFilter } from './problem-labels';
+import { DIFFICULTY_BADGE, STATE_BADGE, STATE_FILTERS, STATE_KEYS, filterLabelKey, joinTopicLabels, type StateFilter } from './problem-labels';
+
+/**
+ * Một hàng ĐÚNG NHƯ NÓ TỚI QUA DÂY.
+ *
+ * Bản trước nhận `ProblemWithStats` của `packages/games` — kiểu của thời
+ * K8s-một-game. `problems.mine` nay trả DTO game-neutral (`gameId`, `testcases`,
+ * `initialState: unknown`), nên kiểu cũ không còn nhận nổi thứ chính máy chủ
+ * gửi. Suy từ router là khuôn đang dùng ở chín trang client khác của app, và nó
+ * làm chuyện này không lặp lại: hợp đồng đổi lần nữa thì chỗ này đi theo, không
+ * cần ai nhớ.
+ */
+type AuthorProblemRow = inferRouterOutputs<AppRouter>['problems']['mine']['items'][number];
 
 /**
  * `/author/problems` — bài OJ của tôi.
@@ -75,7 +85,7 @@ export function ProblemListClient(): ReactElement {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
+    <div className="practice-catalog">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('author.problem.list.title')}</h1>
@@ -170,7 +180,7 @@ export function ProblemListClient(): ReactElement {
   );
 }
 
-function ProblemRow({ row }: { readonly row: ProblemWithStats }): ReactElement {
+function ProblemRow({ row }: { readonly row: AuthorProblemRow }): ReactElement {
   const { problem, stats } = row;
 
   return (
@@ -191,9 +201,15 @@ function ProblemRow({ row }: { readonly row: ProblemWithStats }): ReactElement {
           </div>
           <p className="text-sm text-muted-foreground">
             <code className="font-mono">{problem.code}</code>
+            {/*
+              `joinTopicLabels` chứ không tra thẳng bảng: `topics` nay là
+              `ProblemTopicId` (chuỗi mờ) nên bảng nhãn K8s không còn phủ hết,
+              và một phép tra hụt đi qua `join(', ')` sẽ in ra chuỗi
+              `"undefined"` giữa câu. Lý do đầy đủ ở `problem-labels.ts`.
+            */}
             {problem.topics.length > 0 &&
               t('author.problem.list.row-topics', {
-                topics: problem.topics.map((topic) => PROBLEM_TOPIC_LABELS[topic]).join(', '),
+                topics: joinTopicLabels(problem.topics),
               })}
           </p>
           <p className="text-xs text-muted-foreground">

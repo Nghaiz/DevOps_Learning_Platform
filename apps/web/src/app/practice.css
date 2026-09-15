@@ -1,0 +1,1283 @@
+/* Shared workspace system. Game canvases retain their own semantic palettes. */
+/*
+ * ⚠ Khối `:root` dưới đây nạp SAU `globals.css` (`app/layout.tsx`) và ghi đè
+ * hệ token PTIT trên MỌI trang, không chỉ trang practice. Giá trị đã chuyển về
+ * `globals.css` làm SSOT (khối `--workspace-*`); ở đây chỉ còn phép GÁN VAI
+ * TRÒ. Việc hợp nhất hai hệ token là một thay đổi thiết kế riêng — xem chú
+ * thích ở `globals.css`.
+ */
+:root {
+  --background: var(--workspace-background);
+  --foreground: var(--workspace-foreground);
+  --card: var(--workspace-card);
+  --card-foreground: var(--workspace-foreground);
+  --popover: var(--workspace-card);
+  --popover-foreground: var(--workspace-foreground);
+  --primary: var(--workspace-primary);
+  --primary-foreground: var(--workspace-primary-foreground);
+  --secondary: var(--workspace-secondary);
+  --secondary-foreground: var(--workspace-secondary-foreground);
+  --muted: var(--workspace-secondary);
+  --muted-foreground: var(--workspace-muted-foreground);
+  --accent: var(--workspace-accent);
+  --accent-foreground: var(--workspace-accent-foreground);
+  --border: var(--workspace-border);
+  --input: var(--workspace-input);
+  --ring: var(--workspace-primary);
+  --workspace-sidebar: 224px;
+  --workspace-header: 68px;
+  --art-surface: var(--art-surface-default);
+  /*
+   * Mực chữ của nhãn trên tấm nền artwork, TÁCH khỏi `color` của chính tấm nền.
+   *
+   * `color` ở đó là `currentColor` mà SVG artwork vẽ theo (stroke/fill với
+   * opacity .08–.6), nên làm tối nó để đạt tương phản sẽ đổi luôn hình vẽ. Nhãn
+   * là chữ thật và phải qua ngưỡng AA; nét artwork là trang trí (`aria-hidden`)
+   * và không bị đo. Hai việc khác nhau ⇒ hai biến.
+   *
+   * Khai ở `:root` để biến luôn phân giải được kể cả khi markup đổi và nhãn
+   * không còn nằm trong `.practice-game-art` — một `var()` không phân giải sẽ
+   * rơi về màu kế thừa, và đó đúng là cách lỗi tương phản quay lại trong im lặng.
+   */
+  --art-label: var(--art-ink-k8s);
+}
+/*
+ * GIỮ khối này dù mọi dòng nay giống hệt `:root`: nếu xoá, `--background` chỉ
+ * còn được gán ở `<html>`, nên một `.dark` đặt trên phần tử CON sẽ đổi được
+ * `--workspace-*` mà không đổi được vai trò đã gán bên trên — nền sáng, chữ
+ * sáng. Gán lại tại đúng phần tử mang `.dark` là thứ khép lại lỗ đó.
+ */
+.dark {
+  --background: var(--workspace-background);
+  --foreground: var(--workspace-foreground);
+  --card: var(--workspace-card);
+  --card-foreground: var(--workspace-foreground);
+  --popover: var(--workspace-card);
+  --popover-foreground: var(--workspace-foreground);
+  --primary: var(--workspace-primary);
+  --primary-foreground: var(--workspace-primary-foreground);
+  --secondary: var(--workspace-secondary);
+  --secondary-foreground: var(--workspace-secondary-foreground);
+  --muted: var(--workspace-secondary);
+  --muted-foreground: var(--workspace-muted-foreground);
+  --accent: var(--workspace-accent);
+  --accent-foreground: var(--workspace-accent-foreground);
+  --border: var(--workspace-border);
+  --input: var(--workspace-input);
+  --ring: var(--workspace-primary);
+}
+.practice-shell {
+  min-height: 100dvh;
+  padding-left: var(--workspace-sidebar);
+}
+.practice-shell * {
+  min-width: 0;
+}
+.practice-main {
+  min-height: calc(100dvh - var(--workspace-header));
+  outline: none;
+}
+.practice-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--workspace-sidebar);
+  z-index: 42;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+}
+.practice-brand {
+  height: 88px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 22px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+}
+.practice-brand > span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 42px;
+  border-radius: 12px;
+  color: var(--primary);
+  background: var(--accent);
+}
+.practice-brand small {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 1.7px;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.practice-navigation {
+  padding: 4px 14px 20px;
+  overflow-y: auto;
+}
+.practice-navigation section + section {
+  margin-top: 24px;
+}
+.practice-navigation h2 {
+  padding: 4px 12px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  color: var(--muted-foreground);
+}
+.practice-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  min-height: 44px;
+  margin: 3px 0;
+  border-radius: 8px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  transition:
+    background 160ms,
+    color 160ms;
+}
+.practice-nav-item:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+.practice-nav-item.is-active {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  box-shadow: inset 3px 0 var(--primary);
+}
+.practice-personal {
+  margin-top: 24px;
+}
+.practice-sidebar-bottom {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 24px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.practice-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+}
+.practice-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: var(--workspace-header);
+  padding: 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.practice-topbar-title,
+.practice-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+}
+.practice-topbar-title > span {
+  color: var(--muted-foreground);
+}
+.practice-topbar-title strong {
+  font-weight: 500;
+}
+/*
+ * Khối nhận diện khi nó nằm trong THANH ĐẦU TRANG chứ không trong thanh bên.
+ *
+ * Bốn màn xác thực (`/login`, `/register`, `/forgot-password`,
+ * `/reset-password`) render `<Brand/>` vào `.practice-topbar-title`
+ * (`app-shell.tsx`, nhánh `auth`), nên nó mang theo số đo của một thanh bên
+ * rộng 224px: `padding: 22px` bốn phía và `height: 88px` — đặt vào một thanh
+ * cao 68px.
+ *
+ * Hệ quả ĐO ĐƯỢC ở khung 390px, trước lượt sửa này: khối nhận diện chiếm 234px
+ * và KHÔNG co được (tên thương hiệu không có `text-overflow` nên chiều rộng
+ * min-content của nó chính là 234px), nên toàn bộ phần thiếu dồn sang
+ * `.practice-topbar-actions`: hộp còn 116px trong khi nút "Giao diện" + nút
+ * "Đăng nhập" cần 135px. Phần 19px thừa tràn qua mép phải và đẩy
+ * `document.documentElement.scrollWidth` lên 397 — đúng 7px tràn mà
+ * `responsive.spec.ts` báo trên cả bốn màn. Trang chủ `/` KHÔNG tràn vì ở đó
+ * thanh đầu trang render `<span class="practice-brand-short">` chứ không render
+ * `.practice-brand`.
+ *
+ * Hai vế dưới đây, và vì sao cả hai đều cần:
+ *
+ * · `padding: 0; height: auto` — trả lại 44px bề ngang mà thanh bên mượn vào
+ *   đây, và thôi dựng một khối cao 88px bên trong một thanh cao 68px. Đây là
+ *   thứ làm cho ở 390px KHÔNG phần tử nào phải co: 12 + 190 + 16 + 135 + 12.
+ * · `min-width: 0` + cắt bớt tên — là thứ GÁC, không phải thứ làm đẹp. Nó hạ
+ *   min-content của khối nhận diện xuống bằng bề ngang của icon, nên dù màn
+ *   hẹp hơn 390px hay chữ dài ra, phần thiếu được chia cho CẢ hai bên thay vì
+ *   dồn hết sang actions. Thiếu vế này thì lần sau chữ dài thêm là lỗi quay
+ *   lại y hệt, và không cổng nào kêu cho tới lượt e2e.
+ *
+ * ⛔ KHÔNG sửa bằng `.practice-topbar-actions { flex: 0 0 auto }`: vế đó chuyển
+ * phần tràn từ actions sang title, và title vẫn không có `text-overflow` nên
+ * `scrollWidth` không đổi. Nó cũng đụng MỌI màn đã đăng nhập (actions ở đó chở
+ * `UserMenu` + chỉ báo sức chứa), tức đổi bố cục 28 route đang xanh để sửa 4
+ * route đang đỏ.
+ */
+.practice-topbar .practice-brand {
+  height: auto;
+  padding: 0;
+}
+.practice-topbar .practice-brand > div {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.practice-topbar .practice-brand small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.practice-mobile-trigger {
+  display: none !important;
+}
+.practice-skip {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  transform: translateY(-160%);
+  z-index: 100;
+  padding: 12px 20px;
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+}
+.practice-skip:focus {
+  transform: translateY(0);
+}
+.practice-auth {
+  padding-left: 0;
+}
+.practice-immersive {
+  padding: 0;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.practice-immersive .practice-main {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.practice-home,
+.practice-catalog {
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 36px;
+}
+.practice-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 34px;
+}
+.practice-eyebrow {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  font-weight: 600;
+}
+.practice-heading h1 {
+  margin: 10px 0;
+  font-size: clamp(25px, 2.25vw, 36px);
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -1.25px;
+}
+.practice-heading p:not(.practice-eyebrow) {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.practice-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 44px;
+  cursor: pointer;
+}
+.practice-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 282px;
+  gap: 28px;
+  align-items: start;
+}
+.practice-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.practice-section-heading h2,
+.practice-shortcuts h2,
+.practice-studio-card h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.practice-section-heading > span {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.practice-discovery {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.practice-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.practice-filter button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--muted-foreground);
+}
+.practice-filter button[aria-pressed='true'] {
+  color: var(--foreground);
+  background: var(--card);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--workspace-shadow-ink) 9.4118%, transparent);
+}
+.practice-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  background: var(--card);
+  border-radius: 8px;
+  color: var(--muted-foreground);
+}
+.practice-search:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.practice-search input {
+  width: 145px;
+  font-size: 16px;
+  background: transparent;
+  outline: none;
+}
+.practice-game-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.practice-game {
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  transition:
+    transform 180ms,
+    box-shadow 180ms;
+}
+.practice-game:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--workspace-lift-ink) 7.0588%, transparent);
+}
+.practice-game-art {
+  position: relative;
+  min-height: 188px;
+  padding-top: 32px;
+  background: var(--art-surface-k8s);
+  color: var(--art-ink-k8s);
+  --art-surface: var(--art-surface-k8s);
+  /* --art-ink-k8s (#3a6457) trên --art-surface-k8s (#e5ece7) = 5.567:1 — đạt AA. */
+  --art-label: var(--art-ink-k8s);
+}
+.game-git .practice-game-art {
+  background: var(--art-surface-git);
+  color: var(--art-ink-git);
+  --art-surface: var(--art-surface-git);
+  /*
+   * ⛔ KHÔNG dùng lại #986746 cho chữ: #986746 trên #f3e8dc chỉ được **3.985:1**,
+   * dưới ngưỡng AA 4.5:1 cho chữ thường — đúng vi phạm `[serious] color-contrast`
+   * mà axe báo trên `.game-git > .practice-game-art > .practice-game-label` ở cả
+   * bốn trang `/`, `/me`, `/games`, `/games/k8s`.
+   *
+   * #7d5436 trên cùng nền = **5.445:1**. Chọn mức này thay vì mức vừa đủ (#8a5c3c
+   * = 4.729:1) để biên không sát ngưỡng, và để hai thẻ game cân nhau về độ đậm
+   * chữ (5.445 so với 5.567 của thẻ k8s).
+   *
+   * Cả hai theme ra CÙNG con số: khối này dùng màu cứng và `.dark` không hề đè
+   * lên nó (`.dark` chỉ xuất hiện một lần trong file, ở khối token đầu trang).
+   */
+  --art-label: var(--art-label-git);
+}
+.practice-game-label {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  font-weight: 600;
+  color: var(--art-label);
+}
+.game-artwork {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.practice-play {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--art-play-scrim);
+}
+.practice-game-info {
+  padding: 20px;
+}
+.practice-game-info h3 {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.6px;
+  margin: 6px 0 10px;
+}
+.practice-game-info p {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.8;
+  min-height: 44px;
+}
+.practice-game-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
+.practice-game-footer > span {
+  color: var(--muted-foreground);
+}
+.practice-game-footer strong {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--primary);
+  font-weight: 600;
+}
+.practice-upcoming {
+  margin-top: 30px;
+}
+.practice-upcoming h3 {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.practice-upcoming > div {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 4px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.practice-upcoming small {
+  display: block;
+  font-size: 10px;
+  margin-top: 3px;
+}
+.practice-soon {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.practice-footnote {
+  margin-top: 18px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.practice-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.practice-challenge {
+  background: var(--challenge-surface);
+  color: var(--challenge-ink);
+  border-radius: 14px;
+  padding: 26px;
+}
+.practice-icon {
+  display: inline-flex;
+  padding: 10px;
+  border: 1px solid var(--challenge-border);
+  border-radius: 10px;
+  margin-bottom: 26px;
+  color: var(--challenge-icon);
+}
+.practice-challenge .practice-eyebrow {
+  color: var(--challenge-eyebrow);
+  font-size: 9px;
+}
+.practice-challenge h2 {
+  font-size: 25px;
+  letter-spacing: -0.8px;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 12px 0;
+}
+.practice-challenge > p:not(.practice-eyebrow) {
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--challenge-body);
+}
+.practice-challenge a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 25px;
+  padding: 12px 14px;
+  background: var(--challenge-cta);
+  color: var(--challenge-surface);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.practice-shortcuts,
+.practice-studio-card {
+  padding: 4px 2px;
+}
+.practice-shortcuts h2 {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.practice-shortcuts a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.practice-shortcuts a > svg:first-child {
+  color: var(--muted-foreground);
+}
+.practice-shortcuts a > svg:last-child {
+  margin-left: auto;
+}
+.practice-shortcuts small {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  margin-top: 4px;
+}
+.practice-studio-card {
+  border: 1px dashed var(--input);
+  padding: 20px;
+  border-radius: 12px;
+}
+.practice-studio-card h2 {
+  margin: 10px 0;
+  font-size: 13px;
+}
+.practice-studio-card a {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0;
+  font-size: 12px;
+  color: var(--primary);
+}
+.practice-empty {
+  min-height: 230px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--card);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+.practice-catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.practice-catalog > header {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.practice-catalog > header h1 {
+  font-size: clamp(26px, 2.4vw, 34px);
+  line-height: 1.4;
+  letter-spacing: -1px;
+  font-weight: 600;
+}
+.practice-catalog > header p {
+  max-width: 65ch;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  line-height: 1.8;
+}
+.practice-main [data-slot='table-container'] {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+.practice-main table {
+  background: var(--card);
+  font-size: 13px;
+}
+.practice-main thead {
+  background: var(--muted);
+}
+.practice-main th {
+  font-size: 11px;
+  font-weight: 600;
+}
+.practice-main td,
+.practice-main th {
+  padding: 16px;
+}
+.practice-main tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 35%, var(--card));
+}
+.practice-main [data-slot='card'] {
+  box-shadow: none;
+  border-radius: 12px;
+}
+.practice-main [data-slot='tabs-list'] {
+  height: auto;
+  gap: 4px;
+  padding: 5px;
+  background: var(--muted);
+  border-radius: 9px;
+}
+.practice-main [data-slot='tabs-trigger'] {
+  min-height: 40px;
+  border-radius: 6px;
+}
+.practice-main [data-slot='button'] {
+  border-radius: 8px;
+}
+.practice-main input:not([type='checkbox']):not([type='radio']),
+.practice-main select,
+.practice-main textarea {
+  font-size: 16px;
+}
+.practice-main textarea {
+  line-height: 1.8;
+}
+.practice-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.practice-editor > [data-slot='tabs'] {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.practice-editor > [data-slot='tabs'] > [data-slot='tabs-list'] {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  position: sticky;
+  top: 88px;
+  padding: 8px;
+}
+.practice-editor > [data-slot='tabs'] > [data-slot='tabs-list'] > button {
+  justify-content: flex-start;
+  padding: 12px;
+  white-space: normal;
+  text-align: left;
+}
+.practice-editor > [data-slot='tabs'] > [data-slot='tabs-content'] {
+  margin: 0;
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.practice-editor-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  z-index: 15;
+  box-shadow: 0 -5px 20px color-mix(in srgb, var(--workspace-shadow-ink) 3.1373%, transparent);
+}
+.practice-save-state {
+  margin-right: auto;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.practice-draft-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+.practice-draft-section h2 {
+  border: 0;
+  padding-bottom: 4px;
+  font-size: 16px;
+}
+.practice-exam-create {
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.practice-exam-create summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 32px;
+  font-size: 14px;
+}
+.practice-exam-create[open] summary {
+  margin-bottom: 20px;
+}
+.practice-exam-create form {
+  padding: 0;
+  border: 0;
+  gap: 22px;
+}
+.practice-shell :where(a, button, summary):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.practice-game-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.practice-game-switch button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 10px 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+.practice-game-switch button[aria-pressed='true'] {
+  color: var(--accent-foreground);
+  background: var(--accent);
+  border-color: var(--primary);
+  font-weight: 600;
+}
+.practice-advanced-filters {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+.practice-advanced-filters summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  padding: 8px 0;
+}
+.practice-advanced-filters[open] > div {
+  margin-top: 18px;
+}
+.practice-main .practice-problem-title {
+  white-space: normal;
+  min-width: 230px;
+  width: 44%;
+}
+.practice-problem-title a {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.practice-problem-title a span {
+  color: var(--muted-foreground);
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 400;
+}
+.practice-problem-title a strong {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+.practice-problem-title a:hover strong {
+  color: var(--primary);
+}
+.practice-problem-title p {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 400;
+  margin-top: 7px;
+}
+.practice-problem-tabs > [data-slot='tabs-content'] {
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  margin-top: 16px;
+}
+.practice-problem-tabs > [data-slot='tabs-list'] {
+  flex-wrap: wrap;
+}
+.practice-problem-detail {
+  max-width: 1160px;
+}
+.practice-lesson-editor {
+  max-width: 1120px;
+}
+.practice-exams {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 36px;
+}
+.practice-exams-heading {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.practice-exams-heading p {
+  margin-top: 8px;
+}
+.practice-exams-symbol {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  background: var(--accent);
+  color: var(--primary);
+  border-radius: 16px;
+}
+.practice-exam-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.practice-exam-card {
+  height: 100%;
+  border-top: 3px solid var(--primary);
+}
+.practice-exam-card [data-slot='card-header'] {
+  padding: 24px;
+}
+.practice-exam-card [data-slot='card-content'] {
+  padding: 0 24px 24px;
+}
+.practice-k8s-picker {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.practice-k8s-container {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 26px 40px 60px;
+}
+.practice-k8s-container > header {
+  position: relative;
+  margin-top: 18px;
+  padding: 34px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+.practice-chapter-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 26px;
+}
+.practice-chapter-nav a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+.practice-chapter-nav a:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.practice-k8s-chapters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.practice-k8s-chapter {
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  scroll-margin-top: 20px;
+}
+.practice-k8s-chapter ol {
+  margin-top: 20px;
+}
+.practice-arena-loading {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+.practice-shell .git-builder-content > section {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.practice-shell .git-builder-content > section h3 {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.practice-shell .git-builder-content label {
+  font-size: 12px;
+}
+.practice-shell .git-builder-content :is(input, textarea, select) {
+  min-height: 42px;
+  font-size: 16px;
+  border-radius: 7px;
+}
+.practice-pane-header {
+  box-shadow: inset 0 -1px color-mix(in srgb, var(--border) 35%, transparent);
+}
+.practice-creator-game {
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+.practice-creator-game legend {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.practice-creator-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.practice-creator-options label {
+  position: relative;
+  display: flex;
+  flex: 1 1 210px;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  border: 1px solid var(--border);
+  padding: 16px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.practice-creator-options label.is-selected {
+  border-color: var(--primary);
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.practice-creator-options input {
+  accent-color: var(--primary);
+  width: 16px;
+  height: 16px;
+}
+.practice-creator-options label:has(input:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.practice-creator-options label:has(input:disabled) {
+  cursor: default;
+}
+.practice-creator-options label > svg:last-child {
+  margin-left: auto;
+}
+.practice-creator-options small {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  margin-top: 3px;
+}
+.practice-creator-game p {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin-top: 12px;
+}
+.practice-markdown-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  margin: 12px 0;
+  background: var(--muted);
+  border-radius: 8px;
+}
+.practice-markdown-tools > span {
+  margin-left: auto;
+  padding-right: 8px;
+  font-family: monospace;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.practice-exam-sitting {
+  max-width: 1120px;
+}
+@media (max-width: 1100px) {
+  .practice-exam-grid,
+  .practice-k8s-chapters {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .practice-exams {
+    padding: 24px 16px;
+  }
+  .practice-exams-heading {
+    align-items: flex-start;
+  }
+  .practice-exams-symbol {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+  .practice-main .practice-table-secondary {
+    display: none;
+  }
+  .practice-k8s-container {
+    padding: 16px;
+  }
+  .practice-k8s-container > header,
+  .practice-k8s-chapter {
+    padding: 20px;
+  }
+  .practice-problem-tabs > [data-slot='tabs-content'] {
+    padding: 16px;
+  }
+}
+@media (min-width: 1500px) {
+  :root {
+    --workspace-sidebar: 244px;
+  }
+  .practice-home,
+  .practice-catalog {
+    padding: 44px 48px;
+  }
+  .practice-home-grid {
+    grid-template-columns: minmax(0, 1fr) 310px;
+    gap: 36px;
+  }
+}
+@media (max-width: 1180px) {
+  .practice-home-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .practice-aside {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .practice-challenge {
+    grid-row: span 2;
+  }
+  .practice-home,
+  .practice-catalog {
+    padding: 28px;
+  }
+  .practice-topbar {
+    padding: 0 28px;
+  }
+}
+/*
+ * Nav thu vào ngăn kéo ở ≤768px.
+ *
+ * ⛔ Con số này KHÔNG được tự chọn: nó là `NAV_COLLAPSE_MAX_PX` trong
+ * `components/shell/breakpoints.ts`, và `e2e/responsive.spec.ts` đo đúng biên
+ * 768/769 chứ không đo một cặp 375/1280 dễ dãi.
+ *
+ * Trước 2026-09-16 khối này là `max-width: 900px`. Ở 769px — ô ĐỐI CHỨNG ÂM của
+ * spec — media query cũ vẫn áp, nên `.practice-mobile-trigger` còn hiện
+ * (`inline-flex !important`) và `.practice-sidebar` còn ẩn: đúng thứ ô đó dựng
+ * ra để bắt. Một cặp đo 375/1280 sẽ xanh với cả 900px lẫn 768px, tức không gác
+ * được gì; biên là chỗ duy nhất phân biệt hai cài đặt.
+ *
+ * Đổi `NAV_COLLAPSE_MAX_PX` ⇒ phải đổi con số ở đây. Không có cơ chế nào bắt
+ * CSS đọc hằng TypeScript, nên ràng buộc này do spec giữ, không do trình biên dịch.
+ */
+@media (max-width: 768px) {
+  :root {
+    --workspace-sidebar: 0px;
+  }
+  /*
+   * `!important` ở đây là có chủ ý, không phải quán tính. `<aside>` này do lane
+   * vỏ ứng dụng render và có thể nhận thêm utility class của Tailwind; một
+   * `.flex` (hay thuộc tính `hidden` của HTML) đứng cạnh `display` của utility
+   * sẽ làm phần tử vẫn hiện mà KHÔNG báo gì — bẫy đã ghi trong sổ dự án. Nav
+   * ngang còn hiện ở khung hẹp nghĩa là hai bộ điều hướng cùng tồn tại và người
+   * dùng bàn phím Tab qua cả hai.
+   */
+  .practice-sidebar {
+    display: none !important;
+  }
+  .practice-mobile-trigger {
+    display: inline-flex !important;
+  }
+  .practice-mobile-drawer {
+    top: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+    height: 100dvh;
+    width: 290px;
+    max-width: 88vw;
+    border-radius: 0 !important;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 10px;
+  }
+  .practice-mobile-drawer > [data-slot='dialog-header'] {
+    padding: 0 14px 14px;
+  }
+  .practice-mobile-drawer .practice-navigation {
+    flex: 1;
+  }
+}
+@media (max-width: 600px) {
+  .practice-home,
+  .practice-catalog {
+    padding: 24px 16px;
+  }
+  .practice-heading {
+    display: block;
+    margin-bottom: 24px;
+  }
+  .practice-heading h1 {
+    font-size: 27px;
+  }
+  .practice-heading > .practice-link {
+    margin-top: 10px;
+  }
+  .practice-topbar {
+    padding: 0 12px;
+  }
+  .practice-breadcrumb,
+  .practice-capacity {
+    display: none;
+  }
+  .practice-topbar-title {
+    gap: 8px;
+  }
+  .practice-game-grid,
+  .practice-aside {
+    grid-template-columns: 1fr;
+  }
+  .practice-discovery {
+    flex-direction: column-reverse;
+  }
+  .practice-search input {
+    width: 100%;
+    min-height: 32px;
+  }
+  .practice-section-heading {
+    flex-wrap: wrap;
+  }
+  .practice-editor > [data-slot='tabs'] {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .practice-editor > [data-slot='tabs'] > [data-slot='tabs-list'] {
+    position: static;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .practice-editor > [data-slot='tabs'] > [data-slot='tabs-content'] {
+    width: 100%;
+    padding: 16px;
+  }
+  .practice-editor-actions {
+    padding: 12px;
+  }
+  .practice-save-state {
+    flex-basis: 100%;
+  }
+  .practice-draft-section {
+    padding: 16px;
+  }
+  .practice-exam-create {
+    padding: 16px;
+  }
+  .practice-exam-create form > div > div {
+    min-width: 0;
+    width: 100%;
+    flex-basis: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .practice-shell *,
+  .practice-shell *::before,
+  .practice-shell *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .practice-game:hover {
+    transform: none;
+  }
+}

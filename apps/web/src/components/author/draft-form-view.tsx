@@ -198,7 +198,7 @@ function Section({
   readonly children: ReactNode;
 }): ReactElement {
   return (
-    <section className="flex flex-col gap-4">
+    <section className="practice-draft-section">
       <h2 className="border-b border-border pb-2 text-lg font-semibold text-foreground">{title}</h2>
       {children}
     </section>

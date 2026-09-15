@@ -18,6 +18,13 @@ import { rateLimitTrustProxy } from './server/env';
 // đẩy về `/login` — hai lượt điều hướng, và lượt đầu tiết lộ rằng đường đó tồn
 // tại. Giữ lại là chặn ngay từ lượt đầu.
 //
+// 2026-09-16: `PRIMARY_NAV` nay mang cả sáu mục theo vai trò (STUDIO + QUẢN LÝ)
+// mà vỏ ứng dụng render, nên vòng lặp ở `proxy.test.ts` hỏi luôn về
+// `/author/problems`, `/admin/exams`, `/admin/classes`. Danh sách dưới đây
+// KHÔNG phải thêm dòng nào cho chúng: cả ba nằm dưới tiền tố `/author` và
+// `/admin` đã có, và `matchesProtected` so theo tiền tố. Thay đổi thật là cổng
+// nay KHẲNG ĐỊNH điều đó thay vì để nó đúng một cách tình cờ.
+//
 // ⛔ **Vai trò KHÔNG gác ở đây.** `/author` và `/admin` nằm trong danh sách này
 // chỉ để chặn khách vãng lai; phân biệt user/author/admin là việc của
 // `layout.tsx` phía server của chính hai nhánh đó (`getSession` + role →
@@ -33,6 +40,21 @@ const PROTECTED_PATHS = [
   '/playgrounds',
   '/paths',
   '/quiz',
+  /*
+   * `/problems` và `/exams` thêm 2026-09-15 (§18.G), và chúng vào đây vì một
+   * CỔNG đòi chứ không vì ai nhớ ra: `proxy.test.ts` khẳng định mọi mục trong
+   * `PRIMARY_NAV` đều được gác, nên lượt thêm hai mục nav đã làm nó đỏ với câu
+   * "thiếu /problems".
+   *
+   * `/problems` KHÔNG phải một đường mới. Nó tồn tại từ P16 và chỉ chưa bao giờ
+   * nằm trong danh sách này , chú thích ở `app/(session)/problems/page.tsx` đã
+   * ghi đúng điều đó và nói rằng thiếu nó chỉ mất lượt chuyển hướng SỚM. Câu ấy
+   * vẫn đúng: cổng thật là `redirect` trong Server Component cộng
+   * `protectedProcedure` ở tầng tRPC. Thêm vào đây là đóng nốt lượt chuyển
+   * hướng sớm, không phải vá một lỗ authz.
+   */
+  '/problems',
+  '/exams',
   '/me',
   '/settings',
   '/author',

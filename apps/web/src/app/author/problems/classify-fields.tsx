@@ -16,10 +16,8 @@ import {
 import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_DIFFICULTY_LABELS,
-  PROBLEM_TOPICS,
-  PROBLEM_TOPIC_LABELS,
   type ProblemDifficulty,
-  type ProblemTopic,
+  type ProblemTopicOption,
 } from '@devops-platform/games';
 import { TextField, issueFor } from '../../../components/author/field';
 import type { FieldIssue } from './cluster-form';
@@ -28,11 +26,24 @@ import { DIFFICULTY_BADGE } from './problem-labels';
 import { parseTags } from './text-tools';
 import { AllowedResourcesFields } from './allowed-resources-fields';
 
-/** Độ khó, chủ đề, tag, hạn giờ, và giới hạn loại tài nguyên. */
+/**
+ * Độ khó, chủ đề, tag, hạn giờ, và giới hạn loại tài nguyên.
+ *
+ * ## `topics` là THAM SỐ, không phải một hằng import
+ *
+ * Bản trước đọc thẳng `PROBLEM_TOPICS` của K8s, nên mọi bài của mọi game sẽ
+ * chọn chủ đề trong một danh sách nói về Pod. `core/problem.ts` đã chuyển tập
+ * đóng xuống từng plugin đúng vì chuyện đó; component này nhận tập đã tra sẵn
+ * từ `pluginViewFor(gameId)` và không tự biết game nào đang mở.
+ */
 export function ClassifyFields(props: {
   readonly form: ProblemFormState;
   readonly onChange: (patch: Partial<ProblemFormState>) => void;
   readonly issues: readonly FieldIssue[];
+  /** Tập chủ đề ĐÓNG của game đang chọn. Rỗng khi game chưa có plugin. */
+  readonly topics: readonly ProblemTopicOption[];
+  /** Plugin của game đang chọn có `seedSpec` không — xem `GamePluginView.canSeed`. */
+  readonly canSeed: boolean;
 }): ReactElement {
   const tags = parseTags(props.form.tagsText);
 
@@ -77,20 +88,25 @@ export function ClassifyFields(props: {
         <legend className="text-sm font-medium text-foreground">
           {t('problem.classify-fields-chu-de-chon-1-den-3')}
         </legend>
+        {props.topics.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            {t('author.problem.game.no-topics')}
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {PROBLEM_TOPICS.map((topic) => (
+          {props.topics.map((option) => (
             <TopicBox
-              key={topic}
-              topic={topic}
-              checked={props.form.topics.includes(topic)}
+              key={option.id}
+              option={option}
+              checked={props.form.topics.includes(option.id)}
               // Khoá các ô CHƯA chọn khi đã đủ ba: chặn trước rẻ hơn là cho bấm
               // rồi mới báo lỗi ở cổng xuất bản.
-              disabled={!props.form.topics.includes(topic) && props.form.topics.length >= 3}
+              disabled={!props.form.topics.includes(option.id) && props.form.topics.length >= 3}
               onToggle={(next) => {
                 props.onChange({
                   topics: next
-                    ? [...props.form.topics, topic]
-                    : props.form.topics.filter((value) => value !== topic),
+                    ? [...props.form.topics, option.id]
+                    : props.form.topics.filter((value) => value !== option.id),
                 });
               }}
             />
@@ -167,18 +183,56 @@ export function ClassifyFields(props: {
         )}
       />
 
+      {/*
+        §18.D.6 — cờ `seedable`, và câu giải thích phải nói ĐÚNG SỰ THẬT HÔM NAY.
+
+        ⛔ `GameProblemPlugin.seedSpec` là TUỲ CHỌN và **không plugin nào khai
+        nó** (`core/problem-plugin.ts` nói thẳng vậy). Nên hôm nay không game nào
+        sinh được đề theo seed, và một ô đánh dấu bật được sẽ là một lời hứa
+        chưa có gì thực hiện: bài khai `seedable: true` đi vào một kỳ thi
+        `per-student` sẽ phát CÙNG MỘT đề cho mọi sinh viên, im lặng, vì nó
+        không lỗi ở đâu cả (§18.G.3).
+
+        Vô hiệu hoá kèm lý do thay vì ẩn hẳn: ẩn thì người soạn không biết khái
+        niệm này tồn tại, và sẽ đi hỏi. Biên ghi cũng từ chối `seedable: true`
+        cho game không có `seedSpec` — giao diện không phải cổng.
+      */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <Switch
+            id="problem-seedable"
+            checked={props.form.seedable}
+            disabled={!props.canSeed}
+            onCheckedChange={(checked) => {
+              props.onChange({ seedable: checked });
+            }}
+          />
+          <Label
+            htmlFor="problem-seedable"
+            className={props.canSeed ? undefined : 'text-muted-foreground'}
+          >
+            {t('author.problem.seedable.label')}
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {props.canSeed
+            ? t('author.problem.seedable.available')
+            : t('author.problem.seedable.unavailable')}
+        </p>
+      </div>
+
       <AllowedResourcesFields form={props.form} onChange={props.onChange} issues={props.issues} />
     </section>
   );
 }
 
 function TopicBox(props: {
-  readonly topic: ProblemTopic;
+  readonly option: ProblemTopicOption;
   readonly checked: boolean;
   readonly disabled: boolean;
   readonly onToggle: (next: boolean) => void;
 }): ReactElement {
-  const id = `topic-${props.topic}`;
+  const id = `topic-${props.option.id}`;
   return (
     <div className="flex items-center gap-2">
       <Checkbox
@@ -190,7 +244,7 @@ function TopicBox(props: {
         }}
       />
       <Label htmlFor={id} className={props.disabled ? 'text-muted-foreground' : undefined}>
-        {PROBLEM_TOPIC_LABELS[props.topic]}
+        {props.option.label}
       </Label>
     </div>
   );

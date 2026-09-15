@@ -14,6 +14,7 @@ import {
 import { Button, MarkdownView, cn } from '@devops-platform/ui';
 import type { Objective } from '@devops-platform/games';
 import type { ArenaDispatch } from '../arena-contract.ts';
+import type { HintReveal } from '../../../lib/use-hint-reveal';
 
 export interface MissionCardProps {
   readonly open: boolean;
@@ -45,6 +46,20 @@ export interface MissionCardProps {
   readonly guardIds: readonly string[];
   readonly hints: readonly string[];
   readonly hintsRevealed: number;
+  /**
+   * `ArenaModeContext.hintReveals` — chữ xin được từ máy chủ, theo chỉ số.
+   *
+   * Ở chế độ `problem`, `hints` toàn CHUỖI RỖNG: `problems.byCode` che chữ của
+   * gợi ý chưa mở (§18.B.4). Nên chữ thật đọc từ đây, và `hints` chỉ còn dùng để
+   * biết bài có BAO NHIÊU gợi ý.
+   */
+  readonly hintReveals: ReadonlyMap<number, HintReveal>;
+  /**
+   * `ArenaModeContext.onRevealHint`. `null` ở chế độ `level` — chữ đã có sẵn.
+   *
+   * ⛔ Trả `null` ⇒ ĐỪNG bắn action `hint`. Xem `lib/use-hint-reveal.ts`.
+   */
+  readonly onRevealHint: ((index: number) => Promise<string | null>) | null;
   /** `ArenaModeContext.codexAvailable`. `false` ⇒ KHÔNG render nút mở tra cứu. */
   readonly codexAvailable: boolean;
   /** `ArenaModeContext.hintsCostPoints`. `true` ở chế độ làm bài — nói giá TRƯỚC khi người chơi bấm. */
@@ -76,6 +91,8 @@ export function MissionCard({
   guardIds,
   hints,
   hintsRevealed,
+  hintReveals,
+  onRevealHint,
   codexAvailable,
   hintsCostPoints,
   dispatch,
@@ -102,8 +119,25 @@ export function MissionCard({
    */
   const required = goals.filter((objective) => objective.required);
   const doneCount = required.filter((objective) => met.has(objective.id)).length;
-  const lastHint = hintsRevealed > 0 ? (hints[hintsRevealed - 1] ?? null) : null;
+  /*
+   * Chữ của gợi ý vừa mở: ưu tiên bản xin từ máy chủ, rơi về `hints` cho chế độ
+   * `level`.
+   *
+   * Thứ tự này KHÔNG đảo được. Ở chế độ `problem`, `hints[i]` là chuỗi rỗng chứ
+   * không phải `undefined`, nên `hints[i] ?? reveal` sẽ luôn chọn chuỗi rỗng và
+   * dựng lại đúng con bọ đang đi sửa — người chơi trả điểm, nhận ô trống.
+   */
+  const revealedText = hintReveals.get(hintsRevealed - 1);
+  const lastHint =
+    hintsRevealed > 0
+      ? revealedText?.phase === 'ready'
+        ? revealedText.text
+        : (hints[hintsRevealed - 1] ?? null)
+      : null;
   const hasMoreHints = hintsRevealed < hints.length;
+  /* Trạng thái của gợi ý ĐANG xin — chỉ số `hintsRevealed`, chưa vào nhật ký. */
+  const pendingReveal = hintReveals.get(hintsRevealed);
+  const dangXin = pendingReveal?.phase === 'pending';
 
   return (
     <section
@@ -176,12 +210,24 @@ export function MissionCard({
             </div>
           )}
 
-          {lastHint === null ? null : (
+          {lastHint === null || lastHint === '' ? null : (
             <p className="rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">Gợi ý {hintsRevealed}: </span>
               {lastHint}
             </p>
           )}
+
+          {/*
+            Xin hỏng thì NÓI RA. Bản trước im lặng, và hệ quả là người chơi bấm
+            một nút "trừ điểm" rồi không thấy gì — không phân biệt được "mạng
+            hỏng" với "gợi ý này rỗng". `role="alert"` vì nó là phản hồi trực
+            tiếp cho cú bấm vừa rồi.
+          */}
+          {pendingReveal?.phase === 'error' ? (
+            <p role="alert" className="rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+              Không mở được gợi ý: {pendingReveal.message}
+            </p>
+          ) : null}
 
           <div className="flex gap-2">
             {/* Ở chế độ làm bài không có ngăn tra cứu — không render nút, vì một nút bấm không phản ứng tệ hơn là không có nút. */}
@@ -195,13 +241,36 @@ export function MissionCard({
               size="sm"
               variant="ghost"
               className="flex-1"
-              disabled={!hasMoreHints}
-              onClick={() => dispatch({ gameId: 'k8s', tick: getTick(), kind: 'hint', index: hintsRevealed })}
+              disabled={!hasMoreHints || dangXin}
+              onClick={() => {
+                const index = hintsRevealed;
+                /*
+                 * Chế độ `level`: chữ nằm sẵn trong `LEVELS`, bắn action là xong.
+                 */
+                if (onRevealHint === null) {
+                  dispatch({ gameId: 'k8s', tick: getTick(), kind: 'hint', index });
+                  return;
+                }
+                /*
+                 * Chế độ `problem`: XIN TRƯỚC, được chữ mới trừ điểm. Bắn action
+                 * trước rồi mới gọi sẽ để lại một lượt trừ điểm mà máy chủ không
+                 * ghi nhận khi lời gọi hỏng — xem `use-hint-reveal.ts`.
+                 *
+                 * `getTick()` gọi SAU khi chữ về: dấu tick phải là lúc hành động
+                 * thật sự vào nhật ký, không phải lúc người chơi bấm chuột.
+                 */
+                void onRevealHint(index).then((text) => {
+                  if (text === null) return;
+                  dispatch({ gameId: 'k8s', tick: getTick(), kind: 'hint', index });
+                });
+              }}
             >
               <Lightbulb className="size-3.5" aria-hidden />
-              {hasMoreHints
-                ? `Gợi ý ${hintsRevealed + 1}/${hints.length}${hintsCostPoints ? ' · trừ điểm' : ''}`
-                : 'Hết gợi ý'}
+              {dangXin
+                ? 'Đang mở gợi ý…'
+                : hasMoreHints
+                  ? `Gợi ý ${hintsRevealed + 1}/${hints.length}${hintsCostPoints ? ' · trừ điểm' : ''}`
+                  : 'Hết gợi ý'}
             </Button>
           </div>
         </div>

@@ -17,34 +17,19 @@ import { describe, expect, it } from 'vitest';
 import { GIT_LEVELS, findGitLevel, gitLevelsOfChapter } from './levels/index.ts';
 import { GIT_LEVEL_IDS, theoryIdForLevel } from './level-ids.ts';
 import { GIT_PREDICATE_NAMES, evaluateObjectives, verdictOf } from './predicates.ts';
-import { runCommands } from './engine.ts';
 import { buildWorld } from './world-spec.ts';
 import { GIT_VERBS } from './command-table.ts';
-import type { GitLevel } from './contract.ts';
+import { checkSolvable } from './solvability.ts';
 
-/** Chạy một chuỗi lệnh và trả verdict + chẩn đoán đọc được khi đỏ. */
-function judge(level: GitLevel, commands: readonly string[]): {
-  readonly accepted: boolean;
-  readonly diagnosis: string;
-} {
-  const run = runCommands(level, commands);
-  const target = level.target === undefined ? null : buildWorld(level.target, 1);
-  const results = evaluateObjectives(run.world, target, level.objectives);
-  const verdict = verdictOf(results);
-
-  const failed = results.filter((r) => r.required && !r.met).map((r) => `${r.id} (${r.label})`);
-  const errs = run.errors.map((e) => `  "${e.command}" → [${e.error.code}] ${e.error.message}`);
-
-  const diagnosis = [
-    `level ${level.id}: ${verdict.passedCount}/${verdict.totalCount} testcase`,
-    failed.length > 0 ? `  testcase đỏ: ${failed.join(', ')}` : '',
-    errs.length > 0 ? `  lệnh lỗi:\n${errs.join('\n')}` : '',
-  ]
-    .filter((s) => s !== '')
-    .join('\n');
-
-  return { accepted: verdict.accepted, diagnosis };
-}
+/*
+ * Hàm `judge()` từng nằm ở đây đã chuyển thành `checkSolvable` (§18.E.7,
+ * `git/solvability.ts`) — CÙNG một cỗ máy, không phải một bản sao.
+ *
+ * Level Builder cần đúng phép đo này cho level người dùng vừa dựng. Giữ hai bản
+ * là tạo ra hai định nghĩa của "level này qua được", và chúng sẽ trôi khỏi nhau.
+ * Hệ quả có lợi và là lý do chính: phép kiểm mà Builder chạy cho level của bạn
+ * LÀ đúng phép kiểm mà 32 level dưới đây đi qua.
+ */
 
 describe('cấu trúc 32 level', () => {
   it('đúng 32 level, khớp level-ids.ts cả số lượng lẫn thứ tự', () => {
@@ -153,7 +138,7 @@ describe('cấu trúc 32 level', () => {
 describe('AC-8 — solutionCommands của cả 32 level đều AC', () => {
   for (const level of GIT_LEVELS) {
     it(`${level.id}`, () => {
-      const r = judge(level, level.solutionCommands);
+      const r = checkSolvable(level, level.solutionCommands);
       expect(r.accepted, r.diagnosis).toBe(true);
     });
   }
@@ -162,7 +147,7 @@ describe('AC-8 — solutionCommands của cả 32 level đều AC', () => {
 describe('AC-9 — altSolutionCommands cũng AC, chứng minh chấm theo TRẠNG THÁI', () => {
   for (const level of GIT_LEVELS) {
     it(`${level.id}`, () => {
-      const r = judge(level, level.altSolutionCommands);
+      const r = checkSolvable(level, level.altSolutionCommands);
       expect(r.accepted, r.diagnosis).toBe(true);
     });
   }

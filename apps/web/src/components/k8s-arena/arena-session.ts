@@ -27,6 +27,7 @@ import type {
   DispatchOutcome,
   K8sGameAction,
   K8sEngineSession,
+  K8sRunLog,
   Level,
   ResourceRef,
   SessionStatus,
@@ -68,6 +69,22 @@ export interface ArenaSessionHandle {
    */
   readonly manifest: (uid: string) => string | null;
   readonly getTick: () => number;
+  /**
+   * Nhật ký đầy đủ của lượt đang chơi — thứ `problems.submit` chấm lại.
+   *
+   * ⛔ KHÔNG dựng lại nhật ký ở tầng React. Engine đã giữ đúng một bản
+   * (`K8sSession.getLog()`), và một bản thứ hai ghép từ các hành động React
+   * nhìn thấy sẽ thiếu đúng những hành động không đi qua React — nhịp tự sinh
+   * sự cố, lệnh gõ trong terminal. Máy chủ phát lại bản thiếu đó ra một trạng
+   * thái khác với thứ người chơi vừa thấy, và verdict trả về là `CE`
+   * `khong-khop`: người chơi bị báo "phát lại ra kết quả khác" vì một lỗi của
+   * chúng ta.
+   *
+   * `null` khi phiên chưa dựng xong (effect chạy sau lần render đầu). Chỗ gọi
+   * phải xử được, không được `!` — một lượt nộp lúc đó là một lượt nộp không có
+   * gì để chấm.
+   */
+  readonly getLog: () => K8sRunLog | null;
   /**
    * Số gợi ý đã mở. Lấy thẳng từ `SessionStatus.hintsRevealed` của engine.
    *
@@ -192,6 +209,13 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
   const getTick = useCallback((): number => sessionRef.current?.getView().tick ?? 0, []);
 
   /*
+   * Đọc qua ref, cùng lý do với `sceneGetView`: hàm này được gọi TRONG effect
+   * nộp bài, và một tham chiếu đổi theo từng nhịp engine sẽ làm effect đó chạy
+   * lại — tức nộp bài nhiều lần cho một lượt chơi.
+   */
+  const getLog = useCallback((): K8sRunLog | null => sessionRef.current?.getLog() ?? null, []);
+
+  /*
    * Hạt giống LÀ hạt giống của phiên. Phân loại phải chạy trên đúng chuỗi ngẫu
    * nhiên mà người chơi đang thấy — một hạt giống khác cho ra một đợt sự cố
    * khác, và một mục tiêu có thể đổi nhóm theo đó.
@@ -239,6 +263,7 @@ export function useArenaSession(level: Level): ArenaSessionHandle {
     describe,
     manifest,
     getTick,
+    getLog,
     hintsRevealed: status.hintsRevealed,
     guardObjectiveIds,
     speed,

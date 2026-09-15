@@ -205,7 +205,6 @@ const KNOWN_UNCALLED: Readonly<Record<string, string>> = {
     [
       'common.action.close',
       'common.action.edit',
-      'common.action.retry',
       'common.action.back',
       'common.action.prev',
       'common.action.copy',

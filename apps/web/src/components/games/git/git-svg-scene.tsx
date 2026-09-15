@@ -57,7 +57,16 @@
  * `Home`/`End` và bằng mũi tên đi theo cạnh, tức đường đi ngắn luôn có sẵn.
  */
 
-import { useCallback, useId, useMemo, useRef, type KeyboardEvent, type ReactElement } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  type KeyboardEvent,
+  type ReactElement,
+} from 'react';
+import { motion, useReducedMotion } from '@devops-platform/motion/react';
 import { cn } from '@devops-platform/ui';
 import {
   laneLabels,
@@ -78,15 +87,15 @@ import { ACCENT_STYLE, EDGE_STYLE, REF_STYLE, REPO_LABEL, cssVar } from './git-p
 // Lưới — px. Đây là nơi DUY NHẤT ô lưới của `core/layout/` thành pixel.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const NODE_W = 104;
-const NODE_H = 44;
+const NODE_W = 124;
+const NODE_H = 60;
 /** Bước ngang một tầng. Lớn hơn `NODE_W` để còn khe cho nhãn làn lặp lại. */
-const DEPTH_STEP = 148;
-const LANE_STEP = 84;
+const DEPTH_STEP = 176;
+const LANE_STEP = 144;
 /** Cột trái giữ nhãn làn đầy đủ. */
-const GUTTER = 92;
-const PAD_TOP = 38;
-const PAD_BOTTOM = 24;
+const GUTTER = 112;
+const PAD_TOP = 106;
+const PAD_BOTTOM = 48;
 /** Khoảng trống giữa hai kho. Đủ rộng để đọc ra "hai khối", không phải "một khối có kẻ". */
 const REPO_GAP = 88;
 const BADGE_H = 20;
@@ -198,7 +207,10 @@ export function navigateFrom(
   // ↑ / ↓ — làn liền kề, kể cả sang kho bên cạnh.
   const rank = (n: ScenePlacedNode): number => REPO_ORDER[n.node.repo] * 1_000_000 + n.lane;
   const here = rank(current);
-  const wanted = key === 'ArrowUp' ? Math.max(...ranksBelow(placed, here)) : Math.min(...ranksAbove(placed, here));
+  const wanted =
+    key === 'ArrowUp'
+      ? Math.max(...ranksBelow(placed, here))
+      : Math.min(...ranksAbove(placed, here));
   if (!Number.isFinite(wanted)) return null;
 
   const band = placed.filter((n) => rank(n) === wanted);
@@ -209,12 +221,16 @@ export function navigateFrom(
 }
 
 function ranksBelow(placed: readonly ScenePlacedNode[], here: number): number[] {
-  const all = placed.map((n) => REPO_ORDER[n.node.repo] * 1_000_000 + n.lane).filter((r) => r < here);
+  const all = placed
+    .map((n) => REPO_ORDER[n.node.repo] * 1_000_000 + n.lane)
+    .filter((r) => r < here);
   return all.length === 0 ? [Number.NEGATIVE_INFINITY] : all;
 }
 
 function ranksAbove(placed: readonly ScenePlacedNode[], here: number): number[] {
-  const all = placed.map((n) => REPO_ORDER[n.node.repo] * 1_000_000 + n.lane).filter((r) => r > here);
+  const all = placed
+    .map((n) => REPO_ORDER[n.node.repo] * 1_000_000 + n.lane)
+    .filter((r) => r > here);
   return all.length === 0 ? [Number.POSITIVE_INFINITY] : all;
 }
 
@@ -240,10 +256,7 @@ function isNavKey(key: string): key is NavKey {
  * Hai renderer mô tả khác nhau là một lỗi a11y mà không cổng nào bắt được —
  * axe chỉ kiểm có nhãn hay không, không kiểm hai nhãn có khớp nhau không.
  */
-export function commitAriaLabel(
-  placed: ScenePlacedNode,
-  refNames: readonly string[],
-): string {
+export function commitAriaLabel(placed: ScenePlacedNode, refNames: readonly string[]): string {
   const node = placed.node;
   const parts = [
     `Commit ${node.shortOid}: ${node.message}`,
@@ -269,10 +282,10 @@ export function commitAriaLabel(
  * gì để kêu, và trình duyệt chạy cả bốn trên compositor.
  */
 const MOTION_CSS = `
-.gitscene-pulse { animation: gitscene-pulse 2s var(--ease-out) infinite; transform-box: fill-box; transform-origin: center; }
+.gitscene-pulse { animation: gitscene-pulse 2s var(--ease-out) 2; transform-box: fill-box; transform-origin: center; }
 .gitscene-pop { animation: gitscene-pop var(--motion-slow) var(--ease-out) 1; transform-box: fill-box; transform-origin: center; }
 .gitscene-shake { animation: gitscene-shake 520ms var(--ease-out) 2; transform-box: fill-box; transform-origin: center; }
-@keyframes gitscene-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes gitscene-pulse { 0%, 100% { filter: drop-shadow(0 0 2px var(--primary)); } 50% { filter: drop-shadow(0 0 9px var(--primary)); } }
 @keyframes gitscene-pop { from { transform: scale(0.82); } to { transform: scale(1); } }
 @keyframes gitscene-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
 @media (prefers-reduced-motion: reduce) {
@@ -293,11 +306,14 @@ const MOTION_CLASS = {
 
 export interface GitSvgSceneProps extends SceneProps {
   readonly className?: string;
+  readonly effects?: boolean;
 }
 
 export function GitSvgScene(props: GitSvgSceneProps): ReactElement {
   const { view, layouts, interaction, label, className } = props;
   const baseId = useId();
+  const reducedPreference = useReducedMotion();
+  const reduced = reducedPreference || props.effects === false;
   const titleId = `${baseId}-title`;
   const descId = `${baseId}-desc`;
   const nodeRefs = useRef(new Map<SceneNodeId, SVGGElement>());
@@ -361,6 +377,31 @@ export function GitSvgScene(props: GitSvgSceneProps): ReactElement {
     [interaction, placed],
   );
 
+  useEffect(() => {
+    if (interaction.selectedId === null) return;
+    const target = nodeRefs.current.get(interaction.selectedId);
+    /*
+     * ⚠ `scrollIntoView` KHÔNG phải thứ luôn có mặt.
+     *
+     * Trên trình duyệt thật nó nằm ở `Element`, nên một `SVGGElement` có nó.
+     * jsdom thì KHÔNG cài — nên mỗi lượt render với `selectedId` khác `null`
+     * ném `not a function` và làm đỏ một ô chẳng liên quan gì tới cuộn.
+     *
+     * Guard đặt ở ĐÂY, không phải một stub trong file setup dùng chung của
+     * vitest, và đó là một khác biệt về thứ còn nghe được: một stub toàn cục
+     * gắn `scrollIntoView` lên MỌI phần tử, nên nó nuốt luôn trường hợp
+     * `nodeRefs` giữ một thứ không phải node commit (ref callback đăng ký
+     * nhầm, hoặc một entry cũ chưa được dọn). Guard cục bộ chỉ bỏ qua đúng
+     * cái nó biết là thiếu, và để nguyên mọi hỏng hóc khác.
+     */
+    if (target === undefined || typeof target.scrollIntoView !== 'function') return;
+    target.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+      behavior: reduced ? 'auto' : 'smooth',
+    });
+  }, [interaction.selectedId, reduced]);
+
   const summary = describeGraph(view.nodes.length, edges.length, regions.length, view.detached);
 
   return (
@@ -375,6 +416,37 @@ export function GitSvgScene(props: GitSvgSceneProps): ReactElement {
       <title id={titleId}>{label ?? 'Đồ thị commit của kho Git'}</title>
       <desc id={descId}>{summary}</desc>
       <style>{MOTION_CSS}</style>
+      <defs>
+        <linearGradient id={baseId + '-lane'}>
+          <stop stopColor="var(--git-zone, var(--primary))" stopOpacity=".12" />
+          <stop offset="1" stopColor="var(--git-zone, var(--primary))" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <g aria-hidden="true">
+        {regions.map((region) => (
+          <g key={region.repo}>
+            <rect
+              x={0}
+              y={region.top - 80}
+              width={width}
+              height={regionHeight(region.layout) + 96}
+              rx={20}
+              fill={'url(#' + baseId + '-lane)'}
+            />
+            {Array.from({ length: Math.max(1, region.layout.laneCount) }, (_, lane) => (
+              <line
+                key={lane}
+                x1={GUTTER - 10}
+                y1={laneY(region.top, lane) + NODE_H / 2}
+                x2={width - 20}
+                y2={laneY(region.top, lane) + NODE_H / 2}
+                stroke="var(--git-border, var(--border))"
+                strokeDasharray="2 10"
+              />
+            ))}
+          </g>
+        ))}
+      </g>
 
       {/* Cạnh vẽ TRƯỚC node để node luôn nằm trên, không bị nét cắt ngang chữ. */}
       <g aria-hidden="true">
@@ -416,14 +488,25 @@ export function GitSvgScene(props: GitSvgSceneProps): ReactElement {
               data-edge={edge.key}
               data-routed={routed === undefined || routed === null ? 'fallback' : 'layout'}
             >
-              <path
+              <motion.path
+                initial={{ pathLength: reduced ? 1 : 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: reduced ? 0 : 0.65 }}
                 d={d}
                 fill="none"
                 stroke={cssVar(style.stroke)}
                 strokeWidth={style.width}
-                strokeLinecap="square"
-                strokeLinejoin="miter"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 {...(style.dash === null ? {} : { strokeDasharray: style.dash })}
+              />
+              <path
+                className="git-edge-flow"
+                d={d}
+                fill="none"
+                stroke="var(--git-zone, var(--primary))"
+                strokeWidth={2}
+                strokeLinecap="round"
               />
               {style.joint ? (
                 <circle cx={from[0]} cy={from[1]} r={4} fill={cssVar(style.stroke)} />
@@ -453,7 +536,8 @@ function describeGraph(
   repoCount: number,
   detached: boolean,
 ): string {
-  const kho = repoCount > 1 ? 'hai kho tách rời: kho trên máy bạn và kho từ xa' : 'một kho duy nhất';
+  const kho =
+    repoCount > 1 ? 'hai kho tách rời: kho trên máy bạn và kho từ xa' : 'một kho duy nhất';
   const head = detached
     ? 'HEAD đang ở trạng thái detached — nó trỏ thẳng vào một commit, không qua nhánh nào.'
     : 'HEAD đang trỏ vào một nhánh.';
@@ -474,7 +558,7 @@ function RepoRegion({
   onKeyDown,
 }: {
   readonly region: Region;
-  readonly props: SceneProps;
+  readonly props: GitSvgSceneProps;
   readonly placed: readonly ScenePlacedNode[];
   readonly nodeRefs: React.RefObject<Map<SceneNodeId, SVGGElement>>;
   readonly onKeyDown: (event: KeyboardEvent<SVGGElement>, id: SceneNodeId) => void;
@@ -487,7 +571,7 @@ function RepoRegion({
     <g role="group" aria-label={`${region.label}, ${mine.length} commit`}>
       <text
         x={8}
-        y={region.top - 14}
+        y={region.top - 61}
         fill={cssVar('--muted-foreground')}
         fontSize={12}
         fontWeight={600}
@@ -527,6 +611,7 @@ function RepoRegion({
         <CommitNode
           key={spot.id}
           spot={spot}
+          effects={props.effects !== false}
           top={region.top}
           refs={refsAt(view, region.repo, spot.node.oid)}
           selected={interaction.selectedId === spot.id}
@@ -548,6 +633,7 @@ function RepoRegion({
 
 function CommitNode({
   spot,
+  effects,
   top,
   refs,
   selected,
@@ -558,6 +644,7 @@ function CommitNode({
   register,
 }: {
   readonly spot: ScenePlacedNode;
+  readonly effects: boolean;
   readonly top: number;
   readonly refs: readonly SceneRefBadge[];
   readonly selected: boolean;
@@ -568,103 +655,189 @@ function CommitNode({
   readonly register: (el: SVGGElement | null) => void;
 }): ReactElement {
   const style = ACCENT_STYLE[spot.node.accent];
-  const x = columnX(spot.depth);
-  const y = laneY(top, spot.lane);
+  const reducedPreference = useReducedMotion();
+  const reduced = reducedPreference || !effects;
+  /*
+   * Gốc toạ độ TƯƠNG ĐỐI của hộp node — luôn (0,0), và đó là cố ý: vị trí
+   * tuyệt đối do `motion.g` bao ngoài mang, để commit còn TRƯỢT được sang chỗ
+   * mới khi đồ thị xếp lại sau một lệnh git. Đừng đọc `x`/`y` ở đây thành "node
+   * nằm đâu" — muốn biết chỗ thì đọc `data-node-y` công bố dưới.
+   */
+  const x = 0;
+  const y = 0;
+  const laneColor = [
+    'var(--git-teal, var(--primary))',
+    'var(--git-violet, var(--status-progress))',
+    'var(--git-gold, var(--warning))',
+    'var(--git-coral, var(--destructive))',
+  ][spot.lane % 4];
   const rx = style.shape === 'sharp' ? 1 : 8;
   const dashed = style.shape === 'dashed';
 
   return (
-    <g
-      ref={register}
-      role="button"
-      tabIndex={0}
-      aria-pressed={selected}
-      aria-label={commitAriaLabel(
-        spot,
-        refs.map((r) => `${REF_STYLE[r.kind].label} ${r.shortName}`),
-      )}
-      className={cn('cursor-pointer outline-none', MOTION_CLASS[style.motion])}
-      onClick={() => onSelect(selected ? null : spot.id)}
-      onKeyDown={(event) => onKeyDown(event, spot.id)}
-      onFocus={() => onHover(spot.id)}
-      onBlur={() => onHover(null)}
-      onMouseEnter={() => onHover(spot.id)}
-      onMouseLeave={() => onHover(null)}
+    <motion.g
+      initial={false}
+      animate={{ x: columnX(spot.depth), y: laneY(top, spot.lane) }}
+      transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 170, damping: 24 }}
     >
-      {/* `stacked` = hai tờ giấy chồng lên nhau; kênh hình học của trạng thái "bản sao". */}
-      {style.shape === 'stacked' ? (
+      <g
+        ref={register}
+        role="button"
+        tabIndex={0}
+        aria-pressed={selected}
+        /*
+         * Hộp TUYỆT ĐỐI của node, công bố ra DOM. Cùng họ với `data-edge` /
+         * `data-routed` ở trên: một thuộc tính tồn tại để một hồi quy vô hình
+         * trở thành đỏ được.
+         *
+         * Vì sao cần: vị trí của node nằm trong `transform` của `motion.g`
+         * BÊN NGOÀI, còn mọi `rect` bên trong dùng toạ độ TƯƠNG ĐỐI so với
+         * hộp (halo ở -9, mặt ở 0). Nên một phép đo đọc `rect` đầu tiên chỉ
+         * đọc được hai hằng số giống hệt nhau ở mọi node — nó trả cùng một số
+         * dù hai kho cách nhau 172px hay chồng khít lên nhau. Ô "hai kho tách
+         * rời" đọc hai thuộc tính này thay vì đoán vị trí từ `rect`.
+         *
+         * ⛔ Đừng thay bằng cách đọc `style.transform` của thẻ cha: chuỗi đó
+         * do framer-motion sinh và đổi dạng được (translate → matrix) mà không
+         * báo ai. Hai thuộc tính này thì lane này sở hữu.
+         */
+        data-node-y={laneY(top, spot.lane)}
+        data-node-h={NODE_H}
+        aria-label={commitAriaLabel(
+          spot,
+          refs.map((r) => `${REF_STYLE[r.kind].label} ${r.shortName}`),
+        )}
+        className={cn('cursor-pointer outline-none', MOTION_CLASS[style.motion])}
+        onClick={() => onSelect(selected ? null : spot.id)}
+        onKeyDown={(event) => onKeyDown(event, spot.id)}
+        onFocus={() => onHover(spot.id)}
+        onBlur={() => onHover(null)}
+        onMouseEnter={() => onHover(spot.id)}
+        onMouseLeave={() => onHover(null)}
+      >
+        <title>{spot.node.message + ' · ' + spot.node.author}</title>
+        <ellipse
+          cx={NODE_W / 2}
+          cy={NODE_H + 11}
+          rx={NODE_W / 2 + 10}
+          ry={13}
+          fill="var(--git-abyss, var(--background))"
+        />
+        <path
+          d={
+            'M-8 ' +
+            (NODE_H - 1) +
+            ' L' +
+            NODE_W / 2 +
+            ' ' +
+            (NODE_H + 19) +
+            ' L' +
+            (NODE_W + 8) +
+            ' ' +
+            (NODE_H - 1)
+          }
+          fill="var(--git-raised, var(--muted))"
+          stroke={laneColor}
+          strokeWidth={1}
+        />
         <rect
-          x={x + 5}
-          y={y - 5}
+          className="git-node-halo"
+          x={-9}
+          y={-9}
+          width={NODE_W + 18}
+          height={NODE_H + 18}
+          rx={16}
+          stroke={laneColor}
+          strokeWidth={6}
+        />
+        {/* `stacked` = hai tờ giấy chồng lên nhau; kênh hình học của trạng thái "bản sao". */}
+        {style.shape === 'stacked' ? (
+          <rect
+            x={x + 5}
+            y={y - 5}
+            width={NODE_W}
+            height={NODE_H}
+            rx={rx}
+            fill={cssVar(style.fill)}
+            stroke={cssVar(style.stroke)}
+            strokeWidth={style.strokeWidth}
+          />
+        ) : null}
+
+        {/* `ringed` = vòng ngoài đồng tâm; kênh hình học của "HEAD ở đây". */}
+        {style.shape === 'ringed' ? (
+          <rect
+            x={x - 5}
+            y={y - 5}
+            width={NODE_W + 10}
+            height={NODE_H + 10}
+            rx={rx + 3}
+            fill="none"
+            stroke={cssVar(style.stroke)}
+            strokeWidth={1.5}
+          />
+        ) : null}
+
+        <rect
+          className="git-node-surface"
+          x={x}
+          y={y}
           width={NODE_W}
           height={NODE_H}
           rx={rx}
           fill={cssVar(style.fill)}
-          stroke={cssVar(style.stroke)}
-          strokeWidth={style.strokeWidth}
+          stroke={cssVar(selected || hovered ? '--ring' : style.stroke)}
+          strokeWidth={selected ? style.strokeWidth + 1.5 : style.strokeWidth}
+          {...(dashed ? { strokeDasharray: '5 4' } : {})}
         />
-      ) : null}
 
-      {/* `ringed` = vòng ngoài đồng tâm; kênh hình học của "HEAD ở đây". */}
-      {style.shape === 'ringed' ? (
-        <rect
-          x={x - 5}
-          y={y - 5}
-          width={NODE_W + 10}
-          height={NODE_H + 10}
-          rx={rx + 3}
-          fill="none"
-          stroke={cssVar(style.stroke)}
-          strokeWidth={1.5}
-        />
-      ) : null}
-
-      <rect
-        x={x}
-        y={y}
-        width={NODE_W}
-        height={NODE_H}
-        rx={rx}
-        fill={cssVar(style.fill)}
-        stroke={cssVar(selected || hovered ? '--ring' : style.stroke)}
-        strokeWidth={selected ? style.strokeWidth + 1.5 : style.strokeWidth}
-        {...(dashed ? { strokeDasharray: '5 4' } : {})}
-      />
-
-      <text
-        x={x + 10}
-        y={y + 18}
-        fill={cssVar(style.text)}
-        fontSize={12}
-        fontFamily="var(--font-mono, monospace)"
-      >
-        {spot.node.shortOid}
-      </text>
-      <text x={x + 10} y={y + 34} fill={cssVar(style.text)} fontSize={11}>
-        {truncate(spot.node.message, 15)}
-      </text>
-      {style.sigil === '' ? null : (
+        <rect x={x + 10} y={y + 44} width={25} height={3} rx={1.5} fill={laneColor} />
+        <circle cx={NODE_W - 14} cy={NODE_H - 14} r={3} fill={laneColor} />
         <text
-          x={x + NODE_W - 9}
-          y={y + 16}
-          textAnchor="end"
+          x={x + 10}
+          y={y + 18}
           fill={cssVar(style.text)}
-          fontSize={13}
-          fontWeight={700}
+          fontSize={12}
+          fontFamily="var(--font-mono, monospace)"
         >
-          {style.sigil}
+          {spot.node.shortOid}
         </text>
-      )}
+        <text x={x + 10} y={y + 34} fill={cssVar(style.text)} fontSize={11}>
+          {truncate(spot.node.message, 18)}
+        </text>
+        {style.sigil === '' ? null : (
+          <text
+            x={x + NODE_W - 9}
+            y={y + 16}
+            textAnchor="end"
+            fill={cssVar(style.text)}
+            fontSize={13}
+            fontWeight={700}
+          >
+            {style.sigil}
+          </text>
+        )}
 
-      {refs.map((ref, index) => (
-        <RefBadge
-          key={ref.name}
-          badge={ref}
-          x={x}
-          y={y - BADGE_H - BADGE_GAP - index * (BADGE_H + BADGE_GAP)}
-        />
-      ))}
-    </g>
+        {refs.slice(0, 2).map((ref, index) => (
+          <RefBadge
+            key={ref.name}
+            badge={ref}
+            x={x}
+            y={y - BADGE_H - BADGE_GAP - index * (BADGE_H + BADGE_GAP)}
+          />
+        ))}
+        {refs.length > 2 && (
+          <text
+            x={NODE_W + 6}
+            y={-10}
+            fontSize={10}
+            fill="var(--git-muted, var(--muted-foreground))"
+          >
+            +{refs.length - 2} refs
+          </text>
+        )}
+      </g>
+    </motion.g>
   );
 }
 
@@ -680,7 +853,7 @@ function RefBadge({
   readonly y: number;
 }): ReactElement {
   const style = REF_STYLE[badge.kind];
-  const text = badge.shortName;
+  const text = truncate(badge.shortName, 17);
   const width = 14 + text.length * 6.6 + (badge.isCurrent ? 12 : 0);
   const notch = style.shape === 'notched' ? 7 : 0;
 

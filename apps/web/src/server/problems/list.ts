@@ -1,18 +1,24 @@
 import { asc, desc, eq, getTableColumns, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type {
+  ProblemHintTeaser,
   ProblemListOptions,
   ProblemOrderKey,
-  ProblemPage,
-  ProblemWithStats,
+  ProblemStats,
+  ProblemViewerStatus,
 } from '@devops-platform/games';
 import type { Database } from '../db/client';
 import { problems } from '../db/schema';
 import { MAX_LIST_LIMIT } from '../trpc/init';
 import { decodeProblemCursor, encodeProblemCursor } from './cursor';
-import { toProblemDTO } from './dto';
+import { toProblemDTO, type StoredProblem } from './dto';
 import { afterCursorWhere, filterWhere } from './list-where';
 import { revealedHintsFor } from './reveals';
-import { toSolverProblem } from './solver';
+import {
+  toHintTeasers,
+  toSolverProblem,
+  type SolverProblemPage,
+  type SolverProblemWithStats,
+} from './solver';
 import { problemStatsSubquery, toProblemStats, toViewerStatus, viewerStatusSubquery } from './stats-sql';
 import {
   allOf,
@@ -34,6 +40,41 @@ export interface ListProblemsInput {
 }
 
 /**
+ * Hình dạng mà đường NGƯỜI SOẠN (`problems.mine`) nhận.
+ *
+ * ⚠ Khai tại đây chứ không lấy `ProblemWithStats` của `packages/games`, và đó là
+ * hệ quả trực tiếp của 18.A chạm tới tầng kho lưu — không phải một kiểu đẻ thêm
+ * cho vui. `ProblemWithStats` dựng trên `Problem` của K8s, kiểu còn khai
+ * `objectives` và `topics: readonly ProblemTopic[]`; `toProblemDTO` nay trả
+ * `StoredProblem` (game-neutral) với `testcases` và `topics: readonly string[]`.
+ * Giữ tên cũ ở đây là để một kiểu nói dối về giá trị nó mô tả.
+ *
+ * ⛔ `testcases` ĐẦY ĐỦ (còn `check`/`args`), KHÁC hẳn `SolverProblem`. Đó là
+ * hành vi hôm nay và nó KHÔNG phải một lỗ rò: `mine` là `authorProcedure` và đã
+ * chặn phạm vi về bài của chính người gọi (`admin` thấy mọi bài — vẫn là người
+ * được phép đọc cách chấm). Lỗ rò là đường của NGƯỜI HỌC, và nó đi
+ * `listProblemsForSolver` với `toSolverProblem` che testcase.
+ *
+ * ⚠ Hệ quả đã biết, đã báo lead: `app/author/problems/problem-list-client.tsx`
+ * còn khai `row: ProblemWithStats`, nên nó đỏ cho tới khi lane giao diện soạn
+ * bài đổi sang kiểu này. Giữ hình dạng cũ ở đây để nó xanh là giữ một bản sao
+ * thứ hai của hợp đồng đã bị thay — và bản sao đó sẽ trôi.
+ */
+export interface AuthorProblemWithStats {
+  readonly problem: Omit<StoredProblem, 'hints'> & {
+    readonly hints: readonly ProblemHintTeaser[];
+  };
+  readonly stats: ProblemStats;
+  /** Trạng thái của NGƯỜI ĐANG XEM. Luôn có: mọi procedure đều đã đăng nhập. */
+  readonly viewerStatus: ProblemViewerStatus;
+}
+
+export interface AuthorProblemPage {
+  readonly items: readonly AuthorProblemWithStats[];
+  readonly nextCursor: string | null;
+}
+
+/**
  * Danh sách bài — lọc, sắp, phân trang keyset, kèm số liệu gộp.
  *
  * Một truy vấn duy nhất cho cả ba việc, nhờ hai truy vấn con `LEFT JOIN` vào:
@@ -42,7 +83,70 @@ export interface ListProblemsInput {
  * một cột của quan hệ đã join, nên `WHERE` tham chiếu được nó — điều không làm
  * được nếu nó chỉ là một bí danh trong danh sách `SELECT`.
  */
-export async function listProblems(db: Database, input: ListProblemsInput): Promise<ProblemPage> {
+export async function listProblems(
+  db: Database,
+  input: ListProblemsInput,
+): Promise<AuthorProblemPage> {
+  const page = await listProblemRows(db, input);
+  return {
+    items: page.rows.map((row) => ({
+      // ⚠ Che gợi ý nhưng KHÔNG che testcase — xem khối `AuthorProblemWithStats`
+      // ở trên về vì sao hai đường (soạn / học) cố ý khác nhau đúng ở chỗ này.
+      problem: {
+        ...row.problem,
+        hints: toHintTeasers(row.problem.hints, row.revealed),
+      },
+      stats: row.stats,
+      viewerStatus: row.viewerStatus,
+    })),
+    nextCursor: page.nextCursor,
+  };
+}
+
+/**
+ * Danh sách cho NGƯỜI HỌC — §18.B.4.
+ *
+ * ⛔ Khác `listProblems` đúng một chỗ và đó là chỗ quan trọng nhất: `objectives`
+ * KHÔNG đi ra dây. Trước bản này, mỗi lần tải `/problems` gửi `check` và `args`
+ * của cả hai mươi bài xuống trình duyệt — cách chấm của cả một trang kho bài,
+ * cho một người chưa mở bài nào. Đọc `solver.ts` § `SolverProblem`.
+ *
+ * Hàm riêng chứ không phải một cờ trên `listProblems`, cùng lý lẽ mà `get.ts`
+ * đã ghi: nhánh che và nhánh không che là hai quyết định bảo mật, và một tham
+ * số boolean là chỗ lần "đơn giản hoá" sau sẽ gộp nhầm.
+ */
+export async function listProblemsForSolver(
+  db: Database,
+  input: ListProblemsInput,
+): Promise<SolverProblemPage> {
+  const page = await listProblemRows(db, input);
+  const items: SolverProblemWithStats[] = page.rows.map((row) => ({
+    // `viewerStatus` là thứ quyết định nhãn testcase ẩn có mở hay không, và nó
+    // gộp ra từ `problem_submissions` trong chính truy vấn trên — không phải
+    // một cờ client gửi lên.
+    problem: toSolverProblem(row.problem, row.revealed, row.viewerStatus !== 'untouched'),
+    stats: row.stats,
+    viewerStatus: row.viewerStatus,
+  }));
+  return { items, nextCursor: page.nextCursor };
+}
+
+interface ProblemRowsPage {
+  readonly rows: readonly {
+    readonly problem: StoredProblem;
+    readonly revealed: ReadonlySet<string>;
+    readonly stats: ProblemStats;
+    readonly viewerStatus: ProblemViewerStatus;
+  }[];
+  readonly nextCursor: string | null;
+}
+
+/**
+ * Truy vấn dùng chung cho cả hai đường trên. Trả `StoredProblem` ĐẦY ĐỦ (gợi ý
+ * nguyên văn, testcase còn `check`/`args`) — phép che là việc của chỗ gọi, và nó
+ * phải là bước cuối cùng trước khi dữ liệu ra dây.
+ */
+async function listProblemRows(db: Database, input: ListProblemsInput): Promise<ProblemRowsPage> {
   const { options } = input;
   const orderBy: ProblemOrderKey = options.orderBy ?? 'code';
   const direction = options.direction ?? 'asc';
@@ -53,7 +157,7 @@ export async function listProblems(db: Database, input: ListProblemsInput): Prom
     // Giao của "state người gọi xin" và "state họ được thấy" là rỗng — ví dụ một
     // người học lọc `['draft']`. Trả trang rỗng, KHÔNG trả lỗi: một lỗi ở đây sẽ
     // xác nhận rằng có bản nháp tồn tại, và đó chính là thứ `draft` phải giấu.
-    return { items: [], nextCursor: null };
+    return { rows: [], nextCursor: null };
   }
 
   const stats = problemStatsSubquery(db);
@@ -113,15 +217,14 @@ export async function listProblems(db: Database, input: ListProblemsInput): Prom
     page.map((row) => row.code),
   );
 
-  const items: ProblemWithStats[] = page.map((row) => ({
-    problem: toSolverProblem(toProblemDTO(row), revealed.get(row.code) ?? new Set<string>()),
-    stats: toProblemStats(row.attemptCount, row.solverCount),
-    viewerStatus: toViewerStatus(row.viewerSolved),
-  }));
-
   const last = page[page.length - 1];
   return {
-    items,
+    rows: page.map((row) => ({
+      problem: toProblemDTO(row),
+      revealed: revealed.get(row.code) ?? new Set<string>(),
+      stats: toProblemStats(row.attemptCount, row.solverCount),
+      viewerStatus: toViewerStatus(row.viewerSolved),
+    })),
     nextCursor: hasMore && last !== undefined ? encodeProblemCursor(orderBy, last) : null,
   };
 }

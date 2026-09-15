@@ -35,7 +35,7 @@ const GIT_PATH = '/games/git';
 async function openSandbox(page: Page): Promise<void> {
   await openScreen(page, GIT_PATH, 'user');
   await settle(page);
-  await page.getByRole('button', { name: 'Mở sandbox' }).click();
+  await page.getByRole('button', { name: 'Sandbox & Builder' }).click();
   await expect(page.getByTestId('git-sandbox-panel')).toBeVisible();
 }
 
@@ -139,7 +139,20 @@ test.describe('Sandbox Git — §17.Q', { tag: '@games-git-sandbox' }, () => {
     await command.press('Enter');
     await page.getByRole('button', { name: 'Bật origin' }).click();
     await page.getByLabel('Chọn kịch bản khởi tạo').selectOption('kho-vua-hong');
-    await page.getByRole('button', { name: 'Đặt lại' }).click();
+    /*
+     * ⚠ Phải THU PHẠM VI về đúng panel sandbox, không hỏi cả trang.
+     *
+     * `getByRole(name)` của Playwright khớp theo CHUỖI CON, không khớp bằng.
+     * Thanh công cụ của bản đồ hành trình (`6fd8f23`) có nút `aria-label="Đặt
+     * lại tỉ lệ"`, nên một `name: 'Đặt lại'` hỏi trên `page` bắt cả hai nút và
+     * chết ở strict mode. Sự mơ hồ đó CÓ SẴN trong cách viết cũ — giao diện mới
+     * chỉ làm nó lộ ra; nút thứ hai có thể xuất hiện bất cứ lúc nào.
+     *
+     * Dùng `getByTestId(...)` thay vì `exact: true` là cố ý: ô này muốn nói
+     * "nút Đặt lại CỦA SANDBOX", chứ không phải "nút nào có nhãn đúng bằng
+     * 'Đặt lại'". Nhãn sản phẩm đổi thì ô vẫn trỏ đúng chỗ.
+     */
+    await page.getByTestId('git-sandbox-panel').getByRole('button', { name: 'Đặt lại' }).click();
     await page.waitForTimeout(300);
 
     const during = trace.all().filter((r) => r.phase === 'sandbox');

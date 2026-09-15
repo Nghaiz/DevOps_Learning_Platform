@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import { sql, type SQL } from 'drizzle-orm';
 import { createDatabase, type Database } from '../server/db/client';
 import type { AuthedUser, TRPCContext } from '../server/trpc/init';
@@ -259,3 +260,46 @@ export const PURGE_ROOT_TABLES: readonly string[] = [
   'quizzes',
   'problems',
 ];
+
+/**
+ * Cổng cấu trúc cho một router: gọi MỌI procedure và thu lại những cái không
+ * từ chối.
+ *
+ * Viết cho `classes/authz.integration.test.ts` (18.F.3), dùng lại nguyên vẹn
+ * cho `exams/authz.integration.test.ts` (18.G). Đặt ở đây thay vì chép sang
+ * file thứ hai vì hai bản sao của một phép đo sẽ trôi khỏi nhau, và bản trôi
+ * sau là bản không ai để ý.
+ *
+ * Phép đo là HÀNH VI (gọi thật rồi xem ném gì), không phải đọc middleware: một
+ * phép đọc `_def` phải tự dựng lại cách tRPC xâu chuỗi middleware, và bản dựng
+ * lại đó sẽ trôi khỏi thật ở lần nâng cấp tRPC kế tiếp.
+ *
+ * Gọi với input RỖNG là cố ý: trong tRPC v11, `.input()` lắp bộ phân giải vào
+ * SAU middleware của `adminProcedure`, nên một người không phải admin nhận
+ * `FORBIDDEN` trước khi Zod kịp chạy. Nhờ vậy cổng này không cần biết từng
+ * procedure ăn input hình gì, và nó vẫn đúng với procedure mà lane sau thêm.
+ *
+ * ⚠ Mọi lời gọi qua đây PHẢI đi kèm một ô đối chứng dương dựng một router có
+ * procedure công khai thật. Không có nó, một bản `procedureLeaks` luôn trả mảng
+ * rỗng (bắt nhầm lỗi, vòng lặp không chạy, `names` rỗng) cũng làm cổng xanh —
+ * tức xanh vì mù chứ không phải vì sạch.
+ */
+export async function procedureLeaks(
+  procedureNames: readonly string[],
+  call: (name: string) => Promise<unknown>,
+  expectedCode = 'FORBIDDEN',
+): Promise<readonly string[]> {
+  const leaked: string[] = [];
+  for (const name of procedureNames) {
+    try {
+      await call(name);
+      leaked.push(`${name} (không ném gì)`);
+    } catch (error) {
+      if (!(error instanceof TRPCError) || error.code !== expectedCode) {
+        const code = error instanceof TRPCError ? error.code : 'không phải TRPCError';
+        leaked.push(`${name} (${code})`);
+      }
+    }
+  }
+  return leaked;
+}

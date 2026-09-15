@@ -18,6 +18,7 @@
  * tới khi 10 bài cũ được chuyển hết sang đây; xem `problem-migration.md`.
  */
 
+import type { ProblemFailureCode, ProblemTopicId } from '../core/problem.ts';
 import type { ClusterSpec, Objective, ResourceKind } from './contract.ts';
 import { t } from '@devops-platform/copy';
 
@@ -240,8 +241,26 @@ export type ProblemViewerStatus = 'solved' | 'attempted' | 'untouched';
 
 export interface ProblemFilter {
   readonly difficulty?: readonly ProblemDifficulty[];
-  /** Nhiều chủ đề = HOẶC (bài khớp bất kỳ chủ đề nào được chọn). */
-  readonly topics?: readonly ProblemTopic[];
+  /**
+   * Nhiều chủ đề = HOẶC (bài khớp bất kỳ chủ đề nào được chọn).
+   *
+   * ⛔ `ProblemTopicId` (chuỗi mờ), **không** phải `ProblemTopic` (union chín chủ
+   * đề K8s ngay trên). Đây là một bộ lọc cho MỌI game, nên nó không được mang
+   * từ vựng của một game.
+   *
+   * Đây là mẩu sót lại của lượt chuyển 18.A, không phải một lựa chọn: hợp đồng
+   * đã chuyển tập-đóng-chủ-đề sang từng plugin từ đợt đó (`core/problem.ts`
+   * § `ProblemTopicId`, và `ProblemBase.topics` đã dùng nó), nhưng dòng này ở
+   * lại. Ô AC-A chỉ đo `packages/games/src/core/` nên nó không nhìn xuống đây.
+   *
+   * Hệ quả đo được 2026-09-15, trước khi nới: `'branching'` của game Git không
+   * gán vào đây được, nên khối lọc chủ đề của `/problems` phải tự KHOÁ cho mọi
+   * game không phải K8s — một tính năng bị chặn ở tầng KIỂU, trước cả lúc chạy.
+   *
+   * ⚠ `Problem.topics` ở trên **giữ nguyên** `readonly ProblemTopic[]`. Nó là
+   * kiểu của bài K8s cụ thể và tập đóng ở đó là đúng; chỉ bộ lọc mới cần rộng.
+   */
+  readonly topics?: readonly ProblemTopicId[];
   /** Nhiều tag = VÀ (bài phải có đủ mọi tag) — cố ý khác luật của `topics`. */
   readonly tags?: readonly string[];
   readonly state?: readonly ProblemState[];
@@ -304,5 +323,49 @@ export interface ProblemSubmission {
   readonly movesUsed: number;
   /** Id các gợi ý đã mở — dùng để trừ điểm, và để biết bài nào gợi ý quá khó hiểu. */
   readonly hintsRevealed: readonly string[];
+  /**
+   * Id các testcase ĐÃ QUA tại lượt nộp này. Rỗng ở lượt `CE`.
+   *
+   * Id chứ không phải chỉ số, cùng lý do `core/problem.ts` § `Submission.passed`
+   * đã ghi: chỉ số vỡ ngay khi tác giả đổi thứ tự testcase.
+   */
+  readonly passed: readonly string[];
+  /**
+   * Số testcase của bài TẠI THỜI ĐIỂM NỘP.
+   *
+   * ⚠ Trường này KHÔNG vi phạm quy ước No Derived Fields của repo
+   * (`rules/code-conventions.md`), và chỗ này đáng đọc kỹ vì vế suy-ra-được rất
+   * hay nấp cạnh một vế hợp lệ. `total` **không** suy được từ bài lúc đọc ra, vì
+   * bài có thể đã bị sửa sau lượt nộp. Nó là một **sự thật lịch sử**: "lúc nộp,
+   * bài có bấy nhiêu testcase". Không chốt lại tại thời điểm nộp thì một lượt
+   * `WA (4/5)` hôm nay sẽ tự đọc thành `WA (4/7)` ngay sau khi tác giả thêm hai
+   * case, mà không một dòng mã nào đổi. `passed` cũng vậy.
+   *
+   * ⛔ Vẫn KHÔNG có trường `verdict`, và đó mới là vế suy-ra-được thật: verdict
+   * tính được từ `(passed.length, total)` qua `problemVerdictOf`, nên lưu thêm
+   * nó là lưu cùng một sự thật hai lần.
+   *
+   * ⚠ `0` là giá trị mặc định của cột trước 18.C, nên một dòng cũ đọc ra `total
+   * === 0` KHÔNG có nghĩa "bài không có testcase nào". Ba nguyên nhân dồn vào
+   * một biểu hiện, và tầng hiển thị phải tự xử: xem `submissionVerdictLabel` ở
+   * `apps/web/src/app/(session)/problems/[code]/submission-verdict.ts`.
+   *
+   * 2026-09-15: `failedCode` ngay dưới tách được một trong ba nguyên nhân đó.
+   */
+  readonly total: number;
+  /**
+   * VÌ SAO lượt này không chấm được. `null` khi nó chấm được bình thường.
+   *
+   * ⛔ Đây KHÔNG phải một trường suy ra được, dù nó nằm cạnh hai trường vừa bị
+   * tuyên là suy được. Phân biệt bằng một câu hỏi: đọc `(passed, total)` có
+   * dựng lại được nó không? Không — `passed = []` với `total = 5` xảy ra ở CẢ
+   * một lượt `CE` do engine không tất định (máy chủ bỏ mọi con số) LẪN một lượt
+   * `WA (0/5)` thật (người làm không qua case nào). Hai nguyên nhân, dữ liệu
+   * giống hệt. Xem `core/problem.ts` § `PROBLEM_FAILURE_CODES`.
+   *
+   * ⚠ `null` mang HAI nghĩa: lượt chấm được, **hoặc** dòng ghi trước migration
+   * 0015. Phân biệt bằng `total` — xem hợp đồng nêu trên.
+   */
+  readonly failedCode: ProblemFailureCode | null;
   readonly submittedAt: string;
 }

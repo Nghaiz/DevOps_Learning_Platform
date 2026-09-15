@@ -40,7 +40,7 @@ export function PaneHeader({ icon, title, children, className }: PaneHeaderProps
   return (
     <div
       className={cn(
-        'flex h-9 shrink-0 items-center gap-2 border-b border-border bg-card px-3',
+        'practice-pane-header flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card px-4',
         className,
       )}
     >

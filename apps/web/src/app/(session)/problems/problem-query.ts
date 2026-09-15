@@ -1,15 +1,15 @@
 import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_ORDER_KEYS,
-  PROBLEM_TOPICS,
+  type GameId,
   type ProblemDifficulty,
   type ProblemFilter,
   type ProblemListOptions,
   type ProblemOrderKey,
-  type ProblemTopic,
   type ProblemViewerStatus,
 } from '@devops-platform/games';
 import { PROBLEM_VIEWER_STATUSES } from './problem-labels';
+import { DEFAULT_PROBLEM_GAME, parseGame, topicIdsFor } from './problem-game';
 
 /**
  * Bộ mã hoá HAI CHIỀU giữa thanh địa chỉ và bộ lọc danh sách bài.
@@ -33,15 +33,32 @@ export interface ProblemQuery {
   readonly filter: ProblemFilter;
   readonly orderBy: ProblemOrderKey;
   readonly direction: 'asc' | 'desc';
+  /**
+   * Game đang chọn ở khối lọc chủ đề — §18 khối 6.
+   *
+   * ⚠ Nằm ở `ProblemQuery` chứ KHÔNG ở `filter`, và chỗ đứng đó là một lời
+   * khẳng định: nó không thu hẹp tập kết quả, nó đổi TỪ VỰNG chủ đề. Để nó
+   * trong `filter` sẽ làm `hasActiveFilter` đọc ra `true` cho một trang chưa lọc
+   * gì — và lúc đó màn hình "không bài nào khớp bộ lọc" mời người dùng bấm "xoá
+   * lọc" để gỡ một bộ lọc không tồn tại. Cùng lý do `orderBy` cũng không ở
+   * trong `filter`.
+   */
+  readonly game: GameId;
 }
 
 /** `code` tăng dần — khoá duy nhất theo từng dòng, xem `PROBLEM_ORDER_KEYS`. */
-export const DEFAULT_PROBLEM_QUERY: ProblemQuery = { filter: {}, orderBy: 'code', direction: 'asc' };
+export const DEFAULT_PROBLEM_QUERY: ProblemQuery = {
+  filter: {},
+  orderBy: 'code',
+  direction: 'asc',
+  game: DEFAULT_PROBLEM_GAME,
+};
 
 /** Số bài mỗi trang. Bảng nhiều cột nên trang dài hơn là cuộn nhiều hơn chứ không đọc thêm được gì. */
 export const PROBLEM_PAGE_SIZE = 25;
 
 const PARAM = {
+  game: 'game',
   difficulty: 'difficulty',
   topic: 'topic',
   tag: 'tag',
@@ -101,7 +118,21 @@ function keepKnown<T extends string>(values: readonly string[], allowed: readonl
 
 export function parseProblemQuery(params: URLSearchParams): ProblemQuery {
   const difficulty = keepKnown<ProblemDifficulty>(splitList(params, PARAM.difficulty), PROBLEM_DIFFICULTIES);
-  const topics = keepKnown<ProblemTopic>(splitList(params, PARAM.topic), PROBLEM_TOPICS);
+  /*
+    Chủ đề lọc theo TỪ VỰNG CỦA GAME ĐANG CHỌN, không theo một danh sách toàn
+    cục. Đây là nửa "đọc" của khối 6, và nó chặn được một URL tự mâu thuẫn:
+    `?game=git&topic=workload` không còn đọc ra một ô đánh dấu K8s nằm trong
+    danh sách chủ đề Git — một ô như thế sẽ hiện đã-chọn trong một khối không hề
+    liệt kê nó, tức người dùng thấy bộ lọc đang chạy mà không thấy nó ở đâu để
+    tắt.
+
+    `topicIdsFor` chứ không `filterableTopicsFor`: hàm sau đã bị GỠ 2026-09-15
+    cùng lượt nới `ProblemFilter.topics` sang `ProblemTopicId`. Trước lượt đó nó
+    trả RỖNG cho mọi game trừ `k8s`, nên khối lọc phải tự khoá; nay mọi game đi
+    qua được hợp đồng nên từ vựng đầy đủ là thứ đúng để so.
+  */
+  const game = parseGame(params.get(PARAM.game));
+  const topics = keepKnown<string>(splitList(params, PARAM.topic), topicIdsFor(game));
   const viewerStatus = keepKnown<ProblemViewerStatus>(splitList(params, PARAM.status), PROBLEM_VIEWER_STATUSES);
   const tags = [...new Set(splitList(params, PARAM.tag).map(normalizeTag).filter((tag) => tag !== ''))];
   const query = (params.get(PARAM.query) ?? '').trim();
@@ -118,6 +149,7 @@ export function parseProblemQuery(params: URLSearchParams): ProblemQuery {
     },
     orderBy,
     direction: params.get(PARAM.direction) === 'desc' ? 'desc' : 'asc',
+    game,
   };
 }
 
@@ -147,6 +179,20 @@ export function toSearchParams(query: ProblemQuery): URLSearchParams {
   }
   if (query.direction !== DEFAULT_PROBLEM_QUERY.direction) {
     params.set(PARAM.direction, query.direction);
+  }
+  /*
+    `game` đi vào URL theo đúng luật "giá trị mặc định bị bỏ" ở trên — nhưng có
+    một vế thứ hai không bỏ được: khi ĐÃ chọn chủ đề thì `game` PHẢI có mặt, kể
+    cả khi nó là mặc định. Thiếu nó, một link chép đi sẽ đọc lại bằng game mặc
+    định, và `parseProblemQuery` lọc bỏ mọi chủ đề không thuộc từ vựng đó — bộ
+    lọc biến mất khỏi link mà không có dấu hiệu nào.
+
+    Vế thứ hai ĐANG có hiệu lực từ 2026-09-15. Trước lượt nới hợp đồng, chỉ
+    `k8s` chở được chủ đề nên hai vế trùng nhau và dòng này chưa đổi một URL nào;
+    nay một link `?game=git&topic=branching` giữ được cả hai nửa.
+  */
+  if (query.game !== DEFAULT_PROBLEM_QUERY.game || (filter.topics?.length ?? 0) > 0) {
+    params.set(PARAM.game, query.game);
   }
   return params;
 }

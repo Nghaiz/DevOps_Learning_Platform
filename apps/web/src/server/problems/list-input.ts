@@ -3,7 +3,6 @@ import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_ORDER_KEYS,
   PROBLEM_STATES,
-  PROBLEM_TOPICS,
   type ProblemFilter,
   type ProblemListOptions,
   type ProblemOrderKey,
@@ -25,7 +24,24 @@ import { problemCodeSchema, tagSchema, toContractShape } from './validate';
 export const problemFilterSchema = z
   .object({
     difficulty: z.array(z.enum(PROBLEM_DIFFICULTIES)).readonly().optional(),
-    topics: z.array(z.enum(PROBLEM_TOPICS)).readonly().optional(),
+    /*
+     * Id chủ đề dạng CHUỖI, không `z.enum(PROBLEM_TOPICS)` — nửa máy chủ của
+     * lượt nới `ProblemFilter.topics` (xem `k8s/problem.ts` § ProblemFilter).
+     *
+     * ⛔ Nới hợp đồng mà quên dòng này thì `tsc` xanh còn người dùng nhận 400:
+     * đo 2026-09-15, `safeParse({ topics: ['branching'] })` trả `invalid_value`
+     * kèm nguyên chín lựa chọn K8s. Hai nửa là MỘT thay đổi.
+     *
+     * Tập đóng không biến mất, nó ở chỗ khác: chủ đề hợp lệ là tập của plugin
+     * theo `gameId` của TỪNG BÀI (`refineByGame` ở `validate.ts` gác đường GHI).
+     * Một bộ lọc ĐỌC thì bắc qua mọi game cùng lúc nên không có một tập đóng nào
+     * đúng cho nó — và một chủ đề gõ sai ở đây chỉ làm truy vấn không khớp bài
+     * nào, đúng như `tags` vốn đã hành xử.
+     *
+     * Vẫn kẹp độ dài: không có trần thì một chuỗi vài trăm KB đi thẳng vào toán
+     * tử mảng của Postgres.
+     */
+    topics: z.array(z.string().min(1).max(64)).readonly().optional(),
     tags: z.array(tagSchema).readonly().optional(),
     state: z.array(z.enum(PROBLEM_STATES)).readonly().optional(),
     query: z.string().max(200).optional(),

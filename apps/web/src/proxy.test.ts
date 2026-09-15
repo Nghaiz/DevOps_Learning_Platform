@@ -43,9 +43,30 @@ const PUBLIC_NAV_REASON: Readonly<Record<string, string>> = {
   // backend. Không có tài nguyên phía server nào để một cổng đăng nhập gác —
   // nó sẽ chỉ chặn người lạ khỏi một thứ chạy trên chính máy họ. P14 §4.2.
   '/games': 'chơi trong trình duyệt, tiến độ ở localStorage — không có gì phía server để gác',
+  // Trình dựng màn chơi của game Git (`/games/git?mode=builder`), thêm vào
+  // thanh điều hướng 2026-09-16. Cùng hợp đồng với `/games`: nó là một CHẾ ĐỘ
+  // của một trang chạy trong trình duyệt, và `e2e/games-builder-network.spec.ts`
+  // (nằm trong `e2e:ci`) là cổng đo đúng mệnh đề "0 lời gọi backend" đó.
+  //
+  // ⚠ Ngày nào trình dựng bắt đầu LƯU màn chơi lên server, dòng này phải biến
+  // mất và `/games/git` phải vào `PROTECTED_PATHS` — đúng chiều thứ hai mà ô
+  // "miễn trừ không có mục ôi" bên dưới gác.
+  '/games/git': 'trình dựng chạy trong trình duyệt, 0 lời gọi backend (e2e/games-builder-network.spec.ts)',
 };
 
-const PUBLIC_NAV_HREFS: ReadonlySet<string> = new Set(Object.keys(PUBLIC_NAV_REASON));
+/**
+ * Phần ĐƯỜNG DẪN của một `href` trong bảng nav.
+ *
+ * `matchesProtected` nhận một `pathname`, còn bảng nav mang cả query
+ * (`/games/git?mode=builder`) vì đó là thứ thẻ `<Link>` cần. Cắt tại chỗ dùng
+ * thay vì lưu thêm một field `pathname` vào `PRIMARY_NAV`: giá trị suy ra được
+ * thì không lưu (`rules/code-conventions.md` § No Derived Fields).
+ */
+function pathnameOf(href: string): string {
+  return href.split(/[?#]/)[0] ?? href;
+}
+
+const PUBLIC_NAV_PATHS: ReadonlySet<string> = new Set(Object.keys(PUBLIC_NAV_REASON));
 
 describe('PROTECTED_PATHS phủ hết điều hướng C6', () => {
   /**
@@ -54,8 +75,32 @@ describe('PROTECTED_PATHS phủ hết điều hướng C6', () => {
    * kể cả khi người thêm không biết file này tồn tại.
    */
   it('mọi mục điều hướng chính đều được gác, trừ đường công khai đã khai tên', () => {
-    for (const item of PRIMARY_NAV.filter((nav) => !PUBLIC_NAV_HREFS.has(nav.href))) {
-      expect(matchesProtected(item.href), `thiếu ${item.href}`).toBe(true);
+    for (const path of PRIMARY_NAV.map((nav) => pathnameOf(nav.href)).filter(
+      (path) => !PUBLIC_NAV_PATHS.has(path),
+    )) {
+      expect(matchesProtected(path), `thiếu ${path}`).toBe(true);
+    }
+  });
+
+  /**
+   * Đối chứng cho ô ngay trên, và nó ghi lại một ĐIỂM MÙ có thật.
+   *
+   * Tới 2026-09-16 `PRIMARY_NAV` chỉ mang chín mục C6, nên vòng lặp trên chưa
+   * bao giờ hỏi về `/author/problems`, `/admin/exams`, `/admin/classes` —
+   * những đường mà vỏ ứng dụng KHÔNG hề thiếu (chúng nằm dưới tiền tố `/author`
+   * và `/admin` đã có trong `PROTECTED_PATHS`), nhưng cũng chưa cổng nào KHẲNG
+   * ĐỊNH là có. Một vòng lặp đọc một bảng không chứa thứ cần kiểm thì xanh vì
+   * nó rỗng ở đúng chỗ đó, không phải vì sản phẩm đúng.
+   *
+   * Ô này tồn tại để lượt sau ai gỡ mấy mục đó khỏi nav (hoặc đổi tên đường)
+   * phải nói ra, thay vì lặng lẽ thu hẹp phạm vi của ô trên.
+   */
+  it('vòng lặp trên phủ cả đường theo vai trò, không chỉ chín mục C6', () => {
+    const guarded = PRIMARY_NAV.map((nav) => pathnameOf(nav.href)).filter(
+      (path) => !PUBLIC_NAV_PATHS.has(path),
+    );
+    for (const path of ['/author', '/author/problems', '/admin', '/admin/exams', '/admin/classes']) {
+      expect(guarded, `${path} không còn trong điều hướng chính`).toContain(path);
     }
   });
 
@@ -74,12 +119,14 @@ describe('PROTECTED_PATHS phủ hết điều hướng C6', () => {
    * Ô này đỏ ở cả hai, và thông báo nói thẳng phải làm gì.
    */
   it('miễn trừ công khai không có mục ôi, và mỗi mục vẫn thật sự công khai', () => {
-    const navHrefs = new Set(PRIMARY_NAV.map((item) => item.href));
-    for (const href of PUBLIC_NAV_HREFS) {
-      expect(navHrefs.has(href), `${href} không còn trong PRIMARY_NAV — xoá khỏi miễn trừ`).toBe(true);
+    const navPaths = new Set(PRIMARY_NAV.map((item) => pathnameOf(item.href)));
+    for (const path of PUBLIC_NAV_PATHS) {
+      expect(navPaths.has(path), `${path} không còn trong PRIMARY_NAV — xoá khỏi miễn trừ`).toBe(
+        true,
+      );
       expect(
-        matchesProtected(href),
-        `${href} nay ĐÃ được gác, nhưng miễn trừ vẫn nói "${PUBLIC_NAV_REASON[href]}" — xoá khỏi miễn trừ`,
+        matchesProtected(path),
+        `${path} nay ĐÃ được gác, nhưng miễn trừ vẫn nói "${PUBLIC_NAV_REASON[path]}" — xoá khỏi miễn trừ`,
       ).toBe(false);
     }
   });

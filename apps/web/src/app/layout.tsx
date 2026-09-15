@@ -10,6 +10,7 @@ import { readRequestSession } from '../server/auth/config';
 import { AppShell } from '../components/shell/app-shell';
 import { normalizeRole, type Viewer } from '../components/shell/nav';
 import './globals.css';
+import './practice.css';
 
 const base = appUrl();
 
