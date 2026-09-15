@@ -8,7 +8,6 @@ import {
   type ProblemDifficulty,
   type RunLog,
   type RunResult,
-  type SessionStatus,
   type WorldSpec,
 } from '@devops-platform/games';
 
@@ -119,22 +118,21 @@ function doKhoLevelMatThongTin(difficulty: ProblemDifficulty): Difficulty {
 }
 
 /**
- * Bài này có đủ dữ liệu để CHẤM TẠI CHỖ chưa.
+ * Bài này có chấm được không.
  *
- * ⛔ Cổng thật. `evaluatePredicate` là một `switch` KHÔNG có nhánh `default`,
- * nên một `check` vắng mặt rơi ra ngoài và trả `undefined` — mục tiêu không bao
- * giờ đạt, im lặng, và người chơi thấy một danh sách vĩnh viễn chưa đạt trong
- * khi máy chủ chấm ra `AC`. Hỏi ở đây rồi NÓI RA trên màn là cách duy nhất
- * không biến một khe dữ liệu thành một lời nói dối về lượt chơi.
+ * ⛔ ĐỔI NGHĨA 2026-09-15, và đổi nghĩa chứ không nới. Bản trước hỏi *"client có
+ * đủ `check` để tự chấm chưa"*, vì lúc đó client là bên chấm. Nay máy chủ chấm
+ * (`problems.tryGrade`) nên câu hỏi đó không còn ai hỏi — client KHÔNG BAO GIỜ
+ * có `check`, và đòi nó sẽ tắt nút nộp của mọi người học vĩnh viễn.
  *
- * Đòi MỌI testcase có `check`, không phải "có ít nhất một": thiếu một cái là
- * `objectivesMet` thiếu một id, và `verifyRun` so từng id.
+ * Câu còn lại vẫn là một cổng THẬT: `problemVerdictOf(0, 0)` trả `CE`, nên một
+ * bài không testcase nào là một bài không ai nộp được — và màn hình phải nói ra
+ * điều đó thay vì để nút nộp dẫn tới một `CE` khó hiểu. Cổng xuất bản đã chặn ca
+ * này (`publishIssues` đòi ≥1 testcase), nên đây là lưới thứ hai cho một bài lọt
+ * qua bằng đường khác.
  */
 export function gitOjGradable(problem: GitOjProblem): boolean {
-  return (
-    problem.testcases.length > 0 &&
-    problem.testcases.every((testcase) => typeof testcase.check === 'string' && testcase.check !== '')
-  );
+  return problem.testcases.length > 0;
 }
 
 /**
@@ -253,7 +251,25 @@ function idGoiYTrongNhatKy(problem: GitOjProblem, log: RunLog): readonly string[
 export interface GitOjClaimInput {
   readonly problem: GitOjProblem;
   readonly log: RunLog;
-  readonly status: SessionStatus;
+  /**
+   * Id testcase đã đạt, **do MÁY CHỦ tính** (`problems.tryGrade`).
+   *
+   * ⛔ Từng là `status: SessionStatus` của phiên cục bộ, và hình dạng đó KHÔNG
+   * dựng được cho người học: `toTestcaseTeasers` cắt `check`/`args` của mọi
+   * testcase, nên `evaluatePredicate` trả `undefined` và `status.objectivesMet`
+   * luôn RỖNG. Lời khai rỗng ⇒ `verifyRun` ra `khong-khop` ⇒ `CE` cho một lượt
+   * chơi ĐÚNG.
+   *
+   * ⚠ Hệ quả phải nói ra: lời khai nay là một tiếng VỌNG của chính máy chủ, nên
+   * phép so `objectivesMet`/`score` trong `verifyRun` **không còn là một nhân
+   * chứng độc lập** cho bài Git. Thứ vẫn gác thật: hai lượt phát lại của
+   * `verifyRun` (tính tất định), và `levelId`/`seed`/`commandsUsed`/`hintsUsed`
+   * — cả bốn suy từ chính NHẬT KÝ chứ không từ máy chủ.
+   *
+   * Đó là cái giá của quyết định 2026-09-15, và nó rẻ hơn đường kia: giữ một
+   * nhân chứng độc lập đòi client cầm được cách chấm, tức phá §18.B.4.
+   */
+  readonly objectivesMet: readonly string[];
   readonly startedAt: number;
   readonly finishedAt: number;
 }
@@ -290,7 +306,7 @@ export interface GitOjClaimInput {
  * chạm phải — xem báo cáo lane.
  */
 export function gitOjClaim(input: GitOjClaimInput): RunResult {
-  const { problem, log, status, startedAt, finishedAt } = input;
+  const { problem, log, objectivesMet, startedAt, finishedAt } = input;
   const tally = tallyLog(log);
   const revealedHintIds = [
     ...new Set([
@@ -307,14 +323,14 @@ export function gitOjClaim(input: GitOjClaimInput): RunResult {
     seed: log.seed,
     startedAt,
     finishedAt,
-    objectivesMet: status.objectivesMet,
+    objectivesMet,
     objectivesTotal: problem.testcases.length,
     commandsUsed: tally.commandsUsed,
     hintsUsed: tally.hintsUsed,
     score: scoreProblemRun({
       // Khử trùng bằng `Set`: `ProblemScoreInput` đòi id KHÁC NHAU, và phía máy
       // chủ cũng khử. Một engine trả trùng sẽ đẩy tỉ lệ vượt 100% ở đúng một bên.
-      objectivesMet: new Set(status.objectivesMet).size,
+      objectivesMet: new Set(objectivesMet).size,
       objectivesTotal: problem.testcases.length,
       movesUsed: tally.commandsUsed,
       parMoves: problem.parMoves,

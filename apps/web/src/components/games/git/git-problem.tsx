@@ -23,30 +23,33 @@ import { describeTrpcError } from '../../../lib/trpc';
  * và `git-game.tsx` nạp file này bằng `next/dynamic` nên tầng mạng cũng không
  * vào bundle của người chơi level.
  *
- * ## ⛔ CÒN HỞ, ĐỌC TRƯỚC KHI KẾT LUẬN "chế độ OJ đã xong"
+ * ## Ai chấm, và vì sao KHÔNG phải trình duyệt
  *
  * `problems.byCode` cắt `check`/`args` của MỌI testcase trước khi dữ liệu rời
- * máy chủ (§18.B.4, `server/problems/testcases.ts`). Không có hai trường đó thì
- * engine trong trình duyệt **không chấm được**, nên client không thể khai
- * `objectivesMet` — mà `verifyRun` so đúng trường đó. Một lượt nộp khai rỗng sẽ
- * nhận `CE` cho một lượt chơi đúng, tức lỗi của chúng ta đọc ra như gian lận của
- * người chơi.
+ * máy chủ (§18.B.4, `server/problems/testcases.ts`). Đó là chốt chặn chống dò
+ * đáp án, và nó cố ý: nhãn là đề bài, còn tên vị từ và tham số là CÁCH CHẤM.
  *
- * Đường duy nhất chở đủ dữ liệu hôm nay là `problems.forEdit` (`authorProcedure`
- * + cổng chủ sở hữu), nên chế độ NỘP BÀI hiện chỉ mở cho tác giả bài và admin —
- * đúng đường "xem trước" mà `problemPreviewHref` phục vụ. Người học vẫn mở được
- * bài, đọc đề, và gõ lệnh trên đúng thế giới của bài; họ chỉ chưa nộp được, và
- * màn hình NÓI RA điều đó thay vì để nút nộp dẫn tới một `CE` khó hiểu.
+ * Nên engine trong trình duyệt không chấm được, và client không khai được
+ * `objectivesMet` — trường mà `verifyRun` so. Bản đầu của file này giải bằng
+ * `problems.forEdit` (`authorProcedure`), tức chỉ TÁC GIẢ và admin nộp được;
+ * người học đọc đề và gõ lệnh được nhưng nút nộp tắt.
  *
- * Chỗ sửa nằm ở `apps/web/src/server/**` (một đường trả testcase đủ `check` cho
- * người đang làm bài, hoặc một đường chấm thử ở máy chủ), ngoài phạm vi lane
- * này. Đã báo lead — xem báo cáo `2026-09-15-lane-18-git-oj-client.md`.
+ * **Chốt bởi chủ dự án 2026-09-15: máy chủ chấm.** `problems.tryGrade` phát lại
+ * nhật ký và trả `passed`, nên client không bao giờ cầm cách chấm và §18.B.4 giữ
+ * nguyên vẹn. `forEdit` đã gỡ khỏi file này cùng lượt đó.
+ *
+ * ⚠ Hai cái giá, nói ra vì chúng không hiện trên màn:
+ *
+ *  1. Một lần bấm "Nộp bài" là HAI lượt gọi (`tryGrade` rồi `submit`), và cả hai
+ *     tiêu một suất của cùng trần nhịp — trần nộp thật là 3 lần/phút.
+ *  2. Lời khai nay là tiếng VỌNG của máy chủ, nên phép so `objectivesMet`/`score`
+ *     trong `verifyRun` không còn là nhân chứng độc lập cho bài Git. Xem
+ *     `GitOjClaimInput.objectivesMet` về thứ VẪN gác thật.
  */
 
 const CAU_CHUA_NOP_DUOC =
-  'Bài này mở ở chế độ đọc và luyện tay: trình duyệt chưa nhận được cách chấm ' +
-  'của từng testcase nên chưa nộp được. Tác giả bài và admin xem trước thì nộp ' +
-  'được đầy đủ.';
+  'Bài này chưa có testcase nào nên chưa chấm được. Mở ở chế độ đọc và luyện ' +
+  'tay; hãy báo cho tác giả bài.';
 
 export interface GitProblemScreenProps {
   /** Mã bài, từ `?problem=`. Đã lọc rỗng ở `page.tsx`. */
@@ -75,23 +78,24 @@ function ManMotDong({ text, role }: { readonly text: string; readonly role: stri
 function GitProblemBody({ code }: { readonly code: string }): ReactElement {
   const solver = api.problems.byCode.useQuery({ code });
   /*
-   * Đường thứ hai, và nó ĐƯỢC PHÉP hỏng: `forEdit` là `authorProcedure` với cổng
-   * chủ sở hữu, nên một người học gọi nó nhận `FORBIDDEN`. Đó là câu trả lời
-   * đúng, không phải một lỗi — `retry: false` để không thử lại ba lần một câu
-   * trả lời đã dứt khoát, và `isError` được đọc như "không có dữ liệu chấm" chứ
-   * không hiện lên màn như một sự cố.
+   * ⛔ KHÔNG còn query `forEdit` ở đây — gỡ 2026-09-15 cùng lượt mở
+   * `problems.tryGrade`.
    *
-   * ⚠ Giá của hình dạng này: một người học trả thêm một vòng 403 mỗi lần mở bài.
-   * Chấp nhận tường minh, vì đường còn lại là một lời nói dối trên màn — nút nộp
-   * bấm được rồi trả `CE`. Khi máy chủ có đường trả cách chấm cho người đang làm
-   * bài thì query này biến mất, không phải được vá.
+   * Bản trước nạp cách chấm qua `forEdit` (`authorProcedure`) vì client phải tự
+   * chấm mới khai được `objectivesMet`. Hệ quả: chỉ TÁC GIẢ bài và admin nộp
+   * được, người học thì không — và mỗi người học trả thêm một vòng 403 mỗi lần
+   * mở bài.
+   *
+   * Nay máy chủ chấm, nên client không cần cách chấm và không được cầm nó
+   * (§18.B.4 giữ nguyên vẹn). Một query biến mất chứ không được vá.
    */
-  const grading = api.problems.forEdit.useQuery({ code }, { retry: false });
+  const tryGradeMutation = api.problems.tryGrade.useMutation();
 
   const [view, setView] = useState<VerdictView | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const submitMutation = api.problems.submit.useMutation();
   const { mutateAsync } = submitMutation;
+  const { mutateAsync: tryGradeAsync } = tryGradeMutation;
   const utils = api.useUtils();
 
   /*
@@ -104,7 +108,6 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
   const startedAtRef = useRef(Date.now());
 
   const solverProblem = solver.data?.problem;
-  const gradingTestcases = grading.data?.testcases;
 
   /**
    * Bài đã ghép: thân bài từ `byCode`, cách chấm từ `forEdit` khi có.
@@ -117,17 +120,15 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
     if (solverProblem === undefined) {
       return null;
     }
-    const checks = new Map((gradingTestcases ?? []).map((testcase) => [testcase.id, testcase]));
-    const testcases: readonly GitOjTestcase[] = solverProblem.testcases.map((teaser) => {
-      const full = checks.get(teaser.id);
-      return {
-        id: teaser.id,
-        label: teaser.label,
-        visible: teaser.visible,
-        ...(full === undefined ? {} : { check: full.check }),
-        ...(full?.args === undefined ? {} : { args: full.args }),
-      };
-    });
+    /*
+     * KHÔNG có `check`/`args` — đường của người học không chở chúng, và đó là
+     * §18.B.4 chứ không phải một khe thiếu. Máy chủ chấm qua `problems.tryGrade`.
+     */
+    const testcases: readonly GitOjTestcase[] = solverProblem.testcases.map((teaser) => ({
+      id: teaser.id,
+      label: teaser.label,
+      visible: teaser.visible,
+    }));
     return {
       code: solverProblem.code,
       title: solverProblem.title,
@@ -146,7 +147,7 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
       })),
       parMoves: solverProblem.parMoves,
     };
-  }, [solverProblem, gradingTestcases]);
+  }, [solverProblem]);
 
   const gradable = problem !== null && gitOjGradable(problem);
 
@@ -159,6 +160,28 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
       setErrorMessage(null);
       void (async () => {
         try {
+          /*
+           * Chấm THỬ trước, rồi nộp bằng chính kết quả đó.
+           *
+           * ⚠ Hai lượt gọi cho một lần bấm, và cả hai tiêu một suất của CÙNG
+           * trần nhịp (6 lượt/phút), nên trần nộp thật là 3 lần/phút. Chấp nhận
+           * tường minh: một người làm bài thật nộp lại sau mỗi lần sửa, tức hàng
+           * chục giây một lượt, còn ba lần mỗi phút vẫn rộng hơn nhịp đó.
+           *
+           * Vì sao KHÔNG gộp hai lượt thành một: `submit` GHI một dòng, `tryGrade`
+           * không ghi gì. Gộp lại nghĩa là mọi lượt xem-thử đều đẻ một dòng trong
+           * lịch sử của người học và đẩy `attemptCount` của bài — tức biến một
+           * phép đo thành một lượt nộp.
+           */
+          const thu = await tryGradeAsync({
+            code: problem.code,
+            runLog: {
+              gameId: 'git',
+              levelId: log.levelId,
+              seed: log.seed,
+              actions: log.actions,
+            },
+          });
           const result = await mutateAsync({
             /*
              * Nhật ký của ĐÚNG lượt vừa chơi, lấy thẳng từ engine: `levelId`,
@@ -176,7 +199,12 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
             claimed: gitOjClaim({
               problem,
               log,
-              status: session.getStatus(),
+              /*
+               * `objectivesMet` tới từ MÁY CHỦ, không từ `session.getStatus()`.
+               * Phiên cục bộ không có `check` nên nó luôn trả rỗng — xem khối
+               * chú thích ở `GitOjClaimInput.objectivesMet`.
+               */
+              objectivesMet: thu.passed,
               startedAt: startedAtRef.current,
               finishedAt: Date.now(),
             }),
@@ -199,7 +227,7 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
         }
       })();
     },
-    [problem, mutateAsync, utils],
+    [problem, mutateAsync, tryGradeAsync, utils],
   );
 
   if (solver.isPending) {
@@ -214,17 +242,11 @@ function GitProblemBody({ code }: { readonly code: string }): ReactElement {
     );
   }
   /*
-   * Đợi CẢ đường chấm ngã ngũ trước khi dựng phiên.
-   *
-   * Phiên được dựng một lần rồi giữ trong `useRef` suốt lượt chơi (xem
-   * `GitLevelScreen`), nên nếu dựng lúc `forEdit` còn đang bay thì level không
-   * có `check` nào và sẽ giữ nguyên như vậy KỂ CẢ khi dữ liệu chấm về sau đó —
-   * một tác giả mở bài của chính mình rơi vào nhánh người học vì một cuộc đua
-   * mạng, và không có dấu hiệu nào trên màn nói tại sao.
+   * Không còn lượt chờ thứ hai ở đây. Bản trước đợi `forEdit` ngã ngũ trước khi
+   * dựng phiên, vì phiên giữ trong `useRef` suốt lượt chơi nên dựng lúc dữ liệu
+   * chấm còn đang bay sẽ khoá level ở trạng thái không có `check` VĨNH VIỄN. Nay
+   * không có dữ liệu chấm nào ở client nên cuộc đua đó không tồn tại.
    */
-  if (grading.isPending) {
-    return <ManMotDong text="Đang nạp đề bài…" role="status" />;
-  }
 
   return (
     <GitLevelScreen

@@ -82,7 +82,14 @@ function choi(commands: readonly string[]) {
     claim: gitOjClaim({
       problem: target,
       log: session.getLog(),
-      status: session.getStatus(),
+      /*
+       * Trong sản phẩm, `objectivesMet` tới từ `problems.tryGrade` (máy chủ) —
+       * đường của người học không chở `check` nên phiên cục bộ luôn trả rỗng.
+       * Gá này CÓ `check` nên `getStatus()` dùng được, và dùng nó ở đây là cố ý:
+       * ô dưới đo phép tính ĐIỂM, và nó phải đo trên một tập objective THẬT chứ
+       * không trên một mảng bịa.
+       */
+      objectivesMet: session.getStatus().objectivesMet,
       startedAt: 1_700_000_000_000,
       finishedAt: 1_700_000_060_000,
     }),
@@ -122,22 +129,30 @@ describe('gitOjLevel — bốn điểm hợp đồng với problemAsGitLevel', (
   });
 });
 
-describe('gitOjGradable — cổng chặn một lời khai rỗng', () => {
-  it('bài đủ check thì chấm tại chỗ được', () => {
+describe('gitOjGradable — cổng chặn một bài KHÔNG chấm được', () => {
+  it('bài có testcase thì nộp được', () => {
     expect(gitOjGradable(problem())).toBe(true);
   });
 
   /*
-   * ĐỐI CHỨNG DƯƠNG, và nó là ca xảy ra THẬT ở mọi lượt gọi `problems.byCode`:
-   * §18.B.4 cắt `check`/`args` trước khi dữ liệu rời máy chủ. Không có cổng này
-   * thì client dựng một level mà mọi vị từ trả `undefined`, khai `objectivesMet:
-   * []`, và nhận `CE` cho một lượt chơi đúng.
+   * ⛔ Ô này ĐÃ ĐẢO 2026-09-15, và đảo chứ không xoá.
+   *
+   * Bản cũ khẳng định `problemDaChe()` KHÔNG nộp được, vì lúc đó CLIENT là bên
+   * chấm và một `check` vắng mặt làm mọi vị từ trả `undefined`. Từ khi máy chủ
+   * chấm (`problems.tryGrade`), client KHÔNG BAO GIỜ có `check` — đòi nó sẽ tắt
+   * nút nộp của mọi người học vĩnh viễn.
+   *
+   * Nên ô nay khẳng định điều NGƯỢC LẠI, và nó vẫn là một ô gác: nếu ai đó khôi
+   * phục phép kiểm `check` ở `gitOjGradable` thì ô này đỏ, kèm lý do ngay đây.
+   * `rules/pinned-baseline-test-companion.md` — một ô xoá đi không để lại gì thì
+   * lần quay lui sau không ai bắt được.
    */
-  it('bài đã che check thì KHÔNG — đó là wire của người học', () => {
-    expect(gitOjGradable(problemDaChe())).toBe(false);
+  it('bài đã che check VẪN nộp được — máy chủ chấm, không phải trình duyệt', () => {
+    expect(gitOjGradable(problemDaChe())).toBe(true);
   });
 
-  it('bài không có testcase nào cũng KHÔNG', () => {
+  it('bài không có testcase nào thì KHÔNG', () => {
+    // `problemVerdictOf(0, 0)` trả `CE`, nên đây là một bài không ai nộp được.
     expect(gitOjGradable({ ...problem(), testcases: [] })).toBe(false);
   });
 });
