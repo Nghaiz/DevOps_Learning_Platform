@@ -215,7 +215,9 @@ do tên nó nói.
 
 ## 6. Ngoài vùng lane — cần lead hoặc lane khác
 
-1. **`app/(session)/problems/[code]/page.tsx:40`** còn gọi `isProblemCode` bản K8s, nên mở
+1. ~~**`app/(session)/problems/[code]/page.tsx:40`**~~ **ĐÃ ĐÓNG 12:01 bởi lane còn lại**
+   (`65c97e0`, `9a8ea17`). Lời khai dưới đây đúng lúc đo (11:14) và giữ lại vì nó là bằng chứng
+   rằng chỗ chặn thứ tư có thật: còn gọi `isProblemCode` bản K8s, nên mở
    `/problems/GIT-0001` ra `notFound()`. Đường sửa có sẵn:
    `import { isAnyProblemCode } from '.../server/problems/problem-code'`. Thư mục
    `app/(session)/problems/**` thuộc lane D nên lane này không chạm.
@@ -227,7 +229,8 @@ do tên nó nói.
    ngược (component → route module). Chọn tái dùng thay vì chép một hàm slug tiếng Việt thứ tư
    (`đ`/`Đ` không phải `d` cộng dấu phụ, và bẫy đó đã được ghi ngay trong `toSlug`). Chỗ đúng
    của hàm ấy là một module dùng chung, nhưng `app/author/problems/**` ngoài vùng lane này.
-5. **`eslint` toàn `apps/web` ĐỎ, và lỗi không thuộc lane này:**
+5. ~~**`eslint` toàn `apps/web` ĐỎ**~~ **ĐÃ XANH 12:03**, sau khi lane còn lại commit.
+   Lượt đo 11:14 đỏ, và lỗi không thuộc lane này:
    `components/games/git/git-level-screen.tsx:170 'GitLevelScreen' is defined but never used`.
    File đó là file **chưa theo dõi** của lane còn lại, đang viết dở lúc đo (11:14). Vùng của
    lane này (`src/server/problems` + `src/components/games/git/builder`) **0 lỗi**.
@@ -238,10 +241,10 @@ do tên nó nói.
 
 | Phép đo | Lệnh | Kết quả | Giờ |
 |---|---|---|---|
-| Kiểu | `pnpm --filter @devops-platform/web typecheck` | xanh | 11:32 |
+| Kiểu | `pnpm --filter @devops-platform/web typecheck` | xanh | 11:32 và 11:57 |
 | Lint (vùng lane) | `npx eslint src/server/problems src/components/games/git/builder` | 0 lỗi | 11:33 |
-| Lint (toàn `apps/web`) | `pnpm --filter @devops-platform/web lint` | **đỏ 1 lỗi, của lane kia** (§6.5) | 11:14 |
-| Test web | `pnpm --filter @devops-platform/web test` | **206 file / 2432 ô / 0 skip** | 11:33 |
+| Lint (toàn `apps/web`) | `pnpm --filter @devops-platform/web lint` | đỏ 1 lỗi của lane kia ở 11:14, **xanh ở 12:03** sau khi họ commit | 11:14 / 12:03 |
+| Test web | `pnpm --filter @devops-platform/web test` | 206 file / 2432 ô ở 11:33, **207 / 2441 / 0 skip ở 12:00** | 11:33 / 12:00 |
 | Test copy | `pnpm --filter @devops-platform/copy test` | 5 file / 72 ô | 11:28 |
 | Tích hợp Postgres | trong suite web, `dlp-postgres` đang chạy | 8 ô chạy THẬT | 11:33 |
 | `next build` | `pnpm --filter @devops-platform/web build` | **xanh, thoát 0**, 38/38 trang | 11:41 |
@@ -253,9 +256,10 @@ Suite web đầu lane là 201 file / 2365 ô. Lane này thêm **4 file**
 trong `validate.test.ts` = **58 ô**. Chênh còn lại (2365 + 58 = 2423 so với 2432) là của lane
 kia, đang ghi vào cùng cây.
 
-**Ô AC-2 của đợt (`turbo run build lint typecheck test --force`) CHƯA chạy được sạch**, vì
-`lint` đỏ ở file của lane kia và turbo dừng sau task đỏ nên các suite sau sẽ chưa chạy. Cần
-chạy lại sau khi lane kia hạ cánh.
+**Ô AC-2 của đợt (`turbo run build lint typecheck test --force`) vẫn CHƯA chạy.** Chờ tới
+12:03 thì bốn cổng rời đều xanh (`build`, `lint`, `typecheck`, `test` ở `apps/web`, cộng
+`bundle:check`), nhưng chạy rời từng cổng KHÔNG tương đương một lượt `turbo --force`: nó còn
+phủ `packages/*` và đọc `Tasks: X/Y`. Lượt đó thuộc về lead sau khi cả hai lane hạ cánh.
 
 ---
 
