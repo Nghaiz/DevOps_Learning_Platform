@@ -760,3 +760,159 @@ chạy 6 nhịp trong lúc dựng. Con số đó là **chi tiết của fixture*
 - ~~**`objectivesTotal`**~~ — **BÁC BỎ**, xem §7.3. Không phải nợ; đã có ô gác ở
   cả hai game.
 - ~~**C3**~~ — **ĐÓNG**, và phạm vi thật rộng gấp đôi lời ghi ở §5.4.
+
+---
+
+## 8. Đợt sáu (2026-09-15) — ba dòng nợ đóng, và cổng e2e hẹp hơn ai cũng tưởng
+
+Phạm vi chốt bởi chủ dự án: **`allowedCommands` mất im lặng** + **ô gác runtime
+cho Builder** + **`lessons-authz` cách ly fixture**. Hai món còn lại của §7.6
+(`K8S_UNSEEDED_REPLAY_SEED`, `eslint` OOM) để lại, có chủ ý.
+
+| Commit | Việc |
+|---|---|
+| `ba86f0c` | `problemSaveLosses` + câu trên màn: Builder nói ra thứ nó sắp đánh rơi |
+| `99c0bde` | Spec e2e đo mạng của Builder, **và** đưa nó vào `e2e:ci` |
+| `fb4dbf0` | Ô phân trang `lessons` tái neo có trần; đua fixture đã định danh |
+
+### 8.1 Trước khi gõ dòng nào: 3 commit của đợt năm chưa hề lên `origin`
+
+`d4d4dfd` `9fdd702` `214086c` còn nằm ở local. PR #137 xanh 11/11 — nhưng ở
+`4e0b4eb`, tức **CI chưa chạy trên đợt năm**. Đẩy trước rồi mới làm; CI trên
+`214086c` trả `success`.
+
+Đáng ghi vì nó là mặt còn lại của §6.6 bài học 1. Ở đó máy dựng MẠNH HƠN runner
+nên một màu xanh local không nói gì về CI. Ở đây đơn giản hơn và dễ sót hơn:
+runner **chưa từng nhìn thấy** mã đó. Một PR "xanh" chỉ xanh trên cái SHA nó đã
+chạy, và không dòng nào trong `gh pr view` nói ra khoảng cách ấy.
+
+### 8.2 ⛔ Hai dòng nợ nữa trích câu lạc hậu — lần thứ SÁU và thứ BẢY
+
+§6.2 đặt luật *"một dòng nợ phải được TRA LẠI trước khi giao việc theo nó"*, và
+§7.3 là lượt đầu áp dụng. Đây là lượt thứ hai, và nó lại **đổi việc phải làm**:
+
+| §7.6 / §4.2 viết | Đo 2026-09-15 |
+|---|---|
+| "`K8S_UNSEEDED_REPLAY_SEED` là **mã chết**" | **Lạc hậu một phần.** 13 chỗ dùng ở `problem-plugins.test.ts` + export ở `index.ts:454`. "Chết" đúng theo nghĩa *đường chạy thật của K8s không đọc nó*, sai theo nghĩa *không ai tham chiếu* |
+| "**Chưa ô nào** đo rằng mở Level Builder không gọi mạng" | **Sai theo HAI chiều.** Phép đo runtime CÓ tồn tại (`games.spec.ts` §1, `games-git-sandbox.spec.ts` AC-2, cả hai kèm đối chứng dương) — nhưng không ô nào chạm Builder, **và** không ô nào chạy ở CI |
+| "Chỗ đúng là `authorFields` của plugin (§18.A.3)" | **Chỉ dẫn SAI.** `authorFields` mô tả trường của **Spec** (`commits`, `branches`, `head`…), tức của `WorldSpec`. `allowedCommands` là LUẬT của level, không phải trạng thái thế giới |
+
+Vế thứ ba đắt nhất: nó không chỉ mô tả sai hiện trạng mà còn **kê sẵn một bản vá
+sai**. Ai làm theo sẽ nhét một khái niệm chỉ-game-Git vào hợp đồng của `core/`.
+
+### 8.3 Phát hiện lớn hơn cả ba món nợ: `e2e:ci` chạy 3 trong 14 spec
+
+`ls apps/web/e2e/*.spec.ts` ra **14 file**. `e2e:ci` gọi **ba**. Theo đúng luật
+§6.2, mười một file còn lại **là tài liệu, không phải cổng** — kể cả
+`games.spec.ts`, nơi có phép đo mạng kèm đối chứng dương viết rất kỹ.
+
+Đây là cùng chế độ hỏng đã cho C1 sống sót trọn một đợt (§6.2), chỉ ở quy mô lớn
+hơn nhiều: §6.2 sửa MỘT spec (`games-level-mode`) và không ai đếm phần còn lại.
+Ô mới của đợt này được thêm vào `e2e:ci` trong **cùng commit** chính vì thế.
+
+⚠ Đây **không** phải lời mời nhét cả 11 file vào `e2e:ci`. Khối `//e2e:ci` trong
+`package.json` đã ghi lý do loại từng nhóm (cần phiên sandbox thật, cần GPU, cần
+một phép đo thời gian mà runner chia sẻ CPU không đo nổi). Thứ chưa ai làm là
+**đọc lại danh sách đó và hỏi từng file một** *"nó không chạy được ở CI, hay chỉ
+là chưa ai thêm?"* — `games-git-sandbox.spec.ts` AC-2 là ứng viên đầu tiên: nó
+chỉ cần `next start`, y như spec mới.
+
+### 8.4 `allowedCommands` — vá bằng cách NÓI RA, không bằng cách chở thêm trường
+
+Chuỗi, đọc thẳng từ mã: ô nhập ở `git-builder.tsx:334` → `draftToProblemBody` bỏ
+qua (`ProblemBase` không có ô) → `gitOjLevel` đặt `allowedCommands: null` khi mở
+lại bài, tức **cho dùng mọi lệnh**. Người soạn đặt một tập hạn chế, nhận về một
+bài không hạn chế gì, im lặng.
+
+**Chở nó sang `ProblemBase` là đổi THIẾT KẾ, không phải vá lỗi.** `problem-level.ts`
+§ (4) đã ghi rằng `null` và `[]` mang nghĩa ngược nhau và một `[]` lọt vào làm bài
+không bao giờ giải được mà không log gì; ô gác `problem-level.test.ts:109` khẳng
+định `null` đúng là giá trị mong muốn cho bài OJ.
+
+Nên: `problemSaveLosses`, một tập MẤT MÁT tách hẳn khỏi `problemSaveIssues`. Lý do
+tách nằm ở một chi tiết dễ bỏ qua — nút Lưu đọc thẳng `issues.length > 0` để tự
+khoá, nên nhét mất mát vào tập lỗi sẽ **đóng luôn đường xuất thứ hai của Builder**
+cho một bản nháp hoàn toàn hợp lệ. Một ô trong bộ test khẳng định đúng điều đó.
+
+### 8.5 `lessons-authz` — không phải "lung lay", là một cuộc đua có tên
+
+§5.6 xếp nó là flake và để mở. Mã lỗi tự khai trọn nguyên nhân:
+`InvalidCursorError: bai-1789456432419-tfx7q7` — khuôn `<tiền tố>-<13 chữ số>-<6
+ký tự>` đúng là thứ `uniqueId()` sinh ra, tức một **fixture của suite khác**;
+nội dung thật của nền tảng không có khối 13 chữ số nào.
+
+`lessons.list` đọc `composite([đĩa, DB])`, nên mọi bài `published` trong
+`content_items` nằm trong danh sách. **Năm** suite khác tạo rồi xoá bài
+`published` mang id fixture. Vitest chạy file song song trên cùng một Postgres.
+
+Ba đường đã loại, ghi để lượt sau khỏi đi lại: **không nới mã sản phẩm** (ô ngay
+trên khẳng định `InvalidCursorError` là hành vi đúng, với lý do đã ghi) · **không
+lọc** (`filter` chỉ có `difficulty`/`tier`/`capability`; chọn giá trị fixture
+"tình cờ" không dùng là đúng-do-may-mắn) · **không tiêm nguồn** (`scenarioSource()`
+zero-arg theo hợp đồng, và mock trọn nó thì chính phép phân trang cần gác không
+còn chạy).
+
+### 8.6 Cả ba cổng mới đều đã được đo ở trạng thái ĐỎ
+
+| Cổng | Cách làm nó đỏ | Kết quả |
+|---|---|---|
+| `problemSaveLosses` | đổi `!== null` thành `.length > 0` | đỏ ĐÚNG MỘT ô ("mảng RỖNG vẫn là mất mát"), ba ô kia giữ xanh |
+| pha `builder` không gọi mạng | tiêm `fetch('/api/...')` sau `trace.phase('builder')` | đỏ, và **đúng một** mục lọt vào, không kèm gì khác |
+| tái neo có trần | ép cursor thành mã không tồn tại sau mỗi trang | `expected 3 to be less than 3` — đúng câu đã viết |
+
+Vế giữa đáng ghi riêng: đối chứng dương của spec bắn ở pha `đối chứng`, nên nó
+**không** chứng minh phép lọc `r.phase === 'builder'` có đỏ được không. Hai ô đo
+hai thứ khác nhau và cần hai phép đo đỏ khác nhau — một đối chứng dương "ở gần
+đó" không phủ hộ ô bên cạnh.
+
+### 8.7 Đo được (cây sạch, `HEAD` không đổi trước/sau, `dlp-postgres` chạy)
+
+```
+pnpm exec turbo run build lint typecheck test --force --concurrency=2
+Tasks: 32 successful, 32 total      exit 0      4m57s
+
+web 2489 · games 1345 · ui 932 · scenario 289
+terminal 133 · motion 110 · copy 72 · shared-types 48   = 5418 ô
+
+E2E_START_SERVER=1 pnpm --filter web e2e:ci
+57 passed · 27 skipped · exit 0
+```
+
+So mốc §7.4 (5414): **web +4, đúng bằng số ô thêm vào**; bảy gói còn lại không
+đổi một ô. `e2e:ci` 55 → 57, đúng +2. 27 ô skip là nhóm role-gated đã biết từ
+§6.1, không phải thứ đợt này gây ra.
+
+Mọi dòng khớp chữ `skip` đã soi từng dòng: bốn **notice của Postgres**, một **tên
+file** (`me-history-skipped.test.ts`), bốn **dòng log ứng dụng** về
+`RATE_LIMIT_TRUST_PROXY`. Không dòng tóm tắt vitest nào báo ô bị bỏ.
+
+⚠ Và theo đúng §6.6 bài học 1, con số trên **không nói gì về CI** — máy dựng có
+`dlp-postgres` đã seed. Đợt này không thêm ô `*.integration.test.ts` nào.
+
+### 8.8 Hai sự cố của chính phép đo, không phải của mã
+
+1. **`spawn UNKNOWN` (errno -4094)** khi `web:build` (31 worker) chạy cùng
+   `web:test` ở `--concurrency=2`: `1 failed | 189 passed (196)` kèm `21 errors`.
+   Không ô nào của bản vá đỏ — là kiệt handle tiến trình trên Windows. Chạy riêng
+   suite web thì ra `211 passed`. Cùng họ với
+   `rules/turbo-parallel-load-times-out-io-tests.md`, và `Tasks: 11/13` nghĩa là
+   **suite web lượt đó chưa hề chạy tới nơi**.
+2. **`RangeError: Array buffer allocation failed`** khi `next start` khởi động cho
+   lượt e2e, ngay sau một lượt turbo nặng: máy còn chưa nhả RAM. Chạy lại khi đã
+   nhả (10,7/39,7 GB free) thì xanh. Một lượt e2e đỏ ngay sau một lượt build nặng
+   nên được nghi là môi trường TRƯỚC khi bị đọc thành hồi quy.
+
+### 8.9 Nợ còn lại
+
+- **`K8S_UNSEEDED_REPLAY_SEED`** — không còn đúng tên gọi "mã chết" (§8.2). Câu
+  đúng: *đường chạy K8s không đọc nó*, vì đấu trường luôn sinh seed
+  `Math.random()`. Chưa làm, và cần viết lại dòng nợ trước khi giao việc.
+- **`eslint` OOM** (§6.4) — không tái hiện trong đợt này. Nguyên nhân chưa xác định.
+- **Mười một spec e2e nằm ngoài `e2e:ci`** (§8.3) — chưa ai đọc lại danh sách để
+  phân biệt "không chạy được ở CI" với "chưa ai thêm". `games-git-sandbox.spec.ts`
+  AC-2 là ứng viên đầu tiên.
+- ~~**`allowedCommands` mất khi lưu thành bài**~~ — **ĐÓNG**, và chỉ dẫn "chỗ đúng
+  là `authorFields`" ở §4.2 là SAI, xem §8.2.
+- ~~**Chưa ô nào đo Builder không gọi mạng**~~ — **ĐÓNG**, và dòng nợ sai theo hai
+  chiều.
+- ~~**`lessons-authz` lung lay**~~ — **ĐÓNG**, và nó chưa bao giờ là flake.
