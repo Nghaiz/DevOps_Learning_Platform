@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
+import { useState, type ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { t } from '@devops-platform/copy';
 import {
   AUTHORABLE_GAMES,
   authorFieldPaths,
@@ -22,6 +25,10 @@ import { ProblemEditor } from './problem-editor';
  *
  * | Nếu hỏng thế này | Ô đỏ |
  * |---|---|
+ * | Bỏ `<legend>`, nhóm chọn game mất nhãn | `o chon game co nhan…` |
+ * | Mỗi radio một `name` riêng — nhóm radio tan ra | `o chon game co nhan…` |
+ * | Mũi tên hết chuyển được giữa hai lựa chọn | `o chon game co nhan…` |
+ * | Bấm bàn phím đổi radio mà biểu mẫu đứng yên | `di bang ban phim doi ca…` |
  * | Biểu mẫu bỏ qua `gameId` và luôn dựng ô của K8s | `bieu mau doi theo game` |
  * | Chủ đề quay về chín chủ đề K8s dùng chung | `tap chu de doi theo game` |
  * | Đổi game mà giữ lại spec hoặc chủ đề của game cũ | `doi game nap lai spec` |
@@ -29,6 +36,25 @@ import { ProblemEditor } from './problem-editor';
  * Đối chứng dương đã chạy tay ngày 2026-09-14 (ghi trong báo cáo lane): thay
  * `view.authorFields` bằng `K8S_AUTHOR_FIELDS` cố định trong `problem-editor`
  * làm ô đầu đỏ với đúng nhãn Git bị thiếu, chứ không đỏ vì một lý do khác.
+ * Ngày 2026-09-16 chạy thêm ba đối chứng: (1) bỏ `<legend>` → đỏ ở
+ * `getByRole('group', { name })`; (2) đổi `name` chung thành `name={game.gameId}`
+ * → đỏ ở phép đếm tập `name`; (3) lặp lại (2) NHƯNG tạm vô hiệu phép đếm đó, để
+ * xem vế bàn phím có tự gác được không — đỏ ở `user.tab()`, vì điểm vào Tab rơi
+ * về radio ĐẦU nhóm thay vì radio đang bật. Bước (3) đáng làm vì (2) đỏ sớm hơn
+ * các vế bàn phím, nên một mình nó không chứng minh được các vế ấy gác gì.
+ *
+ * ## Ô chọn game là NHÓM RADIO, không phải `<select>`
+ *
+ * Bản trước tra `getByRole('combobox')` vì ô chọn từng là một `<select>`. Nó
+ * nay là `<fieldset>` + radio gốc, nên vai đổi thành `group`. Đáng ghi lại là
+ * NĂNG LỰC thì không đổi: radio gốc cùng một `name` được TRÌNH DUYỆT cấp sẵn
+ * roving tabindex + điều hướng bằng mũi tên, đúng khuôn radio group của
+ * WAI-ARIA — không cần một dòng `tabIndex`/`onKeyDown` nào trong component.
+ *
+ * Nhưng phải đo bằng đúng công cụ: `fireEvent` (và jsdom trần) KHÔNG mô phỏng
+ * khuôn đó — đo 2026-09-16, hai radio gốc cùng `name` trả `tabIndex` [0,0] và
+ * `keyDown{ArrowDown}` không đổi cả focus lẫn `checked`. `user-event` thì cài
+ * đúng thuật toán của trình duyệt, nên các vế bàn phím dưới đây dùng nó.
  *
  * ## Vì sao so bằng TÊN chứ không bằng SỐ ĐẾM
  *
@@ -88,18 +114,152 @@ function renderEditor(form: ProblemFormState): void {
   );
 }
 
+/**
+ * Bản có TRẠNG THÁI THẬT của trình soạn bài.
+ *
+ * `renderEditor` truyền `onChange: vi.fn()`, nên ở đó biểu mẫu là *controlled*
+ * mà không ai đổi state: React ghi đè lại `checked` sau mỗi lần bấm. Điều đó
+ * đúng cho ô chỉ đo ĐIỀU HƯỚNG (focus chạy đi đâu), nhưng nó làm mù ô đo HỆ
+ * QUẢ — "chọn game đổi biểu mẫu". Harness này nối `onChange` về `setForm` để cú
+ * bấm bàn phím đi hết đường dây thật: radio → `GameSelectField.onChange` →
+ * `formWithGame` → `ProblemEditor` render lại.
+ */
+function EditorHarness(props: { readonly start: ProblemFormState }): ReactElement {
+  const [form, setForm] = useState(props.start);
+  return (
+    <ProblemEditor
+      form={form}
+      onChange={setForm}
+      issues={[]}
+      code={null}
+      state="draft"
+      nextKey={() => 'k-harness'}
+      hasUnsavedChanges={false}
+      actions={null}
+    />
+  );
+}
+
+/** Nhóm chọn game, tra bằng VAI + NHÃN chứ không bằng class hay thẻ. */
+function gameGroup(): HTMLElement {
+  return screen.getByRole('group', { name: t('author.problem.game.label') });
+}
+
+function radiosIn(group: HTMLElement): readonly HTMLInputElement[] {
+  return within(group).getAllByRole('radio') as HTMLInputElement[];
+}
+
+function radioFor(group: HTMLElement, gameId: 'k8s' | 'git'): HTMLInputElement {
+  const found = radiosIn(group).find((radio) => radio.value === gameId);
+  if (found === undefined) {
+    throw new Error(`khong thay radio cho game ${gameId}`);
+  }
+  return found;
+}
+
+function checkedValues(group: HTMLElement): readonly string[] {
+  return radiosIn(group)
+    .filter((radio) => radio.checked)
+    .map((radio) => radio.value);
+}
+
 describe('chon game doi bieu mau soan bai', () => {
   it('bang dang ky liet ke dung hai game co bai tap', () => {
     expect(AUTHORABLE_GAMES.map((game) => game.gameId)).toEqual(['k8s', 'git']);
     expect(AUTHORABLE_GAMES.map((game) => game.codePrefix)).toEqual(['K8S', 'GIT']);
   });
 
-  it('o chon game co nhan va di duoc bang ban phim', () => {
-    renderEditor(formFor('k8s'));
-    // `getByRole` với `name` là phép đo A11Y, không phải phép đo DOM: nó đi qua
-    // cây tên có thể tính (accessible name). Một ô chọn không nối nhãn sẽ
-    // KHÔNG tìm thấy ở đây, và đó đúng là thứ AC-8 (0 vi phạm axe) đòi.
-    expect(screen.getByRole('combobox', { name: 'Game' })).toBeTruthy();
+  it('o chon game co nhan va di duoc bang ban phim', async () => {
+    const user = userEvent.setup();
+    // Mở bằng Git chứ không phải K8s: điểm vào Tab của một nhóm radio là lựa
+    // chọn ĐANG BẬT, nên mở bằng lựa chọn THỨ HAI mới phân biệt được "roving
+    // tabindex" với "cứ rơi vào phần tử đầu tiên".
+    renderEditor(formFor('git'));
+
+    // `getByRole` + `name` là phép đo A11Y, không phải phép đo DOM: nó đi qua
+    // cây tên có thể tính. Nhãn lấy từ BẢN ĐỒ CHỮ, không gõ lại chuỗi — gõ lại
+    // thì đổi chữ trong bản đồ sẽ làm ô này đỏ vì một lý do sai.
+    const group = gameGroup();
+    const radios = radiosIn(group);
+    expect(radios).toHaveLength(AUTHORABLE_GAMES.length);
+
+    // Mỗi lựa chọn có tên khả truy cập chứa nhãn game. Tách `<input>` ra khỏi
+    // `<label>` bọc ngoài mà quên `for` sẽ làm tên rỗng, và ô này đỏ ngay.
+    for (const game of AUTHORABLE_GAMES) {
+      expect(
+        within(group).getByRole('radio', { name: (name) => name.includes(game.label) }),
+      ).toBeTruthy();
+    }
+
+    // CÙNG MỘT `name` là thứ DUY NHẤT tạo ra nhóm radio theo HTML spec, và là
+    // thứ trình duyệt dựa vào để cấp roving tabindex + phím mũi tên. Tách nó ra
+    // (ví dụ `name={game.gameId}`) thì mỗi radio thành một nhóm một-phần-tử:
+    // mọi radio vào thứ tự Tab, mũi tên hết chuyển, và bỏ chọn lẫn nhau cũng
+    // mất — nhưng màn hình trông y hệt. Đây là chế độ hỏng dễ xảy ra nhất.
+    expect(new Set(radios.map((radio) => radio.name)).size).toBe(1);
+
+    // Đúng MỘT lựa chọn bật, và là game đang mở.
+    expect(checkedValues(group)).toEqual(['git']);
+
+    // Không lựa chọn nào bị khoá khi `canChange` — nhóm phải vào được thứ tự Tab.
+    expect(radios.filter((radio) => radio.disabled)).toEqual([]);
+
+    // --- Đi bằng bàn phím, đo trực tiếp ---
+    // `fireEvent` KHÔNG mô phỏng khuôn radio group (đo 2026-09-16: jsdom trả
+    // `tabIndex` [0,0] cho hai radio và `keyDown ArrowDown` không đổi gì cả).
+    // `user-event` thì có: nó cài đúng thuật toán thứ tự Tab và xử lý mũi tên
+    // của trình duyệt, nên ba vế dưới là phép đo hành vi thật chứ không phải
+    // phép đo thuộc tính.
+    await user.tab();
+    // Điểm vào Tab là lựa chọn ĐANG BẬT (Git), không phải phần tử đầu nhóm.
+    expect(document.activeElement).toBe(radioFor(group, 'git'));
+
+    // Và Tab kế tiếp RỜI HẲN khỏi nhóm: chỉ MỘT radio nằm trong thứ tự Tab.
+    await user.tab();
+    expect(group.contains(document.activeElement)).toBe(false);
+
+    // Trong nhóm thì phím mũi tên mới là thứ chuyển giữa các lựa chọn.
+    radioFor(group, 'git').focus();
+    await user.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(radioFor(group, 'k8s'));
+    await user.keyboard('{ArrowLeft}');
+    expect(document.activeElement).toBe(radioFor(group, 'git'));
+  });
+
+  it('di bang ban phim doi ca lua chon lan bieu mau soan bai', async () => {
+    const user = userEvent.setup();
+    const k8sView = pluginViewFor('k8s');
+    const gitView = pluginViewFor('git');
+    if (k8sView === null || gitView === null) {
+      throw new Error('hai game nay phai co plugin; xem PROBLEM_PLUGINS');
+    }
+
+    // Harness có state thật: cú bấm bàn phím phải đi hết đường dây, không dừng
+    // ở `onChange` rồi bị React ghi đè lại.
+    render(<EditorHarness start={formFor('k8s')} />);
+    const group = gameGroup();
+    expect(checkedValues(group)).toEqual(['k8s']);
+    expect(screen.getByRole('tab', { name: k8sView.specTabLabel })).toBeTruthy();
+
+    // Mũi tên trên nhóm radio vừa chuyển focus VỪA chốt lựa chọn — đó là khuôn
+    // WAI-ARIA, và cũng là cách duy nhất người dùng bàn phím đổi game.
+    radioFor(group, 'k8s').focus();
+    await user.keyboard('{ArrowDown}');
+
+    expect(document.activeElement).toBe(radioFor(group, 'git'));
+    expect(checkedValues(group)).toEqual(['git']);
+
+    // Và biểu mẫu soạn bài đi theo: nhãn tab trạng thái ban đầu đổi sang của
+    // Git, và của K8s biến mất. Chỉ kiểm một chiều thì một biểu mẫu dựng cả hai
+    // game cùng lúc vẫn xanh.
+    expect(screen.getByRole('tab', { name: gitView.specTabLabel })).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: k8sView.specTabLabel })).toBeNull();
+
+    // Ô nhập riêng của Git thật sự render khi mở tab trạng thái ban đầu.
+    openSpecTab(gitView.specTabLabel);
+    for (const field of gitView.authorFields) {
+      expect(document.body.textContent ?? '').toContain(field.label);
+    }
   });
 
   it('tap path cua hai plugin khac nhau, do tu chinh hop dong', () => {
