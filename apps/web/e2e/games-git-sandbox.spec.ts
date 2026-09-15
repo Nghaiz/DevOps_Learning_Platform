@@ -35,7 +35,7 @@ const GIT_PATH = '/games/git';
 async function openSandbox(page: Page): Promise<void> {
   await openScreen(page, GIT_PATH, 'user');
   await settle(page);
-  await page.getByRole('button', { name: 'Mở sandbox' }).click();
+  await page.getByRole('button', { name: 'Sandbox & Builder' }).click();
   await expect(page.getByTestId('git-sandbox-panel')).toBeVisible();
 }
 
