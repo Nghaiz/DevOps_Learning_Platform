@@ -49,10 +49,11 @@ import { t } from '@devops-platform/copy';
 import { problemTopicLabels, type LevelDraft } from '@devops-platform/games';
 
 import { parseTags } from '../../../../app/author/problems/text-tools';
-import { SAVE_ISSUE_TEXT } from './builder-copy';
+import { SAVE_ISSUE_TEXT, SAVE_LOSS_TEXT } from './builder-copy';
 import {
   draftToProblemBody,
   problemSaveIssues,
+  problemSaveLosses,
   slugFromTitle,
   type ProblemExtras,
 } from './draft-to-problem';
@@ -99,6 +100,12 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
   );
 
   const issues = useMemo(() => problemSaveIssues(draft, extras), [draft, extras]);
+  /*
+   * KHÔNG đưa vào `disabled` của nút Lưu. Mất mát là thứ để ĐỌC, không phải thứ
+   * để sửa — khoá nút vì nó sẽ đóng đường xuất thứ hai của Builder cho một bản
+   * nháp hoàn toàn hợp lệ. Xem `draft-to-problem.ts` § `ProblemSaveLossCode`.
+   */
+  const losses = useMemo(() => problemSaveLosses(draft), [draft]);
   const slug = slugFromTitle(draft.title);
 
   const toggleTopic = useCallback((id: string) => {
@@ -289,6 +296,25 @@ export function SaveProblemPanel({ draft }: { readonly draft: LevelDraft }): Rea
                 <>
                   {' '}
                   <code>{issue.detail}</code>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {losses.length > 0 && (
+        <ul
+          className="flex list-disc flex-col gap-1 pl-5"
+          data-testid="git-builder-save-losses"
+        >
+          {losses.map((loss) => (
+            <li key={loss.code} className="text-xs text-warning">
+              {t(SAVE_LOSS_TEXT[loss.code])}
+              {loss.detail !== undefined && (
+                <>
+                  {' '}
+                  <code>{loss.detail}</code>
                 </>
               )}
             </li>

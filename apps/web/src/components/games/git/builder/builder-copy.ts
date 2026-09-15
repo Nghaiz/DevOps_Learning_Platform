@@ -21,7 +21,7 @@
 import type { TextKey } from '@devops-platform/copy';
 import type { BuilderLimit, DraftIssueCode } from '@devops-platform/games';
 
-import type { ProblemSaveIssueCode } from './draft-to-problem';
+import type { ProblemSaveIssueCode, ProblemSaveLossCode } from './draft-to-problem';
 
 export const ISSUE_TEXT = {
   'id-trong': 'author.builder.issue.id-trong',
@@ -77,3 +77,17 @@ export const SAVE_ISSUE_TEXT = {
   'slug-rong': 'author.builder.save.issue.slug-rong',
   'slug-qua-dai': 'author.builder.save.issue.slug-qua-dai',
 } as const satisfies Record<ProblemSaveIssueCode, TextKey>;
+
+/**
+ * Cầu nối thứ ba: MẤT MÁT của đường lưu sang bản đồ chữ.
+ *
+ * Bảng riêng chứ không gộp vào `SAVE_ISSUE_TEXT`, cùng lý lẽ đã tách hai union ở
+ * `draft-to-problem.ts`: một mất mát không chặn lưu, nên trộn nó vào danh sách
+ * lỗi sẽ khiến người soạn đi tìm thứ để sửa trong một câu chỉ để đọc.
+ *
+ * `satisfies` giữ cùng ô gác tầng KIỂU: thêm một mã mất mát mà quên câu cho nó
+ * là lỗi biên dịch, không phải một dòng trống trên màn.
+ */
+export const SAVE_LOSS_TEXT = {
+  'allowed-commands-mat': 'author.builder.save.loss.allowed-commands-mat',
+} as const satisfies Record<ProblemSaveLossCode, TextKey>;

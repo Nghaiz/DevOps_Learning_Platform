@@ -30,6 +30,7 @@ import {
 import {
   draftToProblemBody,
   problemSaveIssues,
+  problemSaveLosses,
   slugFromTitle,
   type ProblemExtras,
 } from './draft-to-problem';
@@ -277,5 +278,51 @@ describe('phép kiểm phần panel', () => {
 
   it('số cờ hiện lệch số mục tiêu là LỖI — nếu không thì mục cuối âm thầm thành ẩn', () => {
     expect(codes(hopLe(), { objectiveVisible: [] })).toContain('co-hien-lech-so-luong');
+  });
+});
+
+describe('problemSaveLosses — thứ bản nháp có mà bài lưu ra không chở nổi', () => {
+  const lossCodes = (draft: LevelDraft): string[] =>
+    problemSaveLosses(draft).map((loss) => loss.code);
+
+  it('allowedCommands có giá trị ⇒ báo mất, và KHÔNG chặn lưu', () => {
+    /*
+     * Dùng CHÍNH tập lệnh của level gá, không bịa một tập hẹp hơn. Bản đầu viết
+     * `['status', 'log']` và ô đỏ với `expected null not to be null` — vì
+     * `levelDraftIssues` bắn `loi-giai-dung-lenh-ngoai-tap` (lời giải mẫu của
+     * level dùng `init`/`add`/`commit`), rồi `nhap-con-loi` làm body thành
+     * `null`. Ô đỏ đúng, nhưng vì một lý do KHÁC thứ nó định đo, nên nó không
+     * chứng minh được gì về mất mát. Fixture phải hợp lệ ở mọi chiều trừ chiều
+     * đang đo.
+     */
+    const draft = hopLe({ allowedCommands: G01.allowedCommands ?? ['status'] });
+
+    expect(lossCodes(draft)).toContain('allowed-commands-mat');
+    /*
+     * Nửa quan trọng hơn của ô này. Nếu mất mát lọt vào `problemSaveIssues` thì
+     * `draftToProblemBody` trả `null` và nút Lưu tự khoá — tức bản vá "báo cho
+     * người soạn biết" sẽ âm thầm đóng luôn đường lưu. Hai phép dưới là thứ
+     * phân biệt một lời nhắc với một cổng chặn.
+     */
+    expect(codes(draft)).not.toContain('allowed-commands-mat');
+    expect(draftToProblemBody(draft, extras(draft))).not.toBeNull();
+  });
+
+  it('detail mang đúng tập lệnh người soạn gõ, để họ nhận ra thứ vừa mất', () => {
+    const [loss] = problemSaveLosses(hopLe({ allowedCommands: ['status', 'log'] }));
+    expect(loss?.detail).toBe('status, log');
+  });
+
+  it('null ⇒ KHÔNG mất gì — đó đúng là giá trị bài OJ nhận được', () => {
+    expect(lossCodes(hopLe({ allowedCommands: null }))).toEqual([]);
+  });
+
+  it('mảng RỖNG vẫn là mất mát, dù `.length > 0` sẽ bỏ qua nó', () => {
+    /*
+     * `[]` nghĩa là "cấm mọi lệnh", ngược hẳn `null`. `levelDraftIssues` đã chặn
+     * nó ở đường level bằng `tap-lenh-rong`, nhưng phép đếm ở đây phải độc lập
+     * với điều đó: một hiện thực đọc `.length > 0` sẽ im lặng đúng ca này.
+     */
+    expect(lossCodes(hopLe({ allowedCommands: [] }))).toContain('allowed-commands-mat');
   });
 });

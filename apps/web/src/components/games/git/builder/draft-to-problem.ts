@@ -120,6 +120,67 @@ export interface ProblemSaveIssue {
 }
 
 /**
+ * MẤT MÁT, không phải lỗi — thứ người soạn gõ vào mà bài lưu ra không chở nổi.
+ *
+ * ## Vì sao một tập thứ hai chứ không thêm một `ProblemSaveIssueCode`
+ *
+ * `problemSaveIssues` là tập CHẶN: rỗng ⇒ `draftToProblemBody` trả một body, và
+ * nút Lưu đọc thẳng `issues.length > 0` để tự khoá. Nhét mất mát vào đó sẽ biến
+ * "bài này lưu được, chỉ khác tệp level một chỗ" thành "không lưu được" — tức
+ * đóng luôn đường xuất thứ hai của Builder vì một thứ hoàn toàn hợp lệ.
+ *
+ * Hai tập trả lời hai câu khác nhau: *"đã đủ để lưu chưa"* và *"lưu xong thì
+ * mất gì"*. Chỉ câu thứ hai cần người soạn ĐỌC; không câu nào cần họ sửa.
+ *
+ * ## `allowedCommands` — mất mát THẬT, và trước đợt này nó im lặng
+ *
+ * `git-builder.tsx` có một ô cho người soạn gõ tập lệnh cho phép. `ProblemBase`
+ * không có ô nào chứa nó, nên `draftToProblemBody` bỏ qua — và `gitOjLevel` khi
+ * mở lại bài đặt `allowedCommands: null` (= cho dùng MỌI lệnh). Người soạn gõ
+ * một tập hạn chế, bấm Lưu, nhận về một bài không hạn chế gì, và không một dòng
+ * nào trên màn nói điều đó.
+ *
+ * ⚠ **Đừng "sửa" bằng cách chở nó sang `ProblemBase`.** Đó là đổi THIẾT KẾ, không
+ * phải vá lỗi: `problem-level.ts` § (4) đã ghi rằng `null` và `[]` mang nghĩa
+ * ngược nhau và một `[]` lọt vào sẽ làm bài không bao giờ giải được mà không log
+ * gì; và ô gác `problem-level.test.ts:109` khẳng định `null` đúng là giá trị
+ * mong muốn cho bài OJ. Chở thêm một trường vào hợp đồng `core/` cho một khái
+ * niệm chỉ game Git có cũng đi ngược AC-A. Việc đúng ở đây là NÓI RA.
+ */
+export type ProblemSaveLossCode = 'allowed-commands-mat';
+
+export interface ProblemSaveLoss {
+  readonly code: ProblemSaveLossCode;
+  /** Giá trị cụ thể của người soạn. Không dịch. */
+  readonly detail?: string;
+}
+
+/**
+ * Những gì bản nháp có mà bài lưu ra không chở được. KHÔNG chặn lưu.
+ *
+ * Tách khỏi `problemSaveIssues` chứ không gộp — lý do đầy đủ ở khối trên
+ * `ProblemSaveLossCode`.
+ */
+export function problemSaveLosses(draft: LevelDraft): readonly ProblemSaveLoss[] {
+  const losses: ProblemSaveLoss[] = [];
+
+  /*
+   * `!== null` chứ không `.length > 0`. `null` = không giới hạn, và đó đúng là
+   * thứ bài OJ nhận được, nên `null` KHÔNG mất gì. Một mảng RỖNG thì có mất —
+   * nó nghĩa là "cấm mọi lệnh" — dù `levelDraftIssues` đã chặn nó bằng
+   * `tap-lenh-rong` ở đường level. Đọc `.length > 0` sẽ im lặng đúng ca đó.
+   */
+  if (draft.allowedCommands !== null) {
+    losses.push({
+      code: 'allowed-commands-mat',
+      detail: draft.allowedCommands.length === 0 ? '(rỗng)' : draft.allowedCommands.join(', '),
+    });
+  }
+
+  return losses;
+}
+
+/**
  * Mọi thứ chặn bản nháp trở thành một dòng `problems`. Rỗng ⇒ `draftToProblemBody`
  * trả về một body.
  *

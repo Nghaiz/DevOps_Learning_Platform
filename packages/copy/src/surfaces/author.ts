@@ -850,6 +850,17 @@ export const author = {
     'Tiêu đề không sinh ra được đường dẫn nào. Thêm chữ và số vào tiêu đề, thay vì chỉ dấu câu.',
   'author.builder.save.issue.slug-qua-dai':
     'Đường dẫn sinh từ tiêu đề dài quá 120 ký tự. Rút gọn tiêu đề lại.',
+
+  /*
+   * MẤT MÁT, tập thứ ba: không phải lỗi, và cố ý KHÔNG chặn nút Lưu.
+   *
+   * Câu này phải nói ra hậu quả LÚC CHƠI (`null` = mọi lệnh đều dùng được), chứ
+   * không chỉ nói "trường này không lưu". Người soạn đặt một tập lệnh hạn chế vì
+   * họ muốn bài KHÓ theo một kiểu nhất định; biết rằng "nó không lưu" mà không
+   * biết "nên bài sẽ cho dùng mọi lệnh" thì vẫn không đoán được bài mình ra sao.
+   */
+  'author.builder.save.loss.allowed-commands-mat':
+    'Tập lệnh cho phép sẽ KHÔNG được lưu vào bài tập, vì kho bài không có ô cho nó. Tệp level bạn xuất ra thì vẫn giữ. Bài lưu từ đây cho người học dùng mọi lệnh Git; nếu tập hạn chế là phần cốt lõi của bài, hãy dùng đường xuất tệp level thay vì lưu thành bài tập.',
 } as const satisfies Surface<'author'>;
 
 export const authorIntentionalThree = {
