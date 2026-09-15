@@ -27,6 +27,7 @@ import {
 } from '@devops-platform/games';
 
 import { ISSUE_TEXT, LIMIT_TEXT } from './builder-copy';
+import { PREDICATE_ARGS, missingArgs } from './predicate-args';
 import {
   exportFileName,
   formatAllowedCommands,
@@ -587,7 +588,9 @@ function ObjectiveEditor({
               id={`builder-objective-check-${String(index)}`}
               value={objective.check}
               onChange={(e) => {
-                replace(index, { ...objective, check: e.target.value as GitPredicateName });
+                // Đổi vị từ thì BỎ tham số cũ. Xem khối chú thích của `ArgEditor`.
+                const { args: _discarded, ...rest } = objective;
+                replace(index, { ...rest, check: e.target.value as GitPredicateName });
               }}
               className="w-full rounded-md border border-input bg-card px-3 py-2 font-mono text-xs text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
@@ -598,6 +601,13 @@ function ObjectiveEditor({
               ))}
             </select>
           </div>
+          <ArgEditor
+            index={index}
+            objective={objective}
+            onChange={(next) => {
+              replace(index, next);
+            }}
+          />
           <div className="flex items-center gap-2">
             <input
               id={`builder-objective-required-${String(index)}`}
@@ -646,6 +656,133 @@ function ObjectiveEditor({
         </BuilderButton>
       </div>
     </section>
+  );
+}
+
+/**
+ * Ô nhập tham số của vị từ đang chọn — §18.E.2.
+ *
+ * ## Vì sao không phải một ô khoá/giá trị tự do
+ *
+ * `evaluatePredicate` đọc tham số qua `argString`/`argNumber`/... và **im lặng**
+ * khi thiếu hoặc sai kiểu: vị từ trả `false`, và trên màn người soạn thấy một
+ * mục tiêu không bao giờ đạt, không kèm một dòng nào nói vì sao. Một ô tự do đẩy
+ * nguyên cái bẫy đó sang người dùng: gõ `refs` thay vì `ref`, hoặc gõ `"3"` thay
+ * vì `3`, và level hỏng theo đúng kiểu khó lần ra nhất.
+ *
+ * Nên ô này dựng ĐÚNG những trường mà vị từ đọc, đúng kiểu, và cảnh báo khi một
+ * tham số BẮT BUỘC còn trống. Danh sách trường tới từ `PREDICATE_ARGS`, thứ có ô
+ * gác đọc thẳng `predicates.ts` để không trôi khỏi engine.
+ *
+ * ## Đổi vị từ thì XOÁ tham số cũ
+ *
+ * Giữ lại là chở theo rác: `{ ref: 'main' }` còn nguyên sau khi đổi sang
+ * `stashCount` sẽ nằm trong JSON xuất ra, `evaluatePredicate` bỏ qua nó, và
+ * không cổng nào báo. Người đọc tệp level sau này sẽ mất thời gian tìm xem `ref`
+ * ở đó để làm gì.
+ */
+function ArgEditor({
+  index,
+  objective,
+  onChange,
+}: {
+  readonly index: number;
+  readonly objective: GitObjective;
+  readonly onChange: (next: GitObjective) => void;
+}): ReactElement | null {
+  const specs = PREDICATE_ARGS[objective.check];
+  const missing = missingArgs(objective.check, objective.args);
+
+  if (specs.length === 0) {
+    return objective.check === 'graphShapeMatches' ? (
+      <p className="text-[10px] text-muted-foreground">
+        Vị từ này không nhận tham số. Nó so hình dạng DAG với CÂY ĐÍCH ở khối trên, nên hãy
+        chắc là bạn đã đặt đích.
+      </p>
+    ) : (
+      <p className="text-[10px] text-muted-foreground">Vị từ này không nhận tham số.</p>
+    );
+  }
+
+  const setArg = (name: string, value: unknown): void => {
+    onChange({ ...objective, args: { ...objective.args, [name]: value } });
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {specs.map((spec) => {
+        const id = `builder-objective-arg-${String(index)}-${spec.name}`;
+        const raw = objective.args?.[spec.name];
+        if (spec.kind === 'boolean') {
+          return (
+            <div key={spec.name} className="flex items-center gap-2">
+              <input
+                id={id}
+                type="checkbox"
+                checked={raw === true}
+                onChange={(e) => {
+                  setArg(spec.name, e.target.checked);
+                }}
+                className="size-4 rounded border-input focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              />
+              <label htmlFor={id} className="font-mono text-xs text-foreground">
+                {spec.name}
+              </label>
+            </div>
+          );
+        }
+        if (spec.kind === 'lines') {
+          return (
+            <AreaField
+              key={spec.name}
+              id={id}
+              label={spec.name}
+              hint="Mỗi dòng một dòng nội dung của file."
+              rows={3}
+              mono
+              value={Array.isArray(raw) ? (raw as string[]).join('\n') : ''}
+              onChange={(text) => {
+                setArg(spec.name, text.split('\n'));
+              }}
+            />
+          );
+        }
+        return (
+          <div key={spec.name} className="flex flex-col gap-1">
+            <label htmlFor={id} className="font-mono text-xs text-foreground">
+              {spec.name}
+            </label>
+            <input
+              id={id}
+              type={spec.kind === 'number' ? 'number' : 'text'}
+              autoComplete="off"
+              value={typeof raw === 'string' || typeof raw === 'number' ? String(raw) : ''}
+              onChange={(e) => {
+                /*
+                 * Ô số gửi đi `number`, không gửi chuỗi: `argNumber` từ chối mọi
+                 * thứ không phải `number` hữu hạn, nên một `'3'` lọt vào args sẽ
+                 * làm vị từ trả `false` mãi mãi mà JSON xuất ra trông vẫn hợp lệ.
+                 * Ô trống gửi `null` chứ không gửi `0` — `0` là một giá trị có
+                 * nghĩa (`stashCount: 0`), nên đoán nó thay người soạn là sai.
+                 */
+                if (spec.kind !== 'number') {
+                  setArg(spec.name, e.target.value);
+                  return;
+                }
+                setArg(spec.name, e.target.value === '' ? null : Number(e.target.value));
+              }}
+              className={SELECT_CLASS}
+            />
+          </div>
+        );
+      })}
+      {missing.length > 0 && (
+        <p className="text-[10px] text-destructive" data-testid={`git-builder-missing-arg-${String(index)}`}>
+          Còn trống tham số bắt buộc: {missing.join(', ')}. Thiếu chúng thì vị từ này trả
+          &quot;chưa đạt&quot; ở mọi trạng thái, và engine không nói ra lý do.
+        </p>
+      )}
+    </div>
   );
 }
 
