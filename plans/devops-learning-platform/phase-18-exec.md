@@ -104,6 +104,37 @@ dùng được và chỉ thiếu đường lưu DB.
 
 ---
 
+## 2.1 Fan-out 2026-09-15 — lệch khỏi "tuần tự một luồng", có chủ ý
+
+`phase-18.md` §5 viết **"Chạy: tuần tự một luồng"**. Chủ dự án đổi quyết định trong phiên
+(*"spawn ra các subagent để làm song song cùng đẩy nhanh tiến độ, nhớ cẩn thận kẻo xung đột"*),
+nên bốn lane chạy song song trên **cùng một cây làm việc**.
+
+Cây dùng chung là chỗ mất việc **im lặng**: hai lane ghi một file thì lane sau ĐÈ lane trước —
+không dấu xung đột, không lỗi staging, thường không cả lỗi biên dịch, vì bản sống sót là mã hợp
+lệ. Nó chỉ lộ ra sau, khi ai đó nhận ra phần của mình biến mất. Nên quyền sở hữu chia **theo
+tên file**, không theo "tính năng", và bản đồ nằm ở đây thay vì tản trong bốn brief.
+
+| Lane | Sở hữu | Surface copy |
+|---|---|---|
+| **A** Builder UI (khối 2+3) | `apps/web/src/components/games/git/**` | `surfaces/author.ts` |
+| **B** OJ server cho Git (khối 4, nửa máy chủ) | `apps/web/src/server/problems/**`, `packages/games/src/git/problem-plugin.ts` | `surfaces/problem.ts` |
+| **C** Tài liệu (khối 7) | `docs/oj-format.md`, `docs/exam-format.md`, `docs/games/README.md` | — |
+| **D** Lọc chủ đề theo game (khối 6) | `apps/web/src/app/(session)/problems/**`, `packages/games/src/problem-topic-labels.ts`, `packages/games/src/git/problem-topics.ts` | `surfaces/catalog.ts` |
+
+**Lead giữ, không lane nào chạm:** `packages/copy/src/registry.ts` (chính file đó tự dặn "CHỈ L0
+SỬA") · `packages/games/src/index.ts` · `packages/ui/src/index.ts` · `apps/web/e2e/routes.ts` ·
+`apps/web/src/server/db/schema.ts` + mọi migration · `plans/devops-learning-platform/phase-18*.md`.
+
+**Vì sao chia surface copy một-file-một-lane:** `registry.ts` đã lập sẵn lối này cho bảy lane của
+P16 và ghi lý do ngay đầu file. Khoá copy mang tiền tố khớp surface, nên mỗi lane chỉ ghi vào file
+của mình; cần khoá ở surface khác thì DỪNG và báo lead, chứ không tự mở.
+
+**Khối 4 nửa CLIENT (chế độ chơi bài OJ trong `GitGame`) và khối 5 (E.5 lưu thành Problem) KHÔNG
+giao cho lane nào.** Cả hai đụng vào file mà lane A và lane B đang sở hữu ở hai phía khác nhau,
+nên chúng là đuôi tuần tự của lead sau khi A và B hạ cánh. Chia nhỏ hơn nữa để ép song song sẽ
+tạo ra đúng loại phụ thuộc vòng mà bản đồ trên dựng ra để tránh.
+
 ## 3. Ràng buộc mang theo từ các lane trước
 
 Không phải lời khuyên chung — bốn thứ này đã cắn ít nhất một lần trong chính phase này:
