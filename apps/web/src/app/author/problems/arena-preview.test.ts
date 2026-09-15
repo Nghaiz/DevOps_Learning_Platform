@@ -15,12 +15,20 @@ describe('problemPreviewHref', () => {
   });
 
   /*
-   * Ô này KHÔNG phải "Git chưa làm xong". Nó khoá một lựa chọn: thà không có
-   * nút còn hơn một nút mở ra ván Git bình thường ở level mặc định, vì lượt đó
-   * không lỗi, không 404, và người soạn kết luận rằng bài của họ xem trước được.
+   * ĐẢO 2026-09-15, và đọc kỹ vì bản cũ của chính ô này khoá chiều ngược lại.
+   *
+   * Nó từng khẳng định `git` trả `null`, với lý lẽ đúng ở thời điểm đó: thà không có
+   * nút còn hơn một nút mở ra ván Git bình thường ở level mặc định. Điều kiện đó nay
+   * không còn đúng — `app/games/git/page.tsx` đọc `params.problem` và dựng thế giới từ
+   * `WorldSpec` của bài — nên ô được ĐẢO chứ không được giữ lại dưới dạng một
+   * ngoại lệ (`rules/pinned-baseline-test-companion.md`: khi điều kiện kết thúc của
+   * một ô ghim đạt được thì lời dặn là một mệnh lệnh, không phải một gợi ý).
+   *
+   * Vế `toContain('params.problem')` ở ô cuối file là thứ giữ cho lời khai này
+   * không trở lại thành một link sai im lặng.
    */
-  it('Git trả null — một link sai im lặng tệ hơn không có link', () => {
-    expect(problemPreviewHref('git', 'GIT-0001')).toBeNull();
+  it('Git cho đường vào thật từ 18.E — route đã đọc ?problem=', () => {
+    expect(problemPreviewHref('git', 'GIT-0001')).toBe('/games/git?problem=GIT-0001');
   });
 
   it('game chưa có route nào cũng trả null, không dựng 404', () => {
@@ -60,10 +68,21 @@ describe('problemPreviewHref', () => {
   /*
    * ĐỐI CHỨNG DƯƠNG cho ô trên. Không có nó, một phép dò hỏng (sai đường dẫn,
    * đọc nhầm file) làm ô trên xanh mãi mãi trên một tập RỖNG.
+   *
+   * ⚠ ĐỔI CHỦ THỂ 2026-09-15. Đối chứng cũ là `games/git/page.tsx` — route đó nay ĐÃ
+   * đọc `params.problem`, nên giữ nguyên thì ô này đỏ VÌ MỘT LÝ DO SAI: nó sẽ báo
+   * "phép dò hỏng" trong khi sự thật là route đã được nối. Chọn một trang KHÁC, trang
+   * danh mục game, vì nó không bao giờ có lý do đọc `?problem=`: đối chứng phải là
+   * một file Ở LẠI phía "không đọc", không phải file đang trên đường đổi phe.
    */
   it('phép dò THẬT SỰ phân biệt được route có đọc và route không đọc', () => {
+    const catalog = resolve(APP_DIR, 'games/page.tsx');
+    expect(existsSync(catalog)).toBe(true);
+    expect(readFileSync(catalog, 'utf8')).not.toContain('params.problem');
+
+    // Vế dương: cùng phép dò, trên một file đã biết là CÓ đọc.
     const gitPage = resolve(APP_DIR, 'games/git/page.tsx');
     expect(existsSync(gitPage)).toBe(true);
-    expect(readFileSync(gitPage, 'utf8')).not.toContain('params.problem');
+    expect(readFileSync(gitPage, 'utf8')).toContain('params.problem');
   });
 });

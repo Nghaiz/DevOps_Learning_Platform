@@ -178,29 +178,32 @@ export function pluginViewFor(gameId: GameId): GamePluginView | null {
  *
  * ## Vì sao một bảng tra chứ không phải `/games/${gameId}?problem=`
  *
- * Bởi vì công thức đó SAI, và nó sai theo kiểu im lặng. Đo 2026-09-15:
- * `app/games/git/page.tsx` chỉ đọc `?level=` và bỏ qua mọi tham số khác, còn
- * game Git là game THEO LEVEL (`GIT_LEVEL_IDS`), không có chế độ bài OJ. Một
- * link `/games/git?problem=GIT-0001` vì thế mở ra một ván Git bình thường ở
- * level mặc định: không lỗi, không 404, không dòng log nào — người soạn bấm
- * "xem trước", thấy một game chạy, và kết luận rằng bài của họ đã xem trước
- * được.
+ * Bởi vì công thức đó SAI, và nó sai theo kiểu im lặng. Bốn game
+ * (`pipeline`, `netpol`, `dockerfile`, `cicd`) chưa có route nào, nên link tới đó
+ * là một 404 thẳng. Và tệ hơn 404: một route CÓ tồn tại nhưng không đọc
+ * `?problem=` sẽ bỏ qua tham số đó và mở ra một ván bình thường — không lỗi,
+ * không 404, không dòng log nào — nên người soạn bấm "xem trước", thấy một
+ * game chạy, và kết luận rằng bài của họ đã xem trước được.
  *
- * Bốn game còn lại (`pipeline`, `netpol`, `dockerfile`, `cicd`) thậm chí chưa
- * có route nào, nên link tới đó là một 404 thẳng.
+ * ## Git bật 2026-09-15 — và nó bật VÌ mã, không vì hết hạn chờ
  *
- * ## Nối Git vào đây KHÔNG phải việc của §18.D.5
+ * Bản trước của khối này ghi rằng Git trả `null` vì `app/games/git/page.tsx` chỉ
+ * đọc `?level=`, và nói rằng nối Git vào đây đòi "§18.C làm lại một lần nữa cho
+ * engine Git". Đó chính là thứ đã làm: route nay đọc `params.problem` và dựng thế
+ * giới từ `WorldSpec` của bài (`components/games/git/git-problem.tsx`).
  *
- * Nó đòi một chế độ chơi mới trong `GitGame`: nạp bài theo mã, dựng thế giới từ
- * `WorldSpec` của bài thay vì từ level, chấm theo testcase. Đó là §18.C làm lại
- * một lần nữa cho engine Git, không phải một nút bấm. Khai ra ở đây là cách nói
- * thật về thứ hôm nay có.
+ * ⚠ GIỚI HẠN CÒN LẠI, ghi ở đây vì đây là chỗ người soạn đọc: đường xem trước
+ * này chơi được và NỘP được cho TÁC GIẢ bài (và admin), vì chỉ `problems.forEdit`
+ * chở `check`/`args` của testcase. Một người học mở cùng đường dẫn đó vẫn đọc đề
+ * và gõ lệnh được, nhưng chưa nộp được — màn hình nói ra điều đó. Xem khối
+ * "CÒN HỞ" đầu `git-problem.tsx`.
  *
  * ⚠ Thêm một dòng vào bảng này là một lời KHAI rằng route đó đọc `?problem=`.
  * Trước khi thêm, mở chính `app/games/<gameId>/page.tsx` và đọc `searchParams`.
  */
 const PREVIEW_ROUTE_BY_GAME: Readonly<Partial<Record<GameId, string>>> = {
   k8s: '/games/k8s',
+  git: '/games/git',
 };
 
 export function problemPreviewHref(gameId: GameId, code: string): string | null {
