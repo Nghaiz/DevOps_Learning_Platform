@@ -1,20 +1,27 @@
 /* Git Odyssey owns its palette; the surrounding platform keeps its theme. */
+/*
+ * Giá trị palette nằm ở `globals.css` dưới tên `--odyssey-*`; khối này chỉ GÁN
+ * chúng sang tên runtime `--git-*` mà cả CSS lẫn các SVG trong `*.tsx` đang đọc.
+ * Giữ phép gán ở đây — thay vì khai thẳng `--git-*` ở `:root` — là thứ giữ
+ * nguyên nhánh dự phòng `var(--git-abyss, var(--background))` cho khi một mảnh
+ * cảnh được render NGOÀI `.git-odyssey`. Lý do đầy đủ ở `globals.css`.
+ */
 .git-odyssey {
-  --git-abyss: #080e1d;
-  --git-panel: #101b2e;
-  --git-raised: #18253c;
-  --git-border: #293a53;
-  --git-ink: #edf4ff;
-  --git-muted: #a6b7d0;
-  --git-teal: #65e3cd;
-  --git-violet: #bc9bff;
-  --git-coral: #ff967e;
-  --git-gold: #f9ce78;
+  --git-abyss: var(--odyssey-abyss);
+  --git-panel: var(--odyssey-panel);
+  --git-raised: var(--odyssey-raised);
+  --git-border: var(--odyssey-border-line);
+  --git-ink: var(--odyssey-ink);
+  --git-muted: var(--odyssey-muted-ink);
+  --git-teal: var(--odyssey-teal);
+  --git-violet: var(--odyssey-violet);
+  --git-coral: var(--odyssey-coral);
+  --git-gold: var(--odyssey-gold);
   --git-zone: var(--git-teal);
-  --git-land: #234f55;
-  --git-tower: #163640;
-  --git-flora: #49b69b;
-  --git-star: #e4f9ff;
+  --git-land: var(--odyssey-ch1-land);
+  --git-tower: var(--odyssey-ch1-tower);
+  --git-flora: var(--odyssey-ch1-flora);
+  --git-star: var(--odyssey-star);
   --background: var(--git-abyss);
   --foreground: var(--git-ink);
   --card: var(--git-panel);
@@ -23,15 +30,15 @@
   --muted-foreground: var(--git-muted);
   --primary: var(--git-teal);
   --primary-foreground: var(--git-abyss);
-  --success: #76e3b2;
+  --success: var(--odyssey-success);
   --success-foreground: var(--git-abyss);
-  --destructive: #ff9b9f;
+  --destructive: var(--odyssey-danger);
   --destructive-foreground: var(--git-abyss);
   --warning: var(--git-gold);
   --warning-foreground: var(--git-abyss);
   --status-progress: var(--git-violet);
   --status-progress-foreground: var(--git-abyss);
-  --input: #58708f;
+  --input: var(--odyssey-input-line);
   --border: var(--git-border);
   --ring: var(--git-gold);
   color: var(--git-ink);
@@ -43,16 +50,16 @@
 .git-odyssey [data-chapter='2'],
 .git-odyssey[data-chapter='2'] {
   --git-zone: var(--git-violet);
-  --git-land: #403463;
-  --git-tower: #291f47;
-  --git-flora: #8c6abd;
+  --git-land: var(--odyssey-ch2-land);
+  --git-tower: var(--odyssey-ch2-tower);
+  --git-flora: var(--odyssey-ch2-flora);
 }
 .git-odyssey [data-chapter='3'],
 .git-odyssey[data-chapter='3'] {
   --git-zone: var(--git-coral);
-  --git-land: #653a47;
-  --git-tower: #422733;
-  --git-flora: #bf716b;
+  --git-land: var(--odyssey-ch3-land);
+  --git-tower: var(--odyssey-ch3-tower);
+  --git-flora: var(--odyssey-ch3-flora);
 }
 .git-odyssey *,
 .git-odyssey *::before,
@@ -122,7 +129,7 @@
 .git-campaign {
   min-height: 100%;
   padding: 0 clamp(20px, 4vw, 64px);
-  background-image: radial-gradient(ellipse at 85% 8%, #23364a66, transparent 42%);
+  background-image: radial-gradient(ellipse at 85% 8%, var(--odyssey-campaign-glow), transparent 42%);
 }
 .git-campaign-nav {
   display: flex;
@@ -161,7 +168,7 @@
   background: var(--git-teal);
   border-radius: 13px;
   transform: rotate(-8deg);
-  box-shadow: 4px 4px 0 #65e3cd20;
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--git-teal) 12.549%, transparent);
 }
 .git-nav-actions,
 .git-campaign-score {
@@ -400,7 +407,7 @@
 [data-completed='true'] .git-route-node {
   border-color: var(--git-teal);
   color: var(--git-teal);
-  background: #123333;
+  background: var(--odyssey-node-done);
 }
 .git-route-copy {
   flex: 1;
@@ -643,7 +650,7 @@
   min-height: 350px;
   position: relative;
   overflow: hidden;
-  background: radial-gradient(ellipse at 40% 40%, #17294188, transparent 60%), var(--git-abyss);
+  background: radial-gradient(ellipse at 40% 40%, var(--odyssey-map-glow), transparent 60%), var(--git-abyss);
 }
 .git-map-toolbar {
   position: relative;
@@ -703,7 +710,7 @@
   min-height: 250px;
   overflow: auto;
   padding: 35px 20px 60px;
-  background-image: radial-gradient(circle, #3c547344 1px, transparent 1px);
+  background-image: radial-gradient(circle, var(--odyssey-map-grid) 1px, transparent 1px);
   background-size: 25px 25px;
 }
 .git-scene-size {
@@ -738,7 +745,7 @@
   gap: 14px;
   align-items: center;
   padding: 12px 20px;
-  background: #0c1424ee;
+  background: var(--odyssey-legend-scrim);
   border-top: 1px solid var(--git-border);
   color: var(--git-muted);
   font-size: 9px;
@@ -777,8 +784,8 @@
   left: 20px;
   max-width: calc(100% - 40px);
   padding: 9px 13px;
-  border: 1px solid #37615c;
-  background: #122d2df2;
+  border: 1px solid var(--odyssey-feedback-border);
+  background: var(--odyssey-feedback-scrim);
   color: var(--git-teal);
   border-radius: 8px;
   font: 11px/1.5 var(--font-mono, monospace);
@@ -786,8 +793,8 @@
   pointer-events: none;
 }
 .git-command-feedback[data-tone='error'] {
-  background: #38202bf2;
-  border-color: #69414c;
+  background: var(--odyssey-feedback-error-scrim);
+  border-color: var(--odyssey-feedback-error-border);
   color: var(--destructive);
 }
 .git-commit-inspector {
@@ -797,11 +804,11 @@
   width: 270px;
   max-width: calc(100% - 36px);
   padding: 16px;
-  background: #142138f5;
+  background: var(--odyssey-inspector-scrim);
   backdrop-filter: blur(12px);
   border: 1px solid var(--git-zone);
   border-radius: 12px;
-  box-shadow: 0 12px 35px #0005;
+  box-shadow: 0 12px 35px color-mix(in srgb, var(--odyssey-shadow-ink) 33.3333%, transparent);
   animation: git-enter 0.2s ease-out;
   overflow-wrap: anywhere;
   z-index: 3;
@@ -958,8 +965,8 @@
     border-color 0.3s;
 }
 .git-objective-list li[data-met='true'] {
-  background: #173d3433;
-  border-color: #397362;
+  background: var(--odyssey-objective-met);
+  border-color: var(--odyssey-objective-met-border);
   color: var(--git-teal);
 }
 .git-objective-check {
@@ -1023,7 +1030,7 @@
 .git-revealed-hint {
   margin-top: 8px;
   padding: 10px 12px;
-  background: #40362655;
+  background: var(--odyssey-hint-surface);
   border-radius: 8px;
   animation: git-enter 0.25s ease-out;
 }
@@ -1091,7 +1098,7 @@
 }
 .git-oj-result[data-verdict='accepted'] {
   border-color: var(--git-teal);
-  background: #12372c;
+  background: var(--odyssey-verdict-accepted);
   animation: git-pop 0.5s ease-out;
 }
 .git-oj-result[data-verdict='review'] {
@@ -1103,7 +1110,7 @@
   font-size: 11px;
 }
 .git-terminal {
-  background: #080e19;
+  background: var(--odyssey-terminal-bg);
   border-top: 1px solid var(--git-border);
   flex-shrink: 0;
   position: relative;
@@ -1175,7 +1182,7 @@
 }
 .git-command-form:focus-within {
   box-shadow: inset 3px 0 var(--git-teal);
-  background: #101c2d;
+  background: var(--odyssey-form-focus);
 }
 .git-command-form label {
   color: var(--git-teal);
@@ -1191,7 +1198,7 @@
   height: 35px;
 }
 .git-command-form input::placeholder {
-  color: #8496b2;
+  color: var(--odyssey-placeholder);
 }
 .git-command-form > button {
   flex-shrink: 0;
@@ -1210,8 +1217,8 @@
   border: 1px solid var(--git-border);
   border-radius: 12px;
   padding: 18px;
-  background: #152039fa;
-  box-shadow: 0 10px 50px #0007;
+  background: var(--odyssey-reference-scrim);
+  box-shadow: 0 10px 50px color-mix(in srgb, var(--odyssey-shadow-ink) 46.6667%, transparent);
 }
 .git-command-reference header {
   display: flex;
@@ -1260,11 +1267,11 @@
   border-radius: 20px;
   padding: 26px;
   text-align: center;
-  background: #122436f5;
+  background: var(--odyssey-victory-scrim);
   backdrop-filter: blur(16px);
   box-shadow:
-    0 20px 80px #0008,
-    0 0 70px #65e3cd11;
+    0 20px 80px color-mix(in srgb, var(--odyssey-shadow-ink) 53.3333%, transparent),
+    0 0 70px color-mix(in srgb, var(--git-teal) 6.6667%, transparent);
   z-index: 5;
   animation: git-victory-enter 0.4s ease-out;
 }
@@ -1276,9 +1283,9 @@
   height: 66px;
   border: 1px solid var(--git-gold);
   border-radius: 20px;
-  background: #f9ce7812;
+  background: color-mix(in srgb, var(--git-gold) 7.0588%, transparent);
   color: var(--git-gold);
-  box-shadow: 0 0 30px #f9ce7818;
+  box-shadow: 0 0 30px color-mix(in srgb, var(--git-gold) 9.4118%, transparent);
 }
 .git-victory .git-eyebrow {
   justify-content: center;
@@ -1338,7 +1345,7 @@
   background: var(--git-gold);
 }
 .git-node-surface {
-  filter: drop-shadow(0 5px 5px #0006);
+  filter: drop-shadow(0 5px 5px color-mix(in srgb, var(--odyssey-shadow-ink) 40%, transparent));
 }
 .git-node-halo {
   fill: none;
@@ -1411,7 +1418,7 @@
   background: var(--git-raised);
 }
 .git-builder-panel fieldset {
-  background: #18253c66;
+  background: color-mix(in srgb, var(--git-raised) 40%, transparent);
   border-color: var(--git-border);
   border-radius: 10px;
   padding: 13px;
@@ -1427,7 +1434,7 @@
   gap: 10px;
   align-items: center;
   padding: 17px;
-  background: linear-gradient(120deg, #2b355a, var(--git-panel));
+  background: linear-gradient(120deg, var(--odyssey-heading-tint), var(--git-panel));
   border: 1px solid var(--git-border);
   border-radius: 12px;
 }
@@ -1835,7 +1842,7 @@
 .git-builder-publish {
   padding: 18px;
   border: 1px solid var(--git-violet) !important;
-  background: #bc9bff08;
+  background: color-mix(in srgb, var(--git-violet) 3.1373%, transparent);
 }
 @media (max-width: 800px) {
   .git-sandbox-tools,
@@ -1848,7 +1855,7 @@
 .git-file-pipeline {
   position: relative;
   border-top: 1px solid var(--git-border);
-  background: #0d1728;
+  background: var(--odyssey-pipeline-bg);
   z-index: 2;
 }
 .git-file-pipeline summary {
@@ -1956,7 +1963,7 @@
 .git-oj-lobby {
   min-height: 100dvh;
   padding: 35px clamp(20px, 5vw, 70px) 60px;
-  background-image: radial-gradient(ellipse at 90% 10%, #30336066, transparent 45%);
+  background-image: radial-gradient(ellipse at 90% 10%, var(--odyssey-lobby-glow), transparent 45%);
 }
 .git-oj-lobby-header {
   display: flex;
@@ -2019,7 +2026,7 @@
   background: var(--git-teal);
   color: var(--git-abyss);
   border-radius: 10px;
-  box-shadow: 0 4px 0 #2f766d;
+  box-shadow: 0 4px 0 var(--odyssey-cta-shadow);
 }
 .git-oj-lobby-body > section:last-child {
   grid-column: 1 / -1;

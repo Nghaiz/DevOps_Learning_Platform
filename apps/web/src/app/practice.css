@@ -1,25 +1,32 @@
 /* Shared workspace system. Game canvases retain their own semantic palettes. */
+/*
+ * ⚠ Khối `:root` dưới đây nạp SAU `globals.css` (`app/layout.tsx`) và ghi đè
+ * hệ token PTIT trên MỌI trang, không chỉ trang practice. Giá trị đã chuyển về
+ * `globals.css` làm SSOT (khối `--workspace-*`); ở đây chỉ còn phép GÁN VAI
+ * TRÒ. Việc hợp nhất hai hệ token là một thay đổi thiết kế riêng — xem chú
+ * thích ở `globals.css`.
+ */
 :root {
-  --background: #f6f7f9;
-  --foreground: #252b36;
-  --card: #ffffff;
-  --card-foreground: #252b36;
-  --popover: #ffffff;
-  --popover-foreground: #252b36;
-  --primary: #a94326;
-  --primary-foreground: #ffffff;
-  --secondary: #eef0f3;
-  --secondary-foreground: #343b46;
-  --muted: #eef0f3;
-  --muted-foreground: #606976;
-  --accent: #f9e9e2;
-  --accent-foreground: #933b23;
-  --border: #dfe3e8;
-  --input: #858d99;
-  --ring: #a94326;
+  --background: var(--workspace-background);
+  --foreground: var(--workspace-foreground);
+  --card: var(--workspace-card);
+  --card-foreground: var(--workspace-foreground);
+  --popover: var(--workspace-card);
+  --popover-foreground: var(--workspace-foreground);
+  --primary: var(--workspace-primary);
+  --primary-foreground: var(--workspace-primary-foreground);
+  --secondary: var(--workspace-secondary);
+  --secondary-foreground: var(--workspace-secondary-foreground);
+  --muted: var(--workspace-secondary);
+  --muted-foreground: var(--workspace-muted-foreground);
+  --accent: var(--workspace-accent);
+  --accent-foreground: var(--workspace-accent-foreground);
+  --border: var(--workspace-border);
+  --input: var(--workspace-input);
+  --ring: var(--workspace-primary);
   --workspace-sidebar: 224px;
   --workspace-header: 68px;
-  --art-surface: #e5ebe7;
+  --art-surface: var(--art-surface-default);
   /*
    * Mực chữ của nhãn trên tấm nền artwork, TÁCH khỏi `color` của chính tấm nền.
    *
@@ -32,26 +39,32 @@
    * không còn nằm trong `.practice-game-art` — một `var()` không phân giải sẽ
    * rơi về màu kế thừa, và đó đúng là cách lỗi tương phản quay lại trong im lặng.
    */
-  --art-label: #3a6457;
+  --art-label: var(--art-ink-k8s);
 }
+/*
+ * GIỮ khối này dù mọi dòng nay giống hệt `:root`: nếu xoá, `--background` chỉ
+ * còn được gán ở `<html>`, nên một `.dark` đặt trên phần tử CON sẽ đổi được
+ * `--workspace-*` mà không đổi được vai trò đã gán bên trên — nền sáng, chữ
+ * sáng. Gán lại tại đúng phần tử mang `.dark` là thứ khép lại lỗ đó.
+ */
 .dark {
-  --background: #171b22;
-  --foreground: #e6e9ef;
-  --card: #20252e;
-  --card-foreground: #e6e9ef;
-  --popover: #20252e;
-  --popover-foreground: #e6e9ef;
-  --primary: #efa88a;
-  --primary-foreground: #302017;
-  --secondary: #2a303a;
-  --secondary-foreground: #e6e9ef;
-  --muted: #2a303a;
-  --muted-foreground: #adb5c2;
-  --accent: #3b2b27;
-  --accent-foreground: #f3b698;
-  --border: #373e49;
-  --input: #77818f;
-  --ring: #efa88a;
+  --background: var(--workspace-background);
+  --foreground: var(--workspace-foreground);
+  --card: var(--workspace-card);
+  --card-foreground: var(--workspace-foreground);
+  --popover: var(--workspace-card);
+  --popover-foreground: var(--workspace-foreground);
+  --primary: var(--workspace-primary);
+  --primary-foreground: var(--workspace-primary-foreground);
+  --secondary: var(--workspace-secondary);
+  --secondary-foreground: var(--workspace-secondary-foreground);
+  --muted: var(--workspace-secondary);
+  --muted-foreground: var(--workspace-muted-foreground);
+  --accent: var(--workspace-accent);
+  --accent-foreground: var(--workspace-accent-foreground);
+  --border: var(--workspace-border);
+  --input: var(--workspace-input);
+  --ring: var(--workspace-primary);
 }
 .practice-shell {
   min-height: 100dvh;
@@ -305,7 +318,7 @@
 .practice-filter button[aria-pressed='true'] {
   color: var(--foreground);
   background: var(--card);
-  box-shadow: 0 1px 3px #17202c18;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--workspace-shadow-ink) 9.4118%, transparent);
 }
 .practice-search {
   display: flex;
@@ -343,22 +356,22 @@
 }
 .practice-game:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 28px #15223712;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--workspace-lift-ink) 7.0588%, transparent);
 }
 .practice-game-art {
   position: relative;
   min-height: 188px;
   padding-top: 32px;
-  background: #e5ece7;
-  color: #3a6457;
-  --art-surface: #e5ece7;
-  /* #3a6457 trên #e5ece7 = 5.567:1 — đạt AA cho chữ thường (≥4.5:1). */
-  --art-label: #3a6457;
+  background: var(--art-surface-k8s);
+  color: var(--art-ink-k8s);
+  --art-surface: var(--art-surface-k8s);
+  /* --art-ink-k8s (#3a6457) trên --art-surface-k8s (#e5ece7) = 5.567:1 — đạt AA. */
+  --art-label: var(--art-ink-k8s);
 }
 .game-git .practice-game-art {
-  background: #f3e8dc;
-  color: #986746;
-  --art-surface: #f3e8dc;
+  background: var(--art-surface-git);
+  color: var(--art-ink-git);
+  --art-surface: var(--art-surface-git);
   /*
    * ⛔ KHÔNG dùng lại #986746 cho chữ: #986746 trên #f3e8dc chỉ được **3.985:1**,
    * dưới ngưỡng AA 4.5:1 cho chữ thường — đúng vi phạm `[serious] color-contrast`
@@ -372,7 +385,7 @@
    * Cả hai theme ra CÙNG con số: khối này dùng màu cứng và `.dark` không hề đè
    * lên nó (`.dark` chỉ xuất hiện một lần trong file, ở khối token đầu trang).
    */
-  --art-label: #7d5436;
+  --art-label: var(--art-label-git);
 }
 .practice-game-label {
   position: absolute;
@@ -397,7 +410,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #ffffffb0;
+  background: var(--art-play-scrim);
 }
 .practice-game-info {
   padding: 20px;
@@ -474,21 +487,21 @@
   gap: 24px;
 }
 .practice-challenge {
-  background: #293d39;
-  color: #f1f5ef;
+  background: var(--challenge-surface);
+  color: var(--challenge-ink);
   border-radius: 14px;
   padding: 26px;
 }
 .practice-icon {
   display: inline-flex;
   padding: 10px;
-  border: 1px solid #70857a;
+  border: 1px solid var(--challenge-border);
   border-radius: 10px;
   margin-bottom: 26px;
-  color: #dce7be;
+  color: var(--challenge-icon);
 }
 .practice-challenge .practice-eyebrow {
-  color: #c0cdb4;
+  color: var(--challenge-eyebrow);
   font-size: 9px;
 }
 .practice-challenge h2 {
@@ -501,7 +514,7 @@
 .practice-challenge > p:not(.practice-eyebrow) {
   font-size: 12px;
   line-height: 1.9;
-  color: #c7d3cc;
+  color: var(--challenge-body);
 }
 .practice-challenge a {
   display: flex;
@@ -509,8 +522,8 @@
   justify-content: space-between;
   margin-top: 25px;
   padding: 12px 14px;
-  background: #e0eac9;
-  color: #293d39;
+  background: var(--challenge-cta);
+  color: var(--challenge-surface);
   border-radius: 7px;
   font-size: 12px;
   font-weight: 600;
@@ -687,7 +700,7 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   z-index: 15;
-  box-shadow: 0 -5px 20px #17202c08;
+  box-shadow: 0 -5px 20px color-mix(in srgb, var(--workspace-shadow-ink) 3.1373%, transparent);
 }
 .practice-save-state {
   margin-right: auto;
