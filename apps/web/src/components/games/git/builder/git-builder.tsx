@@ -27,6 +27,7 @@ import {
 } from '@devops-platform/games';
 
 import { ISSUE_TEXT, LIMIT_TEXT } from './builder-copy';
+import { SaveProblemPanel } from './save-problem-panel';
 import { PREDICATE_ARGS, missingArgs } from './predicate-args';
 import {
   exportFileName,
@@ -499,6 +500,9 @@ export function GitLevelBuilder({
           </p>
         )}
       </section>
+
+      {/* ── E.5 · lưu thành bài tập ─────────────────────────── */}
+      <SaveProblemPanel draft={draft} />
     </div>
   );
 }

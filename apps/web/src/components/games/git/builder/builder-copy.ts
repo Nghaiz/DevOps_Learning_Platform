@@ -21,6 +21,8 @@
 import type { TextKey } from '@devops-platform/copy';
 import type { BuilderLimit, DraftIssueCode } from '@devops-platform/games';
 
+import type { ProblemSaveIssueCode } from './draft-to-problem';
+
 export const ISSUE_TEXT = {
   'id-trong': 'author.builder.issue.id-trong',
   'id-sai-dinh-dang': 'author.builder.issue.id-sai-dinh-dang',
@@ -51,3 +53,27 @@ export const LIMIT_TEXT = {
   'bot-dong-doi': 'author.builder.limit.bot-dong-doi',
   'nhieu-luot-chay-co-seed': 'author.builder.limit.nhieu-luot-chay-co-seed',
 } as const satisfies Record<BuilderLimit, TextKey>;
+
+/**
+ * Cầu nối thứ hai: mã lỗi của ĐƯỜNG LƯU (§18.E.5) sang bản đồ chữ.
+ *
+ * Tách khỏi `ISSUE_TEXT` chứ không gộp, vì hai tập trả lời hai câu khác nhau:
+ * `DraftIssueCode` hỏi *"bản nháp đã thành một level chưa"*, còn tập này hỏi
+ * *"phần thêm của bài tập đã đủ chưa"*. Gộp làm một sẽ làm danh sách lỗi của
+ * đường xuất JSON mọc thêm những câu không liên quan tới nó.
+ *
+ * Cùng lý do `satisfies` như bảng trên: một mã thứ mười thêm vào
+ * `ProblemSaveIssueCode` mà quên câu cho nó là lỗi BIÊN DỊCH, không phải một dòng
+ * trống trên màn. Ô gác này sống ở tầng KIỂU nên nó đỏ ở `tsc` và xanh ở `vitest`.
+ */
+export const SAVE_ISSUE_TEXT = {
+  'nhap-con-loi': 'author.builder.save.issue.nhap-con-loi',
+  'chua-chon-chu-de': 'author.builder.save.issue.chua-chon-chu-de',
+  'qua-nhieu-chu-de': 'author.builder.save.issue.qua-nhieu-chu-de',
+  'chu-de-la': 'author.builder.save.issue.chu-de-la',
+  'gia-goi-y-lech-so-luong': 'author.builder.save.issue.gia-goi-y-lech-so-luong',
+  'gia-goi-y-ngoai-khoang': 'author.builder.save.issue.gia-goi-y-ngoai-khoang',
+  'co-hien-lech-so-luong': 'author.builder.save.issue.co-hien-lech-so-luong',
+  'slug-rong': 'author.builder.save.issue.slug-rong',
+  'slug-qua-dai': 'author.builder.save.issue.slug-qua-dai',
+} as const satisfies Record<ProblemSaveIssueCode, TextKey>;

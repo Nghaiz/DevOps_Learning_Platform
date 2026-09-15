@@ -809,6 +809,47 @@ export const author = {
     'Engine từ chối những lệnh dưới đây. Một lời giải gõ nhầm một lệnh rồi gõ lại đúng vẫn tới được đích, nên đây là thông tin cho người soạn chứ không phải điều kiện trượt.',
   'author.builder.check.blocked':
     'Chưa kiểm được: bản nháp còn lỗi ở danh sách trên. Sửa hết rồi bấm lại.',
+
+  /*
+   * ── E.5, đường xuất THỨ HAI của Builder ───────────────────────
+   *
+   * `author.builder.save.scope` nói ra hai thứ mà không chỗ nào khác trên màn nói:
+   * nút này là lời gọi mạng DUY NHẤT của cả trụ cột game, và nó đòi tài khoản
+   * soạn bài. Giấu hai điều đó là để người soạn soạn xong rồi mới biết mình
+   * không lưu được, cùng lý lẽ với hai giới hạn ở khối đầu.
+   */
+  'author.builder.save.run': 'Lưu thành bài tập',
+  'author.builder.save.scope':
+    'Lưu bản nháp này thành một bài tập trong kho, ở trạng thái nháp. Đây là lời gọi máy chủ duy nhất trong cả màn game, nên nó đòi bạn đang đăng nhập bằng tài khoản soạn bài. Ba ô dưới đây chỉ có nghĩa với bài tập, nên tệp level bạn xuất ra không chở chúng.',
+  'author.builder.save.unauthorized':
+    'Chưa lưu được: lưu bài tập đòi tài khoản soạn bài. Màn game không bắt đăng nhập, nên hãy đăng nhập ở một tab khác rồi bấm lại. Bản nháp của bạn vẫn nằm nguyên ở đây.',
+  'author.builder.save.done': (p: { code: string }) =>
+    `Đã lưu thành bài ${p.code}, ở trạng thái nháp. Mở trang soạn bài để xem lại rồi xuất bản.`,
+
+  /*
+   * Mã lỗi của RIÊNG đường lưu, không trùng `author.builder.issue.*`. Hai tập
+   * trả lời hai câu khác nhau: tập kia hỏi *"bản nháp đã thành một level chưa"*,
+   * tập này hỏi *"phần thêm của bài tập đã đủ chưa"*. Gộp làm một sẽ làm danh
+   * sách lỗi của đường xuất JSON mọc thêm những câu không liên quan tới nó.
+   */
+  'author.builder.save.issue.nhap-con-loi':
+    'Bản nháp còn lỗi ở danh sách trên. Bài tập lấy đề bài, mục tiêu và trạng thái đầu từ chính bản nháp, nên sửa hết ở đó trước.',
+  'author.builder.save.issue.chua-chon-chu-de':
+    'Chưa chọn chủ đề nào. Chủ đề là thứ người học dùng để lọc kho bài, nên một bài không chủ đề là một bài không ai tìm thấy.',
+  'author.builder.save.issue.qua-nhieu-chu-de':
+    'Chọn quá ba chủ đề. Nhiều hơn ba nghĩa là bài đang làm quá nhiều việc cùng lúc.',
+  'author.builder.save.issue.chu-de-la':
+    'Chủ đề này không thuộc tập chủ đề của game Git.',
+  'author.builder.save.issue.gia-goi-y-lech-so-luong':
+    'Số ô điểm trừ không khớp số gợi ý. Điền bù một số 0 cho ô thiếu sẽ lặng lẽ biến một gợi ý có giá thành gợi ý miễn phí, nên chỗ này chặn thay vì đoán.',
+  'author.builder.save.issue.gia-goi-y-ngoai-khoang':
+    'Điểm trừ của gợi ý phải là số nguyên từ 0 tới 1000. Số âm sẽ là một gợi ý CỘNG điểm.',
+  'author.builder.save.issue.co-hien-lech-so-luong':
+    'Số ô hiện trước không khớp số mục tiêu, nên một mục tiêu đang không biết mình hiện hay ẩn.',
+  'author.builder.save.issue.slug-rong':
+    'Tiêu đề không sinh ra được đường dẫn nào. Thêm chữ và số vào tiêu đề, thay vì chỉ dấu câu.',
+  'author.builder.save.issue.slug-qua-dai':
+    'Đường dẫn sinh từ tiêu đề dài quá 120 ký tự. Rút gọn tiêu đề lại.',
 } as const satisfies Surface<'author'>;
 
 export const authorIntentionalThree = {
