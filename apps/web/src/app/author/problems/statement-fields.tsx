@@ -1,7 +1,8 @@
 'use client';
 
 import { t } from '@devops-platform/copy';
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
+import { Bold, Code2, List, Heading2 } from 'lucide-react';
 import {
   Button,
   MarkdownView,
@@ -37,6 +38,25 @@ export function StatementFields(props: {
   readonly code: string | null;
 }): ReactElement {
   const [tab, setTab] = useState('viet');
+  const editor = useRef<HTMLDivElement>(null);
+  const insert = (before: string, after: string, fallback: string) => {
+    const input = editor.current?.querySelector('textarea');
+    const start = input?.selectionStart ?? props.form.statement.length;
+    const end = input?.selectionEnd ?? start;
+    const selection = props.form.statement.slice(start, end) || fallback;
+    props.onChange({
+      statement:
+        props.form.statement.slice(0, start) +
+        before +
+        selection +
+        after +
+        props.form.statement.slice(end),
+    });
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(start + before.length, start + before.length + selection.length);
+    });
+  };
   const words = countWords(props.form.statement);
   const remaining = STATEMENT_WORD_LIMIT - words;
   const slugPreview = props.form.slug.trim() === '' ? toSlug(props.form.title) : props.form.slug;
@@ -126,21 +146,62 @@ export function StatementFields(props: {
             <TabsTrigger value="xem">{t('problem.statement-fields-xem-truoc')}</TabsTrigger>
           </TabsList>
           <TabsContent value="viet">
-            <TextAreaField
-              label={t('problem.statement-fields-de-bai-markdown')}
-              value={props.form.statement}
-              onChange={(statement) => {
-                props.onChange({ statement });
-              }}
-              rows={10}
-              error={issueFor(props.issues, 'statement')}
-              placeholder={t(
-                'problem.statement-fields-namespace-thanh-toan-co-mot-deployment-khong-len-noi-replica-nao-tim-nguyen',
-              )}
-              hint={t(
-                'problem.statement-fields-bai-oj-khong-day-ly-thuyet-chi-noi-de-kien-thuc-nen-de-nguoi-lam-tu-tra',
-              )}
-            />
+            <div ref={editor}>
+              <div className="practice-markdown-tools" role="group" aria-label="Định dạng đề bài">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Tiêu đề"
+                  onClick={() => insert('\n## ', '\n', 'Tiêu đề')}
+                >
+                  <Heading2 size={17} />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label="In đậm"
+                  onClick={() => insert('**', '**', 'Nội dung')}
+                >
+                  <Bold size={17} />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Danh sách"
+                  onClick={() => insert('\n- ', '\n', 'Yêu cầu')}
+                >
+                  <List size={17} />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Đoạn mã"
+                  onClick={() => insert('\n```\n', '\n```\n', 'Lệnh hoặc cấu hình')}
+                >
+                  <Code2 size={17} />
+                </Button>
+                <span>Markdown</span>
+              </div>
+              <TextAreaField
+                label={t('problem.statement-fields-de-bai-markdown')}
+                value={props.form.statement}
+                onChange={(statement) => {
+                  props.onChange({ statement });
+                }}
+                rows={10}
+                error={issueFor(props.issues, 'statement')}
+                placeholder={t(
+                  'problem.statement-fields-namespace-thanh-toan-co-mot-deployment-khong-len-noi-replica-nao-tim-nguyen',
+                )}
+                hint={t(
+                  'problem.statement-fields-bai-oj-khong-day-ly-thuyet-chi-noi-de-kien-thuc-nen-de-nguoi-lam-tu-tra',
+                )}
+              />
+            </div>
           </TabsContent>
           <TabsContent value="xem">
             <div className="rounded-md border border-border bg-card p-4">

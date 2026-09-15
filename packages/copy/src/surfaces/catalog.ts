@@ -121,17 +121,17 @@ export const catalog = {
   // ── Đoạn dẫn của bảy màn ──────────────────────────────────────────────
   'catalog.lead.lessons': 'Mỗi bài mở một sandbox riêng. Tiến độ chỉ mình bạn thấy.',
   'catalog.lead.labs':
-    'Mỗi lab giao một tập nhiệm vụ độc lập. Làm theo thứ tự bất kỳ, tự chấm từng nhiệm vụ rồi nộp bài khi sẵn sàng.',
+    'Giải quyết nhiệm vụ trên môi trường thật.',
   'catalog.lead.playgrounds':
-    'Sandbox trống, không bài, không chấm điểm. Thử lệnh trước khi vào một bài học hoặc lab thật.',
+    'Môi trường trống để thử lệnh và dựng hệ thống.',
   'catalog.lead.paths':
-    'Nhiều bài gom theo thứ tự. Mở lộ trình để thấy phần nào đã mở khoá và phần nào còn chờ.',
+    'Học theo thứ tự, theo dõi từng chặng.',
   'catalog.lead.quiz':
-    'Bộ câu hỏi tự chấm. Nộp xong mới thấy điểm và giải thích; trong lúc làm bài, đáp án không nằm trong dữ liệu trình duyệt nhận.',
+    'Trả lời câu hỏi. Xem điểm và giải thích sau khi nộp.',
   'catalog.lead.games':
     'Game chạy hoàn toàn trong trình duyệt: không tốn sandbox, không cần đăng nhập, tiến độ lưu ngay trên máy bạn. Độ khó ghi trên thẻ là mức lúc BẮT ĐẦU, mỗi game còn tăng dần qua nhiều level.',
   'catalog.lead.problems':
-    'Mỗi bài là một cluster hỏng hoặc một yêu cầu cần dựng. Không có phần giảng: bạn tự biết hoặc tự tra, rồi thao tác cho tới khi mọi mục tiêu xanh.',
+    'Chọn game, tìm bài phù hợp và nộp lời giải.',
 
   // ── Thanh công cụ ─────────────────────────────────────────────────────
   'catalog.toolbar.all': 'Tất cả',
@@ -767,3 +767,4 @@ export const catalogIntentionalThree = {
   'catalog.error-hint':
     '2026-09-10: đúng ba câu vì CatalogErrorKind là union đóng ba nhánh (retryable, stale-cursor, unknown) tại apps/web/src/components/catalog/catalog-error-kind.ts. Hai lớp lỗi đòi hành động ngược nhau và nhánh thứ ba cố ý nói ít; thêm một câu thứ tư là thêm một nhánh phân loại, không phải thêm một câu.',
 } as const satisfies IntentionalThree;
+

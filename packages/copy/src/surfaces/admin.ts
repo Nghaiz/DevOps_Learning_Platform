@@ -523,7 +523,7 @@ export const admin = {
   // ── Kỳ thi (§18.G.2, §18.G.6, §18.G.7) ────────────────────────────────────
   'admin.exams.title': 'Kỳ thi',
   'admin.exams.description':
-    'Ra đề cho một lớp, đặt thời lượng, rồi xem bảng điểm. Đồng hồ và mốc nộp do máy chủ giữ.',
+    'Chọn lớp, ra đề và theo dõi kết quả.',
   'admin.exams.back': 'Về danh sách kỳ thi',
 
   'admin.exams.create-title-label': 'Tên kỳ thi',
@@ -531,7 +531,7 @@ export const admin = {
   'admin.exams.create-class-label': 'Lớp',
   'admin.exams.create-class-placeholder': 'Chọn lớp',
   'admin.exams.create-problems-label': 'Mã bài, mỗi dòng một mã',
-  'admin.exams.create-problems-placeholder': 'K8S-0001\nK8S-0004',
+  'admin.exams.create-problems-placeholder': 'K8S-0001\nGIT-0001',
   'admin.exams.create-duration-label': 'Thời lượng (phút)',
   'admin.exams.create-strategy-label': 'Cách sinh đề',
   'admin.exams.create-opens-label': 'Mở lúc (bỏ trống là mở ngay)',
@@ -591,3 +591,4 @@ export const adminIntentionalThree = {
   'admin.audit-target':
     '2026-09-14: đúng ba loại đối tượng mà nhật ký quản trị GHI thật, đọc từ chỗ gọi writeAuditLog chứ không từ một danh sách khai sẵn: user (đổi vai trò), session (buộc dừng), class (tạo/thêm-bớt thành viên, §18.F). Ba là số hiện tại, không phải số đẹp. describeAuditTarget còn một nhánh cuối trả thẳng targetType, nên loại thứ tư vẫn HIỆN RA được, chỉ hiện bằng chuỗi thô tiếng Anh. Đó là lý do nhóm này phải được rà lại mỗi lần thêm một loại đối tượng, khác hẳn admin.role vốn được enum DB gác.',
 } as const satisfies IntentionalThree;
+

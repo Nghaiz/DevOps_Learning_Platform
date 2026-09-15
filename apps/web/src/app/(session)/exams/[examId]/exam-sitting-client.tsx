@@ -85,7 +85,7 @@ export function ExamSittingClient({ examId }: { readonly examId: string }): Reac
   }
 
   return (
-    <section className="flex flex-col gap-6">
+    <section className="practice-exams practice-exam-sitting flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <Link
           href="/exams"

@@ -55,7 +55,11 @@ export function ProblemOverview(props: {
   const playHref = problemPreviewHref(problem.gameId, problem.code);
 
   return (
-    <section className="flex flex-col gap-5">
+    <section
+      className={
+        problem.gameId === 'git' ? 'git-oj-overview flex flex-col gap-5' : 'flex flex-col gap-5'
+      }
+    >
       <div className="flex flex-col gap-3">
         <p className="font-mono text-sm text-muted-foreground">{problem.code}</p>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">{problem.title}</h1>
@@ -120,7 +124,9 @@ export function ProblemOverview(props: {
       )}
 
       <div className="rounded-lg border border-border bg-card p-5 shadow-elevation-1">
-        <h2 className="mb-3 text-sm font-medium text-muted-foreground">{t('catalog.problem.statement')}</h2>
+        <h2 className="mb-3 text-sm font-medium text-muted-foreground">
+          {t('catalog.problem.statement')}
+        </h2>
         {/*
           `resolveAssetUrl` luôn trả `null`: hệ bài tập chưa có đường phục vụ tệp
           đính kèm, nên một ảnh tương đối trong đề là thứ KHÔNG tải được. Trả

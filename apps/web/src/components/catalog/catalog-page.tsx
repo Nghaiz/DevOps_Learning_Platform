@@ -38,7 +38,7 @@ export function CatalogPage(props: {
   readonly children: ReactNode;
 }): ReactElement {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
+    <div className="practice-catalog">
       <header className="flex flex-col gap-2">
         <h1 className="text-4xl font-semibold tracking-tight text-balance text-foreground">{props.title}</h1>
         <p className="max-w-(--measure) text-lg text-muted-foreground">{props.description}</p>

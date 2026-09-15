@@ -110,7 +110,7 @@ export const author = {
   // ── Trang danh sách ───────────────────────────────────────────────────────
   'author.list.title': 'Soạn bài',
   'author.list.lead':
-    'Bài học, lab và playground do bạn tạo. Danh sách hiển thị đầy đủ, không chia trang.',
+    'Quản lý bài học, lab và playground của bạn.',
   'author.list.new-cta': 'Tạo bài mới',
   'author.list.error-title': 'Không tải được danh sách bài',
   'author.list.empty-title': 'Bạn chưa có bài nào',
@@ -128,7 +128,7 @@ export const author = {
   // ── Trang tạo bài mới ─────────────────────────────────────────────────────
   'author.new.title': 'Tạo bài mới',
   'author.new.lead':
-    'Bài mới luôn ở trạng thái Nháp. Bạn lưu được một bản viết dở, vì kiểm tra định dạng chỉ diễn ra lúc xuất bản.',
+    'Lưu bản nháp trước. Xuất bản khi nội dung đã sẵn sàng.',
   'author.new.identity-heading': 'Định danh, không sửa lại được',
   'author.new.kind.label': 'Loại nội dung',
   'author.new.kind.hint':
@@ -877,3 +877,4 @@ export const authorIntentionalThree = {
   'author.problem.seedable':
     '2026-09-15: dung ba khoa vi o danh dau nay co dung hai trang thai HIEN THI (bat duoc / chua bat duoc) cong mot nhan, khong phai mot phan loai ba. Cau available va unavailable khong thay the nhau duoc: mot cau mo ta nang luc khi plugin khai seedSpec, cau kia mo ta TINH TRANG THAT hom nay (khong plugin nao khai no, xem core/problem-plugin.ts). Gop hai cau lam mot la hua mot thu chua ton tai. Khoa thu tu chi xuat hien khi co trang thai hien thi thu ba.',
 } as const satisfies IntentionalThree;
+

@@ -2,7 +2,15 @@
 
 import { useId, useState, type ReactElement } from 'react';
 import { t } from '@devops-platform/copy';
-import { Label, SearchTabs, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@devops-platform/ui';
+import {
+  Label,
+  SearchTabs,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@devops-platform/ui';
 import { Button } from '@devops-platform/ui';
 import {
   PROBLEM_DIFFICULTIES,
@@ -17,12 +25,7 @@ import {
   PROBLEM_VIEWER_STATUSES,
   PROBLEM_VIEWER_STATUS_LABELS,
 } from './problem-labels';
-import {
-  PROBLEM_FILTER_GAMES,
-  gameName,
-  topicIdsFor,
-  topicLabelsFor,
-} from './problem-game';
+import { PROBLEM_FILTER_GAMES, gameName, topicIdsFor, topicLabelsFor } from './problem-game';
 import { FilterChecklist, TagFilter } from './problem-filter-groups';
 import type { ProblemControls } from './use-problem-controls';
 
@@ -64,7 +67,11 @@ const DIRECTIONS = ['asc', 'desc'] as const;
  * Đây là chỗ khác năm trang danh mục lần thứ hai: ở đó ô tìm là state cục bộ
  * không đụng URL nên commit theo từng phím là đúng.
  */
-export function ProblemsToolbar({ controls }: { readonly controls: ProblemControls }): ReactElement {
+export function ProblemsToolbar({
+  controls,
+}: {
+  readonly controls: ProblemControls;
+}): ReactElement {
   const orderId = useId();
   const directionId = useId();
   const committed = controls.query.filter.query ?? '';
@@ -82,6 +89,18 @@ export function ProblemsToolbar({ controls }: { readonly controls: ProblemContro
 
   return (
     <div className="flex flex-col gap-5 rounded-lg border border-border bg-card p-4 shadow-elevation-1">
+      <div className="practice-game-switch" aria-label="Game của bài tập">
+        {PROBLEM_FILTER_GAMES.map((gameId) => (
+          <button
+            key={gameId}
+            type="button"
+            aria-pressed={controls.query.game === gameId}
+            onClick={() => controls.setGame(gameId)}
+          >
+            {gameName(gameId)}
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex min-w-64 flex-1 flex-col gap-2">
           <span className="text-xs font-medium text-muted-foreground">
@@ -143,33 +162,41 @@ export function ProblemsToolbar({ controls }: { readonly controls: ProblemContro
           </Select>
         </div>
 
-        <Button variant="ghost" size="sm" onClick={controls.clearFilters} disabled={!controls.hasActiveFilter}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={controls.clearFilters}
+          disabled={!controls.hasActiveFilter}
+        >
           {t('catalog.action.clear-filter')}
         </Button>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2">
-        <FilterChecklist
-          legend={t('catalog.problems.difficulty-legend')}
-          options={PROBLEM_DIFFICULTIES}
-          labels={PROBLEM_DIFFICULTY_LABELS}
-          selected={controls.query.filter.difficulty ?? []}
-          onToggle={controls.toggleDifficulty}
-        />
-        <FilterChecklist
-          legend={t('catalog.problems.status-legend')}
-          options={PROBLEM_VIEWER_STATUSES}
-          labels={PROBLEM_VIEWER_STATUS_LABELS}
-          selected={controls.query.filter.viewerStatus ?? []}
-          onToggle={controls.toggleViewerStatus}
-        />
-        <TopicFilter controls={controls} />
-        <TagFilter
-          tags={controls.query.filter.tags ?? []}
-          onAdd={controls.addTag}
-          onRemove={controls.removeTag}
-        />
-      </div>
+      <details className="practice-advanced-filters">
+        <summary>Bộ lọc chi tiết{controls.hasActiveFilter ? ' · Đang áp dụng' : ''}</summary>
+        <div className="grid gap-5 md:grid-cols-2">
+          <FilterChecklist
+            legend={t('catalog.problems.difficulty-legend')}
+            options={PROBLEM_DIFFICULTIES}
+            labels={PROBLEM_DIFFICULTY_LABELS}
+            selected={controls.query.filter.difficulty ?? []}
+            onToggle={controls.toggleDifficulty}
+          />
+          <FilterChecklist
+            legend={t('catalog.problems.status-legend')}
+            options={PROBLEM_VIEWER_STATUSES}
+            labels={PROBLEM_VIEWER_STATUS_LABELS}
+            selected={controls.query.filter.viewerStatus ?? []}
+            onToggle={controls.toggleViewerStatus}
+          />
+          <TopicFilter controls={controls} />
+          <TagFilter
+            tags={controls.query.filter.tags ?? []}
+            onAdd={controls.addTag}
+            onRemove={controls.removeTag}
+          />
+        </div>
+      </details>
     </div>
   );
 }
@@ -270,4 +297,3 @@ function GameSelect(props: {
     </div>
   );
 }
-

@@ -346,7 +346,7 @@ export const problem = {
     'Máy chủ cấp khi bạn lưu lần đầu. Mã ổn định vĩnh viễn, không đổi kể cả khi bạn sửa đề.',
   'problem.statement-fields-slug-trong-url': 'Slug trong URL',
   'problem.statement-fields-chu-thuong-so-va-gach-noi-slug-doi-duoc-khi-sua-ten-bai-khac-ma-bai-la-thu':
-    'Chữ thường, số và gạch nối. Slug đổi được khi sửa tên bài, khác mã bài là thứ không bao giờ đổi. Sẽ lưu thành',
+    'Chữ thường, số và gạch nối. Xem trước:',
   'problem.statement-fields-trong': '(trống)',
   'problem.statement-fields-sinh-lai-tu-ten-bai': 'Sinh lại từ tên bài',
   'problem.statement-fields-viet-de': 'Viết đề',
@@ -355,13 +355,13 @@ export const problem = {
   'problem.statement-fields-namespace-thanh-toan-co-mot-deployment-khong-len-noi-replica-nao-tim-nguyen':
     'Namespace `thanh-toan` có một Deployment không lên nổi replica nào.\n\nTìm nguyên nhân và đưa nó về đủ 3 replica sẵn sàng.',
   'problem.statement-fields-bai-oj-khong-day-ly-thuyet-chi-noi-de-kien-thuc-nen-de-nguoi-lam-tu-tra':
-    'Bài OJ KHÔNG dạy lý thuyết, chỉ nói đề. Kiến thức nền để người làm tự tra.',
+    'Nêu tình huống và kết quả cần đạt.',
   'problem.statement-fields-chua-co-gi-de-xem-truoc': 'Chưa có gì để xem trước.',
   'problem.statement-fields-tu': 'từ.',
   'problem.statement-fields-vuot-tran-phai-cat-tu-moi-xuat-ban-duoc': (p: { remaining: string }) =>
     `Vượt trần: phải cắt ${p.remaining} từ mới xuất bản được.`,
   'problem.statement-fields-con-tu-bai-oj-noi-de-khong-giang-bai': (p: { remaining: string }) =>
-    `Còn ${p.remaining} từ. Bài OJ nói đề, không giảng bài.`,
+    `Còn ${p.remaining} từ.`,
   'problem.statement-fields-con-tu': (p: { remaining: string }) => `Còn ${p.remaining} từ.`,
   'problem.vocabulary-tag-image-sai-pod-ket-imagepullbackoff':
     'Tag image sai, pod kẹt ImagePullBackOff',
@@ -461,3 +461,4 @@ export const problem = {
 } as const satisfies Surface<'problem'>;
 
 export const problemIntentionalThree = {} as const satisfies IntentionalThree;
+

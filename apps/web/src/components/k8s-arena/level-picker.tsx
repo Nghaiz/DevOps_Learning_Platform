@@ -29,6 +29,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import type { ReactElement } from 'react';
 import { Check, Clock, Play, Terminal } from 'lucide-react';
 import type { Level } from '@devops-platform/games';
@@ -100,18 +101,18 @@ export function LevelPicker({ levels, onPick }: LevelPickerProps): ReactElement 
      * tảng giữ nguyên theme của nó"; màn chọn màn thuộc về arena, không thuộc
      * về phần còn lại đó.
      */
-    <div className="dark arena-root min-h-full bg-background text-foreground">
-      <div className="mx-auto w-full max-w-4xl px-4 py-10">
+    <div className="practice-k8s-picker bg-background text-foreground">
+      <div className="practice-k8s-container">
+        <Link href="/games" className="practice-link">← Chọn game</Link>
         <header className="mb-8">
           <p className="font-mono text-xs font-semibold tracking-[0.2em] text-status-progress">
             KUBERNETES ARENA
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-            Cụm hỏng. Bạn là người trực.
+            Kubernetes Arena
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            {levels.length} tình huống có thật, dựng lại trong trình duyệt. Gõ `kubectl` thật, nhìn
-            cụm phản ứng thật, và tự tìm ra chỗ hỏng.
+            {levels.length} bài thực hành kubectl trên cụm mô phỏng.
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-4">
@@ -138,10 +139,12 @@ export function LevelPicker({ levels, onPick }: LevelPickerProps): ReactElement 
           </div>
         </header>
 
+        <nav className="practice-chapter-nav" aria-label="Chương Kubernetes">{chapters.map(([chapter]) => <a key={chapter} href={`#k8s-chapter-${chapter}`}>{String(chapter).padStart(2, '0')} · {CHAPTER_LABELS[chapter] ?? 'Khác'}</a>)}</nav>
+        <div className="practice-k8s-chapters">
         {chapters.map(([chapter, items], chapterIndex) => {
           const chapterDone = items.filter((l) => progress[l.id]?.completed === true).length;
           return (
-            <section key={chapter} className="mb-10">
+            <section key={chapter} id={`k8s-chapter-${chapter}`} className="practice-k8s-chapter">
               <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <h2 className="text-sm font-semibold text-foreground">
                   <span className="font-mono text-muted-foreground">
@@ -190,6 +193,7 @@ export function LevelPicker({ levels, onPick }: LevelPickerProps): ReactElement 
             </section>
           );
         })}
+        </div>
       </div>
     </div>
   );

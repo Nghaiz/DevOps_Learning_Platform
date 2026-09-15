@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
+import { Clock3, Trophy, ArrowRight } from 'lucide-react';
 import { t } from '@devops-platform/copy';
 import {
   Badge,
@@ -37,12 +38,41 @@ import { describeTrpcError } from '../../../lib/trpc';
  */
 export function ExamsClient(): ReactElement {
   const query = api.examSitting.list.useQuery();
+  const [filter, setFilter] = useState<'all' | 'active' | 'done'>('all');
+  const items = query.data?.items ?? [];
+  const shown = items.filter(
+    (item) => filter === 'all' || (filter === 'done' ? item.closed : !item.closed),
+  );
 
   return (
-    <section className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('exam.title')}</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">{t('exam.description')}</p>
+    <section className="practice-exams flex flex-col gap-6">
+      <header className="practice-exams-heading">
+        <span className="practice-exams-symbol">
+          <Trophy size={27} />
+        </span>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            {t('exam.title')}
+          </h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Lịch thi, bài đang làm và kết quả của bạn.
+          </p>
+        </div>
+      </header>
+      <div className="practice-game-switch" aria-label="Trạng thái kỳ thi">
+        {(['all', 'active', 'done'] as const).map((value) => (
+          <button
+            type="button"
+            key={value}
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+          >
+            {value === 'all' ? 'Tất cả' : value === 'active' ? 'Chưa kết thúc' : 'Đã kết thúc'}
+            {query.isSuccess
+              ? ` (${items.filter((item) => value === 'all' || (value === 'done' ? item.closed : !item.closed)).length})`
+              : ''}
+          </button>
+        ))}
       </div>
 
       {query.isPending && (
@@ -53,20 +83,23 @@ export function ExamsClient(): ReactElement {
       )}
 
       {query.isError && (
-        <ErrorState
-          message={describeTrpcError(query.error)}
-          onRetry={() => void query.refetch()}
-        />
+        <ErrorState message={describeTrpcError(query.error)} onRetry={() => void query.refetch()} />
       )}
 
       {query.data?.items.length === 0 && (
         <EmptyState title={t('exam.empty-title')} description={t('exam.empty-body')} />
       )}
 
-      <ul className="flex flex-col gap-3">
-        {(query.data?.items ?? []).map((item) => (
+      {query.isSuccess && items.length > 0 && shown.length === 0 && (
+        <EmptyState
+          title="Không có kỳ thi trong mục này"
+          description="Chọn mục khác để xem kỳ thi của bạn."
+        />
+      )}
+      <ul className="practice-exam-grid">
+        {shown.map((item) => (
           <li key={item.id}>
-            <Card>
+            <Card className="practice-exam-card">
               <CardHeader>
                 <div className="flex flex-wrap items-center gap-2">
                   <CardTitle>{item.title}</CardTitle>
@@ -77,13 +110,21 @@ export function ExamsClient(): ReactElement {
                 <CardDescription>{t('exam.card-class', { name: item.className })}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-muted-foreground">
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Clock3 size={16} aria-hidden="true" />
                   {t('exam.card-problems', { count: item.problemCodes.length })}
                   {' · '}
                   {t('exam.card-duration', { minutes: item.durationMinutes })}
                 </p>
                 <Button asChild variant="outline">
-                  <Link href={`/exams/${item.id}`}>{t('exam.open')}</Link>
+                  <Link href={`/exams/${item.id}`}>
+                    {item.closed
+                      ? 'Xem kết quả'
+                      : item.startedAt === null
+                        ? 'Xem kỳ thi'
+                        : 'Tiếp tục làm bài'}
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </Link>
                 </Button>
               </CardContent>
             </Card>

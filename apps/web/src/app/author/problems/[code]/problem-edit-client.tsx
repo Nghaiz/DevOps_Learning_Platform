@@ -117,7 +117,7 @@ export function ProblemEditClient({ code }: { readonly code: string }): ReactEle
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10">
+    <div className="practice-catalog">
       <header className="flex flex-col gap-1">
         <Link href="/author/problems" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
           ← {t('author.problem.nav.back')}

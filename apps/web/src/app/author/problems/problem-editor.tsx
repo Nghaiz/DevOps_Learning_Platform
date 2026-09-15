@@ -15,12 +15,7 @@ import { HintListFields } from './hint-fields';
 import { JsonTransfer } from './json-transfer';
 import { ObjectiveFields } from './objective-fields';
 import { PluginFields } from './plugin-fields';
-import {
-  emptyObjective,
-  formWithGame,
-  moveObjective,
-  type ProblemFormState,
-} from './problem-form';
+import { emptyObjective, formWithGame, moveObjective, type ProblemFormState } from './problem-form';
 import { StatementFields } from './statement-fields';
 
 /**
@@ -70,7 +65,7 @@ export function ProblemEditor(props: {
   const view = pluginViewFor(props.form.gameId);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="practice-editor">
       <GameSelectField
         gameId={props.form.gameId}
         // Đổi game trên một bài ĐÃ LƯU là đổi cả kiểu `initialState` của nó,
@@ -87,6 +82,8 @@ export function ProblemEditor(props: {
       />
 
       <Tabs
+        data-slot="tabs"
+        orientation="vertical"
         value={tab}
         onValueChange={(value) => {
           setTab(value);
@@ -262,7 +259,14 @@ export function ProblemEditor(props: {
         )}
       </Tabs>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+      <div className="practice-editor-actions">
+        <span className="practice-save-state" role="status">
+          {props.hasUnsavedChanges
+            ? 'Có thay đổi chưa lưu'
+            : props.code === null
+              ? 'Bản nháp mới'
+              : 'Đã lưu'}
+        </span>
         {props.actions}
       </div>
     </div>

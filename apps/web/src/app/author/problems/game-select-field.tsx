@@ -1,86 +1,55 @@
 'use client';
 
 import { useId, type ReactElement } from 'react';
+import { GitBranch, Boxes, Check } from 'lucide-react';
 import { t } from '@devops-platform/copy';
 import type { GameId } from '@devops-platform/games';
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@devops-platform/ui';
+import { Alert, AlertDescription, AlertTitle } from '@devops-platform/ui';
 import { AUTHORABLE_GAMES, pluginViewFor } from './game-plugin-view';
 
-/**
- * Ô chọn game, đặt TRÊN bộ tab chứ không nằm trong một tab — §18.D.1.
- *
- * ## Vì sao nó ở trên cùng và luôn nhìn thấy
- *
- * Chọn game không phải một thuộc tính của bài ngang hàng với độ khó hay tag: nó
- * quyết định biểu mẫu trạng thái ban đầu, tập chủ đề được chọn, và bảng vị từ
- * dùng cho testcase. Giấu nó trong tab "Mô tả" thì người soạn điền xong nửa bài
- * mới phát hiện mình đang soạn cho game khác, và phần đã điền theo tập chủ đề
- * cũ thành vô nghĩa.
- *
- * ## Ô này phải đi được bằng bàn phím, và đó là một ràng buộc chứ không lời hứa
- *
- * AC-8 đòi 0 vi phạm axe trên màn soạn bài. `Label` nối bằng `htmlFor` tới
- * `SelectTrigger` (chứ không phải một `<div>` bọc ngoài), nên trình đọc màn hình
- * đọc đúng tên ô, và Tab tới được nó. Câu giải thích nối bằng `aria-describedby`
- * chứ không chỉ đặt cạnh.
- */
 export function GameSelectField(props: {
   readonly gameId: GameId;
   readonly onChange: (next: GameId) => void;
-  /** `false` ở trang sửa: đổi game của một bài đã lưu là đổi cả hợp đồng dữ liệu. */
   readonly canChange: boolean;
 }): ReactElement {
-  const id = useId();
-  const hintId = `${id}-hint`;
+  const hintId = useId();
   const view = pluginViewFor(props.gameId);
-
   return (
-    <section className="flex flex-col gap-2 rounded-md border border-border bg-muted/30 p-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={id}>{t('author.problem.game.label')}</Label>
-        <Select
-          value={props.gameId}
-          disabled={!props.canChange}
-          onValueChange={(value) => {
-            props.onChange(value as GameId);
-          }}
-        >
-          <SelectTrigger id={id} aria-describedby={hintId} className="w-72">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {AUTHORABLE_GAMES.map((game) => (
-              <SelectItem key={game.gameId} value={game.gameId}>
-                {`${game.label} (${game.codePrefix})`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p id={hintId} className="text-xs text-muted-foreground">
+    <section className="practice-creator-game">
+      <fieldset aria-describedby={hintId}>
+        <legend>Game của bài tập</legend>
+        <div className="practice-creator-options">
+          {AUTHORABLE_GAMES.map((game) => {
+            const Icon = game.gameId === 'git' ? GitBranch : Boxes;
+            return (
+              <label
+                key={game.gameId}
+                className={props.gameId === game.gameId ? 'is-selected' : ''}
+              >
+                <input
+                  type="radio"
+                  name={`${hintId}-game`}
+                  value={game.gameId}
+                  checked={props.gameId === game.gameId}
+                  disabled={!props.canChange}
+                  onChange={() => props.onChange(game.gameId)}
+                />
+                <Icon size={24} aria-hidden="true" />
+                <span>
+                  {game.label}
+                  <small>{game.codePrefix}</small>
+                </span>
+                {props.gameId === game.gameId && <Check size={17} aria-hidden="true" />}
+              </label>
+            );
+          })}
+        </div>
+        <p id={hintId}>
           {props.canChange
-            ? t('author.problem.game.hint')
-            : t('author.problem.game.locked')}
+            ? 'Chọn game trước khi dựng môi trường.'
+            : 'Game được cố định sau lần lưu đầu tiên.'}
         </p>
-      </div>
-
-      {/*
-        Cảnh báo "game này chưa lưu được" ĐÃ GỠ 2026-09-15 cùng với
-        `PERSISTABLE_GAMES`. Nó nói rằng bảng bài chỉ giữ được trạng thái ban đầu
-        dạng cụm Kubernetes — điều đó thôi đúng từ khi §18.D.1 nửa sau mở
-        `problemBodyShape` sang đa-game. Một cảnh báo đỏ nói sai làm người soạn
-        không dám bấm Lưu vào một đường lưu đang chạy tốt, nên để lại còn tệ hơn
-        gỡ đi.
-      */}
+      </fieldset>
       {view === null && (
         <Alert>
           <AlertTitle>{t('author.problem.game.no-plugin-title')}</AlertTitle>

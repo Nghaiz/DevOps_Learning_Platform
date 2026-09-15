@@ -18,8 +18,12 @@ import dynamic from 'next/dynamic';
 import { LEVELS } from '@devops-platform/games';
 import type { ArenaModeContext } from './arena-contract';
 import type { HintReveal } from '../../lib/use-hint-reveal';
-import { ArenaRoot } from './arena-root';
 import { LevelPicker } from './level-picker';
+
+const ArenaRoot = dynamic(() => import('./arena-root').then((module) => module.ArenaRoot), {
+  ssr: false,
+  loading: () => <div role="status" className="practice-arena-loading">Đang mở môi trường Kubernetes…</div>,
+});
 
 /**
  * Một Map rỗng DÙNG CHUNG cho mọi lần render của chế độ `level`.
