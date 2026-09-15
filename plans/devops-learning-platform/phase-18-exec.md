@@ -916,3 +916,119 @@ file** (`me-history-skipped.test.ts`), bốn **dòng log ứng dụng** về
 - ~~**Chưa ô nào đo Builder không gọi mạng**~~ — **ĐÓNG**, và dòng nợ sai theo hai
   chiều.
 - ~~**`lessons-authz` lung lay**~~ — **ĐÓNG**, và nó chưa bao giờ là flake.
+
+---
+
+## 9. Đợt bảy (2026-09-15) — ba dòng nợ cuối, và không dòng nào đúng như đã ghi
+
+Phạm vi: nốt §8.9. Cả ba đều **đổi hình dạng sau khi đo**, nên đây là lượt thứ ba
+áp luật §6.2 và là lượt thứ ba nó đổi việc phải làm chứ không chỉ đổi cách nói.
+
+| Dòng nợ §8.9 | Đo 2026-09-15 | Việc thật đã làm |
+|---|---|---|
+| `K8S_UNSEEDED_REPLAY_SEED` "là mã chết", định xoá | **Không chết, và không được đọc là CÓ CHỦ Ý** | Dựng cổng giữ nó không bị tra lại |
+| `eslint` OOM "nguyên nhân chưa xác định" | **Xác định được, và không phải lỗi của eslint** | Đóng bằng bằng chứng, không đổi mã |
+| 11 spec ngoài `e2e:ci` | **5 chỉ là chưa ai thêm**, 6 có lý do thật | Thêm 5, ghi lý do giữ 6 |
+
+### 9.1 `e2e:ci` 4 → 9 spec, sau khi rà từng file
+
+Đo bằng cách CHẠY, không bằng cách đọc: sáu ứng viên chạy trên `next start` cho
+`46 passed · 14 skipped · exit 0`, và một lượt thứ hai (bỏ `password-reset`) cho
+`46 passed · 13 skipped · exit 0`. **Hai lượt độc lập** trước khi đưa vào cổng
+bắt buộc — một lượt xanh không phải bằng chứng ổn định, và một spec lung lay
+trong cổng bắt buộc còn hại hơn không có spec nào (nó dạy người ta chạy lại).
+
+**Năm file vào** — `games-git-sandbox` (AC-2 0-lời-gọi-backend + AC-6 axe của
+§17.Q), `games-git-colorblind` (phân biệt từng cặp trạng thái khi mất màu),
+`responsive` (không tràn ngang ở 390px — memory `sr-only-escapes-overflow-clip`
+là một lỗi THẬT đúng hình dạng này), `motif` (hai trong ba ô hỏng IM LẶNG:
+reduced-motion và cung nhảy nhịp), `landing-visual`.
+
+**Sáu file ở ngoài, lý do vẫn đúng:** `games`/`games-git`/`landing-3d`/`perf`
+cần GPU-WebGL thật hoặc một phép đo thời gian mà runner chia sẻ CPU không đo
+nổi · `keyboard` cần orchestrator + gateway · `password-reset` **tự tắt** khi
+thiếu `E2E_MAILPIT_URL`, nên thêm nó chỉ tạo một ô skip vĩnh viễn — đúng thứ
+`rules/green-that-proves-nothing.md` gọi tên, và chính file đó đã tự ghi nhận
+xét ấy về mình từ trước.
+
+Ngân sách: job `web-a11y` có `timeout-minutes: 25`, bước e2e hiện ~1,5 phút,
+thêm ~2,2 phút. Job này có postgres + `db:migrate` + `seed-content.mjs`, tức nền
+giống máy dựng — nên §6.6 bài học 1 không cắn lượt này.
+
+### 9.2 `K8S_UNSEEDED_REPLAY_SEED` — "mã chết" sai, và bản vá định làm là XOÁ NHẦM
+
+Đo: cả `K8S_UNSEEDED_REPLAY_SEED = 0` lẫn `GIT_UNSEEDED_REPLAY_SEED = 1` **không
+được một dòng mã sản phẩm nào `import`**. Bốn file chỉ nhắc tên trong chú thích.
+Hai file test dùng làm gá.
+
+Nhưng `core/problem.ts` § `Submission.seed` nói rõ vì sao: hợp đồng từng khai
+`seed: number | null`, buộc mỗi plugin tự công bố một hằng "không-seed", và hai
+hằng đó **lệch nhau ngay từ dòng đầu**. Hậu quả không đọc ra thành một lỗi — nó
+đọc ra thành *"mọi lượt nộp hợp lệ đều bị từ chối"*, tức một hệ thống trông như
+từ chối người chơi ngẫu nhiên. Bản vá là **bỏ hẳn chỗ cho phép tra hằng**: lượt
+nộp mang theo số đã dùng.
+
+Nên "không ai đọc" là **thành tựu của thiết kế**, không phải rác. Xoá chúng đi
+thì xoá luôn hai gá test và lời ghi lịch sử; giữ nguyên thì bất biến chỉ được
+một đoạn văn xuôi giữ, mà văn xuôi thì chỉ review mới bắt được.
+
+Việc đã làm: `unseeded-seed-not-consulted.test.ts` — quét mọi file sản phẩm ở
+`packages/games/src` + `apps/web/src`, dựng danh sách câu lệnh `import`, và ĐỎ
+kèm tên file nếu có ai import hằng.
+
+Gác `import` chứ không gác việc NHẮC TÊN, có lý do: bốn file sản phẩm nhắc tên
+trong chú thích, và cấm nhắc tên vấn đề trong chú thích là đúng cái bẫy
+`phase-18.md` §18.A đã dẫm một lần. `index.ts` re-export bằng `export ... from`
+nên không cần dòng miễn trừ nào — re-export làm hằng VỚI TỚI được, không tra giá
+trị của nó.
+
+Hai ô gác toàn vẹn đi kèm, vì "không ai import" đúng một cách rỗng nghĩa trên
+một tập rỗng: một ô đòi phép quét thấy > 500 file (đo được 659), một ô là **đối
+chứng dương** bắt bộ so khớp phải tìm ra một file CÓ import thật.
+
+### 9.3 `eslint` OOM — eslint là nạn nhân, không phải thủ phạm
+
+Giả thuyết cũ ("eslint duyệt 290MB trace playwright") đã bị bác bỏ ở §6.4.
+Đo lại từ gốc, và câu trả lời nằm ở **cấu hình**, không ở dữ liệu:
+
+`eslint.config.mjs` dùng `tseslint.configs.recommended`, **không**
+`recommendedTypeChecked`, và không khai `projectService`/`project`. Tức eslint
+**không dựng TypeScript program** — không có nguồn tốn RAM lớn nào.
+
+Đo trần heap, ép từ dưới lên thay vì đoán từ trên xuống:
+
+```
+apps/web (776 file)    cap=192MB exit=0 15s   cap=256 · 384 · 512 · 1024 đều exit=0
+packages/games         cap=192MB exit=0  7s
+packages/ui            cap=192MB exit=0  4s
+packages/scenario      cap=192MB exit=0  5s
+```
+
+Gói lớn nhất chạy trọn ở **192MB**. Nên một `exit 134` ở trần mặc định (~4GB)
+**không thể là chuyện bộ nhớ của chính eslint** — nó là áp lực RAM ở tầng máy.
+
+Ba mảnh bằng chứng khớp nhau: sự cố xảy ra ĐÚNG sau `next build` + `e2e:ci` (lúc
+tải đỉnh), xanh khi chạy lại mà không sửa gì, và đợt sáu gặp thêm **hai** sự cố
+cùng họ trong một phiên (`spawn UNKNOWN` khi build+test chạy chung, `Array buffer
+allocation failed` khi `next start` khởi động ngay sau lượt turbo nặng — §8.8).
+
+**Không đổi mã.** Dấu hiệu vận hành: `eslint` exit 134 ngay sau một lượt build
+nặng là chuyện của máy, chạy lại. Nếu nó xảy ra trên một máy ĐANG RẢNH thì đó là
+thông tin mới, và lúc đó mới đi tìm nguyên nhân khác.
+
+### 9.4 Cổng mới đã được đo ở trạng thái ĐỎ
+
+| Cổng | Cách làm nó đỏ | Kết quả |
+|---|---|---|
+| không mã sản phẩm nào tra hằng | thêm một file sản phẩm import `K8S_UNSEEDED_REPLAY_SEED` | đỏ, nêu ĐÚNG MỘT tên file, hai ô toàn vẹn giữ xanh |
+
+### 9.5 Nợ còn lại
+
+Không còn dòng nào của §8.9. Ba món đã đóng, và hai trong ba đóng bằng một việc
+**khác** thứ dòng nợ kê ra.
+
+Điều đáng mang sang phase sau không phải một món nợ mà là một tỉ lệ: trong phase
+này, **bảy lần** một dòng nợ trích câu đã lạc hậu, và lượt rà cuối cùng này lại
+thêm ba. Luật §6.2 đang hoạt động, nhưng nó chỉ hoạt động khi có người TRA — nó
+không tự chạy. Một bảng nợ không có cơ chế tự kiểm thì lãi suất của nó là những
+bản vá sai được kê sẵn.
