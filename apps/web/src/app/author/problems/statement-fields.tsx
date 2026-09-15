@@ -147,13 +147,17 @@ export function StatementFields(props: {
           </TabsList>
           <TabsContent value="viet">
             <div ref={editor}>
-              <div className="practice-markdown-tools" role="group" aria-label="Định dạng đề bài">
+              <div
+                className="practice-markdown-tools"
+                role="group"
+                aria-label={t('author.problem.markdown.toolbar')}
+              >
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  aria-label="Tiêu đề"
-                  onClick={() => insert('\n## ', '\n', 'Tiêu đề')}
+                  aria-label={t('author.problem.markdown.heading')}
+                  onClick={() => insert('\n## ', '\n', t('author.problem.markdown.seed-heading'))}
                 >
                   <Heading2 size={17} />
                 </Button>
@@ -161,8 +165,8 @@ export function StatementFields(props: {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  aria-label="In đậm"
-                  onClick={() => insert('**', '**', 'Nội dung')}
+                  aria-label={t('author.problem.markdown.bold')}
+                  onClick={() => insert('**', '**', t('author.problem.markdown.seed-bold'))}
                 >
                   <Bold size={17} />
                 </Button>
@@ -170,8 +174,8 @@ export function StatementFields(props: {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  aria-label="Danh sách"
-                  onClick={() => insert('\n- ', '\n', 'Yêu cầu')}
+                  aria-label={t('author.problem.markdown.list')}
+                  onClick={() => insert('\n- ', '\n', t('author.problem.markdown.seed-list'))}
                 >
                   <List size={17} />
                 </Button>
@@ -179,12 +183,14 @@ export function StatementFields(props: {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  aria-label="Đoạn mã"
-                  onClick={() => insert('\n```\n', '\n```\n', 'Lệnh hoặc cấu hình')}
+                  aria-label={t('author.problem.markdown.code')}
+                  onClick={() =>
+                    insert('\n```\n', '\n```\n', t('author.problem.markdown.seed-code'))
+                  }
                 >
                   <Code2 size={17} />
                 </Button>
-                <span>Markdown</span>
+                <span>{t('author.problem.markdown.badge')}</span>
               </div>
               <TextAreaField
                 label={t('problem.statement-fields-de-bai-markdown')}

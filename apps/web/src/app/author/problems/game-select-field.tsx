@@ -17,7 +17,7 @@ export function GameSelectField(props: {
   return (
     <section className="practice-creator-game">
       <fieldset aria-describedby={hintId}>
-        <legend>Game của bài tập</legend>
+        <legend>{t('author.problem.game.label')}</legend>
         <div className="practice-creator-options">
           {AUTHORABLE_GAMES.map((game) => {
             const Icon = game.gameId === 'git' ? GitBranch : Boxes;
@@ -45,9 +45,7 @@ export function GameSelectField(props: {
           })}
         </div>
         <p id={hintId}>
-          {props.canChange
-            ? 'Chọn game trước khi dựng môi trường.'
-            : 'Game được cố định sau lần lưu đầu tiên.'}
+          {props.canChange ? t('author.problem.game.hint') : t('author.problem.game.locked')}
         </p>
       </fieldset>
       {view === null && (

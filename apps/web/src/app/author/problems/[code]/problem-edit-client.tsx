@@ -165,14 +165,14 @@ export function ProblemEditClient({ code }: { readonly code: string }): ReactEle
           />
         }
         actions={
-          <>
-            <Button type="button" onClick={save} loading={update.isPending} disabled={busy}>
-              {t('common.action.save')}
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {hasUnsavedChanges ? t('author.problem.edit.unsaved') : t('author.problem.edit.saved')}
-            </span>
-          </>
+          // Chỉ nút Lưu. Ô báo trạng thái lưu nằm ở `practice-save-state` trong
+          // chính `ProblemEditor`, và nó phủ BA trạng thái (chưa lưu, bản nháp
+          // mới, đã lưu). Một ô thứ hai ở đây đọc cùng cặp khoá chỉ phủ được
+          // hai, nên trang sửa hiện hai lần cùng một câu và ca `code === null`
+          // thì câu ở đây sai hẳn.
+          <Button type="button" onClick={save} loading={update.isPending} disabled={busy}>
+            {t('common.action.save')}
+          </Button>
         }
       />
     </div>

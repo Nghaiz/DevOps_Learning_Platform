@@ -269,6 +269,16 @@ export const author = {
   'author.problem.edit.code-note': 'mã không đổi kể cả khi bạn sửa đề hay đổi slug.',
   'author.problem.edit.unsaved': 'Có thay đổi chưa lưu.',
   'author.problem.edit.saved': 'Đã lưu mọi thay đổi.',
+  /*
+   * Trạng thái THỨ BA của cùng ô báo đó, thêm 2026-09-16 cùng lượt nối dây ô
+   * `practice-save-state` của `problem-editor.tsx`.
+   *
+   * Hai khoá ngay trên nói về CHÊNH LỆCH so với bản đã lưu, nên không cái nào
+   * đúng cho một bản nháp chưa lần nào gửi đi: `unsaved` doạ mất thứ chưa từng
+   * tồn tại, `saved` khẳng định một lượt lưu chưa xảy ra. Ô đó đọc `code === null`
+   * để tách ca này ra, nên nó cần chữ riêng.
+   */
+  'author.problem.edit.new-draft': 'Bản nháp mới',
 
   // ── Thông báo nổi sau mỗi lượt gọi máy chủ ─────────────────────────────────
   'author.problem.toast.saved': 'Đã lưu',
@@ -289,6 +299,35 @@ export const author = {
   'author.problem.tab.json': 'JSON',
   'author.problem.tab.publish': 'Xuất bản',
   'author.problem.tab.spec': 'Trạng thái ban đầu',
+
+  /*
+   * ── Thanh công cụ markdown trong tab Mô tả ─────────────────────────────────
+   *
+   * Nhóm mới 2026-09-16, nối dây mười chuỗi cứng mà lượt dựng lại giao diện
+   * viết thẳng vào `statement-fields.tsx`.
+   *
+   * Bốn khoá `seed-*` KHÔNG phải bản sao của bốn nhãn nút ngay trên chúng, kể
+   * cả khi `heading` và `seed-heading` đang trùng từng chữ. Nhãn nút là chữ
+   * TRỢ NĂNG người soạn nghe; `seed-*` là đoạn chữ nút CHÈN vào đề bài khi
+   * người soạn chưa bôi đen gì, tức nó thành nội dung bài và người soạn gõ đè
+   * lên. Gộp hai vai làm một khoá thì lần đổi chữ trên nút sau này đổi luôn
+   * nội dung được chèn, và ngược lại.
+   *
+   * Vì sao chữ CHÈN vào bài lại nằm ở bản đồ vỏ, ngược với ranh giới VỎ/RUỘT ở
+   * đầu file: số bản sao của bốn chuỗi này bị chặn bởi số NÚT trên thanh công
+   * cụ, không bởi số bài tác giả soạn. Theo đúng phép thử của §5.1 thì chúng là
+   * vỏ, dù đích đến của chúng là một ô nhập.
+   */
+  'author.problem.markdown.toolbar': 'Định dạng đề bài',
+  'author.problem.markdown.badge': 'Markdown',
+  'author.problem.markdown.heading': 'Tiêu đề',
+  'author.problem.markdown.bold': 'In đậm',
+  'author.problem.markdown.list': 'Danh sách',
+  'author.problem.markdown.code': 'Đoạn mã',
+  'author.problem.markdown.seed-heading': 'Tiêu đề',
+  'author.problem.markdown.seed-bold': 'Nội dung',
+  'author.problem.markdown.seed-list': 'Yêu cầu',
+  'author.problem.markdown.seed-code': 'Lệnh hoặc cấu hình',
 
   // -- Chon game, va gioi han lưu tru hom nay --------------------------------
   // Ten SAU GameId, khong phai hai game co plugin: GAME_NAME trong

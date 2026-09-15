@@ -273,7 +273,14 @@ export const catalog = {
     'Chưa có bộ câu hỏi nào được xuất bản. Làm một lab để tự kiểm bằng thao tác thật trước đã.',
 
   'catalog.empty.games.title': 'Không có game nào khớp bộ lọc',
-  'catalog.empty.games.body': 'Bốn game vẫn ở đó, bỏ bớt điều kiện lọc để xem lại toàn bộ.',
+  /*
+   * ⚠ Bản cũ viết "Bốn game vẫn ở đó". `games-catalog.ts` có NĂM mục, nên câu
+   * đó đã sai từ lúc mục thứ năm được thêm, và sai trong im lặng: không cổng
+   * nào đếm giúp một con số nằm trong văn xuôi. Bỏ số đi là cách duy nhất làm
+   * câu này không hỏng lại ở lần thêm game tiếp theo; cần nói số thì dùng
+   * `catalog.games.count`, khoá đó nhận tham số.
+   */
+  'catalog.empty.games.body': 'Các game vẫn ở đó, bỏ bớt điều kiện lọc để xem lại toàn bộ.',
 
   // ── Nhãn hành động của trạng thái rỗng ────────────────────────────────
   'catalog.action.first-page': 'Về đầu danh sách',
@@ -324,8 +331,19 @@ export const catalog = {
   'catalog.games.no-login': 'Không cần đăng nhập',
   'catalog.games.count': (p: { shown: number }) => `${p.shown} game`,
   'catalog.games.count-filtered': (p: { shown: number }) => `${p.shown} game khớp bộ lọc`,
-  'catalog.games.challenge-title': 'Thử thách CTF, thứ nằm cạnh game và tốn chỗ thật',
-  'catalog.games.challenge-cta': 'Xem Lab',
+  /*
+   * ⛔ `catalog.games.challenge-title` và `catalog.games.challenge-cta` ĐÃ XOÁ
+   * 2026-09-16. Chúng mô tả một khối "Thử thách CTF → Xem Lab" nằm cạnh danh
+   * sách game; bản dựng lại `4f6d3ba` bỏ khối đó và thay bằng thẻ studio
+   * ("Tạo thử thách của bạn" → Problem creator / Level builder / Soạn bài học),
+   * là một thứ khác hẳn về nghĩa.
+   *
+   * Cổng `dead-key` cho hai đường: nối vào chỗ đáng ra phải dùng, hoặc xoá.
+   * Ở đây KHÔNG có chỗ đáng ra phải dùng, và nhét chúng lên thẻ studio là gắn
+   * chữ CTF vào một khối nói về soạn bài, tức làm bản đồ nói dối để cổng xanh.
+   * Muốn khối CTF quay lại thì thêm khoá cùng lúc với khối đó, không phải giữ
+   * sẵn chữ cho một giao diện chưa ai định dựng.
+   */
 
   // ── Bài tập (`/problems`) ─────────────────────────────────────────────
   /*
@@ -365,6 +383,31 @@ export const catalog = {
   'catalog.problems.game.k8s': 'Kubernetes Game',
   'catalog.problems.game.git': 'Git Game',
 
+  /*
+   * Nhãn của HÀNG NÚT chọn game ở đầu trang, khoá riêng chứ không mượn
+   * `game-legend`.
+   *
+   * Hai điều khiển này chở cùng một giá trị nhưng KHÔNG cùng một câu: hàng nút
+   * ở đầu trang đứng một mình nên nhãn của nó phải tự nói ra đây là game của
+   * cái gì, còn `game-legend` đứng ngay trên danh sách chủ đề trong khối lọc
+   * chi tiết nên một chữ "Game" là đủ. Dùng chung một khoá thì sửa nhãn cho
+   * một chỗ sẽ đổi chỗ kia, đúng cái bẫy mà khối chú thích của nhóm `col-*`
+   * bên dưới đã ghi.
+   *
+   * ⚠ Hai bộ chọn game cùng hiện trên một màn là một chỗ THỪA có thật, không
+   * phải ý đồ của bản đồ chữ. Đã ghi vào báo cáo chặng cho lead quyết.
+   */
+  'catalog.problems.game-switch-label': 'Game của bài tập',
+
+  /*
+   * Thanh `<details>` gom bốn khối lọc phụ. Tách làm hai khoá vì vế thứ hai chỉ
+   * hiện khi có bộ lọc đang bật; nhét cả hai vào một khoá thì nơi gọi phải cắt
+   * chuỗi để giấu nửa sau. Dấu chấm giữa là DẤU NỐI nên nó ở nơi gọi, không ở
+   * đây, cùng luật với `joinTopics`.
+   */
+  'catalog.problems.advanced-summary': 'Bộ lọc chi tiết',
+  'catalog.problems.advanced-active': 'Đang áp dụng',
+
   'catalog.problems.tag-legend': 'Tag',
   'catalog.problems.tag-hint': 'Chọn nhiều tag = bài phải có ĐỦ mọi tag.',
   'catalog.problems.tag-placeholder': 'ví dụ: ingress',
@@ -390,6 +433,23 @@ export const catalog = {
    * Một `legend` là nhãn của một bộ lọc nhiều lựa chọn, một `col` là tên cột
    * của bảng; chúng đổi vì hai lý do khác nhau, và dùng chung một khoá nghĩa
    * là sửa nhãn bộ lọc thì tiêu đề bảng đổi theo mà không ai định thế.
+   *
+   * ## Chín khoá, SÁU cột, từ 2026-09-16
+   *
+   * `docs/frontend-practice-redesign.md` chốt bảng SÁU cột: mã bài và tên bài
+   * gộp vào cột đầu, còn chủ đề và tag xuống dòng phụ ngay dưới tên bài. Chín
+   * khoá ở lại đủ chín, và không khoá nào thành mồ côi, vì phép gộp KHÔNG bỏ
+   * dữ liệu nào đi, nó chỉ đổi chỗ đặt nhãn:
+   *
+   * · `col-code` + `col-title` ghép bằng dấu chấm giữa thành tiêu đề cột đầu.
+   *   Một cột chở hai thứ thì tiêu đề nói cả hai; để mỗi `col-title` là nói
+   *   thiếu đúng cái mà người ta quét mắt tìm trước tiên.
+   * · `col-topics` + `col-tags` thành nhãn của dòng phụ. Trước khi gộp, hai
+   *   cột riêng đã tự phân biệt; sau khi gộp, hai danh sách nằm cạnh nhau dùng
+   *   chung một dấu ngăn nên KHÔNG còn phân biệt được. Nhãn ở đây trả lại đúng
+   *   thứ phép gộp lấy mất.
+   * · `no-tag` vì thế cũng sống lại: một nhãn "Tag" đứng trước chỗ trống đọc ra
+   *   như màn hình vỡ, chứ không đọc ra là bài này không có tag nào.
    */
   'catalog.problems.table-caption': 'Bấm vào tên bài để xem đề và bắt đầu làm.',
   'catalog.problems.col-code': 'Mã bài',
@@ -411,6 +471,10 @@ export const catalog = {
    * bỏ qua hẳn), nên ô đó vốn đã không nói được điều nó định nói.
    */
   'catalog.problems.no-tag': 'Không có',
+  /*
+   * Ngưỡng cắt nằm ở `problems-table.tsx` (`VISIBLE_TAGS`), không ở đây: đó là
+   * một ràng buộc BỀ RỘNG của ô bảng, không phải một quyết định biên tập.
+   */
   'catalog.problems.tags-more': (p: { n: number }) => `còn ${p.n} tag nữa`,
 
   /*
@@ -472,8 +536,59 @@ export const catalog = {
   'catalog.problem.not-found-body':
     'Mã bài có dạng K8S-0042. Kiểm tra lại đường dẫn, hoặc tìm bài từ danh sách.',
   'catalog.problem.back': 'Về danh sách bài',
+  /*
+   * Lối về của KHUNG TRANG, khác `catalog.problem.back` ở trên vốn là nhãn nút
+   * trong khối lỗi/không-tìm-thấy.
+   *
+   * Hai câu khác nhau vì hai chỗ đứng khác nhau: nút trong khối lỗi là lối
+   * thoát duy nhất còn lại nên nó nói đủ câu, còn lối về ở đầu trang nằm cạnh
+   * nội dung bài và phải ngắn để không tranh chỗ với tên bài. Mũi tên nằm
+   * TRONG chuỗi chứ không ở nơi gọi: nó là một phần của nhãn người đọc thấy,
+   * và tách ra thì bản đồ không còn chở trọn câu mà màn hình hiện.
+   */
+  'catalog.problem.back-lobby': '← Bài tập OJ',
   'catalog.problem.error-title': 'Không tải được bài',
   'catalog.problem.loading': 'Đang tải bài tập',
+
+  /*
+   * ── Ba tab của trang chi tiết ────────────────────────────────────────────
+   *
+   * Nhãn TAB, không dùng lại tiêu đề khối bên trong (`hints-title`,
+   * `subs-title`, `tests-title`) dù `tab-hints` đang trùng chữ với
+   * `hints-title`. Một tab là nhãn ĐIỀU HƯỚNG, phải ngắn và ngang hàng với hai
+   * tab kia; một tiêu đề khối là nhãn NỘI DUNG, đọc khi đã ở trong khối. Chúng
+   * đổi vì hai lý do khác nhau, và `subs-title` ("Lượt nộp của bạn") đã cho
+   * thấy chỗ lệch: một tab mang câu đó sẽ dài gấp đôi hai tab còn lại.
+   *
+   * Đặt PHẲNG dưới `catalog.problem` chứ không lồng thành
+   * `catalog.problem.tab.*`. Lồng vào thì ba tab thành một nhóm ba mà cổng T3
+   * nhìn thấy và đòi một dòng miễn trừ, trong khi đây không phải một phân loại
+   * ba: số tab là số khối nội dung của trang, và khối thứ tư nào cũng chỉ là
+   * thêm một khối. Khối chú thích cuối file ghi đúng chuyện đã xảy ra khi có
+   * người khai miễn trừ cho một nhóm mà cổng chưa từng dựng ra.
+   */
+  'catalog.problem.tabs-label': 'Chi tiết bài tập',
+  'catalog.problem.tab-checks': 'Điều kiện chấm',
+  'catalog.problem.tab-hints': 'Gợi ý',
+  'catalog.problem.tab-submissions': 'Lịch sử nộp',
+
+  /*
+   * ── Đầu trang bản Git ────────────────────────────────────────────────────
+   *
+   * Trang chi tiết đổi hẳn khung khi bài thuộc game Git (`git-oj-lobby`), và
+   * năm chuỗi này là chữ của khung đó. Chúng ở `catalog.problem.*` vì đây là
+   * MÀN chi tiết bài tập, theo luật chọn file theo màn hình ở đầu file, chứ
+   * không phải ở `catalog.games.*` vốn nói về thẻ game trong danh mục.
+   *
+   * `GIT` và `ODYSSEY` tách hai khoá vì nơi gọi tô đậm nửa sau. Gộp một khoá
+   * thì nơi gọi phải cắt chuỗi để tô, đúng lý do đã tách
+   * `time-limit-lead` với `time-limit-note`.
+   */
+  'catalog.problem.git-brand-name': 'GIT',
+  'catalog.problem.git-brand-suffix': 'ODYSSEY',
+  'catalog.problem.git-brand-tagline': 'ĐẤU TRƯỜNG THỬ THÁCH',
+  'catalog.problem.git-lead': 'Giải bài Git bằng lệnh.',
+  'catalog.problem.git-grading-note': 'CHẤM BÀI TRÊN MÁY CHỦ',
 
   /*
    * Ba con số trong một câu, và câu này KHÔNG được rút gọn thành "tỉ lệ giải X%":

@@ -102,10 +102,10 @@ export function ProblemClient({ code }: { readonly code: string }): ReactElement
     <Shell git={problem.gameId === 'git'}>
       <ProblemOverview problem={problem} stats={stats} viewerStatus={viewerStatus} />
       <Tabs defaultValue="checks" className="practice-problem-tabs">
-        <TabsList aria-label="Chi tiết bài tập">
-          <TabsTrigger value="checks">Điều kiện chấm</TabsTrigger>
-          <TabsTrigger value="hints">Gợi ý</TabsTrigger>
-          <TabsTrigger value="submissions">Lịch sử nộp</TabsTrigger>
+        <TabsList aria-label={t('catalog.problem.tabs-label')}>
+          <TabsTrigger value="checks">{t('catalog.problem.tab-checks')}</TabsTrigger>
+          <TabsTrigger value="hints">{t('catalog.problem.tab-hints')}</TabsTrigger>
+          <TabsTrigger value="submissions">{t('catalog.problem.tab-submissions')}</TabsTrigger>
         </TabsList>
         <TabsContent value="checks">
       {/*
@@ -167,13 +167,13 @@ function Shell({
                 <GitBranch size={22} />
               </span>
               <span>
-                GIT <b>ODYSSEY</b>
-                <small>ĐẤU TRƯỜNG THỬ THÁCH</small>
+                {t('catalog.problem.git-brand-name')} <b>{t('catalog.problem.git-brand-suffix')}</b>
+                <small>{t('catalog.problem.git-brand-tagline')}</small>
               </span>
             </div>
-            <p>Giải bài Git bằng lệnh.</p>
+            <p>{t('catalog.problem.git-lead')}</p>
             <span className="git-eyebrow">
-              <Shield size={14} /> CHẤM BÀI TRÊN MÁY CHỦ
+              <Shield size={14} /> {t('catalog.problem.git-grading-note')}
             </span>
           </div>
           <GitWorldArt chapter={2} />
@@ -181,5 +181,12 @@ function Shell({
         <div className="git-oj-lobby-body">{children}</div>
       </div>
     );
-  return <div className="practice-catalog practice-problem-detail"><Link href="/problems" className="practice-link">← Bài tập OJ</Link>{children}</div>;
+  return (
+    <div className="practice-catalog practice-problem-detail">
+      <Link href="/problems" className="practice-link">
+        {t('catalog.problem.back-lobby')}
+      </Link>
+      {children}
+    </div>
+  );
 }

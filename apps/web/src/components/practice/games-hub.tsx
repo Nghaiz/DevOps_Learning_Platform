@@ -13,6 +13,7 @@ import {
   Terminal,
   Trophy,
 } from 'lucide-react';
+import { t } from '@devops-platform/copy';
 import { GAMES, GAME_TOPIC_LABEL } from '../../app/games/games-catalog';
 import { normalizeSearchQuery } from '../catalog/catalog-search';
 import { useViewer } from '../shell/viewer-context';
@@ -143,8 +144,8 @@ export function GamesHub() {
       <div className="practice-home-grid">
         <section className="practice-library" aria-labelledby="game-library-title">
           <div className="practice-section-heading">
-            <h2 id="game-library-title">Games</h2>
-            <span>Chơi ngay trên trình duyệt</span>
+            <h2 id="game-library-title">{t('catalog.title.games')}</h2>
+            <span>{t('catalog.lead.games')}</span>
           </div>
           <div className="practice-discovery">
             <div className="practice-filter" aria-label="Chủ đề game">
@@ -207,7 +208,8 @@ export function GamesHub() {
           {matches.length === 0 && (
             <div className="practice-empty">
               <Search size={28} />
-              <h3>Không tìm thấy game</h3>
+              <h3>{t('catalog.empty.games.title')}</h3>
+              <p>{t('catalog.empty.games.body')}</p>
               <button
                 type="button"
                 className="practice-link"
@@ -222,7 +224,7 @@ export function GamesHub() {
           )}
           {upcoming.length > 0 && (
             <section className="practice-upcoming" aria-label="Game đang phát triển">
-              <h3>Đang phát triển</h3>
+              <h3>{t('catalog.games.soon')}</h3>
               {upcoming.map((game) => (
                 <div key={game.id}>
                   <Layers3 size={20} aria-hidden="true" />

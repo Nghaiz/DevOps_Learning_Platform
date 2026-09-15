@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState, type ReactElement } from 'react';
 import { Clock3, Trophy, ArrowRight } from 'lucide-react';
-import { t } from '@devops-platform/copy';
+import { t, type StaticTextKey } from '@devops-platform/copy';
 import {
   Badge,
   Button,
@@ -54,12 +54,10 @@ export function ExamsClient(): ReactElement {
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             {t('exam.title')}
           </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Lịch thi, bài đang làm và kết quả của bạn.
-          </p>
+          <p className="max-w-2xl text-sm text-muted-foreground">{t('exam.description')}</p>
         </div>
       </header>
-      <div className="practice-game-switch" aria-label="Trạng thái kỳ thi">
+      <div className="practice-game-switch" aria-label={t('exam.filter-label')}>
         {(['all', 'active', 'done'] as const).map((value) => (
           <button
             type="button"
@@ -67,7 +65,7 @@ export function ExamsClient(): ReactElement {
             aria-pressed={filter === value}
             onClick={() => setFilter(value)}
           >
-            {value === 'all' ? 'Tất cả' : value === 'active' ? 'Chưa kết thúc' : 'Đã kết thúc'}
+            {t(FILTER_KEYS[value])}
             {query.isSuccess
               ? ` (${items.filter((item) => value === 'all' || (value === 'done' ? item.closed : !item.closed)).length})`
               : ''}
@@ -92,8 +90,8 @@ export function ExamsClient(): ReactElement {
 
       {query.isSuccess && items.length > 0 && shown.length === 0 && (
         <EmptyState
-          title="Không có kỳ thi trong mục này"
-          description="Chọn mục khác để xem kỳ thi của bạn."
+          title={t('exam.filter-empty-title')}
+          description={t('exam.filter-empty-body')}
         />
       )}
       <ul className="practice-exam-grid">
@@ -118,11 +116,7 @@ export function ExamsClient(): ReactElement {
                 </p>
                 <Button asChild variant="outline">
                   <Link href={`/exams/${item.id}`}>
-                    {item.closed
-                      ? 'Xem kết quả'
-                      : item.startedAt === null
-                        ? 'Xem kỳ thi'
-                        : 'Tiếp tục làm bài'}
+                    {t(openKey(item))}
                     <ArrowRight size={16} aria-hidden="true" />
                   </Link>
                 </Button>
@@ -138,6 +132,32 @@ export function ExamsClient(): ReactElement {
 interface ExamListItem {
   readonly startedAt: string | null;
   readonly closed: boolean;
+}
+
+/**
+ * Nhãn ba mục lọc, bảng tra thay vì ba tầng điều kiện trong JSX.
+ *
+ * `Record<...>` trên đúng miền của `filter`: thêm mục thứ tư vào union mà quên
+ * nhãn sẽ đỏ ở đây, chứ không hiện một nút trống.
+ */
+const FILTER_KEYS = {
+  all: 'exam.filter-all',
+  active: 'exam.filter-active',
+  done: 'exam.filter-done',
+} as const satisfies Record<'all' | 'active' | 'done', StaticTextKey>;
+
+/**
+ * Nhãn nút mở, ba ca giống hệt `statusKey`.
+ *
+ * Đọc `closed` của MÁY CHỦ trước, cùng lý do đã ghi ở `statusKey`: một lượt
+ * hết giờ mà bỏ dở có `submittedAt = null`, nên suy ở client sẽ mời người ta
+ * "tiếp tục làm bài" trên một kỳ thi đã đóng.
+ */
+function openKey(item: ExamListItem): StaticTextKey {
+  if (item.closed) {
+    return 'exam.open-result';
+  }
+  return item.startedAt === null ? 'exam.open' : 'exam.open-continue';
 }
 
 /*

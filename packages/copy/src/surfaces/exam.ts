@@ -33,6 +33,31 @@ export const exam = {
   'exam.empty-body':
     'Khi giảng viên mở một kỳ thi cho lớp của bạn, nó sẽ hiện ở đây. Không cần làm gì trước.',
 
+  /*
+   * ── Bộ lọc theo trạng thái ───────────────────────────────────────────────
+   *
+   * Ba nhãn lọc KHÁC ba nhãn `exam.status-*` ở dưới, dù cùng nói về trạng
+   * thái. `status-*` là nhãn của MỘT lượt thi ("Đã xong"), còn ở đây là nhãn
+   * của một TẬP ("Đã kết thúc"): một mục lọc gom cả kỳ thi hết giờ mà bỏ dở,
+   * thứ không ai gọi là đã xong. Dùng chung khoá thì mục lọc sẽ hứa sai phạm
+   * vi của chính nó.
+   *
+   * ⚠ Mục "Chưa kết thúc" gộp `status-not-started` với `status-in-progress`,
+   * nên số đếm của nó KHÔNG bằng số thẻ mang một nhãn trạng thái nào.
+   */
+  'exam.filter-label': 'Trạng thái kỳ thi',
+  'exam.filter-all': 'Tất cả',
+  'exam.filter-active': 'Chưa kết thúc',
+  'exam.filter-done': 'Đã kết thúc',
+
+  /*
+   * Rỗng vì BỘ LỌC, khác `exam.empty-*` ở trên vốn là rỗng vì chưa có kỳ thi
+   * nào. Hai câu phải khác nhau: người đang lọc mà đọc "Chưa có kỳ thi nào" sẽ
+   * tin là mình không có kỳ thi, trong khi chúng vẫn ở đó sau một mục lọc khác.
+   */
+  'exam.filter-empty-title': 'Không có kỳ thi trong mục này',
+  'exam.filter-empty-body': 'Chọn mục khác để xem kỳ thi của bạn.',
+
   'exam.card-class': (p: { name: string }): string => `Lớp ${p.name}`,
   'exam.card-problems': (p: { count: number }): string => `${String(p.count)} bài`,
   'exam.card-duration': (p: { minutes: number }): string => `${String(p.minutes)} phút`,
@@ -41,7 +66,15 @@ export const exam = {
   'exam.status-in-progress': 'Đang làm',
   'exam.status-done': 'Đã xong',
 
+  /*
+   * Ba nhãn của MỘT nút, chọn theo trạng thái lượt thi. Tách ba khoá chứ không
+   * một câu trung tính: nút là thứ người ta bấm trước khi đọc thẻ, nên nó phải
+   * nói đúng cái sắp xảy ra. "Mở kỳ thi" trên một lượt đã kết thúc là một lời
+   * hứa sai: không có gì để mở nữa, chỉ còn kết quả để xem.
+   */
   'exam.open': 'Mở kỳ thi',
+  'exam.open-continue': 'Tiếp tục làm bài',
+  'exam.open-result': 'Xem kết quả',
   'exam.back': 'Về danh sách kỳ thi',
 
   'exam.start-title': 'Chưa bắt đầu',
@@ -78,5 +111,11 @@ export const exam = {
  * theo dấu chấm nên cả surface nằm trong một nhóm `exam` đã lớn hơn ba. Ghi ra
  * để lượt sau không thêm một dòng miễn trừ vô tác dụng vào đây, đúng thứ đã
  * xảy ra với `catalog.problem.verdict` và phải xoá đi (plan §0.3b).
+ *
+ * Từ 2026-09-16 có thêm hai bộ ba cùng hình dạng đó, `exam.filter-all|active|done`
+ * và `exam.open|open-continue|open-result`, và câu trả lời không đổi: đặt PHẲNG,
+ * không lồng, không khai miễn trừ. Cả hai đều bằng đúng miền dữ liệu chúng đọc
+ * (`'all' | 'active' | 'done'` của bộ lọc, và ba ca `closed` / chưa bắt đầu /
+ * đang làm), chứ không phải một phân loại ba do ai đó chọn ra.
  */
 export const examIntentionalThree: IntentionalThree = {};

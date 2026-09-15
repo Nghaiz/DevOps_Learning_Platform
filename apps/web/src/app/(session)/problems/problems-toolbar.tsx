@@ -89,7 +89,7 @@ export function ProblemsToolbar({
 
   return (
     <div className="flex flex-col gap-5 rounded-lg border border-border bg-card p-4 shadow-elevation-1">
-      <div className="practice-game-switch" aria-label="Game của bài tập">
+      <div className="practice-game-switch" aria-label={t('catalog.problems.game-switch-label')}>
         {PROBLEM_FILTER_GAMES.map((gameId) => (
           <button
             key={gameId}
@@ -173,7 +173,10 @@ export function ProblemsToolbar({
       </div>
 
       <details className="practice-advanced-filters">
-        <summary>Bộ lọc chi tiết{controls.hasActiveFilter ? ' · Đang áp dụng' : ''}</summary>
+        <summary>
+          {t('catalog.problems.advanced-summary')}
+          {controls.hasActiveFilter ? ` · ${t('catalog.problems.advanced-active')}` : ''}
+        </summary>
         <div className="grid gap-5 md:grid-cols-2">
           <FilterChecklist
             legend={t('catalog.problems.difficulty-legend')}

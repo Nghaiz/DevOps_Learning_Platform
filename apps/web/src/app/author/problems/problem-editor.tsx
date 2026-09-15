@@ -262,10 +262,10 @@ export function ProblemEditor(props: {
       <div className="practice-editor-actions">
         <span className="practice-save-state" role="status">
           {props.hasUnsavedChanges
-            ? 'Có thay đổi chưa lưu'
+            ? t('author.problem.edit.unsaved')
             : props.code === null
-              ? 'Bản nháp mới'
-              : 'Đã lưu'}
+              ? t('author.problem.edit.new-draft')
+              : t('author.problem.edit.saved')}
         </span>
         {props.actions}
       </div>
