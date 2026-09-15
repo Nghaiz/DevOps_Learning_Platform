@@ -44,7 +44,28 @@ export default async function GitGamePage({
       ? requested
       : null;
 
+  /*
+   * `?problem=` — chế độ làm bài OJ. KHÔNG lọc qua một danh sách nào, khác hẳn
+   * `?level=` ngay trên: tập level là một hằng biên dịch nên lọc được tại đây, còn
+   * tập bài sống trong DB và đi kèm một tầm nhìn theo người xem (bài `draft` không
+   * hiện với người học, kể cả khi biết URL). Mã sai rơi xuống `problems.byCode` và
+   * nhận `NOT_FOUND` ở đúng chỗ cổng tầm nhìn đang đứng.
+   *
+   * ⚠ Dòng này là thứ `arena-preview.test.ts` đọc để xác minh lời khai trong
+   * `problemPreviewHref`: bảng đó khai rằng route này đọc `params.problem`, và không gì
+   * trong `tsc` kiểm được một lời khai như vậy.
+   */
+  const rawProblem = params.problem;
+  const initialProblemCode =
+    typeof rawProblem === 'string' && rawProblem.length > 0 ? rawProblem : null;
+
   const theory = loadGitTheory(GIT_LEVEL_IDS);
 
-  return <GitGame theory={theory} initialLevelId={initialLevelId} />;
+  return (
+    <GitGame
+      theory={theory}
+      initialLevelId={initialLevelId}
+      initialProblemCode={initialProblemCode}
+    />
+  );
 }

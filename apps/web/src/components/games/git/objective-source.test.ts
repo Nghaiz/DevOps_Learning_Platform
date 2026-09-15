@@ -39,7 +39,17 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-const GIT_GAME = join(import.meta.dirname, 'git-game.tsx');
+/*
+ * ĐỔI ĐÍCH 2026-09-15, và đây là lý do ghi ra thay vì sửa lặng.
+ *
+ * `GitLevelScreen` chuyển từ `git-game.tsx` sang file riêng khi chế độ làm bài OJ
+ * cần dùng lại ĐÚNG màn chơi đó (một vòng import nếu để chung một file). Ô này
+ * phải đi theo mã, không đi theo tên file: để nguyên đích cũ thì nó đọc một file
+ * KHÔNG còn chứa màn chơi, và vế `not.toMatch` sẽ XANH VĨNH VIỄN trên một tập rỗng
+ * — đúng hình dạng `rules/green-that-proves-nothing.md`. Vế `toMatch` bên dưới là
+ * thứ chặn điều đó: nó đòi mã PHẢI có mặt, nên một đích trỏ sai đỏa ngay.
+ */
+const GIT_GAME = join(import.meta.dirname, 'git-level-screen.tsx');
 
 describe('màn chơi Git lấy kết quả mục tiêu từ engine', () => {
   const source = readFileSync(GIT_GAME, 'utf8');
