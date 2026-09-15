@@ -6,7 +6,9 @@ import { t } from '@devops-platform/copy';
 import {
   BUILDER_CANNOT_EXPRESS,
   CUSTOM_LEVEL_ID_PREFIX,
+  DIFFICULTIES,
   GIT_PREDICATE_NAMES,
+  GIT_THEORY_IDS,
   checkSolvable,
   draftFromLevel,
   draftToLevel,
@@ -14,16 +16,42 @@ import {
   levelFromJson,
   levelToJson,
   type DraftIssue,
+  type Difficulty,
   type GitLevel,
   type GitObjective,
   type GitPredicateName,
+  type GitTeaching,
   type LevelDraft,
   type SolvabilityReport,
   type WorldSpec,
 } from '@devops-platform/games';
 
 import { ISSUE_TEXT, LIMIT_TEXT } from './builder-copy';
-import { exportFileName, linesToList, listToLines } from './draft-state';
+import {
+  exportFileName,
+  formatAllowedCommands,
+  linesToList,
+  listToLines,
+  parseAllowedCommands,
+} from './draft-state';
+
+/**
+ * Một mục tra nhanh của `teaching.cheatsheet`.
+ *
+ * Suy ra từ `GitTeaching` chứ không khai lại: `GitCheatSheetEntry` không nằm
+ * trong barrel `packages/games`, và barrel đó là tệp lead giữ. Một `interface`
+ * chép tay ở đây sẽ trùng hình dạng hôm nay và lệch vào ngày ai đó thêm trường.
+ */
+type CheatSheetEntry = GitTeaching['cheatsheet'][number];
+
+const DIFFICULTY_LABEL: Record<Difficulty, string> = {
+  basic: 'Cơ bản',
+  intermediate: 'Trung bình',
+  advanced: 'Nâng cao',
+};
+
+const SELECT_CLASS =
+  'w-full rounded-md border border-input bg-card px-3 py-2 text-xs text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
 
 /**
  * **Level Builder** — §18.E, dựng thành một chế độ của màn sandbox.
@@ -220,6 +248,116 @@ export function GitLevelBuilder({
             patch({ brief });
           }}
         />
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="builder-chapter" className="text-xs font-medium text-foreground">
+            Chương
+          </label>
+          <select
+            id="builder-chapter"
+            value={draft.chapter}
+            onChange={(e) => {
+              patch({ chapter: Number(e.target.value) as 1 | 2 | 3 });
+            }}
+            className={SELECT_CLASS}
+          >
+            <option value={1}>1 · Nắn lịch sử</option>
+            <option value={2}>2 · Làm việc nhóm</option>
+            <option value={3}>3 · Cứu hộ</option>
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="builder-difficulty" className="text-xs font-medium text-foreground">
+            Độ khó
+          </label>
+          {/*
+            Ba bậc, và nó CỐ Ý khác bốn bậc của `PROBLEM_DIFFICULTIES`. Builder là
+            một *level* builder nên nó giữ thang của level; chỗ nào cần đi sang
+            thang kia thì khai một bảng tường minh (`phase-18-exec.md` §1.3).
+          */}
+          <select
+            id="builder-difficulty"
+            value={draft.difficulty}
+            onChange={(e) => {
+              patch({ difficulty: e.target.value as Difficulty });
+            }}
+            className={SELECT_CLASS}
+          >
+            {DIFFICULTIES.map((name) => (
+              <option key={name} value={name}>
+                {DIFFICULTY_LABEL[name]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="builder-theory" className="text-xs font-medium text-foreground">
+            Bài lý thuyết đi kèm
+          </label>
+          <p className="text-[10px] text-muted-foreground">
+            Chọn một trong 32 bài đã có, hoặc để trống. Builder không tạo bài lý thuyết mới:
+            chúng là tệp markdown trong kho, không phải dữ liệu của level.
+          </p>
+          <select
+            id="builder-theory"
+            value={draft.theoryId ?? ''}
+            onChange={(e) => {
+              patch({ theoryId: e.target.value === '' ? null : e.target.value });
+            }}
+            className={SELECT_CLASS}
+          >
+            <option value="">Không có bài đọc</option>
+            {GIT_THEORY_IDS.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+        </div>
+      </section>
+
+      {/* ── Giới hạn và chấm điểm ──────────────────────────────────────── */}
+      <section aria-labelledby="builder-gioi-han-lenh" className="flex flex-col gap-3">
+        <h3 id="builder-gioi-han-lenh" className="text-sm font-semibold text-foreground">
+          Giới hạn và chấm điểm
+        </h3>
+        <AreaField
+          id="builder-allowed"
+          label="Tập lệnh cho phép"
+          hint="Mỗi dòng một động từ git. ĐỂ TRỐNG nghĩa là cho dùng mọi lệnh."
+          rows={3}
+          mono
+          value={formatAllowedCommands(draft.allowedCommands)}
+          onChange={(text) => {
+            patch({ allowedCommands: parseAllowedCommands(text) });
+          }}
+        />
+        <div className="flex flex-col gap-1">
+          <label htmlFor="builder-par" className="text-xs font-medium text-foreground">
+            Số lệnh chuẩn
+          </label>
+          <p className="text-[10px] text-muted-foreground">
+            Dùng để chấm điểm, KHÔNG dùng để giới hạn. Người chơi gõ nhiều hơn vẫn qua bài.
+          </p>
+          <input
+            id="builder-par"
+            type="number"
+            min={0}
+            value={draft.par}
+            onChange={(e) => {
+              /*
+               * `Number('')` ra `0`, không ra `NaN`, nên ô trống thành `par: 0` chứ
+               * không thành một `NaN` lẻn vào JSON xuất ra. `NaN` qua
+               * `JSON.stringify` thành `null`, và `looksLikeLevel` sẽ từ chối bản
+               * xuất của chính ta lúc nhập lại — một vòng hỏng mà không ô nào bắt.
+               */
+              patch({ par: Number(e.target.value) });
+            }}
+            className={SELECT_CLASS}
+          />
+        </div>
       </section>
 
       <ObjectiveEditor
@@ -244,7 +382,42 @@ export function GitLevelBuilder({
             patch({ solutionCommands: linesToList(text) });
           }}
         />
+        <AreaField
+          id="builder-alt-solution"
+          label="Lời giải thứ hai"
+          hint="Khác ĐƯỜNG ĐI, không chỉ khác thứ tự hai lệnh độc lập. Đây là bằng chứng level chấm theo TRẠNG THÁI chứ không theo lệnh đã gõ."
+          rows={4}
+          mono
+          value={listToLines(draft.altSolutionCommands)}
+          onChange={(text) => {
+            patch({ altSolutionCommands: linesToList(text) });
+          }}
+        />
       </section>
+
+      {/* ── Gợi ý ──────────────────────────────────────────────────────── */}
+      <section aria-labelledby="builder-goi-y" className="flex flex-col gap-3">
+        <h3 id="builder-goi-y" className="text-sm font-semibold text-foreground">
+          Gợi ý
+        </h3>
+        <AreaField
+          id="builder-hints"
+          label="Danh sách gợi ý"
+          hint="Mỗi dòng một gợi ý. Thứ tự là thứ tự mở, nên gợi ý sau phải cụ thể hơn gợi ý trước."
+          rows={4}
+          value={listToLines(draft.hints)}
+          onChange={(text) => {
+            patch({ hints: linesToList(text) });
+          }}
+        />
+      </section>
+
+      <TeachingEditor
+        teaching={draft.teaching}
+        onChange={(teaching) => {
+          patch({ teaching });
+        }}
+      />
 
       <DraftIssueList issues={issues} />
 
@@ -471,6 +644,121 @@ function ObjectiveEditor({
         >
           Thêm mục tiêu
         </BuilderButton>
+      </div>
+    </section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Tầng dạy học
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Soạn `teaching`, và NÓI RA rằng màn chơi Git hôm nay chưa hiện nó.
+ *
+ * Đo 2026-09-15: không chỗ nào trong `apps/web` đọc `GitLevel.teaching` — lời gọi
+ * duy nhất tới `.teaching` là của arena k8s, trên kiểu level của nó. Trường này
+ * vẫn đáng soạn vì nó đi theo tệp level xuất ra và `GitTeaching` đòi nó, nhưng
+ * để người soạn viết một bài dẫn 250 từ mà không nói trước rằng chưa ai thấy nó
+ * là lấy công của họ đổi lấy một ô trống.
+ *
+ * Câu đó nằm TRÊN MÀN chứ không trong chú thích này, cùng một lý lẽ với hai giới
+ * hạn của Builder ở khối đầu.
+ */
+function TeachingEditor({
+  teaching,
+  onChange,
+}: {
+  readonly teaching: GitTeaching;
+  readonly onChange: (next: GitTeaching) => void;
+}): ReactElement {
+  const replaceEntry = (index: number, next: CheatSheetEntry): void => {
+    onChange({
+      ...teaching,
+      cheatsheet: teaching.cheatsheet.map((entry, i) => (i === index ? next : entry)),
+    });
+  };
+
+  return (
+    <section aria-labelledby="builder-day-hoc" className="flex flex-col gap-3">
+      <h3 id="builder-day-hoc" className="text-sm font-semibold text-foreground">
+        Tầng dạy học
+      </h3>
+      <p className="text-xs text-muted-foreground" data-testid="git-builder-teaching-note">
+        Màn chơi Git hôm nay chưa hiện phần này. Nó đi theo tệp level bạn xuất ra, để dùng được
+        ngay khi màn chơi mọc thêm chỗ hiện nó. Bài lý thuyết ở ô trên thì hiện được ngay.
+      </p>
+      <AreaField
+        id="builder-primer"
+        label="Bài dẫn trước khi chơi"
+        hint="Markdown, tối đa 250 từ. KHÔNG phải lời giải."
+        rows={4}
+        value={teaching.primer}
+        onChange={(primer) => {
+          onChange({ ...teaching, primer });
+        }}
+      />
+      <AreaField
+        id="builder-takeaways"
+        label="Đúc kết sau khi thắng"
+        hint="Mỗi dòng một ý, mỗi ý một câu."
+        rows={3}
+        value={listToLines(teaching.takeaways)}
+        onChange={(text) => {
+          onChange({ ...teaching, takeaways: linesToList(text) });
+        }}
+      />
+
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-medium text-foreground">Mục tra nhanh</p>
+        {teaching.cheatsheet.map((entry, index) => (
+          <fieldset
+            key={`cheat-${String(index)}`}
+            className="flex flex-col gap-2 rounded-md border border-input p-2"
+          >
+            <legend className="px-1 text-[10px] text-muted-foreground">Mục {index + 1}</legend>
+            <Field
+              id={`builder-cheat-command-${String(index)}`}
+              label="Lệnh"
+              value={entry.command}
+              onChange={(command) => {
+                replaceEntry(index, { ...entry, command });
+              }}
+            />
+            <Field
+              id={`builder-cheat-explain-${String(index)}`}
+              label="Giải thích"
+              value={entry.explain}
+              onChange={(explain) => {
+                replaceEntry(index, { ...entry, explain });
+              }}
+            />
+            <div>
+              <BuilderButton
+                onClick={() => {
+                  onChange({
+                    ...teaching,
+                    cheatsheet: teaching.cheatsheet.filter((_, i) => i !== index),
+                  });
+                }}
+              >
+                Xoá mục này
+              </BuilderButton>
+            </div>
+          </fieldset>
+        ))}
+        <div>
+          <BuilderButton
+            onClick={() => {
+              onChange({
+                ...teaching,
+                cheatsheet: [...teaching.cheatsheet, { command: '', explain: '' }],
+              });
+            }}
+          >
+            Thêm mục tra nhanh
+          </BuilderButton>
+        </div>
       </div>
     </section>
   );
