@@ -260,6 +260,63 @@ thật lúc này sẽ mở một bài Git rồi ghi đè nó bằng một `Clust
 `length === 0`. Client chặt hơn server nên an toàn, nhưng hai bên nay nói hai
 điều khác nhau về cùng một bài — gộp lại khi §18.D.1 mở đường ghi.
 
+### 0.5 Đợt 18.G (2026-09-15) — và bốn món nợ đã tự đóng trước khi ai chạm vào
+
+Báo cáo đầy đủ: [`reports/2026-09-15-lane-18g-exam-mode.md`](../reports/2026-09-15-lane-18g-exam-mode.md).
+
+**⛔ Đọc mục này trước khi giao việc theo §0.3/§0.4.** Năm món nợ ghi tên ở đó
+được kiểm lại ngày 2026-09-15, và **bốn đã có người đóng**: `admin-nav` đã có
+`/admin/classes`, `audit-row` đã có nhánh `class`, `e2e/routes.ts:115` đã phủ
+màn lớp học, và vế `some(o => o.required)` ở `problem-validate.ts` đã gỡ. Chỉ
+`problem-labels.ts` là còn thật. Cùng như thế, ba mục 18.D mà §2 liệt kê là còn
+lại (**D.3**, **D.4**, **D.7**) hoá ra đã xong từ trước; chỉ **D.5** là chưa.
+
+Đây là `rules/debt-lists-quote-stale-docs.md` lần thứ hai trong cùng một phase.
+
+#### Đã làm đợt này
+
+| Mục | Trạng thái |
+|---|---|
+| Nhãn chủ đề theo `gameId` | xong, kèm ô gác chống-rò-engine ở `apps/web` |
+| **18.D.5** xem trước theo game | xong, kèm cổng đọc chính `page.tsx` của route được khai |
+| **18.G.1** bảng `exams` + `exam_attempts` | xong, migration 0016, thuần THÊM |
+| **18.G.2** trang ra đề | xong, `/admin/exams` |
+| **18.G.3** cổng seedable lúc soạn đề | xong |
+| **18.G.4/.5** màn làm bài + đồng hồ máy chủ | xong, `/exams/:examId` |
+| **18.G.6** bảng điểm | xong |
+| **18.G.7** xuất CSV | xong, BOM UTF-8 |
+| **Cổng seed lúc NỘP** ("cổng số 1") | xong TRONG kỳ thi, theo phương án (b) |
+| **AC-2**, **AC-4**, **AC-8** | đo được, xem báo cáo §6 |
+
+#### Hai quyết định chủ dự án chốt 2026-09-15 (đợt 18.G)
+
+1. **Cổng seed lúc nộp: phương án (b)** , chỉ gác trong một `exam_attempt`. Ngoài
+   kỳ thi không đổi gì. Vế "còn mở" ở §18.G nay ĐÓNG cho phần trong kỳ thi.
+2. **Sửa `durationMinutes` khi đã có lượt: CHỤP ẢNH** thời lượng vào
+   `exam_attempt` lúc mở lượt. Không phải trường suy ra , nó là giá-lúc-đặt-hàng.
+3. Kèm theo: `/admin/exams`, `/exams` và `/problems` vào thanh điều hướng (cả hai
+   file nav đều đòi hỏi trước khi thêm màn).
+
+#### Ba điều đo được mà plan chưa nói
+
+- **`/problems` chưa từng có link vào từ đâu.** `grep` toàn repo trả rỗng: trang
+  danh mục bài tập chỉ tới được bằng gõ URL, và đã như thế từ P16. Đã sửa.
+- **Lượt a11y "26 passed, 14 skipped" không đo được AC-4.** Mười bốn ô skip là
+  đúng chỗ AC-4 sống. Phải chạy với một tài khoản `admin` thật và
+  `E2E_REQUIRE_ROLES=1`; lúc đó con số là **40/40, 0 skip**.
+- **`packages/games` CỐ Ý không khai `@types/node`.** Một ô test đọc đĩa đặt ở
+  đó làm `typecheck` của package đỏ, và nó chặn tám task khác của turbo chạy.
+
+#### ⚠ Hai ô xanh mà phạm vi HẸP HƠN chữ trong §3
+
+- **AC-7**: đã đo rằng `remainingFrom` không có chỗ cho đồng hồ hệ thống chui
+  vào, và ba lần khớp `Date.now()` trong màn thi đều nằm trong chú thích.
+  **Chưa đo** một lượt chạy thật có đổi giờ máy khách.
+- **AC-9**: đã đo ba byte đầu đúng `EF BB BF` và nội dung giữ nguyên dấu.
+  **Chưa ai mở file bằng Excel thật.**
+
+---
+
 ---
 
 ## 1. Quyết định chi phối
