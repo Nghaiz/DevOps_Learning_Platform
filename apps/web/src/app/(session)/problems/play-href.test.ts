@@ -31,6 +31,7 @@ import { describe, expect, it } from 'vitest';
 import { GAME_IDS } from '@devops-platform/games';
 
 import { problemPreviewHref } from '../../../lib/problem-preview-href';
+import { isAnyProblemCode } from '../../../server/problems/problem-code';
 
 const OVERVIEW = join(import.meta.dirname, '[code]', 'problem-overview.tsx');
 
@@ -82,5 +83,38 @@ describe('bảng tra tự nó', () => {
 
   it('mã bài được escape — mã không bao giờ có khoảng trắng, nhưng link thì không đoán', () => {
     expect(problemPreviewHref('git', 'A B')).toBe('/games/git?problem=A%20B');
+  });
+});
+
+describe('trang chi tiết bài nhận mã của MỌI game', () => {
+  /*
+    Lỗi được gác: `[code]/page.tsx` từng gọi `isProblemCode` của barrel — bản K8s,
+    khoá cứng `^K8S-\d{4}$` — nên `/problems/GIT-0001` trả `notFound()` TRƯỚC cả
+    khi hỏi máy chủ. Người soạn lưu một bài Git từ Level Builder xong, bấm vào nó,
+    và thấy 404 cho một bài vừa tồn tại.
+
+    Ô đọc file nguồn chứ không gọi hàm: thứ hỏng là LỜI GỌI ở route, không phải
+    phép kiểm. Một ô chỉ gọi `isAnyProblemCode('GIT-0001')` sẽ xanh kể cả khi
+    route vẫn gọi bản K8s — `rules/wired-not-just-present.md`.
+  */
+  const PAGE = join(import.meta.dirname, '[code]', 'page.tsx');
+  const source = readFileSync(PAGE, 'utf8');
+
+  it('gọi isAnyProblemCode, không gọi bản K8s của barrel', () => {
+    expect(source).toMatch(/isAnyProblemCode\(canonical\)/u);
+    // Bản K8s vào đây qua barrel. Cấm chính lời NHẬP đó, vì một lời gọi đúng tên
+    // mà nhập sai nguồn thì vẫn là bản cũ.
+    expect(source).not.toMatch(/isProblemCode[^O]*from '@devops-platform\/games'/u);
+  });
+
+  it('mã của cả hai game đều qua được phép kiểm', () => {
+    expect(isAnyProblemCode('K8S-0042')).toBe(true);
+    expect(isAnyProblemCode('GIT-0001')).toBe(true);
+  });
+
+  it('mã sai khuôn vẫn bị từ chối — nới tiền tố KHÔNG phải nới khuôn', () => {
+    for (const xau of ['GIT-1', 'GIT-00001', 'XXX-0001', 'git-0001', 'GIT0001', '']) {
+      expect(isAnyProblemCode(xau), xau).toBe(false);
+    }
   });
 });

@@ -1,7 +1,25 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { t } from '@devops-platform/copy';
-import { isProblemCode } from '@devops-platform/games';
+/*
+ * `isAnyProblemCode`, KHÔNG phải `isProblemCode` của barrel.
+ *
+ * Barrel xuất bản K8s của hàm đó (hai hàm trùng tên, chỉ một ra được — xem
+ * `server/problems/problem-code.ts`), và bản ấy khoá cứng vào `^K8S-\d{4}$`. Nên
+ * một bài Git lưu ra từ Level Builder mang mã `GIT-0001` **không mở được**: trang
+ * này trả `notFound()` trước cả khi hỏi máy chủ, và người soạn thấy 404 cho một
+ * bài họ vừa lưu xong.
+ *
+ * ⚠ `problem-code.ts` nhập `PROBLEM_PLUGINS`, thứ kéo theo CẢ HAI engine. Nhập nó
+ * ở đây an toàn vì file này là **Server Component** (không `'use client'`), nên
+ * engine vào bundle máy chủ chứ không vào bundle trình duyệt. `pnpm bundle:check`
+ * là cổng đo điều đó; nó đã chạy cho lượt sửa này.
+ *
+ * ⛔ Đừng nhập nó vào một component client. Đường tra KHÔNG kéo engine là
+ * `problemTopicLabels` (dữ liệu lá), và `(session)/problems/engine-leak.test.ts`
+ * gác đúng chuyện đó.
+ */
+import { isAnyProblemCode } from '../../../../server/problems/problem-code';
 import { readViewerSession } from '../../../../components/catalog/viewer-role.server';
 import { ProblemClient } from './problem-client';
 
@@ -37,7 +55,7 @@ export default async function ProblemPage({ params }: { params: Promise<{ code: 
   }
 
   const canonical = code.toUpperCase();
-  if (!isProblemCode(canonical)) {
+  if (!isAnyProblemCode(canonical)) {
     notFound();
   }
   if (canonical !== code) {
