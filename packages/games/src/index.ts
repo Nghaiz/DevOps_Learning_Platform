@@ -200,6 +200,7 @@ export { layoutDag } from './core/layout/index.ts';
 export type { ReplayEngine, RunTally, VerifyResult, VerifyStatus } from './core/verify.ts';
 export {
   COMMAND_KINDS,
+  MAX_REPLAY_TICK,
   checkDeterminism,
   isVerified,
   tallyLog,

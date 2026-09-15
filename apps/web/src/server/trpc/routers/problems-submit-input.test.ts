@@ -99,3 +99,98 @@ describe('problems.submit — trần độ dài nhật ký (§18.C.4)', () => {
     expect(message).toContain('20000');
   });
 });
+
+/**
+ * Trần TICK của nhật ký — nửa còn thiếu bên cạnh trần độ dài ở trên.
+ *
+ * Hai trần gác hai đại lượng khác nhau và không thay nhau được: trần độ dài chặn
+ * SỐ hành động, còn `advance()` đốt CPU theo ĐỘ LỚN của tick. Một nhật ký 5 action
+ * qua được mọi phép kiểm ở trên và vẫn là hàng chục ngày CPU.
+ *
+ * Cùng lý lẽ đọc-schema-trên-router: các ô này KHÔNG tự tính lại trần, chúng đẩy
+ * một giá trị qua đúng cổng đang phục vụ.
+ */
+function submitInputWithActions(actions: readonly Record<string, unknown>[]): Record<string, unknown> {
+  const base = submitInput(1);
+  const runLog = base.runLog as Record<string, unknown>;
+  return { ...base, runLog: { ...runLog, actions } };
+}
+
+/** Trần đọc từ chính thông điệp cổng trả về — không chép hằng sang đây. */
+function rejectionMessage(input: Record<string, unknown>): string {
+  try {
+    inputSchemaOf('problems.submit').parse(input);
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error('cổng KHÔNG từ chối — ô này đang gác một thứ không tồn tại');
+}
+
+describe('problems.submit — trần tick của nhật ký', () => {
+  it('đối chứng: tick bình thường đi qua', () => {
+    // Nửa dương. Thiếu nó thì một cổng từ chối MỌI thứ cũng làm các ô dưới xanh,
+    // và ta sẽ tin là đã chặn đúng thứ cần chặn trong khi đã chặn cả người chơi.
+    expect(() =>
+      inputSchemaOf('problems.submit').parse(
+        submitInputWithActions([
+          { gameId: 'k8s', kind: 'apply', tick: 0 },
+          { gameId: 'k8s', kind: 'wait', tick: 10, ticks: 40 },
+          { gameId: 'k8s', kind: 'kubectl', tick: 60 },
+        ]),
+      ),
+    ).not.toThrow();
+  });
+
+  it('tick khổng lồ bị TỪ CHỐI ở biên, và thông điệp nói ra con số', () => {
+    /*
+     * `1e12` là con số đo được: `z.number()` trần NHẬN nó (chỉ `Infinity` và
+     * `NaN` bị chặn), và ~927.000 tick/giây nghĩa là ~12 ngày CPU cho một lượt.
+     */
+    const message = rejectionMessage(
+      submitInputWithActions([{ gameId: 'k8s', kind: 'kubectl', tick: 1e12 }]),
+    );
+    expect(message).toContain('vượt trần');
+    expect(message).toContain('1000000000000');
+  });
+
+  it('`wait.ticks` CỘNG DỒN cũng bị chặn — cửa thứ hai vào `advance()`', () => {
+    /*
+     * Cửa này không đi qua `action.tick` chút nào: `reducer.apply` cộng thẳng
+     * `action.ticks` vào mô phỏng. Mỗi action dưới đây có `tick` nhỏ xíu và
+     * `ticks` vừa phải, nhưng TỔNG thì vượt trần — một cổng chỉ đọc
+     * `max(action.tick)` sẽ cho cả lô này đi qua.
+     */
+    const message = rejectionMessage(
+      submitInputWithActions(
+        Array.from({ length: 20 }, (_unused, index) => ({
+          gameId: 'k8s',
+          kind: 'wait',
+          tick: index,
+          ticks: 60_000,
+        })),
+      ),
+    );
+    expect(message).toContain('vượt trần');
+  });
+
+  it('`wait` thiếu `ticks` hợp lệ bị từ chối, không lọt xuống engine', () => {
+    // `looseObject` cho `ticks` đi qua dưới dạng `unknown`. Không kiểm ở đây thì
+    // một `ticks: "nhieu"` xuống tới `advance()` và `Math.trunc('nhieu')` ra
+    // `NaN` — vòng lặp không chạy lần nào, và lượt chấm âm thầm sai.
+    expect(() =>
+      inputSchemaOf('problems.submit').parse(
+        submitInputWithActions([{ gameId: 'k8s', kind: 'wait', tick: 0, ticks: 'nhieu' }]),
+      ),
+    ).toThrow();
+  });
+
+  it('tick âm và tick thực bị từ chối — `z.number()` trần nhận cả hai', () => {
+    for (const tick of [-1, 3.7]) {
+      expect(() =>
+        inputSchemaOf('problems.submit').parse(
+          submitInputWithActions([{ gameId: 'k8s', kind: 'kubectl', tick }]),
+        ),
+      ).toThrow();
+    }
+  });
+});

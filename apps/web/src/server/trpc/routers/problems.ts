@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { GAME_IDS, type ProblemHintTeaser } from '@devops-platform/games';
+import { GAME_IDS, MAX_REPLAY_TICK, type ProblemHintTeaser } from '@devops-platform/games';
 import { problems } from '../../db/schema';
 import { findProblemForWrite } from '../../problems/authz';
 import {
@@ -102,11 +102,70 @@ const runLogInput = z.object({
         // mặc định `'k8s'`. Xem khối chú thích đầu `runLog`.
         gameId: z.enum(GAME_IDS).optional(),
         kind: z.string(),
-        tick: z.number(),
+        /*
+         * `.int().nonnegative()` chứ không `z.number()` trần.
+         *
+         * `z.number()` chỉ chặn `Infinity` và `NaN` — đo 2026-09-15 — nên
+         * `-1`, `3.7` và `1e12` đều lọt. Tick của mô phỏng khởi từ 0 và
+         * tăng đúng 1 mỗi bước, nên không lượt chơi thật nào sinh ra ba
+         * hình dạng đó; nhận chúng chỉ mở cửa cho dữ liệu bịa.
+         */
+        tick: z.number().int().nonnegative(),
       }),
     )
     .max(MAX_LOG_ACTIONS, {
       message: `Nhật ký lượt chơi vượt trần ${String(MAX_LOG_ACTIONS)} hành động`,
+    })
+    /*
+     * Trần TICK — §18.C.4, nửa còn thiếu bên cạnh trần độ dài ở trên.
+     *
+     * Hai trần gác hai đại lượng khác nhau và KHÔNG thay nhau được:
+     * `MAX_LOG_ACTIONS` chặn SỐ hành động, còn `advance()` đốt CPU theo ĐỘ LỚN
+     * của tick. 20.000 action hợp lệ, mỗi cái nhảy 1e12 tick, qua được trần trên
+     * và vẫn là hàng chục ngày CPU cho một lượt nộp (đo: ~927.000 tick/giây).
+     *
+     * ⚠ Chặn ở đây là chặn SỚM, không phải chặn DUY NHẤT. `k8s/session.ts` giữ
+     * cùng bất biến ở tầng hàm để bảo vệ mọi caller không đi qua wire. Wire tồn
+     * tại vì nó trả được một câu nói ra con số thay vì một `phat-lai-loi` mơ hồ.
+     *
+     * Cận trên dùng ở đây (`max(tick) + tổng wait.ticks`) là CHẶN TRÊN của tick
+     * cuối cùng, không phải con số chính xác — tick đơn điệu tăng nên phép phát
+     * lại thật sẽ dừng ở đâu đó ≤ giá trị này. Chặt hơn thì phải mô phỏng lại
+     * chính thứ ta đang từ chối mô phỏng.
+     */
+    .superRefine((actions, ctx) => {
+      let highest = 0;
+      let waited = 0;
+      for (const action of actions) {
+        highest = Math.max(highest, action.tick);
+        if (action.kind === 'wait') {
+          /*
+           * `wait.ticks` KHÔNG được khai trong `looseObject` ở trên, nên nó tới
+           * đây dưới dạng `unknown` và phải kiểm tại chỗ. Đây là cửa thứ hai vào
+           * `advance()`, và là cửa đã mở sẵn từ trước bản vá C2: `reducer.apply`
+           * cộng thẳng `action.ticks` vào mô phỏng mà không đi qua `action.tick`.
+           * Đo 2026-09-15: `ticks: 50000` tua đúng 50.000 tick.
+           */
+          const ticks: unknown = (action as { readonly ticks?: unknown }).ticks;
+          if (typeof ticks !== 'number' || !Number.isInteger(ticks) || ticks < 0) {
+            ctx.addIssue({
+              code: 'custom',
+              message: 'Hành động `wait` phải mang `ticks` là số nguyên không âm',
+            });
+            return;
+          }
+          waited += ticks;
+        }
+      }
+      const reachable = highest + waited;
+      if (reachable > MAX_REPLAY_TICK) {
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            `Nhật ký lượt chơi tua tới tick ${String(reachable)}, vượt trần ` +
+            `${String(MAX_REPLAY_TICK)} (~${String(Math.round(MAX_REPLAY_TICK / 2 / 3600))} giờ chơi liên tục)`,
+        });
+      }
     })
     .readonly(),
 })

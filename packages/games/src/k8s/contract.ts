@@ -627,6 +627,31 @@ export interface CreateSessionOptions {
   readonly seed: number;
   /** `false` = mô phỏng chỉ tiến khi có action (dùng cho test và cho phát lại). */
   readonly autoTick?: boolean;
+  /**
+   * `true` = `action.tick` trong nhật ký là THẨM QUYỀN; phiên không đóng dấu lại.
+   *
+   * Mặc định `false` — phiên chơi thật ghi đè `tick` bằng tick hiện tại, vì bên
+   * gọi không có cách nào biết con số đúng mà không đọc trạng thái.
+   *
+   * ⚠ Bật cờ này cho MỌI đường phát lại. Thiếu nó thì phát lại đóng dấu lại mọi
+   * action bằng `state.tick` của một phiên `autoTick: false` — tức luôn bằng 0 —
+   * nên `reduce` tua `max(0, 0 - 0) = 0` và mô phỏng ĐỨNG IM suốt lượt phát lại.
+   * Pod sinh ra `Pending` và chỉ lên `Running` trong `tick.ts`, nên mọi vị từ đòi
+   * `Running` (`deployment-ready`, `all-pods-healthy` — bài published thật đang
+   * dùng) không bao giờ đạt: người học giải ĐÚNG và nhận `WA`.
+   *
+   * ⛔ CỐ Ý là cờ riêng, KHÔNG suy từ `autoTick: false`. Hai cờ trả lời hai câu
+   * khác nhau — *"có đồng hồ tường không"* và *"tin tick của ai"* — và hôm nay
+   * chúng trùng nhau chỉ vì đường phát lại là chỗ duy nhất tắt đồng hồ. Một
+   * sandbox tạm dừng, một test dựng trạng thái bằng tay, một bản xem trước: cả
+   * ba đều muốn `autoTick: false` mà KHÔNG muốn tin tick bên gọi gửi. Gộp lại
+   * thì chúng âm thầm nhận cả nghĩa thứ hai.
+   *
+   * Cái giá đi kèm: tin tick bên gọi là mở đường cho một tick khổng lồ đốt CPU
+   * trong `advance()` — xem `MAX_REPLAY_TICK` ở `core/verify.ts`, và
+   * `session.ts` chặn trần ngay tại chỗ honour cờ này.
+   */
+  readonly honorActionTick?: boolean;
 }
 
 export type CreateSession = (options: CreateSessionOptions) => K8sSession;

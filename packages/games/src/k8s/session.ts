@@ -37,6 +37,7 @@ import { COMMAND_KINDS, countHints, countMoves, initialState, reduce } from './r
 import { TICK_MS, advance } from './tick.ts';
 import { toView } from './view.ts';
 import { PREDICATES } from './predicates.ts';
+import { MAX_REPLAY_TICK } from '../core/verify.ts';
 
 /**
  * Namespace mặc định của phiên: namespace ĐẦU TIÊN mà level khai báo, không phải
@@ -173,6 +174,7 @@ export interface K8sEngineSession extends K8sSession {
 export function createSession(options: CreateSessionOptions): K8sEngineSession {
   const { level, seed } = options;
   const autoTick = options.autoTick ?? true;
+  const honorActionTick = options.honorActionTick ?? false;
   const namespace = defaultNamespace(level);
 
   let state = initialState(level, seed);
@@ -243,21 +245,57 @@ export function createSession(options: CreateSessionOptions): K8sEngineSession {
   }
 
   /**
+   * Chặn một nhật ký bịa ra đốt CPU trong `advance()` — chỉ ở phiên PHÁT LẠI.
+   *
+   * ⚠ Ném TRƯỚC khi `reduce` chạy, không phải sau. Kiểm sau thì công việc đã
+   * làm xong rồi và cổng chẳng ngăn được gì — nó chỉ báo cáo thiệt hại.
+   *
+   * Hai cửa, và phải chặn cả hai: `action.tick` (reducer tua tới đó) và
+   * `wait.ticks` (`reducer.apply` cộng thẳng vào). Cửa thứ hai đã mở sẵn từ
+   * trước bản vá C2 — xem `MAX_REPLAY_TICK`.
+   *
+   * ⛔ KHÔNG gác phiên chơi thật. Ở đó `honorActionTick` là `false` nên mọi
+   * action được đóng dấu bằng `state.tick`, và tick lớn dần theo đồng hồ THẬT
+   * chứ không theo dữ liệu ai gửi — đốt CPU không xảy ra vì công việc trải đều
+   * theo thời gian thực. Gác ở đó chỉ tạo ra một cách làm vỡ game của người để
+   * tab mở lâu.
+   */
+  function guardReplayTick(action: K8sGameAction): void {
+    if (!honorActionTick) {
+      return;
+    }
+    const reached = action.kind === 'wait' ? state.tick + action.ticks : action.tick;
+    if (!Number.isFinite(reached) || reached > MAX_REPLAY_TICK) {
+      throw new Error(
+        `nhật ký đòi tua tới tick ${String(reached)}, vượt trần phát lại ` +
+          `${String(MAX_REPLAY_TICK)} (~${String(Math.round(MAX_REPLAY_TICK / 2 / 3600))} giờ chơi)`,
+      );
+    }
+  }
+
+  /**
    * Đường DUY NHẤT áp một hành động. Cả `dispatch` lẫn `dispatchDetailed` gọi
    * vào đây, nên không có nhánh thứ hai để hai bên lệch nhau.
    *
-   * ⚠ `action.tick` bị GHI ĐÈ bằng tick hiện tại của mô phỏng.
+   * ⚠ `action.tick` bị GHI ĐÈ bằng tick hiện tại của mô phỏng — TRỪ khi
+   * `honorActionTick`.
    *
-   * Bên gọi không có cách nào biết tick hiện tại mà không đọc trạng thái, và một
-   * `tick` sai trong log làm bản phát lại lệch — reducer sẽ tua tới một thời
-   * điểm khác thời điểm hành động thật sự xảy ra. Ghi đè ở đây là chỗ duy nhất
-   * biết chắc con số đúng.
+   * Trong phiên chơi thật, bên gọi không có cách nào biết tick hiện tại mà không
+   * đọc trạng thái, và một `tick` sai trong log làm bản phát lại lệch. Ghi đè ở
+   * đây là chỗ duy nhất biết chắc con số đúng.
+   *
+   * Trong phiên PHÁT LẠI thì đúng ngược lại: nhật ký MANG con số đúng, và nó là
+   * thứ duy nhất còn lại của một lượt chơi đã xong. Ghi đè ở đó là vứt đi chính
+   * dữ liệu đang được phát lại — xem `CreateSessionOptions.honorActionTick` cho
+   * chuỗi hệ quả đầy đủ (mô phỏng đứng im ⇒ pod không bao giờ `Running` ⇒ lời
+   * giải ĐÚNG nhận `WA`).
    */
   function applyAction(action: K8sGameAction): DispatchOutcome {
     if (disposed) {
       return { output: '', accepted: false };
     }
-    const stamped = { ...action, tick: state.tick } as K8sGameAction;
+    const stamped = honorActionTick ? action : ({ ...action, tick: state.tick } as K8sGameAction);
+    guardReplayTick(stamped);
     const result = reduce(state, stamped, namespace);
     if (result.accepted) {
       actions.push(stamped);

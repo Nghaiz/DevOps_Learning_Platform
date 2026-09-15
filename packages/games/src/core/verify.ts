@@ -65,6 +65,47 @@ import { lastActionTick, stableStringify } from './integrity.ts';
  * §6), nên với kiến trúc đó thì MỌI lượt chơi đều rơi vào
  * `engine-khong-tat-dinh`. Đây không phải một khả năng giả định.
  */
+/**
+ * Trần tick mà máy chủ chịu phát lại cho MỘT lượt nộp. Chốt 1.000.000.
+ *
+ * ## Vì sao cần một trần, và vì sao nó KHÔNG phải cái giá của bản vá C2
+ *
+ * `advance(state, n)` lặp `n` lần, mỗi lần duyệt mọi pod. Đo 2026-09-15 trên
+ * level rẻ nhất: **~927.000 tick/giây** — level nhiều pod còn chậm hơn nhiều.
+ * Wire khai `tick: z.number()`, và `z.number()` NHẬN `1e12` (chỉ `Infinity` và
+ * `NaN` bị chặn), nên một nhật ký bịa ra là **~12 ngày CPU cho một lượt nộp**.
+ *
+ * `phase-18-exec.md` §5.3 viết rằng bỏ ghi đè tick sẽ *"mở một đường DoS mà
+ * chính phép ghi đè đang đóng"*. Đo lại thì câu đó SAI, và nó sai theo chiều
+ * nguy hiểm hơn: phép ghi đè chỉ chạm `tick`, **không** chạm `ticks` của action
+ * `wait`, mà `reducer.apply` gọi thẳng `advance(state, action.ticks)`. Đối
+ * chứng chạy 2026-09-15 với phép ghi đè CÒN NGUYÊN: client gửi `ticks: 50000`
+ * thì mô phỏng tua đúng 50.000 tick. Tức lỗ hổng đã mở sẵn từ trước qua một cửa
+ * khác — trần này là món NỢ CŨ, không phải phí tổn của C2.
+ *
+ * ## Vì sao 1.000.000 chứ không phải 20.000 cho khớp `MAX_LOG_ACTIONS`
+ *
+ * `TICK_MS = 500`, nên trần này là **~5,8 NGÀY chơi liên tục** và ~1,1 giây CPU
+ * ở trường hợp xấu nhất. Con số đối xứng đẹp (20.000) chỉ cho ~2,8 giờ chơi, và
+ * đồng hồ `autoTick` VẪN CHẠY khi tab nằm nền — một tab để qua đêm đã ăn hàng
+ * chục nghìn tick mà người học không làm gì sai. Trần chặt quá không đọc ra là
+ * "chống DoS"; nó đọc ra là "lượt nộp của tôi bị từ chối", đúng loại lỗi khó
+ * chẩn đoán nhất.
+ *
+ * ## Đo bằng gì
+ *
+ * Bất biến: **tick của mô phỏng không bao giờ vượt trần này trong một lượt phát
+ * lại**. Nó chặn CẢ HAI cửa cùng lúc — tick tăng dần lẫn `wait.ticks` cộng dồn —
+ * vì tick đơn điệu tăng, nên tổng công việc của cả lượt phát lại bị chặn bởi
+ * đúng tick cuối cùng. Một trần đặt trên *khoảng cách mỗi bước* thì không chặn
+ * được tổng: 20.000 action, mỗi action nhảy 1e6, vẫn ra 2e10 tick.
+ *
+ * Gác ở HAI tầng, cố ý: wire (`apps/web/.../problems.ts`) từ chối sớm với một
+ * câu nói rõ con số, còn phiên (`k8s/session.ts`) chặn tại chỗ để bảo vệ mọi
+ * caller không đi qua wire — test, đường nội bộ, và route sau này.
+ */
+export const MAX_REPLAY_TICK = 1_000_000;
+
 export type VerifyStatus =
   /** Phát lại khớp hoàn toàn. Đây là trạng thái DUY NHẤT được tính điểm. */
   | 'da-xac-minh'

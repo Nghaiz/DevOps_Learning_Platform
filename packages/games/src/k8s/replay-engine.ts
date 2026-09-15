@@ -66,7 +66,14 @@ export function sessionReplayEngine(
       if (levelId !== level.id) {
         throw new Error(`nhật ký thuộc level "${levelId}" nhưng được phát lại trên "${level.id}"`);
       }
-      return createSession({ level, seed, autoTick: false });
+      /*
+       * `honorActionTick: true` — nhật ký MANG tick thật của lượt chơi, và ở
+       * đây nó là thẩm quyền. Thiếu cờ này thì phiên đóng dấu lại mọi action
+       * bằng `state.tick` của một phiên không đồng hồ (luôn 0), mô phỏng đứng
+       * im, và mọi vị từ đòi pod `Running` trượt — lời giải ĐÚNG ra `WA`.
+       * Xem `CreateSessionOptions.honorActionTick`.
+       */
+      return createSession({ level, seed, autoTick: false, honorActionTick: true });
     },
     reduce: (session, action) => {
       /*

@@ -348,6 +348,10 @@ export function gradeK8sProblem(input: {
       level: replayLevel(initialState),
       seed,
       autoTick: false,
+      // Cửa phát lại THỨ HAI, và nó dễ bị bỏ sót: `sessionReplayEngine` không
+      // đi qua đây. Vá mỗi cửa kia thì `verifyRun` tua đúng còn `grade` vẫn
+      // đứng im — hai nửa của cùng một lượt nộp trả lời khác nhau.
+      honorActionTick: true,
     });
     for (const action of actions) {
       /*
