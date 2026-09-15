@@ -4,19 +4,26 @@ import {
   gradeOf,
   gradeProblemRun,
   isVerified,
+  problemVerdictOf,
   tallyLog,
-  verifyRun,
   type GradeResult,
   type ProblemSubmission,
   type RunLog,
   type RunResult,
+  type VerifyResult,
   type VerifyStatus,
 } from '@devops-platform/games';
 import type { Database } from '../db/client';
 import { RATE_LIMIT_WINDOW_MS, checkRateLimit } from '../security/rate-limit';
 import { problemSubmissions } from '../db/schema';
 import { toSubmissionDTO, type StoredProblem } from './dto';
-import { hintIdsFromLog, isSolved, problemReplayEngine, expectedLogLevelId } from './replay';
+import {
+  UnsupportedReplayGameError,
+  expectedLogLevelId,
+  hintIdsFromLog,
+  isSolved,
+  verifyProblemRun,
+} from './replay';
 import { revealedHintsForOne } from './reveals';
 
 /** Trần của `integer` Postgres — vượt là `22003`, tức 500 thay vì một câu nói được. */
@@ -127,26 +134,25 @@ export async function submitProblem(
 ): Promise<SubmitProblemResult> {
   assertSubmitRateLimit(userId);
   /*
-   * ⛔ CỔNG GAME. Điểm cuối này chấm bằng engine K8s và CHỈ engine K8s:
-   * `problemReplayEngine` → `problemAsLevel` dựng một `Level` của K8s.
+   * ⛔ CỔNG GAME ĐÃ GỠ 2026-09-15 (§18.C cho game thứ hai), và khối này ghi lại
+   * nó vì lý do nó tồn tại vẫn còn nguyên giá trị.
    *
-   * Cổng này là MỚI và nó tồn tại vì migration 0015 vừa mở đường tới đây. Trước
-   * 0015 mọi dòng trong bảng `problems` đều là bài K8s nên nhánh này không tới
-   * được — nó là mã chết. Từ 0015 cột `game_id` chở được `'git'`, và chỗ tra bài
-   * ở `routers/problems.ts` lọc theo `code` + `state` chứ không theo game. Tức
-   * là một bài Git `published` ĐÃ CÓ ĐƯỜNG đi vào đây.
+   * Bản trước từ chối thẳng mọi bài không phải K8s, với lời khai đúng ở thời
+   * điểm viết: `problemReplayEngine` → `problemAsLevel` dựng một `Level` của
+   * K8s, nên một bài Git `published` — đường đã mở từ migration 0015, vì chỗ tra
+   * bài ở `routers/problems.ts` lọc theo `code` + `state` chứ không theo game —
+   * chỉ có đúng một kết cục là `phat-lai-loi`.
    *
-   * Không dựa vào phép ném của `problemAsLevel`: nó ném `Error` trần, tức người
-   * nộp nhận 500 kèm một câu về "bộ mô phỏng". Ở đây nói đúng tên vấn đề, và
-   * `INTERNAL_SERVER_ERROR` chứ không phải `BAD_REQUEST` vì người nộp không làm
-   * gì sai — một bài Git xuất bản mà chưa có đường nộp là lỗi cấu hình nền tảng.
+   * Thứ thay thế nó KHÔNG phải một cái kiểu rộng hơn: `verifyProblemRun` tách
+   * đường theo `gameId` và mỗi game giữ adapter riêng. Phép ném của
+   * `problemAsLevel` vẫn ở nguyên chỗ cũ và vẫn phải ở đó — nó là chỗ nói ra
+   * rằng một `WorldSpec` của Git không bao giờ được xuống reducer K8s.
+   *
+   * Cổng chuyển thành: game nào chưa có adapter phát lại thì
+   * `UnsupportedReplayGameError`, bắt ở dưới. `INTERNAL_SERVER_ERROR` chứ không
+   * phải `BAD_REQUEST` vì người nộp không làm gì sai — một bài xuất bản thuộc
+   * game chưa có đường chấm là lỗi cấu hình nền tảng.
    */
-  if (problem.gameId !== 'k8s') {
-    throw new TRPCError({
-      code: 'INTERNAL_SERVER_ERROR',
-      message: `Bài "${problem.code}" thuộc game "${problem.gameId}", nhưng điểm cuối này chỉ chấm được bài K8s`,
-    });
-  }
   if (log.levelId !== expectedLogLevelId(problem)) {
     // Kiểm trước để trả một câu nói được. Để `sessionReplayEngine.init` tự ném
     // thì nó về dưới dạng `phat-lai-loi` — nhãn ấy nghĩa là "lỗi bộ mô phỏng"
@@ -166,11 +172,11 @@ export async function submitProblem(
   const fromServer = await revealedHintsForOne(db, userId, problem.code);
   const revealedIds = [...new Set([...fromServer, ...hintIdsFromLog(problem, log)])].sort();
 
-  const engine = problemReplayEngine(problem, revealedIds);
-  const verdict = verifyRun(log, claimed, engine);
+  const verdict = verifyOrExplain(problem, log, claimed, revealedIds);
   const verified = isVerified(verdict);
   const tally = tallyLog(log);
   const grade = gradeSubmission(problem, log, verdict.status);
+  warnOnVerdictDivergence(problem, userId, claimed, grade);
 
   const rows = await db
     .insert(problemSubmissions)
@@ -210,6 +216,101 @@ export async function submitProblem(
     verifyDetail: verdict.detail,
     grade,
   };
+}
+
+/**
+ * Xác minh, và đổi một game-thiếu-adapter thành một câu nói được.
+ *
+ * `verifyProblemRun` ném `UnsupportedReplayGameError` thay vì trả một
+ * `VerifyResult` hỏng — có chủ ý, vì hai thứ đó cần hai câu khác nhau trên màn
+ * hình. Một `VerifyResult` hỏng hiện ra là *"không xác minh được"*, tức đổ lỗi
+ * cho người nộp về một mảnh nền tảng còn thiếu. Ở đây nó thành 500 kèm tên game.
+ */
+function verifyOrExplain(
+  problem: StoredProblem,
+  log: RunLog,
+  claimed: RunResult,
+  revealedIds: readonly string[],
+): VerifyResult {
+  try {
+    return verifyProblemRun(problem, log, claimed, revealedIds);
+  } catch (error) {
+    if (error instanceof UnsupportedReplayGameError) {
+      // ⛔ Bắt theo LỚP, không so chuỗi thông điệp — cùng lý do đã ghi ở
+      // `gradeSubmission` bên dưới cho `UnknownProblemGameError`.
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Bài "${problem.code}" thuộc game "${error.gameId}" nhưng hệ thống chưa có đường chấm lại cho game đó`,
+      });
+    }
+    throw error;
+  }
+}
+
+/**
+ * §18.C.3 — lệch verdict client/server thì GHI LOG, không chặn.
+ *
+ * ## Vì sao không chặn, và vì sao vẫn phải ghi
+ *
+ * Plan nói thẳng lý do không chặn: *"lệch là dấu hiệu bug tất định, không nhất
+ * thiết là gian lận"*. Hai engine chạy cùng một hàm chấm (`gradeProblemRun`), nên
+ * một lệch ở đây gần như luôn có nghĩa là một trong hai phía chạy bản mã KHÁC —
+ * một tab mở từ hôm qua, một lần triển khai đang dở. Chặn nó là từ chối người
+ * học vì lỗi triển khai của chúng ta.
+ *
+ * Vẫn phải ghi vì đây là tín hiệu DUY NHẤT của việc engine mất tính tất định
+ * giữa hai môi trường. `verifyRun` bắt được chiều *"cùng máy chủ, hai lần phát
+ * lại khác nhau"*; nó KHÔNG bắt được chiều *"trình duyệt và Node cho hai kết quả
+ * khác nhau"* — mà đó đúng là chiều §18.C sợ, và là chiều duy nhất làm mọi lượt
+ * nộp hợp lệ bị từ chối cùng lúc.
+ *
+ * ## Verdict của client là một SUY RA, không phải một trường gửi lên
+ *
+ * Client không gửi verdict — nó gửi `objectivesMet` + `objectivesTotal`, và
+ * `problemVerdictOf` là phép suy DUY NHẤT từ cặp đó (`core/problem.ts`). Thêm
+ * một trường `verdict` vào input là gửi cùng một sự thật hai lần, đúng thứ quy
+ * ước "No Derived Fields" cấm — và tệ hơn, nó sẽ là một trường client tự điền,
+ * tức một lời khai thứ hai phải kiểm.
+ *
+ * ⚠ Ô này KHÔNG dư so với `verifyRun`. `verifyRun` so `objectivesMet` từng id và
+ * đã bắt mọi lệch — nhưng nó gộp tất cả vào một `khong-khop` chung, và câu
+ * `khong-khop` không phân biệt "client khai thừa một id" với "client nói AC còn
+ * máy chủ nói WA". Cái sau là cái đáng báo động; dòng log này là chỗ nó có tên.
+ */
+function warnOnVerdictDivergence(
+  problem: StoredProblem,
+  userId: string,
+  claimed: RunResult,
+  grade: GradeResult,
+): void {
+  /*
+   * Bỏ qua nhánh `CE`: nó KHÔNG phải một verdict về lượt chơi mà là lời khai
+   * "lượt này không chấm được", và client không có cách nào tự kết luận điều đó
+   * — nó không chạy `verifyRun`. So một `CE` của máy chủ với một `AC`/`WA` suy
+   * từ lời khai sẽ báo động ở mọi lượt trượt xác minh, tức biến dòng log này
+   * thành tiếng ồn và không ai đọc nữa.
+   */
+  if (grade.verdict === 'CE') {
+    return;
+  }
+  const clientVerdict = problemVerdictOf(
+    new Set(claimed.objectivesMet).size,
+    claimed.objectivesTotal,
+  );
+  if (clientVerdict === grade.verdict) {
+    return;
+  }
+  console.warn('[problems:submit] verdict client lệch verdict máy chủ', {
+    code: problem.code,
+    gameId: problem.gameId,
+    userId,
+    clientVerdict,
+    serverVerdict: grade.verdict,
+    clientPassed: new Set(claimed.objectivesMet).size,
+    clientTotal: claimed.objectivesTotal,
+    serverPassed: grade.passed.length,
+    serverTotal: grade.total,
+  });
 }
 
 /**
@@ -266,6 +367,19 @@ function gradeSubmission(problem: StoredProblem, log: RunLog, status: VerifyStat
     return gradeProblemRun({
       gameId: log.gameId,
       initialState: problem.initialState,
+      /*
+       * ⛔ NỐI 2026-09-15. Bản trước bỏ trống `targetState`, và khe đó im lặng
+       * cho tới đúng bài đầu tiên cần nó: `gradeGitProblem` trả `CE` cho MỌI
+       * testcase gọi `graphShapeMatches` khi bài không khai cây đích — kể cả khi
+       * bài ĐÃ khai và cột `target_state` đã có dữ liệu từ migration 0015. Tức
+       * một bài soạn đúng đọc ra thành một bài soạn thiếu.
+       *
+       * Trải CÓ ĐIỀU KIỆN, không viết thẳng: `exactOptionalPropertyTypes` phân
+       * biệt "không có khoá" với "có khoá, giá trị `undefined`", và plugin Git
+       * đọc `targetState === undefined` để quyết `CE`. Cùng khuôn mà
+       * `gradeProblemRun` đã dùng ở chỗ nó chuyển tiếp xuống plugin.
+       */
+      ...(problem.targetState === undefined ? {} : { targetState: problem.targetState }),
       actions: log.actions,
       testcases,
       seed: log.seed,
