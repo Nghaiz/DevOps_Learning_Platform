@@ -1,29 +1,58 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import type { Level } from '@devops-platform/games';
 import type { ArenaModeContext } from './arena-contract';
 import type { ArenaSessionHandle } from './arena-session';
+import type { K8sOjProblem } from './problem-level';
 
 /**
- * Ô nghiệm thu của lane 18.C — phía CLIENT của đường nộp bài.
+ * Ô nghiệm thu của lane 18.C — phía CLIENT của đường nộp bài K8s.
  *
  * ⛔ Ô này KHÔNG khẳng định "bảng nộp bài render được". Một ô như vậy xanh cả
  * khi đấu trường tiếp tục không nộp gì về máy chủ — tức xanh cho đúng trạng
  * thái mà lane này sinh ra để sửa (`rules/green-that-proves-nothing.md`).
  *
- * Thứ ô này khẳng định là: **một lượt chơi thật, kết thúc thắng ở chế độ bài
- * tập, dẫn tới đúng MỘT lời gọi `problems.submit` mang đúng nhật ký của lượt
- * đó.** Bỏ lời gọi `submit()` trong effect ⇒ ô đỏ ngay tại dòng
- * `toHaveBeenCalledTimes(1)`.
+ * ## ⛔ VIẾT LẠI 2026-09-15, và lý do đáng đọc hơn nội dung mới
  *
- * Nhật ký được so NGUYÊN VẸN chứ không so từng trường: `seed` đúng mà `actions`
- * của một lượt khác là một lượt phát lại ra trạng thái khác, và máy chủ trả
- * `CE khong-khop` — một lỗi ghép nhật ký đọc ra như một lượt chơi gian lận.
+ * Bản trước đo rằng một lượt chơi **kết thúc THẮNG** dẫn tới đúng một lời gọi
+ * `problems.submit`, và nó XANH suốt thời gian chế độ bài tập K8s hoàn toàn
+ * không chạy được. Nó xanh được vì nó mock cả tầng mạng và tự cấp một `level`
+ * có `id: 'l-01'` — nên ba lỗi thật của đường đó đều nằm ngoài tầm nó:
+ *
+ * 1. Ngoài đời `log.levelId` là một id trong `LEVELS`, không phải mã bài, nên
+ *    máy chủ trả `BAD_REQUEST`. Ô này tự đặt id nên không bao giờ thấy.
+ * 2. Ngoài đời không có `TrpcQueryProvider` nào ở `/games`, nên hook ném. Ô này
+ *    mock `api` nên không bao giờ thấy.
+ * 3. Ngoài đời điểm tính bằng `computeScore` ≠ công thức máy chủ. Ô này không
+ *    đọc `score`.
+ *
+ * Bài học giữ lại: một ô mock trọn biên ngoài chỉ đo được mã GIỮA hai biên đó.
+ * Nó không nói gì về việc hai biên có nối vào đâu không — và chính chỗ nối là
+ * thứ đã hỏng. Ô đối chứng thật cho phần đó là `problem-level.test.ts`, nơi hai
+ * bản dựng được so trực tiếp với nhau.
+ *
+ * Thứ bản MỚI này khẳng định: **một lượt bấm "Nộp bài" dẫn tới đúng MỘT lượt
+ * `tryGrade` rồi đúng MỘT lượt `submit`, cả hai mang y hệt một nhật ký, và lời
+ * khai lấy `objectivesMet` từ MÁY CHỦ chứ không từ phiên cục bộ.**
  */
 
+const PASSED_MAY_CHU = ['t1'];
+
+const tryGradeAsync = vi.fn(async (_input: unknown) => ({
+  passed: PASSED_MAY_CHU,
+  total: 2,
+  verdict: 'WA' as const,
+  failedReason: null,
+  failedCode: null,
+}));
 const mutateAsync = vi.fn(async (_input: unknown) => ({
-  grade: { verdict: 'WA' as const, passed: ['t1'], total: 2, failedReason: null },
+  grade: {
+    verdict: 'WA' as const,
+    passed: PASSED_MAY_CHU,
+    total: 2,
+    failedReason: null,
+    failedCode: null,
+  },
 }));
 const byCodeFetch = vi.fn(async () => ({
   problem: {
@@ -39,88 +68,169 @@ vi.mock('../../lib/trpc-react', () => ({
     useUtils: () => ({ problems: { byCode: { fetch: byCodeFetch } } }),
     problems: {
       submit: { useMutation: () => ({ mutateAsync, isPending: false }) },
+      tryGrade: { useMutation: () => ({ mutateAsync: tryGradeAsync, isPending: false }) },
     },
   },
 }));
 
 const { useProblemSubmit } = await import('./use-problem-submit');
 
+const CODE = 'K8S-0003';
+
+/*
+ * `levelId` LÀ mã bài — đúng như `k8sOjLevel` dựng nó. Bản trước đặt `'l-01'`,
+ * một id không tồn tại ở đường thật, và đó là chỗ nó mù với lỗi #1.
+ */
 const LOG = {
   gameId: 'k8s' as const,
-  levelId: 'l-01',
+  levelId: CODE,
   seed: 424242,
-  actions: [{ gameId: 'k8s' as const, kind: 'scale', tick: 7 }],
+  actions: [
+    { gameId: 'k8s' as const, kind: 'scale', tick: 7 },
+    { gameId: 'k8s' as const, kind: 'hint', index: 0, tick: 8 },
+  ],
 };
 
-const level = {
-  id: 'l-01',
-  objectives: [{ id: 'o1' }, { id: 'o2' }],
-  parMoves: 5,
-  hints: [{ id: 'h1' }],
-} as unknown as Level;
+const problem: K8sOjProblem = {
+  code: CODE,
+  title: 'Nâng số bản sao',
+  statement: 'Nâng web lên 3 bản sao.',
+  difficulty: 'easy',
+  initialState: { nodes: [], workloads: [] },
+  allowedResources: null,
+  testcases: [
+    { id: 't1', label: 'Pod chạy', visible: true },
+    { id: 't2', label: null, visible: false },
+  ],
+  hints: [{ id: 'h1', penaltyPoints: 120, revealed: false, text: null }],
+  parMoves: 4,
+};
 
 const mode: ArenaModeContext = {
   mode: 'problem',
-  problemCode: 'K8S-0003',
+  problemCode: CODE,
   codexAvailable: false,
   hintsCostPoints: true,
+  problem,
 };
 
+/**
+ * Engine ở một pha bất kỳ.
+ *
+ * `objectivesMet` để RỖNG có chủ ý: đó là sự thật của chế độ bài tập, vì level
+ * tổng hợp mang vị từ rỗng (§18.B.4 cắt `check`). Một fixture khai sẵn mục tiêu
+ * đã đạt sẽ che mất việc lời khai phải lấy số đó từ máy chủ.
+ */
 function engineAt(phase: 'playing' | 'won'): ArenaSessionHandle {
   return {
     seed: LOG.seed,
-    status: { phase, objectivesMet: ['o1'], movesUsed: 4, hintsRevealed: 1 },
+    status: { phase, objectivesMet: [], movesUsed: 1, hintsRevealed: 1 },
     getLog: () => LOG,
   } as unknown as ArenaSessionHandle;
 }
 
 describe('nộp bài từ đấu trường', () => {
-  it('gọi problems.submit đúng một lần với nhật ký của chính lượt vừa thắng', async () => {
+  it('một lượt bấm ⇒ tryGrade rồi submit, cùng một nhật ký', async () => {
+    tryGradeAsync.mockClear();
     mutateAsync.mockClear();
-    const { rerender, result } = renderHook(
-      ({ phase }: { phase: 'playing' | 'won' }) =>
-        useProblemSubmit(level, engineAt(phase), mode, 1_700_000_000_000),
-      { initialProps: { phase: 'playing' } as { phase: 'playing' | 'won' } },
+    const { result } = renderHook(() =>
+      useProblemSubmit(engineAt('playing'), mode, 1_700_000_000_000),
     );
 
-    // Chưa thắng thì chưa có gì được gửi đi — nộp sớm là nộp một lượt dở dang.
+    // Chưa bấm thì chưa gửi gì — bài OJ không có "tự nộp khi thắng".
     expect(mutateAsync).not.toHaveBeenCalled();
 
-    rerender({ phase: 'won' });
+    result.current.submit();
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    expect(tryGradeAsync).toHaveBeenCalledTimes(1);
 
-    const sent = mutateAsync.mock.calls[0]?.[0] as unknown as {
+    const thu = tryGradeAsync.mock.calls[0]?.[0] as unknown as { code: string; runLog: typeof LOG };
+    const nop = mutateAsync.mock.calls[0]?.[0] as unknown as {
       code: string;
       runLog: typeof LOG;
-      claimed: { seed: number; levelId: string; objectivesTotal: number; hintsUsed: number };
+      claimed: {
+        seed: number;
+        levelId: string;
+        objectivesMet: readonly string[];
+        objectivesTotal: number;
+        commandsUsed: number;
+        hintsUsed: number;
+      };
     };
-    expect(sent.code).toBe('K8S-0003');
-    expect(sent.runLog).toEqual(LOG);
-    expect(sent.claimed.seed).toBe(LOG.seed);
-    expect(sent.claimed.levelId).toBe('l-01');
-    expect(sent.claimed.objectivesTotal).toBe(2);
-    expect(sent.claimed.hintsUsed).toBe(1);
 
-    // Verdict hiện ra là verdict MÁY CHỦ trả, dựng qua `toVerdictView` — không
-    // phải suy từ pha thắng của engine.
+    expect(nop.code).toBe(CODE);
+    /*
+     * Hai lượt gọi phải mang Y HỆT một nhật ký. Lệch nhau thì "thử thì đạt, nộp
+     * thì trượt" và không ai có cách nào biết vì sao.
+     */
+    expect(thu.runLog).toEqual(nop.runLog);
+    expect(nop.runLog).toEqual(LOG);
+
+    // `levelId` của lời khai là mã bài — trường mà máy chủ so đầu tiên.
+    expect(nop.claimed.levelId).toBe(CODE);
+    expect(nop.claimed.seed).toBe(LOG.seed);
+    /*
+     * ⛔ Lời khai lấy `objectivesMet` từ MÁY CHỦ, không từ `engine.status` (vốn
+     * rỗng). Ô này đỏ nếu ai đó nối lại vào phiên cục bộ — và hồi quy đó sẽ làm
+     * MỌI lượt nộp K8s hợp lệ nhận `CE`.
+     */
+    expect(nop.claimed.objectivesMet).toEqual(PASSED_MAY_CHU);
+    expect(nop.claimed.objectivesTotal).toBe(2);
+    // Đếm từ nhật ký, không từ `status.movesUsed`/`hintsRevealed`.
+    expect(nop.claimed.commandsUsed).toBe(1);
+    expect(nop.claimed.hintsUsed).toBe(1);
+
+    // Verdict hiện ra là verdict MÁY CHỦ trả, dựng qua `toVerdictView`.
     await waitFor(() => expect(result.current.phase).toBe('done'));
     expect(result.current.view?.verdict).toBe('WA');
     expect(result.current.view?.fraction).toEqual({ passed: 1, total: 2 });
     // Nhãn tới từ bộ teaser đọc LẠI sau khi nộp; trước lượt nộp nó còn là `null`.
     expect(result.current.view?.failed.map((item) => item.label)).toEqual(['Service trỏ đúng']);
-    expect(byCodeFetch).toHaveBeenCalledWith({ code: 'K8S-0003' });
+    expect(byCodeFetch).toHaveBeenCalledWith({ code: CODE });
   });
 
-  it('ở chế độ màn thường thì không nộp gì', async () => {
+  it('KHÔNG tự nộp khi engine báo thắng', async () => {
+    /*
+     * Pha `won` không tới được ở chế độ bài tập (vị từ rỗng ⇒ không mục tiêu nào
+     * đạt), nhưng ô này khoá điều mạnh hơn: kể cả khi một engine báo `won`, hook
+     * không được tự gửi gì. Nộp bài là một hành động TƯỜNG MINH.
+     */
+    tryGradeAsync.mockClear();
     mutateAsync.mockClear();
-    renderHook(() =>
+    renderHook(() => useProblemSubmit(engineAt('won'), mode, 1_700_000_000_000));
+    await waitFor(() => expect(mutateAsync).not.toHaveBeenCalled());
+    expect(tryGradeAsync).not.toHaveBeenCalled();
+  });
+
+  it('ở chế độ màn thường thì không nộp gì, kể cả khi bấm', async () => {
+    tryGradeAsync.mockClear();
+    mutateAsync.mockClear();
+    const { result } = renderHook(() =>
       useProblemSubmit(
-        level,
         engineAt('won'),
-        { mode: 'level', problemCode: null, codexAvailable: true, hintsCostPoints: false },
+        {
+          mode: 'level',
+          problemCode: null,
+          codexAvailable: true,
+          hintsCostPoints: false,
+          problem: null,
+        },
         1_700_000_000_000,
       ),
     );
+    result.current.submit();
     await waitFor(() => expect(mutateAsync).not.toHaveBeenCalled());
+    expect(tryGradeAsync).not.toHaveBeenCalled();
+  });
+
+  it('bài không testcase nào ⇒ nói ra, và nút nộp không được render', () => {
+    const { result } = renderHook(() =>
+      useProblemSubmit(
+        engineAt('playing'),
+        { ...mode, problem: { ...problem, testcases: [] } },
+        1_700_000_000_000,
+      ),
+    );
+    expect(result.current.notice).not.toBeNull();
   });
 });

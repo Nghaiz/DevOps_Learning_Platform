@@ -36,6 +36,10 @@ import type {
   ResourceKind,
   ResourceRef,
 } from '@devops-platform/games';
+// Chỉ KIỂU, và chỉ một chiều: `problem-level.ts` thuần và không import ngược lại
+// file này, nên không có vòng. Import giá trị từ đó vào đây sẽ kéo phép dựng
+// level vào mọi module đọc hợp đồng — kể cả chế độ `level`.
+import type { K8sOjProblem } from './problem-level';
 
 // ── Chế độ chơi ─────────────────────────────────────────────────────────────
 
@@ -63,6 +67,26 @@ export interface ArenaModeContext {
   readonly mode: ArenaMode;
   /** Chỉ khác `null` khi `mode === 'problem'`. */
   readonly problemCode: string | null;
+  /**
+   * Đề bài đã nạp, ở chế độ `problem`. `null` ở chế độ `level`.
+   *
+   * ⛔ Đi CÙNG `problemCode` chứ không phải một nguồn thứ hai. `useProblemSubmit`
+   * cần đúng object này để dựng lời khai (`k8sOjClaim`): nó phải là CHÍNH bài mà
+   * `k8sOjLevel` đã dựng level, nếu không thì `objectivesTotal` và bảng gợi ý
+   * dùng để tính điểm trừ sẽ thuộc về hai bài khác nhau — và lượt nộp trả về
+   * `CE` mà không dòng log nào nói tại sao.
+   *
+   * Vì sao nằm ở `mode` chứ không phải một prop riêng của `ArenaRoot`: hợp đồng
+   * trên đã chốt rằng chế độ được suy MỘT LẦN ở cửa vào rồi truyền xuống, và
+   * "đang làm bài NÀO" là một phần của "đang ở chế độ nào". Một prop song song
+   * là chỗ thứ hai có thể bất đồng.
+   *
+   * ⚠ `null` trong khi `mode === 'problem'` là trạng thái ĐANG NẠP, không phải
+   * lỗi. Cửa vào (`arena-problem.tsx`) không dựng `ArenaRoot` trước khi đề bài
+   * về, nên ca đó không tới được màn chơi — nhưng kiểu vẫn khai `| null` để
+   * không ai phải viết một `!` ở chỗ gọi.
+   */
+  readonly problem: K8sOjProblem | null;
   /**
    * Ngăn tra cứu chỉ có ở chế độ `level`. Ở chế độ `problem` thì phím mở nó
    * không làm gì, và nút mở nó không được render — một nút bấm không phản ứng

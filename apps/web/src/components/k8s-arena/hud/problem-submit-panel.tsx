@@ -59,7 +59,17 @@ export function ProblemSubmitPanel({ state }: { readonly state: ProblemSubmitSta
 
       {state.phase === 'done' && state.view !== null ? <ProblemVerdict view={state.view} /> : null}
 
-      {state.phase === 'idle' ? (
+      {/*
+        Bài không chấm được thì NÓI RA, và nói thay cho nút chứ không cạnh nút.
+        Một nút "Nộp bài" bấm được trên một bài không có testcase nào dẫn thẳng
+        tới một `CE` mà người làm đọc ra là "bài của tôi sai" — trong khi thứ
+        thiếu là đề bài. Xem `useProblemSubmit` § `notice`.
+      */}
+      {state.notice !== null ? (
+        <p className="text-sm text-muted-foreground">{state.notice}</p>
+      ) : null}
+
+      {state.phase === 'idle' && state.notice === null ? (
         <Button size="sm" onClick={state.submit}>
           {t('catalog.problem.submit-action')}
         </Button>

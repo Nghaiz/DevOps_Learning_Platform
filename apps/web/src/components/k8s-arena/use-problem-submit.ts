@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { toVerdictView, type Level, type VerdictView } from '@devops-platform/games';
+import { useCallback, useState } from 'react';
+import { toVerdictView, type VerdictView } from '@devops-platform/games';
 import { api } from '../../lib/trpc-react';
 import { describeTrpcError } from '../../lib/trpc';
 import type { ArenaModeContext } from './arena-contract';
 import type { ArenaSessionHandle } from './arena-session';
-import { buildRunResult } from './run-result';
+import { k8sOjClaim, k8sOjGradable } from './problem-level';
 
 /**
  * Nộp lượt chơi về `problems.submit`, và trả verdict máy chủ chấm lại.
@@ -31,29 +31,48 @@ import { buildRunResult } from './run-result';
  * toàn vì file kia "thuần". Lời biện hộ đó đúng về sự kiện nhưng sai về kết
  * luận: một file `'use client'` import GIÁ TRỊ từ `src/server/` chỉ đứng được
  * chừng nào không ai thêm `import 'server-only'` vào file kia, và điều kiện đó
- * không phải một bảo đảm mà là một sự tình cờ. Đo được hôm đó: đúng MỘT file
- * trong cả `apps/web` ở tình trạng ấy, và nó là file này.
+ * không phải một bảo đảm mà là một sự tình cờ.
  *
- * Đã sửa ở gốc thay vì dán băng tại đây: `verdict-view.ts` chuyển xuống
- * `packages/games/src/core/`, cạnh `problemVerdictOf`. Đó là chỗ đúng của nó vì
- * nó là phép suy dùng chung cho cả hai phía chứ không phải mã máy chủ, và từ
- * nay "cùng một hàm" là một sự thật của cấu trúc thư mục chứ không còn là một
- * lời hứa trong chú thích.
+ * Đã sửa ở gốc: `verdict-view.ts` chuyển xuống `packages/games/src/core/`, cạnh
+ * `problemVerdictOf`. Từ nay "cùng một hàm" là một sự thật của cấu trúc thư mục
+ * chứ không còn là một lời hứa trong chú thích.
  *
- * Nhánh import này không thêm gì vào bundle: đấu trường đã kéo chính barrel đó
- * vào bundle client sẵn (`arena-session.ts` gọi `createSession`).
+ * ## ⛔ ĐỔI NGHĨA 2026-09-15 — máy chủ chấm, và lời khai không còn tự dựng
  *
- * ## Vì sao phải gọi `byCode` một lần nữa ở đây
+ * Bản trước dựng lời khai bằng `buildRunResult(level, engine, …)`, tức đọc
+ * `engine.status.objectivesMet` của phiên cục bộ và tính điểm bằng
+ * `computeScore`. Hai điều đó nay đều sai ở chế độ bài tập:
+ *
+ * 1. **`objectivesMet` cục bộ luôn RỖNG.** `toTestcaseTeasers` cắt `check`/`args`
+ *    của mọi testcase (§18.B.4), nên level tổng hợp phía client mang vị từ rỗng
+ *    và `evaluateObjectives` bỏ qua tất cả. Lời khai rỗng ⇒ `verifyRun` ra
+ *    `khong-khop` ⇒ `CE` cho một lượt chơi ĐÚNG. Nay `objectivesMet` tới từ
+ *    `problems.tryGrade` — máy chủ phát lại và trả `passed`.
+ * 2. **`computeScore` không phải công thức máy chủ dùng.** Máy chủ chấm bài OJ
+ *    bằng `scoreProblemRun` (`problemScoreRun` ở `replay.ts`), vốn trừ điểm gợi
+ *    ý bằng `penaltyPoints` chứ không bằng tỉ lệ. Hai số lệch nhau ngay khi bài
+ *    có một gợi ý được mở. `k8sOjClaim` gọi đúng hàm của máy chủ.
+ *
+ * `buildRunResult` KHÔNG bị bỏ: nó vẫn là bản dựng đúng cho chế độ LEVEL, nơi
+ * `recordRun` là bên đọc và `computeScore` là công thức đúng.
+ *
+ * ⚠ Cái giá, nói ra vì nó không hiện trên màn: một lần bấm "Nộp bài" là HAI lượt
+ * gọi (`tryGrade` rồi `submit`), và cả hai tiêu một suất của cùng trần nhịp
+ * (6 lượt/phút) — trần nộp thật là 3 lần/phút. Gộp hai lượt thành một thì mọi
+ * lượt xem-thử sẽ đẻ một dòng trong lịch sử người học và đẩy `attemptCount` của
+ * bài, tức biến một phép đo thành một lượt nộp.
+ *
+ * ## Vì sao phải gọi `byCode` một lần nữa sau khi nộp
  *
  * `submitProblem` trả `grade` mang `passed: string[]` và `total` — TOÀN LÀ ID,
  * không có nhãn nào. `toVerdictView` cần `TestcaseTeaser[]` để nói *testcase
- * NÀO* đỏ, và bộ teaser đó chỉ tới từ `problems.byCode`. Đây là một khe trong
- * hợp đồng dây, không phải một lựa chọn: xem báo cáo lane.
+ * NÀO* đỏ, và bộ teaser đó chỉ tới từ `problems.byCode`.
  *
- * `invalidate` sau khi nộp là BẮT BUỘC chứ không phải cho mới: `toTestcaseTeasers`
- * chỉ mở nhãn của testcase ẩn khi `afterSubmit` là `true`, và trước lượt nộp
- * đầu tiên mọi nhãn ẩn về `null`. Không đọc lại thì danh sách "cái này sai" hiện
- * ra toàn dòng *"Testcase ẩn chưa hiện tên"* đúng vào lúc người làm cần tên nhất.
+ * `invalidate`/`fetch` sau khi nộp là BẮT BUỘC chứ không phải cho mới:
+ * `toTestcaseTeasers` chỉ mở nhãn của testcase ẩn khi `afterSubmit` là `true`,
+ * và trước lượt nộp đầu tiên mọi nhãn ẩn về `null`. Không đọc lại thì danh sách
+ * "cái này sai" hiện ra toàn dòng *"Testcase ẩn chưa hiện tên"* đúng vào lúc
+ * người làm cần tên nhất.
  */
 export type ProblemSubmitPhase = 'idle' | 'pending' | 'done' | 'error';
 
@@ -63,25 +82,36 @@ export interface ProblemSubmitState {
   readonly view: VerdictView | null;
   /** Khác `null` chỉ ở `error`. */
   readonly errorMessage: string | null;
+  /**
+   * Bài chưa chấm được (không testcase nào). `null` = chấm được.
+   *
+   * Màn hình phải NÓI RA câu này thay vì để nút nộp dẫn tới một `CE` khó hiểu.
+   */
+  readonly notice: string | null;
   /** Nộp lại. Dùng cho cả nút "Nộp bài" lẫn nút "Thử lại" sau khi hỏng. */
   readonly submit: () => void;
 }
 
+const CAU_CHUA_NOP_DUOC =
+  'Bài này chưa có testcase nào nên chưa chấm được. Mở ở chế độ đọc và luyện ' +
+  'tay; hãy báo cho tác giả bài.';
+
 export function useProblemSubmit(
-  level: Level,
   engine: ArenaSessionHandle,
   mode: ArenaModeContext,
   startedAt: number,
 ): ProblemSubmitState {
-  const code = mode.problemCode;
+  const problem = mode.problem;
   const utils = api.useUtils();
   const [view, setView] = useState<VerdictView | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const submitMutation = api.problems.submit.useMutation();
+  const tryGradeMutation = api.problems.tryGrade.useMutation();
   const { mutateAsync } = submitMutation;
+  const { mutateAsync: tryGradeAsync } = tryGradeMutation;
 
   const submit = useCallback(() => {
-    if (code === null) {
+    if (problem === null) {
       return;
     }
     const log = engine.getLog();
@@ -95,37 +125,53 @@ export function useProblemSubmit(
     setLocalError(null);
     void (async () => {
       try {
+        /*
+         * Nhật ký của ĐÚNG lượt vừa chơi, lấy thẳng từ engine: `levelId`, `seed`
+         * và `actions` đi cùng nhau hoặc không đi. Ghép `seed` của engine với
+         * `actions` của một bản khác là một lượt phát lại ra trạng thái khác, và
+         * người chơi nhận `CE` mà không hiểu vì sao.
+         *
+         * `gameId` viết TƯỜNG MINH chứ không rải `...log`: `RunLog.gameId` khai
+         * `GameId` (mọi game của repo) trong khi lượt nộp này chốt `'k8s'`.
+         * Liệt kê từng trường làm phép hẹp kiểu thành một câu đọc được, thay vì
+         * một `as never` che mất việc hai kiểu thật sự lệch nhau.
+         *
+         * Dựng MỘT LẦN rồi dùng cho cả hai lượt gọi — `tryGrade` và `submit`
+         * phải nhận y hệt một nhật ký, nếu không thì "thử thì đạt, nộp thì
+         * trượt" và không ai biết vì sao.
+         */
+        const runLog = {
+          gameId: 'k8s' as const,
+          levelId: log.levelId,
+          seed: log.seed,
+          actions: log.actions,
+        };
+        /*
+         * Chấm THỬ trước, rồi nộp bằng chính kết quả đó. `tryGrade` không ghi
+         * dòng nào; `submit` thì có.
+         */
+        const thu = await tryGradeAsync({ code: problem.code, runLog });
         const result = await mutateAsync({
-          code,
-          /*
-           * Nhật ký của ĐÚNG lượt vừa chơi, lấy thẳng từ engine: `levelId`,
-           * `seed` và `actions` đi cùng nhau hoặc không đi. Ghép `seed` của
-           * engine với `actions` của một bản khác là một lượt phát lại ra trạng
-           * thái khác, và người chơi nhận `CE` mà không hiểu vì sao.
-           */
-          runLog: {
+          code: problem.code,
+          runLog,
+          claimed: k8sOjClaim({
+            problem,
+            log,
             /*
-             * `gameId` viết TƯỜNG MINH chứ không rải `...log`, và đó là một
-             * khe hợp đồng chứ không phải chuộng dài dòng: `RunLog.gameId`
-             * khai `GameId` (mọi game của repo) trong khi `problems.submit`
-             * chốt `z.literal('k8s')`. `tsc` từ chối phép gán, và nó đúng.
-             *
-             * Liệt kê từng trường làm phép hẹp kiểu thành một câu đọc được,
-             * thay vì một `as never` che mất việc hai kiểu thật sự lệch nhau.
-             * Ba trường còn lại đi NGUYÊN từ engine.
+             * `objectivesMet` tới từ MÁY CHỦ, không từ `engine.status`. Phiên cục
+             * bộ không có `check` nên nó luôn trả rỗng — xem khối chú thích ở
+             * `K8sOjClaimInput.objectivesMet`.
              */
-            gameId: 'k8s',
-            levelId: log.levelId,
-            seed: log.seed,
-            actions: log.actions,
-          },
-          claimed: buildRunResult(level, engine, startedAt, Date.now()),
+            objectivesMet: thu.passed,
+            startedAt,
+            finishedAt: Date.now(),
+          }),
         });
         /*
          * Đọc lại teaser TRƯỚC khi dựng view: nhãn của testcase ẩn vừa mở khoá
          * bởi chính lượt nộp này.
          */
-        const fresh = await utils.problems.byCode.fetch({ code });
+        const fresh = await utils.problems.byCode.fetch({ code: problem.code });
         setView(toVerdictView(result.grade, fresh.problem.testcases));
       } catch (error) {
         /*
@@ -136,37 +182,36 @@ export function useProblemSubmit(
         setLocalError(describeTrpcError(error));
       }
     })();
-  }, [code, engine, level, mutateAsync, startedAt, utils]);
+  }, [problem, engine, mutateAsync, tryGradeAsync, startedAt, utils]);
 
   /*
-   * Tự nộp đúng MỘT LẦN khi lượt chơi kết thúc thắng, ở chế độ bài tập.
+   * ⛔ KHÔNG còn tự nộp khi `engine.status.phase === 'won'` — gỡ 2026-09-15.
    *
-   * `submittedRef` là thứ chặn nộp lặp, không phải mảng phụ thuộc: `phase` giữ
-   * nguyên `won` sau khi thắng và `engine.status` đổi danh tính theo từng nhịp
-   * engine, nên không chặn thì mỗi nhịp là một lượt nộp mới — cùng cái bẫy mà
-   * `useRecordWin` đã ghi lại, chỉ khác là ở đây nó đập vào máy chủ.
+   * Nhánh đó không thể chạy nữa, và nó không chạy vì một lý do cấu trúc chứ
+   * không phải một cờ tắt: level tổng hợp của chế độ bài tập mang vị từ RỖNG
+   * (§18.B.4 cắt `check` ở wire), nên `evaluateObjectives` không bao giờ đánh
+   * dấu mục tiêu nào đạt và phiên không bao giờ tới pha `won`. Giữ lại một
+   * `useEffect` chờ một pha không tới được là để lại mã chết trông như đang
+   * sống — và người sau sẽ đọc nó như bằng chứng rằng tự-nộp đang hoạt động.
+   *
+   * Nộp bài ở chế độ này là một hành động TƯỜNG MINH: nút "Nộp bài" của
+   * `ProblemSubmitPanel`. Điều đó cũng đúng hơn về mặt sản phẩm — bài OJ không
+   * có khái niệm "thắng màn", chỉ có lượt nộp và verdict.
    */
-  const submittedRef = useRef(false);
-  const phase = engine.status.phase;
-  useEffect(() => {
-    if (code === null || phase !== 'won' || submittedRef.current) {
-      return;
-    }
-    submittedRef.current = true;
-    submit();
-  }, [code, phase, submit]);
 
-  if (code === null) {
-    return { phase: 'idle', view: null, errorMessage: null, submit };
+  const notice = problem !== null && !k8sOjGradable(problem) ? CAU_CHUA_NOP_DUOC : null;
+
+  if (problem === null) {
+    return { phase: 'idle', view: null, errorMessage: null, notice: null, submit };
   }
   if (localError !== null) {
-    return { phase: 'error', view: null, errorMessage: localError, submit };
+    return { phase: 'error', view: null, errorMessage: localError, notice, submit };
   }
-  if (submitMutation.isPending) {
-    return { phase: 'pending', view: null, errorMessage: null, submit };
+  if (submitMutation.isPending || tryGradeMutation.isPending) {
+    return { phase: 'pending', view: null, errorMessage: null, notice, submit };
   }
   if (view !== null) {
-    return { phase: 'done', view, errorMessage: null, submit };
+    return { phase: 'done', view, errorMessage: null, notice, submit };
   }
-  return { phase: 'idle', view: null, errorMessage: null, submit };
+  return { phase: 'idle', view: null, errorMessage: null, notice, submit };
 }

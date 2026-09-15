@@ -2,21 +2,33 @@ import type { Level, RunResult, SessionStatus } from '@devops-platform/games';
 import { computeScore } from '@devops-platform/games';
 
 /**
- * Dựng `RunResult` — lời khai của client về một lượt chơi vừa kết thúc.
+ * Dựng `RunResult` — lời khai của client về một lượt chơi CHẾ ĐỘ LEVEL.
+ *
+ * ## ⛔ CHỈ chế độ `level`. Bài OJ dùng `k8sOjClaim` — đính chính 2026-09-15
+ *
+ * Bản trước của khối này viết rằng object dựng ở đây đi vào HAI chỗ:
+ * `recordRun()` và `claimed` của `problems.submit`. Vế thứ hai **SAI**, và nó
+ * sai ở đúng chỗ đắt nhất — `score`.
+ *
+ * `computeScore` bên dưới trừ điểm gợi ý theo TỈ LỆ `hintsUsed/hintsAvailable`.
+ * Máy chủ chấm bài OJ bằng `scoreProblemRun` (`replay.ts` § `problemScoreRun`),
+ * vốn truyền `0/0` vào chính `computeScore` rồi trừ thẳng `penaltyPoints` của
+ * từng gợi ý đã mở. Hai công thức ra hai số **ngay khi bài có một gợi ý được
+ * mở**, và `verifyRun` so đúng trường đó ⇒ `CE` cho một lượt chơi hợp lệ.
+ *
+ * Lời khai của bài OJ nay dựng ở `problem-level.ts` § `k8sOjClaim`, gọi đúng
+ * hàm máy chủ gọi. Hàm dưới đây giữ nguyên và vẫn đúng — cho chế độ LEVEL, nơi
+ * `recordRun` là bên đọc duy nhất và `computeScore` LÀ công thức của level.
+ *
+ * Bài học giữ lại vì nó đáng hơn bản vá: khối chú thích cũ mô tả một bất biến
+ * ("một object, hai chỗ đọc") mà mã chưa bao giờ giữ được sau khi hệ OJ có công
+ * thức riêng. Một chú thích nói về hai bên mà chỉ một bên được kiểm là một lời
+ * hứa, không phải một ràng buộc.
  *
  * ## Vì sao là một hàm THUẦN nằm riêng
  *
- * Đúng object này đi vào HAI chỗ, và chúng phải bằng nhau từng trường:
- *
- * 1. `recordRun()` — bản lưu tiến độ trên máy người chơi (`level-progress.ts`).
- * 2. `claimed` của `problems.submit` — lời khai mà MÁY CHỦ chấm lại bằng cách
- *    phát lại nhật ký và so với nó (`server/problems/submit.ts`).
- *
- * Hai bản dựng song song sẽ lệch ở lần đầu ai đó sửa một trong hai, và phần
- * lệch KHÔNG đỏ ở đâu cả: bản lưu vẫn ghi được, lượt nộp vẫn gửi được, chỉ có
- * `verifyRun` trả `khong-khop` và người chơi nhận `CE` với câu *"phát lại ra
- * kết quả khác với kết quả trình duyệt gửi lên"*. Tức một lỗi của chúng ta đọc
- * ra như một lượt chơi gian lận.
+ * Để gọi được ngoài React, và để `recordRun` cùng mọi phép kiểm đọc chung một
+ * bản dựng thay vì mỗi chỗ tự ghép lấy.
  *
  * ## Vì sao nhận `source` chứ không nhận cả `ArenaSessionHandle`
  *
@@ -47,9 +59,10 @@ export function buildRunResult(
     commandsUsed: source.status.movesUsed,
     hintsUsed: source.status.hintsRevealed,
     /*
-     * `computeScore` của engine, KHÔNG phải một công thức thứ hai ở đây. Máy chủ
-     * chấm lại điểm bằng đúng hàm này; một phép tính riêng ở client chỉ tạo ra
-     * một con số để máy chủ bác bỏ.
+     * `computeScore` của engine — công thức của chế độ LEVEL, không phải của
+     * bài OJ. Xem khối đính chính đầu file: máy chủ chấm bài OJ bằng
+     * `scoreProblemRun`, và dùng hàm này cho một lượt nộp OJ là tạo ra một con
+     * số để máy chủ bác bỏ.
      */
     score: computeScore({
       objectivesMet: source.status.objectivesMet.length,

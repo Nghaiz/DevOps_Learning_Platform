@@ -186,11 +186,15 @@ export function ArenaOverlays(props: ArenaOverlaysProps): ReactElement {
   useRecordWin(level, engine, props.startedAt);
   /*
    * Nộp bài về máy chủ — CHỈ ở chế độ bài tập. Hook tự trả `idle` khi
-   * `mode.problemCode` là `null`, nên nó gọi vô điều kiện ở đây: một hook gọi
+   * `mode.problem` là `null`, nên nó gọi vô điều kiện ở đây: một hook gọi
    * sau một nhánh `if` là thứ React cấm, và chế độ có thể đổi khi người chơi
    * rời bài tập về chơi màn thường.
+   *
+   * KHÔNG nhận `level` nữa: lời khai dựng từ `mode.problem` (đề bài), không từ
+   * level tổng hợp. Truyền `level` vào đây từng là đường `buildRunResult` đi, và
+   * đó chính là chỗ công thức điểm lệch khỏi máy chủ.
    */
-  const submitState = useProblemSubmit(level, engine, mode, props.startedAt);
+  const submitState = useProblemSubmit(engine, mode, props.startedAt);
   /*
    * Lịch sử số liệu thu ở ĐÂY, không thu trong `MetricsPanel`. Dải trên thanh
    * trên cùng luôn hiện nên mẫu phải được thu dù bảng có mở hay không; thu ở hai
