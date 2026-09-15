@@ -2,7 +2,13 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { ProblemDifficulty, ProblemOrderKey, ProblemTopic, ProblemViewerStatus } from '@devops-platform/games';
+import type {
+  GameId,
+  ProblemDifficulty,
+  ProblemOrderKey,
+  ProblemTopic,
+  ProblemViewerStatus,
+} from '@devops-platform/games';
 import { FIRST_PAGE, currentCursor, pageNumber, pushCursor, type CursorStack } from '../../../lib/cursor-stack';
 import {
   hasActiveFilter,
@@ -17,6 +23,7 @@ export interface ProblemControls {
   readonly cursor: string | undefined;
   readonly page: number;
   readonly hasActiveFilter: boolean;
+  readonly setGame: (value: GameId) => void;
   readonly toggleDifficulty: (value: ProblemDifficulty) => void;
   readonly toggleTopic: (value: ProblemTopic) => void;
   readonly toggleViewerStatus: (value: ProblemViewerStatus) => void;
@@ -95,6 +102,31 @@ export function useProblemControls(): ProblemControls {
     page: pageNumber(stack),
     hasActiveFilter: hasActiveFilter(query.filter),
 
+    /*
+      Đổi game XOÁ LUÔN chủ đề đang chọn, và đó là việc cố ý chứ không phải dọn
+      dẹp thừa.
+
+      Không xoá thì `parseProblemQuery` vẫn lọc bỏ chúng lúc đọc lại (chúng
+      không thuộc từ vựng game mới), nên kết quả nhìn thấy giống hệt — nhưng nó
+      đến từ một tác dụng phụ của phép PHÂN TÍCH URL. Xoá tường minh ở đây làm
+      hai việc mà tác dụng phụ kia không làm: URL ghi ra không bao giờ chứa một
+      chủ đề sẽ bị vứt ở lượt đọc kế tiếp, và người sửa sau đọc được rằng "đổi
+      từ vựng thì bỏ lựa chọn cũ" là một luật, không phải một sự tình cờ.
+
+      Các chiều lọc khác (độ khó, tag, trạng thái, ô tìm) GIỮ NGUYÊN: chúng
+      không phụ thuộc game, và lấy đi một thứ người dùng không xin bỏ là chuyện
+      `clearFilters` đã cố tránh với `orderBy`.
+    */
+    setGame: useCallback(
+      (value: GameId) => {
+        if (value === query.game) {
+          return;
+        }
+        const { topics: _dropped, ...rest } = query.filter;
+        write({ ...query, game: value, filter: rest }, 'push');
+      },
+      [query, write],
+    ),
     toggleDifficulty: useCallback(
       (value: ProblemDifficulty) => patch({ ...query.filter, difficulty: toggleIn(query.filter.difficulty, value) }),
       [patch, query.filter],

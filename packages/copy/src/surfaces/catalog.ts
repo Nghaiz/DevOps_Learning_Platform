@@ -343,6 +343,29 @@ export const catalog = {
   'catalog.problems.status-legend': 'Trạng thái của bạn',
   'catalog.problems.topic-legend': 'Chủ đề',
   'catalog.problems.topic-hint': 'Chọn nhiều chủ đề = bài khớp BẤT KỲ chủ đề nào.',
+
+  /*
+    Bộ chọn game của khối lọc chủ đề (§18 khối 6).
+
+    Câu `game-hint` nói ra đúng thứ điều khiển này LÀM, và nó cố ý KHÔNG hứa lọc
+    danh sách bài theo game: chọn "Git Game" chỉ đổi danh sách chủ đề bên dưới.
+    Hứa thừa một vế ở đây là dạy người dùng đọc sai mọi lần sau , họ sẽ chọn
+    game rồi chờ bảng đổi, thấy nó không đổi, và kết luận trang hỏng.
+
+    Tên game để dạng NGƯỜI DÙNG đọc ("Kubernetes Game") chứ không phải id kỹ
+    thuật (`k8s`): id là chuyện của kho lưu, còn đây là một danh sách người ta
+    phải nhận ra tên trong đó.
+
+    Hai khoá lồng dưới `catalog.problems.game`, chưa chạm cổng rule-of-three.
+    Game thứ ba có chủ đề sẽ làm cổng đó bật , đúng lúc cần một lời khai, vì khi
+    ấy nhóm này thật sự thành một phân loại.
+  */
+  'catalog.problems.game-legend': 'Game',
+  'catalog.problems.game-hint': 'Chọn game để đổi danh sách chủ đề bên dưới.',
+  'catalog.problems.game.k8s': 'Kubernetes Game',
+  'catalog.problems.game.git': 'Git Game',
+  'catalog.problems.game-locked': 'Bộ lọc chủ đề của game này chưa mở. Chọn game khác để lọc.',
+
   'catalog.problems.tag-legend': 'Tag',
   'catalog.problems.tag-hint': 'Chọn nhiều tag = bài phải có ĐỦ mọi tag.',
   'catalog.problems.tag-placeholder': 'ví dụ: ingress',

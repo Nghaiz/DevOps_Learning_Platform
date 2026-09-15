@@ -8,8 +8,7 @@ import {
   PROBLEM_DIFFICULTIES,
   PROBLEM_DIFFICULTY_LABELS,
   PROBLEM_ORDER_KEYS,
-  PROBLEM_TOPICS,
-  PROBLEM_TOPIC_LABELS,
+  type GameId,
   type ProblemOrderKey,
 } from '@devops-platform/games';
 import {
@@ -18,6 +17,14 @@ import {
   PROBLEM_VIEWER_STATUSES,
   PROBLEM_VIEWER_STATUS_LABELS,
 } from './problem-labels';
+import {
+  PROBLEM_FILTER_GAMES,
+  filterableTopicsFor,
+  gameName,
+  topicIdsFor,
+  topicLabelsFor,
+  topicsFilterable,
+} from './problem-game';
 import { FilterChecklist, TagFilter } from './problem-filter-groups';
 import type { ProblemControls } from './use-problem-controls';
 
@@ -158,14 +165,7 @@ export function ProblemsToolbar({ controls }: { readonly controls: ProblemContro
           selected={controls.query.filter.viewerStatus ?? []}
           onToggle={controls.toggleViewerStatus}
         />
-        <FilterChecklist
-          legend={t('catalog.problems.topic-legend')}
-          hint={t('catalog.problems.topic-hint')}
-          options={PROBLEM_TOPICS}
-          labels={PROBLEM_TOPIC_LABELS}
-          selected={controls.query.filter.topics ?? []}
-          onToggle={controls.toggleTopic}
-        />
+        <TopicFilter controls={controls} />
         <TagFilter
           tags={controls.query.filter.tags ?? []}
           onAdd={controls.addTag}
@@ -174,4 +174,113 @@ export function ProblemsToolbar({ controls }: { readonly controls: ProblemContro
       </div>
     </div>
   );
+}
+
+/**
+ * Khối lọc chủ đề, kèm bộ chọn GAME quyết định từ vựng của nó — §18 khối 6.
+ *
+ * ## Vì sao bộ chọn game nằm TRONG khối này, không nằm cạnh "Sắp xếp theo"
+ *
+ * Chỗ đứng là lời giải thích rẻ nhất. Đặt nó trên hàng điều khiển đầu — cạnh
+ * thứ tự và chiều sắp — sẽ đọc như một chiều lọc thứ năm ngang hàng với độ khó,
+ * và người dùng sẽ chờ bảng bài thu lại khi chọn "Git Game". Nó không làm thế:
+ * `ProblemFilter` không có trường `gameId` và schema đầu vào của `problems.list`
+ * khai `.strict()` (đo 2026-09-15 — xem `problem-game.ts`). Đặt nó ngay trên
+ * danh sách chủ đề thì quan hệ "đổi cái này thì cái kia đổi theo" tự hiện ra,
+ * và câu `game-hint` chỉ phải xác nhận điều mắt đã thấy.
+ *
+ * ## Hai nhánh, vì hai nhánh nói hai sự thật khác nhau
+ *
+ * Game mà hợp đồng chở được chủ đề thì ô đánh dấu bấm được như thường. Game
+ * chưa chở được thì chủ đề VẪN HIỆN, nhưng khoá lại kèm một câu lý do — không
+ * phải một danh sách rỗng. Danh sách rỗng trả lời sai câu hỏi người dùng đang
+ * hỏi: họ muốn biết game này có những chủ đề nào, và câu trả lời "tám chủ đề,
+ * chưa lọc được" đúng hơn "không có chủ đề nào".
+ */
+function TopicFilter({ controls }: { readonly controls: ProblemControls }): ReactElement {
+  const gameId = controls.query.game;
+  const open = topicsFilterable(gameId);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <GameSelect value={gameId} onChange={controls.setGame} />
+      {open ? (
+        <FilterChecklist
+          legend={t('catalog.problems.topic-legend')}
+          hint={t('catalog.problems.topic-hint')}
+          options={filterableTopicsFor(gameId)}
+          labels={topicLabelsFor(gameId)}
+          selected={controls.query.filter.topics ?? []}
+          onToggle={controls.toggleTopic}
+        />
+      ) : (
+        <FilterChecklist
+          legend={t('catalog.problems.topic-legend')}
+          lockedReason={t('catalog.problems.game-locked')}
+          options={topicIdsFor(gameId)}
+          labels={topicLabelsFor(gameId)}
+          selected={[]}
+          onToggle={noop}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * `Select` một lựa chọn, KHÁC hẳn bốn khối lọc còn lại vốn đều là nhiều lựa
+ * chọn. Đó là điều đúng ở đây và là lý do §"SearchTabs chạy không có tab" ở đầu
+ * file không áp dụng: từ vựng chủ đề của hai game là hai tập rời, nên "đang
+ * chọn" luôn là đúng một game — một điều khiển một-lựa-chọn nói đúng trạng thái
+ * chứ không che mất lựa chọn nào.
+ */
+function GameSelect(props: {
+  readonly value: GameId;
+  readonly onChange: (value: GameId) => void;
+}): ReactElement {
+  const id = useId();
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+        {t('catalog.problems.game-legend')}
+      </Label>
+      <p className="text-xs text-muted-foreground">{t('catalog.problems.game-hint')}</p>
+      <Select
+        value={props.value}
+        onValueChange={(next) => {
+          /*
+            `onValueChange` của Radix trả `string`, nên phép thu hẹp phải là một
+            lượt TRA trong danh sách thật, không phải `as GameId`. Ép kiểu ở đây
+            sẽ nhận mọi chuỗi mà Radix có thể phát ra (kể cả chuỗi rỗng lúc bị
+            xoá trạng thái) và đẩy thẳng nó vào URL.
+          */
+          const picked = PROBLEM_FILTER_GAMES.find((gameId) => gameId === next);
+          if (picked !== undefined) {
+            props.onChange(picked);
+          }
+        }}
+      >
+        <SelectTrigger id={id} className="w-56">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PROBLEM_FILTER_GAMES.map((gameId) => (
+            <SelectItem key={gameId} value={gameId}>
+              {gameName(gameId)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/**
+ * Chỗ giữ cho `onToggle` của nhánh KHOÁ. Không bao giờ chạy — `FilterChecklist`
+ * truyền `disabled` xuống chính `Checkbox` — nhưng chữ ký của nó đòi một hàm,
+ * và một hàm rỗng có tên nói rõ hơn một arrow trống đặt tại chỗ.
+ */
+function noop(): void {
+  // Cố ý rỗng.
 }
