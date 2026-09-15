@@ -32,7 +32,6 @@ import { HeaderMetrics } from './hud/header-metrics';
 import { useMetricsHistory } from './hud/use-metrics-history';
 import { recordRun } from './level-progress';
 import { buildRunResult } from './run-result';
-import { useProblemSubmit } from './use-problem-submit';
 import { ProblemSubmitPanel } from './hud/problem-submit-panel';
 import { IncidentsPanel } from './hud/incidents-panel';
 import { Minimap } from './hud/minimap';
