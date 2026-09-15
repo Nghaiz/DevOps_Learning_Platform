@@ -177,6 +177,42 @@ Không phải lời khuyên chung — bốn thứ này đã cắn ít nhất m�
    cả — `/exams` đã 500 vì thiếu `TrpcQueryProvider` trong khi tsc/lint/2315 test/`next build`
    đều xanh (`0ec25ce`).
 
+## 3.1 Kết quả fan-out (2026-09-15, sau khi cả bốn lane dừng)
+
+18 commit. Bốn lane đều **chạm trần lượt** (C ở 20, A và B ở 90) — không lane nào dừng vì
+hết việc, nên mọi thứ dưới đây là thứ hạ cánh được trong ngân sách, không phải thứ đã xong.
+
+| Khối | Trạng thái |
+|---|---|
+| 1 lõi Builder (`level-draft`, `solvability`) | xong, `a495c94` |
+| 2+3 UI Builder (E.1–E.4, E.6, E.7, E.2, E.3) | xong, `0af1b26` `0f60d7f` `8ebac96` `a06cc7a` |
+| 4 OJ server cho Git | xong, `8e9246e` `9d7947f` `3340420`, cộng đường HTTP `bc18b81` |
+| 6 lọc chủ đề theo game | xong, `33d195d` + nới hợp đồng `6df846e` |
+| 7 tài liệu 18.H | xong, `ef45614` |
+| **5 (E.5 lưu thành Problem)** | **chưa** — cố ý không giao lane |
+| **4 nửa client (chơi bài OJ trong GitGame)** | **chưa** — cố ý không giao lane |
+
+### Ba bài học về chính cách chạy song song
+
+1. **Một lane có thể dừng RỖNG.** Lane C tiêu trọn 20 lượt và 288K token để đọc mã rồi dừng
+   với **0 file trên đĩa**. Brief của lead nhấn "đọc mã, đừng chép plan" mà không nói "ghi
+   sớm rồi tinh sau", và một brief nghiên-cứu-nặng đọc ra thành giấy phép đọc mãi.
+2. **Đừng giao lệnh mà bề mặt công cụ của agent không có.** Cùng lane C viết đủ file rồi
+   **không commit được vì Bash bị tắt trong phiên của nó**. Lead phải commit hộ. Kiểm công cụ
+   của agent trước khi viết phần "kỷ luật git" vào brief.
+3. **Cây dùng chung làm phép đo hết hạn trong vài phút.** Lane D đo `tsc` xanh lúc 10:17 rồi
+   `next build` đỏ lúc 10:21, vì lane A ghi vào giữa hai lượt. Mọi con số trong báo cáo lane
+   phải kèm mốc giờ, và một lượt chạy toàn suite giữa lúc ba lane đang sửa dở **không đo được
+   gì** về trạng thái đã commit.
+
+### Bản đồ sở hữu: giữ được, một va chạm duy nhất và nó ở tầng thiết kế
+
+Không lane nào ghi đè lane nào. Va chạm duy nhất là **hai bản của cùng một luật**: lead và
+lane B cùng viết phép kiểm "`gameId` của nhật ký phải khớp `gameId` của bài", ở hai tầng khác
+nhau. Bản của lane B đặt đúng chỗ hơn (tầng hàm, bảo vệ mọi caller) nên bản của lead bị gỡ.
+Loại va chạm này **bản đồ theo tên file không chặn được** — nó cần contract-first, và cái
+contract thiếu ở đây là *"luật này sống ở tầng nào"*.
+
 ## 4. Ô nghiệm thu của đợt
 
 - **AC-5** (`phase-18.md` §3): dựng một level chương 1 hoàn chỉnh **chỉ bằng giao diện**, xuất
