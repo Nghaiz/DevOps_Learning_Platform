@@ -76,9 +76,20 @@ describe('đường chơi tra theo gameId của bài', () => {
 });
 
 describe('bảng tra tự nó', () => {
-  it('hai game có đường vào, bốn game còn lại không', () => {
+  /*
+   * ĐẢO 2026-09-16 (19.H): `cicd` từ "chưa có đường vào" sang "có". Ô này ghim
+   * theo DANH TÍNH chứ không theo số đếm, nên nó đỏ đúng lúc bảng tra đổi — đó
+   * là việc của nó, và lời dặn khi nó đỏ là đọc xem cái tên mới có đáng ở đó
+   * không, chứ không phải nới số.
+   *
+   * Ba tên còn lại (`pipeline`, `netpol`, `dockerfile`) là nửa CHỐNG-LỖI-THỜI
+   * của ô này: chúng chưa có engine chấm, nên một cái tên lặng lẽ rơi vào danh
+   * sách trên mà không ai mở route sẽ làm ô này đỏ. Đừng xoá chúng vì "danh sách
+   * trông thừa" — xem `rules/pinned-baseline-test-companion.md`.
+   */
+  it('ba game có đường vào, ba game còn lại không', () => {
     const co = GAME_IDS.filter((gameId) => problemPreviewHref(gameId, 'X-0001') !== null);
-    expect([...co]).toEqual(['k8s', 'git']);
+    expect([...co]).toEqual(['k8s', 'git', 'cicd']);
   });
 
   it('mã bài được escape — mã không bao giờ có khoảng trắng, nhưng link thì không đoán', () => {
