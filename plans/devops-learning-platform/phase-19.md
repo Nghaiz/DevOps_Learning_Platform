@@ -154,6 +154,14 @@ chúng không suy ra được từ nhau.
 | B.8 | Self-heal bật/tắt + exclusion list | 3h |
 | B.9 | Secret masking + chỗ nó rò ra | 3h |
 
+> **Chốt 2026-09-17 (chủ dự án), trước khi viết dòng nào.** Hợp đồng:
+> `packages/games/src/cicd/cd-contract.ts`.
+> 1. Đường ống + ba bộ mô phỏng thuần: B.1–B.3 vào `engine.ts` (ai cấp sản phẩm cho ai, cổng
+>    phê duyệt); B.4–B.6 `release.ts`; B.7–B.8 `gitops.ts`; B.9 `masking.ts`.
+> 2. Chương CD đếm bằng **giây nguyên** — tick 10 giây không viết được "blue-green lùi dưới 5 giây".
+> 3. Rebuild **luôn** ra danh tính khác: băm(commit, sản phẩm, stage đã dựng).
+> 4. Nhiễu canary **theo số request** (xấp xỉ nhị thức) — weight nhỏ thì nhiễu lớn, bài C21 là cỡ mẫu.
+
 **AC-B:** rebuild rồi promote ⇒ engine báo artifact khác danh tính · ba chiến lược cho ba thời
 gian lùi khác nhau, có test khẳng định thứ tự (blue-green < canary < rolling) · drift tồn tại
 đúng số tick giữa hai lần reconcile, có test.
