@@ -644,4 +644,5 @@ export { cacheOverrideKey, hydrateWorkflow, mergeStageCatalogue } from './cicd/h
  * `evaluate()` không trả kết quả mục tiêu, nên không có hàm này thì màn chơi
  * không kết luận được đạt hay trượt.
  */
+export type { CicdScoringContext } from './cicd/predicates.ts';
 export { failingObjectiveIds } from './cicd/predicates.ts';
