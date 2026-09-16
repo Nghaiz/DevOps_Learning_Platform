@@ -169,6 +169,42 @@ trục Y mới · axe 0 vi phạm.
 
 **AC-E:** soạn YAML bằng bàn phím hoàn toàn, không cần chuột · ba số hiển thị cùng lúc.
 
+> ⛔ **19.E KHÔNG CHẠY ĐƯỢC NHƯ VIẾT Ở TRÊN — đo 2026-09-16.** Vòng "soạn YAML ⇒ chấm ba trục"
+> cho `leadTimeSeconds: 0` và `runnerMinutes: 0` trên MỌI level, vì `readWorkflowYaml` áp mặc
+> định trung tính cho chín trường mà YAML không chở được. Chấm bản đọc-lại của chính
+> `solutionWorkflow` c01 ra `0 / 0` thay vì `120 / 6`.
+>
+> Đây không phải lỗi của bộ đọc: `contract.ts` đã chốt "YAML là KHUNG SOẠN, không phải bản
+> tuần tự hoá", và `CicdLevel.editable` là lời khai về thứ người chơi được sửa. Thiếu là một
+> **tầng ghép**, nay có ở `cicd/hydrate.ts`: bản chuẩn của level cấp thời lượng, người chơi cấp
+> phần `editable` cho phép, và `retries`/`cache` vào qua ô điều khiển riêng vì YAML không có
+> khoá nào chở chúng. Chốt 2026-09-16 (chủ dự án) theo đường "ô điều khiển riêng", là một trong
+> hai đường hợp đồng đã nêu.
+>
+> **Hai hệ quả cho 19.E:**
+> - E.3 snippet phải dùng từ vựng của BỘ ĐỌC (`jobs:`, `needs:`, `runs-on:`), không phải của
+>   hợp đồng.
+> - Màn chơi cần một ô phụ cho `cache`/`retries`, hiện theo `level.editable`. Bảy level
+>   (C06–C11, C14) không giải được nếu thiếu nó.
+
+### 19.E.bis — hai lỗi 19.F lộ ra khi dựng 19.E
+
+Cả hai đều là **nợ của chương CI đã phát hành**, không phải việc mới.
+
+1. **`cicd-c07` khai thiếu `edges`** — ĐÃ SỬA. `altSolutionWorkflow` của nó tách một stage rồi
+   trỏ lại hai cạnh, mà `editable` chỉ có `['cache','stages']`, nên lời giải thay thế KHÔNG đi
+   tới được và AC-F ở level đó là lời khai chứ không phải phép đo. Nằm im được vì `editable`
+   **chưa bao giờ được mã nào đọc** — chỗ duy nhất nhắc tới nó là một chú thích trong
+   `contract.ts`. `hydrate.ts` là hộ tiêu dùng đầu tiên và ô AC của nó đỏ ngay.
+   → Luật rút ra: **cho thêm/bớt stage thì phải cho nối lại stage.**
+2. **Cheatsheet dạy cú pháp bộ đọc TỪ CHỐI** — CHƯA SỬA. `teaching.cheatsheet` của c01 (và có
+   thể nhiều level khác) dùng từ vựng hợp đồng — `stages:`, `dependsOn:`, `runnerClass:` —
+   trong khi `readWorkflowYaml` nhận từ vựng nhà cung cấp — `jobs:`, `needs:`, `runs-on:`.
+   Người chơi chép nguyên cheatsheet vào ô soạn sẽ nhận lỗi cú pháp. Chưa rà hết 14 level.
+   → Việc để lại: rà cheatsheet của cả 14 level, và thêm một ô test khẳng định mọi `snippet`
+   trong `teaching.cheatsheet` đọc được bằng chính `readWorkflowYaml` — nếu không thì lần lệch
+   sau cũng sẽ im lặng y như lần này.
+
 ### 19.F — Chương CI, level C01–C14 (L, ~1.5 tuần)
 
 Bản đồ chủ đề ở design §4.3. 14 level × ~3h.
@@ -237,6 +273,7 @@ vào `games-catalog.ts` · bài OJ cho game này qua plugin của 18.A.
 | Một tên stage trần (`checkout`) lọt vào `cicd/` mà chưa có dòng miễn trừ ⇒ cổng chống-thương-mại đỏ | 3 | 2 | 6 | `MASKS` đã che `actions/checkout`, nên đường mặc định là viết đủ tên. Tên trần thì thêm đúng một dòng `KEYWORD_EXEMPTIONS` cho `cicd/` (C.5b). Cổng có chiều xuống nên một dòng miễn trừ thừa cũng đỏ — không thành nghĩa địa |
 | Một phép đo trong plan được chép lại mà không kiểm lại nguồn | 5 | 3 | 15 | Đã cắn **hai lần**. (1) §0 dòng 4 chép nguyên tiền đề sai từ P17 §0, trong khi `check-no-commerce.mjs` đã bác bỏ nó bằng văn bản từ 2026-09-08. (2) Hộp cảnh báo §19.C khẳng định "YAML làm ra hai mục cùng id dễ dàng"; một lượt `parseYaml` mười dòng ngày 2026-09-16 cho thấy bộ quét gộp chúng thành một, tức lỗi nằm ở tầng khác hẳn. Cả hai lần, nguồn bác bỏ đều nằm sẵn trong kho. Trước khi dùng bất kỳ dòng "hiện trạng đo được" nào, **chạy lại phép đo**, đừng chỉ mở file — số dòng đúng không có nghĩa là nội dung còn đúng, và một câu đọc xuôi tai vẫn có thể chưa ai đo |
 | Mô hình steady-state kiểu Factorio lọt vào, dạy sai | 2 | 5 | 10 | Comment cảnh báo ở đầu module + review khi làm A.9 |
+| Một trường của hợp đồng không được MÃ NÀO đọc, rồi trôi trong im lặng | 4 | 4 | 16 | Đã cắn: `CicdLevel.editable` sống từ 19.A tới 19.E mà chỗ duy nhất nhắc tới nó là một chú thích — và ngay lượt đầu có hộ tiêu dùng thật, nó lộ ra `c07` khai sai. Cùng họ với cheatsheet dạy cú pháp bộ đọc từ chối. **Luật:** một trường khai trong hợp đồng mà chưa có mã đọc thì phải có một ô test đọc nó, nếu không nó là tài liệu chứ không phải dữ liệu. Xem `rules/wired-not-just-present.md` |
 | Chương CD nhiều khái niệm hơn thời gian cho phép | 4 | 3 | 12 | Đây là chuỗi **cắt trước tiên** trong toàn bộ ba phase — xem §6 |
 | Đọc mét-ric canary trở thành đoán mò | 3 | 3 | 9 | Nhiễu phải tái lập được bằng seed; level phải có ngưỡng phân biệt được |
 
