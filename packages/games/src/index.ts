@@ -33,6 +33,7 @@ export type {
   GameAction,
   GameActionBase,
   GameActionKind,
+  CicdGameAction,
   GitGameAction,
   K8sActionShape,
   ResourceRefLike,
@@ -560,3 +561,65 @@ export type {
   RolloutSub,
 } from './k8s/kubectl.ts';
 export { KUBECTL_VERBS, parseKubectl } from './k8s/kubectl.ts';
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Game CI/CD (P19)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Mở ra ngoài vì tầng giao diện (`/games/cicd`, 19.E/19.H) cần đúng ba thứ và
+ * không thứ nào dựng lại được ở phía web: danh sách level, một lượt chạy engine
+ * tất định, và cầu nối YAML ↔ `WorkflowSpec` kèm dòng-cột của mọi lỗi.
+ *
+ * ⛔ **KHÔNG mở `cicd/engine.ts` phần nội bộ, cũng không mở `predicates.ts`.**
+ * Bộ chấm vị từ là hợp đồng giữa level và engine; một tầng giao diện gọi thẳng
+ * `checkObjective` là một bộ chấm thứ hai, và hai bộ chấm sẽ bất đồng ý trong
+ * im lặng — đúng thứ commit `824ee8b` vừa gộp lại làm một. Giao diện đọc kết
+ * quả `evaluate()` trả về, không tự chấm.
+ *
+ * ⛔ `ScoreAxes` là kiểu TRẢ VỀ, không phải struct để lưu (xem `score.ts` §"No
+ * Derived Fields"). Mở kiểu ra đây không biến nó thành thứ được phép cất vào
+ * `GameSave`; ba con số phải tính lại từ `EvaluationRecord` mỗi lần.
+ */
+export type {
+  ApprovalSpec,
+  AttemptOutcome,
+  AttemptRecord,
+  CacheSpec,
+  CicdLevel,
+  CicdObjective,
+  CicdThresholds,
+  EvaluationError,
+  EvaluationRecord,
+  EvaluationSpec,
+  FlakeSpec,
+  RunnerPool,
+  ScoreAxes,
+  StageId,
+  StageKind,
+  StageSpec,
+  StepSpec,
+  WorkflowSpec,
+  WorkloadSpec,
+} from './cicd/contract.ts';
+export { DEFAULT_EVALUATION_PASSES, SECONDS_PER_TICK, STAGE_KINDS } from './cicd/contract.ts';
+
+export { CI_LEVELS } from './cicd/levels/index.ts';
+
+export { evaluate, validateWorkflow } from './cicd/engine.ts';
+
+export type { AxisDistribution, EvaluationSummary } from './cicd/score.ts';
+export { scoreAxes, summarizeEvaluation } from './cicd/score.ts';
+
+export type { CriticalPath, CriticalPathEdge, CriticalPathNode } from './cicd/critical-path.ts';
+export { criticalPath } from './cicd/critical-path.ts';
+
+/*
+ * Cầu nối YAML. `YamlDiagnostic` mang dòng + cột THẬT (19.C.3) và ô soạn của
+ * 19.E.2 gạch chân theo đúng hai số đó — đừng dựng lại phép tính vị trí ở phía
+ * web, nó sẽ lệch với bộ quét ngay lần đầu có một chuỗi trong nháy.
+ */
+export type { KhoaBoQua, WorkflowReadResult, YamlDiagnostic } from './cicd/yaml-read.ts';
+export { readWorkflowYaml } from './cicd/yaml-read.ts';
+export type { TruongBiBo, WorkflowWriteResult } from './cicd/yaml-write.ts';
+export { writeWorkflowYaml } from './cicd/yaml-write.ts';
