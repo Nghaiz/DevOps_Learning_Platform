@@ -66,8 +66,9 @@ import type {
   WorkflowSpec,
   WorkloadSpec,
 } from './contract.ts';
-import { CICD_PREDICATE_NAMES, DEFAULT_EVALUATION_PASSES } from './contract.ts';
+import { CICD_PREDICATE_NAMES, DEFAULT_EVALUATION_PASSES, EDITABLE_PARTS } from './contract.ts';
 import { evaluate } from './engine.ts';
+import { hydrateWorkflow } from './hydrate.ts';
 import type { CicdScoringContext } from './predicates.ts';
 import {
   UNIMPLEMENTED_CICD_PREDICATES,
@@ -404,8 +405,22 @@ export function gradeCicdProblem(input: {
        * mô hình này không có chỗ chứa; một workflow thật luôn mang vài khoá như
        * vậy. Coi chúng là lỗi sẽ từ chối đúng những bản YAML sát đời thật nhất
        * — tức là từ chối thứ game tồn tại để dạy.
+       *
+       * ⛔ GHÉP trước khi chấm. YAML không chở `durationTicks`/`flake`/`cache`,
+       * nên `doc.workflow` là một đường ống dài 0 giây. Bản đầu chấm thẳng nó:
+       * đo 2026-09-16, nộp YAML lời giải c01 ⇒ `leadTimeUnder 1 giây` ra AC.
+       *
+       * Bài OJ không có level, nên `initialState.workflow` đóng cả hai vai —
+       * đúng lối bàn thử của 19.H — và mọi phần mở: bài không khai `editable`.
+       * `retries`/`cache` KHÔNG vào được đây vì `CicdGameAction.evaluate` chỉ chở
+       * YAML; bản nộp nhận giá trị của bài. Đó là câu còn mở, ghi ở phase-19.md
+       * §0b "Đợt 3", phải quyết trước ngày mở chế độ làm bài CI/CD.
        */
-      workflow = doc.workflow;
+      workflow = hydrateWorkflow(
+        doc.workflow,
+        { baseline: initialState.workflow, catalogue: initialState.workflow },
+        EDITABLE_PARTS,
+      );
     }
 
     ctx = {

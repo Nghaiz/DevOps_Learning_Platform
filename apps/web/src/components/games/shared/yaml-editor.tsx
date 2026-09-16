@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type ChangeEvent, type ReactElement } from 'react';
+import { useEffect, useRef, type ChangeEvent, type ReactElement, type RefObject } from 'react';
 import { cn } from '@devops-platform/ui';
 import { tokenizeYaml, type YamlTokenKind } from './yaml-highlight';
 
@@ -103,6 +103,12 @@ export interface YamlEditorProps {
   readonly errorLines?: ReadonlySet<number>;
   /** Hiện máng số dòng bên trái. Tắt mặc định để bảng k8s giữ nguyên hình dạng. */
   readonly showLineNumbers?: boolean;
+  /**
+   * Ref tới `<textarea>` thật, cho nơi cần đọc `selectionStart` (chèn mẩu tại con
+   * trỏ). Có thì ô soạn dùng CHÍNH ref này cho việc đồng bộ cuộn của nó — một ref
+   * trỏ vào phần tử, không phải hai bản cần giữ khớp nhau.
+   */
+  readonly textareaRef?: RefObject<HTMLTextAreaElement | null>;
 }
 
 export function YamlEditor({
@@ -111,8 +117,10 @@ export function YamlEditor({
   ariaLabel,
   errorLines,
   showLineNumbers = false,
+  textareaRef,
 }: YamlEditorProps): ReactElement {
-  const areaRef = useRef<HTMLTextAreaElement | null>(null);
+  const ownAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  const areaRef = textareaRef ?? ownAreaRef;
   const paintRef = useRef<HTMLPreElement | null>(null);
 
   const gutterRef = useRef<HTMLPreElement | null>(null);

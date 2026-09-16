@@ -592,6 +592,7 @@ export type {
   AttemptOutcome,
   AttemptRecord,
   CacheSpec,
+  CicdCheatSheetEntry,
   CicdLevel,
   CicdObjective,
   CicdThresholds,

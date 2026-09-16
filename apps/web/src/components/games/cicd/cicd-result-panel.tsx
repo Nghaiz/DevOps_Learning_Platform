@@ -90,6 +90,26 @@ export function CicdResultPanel({
     );
   }
 
+  if (outcome.kind === 'empty') {
+    /*
+     * Cùng lý do như nhánh `engine-error` ngay dưới: một đường ống không có job
+     * nào chạy ra `0 giây / 0 runner-phút`, và ba con số đó đọc ra thành "cực
+     * nhanh, chẳng tốn gì". Nói thẳng là chưa có gì để đo.
+     */
+    return (
+      <section className="flex flex-col gap-3" aria-label="Kết quả lượt chạy">
+        <p
+          role="status"
+          data-testid="cicd-empty"
+          className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground"
+        >
+          Đường ống chưa có job nào, nên chưa có gì để đo. Thêm một job vào mục{' '}
+          <code className="font-mono">jobs</code> rồi chạy lại.
+        </p>
+      </section>
+    );
+  }
+
   if (outcome.kind === 'engine-error') {
     return (
       <section className="flex flex-col gap-3" aria-label="Kết quả lượt chạy">

@@ -1,19 +1,22 @@
 'use client';
 
-import { useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
 import { Button } from '@devops-platform/ui';
 import {
   mergeStageCatalogue,
+  readWorkflowYaml,
   writeWorkflowYaml,
+  type CicdHydrateSources,
   type CicdLevel,
   type CicdPlayerOverrides,
 } from '@devops-platform/games';
 
 import { YamlEditor } from '../shared/yaml-editor';
+import { CicdCheatsheet } from './cicd-cheatsheet';
 import { CicdOverridesPanel } from './cicd-overrides-panel';
 import { CicdResultPanel } from './cicd-result-panel';
 import { formatNumber, formatSeconds, runWorkflow, type CicdRunOutcome } from './cicd-run';
-import { appendSnippet, cicdSnippets } from './cicd-snippets';
+import { CicdSnippetBar } from './cicd-snippet-bar';
 
 /**
  * Màn chơi một level CI/CD — 19.E.1 → 19.E.5.
@@ -56,20 +59,30 @@ export function CicdLevelScreen({ level, onExit, onNext }: CicdLevelScreenProps)
    * / `flake` / `cache`, và sẽ chạy với mặc định trung tính — tức thêm việc mà ba
    * trục không nhúc nhích.
    */
-  const catalogue = useMemo(
-    () => mergeStageCatalogue(level.initialWorkflow, level.solutionWorkflow, level.altSolutionWorkflow),
+  const sources: CicdHydrateSources = useMemo(
+    () => ({
+      baseline: level.initialWorkflow,
+      catalogue: mergeStageCatalogue(level.initialWorkflow, level.solutionWorkflow, level.altSolutionWorkflow),
+    }),
     [level],
   );
 
-  const snippets = useMemo(
-    () => cicdSnippets(level.workload.runners.map((pool) => pool.id)),
-    [level],
-  );
+  /*
+   * Workflow đang soạn, cho bảng núm. YAML dở dang (chưa đọc được) thì rơi về bản
+   * chuẩn: danh sách núm co về tạm thời, nhưng giá trị đã đặt nằm trong
+   * `overrides` theo id nên không mất khi YAML đọc được trở lại.
+   */
+  const current = useMemo(() => {
+    const doc = readWorkflowYaml(yaml);
+    return doc.ok ? doc.workflow : level.initialWorkflow;
+  }, [yaml, level]);
+
+  const editorRef = useRef<HTMLTextAreaElement | null>(null);
 
   const chay = (): void => {
     const ketQua = runWorkflow({
       yaml,
-      sourcesFor: () => ({ baseline: level.initialWorkflow, catalogue }),
+      sourcesFor: () => sources,
       editable: level.editable,
       overrides,
       workload: level.workload,
@@ -81,9 +94,9 @@ export function CicdLevelScreen({ level, onExit, onNext }: CicdLevelScreenProps)
   };
 
   /*
-   * Tap RONG chu khong `undefined`: `exactOptionalPropertyTypes` cam truyen
-   * `undefined` tuong minh vao mot prop tuy chon, va tap rong noi dung y nghia
-   * can noi — khong dong nao bi to.
+   * Tập RỖNG chứ không `undefined`: `exactOptionalPropertyTypes` cấm truyền
+   * `undefined` tường minh vào một prop tuỳ chọn, và tập rỗng nói đúng ý nghĩa
+   * cần nói — không dòng nào bị tô.
    */
   const errorLines: ReadonlySet<number> =
     outcome?.kind === 'parse-error'
@@ -126,37 +139,21 @@ export function CicdLevelScreen({ level, onExit, onNext }: CicdLevelScreenProps)
               ariaLabel={`Workflow YAML của màn ${level.title}`}
               errorLines={errorLines}
               showLineNumbers
+              textareaRef={editorRef}
             />
           </div>
 
-          <section className="flex flex-col gap-2" aria-label="Chèn nhanh">
-            <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              Chèn nhanh vào cuối
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {snippets.map((snippet) => (
-                <Button
-                  key={snippet.id}
-                  variant="outline"
-                  size="sm"
-                  title={snippet.explain}
-                  onClick={() => {
-                    setYaml((truoc) => appendSnippet(truoc, snippet.yaml));
-                  }}
-                >
-                  {snippet.label}
-                </Button>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Mẩu chèn vào cuối văn bản; kéo nó về đúng chỗ rồi sửa tên job cho hợp màn.
-            </p>
-          </section>
+          <CicdSnippetBar
+            runnerClassIds={level.workload.runners.map((pool) => pool.id)}
+            editorRef={editorRef}
+            onInsert={setYaml}
+            value={yaml}
+          />
 
           <CicdOverridesPanel
             editable={level.editable}
-            baseline={level.initialWorkflow}
-            catalogue={catalogue}
+            current={current}
+            sources={sources}
             workload={level.workload}
             overrides={overrides}
             onChange={setOverrides}
@@ -222,6 +219,8 @@ export function CicdLevelScreen({ level, onExit, onNext }: CicdLevelScreenProps)
               ))}
             </ul>
           </section>
+
+          <CicdCheatsheet entries={level.teaching.cheatsheet} />
         </div>
       </div>
     </div>
@@ -260,6 +259,8 @@ function AttemptHistory({ history }: { readonly history: readonly AttemptEntry[]
                 </span>
               ) : entry.outcome.kind === 'engine-error' ? (
                 <span className="text-destructive">Workflow không chạy được</span>
+              ) : entry.outcome.kind === 'empty' ? (
+                <span className="text-muted-foreground">Chưa có job nào để chạy</span>
               ) : (
                 <>
                   <span className={entry.outcome.won ? 'text-success' : 'text-warning'}>

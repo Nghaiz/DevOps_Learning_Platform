@@ -273,6 +273,31 @@ describe('workflow nào được chấm', () => {
   });
 });
 
+// ── Bản nộp phải được GHÉP trước khi chấm ─────────────────────────────────────
+
+describe('bản nộp YAML được ghép với dữ liệu bài trước khi chấm', () => {
+  /*
+   * YAML không chở `durationTicks`, nên bộ đọc để 0. Chấm thẳng bản đọc được là
+   * chấm một đường ống dài 0 giây: đo 2026-09-16, nộp YAML lời giải c01 ⇒
+   * `leadTimeUnder 1 giây` ra AC. Mọi testcase về thời gian thành "nộp YAML nào
+   * đọc được cũng qua".
+   *
+   * ⛔ Cặp ô, như khối trên: ô đầu một mình xanh trên một bộ chấm luôn trả WA;
+   * ô sau một mình xanh trên bộ chấm cũ.
+   */
+  const BAI = specVoi(workflow(stage('clone')));
+
+  it('ngưỡng rộng ⇒ AC — bản nộp chấm được, không phải bị từ chối', () => {
+    const ket = cham({ initialState: BAI, actions: [nop(BAI.workflow)], testcases: [tc('nhanh', 'leadTimeUnder', { seconds: 100_000 })] });
+    expect(ket.verdict).toBe('AC');
+  });
+
+  it('ngưỡng 1 giây ⇒ WA — thời lượng lấy lại từ bài, không phải 0', () => {
+    const ket = cham({ initialState: BAI, actions: [nop(BAI.workflow)], testcases: [tc('sieu-nhanh', 'leadTimeUnder', { seconds: 1 })] });
+    expect(ket.verdict).toBe('WA');
+  });
+});
+
 // ── `WA` chứ KHÔNG phải `CE`: đồ thị có vòng ────────────────────────────────
 
 describe('đồ thị có chu trình là câu trả lời SAI, không phải bài hỏng', () => {

@@ -55,12 +55,13 @@ export function CicdGame({ initialLevelId, initialProblemCode }: CicdGameProps):
     /*
      * ⚠ KHÔNG đổ người dùng vào danh sách màn ở nhánh này.
      *
-     * Chế độ làm bài của CI/CD cần `cicd/problem-plugin.ts`, và file đó CHƯA tồn
-     * tại — `engine-leak.test.ts` đã ghi tên nó vào danh sách module-chở-engine
-     * từ trước, đúng bằng lý lẽ ấy. Cho tới khi nó ra đời, đường đúng là nói
-     * thẳng rằng địa chỉ này chưa mở, kèm mã bài để người dùng biết mình không
-     * gõ nhầm. Chuyển hướng lặng sang danh sách màn sẽ đọc ra thành "mã bài của
-     * tôi sai", và họ sẽ đi sửa một thứ không hỏng.
+     * Bộ chấm phía máy chủ ĐÃ có (`cicd/problem-plugin.ts`), nhưng màn này chưa
+     * dựng `RunLog` và chưa nộp. Còn một câu phải quyết trước khi mở: nhật ký chỉ
+     * chở YAML, nên retries/cache của bảng núm không tới được bộ chấm — xem
+     * phase-19.md §0b "Đợt 3". Cho tới lúc đó, đường đúng là nói thẳng rằng địa
+     * chỉ này chưa mở, kèm mã bài để người dùng biết mình không gõ nhầm. Chuyển
+     * hướng lặng sang danh sách màn sẽ đọc ra thành "mã bài của tôi sai", và họ
+     * sẽ đi sửa một thứ không hỏng.
      */
     return (
       <div className="flex flex-col gap-3">

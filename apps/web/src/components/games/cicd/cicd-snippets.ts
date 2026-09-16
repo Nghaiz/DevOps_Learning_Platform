@@ -1,27 +1,19 @@
 /**
  * Mẩu YAML chèn nhanh — 19.E.3.
  *
- * ## ⛔ VÌ SAO KHÔNG LẤY TỪ `level.teaching.cheatsheet`
+ * ## Vì sao KHÔNG lấy từ `level.teaching.cheatsheet`
  *
- * Đó là chỗ *đáng ra* phải lấy, và bản đầu định lấy từ đó. Nhưng bảng cheatsheet
- * của các level nói `stages:` / `dependsOn:` / `runnerClass:` — tức TÊN TRƯỜNG
- * CỦA HỢP ĐỒNG NỘI BỘ, không phải từ vựng mà bộ đọc YAML nhận. Bộ đọc
- * (`cicd/yaml-read.ts`) chỉ hiểu `jobs:` / `needs:` / `runs-on:` / `steps:` /
- * `continue-on-error:` / `strategy.matrix`, đúng từ vựng GitHub Actions.
+ * Hai bảng làm hai việc khác nhau. Cheatsheet là tài liệu YAML HOÀN CHỈNH để
+ * đọc (có khoá cha, có thụt lề — `levels/cheatsheet.test.ts` bắt nó đọc được
+ * bằng chính bộ đọc). Bảng dưới đây là MẨU để chèn vào giữa một tài liệu đang
+ * soạn, nên nó không có khoá cha. Kéo cheatsheet vào đây sẽ chèn thêm một
+ * `jobs:` thứ hai mỗi lần bấm.
  *
- * Nên một người chơi chép nguyên mẩu trong cheatsheet vào ô soạn sẽ nhận lỗi
- * quét — và sẽ tin là mình gõ sai, chứ không nghi bài học sai. Cheatsheet là dữ
- * liệu của `packages/games`, làn khác sở hữu; sửa nó không nằm trong tay file
- * này. Nên bảng dưới đây là bảng ĐỘC LẬP, viết bằng đúng từ vựng bộ đọc nhận, và
- * đây là ghi chú để lần sau không ai "thống nhất" hai bên bằng cách kéo bảng sai
- * đè lên bảng đúng.
+ * ## Chèn dưới dòng con trỏ
  *
- * ## Vì sao chèn vào CUỐI văn bản chứ không tại con trỏ
- *
- * `YamlEditor` không lộ ref của `<textarea>` ra ngoài, và chọc vào đó chỉ để
- * biết `selectionStart` sẽ kéo theo việc đồng bộ lại vị trí con trỏ, lịch sử
- * hoàn tác của trình duyệt, và cả ba bất biến căn lề mà ô soạn đang giữ. Chèn ở
- * cuối là hành vi đoán trước được, và nhãn nút nói thẳng ra như vậy.
+ * `insertSnippetAt` chèn vào ĐẦU DÒNG kế tiếp dòng đang đứng, không chèn giữa
+ * dòng: mẩu YAML mang thụt lề của riêng nó, và cắt ngang một dòng sẽ làm cả
+ * hai nửa sai cấp. Không biết con trỏ ở đâu thì chèn vào cuối, đúng hành vi cũ.
  */
 
 export interface CicdSnippet {
@@ -104,4 +96,31 @@ export function cicdSnippets(runnerClassIds: readonly string[]): readonly CicdSn
 export function appendSnippet(current: string, snippet: string): string {
   const base = current.replace(/\s+$/u, '');
   return base.length === 0 ? snippet : `${base}\n${snippet}\n`;
+}
+
+export interface SnippetInsertion {
+  readonly text: string;
+  /** Vị trí con trỏ sau khi chèn: ngay cuối mẩu vừa chèn. */
+  readonly cursor: number;
+}
+
+/**
+ * Chèn mẩu vào đầu dòng NGAY SAU dòng chứa `cursor`.
+ *
+ * `cursor === null` ⇒ nối vào cuối (`appendSnippet`). Con trỏ ở dòng cuối không
+ * có ký tự xuống dòng ⇒ cũng nối vào cuối, vì "dòng kế tiếp" chưa tồn tại.
+ */
+export function insertSnippetAt(current: string, cursor: number | null, snippet: string): SnippetInsertion {
+  const cuoiDong =
+    cursor === null ? -1 : current.indexOf('\n', Math.max(0, Math.min(cursor, current.length)));
+  if (cuoiDong === -1) {
+    const base = current.replace(/\s+$/u, '');
+    return {
+      text: appendSnippet(current, snippet),
+      cursor: (base.length === 0 ? 0 : base.length + 1) + snippet.length,
+    };
+  }
+  const truoc = current.slice(0, cuoiDong + 1);
+  const sau = current.slice(cuoiDong + 1);
+  return { text: `${truoc}${snippet}\n${sau}`, cursor: truoc.length + snippet.length };
 }
