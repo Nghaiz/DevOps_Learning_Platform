@@ -1289,12 +1289,38 @@ export interface CicdThresholds {
   readonly minGreenRate: number;
 }
 
-export interface CicdCheatSheetEntry {
-  /** Khoá hoặc cụm YAML, dạng người ta gõ thật. */
-  readonly snippet: string;
-  /** Một dòng tiếng Việt: nó làm gì, và vì sao level này cần nó. */
-  readonly explain: string;
-}
+/**
+ * Một mục tra nhanh. **Hai loại, vì người chơi sửa đường ống ở hai chỗ.**
+ *
+ * - `'yaml'` — thứ gõ vào ô soạn. `snippet` là một TÀI LIỆU YAML HOÀN CHỈNH, nhỏ
+ *   nhất có thể, mà `readWorkflowYaml` đọc được và không bỏ qua khoá nào. Hoàn
+ *   chỉnh chứ không phải một mẩu `needs: [a]` đứng trơ trọi, vì với YAML chỗ
+ *   đứng (thụt lề, khoá cha) là một nửa cú pháp, và đó đúng là nửa người mới gõ
+ *   sai.
+ * - `'panel'` — thứ YAML không chở được (`retries`, `cache`), đặt ở bảng điều
+ *   khiển ngoài ô soạn. `control` phải nằm trong `CicdLevel.editable` của level
+ *   khai nó; một mục chỉ tới núm mà level không hiện là chỉ đường vào ngõ cụt.
+ *
+ * ⛔ Bản trước chỉ có `snippet: string`, và cả 14 level điền vào đó TÊN TRƯỜNG
+ * CỦA HỢP ĐỒNG NÀY (`dependsOn:`, `runnerClass:`, `cache.savesTicks: 8`) — không
+ * phải thứ bộ đọc nhận, có mục còn là dữ liệu level người chơi không sửa được.
+ * Nằm im được vì không màn nào render trường này. `levels/cheatsheet.test.ts`
+ * nay chạy chính bộ đọc trên từng mục.
+ */
+export type CicdCheatSheetEntry =
+  | {
+      readonly where: 'yaml';
+      readonly snippet: string;
+      /** Một dòng tiếng Việt: nó làm gì, và vì sao level này cần nó. */
+      readonly explain: string;
+    }
+  | {
+      readonly where: 'panel';
+      readonly control: Extract<EditablePart, 'retries' | 'cache'>;
+      /** Tên núm đúng như bảng điều khiển gọi, để người chơi tìm ra nó. */
+      readonly label: string;
+      readonly explain: string;
+    };
 
 /**
  * Tầng dạy học. **Level DẠY, bài OJ THỬ** — quy ước đã có ở hai game kia và giữ
