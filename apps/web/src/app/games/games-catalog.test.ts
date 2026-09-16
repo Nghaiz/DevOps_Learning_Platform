@@ -24,22 +24,36 @@ describe('GAMES — hình dạng dữ liệu', () => {
    * phải vì một game cũ hỏng — nên việc phải làm là cập nhật danh sách, không
    * phải nới ô. Nếu một ngày nào đó một id BIẾN MẤT khỏi vế "chơi được" thì đó
    * là hồi quy và ô này phải đỏ.
+   *
+   * 19.H là lượt cập nhật thứ hai, và nó có một khác biệt đáng đọc kỹ: TỔNG
+   * không đổi (vẫn năm mục), một id CHUYỂN PHE. Mục `pipeline` không biến mất
+   * mà được đổi tên thành `cicd` cùng lúc nhận `href` — xem chú thích của chính
+   * mục đó ở `games-catalog.ts` về lý do đổi tên. Nên hai danh sách dưới đây
+   * phải sửa CẢ HAI VẾ trong một lượt: chỉ sửa vế "chơi được" thì vế "sắp có"
+   * còn giữ một id không tồn tại, và ô sẽ đỏ vì đúng lý do nhưng với một thông
+   * báo khó đọc.
    */
-  it('năm mục: hai chơi được, ba sắp có', () => {
+  it('năm mục: ba chơi được, hai sắp có', () => {
     expect(GAMES).toHaveLength(5);
     expect(GAMES.filter((game) => game.href !== null).map((game) => game.id)).toEqual([
       'k8s',
       'git',
+      'cicd',
     ]);
     expect(GAMES.filter((game) => game.href === null).map((game) => game.id)).toEqual([
-      'pipeline',
       'maze',
       'forge',
     ]);
   });
 
+  /*
+   * Ô này gác đúng một thứ mà ô trên KHÔNG gác: một mục có thể mang `href` khác
+   * `null` mà vẫn trỏ sai đường. Ba dòng, mỗi dòng cho một route đã dựng thật.
+   */
   it('mục chơi được trỏ đúng route đã dựng', () => {
     expect(GAMES.find((game) => game.id === 'k8s')?.href).toBe('/games/k8s');
+    expect(GAMES.find((game) => game.id === 'git')?.href).toBe('/games/git');
+    expect(GAMES.find((game) => game.id === 'cicd')?.href).toBe('/games/cicd');
   });
 
   it('mọi mục có id duy nhất, tiêu đề và mô tả không rỗng', () => {

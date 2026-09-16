@@ -31,11 +31,27 @@ describe('problemPreviewHref', () => {
     expect(problemPreviewHref('git', 'GIT-0001')).toBe('/games/git?problem=GIT-0001');
   });
 
+  /*
+   * ĐẢO 2026-09-16, lần thứ hai của cùng một ô và bằng cùng một lý lẽ.
+   *
+   * `cicd` vừa rời khỏi danh sách dưới đây. Nó nằm đó vì `/games/cicd` chưa tồn
+   * tại, đúng ở thời điểm đó; 19.H dựng route ấy và route ấy đọc `params.problem`,
+   * nên điều kiện kết thúc của dòng ghim đã đạt. `rules/pinned-baseline-test-companion.md`
+   * nói rõ phải làm gì lúc đó: ĐẢO, không giữ lại dưới dạng ngoại lệ và cũng
+   * không ghim lại con số bốn thành ba như thể ba là mốc mới.
+   *
+   * ⚠ Ba id còn lại KHÔNG phải phần dư. Chúng là vế chống-ôi: ngày một trong ba
+   * có route mà quên khai vào `PREVIEW_ROUTE_BY_GAME`, nút xem trước vắng mặt
+   * trong im lặng, và ô này là chỗ duy nhất nói ra.
+   */
   it('game chưa có route nào cũng trả null, không dựng 404', () => {
     expect(problemPreviewHref('pipeline', 'X-0001')).toBeNull();
     expect(problemPreviewHref('netpol', 'X-0001')).toBeNull();
     expect(problemPreviewHref('dockerfile', 'X-0001')).toBeNull();
-    expect(problemPreviewHref('cicd', 'X-0001')).toBeNull();
+  });
+
+  it('CI/CD cho đường vào thật từ 19.H — route đã đọc ?problem=', () => {
+    expect(problemPreviewHref('cicd', 'CICD-0001')).toBe('/games/cicd?problem=CICD-0001');
   });
 
   /*

@@ -55,14 +55,45 @@ describe('bộ chọn game của khối lọc chủ đề', () => {
     expect([...PROBLEM_FILTER_GAMES]).not.toContain('pipeline');
   });
 
+  /*
+    19.H khai tên cho `cicd` trong khi từ vựng chủ đề của nó chưa tới. Ô này ghim
+    đúng NỬA đã làm được, và cố ý không ghim nửa kia: `gameName` đọc thẳng
+    `GAME_NAMES`, còn việc `cicd` có mặt trong bộ chọn hay không do
+    `topicIdsFor('cicd')` quyết định — thứ file này không sở hữu.
+
+    Vế còn lại đã có người gác và gác tốt hơn một dòng chép tay: ô ĐẦU của
+    describe này so `PROBLEM_FILTER_GAMES` với tập game CÓ từ vựng theo DANH
+    TÍNH, nên nó tự đỏ đúng lúc từ vựng tới mà tên thì thiếu, và tự xanh khi cả
+    hai khớp. Thêm một `toContain('cicd')` ở đây chỉ đổi một ô tự thích nghi lấy
+    một ô phải sửa tay.
+  */
+  it('cicd đã có tên hiển thị, dù từ vựng chủ đề của nó chưa tới', () => {
+    expect(gameName('cicd')).not.toBe('cicd');
+  });
+
   it('mặc định là k8s — mọi link ?topic=… đã gửi đi vẫn đọc lại được', () => {
     expect(DEFAULT_PROBLEM_GAME).toBe('k8s');
     expect(topicIdsFor(DEFAULT_PROBLEM_GAME).length).toBeGreaterThan(0);
   });
 
+  /*
+    ⚠ ĐỔI CHỦ THỂ 2026-09-16, và đọc lý do trước khi đổi lại.
+
+    Dòng giữa từng là `parseGame('cicd')`. Nó minh hoạ ca khó nhất: một chuỗi
+    là `GameId` HỢP LỆ nhưng không có trong bộ chọn, tức phép lọc đầu vào phải
+    đọc `PROBLEM_FILTER_GAMES` chứ không đọc `GAME_IDS`. Từ 19.H `cicd` đang
+    trên đường vào bộ chọn (tên đã khai, từ vựng chủ đề sẽ tới), nên giữ nó ở
+    đây là hẹn một ô đỏ VÌ LÝ DO SAI: nó sẽ báo "phép lọc hỏng" trong khi sự
+    thật là game đã được nối.
+
+    `pipeline` thay chỗ vì nó Ở LẠI phía ngoài: không plugin bài, không từ vựng
+    chủ đề, và ô ngay trên đã khẳng định nó không lọt vào bộ chọn. Chọn một chủ
+    thể đang đổi phe là cách một đối chứng tự hỏng — cùng bài học đã ghi ở
+    `arena-preview.test.ts`.
+  */
   it('giá trị game lạ trong URL rơi về mặc định, không ném', () => {
     expect(parseGame('git')).toBe('git');
-    expect(parseGame('cicd')).toBe(DEFAULT_PROBLEM_GAME);
+    expect(parseGame('pipeline')).toBe(DEFAULT_PROBLEM_GAME);
     expect(parseGame(null)).toBe(DEFAULT_PROBLEM_GAME);
     expect(parseGame('<script>')).toBe(DEFAULT_PROBLEM_GAME);
   });

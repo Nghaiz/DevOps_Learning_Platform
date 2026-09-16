@@ -6,8 +6,8 @@ import type { GameId } from '@devops-platform/games';
  *
  * ## Vì sao một bảng tra chứ không phải `/games/${gameId}?problem=`
  *
- * Bởi vì công thức đó SAI, và nó sai theo kiểu im lặng. Bốn game (`pipeline`,
- * `netpol`, `dockerfile`, `cicd`) chưa có route nào, nên link tới đó là một 404
+ * Bởi vì công thức đó SAI, và nó sai theo kiểu im lặng. Ba game (`pipeline`,
+ * `netpol`, `dockerfile`) chưa có route nào, nên link tới đó là một 404
  * thẳng. Và tệ hơn 404: một route CÓ tồn tại nhưng không đọc `?problem=` sẽ bỏ
  * qua tham số đó và mở ra một ván bình thường — không lỗi, không 404, không dòng
  * log nào — nên người bấm thấy một game chạy và kết luận rằng bài của họ đã mở
@@ -38,6 +38,10 @@ import type { GameId } from '@devops-platform/games';
 const PREVIEW_ROUTE_BY_GAME: Readonly<Partial<Record<GameId, string>>> = {
   k8s: '/games/k8s',
   git: '/games/git',
+  // 19.H. Lời khai này đi kèm một điều kiện đo được: `app/games/cicd/page.tsx`
+  // đọc `params.problem`. Cổng giữ nó là ô cuối `arena-preview.test.ts`, và ô
+  // đó mở CHÍNH file kia ra đọc chứ không tin dòng này.
+  cicd: '/games/cicd',
 };
 
 export function problemPreviewHref(gameId: GameId, code: string): string | null {
