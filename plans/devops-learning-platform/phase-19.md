@@ -35,16 +35,26 @@
 | 19.C.5/C.6 khoá tên stage + cổng lõi-trung-lập | **XONG** | PR #139 (`cbc7bac`), `scripts/check-cicd-vendor-neutral.mjs` |
 | 19.C.4 lỗi ngữ nghĩa | **XONG** | đợt 2 — xem hộp cảnh báo ở §19.C |
 | 19.D tầng 3D | chưa bắt đầu | — |
-| 19.E giao diện soạn YAML | đợt 2 đang làm | — |
+| 19.E giao diện soạn YAML | **XONG (E.1–E.5)** | đợt 2 — kèm tầng ghép `cicd/hydrate.ts`, thứ plan không dự liệu |
 | 19.F chương CI, 14 level | **XONG** | PR #139 (`e0f4ed9`, `824ee8b`, `2d8fce5`) |
 | 19.G chương CD | chưa bắt đầu | — |
-| 19.H sandbox + tích hợp | đợt 2 đang làm | — |
+| 19.H sandbox + tích hợp | **XONG phần web** | route, ô danh mục, sandbox, plugin OJ. Còn thiếu ô Playwright đo AC-H |
 | 19.I lý thuyết + tài liệu | chưa bắt đầu | `content/games/cicd/` và `docs/games/cicd.md` chưa tồn tại |
 
-⚠ **14 level của 19.F đã có mà chưa ai chơi được.** Engine, level, bộ chấm và ba trục điểm
-đều đã gộp vào `main`, nhưng không có route `/games/cicd`, ô danh mục vẫn `href: null`, và
-`packages/games/src/index.ts` chưa mở `cicd` ra ngoài. Đó là lý do đợt 2 chọn 19.C.4 + 19.E +
-19.H thay vì 19.B: giá trị đã dựng xong nhưng chưa tới được người chơi.
+**Đợt 2 đóng xong 19.C.4 + 19.E + 19.H.** 14 level của 19.F nay chơi được ở `/games/cicd`, và
+bài OJ cho `gameId: 'cicd'` soạn được qua `/author/problems`.
+
+### Việc để lại của đợt 2 — đọc trước khi mở đợt 3
+
+| # | Việc | Vì sao chưa làm |
+|---|---|---|
+| 1 | Ô Playwright cho AC-H (0 lời gọi backend) và AC-6 (axe) trên `/games/cicd` | Chưa viết `apps/web/e2e/games-cicd.spec.ts`. Route đã vào `e2e/routes.ts` nên lượt quét axe/CSP chung có phủ, nhưng **ô "0 lời gọi backend" thì chưa** — và đó là ô riêng của trụ cột ③ |
+| 2 | Chưa lượt nào chạy trong TRÌNH DUYỆT thật | Mọi phép đo ở đợt này là test Node. `cicd-run.test.ts` chạy đúng đường `runWorkflow` của màn và khẳng định ba trục ≠ 0, nhưng nó không dựng DOM. Một lỗi chỉ hiện khi render vẫn còn nguyên khả năng |
+| 3 | Rà cheatsheet của cả 14 level | Xem §19.E.bis mục 2 — mới biết c01 sai, chưa quét 13 level còn lại |
+| 4 | Ô cache dùng `invalidatedBy` = `keyParts` | Cách hiểu của người dựng màn, engine giữ hai trường RIÊNG. C07/C08 dạy đúng chỗ khác nhau giữa chúng nên có thể cần tách |
+| 5 | Ô retries chỉ liệt kê stage của `initialWorkflow` | Job người chơi tự thêm trong YAML không có ô chỉnh retries |
+| 6 | Mẩu chèn nhanh nối vào CUỐI văn bản, không vào vị trí con trỏ | `YamlEditor` chưa mở ref ra ngoài |
+| 7 | Chú thích trong 4 file của màn chơi mất dấu tiếng Việt | Do một lượt vá bằng script. Chỉ ảnh hưởng khả năng đọc |
 
 ---
 
