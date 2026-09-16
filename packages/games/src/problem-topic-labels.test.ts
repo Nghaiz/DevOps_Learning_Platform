@@ -28,11 +28,33 @@ describe('problemTopicLabels', () => {
     }
   });
 
-  it('K8s và Git cho nhãn tiếng Việt thật, không phải chính id', () => {
+  it('K8s, Git và CI/CD cho nhãn tiếng Việt thật, không phải chính id', () => {
     expect(problemTopicLabels('k8s').workload).toBeTypeOf('string');
     expect(problemTopicLabels('k8s').workload).not.toBe('workload');
     expect(problemTopicLabels('git').branching).toBeTypeOf('string');
     expect(problemTopicLabels('git').branching).not.toBe('branching');
+    /*
+     * ⚠ Vế `not.toBe(id)` mới là vế gác được thứ gì ở đây. `CICD_PROBLEM_TOPICS`
+     * dùng chuỗi tiếng Việt thẳng chứ không qua `t()`, và `t()` trả CHUỖI RỖNG
+     * cho khoá chưa có — nên một lượt "dọn dẹp" chuyển sang `t()` sẽ cho tám
+     * nhãn rỗng, `toBeTypeOf('string')` vẫn xanh, và chỉ dòng dưới đỏ.
+     */
+    expect(problemTopicLabels('cicd')['critical-path']).toBeTypeOf('string');
+    expect(problemTopicLabels('cicd')['critical-path']).not.toBe('critical-path');
+  });
+
+  /*
+   * Tám chủ đề, đúng bằng tập plugin khai. Bắt được: ai đó thêm một chủ đề vào
+   * `CICD_PROBLEM_TOPICS` mà bảng nhãn không nhận (hoặc ngược lại) — bảng này
+   * suy từ chính mảng đó, nên chỗ hỏng duy nhất còn lại là một nhãn RỖNG, và
+   * một `Badge` rỗng là đúng hình dạng hỏng-im-lặng mà file này sinh ra để đóng.
+   */
+  it('CI/CD: mọi chủ đề đều có nhãn không rỗng', () => {
+    const labels = problemTopicLabels('cicd');
+    expect(Object.keys(labels)).toHaveLength(8);
+    for (const [id, label] of Object.entries(labels)) {
+      expect(label.length, id).toBeGreaterThan(0);
+    }
   });
 
   /*
@@ -43,6 +65,10 @@ describe('problemTopicLabels', () => {
   it('chủ đề của game này KHÔNG tra nhầm sang bảng của game kia', () => {
     expect(problemTopicLabels('k8s').branching).toBeUndefined();
     expect(problemTopicLabels('git').workload).toBeUndefined();
+    expect(problemTopicLabels('k8s')['critical-path']).toBeUndefined();
+    expect(problemTopicLabels('git')['critical-path']).toBeUndefined();
+    expect(problemTopicLabels('cicd').workload).toBeUndefined();
+    expect(problemTopicLabels('cicd').branching).toBeUndefined();
   });
 
   it('game chưa có plugin bài trả bảng RỖNG, không ném', () => {
