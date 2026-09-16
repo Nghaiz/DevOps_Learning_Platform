@@ -8,10 +8,10 @@
  *    chấm là đỏ ngay — chép tay thì danh sách ở đây ôi đi cùng lúc với bảng tra
  *    và không gì phát hiện ra.
  *
- * 2. **Hai vị từ chương CD NÉM, mười bảy vị từ kia KHÔNG ném.** Cả hai chiều,
- *    vì một chiều là nửa cổng: chiều thứ nhất một mình để lọt việc hiện thực
- *    xong mà quên xoá tên khỏi danh sách "chưa làm"; chiều thứ hai một mình để
- *    lọt việc thêm một nhánh ném mới mà không ai khai.
+ * 2. **Không vị từ nào còn NÉM (từ 19.B), và danh sách "chưa hiện thực" rỗng.**
+ *    Ô ghim sự rỗng đó: thêm một tên chưa hiện thực là đỏ, và người thêm phải
+ *    viết lại ô ném cho tên đó. Mọi vị từ đã hiện thực KHÔNG ném kể cả khi tham số
+ *    rỗng hay thiếu bản ghi mô phỏng CD — chúng trả `false`.
  *
  * 3. **Mỗi vị từ có CẢ ca đạt LẪN ca trượt**, chạy trên `EvaluationRecord` do
  *    `evaluate()` THẬT sinh ra. Một bộ chấm chỉ có ca đạt là một bộ chấm chưa ai
@@ -29,6 +29,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CICD_PREDICATE_ARGS,
+  CD_SIMULATION_PREDICATES,
   CICD_PREDICATES,
   UNIMPLEMENTED_CICD_PREDICATES,
   checkObjective,
@@ -47,7 +48,18 @@ import type {
   WorkflowSpec,
   WorkloadSpec,
 } from './contract.ts';
+import type {
+  GitOpsPolicy,
+  GitOpsScenario,
+  MaskingPolicy,
+  MaskingScenario,
+  ReleasePolicy,
+  ReleaseScenario,
+} from './cd-contract.ts';
 import { evaluate } from './engine.ts';
+import { simulateGitOps } from './gitops.ts';
+import { renderMaskedLog } from './masking.ts';
+import { simulateRelease } from './release.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Bộ dựng
@@ -230,6 +242,57 @@ const WF_CO_DUYET: WorkflowSpec = {
   ],
 };
 
+// ── Bối cảnh chương CD: bản ghi THẬT của ba bộ mô phỏng ─────────────────────
+
+const REL: ReleaseScenario = {
+  instances: 4,
+  requestsPerSecond: 100,
+  baselineErrorRate: 0,
+  candidateErrorRate: 1,
+  replaceSeconds: 30,
+  switchSeconds: 3,
+  routeSeconds: 20,
+  alertSeconds: 60,
+  migration: 'none',
+  fixForwardSeconds: 600,
+};
+const CANARY: ReleasePolicy = {
+  strategy: 'canary',
+  canary: { weightPercent: 25, intervalSeconds: 60, intervals: 3, maxErrorRateDelta: 0.02 },
+  onBadRelease: 'rollback',
+};
+const BLUE_GREEN: ReleasePolicy = { strategy: 'blue-green', onBadRelease: 'rollback' };
+const ROLLING: ReleasePolicy = { strategy: 'rolling', rolling: { batchSize: 1 }, onBadRelease: 'rollback' };
+
+function voiPhatHanh(policy: ReleasePolicy, scenario: ReleaseScenario, passes = 4): CicdScoringContext {
+  return { ...chay(WF_NOI_TIEP), cd: { release: { record: simulateRelease(policy, scenario, { baseSeed: 11, passes }), scenario } } };
+}
+
+const GITOPS: GitOpsScenario = {
+  horizonSeconds: 60,
+  initial: [
+    { field: 'image', value: 'v1' },
+    { field: 'replicas', value: '3' },
+  ],
+  changes: [
+    { atSecond: 7, actor: 'human', field: 'image', value: 'v1-hotfix' },
+    { atSecond: 5, actor: 'controller', field: 'replicas', value: '5', reassertEverySeconds: 4 },
+  ],
+};
+
+function voiGitOps(policy: GitOpsPolicy): CicdScoringContext {
+  return { ...chay(WF_NOI_TIEP), cd: { gitops: { record: simulateGitOps(policy, GITOPS), scenario: GITOPS } } };
+}
+
+const MASK: MaskingScenario = {
+  secrets: [{ id: 'token', value: 'abcd1234' }],
+  lines: [{ text: 'dang nhap bang {{token}}' }, { text: 'gui tiep {{token|base64}}' }],
+};
+
+function voiLog(policy: MaskingPolicy): CicdScoringContext {
+  return { ...chay(WF_NOI_TIEP), cd: { masking: { record: renderMaskedLog(policy, MASK) } } };
+}
+
 const CTX_NOI_TIEP = chay(WF_NOI_TIEP);
 const CTX_THANG_HANG = chay(WF_THANG_HANG);
 const CTX_DUNG_LAI = chay(WF_DUNG_LAI);
@@ -274,12 +337,15 @@ const DA_HIEN_THUC: readonly CicdPredicateName[] = CICD_PREDICATE_NAMES.filter(
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('vị từ chưa hiện thực thì NÉM', () => {
-  it.each(UNIMPLEMENTED_CICD_PREDICATES.map((ten) => [ten] as const))(
-    '%s — ném kèm thông điệp nói ra được là nó chưa hiện thực',
-    (ten) => {
-      expect(() => CICD_PREDICATES[ten](CTX_NOI_TIEP, { seconds: 10 })).toThrow(/chưa hiện thực/);
-    },
-  );
+  /*
+   * ĐẢO 2026-09-17: ô này từng ghim `rollbackUnder` và `promotedArtifactUnchanged`
+   * NÉM. 19.B viết xong cả hai nên danh sách rỗng, và ô đổi thành ghim chính sự
+   * rỗng đó. Ai thêm một tên chưa hiện thực vào hợp đồng sẽ đỏ ở đây, và phải
+   * viết lại ô ném cho tên đó — không được nới ô này cho xanh.
+   */
+  it('không còn vị từ nào chưa hiện thực sau 19.B', () => {
+    expect(UNIMPLEMENTED_CICD_PREDICATES).toEqual([]);
+  });
 
   it.each(DA_HIEN_THUC.map((ten) => [ten] as const))(
     '%s — đã hiện thực nên KHÔNG ném, kể cả khi tham số rỗng',
@@ -393,6 +459,51 @@ const CA_THU: Readonly<Record<string, CaThu>> = {
     dat: [CTX_CO_DUYET, { environment: 'prod', reviewers: 2 }],
     truot: [CTX_THANG_HANG, { environment: 'prod', reviewers: 1 }],
   },
+  rollbackUnder: {
+    // Cùng bản xấu, cùng ngưỡng: đổi bộ chọn 3 giây qua, thay lại từng máy thì không.
+    dat: [voiPhatHanh(BLUE_GREEN, REL), { seconds: 10 }],
+    truot: [voiPhatHanh(ROLLING, REL), { seconds: 10 }],
+  },
+  badReleasePromotedAtMost: {
+    dat: [voiPhatHanh(CANARY, REL), { max: 0 }],
+    // Ngưỡng hủy 1 = không bao giờ hủy ⇒ bản xấu lọt ở mọi lượt.
+    truot: [voiPhatHanh({ ...CANARY, canary: { ...CANARY.canary!, maxErrorRateDelta: 1 } }, REL), { max: 0 }],
+  },
+  goodReleaseAbortedAtMost: {
+    dat: [voiPhatHanh(CANARY, { ...REL, candidateErrorRate: 0 }), { max: 0 }],
+    // Bản TỐT (bằng nền 50%), ngưỡng 0, weight 1%: nhiễu cỡ mẫu nhỏ làm hủy nhầm.
+    truot: [
+      voiPhatHanh(
+        { ...CANARY, canary: { weightPercent: 1, intervalSeconds: 10, intervals: 1, maxErrorRateDelta: 0 } },
+        { ...REL, baselineErrorRate: 0.5, candidateErrorRate: 0.5 },
+        20,
+      ),
+      { max: 0 },
+    ],
+  },
+  noDataIncident: {
+    dat: [voiPhatHanh(BLUE_GREEN, REL), {}],
+    truot: [voiPhatHanh(BLUE_GREEN, { ...REL, migration: 'irreversible' }), {}],
+  },
+  peakInstancesAtMost: {
+    // 4 máy: canary thêm ceil(4 × 25%) = 1 ⇒ 5; blue-green dựng đủ đội thứ hai ⇒ 8.
+    dat: [voiPhatHanh(CANARY, REL), { max: 5 }],
+    truot: [voiPhatHanh(BLUE_GREEN, REL), { max: 5 }],
+  },
+  driftLongestUnder: {
+    // Chu kỳ 10, sửa tay ở giây 7 ⇒ tự sửa ở 10 ⇒ lệch 3 giây. Tắt tự sửa ⇒ lệch tới hết giờ.
+    dat: [voiGitOps({ reconcileEverySeconds: 10, selfHeal: true, ignoreFields: ['replicas'] }), { field: 'image', seconds: 5 }],
+    truot: [voiGitOps({ reconcileEverySeconds: 10, selfHeal: false, ignoreFields: ['replicas'] }), { field: 'image', seconds: 5 }],
+  },
+  selfHealFightsAtMost: {
+    dat: [voiGitOps({ reconcileEverySeconds: 10, selfHeal: true, ignoreFields: ['replicas'] }), { max: 0 }],
+    truot: [voiGitOps({ reconcileEverySeconds: 10, selfHeal: true, ignoreFields: [] }), { max: 0 }],
+  },
+  secretLeaksAtMost: {
+    dat: [voiLog({ masked: [{ secret: 'token', form: 'raw' }, { secret: 'token', form: 'base64' }] }), { max: 0 }],
+    // Chỉ che dạng thô: dòng base64 vẫn lộ — bài C26.
+    truot: [voiLog({ masked: [{ secret: 'token', form: 'raw' }] }), { max: 0 }],
+  },
 };
 
 describe('mỗi vị từ đã hiện thực có cả ca đạt lẫn ca trượt', () => {
@@ -469,6 +580,23 @@ describe('xoá đối tượng đi KHÔNG thoả được mục tiêu', () => {
     // theo nghĩa đen, và sai theo mọi nghĩa khác.
     const khongProd = chay({ ...WF_THANG_HANG, stages: WF_THANG_HANG.stages.filter((s) => s.id !== 'prod') });
     expect(CICD_PREDICATES.promotedArtifactUnchanged(khongProd, { output: 'image', from: 'staging', to: 'prod' })).toBe(false);
+  });
+
+  it('vị từ chương CD — thiếu bản ghi mô phỏng thì trả false, không ném', () => {
+    for (const ten of CD_SIMULATION_PREDICATES) {
+      const ca = CA_THU[ten];
+      if (ca === undefined) throw new Error(`thiếu ca thử cho ${ten}`);
+      expect(CICD_PREDICATES[ten](CTX_NOI_TIEP, ca.dat[1]), ten).toBe(false);
+    }
+  });
+
+  it('`driftLongestUnder` — trường không có trong kịch bản thì trả false, không phải "lệch 0 giây"', () => {
+    const ctx = voiGitOps({ reconcileEverySeconds: 10, selfHeal: true, ignoreFields: [] });
+    expect(CICD_PREDICATES.driftLongestUnder(ctx, { field: 'khong-co', seconds: 5 })).toBe(false);
+  });
+
+  it('`rollbackUnder` — bản TỐT không bao giờ bị rút thì không có gì để đo ⇒ false', () => {
+    expect(CICD_PREDICATES.rollbackUnder(voiPhatHanh(BLUE_GREEN, { ...REL, candidateErrorRate: 0 }), { seconds: 1_000_000 })).toBe(false);
   });
 
   it('`environmentGuardedByApproval` — không stage nào phát hành vào môi trường đó thì trả false', () => {
@@ -580,10 +708,15 @@ describe('tầng gọi', () => {
     expect(checkObjective(khongArgs, CTX_NOI_TIEP)).toBe(true);
   });
 
-  it('`checkObjective` NÉM khi mục tiêu trỏ tới vị từ chưa hiện thực', () => {
-    expect(() => checkObjective(mucTieu('rollbackUnder', { seconds: 30 }), CTX_NOI_TIEP)).toThrow(
-      /chưa hiện thực/,
-    );
+  /*
+   * ĐẢO 2026-09-17: ô này từng khẳng định `checkObjective` NÉM với
+   * `rollbackUnder` chưa hiện thực. 19.B viết xong nó; ô nay khẳng định nó CHẤM
+   * THẬT qua đúng đường gọi của level — trên bối cảnh có bản ghi phát hành, và
+   * trả false (không ném) khi bối cảnh thiếu bản ghi đó.
+   */
+  it('`checkObjective` chấm `rollbackUnder` thật: có bản ghi ⇒ true, thiếu bản ghi ⇒ false', () => {
+    expect(checkObjective(mucTieu('rollbackUnder', { seconds: 10 }), voiPhatHanh(BLUE_GREEN, REL))).toBe(true);
+    expect(checkObjective(mucTieu('rollbackUnder', { seconds: 10 }), CTX_NOI_TIEP)).toBe(false);
   });
 
   it('`failingObjectiveIds` lọc theo `required` và chỉ trả mục TRƯỢT', () => {

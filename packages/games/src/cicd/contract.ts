@@ -1282,8 +1282,30 @@ export const CICD_PREDICATE_NAMES = [
    * reviewers }`. Không stage nào phát hành vào đó ⇒ `false`.
    */
   'environmentGuardedByApproval',
-  /** ⬛ 19.B: thời gian lùi dưới ngưỡng, giây. args: `{ seconds }` */
+  /*
+   * ── Chương CD, đọc bản ghi của ba bộ mô phỏng (`cd-contract.ts`) ──
+   *
+   * Tám vị từ dưới đây đọc `CicdScoringContext.cd`. Vắng bản ghi mô phỏng tương
+   * ứng ⇒ `false`, không ném: đó là lỗi của MỘT level (quên khai kịch bản), theo
+   * luật 3 của `predicates.ts`. Bài OJ không chở kịch bản nên không khai được
+   * chúng — xem `CD_SIMULATION_PREDICATES`.
+   */
+  /** Mọi lượt ĐÃ rút bản ứng viên đều lùi/phục hồi dưới ngưỡng, giây; phải có ≥ 1 lượt rút. args: `{ seconds }` */
   'rollbackUnder',
+  /** Số lượt cho bản ứng viên XẤU lọt qua tối đa. args: `{ max }` */
+  'badReleasePromotedAtMost',
+  /** Số lượt hủy nhầm bản ứng viên TỐT tối đa. args: `{ max }` */
+  'goodReleaseAbortedAtMost',
+  /** Không lượt nào lùi vào một migration không lùi được. args: `{}` */
+  'noDataIncident',
+  /** Số máy chạy cùng lúc cao nhất, qua mọi lượt, không vượt. args: `{ max }` */
+  'peakInstancesAtMost',
+  /** Đoạn lệch dài nhất trên trường `field` ngắn hơn ngưỡng, giây. args: `{ field, seconds }` */
+  'driftLongestUnder',
+  /** Số lần tự sửa giành nhau với một bộ điều khiển tối đa. args: `{ max }` */
+  'selfHealFightsAtMost',
+  /** Số mục rò bí mật trong log tối đa. args: `{ max }` */
+  'secretLeaksAtMost',
 ] as const;
 
 export type CicdPredicateName = (typeof CICD_PREDICATE_NAMES)[number];

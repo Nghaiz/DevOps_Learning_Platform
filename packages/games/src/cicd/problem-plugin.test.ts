@@ -25,7 +25,7 @@ import {
   CICD_PROBLEM_PLUGIN,
   gradeCicdProblem,
 } from './problem-plugin.ts';
-import { CICD_PREDICATES, UNIMPLEMENTED_CICD_PREDICATES } from './predicates.ts';
+import { CD_SIMULATION_PREDICATES, CICD_PREDICATES, UNIMPLEMENTED_CICD_PREDICATES } from './predicates.ts';
 import { writeWorkflowYaml } from './yaml-write.ts';
 
 // ── Dữ liệu dựng sẵn ────────────────────────────────────────────────────────
@@ -147,10 +147,15 @@ describe('predicateNames — khớp hiện thực CẢ HAI CHIỀU', () => {
    * khai được — mà vẫn phải được đếm, nếu không thì một vị từ biến mất khỏi
    * bảng cũng không ai thấy.
    */
-  it('tập khai + tập chưa hiện thực = đúng bảng `CICD_PREDICATES`', () => {
+  it('tập khai + tập chưa hiện thực + tập cần mô phỏng CD = đúng bảng `CICD_PREDICATES`', () => {
     expect(
-      [...CICD_IMPLEMENTED_PREDICATE_NAMES, ...UNIMPLEMENTED_CICD_PREDICATES].sort(),
+      [...CICD_IMPLEMENTED_PREDICATE_NAMES, ...UNIMPLEMENTED_CICD_PREDICATES, ...CD_SIMULATION_PREDICATES].sort(),
     ).toEqual(Object.keys(CICD_PREDICATES).sort());
+  });
+
+  it('tập khai KHÔNG chứa vị từ cần bản ghi mô phỏng CD — bài OJ không chở kịch bản', () => {
+    const canMoPhong: readonly string[] = CD_SIMULATION_PREDICATES;
+    expect(CICD_IMPLEMENTED_PREDICATE_NAMES.filter((name) => canMoPhong.includes(name))).toEqual([]);
   });
 
   /*
@@ -366,21 +371,29 @@ describe('bài không chấm được thì nói ra', () => {
   });
 
   /*
-   * Hai tên chương CD có trong hợp đồng nhưng nhánh của chúng NÉM. Chặn ở bước
-   * kiểm tên cho THÔNG ĐIỆP đúng: người soạn cần biết tên đó chưa có engine đỡ,
-   * chứ không phải đi sửa tham số.
-   *
-   * ⚠ Ô này sẽ đỏ vào ngày 19.B hiện thực xong hai vị từ — và lúc đó nó phải
-   * được ĐẢO (khẳng định chúng chấm thật), không phải nới cho xanh. Nó đọc
-   * `UNIMPLEMENTED_CICD_PREDICATES` chứ không chép tên, nên danh sách rỗng đi
-   * thì vòng lặp không còn ca nào và `expect` dưới gác đúng điều đó.
+   * ĐẢO 2026-09-17, đúng như chú thích cũ ở đây dặn ("phải được ĐẢO, không phải
+   * nới cho xanh"). 19.B hiện thực xong mọi vị từ CD, nên:
+   * - vị từ đọc bản ghi ĐƯỜNG ỐNG (`promotedArtifactUnchanged`) CHẤM THẬT ở OJ;
+   * - vị từ đọc bản ghi MÔ PHỎNG (`CD_SIMULATION_PREDICATES`) vẫn `CE`, nhưng vì lý
+   *   do khác — bài OJ không chở kịch bản — và thông điệp phải nói đúng lý do đó.
    */
-  it('vị từ chưa hiện thực ⇒ `CE`, không phải một ngoại lệ không ai bắt', () => {
-    expect(UNIMPLEMENTED_CICD_PREDICATES.length).toBeGreaterThan(0);
-    for (const name of UNIMPLEMENTED_CICD_PREDICATES) {
-      const ket = cham({ initialState: BAI, testcases: [tc('cd', name)] });
+  it('vị từ CD đọc bản ghi đường ống chấm thật ở OJ — không còn `CE`', () => {
+    expect(UNIMPLEMENTED_CICD_PREDICATES).toEqual([]);
+    const ket = cham({
+      initialState: BAI,
+      testcases: [tc('thang-hang', 'promotedArtifactUnchanged', { output: 'image', from: 'staging', to: 'prod' })],
+    });
+    // Bài mẫu không phát hành gì ⇒ không có gì để so ⇒ WA (luật 4), KHÔNG phải CE.
+    expect(ket.verdict).toBe('WA');
+  });
+
+  it('vị từ cần bản ghi mô phỏng CD ⇒ `CE` nói rõ là thiếu kịch bản', () => {
+    expect(CD_SIMULATION_PREDICATES.length).toBeGreaterThan(0);
+    for (const name of CD_SIMULATION_PREDICATES) {
+      const ket = cham({ initialState: BAI, testcases: [tc('cd', name, { seconds: 10, max: 0, field: 'x' })] });
       expect(ket.verdict, name).toBe('CE');
       expect(ket.failedReason, name).toContain(name);
+      expect(ket.failedReason, name).toContain('kịch bản');
     }
   });
 

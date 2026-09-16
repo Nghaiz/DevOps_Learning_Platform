@@ -21,8 +21,8 @@
  * 2. **Vị từ CHƯA hiện thực thì NÉM.** Trả `true` biến một mục tiêu chưa viết
  *    thành mục tiêu luôn đạt; trả `false` biến nó thành một level không giải
  *    được. Cả hai sai trong im lặng, và cả hai chỉ lộ ra khi có người chơi tới
- *    đúng level đó. Hai vị từ chương CD (`promotedArtifactUnchanged`,
- *    `rollbackUnder`) nằm ở nhánh này — xem `UNIMPLEMENTED_CICD_PREDICATES`.
+ *    đúng level đó. Hôm nay nhánh này RỖNG — 19.B đã hiện thực nốt các vị từ
+ *    chương CD; xem `UNIMPLEMENTED_CICD_PREDICATES`.
  *
  * 3. **Tham số thiếu hoặc sai kiểu thì trả `false`, KHÔNG ném.** Khác luật 2, và
  *    khác có chủ ý: một vị từ chưa viết là lỗi của KHO MÃ, một tham số sai là
@@ -61,6 +61,21 @@ import type {
   WorkflowSpec,
 } from './contract.ts';
 import { deploymentsOf } from './artifacts.ts';
+import type {
+  GitOpsRecord,
+  GitOpsScenario,
+  MaskingRecord,
+  ReleaseRecord,
+  ReleaseScenario,
+} from './cd-contract.ts';
+import { longestDriftSeconds, selfHealFights } from './gitops.ts';
+import { leakCount } from './masking.ts';
+import {
+  badReleasePromotedCount,
+  dataIncidentCount,
+  goodReleaseAbortedCount,
+  rollbackSeconds,
+} from './release.ts';
 import { criticalPath } from './critical-path.ts';
 import { findCycle } from './graph.ts';
 import { scoreAxes } from './score.ts';
@@ -85,6 +100,18 @@ import { scoreAxes } from './score.ts';
 export interface CicdScoringContext {
   readonly workflow: WorkflowSpec;
   readonly record: EvaluationRecord;
+  /**
+   * 19.B — bản ghi của ba bộ mô phỏng chương CD, mỗi cái kèm kịch bản nó chạy
+   * trên (phép chiếu cần kịch bản: "bản ứng viên có xấu không" là sự thật của
+   * kịch bản, không nằm trong bản ghi). Vắng ⇒ vị từ đọc nó trả `false`.
+   */
+  readonly cd?: CicdCdRecords;
+}
+
+export interface CicdCdRecords {
+  readonly release?: { readonly record: ReleaseRecord; readonly scenario: ReleaseScenario };
+  readonly gitops?: { readonly record: GitOpsRecord; readonly scenario: GitOpsScenario };
+  readonly masking?: { readonly record: MaskingRecord };
 }
 
 export type CicdPredicateArgs = Readonly<Record<string, unknown>>;
@@ -94,14 +121,33 @@ export type CicdPredicate = (ctx: CicdScoringContext, args: CicdPredicateArgs) =
 export type CicdPredicateTable = Readonly<Record<CicdPredicateName, CicdPredicate>>;
 
 /**
- * Vị từ chưa có engine đỡ. Gọi chúng thì NÉM (luật 2).
+ * Vị từ chưa có engine đỡ. RỖNG từ 19.B (2026-09-17).
  *
- * ⚠ Đây là một danh sách TẠM, không phải một quyết định kiến trúc: chương CD
- * (19.B) hiện chưa có khái niệm danh tính artifact lẫn phép đo thời gian lùi,
- * nên không có bản ghi nào để đọc. Khi 19.B lên, xoá tên khỏi đây và viết hiện
- * thực; `predicates.test.ts` ghim cả HAI chiều nên quên một bên là đỏ ngay.
+ * Giữ lại chứ không xoá: plugin OJ và hai file test đọc nó để trừ tên ra khỏi
+ * tập khai được. Thêm một tên vào hợp đồng mà chưa viết hiện thực thì ghi nó
+ * vào đây VÀ viết một nhánh ném (luật 2) — không có nhánh ném sẵn nào để dùng
+ * lại, vì một hàm không ai gọi là thứ `eslint` gỡ.
  */
-export const UNIMPLEMENTED_CICD_PREDICATES: readonly CicdPredicateName[] = ['rollbackUnder'];
+export const UNIMPLEMENTED_CICD_PREDICATES: readonly CicdPredicateName[] = [];
+
+/**
+ * Vị từ đọc `CicdScoringContext.cd` — CẦN một kịch bản phát hành / GitOps / log.
+ *
+ * Tách khỏi `UNIMPLEMENTED_CICD_PREDICATES` vì lý do khác hẳn: chúng CHẤM ĐƯỢC,
+ * chỉ là bài OJ (`CicdProblemSpec`: workflow + workload + evaluation) không chở
+ * kịch bản nào. Cho người soạn chọn chúng là mời một bài mọi lượt nộp đều
+ * `false`. Ngày bài OJ chở kịch bản, bỏ tên khỏi đây.
+ */
+export const CD_SIMULATION_PREDICATES: readonly CicdPredicateName[] = [
+  'rollbackUnder',
+  'badReleasePromotedAtMost',
+  'goodReleaseAbortedAtMost',
+  'noDataIncident',
+  'peakInstancesAtMost',
+  'driftLongestUnder',
+  'selfHealFightsAtMost',
+  'secretLeaksAtMost',
+];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 2. ĐỌC THAM SỐ
@@ -376,6 +422,16 @@ export const CICD_PREDICATE_ARGS: Readonly<
     { key: 'reviewers', kind: 'number' },
   ],
   rollbackUnder: [{ key: 'seconds', kind: 'number' }],
+  badReleasePromotedAtMost: [{ key: 'max', kind: 'number' }],
+  goodReleaseAbortedAtMost: [{ key: 'max', kind: 'number' }],
+  noDataIncident: [],
+  peakInstancesAtMost: [{ key: 'max', kind: 'number' }],
+  driftLongestUnder: [
+    { key: 'field', kind: 'string' },
+    { key: 'seconds', kind: 'number' },
+  ],
+  selfHealFightsAtMost: [{ key: 'max', kind: 'number' }],
+  secretLeaksAtMost: [{ key: 'max', kind: 'number' }],
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -617,21 +673,78 @@ const environmentGuardedByApproval: CicdPredicate = (ctx, args) => {
   );
 };
 
-/**
- * Nhánh CHƯA HIỆN THỰC (luật 2).
- *
- * Nói ra được rằng nó chưa có, chứ không lẫn vào nhóm đã xong bằng một `false`
- * im lặng. Thông điệp nêu đúng thứ còn thiếu để người đọc không đi sửa level.
- */
-function unimplemented(name: CicdPredicateName, missing: string): CicdPredicate {
-  return () => {
-    throw new Error(
-      `vị từ "${name}" chưa hiện thực: ${missing}. Chương CD (19.B) chưa có engine đỡ, ` +
-        'nên không có bản ghi nào để đọc. Trả true/false ở đây là biến một mục tiêu ' +
-        'chưa viết thành một mục tiêu luôn đạt hoặc một level không giải được.',
-    );
-  };
+// ── Chương CD: đọc bản ghi của ba bộ mô phỏng ─────────────────────────────
+//
+// Mọi phép đếm đi qua phép chiếu của CHÍNH bộ mô phỏng (`release.ts`,
+// `gitops.ts`, `masking.ts`) — tính lại ở đây là hai câu trả lời cho một câu hỏi.
+// Phép chiếu trả `null` khi bản ghi lỗi (chính sách thiếu tham số): `null` ⇒
+// `false`, vì "không lọt bản xấu nào" không được đạt nhờ một chính sách không chạy.
+
+function releaseOf(ctx: CicdScoringContext) {
+  const release = ctx.cd?.release;
+  return release === undefined || release.record.error !== null ? null : release;
 }
+
+const rollbackUnder: CicdPredicate = (ctx, args) => {
+  const seconds = argNumber(args, 'seconds');
+  const release = releaseOf(ctx);
+  if (seconds === null || release === null) return false;
+  const lui = release.record.passes.map(rollbackSeconds).filter((v): v is number => v !== null);
+  // Luật 4: không lượt nào rút thì không có gì để đo — không thoả.
+  return lui.length > 0 && lui.every((v) => v < seconds);
+};
+
+function countAtMost(count: number | null, args: CicdPredicateArgs): boolean {
+  const max = argNumber(args, 'max');
+  return max !== null && count !== null && count <= max;
+}
+
+const badReleasePromotedAtMost: CicdPredicate = (ctx, args) => {
+  const release = releaseOf(ctx);
+  return release !== null && countAtMost(badReleasePromotedCount(release.record, release.scenario), args);
+};
+
+const goodReleaseAbortedAtMost: CicdPredicate = (ctx, args) => {
+  const release = releaseOf(ctx);
+  return release !== null && countAtMost(goodReleaseAbortedCount(release.record, release.scenario), args);
+};
+
+const noDataIncident: CicdPredicate = (ctx) => {
+  const release = releaseOf(ctx);
+  return release !== null && release.record.passes.length > 0 && dataIncidentCount(release.record) === 0;
+};
+
+const peakInstancesAtMost: CicdPredicate = (ctx, args) => {
+  const max = argNumber(args, 'max');
+  const release = releaseOf(ctx);
+  if (max === null || release === null || release.record.passes.length === 0) return false;
+  return release.record.passes.every((pass) => pass.peakInstances <= max);
+};
+
+/**
+ * Theo MỘT trường, không gộp mọi trường: một trường cố ý loại trừ (G3) vẫn được
+ * ghi lệch tới hết giờ, nên "dài nhất trên mọi trường" sẽ phạt đúng người chơi
+ * vừa loại trừ đúng — ngược bài C25. Trường không có trong kịch bản ⇒ false,
+ * không phải "lệch 0 giây" (luật 4).
+ */
+const driftLongestUnder: CicdPredicate = (ctx, args) => {
+  const field = argString(args, 'field');
+  const seconds = argNumber(args, 'seconds');
+  const gitops = ctx.cd?.gitops;
+  if (field === null || seconds === null || gitops === undefined) return false;
+  if (!gitops.scenario.initial.some((entry) => entry.field === field)) return false;
+  return longestDriftSeconds(gitops.record, gitops.scenario, field) < seconds;
+};
+
+const selfHealFightsAtMost: CicdPredicate = (ctx, args) => {
+  const gitops = ctx.cd?.gitops;
+  return gitops !== undefined && countAtMost(selfHealFights(gitops.record), args);
+};
+
+const secretLeaksAtMost: CicdPredicate = (ctx, args) => {
+  const masking = ctx.cd?.masking;
+  return masking !== undefined && countAtMost(leakCount(masking.record), args);
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 6. BẢNG TRA
@@ -663,10 +776,14 @@ export const CICD_PREDICATES: CicdPredicateTable = {
   stageNonBlocking,
   promotedArtifactUnchanged,
   environmentGuardedByApproval,
-  rollbackUnder: unimplemented(
-    'rollbackUnder',
-    'chưa có phép đo thời gian lùi của một chiến lược phát hành trong bản ghi',
-  ),
+  rollbackUnder,
+  badReleasePromotedAtMost,
+  goodReleaseAbortedAtMost,
+  noDataIncident,
+  peakInstancesAtMost,
+  driftLongestUnder,
+  selfHealFightsAtMost,
+  secretLeaksAtMost,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
