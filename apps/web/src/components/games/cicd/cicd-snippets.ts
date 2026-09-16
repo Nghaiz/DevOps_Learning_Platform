@@ -59,7 +59,7 @@ export function cicdSnippets(runnerClassIds: readonly string[]): readonly CicdSn
     id: 'needs',
     label: 'Cạnh phụ thuộc',
     explain: 'Job này chỉ bắt đầu sau khi mọi job trong "needs" đã xong. Bỏ bớt một cạnh thừa là cách rẻ nhất để rút ngắn đường găng.',
-    yaml: '    needs: [clone]',
+    yaml: ['    needs:', '      - clone'].join('\n'),
   },
   {
     id: 'runs-on',
@@ -83,7 +83,13 @@ export function cicdSnippets(runnerClassIds: readonly string[]): readonly CicdSn
     id: 'matrix',
     label: 'Quạt ra theo ma trận',
     explain: 'Một job nhân thành nhiều bản chạy song song, mỗi bản một tổ hợp giá trị. Nhanh hơn về thời gian, nhưng tốn runner-phút theo đúng số bản.',
-      yaml: ['    strategy:', '      matrix:', '        os: [linux, macos]'].join('\n'),
+      yaml: [
+        '    strategy:',
+        '      matrix:',
+        '        os:',
+        '          - linux',
+        '          - macos',
+      ].join('\n'),
     },
   ];
 }
