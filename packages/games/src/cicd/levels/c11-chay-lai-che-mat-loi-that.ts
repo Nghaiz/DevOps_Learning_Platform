@@ -228,16 +228,31 @@ một cái đồng hồ đã bị tháo pin.
 Sau khi sửa, tỷ lệ xanh của bạn sẽ tụt. Con số mới đó mới là con số thật.`,
     cheatsheet: [
       {
-        snippet: "flake: { nature: 'latent-defect' }",
-        explain: 'Bước này đỏ vì một lỗi THẬT chỉ lộ đôi lúc; thử lại che nó đi chứ không sửa nó.',
+        where: 'panel',
+        control: 'retries',
+        label: 'Chạy lại khi hỏng',
+        explain: 'Một con số áp cho cả stage: bước dựng môi trường đỏ vì hạ tầng (thử lại là đúng), còn bước khẳng định đua luồng đỏ vì một lỗi THẬT chỉ lộ đôi lúc — thử lại xoá luôn bằng chứng của nó.',
       },
       {
-        snippet: "flake: { nature: 'infra' }",
-        explain: 'Bước này đỏ vì hạ tầng; đây là loại duy nhất mà thử lại là câu trả lời đúng.',
-      },
-      {
-        snippet: 'retries: 0',
-        explain: 'Không thử lại: một lần đỏ là một lần đỏ, và nó hiện ra trong tỷ lệ xanh.',
+        where: 'yaml',
+        snippet: `jobs:
+  bien-dich:
+    runs-on: chung
+    steps:
+      - id: bien-dich-ma
+  kiem-thu-tich-hop:
+    runs-on: chung
+    needs:
+      - bien-dich
+    steps:
+      - id: dung-moi-truong
+  khang-dinh-dua-luong:
+    runs-on: chung
+    needs:
+      - kiem-thu-tich-hop
+    steps:
+      - id: khang-dinh-dua-luong`,
+        explain: 'Tách hai bước thành hai stage thì mỗi stage có số lần thử lại riêng: thử lại việc dựng môi trường, để 0 cho stage bắt lỗi thật. Tỷ lệ xanh sẽ tụt — con số mới đó mới là con số thật.',
       },
     ],
     takeaways: [

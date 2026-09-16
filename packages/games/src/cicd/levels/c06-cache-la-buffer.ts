@@ -201,16 +201,22 @@ Và cache không bao giờ trúng 100%. Ngày tệp khoá đổi, đường ốn
 độ cũ. Hãy chọn ngưỡng sao cho ngày đó vẫn chấp nhận được.`,
     cheatsheet: [
       {
-        snippet: 'cache.keyParts: [khoa-phu-thuoc]',
-        explain: 'Khoá cache băm vào đâu. Trùng với lượt trước thì trúng; khác một phần tử là khoá mới.',
+        where: 'panel',
+        control: 'cache',
+        label: 'Cache',
+        explain: 'Cache gắn vào BƯỚC, không gắn vào stage: mỗi bước cache được có một ô bật/tắt riêng, và nó chỉ trả lại được thời lượng của chính bước đó.',
       },
       {
-        snippet: 'cache.savesTicks: 8',
-        explain: 'Tiết kiệm được bao nhiêu khi trúng. Bị kẹp về thời lượng của chính bước — khai dư không có tác dụng.',
+        where: 'panel',
+        control: 'cache',
+        label: 'Cache → Tải mã nguồn → Tải mã nguồn',
+        explain: 'Cache đang bật ở đây và trúng đều, nhưng bước chỉ dài 2 tick — số tick tiết kiệm không bao giờ vượt thời lượng của bước nó đứng.',
       },
       {
-        snippet: 'steps: [{ cache: ... }]',
-        explain: 'Cache gắn vào BƯỚC, không gắn vào stage. Đặt nhầm bước là đặt nhầm chỗ tiết kiệm.',
+        where: 'panel',
+        control: 'cache',
+        label: 'Cache → Khoá cache gồm những đầu vào nào',
+        explain: 'Bạn chỉ bật/tắt cache và chọn đầu vào tạo khoá; số tick tiết kiệm và thứ làm nội dung ôi là dữ liệu của level. Ở level này khoá đang đúng — thứ cần đổi là chỗ đặt.',
       },
     ],
     takeaways: [

@@ -226,16 +226,40 @@ bước hỏng 4 tick sẽ đốt 14 tick mỗi lần thử lại — trong đó
 ích.`,
     cheatsheet: [
       {
-        snippet: 'retries: 2',
-        explain: 'Thử lại toàn bộ stage tối đa 2 lần sau khi nó đỏ; mỗi lần thử rút xúc xắc mới.',
+        where: 'panel',
+        control: 'retries',
+        label: 'Chạy lại khi hỏng',
+        explain: 'Số lần thử lại CẢ stage sau khi nó đỏ; mỗi lần thử rút xúc xắc mới, nên nó cứu được bước khởi động máy ảo hỏng vì hạ tầng. Đọc tỷ lệ xanh qua mọi lượt chấm, đừng đọc lượt cuối.',
       },
       {
-        snippet: "flake: { rate: 0.05, nature: 'infra' }",
-        explain: 'Bước này đỏ 5% mỗi lần thử vì hạ tầng — loại đỏ mà thử lại thật sự cứu được.',
+        where: 'yaml',
+        snippet: `jobs:
+  bien-dich:
+    runs-on: chung
+    steps:
+      - id: bien-dich-ma
+  khoi-dong-moi-truong:
+    runs-on: chung
+    needs:
+      - bien-dich
+    steps:
+      - id: khoi-dong-may-ao
+  kiem-thu-don-vi:
+    runs-on: chung
+    needs:
+      - khoi-dong-moi-truong
+    steps:
+      - id: chay-kiem-thu`,
+        explain: 'Tách bước hay hỏng ra stage riêng rồi đặt số lần thử lại cho riêng stage đó: thử lại một stage là chạy lại MỌI bước của nó, kể cả bước kiểm thử 10 tick chưa hỏng lần nào.',
       },
       {
-        snippet: 'passes: 20',
-        explain: 'Số lượt mô phỏng mỗi lần chấm; đây là thứ biến một lần may thành một tỷ lệ đọc được.',
+        where: 'yaml',
+        snippet: `jobs:
+  khoi-dong-moi-truong:
+    runs-on: chung
+    steps:
+      - id: khoi-dong-may-ao`,
+        explain: 'Stage tự thêm phải khai `runs-on: chung`. Vắng khoá thì mặc định là `linux` — hạng máy level này không có — và workflow không chạy được.',
       },
     ],
     takeaways: [

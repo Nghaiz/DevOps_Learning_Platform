@@ -216,16 +216,46 @@ trước không. Nếu câu trả lời là "không có gì", thử lại chỉ 
 "tốn gấp bốn" cho gọn.`,
     cheatsheet: [
       {
-        snippet: 'dependsOn: [...]',
-        explain: 'Các stage phải xong trước; đây cũng là đường duy nhất để thấy sản phẩm của nhau.',
+        where: 'yaml',
+        snippet: `jobs:
+  bien-dich:
+    runs-on: chung
+    steps:
+      - id: bien-dich-ma
+  dong-goi:
+    runs-on: chung
+    needs:
+      - bien-dich
+    steps:
+      - id: dong-goi-anh`,
+        explain: 'Cạnh phụ thuộc cũng là đường duy nhất để thấy sản phẩm của nhau: bước đóng gói cần gói nhị phân của `bien-dich`, nên thiếu cạnh là đỏ thật, không phải đỏ ngẫu nhiên.',
       },
       {
-        snippet: 'requires: [...]',
-        explain: 'Sản phẩm bước này cần có sẵn; thiếu là đỏ thật, không phải đỏ ngẫu nhiên.',
+        where: 'yaml',
+        snippet: `jobs:
+  bien-dich:
+    runs-on: chung
+    steps:
+      - id: bien-dich-ma
+  kiem-thu:
+    runs-on: chung
+    needs:
+      - bien-dich
+    steps:
+      - id: chay-kiem-thu
+  dong-goi:
+    runs-on: chung
+    needs:
+      - kiem-thu
+    steps:
+      - id: dong-goi-anh`,
+        explain: 'Nối sau kiểm thử thay vì song song: `dong-goi` vẫn thấy gói nhị phân qua cạnh bắc cầu. Chậm hơn, nhưng không đóng gói một bản chưa qua kiểm thử.',
       },
       {
-        snippet: 'retries: 0',
-        explain: 'Không thử lại — mặc định đúng cho mọi stage mà bạn chưa chứng minh được là đỏ giả.',
+        where: 'panel',
+        control: 'retries',
+        label: 'Chạy lại khi hỏng',
+        explain: 'Đặt về 0 cho stage đỏ vì cấu trúc: lần thử sau gặp đúng thế giới cũ, nên 3 lần thử lại chỉ đốt gấp bốn runner-phút rồi vẫn đỏ.',
       },
     ],
     takeaways: [

@@ -148,20 +148,43 @@ C03 trở đi thì không.
 chạy. Các stage sau cần mã đó, nên chúng phải đợi nó.`,
     cheatsheet: [
       {
-        snippet: 'stages:',
-        explain: 'Danh sách stage của đường ống. Thứ tự viết chỉ để đọc — thứ tự chạy do `dependsOn` quyết định.',
+        where: 'yaml',
+        snippet: `jobs:
+  clone:
+    steps:
+      - id: tai-ma`,
+        explain: 'Mỗi khoá dưới `jobs` là một stage, và tên khoá là mã định danh của nó. Thứ tự viết chỉ để đọc — thứ tự chạy do `needs` quyết định.',
       },
       {
-        snippet: 'dependsOn: [clone]',
-        explain: 'Stage này chỉ bắt đầu khi `clone` đã xong. Đây là cạnh của đồ thị, và là thứ level này yêu cầu.',
+        where: 'yaml',
+        snippet: `jobs:
+  clone:
+    steps:
+      - id: tai-ma
+  kiem-tra:
+    needs:
+      - clone
+    steps:
+      - id: chay-test`,
+        explain: 'Stage `kiem-tra` chỉ bắt đầu khi `clone` đã xong. Đây là cạnh của đồ thị, và là thứ level này yêu cầu.',
       },
       {
-        snippet: 'steps:',
-        explain: 'Các bước bên trong một stage, chạy nối tiếp trên cùng một máy chạy.',
+        where: 'yaml',
+        snippet: `jobs:
+  kiem-tra:
+    steps:
+      - id: cai-goi
+      - id: chay-test`,
+        explain: 'Các bước của một stage chạy nối tiếp trên cùng một máy. Giữ đúng `id` của bước (`tai-ma`, `cai-goi`, `chay-test`) — bước mang id lạ chạy 0 tick và không đo được gì.',
       },
       {
-        snippet: 'runnerClass: linux',
-        explain: 'Hạng máy stage này cần. Số máy mỗi hạng là dữ liệu của level, không nằm trong đường ống bạn viết.',
+        where: 'yaml',
+        snippet: `jobs:
+  clone:
+    runs-on: linux
+    steps:
+      - id: tai-ma`,
+        explain: 'Hạng máy stage này cần; vắng khoá thì mặc định là `linux`. Số máy mỗi hạng là dữ liệu của level, không nằm trong đường ống bạn viết.',
       },
     ],
     takeaways: [

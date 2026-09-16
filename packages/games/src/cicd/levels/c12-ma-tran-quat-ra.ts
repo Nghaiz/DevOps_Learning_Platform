@@ -192,16 +192,52 @@ nối tiếp lấy 8 tick trên ba máy. Trục lead time đi xuống, trục ru
 yên, và đó là một trong những chỗ ba trục tách nhau rõ nhất trong cả chương.`,
     cheatsheet: [
       {
-        snippet: "fanOut: { axes: [{ name: 'phien-ban', values: ['18', '20', '22'] }] }",
-        explain: 'Quạt stage ra ba thực thể chạy song song, mỗi thực thể một máy chạy riêng.',
+        where: 'yaml',
+        snippet: `jobs:
+  bien-dich:
+    runs-on: chung
+    steps:
+      - id: bien-dich-ma
+  kiem-thu:
+    runs-on: chung
+    needs:
+      - bien-dich
+    strategy:
+      matrix:
+        phien-ban:
+          - 18
+          - 20
+          - 22
+    steps:
+      - id: kiem-thu-ban`,
+        explain: 'Quạt stage thành ba thực thể chạy song song, mỗi thực thể chiếm một máy riêng. Lead time giảm, runner-phút đứng yên — vẫn đúng 24 tick việc.',
       },
       {
-        snippet: 'runnerSlots: 1',
-        explain: 'Số máy MỖI thực thể chiếm; quạt ra ba thực thể nghĩa là cần ba chỗ cùng lúc.',
-      },
-      {
-        snippet: 'dependsOn: [...]',
-        explain: 'Stage phụ thuộc một stage đã quạt sẽ chờ TẤT CẢ thực thể của nó (xem C13).',
+        where: 'yaml',
+        snippet: `jobs:
+  bien-dich:
+    runs-on: chung
+    steps:
+      - id: bien-dich-ma
+  kiem-thu-ban-18:
+    runs-on: chung
+    needs:
+      - bien-dich
+    steps:
+      - id: kiem-thu-ban-18
+  kiem-thu-ban-20:
+    runs-on: chung
+    needs:
+      - bien-dich
+    steps:
+      - id: kiem-thu-ban-20
+  kiem-thu-ban-22:
+    runs-on: chung
+    needs:
+      - bien-dich
+    steps:
+      - id: kiem-thu-ban-22`,
+        explain: 'Cách thứ hai: ba stage riêng, mỗi stage một bước, cũng chiếm ba máy cùng lúc. Stage tự thêm phải khai `runs-on: chung` — vắng khoá là mặc định `linux`, hạng máy level này không có.',
       },
     ],
     takeaways: [

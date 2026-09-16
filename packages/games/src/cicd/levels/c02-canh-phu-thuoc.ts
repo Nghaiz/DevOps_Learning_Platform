@@ -219,16 +219,53 @@ cần một máy). Đây là lần đầu ba trục điểm kéo nhau đi hai h�
 phải lần cuối.`,
     cheatsheet: [
       {
-        snippet: 'dependsOn: [dung]',
-        explain: 'Cạnh phụ thuộc. Vừa quyết định thứ tự chạy, vừa quyết định stage này thấy được sản phẩm của ai.',
+        where: 'yaml',
+        snippet: `jobs:
+  clone:
+    steps:
+      - id: tai-ma
+  dung:
+    needs:
+      - clone
+    steps:
+      - id: bien-dich`,
+        explain: 'Cạnh phụ thuộc vừa quyết định thứ tự chạy, vừa quyết định stage thấy sản phẩm của ai. Bước cần một sản phẩm mà không có cạnh dẫn tới stage tạo ra nó thì đỏ ở mọi lượt, không phải đỏ ngẫu nhiên.',
       },
       {
-        snippet: 'produces: [ban-dung]',
-        explain: 'Bước này tạo ra sản phẩm đó. Chỉ tính khi bước chạy xanh — một bước đỏ không tạo ra gì.',
+        where: 'yaml',
+        snippet: `jobs:
+  dung:
+    steps:
+      - id: bien-dich
+  kiem-tra:
+    needs:
+      - dung
+    steps:
+      - id: chay-test
+  dong-goi:
+    needs:
+      - dung
+    steps:
+      - id: dong-goi-ban`,
+        explain: 'Hai stage cùng đợi `dung` thì chạy song song và cùng thấy `ban-dung`, nhưng không thấy sản phẩm của nhau — kể cả khi một bên xong trước.',
       },
       {
-        snippet: 'requires: [ban-dung]',
-        explain: 'Bước này cần sản phẩm đó mới chạy được. Thiếu là đỏ thật, không phải cảnh báo.',
+        where: 'yaml',
+        snippet: `jobs:
+  dung:
+    steps:
+      - id: bien-dich
+  kiem-tra:
+    needs:
+      - dung
+    steps:
+      - id: chay-test
+  dong-goi:
+    needs:
+      - kiem-tra
+    steps:
+      - id: dong-goi-ban`,
+        explain: 'Nối chuỗi thay vì song song: `dong-goi` vẫn thấy `ban-dung` qua cạnh bắc cầu `kiem-tra` → `dung`. Chậm hơn, nhưng mỗi lúc chỉ cần một máy.',
       },
     ],
     takeaways: [

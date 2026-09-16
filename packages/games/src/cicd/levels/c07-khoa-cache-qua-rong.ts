@@ -233,16 +233,22 @@ mấy lần một tuần?"* Bất cứ thứ gì đổi theo mỗi commit mà n�
 đã chết rồi.`,
     cheatsheet: [
       {
-        snippet: 'cache.keyParts: [khoa-phu-thuoc]',
-        explain: 'Khoá hẹp nhất còn đúng: đúng bằng thứ nội dung cache phụ thuộc. Trúng nhiều nhất.',
+        where: 'panel',
+        control: 'cache',
+        label: 'Cache → Khoá cache gồm những đầu vào nào',
+        explain: 'Khoá chỉ trùng lượt trước khi MỌI đầu vào đã chọn giữ nguyên. Chọn "Mã nguồn" (đổi mỗi 1 commit) là khoá không bao giờ lặp lại, và cache không bao giờ trúng.',
       },
       {
-        snippet: 'cache.keyParts: [khoa-phu-thuoc, ma-nguon]',
-        explain: 'Khoá chết: `ma-nguon` đổi ở mọi commit, nên khoá không bao giờ lặp lại và cache không bao giờ trúng.',
+        where: 'panel',
+        control: 'cache',
+        label: 'Cache → Cài gói và build → Tải gói phụ thuộc',
+        explain: 'Cache đang bật và không báo lỗi nào — nó chỉ không trúng lần nào. Đọc số lần trúng trong lượt chấm, đừng đi tìm ô đỏ.',
       },
       {
-        snippet: 'cache.invalidatedBy: [khoa-phu-thuoc]',
-        explain: 'Thứ nội dung cache thật sự phụ thuộc. Đây là sự thật của hệ thống — không phải nút bạn vặn để cache trúng nhiều hơn.',
+        where: 'panel',
+        control: 'cache',
+        label: 'Cache',
+        explain: 'Bạn chỉ bật/tắt cache và chọn đầu vào tạo khoá; nội dung gói thật sự phụ thuộc vào gì và trúng thì tiết kiệm bao nhiêu tick là sự thật của level. Thêm đầu vào vào khoá không làm nó an toàn hơn.',
       },
     ],
     takeaways: [

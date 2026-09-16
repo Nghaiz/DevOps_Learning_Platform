@@ -221,16 +221,55 @@ cố định — sẵn sàng trước thì chạy trước, hoà thì so mã đ�
 lặp lại được, và bạn so được hai lời giải trên cùng một thế giới.`,
     cheatsheet: [
       {
-        snippet: 'dependsOn: []',
-        explain: 'Không đợi ai. Stage sẵn sàng ngay khi commit tới, và chỉ còn chờ máy.',
+        where: 'yaml',
+        snippet: `jobs:
+  clone:
+    steps:
+      - id: tai-ma
+  kt-a:
+    needs:
+      - clone
+    steps:
+      - id: chay-a
+  kt-b:
+    needs:
+      - clone
+    steps:
+      - id: chay-b`,
+        explain: 'Không đợi nhau: `kt-a` và `kt-b` chỉ đợi `clone`, sau đó chỉ còn chờ máy. Đồ thị cho phép song song; số máy mới quyết định có song song thật hay không.',
       },
       {
-        snippet: 'runnerClass: linux',
-        explain: 'Hạng máy stage cần. Số máy mỗi hạng nằm ở dữ liệu level — level này cho đúng hai.',
+        where: 'yaml',
+        snippet: `jobs:
+  kt-a:
+    steps:
+      - id: chay-a
+  kt-b:
+    steps:
+      - id: chay-b
+  tong-hop:
+    needs:
+      - kt-a
+      - kt-b
+    steps:
+      - id: gom-kq`,
+        explain: 'Hợp lưu: `tong-hop` đợi mọi stage trong danh sách. Thiếu một bộ kiểm thử trong `needs` là nó đỏ, vì không thấy kết quả của bộ đó.',
       },
       {
-        snippet: 'steps:',
-        explain: 'Gộp nhiều việc vào một stage: chúng dùng chung một máy và chạy nối tiếp.',
+        where: 'yaml',
+        snippet: `jobs:
+  clone:
+    steps:
+      - id: tai-ma
+  kt-lan-1:
+    runs-on: linux
+    needs:
+      - clone
+    steps:
+      - id: chay-a
+      - id: chay-b
+      - id: chay-c`,
+        explain: 'Gộp nhiều bộ vào một stage: các bước dùng chung một máy `linux` và chạy nối tiếp. Cách chia không đổi được sàn thời gian — chỉ số máy mới đổi được.',
       },
     ],
     takeaways: [

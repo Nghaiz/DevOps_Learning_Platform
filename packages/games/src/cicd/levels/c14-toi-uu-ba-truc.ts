@@ -293,16 +293,56 @@ Level này không nói bạn phải đi đường nào. Nó chỉ đưa ba con s
 sách.`,
     cheatsheet: [
       {
-        snippet: 'dependsOn: []',
-        explain: 'Không cạnh nào: stage chạy ngay từ đầu, song song với mọi thứ khác.',
+        where: 'yaml',
+        snippet: `jobs:
+  clone:
+    runs-on: chung
+    steps:
+      - id: tai-ma-nguon
+  soat-ma:
+    runs-on: chung
+    needs:
+      - clone
+    steps:
+      - id: soat-phong-cach
+  quet-bao-mat:
+    runs-on: chung
+    needs:
+      - clone
+    steps:
+      - id: quet-tinh`,
+        explain: 'Tách nhánh: soát mã và quét bảo mật chỉ cần mã nguồn nên chỉ đợi `clone`. Lead time giảm, runner-phút không bớt một tick nào — cùng bấy nhiêu việc, chỉ khác lúc làm.',
       },
       {
-        snippet: 'cache: { keyParts, invalidatedBy, savesTicks }',
-        explain: 'Hai danh sách phải khớp nhau; khi trúng và đúng, bước bớt đi `savesTicks` tick.',
+        where: 'yaml',
+        snippet: `jobs:
+  kiem-thu:
+    runs-on: chung
+    steps:
+      - id: chay-kiem-thu
+  soat-ma:
+    runs-on: chung
+    steps:
+      - id: soat-phong-cach
+  quet-bao-mat:
+    runs-on: chung
+    steps:
+      - id: quet-tinh
+  dong-goi:
+    runs-on: chung
+    needs:
+      - kiem-thu
+      - soat-ma
+      - quet-bao-mat
+    steps:
+      - id: dong-goi-anh`,
+        explain: 'Gom nhiều nhánh: `dong-goi` chờ mọi stage trong danh sách xong, nên nhánh chậm nhất quyết định lúc đóng gói.',
       },
       {
-        snippet: 'dependsOn: [a, b]',
-        explain: 'Gom nhiều nhánh: stage chờ tất cả các nhánh được liệt kê xong.',
+        where: 'panel',
+        control: 'cache',
+        label: 'Cache → Dựng thư viện phụ thuộc → Dựng thư viện phụ thuộc',
+        explain: 'Đầu vào "Khoá phụ thuộc" đổi mỗi 3 commit mà thư viện đang dựng lại ở mọi commit. Bật cache ở đây hạ cả lead time lẫn runner-phút; bạn chọn đầu vào của khoá, còn số tick tiết kiệm là dữ liệu của level.',
       },
     ],
     takeaways: [
