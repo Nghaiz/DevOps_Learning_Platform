@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -193,51 +194,21 @@ yên, và đó là một trong những chỗ ba trục tách nhau rõ nhất tro
     cheatsheet: [
       {
         where: 'yaml',
-        snippet: `jobs:
-  bien-dich:
-    runs-on: chung
-    steps:
-      - id: bien-dich-ma
-  kiem-thu:
-    runs-on: chung
-    needs:
-      - bien-dich
-    strategy:
-      matrix:
-        phien-ban:
-          - 18
-          - 20
-          - 22
-    steps:
-      - id: kiem-thu-ban`,
+        example: cheatsheetExample('chung', [
+          { id: 'bien-dich', steps: ['bien-dich-ma'] },
+          { id: 'kiem-thu', dependsOn: ['bien-dich'], fanOut: { axes: [{ name: 'phien-ban', values: ['18', '20', '22'] }] }, steps: ['kiem-thu-ban'] },
+        ]),
         explain: 'Quạt stage thành ba thực thể chạy song song, mỗi thực thể chiếm một máy riêng. Lead time giảm, runner-phút đứng yên — vẫn đúng 24 tick việc.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  bien-dich:
-    runs-on: chung
-    steps:
-      - id: bien-dich-ma
-  kiem-thu-ban-18:
-    runs-on: chung
-    needs:
-      - bien-dich
-    steps:
-      - id: kiem-thu-ban-18
-  kiem-thu-ban-20:
-    runs-on: chung
-    needs:
-      - bien-dich
-    steps:
-      - id: kiem-thu-ban-20
-  kiem-thu-ban-22:
-    runs-on: chung
-    needs:
-      - bien-dich
-    steps:
-      - id: kiem-thu-ban-22`,
-        explain: 'Cách thứ hai: ba stage riêng, mỗi stage một bước, cũng chiếm ba máy cùng lúc. Stage tự thêm phải khai `runs-on: chung` — vắng khoá là mặc định `linux`, hạng máy level này không có.',
+        example: cheatsheetExample('chung', [
+          { id: 'bien-dich', steps: ['bien-dich-ma'] },
+          { id: 'kiem-thu-ban-18', dependsOn: ['bien-dich'], steps: ['kiem-thu-ban-18'] },
+          { id: 'kiem-thu-ban-20', dependsOn: ['bien-dich'], steps: ['kiem-thu-ban-20'] },
+          { id: 'kiem-thu-ban-22', dependsOn: ['bien-dich'], steps: ['kiem-thu-ban-22'] },
+        ]),
+        explain: 'Cách thứ hai: ba stage riêng, mỗi stage một bước, cũng chiếm ba máy cùng lúc. Stage tự thêm phải khai hạng máy `chung` như trong ví dụ — vắng dòng đó thì bộ đọc mặc định `linux`, hạng máy level này không có.',
       },
     ],
     takeaways: [

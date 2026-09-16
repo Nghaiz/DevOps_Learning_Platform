@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -217,38 +218,19 @@ trước không. Nếu câu trả lời là "không có gì", thử lại chỉ 
     cheatsheet: [
       {
         where: 'yaml',
-        snippet: `jobs:
-  bien-dich:
-    runs-on: chung
-    steps:
-      - id: bien-dich-ma
-  dong-goi:
-    runs-on: chung
-    needs:
-      - bien-dich
-    steps:
-      - id: dong-goi-anh`,
+        example: cheatsheetExample('chung', [
+          { id: 'bien-dich', steps: ['bien-dich-ma'] },
+          { id: 'dong-goi', dependsOn: ['bien-dich'], steps: ['dong-goi-anh'] },
+        ]),
         explain: 'Cạnh phụ thuộc cũng là đường duy nhất để thấy sản phẩm của nhau: bước đóng gói cần gói nhị phân của `bien-dich`, nên thiếu cạnh là đỏ thật, không phải đỏ ngẫu nhiên.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  bien-dich:
-    runs-on: chung
-    steps:
-      - id: bien-dich-ma
-  kiem-thu:
-    runs-on: chung
-    needs:
-      - bien-dich
-    steps:
-      - id: chay-kiem-thu
-  dong-goi:
-    runs-on: chung
-    needs:
-      - kiem-thu
-    steps:
-      - id: dong-goi-anh`,
+        example: cheatsheetExample('chung', [
+          { id: 'bien-dich', steps: ['bien-dich-ma'] },
+          { id: 'kiem-thu', dependsOn: ['bien-dich'], steps: ['chay-kiem-thu'] },
+          { id: 'dong-goi', dependsOn: ['kiem-thu'], steps: ['dong-goi-anh'] },
+        ]),
         explain: 'Nối sau kiểm thử thay vì song song: `dong-goi` vẫn thấy gói nhị phân qua cạnh bắc cầu. Chậm hơn, nhưng không đóng gói một bản chưa qua kiểm thử.',
       },
       {

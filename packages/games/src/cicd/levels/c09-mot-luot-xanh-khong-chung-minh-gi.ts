@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -233,33 +234,19 @@ bước hỏng 4 tick sẽ đốt 14 tick mỗi lần thử lại — trong đó
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  bien-dich:
-    runs-on: chung
-    steps:
-      - id: bien-dich-ma
-  khoi-dong-moi-truong:
-    runs-on: chung
-    needs:
-      - bien-dich
-    steps:
-      - id: khoi-dong-may-ao
-  kiem-thu-don-vi:
-    runs-on: chung
-    needs:
-      - khoi-dong-moi-truong
-    steps:
-      - id: chay-kiem-thu`,
+        example: cheatsheetExample('chung', [
+          { id: 'bien-dich', steps: ['bien-dich-ma'] },
+          { id: 'khoi-dong-moi-truong', dependsOn: ['bien-dich'], steps: ['khoi-dong-may-ao'] },
+          { id: 'kiem-thu-don-vi', dependsOn: ['khoi-dong-moi-truong'], steps: ['chay-kiem-thu'] },
+        ]),
         explain: 'Tách bước hay hỏng ra stage riêng rồi đặt số lần thử lại cho riêng stage đó: thử lại một stage là chạy lại MỌI bước của nó, kể cả bước kiểm thử 10 tick chưa hỏng lần nào.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  khoi-dong-moi-truong:
-    runs-on: chung
-    steps:
-      - id: khoi-dong-may-ao`,
-        explain: 'Stage tự thêm phải khai `runs-on: chung`. Vắng khoá thì mặc định là `linux` — hạng máy level này không có — và workflow không chạy được.',
+        example: cheatsheetExample('chung', [
+          { id: 'khoi-dong-moi-truong', steps: ['khoi-dong-may-ao'] },
+        ]),
+        explain: 'Stage tự thêm phải khai hạng máy `chung`, đúng như dòng hạng máy trong ví dụ. Vắng dòng đó thì bộ đọc mặc định `linux` — hạng máy level này không có — và workflow không chạy được.',
       },
     ],
     takeaways: [

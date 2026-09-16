@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -149,41 +150,31 @@ chạy. Các stage sau cần mã đó, nên chúng phải đợi nó.`,
     cheatsheet: [
       {
         where: 'yaml',
-        snippet: `jobs:
-  clone:
-    steps:
-      - id: tai-ma`,
+        example: cheatsheetExample('linux', [
+          { id: 'clone', kind: 'clone', steps: ['tai-ma'] },
+        ]),
         explain: 'Mỗi khoá dưới `jobs` là một stage, và tên khoá là mã định danh của nó. Thứ tự viết chỉ để đọc — thứ tự chạy do `needs` quyết định.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  clone:
-    steps:
-      - id: tai-ma
-  kiem-tra:
-    needs:
-      - clone
-    steps:
-      - id: chay-test`,
+        example: cheatsheetExample('linux', [
+          { id: 'clone', kind: 'clone', steps: ['tai-ma'] },
+          { id: 'kiem-tra', dependsOn: ['clone'], steps: ['chay-test'] },
+        ]),
         explain: 'Stage `kiem-tra` chỉ bắt đầu khi `clone` đã xong. Đây là cạnh của đồ thị, và là thứ level này yêu cầu.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  kiem-tra:
-    steps:
-      - id: cai-goi
-      - id: chay-test`,
+        example: cheatsheetExample('linux', [
+          { id: 'kiem-tra', steps: ['cai-goi', 'chay-test'] },
+        ]),
         explain: 'Các bước của một stage chạy nối tiếp trên cùng một máy. Giữ đúng `id` của bước (`tai-ma`, `cai-goi`, `chay-test`) — bước mang id lạ chạy 0 tick và không đo được gì.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  clone:
-    runs-on: linux
-    steps:
-      - id: tai-ma`,
+        example: cheatsheetExample('linux', [
+          { id: 'clone', kind: 'clone', steps: ['tai-ma'] },
+        ]),
         explain: 'Hạng máy stage này cần; vắng khoá thì mặc định là `linux`. Số máy mỗi hạng là dữ liệu của level, không nằm trong đường ống bạn viết.',
       },
     ],

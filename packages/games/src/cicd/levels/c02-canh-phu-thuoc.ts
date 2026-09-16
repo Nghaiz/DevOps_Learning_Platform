@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -220,51 +221,28 @@ phải lần cuối.`,
     cheatsheet: [
       {
         where: 'yaml',
-        snippet: `jobs:
-  clone:
-    steps:
-      - id: tai-ma
-  dung:
-    needs:
-      - clone
-    steps:
-      - id: bien-dich`,
+        example: cheatsheetExample('linux', [
+          { id: 'clone', kind: 'clone', steps: ['tai-ma'] },
+          { id: 'dung', dependsOn: ['clone'], steps: ['bien-dich'] },
+        ]),
         explain: 'Cạnh phụ thuộc vừa quyết định thứ tự chạy, vừa quyết định stage thấy sản phẩm của ai. Bước cần một sản phẩm mà không có cạnh dẫn tới stage tạo ra nó thì đỏ ở mọi lượt, không phải đỏ ngẫu nhiên.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  dung:
-    steps:
-      - id: bien-dich
-  kiem-tra:
-    needs:
-      - dung
-    steps:
-      - id: chay-test
-  dong-goi:
-    needs:
-      - dung
-    steps:
-      - id: dong-goi-ban`,
+        example: cheatsheetExample('linux', [
+          { id: 'dung', steps: ['bien-dich'] },
+          { id: 'kiem-tra', dependsOn: ['dung'], steps: ['chay-test'] },
+          { id: 'dong-goi', dependsOn: ['dung'], steps: ['dong-goi-ban'] },
+        ]),
         explain: 'Hai stage cùng đợi `dung` thì chạy song song và cùng thấy `ban-dung`, nhưng không thấy sản phẩm của nhau — kể cả khi một bên xong trước.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  dung:
-    steps:
-      - id: bien-dich
-  kiem-tra:
-    needs:
-      - dung
-    steps:
-      - id: chay-test
-  dong-goi:
-    needs:
-      - kiem-tra
-    steps:
-      - id: dong-goi-ban`,
+        example: cheatsheetExample('linux', [
+          { id: 'dung', steps: ['bien-dich'] },
+          { id: 'kiem-tra', dependsOn: ['dung'], steps: ['chay-test'] },
+          { id: 'dong-goi', dependsOn: ['kiem-tra'], steps: ['dong-goi-ban'] },
+        ]),
         explain: 'Nối chuỗi thay vì song song: `dong-goi` vẫn thấy `ban-dung` qua cạnh bắc cầu `kiem-tra` → `dung`. Chậm hơn, nhưng mỗi lúc chỉ cần một máy.',
       },
     ],

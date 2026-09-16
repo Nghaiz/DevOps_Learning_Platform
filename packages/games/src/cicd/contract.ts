@@ -1292,25 +1292,32 @@ export interface CicdThresholds {
 /**
  * Một mục tra nhanh. **Hai loại, vì người chơi sửa đường ống ở hai chỗ.**
  *
- * - `'yaml'` — thứ gõ vào ô soạn. `snippet` là một TÀI LIỆU YAML HOÀN CHỈNH, nhỏ
- *   nhất có thể, mà `readWorkflowYaml` đọc được và không bỏ qua khoá nào. Hoàn
- *   chỉnh chứ không phải một mẩu `needs: [a]` đứng trơ trọi, vì với YAML chỗ
- *   đứng (thụt lề, khoá cha) là một nửa cú pháp, và đó đúng là nửa người mới gõ
- *   sai.
+ * - `'yaml'` — thứ gõ vào ô soạn. `example` là một `WorkflowSpec` NHỎ NHẤT có thể
+ *   minh hoạ ý, và giao diện in nó ra bằng bộ ghi của nhà cung cấp đang dùng
+ *   (`writeWorkflowYaml`). Một tài liệu hoàn chỉnh chứ không phải một mẩu trơ
+ *   trọi, vì với YAML chỗ đứng (thụt lề, khoá cha) là một nửa cú pháp, và đó
+ *   đúng là nửa người mới gõ sai.
+ *
+ *   ⛔ KHÔNG phải chuỗi YAML. Bản 2026-09-16 chở chuỗi YAML viết tay ngay trong
+ *   file level, và cổng `scripts/check-cicd-vendor-neutral.mjs` đỏ 68 chỗ: level
+ *   là LÕI, và chuỗi đó mang khoá của một nhà cung cấp cụ thể. Chở `WorkflowSpec`
+ *   thì level trung lập, và thêm nhà cung cấp thứ hai là cheatsheet tự in đúng
+ *   cú pháp mới. Chỉ phần nào `writeWorkflowYaml` ghi ra mà không `dropped`
+ *   mới được có mặt trong `example`.
  * - `'panel'` — thứ YAML không chở được (`retries`, `cache`), đặt ở bảng điều
  *   khiển ngoài ô soạn. `control` phải nằm trong `CicdLevel.editable` của level
  *   khai nó; một mục chỉ tới núm mà level không hiện là chỉ đường vào ngõ cụt.
  *
- * ⛔ Bản trước chỉ có `snippet: string`, và cả 14 level điền vào đó TÊN TRƯỜNG
+ * ⛔ Bản đầu chỉ có `snippet: string`, và cả 14 level điền vào đó TÊN TRƯỜNG
  * CỦA HỢP ĐỒNG NÀY (`dependsOn:`, `runnerClass:`, `cache.savesTicks: 8`) — không
  * phải thứ bộ đọc nhận, có mục còn là dữ liệu level người chơi không sửa được.
  * Nằm im được vì không màn nào render trường này. `levels/cheatsheet.test.ts`
- * nay chạy chính bộ đọc trên từng mục.
+ * nay cho từng ví dụ đi qua cặp ghi/đọc thật.
  */
 export type CicdCheatSheetEntry =
   | {
       readonly where: 'yaml';
-      readonly snippet: string;
+      readonly example: WorkflowSpec;
       /** Một dòng tiếng Việt: nó làm gì, và vì sao level này cần nó. */
       readonly explain: string;
     }

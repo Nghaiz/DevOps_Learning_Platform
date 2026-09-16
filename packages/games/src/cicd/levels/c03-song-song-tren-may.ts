@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -222,53 +223,28 @@ lặp lại được, và bạn so được hai lời giải trên cùng một t
     cheatsheet: [
       {
         where: 'yaml',
-        snippet: `jobs:
-  clone:
-    steps:
-      - id: tai-ma
-  kt-a:
-    needs:
-      - clone
-    steps:
-      - id: chay-a
-  kt-b:
-    needs:
-      - clone
-    steps:
-      - id: chay-b`,
+        example: cheatsheetExample('linux', [
+          { id: 'clone', kind: 'clone', steps: ['tai-ma'] },
+          { id: 'kt-a', dependsOn: ['clone'], steps: ['chay-a'] },
+          { id: 'kt-b', dependsOn: ['clone'], steps: ['chay-b'] },
+        ]),
         explain: 'Không đợi nhau: `kt-a` và `kt-b` chỉ đợi `clone`, sau đó chỉ còn chờ máy. Đồ thị cho phép song song; số máy mới quyết định có song song thật hay không.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  kt-a:
-    steps:
-      - id: chay-a
-  kt-b:
-    steps:
-      - id: chay-b
-  tong-hop:
-    needs:
-      - kt-a
-      - kt-b
-    steps:
-      - id: gom-kq`,
+        example: cheatsheetExample('linux', [
+          { id: 'kt-a', steps: ['chay-a'] },
+          { id: 'kt-b', steps: ['chay-b'] },
+          { id: 'tong-hop', dependsOn: ['kt-a', 'kt-b'], steps: ['gom-kq'] },
+        ]),
         explain: 'Hợp lưu: `tong-hop` đợi mọi stage trong danh sách. Thiếu một bộ kiểm thử trong `needs` là nó đỏ, vì không thấy kết quả của bộ đó.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  clone:
-    steps:
-      - id: tai-ma
-  kt-lan-1:
-    runs-on: linux
-    needs:
-      - clone
-    steps:
-      - id: chay-a
-      - id: chay-b
-      - id: chay-c`,
+        example: cheatsheetExample('linux', [
+          { id: 'clone', kind: 'clone', steps: ['tai-ma'] },
+          { id: 'kt-lan-1', dependsOn: ['clone'], steps: ['chay-a', 'chay-b', 'chay-c'] },
+        ]),
         explain: 'Gộp nhiều bộ vào một stage: các bước dùng chung một máy `linux` và chạy nối tiếp. Cách chia không đổi được sàn thời gian — chỉ số máy mới đổi được.',
       },
     ],

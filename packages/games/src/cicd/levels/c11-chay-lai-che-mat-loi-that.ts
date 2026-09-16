@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -235,23 +236,11 @@ Sau khi sửa, tỷ lệ xanh của bạn sẽ tụt. Con số mới đó mới 
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  bien-dich:
-    runs-on: chung
-    steps:
-      - id: bien-dich-ma
-  kiem-thu-tich-hop:
-    runs-on: chung
-    needs:
-      - bien-dich
-    steps:
-      - id: dung-moi-truong
-  khang-dinh-dua-luong:
-    runs-on: chung
-    needs:
-      - kiem-thu-tich-hop
-    steps:
-      - id: khang-dinh-dua-luong`,
+        example: cheatsheetExample('chung', [
+          { id: 'bien-dich', steps: ['bien-dich-ma'] },
+          { id: 'kiem-thu-tich-hop', dependsOn: ['bien-dich'], steps: ['dung-moi-truong'] },
+          { id: 'khang-dinh-dua-luong', dependsOn: ['kiem-thu-tich-hop'], steps: ['khang-dinh-dua-luong'] },
+        ]),
         explain: 'Tách hai bước thành hai stage thì mỗi stage có số lần thử lại riêng: thử lại việc dựng môi trường, để 0 cho stage bắt lỗi thật. Tỷ lệ xanh sẽ tụt — con số mới đó mới là con số thật.',
       },
     ],

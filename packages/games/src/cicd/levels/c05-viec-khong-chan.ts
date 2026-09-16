@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -187,34 +188,24 @@ năm là một việc đã ngừng kiểm tra từ ba năm trước.`,
     cheatsheet: [
       {
         where: 'yaml',
-        snippet: `jobs:
-  kiem-tra-tich-hop:
-    continue-on-error: true
-    steps:
-      - id: goi-dich-vu`,
+        example: cheatsheetExample('linux', [
+          { id: 'kiem-tra-tich-hop', nonBlocking: true, steps: ['goi-dich-vu'] },
+        ]),
         explain: 'Đặt ở stage: stage vẫn ĐỎ trong bảng nhưng lượt chạy không đỏ theo và stage sau vẫn chạy. Chú ý nghĩa: `true` là đi tiếp; vắng khoá hoặc `false` là chặn.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  kiem-tra-tich-hop:
-    steps:
-      - id: goi-dich-vu
-        continue-on-error: true`,
+        example: cheatsheetExample('linux', [
+          { id: 'kiem-tra-tich-hop', steps: [{ id: 'goi-dich-vu', nonBlocking: true }] },
+        ]),
         explain: 'Đặt ở bước: bước đỏ nhưng stage đi tiếp và kết thúc XANH. Gọn mắt hơn, nên cũng dễ quên hơn rằng phép kiểm đó đã ngừng kiểm.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  kiem-tra-tich-hop:
-    continue-on-error: true
-    steps:
-      - id: goi-dich-vu
-  dong-goi:
-    needs:
-      - kiem-tra-tich-hop
-    steps:
-      - id: dong-goi-ban`,
+        example: cheatsheetExample('linux', [
+          { id: 'kiem-tra-tich-hop', nonBlocking: true, steps: ['goi-dich-vu'] },
+          { id: 'dong-goi', dependsOn: ['kiem-tra-tich-hop'], steps: ['dong-goi-ban'] },
+        ]),
         explain: '`dong-goi` vẫn đợi `kiem-tra-tich-hop` chạy XONG. Không chặn nghĩa là xong mà đỏ cũng mở khoá được stage sau, chứ không phải bỏ luôn việc chờ.',
       },
     ],

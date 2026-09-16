@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -217,56 +218,20 @@ cần; đó là cách bắt một cạnh thiếu tự khai báo.`,
     cheatsheet: [
       {
         where: 'yaml',
-        snippet: `jobs:
-  bien-dich:
-    runs-on: chung
-    steps:
-      - id: bien-dich-ma
-  kiem-thu:
-    runs-on: chung
-    needs:
-      - bien-dich
-    strategy:
-      matrix:
-        phien-ban:
-          - 18
-          - 20
-          - 22
-    steps:
-      - id: kiem-thu-ban
-  xuat-ban:
-    runs-on: chung
-    needs:
-      - kiem-thu
-    steps:
-      - id: gom-bao-cao`,
+        example: cheatsheetExample('chung', [
+          { id: 'bien-dich', steps: ['bien-dich-ma'] },
+          { id: 'kiem-thu', dependsOn: ['bien-dich'], fanOut: { axes: [{ name: 'phien-ban', values: ['18', '20', '22'] }] }, steps: ['kiem-thu-ban'] },
+          { id: 'xuat-ban', dependsOn: ['kiem-thu'], steps: ['gom-bao-cao'] },
+        ]),
         explain: 'Một cạnh tới stage đã quạt là đủ: `xuat-ban` chờ CẢ ba thực thể của `kiem-thu` xong, không phải thực thể xong đầu tiên, nên báo cáo mà bước xuất bản đòi đã có đủ.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  kiem-thu:
-    runs-on: chung
-    strategy:
-      matrix:
-        phien-ban:
-          - 18
-          - 20
-          - 22
-    steps:
-      - id: kiem-thu-ban
-  cong-tong-hop:
-    runs-on: chung
-    needs:
-      - kiem-thu
-    steps:
-      - id: tong-hop-ket-qua
-  xuat-ban:
-    runs-on: chung
-    needs:
-      - cong-tong-hop
-    steps:
-      - id: gom-bao-cao`,
+        example: cheatsheetExample('chung', [
+          { id: 'kiem-thu', fanOut: { axes: [{ name: 'phien-ban', values: ['18', '20', '22'] }] }, steps: ['kiem-thu-ban'] },
+          { id: 'cong-tong-hop', dependsOn: ['kiem-thu'], steps: ['tong-hop-ket-qua'] },
+          { id: 'xuat-ban', dependsOn: ['cong-tong-hop'], steps: ['gom-bao-cao'] },
+        ]),
         explain: 'Hoặc chèn một stage cổng gom kết quả ba nhánh rồi mới xuất bản. Cổng là một stage thật: tốn thêm một chỗ máy và một tick lead time.',
       },
     ],

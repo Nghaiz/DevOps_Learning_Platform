@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactElement } from 'react';
-import type { CicdCheatSheetEntry } from '@devops-platform/games';
+import { writeWorkflowYaml, type CicdCheatSheetEntry } from '@devops-platform/games';
 
 /**
  * Bảng tra nhanh của một màn — `teaching.cheatsheet`.
@@ -12,6 +12,9 @@ import type { CicdCheatSheetEntry } from '@devops-platform/games';
  * Hai loại mục hiện KHÁC nhau có chủ ý: mục YAML là một khối mã chép được, mục
  * bảng điều khiển là tên núm để đi tìm. Vẽ chúng giống nhau sẽ mời người chơi dán
  * tên một núm vào ô soạn.
+ *
+ * Mục YAML chở một `WorkflowSpec` trung lập và được in bằng ĐÚNG bộ ghi mà ô soạn
+ * dùng, nên thứ người chơi chép luôn là thứ bộ đọc nhận (xem `CicdCheatSheetEntry`).
  */
 export function CicdCheatsheet({ entries }: { readonly entries: readonly CicdCheatSheetEntry[] }): ReactElement | null {
   if (entries.length === 0) {
@@ -25,7 +28,7 @@ export function CicdCheatsheet({ entries }: { readonly entries: readonly CicdChe
           <li key={index} className="flex flex-col gap-1">
             {entry.where === 'yaml' ? (
               <pre className="overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs text-foreground">
-                <code>{entry.snippet}</code>
+                <code>{writeWorkflowYaml(entry.example).yaml}</code>
               </pre>
             ) : (
               <p className="text-sm text-foreground">

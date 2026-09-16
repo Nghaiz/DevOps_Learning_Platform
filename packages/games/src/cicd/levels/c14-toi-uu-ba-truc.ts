@@ -1,3 +1,4 @@
+import { cheatsheetExample } from '../cheatsheet-example.ts';
 import type { CicdLevel } from '../contract.ts';
 
 /**
@@ -294,48 +295,21 @@ sách.`,
     cheatsheet: [
       {
         where: 'yaml',
-        snippet: `jobs:
-  clone:
-    runs-on: chung
-    steps:
-      - id: tai-ma-nguon
-  soat-ma:
-    runs-on: chung
-    needs:
-      - clone
-    steps:
-      - id: soat-phong-cach
-  quet-bao-mat:
-    runs-on: chung
-    needs:
-      - clone
-    steps:
-      - id: quet-tinh`,
+        example: cheatsheetExample('chung', [
+          { id: 'clone', kind: 'clone', steps: ['tai-ma-nguon'] },
+          { id: 'soat-ma', dependsOn: ['clone'], steps: ['soat-phong-cach'] },
+          { id: 'quet-bao-mat', dependsOn: ['clone'], steps: ['quet-tinh'] },
+        ]),
         explain: 'Tách nhánh: soát mã và quét bảo mật chỉ cần mã nguồn nên chỉ đợi `clone`. Lead time giảm, runner-phút không bớt một tick nào — cùng bấy nhiêu việc, chỉ khác lúc làm.',
       },
       {
         where: 'yaml',
-        snippet: `jobs:
-  kiem-thu:
-    runs-on: chung
-    steps:
-      - id: chay-kiem-thu
-  soat-ma:
-    runs-on: chung
-    steps:
-      - id: soat-phong-cach
-  quet-bao-mat:
-    runs-on: chung
-    steps:
-      - id: quet-tinh
-  dong-goi:
-    runs-on: chung
-    needs:
-      - kiem-thu
-      - soat-ma
-      - quet-bao-mat
-    steps:
-      - id: dong-goi-anh`,
+        example: cheatsheetExample('chung', [
+          { id: 'kiem-thu', steps: ['chay-kiem-thu'] },
+          { id: 'soat-ma', steps: ['soat-phong-cach'] },
+          { id: 'quet-bao-mat', steps: ['quet-tinh'] },
+          { id: 'dong-goi', dependsOn: ['kiem-thu', 'soat-ma', 'quet-bao-mat'], steps: ['dong-goi-anh'] },
+        ]),
         explain: 'Gom nhiều nhánh: `dong-goi` chờ mọi stage trong danh sách xong, nên nhánh chậm nhất quyết định lúc đóng gói.',
       },
       {
