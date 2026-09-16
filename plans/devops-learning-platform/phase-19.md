@@ -48,13 +48,32 @@ bài OJ cho `gameId: 'cicd'` soạn được qua `/author/problems`.
 
 | # | Việc | Vì sao chưa làm |
 |---|---|---|
-| 1 | Ô Playwright cho AC-H (0 lời gọi backend) và AC-6 (axe) trên `/games/cicd` | Chưa viết `apps/web/e2e/games-cicd.spec.ts`. Route đã vào `e2e/routes.ts` nên lượt quét axe/CSP chung có phủ, nhưng **ô "0 lời gọi backend" thì chưa** — và đó là ô riêng của trụ cột ③ |
-| 2 | Chưa lượt nào chạy trong TRÌNH DUYỆT thật | Mọi phép đo ở đợt này là test Node. `cicd-run.test.ts` chạy đúng đường `runWorkflow` của màn và khẳng định ba trục ≠ 0, nhưng nó không dựng DOM. Một lỗi chỉ hiện khi render vẫn còn nguyên khả năng |
+| ~~1~~ | ~~Ô Playwright cho AC-H và AC-6~~ | **XONG** — `apps/web/e2e/games-cicd.spec.ts`, 5 ô, đã vào `e2e:ci` |
+| ~~2~~ | ~~Chưa chạy trong trình duyệt thật~~ | **XONG** — 5/5 xanh trên Chromium thật, hai lượt độc lập |
 | 3 | Rà cheatsheet của cả 14 level | Xem §19.E.bis mục 2 — mới biết c01 sai, chưa quét 13 level còn lại |
 | 4 | Ô cache dùng `invalidatedBy` = `keyParts` | Cách hiểu của người dựng màn, engine giữ hai trường RIÊNG. C07/C08 dạy đúng chỗ khác nhau giữa chúng nên có thể cần tách |
 | 5 | Ô retries chỉ liệt kê stage của `initialWorkflow` | Job người chơi tự thêm trong YAML không có ô chỉnh retries |
 | 6 | Mẩu chèn nhanh nối vào CUỐI văn bản, không vào vị trí con trỏ | `YamlEditor` chưa mở ref ra ngoài |
 | 7 | Chú thích trong 4 file của màn chơi mất dấu tiếng Việt | Do một lượt vá bằng script. Chỉ ảnh hưởng khả năng đọc |
+| 8 | Đường ống RỖNG vẫn hiện ba con số 0 thay vì một câu | Phát hiện lúc viết ô e2e: mở c01 (khởi đầu không stage nào) rồi bấm "Chạy thử" ngay cho `0 giây / 0 runner-phút`, đọc ra thành "cực nhanh, chẳng tốn gì". Cùng hình dạng mà chính `cicd-result-panel.tsx` đã cấm cho nhánh `engine-error`. Chưa sửa vì nó là câu hỏi thiết kế, không phải lỗi mã |
+
+### Cách chạy lượt e2e của màn này
+
+Cần Postgres (auth), nên dựng nó trước:
+
+```
+docker compose up -d postgres redis
+pnpm --filter @devops-platform/web db:migrate
+pnpm --filter @devops-platform/web build
+cd apps/web && E2E_START_SERVER=1 \
+  E2E_BASE_URL=http://localhost:3000 E2E_ORIGIN=http://localhost:3000 \
+  npx playwright test games-cicd.spec.ts
+```
+
+⚠ `E2E_ORIGIN` phải là **`localhost`**, không phải `127.0.0.1`: app khai
+`BETTER_AUTH_URL=http://localhost:3000` và Better Auth so CHUỖI, nên
+`127.0.0.1` trả 403 `INVALID_ORIGIN` ngay ở `globalSetup`. Thiếu
+`E2E_START_SERVER=1` thì Playwright trỏ vào CỤM, tức đo một binary khác.
 
 ---
 
