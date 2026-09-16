@@ -65,6 +65,14 @@ export type UnknownDependencyError = Extract<EvaluationError, { readonly kind: '
  *   nhánh lỗi cho trường hợp này (xem báo cáo lane), nên ở đây lấy HỢP các cạnh
  *   của mọi mục mang id đó. Chọn một mục và bỏ mục kia là bịa ra ngữ nghĩa, còn
  *   bỏ sót một cạnh là bỏ sót một chu trình — hợp là phía an toàn.
+ *
+ *   ⚠ **Đường YAML không còn đẻ ra hình dạng này** (19.C.4, 2026-09-16). Plan
+ *   P19 §19.C giả định "YAML thì làm ra nó dễ dàng"; đo lại thì KHÔNG: bộ quét
+ *   dựng map bằng `map[khoá] = giá trị`, nên hai job trùng tên gộp thành một
+ *   trước khi `yaml-read.ts` nhìn thấy — mất dữ liệu im lặng, chứ không phải hai
+ *   mục cùng id. `core/yaml.ts` nay từ chối khoá trùng, nên lối vào đó đã đóng.
+ *   Hợp-các-cạnh ở lại vì `WorkflowSpec` còn viết TAY được (level là mã nguồn),
+ *   và ở đó kiểu vẫn cho phép hai mục cùng id.
  */
 function adjacency(workflow: WorkflowSpec): Readonly<Record<StageId, readonly StageId[]>> {
   const seen: Record<StageId, Record<StageId, true>> = {};
@@ -95,6 +103,24 @@ function adjacency(workflow: WorkflowSpec): Readonly<Record<StageId, readonly St
  * cho một mảng. Người chơi sửa một cái rồi chạy lại là thấy cái tiếp theo.
  */
 export function findUnknownDependency(workflow: WorkflowSpec): UnknownDependencyError | null {
+  return findAllUnknownDependencies(workflow)[0] ?? null;
+}
+
+/**
+ * MỌI `dependsOn` trỏ vào hư không, không chỉ cái đầu tiên.
+ *
+ * Tồn tại vì hai tầng trên muốn hai thứ khác nhau từ cùng một luật, và nhân đôi
+ * luật là cách chúng bắt đầu bất đồng ý trong im lặng:
+ *
+ * - **Engine** chỉ mang được MỘT lỗi (`EvaluationError` cho `error` một giá trị,
+ *   không một mảng), nên `findUnknownDependency` lấy phần tử đầu.
+ * - **Ô soạn YAML** (19.C.4/19.E) gạch chân TẤT CẢ cùng lúc. Báo từng cái một
+ *   bắt người chơi chạy lại sau mỗi lần sửa một chữ.
+ *
+ * Thứ tự trả về tất định và giống hệt thứ tự cũ: `StageId` đã sắp bằng
+ * `compareKeys`, rồi thứ tự khai trong `dependsOn` của stage đó.
+ */
+export function findAllUnknownDependencies(workflow: WorkflowSpec): readonly UnknownDependencyError[] {
   const known: Record<StageId, true> = {};
   for (const stage of workflow.stages) known[stage.id] = true;
 
@@ -104,14 +130,15 @@ export function findUnknownDependency(workflow: WorkflowSpec): UnknownDependency
     byId[stage.id] = before === undefined ? stage.dependsOn : [...before, ...stage.dependsOn];
   }
 
+  const out: UnknownDependencyError[] = [];
   for (const id of Object.keys(byId).sort(compareKeys)) {
     for (const dep of byId[id] ?? []) {
       if (!Object.hasOwn(known, dep)) {
-        return { kind: 'unknown-dependency', stage: id, missing: dep };
+        out.push({ kind: 'unknown-dependency', stage: id, missing: dep });
       }
     }
   }
-  return null;
+  return out;
 }
 
 /**
