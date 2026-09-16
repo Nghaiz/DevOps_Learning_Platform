@@ -60,6 +60,7 @@ import type {
   StepId,
   WorkflowSpec,
 } from './contract.ts';
+import { deploymentsOf } from './artifacts.ts';
 import { criticalPath } from './critical-path.ts';
 import { findCycle } from './graph.ts';
 import { scoreAxes } from './score.ts';
@@ -100,10 +101,7 @@ export type CicdPredicateTable = Readonly<Record<CicdPredicateName, CicdPredicat
  * nên không có bản ghi nào để đọc. Khi 19.B lên, xoá tên khỏi đây và viết hiện
  * thực; `predicates.test.ts` ghim cả HAI chiều nên quên một bên là đỏ ngay.
  */
-export const UNIMPLEMENTED_CICD_PREDICATES: readonly CicdPredicateName[] = [
-  'promotedArtifactUnchanged',
-  'rollbackUnder',
-];
+export const UNIMPLEMENTED_CICD_PREDICATES: readonly CicdPredicateName[] = ['rollbackUnder'];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 2. ĐỌC THAM SỐ
@@ -368,7 +366,15 @@ export const CICD_PREDICATE_ARGS: Readonly<
   ],
   escapedDefectsAtMost: [{ key: 'max', kind: 'number' }],
   stageNonBlocking: [{ key: 'stage', kind: 'string' }],
-  promotedArtifactUnchanged: [],
+  promotedArtifactUnchanged: [
+    { key: 'output', kind: 'string' },
+    { key: 'from', kind: 'string' },
+    { key: 'to', kind: 'string' },
+  ],
+  environmentGuardedByApproval: [
+    { key: 'environment', kind: 'string' },
+    { key: 'reviewers', kind: 'number' },
+  ],
   rollbackUnder: [{ key: 'seconds', kind: 'number' }],
 };
 
@@ -561,6 +567,57 @@ const stageNonBlocking: CicdPredicate = (ctx, args) => {
 };
 
 /**
+ * 19.B.2 — thăng hạng, đừng dựng lại.
+ *
+ * Mỗi commit của mỗi lượt: lần phát hành CUỐI vào `from` và lần phát hành CUỐI
+ * vào `to` (theo thứ tự `deploymentsOf`) phải mang cùng danh tính cho `output`.
+ * "Cuối" vì một môi trường chỉ chạy một bản ở một thời điểm, và bản đó là bản
+ * lên sau cùng.
+ *
+ * Luật 4: phải có ÍT NHẤT một commit phát hành `output` vào CẢ HAI môi trường —
+ * không thì xoá hẳn stage prod cũng thoả. Một commit chỉ tới được một môi
+ * trường (prod bị chặn vì staging đỏ) thì không có gì để so và được bỏ qua.
+ */
+const promotedArtifactUnchanged: CicdPredicate = (ctx, args) => {
+  const output = argString(args, 'output');
+  const from = argString(args, 'from');
+  const to = argString(args, 'to');
+  if (output === null || from === null || to === null || from === to) return false;
+  let soSanh = 0;
+  for (const pass of ctx.record.passes) {
+    for (const run of pass.runs) {
+      const phatHanh = deploymentsOf(run, ctx.workflow);
+      const banO = (env: string) =>
+        phatHanh.filter((d) => d.environment === env).at(-1)?.artifacts.find((a) => a.output === output)?.artifact;
+      const a = banO(from);
+      const b = banO(to);
+      if (a === undefined || b === undefined) continue;
+      if (a !== b) return false;
+      soSanh += 1;
+    }
+  }
+  return soSanh > 0;
+};
+
+/**
+ * 19.B.3 — mọi đường vào `environment` phải đi qua một cổng đủ người duyệt.
+ *
+ * Đọc ĐỒ THỊ, không đọc bản ghi: câu hỏi là "đường ống có bắt buộc duyệt
+ * không", và một commit được duyệt hay bị từ chối không đổi câu trả lời đó.
+ */
+const environmentGuardedByApproval: CicdPredicate = (ctx, args) => {
+  const environment = argString(args, 'environment');
+  const reviewers = argNumber(args, 'reviewers');
+  if (environment === null || reviewers === null) return false;
+  const phatHanh = ctx.workflow.stages.filter((stage) => stage.environment === environment);
+  const cong = ctx.workflow.stages.filter((stage) => (stage.approval?.reviewers ?? 0) >= reviewers);
+  return (
+    phatHanh.length > 0 &&
+    phatHanh.every((stage) => cong.some((gate) => dependsOnTransitively(ctx.workflow, stage.id, gate.id)))
+  );
+};
+
+/**
  * Nhánh CHƯA HIỆN THỰC (luật 2).
  *
  * Nói ra được rằng nó chưa có, chứ không lẫn vào nhóm đã xong bằng một `false`
@@ -604,10 +661,8 @@ export const CICD_PREDICATES: CicdPredicateTable = {
   stageOffCriticalPath,
   escapedDefectsAtMost,
   stageNonBlocking,
-  promotedArtifactUnchanged: unimplemented(
-    'promotedArtifactUnchanged',
-    'chưa có danh tính artifact (`ArtifactId` băm từ nội dung build) trong bản ghi',
-  ),
+  promotedArtifactUnchanged,
+  environmentGuardedByApproval,
   rollbackUnder: unimplemented(
     'rollbackUnder',
     'chưa có phép đo thời gian lùi của một chiến lược phát hành trong bản ghi',

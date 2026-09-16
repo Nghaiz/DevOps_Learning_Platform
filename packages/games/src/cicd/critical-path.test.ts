@@ -85,6 +85,7 @@ function thucThe(
     attempts: [lanThuXanh(start, finish)],
     blockedBy: cho,
     runnerTicks: finish - start,
+    suppliers: [],
   };
 }
 
@@ -335,6 +336,7 @@ const NODE22: StageInstanceRecord = {
     },
   ],
   runnerTicks: 20,
+  suppliers: [],
 };
 
 const QUAT_RA_VA_THU_LAI: DoThiMau = {

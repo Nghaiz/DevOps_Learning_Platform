@@ -199,7 +199,41 @@ const WF_FLAKE: WorkflowSpec = {
   ],
 };
 
+/** 19.B.2 — dựng MỘT lần, staging rồi prod cùng nhặt đúng bản đó. */
+const WF_THANG_HANG: WorkflowSpec = {
+  name: 'thăng hạng',
+  stages: [
+    giaiDoan('clone', 'clone', [], [buoc('lay-ma', 5)]),
+    giaiDoan('dung', 'package', ['clone'], [buoc('dong-goi', 10, { produces: ['image'] })]),
+    giaiDoan('staging', 'deploy', ['dung'], [buoc('len-staging', 3, { requires: ['image'] })], { environment: 'staging' }),
+    giaiDoan('prod', 'deploy', ['staging'], [buoc('len-prod', 3, { requires: ['image'] })], { environment: 'prod' }),
+  ],
+};
+
+/** Cùng đường ống, nhưng DỰNG LẠI trước prod — prod nhặt bản dựng lại (C16). */
+const WF_DUNG_LAI: WorkflowSpec = {
+  name: 'dựng lại',
+  stages: [
+    ...WF_THANG_HANG.stages.filter((s) => s.id !== 'prod'),
+    giaiDoan('dung-lai', 'package', ['staging'], [buoc('dong-goi-lai', 10, { produces: ['image'] })]),
+    giaiDoan('prod', 'deploy', ['dung-lai'], [buoc('len-prod', 3, { requires: ['image'] })], { environment: 'prod' }),
+  ],
+};
+
+/** 19.B.3 — prod đi qua một cổng hai người duyệt. */
+const WF_CO_DUYET: WorkflowSpec = {
+  name: 'có duyệt',
+  stages: [
+    ...WF_THANG_HANG.stages.filter((s) => s.id !== 'prod'),
+    giaiDoan('duyet', 'approval', ['staging'], [buoc('cho-duyet', 6)], { runnerSlots: 0, approval: { reviewers: 2 } }),
+    giaiDoan('prod', 'deploy', ['duyet'], [buoc('len-prod', 3, { requires: ['image'] })], { environment: 'prod' }),
+  ],
+};
+
 const CTX_NOI_TIEP = chay(WF_NOI_TIEP);
+const CTX_THANG_HANG = chay(WF_THANG_HANG);
+const CTX_DUNG_LAI = chay(WF_DUNG_LAI);
+const CTX_CO_DUYET = chay(WF_CO_DUYET);
 const CTX_CO_LINT = chay(WF_CO_LINT);
 const CTX_BAC_CAU = chay(WF_BAC_CAU);
 const CTX_CHU_TRINH = chay(WF_CHU_TRINH);
@@ -350,6 +384,15 @@ const CA_THU: Readonly<Record<string, CaThu>> = {
     dat: [CTX_CO_LINT, { stage: 'lint' }],
     truot: [CTX_CO_LINT, { stage: 'clone' }],
   },
+  promotedArtifactUnchanged: {
+    dat: [CTX_THANG_HANG, { output: 'image', from: 'staging', to: 'prod' }],
+    // Đỏ THẬT: đường ống thật sự dựng lại, không phải một tên môi trường sai.
+    truot: [CTX_DUNG_LAI, { output: 'image', from: 'staging', to: 'prod' }],
+  },
+  environmentGuardedByApproval: {
+    dat: [CTX_CO_DUYET, { environment: 'prod', reviewers: 2 }],
+    truot: [CTX_THANG_HANG, { environment: 'prod', reviewers: 1 }],
+  },
 };
 
 describe('mỗi vị từ đã hiện thực có cả ca đạt lẫn ca trượt', () => {
@@ -419,6 +462,17 @@ describe('xoá đối tượng đi KHÔNG thoả được mục tiêu', () => {
 
   it('`stageDependsOn` — phụ thuộc vào một stage không tồn tại KHÔNG tính là đạt', () => {
     expect(CICD_PREDICATES.stageDependsOn(CTX_NOI_TIEP, { stage: 'dung', on: 'ma' })).toBe(false);
+  });
+
+  it('`promotedArtifactUnchanged` — bỏ hẳn prod đi thì trả false', () => {
+    // Không phát hành gì lên prod thì "bản ở prod giống bản ở staging" đúng
+    // theo nghĩa đen, và sai theo mọi nghĩa khác.
+    const khongProd = chay({ ...WF_THANG_HANG, stages: WF_THANG_HANG.stages.filter((s) => s.id !== 'prod') });
+    expect(CICD_PREDICATES.promotedArtifactUnchanged(khongProd, { output: 'image', from: 'staging', to: 'prod' })).toBe(false);
+  });
+
+  it('`environmentGuardedByApproval` — không stage nào phát hành vào môi trường đó thì trả false', () => {
+    expect(CICD_PREDICATES.environmentGuardedByApproval(CTX_NOI_TIEP, { environment: 'prod', reviewers: 1 })).toBe(false);
   });
 });
 

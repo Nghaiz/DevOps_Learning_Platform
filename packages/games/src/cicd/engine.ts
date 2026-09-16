@@ -51,6 +51,7 @@ import type {
   InputId,
   InstanceKey,
   OutputId,
+  OutputSupplier,
   PassRecord,
   RunRecord,
   RunnerClassId,
@@ -361,6 +362,8 @@ interface AttemptContext {
   readonly baseSeed: number;
   readonly startedTick: number;
   readonly availableOutputs: readonly OutputId[];
+  /** `CommitArrival.approvalRejected` — chỉ có tác dụng với stage mang `approval`. */
+  readonly approvalRejected: boolean;
   readonly versions: InputVersions;
   readonly cacheStore: readonly CacheEntry[];
   readonly runIndex: number;
@@ -476,6 +479,16 @@ function runAttempt(ctx: AttemptContext): AttemptResult {
     // nghĩa ĐẢO so với khoá quen thuộc của nhà cung cấp.
   }
 
+  /*
+   * 19.B.3. Người duyệt từ chối SAU khi đã chờ hết thời gian của cổng — từ chối
+   * cũng tốn thời gian của người ta. Chỉ khi các bước đều đã qua: một cổng đã đỏ
+   * vì lý do khác thì chưa tới tay người duyệt.
+   */
+  if (outcome === 'passed' && ctx.approvalRejected && ctx.stage.approval !== undefined) {
+    outcome = 'failed';
+    cause = { kind: 'approval-rejected' };
+  }
+
   return {
     record: {
       attempt: ctx.attempt,
@@ -531,6 +544,8 @@ interface LiveInstance {
   outcome: AttemptOutcome;
   attempts: AttemptRecord[];
   outputs: OutputId[];
+  /** Chốt ở lần thử đầu: phụ thuộc đã xong hết nên kẻ cấp không đổi giữa các lần thử. */
+  suppliers: readonly OutputSupplier[];
   pending: { readonly finishAt: number; readonly result: AttemptResult } | null;
 }
 
@@ -577,6 +592,7 @@ export function simulatePass(
           outcome: 'passed',
           attempts: [],
           outputs: [],
+          suppliers: [],
           pending: null,
         });
       }
@@ -724,6 +740,7 @@ export function simulatePass(
       }
 
       const attempt = item.attempts.length;
+      const suppliers = suppliersFor(live, item);
       const result = runAttempt({
         stage: item.stage,
         instance: item.instance,
@@ -732,7 +749,8 @@ export function simulatePass(
         attempt,
         baseSeed,
         startedTick: tick,
-        availableOutputs: availableOutputsFor(live, item),
+        availableOutputs: suppliers.map((s) => s.output),
+        approvalRejected: workload.commits[item.runIndex]?.approvalRejected === true,
         versions: commits[item.runIndex]?.versions ?? {},
         cacheStore,
         runIndex: item.runIndex,
@@ -742,6 +760,8 @@ export function simulatePass(
       if (attempt === 0) {
         item.startedTick = tick;
         item.blockedBy = resolveBlockedBy(item, tick, freedThisTick, live);
+        const canDung = new Set(item.stage.steps.flatMap((step) => step.requires ?? []));
+        item.suppliers = suppliers.filter((s) => canDung.has(s.output));
       }
       busy[cls] = (busy[cls] ?? 0) + item.slots;
       item.runnerTicks += item.slots * result.durationTicks;
@@ -801,25 +821,35 @@ function sortedForScheduling(items: readonly LiveInstance[]): readonly LiveInsta
 }
 
 /**
- * Sản phẩm một thực thể nhìn thấy: do các stage nó phụ thuộc BẮC CẦU tạo ra,
- * trong CÙNG lượt chạy, ở những bước đã xanh.
+ * Sản phẩm một thực thể nhìn thấy — do các stage nó phụ thuộc BẮC CẦU tạo ra,
+ * trong CÙNG lượt chạy, ở những bước đã xanh — kèm KẺ CẤP của từng sản phẩm.
+ *
+ * Nhiều thực thể phía trên cùng tạo một sản phẩm (dựng rồi dựng lại; hay một
+ * ma trận dựng) ⇒ kẻ cấp là thực thể XONG MUỘN NHẤT, hoà thì `InstanceKey` nhỏ
+ * nhất. "Muộn nhất" vì đó là bản mới nhất trên đĩa của máy chạy sau — đúng thứ
+ * một bước phát hành nhặt lên, và đúng thứ làm bài C16 thành thật: dựng lại
+ * trước prod thì prod nhận bản dựng lại.
  */
-function availableOutputsFor(
-  live: readonly LiveInstance[],
-  item: LiveInstance,
-): readonly OutputId[] {
-  const out: OutputId[] = [];
+function suppliersFor(live: readonly LiveInstance[], item: LiveInstance): readonly OutputSupplier[] {
+  const theoSanPham: Record<OutputId, LiveInstance> = {};
   for (const other of live) {
     if (other.runIndex !== item.runIndex || !item.transitive.includes(other.stage.id)) {
       continue;
     }
     for (const output of other.outputs) {
-      if (!out.includes(output)) {
-        out.push(output);
+      const da = theoSanPham[output];
+      if (
+        da === undefined ||
+        other.finishedTick > da.finishedTick ||
+        (other.finishedTick === da.finishedTick && compareAscii(other.instance, da.instance) < 0)
+      ) {
+        theoSanPham[output] = other;
       }
     }
   }
-  return out.sort(compareAscii);
+  return Object.keys(theoSanPham)
+    .sort(compareAscii)
+    .map((output) => ({ output, instance: theoSanPham[output]?.instance ?? '' }));
 }
 
 /**
@@ -957,6 +987,7 @@ function assemblePass(
         attempts: item.attempts,
         blockedBy: item.blockedBy,
         runnerTicks: item.runnerTicks,
+        suppliers: item.suppliers,
       }));
     const arrivalTick = Math.max(0, Math.trunc(commit.tick));
     return {

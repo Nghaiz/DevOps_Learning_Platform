@@ -483,14 +483,16 @@ export interface StageSpec {
   readonly runnerSlots?: number;
   readonly fanOut?: FanOutSpec;
   /**
-   * ⬛ CHỖ CẮM 19.B — inert ở chương CI.
-   *
-   * Môi trường stage này tác động tới. Engine chương CI **không đọc trường
-   * này**; nó có mặt để 19.B không phải đổi hình dạng `StageSpec` sau khi 14
-   * level chương CI đã viết xong và cân bằng.
+   * 19.B.1. Môi trường stage này phát hành vào. Engine KHÔNG xếp lịch khác đi vì
+   * nó; `deploymentsOf` (`artifacts.ts`) đọc nó để trả lời "môi trường nào đang
+   * chạy artifact nào", và vị từ `promotedArtifactUnchanged` đứng trên câu đó.
    */
   readonly environment?: EnvironmentId;
-  /** ⬛ CHỖ CẮM 19.B — inert ở chương CI. Xem `ApprovalSpec`. */
+  /**
+   * 19.B.3. Cổng phê duyệt: stage chờ người duyệt (thời lượng = các bước của nó,
+   * thường `runnerSlots: 0`) và đỏ nếu commit bị từ chối. `reviewers` do vị từ
+   * `environmentGuardedByApproval` đọc; engine không mô phỏng từng người.
+   */
   readonly approval?: ApprovalSpec;
 }
 
@@ -651,6 +653,15 @@ export interface CommitArrival {
    * lockfile ở đúng một chỗ (C08), và suy theo chu kỳ không diễn đạt được.
    */
   readonly changedInputs?: readonly InputId[];
+  /**
+   * 19.B.3. `true` ⇒ người duyệt TỪ CHỐI commit này ở mọi stage có `approval`:
+   * stage đó chạy hết thời gian chờ của nó rồi đỏ với `approval-rejected`. Thử
+   * lại vẫn đỏ — người duyệt không đổi ý vì bấm lại.
+   *
+   * Dữ liệu LEVEL, không phải người chơi: bài C17/C27 dạy HẬU QUẢ của việc có
+   * hay không có cổng, không dạy cách thuyết phục người duyệt.
+   */
+  readonly approvalRejected?: boolean;
 }
 
 export interface WorkloadSpec {
@@ -790,7 +801,7 @@ export type FailureCause =
   | { readonly kind: 'stale-cache'; readonly cache: CacheId; readonly step: StepId }
   /** Một stage mà nó phụ thuộc đã đỏ và stage đó `blocking`. */
   | { readonly kind: 'upstream-failed'; readonly stage: StageId }
-  /** ⬛ Chỗ cắm 19.B: cổng phê duyệt bị từ chối. Inert ở chương CI. */
+  /** 19.B.3: cổng phê duyệt bị từ chối — `CommitArrival.approvalRejected`. Retry không cứu. */
   | { readonly kind: 'approval-rejected' };
 
 export interface AttemptRecord {
@@ -909,6 +920,25 @@ export interface StageInstanceRecord {
   readonly blockedBy: BlockedBy;
   /** Tổng slot × tick đã chiếm, cộng dồn MỌI lần thử. */
   readonly runnerTicks: number;
+  /**
+   * 19.B.1. Với mỗi sản phẩm mà các bước của stage này `requires` VÀ có sẵn: thực
+   * thể nào CẤP nó. Sắp theo `output` (so mã đơn vị). Rỗng khi stage không đòi gì,
+   * hoặc khi nó không chạy (phụ thuộc đỏ).
+   *
+   * ⛔ GHI lúc xếp lịch, không suy lại: khi hai stage phía trên cùng tạo một sản
+   * phẩm (dựng một lần, rồi DỰNG LẠI trước khi lên prod), luật chọn kẻ cấp là
+   * một quyết định của engine — thực thể XONG MUỘN NHẤT, hoà thì `InstanceKey`
+   * nhỏ nhất — và danh tính artifact (`artifacts.ts`) đứng trên đúng quyết định
+   * đó. Suy lại ở chỗ khác là hai chỗ trả lời khác nhau cho "prod đang chạy bản
+   * nào".
+   */
+  readonly suppliers: readonly OutputSupplier[];
+}
+
+/** Một cặp (sản phẩm, kẻ cấp) — xem `StageInstanceRecord.suppliers`. Cùng commit, nên không mang `commitId`. */
+export interface OutputSupplier {
+  readonly output: OutputId;
+  readonly instance: InstanceKey;
 }
 
 /**
@@ -1239,8 +1269,19 @@ export const CICD_PREDICATE_NAMES = [
   'escapedDefectsAtMost',
   /** Stage này không chặn lượt chạy. args: `{ stage }` */
   'stageNonBlocking',
-  /** ⬛ 19.B: artifact phát hành ra prod cùng danh tính với artifact đã test. args: `{}` */
+  /**
+   * 19.B.2: ở MỌI commit phát hành vào cả hai môi trường, sản phẩm `output` ở `to`
+   * cùng danh tính với ở `from` — tức được THĂNG HẠNG chứ không dựng lại.
+   * args: `{ output, from, to }`. Không commit nào phát hành vào cả hai ⇒ `false`
+   * (luật 4: không thoả bằng cách xoá bằng chứng).
+   */
   'promotedArtifactUnchanged',
+  /**
+   * 19.B.3: mọi stage phát hành vào `environment` có một stage `approval` với ít
+   * nhất `reviewers` người duyệt nằm phía trên nó (BẮC CẦU). args: `{ environment,
+   * reviewers }`. Không stage nào phát hành vào đó ⇒ `false`.
+   */
+  'environmentGuardedByApproval',
   /** ⬛ 19.B: thời gian lùi dưới ngưỡng, giây. args: `{ seconds }` */
   'rollbackUnder',
 ] as const;
