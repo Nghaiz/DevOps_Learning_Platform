@@ -64,6 +64,7 @@
 
 import { parseYaml } from '../core/yaml.ts';
 import type { YamlPositionIndex, YamlValue } from '../core/yaml.ts';
+import { findAllUnknownDependencies, findCycle } from './graph.ts';
 import type {
   FanOutAxis,
   FanOutSpec,
@@ -271,10 +272,117 @@ export function readWorkflowYaml(source: string): WorkflowReadResult {
     }
   }
 
+  /*
+   * Kiểm đồ thị CHỈ khi tầng trên đã sạch (19.C.4).
+   *
+   * Một job hỏng trả `null` và vắng mặt trong `stages`, nên mọi `needs` trỏ vào
+   * nó sẽ đọc ra "job không tồn tại" — một lỗi thứ hai, ở dòng khác, do lỗi thứ
+   * nhất gây ra. Người chơi sửa job hỏng là nó biến mất. Báo nó ra là bắt họ
+   * đuổi theo một triệu chứng.
+   */
+  if (doc.errors.length === 0) {
+    kiemDoThi(doc, jobs, { name, stages });
+  }
+
   if (doc.errors.length > 0) {
     return { ok: false, errors: sapLoi(doc.errors) };
   }
   return { ok: true, workflow: { name, stages }, ignored: doc.ignored };
+}
+
+// ── Lỗi ĐỒ THỊ, kèm vị trí (19.C.4) ─────────────────────────────────────────
+
+/**
+ * Phụ thuộc trỏ vào hư không + chu trình, báo tại ĐÚNG DÒNG đã gây ra.
+ *
+ * Luật nằm ở `graph.ts` và chỉ nằm ở đó — file này không kiểm lại "dep có tồn
+ * tại không" hay "có vòng không", nó chỉ dịch kết luận của `graph.ts` về toạ độ
+ * trong văn bản nguồn. Hai bộ luật song song sẽ bất đồng ý trong im lặng, vì cả
+ * hai đều trả đúng kiểu.
+ *
+ * Vì sao bộ đọc phải báo lại thứ engine đã bắt được: `EvaluationError` nói *stage
+ * nào* sai, không nói *dòng nào*. Ô soạn YAML (19.E) gạch chân theo dòng, nên
+ * không có tầng này thì người chơi nhận "job b phụ thuộc vào thứ không tồn tại"
+ * và tự đi dò mười hai job xem mình gõ nhầm ở đâu.
+ */
+function kiemDoThi(doc: BoDoc, jobs: YamlMap, workflow: WorkflowSpec): void {
+  /*
+   * TẤT CẢ phụ thuộc hỏng, không chỉ cái đầu — xem `findAllUnknownDependencies`.
+   * Engine chỉ mang được một lỗi; ô soạn gạch chân được hết cùng lúc.
+   */
+  const thieu = findAllUnknownDependencies(workflow);
+  for (const loi of thieu) {
+    loiTaiNeeds(
+      doc,
+      jobs,
+      loi.stage,
+      loi.missing,
+      `Job "${loi.stage}" cần "${loi.missing}", nhưng không có job nào tên như vậy trong "jobs".`,
+    );
+  }
+  if (thieu.length > 0) {
+    /*
+     * Dừng ở đây, cùng lý do `validateGraph` báo thiếu TRƯỚC vòng: một cái tên
+     * gõ nhầm thường đang che đi chính cạnh người chơi định viết, nên vòng tìm
+     * được lúc này có thể biến mất ngay khi họ sửa chữ đó.
+     */
+    return;
+  }
+
+  const vong = findCycle(workflow);
+  if (vong === null) {
+    return;
+  }
+  /*
+   * `findCycle` trả mảng theo chiều "phần tử k phụ thuộc phần tử k+1, phần tử
+   * cuối phụ thuộc phần tử đầu". Gạch chân đúng cạnh đó ở mỗi mắt xích, nên
+   * người chơi thấy cả vòng và xoá một cạnh bất kỳ là xong. Vòng độ dài 1
+   * (tự phụ thuộc) rơi đúng vào công thức này: k+1 mod 1 = chính nó.
+   */
+  const duong = vong.join(' → ');
+  for (const [k, stageId] of vong.entries()) {
+    const ke = vong[(k + 1) % vong.length];
+    if (ke === undefined) {
+      continue;
+    }
+    loiTaiNeeds(
+      doc,
+      jobs,
+      stageId,
+      ke,
+      vong.length === 1
+        ? `Job "${stageId}" phụ thuộc vào chính nó — không job nào chạy được.`
+        : `Chu trình phụ thuộc: ${duong} → ${vong[0]}. Xoá một trong các cạnh này.`,
+    );
+  }
+}
+
+/**
+ * Báo lỗi tại phần tử của `needs` mang tên `depName`, trong job `stageId`.
+ *
+ * Ba mức lùi, vì mỗi mức có thể không có: phần tử thứ `i` của dãy `needs` → chính
+ * khoá `needs` (khi `needs` viết dạng chuỗi đơn) → khoá của job (khi cây không
+ * còn khớp, ví dụ stage do tầng khác dựng). Không bao giờ bỏ im lặng: một lỗi
+ * không có vị trí vẫn phải được kể, `{line: 0, column: 0}` là "không biết ở đâu"
+ * chứ không phải "không có lỗi".
+ */
+function loiTaiNeeds(doc: BoDoc, jobs: YamlMap, stageId: StageId, depName: StageId, message: string): void {
+  const job = jobs[stageId];
+  if (laMap(job)) {
+    const raw = job['needs'];
+    if (laDay(raw)) {
+      const i = raw.findIndex((phan) => chuoi(phan) === depName);
+      if (i >= 0) {
+        doc.loi(raw, i, message);
+        return;
+      }
+    }
+    if (raw !== undefined && raw !== null) {
+      doc.loi(job, 'needs', message);
+      return;
+    }
+  }
+  doc.loi(jobs, stageId, message);
 }
 
 /** Tất định: cùng nguồn ⇒ cùng thứ tự lỗi, không phụ thuộc thứ tự duyệt. */

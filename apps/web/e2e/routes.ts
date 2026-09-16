@@ -87,6 +87,10 @@ export const SCREENS: Screen[] = [
   // Màn thứ ba của trụ cột ③, thêm ở P17. Vào lượt quét axe + CSP như mọi màn
   // khác — game chạy 100% client nhưng trang vẫn là một trang của ứng dụng.
   { path: '/games/git', auth: 'user' },
+  // Màn thứ tư của trụ cột ③, thêm ở P19 (19.H). Cùng lý do đã ghi cho
+  // `/games/git` ngay trên: game chạy 100% client, nhưng trang vẫn là một trang
+  // của ứng dụng nên vẫn vào lượt quét axe + CSP như mọi màn khác.
+  { path: '/games/cicd', auth: 'user' },
   { path: '/problems', auth: 'user' },
   { path: '/problems/:code', auth: 'user', idFrom: 'problems.list' },
   /*

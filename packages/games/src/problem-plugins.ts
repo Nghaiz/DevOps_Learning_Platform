@@ -22,16 +22,25 @@ import { eraseProblemPlugin } from './core/problem-plugin.ts';
 import type { GradeResult, Testcase } from './core/problem.ts';
 import type { GameAction } from './core/run-log.ts';
 import type { GameId } from './core/types.ts';
+import { CICD_PROBLEM_PLUGIN } from './cicd/problem-plugin.ts';
 import { GIT_PROBLEM_PLUGIN } from './git/problem-plugin.ts';
 import { K8S_PROBLEM_PLUGIN } from './k8s/problem-plugin.ts';
 
 // ── Bảng ────────────────────────────────────────────────────────────────────
 
 /**
- * Hai game có bài tập. Bốn `GameId` còn lại (`pipeline`, `netpol`, `dockerfile`,
- * `cicd`) chưa có engine nên chưa có plugin, và `Partial<Record<...>>` nói ra
- * điều đó ở tầng kiểu: thiếu một khoá là **thiếu một khoá**, không phải một
- * nhánh `default` âm thầm.
+ * BA game có bài tập. Ba `GameId` còn lại (`pipeline`, `netpol`, `dockerfile`)
+ * chưa có engine nên chưa có plugin, và `Partial<Record<...>>` nói ra điều đó ở
+ * tầng kiểu: thiếu một khoá là **thiếu một khoá**, không phải một nhánh
+ * `default` âm thầm.
+ *
+ * ⚠ `cicd` vào bảng ở §19.H, và lượt thêm đó là bằng chứng cho lời khai của
+ * `core/problem-plugin.ts` về vì sao đây là một BẢNG chứ không phải một
+ * `switch (gameId)`: game thứ ba cần đúng MỘT dòng ở đây, không cần đi tìm cho
+ * đủ mọi chỗ đã `switch` ở tầng UI, tầng chấm, tầng soạn bài và tầng seed.
+ * `Spec` của nó là một BỘ BA (`workflow` + `workload` + `evaluation`) chứ không
+ * phải một object phẳng như hai game trước — và bảng không phải biết điều đó,
+ * vì `eraseProblemPlugin` xoá đúng kiểu ấy đi.
  *
  * ── PHÉP ÉP KIỂU ĐÃ RỜI KHỎI FILE NÀY ──
  *
@@ -65,6 +74,7 @@ import { K8S_PROBLEM_PLUGIN } from './k8s/problem-plugin.ts';
 export const PROBLEM_PLUGINS: ProblemPluginRegistry = {
   k8s: eraseProblemPlugin(K8S_PROBLEM_PLUGIN),
   git: eraseProblemPlugin(GIT_PROBLEM_PLUGIN),
+  cicd: eraseProblemPlugin(CICD_PROBLEM_PLUGIN),
 };
 
 // ── Tra bảng ────────────────────────────────────────────────────────────────

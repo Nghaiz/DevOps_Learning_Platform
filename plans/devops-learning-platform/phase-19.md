@@ -25,6 +25,58 @@
 
 ---
 
+## 0b. Tiến độ (cập nhật 2026-09-16)
+
+| Chuỗi | Trạng thái | Bằng chứng |
+|---|---|---|
+| 19.A engine CI | **XONG** | PR #139, gộp vào `main` ở `1ef856a` |
+| 19.B engine CD | chưa bắt đầu | — |
+| 19.C.1/C.2/C.3 cầu nối YAML | **XONG** | PR #139 (`0c41efd`, `f457fe8`) |
+| 19.C.5/C.6 khoá tên stage + cổng lõi-trung-lập | **XONG** | PR #139 (`cbc7bac`), `scripts/check-cicd-vendor-neutral.mjs` |
+| 19.C.4 lỗi ngữ nghĩa | **XONG** | đợt 2 — xem hộp cảnh báo ở §19.C |
+| 19.D tầng 3D | chưa bắt đầu | — |
+| 19.E giao diện soạn YAML | **XONG (E.1–E.5)** | đợt 2 — kèm tầng ghép `cicd/hydrate.ts`, thứ plan không dự liệu |
+| 19.F chương CI, 14 level | **XONG** | PR #139 (`e0f4ed9`, `824ee8b`, `2d8fce5`) |
+| 19.G chương CD | chưa bắt đầu | — |
+| 19.H sandbox + tích hợp | **XONG phần web** | route, ô danh mục, sandbox, plugin OJ. Còn thiếu ô Playwright đo AC-H |
+| 19.I lý thuyết + tài liệu | chưa bắt đầu | `content/games/cicd/` và `docs/games/cicd.md` chưa tồn tại |
+
+**Đợt 2 đóng xong 19.C.4 + 19.E + 19.H.** 14 level của 19.F nay chơi được ở `/games/cicd`, và
+bài OJ cho `gameId: 'cicd'` soạn được qua `/author/problems`.
+
+### Việc để lại của đợt 2 — đọc trước khi mở đợt 3
+
+| # | Việc | Vì sao chưa làm |
+|---|---|---|
+| ~~1~~ | ~~Ô Playwright cho AC-H và AC-6~~ | **XONG** — `apps/web/e2e/games-cicd.spec.ts`, 5 ô, đã vào `e2e:ci` |
+| ~~2~~ | ~~Chưa chạy trong trình duyệt thật~~ | **XONG** — 5/5 xanh trên Chromium thật, hai lượt độc lập |
+| 3 | Rà cheatsheet của cả 14 level | Xem §19.E.bis mục 2 — mới biết c01 sai, chưa quét 13 level còn lại |
+| 4 | Ô cache dùng `invalidatedBy` = `keyParts` | Cách hiểu của người dựng màn, engine giữ hai trường RIÊNG. C07/C08 dạy đúng chỗ khác nhau giữa chúng nên có thể cần tách |
+| 5 | Ô retries chỉ liệt kê stage của `initialWorkflow` | Job người chơi tự thêm trong YAML không có ô chỉnh retries |
+| 6 | Mẩu chèn nhanh nối vào CUỐI văn bản, không vào vị trí con trỏ | `YamlEditor` chưa mở ref ra ngoài |
+| 7 | Chú thích trong 4 file của màn chơi mất dấu tiếng Việt | Do một lượt vá bằng script. Chỉ ảnh hưởng khả năng đọc |
+| 8 | Đường ống RỖNG vẫn hiện ba con số 0 thay vì một câu | Phát hiện lúc viết ô e2e: mở c01 (khởi đầu không stage nào) rồi bấm "Chạy thử" ngay cho `0 giây / 0 runner-phút`, đọc ra thành "cực nhanh, chẳng tốn gì". Cùng hình dạng mà chính `cicd-result-panel.tsx` đã cấm cho nhánh `engine-error`. Chưa sửa vì nó là câu hỏi thiết kế, không phải lỗi mã |
+
+### Cách chạy lượt e2e của màn này
+
+Cần Postgres (auth), nên dựng nó trước:
+
+```
+docker compose up -d postgres redis
+pnpm --filter @devops-platform/web db:migrate
+pnpm --filter @devops-platform/web build
+cd apps/web && E2E_START_SERVER=1 \
+  E2E_BASE_URL=http://localhost:3000 E2E_ORIGIN=http://localhost:3000 \
+  npx playwright test games-cicd.spec.ts
+```
+
+⚠ `E2E_ORIGIN` phải là **`localhost`**, không phải `127.0.0.1`: app khai
+`BETTER_AUTH_URL=http://localhost:3000` và Better Auth so CHUỖI, nên
+`127.0.0.1` trả 403 `INVALID_ORIGIN` ngay ở `globalSetup`. Thiếu
+`E2E_START_SERVER=1` thì Playwright trỏ vào CỤM, tức đo một binary khác.
+
+---
+
 ## 1. Quyết định chi phối
 
 - **#2** Thiết kế lại từ đầu, rộng hơn CI thuần: có CD, môi trường, rollback, GitOps.
@@ -100,6 +152,21 @@ gian lùi khác nhau, có test khẳng định thứ tự (blue-green < canary <
 > `graph.ts` lấy **hợp các cạnh** của mọi mục trùng id và ghim hành vi đó bằng test — đó là
 > lựa chọn an toàn nhất trong các lựa chọn sai, không phải lời giải. Lời giải là chặn ở biên,
 > nơi YAML thành `WorkflowSpec`, trước khi engine nhìn thấy nó.
+>
+> **ĐÃ ĐO LẠI 2026-09-16, và đoạn trên SAI ở một vế.** "YAML thì làm ra nó dễ dàng" — không.
+> Bộ quét dựng map bằng `map[khoá] = giá trị`, nên hai job trùng tên **gộp thành một** trước
+> khi `yaml-read.ts` nhìn thấy: mục thứ hai đè mục thứ nhất, job khai trước biến mất sạch,
+> không lỗi, không cảnh báo, và mọi `needs` trỏ vào phần đã mất bỗng thành "phụ thuộc trỏ vào
+> hư không" ở một chỗ khác hẳn nơi gây ra. Đây là **mất dữ liệu im lặng ở bộ quét**, không
+> phải hai mục cùng id ở engine. Nên phép chặn nằm ở `core/yaml.ts` (khoá trùng = lỗi cứng,
+> áp cho cả game k8s), chứ không ở `yaml-read.ts` như câu cuối đoạn trên đoán.
+>
+> Hợp-các-cạnh trong `graph.ts` **ở lại**: đường YAML đã đóng, nhưng `WorkflowSpec` còn viết
+> TAY được (level là mã nguồn) và ở đó kiểu vẫn cho phép hai mục cùng id.
+>
+> Đây là lần thứ hai trong cùng một phase mà một dòng "hiện trạng đo được" của plan được chép
+> lại mà không kiểm nguồn — xem §4, hàng rủi ro cùng tên. Lần này nguồn là chính bộ quét, và
+> một lượt `parseYaml` mười dòng đã đủ bác bỏ.
 
 ### 19.D — Tầng 3D (L, ~1 tuần)
 
@@ -130,6 +197,42 @@ trục Y mới · axe 0 vi phạm.
 | E.5 | Bảng so lời giải: giữ lịch sử các lần thử của chính người chơi trên cùng level | 4h |
 
 **AC-E:** soạn YAML bằng bàn phím hoàn toàn, không cần chuột · ba số hiển thị cùng lúc.
+
+> ⛔ **19.E KHÔNG CHẠY ĐƯỢC NHƯ VIẾT Ở TRÊN — đo 2026-09-16.** Vòng "soạn YAML ⇒ chấm ba trục"
+> cho `leadTimeSeconds: 0` và `runnerMinutes: 0` trên MỌI level, vì `readWorkflowYaml` áp mặc
+> định trung tính cho chín trường mà YAML không chở được. Chấm bản đọc-lại của chính
+> `solutionWorkflow` c01 ra `0 / 0` thay vì `120 / 6`.
+>
+> Đây không phải lỗi của bộ đọc: `contract.ts` đã chốt "YAML là KHUNG SOẠN, không phải bản
+> tuần tự hoá", và `CicdLevel.editable` là lời khai về thứ người chơi được sửa. Thiếu là một
+> **tầng ghép**, nay có ở `cicd/hydrate.ts`: bản chuẩn của level cấp thời lượng, người chơi cấp
+> phần `editable` cho phép, và `retries`/`cache` vào qua ô điều khiển riêng vì YAML không có
+> khoá nào chở chúng. Chốt 2026-09-16 (chủ dự án) theo đường "ô điều khiển riêng", là một trong
+> hai đường hợp đồng đã nêu.
+>
+> **Hai hệ quả cho 19.E:**
+> - E.3 snippet phải dùng từ vựng của BỘ ĐỌC (`jobs:`, `needs:`, `runs-on:`), không phải của
+>   hợp đồng.
+> - Màn chơi cần một ô phụ cho `cache`/`retries`, hiện theo `level.editable`. Bảy level
+>   (C06–C11, C14) không giải được nếu thiếu nó.
+
+### 19.E.bis — hai lỗi 19.F lộ ra khi dựng 19.E
+
+Cả hai đều là **nợ của chương CI đã phát hành**, không phải việc mới.
+
+1. **`cicd-c07` khai thiếu `edges`** — ĐÃ SỬA. `altSolutionWorkflow` của nó tách một stage rồi
+   trỏ lại hai cạnh, mà `editable` chỉ có `['cache','stages']`, nên lời giải thay thế KHÔNG đi
+   tới được và AC-F ở level đó là lời khai chứ không phải phép đo. Nằm im được vì `editable`
+   **chưa bao giờ được mã nào đọc** — chỗ duy nhất nhắc tới nó là một chú thích trong
+   `contract.ts`. `hydrate.ts` là hộ tiêu dùng đầu tiên và ô AC của nó đỏ ngay.
+   → Luật rút ra: **cho thêm/bớt stage thì phải cho nối lại stage.**
+2. **Cheatsheet dạy cú pháp bộ đọc TỪ CHỐI** — CHƯA SỬA. `teaching.cheatsheet` của c01 (và có
+   thể nhiều level khác) dùng từ vựng hợp đồng — `stages:`, `dependsOn:`, `runnerClass:` —
+   trong khi `readWorkflowYaml` nhận từ vựng nhà cung cấp — `jobs:`, `needs:`, `runs-on:`.
+   Người chơi chép nguyên cheatsheet vào ô soạn sẽ nhận lỗi cú pháp. Chưa rà hết 14 level.
+   → Việc để lại: rà cheatsheet của cả 14 level, và thêm một ô test khẳng định mọi `snippet`
+   trong `teaching.cheatsheet` đọc được bằng chính `readWorkflowYaml` — nếu không thì lần lệch
+   sau cũng sẽ im lặng y như lần này.
 
 ### 19.F — Chương CI, level C01–C14 (L, ~1.5 tuần)
 
@@ -197,8 +300,9 @@ vào `games-catalog.ts` · bài OJ cho game này qua plugin của 18.A.
 | Trục Y đổi giữa hai chương làm người chơi mất phương hướng | 4 | 3 | 12 | Màn chuyển tiếp D.4. **Không có phương án lùi** — chủ dự án chốt 2026-09-11 giữ đổi-theo-chương. Màn chuyển tiếp chưa đủ thì làm nó tốt hơn, không đổi mô hình |
 | Lõi rò rỉ tên GitHub, thêm GitLab sau phải viết lại | 3 | 4 | 12 | Test 19.C.6 chạy trong CI, có đối chứng dương |
 | Một tên stage trần (`checkout`) lọt vào `cicd/` mà chưa có dòng miễn trừ ⇒ cổng chống-thương-mại đỏ | 3 | 2 | 6 | `MASKS` đã che `actions/checkout`, nên đường mặc định là viết đủ tên. Tên trần thì thêm đúng một dòng `KEYWORD_EXEMPTIONS` cho `cicd/` (C.5b). Cổng có chiều xuống nên một dòng miễn trừ thừa cũng đỏ — không thành nghĩa địa |
-| Một phép đo trong plan được chép lại mà không kiểm lại nguồn | 4 | 3 | 12 | Đã cắn thật: §0 dòng 4 của P19 chép nguyên tiền đề sai từ P17 §0, trong khi `check-no-commerce.mjs` đã bác bỏ nó bằng văn bản từ 2026-09-08. Trước khi dùng bất kỳ dòng "hiện trạng đo được" nào, đọc lại chính file nguồn — số dòng đúng không có nghĩa là nội dung còn đúng |
+| Một phép đo trong plan được chép lại mà không kiểm lại nguồn | 5 | 3 | 15 | Đã cắn **hai lần**. (1) §0 dòng 4 chép nguyên tiền đề sai từ P17 §0, trong khi `check-no-commerce.mjs` đã bác bỏ nó bằng văn bản từ 2026-09-08. (2) Hộp cảnh báo §19.C khẳng định "YAML làm ra hai mục cùng id dễ dàng"; một lượt `parseYaml` mười dòng ngày 2026-09-16 cho thấy bộ quét gộp chúng thành một, tức lỗi nằm ở tầng khác hẳn. Cả hai lần, nguồn bác bỏ đều nằm sẵn trong kho. Trước khi dùng bất kỳ dòng "hiện trạng đo được" nào, **chạy lại phép đo**, đừng chỉ mở file — số dòng đúng không có nghĩa là nội dung còn đúng, và một câu đọc xuôi tai vẫn có thể chưa ai đo |
 | Mô hình steady-state kiểu Factorio lọt vào, dạy sai | 2 | 5 | 10 | Comment cảnh báo ở đầu module + review khi làm A.9 |
+| Một trường của hợp đồng không được MÃ NÀO đọc, rồi trôi trong im lặng | 4 | 4 | 16 | Đã cắn: `CicdLevel.editable` sống từ 19.A tới 19.E mà chỗ duy nhất nhắc tới nó là một chú thích — và ngay lượt đầu có hộ tiêu dùng thật, nó lộ ra `c07` khai sai. Cùng họ với cheatsheet dạy cú pháp bộ đọc từ chối. **Luật:** một trường khai trong hợp đồng mà chưa có mã đọc thì phải có một ô test đọc nó, nếu không nó là tài liệu chứ không phải dữ liệu. Xem `rules/wired-not-just-present.md` |
 | Chương CD nhiều khái niệm hơn thời gian cho phép | 4 | 3 | 12 | Đây là chuỗi **cắt trước tiên** trong toàn bộ ba phase — xem §6 |
 | Đọc mét-ric canary trở thành đoán mò | 3 | 3 | 9 | Nhiễu phải tái lập được bằng seed; level phải có ngưỡng phân biệt được |
 

@@ -46,6 +46,19 @@ const ENGINE_MODULES = [
   'k8s/problem-plugin.ts',
   'git/problem-plugin.ts',
   'core/problem-plugins.ts',
+  /*
+   * Engine CI/CD, thêm 2026-09-16 (19.H). Hai tên này ĐI TRƯỚC mã chúng gác:
+   * `cicd/problem-plugin.ts` chưa tồn tại, và đó chính là lý do thêm bây giờ.
+   *
+   * Ô này đọc bao đóng import của `problem-topic-labels.ts`, còn một tên không
+   * có trong bao đóng thì vô hại. Nếu đợi tới lúc plugin ra đời mới thêm, thì
+   * giữa hai thời điểm đó một dòng `import` duy nhất từ `problem-topic-labels.ts`
+   * sang plugin sẽ kéo cả engine CI/CD (1009 dòng) vào bundle của MỌI route
+   * `/problems` — và KHÔNG ô nào đỏ, vì danh sách này chưa biết tên nó. Đúng
+   * hình dạng PR #124 đã trả giá một lần với engine git.
+   */
+  'cicd/engine.ts',
+  'cicd/problem-plugin.ts',
 ] as const;
 
 /** Đi theo mọi `import`/`export … from './x.ts'` TƯƠNG ĐỐI, đệ quy. */

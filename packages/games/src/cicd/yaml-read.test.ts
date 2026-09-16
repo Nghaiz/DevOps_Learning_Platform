@@ -720,3 +720,200 @@ describe('AC-C — workflow thật của kho này (ci.yml rút gọn)', () => {
     }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 19.C.4 — lỗi ĐỒ THỊ báo tại đúng dòng, và hai job trùng tên bị từ chối
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('19.C.4 — phụ thuộc trỏ vào hư không', () => {
+  /*
+   * ĐỐI CHỨNG DƯƠNG: trước 19.C.4 nguồn này đọc RA `ok: true` và cạnh hỏng đi
+   * thẳng vào engine, chỗ nó thành `EvaluationError` không mang dòng nào.
+   */
+  it('`needs` trỏ job không tồn tại ⇒ TỪ CHỐI, trỏ vào đúng phần tử của dãy', () => {
+    const loi = docLoi(`jobs:
+  a:
+    needs:
+      - ghost
+    steps: []
+`);
+    expect(loi).toHaveLength(1);
+    expect(loi[0]?.message).toContain('ghost');
+    expect(loi[0]?.line).toBe(4);
+    // Cột của dấu '-', không phải của khoá `needs`.
+    expect(loi[0]?.column).toBe(7);
+  });
+
+  it('`needs` dạng CHUỖI đơn trỏ vào hư không ⇒ lỗi tại chính khoá `needs`', () => {
+    const loi = docLoi(`jobs:
+  a:
+    needs: ghost
+    steps: []
+`);
+    expect(loi).toHaveLength(1);
+    expect(loi[0]?.line).toBe(3);
+    expect(loi[0]?.column).toBe(5);
+  });
+
+  /*
+   * MỌI cạnh hỏng, không chỉ cái đầu. Engine chỉ mang được một lỗi; ô soạn
+   * (19.E) gạch chân hết cùng lúc, nên người chơi không phải chạy lại sau mỗi
+   * lần sửa một chữ.
+   */
+  it('nhiều phụ thuộc hỏng ⇒ báo HẾT, mỗi cái một dòng', () => {
+    const loi = docLoi(`jobs:
+  a:
+    needs:
+      - ma-mot
+      - ma-hai
+    steps: []
+  b:
+    needs:
+      - ma-ba
+    steps: []
+`);
+    expect(loi).toHaveLength(3);
+    expect(loi.map((e) => e.line)).toEqual([4, 5, 9]);
+  });
+
+  it('job hỏng ở chỗ khác KHÔNG đẻ thêm lỗi "job không tồn tại" ăn theo', () => {
+    // `steps` sai kiểu ⇒ job `b` bị loại khỏi `stages`. Nếu phép kiểm đồ thị
+    // chạy bất chấp, `a` sẽ bị báo thêm là cần một job không tồn tại.
+    const loi = docLoi(`jobs:
+  a:
+    needs:
+      - b
+    steps: []
+  b:
+    steps: khong-phai-day
+`);
+    expect(loi).toHaveLength(1);
+    expect(loi[0]?.message).toContain('steps');
+  });
+});
+
+describe('19.C.4 — chu trình', () => {
+  it('vòng hai job ⇒ gạch chân CẢ HAI cạnh tạo thành vòng', () => {
+    const loi = docLoi(`jobs:
+  b:
+    needs:
+      - c
+    steps: []
+  c:
+    needs:
+      - b
+    steps: []
+`);
+    expect(loi).toHaveLength(2);
+    expect(loi.map((e) => e.line)).toEqual([4, 8]);
+    for (const e of loi) {
+      expect(e.message).toContain('Chu trình');
+    }
+  });
+
+  it('tự phụ thuộc là vòng độ dài 1, và nói ra đúng chuyện đó', () => {
+    const loi = docLoi(`jobs:
+  a:
+    needs:
+      - a
+    steps: []
+`);
+    expect(loi).toHaveLength(1);
+    expect(loi[0]?.message).toContain('chính nó');
+    expect(loi[0]?.line).toBe(4);
+  });
+
+  it('vòng ba job ⇒ ba cạnh, và thông điệp đọc xuôi được cả vòng', () => {
+    const loi = docLoi(`jobs:
+  a:
+    needs:
+      - b
+    steps: []
+  b:
+    needs:
+      - c
+    steps: []
+  c:
+    needs:
+      - a
+    steps: []
+`);
+    expect(loi).toHaveLength(3);
+    expect(loi[0]?.message).toContain('a → b → c → a');
+  });
+
+  /*
+   * Thứ tự ưu tiên mượn nguyên của `validateGraph`: tên gõ nhầm thường đang che
+   * đi chính cạnh người chơi định viết, nên báo vòng trước là bắt họ gỡ một vòng
+   * có thể biến mất ngay khi sửa chữ đó.
+   */
+  it('hỏng cả hai kiểu ⇒ chỉ báo phụ thuộc thiếu, chưa báo vòng', () => {
+    const loi = docLoi(`jobs:
+  a:
+    needs:
+      - ghost
+    steps: []
+  b:
+    needs:
+      - c
+    steps: []
+  c:
+    needs:
+      - b
+    steps: []
+`);
+    expect(loi).toHaveLength(1);
+    expect(loi[0]?.message).toContain('ghost');
+  });
+
+  it('ĐỐI CHỨNG DƯƠNG — một DAG hợp lệ vẫn đọc được', () => {
+    const { workflow } = docOk(`jobs:
+  a:
+    needs:
+      - b
+    steps: []
+  b:
+    steps: []
+`);
+    expect(workflow.stages.map((s) => s.id).sort()).toEqual(['a', 'b']);
+  });
+});
+
+describe('19.C.4 — hai job trùng tên', () => {
+  /*
+   * AC-C đòi "C.4 từ chối được một YAML có hai job trùng tên".
+   *
+   * ⚠ Phép chặn KHÔNG nằm ở file này mà ở `core/yaml.ts`, và đó là kết luận của
+   * một phép đo chứ không phải một lựa chọn kiến trúc: plan P19 §19.C giả định
+   * hai job trùng tên đi tới engine thành hai mục cùng `id` trong
+   * `WorkflowSpec.stages`. Đo lại 2026-09-16 thì chúng KHÔNG tới được — bộ quét
+   * dựng map bằng `map[khoá] = giá trị` nên mục thứ hai đè mục thứ nhất, và bộ
+   * đọc này chỉ bao giờ thấy MỘT job. Mất dữ liệu im lặng, không phải trùng id.
+   */
+  it('hai job trùng tên bị TỪ CHỐI, kèm dòng của lần khai thứ hai', () => {
+    const loi = docLoi(`jobs:
+  build:
+    needs:
+      - test
+    steps: []
+  build:
+    steps: []
+  test:
+    steps: []
+`);
+    expect(loi).toHaveLength(1);
+    expect(loi[0]?.message).toContain('build');
+    expect(loi[0]?.line).toBe(6);
+  });
+
+  it('trùng tên ở cấp BƯỚC cũng bị bắt', () => {
+    const loi = docLoi(`jobs:
+  a:
+    steps:
+      - id: mot
+        id: hai
+`);
+    expect(loi).toHaveLength(1);
+    expect(loi[0]?.line).toBe(5);
+  });
+});

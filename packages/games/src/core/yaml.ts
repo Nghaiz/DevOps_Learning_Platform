@@ -31,9 +31,20 @@
  * ## KHÔNG nhận, và báo lỗi rõ ràng
  *
  * Tab thụt lề · anchor/alias · chuỗi nhiều dòng (`|`, `>`) · flow map/list có
- * nội dung. Báo lỗi tiếng Việt kèm DÒNG VÀ CỘT. Im lặng bỏ qua một dòng không
- * hiểu là cách một tài liệu "được nhận" rồi tạo ra một object thiếu field, và
- * người chơi sẽ đi tìm lỗi ở chỗ khác.
+ * nội dung · **khoá trùng trong cùng một map**. Báo lỗi tiếng Việt kèm DÒNG VÀ
+ * CỘT. Im lặng bỏ qua một dòng không hiểu là cách một tài liệu "được nhận" rồi
+ * tạo ra một object thiếu field, và người chơi sẽ đi tìm lỗi ở chỗ khác.
+ *
+ * ⚠ **Khoá trùng là lỗi CỨNG, và đó là một đổi hành vi có chủ đích** (19.C.4,
+ * 2026-09-16). Trước đó `map[khoá] = giá trị` chạy hai lần và lần sau ĐÈ lần
+ * trước: một tài liệu khai `build:` hai lần đọc ra đúng một job, job khai trước
+ * biến mất sạch, không lỗi, không cảnh báo — và mọi `needs` trỏ vào phần đã mất
+ * bỗng thành "phụ thuộc trỏ vào hư không" ở một chỗ khác hẳn nơi gây ra. Đo được
+ * ngày 2026-09-16, xem `yaml.test.ts` §"khoá trùng".
+ *
+ * Đây cũng là hành vi ĐÚNG về mặt dạy học: YAML 1.2 nói khoá trùng là lỗi, và bộ
+ * phân tích của các công cụ CI thật cũng từ chối. Nhận im lặng là dạy người học
+ * một điều sai mà họ sẽ trả giá trên đường ống thật.
  */
 
 export type YamlValue = string | number | boolean | null | YamlValue[] | { [key: string]: YamlValue };
@@ -426,6 +437,23 @@ function parseMapping(
     if (split === null) {
       throw new YamlError(
         `Dòng ${line.number}: không phải cặp "khoá: giá trị" — YAML của manifest cần dấu hai chấm.`,
+        line.number,
+        line.column,
+      );
+    }
+    /*
+     * Khoá trùng ⇒ lỗi cứng. Phải kiểm TRƯỚC mọi phép gán, vì cả hai nhánh bên
+     * dưới đều ghi thẳng `map[split.key]` và phép ghi thứ hai xoá mất giá trị
+     * thứ nhất không để lại dấu vết nào.
+     *
+     * `Object.hasOwn` chứ không phải `in`: `in` thấy cả khoá của prototype, nên
+     * một map khai `constructor:` hay `toString:` — khoá hợp lệ trong YAML — sẽ
+     * bị báo trùng ngay ở lần khai ĐẦU tiên.
+     */
+    if (Object.hasOwn(map, split.key)) {
+      throw new YamlError(
+        `Dòng ${line.number}: khoá "${split.key}" đã được khai ở map này rồi. ` +
+          'YAML không cho hai khoá trùng tên trong cùng một map — giữ im lặng thì giá trị khai trước biến mất.',
         line.number,
         line.column,
       );

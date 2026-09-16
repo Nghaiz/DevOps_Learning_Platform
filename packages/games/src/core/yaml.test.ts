@@ -401,3 +401,96 @@ describe('core/yaml — quy ước dòng/cột', () => {
     expect(positions.key(doc, 'b')).toEqual({ line: 2, column: 1 });
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Khoá trùng (19.C.4) — đổi hành vi có chủ đích, 2026-09-16
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('core/yaml — khoá trùng', () => {
+  /*
+   * ĐỐI CHỨNG DƯƠNG cho cả khối. Trước 2026-09-16 nguồn này quét XONG và trả
+   * `{build: {needs: ['lint']}}` — job `build` khai trước biến mất sạch, không
+   * lỗi, không cảnh báo. Ô test này đỏ nếu ai đó gỡ phép kiểm ra.
+   */
+  it('hai khoá trùng trong cùng map bị TỪ CHỐI, không âm thầm đè nhau', () => {
+    const { error, line, column } = parseFail(`jobs:
+  build:
+    needs:
+      - lint
+  build:
+    needs:
+      - test
+`);
+    expect(error).toContain('build');
+    expect(error).toContain('đã được khai');
+    expect(line).toBe(5);
+    expect(column).toBe(3);
+  });
+
+  it('lỗi trỏ vào lần khai THỨ HAI — đó là dòng người viết phải xoá', () => {
+    const { line } = parseFail('a: 1\nb: 2\na: 3\n');
+    expect(line).toBe(3);
+  });
+
+  it('khoá trùng ở map lồng cũng bị bắt, không chỉ ở gốc', () => {
+    const { error, line } = parseFail(`metadata:
+  name: web
+  name: api
+`);
+    expect(error).toContain('name');
+    expect(line).toBe(3);
+  });
+
+  it('khoá trùng trong một mục của dãy cũng bị bắt', () => {
+    const { line } = parseFail(`steps:
+  - run: a
+    run: b
+`);
+    expect(line).toBe(3);
+  });
+
+  /*
+   * Hai map ANH EM khai cùng một tên khoá là hình dạng bình thường nhất của
+   * YAML cấu hình. Phép kiểm phải theo từng map, không theo cả tài liệu — gộp
+   * lại sẽ từ chối gần như mọi manifest thật.
+   */
+  it('cùng tên khoá ở HAI map khác nhau là hợp lệ', () => {
+    const { doc } = firstMap(`build:
+  runs-on: linux
+test:
+  runs-on: linux
+`);
+    expect(asMap(doc['build'])['runs-on']).toBe('linux');
+    expect(asMap(doc['test'])['runs-on']).toBe('linux');
+  });
+
+  /*
+   * `Object.hasOwn` chứ không `in`: `'constructor' in {}` là `true` qua
+   * prototype, nên một phép kiểm viết bằng `in` sẽ báo trùng ngay ở lần khai
+   * ĐẦU. Ghim cả bốn khoá hay va vào prototype.
+   */
+  it.each(['constructor', 'toString', 'hasOwnProperty', 'valueOf'])(
+    'khoá "%s" khai MỘT lần vẫn hợp lệ — phép kiểm không đi qua prototype',
+    (khoa) => {
+      const { doc } = firstMap(`${khoa}: 1\nkhac: 2\n`);
+      expect(doc[khoa]).toBe(1);
+    },
+  );
+
+  it('khoá trên prototype khai HAI lần vẫn bị bắt', () => {
+    const { line } = parseFail('toString: 1\ntoString: 2\n');
+    expect(line).toBe(2);
+  });
+
+  it('khoá trùng nhau chỉ sau khi bỏ nháy vẫn là trùng', () => {
+    const { line } = parseFail('"a": 1\na: 2\n');
+    expect(line).toBe(2);
+  });
+
+  it('hai tài liệu ngăn bởi "---" không chia sẻ không gian khoá', () => {
+    const { documents } = parseOk('a: 1\n---\na: 2\n');
+    expect(documents).toHaveLength(2);
+    expect(asMap(documents[0])['a']).toBe(1);
+    expect(asMap(documents[1])['a']).toBe(2);
+  });
+});

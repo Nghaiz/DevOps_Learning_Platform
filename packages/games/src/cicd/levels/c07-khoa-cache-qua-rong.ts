@@ -129,7 +129,25 @@ cái nào vài commit một lần, cái nào không đổi lần nào.`,
     ],
   },
   evaluation: { baseSeed: 1907, passes: 4 },
-  editable: ['cache', 'stages'],
+  /*
+   * `edges` THÊM 2026-09-16, và nó sửa một lỗi dữ liệu chứ không nới quyền.
+   *
+   * `altSolutionWorkflow` của chính level này tách `cai-dat` thành `tai-goi` +
+   * `dung-cay`, rồi trỏ `kiem-tra` và `lint` sang `dung-cay`. Hai phép trỏ lại
+   * đó là sửa CẠNH trên stage đã có sẵn — không có `edges` thì người chơi không
+   * làm được, tức lời giải thay thế KHÔNG ĐI TỚI ĐƯỢC, và AC-F ("mỗi level ≥ 2
+   * lời giải cùng qua") là một lời khai chứ không phải một phép đo.
+   *
+   * Vì sao nó nằm im tới hôm nay: `editable` chưa bao giờ được MÃ NÀO đọc — chỗ
+   * duy nhất nhắc tới nó là một chú thích trong `contract.ts`. `hydrate.ts` là
+   * hộ tiêu dùng đầu tiên, và ô AC của nó đỏ ngay ở level này. Một trường không
+   * ai đọc thì trôi trong im lặng; xem `rules/wired-not-just-present.md`.
+   *
+   * Nói chung hơn: **cho thêm/bớt stage thì phải cho nối lại stage.** Bỏ một
+   * stage đi mà không sửa được cạnh trỏ tới nó chỉ để lại một phụ thuộc trỏ vào
+   * hư không.
+   */
+  editable: ['cache', 'stages', 'edges'],
   allowedKinds: null,
   objectives: [
     {

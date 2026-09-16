@@ -14,7 +14,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { StageId, StageSpec, WorkflowSpec } from './contract.ts';
-import { findCycle, findUnknownDependency, validateGraph } from './graph.ts';
+import {
+  findAllUnknownDependencies,
+  findCycle,
+  findUnknownDependency,
+  validateGraph,
+} from './graph.ts';
 
 /**
  * Stage tối thiểu. `steps`, `kind`, `retries`, `runnerClass` không ảnh hưởng gì
@@ -213,5 +218,47 @@ describe('graph — tất định, không phụ thuộc thứ tự mảng', () =
     const nguoc = workflow([stage('a', ['c', 'b']), stage('b', ['a']), stage('c')]);
     expect(findCycle(xuoi)).toEqual(findCycle(nguoc));
     expect(findCycle(xuoi)).toEqual(['a', 'b']);
+  });
+});
+
+describe('graph — findAllUnknownDependencies (19.C.4)', () => {
+  /*
+   * Vì sao có hàm thứ hai: engine chỉ mang được MỘT lỗi (`EvaluationError` cho
+   * `error` một giá trị), còn ô soạn YAML gạch chân được tất cả cùng lúc. Một
+   * luật, hai hình dạng kết quả — không phải hai luật.
+   */
+  it('trả về MỌI cạnh hỏng, không chỉ cái đầu tiên', () => {
+    const w = workflow([stage('a', ['ma-mot', 'ma-hai']), stage('b', ['ma-ba'])]);
+    expect(findAllUnknownDependencies(w).map((e) => e.missing)).toEqual(['ma-mot', 'ma-hai', 'ma-ba']);
+  });
+
+  it('thứ tự tất định: stage đã sắp, rồi thứ tự khai trong dependsOn', () => {
+    const stages = [stage('z', ['ma-z']), stage('a', ['ma-a2', 'ma-a1'])];
+    for (const hoan of hoanVi(stages)) {
+      expect(findAllUnknownDependencies(workflow(hoan)).map((e) => e.missing)).toEqual([
+        'ma-a2',
+        'ma-a1',
+        'ma-z',
+      ]);
+    }
+  });
+
+  it('đồ thị sạch ⇒ mảng rỗng, không phải null', () => {
+    expect(findAllUnknownDependencies(workflow([stage('a'), stage('b', ['a'])]))).toEqual([]);
+  });
+
+  /*
+   * Ghim rằng phép gộp KHÔNG đổi hành vi cũ: `findUnknownDependency` vẫn là
+   * "phần tử đầu của danh sách đầy đủ", không phải một lượt duyệt khác.
+   */
+  it('findUnknownDependency đúng bằng phần tử ĐẦU của danh sách đầy đủ', () => {
+    const w = workflow([stage('a', ['ma-mot', 'ma-hai']), stage('b', ['ma-ba'])]);
+    expect(findUnknownDependency(w)).toEqual(findAllUnknownDependencies(w)[0]);
+  });
+
+  it('findUnknownDependency trả null khi danh sách đầy đủ rỗng', () => {
+    const w = workflow([stage('a'), stage('b', ['a'])]);
+    expect(findAllUnknownDependencies(w)).toEqual([]);
+    expect(findUnknownDependency(w)).toBeNull();
   });
 });

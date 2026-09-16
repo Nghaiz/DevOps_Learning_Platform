@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 import type { Testcase } from './core/problem.ts';
 import type { GameAction } from './core/run-log.ts';
 import type { GitWorld, WorldSpec } from './git/contract.ts';
+import { CICD_UNSEEDED_REPLAY_SEED } from './cicd/problem-plugin.ts';
 import type { ClusterSpec } from './k8s/contract.ts';
 import { evaluatePredicate } from './git/predicates.ts';
 import { GIT_PROBLEM_PLUGIN, GIT_UNSEEDED_REPLAY_SEED } from './git/problem-plugin.ts';
@@ -78,6 +79,7 @@ const POD_KHONG_CO_NHUNG_CO = testcase('web-phai-vang', 'resource-absent', {
 const SEED_MAC_DINH = {
   k8s: K8S_UNSEEDED_REPLAY_SEED,
   git: GIT_UNSEEDED_REPLAY_SEED,
+  cicd: CICD_UNSEEDED_REPLAY_SEED,
 } as const;
 
 /**
@@ -116,8 +118,8 @@ describe('PROBLEM_PLUGINS — bảng đăng ký', () => {
     }
   });
 
-  it('hai game có plugin, bốn game còn lại chưa', () => {
-    expect(Object.keys(PROBLEM_PLUGINS).sort()).toEqual(['git', 'k8s']);
+  it('ba game có plugin, ba game còn lại chưa', () => {
+    expect(Object.keys(PROBLEM_PLUGINS).sort()).toEqual(['cicd', 'git', 'k8s']);
   });
 
   /*
@@ -130,9 +132,17 @@ describe('PROBLEM_PLUGINS — bảng đăng ký', () => {
     expect(new Set(prefixes).size).toBe(prefixes.length);
   });
 
+  /*
+   * ⚠ Game mẫu ĐỔI TỪ `cicd` SANG `pipeline` ở §19.H, và đó không phải một lượt
+   * nới cho xanh: `cicd` nay CÓ plugin, nên dùng nó ở đây sẽ đo ngược đúng thứ
+   * ô này sinh ra để đo. `pipeline` vẫn chưa có engine, nên nhánh `null` vẫn có
+   * một chủ thể thật. Ngày game cuối cùng có plugin, ô này phải được ĐẢO (khẳng
+   * định mọi game đều tra ra plugin), không phải xoá đi.
+   */
   it('`problemPluginMeta` trả `null` cho game chưa có plugin, không ném', () => {
-    expect(problemPluginMeta('cicd')).toBeNull();
+    expect(problemPluginMeta('pipeline')).toBeNull();
     expect(problemPluginMeta('k8s')?.codePrefix).toBe('K8S');
+    expect(problemPluginMeta('cicd')?.codePrefix).toBe('CICD');
   });
 });
 
@@ -144,7 +154,7 @@ describe('topics — tập đóng, có nhãn', () => {
    * giống hệt nhau), hoặc một chủ đề thiếu nhãn — `t()` trả chuỗi rỗng khi khoá
    * chữ chưa tồn tại, và một ô checkbox không nhãn trông như một lỗi render.
    */
-  it.each(['k8s', 'git'] as const)('%s: id duy nhất, nhãn không rỗng', (gameId) => {
+  it.each(['k8s', 'git', 'cicd'] as const)('%s: id duy nhất, nhãn không rỗng', (gameId) => {
     const topics = PROBLEM_PLUGINS[gameId]?.topics ?? [];
     expect(topics.length).toBeGreaterThan(0);
     expect(new Set(topics.map((topic) => topic.id)).size).toBe(topics.length);
@@ -214,7 +224,7 @@ describe('initialSpec — hàm chứ không phải hằng dùng chung', () => {
    * tab kia. Triệu chứng trên giao diện là "tự nhiên mất dữ liệu", không phải
    * một lỗi.
    */
-  it.each(['k8s', 'git'] as const)('%s: hai lần gọi cho hai object khác nhau', (gameId) => {
+  it.each(['k8s', 'git', 'cicd'] as const)('%s: hai lần gọi cho hai object khác nhau', (gameId) => {
     const plugin = PROBLEM_PLUGINS[gameId];
     const a = plugin?.initialSpec();
     const b = plugin?.initialSpec();
@@ -332,9 +342,12 @@ describe('gradeProblemRun — bài không chấm được thì nói ra', () => {
    * gì hỏng cả.
    */
   it('game chưa có plugin thì NÉM lỗi có tên, không trả GradeResult rỗng', () => {
+    // `pipeline`, không còn `cicd` — xem chú thích ở `problemPluginMeta` trên.
+    // Dùng một game ĐÃ có plugin ở đây sẽ làm ô này xanh vì một lý do khác hẳn
+    // (nó chấm được thật), tức một ô gác không còn gác gì.
     expect(() =>
       gradeProblemRun({
-        gameId: 'cicd',
+        gameId: 'pipeline',
         initialState: {},
         actions: [],
         testcases: [POD_CO],
@@ -356,7 +369,7 @@ describe('gradeProblemRun — bài không chấm được thì nói ra', () => {
     expect(ket_qua.failedReason).toContain('git');
   });
 
-  it.each(['k8s', 'git'] as const)('%s: bài không có testcase nào thì `CE`', (gameId) => {
+  it.each(['k8s', 'git', 'cicd'] as const)('%s: bài không có testcase nào thì `CE`', (gameId) => {
     const ket_qua = gradeProblemRun({
       gameId,
       initialState: PROBLEM_PLUGINS[gameId]?.initialSpec(),
@@ -373,7 +386,7 @@ describe('gradeProblemRun — bài không chấm được thì nói ra', () => {
    * đó là đúng (hỏng một level, không hỏng phiên chơi). Ở một OJ CÓ CHẤM ĐIỂM
    * thì bỏ qua nghĩa là một testcase vĩnh viễn đỏ, trông y hệt một lời giải sai.
    */
-  it.each(['k8s', 'git'] as const)('%s: vị từ không tồn tại thì `CE`, không phải `WA`', (gameId) => {
+  it.each(['k8s', 'git', 'cicd'] as const)('%s: vị từ không tồn tại thì `CE`, không phải `WA`', (gameId) => {
     const ket_qua = gradeProblemRun({
       gameId,
       initialState: PROBLEM_PLUGINS[gameId]?.initialSpec(),

@@ -6,7 +6,7 @@ import { Button, cn } from '@devops-platform/ui';
 import type { ObjectView } from '@devops-platform/games';
 import type { ArenaEdit } from '../arena-contract.ts';
 import { refOf } from './inspector-action-list.ts';
-import { YamlEditor } from './yaml-editor.tsx';
+import { YamlEditor } from '../../games/shared/yaml-editor.tsx';
 
 /** Bao lâu nút giữ trạng thái "Đã chép" trước khi trở lại. */
 const COPIED_MS = 2000;

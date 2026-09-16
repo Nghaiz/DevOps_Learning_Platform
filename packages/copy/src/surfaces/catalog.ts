@@ -100,6 +100,7 @@ export const catalog = {
   'catalog.meta-title.games': 'Games · DevOps Learning Platform',
   'catalog.meta-title.games-k8s': 'Kubernetes Arena · DevOps Learning Platform',
   'catalog.meta-title.games-git': 'Phòng thí nghiệm Git · DevOps Learning Platform',
+  'catalog.meta-title.games-cicd': 'Đường ống CI/CD · DevOps Learning Platform',
   'catalog.meta-title.problems': 'Bài tập · DevOps Learning Platform',
 
   /**
@@ -117,6 +118,8 @@ export const catalog = {
     'Dựng và cứu một cluster Kubernetes qua từng level, ngay trong trình duyệt.',
   'catalog.games.git-meta-description':
     'Gõ lệnh git thật trên một kho mô phỏng: nắn lịch sử, giải conflict, cứu commit đã mất.',
+  'catalog.games.cicd-meta-description':
+    'Xếp job CI thành đồ thị phụ thuộc rồi chỉnh cho nhanh và ổn định: runner, cache, retry, đường găng.',
 
   // ── Đoạn dẫn của bảy màn ──────────────────────────────────────────────
   'catalog.lead.lessons': 'Mỗi bài mở một sandbox riêng. Tiến độ chỉ mình bạn thấy.',
@@ -374,14 +377,20 @@ export const catalog = {
     thuật (`k8s`): id là chuyện của kho lưu, còn đây là một danh sách người ta
     phải nhận ra tên trong đó.
 
-    Hai khoá lồng dưới `catalog.problems.game`, chưa chạm cổng rule-of-three.
-    Game thứ ba có chủ đề sẽ làm cổng đó bật , đúng lúc cần một lời khai, vì khi
-    ấy nhóm này thật sự thành một phân loại.
+    Ba khoá lồng dưới `catalog.problems.game`, và 19.H là lượt làm cổng
+    rule-of-three BẬT LÊN đúng như đoạn trên đã đoán. Lời khai nằm ở
+    `catalogIntentionalThree` cuối file; đọc nó trước khi thêm khoá thứ tư, vì
+    thêm khoá thứ tư sẽ làm chính dòng miễn trừ đó thành ôi và T3 đòi xoá.
+
+    Khoá lồng (`game.cicd`) chứ không phẳng (`game-cicd`) là CHỦ Ý: cổng gom
+    theo tiền tố chỉ cắt ở dấu chấm, nên một nhóm ba đặt tên phẳng đi qua vô
+    hình. Đặt lồng là cách duy nhất để cổng nhìn thấy nhóm này.
   */
   'catalog.problems.game-legend': 'Game',
   'catalog.problems.game-hint': 'Chọn game để đổi danh sách chủ đề bên dưới.',
   'catalog.problems.game.k8s': 'Kubernetes Game',
   'catalog.problems.game.git': 'Git Game',
+  'catalog.problems.game.cicd': 'CI/CD Game',
 
   /*
    * Nhãn của HÀNG NÚT chọn game ở đầu trang, khoá riêng chứ không mượn
@@ -881,5 +890,7 @@ export const catalogIntentionalThree = {
     '2026-09-10: đúng ba trạng thái tồn tại trong PROGRESS_STATUSES tại apps/web/src/server/trpc/routers/lessons.ts dòng 61 (not-started, in-progress, completed). Trang danh mục đọc thẳng giá trị đó, nên nhóm này bằng đúng miền dữ liệu chứ không phải một lựa chọn trình bày.',
   'catalog.error-hint':
     '2026-09-10: đúng ba câu vì CatalogErrorKind là union đóng ba nhánh (retryable, stale-cursor, unknown) tại apps/web/src/components/catalog/catalog-error-kind.ts. Hai lớp lỗi đòi hành động ngược nhau và nhánh thứ ba cố ý nói ít; thêm một câu thứ tư là thêm một nhánh phân loại, không phải thêm một câu.',
+  'catalog.problems.game':
+    '2026-09-16: ba nhãn vì đúng ba game có từ vựng chủ đề để bộ chọn đổi qua lại (k8s, git, cicd), và ba KHÔNG PHẢI một con số đóng. GameId có sáu thành viên tại packages/games/src/core/types.ts dòng 31; ba cái còn lại (pipeline, netpol, dockerfile) chưa có plugin bài nên chưa có gì để chọn. Game thứ tư có plugin sẽ làm nhóm này thành bốn và dòng miễn trừ này thành ôi, và lúc đó việc phải làm là XOÁ nó, không phải sửa số.',
 } as const satisfies IntentionalThree;
 

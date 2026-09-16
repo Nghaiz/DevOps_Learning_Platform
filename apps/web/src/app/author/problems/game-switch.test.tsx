@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { t } from '@devops-platform/copy';
+import type { GameId } from '@devops-platform/games';
 import {
   AUTHORABLE_GAMES,
   authorFieldPaths,
@@ -150,7 +151,14 @@ function radiosIn(group: HTMLElement): readonly HTMLInputElement[] {
   return within(group).getAllByRole('radio') as HTMLInputElement[];
 }
 
-function radioFor(group: HTMLElement, gameId: 'k8s' | 'git'): HTMLInputElement {
+/*
+ * Kiểu tham số nới từ `'k8s' | 'git'` sang `GameId` ngày 2026-09-16 (19.H).
+ *
+ * Danh sách hai tên là một bản chép tay của bảng đăng ký, và nó vừa lỗi thời
+ * trong im lặng: `vitest` xanh với `'cicd'` vì nó không kiểm kiểu, chỉ `tsc` đỏ.
+ * Đọc thẳng `GameId` thì game thứ tư không phải sửa dòng này.
+ */
+function radioFor(group: HTMLElement, gameId: GameId): HTMLInputElement {
   const found = radiosIn(group).find((radio) => radio.value === gameId);
   if (found === undefined) {
     throw new Error(`khong thay radio cho game ${gameId}`);
@@ -165,9 +173,19 @@ function checkedValues(group: HTMLElement): readonly string[] {
 }
 
 describe('chon game doi bieu mau soan bai', () => {
-  it('bang dang ky liet ke dung hai game co bai tap', () => {
-    expect(AUTHORABLE_GAMES.map((game) => game.gameId)).toEqual(['k8s', 'git']);
-    expect(AUTHORABLE_GAMES.map((game) => game.codePrefix)).toEqual(['K8S', 'GIT']);
+  /*
+   * ĐẢO 2026-09-16 (19.H): `cicd` có plugin chấm bài, nên nó vào bảng đăng ký.
+   *
+   * `AUTHORABLE_GAMES` suy ra từ `PROBLEM_PLUGINS` chứ không khai tay, nên ô này
+   * ghim DANH TÍNH và đỏ đúng lúc bảng đăng ký đổi — đó là việc của nó. Lời dặn
+   * khi nó đỏ là đọc xem cái tên mới có đáng ở đó không, không phải nới số.
+   *
+   * Ba `GameId` còn lại (`pipeline`, `netpol`, `dockerfile`) vẫn chưa có engine
+   * chấm; ngày một trong số đó có plugin, ô này phải đỏ lại.
+   */
+  it('bang dang ky liet ke dung ba game co bai tap', () => {
+    expect(AUTHORABLE_GAMES.map((game) => game.gameId)).toEqual(['k8s', 'git', 'cicd']);
+    expect(AUTHORABLE_GAMES.map((game) => game.codePrefix)).toEqual(['K8S', 'GIT', 'CICD']);
   });
 
   it('o chon game co nhan va di duoc bang ban phim', async () => {
@@ -219,10 +237,18 @@ describe('chon game doi bieu mau soan bai', () => {
     await user.tab();
     expect(group.contains(document.activeElement)).toBe(false);
 
-    // Trong nhóm thì phím mũi tên mới là thứ chuyển giữa các lựa chọn.
+    /*
+     * Trong nhóm thì phím mũi tên mới là thứ chuyển giữa các lựa chọn.
+     *
+     * ⚠ Đích của `{ArrowRight}` ĐỔI 2026-09-16 (19.H): trước đây nhóm có hai ô
+     * nên từ `git` mũi tên phải QUAY VÒNG về `k8s`. Nay có ba, và ô kế `git`
+     * theo thứ tự `AUTHORABLE_GAMES` là `cicd`. Ô này đo "mũi tên đi được hai
+     * chiều trong nhóm", không đo phép quay vòng — nên đích đổi là đúng, và một
+     * ngày nào đó thêm game thứ tư thì nó KHÔNG đổi nữa.
+     */
     radioFor(group, 'git').focus();
     await user.keyboard('{ArrowRight}');
-    expect(document.activeElement).toBe(radioFor(group, 'k8s'));
+    expect(document.activeElement).toBe(radioFor(group, 'cicd'));
     await user.keyboard('{ArrowLeft}');
     expect(document.activeElement).toBe(radioFor(group, 'git'));
   });

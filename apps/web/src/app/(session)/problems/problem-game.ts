@@ -47,7 +47,17 @@ const GAME_NAMES: Readonly<Record<GameId, string | null>> = {
   pipeline: null,
   netpol: null,
   dockerfile: null,
-  cicd: null,
+  /*
+   * 19.H. Tên đi TRƯỚC từ vựng chủ đề, và thứ tự đó là chủ ý.
+   *
+   * `PROBLEM_FILTER_GAMES` đòi CẢ tên lẫn từ vựng, nên khai tên khi
+   * `problemTopicLabels('cicd')` còn rỗng KHÔNG làm game hiện ra ở bộ chọn — nó
+   * chỉ làm cho ngày từ vựng tới, không ai phải nhớ quay lại đây. Chiều ngược
+   * lại mới là chiều hỏng im lặng: có từ vựng mà thiếu tên thì game biến mất
+   * khỏi bộ chọn và đọc ra y hệt "game này chưa có chủ đề" (ô đầu của
+   * `problem-game.test.ts` gác đúng vế đó).
+   */
+  cicd: t('catalog.problems.game.cicd'),
 };
 
 /**
