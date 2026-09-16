@@ -35,7 +35,13 @@ export function CicdCampaign({ onPick, onSandbox }: CicdCampaignProps): ReactEle
         </Button>
       </header>
 
-      <ol className="grid gap-3 md:grid-cols-2">
+      {/*
+        `data-testid` để ô Playwright đếm đúng danh sách này. Đếm theo văn bản
+        hiển thị (`01`, `02`, …) sẽ bắt nhầm ngay khi một khối khác trên trang
+        có số thứ tự — và bắt nhầm bằng cách trả 0 phần tử, tức ô test đỏ vì
+        selector chứ không vì sản phẩm.
+      */}
+      <ol data-testid="cicd-level-list" className="grid gap-3 md:grid-cols-2">
         {CI_LEVELS.map((level, index) => (
           <li key={level.id}>
             <button

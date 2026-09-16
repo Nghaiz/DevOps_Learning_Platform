@@ -141,6 +141,7 @@ export function CicdResultPanel({
       <div className="grid gap-3 sm:grid-cols-3">
         <AxisCard
           label="① Lead time"
+          testId="cicd-axis-lead"
           hint="Một commit mất bao lâu từ lúc đẩy lên tới lúc xanh."
           value={formatSeconds(axes.leadTimeSeconds)}
           distribution={summary.leadTimeSeconds}
@@ -151,6 +152,7 @@ export function CicdResultPanel({
         />
         <AxisCard
           label="② Thông lượng"
+          testId="cicd-axis-throughput"
           hint="Bao nhiêu commit qua được mỗi giờ khi hàng dồn."
           value={`${formatNumber(axes.throughputPerHour)} commit/giờ`}
           distribution={summary.throughputPerHour}
@@ -161,6 +163,7 @@ export function CicdResultPanel({
         />
         <AxisCard
           label="③ Runner-phút"
+          testId="cicd-axis-runner"
           hint="Tài nguyên máy chạy tiêu tốn cho mỗi lượt."
           value={`${formatNumber(axes.runnerMinutes)} runner-phút`}
           distribution={summary.runnerMinutes}
@@ -208,6 +211,14 @@ interface AxisCardProps {
   readonly label: string;
   readonly hint: string;
   readonly value: string;
+  /**
+   * Móc cho Playwright đọc đúng con số của trục này.
+   *
+   * Cần vì ô AC quan trọng nhất của màn là "ba trục KHÁC 0", và nhãn hiển thị
+   * (`① Lead time`) là văn bản sản phẩm — đổi chữ một lần là ô đo im lặng bắt
+   * nhầm phần tử hoặc bắt trượt. Cùng lý lẽ `git-sandbox-panel` đã ghi.
+   */
+  readonly testId: string;
   readonly distribution: AxisDistribution;
   readonly format: (value: number) => string;
   readonly target: string;
@@ -231,11 +242,13 @@ function AxisCard({
   target,
   good,
   over,
+  testId,
 }: AxisCardProps): ReactElement {
   return (
     <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted px-4 py-3">
       <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{label}</span>
       <span
+        data-testid={testId}
         className={
           over ? 'text-xl font-semibold text-destructive' : good ? 'text-xl font-semibold text-success' : 'text-xl font-semibold text-foreground'
         }
